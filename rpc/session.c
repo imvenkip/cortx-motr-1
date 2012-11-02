@@ -879,6 +879,13 @@ c2_rpc_session_get_max_item_size(const struct c2_rpc_session *session)
 		c2_rpc_packet_onwire_header_size();
 }
 
+c2_bcount_t
+c2_rpc_session_get_max_item_payload_size(const struct c2_rpc_session *session)
+{
+	return c2_rpc_session_get_max_item_size(session) -
+	       c2_rpc_item_onwire_header_size();
+}
+
 void c2_rpc_session_hold_busy(struct c2_rpc_session *session)
 {
 	++session->s_hold_cnt;
@@ -972,23 +979,33 @@ int c2_rpc_session_cob_create(struct c2_cob   *conn_cob,
 	C2_RETURN(rc);
 }
 
+uint64_t uuid_generate(void)
+{
+	static struct c2_atomic64 cnt;
+	uint64_t                  uuid;
+	uint64_t                  sec;
+
+	do {
+		c2_atomic64_inc(&cnt);
+		sec = c2_time_nanoseconds(c2_time_now()) * 1000000;
+		uuid = (sec << 10) | (c2_atomic64_get(&cnt) & 0x3FF);
+	} while (uuid == 0 || uuid == SENDER_ID_INVALID);
+
+	return uuid;
+}
+
 /**
    Allocates and returns new session_id
  */
 uint64_t session_id_allocate(void)
 {
-	static struct c2_atomic64 cnt;
 	uint64_t                  session_id;
-	uint64_t                  sec;
 	bool                      session_id_is_valid;
 
 	C2_ENTRY();
 
 	do {
-		c2_atomic64_inc(&cnt);
-		sec = c2_time_nanoseconds(c2_time_now()) * 1000000;
-
-		session_id = (sec << 10) | (c2_atomic64_get(&cnt) & 0x3FF);
+		session_id = uuid_generate();
 		session_id_is_valid = (session_id > SESSION_ID_MIN &&
 				       session_id < SESSION_ID_MAX);
 

@@ -57,13 +57,9 @@ void c2_rpc_session_module_fini(void)
         c2_rpc_session_fop_fini();
 }
 
-void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u)
+void c2_rpc_sender_uuid_get(struct c2_rpc_sender_uuid *u)
 {
-	/* XXX temporary */
-	uint64_t  rnd;
-
-	rnd = c2_time_nanoseconds(c2_time_now()) * 1000;
-	u->su_uuid = c2_rnd(~0ULL >> 16, &rnd);
+	u->su_uuid = uuid_generate();
 }
 
 int c2_rpc_sender_uuid_cmp(const struct c2_rpc_sender_uuid *u1,

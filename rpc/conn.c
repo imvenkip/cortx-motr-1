@@ -92,8 +92,6 @@ static void __conn_fini(struct c2_rpc_conn *conn);
 
 static void conn_failed(struct c2_rpc_conn *conn, int32_t error);
 
-static uint64_t sender_id_allocate(void);
-
 /*
  * This is sender side item_ops of conn_establish fop.
  * Receiver side conn_establish fop has different item_ops
@@ -279,7 +277,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
 	c2_rpc_machine_lock(machine);
 
 	conn->c_flags = RCF_SENDER_END;
-	c2_rpc_sender_uuid_generate(&conn->c_uuid);
+	c2_rpc_sender_uuid_get(&conn->c_uuid);
 
 	rc = __conn_init(conn, ep, machine, max_rpcs_in_flight);
 	if (rc == 0) {
@@ -1023,7 +1021,7 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 	conn_state_set(conn, C2_RPC_CONN_CONNECTING);
 	rc = c2_db_tx_init(&tx, machine->rm_dom->cd_dbenv, 0);
 	if (rc == 0) {
-		sender_id = sender_id_allocate();
+		sender_id = uuid_generate();
 		rc = conn_persistent_state_attach(conn, sender_id, &tx);
 		if (rc == 0)
 			rc = c2_db_tx_commit(&tx);
@@ -1039,24 +1037,6 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 
 	C2_POST(c2_rpc_machine_is_locked(machine));
 	C2_RETURN(rc);
-}
-
-/**
-   Allocates and returns new sender_id
- */
-static uint64_t sender_id_allocate(void)
-{
-	static struct c2_atomic64 cnt;
-	uint64_t                  sender_id;
-	uint64_t                  sec;
-
-	do {
-		c2_atomic64_inc(&cnt);
-		sec = c2_time_nanoseconds(c2_time_now()) * 1000000;
-		sender_id = (sec << 10) | (c2_atomic64_get(&cnt) & 0x3FF);
-	} while (sender_id == 0 || sender_id == SENDER_ID_INVALID);
-
-	return sender_id;
 }
 
 static int conn_persistent_state_destroy(struct c2_rpc_conn *conn,

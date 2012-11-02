@@ -3052,7 +3052,7 @@ static int bulk_buffer_add(struct io_req_fop	   *irfop,
 			   uint32_t		   *delta,
 			   uint32_t		    maxsize)
 {
-	int		   rc = 0;
+	int		   rc;
 	int		   seg_nr;
 	struct io_request *req;
 
@@ -3078,6 +3078,9 @@ static int bulk_buffer_add(struct io_req_fop	   *irfop,
 			*delta -= io_desc_size(dom);
 			C2_RETERR(rc, "Failed to add rpc_bulk_buffer");
 		}
+	} else {
+		rc      = -ENOSPC;
+		*delta -= io_desc_size(dom);
 	}
 
 	C2_POST(ergo(rc == 0, *rbuf != NULL));
@@ -3092,7 +3095,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	/* Number of segments in one c2_rpc_bulk_buf structure. */
 	uint32_t		        bbsegs;
 	uint32_t		        maxsize;
-	uint32_t		        delta = 0;
+	uint32_t		        delta;
 	enum page_attr		        rw;
 	struct io_request              *req;
 	struct io_req_fop              *irfop;
@@ -3111,10 +3114,11 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 	ndom	= ti->ti_session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
 	rw      = ioreq_sm_state(req) == IRS_READING ? PA_READ : PA_WRITE;
-	maxsize = c2_max_fop_size(ti->ti_session->s_conn->c_rpc_machine);
+	maxsize = c2_rpc_session_get_max_item_payload_size(ti->ti_session);
 
 	while (buf < SEG_NR(&ti->ti_ivec)) {
 
+		delta  = 0;
 		bbsegs = 0;
 		if (!(ti->ti_pageattrs[buf] & filter)) {
 			++buf;
@@ -3182,7 +3186,9 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					delta -= io_seg_size();
 					rc     = bulk_buffer_add(irfop, ndom,
 							&rbuf, &delta, maxsize);
-					if (rc != 0)
+					if (rc == -ENOSPC)
+						break;
+					else if (rc != 0)
 						goto fini_fop;
 
 					/*

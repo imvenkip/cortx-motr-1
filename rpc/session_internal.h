@@ -87,10 +87,12 @@ int c2_rpc_session_init_locked(struct c2_rpc_session *session,
 			       uint32_t               nr_slots);
 void c2_rpc_session_fini_locked(struct c2_rpc_session *session);
 
+void c2_rpc_sender_uuid_get(struct c2_rpc_sender_uuid *u);
+
 /**
    Generates UUID
  */
-void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u);
+uint64_t uuid_generate(void);
 
 /**
    3WAY comparison function for UUID

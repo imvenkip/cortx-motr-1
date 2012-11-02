@@ -1073,6 +1073,10 @@ int c2_rpc_session_destroy(struct c2_rpc_session *session,
 c2_bcount_t
 c2_rpc_session_get_max_item_size(const struct c2_rpc_session *session);
 
+/** Returns maximum possible size of RPC item payload. */
+c2_bcount_t
+c2_rpc_session_get_max_item_payload_size(const struct c2_rpc_session *session);
+
 void session_state_set(struct c2_rpc_session *session, int state);
 
 static inline int session_state(const struct c2_rpc_session *session)

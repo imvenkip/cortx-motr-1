@@ -728,7 +728,7 @@ static void target_ioreq_test(void)
 		C2_UT_ASSERT(!c2_tlist_is_empty(&rpcbulk_tl,
 						&rbulk->rb_buflist));
 		C2_UT_ASSERT(c2_io_fop_size_get(&irfop->irf_iofop.if_fop) <=
-			     c2_max_fop_size(conn.c_rpc_machine));
+			c2_rpc_session_get_max_item_payload_size(&session));
 	} c2_tl_endfor;
 
 	c2_tl_for(iofops, &ti.ti_iofops, irfop) {
