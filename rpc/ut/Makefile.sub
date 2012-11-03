@@ -6,7 +6,4 @@ ut_libcolibri_ut_la_SOURCES += rpc/ut/rpclib_ut.c \
                                rpc/ut/session.c \
                                rpc/ut/item.c
 
-# TODO: check if these ping fop/fom files are really needed in UT code
-                               #rpc/it/ping_fom.c \
-                               #rpc/it/ping_fop.c \
-                               #rpc/it/ping_fop_ff.c
+EXTRA_DIST                  += rpc/ut/clnt_srv_ctx.c
