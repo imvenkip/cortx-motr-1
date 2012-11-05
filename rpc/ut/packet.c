@@ -48,8 +48,6 @@ static void item_compare(struct c2_rpc_item *item1, struct c2_rpc_item *item2);
 static void fop_data_compare(struct c2_fop *fop1, struct c2_fop *fop2);
 static void cmp_ping_fop_data(struct c2_fop_ping_arr *fp_arr1,
 			      struct c2_fop_ping_arr *fp_arr2);
-static void cmp_addb_record_header(struct c2_addb_record_header *header1,
-				   struct c2_addb_record_header *header2);
 static void cmp_addb_record_buf(struct c2_mem_buf *buf1,
 				struct c2_mem_buf *buf2);
 static void packet_fini(struct c2_rpc_packet *packet);
@@ -68,7 +66,7 @@ static int packet_encdec_ut_fini(void)
 	return 0;
 }
 
-void test_packet_encode_decode(void)
+static void test_packet_encode_decode(void)
 {
 	struct c2_rpc_item  *item;
 	struct c2_rpc_packet packet;
@@ -93,7 +91,6 @@ void test_packet_encode_decode(void)
 	C2_UT_ASSERT(rc == 0);
 	rc = c2_rpc_packet_encode(&packet, &bufvec);
 	C2_UT_ASSERT(rc == 0);
-	bufvec_size = c2_vec_count(&bufvec.ov_vec);
 	c2_rpc_packet_init(&decoded_packet);
 	rc = c2_rpc_packet_decode(&decoded_packet, &bufvec, 0, bufvec_size);
 	C2_UT_ASSERT(rc == 0);
@@ -226,9 +223,7 @@ static void packet_compare(struct c2_rpc_packet *p1, struct c2_rpc_packet *p2)
 	struct c2_fop      *fop2;
 
 	C2_UT_ASSERT(cmp_field(p1, p2, rp_size));
-	C2_UT_ASSERT(cmp_field(&p1->rp_ow, &p2->rp_ow, poh_version));
-	C2_UT_ASSERT(cmp_field(&p1->rp_ow, &p2->rp_ow, poh_nr_items));
-	C2_UT_ASSERT(cmp_field(&p1->rp_ow, &p2->rp_ow, poh_magic));
+	C2_UT_ASSERT(memcmp(&p1->rp_ow, &p2->rp_ow, sizeof p1->rp_ow) == 0);
 
 	for (item1 = c2_tlist_head(&packet_item_tl, &p1->rp_items),
 	     item2 = c2_tlist_head(&packet_item_tl, &p2->rp_items);
@@ -249,20 +244,7 @@ static void item_compare(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
 	struct c2_rpc_onwire_slot_ref *sr_ow2 = &item2->ri_slot_refs[0].sr_ow;
 
 	C2_UT_ASSERT(cmp_field(item1, item2, ri_type->rit_opcode));
-	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_verno.vn_lsn));
-	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_sender_id));
-	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_session_id));
-	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_verno.vn_vc));
-	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_uuid.su_uuid));
-	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2,
-			       osr_last_persistent_verno.vn_lsn));
-	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2,
-			       osr_last_persistent_verno.vn_vc));
-	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_last_seen_verno.vn_lsn));
-	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_last_seen_verno.vn_vc));
-	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_slot_id));
-	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_xid));
-	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_slot_gen));
+	C2_UT_ASSERT(memcmp(sr_ow1, sr_ow2, sizeof *sr_ow1) == 0);
 }
 
 static void fop_data_compare(struct c2_fop *fop1, struct c2_fop *fop2)
@@ -294,8 +276,9 @@ static void fop_data_compare(struct c2_fop *fop1, struct c2_fop *fop2)
 	case C2_ADDB_RECORD_REQUEST_OPCODE:
 		addb_data1 = c2_fop_data(fop1);
 		addb_data2 = c2_fop_data(fop2);
-		cmp_addb_record_header(&addb_data1->ar_header,
-				       &addb_data2->ar_header);
+		C2_UT_ASSERT(memcmp(&addb_data1->ar_header,
+			     &addb_data2->ar_header,
+			     sizeof addb_data2->ar_header) == 0);
 		cmp_addb_record_buf(&addb_data1->ar_data, &addb_data2->ar_data);
 	}
 }
@@ -308,17 +291,6 @@ static void cmp_ping_fop_data(struct c2_fop_ping_arr *fp_arr1,
 	C2_UT_ASSERT(fp_arr2->f_data != NULL);
 	C2_UT_ASSERT(c2_forall(i, fp_arr1->f_count,
 		               fp_arr1->f_data[i] == fp_arr2->f_data[i]));
-}
-
-static void cmp_addb_record_header(struct c2_addb_record_header *header1,
-				   struct c2_addb_record_header *header2)
-{
-	C2_UT_ASSERT(cmp_field(header1, header2, arh_magic1));
-	C2_UT_ASSERT(cmp_field(header1, header2, arh_version));
-	C2_UT_ASSERT(cmp_field(header1, header2, arh_len));
-	C2_UT_ASSERT(cmp_field(header1, header2, arh_event_id));
-	C2_UT_ASSERT(cmp_field(header1, header2, arh_timestamp));
-	C2_UT_ASSERT(cmp_field(header1, header2, arh_magic2));
 }
 
 static void cmp_addb_record_buf(struct c2_mem_buf *buf1,
