@@ -22,7 +22,6 @@
 #include "xcode/bufvec_xcode.h"  /* c2_xcode_fop_size_get */
 #include "fop/fop_base.h"        /* c2_fop_type_ops */
 #include "fop/fop_format.h"      /* C2_FOP_TYPE_DECLARE */
-#include "rpc/rpc_base.h"        /* C2_RPC_ITEM_TYPE_{REQUEST,REPLY} */
 #include "rpc/rpc_opcodes.h"
 
 static const struct c2_fop_type_ops fopt_ops = {

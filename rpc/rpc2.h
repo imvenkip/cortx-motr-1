@@ -21,7 +21,7 @@
  */
 
 /**
-   @defgroup rpc_layer_core RPC layer core
+   @defgroup rpc RPC
    @page rpc-layer-core-dld RPC layer core DLD
    @section Overview
    RPC layer core is used to transmit rpc items and groups of them.
@@ -37,8 +37,14 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #ifndef __COLIBRI_RPC_RPCCORE_H__
 #define __COLIBRI_RPC_RPCCORE_H__
 
+#include "lib/arith.h"                /* max32u */
 #include "rpc/rpc_machine.h"
+#include "rpc/conn.h"
+#include "rpc/session.h"
+#include "rpc/item.h"
 #include "rpc/bulk.h"
+#include "rpc/service.h"
+#include "rpc/rpc_helpers.h"
 #include "net/buffer_pool.h"
 #include "rpc/item.h"        /* c2_rpc_item_onwire_header_size() */
 
@@ -47,14 +53,8 @@ extern const struct c2_addb_ctx_type c2_rpc_addb_ctx_type;
 extern const struct c2_addb_loc      c2_rpc_addb_loc;
 extern       struct c2_addb_ctx      c2_rpc_addb_ctx;
 
-int  c2_rpc_core_init(void);
-void c2_rpc_core_fini(void);
-
-/** Increments item's reference counter. */
-void c2_rpc_item_get(struct c2_rpc_item *item);
-
-/** Decrements item's reference counter. */
-void c2_rpc_item_put(struct c2_rpc_item *item);
+int  c2_rpc_init(void);
+void c2_rpc_fini(void);
 
 /**
  * Calculates the total number of buffers needed in network domain for
@@ -172,7 +172,7 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
 
-/** @} end group rpc_layer_core */
+/** @} end group rpc */
 
 #endif /* __COLIBRI_RPC_RPCCORE_H__  */
 

@@ -25,6 +25,11 @@
 #define __COLIBRI_RPC_FORMATION2_H__
 
 /**
+ * @addtogroup rpc
+ * @{
+ */
+
+/**
    Formation component for Colibri RPC layer is what IO scheduler is for
    block device. Because of network layer overhead associated with each
    message (i.e. buffer), sending each individual RPC item directly to network
@@ -327,4 +332,8 @@ struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s);
 C2_TL_DESCR_DECLARE(itemq, extern);
 C2_TL_DECLARE(itemq, extern, struct c2_rpc_item);
 
+struct c2_rpc_chan    *frm_rchan(const struct c2_rpc_frm *frm);
+struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm);
+
+/** @} */
 #endif /* __COLIBRI_RPC_FORMATION2_H__ */

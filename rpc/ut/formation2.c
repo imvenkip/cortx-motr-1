@@ -26,11 +26,10 @@
 #include "lib/finject.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_UT
 #include "lib/trace.h"
-#include "rpc/formation2.h"
-#include "rpc/rpc2.h"
-#include "rpc/packet.h"
-#include "rpc/item.h"
 #include "sm/sm.h"
+
+#include "rpc/rpc2.h"
+#include "rpc/rpc2_internal.h"
 
 static struct c2_rpc_frm             *frm;
 static struct c2_rpc_frm_constraints  constraints;

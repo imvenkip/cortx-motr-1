@@ -24,17 +24,15 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"    /* C2_BITS */
-#include "rpc/session.h"
 #include "lib/bitstring.h"
-#include "cob/cob.h"
-#include "fop/fop.h"
 #include "lib/arith.h"
 #include "lib/finject.h"
-#include "rpc/session_ff.h"
-#include "rpc/session_internal.h"
+#include "cob/cob.h"
+#include "fop/fop.h"
 #include "db/db.h"
-#include "rpc/session_fops.h"
+
 #include "rpc/rpc2.h"
+#include "rpc/rpc2_internal.h"
 
 /**
    @addtogroup rpc_session
@@ -1178,4 +1176,6 @@ int c2_rpc_conn_session_list_print(const struct c2_rpc_conn *conn)
 	} c2_tl_endfor;
 	return 0;
 }
+
+/** @} */
 #endif

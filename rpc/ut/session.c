@@ -21,11 +21,10 @@
 #include "lib/ut.h"
 #include "lib/mutex.h"
 #include "lib/finject.h"
-#include "rpc/session.h"
-#include "rpc/session_internal.h"
-#include "rpc/rpc2.h"
 #include "fop/fop.h"
-#include "rpc/session_ff.h"
+
+#include "rpc/rpc2.h"
+#include "rpc/rpc2_internal.h"
 
 enum {
 	SENDER_ID  = 1001,

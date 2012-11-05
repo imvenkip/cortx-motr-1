@@ -26,13 +26,15 @@
 #include "lib/errno.h"
 #include "lib/finject.h"
 #include "colibri/magic.h"
-#include "rpc/packet.h"
-#include "rpc/rpc2.h"
-#include "rpc/item.h"
-#include "rpc/rpc_helpers.h"
-#include "rpc/rpc_onwire.h" /* C2_RPC_VERSION_1 */
-#include "rpc/rpc_onwire_xc.h" /* c2_rpc_packet_onwire_header_xc */
 #include "xcode/xcode.h"
+
+#include "rpc/rpc2.h"
+#include "rpc/rpc2_internal.h"
+
+/**
+ * @addtogroup rpc
+ * @{
+ */
 
 #define PACKHD_XCODE_OBJ(ptr) C2_XCODE_OBJ(c2_rpc_packet_onwire_header_xc, ptr)
 
@@ -403,6 +405,7 @@ void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 	C2_LEAVE();
 }
 
+/** @} */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

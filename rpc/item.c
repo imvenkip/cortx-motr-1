@@ -26,16 +26,13 @@
 #include "lib/rwlock.h"
 #include "lib/misc.h"
 #include "lib/errno.h"
-#include "rpc/rpc2.h"
-#include "rpc/item.h"
-#include "rpc/rpc_onwire.h"       /* ITEM_ONWIRE_HEADER_SIZE */
-#include "rpc/packet.h"           /* packet_item_tlink_init() */
-#include "rpc/session_internal.h" /* c2_rpc_session_item_timedout() */
-#include "rpc/rpc_onwire_xc.h"    /* c2_rpc_onwire_slot_ref_xc */
 #include "colibri/magic.h"
 
+#include "rpc/rpc2.h"
+#include "rpc/rpc2_internal.h"
+
 /**
-   @addtogroup rpc_layer_core
+   @addtogroup rpc
 
    @{
  */
@@ -80,7 +77,7 @@ static bool opcode_is_dup(uint32_t opcode)
 	return c2_rpc_item_type_lookup(opcode) != NULL;
 }
 
-int c2_rpc_base_init(void)
+int c2_rpc_item_type_list_init(void)
 {
 	C2_ENTRY();
 
@@ -90,7 +87,7 @@ int c2_rpc_base_init(void)
 	C2_RETURN(0);
 }
 
-void c2_rpc_base_fini(void)
+void c2_rpc_item_type_list_fini(void)
 {
 	struct c2_rpc_item_type		*item_type;
 
@@ -316,6 +313,35 @@ bool c2_rpc_item_invariant(const struct c2_rpc_item *item)
 static const char *item_state_name(const struct c2_rpc_item *item)
 {
 	return item->ri_sm.sm_conf->scf_state[item->ri_sm.sm_state].sd_name;
+}
+
+bool item_is_active(const struct c2_rpc_item *item)
+{
+	return C2_IN(item->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
+				      RPC_ITEM_STAGE_FUTURE));
+}
+struct c2_verno *item_verno(struct c2_rpc_item *item, int idx)
+{
+	C2_PRE(idx < MAX_SLOT_REF);
+	return &item->ri_slot_refs[idx].sr_ow.osr_verno;
+}
+
+uint64_t item_xid(struct c2_rpc_item *item, int idx)
+{
+	C2_PRE(idx < MAX_SLOT_REF);
+	return item->ri_slot_refs[idx].sr_ow.osr_xid;
+}
+
+const char *item_kind(const struct c2_rpc_item *item)
+{
+	return  c2_rpc_item_is_request(item) ? "REQUEST" :
+		c2_rpc_item_is_reply(item)   ? "REPLY"   :
+		c2_rpc_item_is_oneway(item)  ? "ONEWAY"  : "INVALID_KIND";
+}
+
+struct c2_rpc_machine *item_machine(const struct c2_rpc_item *item)
+{
+	return item->ri_session->s_conn->c_rpc_machine;
 }
 
 void c2_rpc_item_init(struct c2_rpc_item            *item,
@@ -623,7 +649,7 @@ int c2_rpc_item_start_timer(struct c2_rpc_item *item)
 	return 0;
 }
 
-/** @} end of rpc-layer-core group */
+/** @} end of rpc group */
 
 /*
  *  Local variables:

@@ -26,12 +26,14 @@
 #include "lib/tlist.h"
 #include "addb/addb.h"
 #include "colibri/magic.h"
-#include "rpc/rpc_machine.h"
-#include "rpc/item.h"
-#include "rpc/formation2.h"
-#include "rpc/packet.h"
 #include "lib/finject.h"       /* C2_FI_ENABLED */
 
+#include "rpc/rpc2_internal.h"
+
+/**
+ * @addtogroup rpc
+ * @{
+ */
 static bool itemq_invariant(const struct c2_tl *q);
 static c2_bcount_t itemq_nr_bytes_acc(const struct c2_tl *q);
 
@@ -159,6 +161,21 @@ static c2_bcount_t itemq_nr_bytes_acc(const struct c2_tl *q)
 	c2_tl_endfor;
 
 	return size;
+}
+
+struct c2_rpc_chan *frm_rchan(const struct c2_rpc_frm *frm)
+{
+	return container_of(frm, struct c2_rpc_chan, rc_frm);
+}
+
+struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm)
+{
+	return frm_rchan(frm)->rc_rpc_machine;
+}
+
+static bool frm_rmachine_is_locked(const struct c2_rpc_frm *frm)
+{
+	return c2_rpc_machine_is_locked(frm_rmachine(frm));
 }
 
 void c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *c)
@@ -660,3 +677,5 @@ struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s)
 {
 	return &s->s_conn->c_rpcchan->rc_frm;
 }
+
+/** @} */
