@@ -70,6 +70,11 @@ enum c2_rpc_item_state {
 	 * on the network.
 	 */
 	C2_RPC_ITEM_ENQUEUED,
+	/*
+	 * Deadline of item is expired.
+	 * Formation should send the item as early as possible.
+	 */
+	C2_RPC_ITEM_URGENT,
 	/**
 	 * Item is serialised in a network buffer and the buffer is submitted
 	 * to network layer for sending.
@@ -170,7 +175,9 @@ enum c2_rpc_item_dir {
 struct c2_rpc_item {
 	enum c2_rpc_item_priority	 ri_prio;
 	c2_time_t			 ri_deadline;
+	struct c2_sm_timeout             ri_deadline_to;
 	c2_time_t                        ri_op_timeout;
+	struct c2_sm_timeout             ri_timeout;
 	struct c2_sm                     ri_sm;
 	enum c2_rpc_item_stage		 ri_stage;
 	uint64_t			 ri_flags;
@@ -183,7 +190,6 @@ struct c2_rpc_item {
 	const struct c2_rpc_item_type	*ri_type;
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
-	struct c2_sm_timeout             ri_timeout;
 	/** item operations */
 	const struct c2_rpc_item_ops	*ri_ops;
 	/** Time spent in rpc layer. */

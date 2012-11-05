@@ -317,6 +317,9 @@ void c2_rpc_frm_fini(struct c2_rpc_frm *frm);
 void c2_rpc_frm_enq_item(struct c2_rpc_frm  *frm,
 			 struct c2_rpc_item *item);
 
+void c2_rpc_frm_item_deadline_passed(struct c2_rpc_frm  *frm,
+				     struct c2_rpc_item *item);
+
 /**
    Callback for a packet which was previously enqueued.
  */
@@ -334,6 +337,9 @@ C2_TL_DECLARE(itemq, extern, struct c2_rpc_item);
 
 struct c2_rpc_chan    *frm_rchan(const struct c2_rpc_frm *frm);
 struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm);
+
+bool item_is_in_waiting_queue(const struct c2_rpc_item *item,
+			      const struct c2_rpc_frm  *frm);
 
 /** @} */
 #endif /* __COLIBRI_RPC_FORMATION2_H__ */

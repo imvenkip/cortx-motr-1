@@ -113,13 +113,12 @@ struct c2_rpc_machine {
 	struct c2_tl                      rm_services;
 
 	/**
-	    A worker thread to run formation periodically in order to
-	    send timedout items if any.
+	   Executes ASTs in rm_sm_grp.
 	 */
-	struct c2_thread                  rm_frm_worker;
+	struct c2_thread                  rm_worker;
 
 	/**
-	   Flag asking rm_frm_worker thread to stop.
+	   Flag asking rm_worker thread to stop.
 	 */
 	bool                              rm_stopping;
 

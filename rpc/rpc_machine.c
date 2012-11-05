@@ -55,7 +55,7 @@ static void __rpc_machine_init(struct c2_rpc_machine *machine);
 static void __rpc_machine_fini(struct c2_rpc_machine *machine);
 static int root_session_cob_create(struct c2_cob_domain *dom);
 static void conn_list_fini(struct c2_tl *list);
-static void frm_worker_fn(struct c2_rpc_machine *machine);
+static void rpc_worker_thread_fn(struct c2_rpc_machine *machine);
 static struct c2_rpc_chan *rpc_chan_locate(struct c2_rpc_machine *machine,
 					   struct c2_net_end_point *dest_ep);
 static int rpc_chan_create(struct c2_rpc_chan **chan,
@@ -169,15 +169,15 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	__rpc_machine_init(machine);
 
 	machine->rm_stopping = false;
-	rc = C2_THREAD_INIT(&machine->rm_frm_worker, struct c2_rpc_machine *,
-			    NULL, &frm_worker_fn, machine, "frm_worker");
+	rc = C2_THREAD_INIT(&machine->rm_worker, struct c2_rpc_machine *,
+			    NULL, &rpc_worker_thread_fn, machine, "rpc_worker");
 	if (rc != 0)
 		goto out_fini;
 
 	rc = rpc_tm_setup(&machine->rm_tm, net_dom, ep_addr, receive_pool,
 			  colour, msg_size, queue_len);
 	if (rc != 0) {
-		goto out_stop_frm_worker;
+		goto out_stop_worker;
 	}
 
 	rc = root_session_cob_create(dom);
@@ -191,9 +191,9 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 out_tm_cleanup:
 	rpc_tm_cleanup(machine);
 
-out_stop_frm_worker:
+out_stop_worker:
 	machine->rm_stopping = true;
-	c2_thread_join(&machine->rm_frm_worker);
+	c2_thread_join(&machine->rm_worker);
 
 out_fini:
 	__rpc_machine_fini(machine);
@@ -263,10 +263,11 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 
 	c2_rpc_machine_lock(machine);
 	machine->rm_stopping = true;
+	c2_clink_signal(&machine->rm_sm_grp.s_clink);
 	c2_rpc_machine_unlock(machine);
 
-	C2_LOG(C2_INFO, "Waiting for Frm worker to join");
-	c2_thread_join(&machine->rm_frm_worker);
+	C2_LOG(C2_INFO, "Waiting for RPC worker to join");
+	c2_thread_join(&machine->rm_worker);
 
 	c2_rpc_machine_lock(machine);
 	C2_PRE(rpc_conn_tlist_is_empty(&machine->rm_outgoing_conns));
@@ -279,18 +280,8 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 }
 C2_EXPORTED(c2_rpc_machine_fini);
 
-/**
-   Worker thread that runs formation periodically on all formation machines,
-   in an attempt to send timedout items.
-
-   XXX This entire routine is temporary. The item deadline timeout mechanism
-       should be based on generic sm framework.
- */
-static void frm_worker_fn(struct c2_rpc_machine *machine)
+static void rpc_worker_thread_fn(struct c2_rpc_machine *machine)
 {
-	struct c2_rpc_chan *chan;
-	enum { MILLI_SEC = 1000 * 1000 };
-
 	C2_ENTRY();
 	C2_PRE(machine != NULL);
 
@@ -298,14 +289,12 @@ static void frm_worker_fn(struct c2_rpc_machine *machine)
 		c2_rpc_machine_lock(machine);
 		if (machine->rm_stopping) {
 			c2_rpc_machine_unlock(machine);
-			C2_LEAVE("frm worker thread STOPPED");
+			C2_LEAVE("RPC worker thread STOPPED");
 			return;
 		}
-		c2_tl_for(rpc_chan, &machine->rm_chans, chan) {
-			c2_rpc_frm_run_formation(&chan->rc_frm);
-		} c2_tl_endfor;
+		c2_sm_asts_run(&machine->rm_sm_grp);
 		c2_rpc_machine_unlock(machine);
-		c2_nanosleep(c2_time(0, 100 * MILLI_SEC), NULL);
+		c2_chan_wait(&machine->rm_sm_grp.s_clink);
 	}
 }
 

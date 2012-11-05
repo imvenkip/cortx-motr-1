@@ -65,11 +65,15 @@ static char bootbuf[4096];
 void      *c2_logbuf     = bootbuf;
 uint32_t   c2_logbufsize = sizeof bootbuf;
 
-unsigned long c2_trace_immediate_mask = 0;
+//unsigned long c2_trace_immediate_mask = 0;
+unsigned long c2_trace_immediate_mask = 16 | 32;
 C2_BASSERT(sizeof(c2_trace_immediate_mask) == 8);
 
-unsigned int c2_trace_print_context = C2_TRACE_PCTX_NONE;
-unsigned int c2_trace_level         = C2_WARN | C2_ERROR | C2_FATAL;
+//unsigned int c2_trace_print_context = C2_TRACE_PCTX_NONE;
+unsigned int c2_trace_print_context = C2_TRACE_PCTX_FUNC;
+//unsigned int c2_trace_level         = C2_WARN | C2_ERROR | C2_FATAL;
+unsigned int c2_trace_level         = C2_WARN | C2_ERROR | C2_FATAL |
+				      C2_DEBUG | C2_NOTICE | C2_INFO;
 
 static uint32_t           bufmask;
 static struct c2_atomic64 cur;
