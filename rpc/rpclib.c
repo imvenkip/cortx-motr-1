@@ -29,7 +29,7 @@
 #include "lib/types.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
 #include "fop/fop.h"

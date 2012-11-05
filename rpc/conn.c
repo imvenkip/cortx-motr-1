@@ -31,8 +31,8 @@
 #include "fop/fop.h"
 #include "db/db.h"
 
-#include "rpc/rpc2.h"
-#include "rpc/rpc2_internal.h"
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 
 /**
    @addtogroup rpc_session

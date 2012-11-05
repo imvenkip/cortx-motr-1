@@ -28,7 +28,7 @@
 #include "fop/fop.h"
 #include "dtm/dtm.h"
 #include "fop/fom_generic_ff.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "rpc/rpc_opcodes.h"    /* C2_REQH_ERROR_REPLY_OPCODE */
 #include "reqh/reqh.h"
 #include "fop/fom_generic.h"

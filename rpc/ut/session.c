@@ -23,8 +23,8 @@
 #include "lib/finject.h"
 #include "fop/fop.h"
 
-#include "rpc/rpc2.h"
-#include "rpc/rpc2_internal.h"
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 
 enum {
 	SENDER_ID  = 1001,

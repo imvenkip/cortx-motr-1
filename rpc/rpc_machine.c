@@ -39,8 +39,8 @@
 #include "net/net.h"
 #include "net/buffer_pool.h"   /* c2_net_buffer_pool_[lock|unlock] */
 
-#include "rpc/rpc2.h"          /* c2_rpc_max_msg_size, c2_rpc_max_recv_msgs */
-#include "rpc/rpc2_internal.h"
+#include "rpc/rpc.h"          /* c2_rpc_max_msg_size, c2_rpc_max_recv_msgs */
+#include "rpc/rpc_internal.h"
 
 /* Forward declarations. */
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine);

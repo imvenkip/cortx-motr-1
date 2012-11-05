@@ -164,7 +164,7 @@ pool_SOURCES                    := pool.c
 
 reqh_SOURCES                    := reqh.c reqh_service.c
 
-rpc_SOURCES                     := rpc2.c service.c \
+rpc_SOURCES                     := rpc.c service.c \
                                    session.c session_foms.c conn.c slot.c \
                                    session_utils.c session_fops.c \
                                    rpc_onwire.c session_ff.c rpclib.c \

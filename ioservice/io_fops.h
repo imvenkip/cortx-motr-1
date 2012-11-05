@@ -26,7 +26,7 @@
 
 #include "lib/list.h"
 #include "fop/fop.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 
 /**
    @page bulkclient-fspec Functional Specification for fop bulk client.

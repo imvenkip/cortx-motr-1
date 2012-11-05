@@ -26,8 +26,8 @@
 #include "lib/rwlock.h"
 #include "lib/memory.h"   /* c2_alloc() */
 
-#include "rpc/rpc2.h"
-#include "rpc/rpc2_internal.h"
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 
 /**
    @addtogroup rpc_service

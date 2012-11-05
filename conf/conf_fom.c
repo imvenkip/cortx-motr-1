@@ -25,7 +25,7 @@
 #include "onwire.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 
 /**
  * Generic FOP/FOM functions

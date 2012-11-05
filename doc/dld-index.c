@@ -23,7 +23,7 @@ Detailed designs, ordered alphabetically:
 - @subpage net-test "Colibri Network Benchmark"
            <!-- net/test/main.c -->
 - @subpage rpc-layer-core-dld "RPC layer core DLD"
-           <!-- rpc/rpc2.h -->
+           <!-- rpc/rpc.h -->
 - @subpage rpc-slot "RPC Slot"
            <!-- rpc/slot.h -->
 - @subpage SNSRepairCMDLD "SNS Repair copy machine DLD"

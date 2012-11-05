@@ -24,7 +24,7 @@
 #define __COLIBRI_CONSOLE_MESG_H__
 
 #include "fop/fop.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 
 /**
  *  Prints name and opcode of FOP.

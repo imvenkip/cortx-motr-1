@@ -30,7 +30,7 @@
 #include "net/net.h"
 #include "fop/fop.h"
 #include "dtm/dtm.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
 

@@ -29,7 +29,7 @@
 #include "fop/fom.h"
 #include "fop/fom_generic.h"
 
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "rpc/rpclib.h"
 #include "fop/fop_item_type.h"
 

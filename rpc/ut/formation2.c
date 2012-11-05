@@ -28,8 +28,8 @@
 #include "lib/trace.h"
 #include "sm/sm.h"
 
-#include "rpc/rpc2.h"
-#include "rpc/rpc2_internal.h"
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 
 static struct c2_rpc_frm             *frm;
 static struct c2_rpc_frm_constraints  constraints;

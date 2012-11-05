@@ -27,8 +27,8 @@
 #include "lib/misc.h"     /* C2_IN */
 #include "lib/types.h"
 
-#include "rpc/rpc2.h"
-#include "rpc/rpc2_internal.h"
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 
 /**
  * @addtogroup rpc

@@ -30,7 +30,7 @@
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "net/net.h"    /* c2_net_domain */
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "pool/pool.h"  /* c2_pool */
 #include "net/buffer_pool.h"
 #include "fid/fid.h"

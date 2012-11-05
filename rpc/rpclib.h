@@ -27,7 +27,7 @@
 #include <stdio.h> /* FILE */
 #endif
 
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "db/db.h"       /* struct c2_dbenv */
 #include "cob/cob.h"     /* struct c2_cob_domain */
 #include "net/net.h"     /* struct c2_net_end_point */

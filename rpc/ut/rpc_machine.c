@@ -24,7 +24,7 @@
 #include "net/net.h"
 #include "db/db.h"
 #include "cob/cob.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "net/buffer_pool.h"
 #include "net/lnet/lnet.h"
 

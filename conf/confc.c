@@ -23,7 +23,7 @@
 #include "conf/preload.h"  /* c2_conf_parse */
 #include "conf/buf_ext.h"  /* c2_buf_is_aimed */
 #include "colibri/magic.h" /* C2_CONFC_MAGIC, C2_CONFC_CTX_MAGIC */
-#include "rpc/rpc2.h"      /* c2_rpc_post */
+#include "rpc/rpc.h"      /* c2_rpc_post */
 #include "lib/cdefs.h"     /* C2_HAS_TYPE */
 #include "lib/arith.h"     /* C2_CNT_INC, C2_CNT_DEC */
 #include "lib/misc.h"      /* C2_IN */

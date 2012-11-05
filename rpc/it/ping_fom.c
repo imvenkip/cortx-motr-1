@@ -22,7 +22,7 @@
 #include "rpc/it/ping_fop_ff.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "fop/fom_generic.h"
 
 static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m);

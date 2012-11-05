@@ -28,7 +28,7 @@
 #include "lib/time.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fom.h"
 #include "rpc/rpclib.h" /* c2_rpc_server_start */

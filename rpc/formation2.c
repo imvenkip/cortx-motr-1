@@ -28,7 +28,7 @@
 #include "colibri/magic.h"
 #include "lib/finject.h"       /* C2_FI_ENABLED */
 
-#include "rpc/rpc2_internal.h"
+#include "rpc/rpc_internal.h"
 
 /**
  * @addtogroup rpc

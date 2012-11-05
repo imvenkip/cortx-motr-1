@@ -30,7 +30,7 @@
 #include "net/net.h"
 #include "net/bulk_emulation/mem_xprt.h"
 #include "net/lnet/lnet.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "addb/addb.h"
 #include "lib/finject.h"
 #include "lib/ut.h"
