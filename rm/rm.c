@@ -902,14 +902,19 @@ int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 	 * If everything succeeds add loan to the sublet list.
 	 * @todo Find the remote object for this loan.
 	 */
-	rc = c2_rm_loan_alloc (&loan, &in->rin_want, NULL) ?:
+	rc = c2_rm_loan_alloc(&loan, &in->rin_want, NULL) ?:
 		cached_rights_remove(in);
 	if (rc == 0) {
 		/*
 		 * Store the loan in the sublet list.
 		 */
 		c2_rm_ur_tlist_add(&owner->ro_sublet, &loan->rl_right);
-		c2_cookie_init(&rem_in->ri_loan_cookie, &loan->rl_id);
+		/*
+		 * Store loan cookie llocally. Copy it into
+		 * rem_in->ri_loan_cookie.
+		 */
+		c2_cookie_init(&loan->rl_cookie, &loan->rl_id);
+		rem_in->ri_loan_cookie = loan->rl_cookie;
 	} else {
 		if (loan != NULL) {
 			c2_rm_loan_fini(loan);
