@@ -59,6 +59,7 @@ static int frm_ut_init(void)
 static int frm_ut_fini(void)
 {
         rmachine.rm_stopping = true;
+	c2_clink_signal(&rmachine.rm_sm_grp.s_clink);
 	c2_rpc_machine_unlock(&rmachine);
 	c2_thread_join(&rmachine.rm_worker);
 	c2_sm_group_fini(&rmachine.rm_sm_grp);
