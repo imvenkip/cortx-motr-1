@@ -31,6 +31,10 @@
 #include "lib/linux_kernel/vec.h"
 #endif
 
+/* import */
+struct c2_addb_ctx;
+struct c2_addb_loc;
+
 /**
    @defgroup vec Vectors
    @{
@@ -196,6 +200,27 @@ void c2_bufvec_free(struct c2_bufvec *bufvec);
  */
 void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift);
 
+/**
+ * Allocate memory for index array and counts array in index vector.
+ * @param len Number of elements to allocate memory for.
+ * @param ctx Addb context to log addb messages in case of failure.
+ * @param loc Addb location to log addb messages in.
+ * @pre   ivec != NULL && len > 0.
+ * @post  ivec->iv_index != NULL && ivec->iv_vec.v_count != NULL &&
+ *        ivec->iv_vec.v_nr == len.
+ */
+int c2_indexvec_alloc(struct c2_indexvec *ivec, uint32_t len,
+		      struct c2_addb_ctx *ctx,  const struct c2_addb_loc *loc);
+
+/**
+ * Deallocates the memory buffers pointed to by index array and counts array.
+ * Also sets the array count to zero.
+ * @pre  ivec != NULL && ivec->iv_vec.v_nr > 0.
+ * @post ivec->iv_index == NULL && ivec->iv_vec.v_count == NULL &&
+ *       ivec->iv_vec.v_nr == 0.
+ */
+void c2_indexvec_free(struct c2_indexvec *ivec);
+
 /** Cursor to traverse a bufvec */
 struct c2_bufvec_cursor {
 	/** Vector cursor used to track position in the vector
@@ -280,6 +305,57 @@ c2_bcount_t c2_bufvec_cursor_copyto(struct c2_bufvec_cursor *dcur,
  */
 c2_bcount_t c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur,
 				      void *ddata, c2_bcount_t num_bytes);
+
+/**
+   Mechanism to traverse given index vector (c2_indexvec)
+   keeping track of segment counts and vector boundary.
+ */
+struct c2_ivec_cursor {
+        struct c2_vec_cursor ic_cur;
+};
+
+/**
+   Initialize given index vector cursor.
+   @param cur  Given index vector cursor.
+   @param ivec Given index vector to be associated with cursor.
+ */
+void c2_ivec_cursor_init(struct c2_ivec_cursor *cur,
+                         struct c2_indexvec    *ivec);
+
+/**
+   Moves the index vector cursor forward by @count.
+   @param cur   Given index vector cursor.
+   @param count Count by which cursor has to be moved.
+   @ret   true  iff end of vector has been reached while
+   moving cursor by @count. Returns false otherwise.
+ */
+bool c2_ivec_cursor_move(struct c2_ivec_cursor *cur,
+                         c2_bcount_t            count);
+
+/**
+ * Moves index vector cursor forward until it reaches index @dest.
+ * @pre   dest >= c2_ivec_cursor_index(cursor).
+ * @param dest Index uptil which cursor has to be moved.
+ * @ret   true iff end of vector has been reached while
+ *             moving cursor. Returns false otherwise.
+ * @post  c2_ivec_cursor_index(cursor) == to.
+*/
+bool c2_ivec_cursor_move_to(struct c2_ivec_cursor *cursor, c2_bindex_t dest);
+
+/**
+ * Returns the number of bytes needed to move cursor to next segment in given
+ * index vector.
+ * @param cur Index vector to be moved.
+ * @ret   Number of bytes needed to move the cursor to next segment.
+ */
+c2_bcount_t c2_ivec_cursor_step(const struct c2_ivec_cursor *cur);
+
+/**
+ * Returns index at current cursor position.
+ * @param cur Given index vector cursor.
+ * @ret   Index at current cursor position.
+ */
+c2_bindex_t c2_ivec_cursor_index(struct c2_ivec_cursor *cur);
 
 /**
    Zero vector is a full fledged IO vector containing IO extents

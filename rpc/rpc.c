@@ -26,8 +26,14 @@
 #include "lib/errno.h"
 #include "lib/misc.h"     /* C2_IN */
 #include "lib/types.h"
-#include "rpc/rpc2.h"
-#include "rpc/item.h"
+
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
+
+/**
+ * @addtogroup rpc
+ * @{
+ */
 
 int c2_rpc__post_locked(struct c2_rpc_item *item);
 
@@ -42,28 +48,42 @@ const struct c2_addb_loc c2_rpc_addb_loc = {
 struct c2_addb_ctx c2_rpc_addb_ctx;
 
 
-int c2_rpc_module_init(void)
+int c2_rpc_init(void)
 {
+	int rc;
+
+	C2_ENTRY();
+
 	c2_addb_ctx_init(&c2_rpc_addb_ctx, &c2_rpc_addb_ctx_type,
 			 &c2_addb_global_ctx);
-	return 0;
+	rc = c2_rpc_item_type_list_init() ?:
+	     c2_rpc_service_module_init() ?:
+	     c2_rpc_session_module_init();
+
+	C2_RETURN(rc);
 }
 
-void c2_rpc_module_fini(void)
+void c2_rpc_fini(void)
 {
+	C2_ENTRY();
+
+	c2_rpc_session_module_fini();
+	c2_rpc_service_module_fini();
+	c2_rpc_item_type_list_fini();
 	c2_addb_ctx_fini(&c2_rpc_addb_ctx);
+
+	C2_LEAVE();
 }
 
 int c2_rpc_post(struct c2_rpc_item *item)
 {
-	struct c2_rpc_machine *machine;
+	struct c2_rpc_machine *machine = item_machine(item);
 	int                    rc;
 	uint64_t	       item_size;
 
 	C2_ENTRY("item: %p", item);
 	C2_PRE(item->ri_session != NULL);
 
-	machine	  = item->ri_session->s_conn->c_rpc_machine;
 	item_size = c2_rpc_item_size(item);
 
 	c2_rpc_machine_lock(machine);
@@ -92,8 +112,9 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 	struct c2_rpc_session *session;
 
 	C2_ENTRY("item: %p", item);
-	C2_ASSERT(item != NULL && item->ri_type != NULL);
-
+	C2_PRE(item != NULL && item->ri_type != NULL);
+	/* XXX Temporary assertion, until bound item posting is supported */
+	C2_PRE(c2_rpc_item_is_request(item) && !c2_rpc_item_is_bound(item));
 	/*
 	 * It is mandatory to specify item_ops, because rpc layer needs
 	 * implementation of c2_rpc_item_ops::rio_free() in order to free the
@@ -109,7 +130,7 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 						 C2_RPC_SESSION_BUSY)));
 	C2_ASSERT(c2_rpc_item_size(item) <=
 			c2_rpc_session_get_max_item_size(session));
-	C2_ASSERT(c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine));
+	C2_ASSERT(c2_rpc_machine_is_locked(session_machine(session)));
 	/*
 	 * This hold will be released when the item is SENT or FAILED.
 	 * See rpc/frmops.c:item_done()
@@ -117,19 +138,19 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 	c2_rpc_session_hold_busy(session);
 
 	item->ri_rpc_time = c2_time_now();
-
-	item->ri_state = RPC_ITEM_SUBMITTED;
-	c2_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
+	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
+	c2_rpc_item_sm_init(item, &session_machine(session)->rm_sm_grp,
+			    C2_RPC_ITEM_OUTGOING);
+	c2_rpc_frm_enq_item(session_frm(session), item);
 	C2_RETURN(0);
 }
 
-int c2_rpc_reply_post(struct c2_rpc_item	*request,
-		      struct c2_rpc_item	*reply)
+int c2_rpc_reply_post(struct c2_rpc_item *request,
+		      struct c2_rpc_item *reply)
 {
-	struct c2_rpc_slot_ref	*sref;
-	struct c2_rpc_machine   *machine;
-	struct c2_rpc_item	*tmp;
-	struct c2_rpc_slot	*slot;
+	struct c2_rpc_slot_ref *sref;
+	struct c2_rpc_machine  *machine;
+	struct c2_rpc_slot     *slot;
 
 	C2_ENTRY("req_item: %p, rep_item: %p", request, reply);
 	C2_PRE(request != NULL && reply != NULL);
@@ -153,40 +174,39 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	reply->ri_prio     = request->ri_prio;
 	reply->ri_deadline = 0;
 	reply->ri_error    = 0;
-	reply->ri_state    = RPC_ITEM_SUBMITTED;
 
 	slot = sref->sr_slot;
-	machine = slot->sl_session->s_conn->c_rpc_machine;
+	machine = session_machine(slot->sl_session);
 
 	c2_rpc_machine_lock(machine);
+	c2_rpc_item_sm_init(reply, &machine->rm_sm_grp, C2_RPC_ITEM_OUTGOING);
 	/*
 	 * This hold will be released when the item is SENT or FAILED.
 	 * See rpc/frmops.c:item_done()
 	 */
 	c2_rpc_session_hold_busy(reply->ri_session);
-	c2_rpc_slot_reply_received(slot, reply, &tmp);
-	C2_ASSERT(tmp == request);
-
+	__slot_reply_received(slot, request, reply);
 	c2_rpc_machine_unlock(machine);
 	C2_RETURN(0);
 }
 C2_EXPORTED(c2_rpc_reply_post);
 
-int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
-				 struct c2_rpc_item       *item)
+int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
+			     struct c2_rpc_item      *item)
 {
+	struct c2_rpc_machine *machine;
+
 	C2_ENTRY("conn: %p, item: %p", conn, item);
 	C2_PRE(conn != NULL);
-	C2_PRE(item != NULL && c2_rpc_item_is_unsolicited(item));
+	C2_PRE(item != NULL && c2_rpc_item_is_oneway(item));
 
-	item->ri_state    = RPC_ITEM_SUBMITTED;
 	item->ri_rpc_time = c2_time_now();
 
-	c2_rpc_machine_lock(conn->c_rpc_machine);
-
+	machine = conn->c_rpc_machine;
+	c2_rpc_machine_lock(machine);
+	c2_rpc_item_sm_init(item, &machine->rm_sm_grp, C2_RPC_ITEM_OUTGOING);
 	c2_rpc_frm_enq_item(&conn->c_rpcchan->rc_frm, item);
-
-	c2_rpc_machine_unlock(conn->c_rpc_machine);
+	c2_rpc_machine_unlock(machine);
 	C2_RETURN(0);
 }
 
@@ -252,6 +272,8 @@ void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool)
 	c2_net_buffer_pool_fini(app_pool);
 }
 C2_EXPORTED(c2_rpc_net_buffer_pool_cleanup);
+
+/** @} */
 
 /*
  *  Local variables:

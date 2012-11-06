@@ -30,6 +30,7 @@ c2_bcount_t c2_ext_length(const struct c2_ext *ext)
 {
 	return ext->e_end - ext->e_start;
 }
+C2_EXPORTED(c2_ext_length);
 
 bool c2_ext_is_in(const struct c2_ext *ext, c2_bindex_t index)
 {
@@ -60,6 +61,13 @@ void c2_ext_intersection(const struct c2_ext *e0, const struct c2_ext *e1,
 	result->e_start = max_check(e0->e_start, e1->e_start);
 	result->e_end   = min_check(e0->e_end,   e1->e_end);
 }
+C2_EXPORTED(c2_ext_intersection);
+
+bool c2_ext_is_valid(const struct c2_ext *ext)
+{
+        return ext->e_end > ext->e_start;
+}
+C2_EXPORTED(c2_ext_is_valid);
 
 /** @} end of ext group */
 

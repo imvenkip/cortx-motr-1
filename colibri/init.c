@@ -30,7 +30,7 @@
 #include "net/net.h"
 #include "net/bulk_emulation/mem_xprt.h"
 #include "net/lnet/lnet.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "addb/addb.h"
 #include "lib/finject.h"
 #include "lib/ut.h"
@@ -44,9 +44,6 @@
 #include "fol/fol.h"
 #include "reqh/reqh.h"
 #include "lib/timer.h"
-#include "rpc/item.h"
-#include "rpc/session.h"
-#include "rpc/service.h"
 #include "fop/fom_generic.h"
 #include "colibri/init.h"
 #include "lib/cookie.h"
@@ -67,9 +64,6 @@
 
 extern int  c2_memory_init(void);
 extern void c2_memory_fini(void);
-
-extern int  c2_rpc_module_init(void);
-extern void c2_rpc_module_fini(void);
 
 extern int  libc2_init(void);
 extern void libc2_fini(void);
@@ -111,12 +105,7 @@ struct init_fini_call subsystem[] = {
 	   type for network descriptors. */
 	{ &c2_fops_init,        &c2_fops_fini,        "fop" },
 	{ &c2_net_init,         &c2_net_fini,         "net" },
-	{ &c2_rpc_base_init,    &c2_rpc_base_fini,    "rpc-base" },
-	{ &c2_rpc_module_init,  &c2_rpc_module_fini,  "rpc" },
-	{ &c2_rpc_service_module_init, &c2_rpc_service_module_fini,
-						      "rpc-service" },
-	{ &c2_rpc_session_module_init, &c2_rpc_session_module_fini,
-						      "rpc-session" },
+	{ &c2_rpc_init,         &c2_rpc_fini,         "rpc" },
 	/* fom generic must be after rpc, because it initialises rpc item
 	   type for generic error reply. */
 	{ &c2_fom_generic_init, &c2_fom_generic_fini, "fom-generic" },

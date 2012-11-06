@@ -20,13 +20,19 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_PACKET_H__
-#define __COLIBRI_RPC_PACKET_H__
+#ifndef __COLIBRI_RPC_PACKET_INT_H__
+#define __COLIBRI_RPC_PACKET_INT_H__
 
 #include "lib/vec.h"
 #include "lib/tlist.h"
 #include "rpc/rpc_onwire.h"
 
+/**
+ * @addtogroup rpc
+ * @{
+ */
+
+/* Imports */
 struct c2_rpc_item;
 struct c2_rpc_frm;
 
@@ -137,7 +143,9 @@ void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 				  item_visit_fn        *visit,
 				  unsigned long         opaque_data);
 
-#endif /* __COLIBRI_RPC_PACKET_H__ */
+/** @} */
+
+#endif /* __COLIBRI_RPC_PACKET_INT_H__ */
 
 /*
  *  Local variables:

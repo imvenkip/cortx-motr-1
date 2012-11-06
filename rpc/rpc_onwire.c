@@ -25,6 +25,11 @@
 #include "rpc/rpc_helpers.h"
 #include "xcode/xcode.h" /* C2_XCODE_OBJ */
 
+/**
+ * @addtogroup rpc
+ * @{
+ */
+
 #define ITEM_HEAD_XCODE_OBJ(ptr) C2_XCODE_OBJ(c2_rpc_item_onwire_header_xc, ptr)
 #define SLOT_REF_XCODE_OBJ(ptr)  C2_XCODE_OBJ(c2_rpc_onwire_slot_ref_xc, ptr)
 
@@ -135,6 +140,8 @@ static int slot_ref_decode(struct c2_bufvec_cursor       *cur,
 	*cur = ctx.xcx_buf;
 	C2_RETURN(rc);
 }
+
+/** @} */
 
 /*
  *  Local variables:

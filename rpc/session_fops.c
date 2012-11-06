@@ -27,12 +27,10 @@
 #include "fop/fom.h"
 #include "fop/fop.h"
 #include "fop/fop_item_type.h"
-#include "rpc/session_ff.h"
-#include "rpc/session_fops.h"
-#include "rpc/session_foms.h"
-#include "rpc/session_internal.h"
 #include "dtm/verno_xc.h" /* c2_xc_verno_init */
-#include "rpc/rpc_onwire_xc.h" /* c2_xc_rpc_onwire_init */
+
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 
 /**
    @addtogroup rpc_session
@@ -49,6 +47,7 @@ static void conn_establish_item_free(struct c2_rpc_item *item)
 	struct c2_fop                        *fop;
 
 	fop = c2_rpc_item_to_fop(item);
+	c2_fop_fini(fop);
 	ctx = container_of(fop, struct c2_rpc_fop_conn_establish_ctx, cec_fop);
 	c2_free(ctx);
 }
@@ -57,9 +56,9 @@ static const struct c2_rpc_item_ops rcv_conn_establish_item_ops = {
 	.rio_free = conn_establish_item_free,
 };
 
-static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
-				      struct c2_rpc_item     **item,
-				      struct c2_bufvec_cursor *cur)
+static int conn_establish_item_decode(const struct c2_rpc_item_type *item_type,
+				      struct c2_rpc_item           **item,
+				      struct c2_bufvec_cursor       *cur)
 {
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 	struct c2_fop                        *fop;
@@ -99,7 +98,6 @@ out:
 
 const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
 };
-
 
 static struct c2_rpc_item_type_ops conn_establish_item_type_ops = {
 	.rito_encode       = c2_fop_item_type_default_encode,

@@ -4,4 +4,5 @@ EXTRA_DIST += c2t1fs/linux_kernel/c2loop.c \
               c2t1fs/linux_kernel/dir.c \
               c2t1fs/linux_kernel/file.c \
               c2t1fs/linux_kernel/inode.c \
-              c2t1fs/linux_kernel/super.c
+              c2t1fs/linux_kernel/super.c \
+	      c2t1fs/linux_kernel/file_internal.h

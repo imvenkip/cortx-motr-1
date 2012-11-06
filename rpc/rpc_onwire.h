@@ -28,6 +28,11 @@
 #include "dtm/verno_xc.h" /* c2_verno_xc */
 #include "xcode/xcode_attr.h" /* C2_XCA_RECORD */
 
+/**
+ * @addtogroup rpc
+ * @{
+ */
+
 enum {
 	C2_RPC_VERSION_1 = 1,
 };
@@ -112,6 +117,6 @@ int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
 int c2_rpc_item_header_decode(struct c2_bufvec_cursor          *cur,
 			      struct c2_rpc_item_onwire_header *ioh);
 
-/** @}  End of rpc_onwire group */
+/** @}  End of rpc group */
 
 #endif /* __COLIBRI_RPC_ONWIRE_H__ */

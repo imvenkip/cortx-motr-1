@@ -25,6 +25,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"      /* C2_SET0, memcpy */
 #include "lib/errno.h"
+#include "lib/finject.h"
 
 /**
    @addtogroup vec Vectors
@@ -155,6 +156,9 @@ int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
 		            c2_bcount_t       seg_size,
 		            unsigned	      shift)
 {
+	if (C2_FI_ENABLED("oom"))
+		return -ENOMEM;
+
 	return c2__bufvec_alloc(bufvec, num_segs, seg_size, shift);
 }
 C2_EXPORTED(c2_bufvec_alloc_aligned);
@@ -192,6 +196,45 @@ void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift)
 	}
 }
 C2_EXPORTED(c2_bufvec_free_aligned);
+
+int c2_indexvec_alloc(struct c2_indexvec       *ivec,
+		      uint32_t                  len,
+		      struct c2_addb_ctx       *ctx,
+		      const struct c2_addb_loc *loc)
+{
+	C2_PRE(ivec != NULL);
+	C2_PRE(len   > 0);
+
+	C2_ALLOC_ARR_ADDB(ivec->iv_index, len, ctx, loc);
+	if (ivec->iv_index == NULL)
+		return -ENOMEM;
+
+	C2_ALLOC_ARR_ADDB(ivec->iv_vec.v_count, len, ctx, loc);
+	if (ivec->iv_vec.v_count == NULL) {
+		c2_free(ivec->iv_index);
+		return -ENOMEM;
+	}
+
+	ivec->iv_vec.v_nr = len;
+	return 0;
+}
+
+void c2_indexvec_free(struct c2_indexvec *ivec)
+{
+	C2_PRE(ivec != NULL);
+	C2_PRE(ivec->iv_vec.v_nr > 0);
+
+	if (ivec->iv_index != NULL) {
+		c2_free(ivec->iv_index);
+		ivec->iv_index = NULL;
+	}
+
+	if (ivec->iv_vec.v_count != NULL) {
+		c2_free(ivec->iv_vec.v_count);
+		ivec->iv_vec.v_count = NULL;
+	}
+	ivec->iv_vec.v_nr = 0;
+}
 
 void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
 			    struct c2_bufvec *bvec)
@@ -298,6 +341,61 @@ c2_bcount_t c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur,
 	c2_bufvec_cursor_init(&dcur, &dbuf);
 
 	return c2_bufvec_cursor_copy(&dcur, scur, num_bytes);
+}
+
+void c2_ivec_cursor_init(struct c2_ivec_cursor *cur,
+                         struct c2_indexvec    *ivec)
+{
+        C2_PRE(cur  != NULL);
+        C2_PRE(ivec != NULL);
+        C2_PRE(ivec->iv_vec.v_nr > 0);
+        C2_PRE(ivec->iv_vec.v_count != NULL && ivec->iv_index != NULL);
+
+        c2_vec_cursor_init(&cur->ic_cur, &ivec->iv_vec);
+}
+
+bool c2_ivec_cursor_move(struct c2_ivec_cursor *cur,
+                         c2_bcount_t            count)
+{
+        C2_PRE(cur != NULL);
+
+        return c2_vec_cursor_move(&cur->ic_cur, count);
+}
+
+c2_bcount_t c2_ivec_cursor_step(const struct c2_ivec_cursor *cur)
+{
+        C2_PRE(cur != NULL);
+
+        return c2_vec_cursor_step(&cur->ic_cur);
+}
+
+c2_bindex_t c2_ivec_cursor_index(struct c2_ivec_cursor *cur)
+{
+        struct c2_indexvec *ivec;
+
+        C2_PRE(cur != NULL);
+	C2_PRE(!c2_vec_cursor_move(&cur->ic_cur, 0));
+
+        ivec = container_of(cur->ic_cur.vc_vec, struct c2_indexvec, iv_vec);
+        return ivec->iv_index[cur->ic_cur.vc_seg] + cur->ic_cur.vc_offset;
+}
+
+bool c2_ivec_cursor_move_to(struct c2_ivec_cursor *cur, c2_bindex_t dest)
+{
+	c2_bindex_t min;
+	bool        ret = false;
+
+	C2_PRE(cur  != NULL);
+	C2_PRE(dest >= c2_ivec_cursor_index(cur));
+
+	while (c2_ivec_cursor_index(cur) != dest) {
+		min = min64u(dest, c2_ivec_cursor_index(cur) +
+			     c2_ivec_cursor_step(cur));
+		ret = c2_ivec_cursor_move(cur, min - c2_ivec_cursor_index(cur));
+		if (ret)
+			break;
+	}
+	return ret;
 }
 
 void c2_0vec_fini(struct c2_0vec *zvec)

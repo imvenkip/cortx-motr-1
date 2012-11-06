@@ -91,6 +91,11 @@ C2_FIELD_IS(type, field, uint64_t) ?				\
 /**
  * Returns the number of parameters given to this variadic macro (up to 9
  * parameters are supported)
+ * @note C2_COUNT_PARAMS() returns max(number_of_parameters - 1, 0)
+ *     e.g. C2_COUNT_PARAMS()        -> 0
+ *          C2_COUNT_PARAMS(x)       -> 0
+ *          C2_COUNT_PARAMS(x, y)    -> 1
+ *          C2_COUNT_PARAMS(x, y, z) -> 2
  */
 #define C2_COUNT_PARAMS(...) \
 	C2_COUNT_PARAMS2(__VA_ARGS__, 9,8,7,6,5,4,3,2,1,0)

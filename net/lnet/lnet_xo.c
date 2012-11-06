@@ -625,6 +625,14 @@ static void nlx_xo_bev_notify(struct c2_net_transfer_mc *tm,
 	return;
 }
 
+static c2_bcount_t nlx_xo_get_max_buffer_desc_size(const struct c2_net_domain
+						   *dom)
+{
+	C2_PRE(nlx_dom_invariant(dom));
+
+	return sizeof(struct nlx_core_buf_desc);
+}
+
 static const struct c2_net_xprt_ops nlx_xo_xprt_ops = {
 	.xo_dom_init                    = nlx_xo_dom_init,
 	.xo_dom_fini                    = nlx_xo_dom_fini,
@@ -645,6 +653,7 @@ static const struct c2_net_xprt_ops nlx_xo_xprt_ops = {
 	.xo_bev_deliver_sync            = nlx_xo_bev_deliver_sync,
 	.xo_bev_pending                 = nlx_xo_bev_pending,
 	.xo_bev_notify                  = nlx_xo_bev_notify,
+	.xo_get_max_buffer_desc_size    = nlx_xo_get_max_buffer_desc_size
 };
 
 /**

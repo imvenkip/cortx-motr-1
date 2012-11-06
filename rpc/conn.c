@@ -20,21 +20,19 @@
  */
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
-#include "lib/trace.h"   /* C2_LOG */
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"    /* C2_BITS */
-#include "rpc/session.h"
 #include "lib/bitstring.h"
-#include "cob/cob.h"
-#include "fop/fop.h"
 #include "lib/arith.h"
 #include "lib/finject.h"
-#include "rpc/session_ff.h"
-#include "rpc/session_internal.h"
+#include "cob/cob.h"
+#include "fop/fop.h"
 #include "db/db.h"
-#include "rpc/session_fops.h"
-#include "rpc/rpc2.h"
+
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 
 /**
    @addtogroup rpc_session
@@ -91,8 +89,6 @@ static int __conn_init(struct c2_rpc_conn      *conn,
 static void __conn_fini(struct c2_rpc_conn *conn);
 
 static void conn_failed(struct c2_rpc_conn *conn, int32_t error);
-
-static uint64_t sender_id_allocate(void);
 
 /*
  * This is sender side item_ops of conn_establish fop.
@@ -279,7 +275,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
 	c2_rpc_machine_lock(machine);
 
 	conn->c_flags = RCF_SENDER_END;
-	c2_rpc_sender_uuid_generate(&conn->c_uuid);
+	c2_rpc_sender_uuid_get(&conn->c_uuid);
 
 	rc = __conn_init(conn, ep, machine, max_rpcs_in_flight);
 	if (rc == 0) {
@@ -339,6 +335,7 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	struct c2_rpc_slot    *slot;
 	struct c2_rpc_session *session;
 	int                    rc;
+	int                    i;
 
 	C2_ENTRY("conn: %p", conn);
 	C2_ASSERT(conn != NULL &&
@@ -348,7 +345,7 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	if (session == NULL)
 		C2_RETURN(-ENOMEM);
 
-	rc = c2_rpc_session_init_locked(session, conn, 1 /* NR_SLOTS */);
+	rc = c2_rpc_session_init_locked(session, conn, 10 /* NR_SLOTS */);
 	if (rc != 0) {
 		c2_free(session);
 		C2_RETURN(rc);
@@ -362,11 +359,13 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	session_state_set(session, C2_RPC_SESSION_ESTABLISHING);
 	session_state_set(session, C2_RPC_SESSION_IDLE);
 
-	slot = session->s_slot_table[0];
-	C2_ASSERT(slot != NULL &&
-		  slot->sl_ops != NULL &&
-		  slot->sl_ops->so_slot_idle != NULL);
-	slot->sl_ops->so_slot_idle(slot);
+	for (i = 0; i < session->s_nr_slots; ++i) {
+		slot = session->s_slot_table[i];
+		C2_ASSERT(slot != NULL &&
+			  slot->sl_ops != NULL &&
+			  slot->sl_ops->so_slot_idle != NULL);
+		slot->sl_ops->so_slot_idle(slot);
+	}
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_RETURN(0);
 }
@@ -680,7 +679,6 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
 
 	reply_item = item->ri_reply;
 	rc         = item->ri_error;
-
 	C2_PRE(ergo(rc == 0, reply_item != NULL &&
 			     item->ri_session == reply_item->ri_session));
 
@@ -711,6 +709,7 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(C2_IN(conn_state(conn), (C2_RPC_CONN_FAILED,
 					   C2_RPC_CONN_ACTIVE)));
+	C2_LEAVE();
 }
 
 int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec)
@@ -812,7 +811,7 @@ C2_EXPORTED(c2_rpc_conn_terminate);
  *
  * 2. Move conn to FAILED state.
  *    For this conn the receiver side state will still
- *    continue to exist. And receiver can send unsolicited
+ *    continue to exist. And receiver can send one-way
  *    items, that will be received on sender i.e. current node.
  *    Current code will drop such items. When/how to fini and
  *    cleanup receiver side state? XXX
@@ -1020,7 +1019,7 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 	conn_state_set(conn, C2_RPC_CONN_CONNECTING);
 	rc = c2_db_tx_init(&tx, machine->rm_dom->cd_dbenv, 0);
 	if (rc == 0) {
-		sender_id = sender_id_allocate();
+		sender_id = uuid_generate();
 		rc = conn_persistent_state_attach(conn, sender_id, &tx);
 		if (rc == 0)
 			rc = c2_db_tx_commit(&tx);
@@ -1036,24 +1035,6 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 
 	C2_POST(c2_rpc_machine_is_locked(machine));
 	C2_RETURN(rc);
-}
-
-/**
-   Allocates and returns new sender_id
- */
-static uint64_t sender_id_allocate(void)
-{
-	static struct c2_atomic64 cnt;
-	uint64_t                  sender_id;
-	uint64_t                  sec;
-
-	do {
-		c2_atomic64_inc(&cnt);
-		sec = c2_time_nanoseconds(c2_time_now()) * 1000000;
-		sender_id = (sec << 10) | (c2_atomic64_get(&cnt) & 0x3FF);
-	} while (sender_id == 0 || sender_id == SENDER_ID_INVALID);
-
-	return sender_id;
 }
 
 static int conn_persistent_state_destroy(struct c2_rpc_conn *conn,
@@ -1195,4 +1176,6 @@ int c2_rpc_conn_session_list_print(const struct c2_rpc_conn *conn)
 	} c2_tl_endfor;
 	return 0;
 }
+
+/** @} */
 #endif

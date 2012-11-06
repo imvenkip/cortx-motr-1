@@ -25,11 +25,11 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/trace.h"
-#include "rpc/session_foms.h"
 #include "stob/stob.h"
 #include "net/net.h"
-#include "rpc/session_internal.h"
-#include "rpc/rpc2.h"
+
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 
 /**
    @addtogroup rpc_session
@@ -138,7 +138,7 @@ size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 
-	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+	return c2_fop_opcode(fom->fo_fop);
 }
 
 int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
@@ -433,7 +433,6 @@ int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 	if (session != NULL) {
 		c2_sm_timedwait(&session->s_sm, C2_BITS(C2_RPC_SESSION_IDLE),
 				C2_TIME_NEVER);
-
 		rc = c2_rpc_rcv_session_terminate(session);
 		C2_ASSERT(ergo(rc != 0,
 			       session_state(session) ==

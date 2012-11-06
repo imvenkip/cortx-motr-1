@@ -21,7 +21,7 @@
  */
 
 /**
-   @defgroup rpc_layer_core RPC layer core
+   @defgroup rpc RPC
    @page rpc-layer-core-dld RPC layer core DLD
    @section Overview
    RPC layer core is used to transmit rpc items and groups of them.
@@ -37,23 +37,24 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #ifndef __COLIBRI_RPC_RPCCORE_H__
 #define __COLIBRI_RPC_RPCCORE_H__
 
+#include "lib/arith.h"                /* max32u */
 #include "rpc/rpc_machine.h"
+#include "rpc/conn.h"
+#include "rpc/session.h"
+#include "rpc/item.h"
 #include "rpc/bulk.h"
+#include "rpc/service.h"
+#include "rpc/rpc_helpers.h"
 #include "net/buffer_pool.h"
+#include "rpc/item.h"        /* c2_rpc_item_onwire_header_size() */
 
 /** @todo Add these declarations to some internal header */
 extern const struct c2_addb_ctx_type c2_rpc_addb_ctx_type;
 extern const struct c2_addb_loc      c2_rpc_addb_loc;
 extern       struct c2_addb_ctx      c2_rpc_addb_ctx;
 
-int  c2_rpc_core_init(void);
-void c2_rpc_core_fini(void);
-
-/** Increments item's reference counter. */
-void c2_rpc_item_get(struct c2_rpc_item *item);
-
-/** Decrements item's reference counter. */
-void c2_rpc_item_put(struct c2_rpc_item *item);
+int  c2_rpc_init(void);
+void c2_rpc_fini(void);
 
 /**
  * Calculates the total number of buffers needed in network domain for
@@ -157,20 +158,8 @@ int c2_rpc_post(struct c2_rpc_item *item);
 int c2_rpc_reply_post(struct c2_rpc_item *request,
 		      struct c2_rpc_item *reply);
 
-int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
+int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
 				 struct c2_rpc_item *item);
-
-/**
-   Wait for the reply on item being sent.
-
-   @param The clink on which caller is waiting for item reply.
-   @param timeout time to wait for item being sent
-   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
-   invoking this function
-   @return 0 success
-   @return ETIMEDOUT The wait timed out wihout being sent
- */
-int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout);
 
 /**
    Create a buffer pool per net domain which to be shared by TM's in it.
@@ -183,7 +172,7 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
 
-/** @} end group rpc_layer_core */
+/** @} end group rpc */
 
 #endif /* __COLIBRI_RPC_RPCCORE_H__  */
 

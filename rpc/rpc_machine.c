@@ -21,7 +21,7 @@
  */
 
 /**
-   @addtogroup rpc_layer_core
+   @addtogroup rpc
 
    @{
  */
@@ -35,15 +35,12 @@
 #include "addb/addb.h"
 #include "colibri/magic.h"
 #include "db/db.h"
+#include "cob/cob.h"
 #include "net/net.h"
 #include "net/buffer_pool.h"   /* c2_net_buffer_pool_[lock|unlock] */
-#include "rpc/rpc_machine.h"
-#include "rpc/formation2.h"    /* c2_rpc_frm_run_formation */
-#include "rpc/item.h"
-#include "rpc/session_internal.h"
-#include "rpc/service.h"       /* c2_rpc_services_tlist_.* */
-#include "rpc/packet.h"        /* c2_rpc */
-#include "rpc/rpc2.h"          /* c2_rpc_max_msg_size, c2_rpc_max_recv_msgs */
+
+#include "rpc/rpc.h"          /* c2_rpc_max_msg_size, c2_rpc_max_recv_msgs */
+#include "rpc/rpc_internal.h"
 
 /* Forward declarations. */
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine);
@@ -214,6 +211,7 @@ static void __rpc_machine_init(struct c2_rpc_machine *machine)
 	c2_rpc_services_tlist_init(&machine->rm_services);
 	c2_addb_ctx_init(&machine->rm_addb, &rpc_machine_addb_ctx_type,
 			 &c2_addb_global_ctx);
+	c2_sm_group_init(&machine->rm_sm_grp);
 	c2_rpc_machine_bob_init(machine);
 	c2_sm_group_init(&machine->rm_sm_grp);
 	C2_LEAVE();
@@ -222,6 +220,7 @@ static void __rpc_machine_init(struct c2_rpc_machine *machine)
 static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 {
 	C2_ENTRY("machine %p", machine);
+
 	c2_sm_group_fini(&machine->rm_sm_grp);
 	c2_addb_ctx_fini(&machine->rm_addb);
 	c2_rpc_services_tlist_fini(&machine->rm_services);
@@ -229,6 +228,7 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 	rpc_conn_tlist_fini(&machine->rm_incoming_conns);
 	rpc_chan_tlist_fini(&machine->rm_chans);
 	c2_rpc_machine_bob_fini(machine);
+
 	C2_LEAVE();
 }
 
@@ -664,6 +664,8 @@ static void item_received(struct c2_rpc_item      *item,
 			  struct c2_rpc_machine   *machine,
 			  struct c2_net_end_point *from_ep)
 {
+	int rc;
+
 	C2_ENTRY("machine: %p, item: %p, ep_addr: %s", machine,
 		 item, (char *)from_ep->nep_addr);
 
@@ -673,9 +675,16 @@ static void item_received(struct c2_rpc_item      *item,
 	item->ri_rpc_time = c2_time_now();
 
 	c2_rpc_machine_lock(machine);
-	/* NOTE: rpc_machine_lock is dropped and reacquired in
-	   c2_rpc_item_received() code path */
-	c2_rpc_item_received(item, machine);
+	c2_rpc_item_sm_init(item, &machine->rm_sm_grp, C2_RPC_ITEM_INCOMING);
+	rc = c2_rpc_item_received(item, machine);
+	if (rc == 0) {
+		c2_rpc_item_change_state(item, C2_RPC_ITEM_ACCEPTED);
+	} else {
+		C2_LOG(C2_DEBUG, "%p [%s/%d] dropped", item, item_kind(item),
+		       item->ri_type->rit_opcode);
+		c2_rpc_item_free(item);
+		machine->rm_stats.rs_nr_dropped_items++;
+	}
 	c2_rpc_machine_unlock(machine);
 
 	C2_LEAVE();
@@ -711,7 +720,7 @@ static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 	C2_LEAVE();
 }
 
-/** @} end of rpc-layer-core group */
+/** @} end of rpc group */
 
 /*
  *  Local variables:

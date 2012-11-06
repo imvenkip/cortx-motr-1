@@ -339,6 +339,9 @@ struct c2_net_xprt_ops {
 	   @see c2_net_domain_get_max_buffer_segment_size()
 	 */
 	int32_t (*xo_get_max_buffer_segments)(const struct c2_net_domain *dom);
+
+	/** Retrieves the buffer descriptor size. */
+	c2_bcount_t (*xo_get_max_buffer_desc_size)(const struct c2_net_domain *dom);
 };
 
 /**
@@ -431,6 +434,15 @@ c2_bcount_t c2_net_domain_get_max_buffer_size(struct c2_net_domain *dom);
  */
 c2_bcount_t c2_net_domain_get_max_buffer_segment_size(struct c2_net_domain
 						      *dom);
+
+/**
+   This subroutine is used to determine the size of c2_net_buf_desc
+   for a given net domain.
+   @param dom   Pointer to net domain.
+   @retval size Size of c2_net_buf_desc for the transport associated
+   with given net domain.
+ */
+c2_bcount_t c2_net_domain_get_max_buffer_desc_size(struct c2_net_domain *dom);
 
 /**
    This subroutine is used to determine the maximum number of

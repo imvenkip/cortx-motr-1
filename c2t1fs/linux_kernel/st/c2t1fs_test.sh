@@ -1,5 +1,7 @@
 #!/bin/sh
 
+#set -x
+
 . `dirname $0`/common.sh
 . `dirname $0`/c2t1fs_common_inc.sh
 . `dirname $0`/c2t1fs_client_inc.sh
@@ -7,12 +9,6 @@
 
 main()
 {
-	modprobe lnet
-	lctl network up &>> /dev/null
-	lnet_nid=`lctl list_nids | head -1`
-	export COLIBRI_IOSERVICE_ENDPOINT="$lnet_nid:12345:34:1"
-	export COLIBRI_C2T1FS_ENDPOINT="$lnet_nid:12345:34:6"
-
 	colibri_service start
 	if [ $? -ne "0" ]
 	then
@@ -20,21 +16,7 @@ main()
 		return 1
 	fi
 
-	sleep 5 #Give time to start service properly.
-
-	file_creation_test $POOL_WIDTH 1 1 $MAX_NR_FILES
-	if [ $? -ne "0" ]
-        then
-                echo "Failed: File creation test failed."
-        fi
-
-	io_combinations $POOL_WIDTH 1 1
-	if [ $? -ne "0" ]
-	then
-		echo "Failed: IO failed.."
-	fi
-
-	c2loop_st
+	c2t1fs_system_tests
 
 	colibri_service stop
 	if [ $? -ne "0" ]
@@ -42,6 +24,8 @@ main()
 		echo "Failed to stop Colibri Service."
 		return 1
 	fi
+
+	echo "Test log available at $COLIBRI_TEST_LOGFILE."
 
 	return 0
 }

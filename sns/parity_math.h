@@ -100,6 +100,22 @@ void c2_parity_math_calculate(struct c2_parity_math *math,
 			      struct c2_buf *parity);
 
 /**
+ * Calculates parity in a differential manner.
+ * @pre math != NULL && old != NULL && new != NULL && parity != NULL &&
+ *      index < math->pmi_parity_count
+ * @param old    Old version of data block.
+ * @param new    New version of data block.
+ * @param parity Parity block.
+ * @param index  Index of data unit in parity group for which old and new
+ * versions are sent.
+ */
+void c2_parity_math_diff(struct c2_parity_math *math,
+			 struct c2_buf         *old,
+			 struct c2_buf         *new,
+			 struct c2_buf         *parity,
+			 uint32_t               index);
+
+/**
    Parity block refinement iff one data word of one data unit had changed.
    @param data[in] - data block, treated as uint8_t block with b_nob elements.
    @param parity[out] - parity block, treated as uint8_t block with

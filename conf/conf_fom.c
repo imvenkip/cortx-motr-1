@@ -25,7 +25,7 @@
 #include "onwire.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 
 /**
  * Generic FOP/FOM functions
@@ -41,7 +41,7 @@ static void fop_fom_fini(struct c2_fom *fom)
 size_t fom_locality(const struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
-	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+	return c2_fop_opcode(fom->fo_fop);
 }
 
 /* -------------------------------------------------------------------

@@ -25,6 +25,7 @@
 #include "lib/misc.h"
 #include "lib/assert.h"
 
+static void test_ivec_cursor(void);
 static void test_bufvec_cursor(void);
 static void test_bufvec_cursor_copyto_copyfrom(void);
 
@@ -118,6 +119,47 @@ void test_vec(void)
 	test_bufvec_cursor();
 
 	test_bufvec_cursor_copyto_copyfrom();
+
+	test_ivec_cursor();
+}
+
+static void test_ivec_cursor(void)
+{
+	int		      nr;
+	c2_bindex_t	      segs[1];
+	c2_bindex_t	      index;
+	c2_bcount_t	      counts[1];
+	c2_bcount_t	      c;
+	struct c2_indexvec    ivec;
+	struct c2_ivec_cursor cur;
+
+	segs[0]   = 0;
+	counts[0] = 4096;
+
+	ivec.iv_index       = segs;
+	ivec.iv_vec.v_nr    = 1;
+	ivec.iv_vec.v_count = counts;
+
+	c2_ivec_cursor_init(&cur, &ivec);
+	C2_UT_ASSERT(cur.ic_cur.vc_vec    == &ivec.iv_vec);
+	C2_UT_ASSERT(cur.ic_cur.vc_seg    == 0);
+	C2_UT_ASSERT(cur.ic_cur.vc_offset == 0);
+
+	C2_UT_ASSERT(c2_ivec_cursor_step(&cur)  == 4096);
+	C2_UT_ASSERT(c2_ivec_cursor_index(&cur) == 0);
+	C2_UT_ASSERT(!c2_ivec_cursor_move(&cur, 2048));
+	C2_UT_ASSERT(c2_ivec_cursor_index(&cur) == 2048);
+	C2_UT_ASSERT(c2_ivec_cursor_move(&cur, 2048));
+
+	c2_ivec_cursor_init(&cur, &ivec);
+	c = 0;
+	nr = 0;
+	while (!c2_ivec_cursor_move(&cur, c)) {
+		index = c2_ivec_cursor_index(&cur);
+		c = c2_ivec_cursor_step(&cur);
+		++nr;
+	}
+	C2_UT_ASSERT(nr == 1);
 }
 
 static void test_bufvec_cursor(void)

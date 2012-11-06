@@ -52,6 +52,10 @@ static int  c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
 static int  c2t1fs_sb_init(struct c2t1fs_sb *csb);
 static void c2t1fs_sb_fini(struct c2t1fs_sb *csb);
 
+extern void io_bob_tlists_init(void);
+extern const struct c2_addb_ctx_type c2t1fs_addb_type;
+extern struct c2_addb_ctx c2t1fs_addb;
+
 static int  c2t1fs_config_fetch(struct c2t1fs_sb *csb);
 
 /* Mount options */
@@ -108,6 +112,9 @@ const struct c2_fid c2t1fs_root_fid = {
 	.f_key = 3ULL
 };
 
+/* Default timeout for waiting on sm_group:c2_clink if ast thread is idle. */
+static const uint64_t ast_thread_timeout = 10;
+
 /**
    tlist descriptor for list of c2t1fs_service_context objects placed in
    c2t1fs_sb::csb_service_contexts list using sc_link.
@@ -131,6 +138,26 @@ int c2t1fs_get_sb(struct file_system_type *fstype,
 		 (char *)data);
 	C2_RETURN(get_sb_nodev(fstype, flags, data, c2t1fs_fill_super, mnt));
 }
+
+void ast_thread(struct c2t1fs_sb *csb)
+{
+	c2_time_t delta = c2_time_set(&delta, ast_thread_timeout, 0);
+
+	while (1) {
+		c2_chan_timedwait(&csb->csb_iogroup.s_clink,
+				  c2_time_add(c2_time_now(), delta));
+		c2_sm_group_lock(&csb->csb_iogroup);
+		c2_sm_asts_run(&csb->csb_iogroup);
+		c2_sm_group_unlock(&csb->csb_iogroup);
+		if (!csb->csb_active && c2_atomic64_get(&csb->csb_pending_io_nr)
+				== 0) {
+			c2_chan_signal(&csb->csb_iowait);
+			break;
+		}
+	}
+}
+
+extern struct io_mem_stats iommstats;
 
 static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 {
@@ -209,7 +236,13 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 		goto out_map_fini;
 	}
 
+        io_bob_tlists_init();
+
+	rc = C2_THREAD_INIT(&csb->csb_astthread, struct c2t1fs_sb *, NULL,
+			    &ast_thread, csb, "ast_thread");
 	C2_ASSERT(rc == 0);
+	C2_SET0(&iommstats);
+
 	C2_RETURN(0);
 
 out_map_fini:
@@ -360,6 +393,7 @@ c2t1fs_build_layout(const uint64_t          layout_id,
 void c2t1fs_kill_sb(struct super_block *sb)
 {
 	struct c2t1fs_sb *csb;
+        struct c2_clink   iowait;
 
 	C2_ENTRY();
 
@@ -373,6 +407,15 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	if (csb != NULL) {
 		c2t1fs_destroy_all_dir_ents(sb);
 		c2t1fs_sb_layout_fini(csb);
+		csb->csb_active = false;
+		c2_clink_init(&iowait, NULL);
+		c2_clink_add(&csb->csb_iowait, &iowait);
+		c2_chan_signal(&csb->csb_iogroup.s_chan);
+                c2_chan_wait(&iowait);
+		c2_thread_join(&csb->csb_astthread);
+		c2_clink_del(&iowait);
+		c2_clink_fini(&iowait);
+		c2_chan_fini(&csb->csb_iowait);
 		c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 		c2t1fs_disconnect_from_all_services(csb);
 		c2t1fs_service_contexts_discard(csb);
@@ -382,6 +425,20 @@ void c2t1fs_kill_sb(struct super_block *sb)
 		c2_free(csb);
 	}
 	kill_anon_super(sb);
+
+	C2_LOG(C2_INFO, "mem stats :\n a_ioreq_nr = %llu, d_ioreq_nr = %llu\n"
+			"a_pargrp_iomap_nr = %llu, d_pargrp_iomap_nr = %llu\n"
+			"a_target_ioreq_nr = %llu, d_target_ioreq_nr = %llu\n",
+	       iommstats.a_ioreq_nr, iommstats.d_ioreq_nr,
+	       iommstats.a_pargrp_iomap_nr, iommstats.d_pargrp_iomap_nr,
+	       iommstats.a_target_ioreq_nr, iommstats.d_target_ioreq_nr);
+
+	C2_LOG(C2_INFO, "a_io_req_fop_nr = %llu, d_io_req_fop_nr = %llu\n"
+			"a_data_buf_nr = %llu, d_data_buf_nr = %llu\n"
+			"a_page_nr = %llu, d_page_nr = %llu\n",
+	       iommstats.a_io_req_fop_nr, iommstats.d_io_req_fop_nr,
+	       iommstats.a_data_buf_nr, iommstats.d_data_buf_nr,
+	       iommstats.a_page_nr, iommstats.d_page_nr);
 
 	C2_LEAVE();
 }
@@ -433,6 +490,11 @@ static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 	c2t1fs_mnt_opts_init(&csb->csb_mnt_opts);
 	svc_ctx_tlist_init(&csb->csb_service_contexts);
 	csb->csb_next_key = c2t1fs_root_fid.f_key + 1;
+        c2_sm_group_init(&csb->csb_iogroup);
+        c2_addb_ctx_init(&c2t1fs_addb, &c2t1fs_addb_type, &c2_addb_global_ctx);
+	csb->csb_active = true;
+	c2_chan_init(&csb->csb_iowait);
+	c2_atomic64_set(&csb->csb_pending_io_nr, 0);
 
 	C2_RETURN(0);
 }
@@ -443,10 +505,12 @@ static void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 
 	C2_ASSERT(csb != NULL);
 
+	c2_sm_group_fini(&csb->csb_iogroup);
 	svc_ctx_tlist_fini(&csb->csb_service_contexts);
 	c2_mutex_fini(&csb->csb_mutex);
 	c2t1fs_mnt_opts_fini(&csb->csb_mnt_opts);
 	csb->csb_next_key = 0;
+        c2_addb_ctx_fini(&c2t1fs_addb);
 
 	C2_LEAVE();
 }
@@ -555,6 +619,27 @@ static int c2t1fs_mnt_opts_validate(const struct c2t1fs_mnt_opts *mnt_opts)
 		C2_LOG(C2_ERROR, "ERROR:"
 				" number of endpoints must be less than %d",
 				MAX_NR_EP_PER_SERVICE_TYPE);
+		goto invalid;
+	}
+
+	/*
+	 * In parity groups, parity is calculated using 2 approaches.
+	 * - read old
+	 * - read rest.
+	 * In read old approach, parity is calculated using differential parity
+	 * between old and new version of data along with old version of
+	 * parity block. This needs support from parity math component to
+	 * calculate differential parity.
+	 * At the moment, only XOR has such support.
+	 * Parity math component choses the algorithm for parity calculation
+	 * based on number of parity units. If K == 1, XOR is chosen, otherwise
+	 * Reed-Solomon is chosen.
+	 * Since Reed-Solomon does not support differential parity calculation
+	 * at the moment, number of parity units are restricted to 1 for now.
+	 */
+	if (mnt_opts->mo_nr_parity_units > 1) {
+		C2_LOG(C2_ERROR, "ERROR:"
+				"Number of parity units must be 1");
 		goto invalid;
 	}
 
@@ -781,6 +866,7 @@ static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb)
 		rc = c2t1fs_connect_to_service(ctx);
 		if (rc != 0) {
 			c2t1fs_disconnect_from_all_services(csb);
+			c2t1fs_service_contexts_discard(csb);
 			goto out;
 		}
 	} c2_tl_endfor;
@@ -879,14 +965,14 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 
 	conn = &ctx->sc_conn;
 	rc = c2_rpc_conn_create(conn, ep, rpc_mach, C2T1FS_MAX_NR_RPC_IN_FLIGHT,
-				C2T1FS_RPC_TIMEOUT);
+				C2_TIME_NEVER);
 	c2_net_end_point_put(ep);
 	if (rc != 0)
 		goto out;
 
 	session = &ctx->sc_session;
 	rc = c2_rpc_session_create(session, conn, C2T1FS_NR_SLOTS_PER_SESSION,
-				   C2T1FS_RPC_TIMEOUT);
+				   C2_TIME_NEVER);
 	if (rc != 0)
 		goto conn_term;
 
@@ -896,7 +982,7 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 	C2_RETURN(rc);
 
 conn_term:
-	(void)c2_rpc_conn_terminate_sync(conn, C2T1FS_RPC_TIMEOUT);
+	(void)c2_rpc_conn_terminate_sync(conn, C2_TIME_NEVER);
 	c2_rpc_conn_fini(conn);
 out:
 	C2_ASSERT(rc != 0);
@@ -907,15 +993,12 @@ static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx)
 {
 	C2_ENTRY();
 
-	(void)c2_rpc_session_terminate_sync(&ctx->sc_session,
-					    C2T1FS_RPC_TIMEOUT);
-
+	(void)c2_rpc_session_terminate_sync(&ctx->sc_session, C2_TIME_NEVER);
 	/* session_fini() before conn_terminate is necessary, to detach
 	   session from connection */
 	c2_rpc_session_fini(&ctx->sc_session);
 
-	(void)c2_rpc_conn_terminate_sync(&ctx->sc_conn, C2T1FS_RPC_TIMEOUT);
-
+	(void)c2_rpc_conn_terminate_sync(&ctx->sc_conn, C2_TIME_NEVER);
 	c2_rpc_conn_fini(&ctx->sc_conn);
 
 	ctx->sc_csb->csb_nr_active_contexts--;
@@ -930,9 +1013,9 @@ static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb)
 	C2_ENTRY();
 
 	c2_tl_for(svc_ctx, &csb->csb_service_contexts, ctx) {
-		c2t1fs_disconnect_from_service(ctx);
 		if (csb->csb_nr_active_contexts == 0)
 			break;
+		c2t1fs_disconnect_from_service(ctx);
 	} c2_tl_endfor;
 
 	C2_LEAVE();

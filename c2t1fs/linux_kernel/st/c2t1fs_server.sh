@@ -20,8 +20,6 @@ if [ "x$1" = "x-h" ]; then
 	exit 0
 fi
 
-export C2_TRACE_IMMEDIATE_MASK=1
-
 . `dirname $0`/common.sh
 . `dirname $0`/c2t1fs_common_inc.sh
 . `dirname $0`/c2t1fs_server_inc.sh
@@ -32,17 +30,7 @@ main()
 		modprobe lnet &>> /dev/null
 		lctl network up &>> /dev/null
 		lnet_nid=`lctl list_nids | head -1`
-		export COLIBRI_C2T1FS_ENDPOINT="$lnet_nid:12345:34:6"
-
-		if [ "x$2" = "xdefault" ] || [ "x$2" = "xDefault" ] ||
-		   [ "x$2" = "x" ]; then
-			export COLIBRI_IOSERVICE_ENDPOINT="$lnet_nid:12345:34:1"
-		else
-			export COLIBRI_IOSERVICE_ENDPOINT="$2:12345:34:1"
-		fi
-
-		echo "Colibri ioservice endpoint = $COLIBRI_IOSERVICE_ENDPOINT"
-		echo "Colibri c2t1fs endpoint = $COLIBRI_C2T1FS_ENDPOINT"
+		echo $lnet_nid
 	fi
 
 	colibri_service $1

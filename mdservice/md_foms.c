@@ -1006,7 +1006,7 @@ int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
         C2_PRE(fop != NULL);
         md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
-        switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
+        switch (c2_fop_opcode(fop)) {
         case C2_MDSERVICE_CREATE_OPCODE:
                 create = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
@@ -1116,7 +1116,7 @@ void c2_md_fop_free(struct c2_fop *fop)
         struct c2_fop_close     *close;
         struct c2_fop_readdir   *readdir;
 
-        switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
+        switch (c2_fop_opcode(fop)) {
         case C2_MDSERVICE_CREATE_OPCODE:
                 create = c2_fop_data(fop);
                 if (create->c_name.s_len != 0)
@@ -1210,7 +1210,7 @@ static size_t c2_md_req_fom_locality_get(const struct c2_fom *fom)
         C2_PRE(fom != NULL);
         C2_PRE(fom->fo_fop != NULL);
 
-        return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+        return c2_fop_opcode(fom->fo_fop);
 }
 
 static const struct c2_fom_ops c2_md_fom_create_ops = {
@@ -1286,7 +1286,7 @@ int c2_md_req_fom_create(struct c2_fop *fop, struct c2_fom **m)
         if (fom_obj == NULL)
                 return -ENOMEM;
 
-        switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
+        switch (c2_fop_opcode(fop)) {
         case C2_MDSERVICE_CREATE_OPCODE:
                 ops = &c2_md_fom_create_ops;
                 rep_fopt = &c2_fop_create_rep_fopt;

@@ -32,7 +32,7 @@
 #include "stob/ad.h"
 #include "stob/linux.h"
 #include "net/lnet/lnet.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "fop/fop_item_type.h"
 #include "rpc/item.h"
 #include "fop/fom_generic_ff.h"

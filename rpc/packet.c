@@ -24,14 +24,17 @@
 #include "lib/misc.h"
 #include "lib/vec.h"
 #include "lib/errno.h"
+#include "lib/finject.h"
 #include "colibri/magic.h"
-#include "rpc/packet.h"
-#include "rpc/rpc2.h"
-#include "rpc/item.h"
-#include "rpc/rpc_helpers.h"
-#include "rpc/rpc_onwire.h" /* C2_RPC_VERSION_1 */
-#include "rpc/rpc_onwire_xc.h" /* c2_rpc_packet_onwire_header_xc */
 #include "xcode/xcode.h"
+
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
+
+/**
+ * @addtogroup rpc
+ * @{
+ */
 
 #define PACKHD_XCODE_OBJ(ptr) C2_XCODE_OBJ(c2_rpc_packet_onwire_header_xc, ptr)
 
@@ -189,6 +192,9 @@ int c2_rpc_packet_encode(struct c2_rpc_packet *p,
 	C2_ENTRY("packet: %p bufvec: %p", p, bufvec);
 	C2_PRE(c2_rpc_packet_invariant(p) && bufvec != NULL);
 	C2_PRE(!c2_rpc_packet_is_empty(p));
+
+	if (C2_FI_ENABLED("fake_error"))
+		return -EFAULT;
 
 	bufvec_size = c2_vec_count(&bufvec->ov_vec);
 
@@ -399,6 +405,7 @@ void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 	C2_LEAVE();
 }
 
+/** @} */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

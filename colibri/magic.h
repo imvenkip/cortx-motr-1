@@ -72,6 +72,24 @@ enum c2_magic_satchel {
 	/* bufs_tl::td_head_magic (bedded celiac) */
 	C2_T1FS_BUF_HEAD_MAGIC = 0x33beddedce11ac77,
 
+        /* io_request::ir_magic (fearsome acts) */
+        C2_T1FS_IOREQ_MAGIC  = 0x33fea2503eac1577,
+
+        /* nw_xfer_request::nxr_magic (coffee arabic) */
+        C2_T1FS_NWREQ_MAGIC  = 0x33c0ffeea2ab1c77,
+
+        /* target_ioreq::ti_magic (falafel bread) */
+        C2_T1FS_TIOREQ_MAGIC = 0x33fa1afe1b2ead77,
+
+        /* io_req_fop::irf_magic (desirability) */
+        C2_T1FS_IOFOP_MAGIC  = 0x33de512ab1111777,
+
+        /* data_buf::db_magic (fire incoming) */
+        C2_T1FS_DTBUF_MAGIC  = 0x33f12e19c0319977,
+
+        /* pargrp_iomap::pi_magic (incandescent) */
+        C2_T1FS_PGROUP_MAGIC = 0x3319ca9de5ce9177,
+
 /* Configuration Caching */
 	/* c2_conf_reg::r_magic (fabled feodal) */
 	C2_CONF_REG_MAGIC = 0x33fab1edfe0da177,

@@ -47,6 +47,8 @@ uint64_t c2_round_up(uint64_t val, uint64_t size);
  */
 uint64_t c2_round_down(uint64_t val, uint64_t size);
 
+#define C2_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
+
 #define C2_SET0(obj)				\
 ({						\
 	C2_CASSERT(!c2_is_array(obj));		\

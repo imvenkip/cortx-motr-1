@@ -27,9 +27,7 @@
 #include <stdio.h> /* FILE */
 #endif
 
-#include "rpc/item.h"    /* struct c2_rpc_machine, c2_rpc_item */
-#include "rpc/rpc2.h"
-#include "rpc/session.h" /* struct c2_rpc_conn, c2_rpc_session */
+#include "rpc/rpc.h"
 #include "db/db.h"       /* struct c2_dbenv */
 #include "cob/cob.h"     /* struct c2_cob_domain */
 #include "net/net.h"     /* struct c2_net_end_point */
@@ -39,6 +37,7 @@
 #include "colibri/colibri_setup.h" /* struct c2_colibri */
 #endif
 
+struct c2_fop;
 
 #ifndef __KERNEL__
 struct c2_reqh;

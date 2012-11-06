@@ -28,7 +28,7 @@
 #include "conf_fom.h"
 #include "onwire.ff"
 #include "lib/errno.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "fop/fop_item_type.h"
 #include "xcode/bufvec_xcode.h"
 

@@ -94,6 +94,7 @@ void c2_sm_asts_run(struct c2_sm_group *grp)
 		if (ast == NULL)
 			break;
 
+		ast->sa_next = NULL;
 		ast->sa_cb(grp, ast);
 	}
 }

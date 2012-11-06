@@ -27,32 +27,26 @@ main()
 {
 	modprobe lnet &>> /dev/null
 	lctl network up &>> /dev/null
+	server_nid=$1
 	lnet_nid=`lctl list_nids | head -1`
-	export COLIBRI_C2T1FS_ENDPOINT="$lnet_nid:12345:34:6"
-	export COLIBRI_IOSERVICE_ENDPOINT="$1:12345:34:1"
+	LADDR="$lnet_nid:12345:33:1"
 
-	echo "Colibri ioservice endpoint = $COLIBRI_IOSERVICE_ENDPOINT"
-	echo "Colibri c2t1fs endpoint = $COLIBRI_C2T1FS_ENDPOINT"
+	for ((i=0; i < ${#EP[*]}; i++)) ; do
+		if ((i != 0)) ; then
+                    IOS="$IOS,"
+                fi
+                IOS="${IOS}ios=${server_nid}:${EP[$i]}"
+	done
 
 	prepare
 
 	echo "Prepare done, starting tests..."
 
-	file_creation_test $POOL_WIDTH 1 1 $MAX_NR_FILES
-	if [ $? -ne "0" ]
-        then
-                echo "Failed: File creation test failed."
-		return 1
-        fi
-
-	io_combinations $POOL_WIDTH 1 1
+	c2t1fs_system_tests
 	if [ $? -ne "0" ]
 	then
-		echo "Failed: IO failed.."
 		return 1
 	fi
-
-	c2loop_st || return 1
 
         return 0
 }

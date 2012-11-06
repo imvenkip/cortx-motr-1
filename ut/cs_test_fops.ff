@@ -22,7 +22,7 @@
   Dummy fops to test colibri setup
  */
 record {
-	u32 csr_value
+	u64 csr_value
 } cs_ds1_req_fop;
 
 record {
@@ -30,7 +30,7 @@ record {
 } cs_ds1_rep_fop;
 
 record {
-	u32 csr_value
+	u64 csr_value
 } cs_ds2_req_fop;
 
 record {

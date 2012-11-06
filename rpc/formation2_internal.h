@@ -25,6 +25,11 @@
 #define __COLIBRI_RPC_FORMATION2_H__
 
 /**
+ * @addtogroup rpc
+ * @{
+ */
+
+/**
    Formation component for Colibri RPC layer is what IO scheduler is for
    block device. Because of network layer overhead associated with each
    message (i.e. buffer), sending each individual RPC item directly to network
@@ -78,6 +83,7 @@
 /* Imports */
 struct c2_rpc_packet;
 struct c2_rpc_item;
+struct c2_rpc_session;
 
 /* Forward references */
 struct c2_rpc_frm_ops;
@@ -154,10 +160,10 @@ enum frm_state {
 enum c2_rpc_frm_itemq_type {
 	FRMQ_TIMEDOUT_BOUND,
 	FRMQ_TIMEDOUT_UNBOUND,
-	FRMQ_TIMEDOUT_ONE_WAY,
+	FRMQ_TIMEDOUT_ONEWAY,
 	FRMQ_WAITING_BOUND,
 	FRMQ_WAITING_UNBOUND,
-	FRMQ_WAITING_ONE_WAY,
+	FRMQ_WAITING_ONEWAY,
 	FRMQ_NR_QUEUES
 };
 
@@ -266,11 +272,9 @@ struct c2_rpc_frm_ops {
 	   Bind a slot to the item.
 
 	   @pre c2_rpc_item_is_unbound(item) && item->ri_session != NULL
-	   @pre c2_rpc_machine_is_locked(
-				item->ri_session->s_conn->c_rpc_machine)
+	   @pre c2_rpc_machine_is_locked(item_machine(item))
 	   @post equi(result, c2_rpc_item_is_bound(item))
-	   @post c2_rpc_machine_is_locked(
-				item->ri_session->s_conn->c_rpc_machine)
+	   @post c2_rpc_machine_is_locked(item_machine(item))
 	 */
 	bool (*fo_item_bind)(struct c2_rpc_item *item);
 };
@@ -323,4 +327,13 @@ void c2_rpc_frm_packet_done(struct c2_rpc_packet *packet);
  */
 void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm);
 
+struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s);
+
+C2_TL_DESCR_DECLARE(itemq, extern);
+C2_TL_DECLARE(itemq, extern, struct c2_rpc_item);
+
+struct c2_rpc_chan    *frm_rchan(const struct c2_rpc_frm *frm);
+struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm);
+
+/** @} */
 #endif /* __COLIBRI_RPC_FORMATION2_H__ */

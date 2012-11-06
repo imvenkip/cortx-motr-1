@@ -29,7 +29,7 @@
 #include "lib/misc.h"
 #include "ioservice/io_fops.h"	/* c2_io_fop */
 #include "ioservice/io_fops_ff.h"
-#include "rpc/rpc2.h"		/* c2_rpc_bulk, c2_rpc_bulk_buf */
+#include "rpc/rpc.h"		/* c2_rpc_bulk, c2_rpc_bulk_buf */
 #include "rpc/rpc_opcodes.h"	/* enum C2_RPC_OPCODES */
 #include "rpc/rpclib.h"		/* c2_rpc_ctx */
 #include "ut/rpc.h"		/* c2_rpc_client_init, c2_rpc_server_init */
