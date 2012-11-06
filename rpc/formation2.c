@@ -281,6 +281,7 @@ static void frm_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 
 	C2_CNT_INC(frm->f_nr_items);
 	frm->f_nr_bytes_accumulated += c2_rpc_item_size(item);
+	item->ri_frm = frm;
 	if (frm->f_state == FRM_IDLE)
 		frm->f_state = FRM_BUSY;
 
@@ -585,6 +586,7 @@ static void frm_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 	C2_PRE(frm->f_nr_items > 0 && item->ri_itemq != NULL);
 
 	__itemq_remove(item);
+	item->ri_frm = NULL;
 	C2_CNT_DEC(frm->f_nr_items);
 	frm->f_nr_bytes_accumulated -= c2_rpc_item_size(item);
 	C2_ASSERT(frm->f_nr_bytes_accumulated >= 0);

@@ -603,7 +603,7 @@ static int item_entered_in_urgent_state(struct c2_sm *mach)
 	struct c2_rpc_frm  *frm;
 
 	item = sm_to_item(mach);
-	frm  = session_frm(item->ri_session);
+	frm  = item->ri_frm;
 	if (item_is_in_waiting_queue(item, frm)) {
 		C2_LOG(C2_DEBUG, "%p [%s/%u] ENQUEUED -> URGENT",
 		       item, item_kind(item), item->ri_type->rit_opcode);

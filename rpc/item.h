@@ -42,6 +42,7 @@
 struct c2_rpc_slot;
 struct c2_rpc_session;
 struct c2_bufvec_cursor;
+struct c2_rpc_frm;
 
 /* Forward declarations */
 struct c2_rpc_item_ops;
@@ -213,6 +214,7 @@ struct c2_rpc_item {
 	struct c2_tlink                  ri_plink;
 	/** One of c2_rpc_frm::f_itemq[], in which this item is placed. */
 	struct c2_tl                    *ri_itemq;
+	struct c2_rpc_frm               *ri_frm;
 	/** C2_RPC_ITEM_MAGIC */
 	uint64_t			 ri_magic;
 };

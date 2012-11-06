@@ -55,7 +55,7 @@ static void __rpc_machine_init(struct c2_rpc_machine *machine);
 static void __rpc_machine_fini(struct c2_rpc_machine *machine);
 static int root_session_cob_create(struct c2_cob_domain *dom);
 static void conn_list_fini(struct c2_tl *list);
-static void rpc_worker_thread_fn(struct c2_rpc_machine *machine);
+void rpc_worker_thread_fn(struct c2_rpc_machine *machine);
 static struct c2_rpc_chan *rpc_chan_locate(struct c2_rpc_machine *machine,
 					   struct c2_net_end_point *dest_ep);
 static int rpc_chan_create(struct c2_rpc_chan **chan,
@@ -191,6 +191,7 @@ out_tm_cleanup:
 
 out_stop_worker:
 	machine->rm_stopping = true;
+	c2_clink_signal(&machine->rm_sm_grp.s_clink);
 	c2_thread_join(&machine->rm_worker);
 
 out_fini:
@@ -278,7 +279,8 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 }
 C2_EXPORTED(c2_rpc_machine_fini);
 
-static void rpc_worker_thread_fn(struct c2_rpc_machine *machine)
+/* Not static because formation ut requires it. */
+void rpc_worker_thread_fn(struct c2_rpc_machine *machine)
 {
 	C2_ENTRY();
 	C2_PRE(machine != NULL);

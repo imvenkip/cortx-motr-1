@@ -277,7 +277,7 @@ static void create_send(struct c2_rpc_session *session)
 		rh_io_fop->fic_object.f_oid = i;
 
 		rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
-						CONNECT_TIMEOUT);
+					0 /* deadline */, CONNECT_TIMEOUT);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(fop->f_item.ri_error == 0);
 		C2_UT_ASSERT(fop->f_item.ri_reply != 0);
@@ -301,7 +301,7 @@ static void read_send(struct c2_rpc_session *session)
 		rh_io_fop->fir_object.f_oid = i;
 
 		rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
-						CONNECT_TIMEOUT);
+					0 /* deadline */, CONNECT_TIMEOUT);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(fop->f_item.ri_error == 0);
 		C2_UT_ASSERT(fop->f_item.ri_reply != 0);
@@ -325,7 +325,7 @@ static void write_send(struct c2_rpc_session *session)
 		rh_io_fop->fiw_object.f_oid = i;
 
 		rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
-						CONNECT_TIMEOUT);
+					0 /* deadline */, CONNECT_TIMEOUT);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(fop->f_item.ri_error == 0);
 		C2_UT_ASSERT(fop->f_item.ri_reply != 0);

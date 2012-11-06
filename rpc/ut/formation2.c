@@ -31,6 +31,8 @@
 #include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
+void rpc_worker_thread_fn(struct c2_rpc_machine *machine);
+
 static struct c2_rpc_frm             *frm;
 static struct c2_rpc_frm_constraints  constraints;
 static struct c2_rpc_machine          rmachine;
@@ -40,16 +42,25 @@ static struct c2_rpc_slot             slot;
 
 static int frm_ut_init(void)
 {
+	int rc;
+
 	rchan.rc_rpc_machine = &rmachine;
 	frm = &rchan.rc_frm;
 	c2_sm_group_init(&rmachine.rm_sm_grp);
+	rmachine.rm_stopping = false;
+	rc = C2_THREAD_INIT(&rmachine.rm_worker, struct c2_rpc_machine *,
+			    NULL, &rpc_worker_thread_fn, &rmachine,
+			    "rpc_worker");
+	C2_ASSERT(rc == 0);
 	c2_rpc_machine_lock(&rmachine);
 	return 0;
 }
 
 static int frm_ut_fini(void)
 {
+        rmachine.rm_stopping = true;
 	c2_rpc_machine_unlock(&rmachine);
+	c2_thread_join(&rmachine.rm_worker);
 	c2_sm_group_fini(&rmachine.rm_sm_grp);
 	return 0;
 }
@@ -242,7 +253,7 @@ static void frm_test1(void)
 	 */
 	void perform_test(int deadline, int kind)
 	{
-		struct c2_rpc_item   *item;
+		struct c2_rpc_item *item;
 
 		set_timeout(100);
 		item = new_item(deadline, kind);
@@ -252,8 +263,10 @@ static void frm_test1(void)
 			C2_UT_ASSERT(!packet_ready_called &&
 				     !item_bind_called);
 			check_frm(FRM_BUSY, 1, 0);
+			/* Allow RPC worker to process timeout AST */
+			c2_rpc_machine_unlock(&rmachine);
 			c2_nanosleep(c2_time(0, 2 * timeout), NULL);
-			c2_rpc_frm_run_formation(frm);
+			c2_rpc_machine_lock(&rmachine);
 		}
 		C2_UT_ASSERT(packet_ready_called &&
 			     equi(kind == UNBOUND, item_bind_called));

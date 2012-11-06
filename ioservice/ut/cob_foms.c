@@ -319,7 +319,7 @@ static void cobfops_send_wait(struct cobthread_arg *arg)
 		cut->cu_deletefops[i];;
 
 	rc = c2_rpc_client_call(fop, &cut->cu_cctx.rcx_session,
-				&cob_req_rpc_item_ops,
+				&cob_req_rpc_item_ops, 0 /* deadline */,
 				CLIENT_RPC_CONN_TIMEOUT);
 	C2_UT_ASSERT(rc == 0);
 	rfop = c2_fop_data(c2_rpc_item_to_fop(fop->f_item.ri_reply));
