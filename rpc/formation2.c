@@ -45,7 +45,6 @@ static void __itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item);
 static void frm_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
 static void __itemq_remove(struct c2_rpc_item *item);
 static void frm_balance(struct c2_rpc_frm *frm);
-static void frm_filter_timedout_items(struct c2_rpc_frm *frm);
 static bool frm_is_ready(const struct c2_rpc_frm *frm);
 static void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
 static bool frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
@@ -70,11 +69,11 @@ static bool
 constraints_are_valid(const struct c2_rpc_frm_constraints *constraints);
 
 static const char *str_qtype[] = {
-	[FRMQ_TIMEDOUT_BOUND]   = "TIMEDOUT_BOUND",
-	[FRMQ_TIMEDOUT_UNBOUND] = "TIMEDOUT_UNBOUND",
-	[FRMQ_TIMEDOUT_ONEWAY] = "TIMEDOUT_ONEWAY",
-	[FRMQ_WAITING_UNBOUND]  = "WAITING_UNBOUND",
-	[FRMQ_WAITING_BOUND]    = "WAITING_BOUND",
+	[FRMQ_URGENT_BOUND]    = "URGENT_BOUND",
+	[FRMQ_URGENT_UNBOUND]  = "URGENT_UNBOUND",
+	[FRMQ_URGENT_ONEWAY]   = "URGENT_ONEWAY",
+	[FRMQ_WAITING_UNBOUND] = "WAITING_UNBOUND",
+	[FRMQ_WAITING_BOUND]   = "WAITING_BOUND",
 	[FRMQ_WAITING_ONEWAY]  = "WAITING_ONEWAY"
 };
 
@@ -304,8 +303,7 @@ static void frm_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 bool item_is_in_waiting_queue(const struct c2_rpc_item *item,
 			      const struct c2_rpc_frm  *frm)
 {
-	return  item->ri_itemq != NULL &&
-		C2_IN(item->ri_itemq, (&frm->f_itemq[FRMQ_WAITING_BOUND],
+	return  C2_IN(item->ri_itemq, (&frm->f_itemq[FRMQ_WAITING_BOUND],
 				       &frm->f_itemq[FRMQ_WAITING_UNBOUND],
 				       &frm->f_itemq[FRMQ_WAITING_ONEWAY]));
 }
@@ -337,9 +335,9 @@ frm_which_qtype(struct c2_rpc_frm *frm, const struct c2_rpc_item *item)
 	       c2_bool_to_str(deadline_passed));
 
 	if (deadline_passed)
-		qtype = oneway ? FRMQ_TIMEDOUT_ONEWAY
-			       : bound  ? FRMQ_TIMEDOUT_BOUND
-					: FRMQ_TIMEDOUT_UNBOUND;
+		qtype = oneway ? FRMQ_URGENT_ONEWAY
+			       : bound  ? FRMQ_URGENT_BOUND
+					: FRMQ_URGENT_UNBOUND;
 	else
 		qtype = oneway ? FRMQ_WAITING_ONEWAY
 			       : bound  ? FRMQ_WAITING_BOUND
@@ -415,7 +413,6 @@ static void frm_balance(struct c2_rpc_frm *frm)
 	       (char *)c2_bool_to_str(frm_is_ready(frm)));
 	packet_count = item_count = 0;
 
-	frm_filter_timedout_items(frm);
 	while (frm_is_ready(frm)) {
 		C2_ALLOC_PTR_ADDB(p, &frm->f_addb_ctx, &frm_addb_loc);
 		if (p == NULL) {
@@ -457,49 +454,6 @@ static void frm_balance(struct c2_rpc_frm *frm)
  */
 
 /**
-   Moves all timed-out items from WAITING_* queues to TIMEDOUT_* queues.
-
-   XXX This entire routine is temporary and will be removed in future.
-       Currently we don't start any timer for every item. Instead a
-       background thread c2_rpc_machine::rm_frm_worker periodically runs
-       formation to send any timedout items.
- */
-static void frm_filter_timedout_items(struct c2_rpc_frm *frm)
-{
-	static const enum c2_rpc_frm_itemq_type qtypes[] = {
-		FRMQ_WAITING_BOUND,
-		FRMQ_WAITING_UNBOUND,
-		FRMQ_WAITING_ONEWAY
-	};
-	enum c2_rpc_frm_itemq_type  qtype;
-	struct c2_rpc_item         *item;
-	struct c2_tl               *q;
-	int                         i;
-	c2_time_t                   now = c2_time_now();
-
-	C2_ENTRY("frm: %p", frm);
-	C2_PRE(frm_invariant(frm));
-
-	for (i = 0; i < ARRAY_SIZE(qtypes); ++i) {
-		qtype = qtypes[i];
-		q     = &frm->f_itemq[qtype];
-		c2_tl_for(itemq, q, item) {
-			if (item->ri_deadline <= now) {
-				frm_remove(frm, item);
-				/*
-				 * This time the item will be inserted in
-				 * one of TIMEDOUT_* queues.
-				 */
-				frm_insert(frm, item);
-			}
-		} c2_tl_endfor;
-	}
-
-	C2_ASSERT(frm_invariant(frm));
-	C2_LEAVE();
-}
-
-/**
    Is frm ready to form a packet?
 
    It is possible that frm_is_ready() returns true but no packet could
@@ -508,18 +462,18 @@ static void frm_filter_timedout_items(struct c2_rpc_frm *frm)
 static bool frm_is_ready(const struct c2_rpc_frm *frm)
 {
 	const struct c2_rpc_frm_constraints *c;
-	bool                                 has_timedout_items;
+	bool                                 has_urgent_items;
 
 	C2_PRE(frm != NULL);
 
-	has_timedout_items =
-		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_TIMEDOUT_BOUND]) ||
-		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_TIMEDOUT_UNBOUND]) ||
-		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_TIMEDOUT_ONEWAY]);
+	has_urgent_items =
+		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_BOUND]) ||
+		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_UNBOUND]) ||
+		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_ONEWAY]);
 
 	c = &frm->f_constraints;
 	return frm->f_nr_packets_enqed < c->fc_max_nr_packets_enqed &&
-	       (has_timedout_items ||
+	       (has_urgent_items ||
 		frm->f_nr_bytes_accumulated >= c->fc_max_nr_bytes_accumulated);
 }
 

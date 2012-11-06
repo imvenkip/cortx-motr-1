@@ -176,14 +176,12 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 
 	rc = rpc_tm_setup(&machine->rm_tm, net_dom, ep_addr, receive_pool,
 			  colour, msg_size, queue_len);
-	if (rc != 0) {
+	if (rc != 0)
 		goto out_stop_worker;
-	}
 
 	rc = root_session_cob_create(dom);
-	if (rc != 0) {
+	if (rc != 0)
 		goto out_tm_cleanup;
-	}
 
 	C2_ASSERT(rc == 0);
 	C2_RETURN(0);

@@ -65,13 +65,14 @@ enum c2_rpc_item_state {
 	 */
 	C2_RPC_ITEM_WAITING_IN_STREAM,
 	/**
-	 * Item is in one of the queues maintained by formation.
+	 * Item is in one of the WAITING_ queues maintained by formation.
 	 * The item is waiting to be selected by formation machine for sending
 	 * on the network.
 	 */
 	C2_RPC_ITEM_ENQUEUED,
 	/*
 	 * Deadline of item is expired.
+	 * Item is in one of URGENT_* queues maintained by formation.
 	 * Formation should send the item as early as possible.
 	 */
 	C2_RPC_ITEM_URGENT,

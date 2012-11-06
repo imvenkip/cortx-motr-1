@@ -608,6 +608,11 @@ static int item_entered_in_urgent_state(struct c2_sm *mach)
 		C2_LOG(C2_DEBUG, "%p [%s/%u] ENQUEUED -> URGENT",
 		       item, item_kind(item), item->ri_type->rit_opcode);
 		c2_rpc_frm_item_deadline_passed(frm, item);
+		/*
+		 * c2_rpc_frm_item_deadline_passed() might reenter in
+		 * c2_sm_state_set() and modify item state.
+		 * So at this point the item may or may not be in URGENT state.
+		 */
 	}
 	return -1;
 }

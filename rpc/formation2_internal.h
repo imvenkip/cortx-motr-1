@@ -143,24 +143,24 @@ enum frm_state {
    Formation partitions RPC items in these types of queues.
    An item can migrate from one queue to another depending on its state.
 
-   TIMEDOUT_* are the queues which contain items whose deadline has been
+   URGENT_* are the queues which contain items whose deadline has been
    passed. These items should be sent as soon as possible.
 
    WAITING_* are the queues which contain items whose deadline is not yet
    reached. An item from these queues can be picked for formation even
    before its deadline is passed.
 
-   (TIMEDOUT|WAITING)_BOUND queues contain items for which slot is already
+   (URGENT|WAITING)_BOUND queues contain items for which slot is already
    assigned. These are "ready to go" items.
-   (TIMEDOUT|WAITING)_UNBOUND queues contain items for which slot needs to
+   (URGENT|WAITING)_UNBOUND queues contain items for which slot needs to
    assigned first. @see c2_rpc_frm_ops::fo_item_bind()
 
    A bound item cannot be merged with other bound RPC items.
  */
 enum c2_rpc_frm_itemq_type {
-	FRMQ_TIMEDOUT_BOUND,
-	FRMQ_TIMEDOUT_UNBOUND,
-	FRMQ_TIMEDOUT_ONEWAY,
+	FRMQ_URGENT_BOUND,
+	FRMQ_URGENT_UNBOUND,
+	FRMQ_URGENT_ONEWAY,
 	FRMQ_WAITING_BOUND,
 	FRMQ_WAITING_UNBOUND,
 	FRMQ_WAITING_ONEWAY,
