@@ -26,7 +26,7 @@
 #include "colibri/magic.h"
 #include "fop/fop.h"
 #include "addb/addbff/addb_ff.h"
-#include "rpc/packet.h"
+#include "rpc/packet_internal.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fop_ff.h"
