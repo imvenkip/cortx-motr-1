@@ -1548,6 +1548,7 @@ void bulkio_server_read_write_fv_mismatch(void)
 
 	rc = c2_rpc_client_call(wfop, &bp->bp_cctx->rcx_session,
 				&c2_fop_default_item_ops,
+				0 /* deadline */,
 				IO_RPC_ITEM_TIMEOUT);
 	C2_ASSERT(rc == 0);
 	rw_reply = io_rw_rep_get(c2_rpc_item_to_fop(wfop->f_item.ri_reply));
@@ -1561,7 +1562,7 @@ void bulkio_server_read_write_fv_mismatch(void)
         rfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
 
 	rc = c2_rpc_client_call(rfop, &bp->bp_cctx->rcx_session,
-				&c2_fop_default_item_ops,
+				&c2_fop_default_item_ops, 0 /* deadline */,
 				IO_RPC_ITEM_TIMEOUT);
 	C2_ASSERT(rc == 0);
 	rw_reply = io_rw_rep_get(c2_rpc_item_to_fop(rfop->f_item.ri_reply));

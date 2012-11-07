@@ -143,24 +143,24 @@ enum frm_state {
    Formation partitions RPC items in these types of queues.
    An item can migrate from one queue to another depending on its state.
 
-   TIMEDOUT_* are the queues which contain items whose deadline has been
+   URGENT_* are the queues which contain items whose deadline has been
    passed. These items should be sent as soon as possible.
 
    WAITING_* are the queues which contain items whose deadline is not yet
    reached. An item from these queues can be picked for formation even
    before its deadline is passed.
 
-   (TIMEDOUT|WAITING)_BOUND queues contain items for which slot is already
+   (URGENT|WAITING)_BOUND queues contain items for which slot is already
    assigned. These are "ready to go" items.
-   (TIMEDOUT|WAITING)_UNBOUND queues contain items for which slot needs to
+   (URGENT|WAITING)_UNBOUND queues contain items for which slot needs to
    assigned first. @see c2_rpc_frm_ops::fo_item_bind()
 
    A bound item cannot be merged with other bound RPC items.
  */
 enum c2_rpc_frm_itemq_type {
-	FRMQ_TIMEDOUT_BOUND,
-	FRMQ_TIMEDOUT_UNBOUND,
-	FRMQ_TIMEDOUT_ONEWAY,
+	FRMQ_URGENT_BOUND,
+	FRMQ_URGENT_UNBOUND,
+	FRMQ_URGENT_ONEWAY,
 	FRMQ_WAITING_BOUND,
 	FRMQ_WAITING_UNBOUND,
 	FRMQ_WAITING_ONEWAY,
@@ -317,6 +317,9 @@ void c2_rpc_frm_fini(struct c2_rpc_frm *frm);
 void c2_rpc_frm_enq_item(struct c2_rpc_frm  *frm,
 			 struct c2_rpc_item *item);
 
+void c2_rpc_frm_item_deadline_passed(struct c2_rpc_frm  *frm,
+				     struct c2_rpc_item *item);
+
 /**
    Callback for a packet which was previously enqueued.
  */
@@ -334,6 +337,9 @@ C2_TL_DECLARE(itemq, extern, struct c2_rpc_item);
 
 struct c2_rpc_chan    *frm_rchan(const struct c2_rpc_frm *frm);
 struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm);
+
+bool item_is_in_waiting_queue(const struct c2_rpc_item *item,
+			      const struct c2_rpc_frm  *frm);
 
 /** @} */
 #endif /* __COLIBRI_RPC_FORMATION2_H__ */

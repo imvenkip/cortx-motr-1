@@ -105,15 +105,11 @@ static int send_fop(struct c2_rpc_session *session)
 	cs_ds2_fop->csr_value = 0xaaf5;
 
 	rc = c2_rpc_client_call(fop, session, &cs_ds_req_fop_rpc_item_ops,
-				CONNECT_TIMEOUT);
+				0 /* deadline */, CONNECT_TIMEOUT);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(fop->f_item.ri_error == 0);
 	C2_UT_ASSERT(fop->f_item.ri_reply != 0);
 
-	/* FIXME: freeing fop here will lead to endless loop in
-	 * nr_active_items_count(), which is called from
-	 * c2_rpc_session_terminate() */
-	/*c2_fop_free(fop);*/
 out:
 	return rc;
 }

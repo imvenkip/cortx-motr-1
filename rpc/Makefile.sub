@@ -6,6 +6,7 @@ nobase_colibri_include_HEADERS += rpc/session.h \
                                   rpc/rpc_opcodes.h \
                                   rpc/rpc.h \
                                   rpc/rpc_machine.h \
+                                  rpc/rpc_machine_internal.h \
                                   rpc/bulk.h \
                                   rpc/formation2_internal.h \
                                   rpc/packet_internal.h \
@@ -13,7 +14,12 @@ nobase_colibri_include_HEADERS += rpc/session.h \
                                   rpc/rpc_onwire.h \
                                   rpc/rpc_onwire_xc.h \
                                   rpc/service.h \
-                                  rpc/item.h
+                                  rpc/item.h \
+                                  rpc/item_internal.h \
+                                  rpc/conn.h \
+                                  rpc/conn_internal.h \
+                                  rpc/slot_internal.h \
+                                  rpc/rpc_internal.h
 
 colibri_libcolibri_la_SOURCES  += rpc/session.c \
                                   rpc/slot.c \

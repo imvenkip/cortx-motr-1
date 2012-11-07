@@ -606,7 +606,7 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 		(unsigned long)session->s_session_id);
 
 	rc = c2_rpc_client_call(fop, session, &cob_req_rpc_item_ops,
-				C2T1FS_RPC_TIMEOUT);
+				0 /* deadline */, C2T1FS_RPC_TIMEOUT);
 
 	if (rc != 0)
 		goto out;

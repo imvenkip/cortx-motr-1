@@ -89,7 +89,8 @@ static int fop_send_and_print(struct c2_rpc_client_ctx *cctx, uint32_t opcode)
 	c2_cons_fop_name_print(ftype);
 	c2_cons_fop_obj_input(fop);
 	rc = c2_rpc_client_call(fop, &cctx->rcx_session,
-				&c2_fop_default_item_ops, timeout);
+				&c2_fop_default_item_ops, 0 /* deadline */,
+				timeout);
 	if (rc != 0) {
 		fprintf(stderr, "Sending message failed!\n");
 		return -EINVAL;

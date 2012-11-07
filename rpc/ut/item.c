@@ -104,6 +104,7 @@ static void test_simple_transitions(void)
 	item = &fop->f_item;
 	rc = c2_rpc_client_call(fop, &cctx.rcx_session,
 				&cs_ds_req_fop_rpc_item_ops,
+				0 /* deadline */,
 				CONNECT_TIMEOUT);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(item->ri_error == 0);
@@ -130,6 +131,7 @@ static void test_timeout(void)
 	c2_fi_enable_once("cs_req_fop_fom_tick", "inject_delay");
 	rc = c2_rpc_client_call(fop, &cctx.rcx_session,
 				&cs_ds_req_fop_rpc_item_ops,
+				0 /* deadline */,
 				1 /* timeout in seconds */);
 	C2_UT_ASSERT(rc == -ETIMEDOUT);
 	C2_UT_ASSERT(item->ri_error == -ETIMEDOUT);
@@ -197,6 +199,7 @@ static int __test(void)
 	item = &fop->f_item;
 	rc = c2_rpc_client_call(fop, &cctx.rcx_session,
 				&cs_ds_req_fop_rpc_item_ops,
+				0 /* deadline */,
 				CONNECT_TIMEOUT);
 	C2_UT_ASSERT(item->ri_reply == NULL);
 	C2_UT_ASSERT(chk_state(item, C2_RPC_ITEM_FAILED));
