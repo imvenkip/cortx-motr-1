@@ -503,8 +503,8 @@ static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
 	kiocb.ki_nbytes = kiocb.ki_left = size;
 	kiocb.ki_pos = pos;
 
-	aio_rw = (op == READ) ? file->f_op->aio_read :
-	                        file->f_op->aio_write;
+	aio_rw = (op == WRITE) ? file->f_op->aio_write :
+	                         file->f_op->aio_read;
 	set_fs(get_ds());
 	for (;;) {
 		ret = aio_rw(&kiocb, lo->key_data, n, pos);
@@ -630,7 +630,7 @@ int accumulate_bios(struct loop_device *lo, struct bio_list *bios,
 		bio_list_add(bios, bio);
 		next_pos = pos + bio->bi_size;
 		*psize += bio->bi_size;
-		/*printk("accum: op=%d idx=%d bio=%p pos=%d size=%d\n",
+		/*printk("c2loop: accum: op=%d idx=%d bio=%p pos=%d size=%d\n",
 		       (int)op, iov_idx, bio, (int)pos, *psize);*/
 	}
 
@@ -669,7 +669,7 @@ static int loop_thread(void *data)
 		bio_list_init(&bios);
 
 		iovecs_nr = accumulate_bios(lo, &bios, lo->key_data,
-		                              &pos, &size);
+		                            &pos, &size);
 
 		bio = bio_list_peek(&bios);
 		if (bio != NULL) {
