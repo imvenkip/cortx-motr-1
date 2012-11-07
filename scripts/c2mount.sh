@@ -72,12 +72,12 @@
 
 # This example puts ioservices on 3 nodes, and uses 4 data blocks
 SERVERS=(
-	bk-template.xyus.xyratex.com 172.16.220.188@tcp:12345:41:101
-	bk-template.xyus.xyratex.com 172.16.220.188@tcp:12345:41:102
-	bk-template.xyus.xyratex.com 172.16.220.188@tcp:12345:41:103
-	bk-template.xyus.xyratex.com 172.16.220.188@tcp:12345:41:104
-	bk-template.xyus.xyratex.com 172.16.220.188@tcp:12345:41:105
-	bk-template.xyus.xyratex.com 172.16.220.188@tcp:12345:41:106
+	sjt02-c1 172.18.50.40@o2ib:12345:41:101
+	sjt02-c1 172.18.50.40@o2ib:12345:41:102
+	sjt02-c2 172.18.50.45@o2ib:12345:41:101
+	sjt02-c2 172.18.50.45@o2ib:12345:41:102
+	sjt00-c1 172.18.50.161@o2ib:12345:41:101
+	sjt00-c1 172.18.50.161@o2ib:12345:41:102
 )
 
 POOL_WIDTH=$(expr ${#SERVERS[*]} / 2)
