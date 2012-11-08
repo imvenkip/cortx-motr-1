@@ -176,7 +176,7 @@ C2_INTERNAL void c2_rpc_machine_get_stats(struct c2_rpc_machine *machine,
 					  struct c2_rpc_stats *stats,
 					  bool reset);
 
-C2_BOB_DECLARE(extern, c2_rpc_machine);
+C2_BOB_DECLARE(C2_EXTERN, c2_rpc_machine);
 
 /** @} end of rpc group */
 #endif /* __COLIBRI_RPC_MACHINE_H__ */

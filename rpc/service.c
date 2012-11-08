@@ -56,7 +56,7 @@ static struct c2_rwlock service_type_tlist_lock;
 
 static struct c2_bob_type rpc_service_bob;
 
-C2_BOB_DEFINE(/* global scope */, &rpc_service_bob, c2_rpc_service);
+C2_BOB_DEFINE(C2_INTERNAL, &rpc_service_bob, c2_rpc_service);
 
 C2_TL_DESCR_DEFINE(c2_rpc_services, "rpc_service", C2_INTERNAL,
                    struct c2_rpc_service, svc_tlink, svc_magix,

@@ -205,7 +205,7 @@ struct c2_rpc_service {
 	uint64_t                         svc_magix;
 };
 
-C2_BOB_DECLARE(extern, c2_rpc_service);
+C2_BOB_DECLARE(C2_EXTERN, c2_rpc_service);
 C2_TL_DECLARE(c2_rpc_services, C2_EXTERN, struct c2_rpc_service);
 
 struct c2_rpc_service_ops {

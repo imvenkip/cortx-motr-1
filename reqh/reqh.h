@@ -204,7 +204,7 @@ C2_INTERNAL uint64_t c2_reqh_nr_localities(const struct c2_reqh *reqh);
 /** Descriptor for tlist of request handler services. */
 C2_TL_DESCR_DECLARE(c2_reqh_svc, C2_EXTERN);
 C2_TL_DECLARE(c2_reqh_svc, C2_INTERNAL, struct c2_reqh_service);
-C2_BOB_DECLARE(extern, c2_reqh_service);
+C2_BOB_DECLARE(C2_EXTERN, c2_reqh_service);
 
 /** Descriptor for tlist of rpc machines. */
 C2_TL_DESCR_DECLARE(c2_reqh_rpc_mach, C2_EXTERN);

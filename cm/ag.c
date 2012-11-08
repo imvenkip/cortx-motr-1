@@ -27,6 +27,7 @@
 
 #include "lib/string.h" /* memcpy */
 #include "lib/trace.h"
+#include "lib/cdefs.h"  /* C2_UNUSED */
 #include "colibri/magic.h"
 
 #include "cm/ag.h"
@@ -44,7 +45,7 @@ C2_TL_DEFINE(aggr_grps, C2_INTERNAL, struct c2_cm_aggr_group);
 
 struct c2_bob_type ag_bob;
 
-C2_BOB_DEFINE( ,&ag_bob, c2_cm_aggr_group);
+C2_BOB_DEFINE(static C2_UNUSED, &ag_bob, c2_cm_aggr_group);
 
 C2_INTERNAL int c2_cm_ag_id_cmp(const struct c2_cm_ag_id *id0,
 				const struct c2_cm_ag_id *id1)

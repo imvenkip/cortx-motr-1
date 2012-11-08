@@ -63,7 +63,7 @@ C2_TL_DESCR_DEFINE(c2_reqh_svc, "reqh service", C2_INTERNAL,
 C2_TL_DEFINE(c2_reqh_svc, C2_INTERNAL, struct c2_reqh_service);
 
 static struct c2_bob_type rqsvc_bob;
-C2_BOB_DEFINE( , &rqsvc_bob, c2_reqh_service);
+C2_BOB_DEFINE(C2_INTERNAL, &rqsvc_bob, c2_reqh_service);
 
 /**
    Tlist descriptor for rpc machines.

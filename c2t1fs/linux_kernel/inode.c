@@ -52,7 +52,7 @@ static const struct c2_bob_type c2t1fs_inode_bob = {
 	.bt_check        = NULL
 };
 
-C2_BOB_DEFINE(, &c2t1fs_inode_bob, c2t1fs_inode);
+C2_BOB_DEFINE(C2_INTERNAL, &c2t1fs_inode_bob, c2t1fs_inode);
 
 C2_INTERNAL bool c2t1fs_inode_is_root(const struct inode *inode)
 {

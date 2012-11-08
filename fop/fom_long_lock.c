@@ -46,10 +46,10 @@ static const struct c2_bob_type long_lock_bob = {
 	.bt_magix_offset = offsetof(struct c2_long_lock, l_magix)
 };
 
-C2_BOB_DEFINE(, &long_lock_bob, c2_long_lock);
+C2_BOB_DEFINE(C2_INTERNAL, &long_lock_bob, c2_long_lock);
 
 static struct c2_bob_type long_lock_link_bob;
-C2_BOB_DEFINE(, &long_lock_link_bob, c2_long_lock_link);
+C2_BOB_DEFINE(C2_INTERNAL, &long_lock_link_bob, c2_long_lock_link);
 
 C2_INTERNAL void c2_fom_ll_global_init(void)
 {

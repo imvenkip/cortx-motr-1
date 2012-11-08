@@ -97,7 +97,7 @@ static const struct c2_bob_type rpc_machine_bob_type = {
 	.bt_check        = NULL
 };
 
-C2_BOB_DEFINE(/* global */, &rpc_machine_bob_type, c2_rpc_machine);
+C2_BOB_DEFINE(C2_INTERNAL, &rpc_machine_bob_type, c2_rpc_machine);
 
 /**
    Buffer callback for buffers added by rpc layer for receiving messages.

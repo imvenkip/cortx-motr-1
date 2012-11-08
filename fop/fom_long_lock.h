@@ -286,8 +286,8 @@ C2_INTERNAL void c2_long_lock_link_init(struct c2_long_lock_link *link,
  */
 C2_INTERNAL void c2_long_lock_link_fini(struct c2_long_lock_link *link);
 
-C2_BOB_DECLARE(extern, c2_long_lock);
-C2_BOB_DECLARE(extern, c2_long_lock_link);
+C2_BOB_DECLARE(C2_EXTERN, c2_long_lock);
+C2_BOB_DECLARE(C2_EXTERN, c2_long_lock_link);
 
 /**
  * Initializes bob-type for c2_long_lock and c2_long_lock_link. Should be called
