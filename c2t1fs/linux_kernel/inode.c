@@ -39,11 +39,11 @@ static int c2t1fs_build_layout_instance(const uint64_t              layout_id,
 
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 
-C2_TL_DESCR_DEFINE(dir_ents, "Dir entries", , struct c2t1fs_dir_ent,
+C2_TL_DESCR_DEFINE(dir_ents, "Dir entries", C2_INTERNAL, struct c2t1fs_dir_ent,
 		   de_link, de_magic,
 		   C2_T1FS_DIRENT_MAGIC, C2_T1FS_DIRENT_HEAD_MAGIC);
 
-C2_TL_DEFINE(dir_ents, , struct c2t1fs_dir_ent);
+C2_TL_DEFINE(dir_ents, C2_INTERNAL, struct c2t1fs_dir_ent);
 
 static const struct c2_bob_type c2t1fs_inode_bob = {
 	.bt_name         = "c2t1fs_inode",

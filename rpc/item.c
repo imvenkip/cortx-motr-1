@@ -42,12 +42,12 @@ static int item_entered_in_sent_state(struct c2_sm *mach);
 static int item_entered_in_timedout_state(struct c2_sm *mach);
 static int item_entered_in_failed_state(struct c2_sm *mach);
 
-C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", /* global */,
+C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", C2_INTERNAL,
 		   struct c2_rpc_item, ri_field,
 	           ri_magic, C2_RPC_ITEM_MAGIC,
 		   C2_RPC_ITEM_HEAD_MAGIC);
 
-C2_TL_DEFINE(rpcitem, /* global */, struct c2_rpc_item);
+C2_TL_DEFINE(rpcitem, C2_INTERNAL, struct c2_rpc_item);
 
 C2_TL_DESCR_DEFINE(rit, "rpc_item_type_descr", static, struct c2_rpc_item_type,
 		   rit_linkage,	rit_magic, C2_RPC_ITEM_TYPE_MAGIC,

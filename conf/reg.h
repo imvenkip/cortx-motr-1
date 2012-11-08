@@ -77,8 +77,8 @@ struct c2_conf_reg {
 	uint64_t     r_magic;
 };
 
-C2_TL_DESCR_DECLARE(c2_conf_reg, extern);
-C2_TL_DECLARE(c2_conf_reg, , struct c2_conf_obj);
+C2_TL_DESCR_DECLARE(c2_conf_reg, C2_EXTERN);
+C2_TL_DECLARE(c2_conf_reg, C2_INTERNAL, struct c2_conf_obj);
 
 /** Initialises a registry. */
 C2_INTERNAL void c2_conf_reg_init(struct c2_conf_reg *reg);

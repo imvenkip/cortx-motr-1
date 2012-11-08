@@ -53,10 +53,10 @@ C2_INTERNAL void c2_rpc_item_set_stage(struct c2_rpc_item *item,
 				       enum c2_rpc_item_stage stage);
 C2_INTERNAL int c2_rpc_slot_item_received(struct c2_rpc_item *item);
 
-C2_TL_DESCR_DEFINE(slot_item, "slot-ref-item-list", /* global */,
+C2_TL_DESCR_DEFINE(slot_item, "slot-ref-item-list", C2_INTERNAL,
 		   struct c2_rpc_item, ri_slot_refs[0].sr_link, ri_magic,
 		   C2_RPC_ITEM_MAGIC, C2_RPC_SLOT_REF_HEAD_MAGIC);
-C2_TL_DEFINE(slot_item, /* global */, struct c2_rpc_item);
+C2_TL_DEFINE(slot_item, C2_INTERNAL, struct c2_rpc_item);
 
 /*
 static inline struct c2_verno *

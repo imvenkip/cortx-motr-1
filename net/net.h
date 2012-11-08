@@ -1723,10 +1723,10 @@ C2_INTERNAL int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
 C2_INTERNAL void c2_net_desc_free(struct c2_net_buf_desc *desc);
 
 /** Descriptor for the tlist of buffers. */
-C2_TL_DESCR_DECLARE(c2_net_pool, extern);
-C2_TL_DESCR_DECLARE(c2_net_tm, extern);
-C2_TL_DECLARE(c2_net_pool, extern, struct c2_net_buffer);
-C2_TL_DECLARE(c2_net_tm, extern, struct c2_net_buffer);
+C2_TL_DESCR_DECLARE(c2_net_pool, C2_EXTERN);
+C2_TL_DESCR_DECLARE(c2_net_tm, C2_EXTERN);
+C2_TL_DECLARE(c2_net_pool, C2_INTERNAL, struct c2_net_buffer);
+C2_TL_DECLARE(c2_net_tm, C2_INTERNAL, struct c2_net_buffer);
 
 /** @} */ /* end of networking group */
 

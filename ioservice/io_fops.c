@@ -35,10 +35,10 @@
 #include "ioservice/io_fops_ff.h"
 
 /* tlists and tlist APIs referred from rpc layer. */
-C2_TL_DESCR_DECLARE(rpcbulk, extern);
-C2_TL_DESCR_DECLARE(rpcitem, extern);
-C2_TL_DECLARE(rpcbulk, extern, struct c2_rpc_bulk_buf);
-C2_TL_DECLARE(rpcitem, extern, struct c2_rpc_item);
+C2_TL_DESCR_DECLARE(rpcbulk, C2_EXTERN);
+C2_TL_DESCR_DECLARE(rpcitem, C2_EXTERN);
+C2_TL_DECLARE(rpcbulk, C2_INTERNAL, struct c2_rpc_bulk_buf);
+C2_TL_DECLARE(rpcitem, C2_INTERNAL, struct c2_rpc_item);
 
 C2_INTERNAL void c2_io_item_free(struct c2_rpc_item *item);
 

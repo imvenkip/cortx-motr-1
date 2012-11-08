@@ -78,8 +78,8 @@ C2_INTERNAL struct c2_verno *item_verno(struct c2_rpc_item *item, int idx);
 C2_INTERNAL uint64_t item_xid(struct c2_rpc_item *item, int idx);
 C2_INTERNAL const char *item_kind(const struct c2_rpc_item *item);
 
-C2_TL_DESCR_DECLARE(slot_item, extern);
-C2_TL_DECLARE(slot_item, extern, struct c2_rpc_item);
+C2_TL_DESCR_DECLARE(slot_item, C2_EXTERN);
+C2_TL_DECLARE(slot_item, C2_INTERNAL, struct c2_rpc_item);
 
 /** Helper macro to iterate over every item in a slot */
 #define for_each_item_in_slot(item, slot) \

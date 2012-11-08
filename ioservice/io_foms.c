@@ -579,7 +579,7 @@ const struct c2_addb_loc io_fom_addb_loc = {
 	.al_name = "io_fom"
 };
 
-extern const struct c2_tl_descr bufferpools_tl;
+C2_TL_DESCR_DECLARE(bufferpools, C2_EXTERN);
 
 C2_INTERNAL bool c2_is_read_fop(const struct c2_fop *fop);
 C2_INTERNAL bool c2_is_write_fop(const struct c2_fop *fop);

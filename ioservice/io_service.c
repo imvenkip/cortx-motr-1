@@ -36,10 +36,10 @@
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
 
-C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", ,
+C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", C2_INTERNAL,
                    struct c2_rios_buffer_pool, rios_bp_linkage, rios_bp_magic,
                    C2_IOS_BUFFER_POOL_MAGIC, C2_IOS_BUFFER_POOL_HEAD_MAGIC);
-C2_TL_DEFINE(bufferpools, , struct c2_rios_buffer_pool);
+C2_TL_DEFINE(bufferpools, C2_INTERNAL, struct c2_rios_buffer_pool);
 
 /* ADDB context for ios. */
 static struct c2_addb_ctx ios_addb_ctx;

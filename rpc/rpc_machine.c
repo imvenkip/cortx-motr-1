@@ -113,9 +113,9 @@ C2_TL_DESCR_DEFINE(rpc_chan, "rpc_channels", static, struct c2_rpc_chan,
 		   C2_RPC_CHAN_HEAD_MAGIC);
 C2_TL_DEFINE(rpc_chan, static, struct c2_rpc_chan);
 
-C2_TL_DESCR_DEFINE(rpc_conn, "rpc-conn", /* global */, struct c2_rpc_conn,
+C2_TL_DESCR_DEFINE(rpc_conn, "rpc-conn", C2_INTERNAL, struct c2_rpc_conn,
 		   c_link, c_magic, C2_RPC_CONN_MAGIC, C2_RPC_CONN_HEAD_MAGIC);
-C2_TL_DEFINE(rpc_conn, /* global */, struct c2_rpc_conn);
+C2_TL_DEFINE(rpc_conn, C2_INTERNAL, struct c2_rpc_conn);
 
 static void rpc_tm_event_cb(const struct c2_net_tm_event *ev)
 {

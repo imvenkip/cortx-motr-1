@@ -61,15 +61,15 @@
  */
 
 /* export */
-C2_TL_DESCR_DECLARE(c2_conf_reg, extern);
-C2_TL_DECLARE(c2_conf_reg, , struct c2_conf_obj);
+C2_TL_DESCR_DECLARE(c2_conf_reg, C2_EXTERN);
+C2_TL_DECLARE(c2_conf_reg, C2_INTERNAL, struct c2_conf_obj);
 
 /* import */
 struct c2_conf_reg;
 struct confx_object;
 
-C2_TL_DESCR_DECLARE(c2_conf_dir, extern);
-C2_TL_DECLARE(c2_conf_dir, , struct c2_conf_obj);
+C2_TL_DESCR_DECLARE(c2_conf_dir, C2_EXTERN);
+C2_TL_DECLARE(c2_conf_dir, C2_INTERNAL, struct c2_conf_obj);
 
 /** Symbolic names for c2_conf_obj_ops::coo_readdir() return values. */
 enum c2_conf_dirval {

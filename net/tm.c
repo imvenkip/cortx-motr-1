@@ -34,10 +34,10 @@
    @addtogroup net
    @{
  */
-C2_TL_DESCR_DEFINE(c2_net_tm, "tm list", ,
+C2_TL_DESCR_DEFINE(c2_net_tm, "tm list", C2_INTERNAL,
 		   struct c2_net_buffer, nb_tm_linkage, nb_magic,
 		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC);
-C2_TL_DEFINE(c2_net_tm, , struct c2_net_buffer);
+C2_TL_DEFINE(c2_net_tm, C2_INTERNAL, struct c2_net_buffer);
 C2_EXPORTED(c2_net_tm_tlist_is_empty);
 
 const struct c2_addb_ctx_type c2_net_tm_addb_ctx = {

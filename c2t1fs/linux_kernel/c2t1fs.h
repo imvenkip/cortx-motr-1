@@ -460,8 +460,8 @@ C2_INTERNAL int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci);
 C2_INTERNAL struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci,
 					 int index);
 
-C2_TL_DESCR_DECLARE(dir_ents, extern);
-C2_TL_DECLARE(dir_ents, extern, struct c2t1fs_dir_ent);
+C2_TL_DESCR_DECLARE(dir_ents, C2_EXTERN);
+C2_TL_DECLARE(dir_ents, C2_INTERNAL, struct c2t1fs_dir_ent);
 
 C2_INTERNAL void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 				     const unsigned char *name,

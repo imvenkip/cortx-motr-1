@@ -36,11 +36,11 @@
    @addtogroup CMAG
  */
 
-C2_TL_DESCR_DEFINE(aggr_grps, "aggregation groups", ,struct c2_cm_aggr_group,
-		   cag_cm_linkage, cag_magic, CM_AG_LINK_MAGIX,
-		   CM_AG_HEAD_MAGIX);
+C2_TL_DESCR_DEFINE(aggr_grps, "aggregation groups", C2_INTERNAL,
+		   struct c2_cm_aggr_group, cag_cm_linkage, cag_magic,
+		   CM_AG_LINK_MAGIX, CM_AG_HEAD_MAGIX);
 
-C2_TL_DEFINE(aggr_grps, , struct c2_cm_aggr_group);
+C2_TL_DEFINE(aggr_grps, C2_INTERNAL, struct c2_cm_aggr_group);
 
 struct c2_bob_type ag_bob;
 

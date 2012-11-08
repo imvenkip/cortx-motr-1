@@ -63,8 +63,8 @@ struct c2_rpc_packet {
 
 C2_INTERNAL c2_bcount_t c2_rpc_packet_onwire_header_size(void);
 
-C2_TL_DESCR_DECLARE(packet_item, extern);
-C2_TL_DECLARE(packet_item, extern, struct c2_rpc_item);
+C2_TL_DESCR_DECLARE(packet_item, C2_EXTERN);
+C2_TL_DECLARE(packet_item, C2_INTERNAL, struct c2_rpc_item);
 
 #define for_each_item_in_packet(item, packet) \
 	c2_tl_for(packet_item, &packet->rp_items, item)

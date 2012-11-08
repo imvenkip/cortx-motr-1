@@ -24,8 +24,8 @@
 #include "reqh/reqh.h"
 #include "fop/fom_long_lock.h"
 
-C2_TL_DESCR_DECLARE(c2_lll, extern);
-C2_TL_DECLARE(c2_lll, extern, struct c2_long_lock_link);
+C2_TL_DESCR_DECLARE(c2_lll, C2_EXTERN);
+C2_TL_DECLARE(c2_lll, C2_INTERNAL, struct c2_long_lock_link);
 
 enum tb_request_type {
 	RQ_READ,

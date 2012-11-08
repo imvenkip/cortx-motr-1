@@ -154,8 +154,8 @@ C2_INTERNAL void c2_rpc_session_mod_nr_active_items(struct c2_rpc_session
 C2_INTERNAL struct c2_rpc_machine *session_machine(const struct c2_rpc_session
 						   *s);
 
-C2_TL_DESCR_DECLARE(rpc_session, extern);
-C2_TL_DECLARE(rpc_session, extern, struct c2_rpc_session);
+C2_TL_DESCR_DECLARE(rpc_session, C2_EXTERN);
+C2_TL_DECLARE(rpc_session, C2_INTERNAL, struct c2_rpc_session);
 
 /** @}  End of rpc_session group */
 #endif

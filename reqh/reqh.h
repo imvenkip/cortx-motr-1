@@ -202,13 +202,13 @@ C2_INTERNAL void c2_reqhs_fini(void);
 C2_INTERNAL uint64_t c2_reqh_nr_localities(const struct c2_reqh *reqh);
 
 /** Descriptor for tlist of request handler services. */
-C2_TL_DESCR_DECLARE(c2_reqh_svc, extern);
-C2_TL_DECLARE(c2_reqh_svc, extern, struct c2_reqh_service);
+C2_TL_DESCR_DECLARE(c2_reqh_svc, C2_EXTERN);
+C2_TL_DECLARE(c2_reqh_svc, C2_INTERNAL, struct c2_reqh_service);
 C2_BOB_DECLARE(extern, c2_reqh_service);
 
 /** Descriptor for tlist of rpc machines. */
-C2_TL_DESCR_DECLARE(c2_reqh_rpc_mach, extern);
-C2_TL_DECLARE(c2_reqh_rpc_mach, extern, struct c2_rpc_machine);
+C2_TL_DESCR_DECLARE(c2_reqh_rpc_mach, C2_EXTERN);
+C2_TL_DECLARE(c2_reqh_rpc_mach, C2_INTERNAL, struct c2_rpc_machine);
 
 /**
    @name reqhkey

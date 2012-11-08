@@ -34,10 +34,10 @@
  * @{
  */
 
-C2_TL_DESCR_DEFINE(c2_conf_reg, "registered c2_conf_obj-s", ,
+C2_TL_DESCR_DEFINE(c2_conf_reg, "registered c2_conf_obj-s", C2_INTERNAL,
 		   struct c2_conf_obj, co_reg_link, co_gen_magic,
 		   C2_CONF_OBJ_MAGIC, C2_CONF_REG_MAGIC);
-C2_TL_DEFINE(c2_conf_reg, , struct c2_conf_obj);
+C2_TL_DEFINE(c2_conf_reg, C2_INTERNAL, struct c2_conf_obj);
 
 C2_INTERNAL void c2_conf_reg_init(struct c2_conf_reg *reg)
 {

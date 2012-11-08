@@ -58,12 +58,12 @@ static struct c2_bob_type rpc_service_bob;
 
 C2_BOB_DEFINE(/* global scope */, &rpc_service_bob, c2_rpc_service);
 
-C2_TL_DESCR_DEFINE(c2_rpc_services, "rpc_service", static,
+C2_TL_DESCR_DEFINE(c2_rpc_services, "rpc_service", C2_INTERNAL,
                    struct c2_rpc_service, svc_tlink, svc_magix,
                    C2_RPC_SERVICE_MAGIC,
                    C2_RPC_SERVICES_HEAD_MAGIC);
 
-C2_TL_DEFINE(c2_rpc_services, , struct c2_rpc_service);
+C2_TL_DEFINE(c2_rpc_services, C2_INTERNAL, struct c2_rpc_service);
 
 C2_INTERNAL int c2_rpc_service_module_init(void)
 {

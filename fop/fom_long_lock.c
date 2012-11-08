@@ -34,11 +34,11 @@
  * Descriptor of typed list used in c2_long_lock with
  * c2_long_lock_link::lll_lock_linkage.
  */
-C2_TL_DESCR_DEFINE(c2_lll, "list of lock-links in longlock", ,
+C2_TL_DESCR_DEFINE(c2_lll, "list of lock-links in longlock", C2_INTERNAL,
                    struct c2_long_lock_link, lll_lock_linkage, lll_magix,
                    C2_FOM_LL_LINK_MAGIC, C2_FOM_LL_LINK_MAGIC);
 
-C2_TL_DEFINE(c2_lll, , struct c2_long_lock_link);
+C2_TL_DEFINE(c2_lll, C2_INTERNAL, struct c2_long_lock_link);
 
 static const struct c2_bob_type long_lock_bob = {
 	.bt_name         = "LONG_LOCK_BOB",

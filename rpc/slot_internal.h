@@ -323,8 +323,8 @@ C2_INTERNAL int __slot_reply_received(struct c2_rpc_slot *slot,
 				      struct c2_rpc_item *req,
 				      struct c2_rpc_item *reply);
 
-C2_TL_DESCR_DECLARE(ready_slot, extern);
-C2_TL_DECLARE(ready_slot, extern, struct c2_rpc_slot);
+C2_TL_DESCR_DECLARE(ready_slot, C2_EXTERN);
+C2_TL_DECLARE(ready_slot, C2_INTERNAL, struct c2_rpc_slot);
 
 /** @}  End of rpc_session group */
 #endif /* __COLIBRI_RPC_SLOT_INT_H__ */

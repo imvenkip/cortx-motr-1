@@ -118,15 +118,15 @@ static const struct c2_rpc_item_ops session_terminate_item_ops = {
 	.rio_free    = c2_fop_item_free,
 };
 
-C2_TL_DESCR_DEFINE(ready_slot, "ready-slots", /* global */, struct c2_rpc_slot,
+C2_TL_DESCR_DEFINE(ready_slot, "ready-slots", C2_INTERNAL, struct c2_rpc_slot,
 		   sl_link, sl_magic, C2_RPC_SLOT_MAGIC,
 		   C2_RPC_SLOT_HEAD_MAGIC);
-C2_TL_DEFINE(ready_slot, /* global */, struct c2_rpc_slot);
+C2_TL_DEFINE(ready_slot, C2_INTERNAL, struct c2_rpc_slot);
 
-C2_TL_DESCR_DEFINE(rpc_session, "rpc-sessions", /* global */,
+C2_TL_DESCR_DEFINE(rpc_session, "rpc-sessions", C2_INTERNAL,
 		   struct c2_rpc_session, s_link, s_magic, C2_RPC_SESSION_MAGIC,
 		   C2_RPC_SESSION_HEAD_MAGIC);
-C2_TL_DEFINE(rpc_session, /* global */, struct c2_rpc_session);
+C2_TL_DEFINE(rpc_session, C2_INTERNAL, struct c2_rpc_session);
 
 static const struct c2_sm_state_descr session_states[] = {
 	[C2_RPC_SESSION_INITIALISED] = {

@@ -332,8 +332,8 @@ C2_INTERNAL void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm);
 
 C2_INTERNAL struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s);
 
-C2_TL_DESCR_DECLARE(itemq, extern);
-C2_TL_DECLARE(itemq, extern, struct c2_rpc_item);
+C2_TL_DESCR_DECLARE(itemq, C2_EXTERN);
+C2_TL_DECLARE(itemq, C2_INTERNAL, struct c2_rpc_item);
 
 C2_INTERNAL struct c2_rpc_chan *frm_rchan(const struct c2_rpc_frm *frm);
 C2_INTERNAL struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm);

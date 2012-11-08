@@ -31,10 +31,10 @@
  */
 
 /** Descriptor for the tlist of buffers. */
-C2_TL_DESCR_DEFINE(c2_net_pool, "net_buffer_pool", ,
+C2_TL_DESCR_DEFINE(c2_net_pool, "net_buffer_pool", C2_INTERNAL,
 		   struct c2_net_buffer, nb_lru, nb_magic,
 		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC);
-C2_TL_DEFINE(c2_net_pool, , struct c2_net_buffer);
+C2_TL_DEFINE(c2_net_pool, C2_INTERNAL, struct c2_net_buffer);
 
 static const struct c2_addb_loc c2_pool_addb_loc = {
 	.al_name = "buffer pool"

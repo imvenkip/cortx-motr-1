@@ -56,11 +56,11 @@ static const struct c2_addb_ctx_type reqh_addb_ctx_type = {
 /**
    Tlist descriptor for reqh services.
  */
-C2_TL_DESCR_DEFINE(c2_reqh_svc, "reqh service", , struct c2_reqh_service,
-                   rs_linkage, rs_magix,
+C2_TL_DESCR_DEFINE(c2_reqh_svc, "reqh service", C2_INTERNAL,
+		   struct c2_reqh_service, rs_linkage, rs_magix,
 		   C2_REQH_SVC_MAGIC, C2_REQH_SVC_HEAD_MAGIC);
 
-C2_TL_DEFINE(c2_reqh_svc, , struct c2_reqh_service);
+C2_TL_DEFINE(c2_reqh_svc, C2_INTERNAL, struct c2_reqh_service);
 
 static struct c2_bob_type rqsvc_bob;
 C2_BOB_DEFINE( , &rqsvc_bob, c2_reqh_service);
@@ -68,11 +68,11 @@ C2_BOB_DEFINE( , &rqsvc_bob, c2_reqh_service);
 /**
    Tlist descriptor for rpc machines.
  */
-C2_TL_DESCR_DEFINE(c2_reqh_rpc_mach, "rpc machines", , struct c2_rpc_machine,
-                   rm_rh_linkage, rm_magix, C2_RPC_MACHINE_MAGIC,
-		   C2_REQH_RPC_MACH_HEAD_MAGIC);
+C2_TL_DESCR_DEFINE(c2_reqh_rpc_mach, "rpc machines", C2_INTERNAL,
+		   struct c2_rpc_machine, rm_rh_linkage, rm_magix,
+		   C2_RPC_MACHINE_MAGIC, C2_REQH_RPC_MACH_HEAD_MAGIC);
 
-C2_TL_DEFINE(c2_reqh_rpc_mach, , struct c2_rpc_machine);
+C2_TL_DEFINE(c2_reqh_rpc_mach, C2_INTERNAL, struct c2_rpc_machine);
 
 #define REQH_ADDB_ADD(addb_ctx, name, rc)  \
 C2_ADDB_ADD((addb_ctx), &reqh_addb_loc, c2_addb_func_fail, (name), (rc))

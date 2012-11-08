@@ -95,10 +95,10 @@ for (itemq = frm_first_itemq(frm); \
      itemq < frm_end_itemq(frm); \
      ++itemq)
 
-C2_TL_DESCR_DEFINE(itemq, "rpc_itemq", /* global */, struct c2_rpc_item,
+C2_TL_DESCR_DEFINE(itemq, "rpc_itemq", C2_INTERNAL, struct c2_rpc_item,
 		   ri_iq_link, ri_magic, C2_RPC_ITEM_MAGIC,
 		   C2_RPC_ITEMQ_HEAD_MAGIC);
-C2_TL_DEFINE(itemq, /* global */, struct c2_rpc_item);
+C2_TL_DEFINE(itemq, C2_INTERNAL, struct c2_rpc_item);
 
 static bool frm_invariant(const struct c2_rpc_frm *frm)
 {

@@ -138,8 +138,8 @@ C2_INTERNAL struct c2_cm_aggr_group *c2_cm_ag_hi(struct c2_cm *cm);
  */
 C2_INTERNAL struct c2_cm_aggr_group *c2_cm_ag_lo(struct c2_cm *cm);
 
-C2_TL_DESCR_DECLARE(aggr_grps, extern);
-C2_TL_DECLARE(aggr_grps, extern, struct c2_cm_aggr_group);
+C2_TL_DESCR_DECLARE(aggr_grps, C2_INTERNAL);
+C2_TL_DECLARE(aggr_grps, C2_INTERNAL, struct c2_cm_aggr_group);
 
 /** @} CMAG */
 

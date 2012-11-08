@@ -39,13 +39,13 @@
    @{
  */
 
-C2_TL_DESCR_DEFINE(rpcbulk, "rpc bulk buffer list", ,
+C2_TL_DESCR_DEFINE(rpcbulk, "rpc bulk buffer list", C2_INTERNAL,
 		   struct c2_rpc_bulk_buf, bb_link, bb_magic,
 		   C2_RPC_BULK_BUF_MAGIC, C2_RPC_BULK_MAGIC);
 
 C2_EXPORTED(rpcbulk_tl);
 
-C2_TL_DEFINE(rpcbulk, , struct c2_rpc_bulk_buf);
+C2_TL_DEFINE(rpcbulk, C2_INTERNAL, struct c2_rpc_bulk_buf);
 
 static bool rpc_bulk_buf_invariant(const struct c2_rpc_bulk_buf *rbuf)
 {
