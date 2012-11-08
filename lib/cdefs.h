@@ -122,6 +122,8 @@ printf_check(const char *fmt, ...)
 {}
 
 
+#define C2_UNUSED __attribute__((unused))
+
 /* __COLIBRI_LIB_CDEFS_H__ */
 #endif
 
