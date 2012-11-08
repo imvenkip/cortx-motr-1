@@ -249,7 +249,9 @@ lib_LTLIBRARIES += colibri/libcolibri-altogether.la
 colibri_libcolibri_altogether_la_SOURCES  = $(COLIBRI_ALTOGETHER_USER_C)
 colibri_libcolibri_altogether_la_CPPFLAGS = $(AM_CPPFLAGS) \
                                             -UC2_INTERNAL \
-                                            -DC2_INTERNAL=static
+                                            -DC2_INTERNAL=static \
+                                            -UC2_EXTERN \
+                                            -DC2_EXTERN=static
 colibri_libcolibri_altogether_la_CFLAGS   = $(AM_CFLAGS) -Wno-unused-function
 colibri_libcolibri_altogether_la_LDFLAGS  = $(colibri_libcolibri_la_LDFLAGS)
 colibri_libcolibri_altogether_la_LIBADD   = $(colibri_libcolibri_la_LIBADD)
