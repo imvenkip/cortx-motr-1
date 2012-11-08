@@ -440,8 +440,8 @@ sub gen_xc_h
     $xcode .= "\n";
 
     # prototypes of xcode init/fini functions
-    $xcode .= "void c2_xc_${xcode_name}_init(void);\n";
-    $xcode .= "void c2_xc_${xcode_name}_fini(void);\n";
+    $xcode .= "C2_INTERNAL void c2_xc_${xcode_name}_init(void);\n";
+    $xcode .= "C2_INTERNAL void c2_xc_${xcode_name}_fini(void);\n";
 
     $xcode .= gen_xc_h_footer();
 }
@@ -615,7 +615,7 @@ sub gen_xc_c_init_func
 {
     my @items = @_;
 
-    my $xcode = "void c2_xc_${xcode_name}_init(void)\n{\n";
+    my $xcode = "C2_INTERNAL void c2_xc_${xcode_name}_init(void)\n{\n";
 
     for my $item (@items) {
 
@@ -673,7 +673,7 @@ END_CHILD_INIT
 
 sub gen_xc_c_fini_func
 {
-    return "void c2_xc_${xcode_name}_fini(void)\n{\n}\n";
+    return "C2_INTERNAL void c2_xc_${xcode_name}_fini(void)\n{\n}\n";
 }
 
 sub gen_xc_c
