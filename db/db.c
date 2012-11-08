@@ -157,9 +157,12 @@ static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *name,
 #define TABLE_CALL(table, method, ...)					\
 ({									\
 	int rc;								\
+	struct c2_table *t = (table);					\
 									\
-	rc = (table)->t_i.t_db->method((table)->t_i.t_db , ## __VA_ARGS__); \
-	db_call_tail(&(table)->t_addb, rc, #method, table_tol_ ## method); \
+	c2_mutex_lock(&t->t_i.t_lock);					\
+	rc = t->t_i.t_db->method(t->t_i.t_db , ## __VA_ARGS__);		\
+	c2_mutex_unlock(&t->t_i.t_lock);				\
+	db_call_tail(&t->t_addb, rc, #method, table_tol_ ## method);	\
 })
 
 /**
@@ -181,9 +184,13 @@ static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *name,
 #define CURSOR_CALL(cur, method, ...)					\
 ({									\
 	int rc;								\
+	struct c2_db_cursor *c = (cur);					\
+	struct c2_table     *t = c->c_table;				\
 									\
-	rc = (cur)->c_i.c_dbc->method((cur)->c_i.c_dbc , ## __VA_ARGS__); \
-	db_call_tail(&(cur)->c_table->t_addb, rc, "dbc::" #method,	\
+	c2_mutex_lock(&t->t_i.t_lock);					\
+	rc = c->c_i.c_dbc->method(c->c_i.c_dbc , ## __VA_ARGS__);	\
+	c2_mutex_unlock(&t->t_i.t_lock);				\
+	db_call_tail(&t->t_addb, rc, "dbc::" #method,			\
 		cursor_tol_ ## method);					\
 })
 
@@ -254,7 +261,7 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 	 */
 	if (flags == 0)
 		flags = DB_CREATE|DB_THREAD|DB_INIT_LOG|DB_INIT_MPOOL|
-			DB_INIT_TXN|DB_INIT_LOCK|DB_RECOVER;
+			DB_INIT_TXN|DB_RECOVER;
 
 	if (flags & DB_CREATE)
 		/* try to create home directory, don't bother to check the
@@ -401,6 +408,7 @@ int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
 	int result;
 	DB *db;
 
+	c2_mutex_init(&table->t_i.t_lock);
 	c2_table_common_init(table, env, ops);
 	if (flags == 0)
 		flags = DB_AUTO_COMMIT|DB_CREATE|DB_THREAD|DB_TXN_NOSYNC|
@@ -441,6 +449,7 @@ void c2_table_fini(struct c2_table *table)
 		table->t_i.t_db = NULL;
 	}
 	c2_table_common_fini(table);
+	c2_mutex_fini(&table->t_i.t_lock);
 }
 
 void c2_db_buf_impl_init(struct c2_db_buf *buf)
@@ -677,13 +686,18 @@ int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
 		      struct c2_db_tx *tx, uint32_t flags)
 {
 	cursor->c_flags = 0;
+	/*
+	 * Don't set any locking related cursor flags, because we are
+	 * initializing data-base environment without DB_INIT_LOCK flag.
+	 */
+#if 0
         if (flags & C2_DB_CURSOR_READ_COMMITTED)
                 cursor->c_flags |= DB_READ_COMMITTED;
         else if (flags & C2_DB_CURSOR_READ_UNCOMMITTED)
                 cursor->c_flags |= DB_READ_UNCOMMITTED;
         else if (flags & C2_DB_CURSOR_RMW)
                 cursor->c_flags |= DB_RMW;
-
+#endif
 	cursor->c_table = table;
 	cursor->c_tx    = tx;
 	return TABLE_CALL(table, cursor, tx->dt_i.dt_txn,
