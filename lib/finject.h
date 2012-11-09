@@ -396,7 +396,7 @@ C2_INTERNAL void c2_fi_disable(const char *fp_func, const char *fp_tag);
  *
  * @see C2_FI_ENABLED() for more information
  */
-C2_INTERNAL void c2_fi_register(struct c2_fi_fault_point *fp);
+void c2_fi_register(struct c2_fi_fault_point *fp);
 
 /**
  * Checks if fault point should "trigger" or not.
@@ -412,7 +412,7 @@ C2_INTERNAL void c2_fi_register(struct c2_fi_fault_point *fp);
  * @return    true, if FP is enabled
  * @return    false otherwise
  */
-C2_INTERNAL bool c2_fi_enabled(struct c2_fi_fpoint_state *fps);
+bool c2_fi_enabled(struct c2_fi_fpoint_state *fps);
 
 #else /* ENABLE_FAULT_INJECTION */
 

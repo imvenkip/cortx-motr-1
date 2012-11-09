@@ -635,7 +635,7 @@ const struct c2_sm_conf c2_generic_conf = {
 };
 C2_EXPORTED(c2_generic_conf);
 
-C2_INTERNAL int c2_fom_tick_generic(struct c2_fom *fom)
+int c2_fom_tick_generic(struct c2_fom *fom)
 {
 	int			     rc;
 	const struct fom_phase_desc *fpd_phase;

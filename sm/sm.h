@@ -536,7 +536,7 @@ C2_INTERNAL void c2_sm_move(struct c2_sm *mach, int32_t rc, int state);
    @pre c2_mutex_is_locked(&mach->sm_grp->s_lock)
    @post c2_mutex_is_locked(&mach->sm_grp->s_lock)
  */
-C2_INTERNAL void c2_sm_state_set(struct c2_sm *mach, int state);
+void c2_sm_state_set(struct c2_sm *mach, int state);
 
 /**
    Structure used by c2_sm_timeout() to record timeout state.

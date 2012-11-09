@@ -416,7 +416,7 @@ static void fi_disable_state(struct c2_fi_fpoint_state *fps)
 	c2_mutex_unlock(&fps->fps_mutex);
 }
 
-C2_INTERNAL void c2_fi_register(struct c2_fi_fault_point *fp)
+void c2_fi_register(struct c2_fi_fault_point *fp)
 {
 	struct c2_fi_fpoint_state *state;
 	struct c2_fi_fpoint_id    id = {
@@ -437,7 +437,7 @@ C2_INTERNAL void c2_fi_register(struct c2_fi_fault_point *fp)
 	c2_mutex_unlock(&fi_states_mutex);
 }
 
-C2_INTERNAL bool c2_fi_enabled(struct c2_fi_fpoint_state *fps)
+bool c2_fi_enabled(struct c2_fi_fpoint_state *fps)
 {
 	bool enabled;
 

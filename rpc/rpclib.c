@@ -82,7 +82,7 @@ fclose:
 	C2_RETURN(rc);
 }
 
-C2_INTERNAL void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
+void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
 {
 	C2_ENTRY("server_ctx: %p", sctx);
 
@@ -161,10 +161,10 @@ pool_fini:
 	C2_RETURN(rc);
 }
 
-C2_INTERNAL int c2_rpc_client_call(struct c2_fop *fop,
-				   struct c2_rpc_session *session,
-				   const struct c2_rpc_item_ops *ri_ops,
-				   c2_time_t deadline, uint32_t timeout_s)
+int c2_rpc_client_call(struct c2_fop *fop,
+		       struct c2_rpc_session *session,
+		       const struct c2_rpc_item_ops *ri_ops,
+		       c2_time_t deadline, uint32_t timeout_s)
 {
 	struct c2_rpc_item *item;
 	int                 rc;
@@ -196,7 +196,7 @@ C2_INTERNAL int c2_rpc_client_call(struct c2_fop *fop,
 }
 C2_EXPORTED(c2_rpc_client_call);
 
-C2_INTERNAL int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
+int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 {
 	int rc;
 

@@ -79,9 +79,7 @@ C2_INTERNAL void c2_addb_fini(void)
 /**
    Choose default addb event level, return the original level.
 */
-C2_INTERNAL enum c2_addb_ev_level c2_addb_choose_default_level(enum
-							       c2_addb_ev_level
-							       level)
+enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level)
 {
 	enum c2_addb_ev_level orig = c2_addb_level_default;
 

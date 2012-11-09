@@ -63,7 +63,7 @@ C2_INTERNAL void c2_rwlock_write_unlock(struct c2_rwlock *lock)
 	C2_ASSERT(rc == 0);
 }
 
-C2_INTERNAL void c2_rwlock_read_lock(struct c2_rwlock *lock)
+void c2_rwlock_read_lock(struct c2_rwlock *lock)
 {
 	int rc;
 
@@ -71,7 +71,7 @@ C2_INTERNAL void c2_rwlock_read_lock(struct c2_rwlock *lock)
 	C2_ASSERT(rc == 0);
 }
 
-C2_INTERNAL void c2_rwlock_read_unlock(struct c2_rwlock *lock)
+void c2_rwlock_read_unlock(struct c2_rwlock *lock)
 {
 	int rc;
 

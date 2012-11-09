@@ -70,12 +70,12 @@ C2_INTERNAL c2_time_t c2_time_now(void);
 
    @return The result time.
  */
-C2_INTERNAL c2_time_t c2_time_from_now(uint64_t secs, long ns);
+c2_time_t c2_time_from_now(uint64_t secs, long ns);
 
 /**
    Create and return a c2_time_t from seconds and nanoseconds.
  */
-C2_INTERNAL c2_time_t c2_time(uint64_t secs, long ns);
+c2_time_t c2_time(uint64_t secs, long ns);
 
 /**
    Create a c2_time_t from seconds and nanoseconds.
@@ -85,7 +85,7 @@ C2_INTERNAL c2_time_t c2_time(uint64_t secs, long ns);
    @param ns Nanoseconds.
    @retval the result time.
  */
-C2_INTERNAL c2_time_t c2_time_set(c2_time_t * time, uint64_t secs, long ns);
+c2_time_t c2_time_set(c2_time_t * time, uint64_t secs, long ns);
 
 /**
    Add t2 to t1 and return that result.
@@ -110,7 +110,7 @@ C2_INTERNAL c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2);
    @param rem [OUT] remaining time, NULL causes remaining time to be ignored.
    @return 0 means success. -1 means error. Remaining time is stored in rem.
  */
-C2_INTERNAL int c2_nanosleep(const c2_time_t req, c2_time_t * rem);
+int c2_nanosleep(const c2_time_t req, c2_time_t * rem);
 
 /**
    Get "second" part from the time.

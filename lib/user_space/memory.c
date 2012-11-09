@@ -111,7 +111,7 @@ void *c2_alloc(size_t size)
 	return ret;
 }
 
-C2_INTERNAL void c2_free(void *data)
+void c2_free(void *data)
 {
 	C2_ENTRY("ptr=%p", data);
 	__free(data);

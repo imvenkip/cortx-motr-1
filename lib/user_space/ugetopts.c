@@ -90,8 +90,8 @@ static int getscaled(const char *arg, const char *desc, c2_bcount_t *out)
 	return rc;
 }
 
-C2_INTERNAL int c2_getopts(const char *progname, int argc, char *const *argv,
-			   const struct c2_getopts_opt *opts, unsigned nr)
+int c2_getopts(const char *progname, int argc, char *const *argv,
+	       const struct c2_getopts_opt *opts, unsigned nr)
 {
 	char *optstring;
 	int   i;

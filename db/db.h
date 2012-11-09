@@ -91,13 +91,12 @@ struct c2_dbenv {
 
    @see http://www.oracle.com/technology/documentation/berkeley-db/db/api_reference/C/envopen.html
  */
-C2_INTERNAL int c2_dbenv_init(struct c2_dbenv *env, const char *name,
-			      uint64_t flags);
+int c2_dbenv_init(struct c2_dbenv *env, const char *name, uint64_t flags);
 
 /**
    Finalize the data-base environment and release all associated resources.
  */
-C2_INTERNAL void c2_dbenv_fini(struct c2_dbenv *env);
+void c2_dbenv_fini(struct c2_dbenv *env);
 
 /**
    When this call returns, results of all operations against the environment

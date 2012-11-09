@@ -1360,8 +1360,8 @@ static void cs_request_handlers_stop(struct c2_colibri *cctx)
 
    @retval  NULL of reqh instnace.
  */
-C2_INTERNAL struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
-					   const char *service_name)
+struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
+			       const char *service_name)
 {
 	int                      idx;
 	struct cs_reqh_context  *rctx;

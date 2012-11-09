@@ -145,8 +145,7 @@ C2_INTERNAL int c2_rpc__post_locked(struct c2_rpc_item *item)
 	C2_RETURN(0);
 }
 
-C2_INTERNAL int c2_rpc_reply_post(struct c2_rpc_item *request,
-				  struct c2_rpc_item *reply)
+int c2_rpc_reply_post(struct c2_rpc_item *request, struct c2_rpc_item *reply)
 {
 	struct c2_rpc_slot_ref *sref;
 	struct c2_rpc_machine  *machine;
@@ -267,8 +266,7 @@ C2_INTERNAL int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 }
 C2_EXPORTED(c2_rpc_net_buffer_pool_setup);
 
-C2_INTERNAL void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool
-						*app_pool)
+void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool)
 {
 	C2_PRE(app_pool != NULL);
 

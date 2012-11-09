@@ -700,8 +700,7 @@ static void fop_session_establish_item_free(struct c2_rpc_item *item)
 	c2_free(ctx);
 }
 
-C2_INTERNAL int c2_rpc_session_destroy(struct c2_rpc_session *session,
-				       uint32_t timeout_sec)
+int c2_rpc_session_destroy(struct c2_rpc_session *session, uint32_t timeout_sec)
 {
 	int rc;
 

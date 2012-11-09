@@ -93,7 +93,7 @@ C2_INTERNAL void c2_net_end_point_get(struct c2_net_end_point *ep)
 }
 C2_EXPORTED(c2_net_end_point_get);
 
-C2_INTERNAL void c2_net_end_point_put(struct c2_net_end_point *ep)
+void c2_net_end_point_put(struct c2_net_end_point *ep)
 {
 	struct c2_ref *ref = &ep->nep_ref;
 	struct c2_net_transfer_mc *tm;

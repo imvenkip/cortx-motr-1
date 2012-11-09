@@ -31,14 +31,14 @@
    @{
 */
 
-C2_INTERNAL c2_time_t c2_time(uint64_t secs, long ns)
+c2_time_t c2_time(uint64_t secs, long ns)
 {
 	c2_time_t t;
 	c2_time_set(&t, secs, ns);
 	return t;
 }
 
-C2_INTERNAL c2_time_t c2_time_set(c2_time_t * time, uint64_t secs, long ns)
+c2_time_t c2_time_set(c2_time_t * time, uint64_t secs, long ns)
 {
 	*time = secs * C2_TIME_ONE_BILLION + ns;
 	return *time;
@@ -92,7 +92,7 @@ C2_INTERNAL uint64_t c2_time_nanoseconds(const c2_time_t time)
 }
 C2_EXPORTED(c2_time_nanoseconds);
 
-C2_INTERNAL c2_time_t c2_time_from_now(uint64_t secs, long ns)
+c2_time_t c2_time_from_now(uint64_t secs, long ns)
 {
 	return c2_time_now() + secs * C2_TIME_ONE_BILLION + ns;
 }

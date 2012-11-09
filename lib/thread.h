@@ -181,7 +181,7 @@ int  c2_thread_init(struct c2_thread *q, int (*init)(void *),
 
    @pre q->t_state == TS_PARKED
  */
-C2_INTERNAL void c2_thread_fini(struct c2_thread *q);
+void c2_thread_fini(struct c2_thread *q);
 
 /**
    Waits until the thread exits.
@@ -199,7 +199,7 @@ C2_INTERNAL void c2_thread_fini(struct c2_thread *q);
    @retval 0 thread joined (thread is terminated)
    @retval -errno failed to join, not exit status of thread
  */
-C2_INTERNAL int c2_thread_join(struct c2_thread *q);
+int c2_thread_join(struct c2_thread *q);
 
 /**
    Send specified signal to this thread.

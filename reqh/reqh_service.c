@@ -184,8 +184,7 @@ C2_INTERNAL void c2_reqh_service_fini(struct c2_reqh_service *service)
 	service->rs_ops->rso_fini(service);
 }
 
-C2_INTERNAL int c2_reqh_service_type_register(struct c2_reqh_service_type
-					      *rstype)
+int c2_reqh_service_type_register(struct c2_reqh_service_type *rstype)
 {
         C2_PRE(rstype != NULL);
 	C2_PRE(!c2_reqh_service_is_registered(rstype->rst_name));
@@ -202,8 +201,7 @@ C2_INTERNAL int c2_reqh_service_type_register(struct c2_reqh_service_type
 	return 0;
 }
 
-C2_INTERNAL void c2_reqh_service_type_unregister(struct c2_reqh_service_type
-						 *rstype)
+void c2_reqh_service_type_unregister(struct c2_reqh_service_type *rstype)
 {
 	C2_PRE(rstype != NULL && c2_reqh_service_type_bob_check(rstype));
 

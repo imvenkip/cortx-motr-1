@@ -349,8 +349,7 @@ C2_INTERNAL void c2_tlist_move_tail(const struct c2_tl_descr *d,
 /**
    Returns the first element of a list or NULL if the list is empty.
  */
-C2_INTERNAL void *c2_tlist_head(const struct c2_tl_descr *d,
-				const struct c2_tl *list);
+void *c2_tlist_head(const struct c2_tl_descr *d, const struct c2_tl *list);
 
 /**
    Returns the last element of a list or NULL if the list is empty.
@@ -363,8 +362,8 @@ C2_INTERNAL void *c2_tlist_tail(const struct c2_tl_descr *d,
 
    @pre c2_tlist_contains(d, list, obj)
  */
-C2_INTERNAL void *c2_tlist_next(const struct c2_tl_descr *d,
-				const struct c2_tl *list, const void *obj);
+void *c2_tlist_next(const struct c2_tl_descr *d,
+		    const struct c2_tl *list, const void *obj);
 
 /**
    Returns the previous element of a list or NULL if @obj is the first element.

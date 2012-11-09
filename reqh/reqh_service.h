@@ -441,16 +441,14 @@ struct c2_reqh_service_type stype = {                  \
 
    @pre rstype != NULL && rstype->rst_magix == C2_RHS_MAGIC
  */
-C2_INTERNAL int c2_reqh_service_type_register(struct c2_reqh_service_type
-					      *rstype);
+int c2_reqh_service_type_register(struct c2_reqh_service_type *rstype);
 
 /**
    Unregisters a service type from a global service types list, i.e. rstypes.
 
    @pre rstype != NULL
  */
-C2_INTERNAL void c2_reqh_service_type_unregister(struct c2_reqh_service_type
-						 *rstype);
+void c2_reqh_service_type_unregister(struct c2_reqh_service_type *rstype);
 
 /**
    Initialises global list of service types.

@@ -877,7 +877,7 @@ C2_INTERNAL bool c2_fom_domain_is_idle(const struct c2_fom_domain *dom)
 			 dom->fd_localities[i].fl_foms == 0);
 }
 
-C2_INTERNAL void c2_fom_fini(struct c2_fom *fom)
+void c2_fom_fini(struct c2_fom *fom)
 {
 	struct c2_fom_domain   *fdom;
 	struct c2_fom_locality *loc;
@@ -900,9 +900,9 @@ C2_INTERNAL void c2_fom_fini(struct c2_fom *fom)
 }
 C2_EXPORTED(c2_fom_fini);
 
-C2_INTERNAL void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
-			     const struct c2_fom_ops *ops, struct c2_fop *fop,
-			     struct c2_fop *reply)
+void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
+		 const struct c2_fom_ops *ops, struct c2_fop *fop,
+		 struct c2_fop *reply)
 {
 	C2_PRE(fom != NULL);
 

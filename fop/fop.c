@@ -83,7 +83,7 @@ C2_INTERNAL void c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt,
 	fop->f_data.fd_data = data;
 }
 
-C2_INTERNAL struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
+struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 {
 	struct c2_fop *fop;
 	int            err;
@@ -121,19 +121,19 @@ C2_INTERNAL void c2_fop_free(struct c2_fop *fop)
 	}
 }
 
-C2_INTERNAL void *c2_fop_data(struct c2_fop *fop)
+void *c2_fop_data(struct c2_fop *fop)
 {
 	return fop->f_data.fd_data;
 }
 C2_EXPORTED(c2_fop_data);
 
-C2_INTERNAL uint32_t c2_fop_opcode(const struct c2_fop *fop)
+uint32_t c2_fop_opcode(const struct c2_fop *fop)
 {
 	return fop->f_type->ft_rpc_item_type.rit_opcode;
 }
 C2_EXPORTED(c2_fop_opcode);
 
-C2_INTERNAL void c2_fop_type_fini(struct c2_fop_type *fopt)
+void c2_fop_type_fini(struct c2_fop_type *fopt)
 {
 	c2_fol_rec_type_unregister(&fopt->ft_rec_type);
 	c2_mutex_lock(&fop_types_lock);
@@ -145,8 +145,8 @@ C2_INTERNAL void c2_fop_type_fini(struct c2_fop_type *fopt)
 }
 C2_EXPORTED(c2_fop_type_fini);
 
-C2_INTERNAL int c2_fop_type_init(struct c2_fop_type *ft,
-				 const struct __c2_fop_type_init_args *args)
+int c2_fop_type_init(struct c2_fop_type *ft,
+		     const struct __c2_fop_type_init_args *args)
 {
 	struct c2_fol_rec_type  *fol_type;
 	struct c2_rpc_item_type *rpc_type;
@@ -329,13 +329,13 @@ static const struct c2_fol_rec_type_ops c2_fop_fol_default_ops = {
 
 #endif /* __KERNEL__ */
 
-C2_INTERNAL struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop)
+struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop)
 {
 	return &fop->f_item;
 }
 C2_EXPORTED(c2_fop_to_rpc_item);
 
-C2_INTERNAL struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item)
+struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item)
 {
 	return container_of(item, struct c2_fop, f_item);
 }
@@ -350,7 +350,7 @@ C2_INTERNAL struct c2_fop_type *c2_item_type_to_fop_type
 /*
    See declaration for more information.
  */
-C2_INTERNAL void c2_fop_item_free(struct c2_rpc_item *item)
+void c2_fop_item_free(struct c2_rpc_item *item)
 {
 	struct c2_fop *fop;
 

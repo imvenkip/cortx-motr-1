@@ -170,13 +170,12 @@ C2_INTERNAL int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 				    uint32_t colour,
 				    c2_bcount_t msg_size, uint32_t queue_len);
 
-C2_INTERNAL void c2_rpc_machine_fini(struct c2_rpc_machine *machine);
+void c2_rpc_machine_fini(struct c2_rpc_machine *machine);
 
-C2_INTERNAL void c2_rpc_machine_get_stats(struct c2_rpc_machine *machine,
-					  struct c2_rpc_stats *stats,
-					  bool reset);
+void c2_rpc_machine_get_stats(struct c2_rpc_machine *machine,
+			      struct c2_rpc_stats *stats, bool reset);
 
-C2_BOB_DECLARE(C2_EXTERN, c2_rpc_machine);
+C2_BOB_DECLARE(extern, c2_rpc_machine);
 
 /** @} end of rpc group */
 #endif /* __COLIBRI_RPC_MACHINE_H__ */

@@ -523,9 +523,9 @@ C2_INTERNAL struct c2_reqh *c2_fom_reqh(const struct c2_fom *fom);
  * @param reply Reply fop object
  * @pre fom != NULL
  */
-C2_INTERNAL void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
-			     const struct c2_fom_ops *ops, struct c2_fop *fop,
-			     struct c2_fop *reply);
+void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
+		 const struct c2_fom_ops *ops, struct c2_fop *fop,
+		 struct c2_fop *reply);
 /**
  * Finalises a fom after it completes its execution,
  * i.e success or failure.
@@ -537,7 +537,7 @@ C2_INTERNAL void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
  * @param fom, A fom to be finalised
  * @pre c2_fom_phase(fom) == C2_FOM_PHASE_FINISH
 */
-C2_INTERNAL void c2_fom_fini(struct c2_fom *fom);
+void c2_fom_fini(struct c2_fom *fom);
 
 /**
  * Iterates over c2_fom members and check if they are consistent,

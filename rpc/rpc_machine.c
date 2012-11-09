@@ -97,7 +97,7 @@ static const struct c2_bob_type rpc_machine_bob_type = {
 	.bt_check        = NULL
 };
 
-C2_BOB_DEFINE(C2_INTERNAL, &rpc_machine_bob_type, c2_rpc_machine);
+C2_BOB_DEFINE(, &rpc_machine_bob_type, c2_rpc_machine);
 
 /**
    Buffer callback for buffers added by rpc layer for receiving messages.
@@ -254,7 +254,7 @@ static int root_session_cob_create(struct c2_cob_domain *dom)
 	C2_RETURN(rc);
 }
 
-C2_INTERNAL void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
+void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 {
 	C2_ENTRY("machine: %p", machine);
 	C2_PRE(machine != NULL);
@@ -433,9 +433,8 @@ C2_INTERNAL bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine)
 }
 C2_EXPORTED(c2_rpc_machine_is_locked);
 
-C2_INTERNAL void c2_rpc_machine_get_stats(struct c2_rpc_machine *machine,
-					  struct c2_rpc_stats *stats,
-					  bool reset)
+void c2_rpc_machine_get_stats(struct c2_rpc_machine *machine,
+			      struct c2_rpc_stats *stats, bool reset)
 {
 	C2_PRE(machine != NULL);
 	C2_PRE(stats != NULL);

@@ -40,7 +40,7 @@
  * @retval NULL - allocation failed
  * @retval !NULL - allocated memory block
  */
-C2_INTERNAL void *c2_alloc(size_t size);
+void *c2_alloc(size_t size);
 
 #define C2_ALLOC_ARR(arr, nr)  ((arr) = c2_alloc((nr) * sizeof ((arr)[0])))
 #define C2_ALLOC_PTR(ptr)      C2_ALLOC_ARR(ptr, 1)
@@ -83,7 +83,7 @@ static inline bool c2_addr_is_aligned(void *addr, unsigned shift)
  *
  * @return none
  */
-C2_INTERNAL void c2_free(void *data);
+void c2_free(void *data);
 
 /**
  * Frees aligned memory block

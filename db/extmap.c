@@ -391,7 +391,7 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 
 	while (!c2_ext_is_empty(ext)) {
 		c2_bcount_t        length[3];
-		c2_bindex_t        bstart[3];
+		c2_bindex_t        bstart[3] = { 0 };
 		c2_bcount_t        consumed;
 		struct c2_ext      clip;
 		struct c2_indexvec vec = {

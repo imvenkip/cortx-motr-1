@@ -235,8 +235,8 @@ C2_INTERNAL struct c2_stob_domain *c2_cs_stob_domain_find(struct c2_reqh *reqh,
 
    @retval  NULL of reqh instnace.
  */
-C2_INTERNAL struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
-					   const char *service_name);
+struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
+			       const char *service_name);
 
 /**
  * Returns instance of struct c2_colibri given a

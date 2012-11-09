@@ -397,8 +397,7 @@ C2_INTERNAL void c2_rpc_conn_fini(struct c2_rpc_conn *conn);
  * single routine - terminate the connection, wait until it switched to
  * terminated state and finalize connection object.
  */
-C2_INTERNAL int c2_rpc_conn_destroy(struct c2_rpc_conn *conn,
-				    uint32_t timeout_sec);
+int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec);
 
 /**
     Waits until @conn reaches in any one of states specified by @state_flags.

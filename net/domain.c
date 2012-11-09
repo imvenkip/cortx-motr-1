@@ -30,8 +30,7 @@ const struct c2_addb_ctx_type c2_net_dom_addb_ctx = {
 	.act_name = "net-dom"
 };
 
-C2_INTERNAL int c2_net_domain_init(struct c2_net_domain *dom,
-				   struct c2_net_xprt *xprt)
+int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 {
 	int rc;
 	c2_mutex_lock(&c2_net_mutex);
@@ -41,7 +40,7 @@ C2_INTERNAL int c2_net_domain_init(struct c2_net_domain *dom,
 }
 C2_EXPORTED(c2_net_domain_init);
 
-C2_INTERNAL void c2_net_domain_fini(struct c2_net_domain *dom)
+void c2_net_domain_fini(struct c2_net_domain *dom)
 {
 	c2_mutex_lock(&c2_net_mutex);
 	c2_net__domain_fini(dom);

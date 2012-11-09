@@ -351,7 +351,7 @@ struct c2_net_xprt_ops {
  @retval 0 (success)
  @retval -errno (failure)
  */
-C2_INTERNAL int c2_net_xprt_init(struct c2_net_xprt *xprt);
+int c2_net_xprt_init(struct c2_net_xprt *xprt);
 
 /**
  Shuts down the transport software.
@@ -359,7 +359,7 @@ C2_INTERNAL int c2_net_xprt_init(struct c2_net_xprt *xprt);
  @pre Network domains should have been finalized.
  @param xprt Tranport pointer.
  */
-C2_INTERNAL void c2_net_xprt_fini(struct c2_net_xprt *xprt);
+void c2_net_xprt_fini(struct c2_net_xprt *xprt);
 
 /** @}
  @addtogroup net
@@ -410,15 +410,14 @@ struct c2_net_domain {
  @retval 0 (success)
  @retval -errno (failure)
  */
-C2_INTERNAL int c2_net_domain_init(struct c2_net_domain *dom,
-				   struct c2_net_xprt *xprt);
+int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt);
 
 /**
    Releases resources related to a domain.
    @pre All end points, registered buffers and transfer machines released.
    @param dom Domain pointer.
  */
-C2_INTERNAL void c2_net_domain_fini(struct c2_net_domain *dom);
+void c2_net_domain_fini(struct c2_net_domain *dom);
 
 /**
    This subroutine is used to determine the maximum buffer size.
@@ -535,7 +534,7 @@ C2_INTERNAL void c2_net_end_point_get(struct c2_net_end_point *ep);
    @note The transfer machine mutex will be obtained internally to synchronize
    the transport provided release() method in case the end point gets released.
  */
-C2_INTERNAL void c2_net_end_point_put(struct c2_net_end_point *ep);
+void c2_net_end_point_put(struct c2_net_end_point *ep);
 
 /**
     This enumeration describes the types of logical queues in a transfer

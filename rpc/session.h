@@ -643,8 +643,8 @@ C2_INTERNAL void c2_rpc_session_fini(struct c2_rpc_session *session);
  * a single routine - terminate the session, wait until it switched to
  * terminated state and finalize session object.
  */
-C2_INTERNAL int c2_rpc_session_destroy(struct c2_rpc_session *session,
-				       uint32_t timeout_sec);
+int c2_rpc_session_destroy(struct c2_rpc_session *session,
+			   uint32_t timeout_sec);
 
 /**
    Returns maximum size of an RPC item allowed on this session.

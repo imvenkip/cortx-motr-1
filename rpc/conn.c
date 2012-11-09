@@ -714,8 +714,7 @@ C2_INTERNAL void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
 	C2_LEAVE();
 }
 
-C2_INTERNAL int c2_rpc_conn_destroy(struct c2_rpc_conn *conn,
-				    uint32_t timeout_sec)
+int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 {
 	int rc;
 

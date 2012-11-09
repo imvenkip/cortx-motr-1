@@ -66,13 +66,13 @@ C2_INTERNAL void c2_net_fini()
 	c2_mutex_fini(&c2_net_mutex);
 }
 
-C2_INTERNAL int c2_net_xprt_init(struct c2_net_xprt *xprt)
+int c2_net_xprt_init(struct c2_net_xprt *xprt)
 {
 	return 0;
 }
 C2_EXPORTED(c2_net_xprt_init);
 
-C2_INTERNAL void c2_net_xprt_fini(struct c2_net_xprt *xprt)
+void c2_net_xprt_fini(struct c2_net_xprt *xprt)
 {
 }
 C2_EXPORTED(c2_net_xprt_fini);

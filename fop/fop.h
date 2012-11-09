@@ -134,9 +134,9 @@ C2_INTERNAL void c2_fop_fini(struct c2_fop *fop);
    @param data top level data object
    if data == NULL, data is allocated by this function
  */
-C2_INTERNAL struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);
+struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);
 C2_INTERNAL void c2_fop_free(struct c2_fop *fop);
-C2_INTERNAL void *c2_fop_data(struct c2_fop *fop);
+void *c2_fop_data(struct c2_fop *fop);
 
 /**
    Allocate top level fop data
@@ -146,9 +146,9 @@ C2_INTERNAL int c2_fop_data_alloc(struct c2_fop *fop);
 C2_INTERNAL int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 				   struct c2_db_tx *tx);
 
-C2_INTERNAL struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop);
-C2_INTERNAL struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item);
-C2_INTERNAL uint32_t c2_fop_opcode(const struct c2_fop *fop);
+struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop);
+struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item);
+uint32_t c2_fop_opcode(const struct c2_fop *fop);
 
 /**  Returns a fop type associated with an rpc item type */
 C2_INTERNAL struct c2_fop_type *c2_item_type_to_fop_type
@@ -159,7 +159,7 @@ C2_INTERNAL struct c2_fop_type *c2_item_type_to_fop_type
    fops. If fop is not embeded in any other object, then this routine
    can be set to c2_rpc_item::ri_ops::rio_free().
  */
-C2_INTERNAL void c2_fop_item_free(struct c2_rpc_item *item);
+void c2_fop_item_free(struct c2_rpc_item *item);
 
 extern const struct c2_rpc_item_ops c2_fop_default_item_ops;
 
@@ -284,8 +284,8 @@ struct __c2_fop_type_init_args {
 	const struct c2_reqh_service_type *svc_type;
 };
 
-C2_INTERNAL int c2_fop_type_init(struct c2_fop_type *ft,
-				 const struct __c2_fop_type_init_args *args);
+int c2_fop_type_init(struct c2_fop_type *ft,
+		     const struct __c2_fop_type_init_args *args);
 
 /**
  * Helper macro which can be used to submit fop type initialisation parameters
@@ -297,7 +297,7 @@ C2_INTERNAL int c2_fop_type_init(struct c2_fop_type *ft,
         c2_fop_type_init((ft), &(const struct __c2_fop_type_init_args) { \
                                  __VA_ARGS__ })
 
-C2_INTERNAL void c2_fop_type_fini(struct c2_fop_type *fopt);
+void c2_fop_type_fini(struct c2_fop_type *fopt);
 
 struct c2_fop_type_batch {
 	struct c2_fop_type             *tb_type;

@@ -337,8 +337,7 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 	return dberr_conv(result);
 }
 
-C2_INTERNAL int c2_dbenv_init(struct c2_dbenv *env, const char *name,
-			      uint64_t flags)
+int c2_dbenv_init(struct c2_dbenv *env, const char *name, uint64_t flags)
 {
 	int result;
 
@@ -348,7 +347,7 @@ C2_INTERNAL int c2_dbenv_init(struct c2_dbenv *env, const char *name,
 	return result;
 }
 
-C2_INTERNAL void c2_dbenv_fini(struct c2_dbenv *env)
+void c2_dbenv_fini(struct c2_dbenv *env)
 {
 	struct c2_dbenv_impl *di;
 

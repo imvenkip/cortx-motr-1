@@ -88,14 +88,14 @@ struct c2_rpc_server_ctx {
 
   @pre sctx->rcx_dbenv and rctx->rcx_cob_dom are initialized
 */
-C2_INTERNAL int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx);
+int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx);
 
 /**
   Stops RPC server.
 
   @param sctx  Initialized rpc context structure.
 */
-C2_INTERNAL void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx);
+void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx);
 #endif
 
 struct c2_net_xprt;
@@ -189,7 +189,7 @@ struct c2_rpc_client_ctx {
 
   @pre cctx->rcx_dbenv and rctx->rcx_cob_dom are initialized
 */
-C2_INTERNAL int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx);
+int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx);
 
 /**
   Make an RPC call to a server, blocking for a reply if desired.
@@ -203,10 +203,10 @@ C2_INTERNAL int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx);
 		     wait in formation queue and should be sent immediately.
   @param timeout_s   Timeout in seconds.  0 implies don't wait for a reply.
 */
-C2_INTERNAL int c2_rpc_client_call(struct c2_fop *fop,
-				   struct c2_rpc_session *session,
-				   const struct c2_rpc_item_ops *ri_ops,
-				   c2_time_t deadline, uint32_t timeout_s);
+int c2_rpc_client_call(struct c2_fop *fop,
+		       struct c2_rpc_session *session,
+		       const struct c2_rpc_item_ops *ri_ops,
+		       c2_time_t deadline, uint32_t timeout_s);
 
 /**
   Terminates RPC session and connection with server and finalize client's RPC
@@ -214,7 +214,7 @@ C2_INTERNAL int c2_rpc_client_call(struct c2_fop *fop,
 
   @param cctx  Initialized rpc context structure.
 */
-C2_INTERNAL int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx);
+int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx);
 
 #endif /* __COLIBRI_RPC_RPCLIB_H__ */
 

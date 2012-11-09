@@ -164,7 +164,7 @@ C2_INTERNAL void c2_chan_broadcast(struct c2_chan *chan)
 }
 C2_EXPORTED(c2_chan_broadcast);
 
-C2_INTERNAL bool c2_chan_has_waiters(struct c2_chan *chan)
+bool c2_chan_has_waiters(struct c2_chan *chan)
 {
 	C2_ASSERT(c2_chan_invariant(chan));
 	return chan->ch_waiters > 0;

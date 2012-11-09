@@ -176,8 +176,7 @@ C2_INTERNAL void c2_tlist_move_tail(const struct c2_tl_descr *d,
 	c2_list_move_tail(&list->t_head, __link(d, obj));
 }
 
-C2_INTERNAL void *c2_tlist_head(const struct c2_tl_descr *d,
-				const struct c2_tl *list)
+void *c2_tlist_head(const struct c2_tl_descr *d, const struct c2_tl *list)
 {
 	const struct c2_list *head;
 
@@ -198,8 +197,8 @@ C2_INTERNAL void *c2_tlist_tail(const struct c2_tl_descr *d,
 	return head->l_tail != (void *)head ? amb(d, head->l_tail) : NULL;
 }
 
-C2_INTERNAL void *c2_tlist_next(const struct c2_tl_descr *d,
-				const struct c2_tl *list, const void *obj)
+void *c2_tlist_next(const struct c2_tl_descr *d,
+		    const struct c2_tl *list, const void *obj)
 {
 	struct c2_list_link *next;
 

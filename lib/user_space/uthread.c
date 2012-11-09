@@ -105,7 +105,7 @@ C2_INTERNAL int c2_thread_init_impl(struct c2_thread *q, const char *namebuf)
 			       uthread_trampoline, q);
 }
 
-C2_INTERNAL int c2_thread_join(struct c2_thread *q)
+int c2_thread_join(struct c2_thread *q)
 {
 	int result;
 

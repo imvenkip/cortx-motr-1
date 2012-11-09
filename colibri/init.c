@@ -135,7 +135,7 @@ static void fini_nr(int i)
 	}
 }
 
-C2_INTERNAL int c2_init(void)
+int c2_init(void)
 {
 	int i;
 	int result;
@@ -150,7 +150,7 @@ C2_INTERNAL int c2_init(void)
 	return result;
 }
 
-C2_INTERNAL void c2_fini()
+void c2_fini()
 {
 	fini_nr(ARRAY_SIZE(subsystem));
 }

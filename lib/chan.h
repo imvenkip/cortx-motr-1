@@ -316,7 +316,7 @@ C2_INTERNAL void c2_clink_signal(struct c2_clink *clink);
    time it returns. It is up to the user to provide concurrency control
    mechanisms that would make this function useful.
  */
-C2_INTERNAL bool c2_chan_has_waiters(struct c2_chan *chan);
+bool c2_chan_has_waiters(struct c2_chan *chan);
 
 C2_INTERNAL void c2_clink_init(struct c2_clink *link, c2_chan_cb_t cb);
 C2_INTERNAL void c2_clink_fini(struct c2_clink *link);

@@ -390,6 +390,15 @@ noinst_PROGRAMS      += rpc/it/rpcping
 rpc_it_rpcping_LDADD  = $(top_builddir)/colibri/libcolibri.la  \
                         $(top_builddir)/ut/libcolibri-ut.la
 
+noinst_PROGRAMS                   += rpc/it/rpcping-altogether
+rpc_it_rpcping_altogether_SOURCES  = $(rpc_it_rpcping_SOURCES)
+rpc_it_rpcping_altogether_LDADD    = $(top_builddir)/colibri/libcolibri-altogether.la \
+                                     ut/ut_libcolibri_ut_la-cs_service.lo \
+                                     ut/ut_libcolibri_ut_la-cs_fop_foms.lo \
+                                     ut/ut_libcolibri_ut_la-cs_test_fops_ff.lo \
+                                     ut/ut_libcolibri_ut_la-rpc.lo \
+                                     ut/ut_libcolibri_ut_la-ut.lo
+
 include $(top_srcdir)/rpc/it/Makefile.sub
 
 #

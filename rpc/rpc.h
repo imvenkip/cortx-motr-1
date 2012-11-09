@@ -155,8 +155,7 @@ C2_INTERNAL int c2_rpc_post(struct c2_rpc_item *item);
   item. Rpc-layer will internally free the item when rpc-layer is sure that
   the corresponding request item will not take part in recovery.
  */
-C2_INTERNAL int c2_rpc_reply_post(struct c2_rpc_item *request,
-				  struct c2_rpc_item *reply);
+int c2_rpc_reply_post(struct c2_rpc_item *request, struct c2_rpc_item *reply);
 
 C2_INTERNAL int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
 					struct c2_rpc_item *item);
@@ -171,8 +170,7 @@ C2_INTERNAL int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 					     *app_pool, uint32_t bufs_nr,
 					     uint32_t tm_nr);
 
-C2_INTERNAL void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool
-						*app_pool);
+void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
 
 /** @} end group rpc */
 

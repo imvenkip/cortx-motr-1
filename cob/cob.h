@@ -264,10 +264,10 @@ struct c2_cob_domain {
         struct c2_addb_ctx      cd_addb;
 };
 
-C2_INTERNAL int c2_cob_domain_init(struct c2_cob_domain *dom,
-				   struct c2_dbenv *env,
-				   struct c2_cob_domain_id *id);
-C2_INTERNAL void c2_cob_domain_fini(struct c2_cob_domain *dom);
+int c2_cob_domain_init(struct c2_cob_domain *dom,
+		       struct c2_dbenv *env, struct c2_cob_domain_id *id);
+
+void c2_cob_domain_fini(struct c2_cob_domain *dom);
 
 /**
  * Prepare storage before using. Create root cob for session objects and
