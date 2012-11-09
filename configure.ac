@@ -64,6 +64,8 @@ AC_ARG_ENABLE([debug],
         [AS_HELP_STRING([--enable-debug], [enable debug information and logs])],
         [], [enable_debug=no]
 )
+AM_CONDITIONAL([ENABLE_DEBUG],
+               [test "x$enable_debug" = xyes])
 
 AC_ARG_ENABLE([coverage],
         [AS_HELP_STRING([--enable-coverage], [build for test coverage analysis])],

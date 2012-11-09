@@ -252,7 +252,16 @@ colibri_libcolibri_altogether_la_CPPFLAGS = $(AM_CPPFLAGS) \
                                             -DC2_INTERNAL=static \
                                             -UC2_EXTERN \
                                             -DC2_EXTERN=static
-colibri_libcolibri_altogether_la_CFLAGS   = $(AM_CFLAGS) -Wno-unused-function
+
+if ENABLE_DEBUG
+colibri_libcolibri_altogether_la_CFLAGS   = $(AM_CFLAGS) \
+                                            -Wno-unused-function
+else
+colibri_libcolibri_altogether_la_CFLAGS   = $(AM_CFLAGS) \
+                                            -Wno-unused-function \
+                                            -O3 -ffast-math
+endif
+
 colibri_libcolibri_altogether_la_LDFLAGS  = $(colibri_libcolibri_la_LDFLAGS)
 colibri_libcolibri_altogether_la_LIBADD   = $(colibri_libcolibri_la_LIBADD)
 
