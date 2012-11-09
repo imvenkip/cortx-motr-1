@@ -309,9 +309,10 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
         rc = c2_cob_alloc(cdom, &cob);
         if (rc)
                 return rc;
-	c2_cob_nskey_make(&nskey, &cc->fco_cfid, (char *)fop->cc_cobname.cn_name,
-	                  fop->cc_cobname.cn_count);
-	if (nskey == NULL) {
+	rc = c2_cob_nskey_make(&nskey, &cc->fco_cfid,
+			       (char *)fop->cc_cobname.cn_name,
+			       fop->cc_cobname.cn_count);
+	if (rc == -ENOMEM || nskey == NULL) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_oom);
 	        c2_cob_put(cob);
@@ -321,7 +322,13 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
         io_fom_cob_rw_stob2fid_map(&cc->fco_stobid, &nsrec.cnr_fid);
 	nsrec.cnr_nlink = CC_COB_HARDLINK_NR;
 
-        c2_cob_fabrec_make(&fabrec, NULL, 0);
+	rc = c2_cob_fabrec_make(&fabrec, NULL, 0);
+	if (rc) {
+		c2_free(nskey);
+		c2_cob_put(cob);
+		return rc;
+	}
+
 	fabrec->cfb_version.vn_lsn =
 	             c2_fol_lsn_allocate(c2_fom_reqh(fom)->rh_fol);
 	fabrec->cfb_version.vn_vc = CC_COB_VERSION_INIT;
