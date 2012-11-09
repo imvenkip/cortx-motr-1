@@ -629,13 +629,6 @@ struct c2_rm_remote {
 	struct c2_rpc_session  *rem_session;
 	/** A channel to signal state changes. */
 	struct c2_chan          rem_signal;
-	/** A service to be contacted to talk with the remote owner. Valid in
-	 *  states starting from REM_SERVICE_LOCATED.
-	 *  @todo Due to changes in RPC, service id cannot be used. Do we need
-	 * this field? Alternately, we have to replace this field with
-	 * connection or session pointer.
-	 * struct c2_service_id     rem_service;
-	*/
 	/**
 	 * A linkage into the list of remotes for a given resource hanging off
 	 * c2_rm_resource::r_remote.
@@ -647,6 +640,7 @@ struct c2_rm_remote {
 	 */
 	struct c2_cookie        rem_cookie;
 	uint64_t                rem_id;
+	uint64_t                rem_magix;
 };
 
 /**
@@ -677,8 +671,10 @@ struct c2_rm_group {
 	ROS_INITIAL -> ROS_INITIALISING
 	ROS_INITIALISING -> ROS_FINAL
 	ROS_INITIALISING -> ROS_ACTIVE
-	ROS_ACTIVE -> ROS_FINALISING
+	ROS_ACTIVE -> ROS_QUIESCE
+	ROS_QUIESCE -> ROS_FINALISING
 	ROS_FINALISING -> ROS_FINAL
+	ROS_FINALISING -> ROS_DEFUNCT
    }
    @enddot
  */
@@ -705,10 +701,21 @@ enum c2_rm_owner_state {
 	ROS_ACTIVE,
 	/**
 	 * No new requests are allowed in this state.
-	 *
+	 * Existing incoming requests are drained in this state.
+	 */
+	ROS_QUIESCE,
+	/**
+	 * Flushes all the loans.
 	 * The owner collects from debtors and repays creditors.
 	 */
 	ROS_FINALISING,
+	/**
+	 *  Final state.
+	 *
+	 *  During finalisation, if owner fails to clear the loans, it
+	 * it enters DEFUNCT state.
+	 */
+	ROS_DEFUNCT,
 	/**
 	 *  Final state.
 	 *
@@ -825,19 +832,17 @@ enum c2_rm_owner_queue_state {
  *
  *                                  INITIAL
  *                                     |
- *                                     |
  *                                     V
  *                               INITIALISING-------+
- *                                     |            |
- *                                     |            |
  *                                     |            |
  *                                     V            |
  *                                   ACTIVE         |
  *                                     |            |
- *                                     |            |
+ *                                     V            |
+ *                                  QUIESCE         |
  *                                     |            |
  *                                     V            V
- *                                 FINALISING---->FINAL
+ *                     DEFUNCT<----FINALISING---->FINAL
  *
  * @endverbatim
  *
@@ -1518,13 +1523,11 @@ int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r);
  * Retire the owner before finalising it. This function will revoke sublets
  * and give up loans.
  *
- * @pre owner->ro_state == ROS_ACTIVE || ROS_FINALISING
+ * @pre owner->ro_state == ROS_ACTIVE || ROS_QUIESCE
  * @see c2_rm_owner_fini
  *
- * @retval -EBUSY - If rights are under use.
- *         0      - If all rights are finalised.
  */
-int c2_rm_owner_retire(struct c2_rm_owner *owner);
+void c2_rm_owner_retire(struct c2_rm_owner *owner);
 
 /**
  * Finalises the owner. Dual to c2_rm_owner_init().

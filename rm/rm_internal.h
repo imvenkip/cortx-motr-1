@@ -30,10 +30,21 @@
  * (and CANCEL in future).
  */
 struct c2_rm_remote_incoming {
-	struct c2_rm_incoming ri_incoming;
-	/* This cookie is used to determine locality */
-	struct c2_cookie      ri_owner_cookie;
-	struct c2_cookie      ri_loan_cookie;
+	struct c2_rm_incoming  ri_incoming;
+	/**
+	 * Cookie of local owner sent by the remote end.
+	 * This is used for locality determination.
+	 */
+	struct c2_cookie       ri_owner_cookie;
+	/**
+	 * Cookie of remote owner sent by the remote end.
+	 */
+	struct c2_cookie       ri_rem_owner_cookie;
+	struct c2_cookie       ri_loan_cookie;
+	/**
+	 * Session pointer to the remote end.
+	 */
+	struct c2_rpc_session *ri_rem_session;
 };
 
 /**

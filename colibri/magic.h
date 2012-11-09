@@ -351,8 +351,11 @@ enum c2_magic_satchel {
 	/* c2_rm_ur_tl::td_head_magic (idolise iliad) */
 	C2_RM_USAGE_RIGHT_HEAD_MAGIC = 0x331d0115e111ad77,
 
-	/* rm_transit_tl::td_head_magic (offal oldfool) */
-	C2_RM_TRANSIT_RIGHT_HEAD_MAGIC = 0x330ffa101df00177,
+	/* remotes_tl::td_head_magic (offal oldfool) */
+	C2_RM_REMOTE_OWNER_HEAD_MAGIC = 0x330ffa101df00177,
+
+	/* c2_rm_remote::rem_magix (hobo hillbill) */
+	C2_RM_REMOTE_MAGIC = 0x090477147719,
 
 /* RPC */
 	/* c2_rpc_service_type::svt_magix (seedless seel) */

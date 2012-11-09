@@ -92,6 +92,7 @@ static void retire_incoming_complete(struct c2_rm_incoming *in,
 				     int32_t rc);
 static void retire_incoming_conflict(struct c2_rm_incoming *in);
 static int cached_rights_hold       (struct c2_rm_incoming *in);
+static void cached_rights_flush     (struct c2_rm_owner *owner);
 static bool owner_is_idle	    (struct c2_rm_owner *o);
 static bool incoming_is_complete    (struct c2_rm_incoming *in);
 static int remnant_right_get	    (const struct c2_rm_right *src,
@@ -102,6 +103,7 @@ static int remnant_loan_get	    (const struct c2_rm_loan *loan,
 				     struct c2_rm_loan **remnant_loan);
 static int loan_dup		    (const struct c2_rm_loan *src_loan,
 				     struct c2_rm_loan **dest_loan);
+static void loans_flush		    (struct c2_rm_owner *src_owner);
 static struct c2_rm_resource *
 resource_find(const struct c2_rm_resource_type *rt,
 	      const struct c2_rm_resource *res);
@@ -118,6 +120,11 @@ C2_TL_DESCR_DEFINE(c2_rm_ur, "usage rights", , struct c2_rm_right,
 		   ri_linkage, ri_magix,
 		   C2_RM_RIGHT_MAGIC, C2_RM_USAGE_RIGHT_HEAD_MAGIC);
 C2_TL_DEFINE(c2_rm_ur, , struct c2_rm_right);
+
+C2_TL_DESCR_DEFINE(remotes, "remote owners", , struct c2_rm_remote,
+		   rem_linkage, rem_magix,
+		   C2_RM_REMOTE_MAGIC, C2_RM_REMOTE_OWNER_HEAD_MAGIC);
+C2_TL_DEFINE(remotes, , struct c2_rm_remote);
 
 static const struct c2_bob_type right_bob = {
         .bt_name         = "right",
@@ -266,6 +273,7 @@ void c2_rm_resource_add(struct c2_rm_resource_type *rtype,
 	C2_PRE(resource_find(rtype, res) == NULL);
 	res->r_type = rtype;
 	res_tlink_init_at(res, &rtype->rt_resources);
+	remotes_tlist_init(&res->r_remote);
 	c2_rm_resource_bob_init(res);
 	C2_CNT_INC(rtype->rt_nr_resources);
 	C2_POST(res_tlist_contains(&rtype->rt_resources, res));
@@ -281,6 +289,7 @@ void c2_rm_resource_del(struct c2_rm_resource *res)
 
 	c2_mutex_lock(&rtype->rt_lock);
 	C2_PRE(res_tlist_contains(&rtype->rt_resources, res));
+	C2_PRE(remotes_tlist_is_empty(&res->r_remote));
 	C2_PRE(resource_type_invariant(rtype));
 
 	res_tlink_del_fini(res);
@@ -325,9 +334,17 @@ static const struct c2_sm_state_descr owner_states[] = {
 		.sd_name      = "Active",
 		.sd_allowed   = C2_BITS(ROS_FINALISING)
 	},
+	[ROS_QUIESCE] = {
+		.sd_name      = "Quiesce",
+		.sd_allowed   = C2_BITS(ROS_FINALISING, ROS_FINAL)
+	},
 	[ROS_FINALISING] = {
 		.sd_name      = "Finalising",
-		.sd_allowed   = C2_BITS(ROS_FINAL)
+		.sd_allowed   = C2_BITS(ROS_DEFUNCT, ROS_FINAL)
+	},
+	[ROS_DEFUNCT] = {
+		.sd_flags     = C2_SDF_TERMINAL,
+		.sd_name      = "Defunct"
 	},
 	[ROS_FINAL] = {
 		.sd_flags     = C2_SDF_TERMINAL,
@@ -352,24 +369,53 @@ static inline void owner_state_set(struct c2_rm_owner *owner,
 	c2_sm_state_set(&owner->ro_sm, state);
 }
 
+static bool owner_has_loans(struct c2_rm_owner *owner)
+{
+	return !c2_rm_ur_tlist_is_empty(&owner->ro_sublet) ||
+	       !c2_rm_ur_tlist_is_empty(&owner->ro_borrowed);
+}
+
 static void owner_finalisation_check(struct c2_rm_owner *owner)
 {
-	if (owner_state(owner) == ROS_FINALISING && owner_is_idle(owner)) {
-		/*
-		 * These lists may not be empty if some errors occurred
-		 * before the remote requests were sent.
-		 */
-		if (c2_rm_ur_tlist_is_empty(&owner->ro_sublet) &&
-		    c2_rm_ur_tlist_is_empty(&owner->ro_borrowed)) {
-			/* Handle owner finalisation */
-			owner_state_set(owner, ROS_FINAL);
-			C2_POST(owner_invariant(owner));
+	switch (owner_state(owner)) {
+	case ROS_QUIESCE:
+		if (owner_is_idle(owner)) {
+			/*
+			 * No more user-right requests are pending.
+			 * Flush the loans and cached rights.
+			 */
+			if (owner_has_loans(owner)) {
+				owner_state_set(owner, ROS_FINALISING);
+				cached_rights_flush(owner);
+				loans_flush(owner);
+			} else {
+				owner_state_set(owner, ROS_FINAL);
+				C2_POST(owner_invariant(owner));
+			}
 		}
-		/**
-		 * @todo Optionally send notification to objects waiting for
-		 *       finalising the owner.
+		break;
+	case ROS_FINALISING:
+		/*
+		 * loans_flush() creates requests. Make sure that all those
+		 * requests are processed. Once the owner is idle, if there
+		 * are no pending loans, finalise owner. Otherwise put it
+		 * in DEFUNCT state. Currently there is no recovery from
+		 * DEFUNCT state.
 		 */
+		if (owner_is_idle(owner))
+			owner_state_set(owner, owner_has_loans(owner) ?
+					       ROS_DEFUNCT : ROS_FINAL);
+		break;
+	case ROS_DEFUNCT:
+	case ROS_FINAL:
+		break;
+	default:
+		break;
 	}
+	/**
+	 * @todo Optionally send notification to
+	 * objects waiting for finalising the owner.
+	 */
 }
 
 void c2_rm_owner_lock(struct c2_rm_owner *owner)
@@ -483,25 +529,12 @@ static bool owner_is_idle (struct c2_rm_owner *o)
 			   c2_rm_ur_tlist_is_empty(&o->ro_incoming[i][j])));
 }
 
-int c2_rm_owner_retire(struct c2_rm_owner *owner)
+static void loans_flush(struct c2_rm_owner *owner)
 {
 	struct c2_rm_right    *right;
 	struct c2_rm_loan     *loan;
 	struct c2_rm_incoming *in;
 	int		       rc = 0;
-	int		       i;
-
-	/*
-	 * Put the owner in ROS_FINALISING. This will prevent any new
-	 * incoming requests on it. If it's already in FINALISING state,
-	 * or if there are pending incoming requests, return error.
-	 */
-	c2_rm_owner_lock(owner);
-	if (owner_state(owner) == ROS_FINALISING || !owner_is_idle(owner)) {
-		c2_sm_group_unlock(&owner->ro_sm_grp);
-		return -EBUSY;
-	}
-	owner_state_set(owner, ROS_FINALISING);
 
 	/*
 	 * While processing the queues, if -ENOMEM or other error occurs
@@ -511,7 +544,7 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 	c2_tl_for(c2_rm_ur, &owner->ro_sublet, right) {
 		C2_ALLOC_PTR(in);
 		if (in == NULL)
-			return -ENOMEM;
+			break;
 		c2_rm_incoming_init(in, owner, C2_RIT_REVOKE,
 				    RIP_NONE, RIF_MAY_REVOKE);
 		in->rin_priority = 0;
@@ -521,30 +554,19 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 		 * drained, we add our incoming requests for REVOKE and CANCEL
 		 * processing to the incoming queue.
 		 *
-		 * @todo : We are handling -ENOMEM right now. For other
-		 * errors, we will have to decide the logic. For now,
-		 * we will retain the rights and owner in the memory if
-		 * it's faulted. We will do the cleanup only when we introduce
-		 * force flag.
+		 * If there are any errors then loans (sublets, borrows) will
+		 * remain in the list. Eventually owner will enter DEFUNCT
+		 * state.
 		 */
 		C2_ASSERT(c2_rm_right_bob_check(right));
 		rc = right_copy(&in->rin_want, right);
-		if (rc == -ENOMEM)
-			return rc;
 		if (rc == 0) {
 			c2_rm_ur_tlist_add(
 			    &owner->ro_incoming[in->rin_priority][OQS_EXCITED],
 			    &in->rin_want);
-			owner_balance(owner);
-		}
+		} else
+			break;
 	} c2_tl_endfor;
-
-	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
-		c2_tl_for(c2_rm_ur, &owner->ro_owned[i], right) {
-			c2_rm_ur_tlink_del_fini(right);
-			c2_free(right);
-		} c2_tl_endfor;
-	}
 
 	c2_tl_for(c2_rm_ur, &owner->ro_borrowed, right) {
 		C2_ASSERT(c2_rm_right_bob_check(right));
@@ -554,17 +576,24 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 			c2_free(loan);
 		} else {
 			/* @todo - pending cancel implementation */
-			/* cancel_send(in, loan, right) */
+			/* cancel_send(in, loan) */
 		}
 	} c2_tl_endfor;
-	/*
-	 * Retire immediately, if no processing is required.
-	 */
-	if (owner_is_idle(owner))
-		owner_state_set(owner, ROS_FINAL);
-	c2_rm_owner_unlock(owner);
+	owner_balance(owner);
+}
 
-	return rc;
+void c2_rm_owner_retire(struct c2_rm_owner *owner)
+{
+	/*
+	 * Put the owner in ROS_QUIESCE. This will prevent any new
+	 * incoming requests on it.
+	 */
+	c2_rm_owner_lock(owner);
+	if (owner_state(owner) != ROS_QUIESCE) {
+		owner_state_set(owner, ROS_QUIESCE);
+		owner_balance(owner);
+	}
+	c2_sm_group_unlock(&owner->ro_sm_grp);
 }
 
 void c2_rm_owner_fini(struct c2_rm_owner *owner)
@@ -801,6 +830,43 @@ void c2_rm_loan_fini(struct c2_rm_loan *loan)
 }
 C2_EXPORTED(c2_rm_loan_fini);
 
+static int remote_find(struct c2_rm_remote **rem,
+		       struct c2_rpc_session *session,
+		       struct c2_rm_resource *res,
+		       struct c2_cookie *cookie)
+{
+	struct c2_rm_remote *other;
+	int		     rc = 0;
+
+	C2_PRE(rem != NULL);
+	C2_PRE(res != NULL);
+	C2_PRE(cookie != NULL);
+
+	c2_tl_for(remotes, &res->r_remote, other) {
+		C2_ASSERT(other->rem_resource == res);
+		if (other->rem_cookie.co_addr == cookie->co_addr &&
+		    other->rem_cookie.co_generation == cookie->co_generation)
+			break;
+	} c2_tl_endfor;
+
+	if (other != NULL)
+		*rem = other;
+	else {
+		C2_ALLOC_PTR(other);
+		if (other != NULL) {
+			c2_rm_remote_init(other, res);
+			other->rem_session = session;
+			other->rem_state = REM_SERVICE_LOCATED;
+			other->rem_cookie = *cookie;
+			/* @todo - Figure this out */
+			/* other->rem_id = 0; */
+			remotes_tlist_add(&res->r_remote, other);
+		} else
+			rc = -ENOMEM;
+	}
+	return rc;
+}
+
 void c2_rm_remote_init(struct c2_rm_remote *rem, struct c2_rm_resource *res)
 {
 	C2_PRE(rem->rem_state == REM_FREED);
@@ -823,6 +889,19 @@ void c2_rm_remote_fini(struct c2_rm_remote *rem)
 	resource_put(rem->rem_resource);
 }
 C2_EXPORTED(c2_rm_remote_fini);
+
+static void cached_rights_flush(struct c2_rm_owner *owner)
+{
+	struct c2_rm_right *right;
+	int		    i;
+
+	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
+		c2_tl_for(c2_rm_ur, &owner->ro_owned[i], right) {
+			c2_rm_ur_tlink_del_fini(right);
+			c2_free(right);
+		} c2_tl_endfor;
+	}
+}
 
 /*
  * Remove the OWOS_CACHED rights that match incoming rights. If the right(s)
@@ -892,6 +971,7 @@ int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 	struct c2_rm_incoming *in    = &rem_in->ri_incoming;
 	struct c2_rm_owner    *owner = in->rin_want.ri_owner;
 	struct c2_rm_loan     *loan;
+	struct c2_rm_remote   *debtor;
 	int                    rc;
 
 	C2_PRE(in->rin_type == C2_RIT_BORROW);
@@ -902,8 +982,10 @@ int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 	 * If everything succeeds add loan to the sublet list.
 	 * @todo Find the remote object for this loan.
 	 */
-	rc = c2_rm_loan_alloc(&loan, &in->rin_want, NULL) ?:
-		cached_rights_remove(in);
+	rc = remote_find(&debtor, rem_in->ri_rem_session,
+			 owner->ro_resource, &rem_in->ri_rem_owner_cookie) ?:
+	     c2_rm_loan_alloc(&loan, &in->rin_want, debtor);
+	rc = rc ?: cached_rights_remove(in);
 	if (rc == 0) {
 		/*
 		 * Store the loan in the sublet list.
