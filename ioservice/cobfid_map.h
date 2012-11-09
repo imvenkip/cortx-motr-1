@@ -94,11 +94,11 @@ struct c2_reqh;
  */
 struct c2_cobfid_map {
 	uint64_t            cfm_magic;
-        struct c2_dbenv    *cfm_dbenv;    /**< Database environment pointer */
-        struct c2_addb_ctx *cfm_addb;     /**< ADDB context */
-	char		   *cfm_map_name; /**< Name of the map */
-	c2_time_t           cfm_last_mod; /**< Time last modified */
-	struct c2_table     cfm_table;    /**< Table corresponding to cfm */
+	struct c2_dbenv    *cfm_dbenv;     /**< Database environment pointer */
+	struct c2_addb_ctx *cfm_addb;      /**< ADDB context */
+	char		   *cfm_map_name;  /**< Name of the map */
+	c2_time_t           cfm_last_mod;  /**< Time last modified */
+	struct c2_table     cfm_table;     /**< Table corresponding to cfm */
 	struct c2_mutex     cfm_mutex;
 	bool                cfm_is_initialised;
 	uint64_t            cfm_ref_cnt;
@@ -123,22 +123,37 @@ enum c2_cobfid_map_query_type {
    The data structure should be treated as opaque by the invoking application.
  */
 struct c2_cobfid_map_iter {
-	uint64_t              cfmi_magic;
-	struct c2_cobfid_map *cfmi_cfm;      /**< The map */
-	int                   cfmi_error;    /**< End or error indicator */
-	c2_time_t             cfmi_last_load;/**< Time last loaded */
-	uint64_t              cfmi_next_ci;  /**< Next container id */
-	struct c2_fid         cfmi_next_fid; /**< Next fid value */
-	uint64_t              cfmi_last_ci;  /**< Last container id returned */
-	struct c2_fid         cfmi_last_fid; /**< Last fid value returned */
-	void                 *cfmi_buffer;   /**< Private read-ahead buffer */
-	unsigned int          cfmi_num_recs; /**< # recs in the buffer */
-	unsigned int	      cfmi_last_rec; /**< index of last valid record */
-	unsigned int          cfmi_rec_idx;  /**< The next record to return */
-	bool		      cfmi_end_of_table; /**< Indicates end of table */
-	bool		      cfmi_reload; /**< Indicates iterator reload */
-	enum c2_cobfid_map_query_type cfmi_qt;   /**< The type of query */
-	const struct c2_cobfid_map_iter_ops *cfmi_ops; /**< Operations */
+	uint64_t                             cfmi_magic;
+	/**< The map */
+	struct c2_cobfid_map                *cfmi_cfm;
+	/**< End or error indicator */
+	int                                  cfmi_error;
+	/**< Time last loaded */
+	c2_time_t                            cfmi_last_load;
+	/**< Next container id */
+	uint64_t                             cfmi_next_ci;
+	/**< Next fid value */
+	struct c2_fid                        cfmi_next_fid;
+	 /**< Last container id returned */
+	uint64_t                             cfmi_last_ci;
+	/**< Last fid value returned */
+	struct c2_fid                        cfmi_last_fid;
+	/**< Private read-ahead buffer */
+	void                                *cfmi_buffer;
+	/**< # recs in the buffer */
+	unsigned int                         cfmi_num_recs;
+	/**< index of last valid record */
+	unsigned int	                     cfmi_last_rec;
+	/**< The next record to return */
+	unsigned int                         cfmi_rec_idx;
+	/**< Indicates end of table */
+	bool		                     cfmi_end_of_table;
+	/**< Indicates iterator reload */
+	bool		                     cfmi_reload;
+	/**< The type of query */
+	enum c2_cobfid_map_query_type        cfmi_qt;
+	/**< Operations */
+	const struct c2_cobfid_map_iter_ops *cfmi_ops;
 };
 
 /** Iterator operations */
@@ -279,6 +294,7 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 			    uint64_t *container_id_p,
 			    struct c2_fid *file_fid_p,
 			    struct c2_uint128 *cob_fid_p);
+
 
 /**
  * Finds the struct c2_cobfid_map instance in the request handler using

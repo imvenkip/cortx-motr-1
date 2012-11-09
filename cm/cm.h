@@ -239,6 +239,8 @@ struct c2_cm_ops {
 	bool (*cmo_has_space)(const struct c2_cm *cm,
 			      const struct c2_cm_ag_id *id);
 
+	void (*cmo_complete) (struct c2_cm *cm);
+
 	/** Copy machine specific finalisation routine. */
 	void (*cmo_fini)(struct c2_cm *cm);
 };
@@ -391,11 +393,13 @@ void c2_cm_sw_fill(struct c2_cm *cm);
  */
 int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp);
 
-/** Returns last element from the c2_cm::cm_aggr_grps list. */
-struct c2_cm_aggr_group *c2_cm_ag_hi(struct c2_cm *cm);
-
-/** Returns first element from the c2_cm::cm_aggr_grps list. */
-struct c2_cm_aggr_group *c2_cm_ag_lo(struct c2_cm *cm);
+/**
+ * Checks if copy machine pump FOM will be creating more copy packets or if
+ * its done. Once pump FOM is done creating copy packets, it sets
+ * c2_cm_cp_pump::p_fom.fo_sm_phase.sm_rc = -ENODATA, the same is checked by
+ * this function.
+ */
+bool c2_cm_has_more_data(const struct c2_cm *cm);
 
 /** @} endgroup CM */
 

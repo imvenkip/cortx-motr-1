@@ -56,6 +56,20 @@ struct c2_cm_cp_pump {
 	uint64_t         p_magix;
 	/** Set true by c2_cm_cp_pump_stop() */
 	bool		 p_shutdown;
+	/**
+	 * Set true when c2_cm_cp_pump::p_fom is transitioned to CPP_IDLE phase,
+	 * and set to false by c2_pump_fom_wakeup().
+	 * This is used to check if pump is idle instead of doing
+	 * c2_fom_phase(p_fom) == CPP_IDLE, because of the following situation,
+	 * As multiple copy packet FOMs can be finalised concurrently and thus
+	 * invoke c2_cm_sw_fill(), this invokes c2_cm_cp_pump_wakeup(), which
+	 * posts a struct c2_sm_ast to wakeup pump FOM, thus multiple asts are
+	 * posted to wakeup the same pump FOM, which are executed at the same
+	 * time later, all trying to wakeup pump FOM. So setting p_is_idle true
+	 * before invoking c2_fom_wakeup() in c2_cm_cp_pump_wakeup() avoids this
+	 * race.
+	 */
+	bool             p_is_idle;
 };
 
 void c2_cm_cp_pump_init(void);
@@ -73,8 +87,8 @@ void c2_cm_cp_pump_start(struct c2_cm *cm);
 void c2_cm_cp_pump_stop(struct c2_cm *cm);
 
 /**
- * Wakes up pump FOM, to create more copy packets iff pump FOM is in CPP_IDLE
- * state.
+ * Wakes up pump FOM, to create more copy packets iff c2_cm_cp_pump::p_is_idle.
+ * Resets c2_cm_cp_pump::p_is_idle to false.
  */
 void c2_cm_cp_pump_wakeup(struct c2_cm *cm);
 

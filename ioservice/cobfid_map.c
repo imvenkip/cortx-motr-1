@@ -43,8 +43,8 @@ enum {
   Internal data structure used as a key for the record in cobfid_map table
  */
 struct cobfid_map_key {
-	uint64_t	cfk_ci;  /**< container id */
-	struct c2_fid	cfk_fid; /**< global file id */
+	uint64_t      cfk_ci;  /**< container id */
+	struct c2_fid cfk_fid; /**< global file id */
 };
 
 /**
@@ -71,12 +71,12 @@ static int cfm_key_cmp(struct c2_table *table, const void *key0,
 	C2_PRE(key1 != NULL);
 
 	if (c2_fid_eq(&map_key0->cfk_fid, &map_key1->cfk_fid) &&
-		      C2_3WAY(map_key0->cfk_ci, map_key1->cfk_ci) == 0)
+	    C2_3WAY(map_key0->cfk_ci, map_key1->cfk_ci) == 0)
 		return 0;
-	else if (C2_3WAY(map_key0->cfk_ci, map_key1->cfk_ci) == 0)
-		return map_key0->cfk_fid.f_key - map_key1->cfk_fid.f_key;
-	else
-		return map_key0->cfk_ci - map_key1->cfk_ci;
+	if (C2_3WAY(map_key0->cfk_ci, map_key1->cfk_ci) == 0)
+	    return c2_fid_cmp(&map_key0->cfk_fid, &map_key1->cfk_fid);
+
+	return C2_3WAY(map_key0->cfk_ci, map_key1->cfk_ci);
 }
 
 static const struct c2_table_ops cfm_table_ops = {
@@ -173,15 +173,14 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
 		      const struct c2_fid file_fid, struct c2_uint128 cob_fid)
 {
 	int			 rc;
-	bool			 table_update_failed = false;
 	struct c2_db_pair	 db_pair;
 	struct cobfid_map_key	 key;
 	struct c2_db_tx		 tx;
 
 	C2_PRE(cobfid_map_invariant(cfm));
 
-	key.cfk_ci = container_id;
-	key.cfk_fid = file_fid;
+	key.cfk_ci     = container_id;
+	key.cfk_fid    = file_fid;
 
 	rc = c2_db_tx_init(&tx, cfm->cfm_dbenv, 0);
 	if (rc != 0) {
@@ -195,20 +194,18 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
 			 &cob_fid, sizeof(struct c2_uint128));
 
 	rc = c2_table_update(&tx, &db_pair);
-	if (rc != 0) {
-		table_update_failed = true;
-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
-			    "c2_table_update", rc);
-	}
 
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
-	if (!table_update_failed) {
-		cfm->cfm_last_mod = c2_time_now();
-		c2_db_tx_commit(&tx);
-	} else
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_table_update", rc);
 		c2_db_tx_abort(&tx);
+		return rc;
+	}
 
+	cfm->cfm_last_mod = c2_time_now();
+	c2_db_tx_commit(&tx);
 	C2_POST(cobfid_map_invariant(cfm));
 
 	return rc;

@@ -62,14 +62,11 @@ bool c2_reqh_service_invariant(const struct c2_reqh_service *svc)
 				C2_RST_STARTING, C2_RST_STARTED,
 				C2_RST_STOPPING)) &&
 	svc->rs_type != NULL && svc->rs_ops != NULL &&
-	ergo(svc->rs_state == C2_RST_INITIALISED ||
-		svc->rs_state == C2_RST_STARTING ||
-		svc->rs_state == C2_RST_STARTED ||
-		svc->rs_state == C2_RST_STOPPING, svc->rs_uuid[0] != 0 &&
-		svc->rs_reqh != NULL) &&
-	ergo(svc->rs_state == C2_RST_STARTED ||
-		svc->rs_state == C2_RST_STOPPING,
-		c2_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc));
+	ergo(C2_IN(svc->rs_state, (C2_RST_INITIALISED, C2_RST_STARTING,
+				   C2_RST_STARTED, C2_RST_STOPPING)),
+	     svc->rs_uuid[0] != 0 && svc->rs_reqh != NULL) &&
+	ergo(C2_IN(svc->rs_state, (C2_RST_STARTED, C2_RST_STOPPING)),
+	     c2_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc));
 }
 C2_EXPORTED(c2_reqh_service_invariant);
 

@@ -221,7 +221,7 @@ const struct c2_cm_cp_ops write_cp_dummy_ops = {
 	.co_complete             = &dummy_cp_complete,
 };
 
-static void write_post(void)
+void write_post(void)
 {
 	int                    rc;
 	struct c2_stob_domain *sdom;
@@ -230,6 +230,9 @@ static void write_post(void)
 	cp_prepare(&w_sns_cp.rc_base, &w_bv, SEG_NR, SEG_SIZE, &w_sag, 'e',
 		   &dummy_cp_fom_ops);
 	w_sns_cp.rc_sid = sid;
+	w_sag.sag_spare_cobfid.f_container = sid.si_bits.u_hi;
+	w_sag.sag_spare_cobfid.f_key = sid.si_bits.u_lo;
+	w_sag.sag_spare_cob_index = 0;
 	w_sns_cp.rc_base.c_ops = &write_cp_dummy_ops;
 
 	sdom = c2_cs_stob_domain_find(reqh, &sid);
