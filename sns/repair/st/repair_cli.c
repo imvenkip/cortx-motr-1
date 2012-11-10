@@ -29,21 +29,14 @@
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/getopts.h"
-#include "lib/memory.h"
-#include "lib/chan.h"
-#include "lib/finject.h"
-#include "lib/time.h"
 #include "lib/misc.h"           /* C2_IN() */
 #include "fop/fop.h"
-#include "fop/fom.h"
-#include "fop/fom_generic.h"
 #include "net/lnet/lnet.h"
 #include "colibri/init.h"
 
 #include "ut/rpc.h"
 #include "rpc/rpc.h"
 #include "rpc/rpclib.h"
-#include "fop/fop_item_type.h"
 
 #include "trigger_fop.h"
 #include "trigger_fop_ff.h"
