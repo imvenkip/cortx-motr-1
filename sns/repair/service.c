@@ -31,6 +31,7 @@
 #include "lib/finject.h"
 
 #include "reqh/reqh_service.h"
+#include "sns/repair/st/trigger_fop.h"
 #include "sns/repair/cm.h"
 
 /**
@@ -130,6 +131,11 @@ static int service_start(struct c2_reqh_service *service)
 	C2_ENTRY("service: %p", service);
 	C2_PRE(service != NULL);
 
+	/* Build sns repair trigger fop. */
+	rc = c2_sns_repair_trigger_fop_init();
+	if (rc != 0)
+		return rc;
+
         /* XXX Register SNS Repair FOP types */
 	cm = container_of(service, struct c2_cm, cm_service);
 	rc = c2_cm_setup(cm);
@@ -159,6 +165,7 @@ static void service_stop(struct c2_reqh_service *service)
 	 * stopped.
 	 */
 	c2_cm_fini(cm);
+	c2_sns_repair_trigger_fop_fini();
 
 	C2_LEAVE();
 }

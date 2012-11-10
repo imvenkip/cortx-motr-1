@@ -16,4 +16,3 @@ colibri_libcolibri_la_SOURCES  += sns/repair/ag.c \
                                   sns/repair/storage.c
 
 EXTRA_DIST += sns/poolmach.c
-

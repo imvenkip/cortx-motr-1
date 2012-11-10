@@ -127,7 +127,7 @@
   @see @ref SNSRepairSVC "SNS Repair service" for details.
   Once the copy machine is initialised, as part of copy machine setup, SNS
   Repair copy machine specific resources are initialised, viz. incoming and
-  outgoing buffer pools (c2_sns_repair_cm::rc_ibp and ::rc_obp) and cobfid_map.
+  outgoing buffer pools (c2_sns_repair_cm::rc_ibp and ::rc_obp).
   Both the buffer pools are initialised with colours equal to total number of
   localities in the request handler.
   After cm_setup() is successfully called, the copy machine transitions to
@@ -219,9 +219,9 @@
   other copy machine replicas.
 
   @b i.sns.repair.data.next SNS Repair copy machine implements a next function
-  using cobfid_map and pdclust layout infrastructure to select the next data
-  to be repaired from the failure set. This is done in GOB fid and parity group
-  order.
+  using cob name space iterator and pdclust layout infrastructure to select the
+  next data to be repaired from the failure set. This is done in GOB fid and
+  parity group order.
 
   @b i.sns.repair.report.progress Progress is reported using sliding window and
   layout updates.
@@ -387,9 +387,6 @@ static int cm_setup(struct c2_cm *cm)
 	}
 
 	if (rc == 0)
-		rc = c2_cobfid_map_get(reqh, &rcm->rc_cfm);
-
-	if (rc == 0)
 		c2_chan_init(&rcm->rc_stop_wait);
 
 	C2_LEAVE();
@@ -459,7 +456,6 @@ static void cm_fini(struct c2_cm *cm)
 	rcm = cm2sns(cm);
 	c2_net_buffer_pool_fini(&rcm->rc_ibp);
 	c2_net_buffer_pool_fini(&rcm->rc_obp);
-	c2_cobfid_map_put(cm->cm_service.rs_reqh);
 
 	C2_LEAVE();
 }

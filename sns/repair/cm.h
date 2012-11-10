@@ -94,9 +94,6 @@ struct c2_sns_repair_cm {
 	 */
 	uint64_t                   rc_file_size;
 
-	/** Local cobfid_map (aux-db). */
-	struct c2_cobfid_map      *rc_cfm;
-
 	/** SNS Repair data iterator. */
 	struct c2_sns_repair_iter  rc_it;
 

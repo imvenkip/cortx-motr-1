@@ -402,20 +402,12 @@ static int __fid_next(const struct c2_fid *fid_curr, struct c2_fid *fid_next)
  */
 static int iter_fid_next(struct c2_sns_repair_cm *rcm)
 {
-	struct c2_cobfid_map      *cfm;
 	struct c2_fid             *fid_curr;
 	struct c2_fid              fid_next;
-	struct c2_dbenv           *dbenv;
-	struct c2_db_tx            tx;
 	int                        rc;
 
-	cfm = rcm->rc_cfm;
 	/* Get current GOB fid saved in the iterator. */
 	fid_curr = &rcm->rc_it.ri_pl.rpl_gob_fid;
-	dbenv = rcm->rc_base.cm_service.rs_reqh->rh_dbenv;
-	rc = c2_db_tx_init(&tx, dbenv, 0);
-	if (rc != 0)
-		return rc;
 	rc = __fid_next(fid_curr, &fid_next);
 	if (rc == -ENOENT)
 		return -ENODATA;
@@ -567,7 +559,12 @@ static int iter_cp_setup(struct c2_sns_repair_cm *rcm)
 
 	if (rc == 0) {
 		iter_phase_set(&rcm->rc_it, ITPH_COB_NEXT);
-		rc = C2_FSO_AGAIN;
+		/*
+		 * If this is spare unit we just locate an aggregation group and
+		 * do not fill the given copy packet, but proceed to next data
+		 * or parity unit.
+		 */
+		rc = rpl->rpl_cob_is_spare_unit ? 0 : C2_FSO_AGAIN;
 	}
 
 	return rc;
@@ -600,6 +597,11 @@ static int iter_cob_next(struct c2_sns_repair_cm *rcm)
 
 	cob_fid = &rpl->rpl_cob_fid;
 	do {
+		if (sa->sa_unit >= upg) {
+			++rcm->rc_it.ri_pl.rpl_sa.sa_group;
+			iter_phase_set(&rcm->rc_it, ITPH_GROUP_NEXT);
+			return 0;
+		}
 		/*
 		 * Calculate COB fid corresponding to the unit and advance
 		 * rcm->rc_it.ri_src::sa_unit to next unit in the parity
@@ -607,13 +609,8 @@ static int iter_cob_next(struct c2_sns_repair_cm *rcm)
 		 * proceed to next parity group in the GOB.
 		 */
 		unit_to_cobfid(rpl, cob_fid);
-		++sa->sa_unit;
-		if (sa->sa_unit >= upg) {
-			++rcm->rc_it.ri_pl.rpl_sa.sa_group;
-			iter_phase_set(&rcm->rc_it, ITPH_GROUP_NEXT);
-			return rc;
-		}
 		rc = cob_locate(rcm, cob_fid);
+		++sa->sa_unit;
 	} while (rc == -ENOENT ||
 		 cob_fid->f_container == rcm->rc_fdata);
 
@@ -630,7 +627,7 @@ static int iter_cob_next(struct c2_sns_repair_cm *rcm)
 int iter_init(struct c2_sns_repair_cm *rcm)
 {
 	iter_phase_set(&rcm->rc_it, ITPH_FID_NEXT);
-
+	iter_stop = false;
 	return 0;
 }
 
@@ -785,8 +782,10 @@ static void layout_fini(struct c2_sns_repair_cm *rcm)
 	C2_PRE(iter_invariant(&rcm->rc_it));
 
 	rpl = &rcm->rc_it.ri_pl;
-	if (rpl->rpl_pi != NULL)
+	if (rpl->rpl_pi != NULL) {
 		c2_layout_instance_fini(&rpl->rpl_pi->pi_base);
+		rpl->rpl_pi = NULL;
+	}
 	c2_layout_put(c2_pdl_to_layout(rpl->rpl_base));
 	c2_layout_standard_types_unregister(&rcm->rc_lay_dom);
 	c2_layout_domain_fini(&rcm->rc_lay_dom);
@@ -794,7 +793,6 @@ static void layout_fini(struct c2_sns_repair_cm *rcm)
 
 int c2_sns_repair_iter_init(struct c2_sns_repair_cm *rcm)
 {
-	struct c2_cobfid_map       *cfm;
 	struct c2_cm               *cm;
 	int                         rc;
 
@@ -805,7 +803,6 @@ int c2_sns_repair_iter_init(struct c2_sns_repair_cm *rcm)
 	if (rc != 0)
 		return rc;
 
-	cfm = rcm->rc_cfm;
 	c2_sm_init(&rcm->rc_it.ri_sm, &cm_iter_sm_conf,	ITPH_INIT,
 		   &cm->cm_sm_group, &cm->cm_addb);
 	c2_sns_repair_iter_bob_init(&rcm->rc_it);

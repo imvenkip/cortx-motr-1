@@ -410,7 +410,8 @@ include $(top_srcdir)/net/test/user_space/Makefile.sub
 #
 
 noinst_PROGRAMS            += sns/repair/st/repair
-sns_repair_st_repair_LDADD  = $(top_builddir)/colibri/libcolibri.la
+sns_repair_st_repair_LDADD  = $(top_builddir)/colibri/libcolibri.la \
+                              $(top_builddir)/ut/libcolibri-ut.la
 
 include $(top_srcdir)/sns/repair/st/Makefile.sub
 

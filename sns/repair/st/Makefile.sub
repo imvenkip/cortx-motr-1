@@ -1,1 +1,14 @@
-sns_repair_st_repair_SOURCES = sns/repair/st/repair_main.c
+nobase_colibri_include_HEADERS += sns/repair/st/trigger_fop.h
+
+colibri_libcolibri_la_SOURCES  += sns/repair/st/trigger_fop.h \
+                                  sns/repair/st/trigger_fom.c \
+                                  sns/repair/st/trigger_fop_ff.c
+
+sns_repair_st_repair_SOURCES = sns/repair/st/repair_cli.c
+
+EXTRA_DIST += sns/repair/st/trigger_fop.ff
+
+FF_FILES   += sns/repair/st/trigger_fop_ff.h
+
+CLEANFILES += sns/repair/st/trigger_fop_ff.h \
+              sns/repair/st/trigger_fop_ff.c
