@@ -131,11 +131,6 @@ static int service_start(struct c2_reqh_service *service)
 	C2_ENTRY("service: %p", service);
 	C2_PRE(service != NULL);
 
-	/* Build sns repair trigger fop. */
-	rc = c2_sns_repair_trigger_fop_init();
-	if (rc != 0)
-		return rc;
-
         /* XXX Register SNS Repair FOP types */
 	cm = container_of(service, struct c2_cm, cm_service);
 	rc = c2_cm_setup(cm);
@@ -143,6 +138,10 @@ static int service_start(struct c2_reqh_service *service)
 		C2_ADDB_ADD(&cm->cm_addb, &sns_repair_addb_loc,
 			    service_start_fail,
 			    "c2_cm_start", rc);
+
+	/* Build sns repair trigger fop. */
+	if (rc == 0)
+		rc = c2_sns_repair_trigger_fop_init();
 
 	C2_LEAVE();
 	return rc;
