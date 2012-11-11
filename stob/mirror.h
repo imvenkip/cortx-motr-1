@@ -38,37 +38,6 @@
  * corresponding operationson the mirror stob. The implementation assumes that
  * target domains are not accessed except through the mirror stob interface.
  *
- * When a mirror domain is configured, the user supplies additional
- * parameters, determining fault-tolerance characteristics of the domain:
- *
- *     - nr: number of target domains in the mirror domain. nr is called a
- *       "width" of the mirror domain;
- *
- *     - wreq: maximal number of writes to the target stobs made as part of a
- *       mirrored write. If wreq equals the width, every target object is
- *       updated as part of every write operation. If wreq is less than the
- *       width, the implementation would attempt to load-balance IO requests;
- *
- *     - rreq: maximal number of reads to the target stobs made as part of a
- *       mirrorred read. Similar to wreq. Note, that one usually wants rreq +
- *       wreq >= width, but the implementation doesn't enforce this;
- *
- *     - wack: minimal number of the target stob writes that must complete
- *       successfully, for the mirrored write to succeed. If wack is less than
- *       wreq, then (wreq - wack) write failures are tolerated;
- *
- *     - rack: minimal number of the target stob reads that must complete
- *       successfully, for the mirrored read to succeed. Similar to wack.
- *
- * Usual N-way mirroring is achieved by setting
- *
- *    nr = N, wreq = N, rreq = 1, wack = 1, rreq = 1
- *
- *
- *
- *
- *
- *
  *
  * "I will pack my comb and mirror to praxis oval owes and artless awes."
  *
@@ -88,8 +57,6 @@ extern struct c2_stob_type c2_mirror_stob_type;
  */
 int  c2_mirror_stob_setup(struct c2_stob_domain *dom, uint32_t nr,
 			  struct c2_stob_domain **targets);
-			  uint32_t wreq, uint32_t rreq,
-			  uint32_t wack, uint32_t rack);
 
 void c2_mirror_failed(struct c2_stob_domain *dom, uint64_t mask);
 void c2_mirror_repair(struct c2_stob_domain *dom, uint64_t mask);
