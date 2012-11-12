@@ -142,12 +142,9 @@ static void remote_incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 	in->rin_sm.sm_rc = rc;
 }
 
-/*
- * Not used by base-RM code yet.
- * @todo Revisit during inspection.
- */
 static void remote_incoming_conflict(struct c2_rm_incoming *in)
 {
+	in->rin_sm.sm_rc = -EACCES;
 }
 
 /*
@@ -302,6 +299,12 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 	case C2_RIT_BORROW:
 		bfop = c2_fop_data(fom->fo_fop);
 		basefop = &bfop->bo_base;
+		rfom->rf_in.ri_rem_owner_cookie = basefop->rrq_owner.ow_cookie;
+		/*
+		 * @todo Figure out how to find local session that can
+		 * send RPC back to the debtor.
+		   rfom->rf_in.ri_rem_session = NULL;
+		 */
 		/*
 		 * Populate the owner cookie for creditor (local)
 		 * This is used later by locality().
