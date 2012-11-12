@@ -194,7 +194,7 @@ int c2_rm_request_out(struct c2_rm_incoming *in,
 		      struct c2_rm_loan *loan,
 		      struct c2_rm_right *right)
 {
-	struct c2_rpc_session *session;
+	struct c2_rpc_session *session = NULL;
 	struct rm_out	      *outreq;
 	int		       rc;
 

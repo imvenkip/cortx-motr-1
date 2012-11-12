@@ -971,7 +971,7 @@ int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 	struct c2_rm_incoming *in    = &rem_in->ri_incoming;
 	struct c2_rm_owner    *owner = in->rin_want.ri_owner;
 	struct c2_rm_loan     *loan;
-	struct c2_rm_remote   *debtor;
+	struct c2_rm_remote   *debtor = NULL;
 	int                    rc;
 
 	C2_PRE(in->rin_type == C2_RIT_BORROW);

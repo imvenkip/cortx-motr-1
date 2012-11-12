@@ -42,7 +42,7 @@ static void borrow_fom_fini(struct c2_fom *fom);
 static int revoke_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static void revoke_fom_fini(struct c2_fom *fom);
 static int borrow_fom_tick(struct c2_fom *);
-static int reovke_fom_tick(struct c2_fom *);
+static int revoke_fom_tick(struct c2_fom *);
 static size_t locality(const struct c2_fom *fom);
 
 static void remote_incoming_complete(struct c2_rm_incoming *in, int32_t rc);
@@ -92,7 +92,7 @@ const struct c2_sm_conf borrow_sm_conf = {
  */
 static struct c2_fom_ops rm_fom_revoke_ops = {
 	.fo_fini          = revoke_fom_fini,
-	.fo_tick          = reovke_fom_tick,
+	.fo_tick          = revoke_fom_tick,
 	.fo_home_locality = locality,
 };
 
@@ -471,7 +471,7 @@ static int borrow_fom_tick(struct c2_fom *fom)
  * @param fom -> fom processing the RIGHT_REVOKE request on the server
  *
  */
-static int reovke_fom_tick(struct c2_fom *fom)
+static int revoke_fom_tick(struct c2_fom *fom)
 {
 	C2_PRE(C2_IN(c2_fom_phase(fom), (FOPH_RM_REVOKE, FOPH_RM_REVOKE_WAIT)));
 	return request_fom_tick(fom, C2_RIT_REVOKE, FOPH_RM_REVOKE_WAIT);
