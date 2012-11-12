@@ -1,12 +1,17 @@
 nobase_colibri_include_HEADERS += stob/ad.h \
+                                  stob/cache.h \
                                   stob/linux_getevents.h \
                                   stob/linux.h \
                                   stob/linux_internal.h \
+                                  stob/mirror.h \
                                   stob/stob.h \
                                   stob/stob_id.h
 
-colibri_libcolibri_la_SOURCES  += stob/stob.c \
+colibri_libcolibri_la_SOURCES  += \
+                                  stob/ad.c \
+                                  stob/cache.c \
                                   stob/linux.c \
                                   stob/linux_adieu.c \
-                                  stob/ad.c \
+                                  stob/mirror.c \
+                                  stob/stob.c \
                                   stob/stob_id.c
