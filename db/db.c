@@ -686,18 +686,6 @@ int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
 		      struct c2_db_tx *tx, uint32_t flags)
 {
 	cursor->c_flags = 0;
-	/*
-	 * Don't set any locking related cursor flags, because we are
-	 * initializing data-base environment without DB_INIT_LOCK flag.
-	 */
-#if 0
-        if (flags & C2_DB_CURSOR_READ_COMMITTED)
-                cursor->c_flags |= DB_READ_COMMITTED;
-        else if (flags & C2_DB_CURSOR_READ_UNCOMMITTED)
-                cursor->c_flags |= DB_READ_UNCOMMITTED;
-        else if (flags & C2_DB_CURSOR_RMW)
-                cursor->c_flags |= DB_RMW;
-#endif
 	cursor->c_table = table;
 	cursor->c_tx    = tx;
 	return TABLE_CALL(table, cursor, tx->dt_i.dt_txn,
