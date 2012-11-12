@@ -35,9 +35,7 @@
    @{
  */
 
-/**
- * Aggregation group identifier.
- */
+/** Unique aggregation group identifier. */
 struct c2_cm_ag_id {
 	struct c2_uint128 ai_hi;
 	struct c2_uint128 ai_lo;
@@ -45,6 +43,7 @@ struct c2_cm_ag_id {
 
 /** Copy Machine Aggregation Group. */
 struct c2_cm_aggr_group {
+	/** Copy machine to which this aggregation group belongs. */
 	struct c2_cm                      *cag_cm;
 
 	struct c2_cm_ag_id                 cag_id;
@@ -53,8 +52,11 @@ struct c2_cm_aggr_group {
 
 	struct c2_layout                  *cag_layout;
 
-	/** Number of copy packets that correspond to this aggregation group. */
-	int64_t                            cag_cp_nr;
+	/**
+	 * Number of local copy packets that correspond to this aggregation
+	 * group.
+	 */
+	uint64_t                           cag_cp_nr;
 
 	/** Number of copy packets that have been transformed. */
 	struct c2_atomic64		   cag_transformed_cp_nr;
@@ -71,33 +73,72 @@ struct c2_cm_aggr_group {
 	uint64_t                           cag_magic;
 };
 
-/** Colibri Copy Machine Aggregation Group Operations */
 struct c2_cm_aggr_group_ops {
-	/** Aggregation group processing completion notification. */
-	int (*cago_completed)(struct c2_cm_aggr_group *ag);
+	/** Performs aggregation group completion processing. */
+	int (*cago_fini)(struct c2_cm_aggr_group *ag);
 
 	/**
 	 * Returns number of copy packets corresponding to the aggregation
-	 * group on the local node. For example, for sns repair copy machine,
-	 * this is calculated as
-	 * number of data units per node * unit size / network buffer size.
+	 * group on the local node.
 	 */
-	uint64_t (*cago_local_cp_nr)(struct c2_cm_aggr_group *ag);
+	uint64_t (*cago_local_cp_nr)(const struct c2_cm_aggr_group *ag);
 };
+
+extern struct c2_bob_type aggr_grps_bob;
+
+void c2_cm_aggr_group_init(struct c2_cm_aggr_group *ag, struct c2_cm *cm,
+			   const struct c2_cm_ag_id *id,
+			   const struct c2_cm_aggr_group_ops *ag_ops);
+
+void c2_cm_aggr_group_fini(struct c2_cm_aggr_group *ag);
+
+/**
+ * 3-way comparision function to compare two aggregation group IDs.
+ *
+ * @retval   0 if id0 = id1.
+ * @retval < 0 if id0 < id1.
+ * @retval > 0 if id0 > id1.
+ */
+int c2_cm_ag_id_cmp(const struct c2_cm_ag_id *id0,
+		    const struct c2_cm_ag_id *id1);
+/**
+ * Searches for an aggregation group for the given "id" in
+ * c2_cm::cm_aggr_groups, creates a new one if not found and returns it.
+ */
+struct c2_cm_aggr_group *c2_cm_aggr_group_find(struct c2_cm *cm,
+					       const struct c2_cm_ag_id *id);
+
+/**
+ * Adds an aggregation group to a copy machine's list of aggregation groups -
+ * c2_cm::cm_aggr_groups. This list is sorted lexicographically based on
+ * aggregation group ids.
+ *
+ * @pre c2_cm_is_locked(cm) == true
+ *
+*/
+void c2_cm_aggr_group_add(struct c2_cm *cm, struct c2_cm_aggr_group *ag);
+
+/**
+ * Returns the aggregation group with the highest aggregation group id from the
+ * aggregation group list.
+ *
+ * @pre cm != NULL && c2_cm_is_locked == true
+ */
+struct c2_cm_aggr_group *c2_cm_ag_hi(struct c2_cm *cm);
+
+/**
+ * Returns the aggregation group with the lowest aggregation grou id from the
+ * aggregation group list.
+ *
+ * @pre cm != NULL && c2_cm_is_locked == true
+ */
+struct c2_cm_aggr_group *c2_cm_ag_lo(struct c2_cm *cm);
 
 C2_TL_DESCR_DECLARE(aggr_grps, extern);
 C2_TL_DECLARE(aggr_grps, extern, struct c2_cm_aggr_group);
-extern struct c2_bob_type aggr_grps_bob;
 
-int c2_cm_ag_id_cmp(const struct c2_cm_ag_id *id0, const struct c2_cm_ag_id *id1);
-
-/**
- * Searches for an aggregation group for the given "id" in c2_cm::cm_aggr_groups,
- * creates a new one if not found.
- */
-struct c2_cm_aggr_group *c2_cm_aggr_group_find(const struct c2_cm *cm,
-					       const struct c2_cm_ag_id *id);
 /** @} CMAG */
+
 #endif
 /*
  *  Local variables:

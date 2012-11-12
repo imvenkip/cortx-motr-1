@@ -406,6 +406,16 @@ net_test_user_space_ntn_LDADD    = $(top_builddir)/colibri/libcolibri.la \
 include $(top_srcdir)/net/test/user_space/Makefile.sub
 
 #
+# sns/repair/st
+#
+
+noinst_PROGRAMS            += sns/repair/st/repair
+sns_repair_st_repair_LDADD  = $(top_builddir)/colibri/libcolibri.la \
+                              $(top_builddir)/ut/libcolibri-ut.la
+
+include $(top_srcdir)/sns/repair/st/Makefile.sub
+
+#
 # yaml2db/st
 #
 

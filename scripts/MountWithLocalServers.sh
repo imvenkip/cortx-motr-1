@@ -10,9 +10,9 @@ XPT=lnet
 # list of server end points
 EP=(
     0@lo:12345:33:101
-    0@lo:12345:33:102
-    0@lo:12345:33:103
-    0@lo:12345:33:104
+#    0@lo:12345:33:102
+#    0@lo:12345:33:103
+#    0@lo:12345:33:104
 )
 # mount data
 MP=/mnt/c2
@@ -78,7 +78,8 @@ for ((i=0; i < ${#EP[*]}; i++)) ; do
 	mkdir $WORK_ARENA/d$i
 	(cd $WORK_ARENA/d$i
 	 $HERE/colibri/colibri_setup -r -T ${STOB_TYPE} -D $WORK_ARENA/d$i/db \
-            -S $WORK_ARENA/d$i/stobs -e $XPT:${EP[$i]} -s ioservice -m 163840 -q 16 &>>$WORK_ARENA/servers_started )&
+            -S $WORK_ARENA/d$i/stobs -e $XPT:${EP[$i]} -s ioservice -s sns_repair \
+            -m 163840 -q 16 &>>$WORK_ARENA/servers_started )&
 done
 
 layout/ut/ldemo $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA

@@ -64,30 +64,18 @@ uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp)
 	return id->ai_hi.u_lo + id->ai_lo.u_lo;
 }
 
-static int c2_sns_repair_cp_init(struct c2_cm_cp *cp)
+static int cp_init(struct c2_cm_cp *cp)
 {
 	C2_PRE(c2_fom_phase(&cp->c_fom) == C2_CCP_INIT);
 	return cp->c_ops->co_phase_next(cp);
 }
 
-static int c2_sns_repair_cp_fini(struct c2_cm_cp *cp)
-{
-	struct c2_sns_repair_cp	*rcp;
-
-	rcp = cp2snscp(cp);
-	/*
-	 * XXX TODO: Release copy packet resource, e.g. data buffer and create
-	 * new copy packets.
-	 */
-	return C2_FSO_AGAIN;
-}
-
-static int c2_sns_repair_cp_send(struct c2_cm_cp *cp)
+int c2_sns_repair_cp_send(struct c2_cm_cp *cp)
 {
 	return C2_FSO_AGAIN;
 }
 
-static int c2_sns_repair_cp_recv(struct c2_cm_cp *cp)
+int c2_sns_repair_cp_recv(struct c2_cm_cp *cp)
 {
 	return C2_FSO_AGAIN;
 }
@@ -118,23 +106,49 @@ static void cp_complete(struct c2_cm_cp *cp)
 {
 }
 
+static void cp_buf_release(struct c2_cm_cp *cp)
+{
+	struct c2_net_buffer      *nbuf;
+	struct c2_net_buffer_pool *nbp;
+	uint64_t                   colour;
+
+	nbuf = container_of(cp->c_data, struct c2_net_buffer, nb_buffer);
+	C2_ASSERT(nbuf != NULL);
+	nbp = nbuf->nb_pool;
+	C2_ASSERT(nbp != NULL);
+	colour = cp_home_loc_helper(cp) % nbp->nbp_colours_nr;
+        c2_sns_repair_buffer_put(nbp, nbuf, colour);
+}
+
 static void cp_free(struct c2_cm_cp *cp)
 {
 	C2_PRE(cp != NULL);
 
+	if (cp->c_data != NULL)
+		cp_buf_release(cp);
 	c2_free(cp2snscp(cp));
+}
+
+/*
+ * Dummy dud destructor function for struct c2_cm_cp_ops::co_action array in-order
+ * to statisfy the c2_cm_cp_invariant.
+ */
+static int sns_repair_dummy_cp_fini(struct c2_cm_cp *cp)
+{
+	return 0;
 }
 
 const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 	.co_action = {
-		[C2_CCP_INIT]    = &c2_sns_repair_cp_init,
+		[C2_CCP_INIT]    = &cp_init,
 		[C2_CCP_READ]    = &c2_sns_repair_cp_read,
 		[C2_CCP_WRITE]   = &c2_sns_repair_cp_write,
 		[C2_CCP_IO_WAIT] = &c2_sns_repair_cp_io_wait,
 		[C2_CCP_XFORM]   = &c2_sns_repair_cp_xform,
 		[C2_CCP_SEND]    = &c2_sns_repair_cp_send,
 		[C2_CCP_RECV]    = &c2_sns_repair_cp_recv,
-		[C2_CCP_FINI]    = &c2_sns_repair_cp_fini,
+		/* To satisfy the c2_cm_cp_invariant() */
+		[C2_CCP_FINI]    = &sns_repair_dummy_cp_fini,
 	},
 	.co_action_nr            = C2_CCP_NR,
 	.co_phase_next	         = &c2_sns_repair_cp_phase_next,
