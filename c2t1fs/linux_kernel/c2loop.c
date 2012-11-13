@@ -306,16 +306,16 @@
  *     operations: one for read, another for write. Two calls are
  *     expected with one element in iovecs array returned each time.
  *
- * Iovecs array boundary (BIO_MAX_PAGES) tests (contiguous file region):
+ * Iovecs array boundary (IOV_ARR_SIZE) tests (contiguous file region):
  *
- *   - BIO_MAX_PAGES bio requests in the list (one segment each).
- *     BIO_MAX_PAGES elements in iovecs array are returned in one call.
- *   - (BIO_MAX_PAGES + 1) bio requests in the list. Two calls are
- *     expected: one with BIO_MAX_PAGES elements in iovecs array
+ *   - IOV_ARR_SIZE bio requests in the list (one segment each).
+ *     IOV_ARR_SIZE elements in iovecs array are returned in one call.
+ *   - (IOV_ARR_SIZE + 1) bio requests in the list. Two calls are
+ *     expected: one with IOV_ARR_SIZE elements in iovecs array
  *     returned, another with one element returned.
- *   - (BIO_MAX_PAGES - 1) bio requests one segment each and one bio
+ *   - (IOV_ARR_SIZE - 1) bio requests one segment each and one bio
  *     request with two segments. Two calls are expected: one with
- *     (BIO_MAX_PAGES - 1) elements in iovecs array returned, another
+ *     (IOV_ARR_SIZE - 1) elements in iovecs array returned, another
  *     with two elements returned.
  *
  * UT should fake upper (bio_request) interface by constructing
@@ -343,7 +343,7 @@
  * no any other locks are taken.
  *
  * Upon each particular /dev/c2loopN block device instance bind to
- * the file with losetup(8) utility, iovecs array of BIO_MAX_PAGES
+ * the file with losetup(8) utility, iovecs array of IOV_ARR_SIZE
  * size is dynamically allocated. This is the only memory footprint
  * increase in respect to standard loop driver.
  *
@@ -431,6 +431,9 @@ static int max_part;
 static int part_shift;
 static int C2LOOP_MAJOR;
 
+enum {
+	IOV_ARR_SIZE = BIO_MAX_PAGES * 100
+};
 
 static loff_t get_loop_size(struct loop_device *lo, struct file *file)
 {
@@ -611,8 +614,8 @@ int accumulate_bios(struct loop_device *lo, struct bio_list *bios,
 			break;
 
 		/* Fit into iovecs array */
-		BUG_ON(bio->bi_vcnt > BIO_MAX_PAGES);
-		if (iov_idx + bio->bi_vcnt > BIO_MAX_PAGES)
+		BUG_ON(bio->bi_vcnt > IOV_ARR_SIZE);
+		if (iov_idx + bio->bi_vcnt > IOV_ARR_SIZE)
 			break;
 
 		/* Ok, take it out */
@@ -657,8 +660,6 @@ static int loop_thread(void *data)
 	struct bio_list bios;
 	loff_t pos;
 	unsigned size;
-
-	set_user_nice(current, -20);
 
 	while (!kthread_should_stop() || !bio_list_empty(&lo->lo_bio_list)) {
 
@@ -928,7 +929,7 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	 * Encryption is never used for c2loop, so we can
 	 * reuse lo->key_data pointer for iovecs array.
 	 */
-	lo->key_data = kzalloc(BIO_MAX_PAGES * sizeof(struct iovec),
+	lo->key_data = kzalloc(IOV_ARR_SIZE * sizeof(struct iovec),
 	                       GFP_KERNEL);
 	if (lo->key_data == NULL) {
 		error = -ENOMEM;
