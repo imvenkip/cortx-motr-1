@@ -80,6 +80,7 @@ SERVERS=(
 	sjt00-c1 172.18.50.161@o2ib:12345:41:102
 )
 
+UNIT_SIZE=262144
 POOL_WIDTH=$(expr ${#SERVERS[*]} / 2)
 NR_DATA=$(expr $POOL_WIDTH - 2)
 
@@ -99,8 +100,8 @@ XPT=lnet
 # colibri_setup flags
 XPT_SETUP="-m 163840 -q 16"
 # kcolibri module params
-XPT_PARAM_R="max_rpc_msg_size=163840 tm_recv_queue_min_len=1"  # remote host
-XPT_PARAM_L="max_rpc_msg_size=163840 tm_recv_queue_min_len=48" # local host
+XPT_PARAM_R="max_rpc_msg_size=163840 tm_recv_queue_min_len=1"	# remote host
+XPT_PARAM_L="max_rpc_msg_size=163840 tm_recv_queue_min_len=48"	# local host
 
 #KTRACE_FLAGS=c2_trace_immediate_mask=8
 
@@ -122,7 +123,7 @@ LSUM=
 
 function l_run () {
 	echo "# $*" >/dev/tty
-	$*
+	eval $*
 }
 
 function r_run () {
@@ -231,13 +232,14 @@ function start_server () {
 		RUN=l_run
 	fi
 	local SDIR=$WORK_ARENA/d$I
+	local DDIR=$SDIR
 	$RUN rm -rf $SDIR
 	$RUN mkdir -p $SDIR
 	local SF=/tmp/nh.$$
 	local DF=$SDIR/colibri_setup.sh
 	local DISKS_SH=$SDIR/find_disks.sh
 	local STOB_PARAMS="-T linux"
-	if [ $STOB == "-ad" ]; then
+	if [ $STOB == "-ad" -o $STOB == "-td" ]; then
 		cat <<EOF >$SF
 #!/bin/bash
 
@@ -257,18 +259,18 @@ DISKS_SH_NR=10
 
 i=0; j=0; f=0;
 
-echo "Device:" > $SDIR/disks.conf
+echo "Device:" > disks.conf
 
 devs=\`ls /dev/disk/by-id/scsi-35* | grep -v part\`
 
 fdisk -l \$devs 2>&1 1>/dev/null | \
 sed -n 's;^Disk \\(/dev/.*\\) doesn.*;\1;p' | \
 while read dev; do
-	[ \$j -eq 0 ] && echo "Device:" > $SDIR/disks\$f.conf
-	echo "       - id: \$i" >> $SDIR/disks.conf
-	echo "       - id: \$j" >> $SDIR/disks\$f.conf
-	echo "         filename: \$dev" >> $SDIR/disks.conf
-	echo "         filename: \$dev" >> $SDIR/disks\$f.conf
+	[ \$j -eq 0 ] && echo "Device:" > disks\$f.conf
+	echo "       - id: \$i" >> disks.conf
+	echo "       - id: \$j" >> disks\$f.conf
+	echo "         filename: \$dev" >> disks.conf
+	echo "         filename: \$dev" >> disks\$f.conf
 	i=\`expr \$i + 1\`
 	j=\`expr \$j + 1\`
 	[ \$j -eq \$DISKS_SH_NR ] && j=0 && f=\`expr \$f + 1\`
@@ -287,27 +289,39 @@ EOF
 			return 1
 		fi
 
-		$RUN sh $DISKS_SH
+		$RUN "(cd $SDIR && sh $DISKS_SH)"
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to get disks list on $H
 			return 1
 		fi
 
 		local DISKS_SH_FILE=$SDIR/disks$dcf_id.conf
-		$RUN cat $DISKS_SH_FILE
+		if [ $STOB == "-ad" ]; then
+			$RUN cat $DISKS_SH_FILE
+		else
+			local disk=`$RUN "cat $DISKS_SH_FILE | grep filename"`
+			disk=`echo $disk | head -1 | awk '{print $2}'`
+			DDIR=/mnt/tdisk$dcf_id
+			$RUN umount $DDIR >& /dev/null
+			$RUN mkfs.ext4 -b 4096 -F $disk 2621440 || return 1
+			$RUN mkdir -p $DDIR
+			$RUN mount $disk $DDIR || return 1
+		fi
 		if [ $? -ne 0 ]; then
 			echo "ERROR: can't find $DISKS_SH_FILE file"
 			echo "Check the status of Titan disks:"
 			$RUN ~root/gem.sh dumpdrives
 			return 1
 		fi
-		STOB_PARAMS="-T ad -d $DISKS_SH_FILE"
+		if [ $STOB == "-ad" ]; then
+			STOB_PARAMS="-T ad -d $DISKS_SH_FILE"
+		fi
 	fi
 	cat <<EOF >$SF
 
 #!/bin/sh
 cd $SDIR
-exec $BROOT/core/colibri/colibri_setup -r $STOB_PARAMS -D $SDIR/db -S $SDIR/stobs -e $XPT:$EP -s ioservice $XPT_SETUP
+exec $BROOT/core/colibri/colibri_setup -r $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -e $XPT:$EP -s ioservice $XPT_SETUP
 EOF
 	l_run cat $SF
 	if [ $H != $THIS_HOST ]; then
@@ -369,7 +383,18 @@ function stop_servers () {
 
 function cleanup () {
 	echo Cleaning up ...
-	stop_servers
+	if [ "x_$IS_MOUNTED" == "x_yes" ]; then
+		l_run umount $MP
+		if [ $? -ne 0 ]; then
+			cat > /dev/stderr << EOF
+WARNING! Failed to unmount $MP
+         Services won't be stopped.
+         You should umount and stop the services manually..
+EOF
+			return 1
+		fi
+	fi
+	stop_servers || return 1
 	sleep 5
 	teardown_hosts
 }
@@ -405,7 +430,7 @@ for ((i=0; i < ${#SERVERS[*]}; i += 2)) ; do
 	fi
 	IOS="${IOS}ios=${SERVERS[((i+1))]}"
 done
-LAYOUT=nr_data_units=$NR_DATA,pool_width=$POOL_WIDTH
+LAYOUT=unit_size=$UNIT_SIZE,nr_data_units=$NR_DATA,pool_width=$POOL_WIDTH
 
 # mount the file system
 mkdir -p $MP
@@ -415,6 +440,7 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 mount | grep c2t1fs
+IS_MOUNTED=yes
 
 # wait to terminate
 echo
@@ -427,4 +453,3 @@ while read LINE; do
 done
 echo
 
-l_run umount $MP
