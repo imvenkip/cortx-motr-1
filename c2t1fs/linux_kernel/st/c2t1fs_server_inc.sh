@@ -31,7 +31,8 @@ colibri_service()
 			if [ $? -eq 0 ]; then
 				echo "Colibri service started."
 			else
-				echo "Colibri service failed to start."
+				echo "Colibri service failed to start:"
+				cat $COLIBRI_C2T1FS_TEST_DIR/servers_started
 				return 1
 			fi
 		done

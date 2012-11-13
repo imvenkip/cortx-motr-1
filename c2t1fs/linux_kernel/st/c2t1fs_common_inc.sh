@@ -1,4 +1,9 @@
-COLIBRI_CORE_ROOT=`dirname $0`/../../..
+# COLIBRI_CORE_ROOT should be absolute path
+if [ ${0:0:1} = "/" ]; then
+	COLIBRI_CORE_ROOT=`dirname $0`/../../..
+else
+	COLIBRI_CORE_ROOT=$PWD/`dirname $0`/../../..
+fi
 COLIBRI_C2T1FS_MOUNT_DIR=/tmp/test_c2t1fs_`date +"%d-%m-%Y_%T"`
 COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs_$$
 COLIBRI_MODULE=kcolibri
