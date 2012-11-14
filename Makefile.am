@@ -610,10 +610,15 @@ generate-xc-files: $(XC_FILES)
 
 # this is executed just after 'all' target
 all-local: build-kernel-modules check-sources-postbuild
+	@$(top_srcdir)/scripts/check-public-api
 
 .PHONY: check-sources-postbuild
 check-sources-postbuild:
 	@$(top_srcdir)/scripts/check-include-guards $(top_srcdir)
+
+.PHONY: check-public-api
+check-public-api:
+	@$(top_srcdir)/scripts/check-public-api
 
 .PHONY: build-kernel-modules
 build-kernel-modules:
