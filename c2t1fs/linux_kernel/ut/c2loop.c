@@ -22,6 +22,7 @@
 #include <linux/loop.h>
 
 #include "lib/ut.h"
+#include "c2t1fs/linux_kernel/c2loop_internal.h"
 
 int accumulate_bios(struct loop_device *lo, struct bio_list *bios,
 		    struct iovec *iovecs, loff_t *ppos, unsigned *psize);
@@ -33,7 +34,7 @@ static void loop_dev_init(struct loop_device *lo)
 	lo->lo_offset = 0;
 }
 
-static struct iovec iovecs[BIO_MAX_PAGES];
+static struct iovec iovecs[IOV_ARR_SIZE];
 
 /*
  * Basic functionality tests:
@@ -243,10 +244,10 @@ static void accum_bios_except2(void)
 }
 
 /*
- * Iovecs array boundary (BIO_MAX_PAGES) tests (contiguous file region):
+ * Iovecs array boundary (IOV_ARR_SIZE) tests (contiguous file region):
  *
- *   - BIO_MAX_PAGES bio requests in the list (one segment each).
- *     BIO_MAX_PAGES elements in iovecs array are returned in one call.
+ *   - IOV_ARR_SIZE bio requests in the list (one segment each).
+ *     IOV_ARR_SIZE elements in iovecs array are returned in one call.
  */
 static void accum_bios_bound1(void)
 {
@@ -261,7 +262,7 @@ static void accum_bios_bound1(void)
 	loop_dev_init(&lo);
 	bio_list_init(&bios);
 
-	for (i = 0; i < BIO_MAX_PAGES; ++i) {
+	for (i = 0; i < IOV_ARR_SIZE; ++i) {
 		bio = bio_alloc(GFP_KERNEL, 1);
 		C2_UT_ASSERT(bio != NULL);
 
@@ -274,19 +275,19 @@ static void accum_bios_bound1(void)
 	}
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	C2_UT_ASSERT(n == BIO_MAX_PAGES);
+	C2_UT_ASSERT(n == IOV_ARR_SIZE);
 	C2_UT_ASSERT(pos == 0);
-	C2_UT_ASSERT(size == BIO_MAX_PAGES * PAGE_SIZE);
+	C2_UT_ASSERT(size == IOV_ARR_SIZE * PAGE_SIZE);
 	C2_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 0);
-	C2_UT_ASSERT(bio_list_size(&bios) == BIO_MAX_PAGES);
+	C2_UT_ASSERT(bio_list_size(&bios) == IOV_ARR_SIZE);
 
 	while (!bio_list_empty(&bios))
 		bio_put(bio_list_pop(&bios));
 }
 
 /*
- *   - (BIO_MAX_PAGES + 1) bio requests in the list. Two calls are
- *     expected: one with BIO_MAX_PAGES elements in iovecs array
+ *   - (IOV_ARR_SIZE + 1) bio requests in the list. Two calls are
+ *     expected: one with IOV_ARR_SIZE elements in iovecs array
  *     returned, another with one element returned.
  */
 static void accum_bios_bound2(void)
@@ -302,7 +303,7 @@ static void accum_bios_bound2(void)
 	loop_dev_init(&lo);
 	bio_list_init(&bios);
 
-	for (i = 0; i < BIO_MAX_PAGES + 1; ++i) {
+	for (i = 0; i < IOV_ARR_SIZE + 1; ++i) {
 		bio = bio_alloc(GFP_KERNEL, 1);
 		C2_UT_ASSERT(bio != NULL);
 
@@ -315,27 +316,27 @@ static void accum_bios_bound2(void)
 	}
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	C2_UT_ASSERT(n == BIO_MAX_PAGES);
+	C2_UT_ASSERT(n == IOV_ARR_SIZE);
 	C2_UT_ASSERT(pos == 0);
-	C2_UT_ASSERT(size == BIO_MAX_PAGES * PAGE_SIZE);
+	C2_UT_ASSERT(size == IOV_ARR_SIZE * PAGE_SIZE);
 	C2_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 1);
-	C2_UT_ASSERT(bio_list_size(&bios) == BIO_MAX_PAGES);
+	C2_UT_ASSERT(bio_list_size(&bios) == IOV_ARR_SIZE);
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
 	C2_UT_ASSERT(n == 1);
-	C2_UT_ASSERT(pos == BIO_MAX_PAGES * PAGE_SIZE);
+	C2_UT_ASSERT(pos == IOV_ARR_SIZE * PAGE_SIZE);
 	C2_UT_ASSERT(size == PAGE_SIZE);
 	C2_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 0);
-	C2_UT_ASSERT(bio_list_size(&bios) == BIO_MAX_PAGES + 1);
+	C2_UT_ASSERT(bio_list_size(&bios) == IOV_ARR_SIZE + 1);
 
 	while (!bio_list_empty(&bios))
 		bio_put(bio_list_pop(&bios));
 }
 
 /*
- *   - (BIO_MAX_PAGES - 1) bio requests one segment each and one bio
+ *   - (IOV_ARR_SIZE - 1) bio requests one segment each and one bio
  *     request with two segments. Two calls are expected: one with
- *     (BIO_MAX_PAGES - 1) elements in iovecs array returned, another
+ *     (IOV_ARR_SIZE - 1) elements in iovecs array returned, another
  *     with two elements returned.
  */
 static void accum_bios_bound3(void)
@@ -351,7 +352,7 @@ static void accum_bios_bound3(void)
 	loop_dev_init(&lo);
 	bio_list_init(&bios);
 
-	for (i = 0; i < BIO_MAX_PAGES - 1; ++i) {
+	for (i = 0; i < IOV_ARR_SIZE - 1; ++i) {
 		bio = bio_alloc(GFP_KERNEL, 1);
 		C2_UT_ASSERT(bio != NULL);
 
@@ -374,18 +375,18 @@ static void accum_bios_bound3(void)
 	bio_list_add(&lo.lo_bio_list, bio);
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	C2_UT_ASSERT(n == BIO_MAX_PAGES - 1);
+	C2_UT_ASSERT(n == IOV_ARR_SIZE - 1);
 	C2_UT_ASSERT(pos == 0);
-	C2_UT_ASSERT(size == (BIO_MAX_PAGES - 1) * PAGE_SIZE);
+	C2_UT_ASSERT(size == (IOV_ARR_SIZE - 1) * PAGE_SIZE);
 	C2_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 1);
-	C2_UT_ASSERT(bio_list_size(&bios) == BIO_MAX_PAGES - 1);
+	C2_UT_ASSERT(bio_list_size(&bios) == IOV_ARR_SIZE - 1);
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
 	C2_UT_ASSERT(n == 2);
-	C2_UT_ASSERT(pos == (BIO_MAX_PAGES - 1) * PAGE_SIZE);
+	C2_UT_ASSERT(pos == (IOV_ARR_SIZE - 1) * PAGE_SIZE);
 	C2_UT_ASSERT(size == 2 * PAGE_SIZE);
 	C2_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 0);
-	C2_UT_ASSERT(bio_list_size(&bios) == BIO_MAX_PAGES);
+	C2_UT_ASSERT(bio_list_size(&bios) == IOV_ARR_SIZE);
 
 	while (!bio_list_empty(&bios))
 		bio_put(bio_list_pop(&bios));

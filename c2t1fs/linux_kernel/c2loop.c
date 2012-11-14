@@ -423,6 +423,7 @@
 #include "lib/errno.h"
 #include "lib/cdefs.h"    /* C2_EXPORTED */
 #include "c2t1fs/linux_kernel/c2t1fs.h"
+#include "c2t1fs/linux_kernel/c2loop_internal.h"
 
 static LIST_HEAD(loop_devices);
 static DEFINE_MUTEX(loop_devices_mutex);
@@ -430,10 +431,6 @@ static DEFINE_MUTEX(loop_devices_mutex);
 static int max_part;
 static int part_shift;
 static int C2LOOP_MAJOR;
-
-enum {
-	IOV_ARR_SIZE = BIO_MAX_PAGES * 100
-};
 
 static loff_t get_loop_size(struct loop_device *lo, struct file *file)
 {
