@@ -101,6 +101,13 @@ AC_ARG_ENABLE([mcheck],
         [enable_mcheck=no]
 )
 
+AC_ARG_ENABLE([colibri-altogether],
+        [AS_HELP_STRING([--disable-colibri-altogether],[disable colibri altogether mode])],
+        [], [enable_colibri_altogether=yes]
+)
+AM_CONDITIONAL([ENABLE_COLIBRI_ALTOGETHER],
+               [test "x$enable_colibri_altogether" = xyes])
+
 AC_ARG_ENABLE([rpm],
         [AS_HELP_STRING([--enable-rpm],[enable rpm build mode])], [],
         [enable_rpm=no]

@@ -244,9 +244,12 @@ include $(top_srcdir)/net/test/Makefile.sub
 COLIBRI_ALTOGETHER_USER_C   = colibri/colibri_altogether_user.c
 COLIBRI_ALTOGETHER_USER_SRC = $(filter %.c,$(colibri_libcolibri_la_SOURCES))
 
+if ENABLE_COLIBRI_ALTOGETHER
 lib_LTLIBRARIES += colibri/libcolibri-altogether.la
+endif
 
 colibri_libcolibri_altogether_la_SOURCES  = $(COLIBRI_ALTOGETHER_USER_C)
+
 colibri_libcolibri_altogether_la_CPPFLAGS = $(AM_CPPFLAGS) \
                                             -UC2_INTERNAL \
                                             -DC2_INTERNAL=static \
@@ -359,21 +362,9 @@ utils_ut_LDADD   = $(top_builddir)/ut/libcolibri-ut.la \
                    $(top_builddir)/net/test/libcolibri-net-test.la \
                    $(top_builddir)/xcode/ff2c/libcolibri-xcode-ff2c.la
 
-#noinst_PROGRAMS += utils/ut-altogether
-#utils_ut_altogether_SOURCES = $(utils_ut_SOURCES)
-#utils_ut_altogether_LDADD   = $(top_builddir)/ut/libcolibri-ut.la \
-#                              $(top_builddir)/colibri/libcolibri-altogether.la \
-#                              $(top_builddir)/net/test/libcolibri-net-test.la \
-#                              $(top_builddir)/xcode/ff2c/libcolibri-xcode-ff2c.la
-
 noinst_PROGRAMS += utils/ub
 utils_ub_LDADD   = $(top_builddir)/colibri/libcolibri.la \
                    $(top_builddir)/ut/libcolibri-ut.la
-
-#noinst_PROGRAMS += utils/ub-altogether
-#utils_ub_altogether_SOURCES = $(utils_ub_SOURCES)
-#utils_ub_altogether_LDADD   = $(top_builddir)/colibri/libcolibri-altogether.la \
-#                              $(top_builddir)/ut/libcolibri-ut.la
 
 include $(top_srcdir)/utils/Makefile.sub
 
@@ -390,7 +381,10 @@ noinst_PROGRAMS      += rpc/it/rpcping
 rpc_it_rpcping_LDADD  = $(top_builddir)/colibri/libcolibri.la  \
                         $(top_builddir)/ut/libcolibri-ut.la
 
+if ENABLE_COLIBRI_ALTOGETHER
 noinst_PROGRAMS                   += rpc/it/rpcping-altogether
+endif
+
 rpc_it_rpcping_altogether_SOURCES  = $(rpc_it_rpcping_SOURCES)
 rpc_it_rpcping_altogether_LDADD    = $(top_builddir)/colibri/libcolibri-altogether.la \
                                      ut/ut_libcolibri_ut_la-cs_service.lo \
