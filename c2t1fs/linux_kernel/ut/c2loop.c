@@ -24,8 +24,6 @@
 #include "lib/ut.h"
 #include "c2t1fs/linux_kernel/c2loop_internal.h"
 
-int accumulate_bios(struct loop_device *lo, struct bio_list *bios,
-		    struct iovec *iovecs, loff_t *ppos, unsigned *psize);
 
 static void loop_dev_init(struct loop_device *lo)
 {

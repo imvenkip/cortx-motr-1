@@ -27,4 +27,7 @@ enum {
 	IOV_ARR_SIZE = BIO_MAX_PAGES * 100
 };
 
+int accumulate_bios(struct loop_device *lo, struct bio_list *bios,
+		    struct iovec *iovecs, loff_t *ppos, unsigned *psize);
+
 #endif /* __COLIBRI_C2T1FS_C2LOOP_INTERNAL_H__ */
