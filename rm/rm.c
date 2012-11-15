@@ -332,7 +332,7 @@ static const struct c2_sm_state_descr owner_states[] = {
 	},
 	[ROS_ACTIVE] = {
 		.sd_name      = "Active",
-		.sd_allowed   = C2_BITS(ROS_FINALISING)
+		.sd_allowed   = C2_BITS(ROS_QUIESCE)
 	},
 	[ROS_QUIESCE] = {
 		.sd_name      = "Quiesce",
@@ -874,6 +874,7 @@ void c2_rm_remote_init(struct c2_rm_remote *rem, struct c2_rm_resource *res)
 	rem->rem_state = REM_INITIALISED;
 	rem->rem_resource = res;
 	c2_chan_init(&rem->rem_signal);
+	remotes_tlink_init(rem);
 	resource_get(res);
 }
 C2_EXPORTED(c2_rm_remote_init);
@@ -886,6 +887,7 @@ void c2_rm_remote_fini(struct c2_rm_remote *rem)
 				      REM_OWNER_LOCATED)));
 	rem->rem_state = REM_FREED;
 	c2_chan_fini(&rem->rem_signal);
+	remotes_tlink_fini(rem);
 	resource_put(rem->rem_resource);
 }
 C2_EXPORTED(c2_rm_remote_fini);

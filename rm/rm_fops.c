@@ -209,6 +209,7 @@ int c2_rm_request_out(struct c2_rm_incoming *in,
 		session = in->rin_want.ri_owner->ro_creditor->rem_session;
 	} else if (in->rin_flags & RIF_MAY_REVOKE) {
 		C2_ASSERT(loan != NULL);
+		C2_ASSERT(loan->rl_other != NULL);
 		rc = revoke_fop_fill(outreq, in, loan, right);
 		session = loan->rl_other->rem_session;
 	}
