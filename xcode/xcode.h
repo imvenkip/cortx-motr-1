@@ -575,7 +575,7 @@ void *c2_xcode_alloc(struct c2_xcode_cursor *it, size_t nob);
  * {1| (1, 2)}
  * {2| 6}
  * {3|}               -- a union with invalid discriminant or with a void value
- * [0:]               -- 0 sized array
+ * [0]                -- 0 sized array
  * [3: 6, 5, 4]
  * [: 1, 2, 3]        -- fixed size sequence
  * "incomprehensible" -- a byte (U8) sequence with 16 elements
