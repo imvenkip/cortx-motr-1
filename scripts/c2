@@ -23,6 +23,7 @@ MAKE=make
 ## MAKE='make -j4'
 
 clean() {
+    cd "$SRC"
     $MAKE distclean || true
     [ "$1" = '-f' ] && git clean -fdx || true
 }
@@ -97,17 +98,16 @@ EOF
 }
 
 case "$1" in
-    rebuild) cd "$SRC"; clean; build;;
-    run-ut)  run_ut "$@";;
+    rebuild) clean; build;;
+    run-ut)  shift; run_ut "$@";;
     run-kut) run_kut;;
     run-st)  run_st;;
     run-all)
-	run_ut "$@"
-	echo 'Running kernel UT ...'
-	run_kut
+	shift; run_ut "$@"
+	echo 'Running kernel UT ...'; run_kut
 	run_st;;
     dist-check) dist_check;;
-    clean) cd "$SRC"; shift; clean "$@";;
+    clean) shift; clean "$@";;
     help)  help 0;;
     *)     help 1;;
 esac
