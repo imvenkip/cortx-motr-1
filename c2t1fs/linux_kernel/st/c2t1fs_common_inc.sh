@@ -107,7 +107,7 @@ prepare()
 
 unprepare()
 {
-	if mount | grep ^c2t1fs > /dev/null; then
+	if mount | grep c2t1fs > /dev/null; then
 		umount $COLIBRI_C2T1FS_MOUNT_DIR
 		sleep 2
 		rm -rf $COLIBRI_C2T1FS_MOUNT_DIR
