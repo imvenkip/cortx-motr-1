@@ -22,7 +22,7 @@ mount_c2t1fs()
 	echo $cmd
 	if ! $cmd
 	then
-		echo "Failed to	mount c2t1fs file system."
+		echo "Failed to mount c2t1fs file system."
 		return 1
 	fi
 }
@@ -38,6 +38,7 @@ unmount_and_clean()
 	echo "Cleaning up test directory..."
 	rm -rf $c2t1fs_mount_dir &>/dev/null
 
+	local i=0
 	for ((i=0; i < ${#EP[*]}; i++)) ; do
 		# Removes the stob files created in stob domain since
 		# there is no support for c2_stob_delete() and after
@@ -259,18 +260,27 @@ c2loop_st()
 file_creation_test()
 {
 	nr_files=$1
-	mount_c2t1fs $COLIBRI_C2T1FS_MOUNT_DIR 4 &>> $COLIBRI_TEST_LOGFILE || return 1
+	mount_c2t1fs $COLIBRI_C2T1FS_MOUNT_DIR 4 &>> $COLIBRI_TEST_LOGFILE
+	if [ $? -ne 0 ]; then
+		cat $COLIBRI_TEST_LOGFILE
+		return 1
+	fi
 	echo "Test: Creating $nr_files files on c2t1fs..." \
 	    >> $COLIBRI_TEST_LOGFILE
-	for((i=0; i<$nr_files; ++i)); do
-		touch $c2t1fs_mount_dir/file$i
+	for ((i=0; i<$nr_files; ++i)); do
+		touch $c2t1fs_mount_dir/file$i || break
 	done
 	echo "Removing files..." >> $COLIBRI_TEST_LOGFILE
 	rm -f $c2t1fs_mount_dir/file*
 	unmount_and_clean &>> $COLIBRI_TEST_LOGFILE
-	echo "Test: file creation: Success." | tee $COLIBRI_TEST_LOGFILE
-
-	return 0
+	echo -n "Test: file creation: " >> $COLIBRI_TEST_LOGFILE
+	if [ $i -eq $nr_files ]; then
+		echo "Success." >> $COLIBRI_TEST_LOGFILE
+		return 0
+	else
+		echo "Failed." >> $COLIBRI_TEST_LOGFILE
+		return 1
+	fi
 }
 
 rmw_test()
@@ -377,6 +387,34 @@ rmw_test()
 	done
 
 	echo "Test: IORMW: Success." | tee $COLIBRI_TEST_LOGFILE
+
+	return 0
+}
+
+c2t1fs_system_tests()
+{
+	file_creation_test $MAX_NR_FILES
+	if [ $? -ne "0" ]
+        then
+                echo "Failed: File creation test failed."
+		return 1
+        fi
+
+	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY
+	if [ $? -ne "0" ]
+	then
+		echo "Failed: IO failed.."
+		return 1
+	fi
+
+	rmw_test
+	if [ $? -ne "0" ]
+	then
+		echo "Failed: IO-RMW failed.."
+		return 1
+	fi
+
+	c2loop_st || return 1
 
 	return 0
 }

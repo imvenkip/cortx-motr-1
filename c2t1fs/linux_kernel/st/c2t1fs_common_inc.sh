@@ -1,9 +1,10 @@
 # COLIBRI_CORE_ROOT should be absolute path
 if [ ${0:0:1} = "/" ]; then
-	COLIBRI_CORE_ROOT=`dirname $0`/../../..
+	COLIBRI_CORE_ROOT=`dirname $0`
 else
-	COLIBRI_CORE_ROOT=$PWD/`dirname $0`/../../..
+	COLIBRI_CORE_ROOT=$PWD/`dirname $0`
 fi
+COLIBRI_CORE_ROOT=${COLIBRI_CORE_ROOT%/c2t1fs*}
 COLIBRI_C2T1FS_MOUNT_DIR=/tmp/test_c2t1fs_`date +"%d-%m-%Y_%T"`
 COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs_$$
 COLIBRI_MODULE=kcolibri
@@ -11,6 +12,9 @@ COLIBRI_MODULE=kcolibri
 COLIBRI_MODULE_TRACE_MASK=0
 COLIBRI_TRACE_PRINT_CONTEXT=none
 COLIBRI_TRACE_LEVEL=call+
+export C2_TRACE_IMMEDIATE_MASK=all
+#export C2_TRACE_LEVEL=debug+
+export C2_TRACE_PRINT_CONTEXT=full
 
 COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%Y-%m-%d_%T"`.log
 
@@ -119,29 +123,4 @@ unprepare()
 	modunload_galois
 
 	rm -rf $COLIBRI_C2T1FS_TEST_DIR
-}
-
-c2t1fs_system_tests()
-{
-	file_creation_test $MAX_NR_FILES
-	if [ $? -ne "0" ]
-        then
-                echo "Failed: File creation test failed."
-        fi
-
-	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY
-	if [ $? -ne "0" ]
-	then
-		echo "Failed: IO failed.."
-	fi
-
-	rmw_test
-	if [ $? -ne "0" ]
-	then
-		echo "Failed: IO-RMW failed.."
-	fi
-
-	c2loop_st || return 1
-
-	return 0
 }
