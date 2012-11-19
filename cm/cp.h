@@ -192,7 +192,7 @@ struct c2_cm_cp_ops {
 	int      (*co_action[]) (struct c2_cm_cp *cp);
 };
 
-void c2_cm_cp_module_init(void);
+C2_INTERNAL void c2_cm_cp_module_init(void);
 
 /**
  * Initialises generic copy packet.
@@ -200,26 +200,26 @@ void c2_cm_cp_module_init(void);
  * @pre cp->c_fom.fo_phase == CCP_INIT
  * @post cp->c_fom.fo_phase == C2_FOPH_INIT
  */
-void c2_cm_cp_init(struct c2_cm_cp *cp);
+C2_INTERNAL void c2_cm_cp_init(struct c2_cm_cp *cp);
 
 /**
  * Finalises generic copy packet.
  *
  * @pre cp->c_fom.fo_phase == C2_FOPH_FINISH
  */
-void c2_cm_cp_fini(struct c2_cm_cp *cp);
+C2_INTERNAL void c2_cm_cp_fini(struct c2_cm_cp *cp);
 
 /** Submits copy packet FOM to request handler for processing.*/
-void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);
+C2_INTERNAL void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);
 
-bool c2_cm_cp_invariant(const struct c2_cm_cp *cp);
+C2_INTERNAL bool c2_cm_cp_invariant(const struct c2_cm_cp *cp);
 
 /**
  * Returns the size of the bufvec of the copy packet.
  * Initialized at time of configuration from layout info.
  * It is also used for buffer pool provisioning.
  */
-c2_bcount_t c2_cm_cp_data_size(struct c2_cm_cp *cp);
+C2_INTERNAL c2_bcount_t c2_cm_cp_data_size(struct c2_cm_cp *cp);
 
 /**
  @}

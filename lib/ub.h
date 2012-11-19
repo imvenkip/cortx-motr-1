@@ -51,8 +51,8 @@ struct c2_ub_set {
 	struct c2_ub_bench us_run[];
 };
 
-void c2_ub_set_add(struct c2_ub_set *set);
-void c2_ub_run(uint32_t rounds);
+C2_INTERNAL void c2_ub_set_add(struct c2_ub_set *set);
+C2_INTERNAL void c2_ub_run(uint32_t rounds);
 
 /** @} end of ub group. */
 

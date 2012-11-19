@@ -49,12 +49,12 @@ static int item_encode(struct c2_rpc_item       *item,
 static int item_decode(struct c2_bufvec_cursor  *cursor,
 		       struct c2_rpc_item      **item_out);
 
-C2_TL_DESCR_DEFINE(packet_item, "packet_item", /* global */, struct c2_rpc_item,
+C2_TL_DESCR_DEFINE(packet_item, "packet_item", C2_INTERNAL, struct c2_rpc_item,
                    ri_plink, ri_magic, C2_RPC_ITEM_MAGIC,
                    C2_RPC_PACKET_HEAD_MAGIC);
-C2_TL_DEFINE(packet_item, /* global */, struct c2_rpc_item);
+C2_TL_DEFINE(packet_item, C2_INTERNAL, struct c2_rpc_item);
 
-c2_bcount_t c2_rpc_packet_onwire_header_size(void)
+C2_INTERNAL c2_bcount_t c2_rpc_packet_onwire_header_size(void)
 {
 	struct c2_rpc_packet_onwire_header oh;
 	struct c2_xcode_ctx                ctx;
@@ -68,7 +68,7 @@ c2_bcount_t c2_rpc_packet_onwire_header_size(void)
 	return packet_header_size;
 }
 
-bool c2_rpc_packet_invariant(const struct c2_rpc_packet *p)
+C2_INTERNAL bool c2_rpc_packet_invariant(const struct c2_rpc_packet *p)
 {
 	struct c2_rpc_item *item;
 	c2_bcount_t         size;
@@ -87,7 +87,7 @@ bool c2_rpc_packet_invariant(const struct c2_rpc_packet *p)
 		p->rp_size == size + c2_rpc_packet_onwire_header_size();
 }
 
-void c2_rpc_packet_init(struct c2_rpc_packet *p)
+C2_INTERNAL void c2_rpc_packet_init(struct c2_rpc_packet *p)
 {
 	C2_ENTRY("packet: %p", p);
 	C2_PRE(p != NULL);
@@ -103,7 +103,7 @@ void c2_rpc_packet_init(struct c2_rpc_packet *p)
 	C2_LEAVE();
 }
 
-void c2_rpc_packet_fini(struct c2_rpc_packet *p)
+C2_INTERNAL void c2_rpc_packet_fini(struct c2_rpc_packet *p)
 {
 	C2_ENTRY("packet: %p nr_items: %llu", p,
 		 (unsigned long long)p->rp_ow.poh_nr_items);
@@ -115,8 +115,8 @@ void c2_rpc_packet_fini(struct c2_rpc_packet *p)
 	C2_LEAVE();
 }
 
-void c2_rpc_packet_add_item(struct c2_rpc_packet *p,
-			    struct c2_rpc_item   *item)
+C2_INTERNAL void c2_rpc_packet_add_item(struct c2_rpc_packet *p,
+					struct c2_rpc_item *item)
 {
 	C2_ENTRY("packet: %p item: %p", p, item);
 	C2_PRE(c2_rpc_packet_invariant(p) && item != NULL);
@@ -134,8 +134,8 @@ void c2_rpc_packet_add_item(struct c2_rpc_packet *p,
 	C2_LEAVE();
 }
 
-void c2_rpc_packet_remove_item(struct c2_rpc_packet *p,
-			       struct c2_rpc_item   *item)
+C2_INTERNAL void c2_rpc_packet_remove_item(struct c2_rpc_packet *p,
+					   struct c2_rpc_item *item)
 {
 	C2_ENTRY("packet: %p item: %p", p, item);
 	C2_PRE(c2_rpc_packet_invariant(p) && item != NULL);
@@ -153,7 +153,7 @@ void c2_rpc_packet_remove_item(struct c2_rpc_packet *p,
 	C2_LEAVE();
 }
 
-void c2_rpc_packet_remove_all_items(struct c2_rpc_packet *p)
+C2_INTERNAL void c2_rpc_packet_remove_all_items(struct c2_rpc_packet *p)
 {
 	struct c2_rpc_item *item;
 
@@ -169,21 +169,21 @@ void c2_rpc_packet_remove_all_items(struct c2_rpc_packet *p)
 	C2_LEAVE();
 }
 
-bool c2_rpc_packet_is_carrying_item(const struct c2_rpc_packet *p,
-				    const struct c2_rpc_item   *item)
+C2_INTERNAL bool c2_rpc_packet_is_carrying_item(const struct c2_rpc_packet *p,
+						const struct c2_rpc_item *item)
 {
 	return packet_item_tlist_contains(&p->rp_items, item);
 }
 
-bool c2_rpc_packet_is_empty(const struct c2_rpc_packet *p)
+C2_INTERNAL bool c2_rpc_packet_is_empty(const struct c2_rpc_packet *p)
 {
 	C2_PRE(c2_rpc_packet_invariant(p));
 
 	return p->rp_ow.poh_nr_items == 0;
 }
 
-int c2_rpc_packet_encode(struct c2_rpc_packet *p,
-			 struct c2_bufvec     *bufvec)
+C2_INTERNAL int c2_rpc_packet_encode(struct c2_rpc_packet *p,
+				     struct c2_bufvec *bufvec)
 {
 	struct c2_bufvec_cursor  cur;
 	c2_bcount_t              bufvec_size;
@@ -211,8 +211,9 @@ int c2_rpc_packet_encode(struct c2_rpc_packet *p,
 	C2_RETURN(rc);
 }
 
-int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet    *packet,
-				      struct c2_bufvec_cursor *cursor)
+C2_INTERNAL int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet *packet,
+						  struct c2_bufvec_cursor
+						  *cursor)
 {
 	struct c2_rpc_item *item;
 	bool                end_of_bufvec;
@@ -302,10 +303,9 @@ static int item_encode(struct c2_rpc_item       *item,
 	C2_RETURN(rc);
 }
 
-int c2_rpc_packet_decode(struct c2_rpc_packet *p,
-			 struct c2_bufvec     *bufvec,
-			 c2_bindex_t           off,
-			 c2_bcount_t           len)
+C2_INTERNAL int c2_rpc_packet_decode(struct c2_rpc_packet *p,
+				     struct c2_bufvec *bufvec,
+				     c2_bindex_t off, c2_bcount_t len)
 {
 	struct c2_bufvec_cursor cursor;
 	int                     rc;
@@ -326,9 +326,9 @@ int c2_rpc_packet_decode(struct c2_rpc_packet *p,
 	C2_RETURN(rc);
 }
 
-int c2_rpc_packet_decode_using_cursor(struct c2_rpc_packet    *p,
-				      struct c2_bufvec_cursor *cursor,
-				      c2_bcount_t              len)
+C2_INTERNAL int c2_rpc_packet_decode_using_cursor(struct c2_rpc_packet *p,
+						  struct c2_bufvec_cursor
+						  *cursor, c2_bcount_t len)
 {
 	struct c2_rpc_packet_onwire_header poh;
 	struct c2_rpc_item                *item;
@@ -387,9 +387,9 @@ static int item_decode(struct c2_bufvec_cursor  *cursor,
 	return item_type->rit_ops->rito_decode(item_type, item_out, cursor);
 }
 
-void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
-				  item_visit_fn        *visit,
-				  unsigned long         opaque_data)
+C2_INTERNAL void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
+					      item_visit_fn * visit,
+					      unsigned long opaque_data)
 {
 	struct c2_rpc_item *item;
 
@@ -405,7 +405,10 @@ void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 	C2_LEAVE();
 }
 
+#undef C2_TRACE_SUBSYSTEM
+
 /** @} */
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

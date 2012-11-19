@@ -49,8 +49,8 @@ struct c2_reqh_md_service {
         uint64_t                     rmds_magic;
 };
 
-void c2_mds_unregister(void);
-int c2_mds_register(void);
+C2_INTERNAL void c2_mds_unregister(void);
+C2_INTERNAL int c2_mds_register(void);
 
 /** @} end of mdservice */
 

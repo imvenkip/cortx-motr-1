@@ -78,7 +78,7 @@ C2_BASSERT(C2_BITMAP_WORDS(65) == 2);
  */
 #define C2_BITMAP_MASK(idx) (1UL << ((idx) & (C2_BITMAP_BITS-1)))
 
-int c2_bitmap_init(struct c2_bitmap *map, size_t nr)
+C2_INTERNAL int c2_bitmap_init(struct c2_bitmap *map, size_t nr)
 {
 	int ret = 0;
 
@@ -94,7 +94,7 @@ int c2_bitmap_init(struct c2_bitmap *map, size_t nr)
 }
 C2_EXPORTED(c2_bitmap_init);
 
-void c2_bitmap_fini(struct c2_bitmap *map)
+C2_INTERNAL void c2_bitmap_fini(struct c2_bitmap *map)
 {
 	C2_ASSERT(map->b_words != NULL);
 	c2_free(map->b_words);
@@ -102,7 +102,7 @@ void c2_bitmap_fini(struct c2_bitmap *map)
 }
 C2_EXPORTED(c2_bitmap_fini);
 
-bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx)
+C2_INTERNAL bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx)
 {
 	bool result = false;
 
@@ -112,7 +112,7 @@ bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx)
 }
 C2_EXPORTED(c2_bitmap_get);
 
-void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val)
+C2_INTERNAL void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val)
 {
 	C2_ASSERT(idx < map->b_nr && map->b_words != NULL);
 	if (val)
@@ -122,7 +122,8 @@ void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val)
 }
 C2_EXPORTED(c2_bitmap_set);
 
-void c2_bitmap_copy(struct c2_bitmap *dst, const struct c2_bitmap *src)
+C2_INTERNAL void c2_bitmap_copy(struct c2_bitmap *dst,
+				const struct c2_bitmap *src)
 {
 	int s = C2_BITMAP_WORDS(src->b_nr);
 	int d = C2_BITMAP_WORDS(dst->b_nr);

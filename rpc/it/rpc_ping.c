@@ -529,6 +529,6 @@ int main(int argc, char *argv[])
 	return rc;
 }
 
-void c2_rpc_ping_fini(void)
+C2_INTERNAL void c2_rpc_ping_fini(void)
 {
 }

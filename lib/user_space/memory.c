@@ -69,7 +69,7 @@ static void __free(void *ptr)
 	free(ptr);
 }
 
-void *__malloc(size_t size)
+C2_INTERNAL void *__malloc(size_t size)
 {
 	void *area;
 
@@ -118,7 +118,7 @@ void c2_free(void *data)
 	C2_LEAVE();
 }
 
-void c2_free_aligned(void *data, size_t size, unsigned shift)
+C2_INTERNAL void c2_free_aligned(void *data, size_t size, unsigned shift)
 {
 	C2_PRE(c2_addr_is_aligned(data, shift));
 	c2_free(data);
@@ -126,7 +126,7 @@ void c2_free_aligned(void *data, size_t size, unsigned shift)
 
 static size_t used0;
 
-size_t c2_allocated(void)
+C2_INTERNAL size_t c2_allocated(void)
 {
 	size_t used;
 
@@ -136,7 +136,7 @@ size_t c2_allocated(void)
 	return used - used0;
 }
 
-void *c2_alloc_aligned(size_t size, unsigned shift)
+C2_INTERNAL void *c2_alloc_aligned(size_t size, unsigned shift)
 {
 	void  *result;
 	int    rc;
@@ -159,22 +159,23 @@ void *c2_alloc_aligned(size_t size, unsigned shift)
 	return result;
 }
 
-int c2_memory_init()
+C2_INTERNAL int c2_memory_init()
 {
 	c2_atomic64_set(&allocated, 0);
 	used0 = __allocated();
 	return 0;
 }
 
-void c2_memory_fini()
+C2_INTERNAL void c2_memory_fini()
 {
 }
 
-int c2_pagesize_get()
+C2_INTERNAL int c2_pagesize_get()
 {
 	return getpagesize();
 }
 
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} end of memory group */
 

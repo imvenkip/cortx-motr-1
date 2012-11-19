@@ -38,14 +38,14 @@ c2_time_t c2_time(uint64_t secs, long ns)
 	return t;
 }
 
-c2_time_t c2_time_set(c2_time_t *time, uint64_t secs, long ns)
+c2_time_t c2_time_set(c2_time_t * time, uint64_t secs, long ns)
 {
 	*time = secs * C2_TIME_ONE_BILLION + ns;
 	return *time;
 }
 C2_EXPORTED(c2_time_set);
 
-c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2)
+C2_INTERNAL c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2)
 {
 	c2_time_t res;
 
@@ -63,7 +63,7 @@ c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2)
 }
 C2_EXPORTED(c2_time_add);
 
-c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2)
+C2_INTERNAL c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2)
 {
 	c2_time_t res;
 	C2_PRE(C2_TIME_NEVER >= t1);
@@ -79,13 +79,13 @@ c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2)
 	return res;
 }
 
-uint64_t c2_time_seconds(const c2_time_t time)
+C2_INTERNAL uint64_t c2_time_seconds(const c2_time_t time)
 {
 	return time / C2_TIME_ONE_BILLION;
 }
 C2_EXPORTED(c2_time_seconds);
 
-uint64_t c2_time_nanoseconds(const c2_time_t time)
+C2_INTERNAL uint64_t c2_time_nanoseconds(const c2_time_t time)
 {
 
         return time % C2_TIME_ONE_BILLION;
@@ -98,7 +98,7 @@ c2_time_t c2_time_from_now(uint64_t secs, long ns)
 }
 C2_EXPORTED(c2_time_from_now);
 
-bool c2_time_is_in_past(c2_time_t t)
+C2_INTERNAL bool c2_time_is_in_past(c2_time_t t)
 {
 	return t < c2_time_now();
 }

@@ -185,13 +185,13 @@ struct c2_long_lock {
  * @post lock->l_state == C2_LONG_LOCK_UNLOCKED
  * @post c2_mutex_is_not_locked(&lock->l_lock)
  */
-void c2_long_lock_init(struct c2_long_lock *lock);
+C2_INTERNAL void c2_long_lock_init(struct c2_long_lock *lock);
 
 /**
  * @pre !c2_long_is_read_locked(lock, *)
  * @pre !c2_long_is_write_locked(lock, *)
  */
-void c2_long_lock_fini(struct c2_long_lock *lock);
+C2_INTERNAL void c2_long_lock_fini(struct c2_long_lock *lock);
 
 /**
  * Obtains given lock for reading for given fom. Taking recursive read-lock is
@@ -209,8 +209,9 @@ void c2_long_lock_fini(struct c2_long_lock *lock);
  *
  * @return true iff the lock is taken.
  */
-bool c2_long_read_lock(struct c2_long_lock *lock,
-		       struct c2_long_lock_link *link, int next_phase);
+C2_INTERNAL bool c2_long_read_lock(struct c2_long_lock *lock,
+				   struct c2_long_lock_link *link,
+				   int next_phase);
 
 /**
  * Obtains given lock for writing for given fom. Taking recursive write-lock is
@@ -228,8 +229,9 @@ bool c2_long_read_lock(struct c2_long_lock *lock,
  *
  * @return true iff the lock is taken.
  */
-bool c2_long_write_lock(struct c2_long_lock *lock,
-			struct c2_long_lock_link *link, int next_phase);
+C2_INTERNAL bool c2_long_write_lock(struct c2_long_lock *lock,
+				    struct c2_long_lock_link *link,
+				    int next_phase);
 
 /**
  * Unlocks given read-lock.
@@ -241,8 +243,8 @@ bool c2_long_write_lock(struct c2_long_lock *lock,
  * @pre c2_fom_group_is_locked(lock->lll_fom)
  * @post !c2_long_is_read_locked(lock, link);
  */
-void c2_long_read_unlock(struct c2_long_lock *lock,
-			 struct c2_long_lock_link *link);
+C2_INTERNAL void c2_long_read_unlock(struct c2_long_lock *lock,
+				     struct c2_long_lock_link *link);
 
 /**
  * Unlocks given write-lock.
@@ -254,43 +256,44 @@ void c2_long_read_unlock(struct c2_long_lock *lock,
  * @pre c2_fom_group_is_locked(lock->lll_fom)
  * @post !c2_long_is_write_locked(lock, link);
  */
-void c2_long_write_unlock(struct c2_long_lock *lock,
-			  struct c2_long_lock_link *link);
+C2_INTERNAL void c2_long_write_unlock(struct c2_long_lock *lock,
+				      struct c2_long_lock_link *link);
 
 /**
  * @return true iff the lock is taken as a read-lock by the given fom.
  */
-bool c2_long_is_read_locked(struct c2_long_lock *lock,
-			    const struct c2_fom *fom);
+C2_INTERNAL bool c2_long_is_read_locked(struct c2_long_lock *lock,
+					const struct c2_fom *fom);
 
 /**
  * @return true iff the lock is taken as a write-lock by the given fom.
  */
-bool c2_long_is_write_locked(struct c2_long_lock *lock,
-			     const struct c2_fom *fom);
+C2_INTERNAL bool c2_long_is_write_locked(struct c2_long_lock *lock,
+					 const struct c2_fom *fom);
 
 /**
  * Initialize long lock link object with given fom.
  *
  * @pre fom != NULL
  */
-void c2_long_lock_link_init(struct c2_long_lock_link *link, struct c2_fom *fom);
+C2_INTERNAL void c2_long_lock_link_init(struct c2_long_lock_link *link,
+					struct c2_fom *fom);
 
 /**
  * Finalize long lock link object.
  *
  * @pre !c2_lll_tlink_is_in(link)
  */
-void c2_long_lock_link_fini(struct c2_long_lock_link *link);
+C2_INTERNAL void c2_long_lock_link_fini(struct c2_long_lock_link *link);
 
-C2_BOB_DECLARE(extern, c2_long_lock);
-C2_BOB_DECLARE(extern, c2_long_lock_link);
+C2_BOB_DECLARE(C2_EXTERN, c2_long_lock);
+C2_BOB_DECLARE(C2_EXTERN, c2_long_lock_link);
 
 /**
  * Initializes bob-type for c2_long_lock and c2_long_lock_link. Should be called
  * once, during system initialisation.
  */
-void c2_fom_ll_global_init(void);
+C2_INTERNAL void c2_fom_ll_global_init(void);
 
 
 /** @} end of c2_long_lock group */

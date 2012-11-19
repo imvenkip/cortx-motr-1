@@ -26,16 +26,16 @@
 /**
  * State transition function for "c2_conf_fetch" FOP.
  */
-int c2_fom_fetch_state(struct c2_fom *fom);
-size_t c2_fom_fetch_home_locality(const struct c2_fom *fom);
-void c2_fop_fetch_fom_fini(struct c2_fom *fom);
+C2_INTERNAL int c2_fom_fetch_state(struct c2_fom *fom);
+C2_INTERNAL size_t c2_fom_fetch_home_locality(const struct c2_fom *fom);
+C2_INTERNAL void c2_fop_fetch_fom_fini(struct c2_fom *fom);
 
 /**
  * State transition function for "c2_conf_update" FOP.
  */
-int c2_fom_update_state(struct c2_fom *fom);
-size_t c2_fom_update_home_locality(const struct c2_fom *fom);
-void c2_fop_update_fom_fini(struct c2_fom *fom);
+C2_INTERNAL int c2_fom_update_state(struct c2_fom *fom);
+C2_INTERNAL size_t c2_fom_update_home_locality(const struct c2_fom *fom);
+C2_INTERNAL void c2_fop_update_fom_fini(struct c2_fom *fom);
 
 #endif /* __COLIBRI_CONF_FOM_H__ */
 

@@ -54,7 +54,7 @@ struct c2_vec {
 } C2_XCA_RECORD;
 
 /** Returns total count of vector */
-c2_bcount_t c2_vec_count(const struct c2_vec *vec);
+C2_INTERNAL c2_bcount_t c2_vec_count(const struct c2_vec *vec);
 
 /**
    Position within a vector.
@@ -99,7 +99,8 @@ struct c2_vec_cursor {
 
    Cursor requires no special finalisation.
  */
-void c2_vec_cursor_init(struct c2_vec_cursor *cur, struct c2_vec *vec);
+C2_INTERNAL void c2_vec_cursor_init(struct c2_vec_cursor *cur,
+				    struct c2_vec *vec);
 
 /**
    Move cursor count bytes further through the vector.
@@ -110,7 +111,8 @@ void c2_vec_cursor_init(struct c2_vec_cursor *cur, struct c2_vec *vec);
    @return true, iff the end of the vector has been reached while moving. The
    cursor is in end of the vector position in this case.
  */
-bool c2_vec_cursor_move(struct c2_vec_cursor *cur, c2_bcount_t count);
+C2_INTERNAL bool c2_vec_cursor_move(struct c2_vec_cursor *cur,
+				    c2_bcount_t count);
 
 /**
    Return number of bytes that the cursor have to be moved to reach the next
@@ -119,7 +121,7 @@ bool c2_vec_cursor_move(struct c2_vec_cursor *cur, c2_bcount_t count);
 
    @pre cur->vc_seg < cur->vc_vec->v_nr
  */
-c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur);
+C2_INTERNAL c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur);
 
 /** Vector of extents in a linear name-space */
 struct c2_indexvec {
@@ -171,18 +173,16 @@ struct c2_bufvec {
    @retval -errno On failure.
    @see c2_bufvec_free()
  */
-int c2_bufvec_alloc(struct c2_bufvec *bufvec,
-		    uint32_t          num_segs,
-		    c2_bcount_t       seg_size);
+C2_INTERNAL int c2_bufvec_alloc(struct c2_bufvec *bufvec,
+				uint32_t num_segs, c2_bcount_t seg_size);
 
 /**
    Allocates aligned memory as specified by shift value for a struct c2_bufvec.
    Currently in kernel mode it supports PAGE_SIZE alignment only.
  */
-int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
-	                    uint32_t          num_segs,
-	                    c2_bcount_t       seg_size,
-	                    unsigned	      shift);
+C2_INTERNAL int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
+					uint32_t num_segs,
+					c2_bcount_t seg_size, unsigned shift);
 
 /**
    Frees the buffers pointed to by c2_bufvec.ov_buf and
@@ -190,7 +190,7 @@ int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
    @param bufvec Pointer to the c2_bufvec.
    @see c2_bufvec_alloc()
  */
-void c2_bufvec_free(struct c2_bufvec *bufvec);
+C2_INTERNAL void c2_bufvec_free(struct c2_bufvec *bufvec);
 
 /**
    Frees the buffers pointed to by c2_bufvec.ov_buf and
@@ -198,7 +198,8 @@ void c2_bufvec_free(struct c2_bufvec *bufvec);
    @param bufvec Pointer to the c2_bufvec.
    @see c2_bufvec_alloc_aligned()
  */
-void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift);
+C2_INTERNAL void c2_bufvec_free_aligned(struct c2_bufvec *bufvec,
+					unsigned shift);
 
 /**
  * Allocate memory for index array and counts array in index vector.
@@ -209,8 +210,9 @@ void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift);
  * @post  ivec->iv_index != NULL && ivec->iv_vec.v_count != NULL &&
  *        ivec->iv_vec.v_nr == len.
  */
-int c2_indexvec_alloc(struct c2_indexvec *ivec, uint32_t len,
-		      struct c2_addb_ctx *ctx,  const struct c2_addb_loc *loc);
+C2_INTERNAL int c2_indexvec_alloc(struct c2_indexvec *ivec, uint32_t len,
+				  struct c2_addb_ctx *ctx,
+				  const struct c2_addb_loc *loc);
 
 /**
  * Deallocates the memory buffers pointed to by index array and counts array.
@@ -219,7 +221,7 @@ int c2_indexvec_alloc(struct c2_indexvec *ivec, uint32_t len,
  * @post ivec->iv_index == NULL && ivec->iv_vec.v_count == NULL &&
  *       ivec->iv_vec.v_nr == 0.
  */
-void c2_indexvec_free(struct c2_indexvec *ivec);
+C2_INTERNAL void c2_indexvec_free(struct c2_indexvec *ivec);
 
 /** Cursor to traverse a bufvec */
 struct c2_bufvec_cursor {
@@ -234,8 +236,8 @@ struct c2_bufvec_cursor {
    @param cur Pointer to the struct c2_bufvec_cursor.
    @param bvec Pointer to the struct c2_bufvec.
  */
-void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
-			    struct c2_bufvec *bvec);
+C2_INTERNAL void c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
+				       struct c2_bufvec *bvec);
 
 /**
    Advance the cursor "count" bytes further through the buffer vector.
@@ -245,14 +247,16 @@ void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
    cursor is in end of the vector position in this case.
    @return false otherwise
  */
-bool c2_bufvec_cursor_move(struct c2_bufvec_cursor *cur, c2_bcount_t count);
+C2_INTERNAL bool c2_bufvec_cursor_move(struct c2_bufvec_cursor *cur,
+				       c2_bcount_t count);
 
 /**
    Advances the cursor with some count such that cursor will be aligned to
    "alignment".
    Return convention is same as c2_bufvec_cursor_move().
  */
-bool c2_bufvec_cursor_align(struct c2_bufvec_cursor *cur, uint64_t alignment);
+C2_INTERNAL bool c2_bufvec_cursor_align(struct c2_bufvec_cursor *cur,
+					uint64_t alignment);
 
 /**
    Return number of bytes that the cursor have to be moved to reach the next
@@ -264,7 +268,8 @@ bool c2_bufvec_cursor_align(struct c2_bufvec_cursor *cur, uint64_t alignment);
    @param cur Pointer to the struct c2_bufvec_cursor.
    @retval Count
  */
-c2_bcount_t c2_bufvec_cursor_step(const struct c2_bufvec_cursor *cur);
+C2_INTERNAL c2_bcount_t c2_bufvec_cursor_step(const struct c2_bufvec_cursor
+					      *cur);
 
 /**
    Return the buffer address at the cursor's current position.
@@ -273,7 +278,7 @@ c2_bcount_t c2_bufvec_cursor_step(const struct c2_bufvec_cursor *cur);
    @param cur Pointer to the struct c2_bufvec_cursor.
    @retval Pointer into buffer.
  */
-void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur);
+C2_INTERNAL void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur);
 
 /**
    Copy bytes from one buffer to another using cursors.
@@ -285,9 +290,9 @@ void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur);
    @retval bytes_copied The number of bytes actually copied. This will be equal
    to num_bytes only if there was adequate space in the buffers.
  */
-c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
-				  struct c2_bufvec_cursor *scur,
-				  c2_bcount_t num_bytes);
+C2_INTERNAL c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
+					      struct c2_bufvec_cursor *scur,
+					      c2_bcount_t num_bytes);
 /**
    Copy data with specified size to a cursor.
    @param dcur Pointer to the destination buffer cursor positioned
@@ -295,16 +300,18 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
    @param sdata Pointer to area where the data is to be copied from.
    @param num_bytes The number of bytes to copy.
  */
-c2_bcount_t c2_bufvec_cursor_copyto(struct c2_bufvec_cursor *dcur,
-				    void *sdata, c2_bcount_t num_bytes);
+C2_INTERNAL c2_bcount_t c2_bufvec_cursor_copyto(struct c2_bufvec_cursor *dcur,
+						void *sdata,
+						c2_bcount_t num_bytes);
 /**
    Copy data with specified size from a cursor.
    @param scur Pointer to the source buffer cursor positioned appropriately.
    @param ddata Pointer to area where the data is to be copied to.
    @num_bytes The number of bytes to copy.
  */
-c2_bcount_t c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur,
-				      void *ddata, c2_bcount_t num_bytes);
+C2_INTERNAL c2_bcount_t c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur,
+						  void *ddata,
+						  c2_bcount_t num_bytes);
 
 /**
    Mechanism to traverse given index vector (c2_indexvec)
@@ -319,8 +326,8 @@ struct c2_ivec_cursor {
    @param cur  Given index vector cursor.
    @param ivec Given index vector to be associated with cursor.
  */
-void c2_ivec_cursor_init(struct c2_ivec_cursor *cur,
-                         struct c2_indexvec    *ivec);
+C2_INTERNAL void c2_ivec_cursor_init(struct c2_ivec_cursor *cur,
+				     struct c2_indexvec *ivec);
 
 /**
    Moves the index vector cursor forward by @count.
@@ -329,8 +336,8 @@ void c2_ivec_cursor_init(struct c2_ivec_cursor *cur,
    @ret   true  iff end of vector has been reached while
    moving cursor by @count. Returns false otherwise.
  */
-bool c2_ivec_cursor_move(struct c2_ivec_cursor *cur,
-                         c2_bcount_t            count);
+C2_INTERNAL bool c2_ivec_cursor_move(struct c2_ivec_cursor *cur,
+				     c2_bcount_t count);
 
 /**
  * Moves index vector cursor forward until it reaches index @dest.
@@ -340,7 +347,8 @@ bool c2_ivec_cursor_move(struct c2_ivec_cursor *cur,
  *             moving cursor. Returns false otherwise.
  * @post  c2_ivec_cursor_index(cursor) == to.
 */
-bool c2_ivec_cursor_move_to(struct c2_ivec_cursor *cursor, c2_bindex_t dest);
+C2_INTERNAL bool c2_ivec_cursor_move_to(struct c2_ivec_cursor *cursor,
+					c2_bindex_t dest);
 
 /**
  * Returns the number of bytes needed to move cursor to next segment in given
@@ -348,14 +356,14 @@ bool c2_ivec_cursor_move_to(struct c2_ivec_cursor *cursor, c2_bindex_t dest);
  * @param cur Index vector to be moved.
  * @ret   Number of bytes needed to move the cursor to next segment.
  */
-c2_bcount_t c2_ivec_cursor_step(const struct c2_ivec_cursor *cur);
+C2_INTERNAL c2_bcount_t c2_ivec_cursor_step(const struct c2_ivec_cursor *cur);
 
 /**
  * Returns index at current cursor position.
  * @param cur Given index vector cursor.
  * @ret   Index at current cursor position.
  */
-c2_bindex_t c2_ivec_cursor_index(struct c2_ivec_cursor *cur);
+C2_INTERNAL c2_bindex_t c2_ivec_cursor_index(struct c2_ivec_cursor *cur);
 
 /**
    Zero vector is a full fledged IO vector containing IO extents
@@ -395,14 +403,14 @@ enum {
    zvec->z_bvec.ov_vec.v_count != NULL &&
    zvec->z_index != NULL
  */
-int c2_0vec_init(struct c2_0vec *zvec, uint32_t segs_nr);
+C2_INTERNAL int c2_0vec_init(struct c2_0vec *zvec, uint32_t segs_nr);
 
 /**
    Finalize a c2_0vec structure.
    @param The c2_0vec structure to be deallocated.
    @see c2_0vec_init().
  */
-void c2_0vec_fini(struct c2_0vec *zvec);
+C2_INTERNAL void c2_0vec_fini(struct c2_0vec *zvec);
 
 /**
    Init the c2_0vec structure from given c2_bufvec structure and
@@ -415,9 +423,9 @@ void c2_0vec_fini(struct c2_0vec *zvec);
    @param indices Target object indices to start the IO from.
    @post c2_0vec_invariant(zvec).
  */
-void c2_0vec_bvec_init(struct c2_0vec *zvec,
-		       const struct c2_bufvec *bufvec,
-		       const c2_bindex_t *indices);
+C2_INTERNAL void c2_0vec_bvec_init(struct c2_0vec *zvec,
+				   const struct c2_bufvec *bufvec,
+				   const c2_bindex_t * indices);
 
 /**
    Init the c2_0vec structure from array of buffers with indices and counts.
@@ -431,9 +439,10 @@ void c2_0vec_bvec_init(struct c2_0vec *zvec,
    @param segs_nr Number of segments contained in the buf array.
    @post c2_0vec_invariant(zvec).
  */
-void c2_0vec_bufs_init(struct c2_0vec *zvec, void **bufs,
-		       const c2_bindex_t *indices, const c2_bcount_t *counts,
-		       uint32_t segs_nr);
+C2_INTERNAL void c2_0vec_bufs_init(struct c2_0vec *zvec, void **bufs,
+				   const c2_bindex_t * indices,
+				   const c2_bcount_t * counts,
+				   uint32_t segs_nr);
 
 /**
    Add a c2_buf structure at given target index to c2_0vec structure.
@@ -445,18 +454,18 @@ void c2_0vec_bufs_init(struct c2_0vec *zvec, void **bufs,
    @param index Index of target object to start IO from.
    @post c2_0vec_invariant(zvec).
  */
-int c2_0vec_cbuf_add(struct c2_0vec *zvec, const struct c2_buf *buf,
-		     const c2_bindex_t *index);
+C2_INTERNAL int c2_0vec_cbuf_add(struct c2_0vec *zvec, const struct c2_buf *buf,
+				 const c2_bindex_t * index);
 
 /**
  * Helper functions to copy opaque data with specified size to and from a
  * c2_bufvec
  */
-int c2_data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
-			   size_t len);
+C2_INTERNAL int c2_data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
+				       size_t len);
 
-int c2_bufvec_to_data_copy(struct c2_bufvec_cursor *cur, void *data,
-			   size_t len);
+C2_INTERNAL int c2_bufvec_to_data_copy(struct c2_bufvec_cursor *cur, void *data,
+				       size_t len);
 
 /** @} end of vec group */
 

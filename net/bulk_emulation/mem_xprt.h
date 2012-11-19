@@ -448,8 +448,8 @@ static inline bool mem_sa_eq(const struct sockaddr_in *sa1,
 	       sa1->sin_port        == sa2->sin_port;
 }
 
-int c2_mem_xprt_init(void);
-void c2_mem_xprt_fini(void);
+C2_INTERNAL int c2_mem_xprt_init(void);
+C2_INTERNAL void c2_mem_xprt_fini(void);
 
 /**
    @}

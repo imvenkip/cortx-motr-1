@@ -191,8 +191,8 @@ enum c2_fom_standard_phase {
  */
 int c2_fom_tick_generic(struct c2_fom *fom);
 
-void c2_fom_generic_fini(void);
-int  c2_fom_generic_init(void);
+C2_INTERNAL void c2_fom_generic_fini(void);
+C2_INTERNAL int c2_fom_generic_init(void);
 
 extern const struct c2_sm_conf c2_generic_conf;
 

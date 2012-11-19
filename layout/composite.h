@@ -51,10 +51,10 @@ struct c2_composite_layout {
 	struct c2_tl      cl_sub_layouts;
 };
 
-void c2_composite_build(struct c2_layout_domain *dom,
-			uint64_t lid,
-			struct c2_tl *sub_layouts,
-			struct c2_composite_layout **out);
+C2_INTERNAL void c2_composite_build(struct c2_layout_domain *dom,
+				    uint64_t lid,
+				    struct c2_tl *sub_layouts,
+				    struct c2_composite_layout **out);
 
 extern const struct c2_layout_type c2_composite_layout_type;
 

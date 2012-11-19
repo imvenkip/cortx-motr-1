@@ -80,7 +80,7 @@ typedef uint32_t c2_processor_nr_t;
                 It's not MT-safe and can be called only once. It can be
                 called again after calling c2_processors_fini().
  */
-int c2_processors_init(void);
+C2_INTERNAL int c2_processors_init(void);
 
 /**
    Close the processors interface. This function will destroy any cached data.
@@ -88,12 +88,12 @@ int c2_processors_init(void);
 
    Concurrency: Not MT-safe. Assumes no threads are using processor interface.
  */
-void c2_processors_fini(void);
+C2_INTERNAL void c2_processors_fini(void);
 
 /**
    Maximum processors this system can handle.
  */
-c2_processor_nr_t c2_processor_nr_max(void);
+C2_INTERNAL c2_processor_nr_t c2_processor_nr_max(void);
 
 /**
    Return the bitmap of possible processors.
@@ -103,7 +103,7 @@ c2_processor_nr_t c2_processor_nr_max(void);
    @pre The calling function must allocate memory for 'map' and initialize it.
    @note This function does not take any locks.
  */
-void c2_processors_possible(struct c2_bitmap *map);
+C2_INTERNAL void c2_processors_possible(struct c2_bitmap *map);
 
 /**
    Return the bitmap of available processors.
@@ -113,7 +113,7 @@ void c2_processors_possible(struct c2_bitmap *map);
    @pre The calling function must allocate memory for 'map' and initialize it.
    @note This function does not take any locks.
  */
-void c2_processors_available(struct c2_bitmap *map);
+C2_INTERNAL void c2_processors_available(struct c2_bitmap *map);
 
 /**
    Return the bitmap of online processors.
@@ -123,7 +123,7 @@ void c2_processors_available(struct c2_bitmap *map);
    @pre The calling function must allocate memory for 'map' and initialize it.
    @note This function does not take any locks.
  */
-void c2_processors_online(struct c2_bitmap *map);
+C2_INTERNAL void c2_processors_online(struct c2_bitmap *map);
 
 /**
    Return the id of the processor on which the calling thread is running.
@@ -133,7 +133,7 @@ void c2_processors_online(struct c2_bitmap *map);
            It will return C2_PROCESSORS_INVALID_ID, if this call is not
            supported.
  */
-c2_processor_nr_t c2_processor_id_get(void);
+C2_INTERNAL c2_processor_nr_t c2_processor_id_get(void);
 
 /**
    Description of a processor in the system.
@@ -204,7 +204,8 @@ struct c2_processor_descr {
                 any locking. When used in kernel-mode, the interface may
                 call some functions that may use some kind of locks.
  */
-int c2_processor_describe(c2_processor_nr_t id, struct c2_processor_descr *pd);
+C2_INTERNAL int c2_processor_describe(c2_processor_nr_t id,
+				      struct c2_processor_descr *pd);
 
 /** @} end of processor group */
 

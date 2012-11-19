@@ -117,9 +117,9 @@ struct c2_timer_locality {
    @pre callback != NULL
    @post timer is not running
  */
-int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
-		  c2_time_t expire,
-		  c2_timer_callback_t callback, unsigned long data);
+C2_INTERNAL int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
+			      c2_time_t expire,
+			      c2_timer_callback_t callback, unsigned long data);
 
 /**
    Start a timer.
@@ -127,7 +127,7 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
    @pre c2_timer_init() successfully called.
    @pre timer is not running
  */
-int c2_timer_start(struct c2_timer *timer);
+C2_INTERNAL int c2_timer_start(struct c2_timer *timer);
 
 /**
    Stop a timer.
@@ -137,12 +137,12 @@ int c2_timer_start(struct c2_timer *timer);
    @post timer is not running
    @post callback isn't running
  */
-int c2_timer_stop(struct c2_timer *timer);
+C2_INTERNAL int c2_timer_stop(struct c2_timer *timer);
 
 /**
    Returns true iff the timer is running.
  */
-bool c2_timer_is_started(const struct c2_timer *timer);
+C2_INTERNAL bool c2_timer_is_started(const struct c2_timer *timer);
 
 /**
    Destroy the timer.
@@ -150,12 +150,12 @@ bool c2_timer_is_started(const struct c2_timer *timer);
    @pre c2_timer_init() for this timer was succesfully called.
    @pre timer is not running.
  */
-int c2_timer_fini(struct c2_timer *timer);
+C2_INTERNAL int c2_timer_fini(struct c2_timer *timer);
 
 /**
    Init timer locality.
  */
-void c2_timer_locality_init(struct c2_timer_locality *loc);
+C2_INTERNAL void c2_timer_locality_init(struct c2_timer_locality *loc);
 
 /**
    Fini timer locality.
@@ -163,7 +163,7 @@ void c2_timer_locality_init(struct c2_timer_locality *loc);
    @pre c2_timer_locality_init() succesfully called.
    @pre locality is empty
  */
-void c2_timer_locality_fini(struct c2_timer_locality *loc);
+C2_INTERNAL void c2_timer_locality_fini(struct c2_timer_locality *loc);
 
 /**
    Add current thread to the list of threads in locality.
@@ -172,7 +172,7 @@ void c2_timer_locality_fini(struct c2_timer_locality *loc);
    @pre current thread is not attached to locality.
    @post current thread is attached to locality.
  */
-int c2_timer_thread_attach(struct c2_timer_locality *loc);
+C2_INTERNAL int c2_timer_thread_attach(struct c2_timer_locality *loc);
 
 /**
    Remove current thread from the list of threads in locality.
@@ -182,7 +182,7 @@ int c2_timer_thread_attach(struct c2_timer_locality *loc);
    @pre current thread is attached to locality.
    @post current thread is not attached to locality.
  */
-void c2_timer_thread_detach(struct c2_timer_locality *loc);
+C2_INTERNAL void c2_timer_thread_detach(struct c2_timer_locality *loc);
 
 /**
    Attach hard timer to the given locality.
@@ -197,7 +197,8 @@ void c2_timer_thread_detach(struct c2_timer_locality *loc);
    @pre timer type is C2_TIMER_HARD
    @pre timer is not running.
  */
-int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc);
+C2_INTERNAL int c2_timer_attach(struct c2_timer *timer,
+				struct c2_timer_locality *loc);
 
 /** @} end of timer group */
 /* __COLIBRI_LIB_TIMER_H__ */

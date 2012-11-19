@@ -184,8 +184,8 @@
 
 struct c2t1fs_dir_ent;
 
-int  c2t1fs_init(void);
-void c2t1fs_fini(void);
+C2_INTERNAL int c2t1fs_init(void);
+C2_INTERNAL void c2t1fs_fini(void);
 
 enum {
 	MAX_NR_EP_PER_SERVICE_TYPE      = 10,
@@ -426,50 +426,50 @@ extern const struct inode_operations c2t1fs_reg_inode_operations;
  */
 extern const struct c2_fid c2t1fs_root_fid;
 
-bool c2t1fs_inode_is_root(const struct inode *inode);
+C2_INTERNAL bool c2t1fs_inode_is_root(const struct inode *inode);
 
-int c2t1fs_get_sb(struct file_system_type *fstype,
-		  int                      flags,
-		  const char              *devname,
-		  void                    *data,
-		  struct vfsmount         *mnt);
+C2_INTERNAL int c2t1fs_get_sb(struct file_system_type *fstype,
+			      int flags,
+			      const char *devname,
+			      void *data, struct vfsmount *mnt);
 
-void c2t1fs_kill_sb(struct super_block *sb);
+C2_INTERNAL void c2t1fs_kill_sb(struct super_block *sb);
 
-void c2t1fs_fs_lock     (struct c2t1fs_sb *csb);
-void c2t1fs_fs_unlock   (struct c2t1fs_sb *csb);
-bool c2t1fs_fs_is_locked(const struct c2t1fs_sb *csb);
+C2_INTERNAL void c2t1fs_fs_lock(struct c2t1fs_sb *csb);
+C2_INTERNAL void c2t1fs_fs_unlock(struct c2t1fs_sb *csb);
+C2_INTERNAL bool c2t1fs_fs_is_locked(const struct c2t1fs_sb *csb);
 
-struct c2_rpc_session *
+C2_INTERNAL struct c2_rpc_session *
 c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
-			       uint64_t                container_id);
+			       uint64_t container_id);
 
 /* inode.c */
 
-int  c2t1fs_inode_cache_init(void);
-void c2t1fs_inode_cache_fini(void);
+C2_INTERNAL int c2t1fs_inode_cache_init(void);
+C2_INTERNAL void c2t1fs_inode_cache_fini(void);
 
-struct inode *c2t1fs_root_iget(struct super_block *sb);
-struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid);
+C2_INTERNAL struct inode *c2t1fs_root_iget(struct super_block *sb);
+C2_INTERNAL struct inode *c2t1fs_iget(struct super_block *sb,
+				      const struct c2_fid *fid);
 
-struct inode *c2t1fs_alloc_inode(struct super_block *sb);
-void          c2t1fs_destroy_inode(struct inode *inode);
+C2_INTERNAL struct inode *c2t1fs_alloc_inode(struct super_block *sb);
+C2_INTERNAL void c2t1fs_destroy_inode(struct inode *inode);
 
-int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci);
+C2_INTERNAL int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci);
 
-struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci, int index);
+C2_INTERNAL struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci,
+					 int index);
 
-C2_TL_DESCR_DECLARE(dir_ents, extern);
-C2_TL_DECLARE(dir_ents, extern, struct c2t1fs_dir_ent);
+C2_TL_DESCR_DECLARE(dir_ents, C2_EXTERN);
+C2_TL_DECLARE(dir_ents, C2_INTERNAL, struct c2t1fs_dir_ent);
 
-void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
-			 const unsigned char   *name,
-			 int                    namelen,
-			 const struct c2_fid   *fid);
+C2_INTERNAL void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
+				     const unsigned char *name,
+				     int namelen, const struct c2_fid *fid);
 
-int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de);
+C2_INTERNAL int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de);
 
-void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
+C2_INTERNAL void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
 
 struct io_mem_stats {
 	uint64_t a_ioreq_nr;

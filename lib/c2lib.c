@@ -34,7 +34,7 @@ static void xc_types_fini(void)
 	c2_xc_vec_fini();
 }
 
-int libc2_init(void)
+C2_INTERNAL int libc2_init(void)
 {
 	xc_types_init();
 
@@ -42,7 +42,7 @@ int libc2_init(void)
 }
 C2_EXPORTED(libc2_init);
 
-void libc2_fini(void)
+C2_INTERNAL void libc2_fini(void)
 {
 	xc_types_fini();
 }

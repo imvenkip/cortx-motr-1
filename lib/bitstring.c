@@ -28,22 +28,23 @@
 #include "lib/arith.h"      /* C2_3WAY */
 #include "lib/memory.h"     /* c2_alloc() */
 
-void *c2_bitstring_buf_get(struct c2_bitstring *c)
+C2_INTERNAL void *c2_bitstring_buf_get(struct c2_bitstring *c)
 {
         return c->b_data;
 }
 
-uint32_t c2_bitstring_len_get(const struct c2_bitstring *c)
+C2_INTERNAL uint32_t c2_bitstring_len_get(const struct c2_bitstring *c)
 {
         return c->b_len;
 }
 
-void c2_bitstring_len_set(struct c2_bitstring *c, uint32_t len)
+C2_INTERNAL void c2_bitstring_len_set(struct c2_bitstring *c, uint32_t len)
 {
         c->b_len = len;
 }
 
-struct c2_bitstring *c2_bitstring_alloc(const char *name, size_t len)
+C2_INTERNAL struct c2_bitstring *c2_bitstring_alloc(const char *name,
+						    size_t len)
 {
         struct c2_bitstring *c = c2_alloc(sizeof(*c) + len);
         if (c == NULL)
@@ -52,12 +53,13 @@ struct c2_bitstring *c2_bitstring_alloc(const char *name, size_t len)
         return c;
 }
 
-void c2_bitstring_free(struct c2_bitstring *c)
+C2_INTERNAL void c2_bitstring_free(struct c2_bitstring *c)
 {
         c2_free(c);
 }
 
-void c2_bitstring_copy(struct c2_bitstring *dst, const char *src, size_t count)
+C2_INTERNAL void c2_bitstring_copy(struct c2_bitstring *dst, const char *src,
+				   size_t count)
 {
         memcpy(c2_bitstring_buf_get(dst), src, count);
         c2_bitstring_len_set(dst, count);
@@ -68,8 +70,8 @@ void c2_bitstring_copy(struct c2_bitstring *dst, const char *src, size_t count)
    Shorter strings precede longer strings.
    Strings may contain embedded NULLs.
  */
-int c2_bitstring_cmp(const struct c2_bitstring *c1,
-                     const struct c2_bitstring *c2)
+C2_INTERNAL int c2_bitstring_cmp(const struct c2_bitstring *c1,
+				 const struct c2_bitstring *c2)
 {
         /* Compare the bytes as unsigned */
         const unsigned char *s1 = (const unsigned char *)c1->b_data;

@@ -24,7 +24,7 @@
 #include "lib/cdefs.h"   /* C2_EXPORTED */
 #include <stddef.h>
 
-extern int nanosleep(const struct timespec *req, struct timespec *rem);
+int nanosleep(const struct timespec *req, struct timespec *rem);
 
 /**
    @addtogroup time
@@ -34,7 +34,7 @@ extern int nanosleep(const struct timespec *req, struct timespec *rem);
    @{
 */
 
-c2_time_t c2_time_now(void)
+C2_INTERNAL c2_time_t c2_time_now(void)
 {
         struct timeval tv;
 	c2_time_t      t;
@@ -51,7 +51,7 @@ C2_EXPORTED(c2_time_now);
 /**
    Sleep for requested time
 */
-int c2_nanosleep(const c2_time_t req, c2_time_t *rem)
+int c2_nanosleep(const c2_time_t req, c2_time_t * rem)
 {
 	struct timespec reqts = {
 			.tv_sec  = c2_time_seconds(req),

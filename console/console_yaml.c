@@ -33,7 +33,7 @@
 
 static struct c2_cons_yaml_info yaml_info;
 
-int c2_cons_yaml_init(const char *file_path)
+C2_INTERNAL int c2_cons_yaml_init(const char *file_path)
 {
 	int          rc;
 	yaml_node_t *root_node;
@@ -85,7 +85,7 @@ error:
 	return -EINVAL;
 }
 
-void c2_cons_yaml_fini(void)
+C2_INTERNAL void c2_cons_yaml_fini(void)
 {
 	yaml_support = false;
 	if (&yaml_info.cyi_document != NULL)
@@ -122,7 +122,7 @@ static yaml_node_t *search_node(const char *name)
 	return node;
 }
 
-void *c2_cons_yaml_get_value(const char *name)
+C2_INTERNAL void *c2_cons_yaml_get_value(const char *name)
 {
 	yaml_node_t *node;
 
@@ -133,7 +133,7 @@ void *c2_cons_yaml_get_value(const char *name)
 	return node->data.scalar.value;
 }
 
-int c2_cons_yaml_set_value(const char *name, void *data)
+C2_INTERNAL int c2_cons_yaml_set_value(const char *name, void *data)
 {
 	int rc = -ENOTSUP;
 

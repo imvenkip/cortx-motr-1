@@ -25,50 +25,50 @@
  */
 
 
-int c2_udb_ctxt_init(struct c2_udb_ctxt *ctxt)
+C2_INTERNAL int c2_udb_ctxt_init(struct c2_udb_ctxt *ctxt)
 {
 	/* TODO add more here. Now it is a stub */
 	return 0;
 }
 
-void c2_udb_ctxt_fini(struct c2_udb_ctxt *ctxt)
+C2_INTERNAL void c2_udb_ctxt_fini(struct c2_udb_ctxt *ctxt)
 {
 
 	/* TODO add more here. Now it is a stub */
 	return;
 }
 
-int c2_udb_add(struct c2_udb_ctxt *ctxt,
-	       const struct c2_udb_domain *edomain,
-	       const struct c2_udb_cred *external,
-	       const struct c2_udb_cred *internal)
+C2_INTERNAL int c2_udb_add(struct c2_udb_ctxt *ctxt,
+			   const struct c2_udb_domain *edomain,
+			   const struct c2_udb_cred *external,
+			   const struct c2_udb_cred *internal)
 {
 	/* TODO add more here. Now it is a stub */
 	return 0;
 }
 
-int c2_udb_del(struct c2_udb_ctxt *ctxt,
-	       const struct c2_udb_domain *edomain,
-	       const struct c2_udb_cred *external,
-	       const struct c2_udb_cred *internal)
-{
-
-	/* TODO add more here. Now it is a stub */
-	return 0;
-}
-
-int c2_udb_e2i(struct c2_udb_ctxt *ctxt,
-	       const struct c2_udb_cred *external,
-	       struct c2_udb_cred *internal)
+C2_INTERNAL int c2_udb_del(struct c2_udb_ctxt *ctxt,
+			   const struct c2_udb_domain *edomain,
+			   const struct c2_udb_cred *external,
+			   const struct c2_udb_cred *internal)
 {
 
 	/* TODO add more here. Now it is a stub */
 	return 0;
 }
 
-int c2_udb_i2e(struct c2_udb_ctxt *ctxt,
-	       const struct c2_udb_cred *internal,
-	       struct c2_udb_cred *external)
+C2_INTERNAL int c2_udb_e2i(struct c2_udb_ctxt *ctxt,
+			   const struct c2_udb_cred *external,
+			   struct c2_udb_cred *internal)
+{
+
+	/* TODO add more here. Now it is a stub */
+	return 0;
+}
+
+C2_INTERNAL int c2_udb_i2e(struct c2_udb_ctxt *ctxt,
+			   const struct c2_udb_cred *internal,
+			   struct c2_udb_cred *external)
 {
 
 	/* TODO add more here. Now it is a stub */

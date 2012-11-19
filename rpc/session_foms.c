@@ -134,14 +134,15 @@ struct c2_fom_type c2_rpc_fom_conn_establish_type = {
 	.ft_ops = &c2_rpc_fom_conn_establish_type_ops
 };
 
-size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom)
+C2_INTERNAL size_t c2_rpc_session_default_home_locality(const struct c2_fom
+							*fom)
 {
 	C2_PRE(fom != NULL);
 
 	return c2_fop_opcode(fom->fo_fop);
 }
 
-int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
+C2_INTERNAL int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_conn_establish_rep *reply;
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
@@ -298,7 +299,7 @@ struct c2_fom_type c2_rpc_fom_session_establish_type = {
 	.ft_ops = &c2_rpc_fom_session_establish_type_ops
 };
 
-int c2_rpc_fom_session_establish_tick(struct c2_fom *fom)
+C2_INTERNAL int c2_rpc_fom_session_establish_tick(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_session_establish_rep *reply;
 	struct c2_rpc_fop_session_establish     *request;
@@ -392,7 +393,7 @@ struct c2_fom_type c2_rpc_fom_session_terminate_type = {
 	.ft_ops = &c2_rpc_fom_session_terminate_type_ops
 };
 
-int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
+C2_INTERNAL int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_session_terminate_rep *reply;
 	struct c2_rpc_fop_session_terminate     *request;
@@ -480,7 +481,7 @@ struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
 	.ft_ops = &c2_rpc_fom_conn_terminate_type_ops
 };
 
-int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
+C2_INTERNAL int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_conn_terminate_rep *reply;
 	struct c2_rpc_fop_conn_terminate     *request;

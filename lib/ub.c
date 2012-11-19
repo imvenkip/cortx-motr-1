@@ -18,7 +18,10 @@
  * Original creation date: 07/20/2010
  */
 
+#ifndef _ISOC99_SOURCE
 #define _ISOC99_SOURCE /* INFINITY */
+#endif
+
 #include <stdio.h>     /* printf */
 #include <sys/time.h>  /* gettimeofday */
 #include <math.h>      /* sqrt */
@@ -35,7 +38,7 @@
 
 static struct c2_ub_set *last = NULL;
 
-void c2_ub_set_add(struct c2_ub_set *set)
+C2_INTERNAL void c2_ub_set_add(struct c2_ub_set *set)
 {
 	C2_ASSERT(set->us_prev == NULL);
 
@@ -107,7 +110,7 @@ static void ub_run_one(const struct c2_ub_set *set, struct c2_ub_bench *bench)
 	bench->ut_min = min_type(double, bench->ut_min, sec);
 }
 
-void c2_ub_run(uint32_t rounds)
+C2_INTERNAL void c2_ub_run(uint32_t rounds)
 {
 	uint32_t            i;
 	struct c2_ub_set   *set;

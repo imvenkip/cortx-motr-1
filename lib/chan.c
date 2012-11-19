@@ -84,7 +84,7 @@ static bool c2_chan_invariant(struct c2_chan *chan)
 	return holds;
 }
 
-void c2_chan_init(struct c2_chan *chan)
+C2_INTERNAL void c2_chan_init(struct c2_chan *chan)
 {
 	clink_tlist_init(&chan->ch_links);
 	c2_mutex_init(&chan->ch_guard);
@@ -93,7 +93,7 @@ void c2_chan_init(struct c2_chan *chan)
 }
 C2_EXPORTED(c2_chan_init);
 
-void c2_chan_fini(struct c2_chan *chan)
+C2_INTERNAL void c2_chan_fini(struct c2_chan *chan)
 {
 	C2_ASSERT(c2_chan_invariant(chan));
 	C2_ASSERT(chan->ch_waiters == 0);
@@ -152,13 +152,13 @@ static void chan_signal_nr(struct c2_chan *chan, uint32_t nr)
 	c2_mutex_unlock(&chan->ch_guard);
 }
 
-void c2_chan_signal(struct c2_chan *chan)
+C2_INTERNAL void c2_chan_signal(struct c2_chan *chan)
 {
 	chan_signal_nr(chan, 1);
 }
 C2_EXPORTED(c2_chan_signal);
 
-void c2_chan_broadcast(struct c2_chan *chan)
+C2_INTERNAL void c2_chan_broadcast(struct c2_chan *chan)
 {
 	chan_signal_nr(chan, chan->ch_waiters);
 }
@@ -181,22 +181,22 @@ static void clink_init(struct c2_clink *link,
 	C2_POST(clink_is_head(group));
 }
 
-void c2_clink_init(struct c2_clink *link, c2_chan_cb_t cb)
+C2_INTERNAL void c2_clink_init(struct c2_clink *link, c2_chan_cb_t cb)
 {
 	clink_init(link, link, cb);
 	/* do NOT initialise the semaphore here */
 }
 C2_EXPORTED(c2_clink_init);
 
-void c2_clink_fini(struct c2_clink *link)
+C2_INTERNAL void c2_clink_fini(struct c2_clink *link)
 {
 	/* do NOT finalise the semaphore here */
 	clink_tlink_fini(link);
 }
 C2_EXPORTED(c2_clink_fini);
 
-void c2_clink_attach(struct c2_clink *link,
-		     struct c2_clink *group, c2_chan_cb_t cb)
+C2_INTERNAL void c2_clink_attach(struct c2_clink *link,
+				 struct c2_clink *group, c2_chan_cb_t cb)
 {
 	C2_PRE(clink_is_head(group));
 
@@ -218,7 +218,7 @@ static void clink_unlock(struct c2_clink *clink)
    @pre  !c2_clink_is_armed(link)
    @post  c2_clink_is_armed(link)
  */
-void c2_clink_add(struct c2_chan *chan, struct c2_clink *link)
+C2_INTERNAL void c2_clink_add(struct c2_chan *chan, struct c2_clink *link)
 {
 	int rc;
 
@@ -247,7 +247,7 @@ C2_EXPORTED(c2_clink_add);
    @pre   c2_clink_is_armed(link)
    @post !c2_clink_is_armed(link)
  */
-void c2_clink_del(struct c2_clink *link)
+C2_INTERNAL void c2_clink_del(struct c2_clink *link)
 {
 	struct c2_chan *chan;
 
@@ -272,17 +272,17 @@ void c2_clink_del(struct c2_clink *link)
 }
 C2_EXPORTED(c2_clink_del);
 
-bool c2_clink_is_armed(const struct c2_clink *link)
+C2_INTERNAL bool c2_clink_is_armed(const struct c2_clink *link)
 {
 	return link->cl_chan != NULL;
 }
 
-void c2_clink_signal(struct c2_clink *clink)
+C2_INTERNAL void c2_clink_signal(struct c2_clink *clink)
 {
 	clink_signal(clink);
 }
 
-bool c2_chan_trywait(struct c2_clink *link)
+C2_INTERNAL bool c2_chan_trywait(struct c2_clink *link)
 {
 	bool result;
 
@@ -292,7 +292,7 @@ bool c2_chan_trywait(struct c2_clink *link)
 	return result;
 }
 
-void c2_chan_wait(struct c2_clink *link)
+C2_INTERNAL void c2_chan_wait(struct c2_clink *link)
 {
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 	c2_semaphore_down(&link->cl_group->cl_wait);
@@ -300,7 +300,8 @@ void c2_chan_wait(struct c2_clink *link)
 }
 C2_EXPORTED(c2_chan_wait);
 
-bool c2_chan_timedwait(struct c2_clink *link, const c2_time_t abs_timeout)
+C2_INTERNAL bool c2_chan_timedwait(struct c2_clink *link,
+				   const c2_time_t abs_timeout)
 {
 	bool result;
 

@@ -32,42 +32,42 @@
    @{
 */
 
-void c2_mutex_init(struct c2_mutex *mutex)
+C2_INTERNAL void c2_mutex_init(struct c2_mutex *mutex)
 {
 	mutex_init(&mutex->m_mutex);
 }
 C2_EXPORTED(c2_mutex_init);
 
-void c2_mutex_fini(struct c2_mutex *mutex)
+C2_INTERNAL void c2_mutex_fini(struct c2_mutex *mutex)
 {
 	mutex_destroy(&mutex->m_mutex);
 }
 C2_EXPORTED(c2_mutex_fini);
 
-void c2_mutex_lock(struct c2_mutex *mutex)
+C2_INTERNAL void c2_mutex_lock(struct c2_mutex *mutex)
 {
 	mutex_lock(&mutex->m_mutex);
 }
 C2_EXPORTED(c2_mutex_lock);
 
-int c2_mutex_trylock(struct c2_mutex *mutex)
+C2_INTERNAL int c2_mutex_trylock(struct c2_mutex *mutex)
 {
 	return mutex_trylock(&mutex->m_mutex);
 }
 
-void c2_mutex_unlock(struct c2_mutex *mutex)
+C2_INTERNAL void c2_mutex_unlock(struct c2_mutex *mutex)
 {
 	mutex_unlock(&mutex->m_mutex);
 }
 C2_EXPORTED(c2_mutex_unlock);
 
-bool c2_mutex_is_locked(const struct c2_mutex *mutex)
+C2_INTERNAL bool c2_mutex_is_locked(const struct c2_mutex *mutex)
 {
 	return true;
 }
 C2_EXPORTED(c2_mutex_is_locked);
 
-bool c2_mutex_is_not_locked(const struct c2_mutex *mutex)
+C2_INTERNAL bool c2_mutex_is_not_locked(const struct c2_mutex *mutex)
 {
 	return true;
 }

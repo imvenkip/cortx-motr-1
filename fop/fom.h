@@ -290,7 +290,7 @@ struct c2_fom_locality {
  * This function must be invoked with c2_fom_locality::fl_group.s_lock
  * mutex held.
  */
-bool c2_locality_invariant(const struct c2_fom_locality *loc);
+C2_INTERNAL bool c2_locality_invariant(const struct c2_fom_locality *loc);
 
 /**
  * Domain is a collection of localities that compete for the resources.
@@ -356,7 +356,7 @@ enum c2_fom_phase {
  *
  * @pre dom != NULL
  */
-int c2_fom_domain_init(struct c2_fom_domain *dom);
+C2_INTERNAL int c2_fom_domain_init(struct c2_fom_domain *dom);
 
 /**
  * Finalises fom domain.
@@ -367,7 +367,7 @@ int c2_fom_domain_init(struct c2_fom_domain *dom);
  *
  * @pre dom != NULL && dom->fd_localities != NULL
  */
-void c2_fom_domain_fini(struct c2_fom_domain *dom);
+C2_INTERNAL void c2_fom_domain_fini(struct c2_fom_domain *dom);
 
 /**
  * True iff no locality in the domain has a fom to execute.
@@ -375,13 +375,13 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom);
  * This function is, by intention, racy. To guarantee that the domain is idle,
  * the caller must first guarantee that no new foms can be queued.
  */
-bool c2_fom_domain_is_idle(const struct c2_fom_domain *dom);
+C2_INTERNAL bool c2_fom_domain_is_idle(const struct c2_fom_domain *dom);
 
 /**
  * This function iterates over c2_fom_domain members and checks
  * if they are intialised.
  */
-bool c2_fom_domain_invariant(const struct c2_fom_domain *dom);
+C2_INTERNAL bool c2_fom_domain_invariant(const struct c2_fom_domain *dom);
 
 /**
  * Fom call-back states
@@ -500,12 +500,12 @@ struct c2_fom {
  * @pre is_locked(fom)
  * @pre c2_fom_phase(fom) == C2_FOM_PHASE_INIT
  */
-void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh);
+C2_INTERNAL void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh);
 
 /**
  * Returns reqh the fom belongs to
  */
-struct c2_reqh *c2_fom_reqh(const struct c2_fom *fom);
+C2_INTERNAL struct c2_reqh *c2_fom_reqh(const struct c2_fom *fom);
 
 /**
  * Initialises fom allocated by caller.
@@ -546,7 +546,7 @@ void c2_fom_fini(struct c2_fom *fom);
  * This function must be invoked with c2_fom_locality::fl_group.s_lock
  * mutex held.
  */
-bool c2_fom_invariant(const struct c2_fom *fom);
+C2_INTERNAL bool c2_fom_invariant(const struct c2_fom *fom);
 
 /** Type of fom. c2_fom_type is part of c2_fop_type. */
 struct c2_fom_type {
@@ -613,14 +613,14 @@ struct c2_fom_ops {
  * @param fom, A fom executing a possible blocking operation
  * @see c2_fom_locality
  */
-void c2_fom_block_enter(struct c2_fom *fom);
+C2_INTERNAL void c2_fom_block_enter(struct c2_fom *fom);
 
 /**
  * This function is called after potential blocking point.
  *
  * @param fom, A fom done executing a blocking operation
  */
-void c2_fom_block_leave(struct c2_fom *fom);
+C2_INTERNAL void c2_fom_block_leave(struct c2_fom *fom);
 
 /**
  * Dequeues fom from the locality waiting queue and enqueues it into
@@ -630,19 +630,19 @@ void c2_fom_block_leave(struct c2_fom *fom);
  * @pre is_locked(fom)
  * @param fom Ready to be executed fom, is put on locality runq
  */
-void c2_fom_ready(struct c2_fom *fom);
+C2_INTERNAL void c2_fom_ready(struct c2_fom *fom);
 
 /**
  * Moves the fom from waiting to ready queue. Similar to c2_fom_ready(), but
  * callable from a locality different from fom's locality (i.e., with a
  * different locality group lock held).
  */
-void c2_fom_wakeup(struct c2_fom *fom);
+C2_INTERNAL void c2_fom_wakeup(struct c2_fom *fom);
 
 /**
  * Initialises the call-back structure.
  */
-void c2_fom_callback_init(struct c2_fom_callback *cb);
+C2_INTERNAL void c2_fom_callback_init(struct c2_fom_callback *cb);
 
 /**
  * Registers AST call-back with the channel and a fom executing a blocking
@@ -656,8 +656,8 @@ void c2_fom_callback_init(struct c2_fom_callback *cb);
  * @param cb, AST call-back with initialized fc_bottom
  *            @see sm/sm.h
  */
-void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
-                         struct c2_fom_callback *cb);
+C2_INTERNAL void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
+				     struct c2_fom_callback *cb);
 
 /**
  * The same as c2_fom_callback_arm(), but fc_bottom is initialized
@@ -670,8 +670,8 @@ void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
  * @param cb, AST call-back
  *            @see sm/sm.h
   */
-void c2_fom_wait_on(struct c2_fom *fom, struct c2_chan *chan,
-                    struct c2_fom_callback *cb);
+C2_INTERNAL void c2_fom_wait_on(struct c2_fom *fom, struct c2_chan *chan,
+				struct c2_fom_callback *cb);
 
 /**
  * Finalises the call-back. This is only safe to be called when:
@@ -684,7 +684,7 @@ void c2_fom_wait_on(struct c2_fom *fom, struct c2_chan *chan,
  *     - the call-back was armed and the call to c2_fom_callback_cancel()
  *       returned true.
  */
-void c2_fom_callback_fini(struct c2_fom_callback *cb);
+C2_INTERNAL void c2_fom_callback_fini(struct c2_fom_callback *cb);
 
 /**
  * Attempts to cancel a pending call-back.
@@ -694,13 +694,13 @@ void c2_fom_callback_fini(struct c2_fom_callback *cb);
  *
  * @return false if it is too late to cancel a call-back.
  */
-bool c2_fom_callback_cancel(struct c2_fom_callback *cb);
+C2_INTERNAL bool c2_fom_callback_cancel(struct c2_fom_callback *cb);
 
 /**
  * Returns the state of SM group for AST call-backs of locality, given fom is
  * associated with.
  */
-bool c2_fom_group_is_locked(const struct c2_fom *fom);
+C2_INTERNAL bool c2_fom_group_is_locked(const struct c2_fom *fom);
 
 /**
  * Initialises FOM state machines for phases and states.
@@ -709,7 +709,7 @@ bool c2_fom_group_is_locked(const struct c2_fom *fom);
  *
  * @pre fom->fo_loc != NULL
  */
-void c2_fom_sm_init(struct c2_fom *fom);
+C2_INTERNAL void c2_fom_sm_init(struct c2_fom *fom);
 
 static inline void c2_fom_phase_set(struct c2_fom *fom, int phase)
 {
@@ -736,10 +736,10 @@ static inline int c2_fom_rc(const struct c2_fom *fom)
 	return fom->fo_sm_phase.sm_rc;
 }
 
-void c2_fom_type_init(struct c2_fom_type *type,
-		      const struct c2_fom_type_ops *ops,
-		      const struct c2_reqh_service_type  *svc_type,
-		      const struct c2_sm_conf *sm);
+C2_INTERNAL void c2_fom_type_init(struct c2_fom_type *type,
+				  const struct c2_fom_type_ops *ops,
+				  const struct c2_reqh_service_type *svc_type,
+				  const struct c2_sm_conf *sm);
 
 /** @} end of fom group */
 /* __COLIBRI_FOP_FOM_H__ */

@@ -168,7 +168,8 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 	return result;
 }
 
-int c2_linux_stob_setup(struct c2_stob_domain *dom, bool use_directio)
+C2_INTERNAL int c2_linux_stob_setup(struct c2_stob_domain *dom,
+				    bool use_directio)
 {
 	struct linux_domain *ldom;
 
@@ -421,8 +422,9 @@ struct c2_addb_ctx adieu_addb_ctx;
 
    @see c2_linux_stob_open()
  */
-int c2_linux_stob_link(struct c2_stob_domain *dom, struct c2_stob *obj,
-		       const char *path, struct c2_dtx *tx)
+C2_INTERNAL int c2_linux_stob_link(struct c2_stob_domain *dom,
+				   struct c2_stob *obj, const char *path,
+				   struct c2_dtx *tx)
 {
 	int                result;
 	char               symlinkname[64];
@@ -441,14 +443,14 @@ int c2_linux_stob_link(struct c2_stob_domain *dom, struct c2_stob *obj,
 	return result;
 }
 
-int c2_linux_stobs_init(void)
+C2_INTERNAL int c2_linux_stobs_init(void)
 {
 	c2_addb_ctx_init(&adieu_addb_ctx, &adieu_addb_ctx_type,
 			 &c2_addb_global_ctx);
 	return C2_STOB_TYPE_OP(&c2_linux_stob_type, sto_init);
 }
 
-void c2_linux_stobs_fini(void)
+C2_INTERNAL void c2_linux_stobs_fini(void)
 {
 	C2_STOB_TYPE_OP(&c2_linux_stob_type, sto_fini);
 	c2_addb_ctx_fini(&adieu_addb_ctx);

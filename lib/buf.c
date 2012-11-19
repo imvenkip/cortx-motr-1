@@ -29,26 +29,26 @@
    @{
 */
 
-void c2_buf_init(struct c2_buf *buf, void *data, uint32_t nob)
+C2_INTERNAL void c2_buf_init(struct c2_buf *buf, void *data, uint32_t nob)
 {
 	buf->b_addr = data;
 	buf->b_nob  = nob;
 }
 
-void c2_buf_free(struct c2_buf *buf)
+C2_INTERNAL void c2_buf_free(struct c2_buf *buf)
 {
 	c2_free(buf->b_addr);
 	buf->b_addr = NULL;
 	buf->b_nob = 0;
 }
 
-bool c2_buf_eq(const struct c2_buf *x, const struct c2_buf *y)
+C2_INTERNAL bool c2_buf_eq(const struct c2_buf *x, const struct c2_buf *y)
 {
 	return x->b_nob == y->b_nob &&
 		memcmp(x->b_addr, y->b_addr, x->b_nob) == 0;
 }
 
-int c2_buf_copy(struct c2_buf *dest, const struct c2_buf *src)
+C2_INTERNAL int c2_buf_copy(struct c2_buf *dest, const struct c2_buf *src)
 {
 	C2_PRE(dest->b_nob == 0 && dest->b_addr == NULL);
 

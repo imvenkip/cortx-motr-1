@@ -41,7 +41,7 @@ enum {
 /* Global reference to bulkio_params structure. */
 struct bulkio_params *bparm;
 
-C2_TL_DESCR_DECLARE(rpcbulk, extern);
+C2_TL_DESCR_DECLARE(rpcbulk, C2_EXTERN);
 
 extern struct c2_reqh_service_type c2_ioservice_type;
 

@@ -203,9 +203,10 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx);
 		     wait in formation queue and should be sent immediately.
   @param timeout_s   Timeout in seconds.  0 implies don't wait for a reply.
 */
-int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
-		       const struct c2_rpc_item_ops *ri_ops, c2_time_t deadline,
-		       uint32_t timeout_s);
+int c2_rpc_client_call(struct c2_fop *fop,
+		       struct c2_rpc_session *session,
+		       const struct c2_rpc_item_ops *ri_ops,
+		       c2_time_t deadline, uint32_t timeout_s);
 
 /**
   Terminates RPC session and connection with server and finalize client's RPC

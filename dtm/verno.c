@@ -28,7 +28,8 @@
    @{
  */
 
-int c2_verno_cmp(const struct c2_verno *vn0, const struct c2_verno *vn1)
+C2_INTERNAL int c2_verno_cmp(const struct c2_verno *vn0,
+			     const struct c2_verno *vn1)
 {
 	//C2_ASSERT(c2_verno_cmp_invariant(vn0, vn1));
 
@@ -36,8 +37,9 @@ int c2_verno_cmp(const struct c2_verno *vn0, const struct c2_verno *vn1)
 	return C2_3WAY(vn0->vn_vc, vn1->vn_vc);
 }
 
-int c2_verno_is_redoable(const struct c2_verno *unit,
-			 const struct c2_verno *before_update, bool total)
+C2_INTERNAL int c2_verno_is_redoable(const struct c2_verno *unit,
+				     const struct c2_verno *before_update,
+				     bool total)
 {
 	int result;
 	int cmp;
@@ -55,8 +57,9 @@ int c2_verno_is_redoable(const struct c2_verno *unit,
 	return result;
 }
 
-int c2_verno_is_undoable(const struct c2_verno *unit,
-			 const struct c2_verno *before_update, bool total)
+C2_INTERNAL int c2_verno_is_undoable(const struct c2_verno *unit,
+				     const struct c2_verno *before_update,
+				     bool total)
 {
 	int result;
 	int cmp;
@@ -73,14 +76,15 @@ int c2_verno_is_undoable(const struct c2_verno *unit,
 		result = before_update->vn_vc + 1 == unit->vn_vc ? 0 : -EAGAIN;
 	return result;
 }
-int c2_verno_cmp_invariant(const struct c2_verno *vn0,
-			   const struct c2_verno *vn1)
+C2_INTERNAL int c2_verno_cmp_invariant(const struct c2_verno *vn0,
+				       const struct c2_verno *vn1)
 {
 	return c2_lsn_cmp(vn0->vn_lsn, vn1->vn_lsn) ==
 		C2_3WAY(vn0->vn_vc, vn1->vn_vc);
 }
 
-void c2_verno_inc(struct c2_verno *unit, struct c2_fol_rec *rec, uint32_t index)
+C2_INTERNAL void c2_verno_inc(struct c2_verno *unit, struct c2_fol_rec *rec,
+			      uint32_t index)
 {
 	C2_PRE(index < rec->fr_desc.rd_header.rh_obj_nr);
 	C2_PRE(c2_lsn_is_valid(rec->fr_desc.rd_lsn));

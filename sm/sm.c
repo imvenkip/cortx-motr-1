@@ -32,7 +32,7 @@
    @{
 */
 
-void c2_sm_group_init(struct c2_sm_group *grp)
+C2_INTERNAL void c2_sm_group_init(struct c2_sm_group *grp)
 {
 	C2_SET0(grp);
 	c2_mutex_init(&grp->s_lock);
@@ -43,7 +43,7 @@ void c2_sm_group_init(struct c2_sm_group *grp)
 	c2_clink_add(&grp->s_chan, &grp->s_clink);
 }
 
-void c2_sm_group_fini(struct c2_sm_group *grp)
+C2_INTERNAL void c2_sm_group_fini(struct c2_sm_group *grp)
 {
 	if (c2_clink_is_armed(&grp->s_clink))
 		c2_clink_del(&grp->s_clink);
@@ -52,13 +52,13 @@ void c2_sm_group_fini(struct c2_sm_group *grp)
 	c2_mutex_fini(&grp->s_lock);
 }
 
-void c2_sm_group_lock(struct c2_sm_group *grp)
+C2_INTERNAL void c2_sm_group_lock(struct c2_sm_group *grp)
 {
 	c2_mutex_lock(&grp->s_lock);
 	c2_sm_asts_run(grp);
 }
 
-void c2_sm_group_unlock(struct c2_sm_group *grp)
+C2_INTERNAL void c2_sm_group_unlock(struct c2_sm_group *grp)
 {
 	c2_sm_asts_run(grp);
 	c2_mutex_unlock(&grp->s_lock);
@@ -69,7 +69,7 @@ static bool grp_is_locked(const struct c2_sm_group *grp)
 	return c2_mutex_is_locked(&grp->s_lock);
 }
 
-void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast)
+C2_INTERNAL void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 {
 	C2_PRE(ast->sa_cb != NULL);
 
@@ -79,7 +79,7 @@ void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	c2_clink_signal(&grp->s_clink);
 }
 
-void c2_sm_asts_run(struct c2_sm_group *grp)
+C2_INTERNAL void c2_sm_asts_run(struct c2_sm_group *grp)
 {
 	struct c2_sm_ast *ast;
 
@@ -137,7 +137,7 @@ static const struct c2_sm_state_descr *sm_state(const struct c2_sm *mach)
  * Weaker form of state machine invariant, that doesn't check that the group
  * lock is held. Used in c2_sm_init() and c2_sm_fini().
  */
-bool sm_invariant0(const struct c2_sm *mach)
+C2_INTERNAL bool sm_invariant0(const struct c2_sm *mach)
 {
 	const struct c2_sm_state_descr *sd = sm_state(mach);
 
@@ -145,7 +145,7 @@ bool sm_invariant0(const struct c2_sm *mach)
 	       ergo(sd->sd_invariant != NULL, sd->sd_invariant(mach));
 }
 
-bool c2_sm_invariant(const struct c2_sm *mach)
+C2_INTERNAL bool c2_sm_invariant(const struct c2_sm *mach)
 {
 	return sm_is_locked(mach) && sm_invariant0(mach);
 }
@@ -181,9 +181,9 @@ static bool conf_invariant(const struct c2_sm_conf *conf)
 	return true;
 }
 
-void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
-		uint32_t state, struct c2_sm_group *grp,
-		struct c2_addb_ctx *ctx)
+C2_INTERNAL void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
+			    uint32_t state, struct c2_sm_group *grp,
+			    struct c2_addb_ctx *ctx)
 {
 	C2_PRE(conf_invariant(conf));
 	C2_PRE(conf->scf_state[state].sd_flags & C2_SDF_INITIAL);
@@ -197,14 +197,15 @@ void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
 	C2_POST(sm_invariant0(mach));
 }
 
-void c2_sm_fini(struct c2_sm *mach)
+C2_INTERNAL void c2_sm_fini(struct c2_sm *mach)
 {
 	C2_ASSERT(sm_invariant0(mach));
 	C2_PRE(sm_state(mach)->sd_flags & C2_SDF_TERMINAL);
 	c2_chan_fini(&mach->sm_chan);
 }
 
-int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline)
+C2_INTERNAL int c2_sm_timedwait(struct c2_sm *mach, uint64_t states,
+				c2_time_t deadline)
 {
 	struct c2_clink waiter;
 	int             result;
@@ -260,7 +261,7 @@ static void state_set(struct c2_sm *mach, int state, int32_t rc)
 	C2_POST(c2_sm_invariant(mach));
 }
 
-void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
+C2_INTERNAL void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 {
 	C2_PRE(rc != 0);
 	C2_PRE(c2_sm_invariant(mach));
@@ -277,7 +278,7 @@ void c2_sm_state_set(struct c2_sm *mach, int state)
 }
 C2_EXPORTED(c2_sm_state_set);
 
-void c2_sm_move(struct c2_sm *mach, int32_t rc, int state)
+C2_INTERNAL void c2_sm_move(struct c2_sm *mach, int32_t rc, int state)
 {
 	rc == 0 ? c2_sm_state_set(mach, state) : c2_sm_fail(mach, state, rc);
 }
@@ -333,8 +334,8 @@ static bool sm_timeout_cancel(struct c2_clink *link)
 	return true;
 }
 
-int c2_sm_timeout(struct c2_sm *mach, struct c2_sm_timeout *to,
-		  c2_time_t timeout, int state)
+C2_INTERNAL int c2_sm_timeout(struct c2_sm *mach, struct c2_sm_timeout *to,
+			      c2_time_t timeout, int state)
 {
 	int              result;
 	struct c2_timer *tm = &to->st_timer;
@@ -371,7 +372,7 @@ int c2_sm_timeout(struct c2_sm *mach, struct c2_sm_timeout *to,
 	return result;
 }
 
-void c2_sm_timeout_fini(struct c2_sm_timeout *to)
+C2_INTERNAL void c2_sm_timeout_fini(struct c2_sm_timeout *to)
 {
 	C2_PRE(to->st_ast.sa_next == NULL);
 
@@ -383,8 +384,8 @@ void c2_sm_timeout_fini(struct c2_sm_timeout *to)
 	c2_clink_fini(&to->st_clink);
 }
 
-void c2_sm_conf_extend(const struct c2_sm_state_descr *base,
-		       struct c2_sm_state_descr *sub, uint32_t nr)
+C2_INTERNAL void c2_sm_conf_extend(const struct c2_sm_state_descr *base,
+				   struct c2_sm_state_descr *sub, uint32_t nr)
 {
 	uint32_t i;
 

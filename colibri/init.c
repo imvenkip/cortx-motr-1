@@ -62,11 +62,11 @@
 #include "sns/sns.h"
 #include "cm/cm.h"
 
-extern int  c2_memory_init(void);
-extern void c2_memory_fini(void);
+C2_INTERNAL int c2_memory_init(void);
+C2_INTERNAL void c2_memory_fini(void);
 
-extern int  libc2_init(void);
-extern void libc2_fini(void);
+C2_INTERNAL int libc2_init(void);
+C2_INTERNAL void libc2_fini(void);
 
 /**
    @addtogroup init

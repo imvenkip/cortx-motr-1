@@ -180,7 +180,7 @@ out:
 	}
 }
 
-int c2_sns_repair_cp_read(struct c2_cm_cp *cp)
+C2_INTERNAL int c2_sns_repair_cp_read(struct c2_cm_cp *cp)
 {
 	cp->c_io_op = C2_CM_CP_READ;
 	return cp_io(cp, SIO_READ);
@@ -196,7 +196,7 @@ static void spare_stobid_fill(struct c2_cm_cp *cp)
 	sns_cp->rc_index            = sns_ag->sag_spare_cob_index;
 }
 
-int c2_sns_repair_cp_write(struct c2_cm_cp *cp)
+C2_INTERNAL int c2_sns_repair_cp_write(struct c2_cm_cp *cp)
 {
 	cp->c_io_op = C2_CM_CP_WRITE;
 	spare_stobid_fill(cp);
@@ -204,7 +204,7 @@ int c2_sns_repair_cp_write(struct c2_cm_cp *cp)
 	return cp_io(cp, SIO_WRITE);
 }
 
-int c2_sns_repair_cp_io_wait(struct c2_cm_cp *cp)
+C2_INTERNAL int c2_sns_repair_cp_io_wait(struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cp *sns_cp = cp2snscp(cp);
 

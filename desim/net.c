@@ -99,7 +99,7 @@ static int net_srv_threads_start(struct sim_callout *call)
 }
 
 
-void net_srv_init(struct sim *s, struct net_srv *srv)
+C2_INTERNAL void net_srv_init(struct sim *s, struct net_srv *srv)
 {
 	rpc_tlist_init(&srv->ns_queue);
 	sim_chan_init(&srv->ns_incoming, "srv#%s::incoming", srv->ns_name);
@@ -108,7 +108,7 @@ void net_srv_init(struct sim *s, struct net_srv *srv)
 	sim_timer_add(s, 0, net_srv_threads_start, srv);
 }
 
-void net_srv_fini(struct net_srv *srv)
+C2_INTERNAL void net_srv_fini(struct net_srv *srv)
 {
 	int i;
 
@@ -127,23 +127,23 @@ void net_srv_fini(struct net_srv *srv)
 	sim_chan_fini(&srv->ns_incoming);
 }
 
-void net_init(struct net_conf *net)
+C2_INTERNAL void net_init(struct net_conf *net)
 {
 	sim_chan_init(&net->nc_queue, "net::queue");
 	cnt_init(&net->nc_rpc_wait, NULL, "net::rpc_wait");
 	cnt_init(&net->nc_rpc_bulk_wait, NULL, "net::rpc_bulk_wait");
 }
 
-void net_fini(struct net_conf *net)
+C2_INTERNAL void net_fini(struct net_conf *net)
 {
 	sim_chan_fini(&net->nc_queue);
 	cnt_fini(&net->nc_rpc_wait);
 	cnt_fini(&net->nc_rpc_bulk_wait);
 }
 
-void net_rpc_init(struct net_rpc *rpc, struct net_conf *conf,
-		  struct net_srv *srv, struct c2_stob_id *id,
-		  unsigned long long offset, unsigned long nob)
+C2_INTERNAL void net_rpc_init(struct net_rpc *rpc, struct net_conf *conf,
+			      struct net_srv *srv, struct c2_stob_id *id,
+			      unsigned long long offset, unsigned long nob)
 {
 	rpc->nr_conf   = conf;
 	rpc->nr_srv    = srv;
@@ -157,7 +157,7 @@ void net_rpc_init(struct net_rpc *rpc, struct net_conf *conf,
 	rpc->nr_bulk_wait.ch_cnt_sleep.c_parent = &conf->nc_rpc_bulk_wait;
 }
 
-void net_rpc_fini(struct net_rpc *rpc)
+C2_INTERNAL void net_rpc_fini(struct net_rpc *rpc)
 {
 	C2_ASSERT(rpc->nr_todo == 0);
 	rpc_tlink_fini(rpc);
@@ -194,7 +194,7 @@ static void net_tx(struct sim_thread *t, struct net_conf *n,
 	net_leave(t, n, nob);
 }
 
-void net_rpc_send(struct sim_thread *t, struct net_rpc *rpc)
+C2_INTERNAL void net_rpc_send(struct sim_thread *t, struct net_rpc *rpc)
 {
 	struct net_conf *n;
 
@@ -206,7 +206,7 @@ void net_rpc_send(struct sim_thread *t, struct net_rpc *rpc)
 	net_tx(t, n, n->nc_rpc_size, n->nc_rpc_delay_min, n->nc_rpc_delay_max);
 }
 
-void net_rpc_bulk(struct sim_thread *t, struct net_rpc *rpc)
+C2_INTERNAL void net_rpc_bulk(struct sim_thread *t, struct net_rpc *rpc)
 {
 	struct net_conf *n;
 	sim_time_t       tx_min;
@@ -220,10 +220,10 @@ void net_rpc_bulk(struct sim_thread *t, struct net_rpc *rpc)
 	sim_chan_signal(&rpc->nr_bulk_wait);
 }
 
-void net_rpc_process(struct sim_thread *t,
-		     struct net_conf *net, struct net_srv *srv,
-		     struct c2_stob_id *id, unsigned long long offset,
-		     unsigned long count)
+C2_INTERNAL void net_rpc_process(struct sim_thread *t,
+				 struct net_conf *net, struct net_srv *srv,
+				 struct c2_stob_id *id,
+				 unsigned long long offset, unsigned long count)
 {
 	struct net_rpc rpc;
 

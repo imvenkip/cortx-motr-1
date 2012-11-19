@@ -386,19 +386,19 @@ struct c2_cfg_filesystem__val {
 /**
    Colibri service type.
 */
-enum c2_cfg_service_type {
-	/** metadata service       */
+/*enum c2_cfg_service_type {
+	|+* metadata service       +|
 	C2_CFG_SERVICE_METADATA = 1,
 
-	/** io/data service        */
+	|+* io/data service        +|
 	C2_CFG_SERVICE_IO,
 
-	/** management service     */
+	|+* management service     +|
 	C2_CFG_SERVICE_MGMT,
 
-	/** DLM service            */
+	|+* DLM service            +|
 	C2_CFG_SERVICE_DLM,
-};
+};*/
 
 /**
    Colibri service configuration key.

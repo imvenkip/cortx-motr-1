@@ -35,70 +35,66 @@
    everywhere---no optimisation for non-SMP configurations in present.
  */
 
-#ifdef PREFIX
-#undef PREFIX
-#endif
-
-#define PREFIX static inline
-
 struct c2_atomic64 {
 	atomic64_t a_value;
 };
 
-PREFIX void c2_atomic64_set(struct c2_atomic64 *a, int64_t num)
+static inline void c2_atomic64_set(struct c2_atomic64 *a, int64_t num)
 {
 	C2_CASSERT(sizeof a->a_value == sizeof num);
 
 	atomic64_set(&a->a_value, num);
 }
 
-PREFIX int64_t c2_atomic64_get(const struct c2_atomic64 *a)
+static inline int64_t c2_atomic64_get(const struct c2_atomic64 *a)
 {
 	return	atomic64_read(&a->a_value);
 }
 
-PREFIX void c2_atomic64_inc(struct c2_atomic64 *a)
+static inline void c2_atomic64_inc(struct c2_atomic64 *a)
 {
 	atomic64_inc(&a->a_value);
 }
 
-PREFIX void c2_atomic64_dec(struct c2_atomic64 *a)
+static inline void c2_atomic64_dec(struct c2_atomic64 *a)
 {
 	atomic64_dec(&a->a_value);
 }
 
-PREFIX void c2_atomic64_add(struct c2_atomic64 *a, int64_t num)
+static inline void c2_atomic64_add(struct c2_atomic64 *a, int64_t num)
 {
 	atomic64_add(num, &a->a_value);
 }
 
-PREFIX void c2_atomic64_sub(struct c2_atomic64 *a, int64_t num)
+static inline void c2_atomic64_sub(struct c2_atomic64 *a, int64_t num)
 {
 	atomic64_sub(num, &a->a_value);
 }
 
 
-PREFIX int64_t c2_atomic64_add_return(struct c2_atomic64 *a, int64_t delta)
+static inline int64_t c2_atomic64_add_return(struct c2_atomic64 *a,
+						  int64_t delta)
 {
 	return atomic64_add_return(delta, &a->a_value);
 }
 
-PREFIX int64_t c2_atomic64_sub_return(struct c2_atomic64 *a, int64_t delta)
+static inline int64_t c2_atomic64_sub_return(struct c2_atomic64 *a,
+						  int64_t delta)
 {
 	return atomic64_sub_return(delta, &a->a_value);
 }
 
-PREFIX bool c2_atomic64_inc_and_test(struct c2_atomic64 *a)
+static inline bool c2_atomic64_inc_and_test(struct c2_atomic64 *a)
 {
 	return atomic64_inc_and_test(&a->a_value);
 }
 
-PREFIX bool c2_atomic64_dec_and_test(struct c2_atomic64 *a)
+static inline bool c2_atomic64_dec_and_test(struct c2_atomic64 *a)
 {
 	return atomic64_dec_and_test(&a->a_value);
 }
 
-PREFIX bool c2_atomic64_cas(int64_t *loc, int64_t old, int64_t new)
+static inline bool c2_atomic64_cas(int64_t * loc, int64_t old, int64_t new)
 {
 	return cmpxchg64(loc, old, new) == old;
 }

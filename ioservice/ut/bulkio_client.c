@@ -32,7 +32,7 @@ enum {
 	IO_SINGLE_BUFFER	= 1,
 };
 
-C2_TL_DESCR_DECLARE(rpcbulk, extern);
+C2_TL_DESCR_DECLARE(rpcbulk, C2_EXTERN);
 extern struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
 extern const struct c2_net_buffer_callbacks rpc_bulk_cb;
 

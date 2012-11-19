@@ -149,7 +149,7 @@ static int client_threads_start(struct sim_callout *call)
 	return 1;
 }
 
-void client_init(struct sim *s, struct client_conf *conf)
+C2_INTERNAL void client_init(struct sim *s, struct client_conf *conf)
 {
 	unsigned i;
 
@@ -178,7 +178,7 @@ void client_init(struct sim *s, struct client_conf *conf)
 	sim_timer_add(s, 0, client_threads_start, conf);
 }
 
-void client_fini(struct client_conf *conf)
+C2_INTERNAL void client_fini(struct client_conf *conf)
 {
 	unsigned i;
 	unsigned j;

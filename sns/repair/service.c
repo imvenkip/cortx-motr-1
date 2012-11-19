@@ -187,6 +187,8 @@ static void service_fini(struct c2_reqh_service *service)
 	C2_LEAVE();
 }
 
+#undef C2_TRACE_SUBSYSTEM
+
 /** @} SNSRepairSVC */
 /*
  *  Local variables:

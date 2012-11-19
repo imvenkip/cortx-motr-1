@@ -34,14 +34,14 @@
 struct c2_buf;
 
 /** Does the buffer point at anything? */
-bool c2_buf_is_aimed(const struct c2_buf *buf);
+C2_INTERNAL bool c2_buf_is_aimed(const struct c2_buf *buf);
 
 /**
  * Do `buf' and `str' contain equal sequences of non-'\0' characters?
  *
  * @pre  c2_buf_is_aimed(buf) && str != NULL
  */
-bool c2_buf_streq(const struct c2_buf *buf, const char *str);
+C2_INTERNAL bool c2_buf_streq(const struct c2_buf *buf, const char *str);
 
 /**
  * Duplicates a string pointed to by buf->b_addr.
@@ -51,7 +51,7 @@ bool c2_buf_streq(const struct c2_buf *buf, const char *str);
  *
  * @pre  c2_buf_is_aimed(buf)
  */
-char *c2_buf_strdup(const struct c2_buf *buf);
+C2_INTERNAL char *c2_buf_strdup(const struct c2_buf *buf);
 
 /** @} buf_ext */
 #endif /* __COLIBRI_CONF_BUF_EXT_H__ */

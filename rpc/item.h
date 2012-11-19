@@ -253,23 +253,23 @@ struct c2_rpc_item_ops {
 	void (*rio_free)(struct c2_rpc_item *item);
 };
 
-void c2_rpc_item_init(struct c2_rpc_item *item,
-		      const struct c2_rpc_item_type *itype);
+C2_INTERNAL void c2_rpc_item_init(struct c2_rpc_item *item,
+				  const struct c2_rpc_item_type *itype);
 
-void c2_rpc_item_fini(struct c2_rpc_item *item);
+C2_INTERNAL void c2_rpc_item_fini(struct c2_rpc_item *item);
 
-c2_bcount_t c2_rpc_item_onwire_header_size(void);
+C2_INTERNAL c2_bcount_t c2_rpc_item_onwire_header_size(void);
 
-c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item);
-struct c2_rpc_machine *item_machine(const struct c2_rpc_item *item);
+C2_INTERNAL c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item);
+C2_INTERNAL struct c2_rpc_machine *item_machine(const struct c2_rpc_item *item);
 
-int c2_rpc_item_timedwait(struct c2_rpc_item *item,
-			  uint64_t            states,
-			  c2_time_t           timeout);
+C2_INTERNAL int c2_rpc_item_timedwait(struct c2_rpc_item *item,
+				      uint64_t states, c2_time_t timeout);
 
-int c2_rpc_item_wait_for_reply(struct c2_rpc_item *item, c2_time_t timeout);
+C2_INTERNAL int c2_rpc_item_wait_for_reply(struct c2_rpc_item *item,
+					   c2_time_t timeout);
 
-void c2_rpc_item_free(struct c2_rpc_item *item);
+C2_INTERNAL void c2_rpc_item_free(struct c2_rpc_item *item);
 
 /** @todo: different callbacks called on events occured while processing
    in update stream */
@@ -364,14 +364,15 @@ struct c2_rpc_item_type (itype) = {                      \
 
   @param item_type The rpc item type to be registered.
 */
-int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type);
+C2_INTERNAL int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type);
 
 /** De-registers an rpc item type by deleting the corresponding entry in the
     rpc item types list.
 
     @param item_type The rpc item type to be deregistered.
 */
-void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type);
+C2_INTERNAL void c2_rpc_item_type_deregister(struct c2_rpc_item_type
+					     *item_type);
 
 /** Returns a pointer to rpc item type registered for an opcode
 
@@ -379,7 +380,7 @@ void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type);
   @retval Pointer to the rpc item type for that opcode.
   @retval NULL if the item type is not registered.
 */
-struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
+C2_INTERNAL struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
 
 #endif
 

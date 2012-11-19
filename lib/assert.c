@@ -25,6 +25,7 @@
 #  include <execinfo.h>
 #endif
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -66,6 +67,8 @@ void c2_panic(const char *expr, const char *func, const char *file, int lineno)
 	C2_LOG(C2_FATAL, "panic: %s %s() (%s:%i)", expr, func, file, lineno);
 	abort();
 }
+
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} end of assert group */
 

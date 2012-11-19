@@ -111,7 +111,7 @@ static const struct c2_conf_obj_ops filesystem_ops = {
 	.coo_delete    = filesystem_delete
 };
 
-struct c2_conf_obj *c2_conf__filesystem_create(void)
+C2_INTERNAL struct c2_conf_obj *c2_conf__filesystem_create(void)
 {
 	struct c2_conf_filesystem *x;
 	struct c2_conf_obj        *ret;

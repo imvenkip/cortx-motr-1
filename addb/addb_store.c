@@ -32,8 +32,8 @@
 
 c2_bindex_t addb_stob_offset = 0;
 
-int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
-		     struct c2_stob *stob)
+C2_INTERNAL int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
+				 struct c2_stob *stob)
 {
 	const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
 	struct c2_addb_record        rec;
@@ -118,8 +118,8 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
 
 uint64_t c2_addb_db_seq = 0;
 
-int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *env,
-		   struct c2_table *table)
+C2_INTERNAL int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *env,
+			       struct c2_table *table)
 {
 	const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
 	struct c2_addb_record rec;
@@ -181,8 +181,8 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
 {
 	return 0;
 }
-int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *env,
-		   struct c2_table *table)
+C2_INTERNAL int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *env,
+			       struct c2_table *table)
 {
 	return 0;
 }
@@ -193,7 +193,7 @@ int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *env,
    @todo Use new net interfaces here.
  */
 
-int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
+C2_INTERNAL int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
 {
 	const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
 	struct c2_fop         *request;

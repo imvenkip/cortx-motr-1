@@ -27,6 +27,7 @@
 
 #include "lib/string.h" /* memcpy */
 #include "lib/trace.h"
+#include "lib/cdefs.h"  /* C2_UNUSED */
 #include "colibri/magic.h"
 
 #include "cm/ag.h"
@@ -36,18 +37,18 @@
    @addtogroup CMAG
  */
 
-C2_TL_DESCR_DEFINE(aggr_grps, "aggregation groups", ,struct c2_cm_aggr_group,
-		   cag_cm_linkage, cag_magic, CM_AG_LINK_MAGIX,
-		   CM_AG_HEAD_MAGIX);
+C2_TL_DESCR_DEFINE(aggr_grps, "aggregation groups", C2_INTERNAL,
+		   struct c2_cm_aggr_group, cag_cm_linkage, cag_magic,
+		   CM_AG_LINK_MAGIX, CM_AG_HEAD_MAGIX);
 
-C2_TL_DEFINE(aggr_grps, , struct c2_cm_aggr_group);
+C2_TL_DEFINE(aggr_grps, C2_INTERNAL, struct c2_cm_aggr_group);
 
 struct c2_bob_type ag_bob;
 
-C2_BOB_DEFINE( ,&ag_bob, c2_cm_aggr_group);
+C2_BOB_DEFINE(static C2_UNUSED, &ag_bob, c2_cm_aggr_group);
 
-int c2_cm_ag_id_cmp(const struct c2_cm_ag_id *id0,
-		    const struct c2_cm_ag_id *id1)
+C2_INTERNAL int c2_cm_ag_id_cmp(const struct c2_cm_ag_id *id0,
+				const struct c2_cm_ag_id *id1)
 {
 	C2_PRE(id0 != NULL);
 	C2_PRE(id1 != NULL);
@@ -56,9 +57,11 @@ int c2_cm_ag_id_cmp(const struct c2_cm_ag_id *id0,
 	       c2_uint128_cmp(&id0->ai_lo, &id1->ai_lo);
 }
 
-void c2_cm_aggr_group_init(struct c2_cm_aggr_group *ag, struct c2_cm *cm,
-			   const struct c2_cm_ag_id *id,
-			   const struct c2_cm_aggr_group_ops *ag_ops)
+C2_INTERNAL void c2_cm_aggr_group_init(struct c2_cm_aggr_group *ag,
+				       struct c2_cm *cm,
+				       const struct c2_cm_ag_id *id,
+				       const struct c2_cm_aggr_group_ops
+				       *ag_ops)
 {
 	C2_ENTRY();
 	C2_PRE(id != NULL);
@@ -76,7 +79,7 @@ void c2_cm_aggr_group_init(struct c2_cm_aggr_group *ag, struct c2_cm *cm,
 	C2_LEAVE();
 }
 
-void c2_cm_aggr_group_fini(struct c2_cm_aggr_group *ag)
+C2_INTERNAL void c2_cm_aggr_group_fini(struct c2_cm_aggr_group *ag)
 {
 	struct c2_cm *cm;
 
@@ -93,8 +96,9 @@ void c2_cm_aggr_group_fini(struct c2_cm_aggr_group *ag)
 	C2_LEAVE();
 }
 
-struct c2_cm_aggr_group *c2_cm_aggr_group_find(struct c2_cm *cm,
-					       const struct c2_cm_ag_id *id)
+C2_INTERNAL struct c2_cm_aggr_group *c2_cm_aggr_group_find(struct c2_cm *cm,
+							   const struct
+							   c2_cm_ag_id *id)
 {
 	struct c2_cm_aggr_group *ag;
 
@@ -112,7 +116,8 @@ struct c2_cm_aggr_group *c2_cm_aggr_group_find(struct c2_cm *cm,
 	return NULL;
 }
 
-void c2_cm_aggr_group_add(struct c2_cm *cm, struct c2_cm_aggr_group *ag)
+C2_INTERNAL void c2_cm_aggr_group_add(struct c2_cm *cm,
+				      struct c2_cm_aggr_group *ag)
 {
 	struct c2_cm_aggr_group *found;
 	int                      val;
@@ -135,7 +140,7 @@ void c2_cm_aggr_group_add(struct c2_cm *cm, struct c2_cm_aggr_group *ag)
 	C2_LEAVE();
 }
 
-struct c2_cm_aggr_group *c2_cm_ag_hi(struct c2_cm *cm)
+C2_INTERNAL struct c2_cm_aggr_group *c2_cm_ag_hi(struct c2_cm *cm)
 {
 
 	C2_PRE(cm != NULL);
@@ -144,7 +149,7 @@ struct c2_cm_aggr_group *c2_cm_ag_hi(struct c2_cm *cm)
 	return aggr_grps_tlist_head(&cm->cm_aggr_grps);
 }
 
-struct c2_cm_aggr_group *c2_cm_ag_lo(struct c2_cm *cm)
+C2_INTERNAL struct c2_cm_aggr_group *c2_cm_ag_lo(struct c2_cm *cm)
 {
 	C2_PRE(cm != NULL);
 	C2_PRE(c2_cm_is_locked(cm));
