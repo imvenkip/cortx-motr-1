@@ -29,9 +29,9 @@ clean() {
 }
 
 build() {
-    sh autogen.sh
-    ./configure
-    $MAKE
+    autoreconf -ifs
+    ./configure $CONFIGURE_OPTS
+    $MAKE $MAKE_OPTS
 }
 
 _reset() {
@@ -46,18 +46,23 @@ run_st()  { _reset; sudo "$SRC/c2t1fs/linux_kernel/st/c2t1fs_test.sh"; }
 
 dist_check() {
     local DIST=colibri-0.1.0
+    local DISTDIR="/tmp/$DIST"
+    local DISTFILE="$DISTDIR.tar.gz"
 
     cd "$SRC"
-    $MAKE dist
+    $MAKE dist distdir=$DISTDIR
 
     cd ..
-    tar -xzf "$OLDPWD/$DIST.tar.gz"
+    # don't try to preserve files ownership in case if we are unpacking over
+    # NFS, and strip leading "tmp/" part
+    tar --no-same-owner --strip-components=1 -xzf "$DISTFILE"
 
     cd $DIST
     build
 
     cd ..
     rm -r $DIST
+    rm -r $DISTFILE
 }
 
 help() {
@@ -87,10 +92,14 @@ Commands:
                   '-f' will also remove untracked files and
                   directories (i.e. those not added to the git
                   repository).
-		  *CAUTION*: You do not want to use '-f' option if
+                  *CAUTION*: You do not want to use '-f' option if
                   there are any untracked files you care about.
 
     help    Show this help and exit.
+
+Environment variables:
+    CONFIGURE_OPTS      Extra options for './configure' command.
+    MAKE_OPTS           Extra options for 'make' command.
 
 C2 sources: $SRC
 UT output:  $RUNDIR
@@ -103,9 +112,9 @@ case "$1" in
     run-kut) run_kut;;
     run-st)  run_st;;
     run-all)
-	shift; run_ut "$@"
-	echo 'Running kernel UT ...'; run_kut
-	run_st;;
+        shift; run_ut "$@"
+        echo 'Running kernel UT ...'; run_kut
+        run_st;;
     dist-check) dist_check;;
     clean) shift; clean "$@";;
     help)  help 0;;
