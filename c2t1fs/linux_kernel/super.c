@@ -222,10 +222,12 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	root_inode = c2t1fs_root_iget(sb);
 	if (root_inode == NULL) {
 		rc = -ENOMEM;
+	        C2_LOG(C2_FATAL, "c2t1fs_root_iget() failed with %d", rc);
 		goto out_map_fini;
 	}
 	if (IS_ERR(root_inode)) {
 	        rc = PTR_ERR(root_inode);
+	        C2_LOG(C2_FATAL, "c2t1fs_root_iget() failed with %d", rc);
 	        goto out_map_fini;
 	}
 
@@ -233,6 +235,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	if (sb->s_root == NULL) {
 		iput(root_inode);
 		rc = -ENOMEM;
+	        C2_LOG(C2_FATAL, "d_alloc_root() failed with %d", rc);
 		goto out_map_fini;
 	}
 
@@ -247,27 +250,22 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 
 out_map_fini:
 	c2t1fs_container_location_map_fini(&csb->csb_cl_map);
-
 layout_fini:
 	c2t1fs_sb_layout_fini(csb);
-
 disconnect_all:
 	c2t1fs_disconnect_from_all_services(csb);
+	c2t1fs_service_contexts_discard(csb);
 poolmach_fini:
 	c2_poolmach_fini(csb->csb_pool.po_mach);
 	c2_free(csb->csb_pool.po_mach);
 pool_fini:
 	c2_pool_fini(&csb->csb_pool);
-
 out_fini:
 	c2t1fs_sb_fini(csb);
-
 out_free:
 	c2_free(csb);
-
 out:
 	sb->s_fs_info = NULL;
-
 	C2_ASSERT(rc != 0);
 	C2_RETURN(rc);
 }

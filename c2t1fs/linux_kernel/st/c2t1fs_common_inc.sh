@@ -11,6 +11,9 @@ COLIBRI_MODULE=kcolibri
 COLIBRI_MODULE_TRACE_MASK=0
 COLIBRI_TRACE_PRINT_CONTEXT=none
 COLIBRI_TRACE_LEVEL=call+
+export C2_TRACE_IMMEDIATE_MASK=all # put your subsystem here
+export C2_TRACE_LEVEL=debug+
+export C2_TRACE_PRINT_CONTEXT=full
 
 COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%Y-%m-%d_%T"`.log
 

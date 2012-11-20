@@ -102,11 +102,12 @@ static void fid_wire2mem(struct c2_fid     *tgt,
 static int name_mem2wire(struct c2_fop_str *tgt,
                          const char *name, int namelen)
 {
-        tgt->s_buf = c2_alloc(namelen);
+        tgt->s_buf = c2_alloc(namelen + 1);
         if (tgt->s_buf == NULL)
                 return -ENOMEM;
-        tgt->s_len = namelen;
+        tgt->s_len = namelen + 1;
         memcpy(tgt->s_buf, name, namelen);
+        tgt->s_buf[namelen] = '\0';
         return 0;
 }
 
@@ -577,7 +578,7 @@ static int c2t1fs_mds_cob_fop_populate(struct c2t1fs_mdop     *mo,
                 name_mem2wire(&readdir->r_pos, mo->mo_pos, mo->mo_poslen);
                 break;
         default:
-                rc = -ENOTSUPP;
+                rc = -ENOSYS;
                 break;
         }
 
@@ -628,13 +629,14 @@ static int c2t1fs_mds_cob_op(struct c2t1fs_sb      *csb,
 	fop = c2_fop_alloc(ftype, NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;
-		C2_LOG(C2_ERROR, "Memory allocation for struct"
-				 " c2_fop_cob_create failed");
+		C2_LOG(C2_FATAL, "c2_fop_alloc() failed with %d", rc);
 		goto out;
 	}
 
 	rc = c2t1fs_mds_cob_fop_populate(mo, fop);
 	if (rc != 0) {
+		C2_LOG(C2_FATAL,
+		       "c2t1fs_mds_cob_fop_populate() failed with %d", rc);
 		c2_fop_free(fop);
 		goto out;
 	}
@@ -645,9 +647,11 @@ static int c2t1fs_mds_cob_op(struct c2t1fs_sb      *csb,
 	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
 				0 /* deadline */, C2T1FS_RPC_TIMEOUT);
 
-	if (rc != 0)
+	if (rc != 0) {
+		C2_LOG(C2_FATAL,
+		       "c2_rpc_client_call(%x) failed with %d", c2_fop_opcode(fop), rc);
 		goto out;
-
+        }
 
         switch (c2_fop_opcode(fop)) {
         case C2_MDSERVICE_CREATE_OPCODE:
@@ -701,14 +705,8 @@ static int c2t1fs_mds_cob_op(struct c2t1fs_sb      *csb,
                 *rep = readdir_rep;
                 break;
         default:
-                C2_LOG(C2_ERROR, "Unexpected fop opcode %x", c2_fop_opcode(fop));
-                rc = -ENOTSUPP;
-                goto out;
-        }
-
-        if (rc != 0) {
-                C2_LOG(C2_ERROR, "Operation %x failed with rc %d",
-                       c2_fop_opcode(fop), rc);
+                C2_LOG(C2_FATAL, "Unexpected fop opcode %x", c2_fop_opcode(fop));
+                rc = -ENOSYS;
                 goto out;
         }
 

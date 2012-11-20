@@ -177,7 +177,7 @@ struct inode *c2t1fs_root_iget(struct super_block *sb)
         mo.mo_attr.ca_tfid = c2t1fs_root_fid;
 	rc = c2t1fs_mds_cob_getattr(C2T1FS_SB(sb), &mo, &rep);
 	if (rc != 0) {
-	        C2_LOG(C2_ERROR, "Root gettattr failed: %d", rc);
+	        C2_LOG(C2_FATAL, "c2t1fs_mds_cob_getattr() failed with %d", rc);
 	        return ERR_PTR(rc);
 	}
 
@@ -283,6 +283,10 @@ static int c2t1fs_inode_read(struct inode *inode, struct c2_fop_cob *body)
 	inode->i_gid   = 0;
 	inode->i_rdev  = 0;
 
+	rc = c2t1fs_inode_update(inode, body);
+	if (rc != 0)
+	        goto out;
+
 	if (S_ISREG(inode->i_mode)) {
 		inode->i_op   = &c2t1fs_reg_inode_operations;
 		inode->i_fop  = &c2t1fs_reg_file_operations;
@@ -290,13 +294,9 @@ static int c2t1fs_inode_read(struct inode *inode, struct c2_fop_cob *body)
 		inode->i_op   = &c2t1fs_dir_inode_operations;
 		inode->i_fop  = &c2t1fs_dir_file_operations;
 	} else {
-		rc = -ENOTSUPP;
+		rc = -ENOSYS;
 	}
 	
-	if (rc != 0)
-	        goto out;
-	
-	rc = c2t1fs_inode_update(inode, body);
 out:
 	C2_LEAVE("rc: %d", rc);
 	return rc;

@@ -211,10 +211,6 @@ again:
                         goto again;
                 }
 
-                /*
-                 * The fop and its contant is freed in mdservice/md_foms.c:c2_md_req_fom_fini()
-                 * that is called on fom_exec() if (c2_fom_phase(fom) == C2_FOM_PHASE_FINISH).
-                 */
                 C2_ASSERT(result == 0);
                 c2_reqh_fop_handle(&reqh, fop, NULL);
         }

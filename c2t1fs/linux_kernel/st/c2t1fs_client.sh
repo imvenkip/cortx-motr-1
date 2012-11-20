@@ -43,8 +43,7 @@ main()
 
 	echo "Prepare done, starting tests..."
 
-	#c2t1fs_system_tests
-	file_creation_test
+	c2t1fs_system_tests
 	if [ $? -ne "0" ]
 	then
 		return 1

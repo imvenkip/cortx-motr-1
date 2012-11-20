@@ -23,6 +23,7 @@
 #include "lib/cdefs.h"              /* C2_EXPORTED */
 #include "lib/mutex.h"
 #include "lib/arith.h"              /* c2_is_po2 */
+#include "lib/trace.h"
 #include "addb/addb.h"
 #include "sm/sm.h"
 #include "lib/finject.h"

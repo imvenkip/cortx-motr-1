@@ -27,6 +27,7 @@
 #include "lib/memory.h"
 #include "lib/bitstring.h"
 #include "lib/rwlock.h"
+#include "lib/trace.h"
 
 #include "net/net.h"
 #include "fid/fid.h"
@@ -174,16 +175,14 @@ static int c2_md_create_tick(struct c2_fom *fom)
         struct c2_fid             pfid;
         struct c2_fid             tfid;
         int                       rc;
-        struct c2_local_service  *svc;
 
         C2_PRE(c2_fom_invariant(fom));
-        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
-                 * Don't send reply in case there is local reply consumer defined.
+                 * Don't send reply in case there is no service running.
                  */
-                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -246,16 +245,14 @@ static int c2_md_link_tick(struct c2_fom *fom)
         struct c2_fid             pfid;
         struct c2_cob_attr        attr;
         int                       rc;
-        struct c2_local_service  *svc;
 
         C2_PRE(c2_fom_invariant(fom));
-        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
-                 * Don't send reply in case there is local reply consumer defined.
+                 * Don't send reply in case there is no service running.
                  */
-                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -317,16 +314,14 @@ static int c2_md_unlink_tick(struct c2_fom *fom)
         struct c2_db_tx          *tx;
         struct c2_mdstore        *md;
         int                       rc;
-        struct c2_local_service  *svc;
 
         C2_PRE(c2_fom_invariant(fom));
-        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
-                 * Don't send reply in case there is local reply consumer defined.
+                 * Don't send reply in case there is no service running.
                  */
-                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -445,16 +440,14 @@ static int c2_md_rename_tick(struct c2_fom *fom)
         struct c2_db_tx          *tx;
         struct c2_mdstore       *md;
         int                       rc;
-        struct c2_local_service  *svc;
 
         C2_PRE(c2_fom_invariant(fom));
-        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
-                 * Don't send reply in case there is local reply consumer defined.
+                 * Don't send reply in case there is no service running.
                  */
-                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -545,18 +538,16 @@ static int c2_md_open_tick(struct c2_fom *fom)
         struct c2_fid             fid;
         struct c2_cob_attr        attr;
         int                       rc;
-        struct c2_local_service  *svc;
-        struct c2_mdstore       *md;
+        struct c2_mdstore        *md;
 
         C2_PRE(c2_fom_invariant(fom));
-        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
         md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
-                   Don't send reply in case there is local reply consumer defined.
+                 * Don't send reply in case there is no service running.
                  */
-                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -637,18 +628,16 @@ static int c2_md_close_tick(struct c2_fom *fom)
         struct c2_fid             fid;
         struct c2_cob_attr        attr;
         int                       rc;
-        struct c2_local_service  *svc;
-        struct c2_mdstore       *md;
+        struct c2_mdstore        *md;
 
         C2_PRE(c2_fom_invariant(fom));
-        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
         md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
-                 * Don't send reply in case there is local reply consumer defined.
+                 * Don't send reply in case there is no service running.
                  */
-                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -727,16 +716,14 @@ static int c2_md_setattr_tick(struct c2_fom *fom)
         struct c2_fop_ctx             *ctx;
         struct c2_fid                  fid;
         int                            rc;
-        struct c2_local_service       *svc;
 
         C2_PRE(c2_fom_invariant(fom));
-        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
-                 * Don't send reply in case there is local reply consumer defined.
+                 * Don't send reply in case there is no service running.
                  */
-                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -806,18 +793,16 @@ static int c2_md_lookup_tick(struct c2_fom *fom)
         struct c2_fop_ctx             *ctx;
         struct c2_fid                  pfid;
         int                            rc;
-        struct c2_local_service       *svc;
         char                          *name;
         int                            namelen;
 
         C2_PRE(c2_fom_invariant(fom));
-        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
-                 * Don't send reply in case there is local reply consumer defined.
+                 * Don't send reply in case there is no service running.
                  */
-                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -885,16 +870,14 @@ static int c2_md_getattr_tick(struct c2_fom *fom)
         struct c2_fop_ctx             *ctx;
         struct c2_fid                  fid;
         int                            rc;
-        struct c2_local_service       *svc;
 
         C2_PRE(c2_fom_invariant(fom));
-        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
-                 * Don't send reply in case there is local reply consumer defined.
+                 * Don't send reply in case there is no service running.
                  */
-                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -963,21 +946,20 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
         struct c2_rdpg                 rdpg;
         void                          *addr;
         int                            rc;
-        struct c2_local_service       *svc;
 
         C2_PRE(c2_fom_invariant(fom));
-        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
-                 * Don't send reply in case there is local reply consumer defined.
+                 * Don't send reply in case there is no service running.
                  */
-                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
         }
 
+        fprintf(stderr, "started readdir handling\n");
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
         req = c2_fop_data(fop);
@@ -1064,6 +1046,7 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
         rep->r_buf.b_count = rdpg.r_buf.b_nob;
         rep->r_buf.b_addr = rdpg.r_buf.b_addr;
 out:
+        fprintf(stderr, "readdir handled with %d\n", rc);
         rep->r_body.b_rc = rc;
         c2_fom_err_set(fom, rc);
         c2_fom_phase_set(fom, rc < 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
@@ -1214,91 +1197,6 @@ int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
         return rc;
 }
 
-void c2_md_fop_free(struct c2_fop *fop)
-{
-        struct c2_fop_create    *create;
-        struct c2_fop_unlink    *unlink;
-        struct c2_fop_rename    *rename;
-        struct c2_fop_link      *link;
-        struct c2_fop_setattr   *setattr;
-        struct c2_fop_getattr   *getattr;
-        struct c2_fop_lookup   *lookup;
-        struct c2_fop_open      *open;
-        struct c2_fop_close     *close;
-        struct c2_fop_readdir   *readdir;
-
-        switch (c2_fop_opcode(fop)) {
-        case C2_MDSERVICE_CREATE_OPCODE:
-                create = c2_fop_data(fop);
-                if (create->c_name.s_len != 0)
-                        c2_free(create->c_name.s_buf);
-                if (create->c_target.s_len != 0)
-                        c2_free(create->c_target.s_buf);
-                if (create->c_path.s_len != 0)
-                        c2_free(create->c_path.s_buf);
-                break;
-        case C2_MDSERVICE_LINK_OPCODE:
-                link = c2_fop_data(fop);
-                if (link->l_name.s_len != 0)
-                        c2_free(link->l_name.s_buf);
-                if (link->l_spath.s_len != 0)
-                        c2_free(link->l_spath.s_buf);
-                if (link->l_tpath.s_len != 0)
-                        c2_free(link->l_tpath.s_buf);
-                break;
-        case C2_MDSERVICE_UNLINK_OPCODE:
-                unlink = c2_fop_data(fop);
-                if (unlink->u_name.s_len != 0)
-                        c2_free(unlink->u_name.s_buf);
-                if (unlink->u_path.s_len != 0)
-                        c2_free(unlink->u_path.s_buf);
-                break;
-        case C2_MDSERVICE_RENAME_OPCODE:
-                rename = c2_fop_data(fop);
-                if (rename->r_sname.s_len != 0)
-                        c2_free(rename->r_sname.s_buf);
-                if (rename->r_tname.s_len != 0)
-                        c2_free(rename->r_tname.s_buf);
-                if (rename->r_spath.s_len != 0)
-                        c2_free(rename->r_spath.s_buf);
-                if (rename->r_tpath.s_len != 0)
-                        c2_free(rename->r_tpath.s_buf);
-                break;
-        case C2_MDSERVICE_SETATTR_OPCODE:
-                setattr = c2_fop_data(fop);
-                if (setattr->s_path.s_len != 0)
-                        c2_free(setattr->s_path.s_buf);
-                break;
-        case C2_MDSERVICE_GETATTR_OPCODE:
-                getattr = c2_fop_data(fop);
-                if (getattr->g_path.s_len != 0)
-                        c2_free(getattr->g_path.s_buf);
-                break;
-        case C2_MDSERVICE_LOOKUP_OPCODE:
-                lookup = c2_fop_data(fop);
-                if (lookup->l_path.s_len != 0)
-                        c2_free(lookup->l_path.s_buf);
-                break;
-        case C2_MDSERVICE_OPEN_OPCODE:
-                open = c2_fop_data(fop);
-                if (open->o_path.s_len != 0)
-                        c2_free(open->o_path.s_buf);
-                break;
-        case C2_MDSERVICE_CLOSE_OPCODE:
-                close = c2_fop_data(fop);
-                if (close->c_path.s_len != 0)
-                        c2_free(close->c_path.s_buf);
-                break;
-        case C2_MDSERVICE_READDIR_OPCODE:
-                readdir = c2_fop_data(fop);
-                if (readdir->r_path.s_len != 0)
-                        c2_free(readdir->r_path.s_buf);
-                break;
-        default:
-                break;
-        }
-}
-
 static void c2_md_req_fom_fini(struct c2_fom *fom)
 {
         struct c2_fom_md         *fom_obj;
@@ -1310,12 +1208,6 @@ static void c2_md_req_fom_fini(struct c2_fom *fom)
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
         if (svc != NULL && svc->s_ops->lso_fini)
                 svc->s_ops->lso_fini(svc, fom);
-
-        /* Free all fop fields and fop itself. */
-        c2_md_fop_free(fom->fo_fop);
-
-        /* XXX: Free all rep fop fields. */
-
         /* Fini fom itself. */
         c2_fom_fini(fom);
         c2_free(fom_obj);
