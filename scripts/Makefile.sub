@@ -1,1 +1,7 @@
-EXTRA_DIST += scripts/check-include-guards
+EXTRA_DIST += c2 \
+              c2mount.sh \
+              check-include-guards \
+              check-public-api \
+              modload \
+              MountWithLocalServers.sh
+
