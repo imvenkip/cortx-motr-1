@@ -225,7 +225,7 @@ static void identity_print(struct c2_conf_obj *obj)
 }
 
 /** Prints DAG of configuration objects in dot format. */
-void c2_conf__reg2dot(const struct c2_conf_reg *reg)
+C2_INTERNAL void c2_conf__reg2dot(const struct c2_conf_reg *reg)
 {
 	struct c2_conf_obj *obj;
 

@@ -44,19 +44,19 @@
 
  */
 
-void frm_item_reply_received(struct c2_rpc_item *reply_item,
-			     struct c2_rpc_item *req_item);
-void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
-                      uint32_t rc);
-void c2_rpc_slot_process_reply(struct c2_rpc_item *req);
-void c2_rpc_item_set_stage(struct c2_rpc_item     *item,
-			   enum c2_rpc_item_stage  stage);
-int c2_rpc_slot_item_received(struct c2_rpc_item *item);
+C2_INTERNAL void frm_item_reply_received(struct c2_rpc_item *reply_item,
+					 struct c2_rpc_item *req_item);
+C2_INTERNAL void rpc_item_replied(struct c2_rpc_item *item,
+				  struct c2_rpc_item *reply, uint32_t rc);
+C2_INTERNAL void c2_rpc_slot_process_reply(struct c2_rpc_item *req);
+C2_INTERNAL void c2_rpc_item_set_stage(struct c2_rpc_item *item,
+				       enum c2_rpc_item_stage stage);
+C2_INTERNAL int c2_rpc_slot_item_received(struct c2_rpc_item *item);
 
-C2_TL_DESCR_DEFINE(slot_item, "slot-ref-item-list", /* global */,
+C2_TL_DESCR_DEFINE(slot_item, "slot-ref-item-list", C2_INTERNAL,
 		   struct c2_rpc_item, ri_slot_refs[0].sr_link, ri_magic,
 		   C2_RPC_ITEM_MAGIC, C2_RPC_SLOT_REF_HEAD_MAGIC);
-C2_TL_DEFINE(slot_item, /* global */, struct c2_rpc_item);
+C2_TL_DEFINE(slot_item, C2_INTERNAL, struct c2_rpc_item);
 
 /*
 static inline struct c2_verno *
@@ -81,7 +81,7 @@ slot_get_rpc_machine(const struct c2_rpc_slot *slot)
 	return slot->sl_session->s_conn->c_rpc_machine;
 }
 
-bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
+C2_INTERNAL bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item *item1 = NULL;  /* init to NULL, required */
 	struct c2_rpc_item *item2;
@@ -143,8 +143,8 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 	return true;
 }
 
-int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
-		     const struct c2_rpc_slot_ops *ops)
+C2_INTERNAL int c2_rpc_slot_init(struct c2_rpc_slot *slot,
+				 const struct c2_rpc_slot_ops *ops)
 {
 	struct c2_fop          *fop;
 	struct c2_rpc_item     *dummy_item;
@@ -262,7 +262,7 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 	C2_LEAVE();
 }
 
-void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
+C2_INTERNAL void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item  *dummy_item;
 	struct c2_fop       *fop;
@@ -312,7 +312,8 @@ static struct c2_rpc_item* item_find(const struct c2_rpc_slot *slot,
 	return NULL;
 }
 
-uint32_t c2_rpc_slot_items_possible_inflight(struct c2_rpc_slot *slot)
+C2_INTERNAL uint32_t c2_rpc_slot_items_possible_inflight(struct c2_rpc_slot
+							 *slot)
 {
 	C2_PRE(slot != NULL);
 
@@ -444,8 +445,8 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	C2_LEAVE();
 }
 
-void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
-				   struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
+					       struct c2_rpc_item *item)
 {
 	C2_ENTRY("slot: %p, item: %p", slot, item);
 	C2_PRE(c2_rpc_slot_invariant(slot) && item != NULL);
@@ -457,8 +458,8 @@ void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
 	C2_LEAVE();
 }
 
-void c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
-					  struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
+						      struct c2_rpc_item *item)
 {
 	struct c2_rpc_item *reply;
 	struct c2_fop      *fop;
@@ -480,8 +481,8 @@ void c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 	}
 }
 
-int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
-			   struct c2_rpc_item *item)
+C2_INTERNAL int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
+				       struct c2_rpc_item *item)
 {
 	struct c2_rpc_item *req;
 	int                 redoable;
@@ -551,9 +552,9 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 	C2_RETURN(rc);
 }
 
-int c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
-			       struct c2_rpc_item  *reply,
-			       struct c2_rpc_item **req_out)
+C2_INTERNAL int c2_rpc_slot_reply_received(struct c2_rpc_slot *slot,
+					   struct c2_rpc_item *reply,
+					   struct c2_rpc_item **req_out)
 {
 	struct c2_rpc_item     *req;
 	struct c2_rpc_slot_ref *sref;
@@ -588,9 +589,9 @@ int c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 	return rc;
 }
 
-int __slot_reply_received(struct c2_rpc_slot *slot,
-			  struct c2_rpc_item *req,
-			  struct c2_rpc_item *reply)
+C2_INTERNAL int __slot_reply_received(struct c2_rpc_slot *slot,
+				      struct c2_rpc_item *req,
+				      struct c2_rpc_item *reply)
 {
 	uint64_t req_state;
 	int      rc;
@@ -666,7 +667,7 @@ int __slot_reply_received(struct c2_rpc_slot *slot,
 	return rc;
 }
 
-void c2_rpc_slot_process_reply(struct c2_rpc_item *req)
+C2_INTERNAL void c2_rpc_slot_process_reply(struct c2_rpc_item *req)
 {
 	struct c2_rpc_slot    *slot;
 
@@ -690,8 +691,8 @@ void c2_rpc_slot_process_reply(struct c2_rpc_item *req)
 	C2_LEAVE();
 }
 
-void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
-			     struct c2_verno     last_persistent)
+C2_INTERNAL void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
+					 struct c2_verno last_persistent)
 {
 	struct c2_rpc_item     *item;
 
@@ -729,8 +730,8 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 	C2_LEAVE();
 }
 
-void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
-		       struct c2_verno     last_seen)
+C2_INTERNAL void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
+				   struct c2_verno last_seen)
 {
 	struct c2_rpc_item     *item;
 	struct c2_rpc_slot_ref *sref;
@@ -826,8 +827,8 @@ static int associate_session_and_slot(struct c2_rpc_item    *item,
 	C2_RETURN(0);
 }
 
-int c2_rpc_item_received(struct c2_rpc_item    *item,
-			 struct c2_rpc_machine *machine)
+C2_INTERNAL int c2_rpc_item_received(struct c2_rpc_item *item,
+				     struct c2_rpc_machine *machine)
 {
 	int rc;
 
@@ -856,7 +857,7 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 	return rc;
 }
 
-int c2_rpc_slot_item_received(struct c2_rpc_item *item)
+C2_INTERNAL int c2_rpc_slot_item_received(struct c2_rpc_item *item)
 {
 	struct c2_rpc_item *req;
 	struct c2_rpc_slot *slot;
@@ -873,8 +874,8 @@ int c2_rpc_slot_item_received(struct c2_rpc_item *item)
 	return rc;
 }
 
-void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
-                      uint32_t rc)
+C2_INTERNAL void rpc_item_replied(struct c2_rpc_item *item,
+				  struct c2_rpc_item *reply, uint32_t rc)
 {
 	C2_ASSERT(item->ri_ops != NULL);
 
@@ -888,11 +889,11 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 		item->ri_ops->rio_replied(item);
 }
 
-int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,
-			   uint32_t         slot_id,
-			   uint64_t         slot_generation,
-			   struct c2_cob  **slot_cob,
-			   struct c2_db_tx *tx)
+C2_INTERNAL int c2_rpc_slot_cob_lookup(struct c2_cob *session_cob,
+				       uint32_t slot_id,
+				       uint64_t slot_generation,
+				       struct c2_cob **slot_cob,
+				       struct c2_db_tx *tx)
 {
 	struct c2_cob *cob;
 	char           name[SESSION_COB_MAX_NAME_LEN];
@@ -912,11 +913,11 @@ int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,
 	C2_RETURN(rc);
 }
 
-int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
-			   uint32_t         slot_id,
-			   uint64_t         slot_generation,
-			   struct c2_cob  **slot_cob,
-			   struct c2_db_tx *tx)
+C2_INTERNAL int c2_rpc_slot_cob_create(struct c2_cob *session_cob,
+				       uint32_t slot_id,
+				       uint64_t slot_generation,
+				       struct c2_cob **slot_cob,
+				       struct c2_db_tx *tx)
 {
 	struct c2_cob *cob;
 	char           name[SESSION_COB_MAX_NAME_LEN];

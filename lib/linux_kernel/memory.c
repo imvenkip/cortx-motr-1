@@ -33,7 +33,7 @@
    @{
 */
 
-void *c2_alloc(size_t size)
+C2_INTERNAL void *c2_alloc(size_t size)
 {
 	if (C2_FI_ENABLED("fail_allocation"))
 		return NULL;
@@ -42,7 +42,7 @@ void *c2_alloc(size_t size)
 }
 C2_EXPORTED(c2_alloc);
 
-void *c2_alloc_aligned(size_t size, unsigned shift)
+C2_INTERNAL void *c2_alloc_aligned(size_t size, unsigned shift)
 {
 	/*
 	 * Currently it supports alignment of PAGE_SHIFT only.
@@ -55,13 +55,13 @@ void *c2_alloc_aligned(size_t size, unsigned shift)
 }
 C2_EXPORTED(c2_alloc_aligned);
 
-void c2_free(void *data)
+C2_INTERNAL void c2_free(void *data)
 {
 	kfree(data);
 }
 C2_EXPORTED(c2_free);
 
-void c2_free_aligned(void *addr, size_t size, unsigned shift)
+C2_INTERNAL void c2_free_aligned(void *addr, size_t size, unsigned shift)
 {
 	C2_PRE(shift == PAGE_SHIFT);
 	C2_PRE(c2_addr_is_aligned(addr, shift));
@@ -69,13 +69,13 @@ void c2_free_aligned(void *addr, size_t size, unsigned shift)
 }
 C2_EXPORTED(c2_free_aligned);
 
-size_t c2_allocated(void)
+C2_INTERNAL size_t c2_allocated(void)
 {
 	return 0;
 }
 C2_EXPORTED(c2_allocated);
 
-int c2_pagesize_get(void)
+C2_INTERNAL int c2_pagesize_get(void)
 {
 	return PAGE_SIZE;
 }

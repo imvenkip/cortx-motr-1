@@ -34,7 +34,7 @@
 
 C2_BASSERT(C2_SEG_SIZE == C2_0VEC_ALIGN);
 
-c2_bcount_t c2_vec_count(const struct c2_vec *vec)
+C2_INTERNAL c2_bcount_t c2_vec_count(const struct c2_vec *vec)
 {
 	c2_bcount_t count;
 	uint32_t    i;
@@ -70,7 +70,8 @@ static void c2_vec_cursor_normalize(struct c2_vec_cursor *cur)
 	}
 }
 
-void c2_vec_cursor_init(struct c2_vec_cursor *cur, struct c2_vec *vec)
+C2_INTERNAL void c2_vec_cursor_init(struct c2_vec_cursor *cur,
+				    struct c2_vec *vec)
 {
 	cur->vc_vec    = vec;
 	cur->vc_seg    = 0;
@@ -79,7 +80,8 @@ void c2_vec_cursor_init(struct c2_vec_cursor *cur, struct c2_vec *vec)
 	C2_ASSERT(c2_vec_cursor_invariant(cur));
 }
 
-bool c2_vec_cursor_move(struct c2_vec_cursor *cur, c2_bcount_t count)
+C2_INTERNAL bool c2_vec_cursor_move(struct c2_vec_cursor *cur,
+				    c2_bcount_t count)
 {
 	C2_ASSERT(c2_vec_cursor_invariant(cur));
 	while (count > 0 && cur->vc_seg < cur->vc_vec->v_nr) {
@@ -100,7 +102,7 @@ bool c2_vec_cursor_move(struct c2_vec_cursor *cur, c2_bcount_t count)
 	return cur->vc_seg == cur->vc_vec->v_nr;
 }
 
-c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur)
+C2_INTERNAL c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur)
 {
 	C2_PRE(cur->vc_seg < cur->vc_vec->v_nr);
 	C2_ASSERT(c2_vec_cursor_invariant(cur));
@@ -143,18 +145,16 @@ fail:
 	return -ENOMEM;
 }
 
-int c2_bufvec_alloc(struct c2_bufvec *bufvec,
-	            uint32_t          num_segs,
-	            c2_bcount_t       seg_size)
+C2_INTERNAL int c2_bufvec_alloc(struct c2_bufvec *bufvec,
+				uint32_t num_segs, c2_bcount_t seg_size)
 {
 	return c2__bufvec_alloc(bufvec, num_segs, seg_size, 0);
 }
 C2_EXPORTED(c2_bufvec_alloc);
 
-int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
-		            uint32_t          num_segs,
-		            c2_bcount_t       seg_size,
-		            unsigned	      shift)
+C2_INTERNAL int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
+					uint32_t num_segs,
+					c2_bcount_t seg_size, unsigned shift)
 {
 	if (C2_FI_ENABLED("oom"))
 		return -ENOMEM;
@@ -163,7 +163,7 @@ int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
 }
 C2_EXPORTED(c2_bufvec_alloc_aligned);
 
-void c2_bufvec_free(struct c2_bufvec *bufvec)
+C2_INTERNAL void c2_bufvec_free(struct c2_bufvec *bufvec)
 {
 	if (bufvec != NULL) {
 		if (bufvec->ov_buf != NULL) {
@@ -179,7 +179,8 @@ void c2_bufvec_free(struct c2_bufvec *bufvec)
 }
 C2_EXPORTED(c2_bufvec_free);
 
-void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift)
+C2_INTERNAL void c2_bufvec_free_aligned(struct c2_bufvec *bufvec,
+					unsigned shift)
 {
 	if (shift == 0)
 		c2_bufvec_free(bufvec);
@@ -197,10 +198,10 @@ void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift)
 }
 C2_EXPORTED(c2_bufvec_free_aligned);
 
-int c2_indexvec_alloc(struct c2_indexvec       *ivec,
-		      uint32_t                  len,
-		      struct c2_addb_ctx       *ctx,
-		      const struct c2_addb_loc *loc)
+C2_INTERNAL int c2_indexvec_alloc(struct c2_indexvec *ivec,
+				  uint32_t len,
+				  struct c2_addb_ctx *ctx,
+				  const struct c2_addb_loc *loc)
 {
 	C2_PRE(ivec != NULL);
 	C2_PRE(len   > 0);
@@ -219,7 +220,7 @@ int c2_indexvec_alloc(struct c2_indexvec       *ivec,
 	return 0;
 }
 
-void c2_indexvec_free(struct c2_indexvec *ivec)
+C2_INTERNAL void c2_indexvec_free(struct c2_indexvec *ivec)
 {
 	C2_PRE(ivec != NULL);
 	C2_PRE(ivec->iv_vec.v_nr > 0);
@@ -236,8 +237,8 @@ void c2_indexvec_free(struct c2_indexvec *ivec)
 	ivec->iv_vec.v_nr = 0;
 }
 
-void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
-			    struct c2_bufvec *bvec)
+C2_INTERNAL void c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
+				       struct c2_bufvec *bvec)
 {
 	C2_PRE(cur != NULL);
 	C2_PRE(bvec != NULL &&
@@ -247,19 +248,21 @@ void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
 }
 C2_EXPORTED(c2_bufvec_cursor_init);
 
-bool c2_bufvec_cursor_move(struct c2_bufvec_cursor *cur, c2_bcount_t count)
+C2_INTERNAL bool c2_bufvec_cursor_move(struct c2_bufvec_cursor *cur,
+				       c2_bcount_t count)
 {
 	return c2_vec_cursor_move(&cur->bc_vc, count);
 }
 C2_EXPORTED(c2_bufvec_cursor_move);
 
-c2_bcount_t c2_bufvec_cursor_step(const struct c2_bufvec_cursor *cur)
+C2_INTERNAL c2_bcount_t c2_bufvec_cursor_step(const struct c2_bufvec_cursor
+					      *cur)
 {
 	return c2_vec_cursor_step(&cur->bc_vc);
 }
 C2_EXPORTED(c2_bufvec_cursor_step);
 
-void *bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
+C2_INTERNAL void *bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
 {
 	struct c2_vec_cursor *vc = &cur->bc_vc;
 	struct c2_bufvec *bv = container_of(vc->vc_vec,struct c2_bufvec,ov_vec);
@@ -268,14 +271,15 @@ void *bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
 	return bv->ov_buf[vc->vc_seg] + vc->vc_offset;
 }
 
-void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
+C2_INTERNAL void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
 {
 	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
 	return bufvec_cursor_addr(cur);
 }
 C2_EXPORTED(c2_bufvec_cursor_addr);
 
-bool c2_bufvec_cursor_align(struct c2_bufvec_cursor *cur, uint64_t alignment)
+C2_INTERNAL bool c2_bufvec_cursor_align(struct c2_bufvec_cursor *cur,
+					uint64_t alignment)
 {
 	uint64_t addr;
 	uint64_t count;
@@ -290,9 +294,9 @@ bool c2_bufvec_cursor_align(struct c2_bufvec_cursor *cur, uint64_t alignment)
 }
 C2_EXPORTED(c2_bufvec_cursor_align);
 
-c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
-				  struct c2_bufvec_cursor *scur,
-				  c2_bcount_t num_bytes)
+C2_INTERNAL c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
+					      struct c2_bufvec_cursor *scur,
+					      c2_bcount_t num_bytes)
 {
 	c2_bcount_t frag_size    = 0;
 	c2_bcount_t bytes_copied = 0;
@@ -315,8 +319,9 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 }
 C2_EXPORTED(c2_bufvec_cursor_copy);
 
-c2_bcount_t c2_bufvec_cursor_copyto(struct c2_bufvec_cursor *dcur,
-				    void *sdata, c2_bcount_t num_bytes)
+C2_INTERNAL c2_bcount_t c2_bufvec_cursor_copyto(struct c2_bufvec_cursor *dcur,
+						void *sdata,
+						c2_bcount_t num_bytes)
 {
 	struct c2_bufvec_cursor scur;
 	struct c2_bufvec        sbuf = C2_BUFVEC_INIT_BUF(&sdata, &num_bytes);
@@ -329,8 +334,9 @@ c2_bcount_t c2_bufvec_cursor_copyto(struct c2_bufvec_cursor *dcur,
 	return c2_bufvec_cursor_copy(dcur, &scur, num_bytes);
 }
 
-c2_bcount_t c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur,
-				      void *ddata, c2_bcount_t num_bytes)
+C2_INTERNAL c2_bcount_t c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur,
+						  void *ddata,
+						  c2_bcount_t num_bytes)
 {
 	struct c2_bufvec_cursor dcur;
 	struct c2_bufvec        dbuf = C2_BUFVEC_INIT_BUF(&ddata, &num_bytes);
@@ -343,8 +349,8 @@ c2_bcount_t c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur,
 	return c2_bufvec_cursor_copy(&dcur, scur, num_bytes);
 }
 
-void c2_ivec_cursor_init(struct c2_ivec_cursor *cur,
-                         struct c2_indexvec    *ivec)
+C2_INTERNAL void c2_ivec_cursor_init(struct c2_ivec_cursor *cur,
+				     struct c2_indexvec *ivec)
 {
         C2_PRE(cur  != NULL);
         C2_PRE(ivec != NULL);
@@ -354,22 +360,22 @@ void c2_ivec_cursor_init(struct c2_ivec_cursor *cur,
         c2_vec_cursor_init(&cur->ic_cur, &ivec->iv_vec);
 }
 
-bool c2_ivec_cursor_move(struct c2_ivec_cursor *cur,
-                         c2_bcount_t            count)
+C2_INTERNAL bool c2_ivec_cursor_move(struct c2_ivec_cursor *cur,
+				     c2_bcount_t count)
 {
         C2_PRE(cur != NULL);
 
         return c2_vec_cursor_move(&cur->ic_cur, count);
 }
 
-c2_bcount_t c2_ivec_cursor_step(const struct c2_ivec_cursor *cur)
+C2_INTERNAL c2_bcount_t c2_ivec_cursor_step(const struct c2_ivec_cursor *cur)
 {
         C2_PRE(cur != NULL);
 
         return c2_vec_cursor_step(&cur->ic_cur);
 }
 
-c2_bindex_t c2_ivec_cursor_index(struct c2_ivec_cursor *cur)
+C2_INTERNAL c2_bindex_t c2_ivec_cursor_index(struct c2_ivec_cursor *cur)
 {
         struct c2_indexvec *ivec;
 
@@ -380,7 +386,8 @@ c2_bindex_t c2_ivec_cursor_index(struct c2_ivec_cursor *cur)
         return ivec->iv_index[cur->ic_cur.vc_seg] + cur->ic_cur.vc_offset;
 }
 
-bool c2_ivec_cursor_move_to(struct c2_ivec_cursor *cur, c2_bindex_t dest)
+C2_INTERNAL bool c2_ivec_cursor_move_to(struct c2_ivec_cursor *cur,
+					c2_bindex_t dest)
 {
 	c2_bindex_t min;
 	bool        ret = false;
@@ -398,7 +405,7 @@ bool c2_ivec_cursor_move_to(struct c2_ivec_cursor *cur, c2_bindex_t dest)
 	return ret;
 }
 
-void c2_0vec_fini(struct c2_0vec *zvec)
+C2_INTERNAL void c2_0vec_fini(struct c2_0vec *zvec)
 {
 	if (zvec != NULL) {
 		c2_free(zvec->z_bvec.ov_vec.v_count);
@@ -430,7 +437,7 @@ static bool c2_0vec_invariant(const struct c2_0vec *zvec)
 			       !(bvec->ov_vec.v_count[i] & C2_0VEC_MASK)));
 }
 
-int c2_0vec_init(struct c2_0vec *zvec, uint32_t segs_nr)
+C2_INTERNAL int c2_0vec_init(struct c2_0vec *zvec, uint32_t segs_nr)
 {
 	C2_PRE(zvec != NULL);
 	C2_PRE(segs_nr != 0);
@@ -456,9 +463,9 @@ failure:
 	return -ENOMEM;
 }
 
-void c2_0vec_bvec_init(struct c2_0vec *zvec,
-		       const struct c2_bufvec *src,
-		       const c2_bindex_t *index)
+C2_INTERNAL void c2_0vec_bvec_init(struct c2_0vec *zvec,
+				   const struct c2_bufvec *src,
+				   const c2_bindex_t * index)
 {
 	uint32_t	  i;
 	struct c2_bufvec *dst;
@@ -479,11 +486,10 @@ void c2_0vec_bvec_init(struct c2_0vec *zvec,
 	C2_POST(c2_0vec_invariant(zvec));
 }
 
-void c2_0vec_bufs_init(struct c2_0vec *zvec,
-		       void **bufs,
-		       const c2_bindex_t *index,
-		       const c2_bcount_t *counts,
-		       uint32_t segs_nr)
+C2_INTERNAL void c2_0vec_bufs_init(struct c2_0vec *zvec,
+				   void **bufs,
+				   const c2_bindex_t * index,
+				   const c2_bcount_t * counts, uint32_t segs_nr)
 {
 	uint32_t	  i;
 	struct c2_bufvec *bvec;
@@ -507,9 +513,9 @@ void c2_0vec_bufs_init(struct c2_0vec *zvec,
 	C2_POST(c2_0vec_invariant(zvec));
 }
 
-int c2_0vec_cbuf_add(struct c2_0vec *zvec,
-		     const struct c2_buf *buf,
-		     const c2_bindex_t *index)
+C2_INTERNAL int c2_0vec_cbuf_add(struct c2_0vec *zvec,
+				 const struct c2_buf *buf,
+				 const c2_bindex_t * index)
 {
 	uint32_t	  curr_seg;
 	struct c2_bufvec *bvec;
@@ -550,8 +556,8 @@ static void data_to_bufvec(struct c2_bufvec *src_buf, void **data,
 	src_buf->ov_buf = data;
 }
 
-int c2_data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
-			   size_t len)
+C2_INTERNAL int c2_data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
+				       size_t len)
 {
 	c2_bcount_t		count;
 	struct c2_bufvec_cursor src_cur;
@@ -568,8 +574,8 @@ int c2_data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
 	return 0;
 }
 
-int c2_bufvec_to_data_copy(struct c2_bufvec_cursor *cur, void *data,
-			   size_t len)
+C2_INTERNAL int c2_bufvec_to_data_copy(struct c2_bufvec_cursor *cur, void *data,
+				       size_t len)
 {
 	c2_bcount_t		count;
 	struct c2_bufvec_cursor dcur;

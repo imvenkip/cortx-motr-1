@@ -121,15 +121,17 @@ struct c2_sns_repair_cm {
 	struct c2_chan             rc_stop_wait;
 };
 
-int c2_sns_repair_cm_type_register(void);
-void c2_sns_repair_cm_type_deregister(void);
+C2_INTERNAL int c2_sns_repair_cm_type_register(void);
+C2_INTERNAL void c2_sns_repair_cm_type_deregister(void);
 
-struct c2_net_buffer *c2_sns_repair_buffer_get(struct c2_net_buffer_pool *bp,
-                                               size_t colour);
-void c2_sns_repair_buffer_put(struct c2_net_buffer_pool *bp,
-			      struct c2_net_buffer *buf, uint64_t colour);
+C2_INTERNAL struct c2_net_buffer *c2_sns_repair_buffer_get(struct
+							   c2_net_buffer_pool
+							   *bp, size_t colour);
+C2_INTERNAL void c2_sns_repair_buffer_put(struct c2_net_buffer_pool *bp,
+					  struct c2_net_buffer *buf,
+					  uint64_t colour);
 
-struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm);
+C2_INTERNAL struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm);
 
 /** @} SNSRepairCM */
 #endif /* __COLIBRI_SNS_REPAIR_CM_H__ */

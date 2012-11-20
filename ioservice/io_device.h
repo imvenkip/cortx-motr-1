@@ -97,17 +97,17 @@ enum {
  * Initializes the pool machine. This will create a shared reqh key
  * and call c2_poolmach_init() internally.
  */
-int c2_ios_poolmach_init(struct c2_reqh *reqh);
+C2_INTERNAL int c2_ios_poolmach_init(struct c2_reqh *reqh);
 
 /**
  * Gets the shared pool machine.
  */
-struct c2_poolmach *c2_ios_poolmach_get(struct c2_reqh *reqh);
+C2_INTERNAL struct c2_poolmach *c2_ios_poolmach_get(struct c2_reqh *reqh);
 
 /**
  * Finializes the pool machine when it is no longer used.
  */
-void c2_ios_poolmach_fini(struct c2_reqh *reqh);
+C2_INTERNAL void c2_ios_poolmach_fini(struct c2_reqh *reqh);
 
 /**
  * Pack the current server version and delta of failure vectors
@@ -117,10 +117,13 @@ void c2_ios_poolmach_fini(struct c2_reqh *reqh);
  * @param version [out] pack the server known version into this.
  * @param updates [out] pack events from @cli to @version into this buffer.
  */
-int c2_ios_poolmach_version_updates_pack(struct c2_poolmach         *pm,
-					 const struct c2_fv_version *cli,
-					 struct c2_fv_version       *version,
-					 struct c2_fv_updates       *updates);
+C2_INTERNAL int c2_ios_poolmach_version_updates_pack(struct c2_poolmach *pm,
+						     const struct c2_fv_version
+						     *cli,
+						     struct c2_fv_version
+						     *version,
+						     struct c2_fv_updates
+						     *updates);
 
 /** @} */ /* io_calls_params_dldDFS end group */
 

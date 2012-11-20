@@ -23,6 +23,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_NET
 #include "lib/trace.h"
 #include "lib/finject.h"
 #include "colibri/magic.h"
@@ -33,27 +34,27 @@
    @addtogroup net
    @{
  */
-C2_TL_DESCR_DEFINE(c2_net_tm, "tm list", ,
+C2_TL_DESCR_DEFINE(c2_net_tm, "tm list", C2_INTERNAL,
 		   struct c2_net_buffer, nb_tm_linkage, nb_magic,
 		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC);
-C2_TL_DEFINE(c2_net_tm, , struct c2_net_buffer);
+C2_TL_DEFINE(c2_net_tm, C2_INTERNAL, struct c2_net_buffer);
 C2_EXPORTED(c2_net_tm_tlist_is_empty);
 
 const struct c2_addb_ctx_type c2_net_tm_addb_ctx = {
 	.act_name = "net-tm"
 };
 
-bool c2_net__tm_state_is_valid(enum c2_net_tm_state ts)
+C2_INTERNAL bool c2_net__tm_state_is_valid(enum c2_net_tm_state ts)
 {
 	return ts >= C2_NET_TM_UNDEFINED && ts <= C2_NET_TM_FAILED;
 }
 
-bool c2_net__tm_ev_type_is_valid(enum c2_net_tm_ev_type et)
+C2_INTERNAL bool c2_net__tm_ev_type_is_valid(enum c2_net_tm_ev_type et)
 {
 	return et >= C2_NET_TEV_ERROR && et < C2_NET_TEV_NR;
 }
 
-bool c2_net__tm_event_invariant(const struct c2_net_tm_event *ev)
+C2_INTERNAL bool c2_net__tm_event_invariant(const struct c2_net_tm_event *ev)
 {
 	if (!c2_net__tm_ev_type_is_valid(ev->nte_type))
 		return false;
@@ -70,7 +71,7 @@ bool c2_net__tm_event_invariant(const struct c2_net_tm_event *ev)
 	return true;
 }
 
-bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm)
+C2_INTERNAL bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm)
 {
 	if (tm == NULL || tm->ntm_callbacks == NULL || tm->ntm_dom == NULL)
 		return false;
@@ -92,7 +93,7 @@ bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm)
 	return true;
 }
 
-void c2_net_tm_event_post(const struct c2_net_tm_event *ev)
+C2_INTERNAL void c2_net_tm_event_post(const struct c2_net_tm_event *ev)
 {
 	struct c2_net_transfer_mc *tm;
 	struct c2_net_buffer_pool *pool = NULL;
@@ -153,7 +154,8 @@ static void c2_net__tm_cleanup(struct c2_net_transfer_mc *tm)
 	return;
 }
 
-int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
+C2_INTERNAL int c2_net_tm_init(struct c2_net_transfer_mc *tm,
+			       struct c2_net_domain *dom)
 {
 	int rc;
 	int i;
@@ -200,7 +202,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 }
 C2_EXPORTED(c2_net_tm_init);
 
-void c2_net_tm_fini(struct c2_net_transfer_mc *tm)
+C2_INTERNAL void c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 {
 	struct c2_net_domain *dom = tm->ntm_dom;
 	int i;
@@ -257,7 +259,7 @@ void c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 }
 C2_EXPORTED(c2_net_tm_fini);
 
-int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
+C2_INTERNAL int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 {
 	int rc;
 
@@ -288,7 +290,7 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 }
 C2_EXPORTED(c2_net_tm_start);
 
-int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
+C2_INTERNAL int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 {
 	int rc;
 	enum c2_net_tm_state oldstate;
@@ -315,10 +317,9 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 }
 C2_EXPORTED(c2_net_tm_stop);
 
-int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
-			enum c2_net_queue_type qtype,
-			struct c2_net_qstats *qs,
-			bool reset)
+C2_INTERNAL int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
+				    enum c2_net_queue_type qtype,
+				    struct c2_net_qstats *qs, bool reset)
 {
 	C2_PRE(qtype == C2_NET_QT_NR || c2_net__qtype_is_valid(qtype));
 	C2_ASSERT(reset || qs != NULL);
@@ -342,8 +343,8 @@ int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
 }
 C2_EXPORTED(c2_net_tm_stats_get);
 
-int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
-		      const struct c2_bitmap *processors)
+C2_INTERNAL int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
+				  const struct c2_bitmap *processors)
 {
 	int rc;
 	c2_mutex_lock(&tm->ntm_mutex);
@@ -364,7 +365,9 @@ int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
 }
 C2_EXPORTED(c2_net_tm_confine);
 
-int c2_net_buffer_event_deliver_synchronously(struct c2_net_transfer_mc *tm)
+C2_INTERNAL int c2_net_buffer_event_deliver_synchronously(struct
+							  c2_net_transfer_mc
+							  *tm)
 {
 	int rc;
 	c2_mutex_lock(&tm->ntm_mutex);
@@ -386,7 +389,7 @@ int c2_net_buffer_event_deliver_synchronously(struct c2_net_transfer_mc *tm)
 }
 C2_EXPORTED(c2_net_buffer_event_deliver_synchronously);
 
-void c2_net_buffer_event_deliver_all(struct c2_net_transfer_mc *tm)
+C2_INTERNAL void c2_net_buffer_event_deliver_all(struct c2_net_transfer_mc *tm)
 {
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
@@ -399,7 +402,7 @@ void c2_net_buffer_event_deliver_all(struct c2_net_transfer_mc *tm)
 }
 C2_EXPORTED(c2_net_buffer_event_deliver_all);
 
-bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm)
+C2_INTERNAL bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm)
 {
 	bool result;
 	c2_mutex_lock(&tm->ntm_mutex);
@@ -413,8 +416,8 @@ bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm)
 }
 C2_EXPORTED(c2_net_buffer_event_pending);
 
-void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
-				struct c2_chan *chan)
+C2_INTERNAL void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
+					    struct c2_chan *chan)
 {
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
@@ -427,7 +430,8 @@ void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
 }
 C2_EXPORTED(c2_net_buffer_event_notify);
 
-void c2_net_tm_colour_set(struct c2_net_transfer_mc *tm, uint32_t colour)
+C2_INTERNAL void c2_net_tm_colour_set(struct c2_net_transfer_mc *tm,
+				      uint32_t colour)
 {
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
@@ -440,7 +444,7 @@ void c2_net_tm_colour_set(struct c2_net_transfer_mc *tm, uint32_t colour)
 }
 C2_EXPORTED(c2_net_tm_colour_set);
 
-uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm)
+C2_INTERNAL uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm)
 {
 	uint32_t colour;
 	c2_mutex_lock(&tm->ntm_mutex);
@@ -451,11 +455,12 @@ uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm)
 }
 C2_EXPORTED(c2_net_tm_colour_get);
 
-int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
-			  struct c2_net_buffer_pool *bufpool,
-			  const struct c2_net_buffer_callbacks *callbacks,
-			  c2_bcount_t min_recv_size, uint32_t max_recv_msgs,
-			  uint32_t min_recv_queue_len)
+C2_INTERNAL int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
+				      struct c2_net_buffer_pool *bufpool,
+				      const struct c2_net_buffer_callbacks
+				      *callbacks, c2_bcount_t min_recv_size,
+				      uint32_t max_recv_msgs,
+				      uint32_t min_recv_queue_len)
 {
 	int rc;
 	c2_mutex_lock(&tm->ntm_mutex);
@@ -481,7 +486,8 @@ int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
 }
 C2_EXPORTED(c2_net_tm_pool_attach);
 
-void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len)
+C2_INTERNAL void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm,
+					   uint32_t len)
 {
 	struct c2_net_buffer_pool *pool = NULL;
 
@@ -507,6 +513,8 @@ void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len)
 	return;
 }
 C2_EXPORTED(c2_net_tm_pool_length_set);
+
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} end of net group */
 

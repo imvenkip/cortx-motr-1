@@ -459,4 +459,7 @@ static bool item_bind(struct c2_rpc_item *item)
 	C2_LEAVE("result: %s", c2_bool_to_str(result));
 	return result;
 }
+
+#undef C2_TRACE_SUBSYSTEM
+
 /** @} */

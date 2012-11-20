@@ -43,8 +43,8 @@ struct c2_0vec;
    @param index The target object offset for page.
    @post ++zvec->z_cursor.bc_vc.vc_seg
  */
-int c2_0vec_page_add(struct c2_0vec *zvec, struct page *pg,
-		     c2_bindex_t index);
+C2_INTERNAL int c2_0vec_page_add(struct c2_0vec *zvec, struct page *pg,
+				 c2_bindex_t index);
 
 /** @} end of vec group */
 

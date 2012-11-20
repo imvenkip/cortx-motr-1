@@ -85,7 +85,7 @@ static struct file                   lfile;
 static struct c2t1fs_service_context ctx;
 static struct c2_poolmach            poolmach;
 
-C2_TL_DESCR_DECLARE(rpcbulk, extern);
+C2_TL_DESCR_DECLARE(rpcbulk, C2_EXTERN);
 
 static int file_io_ut_init(void)
 {

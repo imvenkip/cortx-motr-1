@@ -29,32 +29,32 @@
    @{
  */
 
-void c2_rwlock_init(struct c2_rwlock *lock)
+C2_INTERNAL void c2_rwlock_init(struct c2_rwlock *lock)
 {
 	init_rwsem(&lock->rw_sem);
 }
 
-void c2_rwlock_fini(struct c2_rwlock *lock)
+C2_INTERNAL void c2_rwlock_fini(struct c2_rwlock *lock)
 {
 	C2_ASSERT(!rwsem_is_locked(&lock->rw_sem));
 }
 
-void c2_rwlock_write_lock(struct c2_rwlock *lock)
+C2_INTERNAL void c2_rwlock_write_lock(struct c2_rwlock *lock)
 {
 	down_write(&lock->rw_sem);
 }
 
-void c2_rwlock_write_unlock(struct c2_rwlock *lock)
+C2_INTERNAL void c2_rwlock_write_unlock(struct c2_rwlock *lock)
 {
 	up_write(&lock->rw_sem);
 }
 
-void c2_rwlock_read_lock(struct c2_rwlock *lock)
+C2_INTERNAL void c2_rwlock_read_lock(struct c2_rwlock *lock)
 {
 	down_read(&lock->rw_sem);
 }
 
-void c2_rwlock_read_unlock(struct c2_rwlock *lock)
+C2_INTERNAL void c2_rwlock_read_unlock(struct c2_rwlock *lock)
 {
 	up_read(&lock->rw_sem);
 }

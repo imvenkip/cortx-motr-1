@@ -48,8 +48,8 @@ extern struct c2_fop_type c2_fop_readdir_rep_fopt;
 /**
    Init and fini of mdservice fops code.
  */
-int c2_mdservice_fop_init(void);
-void c2_mdservice_fop_fini(void);
+C2_INTERNAL int c2_mdservice_fop_init(void);
+C2_INTERNAL void c2_mdservice_fop_fini(void);
 
 #endif /* __COLIBRI_MDSERVICE_MD_FOMS_H__ */
 /*

@@ -52,9 +52,9 @@ extern struct c2_fop_type c2_rpc_fop_session_terminate_fopt;
 extern struct c2_fop_type c2_rpc_fop_session_terminate_rep_fopt;
 extern struct c2_fop_type c2_rpc_fop_noop_fopt;
 
-int c2_rpc_session_fop_init(void);
+C2_INTERNAL int c2_rpc_session_fop_init(void);
 
-void c2_rpc_session_fop_fini(void);
+C2_INTERNAL void c2_rpc_session_fop_fini(void);
 
 /**
    Container for CONN_ESTABLISH fop.

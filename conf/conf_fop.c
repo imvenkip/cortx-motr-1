@@ -93,7 +93,7 @@ static struct c2_fop_type *fops[] = {
         &c2_conf_update_resp_fopt,
 };
 
-void c2_conf_fop_fini(void)
+C2_INTERNAL void c2_conf_fop_fini(void)
 {
         c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 }
@@ -102,7 +102,7 @@ extern struct c2_fom_type c2_fom_fetch_mopt;
 extern struct c2_fom_type c2_fom_update_mopt;
 
 
-int c2_conf_fop_init(void)
+C2_INTERNAL int c2_conf_fop_init(void)
 {
         int result;
 	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));

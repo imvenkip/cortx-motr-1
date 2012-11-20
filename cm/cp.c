@@ -447,13 +447,13 @@ static const struct c2_sm_conf c2_cm_cp_sm_conf = {
 	.scf_state = c2_cm_cp_state_descr
 };
 
-void c2_cm_cp_module_init(void)
+C2_INTERNAL void c2_cm_cp_module_init(void)
 {
 	c2_fom_type_init(&cp_fom_type, &cp_fom_type_ops, NULL,
 			 &c2_cm_cp_sm_conf);
 }
 
-bool c2_cm_cp_invariant(const struct c2_cm_cp *cp)
+C2_INTERNAL bool c2_cm_cp_invariant(const struct c2_cm_cp *cp)
 {
 	const struct c2_cm_cp_ops *ops = cp->c_ops;
 
@@ -464,7 +464,7 @@ bool c2_cm_cp_invariant(const struct c2_cm_cp *cp)
 	       c2_forall(i, ops->co_action_nr, ops->co_action[i] != NULL);
 }
 
-void c2_cm_cp_init(struct c2_cm_cp *cp)
+C2_INTERNAL void c2_cm_cp_init(struct c2_cm_cp *cp)
 {
 	C2_PRE(cp != NULL);
 
@@ -472,18 +472,18 @@ void c2_cm_cp_init(struct c2_cm_cp *cp)
 	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
 }
 
-void c2_cm_cp_fini(struct c2_cm_cp *cp)
+C2_INTERNAL void c2_cm_cp_fini(struct c2_cm_cp *cp)
 {
 	c2_fom_fini(&cp->c_fom);
 	c2_cm_cp_bob_fini(cp);
 }
 
-c2_bcount_t c2_cm_cp_data_size(struct c2_cm_cp *cp)
+C2_INTERNAL c2_bcount_t c2_cm_cp_data_size(struct c2_cm_cp *cp)
 {
 	return C2_CP_SIZE;
 }
 
-void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)
+C2_INTERNAL void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
         struct c2_fom  *fom = &cp->c_fom;
         struct c2_reqh *reqh = cm->cm_service.rs_reqh;

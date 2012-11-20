@@ -249,9 +249,9 @@ struct c2_rpc {
 	struct c2_rpc_frm_buffer	 r_fbuf;
 };
 
-void c2_rpcobj_init(struct c2_rpc *rpc);
+C2_INTERNAL void c2_rpcobj_init(struct c2_rpc *rpc);
 
-void c2_rpcobj_fini(struct c2_rpc *rpc);
+C2_INTERNAL void c2_rpcobj_fini(struct c2_rpc *rpc);
 
 /**
    This structure represents the summary data for a given rpc group
@@ -278,20 +278,20 @@ struct c2_rpc_frm_group {
    Call the default handler function passing the rpc item and
    the corresponding event enum.
  */
-int c2_rpc_frm_item_delete(struct c2_rpc_item *item);
+C2_INTERNAL int c2_rpc_frm_item_delete(struct c2_rpc_item *item);
 
 /**
    Interfaces to change attributes of rpc items that have been already
    submitted to rpc layer.
  */
-void c2_rpc_frm_item_priority_set(struct c2_rpc_item *item,
-				  enum c2_rpc_item_priority prio);
+C2_INTERNAL void c2_rpc_frm_item_priority_set(struct c2_rpc_item *item,
+					      enum c2_rpc_item_priority prio);
 
-void c2_rpc_frm_item_deadline_set(struct c2_rpc_item *item,
-				  c2_time_t deadline);
+C2_INTERNAL void c2_rpc_frm_item_deadline_set(struct c2_rpc_item *item,
+					      c2_time_t deadline);
 
-void c2_rpc_frm_item_group_set(struct c2_rpc_item *item,
-			       struct c2_rpc_group *group);
+C2_INTERNAL void c2_rpc_frm_item_group_set(struct c2_rpc_item *item,
+					   struct c2_rpc_group *group);
 
 /** @} endgroup of rpc_formation */
 

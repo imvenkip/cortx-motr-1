@@ -193,22 +193,22 @@ struct c2_cobfid_map_iter_ops {
    @see c2_cobfid_map_add()
    @see c2_cobfid_map_fini()
  */
-int c2_cobfid_map_init(struct c2_cobfid_map *cfm,
-		       struct c2_dbenv *db_env,
-		       struct c2_addb_ctx *addb_ctx,
-		       const char *map_name);
+C2_INTERNAL int c2_cobfid_map_init(struct c2_cobfid_map *cfm,
+				   struct c2_dbenv *db_env,
+				   struct c2_addb_ctx *addb_ctx,
+				   const char *map_name);
 
 /**
    Finalize use of a cobfid map.
    @param cfm Pointer to the struct c2_cobfid_map to finalize
  */
-void c2_cobfid_map_fini(struct c2_cobfid_map *cfm);
+C2_INTERNAL void c2_cobfid_map_fini(struct c2_cobfid_map *cfm);
 
 /**
    Finalize use of a cobfid map iterator.
    @param iter Pointer to the struct c2_cobfid_map_iter to finalize
  */
-void c2_cobfid_map_iter_fini(struct  c2_cobfid_map_iter *iter);
+C2_INTERNAL void c2_cobfid_map_iter_fini(struct c2_cobfid_map_iter *iter);
 
 /**
    Creates an association between the tuple of (container_id, file_fid)
@@ -223,10 +223,10 @@ void c2_cobfid_map_iter_fini(struct  c2_cobfid_map_iter *iter);
    @see c2_cobfid_map_enum()
    @see c2_cobfid_map_container_enum()
  */
-int c2_cobfid_map_add(struct c2_cobfid_map *cfm,
-		      const uint64_t container_id,
-		      const struct c2_fid file_fid,
-		      struct c2_uint128 cob_fid);
+C2_INTERNAL int c2_cobfid_map_add(struct c2_cobfid_map *cfm,
+				  const uint64_t container_id,
+				  const struct c2_fid file_fid,
+				  struct c2_uint128 cob_fid);
 
 /**
    Delete the association of the tuple (container_id, file_fid) with a cob_fid.
@@ -236,9 +236,9 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm,
    @retval 0 on success
    @retval -errno on failure
  */
-int c2_cobfid_map_del(struct c2_cobfid_map *cfm,
-		      const uint64_t container_id,
-		      const struct c2_fid file_fid);
+C2_INTERNAL int c2_cobfid_map_del(struct c2_cobfid_map *cfm,
+				  const uint64_t container_id,
+				  const struct c2_fid file_fid);
 
 /**
    Initializes an iterator to enumerate the associations within a container
@@ -252,9 +252,9 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm,
    @retval 0  on success.
    @retval -errno on error.
  */
-int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
-				 uint64_t container_id,
-				 struct c2_cobfid_map_iter *iter);
+C2_INTERNAL int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
+					     uint64_t container_id,
+					     struct c2_cobfid_map_iter *iter);
 
 /**
    Initializes an iterator to enumerate all of the associations
@@ -267,8 +267,8 @@ int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
    @retval 0  on success.
    @retval -errno on error.
  */
-int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
-		       struct c2_cobfid_map_iter *iter);
+C2_INTERNAL int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
+				   struct c2_cobfid_map_iter *iter);
 
 /**
    Returns the next association in traversal order, pointed to by the
@@ -290,10 +290,10 @@ int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
    @retval -ENOENT when the iterator is exhausted
    @retval -errno  on other errors
  */
-int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
-			    uint64_t *container_id_p,
-			    struct c2_fid *file_fid_p,
-			    struct c2_uint128 *cob_fid_p);
+C2_INTERNAL int c2_cobfid_map_iter_next(struct c2_cobfid_map_iter *iter,
+					uint64_t * container_id_p,
+					struct c2_fid *file_fid_p,
+					struct c2_uint128 *cob_fid_p);
 
 
 /**
@@ -305,14 +305,15 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
  *
  * @see c2_cobfid_map_put()
  */
-int c2_cobfid_map_get(struct c2_reqh *reqh, struct c2_cobfid_map **out);
+C2_INTERNAL int c2_cobfid_map_get(struct c2_reqh *reqh,
+				  struct c2_cobfid_map **out);
 
 /**
  * Releases a reference on struct c2_cobfid_map instance.
  *
  * @see c2_cobfid_map_setup_get()
  */
-void c2_cobfid_map_put(struct c2_reqh *reqh);
+C2_INTERNAL void c2_cobfid_map_put(struct c2_reqh *reqh);
 
 /** @} */
 

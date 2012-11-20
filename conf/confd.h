@@ -166,8 +166,8 @@ struct c2_confd_cache {
 struct c2_confd_stat {
 };
 
-int c2_confd_service_register(void);
-void c2_confd_service_unregister(void);
+C2_INTERNAL int c2_confd_service_register(void);
+C2_INTERNAL void c2_confd_service_unregister(void);
 
 enum {
 	/* magic for reqh services */

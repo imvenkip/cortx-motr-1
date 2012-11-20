@@ -127,7 +127,7 @@ static struct c2_fop_type *fop_types[] = {
 	&c2_rpc_fop_noop_fopt,
 };
 
-void c2_rpc_session_fop_fini(void)
+C2_INTERNAL void c2_rpc_session_fop_fini(void)
 {
 	c2_fop_type_fini(&c2_rpc_fop_noop_fopt);
 	c2_fop_type_fini(&c2_rpc_fop_session_terminate_rep_fopt);
@@ -148,7 +148,7 @@ extern struct c2_fom_type_ops c2_rpc_fom_session_establish_type_ops;
 extern struct c2_fom_type_ops c2_rpc_fom_conn_terminate_type_ops;
 extern struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops;
 
-int c2_rpc_session_fop_init(void)
+C2_INTERNAL int c2_rpc_session_fop_init(void)
 {
 	/**
 	 * @todo This should be done from dtm subsystem init.
@@ -217,9 +217,10 @@ int c2_rpc_session_fop_init(void)
 			 .fop_ops   = &c2_rpc_fop_noop_ops);
 }
 
-void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
-					struct c2_net_end_point *ep,
-					struct c2_rpc_machine   *machine)
+C2_INTERNAL void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item *item,
+						    struct c2_net_end_point *ep,
+						    struct c2_rpc_machine
+						    *machine)
 {
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 
@@ -237,7 +238,7 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 	C2_LEAVE();
 }
 
-bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item)
+C2_INTERNAL bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item)
 {
 	int i;
 

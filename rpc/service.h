@@ -42,8 +42,8 @@ struct c2_rpc_servie_type_ops;
 struct c2_rpc_service;
 struct c2_rpc_service_ops;
 
-int  c2_rpc_service_module_init(void);
-void c2_rpc_service_module_fini(void);
+C2_INTERNAL int c2_rpc_service_module_init(void);
+C2_INTERNAL void c2_rpc_service_module_fini(void);
 
 /** @todo XXX This is stub definition */
 struct c2_uuid {
@@ -110,14 +110,16 @@ scope struct c2_rpc_service_type (obj_name) = {                          \
  *
  * @post c2_rpc_service_type_locate(service_type->svt_type_id) == service_type
  */
-void c2_rpc_service_type_register(struct c2_rpc_service_type *service_type);
+C2_INTERNAL void c2_rpc_service_type_register(struct c2_rpc_service_type
+					      *service_type);
 
 /**
  * @return c2_rpc_service_type instance identified by type_id if found, NULL
  *         otherwise.
  * @post ergo(result != NULL, result->svt_type_id == type_id)
  */
-struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id);
+C2_INTERNAL struct c2_rpc_service_type *c2_rpc_service_type_locate(uint32_t
+								   type_id);
 
 /**
  * Unregisters a service type.
@@ -126,7 +128,8 @@ struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id);
  * @pre rpc_service_types_tlink_is_in(service_type)
  * @post !rpc_service_types_tlink_is_in(service_type)
  */
-void c2_rpc_service_type_unregister(struct c2_rpc_service_type *service_type);
+C2_INTERNAL void c2_rpc_service_type_unregister(struct c2_rpc_service_type
+						*service_type);
 
 /**
  * Possible states in which a c2_rpc_service instance can be.
@@ -202,8 +205,8 @@ struct c2_rpc_service {
 	uint64_t                         svc_magix;
 };
 
-C2_BOB_DECLARE(extern, c2_rpc_service);
-C2_TL_DECLARE(c2_rpc_services, extern, struct c2_rpc_service);
+C2_BOB_DECLARE(C2_EXTERN, c2_rpc_service);
+C2_TL_DECLARE(c2_rpc_services, C2_EXTERN, struct c2_rpc_service);
 
 struct c2_rpc_service_ops {
         /**
@@ -218,10 +221,10 @@ struct c2_rpc_service_ops {
 	void (*rso_fini_and_free)(struct c2_rpc_service *service);
 };
 
-bool c2_rpc_service_invariant(const struct c2_rpc_service *service);
+C2_INTERNAL bool c2_rpc_service_invariant(const struct c2_rpc_service *service);
 
-const char *
-c2_rpc_service_get_ep_addr(const struct c2_rpc_service *service);
+C2_INTERNAL const char *c2_rpc_service_get_ep_addr(const struct c2_rpc_service
+						   *service);
 
 /**
  * Associates service with conn
@@ -234,18 +237,20 @@ c2_rpc_service_get_ep_addr(const struct c2_rpc_service *service);
  *
  * @post service->svc_state == C2_RPC_SERVICE_STATE_CONN_ATTACHED
  */
-void c2_rpc_service_conn_attach(struct c2_rpc_service *service,
-				struct c2_rpc_conn    *conn);
+C2_INTERNAL void c2_rpc_service_conn_attach(struct c2_rpc_service *service,
+					    struct c2_rpc_conn *conn);
 
 /**
  * @return conn if service->svc_state == C2_RPC_SERVICE_STATE_CONN_ATTACHED,
  *         NULL otherwise.
  */
-struct c2_rpc_conn *
-c2_rpc_service_get_conn(const struct c2_rpc_service *service);
+C2_INTERNAL struct c2_rpc_conn *c2_rpc_service_get_conn(const struct
+							c2_rpc_service
+							*service);
 
-const struct c2_uuid *
-c2_rpc_service_get_uuid(const struct c2_rpc_service *service);
+C2_INTERNAL const struct c2_uuid *c2_rpc_service_get_uuid(const struct
+							  c2_rpc_service
+							  *service);
 
 /**
  * Removes association between service and service->svc_conn.
@@ -254,7 +259,7 @@ c2_rpc_service_get_uuid(const struct c2_rpc_service *service);
  *      service->svc_state == C2_RPC_SERVICE_STATE_CONN_ATTACHED
  * @post service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED_
  */
-void c2_rpc_service_conn_detach(struct c2_rpc_service *service);
+C2_INTERNAL void c2_rpc_service_conn_detach(struct c2_rpc_service *service);
 
 /**
  * Releases service instance.
@@ -264,7 +269,7 @@ void c2_rpc_service_conn_detach(struct c2_rpc_service *service);
  * @pre service != NULL &&
  *      service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED
  */
-void c2_rpc_service_release(struct c2_rpc_service *service);
+C2_INTERNAL void c2_rpc_service_release(struct c2_rpc_service *service);
 
 /*
  * APIs after this point are not to be used by end-user. These are helpers
@@ -274,16 +279,16 @@ void c2_rpc_service_release(struct c2_rpc_service *service);
 /**
  * Wrapper over service_type->svt_ops->rsto_alloc_and_init()
  */
-int
+C2_INTERNAL int
 c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
-			      const char                 *ep_addr,
-			      const struct c2_uuid       *uuid,
-			      struct c2_rpc_service     **out);
+			      const char *ep_addr,
+			      const struct c2_uuid *uuid,
+			      struct c2_rpc_service **out);
 
 /**
  * Wrapper over service->svc_ops->rso_fini_and_free()
  */
-void c2_rpc_service_fini_and_free(struct c2_rpc_service *service);
+C2_INTERNAL void c2_rpc_service_fini_and_free(struct c2_rpc_service *service);
 
 /**
  * Helper routine to initialise c2_rpc_service instance.
@@ -296,18 +301,18 @@ void c2_rpc_service_fini_and_free(struct c2_rpc_service *service);
  *
  * @post service->svc_state == C2_RPC_SERVICE_STATE_UNDEFINED
  */
-int c2_rpc__service_init(struct c2_rpc_service           *service,
-			 struct c2_rpc_service_type      *service_type,
-			 const char                      *ep_addr,
-			 const struct c2_uuid            *uuid,
-			 const struct c2_rpc_service_ops *ops);
+C2_INTERNAL int c2_rpc__service_init(struct c2_rpc_service *service,
+				     struct c2_rpc_service_type *service_type,
+				     const char *ep_addr,
+				     const struct c2_uuid *uuid,
+				     const struct c2_rpc_service_ops *ops);
 
 /**
  * Helper routine to finalise c2_rpc_service instance.
  *
  * Will be usable for implementation of service->svc_ops->rso_fini_and_free()
  */
-void c2_rpc__service_fini(struct c2_rpc_service *service);
+C2_INTERNAL void c2_rpc__service_fini(struct c2_rpc_service *service);
 
 /**
    @} end of rpc_service group

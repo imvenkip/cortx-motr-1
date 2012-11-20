@@ -199,7 +199,7 @@ static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *name,
    format and arguments.
  */
 static __attribute__((format(printf, 3, 4))) int
-openvar(FILE **file, const char *mode, const char *fmt, ...)
+openvar(FILE ** file, const char *mode, const char *fmt, ...)
 {
 	char   *name;
 	int     nob;
@@ -386,7 +386,7 @@ void c2_dbenv_fini(struct c2_dbenv *env)
 	c2_dbenv_common_fini(env);
 }
 
-int c2_dbenv_sync(struct c2_dbenv *env)
+C2_INTERNAL int c2_dbenv_sync(struct c2_dbenv *env)
 {
 	return DBENV_CALL(env, txn_checkpoint, 0, 0, 0);
 }
@@ -401,9 +401,9 @@ static int table_tol_del[] = { 0 };
 static int table_tol_cursor[] = { 0 };
 static int table_tol_sync[] = { 0 };
 
-int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
-		  const char *name, uint64_t flags,
-		  const struct c2_table_ops *ops)
+C2_INTERNAL int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
+			      const char *name, uint64_t flags,
+			      const struct c2_table_ops *ops)
 {
 	int result;
 	DB *db;
@@ -441,7 +441,7 @@ int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
 	return result;
 }
 
-void c2_table_fini(struct c2_table *table)
+C2_INTERNAL void c2_table_fini(struct c2_table *table)
 {
 	if (table->t_i.t_db != NULL) {
 		TABLE_CALL(table, sync, 0);
@@ -452,7 +452,7 @@ void c2_table_fini(struct c2_table *table)
 	c2_mutex_fini(&table->t_i.t_lock);
 }
 
-void c2_db_buf_impl_init(struct c2_db_buf *buf)
+C2_INTERNAL void c2_db_buf_impl_init(struct c2_db_buf *buf)
 {
 	DBT *dbt;
 
@@ -472,11 +472,11 @@ void c2_db_buf_impl_init(struct c2_db_buf *buf)
 	}
 }
 
-void c2_db_buf_impl_fini(struct c2_db_buf *buf)
+C2_INTERNAL void c2_db_buf_impl_fini(struct c2_db_buf *buf)
 {
 }
 
-bool c2_db_buf_impl_invariant(const struct c2_db_buf *buf)
+C2_INTERNAL bool c2_db_buf_impl_invariant(const struct c2_db_buf *buf)
 {
 	return
                 buf->db_i.db_dbt.data == buf->db_buf.b_addr &&
@@ -485,7 +485,8 @@ bool c2_db_buf_impl_invariant(const struct c2_db_buf *buf)
                 buf->db_i.db_dbt.ulen == buf->db_buf.b_nob;
 }
 
-int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
+C2_INTERNAL int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env,
+			      uint64_t flags)
 {
 	int result;
 	DB_TXN *txn;
@@ -544,7 +545,7 @@ static int tx_fini_pre(struct c2_db_tx *tx, bool commit)
 	return 0;
 }
 
-void tx_fini(struct c2_db_tx *tx)
+C2_INTERNAL void tx_fini(struct c2_db_tx *tx)
 {
 	c2_db_common_tx_fini(tx);
 }
@@ -552,7 +553,7 @@ void tx_fini(struct c2_db_tx *tx)
 static int tx_tol_commit[] = { 0 };
 static int tx_tol_abort[] = { 0 };
 
-int c2_db_tx_commit(struct c2_db_tx *tx)
+C2_INTERNAL int c2_db_tx_commit(struct c2_db_tx *tx)
 {
 	int result;
 
@@ -563,7 +564,7 @@ int c2_db_tx_commit(struct c2_db_tx *tx)
 	return result;
 }
 
-int c2_db_tx_abort(struct c2_db_tx *tx)
+C2_INTERNAL int c2_db_tx_abort(struct c2_db_tx *tx)
 {
 	int result;
 
@@ -573,7 +574,8 @@ int c2_db_tx_abort(struct c2_db_tx *tx)
 	return result;
 }
 
-void c2_db_tx_waiter_add(struct c2_db_tx *tx, struct c2_db_tx_waiter *w)
+C2_INTERNAL void c2_db_tx_waiter_add(struct c2_db_tx *tx,
+				     struct c2_db_tx_waiter *w)
 {
 	struct c2_dbenv *env;
 
@@ -642,20 +644,20 @@ static void pair_done(struct c2_db_pair *pair)
 	__result;				\
 });
 
-int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair)
+C2_INTERNAL int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, put, tx->dt_i.dt_txn,
 					  pair_key(pair), pair_rec(pair), 0));
 }
 
-int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair)
+C2_INTERNAL int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, put, tx->dt_i.dt_txn,
 					  pair_key(pair), pair_rec(pair),
 					  DB_NOOVERWRITE));
 }
 
-int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
+C2_INTERNAL int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	/*
 	 * Possible optimization: if pair's DBT flags are 0, ->get() would
@@ -676,14 +678,15 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 					  0));
 }
 
-int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)
+C2_INTERNAL int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, del, tx->dt_i.dt_txn,
 					  pair_key(pair), 0));
 }
 
-int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
-		      struct c2_db_tx *tx, uint32_t flags)
+C2_INTERNAL int c2_db_cursor_init(struct c2_db_cursor *cursor,
+				  struct c2_table *table, struct c2_db_tx *tx,
+				  uint32_t flags)
 {
 	cursor->c_flags = 0;
 	cursor->c_table = table;
@@ -697,7 +700,7 @@ static int cursor_tol_get[] = { -ENOENT, 0 };
 static int cursor_tol_put[] = { 0 };
 static int cursor_tol_del[] = { 0 };
 
-void c2_db_cursor_fini(struct c2_db_cursor *cursor)
+C2_INTERNAL void c2_db_cursor_fini(struct c2_db_cursor *cursor)
 {
 	CURSOR_CALL(cursor, close);
 }
@@ -710,54 +713,61 @@ static int cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair,
                                            cursor->c_flags | flags));
 }
 
-int c2_db_cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
+C2_INTERNAL int c2_db_cursor_get(struct c2_db_cursor *cursor,
+				 struct c2_db_pair *pair)
 {
 	return cursor_get(cursor, pair, DB_SET_RANGE);
 }
 
-int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
+C2_INTERNAL int c2_db_cursor_next(struct c2_db_cursor *cursor,
+				  struct c2_db_pair *pair)
 {
 	return cursor_get(cursor, pair, DB_NEXT);
 }
 
-int c2_db_cursor_prev(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
+C2_INTERNAL int c2_db_cursor_prev(struct c2_db_cursor *cursor,
+				  struct c2_db_pair *pair)
 {
 	return cursor_get(cursor, pair, DB_PREV);
 }
 
-int c2_db_cursor_first(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
+C2_INTERNAL int c2_db_cursor_first(struct c2_db_cursor *cursor,
+				   struct c2_db_pair *pair)
 {
 	return cursor_get(cursor, pair, DB_FIRST);
 }
 
-int c2_db_cursor_last(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
+C2_INTERNAL int c2_db_cursor_last(struct c2_db_cursor *cursor,
+				  struct c2_db_pair *pair)
 {
 	return cursor_get(cursor, pair, DB_LAST);
 }
 
-int c2_db_cursor_set(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
+C2_INTERNAL int c2_db_cursor_set(struct c2_db_cursor *cursor,
+				 struct c2_db_pair *pair)
 {
 	return WITH_PAIR(pair, CURSOR_CALL(cursor, put, pair_key(pair),
 					   pair_rec(pair), DB_CURRENT));
 }
 
-int c2_db_cursor_add(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
+C2_INTERNAL int c2_db_cursor_add(struct c2_db_cursor *cursor,
+				 struct c2_db_pair *pair)
 {
 	return WITH_PAIR(pair, CURSOR_CALL(cursor, put, pair_key(pair),
 					   pair_rec(pair), DB_KEYFIRST));
 }
 
-int c2_db_cursor_del(struct c2_db_cursor *cursor)
+C2_INTERNAL int c2_db_cursor_del(struct c2_db_cursor *cursor)
 {
 	return CURSOR_CALL(cursor, del, 0);
 }
 
-int c2_db_init(void)
+C2_INTERNAL int c2_db_init(void)
 {
 	return 0;
 }
 
-void c2_db_fini(void)
+C2_INTERNAL void c2_db_fini(void)
 {
 }
 

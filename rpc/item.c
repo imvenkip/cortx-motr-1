@@ -42,12 +42,12 @@ static int item_entered_in_sent_state(struct c2_sm *mach);
 static int item_entered_in_timedout_state(struct c2_sm *mach);
 static int item_entered_in_failed_state(struct c2_sm *mach);
 
-C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", /* global */,
+C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", C2_INTERNAL,
 		   struct c2_rpc_item, ri_field,
 	           ri_magic, C2_RPC_ITEM_MAGIC,
 		   C2_RPC_ITEM_HEAD_MAGIC);
 
-C2_TL_DEFINE(rpcitem, /* global */, struct c2_rpc_item);
+C2_TL_DEFINE(rpcitem, C2_INTERNAL, struct c2_rpc_item);
 
 C2_TL_DESCR_DEFINE(rit, "rpc_item_type_descr", static, struct c2_rpc_item_type,
 		   rit_linkage,	rit_magic, C2_RPC_ITEM_TYPE_MAGIC,
@@ -78,7 +78,7 @@ static bool opcode_is_dup(uint32_t opcode)
 	return c2_rpc_item_type_lookup(opcode) != NULL;
 }
 
-int c2_rpc_item_type_list_init(void)
+C2_INTERNAL int c2_rpc_item_type_list_init(void)
 {
 	C2_ENTRY();
 
@@ -88,7 +88,7 @@ int c2_rpc_item_type_list_init(void)
 	C2_RETURN(0);
 }
 
-void c2_rpc_item_type_list_fini(void)
+C2_INTERNAL void c2_rpc_item_type_list_fini(void)
 {
 	struct c2_rpc_item_type		*item_type;
 
@@ -105,7 +105,7 @@ void c2_rpc_item_type_list_fini(void)
 	C2_LEAVE();
 }
 
-int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
+C2_INTERNAL int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 {
 
 	C2_ENTRY("item_type: %p, item_opcode: %u", item_type,
@@ -120,7 +120,7 @@ int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 	C2_RETURN(0);
 }
 
-void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type)
+C2_INTERNAL void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type)
 {
 	C2_ENTRY("item_type: %p", item_type);
 	C2_PRE(item_type != NULL);
@@ -133,7 +133,7 @@ void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type)
 	C2_LEAVE();
 }
 
-struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
+C2_INTERNAL struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 {
 	struct c2_rpc_item_type *item_type;
 
@@ -246,7 +246,7 @@ static const struct c2_sm_conf incoming_item_sm_conf = {
 	.scf_state     = incoming_item_states,
 };
 
-bool c2_rpc_item_invariant(const struct c2_rpc_item *item)
+C2_INTERNAL bool c2_rpc_item_invariant(const struct c2_rpc_item *item)
 {
 	int  state;
 	bool req;
@@ -323,37 +323,37 @@ static const char *item_state_name(const struct c2_rpc_item *item)
 	return item->ri_sm.sm_conf->scf_state[item->ri_sm.sm_state].sd_name;
 }
 
-bool item_is_active(const struct c2_rpc_item *item)
+C2_INTERNAL bool item_is_active(const struct c2_rpc_item *item)
 {
 	return C2_IN(item->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
 				      RPC_ITEM_STAGE_FUTURE));
 }
-struct c2_verno *item_verno(struct c2_rpc_item *item, int idx)
+C2_INTERNAL struct c2_verno *item_verno(struct c2_rpc_item *item, int idx)
 {
 	C2_PRE(idx < MAX_SLOT_REF);
 	return &item->ri_slot_refs[idx].sr_ow.osr_verno;
 }
 
-uint64_t item_xid(struct c2_rpc_item *item, int idx)
+C2_INTERNAL uint64_t item_xid(struct c2_rpc_item *item, int idx)
 {
 	C2_PRE(idx < MAX_SLOT_REF);
 	return item->ri_slot_refs[idx].sr_ow.osr_xid;
 }
 
-const char *item_kind(const struct c2_rpc_item *item)
+C2_INTERNAL const char *item_kind(const struct c2_rpc_item *item)
 {
 	return  c2_rpc_item_is_request(item) ? "REQUEST" :
 		c2_rpc_item_is_reply(item)   ? "REPLY"   :
 		c2_rpc_item_is_oneway(item)  ? "ONEWAY"  : "INVALID_KIND";
 }
 
-struct c2_rpc_machine *item_machine(const struct c2_rpc_item *item)
+C2_INTERNAL struct c2_rpc_machine *item_machine(const struct c2_rpc_item *item)
 {
 	return item->ri_session->s_conn->c_rpc_machine;
 }
 
-void c2_rpc_item_init(struct c2_rpc_item            *item,
-		      const struct c2_rpc_item_type *itype)
+C2_INTERNAL void c2_rpc_item_init(struct c2_rpc_item *item,
+				  const struct c2_rpc_item_type *itype)
 {
 	struct c2_rpc_slot_ref	*sref;
 
@@ -385,7 +385,7 @@ static bool item_is_dummy(struct c2_rpc_item *item)
 	return v->vn_lsn == C2_LSN_DUMMY_ITEM && v->vn_vc == 0;
 }
 
-void c2_rpc_item_fini(struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_item_fini(struct c2_rpc_item *item)
 {
 	struct c2_rpc_slot_ref *sref = &item->ri_slot_refs[0];
 
@@ -409,7 +409,7 @@ C2_EXPORTED(c2_rpc_item_fini);
 #define ITEM_XCODE_OBJ(ptr)     C2_XCODE_OBJ(c2_rpc_onwire_slot_ref_xc, ptr)
 #define SLOT_REF_XCODE_OBJ(ptr) C2_XCODE_OBJ(c2_rpc_item_onwire_header_xc, ptr)
 
-c2_bcount_t c2_rpc_item_onwire_header_size(void)
+C2_INTERNAL c2_bcount_t c2_rpc_item_onwire_header_size(void)
 {
 	struct c2_rpc_item_onwire_header ioh;
 	struct c2_rpc_onwire_slot_ref    sr;
@@ -427,7 +427,7 @@ c2_bcount_t c2_rpc_item_onwire_header_size(void)
 	return item_header_size;
 }
 
-c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item)
+C2_INTERNAL c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item)
 {
 	C2_PRE(item->ri_type != NULL &&
 	       item->ri_type->rit_ops != NULL &&
@@ -436,7 +436,7 @@ c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item)
 		c2_rpc_item_onwire_header_size();
 }
 
-void c2_rpc_item_free(struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_item_free(struct c2_rpc_item *item)
 {
 	C2_ASSERT(item->ri_ops != NULL &&
 		  item->ri_ops->rio_free != NULL);
@@ -444,26 +444,26 @@ void c2_rpc_item_free(struct c2_rpc_item *item)
 	item->ri_ops->rio_free(item);
 }
 
-bool c2_rpc_item_is_update(const struct c2_rpc_item *item)
+C2_INTERNAL bool c2_rpc_item_is_update(const struct c2_rpc_item *item)
 {
 	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_MUTABO) != 0;
 }
 
-bool c2_rpc_item_is_request(const struct c2_rpc_item *item)
+C2_INTERNAL bool c2_rpc_item_is_request(const struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL && item->ri_type != NULL);
 
 	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_REQUEST) != 0;
 }
 
-bool c2_rpc_item_is_reply(const struct c2_rpc_item *item)
+C2_INTERNAL bool c2_rpc_item_is_reply(const struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL && item->ri_type != NULL);
 
 	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_REPLY) != 0;
 }
 
-bool c2_rpc_item_is_oneway(const struct c2_rpc_item *item)
+C2_INTERNAL bool c2_rpc_item_is_oneway(const struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL);
 	C2_PRE(item->ri_type != NULL);
@@ -471,20 +471,20 @@ bool c2_rpc_item_is_oneway(const struct c2_rpc_item *item)
 	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_ONEWAY) != 0;
 }
 
-bool c2_rpc_item_is_bound(const struct c2_rpc_item *item)
+C2_INTERNAL bool c2_rpc_item_is_bound(const struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL);
 
 	return item->ri_slot_refs[0].sr_slot != NULL;
 }
 
-bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item)
+C2_INTERNAL bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item)
 {
 	return !c2_rpc_item_is_bound(item) && !c2_rpc_item_is_oneway(item);
 }
 
-void c2_rpc_item_set_stage(struct c2_rpc_item     *item,
-			   enum c2_rpc_item_stage  stage)
+C2_INTERNAL void c2_rpc_item_set_stage(struct c2_rpc_item *item,
+				       enum c2_rpc_item_stage stage)
 {
 	struct c2_rpc_session *session;
 	bool                   item_was_active;
@@ -503,8 +503,9 @@ void c2_rpc_item_set_stage(struct c2_rpc_item     *item,
 	C2_ASSERT(c2_rpc_session_invariant(session));
 }
 
-void c2_rpc_item_sm_init(struct c2_rpc_item *item, struct c2_sm_group *grp,
-			 enum c2_rpc_item_dir dir)
+C2_INTERNAL void c2_rpc_item_sm_init(struct c2_rpc_item *item,
+				     struct c2_sm_group *grp,
+				     enum c2_rpc_item_dir dir)
 {
 	const struct c2_sm_conf *conf;
 
@@ -518,7 +519,7 @@ void c2_rpc_item_sm_init(struct c2_rpc_item *item, struct c2_sm_group *grp,
 		   grp, NULL /* addb ctx */);
 }
 
-void c2_rpc_item_sm_fini(struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_item_sm_fini(struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL);
 
@@ -536,8 +537,8 @@ void c2_rpc_item_sm_fini(struct c2_rpc_item *item)
 	c2_sm_fini(&item->ri_sm);
 }
 
-void c2_rpc_item_change_state(struct c2_rpc_item     *item,
-			      enum c2_rpc_item_state  state)
+C2_INTERNAL void c2_rpc_item_change_state(struct c2_rpc_item *item,
+					  enum c2_rpc_item_state state)
 {
 	C2_PRE(item != NULL);
 
@@ -550,7 +551,7 @@ void c2_rpc_item_change_state(struct c2_rpc_item     *item,
 	c2_sm_state_set(&item->ri_sm, state);
 }
 
-void c2_rpc_item_failed(struct c2_rpc_item *item, int32_t rc)
+C2_INTERNAL void c2_rpc_item_failed(struct c2_rpc_item *item, int32_t rc)
 {
 	C2_PRE(item != NULL && rc != 0);
 
@@ -558,9 +559,8 @@ void c2_rpc_item_failed(struct c2_rpc_item *item, int32_t rc)
 	c2_rpc_item_change_state(item, C2_RPC_ITEM_FAILED);
 }
 
-int c2_rpc_item_timedwait(struct c2_rpc_item *item,
-                          uint64_t            states,
-                          c2_time_t           timeout)
+C2_INTERNAL int c2_rpc_item_timedwait(struct c2_rpc_item *item,
+				      uint64_t states, c2_time_t timeout)
 {
         struct c2_rpc_machine *machine = item_machine(item);
         int                    rc;
@@ -572,7 +572,8 @@ int c2_rpc_item_timedwait(struct c2_rpc_item *item,
         return rc;
 }
 
-int c2_rpc_item_wait_for_reply(struct c2_rpc_item *item, c2_time_t timeout)
+C2_INTERNAL int c2_rpc_item_wait_for_reply(struct c2_rpc_item *item,
+					   c2_time_t timeout)
 {
 	int rc;
 
@@ -591,7 +592,7 @@ int c2_rpc_item_wait_for_reply(struct c2_rpc_item *item, c2_time_t timeout)
 	return rc;
 }
 
-struct c2_rpc_item *sm_to_item(struct c2_sm *mach)
+C2_INTERNAL struct c2_rpc_item *sm_to_item(struct c2_sm *mach)
 {
 	return container_of(mach, struct c2_rpc_item, ri_sm);
 }
@@ -668,7 +669,7 @@ static int item_entered_in_failed_state(struct c2_sm *mach)
 	return -1;
 }
 
-int c2_rpc_item_start_timer(struct c2_rpc_item *item)
+C2_INTERNAL int c2_rpc_item_start_timer(struct c2_rpc_item *item)
 {
 	if (item->ri_op_timeout != C2_TIME_NEVER) {
 		C2_LOG(C2_DEBUG, "%p Starting timer", item);
@@ -677,6 +678,8 @@ int c2_rpc_item_start_timer(struct c2_rpc_item *item)
 	}
 	return 0;
 }
+
+#undef SLOT_REF_XCODE_OBJ
 
 /** @} end of rpc group */
 

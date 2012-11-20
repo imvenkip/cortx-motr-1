@@ -42,38 +42,39 @@ struct c2_bitstring {
 
   User is responsible for allocating large enough contiguous memory.
  */
-void *c2_bitstring_buf_get(struct c2_bitstring *c);
+C2_INTERNAL void *c2_bitstring_buf_get(struct c2_bitstring *c);
 /**
  Report the bitstring length
  */
-uint32_t c2_bitstring_len_get(const struct c2_bitstring *c);
+C2_INTERNAL uint32_t c2_bitstring_len_get(const struct c2_bitstring *c);
 /**
  Set the bitstring valid length
  */
-void c2_bitstring_len_set(struct c2_bitstring *c, uint32_t len);
+C2_INTERNAL void c2_bitstring_len_set(struct c2_bitstring *c, uint32_t len);
 /**
  String-like compare: alphanumeric for the length of the shortest string.
  Shorter strings are "less" than matching longer strings.
  Bitstrings may contain embedded NULLs.
  */
-int c2_bitstring_cmp(const struct c2_bitstring *c1,
-                     const struct c2_bitstring *c2);
+C2_INTERNAL int c2_bitstring_cmp(const struct c2_bitstring *c1,
+				 const struct c2_bitstring *c2);
 
 /**
  Copy @src to @dst.
 */
-void c2_bitstring_copy(struct c2_bitstring *dst,
-                       const char *src, size_t count);
+C2_INTERNAL void c2_bitstring_copy(struct c2_bitstring *dst,
+				   const char *src, size_t count);
 
 /**
  Alloc memory for a string of passed len and copy name to it.
 */
-struct c2_bitstring *c2_bitstring_alloc(const char *name, size_t len);
+C2_INTERNAL struct c2_bitstring *c2_bitstring_alloc(const char *name,
+						    size_t len);
 
 /**
  Free memory of passed @c.
 */
-void c2_bitstring_free(struct c2_bitstring *c);
+C2_INTERNAL void c2_bitstring_free(struct c2_bitstring *c);
 
 /** @} end of adt group */
 

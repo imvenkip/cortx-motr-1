@@ -24,7 +24,8 @@
 #include "fop/fop_item_type.h"
 #include "rpc/rpc_helpers.h"
 
-c2_bcount_t c2_fop_item_type_default_payload_size(const struct c2_rpc_item *item)
+C2_INTERNAL c2_bcount_t c2_fop_item_type_default_payload_size(const struct
+							      c2_rpc_item *item)
 {
 	c2_bcount_t          len;
 	struct c2_fop       *fop;
@@ -40,9 +41,10 @@ c2_bcount_t c2_fop_item_type_default_payload_size(const struct c2_rpc_item *item
 	return len;
 }
 
-int c2_fop_item_type_default_encode(const struct c2_rpc_item_type *item_type,
-				    struct c2_rpc_item            *item,
-				    struct c2_bufvec_cursor       *cur)
+C2_INTERNAL int c2_fop_item_type_default_encode(const struct c2_rpc_item_type
+						*item_type,
+						struct c2_rpc_item *item,
+						struct c2_bufvec_cursor *cur)
 {
 	C2_PRE(item != NULL);
 	C2_PRE(cur != NULL);
@@ -50,9 +52,10 @@ int c2_fop_item_type_default_encode(const struct c2_rpc_item_type *item_type,
 	return c2_fop_item_encdec(item, cur, C2_BUFVEC_ENCODE);
 }
 
-int c2_fop_item_type_default_decode(const struct c2_rpc_item_type  *item_type,
-				    struct c2_rpc_item            **item_out,
-				    struct c2_bufvec_cursor        *cur)
+C2_INTERNAL int c2_fop_item_type_default_decode(const struct c2_rpc_item_type
+						*item_type,
+						struct c2_rpc_item **item_out,
+						struct c2_bufvec_cursor *cur)
 {
 	int			 rc;
 	struct c2_fop		*fop;
@@ -90,9 +93,9 @@ int c2_fop_item_type_default_decode(const struct c2_rpc_item_type  *item_type,
    Helper function used by encode/decode ops of each item type (rito_encode,
    rito_decode) for decoding an rpc item into/from a bufvec
 */
-int c2_fop_item_encdec(struct c2_rpc_item      *item,
-		       struct c2_bufvec_cursor *cur,
-		       enum c2_bufvec_what      what)
+C2_INTERNAL int c2_fop_item_encdec(struct c2_rpc_item *item,
+				   struct c2_bufvec_cursor *cur,
+				   enum c2_bufvec_what what)
 {
 	int                  rc;
 	struct c2_fop       *fop;

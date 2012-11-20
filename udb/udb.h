@@ -81,14 +81,14 @@ struct c2_udb_ctxt {
    @param ctxt the user db context
    @return 0 means success. Otherwise failure.
 */
-int c2_udb_ctxt_init(struct c2_udb_ctxt *ctxt);
+C2_INTERNAL int c2_udb_ctxt_init(struct c2_udb_ctxt *ctxt);
 
 /**
    Fini a Colibri User Data-base Context
 
    @param ctxt the udb context
 */
-void c2_udb_ctxt_fini(struct c2_udb_ctxt *ctxt);
+C2_INTERNAL void c2_udb_ctxt_fini(struct c2_udb_ctxt *ctxt);
 
 /**
    add a cred mapping into udb
@@ -103,10 +103,10 @@ void c2_udb_ctxt_fini(struct c2_udb_ctxt *ctxt);
    that means to mapping any credentials from this domain to the specified
    internal credential.
 */
-int c2_udb_add(struct c2_udb_ctxt *ctxt,
-	       const struct c2_udb_domain *edomain,
-	       const struct c2_udb_cred *external,
-	       const struct c2_udb_cred *internal);
+C2_INTERNAL int c2_udb_add(struct c2_udb_ctxt *ctxt,
+			   const struct c2_udb_domain *edomain,
+			   const struct c2_udb_cred *external,
+			   const struct c2_udb_cred *internal);
 
 /**
    delete a cred mapping into udb
@@ -117,10 +117,10 @@ int c2_udb_add(struct c2_udb_ctxt *ctxt,
    @param internal [in]internal credential.
    @return 0 means success. otherwise failure.
 */
-int c2_udb_del(struct c2_udb_ctxt *ctxt,
-	       const struct c2_udb_domain *edomain,
-	       const struct c2_udb_cred *external,
-	       const struct c2_udb_cred *internal);
+C2_INTERNAL int c2_udb_del(struct c2_udb_ctxt *ctxt,
+			   const struct c2_udb_domain *edomain,
+			   const struct c2_udb_cred *external,
+			   const struct c2_udb_cred *internal);
 
 
 /**
@@ -131,9 +131,9 @@ int c2_udb_del(struct c2_udb_ctxt *ctxt,
    @param internal [out]internal credential.
    @return 0 means success. otherwise failure.
 */
-int c2_udb_e2i(struct c2_udb_ctxt *ctxt,
-	       const struct c2_udb_cred *external,
-	       struct c2_udb_cred *internal);
+C2_INTERNAL int c2_udb_e2i(struct c2_udb_ctxt *ctxt,
+			   const struct c2_udb_cred *external,
+			   struct c2_udb_cred *internal);
 
 /**
    map an internal cred to external cred
@@ -143,9 +143,9 @@ int c2_udb_e2i(struct c2_udb_ctxt *ctxt,
    @param external [out]external credential.
    @return 0 means success. otherwise failure.
 */
-int c2_udb_i2e(struct c2_udb_ctxt *ctxt,
-	       const struct c2_udb_cred *internal,
-	       struct c2_udb_cred *external);
+C2_INTERNAL int c2_udb_i2e(struct c2_udb_ctxt *ctxt,
+			   const struct c2_udb_cred *internal,
+			   struct c2_udb_cred *external);
 
 /** @} end group udb */
 

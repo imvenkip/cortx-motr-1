@@ -21,12 +21,12 @@
 #include <linux/cpu.h> /* simple_strtoull, simple_strtoul */
 #include "lib/misc.h"
 
-uint64_t c2_strtou64(const char *str, char **endptr, int base)
+C2_INTERNAL uint64_t c2_strtou64(const char *str, char **endptr, int base)
 {
 	return simple_strtoull(str, endptr, base);
 }
 
-uint32_t c2_strtou32(const char *str, char **endptr, int base)
+C2_INTERNAL uint32_t c2_strtou32(const char *str, char **endptr, int base)
 {
 	return simple_strtoul(str, endptr, base);
 }

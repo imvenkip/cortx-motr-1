@@ -56,16 +56,16 @@ struct c2_list_link {
 
  @param link - pointer to link enty
 */
-void c2_list_link_init(struct c2_list_link *link);
+C2_INTERNAL void c2_list_link_init(struct c2_list_link *link);
 
 /**
  free resources associated with link entry
 
  @param link - pointer to link enty
 */
-void c2_list_link_fini(struct c2_list_link *link);
+C2_INTERNAL void c2_list_link_fini(struct c2_list_link *link);
 
-bool c2_list_link_invariant(const struct c2_list_link *link);
+C2_INTERNAL bool c2_list_link_invariant(const struct c2_list_link *link);
 
 /**
    List head.
@@ -94,25 +94,25 @@ C2_BASSERT(offsetof(struct c2_list, l_tail) ==
 /**
    Initializes list head.
  */
-void c2_list_init(struct c2_list *head);
+C2_INTERNAL void c2_list_init(struct c2_list *head);
 
 /**
    Finalizes the list.
  */
-void c2_list_fini(struct c2_list *head);
+C2_INTERNAL void c2_list_fini(struct c2_list *head);
 
 /**
  check list is empty
 
  @param head pointer to list head
  */
-bool c2_list_is_empty(const struct c2_list *head);
+C2_INTERNAL bool c2_list_is_empty(const struct c2_list *head);
 
 /**
    Returns true iff @link is in @list.
  */
-bool c2_list_contains(const struct c2_list *list,
-		      const struct c2_list_link *link);
+C2_INTERNAL bool c2_list_contains(const struct c2_list *list,
+				  const struct c2_list_link *link);
 
 /**
  This function iterate over the argument list checking that double-linked
@@ -120,9 +120,9 @@ bool c2_list_contains(const struct c2_list *list,
 
  @return true iff @list isn't corrupted
 */
-bool c2_list_invariant(const struct c2_list *list);
+C2_INTERNAL bool c2_list_invariant(const struct c2_list *list);
 
-size_t c2_list_length(const struct c2_list *list);
+C2_INTERNAL size_t c2_list_length(const struct c2_list *list);
 
 /**
  add list to top on the list
@@ -134,7 +134,7 @@ size_t c2_list_length(const struct c2_list *list);
  @param new  pointer to list entry
 
  */
-void c2_list_add(struct c2_list *head, struct c2_list_link *new);
+C2_INTERNAL void c2_list_add(struct c2_list *head, struct c2_list_link *new);
 
 /**
  add list to tail on the list
@@ -145,7 +145,8 @@ void c2_list_add(struct c2_list *head, struct c2_list_link *new);
  @param head pointer to list head
  @param new  pointer to list entry
  */
-void c2_list_add_tail(struct c2_list *head, struct c2_list_link *new);
+C2_INTERNAL void c2_list_add_tail(struct c2_list *head,
+				  struct c2_list_link *new);
 
 /**
    Adds an element to the list right after the specified element.
@@ -153,7 +154,8 @@ void c2_list_add_tail(struct c2_list *head, struct c2_list_link *new);
    This function can be called on an uninitialised @new link. All @new fields
    are overwritten.
  */
-void c2_list_add_after (struct c2_list_link *anchor, struct c2_list_link *new);
+C2_INTERNAL void c2_list_add_after(struct c2_list_link *anchor,
+				   struct c2_list_link *new);
 
 /**
    Adds an element to the list right before the specified element.
@@ -161,22 +163,24 @@ void c2_list_add_after (struct c2_list_link *anchor, struct c2_list_link *new);
    This function can be called on an uninitialised @new link. All @new fields
    are overwritten.
  */
-void c2_list_add_before(struct c2_list_link *anchor, struct c2_list_link *new);
+C2_INTERNAL void c2_list_add_before(struct c2_list_link *anchor,
+				    struct c2_list_link *new);
 
 /**
    Deletes an entry from the list and re-initializes the entry.
  */
-void c2_list_del(struct c2_list_link *old);
+C2_INTERNAL void c2_list_del(struct c2_list_link *old);
 
 /**
    Moves an entry to head of the list.
  */
-void c2_list_move(struct c2_list *head, struct c2_list_link *new);
+C2_INTERNAL void c2_list_move(struct c2_list *head, struct c2_list_link *new);
 
 /**
    Moves an entry to tail of the list.
  */
-void c2_list_move_tail(struct c2_list *head, struct c2_list_link *new);
+C2_INTERNAL void c2_list_move_tail(struct c2_list *head,
+				   struct c2_list_link *new);
 
 /**
  * return first entry from the list
@@ -199,12 +203,12 @@ static inline struct c2_list_link *c2_list_first(const struct c2_list *head)
  @retval true - entry connected to a list
  @retval false - entry disconnected from a list
 */
-bool c2_list_link_is_in(const struct c2_list_link *link);
+C2_INTERNAL bool c2_list_link_is_in(const struct c2_list_link *link);
 
-bool c2_list_link_is_last(const struct c2_list_link *link,
-			  const struct c2_list      *head);
+C2_INTERNAL bool c2_list_link_is_last(const struct c2_list_link *link,
+				      const struct c2_list *head);
 
-size_t c2_list_length(const struct c2_list *list);
+C2_INTERNAL size_t c2_list_length(const struct c2_list *list);
 
 /**
  * get pointer to object from pointer to list link entry

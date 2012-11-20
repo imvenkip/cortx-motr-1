@@ -73,7 +73,7 @@ struct c2t1fs_globals c2t1fs_globals = {
 	.g_db_name    = C2T1FS_DB_NAME,
 };
 
-int c2t1fs_init(void)
+C2_INTERNAL int c2t1fs_init(void)
 {
 	int rc;
 
@@ -131,7 +131,7 @@ out:
 	return rc;
 }
 
-void c2t1fs_fini(void)
+C2_INTERNAL void c2t1fs_fini(void)
 {
 	C2_ENTRY();
 

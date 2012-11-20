@@ -85,24 +85,25 @@ struct c2_addb_ctx_type {
  */
 typedef int (*c2_addb_stob_add_t)(struct c2_addb_dp *dp, struct c2_dtx *tx,
 				  struct c2_stob *stob);
-int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
-		     struct c2_stob *stob);
+C2_INTERNAL int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
+				 struct c2_stob *stob);
 
 /**
     Write addb records into this db.
  */
 typedef int (*c2_addb_db_add_t)(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
 				struct c2_table *db);
-int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
-		   struct c2_table *db);
+C2_INTERNAL int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
+			       struct c2_table *db);
 
 /**
     Send addb records through this network connection.
  */
 typedef int (*c2_addb_net_add_t)(struct c2_addb_dp *dp, struct c2_net_conn *);
-int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *);
+C2_INTERNAL int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *);
 
-int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...);
+C2_INTERNAL int
+c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...);
 
 
 
@@ -177,9 +178,9 @@ enum {
    @param header pointer to the header within the buffer
    @param size total size of the record
  */
-int c2_addb_record_header_pack(struct c2_addb_dp *dp,
-			       struct c2_addb_record_header *header,
-			       int size);
+C2_INTERNAL int c2_addb_record_header_pack(struct c2_addb_dp *dp,
+					   struct c2_addb_record_header *header,
+					   int size);
 
 /**
    Packing this event into a buffer.
@@ -279,9 +280,10 @@ struct c2_addb_dp {
 	const char *ad_name;
 };
 
-void c2_addb_ctx_init(struct c2_addb_ctx *ctx, const struct c2_addb_ctx_type *t,
-		      struct c2_addb_ctx *parent);
-void c2_addb_ctx_fini(struct c2_addb_ctx *ctx);
+C2_INTERNAL void c2_addb_ctx_init(struct c2_addb_ctx *ctx,
+				  const struct c2_addb_ctx_type *t,
+				  struct c2_addb_ctx *parent);
+C2_INTERNAL void c2_addb_ctx_fini(struct c2_addb_ctx *ctx);
 
 /**
    Low-level interface posting a data-point to the addb.
@@ -289,10 +291,10 @@ void c2_addb_ctx_fini(struct c2_addb_ctx *ctx);
    Use this, if type-safe interface (C2_ADDB_ADD()) is for some reason
    inadequate.
  */
-void c2_addb_add(struct c2_addb_dp *dp);
+C2_INTERNAL void c2_addb_add(struct c2_addb_dp *dp);
 
-int  c2_addb_init(void);
-void c2_addb_fini(void);
+C2_INTERNAL int c2_addb_init(void);
+C2_INTERNAL void c2_addb_fini(void);
 
 /*
  * The ugly pre-processor code below implements a type-safe interface to addb,
@@ -380,8 +382,9 @@ const struct c2_addb_ev var = {						\
 extern enum c2_addb_ev_level c2_addb_level_default;
 enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level);
 
-enum c2_addb_ev_level c2_addb_choose_default_level_console(
-	    enum c2_addb_ev_level level);
+
+C2_INTERNAL enum c2_addb_ev_level
+c2_addb_choose_default_level_console(enum c2_addb_ev_level level);
 
 /**
    Declare addb event operations vector with a given collection of formal
@@ -430,8 +433,8 @@ extern struct c2_addb_ctx c2_addb_global_ctx;
 extern struct c2_fop_type c2_addb_record_fopt;
 extern struct c2_fop_type c2_addb_reply_fopt;
 
-int  c2_addb_fop_init(void);
-void c2_addb_fop_fini(void);
+C2_INTERNAL int c2_addb_fop_init(void);
+C2_INTERNAL void c2_addb_fop_fini(void);
 
 /** @} end of addb group */
 

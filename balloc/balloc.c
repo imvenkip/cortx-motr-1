@@ -62,8 +62,8 @@ static void balloc_debug_dump_extent(const char *tag, struct c2_ext *ex)
 #endif
 }
 
-void c2_balloc_debug_dump_group(const char *tag,
-				struct c2_balloc_group_info *grp)
+C2_INTERNAL void c2_balloc_debug_dump_group(const char *tag,
+					    struct c2_balloc_group_info *grp)
 {
 #ifdef BALLOC_ENABLE_DUMP
 	if (grp == NULL)
@@ -80,8 +80,9 @@ void c2_balloc_debug_dump_group(const char *tag,
 #endif
 }
 
-void c2_balloc_debug_dump_group_extent(const char *tag,
-				       struct c2_balloc_group_info *grp)
+C2_INTERNAL void c2_balloc_debug_dump_group_extent(const char *tag,
+						   struct c2_balloc_group_info
+						   *grp)
 {
 #ifdef BALLOC_ENABLE_DUMP
 	c2_bcount_t	 i;
@@ -102,7 +103,8 @@ void c2_balloc_debug_dump_group_extent(const char *tag,
 #endif
 }
 
-void c2_balloc_debug_dump_sb(const char *tag, struct c2_balloc_super_block *sb)
+C2_INTERNAL void c2_balloc_debug_dump_sb(const char *tag,
+					 struct c2_balloc_super_block *sb)
 {
 #ifdef BALLOC_ENABLE_DUMP
 	if (sb == NULL)
@@ -150,8 +152,8 @@ balloc_bn2gn(c2_bindex_t blockno, struct c2_balloc *cb)
 	return blockno >> cb->cb_sb.bsb_gsbits;
 }
 
-struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
-						c2_bindex_t groupno)
+C2_INTERNAL struct c2_balloc_group_info *c2_balloc_gn2info(struct c2_balloc *cb,
+							   c2_bindex_t groupno)
 {
 	if (cb->cb_group_info)
 		return &cb->cb_group_info[groupno];
@@ -159,7 +161,7 @@ struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
 		return NULL;
 }
 
-int c2_balloc_release_extents(struct c2_balloc_group_info *grp)
+C2_INTERNAL int c2_balloc_release_extents(struct c2_balloc_group_info *grp)
 {
 	C2_ASSERT(c2_mutex_is_locked(&grp->bgi_mutex));
 	if (grp->bgi_extents) {
@@ -169,17 +171,17 @@ int c2_balloc_release_extents(struct c2_balloc_group_info *grp)
 	return 0;
 }
 
-void c2_balloc_lock_group(struct c2_balloc_group_info *grp)
+C2_INTERNAL void c2_balloc_lock_group(struct c2_balloc_group_info *grp)
 {
 	c2_mutex_lock(&grp->bgi_mutex);
 }
 
-int c2_balloc_trylock_group(struct c2_balloc_group_info *grp)
+C2_INTERNAL int c2_balloc_trylock_group(struct c2_balloc_group_info *grp)
 {
 	return c2_mutex_trylock(&grp->bgi_mutex);
 }
 
-void c2_balloc_unlock_group(struct c2_balloc_group_info *grp)
+C2_INTERNAL void c2_balloc_unlock_group(struct c2_balloc_group_info *grp)
 {
 	c2_mutex_unlock(&grp->bgi_mutex);
 }
@@ -841,9 +843,9 @@ balloc_normalize_request(struct c2_balloc_allocation_context *bac)
 }
 
 /* called under group lock */
-int c2_balloc_load_extents(struct c2_balloc *cb,
-			   struct c2_balloc_group_info *grp,
-			   struct c2_db_tx *tx)
+C2_INTERNAL int c2_balloc_load_extents(struct c2_balloc *cb,
+				       struct c2_balloc_group_info *grp,
+				       struct c2_db_tx *tx)
 {
 	struct c2_table		*db_ext	  = &cb->cb_db_group_extents;
 	struct c2_db_cursor	 cursor;
@@ -2121,7 +2123,7 @@ static const struct c2_ad_balloc_ops balloc_ops = {
 	.bo_free  = balloc_free,
 };
 
-int c2_balloc_allocate(struct c2_balloc **out)
+C2_INTERNAL int c2_balloc_allocate(struct c2_balloc **out)
 {
 	struct c2_balloc *cb;
 	int               result;
@@ -2138,6 +2140,8 @@ int c2_balloc_allocate(struct c2_balloc **out)
 
 	return result;
 }
+
+#undef C2_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

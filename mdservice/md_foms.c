@@ -45,7 +45,8 @@
 /**
    Make in-memory fid from wire fid.
 */
-void c2_md_fid_wire2mem(struct c2_fid *fid, const struct c2_fop_fid *wid)
+C2_INTERNAL void c2_md_fid_wire2mem(struct c2_fid *fid,
+				    const struct c2_fop_fid *wid)
 {
         fid->f_container = wid->f_seq;
         fid->f_key = wid->f_oid;
@@ -860,7 +861,7 @@ finish:
 
 static int c2_md_getattr_tick(struct c2_fom *fom)
 {
-        struct c2_cob_attr             attr;
+        struct c2_cob_attr             attr = { { 0 } };
         struct c2_fop_cob             *body;
         struct c2_cob                 *cob;
         struct c2_fop_getattr         *req;
@@ -943,7 +944,7 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
         struct c2_fop                 *fop_rep;
         struct c2_fop_ctx             *ctx;
         struct c2_fid                  fid;
-        struct c2_rdpg                 rdpg;
+        struct c2_rdpg                 rdpg = { 0 };
         void                          *addr;
         int                            rc;
 
@@ -1076,7 +1077,7 @@ static inline struct c2_fid *c2_md_fid_get(struct c2_fop_fid *fid)
         return &fid_fop2mem;
 }
 
-int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
+C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
 {
         struct c2_fop_create    *create;
         struct c2_fop_unlink    *unlink;
@@ -1281,12 +1282,12 @@ static const struct c2_fom_ops c2_md_fom_readdir_ops = {
         .fo_fini   = c2_md_req_fom_fini
 };
 
-int c2_md_rep_fom_create(struct c2_fop *fop, struct c2_fom **m)
+C2_INTERNAL int c2_md_rep_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
         return 0;
 }
 
-int c2_md_req_fom_create(struct c2_fop *fop, struct c2_fom **m)
+C2_INTERNAL int c2_md_req_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
         struct c2_fom           *fom;
         struct c2_fom_md        *fom_obj;

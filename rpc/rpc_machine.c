@@ -54,7 +54,7 @@ static int rpc_tm_setup(struct c2_net_transfer_mc *tm,
 static void __rpc_machine_init(struct c2_rpc_machine *machine);
 static void __rpc_machine_fini(struct c2_rpc_machine *machine);
 static void conn_list_fini(struct c2_tl *list);
-void rpc_worker_thread_fn(struct c2_rpc_machine *machine);
+C2_INTERNAL void rpc_worker_thread_fn(struct c2_rpc_machine *machine);
 static struct c2_rpc_chan *rpc_chan_locate(struct c2_rpc_machine *machine,
 					   struct c2_net_end_point *dest_ep);
 static int rpc_chan_create(struct c2_rpc_chan **chan,
@@ -96,7 +96,7 @@ static const struct c2_bob_type rpc_machine_bob_type = {
 	.bt_check        = NULL
 };
 
-C2_BOB_DEFINE(/* global */, &rpc_machine_bob_type, c2_rpc_machine);
+C2_BOB_DEFINE(, &rpc_machine_bob_type, c2_rpc_machine);
 
 /**
    Buffer callback for buffers added by rpc layer for receiving messages.
@@ -112,9 +112,9 @@ C2_TL_DESCR_DEFINE(rpc_chan, "rpc_channels", static, struct c2_rpc_chan,
 		   C2_RPC_CHAN_HEAD_MAGIC);
 C2_TL_DEFINE(rpc_chan, static, struct c2_rpc_chan);
 
-C2_TL_DESCR_DEFINE(rpc_conn, "rpc-conn", /* global */, struct c2_rpc_conn,
+C2_TL_DESCR_DEFINE(rpc_conn, "rpc-conn", C2_INTERNAL, struct c2_rpc_conn,
 		   c_link, c_magic, C2_RPC_CONN_MAGIC, C2_RPC_CONN_HEAD_MAGIC);
-C2_TL_DEFINE(rpc_conn, /* global */, struct c2_rpc_conn);
+C2_TL_DEFINE(rpc_conn, C2_INTERNAL, struct c2_rpc_conn);
 
 static void rpc_tm_event_cb(const struct c2_net_tm_event *ev)
 {
@@ -137,15 +137,14 @@ static void rmachine_addb_failure(struct c2_rpc_machine *machine,
 		    c2_rpc_machine_func_fail, msg, rc);
 }
 
-int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
-			struct c2_cob_domain      *dom,
-			struct c2_net_domain      *net_dom,
-			const char                *ep_addr,
-			struct c2_reqh            *reqh,
-			struct c2_net_buffer_pool *receive_pool,
-			uint32_t		   colour,
-			c2_bcount_t		   msg_size,
-			uint32_t		   queue_len)
+C2_INTERNAL int c2_rpc_machine_init(struct c2_rpc_machine *machine,
+				    struct c2_cob_domain *dom,
+				    struct c2_net_domain *net_dom,
+				    const char *ep_addr,
+				    struct c2_reqh *reqh,
+				    struct c2_net_buffer_pool *receive_pool,
+				    uint32_t colour,
+				    c2_bcount_t msg_size, uint32_t queue_len)
 {
 	int		rc;
 
@@ -248,7 +247,7 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 C2_EXPORTED(c2_rpc_machine_fini);
 
 /* Not static because formation ut requires it. */
-void rpc_worker_thread_fn(struct c2_rpc_machine *machine)
+C2_INTERNAL void rpc_worker_thread_fn(struct c2_rpc_machine *machine)
 {
 	C2_ENTRY();
 	C2_PRE(machine != NULL);
@@ -383,19 +382,19 @@ static void conn_list_fini(struct c2_tl *list)
 	C2_LEAVE();
 }
 
-void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
+C2_INTERNAL void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
 	c2_sm_group_lock(&machine->rm_sm_grp);
 }
 
-void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
+C2_INTERNAL void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
 	c2_sm_group_unlock(&machine->rm_sm_grp);
 }
 
-bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine)
+C2_INTERNAL bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
 	return c2_mutex_is_locked(&machine->rm_sm_grp.s_lock);
@@ -416,9 +415,9 @@ void c2_rpc_machine_get_stats(struct c2_rpc_machine *machine,
 }
 C2_EXPORTED(c2_rpc_machine_get_stats);
 
-struct c2_rpc_chan *rpc_chan_get(struct c2_rpc_machine *machine,
-				 struct c2_net_end_point *dest_ep,
-				 uint64_t max_packets_in_flight)
+C2_INTERNAL struct c2_rpc_chan *rpc_chan_get(struct c2_rpc_machine *machine,
+					     struct c2_net_end_point *dest_ep,
+					     uint64_t max_packets_in_flight)
 {
 	struct c2_rpc_chan	*chan;
 
@@ -510,7 +509,7 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	C2_RETURN(0);
 }
 
-void rpc_chan_put(struct c2_rpc_chan *chan)
+C2_INTERNAL void rpc_chan_put(struct c2_rpc_chan *chan)
 {
 	struct c2_rpc_machine *machine;
 
@@ -676,6 +675,8 @@ static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 
 	C2_LEAVE();
 }
+
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} end of rpc group */
 

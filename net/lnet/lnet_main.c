@@ -900,17 +900,18 @@ C2_BASSERT(C2_NET_LNET_PID == LUSTRE_SRV_LNET_PID);
    @{
  */
 
-int c2_net_lnet_init(void)
+C2_INTERNAL int c2_net_lnet_init(void)
 {
 	return nlx_core_init();
 }
 
-void c2_net_lnet_fini(void)
+C2_INTERNAL void c2_net_lnet_fini(void)
 {
 	nlx_core_fini();
 }
 
-int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2)
+C2_INTERNAL int c2_net_lnet_ep_addr_net_cmp(const char *addr1,
+					    const char *addr2)
 {
 	const char *cp1;
 	const char *cp2;
@@ -923,7 +924,8 @@ int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2)
 }
 C2_EXPORTED(c2_net_lnet_ep_addr_net_cmp);
 
-int c2_net_lnet_ifaces_get(struct c2_net_domain *dom, char * const **addrs)
+C2_INTERNAL int c2_net_lnet_ifaces_get(struct c2_net_domain *dom,
+				       char *const **addrs)
 {
 	struct nlx_xo_domain *dp;
 
@@ -933,7 +935,8 @@ int c2_net_lnet_ifaces_get(struct c2_net_domain *dom, char * const **addrs)
 }
 C2_EXPORTED(c2_net_lnet_ifaces_get);
 
-void c2_net_lnet_ifaces_put(struct c2_net_domain *dom, char * const **addrs)
+C2_INTERNAL void c2_net_lnet_ifaces_put(struct c2_net_domain *dom,
+					char *const **addrs)
 {
 	struct nlx_xo_domain *dp;
 
@@ -943,8 +946,8 @@ void c2_net_lnet_ifaces_put(struct c2_net_domain *dom, char * const **addrs)
 }
 C2_EXPORTED(c2_net_lnet_ifaces_put);
 
-void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,
-				      uint64_t secs)
+C2_INTERNAL void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,
+						  uint64_t secs)
 {
 	struct nlx_xo_transfer_mc *tp;
 
@@ -961,7 +964,8 @@ void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,
 }
 C2_EXPORTED(c2_net_lnet_tm_stat_interval_set);
 
-uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc *tm)
+C2_INTERNAL uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc
+						      *tm)
 {
 	struct nlx_xo_transfer_mc *tp;
 	uint64_t ret;
@@ -979,7 +983,8 @@ uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc *tm)
 }
 C2_EXPORTED(c2_net_lnet_tm_stat_interval_get);
 
-void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom, unsigned dbg)
+C2_INTERNAL void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom,
+					   unsigned dbg)
 {
 	struct nlx_xo_domain *dp;
 
@@ -993,7 +998,8 @@ void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom, unsigned dbg)
 }
 C2_EXPORTED(c2_net_lnet_dom_set_debug);
 
-void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm, unsigned dbg)
+C2_INTERNAL void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm,
+					  unsigned dbg)
 {
 	struct nlx_xo_transfer_mc *tp;
 

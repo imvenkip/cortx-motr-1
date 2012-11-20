@@ -446,8 +446,9 @@ static void cs_reqh_ctx_free(struct cs_reqh_context *rctx)
 
    @see c2_cs_init()
  */
-struct c2_net_domain *c2_cs_net_domain_locate(struct c2_colibri *cctx,
-					      const char *xprt_name)
+C2_INTERNAL struct c2_net_domain *c2_cs_net_domain_locate(struct c2_colibri
+							  *cctx,
+							  const char *xprt_name)
 {
 	struct c2_net_domain *ndom;
 
@@ -912,8 +913,9 @@ static void cs_linux_stob_fini(struct cs_stobs *stob)
                 stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom);
 }
 
-struct c2_stob_domain *c2_cs_stob_domain_find(struct c2_reqh *reqh,
-					      const struct c2_stob_id *stob_id)
+C2_INTERNAL struct c2_stob_domain *c2_cs_stob_domain_find(struct c2_reqh *reqh,
+							  const struct
+							  c2_stob_id *stob_id)
 {
 	struct cs_reqh_context  *rqctx;
 	struct cs_stobs         *stob;
@@ -1054,7 +1056,7 @@ static int cs_service_init(const char *service_name, struct c2_reqh *reqh)
 static int cs_services_init(struct c2_colibri *cctx)
 {
 	int                     idx;
-	int                     rc;
+	int                     rc = 0;
 	struct cs_reqh_context *rctx;
 
 	C2_PRE(cctx != NULL);
@@ -1442,7 +1444,7 @@ static struct cs_reqh_context *cs_reqh_ctx_get(struct c2_reqh *reqh)
 	return rqctx;
 }
 
-struct c2_colibri *c2_cs_ctx_get(struct c2_reqh *reqh)
+C2_INTERNAL struct c2_colibri *c2_cs_ctx_get(struct c2_reqh *reqh)
 {
 	return cs_reqh_ctx_get(reqh)->rc_colibri;
 }
@@ -1856,7 +1858,7 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
         return result ?: rc;
 }
 
-int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
+C2_INTERNAL int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 {
 	int rc;
 
@@ -1884,7 +1886,7 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 	return rc;
 }
 
-int c2_cs_start(struct c2_colibri *cctx)
+C2_INTERNAL int c2_cs_start(struct c2_colibri *cctx)
 {
 	int rc;
 
@@ -1898,8 +1900,8 @@ int c2_cs_start(struct c2_colibri *cctx)
 	return rc;
 }
 
-int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
-	       size_t xprts_nr, FILE *out)
+C2_INTERNAL int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
+			   size_t xprts_nr, FILE * out)
 {
         C2_PRE(cctx != NULL && xprts != NULL && xprts_nr > 0 && out != NULL);
 
@@ -1914,7 +1916,7 @@ int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
 	return 0;
 }
 
-void c2_cs_fini(struct c2_colibri *cctx)
+C2_INTERNAL void c2_cs_fini(struct c2_colibri *cctx)
 {
 	C2_PRE(cctx != NULL);
 

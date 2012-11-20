@@ -53,8 +53,8 @@ extern const struct c2_addb_ctx_type c2_rpc_addb_ctx_type;
 extern const struct c2_addb_loc      c2_rpc_addb_loc;
 extern       struct c2_addb_ctx      c2_rpc_addb_ctx;
 
-int  c2_rpc_init(void);
-void c2_rpc_fini(void);
+C2_INTERNAL int c2_rpc_init(void);
+C2_INTERNAL void c2_rpc_fini(void);
 
 /**
  * Calculates the total number of buffers needed in network domain for
@@ -146,7 +146,7 @@ static inline uint32_t c2_rpc_max_recv_msgs(struct c2_net_domain *ndom,
   @pre item->ri_session != NULL
   @pre item->ri_priority is sane.
 */
-int c2_rpc_post(struct c2_rpc_item *item);
+C2_INTERNAL int c2_rpc_post(struct c2_rpc_item *item);
 
 /**
   Posts reply item on the same session on which the request item is received.
@@ -155,20 +155,20 @@ int c2_rpc_post(struct c2_rpc_item *item);
   item. Rpc-layer will internally free the item when rpc-layer is sure that
   the corresponding request item will not take part in recovery.
  */
-int c2_rpc_reply_post(struct c2_rpc_item *request,
-		      struct c2_rpc_item *reply);
+int c2_rpc_reply_post(struct c2_rpc_item *request, struct c2_rpc_item *reply);
 
-int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
-				 struct c2_rpc_item *item);
+C2_INTERNAL int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
+					struct c2_rpc_item *item);
 
 /**
    Create a buffer pool per net domain which to be shared by TM's in it.
    @pre ndom != NULL && app_pool != NULL
    @pre bufs_nr != 0
  */
-int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
-				 struct c2_net_buffer_pool *app_pool,
-				 uint32_t bufs_nr, uint32_t tm_nr);
+C2_INTERNAL int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
+					     struct c2_net_buffer_pool
+					     *app_pool, uint32_t bufs_nr,
+					     uint32_t tm_nr);
 
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
 

@@ -18,7 +18,9 @@
  * Original creation date: 08/19/2010
  */
 
+#ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 2 /* for getopt */
+#endif
 #include <unistd.h>     /* getopt */
 #include <stdio.h>      /* fprintf, sscanf */
 #include <stdlib.h>     /* strtoull */
@@ -88,7 +90,7 @@ static int getscaled(const char *arg, const char *desc, c2_bcount_t *out)
 	return rc;
 }
 
-int c2_getopts(const char *progname, int argc, char * const *argv,
+int c2_getopts(const char *progname, int argc, char *const *argv,
 	       const struct c2_getopts_opt *opts, unsigned nr)
 {
 	char *optstring;

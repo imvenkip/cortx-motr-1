@@ -67,12 +67,12 @@ struct c2_rpc_chan {
 	uint64_t			  rc_magic;
 };
 
-void c2_rpc_machine_lock(struct c2_rpc_machine *machine);
-void c2_rpc_machine_unlock(struct c2_rpc_machine *machine);
-bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine);
+C2_INTERNAL void c2_rpc_machine_lock(struct c2_rpc_machine *machine);
+C2_INTERNAL void c2_rpc_machine_unlock(struct c2_rpc_machine *machine);
+C2_INTERNAL bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine);
 
-C2_TL_DESCR_DECLARE(rpc_conn, extern);
-C2_TL_DECLARE(rpc_conn, extern, struct c2_rpc_conn);
+C2_TL_DESCR_DECLARE(rpc_conn, C2_EXTERN);
+C2_TL_DECLARE(rpc_conn, C2_INTERNAL, struct c2_rpc_conn);
 
 /** @} */
 #endif /* __COLIBRI_RPC_MACHINE_INT_H__ */

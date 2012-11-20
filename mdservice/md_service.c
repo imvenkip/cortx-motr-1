@@ -68,13 +68,13 @@ static const struct c2_reqh_service_ops mds_ops = {
 
 C2_REQH_SERVICE_TYPE_DECLARE(c2_mds_type, &mds_type_ops, "mdservice");
 
-int c2_mds_register(void)
+C2_INTERNAL int c2_mds_register(void)
 {
         c2_reqh_service_type_register(&c2_mds_type);
         return c2_mdservice_fop_init();
 }
 
-void c2_mds_unregister(void)
+C2_INTERNAL void c2_mds_unregister(void)
 {
         c2_reqh_service_type_unregister(&c2_mds_type);
         c2_mdservice_fop_fini();

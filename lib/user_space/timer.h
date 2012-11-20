@@ -118,8 +118,8 @@ struct c2_timer {
 	timer_t t_ptimer;
 };
 
-int c2_timers_init();
-void c2_timers_fini();
+C2_INTERNAL int c2_timers_init();
+C2_INTERNAL void c2_timers_fini();
 
 /** @} end of timer group */
 

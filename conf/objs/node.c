@@ -145,7 +145,7 @@ static const struct c2_conf_obj_ops node_ops = {
 	.coo_delete    = node_delete
 };
 
-struct c2_conf_obj *c2_conf__node_create(void)
+C2_INTERNAL struct c2_conf_obj *c2_conf__node_create(void)
 {
 	struct c2_conf_node *x;
 	struct c2_conf_obj  *ret;

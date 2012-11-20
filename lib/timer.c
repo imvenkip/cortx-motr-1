@@ -88,7 +88,7 @@ static pid_t gettid() {
 	return syscall(SYS_gettid);
 }
 
-void c2_timer_locality_init(struct c2_timer_locality *loc)
+C2_INTERNAL void c2_timer_locality_init(struct c2_timer_locality *loc)
 {
 	C2_PRE(loc != NULL);
 
@@ -97,7 +97,7 @@ void c2_timer_locality_init(struct c2_timer_locality *loc)
 	loc->tlo_rrtid = NULL;
 }
 
-void c2_timer_locality_fini(struct c2_timer_locality *loc)
+C2_INTERNAL void c2_timer_locality_fini(struct c2_timer_locality *loc)
 {
 	C2_PRE(loc != NULL);
 
@@ -125,7 +125,7 @@ static struct c2_timer_tid *locality_tid_find(struct c2_timer_locality *loc,
 	return result;
 }
 
-int c2_timer_thread_attach(struct c2_timer_locality *loc)
+C2_INTERNAL int c2_timer_thread_attach(struct c2_timer_locality *loc)
 {
 	pid_t tid;
 	struct c2_timer_tid *tt;
@@ -148,7 +148,7 @@ int c2_timer_thread_attach(struct c2_timer_locality *loc)
 	return 0;
 }
 
-void c2_timer_thread_detach(struct c2_timer_locality *loc)
+C2_INTERNAL void c2_timer_thread_detach(struct c2_timer_locality *loc)
 {
 	pid_t tid;
 	struct c2_timer_tid *tt;
@@ -427,7 +427,8 @@ static int timer_soft_stop(struct c2_timer *timer)
 	return rc;
 }
 
-int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
+C2_INTERNAL int c2_timer_attach(struct c2_timer *timer,
+				struct c2_timer_locality *loc)
 {
 	struct c2_timer_tid *tt;
 	int rc;
@@ -474,9 +475,9 @@ int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 /**
    Init the timer data structure.
  */
-int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
-		  c2_time_t expire,
-		  c2_timer_callback_t callback, unsigned long data)
+C2_INTERNAL int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
+			      c2_time_t expire,
+			      c2_timer_callback_t callback, unsigned long data)
 {
 	int rc;
 
@@ -503,7 +504,7 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 /**
    Destroy the timer.
  */
-int c2_timer_fini(struct c2_timer *timer)
+C2_INTERNAL int c2_timer_fini(struct c2_timer *timer)
 {
 	if (!timer_state_change(timer, TIMER_FINI, true))
 		return -EINVAL;
@@ -520,7 +521,7 @@ int c2_timer_fini(struct c2_timer *timer)
 /**
    Start a timer.
  */
-int c2_timer_start(struct c2_timer *timer)
+C2_INTERNAL int c2_timer_start(struct c2_timer *timer)
 {
 	int rc = 0;
 
@@ -539,7 +540,7 @@ int c2_timer_start(struct c2_timer *timer)
 /**
    Stop a timer.
  */
-int c2_timer_stop(struct c2_timer *timer)
+C2_INTERNAL int c2_timer_stop(struct c2_timer *timer)
 {
 	int rc = 0;
 
@@ -555,7 +556,7 @@ int c2_timer_stop(struct c2_timer *timer)
 	return rc;
 }
 
-bool c2_timer_is_started(const struct c2_timer *timer)
+C2_INTERNAL bool c2_timer_is_started(const struct c2_timer *timer)
 {
 	return timer->t_state == TIMER_RUNNING;
 }
@@ -563,14 +564,14 @@ bool c2_timer_is_started(const struct c2_timer *timer)
 /**
    Init data structures for hard timer
  */
-int c2_timers_init()
+C2_INTERNAL int c2_timers_init()
 {
 	timer_sigaction(TIMER_SIGNO, timer_sighandler);
 	c2_time_set(&zero_time, 0, 0);
 	return 0;
 }
 
-void c2_timers_fini()
+C2_INTERNAL void c2_timers_fini()
 {
 }
 

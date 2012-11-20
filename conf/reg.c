@@ -34,17 +34,18 @@
  * @{
  */
 
-C2_TL_DESCR_DEFINE(c2_conf_reg, "registered c2_conf_obj-s", ,
+C2_TL_DESCR_DEFINE(c2_conf_reg, "registered c2_conf_obj-s", C2_INTERNAL,
 		   struct c2_conf_obj, co_reg_link, co_gen_magic,
 		   C2_CONF_OBJ_MAGIC, C2_CONF_REG_MAGIC);
-C2_TL_DEFINE(c2_conf_reg, , struct c2_conf_obj);
+C2_TL_DEFINE(c2_conf_reg, C2_INTERNAL, struct c2_conf_obj);
 
-void c2_conf_reg_init(struct c2_conf_reg *reg)
+C2_INTERNAL void c2_conf_reg_init(struct c2_conf_reg *reg)
 {
 	c2_conf_reg_tlist_init(&reg->r_objs);
 }
 
-int c2_conf_reg_add(struct c2_conf_reg *reg, struct c2_conf_obj *obj)
+C2_INTERNAL int c2_conf_reg_add(struct c2_conf_reg *reg,
+				struct c2_conf_obj *obj)
 {
 	const struct c2_conf_obj *x;
 	C2_PRE(!c2_conf_reg_tlink_is_in(obj));
@@ -57,9 +58,10 @@ int c2_conf_reg_add(struct c2_conf_reg *reg, struct c2_conf_obj *obj)
 	return -EEXIST;
 }
 
-struct c2_conf_obj *c2_conf_reg_lookup(const struct c2_conf_reg *reg,
-				       enum c2_conf_objtype type,
-				       const struct c2_buf *id)
+C2_INTERNAL struct c2_conf_obj *c2_conf_reg_lookup(const struct c2_conf_reg
+						   *reg,
+						   enum c2_conf_objtype type,
+						   const struct c2_buf *id)
 {
 	struct c2_conf_obj *obj;
 
@@ -71,13 +73,14 @@ struct c2_conf_obj *c2_conf_reg_lookup(const struct c2_conf_reg *reg,
 	return obj;
 }
 
-void c2_conf_reg_del(const struct c2_conf_reg *reg, struct c2_conf_obj *obj)
+C2_INTERNAL void c2_conf_reg_del(const struct c2_conf_reg *reg,
+				 struct c2_conf_obj *obj)
 {
 	C2_PRE(c2_conf_reg_tlist_contains(&reg->r_objs, obj));
 	c2_conf_reg_tlist_del(obj);
 }
 
-void c2_conf_reg_fini(struct c2_conf_reg *reg)
+C2_INTERNAL void c2_conf_reg_fini(struct c2_conf_reg *reg)
 {
 	struct c2_conf_obj *obj;
 

@@ -37,19 +37,19 @@
    @{
  */
 
-int c2_uts_init(void)
+C2_INTERNAL int c2_uts_init(void)
 {
 	C2_CASSERT(CUE_SUCCESS == 0);
 	return -CU_initialize_registry();
 }
 
-void c2_uts_fini(void)
+C2_INTERNAL void c2_uts_fini(void)
 {
 	CU_cleanup_registry();
 	C2_ASSERT(CU_get_error() == 0);
 }
 
-void c2_ut_add(const struct c2_test_suite *ts)
+C2_INTERNAL void c2_ut_add(const struct c2_test_suite *ts)
 {
 	CU_pSuite pSuite;
 	int i;
@@ -180,7 +180,7 @@ static void ut_set_suite_start_stop_cbk(void)
 	CU_set_suite_complete_handler(ut_suite_stop_cbk);
 }
 
-void c2_ut_run(struct c2_ut_run_cfg *c)
+C2_INTERNAL void c2_ut_run(struct c2_ut_run_cfg *c)
 {
 	ut_set_suite_start_stop_cbk();
 
@@ -218,7 +218,7 @@ void c2_ut_run(struct c2_ut_run_cfg *c)
 	}
 }
 
-void c2_ut_list(bool with_tests)
+C2_INTERNAL void c2_ut_list(bool with_tests)
 {
 	CU_pTestRegistry registry;
 	CU_pSuite        suite;
@@ -245,7 +245,7 @@ void c2_ut_list(bool with_tests)
 		}
 }
 
-int c2_ut_db_reset(const char *db_name)
+C2_INTERNAL int c2_ut_db_reset(const char *db_name)
 {
         char *cmd;
 	int   rc;
@@ -258,8 +258,8 @@ int c2_ut_db_reset(const char *db_name)
 	return rc;
 }
 
-void c2_stream_redirect(FILE *stream, const char *path,
-			struct c2_ut_redirect *redir)
+C2_INTERNAL void c2_stream_redirect(FILE * stream, const char *path,
+				    struct c2_ut_redirect *redir)
 {
 	FILE *result;
 
@@ -284,7 +284,7 @@ void c2_stream_redirect(FILE *stream, const char *path,
 	C2_ASSERT(result != NULL);
 }
 
-void c2_stream_restore(const struct c2_ut_redirect *redir)
+C2_INTERNAL void c2_stream_restore(const struct c2_ut_redirect *redir)
 {
 	int result;
 
@@ -300,7 +300,7 @@ void c2_stream_restore(const struct c2_ut_redirect *redir)
 	fsetpos(redir->ur_stream, &redir->ur_pos);
 }
 
-bool c2_error_mesg_match(FILE *fp, const char *mesg)
+C2_INTERNAL bool c2_error_mesg_match(FILE * fp, const char *mesg)
 {
 	enum {
 		MAXLINE = 1025,

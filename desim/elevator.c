@@ -64,7 +64,7 @@ static void elevator_go(struct elevator *el)
 	C2_IMPOSSIBLE("Elevator is not yet implemented");
 }
 
-void el_end_io(struct storage_dev *dev)
+C2_INTERNAL void el_end_io(struct storage_dev *dev)
 {
 	struct elevator *el;
 
@@ -75,7 +75,7 @@ void el_end_io(struct storage_dev *dev)
 	sim_chan_broadcast(&el->e_wait);
 }
 
-void elevator_init(struct elevator *el, struct storage_dev *dev)
+C2_INTERNAL void elevator_init(struct elevator *el, struct storage_dev *dev)
 {
 	el->e_dev  = dev;
 	el->e_idle = 1;
@@ -85,14 +85,14 @@ void elevator_init(struct elevator *el, struct storage_dev *dev)
 	sim_chan_init(&el->e_wait, "xfer-queue@%s", dev->sd_name);
 }
 
-void elevator_fini(struct elevator *el)
+C2_INTERNAL void elevator_fini(struct elevator *el)
 {
 	req_tlist_fini(&el->e_queue);
 	sim_chan_fini(&el->e_wait);
 }
 
-void elevator_io(struct elevator *el, enum storage_req_type type,
-		 sector_t sector, unsigned long count)
+C2_INTERNAL void elevator_io(struct elevator *el, enum storage_req_type type,
+			     sector_t sector, unsigned long count)
 {
 	while (!el->e_idle)
 		sim_chan_wait(&el->e_wait, sim_thread_current());

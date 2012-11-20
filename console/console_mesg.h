@@ -30,7 +30,7 @@
  *  Prints name and opcode of FOP.
  *  It can be used to print more info if required.
  */
-void c2_cons_fop_name_print(const struct c2_fop_type *ftype);
+C2_INTERNAL void c2_cons_fop_name_print(const struct c2_fop_type *ftype);
 
 /**
  * @brief Builds and send FOP using rpc_post and waits for reply.
@@ -39,18 +39,19 @@ void c2_cons_fop_name_print(const struct c2_fop_type *ftype);
  * @param session  RPC connection session.
  * @param deadline Time to to wait for RPC reply.
  */
-int c2_cons_fop_send(struct c2_fop *fop, struct c2_rpc_session *session,
-		     c2_time_t deadline);
+C2_INTERNAL int c2_cons_fop_send(struct c2_fop *fop,
+				 struct c2_rpc_session *session,
+				 c2_time_t deadline);
 
 /**
  *  @brief Iterate over FOP fields and print names.
  */
-int c2_cons_fop_show(struct c2_fop_type *fopt);
+C2_INTERNAL int c2_cons_fop_show(struct c2_fop_type *fopt);
 
 /**
  * @brief Helper function to print list of FOPs.
  */
-void c2_cons_fop_list_show(void);
+C2_INTERNAL void c2_cons_fop_list_show(void);
 
 /**
  * @brief Find the fop type equals to opcode and returns.
@@ -59,7 +60,7 @@ void c2_cons_fop_list_show(void);
  *
  * @return c2_fop_type ref. or NULL
  */
-struct c2_fop_type *c2_cons_fop_type_find(uint32_t opcode);
+C2_INTERNAL struct c2_fop_type *c2_cons_fop_type_find(uint32_t opcode);
 
 /* __COLIBRI_CONSOLE_MESG_H__ */
 #endif

@@ -58,7 +58,7 @@ struct c2_buf {
 #define C2_BUF_INIT0            C2_BUF_INIT(0, NULL)
 
 /** Returns true iff two buffers are equal. */
-bool c2_buf_eq(const struct c2_buf *x, const struct c2_buf *y);
+C2_INTERNAL bool c2_buf_eq(const struct c2_buf *x, const struct c2_buf *y);
 
 /**
  * Copies a buffer.
@@ -68,15 +68,15 @@ bool c2_buf_eq(const struct c2_buf *x, const struct c2_buf *y);
  * @pre   dest->cb_size == 0 && dest->cb_data == NULL
  * @post  ergo(result == 0, c2_buf_eq(dest, src))
  */
-int c2_buf_copy(struct c2_buf *dest, const struct c2_buf *src);
+C2_INTERNAL int c2_buf_copy(struct c2_buf *dest, const struct c2_buf *src);
 
 /** Initialises struct c2_buf */
-void c2_buf_init(struct c2_buf *buf, void *data, uint32_t nob);
+C2_INTERNAL void c2_buf_init(struct c2_buf *buf, void *data, uint32_t nob);
 
 /**
  * Frees the contents of the buffer and zeroes its fields.
  */
-void c2_buf_free(struct c2_buf *buf);
+C2_INTERNAL void c2_buf_free(struct c2_buf *buf);
 
 /** @} end of buf group */
 

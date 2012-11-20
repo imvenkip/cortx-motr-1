@@ -90,11 +90,12 @@ struct chs_dev {
 	struct cnt          cd_write_size;
 };
 
-void chs_conf_init(struct chs_conf *conf);
-void chs_conf_fini(struct chs_conf *conf);
+C2_INTERNAL void chs_conf_init(struct chs_conf *conf);
+C2_INTERNAL void chs_conf_fini(struct chs_conf *conf);
 
-void chs_dev_init(struct chs_dev *dev, struct sim *sim, struct chs_conf *conf);
-void chs_dev_fini(struct chs_dev *dev);
+C2_INTERNAL void chs_dev_init(struct chs_dev *dev, struct sim *sim,
+			      struct chs_conf *conf);
+C2_INTERNAL void chs_dev_fini(struct chs_dev *dev);
 
 #endif /* __COLIBRI_DESIM_CHS_H__ */
 

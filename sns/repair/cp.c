@@ -37,7 +37,7 @@
   @{
 */
 
-struct c2_sns_repair_cp *cp2snscp(const struct c2_cm_cp *cp)
+C2_INTERNAL struct c2_sns_repair_cp *cp2snscp(const struct c2_cm_cp *cp)
 {
 	return container_of(cp, struct c2_sns_repair_cp, rc_base);
 }
@@ -55,7 +55,7 @@ static bool cp_invariant(const struct c2_cm_cp *cp)
  * Uses GOB fid key and parity group number to generate a scalar to
  * help select a request handler locality for copy packet FOM.
  */
-uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp)
+C2_INTERNAL uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp)
 {
 	struct c2_cm_ag_id *id;
 
@@ -70,17 +70,17 @@ static int cp_init(struct c2_cm_cp *cp)
 	return cp->c_ops->co_phase_next(cp);
 }
 
-int c2_sns_repair_cp_send(struct c2_cm_cp *cp)
+C2_INTERNAL int c2_sns_repair_cp_send(struct c2_cm_cp *cp)
 {
 	return C2_FSO_AGAIN;
 }
 
-int c2_sns_repair_cp_recv(struct c2_cm_cp *cp)
+C2_INTERNAL int c2_sns_repair_cp_recv(struct c2_cm_cp *cp)
 {
 	return C2_FSO_AGAIN;
 }
 
-int c2_sns_repair_cp_phase_next(struct c2_cm_cp *cp)
+C2_INTERNAL int c2_sns_repair_cp_phase_next(struct c2_cm_cp *cp)
 {
 	int phase = c2_fom_phase(&cp->c_fom);
 	int next[] = {

@@ -26,24 +26,24 @@
 #include "lib/cdefs.h" /* for C2_EXPORTED */
 
 /* These unit tests are done in the kernel */
-extern void test_bitmap(void);
-extern void test_chan(void);
-extern void test_cookie(void);
-extern void test_finject(void);
-extern void test_list(void);
-extern void test_tlist(void);
-extern void test_mutex(void);
-extern void test_queue(void);
-extern void test_refs(void);
-extern void test_rw(void);
-extern void test_thread(void);
-extern void test_time(void);
-extern void test_trace(void);
-extern void test_vec(void);
-extern void test_zerovec(void);
-extern void test_memory(void);
-extern void test_bob(void);
-extern void c2_ut_lib_buf_test(void);
+C2_INTERNAL void test_bitmap(void);
+C2_INTERNAL void test_chan(void);
+C2_INTERNAL void test_cookie(void);
+C2_INTERNAL void test_finject(void);
+C2_INTERNAL void test_list(void);
+C2_INTERNAL void test_tlist(void);
+C2_INTERNAL void test_mutex(void);
+C2_INTERNAL void test_queue(void);
+C2_INTERNAL void test_refs(void);
+C2_INTERNAL void test_rw(void);
+C2_INTERNAL void test_thread(void);
+C2_INTERNAL void test_time(void);
+C2_INTERNAL void test_trace(void);
+C2_INTERNAL void test_vec(void);
+C2_INTERNAL void test_zerovec(void);
+C2_INTERNAL void test_memory(void);
+C2_INTERNAL void test_bob(void);
+C2_INTERNAL void c2_ut_lib_buf_test(void);
 
 const struct c2_test_suite c2_klibc2_ut = {
 	.ts_name = "klibc2-ut",

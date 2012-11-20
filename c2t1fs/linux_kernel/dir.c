@@ -31,8 +31,8 @@
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 
 extern const struct c2_rpc_item_ops cob_req_rpc_item_ops;
-extern void c2t1fs_inode_bob_init(struct c2t1fs_inode *bob);
-extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
+C2_INTERNAL void c2t1fs_inode_bob_init(struct c2t1fs_inode *bob);
+C2_INTERNAL bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
 
 static int c2t1fs_create(struct inode     *dir,
 			 struct dentry    *dentry,
@@ -451,7 +451,8 @@ out:
    See "Containers and component objects" section in c2t1fs.h for
    more information.
  */
-struct c2_fid c2t1fs_ios_cob_fid(const struct c2t1fs_inode *ci, int index)
+C2_INTERNAL struct c2_fid c2t1fs_ios_cob_fid(const struct c2t1fs_inode *ci,
+					     int index)
 {
 	struct c2_layout_enum *le;
 	struct c2_fid          fid;
