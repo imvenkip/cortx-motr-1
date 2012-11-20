@@ -33,26 +33,26 @@ C2_TL_DESCR_DEFINE(cache, "cacheable stobs", static, struct c2_stob_cacheable,
 
 C2_TL_DEFINE(cache, static, struct c2_stob_cacheable);
 
-void c2_stob_cacheable_init(struct c2_stob_cacheable *obj,
-			    const struct c2_stob_id *id,
-			    struct c2_stob_domain *dom)
+C2_INTERNAL void c2_stob_cacheable_init(struct c2_stob_cacheable *obj,
+					const struct c2_stob_id *id,
+					struct c2_stob_domain *dom)
 {
 	c2_stob_init(&obj->ca_stob, id, dom);
 	cache_tlink_init(obj);
 }
 
-void c2_stob_cacheable_fini(struct c2_stob_cacheable *obj)
+C2_INTERNAL void c2_stob_cacheable_fini(struct c2_stob_cacheable *obj)
 {
 	cache_tlink_del_fini(obj);
 	c2_stob_fini(&obj->ca_stob);
 }
 
-void c2_stob_cache_init(struct c2_stob_cache *cache)
+C2_INTERNAL void c2_stob_cache_init(struct c2_stob_cache *cache)
 {
 	cache_tlist_init(&cache->ch_head);
 }
 
-void c2_stob_cache_fini(struct c2_stob_cache *cache)
+C2_INTERNAL void c2_stob_cache_fini(struct c2_stob_cache *cache)
 {
 	struct c2_stob_cacheable *obj;
 
@@ -62,8 +62,9 @@ void c2_stob_cache_fini(struct c2_stob_cache *cache)
 	cache_tlist_fini(&cache->ch_head);
 }
 
-struct c2_stob_cacheable *c2_stob_cacheable_lookup(struct c2_stob_cache *cache,
-						   const struct c2_stob_id *id)
+C2_INTERNAL struct c2_stob_cacheable *
+c2_stob_cacheable_lookup(struct c2_stob_cache *cache,
+			 const struct c2_stob_id *id)
 {
 	struct c2_stob_cacheable *obj;
 
@@ -76,13 +77,13 @@ struct c2_stob_cacheable *c2_stob_cacheable_lookup(struct c2_stob_cache *cache,
 	return obj;
 }
 
-int c2_stob_cache_find(struct c2_stob_cache *cache,
-		       struct c2_stob_domain *dom,
-		       const struct c2_stob_id *id,
-		       int (*init)(struct c2_stob_domain *,
-				   const struct c2_stob_id *,
-				   struct c2_stob_cacheable **),
-		       struct c2_stob_cacheable **out)
+C2_INTERNAL int c2_stob_cache_find(struct c2_stob_cache *cache,
+				   struct c2_stob_domain *dom,
+				   const struct c2_stob_id *id,
+				   int (*init)(struct c2_stob_domain *,
+					       const struct c2_stob_id *,
+					       struct c2_stob_cacheable **),
+				   struct c2_stob_cacheable **out)
 {
 	struct c2_stob_cacheable *obj;
 	struct c2_stob_cacheable *ghost;

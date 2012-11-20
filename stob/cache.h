@@ -47,17 +47,18 @@ struct c2_stob_cache {
 	struct c2_tl ch_head;
 };
 
-void c2_stob_cacheable_init(struct c2_stob_cacheable *obj,
-			    const struct c2_stob_id *id,
-			    struct c2_stob_domain *dom);
-void c2_stob_cacheable_fini(struct c2_stob_cacheable *obj);
+C2_INTERNAL void c2_stob_cacheable_init(struct c2_stob_cacheable *obj,
+					const struct c2_stob_id *id,
+					struct c2_stob_domain *dom);
+C2_INTERNAL void c2_stob_cacheable_fini(struct c2_stob_cacheable *obj);
 
-void c2_stob_cache_init(struct c2_stob_cache *cache);
-void c2_stob_cache_fini(struct c2_stob_cache *cache);
+C2_INTERNAL void c2_stob_cache_init(struct c2_stob_cache *cache);
+C2_INTERNAL void c2_stob_cache_fini(struct c2_stob_cache *cache);
 
 /** Searches for the object with a given identifier in the cache. */
-struct c2_stob_cacheable *c2_stob_cacheable_lookup(struct c2_stob_cache *cache,
-						   const struct c2_stob_id *id);
+C2_INTERNAL struct c2_stob_cacheable *
+c2_stob_cacheable_lookup(struct c2_stob_cache *cache,
+			 const struct c2_stob_id *id);
 
 /**
  * Searches for the object with a given identifier in the cache, creates one if
@@ -66,14 +67,13 @@ struct c2_stob_cacheable *c2_stob_cacheable_lookup(struct c2_stob_cache *cache,
  *
  * Domain read-write lock is used for synchronisation.
  */
-int c2_stob_cache_find(struct c2_stob_cache *cache,
-		       struct c2_stob_domain *dom,
-		       const struct c2_stob_id *id,
-		       int (*init)(struct c2_stob_domain *,
-				   const struct c2_stob_id *,
-				   struct c2_stob_cacheable **),
-		       struct c2_stob_cacheable **out);
-
+C2_INTERNAL int c2_stob_cache_find(struct c2_stob_cache *cache,
+				   struct c2_stob_domain *dom,
+				   const struct c2_stob_id *id,
+				   int (*init)(struct c2_stob_domain *,
+					       const struct c2_stob_id *,
+					       struct c2_stob_cacheable **),
+				   struct c2_stob_cacheable **out);
 
 /** @} end group stobcache */
 
