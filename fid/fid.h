@@ -44,9 +44,6 @@ bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1);
 int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1);
 void c2_fid_set(struct c2_fid *fid, uint64_t container, uint64_t key);
 
-int c2_fid_register(void);
-void c2_fid_unregister(void);
-
 /** @} end of fid group */
 
 /* __COLIBRI_FID_FID_H__ */

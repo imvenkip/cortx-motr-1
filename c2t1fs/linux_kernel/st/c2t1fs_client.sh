@@ -31,19 +31,20 @@ main()
 	lnet_nid=`lctl list_nids | head -1`
 	LADDR="$lnet_nid:12345:33:1"
 
+        SERVICES="mds=${server_nid}:${EP[0]},"
 	for ((i=0; i < ${#EP[*]}; i++)) ; do
 		if ((i != 0)) ; then
                     SERVICES="$SERVICES,"
                 fi
                 SERVICES="${SERVICES}ios=${server_nid}:${EP[$i]}"
 	done
-        SERVICES="${SERVICES},mds=${server_nid}:${EP[0]}"
 
 	prepare
 
 	echo "Prepare done, starting tests..."
 
-	c2t1fs_system_tests
+	#c2t1fs_system_tests
+	file_creation_test
 	if [ $? -ne "0" ]
 	then
 		return 1

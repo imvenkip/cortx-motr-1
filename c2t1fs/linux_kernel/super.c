@@ -224,6 +224,10 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 		rc = -ENOMEM;
 		goto out_map_fini;
 	}
+	if (IS_ERR(root_inode)) {
+	        rc = PTR_ERR(root_inode);
+	        goto out_map_fini;
+	}
 
 	sb->s_root = d_alloc_root(root_inode);
 	if (sb->s_root == NULL) {
@@ -880,12 +884,12 @@ static int c2t1fs_service_contexts_populate(struct c2t1fs_sb *csb)
 	mntopts = &csb->csb_mnt_opts;
 
 	rc = populate(mntopts->mo_mds_ep_addr, mntopts->mo_nr_mds_ep,
-				C2T1FS_ST_MDS);
+                      C2T1FS_ST_MDS);
 	if (rc != 0)
 		goto discard_all;
 
 	rc = populate(mntopts->mo_ios_ep_addr, mntopts->mo_nr_ios_ep,
-				C2T1FS_ST_IOS);
+                      C2T1FS_ST_IOS);
 	if (rc != 0)
 		goto discard_all;
 

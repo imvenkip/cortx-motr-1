@@ -432,7 +432,6 @@ c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item)
 	C2_PRE(item->ri_type != NULL &&
 	       item->ri_type->rit_ops != NULL &&
 	       item->ri_type->rit_ops->rito_payload_size != NULL);
-
 	return  item->ri_type->rit_ops->rito_payload_size(item) +
 		c2_rpc_item_onwire_header_size();
 }

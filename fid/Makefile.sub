@@ -1,12 +1,2 @@
-nobase_colibri_include_HEADERS += fid/fid.h \
-                                  fid/fid_ff.h
-
-colibri_libcolibri_la_SOURCES  += fid/fid.c \
-                                  fid/fid_ff.c
-
-FF_FILES   += fid/fid_ff.h
-
-CLEANFILES += fid/fid_ff.h \
-              fid/fid_ff.c
-
-EXTRA_DIST += fid/fid.ff
+nobase_colibri_include_HEADERS += fid/fid.h
+colibri_libcolibri_la_SOURCES  += fid/fid.c

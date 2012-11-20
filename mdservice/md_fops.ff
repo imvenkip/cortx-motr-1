@@ -23,13 +23,16 @@
    @{
  */
 
-/** @file md_fop.ff
+/** @file md_fops.ff
  *
  * <b>Colibri metatadata fop formats</b>
  *
  */
 
-require "fid/fid_ff";
+record {
+        u64 f_seq;
+        u64 f_oid
+} c2_fop_fid;
 
 sequence {
         u32 s_len;

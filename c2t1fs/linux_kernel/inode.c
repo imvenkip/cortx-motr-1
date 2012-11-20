@@ -317,7 +317,7 @@ struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid,
 {
 	struct inode *inode;
 	unsigned long hash;
-	int           err;
+	int           err = 0;
 
 	C2_ENTRY();
 
@@ -335,14 +335,12 @@ struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid,
 	        if ((inode->i_state & I_NEW) != 0) {
 	                /* New inode, set its fields from @body */
 		        err = c2t1fs_inode_read(inode, body);
-		        if (err != 0)
-			        goto out_err;
 	        } else if (!(inode->i_state & (I_FREEING | I_CLEAR))) {
 	                /* Not a new inode, let's update its attributes from @body */
 	                err = c2t1fs_inode_update(inode, body);
-		        if (err != 0)
-			        goto out_err;
 	        }
+		if (err != 0)
+		        goto out_err;
 		unlock_new_inode(inode);
 	        C2_LEAVE("inode: %p", inode);
 	        return inode;
@@ -352,8 +350,8 @@ struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid,
 
 out_err:
 	iget_failed(inode);
-	C2_LEAVE("ERR: %p", ERR_PTR(-EIO));
-	return ERR_PTR(-EIO);
+	C2_LEAVE("ERR: %p", ERR_PTR(err));
+	return ERR_PTR(err);
 }
 
 int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci)

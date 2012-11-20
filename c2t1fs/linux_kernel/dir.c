@@ -281,7 +281,7 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 
         fid_wire2mem(&mo.mo_attr.ca_tfid, &rep->l_body.b_tfid);
         inode = c2t1fs_iget(dir->i_sb, &mo.mo_attr.ca_tfid, &rep->l_body);
-	if (IS_ERR(inode)) {
+	if (inode == NULL || IS_ERR(inode)) {
 		C2_LEAVE("ERROR: %p", ERR_CAST(inode));
 		return ERR_CAST(inode);
 	}
@@ -642,7 +642,7 @@ static int c2t1fs_mds_cob_op(struct c2t1fs_sb      *csb,
 	C2_LOG(C2_DEBUG, "Send md operation %x to session %lu\n",
 		c2_fop_opcode(fop), (unsigned long)session->s_session_id);
 
-	rc = c2_rpc_client_call(fop, session, &cob_req_rpc_item_ops,
+	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
 				0 /* deadline */, C2T1FS_RPC_TIMEOUT);
 
 	if (rc != 0)

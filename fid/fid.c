@@ -27,7 +27,6 @@
 #include "lib/cdefs.h"         /* C2_EXPORTED */
 #include "lib/assert.h"        /* C2_PRE() */
 #include "fid/fid.h"
-#include "fid/fid_ff.h"
 
 /**
    @addtogroup fid
@@ -75,15 +74,6 @@ int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1)
         };
 
         return c2_uint128_cmp(&u0, &u1);
-}
-
-int c2_fid_register(void)
-{
-        return 0;
-}
-
-void c2_fid_unregister(void)
-{
 }
 
 /** @} end of fid group */
