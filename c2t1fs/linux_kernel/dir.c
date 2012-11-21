@@ -221,6 +221,7 @@ static int c2t1fs_create(struct inode     *dir,
         mo.mo_attr.ca_tfid      = ci->ci_fid;
         mo.mo_attr.ca_name      = (char *)dentry->d_name.name;
         mo.mo_attr.ca_namelen   = dentry->d_name.len;
+        mo.mo_attr.ca_nlink     = inode->i_nlink;
 
         rc = c2t1fs_mds_cob_create(csb, &mo, &rep);
         if (rc != 0)
@@ -563,7 +564,7 @@ static int c2t1fs_mds_cob_fop_populate(struct c2t1fs_mdop     *mo,
                 body_mem2wire(req, &mo->mo_attr,
                               (C2_COB_UID | C2_COB_GID | C2_COB_ATIME |
                                C2_COB_CTIME | C2_COB_MTIME | C2_COB_MODE |
-                               C2_COB_BLOCKS | C2_COB_SIZE));
+                               C2_COB_BLOCKS | C2_COB_SIZE | C2_COB_NLINK));
 
                 /**
                    Both fids are known before the rpc as fids are allocated
