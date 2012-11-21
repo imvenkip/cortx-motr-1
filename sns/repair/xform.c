@@ -92,7 +92,6 @@ int c2_sns_repair_cp_xform(struct c2_cm_cp *cp)
         sns_ag = ag2snsag(ag);
 	res_cp = sns_ag->sag_cp;
         if (res_cp == NULL) {
-                ag->cag_cp_nr = ag->cag_ops->cago_local_cp_nr(ag);
                 /*
                  * If there is only one copy packet in the aggregation group,
                  * call the next phase of the copy packet fom.
