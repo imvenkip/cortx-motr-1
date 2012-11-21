@@ -1,7 +1,7 @@
 colibri_service()
 {
-        prog=$COLIBRI_CORE_ROOT/colibri/colibri_setup
-        exec=$COLIBRI_CORE_ROOT/colibri/.libs/lt-colibri_setup
+        prog_start=$COLIBRI_CORE_ROOT/colibri/colibri_setup
+        prog_exec=$COLIBRI_CORE_ROOT/colibri/.libs/lt-colibri_setup
 
 	. /etc/rc.d/init.d/functions
 
@@ -16,17 +16,17 @@ colibri_service()
                         fi
 			rm -rf $COLIBRI_C2T1FS_TEST_DIR/d$i
 			mkdir $COLIBRI_C2T1FS_TEST_DIR/d$i
-			(cd $COLIBRI_C2T1FS_TEST_DIR/d$i
-			 $prog -r $PREPARE_STORAGE -T $COLIBRI_STOB_DOMAIN \
-			 -D $COLIBRI_C2T1FS_TEST_DIR/d$i/db \
-		         -S $COLIBRI_C2T1FS_TEST_DIR/d$i/stobs \
+			cmd="cd $COLIBRI_C2T1FS_TEST_DIR/d$i; \
+			 $prog_start -r $PREPARE_STORAGE -T $COLIBRI_STOB_DOMAIN \
+			 -D db -S stobs \
 			 -e $XPT:${lnet_nid}:${EP[$i]} \
 			 $SRV -m $MAX_RPC_MSG_SIZE \
-			 -q $TM_MIN_RECV_QUEUE_LEN \
-			     &>>$COLIBRI_C2T1FS_TEST_DIR/servers_started )&
+			 -q $TM_MIN_RECV_QUEUE_LEN "
+			echo $cmd
+			(eval $cmd) &
 
 			sleep 1
-			status $exec
+			status $prog_exec
 			if [ $? -eq 0 ]; then
 			        SRV=$(echo $SRV | sed 's/-s //g')
 				echo "Colibri services ($SRV) started."
@@ -39,7 +39,7 @@ colibri_service()
 	}
 
 	stop() {
-		killproc $exec
+		killproc $prog_exec
 		unprepare
 	}
 
@@ -52,7 +52,7 @@ colibri_service()
 		echo "Colibri services stopped."
 		;;
 	    *)
-		echo $"Usage: $0 {start|stop}"
+		echo "Usage: $0 {start|stop}"
 		return 2
 	esac
 	return $?

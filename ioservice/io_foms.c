@@ -1454,7 +1454,7 @@ static int io_launch(struct c2_fom *fom)
 
 	/*
 	   Since the upper layer IO block size could differ with IO block size
-	   of storage object, the block alignment and mapping is necesary.
+	   of storage object, the block alignment and mapping is necessary.
 	 */
 	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 

@@ -8,8 +8,8 @@ c2_dbenv_fini
 c2_dbenv_init
 c2_emap_paste
 c2_fi_enabled
-c2_fini
 c2_fi_register
+c2_fini
 c2_fom_fini
 c2_fom_init
 c2_fom_tick_generic

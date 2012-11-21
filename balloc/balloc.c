@@ -190,7 +190,7 @@ C2_INTERNAL void c2_balloc_unlock_group(struct c2_balloc_group_info *grp)
 #define MAX_ALLOCATION_CHUNK 2048ULL
 
 /**
-   finaliazation of the balloc environment.
+   finalization of the balloc environment.
  */
 static int balloc_fini_internal(struct c2_balloc *colibri,
 				struct c2_db_tx  *tx)
@@ -261,7 +261,7 @@ static const struct c2_table_ops c2_group_desc_ops = {
 
    This routine will create a "super_block" database to store global parameters
    for this container. It will also create "group free extent" and "group_desc"
-   for every group. If some groups are reserved for special purpse, then they
+   for every group. If some groups are reserved for special purpose, then they
    will be marked as "allocated" at the format time, and those groups will not
    be used by normal allocation routines.
 
@@ -289,8 +289,8 @@ static int balloc_format(struct c2_balloc *colibri,
 	C2_PRE(c2_is_po2(req->bfr_blocksize));
 	C2_PRE(c2_is_po2(req->bfr_groupsize));
 
-	number_of_groups = req->bfr_totalsize / req->bfr_groupsize /
-		req->bfr_blocksize;
+	number_of_groups = req->bfr_totalsize / req->bfr_blocksize /
+	                            req->bfr_groupsize;
 
 	if (number_of_groups == 0)
 		number_of_groups = 1;
@@ -321,7 +321,7 @@ static int balloc_format(struct c2_balloc *colibri,
 	sb->bsb_groupcount	= number_of_groups;
 	sb->bsb_reserved_groups = req->bfr_reserved_groups;
 	sb->bsb_freeblocks	= (number_of_groups - sb->bsb_reserved_groups)
-				<< sb->bsb_gsbits;
+				  << sb->bsb_gsbits;
 	sb->bsb_prealloc_count	= 16;
 	sb->bsb_format_time	= ((uint64_t)now.tv_sec) << 32 | now.tv_usec;
 	sb->bsb_write_time	= sb->bsb_format_time;
@@ -349,7 +349,7 @@ static int balloc_format(struct c2_balloc *colibri,
 		return rc;
 	}
 
-	sz = sb->bsb_groupcount * sizeof (struct c2_balloc_group_info);
+	sz = number_of_groups * sizeof (struct c2_balloc_group_info);
 	colibri->cb_group_info = c2_alloc(sz);
 	if (colibri->cb_group_info == NULL) {
 		C2_LOG(C2_ERROR, "create allocate memory for group info\n");
@@ -363,11 +363,11 @@ static int balloc_format(struct c2_balloc *colibri,
 		C2_LOG(C2_DEBUG, "creating group_extents for group %llu\n",
 		       (unsigned long long)i);
 		ext.e_start = i << sb->bsb_gsbits;
-		if (i < req->bfr_reserved_groups) {
+		if (i < req->bfr_reserved_groups)
 			ext.e_end = ext.e_start;
-		} else {
-			ext.e_end = (i + 1) << sb->bsb_gsbits;
-		}
+		else
+			ext.e_end = ext.e_start + sb->bsb_groupsize;
+
 		c2_db_pair_setup(&pair, &colibri->cb_db_group_extents,
 				 &ext.e_start, sizeof ext.e_start,
 				 &ext.e_end, sizeof ext.e_end);
@@ -820,7 +820,7 @@ balloc_normalize_request(struct c2_balloc_allocation_context *bac)
 	} else if (size <= 2048) {
 		size = 2048;
 	} else {
-		C2_LOG(C2_WARN, "lenth %llu is too large, truncate to %llu\n",
+		C2_LOG(C2_WARN, "length %llu is too large, truncate to %llu\n",
 			(unsigned long long) size, MAX_ALLOCATION_CHUNK);
 		size = MAX_ALLOCATION_CHUNK;
 	}
@@ -899,7 +899,7 @@ C2_INTERNAL int c2_balloc_load_extents(struct c2_balloc *cb,
 				 &ex->e_start, sizeof ex->e_start,
 				 &ex->e_end, sizeof ex->e_end);
 		result = c2_db_cursor_next(&cursor, &pair);
-		if ( result != 0)
+		if (result != 0)
 			break;
 
 		if (c2_ext_length(ex) > maxchunk)
@@ -1159,13 +1159,19 @@ static int balloc_update_db(struct c2_balloc *colibri,
 		balloc_debug_dump_extent("current=", cur);
 
 		if (found && cur && tgt->e_end > cur->e_start) {
-			C2_LOG(C2_ERROR, "!!!!!!!!!!!!!double free\n");
+			C2_LOG(C2_ERROR, "!!!!!!!!!!!!!double free: "
+			                 "tgt_end=%llu cur_start=%llu\n",
+			       (unsigned long long)tgt->e_end,
+			       (unsigned long long)cur->e_start);
 			c2_balloc_debug_dump_group_extent(
 				    "double free with cur", grp);
 			return -EINVAL;
 		}
 		if (pre && pre->e_end > tgt->e_start) {
-			C2_LOG(C2_ERROR, "!!!!!!!!!!!!!double free\n");
+			C2_LOG(C2_ERROR, "!!!!!!!!!!!!!double free: "
+			                 "pre_end=%llu tgt_start=%llu\n",
+			       (unsigned long long)pre->e_end,
+			       (unsigned long long)tgt->e_start);
 			c2_balloc_debug_dump_group_extent(
 				    "double free with pre", grp);
 			return -EINVAL;
@@ -1850,7 +1856,7 @@ out:
    can be per-object, or group based.
 
    This routine will first check the group description to see if enough free
-   space is availabe, and if largest contiguous chunk satisfy the request. This
+   space is available, and if largest contiguous chunk satisfy the request. This
    checking will be done group by group, until allocation succeeded or failed.
    If failed, the largest available contiguous chunk size is returned, and the
    caller can decide whether to use a smaller request.
@@ -1858,7 +1864,7 @@ out:
    While searching free space from group to group, the free space extent will be
    loaded into cache.  We cache as much free space extent up to some
    specified memory limitation.	 This is a configurable parameter, or default
-   value will be choosed based on system memory.
+   value will be chosen based on system memory.
 
    @param ctxt balloc operation context environment.
    @param req allocate request which includes all parameters.

@@ -81,19 +81,25 @@ set -e
 
 func_list=$(mktemp)
 
-nm "$libcolibri" | awk '$2 == "T" && $3 ~ /^c2_.*|tlist/ {print $3}' | sort > $func_list
+# to have identical sorting order, we need to sort file's content using the same
+# locale
+
+nm "$libcolibri" | awk '$2 == "T" && $3 ~ /^c2_.*|tlist/ {print $3}' | LC_ALL=C sort > $func_list
+
+pub_api_sorted=$(mktemp)
+LC_ALL=C sort $pub_api > $pub_api_sorted
 
 # if files are not equal
-if ! diff -q $pub_api $func_list &> /dev/null; then
+if ! diff -q $pub_api_sorted $func_list &> /dev/null; then
     echo "FAIL"
     echo "WARNING: Did you forget to add the following public functions"
     echo "         to the '$pub_api' list or to add C2_INTERNAL prefix to them?"
     echo ""
-    diff -u $pub_api $func_list | grep -E '^[-+]\w'
+    diff -u $pub_api_sorted $func_list | grep -E '^[-+]\w'
 else
     echo "OK"
 fi
 
-rm $func_list
+rm $func_list $pub_api_sorted
 
 exit 0
