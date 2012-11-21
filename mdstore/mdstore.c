@@ -561,6 +561,7 @@ C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore       *md,
         ent = rdpg->r_buf.b_addr;
         nob = rdpg->r_buf.b_nob;
         while (rc == 0 || first || second) {
+                int do_next = 0;
                 if (first) {
                         name = ".";
                         len = 1;
@@ -581,6 +582,7 @@ C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore       *md,
 
                         name = c2_bitstring_buf_get(&it.ci_key->cnk_name);
                         len = c2_bitstring_len_get(&it.ci_key->cnk_name);
+                        do_next = 1;
                 }
 
                 recsize = ((sizeof(*ent) + len) + 7) & ~7;
@@ -604,7 +606,8 @@ C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore       *md,
                 last = ent;
                 ent = (void *)ent + recsize;
                 nob -= recsize;
-                rc = c2_cob_iterator_next(&it);
+                if (do_next)
+                        rc = c2_cob_iterator_next(&it);
         }
 out_end:
         c2_cob_iterator_fini(&it);
