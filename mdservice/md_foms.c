@@ -1189,8 +1189,11 @@ C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
                 break;
         case C2_MDSERVICE_LOOKUP_OPCODE:
                 lookup = c2_fop_data(fop);
-                lookup->l_path.s_len = 0;
-                lookup->l_path.s_buf = NULL;
+                rc = c2_md_req_path_get(md,
+                                        c2_md_fid_get(&lookup->l_body.b_pfid),
+                                        &lookup->l_path);
+                if (rc != 0)
+                        return rc;
                 break;
         case C2_MDSERVICE_READDIR_OPCODE:
                 readdir = c2_fop_data(fop);

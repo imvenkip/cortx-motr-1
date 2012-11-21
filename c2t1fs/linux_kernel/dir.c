@@ -362,7 +362,7 @@ static int c2t1fs_readdir(struct file *f,
         c2t1fs_fs_lock(csb);
 
         do {
-                C2_LOG(C2_FATAL, "readdir from position \"%*s\"",
+                C2_LOG(C2_DEBUG, "readdir from position \"%*s\"",
                        mo.mo_poslen, (char *)mo.mo_pos);
 
                 rc = c2t1fs_mds_cob_readdir(csb, &mo, &rep);
@@ -391,7 +391,7 @@ static int c2t1fs_readdir(struct file *f,
                                 type = DT_REG;
                         }
 
-                        C2_LOG(C2_FATAL, "filled off %lu ino %lu name \"%*s\"",
+                        C2_LOG(C2_DEBUG, "filled off %lu ino %lu name \"%*s\"",
                                (unsigned long)f->f_pos, (unsigned long)ino,
                                ent->d_namelen, (char *)ent->d_name);
 
@@ -406,7 +406,7 @@ static int c2t1fs_readdir(struct file *f,
                 mo.mo_pos = rep->r_end.s_buf;
                 mo.mo_poslen = rep->r_end.s_len;
 
-                C2_LOG(C2_FATAL, "set position to \"%*s\" rc == %d",
+                C2_LOG(C2_DEBUG, "set position to \"%*s\" rc == %d",
                        mo.mo_poslen, (char *)mo.mo_pos, rc);
                 /**
                    Return codes for c2t1fs_mds_cob_readdir() are the following:
@@ -586,7 +586,7 @@ static int c2t1fs_mds_cob_fop_populate(struct c2t1fs_mdop     *mo,
                 fid_mem2wire(&req->b_tfid, &mo->mo_attr.ca_tfid);
                 fid_mem2wire(&req->b_pfid, &mo->mo_attr.ca_pfid);
 
-                name_mem2wire(&create->c_name, mo->mo_attr.ca_name,
+                name_mem2wire(&unlink->u_name, mo->mo_attr.ca_name,
                               mo->mo_attr.ca_namelen);
                 break;
         case C2_MDSERVICE_LOOKUP_OPCODE:
@@ -595,7 +595,7 @@ static int c2t1fs_mds_cob_fop_populate(struct c2t1fs_mdop     *mo,
 
                 /** Only parent and name are known */
                 fid_mem2wire(&req->b_pfid, &mo->mo_attr.ca_pfid);
-                name_mem2wire(&create->c_name, mo->mo_attr.ca_name,
+                name_mem2wire(&lookup->l_name, mo->mo_attr.ca_name,
                               mo->mo_attr.ca_namelen);
                 break;
         case C2_MDSERVICE_GETATTR_OPCODE:
