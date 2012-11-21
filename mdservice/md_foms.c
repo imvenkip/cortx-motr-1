@@ -1047,10 +1047,20 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
         rep->r_buf.b_count = rdpg.r_buf.b_nob;
         rep->r_buf.b_addr = rdpg.r_buf.b_addr;
 out:
-        fprintf(stderr, "readdir handled with %d\n", rc);
         rep->r_body.b_rc = rc;
+
+        /*
+         * Readddir return convention:
+         * <0 - error occured;
+         *  0 - no errors, more data available for next readdir;
+         * >0 - EOF, no more data available.
+         *
+         * Return code according to this convenction should go to client but
+         * local state machine requires "normal" errors. Let's adopt @rc.
+         */
+        rc = (rc < 0 ? rc : 0);
         c2_fom_err_set(fom, rc);
-        c2_fom_phase_move(fom, rc, rc < 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
         c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
