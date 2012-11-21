@@ -51,6 +51,8 @@ static int c2t1fs_opendir(struct inode *inode, struct file *file);
 static int c2t1fs_releasedir(struct inode *inode, struct file *file);
 
 static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry);
+static int c2t1fs_link(struct dentry *old, struct inode *dir,
+		       struct dentry *new);
 
 static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 				       int (*func)(struct c2t1fs_sb *csb,
@@ -85,9 +87,12 @@ const struct file_operations c2t1fs_dir_file_operations = {
 };
 
 const struct inode_operations c2t1fs_dir_inode_operations = {
-	.create = c2t1fs_create,
-	.lookup = c2t1fs_lookup,
-	.unlink = c2t1fs_unlink
+	.create  = c2t1fs_create,
+	.lookup  = c2t1fs_lookup,
+	.unlink  = c2t1fs_unlink,
+	.link    = c2t1fs_link,
+        .setattr = c2t1fs_setattr,
+        .getattr = c2t1fs_getattr
 };
 
 static void fid_mem2wire(struct c2_fop_fid   *tgt,
@@ -115,7 +120,8 @@ static int name_mem2wire(struct c2_fop_str *tgt,
         return 0;
 }
 
-static void body_mem2wire(struct c2_fop_cob *body, struct c2_cob_attr *attr, int valid)
+static void body_mem2wire(struct c2_fop_cob *body,
+                          struct c2_cob_attr *attr, int valid)
 {
         if (valid & C2_COB_ATIME)
                 body->b_atime = attr->ca_atime;
@@ -222,6 +228,9 @@ static int c2t1fs_create(struct inode     *dir,
         mo.mo_attr.ca_name      = (char *)dentry->d_name.name;
         mo.mo_attr.ca_namelen   = dentry->d_name.len;
         mo.mo_attr.ca_nlink     = inode->i_nlink;
+        mo.mo_attr.ca_flags     = (C2_COB_UID | C2_COB_GID | C2_COB_ATIME |
+                                   C2_COB_CTIME | C2_COB_MTIME | C2_COB_MODE |
+                                   C2_COB_BLOCKS | C2_COB_SIZE | C2_COB_NLINK);
 
         rc = c2t1fs_mds_cob_create(csb, &mo, &rep);
         if (rc != 0)
@@ -425,6 +434,49 @@ out:
         return rc;
 }
 
+static int c2t1fs_link(struct dentry *old, struct inode *dir,
+                       struct dentry *new)
+{
+	struct c2t1fs_sb                *csb;
+        struct c2_fop_link_rep          *link_rep;
+	struct c2t1fs_mdop               mo;
+	struct c2t1fs_inode             *ci;
+	struct inode                    *inode;
+	struct timespec                  now;
+	int                              rc;
+
+	inode = old->d_inode;
+	ci    = C2T1FS_I(inode);
+	csb   = C2T1FS_SB(inode->i_sb);
+
+        C2_SET0(&mo);
+        now = CURRENT_TIME_SEC;
+        mo.mo_attr.ca_pfid = c2t1fs_root_fid;
+        mo.mo_attr.ca_tfid  = ci->ci_fid;
+        mo.mo_attr.ca_name = (char *)new->d_name.name;
+        mo.mo_attr.ca_namelen = new->d_name.len;
+        mo.mo_attr.ca_nlink = inode->i_nlink + 1;
+        mo.mo_attr.ca_ctime = now.tv_sec;
+        mo.mo_attr.ca_flags = (C2_COB_CTIME | C2_COB_NLINK);
+
+	rc = c2t1fs_mds_cob_link(csb, &mo, &link_rep);
+	if (rc != 0) {
+		C2_LOG(C2_ERROR, "mdservive link fop failed: %d\n", rc);
+		goto out;
+	}
+
+	inc_nlink(inode);
+	inode->i_ctime = now;
+	mark_inode_dirty(inode);
+	atomic_inc(&inode->i_count);
+	d_instantiate(new, inode);
+
+out:
+	c2t1fs_fs_unlock(csb);
+	C2_LEAVE("rc: %d", rc);
+	return rc;
+}
+
 static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 {
         struct c2_fop_lookup_rep        *lookup_rep;
@@ -442,7 +494,6 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	inode = dentry->d_inode;
 	csb   = C2T1FS_SB(inode->i_sb);
 	ci    = C2T1FS_I(inode);
-	C2_ASSERT(c2t1fs_inode_bob_check(ci));
 
 	c2t1fs_fs_lock(csb);
 
@@ -479,6 +530,142 @@ out:
 	c2t1fs_fs_unlock(csb);
 	C2_LEAVE("rc: %d", rc);
 	return rc;
+}
+
+C2_INTERNAL int c2t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
+                               struct kstat *stat)
+{
+        struct c2_fop_getattr_rep       *getattr_rep;
+        struct c2t1fs_sb                *csb;
+        struct inode                    *inode;
+        struct c2t1fs_inode             *ci;
+        struct c2t1fs_mdop               mo;
+        int                              rc;
+
+        C2_ENTRY();
+
+        C2_LOG(C2_INFO, "Name: \"%s\"", dentry->d_name.name);
+
+        inode = dentry->d_inode;
+        csb   = C2T1FS_SB(inode->i_sb);
+        ci    = C2T1FS_I(inode);
+
+        c2t1fs_fs_lock(csb);
+
+        C2_SET0(&mo);
+        mo.mo_attr.ca_tfid  = ci->ci_fid;
+
+        /**
+           TODO: When we have dlm locking working, this will be changed to
+           revalidate inode with checking cached lock. If lock is cached
+           (not canceled), which means inode did not change, then we don't
+           have to do getattr and can just use @inode cached data.
+         */
+        rc = c2t1fs_mds_cob_getattr(csb, &mo, &getattr_rep);
+        if (rc != 0)
+                goto out;
+
+        /** Update inode fields with data from @getattr_rep. */
+        rc = c2t1fs_inode_update(inode, &getattr_rep->g_body);
+        if (rc != 0)
+                goto out;
+
+        /** Now its time to return inode stat data to user. */
+        stat->dev = inode->i_sb->s_dev;
+        stat->ino = inode->i_ino;
+        stat->mode = inode->i_mode;
+        stat->nlink = inode->i_nlink;
+        stat->uid = inode->i_uid;
+        stat->gid = inode->i_gid;
+        stat->rdev = inode->i_rdev;
+        stat->atime = inode->i_atime;
+        stat->mtime = inode->i_mtime;
+        stat->ctime = inode->i_ctime;
+#ifdef HAVE_INODE_BLKSIZE
+        stat->blksize = inode->i_blksize;
+#else
+        stat->blksize = 1 << inode->i_blkbits;
+#endif
+        stat->size = i_size_read(inode);
+        stat->blocks = inode->i_blocks;
+out:
+        c2t1fs_fs_unlock(csb);
+        C2_LEAVE("rc: %d", rc);
+        return rc;
+}
+
+C2_INTERNAL int c2t1fs_setattr(struct dentry *dentry, struct iattr *attr)
+{
+        struct c2_fop_setattr_rep       *setattr_rep;
+        struct c2t1fs_sb                *csb;
+        struct inode                    *inode;
+        struct c2t1fs_inode             *ci;
+        struct c2t1fs_mdop               mo;
+        int                              rc;
+
+        C2_ENTRY();
+
+        C2_LOG(C2_INFO, "Name: \"%s\"", dentry->d_name.name);
+
+        inode = dentry->d_inode;
+        csb   = C2T1FS_SB(inode->i_sb);
+        ci    = C2T1FS_I(inode);
+
+        rc = inode_change_ok(inode, attr);
+        if (rc)
+                return rc;
+
+        c2t1fs_fs_lock(csb);
+
+        C2_SET0(&mo);
+        mo.mo_attr.ca_tfid  = ci->ci_fid;
+
+        if (attr->ia_valid & ATTR_CTIME) {
+                mo.mo_attr.ca_ctime = attr->ia_ctime.tv_sec;
+                mo.mo_attr.ca_flags |= C2_COB_CTIME;
+        }
+
+        if (attr->ia_valid & ATTR_MTIME) {
+                mo.mo_attr.ca_mtime = attr->ia_mtime.tv_sec;
+                mo.mo_attr.ca_flags |= C2_COB_MTIME;
+        }
+
+        if (attr->ia_valid & ATTR_ATIME) {
+                mo.mo_attr.ca_atime = attr->ia_atime.tv_sec;
+                mo.mo_attr.ca_flags |= C2_COB_ATIME;
+        }
+
+        if (attr->ia_valid & ATTR_SIZE) {
+                mo.mo_attr.ca_size = attr->ia_size;
+                mo.mo_attr.ca_flags |= C2_COB_SIZE;
+        }
+
+        if (attr->ia_valid & ATTR_MODE) {
+                mo.mo_attr.ca_mode = attr->ia_mode;
+                mo.mo_attr.ca_flags |= C2_COB_MODE;
+        }
+
+        if (attr->ia_valid & ATTR_UID) {
+                mo.mo_attr.ca_uid = attr->ia_uid;
+                mo.mo_attr.ca_flags |= C2_COB_UID;
+        }
+
+        if (attr->ia_valid & ATTR_GID) {
+                mo.mo_attr.ca_gid = attr->ia_gid;
+                mo.mo_attr.ca_flags |= C2_COB_GID;
+        }
+
+        rc = c2t1fs_mds_cob_setattr(csb, &mo, &setattr_rep);
+        if (rc != 0)
+                goto out;
+
+        rc = inode_setattr(inode, attr);
+        if (rc != 0)
+                goto out;
+out:
+        c2t1fs_fs_unlock(csb);
+        C2_LEAVE("rc: %d", rc);
+        return rc;
 }
 
 /**
@@ -550,8 +737,10 @@ static int c2t1fs_mds_cob_fop_populate(struct c2t1fs_mdop     *mo,
 {
         struct c2_fop_create    *create;
         struct c2_fop_unlink    *unlink;
+        struct c2_fop_link      *link;
         struct c2_fop_lookup    *lookup;
         struct c2_fop_getattr   *getattr;
+        struct c2_fop_setattr   *setattr;
         struct c2_fop_readdir   *readdir;
         struct c2_fop_cob       *req;
         int                      rc = 0;
@@ -561,26 +750,28 @@ static int c2t1fs_mds_cob_fop_populate(struct c2t1fs_mdop     *mo,
                 create = c2_fop_data(fop);
                 req = &create->c_body;
 
-                body_mem2wire(req, &mo->mo_attr,
-                              (C2_COB_UID | C2_COB_GID | C2_COB_ATIME |
-                               C2_COB_CTIME | C2_COB_MTIME | C2_COB_MODE |
-                               C2_COB_BLOCKS | C2_COB_SIZE | C2_COB_NLINK));
-
-                /**
-                   Both fids are known before the rpc as fids are allocated
-                   on client. Initialize them both.
-                 */
+                body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_flags);
                 fid_mem2wire(&req->b_tfid, &mo->mo_attr.ca_tfid);
                 fid_mem2wire(&req->b_pfid, &mo->mo_attr.ca_pfid);
 
                 name_mem2wire(&create->c_name, mo->mo_attr.ca_name,
                               mo->mo_attr.ca_namelen);
                 break;
+        case C2_MDSERVICE_LINK_OPCODE:
+                link = c2_fop_data(fop);
+                req = &link->l_body;
+
+                body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_flags);
+                fid_mem2wire(&req->b_tfid, &mo->mo_attr.ca_tfid);
+                fid_mem2wire(&req->b_pfid, &mo->mo_attr.ca_pfid);
+
+                name_mem2wire(&link->l_name, mo->mo_attr.ca_name,
+                              mo->mo_attr.ca_namelen);
+                break;
         case C2_MDSERVICE_UNLINK_OPCODE:
                 unlink = c2_fop_data(fop);
                 req = &unlink->u_body;
 
-                /** We may need both fids here */
                 fid_mem2wire(&req->b_tfid, &mo->mo_attr.ca_tfid);
                 fid_mem2wire(&req->b_pfid, &mo->mo_attr.ca_pfid);
 
@@ -600,15 +791,19 @@ static int c2t1fs_mds_cob_fop_populate(struct c2t1fs_mdop     *mo,
                 getattr = c2_fop_data(fop);
                 req = &getattr->g_body;
 
-                /** Both fids are set from @tfid, no name. */
                 fid_mem2wire(&req->b_tfid, &mo->mo_attr.ca_tfid);
-                fid_mem2wire(&req->b_pfid, &mo->mo_attr.ca_tfid);
+                break;
+        case C2_MDSERVICE_SETATTR_OPCODE:
+                setattr = c2_fop_data(fop);
+                req = &setattr->s_body;
+
+                body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_flags);
+                fid_mem2wire(&req->b_tfid, &mo->mo_attr.ca_tfid);
                 break;
         case C2_MDSERVICE_READDIR_OPCODE:
                 readdir = c2_fop_data(fop);
                 req = &readdir->r_body;
 
-                /** Both fids are set from @tfid, no name. */
                 fid_mem2wire(&req->b_tfid, &mo->mo_attr.ca_tfid);
                 name_mem2wire(&readdir->r_pos, mo->mo_pos, mo->mo_poslen);
                 break;
@@ -639,10 +834,10 @@ static int c2t1fs_mds_cob_op(struct c2t1fs_sb      *csb,
         struct c2_fop_close_rep     *close_rep;
         struct c2_fop_readdir_rep   *readdir_rep;
 
-	C2_PRE(mo != NULL);
-	C2_PRE(ftype != NULL);
+        C2_PRE(mo != NULL);
+        C2_PRE(ftype != NULL);
 
-	C2_ENTRY();
+        C2_ENTRY();
 
         /**
            TODO: This needs to be fixed later.
@@ -658,34 +853,34 @@ static int c2t1fs_mds_cob_op(struct c2t1fs_sb      *csb,
            - using @ci is not an option as well as it is not always used.
              For example, it is not available for lookup.
          */
-	session = c2t1fs_container_id_to_session(csb, 0);
-	C2_ASSERT(session != NULL);
+        session = c2t1fs_container_id_to_session(csb, 0);
+        C2_ASSERT(session != NULL);
 
-	fop = c2_fop_alloc(ftype, NULL);
-	if (fop == NULL) {
-		rc = -ENOMEM;
-		C2_LOG(C2_FATAL, "c2_fop_alloc() failed with %d", rc);
-		goto out;
-	}
+        fop = c2_fop_alloc(ftype, NULL);
+        if (fop == NULL) {
+                rc = -ENOMEM;
+                C2_LOG(C2_FATAL, "c2_fop_alloc() failed with %d", rc);
+                goto out;
+        }
 
-	rc = c2t1fs_mds_cob_fop_populate(mo, fop);
-	if (rc != 0) {
-		C2_LOG(C2_FATAL,
-		       "c2t1fs_mds_cob_fop_populate() failed with %d", rc);
-		c2_fop_free(fop);
-		goto out;
-	}
+        rc = c2t1fs_mds_cob_fop_populate(mo, fop);
+        if (rc != 0) {
+                C2_LOG(C2_FATAL,
+                       "c2t1fs_mds_cob_fop_populate() failed with %d", rc);
+                c2_fop_free(fop);
+                goto out;
+        }
 
-	C2_LOG(C2_DEBUG, "Send md operation %x to session %lu\n",
-		c2_fop_opcode(fop), (unsigned long)session->s_session_id);
+        C2_LOG(C2_DEBUG, "Send md operation %x to session %lu\n",
+                c2_fop_opcode(fop), (unsigned long)session->s_session_id);
 
-	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
-				0 /* deadline */, C2T1FS_RPC_TIMEOUT);
+        rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
+                                0 /* deadline */, C2T1FS_RPC_TIMEOUT);
 
-	if (rc != 0) {
-		C2_LOG(C2_FATAL,
-		       "c2_rpc_client_call(%x) failed with %d", c2_fop_opcode(fop), rc);
-		goto out;
+        if (rc != 0) {
+                C2_LOG(C2_FATAL,
+                       "c2_rpc_client_call(%x) failed with %d", c2_fop_opcode(fop), rc);
+                goto out;
         }
 
         switch (c2_fop_opcode(fop)) {
@@ -758,28 +953,42 @@ int c2t1fs_mds_cob_create(struct c2t1fs_sb          *csb,
                           struct c2t1fs_mdop        *mo,
                           struct c2_fop_create_rep **rep)
 {
-	return c2t1fs_mds_cob_op(csb, mo, &c2_fop_create_fopt, (void **)rep);
+        return c2t1fs_mds_cob_op(csb, mo, &c2_fop_create_fopt, (void **)rep);
 }
 
 int c2t1fs_mds_cob_unlink(struct c2t1fs_sb          *csb,
                           struct c2t1fs_mdop        *mo,
                           struct c2_fop_unlink_rep **rep)
 {
-	return c2t1fs_mds_cob_op(csb, mo, &c2_fop_unlink_fopt, (void **)rep);
+        return c2t1fs_mds_cob_op(csb, mo, &c2_fop_unlink_fopt, (void **)rep);
+}
+
+int c2t1fs_mds_cob_link(struct c2t1fs_sb          *csb,
+                        struct c2t1fs_mdop        *mo,
+                        struct c2_fop_link_rep   **rep)
+{
+        return c2t1fs_mds_cob_op(csb, mo, &c2_fop_link_fopt, (void **)rep);
 }
 
 int c2t1fs_mds_cob_lookup(struct c2t1fs_sb          *csb,
                           struct c2t1fs_mdop        *mo,
                           struct c2_fop_lookup_rep **rep)
 {
-	return c2t1fs_mds_cob_op(csb, mo, &c2_fop_lookup_fopt, (void **)rep);
+        return c2t1fs_mds_cob_op(csb, mo, &c2_fop_lookup_fopt, (void **)rep);
 }
 
 int c2t1fs_mds_cob_getattr(struct c2t1fs_sb           *csb,
                            struct c2t1fs_mdop         *mo,
                            struct c2_fop_getattr_rep **rep)
 {
-	return c2t1fs_mds_cob_op(csb, mo, &c2_fop_getattr_fopt, (void **)rep);
+        return c2t1fs_mds_cob_op(csb, mo, &c2_fop_getattr_fopt, (void **)rep);
+}
+
+int c2t1fs_mds_cob_setattr(struct c2t1fs_sb           *csb,
+                           struct c2t1fs_mdop         *mo,
+                           struct c2_fop_setattr_rep **rep)
+{
+        return c2t1fs_mds_cob_op(csb, mo, &c2_fop_setattr_fopt, (void **)rep);
 }
 
 int c2t1fs_mds_cob_readdir(struct c2t1fs_sb           *csb,

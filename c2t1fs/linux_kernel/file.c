@@ -44,7 +44,6 @@
 
 struct io_mem_stats iommstats;
 
-const struct inode_operations c2t1fs_reg_inode_operations;
 C2_INTERNAL void iov_iter_advance(struct iov_iter *i, size_t bytes);
 
 /* Imports */
@@ -3237,3 +3236,8 @@ err:
 
 	C2_RETERR(rc, "iofops_prepare failed");
 }
+
+const struct inode_operations c2t1fs_reg_inode_operations = {
+        .setattr = c2t1fs_setattr,
+        .getattr = c2t1fs_getattr
+};

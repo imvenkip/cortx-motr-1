@@ -651,6 +651,12 @@ C2_INTERNAL void c2t1fs_fs_lock(struct c2t1fs_sb *csb);
 C2_INTERNAL void c2t1fs_fs_unlock(struct c2t1fs_sb *csb);
 C2_INTERNAL bool c2t1fs_fs_is_locked(const struct c2t1fs_sb *csb);
 
+C2_INTERNAL int c2t1fs_getattr(struct vfsmount *mnt, struct dentry *de,
+                               struct kstat *stat);
+C2_INTERNAL int c2t1fs_setattr(struct dentry *de, struct iattr *attr);
+C2_INTERNAL int c2t1fs_inode_update(struct inode *inode,
+                                    struct c2_fop_cob *body);
+
 C2_INTERNAL struct c2_rpc_session *
 c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
 			       uint64_t container_id);
@@ -696,6 +702,10 @@ int c2t1fs_mds_cob_unlink(struct c2t1fs_sb          *csb,
                           struct c2t1fs_mdop        *mo,
                           struct c2_fop_unlink_rep **rep);
 
+int c2t1fs_mds_cob_link(struct c2t1fs_sb          *csb,
+                        struct c2t1fs_mdop        *mo,
+                        struct c2_fop_link_rep   **rep);
+
 int c2t1fs_mds_cob_lookup(struct c2t1fs_sb          *csb,
                           struct c2t1fs_mdop        *mo,
                           struct c2_fop_lookup_rep **rep);
@@ -703,6 +713,10 @@ int c2t1fs_mds_cob_lookup(struct c2t1fs_sb          *csb,
 int c2t1fs_mds_cob_getattr(struct c2t1fs_sb           *csb,
                            struct c2t1fs_mdop         *mo,
                            struct c2_fop_getattr_rep **rep);
+
+int c2t1fs_mds_cob_setattr(struct c2t1fs_sb           *csb,
+                           struct c2t1fs_mdop         *mo,
+                           struct c2_fop_setattr_rep **rep);
 
 int c2t1fs_mds_cob_readdir(struct c2t1fs_sb           *csb,
                            struct c2t1fs_mdop         *mo,

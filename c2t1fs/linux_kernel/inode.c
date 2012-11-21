@@ -243,7 +243,8 @@ static int c2t1fs_inode_set(struct inode *inode, void *opaque)
 	return 0;
 }
 
-static int c2t1fs_inode_update(struct inode *inode, struct c2_fop_cob *body)
+C2_INTERNAL int c2t1fs_inode_update(struct inode *inode,
+                                    struct c2_fop_cob *body)
 {
 	int rc = 0;
 
@@ -272,7 +273,8 @@ static int c2t1fs_inode_update(struct inode *inode, struct c2_fop_cob *body)
 	return rc;
 }
 
-static int c2t1fs_inode_read(struct inode *inode, struct c2_fop_cob *body)
+static int c2t1fs_inode_read(struct inode *inode,
+                             struct c2_fop_cob *body)
 {
 	int rc = 0;
 

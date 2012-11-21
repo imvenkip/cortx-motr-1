@@ -143,13 +143,14 @@ static int c2_md_create(struct c2_mdstore  *md,
                                 C2_MD_LOCATE_STORED, tx);
         if (rc == -ENOENT) {
                 /*
-                 * No file at all, let's create it no matter
-                 * where we are called from, scan or changelog.
+                 * Statdata cob is not found, let's create it. This
+                 * must be normal create case.
                  */
                 rc = c2_mdstore_create(md, pfid, attr, &scob, tx);
         } else if (rc == 0) {
                 /*
-                 * There is statdata name, this must be hardlink.
+                 * There is statdata name, this must be hardlink
+                 * case.
                  */
                 rc = c2_mdstore_link(md, pfid, scob, attr->ca_name,
                                       attr->ca_namelen, tx);
@@ -292,8 +293,8 @@ static int c2_md_link_tick(struct c2_fom *fom)
         c2_md_fid_wire2mem(&tfid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
-        rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid, &tfid,
-                          &attr, &fom->fo_tx.tx_dbtx);
+        rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                          &pfid, &tfid, &attr, &fom->fo_tx.tx_dbtx);
         c2_fom_block_leave(fom);
 out:
         rep->l_body.b_rc = rc;
@@ -761,15 +762,15 @@ static int c2_md_setattr_tick(struct c2_fom *fom)
          * an object in case there is no target yet. This is why
          * we return quickly if no object is found.
          */
-        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob,
-                                C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
+        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid,
+                                &cob, C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
                 goto out;
         }
 
-        rc = c2_mdstore_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob, &attr,
-                                 &fom->fo_tx.tx_dbtx);
+        rc = c2_mdstore_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
+                                &attr, &fom->fo_tx.tx_dbtx);
         c2_cob_put(cob);
         c2_fom_block_leave(fom);
 out:
