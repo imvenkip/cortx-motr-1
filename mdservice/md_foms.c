@@ -87,7 +87,7 @@ static void c2_md_fop_cob2attr(struct c2_cob_attr *attr,
 /**
    Make in-memory wire fid from attr fid.
 */
-void c2_md_fid_mem2wire(struct c2_fop_fid *wid, const struct c2_fid *fid)
+C2_INTERNAL void c2_md_fid_mem2wire(struct c2_fop_fid *wid, const struct c2_fid *fid)
 {
         wid->f_seq = fid->f_container;
         wid->f_oid = fid->f_key;
@@ -227,10 +227,10 @@ static int c2_md_create_tick(struct c2_fom *fom)
 out:
         rep->c_body.b_rc = rc;
         c2_fom_err_set(fom, rc);
-        c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
-        c2_fom_phase_set(fom, C2_FOPH_FINISH);
+        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
         return C2_FSO_WAIT;
 }
 
@@ -293,10 +293,10 @@ static int c2_md_link_tick(struct c2_fom *fom)
 out:
         rep->l_body.b_rc = rc;
         c2_fom_err_set(fom, rc);
-        c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
-        c2_fom_phase_set(fom, C2_FOPH_FINISH);
+        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
         return C2_FSO_WAIT;
 }
 
@@ -376,10 +376,10 @@ static int c2_md_unlink_tick(struct c2_fom *fom)
 out:
         rep->u_body.b_rc = rc;
         c2_fom_err_set(fom, rc);
-        c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
-        c2_fom_phase_set(fom, C2_FOPH_FINISH);
+        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
         return C2_FSO_WAIT;
 }
 
@@ -520,10 +520,10 @@ static int c2_md_rename_tick(struct c2_fom *fom)
 out:
         rep->r_body.b_rc = rc;
         c2_fom_err_set(fom, rc);
-        c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
-        c2_fom_phase_set(fom, C2_FOPH_FINISH);
+        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
         return C2_FSO_WAIT;
 }
 
@@ -610,10 +610,10 @@ static int c2_md_open_tick(struct c2_fom *fom)
 out:
         rep->o_body.b_rc = rc;
         c2_fom_err_set(fom, rc);
-        c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
-        c2_fom_phase_set(fom, C2_FOPH_FINISH);
+        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
         return C2_FSO_WAIT;
 }
 
@@ -698,10 +698,10 @@ static int c2_md_close_tick(struct c2_fom *fom)
 out:
         rep->c_body.b_rc = rc;
         c2_fom_err_set(fom, rc);
-        c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
-        c2_fom_phase_set(fom, C2_FOPH_FINISH);
+        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
         return C2_FSO_WAIT;
 }
 
@@ -775,10 +775,10 @@ static int c2_md_setattr_tick(struct c2_fom *fom)
 out:
         rep->s_body.b_rc = rc;
         c2_fom_err_set(fom, rc);
-        c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
-        c2_fom_phase_set(fom, C2_FOPH_FINISH);
+        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
         return C2_FSO_WAIT;
 }
 
@@ -852,10 +852,10 @@ static int c2_md_lookup_tick(struct c2_fom *fom)
 out:
         rep->l_body.b_rc = rc;
         c2_fom_err_set(fom, rc);
-        c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
-        c2_fom_phase_set(fom, C2_FOPH_FINISH);
+        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
         return C2_FSO_WAIT;
 }
 
@@ -925,10 +925,10 @@ static int c2_md_getattr_tick(struct c2_fom *fom)
 out:
         rep->g_body.b_rc = rc;
         c2_fom_err_set(fom, rc);
-        c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
-        c2_fom_phase_set(fom, C2_FOPH_FINISH);
+        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
         return C2_FSO_WAIT;
 }
 
@@ -1050,10 +1050,10 @@ out:
         fprintf(stderr, "readdir handled with %d\n", rc);
         rep->r_body.b_rc = rc;
         c2_fom_err_set(fom, rc);
-        c2_fom_phase_set(fom, rc < 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_move(fom, rc, rc < 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
-        c2_fom_phase_set(fom, C2_FOPH_FINISH);
+        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
         return C2_FSO_WAIT;
 }
 
