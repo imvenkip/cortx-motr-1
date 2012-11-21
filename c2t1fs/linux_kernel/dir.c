@@ -102,12 +102,11 @@ static void fid_wire2mem(struct c2_fid     *tgt,
 static int name_mem2wire(struct c2_fop_str *tgt,
                          const char *name, int namelen)
 {
-        tgt->s_buf = c2_alloc(namelen + 1);
+        tgt->s_buf = c2_alloc(namelen);
         if (tgt->s_buf == NULL)
                 return -ENOMEM;
-        tgt->s_len = namelen + 1;
+        tgt->s_len = namelen;
         memcpy(tgt->s_buf, name, namelen);
-        tgt->s_buf[namelen] = '\0';
         return 0;
 }
 
@@ -133,7 +132,6 @@ static void body_mem2wire(struct c2_fop_cob *body, struct c2_cob_attr *attr, int
                 body->b_blocks = attr->ca_blocks;
         if (valid & C2_COB_NLINK)
                 body->b_nlink = attr->ca_nlink;
-
         body->b_valid = valid;
 }
 
@@ -295,15 +293,13 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 
 struct c2_dirent *dirent_next(struct c2_dirent *ent)
 {
-        if (ent->d_reclen > 0)
-                return (void *)ent + ent->d_reclen;
-        else
-                return NULL;
+        return  ent->d_reclen > 0 ? (void *)ent + ent->d_reclen : NULL;
 }
 
 struct c2_dirent *dirent_first(struct c2_fop_readdir_rep *rep)
 {
-        return (struct c2_dirent *)rep->r_buf.b_addr;
+        struct c2_dirent *ent = (struct c2_dirent *)rep->r_buf.b_addr;
+        return ent->d_namelen > 0 ? ent : NULL;
 }
 
 static int c2t1fs_readdir(struct file *f,
@@ -316,9 +312,12 @@ static int c2t1fs_readdir(struct file *f,
 	struct c2_fop_readdir_rep       *rep;
 	struct dentry                   *dentry;
 	struct inode                    *dir;
+	struct c2_dirent                *ent;
+	int                              type;
 	ino_t                            ino;
 	int                              i;
 	int                              rc;
+	int                              over;
 
 	C2_ENTRY();
 
@@ -328,11 +327,6 @@ static int c2t1fs_readdir(struct file *f,
 	csb    = C2T1FS_SB(dir->i_sb);
 	i      = f->f_pos;
 
-        /**
-           TODO: Server side should be able to position by integer pos
-           (usually taken from f->f_pos). Hash by name can be used if
-           needed but this requires some big changes in mdservice code.
-         */
         C2_SET0(&mo);
         mo.mo_pos = ".";
         mo.mo_poslen = 1;
@@ -341,54 +335,59 @@ static int c2t1fs_readdir(struct file *f,
         c2t1fs_fs_lock(csb);
 
         do {
-                /**
-                   Return codes are the following:
-                   - <0 - some error om server side while handling fop;
-                   -  0 - EOF of dir signaled by mdservice;
-                   - >0 - some number of entries is sent by mdservice.
-                 */
                 rc = c2t1fs_mds_cob_readdir(csb, &mo, &rep);
                 if (rc < 0) {
                         C2_LOG(C2_ERROR,
                                "Failed to read dir from pos \"%*s\". Error %d",
                                mo.mo_poslen, mo.mo_pos, rc);
                         goto out;
-                } else if (rc > 0) {
-                        struct c2_dirent *ent;
-
-                        for (ent = dirent_first(rep); ent != NULL; ent = dirent_next(ent)) {
-                                int type;
-
-                                if (ent->d_namelen == 1 && memcmp(ent->d_name, ".", 1) == 0) {
-                                        ino = dir->i_ino;
-                                        type = DT_DIR;
-                                } else if (ent->d_namelen == 2 && memcmp(ent->d_name, "..", 2) == 0) {
-                                        ino = parent_ino(dentry);
-                                        type = DT_DIR;
-                                } else {
-                                        ino = i++;
-                                        type = DT_REG;
-                                }
-
-                                C2_LOG(C2_DEBUG, "filled off %lu ino %lu name \"%*s\"", (unsigned long)f->f_pos,
-                                       (unsigned long)ino, ent->d_namelen, (char *)ent->d_name);
-
-                                /** TODO: Entry type is hardcoded to regular files. */
-                                rc = filldir(buf, ent->d_name, ent->d_namelen, f->f_pos,
-                                             ino, type);
-                                if (rc < 0)
-                                        goto out;
-                                f->f_pos++;
-                        }
-                        mo.mo_pos = rep->r_end.s_buf;
-                        mo.mo_poslen = rep->r_end.s_len;
                 }
+
+                for (ent = dirent_first(rep); ent != NULL; ent = dirent_next(ent)) {
+                        if (ent->d_namelen == 1 &&
+                            memcmp(ent->d_name, ".", 1) == 0) {
+                                ino = dir->i_ino;
+                                type = DT_DIR;
+                        } else if (ent->d_namelen == 2 &&
+                                   memcmp(ent->d_name, "..", 2) == 0) {
+                                ino = parent_ino(dentry);
+                                type = DT_DIR;
+                        } else {
+                                /**
+                                   TODO: Entry type is hardcoded to regular
+                                   files, should be fixed later.
+                                 */
+                                ino = ++i;
+                                type = DT_REG;
+                        }
+
+                        C2_LOG(C2_FATAL, "filled off %lu ino %lu name \"%*s\"",
+                               (unsigned long)f->f_pos, (unsigned long)ino,
+                               ent->d_namelen, (char *)ent->d_name);
+
+                        over = filldir(buf, ent->d_name, ent->d_namelen,
+                                       f->f_pos, ino, type);
+                        if (over)
+                                goto out;
+                        f->f_pos++;
+                }
+                mo.mo_pos = rep->r_end.s_buf;
+                mo.mo_poslen = rep->r_end.s_len;
+
+                C2_LOG(C2_FATAL, "set readdir position to \"%*s\" rc == %d",
+                       mo.mo_poslen, (char *)mo.mo_pos, rc);
+                /**
+                   Return codes for c2t1fs_mds_cob_readdir() are the following:
+                   - <0 - some error occured;
+                   - >0 - EOF signaled by mdservice, some number of entries available;
+                   -  0 - no error, some number of entries is sent by mdservice.
+                 */
         } while (rc == 0);
 
 out:
         c2t1fs_fs_unlock(csb);
-        C2_LEAVE("rc: 0");
-        return 0;
+        C2_LEAVE("rc: %d", rc);
+        return rc;
 }
 
 static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)

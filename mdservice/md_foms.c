@@ -960,7 +960,6 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
                 return rc;
         }
 
-        fprintf(stderr, "started readdir handling\n");
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
         req = c2_fop_data(fop);
@@ -1018,8 +1017,8 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
 
         c2_buf_init(&rdpg.r_buf, addr, C2_MD_READDIR_BUF_ALLOC);
 
-        rc = c2_mdstore_readdir(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob, &rdpg,
-                                 &fom->fo_tx.tx_dbtx);
+        rc = c2_mdstore_readdir(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                                cob, &rdpg, &fom->fo_tx.tx_dbtx);
         c2_fom_block_leave(fom);
         c2_bitstring_free(rdpg.r_pos);
         c2_cob_put(cob);
@@ -1051,11 +1050,11 @@ out:
 
         /*
          * Readddir return convention:
-         * <0 - error occured;
+         * <0 - some error occured;
          *  0 - no errors, more data available for next readdir;
-         * >0 - EOF, no more data available.
+         * >0 - EOF detyected, more data available but this is the last page.
          *
-         * Return code according to this convenction should go to client but
+         * Return code according to this convention should go to client but
          * local state machine requires "normal" errors. Let's adopt @rc.
          */
         rc = (rc < 0 ? rc : 0);

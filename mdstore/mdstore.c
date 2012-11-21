@@ -17,6 +17,7 @@
  * Original creation date: 01/17/2011
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_COB
 #include <sys/stat.h>    /* S_ISDIR */
 
 #include "lib/misc.h"    /* C2_SET0 */
@@ -27,6 +28,7 @@
 #include "lib/memory.h"
 #include "lib/bitstring.h"
 #include "lib/rwlock.h"
+#include "lib/trace.h"
 
 #include "fid/fid.h"
 #include "addb/addb.h"
@@ -526,13 +528,20 @@ C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore       *md,
 
         C2_ASSERT(cob != NULL);
 
+        C2_LOG(C2_DEBUG,
+               "Readdir on object [%lx:%lx] starting from \"%*s\" (len %d)",
+               cob->co_fid->f_container, cob->co_fid->f_key, c2_bitstring_len_get(rdpg->r_pos),
+               (char *)c2_bitstring_buf_get(rdpg->r_pos), c2_bitstring_len_get(rdpg->r_pos));
+
         first = c2_bitstring_len_get(rdpg->r_pos) == 1 &&
                 !strncmp(c2_bitstring_buf_get(rdpg->r_pos), ".", 1);
         second = 0;
 
         rc = c2_cob_iterator_init(cob, &it, rdpg->r_pos, tx);
-        if (rc != 0)
+        if (rc != 0) {
+                C2_LOG(C2_DEBUG, "Iterator failed to position with %d", rc);
                 goto out;
+        }
 
         rc = c2_cob_iterator_get(&it);
         if (rc == 0) {
@@ -540,15 +549,18 @@ C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore       *md,
                  * Not exact position found and we are on least key
                  * let's do one step forward.
                  */
+                C2_LOG(C2_DEBUG, "c2_cob_iterator_get() finished with 0");
                 rc = c2_cob_iterator_next(&it);
-        } else if (rc > 0)
+                C2_LOG(C2_DEBUG, "c2_cob_iterator_next() finished with %d", rc);
+        } else if (rc > 0) {
+                C2_LOG(C2_DEBUG, "c2_cob_iterator_get() finished with %d, set to "
+                       "0 (exact position)", rc);
                 rc = 0;
+        }
 
         ent = rdpg->r_buf.b_addr;
         nob = rdpg->r_buf.b_nob;
         while (rc == 0 || first || second) {
-                int next_step = 0;
-
                 if (first) {
                         name = ".";
                         len = 1;
@@ -560,13 +572,15 @@ C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore       *md,
                         second = 0;
                 } else {
                         if (!c2_fid_eq(&it.ci_key->cnk_pfid, cob->co_fid)) {
+                                C2_LOG(C2_DEBUG, "EOF detected. [%lx:%lx] != [%lx:%lx]",
+                                       it.ci_key->cnk_pfid.f_container, it.ci_key->cnk_pfid.f_key,
+                                       cob->co_fid->f_container, cob->co_fid->f_key);
                                 rc = 1;
                                 break;
                         }
 
                         name = c2_bitstring_buf_get(&it.ci_key->cnk_name);
                         len = c2_bitstring_len_get(&it.ci_key->cnk_name);
-                        next_step = 1;
                 }
 
                 recsize = ((sizeof(*ent) + len) + 7) & ~7;
@@ -575,6 +589,9 @@ C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore       *md,
                         strncpy(ent->d_name, name, len);
                         ent->d_namelen = len;
                         ent->d_reclen = recsize;
+                        C2_LOG(C2_DEBUG,
+                               "Readdir filled entry \"%*s\" recsize %d",
+                               len, name, recsize);
                 } else {
                         if (last) {
                                 last->d_reclen += nob;
@@ -587,9 +604,7 @@ C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore       *md,
                 last = ent;
                 ent = (void *)ent + recsize;
                 nob -= recsize;
-
-                if (next_step)
-                        rc = c2_cob_iterator_next(&it);
+                rc = c2_cob_iterator_next(&it);
         }
 out_end:
         c2_cob_iterator_fini(&it);
@@ -597,8 +612,10 @@ out_end:
                 if (last)
                         last->d_reclen = 0;
                 rdpg->r_end = c2_bitstring_alloc(name, len);
+                C2_LOG(C2_DEBUG, "Setting last name to \"%*s\"", len, name);
         }
 out:
+        C2_LOG(C2_DEBUG, "Readdir finished with %d", rc);
         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
                     c2_addb_func_fail, "md_readdir", rc);
         return rc;
@@ -707,3 +724,4 @@ out:
         }
         return rc;
 }
+#undef C2_TRACE_SUBSYSTEM
