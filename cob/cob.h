@@ -309,24 +309,23 @@ enum c2_cob_valid_flags {
  * should not be dealing with fop request or response.
  */
 struct c2_cob_attr {
-        struct c2_fid     ca_pfid;    /**< parent fid */
-        struct c2_fid     ca_tfid;    /**< object fid */
-        uint16_t          ca_flags;   /**< flags (enum c2_cob_valid_flags) */
-        uint32_t          ca_mode;    /**< protection. */
-        uint32_t          ca_uid;     /**< user ID of owner. */
-        uint32_t          ca_gid;     /**< group ID of owner. */
-        uint64_t          ca_atime;   /**< time of last access. */
-        uint64_t          ca_mtime;   /**< time of last modification. */
-        uint64_t          ca_ctime;   /**< time of last status change. */
-        uint64_t          ca_rdev;    /**< devid for special devices */
-        uint32_t          ca_nlink;   /**< number of hard links. */
-        uint64_t          ca_size;    /**< total size, in bytes. */
-        uint64_t          ca_blksize; /**< blocksize for filesystem I/O. */
-        uint64_t          ca_blocks;  /**< number of blocks allocated. */
-        uint64_t          ca_version; /**< object version */
-        char             *ca_name;    /**< object name */
-        int32_t           ca_namelen; /**< name length */
-        char             *ca_link;    /**< symlink */
+        struct c2_fid       ca_pfid;    /**< parent fid */
+        struct c2_fid       ca_tfid;    /**< object fid */
+        uint16_t            ca_flags;   /**< flags (enum c2_cob_valid_flags) */
+        uint32_t            ca_mode;    /**< protection. */
+        uint32_t            ca_uid;     /**< user ID of owner. */
+        uint32_t            ca_gid;     /**< group ID of owner. */
+        uint64_t            ca_atime;   /**< time of last access. */
+        uint64_t            ca_mtime;   /**< time of last modification. */
+        uint64_t            ca_ctime;   /**< time of last status change. */
+        uint64_t            ca_rdev;    /**< devid for special devices */
+        uint32_t            ca_nlink;   /**< number of hard links. */
+        uint64_t            ca_size;    /**< total size, in bytes. */
+        uint64_t            ca_blksize; /**< blocksize for filesystem I/O. */
+        uint64_t            ca_blocks;  /**< number of blocks allocated. */
+        uint64_t            ca_version; /**< object version */
+        struct c2_buf       ca_name;    /**< object name */
+        char               *ca_link;    /**< symlink */
 };
 
 /**

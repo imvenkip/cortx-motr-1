@@ -585,14 +585,13 @@ struct c2t1fs_sb {
 
 struct c2t1fs_filedata {
         int                        fd_direof;
+        struct c2_bitstring       *fd_dirpos;
 };
 
 /**
    Metadata operation helper structure.
  */
 struct c2t1fs_mdop {
-        char                      *mo_pos;
-        int                        mo_poslen;
         struct c2_cob_attr         mo_attr;
 };
 

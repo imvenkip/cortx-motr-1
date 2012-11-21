@@ -152,8 +152,7 @@ static int c2_md_create(struct c2_mdstore  *md,
                  * There is statdata name, this must be hardlink
                  * case.
                  */
-                rc = c2_mdstore_link(md, pfid, scob, attr->ca_name,
-                                      attr->ca_namelen, tx);
+                rc = c2_mdstore_link(md, pfid, scob, &attr->ca_name, tx);
                 /*
                  * Each operation changes target attributes (times).
                  * We want to keep them up-to-date.
@@ -213,8 +212,7 @@ static int c2_md_create_tick(struct c2_fom *fom)
         body = &req->c_body;
         c2_md_fop_cob2attr(&attr, body);
 
-        attr.ca_name = (char *)req->c_name.s_buf;
-        attr.ca_namelen = req->c_name.s_len;
+        c2_buf_init(&attr.ca_name, req->c_name.s_buf, req->c_name.s_len);
 
         if (S_ISLNK(attr.ca_mode))
                 attr.ca_link = (char *)req->c_target.s_buf;
@@ -224,7 +222,7 @@ static int c2_md_create_tick(struct c2_fom *fom)
 
         C2_LOG(C2_DEBUG, "Create [%lx:%lx]/[%lx:%lx] %*s",
                pfid.f_container, pfid.f_key, tfid.f_container, tfid.f_key,
-               attr.ca_namelen, attr.ca_name);
+               (int)attr.ca_name.b_nob, (char *)attr.ca_name.b_addr);
 
         c2_fom_block_enter(fom);
         rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid,
@@ -286,9 +284,8 @@ static int c2_md_link_tick(struct c2_fom *fom)
 
         body = &req->l_body;
         c2_md_fop_cob2attr(&attr, body);
-        attr.ca_name = (char *)req->l_name.s_buf;
-        attr.ca_namelen = req->l_name.s_len;
 
+        c2_buf_init(&attr.ca_name, req->l_name.s_buf, req->l_name.s_len);
         c2_md_fid_wire2mem(&pfid, &body->b_pfid);
         c2_md_fid_wire2mem(&tfid, &body->b_tfid);
 
@@ -357,9 +354,7 @@ static int c2_md_unlink_tick(struct c2_fom *fom)
 
         body = &req->u_body;
         c2_md_fop_cob2attr(&attr, body);
-        attr.ca_name = (char *)req->u_name.s_buf;
-        attr.ca_namelen = req->u_name.s_len;
-
+        c2_buf_init(&attr.ca_name, req->u_name.s_buf, req->u_name.s_len);
         c2_md_fid_wire2mem(&pfid, &body->b_pfid);
         c2_md_fid_wire2mem(&tfid, &body->b_tfid);
 
@@ -372,8 +367,7 @@ static int c2_md_unlink_tick(struct c2_fom *fom)
                 goto out;
         }
 
-        rc = c2_mdstore_unlink(md, &pfid, scob, attr.ca_name,
-                               attr.ca_namelen, tx);
+        rc = c2_mdstore_unlink(md, &pfid, scob, &attr.ca_name, tx);
         if (rc == 0 && scob->co_nsrec.cnr_nlink > 0)
                 rc = c2_mdstore_setattr(md, scob, &attr, tx);
         c2_cob_put(scob);
@@ -407,8 +401,7 @@ static int c2_md_rename(struct c2_mdstore  *md,
          * Do normal rename as all objects are fine.
          */
         rc = c2_mdstore_rename(md, pfid_tgt, pfid_src, tcob, scob,
-                                tattr->ca_name, tattr->ca_namelen,
-                                sattr->ca_name, sattr->ca_namelen, tx);
+                               &tattr->ca_name, &sattr->ca_name, tx);
         if (rc != 0)
                 return rc;
         /*
@@ -491,12 +484,10 @@ static int c2_md_rename_tick(struct c2_fom *fom)
         c2_md_fid_wire2mem(&tgt_tfid, &tbody->b_tfid);
 
         c2_md_fop_cob2attr(&tattr, tbody);
-        tattr.ca_name = (char *)req->r_tname.s_buf;
-        tattr.ca_namelen = req->r_tname.s_len;
+        c2_buf_init(&tattr.ca_name, req->r_tname.s_buf, req->r_tname.s_len);
 
         c2_md_fop_cob2attr(&sattr, sbody);
-        sattr.ca_name = (char *)req->r_sname.s_buf;
-        sattr.ca_namelen = req->r_sname.s_len;
+        c2_buf_init(&sattr.ca_name, req->r_sname.s_buf, req->r_sname.s_len);
 
         c2_fom_block_enter(fom);
         rc = c2_mdstore_locate(md, &src_tfid, &scob,
@@ -794,8 +785,7 @@ static int c2_md_lookup_tick(struct c2_fom *fom)
         struct c2_fop_ctx             *ctx;
         struct c2_fid                  pfid;
         int                            rc;
-        char                          *name;
-        int                            namelen;
+        struct c2_buf                  name;
 
         C2_PRE(c2_fom_invariant(fom));
 
@@ -833,25 +823,24 @@ static int c2_md_lookup_tick(struct c2_fom *fom)
 
         c2_fom_block_enter(fom);
 
-        name = (char *)req->l_name.s_buf;
-        namelen = req->l_name.s_len;
+        c2_buf_init(&name, req->l_name.s_buf, req->l_name.s_len);
 
-        C2_LOG(C2_DEBUG, "Lookup for \"%*s\" in object [%lx:%lx]", namelen,
-               name, pfid.f_container, pfid.f_key);
+        C2_LOG(C2_DEBUG, "Lookup for \"%*s\" in object [%lx:%lx]",
+               (int)name.b_nob, (char *)name.b_addr, pfid.f_container,
+               pfid.f_key);
 
-        rc = c2_mdstore_lookup(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid,
-                               name, namelen, &cob, &fom->fo_tx.tx_dbtx);
+        rc = c2_mdstore_lookup(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                               &pfid, &name, &cob, &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
-                C2_LOG(C2_DEBUG, "Lookup for \"%*s\" in object [%lx:%lx] failed with %d",
-                       namelen, name, pfid.f_container, pfid.f_key, rc);
+                C2_LOG(C2_DEBUG, "Lookup failed with %d", rc);
                 c2_fom_block_leave(fom);
                 goto out;
         }
         C2_LOG(C2_DEBUG, "Found object [%lx:%lx] go for getattr",
                cob->co_fid->f_container, cob->co_fid->f_key);
 
-        rc = c2_mdstore_getattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
-                                &attr, &fom->fo_tx.tx_dbtx);
+        rc = c2_mdstore_getattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                                cob, &attr, &fom->fo_tx.tx_dbtx);
         c2_cob_put(cob);
         c2_fom_block_leave(fom);
         if (rc == 0) {
@@ -943,7 +932,10 @@ finish:
         return C2_FSO_WAIT;
 }
 
-#define C2_MD_READDIR_BUF_ALLOC 4096
+/** Readdir fop data buffer size */
+#define C2_MD_READDIR_BUFF_SIZE 4096
+/** Maximal name len during readdir */
+#define C2_MD_MAX_NAME_LEN      256
 
 static int c2_md_readdir_tick(struct c2_fom *fom)
 {
@@ -994,8 +986,8 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
         c2_md_fid_wire2mem(&fid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
-        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob,
-                                C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
+        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid,
+                               &cob, C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
                 goto out;
@@ -1008,16 +1000,16 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
                 goto out;
         }
 
-        rdpg.r_pos = c2_bitstring_alloc((char *)req->r_pos.s_buf,
-                                        req->r_pos.s_len);
+        rdpg.r_pos = c2_alloc(C2_MD_MAX_NAME_LEN);
         if (rdpg.r_pos == NULL) {
                 c2_fom_block_leave(fom);
                 c2_cob_put(cob);
                 rc = -ENOMEM;
                 goto out;
         }
+        c2_bitstring_copy(rdpg.r_pos, (char *)req->r_pos.s_buf, req->r_pos.s_len);
 
-        addr = c2_alloc(C2_MD_READDIR_BUF_ALLOC);
+        addr = c2_alloc(C2_MD_READDIR_BUFF_SIZE);
         if (addr == NULL) {
                 c2_fom_block_leave(fom);
                 c2_bitstring_free(rdpg.r_pos);
@@ -1026,12 +1018,12 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
                 goto out;
         }
 
-        c2_buf_init(&rdpg.r_buf, addr, C2_MD_READDIR_BUF_ALLOC);
+        c2_buf_init(&rdpg.r_buf, addr, C2_MD_READDIR_BUFF_SIZE);
 
         rc = c2_mdstore_readdir(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
                                 cob, &rdpg, &fom->fo_tx.tx_dbtx);
         c2_fom_block_leave(fom);
-        c2_bitstring_free(rdpg.r_pos);
+        c2_free(rdpg.r_pos);
         c2_cob_put(cob);
         if (rc < 0) {
                 c2_free(addr);
@@ -1048,8 +1040,9 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
                 rc = -ENOMEM;
                 goto out;
         }
-        strncpy((char *)rep->r_end.s_buf, c2_bitstring_buf_get(rdpg.r_end),
-                rep->r_end.s_len);
+        memcpy(rep->r_end.s_buf, c2_bitstring_buf_get(rdpg.r_end),
+               rep->r_end.s_len);
+        c2_bitstring_free(rdpg.r_end);
 
         /*
          * Prepare buf with data.
