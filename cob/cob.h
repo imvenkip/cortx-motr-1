@@ -325,7 +325,7 @@ struct c2_cob_attr {
         uint64_t            ca_blocks;  /**< number of blocks allocated. */
         uint64_t            ca_version; /**< object version */
         struct c2_buf       ca_name;    /**< object name */
-        char               *ca_link;    /**< symlink */
+        struct c2_buf       ca_link;    /**< symlink body */
 };
 
 /**

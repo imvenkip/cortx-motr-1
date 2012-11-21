@@ -214,8 +214,10 @@ static int c2_md_create_tick(struct c2_fom *fom)
 
         c2_buf_init(&attr.ca_name, req->c_name.s_buf, req->c_name.s_len);
 
-        if (S_ISLNK(attr.ca_mode))
-                attr.ca_link = (char *)req->c_target.s_buf;
+        if (S_ISLNK(attr.ca_mode)) {
+                /** Symlink body size is stored in @attr->ca_size */
+                c2_buf_init(&attr.ca_link, (char *)req->c_target.s_buf, attr.ca_size);
+        }
 
         c2_md_fid_wire2mem(&pfid, &body->b_pfid);
         c2_md_fid_wire2mem(&tfid, &body->b_tfid);
