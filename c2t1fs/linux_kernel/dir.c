@@ -47,6 +47,9 @@ static int c2t1fs_readdir(struct file *f,
 			  void        *dirent,
 			  filldir_t    filldir);
 
+static int c2t1fs_opendir(struct inode *inode, struct file *file);
+static int c2t1fs_releasedir(struct inode *inode, struct file *file);
+
 static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry);
 
 static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
@@ -74,6 +77,8 @@ static int c2t1fs_ios_cob_fop_populate(struct c2t1fs_sb    *csb,
 
 const struct file_operations c2t1fs_dir_file_operations = {
 	.read    = generic_read_dir,    /* provided by linux kernel */
+	.open    = c2t1fs_opendir,
+	.release = c2t1fs_releasedir,
 	.readdir = c2t1fs_readdir,
 	.fsync   = simple_fsync,	/* provided by linux kernel */
 	.llseek  = generic_file_llseek, /* provided by linux kernel */
@@ -302,30 +307,52 @@ struct c2_dirent *dirent_first(struct c2_fop_readdir_rep *rep)
         return ent->d_namelen > 0 ? ent : NULL;
 }
 
-static int c2t1fs_readdir(struct file *f,
-			  void        *buf,
-			  filldir_t    filldir)
+static int c2t1fs_opendir(struct inode *inode, struct file *file)
 {
-	struct c2t1fs_inode             *ci;
-	struct c2t1fs_mdop               mo;
-	struct c2t1fs_sb                *csb;
-	struct c2_fop_readdir_rep       *rep;
-	struct dentry                   *dentry;
-	struct inode                    *dir;
-	struct c2_dirent                *ent;
-	int                              type;
-	ino_t                            ino;
-	int                              i;
-	int                              rc;
-	int                              over;
+        struct c2t1fs_filedata *fd = c2_alloc(sizeof(*fd));
+        if (fd == NULL)
+                return -ENOMEM;
+        file->private_data = fd;
+        return 0;
+}
 
-	C2_ENTRY();
+static int c2t1fs_releasedir(struct inode *inode, struct file *file) {
+        c2_free(file->private_data);
+        file->private_data = NULL;
+        return 0;
+}
 
-	dentry = f->f_path.dentry;
-	dir    = dentry->d_inode;
-	ci     = C2T1FS_I(dir);
-	csb    = C2T1FS_SB(dir->i_sb);
-	i      = f->f_pos;
+static int c2t1fs_readdir(struct file *f,
+                          void        *buf,
+                          filldir_t    filldir)
+{
+        struct c2t1fs_inode             *ci;
+        struct c2t1fs_mdop               mo;
+        struct c2t1fs_sb                *csb;
+        struct c2_fop_readdir_rep       *rep;
+        struct dentry                   *dentry;
+        struct inode                    *dir;
+        struct c2_dirent                *ent;
+        struct c2t1fs_filedata          *fd;
+        int                              type;
+        ino_t                            ino;
+        int                              i;
+        int                              rc;
+        int                              over;
+
+        C2_ENTRY();
+
+        dentry = f->f_path.dentry;
+        dir    = dentry->d_inode;
+        ci     = C2T1FS_I(dir);
+        csb    = C2T1FS_SB(dir->i_sb);
+        i      = f->f_pos;
+
+        fd = f->private_data;
+        if (fd->fd_direof) {
+                rc = 0;
+                goto out;
+        }
 
         C2_SET0(&mo);
         mo.mo_pos = ".";
@@ -370,8 +397,10 @@ static int c2t1fs_readdir(struct file *f,
 
                         over = filldir(buf, ent->d_name, ent->d_namelen,
                                        f->f_pos, ino, type);
-                        if (over < 0)
+                        if (over) {
+                                rc = 0;
                                 goto out;
+                        }
                         f->f_pos++;
                 }
                 mo.mo_pos = rep->r_end.s_buf;
@@ -387,6 +416,11 @@ static int c2t1fs_readdir(struct file *f,
                  */
         } while (rc == 0);
 
+        /**
+           EOF detected, let's set return code to 0 to make vfs happy.
+         */
+        fd->fd_direof = 1;
+        rc = 0;
 out:
         c2t1fs_fs_unlock(csb);
         C2_LEAVE("rc: %d", rc);

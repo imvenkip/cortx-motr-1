@@ -583,6 +583,10 @@ struct c2t1fs_sb {
 	uint64_t                      csb_layout_id;
 };
 
+struct c2t1fs_filedata {
+        int                        fd_direof;
+};
+
 /**
    Metadata operation helper structure.
  */
