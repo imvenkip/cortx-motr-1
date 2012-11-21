@@ -370,7 +370,7 @@ static void ub_create(int i)
         nsrec.cnr_nlink = 1;
 
         rc = c2_cob_alloc(&dom, &cob);
-        C2_UT_ASSERT(rc == 0);
+        C2_UB_ASSERT(rc == 0);
 
         c2_cob_fabrec_make(&fabrec, NULL, 0);
         rc = c2_cob_create(cob, key, &nsrec, fabrec, &omgrec, &cob_ub_tx);

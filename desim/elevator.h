@@ -41,11 +41,11 @@ struct elevator {
 	struct sim_chan     e_wait;
 };
 
-void elevator_init(struct elevator *el, struct storage_dev *dev);
-void elevator_fini(struct elevator *el);
+C2_INTERNAL void elevator_init(struct elevator *el, struct storage_dev *dev);
+C2_INTERNAL void elevator_fini(struct elevator *el);
 
-void elevator_io(struct elevator *el, enum storage_req_type type,
-		 sector_t sector, unsigned long count);
+C2_INTERNAL void elevator_io(struct elevator *el, enum storage_req_type type,
+			     sector_t sector, unsigned long count);
 
 #endif /* __COLIBRI_DESIM_ELEVATOR_H__ */
 

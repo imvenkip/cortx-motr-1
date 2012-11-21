@@ -117,8 +117,8 @@ struct c2_sns_repair_iter {
 	uint64_t                             ri_magix;
 };
 
-int c2_sns_repair_iter_init(struct c2_sns_repair_cm *rcm);
-void c2_sns_repair_iter_fini(struct c2_sns_repair_cm *rcm);
+C2_INTERNAL int c2_sns_repair_iter_init(struct c2_sns_repair_cm *rcm);
+C2_INTERNAL void c2_sns_repair_iter_fini(struct c2_sns_repair_cm *rcm);
 
 /**
  * Iterates over parity groups in global fid order, calculates next data or
@@ -129,7 +129,7 @@ void c2_sns_repair_iter_fini(struct c2_sns_repair_cm *rcm);
  * buffer from the struct c2_sns_repair_cm::rc_obp buffer pool is attached to
  * the copy packet.
  */
-int c2_sns_repair_iter_next(struct c2_cm *cm, struct c2_cm_cp *cp);
+C2_INTERNAL int c2_sns_repair_iter_next(struct c2_cm *cm, struct c2_cm_cp *cp);
 
 /**
  * Calculates number of local data units for a given parity group.
@@ -140,8 +140,8 @@ int c2_sns_repair_iter_next(struct c2_cm *cm, struct c2_cm_cp *cp);
  * calculated and save in the iterator, but we take GOB fid and group number
  * as the parameters to this function in-order to perform sanity checks.
  */
-uint64_t nr_local_units(struct c2_sns_repair_cm *rcm,
-			const struct c2_fid *fid, uint64_t group);
+C2_INTERNAL uint64_t nr_local_units(struct c2_sns_repair_cm *rcm,
+				    const struct c2_fid *fid, uint64_t group);
 
 /**
  * Calculates fid of the COB containing the spare unit, and its index into the
@@ -150,7 +150,7 @@ uint64_t nr_local_units(struct c2_sns_repair_cm *rcm,
  * @see c2_sns_repair_ag::sag_spare_cobfid
  * @see c2_sns_repair_ag::sag_spare_cob_index
  */
-void spare_unit_to_cob(struct c2_sns_repair_ag *rag);
+C2_INTERNAL void spare_unit_to_cob(struct c2_sns_repair_ag *rag);
 
 /** @} SNSRepairCM */
 #endif /* __COLIBRI_SNS_REPAIR_ITER_H__ */

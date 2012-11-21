@@ -129,8 +129,8 @@ static unsigned bufvec_seg_kla_to_kiov(const struct c2_bufvec *bvec,
    @param bvec Vector with kernel logical addresses.
    @retval -EFBIG if the IO vector is too large.
  */
-int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
-				 const struct c2_bufvec *bvec)
+C2_INTERNAL int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
+					     const struct c2_bufvec *bvec)
 {
 	unsigned i;
 	unsigned num_pages;
@@ -234,8 +234,8 @@ fail_page:
    @param bvec Vector with userspace virtual addresses.
    @retval -EFBIG if the IO vector is too large.
  */
-int nlx_kcore_buffer_uva_to_kiov(struct nlx_kcore_buffer *kb,
-				 const struct c2_bufvec *bvec)
+C2_INTERNAL int nlx_kcore_buffer_uva_to_kiov(struct nlx_kcore_buffer *kb,
+					     const struct c2_bufvec *bvec)
 {
 	unsigned i;
 	unsigned num_pages;

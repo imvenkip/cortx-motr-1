@@ -258,31 +258,32 @@ struct c2_pdclust_tgt_addr {
  * In short:
  * Dual to c2_layout_put() when it is the last reference being released.
  */
-int c2_pdclust_build(struct c2_layout_domain *dom,
-		     uint64_t lid,
-		     const struct c2_pdclust_attr *attr,
-		     struct c2_layout_enum *le,
-		     struct c2_pdclust_layout **out);
+C2_INTERNAL int c2_pdclust_build(struct c2_layout_domain *dom,
+				 uint64_t lid,
+				 const struct c2_pdclust_attr *attr,
+				 struct c2_layout_enum *le,
+				 struct c2_pdclust_layout **out);
 
-uint32_t c2_pdclust_N(const struct c2_pdclust_layout *pl);
-uint32_t c2_pdclust_K(const struct c2_pdclust_layout *pl);
-uint32_t c2_pdclust_P(const struct c2_pdclust_layout *pl);
-uint64_t c2_pdclust_unit_size(const struct c2_pdclust_layout *pl);
+C2_INTERNAL uint32_t c2_pdclust_N(const struct c2_pdclust_layout *pl);
+C2_INTERNAL uint32_t c2_pdclust_K(const struct c2_pdclust_layout *pl);
+C2_INTERNAL uint32_t c2_pdclust_P(const struct c2_pdclust_layout *pl);
+C2_INTERNAL uint64_t c2_pdclust_unit_size(const struct c2_pdclust_layout *pl);
 
 /** Returns c2_pdclust_layout object given a c2_layout object. */
-struct c2_pdclust_layout *c2_layout_to_pdl(const struct c2_layout *l);
+C2_INTERNAL struct c2_pdclust_layout *c2_layout_to_pdl(const struct c2_layout
+						       *l);
 
 /** Returns c2_layout object given a c2_pdclust_layout object. */
-struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl);
+C2_INTERNAL struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl);
 
 /** Returns type of the given unit according to layout information. */
-enum c2_pdclust_unit_type
-c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
-			 int unit);
+C2_INTERNAL enum c2_pdclust_unit_type
+c2_pdclust_unit_classify(const struct c2_pdclust_layout *play, int unit);
 
 /** Returns c2_pdclust_instance object given a c2_layout_instance object. */
-struct c2_pdclust_instance *c2_layout_instance_to_pdi(
-					const struct c2_layout_instance *li);
+C2_INTERNAL struct c2_pdclust_instance *c2_layout_instance_to_pdi(const struct
+								  c2_layout_instance
+								  *li);
 
 /**
  * Layout mapping function.
@@ -291,18 +292,18 @@ struct c2_pdclust_instance *c2_layout_instance_to_pdi(
  * to target frames. It is used by client IO code to build IO requests and to
  * direct them to the target objects.
  */
-void c2_pdclust_instance_map(struct c2_pdclust_instance *pi,
-			     const struct c2_pdclust_src_addr *src,
-			     struct c2_pdclust_tgt_addr *tgt);
+C2_INTERNAL void c2_pdclust_instance_map(struct c2_pdclust_instance *pi,
+					 const struct c2_pdclust_src_addr *src,
+					 struct c2_pdclust_tgt_addr *tgt);
 /**
  * Reverse layout mapping function.
  *
  * This function is a right inverse of layout mapping function. It is used by
  * SNS repair and other server side mechanisms.
  */
-void c2_pdclust_instance_inv(struct c2_pdclust_instance *pi,
-			     const struct c2_pdclust_tgt_addr *tgt,
-			     struct c2_pdclust_src_addr *src);
+C2_INTERNAL void c2_pdclust_instance_inv(struct c2_pdclust_instance *pi,
+					 const struct c2_pdclust_tgt_addr *tgt,
+					 struct c2_pdclust_src_addr *src);
 
 extern struct c2_layout_type c2_pdclust_layout_type;
 

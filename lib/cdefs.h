@@ -44,7 +44,7 @@
 #define equi(a, b) (!(a) == !(b))
 #endif
 
-extern void __dummy_function(void);
+void __dummy_function(void);
 
 /**
  * A macro used with if-statements without `else' clause to assure proper
@@ -121,6 +121,8 @@ __attribute__ ((format (printf, 1, 2))) static inline void
 printf_check(const char *fmt, ...)
 {}
 
+
+#define C2_UNUSED __attribute__((unused))
 
 /* __COLIBRI_LIB_CDEFS_H__ */
 #endif

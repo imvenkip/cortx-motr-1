@@ -52,7 +52,7 @@ static int  c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
 static int  c2t1fs_sb_init(struct c2t1fs_sb *csb);
 static void c2t1fs_sb_fini(struct c2t1fs_sb *csb);
 
-extern void io_bob_tlists_init(void);
+C2_INTERNAL void io_bob_tlists_init(void);
 extern const struct c2_addb_ctx_type c2t1fs_addb_type;
 extern struct c2_addb_ctx c2t1fs_addb;
 
@@ -128,18 +128,17 @@ C2_TL_DEFINE(svc_ctx, static, struct c2t1fs_service_context);
 /**
    Implementation of file_system_type::get_sb() interface.
  */
-int c2t1fs_get_sb(struct file_system_type *fstype,
-		  int                      flags,
-		  const char              *devname,
-		  void                    *data,
-		  struct vfsmount         *mnt)
+C2_INTERNAL int c2t1fs_get_sb(struct file_system_type *fstype,
+			      int flags,
+			      const char *devname,
+			      void *data, struct vfsmount *mnt)
 {
 	C2_ENTRY("flags: 0x%x, devname: %s, data: %s", flags, devname,
 		 (char *)data);
 	C2_RETURN(get_sb_nodev(fstype, flags, data, c2t1fs_fill_super, mnt));
 }
 
-void ast_thread(struct c2t1fs_sb *csb)
+C2_INTERNAL void ast_thread(struct c2t1fs_sb *csb)
 {
 	c2_time_t delta = c2_time_set(&delta, ast_thread_timeout, 0);
 
@@ -390,7 +389,7 @@ c2t1fs_build_layout(const uint64_t          layout_id,
 /**
    Implementation of file_system_type::kill_sb() interface.
  */
-void c2t1fs_kill_sb(struct super_block *sb)
+C2_INTERNAL void c2t1fs_kill_sb(struct super_block *sb)
 {
 	struct c2t1fs_sb *csb;
         struct c2_clink   iowait;
@@ -659,8 +658,9 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 	int           token;
 	int           rc = 0;
 
-	int process_numeric_option(substring_t *substr, unsigned long *nump)
-	{
+	C2_INTERNAL int process_numeric_option(substring_t * substr,
+				       unsigned long *nump)
+{
 		value = match_strdup(substr);
 		if (value == NULL)
 			return -ENOMEM;
@@ -838,7 +838,7 @@ static void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx)
 
 static int c2t1fs_config_fetch(struct c2t1fs_sb *csb)
 {
-	extern int c2t1fs_conf_test(const char *buf);
+	C2_INTERNAL int c2t1fs_conf_test(const char *buf);
 	C2_ENTRY();
 
 	/* XXX FIXME: c2t1fs_conf_test() is a misnomer: the function
@@ -881,8 +881,8 @@ static int c2t1fs_service_contexts_populate(struct c2t1fs_sb *csb)
 
 	/* XXX For now, service contexts are populated using mount options.
 	   When configuration will be available it should be used. */
-	int populate(char *ep_arr[], int n, enum c2t1fs_service_type type)
-	{
+	C2_INTERNAL int populate(char *ep_arr[], int n, enum c2t1fs_service_type type)
+{
 		struct c2t1fs_service_context *ctx;
 		char                          *ep_addr;
 		int                            i;
@@ -1097,9 +1097,9 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 	C2_RETURN(0);
 }
 
-struct c2_rpc_session *
+C2_INTERNAL struct c2_rpc_session *
 c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
-			       uint64_t                container_id)
+			       uint64_t container_id)
 {
 	struct c2t1fs_service_context *ctx;
 
@@ -1112,21 +1112,21 @@ c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
 	return &ctx->sc_session;
 }
 
-void c2t1fs_fs_lock(struct c2t1fs_sb *csb)
+C2_INTERNAL void c2t1fs_fs_lock(struct c2t1fs_sb *csb)
 {
 	C2_ENTRY();
 	c2_mutex_lock(&csb->csb_mutex);
 	C2_LEAVE();
 }
 
-void c2t1fs_fs_unlock(struct c2t1fs_sb *csb)
+C2_INTERNAL void c2t1fs_fs_unlock(struct c2t1fs_sb *csb)
 {
 	C2_ENTRY();
 	c2_mutex_unlock(&csb->csb_mutex);
 	C2_LEAVE();
 }
 
-bool c2t1fs_fs_is_locked(const struct c2t1fs_sb *csb)
+C2_INTERNAL bool c2t1fs_fs_is_locked(const struct c2t1fs_sb *csb)
 {
 	return c2_mutex_is_locked(&csb->csb_mutex);
 }

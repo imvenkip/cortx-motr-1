@@ -47,41 +47,41 @@ const struct c2_queue C2_QUEUE_INIT = {
 	.q_tail = EOQ
 };
 
-void c2_queue_init(struct c2_queue *q)
+C2_INTERNAL void c2_queue_init(struct c2_queue *q)
 {
 	q->q_head = q->q_tail = EOQ;
 	C2_ASSERT(c2_queue_invariant(q));
 }
 
-void c2_queue_fini(struct c2_queue *q)
+C2_INTERNAL void c2_queue_fini(struct c2_queue *q)
 {
 	C2_ASSERT(c2_queue_invariant(q));
 	C2_ASSERT(c2_queue_is_empty(q));
 }
 
-bool c2_queue_is_empty(const struct c2_queue *q)
+C2_INTERNAL bool c2_queue_is_empty(const struct c2_queue *q)
 {
 	C2_ASSERT(c2_queue_invariant(q));
 	return q->q_head == EOQ;
 }
 
-void c2_queue_link_init(struct c2_queue_link *ql)
+C2_INTERNAL void c2_queue_link_init(struct c2_queue_link *ql)
 {
 	ql->ql_next = NULL;
 }
 
-void c2_queue_link_fini(struct c2_queue_link *ql)
+C2_INTERNAL void c2_queue_link_fini(struct c2_queue_link *ql)
 {
 	C2_ASSERT(!c2_queue_link_is_in(ql));
 }
 
-bool c2_queue_link_is_in(const struct c2_queue_link *ql)
+C2_INTERNAL bool c2_queue_link_is_in(const struct c2_queue_link *ql)
 {
 	return ql->ql_next != NULL;
 }
 
-bool c2_queue_contains(const struct c2_queue *q,
-		       const struct c2_queue_link *ql)
+C2_INTERNAL bool c2_queue_contains(const struct c2_queue *q,
+				   const struct c2_queue_link *ql)
 {
 	struct c2_queue_link *scan;
 
@@ -94,7 +94,7 @@ bool c2_queue_contains(const struct c2_queue *q,
 	return false;
 }
 
-size_t c2_queue_length(const struct c2_queue *q)
+C2_INTERNAL size_t c2_queue_length(const struct c2_queue *q)
 {
 	size_t length;
 	struct c2_queue_link *scan;
@@ -106,7 +106,7 @@ size_t c2_queue_length(const struct c2_queue *q)
 	return length;
 }
 
-struct c2_queue_link *c2_queue_get(struct c2_queue *q)
+C2_INTERNAL struct c2_queue_link *c2_queue_get(struct c2_queue *q)
 {
 	struct c2_queue_link *head;
 
@@ -125,7 +125,7 @@ struct c2_queue_link *c2_queue_get(struct c2_queue *q)
 
 }
 
-void c2_queue_put(struct c2_queue *q, struct c2_queue_link *ql)
+C2_INTERNAL void c2_queue_put(struct c2_queue *q, struct c2_queue_link *ql)
 {
 	/* invariant is checked on entry to c2_queue_is_empty() */
 	if (c2_queue_is_empty(q))
@@ -137,7 +137,7 @@ void c2_queue_put(struct c2_queue *q, struct c2_queue_link *ql)
 	C2_ASSERT(c2_queue_invariant(q));
 }
 
-bool c2_queue_invariant(const struct c2_queue *q)
+C2_INTERNAL bool c2_queue_invariant(const struct c2_queue *q)
 {
 	struct c2_queue_link *scan;
 

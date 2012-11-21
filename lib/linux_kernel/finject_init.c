@@ -36,14 +36,14 @@ enum {
 };
 
 
-int c2_fi_init(void)
+C2_INTERNAL int c2_fi_init(void)
 {
 	c2_mutex_init(&fi_states_mutex);
 	fi_states_init();
 	return 0;
 }
 
-void c2_fi_fini(void)
+C2_INTERNAL void c2_fi_fini(void)
 {
 	fi_states_fini();
 	c2_mutex_fini(&fi_states_mutex);
@@ -52,7 +52,7 @@ void c2_fi_fini(void)
 /**
  * Returns random value in range [0..FI_RAND_PROB_SCALE]
  */
-uint32_t fi_random(void)
+C2_INTERNAL uint32_t fi_random(void)
 {
 	u32 rnd     = random32();
 	u32 roundup = rnd % FI_RAND_SCALE_UNIT ? 1 : 0;
@@ -62,12 +62,12 @@ uint32_t fi_random(void)
 
 #else /* ENABLE_FAULT_INJECTION */
 
-int c2_fi_init(void)
+C2_INTERNAL int c2_fi_init(void)
 {
 	return 0;
 }
 
-void c2_fi_fini(void)
+C2_INTERNAL void c2_fi_fini(void)
 {
 }
 

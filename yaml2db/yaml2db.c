@@ -50,7 +50,7 @@ static bool yaml2db_context_invariant(const struct c2_yaml2db_ctx *yctx);
   @param yctx - yaml2db context
   @retval 0 if success, -errno otherwise
  */
-int c2_yaml2db_init(struct c2_yaml2db_ctx *yctx)
+C2_INTERNAL int c2_yaml2db_init(struct c2_yaml2db_ctx *yctx)
 {
 	int rc;
 
@@ -128,7 +128,7 @@ cleanup:
   Fini function, which finalizes the parser and finies the db
   @param yctx - yaml2db context
  */
-void c2_yaml2db_fini(struct c2_yaml2db_ctx *yctx)
+C2_INTERNAL void c2_yaml2db_fini(struct c2_yaml2db_ctx *yctx)
 {
 	C2_PRE(yctx != NULL);
 
@@ -149,7 +149,7 @@ void c2_yaml2db_fini(struct c2_yaml2db_ctx *yctx)
   Function to detect and print parsing errors
   @param parser - yaml_parser structure
  */
-void c2_yaml_parser_error_detect(const yaml_parser_t *parser)
+C2_INTERNAL void c2_yaml_parser_error_detect(const yaml_parser_t * parser)
 {
 	C2_PRE(parser != NULL);
 
@@ -207,7 +207,7 @@ void c2_yaml_parser_error_detect(const yaml_parser_t *parser)
   @param yctx - yaml2db context
   @retval 0 if successful, -errno otherwise
  */
-int c2_yaml2db_doc_load(struct c2_yaml2db_ctx *yctx)
+C2_INTERNAL int c2_yaml2db_doc_load(struct c2_yaml2db_ctx *yctx)
 {
 	int	     rc;
 	yaml_node_t *root_node;
@@ -421,9 +421,9 @@ static char *yaml2db_key_locate(struct c2_yaml2db_ctx *yctx,
   @param conf_param - parameter for which configuration has to be loaded
   @retval 0 if successful, -errno otherwise
  */
-int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
-			 struct c2_yaml2db_section *ysec,
-			 const char *conf_param)
+C2_INTERNAL int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
+				     struct c2_yaml2db_section *ysec,
+				     const char *conf_param)
 {
         int                      rc;
 	/* gcc extension */
@@ -553,9 +553,9 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
   @param conf_param - parameter for which configuration has to be emitted
   @retval 0 if successful, -errno otherwise
  */
-int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
-                      const struct c2_yaml2db_section *ysec,
-		      const char *conf_param)
+C2_INTERNAL int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
+				     const struct c2_yaml2db_section *ysec,
+				     const char *conf_param)
 {
 	int			 rc;
         struct c2_table          table;

@@ -34,11 +34,11 @@
  * Descriptor of typed list used in c2_long_lock with
  * c2_long_lock_link::lll_lock_linkage.
  */
-C2_TL_DESCR_DEFINE(c2_lll, "list of lock-links in longlock", ,
+C2_TL_DESCR_DEFINE(c2_lll, "list of lock-links in longlock", C2_INTERNAL,
                    struct c2_long_lock_link, lll_lock_linkage, lll_magix,
                    C2_FOM_LL_LINK_MAGIC, C2_FOM_LL_LINK_MAGIC);
 
-C2_TL_DEFINE(c2_lll, , struct c2_long_lock_link);
+C2_TL_DEFINE(c2_lll, C2_INTERNAL, struct c2_long_lock_link);
 
 static const struct c2_bob_type long_lock_bob = {
 	.bt_name         = "LONG_LOCK_BOB",
@@ -46,25 +46,26 @@ static const struct c2_bob_type long_lock_bob = {
 	.bt_magix_offset = offsetof(struct c2_long_lock, l_magix)
 };
 
-C2_BOB_DEFINE(, &long_lock_bob, c2_long_lock);
+C2_BOB_DEFINE(C2_INTERNAL, &long_lock_bob, c2_long_lock);
 
 static struct c2_bob_type long_lock_link_bob;
-C2_BOB_DEFINE(, &long_lock_link_bob, c2_long_lock_link);
+C2_BOB_DEFINE(C2_INTERNAL, &long_lock_link_bob, c2_long_lock_link);
 
-void c2_fom_ll_global_init(void)
+C2_INTERNAL void c2_fom_ll_global_init(void)
 {
 	c2_bob_type_tlist_init(&long_lock_link_bob, &c2_lll_tl);
 }
 C2_EXPORTED(c2_fom_ll_global_init);
 
-void c2_long_lock_link_init(struct c2_long_lock_link *link, struct c2_fom *fom)
+C2_INTERNAL void c2_long_lock_link_init(struct c2_long_lock_link *link,
+					struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 	c2_lll_tlink_init(link);
 	link->lll_fom = fom;
 }
 
-void c2_long_lock_link_fini(struct c2_long_lock_link *link)
+C2_INTERNAL void c2_long_lock_link_fini(struct c2_long_lock_link *link)
 {
 	C2_PRE(!c2_lll_tlink_is_in(link));
 	link->lll_fom = NULL;
@@ -168,15 +169,17 @@ static bool lock(struct c2_long_lock *lock, struct c2_long_lock_link *link,
 	return got_lock;
 }
 
-bool c2_long_write_lock(struct c2_long_lock *lk,
-			struct c2_long_lock_link *link, int next_phase)
+C2_INTERNAL bool c2_long_write_lock(struct c2_long_lock *lk,
+				    struct c2_long_lock_link *link,
+				    int next_phase)
 {
 	link->lll_lock_type = C2_LONG_LOCK_WRITER;
 	return lock(lk, link, next_phase);
 }
 
-bool c2_long_read_lock(struct c2_long_lock *lk,
-		       struct c2_long_lock_link *link, int next_phase)
+C2_INTERNAL bool c2_long_read_lock(struct c2_long_lock *lk,
+				   struct c2_long_lock_link *link,
+				   int next_phase)
 {
 	link->lll_lock_type = C2_LONG_LOCK_READER;
 	return lock(lk, link, next_phase);
@@ -213,20 +216,20 @@ static void unlock(struct c2_long_lock *lock, struct c2_long_lock_link *link)
 	c2_mutex_unlock(&lock->l_lock);
 }
 
-void c2_long_write_unlock(struct c2_long_lock *lock,
-			  struct c2_long_lock_link *link)
+C2_INTERNAL void c2_long_write_unlock(struct c2_long_lock *lock,
+				      struct c2_long_lock_link *link)
 {
 	unlock(lock, link);
 }
 
-void c2_long_read_unlock(struct c2_long_lock *lock,
-			 struct c2_long_lock_link *link)
+C2_INTERNAL void c2_long_read_unlock(struct c2_long_lock *lock,
+				     struct c2_long_lock_link *link)
 {
 	unlock(lock, link);
 }
 
-bool c2_long_is_read_locked(struct c2_long_lock *lock,
-			    const struct c2_fom *fom)
+C2_INTERNAL bool c2_long_is_read_locked(struct c2_long_lock *lock,
+					const struct c2_fom *fom)
 {
 	bool ret;
 
@@ -239,8 +242,8 @@ bool c2_long_is_read_locked(struct c2_long_lock *lock,
 	return ret;
 }
 
-bool c2_long_is_write_locked(struct c2_long_lock *lock,
-			     const struct c2_fom *fom)
+C2_INTERNAL bool c2_long_is_write_locked(struct c2_long_lock *lock,
+					 const struct c2_fom *fom)
 {
 	bool ret;
 
@@ -255,7 +258,7 @@ bool c2_long_is_write_locked(struct c2_long_lock *lock,
 	return ret;
 }
 
-void c2_long_lock_init(struct c2_long_lock *lock)
+C2_INTERNAL void c2_long_lock_init(struct c2_long_lock *lock)
 {
 	c2_mutex_init(&lock->l_lock);
 
@@ -267,7 +270,7 @@ void c2_long_lock_init(struct c2_long_lock *lock)
 	c2_long_lock_bob_init(lock);
 }
 
-void c2_long_lock_fini(struct c2_long_lock *lock)
+C2_INTERNAL void c2_long_lock_fini(struct c2_long_lock *lock)
 {
 	C2_ASSERT(lock->l_state == C2_LONG_LOCK_UNLOCKED);
 

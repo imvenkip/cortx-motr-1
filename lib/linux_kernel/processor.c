@@ -589,7 +589,7 @@ static int processor_x86cache_create(void)
 
 /* ---- Processor Interfaces ---- */
 
-int c2_processors_init()
+C2_INTERNAL int c2_processors_init()
 {
 	int rc;
 
@@ -599,34 +599,35 @@ int c2_processors_init()
 	return rc;
 }
 
-void c2_processors_fini()
+C2_INTERNAL void c2_processors_fini()
 {
 	C2_PRE(processor_init);
 	processor_x86cache_destroy();
 	processor_init = false;
 }
 
-c2_processor_nr_t c2_processor_nr_max(void)
+C2_INTERNAL c2_processor_nr_t c2_processor_nr_max(void)
 {
 	return NR_CPUS - 1;
 }
 
-void c2_processors_possible(struct c2_bitmap *map)
+C2_INTERNAL void c2_processors_possible(struct c2_bitmap *map)
 {
 	processors_bitmap_copy(map, cpu_possible_mask, nr_cpu_ids);
 }
 
-void c2_processors_available(struct c2_bitmap *map)
+C2_INTERNAL void c2_processors_available(struct c2_bitmap *map)
 {
 	processors_bitmap_copy(map, cpu_present_mask, nr_cpu_ids);
 }
 
-void c2_processors_online(struct c2_bitmap *map)
+C2_INTERNAL void c2_processors_online(struct c2_bitmap *map)
 {
 	processors_bitmap_copy(map, cpu_online_mask, nr_cpu_ids);
 }
 
-int c2_processor_describe(c2_processor_nr_t id, struct c2_processor_descr *pd)
+C2_INTERNAL int c2_processor_describe(c2_processor_nr_t id,
+				      struct c2_processor_descr *pd)
 {
 	C2_PRE(pd != NULL);
 	if (id >= nr_cpu_ids)
@@ -635,7 +636,7 @@ int c2_processor_describe(c2_processor_nr_t id, struct c2_processor_descr *pd)
 	return processor_x86_info_get(id, pd);
 }
 
-c2_processor_nr_t c2_processor_id_get(void)
+C2_INTERNAL c2_processor_nr_t c2_processor_id_get(void)
 {
 	return smp_processor_id();
 }

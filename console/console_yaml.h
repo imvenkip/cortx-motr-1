@@ -61,7 +61,7 @@ struct c2_cons_yaml_info {
  *
  * @return 0 success and -errno failure.
  */
-int c2_cons_yaml_init(const char *path);
+C2_INTERNAL int c2_cons_yaml_init(const char *path);
 
 /**
  * @brief  Search for specified string and get the respctive value
@@ -72,7 +72,7 @@ int c2_cons_yaml_init(const char *path);
  *
  * @return 0 success and -errno failure.
  */
-int c2_cons_yaml_set_value(const char *value, void *data);
+C2_INTERNAL int c2_cons_yaml_set_value(const char *value, void *data);
 
 /**
  * @brief  Search for specified string and set the respctive value
@@ -82,12 +82,12 @@ int c2_cons_yaml_set_value(const char *value, void *data);
  *
  * @return 0 success and -errno failure.
  */
-void *c2_cons_yaml_get_value(const char *value);
+C2_INTERNAL void *c2_cons_yaml_get_value(const char *value);
 
 /**
  * @brief Deletes the parser and closes the YAML file.
  */
-void c2_cons_yaml_fini(void);
+C2_INTERNAL void c2_cons_yaml_fini(void);
 
 /** @} end of console_yaml group */
 /* __COLIBRI_CONSOLE_YAML_H__ */

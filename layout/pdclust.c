@@ -296,11 +296,11 @@ static int pdclust_populate(struct c2_pdclust_layout *pl,
 	return 0;
 }
 
-int c2_pdclust_build(struct c2_layout_domain *dom,
-		     uint64_t lid,
-		     const struct c2_pdclust_attr *attr,
-		     struct c2_layout_enum *le,
-		     struct c2_pdclust_layout **out)
+C2_INTERNAL int c2_pdclust_build(struct c2_layout_domain *dom,
+				 uint64_t lid,
+				 const struct c2_pdclust_attr *attr,
+				 struct c2_layout_enum *le,
+				 struct c2_pdclust_layout **out)
 {
 	struct c2_layout         *l;
 	struct c2_pdclust_layout *pl;
@@ -331,27 +331,28 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 	return rc;
 }
 
-uint32_t c2_pdclust_N(const struct c2_pdclust_layout *pl)
+C2_INTERNAL uint32_t c2_pdclust_N(const struct c2_pdclust_layout *pl)
 {
 	return pl->pl_attr.pa_N;
 }
 
-uint32_t c2_pdclust_K(const struct c2_pdclust_layout *pl)
+C2_INTERNAL uint32_t c2_pdclust_K(const struct c2_pdclust_layout *pl)
 {
 	return pl->pl_attr.pa_K;
 }
 
-uint32_t c2_pdclust_P(const struct c2_pdclust_layout *pl)
+C2_INTERNAL uint32_t c2_pdclust_P(const struct c2_pdclust_layout *pl)
 {
 	return pl->pl_attr.pa_P;
 }
 
-uint64_t c2_pdclust_unit_size(const struct c2_pdclust_layout *pl)
+C2_INTERNAL uint64_t c2_pdclust_unit_size(const struct c2_pdclust_layout *pl)
 {
 	return pl->pl_attr.pa_unit_size;
 }
 
-struct c2_pdclust_layout *c2_layout_to_pdl(const struct c2_layout *l)
+C2_INTERNAL struct c2_pdclust_layout *c2_layout_to_pdl(const struct c2_layout
+						       *l)
 {
 	struct c2_pdclust_layout *pl;
 
@@ -361,14 +362,15 @@ struct c2_pdclust_layout *c2_layout_to_pdl(const struct c2_layout *l)
 	return pl;
 }
 
-struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl)
+C2_INTERNAL struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl)
 {
 	C2_PRE(pdclust_invariant(pl));
 	return &pl->pl_base.sl_base;
 }
 
-struct c2_pdclust_instance *
-c2_layout_instance_to_pdi(const struct c2_layout_instance *li)
+C2_INTERNAL struct c2_pdclust_instance *c2_layout_instance_to_pdi(const struct
+								  c2_layout_instance
+								  *li)
 {
 	struct c2_pdclust_instance *pi;
 	pi = bob_of(li, struct c2_pdclust_instance, pi_base,
@@ -393,9 +395,8 @@ pdclust_instance_to_enum(const struct c2_layout_instance *li)
 	return c2_layout_to_enum(pdi->pi_base.li_l);
 }
 
-enum c2_pdclust_unit_type
-c2_pdclust_unit_classify(const struct c2_pdclust_layout *pl,
-			 int unit)
+C2_INTERNAL enum c2_pdclust_unit_type
+c2_pdclust_unit_classify(const struct c2_pdclust_layout *pl, int unit)
 {
 	if (unit < pl->pl_attr.pa_N)
 		return C2_PUT_DATA;
@@ -689,9 +690,9 @@ static uint64_t permute_column(struct c2_pdclust_instance *pi,
 	return tc->tc_permute[t];
 }
 
-void c2_pdclust_instance_map(struct c2_pdclust_instance *pi,
-			     const struct c2_pdclust_src_addr *src,
-			     struct c2_pdclust_tgt_addr *tgt)
+C2_INTERNAL void c2_pdclust_instance_map(struct c2_pdclust_instance *pi,
+					 const struct c2_pdclust_src_addr *src,
+					 struct c2_pdclust_tgt_addr *tgt)
 {
 	struct c2_pdclust_layout *pl;
 	uint32_t                  N;
@@ -732,9 +733,9 @@ void c2_pdclust_instance_map(struct c2_pdclust_instance *pi,
 	C2_LEAVE("pi %p", pi);
 }
 
-void c2_pdclust_instance_inv(struct c2_pdclust_instance *pi,
-			     const struct c2_pdclust_tgt_addr *tgt,
-			     struct c2_pdclust_src_addr *src)
+C2_INTERNAL void c2_pdclust_instance_inv(struct c2_pdclust_instance *pi,
+					 const struct c2_pdclust_tgt_addr *tgt,
+					 struct c2_pdclust_src_addr *src)
 {
 	struct c2_pdclust_layout *pl;
 	uint32_t                  N;
@@ -771,7 +772,7 @@ void c2_pdclust_instance_inv(struct c2_pdclust_instance *pi,
 }
 
 static const struct c2_layout_instance_ops pdclust_instance_ops;
-void pdclust_instance_fini(struct c2_layout_instance *li);
+C2_INTERNAL void pdclust_instance_fini(struct c2_layout_instance *li);
 
 /**
  * Implementation of lo_instance_build().
@@ -864,7 +865,7 @@ err3_injected:
 }
 
 /** Implementation of lio_fini(). */
-void pdclust_instance_fini(struct c2_layout_instance *li)
+C2_INTERNAL void pdclust_instance_fini(struct c2_layout_instance *li)
 {
 	struct c2_pdclust_instance *pi;
 

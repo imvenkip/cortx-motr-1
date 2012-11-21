@@ -180,8 +180,8 @@ do {                                                            \
 	return __rc;                                            \
 } while (0)
 
-int  c2_trace_init(void);
-void c2_trace_fini(void);
+C2_INTERNAL int c2_trace_init(void);
+C2_INTERNAL void c2_trace_fini(void);
 
 /**
  * The subsystems definitions.
@@ -205,7 +205,8 @@ void c2_trace_fini(void);
   C2_TRACE_SUBSYS(IOSERVICE, 13) \
   C2_TRACE_SUBSYS(CM,        14) \
   C2_TRACE_SUBSYS(SNSREPAIR, 15) \
-  C2_TRACE_SUBSYS(CONF,      16)
+  C2_TRACE_SUBSYS(CONF,      16) \
+  C2_TRACE_SUBSYS(LIB,       17)
 
 #define C2_TRACE_SUBSYS(name, value) C2_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */
@@ -336,15 +337,16 @@ struct c2_trace_descr {
 	enum c2_trace_level  td_level;
 };
 
-void c2_trace_allot(const struct c2_trace_descr *td, const void *data);
-void c2_trace_record_print(const struct c2_trace_rec_header *trh,
-			   const void *buf);
+C2_INTERNAL void c2_trace_allot(const struct c2_trace_descr *td,
+				const void *data);
+C2_INTERNAL void c2_trace_record_print(const struct c2_trace_rec_header *trh,
+				       const void *buf);
 
-void c2_trace_print_subsystems(void);
+C2_INTERNAL void c2_trace_print_subsystems(void);
 
 __attribute__ ((format (printf, 1, 2)))
-void c2_console_printf(const char *fmt, ...);
-void c2_console_vprintf(const char *fmt, va_list ap);
+C2_INTERNAL void c2_console_printf(const char *fmt, ...);
+C2_INTERNAL void c2_console_vprintf(const char *fmt, va_list ap);
 
 /*
  * The code below abuses C preprocessor badly. Looking at it might be damaging

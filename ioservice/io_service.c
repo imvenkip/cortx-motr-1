@@ -36,10 +36,10 @@
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
 
-C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", ,
+C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", C2_INTERNAL,
                    struct c2_rios_buffer_pool, rios_bp_linkage, rios_bp_magic,
                    C2_IOS_BUFFER_POOL_MAGIC, C2_IOS_BUFFER_POOL_HEAD_MAGIC);
-C2_TL_DEFINE(bufferpools, , struct c2_rios_buffer_pool);
+C2_TL_DEFINE(bufferpools, C2_INTERNAL, struct c2_rios_buffer_pool);
 
 /* ADDB context for ios. */
 static struct c2_addb_ctx ios_addb_ctx;
@@ -140,7 +140,7 @@ static void buffer_pool_low(struct c2_net_buffer_pool *bp)
  * Registers I/O service with colibri node.
  * Colibri setup calls this function.
  */
-int c2_ios_register(void)
+C2_INTERNAL int c2_ios_register(void)
 {
 	/* The onwire version-number structure is declared as a struct,
 	 * not a sequence (which is more like an array.
@@ -156,7 +156,7 @@ int c2_ios_register(void)
 /**
  * Unregisters I/O service from colibri node.
  */
-void c2_ios_unregister(void)
+C2_INTERNAL void c2_ios_unregister(void)
 {
 	c2_reqh_service_type_unregister(&c2_ios_type);
 	c2_ioservice_fop_fini();

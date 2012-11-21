@@ -104,20 +104,21 @@ static inline bool fi_state_enabled(const struct c2_fi_fpoint_state *state)
  *
  * @return A constant pointer to global fi_states array.
  */
-const struct c2_fi_fpoint_state *c2_fi_states_get(void);
+C2_INTERNAL const struct c2_fi_fpoint_state *c2_fi_states_get(void);
 
 /**
  * A read-only "getter" of global fi_states_free_idx index of fi_states array.
  *
  * @return Current value of fi_states_free_idx variable.
  */
-uint32_t c2_fi_states_get_free_idx(void);
+C2_INTERNAL uint32_t c2_fi_states_get_free_idx(void);
 
 /**
  * Fills c2_fi_fpoint_state_info structure.
  */
-void c2_fi_states_get_state_info(const struct c2_fi_fpoint_state *s,
-				 struct c2_fi_fpoint_state_info *si);
+C2_INTERNAL void c2_fi_states_get_state_info(const struct c2_fi_fpoint_state *s,
+					     struct c2_fi_fpoint_state_info
+					     *si);
 
 extern const char  *c2_fi_states_headline[];
 extern const char   c2_fi_states_print_format[];
@@ -128,20 +129,21 @@ extern const char   c2_fi_states_print_format[];
  *
  * This function aimed to be used together with c2_fi_enable_xxx() functions.
  */
-int c2_fi_add_dyn_id(char *str);
+C2_INTERNAL int c2_fi_add_dyn_id(char *str);
 
 /**
  * Returns the name of fault point type
  */
-const char *c2_fi_fpoint_type_name(enum c2_fi_fpoint_type type);
+C2_INTERNAL const char *c2_fi_fpoint_type_name(enum c2_fi_fpoint_type type);
 
 /**
  * Converts a string into fault point type
  */
-enum c2_fi_fpoint_type c2_fi_fpoint_type_from_str(const char *type_name);
+C2_INTERNAL enum c2_fi_fpoint_type c2_fi_fpoint_type_from_str(const char
+							      *type_name);
 
-void fi_states_init(void);
-void fi_states_fini(void);
+C2_INTERNAL void fi_states_init(void);
+C2_INTERNAL void fi_states_fini(void);
 
 #endif /* ENABLE_FAULT_INJECTION */
 

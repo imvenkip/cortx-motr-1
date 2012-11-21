@@ -34,9 +34,9 @@ struct c2_vector {
 	c2_parity_elem_t *v_vector;
 };
 
-int c2_vector_init(struct c2_vector *v, uint32_t sz);
-void c2_vector_fini(struct c2_vector *v);
-void c2_vector_print(const struct c2_vector *vec);
+C2_INTERNAL int c2_vector_init(struct c2_vector *v, uint32_t sz);
+C2_INTERNAL void c2_vector_fini(struct c2_vector *v);
+C2_INTERNAL void c2_vector_print(const struct c2_vector *vec);
 
 /**
  * Gets element of vector 'v' in 'x' row
@@ -56,9 +56,9 @@ struct c2_matrix {
 	c2_parity_elem_t **m_matrix;
 };
 
-int c2_matrix_init(struct c2_matrix *m, uint32_t w, uint32_t h);
-void c2_matrix_fini(struct c2_matrix *m);
-void c2_matrix_print(const struct c2_matrix *mat);
+C2_INTERNAL int c2_matrix_init(struct c2_matrix *m, uint32_t w, uint32_t h);
+C2_INTERNAL void c2_matrix_fini(struct c2_matrix *m);
+C2_INTERNAL void c2_matrix_print(const struct c2_matrix *mat);
 
 /**
  * Gets element of matrix 'm' in ('x','y') pos
@@ -82,8 +82,9 @@ typedef c2_parity_elem_t (*c2_vector_matrix_binary_operator_t)(c2_parity_elem_t,
  *
  * @pre c2_vector_init(v) has been called
  */
-void c2_vector_row_operate(struct c2_vector *v, uint32_t row, c2_parity_elem_t c,
-			   c2_vector_matrix_binary_operator_t f);
+C2_INTERNAL void c2_vector_row_operate(struct c2_vector *v, uint32_t row,
+				       c2_parity_elem_t c,
+				       c2_vector_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every row element of matrix 'm' in row 'row' with const 'c':
@@ -91,8 +92,9 @@ void c2_vector_row_operate(struct c2_vector *v, uint32_t row, c2_parity_elem_t c
  *
  * @pre c2_vector_init(v) has been called
  */
-void c2_matrix_row_operate(struct c2_matrix *m, uint32_t row, c2_parity_elem_t c,
-			   c2_vector_matrix_binary_operator_t f);
+C2_INTERNAL void c2_matrix_row_operate(struct c2_matrix *m, uint32_t row,
+				       c2_parity_elem_t c,
+				       c2_vector_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every col element of matrix 'm' in col 'col' with const 'c':
@@ -100,8 +102,9 @@ void c2_matrix_row_operate(struct c2_matrix *m, uint32_t row, c2_parity_elem_t c
  *
  * @pre c2_matrix_init(m) has been called
  */
-void c2_matrix_col_operate(struct c2_matrix *m, uint32_t col, c2_parity_elem_t c,
-			   c2_vector_matrix_binary_operator_t f);
+C2_INTERNAL void c2_matrix_col_operate(struct c2_matrix *m, uint32_t col,
+				       c2_parity_elem_t c,
+				       c2_vector_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every row element of matrix 'm' in row 'row0' with row 'row1' and
@@ -110,10 +113,13 @@ void c2_matrix_col_operate(struct c2_matrix *m, uint32_t col, c2_parity_elem_t c
  *
  * @pre c2_matrix_init(m) has been called
  */
-void c2_matrix_rows_operate(struct c2_matrix *m, uint32_t row0, uint32_t row1,
-			    c2_vector_matrix_binary_operator_t f0, c2_parity_elem_t c0,
-			    c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
-			    c2_vector_matrix_binary_operator_t f);
+C2_INTERNAL void c2_matrix_rows_operate(struct c2_matrix *m, uint32_t row0,
+					uint32_t row1,
+					c2_vector_matrix_binary_operator_t f0,
+					c2_parity_elem_t c0,
+					c2_vector_matrix_binary_operator_t f1,
+					c2_parity_elem_t c1,
+					c2_vector_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every row element of matrix 'm' in row 'row0' with row 'row1' and
@@ -122,9 +128,11 @@ void c2_matrix_rows_operate(struct c2_matrix *m, uint32_t row0, uint32_t row1,
  *
  * @pre c2_matrix_init(m)
  */
-void c2_matrix_rows_operate2(struct c2_matrix *m, uint32_t row0, uint32_t row1,
-			     c2_vector_matrix_binary_operator_t f0, c2_parity_elem_t c0,
-			     c2_vector_matrix_binary_operator_t f);
+C2_INTERNAL void c2_matrix_rows_operate2(struct c2_matrix *m, uint32_t row0,
+					 uint32_t row1,
+					 c2_vector_matrix_binary_operator_t f0,
+					 c2_parity_elem_t c0,
+					 c2_vector_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every row element of matrix 'm' in row 'row0' with row 'row1' and
@@ -133,9 +141,11 @@ void c2_matrix_rows_operate2(struct c2_matrix *m, uint32_t row0, uint32_t row1,
  *
  * @pre c2_matrix_init(m) has been called
  */
-void c2_matrix_rows_operate1(struct c2_matrix *m, uint32_t row0, uint32_t row1,
-			     c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
-			     c2_vector_matrix_binary_operator_t f);
+C2_INTERNAL void c2_matrix_rows_operate1(struct c2_matrix *m, uint32_t row0,
+					 uint32_t row1,
+					 c2_vector_matrix_binary_operator_t f1,
+					 c2_parity_elem_t c1,
+					 c2_vector_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every row element of vector 'v' in row 'row0' with row 'row1' and
@@ -144,10 +154,13 @@ void c2_matrix_rows_operate1(struct c2_matrix *m, uint32_t row0, uint32_t row1,
  *
  * @pre c2_vector_init(v) has been called
  */
-void c2_vector_rows_operate(struct c2_vector *v, uint32_t row0, uint32_t row1,
-			    c2_vector_matrix_binary_operator_t f0, c2_parity_elem_t c0,
-			    c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
-			    c2_vector_matrix_binary_operator_t f);
+C2_INTERNAL void c2_vector_rows_operate(struct c2_vector *v, uint32_t row0,
+					uint32_t row1,
+					c2_vector_matrix_binary_operator_t f0,
+					c2_parity_elem_t c0,
+					c2_vector_matrix_binary_operator_t f1,
+					c2_parity_elem_t c1,
+					c2_vector_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every row element of vector 'v' in row 'row0' with row 'row1' and
@@ -156,9 +169,11 @@ void c2_vector_rows_operate(struct c2_vector *v, uint32_t row0, uint32_t row1,
  *
  * @pre c2_vector_init(v) has been called
  */
-void c2_vector_rows_operate1(struct c2_vector *v, uint32_t row0, uint32_t row1,
-			     c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
-			     c2_vector_matrix_binary_operator_t f);
+C2_INTERNAL void c2_vector_rows_operate1(struct c2_vector *v, uint32_t row0,
+					 uint32_t row1,
+					 c2_vector_matrix_binary_operator_t f1,
+					 c2_parity_elem_t c1,
+					 c2_vector_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every row element of vector 'v' in row 'row0' with row 'row1' and
@@ -167,9 +182,11 @@ void c2_vector_rows_operate1(struct c2_vector *v, uint32_t row0, uint32_t row1,
  *
  * @pre c2_vector_init(v) has been called
  */
-void c2_vector_rows_operate2(struct c2_vector *v, uint32_t row0, uint32_t row1,
-			     c2_vector_matrix_binary_operator_t f0, c2_parity_elem_t c0,
-			     c2_vector_matrix_binary_operator_t f);
+C2_INTERNAL void c2_vector_rows_operate2(struct c2_vector *v, uint32_t row0,
+					 uint32_t row1,
+					 c2_vector_matrix_binary_operator_t f0,
+					 c2_parity_elem_t c0,
+					 c2_vector_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every col element of matrix 'm' in col 'col0' with col 'col1' and
@@ -178,22 +195,27 @@ void c2_vector_rows_operate2(struct c2_vector *v, uint32_t row0, uint32_t row1,
  *
  * @pre c2_matrix_init(m) has been called
  */
-void c2_matrix_cols_operate(struct c2_matrix *m, uint32_t col0, uint32_t col1,
-			    c2_vector_matrix_binary_operator_t f0, c2_parity_elem_t c0,
-			    c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
-			    c2_vector_matrix_binary_operator_t f);
+C2_INTERNAL void c2_matrix_cols_operate(struct c2_matrix *m, uint32_t col0,
+					uint32_t col1,
+					c2_vector_matrix_binary_operator_t f0,
+					c2_parity_elem_t c0,
+					c2_vector_matrix_binary_operator_t f1,
+					c2_parity_elem_t c1,
+					c2_vector_matrix_binary_operator_t f);
 
 /**
  * Swaps row 'r0' and row 'r1' each with other
  * @pre c2_matrix_init(m) has been called
  */
-void c2_matrix_swap_row(struct c2_matrix *m, uint32_t r0, uint32_t r1);
+C2_INTERNAL void c2_matrix_swap_row(struct c2_matrix *m, uint32_t r0,
+				    uint32_t r1);
 
 /**
  * Swaps row 'r0' and row 'r1' each with other
  * @pre c2_vector_init(v) has been called
  */
-void c2_vector_swap_row(struct c2_vector *v, uint32_t r0, uint32_t r1);
+C2_INTERNAL void c2_vector_swap_row(struct c2_vector *v, uint32_t r0,
+				    uint32_t r1);
 
 /**
  * Multiplies matrix 'm' on vector 'v'
@@ -205,9 +227,11 @@ void c2_vector_swap_row(struct c2_vector *v, uint32_t r0, uint32_t r1);
  * @pre c2_matrix_init(m) has been called
  * @pre c2_vec_init(r) has been called
  */
-void c2_matrix_vec_multiply(struct c2_matrix *m, struct c2_vector *v, struct c2_vector *r,
-			    c2_vector_matrix_binary_operator_t mul,
-			    c2_vector_matrix_binary_operator_t add);
+C2_INTERNAL void c2_matrix_vec_multiply(struct c2_matrix *m,
+					struct c2_vector *v,
+					struct c2_vector *r,
+					c2_vector_matrix_binary_operator_t mul,
+					c2_vector_matrix_binary_operator_t add);
 
 /**
  * Returns submatrix of matrix 'mat' into 'submat', where 'x', 'y' - offsets
@@ -215,9 +239,9 @@ void c2_matrix_vec_multiply(struct c2_matrix *m, struct c2_vector *v, struct c2_
  * @pre c2_matrix_init(mat) has been called
  * @pre c2_matrix_init(submat) has been called
  */
-void c2_matrix_get_submatrix(struct c2_matrix *mat,
-			     struct c2_matrix *submat,
-			     uint32_t x, uint32_t y);
+C2_INTERNAL void c2_matrix_get_submatrix(struct c2_matrix *mat,
+					 struct c2_matrix *submat,
+					 uint32_t x, uint32_t y);
 
 /* __COLIBRI_SNS_MAT_VEC_H__ */
 #endif

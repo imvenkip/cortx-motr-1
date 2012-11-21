@@ -46,16 +46,17 @@ struct cnt {
 	uint64_t            c_magic;
 };
 
-void cnt_init(struct cnt *cnt, struct cnt *parent, const char *name, ...)
+C2_INTERNAL void
+cnt_init(struct cnt *cnt, struct cnt *parent, const char *name, ...)
               __attribute__((format(printf, 3, 4)));
-void cnt_fini(struct cnt *cnt);
-void cnt_dump(struct cnt *cnt);
-void cnt_dump_all(void);
+C2_INTERNAL void cnt_fini(struct cnt *cnt);
+C2_INTERNAL void cnt_dump(struct cnt *cnt);
+C2_INTERNAL void cnt_dump_all(void);
 
-void cnt_mod(struct cnt *cnt, cnt_t val);
+C2_INTERNAL void cnt_mod(struct cnt *cnt, cnt_t val);
 
-void cnt_global_init(void);
-void cnt_global_fini(void);
+C2_INTERNAL void cnt_global_init(void);
+C2_INTERNAL void cnt_global_fini(void);
 
 #endif /* __COLIBRI_DESIM_CNT_H__ */
 

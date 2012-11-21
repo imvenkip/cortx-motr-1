@@ -120,8 +120,10 @@ static bool cobfid_map_invariant(const struct c2_cobfid_map *cfm)
 	return true;
 }
 
-int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
-		       struct c2_addb_ctx *addb_ctx, const char *map_name)
+C2_INTERNAL int c2_cobfid_map_init(struct c2_cobfid_map *cfm,
+				   struct c2_dbenv *db_env,
+				   struct c2_addb_ctx *addb_ctx,
+				   const char *map_name)
 {
 	int rc;
 
@@ -159,7 +161,7 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
 	return 0;
 }
 
-void c2_cobfid_map_fini(struct c2_cobfid_map *cfm)
+C2_INTERNAL void c2_cobfid_map_fini(struct c2_cobfid_map *cfm)
 {
 	C2_PRE(cobfid_map_invariant(cfm));
 
@@ -169,8 +171,10 @@ void c2_cobfid_map_fini(struct c2_cobfid_map *cfm)
 	c2_mutex_fini(&cfm->cfm_mutex);
 }
 
-int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
-		      const struct c2_fid file_fid, struct c2_uint128 cob_fid)
+C2_INTERNAL int c2_cobfid_map_add(struct c2_cobfid_map *cfm,
+				  const uint64_t container_id,
+				  const struct c2_fid file_fid,
+				  struct c2_uint128 cob_fid)
 {
 	int			 rc;
 	struct c2_db_pair	 db_pair;
@@ -211,8 +215,9 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
 	return rc;
 }
 
-int c2_cobfid_map_del(struct c2_cobfid_map *cfm, const uint64_t container_id,
-		      const struct c2_fid file_fid)
+C2_INTERNAL int c2_cobfid_map_del(struct c2_cobfid_map *cfm,
+				  const uint64_t container_id,
+				  const struct c2_fid file_fid)
 {
 	int			 rc;
 	struct c2_db_pair	 db_pair;
@@ -299,7 +304,7 @@ static bool cobfid_map_iter_invariant(const struct c2_cobfid_map_iter *iter)
 	return true;
 }
 
-void c2_cobfid_map_iter_fini(struct c2_cobfid_map_iter *iter)
+C2_INTERNAL void c2_cobfid_map_iter_fini(struct c2_cobfid_map_iter *iter)
 {
 	C2_PRE(cobfid_map_iter_invariant(iter));
 
@@ -348,9 +353,10 @@ static int cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 	return 0;
 }
 
-int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
-			    uint64_t *container_id_p, struct c2_fid *file_fid_p,
-			    struct c2_uint128 *cob_fid_p)
+C2_INTERNAL int c2_cobfid_map_iter_next(struct c2_cobfid_map_iter *iter,
+					uint64_t * container_id_p,
+					struct c2_fid *file_fid_p,
+					struct c2_uint128 *cob_fid_p)
 {
 	int			  rc;
 	struct cobfid_map_record *recs;
@@ -588,8 +594,8 @@ static const struct c2_cobfid_map_iter_ops enum_ops = {
 	.cfmio_reload = enum_reload,
 };
 
-int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
-		       struct c2_cobfid_map_iter *iter)
+C2_INTERNAL int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
+				   struct c2_cobfid_map_iter *iter)
 {
 	int rc;
 
@@ -665,9 +671,9 @@ static const struct c2_cobfid_map_iter_ops enum_container_ops = {
 	.cfmio_reload = enum_container_reload,
 };
 
-int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
-				 uint64_t container_id,
-				 struct c2_cobfid_map_iter *iter)
+C2_INTERNAL int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
+					     uint64_t container_id,
+					     struct c2_cobfid_map_iter *iter)
 {
 	int rc;
 
@@ -696,7 +702,8 @@ static const char cobfid_map_name[] = "cobfid_map";
 static bool cfm_key_is_initialised;
 static unsigned cfm_key;
 
-int c2_cobfid_map_get(struct c2_reqh *reqh, struct c2_cobfid_map **out)
+C2_INTERNAL int c2_cobfid_map_get(struct c2_reqh *reqh,
+				  struct c2_cobfid_map **out)
 {
 	int                   rc;
         struct c2_cobfid_map *cfm;
@@ -727,7 +734,7 @@ int c2_cobfid_map_get(struct c2_reqh *reqh, struct c2_cobfid_map **out)
 	return 0;
 }
 
-void c2_cobfid_map_put(struct c2_reqh *reqh)
+C2_INTERNAL void c2_cobfid_map_put(struct c2_reqh *reqh)
 {
 	struct c2_cobfid_map *cfm;
 

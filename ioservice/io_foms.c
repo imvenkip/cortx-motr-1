@@ -579,21 +579,21 @@ const struct c2_addb_loc io_fom_addb_loc = {
 	.al_name = "io_fom"
 };
 
-extern const struct c2_tl_descr bufferpools_tl;
+C2_TL_DESCR_DECLARE(bufferpools, C2_EXTERN);
 
-extern bool c2_is_read_fop(const struct c2_fop *fop);
-extern bool c2_is_write_fop(const struct c2_fop *fop);
-extern bool c2_is_io_fop(const struct c2_fop *fop);
-extern struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
-extern struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
-extern bool c2_is_cob_create_fop(const struct c2_fop *fop);
-extern bool c2_is_cob_delete_fop(const struct c2_fop *fop);
+C2_INTERNAL bool c2_is_read_fop(const struct c2_fop *fop);
+C2_INTERNAL bool c2_is_write_fop(const struct c2_fop *fop);
+C2_INTERNAL bool c2_is_io_fop(const struct c2_fop *fop);
+C2_INTERNAL struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
+C2_INTERNAL struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
+C2_INTERNAL bool c2_is_cob_create_fop(const struct c2_fop *fop);
+C2_INTERNAL bool c2_is_cob_delete_fop(const struct c2_fop *fop);
 
 static int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out);
 static int c2_io_fom_cob_rw_tick(struct c2_fom *fom);
 static void c2_io_fom_cob_rw_fini(struct c2_fom *fom);
 static size_t c2_io_fom_cob_rw_locality_get(const struct c2_fom *fom);
-const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom);
+C2_INTERNAL const char *c2_io_fom_cob_rw_service_name(struct c2_fom *fom);
 static bool c2_io_fom_cob_rw_invariant(const struct c2_io_fom_cob_rw *io);
 
 static int net_buffer_acquire(struct c2_fom *);
@@ -827,7 +827,8 @@ static void stobio_complete_cb(struct c2_fom_callback *cb)
  * @pre in != NULL
  * @pre out != NULL
  */
-void io_fom_cob_rw_fid2stob_map(const struct c2_fid *in, struct c2_stob_id *out)
+C2_INTERNAL void io_fom_cob_rw_fid2stob_map(const struct c2_fid *in,
+					    struct c2_stob_id *out)
 {
 	C2_PRE(in != NULL);
 	C2_PRE(out != NULL);
@@ -836,7 +837,8 @@ void io_fom_cob_rw_fid2stob_map(const struct c2_fid *in, struct c2_stob_id *out)
 	out->si_bits.u_lo = in->f_key;
 }
 
-void io_fom_cob_rw_stob2fid_map(const struct c2_stob_id *in, struct c2_fid *out)
+C2_INTERNAL void io_fom_cob_rw_stob2fid_map(const struct c2_stob_id *in,
+					    struct c2_fid *out)
 {
         C2_PRE(in != NULL);
         C2_PRE(out != NULL);
@@ -854,7 +856,8 @@ void io_fom_cob_rw_stob2fid_map(const struct c2_stob_id *in, struct c2_fid *out)
  * @pre in != NULL
  * @pre out != NULL
  */
-void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
+C2_INTERNAL void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in,
+					    struct c2_fid *out)
 {
 	C2_PRE(in != NULL);
 	C2_PRE(out != NULL);
@@ -1809,13 +1812,15 @@ static size_t c2_io_fom_cob_rw_locality_get(const struct c2_fom *fom)
  * @pre fom != NULL
  * @pre fom->fo_fop != NULL
  */
-const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom)
+C2_INTERNAL const char *c2_io_fom_cob_rw_service_name(struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL);
 
 	return IOSERVICE_NAME;
 }
+
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} end of io_foms */
 

@@ -122,11 +122,11 @@ struct c2_emap_cursor;
     @param db - data-base environment used for persistency and transactional
     support.
  */
-int  c2_emap_init(struct c2_emap *emap,
-		  struct c2_dbenv *db, const char *mapname);
+C2_INTERNAL int c2_emap_init(struct c2_emap *emap,
+			     struct c2_dbenv *db, const char *mapname);
 
 /** Release the resources associated with the collection. */
-void c2_emap_fini(struct c2_emap *emap);
+C2_INTERNAL void c2_emap_fini(struct c2_emap *emap);
 
 /**
    Insert a new map with the given prefix into the collection.
@@ -137,8 +137,9 @@ void c2_emap_fini(struct c2_emap *emap);
 	   ([0, C2\_BINDEX\_MAX + 1), val)
    @f]
  */
-int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx,
-		       const struct c2_uint128 *prefix, uint64_t val);
+C2_INTERNAL int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx,
+				   const struct c2_uint128 *prefix,
+				   uint64_t val);
 
 /**
    Remove a map with the given prefix from the collection.
@@ -146,8 +147,8 @@ int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx,
    @pre the map must be in initial state: consists of a single extent, covering
    the whole name-space.
  */
-int c2_emap_obj_delete(struct c2_emap *emap, struct c2_db_tx *tx,
-		       const struct c2_uint128 *prefix);
+C2_INTERNAL int c2_emap_obj_delete(struct c2_emap *emap, struct c2_db_tx *tx,
+				   const struct c2_uint128 *prefix);
 
 /** Extent map segment. */
 struct c2_emap_seg {
@@ -160,13 +161,14 @@ struct c2_emap_seg {
 };
 
 /** True iff the extent is the last one in a map. */
-bool c2_emap_ext_is_last(const struct c2_ext *ext);
+C2_INTERNAL bool c2_emap_ext_is_last(const struct c2_ext *ext);
 
 /** True iff the extent is the first one in a map. */
-bool c2_emap_ext_is_first(const struct c2_ext *ext);
+C2_INTERNAL bool c2_emap_ext_is_first(const struct c2_ext *ext);
 
 /** Returns an extent at the current cursor position. */
-struct c2_emap_seg *c2_emap_seg_get(struct c2_emap_cursor *iterator);
+C2_INTERNAL struct c2_emap_seg *c2_emap_seg_get(struct c2_emap_cursor
+						*iterator);
 
 /**
     Initialises extent map cursor to point to the segment containing given
@@ -184,23 +186,23 @@ struct c2_emap_seg *c2_emap_seg_get(struct c2_emap_cursor *iterator);
     @retval -ENOENT no matching segment is found and there is no map following
     requested one.
  */
-int c2_emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
-		   const struct c2_uint128 *prefix, c2_bindex_t offset,
-		   struct c2_emap_cursor *it);
+C2_INTERNAL int c2_emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
+			       const struct c2_uint128 *prefix,
+			       c2_bindex_t offset, struct c2_emap_cursor *it);
 
 /**
    Move cursor to the next segment in its map.
 
    @pre !c2_emap_ext_is_last(c2_emap_seg_get(iterator))
  */
-int c2_emap_next(struct c2_emap_cursor *iterator);
+C2_INTERNAL int c2_emap_next(struct c2_emap_cursor *iterator);
 
 /**
    Move cursor to the previous segment in its map.
 
    @pre !c2_emap_ext_is_first(c2_emap_seg_get(iterator))
  */
-int c2_emap_prev(struct c2_emap_cursor *iterator);
+C2_INTERNAL int c2_emap_prev(struct c2_emap_cursor *iterator);
 
 /**
    Split the segment the cursor is current positioned at into a collection of
@@ -216,7 +218,8 @@ int c2_emap_prev(struct c2_emap_cursor *iterator);
 
    @pre c2_vec_count(&vec->ov_vec) == c2_ext_length(c2_emap_seg_get(iterator))
  */
-int c2_emap_split(struct c2_emap_cursor *iterator, struct c2_indexvec *vec);
+C2_INTERNAL int c2_emap_split(struct c2_emap_cursor *iterator,
+			      struct c2_indexvec *vec);
 
 /**
    Paste segment (ext, val) into the map, deleting or truncating overlapping
@@ -264,12 +267,13 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
    @pre !c2_emap_ext_is_last(c2_emap_seg_get(iterator))
    @pre delta <= c2_ext_length(c2_emap_seg_get(iterator));
  */
-int c2_emap_merge(struct c2_emap_cursor *iterator, c2_bindex_t delta);
+C2_INTERNAL int c2_emap_merge(struct c2_emap_cursor *iterator,
+			      c2_bindex_t delta);
 
 /**
    Release the resources associated with the cursor.
  */
-void c2_emap_close(struct c2_emap_cursor *iterator);
+C2_INTERNAL void c2_emap_close(struct c2_emap_cursor *iterator);
 
 #include "db/extmap_internal.h"
 
@@ -290,12 +294,14 @@ struct c2_emap_caret {
 	c2_bindex_t            ct_index;
 };
 
-void c2_emap_caret_init(struct c2_emap_caret *car,
-			struct c2_emap_cursor *it, c2_bindex_t index);
-void c2_emap_caret_fini(struct c2_emap_caret *car);
-int  c2_emap_caret_move(struct c2_emap_caret *car, c2_bcount_t count);
+C2_INTERNAL void c2_emap_caret_init(struct c2_emap_caret *car,
+				    struct c2_emap_cursor *it,
+				    c2_bindex_t index);
+C2_INTERNAL void c2_emap_caret_fini(struct c2_emap_caret *car);
+C2_INTERNAL int c2_emap_caret_move(struct c2_emap_caret *car,
+				   c2_bcount_t count);
 
-c2_bcount_t c2_emap_caret_step(const struct c2_emap_caret *car);
+C2_INTERNAL c2_bcount_t c2_emap_caret_step(const struct c2_emap_caret *car);
 
 /** @} end group extmap */
 

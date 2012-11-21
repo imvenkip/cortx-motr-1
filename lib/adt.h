@@ -35,13 +35,13 @@ struct c2_stack;
 
 struct c2_stack_link;
 
-void c2_stack_init(struct c2_stack *stack);
-void c2_stack_fini(struct c2_stack *stack);
-bool c2_stack_is_empty(const struct c2_stack *stack);
+C2_INTERNAL void c2_stack_init(struct c2_stack *stack);
+C2_INTERNAL void c2_stack_fini(struct c2_stack *stack);
+C2_INTERNAL bool c2_stack_is_empty(const struct c2_stack *stack);
 
-void c2_stack_link_init(struct c2_stack_link *stack);
-void c2_stack_link_fini(struct c2_stack_link *stack);
-bool c2_stack_link_is_in(const struct c2_stack_link *stack);
+C2_INTERNAL void c2_stack_link_init(struct c2_stack_link *stack);
+C2_INTERNAL void c2_stack_link_fini(struct c2_stack_link *stack);
+C2_INTERNAL bool c2_stack_link_is_in(const struct c2_stack_link *stack);
 
 /** @} end of adt group */
 

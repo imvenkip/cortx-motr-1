@@ -89,7 +89,7 @@ static const struct c2_conf_obj_ops nic_ops = {
 	.coo_delete    = nic_delete
 };
 
-struct c2_conf_obj *c2_conf__nic_create(void)
+C2_INTERNAL struct c2_conf_obj *c2_conf__nic_create(void)
 {
 	struct c2_conf_nic *x;
 	struct c2_conf_obj *ret;

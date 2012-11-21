@@ -100,12 +100,12 @@ struct c2_test_suite_entry {
 /**
    Global constructor for unit tests.
  */
-int c2_uts_init(void);
+C2_INTERNAL int c2_uts_init(void);
 
 /**
    Global destructor for unit tests.
  */
-void c2_uts_fini(void);
+C2_INTERNAL void c2_uts_fini(void);
 
 /**
  add test site into global pool.
@@ -114,7 +114,7 @@ void c2_uts_fini(void);
  @param ts pointer to test suite
 
  */
-void c2_ut_add(const struct c2_test_suite *ts);
+C2_INTERNAL void c2_ut_add(const struct c2_test_suite *ts);
 
 /**
    CUnit user interfaces
@@ -149,7 +149,7 @@ struct c2_ut_run_cfg {
 /**
    run tests
  */
-void c2_ut_run(struct c2_ut_run_cfg *c);
+C2_INTERNAL void c2_ut_run(struct c2_ut_run_cfg *c);
 #else
 void c2_ut_run(void);
 #endif
@@ -162,12 +162,12 @@ void c2_ut_run(void);
 
  @return NONE
  */
-void c2_ut_list(bool with_tests);
+C2_INTERNAL void c2_ut_list(bool with_tests);
 
 /**
  commonly used test database reset function
  */
-int c2_ut_db_reset(const char *db_name);
+C2_INTERNAL int c2_ut_db_reset(const char *db_name);
 
 #ifdef __KERNEL__
 /**
@@ -179,7 +179,8 @@ int c2_ut_db_reset(const char *db_name);
    @param str_c string representation of the condition, c
    @param file path of the file, eg __FILE__
  */
-bool c2_ut_assertimpl(bool c, int lno, const char *str_c, const char *file);
+C2_INTERNAL bool c2_ut_assertimpl(bool c, int lno, const char *str_c,
+				  const char *file);
 #endif
 
 #ifndef __KERNEL__
@@ -194,14 +195,14 @@ struct c2_ut_redirect {
  * Associates one of the standard streams (stdin, stdout, stderr) with a file
  * pointed by 'path' argument.
  */
-void c2_stream_redirect(FILE *stream, const char *path,
-			struct c2_ut_redirect *redir);
+C2_INTERNAL void c2_stream_redirect(FILE * stream, const char *path,
+				    struct c2_ut_redirect *redir);
 
 /**
  * Restores standard stream from file descriptor and stream position, which were
  * saved earlier by c2_stream_redirect().
  */
-void c2_stream_restore(const struct c2_ut_redirect *redir);
+C2_INTERNAL void c2_stream_restore(const struct c2_ut_redirect *redir);
 
 /**
  * Checks if a text file contains the specified string.
@@ -209,7 +210,7 @@ void c2_stream_restore(const struct c2_ut_redirect *redir);
  * @param fp   - a file, which is searched for a string
  * @param mesg - a string to search for
  */
-bool c2_error_mesg_match(FILE *fp, const char *mesg);
+C2_INTERNAL bool c2_error_mesg_match(FILE * fp, const char *mesg);
 #endif
 
 /** @} end of ut group. */

@@ -64,6 +64,8 @@ AC_ARG_ENABLE([debug],
         [AS_HELP_STRING([--enable-debug], [enable debug information and logs])],
         [], [enable_debug=no]
 )
+AM_CONDITIONAL([ENABLE_DEBUG],
+               [test "x$enable_debug" = xyes])
 
 AC_ARG_ENABLE([coverage],
         [AS_HELP_STRING([--enable-coverage], [build for test coverage analysis])],
@@ -98,6 +100,13 @@ AC_ARG_ENABLE([mcheck],
         [AS_HELP_STRING([--enable-mcheck],[enable glibc malloc check])], [],
         [enable_mcheck=no]
 )
+
+AC_ARG_ENABLE([colibri-altogether],
+        [AS_HELP_STRING([--disable-colibri-altogether],[disable colibri altogether mode])],
+        [], [enable_colibri_altogether=yes]
+)
+AM_CONDITIONAL([ENABLE_COLIBRI_ALTOGETHER],
+               [test "x$enable_colibri_altogether" = xyes])
 
 AC_ARG_ENABLE([rpm],
         [AS_HELP_STRING([--enable-rpm],[enable rpm build mode])], [],
@@ -469,8 +478,9 @@ AS_IF([test x$enable_rpm != xyes],
 )
 
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
-C2_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -iquote $ABS_BUILDDIR -iquote $SRCDIR \
-             -include config.h $C2_CPPFLAGS"
+C2_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DC2_INTERNAL='' -DC2_EXTERN=extern \
+             -iquote $ABS_BUILDDIR -iquote $SRCDIR -include config.h \
+             $C2_CPPFLAGS"
 
 # -Wno-attributes is required to suppress warnings about unrecognized
 # __attribute__, such as __attribute__((gccxml(...))). It's important because we
@@ -480,8 +490,8 @@ C2_CFLAGS="-Wall -Werror -Wno-attributes -fno-strict-aliasing $C2_CFLAGS"
 
 C2_LDFLAGS="-rdynamic $C2_LDFLAGS"
 
-C2_KCPPFLAGS="-include $ABS_BUILDDIR/config.h -iquote $ABS_BUILDDIR \
-              $GALOIS_INCLUDES $C2_KCPPFLAGS"
+C2_KCPPFLAGS="-DC2_INTERNAL='' -DC2_EXTERN=extern -include $ABS_BUILDDIR/config.h \
+              -iquote $ABS_BUILDDIR $GALOIS_INCLUDES $C2_KCPPFLAGS"
 
 C2_KCFLAGS="-Wall -Werror -Wno-attributes $C2_KCFLAGS"
 

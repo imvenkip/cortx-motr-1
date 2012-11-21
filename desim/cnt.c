@@ -42,7 +42,8 @@ C2_TL_DEFINE(cnts, static, struct cnt);
 
 static struct c2_tl cnts;
 
-void cnt_init(struct cnt *cnt, struct cnt *parent, const char *format, ...)
+C2_INTERNAL void cnt_init(struct cnt *cnt, struct cnt *parent,
+			  const char *format, ...)
 {
 	va_list valist;
 
@@ -56,7 +57,7 @@ void cnt_init(struct cnt *cnt, struct cnt *parent, const char *format, ...)
 	cnts_tlink_init_at_tail(cnt, &cnts);
 }
 
-void cnt_dump(struct cnt *cnt)
+C2_INTERNAL void cnt_dump(struct cnt *cnt)
 {
 	cnt_t  avg;
 	double sig;
@@ -71,7 +72,7 @@ void cnt_dump(struct cnt *cnt)
 		sim_log(NULL, SLL_INFO, "[%s: empty]\n", cnt->c_name);
 }
 
-void cnt_dump_all(void)
+C2_INTERNAL void cnt_dump_all(void)
 {
 	struct cnt *scan;
 
@@ -80,7 +81,7 @@ void cnt_dump_all(void)
 	c2_tl_endfor;
 }
 
-void cnt_fini(struct cnt *cnt)
+C2_INTERNAL void cnt_fini(struct cnt *cnt)
 {
 	if (cnt->c_name != NULL)
 		free(cnt->c_name);
@@ -89,7 +90,7 @@ void cnt_fini(struct cnt *cnt)
 }
 
 
-void cnt_mod(struct cnt *cnt, cnt_t val)
+C2_INTERNAL void cnt_mod(struct cnt *cnt, cnt_t val)
 {
 	do {
 		cnt->c_sum += val;
@@ -102,12 +103,12 @@ void cnt_mod(struct cnt *cnt, cnt_t val)
 	} while ((cnt = cnt->c_parent) != NULL);
 }
 
-void cnt_global_init(void)
+C2_INTERNAL void cnt_global_init(void)
 {
 	cnts_tlist_init(&cnts);
 }
 
-void cnt_global_fini(void)
+C2_INTERNAL void cnt_global_fini(void)
 {
 	struct cnt *scan;
 

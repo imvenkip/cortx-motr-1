@@ -48,7 +48,7 @@ C2_TL_DESCR_DEFINE(dom, "stob domains", static, struct c2_stob_domain,
 		   0xACCE551B1EEFFACE);
 C2_TL_DEFINE(dom, static, struct c2_stob_domain);
 
-int c2_stob_type_init(struct c2_stob_type *kind)
+C2_INTERNAL int c2_stob_type_init(struct c2_stob_type *kind)
 {
 	dom_tlist_init(&kind->st_domains);
 	c2_addb_ctx_init(&kind->st_addb, &c2_stob_type_addb,
@@ -56,19 +56,21 @@ int c2_stob_type_init(struct c2_stob_type *kind)
 	return 0;
 }
 
-void c2_stob_type_fini(struct c2_stob_type *kind)
+C2_INTERNAL void c2_stob_type_fini(struct c2_stob_type *kind)
 {
 	c2_addb_ctx_fini(&kind->st_addb);
 	dom_tlist_fini(&kind->st_domains);
 }
 
-int c2_stob_domain_locate(struct c2_stob_type *type, const char *domain_name,
-			  struct c2_stob_domain **dom)
+C2_INTERNAL int c2_stob_domain_locate(struct c2_stob_type *type,
+				      const char *domain_name,
+				      struct c2_stob_domain **dom)
 {
 	return C2_STOB_TYPE_OP(type, sto_domain_locate, domain_name, dom);
 }
 
-void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t)
+C2_INTERNAL void c2_stob_domain_init(struct c2_stob_domain *dom,
+				     struct c2_stob_type *t)
 {
 	c2_rwlock_init(&dom->sd_guard);
 	dom->sd_type = t;
@@ -76,7 +78,7 @@ void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t)
 	c2_addb_ctx_init(&dom->sd_addb, &c2_stob_domain_addb, &t->st_addb);
 }
 
-void c2_stob_domain_fini(struct c2_stob_domain *dom)
+C2_INTERNAL void c2_stob_domain_fini(struct c2_stob_domain *dom)
 {
 	c2_addb_ctx_fini(&dom->sd_addb);
 	c2_rwlock_fini(&dom->sd_guard);
@@ -84,14 +86,14 @@ void c2_stob_domain_fini(struct c2_stob_domain *dom)
 	dom->sd_magic = 0;
 }
 
-int c2_stob_find(struct c2_stob_domain *dom, const struct c2_stob_id *id,
-		 struct c2_stob **out)
+C2_INTERNAL int c2_stob_find(struct c2_stob_domain *dom,
+			     const struct c2_stob_id *id, struct c2_stob **out)
 {
 	return dom->sd_ops->sdo_stob_find(dom, id, out);
 }
 
-void c2_stob_init(struct c2_stob *obj, const struct c2_stob_id *id,
-		  struct c2_stob_domain *dom)
+C2_INTERNAL void c2_stob_init(struct c2_stob *obj, const struct c2_stob_id *id,
+			      struct c2_stob_domain *dom)
 {
 	c2_atomic64_set(&obj->so_ref, 1);
 	obj->so_state = CSS_UNKNOWN;
@@ -100,14 +102,14 @@ void c2_stob_init(struct c2_stob *obj, const struct c2_stob_id *id,
 	c2_addb_ctx_init(&obj->so_addb, &c2_stob_addb, &dom->sd_addb);
 }
 
-void c2_stob_fini(struct c2_stob *obj)
+C2_INTERNAL void c2_stob_fini(struct c2_stob *obj)
 {
 	c2_addb_ctx_fini(&obj->so_addb);
 }
 
 C2_BASSERT(sizeof(struct c2_uint128) == sizeof(struct c2_stob_id));
 
-int c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
+C2_INTERNAL int c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 {
 	int result;
 
@@ -137,7 +139,7 @@ int c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 	return result;
 }
 
-int c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
+C2_INTERNAL int c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
 {
 	int result;
 
@@ -158,12 +160,12 @@ int c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
 	return result;
 }
 
-void c2_stob_get(struct c2_stob *obj)
+C2_INTERNAL void c2_stob_get(struct c2_stob *obj)
 {
 	c2_atomic64_inc(&obj->so_ref);
 }
 
-void c2_stob_put(struct c2_stob *obj)
+C2_INTERNAL void c2_stob_put(struct c2_stob *obj)
 {
 	struct c2_stob_domain *dom;
 
@@ -192,7 +194,7 @@ static void c2_stob_io_unlock(struct c2_stob *obj)
 	obj->so_op->sop_io_unlock(obj);
 }
 
-void c2_stob_io_init(struct c2_stob_io *io)
+C2_INTERNAL void c2_stob_io_init(struct c2_stob_io *io)
 {
 	C2_SET0(io);
 
@@ -203,7 +205,7 @@ void c2_stob_io_init(struct c2_stob_io *io)
 	C2_POST(io->si_state == SIS_IDLE);
 }
 
-void c2_stob_io_fini(struct c2_stob_io *io)
+C2_INTERNAL void c2_stob_io_fini(struct c2_stob_io *io)
 {
 	C2_PRE(io->si_state == SIS_IDLE);
 
@@ -211,8 +213,8 @@ void c2_stob_io_fini(struct c2_stob_io *io)
 	c2_stob_io_private_fini(io);
 }
 
-int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
-		      struct c2_dtx *tx, struct c2_io_scope *scope)
+C2_INTERNAL int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
+				  struct c2_dtx *tx, struct c2_io_scope *scope)
 {
 	int result;
 
@@ -250,12 +252,12 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	return result;
 }
 
-bool c2_stob_io_user_is_valid(const struct c2_bufvec *user)
+C2_INTERNAL bool c2_stob_io_user_is_valid(const struct c2_bufvec *user)
 {
 	return true;
 }
 
-bool c2_stob_io_stob_is_valid(const struct c2_indexvec *stob)
+C2_INTERNAL bool c2_stob_io_stob_is_valid(const struct c2_indexvec *stob)
 {
 	uint32_t    i;
 	c2_bindex_t reached;
@@ -268,7 +270,7 @@ bool c2_stob_io_stob_is_valid(const struct c2_indexvec *stob)
 	return true;
 }
 
-void *c2_stob_addr_pack(const void *buf, uint32_t shift)
+C2_INTERNAL void *c2_stob_addr_pack(const void *buf, uint32_t shift)
 {
 	uint64_t addr = (uint64_t)buf;
 
@@ -276,7 +278,7 @@ void *c2_stob_addr_pack(const void *buf, uint32_t shift)
 	return (void *)(addr >> shift);
 }
 
-void *c2_stob_addr_open(const void *buf, uint32_t shift)
+C2_INTERNAL void *c2_stob_addr_open(const void *buf, uint32_t shift)
 {
 	uint64_t addr = (uint64_t)buf;
 
@@ -284,10 +286,10 @@ void *c2_stob_addr_open(const void *buf, uint32_t shift)
 	return (void *)(addr << shift);
 }
 
-int c2_stob_create_helper(struct c2_stob_domain    *dom,
-			  struct c2_dtx            *dtx,
-			  const struct c2_stob_id  *stob_id,
-			  struct c2_stob          **out)
+C2_INTERNAL int c2_stob_create_helper(struct c2_stob_domain *dom,
+				      struct c2_dtx *dtx,
+				      const struct c2_stob_id *stob_id,
+				      struct c2_stob **out)
 {
 	struct c2_stob *stob;
 	int             rc;
@@ -311,7 +313,7 @@ int c2_stob_create_helper(struct c2_stob_domain    *dom,
 	return rc;
 }
 
-void c2_stob_iovec_sort(struct c2_stob_io *stob)
+C2_INTERNAL void c2_stob_iovec_sort(struct c2_stob_io *stob)
 {
 	struct c2_indexvec *ivec = &stob->si_stob;
 	struct c2_bufvec   *bvec = &stob->si_user;

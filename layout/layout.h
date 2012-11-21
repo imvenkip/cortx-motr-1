@@ -509,7 +509,7 @@ struct c2_layout_enum_ops {
  * the enum could not be made part of any layout for some reason.
  * @see c2_layout_put()
  */
-void c2_layout_enum_fini(struct c2_layout_enum *le);
+C2_INTERNAL void c2_layout_enum_fini(struct c2_layout_enum *le);
 
 /**
  * Structure specific to a layout enumeration type.
@@ -615,8 +615,9 @@ struct c2_layout_instance_ops {
 /**
  * Returns enum object embedded in the layout referred by the layout instance.
  */
-struct c2_layout_enum *
-c2_layout_instance_to_enum(const struct c2_layout_instance *li);
+C2_INTERNAL struct c2_layout_enum *c2_layout_instance_to_enum(const struct
+							      c2_layout_instance
+							      *li);
 
 /**
  * Allocates and builds a layout instance using the supplied layout;
@@ -625,9 +626,9 @@ c2_layout_instance_to_enum(const struct c2_layout_instance *li);
  *
  * Dual to c2_layout_instance_fini()
  */
-int c2_layout_instance_build(struct c2_layout           *l,
-			     const struct c2_fid        *fid,
-			     struct c2_layout_instance **out);
+C2_INTERNAL int c2_layout_instance_build(struct c2_layout *l,
+					 const struct c2_fid *fid,
+					 struct c2_layout_instance **out);
 
 /**
  * Finalises the layout instance object; releases reference on the layout
@@ -635,7 +636,7 @@ int c2_layout_instance_build(struct c2_layout           *l,
  *
  * Dual to c2_layout_instance_build()
  */
-void c2_layout_instance_fini(struct c2_layout_instance *li);
+C2_INTERNAL void c2_layout_instance_fini(struct c2_layout_instance *li);
 
 /**
  * layouts table.
@@ -664,60 +665,62 @@ struct c2_layout_rec {
 };
 C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_layout_rec)));
 
-int c2_layouts_init(void);
-void c2_layouts_fini(void);
+C2_INTERNAL int c2_layouts_init(void);
+C2_INTERNAL void c2_layouts_fini(void);
 
 /**
  * Initialises layout domain - Initialises arrays to hold the objects for
  * layout types and enum types and creates the layouts table.
  * @pre Caller should have performed c2_dbenv_init() on dbenv.
  */
-int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *db);
+C2_INTERNAL int c2_layout_domain_init(struct c2_layout_domain *dom,
+				      struct c2_dbenv *db);
 
 /**
  * Finalises the layout domain.
  * Dual to c2_layout_domain_init().
  * @pre All the layout types and enum types should be unregistered.
  */
-void c2_layout_domain_fini(struct c2_layout_domain *dom);
+C2_INTERNAL void c2_layout_domain_fini(struct c2_layout_domain *dom);
 
 /** Registers all the standard layout types and enum types. */
-int c2_layout_standard_types_register(struct c2_layout_domain *dom);
+C2_INTERNAL int c2_layout_standard_types_register(struct c2_layout_domain *dom);
 
 /** Unrgisters all the standard layout types and enum types. */
-void c2_layout_standard_types_unregister(struct c2_layout_domain *dom);
+C2_INTERNAL void c2_layout_standard_types_unregister(struct c2_layout_domain
+						     *dom);
 
 /**
  * Registers a new layout type with the layout types maintained by
  * c2_layout_domain::ld_type[] and initialises layout type specific tables,
  * if applicable.
  */
-int c2_layout_type_register(struct c2_layout_domain *dom,
-			    struct c2_layout_type *lt);
+C2_INTERNAL int c2_layout_type_register(struct c2_layout_domain *dom,
+					struct c2_layout_type *lt);
 
 /**
  * Unregisters a layout type from the layout types maintained by
  * c2_layout_domain::ld_type[] and finalises layout type specific tables,
  * if applicable.
  */
-void c2_layout_type_unregister(struct c2_layout_domain *dom,
-			       struct c2_layout_type *lt);
+C2_INTERNAL void c2_layout_type_unregister(struct c2_layout_domain *dom,
+					   struct c2_layout_type *lt);
 
 /**
  * Registers a new enumeration type with the enumeration types
  * maintained by c2_layout_domain::ld_enum[] and initialises enum type
  * specific tables, if applicable.
  */
-int c2_layout_enum_type_register(struct c2_layout_domain *dom,
-				 struct c2_layout_enum_type *et);
+C2_INTERNAL int c2_layout_enum_type_register(struct c2_layout_domain *dom,
+					     struct c2_layout_enum_type *et);
 
 /**
  * Unregisters an enumeration type from the enumeration types
  * maintained by c2_layout_domain::ld_enum[] and finalises enum type
  * specific tables, if applicable.
  */
-void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
-				    struct c2_layout_enum_type *et);
+C2_INTERNAL void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
+						struct c2_layout_enum_type *et);
 
 /**
  * Returns the layout object if it exists in memory by incrementing a reference
@@ -729,14 +732,15 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
  * @note This API is required specifically on the client in the absence of
  * layout DB APIs, c2_layout_lookup() to be specific.
  */
-struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid);
+C2_INTERNAL struct c2_layout *c2_layout_find(struct c2_layout_domain *dom,
+					     uint64_t lid);
 
 /**
  * Acquires an additional reference on the layout object.
  * @see c2_layout_put()
  * @see c2_layout_find()
  */
-void c2_layout_get(struct c2_layout *l);
+C2_INTERNAL void c2_layout_get(struct c2_layout *l);
 
 /**
  * Releases a reference on the layout object.
@@ -747,21 +751,21 @@ void c2_layout_get(struct c2_layout *l);
  * @see c2_layout_get()
  * @see c2_layout_find()
  */
-void c2_layout_put(struct c2_layout *l);
+C2_INTERNAL void c2_layout_put(struct c2_layout *l);
 
 /**
  * Increments layout user count.
  * This API shall be used by the user to associate a specific layout with some
  * user of that layout, for example, while creating 'a file using that layout'.
  */
-void c2_layout_user_count_inc(struct c2_layout *l);
+C2_INTERNAL void c2_layout_user_count_inc(struct c2_layout *l);
 
 /**
  * Decrements layout user count.
  * This API shall be used by the user to dissociate a layout from some user of
  * that layout, for example, while deleting 'a file using that layout'.
  */
-void c2_layout_user_count_dec(struct c2_layout *l);
+C2_INTERNAL void c2_layout_user_count_dec(struct c2_layout *l);
 
 /**
  * This method
@@ -816,10 +820,10 @@ void c2_layout_user_count_dec(struct c2_layout *l);
  *
  * @see c2_layout_put()
  */
-int c2_layout_decode(struct c2_layout *l,
-		     struct c2_bufvec_cursor *cur,
-		     enum c2_layout_xcode_op op,
-		     struct c2_db_tx *tx);
+C2_INTERNAL int c2_layout_decode(struct c2_layout *l,
+				 struct c2_bufvec_cursor *cur,
+				 enum c2_layout_xcode_op op,
+				 struct c2_db_tx *tx);
 
 /**
  * This method uses an in-memory layout object and
@@ -860,38 +864,41 @@ int c2_layout_decode(struct c2_layout *l,
  * - If op is C2_LXO_BUFFER_OP, the buffer contains the serialised
  *   representation of the whole layout.
  */
-int c2_layout_encode(struct c2_layout *l,
-		     enum c2_layout_xcode_op op,
-		     struct c2_db_tx *tx,
-		     struct c2_bufvec_cursor *out);
+C2_INTERNAL int c2_layout_encode(struct c2_layout *l,
+				 enum c2_layout_xcode_op op,
+				 struct c2_db_tx *tx,
+				 struct c2_bufvec_cursor *out);
 
 /**
  * Returns maximum possible size for a record in the layouts table (without
  * considering the data in the tables other than layouts), from what is
  * maintained in the c2_layout_domain object.
  */
-c2_bcount_t c2_layout_max_recsize(const struct c2_layout_domain *dom);
+C2_INTERNAL c2_bcount_t c2_layout_max_recsize(const struct c2_layout_domain
+					      *dom);
 
 /** Returns c2_striped_layout object for the specified c2_layout object. */
-struct c2_striped_layout *c2_layout_to_striped(const struct c2_layout *l);
+C2_INTERNAL struct c2_striped_layout *c2_layout_to_striped(const struct
+							   c2_layout *l);
 
 /**
  * Returns c2_layout_enum object for the specified c2_striped_layout
  * object.
  */
-struct c2_layout_enum *
-c2_striped_layout_to_enum(const struct c2_striped_layout *stl);
+C2_INTERNAL struct c2_layout_enum *c2_striped_layout_to_enum(const struct
+							     c2_striped_layout
+							     *stl);
 
-struct c2_layout_enum *c2_layout_to_enum(const struct c2_layout *l);
+C2_INTERNAL struct c2_layout_enum *c2_layout_to_enum(const struct c2_layout *l);
 
 /** Returns number of objects in the enumeration. */
-uint32_t c2_layout_enum_nr(const struct c2_layout_enum *e);
+C2_INTERNAL uint32_t c2_layout_enum_nr(const struct c2_layout_enum *e);
 
 /* Returns idx-th object in the enumeration. */
-void c2_layout_enum_get(const struct c2_layout_enum *e,
-			uint32_t idx,
-			const struct c2_fid *gfid,
-			struct c2_fid *out);
+C2_INTERNAL void c2_layout_enum_get(const struct c2_layout_enum *e,
+				    uint32_t idx,
+				    const struct c2_fid *gfid,
+				    struct c2_fid *out);
 
 /** @} end group layout */
 

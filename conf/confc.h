@@ -539,9 +539,9 @@ struct c2_confc {
  * @param sm_group     State machine group to be associated with confc
  *                     configuration cache.
  */
-int c2_confc_init(struct c2_confc *confc, const char *conf_source,
-		  const struct c2_buf *profile,
-		  struct c2_sm_group *sm_group);
+C2_INTERNAL int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+			      const struct c2_buf *profile,
+			      struct c2_sm_group *sm_group);
 
 /**
  * Finalises configuration client. Destroys configuration cache,
@@ -550,7 +550,7 @@ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
  * @pre  confc->cc_nr_ctx == 0
  * @pre  There are no opened (pinned) configuration objects.
  */
-void c2_confc_fini(struct c2_confc *confc);
+C2_INTERNAL void c2_confc_fini(struct c2_confc *confc);
 
 /* ------------------------------------------------------------------
  * context
@@ -609,9 +609,10 @@ struct c2_confc_ctx {
  * Initialises configuration retrieval context.
  * @pre  confc is initialised
  */
-void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *confc);
+C2_INTERNAL void c2_confc_ctx_init(struct c2_confc_ctx *ctx,
+				   struct c2_confc *confc);
 
-void c2_confc_ctx_fini(struct c2_confc_ctx *ctx);
+C2_INTERNAL void c2_confc_ctx_fini(struct c2_confc_ctx *ctx);
 
 /**
  * Returns true iff ctx->fc_mach has terminated or failed.
@@ -623,7 +624,7 @@ void c2_confc_ctx_fini(struct c2_confc_ctx *ctx);
  *   - `Filtered wake-ups' section in @ref chan
  *   - @ref confc-fspec-recipe1
  */
-bool c2_confc_ctx_is_completed(const struct c2_confc_ctx *ctx);
+C2_INTERNAL bool c2_confc_ctx_is_completed(const struct c2_confc_ctx *ctx);
 
 /**
  * Returns error status of asynchronous configuration retrieval operation.
@@ -634,7 +635,7 @@ bool c2_confc_ctx_is_completed(const struct c2_confc_ctx *ctx);
  *
  * @pre  c2_confc_ctx_is_completed(ctx)
  */
-int32_t c2_confc_ctx_error(const struct c2_confc_ctx *ctx);
+C2_INTERNAL int32_t c2_confc_ctx_error(const struct c2_confc_ctx *ctx);
 
 /**
  * Retrieves the resulting object of a configuration request.
@@ -650,7 +651,7 @@ int32_t c2_confc_ctx_error(const struct c2_confc_ctx *ctx);
  * @pre   ctx->fc_result != NULL
  * @post  ctx->fc_result == NULL
  */
-struct c2_conf_obj *c2_confc_ctx_result(struct c2_confc_ctx *ctx);
+C2_INTERNAL struct c2_conf_obj *c2_confc_ctx_result(struct c2_confc_ctx *ctx);
 
 /* ------------------------------------------------------------------
  * open/close
@@ -689,8 +690,9 @@ struct c2_conf_obj *c2_confc_ctx_result(struct c2_confc_ctx *ctx);
 #define c2_confc_open(ctx, origin, ...)                           \
 	c2_confc__open((ctx), (origin), (const struct c2_buf []){ \
 			__VA_ARGS__, C2_BUF_INIT0 })
-int c2_confc__open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
-		   const struct c2_buf path[]);
+C2_INTERNAL int c2_confc__open(struct c2_confc_ctx *ctx,
+			       struct c2_conf_obj *origin,
+			       const struct c2_buf path[]);
 
 /**
  * Opens configuration object synchronously.
@@ -717,8 +719,9 @@ int c2_confc__open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
 #define c2_confc_open_sync(result, origin, ...)                           \
 	c2_confc__open_sync((result), (origin), (const struct c2_buf []){ \
 			__VA_ARGS__, C2_BUF_INIT0 })
-int c2_confc__open_sync(struct c2_conf_obj **result, struct c2_conf_obj *origin,
-			const struct c2_buf path[]);
+C2_INTERNAL int c2_confc__open_sync(struct c2_conf_obj **result,
+				    struct c2_conf_obj *origin,
+				    const struct c2_buf path[]);
 
 /**
  * Closes configuration object opened with c2_confc_open() or
@@ -728,7 +731,7 @@ int c2_confc__open_sync(struct c2_conf_obj **result, struct c2_conf_obj *origin,
  *
  * @pre  ergo(obj != NULL, obj->co_nrefs > 0)
  */
-void c2_confc_close(struct c2_conf_obj *obj);
+C2_INTERNAL void c2_confc_close(struct c2_conf_obj *obj);
 
 /* ------------------------------------------------------------------
  * readdir
@@ -771,8 +774,9 @@ void c2_confc_close(struct c2_conf_obj *obj);
  * @post  ergo(C2_IN(retval, (C2_CONF_DIRNEXT, C2_CONF_DIREND)),
  *             ctx->fc_mach.sm_state == S_INITIAL)
  */
-int c2_confc_readdir(struct c2_confc_ctx *ctx, struct c2_conf_obj *dir,
-		     struct c2_conf_obj **pptr);
+C2_INTERNAL int c2_confc_readdir(struct c2_confc_ctx *ctx,
+				 struct c2_conf_obj *dir,
+				 struct c2_conf_obj **pptr);
 
 /**
  * Gets next directory entry synchronously.
@@ -801,7 +805,8 @@ int c2_confc_readdir(struct c2_confc_ctx *ctx, struct c2_conf_obj *dir,
  * c2_confc_close(entry);
  * @endcode
  */
-int c2_confc_readdir_sync(struct c2_conf_obj *dir, struct c2_conf_obj **pptr);
+C2_INTERNAL int c2_confc_readdir_sync(struct c2_conf_obj *dir,
+				      struct c2_conf_obj **pptr);
 
 /** @} confc_dfspec */
 #endif /* __COLIBRI_CONF_CONFC_H__ */

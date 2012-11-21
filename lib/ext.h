@@ -37,27 +37,31 @@ struct c2_ext {
 	c2_bindex_t e_end;
 };
 
-c2_bcount_t c2_ext_length(const struct c2_ext *ext);
-bool        c2_ext_is_in (const struct c2_ext *ext, c2_bindex_t index);
+C2_INTERNAL c2_bcount_t c2_ext_length(const struct c2_ext *ext);
+C2_INTERNAL bool c2_ext_is_in(const struct c2_ext *ext, c2_bindex_t index);
 
-bool c2_ext_are_overlapping(const struct c2_ext *e0, const struct c2_ext *e1);
-bool c2_ext_is_partof(const struct c2_ext *super, const struct c2_ext *sub);
-bool c2_ext_equal(const struct c2_ext *a, const struct c2_ext *b);
-bool c2_ext_is_empty(const struct c2_ext *ext);
-void c2_ext_intersection(const struct c2_ext *e0, const struct c2_ext *e1,
-			 struct c2_ext *result);
+C2_INTERNAL bool c2_ext_are_overlapping(const struct c2_ext *e0,
+					const struct c2_ext *e1);
+C2_INTERNAL bool c2_ext_is_partof(const struct c2_ext *super,
+				  const struct c2_ext *sub);
+C2_INTERNAL bool c2_ext_equal(const struct c2_ext *a, const struct c2_ext *b);
+C2_INTERNAL bool c2_ext_is_empty(const struct c2_ext *ext);
+C2_INTERNAL void c2_ext_intersection(const struct c2_ext *e0,
+				     const struct c2_ext *e1,
+				     struct c2_ext *result);
 /* must work correctly when minuend == difference */
-void c2_ext_sub(const struct c2_ext *minuend, const struct c2_ext *subtrahend,
-		struct c2_ext *difference);
+C2_INTERNAL void c2_ext_sub(const struct c2_ext *minuend,
+			    const struct c2_ext *subtrahend,
+			    struct c2_ext *difference);
 /* must work correctly when sum == either of terms. */
-void c2_ext_add(const struct c2_ext *term0, const struct c2_ext *term1,
-		struct c2_ext *sum);
+C2_INTERNAL void c2_ext_add(const struct c2_ext *term0,
+			    const struct c2_ext *term1, struct c2_ext *sum);
 
 /* what about signed? */
-c2_bindex_t c2_ext_cap(const struct c2_ext *ext2, c2_bindex_t val);
+C2_INTERNAL c2_bindex_t c2_ext_cap(const struct c2_ext *ext2, c2_bindex_t val);
 
 /** Tells if start of extent is less than end of extent. */
-bool c2_ext_is_valid(const struct c2_ext *ext);
+C2_INTERNAL bool c2_ext_is_valid(const struct c2_ext *ext);
 
 /** @} end of ext group */
 

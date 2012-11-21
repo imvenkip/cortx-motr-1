@@ -528,7 +528,7 @@ static int confd_service_fop_init(void)
 /**
  * Confd service initialisation function.
  */
-int c2_confd_global_init(void)
+C2_INTERNAL int c2_confd_global_init(void)
 {
         c2_reqh_service_type_register(&c2_confd_service_type);
         return c2_confd_service_fop_init();
@@ -537,7 +537,7 @@ int c2_confd_global_init(void)
 /**
  * Confd service finalisation function.
  */
-void c2_confd_global_fini(void)
+C2_INTERNAL void c2_confd_global_fini(void)
 {
         c2_reqh_service_type_unregister(&c2_confd_service_type);
 	c2_confd_service_fop_fini();

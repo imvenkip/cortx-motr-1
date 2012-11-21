@@ -118,8 +118,9 @@ int ff2c_h_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt)
 			out("extern struct c2_xcode_type *%s;\n", t->t_xc_name);
 	}
 	out("\n"
-	    "void c2_xc_%s_init(void);\n"
-	    "void c2_xc_%s_fini(void);\n\n", opt->go_basename, opt->go_basename);
+	    "C2_INTERNAL void c2_xc_%s_init(void);\n"
+	    "C2_INTERNAL void c2_xc_%s_fini(void);\n\n", opt->go_basename,
+	    opt->go_basename);
 	out("/* %s */\n"
 	    "#endif\n\n", opt->go_guardname);
 	return 0;
@@ -227,7 +228,7 @@ int ff2c_c_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt)
 		type_def(t);
 
 	out("\n\n"
-	    "void c2_xc_%s_init(void)\n"
+	    "C2_INTERNAL void c2_xc_%s_init(void)\n"
 	    "{\n", opt->go_basename);
 
 	for (t = ff->ff_type.l_head; t != NULL; t = t->t_next) {
@@ -235,7 +236,7 @@ int ff2c_c_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt)
 		out("\n");
 	}
 	out("}\n"
-	    "void c2_xc_%s_fini(void)\n{}\n", opt->go_basename);
+	    "C2_INTERNAL void c2_xc_%s_fini(void)\n{}\n", opt->go_basename);
 
 	return 0;
 }

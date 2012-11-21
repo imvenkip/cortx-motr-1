@@ -18,17 +18,19 @@
  */
 
 #include "stob/stob_id.h"
-bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
+C2_INTERNAL bool c2_stob_id_eq(const struct c2_stob_id *id0,
+			       const struct c2_stob_id *id1)
 {
 	return c2_uint128_eq(&id0->si_bits, &id1->si_bits);
 }
 
-int c2_stob_id_cmp(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
+C2_INTERNAL int c2_stob_id_cmp(const struct c2_stob_id *id0,
+			       const struct c2_stob_id *id1)
 {
 	return c2_uint128_cmp(&id0->si_bits, &id1->si_bits);
 }
 
-bool c2_stob_id_is_set(const struct c2_stob_id *id)
+C2_INTERNAL bool c2_stob_id_is_set(const struct c2_stob_id *id)
 {
 	static const struct c2_stob_id zero = {
 		.si_bits = {

@@ -96,8 +96,8 @@ struct c2_fol {
 
    @post ergo(result == 0, c2_lsn_is_valid(fol->f_lsn))
  */
-int  c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env);
-void c2_fol_fini(struct c2_fol *fol);
+C2_INTERNAL int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env);
+C2_INTERNAL void c2_fol_fini(struct c2_fol *fol);
 
 /**
    Constructs a in-db representation of a fol record in an allocated buffer.
@@ -107,14 +107,15 @@ void c2_fol_fini(struct c2_fol *fol);
    c2_fol_rec_type_ops::rto_pack_size(). A buffer is allocated and the record is
    spilled into it. It's up to the caller to free the buffer when necessary.
  */
-int  c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *buf);
+C2_INTERNAL int c2_fol_rec_pack(struct c2_fol_rec_desc *desc,
+				struct c2_buf *buf);
 
 /**
    Reserves and returns lsn.
 
    @post c2_lsn_is_valid(result);
  */
-c2_lsn_t c2_fol_lsn_allocate(struct c2_fol *fol);
+C2_INTERNAL c2_lsn_t c2_fol_lsn_allocate(struct c2_fol *fol);
 
 /**
    Adds a record to the fol, in the transaction context.
@@ -129,16 +130,17 @@ c2_lsn_t c2_fol_lsn_allocate(struct c2_fol *fol);
    @pre c2_lsn_is_valid(drec->rd_lsn);
    @see c2_fol_add_buf()
  */
-int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
-	       struct c2_fol_rec_desc *drec);
+C2_INTERNAL int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
+			   struct c2_fol_rec_desc *drec);
 
 /**
    Similar to c2_fol_add(), but with a record already packed into a buffer.
 
    @pre c2_lsn_is_valid(drec->rd_lsn);
  */
-int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
-		   struct c2_fol_rec_desc *drec, struct c2_buf *buf);
+C2_INTERNAL int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
+			       struct c2_fol_rec_desc *drec,
+			       struct c2_buf *buf);
 
 /**
    Forces the log.
@@ -148,7 +150,7 @@ int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
 
    The implementation is free to make other records persistent as it sees fit.
  */
-int c2_fol_force(struct c2_fol *fol, c2_lsn_t upto);
+C2_INTERNAL int c2_fol_force(struct c2_fol *fol, c2_lsn_t upto);
 
 /**
    Reference to a file system object from a fol record.
@@ -298,15 +300,15 @@ struct c2_fol_rec {
    @post ergo(result == 0, out->fr_d.rd_refcount > 0)
    @post ergo(result == 0, c2_fol_rec_invariant(&out->fr_d))
  */
-int  c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn,
-		       struct c2_fol_rec *out);
+C2_INTERNAL int c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx,
+				  c2_lsn_t lsn, struct c2_fol_rec *out);
 /**
    Finalizes the record, returned by the c2_fol_rec_lookup() or c2_fol_batch()
    and releases all associated resources.
  */
-void c2_fol_rec_fini  (struct c2_fol_rec *rec);
+C2_INTERNAL void c2_fol_rec_fini(struct c2_fol_rec *rec);
 
-bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec);
+C2_INTERNAL bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec);
 
 /**
    Adds a reference to a record. The record cannot be culled until its reference
@@ -314,7 +316,7 @@ bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec);
 
    @see c2_fol_rec_put()
  */
-void c2_fol_rec_get(struct c2_fol_rec *rec);
+C2_INTERNAL void c2_fol_rec_get(struct c2_fol_rec *rec);
 
 /**
    Removes a reference to a record.
@@ -326,7 +328,7 @@ void c2_fol_rec_get(struct c2_fol_rec *rec);
 
    @see c2_fol_rec_get()
  */
-void c2_fol_rec_put(struct c2_fol_rec *rec);
+C2_INTERNAL void c2_fol_rec_put(struct c2_fol_rec *rec);
 
 /**
    Returns a batch of no more than nr records, starting with the given
@@ -340,8 +342,8 @@ void c2_fol_rec_put(struct c2_fol_rec *rec);
    @post \forall i >= 0 && i < result, (out[i]->fr_d.rd_lsn >= lsn &&
                                         out[i]->fr_d.rd_refcount > 0)
  */
-int c2_fol_batch(struct c2_fol *fol, c2_lsn_t lsn, uint32_t nr,
-		 struct c2_fol_rec *out);
+C2_INTERNAL int c2_fol_batch(struct c2_fol *fol, c2_lsn_t lsn, uint32_t nr,
+			     struct c2_fol_rec *out);
 
 struct c2_fol_rec_type_ops;
 
@@ -372,7 +374,7 @@ struct c2_fol_rec_type {
 
    @see c2_fol_rec_type_unregister()
  */
-int c2_fol_rec_type_register(const struct c2_fol_rec_type *rtype);
+C2_INTERNAL int c2_fol_rec_type_register(const struct c2_fol_rec_type *rtype);
 
 /**
    Dual to c2_fol_rec_type_register().
@@ -380,14 +382,16 @@ int c2_fol_rec_type_register(const struct c2_fol_rec_type *rtype);
    @pre c2_fol_rec_type_lookup(rtype->rt_opcode) == rtype
    @post c2_fol_rec_type_lookup(rtype->rt_opcode) == NULL
  */
-void c2_fol_rec_type_unregister(const struct c2_fol_rec_type *rtype);
+C2_INTERNAL void c2_fol_rec_type_unregister(const struct c2_fol_rec_type
+					    *rtype);
 
 /**
    Finds a record type with a given opcode.
 
    @post ergo(result != NULL, result->rt_opcode == opcode)
  */
-const struct c2_fol_rec_type *c2_fol_rec_type_lookup(uint32_t opcode);
+C2_INTERNAL const struct c2_fol_rec_type *c2_fol_rec_type_lookup(uint32_t
+								 opcode);
 
 struct c2_fol_rec_type_ops {
 	/**
@@ -432,8 +436,8 @@ struct c2_fol_rec_type_ops {
 	void (*rto_pack)(struct c2_fol_rec_desc *desc, void *buf);
 };
 
-int  c2_fols_init(void);
-void c2_fols_fini(void);
+C2_INTERNAL int c2_fols_init(void);
+C2_INTERNAL void c2_fols_fini(void);
 
 /** @} end of fol group */
 

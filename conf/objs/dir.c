@@ -21,10 +21,10 @@
 #include "conf/objs/common.h"
 #include "colibri/magic.h" /* C2_CONF_OBJ_MAGIC, C2_CONF_DIR_MAGIC */
 
-C2_TL_DESCR_DEFINE(c2_conf_dir, "c2_conf_dir::cd_items", , struct c2_conf_obj,
-		   co_dir_link, co_gen_magic, C2_CONF_OBJ_MAGIC,
-		   C2_CONF_DIR_MAGIC);
-C2_TL_DEFINE(c2_conf_dir, , struct c2_conf_obj);
+C2_TL_DESCR_DEFINE(c2_conf_dir, "c2_conf_dir::cd_items", C2_INTERNAL,
+		   struct c2_conf_obj, co_dir_link, co_gen_magic,
+		   C2_CONF_OBJ_MAGIC, C2_CONF_DIR_MAGIC);
+C2_TL_DEFINE(c2_conf_dir, C2_INTERNAL, struct c2_conf_obj);
 
 static bool dir_check(const void *bob)
 {
@@ -189,7 +189,7 @@ static const struct c2_conf_obj_ops dir_ops = {
 	.coo_delete    = dir_delete
 };
 
-struct c2_conf_obj *c2_conf__dir_create(void)
+C2_INTERNAL struct c2_conf_obj *c2_conf__dir_create(void)
 {
 	struct c2_conf_dir *x;
 	struct c2_conf_obj *ret;

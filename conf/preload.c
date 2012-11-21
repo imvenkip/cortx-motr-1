@@ -34,7 +34,8 @@
 #define XC_OBJ(xt, ptr) (&(struct c2_xcode_obj)	\
 		{ .xo_type = (xt), .xo_ptr = (ptr) })
 
-int c2_conf_parse(const char *src, struct confx_object *dest, size_t n)
+C2_INTERNAL int c2_conf_parse(const char *src, struct confx_object *dest,
+			      size_t n)
 {
 	struct enconf rd_enc_ext;
 	int           i;
@@ -59,7 +60,7 @@ int c2_conf_parse(const char *src, struct confx_object *dest, size_t n)
 	return rd_enc_ext.ec_nr;
 }
 
-size_t c2_confx_obj_nr(const char *src)
+C2_INTERNAL size_t c2_confx_obj_nr(const char *src)
 {
 	struct enconf rd_enc_ext;
 	int	      result;
@@ -85,7 +86,7 @@ static void arr_buf_fini(struct arr_buf *a)
 	c2_free(a->ab_elems);
 }
 
-void c2_confx_fini(struct confx_object *xobjs, size_t n)
+C2_INTERNAL void c2_confx_fini(struct confx_object *xobjs, size_t n)
 {
 	int             i;
 	struct confx_u *x;

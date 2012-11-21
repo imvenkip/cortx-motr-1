@@ -262,8 +262,8 @@ static void __unit_to_cobfid(struct c2_pdclust_layout *pl,
 	c2_layout_enum_get(le, ta->ta_obj, gfid, cfid_out);
 }
 
-uint64_t nr_local_units(struct c2_sns_repair_cm *rcm,
-			const struct c2_fid *fid, uint64_t group)
+C2_INTERNAL uint64_t nr_local_units(struct c2_sns_repair_cm *rcm,
+				    const struct c2_fid *fid, uint64_t group)
 {
 	struct c2_sns_repair_pdclust_layout *rpl = &rcm->rc_it.ri_pl;
 	struct c2_pdclust_src_addr           sa;
@@ -300,7 +300,7 @@ static uint64_t __spare_unit_nr(const struct c2_sns_repair_pdclust_layout *rpl,
 	return rpl->rpl_N + rpl->rpl_K + 1 - 1;
 }
 
-void spare_unit_to_cob(struct c2_sns_repair_ag *rag)
+C2_INTERNAL void spare_unit_to_cob(struct c2_sns_repair_ag *rag)
 {
 	struct c2_sns_repair_cm             *rcm = cm2sns(rag->sag_base.cag_cm);
 	struct c2_sns_repair_pdclust_layout *rpl = &rcm->rc_it.ri_pl;
@@ -624,7 +624,7 @@ static int iter_cob_next(struct c2_sns_repair_cm *rcm)
  * Transitions the data iterator (c2_sns_repair_cm::rc_it) to ITPH_FID_NEXT
  * in-order to find the first GOB and parity group that needs repair.
  */
-int iter_init(struct c2_sns_repair_cm *rcm)
+C2_INTERNAL int iter_init(struct c2_sns_repair_cm *rcm)
 {
 	iter_phase_set(&rcm->rc_it, ITPH_FID_NEXT);
 	iter_stop = false;
@@ -645,7 +645,7 @@ static int (*iter_action[])(struct c2_sns_repair_cm *rcm) = {
  * Calculates next data object to be re-structured and accordingly populates
  * the given copy packet.
  */
-int c2_sns_repair_iter_next(struct c2_cm *cm, struct c2_cm_cp *cp)
+C2_INTERNAL int c2_sns_repair_iter_next(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cm *rcm;
 	int                      rc;
@@ -791,7 +791,7 @@ static void layout_fini(struct c2_sns_repair_cm *rcm)
 	c2_layout_domain_fini(&rcm->rc_lay_dom);
 }
 
-int c2_sns_repair_iter_init(struct c2_sns_repair_cm *rcm)
+C2_INTERNAL int c2_sns_repair_iter_init(struct c2_sns_repair_cm *rcm)
 {
 	struct c2_cm               *cm;
 	int                         rc;
@@ -813,7 +813,7 @@ int c2_sns_repair_iter_init(struct c2_sns_repair_cm *rcm)
 	return rc;
 }
 
-void c2_sns_repair_iter_fini(struct c2_sns_repair_cm *rcm)
+C2_INTERNAL void c2_sns_repair_iter_fini(struct c2_sns_repair_cm *rcm)
 {
 	C2_PRE(rcm != NULL);
 

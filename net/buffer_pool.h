@@ -151,7 +151,8 @@ struct c2_net_buffer_pool_ops {
 };
 
 /** Checks the buffer pool. */
-bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
+C2_INTERNAL bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool
+					      *pool);
 
 /**
    Initializes fields of a buffer pool and tlist, which are used to populate
@@ -167,10 +168,11 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
    @pre seg_nr   <= c2_net_domain_get_max_buffer_segments(ndom) &&
 	seg_size <= c2_net_domain_get_max_buffer_segment_size(ndom)
  */
-int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
-			    struct c2_net_domain *ndom, uint32_t threshold,
-			    uint32_t seg_nr, c2_bcount_t seg_size,
-			    uint32_t colours, unsigned shift);
+C2_INTERNAL int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
+					struct c2_net_domain *ndom,
+					uint32_t threshold, uint32_t seg_nr,
+					c2_bcount_t seg_size, uint32_t colours,
+					unsigned shift);
 
 /**
    It adds the buf_nr buffers in the buffer pool.
@@ -183,24 +185,26 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
    @param buf_nr Number of buffers to be added in the pool.
    @return result number of buffers it managed to allocate.
 */
-int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
-				 uint32_t buf_nr);
+C2_INTERNAL int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
+					     uint32_t buf_nr);
 /** Finalizes a buffer pool.
    @pre c2_net_buffer_pool_is_not_locked(pool)
  */
-void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool);
+C2_INTERNAL void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool);
 
 /** Acquires the lock on buffer pool. */
-void c2_net_buffer_pool_lock(struct c2_net_buffer_pool *pool);
+C2_INTERNAL void c2_net_buffer_pool_lock(struct c2_net_buffer_pool *pool);
 
 /** Check whether buffer pool is locked or not. */
-bool c2_net_buffer_pool_is_locked(const struct c2_net_buffer_pool *pool);
+C2_INTERNAL bool c2_net_buffer_pool_is_locked(const struct c2_net_buffer_pool
+					      *pool);
 
 /** Returns true when buffer pool is not locked. */
-bool c2_net_buffer_pool_is_not_locked(const struct c2_net_buffer_pool *pool);
+C2_INTERNAL bool c2_net_buffer_pool_is_not_locked(const struct
+						  c2_net_buffer_pool *pool);
 
 /** Releases the lock on buffer pool. */
-void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
+C2_INTERNAL void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
 
 /**
    Gets a buffer from the pool.
@@ -212,8 +216,10 @@ void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
    @post ergo(result != NULL, result->nb_flags & C2_NET_BUF_REGISTERED)
    @post ergo(result != NULL, result->nb_pool == pool)
  */
-struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
-					     uint32_t colour);
+C2_INTERNAL struct c2_net_buffer *c2_net_buffer_pool_get(struct
+							 c2_net_buffer_pool
+							 *pool,
+							 uint32_t colour);
 
 /**
    Puts the buffer back to the pool.
@@ -225,14 +231,15 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
    @pre (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
         !(buf->nb_flags & C2_NET_BUF_QUEUED)
  */
-void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
-			    struct c2_net_buffer *buf, uint32_t colour);
+C2_INTERNAL void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
+					struct c2_net_buffer *buf,
+					uint32_t colour);
 
 /**
    Removes a buffer from the pool to prune it.
    @pre c2_net_buffer_pool_is_locked(pool)
  */
-bool c2_net_buffer_pool_prune(struct c2_net_buffer_pool *pool);
+C2_INTERNAL bool c2_net_buffer_pool_prune(struct c2_net_buffer_pool *pool);
 
 /** Buffer pool. */
 struct c2_net_buffer_pool {

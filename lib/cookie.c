@@ -54,24 +54,24 @@
 
 static uint64_t cookie_generation;
 
-extern bool c2_arch_addr_is_sane(const void *addr);
-extern int c2_arch_cookie_global_init(void);
-extern void c2_arch_cookie_global_fini(void);
+C2_INTERNAL bool c2_arch_addr_is_sane(const void *addr);
+C2_INTERNAL int c2_arch_cookie_global_init(void);
+C2_INTERNAL void c2_arch_cookie_global_fini(void);
 
-int c2_cookie_global_init(void)
+C2_INTERNAL int c2_cookie_global_init(void)
 {
 	cookie_generation = c2_time_now();
 	return c2_arch_cookie_global_init();
 }
 
-void c2_cookie_new(uint64_t *gen)
+C2_INTERNAL void c2_cookie_new(uint64_t * gen)
 {
 	C2_PRE(gen != NULL);
 
 	*gen = ++cookie_generation;
 }
 
-void c2_cookie_init(struct c2_cookie *cookie, uint64_t *obj)
+C2_INTERNAL void c2_cookie_init(struct c2_cookie *cookie, uint64_t * obj)
 {
 	C2_PRE(cookie != NULL);
 	C2_PRE(obj != NULL);
@@ -80,13 +80,14 @@ void c2_cookie_init(struct c2_cookie *cookie, uint64_t *obj)
 	cookie->co_generation = *obj;
 }
 
-bool c2_addr_is_sane(const uint64_t *addr)
+C2_INTERNAL bool c2_addr_is_sane(const uint64_t * addr)
 {
 	return addr > (uint64_t *)4096 && C2_IS_8ALIGNED(addr) &&
 		c2_arch_addr_is_sane(addr);
 }
 
-int c2_cookie_dereference(const struct c2_cookie *cookie, uint64_t **addr)
+C2_INTERNAL int c2_cookie_dereference(const struct c2_cookie *cookie,
+				      uint64_t ** addr)
 {
 	uint64_t *obj;
 
@@ -101,7 +102,7 @@ int c2_cookie_dereference(const struct c2_cookie *cookie, uint64_t **addr)
 		return -EPROTO;
 }
 
-void c2_cookie_global_fini(void)
+C2_INTERNAL void c2_cookie_global_fini(void)
 {
 	c2_arch_cookie_global_fini();
 }

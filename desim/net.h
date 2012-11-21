@@ -82,22 +82,23 @@ struct net_rpc {
 	uint64_t            nr_magic;
 };
 
-void net_srv_init(struct sim *s, struct net_srv *srv);
-void net_srv_fini(struct net_srv *srv);
+C2_INTERNAL void net_srv_init(struct sim *s, struct net_srv *srv);
+C2_INTERNAL void net_srv_fini(struct net_srv *srv);
 
-void net_init(struct net_conf *net);
-void net_fini(struct net_conf *net);
+C2_INTERNAL void net_init(struct net_conf *net);
+C2_INTERNAL void net_fini(struct net_conf *net);
 
-void net_rpc_init(struct net_rpc *rpc, struct net_conf *conf,
-		  struct net_srv *srv, struct c2_stob_id *id,
-		  unsigned long long offset, unsigned long nob);
-void net_rpc_fini(struct net_rpc *rpc);
-void net_rpc_send(struct sim_thread *t, struct net_rpc *rpc);
-void net_rpc_bulk(struct sim_thread *t, struct net_rpc *rpc);
-void net_rpc_process(struct sim_thread *t,
-		     struct net_conf *net, struct net_srv *srv,
-		     struct c2_stob_id *id, unsigned long long offset,
-		     unsigned long count);
+C2_INTERNAL void net_rpc_init(struct net_rpc *rpc, struct net_conf *conf,
+			      struct net_srv *srv, struct c2_stob_id *id,
+			      unsigned long long offset, unsigned long nob);
+C2_INTERNAL void net_rpc_fini(struct net_rpc *rpc);
+C2_INTERNAL void net_rpc_send(struct sim_thread *t, struct net_rpc *rpc);
+C2_INTERNAL void net_rpc_bulk(struct sim_thread *t, struct net_rpc *rpc);
+C2_INTERNAL void net_rpc_process(struct sim_thread *t,
+				 struct net_conf *net, struct net_srv *srv,
+				 struct c2_stob_id *id,
+				 unsigned long long offset,
+				 unsigned long count);
 
 #endif /* __COLIBRI_DESIM_NET_H__ */
 

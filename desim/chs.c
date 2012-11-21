@@ -35,13 +35,13 @@
    @{
  */
 
-extern long long int llabs(long long int j);
+long long int llabs(long long int j);
 
 static void chs_submit(struct storage_dev *dev,
 		       enum storage_req_type type,
 		       sector_t sector, unsigned long count);
 
-void chs_conf_init(struct chs_conf *conf)
+C2_INTERNAL void chs_conf_init(struct chs_conf *conf)
 {
 	sim_time_t track;
 	sim_time_t avg;
@@ -121,13 +121,14 @@ void chs_conf_init(struct chs_conf *conf)
 	printf("total of %llu sectors\n", sectors_cum);
 }
 
-void chs_conf_fini(struct chs_conf *conf)
+C2_INTERNAL void chs_conf_fini(struct chs_conf *conf)
 {
 	if (conf->cc_zone != NULL)
 		free(conf->cc_zone);
 }
 
-void chs_dev_init(struct chs_dev *dev, struct sim *sim, struct chs_conf *conf)
+C2_INTERNAL void chs_dev_init(struct chs_dev *dev, struct sim *sim,
+			      struct chs_conf *conf)
 {
 	struct storage_dev *cd = &dev->cd_storage;
 	char *name = cd->sd_name;
@@ -144,7 +145,7 @@ void chs_dev_init(struct chs_dev *dev, struct sim *sim, struct chs_conf *conf)
 	cnt_init(&dev->cd_write_size, NULL, "write-size@%s", name);
 }
 
-void chs_dev_fini(struct chs_dev *dev)
+C2_INTERNAL void chs_dev_fini(struct chs_dev *dev)
 {
 	cnt_fini(&dev->cd_write_size);
 	cnt_fini(&dev->cd_read_size);

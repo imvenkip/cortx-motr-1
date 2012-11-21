@@ -243,7 +243,7 @@
 static bool poolmach_is_initialised = false;
 static unsigned poolmach_key = 0;
 
-int c2_ios_poolmach_init(struct c2_reqh *reqh)
+C2_INTERNAL int c2_ios_poolmach_init(struct c2_reqh *reqh)
 {
 	int                 rc;
 	struct c2_poolmach *poolmach;
@@ -272,7 +272,7 @@ out:
 	return rc;
 }
 
-struct c2_poolmach *c2_ios_poolmach_get(struct c2_reqh *reqh)
+C2_INTERNAL struct c2_poolmach *c2_ios_poolmach_get(struct c2_reqh *reqh)
 {
 	struct c2_poolmach *pm;
 
@@ -285,7 +285,7 @@ struct c2_poolmach *c2_ios_poolmach_get(struct c2_reqh *reqh)
 	return pm;
 }
 
-void c2_ios_poolmach_fini(struct c2_reqh *reqh)
+C2_INTERNAL void c2_ios_poolmach_fini(struct c2_reqh *reqh)
 {
 	struct c2_poolmach *pm;
 	C2_PRE(reqh != NULL);
@@ -299,10 +299,13 @@ void c2_ios_poolmach_fini(struct c2_reqh *reqh)
 	c2_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
-int c2_ios_poolmach_version_updates_pack(struct c2_poolmach         *pm,
-					 const struct c2_fv_version *cli,
-					 struct c2_fv_version       *version,
-					 struct c2_fv_updates       *updates)
+C2_INTERNAL int c2_ios_poolmach_version_updates_pack(struct c2_poolmach *pm,
+						     const struct c2_fv_version
+						     *cli,
+						     struct c2_fv_version
+						     *version,
+						     struct c2_fv_updates
+						     *updates)
 {
 	struct c2_pool_version_numbers  curr;
 	struct c2_pool_version_numbers *verp;

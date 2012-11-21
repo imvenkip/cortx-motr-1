@@ -138,7 +138,8 @@ enum {
    @retval -1 if any of the two strings do not have a colon character.
    @retval int Return value like strcmp().
  */
-int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2);
+C2_INTERNAL int c2_net_lnet_ep_addr_net_cmp(const char *addr1,
+					    const char *addr2);
 
 /**
    Gets a list of strings corresponding to the local LNET network interfaces.
@@ -146,12 +147,14 @@ int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2);
    @param dom Pointer to the domain.
    @param addrs A NULL-terminated (like argv) array of NID strings is returned.
  */
-int c2_net_lnet_ifaces_get(struct c2_net_domain *dom, char * const **addrs);
+C2_INTERNAL int c2_net_lnet_ifaces_get(struct c2_net_domain *dom,
+				       char *const **addrs);
 
 /**
    Releases the string array returned by c2_net_lnet_ifaces_get().
  */
-void c2_net_lnet_ifaces_put(struct c2_net_domain *dom, char * const **addrs);
+C2_INTERNAL void c2_net_lnet_ifaces_put(struct c2_net_domain *dom,
+					char *const **addrs);
 
 /**
    Sets the transfer machine statistics reporting interval.
@@ -162,8 +165,8 @@ void c2_net_lnet_ifaces_put(struct c2_net_domain *dom, char * const **addrs);
    tm->ntm_state <= C2_NET_TM_STOPPING &&
    secs > 0
  */
-void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,
-				      uint64_t secs);
+C2_INTERNAL void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,
+						  uint64_t secs);
 
 /**
    Gets the transfer machine statistics reporting interval.
@@ -171,17 +174,20 @@ void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,
    @pre tm->ntm_state >= C2_NET_TM_INITIALIZED &&
    tm->ntm_state <= C2_NET_TM_STOPPING
  */
-uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc *tm);
+C2_INTERNAL uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc
+						      *tm);
 
 /* init and fini functions for colibri init */
-int c2_net_lnet_init(void);
-void c2_net_lnet_fini(void);
+C2_INTERNAL int c2_net_lnet_init(void);
+C2_INTERNAL void c2_net_lnet_fini(void);
 
 /*
    Debug support.
  */
-void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom, unsigned dbg);
-void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm, unsigned dbg);
+C2_INTERNAL void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom,
+					   unsigned dbg);
+C2_INTERNAL void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm,
+					  unsigned dbg);
 
 /**
    @}
