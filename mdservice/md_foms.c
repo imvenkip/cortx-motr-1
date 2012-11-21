@@ -17,6 +17,7 @@
  * Original creation date: 03/29/2011
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_COB
 #include <sys/stat.h>    /* S_ISDIR */
 
 #include "lib/misc.h"   /* C2_SET0 */
@@ -220,13 +221,17 @@ static int c2_md_create_tick(struct c2_fom *fom)
         c2_md_fid_wire2mem(&pfid, &body->b_pfid);
         c2_md_fid_wire2mem(&tfid, &body->b_tfid);
 
+        C2_LOG(C2_DEBUG, "Create [%lx:%lx]/[%lx:%lx] %*s",
+               pfid.f_container, pfid.f_key, tfid.f_container, tfid.f_key,
+               attr.ca_namelen, attr.ca_name);
+
         c2_fom_block_enter(fom);
-        rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid, &tfid,
-                          &attr, &fom->fo_tx.tx_dbtx);
+        rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid,
+                          &tfid, &attr, &fom->fo_tx.tx_dbtx);
         c2_fom_block_leave(fom);
 out:
+        C2_LOG(C2_DEBUG, "Create finished with %d", rc);
         rep->c_body.b_rc = rc;
-        c2_fom_err_set(fom, rc);
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -292,7 +297,6 @@ static int c2_md_link_tick(struct c2_fom *fom)
         c2_fom_block_leave(fom);
 out:
         rep->l_body.b_rc = rc;
-        c2_fom_err_set(fom, rc);
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -375,7 +379,6 @@ static int c2_md_unlink_tick(struct c2_fom *fom)
         c2_fom_block_leave(fom);
 out:
         rep->u_body.b_rc = rc;
-        c2_fom_err_set(fom, rc);
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -519,7 +522,6 @@ static int c2_md_rename_tick(struct c2_fom *fom)
         c2_fom_block_leave(fom);
 out:
         rep->r_body.b_rc = rc;
-        c2_fom_err_set(fom, rc);
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -609,7 +611,6 @@ static int c2_md_open_tick(struct c2_fom *fom)
         c2_fom_block_leave(fom);
 out:
         rep->o_body.b_rc = rc;
-        c2_fom_err_set(fom, rc);
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -697,7 +698,6 @@ static int c2_md_close_tick(struct c2_fom *fom)
         c2_fom_block_leave(fom);
 out:
         rep->c_body.b_rc = rc;
-        c2_fom_err_set(fom, rc);
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -774,7 +774,6 @@ static int c2_md_setattr_tick(struct c2_fom *fom)
         c2_fom_block_leave(fom);
 out:
         rep->s_body.b_rc = rc;
-        c2_fom_err_set(fom, rc);
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -835,12 +834,21 @@ static int c2_md_lookup_tick(struct c2_fom *fom)
 
         name = (char *)req->l_name.s_buf;
         namelen = req->l_name.s_len;
+
+        C2_LOG(C2_DEBUG, "Lookup for \"%*s\" in object [%lx:%lx]", namelen,
+               name, pfid.f_container, pfid.f_key);
+
         rc = c2_mdstore_lookup(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid,
                                name, namelen, &cob, &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
+                C2_LOG(C2_DEBUG, "Lookup for \"%*s\" in object [%lx:%lx] failed with %d",
+                       namelen, name, pfid.f_container, pfid.f_key, rc);
                 c2_fom_block_leave(fom);
                 goto out;
         }
+        C2_LOG(C2_DEBUG, "Found object [%lx:%lx] go for getattr",
+               cob->co_fid->f_container, cob->co_fid->f_key);
+
         rc = c2_mdstore_getattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
                                 &attr, &fom->fo_tx.tx_dbtx);
         c2_cob_put(cob);
@@ -848,10 +856,13 @@ static int c2_md_lookup_tick(struct c2_fom *fom)
         if (rc == 0) {
                 attr.ca_flags = C2_COB_ALL;
                 md_fop_attr2cob(&rep->l_body, &attr);
+        } else {
+                C2_LOG(C2_DEBUG, "Getattr on object [%lx:%lx] failed with %d",
+                       cob->co_fid->f_container, cob->co_fid->f_key, rc);
         }
 out:
+        C2_LOG(C2_DEBUG, "Lookup finished with %d", rc);
         rep->l_body.b_rc = rc;
-        c2_fom_err_set(fom, rc);
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -907,15 +918,15 @@ static int c2_md_getattr_tick(struct c2_fom *fom)
         c2_md_fid_wire2mem(&fid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
-        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob,
-                                C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
+        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid,
+                               &cob, C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
                 goto out;
         }
 
-        rc = c2_mdstore_getattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob, &attr,
-                                 &fom->fo_tx.tx_dbtx);
+        rc = c2_mdstore_getattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                                cob, &attr, &fom->fo_tx.tx_dbtx);
         c2_cob_put(cob);
         c2_fom_block_leave(fom);
         if (rc == 0) {
@@ -924,7 +935,6 @@ static int c2_md_getattr_tick(struct c2_fom *fom)
         }
 out:
         rep->g_body.b_rc = rc;
-        c2_fom_err_set(fom, rc);
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -1058,7 +1068,6 @@ out:
          * local state machine requires "normal" errors. Let's adopt @rc.
          */
         rc = (rc < 0 ? rc : 0);
-        c2_fom_err_set(fom, rc);
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -1372,6 +1381,7 @@ C2_INTERNAL int c2_md_req_fom_create(struct c2_fop *fop, struct c2_fom **m)
 
         return 0;
 }
+#undef C2_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

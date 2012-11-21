@@ -219,11 +219,6 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_op             = &c2t1fs_super_operations;
 
 	root_inode = c2t1fs_root_iget(sb);
-	if (root_inode == NULL) {
-		rc = -ENOMEM;
-	        C2_LOG(C2_FATAL, "c2t1fs_root_iget() failed with %d", rc);
-		goto out_map_fini;
-	}
 	if (IS_ERR(root_inode)) {
 	        rc = PTR_ERR(root_inode);
 	        C2_LOG(C2_FATAL, "c2t1fs_root_iget() failed with %d", rc);

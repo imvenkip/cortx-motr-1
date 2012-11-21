@@ -277,17 +277,14 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
         mo.mo_attr.ca_namelen = dentry->d_name.len;
 
 	rc = c2t1fs_mds_cob_lookup(csb, &mo, &rep);
-	if (rc != 0) {
-	        C2_LOG(C2_ERROR, "Lookup \"%*s\" failed: %d",
-	               mo.mo_attr.ca_namelen, mo.mo_attr.ca_name, rc);
-	        return ERR_PTR(rc);
-	}
-
-        fid_wire2mem(&mo.mo_attr.ca_tfid, &rep->l_body.b_tfid);
-        inode = c2t1fs_iget(dir->i_sb, &mo.mo_attr.ca_tfid, &rep->l_body);
-	if (inode == NULL || IS_ERR(inode)) {
-		C2_LEAVE("ERROR: %p", ERR_CAST(inode));
-		return ERR_CAST(inode);
+	if (rc == 0) {
+                fid_wire2mem(&mo.mo_attr.ca_tfid, &rep->l_body.b_tfid);
+                inode = c2t1fs_iget(dir->i_sb, &mo.mo_attr.ca_tfid, &rep->l_body);
+	        if (IS_ERR(inode)) {
+		        C2_LEAVE("ERROR: %p", ERR_CAST(inode));
+	                c2t1fs_fs_unlock(csb);
+		        return ERR_CAST(inode);
+	        }
 	}
 
 	c2t1fs_fs_unlock(csb);

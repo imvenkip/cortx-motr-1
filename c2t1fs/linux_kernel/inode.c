@@ -332,20 +332,21 @@ C2_INTERNAL struct inode *c2t1fs_iget(struct super_block *sb,
 	 */
 	inode = iget5_locked(sb, hash, c2t1fs_inode_test, c2t1fs_inode_set,
                              (void *)fid);
-	if (inode != NULL) {
-	        if ((inode->i_state & I_NEW) != 0) {
-	                /* New inode, set its fields from @body */
-		        err = c2t1fs_inode_read(inode, body);
-	        } else if (!(inode->i_state & (I_FREEING | I_CLEAR))) {
-	                /* Not a new inode, let's update its attributes from @body */
-	                err = c2t1fs_inode_update(inode, body);
-	        }
-		if (err != 0)
-		        goto out_err;
-		unlock_new_inode(inode);
-	        C2_LEAVE("inode: %p", inode);
-	        return inode;
+        if (IS_ERR(inode)) {
+	        C2_LEAVE("inode: %p", ERR_CAST(inode));
+	        return ERR_CAST(inode);
+        }
+	
+        if ((inode->i_state & I_NEW) != 0) {
+	        /* New inode, set its fields from @body */
+	        err = c2t1fs_inode_read(inode, body);
+	} else if (!(inode->i_state & (I_FREEING | I_CLEAR))) {
+	        /* Not a new inode, let's update its attributes from @body */
+	        err = c2t1fs_inode_update(inode, body);
 	}
+	if (err != 0)
+	        goto out_err;
+	unlock_new_inode(inode);
 	C2_LEAVE("inode: %p", inode);
 	return inode;
 
