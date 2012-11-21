@@ -1159,13 +1159,19 @@ static int balloc_update_db(struct c2_balloc *colibri,
 		balloc_debug_dump_extent("current=", cur);
 
 		if (found && cur && tgt->e_end > cur->e_start) {
-			C2_LOG(C2_ERROR, "!!!!!!!!!!!!!double free\n");
+			C2_LOG(C2_ERROR, "!!!!!!!!!!!!!double free: "
+			                 "tgt_end=%llu cur_start=%llu\n",
+			       (unsigned long long)tgt->e_end,
+			       (unsigned long long)cur->e_start);
 			c2_balloc_debug_dump_group_extent(
 				    "double free with cur", grp);
 			return -EINVAL;
 		}
 		if (pre && pre->e_end > tgt->e_start) {
-			C2_LOG(C2_ERROR, "!!!!!!!!!!!!!double free\n");
+			C2_LOG(C2_ERROR, "!!!!!!!!!!!!!double free: "
+			                 "pre_end=%llu tgt_start=%llu\n",
+			       (unsigned long long)pre->e_end,
+			       (unsigned long long)tgt->e_start);
 			c2_balloc_debug_dump_group_extent(
 				    "double free with pre", grp);
 			return -EINVAL;
