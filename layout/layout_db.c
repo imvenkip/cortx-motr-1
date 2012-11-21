@@ -70,8 +70,8 @@
  *      should be calculated from the formula and its parameters.
  *    - Garbage Collection: If some objects are deleted from the system,
  *      their associated layout may still be left in the system, with zero
- *      reference count. This layout can be re-used, or be garbage
- *      collected in some time.
+ *      user count. This layout can be re-used, or be garbage collected in
+ *      some time.
  * - R.LAYOUT.SCHEMA.Sub-Layouts: Sub-layouts.
  *
  * <HR>
@@ -163,7 +163,7 @@
  * Key: layout_id
  * Record:
  *    - layout_type_id
- *    - reference_count
+ *    - user_count
  *    - layout_type_specific_data (optional)
  *
  * @endverbatim
@@ -277,9 +277,12 @@
  *         parameters in the stored formula derives the real mapping
  *         information that is the list of COB identifiers.
  *    - Garbage Collection:
- *       - A layout is deleted when its last reference is released.
- * - I.LAYOUT.SCHEMA.Sub-Layouts: COMPOSITE type of layout is used to
- *     store sub-layouts.
+ *       - A layout with 0 user count can stay in the DB unless it is deleted
+	   explicitly from the DB.
+ *       - An in-memory layout is deleted when its last reference is released
+	   explicitly.
+ * - I.LAYOUT.SCHEMA.Sub-Layouts: COMPOSITE type of layout is used to store
+ *   sub-layouts.
  *
  * <HR>
  * @section Layout-DB-ut Unit Tests
@@ -421,12 +424,12 @@ static int pair_init(struct c2_db_pair *pair,
  * @{
  */
 
-int c2_layout_lookup(struct c2_layout_domain *dom,
-		     uint64_t lid,
-		     struct c2_layout_type *lt,
-		     struct c2_db_tx *tx,
-		     struct c2_db_pair *pair,
-		     struct c2_layout **out)
+C2_INTERNAL int c2_layout_lookup(struct c2_layout_domain *dom,
+				 uint64_t lid,
+				 struct c2_layout_type *lt,
+				 struct c2_db_tx *tx,
+				 struct c2_db_pair *pair,
+				 struct c2_layout **out)
 {
 	int                      rc;
 	struct c2_bufvec         bv;
@@ -496,7 +499,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 
 		*out = ghost;
 		C2_POST(c2_layout__invariant(*out));
-		C2_POST((*out)->l_ref > 0);
+		C2_POST(c2_ref_read(&(*out)->l_ref) > 1);
 		C2_LEAVE("lid %llu, ghost found, rc %d",
 			 (unsigned long long)lid, 0);
 		return 0;
@@ -531,8 +534,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 		goto out;
 	}
 	*out = l;
-	C2_CNT_INC(l->l_ref);
-	C2_POST(c2_layout__invariant(*out) && l->l_ref > 0);
+	C2_POST(c2_layout__invariant(*out) && c2_ref_read(&l->l_ref) > 0);
 	c2_mutex_unlock(&l->l_lock);
 out:
 	c2_db_pair_fini(pair);
@@ -540,9 +542,8 @@ out:
 	return rc;
 }
 
-int c2_layout_add(struct c2_layout *l,
-		  struct c2_db_tx *tx,
-		  struct c2_db_pair *pair)
+C2_INTERNAL int c2_layout_add(struct c2_layout *l,
+			      struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	c2_bcount_t recsize;
 	int         rc;
@@ -573,9 +574,8 @@ int c2_layout_add(struct c2_layout *l,
 	return rc;
 }
 
-int c2_layout_update(struct c2_layout *l,
-		     struct c2_db_tx *tx,
-		     struct c2_db_pair *pair)
+C2_INTERNAL int c2_layout_update(struct c2_layout *l,
+				 struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	c2_bcount_t recsize;
 	int         rc;
@@ -609,9 +609,8 @@ err1_injected:
 	return rc;
 }
 
-int c2_layout_delete(struct c2_layout *l,
-		     struct c2_db_tx *tx,
-		     struct c2_db_pair *pair)
+C2_INTERNAL int c2_layout_delete(struct c2_layout *l,
+				 struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	c2_bcount_t recsize;
 	int         rc;
@@ -622,6 +621,14 @@ int c2_layout_delete(struct c2_layout *l,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_mutex_lock(&l->l_lock);
+	if (l->l_user_count > 0) {
+		C2_LOG(C2_ERROR, "lid %llu, user_count %lu, Invalid "
+		       "user_count, rc %d", (unsigned long long)l->l_id,
+		       (unsigned long)l->l_user_count, -EPROTO);
+		c2_mutex_unlock(&l->l_lock);
+		return -EPROTO;
+	}
+
 	recsize = l->l_ops->lo_recsize(l);
 	rc = pair_init(pair, l, tx, C2_LXO_DB_DELETE, recsize);
 	if (rc == 0) {
@@ -642,6 +649,7 @@ int c2_layout_delete(struct c2_layout *l,
 	return rc;
 }
 
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} end group LayoutDBDFS */
 

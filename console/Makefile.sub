@@ -1,0 +1,21 @@
+nobase_colibri_include_HEADERS += console/console.h \
+                                  console/console_fom.h \
+                                  console/console_fop.h \
+                                  console/console_it.h \
+                                  console/console_mesg.h \
+                                  console/console_ff.h \
+                                  console/console_yaml.h
+
+colibri_libcolibri_la_SOURCES  += console/console_fop.c \
+                                  console/console_fom.c \
+                                  console/console_yaml.c \
+                                  console/console_it.c \
+                                  console/console_mesg.c \
+                                  console/console_ff.c
+
+FF_FILES   += console/console_ff.h
+
+EXTRA_DIST += console/console.ff
+
+CLEANFILES += console/console_ff.h \
+              console/console_ff.c

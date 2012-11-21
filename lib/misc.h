@@ -39,13 +39,15 @@
  * Returns rounded up value of @val in chunks of @size.
  * @pre c2_is_po2(size)
  */
-uint64_t c2_round_up(uint64_t val, uint64_t size);
+C2_INTERNAL uint64_t c2_round_up(uint64_t val, uint64_t size);
 
 /**
  * Returns rounded down value of @val in chunks of @size.
  * @pre c2_is_po2(size)
  */
-uint64_t c2_round_down(uint64_t val, uint64_t size);
+C2_INTERNAL uint64_t c2_round_down(uint64_t val, uint64_t size);
+
+#define C2_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
 
 #define C2_SET0(obj)				\
 ({						\
@@ -146,7 +148,7 @@ uint64_t c2_round_down(uint64_t val, uint64_t size);
 #define __C2_BITS_7(i, ...)  ((1 << (i)) | __C2_BITS_6(__VA_ARGS__))
 #define __C2_BITS_8(i, ...)  ((1 << (i)) | __C2_BITS_7(__VA_ARGS__))
 
-const char *c2_bool_to_str(bool b);
+C2_INTERNAL const char *c2_bool_to_str(bool b);
 
 /**
  * Extracts the file name, relative to a colibri sources directory, from a
@@ -180,7 +182,13 @@ const char *c2_bool_to_str(bool b);
  *          file path, after colibri source directory;
  *          if short file name cannot be found, then full fname is returned.
  */
-const char *c2_short_file_name(const char *fname);
+C2_INTERNAL const char *c2_short_file_name(const char *fname);
+
+/* strtoull for user- and kernel-space */
+C2_INTERNAL uint64_t c2_strtou64(const char *str, char **endptr, int base);
+
+/* strtoul for user- and kernel-space */
+C2_INTERNAL uint32_t c2_strtou32(const char *str, char **endptr, int base);
 
 /* __COLIBRI_LIB_MISC_H__ */
 #endif

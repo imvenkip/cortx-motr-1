@@ -26,7 +26,7 @@
 
 #include "lib/list.h"
 #include "fop/fop.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 
 /**
    @page bulkclient-fspec Functional Specification for fop bulk client.
@@ -161,6 +161,7 @@
 struct c2_io_fop {
 	/** Inline fop for a generic IO fop. */
 	struct c2_fop		if_fop;
+	int                     if_bulk_inited;
 	/** Rpc bulk structure containing zero vector for io fop. */
 	struct c2_rpc_bulk	if_rbulk;
 	/** Magic constant for IO fop. */
@@ -173,42 +174,43 @@ struct c2_io_fop {
    @pre iofop != NULL.
    @post io_fop_invariant(iofop)
  */
-int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype);
+C2_INTERNAL int c2_io_fop_init(struct c2_io_fop *iofop,
+			       struct c2_fop_type *ftype);
 
 /**
    Finalizes a c2_io_fop structure.
    @pre iofop != NULL.
  */
-void c2_io_fop_fini(struct c2_io_fop *iofop);
+C2_INTERNAL void c2_io_fop_fini(struct c2_io_fop *iofop);
 
 /**
    Retrieves a c2_rpc_bulk structure from given c2_fop.
    @pre fop != NULL.
  */
-struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop);
+C2_INTERNAL struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop);
 
 /**
    Allocates memory for net buf descriptors array and index vector array
    and populate the array of index vectors.
    @pre fop != NULL.
  */
-int c2_io_fop_prepare(struct c2_fop *fop);
+C2_INTERNAL int c2_io_fop_prepare(struct c2_fop *fop);
 
 /**
    Deallocates memory for sequence of net buf desc and sequence of index
    vector from io fop wire format.
  */
-void c2_io_fop_destroy(struct c2_fop *fop);
+C2_INTERNAL void c2_io_fop_destroy(struct c2_fop *fop);
 
-bool c2_is_read_fop(const struct c2_fop *fop);
-bool c2_is_write_fop(const struct c2_fop *fop);
-bool c2_is_io_fop(const struct c2_fop *fop);
-struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
-struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
-bool c2_is_cob_create_fop(const struct c2_fop *fop);
-bool c2_is_cob_delete_fop(const struct c2_fop *fop);
-bool c2_is_cob_create_delete_fop(const struct c2_fop *fop);
-struct c2_fop_cob_common *c2_cobfop_common_get(struct c2_fop *fop);
+C2_INTERNAL bool c2_is_read_fop(const struct c2_fop *fop);
+C2_INTERNAL bool c2_is_write_fop(const struct c2_fop *fop);
+C2_INTERNAL bool c2_is_io_fop(const struct c2_fop *fop);
+C2_INTERNAL struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
+C2_INTERNAL struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
+C2_INTERNAL bool c2_is_cob_create_fop(const struct c2_fop *fop);
+C2_INTERNAL bool c2_is_cob_delete_fop(const struct c2_fop *fop);
+C2_INTERNAL bool c2_is_cob_create_delete_fop(const struct c2_fop *fop);
+C2_INTERNAL struct c2_fop_cob_common *c2_cobfop_common_get(struct c2_fop *fop);
 
 /**
    @} bulkclientDFS end group
@@ -223,8 +225,8 @@ struct c2_io_ioseg;
 /**
    Init and fini of ioservice fops code.
  */
-int c2_ioservice_fop_init(void);
-void c2_ioservice_fop_fini(void);
+C2_INTERNAL int c2_ioservice_fop_init(void);
+C2_INTERNAL void c2_ioservice_fop_fini(void);
 
 extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;
@@ -233,17 +235,26 @@ extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_create_fopt;
 extern struct c2_fop_type c2_fop_cob_delete_fopt;
 extern struct c2_fop_type c2_fop_cob_op_reply_fopt;
+extern struct c2_fop_type c2_fop_fv_notification_fopt;
+
 extern struct c2_fom_type c2_io_fom_cob_rw_fomt;
 
-struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
-struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
+C2_INTERNAL struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
+C2_INTERNAL struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
 
 static inline struct c2_net_transfer_mc *io_fop_tm_get(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 
-	return &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
+	return &(item_machine(&fop->f_item)->rm_tm);
 }
+
+C2_INTERNAL size_t c2_io_fop_size_get(struct c2_fop *fop);
+
+C2_INTERNAL void c2_io_item_free(struct c2_rpc_item *item);
+
+/* Returns the number of bytes to be read/written. */
+C2_INTERNAL c2_bcount_t c2_io_fop_byte_count(struct c2_io_fop *iofop);
 
 /* __COLIBRI_IOSERVICE_IO_FOPS_H__ */
 #endif

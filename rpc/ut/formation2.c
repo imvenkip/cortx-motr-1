@@ -26,10 +26,12 @@
 #include "lib/finject.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_UT
 #include "lib/trace.h"
-#include "rpc/formation2.h"
-#include "rpc/rpc2.h"
-#include "rpc/packet.h"
-#include "rpc/item.h"
+#include "sm/sm.h"
+
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
+
+void rpc_worker_thread_fn(struct c2_rpc_machine *machine);
 
 static struct c2_rpc_frm             *frm;
 static struct c2_rpc_frm_constraints  constraints;
@@ -40,16 +42,26 @@ static struct c2_rpc_slot             slot;
 
 static int frm_ut_init(void)
 {
+	int rc;
+
 	rchan.rc_rpc_machine = &rmachine;
 	frm = &rchan.rc_frm;
 	c2_sm_group_init(&rmachine.rm_sm_grp);
+	rmachine.rm_stopping = false;
+	rc = C2_THREAD_INIT(&rmachine.rm_worker, struct c2_rpc_machine *,
+			    NULL, &rpc_worker_thread_fn, &rmachine,
+			    "rpc_worker");
+	C2_ASSERT(rc == 0);
 	c2_rpc_machine_lock(&rmachine);
 	return 0;
 }
 
 static int frm_ut_fini(void)
 {
+        rmachine.rm_stopping = true;
+	c2_clink_signal(&rmachine.rm_sm_grp.s_clink);
 	c2_rpc_machine_unlock(&rmachine);
+	c2_thread_join(&rmachine.rm_worker);
 	c2_sm_group_fini(&rmachine.rm_sm_grp);
 	return 0;
 }
@@ -154,7 +166,7 @@ static struct c2_rpc_item_type_ops oneway_item_type_ops = {
 };
 
 static struct c2_rpc_item_type oneway_item_type = {
-	.rit_flags = C2_RPC_ITEM_TYPE_UNSOLICITED,
+	.rit_flags = C2_RPC_ITEM_TYPE_ONEWAY,
 	.rit_ops   = &oneway_item_type_ops,
 };
 
@@ -165,7 +177,7 @@ enum {
 
 	BOUND    = 1,
 	UNBOUND  = 2,
-	ONE_WAY  = 3,
+	ONEWAY  = 3,
 };
 
 static uint64_t timeout; /* nano seconds */
@@ -178,11 +190,12 @@ static struct c2_rpc_item *new_item(int deadline, int kind)
 {
 	struct c2_rpc_item *item;
 	C2_UT_ASSERT(C2_IN(deadline, (TIMEDOUT, WAITING, NEVER)));
-	C2_UT_ASSERT(C2_IN(kind,     (BOUND, UNBOUND, ONE_WAY)));
+	C2_UT_ASSERT(C2_IN(kind,     (BOUND, UNBOUND, ONEWAY)));
 
 	C2_ALLOC_PTR(item);
 	C2_UT_ASSERT(item != NULL);
 
+	c2_rpc_item_sm_init(item, &rmachine.rm_sm_grp, C2_RPC_ITEM_OUTGOING);
 	switch (deadline) {
 	case TIMEDOUT:
 		item->ri_deadline = 0;
@@ -195,7 +208,7 @@ static struct c2_rpc_item *new_item(int deadline, int kind)
 		break;
 	}
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-	item->ri_type = kind == ONE_WAY ? &oneway_item_type :
+	item->ri_type = kind == ONEWAY ? &oneway_item_type :
 					  &twoway_item_type;
 	item->ri_slot_refs[0].sr_slot = kind == BOUND ? &slot : NULL;
 	item->ri_session = &session;
@@ -241,7 +254,7 @@ static void frm_test1(void)
 	 */
 	void perform_test(int deadline, int kind)
 	{
-		struct c2_rpc_item   *item;
+		struct c2_rpc_item *item;
 
 		set_timeout(100);
 		item = new_item(deadline, kind);
@@ -251,8 +264,10 @@ static void frm_test1(void)
 			C2_UT_ASSERT(!packet_ready_called &&
 				     !item_bind_called);
 			check_frm(FRM_BUSY, 1, 0);
+			/* Allow RPC worker to process timeout AST */
+			c2_rpc_machine_unlock(&rmachine);
 			c2_nanosleep(c2_time(0, 2 * timeout), NULL);
-			c2_rpc_frm_run_formation(frm);
+			c2_rpc_machine_lock(&rmachine);
 		}
 		C2_UT_ASSERT(packet_ready_called &&
 			     equi(kind == UNBOUND, item_bind_called));
@@ -266,10 +281,10 @@ static void frm_test1(void)
 
 	perform_test(TIMEDOUT, BOUND);
 	perform_test(TIMEDOUT, UNBOUND);
-	perform_test(TIMEDOUT, ONE_WAY);
+	perform_test(TIMEDOUT, ONEWAY);
 	perform_test(WAITING,  BOUND);
 	perform_test(WAITING,  UNBOUND);
-	perform_test(WAITING,  ONE_WAY);
+	perform_test(WAITING,  ONEWAY);
 
 	C2_LEAVE();
 }
@@ -330,7 +345,7 @@ static void frm_test2(void)
 
 	perform_test(BOUND);
 	perform_test(UNBOUND);
-	perform_test(ONE_WAY);
+	perform_test(ONEWAY);
 
 	C2_LEAVE();
 }
@@ -413,8 +428,8 @@ static void frm_do_test5(const int N, const int ITEMS_PER_PACKET)
 	saved_max_packet_size = frm->f_constraints.fc_max_packet_size;
 	/* Each packet should carry ITEMS_PER_PACKET items */
 	frm->f_constraints.fc_max_packet_size =
-			ITEMS_PER_PACKET * c2_rpc_item_size(items[0]) +
-			  C2_RPC_PACKET_OW_HEADER_SIZE;
+		ITEMS_PER_PACKET * c2_rpc_item_size(items[0]) +
+		c2_rpc_packet_onwire_header_size();
 	/* trigger formation so that all items are formed */
 	frm->f_constraints.fc_max_nr_bytes_accumulated = 0;
 	c2_rpc_frm_run_formation(frm);
@@ -426,9 +441,10 @@ static void frm_do_test5(const int N, const int ITEMS_PER_PACKET)
 		p = packet_stack[i];
 		if (N % ITEMS_PER_PACKET == 0 ||
 		    i != nr_packets - 1)
-			C2_UT_ASSERT(p->rp_nr_items == ITEMS_PER_PACKET);
+			C2_UT_ASSERT(p->rp_ow.poh_nr_items == ITEMS_PER_PACKET);
 		else
-			C2_UT_ASSERT(p->rp_nr_items == N % ITEMS_PER_PACKET);
+			C2_UT_ASSERT(p->rp_ow.poh_nr_items == N %
+				     ITEMS_PER_PACKET);
 		(void)packet_stack_pop();
 		c2_rpc_frm_packet_done(p);
 		packet_discard(p);
@@ -500,7 +516,8 @@ static void frm_test7(void)
 	/* Only 1 item should be included per packet */
 	saved_max_packet_size = frm->f_constraints.fc_max_packet_size;
 	frm->f_constraints.fc_max_packet_size = c2_rpc_item_size(item1) +
-		C2_RPC_PACKET_OW_HEADER_SIZE + c2_rpc_item_size(item1) / 2;
+					c2_rpc_packet_onwire_header_size() +
+					c2_rpc_item_size(item1) / 2;
 
 	saved_max_nr_packets_enqed = frm->f_constraints.fc_max_nr_packets_enqed;
 	frm->f_constraints.fc_max_nr_packets_enqed = 0; /* disable formation */

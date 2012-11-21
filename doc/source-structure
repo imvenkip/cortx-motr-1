@@ -27,22 +27,20 @@ automake.
 
 Core is built either by running "./autogen.sh && ./configure && make"
 in its top-level directory or by running "../configure" from a
-separate build directory where build output will be stored. This
+separate build directory where build output will be stored (the latter
+will work only for user-space part, i.e. `make all-user`, because our
+kerne-mode makefiles don't support this feature at the moment). This
 process builds all the libraries and executable specified in the
 current configuration (currently only one configuration is supported,
 2010.06.27), including Oracle Berkeley DB, internal Colibri libraries,
 unit and system tests, benchmarks and Colibri executables.
 
-There are two types of top-level sub-directories in core/: ones
-building internal Colibri libraries, typically stored in
-core/foo/libcolibri-foo.la and ones building Colibri executables (none
-at the moment, 2010.06.27). Internal Colibri libraries are built
-first. All libraries needed by the current configuration are linked
+All sources needed by the current configuration are linked
 together into core/colibri/libcolibri.la. Then binaries, including
 unit tests are built and linked against libcolibri.
 
 Kernel code is built by using Linux kernel build. The modules for colibri
-components are generated in build_kernel_modules directory
+components are generated in build_kernel_modules directory.
 
 Recipes (for user space code)
 =============================
@@ -52,29 +50,30 @@ How to add a new file to the source tree?
 
 Create a new file, say, core/foo/bar.c in the file system, edit
 it. Add bar.c to he corresponding _SOURCES entry in
-core/foo/Makefile.am. Add the file to git (git add foo/bar.c) and
+core/foo/Makefile.sub. Add the file to git (git add foo/bar.c) and
 commit your changes.
 
-If you are planning to add file foo.h then foo.h should typically start with
+If you are planning to add file bar.h then bar.h should typically
+start with:
 
-#pragma once
+    #pragma once
 
-#ifndef __FOO_H__
-#define __FOO_H__
+    #ifndef __COLIBRI_FOO_BAR_H__
+    #define __COLIBRI_FOO_BAR_H__
 
-End the file foo.h with
+End the file bar.h with:
 
-#endif /* __FOO_H__ */
+    #endif /* __COLIBRI_FOO_BAR_H__ */
 
-/*
- *  Local variables:
- *  c-indentation-style: "K&R"
- *  c-basic-offset: 8
- *  tab-width: 8
- *  fill-column: 80
- *  scroll-step: 1
- *  End:
- */
+    /*
+     *  Local variables:
+     *  c-indentation-style: "K&R"
+     *  c-basic-offset: 8
+     *  tab-width: 8
+     *  fill-column: 80
+     *  scroll-step: 1
+     *  End:
+     */
 
 How headers should be included in C sources?
 --------------------------------------------
@@ -96,41 +95,84 @@ Oracle Berkeley data-base interfaces must be included as
 
 #include <db.h>
 
+How Colibri build system is organized?
+------------------------------------------
+
+Please, read the "Quick start guide" section at the beginning of
+top-level core/Makefile.am makefile.
+
 How to add a new internal Colibri library?
 ------------------------------------------
 
-Create a new core/foo directory, if necessary. In core/foo/Makefile.am
-put:
+Create a new core/foo directory, if necessary. Add something like this
+to top-level core/Makefile.am:
 
-noinst_LTLIBRARIES            = libcolibri-foo.la
-libcolibri_foo_la_SOURCES     = foo.c foo.h foo_internal.h foo_bar.c ...
-INCLUDES                      = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+    noinst_LTLIBRARIES += foo/libcolibri-foo.la
 
-In core/Makefile.am add "foo" to SUBDIRS_LIBS, and, if necessary,
-"foo/ut", "foo/st" and "foo/ub" to SUBDIR_{UT,ST,UB} respectively.
+    include $(top_srcdir)/foo/Makefile.sub
 
-Add "core/foo/Makefile" and (if necessary)
-"core/foo/{ut,st,ub}/Makefile" to AC_CONFIG_FILES section at the end
-of core/configure.ac.
+In core/foo/Makefile.sub put:
 
-Finally, add $(top_builddir)/foo/libcolibri-foo.la to
-libcolibri_la_LIBADD in core/colibri/Makefile.am
+    foo_libcolibri_foo_la_HEADERS = foo/foo.h
+
+    foo_libcolibri_foo_la_SOURCES = foo/foo.c \
+                                    foo/foo_internal.h \
+                                    foo/foo_bar.c
+
+NOTICE: public headers (which are used by other colibri modules) of
+foo module should go into _HEADERS variable - this is what will be
+installed to /usr/include on `make install`. While internal headers of
+foo module should go into _SOURCES variable.
+
+If necessary, add sources under foo/{ut,st} to the
+ut_libcolibri_ut_la_SOURCES variable in core/foo/{ut,st}/Makefile.sub:
+
+    ut_libcolibri_ut_la_SOURCES += foo/ut/foo_test.c
+
+And include this core/foo/{ut,st}/Makefile.sub makefile into
+core/Makefile.am in appropriate place (search where other ut/st
+makefiles are included, in alphabetic order).
+
+How to add a new Colibri module?
+--------------------------------
+
+It's almost the same as adding a new internal library (see previous
+section), but instead of using new _HEADERS and _SOURCES
+library variables, one need to use the existing
+colibri_libcolibri_la_{SOURCES,HEADERS} variables in foo/Makefile.sub:
+
+    colibri_libcolibri_la_SOURCES += foo/foo.c
+
+And include this foo/Makefile.sub into the top-levevl core/Makefile.am
+in appropriate place in alphabetic order (search where other
+makefiles, which are part of libcolibri.la library, are included).
 
 How to add a new executable?
 ----------------------------
 
 To build a new executable core/foo/baz add to the
-core/foo/Makefile.am:
+core/foo/Makefile.sub:
 
-INCLUDES           = -I. -I$(top_srcdir)/include -I$(top_srcdir)
+    noinst_PROGRAMS += foo/baz
+    foo_baz_LDADD    = $(top_builddir)/colibri/libcolibri.la
 
-noinst_PROGRAMS    = baz
-baz_SOURCES        = baz.c baz.h ...
-baz_LDADD          = $(top_builddir)/colibri/libcolibri.la
+    include $(top_srcdir)/foo/Makefile.sub
 
-If necessary also add
+And in core/foo/Makefile.sub:
 
-baz_LDFLAGS   = -pthread ...
+    foo_baz_SOURCES = foo/baz.c \
+                      foo/bar.c
+
+NOTICE: if executable comprised only from one source file of the same
+name as the binary (foo/baz.c), there is no need to add a
+corresponding _SOURCES variable - automake handles this automatically.
+
+Some real-world examples of module's Makefile.sub
+-------------------------------------------------
+
+The rpc/Makefile.sub can be used as a most complete example of how to write
+module's Makefile.sub makefiles. It uses almost all constructs like _HEADERS,
+_SOURCES, FF_FILES, XC_FILES and CLEANFILES.
 
 System initialization and finalisation
 --------------------------------------
@@ -147,14 +189,14 @@ If your library (say, core/foo/libcolibri-foo.la) requires some global
 (per address space) initialisation or finalisation actions (e.g.,
 starting service threads, opening files), declare
 
-int  foo_init(void);
-void foo_fini(void);
+int  c2_foo_init(void);
+void c2_foo_fini(void);
 
 in core/foo/foo.h, add
 
 #include "foo/foo.h"
 
-to core/colibri/init.c and add { &foo_init, &foo_fini, "foo" } to the
+to core/colibri/init.c and add { &c2_foo_init, &c2_foo_fini } to the
 subsystem[] array, defined in core/colibri/init.c. foo_init() must
 follow standard return conventions: 0 on success, negated errno value
 on failure.
@@ -211,12 +253,15 @@ const struct c2_test_suite foo_ut = {
 	}
 };
 
-In core/foo/ut/Makefile.am do:
+In core/foo/ut/Makefile.sub do:
 
-noinst_LTLIBRARIES   = libfoo-ut.la
-libfoo_ut_la_SOURCES = foo.c ...
+    ut_libcolibri_ut_la_SOURCES += foo/ut/foo.c ...
 
-In core/utils/Makefile.am add $(top_builddir)/foo/ut/libfoo-ut.la to ut_LDADD.
+In core/Makefile.am add the following include line in appropriate
+place, in alphabetic order (search where other ut makefiles are
+included).
+
+    include $(top_srcdir)/foo/ut/Makefile.sub
 
 In core/utils/ut_main.c add
 
@@ -227,8 +272,6 @@ declaration and
 	c2_ut_add(&foo_ut);
 
 to add_uts().
-
-Add foo/ut to SUBDIR_UT in core/Makefile.am.
 
 All unit tests are executed by ./core/utils/ut.
 
@@ -301,7 +344,7 @@ kernel_src  := <kernel sources>
 ksns-y      := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@top_srcdir@ @C2_KCPPFLAGS@ @C2_KCFLAGS@ @KCFLAGS@
 
 prepare:
        ln -fs $(orig) .
@@ -312,7 +355,7 @@ clean distclean:
 
 distdir:
        cp $(<MOD.DIR>)/Makefile.in \
-           @top_builddir@/@PACKAGE@-@VERSION@/<mod.name>/linux_kernel
+           @top_builddir@/@PACKAGE@-@PACKAGE_VERSION@/<mod.name>/linux_kernel
 
 Add the following lines into configure.ac:
 In macro AC_CONFIG_FILES:

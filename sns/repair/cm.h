@@ -25,9 +25,10 @@
 #define __COLIBRI_SNS_REPAIR_CM_H__
 
 #include "cm/cm.h"
-#include "ioservice/cobfid_map.h"
 #include "net/buffer_pool.h"
 #include "layout/pdclust.h"
+
+#include "sns/repair/iter.h"
 
 /**
   @page SNSRepairCMDLD-fspec SNS Repair copy machine functional specification
@@ -43,6 +44,9 @@
   - c2_sns_repair_cm
     Represents sns repair copy machine, this embeds generic struct c2_cm and
     sns specific copy machine objects.
+
+  - c2_sns_repair_iter
+    Represents sns repair copy machine data iterator.
 
   @subsection SNSRepairCMDLD-fspec-if Interfaces
   - c2_sns_repair_cm_type_register
@@ -74,29 +78,60 @@
 
 struct c2_sns_repair_cm {
 	struct c2_cm		   rc_base;
-	/** Failure data received in trigger FOP. */
-	uint64_t                   rc_fdata;
-	struct c2_cobfid_map      *rc_cfm;
-	struct c2_cobfid_map_iter  rc_cfm_it;
+
 	/**
-	 * @todo Temporary location for server side pdclust layout instance, until
-	 * the attr_set() and attr_get() for a GOB is implemented.
+	 * Failure data received in trigger FOP.
+	 * This is set when a TRIGGER FOP is received. For SNS Repair, this
+	 * will be the failed container id.
+	 * SNS Repair data iterator assumes this to be set before invoking
+	 * c2_sns_repair_iter_next().
 	 */
-	struct c2_pdclust_layout   rc_pl;
+	uint64_t                   rc_fdata;
+
+	/**
+	 * Tunable file size parameter for testing purpose, set from the
+	 * sns/repair/st/repair program.
+	 */
+	uint64_t                   rc_file_size;
+
+	/** SNS Repair data iterator. */
+	struct c2_sns_repair_iter  rc_it;
+
+	/*
+	 * XXX Temporary location for layout domain required to build pdclust
+	 * layout.
+	 */
 	struct c2_layout_domain    rc_lay_dom;
+
 	/**
 	 * Buffer pool for incoming copy packets, this is used by sliding
 	 * window.
 	 */
 	struct c2_net_buffer_pool  rc_ibp;
+
 	/** Buffer pool for outgoing copy packets. */
 	struct c2_net_buffer_pool  rc_obp;
+
+	/**
+	 * Channel to wait upon before invoking c2_cm_stop() for the caller of
+	 * c2_cm_start(). This channel is signalled from struct c2_cm_ops::
+	 * cmo_complete() routine, which is invoked after all the aggregation
+	 * groups are processed and struct c2_cm::cm_aggr_grps list is empty.
+	 */
+	struct c2_chan             rc_stop_wait;
 };
 
-int c2_sns_repair_cm_type_register(void);
-void c2_sns_repair_cm_type_deregister(void);
+C2_INTERNAL int c2_sns_repair_cm_type_register(void);
+C2_INTERNAL void c2_sns_repair_cm_type_deregister(void);
 
-struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm);
+C2_INTERNAL struct c2_net_buffer *c2_sns_repair_buffer_get(struct
+							   c2_net_buffer_pool
+							   *bp, size_t colour);
+C2_INTERNAL void c2_sns_repair_buffer_put(struct c2_net_buffer_pool *bp,
+					  struct c2_net_buffer *buf,
+					  uint64_t colour);
+
+C2_INTERNAL struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm);
 
 /** @} SNSRepairCM */
 #endif /* __COLIBRI_SNS_REPAIR_CM_H__ */

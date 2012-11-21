@@ -33,6 +33,7 @@
  */
 
 /* import */
+#include "lib/arith.h" /* C2_IS_8ALIGNED */
 #include "layout/layout.h"
 
 /* export */
@@ -58,6 +59,7 @@ struct c2_layout_linear_attr {
 	/** Padding to make the structure 8 bytes aligned. */
 	uint32_t   lla_pad;
 };
+C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_layout_linear_attr)));
 
 /** Extension of the generic c2_layout_enum for the linear enumeration type. */
 struct c2_layout_linear_enum {
@@ -76,9 +78,9 @@ struct c2_layout_linear_enum {
  * @note Enum object is not to be finalised explicitly by the user. It is
  * finalised internally through c2_layout__striped_fini().
  */
-int c2_linear_enum_build(struct c2_layout_domain *dom,
-			 const struct c2_layout_linear_attr *attr,
-			 struct c2_layout_linear_enum **out);
+C2_INTERNAL int c2_linear_enum_build(struct c2_layout_domain *dom,
+				     const struct c2_layout_linear_attr *attr,
+				     struct c2_layout_linear_enum **out);
 
 extern struct c2_layout_enum_type c2_linear_enum_type;
 

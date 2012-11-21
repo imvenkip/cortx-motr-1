@@ -1,0 +1,3 @@
+ut_libcolibri_ut_la_SOURCES += rm/ut/rings.h \
+                               rm/ut/rings.c \
+                               rm/ut/rmut.c

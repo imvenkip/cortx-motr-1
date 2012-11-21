@@ -190,9 +190,9 @@ static int list_populate(struct c2_layout_list_enum *list_enum,
 	return 0;
 }
 
-int c2_list_enum_build(struct c2_layout_domain *dom,
-		       struct c2_fid *cob_list, uint32_t nr,
-		       struct c2_layout_list_enum **out)
+C2_INTERNAL int c2_list_enum_build(struct c2_layout_domain *dom,
+				   struct c2_fid *cob_list, uint32_t nr,
+				   struct c2_layout_list_enum **out)
 {
 	struct c2_layout_enum      *e;
 	struct c2_layout_list_enum *list_enum;
@@ -319,7 +319,7 @@ static void list_unregister(struct c2_layout_domain *dom,
 static c2_bcount_t list_max_recsize(void)
 {
 	return sizeof(struct cob_entries_header) +
-		LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct c2_fid);
+		LDB_MAX_INLINE_COB_ENTRIES *sizeof(struct c2_fid);
 }
 
 static int noninline_read(struct c2_fid *cob_list,

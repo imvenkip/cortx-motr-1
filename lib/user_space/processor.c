@@ -888,7 +888,7 @@ static void processors_c2bitmap_copy(struct c2_bitmap *dst,
 
 /* ---- Processor Interface Implementation ---- */
 
-int c2_processors_init()
+C2_INTERNAL int c2_processors_init()
 {
 	int rc;
 
@@ -898,41 +898,42 @@ int c2_processors_init()
 	return rc;
 }
 
-void c2_processors_fini()
+C2_INTERNAL void c2_processors_fini()
 {
 	C2_PRE(processor_init);
 	processor_cache_destroy();
 	processor_init = false;
 }
 
-c2_processor_nr_t c2_processor_nr_max(void)
+C2_INTERNAL c2_processor_nr_t c2_processor_nr_max(void)
 {
 	C2_PRE(processor_init);
 	return sys_cpus.pss_max;
 }
 
-void c2_processors_possible(struct c2_bitmap *map)
+C2_INTERNAL void c2_processors_possible(struct c2_bitmap *map)
 {
 	C2_PRE(processor_init);
 	C2_PRE(map != NULL);
 	processors_c2bitmap_copy(map, &sys_cpus.pss_poss_map);
 }
 
-void c2_processors_available(struct c2_bitmap *map)
+C2_INTERNAL void c2_processors_available(struct c2_bitmap *map)
 {
 	C2_PRE(processor_init);
 	C2_PRE(map != NULL);
 	processors_c2bitmap_copy(map, &sys_cpus.pss_avail_map);
 }
 
-void c2_processors_online(struct c2_bitmap *map)
+C2_INTERNAL void c2_processors_online(struct c2_bitmap *map)
 {
 	C2_PRE(processor_init);
 	C2_PRE(map != NULL);
 	processors_c2bitmap_copy(map, &sys_cpus.pss_onln_map);
 }
 
-int c2_processor_describe(c2_processor_nr_t id, struct c2_processor_descr *pd)
+C2_INTERNAL int c2_processor_describe(c2_processor_nr_t id,
+				      struct c2_processor_descr *pd)
 {
 	struct processor_node *pinfo;
 
@@ -950,7 +951,7 @@ int c2_processor_describe(c2_processor_nr_t id, struct c2_processor_descr *pd)
 	return -EINVAL;
 }
 
-c2_processor_nr_t c2_processor_id_get(void)
+C2_INTERNAL c2_processor_nr_t c2_processor_id_get(void)
 {
 	return sched_getcpu();
 }

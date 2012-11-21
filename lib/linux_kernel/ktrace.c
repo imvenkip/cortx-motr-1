@@ -134,7 +134,7 @@ static int set_trace_print_context(void)
 	return 0;
 }
 
-int c2_arch_trace_init(void)
+C2_INTERNAL int c2_arch_trace_init(void)
 {
 	int rc;
 
@@ -159,12 +159,12 @@ int c2_arch_trace_init(void)
 	return 0;
 }
 
-void c2_arch_trace_fini(void)
+C2_INTERNAL void c2_arch_trace_fini(void)
 {
 	vfree(c2_logbuf);
 }
 
-void c2_console_vprintf(const char *fmt, va_list args)
+C2_INTERNAL void c2_console_vprintf(const char *fmt, va_list args)
 {
 	vprintk(fmt, args);
 }

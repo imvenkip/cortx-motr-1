@@ -55,52 +55,54 @@ struct c2_atomic64;
 /**
    Assigns a value to a counter.
  */
-PREFIX void c2_atomic64_set(struct c2_atomic64 *a, int64_t num);
+static inline void c2_atomic64_set(struct c2_atomic64 *a, int64_t num);
 
 /**
    Returns value of an atomic counter.
  */
-PREFIX int64_t c2_atomic64_get(const struct c2_atomic64 *a);
+static inline int64_t c2_atomic64_get(const struct c2_atomic64 *a);
 
 /**
    Atomically increments a counter.
  */
-PREFIX void c2_atomic64_inc(struct c2_atomic64 *a);
+static inline void c2_atomic64_inc(struct c2_atomic64 *a);
 
 /**
    Atomically decrements a counter.
  */
-PREFIX void c2_atomic64_dec(struct c2_atomic64 *a);
+static inline void c2_atomic64_dec(struct c2_atomic64 *a);
 
 /**
    Atomically adds given amount to a counter.
  */
-PREFIX void c2_atomic64_add(struct c2_atomic64 *a, int64_t num);
+static inline void c2_atomic64_add(struct c2_atomic64 *a, int64_t num);
 
 /**
    Atomically subtracts given amount from a counter.
  */
-PREFIX void c2_atomic64_sub(struct c2_atomic64 *a, int64_t num);
+static inline void c2_atomic64_sub(struct c2_atomic64 *a, int64_t num);
 
 /**
    Atomically increments a counter and returns the result.
  */
-PREFIX int64_t c2_atomic64_add_return(struct c2_atomic64 *a, int64_t d);
+static inline int64_t c2_atomic64_add_return(struct c2_atomic64 *a,
+						  int64_t d);
 
 /**
    Atomically decrements a counter and returns the result.
  */
-PREFIX int64_t c2_atomic64_sub_return(struct c2_atomic64 *a, int64_t d);
+static inline int64_t c2_atomic64_sub_return(struct c2_atomic64 *a,
+						  int64_t d);
 
 /**
    Atomically increments a counter and returns true iff the result is 0.
  */
-PREFIX bool c2_atomic64_inc_and_test(struct c2_atomic64 *a);
+static inline bool c2_atomic64_inc_and_test(struct c2_atomic64 *a);
 
 /**
    Atomically decrements a counter and returns true iff the result is 0.
  */
-PREFIX bool c2_atomic64_dec_and_test(struct c2_atomic64 *a);
+static inline bool c2_atomic64_dec_and_test(struct c2_atomic64 *a);
 
 /**
    Atomic compare-and-swap: compares value stored in @loc with @old and, if
@@ -108,7 +110,8 @@ PREFIX bool c2_atomic64_dec_and_test(struct c2_atomic64 *a);
 
    Returns true iff new value was installed.
  */
-PREFIX bool c2_atomic64_cas(int64_t *loc, int64_t old, int64_t new);
+static inline bool c2_atomic64_cas(int64_t * loc, int64_t old,
+					int64_t new);
 
 /**
    Atomic compare-and-swap for pointers.

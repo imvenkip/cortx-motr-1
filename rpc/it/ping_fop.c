@@ -25,14 +25,14 @@
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fom.h"
 #include "lib/errno.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "fop/fop_item_type.h"
 #include "fop/fom_generic.h"
 
 struct c2_fop_type c2_fop_ping_fopt;
 struct c2_fop_type c2_fop_ping_rep_fopt;
 
-void c2_ping_fop_fini(void)
+C2_INTERNAL void c2_ping_fop_fini(void)
 {
 	c2_fop_type_fini(&c2_fop_ping_rep_fopt);
         c2_fop_type_fini(&c2_fop_ping_fopt);
@@ -41,7 +41,7 @@ void c2_ping_fop_fini(void)
 
 extern const struct c2_fom_type_ops c2_fom_ping_type_ops;
 
-int c2_ping_fop_init(void)
+C2_INTERNAL int c2_ping_fop_init(void)
 {
 	c2_xc_ping_fop_init();
         return  C2_FOP_TYPE_INIT(&c2_fop_ping_fopt,

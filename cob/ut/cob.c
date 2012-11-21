@@ -26,7 +26,11 @@
 #include "cob/cob.h"
 
 static const char db_name[] = "ut-cob";
+static const char test_name[] = "hello_world";
+static const char add_name[] = "add_name";
+static const char wrong_name[] = "wrong_name";
 
+static struct c2_cob_domain_id id = { 42 };
 static struct c2_dbenv       db;
 static struct c2_cob_domain  dom;
 static struct c2_cob         *cob;
@@ -40,96 +44,184 @@ static int db_reset(void)
         return rc;
 }
 
-static void test_init(void)
+static void test_mkfs(void)
 {
-        struct c2_cob_domain_id id = { 42 };
+        struct c2_db_tx         tx;
+        int                     rc;
 
-	rc = c2_dbenv_init(&db, db_name, 0);
-        /* test_init is called by ub_init which hates C2_UT_ASSERT */
-	C2_ASSERT(rc == 0);
+        rc = c2_dbenv_init(&db, db_name, 0);
+        C2_UT_ASSERT(rc == 0);
 
         rc = c2_cob_domain_init(&dom, &db, &id);
-	C2_ASSERT(rc == 0);
+        C2_UT_ASSERT(rc == 0);
+
+        rc = c2_db_tx_init(&tx, &db, 0);
+        C2_UT_ASSERT(rc == 0);
+
+        /* Create root and other structures */
+        rc = c2_cob_domain_mkfs(&dom, &C2_COB_SLASH_FID,
+                                &C2_COB_SESSIONS_FID, &tx);
+        C2_UT_ASSERT(rc == 0);
+        c2_db_tx_commit(&tx);
+
+        /* Fini everything */
+        c2_cob_domain_fini(&dom);
+        c2_dbenv_fini(&db);
+}
+
+static void test_init(void)
+{
+
+        rc = c2_dbenv_init(&db, db_name, 0);
+        /* test_init is called by ub_init which hates C2_UT_ASSERT */
+        C2_ASSERT(rc == 0);
+
+        rc = c2_cob_domain_init(&dom, &db, &id);
+        C2_ASSERT(rc == 0);
 }
 
 static void test_fini(void)
 {
         c2_cob_domain_fini(&dom);
-	c2_dbenv_fini(&db);
-}
-
-static void make_nskey(struct c2_cob_nskey **keyh, uint64_t hi, uint64_t lo,
-                       char *name)
-{
-        struct c2_cob_nskey *key;
-
-        key = c2_alloc(sizeof(*key) + strlen(name));
-	C2_ASSERT(key != NULL);
-
-        key->cnk_pfid.si_bits.u_hi = hi;
-        key->cnk_pfid.si_bits.u_lo = lo;
-        memcpy(c2_bitstring_buf_get(&key->cnk_name), name, strlen(name));
-        c2_bitstring_len_set(&key->cnk_name, strlen(name));
-        *keyh = key;
+        c2_dbenv_fini(&db);
 }
 
 static void test_create(void)
 {
-        struct c2_cob_nskey *key;
-        struct c2_cob_nsrec  nsrec;
-        struct c2_cob_fabrec fabrec;
+        struct c2_cob_nskey    *key;
+        struct c2_cob_nsrec    nsrec;
+        struct c2_cob_fabrec  *fabrec;
+        struct c2_cob_omgrec   omgrec;
+        struct c2_fid          pfid;
+        struct c2_db_tx        tx;
+
+        C2_SET0(&nsrec);
+        C2_SET0(&omgrec);
+
+        /* pfid, filename */
+        pfid.f_container = 0x123;
+        pfid.f_key = 0x456;
+        c2_cob_nskey_make(&key, &pfid, test_name, strlen(test_name));
+
+        nsrec.cnr_fid.f_container = 0xabc;
+        nsrec.cnr_fid.f_key = 0xdef;
+
+        nsrec.cnr_nlink = 0;
+
+        c2_db_tx_init(&tx, dom.cd_dbenv, 0);
+        rc = c2_cob_alloc(&dom, &cob);
+        C2_UT_ASSERT(rc == 0);
+        c2_cob_fabrec_make(&fabrec, NULL, 0);
+        rc = c2_cob_create(cob, key, &nsrec, fabrec, &omgrec, &tx);
+        C2_UT_ASSERT(rc == 0);
+
+        nsrec.cnr_nlink++;
+        rc = c2_cob_update(cob, &nsrec, NULL, NULL, &tx);
+        C2_UT_ASSERT(rc == 0);
+        c2_cob_put(cob);
+        c2_db_tx_commit(&tx);
+}
+
+/**
+   Test that add_name works.
+*/
+static void test_add_name(void)
+{
+        struct c2_cob_nskey *nskey;
+        struct c2_fid        pfid;
         struct c2_db_tx      tx;
 
         /* pfid, filename */
-        make_nskey(&key, 0x123, 0x456, "hello world");
-
-	C2_SET0(&fabrec); /* zero fill to keep valgrind happy. */
-	C2_SET0(&nsrec);
-
-        nsrec.cnr_stobid.si_bits.u_hi = 0xabc;
-        nsrec.cnr_stobid.si_bits.u_lo = 0xdef;
-        nsrec.cnr_nlink = 1;
+        pfid.f_container = 0x123;
+        pfid.f_key = 0x456;
 
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
-	rc = c2_cob_create(&dom, key, &nsrec, &fabrec, 0 /* we'll free below */,
-                           &cob, &tx);
-	C2_UT_ASSERT(rc == 0);
+
+        /* lookup for cob created before using @test_name. */
+        c2_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
+        rc = c2_cob_lookup(&dom, nskey, C2_CA_NSKEY_FREE, &cob, &tx);
+        C2_UT_ASSERT(rc == 0);
+
+        /* add new name to existing cob */
+        c2_cob_nskey_make(&nskey, &pfid, add_name, strlen(add_name));
+        cob->co_nsrec.cnr_linkno = cob->co_nsrec.cnr_cntr;
+        rc = c2_cob_name_add(cob, nskey, &cob->co_nsrec, &tx);
+        C2_UT_ASSERT(rc == 0);
         c2_cob_put(cob);
 
-#if 0
-        /* This emits an ugly ADDB message during ut. */
-
-        /* 2nd create should fail. */
-        nsrec.cnr_stobid.si_bits.u_hi = 0x666;
-        rc = c2_cob_create(&dom, key, &nsrec, &fabrec, 0 /* we'll free below */,
-                           &cob, &tx);
-	C2_UT_ASSERT(rc != 0);
+        /* lookup for new name */
+        rc = c2_cob_lookup(&dom, nskey, 0, &cob, &tx);
+        C2_UT_ASSERT(rc == 0);
         c2_cob_put(cob);
-#endif
-        c2_free(key);
+        c2_free(nskey);
+
+        /* lookup for wrong name, should fail. */
+        c2_cob_nskey_make(&nskey, &pfid, wrong_name, strlen(wrong_name));
+        rc = c2_cob_lookup(&dom, nskey, 0, &cob, &tx);
+        C2_UT_ASSERT(rc != 0);
+        c2_free(nskey);
 
         c2_db_tx_commit(&tx);
 }
 
-/* Lookup by name, make sure cfid is right */
+/**
+   Test that del_name works.
+*/
+static void test_del_name(void)
+{
+        struct c2_cob_nskey *nskey;
+        struct c2_fid        pfid;
+        struct c2_db_tx      tx;
+
+        /* pfid, filename */
+        pfid.f_container = 0x123;
+        pfid.f_key = 0x456;
+
+        c2_db_tx_init(&tx, dom.cd_dbenv, 0);
+
+        /* lookup for cob created before using @test_name. */
+        c2_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
+        rc = c2_cob_lookup(&dom, nskey, C2_CA_NSKEY_FREE, &cob, &tx);
+        C2_UT_ASSERT(rc == 0);
+
+        /* del name that we created in prev test */
+        c2_cob_nskey_make(&nskey, &pfid, add_name, strlen(add_name));
+        rc = c2_cob_name_del(cob, nskey, &tx);
+        C2_UT_ASSERT(rc == 0);
+        c2_cob_put(cob);
+
+        /* lookup for new name */
+        rc = c2_cob_lookup(&dom, nskey, 0, &cob, &tx);
+        C2_UT_ASSERT(rc != 0);
+        c2_free(nskey);
+
+        c2_db_tx_commit(&tx);
+}
+
+/**
+   Lookup by name, make sure cfid is right.
+*/
 static void test_lookup(void)
 {
         struct c2_db_tx      tx;
-        struct c2_cob_nskey *key;
+        struct c2_cob_nskey *nskey;
+        struct c2_fid        pfid;
 
-        make_nskey(&key, 0x123, 0x456, "hello world");
+        pfid.f_container = 0x123;
+        pfid.f_key = 0x456;
+        c2_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
-        rc = c2_cob_lookup(&dom, key, CA_NSKEY_FREE, &cob, &tx);
+        rc = c2_cob_lookup(&dom, nskey, C2_CA_NSKEY_FREE, &cob, &tx);
         c2_db_tx_commit(&tx);
         C2_UT_ASSERT(rc == 0);
         C2_UT_ASSERT(cob != NULL);
         C2_UT_ASSERT(cob->co_dom == &dom);
-        C2_UT_ASSERT(cob->co_valid & CA_NSREC);
-        C2_UT_ASSERT(cob->co_nsrec.cnr_stobid.si_bits.u_hi == 0xabc);
-        C2_UT_ASSERT(cob->co_nsrec.cnr_stobid.si_bits.u_lo == 0xdef);
+        C2_UT_ASSERT(cob->co_flags & C2_CA_NSREC);
+        C2_UT_ASSERT(cob->co_nsrec.cnr_fid.f_container == 0xabc);
+        C2_UT_ASSERT(cob->co_nsrec.cnr_fid.f_key == 0xdef);
 
         /* We should have cached the key also, unless oom */
-        C2_UT_ASSERT(cob->co_valid & CA_NSKEY);
+        C2_UT_ASSERT(cob->co_flags & C2_CA_NSKEY);
 
         c2_cob_put(cob);
 }
@@ -137,20 +229,25 @@ static void test_lookup(void)
 static int test_locate_internal(void)
 {
         struct c2_db_tx      tx;
-        struct c2_stob_id    sid;
+        struct c2_fid        fid;
+        struct c2_cob_oikey  oikey;
 
-        /* stob fid */
-        sid.si_bits.u_hi = 0xabc;
-        sid.si_bits.u_lo = 0xdef;
+        fid.f_container = 0xabc;
+        fid.f_key = 0xdef;
+
+        oikey.cok_fid = fid;
+        oikey.cok_linkno = 0;
 
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
-        rc = c2_cob_locate(&dom, &sid, &cob, &tx);
+        rc = c2_cob_locate(&dom, &oikey, 0, &cob, &tx);
         c2_db_tx_commit(&tx);
 
         return rc;
 }
 
-/* Lookup by fid, make sure pfid is right */
+/**
+   Lookup by fid, make sure pfid is right.
+*/
 static void test_locate(void)
 {
         rc = test_locate_internal();
@@ -159,29 +256,32 @@ static void test_locate(void)
         C2_UT_ASSERT(cob->co_dom == &dom);
 
         /* We should have saved the NSKEY */
-        C2_UT_ASSERT(cob->co_valid & CA_NSKEY);
-        C2_UT_ASSERT(cob->co_nskey->cnk_pfid.si_bits.u_hi == 0x123);
-        C2_UT_ASSERT(cob->co_nskey->cnk_pfid.si_bits.u_lo == 0x456);
+        C2_UT_ASSERT(cob->co_flags & C2_CA_NSKEY);
+        C2_UT_ASSERT(cob->co_nskey->cnk_pfid.f_container == 0x123);
+        C2_UT_ASSERT(cob->co_nskey->cnk_pfid.f_key == 0x456);
 
         /* Assuming we looked up the NSREC at the same time */
-        C2_UT_ASSERT(cob->co_valid & CA_NSREC);
+        C2_UT_ASSERT(cob->co_flags & C2_CA_NSREC);
 
         c2_cob_put(cob);
 }
 
+/**
+   Test if delete works.
+*/
 static void test_delete(void)
 {
         struct c2_db_tx      tx;
 
         /* gets ref */
         rc = test_locate_internal();
-        C2_UT_ASSERT(rc == 0);
+        C2_ASSERT(rc == 0);
 
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
         /* drops ref */
         rc = c2_cob_delete(cob, &tx);
         c2_db_tx_commit(&tx);
-	C2_UT_ASSERT(rc == 0);
+        C2_UT_ASSERT(rc == 0);
 
         /* should fail now */
         rc = test_locate_internal();
@@ -189,20 +289,22 @@ static void test_delete(void)
 }
 
 const struct c2_test_suite cob_ut = {
-	.ts_name = "cob-ut",
-	.ts_init = db_reset,
-	/* .ts_fini = db_reset, */
-	.ts_tests = {
-		{ "cob-init", test_init },
+        .ts_name = "cob-ut",
+        .ts_init = db_reset,
+        /* .ts_fini = db_reset, */
+        .ts_tests = {
+                { "cob-mkfs", test_mkfs },
+                { "cob-init", test_init },
                 { "cob-create", test_create },
                 { "cob-lookup", test_lookup },
                 { "cob-locate", test_locate },
+                { "cob-add-name", test_add_name },
+                { "cob-del-name", test_del_name },
                 { "cob-delete", test_delete },
-		{ "cob-fini", test_fini },
-		{ NULL, NULL }
-	}
+                { "cob-fini", test_fini },
+                { NULL, NULL }
+        }
 };
-
 
 /*
  * UB
@@ -214,13 +316,13 @@ const struct c2_test_suite cob_ut = {
 static struct c2_db_tx cob_ub_tx;
 
 enum {
-	UB_ITER = 100000
+        UB_ITER = 100000
 };
 
 static void ub_init(void)
 {
-	db_reset();
-	test_init();
+        db_reset();
+        test_init();
         rc = c2_db_tx_init(&cob_ub_tx, dom.cd_dbenv, 0);
         C2_ASSERT(rc == 0);
 }
@@ -228,9 +330,9 @@ static void ub_init(void)
 static void ub_fini(void)
 {
         rc = c2_db_tx_commit(&cob_ub_tx);
-	C2_ASSERT(rc == 0);
-	test_fini();
-	db_reset();
+        C2_ASSERT(rc == 0);
+        test_fini();
+        db_reset();
 }
 
 static void newtx(int i) {
@@ -246,23 +348,33 @@ static void newtx(int i) {
 
 static void ub_create(int i)
 {
-        struct c2_cob_nskey *key;
-        struct c2_cob_nsrec  nsrec;
-        struct c2_cob_fabrec fabrec;
+        struct c2_cob_nskey   *key;
+        struct c2_cob_nsrec    nsrec;
+        struct c2_cob_fabrec  *fabrec;
+        struct c2_cob_omgrec   omgrec;
+        struct c2_fid          fid;
+
+        C2_SET0(&nsrec);
+        C2_SET0(&omgrec);
 
         newtx(i);
 
         /* pfid == cfid for data objects, so here we are identifying
            uniquely in the namespace by {pfid, ""} */
-        make_nskey(&key, 0xAA, i, "");
+        fid.f_container = 0xAA;
+        fid.f_key = i;
+        c2_cob_nskey_make(&key, &fid, "", 0);
 
-        nsrec.cnr_stobid.si_bits.u_hi = 0xAA;
-        nsrec.cnr_stobid.si_bits.u_lo = i;
+        nsrec.cnr_fid.f_container = 0xAA;
+        nsrec.cnr_fid.f_key = i;
         nsrec.cnr_nlink = 1;
 
-	rc = c2_cob_create(&dom, key, &nsrec, &fabrec, CA_NSKEY_FREE, &cob,
-                           &cob_ub_tx);
-	C2_UB_ASSERT(rc == 0);
+        rc = c2_cob_alloc(&dom, &cob);
+        C2_UB_ASSERT(rc == 0);
+
+        c2_cob_fabrec_make(&fabrec, NULL, 0);
+        rc = c2_cob_create(cob, key, &nsrec, fabrec, &omgrec, &cob_ub_tx);
+        C2_UB_ASSERT(rc == 0);
 
         c2_cob_put(cob);
 }
@@ -270,42 +382,45 @@ static void ub_create(int i)
 static void ub_lookup(int i)
 {
         struct c2_cob_nskey *key;
+        struct c2_fid        fid;
 
         newtx(i);
 
         /* pfid == cfid for data objects */
-        make_nskey(&key, 0xAA, i, "");
-        rc = c2_cob_lookup(&dom, key, CA_NSKEY_FREE, &cob, &cob_ub_tx);
+        fid.f_container = 0xAA;
+        fid.f_key = i;
+        c2_cob_nskey_make(&key, &fid, "", 0);
+        rc = c2_cob_lookup(&dom, key, C2_CA_NSKEY_FREE, &cob, &cob_ub_tx);
         C2_UB_ASSERT(rc == 0);
         C2_UB_ASSERT(cob != NULL);
         C2_UB_ASSERT(cob->co_dom == &dom);
 
-        C2_UB_ASSERT(cob->co_valid & CA_NSREC);
-        C2_UB_ASSERT(cob->co_nsrec.cnr_stobid.si_bits.u_hi == 0xAA);
-        C2_UB_ASSERT(cob->co_nsrec.cnr_stobid.si_bits.u_lo == i);
+        C2_UB_ASSERT(cob->co_flags & C2_CA_NSREC);
+        C2_UB_ASSERT(cob->co_nsrec.cnr_fid.f_container == 0xAA);
+        C2_UB_ASSERT(cob->co_nsrec.cnr_fid.f_key == i);
 
         /* We should be holding the nskey until the final put */
-        C2_UB_ASSERT(cob->co_valid & CA_NSKEY);
+        C2_UB_ASSERT(cob->co_flags & C2_CA_NSKEY);
 
         c2_cob_put(cob);
 }
 
 
 struct c2_ub_set c2_cob_ub = {
-	.us_name = "cob-ub",
-	.us_init = ub_init,
-	.us_fini = ub_fini,
-	.us_run  = {
-		{ .ut_name = "create",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_create },
+        .us_name = "cob-ub",
+        .us_init = ub_init,
+        .us_fini = ub_fini,
+        .us_run  = {
+                { .ut_name = "create",
+                  .ut_iter = UB_ITER,
+                  .ut_round = ub_create },
 
-		{ .ut_name = "lookup",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_lookup },
+                { .ut_name = "lookup",
+                  .ut_iter = UB_ITER,
+                  .ut_round = ub_lookup },
 
-		{ .ut_name = NULL }
-	}
+                { .ut_name = NULL }
+        }
 };
 
 /*

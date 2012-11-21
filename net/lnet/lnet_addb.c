@@ -78,14 +78,15 @@ struct nlx_qstat_body {
 	char                 sb_name[0];
 };
 
-int nlx_statistic_getsize(struct c2_addb_dp *dp)
+C2_INTERNAL int nlx_statistic_getsize(struct c2_addb_dp *dp)
 {
 	return c2_align(sizeof(uint64_t) + sizeof(struct c2_net_qstats) +
 			strlen(dp->ad_name) + 1, C2_ADDB_RECORD_LEN_ALIGN);
 }
 
 /** packing statistic addb record */
-int nlx_statistic_pack(struct c2_addb_dp *dp, struct c2_addb_record *rec)
+C2_INTERNAL int nlx_statistic_pack(struct c2_addb_dp *dp,
+				   struct c2_addb_record *rec)
 {
 	struct c2_addb_record_header *header = &rec->ar_header;
 	struct nlx_addb_dp           *ndp;
@@ -108,8 +109,9 @@ int nlx_statistic_pack(struct c2_addb_dp *dp, struct c2_addb_record *rec)
 	return rc;
 }
 
-int subst_name_uint64_t_qstats(struct c2_addb_dp *dp, const char *name,
-			       uint64_t qid, struct c2_net_qstats *qs)
+C2_INTERNAL int subst_name_uint64_t_qstats(struct c2_addb_dp *dp,
+					   const char *name, uint64_t qid,
+					   struct c2_net_qstats *qs)
 {
 	struct nlx_addb_dp *ndp;
 

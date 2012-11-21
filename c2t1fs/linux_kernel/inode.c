@@ -39,11 +39,11 @@ static int c2t1fs_build_layout_instance(const uint64_t              layout_id,
 
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 
-C2_TL_DESCR_DEFINE(dir_ents, "Dir entries", , struct c2t1fs_dir_ent,
+C2_TL_DESCR_DEFINE(dir_ents, "Dir entries", C2_INTERNAL, struct c2t1fs_dir_ent,
 		   de_link, de_magic,
 		   C2_T1FS_DIRENT_MAGIC, C2_T1FS_DIRENT_HEAD_MAGIC);
 
-C2_TL_DEFINE(dir_ents, , struct c2t1fs_dir_ent);
+C2_TL_DEFINE(dir_ents, C2_INTERNAL, struct c2t1fs_dir_ent);
 
 static const struct c2_bob_type c2t1fs_inode_bob = {
 	.bt_name         = "c2t1fs_inode",
@@ -52,9 +52,9 @@ static const struct c2_bob_type c2t1fs_inode_bob = {
 	.bt_check        = NULL
 };
 
-C2_BOB_DEFINE(, &c2t1fs_inode_bob, c2t1fs_inode);
+C2_BOB_DEFINE(C2_INTERNAL, &c2t1fs_inode_bob, c2t1fs_inode);
 
-bool c2t1fs_inode_is_root(const struct inode *inode)
+C2_INTERNAL bool c2t1fs_inode_is_root(const struct inode *inode)
 {
 	struct c2t1fs_inode *ci;
 
@@ -76,7 +76,7 @@ static void init_once(void *foo)
 	C2_LEAVE();
 }
 
-int c2t1fs_inode_cache_init(void)
+C2_INTERNAL int c2t1fs_inode_cache_init(void)
 {
 	int rc = 0;
 
@@ -92,7 +92,7 @@ int c2t1fs_inode_cache_init(void)
 	return rc;
 }
 
-void c2t1fs_inode_cache_fini(void)
+C2_INTERNAL void c2t1fs_inode_cache_fini(void)
 {
 	C2_ENTRY();
 
@@ -104,7 +104,7 @@ void c2t1fs_inode_cache_fini(void)
 	C2_LEAVE();
 }
 
-void c2t1fs_inode_init(struct c2t1fs_inode *ci)
+C2_INTERNAL void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 {
 	C2_ENTRY("ci: %p", ci);
 
@@ -117,7 +117,7 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 	C2_LEAVE();
 }
 
-void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
+C2_INTERNAL void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 {
 	C2_ENTRY("ci: %p, is_root %s, layout_instance %p",
 		 ci, c2_bool_to_str(c2t1fs_inode_is_root(&ci->ci_inode)),
@@ -138,7 +138,7 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 /**
    Implementation of super_operations::alloc_inode() interface.
  */
-struct inode *c2t1fs_alloc_inode(struct super_block *sb)
+C2_INTERNAL struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 {
 	struct c2t1fs_inode *ci;
 
@@ -159,7 +159,7 @@ struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 /**
    Implementation of super_operations::destroy_inode() interface.
  */
-void c2t1fs_destroy_inode(struct inode *inode)
+C2_INTERNAL void c2t1fs_destroy_inode(struct inode *inode)
 {
 	struct c2t1fs_inode *ci;
 
@@ -175,7 +175,7 @@ void c2t1fs_destroy_inode(struct inode *inode)
 	C2_LEAVE();
 }
 
-struct inode *c2t1fs_root_iget(struct super_block *sb)
+C2_INTERNAL struct inode *c2t1fs_root_iget(struct super_block *sb)
 {
 	struct inode *inode;
 
@@ -309,7 +309,8 @@ static unsigned long fid_hash(const struct c2_fid *fid)
 	return fid->f_key;
 }
 
-struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid)
+C2_INTERNAL struct inode *c2t1fs_iget(struct super_block *sb,
+				      const struct c2_fid *fid)
 {
 	struct inode *inode;
 	unsigned long hash;
@@ -347,7 +348,7 @@ out_err:
 	return ERR_PTR(-EIO);
 }
 
-int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci)
+C2_INTERNAL int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci)
 {
 	struct c2_layout_instance *linst;
 	int                        rc;

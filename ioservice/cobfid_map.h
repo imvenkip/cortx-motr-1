@@ -94,11 +94,11 @@ struct c2_reqh;
  */
 struct c2_cobfid_map {
 	uint64_t            cfm_magic;
-        struct c2_dbenv    *cfm_dbenv;    /**< Database environment pointer */
-        struct c2_addb_ctx *cfm_addb;     /**< ADDB context */
-	char		   *cfm_map_name; /**< Name of the map */
-	c2_time_t           cfm_last_mod; /**< Time last modified */
-	struct c2_table     cfm_table;    /**< Table corresponding to cfm */
+	struct c2_dbenv    *cfm_dbenv;     /**< Database environment pointer */
+	struct c2_addb_ctx *cfm_addb;      /**< ADDB context */
+	char		   *cfm_map_name;  /**< Name of the map */
+	c2_time_t           cfm_last_mod;  /**< Time last modified */
+	struct c2_table     cfm_table;     /**< Table corresponding to cfm */
 	struct c2_mutex     cfm_mutex;
 	bool                cfm_is_initialised;
 	uint64_t            cfm_ref_cnt;
@@ -123,22 +123,37 @@ enum c2_cobfid_map_query_type {
    The data structure should be treated as opaque by the invoking application.
  */
 struct c2_cobfid_map_iter {
-	uint64_t              cfmi_magic;
-	struct c2_cobfid_map *cfmi_cfm;      /**< The map */
-	int                   cfmi_error;    /**< End or error indicator */
-	c2_time_t             cfmi_last_load;/**< Time last loaded */
-	uint64_t              cfmi_next_ci;  /**< Next container id */
-	struct c2_fid         cfmi_next_fid; /**< Next fid value */
-	uint64_t              cfmi_last_ci;  /**< Last container id returned */
-	struct c2_fid         cfmi_last_fid; /**< Last fid value returned */
-	void                 *cfmi_buffer;   /**< Private read-ahead buffer */
-	unsigned int          cfmi_num_recs; /**< # recs in the buffer */
-	unsigned int	      cfmi_last_rec; /**< index of last valid record */
-	unsigned int          cfmi_rec_idx;  /**< The next record to return */
-	bool		      cfmi_end_of_table; /**< Indicates end of table */
-	bool		      cfmi_reload; /**< Indicates iterator reload */
-	enum c2_cobfid_map_query_type cfmi_qt;   /**< The type of query */
-	const struct c2_cobfid_map_iter_ops *cfmi_ops; /**< Operations */
+	uint64_t                             cfmi_magic;
+	/**< The map */
+	struct c2_cobfid_map                *cfmi_cfm;
+	/**< End or error indicator */
+	int                                  cfmi_error;
+	/**< Time last loaded */
+	c2_time_t                            cfmi_last_load;
+	/**< Next container id */
+	uint64_t                             cfmi_next_ci;
+	/**< Next fid value */
+	struct c2_fid                        cfmi_next_fid;
+	 /**< Last container id returned */
+	uint64_t                             cfmi_last_ci;
+	/**< Last fid value returned */
+	struct c2_fid                        cfmi_last_fid;
+	/**< Private read-ahead buffer */
+	void                                *cfmi_buffer;
+	/**< # recs in the buffer */
+	unsigned int                         cfmi_num_recs;
+	/**< index of last valid record */
+	unsigned int	                     cfmi_last_rec;
+	/**< The next record to return */
+	unsigned int                         cfmi_rec_idx;
+	/**< Indicates end of table */
+	bool		                     cfmi_end_of_table;
+	/**< Indicates iterator reload */
+	bool		                     cfmi_reload;
+	/**< The type of query */
+	enum c2_cobfid_map_query_type        cfmi_qt;
+	/**< Operations */
+	const struct c2_cobfid_map_iter_ops *cfmi_ops;
 };
 
 /** Iterator operations */
@@ -178,22 +193,22 @@ struct c2_cobfid_map_iter_ops {
    @see c2_cobfid_map_add()
    @see c2_cobfid_map_fini()
  */
-int c2_cobfid_map_init(struct c2_cobfid_map *cfm,
-		       struct c2_dbenv *db_env,
-		       struct c2_addb_ctx *addb_ctx,
-		       const char *map_name);
+C2_INTERNAL int c2_cobfid_map_init(struct c2_cobfid_map *cfm,
+				   struct c2_dbenv *db_env,
+				   struct c2_addb_ctx *addb_ctx,
+				   const char *map_name);
 
 /**
    Finalize use of a cobfid map.
    @param cfm Pointer to the struct c2_cobfid_map to finalize
  */
-void c2_cobfid_map_fini(struct c2_cobfid_map *cfm);
+C2_INTERNAL void c2_cobfid_map_fini(struct c2_cobfid_map *cfm);
 
 /**
    Finalize use of a cobfid map iterator.
    @param iter Pointer to the struct c2_cobfid_map_iter to finalize
  */
-void c2_cobfid_map_iter_fini(struct  c2_cobfid_map_iter *iter);
+C2_INTERNAL void c2_cobfid_map_iter_fini(struct c2_cobfid_map_iter *iter);
 
 /**
    Creates an association between the tuple of (container_id, file_fid)
@@ -208,10 +223,10 @@ void c2_cobfid_map_iter_fini(struct  c2_cobfid_map_iter *iter);
    @see c2_cobfid_map_enum()
    @see c2_cobfid_map_container_enum()
  */
-int c2_cobfid_map_add(struct c2_cobfid_map *cfm,
-		      const uint64_t container_id,
-		      const struct c2_fid file_fid,
-		      struct c2_uint128 cob_fid);
+C2_INTERNAL int c2_cobfid_map_add(struct c2_cobfid_map *cfm,
+				  const uint64_t container_id,
+				  const struct c2_fid file_fid,
+				  struct c2_uint128 cob_fid);
 
 /**
    Delete the association of the tuple (container_id, file_fid) with a cob_fid.
@@ -221,9 +236,9 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm,
    @retval 0 on success
    @retval -errno on failure
  */
-int c2_cobfid_map_del(struct c2_cobfid_map *cfm,
-		      const uint64_t container_id,
-		      const struct c2_fid file_fid);
+C2_INTERNAL int c2_cobfid_map_del(struct c2_cobfid_map *cfm,
+				  const uint64_t container_id,
+				  const struct c2_fid file_fid);
 
 /**
    Initializes an iterator to enumerate the associations within a container
@@ -237,9 +252,9 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm,
    @retval 0  on success.
    @retval -errno on error.
  */
-int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
-				 uint64_t container_id,
-				 struct c2_cobfid_map_iter *iter);
+C2_INTERNAL int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
+					     uint64_t container_id,
+					     struct c2_cobfid_map_iter *iter);
 
 /**
    Initializes an iterator to enumerate all of the associations
@@ -252,8 +267,8 @@ int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
    @retval 0  on success.
    @retval -errno on error.
  */
-int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
-		       struct c2_cobfid_map_iter *iter);
+C2_INTERNAL int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
+				   struct c2_cobfid_map_iter *iter);
 
 /**
    Returns the next association in traversal order, pointed to by the
@@ -275,10 +290,11 @@ int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
    @retval -ENOENT when the iterator is exhausted
    @retval -errno  on other errors
  */
-int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
-			    uint64_t *container_id_p,
-			    struct c2_fid *file_fid_p,
-			    struct c2_uint128 *cob_fid_p);
+C2_INTERNAL int c2_cobfid_map_iter_next(struct c2_cobfid_map_iter *iter,
+					uint64_t * container_id_p,
+					struct c2_fid *file_fid_p,
+					struct c2_uint128 *cob_fid_p);
+
 
 /**
  * Finds the struct c2_cobfid_map instance in the request handler using
@@ -289,14 +305,15 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
  *
  * @see c2_cobfid_map_put()
  */
-int c2_cobfid_map_get(struct c2_reqh *reqh, struct c2_cobfid_map **out);
+C2_INTERNAL int c2_cobfid_map_get(struct c2_reqh *reqh,
+				  struct c2_cobfid_map **out);
 
 /**
  * Releases a reference on struct c2_cobfid_map instance.
  *
  * @see c2_cobfid_map_setup_get()
  */
-void c2_cobfid_map_put(struct c2_reqh *reqh);
+C2_INTERNAL void c2_cobfid_map_put(struct c2_reqh *reqh);
 
 /** @} */
 

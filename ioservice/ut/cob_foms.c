@@ -260,19 +260,14 @@ static void cobfops_destroy(struct c2_fop_type *ftype1,
 	C2_UT_ASSERT(ftype1 == NULL || ftype1 == &c2_fop_cob_create_fopt);
 	C2_UT_ASSERT(ftype2 == NULL || ftype2 == &c2_fop_cob_delete_fopt);
 
-	if (ftype1 == NULL) {
-		struct c2_fop_cob_create *fcc;
-		for (i = 0; i < cut->cu_cobfop_nr; ++i) {
-			fcc = c2_fop_data(cut->cu_createfops[i]);
-			c2_free(fcc->cc_cobname.cn_name);
+	if (ftype1 == NULL)
+		for (i = 0; i < cut->cu_cobfop_nr; ++i)
 			c2_fop_free(cut->cu_createfops[i]);
-		}
-	}
 
-	if (ftype2 == NULL) {
+	if (ftype2 == NULL)
 		for (i = 0; i < cut->cu_cobfop_nr; ++i)
 			c2_fop_free(cut->cu_deletefops[i]);
-	}
+
 	c2_free(cut->cu_createfops);
 	c2_free(cut->cu_deletefops);
 	cut->cu_createfops = NULL;
@@ -324,7 +319,7 @@ static void cobfops_send_wait(struct cobthread_arg *arg)
 		cut->cu_deletefops[i];;
 
 	rc = c2_rpc_client_call(fop, &cut->cu_cctx.rcx_session,
-				&cob_req_rpc_item_ops,
+				&cob_req_rpc_item_ops, 0 /* deadline */,
 				CLIENT_RPC_CONN_TIMEOUT);
 	C2_UT_ASSERT(rc == 0);
 	rfop = c2_fop_data(c2_rpc_item_to_fop(fop->f_item.ri_reply));
@@ -534,15 +529,6 @@ static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
 }
 
 /*
- * Accept a COB FOM (create/delete). Delete FOP within FOM.
- */
-static void fop_dealloc(struct c2_fom *fom, enum cob_fom_type fomtype)
-{
-	c2_fop_free(fom->fo_fop);
-	c2_fop_free(fom->fo_rep_fop);
-}
-
-/*
  * A generic COB-FOM-delete verification function. Check memory usage.
  */
 static void fom_fini_test(enum cob_fom_type fomtype)
@@ -658,7 +644,6 @@ static void cobfid_map_verify(struct c2_fom *fom, const bool map_exists)
 static void cc_fom_dealloc(struct c2_fom *fom)
 {
 	fom_phase_set(fom, C2_FOPH_FINISH);
-	fop_dealloc(fom, COB_CREATE);
 	cc_fom_fini(fom);
 }
 
@@ -737,11 +722,12 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 	struct c2_cob_domain *cobdom;
 	struct c2_cob_nskey  *nskey;
 	struct c2_dbenv	     *dbenv;
+	struct c2_fid         fid = {COB_TEST_ID, COB_TEST_ID};
 
-	cobdom = c2_fom_reqh(fom)->rh_cob_domain;
+	cobdom = &c2_fom_reqh(fom)->rh_mdstore->md_dom;
 	dbenv = c2_fom_reqh(fom)->rh_dbenv;
 
-	c2_cob_nskey_make(&nskey, COB_TEST_ID, COB_TEST_ID, test_cobname);
+	c2_cob_nskey_make(&nskey, &fid, test_cobname, strlen(test_cobname));
 
 	C2_SET0(&tx);
 	rc = c2_db_tx_init(&tx, dbenv, 0);
@@ -752,10 +738,11 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 	if (exists) {
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(test_cob != NULL);
-		C2_UT_ASSERT(test_cob->co_valid & CA_NSREC);
+		C2_UT_ASSERT(test_cob->co_flags & C2_CA_NSREC);
 	} else
 		C2_UT_ASSERT(rc == -ENOENT);
-	c2_free(nskey);
+        if (rc != 0)
+	        c2_free(nskey);
 }
 
 /*
@@ -975,7 +962,6 @@ static void cc_fom_populate_test()
 static void cd_fom_dealloc(struct c2_fom *fom)
 {
 	fom_phase_set(fom, C2_FOPH_FINISH);
-	fop_dealloc(fom, COB_DELETE);
 	cd_fom_fini(fom);
 }
 
@@ -1351,6 +1337,33 @@ static void cob_delete_api_test(void)
 	c2_sm_group_unlock(&dummy_loc.fl_group);
 }
 
+static void cobfoms_fv_updates(void)
+{
+	struct c2_reqh      *reqh;
+	struct c2_poolmach  *pm;
+	struct c2_pool_event event;
+	int rc;
+
+	event.pe_type  = C2_POOL_DEVICE;
+	event.pe_index = 1;
+	event.pe_state = C2_PNDS_FAILED;
+
+	reqh = c2_cs_reqh_get(&cut->cu_sctx.rsx_colibri_ctx, "ioservice");
+	C2_UT_ASSERT(reqh != NULL);
+
+	pm = c2_ios_poolmach_get(reqh);
+	C2_UT_ASSERT(pm != NULL);
+
+	rc = c2_poolmach_state_transit(pm, &event);
+	C2_UT_ASSERT(rc == 0);
+
+	cobfoms_send_internal(&c2_fop_cob_create_fopt, &c2_fop_cob_delete_fopt,
+			      C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
+			      C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
+			      COB_FOP_SINGLE);
+}
+
+
 const struct c2_test_suite cobfoms_ut = {
 	.ts_name  = "cob-foms-ut",
 	.ts_init  = NULL,
@@ -1363,6 +1376,7 @@ const struct c2_test_suite cobfoms_ut = {
 		{ "cobfoms_delete_nonexistent_cob", cobfoms_del_nonexist_cob},
 		{ "cobfoms_create_cob_apitest",     cob_create_api_test},
 		{ "cobfoms_delete_cob_apitest",     cob_delete_api_test},
+		{ "single_fop_with_mismatch_fv",    cobfoms_fv_updates},
 		{ "cobfoms_utfini",                 cobfoms_utfini},
 		{ NULL, NULL }
 	}

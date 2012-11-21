@@ -27,9 +27,7 @@
 #include <stdio.h> /* FILE */
 #endif
 
-#include "rpc/item.h"    /* struct c2_rpc_machine, c2_rpc_item */
-#include "rpc/rpc2.h"
-#include "rpc/session.h" /* struct c2_rpc_conn, c2_rpc_session */
+#include "rpc/rpc.h"
 #include "db/db.h"       /* struct c2_dbenv */
 #include "cob/cob.h"     /* struct c2_cob_domain */
 #include "net/net.h"     /* struct c2_net_end_point */
@@ -39,6 +37,7 @@
 #include "colibri/colibri_setup.h" /* struct c2_colibri */
 #endif
 
+struct c2_fop;
 
 #ifndef __KERNEL__
 struct c2_reqh;
@@ -199,10 +198,15 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx);
                      reply upon successful return.
   @param rpc_session The session to be used for the client call.
   @param ri_ops      Pointer to RPC item ops structure.
+  @param deadline    Absolute time after which formation should send the fop
+		     as soon as possible. deadline should be 0 if fop shouldn't
+		     wait in formation queue and should be sent immediately.
   @param timeout_s   Timeout in seconds.  0 implies don't wait for a reply.
 */
-int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
-		       const struct c2_rpc_item_ops *ri_ops, uint32_t timeout_s);
+int c2_rpc_client_call(struct c2_fop *fop,
+		       struct c2_rpc_session *session,
+		       const struct c2_rpc_item_ops *ri_ops,
+		       c2_time_t deadline, uint32_t timeout_s);
 
 /**
   Terminates RPC session and connection with server and finalize client's RPC

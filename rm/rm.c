@@ -111,20 +111,20 @@ resource_find(const struct c2_rm_resource_type *rt,
 C2_TL_DESCR_DEFINE(res, "resources", , struct c2_rm_resource,
 		   r_linkage, r_magix,
 		   C2_RM_RESOURCE_MAGIC, C2_RM_RESOURCE_HEAD_MAGIC);
-C2_TL_DEFINE(res, , struct c2_rm_resource);
+C2_TL_DEFINE(res, C2_INTERNAL, struct c2_rm_resource);
 
 static struct c2_bob_type resource_bob;
-C2_BOB_DEFINE(static, &resource_bob, c2_rm_resource);
+C2_BOB_DEFINE(C2_INTERNAL, &resource_bob, c2_rm_resource);
 
 C2_TL_DESCR_DEFINE(c2_rm_ur, "usage rights", , struct c2_rm_right,
 		   ri_linkage, ri_magix,
 		   C2_RM_RIGHT_MAGIC, C2_RM_USAGE_RIGHT_HEAD_MAGIC);
-C2_TL_DEFINE(c2_rm_ur, , struct c2_rm_right);
+C2_TL_DEFINE(c2_rm_ur, C2_INTERNAL, struct c2_rm_right);
 
 C2_TL_DESCR_DEFINE(remotes, "remote owners", , struct c2_rm_remote,
 		   rem_linkage, rem_magix,
 		   C2_RM_REMOTE_MAGIC, C2_RM_REMOTE_OWNER_HEAD_MAGIC);
-C2_TL_DEFINE(remotes, , struct c2_rm_remote);
+C2_TL_DEFINE(remotes, C2_INTERNAL, struct c2_rm_remote);
 
 static const struct c2_bob_type right_bob = {
         .bt_name         = "right",
@@ -132,17 +132,17 @@ static const struct c2_bob_type right_bob = {
         .bt_magix        = C2_RM_RIGHT_MAGIC,
         .bt_check        = NULL
 };
-C2_BOB_DEFINE(static, &right_bob, c2_rm_right);
+C2_BOB_DEFINE(C2_INTERNAL, &right_bob, c2_rm_right);
 
 C2_TL_DESCR_DEFINE(pr, "pins-of-right", , struct c2_rm_pin,
 		   rp_right_linkage, rp_magix,
 		   C2_RM_PIN_MAGIC, C2_RM_RIGHT_PIN_HEAD_MAGIC);
-C2_TL_DEFINE(pr, , struct c2_rm_pin);
+C2_TL_DEFINE(pr, C2_INTERNAL, struct c2_rm_pin);
 
 C2_TL_DESCR_DEFINE(pi, "pins-of-incoming", , struct c2_rm_pin,
 		   rp_incoming_linkage, rp_magix,
 		   C2_RM_PIN_MAGIC, C2_RM_INCOMING_PIN_HEAD_MAGIC);
-C2_TL_DEFINE(pi, , struct c2_rm_pin);
+C2_TL_DEFINE(pi, C2_INTERNAL, struct c2_rm_pin);
 
 static const struct c2_bob_type pin_bob = {
         .bt_name         = "pin",
@@ -174,9 +174,9 @@ static const struct c2_bob_type outgoing_bob = {
 	.bt_magix        = C2_RM_OUTGOING_MAGIC,
 	.bt_check        = NULL
 };
-C2_BOB_DEFINE(, &outgoing_bob, c2_rm_outgoing);
+C2_BOB_DEFINE(C2_INTERNAL, &outgoing_bob, c2_rm_outgoing);
 
-void c2_rm_domain_init(struct c2_rm_domain *dom)
+C2_INTERNAL void c2_rm_domain_init(struct c2_rm_domain *dom)
 {
 	C2_PRE(dom != NULL);
 
@@ -186,7 +186,7 @@ void c2_rm_domain_init(struct c2_rm_domain *dom)
 }
 C2_EXPORTED(c2_rm_domain_init);
 
-void c2_rm_domain_fini(struct c2_rm_domain *dom)
+C2_INTERNAL void c2_rm_domain_fini(struct c2_rm_domain *dom)
 {
 	C2_PRE(c2_forall(i, ARRAY_SIZE(dom->rd_types),
 			 dom->rd_types[i] == NULL));
@@ -219,8 +219,8 @@ resource_find(const struct c2_rm_resource_type *rt,
 	return scan;
 }
 
-void c2_rm_type_register(struct c2_rm_domain *dom,
-			 struct c2_rm_resource_type *rt)
+C2_INTERNAL void c2_rm_type_register(struct c2_rm_domain *dom,
+				     struct c2_rm_resource_type *rt)
 {
 	C2_PRE(rt->rt_dom == NULL);
 	C2_PRE(IS_IN_ARRAY(rt->rt_id, dom->rd_types));
@@ -241,7 +241,7 @@ void c2_rm_type_register(struct c2_rm_domain *dom,
 }
 C2_EXPORTED(c2_rm_type_register);
 
-void c2_rm_type_deregister(struct c2_rm_resource_type *rtype)
+C2_INTERNAL void c2_rm_type_deregister(struct c2_rm_resource_type *rtype)
 {
 	struct c2_rm_domain *dom = rtype->rt_dom;
 
@@ -264,8 +264,8 @@ void c2_rm_type_deregister(struct c2_rm_resource_type *rtype)
 }
 C2_EXPORTED(c2_rm_type_deregister);
 
-void c2_rm_resource_add(struct c2_rm_resource_type *rtype,
-			struct c2_rm_resource *res)
+C2_INTERNAL void c2_rm_resource_add(struct c2_rm_resource_type *rtype,
+				    struct c2_rm_resource *res)
 {
 	c2_mutex_lock(&rtype->rt_lock);
 	C2_PRE(resource_type_invariant(rtype));
@@ -283,7 +283,7 @@ void c2_rm_resource_add(struct c2_rm_resource_type *rtype,
 }
 C2_EXPORTED(c2_rm_resource_add);
 
-void c2_rm_resource_del(struct c2_rm_resource *res)
+C2_INTERNAL void c2_rm_resource_del(struct c2_rm_resource *res)
 {
 	struct c2_rm_resource_type *rtype = res->r_type;
 
@@ -418,20 +418,21 @@ static void owner_finalisation_check(struct c2_rm_owner *owner)
 	 */
 }
 
-void c2_rm_owner_lock(struct c2_rm_owner *owner)
+C2_INTERNAL void c2_rm_owner_lock(struct c2_rm_owner *owner)
 {
 	c2_sm_group_lock(&owner->ro_sm_grp);
 }
 C2_EXPORTED(c2_rm_owner_lock);
 
-void c2_rm_owner_unlock(struct c2_rm_owner *owner)
+C2_INTERNAL void c2_rm_owner_unlock(struct c2_rm_owner *owner)
 {
 	c2_sm_group_unlock(&owner->ro_sm_grp);
 }
 C2_EXPORTED(c2_rm_owner_unlock);
 
-void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res,
-		      struct c2_rm_remote *creditor)
+C2_INTERNAL void c2_rm_owner_init(struct c2_rm_owner *owner,
+				  struct c2_rm_resource *res,
+				  struct c2_rm_remote *creditor)
 {
 	C2_PRE(ergo(creditor != NULL,
 		    creditor->rem_state >= REM_SERVICE_LOCATED));
@@ -463,7 +464,8 @@ void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res,
 }
 C2_EXPORTED(c2_rm_owner_init);
 
-int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r)
+C2_INTERNAL int c2_rm_owner_selfadd(struct c2_rm_owner *owner,
+				    struct c2_rm_right *r)
 {
 	struct c2_rm_right *right_transfer;
 	struct c2_rm_loan  *nominal_capital;
@@ -582,7 +584,7 @@ static void loans_flush(struct c2_rm_owner *owner)
 	owner_balance(owner);
 }
 
-void c2_rm_owner_retire(struct c2_rm_owner *owner)
+C2_INTERNAL void c2_rm_owner_retire(struct c2_rm_owner *owner)
 {
 	/*
 	 * Put the owner in ROS_QUIESCE. This will prevent any new
@@ -596,7 +598,7 @@ void c2_rm_owner_retire(struct c2_rm_owner *owner)
 	c2_sm_group_unlock(&owner->ro_sm_grp);
 }
 
-void c2_rm_owner_fini(struct c2_rm_owner *owner)
+C2_INTERNAL void c2_rm_owner_fini(struct c2_rm_owner *owner)
 {
 	struct c2_rm_resource *res = owner->ro_resource;
 
@@ -614,7 +616,8 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
 }
 C2_EXPORTED(c2_rm_owner_fini);
 
-void c2_rm_right_init(struct c2_rm_right *right, struct c2_rm_owner *owner)
+C2_INTERNAL void c2_rm_right_init(struct c2_rm_right *right,
+				  struct c2_rm_owner *owner)
 {
 	C2_PRE(right != NULL);
 	C2_PRE(owner->ro_resource->r_ops != NULL);
@@ -631,7 +634,7 @@ void c2_rm_right_init(struct c2_rm_right *right, struct c2_rm_owner *owner)
 }
 C2_EXPORTED(c2_rm_right_init);
 
-void c2_rm_right_fini(struct c2_rm_right *right)
+C2_INTERNAL void c2_rm_right_fini(struct c2_rm_right *right)
 {
 	C2_PRE(right != NULL);
 
@@ -690,9 +693,11 @@ static inline void incoming_state_set(struct c2_rm_incoming *in,
 	c2_sm_state_set(&in->rin_sm, state);
 }
 
-void c2_rm_incoming_init(struct c2_rm_incoming *in, struct c2_rm_owner *owner,
-			 enum c2_rm_incoming_type type,
-			 enum c2_rm_incoming_policy policy, uint64_t flags)
+C2_INTERNAL void c2_rm_incoming_init(struct c2_rm_incoming *in,
+				     struct c2_rm_owner *owner,
+				     enum c2_rm_incoming_type type,
+				     enum c2_rm_incoming_policy policy,
+				     uint64_t flags)
 {
 	C2_PRE(in != NULL);
 
@@ -709,7 +714,7 @@ void c2_rm_incoming_init(struct c2_rm_incoming *in, struct c2_rm_owner *owner,
 }
 C2_EXPORTED(c2_rm_incoming_init);
 
-void c2_rm_incoming_fini(struct c2_rm_incoming *in)
+C2_INTERNAL void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 {
 	C2_PRE(incoming_invariant(in));
 	c2_rm_owner_lock(in->rin_want.ri_owner);
@@ -724,8 +729,8 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 }
 C2_EXPORTED(c2_rm_incoming_fini);
 
-void c2_rm_outgoing_init(struct c2_rm_outgoing *out,
-			 enum c2_rm_outgoing_type req_type)
+C2_INTERNAL void c2_rm_outgoing_init(struct c2_rm_outgoing *out,
+				     enum c2_rm_outgoing_type req_type)
 {
 	C2_PRE(out != NULL);
 
@@ -735,7 +740,7 @@ void c2_rm_outgoing_init(struct c2_rm_outgoing *out,
 }
 C2_EXPORTED(c2_rm_outgoing_init);
 
-void c2_rm_outgoing_fini(struct c2_rm_outgoing *out)
+C2_INTERNAL void c2_rm_outgoing_fini(struct c2_rm_outgoing *out)
 {
 	C2_PRE(out != NULL);
 	c2_rm_outgoing_bob_fini(out);
@@ -749,9 +754,9 @@ static int loan_dup(const struct c2_rm_loan *src_loan,
 				src_loan->rl_other);
 }
 
-int c2_rm_loan_alloc(struct c2_rm_loan **loan,
-		     const struct c2_rm_right *right,
-		     struct c2_rm_remote *creditor)
+C2_INTERNAL int c2_rm_loan_alloc(struct c2_rm_loan **loan,
+				 const struct c2_rm_right *right,
+				 struct c2_rm_remote *creditor)
 {
 	struct c2_rm_loan *new_loan;
 	int		   rc = -ENOMEM;
@@ -798,9 +803,9 @@ static int remnant_loan_get(const struct c2_rm_loan *loan,
 	return rc;
 }
 
-int c2_rm_loan_init(struct c2_rm_loan *loan,
-		    const struct c2_rm_right *right,
-		    struct c2_rm_remote *creditor)
+C2_INTERNAL int c2_rm_loan_init(struct c2_rm_loan *loan,
+				const struct c2_rm_right *right,
+				struct c2_rm_remote *creditor)
 {
 	C2_PRE(loan != NULL);
 	C2_PRE(right != NULL);
@@ -817,7 +822,7 @@ int c2_rm_loan_init(struct c2_rm_loan *loan,
 }
 C2_EXPORTED(c2_rm_loan_init);
 
-void c2_rm_loan_fini(struct c2_rm_loan *loan)
+C2_INTERNAL void c2_rm_loan_fini(struct c2_rm_loan *loan)
 {
 	C2_PRE(loan != NULL);
 
@@ -867,7 +872,8 @@ static int remote_find(struct c2_rm_remote **rem,
 	return rc;
 }
 
-void c2_rm_remote_init(struct c2_rm_remote *rem, struct c2_rm_resource *res)
+C2_INTERNAL void c2_rm_remote_init(struct c2_rm_remote *rem,
+				   struct c2_rm_resource *res)
 {
 	C2_PRE(rem->rem_state == REM_FREED);
 
@@ -879,7 +885,7 @@ void c2_rm_remote_init(struct c2_rm_remote *rem, struct c2_rm_resource *res)
 }
 C2_EXPORTED(c2_rm_remote_init);
 
-void c2_rm_remote_fini(struct c2_rm_remote *rem)
+C2_INTERNAL void c2_rm_remote_fini(struct c2_rm_remote *rem)
 {
 	C2_PRE(rem != NULL);
 	C2_PRE(C2_IN(rem->rem_state, (REM_INITIALISED,
@@ -968,7 +974,7 @@ static int cached_rights_remove(struct c2_rm_incoming *in)
 	return rc;
 }
 
-int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
+C2_INTERNAL int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 {
 	struct c2_rm_incoming *in    = &rem_in->ri_incoming;
 	struct c2_rm_owner    *owner = in->rin_want.ri_owner;
@@ -1010,7 +1016,7 @@ int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 }
 C2_EXPORTED(c2_rm_borrow_commit);
 
-int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rem_in)
+C2_INTERNAL int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rem_in)
 {
 	struct c2_rm_incoming *in    = &rem_in->ri_incoming;
 	struct c2_rm_owner    *owner = in->rin_want.ri_owner;
@@ -1130,7 +1136,7 @@ C2_EXPORTED(c2_rm_revoke_commit);
    External resource manager entry point: request a right from the resource
    owner.
  */
-void c2_rm_right_get(struct c2_rm_incoming *in)
+C2_INTERNAL void c2_rm_right_get(struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *owner = in->rin_want.ri_owner;
 
@@ -1159,7 +1165,7 @@ void c2_rm_right_get(struct c2_rm_incoming *in)
 	c2_rm_owner_unlock(owner);
 }
 
-void c2_rm_right_put(struct c2_rm_incoming *in)
+C2_INTERNAL void c2_rm_right_put(struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *owner = in->rin_want.ri_owner;
 
@@ -1520,7 +1526,7 @@ static int incoming_check_with(struct c2_rm_incoming *in,
  * Called when an outgoing request completes (possibly with an error, like a
  * timeout).
  */
-void c2_rm_outgoing_complete(struct c2_rm_outgoing *og)
+C2_INTERNAL void c2_rm_outgoing_complete(struct c2_rm_outgoing *og)
 {
 	struct c2_rm_owner *owner;
 
@@ -1661,7 +1667,7 @@ static int borrow_send(struct c2_rm_incoming *in, struct c2_rm_right *right)
 	return rc;
 }
 
-int c2_rm_sublet_remove(struct c2_rm_right *right)
+C2_INTERNAL int c2_rm_sublet_remove(struct c2_rm_right *right)
 {
 	struct c2_rm_owner *owner = right->ri_owner;
 	struct c2_rm_right *sublet;
@@ -2128,8 +2134,8 @@ static int remnant_right_get(const struct c2_rm_right *src,
 /**
  * Allocates memory and makes another copy of right struct.
  */
-int c2_rm_right_dup(const struct c2_rm_right *src_right,
-		    struct c2_rm_right **dest_right)
+C2_INTERNAL int c2_rm_right_dup(const struct c2_rm_right *src_right,
+				struct c2_rm_right **dest_right)
 {
 	struct c2_rm_right *right;
 	int		    rc = -ENOMEM;
@@ -2179,7 +2185,8 @@ static bool right_is_empty(const struct c2_rm_right *right)
  * @{
  */
 
-int c2_rm_db_service_query(const char *name, struct c2_rm_remote *rem)
+C2_INTERNAL int c2_rm_db_service_query(const char *name,
+				       struct c2_rm_remote *rem)
 {
         /* Create search query for DB using name as key and
          * find record  and assign service ID */
@@ -2187,7 +2194,7 @@ int c2_rm_db_service_query(const char *name, struct c2_rm_remote *rem)
         return 0;
 }
 
-int c2_rm_remote_resource_locate(struct c2_rm_remote *rem)
+C2_INTERNAL int c2_rm_remote_resource_locate(struct c2_rm_remote *rem)
 {
          /* Send resource management fop to locate resource */
          rem->rem_state = REM_OWNER_LOCATED;
@@ -2266,7 +2273,8 @@ error:
 	return rc;
 }
 
-int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other)
+C2_INTERNAL int c2_rm_net_locate(struct c2_rm_right *right,
+				 struct c2_rm_remote *other)
 {
 	struct c2_rm_resource_type *rtype;
 	struct c2_rm_resource	   *res;
@@ -2300,8 +2308,8 @@ error:
 }
 C2_EXPORTED(c2_rm_net_locate);
 
-int c2_rm_right_encode(const struct c2_rm_right *right,
-		       struct c2_buf *buf)
+C2_INTERNAL int c2_rm_right_encode(const struct c2_rm_right *right,
+				   struct c2_buf *buf)
 {
 	struct c2_bufvec	datum_buf;
 	struct c2_bufvec_cursor cursor;
@@ -2325,8 +2333,8 @@ int c2_rm_right_encode(const struct c2_rm_right *right,
 }
 C2_EXPORTED(c2_rm_right_encode);
 
-int c2_rm_right_decode(struct c2_rm_right *right,
-		       struct c2_buf *buf)
+C2_INTERNAL int c2_rm_right_decode(struct c2_rm_right *right,
+				   struct c2_buf *buf)
 {
 	struct c2_bufvec	datum_buf = C2_BUFVEC_INIT_BUF(&buf->b_addr,
 							       &buf->b_nob);

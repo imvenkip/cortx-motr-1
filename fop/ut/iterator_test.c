@@ -50,12 +50,6 @@ static int fop_init(void)
 				.xt     = c2_fop_iterator_test_xc);
 }
 
-static void fop_obj_fini(struct c2_fop_iterator_test *fop)
-{
-	c2_free(fop->fit_vec.fv_seg);
-	c2_free(fop->fit_rec.fr_seq.fr_seq.fv_seg);
-}
-
 /* Just fill fop object fields */
 static void fop_obj_init(struct c2_fop_iterator_test *fop)
 {
@@ -151,7 +145,6 @@ static void fit_test(void)
 	}
 	C2_UT_ASSERT(i == ARRAY_SIZE(expected));
 
-	fop_obj_fini(fop);
 	c2_fop_free(f);
 	fop_fini();
 }

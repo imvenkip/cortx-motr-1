@@ -51,41 +51,41 @@ const struct c2_addb_ctx_type db_tx_ctx_type = {
 	.act_name = "db-tx"
 };
 
-C2_TL_DESCR_DEFINE(txw,
-		   "tx waiters", , struct c2_db_tx_waiter, tw_tx, tw_magix,
-		   C2_DB_TX_WAITER_MAGIC,
+C2_TL_DESCR_DEFINE(txw, "tx waiters", C2_INTERNAL, struct c2_db_tx_waiter,
+		   tw_tx, tw_magix, C2_DB_TX_WAITER_MAGIC,
 		   0xd1550c1ab1ea11ce /* dissociable alice  */);
 
 
-extern void c2_db_buf_impl_init(struct c2_db_buf *buf);
-extern void c2_db_buf_impl_fini(struct c2_db_buf *buf);
-extern bool c2_db_buf_impl_invariant(const struct c2_db_buf *buf);
+C2_INTERNAL void c2_db_buf_impl_init(struct c2_db_buf *buf);
+C2_INTERNAL void c2_db_buf_impl_fini(struct c2_db_buf *buf);
+C2_INTERNAL bool c2_db_buf_impl_invariant(const struct c2_db_buf *buf);
 
-void c2_dbenv_common_init(struct c2_dbenv *env)
+C2_INTERNAL void c2_dbenv_common_init(struct c2_dbenv *env)
 {
 	C2_SET0(env);
 	c2_addb_ctx_init(&env->d_addb, &db_env_ctx_type, &c2_addb_global_ctx);
 }
 
-void c2_dbenv_common_fini(struct c2_dbenv *env)
+C2_INTERNAL void c2_dbenv_common_fini(struct c2_dbenv *env)
 {
 	c2_addb_ctx_fini(&env->d_addb);
 }
 
-void c2_table_common_init(struct c2_table *table, struct c2_dbenv *env,
-			  const struct c2_table_ops *ops)
+C2_INTERNAL void c2_table_common_init(struct c2_table *table,
+				      struct c2_dbenv *env,
+				      const struct c2_table_ops *ops)
 {
 	table->t_env = env;
 	table->t_ops = ops;
 	c2_addb_ctx_init(&table->t_addb, &db_table_ctx_type, &env->d_addb);
 }
 
-void c2_table_common_fini(struct c2_table *table)
+C2_INTERNAL void c2_table_common_fini(struct c2_table *table)
 {
 	c2_addb_ctx_fini(&table->t_addb);
 }
 
-bool c2_db_buf_invariant(const struct c2_db_buf *buf)
+C2_INTERNAL bool c2_db_buf_invariant(const struct c2_db_buf *buf)
 {
 	return
 		DBT_ZERO < buf->db_type && buf->db_type < DBT_NR &&
@@ -96,8 +96,9 @@ bool c2_db_buf_invariant(const struct c2_db_buf *buf)
 		c2_db_buf_impl_invariant(buf);
 }
 
-void c2_db_buf_init(struct c2_db_buf *buf, enum c2_db_buf_type btype,
-		    void *area, uint32_t size)
+C2_INTERNAL void c2_db_buf_init(struct c2_db_buf *buf,
+				enum c2_db_buf_type btype, void *area,
+				uint32_t size)
 {
 	buf->db_type = btype;
 	buf->db_buf.b_addr = area;
@@ -106,7 +107,7 @@ void c2_db_buf_init(struct c2_db_buf *buf, enum c2_db_buf_type btype,
 	C2_ASSERT(c2_db_buf_invariant(buf));
 }
 
-void c2_db_buf_fini(struct c2_db_buf *buf)
+C2_INTERNAL void c2_db_buf_fini(struct c2_db_buf *buf)
 {
 	C2_ASSERT(c2_db_buf_invariant(buf));
 	c2_db_buf_impl_fini(buf);
@@ -116,14 +117,14 @@ void c2_db_buf_fini(struct c2_db_buf *buf)
 	}
 }
 
-void c2_db_buf_steal(struct c2_db_buf *buf)
+C2_INTERNAL void c2_db_buf_steal(struct c2_db_buf *buf)
 {
 	C2_PRE(buf->db_type == DBT_ALLOC);
 	buf->db_buf.b_addr = NULL;
 	buf->db_buf.b_nob  = 0;
 }
 
-bool c2_db_pair_invariant(const struct c2_db_pair *p)
+C2_INTERNAL bool c2_db_pair_invariant(const struct c2_db_pair *p)
 {
 	return
 		p->dp_table != NULL &&
@@ -131,9 +132,10 @@ bool c2_db_pair_invariant(const struct c2_db_pair *p)
 		c2_db_buf_invariant(&p->dp_rec);
 }
 
-void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
-		      void *keybuf, uint32_t keysize,
-		      void *recbuf, uint32_t recsize)
+C2_INTERNAL void c2_db_pair_setup(struct c2_db_pair *pair,
+				  struct c2_table *table, void *keybuf,
+				  uint32_t keysize, void *recbuf,
+				  uint32_t recsize)
 {
 	C2_PRE((keybuf != NULL) == (keysize > 0));
 	C2_PRE((recbuf != NULL) == (recsize > 0));
@@ -155,7 +157,7 @@ void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
 	C2_POST(c2_db_pair_invariant(pair));
 }
 
-void c2_db_pair_fini(struct c2_db_pair *pair)
+C2_INTERNAL void c2_db_pair_fini(struct c2_db_pair *pair)
 {
 	C2_PRE(c2_db_pair_invariant(pair));
 	c2_db_buf_fini(&pair->dp_rec);
@@ -163,21 +165,27 @@ void c2_db_pair_fini(struct c2_db_pair *pair)
 	C2_SET0(pair);
 }
 
-void c2_db_pair_release(struct c2_db_pair *pair)
+C2_INTERNAL void c2_db_pair_release(struct c2_db_pair *pair)
 {
 }
 
-void c2_db_common_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env)
+C2_INTERNAL int c2_db_tx_is_active(const struct c2_db_tx *tx)
+{
+        return tx->dt_env != NULL;
+}
+
+C2_INTERNAL void c2_db_common_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env)
 {
 	tx->dt_env = env;
 	txw_tlist_init(&tx->dt_waiters);
 	c2_addb_ctx_init(&tx->dt_addb, &db_tx_ctx_type, &env->d_addb);
 }
 
-void c2_db_common_tx_fini(struct c2_db_tx *tx)
+C2_INTERNAL void c2_db_common_tx_fini(struct c2_db_tx *tx)
 {
 	c2_addb_ctx_fini(&tx->dt_addb);
 	txw_tlist_fini(&tx->dt_waiters);
+	tx->dt_env = NULL;
 }
 
 /** @} end of db group */

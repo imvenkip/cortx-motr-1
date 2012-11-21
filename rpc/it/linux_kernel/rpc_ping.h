@@ -23,6 +23,6 @@
 #define __COLIBRI_RPC_IT_RPC_PING_H__
 
 int c2_rpc_ping_init(void);
-void c2_rpc_ping_fini(void);
+C2_INTERNAL void c2_rpc_ping_fini(void);
 
 #endif /* __COLIBRI_RPC_IT_RPC_PING_H__ */

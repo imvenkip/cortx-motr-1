@@ -1,0 +1,9 @@
+nobase_colibri_include_HEADERS += cm/cm.h \
+                                  cm/cp.h \
+                                  cm/ag.h \
+                                  cm/pump.h
+
+colibri_libcolibri_la_SOURCES  += cm/cm.c \
+                                  cm/cp.c \
+                                  cm/ag.c \
+                                  cm/pump.c

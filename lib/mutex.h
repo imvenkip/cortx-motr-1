@@ -38,8 +38,8 @@
 
 /* struct c2_mutex is defined by headers above. */
 
-void c2_mutex_init(struct c2_mutex *mutex);
-void c2_mutex_fini(struct c2_mutex *mutex);
+C2_INTERNAL void c2_mutex_init(struct c2_mutex *mutex);
+C2_INTERNAL void c2_mutex_fini(struct c2_mutex *mutex);
 
 /**
    Returns with the mutex locked.
@@ -47,7 +47,7 @@ void c2_mutex_fini(struct c2_mutex *mutex);
    @pre  c2_mutex_is_not_locked(mutex)
    @post c2_mutex_is_locked(mutex)
  */
-void c2_mutex_lock(struct c2_mutex *mutex);
+C2_INTERNAL void c2_mutex_lock(struct c2_mutex *mutex);
 
 /**
    Unlocks the mutex.
@@ -55,14 +55,14 @@ void c2_mutex_lock(struct c2_mutex *mutex);
    @pre  c2_mutex_is_locked(mutex)
    @post c2_mutex_is_not_locked(mutex)
  */
-void c2_mutex_unlock(struct c2_mutex *mutex);
+C2_INTERNAL void c2_mutex_unlock(struct c2_mutex *mutex);
 
 /**
    Try to take a mutex lock.
    Returns 0 with the mutex locked,
    or non-zero if lock is already hold by others.
  */
-int c2_mutex_trylock(struct c2_mutex *mutex);
+C2_INTERNAL int c2_mutex_trylock(struct c2_mutex *mutex);
 
 
 /**
@@ -70,7 +70,7 @@ int c2_mutex_trylock(struct c2_mutex *mutex);
 
    @note this function can be used only in assertions.
  */
-bool c2_mutex_is_locked(const struct c2_mutex *mutex);
+C2_INTERNAL bool c2_mutex_is_locked(const struct c2_mutex *mutex);
 
 /**
    True iff mutex is not locked by the calling thread.
@@ -80,7 +80,7 @@ bool c2_mutex_is_locked(const struct c2_mutex *mutex);
    @note that this function is *not* necessary equivalent to
    !c2_mutex_is_locked(mutex).
  */
-bool c2_mutex_is_not_locked(const struct c2_mutex *mutex);
+C2_INTERNAL bool c2_mutex_is_not_locked(const struct c2_mutex *mutex);
 
 
 /** @} end of mutex group */

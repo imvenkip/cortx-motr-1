@@ -41,23 +41,25 @@ enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play,
  * @todo Allocate the arrays globally so that it does not result into
  * going beyond the stack limit in the kernel mode.
  */
-void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I,
-		 bool print)
+void layout_demo(struct c2_pdclust_instance *pi,
+		 struct c2_pdclust_layout *pl,
+		 int R, int I, bool print)
 {
 	uint64_t                   group;
 	uint32_t                   unit;
 	uint32_t                   N;
 	uint32_t                   K;
+	uint32_t                   P;
 	uint32_t                   W;
 	int                        i;
 	struct c2_pdclust_src_addr src;
 	struct c2_pdclust_tgt_addr tgt;
 	struct c2_pdclust_src_addr src1;
-	struct c2_pdclust_src_addr map[R][P];
-	uint32_t                   incidence[P][P];
-	uint32_t                   usage[P][C2_PUT_NR + 1];
-	uint32_t                   where[pi->pi_layout->pl_attr.pa_N +
-					 2*pi->pi_layout->pl_attr.pa_K];
+	struct c2_pdclust_attr     attr = pl->pl_attr;
+	struct c2_pdclust_src_addr map[R][attr.pa_P];
+	uint32_t                   incidence[attr.pa_P][attr.pa_P];
+	uint32_t                   usage[attr.pa_P][C2_PUT_NR + 1];
+	uint32_t                   where[attr.pa_N + 2*attr.pa_K];
 
 #ifndef __KERNEL__
 	uint64_t                   frame;
@@ -76,15 +78,15 @@ void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I,
 	C2_SET_ARR0(usage);
 	C2_SET_ARR0(incidence);
 
-	N = pi->pi_layout->pl_attr.pa_N;
-	K = pi->pi_layout->pl_attr.pa_K;
+	N = attr.pa_N;
+	K = attr.pa_K;
+	P = attr.pa_P;
 	W = N + 2*K;
 
 #ifndef __KERNEL__
 	if (print) {
 		printf("layout: N: %u K: %u P: %u C: %u L: %u\n",
-				N, K, P, pi->pi_layout->pl_C,
-				pi->pi_layout->pl_L);
+				N, K, P, pl->pl_C, pl->pl_L);
 	}
 #endif
 
@@ -99,7 +101,7 @@ void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I,
 				map[tgt.ta_frame][tgt.ta_obj] = src;
 			where[unit] = tgt.ta_obj;
 			usage[tgt.ta_obj][C2_PUT_NR]++;
-			usage[tgt.ta_obj][classify(pi->pi_layout, unit)]++;
+			usage[tgt.ta_obj][classify(pl, unit)]++;
 		}
 		for (unit = 0; unit < W; ++unit) {
 			for (i = 0; i < W; ++i)
@@ -116,7 +118,7 @@ void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I,
 		for (obj = 0; obj < P; ++obj) {
 			int d;
 
-			d = classify(pi->pi_layout, map[frame][obj].sa_unit);
+			d = classify(pl, map[frame][obj].sa_unit);
 			printf("%c%2i, %1i%c ",
 			       brace[d][0],
 			       (int)map[frame][obj].sa_group,

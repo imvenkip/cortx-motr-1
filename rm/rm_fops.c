@@ -30,7 +30,7 @@
 #include "rm_fops.h"
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
 
@@ -67,22 +67,22 @@ const struct c2_rpc_item_ops rm_revoke_rpc_ops = {
  */
 struct c2_fop_type c2_fop_rm_borrow_fopt;
 struct c2_fop_type c2_fop_rm_borrow_rep_fopt;
+extern struct c2_sm_state_descr borrow_phases[];
 
 /**
  * FOP definitions for resource-right revoke request and reply.
  */
 struct c2_fop_type c2_fop_rm_revoke_fopt;
 struct c2_fop_type c2_fom_error_rep_fopt;
+extern struct c2_sm_state_descr revoke_phases[];
 
 /*
  * Extern FOM params
  */
 extern const struct c2_fom_type_ops rm_borrow_fom_type_ops;
-extern struct c2_sm_state_descr borrow_states[];
 extern const struct c2_sm_conf borrow_sm_conf;
 
 extern const struct c2_fom_type_ops rm_revoke_fom_type_ops;
-extern struct c2_sm_state_descr revoke_states[];
 extern const struct c2_sm_conf revoke_sm_conf;
 
 /*
@@ -339,7 +339,7 @@ static void outreq_free(struct c2_rpc_item *item)
 	rm_out_fini(out);
 }
 
-void c2_rm_fop_fini(void)
+C2_INTERNAL void c2_rm_fop_fini(void)
 {
 	c2_fop_type_fini(&c2_fop_rm_revoke_fopt);
 	c2_fop_type_fini(&c2_fop_rm_borrow_rep_fopt);
@@ -354,15 +354,15 @@ C2_EXPORTED(c2_rm_fop_fini);
  * Initialises RM fops.
  * @see rm_fop_fini()
  */
-int c2_rm_fop_init(void)
+C2_INTERNAL int c2_rm_fop_init(void)
 {
 	c2_xc_buf_init();
 	c2_xc_cookie_init();
 	c2_xc_rm_init();
 #ifndef __KERNEL__
-	c2_sm_conf_extend(c2_generic_conf.scf_state, borrow_states,
+	c2_sm_conf_extend(c2_generic_conf.scf_state, borrow_phases,
 			  c2_generic_conf.scf_nr_states);
-	c2_sm_conf_extend(c2_generic_conf.scf_state, revoke_states,
+	c2_sm_conf_extend(c2_generic_conf.scf_state, revoke_phases,
 			  c2_generic_conf.scf_nr_states);
 #endif
 	return  C2_FOP_TYPE_INIT(&c2_fop_rm_borrow_fopt,

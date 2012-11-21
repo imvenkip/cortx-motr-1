@@ -99,7 +99,6 @@ struct c2_object_capa {
 	char			 oc_opaque[C2_CAPA_HMAC_MAX_LEN];
 };
 
-
 /**
    Colibri Capability Context
 
@@ -116,14 +115,14 @@ struct c2_capa_ctxt {
    @param ctxt the execution context
    @return 0 means success. Otherwise failure.
 */
-int c2_capa_ctxt_init(struct c2_capa_ctxt *ctxt);
+C2_INTERNAL int c2_capa_ctxt_init(struct c2_capa_ctxt *ctxt);
 
 /**
    Fini a Colibri Capability Context
 
    @param ctxt the execution context
 */
-void c2_capa_ctxt_fini(struct c2_capa_ctxt *ctxt);
+C2_INTERNAL void c2_capa_ctxt_fini(struct c2_capa_ctxt *ctxt);
 
 /**
    New Capability for an object for specified operation
@@ -136,10 +135,9 @@ void c2_capa_ctxt_fini(struct c2_capa_ctxt *ctxt);
 
    Reference count will be initialzed to zero.
 */
-int c2_capa_new(struct c2_object_capa *capa,
-	         enum c2_capa_entity_type type,
-	         enum c2_capa_operation opcode,
-		 void *data);
+C2_INTERNAL int c2_capa_new(struct c2_object_capa *capa,
+			    enum c2_capa_entity_type type,
+			    enum c2_capa_operation opcode, void *data);
 
 /**
    Get Capability for an object for specified operation
@@ -152,8 +150,9 @@ int c2_capa_new(struct c2_object_capa *capa,
    @pre c2_capa_new() should be called successfully.
    Reference count will be bumped.
 */
-int c2_capa_get(struct c2_capa_ctxt *ctxt, struct c2_capa_issuer *owner,
-		struct c2_object_capa *capa);
+C2_INTERNAL int c2_capa_get(struct c2_capa_ctxt *ctxt,
+			    struct c2_capa_issuer *owner,
+			    struct c2_object_capa *capa);
 
 /*
    Put Capability for an object
@@ -164,7 +163,8 @@ int c2_capa_get(struct c2_capa_ctxt *ctxt, struct c2_capa_issuer *owner,
    Reference count will be decreased. When reference count drops to zero,
    it will be finalized and can not be used any more.
 */
-void c2_capa_put(struct c2_capa_ctxt *ctxt, struct c2_object_capa *capa);
+C2_INTERNAL void c2_capa_put(struct c2_capa_ctxt *ctxt,
+			     struct c2_object_capa *capa);
 
 
 /**
@@ -176,8 +176,9 @@ void c2_capa_put(struct c2_capa_ctxt *ctxt, struct c2_object_capa *capa);
    @return 0 means permission is granted. -EPERM means access denied, and
            others mean error.
 */
-int c2_capa_auth(struct c2_capa_ctxt *ctxt, struct c2_object_capa *capa,
-		 enum c2_capa_operation op);
+C2_INTERNAL int c2_capa_auth(struct c2_capa_ctxt *ctxt,
+			     struct c2_object_capa *capa,
+			     enum c2_capa_operation op);
 
 
 /** @} end group capa */

@@ -35,25 +35,28 @@ void __dummy_function(void)
 /* No padding. */
 C2_BASSERT(sizeof(struct c2_uint128) == 16);
 
-bool c2_uint128_eq(const struct c2_uint128 *u0, const struct c2_uint128 *u1)
+C2_INTERNAL bool c2_uint128_eq(const struct c2_uint128 *u0,
+			       const struct c2_uint128 *u1)
 {
 	return c2_uint128_cmp(u0, u1) == 0;
 }
 
-int c2_uint128_cmp(const struct c2_uint128 *u0, const struct c2_uint128 *u1)
+C2_INTERNAL int c2_uint128_cmp(const struct c2_uint128 *u0,
+			       const struct c2_uint128 *u1)
 {
 	return C2_3WAY(u0->u_hi, u1->u_hi) ?: C2_3WAY(u0->u_lo, u1->u_lo);
 }
 
-void c2_uint128_add(struct c2_uint128 *res,
-		    const struct c2_uint128 a,
-		    const struct c2_uint128 b)
+C2_INTERNAL void c2_uint128_add(struct c2_uint128 *res,
+				const struct c2_uint128 a,
+				const struct c2_uint128 b)
 {
 	res->u_lo = a.u_lo + b.u_lo;
 	res->u_hi = a.u_hi + b.u_hi + (res->u_lo < a.u_lo);
 }
 
-void c2_uint128_mul64(struct c2_uint128 *res, uint64_t a, uint64_t b)
+C2_INTERNAL void c2_uint128_mul64(struct c2_uint128 *res, uint64_t a,
+				  uint64_t b)
 {
 	uint64_t a_lo = a & UINT32_MAX;
 	uint64_t a_hi = a >> 32;
@@ -106,7 +109,7 @@ uint64_t c2_rnd(uint64_t max, uint64_t *prev)
 }
 C2_EXPORTED(c2_rnd);
 
-uint64_t c2_gcd64(uint64_t p, uint64_t q)
+C2_INTERNAL uint64_t c2_gcd64(uint64_t p, uint64_t q)
 {
 	uint64_t t;
 
@@ -128,7 +131,7 @@ static uint64_t c2u64(const unsigned char *s)
 	return v;
 }
 
-void c2_uint128_init(struct c2_uint128 *u128, const char *magic)
+C2_INTERNAL void c2_uint128_init(struct c2_uint128 *u128, const char *magic)
 {
 	C2_ASSERT(strlen(magic) == sizeof *u128);
 	u128->u_hi = c2u64((const unsigned char *)magic);
@@ -148,23 +151,23 @@ static int64_t getdelta(uint64_t x0, uint64_t x1)
 	return delta;
 }
 
-bool c2_mod_gt(uint64_t x0, uint64_t x1)
+C2_INTERNAL bool c2_mod_gt(uint64_t x0, uint64_t x1)
 {
 	return getdelta(x0, x1) > 0;
 }
 
-bool c2_mod_ge(uint64_t x0, uint64_t x1)
+C2_INTERNAL bool c2_mod_ge(uint64_t x0, uint64_t x1)
 {
 	return getdelta(x0, x1) >= 0;
 }
 
-uint64_t c2_round_up(uint64_t val, uint64_t size)
+C2_INTERNAL uint64_t c2_round_up(uint64_t val, uint64_t size)
 {
 	C2_PRE(c2_is_po2(size));
 	return (val + size - 1) & ~(size - 1) ;
 }
 
-uint64_t c2_round_down(uint64_t val, uint64_t size)
+C2_INTERNAL uint64_t c2_round_down(uint64_t val, uint64_t size)
 {
 	C2_PRE(c2_is_po2(size));
 	return val & ~(size - 1);
@@ -184,12 +187,12 @@ C2_BASSERT(equi(false, true)  == false);
 C2_BASSERT(equi(true,  false) == false);
 C2_BASSERT(equi(true,  true)  == true);
 
-const char *c2_bool_to_str(bool b)
+C2_INTERNAL const char *c2_bool_to_str(bool b)
 {
 	return b ? "true" : "false";
 }
 
-const char *c2_short_file_name(const char *fname)
+C2_INTERNAL const char *c2_short_file_name(const char *fname)
 {
 	static const char  bkm[]  = "core/build_kernel_modules/";
 	static const char  core[] = "core/";

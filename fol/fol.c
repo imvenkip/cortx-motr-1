@@ -53,12 +53,12 @@
 
   @{
  */
-bool c2_lsn_is_valid(c2_lsn_t lsn)
+C2_INTERNAL bool c2_lsn_is_valid(c2_lsn_t lsn)
 {
 	return lsn > C2_LSN_RESERVED_NR;
 }
 
-int c2_lsn_cmp(c2_lsn_t lsn0, c2_lsn_t lsn1)
+C2_INTERNAL int c2_lsn_cmp(c2_lsn_t lsn0, c2_lsn_t lsn1)
 {
 	C2_PRE(c2_lsn_is_valid(lsn0));
 	C2_PRE(c2_lsn_is_valid(lsn1));
@@ -66,7 +66,7 @@ int c2_lsn_cmp(c2_lsn_t lsn0, c2_lsn_t lsn1)
 	return C2_3WAY(lsn0, lsn1);
 }
 
-c2_lsn_t lsn_inc(c2_lsn_t lsn)
+C2_INTERNAL c2_lsn_t lsn_inc(c2_lsn_t lsn)
 {
 	++lsn;
 	C2_ASSERT(lsn != 0);
@@ -200,7 +200,7 @@ static int rec_init(struct c2_fol_rec *rec, struct c2_db_tx *tx)
 
    @see rec_init()
  */
-void rec_fini(struct c2_fol_rec *rec)
+C2_INTERNAL void rec_fini(struct c2_fol_rec *rec)
 {
 	c2_db_cursor_fini(&rec->fr_ptr);
 	c2_db_pair_fini(&rec->fr_pair);
@@ -239,7 +239,7 @@ static const struct c2_fol_rec_type anchor_type = {
 	.rt_ops    = &anchor_ops
 };
 
-int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
+C2_INTERNAL int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 {
 	int result;
 
@@ -283,12 +283,12 @@ int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 	return result;
 }
 
-void c2_fol_fini(struct c2_fol *fol)
+C2_INTERNAL void c2_fol_fini(struct c2_fol *fol)
 {
 	c2_table_fini(&fol->f_table);
 }
 
-c2_lsn_t c2_fol_lsn_allocate(struct c2_fol *fol)
+C2_INTERNAL c2_lsn_t c2_fol_lsn_allocate(struct c2_fol *fol)
 {
 	c2_lsn_t lsn;
 
@@ -304,7 +304,8 @@ c2_lsn_t c2_fol_lsn_allocate(struct c2_fol *fol)
 	return lsn;
 }
 
-int c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *out)
+C2_INTERNAL int c2_fol_rec_pack(struct c2_fol_rec_desc *desc,
+				struct c2_buf *out)
 {
 	const struct c2_fol_rec_type *rtype;
 	struct c2_fol_rec_header     *h;
@@ -321,7 +322,7 @@ int c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *out)
 		desc->rd_header.rh_sibling_nr * sizeof desc->rd_sibling[0] +
 		data_len;
 	desc->rd_header.rh_opcode = rtype->rt_opcode;
-	//C2_ASSERT((size & 7) == 0);
+	C2_ASSERT((size & 7) == 0);
 
 	buf = c2_alloc(size);
 	if (buf != NULL) {
@@ -335,8 +336,8 @@ int c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *out)
 	return result;
 }
 
-int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
-	       struct c2_fol_rec_desc *rec)
+C2_INTERNAL int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
+			   struct c2_fol_rec_desc *rec)
 {
 	int           result;
 	struct c2_buf buf;
@@ -351,8 +352,8 @@ int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
 	return result;
 }
 
-int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
-		   struct c2_fol_rec_desc *drec, struct c2_buf *buf)
+C2_INTERNAL int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
+			       struct c2_fol_rec_desc *drec, struct c2_buf *buf)
 {
 	struct c2_db_pair pair;
 
@@ -364,12 +365,12 @@ int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
 	return c2_table_insert(tx, &pair);
 }
 
-int c2_fol_force(struct c2_fol *fol, c2_lsn_t upto)
+C2_INTERNAL int c2_fol_force(struct c2_fol *fol, c2_lsn_t upto)
 {
 	return c2_dbenv_sync(fol->f_table.t_env);
 }
 
-bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec)
+C2_INTERNAL bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec)
 {
 	uint32_t i;
 	uint32_t j;
@@ -415,8 +416,8 @@ bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec)
 	return true;
 }
 
-int c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn,
-		      struct c2_fol_rec *out)
+C2_INTERNAL int c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx,
+				  c2_lsn_t lsn, struct c2_fol_rec *out)
 {
 	int result;
 
@@ -443,7 +444,7 @@ int c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn,
 	return result;
 }
 
-void c2_fol_rec_fini(struct c2_fol_rec *rec)
+C2_INTERNAL void c2_fol_rec_fini(struct c2_fol_rec *rec)
 {
 	const struct c2_fol_rec_type *rtype;
 
@@ -460,25 +461,25 @@ void c2_fol_rec_fini(struct c2_fol_rec *rec)
  */
 
 enum {
-	C2_FOL_REC_TYPE_MAX = 64
+	C2_FOL_REC_TYPE_MAX = 128
 };
 
 static const struct c2_fol_rec_type *rtypes[C2_FOL_REC_TYPE_MAX];
 static struct c2_mutex rtypes_lock;
 
-int c2_fols_init(void)
+C2_INTERNAL int c2_fols_init(void)
 {
 	c2_mutex_init(&rtypes_lock);
 	return c2_fol_rec_type_register(&anchor_type);
 }
 
-void c2_fols_fini(void)
+C2_INTERNAL void c2_fols_fini(void)
 {
 	c2_fol_rec_type_unregister(&anchor_type);
 	c2_mutex_fini(&rtypes_lock);
 }
 
-int c2_fol_rec_type_register(const struct c2_fol_rec_type *rt)
+C2_INTERNAL int c2_fol_rec_type_register(const struct c2_fol_rec_type *rt)
 {
 	int result;
 
@@ -495,7 +496,7 @@ int c2_fol_rec_type_register(const struct c2_fol_rec_type *rt)
 	return result;
 }
 
-void c2_fol_rec_type_unregister(const struct c2_fol_rec_type *rt)
+C2_INTERNAL void c2_fol_rec_type_unregister(const struct c2_fol_rec_type *rt)
 {
 	c2_mutex_lock(&rtypes_lock);
 
@@ -506,7 +507,8 @@ void c2_fol_rec_type_unregister(const struct c2_fol_rec_type *rt)
 	c2_mutex_unlock(&rtypes_lock);
 }
 
-const struct c2_fol_rec_type *c2_fol_rec_type_lookup(uint32_t opcode)
+C2_INTERNAL const struct c2_fol_rec_type *c2_fol_rec_type_lookup(uint32_t
+								 opcode)
 {
 	C2_PRE(IS_IN_ARRAY(opcode, rtypes));
 	return rtypes[opcode];

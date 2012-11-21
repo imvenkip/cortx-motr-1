@@ -40,7 +40,7 @@ static const struct c2_net_bulk_mem_ops mem_xprt_methods;
 /**
    Transport initialization subroutine called from c2_init().
  */
-int c2_mem_xprt_init(void)
+C2_INTERNAL int c2_mem_xprt_init(void)
 {
 	c2_list_init(&mem_domains);
 	return 0;
@@ -49,7 +49,7 @@ int c2_mem_xprt_init(void)
 /**
    Transport finalization subroutine called from c2_fini().
  */
-void c2_mem_xprt_fini(void)
+C2_INTERNAL void c2_mem_xprt_fini(void)
 {
 	c2_list_fini(&mem_domains);
 }
@@ -578,8 +578,8 @@ static void mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 	}
 }
 
-void c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc *tm,
-				       size_t num)
+C2_INTERNAL void c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc
+						    *tm, size_t num)
 {
 	struct c2_net_bulk_mem_tm_pvt *tp = mem_tm_to_pvt(tm);
 	C2_PRE(mem_tm_invariant(tm));
@@ -590,7 +590,9 @@ void c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc *tm,
 	c2_mutex_unlock(&tm->ntm_mutex);
 }
 
-size_t c2_net_bulk_mem_tm_get_num_threads(const struct c2_net_transfer_mc *tm) {
+C2_INTERNAL size_t c2_net_bulk_mem_tm_get_num_threads(const struct
+						      c2_net_transfer_mc *tm)
+{
 	struct c2_net_bulk_mem_tm_pvt *tp = mem_tm_to_pvt(tm);
 	C2_PRE(mem_tm_invariant(tm));
 	return tp->xtm_num_workers;
@@ -700,6 +702,13 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	return 0;
 }
 
+static c2_bcount_t mem_xo_get_max_buffer_desc_size(const struct c2_net_domain *dom)
+{
+	C2_PRE(mem_dom_invariant(dom));
+
+	return sizeof(struct mem_desc);
+}
+
 /* Internal methods of this transport; visible to derived transports. */
 static const struct c2_net_bulk_mem_ops mem_xprt_methods = {
 	.bmo_work_fn = {
@@ -739,6 +748,7 @@ static const struct c2_net_xprt_ops mem_xo_xprt_ops = {
 	.xo_tm_fini                     = mem_xo_tm_fini,
 	.xo_tm_start                    = mem_xo_tm_start,
 	.xo_tm_stop                     = mem_xo_tm_stop,
+	.xo_get_max_buffer_desc_size    = mem_xo_get_max_buffer_desc_size,
 };
 
 struct c2_net_xprt c2_net_bulk_mem_xprt = {

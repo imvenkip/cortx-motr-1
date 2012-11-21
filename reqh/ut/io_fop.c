@@ -33,8 +33,7 @@
 #include "stob/stob.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
-#include "rpc/rpc2.h"
-#include "rpc/rpc_onwire.h"
+#include "rpc/rpc.h"
 #include "rpc/rpc_opcodes.h"
 #include "fop/fop_item_type.h"
 #include "reqh/ut/io_fop_ff.h"
@@ -276,7 +275,7 @@ static size_t stob_find_fom_home_locality(const struct c2_fom *fom)
 	if (fom == NULL)
 		return -EINVAL;
 
-	switch (fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode) {
+	switch (c2_fop_opcode(fom->fo_fop)) {
 	case C2_STOB_IO_CREATE_REQ_OPCODE: {
 		struct c2_stob_io_create *fop;
 		uint64_t oid;
@@ -320,8 +319,7 @@ static int stob_create_fom_tick(struct c2_fom *fom)
 	struct c2_fop                   *fop;
 	int                             result;
 
-	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
-			C2_STOB_IO_CREATE_REQ_OPCODE);
+	C2_PRE(c2_fop_opcode(fom->fo_fop) == C2_STOB_IO_CREATE_REQ_OPCODE);
 
 	fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
 	if (c2_fom_phase(fom) < C2_FOPH_NR) {
@@ -339,11 +337,8 @@ static int stob_create_fom_tick(struct c2_fom *fom)
 		item = c2_fop_to_rpc_item(fop);
 		item->ri_type = &fop->f_type->ft_rpc_item_type;
 		fom->fo_rep_fop = fom_obj->sif_rep_fop;
-		fom->fo_rc = result;
-		if (result != 0)
-			c2_fom_phase_set(fom, C2_FOPH_FAILURE);
-		 else
-			c2_fom_phase_set(fom, C2_FOPH_SUCCESS);
+		c2_fom_phase_move(fom, result, result != 0 ? C2_FOPH_FAILURE :
+							     C2_FOPH_SUCCESS);
 
 		result = c2_fop_fol_rec_add(fom->fo_fop,
 		                            c2_fom_reqh(fom)->rh_fol,
@@ -352,7 +347,7 @@ static int stob_create_fom_tick(struct c2_fom *fom)
 		result = C2_FSO_AGAIN;
 	}
 
-	if (c2_fom_phase(fom) == C2_FOPH_FINISH && fom->fo_rc == 0)
+	if (c2_fom_phase(fom) == C2_FOPH_FINISH && c2_fom_rc(fom) == 0)
 		c2_stob_put(fom_obj->sif_stobj);
 
 	return result;
@@ -377,8 +372,7 @@ static int stob_read_fom_tick(struct c2_fom *fom)
         uint32_t                         bshift;
         int                              result = 0;
 
-        C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
-			C2_STOB_IO_READ_REQ_OPCODE);
+        C2_PRE(c2_fop_opcode(fom->fo_fop) == C2_STOB_IO_READ_REQ_OPCODE);
 
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
@@ -420,28 +414,23 @@ static int stob_read_fom_tick(struct c2_fom *fom)
 
                         if (result != 0) {
                                 c2_fom_callback_cancel(&fom->fo_cb);
-                                fom->fo_rc = result;
-                                c2_fom_phase_set(fom, C2_FOPH_FAILURE);
+                                c2_fom_phase_move(fom, result, C2_FOPH_FAILURE);
                         } else {
                                 c2_fom_phase_set(fom, C2_FOPH_READ_STOB_IO_WAIT);
                                 result = C2_FSO_WAIT;
                         }
                 } else if (c2_fom_phase(fom) == C2_FOPH_READ_STOB_IO_WAIT) {
-                        fom->fo_rc = stio->si_rc;
                         stobj = fom_obj->sif_stobj;
-                        if (fom->fo_rc != 0)
-                                c2_fom_phase_set(fom, C2_FOPH_FAILURE);
-                        else {
-                                bshift = stobj->so_op->sop_block_shift(stobj);
-                                out_fop->firr_count = stio->si_count << bshift;
-                                c2_fom_phase_set(fom, C2_FOPH_SUCCESS);
-                        }
-
+			bshift = stobj->so_op->sop_block_shift(stobj);
+			out_fop->firr_count = stio->si_count << bshift;
+			c2_fom_phase_move(fom, stio->si_rc, stio->si_rc != 0 ?
+							    C2_FOPH_FAILURE :
+							    C2_FOPH_SUCCESS);
                 }
 
                 if (c2_fom_phase(fom) == C2_FOPH_FAILURE ||
                     c2_fom_phase(fom) == C2_FOPH_SUCCESS) {
-                        out_fop->firr_rc = fom->fo_rc;
+                        out_fop->firr_rc = c2_fom_rc(fom);
 			fop = fom_obj->sif_rep_fop;
 			item = c2_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
@@ -488,8 +477,7 @@ static int stob_write_fom_tick(struct c2_fom *fom)
         uint32_t                         bshift;
         int                              result = 0;
 
-        C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
-			C2_STOB_IO_WRITE_REQ_OPCODE);
+        C2_PRE(c2_fop_opcode(fom->fo_fop) == C2_STOB_IO_WRITE_REQ_OPCODE);
 
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
@@ -531,28 +519,25 @@ static int stob_write_fom_tick(struct c2_fom *fom)
 
                         if (result != 0) {
                                 c2_fom_callback_cancel(&fom->fo_cb);
-                                fom->fo_rc = result;
-                                c2_fom_phase_set(fom, C2_FOPH_FAILURE);
+                                c2_fom_phase_move(fom, result,
+						  C2_FOPH_FAILURE);
                         } else {
-                                c2_fom_phase_set(fom, C2_FOPH_WRITE_STOB_IO_WAIT);
+                                c2_fom_phase_set(fom,
+						 C2_FOPH_WRITE_STOB_IO_WAIT);
                                 result = C2_FSO_WAIT;
                         }
                 } else if (c2_fom_phase(fom) == C2_FOPH_WRITE_STOB_IO_WAIT) {
-                        fom->fo_rc = stio->si_rc;
                         stobj = fom_obj->sif_stobj;
-                        if (fom->fo_rc != 0)
-                                c2_fom_phase_set(fom, C2_FOPH_FAILURE);
-                        else {
-                                bshift = stobj->so_op->sop_block_shift(stobj);
-                                out_fop->fiwr_count = stio->si_count << bshift;
-                                c2_fom_phase_set(fom, C2_FOPH_SUCCESS);
-                        }
-
+			bshift = stobj->so_op->sop_block_shift(stobj);
+			out_fop->fiwr_count = stio->si_count << bshift;
+			c2_fom_phase_move(fom, stio->si_rc, stio->si_rc != 0 ?
+							    C2_FOPH_FAILURE :
+							    C2_FOPH_SUCCESS);
                 }
 
                 if (c2_fom_phase(fom) == C2_FOPH_FAILURE ||
                     c2_fom_phase(fom) == C2_FOPH_SUCCESS) {
-                        out_fop->fiwr_rc = fom->fo_rc;
+                        out_fop->fiwr_rc = c2_fom_rc(fom);
 			fop = fom_obj->sif_rep_fop;
 			item = c2_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;

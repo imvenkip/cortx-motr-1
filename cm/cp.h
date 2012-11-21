@@ -71,6 +71,13 @@ struct c2_cm_cp;
 struct c2_cm;
 
 /**
+ * @todo replace this hard coded size with actual number from confc.
+ */
+enum {
+        C2_CP_SIZE = 4096
+};
+
+/**
  * Copy packet priority.
  *
  * Copy packets are assigned a priority (greater numerical value
@@ -83,9 +90,15 @@ enum c2_cm_cp_priority {
 	C2_CM_CP_PRIORITY_NR
 };
 
-/** Copy packet FOM generic phases.*/
+/** Distinguishes IO operation for a copy packet. */
+enum c2_cm_cp_io_op {
+	C2_CM_CP_READ,
+	C2_CM_CP_WRITE
+};
+
+/** Copy packet FOM generic phases. */
 enum c2_cm_cp_phase {
-	/** Copy packet specific initialisation.*/
+	/** Copy packet specific initialisation. */
 	C2_CCP_INIT = C2_FOM_PHASE_INIT,
 
 	/**
@@ -94,19 +107,22 @@ enum c2_cm_cp_phase {
 	 */
 	C2_CCP_FINI = C2_FOM_PHASE_FINISH,
 
-	/** Read and fill up the packet.*/
+	/** Read and fill up the packet. */
 	C2_CCP_READ,
 
-	/** Write packet data.*/
+	/** Write packet data. */
 	C2_CCP_WRITE,
 
-	/** Transform the packet.*/
+	/** Wait for IO completion. */
+	C2_CCP_IO_WAIT,
+
+	/** Transform the packet. */
 	C2_CCP_XFORM,
 
-	/** Send packet over network.*/
+	/** Send packet over network. */
 	C2_CCP_SEND,
 
-	/** Received packet from network.*/
+	/** Received packet from network. */
 	C2_CCP_RECV,
 
 	C2_CCP_NR
@@ -130,6 +146,9 @@ struct c2_cm_cp {
 
 	/** Set and used in case of network send/recv.*/
 	struct c2_rpc_bulk	   c_bulk;
+
+	/** Distinguishes IO operation. */
+	enum c2_cm_cp_io_op        c_io_op;
 
 	uint64_t		   c_magix;
 };
@@ -173,7 +192,7 @@ struct c2_cm_cp_ops {
 	int      (*co_action[]) (struct c2_cm_cp *cp);
 };
 
-void c2_cm_cp_module_init(void);
+C2_INTERNAL void c2_cm_cp_module_init(void);
 
 /**
  * Initialises generic copy packet.
@@ -181,19 +200,26 @@ void c2_cm_cp_module_init(void);
  * @pre cp->c_fom.fo_phase == CCP_INIT
  * @post cp->c_fom.fo_phase == C2_FOPH_INIT
  */
-void c2_cm_cp_init(struct c2_cm_cp *cp);
+C2_INTERNAL void c2_cm_cp_init(struct c2_cm_cp *cp);
 
 /**
  * Finalises generic copy packet.
  *
  * @pre cp->c_fom.fo_phase == C2_FOPH_FINISH
  */
-void c2_cm_cp_fini(struct c2_cm_cp *cp);
+C2_INTERNAL void c2_cm_cp_fini(struct c2_cm_cp *cp);
 
 /** Submits copy packet FOM to request handler for processing.*/
-void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);
+C2_INTERNAL void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);
 
-bool c2_cm_cp_invariant(const struct c2_cm_cp *cp);
+C2_INTERNAL bool c2_cm_cp_invariant(const struct c2_cm_cp *cp);
+
+/**
+ * Returns the size of the bufvec of the copy packet.
+ * Initialized at time of configuration from layout info.
+ * It is also used for buffer pool provisioning.
+ */
+C2_INTERNAL c2_bcount_t c2_cm_cp_data_size(struct c2_cm_cp *cp);
 
 /**
  @}

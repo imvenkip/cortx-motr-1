@@ -26,7 +26,7 @@
 #define __COLIBRI_RPC_BULK_H__
 
 /**
-   @addtogroup rpc_layer_core
+   @addtogroup rpc
 
    @{
 
@@ -191,11 +191,11 @@ struct c2_rpc_bulk_buf {
    @post (rc == 0 && *out != NULL) || rc != 0.
    @see c2_rpc_bulk.
  */
-int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
-			uint32_t segs_nr,
-			struct c2_net_domain *netdom,
-			struct c2_net_buffer *nb,
-			struct c2_rpc_bulk_buf **out);
+C2_INTERNAL int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
+				    uint32_t segs_nr,
+				    struct c2_net_domain *netdom,
+				    struct c2_net_buffer *nb,
+				    struct c2_rpc_bulk_buf **out);
 
 /**
    Adds a data buffer to zero vector referred to by rpc bulk structure.
@@ -209,11 +209,11 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
    rpc_bulk_invariant(rbulk).
    @post rpc_bulk_invariant(rbulk).
  */
-int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
-			        void *buf,
-			        c2_bcount_t count,
-			        c2_bindex_t index,
-				struct c2_net_domain *netdom);
+C2_INTERNAL int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
+					    void *buf,
+					    c2_bcount_t count,
+					    c2_bindex_t index,
+					    struct c2_net_domain *netdom);
 
 /**
    An abstract data structure that avails bulk transport for io operations.
@@ -255,7 +255,7 @@ struct c2_rpc_bulk {
    @pre rbulk != NULL.
    @post rpc_bulk_invariant(rbulk).
  */
-void c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk);
+C2_INTERNAL void c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk);
 
 /**
    Removes all c2_rpc_bulk_buf structures from list of such structures in
@@ -263,13 +263,13 @@ void c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk);
    @pre rbulk != NULL.
    @post rpcbulk_tlist_length(&rbulk->rb_buflist) = 0.
  */
-void c2_rpc_bulk_buflist_empty(struct c2_rpc_bulk *rbulk);
+C2_INTERNAL void c2_rpc_bulk_buflist_empty(struct c2_rpc_bulk *rbulk);
 
 /**
    Finalizes the rpc bulk structure.
    @pre rbulk != NULL && rpc_bulk_invariant(rbulk).
  */
-void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk);
+C2_INTERNAL void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk);
 
 /**
    Enum to identify the type of bulk operation going on.
@@ -299,7 +299,8 @@ enum c2_rpc_bulk_op_type {
    q == C2_NET_QT_PASSIVE_BULK_RECV || q == C2_NET_QT_PASSIVE_BULK_SEND ||
    q == C2_NET_QT_ACTIVE_BULK_RECV  || q == C2_NET_QT_ACTIVE_BULK_SEND.
  */
-void c2_rpc_bulk_qtype(struct c2_rpc_bulk *rbulk, enum c2_net_queue_type q);
+C2_INTERNAL void c2_rpc_bulk_qtype(struct c2_rpc_bulk *rbulk,
+				   enum c2_net_queue_type q);
 
 /**
    Stores the c2_net_buf_desc/s for net buffer/s pointed to by c2_rpc_bulk_buf
@@ -317,9 +318,9 @@ void c2_rpc_bulk_qtype(struct c2_rpc_bulk *rbulk, enum c2_net_queue_type q);
     rbuf->bb_nbuf.nb_qtype == C2_NET_QT_PASSIVE_BULK_SEND).
    @post rpc_bulk_invariant(rbulk).
  */
-int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
-		      const struct c2_rpc_conn *conn,
-		      struct c2_net_buf_desc *to_desc);
+C2_INTERNAL int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
+				  const struct c2_rpc_conn *conn,
+				  struct c2_net_buf_desc *to_desc);
 
 /**
    Loads the c2_net_buf_desc/s pointing to net buffer/s contained by
@@ -338,13 +339,13 @@ int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
     rbuf->bb_nbuf.nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND).
    @post rpc_bulk_invariant(rbulk).
  */
-int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
-		     const struct c2_rpc_conn *conn,
-		     struct c2_net_buf_desc *from_desc);
+C2_INTERNAL int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
+				 const struct c2_rpc_conn *conn,
+				 struct c2_net_buf_desc *from_desc);
 
 /** @} bulkclientDFS end group */
 
-/** @} end of rpc-layer-core group */
+/** @} end of rpc group */
 
 #endif
 

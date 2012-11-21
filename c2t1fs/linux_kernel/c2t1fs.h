@@ -30,14 +30,12 @@
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "net/net.h"    /* c2_net_domain */
-#include "rpc/session.h"
-#include "rpc/rpc_machine.h"
+#include "rpc/rpc.h"
 #include "pool/pool.h"  /* c2_pool */
 #include "net/buffer_pool.h"
 #include "fid/fid.h"
 #include "cob/cob.h"    /* c2_cob_domain_id */
-#include "layout/layout.h"  /* c2_layout_domain */
-#include "layout/pdclust.h" /* c2_pdclust_instance */
+#include "layout/layout.h" /* c2_layout_domain, c2_layout, c2_layout_instance */
 
 /**
   @defgroup c2t1fs c2t1fs
@@ -186,8 +184,8 @@
 
 struct c2t1fs_dir_ent;
 
-int  c2t1fs_init(void);
-void c2t1fs_fini(void);
+C2_INTERNAL int c2t1fs_init(void);
+C2_INTERNAL void c2t1fs_fini(void);
 
 enum {
 	MAX_NR_EP_PER_SERVICE_TYPE      = 10,
@@ -226,6 +224,7 @@ struct c2t1fs_mnt_opts {
 	char    *mo_options;
 
 	char    *mo_profile;
+	char    *mo_localconf;
 
 	char    *mo_mgs_ep_addr;
 	char    *mo_mds_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
@@ -320,6 +319,8 @@ struct c2t1fs_sb {
 	/** pool width */
 	uint32_t                      csb_pool_width;
 
+	struct c2_pool                csb_pool;
+
 	/** used by temporary implementation of c2t1fs_fid_alloc(). */
 	uint64_t                      csb_next_key;
 
@@ -331,6 +332,31 @@ struct c2t1fs_sb {
 
 	/** Layout for file */
 	struct c2_layout             *csb_file_layout;
+
+	/**
+         * Flag indicating if c2t1fs mount is active or not.
+         * Flag is set when c2t1fs is mounted and is reset by unmount thread.
+         */
+        bool                          csb_active;
+
+        /**
+         * Instantaneous count of pending io requests.
+         * Every io request increments this value while initializing
+         * and decrements it while finalizing.
+         */
+        struct c2_atomic64            csb_pending_io_nr;
+
+        /** Special thread which runs ASTs from io requests. */
+        struct c2_thread              csb_astthread;
+
+        /**
+         * Channel on which unmount thread will wait. It will be signalled
+         * by AST thread while exiting.
+         */
+        struct c2_chan                csb_iowait;
+
+        /** State machine group used for all IO requests. */
+        struct c2_sm_group            csb_iogroup;
 
 	/** File layout ID */
 	uint64_t                      csb_layout_id;
@@ -400,49 +426,64 @@ extern const struct inode_operations c2t1fs_reg_inode_operations;
  */
 extern const struct c2_fid c2t1fs_root_fid;
 
-bool c2t1fs_inode_is_root(const struct inode *inode);
+C2_INTERNAL bool c2t1fs_inode_is_root(const struct inode *inode);
 
-int c2t1fs_get_sb(struct file_system_type *fstype,
-		  int                      flags,
-		  const char              *devname,
-		  void                    *data,
-		  struct vfsmount         *mnt);
+C2_INTERNAL int c2t1fs_get_sb(struct file_system_type *fstype,
+			      int flags,
+			      const char *devname,
+			      void *data, struct vfsmount *mnt);
 
-void c2t1fs_kill_sb(struct super_block *sb);
+C2_INTERNAL void c2t1fs_kill_sb(struct super_block *sb);
 
-void c2t1fs_fs_lock     (struct c2t1fs_sb *csb);
-void c2t1fs_fs_unlock   (struct c2t1fs_sb *csb);
-bool c2t1fs_fs_is_locked(const struct c2t1fs_sb *csb);
+C2_INTERNAL void c2t1fs_fs_lock(struct c2t1fs_sb *csb);
+C2_INTERNAL void c2t1fs_fs_unlock(struct c2t1fs_sb *csb);
+C2_INTERNAL bool c2t1fs_fs_is_locked(const struct c2t1fs_sb *csb);
 
-struct c2_rpc_session *
+C2_INTERNAL struct c2_rpc_session *
 c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
-			       uint64_t                container_id);
+			       uint64_t container_id);
 
 /* inode.c */
 
-int  c2t1fs_inode_cache_init(void);
-void c2t1fs_inode_cache_fini(void);
+C2_INTERNAL int c2t1fs_inode_cache_init(void);
+C2_INTERNAL void c2t1fs_inode_cache_fini(void);
 
-struct inode *c2t1fs_root_iget(struct super_block *sb);
-struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid);
+C2_INTERNAL struct inode *c2t1fs_root_iget(struct super_block *sb);
+C2_INTERNAL struct inode *c2t1fs_iget(struct super_block *sb,
+				      const struct c2_fid *fid);
 
-struct inode *c2t1fs_alloc_inode(struct super_block *sb);
-void          c2t1fs_destroy_inode(struct inode *inode);
+C2_INTERNAL struct inode *c2t1fs_alloc_inode(struct super_block *sb);
+C2_INTERNAL void c2t1fs_destroy_inode(struct inode *inode);
 
-int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci);
+C2_INTERNAL int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci);
 
-struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci, int index);
+C2_INTERNAL struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci,
+					 int index);
 
-C2_TL_DESCR_DECLARE(dir_ents, extern);
-C2_TL_DECLARE(dir_ents, extern, struct c2t1fs_dir_ent);
+C2_TL_DESCR_DECLARE(dir_ents, C2_EXTERN);
+C2_TL_DECLARE(dir_ents, C2_INTERNAL, struct c2t1fs_dir_ent);
 
-void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
-			 const unsigned char   *name,
-			 int                    namelen,
-			 const struct c2_fid   *fid);
+C2_INTERNAL void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
+				     const unsigned char *name,
+				     int namelen, const struct c2_fid *fid);
 
-int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de);
+C2_INTERNAL int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de);
 
-void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
+C2_INTERNAL void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
+
+struct io_mem_stats {
+	uint64_t a_ioreq_nr;
+	uint64_t d_ioreq_nr;
+	uint64_t a_pargrp_iomap_nr;
+	uint64_t d_pargrp_iomap_nr;
+	uint64_t a_target_ioreq_nr;
+	uint64_t d_target_ioreq_nr;
+	uint64_t a_io_req_fop_nr;
+	uint64_t d_io_req_fop_nr;
+	uint64_t a_data_buf_nr;
+	uint64_t d_data_buf_nr;
+	uint64_t a_page_nr;
+	uint64_t d_page_nr;
+};
 
 #endif /* __COLIBRI_C2T1FS_C2T1FS_H__ */

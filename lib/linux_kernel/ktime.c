@@ -35,7 +35,7 @@
    @{
 */
 
-c2_time_t c2_time_now(void)
+C2_INTERNAL c2_time_t c2_time_now(void)
 {
 	struct timespec ts;
 	c2_time_t	t;
@@ -50,7 +50,7 @@ C2_EXPORTED(c2_time_now);
 /**
    Sleep for requested time
 */
-int c2_nanosleep(const c2_time_t req, c2_time_t *rem)
+C2_INTERNAL int c2_nanosleep(const c2_time_t req, c2_time_t * rem)
 {
 	struct timespec ts = {
 			.tv_sec  = c2_time_seconds(req),

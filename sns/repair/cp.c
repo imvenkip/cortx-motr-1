@@ -20,7 +20,9 @@
  * Original creation date: 08/06/2012
  */
 
+#ifndef C2_TRACE_SUBSYSTEM
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_SNSREPAIR
+#endif
 #include "lib/memory.h" /* c2_free() */
 
 #include "fop/fom.h"
@@ -35,7 +37,7 @@
   @{
 */
 
-struct c2_sns_repair_cp *cp2snscp(const struct c2_cm_cp *cp)
+C2_INTERNAL struct c2_sns_repair_cp *cp2snscp(const struct c2_cm_cp *cp)
 {
 	return container_of(cp, struct c2_sns_repair_cp, rc_base);
 }
@@ -44,7 +46,7 @@ static bool cp_invariant(const struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cp *sns_cp = cp2snscp(cp);
 
-	return c2_fom_phase(&cp->c_fom) < SRP_NR &&
+	return c2_fom_phase(&cp->c_fom) < C2_CCP_NR &&
 	       ergo(c2_fom_phase(&cp->c_fom) > C2_CCP_INIT,
 		    c2_stob_id_is_set(&sns_cp->rc_sid));
 }
@@ -53,7 +55,7 @@ static bool cp_invariant(const struct c2_cm_cp *cp)
  * Uses GOB fid key and parity group number to generate a scalar to
  * help select a request handler locality for copy packet FOM.
  */
-uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp)
+C2_INTERNAL uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp)
 {
 	struct c2_cm_ag_id *id;
 
@@ -64,107 +66,96 @@ uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp)
 
 static int cp_init(struct c2_cm_cp *cp)
 {
-	struct c2_sns_repair_cm *rcm;
-
 	C2_PRE(c2_fom_phase(&cp->c_fom) == C2_CCP_INIT);
-	rcm = cm2sns(cp->c_ag->cag_cm);
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
+	return cp->c_ops->co_phase_next(cp);
 }
 
-static int cp_fini(struct c2_cm_cp *cp)
-{
-	struct c2_sns_repair_cp	*rcp;
-
-	rcp = cp2snscp(cp);
-	/*
-	 * XXX TODO: Release copy packet resource, e.g. data buffer and create
-	 * new copy packets.
-	 */
-
-	return C2_FSO_WAIT;
-}
-
-static int cp_read(struct c2_cm_cp *cp)
-{
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
-}
-
-static int cp_write(struct c2_cm_cp *cp)
-{
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
-}
-
-static int cp_send(struct c2_cm_cp *cp)
+C2_INTERNAL int c2_sns_repair_cp_send(struct c2_cm_cp *cp)
 {
 	return C2_FSO_AGAIN;
 }
 
-static int cp_recv(struct c2_cm_cp *cp)
+C2_INTERNAL int c2_sns_repair_cp_recv(struct c2_cm_cp *cp)
 {
 	return C2_FSO_AGAIN;
 }
 
-static int cp_xform(struct c2_cm_cp *cp)
+C2_INTERNAL int c2_sns_repair_cp_phase_next(struct c2_cm_cp *cp)
 {
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
-}
+	int phase = c2_fom_phase(&cp->c_fom);
+	int next[] = {
+		[C2_CCP_INIT]  = C2_CCP_READ,
+		[C2_CCP_READ]  = C2_CCP_IO_WAIT,
+		[C2_CCP_XFORM] = C2_CCP_WRITE,
+		[C2_CCP_WRITE] = C2_CCP_IO_WAIT,
+		[C2_CCP_IO_WAIT] = C2_CCP_XFORM
+	};
 
-static int cp_phase_next(struct c2_cm_cp *cp)
-{
-	switch (c2_fom_phase(&cp->c_fom)) {
-	case C2_CCP_INIT:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_READ);
-		break;
-	case C2_CCP_READ:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_XFORM);
-		break;
-	case C2_CCP_XFORM:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_WRITE);
-		break;
-	case C2_CCP_WRITE:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_FINI);
-		break;
+	if (phase == C2_CCP_IO_WAIT) {
+		if (cp->c_io_op == C2_CM_CP_READ)
+			next[C2_CCP_IO_WAIT] = C2_CCP_XFORM;
+		else
+			next[C2_CCP_IO_WAIT] = C2_CCP_FINI;
 	}
-        return C2_FSO_AGAIN;
+
+	c2_fom_phase_set(&cp->c_fom, next[phase]);
+        return next[phase] == C2_CCP_FINI ? C2_FSO_WAIT : C2_FSO_AGAIN;
 }
 
 static void cp_complete(struct c2_cm_cp *cp)
 {
 }
 
-static int cp_io_wait(struct c2_cm_cp *cp)
+static void cp_buf_release(struct c2_cm_cp *cp)
 {
-	return 0;
+	struct c2_net_buffer      *nbuf;
+	struct c2_net_buffer_pool *nbp;
+	uint64_t                   colour;
+
+	nbuf = container_of(cp->c_data, struct c2_net_buffer, nb_buffer);
+	C2_ASSERT(nbuf != NULL);
+	nbp = nbuf->nb_pool;
+	C2_ASSERT(nbp != NULL);
+	colour = cp_home_loc_helper(cp) % nbp->nbp_colours_nr;
+        c2_sns_repair_buffer_put(nbp, nbuf, colour);
 }
 
 static void cp_free(struct c2_cm_cp *cp)
 {
 	C2_PRE(cp != NULL);
 
+	if (cp->c_data != NULL)
+		cp_buf_release(cp);
 	c2_free(cp2snscp(cp));
+}
+
+/*
+ * Dummy dud destructor function for struct c2_cm_cp_ops::co_action array in-order
+ * to statisfy the c2_cm_cp_invariant.
+ */
+static int sns_repair_dummy_cp_fini(struct c2_cm_cp *cp)
+{
+	return 0;
 }
 
 const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 	.co_action = {
-		[C2_CCP_INIT]  = &cp_init,
-		[C2_CCP_READ]  = &cp_read,
-		[C2_CCP_WRITE] = &cp_write,
-		[C2_CCP_XFORM] = &cp_xform,
-		[C2_CCP_SEND]  = &cp_send,
-		[C2_CCP_RECV]  = &cp_recv,
-		[C2_CCP_FINI]  = &cp_fini,
-		[SRP_IO_WAIT]  = &cp_io_wait
+		[C2_CCP_INIT]    = &cp_init,
+		[C2_CCP_READ]    = &c2_sns_repair_cp_read,
+		[C2_CCP_WRITE]   = &c2_sns_repair_cp_write,
+		[C2_CCP_IO_WAIT] = &c2_sns_repair_cp_io_wait,
+		[C2_CCP_XFORM]   = &c2_sns_repair_cp_xform,
+		[C2_CCP_SEND]    = &c2_sns_repair_cp_send,
+		[C2_CCP_RECV]    = &c2_sns_repair_cp_recv,
+		/* To satisfy the c2_cm_cp_invariant() */
+		[C2_CCP_FINI]    = &sns_repair_dummy_cp_fini,
 	},
-	.co_action_nr          = C2_CCP_NR,
-	.co_phase_next	       = &cp_phase_next,
-	.co_invariant	       = &cp_invariant,
-	.co_home_loc_helper    = &cp_home_loc_helper,
-	.co_complete	       = &cp_complete,
-	.co_free               = &cp_free,
+	.co_action_nr            = C2_CCP_NR,
+	.co_phase_next	         = &c2_sns_repair_cp_phase_next,
+	.co_invariant	         = &cp_invariant,
+	.co_home_loc_helper      = &cp_home_loc_helper,
+	.co_complete	         = &cp_complete,
+	.co_free                 = &cp_free,
 };
 
 /** @} SNSRepairCP */

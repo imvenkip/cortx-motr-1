@@ -20,21 +20,19 @@
  */
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
-#include "lib/trace.h"   /* C2_LOG */
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"    /* C2_BITS */
-#include "rpc/session.h"
 #include "lib/bitstring.h"
-#include "cob/cob.h"
-#include "fop/fop.h"
 #include "lib/arith.h"
 #include "lib/finject.h"
-#include "rpc/session_ff.h"
-#include "rpc/session_internal.h"
+#include "cob/cob.h"
+#include "fop/fop.h"
 #include "db/db.h"
-#include "rpc/session_fops.h"
-#include "rpc/rpc2.h"
+
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 
 /**
    @addtogroup rpc_session
@@ -46,10 +44,10 @@
 
 static const char conn_cob_name_fmt[] = "SENDER_%lu";
 
-extern struct c2_rpc_chan *rpc_chan_get(struct c2_rpc_machine *machine,
-					struct c2_net_end_point *dest_ep,
-					uint64_t max_rpcs_in_flight);
-extern void rpc_chan_put(struct c2_rpc_chan *chan);
+C2_INTERNAL struct c2_rpc_chan *rpc_chan_get(struct c2_rpc_machine *machine,
+					     struct c2_net_end_point *dest_ep,
+					     uint64_t max_rpcs_in_flight);
+C2_INTERNAL void rpc_chan_put(struct c2_rpc_chan *chan);
 
 /**
    Attaches session 0 object to conn object.
@@ -91,8 +89,6 @@ static int __conn_init(struct c2_rpc_conn      *conn,
 static void __conn_fini(struct c2_rpc_conn *conn);
 
 static void conn_failed(struct c2_rpc_conn *conn, int32_t error);
-
-static uint64_t sender_id_allocate(void);
 
 /*
  * This is sender side item_ops of conn_establish fop.
@@ -169,10 +165,10 @@ static void conn_state_set(struct c2_rpc_conn *conn, int state)
 
    Function is also called from session_foms.c, hence cannot be static.
  */
-bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
+C2_INTERNAL bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_session *session0;
-	struct c2_list        *conn_list;
+	struct c2_tl          *conn_list;
 	int                    s0nr; /* Number of sessions with id == 0 */
 	bool                   sender_end;
 	bool                   recv_end;
@@ -191,24 +187,22 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 
 	/* conditions that should be true irrespective of conn state */
 	ok = sender_end != recv_end &&
-	     c2_list_contains(conn_list, &conn->c_link) &&
-	     c2_list_invariant(&conn->c_sessions) &&
-	     c2_list_length(&conn->c_sessions) == conn->c_nr_sessions &&
+	     rpc_conn_tlist_contains(conn_list, conn) &&
+	     c2_tlist_invariant(&rpc_session_tl, &conn->c_sessions) &&
+	     rpc_session_tlist_length(&conn->c_sessions) ==
+		conn->c_nr_sessions &&
 	     conn_state(conn) <= C2_RPC_CONN_TERMINATED &&
-	     conn->c_rpcchan != NULL &&
 	     /*
 	      * Each connection has exactly one session with id SESSION_ID_0.
 	      * From c2_rpc_conn_init() to c2_rpc_conn_fini(), this session0 is
 	      * either in IDLE state or BUSY state.
 	      */
-	     c2_list_entry_forall(s, &conn->c_sessions, struct c2_rpc_session,
-				  s_link,
-				  ergo(s->s_session_id == SESSION_ID_0,
-				       ++s0nr &&
-				       (session0 = s) && /*'=' is intentional */
-				       C2_IN(s->s_state,
-					     (C2_RPC_SESSION_IDLE,
-					      C2_RPC_SESSION_BUSY)))) &&
+	     c2_tl_forall(rpc_session, s, &conn->c_sessions,
+			  ergo(s->s_session_id == SESSION_ID_0,
+			       ++s0nr &&
+			       (session0 = s) && /*'=' is intentional */
+			       C2_IN(session_state(s), (C2_RPC_SESSION_IDLE,
+							C2_RPC_SESSION_BUSY)))) &&
 	     session0 != NULL &&
 	     s0nr == 1;
 
@@ -219,7 +213,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	case C2_RPC_CONN_INITIALISED:
 		return  conn->c_sender_id == SENDER_ID_INVALID &&
 			conn->c_nr_sessions == 1 &&
-			session0->s_state == C2_RPC_SESSION_IDLE;
+			session_state(session0) == C2_RPC_SESSION_IDLE;
 
 	case C2_RPC_CONN_CONNECTING:
 		return  conn->c_sender_id == SENDER_ID_INVALID &&
@@ -253,7 +247,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 /**
    Returns true iff @conn is sender end of rpc connection.
  */
-bool c2_rpc_conn_is_snd(const struct c2_rpc_conn *conn)
+C2_INTERNAL bool c2_rpc_conn_is_snd(const struct c2_rpc_conn *conn)
 {
 	return (conn->c_flags & RCF_SENDER_END) == RCF_SENDER_END;
 }
@@ -261,15 +255,15 @@ bool c2_rpc_conn_is_snd(const struct c2_rpc_conn *conn)
 /**
    Returns true iff @conn is receiver end of rpc connection.
  */
-bool c2_rpc_conn_is_rcv(const struct c2_rpc_conn *conn)
+C2_INTERNAL bool c2_rpc_conn_is_rcv(const struct c2_rpc_conn *conn)
 {
 	return (conn->c_flags & RCF_RECV_END) == RCF_RECV_END;
 }
 
-int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
-		     struct c2_net_end_point *ep,
-		     struct c2_rpc_machine   *machine,
-		     uint64_t		      max_rpcs_in_flight)
+C2_INTERNAL int c2_rpc_conn_init(struct c2_rpc_conn *conn,
+				 struct c2_net_end_point *ep,
+				 struct c2_rpc_machine *machine,
+				 uint64_t max_rpcs_in_flight)
 {
 	int rc;
 
@@ -281,11 +275,11 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
 	c2_rpc_machine_lock(machine);
 
 	conn->c_flags = RCF_SENDER_END;
-	c2_rpc_sender_uuid_generate(&conn->c_uuid);
+	c2_rpc_sender_uuid_get(&conn->c_uuid);
 
 	rc = __conn_init(conn, ep, machine, max_rpcs_in_flight);
 	if (rc == 0) {
-		c2_list_add(&machine->rm_outgoing_conns, &conn->c_link);
+		rpc_conn_tlist_add(&machine->rm_outgoing_conns, conn);
 		c2_sm_init(&conn->c_sm, &conn_conf, C2_RPC_CONN_INITIALISED,
 			   &machine->rm_sm_grp, NULL /* addb context */);
 		C2_LOG(C2_INFO, "%p INITIALISED \n", conn);
@@ -325,8 +319,8 @@ static int __conn_init(struct c2_rpc_conn      *conn,
 	conn->c_service     = NULL;
 	conn->c_nr_sessions = 0;
 
-	c2_list_init(&conn->c_sessions);
-	c2_list_link_init(&conn->c_link);
+	rpc_session_tlist_init(&conn->c_sessions);
+	rpc_conn_tlink_init(conn);
 
 	rc = session_zero_attach(conn);
 	if (rc != 0) {
@@ -341,6 +335,7 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	struct c2_rpc_slot    *slot;
 	struct c2_rpc_session *session;
 	int                    rc;
+	int                    i;
 
 	C2_ENTRY("conn: %p", conn);
 	C2_ASSERT(conn != NULL &&
@@ -350,20 +345,27 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	if (session == NULL)
 		C2_RETURN(-ENOMEM);
 
-	rc = c2_rpc_session_init_locked(session, conn, 1 /* NR_SLOTS */);
+	rc = c2_rpc_session_init_locked(session, conn, 10 /* NR_SLOTS */);
 	if (rc != 0) {
 		c2_free(session);
 		C2_RETURN(rc);
 	}
 
 	session->s_session_id = SESSION_ID_0;
-	session->s_state      = C2_RPC_SESSION_IDLE;
 
-	slot = session->s_slot_table[0];
-	C2_ASSERT(slot != NULL &&
-		  slot->sl_ops != NULL &&
-		  slot->sl_ops->so_slot_idle != NULL);
-	slot->sl_ops->so_slot_idle(slot);
+	/* It is done as there is no need to establish session0 explicitly
+	 * and direct transition from INITIALISED => IDLE is not allowed.
+	 */
+	session_state_set(session, C2_RPC_SESSION_ESTABLISHING);
+	session_state_set(session, C2_RPC_SESSION_IDLE);
+
+	for (i = 0; i < session->s_nr_slots; ++i) {
+		slot = session->s_slot_table[i];
+		C2_ASSERT(slot != NULL &&
+			  slot->sl_ops != NULL &&
+			  slot->sl_ops->so_slot_idle != NULL);
+		slot->sl_ops->so_slot_idle(slot);
+	}
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_RETURN(0);
 }
@@ -375,15 +377,15 @@ static void __conn_fini(struct c2_rpc_conn *conn)
 
 	rpc_chan_put(conn->c_rpcchan);
 
-	c2_list_fini(&conn->c_sessions);
-	c2_list_link_fini(&conn->c_link);
+	rpc_session_tlist_fini(&conn->c_sessions);
+	rpc_conn_tlink_fini(conn);
 	C2_LEAVE();
 }
 
-int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
-		         struct c2_net_end_point         *ep,
-		         struct c2_rpc_machine           *machine,
-			 const struct c2_rpc_sender_uuid *uuid)
+C2_INTERNAL int c2_rpc_rcv_conn_init(struct c2_rpc_conn *conn,
+				     struct c2_net_end_point *ep,
+				     struct c2_rpc_machine *machine,
+				     const struct c2_rpc_sender_uuid *uuid)
 {
 	int rc;
 
@@ -400,7 +402,7 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 
 	rc = __conn_init(conn, ep, machine, 8 /* max packets in flight */);
 	if (rc == 0) {
-		c2_list_add(&machine->rm_incoming_conns, &conn->c_link);
+		rpc_conn_tlist_add(&machine->rm_incoming_conns, conn);
 		c2_sm_init(&conn->c_sm, &conn_conf, C2_RPC_CONN_INITIALISED,
 			   &machine->rm_sm_grp, NULL /* addb context */);
 		C2_LOG(C2_INFO, "%p INITIALISED \n", conn);
@@ -414,7 +416,7 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 	C2_RETURN(rc);
 }
 
-void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
+C2_INTERNAL void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_machine *machine;
 	struct c2_rpc_session *session0;
@@ -427,9 +429,8 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 	c2_rpc_machine_lock(machine);
 
 	session0 = c2_rpc_conn_session0(conn);
-	while (session0->s_state != C2_RPC_SESSION_IDLE)
-		c2_cond_wait(&session0->s_state_changed,
-			     c2_rpc_machine_mutex(machine));
+	c2_sm_timedwait(&session0->s_sm, C2_BITS(C2_RPC_SESSION_IDLE),
+			C2_TIME_NEVER);
 
 	c2_rpc_conn_fini_locked(conn);
 	/* Don't look in conn after this point */
@@ -439,7 +440,7 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 }
 C2_EXPORTED(c2_rpc_conn_fini);
 
-void c2_rpc_conn_fini_locked(struct c2_rpc_conn *conn)
+C2_INTERNAL void c2_rpc_conn_fini_locked(struct c2_rpc_conn *conn)
 {
 	C2_ENTRY("conn: %p", conn);
 	C2_PRE(c2_rpc_machine_is_locked(conn->c_rpc_machine));
@@ -449,7 +450,7 @@ void c2_rpc_conn_fini_locked(struct c2_rpc_conn *conn)
 					C2_RPC_CONN_FAILED,
 					C2_RPC_CONN_INITIALISED)));
 
-	c2_list_del(&conn->c_link);
+	rpc_conn_tlist_del(conn);
 	session_zero_detach(conn);
 	__conn_fini(conn);
 	conn_state_set(conn, C2_RPC_CONN_FINALISED);
@@ -468,18 +469,19 @@ static void session_zero_detach(struct c2_rpc_conn *conn)
 	C2_PRE(c2_rpc_machine_is_locked(conn->c_rpc_machine));
 
 	session = c2_rpc_conn_session0(conn);
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
+	C2_ASSERT(session_state(session) == C2_RPC_SESSION_IDLE);
 
+	session_state_set(session, C2_RPC_SESSION_TERMINATING);
 	c2_rpc_session_del_slots_from_ready_list(session);
-	session->s_state = C2_RPC_SESSION_TERMINATED;
+	session_state_set(session, C2_RPC_SESSION_TERMINATED);
 	c2_rpc_session_fini_locked(session);
 	c2_free(session);
 
 	C2_LEAVE();
 }
 
-int c2_rpc_conn_timedwait(struct c2_rpc_conn *conn, uint64_t states,
-		          const c2_time_t timeout)
+C2_INTERNAL int c2_rpc_conn_timedwait(struct c2_rpc_conn *conn, uint64_t states,
+				      const c2_time_t timeout)
 {
 	int rc;
 
@@ -496,22 +498,22 @@ int c2_rpc_conn_timedwait(struct c2_rpc_conn *conn, uint64_t states,
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_rpc_machine_unlock(conn->c_rpc_machine);
 
-	C2_RETURN(rc);
+	C2_RETURN(rc ?: conn->c_sm.sm_rc);
 }
 C2_EXPORTED(c2_rpc_conn_timedwait);
 
-void c2_rpc_conn_add_session(struct c2_rpc_conn    *conn,
-			     struct c2_rpc_session *session)
+C2_INTERNAL void c2_rpc_conn_add_session(struct c2_rpc_conn *conn,
+					 struct c2_rpc_session *session)
 {
-	c2_list_add(&conn->c_sessions, &session->s_link);
+	rpc_session_tlist_add(&conn->c_sessions, session);
 	conn->c_nr_sessions++;
 }
 
-void c2_rpc_conn_remove_session(struct c2_rpc_session *session)
+C2_INTERNAL void c2_rpc_conn_remove_session(struct c2_rpc_session *session)
 {
 	C2_ASSERT(session->s_conn->c_nr_sessions > 0);
 
-	c2_list_del(&session->s_link);
+	rpc_session_tlist_del(session);
 	session->s_conn->c_nr_sessions--;
 }
 
@@ -520,7 +522,8 @@ void c2_rpc_conn_remove_session(struct c2_rpc_session *session)
    Note: Every rpc connection always has exactly one active session with
    session id 0.
  */
-struct c2_rpc_session *c2_rpc_conn_session0(const struct c2_rpc_conn *conn)
+C2_INTERNAL struct c2_rpc_session *c2_rpc_conn_session0(const struct c2_rpc_conn
+							*conn)
 {
 	struct c2_rpc_session *session0;
 
@@ -530,9 +533,9 @@ struct c2_rpc_session *c2_rpc_conn_session0(const struct c2_rpc_conn *conn)
 	return session0;
 }
 
-struct c2_rpc_session *
-c2_rpc_session_search(const struct c2_rpc_conn *conn,
-		      uint64_t                  session_id)
+C2_INTERNAL struct c2_rpc_session *c2_rpc_session_search(const struct
+							 c2_rpc_conn *conn,
+							 uint64_t session_id)
 {
 	struct c2_rpc_session *session;
 
@@ -540,21 +543,19 @@ c2_rpc_session_search(const struct c2_rpc_conn *conn,
 		 (unsigned long long) session_id);
 	C2_ASSERT(conn != NULL);
 
-	c2_rpc_for_each_session(conn, session) {
-		if (session->s_session_id == session_id) {
-			C2_LEAVE("session: %p", session);
+	c2_tl_for(rpc_session, &conn->c_sessions, session) {
+		if (session->s_session_id == session_id)
 			return session;
-		}
-	}
+	} c2_tl_endfor;
 	C2_LEAVE("session: (nil)");
 	return NULL;
 }
 
-int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
-		       struct c2_net_end_point *ep,
-		       struct c2_rpc_machine   *rpc_machine,
-		       uint64_t			max_rpcs_in_flight,
-		       uint32_t			timeout_sec)
+C2_INTERNAL int c2_rpc_conn_create(struct c2_rpc_conn *conn,
+				   struct c2_net_end_point *ep,
+				   struct c2_rpc_machine *rpc_machine,
+				   uint64_t max_rpcs_in_flight,
+				   uint32_t timeout_sec)
 {
 	int rc;
 
@@ -575,7 +576,8 @@ int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
 	C2_RETURN(rc);
 }
 
-int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
+C2_INTERNAL int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn,
+					   uint32_t timeout_sec)
 {
 	int rc;
 
@@ -595,7 +597,7 @@ int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 }
 C2_EXPORTED(c2_rpc_conn_establish_sync);
 
-int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
+C2_INTERNAL int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 {
 	struct c2_fop         *fop;
 	struct c2_rpc_session *session_0;
@@ -663,7 +665,7 @@ static void conn_failed(struct c2_rpc_conn *conn, int32_t error)
 	C2_LEAVE();
 }
 
-void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
 {
 	struct c2_rpc_fop_conn_establish_rep *reply;
 	struct c2_rpc_machine                *machine;
@@ -679,7 +681,6 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
 
 	reply_item = item->ri_reply;
 	rc         = item->ri_error;
-
 	C2_PRE(ergo(rc == 0, reply_item != NULL &&
 			     item->ri_session == reply_item->ri_session));
 
@@ -710,6 +711,7 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(C2_IN(conn_state(conn), (C2_RPC_CONN_FAILED,
 					   C2_RPC_CONN_ACTIVE)));
+	C2_LEAVE();
 }
 
 int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec)
@@ -725,7 +727,8 @@ int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 }
 C2_EXPORTED(c2_rpc_conn_destroy);
 
-int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
+C2_INTERNAL int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn,
+					   uint32_t timeout_sec)
 {
 	int rc;
 
@@ -746,7 +749,7 @@ int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 }
 C2_EXPORTED(c2_rpc_conn_terminate_sync);
 
-int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
+C2_INTERNAL int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 {
 	struct c2_fop                    *fop;
 	struct c2_rpc_fop_conn_terminate *args;
@@ -811,7 +814,7 @@ C2_EXPORTED(c2_rpc_conn_terminate);
  *
  * 2. Move conn to FAILED state.
  *    For this conn the receiver side state will still
- *    continue to exist. And receiver can send unsolicited
+ *    continue to exist. And receiver can send one-way
  *    items, that will be received on sender i.e. current node.
  *    Current code will drop such items. When/how to fini and
  *    cleanup receiver side state? XXX
@@ -820,7 +823,7 @@ C2_EXPORTED(c2_rpc_conn_terminate);
  * to alternative 1, iff required.
  */
 
-void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *item)
 {
 	struct c2_rpc_fop_conn_terminate_rep *reply;
 	struct c2_fop                        *reply_fop;
@@ -870,10 +873,9 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *item)
 	C2_POST(c2_rpc_machine_is_locked(machine));
 }
 
-int c2_rpc_conn_cob_lookup(struct c2_cob_domain *dom,
-			   uint64_t              sender_id,
-			   struct c2_cob       **out,
-			   struct c2_db_tx      *tx)
+C2_INTERNAL int c2_rpc_conn_cob_lookup(struct c2_cob_domain *dom,
+				       uint64_t sender_id,
+				       struct c2_cob **out, struct c2_db_tx *tx)
 {
 	struct c2_cob *root_session_cob;
 	char           name[SESSION_COB_MAX_NAME_LEN];
@@ -894,10 +896,9 @@ int c2_rpc_conn_cob_lookup(struct c2_cob_domain *dom,
 	C2_RETURN(rc);
 }
 
-int c2_rpc_conn_cob_create(struct c2_cob_domain *dom,
-			   uint64_t              sender_id,
-			   struct c2_cob       **out,
-			   struct c2_db_tx      *tx)
+C2_INTERNAL int c2_rpc_conn_cob_create(struct c2_cob_domain *dom,
+				       uint64_t sender_id,
+				       struct c2_cob **out, struct c2_db_tx *tx)
 {
 	struct c2_cob *conn_cob;
 	struct c2_cob *root_session_cob;
@@ -912,7 +913,7 @@ int c2_rpc_conn_cob_create(struct c2_cob_domain *dom,
 	sprintf(name, conn_cob_name_fmt, (unsigned long)sender_id);
 	*out = NULL;
 
-	rc = c2_rpc_cob_lookup_helper(dom, NULL, root_session_cob_name,
+	rc = c2_rpc_cob_lookup_helper(dom, NULL, C2_COB_SESSIONS_NAME,
 					&root_session_cob, tx);
 	if (rc != 0) {
 		C2_ASSERT(rc != -EEXIST);
@@ -998,7 +999,7 @@ static int conn_persistent_state_attach(struct c2_rpc_conn *conn,
 	C2_RETURN(0);
 }
 
-int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
+C2_INTERNAL int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_machine *machine;
 	struct c2_db_tx        tx;
@@ -1019,7 +1020,7 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 	conn_state_set(conn, C2_RPC_CONN_CONNECTING);
 	rc = c2_db_tx_init(&tx, machine->rm_dom->cd_dbenv, 0);
 	if (rc == 0) {
-		sender_id = sender_id_allocate();
+		sender_id = uuid_generate();
 		rc = conn_persistent_state_attach(conn, sender_id, &tx);
 		if (rc == 0)
 			rc = c2_db_tx_commit(&tx);
@@ -1035,24 +1036,6 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 
 	C2_POST(c2_rpc_machine_is_locked(machine));
 	C2_RETURN(rc);
-}
-
-/**
-   Allocates and returns new sender_id
- */
-static uint64_t sender_id_allocate(void)
-{
-	static struct c2_atomic64 cnt;
-	uint64_t                  sender_id;
-	uint64_t                  sec;
-
-	do {
-		c2_atomic64_inc(&cnt);
-		sec = c2_time_nanoseconds(c2_time_now()) * 1000000;
-		sender_id = (sec << 10) | (c2_atomic64_get(&cnt) & 0x3FF);
-	} while (sender_id == 0 || sender_id == SENDER_ID_INVALID);
-
-	return sender_id;
 }
 
 static int conn_persistent_state_destroy(struct c2_rpc_conn *conn,
@@ -1078,7 +1061,7 @@ static int conn_persistent_state_destroy(struct c2_rpc_conn *conn,
 	C2_RETURN(0);
 }
 
-int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
+C2_INTERNAL int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_machine *machine;
 	struct c2_db_tx        tx;
@@ -1126,7 +1109,7 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 	C2_RETURN(rc);
 }
 
-void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
+C2_INTERNAL void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_machine *machine;
 
@@ -1151,12 +1134,12 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 	C2_LEAVE();
 }
 
-bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item)
+C2_INTERNAL bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item)
 {
 	return item->ri_type->rit_opcode == C2_RPC_CONN_ESTABLISH_OPCODE;
 }
 
-bool c2_rpc_item_is_conn_terminate(const struct c2_rpc_item *item)
+C2_INTERNAL bool c2_rpc_item_is_conn_terminate(const struct c2_rpc_item *item)
 {
 	return item->ri_type->rit_opcode == C2_RPC_CONN_TERMINATE_OPCODE;
 }
@@ -1168,31 +1151,33 @@ bool c2_rpc_item_is_conn_terminate(const struct c2_rpc_item *item)
    dir = 1, to print incoming conn list
    dir = 0, to print outgoing conn list
  */
-int c2_rpc_machine_conn_list_print(struct c2_rpc_machine *machine, int dir)
+C2_INTERNAL int c2_rpc_machine_conn_list_print(struct c2_rpc_machine *machine,
+					       int dir)
 {
-	struct c2_list     *list;
+	struct c2_tl       *list;
 	struct c2_rpc_conn *conn;
 
 	list = dir ? &machine->rm_incoming_conns : &machine->rm_outgoing_conns;
 
-	c2_list_for_each_entry(list, conn, struct c2_rpc_conn, c_link) {
+	c2_tl_for(rpc_conn, list, conn) {
 		printf("CONN: %p id %llu state %x\n", conn,
 				(unsigned long long)conn->c_sender_id,
 				conn_state(conn));
-	}
+	} c2_tl_endfor;
 	return 0;
 }
 
-int c2_rpc_conn_session_list_print(const struct c2_rpc_conn *conn)
+C2_INTERNAL int c2_rpc_conn_session_list_print(const struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_session *session;
 
-	c2_list_for_each_entry(&conn->c_sessions, session,
-				struct c2_rpc_session, s_link) {
+	c2_tl_for(rpc_session, &conn->c_sessions, session) {
 		printf("session %p id %llu state %x\n", session,
 			(unsigned long long)session->s_session_id,
-			session->s_state);
-	}
+			session_state(session));
+	} c2_tl_endfor;
 	return 0;
 }
+
+/** @} */
 #endif

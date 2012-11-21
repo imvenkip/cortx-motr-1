@@ -23,7 +23,7 @@
 #ifndef __COLIBRI_FOP_FOP_ONWIRE_H__
 #define __COLIBRI_FOP_FOP_ONWIRE_H__
 
-#include "xcode/bufvec_xcode.h"
+#include "rpc/rpc_helpers.h"
 
 /**
    @addtogroup fop
@@ -41,9 +41,10 @@
    @retval 0 On success.
    @retval -errno On failure.
 */
-int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
-				    struct c2_rpc_item      *item,
-				    struct c2_bufvec_cursor *cur);
+C2_INTERNAL int c2_fop_item_type_default_encode(const struct c2_rpc_item_type
+						*item_type,
+						struct c2_rpc_item *item,
+						struct c2_bufvec_cursor *cur);
 
 /**
    Generic deserialization routine for a fop rpc item type. Allocates a new rpc
@@ -55,9 +56,10 @@ int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
    @retval 0 On success.
    @retval -errno if failure.
 */
-int c2_fop_item_type_default_decode(struct c2_rpc_item_type  *item_type,
-				    struct c2_rpc_item      **item_out,
-				    struct c2_bufvec_cursor  *cur);
+C2_INTERNAL int c2_fop_item_type_default_decode(const struct c2_rpc_item_type
+						*item_type,
+						struct c2_rpc_item **item_out,
+						struct c2_bufvec_cursor *cur);
 
 /**
    Return the onwire size of the item type which is a fop in bytes.
@@ -65,12 +67,12 @@ int c2_fop_item_type_default_decode(struct c2_rpc_item_type  *item_type,
    @param item The rpc item for which the on wire size is to be calculated
    @retval Size of the item in bytes.
 */
-c2_bcount_t
-c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item);
+C2_INTERNAL c2_bcount_t
+c2_fop_item_type_default_payload_size(const struct c2_rpc_item *item);
 
-int c2_fop_item_encdec(struct c2_rpc_item      *item,
-		       struct c2_bufvec_cursor *cur,
-		       enum c2_bufvec_what      what);
+C2_INTERNAL int c2_fop_item_encdec(struct c2_rpc_item *item,
+				   struct c2_bufvec_cursor *cur,
+				   enum c2_bufvec_what what);
 
 /** @} end of fop group */
 

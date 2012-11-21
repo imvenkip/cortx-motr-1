@@ -4,7 +4,7 @@
 # If you are modifying this file, please make the relevant changes
 # in above mentioned files also.
 
-MODLIST="@SRCDIR@/build_kernel_modules/kcolibri.ko"
+MODLIST="@ABS_SRCDIR@/build_kernel_modules/kcolibri.ko"
 
 abort()
 {

@@ -28,11 +28,12 @@
 #include "ioservice/io_fops.h"   /* c2_fop_cob_create_fopt */
 #include "ioservice/io_fops_ff.h" /* c2_fop_cob_create */
 #include "rpc/rpclib.h"          /* c2_rpc_client_call */
+#include "ioservice/io_device.h"
 #include "colibri/magic.h"
 
 extern const struct c2_rpc_item_ops cob_req_rpc_item_ops;
-extern void c2t1fs_inode_bob_init(struct c2t1fs_inode *bob);
-extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
+C2_INTERNAL void c2t1fs_inode_bob_init(struct c2t1fs_inode *bob);
+C2_INTERNAL bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
 
 static int c2t1fs_create(struct inode     *dir,
 			 struct dentry    *dentry,
@@ -71,7 +72,8 @@ static int c2t1fs_cob_delete(struct c2t1fs_sb    *csb,
 			     const struct c2_fid *cob_fid,
 			     const struct c2_fid *gob_fid);
 
-static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
+static int c2t1fs_cob_fop_populate(struct c2t1fs_sb    *csb,
+				   struct c2_fop       *fop,
 				   const struct c2_fid *cob_fid,
 				   const struct c2_fid *gob_fid);
 
@@ -174,10 +176,9 @@ out:
 	return rc;
 }
 
-void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
-			 const unsigned char   *name,
-			 int                    namelen,
-			 const struct c2_fid   *fid)
+C2_INTERNAL void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
+				     const unsigned char *name,
+				     int namelen, const struct c2_fid *fid)
 {
 	C2_ENTRY();
 
@@ -191,7 +192,7 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 	C2_LEAVE();
 }
 
-void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de)
+C2_INTERNAL void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de)
 {
 	C2_ENTRY();
 
@@ -423,7 +424,7 @@ out:
 	return 0;
 }
 
-int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de)
+C2_INTERNAL int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de)
 {
 	C2_ENTRY();
 
@@ -486,7 +487,8 @@ out:
    See "Containers and component objects" section in c2t1fs.h for
    more information.
  */
-struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci, int index)
+C2_INTERNAL struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci,
+					 int index)
 {
 	struct c2_layout_enum *le;
 	struct c2_fid          fid;
@@ -591,7 +593,7 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 	C2_ASSERT(c2_is_cob_create_delete_fop(fop));
 	cobcreate = c2_is_cob_create_fop(fop);
 
-	rc = c2t1fs_cob_fop_populate(fop, cob_fid, gob_fid);
+	rc = c2t1fs_cob_fop_populate(csb, fop, cob_fid, gob_fid);
 	if (rc != 0) {
 		c2_fop_free(fop);
 		goto out;
@@ -604,7 +606,7 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 		(unsigned long)session->s_session_id);
 
 	rc = c2_rpc_client_call(fop, session, &cob_req_rpc_item_ops,
-				C2T1FS_RPC_TIMEOUT);
+				0 /* deadline */, C2T1FS_RPC_TIMEOUT);
 
 	if (rc != 0)
 		goto out;
@@ -616,7 +618,28 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 	 * given fop type only.
 	 */
 	reply = c2_fop_data(c2_rpc_item_to_fop(fop->f_item.ri_reply));
-	rc = reply->cor_rc;
+	if (reply->cor_rc == C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
+		struct c2_pool_version_numbers *cli;
+		struct c2_pool_version_numbers *srv;
+		struct c2_fv_event             *event;
+		uint32_t                        i = 0;
+
+		/* Retrieve the latest server version and updates and apply
+		 * to the client's copy. When -EAGAIN is return, this system
+		 * call will be restarted.
+		 */
+		rc = -EAGAIN;
+		cli = &csb->csb_pool.po_mach->pm_state.pst_version;
+		srv = (struct c2_pool_version_numbers *)&reply->cor_fv_version;
+		*cli = *srv;
+		while (i < reply->cor_fv_updates.fvu_count) {
+			event = &reply->cor_fv_updates.fvu_events[i];
+			c2_poolmach_state_transit(csb->csb_pool.po_mach,
+						  (struct c2_pool_event*)event);
+			i++;
+		}
+	} else
+		rc = reply->cor_rc;
 
 	/*
 	 * Fop is deallocated by rpc layer using
@@ -628,12 +651,15 @@ out:
 	return rc;
 }
 
-static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
+static int c2t1fs_cob_fop_populate(struct c2t1fs_sb    *csb,
+				   struct c2_fop       *fop,
 				   const struct c2_fid *cob_fid,
 				   const struct c2_fid *gob_fid)
 {
-	struct c2_fop_cob_create *cc;
-	struct c2_fop_cob_common *common;
+	struct c2_fop_cob_create       *cc;
+	struct c2_fop_cob_common       *common;
+	struct c2_pool_version_numbers *cli;
+	struct c2_pool_version_numbers  curr;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(fop->f_type != NULL);
@@ -644,6 +670,11 @@ static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
 
 	common = c2_cobfop_common_get(fop);
 	C2_ASSERT(common != NULL);
+
+	/* fill in the current client known version */
+	c2_poolmach_current_version_get(csb->csb_pool.po_mach, &curr);
+	cli = (struct c2_pool_version_numbers*)&common->c_version;
+	*cli = curr;
 
 	common->c_gobfid.f_seq = gob_fid->f_container;
 	common->c_gobfid.f_oid = gob_fid->f_key;

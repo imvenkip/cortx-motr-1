@@ -69,8 +69,8 @@ struct client_conf {
 	int                cc_shutdown;
 };
 
-void client_init(struct sim *s, struct client_conf *conf);
-void client_fini(struct client_conf *conf);
+C2_INTERNAL void client_init(struct sim *s, struct client_conf *conf);
+C2_INTERNAL void client_fini(struct client_conf *conf);
 
 #endif /* __COLIBRI_DESIM_CLIENT_H__ */
 

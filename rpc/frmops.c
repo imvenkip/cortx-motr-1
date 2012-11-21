@@ -18,21 +18,25 @@
  * Original creation date: 06/04/2012
  */
 
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_FORMATION
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/errno.h"
 #include "lib/arith.h"
 #include "lib/bob.h"
+#include "lib/finject.h"
+
 #include "colibri/magic.h"
-#include "rpc/formation2.h"
-#include "rpc/packet.h"
-#include "rpc/rpc2.h"
-#include "rpc/rpc_machine.h"
-#include "rpc/item.h"
 #include "net/net.h"
-#include "rpc/session_internal.h"
+
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
+
+/**
+ * @addtogroup rpc
+ * @{
+ */
 
 static bool packet_ready(struct c2_rpc_packet *p);
 static bool item_bind(struct c2_rpc_item *item);
@@ -176,7 +180,7 @@ static int rpc_buffer_init(struct rpc_buffer    *rpcbuf,
 	struct c2_net_domain  *ndom;
 	struct c2_rpc_machine *machine;
 	struct c2_rpc_chan    *rchan;
-	int                   rc;
+	int                    rc;
 
 	C2_ENTRY("rbuf: %p packet: %p", rpcbuf, p);
 	C2_PRE(rpcbuf != NULL && p != NULL);
@@ -357,6 +361,7 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 	struct c2_net_buffer  *netbuf;
 	struct rpc_buffer     *rpcbuf;
 	struct c2_rpc_machine *machine;
+	struct c2_rpc_stats   *stats;
 	struct c2_rpc_packet  *p;
 
 	C2_ENTRY("ev: %p", ev);
@@ -371,15 +376,26 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 			&rpc_buffer_bob_type);
 
 	machine = rpc_buffer__rmachine(rpcbuf);
+
 	c2_rpc_machine_lock(machine);
 
+	stats = &machine->rm_stats;
 	p = rpcbuf->rb_packet;
 	p->rp_status = ev->nbe_status;
 
+	if (C2_FI_ENABLED("fake_err")) {
+		p->rp_status = -EINVAL;
+	}
 	rpc_buffer_fini(rpcbuf);
 	c2_free(rpcbuf);
 
-	c2_rpc_packet_traverse_items(p, item_done, ev->nbe_status);
+	if (p->rp_status == 0) {
+		stats->rs_nr_sent_packets++;
+		stats->rs_nr_sent_bytes += p->rp_size;
+	} else
+		stats->rs_nr_failed_packets++;
+
+	c2_rpc_packet_traverse_items(p, item_done, p->rp_status);
 	c2_rpc_frm_packet_done(p);
 	c2_rpc_packet_remove_all_items(p);
 	c2_rpc_packet_fini(p);
@@ -392,12 +408,35 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 static void item_done(struct c2_rpc_item *item, unsigned long rc)
 {
 	C2_ENTRY("item: %p rc: %lu", item, rc);
-	C2_PRE(item != NULL);
+	C2_PRE(item != NULL && item->ri_ops != NULL);
 
-	/** @todo XXX implement SENT/FAILED callback */
-	item->ri_state = rc == 0 ? RPC_ITEM_SENT : RPC_ITEM_SEND_FAILED;
 	item->ri_error = rc;
+	if (item->ri_ops->rio_sent != NULL)
+		item->ri_ops->rio_sent(item);
 
+	if (rc == 0) {
+		c2_rpc_item_change_state(item, C2_RPC_ITEM_SENT);
+		/*
+		 * request items will automatically move to
+		 * WAITING_FOR_REPLY state.
+		 */
+		if (c2_rpc_item_is_request(item)) {
+			if (item->ri_reply != NULL) {
+				/* Reply has already been received when we
+				   were waiting for buffer callback */
+				c2_rpc_slot_process_reply(item);
+			} else {
+				c2_rpc_item_start_timer(item);
+			}
+		}
+	} else {
+		c2_rpc_item_failed(item, (int32_t)rc);
+	}
+	/*
+	 * Request and Reply items take hold on session until
+	 * they are SENT/FAILED.
+	 * See: c2_rpc__post_locked(), c2_rpc_reply_post()
+	 */
 	if (c2_rpc_item_is_bound(item))
 		c2_rpc_session_release(item->ri_session);
 
@@ -420,3 +459,7 @@ static bool item_bind(struct c2_rpc_item *item)
 	C2_LEAVE("result: %s", c2_bool_to_str(result));
 	return result;
 }
+
+#undef C2_TRACE_SUBSYSTEM
+
+/** @} */

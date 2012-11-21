@@ -23,19 +23,21 @@ Detailed designs, ordered alphabetically:
 - @subpage net-test "Colibri Network Benchmark"
            <!-- net/test/main.c -->
 - @subpage rpc-layer-core-dld "RPC layer core DLD"
-           <!-- rpc/rpc2.h -->
+           <!-- rpc/rpc.h -->
 - @subpage rpc-slot "RPC Slot"
            <!-- rpc/slot.h -->
 - @subpage SNSRepairCMDLD "SNS Repair copy machine DLD"
            <!-- sns/repair/cm.c -->
 - @subpage NetRQProvDLD "Auto-Provisioning of Receive Message Queue Buffers DLD"
-	   <!-- net/tm_provision.c -->
+           <!-- net/tm_provision.c -->
 - @subpage io_bulk_client "IO bulk transfer Detailed Level Design"
            <!-- ioservice/io_fops.c -->
 - @subpage DLD-bulk-server "DLD of Bulk Server"
            <!-- ioservice/io_foms.c -->
 - @subpage c2loop-dld "The new c2loop device driver DLD"
            <!-- c2t1fs/linux_kernel/c2loop.c -->
+- @subpage rmw_io_dld "DLD for read-modify-write IO requests"
+           <!-- c2t1fs/linux_kernel/file_internal.h -->
 
 Detailed designs should use the <i>@subpage DLD "Colibri DLD Template"
 <!-- doc/dld-template.c --> </i> as a style guide.

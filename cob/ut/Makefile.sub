@@ -1,0 +1,1 @@
+ut_libcolibri_ut_la_SOURCES += cob/ut/cob.c

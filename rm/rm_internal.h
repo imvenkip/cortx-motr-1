@@ -79,7 +79,7 @@ int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right,
  *
  * where "owner", "loan" and "in" are respective attributes of "bor".
  */
-int c2_rm_borrow_commit(struct c2_rm_remote_incoming *bor);
+C2_INTERNAL int c2_rm_borrow_commit(struct c2_rm_remote_incoming *bor);
 
 /**
  * Removes revoked rights from "owned" and borrowed lists.
@@ -90,7 +90,7 @@ int c2_rm_borrow_commit(struct c2_rm_remote_incoming *bor);
  * @pre in->rin_state == RI_SUCCESS
  * @pre in->rin_type == RIT_REVOKE
  */
-int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rvk);
+C2_INTERNAL int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rvk);
 
 /**
  * Adds borrowed right to the "borrowed" and "owned" lists.
@@ -100,7 +100,8 @@ int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rvk);
  * This function transfers ownership of the supplied "loan" structure to the
  * owner.
  */
-int c2_rm_borrow_done(struct c2_rm_outgoing *out, struct c2_rm_loan *loan);
+C2_INTERNAL int c2_rm_borrow_done(struct c2_rm_outgoing *out,
+				  struct c2_rm_loan *loan);
 
 /**
  * Moves revoked right from "sublet" to "owned" list.
@@ -127,9 +128,9 @@ int c2_rm_resource_owner_find(const struct c2_rm_resource *resource,
  * c2_rm_outgoing_complete() to be called on fop reply or timeout.
  *
  */
-int c2_rm_request_out(struct c2_rm_incoming *in,
-		      struct c2_rm_loan *loan,
-		      struct c2_rm_right *right);
+C2_INTERNAL int c2_rm_request_out(struct c2_rm_incoming *in,
+				  struct c2_rm_loan *loan,
+				  struct c2_rm_right *right);
 
 /**
  * Initialises the fields of for incoming structure.
@@ -140,26 +141,27 @@ int c2_rm_request_out(struct c2_rm_incoming *in,
  * @param type - outgoing request type
  * @see c2_rm_outgoing_fini
  */
-void c2_rm_outgoing_init(struct c2_rm_outgoing *out,
-			 enum c2_rm_outgoing_type req_type);
+C2_INTERNAL void c2_rm_outgoing_init(struct c2_rm_outgoing *out,
+				     enum c2_rm_outgoing_type req_type);
 
 /**
  * Finalises the fields of
  * @param out
  * @see c2_rm_outgoing_init
  */
-void c2_rm_outgoing_fini(struct c2_rm_outgoing *out);
+C2_INTERNAL void c2_rm_outgoing_fini(struct c2_rm_outgoing *out);
 
 /**
  * Initialise the loan
  */
-int c2_rm_loan_init(struct c2_rm_loan *loan, const struct c2_rm_right *right,
-		    struct c2_rm_remote *creditor);
+C2_INTERNAL int c2_rm_loan_init(struct c2_rm_loan *loan,
+				const struct c2_rm_right *right,
+				struct c2_rm_remote *creditor);
 
 /**
  * Finalise the lona. Release ref count of remote owner.
  */
-void c2_rm_loan_fini(struct c2_rm_loan *loan);
+C2_INTERNAL void c2_rm_loan_fini(struct c2_rm_loan *loan);
 
 /**
  * Initialise the loan
@@ -168,21 +170,21 @@ void c2_rm_loan_fini(struct c2_rm_loan *loan);
  *               loan strucutre
  * @param right - the rights for which loan is being aloocated/created.
  */
-int c2_rm_loan_alloc(struct c2_rm_loan **loan,
-		     const struct c2_rm_right *right,
-		     struct c2_rm_remote *creditor);
+C2_INTERNAL int c2_rm_loan_alloc(struct c2_rm_loan **loan,
+				 const struct c2_rm_right *right,
+				 struct c2_rm_remote *creditor);
 
 /**
  * Called when an outgoing request completes (possibly with an error, like a
  * timeout).
  */
-void c2_rm_outgoing_complete(struct c2_rm_outgoing *og);
+C2_INTERNAL void c2_rm_outgoing_complete(struct c2_rm_outgoing *og);
 
 /**
  * Removes partial or full sublet matching the right from the owner's sublet
  * list.
  */
-int c2_rm_sublet_remove(struct c2_rm_right *right);
+C2_INTERNAL int c2_rm_sublet_remove(struct c2_rm_right *right);
 
 /** @} end of rm-fop interface. */
 
@@ -193,19 +195,19 @@ int c2_rm_sublet_remove(struct c2_rm_right *right);
 /** @{ */
 
 C2_TL_DESCR_DECLARE(res, extern);
-C2_TL_DECLARE(res, , struct c2_rm_resource);
+C2_TL_DECLARE(res, C2_INTERNAL, struct c2_rm_resource);
 
 C2_TL_DESCR_DECLARE(c2_rm_ur, extern);
-C2_TL_DECLARE(c2_rm_ur, , struct c2_rm_right);
+C2_TL_DECLARE(c2_rm_ur, C2_INTERNAL, struct c2_rm_right);
 
 C2_TL_DESCR_DECLARE(pr, extern);
-C2_TL_DECLARE(pr, , struct c2_rm_pin);
+C2_TL_DECLARE(pr, C2_INTERNAL, struct c2_rm_pin);
 
 C2_TL_DESCR_DECLARE(pi, extern);
-C2_TL_DECLARE(pi, , struct c2_rm_pin);
+C2_TL_DECLARE(pi, C2_INTERNAL, struct c2_rm_pin);
 
 const struct c2_bob_type loan_bob;
-C2_BOB_DECLARE(extern, c2_rm_loan);
+C2_BOB_DECLARE(C2_INTERNAL, c2_rm_loan);
 
 /**
  * Execute "expr" against all rights lists in a given owner.

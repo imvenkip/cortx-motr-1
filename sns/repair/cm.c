@@ -49,7 +49,7 @@
      - @ref SNSRepairCMDLD-lspec-cm-setup
      - @ref SNSRepairCMDLD-lspec-cm-start
         - @ref SNSRepairCMDLD-lspec-cm-start-cp-create
-     - @ref SNSRepairCMDLD-lspec-cm-cp-data-next
+     - @ref SNSRepairCMDLD-lspec-cm-data-next
      - @ref SNSRepairCMDLD-lspec-cm-stop
   - @ref SNSRepairCMDLD-conformance
   - @ref SNSRepairCMDLD-ut
@@ -114,7 +114,7 @@
   - @ref SNSRepairCMDLD-lspec-cm-setup
   - @ref SNSRepairCMDLD-lspec-cm-start
      - @ref SNSRepairCMDLD-lspec-cm-start-cp-create
-  - @ref SNSRepairCMDLD-lspec-cm-cp-data-next
+  - @ref SNSRepairCMDLD-lspec-cm-data-next
   - @ref SNSRepairCMDLD-lspec-cm-stop
 
   @subsection SNSRepairCMDLD-lspec-comps Component overview
@@ -127,7 +127,7 @@
   @see @ref SNSRepairSVC "SNS Repair service" for details.
   Once the copy machine is initialised, as part of copy machine setup, SNS
   Repair copy machine specific resources are initialised, viz. incoming and
-  outgoing buffer pools (c2_sns_repair_cm::rc_ibp and ::rc_obp) and cobfid_map.
+  outgoing buffer pools (c2_sns_repair_cm::rc_ibp and ::rc_obp).
   Both the buffer pools are initialised with colours equal to total number of
   localities in the request handler.
   After cm_setup() is successfully called, the copy machine transitions to
@@ -219,9 +219,9 @@
   other copy machine replicas.
 
   @b i.sns.repair.data.next SNS Repair copy machine implements a next function
-  using cobfid_map and pdclust layout infrastructure to select the next data
-  to be repaired from the failure set. This is done in GOB fid and parity group
-  order.
+  using cob name space iterator and pdclust layout infrastructure to select the
+  next data to be repaired from the failure set. This is done in GOB fid and
+  parity group order.
 
   @b i.sns.repair.report.progress Progress is reported using sliding window and
   layout updates.
@@ -229,6 +229,17 @@
 
   <hr>
   @section SNSRepairCMDLD-ut Unit tests
+
+  @subsection SNSRepairCMDLD-ut-cp Copy packet specific tests
+
+  @test Test01: If an aggregation group is having a single copy packet, then
+  transformation function should be a NO-OP.
+
+  @test Test02: Test if all copy packets of an aggregation group get collected.
+
+  @test Test03: Test the transformation function.
+  Input: 2 bufvec's src and dest to be XORed.
+  Output: XORed output stored in dest bufvec.
 
   <hr>
   @section SNSRepairCMDLD-st System tests
@@ -268,69 +279,59 @@ enum {
 	 * Minimum number of buffers to provision c2_sns_repair_cm::rc_ibp
 	 * and c2_sns_repair_cm::rc_obp buffer pools.
 	 */
-	SNS_INCOMING_BUF_NR = 1 << 16,
-	SNS_OUTGOING_BUF_NR = 1 << 16
-};
-
-const struct c2_net_buffer_pool_ops bp_ops = {
-        .nbpo_not_empty       = NULL,
-        .nbpo_below_threshold = NULL,
+	SNS_INCOMING_BUF_NR = 1 << 6,
+	SNS_OUTGOING_BUF_NR = 1 << 6
 };
 
 extern struct c2_net_xprt c2_net_lnet_xprt;
-extern struct c2_cm_type sns_repair_cmt;
+extern struct c2_cm_type  sns_repair_cmt;
 
-struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm)
+C2_INTERNAL struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm)
 {
 	return container_of(cm, struct c2_sns_repair_cm, rc_base);
 }
 
-int c2_sns_repair_cm_type_register(void)
+C2_INTERNAL int c2_sns_repair_cm_type_register(void)
 {
 	return c2_cm_type_register(&sns_repair_cmt);
 }
 
-void c2_sns_repair_cm_type_deregister(void)
+C2_INTERNAL void c2_sns_repair_cm_type_deregister(void)
 {
 	c2_cm_type_deregister(&sns_repair_cmt);
 }
 
-struct c2_net_buffer *c2_sns_repair_buffer_get(struct c2_net_buffer_pool *bp,
-					       size_t colour)
+C2_INTERNAL struct c2_net_buffer *c2_sns_repair_buffer_get(struct
+							   c2_net_buffer_pool
+							   *bp, uint64_t colour)
 {
 	struct c2_net_buffer *buf;
-
-	C2_PRE(c2_net_buffer_pool_invariant(bp));
+	int                   i;
 
 	c2_net_buffer_pool_lock(bp);
+	C2_ASSERT(c2_net_buffer_pool_invariant(bp));
 	buf = c2_net_buffer_pool_get(bp, colour);
+	if (buf != NULL) {
+		for (i = 0; i < SNS_SEG_NR; ++i)
+			memset(buf->nb_buffer.ov_buf[i], 0, SNS_SEG_SIZE);
+	}
 	c2_net_buffer_pool_unlock(bp);
 
 	return buf;
 }
 
-/* This is invoked from cm_data_next. */
-static int cm_buf_attach(struct c2_cm *cm, struct c2_cm_cp *cp)
+C2_INTERNAL void c2_sns_repair_buffer_put(struct c2_net_buffer_pool *bp,
+					  struct c2_net_buffer *buf,
+					  uint64_t colour)
 {
-	struct c2_sns_repair_cm *rcm;
-	struct c2_net_buffer    *buf;
-	size_t                   colour;
-
-	rcm = cm2sns(cm);
-	colour =  cp_home_loc_helper(cp) % rcm->rc_obp.nbp_colours_nr;
-	buf = c2_sns_repair_buffer_get(&rcm->rc_obp, colour);
-	if (buf == NULL)
-		return -ENOMEM;
-	cp->c_data = &buf->nb_buffer;
-
-	return 0;
+	c2_net_buffer_pool_lock(bp);
+	c2_net_buffer_pool_put(bp, buf, colour);
+	c2_net_buffer_pool_unlock(bp);
 }
 
 static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
 {
 	struct c2_sns_repair_cp *rcp;
-
-	C2_PRE(c2_cm_invariant(cm));
 
 	C2_ALLOC_PTR(rcp);
 	if (rcp == NULL)
@@ -339,13 +340,15 @@ static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
 	return &rcp->rc_base;
 }
 
-static int cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
+static void bp_below_threshold(struct c2_net_buffer_pool *bp)
 {
-	/* XXX TODO: Iterate copy machine data. */
-
-	cm_buf_attach(cm, cp);
-	return 0;
+	/* Buffer pool is below threshold.  */
 }
+
+const struct c2_net_buffer_pool_ops bp_ops = {
+	.nbpo_not_empty       = c2_net_domain_buffer_pool_not_empty,
+	.nbpo_below_threshold = bp_below_threshold
+};
 
 static int cm_setup(struct c2_cm *cm)
 {
@@ -386,7 +389,7 @@ static int cm_setup(struct c2_cm *cm)
 	}
 
 	if (rc == 0)
-		rc = c2_cobfid_map_get(reqh, &rcm->rc_cfm);
+		c2_chan_init(&rcm->rc_stop_wait);
 
 	C2_LEAVE();
 	return rc;
@@ -397,9 +400,8 @@ static size_t cm_buffer_pool_provision(struct c2_net_buffer_pool *bp,
 {
 	size_t bnr;
 
-	C2_PRE(c2_net_buffer_pool_invariant(bp));
-
 	c2_net_buffer_pool_lock(bp);
+	C2_ASSERT(c2_net_buffer_pool_invariant(bp));
 	bnr = c2_net_buffer_pool_provision(bp, bufs_nr);
 	c2_net_buffer_pool_unlock(bp);
 
@@ -410,6 +412,7 @@ static int cm_start(struct c2_cm *cm)
 {
 	struct c2_sns_repair_cm *rcm;
 	int                      bufs_nr;
+	int                      rc;
 
 	C2_ENTRY("cm: %p", cm);
 
@@ -426,14 +429,22 @@ static int cm_start(struct c2_cm *cm)
 	 */
 	if (bufs_nr == 0)
 		return -ENOMEM;
+	rc = c2_sns_repair_iter_init(rcm);
+	if (rc == 0)
+		c2_cm_sw_fill(cm);
 
 	C2_LEAVE();
-	return 0;
+	return rc;
 }
 
 static int cm_stop(struct c2_cm *cm)
 {
+	struct c2_sns_repair_cm *rcm;
+
 	C2_PRE(cm != NULL);
+
+	rcm = cm2sns(cm);
+	c2_sns_repair_iter_fini(rcm);
 
 	return 0;
 }
@@ -447,9 +458,16 @@ static void cm_fini(struct c2_cm *cm)
 	rcm = cm2sns(cm);
 	c2_net_buffer_pool_fini(&rcm->rc_ibp);
 	c2_net_buffer_pool_fini(&rcm->rc_obp);
-	c2_cobfid_map_put(cm->cm_service.rs_reqh);
 
 	C2_LEAVE();
+}
+
+static void cm_complete(struct c2_cm *cm)
+{
+	struct c2_sns_repair_cm *rcm;
+
+	rcm = cm2sns(cm);
+	c2_chan_signal(&rcm->rc_stop_wait);
 }
 
 /** Copy machine operations. */
@@ -457,7 +475,8 @@ const struct c2_cm_ops cm_ops = {
 	.cmo_setup        = cm_setup,
 	.cmo_start        = cm_start,
 	.cmo_cp_alloc     = cm_cp_alloc,
-	.cmo_data_next    = cm_data_next,
+	.cmo_data_next    = c2_sns_repair_iter_next,
+	.cmo_complete     = cm_complete,
 	.cmo_stop         = cm_stop,
 	.cmo_fini         = cm_fini
 };

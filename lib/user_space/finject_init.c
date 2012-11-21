@@ -32,7 +32,7 @@
 #include "lib/finject_internal.h"
 
 
-int c2_fi_init(void)
+C2_INTERNAL int c2_fi_init(void)
 {
 	unsigned int random_seed;
 
@@ -50,9 +50,9 @@ int c2_fi_init(void)
 	return 0;
 }
 
-void fi_states_fini(void);
+C2_INTERNAL void fi_states_fini(void);
 
-void c2_fi_fini(void)
+C2_INTERNAL void c2_fi_fini(void)
 {
 	fi_states_fini();
 	c2_mutex_fini(&fi_states_mutex);
@@ -65,12 +65,12 @@ enum {
 /**
  * Returns random value in range [0..FI_RAND_PROB_SCALE]
  */
-uint32_t fi_random(void)
+C2_INTERNAL uint32_t fi_random(void)
 {
 	return (double)random() / RAND_MAX * FI_RAND_PROB_SCALE;
 }
 
-void c2_fi_print_info(void)
+C2_INTERNAL void c2_fi_print_info(void)
 {
 	int i;
 
@@ -97,16 +97,16 @@ void c2_fi_print_info(void)
 
 #else /* ENABLE_FAULT_INJECTION */
 
-int c2_fi_init(void)
+C2_INTERNAL int c2_fi_init(void)
 {
 	return 0;
 }
 
-void c2_fi_fini(void)
+C2_INTERNAL void c2_fi_fini(void)
 {
 }
 
-void c2_fi_print_info(void)
+C2_INTERNAL void c2_fi_print_info(void)
 {
 	fprintf(stderr, "Fault injection is not available, because it was"
 			" disabled during build\n");

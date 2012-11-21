@@ -37,8 +37,8 @@ extern struct c2_fop_type c2_fom_error_rep_fopt;
 /**
  * FOP init() and fini() functions.
  */
-int c2_rm_fop_init();
-void c2_rm_fop_fini();
+C2_INTERNAL int c2_rm_fop_init();
+C2_INTERNAL void c2_rm_fop_fini();
 
 /* __COLIBRI_RM_FOPS_H__ */
 #endif

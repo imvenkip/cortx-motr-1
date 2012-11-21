@@ -1537,7 +1537,7 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
    @param inode Device inode object.
    @param file File object being released.
  */
-int nlx_dev_close(struct inode *inode, struct file *file)
+C2_INTERNAL int nlx_dev_close(struct inode *inode, struct file *file)
 {
 	struct nlx_kcore_domain *kd =
 	    (struct nlx_kcore_domain *) file->private_data;
@@ -1650,7 +1650,7 @@ static bool nlx_dev_registered = false;
    @{
  */
 
-int nlx_dev_init(void)
+C2_INTERNAL int nlx_dev_init(void)
 {
 	int rc;
 
@@ -1665,7 +1665,7 @@ int nlx_dev_init(void)
 	return rc;
 }
 
-void nlx_dev_fini(void)
+C2_INTERNAL void nlx_dev_fini(void)
 {
 	int rc;
 

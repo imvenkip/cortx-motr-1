@@ -239,6 +239,8 @@ struct c2_cm_ops {
 	bool (*cmo_has_space)(const struct c2_cm *cm,
 			      const struct c2_cm_ag_id *id);
 
+	void (*cmo_complete) (struct c2_cm *cm);
+
 	/** Copy machine specific finalisation routine. */
 	void (*cmo_fini)(struct c2_cm *cm);
 };
@@ -262,27 +264,27 @@ struct c2_cm_proxy {
 	struct c2_tl       px_pending_cps;
 };
 
-int c2_cm_type_register(struct c2_cm_type *cmt);
-void c2_cm_type_deregister(struct c2_cm_type *cmt);
+C2_INTERNAL int c2_cm_type_register(struct c2_cm_type *cmt);
+C2_INTERNAL void c2_cm_type_deregister(struct c2_cm_type *cmt);
 
 /**
  * Locks copy machine replica. We use a state machine group per copy machine
  * replica.
  */
-void c2_cm_lock(struct c2_cm *cm);
+C2_INTERNAL void c2_cm_lock(struct c2_cm *cm);
 
 /** Releases the lock over a copy machine replica. */
-void c2_cm_unlock(struct c2_cm *cm);
+C2_INTERNAL void c2_cm_unlock(struct c2_cm *cm);
 
 /**
  * Returns true, iff the copy machine lock is held by the current thread.
  * The lock should be released before returning from a fom state transition
  * function. This function is used only in assertions.
  */
-bool c2_cm_is_locked(const struct c2_cm *cm);
+C2_INTERNAL bool c2_cm_is_locked(const struct c2_cm *cm);
 
-int c2_cm_module_init(void);
-void c2_cm_module_fini(void);
+C2_INTERNAL int c2_cm_module_init(void);
+C2_INTERNAL void c2_cm_module_fini(void);
 
 /**
  * Initialises a copy machine. This is invoked from copy machine specific
@@ -292,8 +294,8 @@ void c2_cm_module_fini(void);
  * @pre cm != NULL
  * @post ergo(result == 0, c2_cm_state_get(cm) == C2_CMS_INIT)
  */
-int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
-	       const struct c2_cm_ops *cm_ops);
+C2_INTERNAL int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
+			   const struct c2_cm_ops *cm_ops);
 
 /**
  * Finalises a copy machine. This is invoked from copy machine specific
@@ -301,7 +303,7 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
  * @pre cm != NULL && c2_cm_state_get(cm) == C2_CMS_IDLE
  * @post c2_cm_state_get(cm) == C2_CMS_FINI
  */
-void c2_cm_fini(struct c2_cm *cm);
+C2_INTERNAL void c2_cm_fini(struct c2_cm *cm);
 
 /**
  * Perfoms copy machine setup tasks by calling copy machine specific setup
@@ -311,7 +313,7 @@ void c2_cm_fini(struct c2_cm *cm);
  * @pre cm != NULL && c2_cm_state_get(cm) == C2_CMS_INIT
  * @post c2_cm_state_get(cm) == C2_CMS_IDLE
  */
-int c2_cm_setup(struct c2_cm *cm);
+C2_INTERNAL int c2_cm_setup(struct c2_cm *cm);
 
 /**
  * Starts the copy machine data restructuring process on receiving the "POST"
@@ -319,7 +321,7 @@ int c2_cm_setup(struct c2_cm *cm);
  * @pre cm != NULL && c2_cm_state_get(cm) == C2_CMS_IDLE
  * @post c2_cm_state_get(cm) == C2_CMS_ACTIVE
  */
-int c2_cm_start(struct c2_cm *cm);
+C2_INTERNAL int c2_cm_start(struct c2_cm *cm);
 
 /**
  * Stops copy machine operation.
@@ -332,7 +334,7 @@ int c2_cm_start(struct c2_cm *cm);
  * @pre cm!= NULL && C2_IN(c2_cm_state_get(cm), (C2_CMS_ACTIVE))
  * @post C2_IN(c2_cm_state_get(cm), (C2_CMS_IDLE, C2_CMS_FAIL))
  */
-int c2_cm_stop(struct c2_cm *cm);
+C2_INTERNAL int c2_cm_stop(struct c2_cm *cm);
 
 /**
  * Configures a copy machine replica.
@@ -340,7 +342,7 @@ int c2_cm_stop(struct c2_cm *cm);
  * interfaces and datastructures are available.
  * @pre c2_cm_state_get(cm) == C2_CMS_IDLE
  */
-int c2_cm_configure(struct c2_cm *cm, struct c2_fop *fop);
+C2_INTERNAL int c2_cm_configure(struct c2_cm *cm, struct c2_fop *fop);
 
 /**
  * Handles various type of copy machine failures based on the failure code and
@@ -357,7 +359,8 @@ int c2_cm_configure(struct c2_cm *cm, struct c2_fop *fop);
  * @param failure Copy machine failure code.
  * @param rc errno to which sm rc will be set to.
  */
-void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure, int rc);
+C2_INTERNAL void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure,
+			    int rc);
 
 #define C2_CM_TYPE_DECLARE(cmtype, ops, name)     \
 struct c2_cm_type cmtype ## _cmt = {              \
@@ -368,17 +371,17 @@ struct c2_cm_type cmtype ## _cmt = {              \
 }					          \
 
 /** Checks consistency of copy machine. */
-bool c2_cm_invariant(const struct c2_cm *cm);
+C2_INTERNAL bool c2_cm_invariant(const struct c2_cm *cm);
 
 /** Copy machine state mutators & accessors */
-void c2_cm_state_set(struct c2_cm *cm, enum c2_cm_state state);
-enum c2_cm_state c2_cm_state_get(const struct c2_cm *cm);
+C2_INTERNAL void c2_cm_state_set(struct c2_cm *cm, enum c2_cm_state state);
+C2_INTERNAL enum c2_cm_state c2_cm_state_get(const struct c2_cm *cm);
 
 /**
  * Creates copy packets and adds aggregation groups to c2_cm::cm_aggr_grps,
  * if required.
  */
-void c2_cm_sw_fill(struct c2_cm *cm);
+C2_INTERNAL void c2_cm_sw_fill(struct c2_cm *cm);
 
 /**
  * Iterates over data to be re-structured.
@@ -389,13 +392,15 @@ void c2_cm_sw_fill(struct c2_cm *cm);
  *
  * @post ergo(rc == 0, cp->c_data != NULL)
  */
-int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp);
+C2_INTERNAL int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp);
 
-/** Returns last element from the c2_cm::cm_aggr_grps list. */
-struct c2_cm_aggr_group *c2_cm_ag_hi(struct c2_cm *cm);
-
-/** Returns first element from the c2_cm::cm_aggr_grps list. */
-struct c2_cm_aggr_group *c2_cm_ag_lo(struct c2_cm *cm);
+/**
+ * Checks if copy machine pump FOM will be creating more copy packets or if
+ * its done. Once pump FOM is done creating copy packets, it sets
+ * c2_cm_cp_pump::p_fom.fo_sm_phase.sm_rc = -ENODATA, the same is checked by
+ * this function.
+ */
+C2_INTERNAL bool c2_cm_has_more_data(const struct c2_cm *cm);
 
 /** @} endgroup CM */
 

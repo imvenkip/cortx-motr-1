@@ -41,7 +41,7 @@ enum {
 /* Global reference to bulkio_params structure. */
 struct bulkio_params *bparm;
 
-C2_TL_DESCR_DECLARE(rpcbulk, extern);
+C2_TL_DESCR_DECLARE(rpcbulk, C2_EXTERN);
 
 extern struct c2_reqh_service_type c2_ioservice_type;
 
@@ -86,7 +86,7 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 	strcpy(server_args[0], "bulkio_st");
 	strcpy(server_args[1], "-r");
 	strcpy(server_args[2], "-T");
-	strcpy(server_args[3], "Linux");
+	strcpy(server_args[3], "AD");
 	strcpy(server_args[4], "-D");
 	strcpy(server_args[5], S_DBFILE);
 	strcpy(server_args[6], "-S");
@@ -197,6 +197,9 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 	C2_ASSERT(io_fops != NULL);
 
 	iofop = io_fops[index];
+	rw    = io_rw_get(&iofop->if_fop);
+	rw->crw_fid = bp->bp_fids[off_index];
+
 	rbulk = &iofop->if_rbulk;
 
 	/*
@@ -206,10 +209,6 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 	rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, &bp->bp_cnetdom, NULL, &rbuf);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(rbuf != NULL);
-
-
-	rw          = io_rw_get(&iofop->if_fop);
-	rw->crw_fid = bp->bp_fids[off_index];
 
 	/* Adds io buffers to c2_rpc_bulk_buf structure. */
 	for (i = 0; i < segs_nr; ++i) {
@@ -304,8 +303,6 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 	int		       i;
 	int		       j;
 	int		       rc;
-	c2_time_t	       timeout;
-	struct c2_clink	       clink;
 	struct c2_rpc_item    *item;
 	struct c2_rpc_bulk    *rbulk;
 	struct c2_io_fop     **io_fops;
@@ -318,22 +315,13 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 	rbulk = c2_fop_to_rpcbulk(&io_fops[i]->if_fop);
 	item = &io_fops[i]->if_fop.f_item;
 	item->ri_session = &bp->bp_cctx->rcx_session;
-	c2_time_set(&timeout, IO_RPC_ITEM_TIMEOUT, 0);
-
-	/*
-	 * Initializes and adds a clink to rpc item channel to wait for
-	 * reply.
-	 */
-	c2_clink_init(&clink, NULL);
-	c2_clink_add(&item->ri_chan, &clink);
-	timeout = c2_time_add(timeout, c2_time_now());
-	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-
-	/* Posts the rpc item and waits until reply is received. */
+	item->ri_prio = C2_RPC_ITEM_PRIO_MID;
+	item->ri_op_timeout = c2_time_from_now(IO_RPC_ITEM_TIMEOUT, 0);
 	rc = c2_rpc_post(item);
 	C2_ASSERT(rc == 0);
 
-	rc = c2_rpc_reply_timedwait(&clink, timeout);
+	rc = c2_rpc_item_wait_for_reply(item, C2_TIME_NEVER);
+	C2_ASSERT(rc == 0);
 	if (c2_is_read_fop(&io_fops[i]->if_fop)) {
 		for (j = 0; j < bp->bp_iobuf[i]->nb_buffer.ov_vec.v_nr; ++j) {
 			rc = memcmp(bp->bp_iobuf[i]->nb_buffer.ov_buf[j],
@@ -348,8 +336,6 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 		C2_ASSERT(rbulk->rb_rc == 0);
 		c2_mutex_unlock(&rbulk->rb_mutex);
 	}
-	c2_clink_del(&clink);
-	c2_clink_fini(&clink);
 }
 
 void bulkio_params_init(struct bulkio_params *bp)

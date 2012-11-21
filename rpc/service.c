@@ -21,13 +21,13 @@
 #include <linux/string.h>
 #include <linux/errno.h>
 
-#include "rpc/service.h"
-#include "rpc/session.h"
-#include "rpc/rpc2.h"
 #include "lib/tlist.h"
 #include "lib/bob.h"
 #include "lib/rwlock.h"
 #include "lib/memory.h"   /* c2_alloc() */
+
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 
 /**
    @addtogroup rpc_service
@@ -56,16 +56,16 @@ static struct c2_rwlock service_type_tlist_lock;
 
 static struct c2_bob_type rpc_service_bob;
 
-C2_BOB_DEFINE(/* global scope */, &rpc_service_bob, c2_rpc_service);
+C2_BOB_DEFINE(C2_INTERNAL, &rpc_service_bob, c2_rpc_service);
 
-C2_TL_DESCR_DEFINE(c2_rpc_services, "rpc_service", static,
+C2_TL_DESCR_DEFINE(c2_rpc_services, "rpc_service", C2_INTERNAL,
                    struct c2_rpc_service, svc_tlink, svc_magix,
                    C2_RPC_SERVICE_MAGIC,
                    C2_RPC_SERVICES_HEAD_MAGIC);
 
-C2_TL_DEFINE(c2_rpc_services, , struct c2_rpc_service);
+C2_TL_DEFINE(c2_rpc_services, C2_INTERNAL, struct c2_rpc_service);
 
-int c2_rpc_service_module_init(void)
+C2_INTERNAL int c2_rpc_service_module_init(void)
 {
 	c2_bob_type_tlist_init(&rpc_service_type_bob, &service_type_tl);
 	c2_bob_type_tlist_init(&rpc_service_bob, &c2_rpc_services_tl);
@@ -75,13 +75,14 @@ int c2_rpc_service_module_init(void)
 	return 0;
 }
 
-void c2_rpc_service_module_fini(void)
+C2_INTERNAL void c2_rpc_service_module_fini(void)
 {
 	c2_rwlock_fini(&service_type_tlist_lock);
 	service_type_tlist_fini(&service_type_tlist);
 }
 
-void c2_rpc_service_type_register(struct c2_rpc_service_type *service_type)
+C2_INTERNAL void c2_rpc_service_type_register(struct c2_rpc_service_type
+					      *service_type)
 {
 	C2_PRE(service_type != NULL);
 	C2_ASSERT(c2_rpc_service_type_bob_check(service_type));
@@ -97,7 +98,8 @@ void c2_rpc_service_type_register(struct c2_rpc_service_type *service_type)
 		service_type);
 }
 
-void c2_rpc_service_type_unregister(struct c2_rpc_service_type *service_type)
+C2_INTERNAL void c2_rpc_service_type_unregister(struct c2_rpc_service_type
+						*service_type)
 {
 	C2_PRE(service_type != NULL);
 	C2_ASSERT(c2_rpc_service_type_bob_check(service_type));
@@ -114,7 +116,8 @@ void c2_rpc_service_type_unregister(struct c2_rpc_service_type *service_type)
 		NULL);
 }
 
-struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id)
+C2_INTERNAL struct c2_rpc_service_type *c2_rpc_service_type_locate(uint32_t
+								   type_id)
 {
 	struct c2_rpc_service_type *service_type;
 
@@ -135,7 +138,7 @@ struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id)
 	return service_type;
 }
 
-bool c2_rpc_service_invariant(const struct c2_rpc_service *service)
+C2_INTERNAL bool c2_rpc_service_invariant(const struct c2_rpc_service *service)
 {
 	return
 		service != NULL && c2_rpc_service_bob_check(service) &&
@@ -155,10 +158,11 @@ bool c2_rpc_service_invariant(const struct c2_rpc_service *service)
 		     !c2_rpc_services_tlink_is_in(service));
 }
 
-int c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
-				  const char                 *ep_addr,
-				  const struct c2_uuid       *uuid,
-				  struct c2_rpc_service     **out)
+C2_INTERNAL int c2_rpc_service_alloc_and_init(struct c2_rpc_service_type
+					      *service_type,
+					      const char *ep_addr,
+					      const struct c2_uuid *uuid,
+					      struct c2_rpc_service **out)
 {
 	int rc;
 
@@ -178,7 +182,7 @@ int c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 	return rc;
 }
 
-void c2_rpc_service_fini_and_free(struct c2_rpc_service *service)
+C2_INTERNAL void c2_rpc_service_fini_and_free(struct c2_rpc_service *service)
 {
 	C2_PRE(c2_rpc_service_invariant(service));
 	C2_PRE(service->svc_ops != NULL &&
@@ -188,11 +192,11 @@ void c2_rpc_service_fini_and_free(struct c2_rpc_service *service)
 	/* Do not dereference @service after this point */
 }
 
-int c2_rpc__service_init(struct c2_rpc_service            *service,
-			 struct c2_rpc_service_type       *service_type,
-			 const char                       *ep_addr,
-			 const struct c2_uuid             *uuid,
-			 const struct c2_rpc_service_ops  *ops)
+C2_INTERNAL int c2_rpc__service_init(struct c2_rpc_service *service,
+				     struct c2_rpc_service_type *service_type,
+				     const char *ep_addr,
+				     const struct c2_uuid *uuid,
+				     const struct c2_rpc_service_ops *ops)
 {
 	char *copy_of_ep_addr;
 	int   rc;
@@ -230,7 +234,7 @@ out:
 	return rc;
 }
 
-void c2_rpc__service_fini(struct c2_rpc_service *service)
+C2_INTERNAL void c2_rpc__service_fini(struct c2_rpc_service *service)
 {
 	C2_PRE(c2_rpc_service_invariant(service) &&
 	       service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED);
@@ -245,24 +249,25 @@ void c2_rpc__service_fini(struct c2_rpc_service *service)
 	/* Caller of this routine will move service to UNDEFINED state */
 }
 
-const char *
-c2_rpc_service_get_ep_addr(const struct c2_rpc_service *service)
+C2_INTERNAL const char *c2_rpc_service_get_ep_addr(const struct c2_rpc_service
+						   *service)
 {
 	C2_PRE(c2_rpc_service_invariant(service));
 
 	return service->svc_ep_addr;
 }
 
-const struct c2_uuid *
-c2_rpc_service_get_uuid(const struct c2_rpc_service *service)
+C2_INTERNAL const struct c2_uuid *c2_rpc_service_get_uuid(const struct
+							  c2_rpc_service
+							  *service)
 {
 	C2_PRE(c2_rpc_service_invariant(service));
 
 	return &service->svc_uuid;
 }
 
-void c2_rpc_service_conn_attach(struct c2_rpc_service *service,
-				struct c2_rpc_conn    *conn)
+C2_INTERNAL void c2_rpc_service_conn_attach(struct c2_rpc_service *service,
+					    struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_machine *machine;
 
@@ -290,7 +295,7 @@ void c2_rpc_service_conn_attach(struct c2_rpc_service *service,
 	c2_rpc_machine_unlock(machine);
 }
 
-void c2_rpc_service_conn_detach(struct c2_rpc_service *service)
+C2_INTERNAL void c2_rpc_service_conn_detach(struct c2_rpc_service *service)
 {
 	struct c2_rpc_conn    *conn;
 	struct c2_rpc_machine *machine;

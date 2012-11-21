@@ -22,6 +22,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/time.h"
+#include "lib/finject.h"
 #include "colibri/magic.h"
 #include "net/net_internal.h"
 
@@ -34,12 +35,12 @@ const struct c2_addb_ctx_type c2_net_buffer_addb_ctx = {
 	.act_name = "net-buffer"
 };
 
-bool c2_net__qtype_is_valid(enum c2_net_queue_type qt)
+C2_INTERNAL bool c2_net__qtype_is_valid(enum c2_net_queue_type qt)
 {
 	return qt >= C2_NET_QT_MSG_RECV && qt < C2_NET_QT_NR;
 }
 
-bool c2_net__buffer_invariant(const struct c2_net_buffer *buf)
+C2_INTERNAL bool c2_net__buffer_invariant(const struct c2_net_buffer *buf)
 {
 	if (buf == NULL)
 		return false;
@@ -87,13 +88,17 @@ bool c2_net__buffer_invariant(const struct c2_net_buffer *buf)
 	return true;
 }
 
-int c2_net_buffer_register(struct c2_net_buffer *buf,
-			   struct c2_net_domain *dom)
+C2_INTERNAL int c2_net_buffer_register(struct c2_net_buffer *buf,
+				       struct c2_net_domain *dom)
 {
 	int rc;
 
 	C2_PRE(dom != NULL);
 	C2_PRE(dom->nd_xprt != NULL);
+
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
+
 	c2_mutex_lock(&dom->nd_mutex);
 
 	C2_PRE(buf != NULL &&
@@ -128,8 +133,8 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 }
 C2_EXPORTED(c2_net_buffer_register);
 
-void c2_net_buffer_deregister(struct c2_net_buffer *buf,
-			      struct c2_net_domain *dom)
+C2_INTERNAL void c2_net_buffer_deregister(struct c2_net_buffer *buf,
+					  struct c2_net_domain *dom)
 {
 	C2_PRE(dom != NULL);
 	C2_PRE(dom->nd_xprt != NULL);
@@ -152,7 +157,8 @@ void c2_net_buffer_deregister(struct c2_net_buffer *buf,
 }
 C2_EXPORTED(c2_net_buffer_deregister);
 
-int c2_net__buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
+C2_INTERNAL int c2_net__buffer_add(struct c2_net_buffer *buf,
+				   struct c2_net_transfer_mc *tm)
 {
 	int rc;
 	struct c2_net_domain *dom;
@@ -265,10 +271,13 @@ int c2_net__buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	return rc;
 }
 
-int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
+C2_INTERNAL int c2_net_buffer_add(struct c2_net_buffer *buf,
+				  struct c2_net_transfer_mc *tm)
 {
 	int rc;
 	C2_PRE(tm != NULL);
+	if (C2_FI_ENABLED("fake_error"))
+		return -EMSGSIZE;
 	c2_mutex_lock(&tm->ntm_mutex);
 	rc = c2_net__buffer_add(buf, tm);
 	c2_mutex_unlock(&tm->ntm_mutex);
@@ -278,8 +287,8 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 }
 C2_EXPORTED(c2_net_buffer_add);
 
-void c2_net_buffer_del(struct c2_net_buffer *buf,
-		       struct c2_net_transfer_mc *tm)
+C2_INTERNAL void c2_net_buffer_del(struct c2_net_buffer *buf,
+				   struct c2_net_transfer_mc *tm)
 {
 	struct c2_net_domain *dom;
 
@@ -312,7 +321,8 @@ void c2_net_buffer_del(struct c2_net_buffer *buf,
 }
 C2_EXPORTED(c2_net_buffer_del);
 
-bool c2_net__buffer_event_invariant(const struct c2_net_buffer_event *ev)
+C2_INTERNAL bool c2_net__buffer_event_invariant(const struct c2_net_buffer_event
+						*ev)
 {
 	if (ev == NULL)
 		return false;
@@ -336,7 +346,7 @@ bool c2_net__buffer_event_invariant(const struct c2_net_buffer_event *ev)
 	return true;
 }
 
-void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
+C2_INTERNAL void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 {
 	struct c2_net_buffer	  *buf = NULL;
 	struct c2_net_end_point	  *ep;

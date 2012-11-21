@@ -30,7 +30,7 @@
 #include "net/net.h"
 #include "net/bulk_emulation/mem_xprt.h"
 #include "net/lnet/lnet.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "addb/addb.h"
 #include "lib/finject.h"
 #include "lib/ut.h"
@@ -44,12 +44,10 @@
 #include "fol/fol.h"
 #include "reqh/reqh.h"
 #include "lib/timer.h"
-#include "rpc/item.h"
-#include "rpc/session.h"
-#include "rpc/service.h"
 #include "fop/fom_generic.h"
 #include "colibri/init.h"
 #include "lib/cookie.h"
+#include "conf/conf_xcode.h"
 
 #ifdef __KERNEL__
 #   include "c2t1fs/linux_kernel/c2t1fs.h"
@@ -58,18 +56,17 @@
 
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
+#include "mdservice/md_fops.h"
+#include "mdservice/md_service.h"
 
 #include "sns/sns.h"
 #include "cm/cm.h"
 
-extern int  c2_memory_init(void);
-extern void c2_memory_fini(void);
+C2_INTERNAL int c2_memory_init(void);
+C2_INTERNAL void c2_memory_fini(void);
 
-extern int  c2_rpc_module_init(void);
-extern void c2_rpc_module_fini(void);
-
-extern int  libc2_init(void);
-extern void libc2_fini(void);
+C2_INTERNAL int libc2_init(void);
+C2_INTERNAL void libc2_fini(void);
 
 /**
    @addtogroup init
@@ -91,6 +88,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_fi_init,          &c2_fi_fini,          "finject" },
 	{ &c2_memory_init,      &c2_memory_fini,      "memory" },
 	{ &libc2_init,          &libc2_fini,          "libc2" },
+	{ &c2_confx_types_init, &c2_confx_types_fini, "conf-xtypes" },
 	{ &c2_cookie_global_init, &c2_cookie_global_fini, "cookie" },
 	{ &c2_uts_init,         &c2_uts_fini,         "ut" },
 	{ &c2_processors_init,  &c2_processors_fini,  "processors" },
@@ -107,12 +105,7 @@ struct init_fini_call subsystem[] = {
 	   type for network descriptors. */
 	{ &c2_fops_init,        &c2_fops_fini,        "fop" },
 	{ &c2_net_init,         &c2_net_fini,         "net" },
-	{ &c2_rpc_base_init,    &c2_rpc_base_fini,    "rpc-base" },
-	{ &c2_rpc_module_init,  &c2_rpc_module_fini,  "rpc" },
-	{ &c2_rpc_service_module_init, &c2_rpc_service_module_fini,
-						      "rpc-service" },
-	{ &c2_rpc_session_module_init, &c2_rpc_session_module_fini,
-						      "rpc-session" },
+	{ &c2_rpc_init,         &c2_rpc_fini,         "rpc" },
 	/* fom generic must be after rpc, because it initialises rpc item
 	   type for generic error reply. */
 	{ &c2_fom_generic_init, &c2_fom_generic_fini, "fom-generic" },
@@ -125,8 +118,10 @@ struct init_fini_call subsystem[] = {
 	{ &c2_ad_stobs_init,    &c2_ad_stobs_fini,    "ad-stob" },
 	{ &sim_global_init,     &sim_global_fini,     "desim" },
 	{ &c2_reqhs_init,       &c2_reqhs_fini,       "reqh" },
+	{ &c2_fid_register,     &c2_fid_unregister,   "fids" },
 #ifndef __KERNEL__
 	{ &c2_ios_register,     &c2_ios_unregister,   "ioservice" },
+	{ &c2_mds_register,     &c2_mds_unregister,   "mdservice"},
 	{ &c2_cm_module_init,   &c2_cm_module_fini,   "copy machine" },
 	{ &c2_sns_init,         &c2_sns_fini,         "sns" },
 #endif /* __KERNEL__ */

@@ -1443,8 +1443,8 @@ struct c2_rm_pin {
 	uint64_t               rp_magix;
 };
 
-void c2_rm_domain_init(struct c2_rm_domain *dom);
-void c2_rm_domain_fini(struct c2_rm_domain *dom);
+C2_INTERNAL void c2_rm_domain_init(struct c2_rm_domain *dom);
+C2_INTERNAL void c2_rm_domain_fini(struct c2_rm_domain *dom);
 
 /**
  * Registers a resource type with a domain.
@@ -1453,8 +1453,8 @@ void c2_rm_domain_fini(struct c2_rm_domain *dom);
  *       rtype->rt_dom == NULL
  * @post IS_IN_ARRAY(rtype->rt_id, dom->rd_types) && rtype->rt_dom == dom
  */
-void c2_rm_type_register(struct c2_rm_domain *dom,
-                         struct c2_rm_resource_type *rt);
+C2_INTERNAL void c2_rm_type_register(struct c2_rm_domain *dom,
+				     struct c2_rm_resource_type *rt);
 
 /**
  * Deregisters a resource type.
@@ -1463,7 +1463,7 @@ void c2_rm_type_register(struct c2_rm_domain *dom,
  * @post rtype->rt_id == C2_RM_RESOURCE_TYPE_ID_INVALID &&
  *       rtype->rt_dom == NULL
  */
-void c2_rm_type_deregister(struct c2_rm_resource_type *rtype);
+C2_INTERNAL void c2_rm_type_deregister(struct c2_rm_resource_type *rtype);
 
 /**
  * Adds a resource to the list of resources and increments resource type
@@ -1477,8 +1477,8 @@ void c2_rm_type_deregister(struct c2_rm_resource_type *rtype);
  * @post res->r_type == rtype
  * @post c2_tlist_contains(&rtype->rt_resources, &res->r_linkage)
  */
-void c2_rm_resource_add(struct c2_rm_resource_type *rtype,
-			struct c2_rm_resource *res);
+C2_INTERNAL void c2_rm_resource_add(struct c2_rm_resource_type *rtype,
+				    struct c2_rm_resource *res);
 /**
  * Removes a resource from the list of resources. Dual to c2_rm_resource_add().
  *
@@ -1487,7 +1487,7 @@ void c2_rm_resource_add(struct c2_rm_resource_type *rtype,
  *
  * @post !c2_tlist_contains(&rtype->rt_resources, &res->r_linkage)
  */
-void c2_rm_resource_del(struct c2_rm_resource *res);
+C2_INTERNAL void c2_rm_resource_del(struct c2_rm_resource *res);
 
 /**
  * Initialises owner fields and increments resource reference counter.
@@ -1500,8 +1500,9 @@ void c2_rm_resource_del(struct c2_rm_resource *res);
  * @post (owner->ro_state == ROS_INITIALISING || owner->ro_state == ROS_ACTIVE)&&
  *       owner->ro_resource == res)
  */
-void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res,
-		      struct c2_rm_remote *creditor);
+C2_INTERNAL void c2_rm_owner_init(struct c2_rm_owner *owner,
+				  struct c2_rm_resource *res,
+				  struct c2_rm_remote *creditor);
 
 /**
  * Loans a right to an owner from itself.
@@ -1517,7 +1518,8 @@ void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res,
  * @post owner->ro_state == ROS_INITIALISING
  * @post c2_tlist_contains(&owner->ro_owned[OWOS_CACHED], &r->ri_linkage))
  */
-int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r);
+C2_INTERNAL int c2_rm_owner_selfadd(struct c2_rm_owner *owner,
+				    struct c2_rm_right *r);
 
 /**
  * Retire the owner before finalising it. This function will revoke sublets
@@ -1527,7 +1529,7 @@ int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r);
  * @see c2_rm_owner_fini
  *
  */
-void c2_rm_owner_retire(struct c2_rm_owner *owner);
+C2_INTERNAL void c2_rm_owner_retire(struct c2_rm_owner *owner);
 
 /**
  * Finalises the owner. Dual to c2_rm_owner_init().
@@ -1540,16 +1542,16 @@ void c2_rm_owner_retire(struct c2_rm_owner *owner);
  *                         c2_tlist_is_empty(owner->ro_outgoing[*]) &&
  *
  */
-void c2_rm_owner_fini(struct c2_rm_owner *owner);
+C2_INTERNAL void c2_rm_owner_fini(struct c2_rm_owner *owner);
 
 /**
  * Locks state machine group of an owner
  */
-void c2_rm_owner_lock(struct c2_rm_owner *owner);
+C2_INTERNAL void c2_rm_owner_lock(struct c2_rm_owner *owner);
 /**
  * Unlocks state machine group of an owner
  */
-void c2_rm_owner_unlock(struct c2_rm_owner *owner);
+C2_INTERNAL void c2_rm_owner_unlock(struct c2_rm_owner *owner);
 
 /**
  * Initialises generic fields in struct c2_rm_right.
@@ -1560,12 +1562,13 @@ void c2_rm_owner_unlock(struct c2_rm_owner *owner);
  *
  * This function calls c2_rm_resource_ops::rop_right_init().
  */
-void c2_rm_right_init(struct c2_rm_right *right, struct c2_rm_owner *owner);
+C2_INTERNAL void c2_rm_right_init(struct c2_rm_right *right,
+				  struct c2_rm_owner *owner);
 
 /**
  * Finalised generic fields in struct c2_rm_right. Dual to c2_rm_right_init().
  */
-void c2_rm_right_fini(struct c2_rm_right *right);
+C2_INTERNAL void c2_rm_right_fini(struct c2_rm_right *right);
 
 /**
  * @param src_right - A source right which is to be duplicated.
@@ -1573,8 +1576,8 @@ void c2_rm_right_fini(struct c2_rm_right *right);
  *                     initialised and then filled with src_right.
  * Allocates and duplicates a right.
  */
-int c2_rm_right_dup(const struct c2_rm_right *src_right,
-		    struct c2_rm_right **dest_right);
+C2_INTERNAL int c2_rm_right_dup(const struct c2_rm_right *src_right,
+				struct c2_rm_right **dest_right);
 
 /**
  * Initialises the fields of for incoming structure.
@@ -1588,16 +1591,18 @@ int c2_rm_right_dup(const struct c2_rm_right *src_right,
  * @param flags - type of request (borrow, revoke, local)
  * @see c2_rm_incoming_fini
  */
-void c2_rm_incoming_init(struct c2_rm_incoming *in, struct c2_rm_owner *owner,
-			 enum c2_rm_incoming_type type,
-			 enum c2_rm_incoming_policy policy, uint64_t flags);
+C2_INTERNAL void c2_rm_incoming_init(struct c2_rm_incoming *in,
+				     struct c2_rm_owner *owner,
+				     enum c2_rm_incoming_type type,
+				     enum c2_rm_incoming_policy policy,
+				     uint64_t flags);
 
 /**
  * Finalises the fields of
  * @param in
  * @see Dual to c2_rm_incoming_init().
  */
-void c2_rm_incoming_fini(struct c2_rm_incoming *in);
+C2_INTERNAL void c2_rm_incoming_fini(struct c2_rm_incoming *in);
 
 /**
  * Initialises the fields of remote owner.
@@ -1605,7 +1610,8 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in);
  * @param res - Resource for which proxy is obtained.
  * @see c2_rm_remote_fini
  */
-void c2_rm_remote_init(struct c2_rm_remote *rem, struct c2_rm_resource *res);
+C2_INTERNAL void c2_rm_remote_init(struct c2_rm_remote *rem,
+				   struct c2_rm_resource *res);
 
 /**
  * Finalises the fields of remote owner.
@@ -1616,7 +1622,7 @@ void c2_rm_remote_init(struct c2_rm_remote *rem, struct c2_rm_resource *res);
  *      rem->rem_state == REM_SERVICE_LOCATED ||
  *      rem->rem_state == REM_OWNER_LOCATED
  */
-void c2_rm_remote_fini(struct c2_rm_remote *rem);
+C2_INTERNAL void c2_rm_remote_fini(struct c2_rm_remote *rem);
 
 /**
  * Starts a state machine for a resource usage right request. Adds pins for
@@ -1628,18 +1634,19 @@ void c2_rm_remote_fini(struct c2_rm_remote *rem);
  * @pre c2_tlist_is_empty(&in->rin_want.ri_linkage)
  *
  */
-void c2_rm_right_get(struct c2_rm_incoming *in);
+C2_INTERNAL void c2_rm_right_get(struct c2_rm_incoming *in);
 
 /**
  * Allocates suitably sized buffer and encode it into that buffer.
  */
-int c2_rm_right_encode(const struct c2_rm_right *right, struct c2_buf *buf);
+C2_INTERNAL int c2_rm_right_encode(const struct c2_rm_right *right,
+				   struct c2_buf *buf);
 
 /**
  * Decodes a right from its serialised presentation.
  */
-int c2_rm_right_decode(struct c2_rm_right *right,
-		       struct c2_buf *buf);
+C2_INTERNAL int c2_rm_right_decode(struct c2_rm_right *right,
+				   struct c2_buf *buf);
 
 /**
  * Releases the right pinned by struct c2_rm_incoming.
@@ -1647,7 +1654,7 @@ int c2_rm_right_decode(struct c2_rm_right *right,
  * @pre in->rin_state == RI_SUCCESS
  * @post c2_tlist_empty(&in->rin_pins)
  */
-void c2_rm_right_put(struct c2_rm_incoming *in);
+C2_INTERNAL void c2_rm_right_put(struct c2_rm_incoming *in);
 
 /** @} */
 
@@ -1662,7 +1669,8 @@ void c2_rm_right_put(struct c2_rm_incoming *in);
  * After this function returns, "other" is in the process of locating the remote
  * service and remote owner, as described in the comment on c2_rm_remote.
  */
-int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other);
+C2_INTERNAL int c2_rm_net_locate(struct c2_rm_right *right,
+				 struct c2_rm_remote *other);
 
 /**
    @todo Assigns a service to a given remote.
@@ -1678,7 +1686,7 @@ void c2_rm_remote_service_set(struct c2_rm_remote *rem,
  * @pre  rem->rem_state < REM_OWNER_LOCATED
  * @post rem->rem_state == REM_OWNER_LOCATED
  */
-void c2_rm_remote_owner_set(struct c2_rm_remote *rem, uint64_t id);
+C2_INTERNAL void c2_rm_remote_owner_set(struct c2_rm_remote *rem, uint64_t id);
 
 /** @} end of Resource manager networking */
 

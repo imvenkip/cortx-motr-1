@@ -69,6 +69,31 @@ struct c2_fop_data;
 struct c2_fop;
 
 /**
+   A context for fop processing in a service.
+
+   A context is created by a service and passed to
+   c2_fop_type_ops::fto_execute() as an argument. It is used to identify a
+   particular fop execution in a service.
+ */
+struct c2_fop_ctx {
+        /**
+           Request handler for this fop
+        */
+        struct c2_reqh     *fc_reqh;
+	/**
+	   Fol that reqh uses.
+	*/
+	struct c2_fol      *fc_fol;
+
+	void               *fc_cookie;
+
+	/**
+	   Fop execution error code returned by store.
+	*/
+	int                 fc_retval;
+};
+
+/**
     fop storage.
 
     A fop is stored in a buffer vector. XXX not for now.
@@ -98,9 +123,9 @@ struct c2_fop {
 
    @see c2_fop_data_alloc()
  */
-void           c2_fop_init (struct c2_fop *fop, struct c2_fop_type *fopt,
-			    void *data);
-void           c2_fop_fini (struct c2_fop *fop);
+C2_INTERNAL void c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt,
+			     void *data);
+C2_INTERNAL void c2_fop_fini(struct c2_fop *fop);
 
 /**
    Allocate fop object
@@ -110,23 +135,24 @@ void           c2_fop_fini (struct c2_fop *fop);
    if data == NULL, data is allocated by this function
  */
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);
-void           c2_fop_free (struct c2_fop *fop);
-void          *c2_fop_data (struct c2_fop *fop);
+C2_INTERNAL void c2_fop_free(struct c2_fop *fop);
+void *c2_fop_data(struct c2_fop *fop);
 
 /**
    Allocate top level fop data
  */
-int c2_fop_data_alloc(struct c2_fop *fop);
+C2_INTERNAL int c2_fop_data_alloc(struct c2_fop *fop);
 
-int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
-		       struct c2_db_tx *tx);
+C2_INTERNAL int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
+				   struct c2_db_tx *tx);
 
 struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop);
 struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item);
+uint32_t c2_fop_opcode(const struct c2_fop *fop);
 
 /**  Returns a fop type associated with an rpc item type */
-struct c2_fop_type *c2_item_type_to_fop_type
-		   (const struct c2_rpc_item_type *rit);
+C2_INTERNAL struct c2_fop_type *c2_item_type_to_fop_type
+    (const struct c2_rpc_item_type *rit);
 
 /**
    Default implementation of c2_rpc_item_ops::rio_free() interface, for
@@ -220,7 +246,7 @@ struct c2_fop_type {
     }
     @endcode
  */
-struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype);
+C2_INTERNAL struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype);
 
 /** fop type operations. */
 struct c2_fop_type_ops {
@@ -278,11 +304,11 @@ struct c2_fop_type_batch {
 	struct __c2_fop_type_init_args  tb_args;
 };
 
-int  c2_fop_type_init_nr(const struct c2_fop_type_batch *batch);
-void c2_fop_type_fini_nr(const struct c2_fop_type_batch *batch);
+C2_INTERNAL int c2_fop_type_init_nr(const struct c2_fop_type_batch *batch);
+C2_INTERNAL void c2_fop_type_fini_nr(const struct c2_fop_type_batch *batch);
 
-int  c2_fops_init(void);
-void c2_fops_fini(void);
+C2_INTERNAL int c2_fops_init(void);
+C2_INTERNAL void c2_fops_fini(void);
 
 #define C2_FOP_XCODE_OBJ(f) (struct c2_xcode_obj) {	\
 		.xo_type = f->f_type->ft_xt,		\

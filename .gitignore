@@ -1,80 +1,111 @@
-.depend
-.deps
-.tmp_versions
-aclocal.m4
-autom4te.cache
-c2.trace.*
-colibri.spec
-compile
-config.cache
-config.guess
-config.h
-config.h.in
-\[config.h\].in
-config.log
-config.status
-config.sub
-configure
-depcomp
-INSTALL
-install-sh
-Makefile
-Makefile.in
-missing
-mkinstalldirs
-Module.markers
-Module.symvers
-Module.symvers.old
-modules.order
-Modules.symvers
-Rules
-stamp-h1
-tags
-TAGS
-ltmain.sh
-missing
-.libs/
-*.lo
-*.loT
+#
+# NOTE! Don't add files that are generated in specific
+# subdirectories here. Add them in the ".gitignore" file
+# in that subdirectory instead.
+#
+# NOTE! Please use 'git ls-files -i --exclude-standard'
+# command after changing this file, to see if there are
+# any tracked files which get ignored after the change.
+#
+
+#
+# Normal rules
+#
+.*
 *.o
+*.i
+*.s
+*.a
+*.so
+
+# git files that we don't want to ignore even it they are dot-files
+!.gitignore
+
+# ctags, cscope and emacs tag files
+/tags
+/TAGS
+/cscope.*
+/ncscope.*
+
+# gnu global files
+GPATH
+GRTAGS
+GSYMS
+GTAGS
+
+# backup files
+*.orig
+*~
+\#*#
+
+#
+# Autoconf/Automake stuff
+#
+
+# generic
+*.lo
 *.la
-.*.ko.cmd
-.*.o.cmd
-.*.o.d
+
+# generated in top-level directory
+/INSTALL
+/Makefile
+/Makefile.in
+/aclocal.m4
+/autom4te.cache/
+/colibri.spec
+/compile
+/config.*
+/config/
+/configure
+/depcomp
+/install-sh
+/libtool
+/ltmain.sh
+/missing
+/stamp-h1
+
+# m4 macros
+/m4/libtool.m4
+/m4/ltoptions.m4
+/m4/ltsugar.m4
+/m4/ltversion.m4
+/m4/lt~obsolete.m4
+
+#
+# Linux kernel stuff
+#
 *.ko
 *.ko.unsigned
-*.ko.unsigned.cmd
 *.mod.c
-*.mod.o
-*.gcda
-*.gcno
-*.gcov
-*.swp
+*.order
+*.symtypes
+Module.markers
+Module.symvers
+modules.builtin
+
+#
+# Generated xcode files
+#
 *.gccxml
 *_xc.[hc]
 *_ff.[hc]
-*~
-doc/html/
-.#*
-\#*#
-libtool
-m4/libtool.m4
-m4/ltoptions.m4
-m4/ltsugar.m4
-m4/ltversion.m4
-m4/lt~obsolete.m4
-mds/mds
-nohup.out
-test_db*
-build/
-c2ut.log-Results.xml
-*.errlog
-*.msglog
-ut-sandbox
-ub-sandbox
+
+#
+# Gcov files
+#
+*.gcda
+*.gcno
+*.gcov
 gmon.out
-doxygen_*tmp
-cscope.out
-tags
-TAGS*
-colibri-0.1.tar.gz
+
+#
+# Runtime files
+#
+/ut-sandbox/
+/ub-sandbox/
+/c2.trace.*
+
+#
+# Generated documentation
+#
+doc/html/

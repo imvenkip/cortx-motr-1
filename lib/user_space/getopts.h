@@ -159,7 +159,7 @@ struct c2_getopts_opt {
    @note -W option is reserved by POSIX.2. GNU getopt() uses -W as a long option
    escape. Do not use it.
  */
-int c2_getopts(const char *progname, int argc, char * const *argv,
+int c2_getopts(const char *progname, int argc, char *const *argv,
 	       const struct c2_getopts_opt *opts, unsigned nr);
 
 /**

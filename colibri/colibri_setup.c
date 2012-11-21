@@ -35,8 +35,11 @@
 #include "stob/linux.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "reqh/reqh.h"
+#include "cob/cob.h"
+#include "mdstore/mdstore.h"
+#include "colibri/colibri_setup.h"
 #include "colibri/cs_internal.h"
 #include "colibri/magic.h"
 #include "rpc/rpclib.h"
@@ -443,8 +446,9 @@ static void cs_reqh_ctx_free(struct cs_reqh_context *rctx)
 
    @see c2_cs_init()
  */
-struct c2_net_domain *c2_cs_net_domain_locate(struct c2_colibri *cctx,
-					      const char *xprt_name)
+C2_INTERNAL struct c2_net_domain *c2_cs_net_domain_locate(struct c2_colibri
+							  *cctx,
+							  const char *xprt_name)
 {
 	struct c2_net_domain *ndom;
 
@@ -518,7 +522,7 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 	}
 
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
-	rc = c2_rpc_machine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh,
+	rc = c2_rpc_machine_init(rpcmach, &reqh->rh_mdstore->md_dom, ndom, ep, reqh,
 				 buffer_pool, tm_colour, max_rpc_msg_size,
 				 recv_queue_min_length);
 	if (rc != 0) {
@@ -909,8 +913,9 @@ static void cs_linux_stob_fini(struct cs_stobs *stob)
                 stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom);
 }
 
-struct c2_stob_domain *c2_cs_stob_domain_find(struct c2_reqh *reqh,
-					      const struct c2_stob_id *stob_id)
+C2_INTERNAL struct c2_stob_domain *c2_cs_stob_domain_find(struct c2_reqh *reqh,
+							  const struct
+							  c2_stob_id *stob_id)
 {
 	struct cs_reqh_context  *rqctx;
 	struct cs_stobs         *stob;
@@ -1051,7 +1056,7 @@ static int cs_service_init(const char *service_name, struct c2_reqh *reqh)
 static int cs_services_init(struct c2_colibri *cctx)
 {
 	int                     idx;
-	int                     rc;
+	int                     rc = 0;
 	struct cs_reqh_context *rctx;
 
 	C2_PRE(cctx != NULL);
@@ -1244,8 +1249,7 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 		goto cleanup_stob;
 	}
 	rctx->rc_cdom_id.id = ++cdom_id;
-	rc = c2_cob_domain_init(&rctx->rc_cdom, &rctx->rc_db,
-				&rctx->rc_cdom_id);
+	rc = c2_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db, 0);
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "c2_cob_domain_init", rc);
@@ -1255,10 +1259,10 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "c2_fol_init", rc);
-		goto cleanup_cob;
+		goto cleanup_mdstore;
 	}
-	rc = c2_reqh_init(&rctx->rc_reqh, NULL, &rctx->rc_db, &rctx->rc_cdom,
-			  &rctx->rc_fol);
+	rc = c2_reqh_init(&rctx->rc_reqh, NULL, &rctx->rc_db, &rctx->rc_mdstore,
+			  &rctx->rc_fol, NULL);
 	if (rc != 0)
 		goto cleanup_fol;
 
@@ -1267,8 +1271,8 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 
 cleanup_fol:
 	c2_fol_fini(&rctx->rc_fol);
-cleanup_cob:
-	c2_cob_domain_fini(&rctx->rc_cdom);
+cleanup_mdstore:
+	c2_mdstore_fini(&rctx->rc_mdstore);
 cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
 	c2_dbenv_fini(&rctx->rc_db);
@@ -1323,7 +1327,7 @@ static void cs_request_handler_stop(struct cs_reqh_context *rctx)
 	cs_rpc_machines_fini(reqh);
 	c2_reqh_fini(reqh);
 	c2_fol_fini(&rctx->rc_fol);
-	c2_cob_domain_fini(&rctx->rc_cdom);
+	c2_mdstore_fini(&rctx->rc_mdstore);
 	cs_storage_fini(&rctx->rc_stob);
 	c2_dbenv_fini(&rctx->rc_db);
 }
@@ -1398,7 +1402,7 @@ static struct cs_reqh_context *cs_reqh_ctx_get(struct c2_reqh *reqh)
 	return rqctx;
 }
 
-struct c2_colibri *c2_cs_ctx_get(struct c2_reqh *reqh)
+C2_INTERNAL struct c2_colibri *c2_cs_ctx_get(struct c2_reqh *reqh)
 {
 	return cs_reqh_ctx_get(reqh)->rc_colibri;
 }
@@ -1803,7 +1807,7 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
         return result ?: rc;
 }
 
-int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
+C2_INTERNAL int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 {
 	int rc;
 
@@ -1831,7 +1835,7 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 	return rc;
 }
 
-int c2_cs_start(struct c2_colibri *cctx)
+C2_INTERNAL int c2_cs_start(struct c2_colibri *cctx)
 {
 	int rc;
 
@@ -1845,8 +1849,8 @@ int c2_cs_start(struct c2_colibri *cctx)
 	return rc;
 }
 
-int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
-	       size_t xprts_nr, FILE *out)
+C2_INTERNAL int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
+			   size_t xprts_nr, FILE * out)
 {
         C2_PRE(cctx != NULL && xprts != NULL && xprts_nr > 0 && out != NULL);
 
@@ -1861,7 +1865,7 @@ int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
 	return 0;
 }
 
-void c2_cs_fini(struct c2_colibri *cctx)
+C2_INTERNAL void c2_cs_fini(struct c2_colibri *cctx)
 {
 	C2_PRE(cctx != NULL);
 

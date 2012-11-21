@@ -70,7 +70,7 @@ const struct c2_fom_type_ops rm_borrow_fom_type_ops = {
 	.fto_create = borrow_fom_create,
 };
 
-const struct c2_sm_state_descr borrow_states[] = {
+struct c2_sm_state_descr borrow_phases[] = {
 	[FOPH_RM_BORROW] = {
 		.sd_name      = "Borrow Begin",
 		.sd_allowed   = C2_BITS(FOPH_RM_BORROW_WAIT, C2_FOPH_FAILURE)
@@ -83,8 +83,8 @@ const struct c2_sm_state_descr borrow_states[] = {
 
 const struct c2_sm_conf borrow_sm_conf = {
 	.scf_name      = "Borrow FOM conf",
-	.scf_nr_states = ARRAY_SIZE(borrow_states),
-	.scf_state     = borrow_states
+	.scf_nr_states = ARRAY_SIZE(borrow_phases),
+	.scf_state     = borrow_phases
 };
 
 /*
@@ -100,7 +100,7 @@ const struct c2_fom_type_ops rm_revoke_fom_type_ops = {
 	.fto_create = revoke_fom_create,
 };
 
-const struct c2_sm_state_descr revoke_states[] = {
+struct c2_sm_state_descr revoke_phases[] = {
 	[FOPH_RM_REVOKE] = {
 		.sd_name      = "Revoke Begin",
 		.sd_allowed   = C2_BITS(FOPH_RM_REVOKE_WAIT, C2_FOPH_FAILURE)
@@ -113,8 +113,8 @@ const struct c2_sm_state_descr revoke_states[] = {
 
 const struct c2_sm_conf revoke_sm_conf = {
 	.scf_name      = "Revoke FOM conf",
-	.scf_nr_states = ARRAY_SIZE(revoke_states),
-	.scf_state     = revoke_states
+	.scf_nr_states = ARRAY_SIZE(revoke_phases),
+	.scf_state     = revoke_phases
 };
 
 static void remote_incoming_complete(struct c2_rm_incoming *in, int32_t rc)

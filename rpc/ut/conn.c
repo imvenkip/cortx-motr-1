@@ -21,10 +21,11 @@
 #include "lib/ut.h"
 #include "lib/mutex.h"
 #include "lib/finject.h"
-#include "rpc/session.h"
-#include "rpc/rpc2.h"
-#include "rpc/session_ff.h"
 #include "fop/fop.h"
+#include "colibri/magic.h"
+
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 
 enum {
 	SENDER_ID = 1001,
@@ -42,6 +43,10 @@ static struct c2_rpc_fop_conn_terminate_rep term_reply;
 
 static struct c2_net_end_point ep;
 
+C2_TL_DESCR_DEFINE(rpc_conn_ut, "rpc-conn", static, struct c2_rpc_conn,
+		   c_link, c_magic, C2_RPC_CONN_MAGIC, C2_RPC_CONN_HEAD_MAGIC);
+C2_TL_DEFINE(rpc_conn_ut, static, struct c2_rpc_conn);
+
 static int conn_ut_init(void)
 {
 	ep.nep_addr = "dummy ep";
@@ -49,8 +54,8 @@ static int conn_ut_init(void)
 	est_fop.f_item.ri_reply  = &est_fop_rep.f_item;
 	term_fop.f_item.ri_reply = &term_fop_rep.f_item;
 
-	c2_list_init(&machine.rm_incoming_conns);
-	c2_list_init(&machine.rm_outgoing_conns);
+	rpc_conn_ut_tlist_init(&machine.rm_incoming_conns);
+	rpc_conn_ut_tlist_init(&machine.rm_outgoing_conns);
 	c2_sm_group_init(&machine.rm_sm_grp);
 
 	c2_fi_enable("rpc_chan_get", "do_nothing");
@@ -62,8 +67,8 @@ static int conn_ut_init(void)
 
 static int conn_ut_fini(void)
 {
-	c2_list_fini(&machine.rm_incoming_conns);
-	c2_list_fini(&machine.rm_outgoing_conns);
+	rpc_conn_ut_tlist_fini(&machine.rm_incoming_conns);
+	rpc_conn_ut_tlist_fini(&machine.rm_outgoing_conns);
 	c2_sm_group_fini(&machine.rm_sm_grp);
 	c2_fi_disable("rpc_chan_get", "do_nothing");
 	c2_fi_disable("rpc_chan_put", "do_nothing");

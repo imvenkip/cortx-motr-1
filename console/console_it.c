@@ -33,6 +33,8 @@
    @{
  */
 
+bool     verbose;
+
 static struct c2_cons_atom_ops atom_ops[C2_XAT_NR];
 
 static void depth_print(int depth)
@@ -192,8 +194,9 @@ static void console_xc_atom_process(struct c2_xcode_cursor_frame *top,
 	}
 }
 
-void c2_cons_fop_obj_input_output(struct c2_fop *fop,
-				  enum c2_cons_data_process_type type)
+C2_INTERNAL void c2_cons_fop_obj_input_output(struct c2_fop *fop,
+					      enum c2_cons_data_process_type
+					      type)
 {
 	const struct c2_xcode_type  *xt;
 	enum c2_xcode_aggr           gtype = 0;
@@ -205,7 +208,7 @@ void c2_cons_fop_obj_input_output(struct c2_fop *fop,
 	fop_depth = 0;
 	xt = fop->f_type->ft_xt;
 	C2_ASSERT(xt != NULL);
-	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){xt, c2_fop_data(fop)});
+	c2_xcode_ctx_init(&ctx, &C2_FOP_XCODE_OBJ(fop));
 	it = &ctx.xcx_it;
 
 	printf("\n");
@@ -239,17 +242,17 @@ void c2_cons_fop_obj_input_output(struct c2_fop *fop,
         }
 }
 
-void c2_cons_fop_obj_input(struct c2_fop *fop)
+C2_INTERNAL void c2_cons_fop_obj_input(struct c2_fop *fop)
 {
 	c2_cons_fop_obj_input_output(fop, CONS_IT_INPUT);
 }
 
-void c2_cons_fop_obj_output(struct c2_fop *fop)
+C2_INTERNAL void c2_cons_fop_obj_output(struct c2_fop *fop)
 {
 	c2_cons_fop_obj_input_output(fop, CONS_IT_OUTPUT);
 }
 
-void c2_cons_fop_fields_show(struct c2_fop *fop)
+C2_INTERNAL void c2_cons_fop_fields_show(struct c2_fop *fop)
 {
 	verbose = true;
 	c2_cons_fop_obj_input_output(fop, CONS_IT_SHOW);

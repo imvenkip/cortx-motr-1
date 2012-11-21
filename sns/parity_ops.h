@@ -30,8 +30,8 @@
 #define C2_PARITY_GALOIS_W (8)
 typedef int c2_parity_elem_t;
 
-void c2_parity_fini(void);
-void c2_parity_init(void);
+C2_INTERNAL void c2_parity_fini(void);
+C2_INTERNAL void c2_parity_init(void);
 
 static inline c2_parity_elem_t c2_parity_add(c2_parity_elem_t x, c2_parity_elem_t y)
 {

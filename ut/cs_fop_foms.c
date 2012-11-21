@@ -22,12 +22,14 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/chan.h"
-
+#include "lib/finject.h"
+#include "lib/time.h"
+#include "lib/misc.h"           /* C2_IN() */
 #include "fop/fop.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"
 
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "rpc/rpclib.h"
 #include "fop/fop_item_type.h"
 
@@ -105,20 +107,18 @@ static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 	struct c2_fop *rep_fop;
 
         C2_PRE(item != NULL);
-	C2_PRE(c2_chan_has_waiters(&item->ri_chan));
 
 	req_fop = c2_rpc_item_to_fop(item);
-	rep_fop = c2_rpc_item_to_fop(item->ri_reply);
 
-	C2_ASSERT(req_fop->f_type->ft_rpc_item_type.rit_opcode ==
-		    C2_CS_DS1_REQ_OPCODE ||
-		    req_fop->f_type->ft_rpc_item_type.rit_opcode ==
-		    C2_CS_DS2_REQ_OPCODE);
+	C2_ASSERT(C2_IN(c2_fop_opcode(req_fop), (C2_CS_DS1_REQ_OPCODE,
+						 C2_CS_DS2_REQ_OPCODE)));
 
-	C2_ASSERT(rep_fop->f_type->ft_rpc_item_type.rit_opcode ==
-		     C2_CS_DS1_REP_OPCODE ||
-		     rep_fop->f_type->ft_rpc_item_type.rit_opcode ==
-		     C2_CS_DS2_REP_OPCODE);
+	if (item->ri_error == 0) {
+		rep_fop = c2_rpc_item_to_fop(item->ri_reply);
+		C2_ASSERT(C2_IN(c2_fop_opcode(rep_fop),
+				(C2_CS_DS1_REP_OPCODE,
+				 C2_CS_DS2_REP_OPCODE)));
+	}
 }
 
 void c2_cs_ut_ds1_fop_fini(void)
@@ -237,7 +237,7 @@ static size_t cs_ut_find_fom_home_locality(const struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 
-	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+	return c2_fop_opcode(fom->fo_fop);
 }
 
 /*
@@ -254,15 +254,12 @@ static int cs_req_fop_fom_tick(struct c2_fom *fom)
 	struct cs_ds2_rep_fop *ds2_repfop;
 	uint64_t               opcode;
 
-	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
-	       C2_CS_DS1_REQ_OPCODE ||
-	       fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
-	       C2_CS_DS2_REQ_OPCODE);
-
+	C2_PRE(C2_IN(c2_fop_opcode(fom->fo_fop), (C2_CS_DS1_REQ_OPCODE,
+						  C2_CS_DS2_REQ_OPCODE)));
 	if (c2_fom_phase(fom) < C2_FOPH_NR) {
 		rc = c2_fom_tick_generic(fom);
 	} else {
-		opcode = fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+		opcode = c2_fop_opcode(fom->fo_fop);
 		switch (opcode) {
 		case C2_CS_DS1_REQ_OPCODE:
 			rfop = c2_fop_alloc(&cs_ds1_rep_fop_fopt, NULL);
@@ -274,7 +271,6 @@ static int cs_req_fop_fom_tick(struct c2_fom *fom)
 			ds1_repfop = c2_fop_data(rfop);
 			ds1_repfop->csr_rc = ds1_reqfop->csr_value;
 			fom->fo_rep_fop = rfop;
-			fom->fo_rc = 0;
 			c2_fom_phase_set(fom, C2_FOPH_SUCCESS);
 			rc = C2_FSO_AGAIN;
 			break;
@@ -288,7 +284,6 @@ static int cs_req_fop_fom_tick(struct c2_fom *fom)
 			ds2_repfop = c2_fop_data(rfop);
 			ds2_repfop->csr_rc = ds2_reqfop->csr_value;
 			fom->fo_rep_fop = rfop;
-			fom->fo_rc = 0;
 			c2_fom_phase_set(fom, C2_FOPH_SUCCESS);
 			rc = C2_FSO_AGAIN;
 			break;
@@ -296,7 +291,9 @@ static int cs_req_fop_fom_tick(struct c2_fom *fom)
 			 C2_ASSERT("Invalid fop" == 0);
 		}
 	}
-
+	if (C2_FI_ENABLED("inject_delay")) {
+		c2_nanosleep(c2_time(2, 0), NULL);
+	}
 	return rc;
 }
 

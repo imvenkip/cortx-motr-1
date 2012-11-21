@@ -1,0 +1,169 @@
+/* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
+ * Original creation date: 03/29/2011
+ */
+
+/**
+   @addtogroup fop
+   @{
+ */
+
+/** @file md_fop.ff
+ *
+ * <b>Colibri metatadata fop formats</b>
+ *
+ */
+
+require "fid/fid_ff";
+
+sequence {
+        u32 s_len;
+        u8  s_buf
+} c2_fop_str;
+
+record {
+        u64 b_index;
+        u64 b_version;
+        u32 b_flags;
+        u32 b_valid;
+        u32 b_mode;
+        u64 b_size;
+        u64 b_blksize;
+        u64 b_blocks;
+        u32 b_nlink;
+        u32 b_uid;
+        u32 b_gid;
+        u32 b_sid;
+        u64 b_nid;
+        u32 b_rdev;
+        u32 b_atime;
+        u32 b_mtime;
+        u32 b_ctime;
+        c2_fop_fid b_pfid;
+        c2_fop_fid b_tfid
+} c2_fop_cob;
+
+record {
+        c2_fop_cob c_body;
+        c2_fop_str c_target;
+        c2_fop_str c_path;
+        c2_fop_str c_name
+} c2_fop_create;
+
+record {
+        c2_fop_cob c_body
+} c2_fop_create_rep;
+
+record {
+        c2_fop_cob l_body;
+        c2_fop_str l_spath;
+        c2_fop_str l_tpath;
+        c2_fop_str l_name
+} c2_fop_link;
+
+record {
+        c2_fop_cob l_body
+} c2_fop_link_rep;
+
+record {
+        c2_fop_cob u_body;
+        c2_fop_str u_path;
+        c2_fop_str u_name
+} c2_fop_unlink;
+
+record {
+        c2_fop_cob u_body
+} c2_fop_unlink_rep;
+
+record {
+        c2_fop_cob r_sbody;
+        c2_fop_cob r_tbody;
+        c2_fop_str r_spath;
+        c2_fop_str r_tpath;
+        c2_fop_str r_sname;
+        c2_fop_str r_tname
+} c2_fop_rename;
+
+record {
+        c2_fop_cob r_body
+} c2_fop_rename_rep;
+
+record {
+        c2_fop_str o_path;
+        c2_fop_cob o_body
+} c2_fop_open;
+
+record {
+        c2_fop_cob o_body
+} c2_fop_open_rep;
+
+record {
+        c2_fop_cob c_body;
+        c2_fop_str c_path
+} c2_fop_close;
+
+record {
+        c2_fop_cob c_body
+} c2_fop_close_rep;
+
+record {
+        c2_fop_cob s_body;
+        c2_fop_str s_path
+} c2_fop_setattr;
+
+record {
+        c2_fop_cob s_body
+} c2_fop_setattr_rep;
+
+record {
+        c2_fop_cob g_body;
+        c2_fop_str g_path
+} c2_fop_getattr;
+
+record {
+        c2_fop_cob g_body
+} c2_fop_getattr_rep;
+
+record {
+        c2_fop_cob r_body;
+        c2_fop_str r_path;
+        c2_fop_str r_pos
+} c2_fop_readdir;
+
+sequence {
+        u32 b_count;
+        u8  b_addr
+} c2_fop_buf;
+
+record {
+        c2_fop_str r_end;
+        c2_fop_cob r_body;
+        c2_fop_buf r_buf
+} c2_fop_readdir_rep;
+
+/** @} end of fop group */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

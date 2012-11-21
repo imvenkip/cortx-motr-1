@@ -50,9 +50,11 @@ enum c2_rpc_fom_conn_establish_phase {
 extern struct c2_fom_type c2_rpc_fom_conn_establish_type;
 extern const struct c2_fom_ops c2_rpc_fom_conn_establish_ops;
 
-size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom);
-int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom);
-void c2_rpc_fom_conn_establish_fini(struct c2_fom *fom);
+C2_INTERNAL size_t c2_rpc_session_default_home_locality(const struct c2_fom
+							*fom);
+C2_INTERNAL int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom);
+C2_INTERNAL void c2_rpc_fom_conn_establish_fini(struct c2_fom *fom);
+
 /*
  * FOM to execute "Session Create" request
  */
@@ -64,8 +66,8 @@ enum c2_rpc_fom_session_establish_phase {
 extern struct c2_fom_type c2_rpc_fom_session_establish_type;
 extern const struct c2_fom_ops c2_rpc_fom_session_establish_ops;
 
-int c2_rpc_fom_session_establish_tick(struct c2_fom *fom);
-void c2_rpc_fom_session_establish_fini(struct c2_fom *fom);
+C2_INTERNAL int c2_rpc_fom_session_establish_tick(struct c2_fom *fom);
+C2_INTERNAL void c2_rpc_fom_session_establish_fini(struct c2_fom *fom);
 
 /*
  * FOM to execute session terminate request
@@ -78,8 +80,8 @@ enum c2_rpc_fom_session_terminate_phase {
 extern struct c2_fom_type c2_rpc_fom_session_terminate_type;
 extern const struct c2_fom_ops c2_rpc_fom_session_terminate_ops;
 
-int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom);
-void c2_rpc_fom_session_terminate_fini(struct c2_fom *fom);
+C2_INTERNAL int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom);
+C2_INTERNAL void c2_rpc_fom_session_terminate_fini(struct c2_fom *fom);
 
 /*
  * FOM to execute RPC connection terminate request
@@ -92,8 +94,8 @@ enum c2_rpc_fom_conn_terminate_phase {
 extern struct c2_fom_type c2_rpc_fom_conn_terminate_type;
 extern const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops;
 
-int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom);
-void c2_rpc_fom_conn_terminate_fini(struct c2_fom *fom);
+C2_INTERNAL int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom);
+C2_INTERNAL void c2_rpc_fom_conn_terminate_fini(struct c2_fom *fom);
 
 #endif
 

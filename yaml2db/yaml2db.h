@@ -265,20 +265,20 @@ extern const struct c2_yaml2db_section_ops c2_yaml2db_dev_section_ops;
   @param yctx - yaml2db context
   @retval 0 if success, -errno otherwise
  */
-int c2_yaml2db_init(struct c2_yaml2db_ctx *yctx);
+C2_INTERNAL int c2_yaml2db_init(struct c2_yaml2db_ctx *yctx);
 
 /**
   Fini function, which finalizes the parser and finies the db
   @param yctx - yaml2db context
  */
-void c2_yaml2db_fini(struct c2_yaml2db_ctx *yctx);
+C2_INTERNAL void c2_yaml2db_fini(struct c2_yaml2db_ctx *yctx);
 
 /**
   Function to load the yaml document
   @param yctx - yaml2db context
   @retval 0 if successful, -errno otherwise
  */
-int c2_yaml2db_doc_load(struct c2_yaml2db_ctx *yctx);
+C2_INTERNAL int c2_yaml2db_doc_load(struct c2_yaml2db_ctx *yctx);
 
 /**
   Function to parse the yaml document and load its corresponding entries
@@ -288,9 +288,9 @@ int c2_yaml2db_doc_load(struct c2_yaml2db_ctx *yctx);
   @param conf_param - parameter for which configuration has to be loaded
   @retval 0 if successful, -errno otherwise
  */
-int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
-			 struct c2_yaml2db_section *ysec,
-			 const char *conf_param);
+C2_INTERNAL int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
+				     struct c2_yaml2db_section *ysec,
+				     const char *conf_param);
 
 /**
   Function to emit the yaml document
@@ -299,15 +299,15 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
   @param conf_param - parameter for which configuration has to be emitted
   @retval 0 if successful, -errno otherwise
  */
-int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
-			 const struct c2_yaml2db_section *ysec,
-			 const char *conf_param);
+C2_INTERNAL int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
+				     const struct c2_yaml2db_section *ysec,
+				     const char *conf_param);
 
 /**
  * Function to detect and print parsing errors
  * @param parser - yaml_parser structure
  */
-void c2_yaml_parser_error_detect(const yaml_parser_t *parser);
+C2_INTERNAL void c2_yaml_parser_error_detect(const yaml_parser_t * parser);
 
 
 /** @} end of yaml2db group */

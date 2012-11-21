@@ -1,0 +1,55 @@
+nobase_colibri_include_HEADERS += rpc/session.h \
+                                  rpc/session_fops.h \
+                                  rpc/session_foms.h \
+                                  rpc/session_internal.h \
+                                  rpc/rpc_helpers.h \
+                                  rpc/rpc_opcodes.h \
+                                  rpc/rpc.h \
+                                  rpc/rpc_machine.h \
+                                  rpc/rpc_machine_internal.h \
+                                  rpc/bulk.h \
+                                  rpc/formation2_internal.h \
+                                  rpc/packet_internal.h \
+                                  rpc/rpclib.h \
+                                  rpc/rpc_onwire.h \
+                                  rpc/rpc_onwire_xc.h \
+                                  rpc/service.h \
+                                  rpc/item.h \
+                                  rpc/item_internal.h \
+                                  rpc/conn.h \
+                                  rpc/conn_internal.h \
+                                  rpc/slot_internal.h \
+                                  rpc/rpc_internal.h
+
+colibri_libcolibri_la_SOURCES  += rpc/session.c \
+                                  rpc/slot.c \
+                                  rpc/conn.c \
+                                  rpc/session_utils.c \
+                                  rpc/session_fops.c \
+                                  rpc/session_foms.c \
+                                  rpc/rpc.c \
+                                  rpc/item.c \
+                                  rpc/rpc_machine.c \
+                                  rpc/packet.c \
+                                  rpc/bulk.c \
+                                  rpc/formation2.c \
+                                  rpc/frmops.c \
+                                  rpc/rpc_onwire.c \
+                                  rpc/rpclib.c \
+                                  rpc/service.c \
+                                  rpc/rpc_onwire_xc.c \
+                                  rpc/session_ff.c
+
+rpc/rpc_onwire.h: dtm/verno_xc.h
+
+FF_FILES   += rpc/session_ff.h
+
+XC_FILES   += rpc/rpc_onwire_xc.h
+
+EXTRA_DIST += rpc/session.ff
+
+CLEANFILES += rpc/session_ff.h \
+              rpc/session_ff.c \
+              rpc/rpc_onwire_xc.h \
+              rpc/rpc_onwire_xc.c \
+              rpc/rpc_onwire.gccxml

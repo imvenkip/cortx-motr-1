@@ -60,7 +60,7 @@ enum {
 
    @return The current time.
  */
-c2_time_t c2_time_now(void);
+C2_INTERNAL c2_time_t c2_time_now(void);
 
 /**
    Create a c2_time_t initialized with seconds + nanosecond in the future.
@@ -85,7 +85,7 @@ c2_time_t c2_time(uint64_t secs, long ns);
    @param ns Nanoseconds.
    @retval the result time.
  */
-c2_time_t c2_time_set(c2_time_t *time, uint64_t secs, long ns);
+c2_time_t c2_time_set(c2_time_t * time, uint64_t secs, long ns);
 
 /**
    Add t2 to t1 and return that result.
@@ -93,7 +93,7 @@ c2_time_t c2_time_set(c2_time_t *time, uint64_t secs, long ns);
    @return The result time. If either t1 or t2 is C2_TIME_NEVER, the result
    is C2_TIME_NEVER.
  */
-c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2);
+C2_INTERNAL c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2);
 
 /**
    Subtract t2 from t1 and return that result.
@@ -101,7 +101,7 @@ c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2);
    @return The result time. If t1 == C2_TIME_NEVER, C2_TIME_NEVER is returned.
    @pre t2 < C2_TIME_NEVER && t1 >= t2
  */
-c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2);
+C2_INTERNAL c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2);
 
 /**
    Sleep for requested time. If interrupted, remaining time returned.
@@ -110,17 +110,19 @@ c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2);
    @param rem [OUT] remaining time, NULL causes remaining time to be ignored.
    @return 0 means success. -1 means error. Remaining time is stored in rem.
  */
-int c2_nanosleep(const c2_time_t req, c2_time_t *rem);
+int c2_nanosleep(const c2_time_t req, c2_time_t * rem);
 
 /**
    Get "second" part from the time.
  */
-uint64_t c2_time_seconds(const c2_time_t time);
+C2_INTERNAL uint64_t c2_time_seconds(const c2_time_t time);
 
 /**
    Get "nanosecond" part from the time.
  */
-uint64_t c2_time_nanoseconds(const c2_time_t time);
+C2_INTERNAL uint64_t c2_time_nanoseconds(const c2_time_t time);
+
+C2_INTERNAL bool c2_time_is_in_past(c2_time_t time);
 
 /**
    The largest time that is never reached in system life.

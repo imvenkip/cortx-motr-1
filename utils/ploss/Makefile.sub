@@ -1,0 +1,15 @@
+utils_ploss_ploss_server_SOURCES  = utils/ploss/pl_svc.c \
+                                    utils/ploss/pl_server.c \
+                                    utils/ploss/pl_xdr.c \
+                                    utils/ploss/helper.c \
+                                    utils/ploss/helper.h \
+                                    utils/ploss/pl.h
+
+utils_ploss_ploss_client_SOURCES  = utils/ploss/pl_clnt.c \
+                                    utils/ploss/pl_client.c \
+                                    utils/ploss/pl_xdr.c \
+                                    utils/ploss/helper.c \
+                                    utils/ploss/helper.h \
+                                    utils/ploss/pl.h
+
+EXTRA_DIST += utils/ploss/pl.x

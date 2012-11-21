@@ -80,8 +80,8 @@ struct c2t1fs_conf {
 	struct c2t1fs_client     *ct_client;
 };
 
-void c2t1fs_init(struct sim *s, struct c2t1fs_conf *conf);
-void c2t1fs_fini(struct c2t1fs_conf *conf);
+C2_INTERNAL void c2t1fs_init(struct sim *s, struct c2t1fs_conf *conf);
+C2_INTERNAL void c2t1fs_fini(struct c2t1fs_conf *conf);
 
 #endif /* __COLIBRI_DESIM_C2T1FS_H__ */
 

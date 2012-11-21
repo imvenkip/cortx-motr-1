@@ -79,14 +79,14 @@ struct c2_parity_math {
    @param data_count - count of SNS data units used in system.
    @param parity_count - count of SNS parity units used in system.
  */
-int  c2_parity_math_init(struct c2_parity_math *math,
-			 uint32_t data_count, uint32_t parity_count);
+C2_INTERNAL int c2_parity_math_init(struct c2_parity_math *math,
+				    uint32_t data_count, uint32_t parity_count);
 
 /**
    Deinitializaton of parity math algorithms.
    Frees all memory blocks allocated by c2_parity_math_init().
  */
-void c2_parity_math_fini(struct c2_parity_math *math);
+C2_INTERNAL void c2_parity_math_fini(struct c2_parity_math *math);
 
 /**
    Calculates parity block data.
@@ -95,9 +95,24 @@ void c2_parity_math_fini(struct c2_parity_math *math);
                         b_nob elements.
    @pre c2_parity_math_init() succeeded.
  */
-void c2_parity_math_calculate(struct c2_parity_math *math,
-			      struct c2_buf *data,
-			      struct c2_buf *parity);
+C2_INTERNAL void c2_parity_math_calculate(struct c2_parity_math *math,
+					  struct c2_buf *data,
+					  struct c2_buf *parity);
+
+/**
+ * Calculates parity in a differential manner.
+ * @pre math != NULL && old != NULL && new != NULL && parity != NULL &&
+ *      index < math->pmi_parity_count
+ * @param old    Old version of data block.
+ * @param new    New version of data block.
+ * @param parity Parity block.
+ * @param index  Index of data unit in parity group for which old and new
+ * versions are sent.
+ */
+C2_INTERNAL void c2_parity_math_diff(struct c2_parity_math *math,
+				     struct c2_buf *old,
+				     struct c2_buf *new,
+				     struct c2_buf *parity, uint32_t index);
 
 /**
    Parity block refinement iff one data word of one data unit had changed.
@@ -107,10 +122,10 @@ void c2_parity_math_calculate(struct c2_parity_math *math,
    @param data_ind_changed[in] - index of data unit recently changed.
    @pre c2_parity_math_init() succeeded.
  */
-void c2_parity_math_refine(struct c2_parity_math *math,
-			   struct c2_buf *data,
-			   struct c2_buf *parity,
-			   uint32_t data_ind_changed);
+C2_INTERNAL void c2_parity_math_refine(struct c2_parity_math *math,
+				       struct c2_buf *data,
+				       struct c2_buf *parity,
+				       uint32_t data_ind_changed);
 
 /**
    Recovers data or parity units' data words from single or multiple errors.
@@ -123,10 +138,10 @@ void c2_parity_math_refine(struct c2_parity_math *math,
                      block with given index is treated as broken.
    @pre c2_parity_math_init() succeded.
  */
-void c2_parity_math_recover(struct c2_parity_math *math,
-			    struct c2_buf *data,
-			    struct c2_buf *parity,
-			    struct c2_buf *fail);
+C2_INTERNAL void c2_parity_math_recover(struct c2_parity_math *math,
+					struct c2_buf *data,
+					struct c2_buf *parity,
+					struct c2_buf *fail);
 
 /**
  * Recovers data or parity units partially or fully depending on the parity
@@ -137,20 +152,22 @@ void c2_parity_math_recover(struct c2_parity_math *math,
  * @param failure_index - Index of the failed block.
    @pre c2_parity_math_init() succeded.
  */
-void c2_parity_math_fail_index_recover(struct c2_parity_math *math,
-		                       struct c2_buf *data,
-				       struct c2_buf *parity,
-				       const uint32_t failure_index);
+C2_INTERNAL void c2_parity_math_fail_index_recover(struct c2_parity_math *math,
+						   struct c2_buf *data,
+						   struct c2_buf *parity,
+						   const uint32_t
+						   failure_index);
 
 
 /**
  * XORs the source and destination buffers and stores the output in destination
  * buffer.
- * @param src - source buffer, treated as uint8_t block with b_nob elements.
  * @param dest - destination buffer, treated as uint8_t block with
  *               b_nob elements, containing the output of src XOR dest.
+ * @param src - source buffer, treated as uint8_t block with b_nob elements.
  */
-void c2_parity_math_buffer_xor(const struct c2_buf *src, struct c2_buf *dest);
+C2_INTERNAL void c2_parity_math_buffer_xor(struct c2_buf *dest,
+					   const struct c2_buf *src);
 
 /** @} end group parity_math */
 

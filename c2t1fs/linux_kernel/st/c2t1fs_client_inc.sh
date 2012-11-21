@@ -1,10 +1,7 @@
-colibri_module=kcolibri
-
 mount_c2t1fs()
 {
 	c2t1fs_mount_dir=$1
 	local stride_size=`expr $2 '*' 1024`
-	io_service=$COLIBRI_IOSERVICE_ENDPOINT
 
 	# Create mount directory
 	mkdir $c2t1fs_mount_dir
@@ -21,9 +18,7 @@ mount_c2t1fs()
 	fi
 
 	echo "Mounting file system..."
-	cmd="mount -t c2t1fs -o ios=$io_service,unit_size=$stride_size,\
-pool_width=$pool_width,nr_data_units=$data_units,nr_parity_units=$parity_units \
-none $c2t1fs_mount_dir"
+	cmd="mount -t c2t1fs -o $IOS,$STRIPE,unit_size=$stride_size none $c2t1fs_mount_dir"
 	echo $cmd
 	if ! $cmd
 	then
@@ -38,14 +33,19 @@ unmount_and_clean()
 	echo "Unmounting file system ..."
 	umount $c2t1fs_mount_dir &>/dev/null
 
+	sleep 2
+
 	echo "Cleaning up test directory..."
 	rm -rf $c2t1fs_mount_dir &>/dev/null
 
-	# Removes the stob files created in stob domain since
-	# there is no support for c2_stob_delete() and after unmounting
-	# the client file system, from next mount, fids are generated
-	# from same baseline which results in failure of cob_create fops.
-	rm -rf $COLIBRI_STOB_PATH/o/*
+	for ((i=0; i < ${#EP[*]}; i++)) ; do
+		# Removes the stob files created in stob domain since
+		# there is no support for c2_stob_delete() and after
+		# unmounting the client file system, from next mount,
+		# fids are generated from same baseline which results
+		# in failure of cob_create fops.
+		rm -rf $COLIBRI_C2T1FS_TEST_DIR/d$i/stobs/o/*
+	done
 }
 
 bulkio_test()
@@ -189,7 +189,6 @@ io_combinations()
 	    done
 
 	done
-	echo "Test log available at $COLIBRI_TEST_LOGFILE."
 	return 0
 }
 
@@ -200,13 +199,12 @@ c2loop_st_run()
 	echo $cmd && $cmd || return 1
 	echo "Mount c2t1fs file system..."
 	mkdir $COLIBRI_C2T1FS_MOUNT_DIR
-	cmd="mount -t c2t1fs -o ios=$COLIBRI_IOSERVICE_ENDPOINT,\
-unit_size=4096,pool_width=$POOL_WIDTH,nr_data_units=1,nr_parity_units=1 \
-none $COLIBRI_C2T1FS_MOUNT_DIR"
+	cmd="mount -t c2t1fs -o $IOS,$STRIPE,unit_size=4096 none \
+$COLIBRI_C2T1FS_MOUNT_DIR"
 	echo $cmd && $cmd || return 1
 	echo "Create c2t1fs file..."
 	c2t1fs_file=$COLIBRI_C2T1FS_MOUNT_DIR/file.img
-	cmd="dd if=/dev/zero of=$c2t1fs_file bs=1M count=20"
+	cmd="dd if=/dev/zero of=$c2t1fs_file bs=${NR_DATA}M count=20"
 	echo $cmd && $cmd || return 1
 	echo "Associate c2t1fs file c2loop device..."
 	cmd="losetup /dev/c2loop0 $c2t1fs_file"
@@ -222,13 +220,13 @@ none $COLIBRI_C2T1FS_MOUNT_DIR"
 	echo $cmd && $cmd || return 1
 	echo "Write, read and compare some file..."
 	local_file1=$COLIBRI_C2T1FS_TEST_DIR/file1
-	cmd="dd if=/dev/urandom of=$local_file1 bs=1M count=2"
+	cmd="dd if=/dev/urandom of=$local_file1 bs=${NR_DATA}M count=2"
 	echo $cmd && $cmd || return 1
 	ext4fs_file=$ext4fs_mpoint/file
-	cmd="dd if=$local_file1 of=$ext4fs_file bs=1M count=2"
+	cmd="dd if=$local_file1 of=$ext4fs_file bs=${NR_DATA}M count=2"
 	echo $cmd && $cmd || return 1
 	local_file2=$COLIBRI_C2T1FS_TEST_DIR/file2
-	cmd="dd if=$ext4fs_file of=$local_file2 bs=1M count=2"
+	cmd="dd if=$ext4fs_file of=$local_file2 bs=${NR_DATA}M count=2"
 	echo $cmd && $cmd || return 1
 	cmd="cmp $local_file1 $local_file2"
 	echo $cmd && $cmd || return 1
@@ -260,10 +258,7 @@ c2loop_st()
 
 file_creation_test()
 {
-	pool_width=$1
-	data_units=$2
-	parity_units=$3
-	nr_files=$4
+	nr_files=$1
 	mount_c2t1fs $COLIBRI_C2T1FS_MOUNT_DIR 4 &>> $COLIBRI_TEST_LOGFILE || return 1
 	echo "Test: Creating $nr_files files on c2t1fs..." \
 	    >> $COLIBRI_TEST_LOGFILE
@@ -274,6 +269,114 @@ file_creation_test()
 	rm -f $c2t1fs_mount_dir/file*
 	unmount_and_clean &>> $COLIBRI_TEST_LOGFILE
 	echo "Test: file creation: Success." | tee $COLIBRI_TEST_LOGFILE
+
+	return 0
+}
+
+rmw_test()
+{
+	max_stride_size=32
+	max_count=2
+
+	for ((stride_size=4; stride_size<=$max_stride_size; stride_size*=2))
+	do
+		for io in 1 2 3 4 5 15 16 17 32 64 128
+		do
+			io_size=${io}K
+			echo "IORMW Test: I/O for stride = "\
+			     "${stride_size}K, bs = $io_size, count = 1."
+			bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE
+			if [ $? -ne "0" ]
+			then
+			    return 1
+			fi
+
+			for((j=2; j<=$max_count; j*=2))
+			do
+			# Multiple I/O
+			    echo "IORMW Test: I/O for stride = "\
+				 "${stride_size}K, bs = $io_size, count = $j."
+			    bulkio_test $stride_size $j &>> $COLIBRI_TEST_LOGFILE
+			    if [ $? -ne "0" ]
+			    then
+				return 1
+			    fi
+			done
+		done
+	done
+
+	for ((stride_size=4; stride_size<=$max_stride_size; stride_size*=2))
+	do
+		# Small I/O
+		for ((io=1; io<=$max_count; io*=2))
+		do
+			io_size=$i
+			echo "IORMW Small IO Test: I/O for stride = "\
+			     "${stride_size}K, bs = $io_size, count = 1."
+			bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE
+			if [ $? -ne "0" ]
+			then
+				return 1
+			fi
+
+			for((j=2; j<=$max_count; j*=2))
+			do
+				# Multiple I/O
+				echo "IORMW Small IO Test: I/O for stride = "\
+				     "${stride_size}K, bs = $io_size, count = $j."
+				bulkio_test $stride_size $j &>>	$COLIBRI_TEST_LOGFILE
+				if [ $? -ne "0" ]
+				then
+					return 1
+				fi
+			done
+		done
+	done
+
+	for ((stride_size=4; stride_size<=$max_stride_size; stride_size*=2))
+	do
+		# Large I/O
+		for ((io=8; io<=16; io*=2))
+		do
+			io_size=${io}M
+			echo "IORMW Large IO Test: I/O for stride = "\
+			     "${stride_size}K, bs = $io_size, count = 1."
+			bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE
+			if [ $? -ne "0" ]
+			then
+				return 1
+			fi
+			for((j=2; j<=$max_count; j*=2))
+			do
+				# Multiple I/O
+				echo "IORMW Large IO Test: I/O for stride = "\
+				     "${stride_size}K, bs = $io_size, count = $j."
+				bulkio_test $stride_size $j &>> $COLIBRI_TEST_LOGFILE
+				if [ $? -ne "0" ]
+				then
+					return 1
+				fi
+			done
+		done
+	done
+
+	for ((stride_size=4; stride_size<=$max_stride_size; stride_size*=2))
+	do
+		# I/O With large count
+		for i in 10 20 30 40
+		do
+			io_size=1M
+			echo "IORMW Large Count Test: I/O for stride = "\
+			     "${stride_size}K, bs = $io_size, count = $i."
+			bulkio_test $stride_size $i &>> $COLIBRI_TEST_LOGFILE
+			if [ $? -ne "0" ]
+			then
+				return 1
+			fi
+		done
+	done
+
+	echo "Test: IORMW: Success." | tee $COLIBRI_TEST_LOGFILE
 
 	return 0
 }

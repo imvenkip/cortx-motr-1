@@ -253,25 +253,26 @@ enum {
    @see struct ad_balloc_ops
    @pre out != NULL
  */
-int c2_balloc_allocate(struct c2_balloc **out);
+C2_INTERNAL int c2_balloc_allocate(struct c2_balloc **out);
 
 /* Interfaces for UT */
-void c2_balloc_debug_dump_sb(const char *tag,
-			     struct c2_balloc_super_block *sb);
-void c2_balloc_debug_dump_group_extent(const char *tag,
-				       struct c2_balloc_group_info *grp);
+C2_INTERNAL void c2_balloc_debug_dump_sb(const char *tag,
+					 struct c2_balloc_super_block *sb);
+C2_INTERNAL void c2_balloc_debug_dump_group_extent(const char *tag,
+						   struct c2_balloc_group_info
+						   *grp);
 
-int c2_balloc_release_extents(struct c2_balloc_group_info *grp);
-int c2_balloc_load_extents(struct c2_balloc *cb,
-			   struct c2_balloc_group_info *grp,
-			   struct c2_db_tx *tx);
-struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
-						c2_bindex_t groupno);
-void c2_balloc_debug_dump_group(const char *tag,
-				struct c2_balloc_group_info *grp);
-void c2_balloc_lock_group(struct c2_balloc_group_info *grp);
-int c2_balloc_trylock_group(struct c2_balloc_group_info *grp);
-void c2_balloc_unlock_group(struct c2_balloc_group_info *grp);
+C2_INTERNAL int c2_balloc_release_extents(struct c2_balloc_group_info *grp);
+C2_INTERNAL int c2_balloc_load_extents(struct c2_balloc *cb,
+				       struct c2_balloc_group_info *grp,
+				       struct c2_db_tx *tx);
+C2_INTERNAL struct c2_balloc_group_info *c2_balloc_gn2info(struct c2_balloc *cb,
+							   c2_bindex_t groupno);
+C2_INTERNAL void c2_balloc_debug_dump_group(const char *tag,
+					    struct c2_balloc_group_info *grp);
+C2_INTERNAL void c2_balloc_lock_group(struct c2_balloc_group_info *grp);
+C2_INTERNAL int c2_balloc_trylock_group(struct c2_balloc_group_info *grp);
+C2_INTERNAL void c2_balloc_unlock_group(struct c2_balloc_group_info *grp);
 
 /** @} end of balloc */
 

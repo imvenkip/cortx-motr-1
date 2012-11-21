@@ -45,18 +45,18 @@
 /**
  * Initializes fault injection subsystem.
  */
-int c2_fi_init(void);
+C2_INTERNAL int c2_fi_init(void);
 
 /**
  * Finalizes fault injection subsystem.
  */
-void c2_fi_fini(void);
+C2_INTERNAL void c2_fi_fini(void);
 
 /**
  * Prints to stdout information about current state of fault points formatted as
  * table.
  */
-void c2_fi_print_info(void);
+C2_INTERNAL void c2_fi_print_info(void);
 
 struct c2_fi_fpoint_state;
 
@@ -260,8 +260,8 @@ struct c2_fi_fpoint_data {
  * @param fp_data Parameters for "triggering algorithm", which controls FP
  *                behavior (@see struct c2_fi_fpoint_data)
  */
-void c2_fi_enable_generic(const char *fp_func, const char *fp_tag,
-			  const struct c2_fi_fpoint_data *fp_data);
+C2_INTERNAL void c2_fi_enable_generic(const char *fp_func, const char *fp_tag,
+				      const struct c2_fi_fpoint_data *fp_data);
 
 /**
  * Enables fault point, which identified by "func", "tag" pair, using
@@ -384,7 +384,7 @@ static inline void c2_fi_enable_func(const char *func, const char *tag,
  * @param fp_func Name of function, which contains a target FP
  * @param fp_tag  FP tag, which was specified as a parameter to C2_FI_ENABLED()
  */
-void c2_fi_disable(const char *fp_func, const char *fp_tag);
+C2_INTERNAL void c2_fi_disable(const char *fp_func, const char *fp_tag);
 
 /**
  * Registers fault point in a global list.

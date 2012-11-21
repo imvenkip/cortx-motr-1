@@ -37,12 +37,12 @@
 /**
  * Init console FOP
  */
-int c2_console_fop_init(void);
+C2_INTERNAL int c2_console_fop_init(void);
 
 /**
  * Fini console FOP
  */
-void c2_console_fop_fini(void);
+C2_INTERNAL void c2_console_fop_fini(void);
 
 extern struct c2_fop_type c2_cons_fop_device_fopt;
 extern struct c2_fop_type c2_cons_fop_reply_fopt;

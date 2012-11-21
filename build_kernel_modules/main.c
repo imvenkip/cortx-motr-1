@@ -28,13 +28,13 @@ MODULE_DESCRIPTION("Colibri Library");
 MODULE_LICENSE("GPL");
 
 
-int init_module(void)
+C2_INTERNAL int init_module(void)
 {
         printk("Colibri init\n");
 	return c2_init();
 }
 
-void cleanup_module(void)
+C2_INTERNAL void cleanup_module(void)
 {
         printk("Colibri cleanup\n");
 	c2_fini();

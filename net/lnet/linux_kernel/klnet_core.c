@@ -1155,12 +1155,12 @@ static void nlx_core_kmem_loc_set(struct nlx_core_kmem_loc *loc,
 	loc->kl_checksum = nlx_core_kmem_loc_checksum(loc);
 }
 
-void *nlx_core_mem_alloc(size_t size, unsigned shift)
+C2_INTERNAL void *nlx_core_mem_alloc(size_t size, unsigned shift)
 {
 	return c2_alloc(size);
 }
 
-void nlx_core_mem_free(void *data, size_t size, unsigned shift)
+C2_INTERNAL void nlx_core_mem_free(void *data, size_t size, unsigned shift)
 {
 	c2_free(data);
 }
@@ -1184,7 +1184,8 @@ static int nlx_kcore_core_dom_init(struct nlx_kcore_domain *kd,
 	return 0;
 }
 
-int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *cd)
+C2_INTERNAL int nlx_core_dom_init(struct c2_net_domain *dom,
+				  struct nlx_core_domain *cd)
 {
 	struct nlx_kcore_domain *kd;
 	int rc;
@@ -1224,7 +1225,7 @@ static void nlx_kcore_core_dom_fini(struct nlx_kcore_domain *kd,
 	cd->cd_kpvt = NULL;
 }
 
-void nlx_core_dom_fini(struct nlx_core_domain *cd)
+C2_INTERNAL void nlx_core_dom_fini(struct nlx_core_domain *cd)
 {
 	struct nlx_kcore_domain *kd;
 
@@ -1237,12 +1238,15 @@ void nlx_core_dom_fini(struct nlx_core_domain *cd)
 	c2_free(kd);
 }
 
-c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom)
+C2_INTERNAL c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain
+						     *lcdom)
 {
 	return LNET_MAX_PAYLOAD;
 }
 
-c2_bcount_t nlx_core_get_max_buffer_segment_size(struct nlx_core_domain *lcdom)
+C2_INTERNAL c2_bcount_t nlx_core_get_max_buffer_segment_size(struct
+							     nlx_core_domain
+							     *lcdom)
 {
 	/* PAGE_SIZE limit applies only when LNET_MD_KIOV has been set in
 	 * lnet_md_t::options. There's no such limit in MD fragment size when
@@ -1251,7 +1255,8 @@ c2_bcount_t nlx_core_get_max_buffer_segment_size(struct nlx_core_domain *lcdom)
 	return PAGE_SIZE;
 }
 
-int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom)
+C2_INTERNAL int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain
+						     *lcdom)
 {
 	return LNET_MAX_IOV;
 }
@@ -1310,10 +1315,10 @@ static void nlx_kcore_buf_deregister(struct nlx_core_buffer *cb,
 	cb->cb_magic = 0;
 }
 
-int nlx_core_buf_register(struct nlx_core_domain *cd,
-			  nlx_core_opaque_ptr_t buffer_id,
-			  const struct c2_bufvec *bvec,
-			  struct nlx_core_buffer *cb)
+C2_INTERNAL int nlx_core_buf_register(struct nlx_core_domain *cd,
+				      nlx_core_opaque_ptr_t buffer_id,
+				      const struct c2_bufvec *bvec,
+				      struct nlx_core_buffer *cb)
 {
 	int rc;
 	struct nlx_kcore_buffer *kb;
@@ -1346,8 +1351,8 @@ fail_free_kb:
 	return rc;
 }
 
-void nlx_core_buf_deregister(struct nlx_core_domain *cd,
-			     struct nlx_core_buffer *cb)
+C2_INTERNAL void nlx_core_buf_deregister(struct nlx_core_domain *cd,
+					 struct nlx_core_buffer *cb)
 {
 	struct nlx_kcore_buffer *kb;
 
@@ -1391,9 +1396,9 @@ static int nlx_kcore_buf_msg_recv(struct nlx_kcore_transfer_mc *ktm,
 	return rc;
 }
 
-int nlx_core_buf_msg_recv(struct nlx_core_domain *cd, /* not used */
-			  struct nlx_core_transfer_mc *ctm,
-			  struct nlx_core_buffer *cb)
+C2_INTERNAL int nlx_core_buf_msg_recv(struct nlx_core_domain *cd,	/* not used */
+				      struct nlx_core_transfer_mc *ctm,
+				      struct nlx_core_buffer *cb)
 {
 	struct nlx_kcore_transfer_mc *ktm;
 	struct nlx_kcore_buffer *kb;
@@ -1437,9 +1442,9 @@ static int nlx_kcore_buf_msg_send(struct nlx_kcore_transfer_mc *ktm,
 	return rc;
 }
 
-int nlx_core_buf_msg_send(struct nlx_core_domain *cd, /* not used */
-			  struct nlx_core_transfer_mc *ctm,
-			  struct nlx_core_buffer *cb)
+C2_INTERNAL int nlx_core_buf_msg_send(struct nlx_core_domain *cd,	/* not used */
+				      struct nlx_core_transfer_mc *ctm,
+				      struct nlx_core_buffer *cb)
 {
 	struct nlx_kcore_transfer_mc *ktm;
 	struct nlx_kcore_buffer *kb;
@@ -1489,9 +1494,9 @@ static int nlx_kcore_buf_active_recv(struct nlx_kcore_transfer_mc *ktm,
 	return rc;
 }
 
-int nlx_core_buf_active_recv(struct nlx_core_domain *cd, /* not used */
-			     struct nlx_core_transfer_mc *ctm,
-			     struct nlx_core_buffer *cb)
+C2_INTERNAL int nlx_core_buf_active_recv(struct nlx_core_domain *cd,	/* not used */
+					 struct nlx_core_transfer_mc *ctm,
+					 struct nlx_core_buffer *cb)
 {
 	struct nlx_kcore_transfer_mc *ktm;
 	struct nlx_kcore_buffer *kb;
@@ -1541,9 +1546,9 @@ static int nlx_kcore_buf_active_send(struct nlx_kcore_transfer_mc *ktm,
 	return rc;
 }
 
-int nlx_core_buf_active_send(struct nlx_core_domain *cd, /* not used */
-			     struct nlx_core_transfer_mc *ctm,
-			     struct nlx_core_buffer *cb)
+C2_INTERNAL int nlx_core_buf_active_send(struct nlx_core_domain *cd,	/* not used */
+					 struct nlx_core_transfer_mc *ctm,
+					 struct nlx_core_buffer *cb)
 {
 	struct nlx_kcore_transfer_mc *ktm;
 	struct nlx_kcore_buffer *kb;
@@ -1592,9 +1597,9 @@ static int nlx_kcore_buf_passive_recv(struct nlx_kcore_transfer_mc *ktm,
 	return rc;
 }
 
-int nlx_core_buf_passive_recv(struct nlx_core_domain *cd, /* not used */
-			      struct nlx_core_transfer_mc *ctm,
-			      struct nlx_core_buffer *cb)
+C2_INTERNAL int nlx_core_buf_passive_recv(struct nlx_core_domain *cd,	/* not used */
+					  struct nlx_core_transfer_mc *ctm,
+					  struct nlx_core_buffer *cb)
 {
 	struct nlx_kcore_transfer_mc *ktm;
 	struct nlx_kcore_buffer *kb;
@@ -1645,9 +1650,9 @@ static int nlx_kcore_buf_passive_send(struct nlx_kcore_transfer_mc *ktm,
 	return rc;
 }
 
-int nlx_core_buf_passive_send(struct nlx_core_domain *cd, /* not used */
-			      struct nlx_core_transfer_mc *ctm,
-			      struct nlx_core_buffer *cb)
+C2_INTERNAL int nlx_core_buf_passive_send(struct nlx_core_domain *cd,	/* not used */
+					  struct nlx_core_transfer_mc *ctm,
+					  struct nlx_core_buffer *cb)
 {
 	struct nlx_kcore_transfer_mc *ktm;
 	struct nlx_kcore_buffer *kb;
@@ -1659,9 +1664,9 @@ int nlx_core_buf_passive_send(struct nlx_core_domain *cd, /* not used */
 	return nlx_kcore_buf_passive_send(ktm, cb, kb);
 }
 
-int nlx_core_buf_del(struct nlx_core_domain *cd, /* not used */
-		     struct nlx_core_transfer_mc *ctm,
-		     struct nlx_core_buffer *cb)
+C2_INTERNAL int nlx_core_buf_del(struct nlx_core_domain *cd,	/* not used */
+				 struct nlx_core_transfer_mc *ctm,
+				 struct nlx_core_buffer *cb)
 {
 	struct nlx_kcore_transfer_mc *ktm;
 	struct nlx_kcore_buffer *kb;
@@ -1711,9 +1716,9 @@ static int nlx_kcore_buf_event_wait(struct nlx_core_transfer_mc *ctm,
 	return any ? 0 : -ETIMEDOUT;
 }
 
-int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
-			    struct nlx_core_transfer_mc *ctm,
-			    c2_time_t timeout)
+C2_INTERNAL int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
+					struct nlx_core_transfer_mc *ctm,
+					c2_time_t timeout)
 {
 	struct nlx_kcore_transfer_mc *ktm;
 
@@ -1736,8 +1741,8 @@ static int nlx_kcore_nidstr_decode(const char *nidstr, uint64_t *nid)
 	return 0;
 }
 
-int nlx_core_nidstr_decode(struct nlx_core_domain *lcdom, /* not used */
-			   const char *nidstr, uint64_t *nid)
+C2_INTERNAL int nlx_core_nidstr_decode(struct nlx_core_domain *lcdom,	/* not used */
+				       const char *nidstr, uint64_t * nid)
 {
 	return nlx_kcore_nidstr_decode(nidstr, nid);
 }
@@ -1758,8 +1763,9 @@ static int nlx_kcore_nidstr_encode(uint64_t nid,
 	return 0;
 }
 
-int nlx_core_nidstr_encode(struct nlx_core_domain *lcdom, /* not used */
-			   uint64_t nid, char nidstr[C2_NET_LNET_NIDSTR_SIZE])
+C2_INTERNAL int nlx_core_nidstr_encode(struct nlx_core_domain *lcdom,	/* not used */
+				       uint64_t nid,
+				       char nidstr[C2_NET_LNET_NIDSTR_SIZE])
 {
 	return nlx_kcore_nidstr_encode(nid, nidstr);
 }
@@ -1777,7 +1783,8 @@ static int nlx_kcore_nidstrs_get(char * const **nidary)
 	return 0;
 }
 
-int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom, char * const **nidary)
+C2_INTERNAL int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom,
+				     char *const **nidary)
 {
 	return nlx_kcore_nidstrs_get(nidary);
 }
@@ -1785,7 +1792,7 @@ int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom, char * const **nidary)
 /**
    Kernel helper to release the strings returned by nlx_kcore_nidstrs_get().
  */
-void nlx_kcore_nidstrs_put(char * const **nidary)
+C2_INTERNAL void nlx_kcore_nidstrs_put(char *const **nidary)
 {
 	C2_PRE(*nidary == nlx_kcore_lni_nidstrs);
 	C2_PRE(c2_atomic64_get(&nlx_kcore_lni_refcount) > 0);
@@ -1793,14 +1800,15 @@ void nlx_kcore_nidstrs_put(char * const **nidary)
 	*nidary = NULL;
 }
 
-void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char * const **nidary)
+C2_INTERNAL void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom,
+				      char *const **nidary)
 {
 	nlx_kcore_nidstrs_put(nidary);
 }
 
-int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
-			     struct nlx_core_transfer_mc *ctm,
-			     struct nlx_core_buffer_event **bevp)
+C2_INTERNAL int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
+					 struct nlx_core_transfer_mc *ctm,
+					 struct nlx_core_buffer_event **bevp)
 {
 	struct nlx_core_buffer_event *bev;
 	struct nlx_kcore_transfer_mc *ktm;
@@ -1849,8 +1857,8 @@ static void nlx_kcore_tm_stop(struct nlx_core_transfer_mc *ctm,
 		ctm->ctm_kpvt = NULL;
 }
 
-void nlx_core_tm_stop(struct nlx_core_domain *cd,
-		      struct nlx_core_transfer_mc *ctm)
+C2_INTERNAL void nlx_core_tm_stop(struct nlx_core_domain *cd,
+				  struct nlx_core_transfer_mc *ctm)
 {
 	struct nlx_kcore_transfer_mc *ktm;
 
@@ -1952,9 +1960,9 @@ fail:
 	return rc;
 }
 
-int nlx_core_tm_start(struct nlx_core_domain *cd,
-		      struct c2_net_transfer_mc *tm,
-		      struct nlx_core_transfer_mc *ctm)
+C2_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
+				  struct c2_net_transfer_mc *tm,
+				  struct nlx_core_transfer_mc *ctm)
 {
 	struct nlx_kcore_domain *kd;
 	struct nlx_core_buffer_event *e1;

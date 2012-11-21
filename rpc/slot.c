@@ -24,17 +24,16 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "rpc/session.h"
 #include "lib/bitstring.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "lib/arith.h"
-#include "rpc/session_ff.h"
-#include "rpc/session_internal.h"
 #include "db/db.h"
 #include "dtm/verno.h"
-#include "rpc/session_fops.h"
-#include "rpc/rpc2.h"
+#include "colibri/magic.h"
+
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 
 /**
    @addtogroup rpc_session
@@ -45,22 +44,44 @@
 
  */
 
-void item_exit_stats_set(struct c2_rpc_item    *item,
-			 enum c2_rpc_item_path  path);
+C2_INTERNAL void frm_item_reply_received(struct c2_rpc_item *reply_item,
+					 struct c2_rpc_item *req_item);
+C2_INTERNAL void rpc_item_replied(struct c2_rpc_item *item,
+				  struct c2_rpc_item *reply, uint32_t rc);
+C2_INTERNAL void c2_rpc_slot_process_reply(struct c2_rpc_item *req);
+C2_INTERNAL void c2_rpc_item_set_stage(struct c2_rpc_item *item,
+				       enum c2_rpc_item_stage stage);
+C2_INTERNAL int c2_rpc_slot_item_received(struct c2_rpc_item *item);
 
-void frm_item_reply_received(struct c2_rpc_item *reply_item,
-			     struct c2_rpc_item *req_item);
+C2_TL_DESCR_DEFINE(slot_item, "slot-ref-item-list", C2_INTERNAL,
+		   struct c2_rpc_item, ri_slot_refs[0].sr_link, ri_magic,
+		   C2_RPC_ITEM_MAGIC, C2_RPC_SLOT_REF_HEAD_MAGIC);
+C2_TL_DEFINE(slot_item, C2_INTERNAL, struct c2_rpc_item);
 
-void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
-                      uint32_t rc);
+/*
+static inline struct c2_verno *
+item_verno(struct c2_rpc_item *item,
+	   int                 idx)
+{
+	C2_PRE(idx < MAX_SLOT_REF);
+	return &item->ri_slot_refs[idx].sr_ow.osr_verno;
+}
 
+static inline uint64_t
+item_xid(struct c2_rpc_item *item,
+	 int                 idx)
+{
+	C2_PRE(idx < MAX_SLOT_REF);
+	return item->ri_slot_refs[idx].sr_ow.osr_xid;
+}
+*/
 static struct c2_rpc_machine *
 slot_get_rpc_machine(const struct c2_rpc_slot *slot)
 {
 	return slot->sl_session->s_conn->c_rpc_machine;
 }
 
-bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
+C2_INTERNAL bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item *item1 = NULL;  /* init to NULL, required */
 	struct c2_rpc_item *item2;
@@ -70,7 +91,7 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 
 	ok = slot != NULL &&
 	     slot->sl_in_flight <= slot->sl_max_in_flight &&
-	     c2_list_invariant(&slot->sl_item_list);
+	     c2_tlist_invariant(&slot_item_tl, &slot->sl_item_list);
 
 	if (!ok)
 		return false;
@@ -80,8 +101,7 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 	 * item1 will be previous item of item2 i.e.
 	 * next(item1) == item2
 	 */
-	c2_list_for_each_entry(&slot->sl_item_list, item2, struct c2_rpc_item,
-				ri_slot_refs[0].sr_link) {
+	for_each_item_in_slot(item2, slot) {
 
 		if (item1 == NULL) {
 			/*
@@ -101,8 +121,8 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 		if (!ok)
 			return false;
 
-		v1 = &item1->ri_slot_refs[0].sr_verno;
-		v2 = &item2->ri_slot_refs[0].sr_verno;
+		v1 = item_verno(item1, 0);
+		v2 = item_verno(item2, 0);
 
 		/*
 		 * AFTER an "update" item is applied on a slot
@@ -114,18 +134,17 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 		if (!ok)
 			return false;
 
-		ok = (item1->ri_slot_refs[0].sr_xid + 1 ==
-		      item2->ri_slot_refs[0].sr_xid);
+		ok = (item_xid(item1, 0) + 1 == item_xid(item2, 0));
 		if (!ok)
 			return false;
 
 		item1 = item2;
-	}
+	} end_for_each_item_in_slot;
 	return true;
 }
 
-int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
-		     const struct c2_rpc_slot_ops *ops)
+C2_INTERNAL int c2_rpc_slot_init(struct c2_rpc_slot *slot,
+				 const struct c2_rpc_slot_ops *ops)
 {
 	struct c2_fop          *fop;
 	struct c2_rpc_item     *dummy_item;
@@ -142,49 +161,55 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	if (fop == NULL)
 		C2_RETURN(-ENOMEM);
 
-	c2_list_link_init(&slot->sl_link);
+	/*
+	 * Add a dummy item with very low verno in item_list
+	 */
+	dummy_item = &fop->f_item;
+	dummy_item->ri_stage     = RPC_ITEM_STAGE_PAST_COMMITTED;
+	/* set ri_reply to some value. Doesn't matter what */
+	dummy_item->ri_reply     = dummy_item;
+
 	/*
 	 * XXX temporary value for lsn. This will be set to some proper value
 	 * when sessions will be integrated with FOL
 	 */
-	slot->sl_verno.vn_lsn  = C2_LSN_RESERVED_NR + 2;
-	slot->sl_verno.vn_vc   = 0;
-	slot->sl_slot_gen      = 0;
-	slot->sl_xid           = 1; /* xid 0 will be taken by dummy item */
-	slot->sl_in_flight     = 0;
-	slot->sl_max_in_flight = SLOT_DEFAULT_MAX_IN_FLIGHT;
-	slot->sl_cob           = NULL;
-	slot->sl_ops           = ops;
+	*slot = (struct c2_rpc_slot){
+		.sl_verno = {
+			.vn_lsn = C2_LSN_RESERVED_NR + 2,
+			.vn_vc  = 0,
+		},
+		.sl_slot_gen        = 0,
+		.sl_xid             = 1, /* xid 0 will be taken by dummy item */
+		.sl_in_flight       = 0,
+		.sl_max_in_flight   = SLOT_DEFAULT_MAX_IN_FLIGHT,
+		.sl_cob             = NULL,
+		.sl_ops             = ops,
+		.sl_last_sent       = dummy_item,
+		.sl_last_persistent = dummy_item,
+	};
 
-	c2_list_init(&slot->sl_item_list);
-	c2_list_init(&slot->sl_ready_list);
+	ready_slot_tlink_init(slot);
+	slot_item_tlist_init(&slot->sl_item_list);
 
-	/*
-	 * Add a dummy item with very low verno in item_list
-	 */
+	sref = &dummy_item->ri_slot_refs[0];
+	*sref = (struct c2_rpc_slot_ref){
+		.sr_slot = slot,
+		.sr_item = dummy_item,
+		.sr_ow   = {
+			.osr_xid      = 0,
+			/*
+			 * XXX lsn will be assigned to some proper value once
+			 * sessions code will be integrated with FOL
+			 */
+			.osr_verno    = {
+				.vn_lsn = C2_LSN_DUMMY_ITEM,
+				.vn_vc  = 0,
+			},
+			.osr_slot_gen = slot->sl_slot_gen,
+		},
+	};
 
-	dummy_item = &fop->f_item;
-
-	dummy_item->ri_stage     = RPC_ITEM_STAGE_PAST_COMMITTED;
-	/* set ri_reply to some value. Doesn't matter what */
-	dummy_item->ri_reply     = dummy_item;
-	slot->sl_last_sent       = dummy_item;
-	slot->sl_last_persistent = dummy_item;
-
-	sref                  = &dummy_item->ri_slot_refs[0];
-	sref->sr_slot         = slot;
-	sref->sr_item         = dummy_item;
-	sref->sr_xid          = 0;
-	/*
-	 * XXX lsn will be assigned to some proper value once sessions code
-	 * will be integrated with FOL
-	 */
-	sref->sr_verno.vn_lsn = C2_LSN_DUMMY_ITEM;
-	sref->sr_verno.vn_vc  = 0;
-	sref->sr_slot_gen     = slot->sl_slot_gen;
-
-	c2_list_link_init(&sref->sr_link);
-	c2_list_add(&slot->sl_item_list, &sref->sr_link);
+	slot_item_tlink_init_at(dummy_item, &slot->sl_item_list);
 	C2_RETURN(0);
 }
 
@@ -200,9 +225,7 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item  *item;
 	struct c2_rpc_item  *reply;
-	struct c2_rpc_item  *next;
 	struct c2_rpc_item  *dummy_item;
-	struct c2_list_link *link;
 	int                  count = 0;
 	bool                 first_item = true;
 
@@ -212,8 +235,7 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 	 */
 	C2_ASSERT(slot != NULL);
 
-	c2_list_for_each_entry_safe(&slot->sl_item_list, item, next,
-			struct c2_rpc_item, ri_slot_refs[0].sr_link) {
+	for_each_item_in_slot(item, slot) {
 
 		if (first_item) {
 			/*
@@ -223,65 +245,48 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 			continue;
 		}
 		reply = item->ri_reply;
-		if (reply != NULL) {
-			C2_ASSERT(reply->ri_ops != NULL &&
-				  reply->ri_ops->rio_free != NULL);
-			reply->ri_ops->rio_free(reply);
-		}
+		if (reply != NULL)
+			c2_rpc_item_free(reply);
 		item->ri_reply = NULL;
-
-		c2_list_del(&item->ri_slot_refs[0].sr_link);
-
-		C2_ASSERT(item->ri_ops != NULL &&
-			  item->ri_ops->rio_free != NULL);
-		item->ri_ops->rio_free(item);
+		slot_item_tlist_del(item);
+		c2_rpc_item_free(item);
 		count++;
-	}
-        C2_ASSERT(c2_list_length(&slot->sl_item_list) == 1);
+	} end_for_each_item_in_slot;
+        C2_ASSERT(slot_item_tlist_length(&slot->sl_item_list) == 1);
 
-        link = c2_list_first(&slot->sl_item_list);
-        C2_ASSERT(link != NULL);
-
-        dummy_item = c2_list_entry(link, struct c2_rpc_item,
-                                   ri_slot_refs[0].sr_link);
-        C2_ASSERT(c2_list_link_is_in(&dummy_item->ri_slot_refs[0].sr_link));
+        dummy_item = slot_item_tlist_head(&slot->sl_item_list);
+        C2_ASSERT(slot_item_tlink_is_in(dummy_item));
 
 	slot->sl_last_sent = dummy_item;
 	slot->sl_last_persistent = dummy_item;
 	C2_LEAVE();
 }
 
-void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
+C2_INTERNAL void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item  *dummy_item;
 	struct c2_fop       *fop;
-	struct c2_list_link *link;
 
 	C2_ENTRY("slot: %p", slot);
 
 	slot_item_list_prune(slot);
-	c2_list_link_fini(&slot->sl_link);
-	c2_list_fini(&slot->sl_ready_list);
+	ready_slot_tlink_fini(slot);
 
 	/*
 	 * Remove the dummy item from the list
 	 */
-	C2_ASSERT(c2_list_length(&slot->sl_item_list) == 1);
+        C2_ASSERT(slot_item_tlist_length(&slot->sl_item_list) == 1);
 
-	link = c2_list_first(&slot->sl_item_list);
-	C2_ASSERT(link != NULL);
+        dummy_item = slot_item_tlist_head(&slot->sl_item_list);
+        C2_ASSERT(slot_item_tlink_is_in(dummy_item));
 
-	dummy_item = c2_list_entry(link, struct c2_rpc_item,
-				ri_slot_refs[0].sr_link);
-	C2_ASSERT(c2_list_link_is_in(&dummy_item->ri_slot_refs[0].sr_link));
-
-	c2_list_del(&dummy_item->ri_slot_refs[0].sr_link);
-	C2_ASSERT(dummy_item->ri_slot_refs[0].sr_xid == 0);
+	slot_item_tlist_del(dummy_item);
+	C2_ASSERT(item_xid(dummy_item, 0) == 0);
 
 	fop = c2_rpc_item_to_fop(dummy_item);
 	c2_fop_free(fop);
 
-	c2_list_fini(&slot->sl_item_list);
+	slot_item_tlist_fini(&slot->sl_item_list);
 	if (slot->sl_cob != NULL) {
 		c2_cob_put(slot->sl_cob);
 	}
@@ -299,16 +304,16 @@ static struct c2_rpc_item* item_find(const struct c2_rpc_slot *slot,
 	struct c2_rpc_item *item;
 
 	C2_PRE(slot != NULL);
-	c2_list_for_each_entry(&slot->sl_item_list, item, struct c2_rpc_item,
-				ri_slot_refs[0].sr_link) {
+	for_each_item_in_slot(item, slot) {
 
-		if (item->ri_slot_refs[0].sr_xid == xid)
+		if (item_xid(item, 0) == xid)
 			return item;
-	}
+	} end_for_each_item_in_slot;
 	return NULL;
 }
 
-uint32_t c2_rpc_slot_items_possible_inflight(struct c2_rpc_slot *slot)
+C2_INTERNAL uint32_t c2_rpc_slot_items_possible_inflight(struct c2_rpc_slot
+							 *slot)
 {
 	C2_PRE(slot != NULL);
 
@@ -332,26 +337,24 @@ static void __slot_balance(struct c2_rpc_slot *slot,
 			   bool                allow_events)
 {
 	struct c2_rpc_item  *item;
-	struct c2_list_link *link;
 
 	C2_ENTRY("slot: %p", slot);
 	C2_PRE(c2_rpc_slot_invariant(slot));
 	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 
 	while (slot->sl_in_flight < slot->sl_max_in_flight) {
-		/* Is slot->item_list is empty? */
-		link = &slot->sl_last_sent->ri_slot_refs[0].sr_link;
-		if (c2_list_link_is_last(link, &slot->sl_item_list)) {
+		if (slot_item_tlist_next(&slot->sl_item_list,
+					 slot->sl_last_sent) == NULL) {
 			if (allow_events)
 				slot->sl_ops->so_slot_idle(slot);
 			break;
 		}
 		/* Take slot->last_sent->next item for sending */
-		item = c2_list_entry(link->ll_next, struct c2_rpc_item,
-				     ri_slot_refs[0].sr_link);
+		item = slot_item_tlist_next(&slot->sl_item_list,
+				             slot->sl_last_sent);
 
 		if (item->ri_stage == RPC_ITEM_STAGE_FUTURE)
-			item->ri_stage = RPC_ITEM_STAGE_IN_PROGRESS;
+			c2_rpc_item_set_stage(item, RPC_ITEM_STAGE_IN_PROGRESS);
 
 		if (item->ri_reply != NULL && !c2_rpc_item_is_update(item)) {
 			/*
@@ -388,7 +391,6 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 			    struct c2_rpc_item *item,
 			    bool                allow_events)
 {
-	struct c2_rpc_slot_ref *sref;
 	struct c2_rpc_session  *session;
 	struct c2_rpc_machine  *machine;
 
@@ -399,25 +401,29 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	C2_PRE(slot->sl_session != NULL);
 
 	session = slot->sl_session;
-	machine = session->s_conn->c_rpc_machine;
+	machine = session_machine(session);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
-	sref                = &item->ri_slot_refs[0];
-	item->ri_stage      = RPC_ITEM_STAGE_FUTURE;
-	sref->sr_session_id = session->s_session_id;
-	sref->sr_sender_id  = session->s_conn->c_sender_id;
-	sref->sr_uuid       = session->s_conn->c_uuid;
-
-	/*
-	 * c2_rpc_slot_item_apply() will provide an item
-	 * which already has verno initialised. Yet, following
-	 * assignment should not be any problem because slot_item_apply()
-	 * will call this routine only if verno of slot and item
-	 * matches
-	 */
-	sref->sr_slot_id    = slot->sl_slot_id;
-	sref->sr_verno      = slot->sl_verno;
-	sref->sr_xid        = slot->sl_xid;
+	item->ri_slot_refs[0] = (struct c2_rpc_slot_ref){
+		.sr_ow = {
+			.osr_session_id = session->s_session_id,
+			.osr_sender_id  = session->s_conn->c_sender_id,
+			.osr_uuid       = session->s_conn->c_uuid,
+			/*
+			 * c2_rpc_slot_item_apply() will provide an item
+			 * which already has verno initialised. Yet, following
+			 * assignment should not be any problem because
+			 * slot_item_apply() will call this routine only if
+			 * verno of slot and item matches
+			 */
+			.osr_slot_id    = slot->sl_slot_id,
+			.osr_verno      = slot->sl_verno,
+			.osr_xid        = slot->sl_xid,
+			.osr_slot_gen   = slot->sl_slot_gen,
+		},
+		.sr_slot = slot,
+		.sr_item = item,
+	};
 
 	slot->sl_xid++;
 	if (c2_rpc_item_is_update(item)) {
@@ -430,31 +436,17 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 		slot->sl_verno.vn_vc++;
 	}
 
-	sref->sr_slot_gen = slot->sl_slot_gen;
-	sref->sr_slot     = slot;
-	sref->sr_item     = item;
-	c2_list_link_init(&sref->sr_link);
-	c2_list_add_tail(&slot->sl_item_list, &sref->sr_link);
-	if (session != NULL) {
-		session->s_nr_active_items++;
-		if (session->s_state == C2_RPC_SESSION_IDLE) {
-			/*
-			 * XXX When formation adds an item to
-			 * c2_rpc_session::s_unbound_items it should
-			 * set session->s_state as BUSY
-			 */
-			session->s_state = C2_RPC_SESSION_BUSY;
-			c2_cond_broadcast(&session->s_state_changed,
-					  c2_rpc_machine_mutex(machine));
-		}
-	}
+	slot_item_tlink_init_at_tail(item, &slot->sl_item_list);
+	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
+	if (session != NULL)
+		c2_rpc_session_mod_nr_active_items(session, 1);
 
 	__slot_balance(slot, allow_events);
 	C2_LEAVE();
 }
 
-void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
-				   struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
+					       struct c2_rpc_item *item)
 {
 	C2_ENTRY("slot: %p, item: %p", slot, item);
 	C2_PRE(c2_rpc_slot_invariant(slot) && item != NULL);
@@ -466,8 +458,8 @@ void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
 	C2_LEAVE();
 }
 
-int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
-					 struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
+						      struct c2_rpc_item *item)
 {
 	struct c2_rpc_item *reply;
 	struct c2_fop      *fop;
@@ -478,28 +470,23 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 	 * XXX We should've a special fop type to report session error
 	 */
 	fop = c2_fop_alloc(&c2_rpc_fop_noop_fopt, NULL);
-	if (fop == NULL)
-		C2_RETURN(-ENOMEM);
+	if (fop != NULL) {
+		reply = &fop->f_item;
+		reply->ri_session = item->ri_session;
+		reply->ri_error   = -EBADR;
+		reply->ri_slot_refs[0] = item->ri_slot_refs[0];
+		slot_item_tlink_init(reply);
 
-	reply = &fop->f_item;
-
-	reply->ri_session = item->ri_session;
-	reply->ri_error = -EBADR;
-
-	reply->ri_slot_refs[0] = item->ri_slot_refs[0];
-	c2_list_link_init(&reply->ri_slot_refs[0].sr_link);
-	c2_list_link_init(&reply->ri_slot_refs[0].sr_ready_link);
-
-	slot->sl_ops->so_reply_consume(item, reply);
-	C2_RETURN(0);
+		slot->sl_ops->so_reply_consume(item, reply);
+	}
 }
 
-int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
-			   struct c2_rpc_item *item)
+C2_INTERNAL int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
+				       struct c2_rpc_item *item)
 {
 	struct c2_rpc_item *req;
 	int                 redoable;
-	int                 rc = 0;   /* init to 0, required */
+	int                 rc = -EPROTO;
 
 	C2_ENTRY("slot: %p, item: %p", slot, item);
 	C2_ASSERT(item != NULL);
@@ -507,17 +494,17 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 
 	redoable = c2_verno_is_redoable(&slot->sl_verno,
-					&item->ri_slot_refs[0].sr_verno,
-					false);
+					item_verno(item, 0), false);
 	switch (redoable) {
 	case 0:
 		__slot_item_add(slot, item, true);
+		rc = 0;
 		break;
 	case -EALREADY:
-		req = item_find(slot, item->ri_slot_refs[0].sr_xid);
+		/* item is a duplicate request. Find originial. */
+		req = item_find(slot, item_xid(item, 0));
 		if (req == NULL) {
-			rc = c2_rpc_slot_misordered_item_received(slot,
-								 item);
+			c2_rpc_slot_misordered_item_received(slot, item);
 			break;
 		}
 		/*
@@ -526,8 +513,8 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 		 * not same then generate ADDB record.
 		 * For now, assert this condition for testing purpose.
 		 */
-		C2_ASSERT(c2_verno_cmp(&req->ri_slot_refs[0].sr_verno,
-				       &item->ri_slot_refs[0].sr_verno) == 0);
+		C2_ASSERT(c2_verno_cmp(item_verno(req, 0),
+				       item_verno(item, 0)) == 0);
 
 		switch (req->ri_stage) {
 		case RPC_ITEM_STAGE_PAST_VOLATILE:
@@ -539,32 +526,40 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 			 * resend cached reply)
 			 */
 			C2_ASSERT(req->ri_reply != NULL);
-			slot->sl_ops->so_reply_consume(req,
-						req->ri_reply);
+			slot->sl_ops->so_reply_consume(req, req->ri_reply);
 			break;
 		case RPC_ITEM_STAGE_IN_PROGRESS:
 		case RPC_ITEM_STAGE_FUTURE:
 			/* item is already present but is not
 			   processed yet. Ignore it*/
 			/* do nothing */;
+			break;
+		case RPC_ITEM_STAGE_TIMEDOUT:
+		case RPC_ITEM_STAGE_FAILED:
+			C2_IMPOSSIBLE("Original req in TIMEDOUT/FAILED stage");
 		}
+		/*
+		 * Irrespective of any of above cases, we're going to
+		 * ignore this _duplicate_ item.
+		 */
 		break;
+
 	case -EAGAIN:
-		rc = c2_rpc_slot_misordered_item_received(slot, item);
+		c2_rpc_slot_misordered_item_received(slot, item);
 		break;
 	}
 	C2_ASSERT(c2_rpc_slot_invariant(slot));
 	C2_RETURN(rc);
 }
 
-void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
-				struct c2_rpc_item  *reply,
-				struct c2_rpc_item **req_out)
+C2_INTERNAL int c2_rpc_slot_reply_received(struct c2_rpc_slot *slot,
+					   struct c2_rpc_item *reply,
+					   struct c2_rpc_item **req_out)
 {
 	struct c2_rpc_item     *req;
 	struct c2_rpc_slot_ref *sref;
-	struct c2_rpc_session  *session;
 	struct c2_rpc_machine  *machine;
+	int                     rc;
 
 	C2_ENTRY("slot: %p, item_reply: %p", slot, reply);
 	C2_PRE(slot != NULL && reply != NULL && req_out != NULL);
@@ -578,28 +573,42 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 	sref = &reply->ri_slot_refs[0];
 	C2_ASSERT(slot == sref->sr_slot);
 
-	req = item_find(slot, reply->ri_slot_refs[0].sr_xid);
+	req = item_find(slot, item_xid(reply, 0));
 	if (req == NULL) {
 		/*
 		 * Either it is a duplicate reply and its corresponding request
 		 * item is pruned from the item list, or it is a corrupted
 		 * reply
 		 */
-		C2_LOG(C2_ERROR, "Duplicate reply & corr. req. item pruned,"
-			 " or corrupted reply");
-		return;
+		C2_RETURN(-EPROTO);
 	}
+	rc = __slot_reply_received(slot, req, reply);
+	if (rc == 0)
+		*req_out = req;
+
+	return rc;
+}
+
+C2_INTERNAL int __slot_reply_received(struct c2_rpc_slot *slot,
+				      struct c2_rpc_item *req,
+				      struct c2_rpc_item *reply)
+{
+	uint64_t req_state;
+	int      rc;
+
+	C2_PRE(slot != NULL && req != NULL && reply != NULL);
+
 	/*
-	 * XXX At this point req->ri_slot_refs[0].sr_verno and
+	 * At this point req->ri_slot_refs[0].sr_verno and
 	 * reply->ri_slot_refs[0].sr_verno MUST be same. If they are not,
 	 * then generate ADDB record.
 	 * For now, assert this condition for testing purpose.
 	 */
-	C2_ASSERT(c2_verno_cmp(&req->ri_slot_refs[0].sr_verno,
-			       &reply->ri_slot_refs[0].sr_verno) == 0);
+	C2_ASSERT(c2_verno_cmp(item_verno(req, 0), item_verno(reply, 0)) == 0);
 
-	if (c2_verno_cmp(&req->ri_slot_refs[0].sr_verno,
-			 &slot->sl_last_sent->ri_slot_refs[0].sr_verno) > 0) {
+	rc = -EPROTO;
+	if (c2_verno_cmp(item_verno(req, 0),
+			 item_verno(slot->sl_last_sent, 0)) > 0) {
 		/*
 		 * Received a reply to an item that wasn't sent. This is
 		 * possible if the receiver failed and forget about some
@@ -610,13 +619,27 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 * Such reply must be ignored
 		 */
 		;
-	} else if (req->ri_stage == RPC_ITEM_STAGE_PAST_COMMITTED ||
-		   req->ri_stage == RPC_ITEM_STAGE_PAST_VOLATILE) {
+	} else if (C2_IN(req->ri_stage, (RPC_ITEM_STAGE_PAST_COMMITTED,
+					 RPC_ITEM_STAGE_PAST_VOLATILE))) {
 		/*
 		 * Got a reply to an item for which the reply was already
 		 * received in the past. Compare with the original reply.
 		 * XXX find out how to compare two rpc items to be same
 		 */
+		/* Do nothing */;
+	} else if (C2_IN(req->ri_stage, (RPC_ITEM_STAGE_TIMEDOUT,
+					 RPC_ITEM_STAGE_FAILED))) {
+		/*
+		 * TIMEDOUT:
+		 * The reply is valid but too late. The req has already
+		 * timedout. Return without setting *req_out.
+		 * FAILED:
+		 * FAILED items are not supposed to receive replies, but
+		 * this might be a result of corruption
+		 */
+		/* Do nothing */
+		C2_LOG(C2_DEBUG, "rply rcvd, timedout/failed req %p [%s/%u]",
+			req, item_kind(req), req->ri_type->rit_opcode);
 	} else {
 		/*
 		 * This is valid reply case.
@@ -624,43 +647,54 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		C2_ASSERT(req->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
 		C2_ASSERT(slot->sl_in_flight > 0);
 
-		session = slot->sl_session;
-		C2_ASSERT(session != NULL);
-
-		C2_ASSERT(c2_rpc_session_invariant(session));
-		C2_ASSERT(session->s_state == C2_RPC_SESSION_BUSY);
-		C2_ASSERT(session->s_nr_active_items > 0);
-
-		req->ri_stage = RPC_ITEM_STAGE_PAST_VOLATILE;
+		req_state = req->ri_sm.sm_state;
 		req->ri_reply = reply;
-		*req_out      = req;
-		slot->sl_in_flight--;
-
-		session->s_nr_active_items--;
-		slot_balance(slot);
-
-		if (c2_rpc_session_is_idle(session)) {
-			session->s_state = C2_RPC_SESSION_IDLE;
-			c2_cond_broadcast(&session->s_state_changed,
-					  c2_rpc_machine_mutex(machine));
+		if (C2_IN(req_state,(C2_RPC_ITEM_ACCEPTED,
+				     C2_RPC_ITEM_WAITING_FOR_REPLY))) {
+			c2_rpc_slot_process_reply(req);
+		} else if (req_state == C2_RPC_ITEM_SENDING) {
+			/*
+			 * Buffer sent callback is still pending;
+			 * postpone reply processing.
+			 */
+			C2_LOG(C2_DEBUG, "req: %p rply: %p rply postponed",
+			       req, reply);
+		} else {
+			C2_ASSERT(false);
 		}
-		C2_ASSERT(c2_rpc_session_invariant(session));
-
-		/*
-		 * On receiver, ->so_reply_consume(req, reply) will hand over
-		 * @reply to formation, to send it back to sender.
-		 * see: rcv_reply_consume(), snd_reply_consume()
-		 */
-		slot->sl_ops->so_reply_consume(req, reply);
+		rc = 0;
 	}
+	return rc;
+}
+
+C2_INTERNAL void c2_rpc_slot_process_reply(struct c2_rpc_item *req)
+{
+	struct c2_rpc_slot    *slot;
+
+	C2_ENTRY("req: %p", req);
+
+	C2_PRE(req != NULL && req->ri_reply != NULL);
+	C2_PRE(c2_rpc_item_is_request(req));
+	C2_PRE(C2_IN(req->ri_sm.sm_state, (C2_RPC_ITEM_WAITING_FOR_REPLY,
+					   C2_RPC_ITEM_ACCEPTED)));
+	c2_rpc_item_set_stage(req, RPC_ITEM_STAGE_PAST_VOLATILE);
+	slot = req->ri_slot_refs[0].sr_slot;
+	slot->sl_in_flight--;
+	slot_balance(slot);
+	rpc_item_replied(req, req->ri_reply, 0);
+	/*
+	 * On receiver, ->so_reply_consume(req, reply) will hand over
+	 * @reply to formation, to send it back to sender.
+	 * see: rcv_reply_consume(), snd_reply_consume()
+	 */
+	slot->sl_ops->so_reply_consume(req, req->ri_reply);
 	C2_LEAVE();
 }
 
-void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
-			     struct c2_verno     last_persistent)
+C2_INTERNAL void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
+					 struct c2_verno last_persistent)
 {
 	struct c2_rpc_item     *item;
-	struct c2_list_link    *link;
 
 	C2_ENTRY("slot: %p, lsn_of_last_persistent: %llu", slot,
 		 (unsigned long long)last_persistent.vn_lsn);
@@ -674,33 +708,30 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 	 *    else
 	 *       break
 	 */
-	link = &slot->sl_last_persistent->ri_slot_refs[0].sr_link;
-	for (; link != (void *)&slot->sl_item_list; link = link->ll_next) {
+	for (item = slot->sl_last_persistent; item != NULL;
+	     item = slot_item_tlist_next(&slot->sl_item_list, item)) {
 
-		item = c2_list_entry(link, struct c2_rpc_item,
-					ri_slot_refs[0].sr_link);
-
-		if (c2_verno_cmp(&item->ri_slot_refs[0].sr_verno,
-				&last_persistent) <= 0) {
+		if (c2_verno_cmp(item_verno(item, 0), &last_persistent) <= 0) {
 
 			C2_ASSERT(C2_IN(item->ri_stage,
 					(RPC_ITEM_STAGE_PAST_COMMITTED,
 					 RPC_ITEM_STAGE_PAST_VOLATILE)));
 
-			item->ri_stage = RPC_ITEM_STAGE_PAST_COMMITTED;
+			c2_rpc_item_set_stage(item,
+					      RPC_ITEM_STAGE_PAST_COMMITTED);
 			slot->sl_last_persistent = item;
 		} else {
 			break;
 		}
 	}
-	C2_POST(
-	   c2_verno_cmp(&slot->sl_last_persistent->ri_slot_refs[0].sr_verno,
-			&last_persistent) >= 0);
+
+	C2_POST(c2_verno_cmp(item_verno(slot->sl_last_persistent, 0),
+			     &last_persistent) >= 0);
 	C2_LEAVE();
 }
 
-void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
-		       struct c2_verno     last_seen)
+C2_INTERNAL void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
+				   struct c2_verno last_seen)
 {
 	struct c2_rpc_item     *item;
 	struct c2_rpc_slot_ref *sref;
@@ -711,19 +742,18 @@ void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
 	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 	C2_PRE(c2_verno_cmp(&slot->sl_verno, &last_seen) >= 0);
 
-	c2_list_for_each_entry(&slot->sl_item_list, item, struct c2_rpc_item,
-				ri_slot_refs[0].sr_link) {
+	for_each_item_in_slot(item, slot) {
 
 		sref = &item->ri_slot_refs[0];
-		if (c2_verno_cmp(&sref->sr_verno, &last_seen) == 0) {
+		if (c2_verno_cmp(&sref->sr_ow.osr_verno, &last_seen) == 0) {
 			C2_ASSERT(item->ri_stage != RPC_ITEM_STAGE_FUTURE);
 			slot->sl_last_sent = item;
 			break;
 		}
 
-	}
-	C2_ASSERT(c2_verno_cmp(&slot->sl_last_sent->ri_slot_refs[0].sr_verno,
-				&last_seen) == 0);
+	} end_for_each_item_in_slot;
+	C2_ASSERT(c2_verno_cmp(item_verno(slot->sl_last_sent, 0),
+			       &last_seen) == 0);
 	slot_balance(slot);
 	C2_LEAVE();
 }
@@ -732,7 +762,7 @@ static struct c2_rpc_conn *
 find_conn(const struct c2_rpc_machine *machine,
 	  const struct c2_rpc_item    *item)
 {
-	const struct c2_list         *conn_list;
+	const struct c2_tl           *conn_list;
 	const struct c2_rpc_slot_ref *sref;
 	struct c2_rpc_conn           *conn;
 	bool                          use_uuid;
@@ -744,29 +774,25 @@ find_conn(const struct c2_rpc_machine *machine,
 			&machine->rm_outgoing_conns;
 
 	sref = &item->ri_slot_refs[0];
-	use_uuid = (sref->sr_sender_id == SENDER_ID_INVALID);
-
-	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
-
+	use_uuid = (sref->sr_ow.osr_sender_id == SENDER_ID_INVALID);
+	c2_tl_for(rpc_conn, conn_list, conn) {
 		if (use_uuid) {
-
-			if (c2_rpc_sender_uuid_cmp(&conn->c_uuid,
-						   &sref->sr_uuid) == 0) {
-				C2_LEAVE("conn: %p", conn);
-				return conn;
+			if (c2_rpc_sender_uuid_cmp(
+				    &conn->c_uuid,
+				    &sref->sr_ow.osr_uuid) == 0) {
+				break;
 			}
-
 		} else {
-
-			if (conn->c_sender_id == sref->sr_sender_id) {
+			if (conn->c_sender_id == sref->sr_ow.osr_sender_id) {
 				C2_LEAVE("conn: %p", conn);
-				return conn;
+				break;
 			}
 		}
-	}
-	C2_LEAVE("conn: (nil)");
-	return NULL;
+	} c2_tl_endfor;
+	C2_LEAVE("conn: %p", conn);
+	return conn;
 }
+
 static int associate_session_and_slot(struct c2_rpc_item    *item,
 				      struct c2_rpc_machine *machine)
 {
@@ -779,18 +805,18 @@ static int associate_session_and_slot(struct c2_rpc_item    *item,
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	sref = &item->ri_slot_refs[0];
-	if (sref->sr_session_id > SESSION_ID_MAX)
+	if (sref->sr_ow.osr_session_id > SESSION_ID_MAX)
 		C2_RETERR(-EINVAL, "rpc_session_id");
 
 	conn = find_conn(machine, item);
 	if (conn == NULL)
 		C2_RETURN(-ENOENT);
 
-	session = c2_rpc_session_search(conn, sref->sr_session_id);
-	if (session == NULL || sref->sr_slot_id >= session->s_nr_slots)
+	session = c2_rpc_session_search(conn, sref->sr_ow.osr_session_id);
+	if (session == NULL || sref->sr_ow.osr_slot_id >= session->s_nr_slots)
 		C2_RETURN(-ENOENT);
 
-	slot = session->s_slot_table[sref->sr_slot_id];
+	slot = session->s_slot_table[sref->sr_ow.osr_slot_id];
 	/* XXX Check generation of slot */
 	C2_ASSERT(slot != NULL);
 	sref->sr_slot    = slot;
@@ -801,105 +827,73 @@ static int associate_session_and_slot(struct c2_rpc_item    *item,
 	C2_RETURN(0);
 }
 
-int c2_rpc_item_received(struct c2_rpc_item    *item,
-			 struct c2_rpc_machine *machine)
+C2_INTERNAL int c2_rpc_item_received(struct c2_rpc_item *item,
+				     struct c2_rpc_machine *machine)
 {
-	struct c2_rpc_item *req;
-	struct c2_rpc_slot *slot;
-	int                 rc;
+	int rc;
 
 	C2_ENTRY("item: %p, machine: %p", item, machine);
 	C2_ASSERT(item != NULL);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
+	machine->rm_stats.rs_nr_rcvd_items++;
+	/** @todo XXX This code path assumes item is of kind request or reply.
+		      Add handling for one-way items.
+	 */
 	rc = associate_session_and_slot(item, machine);
-	if (rc != 0) {
-		/*
-		 * stats for conn establish item are updated in its
-		 * fom's state() method.
-		 */
-		if (c2_rpc_item_is_conn_establish(item)) {
-			c2_rpc_item_dispatch(item);
-			C2_RETURN(0);
-		}
+	if (rc == 0) {
+		rc = c2_rpc_slot_item_received(item);
+	} else if (c2_rpc_item_is_conn_establish(item)) {
+		c2_rpc_item_dispatch(item);
+		rc = 0;
+	} else {
 		/*
 		 * If we cannot associate the item with its slot
 		 * then there is nothing that we can do with this
 		 * item except to discard it.
 		 * XXX generate ADDB record
 		 */
-		item->ri_ops->rio_free(item);
-		C2_RETURN(rc);
 	}
-	C2_ASSERT(item->ri_session != NULL &&
-		  item->ri_slot_refs[0].sr_slot != NULL);
-
-	item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
-
-	slot = item->ri_slot_refs[0].sr_slot;
-	if (c2_rpc_item_is_request(item)) {
-
-		c2_rpc_slot_item_apply(slot, item);
-
-	} else {
-		c2_rpc_slot_reply_received(slot, item, &req);
-
-		/*
-		 * In case the reply is duplicate/unwanted then
-		 * c2_rpc_slot_reply_received() sets req to NULL.
-		 */
-		if (req != NULL) {
-			/*
-			 * informing upper layer that reply is received should
-			 * be the done after all the reply processing has been
-			 * done by rpc-layer.
-			 */
-			rpc_item_replied(req, item, 0);
-		}
-	}
-	C2_RETURN(0);
+	return rc;
 }
 
-/**
- * @TODO XXX ->replied() callback should be triggered
- * iff item is in WAITING_FOR_REPLY state.
- */
-void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
-                      uint32_t rc)
+C2_INTERNAL int c2_rpc_slot_item_received(struct c2_rpc_item *item)
 {
-	struct c2_rpc_machine *machine;
-	struct c2_rpc_session *session;
+	struct c2_rpc_item *req;
+	struct c2_rpc_slot *slot;
+	int                 rc = 0;
+
+	slot = item->ri_slot_refs[0].sr_slot;
+	C2_ASSERT(slot != NULL);
+
+	if (c2_rpc_item_is_request(item))
+		rc = c2_rpc_slot_item_apply(slot, item);
+	else if (c2_rpc_item_is_reply(item))
+		rc = c2_rpc_slot_reply_received(slot, item, &req);
+
+	return rc;
+}
+
+C2_INTERNAL void rpc_item_replied(struct c2_rpc_item *item,
+				  struct c2_rpc_item *reply, uint32_t rc)
+{
+	C2_ASSERT(item->ri_ops != NULL);
 
 	C2_ENTRY("req_item: %p, rep_item: %p", item, reply);
+
 	item->ri_error = rc;
 	item->ri_reply = reply;
 
-	session = item->ri_slot_refs[0].sr_slot->sl_session;
-	machine = session->s_conn->c_rpc_machine;
-	C2_ASSERT(c2_rpc_machine_is_locked(machine));
-
-	if (c2_rpc_item_is_control_msg(item)) {
-		if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
-			item->ri_ops->rio_replied(item);
-	} else {
-		c2_rpc_session_hold_busy(session);
-		c2_rpc_machine_unlock(machine);
-
-		if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
-			item->ri_ops->rio_replied(item);
-		c2_chan_broadcast(&item->ri_chan);
-
-		c2_rpc_machine_lock(machine);
-		c2_rpc_session_release(session);
-	}
-	C2_LEAVE();
+	c2_rpc_item_change_state(item, C2_RPC_ITEM_REPLIED);
+	if (item->ri_ops->rio_replied != NULL)
+		item->ri_ops->rio_replied(item);
 }
 
-int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,
-			   uint32_t         slot_id,
-			   uint64_t         slot_generation,
-			   struct c2_cob  **slot_cob,
-			   struct c2_db_tx *tx)
+C2_INTERNAL int c2_rpc_slot_cob_lookup(struct c2_cob *session_cob,
+				       uint32_t slot_id,
+				       uint64_t slot_generation,
+				       struct c2_cob **slot_cob,
+				       struct c2_db_tx *tx)
 {
 	struct c2_cob *cob;
 	char           name[SESSION_COB_MAX_NAME_LEN];
@@ -919,11 +913,11 @@ int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,
 	C2_RETURN(rc);
 }
 
-int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
-			   uint32_t         slot_id,
-			   uint64_t         slot_generation,
-			   struct c2_cob  **slot_cob,
-			   struct c2_db_tx *tx)
+C2_INTERNAL int c2_rpc_slot_cob_create(struct c2_cob *session_cob,
+				       uint32_t slot_id,
+				       uint64_t slot_generation,
+				       struct c2_cob **slot_cob,
+				       struct c2_db_tx *tx)
 {
 	struct c2_cob *cob;
 	char           name[SESSION_COB_MAX_NAME_LEN];
@@ -947,7 +941,9 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
    Just for debugging purpose.
  */
 #ifndef __KERNEL__
-int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active, int count)
+int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot,
+				bool                only_active,
+				int                 count)
 {
 	struct c2_rpc_item *item;
 	bool                first = true;
@@ -959,9 +955,7 @@ int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active, int 
 				"FUTURE"
 			     };
 
-	c2_list_for_each_entry(&slot->sl_item_list, item,
-				struct c2_rpc_item,
-				ri_slot_refs[0].sr_link) {
+	for_each_item_in_slot(item, slot) {
 		/* Skip dummy item */
 		if (first) {
 			first = false;
@@ -973,17 +967,24 @@ int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active, int 
 				RPC_ITEM_STAGE_FUTURE)))) {
 
 			printf("%d: item %p <%u, %lu>  state %s\n",
-					++count,
-					item,
-					slot->sl_slot_id,
-					item->ri_slot_refs[0].sr_xid,
-					str_stage[item->ri_stage]);
+			       ++count,
+			       item,
+			       slot->sl_slot_id,
+			       item_xid(item, 0),
+			       str_stage[item->ri_stage]);
 		}
-	}
+	} end_for_each_item_in_slot;
 	return count;
 }
 #endif
-bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot)
-{
-	return slot->sl_in_flight < slot->sl_max_in_flight;
-}
+
+/** @} */
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

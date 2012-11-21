@@ -28,10 +28,14 @@
 #include "lib/ut.h"
 #include "sns/parity_math.h"
 
-#define DATA_UNIT_COUNT_MAX 30
-#define PRTY_UNIT_COUNT_MAX 12
-#define DATA_TO_PRTY_RATIO_MAX (DATA_UNIT_COUNT_MAX / PRTY_UNIT_COUNT_MAX)
-#define UNIT_BUFF_SIZE_MAX 1048576
+enum {
+	DATA_UNIT_COUNT_MAX    = 30,
+	PRTY_UNIT_COUNT_MAX    = 12,
+	DATA_TO_PRTY_RATIO_MAX = DATA_UNIT_COUNT_MAX / PRTY_UNIT_COUNT_MAX,
+	UNIT_BUFF_SIZE_MAX     = 1048576,
+	DATA_UNIT_COUNT        = 7,
+	PARITY_UNIT_COUNT      = 1,
+};
 
 static uint8_t expected[DATA_UNIT_COUNT_MAX][UNIT_BUFF_SIZE_MAX];
 static uint8_t data    [DATA_UNIT_COUNT_MAX][UNIT_BUFF_SIZE_MAX];
@@ -227,11 +231,59 @@ static void test_buffer_xor(void)
 
 	c2_buf_init(&data_buf[0], data[0], buff_size);
 	c2_buf_init(&parity_buf[0], parity[0], buff_size);
-	c2_parity_math_buffer_xor(parity_buf, data_buf);
 	c2_parity_math_buffer_xor(data_buf, parity_buf);
+	c2_parity_math_buffer_xor(parity_buf, data_buf);
 
 	if (!expected_cmp(data_count, buff_size))
 		C2_UT_ASSERT(0 && "Recovered data is unexpected");
+}
+
+static void test_parity_math_diff(void)
+{
+	uint32_t              i;
+	uint32_t              j;
+	struct c2_buf         data_buf_old[DATA_UNIT_COUNT];
+	struct c2_buf         data_buf_new[DATA_UNIT_COUNT];
+	struct c2_buf         parity_buf_old;
+	struct c2_buf         parity_buf_expected;
+	struct c2_parity_math math;
+
+	C2_UT_ASSERT(c2_parity_math_init(&math, DATA_UNIT_COUNT,
+					 PARITY_UNIT_COUNT) == 0);
+
+	for (i = 0; i < DATA_UNIT_COUNT; ++i) {
+		for (j = 0; j < UNIT_BUFF_SIZE; ++j) {
+			data[i][j] = (uint8_t) rand();
+			if (i % 2)
+				data[i + DATA_UNIT_COUNT][j] =
+					(uint8_t) rand();
+			else
+				data[i + DATA_UNIT_COUNT][j] = data[i][j];
+		}
+	}
+
+	for (i = 0; i < DATA_UNIT_COUNT; ++i) {
+		c2_buf_init(&data_buf_old[i], data[i], UNIT_BUFF_SIZE);
+		c2_buf_init(&data_buf_new[i], data[i + DATA_UNIT_COUNT],
+			    UNIT_BUFF_SIZE);
+	}
+
+	c2_buf_init(&parity_buf_old, parity[0], UNIT_BUFF_SIZE);
+	c2_buf_init(&parity_buf_expected, parity[1], UNIT_BUFF_SIZE);
+
+	c2_parity_math_calculate(&math, data_buf_old, &parity_buf_old);
+
+	c2_parity_math_calculate(&math, data_buf_new, &parity_buf_expected);
+
+	for (i = 0; i < DATA_UNIT_COUNT; ++i) {
+		if (i % 2)
+			c2_parity_math_diff(&math, data_buf_old, data_buf_new,
+					    &parity_buf_old, i);
+	}
+
+	C2_UT_ASSERT(memcmp(parity[0], parity[1], UNIT_BUFF_SIZE) == 0);
+
+	c2_parity_math_fini(&math);
 }
 
 const struct c2_test_suite parity_math_ut = {
@@ -243,6 +295,7 @@ const struct c2_test_suite parity_math_ut = {
                 { "xor_recover_with_fail_vec", test_xor_fv_recover },
                 { "xor_recover_with_fail_index", test_xor_fail_idx_recover },
                 { "buffer_xor", test_buffer_xor },
+		{ "parity_math_diff", test_parity_math_diff },
                 { NULL, NULL }
         }
 };

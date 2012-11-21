@@ -32,7 +32,7 @@
 
    This file defines interfaces for access to a simple indexing mechanism,
    similar to data-base tables with primary index. Currently this interface is
-   implemented on top of Oracle db5 (nee Sleepycat's Berkeley DB) and details of
+   implemented on top of Oracle db5 (see Sleepycat's Berkeley DB) and details of
    this implementation leak into data-structures. In the future, additional
    implementations will be added, specifically a simple memory-only
    implementation for Linux kernel, and the separation between generic and
@@ -91,7 +91,7 @@ struct c2_dbenv {
 
    @see http://www.oracle.com/technology/documentation/berkeley-db/db/api_reference/C/envopen.html
  */
-int  c2_dbenv_init(struct c2_dbenv *env, const char *name, uint64_t flags);
+int c2_dbenv_init(struct c2_dbenv *env, const char *name, uint64_t flags);
 
 /**
    Finalize the data-base environment and release all associated resources.
@@ -102,7 +102,7 @@ void c2_dbenv_fini(struct c2_dbenv *env);
    When this call returns, results of all operations against the environment
    that completed before this call started are guaranteed to be persistent.
  */
-int c2_dbenv_sync(struct c2_dbenv *env);
+C2_INTERNAL int c2_dbenv_sync(struct c2_dbenv *env);
 
 /**
     Data-base table.
@@ -155,14 +155,14 @@ struct c2_table {
 
    @see http://www.oracle.com/technology/documentation/berkeley-db/db/api_reference/C/dbopen.html
  */
-int  c2_table_init(struct c2_table *table, struct c2_dbenv *env,
-		   const char *name, uint64_t flags,
-		   const struct c2_table_ops *ops);
+C2_INTERNAL int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
+			      const char *name, uint64_t flags,
+			      const struct c2_table_ops *ops);
 
 /**
     Finalize the table and release all resources associated with it.
  */
-void c2_table_fini(struct c2_table *table);
+C2_INTERNAL void c2_table_fini(struct c2_table *table);
 
 /**
    How a memory buffer (for a key or a record) in a pair is allocated and who
@@ -200,20 +200,21 @@ struct c2_db_pair {
 	struct c2_db_buf  dp_rec;
 };
 
-void c2_db_pair_fini(struct c2_db_pair *pair);
+C2_INTERNAL void c2_db_pair_fini(struct c2_db_pair *pair);
 
 /**
    Initialise a pair and set buffers to the given values.
 
  */
-void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
-		      void *keybuf, uint32_t keysize,
-		      void *recbuf, uint32_t recsize);
+C2_INTERNAL void c2_db_pair_setup(struct c2_db_pair *pair,
+				  struct c2_table *table, void *keybuf,
+				  uint32_t keysize, void *recbuf,
+				  uint32_t recsize);
 
 /**
    Finalize the record returned by c2_table_lookup().
  */
-void c2_db_pair_release(struct c2_db_pair *pair);
+C2_INTERNAL void c2_db_pair_release(struct c2_db_pair *pair);
 
 enum {
 	TO_KEY,
@@ -281,7 +282,8 @@ struct c2_db_tx {
 
    @see http://www.oracle.com/technology/documentation/berkeley-db/db/api_reference/C/txnbegin.html
  */
-int c2_db_tx_init  (struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags);
+C2_INTERNAL int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env,
+			      uint64_t flags);
 
 /**
    Commits the transaction.
@@ -289,14 +291,14 @@ int c2_db_tx_init  (struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags);
    Commit is _not_ durable: log is not forced out. Transaction is invalid after
    this function returns.
  */
-int c2_db_tx_commit(struct c2_db_tx *tx);
+C2_INTERNAL int c2_db_tx_commit(struct c2_db_tx *tx);
 
 /**
    Aborts the transaction.
 
    Transaction is invalid after this returns.
  */
-int c2_db_tx_abort (struct c2_db_tx *tx);
+C2_INTERNAL int c2_db_tx_abort(struct c2_db_tx *tx);
 
 /**
    An anchor to wait for transaction state change.
@@ -327,7 +329,7 @@ struct c2_db_tx_waiter {
 	uint64_t                    tw_magix;
 };
 
-C2_TL_DESCR_DECLARE(txw, extern);
+C2_TL_DESCR_DECLARE(txw, C2_EXTERN);
 C2_TL_DEFINE(txw, static inline, struct c2_db_tx_waiter);
 
 
@@ -337,17 +339,18 @@ C2_TL_DEFINE(txw, static inline, struct c2_db_tx_waiter);
    Waiters call-backs will be called when the transaction changes its state
    appropriately.
  */
-void c2_db_tx_waiter_add(struct c2_db_tx *tx, struct c2_db_tx_waiter *w);
+C2_INTERNAL void c2_db_tx_waiter_add(struct c2_db_tx *tx,
+				     struct c2_db_tx_waiter *w);
 
 /**
    Inserts (key, rec) pair into table as part of transaction tx.
  */
-int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair);
+C2_INTERNAL int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair);
 
 /**
    Updates (key, rec) pair into table as part of transaction tx.
  */
-int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair);
+C2_INTERNAL int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair);
 
 
 /**
@@ -359,12 +362,12 @@ int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair);
 
    @note no alignment guarantees on returned record.
  */
-int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair);
+C2_INTERNAL int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair);
 
 /**
    Delete a record with the key in the table as part of transaction tx.
  */
-int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair);
+C2_INTERNAL int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair);
 
 /**
    Data-base cursor.
@@ -395,31 +398,39 @@ enum c2_db_cursor_flags {
    The cursor is not initially positioned anywhere. All operations with the
    cursor will be done in the context of a given transaction.
  */
-int  c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
-		       struct c2_db_tx *tx, uint32_t flags);
+C2_INTERNAL int c2_db_cursor_init(struct c2_db_cursor *cursor,
+				  struct c2_table *table, struct c2_db_tx *tx,
+				  uint32_t flags);
 
 /**
    Release the resources associated with the cursor.
  */
-void c2_db_cursor_fini(struct c2_db_cursor *cursor);
+C2_INTERNAL void c2_db_cursor_fini(struct c2_db_cursor *cursor);
 
 /**
    Position the cursor at the (key, rec) pair with the least key not less than
    the key of a given pair.
  */
-int c2_db_cursor_get (struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+C2_INTERNAL int c2_db_cursor_get(struct c2_db_cursor *cursor,
+				 struct c2_db_pair *pair);
 /** Move cursor to the next key */
-int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+C2_INTERNAL int c2_db_cursor_next(struct c2_db_cursor *cursor,
+				  struct c2_db_pair *pair);
 /** Move cursor to the previous key */
-int c2_db_cursor_prev(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+C2_INTERNAL int c2_db_cursor_prev(struct c2_db_cursor *cursor,
+				  struct c2_db_pair *pair);
 /** Move cursor to the first key in the table */
-int c2_db_cursor_first(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+C2_INTERNAL int c2_db_cursor_first(struct c2_db_cursor *cursor,
+				   struct c2_db_pair *pair);
 /** Move cursor to the last key in the table */
-int c2_db_cursor_last(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+C2_INTERNAL int c2_db_cursor_last(struct c2_db_cursor *cursor,
+				  struct c2_db_pair *pair);
 /** Change the key and record of the current cursor pair.  */
-int c2_db_cursor_set (struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+C2_INTERNAL int c2_db_cursor_set(struct c2_db_cursor *cursor,
+				 struct c2_db_pair *pair);
 /** Add new pair to the table and position the cursor on it. */
-int c2_db_cursor_add (struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+C2_INTERNAL int c2_db_cursor_add(struct c2_db_cursor *cursor,
+				 struct c2_db_pair *pair);
 /**
     Delete the current pair from the table. For the purpose of following
     c2_db_cursor_next() and c2_db_cursor_prev() calls, the cursor remains
@@ -428,10 +439,10 @@ int c2_db_cursor_add (struct c2_db_cursor *cursor, struct c2_db_pair *pair);
     Following calls to c2_db_cursor_del() and c2_db_cursor_set() in the same
     cursor position will fail.
  */
-int c2_db_cursor_del (struct c2_db_cursor *cursor);
+C2_INTERNAL int c2_db_cursor_del(struct c2_db_cursor *cursor);
 
-int  c2_db_init(void);
-void c2_db_fini(void);
+C2_INTERNAL int c2_db_init(void);
+C2_INTERNAL void c2_db_fini(void);
 
 /** @} end of db group */
 

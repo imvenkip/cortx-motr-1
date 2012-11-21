@@ -136,9 +136,9 @@ static int linear_populate(struct c2_layout_linear_enum *lin_enum,
 	return 0;
 }
 
-int c2_linear_enum_build(struct c2_layout_domain *dom,
-			 const struct c2_layout_linear_attr *attr,
-			 struct c2_layout_linear_enum **out)
+C2_INTERNAL int c2_linear_enum_build(struct c2_layout_domain *dom,
+				     const struct c2_layout_linear_attr *attr,
+				     struct c2_layout_linear_enum **out)
 {
 	struct c2_layout_enum        *e;
 	struct c2_layout_linear_enum *lin_enum;

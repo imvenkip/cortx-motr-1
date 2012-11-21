@@ -24,22 +24,21 @@
    @{
  */
 
-int c2_capa_init(struct c2_capa_ctxt *ctxt)
+C2_INTERNAL int c2_capa_init(struct c2_capa_ctxt *ctxt)
 {
 	/* TODO This is only stub */
 	return 0;
 }
 
-void c2_capa_fini(struct c2_capa_ctxt *ctxt)
+C2_INTERNAL void c2_capa_fini(struct c2_capa_ctxt *ctxt)
 {
 	/* TODO This is only stub */
 	return;
 }
 
-int c2_capa_new(struct c2_object_capa *capa,
-	         enum c2_capa_entity_type type,
-	         enum c2_capa_operation opcode,
-		 void *data)
+C2_INTERNAL int c2_capa_new(struct c2_object_capa *capa,
+			    enum c2_capa_entity_type type,
+			    enum c2_capa_operation opcode, void *data)
 {
 	capa->oc_ctxt = NULL;
 	capa->oc_owner = NULL;
@@ -50,8 +49,9 @@ int c2_capa_new(struct c2_object_capa *capa,
 	return 0;
 }
 
-int c2_capa_get(struct c2_capa_ctxt *ctxt, struct c2_capa_issuer *owner,
-		struct c2_object_capa *capa)
+C2_INTERNAL int c2_capa_get(struct c2_capa_ctxt *ctxt,
+			    struct c2_capa_issuer *owner,
+			    struct c2_object_capa *capa)
 {
 	/* TODO This is only stub */
 	capa->oc_ctxt = ctxt;
@@ -61,7 +61,8 @@ int c2_capa_get(struct c2_capa_ctxt *ctxt, struct c2_capa_issuer *owner,
 	return 0;
 }
 
-void c2_capa_put(struct c2_capa_ctxt *ctxt, struct c2_object_capa *capa)
+C2_INTERNAL void c2_capa_put(struct c2_capa_ctxt *ctxt,
+			     struct c2_object_capa *capa)
 {
 	/* TODO This is only stub */
 	C2_ASSERT(c2_atomic64_get(&capa->oc_ref) > 0);
@@ -69,20 +70,21 @@ void c2_capa_put(struct c2_capa_ctxt *ctxt, struct c2_object_capa *capa)
 	return;
 }
 
-int c2_capa_auth(struct c2_capa_ctxt *ctxt, struct c2_object_capa *capa,
-		 enum c2_capa_operation op)
+C2_INTERNAL int c2_capa_auth(struct c2_capa_ctxt *ctxt,
+			     struct c2_object_capa *capa,
+			     enum c2_capa_operation op)
 {
 	/* TODO This is only stub */
 	return 0;
 }
 
-int c2_capa_ctxt_init(struct c2_capa_ctxt *ctxt)
+C2_INTERNAL int c2_capa_ctxt_init(struct c2_capa_ctxt *ctxt)
 {
 	/* TODO This is only stub */
 	return 0;
 }
 
-void c2_capa_ctxt_fini(struct c2_capa_ctxt *ctxt)
+C2_INTERNAL void c2_capa_ctxt_fini(struct c2_capa_ctxt *ctxt)
 {
 	/* TODO This is only stub */
 }

@@ -32,10 +32,9 @@
 #include "stob/ad.h"
 #include "stob/linux.h"
 #include "net/lnet/lnet.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "fop/fop_item_type.h"
 #include "rpc/item.h"
-#include "xcode/bufvec_xcode.h"
 #include "fop/fom_generic_ff.h"
 #include "io_fop_ff.h"
 #include "io_fop.h"
@@ -44,6 +43,7 @@
 #include "ut/rpc.h"
 #include "balloc/balloc.h"
 
+#include "mdstore/mdstore.h"
 /**
    @addtogroup reqh
    @{
@@ -66,7 +66,7 @@ enum {
 };
 
 static struct c2_stob_domain   *sdom;
-static struct c2_cob_domain    srv_cob_domain;
+static struct c2_mdstore       srv_mdstore;
 static struct c2_cob_domain_id srv_cob_dom_id;
 static struct c2_rpc_machine   srv_rpc_mach;
 static struct c2_dbenv         srv_db;
@@ -213,13 +213,12 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
 					  *reqh_addb_stob, NULL);
 
-        /* Init the cob domain */
-        rc = c2_cob_domain_init(&srv_cob_domain, &srv_db,
-                        &srv_cob_dom_id);
+        /* Init the mdstore */
+        rc = c2_mdstore_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 0);
         C2_UT_ASSERT(rc == 0);
 
 	/* Initialising request handler */
-	rc =  c2_reqh_init(&reqh, NULL, &srv_db, &srv_cob_domain, &srv_fol);
+	rc =  c2_reqh_init(&reqh, NULL, &srv_db, &srv_mdstore, &srv_fol, NULL);
 	C2_UT_ASSERT(rc == 0);
 
 	tms_nr   = 1;
@@ -230,7 +229,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	C2_UT_ASSERT(rc == 0);
 
 	/* Init the rpcmachine */
-        rc = c2_rpc_machine_init(rpc_machine, &srv_cob_domain, net_dom,
+        rc = c2_rpc_machine_init(rpc_machine, &srv_mdstore.md_dom, net_dom,
 				 SERVER_ENDPOINT_ADDR, &reqh, &app_pool,
 				 C2_BUFFER_ANY_COLOUR, 0,
 				 C2_NET_TM_RECV_QUEUE_DEF_LEN);
@@ -247,8 +246,8 @@ static void server_fini(struct c2_stob_domain *bdom,
 
 	c2_rpc_net_buffer_pool_cleanup(&app_pool);
 
-        /* Fini the cob domain */
-        c2_cob_domain_fini(&srv_cob_domain);
+        /* Fini the mdstore */
+        c2_mdstore_fini(&srv_mdstore);
 
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
 	c2_stob_put(reqh_addb_stob);
@@ -278,7 +277,7 @@ static void create_send(struct c2_rpc_session *session)
 		rh_io_fop->fic_object.f_oid = i;
 
 		rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
-						CONNECT_TIMEOUT);
+					0 /* deadline */, CONNECT_TIMEOUT);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(fop->f_item.ri_error == 0);
 		C2_UT_ASSERT(fop->f_item.ri_reply != 0);
@@ -302,7 +301,7 @@ static void read_send(struct c2_rpc_session *session)
 		rh_io_fop->fir_object.f_oid = i;
 
 		rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
-						CONNECT_TIMEOUT);
+					0 /* deadline */, CONNECT_TIMEOUT);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(fop->f_item.ri_error == 0);
 		C2_UT_ASSERT(fop->f_item.ri_reply != 0);
@@ -326,7 +325,7 @@ static void write_send(struct c2_rpc_session *session)
 		rh_io_fop->fiw_object.f_oid = i;
 
 		rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
-						CONNECT_TIMEOUT);
+					0 /* deadline */, CONNECT_TIMEOUT);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(fop->f_item.ri_error == 0);
 		C2_UT_ASSERT(fop->f_item.ri_reply != 0);

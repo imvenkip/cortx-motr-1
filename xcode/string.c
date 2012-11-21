@@ -36,7 +36,7 @@
 extern ssize_t xcode_alloc(struct c2_xcode_cursor *it,
 			   void *(*alloc)(struct c2_xcode_cursor *, size_t));
 
-const const char *space_skip(const char *str)
+C2_INTERNAL const const char *space_skip(const char *str)
 {
 	static const char space[] = " \t\v\n\r";
 
@@ -97,7 +97,7 @@ static int char_check(const char **str, char ch)
 	return result;
 }
 
-int c2_xcode_read(struct c2_xcode_obj *obj, const char *str)
+C2_INTERNAL int c2_xcode_read(struct c2_xcode_obj *obj, const char *str)
 {
 	struct c2_xcode_cursor it;
 	int                    result;
@@ -146,17 +146,6 @@ int c2_xcode_read(struct c2_xcode_obj *obj, const char *str)
 			result = xcode_alloc(&it, c2_xcode_alloc);
 			if (result != 0)
 				return result;
-			if (xt->xct_aggr == C2_XA_SEQUENCE &&
-			    xt->xct_child[1].xf_type == &C2_XT_U8 &&
-			    *str == '"') {
-				/* string literal */
-				result = string_literal(cur, ++str);
-				if (result < 0)
-					return result;
-				str += result + 1;
-				c2_xcode_skip(&it);
-				continue;
-			}
 			if (it.xcu_depth > 0) {
 				int                           order;
 				enum c2_xcode_aggr            par;
@@ -169,6 +158,17 @@ int c2_xcode_read(struct c2_xcode_obj *obj, const char *str)
 						    punctuation[par][order]);
 				if (result != 0)
 					return result;
+			}
+			if (xt->xct_aggr == C2_XA_SEQUENCE &&
+			    xt->xct_child[1].xf_type == &C2_XT_U8 &&
+			    *str == '"') {
+				/* string literal */
+				result = string_literal(cur, ++str);
+				if (result < 0)
+					return result;
+				str += result + 1;
+				c2_xcode_skip(&it);
+				continue;
 			}
 		}
 		ch = structure[aggr][flag];

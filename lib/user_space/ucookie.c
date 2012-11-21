@@ -50,7 +50,7 @@ static void sigsegv(int sig)
  * an error in case of an invalid address gets handled by the
  * function sigsegv().
  */
-bool c2_arch_addr_is_sane(const void *addr)
+C2_INTERNAL bool c2_arch_addr_is_sane(const void *addr)
 {
 	jmp_buf           buf;
 	volatile uint64_t dummy;
@@ -74,7 +74,7 @@ bool c2_arch_addr_is_sane(const void *addr)
  * Sets up the signal handler for SIGSEGV to the function sigsegv.
  * Creates a pthread_key to be used in the function c2_arch_addr_is_sane.
  */
-int c2_arch_cookie_global_init(void)
+C2_INTERNAL int c2_arch_cookie_global_init(void)
 {
 	int		 ret;
 	struct sigaction sa_sigsegv;
@@ -95,7 +95,7 @@ int c2_arch_cookie_global_init(void)
  * Sets the signal handler for SIGSEGV to the default signal handler. Deletes
  * pthread_key.
  */
-void c2_arch_cookie_global_fini(void)
+C2_INTERNAL void c2_arch_cookie_global_fini(void)
 {
 	struct sigaction sa_sigsegv;
 	int              ret;

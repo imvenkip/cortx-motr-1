@@ -30,12 +30,13 @@
    @{
 */
 
-int c2_semaphore_init(struct c2_semaphore *semaphore, unsigned value)
+C2_INTERNAL int c2_semaphore_init(struct c2_semaphore *semaphore,
+				  unsigned value)
 {
 	return sem_init(&semaphore->s_sem, 0, value);
 }
 
-void c2_semaphore_fini(struct c2_semaphore *semaphore)
+C2_INTERNAL void c2_semaphore_fini(struct c2_semaphore *semaphore)
 {
 	int rc;
 
@@ -43,7 +44,7 @@ void c2_semaphore_fini(struct c2_semaphore *semaphore)
 	C2_ASSERT(rc == 0);
 }
 
-void c2_semaphore_down(struct c2_semaphore *semaphore)
+C2_INTERNAL void c2_semaphore_down(struct c2_semaphore *semaphore)
 {
 	int rc;
 
@@ -52,7 +53,7 @@ void c2_semaphore_down(struct c2_semaphore *semaphore)
 	while (rc == -1 && errno == EINTR);
 }
 
-void c2_semaphore_up(struct c2_semaphore *semaphore)
+C2_INTERNAL void c2_semaphore_up(struct c2_semaphore *semaphore)
 {
 	int rc;
 
@@ -60,7 +61,7 @@ void c2_semaphore_up(struct c2_semaphore *semaphore)
 	C2_ASSERT(rc == 0);
 }
 
-bool c2_semaphore_trydown(struct c2_semaphore *semaphore)
+C2_INTERNAL bool c2_semaphore_trydown(struct c2_semaphore *semaphore)
 {
 	int rc;
 
@@ -72,7 +73,7 @@ bool c2_semaphore_trydown(struct c2_semaphore *semaphore)
 	return rc == 0;
 }
 
-unsigned c2_semaphore_value(struct c2_semaphore *semaphore)
+C2_INTERNAL unsigned c2_semaphore_value(struct c2_semaphore *semaphore)
 {
 	int rc;
 	int result;
@@ -83,8 +84,8 @@ unsigned c2_semaphore_value(struct c2_semaphore *semaphore)
 	return result;
 }
 
-bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
-			    const c2_time_t abs_timeout)
+C2_INTERNAL bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
+					const c2_time_t abs_timeout)
 {
 	struct timespec ts = {
 			.tv_sec  = c2_time_seconds(abs_timeout),

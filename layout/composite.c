@@ -54,15 +54,15 @@ struct layout_prefix {
  * the reference when done with the usage. The layout is finalised when it is
  * the last reference being released.
  */
-void c2_composite_build(struct c2_layout_domain *dom,
-			uint64_t lid,
-			struct c2_tl *sub_layouts,
-			struct c2_composite_layout **out)
+C2_INTERNAL void c2_composite_build(struct c2_layout_domain *dom,
+				    uint64_t lid,
+				    struct c2_tl *sub_layouts,
+				    struct c2_composite_layout **out)
 {
 }
 
 /** Implementation of lo_fini for COMPOSITE layout type. */
-static void composite_fini(struct c2_layout *l)
+static void composite_fini(struct c2_ref *ref)
 {
 }
 
@@ -149,7 +149,7 @@ static int composite_decode(struct c2_layout *l,
 			    struct c2_bufvec_cursor *cur,
 			    enum c2_layout_xcode_op op,
 			    struct c2_db_tx *tx,
-			    uint32_t ref_count)
+			    uint32_t user_count)
 {
 	/*
 	@code

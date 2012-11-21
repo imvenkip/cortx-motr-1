@@ -96,58 +96,63 @@ enum {
 	L_TABLE_UPDATE_ERR         = -506
 };
 
-bool c2_layout__domain_invariant(const struct c2_layout_domain *dom);
-bool c2_layout__allocated_invariant(const struct c2_layout *l);
-bool c2_layout__invariant(const struct c2_layout *l);
-bool c2_layout__enum_invariant(const struct c2_layout_enum *le);
-bool c2_layout__striped_allocated_invariant(const struct c2_striped_layout *s);
-bool c2_layout__striped_invariant(const struct c2_striped_layout *stl);
+C2_INTERNAL bool c2_layout__domain_invariant(const struct c2_layout_domain
+					     *dom);
+C2_INTERNAL bool c2_layout__allocated_invariant(const struct c2_layout *l);
+C2_INTERNAL bool c2_layout__invariant(const struct c2_layout *l);
+C2_INTERNAL bool c2_layout__enum_invariant(const struct c2_layout_enum *le);
+C2_INTERNAL bool c2_layout__striped_allocated_invariant(const struct
+							c2_striped_layout *s);
+C2_INTERNAL bool c2_layout__striped_invariant(const struct c2_striped_layout
+					      *stl);
 
-struct c2_layout *c2_layout__list_lookup(const struct c2_layout_domain *dom,
+C2_INTERNAL struct c2_layout *c2_layout__list_lookup(const struct
+						     c2_layout_domain *dom,
+						     uint64_t lid,
+						     bool ref_increment);
+
+C2_INTERNAL void c2_layout__init(struct c2_layout *l,
+				 struct c2_layout_domain *dom,
+				 uint64_t lid,
+				 struct c2_layout_type *type,
+				 const struct c2_layout_ops *ops);
+C2_INTERNAL void c2_layout__fini(struct c2_layout *l);
+C2_INTERNAL void c2_layout__populate(struct c2_layout *l, uint32_t user_count);
+C2_INTERNAL void c2_layout__delete(struct c2_layout *l);
+
+C2_INTERNAL void c2_layout__striped_init(struct c2_striped_layout *stl,
+					 struct c2_layout_domain *dom,
 					 uint64_t lid,
-					 bool ref_increment);
+					 struct c2_layout_type *type,
+					 const struct c2_layout_ops *ops);
+C2_INTERNAL void c2_layout__striped_fini(struct c2_striped_layout *stl);
+C2_INTERNAL void c2_layout__striped_populate(struct c2_striped_layout *str_l,
+					     struct c2_layout_enum *e,
+					     uint32_t user_count);
+C2_INTERNAL void c2_layout__striped_delete(struct c2_striped_layout *stl);
 
-void c2_layout__init(struct c2_layout *l,
-		     struct c2_layout_domain *dom,
-		     uint64_t lid,
-		     struct c2_layout_type *type,
-		     const struct c2_layout_ops *ops);
-void c2_layout__fini(struct c2_layout *l);
-void c2_layout__populate(struct c2_layout *l,
-			 uint32_t ref_count);
-void c2_layout__delete(struct c2_layout *l);
+C2_INTERNAL void c2_layout__enum_init(struct c2_layout_domain *dom,
+				      struct c2_layout_enum *le,
+				      struct c2_layout_enum_type *et,
+				      const struct c2_layout_enum_ops *ops);
+C2_INTERNAL void c2_layout__enum_fini(struct c2_layout_enum *le);
 
-void c2_layout__striped_init(struct c2_striped_layout *stl,
-			     struct c2_layout_domain *dom,
-			     uint64_t lid,
-			     struct c2_layout_type *type,
-			     const struct c2_layout_ops *ops);
-void c2_layout__striped_fini(struct c2_striped_layout *stl);
-void c2_layout__striped_populate(struct c2_striped_layout *str_l,
-				 struct c2_layout_enum *e,
-				 uint32_t ref_count);
-void c2_layout__striped_delete(struct c2_striped_layout *stl);
+C2_INTERNAL void c2_layout__log(const char *fn_name,
+				const char *err_msg,
+				const struct c2_addb_ev *ev,
+				struct c2_addb_ctx *ctx, uint64_t lid, int rc);
 
-void c2_layout__enum_init(struct c2_layout_domain *dom,
-			  struct c2_layout_enum *le,
-			  struct c2_layout_enum_type *et,
-			  const struct c2_layout_enum_ops *ops);
-void c2_layout__enum_fini(struct c2_layout_enum *le);
+C2_INTERNAL c2_bcount_t c2_layout__enum_max_recsize(struct c2_layout_domain
+						    *dom);
 
-void c2_layout__log(const char *fn_name,
-		    const char *err_msg,
-		    const struct c2_addb_ev *ev,
-		    struct c2_addb_ctx *ctx,
-		    uint64_t lid,
-		    int rc);
-
-c2_bcount_t c2_layout__enum_max_recsize(struct c2_layout_domain *dom);
-
-void c2_layout__instance_init(struct c2_layout_instance *li,
-			      const struct c2_fid *gfid,
-			      const struct c2_layout_instance_ops *ops);
-void c2_layout__instance_fini(struct c2_layout_instance *li);
-bool c2_layout__instance_invariant(const struct c2_layout_instance *li);
+C2_INTERNAL void c2_layout__instance_init(struct c2_layout_instance *li,
+					  const struct c2_fid *gfid,
+					  struct c2_layout *l,
+					  const struct c2_layout_instance_ops
+					  *ops);
+C2_INTERNAL void c2_layout__instance_fini(struct c2_layout_instance *li);
+C2_INTERNAL bool c2_layout__instance_invariant(const struct c2_layout_instance
+					       *li);
 
 /** @} end group layout */
 

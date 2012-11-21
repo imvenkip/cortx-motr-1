@@ -120,14 +120,14 @@ static inline uint64_t max64u(uint64_t a, uint64_t b)
 
    @see c2_mod_ge()
  */
-bool c2_mod_gt(uint64_t x0, uint64_t x1);
+C2_INTERNAL bool c2_mod_gt(uint64_t x0, uint64_t x1);
 
 /**
    Compares two 64bit numbers "modulo overflow".
 
    @see c2_mod_gt()
  */
-bool c2_mod_ge(uint64_t x0, uint64_t x1);
+C2_INTERNAL bool c2_mod_ge(uint64_t x0, uint64_t x1);
 
 static inline uint64_t clip64u(uint64_t lo, uint64_t hi, uint64_t x)
 {
@@ -143,12 +143,12 @@ static inline uint64_t clip64u(uint64_t lo, uint64_t hi, uint64_t x)
 
    @post result < max
  */
-uint64_t c2_rnd(uint64_t max, uint64_t *seed);
+C2_INTERNAL uint64_t c2_rnd(uint64_t max, uint64_t * seed);
 
 /**
    Greatest common divisor.
  */
-uint64_t c2_gcd64(uint64_t p, uint64_t q);
+C2_INTERNAL uint64_t c2_gcd64(uint64_t p, uint64_t q);
 
 static inline bool c2_is_po2(uint64_t val)
 {
