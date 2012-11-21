@@ -64,6 +64,7 @@ enum {
 	CC_COB_VERSION_INIT	= 0,
 	CC_COB_HARDLINK_NR	= 1,
 	CD_FOM_STOBIO_LAST_REFS = 1,
+	UINT32_MAX_STR_LEN      = 12
 };
 
 static const struct c2_addb_loc cc_fom_addb_loc = {
@@ -189,6 +190,7 @@ static void cob_fom_populate(struct c2_fom *fom)
 	io_fom_cob_rw_fid_wire2mem(&common->c_gobfid, &cfom->fco_gfid);
 	io_fom_cob_rw_fid_wire2mem(&common->c_cobfid, &cfom->fco_cfid);
 	io_fom_cob_rw_fid2stob_map(&cfom->fco_cfid, &cfom->fco_stobid);
+	cfom->fco_unit_idx = common->c_unit_idx;
 }
 
 static int cc_fom_tick(struct c2_fom *fom)
@@ -287,6 +289,34 @@ static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	return rc;
 }
 
+static int cc_cob_nskey_make(struct c2_cob_nskey **nskey,
+			     const struct c2_fid *gfid,
+			     uint32_t unit_idx)
+{
+	char     nskey_name[UINT32_MAX_STR_LEN];
+	uint32_t nskey_name_len;
+	int      rc;
+
+	C2_PRE(gfid != NULL);
+
+	snprintf((char*)nskey_name, UINT32_MAX_STR_LEN, "%u",
+		 (uint32_t)unit_idx);
+
+	/*
+	 * 1 is added to string length so that standard string
+	 * library calls which depend on NULL char at end of string
+	 * don't fail.
+	 */
+	nskey_name_len = strlen(nskey_name) + 1;
+
+	rc = c2_cob_nskey_make(nskey, gfid, (char *)nskey_name,
+			       nskey_name_len);
+        if (rc == -ENOMEM || nskey == NULL)
+		return -ENOMEM;
+
+	return 0;
+}
+
 static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 {
 	int			  rc;
@@ -309,14 +339,13 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
         rc = c2_cob_alloc(cdom, &cob);
         if (rc)
                 return rc;
-	rc = c2_cob_nskey_make(&nskey, &cc->fco_cfid,
-			       (char *)fop->cc_cobname.cn_name,
-			       fop->cc_cobname.cn_count);
-	if (rc == -ENOMEM || nskey == NULL) {
+
+	rc = cc_cob_nskey_make(&nskey, &cc->fco_gfid, cc->fco_unit_idx);
+	if (rc != 0) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_oom);
 	        c2_cob_put(cob);
-		return -ENOMEM;
+		return rc;
 	}
 
         io_fom_cob_rw_stob2fid_map(&cc->fco_stobid, &nsrec.cnr_fid);

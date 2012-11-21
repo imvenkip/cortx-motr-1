@@ -239,7 +239,10 @@ record {
 	/**
 	 * Fid of component object.
 	 */
-	c2_fop_file_fid c_cobfid
+	c2_fop_file_fid c_cobfid;
+
+	/** Unit index in parity group that this cob represents. */
+	u32             c_unit_idx
 } c2_fop_cob_common;
 
 /**

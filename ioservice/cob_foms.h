@@ -47,6 +47,8 @@ struct c2_fom_cob_op {
 	struct c2_fid		 fco_gfid;
 	/** Fid of component object. */
 	struct c2_fid		 fco_cfid;
+	/** Unit index in parity group that this cob represents. */
+	uint32_t                 fco_unit_idx;
 };
 
 /**
