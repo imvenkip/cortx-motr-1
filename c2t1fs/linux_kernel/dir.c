@@ -335,6 +335,9 @@ static int c2t1fs_readdir(struct file *f,
         c2t1fs_fs_lock(csb);
 
         do {
+                C2_LOG(C2_FATAL, "readdir from position \"%*s\"",
+                       mo.mo_poslen, (char *)mo.mo_pos);
+
                 rc = c2t1fs_mds_cob_readdir(csb, &mo, &rep);
                 if (rc < 0) {
                         C2_LOG(C2_ERROR,
@@ -367,14 +370,14 @@ static int c2t1fs_readdir(struct file *f,
 
                         over = filldir(buf, ent->d_name, ent->d_namelen,
                                        f->f_pos, ino, type);
-                        if (over)
+                        if (over < 0)
                                 goto out;
                         f->f_pos++;
                 }
                 mo.mo_pos = rep->r_end.s_buf;
                 mo.mo_poslen = rep->r_end.s_len;
 
-                C2_LOG(C2_FATAL, "set readdir position to \"%*s\" rc == %d",
+                C2_LOG(C2_FATAL, "set position to \"%*s\" rc == %d",
                        mo.mo_poslen, (char *)mo.mo_pos, rc);
                 /**
                    Return codes for c2t1fs_mds_cob_readdir() are the following:
