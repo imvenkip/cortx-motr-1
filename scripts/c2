@@ -15,6 +15,8 @@ PROG="${0##*/}"
 SRC="$(readlink -f $0)"
 SRC="${SRC%/*/*}"
 
+SUDO='sudo -E'
+
 clean() {
     cd "$SRC"
     make distclean $MAKE_OPTS || true
@@ -28,14 +30,14 @@ build() {
 }
 
 _reset() {
-    sudo rm -rf "$RUNDIR"  # Ouch!
+    $SUDO rm -rf "$RUNDIR"  # Ouch!
     mkdir "$RUNDIR"
     cd "$RUNDIR"
 }
 
-run_ut()  { _reset; sudo "$SRC/utils/ut.sh" "$@"; }
-run_kut() { _reset; sudo "$SRC/utils/linux_kernel/ut.sh"; }
-run_st()  { _reset; sudo "$SRC/c2t1fs/linux_kernel/st/c2t1fs_test.sh"; }
+run_ut()  { _reset; $SUDO "$SRC/utils/ut.sh" "$@"; }
+run_kut() { _reset; $SUDO "$SRC/utils/linux_kernel/ut.sh"; }
+run_st()  { _reset; $SUDO "$SRC/c2t1fs/linux_kernel/st/c2t1fs_test.sh"; }
 
 dist_check() {
     local DIST=colibri-0.1.0
