@@ -85,6 +85,7 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 	/* Copy all server arguments to server_args list. */
 	strcpy(server_args[0], "bulkio_st");
 	strcpy(server_args[1], "-r");
+	strcpy(server_args[1], "-p");
 	strcpy(server_args[2], "-T");
 	strcpy(server_args[3], "AD");
 	strcpy(server_args[4], "-D");

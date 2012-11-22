@@ -30,7 +30,7 @@
 
 /* Global structures for setting up colibri service. */
 static const char log_file_name[] = "sr_ut.errlog";
-static char *sns_repair_ut_svc[] = { "colibri_setup", "-r", "-T", "LINUX",
+static char *sns_repair_ut_svc[] = { "colibri_setup", "-r", "-p", "-T", "LINUX",
 				     "-D", "sr_db", "-S", "sr_stob",
 				     "-e", "lnet:0@lo:12345:34:1" ,
 				     "-s", "sns_repair"};

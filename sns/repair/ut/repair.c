@@ -47,7 +47,7 @@
 
 #define LOG_FILE_NAME "sr_ut.errlog"
 
-static char *sns_repair_ut_svc[] = { "colibri_setup", "-r", "-T", "linux",
+static char *sns_repair_ut_svc[] = { "colibri_setup", "-r", "-p", "-T", "linux",
                                 "-D", "sr_db", "-S", "sr_stob",
                                 "-e", "lnet:0@lo:12345:34:1" ,
                                 "-s", "sns_repair"};

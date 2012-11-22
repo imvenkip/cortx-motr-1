@@ -97,7 +97,7 @@ static struct c2_rpc_client_ctx cctx = {
 };
 
 static char *server_argv[] = {
-	"console_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+	"console_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 	"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
 	"-s", "ds1", "-s", "ds2"
 };

@@ -39,21 +39,21 @@ extern const struct c2_tl_descr bufferpools_tl;
 extern const struct c2_tl_descr c2_rhctx_tl;
 
  /* Colibri setup arguments. */
-static char *ios_ut_bp_singledom_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *ios_ut_bp_singledom_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ioservice"};
-static char *ios_ut_bp_multidom_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *ios_ut_bp_multidom_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s", "ioservice"};
-static char *ios_ut_bp_repeatdom_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *ios_ut_bp_repeatdom_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-e", "bulk-mem:127.0.0.1:35679",
                                 "-s", "ioservice"};
-static char *ios_ut_bp_onerepeatdom_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *ios_ut_bp_onerepeatdom_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:35:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",

@@ -112,7 +112,7 @@ struct cobthread_arg {
 };
 
 static char *server_args[] = {
-	"cobfoms_ut", "-r", "-T", "Linux", "-D", "cobfoms_ut.db", "-S",
+	"cobfoms_ut", "-r", "-p", "-T", "Linux", "-D", "cobfoms_ut.db", "-S",
 	"cobfoms_ut_stob", "-e", SERVER_ENDP, "-s", "ioservice",
 };
 

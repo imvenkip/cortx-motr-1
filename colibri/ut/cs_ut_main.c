@@ -51,18 +51,18 @@ struct cl_ctx {
 };
 
 /* Configures colibri environment with given parameters. */
-static char *cs_ut_service_one_cmd[] = { "colibri_setup", "-r", "-T", "linux",
+static char *cs_ut_service_one_cmd[] = { "colibri_setup", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
 				"-e", "lnet:0@lo:12345:34:1" ,
                                 "-s", "ds1"};
 
-static char *cs_ut_services_many_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *cs_ut_services_many_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s", "ds1", "-s" "ds2"};
 
-static char *cs_ut_reqhs_many_cmd[] = { "colibri_setup", "-r", "-T", "linux",
+static char *cs_ut_reqhs_many_cmd[] = { "colibri_setup", "-r", "-p", "-T", "linux",
                                 "-D", "cs_r1sdb", "-S", "cs_r1stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1",
@@ -71,12 +71,12 @@ static char *cs_ut_reqhs_many_cmd[] = { "colibri_setup", "-r", "-T", "linux",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s" "ds2"};
 
-static char *cs_ut_opts_jumbled_cmd[] = { "colibri_setup", "-r", "-D",
+static char *cs_ut_opts_jumbled_cmd[] = { "colibri_setup", "-r", "-p", "-D",
                                 "cs_sdb", "-T", "AD", "-s", "ds1",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-S", "cs_stob"};
 
-static char *cs_ut_dev_stob_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *cs_ut_dev_stob_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-d", "devices.conf",
 				"-e", "lnet:0@lo:12345:34:1",
@@ -87,47 +87,47 @@ static char *cs_ut_reqh_none_cmd[] = { "colibri_setup", "-T", "AD",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
-static char *cs_ut_stype_bad_cmd[] = { "colibri_setup", "-r", "-T", "asdadd",
+static char *cs_ut_stype_bad_cmd[] = { "colibri_setup", "-r", "-p", "-T", "asdadd",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
-static char *cs_ut_xprt_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *cs_ut_xprt_bad_cmd[] = { "colibri_setup", "-r", "-p","-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "asdasdada:172.18.50.40@o2ib1:34567:2",
                                 "-s", "ds1"};
 
-static char *cs_ut_ep_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *cs_ut_ep_bad_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:asdad:asdsd:sadasd",
                                 "-s", "ds1"};
 
-static char *cs_ut_service_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *cs_ut_service_bad_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
                                 "-s", "dasdadasd"};
 
-static char *cs_ut_args_bad_cmd[] = { "colibri_setup", "-r", "-D", "cs_sdb",
+static char *cs_ut_args_bad_cmd[] = { "colibri_setup", "-r", "-p", "-D", "cs_sdb",
                                 "-S", "cs_stob", "-e",
                                 "lnet:172.18.50.40@o2ib1:12345:34:1"};
 
-static char *cs_ut_buffer_pool_cmd[] = { "colibri_setup", "-r", "-T", "linux",
+static char *cs_ut_buffer_pool_cmd[] = { "colibri_setup", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1", "-q", "4", "-m", "4096"};
 
-static char *cs_ut_lnet_cmd[] = { "colibri_setup", "-r", "-T", "linux",
+static char *cs_ut_lnet_cmd[] = { "colibri_setup", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
-static char *cs_ut_lnet_mult_if_cmd[] = { "colibri_setup", "-r", "-T", "linux",
+static char *cs_ut_lnet_mult_if_cmd[] = { "colibri_setup", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
                                 "-s", "ioservice"};
 
-static char *cs_ut_lnet_ep_dup_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *cs_ut_lnet_ep_dup_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-s", "ds1", "-r", "-T", "AD",
@@ -135,7 +135,7 @@ static char *cs_ut_lnet_ep_dup_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-s", "ds1"};
 
-static char *cs_ut_ep_mixed_dup_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *cs_ut_ep_mixed_dup_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
@@ -143,13 +143,13 @@ static char *cs_ut_ep_mixed_dup_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-s", "ioservice"};
 
-static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@tcp:12345:32:105",
                                 "-s", "ds1"};
 
-static char *cs_ut_lnet_ep_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *cs_ut_lnet_ep_bad_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:asdad:asdsd:sadasd",
                                 "-s", "ds1"};
