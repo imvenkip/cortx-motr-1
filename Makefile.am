@@ -605,6 +605,13 @@ generate-xc-files: $(XC_FILES)
 # this is executed just after 'all' target
 all-local: build-kernel-modules check-sources-postbuild
 	@$(top_srcdir)/scripts/check-public-api
+	@echo 'Resulting ELF image sizes:'
+	@size   colibri/.libs/libcolibri{,-altogether}.so \
+		build_kernel_modules/kcolibri.ko \
+		2>/dev/null \
+	| sed -r -e 's/dec/total/' \
+		 -e 's#colibri/.libs/|build_kernel_modules/##' \
+	| cut -f5 --complement
 
 .PHONY: check-sources-postbuild
 check-sources-postbuild:

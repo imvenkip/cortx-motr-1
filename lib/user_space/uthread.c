@@ -19,6 +19,11 @@
  * Original creation date: 02/18/2011
  */
 
+#include <stdlib.h>     /* getenv */
+#include <unistd.h>     /* getpid */
+#include <errno.h>      /* program_invocation_name */
+#include <stdio.h>      /* snprinf */
+
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/memory.h"
 #include "lib/errno.h"
@@ -139,9 +144,25 @@ C2_INTERNAL int c2_thread_confine(struct c2_thread *q,
 	return -pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
 }
 
+C2_INTERNAL char *c2_debugger_args[4] = {
+	NULL, /* debugger name */
+	NULL, /* our binary name */
+	NULL, /* our process id */
+	NULL
+};
+
 C2_INTERNAL int c2_threads_init(void)
 {
-	int result;
+	int    result;
+	static char pidbuf[20];
+
+	c2_debugger_args[0] = getenv("COLIBRI_DEBUGGER");
+	/*
+	 * Note: program_invocation_name requires _GNU_SOURCE.
+	 */
+	c2_debugger_args[1] = program_invocation_name;
+	c2_debugger_args[2] = pidbuf;
+	snprintf(pidbuf, ARRAY_SIZE(pidbuf), "%i", getpid());
 
 	result = -pthread_attr_init(&pthread_attr_default);
 	if (result != 0)

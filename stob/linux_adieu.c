@@ -25,7 +25,7 @@
 #include "lib/queue.h"
 #include "lib/arith.h"
 #include "lib/thread.h"
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_IOSERVICE
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_STOB
 #include "lib/trace.h"
 #include "addb/addb.h"
 
