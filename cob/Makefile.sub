@@ -1,2 +1,4 @@
-nobase_colibri_include_HEADERS += cob/cob.h
-colibri_libcolibri_la_SOURCES  += cob/cob.c
+nobase_colibri_include_HEADERS += cob/cob.h \
+				  cob/ns_iter.h
+colibri_libcolibri_la_SOURCES  += cob/cob.c \
+				  cob/ns_iter.c
