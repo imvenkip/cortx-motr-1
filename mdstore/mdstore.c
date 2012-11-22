@@ -140,6 +140,7 @@ C2_INTERNAL int c2_mdstore_create(struct c2_mdstore     *md,
         struct c2_cob_nsrec    nsrec;
         struct c2_cob_fabrec  *fabrec;
         struct c2_cob_omgrec   omgrec;
+        int                    linklen;
         int                    rc;
 
         C2_ASSERT(pfid != NULL);
@@ -172,9 +173,9 @@ C2_INTERNAL int c2_mdstore_create(struct c2_mdstore     *md,
         omgrec.cor_gid = attr->ca_gid;
         omgrec.cor_mode = attr->ca_mode;
 
-        rc = c2_cob_fabrec_make(&fabrec,
-                                (char *)attr->ca_link.b_addr,
-                                (int)attr->ca_link.b_nob);
+        linklen = attr->ca_link.b_addr ? attr->ca_link.b_nob : 0;
+        rc = c2_cob_fabrec_make(&fabrec, (char *)attr->ca_link.b_addr,
+                                linklen);
         if (rc != 0) {
                 c2_cob_put(cob);
                 c2_free(nskey);
