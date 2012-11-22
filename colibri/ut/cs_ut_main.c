@@ -66,7 +66,7 @@ static char *cs_ut_reqhs_many_cmd[] = { "colibri_setup", "-r", "-p", "-T", "linu
                                 "-D", "cs_r1sdb", "-S", "cs_r1stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1",
-				"-r", "-T", "AD",
+				"-r", "-p", "-T", "AD",
                                 "-D", "cs_r2sdb", "-S", "cs_r2stob",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s" "ds2"};
@@ -130,7 +130,7 @@ static char *cs_ut_lnet_mult_if_cmd[] = { "colibri_setup", "-r", "-p", "-T", "li
 static char *cs_ut_lnet_ep_dup_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
-                                "-s", "ds1", "-r", "-T", "AD",
+                                "-s", "ds1", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb2", "-S", "cs_stob2",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-s", "ds1"};
