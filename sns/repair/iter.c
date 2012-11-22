@@ -380,19 +380,24 @@ static int iter_fid_next_wait(struct c2_sns_repair_cm *rcm)
 	return fid_layout_build(rcm);
 }
 
-/*
- * Temporary variable to end the iterator after processing single file.
- * @todo Use name space iterator.
- */
-static bool iter_stop;
-static int __fid_next(const struct c2_fid *fid_curr, struct c2_fid *fid_next)
+/* Uses name space iterator. */
+static int __fid_next(struct c2_sns_repair_cm *rcm, struct c2_fid *fid_next)
 {
-	if (iter_stop)
-		return -ENOENT;
-	*fid_next = default_single_file_fid;
-	iter_stop = true;
+	int             rc;
+	struct c2_db_tx tx;
 
-	return 0;
+	rc = c2_db_tx_init(&tx, rcm->rc_base.cm_service.rs_reqh->rh_dbenv, 0);
+	if (rc != 0)
+		return rc;
+
+	rc = c2_cob_ns_iter_next(&rcm->rc_cns_it, fid_next, &tx);
+
+        if (rc == 0)
+                c2_db_tx_commit(&tx);
+        else
+                c2_db_tx_abort(&tx);
+
+	return rc;
 }
 
 /**
@@ -402,18 +407,15 @@ static int __fid_next(const struct c2_fid *fid_curr, struct c2_fid *fid_next)
  */
 static int iter_fid_next(struct c2_sns_repair_cm *rcm)
 {
-	struct c2_fid             *fid_curr;
 	struct c2_fid              fid_next;
 	int                        rc;
 
 	/* Get current GOB fid saved in the iterator. */
-	fid_curr = &rcm->rc_it.ri_pl.rpl_gob_fid;
-	rc = __fid_next(fid_curr, &fid_next);
+	rc = __fid_next(rcm, &fid_next);
 	if (rc == -ENOENT)
 		return -ENODATA;
 	if (rc == 0) {
 		/* Save next GOB fid in the iterator. */
-		*fid_curr = fid_next;
 		rc = cm_layout_fetch(rcm);
 		if (rc == IT_WAIT) {
 			iter_phase_set(&rcm->rc_it, ITPH_FID_NEXT_WAIT);
@@ -626,8 +628,8 @@ static int iter_cob_next(struct c2_sns_repair_cm *rcm)
  */
 C2_INTERNAL int iter_init(struct c2_sns_repair_cm *rcm)
 {
+
 	iter_phase_set(&rcm->rc_it, ITPH_FID_NEXT);
-	iter_stop = false;
 	return 0;
 }
 
@@ -793,8 +795,12 @@ static void layout_fini(struct c2_sns_repair_cm *rcm)
 
 C2_INTERNAL int c2_sns_repair_iter_init(struct c2_sns_repair_cm *rcm)
 {
-	struct c2_cm               *cm;
-	int                         rc;
+	struct c2_cm         *cm;
+	int                   rc;
+	struct c2_dbenv      *dbenv;
+	struct c2_cob_domain *cdom;
+	struct c2_fid         gfid = {0, 0};
+
 
 	C2_PRE(rcm != NULL);
 
@@ -810,6 +816,10 @@ C2_INTERNAL int c2_sns_repair_iter_init(struct c2_sns_repair_cm *rcm)
 	if (rcm->rc_file_size == 0)
 		rcm->rc_file_size = SNS_FILE_SIZE_DEFAULT;
 
+        dbenv = rcm->rc_base.cm_service.rs_reqh->rh_dbenv;
+        cdom = &rcm->rc_base.cm_service.rs_reqh->rh_mdstore->md_dom;
+	rc = c2_cob_ns_iter_init(&rcm->rc_cns_it, &gfid, dbenv, cdom);
+
 	return rc;
 }
 
@@ -817,6 +827,7 @@ C2_INTERNAL void c2_sns_repair_iter_fini(struct c2_sns_repair_cm *rcm)
 {
 	C2_PRE(rcm != NULL);
 
+	c2_cob_ns_iter_fini(&rcm->rc_cns_it);
 	layout_fini(rcm);
 	iter_phase_set(&rcm->rc_it, ITPH_FINI);
 	c2_sm_fini(&rcm->rc_it.ri_sm);

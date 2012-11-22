@@ -91,11 +91,6 @@ cleanup:
         c2_db_pair_fini(&db_pair);
         c2_db_cursor_fini(&db_cursor);
 
-	if (rc == 0)
-		c2_db_tx_commit(tx);
-	else
-		c2_db_tx_abort(tx);
-
 	return rc;
 }
 
