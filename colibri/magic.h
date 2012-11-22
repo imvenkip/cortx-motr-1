@@ -252,12 +252,6 @@ enum c2_magic_satchel {
 	C2_FOM_LL_MAGIC = 0x330b1e55edb05577,
 
 /* ioservice */
-	/* c2_cobfid_map::cfm_magic (zozofied ziff) */
-	C2_CFM_MAP_MAGIC = 0x332020f1ed21ff77,
-
-	/* c2_cobfid_map_iter::cfmi_magic (clab cocobogo) */
-	C2_CFM_ITER_MAGIC = 0x33c1abc0c0b09077,
-
 	/* c2_stob_io_descr::siod_linkage (zealos obsses) */
 	C2_STOB_IO_DESC_LINK_MAGIC = 0x332ea1050b55e577,
 

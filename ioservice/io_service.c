@@ -31,7 +31,6 @@
 #include "reqh/reqh.h"
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
-#include "ioservice/cobfid_map.h"
 #include "ioservice/io_fops_ff.h"
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
@@ -367,19 +366,12 @@ static void ios_fini(struct c2_reqh_service *service)
 static int ios_start(struct c2_reqh_service *service)
 {
 	int			rc;
-	struct c2_cobfid_map   *cfm;
 
 	C2_PRE(service != NULL);
 
 	rc = ios_create_buffer_pool(service);
 	if (rc != 0) {
 		/* Cleanup required for already created buffer pools. */
-		ios_delete_buffer_pool(service);
-		return rc;
-	}
-
-	rc = c2_cobfid_map_get(service->rs_reqh, &cfm);
-	if (rc != 0) {
 		ios_delete_buffer_pool(service);
 		return rc;
 	}
@@ -403,7 +395,6 @@ static void ios_stop(struct c2_reqh_service *service)
 	C2_PRE(service != NULL);
 	c2_ios_poolmach_fini(service->rs_reqh);
 	ios_delete_buffer_pool(service);
-	c2_cobfid_map_put(service->rs_reqh);
 }
 
 /** @} endgroup io_service */

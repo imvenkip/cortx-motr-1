@@ -25,7 +25,6 @@
 
 #include "sm/sm.h"
 
-#include "ioservice/cobfid_map.h"
 #include "layout/linear_enum.h"
 
 /**

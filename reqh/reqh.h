@@ -281,8 +281,6 @@ C2_TL_DECLARE(c2_reqh_rpc_mach, , struct c2_rpc_machine);
      }
      @endcode
 
-     For more details please refer to @ref c2_cobfid_map_get() and
-     @ref c2_cobfid_map_put() interfaces in ioservice/cobfid_map.c.
  */
 /** @{ reqhkey */
 

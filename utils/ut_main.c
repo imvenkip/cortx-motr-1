@@ -45,7 +45,6 @@ extern const struct c2_test_suite c2_net_lnet_ut;
 extern const struct c2_test_suite c2_net_test_ut;
 extern const struct c2_test_suite c2_net_tm_prov_ut;
 extern const struct c2_test_suite capa_ut;
-extern const struct c2_test_suite cfm_ut;
 extern const struct c2_test_suite cm_cp_ut;
 extern const struct c2_test_suite cm_generic_ut;
 extern const struct c2_test_suite cob_ut;
@@ -103,7 +102,6 @@ void add_uts(void)
 	c2_ut_add(&c2_net_test_ut);
 	c2_ut_add(&c2_net_tm_prov_ut);
 	c2_ut_add(&capa_ut);
-	c2_ut_add(&cfm_ut);
 	c2_ut_add(&cm_cp_ut);
 	c2_ut_add(&cm_generic_ut);
 	c2_ut_add(&cob_ut);

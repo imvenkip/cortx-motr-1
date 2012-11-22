@@ -246,22 +246,12 @@ record {
 } c2_fop_cob_common;
 
 /**
- * Represents name of a cob being created.
- */
-sequence {
-	u32 cn_count;
-	u8  cn_name
-} c2_fop_cob_name;
-
-/**
  * On-wire representation of "cob create" request.
  * Cob create fops are sent to data servers when a new global file
  * is created.
  */
 record {
-	c2_fop_cob_common cc_common;
-	/** Name of global file. */
-	c2_fop_cob_name   cc_cobname
+	c2_fop_cob_common cc_common
 } c2_fop_cob_create;
 
 /**

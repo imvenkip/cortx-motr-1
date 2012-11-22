@@ -34,7 +34,6 @@
 #include "ioservice/cob_foms.h"     /* c2_fom_cob_create, c2_fom_cob_delete */
 #include "ioservice/io_fops.h"      /* c2_is_cob_create_fop() */
 #include "mdstore/mdstore.h"
-#include "ioservice/cobfid_map.h"   /* c2_cobfid_map_get() c2_cobfid_map_put()*/
 #include "ioservice/io_device.h"   /* c2_ios_poolmach_get() */
 #include "reqh/reqh_service.h"
 #include "pool/pool.h"
@@ -47,13 +46,11 @@ static void cc_fom_fini(struct c2_fom *fom);
 static int  cc_fom_tick(struct c2_fom *fom);
 static int  cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc);
 static int  cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc);
-static int  cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_op *cc);
 
 static void cd_fom_fini(struct c2_fom *fom);
 static int  cd_fom_tick(struct c2_fom *fom);
 static int  cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd);
 static int  cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd);
-static int  cd_cobfid_map_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd);
 
 static void   cob_fom_populate(struct c2_fom *fom);
 static int    cob_op_fom_create(struct c2_fom **out);
@@ -234,10 +231,6 @@ static int cc_fom_tick(struct c2_fom *fom)
 			goto out;
 
 		rc = cc_cob_create(fom, cc);
-		if (rc != 0)
-			goto out;
-
-		rc = cc_cobfid_map_add(fom, cc);
 	} else
 		C2_IMPOSSIBLE("Invalid phase for cob create fom.");
 
@@ -389,39 +382,6 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	return rc;
 }
 
-static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_op *cc)
-{
-	int			    rc;
-	struct c2_uint128	    cob_fid;
-	struct c2_reqh             *reqh;
-	struct c2_cobfid_map       *cfm;
-
-	C2_PRE(fom != NULL);
-	C2_PRE(cc != NULL);
-
-	reqh = fom->fo_service->rs_reqh;
-	rc = c2_cobfid_map_get(reqh, &cfm);
-	if (rc != 0)
-		return rc;
-
-	cob_fid.u_hi = cc->fco_cfid.f_container;
-	cob_fid.u_lo = cc->fco_cfid.f_key;
-
-	c2_mutex_lock(&cfm->cfm_mutex);
-	rc = c2_cobfid_map_add(cfm, cob_fid.u_hi, cc->fco_gfid, cob_fid);
-	c2_mutex_unlock(&cfm->cfm_mutex);
-	if (rc != 0)
-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    cc_fom_func_fail, "cobfid_map_add() failed.", rc);
-	else
-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    c2_addb_trace, "Record added to cobfid_map.");
-
-	c2_cobfid_map_put(reqh);
-
-	return rc;
-}
-
 static void cd_fom_fini(struct c2_fom *fom)
 {
 	struct c2_fom_cob_op *cfom;
@@ -476,10 +436,6 @@ static int cd_fom_tick(struct c2_fom *fom)
 			goto out;
 
 		rc = cd_stob_delete(fom, cd);
-		if (rc != 0)
-			goto out;
-
-		rc = cd_cobfid_map_delete(fom, cd);
 	} else
 		C2_IMPOSSIBLE("Invalid phase for cob delete fom.");
 
@@ -567,42 +523,6 @@ static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 	c2_stob_put(stob);
 	C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 		    c2_addb_trace, "Stob deleted successfully.");
-
-	return rc;
-}
-
-static int cd_cobfid_map_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
-{
-	int                         rc;
-	struct c2_uint128           cob_fid;
-	struct c2_reqh             *reqh;
-	struct c2_cobfid_map       *cfm;
-
-	C2_PRE(fom != NULL);
-	C2_PRE(cd != NULL);
-
-	reqh = fom->fo_service->rs_reqh;
-	rc = c2_cobfid_map_get(reqh, &cfm);
-	if (rc != 0)
-		return rc;
-
-	cob_fid.u_hi = cd->fco_cfid.f_container;
-	cob_fid.u_lo = cd->fco_cfid.f_key;
-
-	c2_mutex_lock(&cfm->cfm_mutex);
-	rc = c2_cobfid_map_del(cfm, cob_fid.u_hi, cd->fco_gfid);
-	c2_mutex_unlock(&cfm->cfm_mutex);
-
-	if (rc != 0)
-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
-			    cd_fom_func_fail,
-			    "c2_cobfid_map_setup_delrec() failed.", rc);
-	else
-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    c2_addb_trace,
-			    "Record removed from cobfid_map.");
-
-	c2_cobfid_map_put(reqh);
 
 	return rc;
 }

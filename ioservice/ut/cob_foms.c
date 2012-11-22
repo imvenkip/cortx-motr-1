@@ -24,7 +24,6 @@
 #include "net/lnet/lnet.h"
 #include "ioservice/ut/bulkio_common.h"
 #include "ioservice/cob_foms.c"          /* To access static APIs. */
-#include "ioservice/cobfid_map.h"
 #include "lib/finject.h"
 
 extern struct c2_fop_type c2_fop_cob_create_fopt;
@@ -36,7 +35,6 @@ extern struct c2_reqh_service_type c2_ios_type;
 static struct cobfoms_ut      *cut;
 static struct c2_fom_locality  dummy_loc;
 
-static char test_cobname[]     = "cobfom_testcob";
 static struct c2_cob *test_cob = NULL;
 
 static struct c2_fom *cd_fom_alloc();
@@ -202,7 +200,6 @@ static void cobfops_populate_internal(struct c2_fop *fop, uint64_t index)
 static void cobfops_populate(uint64_t index)
 {
 	struct c2_fop            *fop;
-	struct c2_fop_cob_create *cc;
 
 	C2_UT_ASSERT(cut != NULL);
 	C2_UT_ASSERT(cut->cu_createfops != NULL);
@@ -213,14 +210,6 @@ static void cobfops_populate(uint64_t index)
 	fop = cut->cu_createfops[index];
 	cobfops_populate_internal(fop, cut->cu_gobindex);
 	cut->cu_gobindex++;
-
-	cc = c2_fop_data(fop);
-	C2_ALLOC_ARR(cc->cc_cobname.cn_name, COB_NAME_STRLEN);
-	C2_UT_ASSERT(cc->cc_cobname.cn_name != NULL);
-	sprintf((char*)cc->cc_cobname.cn_name, "%16lx:%16lx",
-			(unsigned long)cc->cc_common.c_cobfid.f_seq,
-			(unsigned long)cc->cc_common.c_cobfid.f_oid);
-	cc->cc_cobname.cn_count = strlen((char*)cc->cc_cobname.cn_name) + 1;
 }
 
 static void cobfops_create(void)
@@ -494,7 +483,6 @@ static void fom_fini(struct c2_fom *fom, enum cob_fom_type fomtype)
  */
 static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
 {
-	struct c2_fop_cob_create *cf;
 	struct c2_fop_cob_common *c;
 	struct c2_fop		 *base_fop;
 
@@ -502,11 +490,6 @@ static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
 	case COB_CREATE:
 		base_fop = c2_fop_alloc(&c2_fop_cob_create_fopt, NULL);
 		C2_UT_ASSERT(base_fop != NULL);
-		if (base_fop != NULL) {
-			cf = c2_fop_data(base_fop);
-			cf->cc_cobname.cn_count = strlen(test_cobname);
-			cf->cc_cobname.cn_name = (uint8_t *) test_cobname;
-		}
 		break;
 	case COB_DELETE:
 		base_fop = c2_fop_alloc(&c2_fop_cob_delete_fopt, NULL);
@@ -521,6 +504,7 @@ static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
 	c->c_gobfid.f_oid = COB_TEST_ID;
 	c->c_cobfid.f_seq = COB_TEST_ID;
 	c->c_cobfid.f_oid = COB_TEST_ID;
+	c->c_unit_idx = COB_TEST_ID;
 	fom->fo_fop = base_fop;
 	fom->fo_type = &base_fop->f_type->ft_fom_type;
 
@@ -582,62 +566,6 @@ static void fom_create_test(enum cob_fom_type fomtype)
 	fom_fini(fom, fomtype);
 }
 
-static int cobfid_ctx_get(struct c2_fom *fom, struct c2_cobfid_map **cfm)
-{
-	struct c2_reqh *reqh;
-
-	reqh = fom->fo_service->rs_reqh;
-	return c2_cobfid_map_get(reqh, cfm);
-}
-
-static void cobfid_ctx_put(struct c2_fom *fom)
-{
-	struct c2_reqh *reqh;
-
-	reqh = fom->fo_service->rs_reqh;
-	c2_cobfid_map_put(reqh);
-}
-
-/*
- * Verify cobfid map in the database.
- */
-static void cobfid_map_verify(struct c2_fom *fom, const bool map_exists)
-{
-	int			    rc;
-	bool			    found = false;
-	uint64_t		    cid_out;
-	struct c2_cobfid_map_iter   cfm_iter;
-	struct c2_fid		    fid_out;
-	struct c2_uint128	    cob_fid_out;
-	struct c2_cobfid_map       *cfm;
-
-	C2_SET0(&cfm_iter);
-	C2_SET0(&cob_fid_out);
-	rc = cobfid_ctx_get(fom, &cfm);
-	C2_UT_ASSERT(rc == 0 && cfm != NULL);
-
-	rc = c2_cobfid_map_enum(cfm, &cfm_iter);
-	C2_UT_ASSERT(rc == 0);
-
-	rc = c2_cobfid_map_iter_next(&cfm_iter, &cid_out,
-				     &fid_out, &cob_fid_out);
-	c2_cobfid_map_iter_fini(&cfm_iter);
-	C2_UT_ASSERT(ergo(map_exists, rc == 0));
-	C2_UT_ASSERT(ergo(!map_exists, rc != 0));
-
-	if (cob_fid_out.u_hi == COB_TEST_ID && cob_fid_out.u_lo == COB_TEST_ID)
-		found = true;
-
-	C2_UT_ASSERT(found == map_exists);
-
-	cobfid_ctx_put(fom);
-}
-
-/*
- *****************
- * COB create-FOM test functions
- ******************
- */
 /*
  * Delete COB-create FOM.
  */
@@ -723,11 +651,20 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 	struct c2_cob_nskey  *nskey;
 	struct c2_dbenv	     *dbenv;
 	struct c2_fid         fid = {COB_TEST_ID, COB_TEST_ID};
+        char                  nskey_name[UINT32_MAX_STR_LEN];
+        uint32_t              nskey_name_len;
+	uint32_t              unit_idx = COB_TEST_ID;
 
 	cobdom = &c2_fom_reqh(fom)->rh_mdstore->md_dom;
 	dbenv = c2_fom_reqh(fom)->rh_dbenv;
 
-	c2_cob_nskey_make(&nskey, &fid, test_cobname, strlen(test_cobname));
+        snprintf((char*)nskey_name, UINT32_MAX_STR_LEN, "%u",
+                 (uint32_t)unit_idx);
+        nskey_name_len = strlen(nskey_name) + 1;
+
+	rc = c2_cob_nskey_make(&nskey, &fid, (char *)nskey_name,
+			       nskey_name_len); 
+	C2_UT_ASSERT(rc == 0);
 
 	C2_SET0(&tx);
 	rc = c2_db_tx_init(&tx, dbenv, 0);
@@ -813,75 +750,6 @@ static void cc_cob_create_test()
 }
 
 /*
- * Test function for cc_cobfid_map_add_test().
- */
-static void cc_cobfid_map_add_test()
-{
-	int                   rc;
-	struct c2_fom        *cfom;
-	struct c2_fom        *dfom;
-	struct c2_dbenv      *dbenv;
-	struct c2_fom_cob_op *cc;
-
-	cfom = cc_fom_alloc();
-	C2_UT_ASSERT(cfom != NULL);
-
-	cc = cob_fom_get(cfom);
-	rc = cc_stob_create(cfom, cc);
-	C2_UT_ASSERT(c2_fom_phase(cfom) != C2_FOPH_FAILURE);
-
-	/*
-	 * Set the FOM phase and set transaction context
-	 * Test-case 1: Test successful creation of COB
-	 */
-	dbenv = c2_fom_reqh(cfom)->rh_dbenv;
-	rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
-	C2_UT_ASSERT(rc == 0);
-	rc = cc_cob_create(cfom, cc);
-	C2_UT_ASSERT(rc == 0);
-
-	rc = cc_cobfid_map_add(cfom, cc);
-	C2_UT_ASSERT(rc == 0);
-	c2_db_tx_commit(&cfom->fo_tx.tx_dbtx);
-
-	/*
-	 * Test-case 1 - Verify COB creation
-	 */
-	rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
-	C2_UT_ASSERT(rc == 0);
-	cobfid_map_verify(cfom, true);
-	c2_db_tx_commit(&cfom->fo_tx.tx_dbtx);
-
-	/*
-	 * Test-case 2 - Try to create the same cobfid-mapping.
-	 * It should succeed.
-	 */
-	rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
-	C2_UT_ASSERT(rc == 0);
-
-	rc = cc_cobfid_map_add(cfom, cc);
-	C2_UT_ASSERT(rc == 0);
-	c2_db_tx_commit(&cfom->fo_tx.tx_dbtx);
-
-	/*
-	 * Now create delete fom. Use FOM functions to delete cob-data.
-	 */
-	dfom = cd_fom_alloc();
-	C2_UT_ASSERT(dfom != NULL);
-
-	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
-	C2_UT_ASSERT(rc == 0);
-	rc = cd_fom_tick(dfom);
-	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
-	C2_UT_ASSERT(c2_fom_phase(dfom) == C2_FOPH_SUCCESS);
-
-	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
-
-	cc_fom_dealloc(cfom);
-	cd_fom_dealloc(dfom);
-}
-
-/*
  * Test function for cc_fom_tick().
  */
 static void cc_fom_state_test(void)
@@ -911,7 +779,6 @@ static void cc_fom_state_test(void)
 	rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 	cob_verify(cfom, true);
-	cobfid_map_verify(cfom, true);
 	c2_db_tx_commit(&cfom->fo_tx.tx_dbtx);
 
 	/*
@@ -1147,76 +1014,6 @@ static void cd_cob_delete_test()
 	 */
 	rc = cd_stob_delete(dfom, cd);
 	C2_UT_ASSERT(rc == 0);
-	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
-	C2_UT_ASSERT(rc == 0);
-	rc = cd_cobfid_map_delete(dfom, cd);
-	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
-	C2_UT_ASSERT(rc == 0);
-
-	cd_fom_dealloc(dfom);
-	cob_testdata_cleanup(cfom);
-}
-
-/*
- * Test function for cd_cobfid_map_delete()
- */
-static void cd_cobfid_map_delete_test()
-{
-	int                   rc;
-	struct c2_fom        *cfom;
-	struct c2_fom        *dfom;
-	struct c2_dbenv      *dbenv;
-	struct c2_fom_cob_op *cd;
-
-	cfom = cob_testdata_create();
-
-	/* Test if COB-map got deleted */
-	dfom = cd_fom_alloc();
-	C2_UT_ASSERT(dfom != NULL);
-
-	cd = cob_fom_get(dfom);
-
-	/*
-	 * Test-case 1: Delete cob-fid mapping. The test should succeed.
-	 */
-	dbenv = c2_fom_reqh(cfom)->rh_dbenv;
-	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
-	C2_UT_ASSERT(rc == 0);
-	rc = cd_cobfid_map_delete(dfom, cd);
-	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
-
-	C2_UT_ASSERT(c2_fom_phase(dfom) == C2_FOPH_CD_COB_DEL);
-	C2_UT_ASSERT(rc == 0);
-
-	/*
-	 * Make sure that there are no records in the database.
-	 */
-	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
-	C2_UT_ASSERT(rc == 0);
-	cobfid_map_verify(dfom, false);
-	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
-
-	/*
-	 * Test-case 2: Delete mapping again. The test should fail.
-	 */
-	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
-	C2_UT_ASSERT(rc == 0);
-	rc = cd_cobfid_map_delete(dfom, cd);
-	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
-
-	C2_UT_ASSERT(rc != 0);
-
-	/*
-	 * Do the clean-up.
-	 */
-	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
-	C2_UT_ASSERT(rc == 0);
-	rc = cd_cob_delete(dfom, cd);
-	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
-	C2_UT_ASSERT(rc == 0);
-
-	rc = cd_stob_delete(dfom, cd);
-	C2_UT_ASSERT(rc == 0);
 
 	cd_fom_dealloc(dfom);
 	cob_testdata_cleanup(cfom);
@@ -1247,15 +1044,6 @@ static void cd_fom_state_test(void)
 
 	C2_UT_ASSERT(c2_fom_phase(dfom) == C2_FOPH_SUCCESS);
 	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
-
-	/*
-	 * Make sure that there are no records in the database.
-	 */
-	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
-	C2_UT_ASSERT(rc == 0);
-	cob_verify(dfom, false);
-	cobfid_map_verify(dfom, false);
-	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 
 	cd_fom_dealloc(dfom);
 	cob_testdata_cleanup(cfom);
@@ -1297,9 +1085,6 @@ static void cob_create_api_test(void)
 	/* Test cc_cob_create() */
 	cc_cob_create_test();
 
-	/* Test cc_cobfid_map_add() */
-	cc_cobfid_map_add_test();
-
 	/* Test for cc_fom_tick() */
 	cc_fom_state_test();
 
@@ -1327,9 +1112,6 @@ static void cob_delete_api_test(void)
 
 	/* Test cd_cob_delete() */
 	cd_cob_delete_test();
-
-	/* Test cd_cobfid_map_delete() */
-	cd_cobfid_map_delete_test();
 
 	/* Test for cd_fom_tick() */
 	cd_fom_state_test();

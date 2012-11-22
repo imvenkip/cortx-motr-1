@@ -669,7 +669,6 @@ static int c2t1fs_cob_fop_populate(struct c2t1fs_sb    *csb,
 				   const struct c2_fid *gob_fid,
 				   uint32_t unit_idx)
 {
-	struct c2_fop_cob_create       *cc;
 	struct c2_fop_cob_common       *common;
 	struct c2_pool_version_numbers *cli;
 	struct c2_pool_version_numbers  curr;
@@ -694,30 +693,6 @@ static int c2t1fs_cob_fop_populate(struct c2t1fs_sb    *csb,
 	common->c_cobfid.f_seq = cob_fid->f_container;
 	common->c_cobfid.f_oid = cob_fid->f_key;
 	common->c_unit_idx = unit_idx;
-
-	if (c2_is_cob_create_fop(fop)) {
-		cc = c2_fop_data(fop);
-		C2_ALLOC_ARR(cc->cc_cobname.cn_name, C2T1FS_COB_ID_STRLEN);
-		if (cc->cc_cobname.cn_name == NULL) {
-			C2_LOG(C2_ERROR, "Memory allocation failed for"
-					 " cob_name.");
-			C2_LEAVE("%d", -ENOMEM);
-			return -ENOMEM;
-		}
-
-		snprintf((char*)cc->cc_cobname.cn_name, C2T1FS_COB_ID_STRLEN,
-			 "%16lx:%16lx",
-			 (unsigned long)cob_fid->f_container,
-			 (unsigned long)cob_fid->f_key);
-
-		/*
-		 * 1 is added to string length so that standard string
-		 * library calls which depend on NULL char at end of string
-		 * don't fail.
-		 */
-		cc->cc_cobname.cn_count = strlen((char*)cc->cc_cobname.cn_name)
-					  + 1;
-	}
 
 	C2_LEAVE("%d", 0);
 	return 0;

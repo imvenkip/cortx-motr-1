@@ -1,7 +1,6 @@
 nobase_colibri_include_HEADERS += ioservice/io_foms.h \
                                   ioservice/io_fops.h \
                                   ioservice/io_fops_ff.h \
-                                  ioservice/cobfid_map.h \
                                   ioservice/io_service.h \
                                   ioservice/cob_foms.h \
                                   ioservice/io_device.h
@@ -9,7 +8,6 @@ nobase_colibri_include_HEADERS += ioservice/io_foms.h \
 colibri_libcolibri_la_SOURCES  += ioservice/io_foms.c \
                                   ioservice/io_fops.c \
                                   ioservice/io_service.c \
-                                  ioservice/cobfid_map.c \
                                   ioservice/io_fops_ff.c \
                                   ioservice/cob_foms.c \
                                   ioservice/io_device.c
