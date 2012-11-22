@@ -270,7 +270,7 @@ struct c2_fop_type c2_fop_readdir_rep_fopt;
 C2_INTERNAL int c2_mdservice_fop_init(void)
 {
         /*
-         * Provided by ff2c compiler after parsing io_fops_xc.ff
+         * Provided by ff2c compiler after parsing md_fops.ff
          */
         c2_xc_md_fops_init();
 

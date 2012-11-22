@@ -173,7 +173,6 @@ static int c2_md_create_tick(struct c2_fom *fom)
         struct c2_fop_create_rep *rep;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
-        struct c2_fop_ctx        *ctx;
         struct c2_fid             pfid;
         struct c2_fid             tfid;
         int                       rc;
@@ -197,9 +196,6 @@ static int c2_md_create_tick(struct c2_fom *fom)
         fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
-
-        ctx = fom->fo_fop_ctx;
-        C2_ASSERT(ctx != NULL);
 
         /**
          * Init some fop fields (full path) that require mdstore and other
@@ -247,7 +243,6 @@ static int c2_md_link_tick(struct c2_fom *fom)
         struct c2_fop_link_rep   *rep;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
-        struct c2_fop_ctx        *ctx;
         struct c2_fid             tfid;
         struct c2_fid             pfid;
         struct c2_cob_attr        attr;
@@ -272,9 +267,6 @@ static int c2_md_link_tick(struct c2_fom *fom)
         fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
-
-        ctx = fom->fo_fop_ctx;
-        C2_ASSERT(ctx != NULL);
 
         /**
          * Init some fop fields (full path) that require mdstore and other
@@ -313,7 +305,6 @@ static int c2_md_unlink_tick(struct c2_fom *fom)
         struct c2_fop_unlink_rep *rep;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
-        struct c2_fop_ctx        *ctx;
         struct c2_fid             tfid;
         struct c2_fid             pfid;
         struct c2_db_tx          *tx;
@@ -339,9 +330,6 @@ static int c2_md_unlink_tick(struct c2_fom *fom)
         fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
-
-        ctx = fom->fo_fop_ctx;
-        C2_ASSERT(ctx != NULL);
 
         md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
         tx = &fom->fo_tx.tx_dbtx;
@@ -428,7 +416,6 @@ static int c2_md_rename_tick(struct c2_fom *fom)
         struct c2_fop_rename_rep *rep;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
-        struct c2_fop_ctx        *ctx;
         struct c2_cob            *tcob = NULL;
         struct c2_cob            *scob = NULL;
         struct c2_fid             src_tfid;
@@ -458,9 +445,6 @@ static int c2_md_rename_tick(struct c2_fom *fom)
 
         fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
-
-        ctx = fom->fo_fop_ctx;
-        C2_ASSERT(ctx != NULL);
 
         tx = &fom->fo_tx.tx_dbtx;
         md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
@@ -531,7 +515,6 @@ static int c2_md_open_tick(struct c2_fom *fom)
         struct c2_fop_open_rep   *rep;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
-        struct c2_fop_ctx        *ctx;
         struct c2_fid             fid;
         struct c2_cob_attr        attr;
         int                       rc;
@@ -557,9 +540,6 @@ static int c2_md_open_tick(struct c2_fom *fom)
         fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
-
-        ctx = fom->fo_fop_ctx;
-        C2_ASSERT(ctx != NULL);
 
         /**
          * Init some fop fields (full path) that require mdstore and other
@@ -620,7 +600,6 @@ static int c2_md_close_tick(struct c2_fom *fom)
         struct c2_fop_close_rep  *rep;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
-        struct c2_fop_ctx        *ctx;
         struct c2_fid             fid;
         struct c2_cob_attr        attr;
         int                       rc;
@@ -646,9 +625,6 @@ static int c2_md_close_tick(struct c2_fom *fom)
         fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
-
-        ctx = fom->fo_fop_ctx;
-        C2_ASSERT(ctx != NULL);
 
         /**
          * Init some fop fields (full path) that require mdstore and other
@@ -708,7 +684,6 @@ static int c2_md_setattr_tick(struct c2_fom *fom)
         struct c2_fop_setattr_rep     *rep;
         struct c2_fop                 *fop;
         struct c2_fop                 *fop_rep;
-        struct c2_fop_ctx             *ctx;
         struct c2_fid                  fid;
         int                            rc;
 
@@ -731,9 +706,6 @@ static int c2_md_setattr_tick(struct c2_fom *fom)
         fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
-
-        ctx = fom->fo_fop_ctx;
-        C2_ASSERT(ctx != NULL);
 
         /**
          * Init some fop fields (full path) that require mdstore and other
@@ -784,7 +756,6 @@ static int c2_md_lookup_tick(struct c2_fom *fom)
         struct c2_fop_lookup_rep      *rep;
         struct c2_fop                 *fop;
         struct c2_fop                 *fop_rep;
-        struct c2_fop_ctx             *ctx;
         struct c2_fid                  pfid;
         int                            rc;
         struct c2_buf                  name;
@@ -817,9 +788,6 @@ static int c2_md_lookup_tick(struct c2_fom *fom)
         rc = c2_md_fop_init(fop, fom);
         if (rc != 0)
                 goto out;
-
-        ctx = fom->fo_fop_ctx;
-        C2_ASSERT(ctx != NULL);
 
         c2_md_fid_wire2mem(&pfid, &body->b_pfid);
 
@@ -871,7 +839,6 @@ static int c2_md_getattr_tick(struct c2_fom *fom)
         struct c2_fop_getattr_rep     *rep;
         struct c2_fop                 *fop;
         struct c2_fop                 *fop_rep;
-        struct c2_fop_ctx             *ctx;
         struct c2_fid                  fid;
         int                            rc;
 
@@ -903,9 +870,6 @@ static int c2_md_getattr_tick(struct c2_fom *fom)
         rc = c2_md_fop_init(fop, fom);
         if (rc != 0)
                 goto out;
-
-        ctx = fom->fo_fop_ctx;
-        C2_ASSERT(ctx != NULL);
 
         c2_md_fid_wire2mem(&fid, &body->b_tfid);
 
@@ -955,7 +919,6 @@ static int c2_md_statfs_tick(struct c2_fom *fom)
         struct c2_fop                 *fop;
         struct c2_fop                 *fop_rep;
         struct c2_statfs               statfs;
-        struct c2_fop_ctx             *ctx;
         int                            rc;
 
         C2_PRE(c2_fom_invariant(fom));
@@ -981,9 +944,6 @@ static int c2_md_statfs_tick(struct c2_fom *fom)
         rc = c2_md_fop_init(fop, fom);
         if (rc != 0)
                 goto out;
-
-        ctx = fom->fo_fop_ctx;
-        C2_ASSERT(ctx != NULL);
 
         c2_fom_block_enter(fom);
         rc = c2_mdstore_statfs(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
@@ -1011,7 +971,6 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
         struct c2_fop_readdir_rep     *rep;
         struct c2_fop                 *fop;
         struct c2_fop                 *fop_rep;
-        struct c2_fop_ctx             *ctx;
         struct c2_fid                  fid;
         struct c2_rdpg                 rdpg = { 0 };
         void                          *addr;
@@ -1036,9 +995,6 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
         fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
-
-        ctx = fom->fo_fop_ctx;
-        C2_ASSERT(ctx != NULL);
 
         /**
          * Init some fop fields (full path) that require mdstore and other

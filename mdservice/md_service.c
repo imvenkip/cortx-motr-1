@@ -137,8 +137,6 @@ static void mds_fini(struct c2_reqh_service *service)
 
 /**
  * Start MD Service.
- * - Mount local storage
- *
  * @param service pointer to service instance.
  *
  * @pre service != NULL
@@ -146,18 +144,12 @@ static void mds_fini(struct c2_reqh_service *service)
 static int mds_start(struct c2_reqh_service *service)
 {
         int rc = 0;
-
         C2_PRE(service != NULL);
-
-        /** TODO: Mount local storage */
-
         return rc;
 }
 
 /**
  * Stops MD Service.
- * - Umount local storage
- *
  * @param service pointer to service instance.
  *
  * @pre service != NULL
@@ -165,8 +157,6 @@ static int mds_start(struct c2_reqh_service *service)
 static void mds_stop(struct c2_reqh_service *service)
 {
         C2_PRE(service != NULL);
-
-        /** TODO: Umount local storage */
 }
 
 /** @} endgroup mdservice */

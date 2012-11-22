@@ -76,14 +76,10 @@ static void wait_locked()
 
 static void fom_fini(struct c2_local_service *service, struct c2_fom *fom)
 {
-        struct c2_fop_ctx *ctx = fom->fo_fop_ctx;
-
-        if (ctx->fc_cookie) {
-                struct c2_fop **ret = ctx->fc_cookie;
-                *ret = fom->fo_rep_fop;
-        }
         if (error == 0)
                 error = c2_fom_rc(fom);
+        c2_fop_free(fom->fo_fop);
+        c2_fop_free(fom->fo_rep_fop);
         signal_locked();
 }
 
