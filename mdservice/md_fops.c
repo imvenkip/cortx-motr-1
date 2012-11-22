@@ -251,6 +251,7 @@ struct c2_fop_type c2_fop_open_fopt;
 struct c2_fop_type c2_fop_close_fopt;
 struct c2_fop_type c2_fop_setattr_fopt;
 struct c2_fop_type c2_fop_getattr_fopt;
+struct c2_fop_type c2_fop_statfs_fopt;
 struct c2_fop_type c2_fop_rename_fopt;
 struct c2_fop_type c2_fop_readdir_fopt;
 
@@ -262,6 +263,7 @@ struct c2_fop_type c2_fop_open_rep_fopt;
 struct c2_fop_type c2_fop_close_rep_fopt;
 struct c2_fop_type c2_fop_setattr_rep_fopt;
 struct c2_fop_type c2_fop_getattr_rep_fopt;
+struct c2_fop_type c2_fop_statfs_rep_fopt;
 struct c2_fop_type c2_fop_rename_rep_fopt;
 struct c2_fop_type c2_fop_readdir_rep_fopt;
 
@@ -365,7 +367,19 @@ C2_INTERNAL int c2_mdservice_fop_init(void)
                 C2_FOP_TYPE_INIT(&c2_fop_getattr_fopt,
                                  .name      = "Getattr request",
                                  .opcode    = C2_MDSERVICE_GETATTR_OPCODE,
-                                 .xt        = c2_fop_setattr_xc,
+                                 .xt        = c2_fop_getattr_xc,
+                                 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
+                                 .fop_ops   = &c2_md_fop_ops,
+#ifndef __KERNEL__
+                                 .fom_ops   = &c2_md_fom_ops,
+                                 .svc_type  = &c2_mds_type,
+#endif
+                                 .sm        = &c2_generic_conf,
+                                 .rpc_ops   = &c2_rpc_fop_default_item_type_ops) ?:
+                C2_FOP_TYPE_INIT(&c2_fop_statfs_fopt,
+                                 .name      = "Statfs request",
+                                 .opcode    = C2_MDSERVICE_STATFS_OPCODE,
+                                 .xt        = c2_fop_statfs_xc,
                                  .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
                                  .fop_ops   = &c2_md_fop_ops,
 #ifndef __KERNEL__
@@ -447,6 +461,12 @@ C2_INTERNAL int c2_mdservice_fop_init(void)
                                  .xt        = c2_fop_getattr_rep_xc,
                                  .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
                                  .rpc_ops   = &c2_rpc_fop_default_item_type_ops) ?:
+                C2_FOP_TYPE_INIT(&c2_fop_statfs_rep_fopt,
+                                 .name      = "Statfs reply",
+                                 .opcode    = C2_MDSERVICE_STATFS_REP_OPCODE,
+                                 .xt        = c2_fop_statfs_rep_xc,
+                                 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
+                                 .rpc_ops   = &c2_rpc_fop_default_item_type_ops) ?:
                 C2_FOP_TYPE_INIT(&c2_fop_rename_rep_fopt,
                                  .name      = "Rename reply",
                                  .opcode    = C2_MDSERVICE_RENAME_REP_OPCODE,
@@ -474,6 +494,7 @@ C2_INTERNAL void c2_mdservice_fop_fini(void)
         c2_fop_type_fini(&c2_fop_close_fopt);
         c2_fop_type_fini(&c2_fop_setattr_fopt);
         c2_fop_type_fini(&c2_fop_getattr_fopt);
+        c2_fop_type_fini(&c2_fop_statfs_fopt);
         c2_fop_type_fini(&c2_fop_create_rep_fopt);
         c2_fop_type_fini(&c2_fop_lookup_rep_fopt);
         c2_fop_type_fini(&c2_fop_link_rep_fopt);
@@ -484,6 +505,7 @@ C2_INTERNAL void c2_mdservice_fop_fini(void)
         c2_fop_type_fini(&c2_fop_close_rep_fopt);
         c2_fop_type_fini(&c2_fop_setattr_rep_fopt);
         c2_fop_type_fini(&c2_fop_getattr_rep_fopt);
+        c2_fop_type_fini(&c2_fop_statfs_rep_fopt);
         c2_xc_md_fops_fini();
 }
 C2_EXPORTED(c2_mdservice_fop_fini);

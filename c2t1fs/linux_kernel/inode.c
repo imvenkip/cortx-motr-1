@@ -50,10 +50,8 @@ C2_BOB_DEFINE(C2_INTERNAL, &c2t1fs_inode_bob, c2t1fs_inode);
 
 C2_INTERNAL bool c2t1fs_inode_is_root(const struct inode *inode)
 {
-	struct c2t1fs_inode *ci;
-
-	ci = C2T1FS_I(inode);
-	return c2_fid_eq(&ci->ci_fid, &c2t1fs_root_fid);
+	struct c2t1fs_inode *ci = C2T1FS_I(inode);
+	return c2_fid_eq(&ci->ci_fid, &C2T1FS_SB(inode->i_sb)->csb_root_fid);
 }
 
 static void init_once(void *foo)
@@ -164,7 +162,8 @@ C2_INTERNAL void c2t1fs_destroy_inode(struct inode *inode)
 	C2_LEAVE();
 }
 
-C2_INTERNAL struct inode *c2t1fs_root_iget(struct super_block *sb)
+C2_INTERNAL struct inode *c2t1fs_root_iget(struct super_block *sb,
+                                           struct c2_fid *root_fid)
 {
         struct c2_fop_getattr_rep *rep = NULL;
 	struct c2t1fs_mdop mo;
@@ -174,21 +173,17 @@ C2_INTERNAL struct inode *c2t1fs_root_iget(struct super_block *sb)
 	C2_ENTRY("sb: %p", sb);
 
         C2_SET0(&mo);
-        mo.mo_attr.ca_tfid = c2t1fs_root_fid;
+        mo.mo_attr.ca_tfid = *root_fid;
+        C2T1FS_SB(sb)->csb_root_fid = *root_fid;
+        C2T1FS_SB(sb)->csb_next_key = root_fid->f_key + 1;
+
 	rc = c2t1fs_mds_cob_getattr(C2T1FS_SB(sb), &mo, &rep);
 	if (rc != 0) {
 	        C2_LOG(C2_FATAL, "c2t1fs_mds_cob_getattr() failed with %d", rc);
 	        return ERR_PTR(rc);
 	}
 
-	/*
-	 * Currently it is assumed, that fid of root of file-system is
-	 * well-known. But this can change when configuration modules are
-	 * implemented. And we might need to get fid of root directory from
-	 * configuration module. c2t1fs_root_iget() hides these details from
-	 * mount code path.
-	 */
-	inode = c2t1fs_iget(sb, &c2t1fs_root_fid, &rep->g_body);
+	inode = c2t1fs_iget(sb, root_fid, &rep->g_body);
 
 	C2_LEAVE("root_inode: %p", inode);
 	return inode;

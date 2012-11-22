@@ -410,7 +410,6 @@ C2_INTERNAL void c2t1fs_fini(void);
 
 enum {
 	MAX_NR_EP_PER_SERVICE_TYPE      = 10,
-	C2T1FS_MAX_NAME_LEN             = 256,
 	C2T1FS_RPC_TIMEOUT              = 10, /* seconds */
 	C2T1FS_NR_SLOTS_PER_SESSION     = 10,
 	C2T1FS_MAX_NR_RPC_IN_FLIGHT     = 100,
@@ -581,6 +580,11 @@ struct c2t1fs_sb {
 
 	/** File layout ID */
 	uint64_t                      csb_layout_id;
+
+        /** Root fid, retrieved from mdservice in mount time. */
+        struct c2_fid                 csb_root_fid;
+        /** Maximal allowed namelen (retrived from mdservice) */
+        int                           csb_namelen;
 };
 
 struct c2t1fs_filedata {
@@ -632,11 +636,6 @@ extern const struct inode_operations c2t1fs_reg_inode_operations;
 
 /* super.c */
 
-/**
-   For now, fid of root directory is assumed to be a constant.
- */
-extern const struct c2_fid c2t1fs_root_fid;
-
 C2_INTERNAL bool c2t1fs_inode_is_root(const struct inode *inode);
 
 C2_INTERNAL int c2t1fs_get_sb(struct file_system_type *fstype,
@@ -665,7 +664,8 @@ c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
 C2_INTERNAL int c2t1fs_inode_cache_init(void);
 C2_INTERNAL void c2t1fs_inode_cache_fini(void);
 
-C2_INTERNAL struct inode *c2t1fs_root_iget(struct super_block *sb);
+C2_INTERNAL struct inode *c2t1fs_root_iget(struct super_block *sb,
+                                           struct c2_fid *root_fid);
 C2_INTERNAL struct inode *c2t1fs_iget(struct super_block *sb,
 				      const struct c2_fid *fid,
                           	      struct c2_fop_cob *body);
@@ -712,6 +712,9 @@ int c2t1fs_mds_cob_lookup(struct c2t1fs_sb          *csb,
 int c2t1fs_mds_cob_getattr(struct c2t1fs_sb           *csb,
                            struct c2t1fs_mdop         *mo,
                            struct c2_fop_getattr_rep **rep);
+
+int c2t1fs_mds_statfs(struct c2t1fs_sb                *csb,
+                      struct c2_fop_statfs_rep       **rep);
 
 int c2t1fs_mds_cob_setattr(struct c2t1fs_sb           *csb,
                            struct c2t1fs_mdop         *mo,

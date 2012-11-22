@@ -170,6 +170,23 @@ record {
         c2_fop_buf r_buf
 } c2_fop_readdir_rep;
 
+record {
+        u64        f_flags
+} c2_fop_statfs;
+
+record {
+        u32        f_rc;
+        u64        f_type;
+        u32        f_bsize;
+        u64        f_blocks;
+        u64        f_bfree;
+        u64        f_bavail;
+        u64        f_files;
+        u64        f_ffree;
+        u32        f_namelen;
+        c2_fop_fid f_root
+} c2_fop_statfs_rep;
+
 /** @} end of fop group */
 
 /*

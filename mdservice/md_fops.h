@@ -31,6 +31,7 @@ extern struct c2_fop_type c2_fop_open_fopt;
 extern struct c2_fop_type c2_fop_close_fopt;
 extern struct c2_fop_type c2_fop_setattr_fopt;
 extern struct c2_fop_type c2_fop_getattr_fopt;
+extern struct c2_fop_type c2_fop_statfs_fopt;
 extern struct c2_fop_type c2_fop_rename_fopt;
 extern struct c2_fop_type c2_fop_readdir_fopt;
 
@@ -42,6 +43,7 @@ extern struct c2_fop_type c2_fop_open_rep_fopt;
 extern struct c2_fop_type c2_fop_close_rep_fopt;
 extern struct c2_fop_type c2_fop_setattr_rep_fopt;
 extern struct c2_fop_type c2_fop_getattr_rep_fopt;
+extern struct c2_fop_type c2_fop_statfs_rep_fopt;
 extern struct c2_fop_type c2_fop_rename_rep_fopt;
 extern struct c2_fop_type c2_fop_readdir_rep_fopt;
 

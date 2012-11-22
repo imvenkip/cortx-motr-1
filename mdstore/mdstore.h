@@ -33,6 +33,21 @@ struct c2_fid;
 struct c2_fop;
 struct c2_cob;
 
+/** Maximal name len during readdir */
+#define C2_MD_MAX_NAME_LEN    256
+
+struct c2_statfs {
+        uint64_t              sf_type;
+        uint32_t              sf_bsize;
+        uint64_t              sf_blocks;
+        uint64_t              sf_bfree;
+        uint64_t              sf_bavail;
+        uint64_t              sf_files;
+        uint64_t              sf_ffree;
+        uint32_t              sf_namelen;
+        struct c2_fid         sf_root;
+};
+
 struct c2_mdstore {
         struct c2_cob_domain  md_dom;
         struct c2_cob        *md_root;
@@ -59,12 +74,20 @@ enum c2_mdstore_locate_flags {
 typedef enum c2_mdstore_locate_flags c2_mdstore_locate_flags_t;
 
 /**
+ * Populate @statfs with storage data such as free files, etc.
+ */
+C2_INTERNAL int c2_mdstore_statfs(struct c2_mdstore      *md,
+                                  struct c2_statfs       *statfs,
+                                  struct c2_db_tx        *tx);
+
+/**
  * Init mdstore and get it ready to work. If init_root == !0
  * then root cob is initialized.
-*/
-C2_INTERNAL int c2_mdstore_init(struct c2_mdstore *md,
+ */
+C2_INTERNAL int c2_mdstore_init(struct c2_mdstore       *md,
 				struct c2_cob_domain_id *id,
-				struct c2_dbenv *db, bool init_root);
+				struct c2_dbenv         *db,
+				bool                     init_root);
 
 /**
  * Finalize mdstore instance.

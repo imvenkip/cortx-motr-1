@@ -36,6 +36,7 @@
 #include "fop/fop.h"
 #include "cob/cob.h"
 #include "mdstore/mdstore.h"
+#include "colibri/magic.h"
 
 static const struct c2_addb_ctx_type mdstore_addb_ctx = {
         .act_name = "mdstore"
@@ -44,6 +45,34 @@ static const struct c2_addb_ctx_type mdstore_addb_ctx = {
 static const struct c2_addb_loc mdstore_addb_loc = {
         .al_name = "mdstore"
 };
+
+/** Let's show client that we have 1G storage. */
+#define C2_MD_FAKE_BLOCKSIZE 4096
+#define C2_MD_FAKE_VOLUME    250000
+
+C2_INTERNAL int c2_mdstore_statfs(struct c2_mdstore        *md,
+                                  struct c2_statfs         *statfs,
+                                  struct c2_db_tx          *tx)
+{
+        /**
+           We need statfs mostly to provide mdstore root fid to
+           c2t1fs at this point. It is not yet clear what else
+           info should be returned where it can be retrieved from.
+           Hence return zeros so far.
+         */
+        C2_SET0(statfs);
+        statfs->sf_type = C2_T1FS_SUPER_MAGIC;
+        statfs->sf_bsize = C2_MD_FAKE_BLOCKSIZE;
+        statfs->sf_blocks = C2_MD_FAKE_VOLUME;
+        statfs->sf_bfree = C2_MD_FAKE_VOLUME;
+        statfs->sf_bavail = C2_MD_FAKE_VOLUME;
+        statfs->sf_files = 1024000;
+        statfs->sf_ffree = 1024000;
+        statfs->sf_namelen = C2_MD_MAX_NAME_LEN;
+        if (md->md_root)
+                statfs->sf_root = *md->md_root->co_fid;
+        return 0;
+}
 
 C2_INTERNAL int c2_mdstore_init(struct c2_mdstore          *md,
                                 struct c2_cob_domain_id    *id,

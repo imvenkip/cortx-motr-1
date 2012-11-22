@@ -21,15 +21,16 @@
 #include <linux/mount.h>
 #include <linux/parser.h>     /* substring_t                    */
 #include <linux/slab.h>       /* kmalloc(), kfree()             */
+#include <linux/statfs.h>     /* kstatfs */
 
 #include "lib/misc.h"         /* C2_SET0()                      */
 #include "lib/memory.h"       /* C2_ALLOC_PTR(), c2_free()      */
-#include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"        /* C2_LOG and C2_ENTRY            */
 #include "layout/linear_enum.h"
 #include "layout/pdclust.h"
 #include "colibri/magic.h"
+#include "c2t1fs/linux_kernel/c2t1fs.h"
 
 static int c2t1fs_sb_layout_init(struct c2t1fs_sb *csb);
 
@@ -51,6 +52,7 @@ static void c2t1fs_sb_layout_fini(struct c2t1fs_sb *csb);
 static int  c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
 static int  c2t1fs_sb_init(struct c2t1fs_sb *csb);
 static void c2t1fs_sb_fini(struct c2t1fs_sb *csb);
+static int c2t1fs_statfs(struct dentry *dentry, struct kstatfs *buf);
 
 C2_INTERNAL void io_bob_tlists_init(void);
 extern const struct c2_addb_ctx_type c2t1fs_addb_type;
@@ -98,14 +100,10 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb);
 /* global instances */
 
 static const struct super_operations c2t1fs_super_operations = {
+        .statfs        = c2t1fs_statfs,
 	.alloc_inode   = c2t1fs_alloc_inode,
 	.destroy_inode = c2t1fs_destroy_inode,
 	.drop_inode    = generic_delete_inode /* provided by linux kernel */
-};
-
-const struct c2_fid c2t1fs_root_fid = {
-	.f_container = 1ULL,
-	.f_key = 3ULL
 };
 
 /* Default timeout for waiting on sm_group:c2_clink if ast thread is idle. */
@@ -154,12 +152,38 @@ C2_INTERNAL void ast_thread(struct c2t1fs_sb *csb)
 
 extern struct io_mem_stats iommstats;
 
+static int c2t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
+{
+        struct c2_fop_statfs_rep *rep = NULL;
+        struct super_block *sb = dentry->d_sb;
+        struct c2t1fs_sb   *csb = C2T1FS_SB(sb);
+        int                 rc;
+
+        c2t1fs_fs_lock(csb);
+        rc = c2t1fs_mds_statfs(csb, &rep);
+        if (rc != 0) {
+                c2t1fs_fs_unlock(csb);
+                return rc;
+        }
+        buf->f_type = rep->f_type;
+        buf->f_bsize = rep->f_bsize;
+        buf->f_blocks = rep->f_blocks;
+        buf->f_bfree = buf->f_bavail = rep->f_bfree;
+        buf->f_files = rep->f_files;
+        buf->f_ffree = rep->f_ffree;
+        buf->f_namelen = rep->f_namelen;
+        c2t1fs_fs_unlock(csb);
+        return 0;
+}
+
 static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 {
-	struct c2t1fs_mnt_opts *mntopts;
-	struct c2t1fs_sb       *csb;
-	struct inode           *root_inode;
-	int                     rc;
+        struct c2_fop_statfs_rep *rep = NULL;
+	struct c2t1fs_mnt_opts   *mntopts;
+	struct c2t1fs_sb         *csb;
+	struct c2_fid             root_fid;
+	struct inode             *root_inode;
+	int                       rc;
 
 	C2_ENTRY();
 
@@ -214,11 +238,22 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_fs_info        = csb;
 	sb->s_blocksize      = PAGE_CACHE_SIZE;
 	sb->s_blocksize_bits = PAGE_CACHE_SHIFT;
-	sb->s_magic          = C2_T1FS_SUPER_MAGIC;
 	sb->s_maxbytes       = MAX_LFS_FILESIZE;
 	sb->s_op             = &c2t1fs_super_operations;
 
-	root_inode = c2t1fs_root_iget(sb);
+        rc = c2t1fs_mds_statfs(csb, &rep);
+        if (rc != 0)
+		goto out_map_fini;
+
+	sb->s_magic = rep->f_type;
+        csb->csb_namelen = rep->f_namelen;
+
+        c2_fid_set(&root_fid, rep->f_root.f_seq, rep->f_root.f_oid);
+
+        C2_LOG(C2_FATAL, "Got mdservice root fid [%llx:%llx]",
+               root_fid.f_container, root_fid.f_key);
+
+	root_inode = c2t1fs_root_iget(sb, &root_fid);
 	if (IS_ERR(root_inode)) {
 	        rc = PTR_ERR(root_inode);
 	        C2_LOG(C2_FATAL, "c2t1fs_root_iget() failed with %d", rc);
@@ -456,7 +491,6 @@ static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 	c2_mutex_init(&csb->csb_mutex);
 	c2t1fs_mnt_opts_init(&csb->csb_mnt_opts);
 	svc_ctx_tlist_init(&csb->csb_service_contexts);
-	csb->csb_next_key = c2t1fs_root_fid.f_key + 1;
         c2_sm_group_init(&csb->csb_iogroup);
         c2_addb_ctx_init(&c2t1fs_addb, &c2t1fs_addb_type, &c2_addb_global_ctx);
 	csb->csb_active = true;

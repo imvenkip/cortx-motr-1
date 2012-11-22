@@ -223,7 +223,7 @@ static int c2t1fs_create(struct inode     *dir,
         mo.mo_attr.ca_mtime     = inode->i_mtime.tv_sec;
         mo.mo_attr.ca_blocks    = inode->i_blocks;
         mo.mo_attr.ca_mode      = inode->i_mode;
-        mo.mo_attr.ca_pfid      = c2t1fs_root_fid;
+        mo.mo_attr.ca_pfid      = csb->csb_root_fid;
         mo.mo_attr.ca_tfid      = ci->ci_fid;
         mo.mo_attr.ca_nlink     = inode->i_nlink;
         mo.mo_attr.ca_flags     = (C2_COB_UID | C2_COB_GID | C2_COB_ATIME |
@@ -268,20 +268,19 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 	C2_ENTRY();
 
 	ci = C2T1FS_I(dir);
+	csb = C2T1FS_SB(dir->i_sb);
 
-	if (dentry->d_name.len > C2T1FS_MAX_NAME_LEN) {
+	if (dentry->d_name.len > csb->csb_namelen) {
 		C2_LEAVE("ERR_PTR: %p", ERR_PTR(-ENAMETOOLONG));
 		return ERR_PTR(-ENAMETOOLONG);
 	}
 
 	C2_LOG(C2_DEBUG, "Name: \"%s\"", dentry->d_name.name);
 
-	csb = C2T1FS_SB(dir->i_sb);
-
 	c2t1fs_fs_lock(csb);
 
         C2_SET0(&mo);
-        mo.mo_attr.ca_pfid = c2t1fs_root_fid;
+        mo.mo_attr.ca_pfid = csb->csb_root_fid;
         c2_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name,
                     dentry->d_name.len);
 
@@ -313,8 +312,6 @@ struct c2_dirent *dirent_first(struct c2_fop_readdir_rep *rep)
         return ent->d_namelen > 0 ? ent : NULL;
 }
 
-#define C2T1FS_MAX_NAME_LEN 256
-
 static int c2t1fs_opendir(struct inode *inode, struct file *file)
 {
         struct c2t1fs_filedata *fd = c2_alloc(sizeof(*fd));
@@ -322,8 +319,8 @@ static int c2t1fs_opendir(struct inode *inode, struct file *file)
                 return -ENOMEM;
         file->private_data = fd;
 
-        /** Prepare initial readdir position. */
-        fd->fd_dirpos = c2_alloc(C2T1FS_MAX_NAME_LEN);
+        /** Setup readdir initial pos with "." and max possible namelen. */
+        fd->fd_dirpos = c2_alloc(C2T1FS_SB(inode->i_sb)->csb_namelen);
         if (fd->fd_dirpos == NULL) {
                 c2_free(fd);
                 return -ENOMEM;
@@ -470,9 +467,11 @@ static int c2t1fs_link(struct dentry *old, struct inode *dir,
 	ci    = C2T1FS_I(inode);
 	csb   = C2T1FS_SB(inode->i_sb);
 
+	c2t1fs_fs_lock(csb);
+
         C2_SET0(&mo);
         now = CURRENT_TIME_SEC;
-        mo.mo_attr.ca_pfid = c2t1fs_root_fid;
+        mo.mo_attr.ca_pfid = csb->csb_root_fid;
         mo.mo_attr.ca_tfid  = ci->ci_fid;
         mo.mo_attr.ca_nlink = inode->i_nlink + 1;
         mo.mo_attr.ca_ctime = now.tv_sec;
@@ -518,8 +517,8 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	c2t1fs_fs_lock(csb);
 
         C2_SET0(&mo);
-        mo.mo_attr.ca_pfid = c2t1fs_root_fid;
-        mo.mo_attr.ca_tfid  = ci->ci_fid;
+        mo.mo_attr.ca_pfid = csb->csb_root_fid;
+        mo.mo_attr.ca_tfid = ci->ci_fid;
         c2_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name, dentry->d_name.len);
 
 	rc = c2t1fs_mds_cob_lookup(csb, &mo, &lookup_rep);
@@ -759,6 +758,7 @@ static int c2t1fs_mds_cob_fop_populate(struct c2t1fs_mdop     *mo,
         struct c2_fop_link      *link;
         struct c2_fop_lookup    *lookup;
         struct c2_fop_getattr   *getattr;
+        struct c2_fop_statfs    *statfs;
         struct c2_fop_setattr   *setattr;
         struct c2_fop_readdir   *readdir;
         struct c2_fop_cob       *req;
@@ -790,6 +790,10 @@ static int c2t1fs_mds_cob_fop_populate(struct c2t1fs_mdop     *mo,
                 fid_mem2wire(&req->b_tfid, &mo->mo_attr.ca_tfid);
                 fid_mem2wire(&req->b_pfid, &mo->mo_attr.ca_pfid);
                 name_mem2wire(&unlink->u_name, &mo->mo_attr.ca_name);
+                break;
+        case C2_MDSERVICE_STATFS_OPCODE:
+                statfs = c2_fop_data(fop);
+                statfs->f_flags = 0;
                 break;
         case C2_MDSERVICE_LOOKUP_OPCODE:
                 lookup = c2_fop_data(fop);
@@ -840,12 +844,12 @@ static int c2t1fs_mds_cob_op(struct c2t1fs_sb      *csb,
         struct c2_fop_link_rep      *link_rep;
         struct c2_fop_setattr_rep   *setattr_rep;
         struct c2_fop_getattr_rep   *getattr_rep;
+        struct c2_fop_statfs_rep    *statfs_rep;
         struct c2_fop_lookup_rep    *lookup_rep;
         struct c2_fop_open_rep      *open_rep;
         struct c2_fop_close_rep     *close_rep;
         struct c2_fop_readdir_rep   *readdir_rep;
 
-        C2_PRE(mo != NULL);
         C2_PRE(ftype != NULL);
 
         C2_ENTRY();
@@ -899,6 +903,11 @@ static int c2t1fs_mds_cob_op(struct c2t1fs_sb      *csb,
                 create_rep = c2_fop_data(c2_rpc_item_to_fop(fop->f_item.ri_reply));
                 rc = create_rep->c_body.b_rc;
                 *rep = create_rep;
+                break;
+        case C2_MDSERVICE_STATFS_OPCODE:
+                statfs_rep = c2_fop_data(c2_rpc_item_to_fop(fop->f_item.ri_reply));
+                rc = statfs_rep->f_rc;
+                *rep = statfs_rep;
                 break;
         case C2_MDSERVICE_LOOKUP_OPCODE:
                 lookup_rep = c2_fop_data(c2_rpc_item_to_fop(fop->f_item.ri_reply));
@@ -958,6 +967,12 @@ static int c2t1fs_mds_cob_op(struct c2t1fs_sb      *csb,
 out:
         C2_LEAVE("%d", rc);
         return rc;
+}
+
+int c2t1fs_mds_statfs(struct c2t1fs_sb              *csb,
+                      struct c2_fop_statfs_rep     **rep)
+{
+        return c2t1fs_mds_cob_op(csb, NULL, &c2_fop_statfs_fopt, (void **)rep);
 }
 
 int c2t1fs_mds_cob_create(struct c2t1fs_sb          *csb,
