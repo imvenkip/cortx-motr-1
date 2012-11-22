@@ -35,6 +35,7 @@
 #include "rpc/rpc.h"
 #include "fop/fop_item_type.h"
 #include "rpc/item.h"
+#include "rpc/rpc_internal.h"
 #include "fop/fom_generic_ff.h"
 #include "io_fop_ff.h"
 #include "io_fop.h"
@@ -156,6 +157,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 			struct c2_stob **reqh_addb_stob,
 			struct c2_stob_id *rh_addb_stob_id)
 {
+        struct c2_db_tx            tx;
         int                        rc;
 	struct c2_rpc_machine     *rpc_machine = &srv_rpc_mach;
 	uint32_t		   bufs_nr;
@@ -213,8 +215,23 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
 					  *reqh_addb_stob, NULL);
 
-        /* Init the mdstore */
+        /* Init mdstore without reading root cob. */
         rc = c2_mdstore_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 0);
+        C2_UT_ASSERT(rc == 0);
+
+        rc = c2_db_tx_init(&tx, &srv_db, 0);
+        C2_UT_ASSERT(rc == 0);
+
+        /* Create root session cob and other structures */
+        rc = c2_rpc_root_session_cob_create(&srv_mdstore.md_dom, &tx);
+        C2_UT_ASSERT(rc == 0);
+
+        /* Comit and finalize old mdstore. */
+        c2_db_tx_commit(&tx);
+        c2_mdstore_fini(&srv_mdstore);
+
+        /* Init new mdstore with open root flag. */
+        rc = c2_mdstore_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 1);
         C2_UT_ASSERT(rc == 0);
 
 	/* Initialising request handler */
