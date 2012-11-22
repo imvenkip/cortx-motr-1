@@ -276,6 +276,7 @@ C2_INTERNAL int c2t1fs_inode_update(struct inode *inode,
 static int c2t1fs_inode_read(struct inode *inode,
                              struct c2_fop_cob *body)
 {
+        struct c2t1fs_inode *ci = C2T1FS_I(inode);
 	int rc = 0;
 
 	C2_ENTRY();
@@ -298,7 +299,10 @@ static int c2t1fs_inode_read(struct inode *inode,
 	} else {
 		rc = -ENOSYS;
 	}
-	
+        if (!c2t1fs_inode_is_root(inode)) {
+                ci->ci_layout_id = (C2T1FS_SB(inode->i_sb))->csb_layout_id;
+                rc = c2t1fs_inode_layout_init(ci);
+        }
 out:
 	C2_LEAVE("rc: %d", rc);
 	return rc;
