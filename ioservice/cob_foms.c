@@ -18,15 +18,12 @@
  * Original creation date: 02/07/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_COB
 #include <sys/stat.h>    /* S_ISDIR */
-
 #include "lib/errno.h"
 #include "lib/memory.h"             /* c2_free(), C2_ALLOC_PTR() */
 #include "lib/misc.h"               /* C2_SET0() */
+#include "lib/trace.h"
 #include "fid/fid.h"                /* c2_fid */
 #include "fop/fom_generic.h"        /* c2_fom_tick_generic() */
 #include "ioservice/io_foms.h"      /* io_fom_cob_rw_fid2stob_map */
@@ -224,22 +221,28 @@ static int cc_fom_tick(struct c2_fom *fom)
 		goto out;
 	}
 
+        C2_LOG(C2_DEBUG, "Cob operation started");
 	if (c2_fom_phase(fom) == C2_FOPH_CC_COB_CREATE) {
 		cc = cob_fom_get(fom);
 
 		rc = cc_stob_create(fom, cc);
-		if (rc != 0)
+		if (rc != 0) {
+                        C2_LOG(C2_DEBUG, "Stob create failed with %d", rc);
 			goto out;
+		}
 
 		rc = cc_cob_create(fom, cc);
-		if (rc != 0)
+		if (rc != 0) {
+                        C2_LOG(C2_DEBUG, "Cob create failed with %d", rc);
 			goto out;
+	        }
 
 		rc = cc_cobfid_map_add(fom, cc);
 	} else
 		C2_IMPOSSIBLE("Invalid phase for cob create fom.");
 
 out:
+        C2_LOG(C2_DEBUG, "Cob operation finished with %d", rc);
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
 
@@ -274,11 +277,12 @@ static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	}
 
 	rc = c2_stob_create_helper(sdom, &fom->fo_tx, &cc->fco_stobid, &stob);
-	if (rc != 0)
+	if (rc != 0) {
+	        C2_LOG(C2_DEBUG, "c2_stob_create_helper() failed with %d", rc);
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail,
 			    "Stob creation failed in cc_stob_create().", rc);
-	else {
+	} else {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_trace, "Stob created successfully.");
 		c2_stob_put(stob);
@@ -309,6 +313,9 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
         rc = c2_cob_alloc(cdom, &cob);
         if (rc)
                 return rc;
+        C2_LOG(C2_DEBUG, "Creating cob [%lx:%lx]/%*s",
+               cc->fco_cfid.f_container, cc->fco_cfid.f_key,
+               fop->cc_cobname.cn_count, (char *)fop->cc_cobname.cn_name);
 	rc = c2_cob_nskey_make(&nskey, &cc->fco_cfid,
 			       (char *)fop->cc_cobname.cn_name,
 			       fop->cc_cobname.cn_count);
@@ -577,6 +584,7 @@ static int cd_cobfid_map_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 
 	return rc;
 }
+#undef C2_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

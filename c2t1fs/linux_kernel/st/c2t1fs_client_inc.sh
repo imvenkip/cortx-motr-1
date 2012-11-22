@@ -18,7 +18,7 @@ mount_c2t1fs()
 	fi
 
 	echo "Mounting file system..."
-	cmd="mount -t c2t1fs -o $SERVICES,$STRIPE,unit_size=$stride_size none $c2t1fs_mount_dir"
+	cmd="mount -t c2t1fs -o $SERVICES,$STRIPE,unit_size=$stride_size c2t1fs $c2t1fs_mount_dir"
 	echo $cmd
 	if ! $cmd
 	then
@@ -281,6 +281,7 @@ file_creation_test()
 		echo "Failed." >> $COLIBRI_TEST_LOGFILE
 		return 1
 	fi
+	return 1
 }
 
 rmw_test()

@@ -204,7 +204,6 @@ static int c2t1fs_create(struct inode     *dir,
 
 	ci               = C2T1FS_I(inode);
 	ci->ci_fid       = c2t1fs_fid_alloc(csb);
-
 	ci->ci_layout_id = csb->csb_layout_id;
 
 	insert_inode_hash(inode);
@@ -738,10 +737,10 @@ static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 		cob_fid = c2t1fs_ios_cob_fid(ci, i);
 		rc      = func(csb, &cob_fid, &ci->ci_fid);
 		if (rc != 0) {
-			C2_LOG(C2_ERROR, "Failed: cob %s : [%lu:%lu]",
+			C2_LOG(C2_ERROR, "Cob %s [%lu:%lu] failed with %d",
 				func == c2t1fs_ios_cob_create ? "create" : "delete",
 				(unsigned long)cob_fid.f_container,
-				(unsigned long)cob_fid.f_key);
+				(unsigned long)cob_fid.f_key, rc);
 			goto out;
 		}
 	}
@@ -874,13 +873,13 @@ static int c2t1fs_mds_cob_op(struct c2t1fs_sb      *csb,
         fop = c2_fop_alloc(ftype, NULL);
         if (fop == NULL) {
                 rc = -ENOMEM;
-                C2_LOG(C2_FATAL, "c2_fop_alloc() failed with %d", rc);
+                C2_LOG(C2_ERROR, "c2_fop_alloc() failed with %d", rc);
                 goto out;
         }
 
         rc = c2t1fs_mds_cob_fop_populate(mo, fop);
         if (rc != 0) {
-                C2_LOG(C2_FATAL,
+                C2_LOG(C2_ERROR,
                        "c2t1fs_mds_cob_fop_populate() failed with %d", rc);
                 c2_fop_free(fop);
                 goto out;
@@ -893,7 +892,7 @@ static int c2t1fs_mds_cob_op(struct c2t1fs_sb      *csb,
                                 0 /* deadline */, C2T1FS_RPC_TIMEOUT);
 
         if (rc != 0) {
-                C2_LOG(C2_FATAL,
+                C2_LOG(C2_ERROR,
                        "c2_rpc_client_call(%x) failed with %d", c2_fop_opcode(fop), rc);
                 goto out;
         }
@@ -955,7 +954,7 @@ static int c2t1fs_mds_cob_op(struct c2t1fs_sb      *csb,
                 *rep = readdir_rep;
                 break;
         default:
-                C2_LOG(C2_FATAL, "Unexpected fop opcode %x", c2_fop_opcode(fop));
+                C2_LOG(C2_ERROR, "Unexpected fop opcode %x", c2_fop_opcode(fop));
                 rc = -ENOSYS;
                 goto out;
         }
@@ -1062,8 +1061,8 @@ static int c2t1fs_ios_cob_op(struct c2t1fs_sb    *csb,
 	fop = c2_fop_alloc(ftype, NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;
-		C2_LOG(C2_ERROR, "Memory allocation for struct"
-				 " c2_fop_cob_create failed");
+		C2_LOG(C2_ERROR, "Memory allocation for struct "
+		       "c2_fop_cob_create failed");
 		goto out;
 	}
 
@@ -1118,6 +1117,7 @@ static int c2t1fs_ios_cob_op(struct c2t1fs_sb    *csb,
 	} else
 		rc = reply->cor_rc;
 
+        C2_LOG(C2_DEBUG, "Finished ioservice op with %d", rc);
 	/*
 	 * Fop is deallocated by rpc layer using
 	 * cob_req_rpc_item_ops->rio_free() rpc item ops.
@@ -1172,14 +1172,7 @@ static int c2t1fs_ios_cob_fop_populate(struct c2t1fs_sb    *csb,
 			 "%16lx:%16lx",
 			 (unsigned long)cob_fid->f_container,
 			 (unsigned long)cob_fid->f_key);
-
-		/*
-		 * 1 is added to string length so that standard string
-		 * library calls which depend on NULL char at end of string
-		 * don't fail.
-		 */
-		cc->cc_cobname.cn_count = strlen((char*)cc->cc_cobname.cn_name)
-					  + 1;
+		cc->cc_cobname.cn_count = strlen((char *)cc->cc_cobname.cn_name);
 	}
 
 	C2_LEAVE("%d", 0);

@@ -220,7 +220,7 @@ static void cobfops_populate(uint64_t index)
 	sprintf((char*)cc->cc_cobname.cn_name, "%16lx:%16lx",
 			(unsigned long)cc->cc_common.c_cobfid.f_seq,
 			(unsigned long)cc->cc_common.c_cobfid.f_oid);
-	cc->cc_cobname.cn_count = strlen((char*)cc->cc_cobname.cn_name) + 1;
+	cc->cc_cobname.cn_count = strlen((char*)cc->cc_cobname.cn_name);
 }
 
 static void cobfops_create(void)

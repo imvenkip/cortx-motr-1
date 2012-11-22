@@ -6,8 +6,8 @@ else
 fi
 COLIBRI_CORE_ROOT=${COLIBRI_CORE_ROOT%/c2t1fs*}
 COLIBRI_C2T1FS_MOUNT_DIR=/tmp/test_c2t1fs_`date +"%d-%m-%Y_%T"`
-#COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs_$$
-COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs
+COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs_$$
+#COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs
 COLIBRI_MODULE=kcolibri
 
 COLIBRI_MODULE_TRACE_MASK=0

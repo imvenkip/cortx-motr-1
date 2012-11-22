@@ -996,7 +996,8 @@ C2_INTERNAL int c2_cob_create(struct c2_cob *cob,
 			      struct c2_cob_nskey *nskey,
 			      struct c2_cob_nsrec *nsrec,
 			      struct c2_cob_fabrec *fabrec,
-			      struct c2_cob_omgrec *omgrec, struct c2_db_tx *tx)
+			      struct c2_cob_omgrec *omgrec,
+			      struct c2_db_tx *tx)
 {
         struct c2_db_pair     pair;
         struct c2_cob_omgkey  omgkey;
