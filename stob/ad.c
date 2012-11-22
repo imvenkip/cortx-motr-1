@@ -273,7 +273,6 @@ C2_INTERNAL int c2_ad_stob_setup(struct c2_stob_domain *dom,
 	C2_PRE(dom->sd_ops == &ad_stob_domain_op);
 	C2_PRE(!adom->ad_setup);
 	C2_PRE(bstore->so_state == CSS_EXISTS);
-	C2_PRE(bshift >= ad_bshift(adom));
 
 	blocksize = 1 << bshift;
 	groupsize = blocks_per_group * blocksize;
@@ -289,8 +288,9 @@ C2_INTERNAL int c2_ad_stob_setup(struct c2_stob_domain *dom,
 		adom->ad_dbenv    = dbenv;
 		adom->ad_bstore   = bstore;
 		adom->ad_ballroom = ballroom;
-		adom->ad_babshift = bshift - ad_bshift(adom);
 		adom->ad_setup    = true;
+		C2_ASSERT(bshift >= ad_bshift(adom));
+		adom->ad_babshift = bshift - ad_bshift(adom);
 		c2_stob_get(adom->ad_bstore);
 		result = c2_emap_init(&adom->ad_adata, dbenv, adom->ad_path);
 	}
