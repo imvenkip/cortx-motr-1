@@ -194,6 +194,7 @@ struct c2_io_fom_cob_rw {
         c2_time_t                        fcrw_phase_start_time;
         /** network buffer list currently acquired by io service*/
         struct c2_tl                     fcrw_netbuf_list;
+	int				 fcrw_rc;
 };
 
 /**

@@ -1480,19 +1480,17 @@ static int io_launch(struct c2_fom *fom)
                  * Also trim network buffer as per I/O size.
                  */
                 ivec_count = c2_vec_count(&mem_ivec->iv_vec);
-                fom_obj->fcrw_req_count += ivec_count;
                 C2_LOG(C2_DEBUG, "iv_count %lu, req_count %lu bshift %d",
                        (unsigned long)ivec_count,
 		       (unsigned long)fom_obj->fcrw_req_count, bshift);
-                rc = align_bufvec(fom, &stio->si_user,
-                                                &nb->nb_buffer,
-                                                ivec_count,
-                                                bshift);
+                rc = align_bufvec(fom, &stio->si_user, &nb->nb_buffer,
+				  ivec_count, bshift);
                 if (rc != 0) {
                         /*
                          * Since this stob io not added into list
                          * yet, free it here.
                          */
+			fom_obj->fcrw_rc = rc;
                         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                                     c2_addb_func_fail,
                                     "io_launch", rc);
@@ -1523,6 +1521,7 @@ static int io_launch(struct c2_fom *fom)
                          * Since this stob io not added into list
                          * yet, free it here.
                          */
+			fom_obj->fcrw_rc = rc;
                         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                                     c2_addb_func_fail,
                                     "io_launch", rc);
@@ -1532,6 +1531,7 @@ static int io_launch(struct c2_fom *fom)
 			break;
 		}
 
+                fom_obj->fcrw_req_count += ivec_count;
 		C2_CNT_INC(fom_obj->fcrw_num_stobio_launched);
 
 		stobio_tlink_init(stio_desc);
@@ -1539,10 +1539,9 @@ static int io_launch(struct c2_fom *fom)
 
 	} c2_tl_endfor;
 
-	if (fom_obj->fcrw_num_stobio_launched > 0) {
-		c2_fom_err_set(fom, rc);
+	if (fom_obj->fcrw_num_stobio_launched > 0)
 		return C2_FSO_WAIT;
-	}
+
 
 cleanup_st:
 	c2_stob_put(fom_obj->fcrw_stob);
@@ -1614,6 +1613,7 @@ static int io_finish(struct c2_fom *fom)
         C2_ASSERT(ergo(rc == 0,
                        fom_obj->fcrw_req_count == fom_obj->fcrw_count));
 
+	rc = rc ? fom_obj->fcrw_rc : rc;
         if (rc != 0) {
 		c2_fom_phase_move(fom, rc, C2_FOPH_FAILURE);
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
