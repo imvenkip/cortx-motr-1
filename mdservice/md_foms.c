@@ -146,7 +146,27 @@ static int c2_md_create(struct c2_mdstore  *md,
         return rc;
 }
 
-static int c2_md_create_tick(struct c2_fom *fom)
+static inline int c2_md_tick_generic(struct c2_fom *fom)
+{
+        C2_PRE(c2_fom_invariant(fom));
+
+        if (c2_fom_phase(fom) < C2_FOPH_NR) {
+                /**
+                 * Don't send reply in case there is no service running.
+                 * This is local use of mdservice just like replicator needs.
+                 * In this case we jump right to finish phase of fom.
+                 */
+                if (fom->fo_service == NULL &&
+                    c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY) {
+                        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
+                        return C2_FSO_WAIT;
+                }
+                return c2_fom_tick_generic(fom);
+        }
+        return 0;
+}
+
+static int c2_md_tick_create(struct c2_fom *fom)
 {
         struct c2_cob_attr        attr;
         struct c2_fop_cob        *body;
@@ -156,17 +176,9 @@ static int c2_md_create_tick(struct c2_fom *fom)
         struct c2_fop            *fop_rep;
         int                       rc;
 
-        C2_PRE(c2_fom_invariant(fom));
-
-        if (c2_fom_phase(fom) < C2_FOPH_NR) {
-                /**
-                 * Don't send reply in case there is no service running.
-                 */
-                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
-                        goto finish;
-                rc = c2_fom_tick_generic(fom);
+        rc = c2_md_tick_generic(fom);
+        if (rc != 0)
                 return rc;
-        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -208,12 +220,9 @@ out:
         rep->c_body.b_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
-finish:
-        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
-        return C2_FSO_WAIT;
 }
 
-static int c2_md_link_tick(struct c2_fom *fom)
+static int c2_md_tick_link(struct c2_fom *fom)
 {
         struct c2_fop_cob        *body;
         struct c2_fop_link       *req;
@@ -223,17 +232,9 @@ static int c2_md_link_tick(struct c2_fom *fom)
         struct c2_cob_attr        attr;
         int                       rc;
 
-        C2_PRE(c2_fom_invariant(fom));
-
-        if (c2_fom_phase(fom) < C2_FOPH_NR) {
-                /**
-                 * Don't send reply in case there is no service running.
-                 */
-                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
-                        goto finish;
-                rc = c2_fom_tick_generic(fom);
+        rc = c2_md_tick_generic(fom);
+        if (rc != 0)
                 return rc;
-        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -264,12 +265,9 @@ out:
         rep->l_body.b_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
-finish:
-        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
-        return C2_FSO_WAIT;
 }
 
-static int c2_md_unlink_tick(struct c2_fom *fom)
+static int c2_md_tick_unlink(struct c2_fom *fom)
 {
         struct c2_cob_attr        attr;
         struct c2_fop_cob        *body;
@@ -282,17 +280,9 @@ static int c2_md_unlink_tick(struct c2_fom *fom)
         struct c2_mdstore        *md;
         int                       rc;
 
-        C2_PRE(c2_fom_invariant(fom));
-
-        if (c2_fom_phase(fom) < C2_FOPH_NR) {
-                /**
-                 * Don't send reply in case there is no service running.
-                 */
-                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
-                        goto finish;
-                rc = c2_fom_tick_generic(fom);
+        rc = c2_md_tick_generic(fom);
+        if (rc != 0)
                 return rc;
-        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -335,9 +325,6 @@ out:
         rep->u_body.b_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
-finish:
-        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
-        return C2_FSO_WAIT;
 }
 
 static int c2_md_rename(struct c2_mdstore  *md,
@@ -377,7 +364,7 @@ static int c2_md_rename(struct c2_mdstore  *md,
         return rc;
 }
 
-static int c2_md_rename_tick(struct c2_fom *fom)
+static int c2_md_tick_rename(struct c2_fom *fom)
 {
         struct c2_fop_cob        *sbody;
         struct c2_fop_cob        *tbody;
@@ -390,20 +377,12 @@ static int c2_md_rename_tick(struct c2_fom *fom)
         struct c2_cob_attr        sattr;
         struct c2_cob_attr        tattr;
         struct c2_db_tx          *tx;
-        struct c2_mdstore       *md;
+        struct c2_mdstore        *md;
         int                       rc;
 
-        C2_PRE(c2_fom_invariant(fom));
-
-        if (c2_fom_phase(fom) < C2_FOPH_NR) {
-                /**
-                 * Don't send reply in case there is no service running.
-                 */
-                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
-                        goto finish;
-                rc = c2_fom_tick_generic(fom);
+        rc = c2_md_tick_generic(fom);
+        if (rc != 0)
                 return rc;
-        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -442,8 +421,9 @@ static int c2_md_rename_tick(struct c2_fom *fom)
                 goto out;
         }
         if (c2_fid_eq(&tbody->b_tfid, &sbody->b_tfid)) {
-                rc = c2_md_rename(md, &tbody->b_pfid, &sbody->b_pfid, &tbody->b_tfid,
-                                  &sbody->b_tfid, &tattr, &sattr, scob, scob, tx);
+                rc = c2_md_rename(md, &tbody->b_pfid, &sbody->b_pfid,
+                                  &tbody->b_tfid, &sbody->b_tfid, &tattr,
+                                  &sattr, scob, scob, tx);
         } else {
                 rc = c2_mdstore_locate(md, &tbody->b_tfid, &tcob,
                                         C2_MD_LOCATE_STORED, tx);
@@ -451,8 +431,9 @@ static int c2_md_rename_tick(struct c2_fom *fom)
                         c2_fom_block_leave(fom);
                         goto out;
                 }
-                rc = c2_md_rename(md, &tbody->b_pfid, &sbody->b_pfid, &tbody->b_tfid,
-                                  &sbody->b_tfid, &tattr, &sattr, tcob, scob, tx);
+                rc = c2_md_rename(md, &tbody->b_pfid, &sbody->b_pfid,
+                                  &tbody->b_tfid, &sbody->b_tfid, &tattr,
+                                  &sattr, tcob, scob, tx);
                 c2_cob_put(tcob);
         }
         c2_cob_put(scob);
@@ -461,12 +442,9 @@ out:
         rep->r_body.b_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
-finish:
-        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
-        return C2_FSO_WAIT;
 }
 
-static int c2_md_open_tick(struct c2_fom *fom)
+static int c2_md_tick_open(struct c2_fom *fom)
 {
         struct c2_fop_cob        *body;
         struct c2_cob            *cob;
@@ -476,20 +454,10 @@ static int c2_md_open_tick(struct c2_fom *fom)
         struct c2_fop            *fop_rep;
         struct c2_cob_attr        attr;
         int                       rc;
-        struct c2_mdstore        *md;
 
-        C2_PRE(c2_fom_invariant(fom));
-        md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
-
-        if (c2_fom_phase(fom) < C2_FOPH_NR) {
-                /**
-                 * Don't send reply in case there is no service running.
-                 */
-                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
-                        goto finish;
-                rc = c2_fom_tick_generic(fom);
+        rc = c2_md_tick_generic(fom);
+        if (rc != 0)
                 return rc;
-        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -511,11 +479,12 @@ static int c2_md_open_tick(struct c2_fom *fom)
         c2_md_cob_wire2mem(&attr, body);
 
         c2_fom_block_enter(fom);
-        rc = c2_mdstore_locate(md, &body->b_tfid, &cob,
-                                C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
+        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                               &body->b_tfid, &cob, C2_MD_LOCATE_STORED,
+                               &fom->fo_tx.tx_dbtx);
         if (rc == 0) {
-                rc = c2_mdstore_open(md, cob,
-                                     body->b_flags, &fom->fo_tx.tx_dbtx);
+                rc = c2_mdstore_open(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                                     cob, body->b_flags, &fom->fo_tx.tx_dbtx);
                 if (rc == 0 &&
                     (!(attr.ca_flags & C2_COB_NLINK) || attr.ca_nlink > 0)) {
                         /*
@@ -523,7 +492,9 @@ static int c2_md_open_tick(struct c2_fom *fom)
                          * to store to db.
                          */
                         attr.ca_flags &= ~C2_COB_MODE;
-                        rc = c2_mdstore_setattr(md, cob, &attr, &fom->fo_tx.tx_dbtx);
+                        rc = c2_mdstore_setattr(
+                                fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                                cob, &attr, &fom->fo_tx.tx_dbtx);
                 }
                 c2_cob_put(cob);
         } else if (rc == -ENOENT) {
@@ -543,12 +514,9 @@ out:
         rep->o_body.b_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
-finish:
-        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
-        return C2_FSO_WAIT;
 }
 
-static int c2_md_close_tick(struct c2_fom *fom)
+static int c2_md_tick_close(struct c2_fom *fom)
 {
         struct c2_fop_cob        *body;
         struct c2_cob            *cob;
@@ -558,20 +526,10 @@ static int c2_md_close_tick(struct c2_fom *fom)
         struct c2_fop            *fop_rep;
         struct c2_cob_attr        attr;
         int                       rc;
-        struct c2_mdstore        *md;
 
-        C2_PRE(c2_fom_invariant(fom));
-        md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
-
-        if (c2_fom_phase(fom) < C2_FOPH_NR) {
-                /**
-                 * Don't send reply in case there is no service running.
-                 */
-                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
-                        goto finish;
-                rc = c2_fom_tick_generic(fom);
+        rc = c2_md_tick_generic(fom);
+        if (rc != 0)
                 return rc;
-        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -594,19 +552,20 @@ static int c2_md_close_tick(struct c2_fom *fom)
 
         c2_fom_block_enter(fom);
         /*
-         * @todo: This should lookup for cobs in special opened
+         * @TODO: This should lookup for cobs in special opened
          * cobs table. But so far orphans and open/close are not
          * quite implemented and we lookup on main store to make
          * ut happy.
          */
-        rc = c2_mdstore_locate(md, &body->b_tfid, &cob,
-                                C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
+        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                               &body->b_tfid, &cob, C2_MD_LOCATE_STORED,
+                               &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
                 goto out;
         }
 
-        rc = c2_mdstore_close(md, cob,
+        rc = c2_mdstore_close(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
                                &fom->fo_tx.tx_dbtx);
         if (rc == 0 &&
             (!(attr.ca_flags & C2_COB_NLINK) || attr.ca_nlink > 0)) {
@@ -615,7 +574,8 @@ static int c2_md_close_tick(struct c2_fom *fom)
                  * to store to db.
                  */
                 attr.ca_flags &= ~C2_COB_MODE;
-                rc = c2_mdstore_setattr(md, cob, &attr, &fom->fo_tx.tx_dbtx);
+                rc = c2_mdstore_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                                        cob, &attr, &fom->fo_tx.tx_dbtx);
         }
         c2_cob_put(cob);
         c2_fom_block_leave(fom);
@@ -623,12 +583,9 @@ out:
         rep->c_body.b_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
-finish:
-        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
-        return C2_FSO_WAIT;
 }
 
-static int c2_md_setattr_tick(struct c2_fom *fom)
+static int c2_md_tick_setattr(struct c2_fom *fom)
 {
         struct c2_cob_attr             attr;
         struct c2_fop_cob             *body;
@@ -639,17 +596,9 @@ static int c2_md_setattr_tick(struct c2_fom *fom)
         struct c2_fop                 *fop_rep;
         int                            rc;
 
-        C2_PRE(c2_fom_invariant(fom));
-
-        if (c2_fom_phase(fom) < C2_FOPH_NR) {
-                /**
-                 * Don't send reply in case there is no service running.
-                 */
-                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
-                        goto finish;
-                rc = c2_fom_tick_generic(fom);
+        rc = c2_md_tick_generic(fom);
+        if (rc != 0)
                 return rc;
-        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -677,8 +626,9 @@ static int c2_md_setattr_tick(struct c2_fom *fom)
          * an object in case there is no target yet. This is why
          * we return quickly if no object is found.
          */
-        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &body->b_tfid,
-                                &cob, C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
+        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                               &body->b_tfid, &cob, C2_MD_LOCATE_STORED,
+                               &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
                 goto out;
@@ -692,12 +642,9 @@ out:
         rep->s_body.b_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
-finish:
-        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
-        return C2_FSO_WAIT;
 }
 
-static int c2_md_lookup_tick(struct c2_fom *fom)
+static int c2_md_tick_lookup(struct c2_fom *fom)
 {
         struct c2_cob_attr             attr;
         struct c2_fop_cob             *body;
@@ -709,17 +656,9 @@ static int c2_md_lookup_tick(struct c2_fom *fom)
         int                            rc;
         struct c2_buf                  name;
 
-        C2_PRE(c2_fom_invariant(fom));
-
-        if (c2_fom_phase(fom) < C2_FOPH_NR) {
-                /**
-                 * Don't send reply in case there is no service running.
-                 */
-                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
-                        goto finish;
-                rc = c2_fom_tick_generic(fom);
+        rc = c2_md_tick_generic(fom);
+        if (rc != 0)
                 return rc;
-        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -772,14 +711,11 @@ out:
         rep->l_body.b_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
-finish:
-        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
-        return C2_FSO_WAIT;
 }
 
-static int c2_md_getattr_tick(struct c2_fom *fom)
+static int c2_md_tick_getattr(struct c2_fom *fom)
 {
-        struct c2_cob_attr             attr = { { 0 } };
+        struct c2_cob_attr             attr;
         struct c2_fop_cob             *body;
         struct c2_cob                 *cob;
         struct c2_fop_getattr         *req;
@@ -788,17 +724,9 @@ static int c2_md_getattr_tick(struct c2_fom *fom)
         struct c2_fop                 *fop_rep;
         int                            rc;
 
-        C2_PRE(c2_fom_invariant(fom));
-
-        if (c2_fom_phase(fom) < C2_FOPH_NR) {
-                /**
-                 * Don't send reply in case there is no service running.
-                 */
-                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
-                        goto finish;
-                rc = c2_fom_tick_generic(fom);
+        rc = c2_md_tick_generic(fom);
+        if (rc != 0)
                 return rc;
-        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -818,8 +746,9 @@ static int c2_md_getattr_tick(struct c2_fom *fom)
                 goto out;
 
         c2_fom_block_enter(fom);
-        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &body->b_tfid,
-                               &cob, C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
+        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                               &body->b_tfid, &cob, C2_MD_LOCATE_STORED,
+                               &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
                 goto out;
@@ -837,9 +766,6 @@ out:
         rep->g_body.b_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
-finish:
-        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
-        return C2_FSO_WAIT;
 }
 
 static void md_statfs_mem2wire(struct c2_fop_statfs_rep *rep,
@@ -856,7 +782,7 @@ static void md_statfs_mem2wire(struct c2_fop_statfs_rep *rep,
         rep->f_root = statfs->sf_root;
 }
 
-static int c2_md_statfs_tick(struct c2_fom *fom)
+static int c2_md_tick_statfs(struct c2_fom *fom)
 {
         struct c2_fop_statfs          *req;
         struct c2_fop_statfs_rep      *rep;
@@ -865,17 +791,9 @@ static int c2_md_statfs_tick(struct c2_fom *fom)
         struct c2_statfs               statfs;
         int                            rc;
 
-        C2_PRE(c2_fom_invariant(fom));
-
-        if (c2_fom_phase(fom) < C2_FOPH_NR) {
-                /**
-                 * Don't send reply in case there is no service running.
-                 */
-                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
-                        goto finish;
-                rc = c2_fom_tick_generic(fom);
+        rc = c2_md_tick_generic(fom);
+        if (rc != 0)
                 return rc;
-        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -899,15 +817,12 @@ out:
         rep->f_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
-finish:
-        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
-        return C2_FSO_WAIT;
 }
 
 /** Readdir fop data buffer size */
 #define C2_MD_READDIR_BUFF_SIZE 4096
 
-static int c2_md_readdir_tick(struct c2_fom *fom)
+static int c2_md_tick_readdir(struct c2_fom *fom)
 {
         struct c2_fop_cob             *body;
         struct c2_cob                 *cob;
@@ -915,21 +830,13 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
         struct c2_fop_readdir_rep     *rep;
         struct c2_fop                 *fop;
         struct c2_fop                 *fop_rep;
-        struct c2_rdpg                 rdpg = { 0 };
+        struct c2_rdpg                 rdpg;
         void                          *addr;
         int                            rc;
 
-        C2_PRE(c2_fom_invariant(fom));
-
-        if (c2_fom_phase(fom) < C2_FOPH_NR) {
-                /**
-                 * Don't send reply in case there is no service running.
-                 */
-                if (fom->fo_service == NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
-                        goto finish;
-                rc = c2_fom_tick_generic(fom);
+        rc = c2_md_tick_generic(fom);
+        if (rc != 0)
                 return rc;
-        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -949,8 +856,9 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
 
         body = &req->r_body;
         c2_fom_block_enter(fom);
-        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &body->b_tfid,
-                               &cob, C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
+        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                               &body->b_tfid, &cob, C2_MD_LOCATE_STORED,
+                               &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
                 goto out;
@@ -963,6 +871,7 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
                 goto out;
         }
 
+        C2_SET0(&rdpg);
         rdpg.r_pos = c2_alloc(C2_MD_MAX_NAME_LEN);
         if (rdpg.r_pos == NULL) {
                 c2_fom_block_leave(fom);
@@ -970,7 +879,8 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
                 rc = -ENOMEM;
                 goto out;
         }
-        c2_bitstring_copy(rdpg.r_pos, (char *)req->r_pos.s_buf, req->r_pos.s_len);
+        c2_bitstring_copy(rdpg.r_pos,
+                         (char *)req->r_pos.s_buf, req->r_pos.s_len);
 
         addr = c2_alloc(C2_MD_READDIR_BUFF_SIZE);
         if (addr == NULL) {
@@ -1027,9 +937,6 @@ out:
         rc = (rc < 0 ? rc : 0);
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
-finish:
-        c2_fom_phase_move(fom, 0, C2_FOPH_FINISH);
-        return C2_FSO_WAIT;
 }
 
 static int c2_md_req_path_get(struct c2_mdstore *mdstore,
@@ -1196,67 +1103,67 @@ static size_t c2_md_req_fom_locality_get(const struct c2_fom *fom)
 
 static const struct c2_fom_ops c2_md_fom_create_ops = {
         .fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_tick   = c2_md_create_tick,
+        .fo_tick   = c2_md_tick_create,
         .fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_link_ops = {
         .fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_tick   = c2_md_link_tick,
+        .fo_tick   = c2_md_tick_link,
         .fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_unlink_ops = {
         .fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_tick   = c2_md_unlink_tick,
+        .fo_tick   = c2_md_tick_unlink,
         .fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_rename_ops = {
         .fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_tick   = c2_md_rename_tick,
+        .fo_tick   = c2_md_tick_rename,
         .fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_open_ops = {
         .fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_tick   = c2_md_open_tick,
+        .fo_tick   = c2_md_tick_open,
         .fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_close_ops = {
         .fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_tick  = c2_md_close_tick,
+        .fo_tick  = c2_md_tick_close,
         .fo_fini  = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_setattr_ops = {
         .fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_tick   = c2_md_setattr_tick,
+        .fo_tick   = c2_md_tick_setattr,
         .fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_getattr_ops = {
         .fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_tick   = c2_md_getattr_tick,
+        .fo_tick   = c2_md_tick_getattr,
         .fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_lookup_ops = {
         .fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_tick   = c2_md_lookup_tick,
+        .fo_tick   = c2_md_tick_lookup,
         .fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_statfs_ops = {
         .fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_tick   = c2_md_statfs_tick,
+        .fo_tick   = c2_md_tick_statfs,
         .fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_readdir_ops = {
         .fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_tick   = c2_md_readdir_tick,
+        .fo_tick   = c2_md_tick_readdir,
         .fo_fini   = c2_md_req_fom_fini
 };
 

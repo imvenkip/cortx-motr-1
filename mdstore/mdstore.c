@@ -504,6 +504,7 @@ C2_INTERNAL int c2_mdstore_getattr(struct c2_mdstore       *md,
 
         C2_ASSERT(cob != NULL);
 
+        C2_SET0(attr);
         attr->ca_flags = 0;
         attr->ca_tfid = cob->co_nsrec.cnr_fid;
         attr->ca_pfid = cob->co_nskey->cnk_pfid;
