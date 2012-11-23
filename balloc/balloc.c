@@ -561,10 +561,12 @@ static int balloc_init_internal(struct c2_balloc *colibri,
 				c2_bcount_t res_groups)
 {
 	struct c2_balloc_group_info	*gi;
-	int				 rc;
-	c2_bcount_t			 i;
 	struct c2_db_tx			 init_tx;
 	struct timeval			 now;
+	char                             table_name[MAXPATHLEN];
+	uint64_t                         cid = colibri->cb_container_id;
+	int				 rc;
+	c2_bcount_t			 i;
 	int				 tx_started = 0;
 	C2_ENTRY();
 
@@ -574,16 +576,25 @@ static int balloc_init_internal(struct c2_balloc *colibri,
 	C2_SET0(&colibri->cb_sb);
 	C2_SET0(&colibri->cb_db_group_extents);
 	C2_SET0(&colibri->cb_db_group_desc);
+	C2_SET_ARR0(table_name);
 
+	sprintf(table_name, "%s_%lu", "super_block", cid);
 	rc = c2_table_init(&colibri->cb_db_sb, dbenv,
-			   "super_block", 0,
-			   &c2_super_block_ops) ||
-	     c2_table_init(&colibri->cb_db_group_desc, dbenv,
-			   "group_desc", 0,
-			   &c2_group_desc_ops)	||
-	     c2_table_init(&colibri->cb_db_group_extents, dbenv,
-			   "group_extents", 0,
-			   &c2_group_extent_ops);
+			   table_name, 0,
+			   &c2_super_block_ops);
+	if (rc == 0) {
+		C2_SET_ARR0(table_name);
+		sprintf(table_name, "%s_%lu", "group_desc", cid);
+		c2_table_init(&colibri->cb_db_group_desc, dbenv, table_name, 0,
+			      &c2_group_desc_ops);
+	}
+	if (rc == 0) {
+		C2_SET_ARR0(table_name);
+		sprintf(table_name, "%s_%lu", "group_extents", cid);
+		c2_table_init(&colibri->cb_db_group_extents, dbenv, table_name,
+			      0, &c2_group_extent_ops);
+	}
+
 	if (rc != 0)
 		goto out;
 
@@ -2129,7 +2140,7 @@ static const struct c2_ad_balloc_ops balloc_ops = {
 	.bo_free  = balloc_free,
 };
 
-C2_INTERNAL int c2_balloc_allocate(struct c2_balloc **out)
+C2_INTERNAL int c2_balloc_allocate(uint64_t cid, struct c2_balloc **out)
 {
 	struct c2_balloc *cb;
 	int               result;
@@ -2138,6 +2149,7 @@ C2_INTERNAL int c2_balloc_allocate(struct c2_balloc **out)
 
 	C2_ALLOC_PTR(cb);
 	if (cb != NULL) {
+		cb->cb_container_id = cid;
                 cb->cb_ballroom.ab_ops = &balloc_ops;
                 *out = cb;
                 result = 0;

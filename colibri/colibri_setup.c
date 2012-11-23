@@ -808,7 +808,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	}
 
 	if (rc == 0)
-		rc = c2_balloc_allocate(&cb);
+		rc = c2_balloc_allocate(cid, &cb);
 	if (rc == 0)
 		rc = c2_ad_stob_setup(adstob->as_dom, db,
 				      *bstob, &cb->cb_ballroom,
