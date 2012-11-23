@@ -320,6 +320,34 @@ static void reed_solomon_diff(struct c2_parity_math *math,
 			      struct c2_buf         *parity,
 			      uint32_t               index)
 {
+	struct c2_buf  diff_data;
+	uint8_t       *arr;
+	uint32_t       ei;
+	uint32_t       ui;
+
+	C2_PRE(math   != NULL);
+	C2_PRE(old    != NULL);
+	C2_PRE(new    != NULL);
+	C2_PRE(parity != NULL);
+	C2_PRE(index  <  math->pmi_data_count);
+	C2_PRE(old[index].b_nob == new[index].b_nob);
+	C2_PRE(new[index].b_nob == parity[0].b_nob);
+
+	diff_data.b_nob = old[index].b_nob;
+
+	C2_ALLOC_ARR(arr, diff_data.b_nob);
+	diff_data.b_addr = arr;
+
+	xor_diff(math, old, new, &diff_data, index);
+
+	for (ui = 0; ui < math->pmi_parity_count; ++ui) {
+		for (ei = 0; ei < new[index].b_nob; ++ei) {
+			((uint8_t*)parity[ui].b_addr)[ei] ^=
+				gmul(((uint8_t *)diff_data.b_addr)[ei], *c2_matrix_elem_get(&math->pmi_vandmat_parity_slice, index, ui)) ;
+		}
+	}
+
+	c2_free(diff_data.b_addr);
 }
 
 static void xor_diff(struct c2_parity_math *math,
@@ -597,6 +625,7 @@ static void fail_idx_reed_solomon_recover(struct c2_parity_math *math,
 					  struct c2_buf *parity,
 					  const uint32_t failure_index)
 {
+
 }
 
 C2_INTERNAL void c2_parity_math_fail_index_recover(struct c2_parity_math *math,

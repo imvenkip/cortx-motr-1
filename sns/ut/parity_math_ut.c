@@ -23,6 +23,7 @@
 #include "lib/types.h"
 #include "lib/adt.h"
 #include "lib/assert.h"
+#include "lib/memory.h"
 
 #include "lib/ub.h"
 #include "lib/ut.h"
@@ -34,7 +35,7 @@ enum {
 	DATA_TO_PRTY_RATIO_MAX = DATA_UNIT_COUNT_MAX / PRTY_UNIT_COUNT_MAX,
 	UNIT_BUFF_SIZE_MAX     = 1048576,
 	DATA_UNIT_COUNT        = 7,
-	PARITY_UNIT_COUNT      = 1,
+	PARITY_UNIT_COUNT      = 3,
 };
 
 static uint8_t expected[DATA_UNIT_COUNT_MAX][UNIT_BUFF_SIZE_MAX];
@@ -146,7 +147,7 @@ static bool config_generate(uint32_t *data_count,
 	*buff_size = UNIT_BUFF_SIZE;
 
 	if (algo == C2_PARITY_CAL_ALGO_REED_SOLOMON)
-		fuc-=3;
+		fuc -= 3;
 
 	return true;
 }
@@ -181,11 +182,11 @@ static void test_recovery(const enum c2_parity_cal_algo algo,
 
 		unit_spoil(buff_size, fail_count, data_count);
 
-		if (rt == FAIL_INDEX)
+		if (rt == FAIL_INDEX) {
 			c2_parity_math_fail_index_recover(&math, data_buf,
 							  parity_buf,
 							  fail_index_xor);
-		else if (rt == FAIL_VECTOR)
+		} else if (rt == FAIL_VECTOR)
 			c2_parity_math_recover(&math, data_buf, parity_buf,
 					       &fail_buf);
 
@@ -247,43 +248,99 @@ static void test_parity_math_diff(void)
 	struct c2_buf         parity_buf_old;
 	struct c2_buf         parity_buf_expected;
 	struct c2_parity_math math;
+	struct c2_buf        *p_old;
+	struct c2_buf	     *p_new;
+	uint8_t		     *arr;
 
-	C2_UT_ASSERT(c2_parity_math_init(&math, DATA_UNIT_COUNT,
-					 PARITY_UNIT_COUNT) == 0);
+	if (0) {
+		C2_UT_ASSERT(c2_parity_math_init(&math, DATA_UNIT_COUNT,
+					PARITY_UNIT_COUNT) == 0);
 
-	for (i = 0; i < DATA_UNIT_COUNT; ++i) {
-		for (j = 0; j < UNIT_BUFF_SIZE; ++j) {
-			data[i][j] = (uint8_t) rand();
-			if (i % 2)
-				data[i + DATA_UNIT_COUNT][j] =
-					(uint8_t) rand();
-			else
-				data[i + DATA_UNIT_COUNT][j] = data[i][j];
+		for (i = 0; i < DATA_UNIT_COUNT; ++i) {
+			for (j = 0; j < UNIT_BUFF_SIZE; ++j) {
+				data[i][j] = (uint8_t) rand();
+				if (i % 2)
+					data[i + DATA_UNIT_COUNT][j] =
+						(uint8_t) rand();
+				else
+					data[i + DATA_UNIT_COUNT][j] = data[i][j];
+			}
 		}
+
+		for (i = 0; i < DATA_UNIT_COUNT; ++i) {
+			c2_buf_init(&data_buf_old[i], data[i], UNIT_BUFF_SIZE);
+			c2_buf_init(&data_buf_new[i], data[i + DATA_UNIT_COUNT],
+					UNIT_BUFF_SIZE);
+		}
+
+		c2_buf_init(&parity_buf_old, parity[0], UNIT_BUFF_SIZE);
+		c2_buf_init(&parity_buf_expected, parity[1], UNIT_BUFF_SIZE);
+
+		c2_parity_math_calculate(&math, data_buf_old, &parity_buf_old);
+
+		c2_parity_math_calculate(&math, data_buf_new, &parity_buf_expected);
+
+		for (i = 0; i < DATA_UNIT_COUNT; ++i) {
+			if (i % 2)
+				c2_parity_math_diff(&math, data_buf_old,
+						    data_buf_new,
+						    &parity_buf_old, i);
+		}
+	} else {
+		C2_UT_ASSERT(c2_parity_math_init(&math, DATA_UNIT_COUNT,
+					PARITY_UNIT_COUNT) == 0);
+
+		for (i = 0; i < DATA_UNIT_COUNT; ++i) {
+			for (j = 0; j < UNIT_BUFF_SIZE; ++j) {
+				data[i][j] = (uint8_t) rand();
+				if (i % 2)
+					data[i + DATA_UNIT_COUNT][j] =
+						(uint8_t) rand();
+				else
+					data[i + DATA_UNIT_COUNT][j] = data[i][j];
+			}
+		}
+
+		for (i = 0; i < DATA_UNIT_COUNT; ++i) {
+			c2_buf_init(&data_buf_old[i], data[i], UNIT_BUFF_SIZE);
+			c2_buf_init(&data_buf_new[i], data[i + DATA_UNIT_COUNT],
+					UNIT_BUFF_SIZE);
+		}
+		C2_ALLOC_ARR(p_old, PARITY_UNIT_COUNT);
+		C2_ALLOC_ARR(p_new, PARITY_UNIT_COUNT);
+
+		for(i = 0; i < PARITY_UNIT_COUNT; ++i) {
+			C2_ALLOC_ARR(arr, UNIT_BUFF_SIZE);
+			p_old[i].b_addr = arr;
+			C2_ALLOC_ARR(arr, UNIT_BUFF_SIZE);
+			p_new[i].b_addr = arr;
+			p_old[i].b_nob = p_new[i].b_nob = UNIT_BUFF_SIZE;
+		}
+
+		c2_parity_math_calculate(&math, data_buf_old, p_old);
+
+		c2_parity_math_calculate(&math, data_buf_new, p_new);
+
+		for (i = 0; i < DATA_UNIT_COUNT; ++i) {
+			if (i % 2)
+				c2_parity_math_diff(&math, data_buf_old,
+						    data_buf_new,
+						    p_old, i);
+		}
+
 	}
 
-	for (i = 0; i < DATA_UNIT_COUNT; ++i) {
-		c2_buf_init(&data_buf_old[i], data[i], UNIT_BUFF_SIZE);
-		c2_buf_init(&data_buf_new[i], data[i + DATA_UNIT_COUNT],
-			    UNIT_BUFF_SIZE);
-	}
-
-	c2_buf_init(&parity_buf_old, parity[0], UNIT_BUFF_SIZE);
-	c2_buf_init(&parity_buf_expected, parity[1], UNIT_BUFF_SIZE);
-
-	c2_parity_math_calculate(&math, data_buf_old, &parity_buf_old);
-
-	c2_parity_math_calculate(&math, data_buf_new, &parity_buf_expected);
-
-	for (i = 0; i < DATA_UNIT_COUNT; ++i) {
-		if (i % 2)
-			c2_parity_math_diff(&math, data_buf_old, data_buf_new,
-					    &parity_buf_old, i);
-	}
-
-	C2_UT_ASSERT(memcmp(parity[0], parity[1], UNIT_BUFF_SIZE) == 0);
+		for(i = 0; i < PARITY_UNIT_COUNT; ++i) {
+			C2_UT_ASSERT(memcmp(p_old[i].b_addr, p_new[i].b_addr, UNIT_BUFF_SIZE) == 0);
+		}
 
 	c2_parity_math_fini(&math);
+	for(i = 0; i < PARITY_UNIT_COUNT; ++i) {
+			c2_free(p_old[i].b_addr);
+			c2_free(p_new[i].b_addr);
+		}
+	c2_free(p_old);
+	c2_free(p_new);
 }
 
 const struct c2_test_suite parity_math_ut = {
