@@ -22,6 +22,8 @@
 
 #include "db/extmap.h"
 #include "dtm/dtm.h"                /* c2_dtx */
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_STOB
+#include "lib/trace.h"
 #include "lib/thread.h"             /* LAMBDA */
 #include "lib/memory.h"
 #include "lib/arith.h"              /* min_type, min3 */
@@ -115,6 +117,7 @@ struct ad_domain {
 	/** List of all existing c2_stob's. */
 	struct c2_tl               ad_object;
 	struct c2_ad_balloc       *ad_ballroom;
+	int			   ad_babshift;
 
 };
 
@@ -244,6 +247,15 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 	return result;
 }
 
+/**
+   Block size shift for objects of this domain.
+ */
+static uint32_t ad_bshift(const struct ad_domain *adom)
+{
+	C2_PRE(adom->ad_setup);
+	return adom->ad_bstore->so_op->sop_block_shift(adom->ad_bstore);
+}
+
 C2_INTERNAL int c2_ad_stob_setup(struct c2_stob_domain *dom,
 				 struct c2_dbenv *dbenv, struct c2_stob *bstore,
 				 struct c2_ad_balloc *ballroom,
@@ -261,6 +273,7 @@ C2_INTERNAL int c2_ad_stob_setup(struct c2_stob_domain *dom,
 	C2_PRE(dom->sd_ops == &ad_stob_domain_op);
 	C2_PRE(!adom->ad_setup);
 	C2_PRE(bstore->so_state == CSS_EXISTS);
+	C2_PRE(bshift >= ad_bshift(adom));
 
 	blocksize = 1 << bshift;
 	groupsize = blocks_per_group * blocksize;
@@ -276,6 +289,7 @@ C2_INTERNAL int c2_ad_stob_setup(struct c2_stob_domain *dom,
 		adom->ad_dbenv    = dbenv;
 		adom->ad_bstore   = bstore;
 		adom->ad_ballroom = ballroom;
+		adom->ad_babshift = bshift - ad_bshift(adom);
 		adom->ad_setup    = true;
 		c2_stob_get(adom->ad_bstore);
 		result = c2_emap_init(&adom->ad_adata, dbenv, adom->ad_path);
@@ -536,9 +550,16 @@ static bool ad_endio(struct c2_clink *link);
 static int ad_balloc(struct ad_domain *adom, struct c2_dtx *tx,
 			c2_bcount_t count, struct c2_ext *out)
 {
+	int rc;
+
 	C2_PRE(adom->ad_setup);
-	return adom->ad_ballroom->ab_ops->bo_alloc(adom->ad_ballroom,
+	count >>= adom->ad_babshift;
+	rc = adom->ad_ballroom->ab_ops->bo_alloc(adom->ad_ballroom,
 						   tx, count, out);
+	out->e_start <<= adom->ad_babshift;
+	out->e_end <<= adom->ad_babshift;
+
+	return rc;
 }
 
 /**
@@ -548,8 +569,15 @@ static int ad_balloc(struct ad_domain *adom, struct c2_dtx *tx,
 static int ad_bfree(struct ad_domain *adom, struct c2_dtx *tx,
 		    struct c2_ext *ext)
 {
+	struct c2_ext tgt;
+
 	C2_PRE(adom->ad_setup);
-	return adom->ad_ballroom->ab_ops->bo_free(adom->ad_ballroom, tx, ext);
+	C2_PRE((ext->e_start & ((1ULL << adom->ad_babshift) - 1)) == 0);
+	C2_PRE((ext->e_end   & ((1ULL << adom->ad_babshift) - 1)) == 0);
+
+	tgt.e_start = ext->e_start >> adom->ad_babshift;
+	tgt.e_end   = ext->e_end   >> adom->ad_babshift;
+	return adom->ad_ballroom->ab_ops->bo_free(adom->ad_ballroom, tx, &tgt);
 }
 
 /**
@@ -685,15 +713,6 @@ static int ad_vec_alloc(struct c2_stob *obj,
 		}
 	}
 	return result;
-}
-
-/**
-   Block size shift for objects of this domain.
- */
-static uint32_t ad_bshift(const struct ad_domain *adom)
-{
-	C2_PRE(adom->ad_setup);
-	return adom->ad_bstore->so_op->sop_block_shift(adom->ad_bstore);
 }
 
 /**
@@ -1161,6 +1180,7 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 	C2_PRE(io->si_opcode == SIO_WRITE);
 
 	todo = c2_vec_count(&io->si_user.ov_vec);
+	C2_LOG(C2_DEBUG, "op=%d sz=%lu", io->si_opcode, (unsigned long)todo);
 	back = &aio->ai_back;
         C2_SET0(&head);
 	wext = &head;
