@@ -33,7 +33,6 @@
    @{
 */
 
-//#define C2_ASSERT(cond) BUG_ON(!(cond))
 #define C2_ASSERT(cond) do { if (!(cond)) { printk("Assertion failed %s\n", #cond); dump_stack(); while(1){}; } } while (0)
 
 /** @} end of assert group */
