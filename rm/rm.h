@@ -1235,6 +1235,16 @@ enum c2_rm_incoming_flags {
 struct c2_rm_incoming {
 	enum c2_rm_incoming_type	 rin_type;
 	struct c2_sm                     rin_sm;
+	/**
+	 * Stores the error code for incoming request. A separate field is
+	 * needed because rin_sm.sm_rc is associated with an error of a state.
+	 *
+	 * For incoming it's possible that an error is set in RI_WAIT and
+	 * then incoming has to be put back in RI_CHECK state before it can
+	 * be put into RI_FAILURE. The state-machine model does not handle
+	 * this well.
+	 */
+	int32_t				 rin_rc;
 	enum c2_rm_incoming_policy	 rin_policy;
 	uint64_t			 rin_flags;
 	/** The right requested. */
@@ -1554,6 +1564,15 @@ C2_INTERNAL void c2_rm_owner_lock(struct c2_rm_owner *owner);
 C2_INTERNAL void c2_rm_owner_unlock(struct c2_rm_owner *owner);
 
 /**
+ * Locks state machine group of an owner
+ */
+void c2_rm_owner_lock(struct c2_rm_owner *owner);
+/**
+ * Unlocks state machine group of an owner
+ */
+void c2_rm_owner_unlock(struct c2_rm_owner *owner);
+
+/**
  * Initialises generic fields in struct c2_rm_right.
  *
  * This is called by generic RM code to initialise an empty right of any
@@ -1578,6 +1597,15 @@ C2_INTERNAL void c2_rm_right_fini(struct c2_rm_right *right);
  */
 C2_INTERNAL int c2_rm_right_dup(const struct c2_rm_right *src_right,
 				struct c2_rm_right **dest_right);
+
+/**
+ * @param src_right - A source right which is to be duplicated.
+ * @param dest_right - A destination right. This right will be allocated,
+ *                     initialised and then filled with src_right.
+ * Allocates and duplicates a right.
+ */
+int c2_rm_right_dup(const struct c2_rm_right *src_right,
+		    struct c2_rm_right **dest_right);
 
 /**
  * Initialises the fields of for incoming structure.

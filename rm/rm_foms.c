@@ -139,7 +139,7 @@ static void remote_incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 	/*
 	 * Override the rc.
 	 */
-	in->rin_sm.sm_rc = rc;
+	in->rin_rc = rc;
 }
 
 static void remote_incoming_conflict(struct c2_rm_incoming *in)
@@ -156,7 +156,7 @@ static int request_fom_create(enum c2_rm_incoming_type type,
 	struct rm_request_fom *rqfom;
 	struct c2_fop_type    *fopt;
 	struct c2_fom_ops     *fom_ops;
-	void		      *fop_data;
+	struct c2_fop	      *reply_fop;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(fop->f_type != NULL);
@@ -170,21 +170,24 @@ static int request_fom_create(enum c2_rm_incoming_type type,
 	case C2_RIT_BORROW:
 		fopt = &c2_fop_rm_borrow_rep_fopt;
 		fom_ops = &rm_fom_borrow_ops;
-		fop_data = &rqfom->rf_rep_fop_data.rr_borrow_rep;
 		break;
 	case C2_RIT_REVOKE:
 		fopt = &c2_fom_error_rep_fopt;
 		fom_ops = &rm_fom_revoke_ops;
-		fop_data = &rqfom->rf_rep_fop_data.rr_req_rep;
 		break;
 	default:
 		C2_IMPOSSIBLE("Unrecognised RM request");
 		break;
 	}
 
-	c2_fop_init(&rqfom->rf_rep_fop, fopt, fop_data);
+	reply_fop = c2_fop_alloc(fopt, NULL);
+	if (reply_fop == NULL) {
+		c2_free(rqfom);
+		return -ENOMEM;
+	}
+
 	c2_fom_init(&rqfom->rf_fom, &fop->f_type->ft_fom_type,
-		    fom_ops, fop, &rqfom->rf_rep_fop);
+		    fom_ops, fop, reply_fop);
 	*out = &rqfom->rf_fom;
 	return 0;
 }
@@ -275,7 +278,7 @@ static void reply_err_set(enum c2_rm_incoming_type type,
 		break;
 	}
 	rfop->rerr_rc = rc;
-	c2_fom_phase_set(fom, rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+	c2_fom_phase_move(fom, rc, rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
 }
 
 /*
@@ -404,7 +407,7 @@ static int request_post_process(struct c2_fom *fom)
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 	in = &rfom->rf_in.ri_incoming;
 
-	rc = in->rin_sm.sm_rc;
+	rc = in->rin_rc;
 	if (incoming_state(in) == RI_SUCCESS) {
 		C2_ASSERT(rc == 0);
 		rc = reply_prepare(in->rin_type, fom);
@@ -458,7 +461,6 @@ static int request_fom_tick(struct c2_fom *fom,
  */
 static int borrow_fom_tick(struct c2_fom *fom)
 {
-	C2_PRE(C2_IN(c2_fom_phase(fom), (FOPH_RM_BORROW, FOPH_RM_BORROW_WAIT)));
 	return request_fom_tick(fom, C2_RIT_BORROW, FOPH_RM_BORROW_WAIT);
 }
 
@@ -473,7 +475,6 @@ static int borrow_fom_tick(struct c2_fom *fom)
  */
 static int revoke_fom_tick(struct c2_fom *fom)
 {
-	C2_PRE(C2_IN(c2_fom_phase(fom), (FOPH_RM_REVOKE, FOPH_RM_REVOKE_WAIT)));
 	return request_fom_tick(fom, C2_RIT_REVOKE, FOPH_RM_REVOKE_WAIT);
 }
 

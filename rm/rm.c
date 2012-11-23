@@ -1142,6 +1142,7 @@ C2_INTERNAL void c2_rm_right_get(struct c2_rm_incoming *in)
 
 	C2_PRE(IS_IN_ARRAY(in->rin_priority, owner->ro_incoming));
 	C2_PRE(in->rin_sm.sm_rc == 0);
+	C2_PRE(in->rin_rc == 0);
 	C2_PRE(pi_tlist_is_empty(&in->rin_pins));
 
 	c2_rm_owner_lock(owner);
@@ -1318,9 +1319,8 @@ static void owner_balance(struct c2_rm_owner *o)
 				 * possible that an error code could be
 				 * reset to 0 as other requests succeed.
 				 */
-				pin->rp_incoming->rin_sm.sm_rc =
-					pin->rp_incoming->rin_sm.sm_rc ?:
-					out->rog_rc;
+				pin->rp_incoming->rin_rc =
+					pin->rp_incoming->rin_rc ?: out->rog_rc;
 				pin_del(pin);
 			} c2_tl_endfor;
 			c2_rm_ur_tlink_del_fini(right);
@@ -1368,13 +1368,13 @@ static void incoming_check(struct c2_rm_incoming *in)
 	 * error. If there is an error, there is no need to continue the
 	 * processing.
 	 */
-	if (in->rin_sm.sm_rc == 0) {
+	if (in->rin_rc == 0) {
 		c2_rm_right_init(&rest, in->rin_want.ri_owner);
 		rc = right_copy(&rest, &in->rin_want) ?:
 		     incoming_check_with(in, &rest);
 		c2_rm_right_fini(&rest);
 	} else
-		rc = in->rin_sm.sm_rc;
+		rc = in->rin_rc;
 
 	if (rc > 0) {
 		C2_ASSERT(incoming_pin_nr(in, C2_RPF_PROTECT) == 0);
@@ -1550,9 +1550,9 @@ static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 
 	C2_PRE(in->rin_ops != NULL);
 	C2_PRE(in->rin_ops->rio_complete != NULL);
-	C2_PRE(in->rin_sm.sm_rc == 0);
 	C2_PRE(rc <= 0);
 
+	in->rin_rc = rc;
 	c2_sm_move(&in->rin_sm, rc, rc == 0 ? RI_SUCCESS : RI_FAILURE);
 	/*
 	 * incoming_release() might have moved the request into excited
@@ -1757,7 +1757,7 @@ static bool resource_type_invariant(const struct c2_rm_resource_type *rt)
 static bool incoming_invariant(const struct c2_rm_incoming *in)
 {
 	return
-		(in->rin_sm.sm_rc != 0) == (incoming_state(in) == RI_FAILURE) &&
+		(in->rin_rc != 0) == (incoming_state(in) == RI_FAILURE) &&
 		!(in->rin_flags & ~(RIF_MAY_REVOKE|RIF_MAY_BORROW|
 				    RIF_LOCAL_WAIT|RIF_LOCAL_TRY)) &&
 		IS_IN_ARRAY(in->rin_priority,

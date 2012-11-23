@@ -83,6 +83,9 @@ extern const struct c2_fom_type_ops rm_borrow_fom_type_ops;
 extern const struct c2_sm_conf borrow_sm_conf;
 
 extern const struct c2_fom_type_ops rm_revoke_fom_type_ops;
+extern const struct c2_sm_conf borrow_sm_conf;
+
+extern const struct c2_fom_type_ops rm_revoke_fom_type_ops;
 extern const struct c2_sm_conf revoke_sm_conf;
 
 /*
@@ -187,7 +190,10 @@ static int revoke_fop_fill(struct rm_out *outreq,
 static void rm_out_fini(struct rm_out *out)
 {
 	c2_rm_outgoing_fini(&out->ou_req);
+	/* @todo
+ 	 * Uncomment following line once RPC has mechniasm to free RPC-items.
 	c2_free(out);
+	 */
 }
 
 int c2_rm_request_out(struct c2_rm_incoming *in,
@@ -345,6 +351,7 @@ C2_INTERNAL void c2_rm_fop_fini(void)
 	c2_fop_type_fini(&c2_fop_rm_borrow_rep_fopt);
 	c2_fop_type_fini(&c2_fop_rm_borrow_fopt);
 	c2_xc_rm_fini();
+	c2_xc_fom_generic_fini();
 	c2_xc_cookie_fini();
 	c2_xc_buf_fini();
 }
@@ -358,6 +365,7 @@ C2_INTERNAL int c2_rm_fop_init(void)
 {
 	c2_xc_buf_init();
 	c2_xc_cookie_init();
+	c2_xc_fom_generic_init();
 	c2_xc_rm_init();
 #ifndef __KERNEL__
 	c2_sm_conf_extend(c2_generic_conf.scf_state, borrow_phases,
