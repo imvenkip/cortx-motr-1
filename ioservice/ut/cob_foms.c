@@ -193,10 +193,10 @@ static void cobfops_populate_internal(struct c2_fop *fop, uint64_t index)
 	C2_UT_ASSERT(fop->f_type != NULL);
 
 	common = c2_cobfop_common_get(fop);
-	common->c_gobfid.f_seq = GOB_FID_CONTAINER_ID + index;
-	common->c_gobfid.f_oid = GOB_FID_KEY_ID + index;
-	common->c_cobfid.f_seq = COB_FID_CONTAINER_ID + index;
-	common->c_cobfid.f_oid = COB_FID_KEY_ID + index;
+	common->c_gobfid.f_container = GOB_FID_CONTAINER_ID + index;
+	common->c_gobfid.f_key = GOB_FID_KEY_ID + index;
+	common->c_cobfid.f_container = COB_FID_CONTAINER_ID + index;
+	common->c_cobfid.f_key = COB_FID_KEY_ID + index;
 }
 
 static void cobfops_populate(uint64_t index)
@@ -218,8 +218,8 @@ static void cobfops_populate(uint64_t index)
 	C2_ALLOC_ARR(cc->cc_cobname.cn_name, COB_NAME_STRLEN);
 	C2_UT_ASSERT(cc->cc_cobname.cn_name != NULL);
 	sprintf((char*)cc->cc_cobname.cn_name, "%16lx:%16lx",
-			(unsigned long)cc->cc_common.c_cobfid.f_seq,
-			(unsigned long)cc->cc_common.c_cobfid.f_oid);
+			(unsigned long)cc->cc_common.c_cobfid.f_container,
+			(unsigned long)cc->cc_common.c_cobfid.f_key);
 	cc->cc_cobname.cn_count = strlen((char*)cc->cc_cobname.cn_name);
 }
 
@@ -517,10 +517,10 @@ static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
 		break;
 	}
 	c = c2_cobfop_common_get(base_fop);
-	c->c_gobfid.f_seq = COB_TEST_ID;
-	c->c_gobfid.f_oid = COB_TEST_ID;
-	c->c_cobfid.f_seq = COB_TEST_ID;
-	c->c_cobfid.f_oid = COB_TEST_ID;
+	c->c_gobfid.f_container = COB_TEST_ID;
+	c->c_gobfid.f_key = COB_TEST_ID;
+	c->c_cobfid.f_container = COB_TEST_ID;
+	c->c_cobfid.f_key = COB_TEST_ID;
 	fom->fo_fop = base_fop;
 	fom->fo_type = &base_fop->f_type->ft_fom_type;
 

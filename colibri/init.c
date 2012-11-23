@@ -44,6 +44,7 @@
 #include "fol/fol.h"
 #include "reqh/reqh.h"
 #include "lib/timer.h"
+#include "fid/fid.h"
 #include "fop/fom_generic.h"
 #include "colibri/init.h"
 #include "lib/cookie.h"
@@ -89,6 +90,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_fi_init,          &c2_fi_fini,          "finject" },
 	{ &c2_memory_init,      &c2_memory_fini,      "memory" },
 	{ &libc2_init,          &libc2_fini,          "libc2" },
+	{ &c2_fid_init,         &c2_fid_fini,         "fid" },
 	{ &c2_confx_types_init, &c2_confx_types_fini, "conf-xtypes" },
 	{ &c2_cookie_global_init, &c2_cookie_global_fini, "cookie" },
 	{ &c2_uts_init,         &c2_uts_fini,         "ut" },

@@ -150,10 +150,8 @@ static void io_fids_init(struct bulkio_params *bp)
 
 	C2_ASSERT(bp != NULL);
 	/* Populates fids. */
-	for (i = 0; i < IO_FIDS_NR; ++i) {
-		bp->bp_fids[i].f_seq = i;
-		bp->bp_fids[i].f_oid = i;
-	}
+	for (i = 0; i < IO_FIDS_NR; ++i)
+	        c2_fid_set(&bp->bp_fids[i], i, i);
 }
 
 static void io_buffers_allocate(struct bulkio_params *bp)

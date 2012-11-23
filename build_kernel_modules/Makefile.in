@@ -100,7 +100,8 @@ db_linux_kernel_SOURCES         := db.c
 dtm_SOURCES                     := verno.c dtm.c verno_xc.c
 dtm_HEADERS                     := verno.h verno_xc.h
 
-fid_SOURCES                     := fid.c
+fid_SOURCES                     := fid.c fid_xc.c
+fid_HEADERS                     := fid.h fid_xc.h
 
 fol_SOURCES                     := fol.c
 

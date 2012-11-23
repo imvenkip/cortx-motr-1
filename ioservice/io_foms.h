@@ -232,14 +232,6 @@ struct c2_io_fom_cob_rw_state_transition {
 C2_INTERNAL const char *c2_io_fom_cob_rw_service_name(struct c2_fom *fom);
 
 /**
- * Function to map the on-wire FOP format to in-core FOP format.
- * @param in Input on-wire fid fop format.
- * @param out Output in-core fid fop format.
- */
-C2_INTERNAL void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in,
-					    struct c2_fid *out);
-
-/**
  * Maps given fid to corresponding stob id.
  * @param in Input in-core fid.
  * @param out Output stob id.

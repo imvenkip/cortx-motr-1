@@ -69,7 +69,7 @@ enum IO_UT_VALUES {
 /* Structure containing data needed for UT. */
 struct bulkio_params {
 	/* Fids of global files. */
-	struct c2_fop_file_fid		  bp_fids[IO_FIDS_NR];
+	struct c2_fid		          bp_fids[IO_FIDS_NR];
 
 	/* Tracks offsets for global fids. */
 	uint64_t			  bp_offsets[IO_FIDS_NR];

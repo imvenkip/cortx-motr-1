@@ -15,6 +15,7 @@
  *
  * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
  *                  Amit Jambure <amit_jambure@xyratex.com>
+ * Metadata       : Yuriy Umanets <yuriy_umanets@xyratex.com>
  * Original creation date: 10/14/2011
  */
 
@@ -60,9 +61,7 @@ static void init_once(void *foo)
 
 	C2_ENTRY();
 
-	ci->ci_fid.f_container = 0;
-	ci->ci_fid.f_key       = 0;
-
+        c2_fid_set(&ci->ci_fid, 0, 0);
 	inode_init_once(&ci->ci_inode);
 
 	C2_LEAVE();

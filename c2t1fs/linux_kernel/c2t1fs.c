@@ -15,6 +15,7 @@
  *
  * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
  *                  Amit Jambure <amit_jambure@xyratex.com>
+ * Metadata       : Yuriy Umanets <yuriy_umanets@xyratex.com>
  * Original creation date: 05/04/2010
  */
 
@@ -81,9 +82,13 @@ C2_INTERNAL int c2t1fs_init(void)
 
 	c2t1fs_globals.g_laddr = local_addr;
 
+        rc = c2_fid_init();
+        if (rc != 0)
+                goto out;
+
 	rc = c2_ioservice_fop_init();
 	if (rc != 0)
-		goto out;
+		goto fid_fini;
 
 	rc = c2_mdservice_fop_init();
 	if (rc != 0)
@@ -125,6 +130,8 @@ mdservice_fini:
         c2_mdservice_fop_fini();
 ioservice_fini:
         c2_ioservice_fop_fini();
+fid_fini:
+        c2_fid_fini();
 out:
 	C2_LEAVE("rc: %d", rc);
 	C2_ASSERT(rc != 0);

@@ -43,22 +43,12 @@
 
 #include "mdstore/mdstore.h"
 
-/**
-   Make in-memory fid from wire fid.
-*/
-C2_INTERNAL void c2_md_fid_wire2mem(struct c2_fid *fid,
-				    const struct c2_fop_fid *wid)
-{
-        fid->f_container = wid->f_seq;
-        fid->f_key = wid->f_oid;
-}
-
 static void c2_md_cob_wire2mem(struct c2_cob_attr *attr,
                                struct c2_fop_cob *body)
 {
         C2_SET0(attr);
-        c2_md_fid_wire2mem(&attr->ca_pfid, &body->b_pfid);
-        c2_md_fid_wire2mem(&attr->ca_tfid, &body->b_tfid);
+        attr->ca_pfid = body->b_pfid;
+        attr->ca_tfid = body->b_tfid;
         attr->ca_flags = body->b_valid;
         if (body->b_valid & C2_COB_MODE)
                 attr->ca_mode = body->b_mode;
@@ -85,20 +75,11 @@ static void c2_md_cob_wire2mem(struct c2_cob_attr *attr,
         attr->ca_version = body->b_version;
 }
 
-/**
-   Make in-memory wire fid from attr fid.
-*/
-C2_INTERNAL void c2_md_fid_mem2wire(struct c2_fop_fid *wid, const struct c2_fid *fid)
-{
-        wid->f_seq = fid->f_container;
-        wid->f_oid = fid->f_key;
-}
-
 static void c2_md_cob_mem2wire(struct c2_fop_cob *body,
                               struct c2_cob_attr *attr)
 {
-        c2_md_fid_mem2wire(&body->b_pfid, &attr->ca_pfid);
-        c2_md_fid_mem2wire(&body->b_tfid, &attr->ca_tfid);
+        body->b_pfid = attr->ca_pfid;
+        body->b_tfid = attr->ca_tfid;
         body->b_valid = attr->ca_flags;
         if (body->b_valid & C2_COB_MODE)
                 body->b_mode = attr->ca_mode;
@@ -173,8 +154,6 @@ static int c2_md_create_tick(struct c2_fom *fom)
         struct c2_fop_create_rep *rep;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
-        struct c2_fid             pfid;
-        struct c2_fid             tfid;
         int                       rc;
 
         C2_PRE(c2_fom_invariant(fom));
@@ -215,16 +194,14 @@ static int c2_md_create_tick(struct c2_fom *fom)
                 c2_buf_init(&attr.ca_link, (char *)req->c_target.s_buf, attr.ca_size);
         }
 
-        c2_md_fid_wire2mem(&pfid, &body->b_pfid);
-        c2_md_fid_wire2mem(&tfid, &body->b_tfid);
-
         C2_LOG(C2_DEBUG, "Create [%lx:%lx]/[%lx:%lx] %*s",
-               pfid.f_container, pfid.f_key, tfid.f_container, tfid.f_key,
+               body->b_pfid.f_container, body->b_pfid.f_key,
+               body->b_tfid.f_container, body->b_tfid.f_key,
                (int)attr.ca_name.b_nob, (char *)attr.ca_name.b_addr);
 
         c2_fom_block_enter(fom);
-        rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid,
-                          &tfid, &attr, &fom->fo_tx.tx_dbtx);
+        rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &body->b_pfid,
+                          &body->b_tfid, &attr, &fom->fo_tx.tx_dbtx);
         c2_fom_block_leave(fom);
 out:
         C2_LOG(C2_DEBUG, "Create finished with %d", rc);
@@ -243,8 +220,6 @@ static int c2_md_link_tick(struct c2_fom *fom)
         struct c2_fop_link_rep   *rep;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
-        struct c2_fid             tfid;
-        struct c2_fid             pfid;
         struct c2_cob_attr        attr;
         int                       rc;
 
@@ -280,12 +255,10 @@ static int c2_md_link_tick(struct c2_fom *fom)
         c2_md_cob_wire2mem(&attr, body);
 
         c2_buf_init(&attr.ca_name, req->l_name.s_buf, req->l_name.s_len);
-        c2_md_fid_wire2mem(&pfid, &body->b_pfid);
-        c2_md_fid_wire2mem(&tfid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
         rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                          &pfid, &tfid, &attr, &fom->fo_tx.tx_dbtx);
+                          &body->b_pfid, &body->b_tfid, &attr, &fom->fo_tx.tx_dbtx);
         c2_fom_block_leave(fom);
 out:
         rep->l_body.b_rc = rc;
@@ -305,8 +278,6 @@ static int c2_md_unlink_tick(struct c2_fom *fom)
         struct c2_fop_unlink_rep *rep;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
-        struct c2_fid             tfid;
-        struct c2_fid             pfid;
         struct c2_db_tx          *tx;
         struct c2_mdstore        *md;
         int                       rc;
@@ -345,11 +316,9 @@ static int c2_md_unlink_tick(struct c2_fom *fom)
         body = &req->u_body;
         c2_md_cob_wire2mem(&attr, body);
         c2_buf_init(&attr.ca_name, req->u_name.s_buf, req->u_name.s_len);
-        c2_md_fid_wire2mem(&pfid, &body->b_pfid);
-        c2_md_fid_wire2mem(&tfid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
-        rc = c2_mdstore_locate(md, &tfid, &scob,
+        rc = c2_mdstore_locate(md, &body->b_tfid, &scob,
                                 C2_MD_LOCATE_STORED,
                                 tx);
         if (rc != 0) {
@@ -357,7 +326,7 @@ static int c2_md_unlink_tick(struct c2_fom *fom)
                 goto out;
         }
 
-        rc = c2_mdstore_unlink(md, &pfid, scob, &attr.ca_name, tx);
+        rc = c2_mdstore_unlink(md, &body->b_pfid, scob, &attr.ca_name, tx);
         if (rc == 0 && scob->co_nsrec.cnr_nlink > 0)
                 rc = c2_mdstore_setattr(md, scob, &attr, tx);
         c2_cob_put(scob);
@@ -418,10 +387,6 @@ static int c2_md_rename_tick(struct c2_fom *fom)
         struct c2_fop            *fop_rep;
         struct c2_cob            *tcob = NULL;
         struct c2_cob            *scob = NULL;
-        struct c2_fid             src_tfid;
-        struct c2_fid             tgt_tfid;
-        struct c2_fid             tgt_pfid;
-        struct c2_fid             src_pfid;
         struct c2_cob_attr        sattr;
         struct c2_cob_attr        tattr;
         struct c2_db_tx          *tx;
@@ -463,12 +428,6 @@ static int c2_md_rename_tick(struct c2_fom *fom)
 
         rep = c2_fop_data(fop_rep);
 
-        c2_md_fid_wire2mem(&src_pfid, &sbody->b_pfid);
-        c2_md_fid_wire2mem(&tgt_pfid, &tbody->b_pfid);
-
-        c2_md_fid_wire2mem(&src_tfid, &sbody->b_tfid);
-        c2_md_fid_wire2mem(&tgt_tfid, &tbody->b_tfid);
-
         c2_md_cob_wire2mem(&tattr, tbody);
         c2_buf_init(&tattr.ca_name, req->r_tname.s_buf, req->r_tname.s_len);
 
@@ -476,24 +435,24 @@ static int c2_md_rename_tick(struct c2_fom *fom)
         c2_buf_init(&sattr.ca_name, req->r_sname.s_buf, req->r_sname.s_len);
 
         c2_fom_block_enter(fom);
-        rc = c2_mdstore_locate(md, &src_tfid, &scob,
+        rc = c2_mdstore_locate(md, &sbody->b_tfid, &scob,
                                 C2_MD_LOCATE_STORED, tx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
                 goto out;
         }
-        if (c2_fid_eq(&tgt_tfid, &src_tfid)) {
-                rc = c2_md_rename(md, &tgt_pfid, &src_pfid, &tgt_tfid,
-                                  &src_tfid, &tattr, &sattr, scob, scob, tx);
+        if (c2_fid_eq(&tbody->b_tfid, &sbody->b_tfid)) {
+                rc = c2_md_rename(md, &tbody->b_pfid, &sbody->b_pfid, &tbody->b_tfid,
+                                  &sbody->b_tfid, &tattr, &sattr, scob, scob, tx);
         } else {
-                rc = c2_mdstore_locate(md, &tgt_tfid, &tcob,
+                rc = c2_mdstore_locate(md, &tbody->b_tfid, &tcob,
                                         C2_MD_LOCATE_STORED, tx);
                 if (rc != 0) {
                         c2_fom_block_leave(fom);
                         goto out;
                 }
-                rc = c2_md_rename(md, &tgt_pfid, &src_pfid, &tgt_tfid,
-                                  &src_tfid, &tattr, &sattr, tcob, scob, tx);
+                rc = c2_md_rename(md, &tbody->b_pfid, &sbody->b_pfid, &tbody->b_tfid,
+                                  &sbody->b_tfid, &tattr, &sattr, tcob, scob, tx);
                 c2_cob_put(tcob);
         }
         c2_cob_put(scob);
@@ -515,7 +474,6 @@ static int c2_md_open_tick(struct c2_fom *fom)
         struct c2_fop_open_rep   *rep;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
-        struct c2_fid             fid;
         struct c2_cob_attr        attr;
         int                       rc;
         struct c2_mdstore        *md;
@@ -552,10 +510,8 @@ static int c2_md_open_tick(struct c2_fom *fom)
         body = &req->o_body;
         c2_md_cob_wire2mem(&attr, body);
 
-        c2_md_fid_wire2mem(&fid, &body->b_tfid);
-
         c2_fom_block_enter(fom);
-        rc = c2_mdstore_locate(md, &fid, &cob,
+        rc = c2_mdstore_locate(md, &body->b_tfid, &cob,
                                 C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc == 0) {
                 rc = c2_mdstore_open(md, cob,
@@ -600,7 +556,6 @@ static int c2_md_close_tick(struct c2_fom *fom)
         struct c2_fop_close_rep  *rep;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
-        struct c2_fid             fid;
         struct c2_cob_attr        attr;
         int                       rc;
         struct c2_mdstore        *md;
@@ -637,8 +592,6 @@ static int c2_md_close_tick(struct c2_fom *fom)
         body = &req->c_body;
         c2_md_cob_wire2mem(&attr, body);
 
-        c2_md_fid_wire2mem(&fid, &body->b_tfid);
-
         c2_fom_block_enter(fom);
         /*
          * @todo: This should lookup for cobs in special opened
@@ -646,8 +599,8 @@ static int c2_md_close_tick(struct c2_fom *fom)
          * quite implemented and we lookup on main store to make
          * ut happy.
          */
-        rc = c2_mdstore_locate(md, &fid, &cob,
-                                C2_MD_LOCATE_STORED/*OPENED*/, &fom->fo_tx.tx_dbtx);
+        rc = c2_mdstore_locate(md, &body->b_tfid, &cob,
+                                C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
                 goto out;
@@ -684,7 +637,6 @@ static int c2_md_setattr_tick(struct c2_fom *fom)
         struct c2_fop_setattr_rep     *rep;
         struct c2_fop                 *fop;
         struct c2_fop                 *fop_rep;
-        struct c2_fid                  fid;
         int                            rc;
 
         C2_PRE(c2_fom_invariant(fom));
@@ -718,8 +670,6 @@ static int c2_md_setattr_tick(struct c2_fom *fom)
         body = &req->s_body;
         c2_md_cob_wire2mem(&attr, body);
 
-        c2_md_fid_wire2mem(&fid, &body->b_tfid);
-
         c2_fom_block_enter(fom);
 
         /*
@@ -727,7 +677,7 @@ static int c2_md_setattr_tick(struct c2_fom *fom)
          * an object in case there is no target yet. This is why
          * we return quickly if no object is found.
          */
-        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid,
+        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &body->b_tfid,
                                 &cob, C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
@@ -756,7 +706,6 @@ static int c2_md_lookup_tick(struct c2_fom *fom)
         struct c2_fop_lookup_rep      *rep;
         struct c2_fop                 *fop;
         struct c2_fop                 *fop_rep;
-        struct c2_fid                  pfid;
         int                            rc;
         struct c2_buf                  name;
 
@@ -789,18 +738,16 @@ static int c2_md_lookup_tick(struct c2_fom *fom)
         if (rc != 0)
                 goto out;
 
-        c2_md_fid_wire2mem(&pfid, &body->b_pfid);
-
         c2_fom_block_enter(fom);
 
         c2_buf_init(&name, req->l_name.s_buf, req->l_name.s_len);
 
         C2_LOG(C2_DEBUG, "Lookup for \"%*s\" in object [%lx:%lx]",
-               (int)name.b_nob, (char *)name.b_addr, pfid.f_container,
-               pfid.f_key);
+               (int)name.b_nob, (char *)name.b_addr, body->b_pfid.f_container,
+               body->b_pfid.f_key);
 
         rc = c2_mdstore_lookup(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                               &pfid, &name, &cob, &fom->fo_tx.tx_dbtx);
+                               &body->b_pfid, &name, &cob, &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 C2_LOG(C2_DEBUG, "Lookup failed with %d", rc);
                 c2_fom_block_leave(fom);
@@ -839,7 +786,6 @@ static int c2_md_getattr_tick(struct c2_fom *fom)
         struct c2_fop_getattr_rep     *rep;
         struct c2_fop                 *fop;
         struct c2_fop                 *fop_rep;
-        struct c2_fid                  fid;
         int                            rc;
 
         C2_PRE(c2_fom_invariant(fom));
@@ -871,10 +817,8 @@ static int c2_md_getattr_tick(struct c2_fom *fom)
         if (rc != 0)
                 goto out;
 
-        c2_md_fid_wire2mem(&fid, &body->b_tfid);
-
         c2_fom_block_enter(fom);
-        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid,
+        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &body->b_tfid,
                                &cob, C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
@@ -909,7 +853,7 @@ static void md_statfs_mem2wire(struct c2_fop_statfs_rep *rep,
         rep->f_files = statfs->sf_files;
         rep->f_ffree = statfs->sf_ffree;
         rep->f_namelen = statfs->sf_namelen;
-        c2_md_fid_mem2wire(&rep->f_root, &statfs->sf_root);
+        rep->f_root = statfs->sf_root;
 }
 
 static int c2_md_statfs_tick(struct c2_fom *fom)
@@ -971,7 +915,6 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
         struct c2_fop_readdir_rep     *rep;
         struct c2_fop                 *fop;
         struct c2_fop                 *fop_rep;
-        struct c2_fid                  fid;
         struct c2_rdpg                 rdpg = { 0 };
         void                          *addr;
         int                            rc;
@@ -1005,10 +948,8 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
                 goto out;
 
         body = &req->r_body;
-        c2_md_fid_wire2mem(&fid, &body->b_tfid);
-
         c2_fom_block_enter(fom);
-        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid,
+        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &body->b_tfid,
                                &cob, C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
@@ -1104,13 +1045,6 @@ static int c2_md_req_path_get(struct c2_mdstore *mdstore,
         return 0;
 }
 
-static inline struct c2_fid *c2_md_fid_get(struct c2_fop_fid *fid)
-{
-        static struct c2_fid fid_fop2mem;
-        c2_md_fid_wire2mem(&fid_fop2mem, fid);
-        return &fid_fop2mem;
-}
-
 C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
 {
         struct c2_fop_create    *create;
@@ -1133,7 +1067,7 @@ C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
         case C2_MDSERVICE_CREATE_OPCODE:
                 create = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
-                                        c2_md_fid_get(&create->c_body.b_pfid),
+                                        &create->c_body.b_pfid,
                                         &create->c_path);
                 if (rc != 0)
                         return rc;
@@ -1141,12 +1075,12 @@ C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
         case C2_MDSERVICE_LINK_OPCODE:
                 link = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
-                                        c2_md_fid_get(&link->l_body.b_pfid),
+                                        &link->l_body.b_pfid,
                                         &link->l_tpath);
                 if (rc != 0)
                         return rc;
                 rc = c2_md_req_path_get(md,
-                                        c2_md_fid_get(&link->l_body.b_tfid),
+                                        &link->l_body.b_tfid,
                                         &link->l_spath);
                 if (rc != 0) {
                         c2_free(link->l_tpath.s_buf);
@@ -1158,7 +1092,7 @@ C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
         case C2_MDSERVICE_UNLINK_OPCODE:
                 unlink = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
-                                        c2_md_fid_get(&unlink->u_body.b_pfid),
+                                        &unlink->u_body.b_pfid,
                                         &unlink->u_path);
                 if (rc != 0)
                         return rc;
@@ -1166,12 +1100,12 @@ C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
         case C2_MDSERVICE_RENAME_OPCODE:
                 rename = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
-                                        c2_md_fid_get(&rename->r_sbody.b_pfid),
+                                        &rename->r_sbody.b_pfid,
                                         &rename->r_spath);
                 if (rc != 0)
                         return rc;
                 rc = c2_md_req_path_get(md,
-                                        c2_md_fid_get(&rename->r_tbody.b_pfid),
+                                        &rename->r_tbody.b_pfid,
                                         &rename->r_tpath);
                 if (rc != 0) {
                         c2_free(rename->r_spath.s_buf);
@@ -1183,7 +1117,7 @@ C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
         case C2_MDSERVICE_OPEN_OPCODE:
                 open = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
-                                        c2_md_fid_get(&open->o_body.b_tfid),
+                                        &open->o_body.b_tfid,
                                         &open->o_path);
                 if (rc != 0)
                         return rc;
@@ -1191,7 +1125,7 @@ C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
         case C2_MDSERVICE_CLOSE_OPCODE:
                 close = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
-                                        c2_md_fid_get(&close->c_body.b_tfid),
+                                        &close->c_body.b_tfid,
                                         &close->c_path);
                 if (rc != 0)
                         return rc;
@@ -1199,7 +1133,7 @@ C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
         case C2_MDSERVICE_SETATTR_OPCODE:
                 setattr = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
-                                        c2_md_fid_get(&setattr->s_body.b_tfid),
+                                        &setattr->s_body.b_tfid,
                                         &setattr->s_path);
                 if (rc != 0)
                         return rc;
@@ -1207,7 +1141,7 @@ C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
         case C2_MDSERVICE_GETATTR_OPCODE:
                 getattr = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
-                                        c2_md_fid_get(&getattr->g_body.b_tfid),
+                                        &getattr->g_body.b_tfid,
                                         &getattr->g_path);
                 if (rc != 0)
                         return rc;
@@ -1215,7 +1149,7 @@ C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
         case C2_MDSERVICE_LOOKUP_OPCODE:
                 lookup = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
-                                        c2_md_fid_get(&lookup->l_body.b_pfid),
+                                        &lookup->l_body.b_pfid,
                                         &lookup->l_path);
                 if (rc != 0)
                         return rc;
@@ -1223,7 +1157,7 @@ C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
         case C2_MDSERVICE_READDIR_OPCODE:
                 readdir = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
-                                        c2_md_fid_get(&readdir->r_body.b_tfid),
+                                        &readdir->r_body.b_tfid,
                                         &readdir->r_path);
                 if (rc != 0)
                         return rc;

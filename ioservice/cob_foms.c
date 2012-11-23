@@ -183,8 +183,8 @@ static void cob_fom_populate(struct c2_fom *fom)
 	cfom = cob_fom_get(fom);
 	common = c2_cobfop_common_get(fom->fo_fop);
 
-	io_fom_cob_rw_fid_wire2mem(&common->c_gobfid, &cfom->fco_gfid);
-	io_fom_cob_rw_fid_wire2mem(&common->c_cobfid, &cfom->fco_cfid);
+	cfom->fco_gfid = common->c_gobfid;
+	cfom->fco_cfid = common->c_cobfid;
 	io_fom_cob_rw_fid2stob_map(&cfom->fco_cfid, &cfom->fco_stobid);
 }
 

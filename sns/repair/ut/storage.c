@@ -230,8 +230,7 @@ void write_post(void)
 	cp_prepare(&w_sns_cp.rc_base, &w_bv, SEG_NR, SEG_SIZE, &w_sag, 'e',
 		   &dummy_cp_fom_ops);
 	w_sns_cp.rc_sid = sid;
-	w_sag.sag_spare_cobfid.f_container = sid.si_bits.u_hi;
-	w_sag.sag_spare_cobfid.f_key = sid.si_bits.u_lo;
+	c2_fid_set(&w_sag.sag_spare_cobfid, sid.si_bits.u_hi, sid.si_bits.u_lo);
 	w_sag.sag_spare_cob_index = 0;
 	w_sns_cp.rc_base.c_ops = &write_cp_dummy_ops;
 

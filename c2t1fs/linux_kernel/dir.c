@@ -15,6 +15,7 @@
  *
  * Original author: Amit Jambure <amit_jambure@xyratex.com>
  * Revision       : Anand Vidwansa <anand_vidwansa@xyratex.com>
+ * Metadata       : Yuriy Umanets <yuriy_umanets@xyratex.com>
  * Original creation date: 10/14/2011
  */
 
@@ -95,20 +96,6 @@ const struct inode_operations c2t1fs_dir_inode_operations = {
         .getattr = c2t1fs_getattr
 };
 
-static void fid_mem2wire(struct c2_fop_fid   *tgt,
-                         const struct c2_fid *src)
-{
-        tgt->f_seq = src->f_container;
-        tgt->f_oid = src->f_key;
-}
-
-static void fid_wire2mem(struct c2_fid     *tgt,
-                         struct c2_fop_fid *src)
-{
-        tgt->f_container = src->f_seq;
-        tgt->f_key = src->f_oid;
-}
-
 static int name_mem2wire(struct c2_fop_str *tgt,
                          struct c2_buf *name)
 {
@@ -160,9 +147,7 @@ static struct c2_fid c2t1fs_fid_alloc(struct c2t1fs_sb *csb)
 	struct c2_fid fid;
 
 	C2_PRE(c2t1fs_fs_is_locked(csb));
-
-	fid.f_container = 0;
-	fid.f_key       = csb->csb_next_key++;
+        c2_fid_set(&fid, 0, csb->csb_next_key++);
 
 	return fid;
 }
@@ -285,7 +270,7 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 
 	rc = c2t1fs_mds_cob_lookup(csb, &mo, &rep);
 	if (rc == 0) {
-                fid_wire2mem(&mo.mo_attr.ca_tfid, &rep->l_body.b_tfid);
+                mo.mo_attr.ca_tfid = rep->l_body.b_tfid;
                 inode = c2t1fs_iget(dir->i_sb, &mo.mo_attr.ca_tfid, &rep->l_body);
 	        if (IS_ERR(inode)) {
 		        C2_LEAVE("ERROR: %p", ERR_CAST(inode));
@@ -768,26 +753,26 @@ static int c2t1fs_mds_cob_fop_populate(struct c2t1fs_mdop     *mo,
                 create = c2_fop_data(fop);
                 req = &create->c_body;
 
+                req->b_tfid = mo->mo_attr.ca_tfid;
+                req->b_pfid = mo->mo_attr.ca_pfid;
                 body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_flags);
-                fid_mem2wire(&req->b_tfid, &mo->mo_attr.ca_tfid);
-                fid_mem2wire(&req->b_pfid, &mo->mo_attr.ca_pfid);
                 name_mem2wire(&create->c_name, &mo->mo_attr.ca_name);
                 break;
         case C2_MDSERVICE_LINK_OPCODE:
                 link = c2_fop_data(fop);
                 req = &link->l_body;
 
+                req->b_tfid = mo->mo_attr.ca_tfid;
+                req->b_pfid = mo->mo_attr.ca_pfid;
                 body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_flags);
-                fid_mem2wire(&req->b_tfid, &mo->mo_attr.ca_tfid);
-                fid_mem2wire(&req->b_pfid, &mo->mo_attr.ca_pfid);
                 name_mem2wire(&link->l_name, &mo->mo_attr.ca_name);
                 break;
         case C2_MDSERVICE_UNLINK_OPCODE:
                 unlink = c2_fop_data(fop);
                 req = &unlink->u_body;
 
-                fid_mem2wire(&req->b_tfid, &mo->mo_attr.ca_tfid);
-                fid_mem2wire(&req->b_pfid, &mo->mo_attr.ca_pfid);
+                req->b_tfid = mo->mo_attr.ca_tfid;
+                req->b_pfid = mo->mo_attr.ca_pfid;
                 name_mem2wire(&unlink->u_name, &mo->mo_attr.ca_name);
                 break;
         case C2_MDSERVICE_STATFS_OPCODE:
@@ -798,27 +783,27 @@ static int c2t1fs_mds_cob_fop_populate(struct c2t1fs_mdop     *mo,
                 lookup = c2_fop_data(fop);
                 req = &lookup->l_body;
 
-                fid_mem2wire(&req->b_pfid, &mo->mo_attr.ca_pfid);
+                req->b_pfid = mo->mo_attr.ca_pfid;
                 name_mem2wire(&lookup->l_name, &mo->mo_attr.ca_name);
                 break;
         case C2_MDSERVICE_GETATTR_OPCODE:
                 getattr = c2_fop_data(fop);
                 req = &getattr->g_body;
 
-                fid_mem2wire(&req->b_tfid, &mo->mo_attr.ca_tfid);
+                req->b_tfid = mo->mo_attr.ca_tfid;
                 break;
         case C2_MDSERVICE_SETATTR_OPCODE:
                 setattr = c2_fop_data(fop);
                 req = &setattr->s_body;
 
+                req->b_tfid = mo->mo_attr.ca_tfid;
                 body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_flags);
-                fid_mem2wire(&req->b_tfid, &mo->mo_attr.ca_tfid);
                 break;
         case C2_MDSERVICE_READDIR_OPCODE:
                 readdir = c2_fop_data(fop);
                 req = &readdir->r_body;
 
-                fid_mem2wire(&req->b_tfid, &mo->mo_attr.ca_tfid);
+                req->b_tfid = mo->mo_attr.ca_tfid;
                 name_mem2wire(&readdir->r_pos, &mo->mo_attr.ca_name);
                 break;
         default:
@@ -1153,10 +1138,10 @@ static int c2t1fs_ios_cob_fop_populate(struct c2t1fs_sb    *csb,
 	cli = (struct c2_pool_version_numbers*)&common->c_version;
 	*cli = curr;
 
-	common->c_gobfid.f_seq = gob_fid->f_container;
-	common->c_gobfid.f_oid = gob_fid->f_key;
-	common->c_cobfid.f_seq = cob_fid->f_container;
-	common->c_cobfid.f_oid = cob_fid->f_key;
+	common->c_gobfid.f_container = gob_fid->f_container;
+	common->c_gobfid.f_key = gob_fid->f_key;
+	common->c_cobfid.f_container = cob_fid->f_container;
+	common->c_cobfid.f_key = cob_fid->f_key;
 
 	if (c2_is_cob_create_fop(fop)) {
 		cc = c2_fop_data(fop);

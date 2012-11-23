@@ -15,6 +15,7 @@
  *
  * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
  *                  Amit Jambure <amit_jambure@xyratex.com>
+ * Metadata       : Yuriy Umanets <yuriy_umanets@xyratex.com>
  * Original creation date: 11/07/2011
  */
 
@@ -181,7 +182,6 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
         struct c2_fop_statfs_rep *rep = NULL;
 	struct c2t1fs_mnt_opts   *mntopts;
 	struct c2t1fs_sb         *csb;
-	struct c2_fid             root_fid;
 	struct inode             *root_inode;
 	int                       rc;
 
@@ -248,12 +248,10 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_magic = rep->f_type;
         csb->csb_namelen = rep->f_namelen;
 
-        c2_fid_set(&root_fid, rep->f_root.f_seq, rep->f_root.f_oid);
+        C2_LOG(C2_DEBUG, "Got mdservice root fid [%llx:%llx]",
+               rep->f_root.f_container, rep->f_root.f_key);
 
-        C2_LOG(C2_FATAL, "Got mdservice root fid [%llx:%llx]",
-               root_fid.f_container, root_fid.f_key);
-
-	root_inode = c2t1fs_root_iget(sb, &root_fid);
+	root_inode = c2t1fs_root_iget(sb, &rep->f_root);
 	if (IS_ERR(root_inode)) {
 	        rc = PTR_ERR(root_inode);
 	        C2_LOG(C2_FATAL, "c2t1fs_root_iget() failed with %d", rc);

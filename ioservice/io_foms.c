@@ -843,27 +843,7 @@ C2_INTERNAL void io_fom_cob_rw_stob2fid_map(const struct c2_stob_id *in,
         C2_PRE(in != NULL);
         C2_PRE(out != NULL);
 
-	out->f_container = in->si_bits.u_hi;
-	out->f_key = in->si_bits.u_lo;
-}
-
-/**
- * Function to map the on-wire FOP format to in-core FOP format.
- *
- * @param in file identifier wire format
- * @param out file identifier memory format
- *
- * @pre in != NULL
- * @pre out != NULL
- */
-C2_INTERNAL void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in,
-					    struct c2_fid *out)
-{
-	C2_PRE(in != NULL);
-	C2_PRE(out != NULL);
-
-	out->f_container = in->f_seq;
-	out->f_key = in->f_oid;
+        c2_fid_set(out, in->si_bits.u_hi, in->si_bits.u_lo);
 }
 
 /**
@@ -1408,7 +1388,6 @@ static int io_launch(struct c2_fom *fom)
 {
 	int				 rc;
 	uint32_t			 bshift;
-	struct c2_fid			 fid;
 	struct c2_fop			*fop;
 	struct c2_io_fom_cob_rw	        *fom_obj;
 	struct c2_stob_id		 stobid;
@@ -1416,7 +1395,6 @@ static int io_launch(struct c2_fom *fom)
 	struct c2_fop_cob_rw		*rwfop;
 	struct c2_io_indexvec            wire_ivec;
 	struct c2_stob_domain		*fom_stdom;
-	struct c2_fop_file_fid		*ffid;
 	struct c2_reqh                  *reqh;
 
 	C2_PRE(fom != NULL);
@@ -1433,9 +1411,7 @@ static int io_launch(struct c2_fom *fom)
 	fop = fom->fo_fop;
 	rwfop = io_rw_get(fop);
 
-	ffid = &rwfop->crw_fid;
-	io_fom_cob_rw_fid_wire2mem(ffid, &fid);
-	io_fom_cob_rw_fid2stob_map(&fid, &stobid);
+	io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stobid);
 	reqh = c2_fom_reqh(fom);
 	fom_stdom = c2_cs_stob_domain_find(reqh, &stobid);
 	if (fom_stdom == NULL) {

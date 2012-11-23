@@ -402,8 +402,7 @@ C2_INTERNAL int c2_cobfid_map_iter_next(struct c2_cobfid_map_iter *iter,
 	record = &recs[iter->cfmi_rec_idx];
 	/* Set output pointer values */
 	*container_id_p = record->cfr_key.cfk_ci;
-	file_fid_p->f_container = record->cfr_key.cfk_fid.f_container;
-	file_fid_p->f_key = record->cfr_key.cfk_fid.f_key;
+	*file_fid_p = record->cfr_key.cfk_fid;
 	cob_fid_p->u_hi = record->cfr_cob.u_hi;
 	cob_fid_p->u_lo = record->cfr_cob.u_lo;
 
@@ -689,8 +688,7 @@ C2_INTERNAL int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
 	iter->cfmi_next_ci = container_id;
 	/* Initialize the fid to 0, to start from first fid for a given
 	   container */
-	iter->cfmi_next_fid.f_container = 0;
-	iter->cfmi_next_fid.f_key = 0;
+	c2_fid_set(&iter->cfmi_next_fid, 0, 0);
 	return rc;
 }
 

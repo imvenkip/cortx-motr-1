@@ -42,7 +42,7 @@ C2_TL_DECLARE(rpcitem, C2_INTERNAL, struct c2_rpc_item);
 
 C2_INTERNAL void c2_io_item_free(struct c2_rpc_item *item);
 
-static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop);
+static struct c2_fid *io_fop_fid_get(struct c2_fop *fop);
 
 static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 			     uint64_t size);
@@ -1331,23 +1331,14 @@ cleanup:
 	return rc;
 }
 
-static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop)
+static struct c2_fid *io_fop_fid_get(struct c2_fop *fop)
 {
 	return &(io_rw_get(fop))->crw_fid;
 }
 
 static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 {
-	struct c2_fop_file_fid *ffid1;
-	struct c2_fop_file_fid *ffid2;
-
-	C2_PRE(fop1 != NULL);
-	C2_PRE(fop2 != NULL);
-
-	ffid1 = io_fop_fid_get(fop1);
-	ffid2 = io_fop_fid_get(fop2);
-
-	return ffid1->f_seq == ffid2->f_seq && ffid1->f_oid == ffid2->f_oid;
+        return c2_fid_eq(io_fop_fid_get(fop1), io_fop_fid_get(fop2));
 }
 
 static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop)

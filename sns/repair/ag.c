@@ -62,8 +62,7 @@ C2_INTERNAL void agid2fid(const struct c2_cm_aggr_group *ag, struct c2_fid *fid)
 	C2_PRE(ag != NULL);
 	C2_PRE(fid != NULL);
 
-	fid->f_container = ag->cag_id.ai_hi.u_hi;
-	fid->f_key       = ag->cag_id.ai_hi.u_lo;
+        c2_fid_set(fid, ag->cag_id.ai_hi.u_hi, ag->cag_id.ai_hi.u_lo);
 }
 
 C2_INTERNAL uint64_t agid2group(const struct c2_cm_aggr_group *ag)

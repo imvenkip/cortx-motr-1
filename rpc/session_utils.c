@@ -140,7 +140,7 @@ C2_INTERNAL int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	        return rc;
 
 	if (pcob == NULL) {
-	        pfid.f_container = pfid.f_key = 1;
+	        c2_fid_set(&pfid, 1, 1);
 	} else {
 	        pfid = pcob->co_nsrec.cnr_fid;
 	}
@@ -152,8 +152,7 @@ C2_INTERNAL int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	}
 
         stobid = stob_id_alloc();
-	nsrec.cnr_fid.f_container = stobid.u_hi;
-	nsrec.cnr_fid.f_key = stobid.u_lo;
+        c2_fid_set(&nsrec.cnr_fid, stobid.u_hi, stobid.u_lo);
 	nsrec.cnr_nlink = 1;
 
         rc = c2_cob_fabrec_make(&fabrec, NULL, 0);
@@ -203,7 +202,7 @@ C2_INTERNAL int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
 
 	*out = NULL;
 	if (pcob == NULL) {
-	        pfid.f_container = pfid.f_key = 1;
+	        c2_fid_set(&pfid, 1, 1);
 	} else {
 	        pfid = pcob->co_nsrec.cnr_fid;
 	}

@@ -29,10 +29,8 @@
  *
  */
 
-record {
-        u64 f_seq;
-        u64 f_oid
-} c2_fop_fid;
+require "fid/fid_xc";
+require "fid/fid";
 
 sequence {
         u32 s_len;
@@ -58,8 +56,8 @@ record {
         u32 b_atime;
         u32 b_mtime;
         u32 b_ctime;
-        c2_fop_fid b_pfid;
-        c2_fop_fid b_tfid
+        c2_fid b_pfid;
+        c2_fid b_tfid
 } c2_fop_cob;
 
 record {
@@ -184,7 +182,7 @@ record {
         u64        f_files;
         u64        f_ffree;
         u32        f_namelen;
-        c2_fop_fid f_root
+        c2_fid     f_root
 } c2_fop_statfs_rep;
 
 /** @} end of fop group */

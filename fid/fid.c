@@ -26,6 +26,7 @@
 
 #include "lib/cdefs.h"         /* C2_EXPORTED */
 #include "lib/assert.h"        /* C2_PRE() */
+#include "fid/fid_xc.h"
 #include "fid/fid.h"
 
 /**
@@ -76,6 +77,19 @@ C2_INTERNAL int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1)
 
         return c2_uint128_cmp(&u0, &u1);
 }
+
+C2_INTERNAL int c2_fid_init(void)
+{
+	c2_xc_fid_init();
+	return 0;
+}
+C2_EXPORTED(c2_fid_init);
+
+C2_INTERNAL void c2_fid_fini(void)
+{
+	c2_xc_fid_fini();
+}
+C2_EXPORTED(c2_fid_fini);
 
 /** @} end of fid group */
 

@@ -3214,10 +3214,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		if (rc != 0)
 			goto fini_fop;
 
-		io_rw_get(&irfop->irf_iofop.if_fop)->crw_fid.f_seq =
-			ti->ti_fid.f_container;
-		io_rw_get(&irfop->irf_iofop.if_fop)->crw_fid.f_oid =
-			ti->ti_fid.f_key;
+                io_rw_get(&irfop->irf_iofop.if_fop)->crw_fid = ti->ti_fid;
 
 		C2_CNT_INC(ti->ti_nwxfer->nxr_iofop_nr);
 		C2_LOG(C2_INFO, "Number of io fops = %llu",

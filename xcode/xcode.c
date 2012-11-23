@@ -73,31 +73,23 @@ C2_INTERNAL bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 		[C2_XA_ATOM]     = 0
 	};
 
-	if (!(0 <= xt->xct_aggr && xt->xct_aggr < C2_XA_NR)) {
-	        C2_ASSERT(0);
+	if (!(0 <= xt->xct_aggr && xt->xct_aggr < C2_XA_NR))
 		return false;
-        }
 
-	if (xt->xct_nr < min[xt->xct_aggr] || xt->xct_nr > max[xt->xct_aggr]) {
-	        C2_ASSERT(0);
+	if (xt->xct_nr < min[xt->xct_aggr] || xt->xct_nr > max[xt->xct_aggr])
 		return false;
-	}
 
 	for (i = 0, offset = 0, prev = 0; i < xt->xct_nr; ++i) {
 		const struct c2_xcode_field *f;
 
 		f = &xt->xct_child[i];
-		if (!field_invariant(xt, f)) {
-	                C2_ASSERT(0);
+		if (!field_invariant(xt, f))
 			return false;
-		}
 
 		/* field doesn't overlap with the previous one */
 		if (i > 0 && offset +
-		    xt->xct_child[prev].xf_type->xct_sizeof > f->xf_offset) {
-	                C2_ASSERT(0);
+		    xt->xct_child[prev].xf_type->xct_sizeof > f->xf_offset)
 			return false;
-		}
 
 		/* update the previous field offset: for UNION all branches
 		   follow the first field. */
@@ -112,29 +104,20 @@ C2_INTERNAL bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 		break;
 	case C2_XA_UNION:
 	case C2_XA_SEQUENCE:
-		if (xt->xct_child[0].xf_type->xct_aggr != C2_XA_ATOM) {
-    	                C2_ASSERT(0);
+		if (xt->xct_child[0].xf_type->xct_aggr != C2_XA_ATOM)
 			return false;
-		}
 		break;
 	case C2_XA_OPAQUE:
-		if (xt != &C2_XT_OPAQUE) {
-	                C2_ASSERT(0);
+		if (xt != &C2_XT_OPAQUE)
 			return false;
-		}
-		if (xt->xct_sizeof != sizeof (void *)) {
-	                C2_ASSERT(0);
+		if (xt->xct_sizeof != sizeof (void *))
 			return false;
-		}
 		break;
 	case C2_XA_ATOM:
-		if (!(0 <= xt->xct_atype && xt->xct_atype < C2_XAT_NR)) {
-	                C2_ASSERT(0);
+		if (!(0 <= xt->xct_atype && xt->xct_atype < C2_XAT_NR))
 			return false;
-		}
 		break;
 	default:
-	        C2_ASSERT(0);
 		return false;
 	}
 	return true;
