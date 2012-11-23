@@ -36,15 +36,32 @@ struct c2_cob_ns_iter {
 	struct c2_fid         cni_last_fid;
 };
 
+/**
+ * Initialises the namespace iterator.
+ * @param iter - Namespace ietrator that is to be initialised.
+ * @param gfid - Initialial gob fid with which iterator is initialised.
+ * @param dbenv - DB environment from which the records should be extracted.
+ * @param cdom - Cob domain.
+ */
 C2_INTERNAL int c2_cob_ns_iter_init(struct c2_cob_ns_iter *iter,
 				    struct c2_fid *gfid,
 				    struct c2_dbenv *dbenv,
 				    struct c2_cob_domain *cdom);
 
+/**
+ * Iterates over namespace to point to unique gob fid in the namespace.
+ * @param iter - Pointer to the namespace iterator.
+ * @param gfid - Next unique gob fid in the iterator. This is output variable.
+ * @param tx - Database transaction used for DB operations by iterator.
+ */
 C2_INTERNAL int c2_cob_ns_iter_next(struct c2_cob_ns_iter *iter,
 				    struct c2_fid *gfid,
 				    struct c2_db_tx *tx);
 
+/**
+ * Finalises the namespace iterator.
+ * @param iter - Namespace iterator that is to be finalised.
+ */
 C2_INTERNAL void c2_cob_ns_iter_fini(struct c2_cob_ns_iter *iter);
 
 #endif    /* __COLIBRI_COB_NS_ITER_H__ */
