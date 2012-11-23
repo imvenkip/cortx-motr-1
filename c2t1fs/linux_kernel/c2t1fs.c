@@ -150,6 +150,7 @@ C2_INTERNAL void c2t1fs_fini(void)
 	c2t1fs_inode_cache_fini();
 	c2_mdservice_fop_fini();
 	c2_ioservice_fop_fini();
+	c2_fid_fini();
 
 	C2_LEAVE();
 }
