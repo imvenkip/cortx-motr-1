@@ -515,81 +515,9 @@ AC_SUBST([C2_LDFLAGS])
 AC_CONFIG_FILES([
                  Makefile
                  build_kernel_modules/Makefile
-                 capa/Makefile
-                 capa/ut/Makefile
-                 c2t1fs/linux_kernel/Makefile
-                 c2t1fs/linux_kernel/st/Makefile
-                 c2t1fs/linux_kernel/ut/Makefile
-                 cfg/Makefile
-		 cm/Makefile
-		 cm/ut/Makefile
-                 cob/Makefile
-                 cob/ut/Makefile
-                 colibri/Makefile
-                 colibri/ut/Makefile
-		 console/Makefile
-                 console/bin/Makefile
-                 console/ut/Makefile
-                 console/st/Makefile
-                 db/Makefile
-                 db/ut/Makefile
-                 desim/Makefile
-                 desim/ut/Makefile
-                 doc/Makefile
-                 dtm/Makefile
-                 fid/Makefile
-                 fol/Makefile
-                 fol/ut/Makefile
-                 fop/Makefile
-                 fop/ut/Makefile
-                 fop/ut/long_lock/Makefile
-                 ioservice/Makefile
-                 ioservice/ut/Makefile
-                 layout/Makefile
-                 layout/ut/Makefile
-                 lib/Makefile
-                 lib/user_space/Makefile
-                 lib/ut/Makefile
-                 m4/Makefile
-                 man/Makefile
-                 mds/Makefile
-                 mw/Makefile
-                 net/Makefile
-		 net/bulk_emulation/Makefile
-		 net/bulk_emulation/st/Makefile
-		 net/bulk_emulation/ut/Makefile
-		 net/lnet/Makefile
-		 net/lnet/st/Makefile
 		 net/lnet/st/linux_kernel/Makefile
-		 net/lnet/ut/Makefile
-		 net/test/Makefile
 		 net/test/linux_kernel/Makefile
-		 net/test/user_space/Makefile
-		 net/test/ut/Makefile
-		 net/ut/Makefile
-                 nrs/Makefile
-                 patches/Makefile
-                 pool/Makefile
-                 reqh/Makefile
-		 reqh/ut/Makefile
-		 rm/Makefile
-		 rm/ut/Makefile
-                 rpc/Makefile
-                 rpc/ut/Makefile
-                 rpc/it/Makefile
 		 rpc/it/linux_kernel/Makefile
-		 scripts/Makefile
-                 sm/Makefile
-                 sm/ut/Makefile
-                 sns/Makefile
-                 sns/repair/Makefile
-                 sns/repair/ut/Makefile
-                 sns/ut/Makefile
-                 stob/Makefile
-                 stob/ut/Makefile
-                 udb/Makefile
-                 udb/ut/Makefile
-                 ut/Makefile
                  ut/linux_kernel/Makefile
                  utils/linux_kernel/Makefile
                 ])
