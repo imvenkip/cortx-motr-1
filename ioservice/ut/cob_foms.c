@@ -193,10 +193,8 @@ static void cobfops_populate_internal(struct c2_fop *fop, uint64_t index)
 	C2_UT_ASSERT(fop->f_type != NULL);
 
 	common = c2_cobfop_common_get(fop);
-	common->c_gobfid.f_container = GOB_FID_CONTAINER_ID + index;
-	common->c_gobfid.f_key = GOB_FID_KEY_ID + index;
-	common->c_cobfid.f_container = COB_FID_CONTAINER_ID + index;
-	common->c_cobfid.f_key = COB_FID_KEY_ID + index;
+	c2_fid_set(&common->c_gobfid, GOB_FID_CONTAINER_ID + index, GOB_FID_KEY_ID + index);
+	c2_fid_set(&common->c_cobfid, GOB_FID_CONTAINER_ID + index, GOB_FID_KEY_ID + index);
 }
 
 static void cobfops_populate(uint64_t index)
@@ -517,10 +515,8 @@ static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
 		break;
 	}
 	c = c2_cobfop_common_get(base_fop);
-	c->c_gobfid.f_container = COB_TEST_ID;
-	c->c_gobfid.f_key = COB_TEST_ID;
-	c->c_cobfid.f_container = COB_TEST_ID;
-	c->c_cobfid.f_key = COB_TEST_ID;
+	c2_fid_set(&c->c_gobfid, COB_TEST_ID, COB_TEST_ID);
+	c2_fid_set(&c->c_cobfid, COB_TEST_ID, COB_TEST_ID);
 	fom->fo_fop = base_fop;
 	fom->fo_type = &base_fop->f_type->ft_fom_type;
 

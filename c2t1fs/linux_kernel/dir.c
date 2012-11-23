@@ -1138,10 +1138,8 @@ static int c2t1fs_ios_cob_fop_populate(struct c2t1fs_sb    *csb,
 	cli = (struct c2_pool_version_numbers*)&common->c_version;
 	*cli = curr;
 
-	common->c_gobfid.f_container = gob_fid->f_container;
-	common->c_gobfid.f_key = gob_fid->f_key;
-	common->c_cobfid.f_container = cob_fid->f_container;
-	common->c_cobfid.f_key = cob_fid->f_key;
+        common->c_gobfid = *gob_fid;
+        common->c_cobfid = *cob_fid;
 
 	if (c2_is_cob_create_fop(fop)) {
 		cc = c2_fop_data(fop);

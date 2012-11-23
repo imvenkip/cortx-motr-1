@@ -51,13 +51,7 @@ static int filesystem_fill(struct c2_conf_obj *dest,
 	struct c2_conf_filesystem *d = C2_CONF_CAST(dest, c2_conf_filesystem);
 	const struct confx_filesystem *s = FLAT_OBJ(src, filesystem);
 
-#if 0 /* XXX Types of d->cf_rootfid and s->xf_rootfid are different:
-       * c2_fid and fid, correspondingly. */
-	d->cf_rootfid = s->xf_rootfid;
-#else
-	d->cf_rootfid.f_container = s->xf_rootfid.f_container;
-	d->cf_rootfid.f_key = s->xf_rootfid.f_key;
-#endif
+        c2_fid_set(&d->cf_rootfid, s->xf_rootfid.f_container, s->xf_rootfid.f_key);
 	/* d->cf_params = XXX; */
 
 	rc = dir_new(&src->o_id, C2_CO_SERVICE, &s->xf_services, reg,
