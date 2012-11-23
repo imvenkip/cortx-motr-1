@@ -391,7 +391,6 @@ static int __fid_next(struct c2_sns_repair_cm *rcm, struct c2_fid *fid_next)
 		return rc;
 
 	rc = c2_cob_ns_iter_next(&rcm->rc_cns_it, fid_next, &tx);
-
         if (rc == 0)
                 c2_db_tx_commit(&tx);
         else
@@ -628,7 +627,6 @@ static int iter_cob_next(struct c2_sns_repair_cm *rcm)
  */
 C2_INTERNAL int iter_init(struct c2_sns_repair_cm *rcm)
 {
-
 	iter_phase_set(&rcm->rc_it, ITPH_FID_NEXT);
 	return 0;
 }

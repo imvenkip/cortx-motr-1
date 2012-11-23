@@ -651,19 +651,18 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 	struct c2_cob_nskey  *nskey;
 	struct c2_dbenv	     *dbenv;
 	struct c2_fid         fid = {COB_TEST_ID, COB_TEST_ID};
-        char                  nskey_name[UINT32_MAX_STR_LEN];
-        uint32_t              nskey_name_len;
+        char                  nskey_bs[UINT32_MAX_STR_LEN];
+        uint32_t              nskey_bs_len;
 	uint32_t              unit_idx = COB_TEST_ID;
 
 	cobdom = &c2_fom_reqh(fom)->rh_mdstore->md_dom;
 	dbenv = c2_fom_reqh(fom)->rh_dbenv;
 
-        snprintf((char*)nskey_name, UINT32_MAX_STR_LEN, "%u",
+        snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u",
                  (uint32_t)unit_idx);
-        nskey_name_len = strlen(nskey_name) + 1;
+        nskey_bs_len = strlen(nskey_bs) + 1;
 
-	rc = c2_cob_nskey_make(&nskey, &fid, (char *)nskey_name,
-			       nskey_name_len); 
+	rc = c2_cob_nskey_make(&nskey, &fid, (char *)nskey_bs, nskey_bs_len);
 	C2_UT_ASSERT(rc == 0);
 
 	C2_SET0(&tx);
