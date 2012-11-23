@@ -68,14 +68,9 @@ int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 
 	rc = c2_cs_setup_env(&sctx->rsx_colibri_ctx, sctx->rsx_argc,
 			     sctx->rsx_argv);
-	if (rc != 0)
-		goto cs_fini;
+	if (rc == 0)
+		C2_RETURN(c2_cs_start(&sctx->rsx_colibri_ctx));
 
-	rc = c2_cs_start(&sctx->rsx_colibri_ctx);
-
-	C2_RETURN(rc);
-
-cs_fini:
 	c2_cs_fini(&sctx->rsx_colibri_ctx);
 fclose:
 	fclose(sctx->rsx_log_file);
@@ -144,12 +139,9 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 
 	rc = c2_rpc_session_create(&cctx->rcx_session, &cctx->rcx_connection,
 				   cctx->rcx_nr_slots, (uint32_t)C2_TIME_NEVER);
-	if (rc != 0)
-		goto conn_destroy;
+	if (rc == 0)
+		C2_RETURN(rc);
 
-	C2_RETURN(rc);
-
-conn_destroy:
 	c2_rpc_conn_destroy(&cctx->rcx_connection, (uint32_t)C2_TIME_NEVER);
 ep_put:
 	c2_net_end_point_put(cctx->rcx_remote_ep);
@@ -189,9 +181,8 @@ int c2_rpc_client_call(struct c2_fop *fop,
 	item->ri_op_timeout = c2_time_from_now(timeout_s, 0);
 
 	rc = c2_rpc_post(item);
-	if (rc == 0 && timeout_s > 0) {
+	if (rc == 0 && timeout_s > 0)
 		rc = c2_rpc_item_wait_for_reply(item, C2_TIME_NEVER);
-	}
 	C2_RETURN(rc);
 }
 C2_EXPORTED(c2_rpc_client_call);

@@ -520,11 +520,9 @@ static void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 			c2_rpc_item_change_state(item, C2_RPC_ITEM_SENDING);
 		} c2_tl_endfor;
 	}
-
 out:
 	C2_ASSERT(frm_invariant(frm));
 	C2_LEAVE();
-	return;
 }
 /*
  * FRM_FILL_PACKET_NOTE_1

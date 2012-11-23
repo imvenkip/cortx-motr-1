@@ -260,8 +260,7 @@ struct c2_rpc_frm {
 struct c2_rpc_frm_ops {
 	/**
 	   A packet is ready to be sent over network.
-	   @return true iff packet has been submitted to network layer, false
-		   otherwise.
+	   @return true iff packet has been submitted to network layer.
 		   If result is false then all the items in packet
 		   p are moved to FAILED state and are removed from p.
 		   c2_rpc_packet instance pointed by p is freed.
