@@ -491,14 +491,6 @@ static int borrow_fom_create(struct c2_fop *fop, struct c2_fom **out)
  */
 static void borrow_fom_fini(struct c2_fom *fom)
 {
-	struct c2_fop_rm_borrow_rep *rply_fop;
-
-	/*
-	 * Free memory allocated by c2_rm_right_encode().
-	 */
-	rply_fop = c2_fop_data(fom->fo_rep_fop);
-	c2_buf_free(&rply_fop->br_right.ri_opaque);
-
 	request_fom_fini(fom);
 }
 
