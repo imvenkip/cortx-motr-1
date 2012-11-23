@@ -711,30 +711,13 @@ C2_INTERNAL bool c2_fom_group_is_locked(const struct c2_fom *fom);
  */
 C2_INTERNAL void c2_fom_sm_init(struct c2_fom *fom);
 
-static inline void c2_fom_phase_set(struct c2_fom *fom, int phase)
-{
-	c2_sm_state_set(&fom->fo_sm_phase, phase);
-}
+void c2_fom_phase_set(struct c2_fom *fom, int phase);
 
-static inline void c2_fom_phase_move(struct c2_fom *fom, int32_t rc, int phase)
-{
-	c2_sm_move(&fom->fo_sm_phase, rc, phase);
-}
+void c2_fom_phase_move(struct c2_fom *fom, int32_t rc, int phase);
 
-static inline int c2_fom_phase(const struct c2_fom *fom)
-{
-	return fom->fo_sm_phase.sm_state;
-}
+int c2_fom_phase(const struct c2_fom *fom);
 
-static inline void c2_fom_err_set(struct c2_fom *fom, int32_t rc)
-{
-	fom->fo_sm_phase.sm_rc = rc;
-}
-
-static inline int c2_fom_rc(const struct c2_fom *fom)
-{
-	return fom->fo_sm_phase.sm_rc;
-}
+C2_INTERNAL int c2_fom_rc(const struct c2_fom *fom);
 
 C2_INTERNAL void c2_fom_type_init(struct c2_fom_type *type,
 				  const struct c2_fom_type_ops *ops,

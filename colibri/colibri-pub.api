@@ -12,6 +12,9 @@ c2_fi_register
 c2_fini
 c2_fom_fini
 c2_fom_init
+c2_fom_phase
+c2_fom_phase_move
+c2_fom_phase_set
 c2_fom_tick_generic
 c2_fop_alloc
 c2_fop_data

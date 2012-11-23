@@ -1613,7 +1613,7 @@ static int io_finish(struct c2_fom *fom)
         C2_ASSERT(ergo(rc == 0,
                        fom_obj->fcrw_req_count == fom_obj->fcrw_count));
 
-	rc = rc ? fom_obj->fcrw_rc : rc;
+	rc = fom_obj->fcrw_rc != 0 ? fom_obj->fcrw_rc : rc;
         if (rc != 0) {
 		c2_fom_phase_move(fom, rc, C2_FOPH_FAILURE);
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
