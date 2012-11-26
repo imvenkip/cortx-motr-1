@@ -1,0 +1,195 @@
+#!/bin/bash
+
+## This line should precede `set -e'.
+. /etc/rc.d/init.d/functions  # status
+
+set -e
+set -u
+
+## CAUTION: This path will be removed by superuser.
+SANDBOX_DIR=~devvm/_c2-sandbox
+
+# TRACE_MASK=all
+TRACE_MASK='!rpc,formation' # `rpc' and `formation' subsystems are too noisy
+TRACE_LEVEL='debug+'
+# TRACE_CONTEXT=full
+
+MAX_RPC_MSG_SIZE=163840
+TM_MIN_RECV_QUEUE_LEN=2
+
+die() { echo "$@" >&2; exit 1; }
+
+C2_CORE_DIR=`readlink -f $0`
+C2_CORE_DIR=${C2_CORE_DIR%/*/*/*/*}
+[ "${C2_CORE_DIR##*/}" = core ] || die 'Unable to determine C2_CORE_DIR'
+
+### Starts LNET. (Note that the script never stops LNET.)
+lnet_up() {
+    modprobe lnet
+    lctl network up >/dev/null
+    local LNET_NID=`lctl list_nids | head -1`
+
+    export    C2T1FS_ENDPOINT="$LNET_NID:12345:34:6"
+    export IOSERVICE_ENDPOINT="$LNET_NID:12345:34:1"
+}
+
+### Usage: c2_modules {insert|remove}
+### Inserts/removes Colibri kernel modules (kcolibri.ko and galois.ko).
+c2_modules() {
+    case "$1" in
+	insert)
+	    insmod $C2_CORE_DIR/../galois/src/linux_kernel/galois.ko || {
+		echo 'Inserting galois.ko failed' >&2
+		return 1
+	    }
+
+	    ## Print kernel messages on the console. (See proc(5).)
+	    echo 8 >/proc/sys/kernel/printk
+
+	    insmod $C2_CORE_DIR/build_kernel_modules/kcolibri.ko \
+		local_addr=$C2T1FS_ENDPOINT \
+		max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
+		tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
+		${TRACE_MASK:+trace_immediate_mask=$TRACE_MASK} \
+		${TRACE_LEVEL:+trace_level=$TRACE_LEVEL} \
+		${TRACE_CONTEXT:+trace_print_context=$TRACE_CONTEXT} \
+		|| {
+		echo 'Inserting kcolibri.ko failed' >&2
+		rmmod galois
+		return 1
+	    }
+	    ;;
+	remove)
+	    rmmod kcolibri
+
+	    ## Not interested in console output any more.
+	    echo 4 >/proc/sys/kernel/printk
+
+	    rmmod galois
+	    ;;
+	*) die 'c2_modules: Invalid argument';;
+    esac
+}
+
+### Usage: c2_service {start|stop}
+### Starts/stops Colibri service (colibri_setup).
+c2_service() {
+    case "$1" in
+	start)
+	    $C2_CORE_DIR/colibri/colibri_setup -r -D $SANDBOX_DIR/db \
+		-T linux -S $SANDBOX_DIR/stobs -e lnet:$IOSERVICE_ENDPOINT \
+		-s ioservice -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
+		-s confd-service >$SANDBOX_DIR/colibri_setup.log 2>&1 &
+	    sleep 1
+	    status $C2_CORE_DIR/colibri/.libs/lt-colibri_setup >/dev/null || \
+		return 1
+	    ;;
+	stop)
+	    killall -q lt-colibri_setup
+	    sleep 3
+	    ;;
+	*) die 'c2_service: Invalid argument';;
+    esac
+}
+
+sandbox_init() {
+    rm -rf $SANDBOX_DIR
+    mkdir $SANDBOX_DIR
+    cd $SANDBOX_DIR
+}
+
+sandbox_fini() {
+    ## Note that the script does not delete $SANDBOX_DIR: developers
+    ## may want to analyze the logs contained there.
+    cd - >/dev/null
+}
+
+_init() {
+    lnet_up
+    c2_modules insert
+
+    sandbox_init
+    c2_service start || {
+	echo 'Failed to start Colibri service' >&2
+	sandbox_fini
+	c2_modules remove
+	die
+    }
+}
+
+_fini() {
+    c2_service stop
+    sandbox_fini
+    c2_modules remove
+}
+
+_mount() {
+    local CONF=
+    local FS_PARAMS=\
+'[4: "pool_width=3","nr_data_units=1","nr_parity_units=1","unit_size=4096"]'
+
+    case "${1:-}" in
+	bad_conf) CONF='local-conf:garbage';;
+	bad_fs_param) FS_PARAMS='[1: "bad_param"]';;
+    esac
+
+    if [ -z "$CONF" ]; then
+	CONF='local-conf:[3: '\
+'("prof", {1| ("fs")}), '\
+'("fs", {2| ((11, 22),'\
+" $FS_PARAMS,"\
+' [1: "ios"])}), '\
+'("ios", {3| (2,'\
+" [1: \"$IOSERVICE_ENDPOINT\"],"\
+' "node-0")})]'
+    fi
+
+    mount -t c2t1fs -o "conf=$CONF",profile=prof,ios=$IOSERVICE_ENDPOINT none \
+	$SANDBOX_DIR/mnt || return $?
+}
+
+usage() {
+    echo "Usage: ${0##*/} [COMMAND]"
+    echo
+    echo 'Supported commands:'
+    echo '  run      run system tests (default command)'
+    echo '  insmod   insert Colibri kernel modules: kcolibri.ko, galois.ko'
+    echo '  rmmod    remove Colibri kernel modules'
+    echo '  help     display this help and exit'
+}
+
+## -------------------------------------------------------------------
+## main()
+## -------------------------------------------------------------------
+
+[ `id -u` -eq 0 ] || die 'Must be run by superuser'
+
+case "${1:-}" in
+    run|'') ;;
+    insmod) lnet_up; c2_modules insert; exit;;
+    rmmod)           c2_modules remove; exit;;
+    help) usage; exit;;
+    *)    usage >&2; die;;
+esac
+
+_init
+mkdir $SANDBOX_DIR/mnt
+
+## Test failures.
+echo 4 >/proc/sys/kernel/printk  # Not interested in console output.
+for c in bad_conf bad_fs_param; do
+    _mount $c 2>/dev/null && die 'Failed to fail'
+done
+
+## Success.
+echo 8 >/proc/sys/kernel/printk  # Print kernel messages to the console.
+if _mount; then
+    umount $SANDBOX_DIR/mnt
+else
+    _RC=$?
+fi
+
+rmdir $SANDBOX_DIR/mnt
+_fini
+
+exit ${_RC:-$?}

@@ -4,4 +4,3 @@ EXTRA_DIST += scripts/c2 \
               scripts/check-public-api \
               scripts/modload \
               scripts/MountWithLocalServers.sh
-

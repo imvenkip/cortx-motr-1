@@ -19,6 +19,9 @@
  * Original creation date: 29-Aug-2012
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
+
 #include "conf/preload.h"
 #include "conf/onwire.h"
 #include "conf/onwire_xc.h"
@@ -30,66 +33,83 @@
 #include "lib/errno.h"
 #include "lib/misc.h"
 
-
-#define XC_OBJ(xt, ptr) (&(struct c2_xcode_obj)	\
-		{ .xo_type = (xt), .xo_ptr = (ptr) })
-
-C2_INTERNAL int c2_conf_parse(const char *src, struct confx_object *dest,
-			      size_t n)
+static void enconf_fini(struct enconf *enc)
 {
-	struct enconf rd_enc_ext;
-	int           i;
-	int	      result;
+	C2_ENTRY();
 
-	C2_SET0(&rd_enc_ext);
-	result = c2_xcode_read(XC_OBJ(enconf_xc, &rd_enc_ext), src);
-	if (result != 0)
-		return result;
+	c2_confx_fini(enc->ec_objs, enc->ec_nr);
+	c2_free(enc->ec_objs);
 
-	if (rd_enc_ext.ec_nr > n) {
-		c2_confx_fini(rd_enc_ext.ec_objs, rd_enc_ext.ec_nr);
-		c2_free(rd_enc_ext.ec_objs);
-		return -ENOMEM;
+	C2_LEAVE();
+}
+
+C2_INTERNAL int
+c2_conf_parse(const char *src, struct confx_object *dest, size_t n)
+{
+	struct enconf enc;
+	int i;
+	int rc;
+
+	C2_ENTRY();
+
+	C2_SET0(&enc);
+	rc = c2_xcode_read(&C2_XCODE_OBJ(enconf_xc, &enc), src);
+	if (rc != 0) {
+		C2_ASSERT(rc < 0);
+		C2_RETURN(rc);
 	}
 
-	for (i = 0; i < rd_enc_ext.ec_nr; ++i)
-		dest[i] = rd_enc_ext.ec_objs[i];
+	if (enc.ec_nr > n) {
+		enconf_fini(&enc);
+		C2_RETURN(-ENOMEM);
+	}
 
-	c2_free(rd_enc_ext.ec_objs);
+	for (i = 0; i < enc.ec_nr; ++i)
+		dest[i] = enc.ec_objs[i];
 
-	return rd_enc_ext.ec_nr;
+	/* Note that we don't call enconf_fini(): the caller should
+	 * decide when to free confx objects. */
+	c2_free(enc.ec_objs);
+
+	C2_RETURN(enc.ec_nr);
 }
 
 C2_INTERNAL size_t c2_confx_obj_nr(const char *src)
 {
-	struct enconf rd_enc_ext;
-	int	      result;
+	struct enconf enc;
+	int rc;
 
-	C2_SET0(&rd_enc_ext);
-	result = c2_xcode_read(XC_OBJ(enconf_xc, &rd_enc_ext), src);
-	if (result != 0)
-		return 0;
+	C2_ENTRY();
 
-	c2_confx_fini(rd_enc_ext.ec_objs, rd_enc_ext.ec_nr);
-	c2_free(rd_enc_ext.ec_objs);
+	C2_SET0(&enc);
+	rc = c2_xcode_read(&C2_XCODE_OBJ(enconf_xc, &enc), src);
+	if (rc != 0) {
+		C2_ASSERT(rc < 0);
+		C2_RETURN(rc);
+	}
 
-	return rd_enc_ext.ec_nr;
+	enconf_fini(&enc);
+	C2_RETURN(enc.ec_nr);
 }
 
 static void arr_buf_fini(struct arr_buf *a)
 {
 	int i;
+	C2_ENTRY();
 
 	for (i = 0; i < a->ab_count; ++i)
 		c2_buf_free(&a->ab_elems[i]);
-
 	c2_free(a->ab_elems);
+
+	C2_LEAVE();
 }
 
 C2_INTERNAL void c2_confx_fini(struct confx_object *xobjs, size_t n)
 {
 	int             i;
 	struct confx_u *x;
+
+	C2_ENTRY();
 
 	for (i = 0; i < n; ++i) {
 		x = &xobjs[i].o_conf;
@@ -126,4 +146,5 @@ C2_INTERNAL void c2_confx_fini(struct confx_object *xobjs, size_t n)
 
 		c2_buf_free(&xobjs[i].o_id);
 	}
+	C2_LEAVE();
 }

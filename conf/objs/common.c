@@ -160,3 +160,42 @@ C2_INTERNAL bool arrays_eq(const char **cached, const struct arr_buf *flat)
 	}
 	return i == flat->ab_count;
 }
+
+int strings_copy(const char ***dest, const struct arr_buf *src)
+{
+	uint32_t i;
+
+	C2_PRE(*dest == NULL);
+	C2_PRE(equi(src->ab_count == 0, src->ab_elems == NULL));
+
+	if (src->ab_count == 0)
+		return 0; /* there is nothing to copy */
+
+	C2_ALLOC_ARR(*dest, src->ab_count + 1);
+	if (*dest == NULL)
+		return -ENOMEM;
+
+	for (i = 0; i < src->ab_count; ++i) {
+		(*dest)[i] = c2_buf_strdup(&src->ab_elems[i]);
+		if ((*dest)[i] == NULL)
+			goto fail;
+	}
+	(*dest)[i] = NULL; /* end of list */
+
+	return 0;
+fail:
+	for (; i != 0; --i)
+		c2_free((void *)(*dest)[i]);
+	c2_free(*dest);
+	return -ENOMEM;
+}
+
+void strings_free(const char **arr)
+{
+	if (arr != NULL) {
+		const char **p;
+		for (p = arr; *p != NULL; ++p)
+			c2_free((void *)*p);
+		c2_free(arr);
+	}
+}

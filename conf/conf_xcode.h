@@ -100,5 +100,4 @@ C2_INTERNAL int c2_confx_types_init(void);
 /** xcode type finalizer defined in onwire.h */
 C2_INTERNAL void c2_confx_types_fini(void);
 
-
 #endif /* __COLIBRI_CONF_XCODE_H__ */
