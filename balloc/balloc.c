@@ -585,14 +585,14 @@ static int balloc_init_internal(struct c2_balloc *colibri,
 	if (rc == 0) {
 		C2_SET_ARR0(table_name);
 		sprintf(table_name, "%s_%lu", "group_desc", cid);
-		c2_table_init(&colibri->cb_db_group_desc, dbenv, table_name, 0,
-			      &c2_group_desc_ops);
+		rc = c2_table_init(&colibri->cb_db_group_desc, dbenv, table_name, 0,
+				   &c2_group_desc_ops);
 	}
 	if (rc == 0) {
 		C2_SET_ARR0(table_name);
 		sprintf(table_name, "%s_%lu", "group_extents", cid);
-		c2_table_init(&colibri->cb_db_group_extents, dbenv, table_name,
-			      0, &c2_group_extent_ops);
+		rc = c2_table_init(&colibri->cb_db_group_extents, dbenv, table_name,
+				   0, &c2_group_extent_ops);
 	}
 
 	if (rc != 0)

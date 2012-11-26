@@ -285,18 +285,18 @@ static size_t stob_find_fom_home_locality(const struct c2_fom *fom)
 		break;
 	}
 	case C2_STOB_IO_WRITE_REQ_OPCODE: {
-		struct c2_stob_io_read *fop;
-		uint64_t oid;
-		fop = c2_fop_data(fom->fo_fop);
-		oid = fop->fir_object.f_oid;
-		iloc = oid;
-		break;
-	}
-	case C2_STOB_IO_READ_REQ_OPCODE: {
 		struct c2_stob_io_write *fop;
 		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fiw_object.f_oid;
+		iloc = oid;
+		break;
+	}
+	case C2_STOB_IO_READ_REQ_OPCODE: {
+		struct c2_stob_io_read *fop;
+		uint64_t oid;
+		fop = c2_fop_data(fom->fo_fop);
+		oid = fop->fir_object.f_oid;
 		iloc = oid;
 		break;
 	}

@@ -323,6 +323,7 @@ static void write_send(struct c2_rpc_session *session)
 		rh_io_fop = c2_fop_data(fop);
 		rh_io_fop->fiw_object.f_seq = i;
 		rh_io_fop->fiw_object.f_oid = i;
+		rh_io_fop->fiw_value = 'A' + i;
 
 		rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
 					0 /* deadline */, CONNECT_TIMEOUT);
