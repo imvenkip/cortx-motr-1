@@ -17,103 +17,71 @@
  * Original creation date: 05/05/2012
  */
 
+#include "conf/conf_fop.h"
+#include "conf/onwire_xc.h"
+#include "fop/fop.h"
+#include "fop/fop_item_type.h"
+#include "fop/fom.h"
+#include "fop/fom_generic.h"
+#include "rpc/rpc.h"
+#include "rpc/rpc_opcodes.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "fop/fom.h"
-#include "fop/fop.h"
-#include "fop/fop_format_def.h"
-#include "onwire.h"
-#include "fop/fop_iterator.h"
-#include "conf_fop.h"
-#include "conf_fom.h"
-#include "onwire.ff"
-#include "lib/errno.h"
-#include "rpc/rpc.h"
-#include "fop/fop_item_type.h"
-#include "xcode/bufvec_xcode.h"
 
-/* Ops vector for fetch request. */
-const struct c2_fop_type_ops c2_conf_fetch_ops = {
-	.fto_fop_replied = NULL,
-	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_io_coalesce = NULL,
-};
+struct c2_fop_type c2_conf_fetch_fopt;
+struct c2_fop_type c2_conf_fetch_resp_fopt;
 
-/* Ops vector for fetch reply. */
-const struct c2_fop_type_ops c2_conf_fetch_resp_ops = {
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
-        .fto_io_coalesce = NULL,
-};
+struct c2_fop_type c2_conf_update_fopt;
+struct c2_fop_type c2_conf_update_resp_fopt;
 
-/* Ops vector for update request. */
-const struct c2_fop_type_ops c2_conf_update_ops = {
-	.fto_fop_replied = NULL,
-	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_io_coalesce = NULL,
-};
+extern const struct c2_fom_type_ops c2_fom_conf_fetch_type_ops;
+extern const struct c2_fom_type_ops c2_fom_conf_update_type_ops;
 
-/* Ops vector for update reply. */
-const struct c2_fop_type_ops c2_conf_update_resp_ops = {
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
-        .fto_io_coalesce = NULL,
-};
-
-/* Declaration of fetch FOPs */
-C2_FOP_TYPE_DECLARE(c2_conf_fetch, "fetch fop", &c2_conf_fetch_ops,
-		    C2_RPC_FETCH_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
-
-C2_FOP_TYPE_DECLARE(c2_conf_fetch_resp, "fetch fop reply", &c2_conf_fetch_resp_ops,
-		    C2_RPC_FETCH_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
-
-/* Declaration of update FOPs */
-C2_FOP_TYPE_DECLARE(c2_conf_update, "update fop", &c2_conf_update_ops,
-		    C2_RPC_UPDATE_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
-
-C2_FOP_TYPE_DECLARE(c2_conf_update_resp, "update fop reply", &c2_conf_update_resp_ops,
-		    C2_RPC_UPDATE_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
-
-static struct c2_fop_type_format *fmts[] = {
-	&arr_u64_tfmt,
-	&arr_buf_tfmt,
-	&arr_pathcomp_tfmt,
-	&enconf_tfmt,
-	&c2_conf_pathcomp_tfmt,
-	&objval_tfmt
-};
-
-
-static struct c2_fop_type *fops[] = {
-        &c2_conf_fetch_fopt,
-        &c2_conf_fetch_resp_fopt,
-        &c2_conf_update_fopt,
-        &c2_conf_update_resp_fopt,
-};
-
-C2_INTERNAL void c2_conf_fop_fini(void)
+C2_INTERNAL int c2_conf_fops_init(void)
 {
-        c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
+        return
+		/* Fetch request/response */
+		C2_FOP_TYPE_INIT(&c2_conf_fetch_fopt,
+				 .name      = "c2_conf_fetch fop",
+				 .opcode    = C2_CONF_FETCH_OPCODE,
+				 .xt        = c2_conf_fetch_xc,
+				 /* XXX FIXME Why setting MUTABO flag?  This fop
+				  * does not change file system state.  (Search
+				  * for MUTABO in rpc/slot_internal.h
+				  * documentation.)  --vvv */
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					      C2_RPC_ITEM_TYPE_MUTABO,
+				 .fom_ops   = &c2_fom_conf_fetch_type_ops,
+				 .sm        = &c2_generic_conf) ?:
+		C2_FOP_TYPE_INIT(&c2_conf_fetch_resp_fopt,
+				 .name      = "c2_conf_fetch_resp fop",
+				 .opcode    = C2_CONF_FETCH_RESP_OPCODE,
+				 .xt        = c2_conf_fetch_resp_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
+		/* Update request/response */
+		C2_FOP_TYPE_INIT(&c2_conf_update_fopt,
+				 .name      = "c2_conf_update fop",
+				 .opcode    = C2_CONF_UPDATE_OPCODE,
+				 .xt        = c2_conf_update_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					      C2_RPC_ITEM_TYPE_MUTABO,
+				 .fom_ops   = &c2_fom_conf_update_type_ops,
+				 .sm        = &c2_generic_conf) ?:
+		C2_FOP_TYPE_INIT(&c2_conf_update_resp_fopt,
+				 .name      = "c2_conf_update_resp fop",
+				 .opcode    = C2_CONF_UPDATE_RESP_OPCODE,
+				 .xt        = c2_conf_update_resp_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
 }
 
-extern struct c2_fom_type c2_fom_fetch_mopt;
-extern struct c2_fom_type c2_fom_update_mopt;
-
-
-C2_INTERNAL int c2_conf_fop_init(void)
+C2_INTERNAL void c2_conf_fops_fini(void)
 {
-        int result;
-	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
-        result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
+	c2_fop_type_fini(&c2_conf_fetch_fopt);
+	c2_fop_type_fini(&c2_conf_fetch_resp_fopt);
 
-	c2_conf_fetch_fopt.ft_fom_type = c2_fom_fetch_mopt;
-	c2_conf_update_fopt.ft_fom_type = c2_fom_update_mopt;
-
-        return result;
+	c2_fop_type_fini(&c2_conf_update_fopt);
+	c2_fop_type_fini(&c2_conf_update_resp_fopt);
 }
-
 
 /*
  *  Local variables:

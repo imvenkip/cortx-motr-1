@@ -94,5 +94,7 @@ C2_INTERNAL int dir_new(const struct c2_buf *dir_id,
 			struct c2_conf_dir **out);
 
 C2_INTERNAL bool arrays_eq(const char **cached, const struct arr_buf *flat);
+C2_INTERNAL int strings_copy(const char ***dest, const struct arr_buf *src);
+C2_INTERNAL void strings_free(const char **arr);
 
 #endif /* __COLIBRI_CONF_OBJS_COMMON_H__ */

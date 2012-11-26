@@ -18,20 +18,20 @@
  * Original creation date: 30-Jan-2012
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
+
 #include "conf/confc.h"
 #include "conf/obj_ops.h"
 #include "conf/preload.h"  /* c2_conf_parse */
 #include "conf/buf_ext.h"  /* c2_buf_is_aimed */
 #include "colibri/magic.h" /* C2_CONFC_MAGIC, C2_CONFC_CTX_MAGIC */
-#include "rpc/rpc.h"      /* c2_rpc_post */
+#include "rpc/rpc.h"       /* c2_rpc_post */
 #include "lib/cdefs.h"     /* C2_HAS_TYPE */
 #include "lib/arith.h"     /* C2_CNT_INC, C2_CNT_DEC */
 #include "lib/misc.h"      /* C2_IN */
 #include "lib/errno.h"     /* ENOMEM, EPROTO */
 #include "lib/memory.h"    /* C2_ALLOC_ARR, c2_free */
-
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_CONF
-#include "lib/trace.h"     /* C2_LOG */
 
 /**
  * @page confc-lspec confc Internals
@@ -969,12 +969,12 @@ static void _state_set(struct c2_sm_group *grp __attribute__((unused)),
 	c2_sm_state_set(&ast_to_ctx(ast)->fc_mach, state);
 }
 
-static void _fail(struct c2_sm_group *grp __attribute__((unused)),
-		  struct c2_sm_ast *ast)
-{
-	c2_sm_fail(&ast_to_ctx(ast)->fc_mach, S_FAILURE,
-		   *(int32_t *)ast->sa_datum);
-}
+/* static void _fail(struct c2_sm_group *grp __attribute__((unused)), */
+/* 		  struct c2_sm_ast *ast) */
+/* { */
+/* 	c2_sm_fail(&ast_to_ctx(ast)->fc_mach, S_FAILURE, */
+/* 		   *(int32_t *)ast->sa_datum); */
+/* } */
 
 static void _ast_post(struct c2_sm_ast *ast,
 		      void (*cb)(struct c2_sm_group *, struct c2_sm_ast *),
@@ -995,11 +995,11 @@ static void ast_state_set(struct c2_sm_ast *ast, enum confc_ctx_state state)
 	_ast_post(ast, _state_set, state);
 }
 
-/** Posts an AST that will move the state machine to S_FAILURE state. */
-/* XXX static */ C2_INTERNAL void ast_fail(struct c2_sm_ast *ast, int32_t rc)
-{
-	_ast_post(ast, _fail, rc);
-}
+/* /\** Posts an AST that will move the state machine to S_FAILURE state. *\/ */
+/* static void ast_fail(struct c2_sm_ast *ast, int32_t rc) */
+/* { */
+/* 	_ast_post(ast, _fail, rc); */
+/* } */
 
 /* ------------------------------------------------------------------
  * Configuration cache management
@@ -1218,62 +1218,5 @@ static bool confc_is_locked(const struct c2_confc *confc)
 {
 	return c2_mutex_is_locked(&confc->cc_lock);
 }
-
-/* ------------------------------------------------------------------
- * Confc kernel test
- * ------------------------------------------------------------------ */
-
-#ifdef __KERNEL__
-int c2t1fs_conf_test(const char *buf)
-{
-	C2_INTERNAL void c2_conf__reg2dot(const struct c2_conf_reg *reg);
-	int                  i;
-	int                  n;
-	int                  rc;
-	struct confx_object *conf;
-	struct c2_conf_obj  *obj;
-	struct c2_conf_reg   reg;
-
-	n = c2_confx_obj_nr(buf);
-	if (n <= 0) {
-		rc = n;
-		goto conf_cleanup;
-	}
-
-	C2_ALLOC_ARR(conf, n);
-	if (conf == NULL) {
-		rc = -ENOMEM;
-		goto conf_cleanup;
-	}
-
-	rc = c2_conf_parse(buf, conf, n);
-	if (rc <= 0)
-		goto conf_free;
-
-
-	c2_conf_reg_init(&reg);
-	for (i = 0; i < n; ++i) {
-		rc = c2_conf_obj_find(&reg, conf[i].o_conf.u_type,
-				      &conf[i].o_id, &obj);
-		if (rc != 0)
-			break;
-
-		rc = c2_conf_obj_fill(obj, &conf[i], &reg);
-		if (rc != 0)
-			break;
-	}
-
-	c2_conf__reg2dot(&reg);
-	c2_conf_reg_fini(&reg);
-	c2_confx_fini(conf, n);
-
-conf_free:
-	c2_free(conf);
-conf_cleanup:
-	return rc;
-}
-#endif /* __KERNEL__ */
-
-#undef C2_TRACE_SUBSYSTEM
 
 /** @} confc_dlspec */

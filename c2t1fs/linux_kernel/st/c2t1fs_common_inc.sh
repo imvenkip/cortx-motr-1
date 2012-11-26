@@ -29,7 +29,6 @@ TM_MIN_RECV_QUEUE_LEN=16
 # Maximum value needed to run current ST is 160k.
 MAX_RPC_MSG_SIZE=163840
 IOS=""
-STRIPE="pool_width=$POOL_WIDTH,nr_data_units=$NR_DATA"
 XPT=lnet
 lnet_nid=0@lo
 

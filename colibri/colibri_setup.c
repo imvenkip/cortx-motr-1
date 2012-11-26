@@ -522,16 +522,14 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 	}
 
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
-	rc = c2_rpc_machine_init(rpcmach, &reqh->rh_mdstore->md_dom, ndom, ep, reqh,
-				 buffer_pool, tm_colour, max_rpc_msg_size,
+	rc = c2_rpc_machine_init(rpcmach, &reqh->rh_mdstore->md_dom, ndom, ep,
+				 reqh, buffer_pool, tm_colour, max_rpc_msg_size,
 				 recv_queue_min_length);
-	if (rc != 0) {
+	if (rc == 0)
+		c2_reqh_rpc_mach_tlink_init_at_tail(rpcmach,
+						    &reqh->rh_rpc_machines);
+	else
 		c2_free(rpcmach);
-		return rc;
-	}
-
-	c2_reqh_rpc_mach_tlink_init_at_tail(rpcmach, &reqh->rh_rpc_machines);
-
 	return rc;
 }
 
@@ -1226,7 +1224,7 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "c2_dbenv_init", rc);
-		goto out;
+		return rc;
 	}
 	if (rctx->rc_dfilepath != NULL) {
 		rc = cs_stob_file_load(rctx->rc_dfilepath, &rctx->rc_stob,
@@ -1236,7 +1234,7 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 				    storage_init_fail,
 				    "Failed to load device configuration file",
 				    rc);
-			goto out;
+			return rc;
 		}
 	}
 
@@ -1249,7 +1247,8 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 		goto cleanup_stob;
 	}
 	rctx->rc_cdom_id.id = ++cdom_id;
-	rc = c2_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db, 0);
+	rc = c2_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db,
+			     false);
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "c2_cob_domain_init", rc);
@@ -1263,20 +1262,18 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 	}
 	rc = c2_reqh_init(&rctx->rc_reqh, NULL, &rctx->rc_db, &rctx->rc_mdstore,
 			  &rctx->rc_fol, NULL);
-	if (rc != 0)
-		goto cleanup_fol;
+	if (rc == 0) {
+		rctx->rc_state = RC_INITIALISED;
+		return 0;
+	}
 
-	rctx->rc_state = RC_INITIALISED;
-	goto out;
-
-cleanup_fol:
 	c2_fol_fini(&rctx->rc_fol);
 cleanup_mdstore:
 	c2_mdstore_fini(&rctx->rc_mdstore);
 cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
 	c2_dbenv_fini(&rctx->rc_db);
-out:
+	C2_ASSERT(rc != 0);
 	return rc;
 }
 

@@ -40,7 +40,7 @@ static char g_conf_source[] = "local-conf:"
 "                [3: 'svc-0', 'svc-1', 'svc-2'])}),\n"
 "    ('svc-0', {3| (1, [1: 'addr0'], 'node-0')}),\n"
 "    ('svc-1', {3| (3, [3: 'addr1', 'addr2', 'addr3'], 'node-1')}),\n"
-"    ('svc-2', {3| (2, [2: 'addr4', 'addr5'], 'node-1')}),\n"
+"    ('svc-2', {3| (2, [0], 'node-1')}),\n"
 "    ('node-0', {4| (8000, 2, 3, 2, 0, [2: 'nic-0', 'nic-1'],\n"
 "                    [1: 'sdev-0'])})]\n";
 

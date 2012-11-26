@@ -22,7 +22,6 @@
 #define __COLIBRI_CONF_FOP_H__
 
 #include "fop/fop.h"
-#include "rpc/rpc_opcodes.h"
 
 /**
  * @defgroup confd_fop_dfspec Configuration service FOP definitions
@@ -34,10 +33,8 @@ C2_INTERNAL int c2_conf_fops_init(void);
 C2_INTERNAL void c2_conf_fops_fini(void);
 
 /*
- * Confd fetch reply and request FOP definitions.
+ * Confd fetch reply and request FOP definitions:
  */
-extern struct c2_fop_type_format c2_conf_fetch_tfmt;
-extern struct c2_fop_type_format c2_conf_fetch_resp_tfmt;
 
 extern struct c2_fop_type c2_conf_fetch_fopt;
 extern struct c2_fop_type c2_conf_fetch_resp_fopt;
@@ -49,10 +46,8 @@ extern const struct c2_rpc_item_type c2_rpc_item_type_fetch;
 extern const struct c2_rpc_item_type c2_rpc_item_type_fetch_resp;
 
 /*
- * Confd update reply and request FOP definitions.
+ * Confd update reply and request FOP definitions:
  */
-extern struct c2_fop_type_format c2_conf_update_tfmt;
-extern struct c2_fop_type_format c2_conf_update_resp_tfmt;
 
 extern struct c2_fop_type c2_conf_update_fopt;
 extern struct c2_fop_type c2_conf_update_resp_fopt;

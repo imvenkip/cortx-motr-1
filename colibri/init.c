@@ -48,6 +48,7 @@
 #include "colibri/init.h"
 #include "lib/cookie.h"
 #include "conf/conf_xcode.h"
+#include "conf/conf_fop.h"
 
 #ifdef __KERNEL__
 #   include "c2t1fs/linux_kernel/c2t1fs.h"
@@ -67,6 +68,9 @@ C2_INTERNAL void c2_memory_fini(void);
 
 C2_INTERNAL int libc2_init(void);
 C2_INTERNAL void libc2_fini(void);
+
+C2_INTERNAL int c2_confd_service_register(void);
+C2_INTERNAL void c2_confd_service_unregister(void);
 
 /**
    @addtogroup init
@@ -124,7 +128,12 @@ struct init_fini_call subsystem[] = {
 	{ &c2_mds_register,     &c2_mds_unregister,   "mdservice"},
 	{ &c2_cm_module_init,   &c2_cm_module_fini,   "copy machine" },
 	{ &c2_sns_init,         &c2_sns_fini,         "sns" },
+	{ &c2_confd_service_register, &c2_confd_service_unregister,
+	  "confd-service" },
 #endif /* __KERNEL__ */
+#ifdef __KERNEL__
+	{ &c2_conf_fops_init,   &c2_conf_fops_fini,   "conf-fops" },
+#endif
 };
 
 static void fini_nr(int i)

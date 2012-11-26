@@ -411,20 +411,20 @@ C2_EXPORTED(c2_rpc_item_fini);
 
 C2_INTERNAL c2_bcount_t c2_rpc_item_onwire_header_size(void)
 {
-	struct c2_rpc_item_onwire_header ioh;
-	struct c2_rpc_onwire_slot_ref    sr;
-	struct c2_xcode_ctx              head;
-	struct c2_xcode_ctx              slot_ref;
-	static c2_bcount_t               item_header_size;
+	static c2_bcount_t size = 0;
 
-	if (item_header_size == 0) {
-		c2_xcode_ctx_init(&head, &ITEM_XCODE_OBJ(&ioh));
-		c2_xcode_ctx_init(&slot_ref, &SLOT_REF_XCODE_OBJ(&sr));
-		item_header_size = c2_xcode_length(&head) +
-					c2_xcode_length(&slot_ref);
+	if (size == 0) {
+		struct c2_rpc_item_onwire_header head;
+		struct c2_xcode_ctx              head_xc;
+		struct c2_rpc_onwire_slot_ref    slotr;
+		struct c2_xcode_ctx              slotr_xc;
+
+		c2_xcode_ctx_init(&head_xc, &ITEM_XCODE_OBJ(&head));
+		c2_xcode_ctx_init(&slotr_xc, &SLOT_REF_XCODE_OBJ(&slotr));
+		size = c2_xcode_length(&head_xc) + c2_xcode_length(&slotr_xc);
 	}
 
-	return item_header_size;
+	return size;
 }
 
 C2_INTERNAL c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item)
@@ -433,8 +433,8 @@ C2_INTERNAL c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item)
 	       item->ri_type->rit_ops != NULL &&
 	       item->ri_type->rit_ops->rito_payload_size != NULL);
 
-	return  item->ri_type->rit_ops->rito_payload_size(item) +
-		c2_rpc_item_onwire_header_size();
+	return c2_rpc_item_onwire_header_size() +
+		item->ri_type->rit_ops->rito_payload_size(item);
 }
 
 C2_INTERNAL void c2_rpc_item_free(struct c2_rpc_item *item)
@@ -487,21 +487,20 @@ C2_INTERNAL bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item)
 C2_INTERNAL void c2_rpc_item_set_stage(struct c2_rpc_item *item,
 				       enum c2_rpc_item_stage stage)
 {
-	struct c2_rpc_session *session;
-	bool                   item_was_active;
+	bool                   was_active;
+	struct c2_rpc_session *session = item->ri_session;
 
-	session = item->ri_session;
+	C2_PRE(c2_rpc_session_invariant(session));
 
-	C2_ASSERT(c2_rpc_session_invariant(session));
-
-	item_was_active = item_is_active(item);
-	C2_ASSERT(ergo(item_was_active,
+	was_active = item_is_active(item);
+	C2_ASSERT(ergo(was_active,
 		       session_state(session) == C2_RPC_SESSION_BUSY));
+
 	item->ri_stage = stage;
 	c2_rpc_session_mod_nr_active_items(session,
-					item_is_active(item) - item_was_active);
+					   item_is_active(item) - was_active);
 
-	C2_ASSERT(c2_rpc_session_invariant(session));
+	C2_POST(c2_rpc_session_invariant(session));
 }
 
 C2_INTERNAL void c2_rpc_item_sm_init(struct c2_rpc_item *item,
@@ -515,7 +514,7 @@ C2_INTERNAL void c2_rpc_item_sm_init(struct c2_rpc_item *item,
 	conf = dir == C2_RPC_ITEM_OUTGOING ? &outgoing_item_sm_conf :
 					     &incoming_item_sm_conf;
 
-	C2_LOG(C2_DEBUG, "%p UNINTIALISED -> INITIALISED", item);
+	C2_LOG(C2_DEBUG, "%p UNINITIALISED -> INITIALISED", item);
 	c2_sm_init(&item->ri_sm, conf, C2_RPC_ITEM_INITIALISED,
 		   grp, NULL /* addb ctx */);
 }
@@ -580,14 +579,11 @@ C2_INTERNAL int c2_rpc_item_wait_for_reply(struct c2_rpc_item *item,
 
 	C2_PRE(c2_rpc_item_is_request(item));
 
-	rc = c2_rpc_item_timedwait(item,
-				   C2_BITS(C2_RPC_ITEM_REPLIED,
-					   C2_RPC_ITEM_FAILED),
+	rc = c2_rpc_item_timedwait(item, C2_BITS(C2_RPC_ITEM_REPLIED,
+						 C2_RPC_ITEM_FAILED),
 				   timeout);
-	if (rc == 0) {
-		if (item->ri_sm.sm_state == C2_RPC_ITEM_FAILED)
-			rc = item->ri_error;
-	}
+	if (rc == 0 && item->ri_sm.sm_state == C2_RPC_ITEM_FAILED)
+		rc = item->ri_error;
 
 	C2_POST(ergo(rc == 0, item->ri_sm.sm_state == C2_RPC_ITEM_REPLIED));
 	return rc;

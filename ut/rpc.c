@@ -54,8 +54,6 @@ static void fini_cob(struct c2_rpc_client_ctx *cctx)
 {
 	c2_cob_domain_fini(cctx->rcx_cob_dom);
 	c2_dbenv_fini(cctx->rcx_dbenv);
-
-	return;
 }
 
 int c2_rpc_client_init(struct c2_rpc_client_ctx *cctx)
@@ -68,13 +66,7 @@ int c2_rpc_client_init(struct c2_rpc_client_ctx *cctx)
 
 	rc = c2_rpc_client_start(cctx);
 	if (rc != 0)
-		goto fini_cob;
-
-	return rc;
-
-fini_cob:
-	fini_cob(cctx);
-	C2_ASSERT(rc != 0);
+		fini_cob(cctx);
 	return rc;
 }
 C2_EXPORTED(c2_rpc_client_init);
