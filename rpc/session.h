@@ -496,6 +496,8 @@ struct c2_rpc_session {
 	/** Number of items that needs to be sent or their reply is
 	    not yet received. i.e. count of items in {FUTURE, IN_PROGRESS}
 	    state in all slots belonging to this session.
+
+	    XXX FIXME The value can't be negative. Change the type to uint32_t.
 	 */
 	int32_t                   s_nr_active_items;
 

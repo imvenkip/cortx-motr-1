@@ -60,13 +60,9 @@ static size_t fop_data_size(const struct c2_fop *fop)
 
 C2_INTERNAL int c2_fop_data_alloc(struct c2_fop *fop)
 {
-	size_t nob;
-
 	C2_PRE(fop->f_data.fd_data == NULL && fop->f_type != NULL);
 
-	nob = fop_data_size(fop);
-	fop->f_data.fd_data = c2_alloc(nob);
-
+	fop->f_data.fd_data = c2_alloc(fop_data_size(fop));
 	return fop->f_data.fd_data == NULL ? -ENOMEM : 0;
 }
 
@@ -86,14 +82,13 @@ C2_INTERNAL void c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt,
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 {
 	struct c2_fop *fop;
-	int            err;
 
 	C2_ALLOC_PTR(fop);
 	if (fop != NULL) {
 		c2_fop_init(fop, fopt, data);
 		if (data == NULL) {
-			err = c2_fop_data_alloc(fop);
-			if (err != 0) {
+			int rc = c2_fop_data_alloc(fop);
+			if (rc != 0) {
 				c2_free(fop);
 				return NULL;
 			}
@@ -171,8 +166,8 @@ int c2_fop_type_init(struct c2_fop_type *ft,
 
 	c2_fom_type_init(&ft->ft_fom_type, args->fom_ops, args->svc_type,
 			 args->sm);
-	c2_rpc_item_type_register(&ft->ft_rpc_item_type);
-	c2_fol_rec_type_register(&ft->ft_rec_type);
+	(void) c2_rpc_item_type_register(&ft->ft_rpc_item_type);
+	(void) c2_fol_rec_type_register(&ft->ft_rec_type);
 	c2_addb_ctx_init(&ft->ft_addb, &c2_fop_type_addb_ctx,
 			 &c2_addb_global_ctx);
 	c2_mutex_lock(&fop_types_lock);

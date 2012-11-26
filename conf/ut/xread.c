@@ -25,17 +25,18 @@
 #include "conf/obj.h"
 #include "lib/memory.h"
 #include "lib/arith.h"
-#include "lib/misc.h"               /* C2_SET0 */
+#include "lib/misc.h"  /* C2_SET0 */
 #include "lib/buf.h"
 #include "lib/ut.h"
 #include <stdlib.h>
 
 #define DBPATH "./__confdb"
+
 #define QUOTE(s) QUOTE_(s)
 #define QUOTE_(s) #s
+
 /* COLIBRI_CONFX_OBJ_CFG_XC comes from CFLAGS; see conf/ut/Makefile.am */
 #define CONFX_CFG QUOTE(COLIBRI_CONFX_OBJ_CFG_XC)
-#define OBJ(xt, ptr) (&(struct c2_xcode_obj){ .xo_type = (xt), .xo_ptr = (ptr) })
 
 struct xcode_test_rec {
 	enum c2_conf_objtype type;
@@ -167,7 +168,6 @@ static void node_check(const struct confx_object *conf)
 	C2_UT_ASSERT(xnode->xn_sdevs.ab_count == 1);
 	C2_UT_ASSERT(c2_buf_eq(&xnode->xn_sdevs.ab_elems[0],
 			       &(const struct c2_buf) C2_BUF_INITS("sdev0")));
-
 }
 
 static void nic_check(const struct confx_object *conf)
@@ -221,7 +221,6 @@ static void sdev_check(const struct confx_object *conf)
 	C2_UT_ASSERT(xsd->xd_partitions.ab_count == 1);
 	C2_UT_ASSERT(c2_buf_eq(&xsd->xd_partitions.ab_elems[0],
 			       &(const struct c2_buf) C2_BUF_INITS("part0")));
-
 }
 
 static void partition_check(const struct confx_object *conf)
@@ -276,33 +275,36 @@ static void cleanup(void)
 void test_confx_xcode(void)
 {
 	enum { KB = 1 << 10 };
-	char		             buf[32*KB] = {0};
-	struct confx_object          objx[64];
-	struct confx_object	    *db_objx;
-	struct confx_object	     decoded;
-	struct c2_conf_xcode_pair    kv;
-	int			     i;
-	int			     n;
-	int			     rc;
-	struct xcode_test_rec        xcode_test[] = {
-		{ C2_CO_PROFILE    , profile_check      },
-		{ C2_CO_FILESYSTEM , filesystem_check   },
-		{ C2_CO_SERVICE    , service_check1     },
-		{ C2_CO_SERVICE    , service_check2     },
-		{ C2_CO_NODE       , node_check	        },
-		{ C2_CO_NIC	   , nic_check	        },
-		{ C2_CO_SDEV       , sdev_check	        },
-		{ C2_CO_PARTITION  , partition_check    },
+	char                      buf[32*KB] = {0};
+	struct confx_object       objx[64];
+	struct confx_object      *db_objx;
+	struct confx_object       decoded;
+	struct c2_conf_xcode_pair kv;
+	int                       i;
+	int                       n;
+	int                       rc;
+	struct xcode_test_rec     xcode_test[] = {
+		{ C2_CO_PROFILE,    profile_check    },
+		{ C2_CO_FILESYSTEM, filesystem_check },
+		{ C2_CO_SERVICE,    service_check1   },
+		{ C2_CO_SERVICE,    service_check2   },
+		{ C2_CO_NODE,       node_check       },
+		{ C2_CO_NIC,        nic_check        },
+		{ C2_CO_SDEV,       sdev_check       },
+		{ C2_CO_PARTITION,  partition_check  }
 	};
-
 
 	cleanup();
 	conf_xc_read(buf, ARRAY_SIZE(buf));
 
-	/* parse objects */
 	n = c2_confx_obj_nr(buf);
 	C2_UT_ASSERT(n == 8);
-	C2_UT_ASSERT(c2_conf_parse(buf, objx, ARRAY_SIZE(objx)) == n);
+
+	rc = c2_conf_parse(buf, objx, n - 1);
+	C2_UT_ASSERT(rc == -ENOMEM);
+
+	rc = c2_conf_parse(buf, objx, ARRAY_SIZE(objx));
+	C2_UT_ASSERT(rc == n);
 
 	/* encode/decode test */
 	for (i = 0; i < n; ++i) {
