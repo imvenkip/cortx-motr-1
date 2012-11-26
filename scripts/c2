@@ -91,6 +91,9 @@ Commands:
                         The resulting archive file will be deleted,
                         unless '-a' option is used.
 
+    check-everything    = rebuild + run-all + dist-check
+                        Please run this command before landing new feature.
+
     clean [-f]          Call 'make distclean' in C2 sources directory.
                         '-f' will also remove untracked files and
                         directories (i.e. those not added to the git
@@ -119,7 +122,8 @@ case "$1" in
         echo 'Running kernel UT ...'; run_kut
         run_st;;
     dist-check) shift; dist_check "$@";;
-    clean)      shift; clean "$@";;
+    check-everything) clean; build; run_ut; run_kut; run_st;;
+    clean) shift; clean "$@";;
     help) help 0;;
     *)    help 1;;
 esac
