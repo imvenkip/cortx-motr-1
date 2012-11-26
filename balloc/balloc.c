@@ -764,9 +764,7 @@ static int balloc_claim_free_blocks(struct c2_balloc *colibri,
 	C2_LOG(C2_DEBUG, "bsb_freeblocks = %llu, blocks=%llu\n",
 		(unsigned long long)colibri->cb_sb.bsb_freeblocks,
 		(unsigned long long)blocks);
-	c2_mutex_lock(&colibri->cb_sb_mutex);
-		rc = (colibri->cb_sb.bsb_freeblocks >= blocks);
-	c2_mutex_unlock(&colibri->cb_sb_mutex);
+	rc = (colibri->cb_sb.bsb_freeblocks >= blocks);
 
 	C2_LEAVE();
 	return rc;
@@ -2059,6 +2057,7 @@ static int balloc_alloc(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
 
 	C2_SET0(out);
 
+	c2_mutex_lock(&colibri->cb_sb_mutex);
 	rc = balloc_allocate_internal(colibri, &tx->tx_dbtx, &req);
 	if (rc == 0 && !c2_ext_is_empty(&req.bar_result)) {
 		out->e_start = req.bar_result.e_start;
@@ -2066,6 +2065,7 @@ static int balloc_alloc(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
 		colibri->cb_last = *out;
 	} else if (rc == 0)
 		rc = -ENOENT;
+	c2_mutex_unlock(&colibri->cb_sb_mutex);
 
 	return rc;
 }
