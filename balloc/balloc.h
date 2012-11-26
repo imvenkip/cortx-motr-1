@@ -126,6 +126,7 @@ enum c2_balloc_super_block_version {
  */
 struct c2_balloc {
 	struct c2_dbenv             *cb_dbenv;
+
 	/** container this block allocator belongs to. */
 	uint64_t                     cb_container_id;
 	/** db for sb */
