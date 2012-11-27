@@ -955,7 +955,7 @@ static int align_bufvec(struct c2_fom    *fom,
 	 * ivec_count in I/O request is already aligned with stob shift.
 	 * for bufvec count bufvec segment count should also align with shift.
 	 */
-	 bufvec_seg_size = ibuf->ov_vec.v_count[0] >> bshift;
+	bufvec_seg_size = ibuf->ov_vec.v_count[0] >> bshift;
 	/*
 	 * It calculates number of bufvecs for I/O request on
 	 * the basis of index vec count.

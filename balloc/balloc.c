@@ -2049,11 +2049,12 @@ static int balloc_alloc(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
 	struct c2_balloc_allocate_req	 req;
 	int				 rc;
 
+	C2_LOG(C2_DEBUG, "count=%lu", (unsigned long)count);
 	C2_ASSERT(count > 0);
 
 	req.bar_goal  = out->e_start; /* this also plays as the goal */
 	req.bar_len   = count;
-	req.bar_flags = 0;/*C2_BALLOC_HINT_DATA | C2_BALLOC_HINT_TRY_GOAL;*/
+	req.bar_flags = 0 /*C2_BALLOC_HINT_DATA | C2_BALLOC_HINT_TRY_GOAL*/;
 
 	C2_SET0(out);
 

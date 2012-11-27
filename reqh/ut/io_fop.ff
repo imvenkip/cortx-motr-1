@@ -34,9 +34,14 @@ record {
 	u64 f_oid
 } stob_io_fop_fid;
 
+sequence {
+	u32 fi_count;
+	u8  fi_buf
+} c2_fi_value;
+
 record {
 	stob_io_fop_fid fiw_object;
-	u8              fiw_value
+	c2_fi_value     fiw_value
 } c2_stob_io_write;
 
 record {
@@ -51,7 +56,7 @@ record {
 record {
 	u32 firr_rc;
 	u32 firr_count;
-	u8  firr_value
+	c2_fi_value firr_value
 } c2_stob_io_read_rep;
 
 record {

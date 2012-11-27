@@ -125,7 +125,7 @@ void add_uts(void)
 	c2_ut_add(&packet_encdec_ut);
 	c2_ut_add(&parity_math_ut);
 	c2_ut_add(&poolmach_ut);
-	//c2_ut_add(&reqh_ut);
+	c2_ut_add(&reqh_ut);
 	c2_ut_add(&rpc_mc_ut);
 	c2_ut_add(&rpc_service_ut);
 	c2_ut_add(&rpclib_ut);
