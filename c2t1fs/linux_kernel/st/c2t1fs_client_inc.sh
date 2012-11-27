@@ -60,7 +60,7 @@ bulkio_test()
 	stride_size=$1
 	io_counts=$2
 
-	mount_c2t1fs $c2t1fs_mount_dir $stride_size &>> $COLIBRI_TEST_LOGFILE || return 1
+	mount_c2t1fs $c2t1fs_mount_dir $stride_size || return 1
 
 	echo "Creating local input file of I/O size ..."
 	local cmd="dd if=/dev/urandom of=$local_input bs=$io_size count=$io_counts"
@@ -117,6 +117,12 @@ bulkio_test()
 	return 0
 }
 
+show_write_speed()
+{
+	cat $COLIBRI_TEST_LOGFILE | grep copied | tail -2 | head -1 | \
+		awk -F, '{print $3}'
+}
+
 io_combinations()
 {
 	# This test runs for various stripe unit size values
@@ -147,22 +153,24 @@ io_combinations()
 	    do
 		io_size=`expr $io_size '*' $stripe_size`
 		io_size=${io_size}K
-		echo "Test: I/O for stripe_size = ${stripe_size}K," \
-		     "io_size = $io_size, Number of I/Os = 1."
+		echo -n "Test: I/O for stripe = ${stripe_size}K," \
+		     "bs = $io_size, count = 1... "
 		bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
 		fi
+		show_write_speed
 
 		# Multiple I/Os
-		echo "Test: I/O for stripe_size = ${stripe_size}K," \
-		     "io_size = $io_size, Number of I/Os = 2."
+		echo -n "Test: I/O for stripe = ${stripe_size}K," \
+		     "bs = $io_size, count = 2... "
 		bulkio_test $stride_size 2 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
 		fi
+		show_write_speed
 	    done
 
 	    # Large I/Os (MBs)
@@ -172,23 +180,24 @@ io_combinations()
 		[ $stripe_1M_mult -ge 1 ] || stripe_1M_mult=1
 		io_size=`expr $io_size '*' $stripe_size '*' $stripe_1M_mult`
 		io_size=${io_size}K
-		echo "Test: I/O for stripe_size = ${stripe_size}K," \
-		     "io_size = $io_size, Number of I/Os = 1."
+		echo -n "Test: I/O for stripe = ${stripe_size}K," \
+		     "bs = $io_size, count = 1... "
 		bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
 		fi
+		show_write_speed
 
 		# Multiple I/Os
-		echo "Test: I/O for stripe_size = ${stripe_size}K," \
-		     "io_size = $io_size, Number of I/Os = 2."
+		echo -n "Test: I/O for stripe = ${stripe_size}K," \
+		     "bs = $io_size, count = 2... "
 		bulkio_test $stride_size 2 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
 		fi
-
+		show_write_speed
 	    done
 
 	done
@@ -260,11 +269,10 @@ c2loop_st()
 file_creation_test()
 {
 	nr_files=$1
-	mount_c2t1fs $COLIBRI_C2T1FS_MOUNT_DIR 4 &>> $COLIBRI_TEST_LOGFILE
-	if [ $? -ne 0 ]; then
+	mount_c2t1fs $COLIBRI_C2T1FS_MOUNT_DIR 4 &>> $COLIBRI_TEST_LOGFILE || {
 		cat $COLIBRI_TEST_LOGFILE
 		return 1
-	fi
+	}
 	echo "Test: Creating $nr_files files on c2t1fs..." \
 	    >> $COLIBRI_TEST_LOGFILE
 	for ((i=0; i<$nr_files; ++i)); do
@@ -294,24 +302,20 @@ rmw_test()
 		for io in 1 2 3 4 5 15 16 17 32 64 128
 		do
 			io_size=${io}K
-			echo "IORMW Test: I/O for stride = "\
-			     "${stride_size}K, bs = $io_size, count = 1."
-			bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE
-			if [ $? -ne "0" ]
-			then
-			    return 1
-			fi
+			echo -n "IORMW Test: I/O for stride ="\
+			     "${stride_size}K, bs = $io_size, count = 1... "
+			bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE ||
+				return 1
+			show_write_speed
 
 			for((j=2; j<=$max_count; j*=2))
 			do
 			# Multiple I/O
-			    echo "IORMW Test: I/O for stride = "\
-				 "${stride_size}K, bs = $io_size, count = $j."
-			    bulkio_test $stride_size $j &>> $COLIBRI_TEST_LOGFILE
-			    if [ $? -ne "0" ]
-			    then
-				return 1
-			    fi
+			    echo -n "IORMW Test: I/O for stride ="\
+			       "${stride_size}K, bs = $io_size, count = $j... "
+			    bulkio_test $stride_size $j &>> \
+			          $COLIBRI_TEST_LOGFILE || return 1
+			    show_write_speed
 			done
 		done
 	done
@@ -322,24 +326,21 @@ rmw_test()
 		for ((io=1; io<=$max_count; io*=2))
 		do
 			io_size=$i
-			echo "IORMW Small IO Test: I/O for stride = "\
-			     "${stride_size}K, bs = $io_size, count = 1."
-			bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE
-			if [ $? -ne "0" ]
-			then
+			echo -n "IORMW Small IO Test: I/O for stride ="\
+			     "${stride_size}K, bs = $io_size, count = 1... "
+			bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE ||
 				return 1
-			fi
+			show_write_speed
 
 			for((j=2; j<=$max_count; j*=2))
 			do
 				# Multiple I/O
-				echo "IORMW Small IO Test: I/O for stride = "\
-				     "${stride_size}K, bs = $io_size, count = $j."
-				bulkio_test $stride_size $j &>>	$COLIBRI_TEST_LOGFILE
-				if [ $? -ne "0" ]
-				then
-					return 1
-				fi
+				echo -n "IORMW Small IO Test: I/O for stride"\
+				        "= ${stride_size}K, bs = $io_size,"\
+				        "count = $j... "
+				bulkio_test $stride_size $j &>> \
+					$COLIBRI_TEST_LOGFILE || return 1
+				show_write_speed
 			done
 		done
 	done
@@ -350,23 +351,20 @@ rmw_test()
 		for ((io=8; io<=16; io*=2))
 		do
 			io_size=${io}M
-			echo "IORMW Large IO Test: I/O for stride = "\
-			     "${stride_size}K, bs = $io_size, count = 1."
-			bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE
-			if [ $? -ne "0" ]
-			then
+			echo -n "IORMW Large IO Test: I/O for stride ="\
+			     "${stride_size}K, bs = $io_size, count = 1... "
+			bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE ||
 				return 1
-			fi
+			show_write_speed
 			for((j=2; j<=$max_count; j*=2))
 			do
 				# Multiple I/O
-				echo "IORMW Large IO Test: I/O for stride = "\
-				     "${stride_size}K, bs = $io_size, count = $j."
-				bulkio_test $stride_size $j &>> $COLIBRI_TEST_LOGFILE
-				if [ $? -ne "0" ]
-				then
-					return 1
-				fi
+				echo -n "IORMW Large IO Test: I/O for stride"\
+				        "= ${stride_size}K, bs = $io_size,"\
+				        "count = $j... "
+				bulkio_test $stride_size $j &>> \
+					$COLIBRI_TEST_LOGFILE || return 1
+				show_write_speed
 			done
 		done
 	done
@@ -377,13 +375,10 @@ rmw_test()
 		for i in 10 20 30 40
 		do
 			io_size=1M
-			echo "IORMW Large Count Test: I/O for stride = "\
-			     "${stride_size}K, bs = $io_size, count = $i."
-			bulkio_test $stride_size $i &>> $COLIBRI_TEST_LOGFILE
-			if [ $? -ne "0" ]
-			then
-				return 1
-			fi
+			echo -n "IORMW Large Count Test: I/O for stride ="\
+			     "${stride_size}K, bs = $io_size, count = $i... "
+			bulkio_test $stride_size $i &>> $COLIBRI_TEST_LOGFILE ||				return 1
+			show_write_speed
 		done
 	done
 
@@ -394,26 +389,20 @@ rmw_test()
 
 c2t1fs_system_tests()
 {
-	file_creation_test $MAX_NR_FILES
-	if [ $? -ne "0" ]
-        then
+	file_creation_test $MAX_NR_FILES || {
                 echo "Failed: File creation test failed."
 		return 1
-        fi
+	}
 
-	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY
-	if [ $? -ne "0" ]
-	then
-		echo "Failed: IO failed.."
-		return 1
-	fi
+#	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY || {
+#		echo "Failed: IO failed.."
+#		return 1
+#	}
 
-	rmw_test
-	if [ $? -ne "0" ]
-	then
+	rmw_test || {
 		echo "Failed: IO-RMW failed.."
 		return 1
-	fi
+	}
 
 	c2loop_st || return 1
 

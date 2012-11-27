@@ -113,6 +113,7 @@ prepare()
 
 unprepare()
 {
+	sleep 2 # allow pending IO to complete
 	if mount | grep c2t1fs > /dev/null; then
 		umount $COLIBRI_C2T1FS_MOUNT_DIR
 		sleep 2
@@ -124,7 +125,9 @@ unprepare()
 	fi
 	modunload_galois
 
-	# don't cleanup core dumps
-	[ `find $COLIBRI_C2T1FS_TEST_DIR -name 'core.*'` ] ||
-		rm -rf $COLIBRI_C2T1FS_TEST_DIR
+	if [ -d $COLIBRI_C2T1FS_TEST_DIR ]; then
+		# don't cleanup core dumps
+		[ `find $COLIBRI_C2T1FS_TEST_DIR -name 'core.*'` ] ||
+			rm -rf $COLIBRI_C2T1FS_TEST_DIR
+	fi
 }
