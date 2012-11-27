@@ -396,11 +396,11 @@ static int stob_read_fom_tick(struct c2_fom *fom)
                         stobj =  fom_obj->sif_stobj;
                         bshift = stobj->so_op->sop_block_shift(stobj);
 
-			C2_ALLOC_ARR(buf, (1 << BALLOC_DEF_BLOCK_SHIFT));
+			C2_ALLOC_ARR(buf, 1 << BALLOC_DEF_BLOCK_SHIFT);
 			C2_ASSERT(buf != NULL);
 			out_fop->firr_value.fi_buf   = buf;
 			out_fop->firr_value.fi_count =
-			                          (1 << BALLOC_DEF_BLOCK_SHIFT);
+			                            1 << BALLOC_DEF_BLOCK_SHIFT;
 
 			addr = c2_stob_addr_pack(buf, bshift);
                         count = out_fop->firr_value.fi_count >> bshift;
