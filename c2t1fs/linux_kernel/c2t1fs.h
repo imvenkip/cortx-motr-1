@@ -70,14 +70,15 @@
   where <options_list> is a comma separated list of option=value elements.
   Currently supported list of options is:
 
-  - conf [value type: end-point address, e.g. 192.168.50.40@tcp:12345:34:1]
+  - confd [value type: end-point address, e.g. 192.168.50.40@tcp:12345:34:1]
       end-point address of confd (a.k.a. management service, mgs).
-      @note If this value starts with "local-conf:", it is treated as
-      a configuration string, containing data to pre-load
-      configuration cache with (see @ref conf-fspec-preload).
 
   - profile [value type: string]
       configuration profile. Used while fetching configuration data from confd.
+
+  - local_conf [value type: string]
+      configuration string, containing data to pre-load configuration
+      cache with (see @ref conf-fspec-preload).
 
   - ios [value type: end-point address]
       end-point address of io-service. Multiple io-services can be specified
@@ -143,10 +144,10 @@
    container id is required, to be able to locate a service serving some
    object identified by fid.
 
-   Currently c2t1fs implements simple and temporary mechanism to build
-   container location map. Number of containers is assumed to be equal to
-   pool_width (i.e. P) + 1. pool_width is a mount option and additional 1 for
-   meta-data container.
+   Currently c2t1fs implements simple (and temporary) mechanism to
+   build container location map. Number of containers is equal to
+   P + 1, where P is pool width and 1 is used by a meta-data container.
+   Pool width is a file-system parameter, obtained from configuration.
 
    Assume a user-visible file F. A gob representing F is assigned fid
    <0, K>, where K is taken from a monotonically increasing counter
@@ -439,14 +440,15 @@ extern struct c2t1fs_globals c2t1fs_globals;
 
 /** Parsed mount options */
 struct c2t1fs_mnt_opts {
-	char    *mo_conf;
+	char    *mo_confd;
 	char    *mo_profile;
-
-	char    *mo_ios_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
-	uint32_t mo_ios_ep_nr;
+	char    *mo_local_conf;
 
 	char    *mo_mds_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
 	uint32_t mo_mds_ep_nr;
+
+	char    *mo_ios_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
+	uint32_t mo_ios_ep_nr;
 
 	uint32_t mo_pool_width;      /* P */
 	uint32_t mo_nr_data_units;   /* N */

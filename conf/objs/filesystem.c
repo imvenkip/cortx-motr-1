@@ -28,7 +28,7 @@ static bool filesystem_check(const void *bob)
 
 	C2_PRE(self_obj->co_type == C2_CO_FILESYSTEM);
 
-	return ergo(obj_is_stub(self_obj), self->cf_params == NULL) &&
+	return ergo(c2_conf_obj_is_stub(self_obj), self->cf_params == NULL) &&
 		ergo(self_obj->co_mounted,
 		     parent_check(self_obj) &&
 		     C2_CONF_CAST(self_obj->co_parent,

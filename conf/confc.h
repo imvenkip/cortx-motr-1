@@ -24,9 +24,11 @@
 #include "conf/reg.h"     /* c2_conf_reg */
 #include "conf/onwire.h"  /* c2_conf_fetch */
 #include "lib/buf.h"      /* c2_buf, C2_BUF_INIT0 */
-#include "sm/sm.h"        /* c2_sm, c2_sm_ast */
 #include "lib/mutex.h"    /* c2_mutex */
+#include "sm/sm.h"        /* c2_sm, c2_sm_ast */
 #include "fop/fop.h"      /* c2_fop */
+#include "rpc/conn.h"     /* c2_rpc_conn */
+#include "rpc/session.h"  /* c2_rpc_session */
 
 struct c2_conf_obj;
 
@@ -106,12 +108,14 @@ struct c2_conf_obj;
  * #include "conf/confc.h"
  * #include "conf/obj.h"
  *
- * struct c2_sm_group *group = ...;
- * struct c2_confc     confc;
+ * struct c2_sm_group    *grp = ...;
+ * struct c2_rpc_machine *rpcm = ...;
+ * struct c2_confc        confc;
  *
  * startup(const struct c2_buf *profile, ...)
  * {
- *         rc = c2_confc_init(&confc, "confd-endpoint", profile, group);
+ *         rc = c2_confc_init(&confc, grp, profile, "confd-ep-addr", rpcm,
+ *                            NULL);
  *         ...
  * }
  *
@@ -134,7 +138,8 @@ struct c2_conf_obj;
  * c2_confc_open() and c2_confc_readdir() are asynchronous functions.
  * Prior to calling them, the application should initialise a context
  * object (c2_confc_ctx_init()) and register a clink with .sm_chan
- * member of c2_confc_ctx::fc_mach.
+ * member of c2_confc_ctx::fc_mach. (See sm_waiter_init() in the @ref
+ * confc-fspec-recipe1 "recipe #1" below.)
  *
  * c2_confc_ctx_is_completed() checks whether configuration retrieval
  * has completed, i.e., terminated or failed.
@@ -498,20 +503,10 @@ struct c2_confc {
 	 * @see confc-lspec-thread
 	 */
 	struct c2_mutex          cc_lock;
-#if 0 /* XXX */
-	/*
-	 * https://reviewboard.clusterstor.com/r/939/diff/3/?file=26037#file26037line536 :
-	 *
-	 * > [* defect *] c2_rpc_client_ctx is useable mostly in tests
-	 * > and simplest programs like rpc-ping, because it assumes a
-	 * > single connection per-rpcmachine.
-	 *
-	 * What should be used here then? c2_rpc_machine?
-	 * TODO
-	 */
-	/** RPC client context that represents connection to confd. */
-	struct c2_rpc_client_ctx cc_rpc;
-#endif
+	/** Connection to confd. */
+	struct c2_rpc_conn       cc_rpc_conn;
+	/** RPC session with confd. */
+	struct c2_rpc_session    cc_rpc_session;
 	/**
 	 * The number of configuration retrieval contexts associated
 	 * with this c2_confc.
@@ -530,18 +525,24 @@ struct c2_confc {
  * Initialises configuration client.
  *
  * @param confc        A confc instance to be initialised.
- * @param conf_source  End point address of configuration server (confd).
- *                     If the value is prefixed with "local-conf:", it
- *                     is a configuration string --- ASCII description
- *                     of configuration data to pre-load the cache with
- *                     (see @ref conf-fspec-preload).
- * @param profile      Name of profile used by this confc.
  * @param sm_group     State machine group to be associated with confc
  *                     configuration cache.
+ * @param profile      Name of profile used by this confc.
+ * @param confd_addr   End point address of configuration server (confd).
+ * @param rpc_mach     RPC machine that will process configuration RPC items.
+ * @param local_conf   Configuration string --- ASCII description of
+ *                     configuration data to pre-load the cache with
+ *                     (see @ref conf-fspec-preload).
+ *
+ * @pre  not_empty(confd_addr) || not_empty(local_conf)
+ * @pre  ergo(not_empty(confd_addr), rpc_mach != NULL)
  */
-C2_INTERNAL int c2_confc_init(struct c2_confc *confc, const char *conf_source,
-			      const struct c2_buf *profile,
-			      struct c2_sm_group *sm_group);
+C2_INTERNAL int c2_confc_init(struct c2_confc       *confc,
+			      struct c2_sm_group    *sm_group,
+			      const struct c2_buf   *profile,
+			      const char            *confd_addr,
+			      struct c2_rpc_machine *rpc_mach,
+			      const char            *local_conf);
 
 /**
  * Finalises configuration client. Destroys configuration cache,
@@ -670,19 +671,18 @@ C2_INTERNAL struct c2_conf_obj *c2_confc_ctx_result(struct c2_confc_ctx *ctx);
  *        arguments, intact, until configuration retrieval operation
  *        completes.
  *
- * @todo XXX FIXME:
- *       c2_confc_open() constructs an array of c2_bufs, which is
- *       created on stack. If a calling thread leaves the block with
- *       c2_confc_open(), the array will be destructed, invalidating
- *       c2_confc_ctx::fc_path.  This will result in segmentation
- *       fault, if there is still configuration retrieving operation
- *       going on.
- *       .
- *       One possible solution is to make c2_confc_ctx::fc_path an
- *       array of N c2_bufs, where N is maximal possible number of
- *       path components.
- *       .
- *       See https://reviewboard.clusterstor.com/r/1067/diff/1/?file=31415#file31415line683 .
+ * XXX FIXME:
+ *     c2_confc_open() constructs an array of c2_bufs, which is
+ *     created on stack. If a calling thread leaves the block with
+ *     c2_confc_open(), the array will be destructed, invalidating
+ *     c2_confc_ctx::fc_path.  This will result in segmentation fault,
+ *     if a configuration retrieving operation is still in progress.
+ *     .
+ *     One possible solution is to make c2_confc_ctx::fc_path an
+ *     array of N c2_bufs, where N is maximal possible number of
+ *     path components.
+ *     .
+ *     See https://reviewboard.clusterstor.com/r/1067/diff/1/?file=31415#file31415line683 .
  *
  * @pre  ergo(origin != NULL, origin->co_confc == ctx->fc_confc)
  * @pre  ctx->fc_origin == NULL && ctx->fc_path == NULL

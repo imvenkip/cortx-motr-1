@@ -12,7 +12,8 @@ colibri_service()
 		for ((i=0; i < ${#EP[*]}; i++)) ; do
 			SNAME="-s $COLIBRI_IOSERVICE_NAME"
 			if ((i == 0)) ; then
-				SNAME="-s $COLIBRI_MDSERVICE_NAME $SNAME"
+				SNAME=\
+"-s confd -s $COLIBRI_MDSERVICE_NAME $SNAME"
 			fi
 
 			rm -rf $COLIBRI_C2T1FS_TEST_DIR/d$i

@@ -43,32 +43,30 @@ struct confx_object;
  *
  * The application pre-loads confc cache by passing textual
  * description of configuration objects -- so called configuration
- * string -- to c2_confc_init() via `conf_source' parameter. Note
- * that the value of this parameter should start with "local-conf:",
- * otherwise it will be treated as an end point address of confd.
+ * string -- to c2_confc_init() via `local_conf' parameter.
  *
  * When confc API is used by a kernel module, configuration string is
- * provided as mount(8) option.
+ * provided via mount(8) option.
  *
  * <!---------------------------------------------------------------->
  * @subsection conf-fspec-preload-string-format Format
  *
- * The format of configuration string corresponds to the format used
- * by the second argument of c2_xcode_read() function.
+ * The format of configuration string corresponds to the format of
+ * string argument of c2_xcode_read() function.
  *
- * The acceptable values of TAGs are enumerated in struct confx_u.
+ * The acceptable TAGs are enumerated in struct confx_u.
  *
- * Fields of an object have to be described in the order of their
- * appearance in the corresponding confx_* structure.
+ * The order of fields within an object descriptor should correspond
+ * to their order in the corresponding confx_* structure.
  *
  * Object relations are expressed via object ids.  Directory objects
- * (c2_conf_dir) are not mentioned in a configuration string --- they
- * will be created by dynamically by a configuration module.
+ * (c2_conf_dir) are not included in a configuration string --- they
+ * are created dynamically by a configuration module.
  *
  * c2_conf_parse() translates configuration string into an array of
  * confx_objects.
  *
- * E.g., configuration string
+ * E.g., the following configuration string
  *
 @verbatim
 [2:
@@ -145,12 +143,12 @@ struct confx_object;
  * @returns >= 0  The number of confx_objects found.
  * @returns  < 0  Error code.
  *
- * @note  c2_conf_parse() allocates additional memory for some
- *        confx_objects. The user is responsible for freeing this
- *        memory with c2_confx_fini().
- *
- * @pre   src does not start with "local-conf:"
  * @post  retval <= n
+ *
+ * @note  In addition to filling `dest' array, c2_conf_parse()
+ *        allocates some memory from the heap. This memory is freed by
+ *        c2_confx_fini(); the user is responsible for making sure
+ *        c2_confx_fini() is called eventually.
  *
  * @see c2_confx_fini()
  */
@@ -162,7 +160,6 @@ C2_INTERNAL int c2_conf_parse(const char *src, struct confx_object *dest,
  *
  * @param xobjs  Array of confx_objects.
  * @param n      Number of elements in `xobjs'.
- * @param deep   Whether to free c2_buf fields.
  *
  * @see c2_conf_parse()
  */

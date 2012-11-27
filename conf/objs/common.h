@@ -63,8 +63,6 @@ static bool name(const struct c2_conf_obj *obj)                       \
 }                                                                     \
 struct __ ## abbrev ## _semicolon_catcher
 
-C2_INTERNAL bool obj_is_stub(const struct c2_conf_obj *obj);
-
 C2_INTERNAL bool parent_check(const struct c2_conf_obj *obj);
 
 C2_INTERNAL bool child_check(const struct c2_conf_obj *obj,

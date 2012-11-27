@@ -14,36 +14,26 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
+ * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
  * Original creation date: 05/05/2012
  */
 #pragma once
-#ifndef __COLIBRI_CONF_FOM_H__
-#define __COLIBRI_CONF_FOM_H__
+#ifndef __COLIBRI_CONFD_FOM_H__
+#define __COLIBRI_CONFD_FOM_H__
 
-#include "fop/fom.h"
-
-struct c2_fop;
+#include "fop/fom.h"  /* c2_fom */
 
 /**
- * Object encompassing FOM for ping
- * operation and necessary context data
+ * @addtogroup confd_dfspec
+ *
+ * @{
  */
-struct c2_conf_fom {
-	/** Generic c2_fom object. */
-	struct c2_fom  cf_gen;
-	/** FOP associated with this FOM. */
-	struct c2_fop *cf_fop;
+
+struct c2_confd_fom {
+	struct c2_fom dm_fom;
 };
 
-#endif /* __COLIBRI_CONF_FOM_H__ */
+C2_INTERNAL int c2_confd_fom_create(struct c2_fop *fop, struct c2_fom **out);
 
-/*
- *  Local variables:
- *  c-indentation-style: "K&R"
- *  c-basic-offset: 8
- *  tab-width: 8
- *  fill-column: 80
- *  scroll-step: 1
- *  End:
- */
+/** @} confd_dfspec */
+#endif /* __COLIBRI_CONFD_FOM_H__ */

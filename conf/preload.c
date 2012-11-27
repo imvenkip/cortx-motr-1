@@ -71,7 +71,8 @@ c2_conf_parse(const char *src, struct confx_object *dest, size_t n)
 	 * decide when to free confx objects. */
 	c2_free(enc.ec_objs);
 
-	C2_RETURN(enc.ec_nr);
+	C2_LEAVE();
+	return enc.ec_nr;
 }
 
 C2_INTERNAL size_t c2_confx_obj_nr(const char *src)
@@ -89,7 +90,8 @@ C2_INTERNAL size_t c2_confx_obj_nr(const char *src)
 	}
 
 	enconf_fini(&enc);
-	C2_RETURN(enc.ec_nr);
+	C2_LEAVE();
+	return enc.ec_nr;
 }
 
 static void arr_buf_fini(struct arr_buf *a)

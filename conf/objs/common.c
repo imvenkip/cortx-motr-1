@@ -22,11 +22,6 @@
 #include "conf/reg.h"
 #include "conf/buf_ext.h" /* c2_buf_is_aimed */
 
-C2_INTERNAL bool obj_is_stub(const struct c2_conf_obj *obj)
-{
-	return obj->co_status != C2_CS_READY;
-}
-
 static bool mounted_as(const struct c2_conf_obj *obj, enum c2_conf_objtype type)
 {
 	return obj->co_mounted && obj->co_type == type;
