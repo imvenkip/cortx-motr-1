@@ -17,6 +17,7 @@ colibri_service()
 		        IOS="${IOS}ios=${lnet_nid}:${EP[$i]}"
 			rm -rf $COLIBRI_C2T1FS_TEST_DIR/d$i
 			mkdir $COLIBRI_C2T1FS_TEST_DIR/d$i
+			ulimit -c unlimited
 			cmd="cd $COLIBRI_C2T1FS_TEST_DIR/d$i; \
 			 $prog_start -r -T $COLIBRI_STOB_DOMAIN \
 			 -D db -S stobs \
@@ -31,8 +32,7 @@ colibri_service()
 			if [ $? -eq 0 ]; then
 				echo "Colibri service started."
 			else
-				echo "Colibri service failed to start:"
-				cat $COLIBRI_C2T1FS_TEST_DIR/servers_started
+				echo "Colibri service failed to start."
 				return 1
 			fi
 		done

@@ -121,5 +121,7 @@ unprepare()
 	fi
 	modunload_galois
 
-	rm -rf $COLIBRI_C2T1FS_TEST_DIR
+	# don't cleanup core dumps
+	[ `find $COLIBRI_C2T1FS_TEST_DIR -name 'core.*'` ] ||
+		rm -rf $COLIBRI_C2T1FS_TEST_DIR
 }
