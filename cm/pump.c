@@ -46,21 +46,28 @@ enum cm_cp_pump_fom_phase {
 	CPP_ALLOC = C2_FOM_PHASE_INIT,
 	CPP_FINI  = C2_FOM_PHASE_FINISH,
 	/**
-	 * c2_cm_cp_pump::p_fom is transitioned to CPP_IDLE state, if no more
-	 * copy packets can be created (in case buffer pool is exhausted) and
-	 * in case of failure.
-	 */
-	CPP_IDLE,
-	/**
 	 * Copy packets allocated in CPP_ALLOC phase are configured in this
 	 * phase.
 	 */
 	CPP_DATA_NEXT,
 	/**
+	 * c2_cm_cp_pump::p_fom is transitioned to CPP_NOBUFS when
+	 * c2_cm_data_next() returns -ENOBUFS(i.e No free buffers available at
+	 * this moment) in CPP_DATA_NEXT phase. The pump FOM goes to wait in
+	 * this phase and is woken up once the buffers are available.
+	 */
+	CPP_NOBUFS,
+	/**
+	 * c2_cm_cp_pump::p_fom is transitioned to CPP_COMPLETE phase, once
+	 * c2_cm_data_next() returns -ENODATA (i.e. there's no more data to
+	 * process for the iterator).
+	 */
+	CPP_COMPLETE,
+	/**
 	 * Copy machine is notified about the failure, and c2_cm_cp_pump::p_fom
-	 * is transitioned to CPP_IDLE state. Once copy machine handles the
-	 * failure, pump FOM is resumed, else stopped if the copy machine
-	 * operation is to be terminated.
+	 * remains in CPP_FAIL state. Once copy machine handles the failure
+	 * pump FOM is resumed, else stopped if the copy machine operation is to
+	 * be terminated.
 	 */
 	CPP_FAIL,
 	CPP_NR
@@ -98,25 +105,10 @@ static bool cm_cp_pump_invariant(const struct c2_cm_cp_pump *cp_pump)
 	       ergo(C2_IN(phase, (CPP_DATA_NEXT)), cp_pump->p_cp != NULL);
 }
 
-static void pump_phase_set(struct c2_cm_cp_pump *cp_fom, int phase)
-{
-	c2_fom_phase_set(&cp_fom->p_fom, phase);
-}
-
 static void pump_move(struct c2_cm_cp_pump *cp_fom, int rc, int phase)
 {
-	if (phase == CPP_FAIL)
-		c2_fom_phase_move(&cp_fom->p_fom, rc, phase);
-	else {
-		/*
-		 * cp_fom->p_rc can be -ENODAT or -ENOBUF which is not
-		 * treated as a failure and phase is not a C2_SDF_FAILURE state.
-		 * Thus not using c2_fom_phase_move(), but explicitly
-		 * storing the error code.
-		 */
-		pump_phase_set(cp_fom, phase);
-		cp_fom->p_rc = rc;
-	}
+	rc == 0 ? c2_fom_phase_set(&cp_fom->p_fom, phase) :
+		  c2_fom_phase_move(&cp_fom->p_fom, rc, phase);
 }
 
 static int cpp_alloc(struct c2_cm_cp_pump *cp_pump)
@@ -130,40 +122,10 @@ static int cpp_alloc(struct c2_cm_cp_pump *cp_pump)
 		pump_move(cp_pump, -ENOMEM, CPP_FAIL);
 	} else {
 		cp_pump->p_cp = cp;
-		pump_phase_set(cp_pump, CPP_DATA_NEXT);
+		pump_move(cp_pump, 0, CPP_DATA_NEXT);
 	}
 
 	return C2_FSO_AGAIN;
-}
-
-static int cpp_idle(struct c2_cm_cp_pump *cp_pump)
-{
-	int rc;
-
-	/*
-	 * If the pump did not fail at any point and sucessfully completed
-	 * the operation, then the cp_pump->p_rc == -ENODATA.
-	 * Else if sns repair copy machine buffer pool runs out of buffers, then
-	 * cp_pump->p_rc == -ENOBUFS.
-	 * We reset cp_pump->p_rc in above cases, before
-	 * transitioning the pump FOM into next phase.
-	 */
-	rc = cp_pump->p_rc;
-	if (rc == -ENODATA || rc == -ENOBUFS)
-		cp_pump->p_rc = 0;
-
-	if (cp_pump->p_shutdown) {
-		pump_phase_set(cp_pump, CPP_FINI);
-		rc = C2_FSO_WAIT;
-	} else if (rc == -ENOBUFS) {
-		pump_phase_set(cp_pump, CPP_DATA_NEXT);
-		rc = C2_FSO_AGAIN;
-	} else {
-		pump_phase_set(cp_pump, CPP_ALLOC);
-		rc = C2_FSO_AGAIN;
-	}
-
-	return rc;
 }
 
 static int cpp_data_next(struct c2_cm_cp_pump *cp_pump)
@@ -192,14 +154,10 @@ static int cpp_data_next(struct c2_cm_cp_pump *cp_pump)
 				 */
 				if (aggr_grps_tlist_is_empty(&cm->cm_aggr_grps))
 					cm->cm_ops->cmo_complete(cm);
-			}
-			/*
-			 * Set cp_pump->p_rc to rc.
-			 * Move pump FOM to CPP IDLE phase.
-			 * Note: This is not a failure state, but we save the rc
-			 * in cp_pump::p_rc, for debug and later usage.
-			 */
-			pump_move(cp_pump, rc, CPP_IDLE);
+				pump_move(cp_pump, 0, CPP_COMPLETE);
+			} else
+				pump_move(cp_pump, 0, CPP_NOBUFS);
+
 			cp_pump->p_is_idle = true;
 			rc = C2_FSO_WAIT;
 			goto out;
@@ -210,7 +168,7 @@ static int cpp_data_next(struct c2_cm_cp_pump *cp_pump)
 		c2_cm_cp_init(cp);
 		C2_ASSERT(c2_cm_cp_invariant(cp));
 		c2_cm_cp_enqueue(cm, cp);
-		pump_phase_set(cp_pump, CPP_ALLOC);
+		pump_move(cp_pump, 0, CPP_ALLOC);
 	}
 	goto out;
 fail:
@@ -223,6 +181,27 @@ out:
 	return rc;
 }
 
+static int cpp_nobufs(struct c2_cm_cp_pump *cp_pump)
+{
+	pump_move(cp_pump, 0, CPP_DATA_NEXT);
+	return C2_FSO_AGAIN;
+}
+
+static int cpp_complete(struct c2_cm_cp_pump *cp_pump)
+{
+	int rc;
+
+	if (cp_pump->p_shutdown) {
+		pump_move(cp_pump, 0, CPP_FINI);
+		rc = C2_FSO_WAIT;
+	} else {
+		pump_move(cp_pump, 0, CPP_ALLOC);
+		rc = C2_FSO_AGAIN;
+	}
+
+	return rc;
+}
+
 static int cpp_fail(struct c2_cm_cp_pump *cp_pump)
 {
 	struct c2_cm *cm;
@@ -231,7 +210,6 @@ static int cpp_fail(struct c2_cm_cp_pump *cp_pump)
 
 	cm = pump2cm(cp_pump);
 	c2_cm_fail(cm, C2_CM_ERR_START, c2_fom_rc(&cp_pump->p_fom));
-	pump_phase_set(cp_pump, CPP_IDLE);
 
 	return C2_FSO_WAIT;
 }
@@ -242,20 +220,26 @@ static const struct c2_sm_state_descr cm_cp_pump_sd[CPP_NR] = {
 		.sd_name    = "copy packet allocate",
 		.sd_allowed = C2_BITS(CPP_DATA_NEXT, CPP_FAIL)
 	},
-	[CPP_IDLE] = {
-		.sd_flags   = 0,
-		.sd_name    = "copy packet pump idle",
-		.sd_allowed = C2_BITS(CPP_ALLOC, CPP_DATA_NEXT, CPP_FINI)
-	},
 	[CPP_DATA_NEXT] = {
 		.sd_flags   = 0,
 		.sd_name    = "copy packet data next",
-		.sd_allowed = C2_BITS(CPP_ALLOC, CPP_FAIL, CPP_IDLE)
+		.sd_allowed = C2_BITS(CPP_ALLOC, CPP_NOBUFS, CPP_COMPLETE,
+				      CPP_FAIL)
+	},
+	[CPP_NOBUFS] = {
+		.sd_flags   = 0,
+		.sd_name    = "copy packet data next",
+		.sd_allowed = C2_BITS(CPP_DATA_NEXT, CPP_FAIL)
+	},
+	[CPP_COMPLETE] = {
+		.sd_flags   = 0,
+		.sd_name    = "copy packet data next",
+		.sd_allowed = C2_BITS(CPP_ALLOC, CPP_FINI)
 	},
 	[CPP_FAIL] = {
 		.sd_flags   = C2_SDF_FAILURE,
 		.sd_name    = "copy packet pump fail",
-		.sd_allowed = C2_BITS(CPP_IDLE)
+		.sd_allowed = C2_BITS(CPP_FINI)
 	},
 	[CPP_FINI] = {
 		.sd_flags   = C2_SDF_TERMINAL,
@@ -272,8 +256,9 @@ static const struct c2_sm_conf cm_cp_pump_conf = {
 
 static int (*pump_action[]) (struct c2_cm_cp_pump *cp_pump) = {
 	[CPP_ALLOC]     = cpp_alloc,
-	[CPP_IDLE]	= cpp_idle,
 	[CPP_DATA_NEXT] = cpp_data_next,
+	[CPP_NOBUFS]    = cpp_nobufs,
+	[CPP_COMPLETE]  = cpp_complete,
 	[CPP_FAIL]      = cpp_fail,
 };
 
