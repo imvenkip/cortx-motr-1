@@ -411,9 +411,11 @@ static int c2_md_tick_rename(struct c2_fom *fom)
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
+        req = c2_fop_data(fop);
 
         fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
+        rep = c2_fop_data(fop_rep);
 
         tx = &fom->fo_tx.tx_dbtx;
         md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
@@ -426,11 +428,8 @@ static int c2_md_tick_rename(struct c2_fom *fom)
         if (rc != 0)
                 goto out;
 
-        req = c2_fop_data(fop);
         sbody = &req->r_sbody;
         tbody = &req->r_tbody;
-
-        rep = c2_fop_data(fop_rep);
 
         c2_md_cob_wire2mem(&tattr, tbody);
         c2_buf_init(&tattr.ca_name, req->r_tname.s_buf, req->r_tname.s_len);
