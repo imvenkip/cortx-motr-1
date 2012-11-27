@@ -322,7 +322,6 @@ static void reed_solomon_diff(struct c2_parity_math *math,
 {
 	struct c2_buf     diff_data;
 	struct c2_matrix *mat;
-	uint8_t          *arr;
 	uint32_t          ei;
 	uint32_t          ui;
 	c2_parity_elem_t  mat_elem;
@@ -333,12 +332,13 @@ static void reed_solomon_diff(struct c2_parity_math *math,
 	C2_PRE(parity != NULL);
 	C2_PRE(index  <  math->pmi_data_count);
 	C2_PRE(old[index].b_nob == new[index].b_nob);
-	C2_PRE(new[index].b_nob == parity[0].b_nob);
+	C2_PRE(c2_forall(i, math->pmi_parity_count,
+		         new[index].b_nob == parity[i].b_nob));
 
 	diff_data.b_nob = old[index].b_nob;
 
-	C2_ALLOC_ARR(arr, diff_data.b_nob);
-	diff_data.b_addr = arr;
+	C2_ALLOC_ARR(diff_data.b_addr, diff_data.b_nob);
+	C2_ASSERT(diff_data.b_addr != NULL);
 
 	xor_diff(math, old, new, &diff_data, index);
 	mat = &math->pmi_vandmat_parity_slice;
@@ -629,7 +629,6 @@ static void fail_idx_reed_solomon_recover(struct c2_parity_math *math,
 					  struct c2_buf *parity,
 					  const uint32_t failure_index)
 {
-
 }
 
 C2_INTERNAL void c2_parity_math_fail_index_recover(struct c2_parity_math *math,
