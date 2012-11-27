@@ -74,7 +74,7 @@ C2_INTERNAL int c2_rpc_item_received(struct c2_rpc_item *item,
  */
 
 C2_INTERNAL int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
-					 struct c2_cob *pcob,
+					 const struct c2_cob *pcob,
 					 const char *name,
 					 struct c2_cob **out,
 					 struct c2_db_tx *tx);

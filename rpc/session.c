@@ -1193,17 +1193,15 @@ static int session_persistent_state_destroy(struct c2_rpc_session *session,
 		slot = session->s_slot_table[i];
 		if (slot != NULL && slot->sl_cob != NULL) {
 			/*
-			 * c2_cob_delete() "puts" the cob even if cob delete
-			 * fails. Irrespective of success/failure of
-			 * c2_cob_delete(), the c2_cob becomes unusable. So
-			 * no need to handle the error
+			 * c2_cob_delete_put() - even failed one - leaves the
+			 * cob unusable.  And we don't care about error code.
 			 */
-			c2_cob_delete(slot->sl_cob, tx);
+			(void)c2_cob_delete_put(slot->sl_cob, tx);
 			slot->sl_cob = NULL;
 		}
 	}
 	if (session->s_cob != NULL) {
-		c2_cob_delete(session->s_cob, tx);
+		c2_cob_delete_put(session->s_cob, tx);
 		session->s_cob = NULL;
 	}
 

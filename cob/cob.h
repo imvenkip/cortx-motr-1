@@ -594,8 +594,20 @@ C2_INTERNAL int c2_cob_create(struct c2_cob *cob,
  *
  * @param cob this cob will be deleted
  * @param tx db transaction to use
+ *
+ * Note, that c2_cob_delete() does not decrement cob's reference counter.
+ * Use c2_cob_delete_put() to have the counter decremented.
+ *
+ * @see c2_cob_delete_put()
  */
 C2_INTERNAL int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx);
+
+/**
+ * Deletes and puts cob.
+ *
+ * @see c2_cob_delete(), c2_cob_put()
+ */
+C2_INTERNAL int c2_cob_delete_put(struct c2_cob *cob, struct c2_db_tx *tx);
 
 /**
  * Update file attributes of passed cob with @nsrec, @fabrec
@@ -690,7 +702,7 @@ C2_INTERNAL void c2_cob_get(struct c2_cob *obj);
  * When the last reference is released, the object can either return to the
  * cache or can be immediately destroyed.
  *
- * @see c2_cob_get()
+ * @see c2_cob_get(), c2_cob_delete_put()
  */
 C2_INTERNAL void c2_cob_put(struct c2_cob *obj);
 

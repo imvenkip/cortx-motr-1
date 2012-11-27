@@ -1137,6 +1137,13 @@ out:
         return rc;
 }
 
+C2_INTERNAL int c2_cob_delete_put(struct c2_cob *cob, struct c2_db_tx *tx)
+{
+	int rc = c2_cob_delete(cob, tx);
+	c2_cob_put(cob);
+	return rc;
+}
+
 C2_INTERNAL int c2_cob_update(struct c2_cob *cob,
 			      struct c2_cob_nsrec *nsrec,
 			      struct c2_cob_fabrec *fabrec,

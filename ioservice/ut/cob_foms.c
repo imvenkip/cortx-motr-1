@@ -800,7 +800,7 @@ static void cc_cob_create_test()
 	 */
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
-	rc = c2_cob_delete(test_cob, &fom->fo_tx.tx_dbtx);
+	rc = c2_cob_delete_put(test_cob, &fom->fo_tx.tx_dbtx);
 	c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
 	C2_UT_ASSERT(rc == 0);
 	test_cob = NULL;

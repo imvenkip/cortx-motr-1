@@ -234,7 +234,7 @@ static void cob_delete(uint64_t cont, uint64_t key)
 	C2_UT_ASSERT(rc == 0);
 	rc = c2_cob_locate(cdom, &oikey, 0, &cob, &tx.tx_dbtx);
 	C2_UT_ASSERT(rc == 0);
-	rc = c2_cob_delete(cob, &tx.tx_dbtx);
+	rc = c2_cob_delete_put(cob, &tx.tx_dbtx);
 	C2_UT_ASSERT(rc == 0);
 	c2_db_tx_commit(&tx.tx_dbtx);
 }

@@ -264,15 +264,14 @@ static void test_locate(void)
 */
 static void test_delete(void)
 {
-        struct c2_db_tx      tx;
+        struct c2_db_tx tx;
 
         /* gets ref */
         rc = test_locate_internal();
         C2_ASSERT(rc == 0);
 
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
-        /* drops ref */
-        rc = c2_cob_delete(cob, &tx);
+        rc = c2_cob_delete_put(cob, &tx);
         c2_db_tx_commit(&tx);
         C2_UT_ASSERT(rc == 0);
 

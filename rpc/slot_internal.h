@@ -299,7 +299,7 @@ C2_INTERNAL int c2_rpc_slot_cob_lookup(struct c2_cob *session_cob,
 /**
    Creates a cob named "SLOT_$slot_id:$slot_generation" in @session_cob
  */
-C2_INTERNAL int c2_rpc_slot_cob_create(struct c2_cob *session_cob,
+C2_INTERNAL int c2_rpc_slot_cob_create(const struct c2_cob *session_cob,
 				       uint32_t slot_id,
 				       uint64_t slot_generation,
 				       struct c2_cob **slot_cob,

@@ -287,9 +287,8 @@ C2_INTERNAL void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 	c2_fop_free(fop);
 
 	slot_item_tlist_fini(&slot->sl_item_list);
-	if (slot->sl_cob != NULL) {
+	if (slot->sl_cob != NULL)
 		c2_cob_put(slot->sl_cob);
-	}
 	C2_SET0(slot);
 	C2_LEAVE();
 }
@@ -912,7 +911,7 @@ C2_INTERNAL int c2_rpc_slot_cob_lookup(struct c2_cob *session_cob,
 	C2_RETURN(rc);
 }
 
-C2_INTERNAL int c2_rpc_slot_cob_create(struct c2_cob *session_cob,
+C2_INTERNAL int c2_rpc_slot_cob_create(const struct c2_cob *session_cob,
 				       uint32_t slot_id,
 				       uint64_t slot_generation,
 				       struct c2_cob **slot_cob,
@@ -926,9 +925,7 @@ C2_INTERNAL int c2_rpc_slot_cob_create(struct c2_cob *session_cob,
 		 session_cob, slot_id, (unsigned long long)slot_generation);
 	C2_PRE(session_cob != NULL && slot_cob != NULL);
 
-	*slot_cob = NULL;
 	sprintf(name, "SLOT_%u:%lu", slot_id, (unsigned long)slot_generation);
-
 	rc = c2_rpc_cob_create_helper(session_cob->co_dom, session_cob, name,
 					&cob, tx);
 	C2_ASSERT(ergo(rc != 0, cob == NULL));

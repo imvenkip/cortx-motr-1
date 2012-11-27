@@ -498,16 +498,15 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 			    "c2_cob_locate() failed.", rc);
 		return rc;
 	}
-	C2_ASSERT(cob != NULL);
 
-	rc = c2_cob_delete(cob, &fom->fo_tx.tx_dbtx);
-	if (rc != 0)
-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
-			    cd_fom_func_fail, "c2_cob_delete() failed.", rc);
-	else
+	C2_ASSERT(cob != NULL);
+	rc = c2_cob_delete_put(cob, &fom->fo_tx.tx_dbtx);
+	if (rc == 0)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_trace, "Cob deleted successfully.");
-
+	else
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
+			    cd_fom_func_fail, "Cob deletion failed.", rc);
 	return rc;
 }
 
