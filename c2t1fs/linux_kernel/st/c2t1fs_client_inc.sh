@@ -22,6 +22,7 @@ mount_c2t1fs()
 ' [1: "_"])})],profile=prof'
 
 	echo "Mounting file system..."
+	echo "mount -t c2t1fs -o "$CONF",$SERVICES c2t1fs $c2t1fs_mount_dir"
 	mount -t c2t1fs -o "$CONF",$SERVICES c2t1fs $c2t1fs_mount_dir || {
 		echo "Failed to	mount c2t1fs file system."
 		return 1

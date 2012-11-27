@@ -202,6 +202,7 @@ static int root_alloc(struct super_block *sb)
         struct c2_fop_statfs_rep *rep = NULL;
 	struct c2t1fs_sb         *csb = C2T1FS_SB(sb);
 	struct inode             *root_inode;
+	int                       rc;
 
         rc = c2t1fs_mds_statfs(csb, &rep);
         if (rc != 0)
