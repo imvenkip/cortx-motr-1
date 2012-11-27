@@ -296,12 +296,7 @@ static int cc_cob_nskey_make(struct c2_cob_nskey **nskey,
 	snprintf((char*)nskey_name, UINT32_MAX_STR_LEN, "%u",
 		 (uint32_t)unit_idx);
 
-	/*
-	 * 1 is added to string length so that standard string
-	 * library calls which depend on NULL char at end of string
-	 * don't fail.
-	 */
-	nskey_name_len = strlen(nskey_name) + 1;
+	nskey_name_len = strlen(nskey_name);
 
 	rc = c2_cob_nskey_make(nskey, gfid, (char *)nskey_name,
 			       nskey_name_len);
