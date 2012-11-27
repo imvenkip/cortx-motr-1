@@ -504,7 +504,7 @@ static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
 	c->c_gobfid.f_oid = COB_TEST_ID;
 	c->c_cobfid.f_seq = COB_TEST_ID;
 	c->c_cobfid.f_oid = COB_TEST_ID;
-	c->c_unit_idx = COB_TEST_ID;
+	c->c_cob_idx = COB_TEST_ID;
 	fom->fo_fop = base_fop;
 	fom->fo_type = &base_fop->f_type->ft_fom_type;
 
@@ -653,13 +653,13 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 	struct c2_fid         fid = {COB_TEST_ID, COB_TEST_ID};
         char                  nskey_bs[UINT32_MAX_STR_LEN];
         uint32_t              nskey_bs_len;
-	uint32_t              unit_idx = COB_TEST_ID;
+	uint32_t              cob_idx = COB_TEST_ID;
 
 	cobdom = &c2_fom_reqh(fom)->rh_mdstore->md_dom;
 	dbenv = c2_fom_reqh(fom)->rh_dbenv;
 
         snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u",
-                 (uint32_t)unit_idx);
+                 (uint32_t)cob_idx);
         nskey_bs_len = strlen(nskey_bs) + 1;
 
 	rc = c2_cob_nskey_make(&nskey, &fid, (char *)nskey_bs, nskey_bs_len);

@@ -241,8 +241,8 @@ record {
 	 */
 	c2_fop_file_fid c_cobfid;
 
-	/** Unit index in parity group that this cob represents. */
-	u32             c_unit_idx
+	/** Unique cob index in pool. */
+	u32             c_cob_idx
 } c2_fop_cob_common;
 
 /**

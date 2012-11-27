@@ -58,29 +58,29 @@ static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 				       int (*func)(struct c2t1fs_sb *csb,
 					           const struct c2_fid *cfid,
 						   const struct c2_fid *gfid,
-						   uint32_t unit_idx));
+						   uint32_t cob_idx));
 
 static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 			 const struct c2_fid *cob_fid,
 			 const struct c2_fid *gob_fid,
-			 uint32_t unit_idx,
+			 uint32_t cob_idx,
 			 struct c2_fop_type  *ftype);
 
 static int c2t1fs_cob_create(struct c2t1fs_sb    *csb,
 			     const struct c2_fid *cob_fid,
 			     const struct c2_fid *gob_fid,
-			     uint32_t unit_idx);
+			     uint32_t cob_idx);
 
 static int c2t1fs_cob_delete(struct c2t1fs_sb    *csb,
 			     const struct c2_fid *cob_fid,
 			     const struct c2_fid *gob_fid,
-			     uint32_t unit_idx);
+			     uint32_t cob_idx);
 
 static int c2t1fs_cob_fop_populate(struct c2t1fs_sb    *csb,
 				   struct c2_fop       *fop,
 				   const struct c2_fid *cob_fid,
 				   const struct c2_fid *gob_fid,
-				   uint32_t unit_idx);
+				   uint32_t cob_idx);
 
 
 const struct file_operations c2t1fs_dir_file_operations = {
@@ -516,7 +516,7 @@ static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 				       int (*func)(struct c2t1fs_sb *csb,
 					           const struct c2_fid *cfid,
 						   const struct c2_fid *gfid,
-						   uint32_t unit_idx))
+						   uint32_t cob_idx))
 {
 	struct c2t1fs_sb *csb;
 	struct c2_fid     cob_fid;
@@ -557,25 +557,25 @@ out:
 static int c2t1fs_cob_create(struct c2t1fs_sb    *csb,
 			     const struct c2_fid *cob_fid,
 			     const struct c2_fid *gob_fid,
-			     uint32_t unit_idx)
+			     uint32_t cob_idx)
 {
-	return c2t1fs_cob_op(csb, cob_fid, gob_fid, unit_idx,
+	return c2t1fs_cob_op(csb, cob_fid, gob_fid, cob_idx,
 			     &c2_fop_cob_create_fopt);
 }
 
 static int c2t1fs_cob_delete(struct c2t1fs_sb *csb,
 			     const struct c2_fid *cob_fid,
 			     const struct c2_fid *gob_fid,
-			     uint32_t unit_idx)
+			     uint32_t cob_idx)
 {
-	return c2t1fs_cob_op(csb, cob_fid, gob_fid, unit_idx,
+	return c2t1fs_cob_op(csb, cob_fid, gob_fid, cob_idx,
 			     &c2_fop_cob_delete_fopt);
 }
 
 static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 			 const struct c2_fid *cob_fid,
 			 const struct c2_fid *gob_fid,
-			 uint32_t unit_idx,
+			 uint32_t cob_idx,
 			 struct c2_fop_type  *ftype)
 {
 	int                         rc;
@@ -605,7 +605,7 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 	C2_ASSERT(c2_is_cob_create_delete_fop(fop));
 	cobcreate = c2_is_cob_create_fop(fop);
 
-	rc = c2t1fs_cob_fop_populate(csb, fop, cob_fid, gob_fid, unit_idx);
+	rc = c2t1fs_cob_fop_populate(csb, fop, cob_fid, gob_fid, cob_idx);
 	if (rc != 0) {
 		c2_fop_free(fop);
 		goto out;
@@ -667,7 +667,7 @@ static int c2t1fs_cob_fop_populate(struct c2t1fs_sb    *csb,
 				   struct c2_fop       *fop,
 				   const struct c2_fid *cob_fid,
 				   const struct c2_fid *gob_fid,
-				   uint32_t unit_idx)
+				   uint32_t cob_idx)
 {
 	struct c2_fop_cob_common       *common;
 	struct c2_pool_version_numbers *cli;
@@ -692,7 +692,7 @@ static int c2t1fs_cob_fop_populate(struct c2t1fs_sb    *csb,
 	common->c_gobfid.f_oid = gob_fid->f_key;
 	common->c_cobfid.f_seq = cob_fid->f_container;
 	common->c_cobfid.f_oid = cob_fid->f_key;
-	common->c_unit_idx = unit_idx;
+	common->c_cob_idx = cob_idx;
 
 	C2_LEAVE("%d", 0);
 	return 0;

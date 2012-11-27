@@ -187,7 +187,7 @@ static void cob_fom_populate(struct c2_fom *fom)
 	io_fom_cob_rw_fid_wire2mem(&common->c_gobfid, &cfom->fco_gfid);
 	io_fom_cob_rw_fid_wire2mem(&common->c_cobfid, &cfom->fco_cfid);
 	io_fom_cob_rw_fid2stob_map(&cfom->fco_cfid, &cfom->fco_stobid);
-	cfom->fco_unit_idx = common->c_unit_idx;
+	cfom->fco_cob_idx = common->c_cob_idx;
 }
 
 static int cc_fom_tick(struct c2_fom *fom)
@@ -284,7 +284,7 @@ static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 
 static int cc_cob_nskey_make(struct c2_cob_nskey **nskey,
 			     const struct c2_fid *gfid,
-			     uint32_t unit_idx)
+			     uint32_t cob_idx)
 {
 	char     nskey_name[UINT32_MAX_STR_LEN];
 	uint32_t nskey_name_len;
@@ -294,7 +294,7 @@ static int cc_cob_nskey_make(struct c2_cob_nskey **nskey,
 
 	C2_SET_ARR0(nskey_name);
 	snprintf((char*)nskey_name, UINT32_MAX_STR_LEN, "%u",
-		 (uint32_t)unit_idx);
+		 (uint32_t)cob_idx);
 
 	nskey_name_len = strlen(nskey_name);
 
@@ -329,7 +329,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
         if (rc)
                 return rc;
 
-	rc = cc_cob_nskey_make(&nskey, &cc->fco_gfid, cc->fco_unit_idx);
+	rc = cc_cob_nskey_make(&nskey, &cc->fco_gfid, cc->fco_cob_idx);
 	if (rc != 0) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_oom);
