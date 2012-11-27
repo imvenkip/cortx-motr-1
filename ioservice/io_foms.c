@@ -1542,7 +1542,6 @@ static int io_launch(struct c2_fom *fom)
 	if (fom_obj->fcrw_num_stobio_launched > 0)
 		return C2_FSO_WAIT;
 
-
 cleanup_st:
 	c2_stob_put(fom_obj->fcrw_stob);
 cleanup:
