@@ -337,7 +337,7 @@ C2_INTERNAL int c2_mdstore_unlink(struct c2_mdstore     *md,
                         }
                 } else {
                         /* Zero nlink reached, kill entire object. */
-                        rc = c2_cob_delete_put(cob, tx);
+                        rc = c2_cob_delete(cob, tx);
                 }
                 c2_free(nskey);
         } else {
@@ -350,7 +350,7 @@ C2_INTERNAL int c2_mdstore_unlink(struct c2_mdstore     *md,
                  * later.
                  */
                 cob->co_nsrec.cnr_nlink = 0;
-                rc = c2_cob_delete_put(cob, tx);
+                rc = c2_cob_delete(cob, tx);
         }
 
 out:
