@@ -107,8 +107,7 @@ static bool cm_cp_pump_invariant(const struct c2_cm_cp_pump *cp_pump)
 
 static void pump_move(struct c2_cm_cp_pump *cp_fom, int rc, int phase)
 {
-	rc == 0 ? c2_fom_phase_set(&cp_fom->p_fom, phase) :
-		  c2_fom_phase_move(&cp_fom->p_fom, rc, phase);
+	c2_fom_phase_move(&cp_fom->p_fom, rc, phase);
 }
 
 static int cpp_alloc(struct c2_cm_cp_pump *cp_pump)
