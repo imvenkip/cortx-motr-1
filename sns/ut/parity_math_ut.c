@@ -317,7 +317,7 @@ static void test_parity_math_diff(uint32_t parity_cnt)
 
 static void test_parity_math_diff_xor(void)
 {
-	test_parity_math_diff(1);
+	test_parity_math_diff(PARITY_UNIT_COUNT);
 }
 
 
@@ -337,8 +337,8 @@ const struct c2_test_suite parity_math_ut = {
                 { "xor_recover_with_fail_vec", test_xor_fv_recover },
                 { "xor_recover_with_fail_index", test_xor_fail_idx_recover },
                 { "buffer_xor", test_buffer_xor },
-		{ "parity_math_diff_xor", test_parity_math_diff_xor },
-		{ "parity_math_diff_rs", test_parity_math_diff_rs },
+                { "parity_math_diff_xor", test_parity_math_diff_xor },
+                { "parity_math_diff_rs", test_parity_math_diff_rs },
                 { NULL, NULL }
         }
 };
