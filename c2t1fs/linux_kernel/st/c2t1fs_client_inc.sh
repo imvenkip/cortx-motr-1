@@ -395,10 +395,10 @@ c2t1fs_system_tests()
 		return 1
 	}
 
-#	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY || {
-#		echo "Failed: IO failed.."
-#		return 1
-#	}
+	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY || {
+		echo "Failed: IO failed.."
+		return 1
+	}
 
 	rmw_test || {
 		echo "Failed: IO-RMW failed.."
