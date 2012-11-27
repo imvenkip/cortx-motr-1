@@ -70,7 +70,6 @@ struct c2_cm_cp_pump {
 	 * race.
 	 */
 	bool             p_is_idle;
-	int		 p_rc;
 };
 
 C2_INTERNAL void c2_cm_cp_pump_init(void);
