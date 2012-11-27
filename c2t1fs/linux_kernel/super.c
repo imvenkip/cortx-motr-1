@@ -640,6 +640,10 @@ static int c2t1fs_mnt_opts_validate(const struct c2t1fs_mnt_opts *mops)
 		C2_RETERR(-EINVAL,
 			  "Must specify at least one ioservice endpoint");
 
+	if (mops->mo_mds_ep_nr == 0)
+		C2_RETERR(-EINVAL,
+			  "Must specify at least one mdservice endpoint");
+
 	/* c2t1fs_mnt_opts_parse() guarantees that this condition holds: */
 	C2_ASSERT(mops->mo_ios_ep_nr <= ARRAY_SIZE(mops->mo_ios_ep_addr));
 	C2_ASSERT(mops->mo_mds_ep_nr <= ARRAY_SIZE(mops->mo_mds_ep_addr));
