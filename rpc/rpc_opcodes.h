@@ -105,7 +105,7 @@ enum C2_RPC_OPCODES {
 
 	/** Xcode rpc */
 	C2_XCODE_UT_OPCODE                  = 48,
-	
+
 	/** FOP module */
 	C2_FOP_RDWR_OPCODE                  = 49,
 	C2_FOP_RDWR_REPLY_OPCODE            = 50,
@@ -113,6 +113,8 @@ enum C2_RPC_OPCODES {
 	/** Configuration rpc */
 	C2_CONF_FETCH_OPCODE                = 51,
 	C2_CONF_FETCH_RESP_OPCODE           = 52,
+	C2_CONF_UPDATE_OPCODE               = 53,
+	C2_CONF_UPDATE_RESP_OPCODE          = 54,
 
         /* Mdservice fops */
         C2_MDSERVICE_CREATE_OPCODE          = 53,

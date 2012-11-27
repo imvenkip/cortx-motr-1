@@ -96,8 +96,26 @@ enum c2_pool_nd_state {
 	/** a node/device turned off-line by an administrative request */
 	C2_PNDS_OFFLINE,
 
-	/** a node/device is active, but not yet serving IO */
-	C2_PNDS_RECOVERING,
+	/** a node/device is active in sns repair. */
+	C2_PNDS_SNS_REPAIRING,
+
+	/**
+	 * a node/device completed sns repair. Its data is re-constructed
+	 * on its corresponding spare space
+	 */
+	C2_PNDS_SNS_REPAIRED,
+
+	/** a node/device is active in sns re-balance. */
+	C2_PNDS_SNS_REBALANCING,
+
+	/**
+	 * a node/device completed sns re-rebalance. Its data is copyied
+	 * back to its original location. This usually happens when a
+	 * new device replaced a failed device and re-balance completed.
+	 * After this, the device can be set to ONLINE, and its corresponding
+	 * space space can be returned to pool.
+	 */
+	C2_PNDS_SNS_REBALANCED,
 
 	/** number of state */
 	C2_PNDS_NR
@@ -185,7 +203,7 @@ struct c2_pool_event {
  */
 struct c2_pool_event_link {
 	/** the event itself */
-	struct c2_pool_event          *pel_event;
+	struct c2_pool_event           pel_event;
 
 	/**
 	 * Pool machine's new version when this event handled
@@ -202,6 +220,18 @@ struct c2_pool_event_link {
 	struct c2_tlink                pel_linkage;
 
 	uint64_t                       pel_magic;
+};
+
+/**
+ * Tracking spare slot usage.
+ * If spare slot is not used for repair/rebalance, its :psp_device_index is -1.
+ */
+struct c2_pool_spare_usage {
+	/** index of the device to use this spare slot */
+	uint32_t psp_device_index;
+
+	/** state of the device to use this spare slot */
+	enum c2_pool_nd_state psp_device_state;
 };
 
 /**
@@ -239,6 +269,12 @@ struct c2_poolmach_state {
 	uint32_t                       pst_max_device_failures;
 
 	/**
+	 * Spare slot usage array.
+	 * The size of this array is pst_max_device_failures;
+	 */
+	struct c2_pool_spare_usage    *pst_spare_usage_array;
+
+	/**
 	 * All Events ever happened to this pool machine, ordered by time.
 	 */
 	struct c2_tl                   pst_events_list;
@@ -271,7 +307,12 @@ C2_INTERNAL bool c2_poolmach_version_equal(const struct c2_pool_version_numbers
 					   const struct c2_pool_version_numbers
 					   *v2);
 
-C2_INTERNAL int c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm);
+C2_INTERNAL int c2_poolmach_init(struct c2_poolmach *pm,
+				 struct c2_dtm *dtm,
+				 uint32_t nr_nodes,
+				 uint32_t nr_devices,
+				 uint32_t max_node_failures,
+				 uint32_t max_device_failures);
 C2_INTERNAL void c2_poolmach_fini(struct c2_poolmach *pm);
 
 /**
@@ -308,6 +349,46 @@ C2_INTERNAL int c2_poolmach_state_query(struct c2_poolmach *pm,
 C2_INTERNAL int c2_poolmach_current_version_get(struct c2_poolmach *pm,
 						struct c2_pool_version_numbers
 						*curr);
+
+/**
+ * Query the current state of a specified device.
+ * @param pm pool machine.
+ * @param device_index the index of the device to query.
+ * @param state_out the output state.
+ */
+C2_INTERNAL int c2_poolmach_device_state(struct c2_poolmach *pm,
+					 uint32_t device_index,
+					 enum c2_pool_nd_state *state_out);
+
+/**
+ * Query the current state of a specified device.
+ * @param pm pool machine.
+ * @param node_index the index of the node to query.
+ * @param state_out the output state.
+ */
+C2_INTERNAL int c2_poolmach_node_state(struct c2_poolmach *pm,
+				       uint32_t node_index,
+				       enum c2_pool_nd_state *state_out);
+
+/**
+ * Query the {sns repair, spare slot} pair of a specified device.
+ * @param pm pool machine.
+ * @param device_index the index of the device to query.
+ * @param spare_slot_out the output spair slot.
+ */
+C2_INTERNAL int c2_poolmach_sns_repair_spare_query(struct c2_poolmach *pm,
+						   uint32_t device_index,
+						   uint32_t *spare_slot_out);
+
+/**
+ * Query the {sns rebalance, spare slot} pair of a specified device.
+ * @param pm pool machine.
+ * @param device_index the index of the device to query.
+ * @param spare_slot_out the output spair slot.
+ */
+C2_INTERNAL int c2_poolmach_sns_rebalance_spare_query(struct c2_poolmach *pm,
+						      uint32_t device_index,
+						      uint32_t *spare_slot_out);
 
 /**
  * Return a copy of current pool machine state.

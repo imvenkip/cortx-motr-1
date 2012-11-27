@@ -185,9 +185,8 @@ C2_INTERNAL bool c2_rpc_packet_is_empty(const struct c2_rpc_packet *p)
 C2_INTERNAL int c2_rpc_packet_encode(struct c2_rpc_packet *p,
 				     struct c2_bufvec *bufvec)
 {
-	struct c2_bufvec_cursor  cur;
-	c2_bcount_t              bufvec_size;
-	int                      rc;
+	struct c2_bufvec_cursor cur;
+	c2_bcount_t             bufvec_size;
 
 	C2_ENTRY("packet: %p bufvec: %p", p, bufvec);
 	C2_PRE(c2_rpc_packet_invariant(p) && bufvec != NULL);
@@ -206,9 +205,7 @@ C2_INTERNAL int c2_rpc_packet_encode(struct c2_rpc_packet *p,
 	c2_bufvec_cursor_init(&cur, bufvec);
 	C2_ASSERT(C2_IS_8ALIGNED(c2_bufvec_cursor_addr(&cur)));
 
-	rc = c2_rpc_packet_encode_using_cursor(p, &cur);
-
-	C2_RETURN(rc);
+	C2_RETURN(c2_rpc_packet_encode_using_cursor(p, &cur));
 }
 
 C2_INTERNAL int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet *packet,
@@ -388,7 +385,7 @@ static int item_decode(struct c2_bufvec_cursor  *cursor,
 }
 
 C2_INTERNAL void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
-					      item_visit_fn * visit,
+					      item_visit_fn *visit,
 					      unsigned long opaque_data)
 {
 	struct c2_rpc_item *item;

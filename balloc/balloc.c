@@ -561,10 +561,12 @@ static int balloc_init_internal(struct c2_balloc *colibri,
 				c2_bcount_t res_groups)
 {
 	struct c2_balloc_group_info	*gi;
-	int				 rc;
-	c2_bcount_t			 i;
 	struct c2_db_tx			 init_tx;
 	struct timeval			 now;
+	char                             table_name[MAXPATHLEN];
+	uint64_t                         cid = colibri->cb_container_id;
+	int				 rc;
+	c2_bcount_t			 i;
 	int				 tx_started = 0;
 	C2_ENTRY();
 
@@ -574,16 +576,25 @@ static int balloc_init_internal(struct c2_balloc *colibri,
 	C2_SET0(&colibri->cb_sb);
 	C2_SET0(&colibri->cb_db_group_extents);
 	C2_SET0(&colibri->cb_db_group_desc);
+	C2_SET_ARR0(table_name);
 
+	sprintf(table_name, "%s_%lu", "super_block", cid);
 	rc = c2_table_init(&colibri->cb_db_sb, dbenv,
-			   "super_block", 0,
-			   &c2_super_block_ops) ||
-	     c2_table_init(&colibri->cb_db_group_desc, dbenv,
-			   "group_desc", 0,
-			   &c2_group_desc_ops)	||
-	     c2_table_init(&colibri->cb_db_group_extents, dbenv,
-			   "group_extents", 0,
-			   &c2_group_extent_ops);
+			   table_name, 0,
+			   &c2_super_block_ops);
+	if (rc == 0) {
+		C2_SET_ARR0(table_name);
+		sprintf(table_name, "%s_%lu", "group_desc", cid);
+		rc = c2_table_init(&colibri->cb_db_group_desc, dbenv, table_name, 0,
+				   &c2_group_desc_ops);
+	}
+	if (rc == 0) {
+		C2_SET_ARR0(table_name);
+		sprintf(table_name, "%s_%lu", "group_extents", cid);
+		rc = c2_table_init(&colibri->cb_db_group_extents, dbenv, table_name,
+				   0, &c2_group_extent_ops);
+	}
+
 	if (rc != 0)
 		goto out;
 
@@ -753,9 +764,7 @@ static int balloc_claim_free_blocks(struct c2_balloc *colibri,
 	C2_LOG(C2_DEBUG, "bsb_freeblocks = %llu, blocks=%llu\n",
 		(unsigned long long)colibri->cb_sb.bsb_freeblocks,
 		(unsigned long long)blocks);
-	c2_mutex_lock(&colibri->cb_sb_mutex);
-		rc = (colibri->cb_sb.bsb_freeblocks >= blocks);
-	c2_mutex_unlock(&colibri->cb_sb_mutex);
+	rc = (colibri->cb_sb.bsb_freeblocks >= blocks);
 
 	C2_LEAVE();
 	return rc;
@@ -2040,14 +2049,16 @@ static int balloc_alloc(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
 	struct c2_balloc_allocate_req	 req;
 	int				 rc;
 
+	C2_LOG(C2_DEBUG, "count=%lu", (unsigned long)count);
 	C2_ASSERT(count > 0);
 
 	req.bar_goal  = out->e_start; /* this also plays as the goal */
 	req.bar_len   = count;
-	req.bar_flags = 0;/*C2_BALLOC_HINT_DATA | C2_BALLOC_HINT_TRY_GOAL;*/
+	req.bar_flags = 0 /*C2_BALLOC_HINT_DATA | C2_BALLOC_HINT_TRY_GOAL*/;
 
 	C2_SET0(out);
 
+	c2_mutex_lock(&colibri->cb_sb_mutex);
 	rc = balloc_allocate_internal(colibri, &tx->tx_dbtx, &req);
 	if (rc == 0 && !c2_ext_is_empty(&req.bar_result)) {
 		out->e_start = req.bar_result.e_start;
@@ -2055,6 +2066,7 @@ static int balloc_alloc(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
 		colibri->cb_last = *out;
 	} else if (rc == 0)
 		rc = -ENOENT;
+	c2_mutex_unlock(&colibri->cb_sb_mutex);
 
 	return rc;
 }
@@ -2129,7 +2141,7 @@ static const struct c2_ad_balloc_ops balloc_ops = {
 	.bo_free  = balloc_free,
 };
 
-C2_INTERNAL int c2_balloc_allocate(struct c2_balloc **out)
+C2_INTERNAL int c2_balloc_allocate(uint64_t cid, struct c2_balloc **out)
 {
 	struct c2_balloc *cb;
 	int               result;
@@ -2138,6 +2150,7 @@ C2_INTERNAL int c2_balloc_allocate(struct c2_balloc **out)
 
 	C2_ALLOC_PTR(cb);
 	if (cb != NULL) {
+		cb->cb_container_id = cid;
                 cb->cb_ballroom.ab_ops = &balloc_ops;
                 *out = cb;
                 result = 0;

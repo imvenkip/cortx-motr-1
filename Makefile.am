@@ -611,7 +611,8 @@ all-local: build-kernel-modules check-sources-postbuild
 		2>/dev/null \
 	| sed -r -e 's/dec/total/' \
 		 -e 's#colibri/.libs/|build_kernel_modules/##' \
-	| cut -f5 --complement
+	| cut -f5 --complement \
+	| column -t
 
 .PHONY: check-sources-postbuild
 check-sources-postbuild:

@@ -1,30 +1,31 @@
 mount_c2t1fs()
 {
-	c2t1fs_mount_dir=$1
-	local stride_size=`expr $2 '*' 1024`
+	local c2t1fs_mount_dir=$1
+	local stride_size=`expr $2 \* 1024`
 
 	# Create mount directory
-	mkdir $c2t1fs_mount_dir
-	if [ $? -ne "0" ]
-	then
+	mkdir $c2t1fs_mount_dir || {
 		echo "Failed to create mount directory."
 		return 1
-	fi
+	}
 
-	rc=`lsmod | grep kcolibri | wc -l`
-	if [ "x$rc" == "x0" ]; then
+	lsmod | grep -q kcolibri || {
 		echo "Failed to	mount c2t1fs file system. (kcolibri not loaded)"
 		return 1
-	fi
+	}
+
+	local CONF='conf=local-conf:[2: '\
+'("prof", {1| ("fs")}), '\
+'("fs", {2| ((11, 22),'\
+" [3: \"pool_width=$POOL_WIDTH\", \"nr_data_units=$NR_DATA\","\
+" \"unit_size=$stride_size\"],"\
+' [1: "_"])})],profile=prof'
 
 	echo "Mounting file system..."
-	cmd="mount -t c2t1fs -o $SERVICES,$STRIPE,unit_size=$stride_size c2t1fs $c2t1fs_mount_dir"
-	echo $cmd
-	if ! $cmd
-	then
-		echo "Failed to mount c2t1fs file system."
+	mount -t c2t1fs -o "$CONF",$SERVICES c2t1fs $c2t1fs_mount_dir || {
+		echo "Failed to	mount c2t1fs file system."
 		return 1
-	fi
+	}
 }
 
 unmount_and_clean()
@@ -198,11 +199,9 @@ c2loop_st_run()
 	echo "Load c2loop module... "
 	cmd="insmod `dirname $0`/../../../build_kernel_modules/c2loop.ko"
 	echo $cmd && $cmd || return 1
-	echo "Mount c2t1fs file system..."
-	mkdir $COLIBRI_C2T1FS_MOUNT_DIR
-	cmd="mount -t c2t1fs -o $SERVICES,$STRIPE,unit_size=4096 none \
-$COLIBRI_C2T1FS_MOUNT_DIR"
-	echo $cmd && $cmd || return 1
+
+	mount_c2t1fs $COLIBRI_C2T1FS_MOUNT_DIR 4 || return 1
+
 	echo "Create c2t1fs file..."
 	c2t1fs_file=$COLIBRI_C2T1FS_MOUNT_DIR/file.img
 	cmd="dd if=/dev/zero of=$c2t1fs_file bs=${NR_DATA}M count=20"

@@ -108,12 +108,12 @@ static int cp_io(struct c2_cm_cp *cp, const enum c2_stob_io_opcode op)
 	struct c2_stob_io       *stio;
 	uint32_t                 bshift;
 	int                      rc;
+	bool                     result;
 
 	sns_cp = cp2snscp(cp);
 	cp_fom = &cp->c_fom;
 	reqh = c2_fom_reqh(cp_fom);
 	stobid = &sns_cp->rc_sid;
-	stob = &sns_cp->rc_stob;
 	stio = &sns_cp->rc_stio;
 	dom = c2_cs_stob_domain_find(reqh, stobid);
 
@@ -122,10 +122,11 @@ static int cp_io(struct c2_cm_cp *cp, const enum c2_stob_io_opcode op)
 		goto out;
 	}
 
-	rc = c2_stob_find(dom, stobid, &stob);
+	rc = c2_stob_find(dom, stobid, &sns_cp->rc_stob);
 	if (rc != 0)
 		goto out;
 
+	stob = sns_cp->rc_stob;
 	c2_dtx_init(&cp_fom->fo_tx);
 	rc = dom->sd_ops->sdo_tx_make(dom, &cp_fom->fo_tx);
 	if (rc != 0)
@@ -157,7 +158,6 @@ static int cp_io(struct c2_cm_cp *cp, const enum c2_stob_io_opcode op)
 
 	rc = c2_stob_io_launch(stio, stob, &cp_fom->fo_tx, NULL);
 	if (rc != 0) {
-		bool result;
 		result = c2_fom_callback_cancel(&cp_fom->fo_cb);
 		C2_ASSERT(result);
 		indexvec_free(&stio->si_stob);
@@ -170,9 +170,9 @@ err_stio:
 	c2_stob_io_fini(stio);
 	c2_stob_put(stob);
 out:
-	c2_dtx_done(&cp_fom->fo_tx);
 	if (rc != 0) {
 		c2_fom_phase_move(cp_fom, rc, C2_CCP_FINI);
+		c2_db_tx_abort(&cp_fom->fo_tx.tx_dbtx);
 		return C2_FSO_WAIT;
 	} else {
 		cp->c_ops->co_phase_next(cp);
@@ -207,20 +207,23 @@ C2_INTERNAL int c2_sns_repair_cp_write(struct c2_cm_cp *cp)
 C2_INTERNAL int c2_sns_repair_cp_io_wait(struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cp *sns_cp = cp2snscp(cp);
-
-	if (sns_cp->rc_stio.si_rc != 0) {
-		c2_fom_phase_move(&cp->c_fom, sns_cp->rc_stio.si_rc,
-				  C2_CCP_FINI);
-		return C2_FSO_WAIT;
-	}
+	int                      rc = sns_cp->rc_stio.si_rc;
 
 	if (sns_cp->rc_stio.si_opcode == SIO_WRITE)
 		cp->c_ops->co_complete(cp);
 
 	/* Cleanup before proceeding to next phase. */
-	c2_stob_io_fini(&sns_cp->rc_stio);
 	indexvec_free(&sns_cp->rc_stio.si_stob);
 	bufvec_free(&sns_cp->rc_stio.si_user);
+	c2_stob_io_fini(&sns_cp->rc_stio);
+	c2_stob_put(sns_cp->rc_stob);
+
+	if (rc != 0) {
+		c2_fom_phase_move(&cp->c_fom, rc, C2_CCP_FINI);
+		c2_db_tx_abort(&cp->c_fom.fo_tx.tx_dbtx);
+		return C2_FSO_WAIT;
+	} else
+		c2_dtx_done(&cp->c_fom.fo_tx);
 
 	return cp->c_ops->co_phase_next(cp);
 }

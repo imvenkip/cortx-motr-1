@@ -37,7 +37,12 @@ _reset() {
 
 run_ut()  { _reset; $SUDO "$SRC/utils/ut.sh" "$@"; }
 run_kut() { _reset; $SUDO "$SRC/utils/linux_kernel/ut.sh"; }
-run_st()  { _reset; $SUDO "$SRC/c2t1fs/linux_kernel/st/c2t1fs_test.sh"; }
+
+run_st() {
+    _reset
+    $SUDO "$SRC/c2t1fs/linux_kernel/st/st"
+    $SUDO "$SRC/c2t1fs/linux_kernel/st/c2t1fs_test.sh"
+}
 
 dist_check() {
     local DIST=colibri-0.1.0
@@ -86,6 +91,9 @@ Commands:
                         The resulting archive file will be deleted,
                         unless '-a' option is used.
 
+    check-everything    = rebuild + run-all + dist-check
+                        Please run this command before landing new feature.
+
     clean [-f]          Call 'make distclean' in C2 sources directory.
                         '-f' will also remove untracked files and
                         directories (i.e. those not added to the git
@@ -114,7 +122,8 @@ case "$1" in
         echo 'Running kernel UT ...'; run_kut
         run_st;;
     dist-check) shift; dist_check "$@";;
-    clean)      shift; clean "$@";;
+    check-everything) clean; build; run_ut; run_kut; run_st;;
+    clean) shift; clean "$@";;
     help) help 0;;
     *)    help 1;;
 esac

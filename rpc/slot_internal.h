@@ -115,7 +115,7 @@ struct c2_rpc_slot_ops {
   For each slot the item has a separate verno and separate linkage into
   the slot's item list. Item state is common for all slots;
 
-  An item, has a MUTABO flag, which is set when the item is an update
+  An item has a MUTABO flag, which is set when the item is an update
   (i.e., changes the file system state). When the item is an update then
   (for each slot the item is in) its verno is greater than the verno of
   the previous item on the slot's item list. Multiple consecutive non-MUTABO

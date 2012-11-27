@@ -241,6 +241,8 @@ static int ctx_walk(struct c2_xcode_ctx *ctx, enum xcode_op op)
 	struct c2_bufvec_cursor mem;
 	struct c2_xcode_cursor *it     = &ctx->xcx_it;
 
+	C2_PRE(C2_IN(op, (XO_ENC, XO_DEC, XO_LEN)));
+
 	while ((result = c2_xcode_next(it)) > 0) {
 		const struct c2_xcode_type     *xt;
 		const struct c2_xcode_type_ops *ops;

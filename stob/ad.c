@@ -554,6 +554,8 @@ static int ad_balloc(struct ad_domain *adom, struct c2_dtx *tx,
 
 	C2_PRE(adom->ad_setup);
 	count >>= adom->ad_babshift;
+	C2_LOG(C2_DEBUG, "count=%lu", (unsigned long)count);
+	C2_ASSERT(count > 0);
 	rc = adom->ad_ballroom->ab_ops->bo_alloc(adom->ad_ballroom,
 						   tx, count, out);
 	out->e_start <<= adom->ad_babshift;

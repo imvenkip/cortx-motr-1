@@ -51,8 +51,16 @@ static int filesystem_fill(struct c2_conf_obj *dest,
 	struct c2_conf_filesystem *d = C2_CONF_CAST(dest, c2_conf_filesystem);
 	const struct confx_filesystem *s = FLAT_OBJ(src, filesystem);
 
-        c2_fid_set(&d->cf_rootfid, s->xf_rootfid.f_container, s->xf_rootfid.f_key);
-	/* d->cf_params = XXX; */
+#if 0 /* XXX Types of d->cf_rootfid and s->xf_rootfid are different:
+       * c2_fid and fid, correspondingly. */
+	d->cf_rootfid = s->xf_rootfid;
+#else
+	d->cf_rootfid.f_container = s->xf_rootfid.f_container;
+	d->cf_rootfid.f_key = s->xf_rootfid.f_key;
+#endif
+	rc = strings_copy(&d->cf_params, &s->xf_params);
+	if (rc != 0)
+		return rc;
 
 	rc = dir_new(&src->o_id, C2_CO_SERVICE, &s->xf_services, reg,
 		     &d->cf_services);
@@ -92,6 +100,7 @@ static void filesystem_delete(struct c2_conf_obj *obj)
 {
 	struct c2_conf_filesystem *x = C2_CONF_CAST(obj, c2_conf_filesystem);
 
+	strings_free(x->cf_params);
 	c2_conf_filesystem_bob_fini(x);
 	c2_free(x);
 }

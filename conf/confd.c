@@ -162,14 +162,14 @@
  *
  * @code
  * static const struct c2_fom_type_ops fom_fetch_type_ops = {
- *       .fto_create = fetch_fop_fom_create
+ *       .fto_create = fetch_fom_create
  * };
  *
  * struct c2_fom_type c2_fom_fetch_mopt = {
  *       .ft_ops = &fom_fetch_type_ops
  * };
  *
- * static int fetch_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
+ * static int fetch_fom_create(struct c2_fop *fop, struct c2_fom **m)
  * {
  *    1) allocate fom;
  *    2) c2_fom_init(fom, &c2_fom_ping_mopt, &fom_fetch_type_ops, fop, NULL);

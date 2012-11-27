@@ -18,6 +18,9 @@
  * Original creation date: 09-Feb-2012
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
+
 #include "conf/obj_ops.h"
 #include "conf/onwire.h"    /* confx_object */
 #include "conf/confc.h"     /* c2_confc */
@@ -37,6 +40,7 @@
  */
 
 static bool _generic_obj_invariant(const void *bob);
+static bool _concrete_obj_invariant(const struct c2_conf_obj *obj);
 
 static const struct c2_bob_type generic_obj_bob = {
 	.bt_name         = "c2_conf_obj",
@@ -48,7 +52,7 @@ C2_BOB_DEFINE(static, &generic_obj_bob, c2_conf_obj);
 
 C2_INTERNAL bool c2_conf_obj_invariant(const struct c2_conf_obj *obj)
 {
-	return c2_conf_obj_bob_check(obj) && obj->co_ops->coo_invariant(obj);
+	return c2_conf_obj_bob_check(obj) && _concrete_obj_invariant(obj);
 }
 
 static bool __obj_is_stub(const struct c2_conf_obj *obj)
@@ -65,6 +69,17 @@ static bool _generic_obj_invariant(const void *bob)
 		C2_IN(obj->co_status,
 		      (C2_CS_MISSING, C2_CS_LOADING, C2_CS_READY)) &&
 		ergo(__obj_is_stub(obj), obj->co_nrefs == 0);
+}
+
+static bool _concrete_obj_invariant(const struct c2_conf_obj *obj)
+{
+	bool ret = obj->co_ops->coo_invariant(obj);
+	if (unlikely(!ret))
+		C2_LOG(C2_ERROR, "Configuration object invariant doesn't hold: "
+		       "type=%d, id={%lu, \"%s\"}", obj->co_type,
+		       (unsigned long)obj->co_id.b_nob,
+		       (const char *)obj->co_id.b_addr);
+	return ret;
 }
 
 C2_INTERNAL struct c2_conf_obj *c2_conf__dir_create(void);
@@ -236,5 +251,7 @@ static bool confx_object_is_valid(const struct confx_object *flat)
 	(void) flat; /* XXX */
 	return true;
 }
+
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} conf_dlspec_objops */

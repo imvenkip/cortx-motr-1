@@ -127,17 +127,19 @@ enum c2_balloc_super_block_version {
 struct c2_balloc {
 	struct c2_dbenv             *cb_dbenv;
 
-	struct c2_table              cb_db_sb;     /*< db for sb */
-	struct c2_balloc_super_block cb_sb;  /*< the on-disk and in-memory sb */
-        struct c2_mutex              cb_sb_mutex;  /*< super block lock */
-
-	/* db for free extent */
+	/** container this block allocator belongs to. */
+	uint64_t                     cb_container_id;
+	/** db for sb */
+	struct c2_table              cb_db_sb;
+	/** the on-disk and in-memory sb */
+	struct c2_balloc_super_block cb_sb;
+	/** super block lock */
+        struct c2_mutex              cb_sb_mutex;
+	/** db for free extent */
 	struct c2_table              cb_db_group_extents;
-
-	/* db for group desc */
+	/** db for group desc */
 	struct c2_table              cb_db_group_desc;
-
-	/* array of group info */
+	/** array of group info */
 	struct c2_balloc_group_info *cb_group_info;
 
 	struct c2_ext                cb_last;
@@ -257,7 +259,7 @@ enum {
    @see struct ad_balloc_ops
    @pre out != NULL
  */
-C2_INTERNAL int c2_balloc_allocate(struct c2_balloc **out);
+C2_INTERNAL int c2_balloc_allocate(uint64_t cid, struct c2_balloc **out);
 
 /* Interfaces for UT */
 C2_INTERNAL void c2_balloc_debug_dump_sb(const char *tag,

@@ -40,6 +40,7 @@
 #include "ioservice/io_fops_ff.h" /* c2_fop_cob_create */
 #include "mdservice/md_fops.h"   /* c2_fop_create_fopt */
 #include "mdservice/md_fops_ff.h" /* c2_fop_create */
+#include "conf/confc.h" /* c2_confc */
 
 /**
   @defgroup c2t1fs c2t1fs
@@ -69,20 +70,18 @@
   where <options_list> is a comma separated list of option=value elements.
   Currently supported list of options is:
 
-  - mgs [value type: end-point address e.g. 192.168.50.40@tcp:12345:34:1 ]
-      end-point address of management service or confd.
-      @note terms 'mgs' and 'confd' are used interchangably in the text.
-
-  - ios [value type: end-point address]
-      end-point address of io-service. multiple io-services can be specified
-      as ios=<end-point-addr1>,ios=<end-point-addr2>
-
-  - mds [value type: end-point address]
-      end-point address of meta-data service. Currently only one mds is
-      allowed.
+  - conf [value type: end-point address, e.g. 192.168.50.40@tcp:12345:34:1]
+      end-point address of confd (a.k.a. management service, mgs).
+      @note If this value starts with "local-conf:", it is treated as
+      a configuration string, containing data to pre-load
+      configuration cache with (see @ref conf-fspec-preload).
 
   - profile [value type: string]
-      configuration profile. Used while fetching configuration from mgs.
+      configuration profile. Used while fetching configuration data from confd.
+
+  - ios [value type: end-point address]
+      end-point address of io-service. Multiple io-services can be specified
+      as ios=<end-point-addr1>,ios=<end-point-addr2>
 
   - nr_data_units [value type: number]
       Number of data units in one parity group. Optional parameter.
@@ -440,18 +439,14 @@ extern struct c2t1fs_globals c2t1fs_globals;
 
 /** Parsed mount options */
 struct c2t1fs_mnt_opts {
-	/** Input mount options */
-	char    *mo_options;
-
+	char    *mo_conf;
 	char    *mo_profile;
-	char    *mo_localconf;
 
-	char    *mo_mgs_ep_addr;
-	char    *mo_mds_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
 	char    *mo_ios_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
+	uint32_t mo_ios_ep_nr;
 
-	uint32_t mo_nr_mds_ep;
-	uint32_t mo_nr_ios_ep;
+	char    *mo_mds_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
+	uint32_t mo_mds_ep_nr;
 
 	uint32_t mo_pool_width;      /* P */
 	uint32_t mo_nr_data_units;   /* N */
@@ -461,7 +456,7 @@ struct c2t1fs_mnt_opts {
 };
 
 enum c2t1fs_service_type {
-	/** management service */
+	/** management service (confd) */
 	C2T1FS_ST_MGS = 1,
 
 	/** meta-data service */
@@ -585,6 +580,8 @@ struct c2t1fs_sb {
         struct c2_fid                 csb_root_fid;
         /** Maximal allowed namelen (retrived from mdservice) */
         int                           csb_namelen;
+	/** Configuration client. */
+	struct c2_confc               csb_confc;
 };
 
 struct c2t1fs_filedata {

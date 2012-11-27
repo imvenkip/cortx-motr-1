@@ -915,6 +915,7 @@ C2_INTERNAL void c2_rpc_session_mod_nr_active_items(struct c2_rpc_session
 	C2_PRE(session != NULL);
 
 	if (delta != 0) {
+		/* XXX TODO overflow check */
 		session->s_nr_active_items += delta;
 		session_idle_x_busy(session);
 	}

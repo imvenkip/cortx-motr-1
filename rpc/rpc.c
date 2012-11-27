@@ -77,17 +77,17 @@ C2_INTERNAL void c2_rpc_fini(void)
 
 C2_INTERNAL int c2_rpc_post(struct c2_rpc_item *item)
 {
-	struct c2_rpc_machine *machine = item_machine(item);
 	int                    rc;
-	uint64_t	       item_size;
+	uint64_t               size;
+	struct c2_rpc_machine *machine = item_machine(item);
 
 	C2_ENTRY("item: %p", item);
 	C2_PRE(item->ri_session != NULL);
 
-	item_size = c2_rpc_item_size(item);
+	size = c2_rpc_item_size(item);
+	C2_ASSERT(size <= machine->rm_min_recv_size);
 
 	c2_rpc_machine_lock(machine);
-	C2_ASSERT(item_size <= machine->rm_min_recv_size);
 	rc = c2_rpc__post_locked(item);
 	c2_rpc_machine_unlock(machine);
 
@@ -159,6 +159,7 @@ int c2_rpc_reply_post(struct c2_rpc_item *request, struct c2_rpc_item *reply)
 	C2_PRE(reply->ri_ops != NULL && reply->ri_ops->rio_free != NULL);
 	C2_PRE(c2_rpc_item_size(reply) <=
 			c2_rpc_session_get_max_item_size(request->ri_session));
+
 	reply->ri_rpc_time = c2_time_now();
 	reply->ri_session  = request->ri_session;
 

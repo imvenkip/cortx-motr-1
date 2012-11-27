@@ -32,7 +32,6 @@ TM_MIN_RECV_QUEUE_LEN=16
 # Maximum value needed to run current ST is 160k.
 MAX_RPC_MSG_SIZE=163840
 SERVICES=""
-STRIPE="pool_width=$POOL_WIDTH,nr_data_units=$NR_DATA"
 XPT=lnet
 lnet_nid=0@lo
 
@@ -125,5 +124,7 @@ unprepare()
 	fi
 	modunload_galois
 
-	rm -rf $COLIBRI_C2T1FS_TEST_DIR
+	# don't cleanup core dumps
+	[ `find $COLIBRI_C2T1FS_TEST_DIR -name 'core.*'` ] ||
+		rm -rf $COLIBRI_C2T1FS_TEST_DIR
 }
