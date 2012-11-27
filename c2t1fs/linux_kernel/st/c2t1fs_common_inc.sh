@@ -13,8 +13,8 @@ COLIBRI_MODULE=kcolibri
 COLIBRI_MODULE_TRACE_MASK=0
 COLIBRI_TRACE_PRINT_CONTEXT=none
 COLIBRI_TRACE_LEVEL=call+
-export C2_TRACE_IMMEDIATE_MASK=all # put your subsystem here
-export C2_TRACE_LEVEL=debug+
+export C2_TRACE_IMMEDIATE_MASK=0 # put your subsystem here
+#export C2_TRACE_LEVEL=debug+
 export C2_TRACE_PRINT_CONTEXT=full
 
 COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%Y-%m-%d_%T"`.log
@@ -31,7 +31,6 @@ MAX_NR_FILES=250
 TM_MIN_RECV_QUEUE_LEN=16
 # Maximum value needed to run current ST is 160k.
 MAX_RPC_MSG_SIZE=163840
-SERVICES=""
 XPT=lnet
 lnet_nid=0@lo
 
@@ -45,6 +44,8 @@ EP=(
     12345:33:103
     12345:33:104
 )
+
+SERVICES="mds=${lnet_nid}:${EP[0]}"
 
 unload_kernel_module()
 {
