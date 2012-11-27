@@ -2046,9 +2046,10 @@ static int ioreq_iosm_handle(struct io_request *req)
 	 */
 	inode = req->ir_file->f_dentry->d_inode;
 	if (ioreq_sm_state(req) == IRS_WRITE_COMPLETE) {
-		inode->i_size = max64u(inode->i_size,
+	        uint64_t newsize = max64u(inode->i_size,
 				seg_endpos(&req->ir_ivec,
 					req->ir_ivec.iv_vec.v_nr - 1));
+	        c2t1fs_size_update(inode, newsize);
 		C2_LOG(C2_INFO, "File size set to %llu", inode->i_size);
 	}
 

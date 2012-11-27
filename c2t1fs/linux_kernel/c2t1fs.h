@@ -693,35 +693,38 @@ struct io_mem_stats {
 	uint64_t d_page_nr;
 };
 
-int c2t1fs_mds_cob_create(struct c2t1fs_sb          *csb,
-                          const struct c2t1fs_mdop  *mo,
-                          struct c2_fop_create_rep **rep);
+C2_INTERNAL int c2t1fs_mds_cob_create(struct c2t1fs_sb          *csb,
+                                      const struct c2t1fs_mdop  *mo,
+                                      struct c2_fop_create_rep **rep);
 
-int c2t1fs_mds_cob_unlink(struct c2t1fs_sb          *csb,
-                          const struct c2t1fs_mdop  *mo,
-                          struct c2_fop_unlink_rep **rep);
+C2_INTERNAL int c2t1fs_mds_cob_unlink(struct c2t1fs_sb          *csb,
+                                      const struct c2t1fs_mdop  *mo,
+                                      struct c2_fop_unlink_rep **rep);
 
-int c2t1fs_mds_cob_link(struct c2t1fs_sb          *csb,
-                        const struct c2t1fs_mdop  *mo,
-                        struct c2_fop_link_rep   **rep);
+C2_INTERNAL int c2t1fs_mds_cob_link(struct c2t1fs_sb          *csb,
+                                    const struct c2t1fs_mdop  *mo,
+                                    struct c2_fop_link_rep   **rep);
 
-int c2t1fs_mds_cob_lookup(struct c2t1fs_sb          *csb,
-                          const struct c2t1fs_mdop  *mo,
-                          struct c2_fop_lookup_rep **rep);
+C2_INTERNAL int c2t1fs_mds_cob_lookup(struct c2t1fs_sb          *csb,
+                                      const struct c2t1fs_mdop  *mo,
+                                      struct c2_fop_lookup_rep **rep);
 
-int c2t1fs_mds_cob_getattr(struct c2t1fs_sb           *csb,
-                           const struct c2t1fs_mdop   *mo,
-                           struct c2_fop_getattr_rep **rep);
+C2_INTERNAL int c2t1fs_mds_cob_getattr(struct c2t1fs_sb           *csb,
+                                       const struct c2t1fs_mdop   *mo,
+                                       struct c2_fop_getattr_rep **rep);
 
-int c2t1fs_mds_statfs(struct c2t1fs_sb                *csb,
-                      struct c2_fop_statfs_rep       **rep);
+C2_INTERNAL int c2t1fs_mds_statfs(struct c2t1fs_sb                *csb,
+                                  struct c2_fop_statfs_rep       **rep);
 
-int c2t1fs_mds_cob_setattr(struct c2t1fs_sb           *csb,
-                           const struct c2t1fs_mdop   *mo,
-                           struct c2_fop_setattr_rep **rep);
+C2_INTERNAL int c2t1fs_mds_cob_setattr(struct c2t1fs_sb           *csb,
+                                       const struct c2t1fs_mdop   *mo,
+                                       struct c2_fop_setattr_rep **rep);
 
-int c2t1fs_mds_cob_readdir(struct c2t1fs_sb           *csb,
-                           const struct c2t1fs_mdop   *mo,
-                           struct c2_fop_readdir_rep **rep);
+C2_INTERNAL int c2t1fs_mds_cob_readdir(struct c2t1fs_sb           *csb,
+                                       const struct c2t1fs_mdop   *mo,
+                                       struct c2_fop_readdir_rep **rep);
+
+C2_INTERNAL int c2t1fs_size_update(struct inode *inode,
+                                   uint64_t newsize);
 
 #endif /* __COLIBRI_C2T1FS_C2T1FS_H__ */

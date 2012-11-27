@@ -119,10 +119,8 @@ static void body_mem2wire(struct c2_fop_cob *body,
                 body->b_mtime = attr->ca_mtime;
         if (valid & C2_COB_BLOCKS)
                 body->b_blocks = attr->ca_blocks;
-        if (valid & C2_COB_SIZE) {
-                C2_LOG(C2_FATAL, "size update");
+        if (valid & C2_COB_SIZE)
                 body->b_size = attr->ca_size;
-        }
         if (valid & C2_COB_MODE)
                 body->b_mode = attr->ca_mode;
         if (valid & C2_COB_UID)
@@ -615,6 +613,33 @@ C2_INTERNAL int c2t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 out:
         c2t1fs_fs_unlock(csb);
         C2_LEAVE("rc: %d", rc);
+        return rc;
+}
+
+C2_INTERNAL int c2t1fs_size_update(struct inode *inode, uint64_t newsize)
+{
+        struct c2_fop_setattr_rep       *setattr_rep;
+        struct c2t1fs_sb                *csb;
+        struct c2t1fs_inode             *ci;
+        struct c2t1fs_mdop               mo;
+        int                              rc;
+
+        csb   = C2T1FS_SB(inode->i_sb);
+        ci    = C2T1FS_I(inode);
+
+        c2t1fs_fs_lock(csb);
+
+        C2_SET0(&mo);
+        mo.mo_attr.ca_tfid  = ci->ci_fid;
+        mo.mo_attr.ca_size = newsize;
+        mo.mo_attr.ca_flags |= C2_COB_SIZE;
+
+        rc = c2t1fs_mds_cob_setattr(csb, &mo, &setattr_rep);
+        if (rc != 0)
+                goto out;
+        inode->i_size = newsize;
+out:
+        c2t1fs_fs_unlock(csb);
         return rc;
 }
 
