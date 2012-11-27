@@ -300,34 +300,38 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data,
 	if (rc != 0)
 		goto sb_fini;
 
-	/* XXX Why don't we ever c2_pool_init(&csb->csb_pool, ...)?  --vvv */
-
-	csb->csb_pool.po_mach = c2_alloc(sizeof (struct c2_poolmach));
-	if (csb->csb_pool.po_mach == NULL) {
-		rc = -ENOMEM;
-		goto conf_fini;
-	}
-
-	rc = c2_poolmach_init(csb->csb_pool.po_mach, NULL);
-	if (rc != 0) {
-		c2_free(csb->csb_pool.po_mach);
-		goto conf_fini;
-	}
-
-	rc = c2t1fs_connect_to_all_services(csb);
-	if (rc != 0)
-		goto poolmach_fini;
-
 	rc = C2_THREAD_INIT(&csb->csb_astthread, struct c2t1fs_sb *, NULL,
-			    &ast_thread, csb, "ast_thread");
+				&ast_thread, csb, "ast_thread");
 	C2_ASSERT(rc == 0);
 	rc = conf_read(mops, csb);
 	if (rc != 0)
 		goto thread_fini;
 
-	rc = c2t1fs_sb_layout_init(csb);
+	rc = c2t1fs_connect_to_all_services(csb);
 	if (rc != 0)
 		goto thread_fini;
+
+	rc = c2_pool_init(&csb->csb_pool, mops->mo_pool_width);
+	if (rc != 0)
+		goto ioserver_fini;
+
+	csb->csb_pool.po_mach = c2_alloc(sizeof (struct c2_poolmach));
+	if (csb->csb_pool.po_mach == NULL) {
+		rc = -ENOMEM;
+		goto pool_fini;
+	}
+
+	rc = c2_poolmach_init(csb->csb_pool.po_mach, NULL,
+			      1, mops->mo_pool_width,
+			      1, mops->mo_nr_parity_units);
+	if (rc != 0) {
+		c2_free(csb->csb_pool.po_mach);
+		goto pool_fini;
+	}
+
+	rc = c2t1fs_sb_layout_init(csb);
+	if (rc != 0)
+		goto poolmach_fini;
 
 	rc = c2t1fs_container_location_map_init(&csb->csb_cl_map,
 						csb->csb_nr_containers);
@@ -361,15 +365,16 @@ map_fini:
 	c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 layout_fini:
 	c2t1fs_sb_layout_fini(csb);
-thread_fini:
-	ast_thread_stop(csb);
-	c2t1fs_disconnect_from_all_services(csb);
-	c2t1fs_service_contexts_delete(csb);
 poolmach_fini:
 	c2_poolmach_fini(csb->csb_pool.po_mach);
 	c2_free(csb->csb_pool.po_mach);
-conf_fini:
+pool_fini:
 	c2_pool_fini(&csb->csb_pool);
+ioserver_fini:
+	c2t1fs_disconnect_from_all_services(csb);
+	c2t1fs_service_contexts_delete(csb);
+thread_fini:
+	ast_thread_stop(csb);
 	c2_confc_fini(&csb->csb_confc);
 sb_fini:
 	c2t1fs_sb_fini(csb);
@@ -505,13 +510,13 @@ C2_INTERNAL void c2t1fs_kill_sb(struct super_block *sb)
 	 */
 	if (csb != NULL) {
 		c2t1fs_destroy_all_dir_ents(sb);
-		c2t1fs_sb_layout_fini(csb);
-		ast_thread_stop(csb);
 		c2t1fs_container_location_map_fini(&csb->csb_cl_map);
-		c2t1fs_disconnect_from_all_services(csb);
-		c2t1fs_service_contexts_delete(csb);
+		c2t1fs_sb_layout_fini(csb);
 		c2_poolmach_fini(csb->csb_pool.po_mach);
 		c2_pool_fini(&csb->csb_pool);
+		c2t1fs_disconnect_from_all_services(csb);
+		c2t1fs_service_contexts_delete(csb);
+		ast_thread_stop(csb);
 		c2_confc_fini(&csb->csb_confc);
 		c2t1fs_sb_fini(csb);
 		c2_free(csb);
