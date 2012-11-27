@@ -390,7 +390,7 @@ static int __fid_next(struct c2_sns_repair_cm *rcm, struct c2_fid *fid_next)
 	if (rc != 0)
 		return rc;
 
-	rc = c2_cob_ns_iter_next(&rcm->rc_cns_it, fid_next, &tx);
+	rc = c2_cob_ns_iter_next(&rcm->rc_it.ri_cns_it, &tx, fid_next);
         if (rc == 0)
                 c2_db_tx_commit(&tx);
         else
@@ -816,7 +816,7 @@ C2_INTERNAL int c2_sns_repair_iter_init(struct c2_sns_repair_cm *rcm)
 
         dbenv = rcm->rc_base.cm_service.rs_reqh->rh_dbenv;
         cdom = &rcm->rc_base.cm_service.rs_reqh->rh_mdstore->md_dom;
-	rc = c2_cob_ns_iter_init(&rcm->rc_cns_it, &gfid, dbenv, cdom);
+	rc = c2_cob_ns_iter_init(&rcm->rc_it.ri_cns_it, &gfid, dbenv, cdom);
 
 	return rc;
 }
@@ -825,7 +825,7 @@ C2_INTERNAL void c2_sns_repair_iter_fini(struct c2_sns_repair_cm *rcm)
 {
 	C2_PRE(rcm != NULL);
 
-	c2_cob_ns_iter_fini(&rcm->rc_cns_it);
+	c2_cob_ns_iter_fini(&rcm->rc_it.ri_cns_it);
 	layout_fini(rcm);
 	iter_phase_set(&rcm->rc_it, ITPH_FINI);
 	c2_sm_fini(&rcm->rc_it.ri_sm);

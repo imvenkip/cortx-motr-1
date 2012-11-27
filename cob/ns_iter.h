@@ -25,7 +25,27 @@
 
 #include "cob/cob.h"
 
-struct c2_cob_ns_iter {
+/**
+ * @defgroup cob_fid_ns_iter Cob-fid namespace iterator
+ *
+ * The cob on data server has cob nskey = <gob_fid, unit_index>,
+ * where,
+ * gob_fid   : global file identifier corresponding to which the cob is
+ *             being created.
+ * unit_index: the index of the cob in the parity group.
+ *
+ * @see c2_cob_nskey
+ *
+ * The cob-fid iterator uniquely iterates over gob_fids, thus skipping entries
+ * with same gob_fids but different unit_index.
+ *
+ * This iterator is used in SNS repair iterator. @see c2_sns_repair_iter
+ *
+ * @{
+ */
+
+
+struct c2_cob_fid_ns_iter {
 	/** DB environment. */
 	struct c2_dbenv      *cni_dbenv;
 
@@ -38,12 +58,12 @@ struct c2_cob_ns_iter {
 
 /**
  * Initialises the namespace iterator.
- * @param iter - Namespace ietrator that is to be initialised.
- * @param gfid - Initialial gob fid with which iterator is initialised.
+ * @param iter - Cob dif namespace ietrator that is to be initialised.
+ * @param gfid - Initial gob-fid with which iterator is initialised.
  * @param dbenv - DB environment from which the records should be extracted.
  * @param cdom - Cob domain.
  */
-C2_INTERNAL int c2_cob_ns_iter_init(struct c2_cob_ns_iter *iter,
+C2_INTERNAL int c2_cob_ns_iter_init(struct c2_cob_fid_ns_iter *iter,
 				    struct c2_fid *gfid,
 				    struct c2_dbenv *dbenv,
 				    struct c2_cob_domain *cdom);
@@ -51,18 +71,20 @@ C2_INTERNAL int c2_cob_ns_iter_init(struct c2_cob_ns_iter *iter,
 /**
  * Iterates over namespace to point to unique gob fid in the namespace.
  * @param iter - Pointer to the namespace iterator.
- * @param gfid - Next unique gob fid in the iterator. This is output variable.
  * @param tx - Database transaction used for DB operations by iterator.
+ * @param gfid - Next unique gob-fid in the iterator. This is output variable.
  */
-C2_INTERNAL int c2_cob_ns_iter_next(struct c2_cob_ns_iter *iter,
-				    struct c2_fid *gfid,
-				    struct c2_db_tx *tx);
+C2_INTERNAL int c2_cob_ns_iter_next(struct c2_cob_fid_ns_iter *iter,
+				    struct c2_db_tx *tx,
+				    struct c2_fid *gfid);
 
 /**
  * Finalises the namespace iterator.
  * @param iter - Namespace iterator that is to be finalised.
  */
-C2_INTERNAL void c2_cob_ns_iter_fini(struct c2_cob_ns_iter *iter);
+C2_INTERNAL void c2_cob_ns_iter_fini(struct c2_cob_fid_ns_iter *iter);
+
+/** @} end group cob_fid_ns_iter */
 
 #endif    /* __COLIBRI_COB_NS_ITER_H__ */
 /*

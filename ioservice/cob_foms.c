@@ -290,8 +290,9 @@ static int cc_cob_nskey_make(struct c2_cob_nskey **nskey,
 	uint32_t nskey_name_len;
 	int      rc;
 
-	C2_PRE(gfid != NULL);
+	C2_PRE(c2_fid_is_set(gfid));
 
+	C2_SET_ARR0(nskey_name);
 	snprintf((char*)nskey_name, UINT32_MAX_STR_LEN, "%u",
 		 (uint32_t)unit_idx);
 

@@ -25,7 +25,11 @@
 #include "lib/misc.h"  /* SET0 */
 #include "cob/ns_iter.h"
 
-C2_INTERNAL int c2_cob_ns_iter_init(struct c2_cob_ns_iter *iter,
+/**
+ * @addtogroup cob_fid_ns_iter
+ */
+
+C2_INTERNAL int c2_cob_ns_iter_init(struct c2_cob_fid_ns_iter *iter,
 				    struct c2_fid *gfid,
 				    struct c2_dbenv *dbenv,
 				    struct c2_cob_domain *cdom)
@@ -42,9 +46,9 @@ C2_INTERNAL int c2_cob_ns_iter_init(struct c2_cob_ns_iter *iter,
 	return 0;
 }
 
-C2_INTERNAL int c2_cob_ns_iter_next(struct c2_cob_ns_iter *iter,
-                                    struct c2_fid *gfid,
-                                    struct c2_db_tx *tx)
+C2_INTERNAL int c2_cob_ns_iter_next(struct c2_cob_fid_ns_iter *iter,
+                                    struct c2_db_tx *tx,
+                                    struct c2_fid *gfid)
 {
 	int                  rc;
         struct c2_cob_nskey  key;
@@ -94,11 +98,13 @@ cleanup:
 	return rc;
 }
 
-C2_INTERNAL void c2_cob_ns_iter_fini(struct c2_cob_ns_iter *iter)
+C2_INTERNAL void c2_cob_ns_iter_fini(struct c2_cob_fid_ns_iter *iter)
 {
 	C2_PRE(iter != NULL);
 	C2_SET0(iter);
 }
+
+/** @} end cob_fid_ns_iter */
 
 /*
  *  Local variables:

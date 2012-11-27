@@ -1144,7 +1144,6 @@ static void cobfoms_fv_updates(void)
 			      COB_FOP_SINGLE);
 }
 
-
 const struct c2_test_suite cobfoms_ut = {
 	.ts_name  = "cob-foms-ut",
 	.ts_init  = NULL,

@@ -29,7 +29,6 @@
 #include "layout/pdclust.h"
 
 #include "sns/repair/iter.h"
-#include "cob/ns_iter.h"
 
 /**
   @page SNSRepairCMDLD-fspec SNS Repair copy machine functional specification
@@ -97,9 +96,6 @@ struct c2_sns_repair_cm {
 
 	/** SNS Repair data iterator. */
 	struct c2_sns_repair_iter  rc_it;
-
-	/** Cob namespace iterator. */
-	struct c2_cob_ns_iter      rc_cns_it;
 
 	/*
 	 * XXX Temporary location for layout domain required to build pdclust
