@@ -266,62 +266,79 @@ C2_INTERNAL int c2_mdstore_unlink(struct c2_mdstore     *md,
          * Check for hardlinks.
          */
         if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
-                rc = c2_cob_nskey_make(&nskey, pfid, (char *)name->b_addr,
-                                       name->b_nob);
-                if (rc != 0)
-                        return rc;
-
                 /*
                  * New stat data name should get updated nlink value.
                  */
                 cob->co_nsrec.cnr_nlink--;
 
+                rc = c2_cob_nskey_make(&nskey, pfid, (char *)name->b_addr,
+                                       name->b_nob);
+                if (rc != 0) {
+                        C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): nskey make "
+                               "failed with %d", rc);
+                        goto out;
+                }
+
                 /*
                  * Check if we're trying to kill stata data entry. We need to
                  * move stat data to another name if so.
                  */
-                if (cob->co_nsrec.cnr_nlink > 0 &&
-                    c2_cob_nskey_cmp(nskey, cob->co_nskey) == 0) {
-                        /*
-                         * Find another name (new stat data) in object index.
-                         */
-                        c2_cob_oikey_make(&oikey, cob->co_fid,
-                                          cob->co_nsrec.cnr_linkno + 1);
+                if (cob->co_nsrec.cnr_nlink > 0) {
+                        C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): more links exist");
+                        if (c2_cob_nskey_cmp(nskey, cob->co_nskey) == 0) {
+                                C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): unlink statdata "
+                                       "name, find new statdata with %d or more nlinks",
+                                       cob->co_nsrec.cnr_linkno + 1);
 
-                        rc = c2_cob_locate(&md->md_dom, &oikey, 0, &ncob, tx);
-                        if (rc != 0) {
-                                c2_free(nskey);
-                                goto out;
+                                /*
+                                 * Find another name (new stat data) in object index to
+                                 * move old statdata to it.
+                                 */
+                                c2_cob_oikey_make(&oikey, cob->co_fid,
+                                                  cob->co_nsrec.cnr_linkno + 1);
+
+                                rc = c2_cob_locate(&md->md_dom, &oikey, 0, &ncob, tx);
+                                if (rc != 0) {
+                                        C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): locate "
+                                               "failed with %d", rc);
+                                        c2_free(nskey);
+                                        goto out;
+                                }
+                                C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): locate found "
+                                       "name with %d nlinks", ncob->co_oikey.cok_linkno);
+                                cob->co_nsrec.cnr_linkno = ncob->co_oikey.cok_linkno;
+                        } else {
+                                C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): unlink hardlink "
+                                       "name");
+                                ncob = cob;
                         }
 
-                        /*
-                         * Copy nsrec from cob to ncob.
+                        C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): update statdata on store");
+
+                        /**
+                           Copy statdata (in case of killing old statdata) or update
+                           statdata with new nlink number.
                          */
                         rc = c2_cob_update(ncob, &cob->co_nsrec, NULL, NULL, tx);
                         if (rc != 0) {
+                                C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): new statdata "
+                                       "update failed with %d", rc);
                                 c2_free(nskey);
                                 goto out;
                         }
 
+                        /** Kill the name itself. */
                         rc = c2_cob_name_del(cob, nskey, tx);
                         if (rc != 0) {
+                                C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): name del "
+                                       "failed with %d", rc);
                                 c2_free(nskey);
                                 goto out;
                         }
                 } else {
-                        if (cob->co_nsrec.cnr_nlink > 0) {
-                                rc = c2_cob_name_del(cob, nskey, tx);
-                                if (rc != 0) {
-                                        c2_free(nskey);
-                                        goto out;
-                                }
-                                rc = c2_cob_update(cob, &cob->co_nsrec,
-                                                   NULL, NULL, tx);
-                        } else {
-                                rc = c2_cob_delete(cob, tx);
-                        }
+                        /** Zero nlink reached, kill entire object. */
+                        rc = c2_cob_delete(cob, tx);
                 }
-
                 c2_free(nskey);
         } else {
                 /*

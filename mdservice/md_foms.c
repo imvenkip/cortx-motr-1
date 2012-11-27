@@ -184,9 +184,19 @@ static int c2_md_tick_create(struct c2_fom *fom)
         C2_ASSERT(fop != NULL);
         req = c2_fop_data(fop);
 
+        body = &req->c_body;
+        c2_md_cob_wire2mem(&attr, body);
+
         fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
+
+        c2_buf_init(&attr.ca_name, req->c_name.s_buf, req->c_name.s_len);
+
+        C2_LOG(C2_DEBUG, "Create [%lx:%lx]/[%lx:%lx] %*s",
+               body->b_pfid.f_container, body->b_pfid.f_key,
+               body->b_tfid.f_container, body->b_tfid.f_key,
+               (int)attr.ca_name.b_nob, (char *)attr.ca_name.b_addr);
 
         /**
          * Init some fop fields (full path) that require mdstore and other
@@ -196,20 +206,10 @@ static int c2_md_tick_create(struct c2_fom *fom)
         if (rc != 0)
                 goto out;
 
-        body = &req->c_body;
-        c2_md_cob_wire2mem(&attr, body);
-
-        c2_buf_init(&attr.ca_name, req->c_name.s_buf, req->c_name.s_len);
-
         if (S_ISLNK(attr.ca_mode)) {
                 /** Symlink body size is stored in @attr->ca_size */
                 c2_buf_init(&attr.ca_link, (char *)req->c_target.s_buf, attr.ca_size);
         }
-
-        C2_LOG(C2_DEBUG, "Create [%lx:%lx]/[%lx:%lx] %*s",
-               body->b_pfid.f_container, body->b_pfid.f_key,
-               body->b_tfid.f_container, body->b_tfid.f_key,
-               (int)attr.ca_name.b_nob, (char *)attr.ca_name.b_addr);
 
         c2_fom_block_enter(fom);
         rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &body->b_pfid,
@@ -244,6 +244,15 @@ static int c2_md_tick_link(struct c2_fom *fom)
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
 
+        body = &req->l_body;
+        c2_md_cob_wire2mem(&attr, body);
+        c2_buf_init(&attr.ca_name, req->l_name.s_buf, req->l_name.s_len);
+
+        C2_LOG(C2_DEBUG, "Link [%lx:%lx]/%*s -> [%lx:%lx] started",
+               body->b_pfid.f_container, body->b_pfid.f_key,
+               (int)req->l_name.s_len, (char *)req->l_name.s_buf,
+               body->b_tfid.f_container, body->b_tfid.f_key);
+
         /**
          * Init some fop fields (full path) that require mdstore and other
          * initialialized structures.
@@ -252,16 +261,16 @@ static int c2_md_tick_link(struct c2_fom *fom)
         if (rc != 0)
                 goto out;
 
-        body = &req->l_body;
-        c2_md_cob_wire2mem(&attr, body);
-
-        c2_buf_init(&attr.ca_name, req->l_name.s_buf, req->l_name.s_len);
-
         c2_fom_block_enter(fom);
         rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                          &body->b_pfid, &body->b_tfid, &attr, &fom->fo_tx.tx_dbtx);
+                          &body->b_pfid, &body->b_tfid, &attr,
+                          &fom->fo_tx.tx_dbtx);
         c2_fom_block_leave(fom);
 out:
+        C2_LOG(C2_DEBUG, "Link [%lx:%lx]/%*s -> [%lx:%lx] finished with %d",
+               body->b_pfid.f_container, body->b_pfid.f_key,
+               (int)req->l_name.s_len, (char *)req->l_name.s_buf,
+               body->b_tfid.f_container, body->b_tfid.f_key, rc);
         rep->l_body.b_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
@@ -287,6 +296,7 @@ static int c2_md_tick_unlink(struct c2_fom *fom)
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
         req = c2_fop_data(fop);
+        body = &req->u_body;
 
         fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
@@ -294,6 +304,13 @@ static int c2_md_tick_unlink(struct c2_fom *fom)
 
         md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
         tx = &fom->fo_tx.tx_dbtx;
+
+        c2_md_cob_wire2mem(&attr, body);
+        c2_buf_init(&attr.ca_name, req->u_name.s_buf, req->u_name.s_len);
+
+        C2_LOG(C2_DEBUG, "Unlink [%lx:%lx]/%*s started",
+               body->b_pfid.f_container, body->b_pfid.f_key,
+               (int)req->u_name.s_len, (char *)req->u_name.s_buf);
 
         /**
          * Init some fop fields (full path) that require mdstore and other
@@ -303,25 +320,33 @@ static int c2_md_tick_unlink(struct c2_fom *fom)
         if (rc != 0)
                 goto out;
 
-        body = &req->u_body;
-        c2_md_cob_wire2mem(&attr, body);
-        c2_buf_init(&attr.ca_name, req->u_name.s_buf, req->u_name.s_len);
-
         c2_fom_block_enter(fom);
-        rc = c2_mdstore_locate(md, &body->b_tfid, &scob,
-                                C2_MD_LOCATE_STORED,
-                                tx);
+        rc = c2_mdstore_locate(md, &body->b_tfid, &scob, C2_MD_LOCATE_STORED,
+                               tx);
         if (rc != 0) {
+                C2_LOG(C2_DEBUG, "Unlink [%lx:%lx]/%*s failed with %d",
+                       body->b_pfid.f_container, body->b_pfid.f_key,
+                       (int)req->u_name.s_len, (char *)req->u_name.s_buf,
+                        rc);
                 c2_fom_block_leave(fom);
                 goto out;
         }
 
         rc = c2_mdstore_unlink(md, &body->b_pfid, scob, &attr.ca_name, tx);
-        if (rc == 0 && scob->co_nsrec.cnr_nlink > 0)
-                rc = c2_mdstore_setattr(md, scob, &attr, tx);
         c2_cob_put(scob);
+        if (rc != 0) {
+                C2_LOG(C2_DEBUG, "Unlink [%lx:%lx]/%*s failed with %d",
+                       body->b_pfid.f_container, body->b_pfid.f_key,
+                       (int)req->u_name.s_len, (char *)req->u_name.s_buf,
+                        rc);
+                c2_fom_block_leave(fom);
+                goto out;
+        }
         c2_fom_block_leave(fom);
 out:
+        C2_LOG(C2_DEBUG, "Unlink [%lx:%lx]/%*s finished with %d",
+               body->b_pfid.f_container, body->b_pfid.f_key,
+               (int)req->u_name.s_len, (char *)req->u_name.s_buf, rc);
         rep->u_body.b_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
@@ -415,7 +440,7 @@ static int c2_md_tick_rename(struct c2_fom *fom)
 
         c2_fom_block_enter(fom);
         rc = c2_mdstore_locate(md, &sbody->b_tfid, &scob,
-                                C2_MD_LOCATE_STORED, tx);
+                               C2_MD_LOCATE_STORED, tx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
                 goto out;
@@ -608,6 +633,12 @@ static int c2_md_tick_setattr(struct c2_fom *fom)
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
 
+        body = &req->s_body;
+        c2_md_cob_wire2mem(&attr, body);
+
+        C2_LOG(C2_DEBUG, "Setattr for [%lx:%lx] started",
+               body->b_tfid.f_container, body->b_tfid.f_key);
+
         /**
          * Init some fop fields (full path) that require mdstore and other
          * initialialized structures.
@@ -615,9 +646,6 @@ static int c2_md_tick_setattr(struct c2_fom *fom)
         rc = c2_md_fop_init(fop, fom);
         if (rc != 0)
                 goto out;
-
-        body = &req->s_body;
-        c2_md_cob_wire2mem(&attr, body);
 
         c2_fom_block_enter(fom);
 
@@ -630,6 +658,8 @@ static int c2_md_tick_setattr(struct c2_fom *fom)
                                &body->b_tfid, &cob, C2_MD_LOCATE_STORED,
                                &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
+                C2_LOG(C2_DEBUG, "c2_mdstore_locate() for [%lx:%lx] failed with %d",
+                       body->b_tfid.f_container, body->b_tfid.f_key, rc);
                 c2_fom_block_leave(fom);
                 goto out;
         }
@@ -639,6 +669,8 @@ static int c2_md_tick_setattr(struct c2_fom *fom)
         c2_cob_put(cob);
         c2_fom_block_leave(fom);
 out:
+        C2_LOG(C2_DEBUG, "Setattr for [%lx:%lx] finished with %d",
+               body->b_tfid.f_container, body->b_tfid.f_key, rc);
         rep->s_body.b_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
@@ -653,6 +685,7 @@ static int c2_md_tick_lookup(struct c2_fom *fom)
         struct c2_fop_lookup_rep      *rep;
         struct c2_fop                 *fop;
         struct c2_fop                 *fop_rep;
+        struct c2_fid                  tfid;
         int                            rc;
         struct c2_buf                  name;
 
@@ -669,6 +702,12 @@ static int c2_md_tick_lookup(struct c2_fom *fom)
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
 
+        c2_buf_init(&name, req->l_name.s_buf, req->l_name.s_len);
+
+        C2_LOG(C2_DEBUG, "Lookup for \"%*s\" in object [%lx:%lx]",
+               (int)name.b_nob, (char *)name.b_addr, body->b_pfid.f_container,
+               body->b_pfid.f_key);
+
         /**
          * Init some fop fields (full path) that require mdstore and other
          * initialialized structures.
@@ -679,26 +718,34 @@ static int c2_md_tick_lookup(struct c2_fom *fom)
 
         c2_fom_block_enter(fom);
 
-        c2_buf_init(&name, req->l_name.s_buf, req->l_name.s_len);
-
-        C2_LOG(C2_DEBUG, "Lookup for \"%*s\" in object [%lx:%lx]",
-               (int)name.b_nob, (char *)name.b_addr, body->b_pfid.f_container,
-               body->b_pfid.f_key);
-
         rc = c2_mdstore_lookup(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
                                &body->b_pfid, &name, &cob, &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
-                C2_LOG(C2_DEBUG, "Lookup failed with %d", rc);
+                C2_LOG(C2_DEBUG, "c2_mdstore_lookup() failed with %d", rc);
                 c2_fom_block_leave(fom);
                 goto out;
         }
+        tfid = *cob->co_fid;
+        c2_cob_put(cob);
+
         C2_LOG(C2_DEBUG, "Found object [%lx:%lx] go for getattr",
-               cob->co_fid->f_container, cob->co_fid->f_key);
+               tfid.f_container, tfid.f_key);
+
+        rc = c2_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                               &tfid, &cob, C2_MD_LOCATE_STORED,
+                               &fom->fo_tx.tx_dbtx);
+        if (rc != 0) {
+                C2_LOG(C2_DEBUG, "c2_mdstore_locate() for [%lx:%lx] failed with %d",
+                       tfid.f_container, tfid.f_key, rc);
+                c2_fom_block_leave(fom);
+                goto out;
+        }
 
         rc = c2_mdstore_getattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
                                 cob, &attr, &fom->fo_tx.tx_dbtx);
         c2_cob_put(cob);
         c2_fom_block_leave(fom);
+
         if (rc == 0) {
                 attr.ca_flags = C2_COB_ALL;
                 c2_md_cob_mem2wire(&rep->l_body, &attr);
@@ -707,7 +754,8 @@ static int c2_md_tick_lookup(struct c2_fom *fom)
                        cob->co_fid->f_container, cob->co_fid->f_key, rc);
         }
 out:
-        C2_LOG(C2_DEBUG, "Lookup finished with %d", rc);
+        C2_LOG(C2_DEBUG, "Lookup for \"%*s\" finished with %d",
+               (int)name.b_nob, (char *)name.b_addr, rc);
         rep->l_body.b_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
@@ -737,6 +785,9 @@ static int c2_md_tick_getattr(struct c2_fom *fom)
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
 
+        C2_LOG(C2_DEBUG, "Getattr for [%lx:%lx] started",
+               body->b_tfid.f_container, body->b_tfid.f_key);
+
         /**
          * Init some fop fields (full path) that require mdstore and other
          * initialialized structures.
@@ -750,6 +801,8 @@ static int c2_md_tick_getattr(struct c2_fom *fom)
                                &body->b_tfid, &cob, C2_MD_LOCATE_STORED,
                                &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
+                C2_LOG(C2_DEBUG, "c2_mdstore_locate() for [%lx:%lx] failed with %d",
+                       body->b_tfid.f_container, body->b_tfid.f_key, rc);
                 c2_fom_block_leave(fom);
                 goto out;
         }
@@ -763,6 +816,8 @@ static int c2_md_tick_getattr(struct c2_fom *fom)
                 c2_md_cob_mem2wire(&rep->g_body, &attr);
         }
 out:
+        C2_LOG(C2_DEBUG, "Getattr for [%lx:%lx] finished with %d",
+               body->b_tfid.f_container, body->b_tfid.f_key, rc);
         rep->g_body.b_rc = rc;
         c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
@@ -976,8 +1031,6 @@ C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
                 rc = c2_md_req_path_get(md,
                                         &create->c_body.b_pfid,
                                         &create->c_path);
-                if (rc != 0)
-                        return rc;
                 break;
         case C2_MDSERVICE_LINK_OPCODE:
                 link = c2_fop_data(fop);
@@ -1001,8 +1054,6 @@ C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
                 rc = c2_md_req_path_get(md,
                                         &unlink->u_body.b_pfid,
                                         &unlink->u_path);
-                if (rc != 0)
-                        return rc;
                 break;
         case C2_MDSERVICE_RENAME_OPCODE:
                 rename = c2_fop_data(fop);
@@ -1026,48 +1077,36 @@ C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
                 rc = c2_md_req_path_get(md,
                                         &open->o_body.b_tfid,
                                         &open->o_path);
-                if (rc != 0)
-                        return rc;
                 break;
         case C2_MDSERVICE_CLOSE_OPCODE:
                 close = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
                                         &close->c_body.b_tfid,
                                         &close->c_path);
-                if (rc != 0)
-                        return rc;
                 break;
         case C2_MDSERVICE_SETATTR_OPCODE:
                 setattr = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
                                         &setattr->s_body.b_tfid,
                                         &setattr->s_path);
-                if (rc != 0)
-                        return rc;
                 break;
         case C2_MDSERVICE_GETATTR_OPCODE:
                 getattr = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
                                         &getattr->g_body.b_tfid,
                                         &getattr->g_path);
-                if (rc != 0)
-                        return rc;
                 break;
         case C2_MDSERVICE_LOOKUP_OPCODE:
                 lookup = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
                                         &lookup->l_body.b_pfid,
                                         &lookup->l_path);
-                if (rc != 0)
-                        return rc;
                 break;
         case C2_MDSERVICE_READDIR_OPCODE:
                 readdir = c2_fop_data(fop);
                 rc = c2_md_req_path_get(md,
                                         &readdir->r_body.b_tfid,
                                         &readdir->r_path);
-                if (rc != 0)
-                        return rc;
                 break;
         default:
                 rc = 0;

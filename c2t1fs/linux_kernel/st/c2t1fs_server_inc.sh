@@ -1,7 +1,7 @@
 colibri_service()
 {
-        prog_start=$COLIBRI_CORE_ROOT/colibri/colibri_setup
-        prog_exec=$COLIBRI_CORE_ROOT/colibri/.libs/lt-colibri_setup
+        prog_start="$COLIBRI_CORE_ROOT/colibri/colibri_setup"
+        prog_exec="$COLIBRI_CORE_ROOT/colibri/.libs/lt-colibri_setup"
 
 	. /etc/rc.d/init.d/functions
 
@@ -21,7 +21,7 @@ colibri_service()
 			 -D db -S stobs \
 			 -e $XPT:${lnet_nid}:${EP[$i]} \
 			 $SRV -m $MAX_RPC_MSG_SIZE \
-			 -q $TM_MIN_RECV_QUEUE_LEN "
+			 -q $TM_MIN_RECV_QUEUE_LEN"
 			echo $cmd
 			(eval $cmd) &
 

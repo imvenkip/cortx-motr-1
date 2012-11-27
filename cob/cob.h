@@ -522,11 +522,10 @@ struct c2_cob_iterator {
 enum c2_cob_flags {
         C2_CA_NSKEY      = (1 << 0),  /**< nskey in cob is up-to-date */
         C2_CA_NSKEY_FREE = (1 << 1),  /**< cob will dealloc the nskey */
-        C2_CA_NSKEY_DB   = (1 << 2),  /**< db will dealloc the nskey */
-        C2_CA_NSREC      = (1 << 3),  /**< nsrec in cob is up-to-date */
-        C2_CA_FABREC     = (1 << 4),  /**< fabrec in cob is up-to-date */
-        C2_CA_OMGREC     = (1 << 5),  /**< omgrec in cob is up-to-date */
-        C2_CA_LAYOUT     = (1 << 6),  /**< layout in cob is up-to-date */
+        C2_CA_NSREC      = (1 << 2),  /**< nsrec in cob is up-to-date */
+        C2_CA_FABREC     = (1 << 3),  /**< fabrec in cob is up-to-date */
+        C2_CA_OMGREC     = (1 << 4),  /**< omgrec in cob is up-to-date */
+        C2_CA_LAYOUT     = (1 << 5),  /**< layout in cob is up-to-date */
 };
 
 /**

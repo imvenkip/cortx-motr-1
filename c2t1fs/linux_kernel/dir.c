@@ -119,8 +119,10 @@ static void body_mem2wire(struct c2_fop_cob *body,
                 body->b_mtime = attr->ca_mtime;
         if (valid & C2_COB_BLOCKS)
                 body->b_blocks = attr->ca_blocks;
-        if (valid & C2_COB_SIZE)
+        if (valid & C2_COB_SIZE) {
+                C2_LOG(C2_FATAL, "size update");
                 body->b_size = attr->ca_size;
+        }
         if (valid & C2_COB_MODE)
                 body->b_mode = attr->ca_mode;
         if (valid & C2_COB_UID)
@@ -442,19 +444,19 @@ out:
 static int c2t1fs_link(struct dentry *old, struct inode *dir,
                        struct dentry *new)
 {
-	struct c2t1fs_sb                *csb;
+        struct c2t1fs_sb                *csb;
         struct c2_fop_link_rep          *link_rep;
-	struct c2t1fs_mdop               mo;
-	struct c2t1fs_inode             *ci;
-	struct inode                    *inode;
-	struct timespec                  now;
-	int                              rc;
+        struct c2t1fs_mdop               mo;
+        struct c2t1fs_inode             *ci;
+        struct inode                    *inode;
+        struct timespec                  now;
+        int                              rc;
 
-	inode = old->d_inode;
-	ci    = C2T1FS_I(inode);
-	csb   = C2T1FS_SB(inode->i_sb);
+        inode = old->d_inode;
+        ci    = C2T1FS_I(inode);
+        csb   = C2T1FS_SB(inode->i_sb);
 
-	c2t1fs_fs_lock(csb);
+        c2t1fs_fs_lock(csb);
 
         C2_SET0(&mo);
         now = CURRENT_TIME_SEC;
@@ -465,76 +467,93 @@ static int c2t1fs_link(struct dentry *old, struct inode *dir,
         mo.mo_attr.ca_flags = (C2_COB_CTIME | C2_COB_NLINK);
         c2_buf_init(&mo.mo_attr.ca_name, (char *)new->d_name.name, new->d_name.len);
 
-	rc = c2t1fs_mds_cob_link(csb, &mo, &link_rep);
-	if (rc != 0) {
-		C2_LOG(C2_ERROR, "mdservive link fop failed: %d\n", rc);
-		goto out;
-	}
+        rc = c2t1fs_mds_cob_link(csb, &mo, &link_rep);
+        if (rc != 0) {
+                C2_LOG(C2_ERROR, "mdservive link fop failed: %d\n", rc);
+                goto out;
+        }
 
-	inc_nlink(inode);
-	inode->i_ctime = now;
-	mark_inode_dirty(inode);
-	atomic_inc(&inode->i_count);
-	d_instantiate(new, inode);
+        inc_nlink(inode);
+        inode->i_ctime = now;
+        mark_inode_dirty(inode);
+        atomic_inc(&inode->i_count);
+        d_instantiate(new, inode);
 
 out:
-	c2t1fs_fs_unlock(csb);
-	C2_LEAVE("rc: %d", rc);
-	return rc;
+        c2t1fs_fs_unlock(csb);
+        C2_LEAVE("rc: %d", rc);
+        return rc;
 }
 
 static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 {
         struct c2_fop_lookup_rep        *lookup_rep;
         struct c2_fop_unlink_rep        *unlink_rep;
-	struct c2t1fs_sb                *csb;
-	struct inode                    *inode;
-	struct c2t1fs_inode             *ci;
-	struct c2t1fs_mdop               mo;
-	int                              rc;
+        struct c2_fop_setattr_rep       *setattr_rep;
+        struct c2t1fs_sb                *csb;
+        struct inode                    *inode;
+        struct c2t1fs_inode             *ci;
+        struct c2t1fs_mdop               mo;
+        struct timespec                  now;
+        int                              rc;
 
-	C2_ENTRY();
+        C2_ENTRY();
 
-	C2_LOG(C2_INFO, "Name: \"%s\"", dentry->d_name.name);
+        C2_LOG(C2_INFO, "Name: \"%s\"", dentry->d_name.name);
 
-	inode = dentry->d_inode;
-	csb   = C2T1FS_SB(inode->i_sb);
-	ci    = C2T1FS_I(inode);
+        inode = dentry->d_inode;
+        csb   = C2T1FS_SB(inode->i_sb);
+        ci    = C2T1FS_I(inode);
 
-	c2t1fs_fs_lock(csb);
+        c2t1fs_fs_lock(csb);
 
         C2_SET0(&mo);
+        now = CURRENT_TIME_SEC;
         mo.mo_attr.ca_pfid = csb->csb_root_fid;
         mo.mo_attr.ca_tfid = ci->ci_fid;
-        c2_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name, dentry->d_name.len);
+        mo.mo_attr.ca_nlink = inode->i_nlink - 1;
+        mo.mo_attr.ca_ctime = now.tv_sec;
+        mo.mo_attr.ca_flags = (C2_COB_NLINK | C2_COB_CTIME);
+        c2_buf_init(&mo.mo_attr.ca_name,
+                    (char *)dentry->d_name.name, dentry->d_name.len);
 
-	rc = c2t1fs_mds_cob_lookup(csb, &mo, &lookup_rep);
-	if (rc != 0)
-	        goto out;
+        rc = c2t1fs_mds_cob_lookup(csb, &mo, &lookup_rep);
+        if (rc != 0)
+                goto out;
 
-	rc = c2t1fs_mds_cob_unlink(csb, &mo, &unlink_rep);
-	if (rc != 0) {
-		C2_LOG(C2_ERROR, "mdservive unlink fop failed: %d\n", rc);
-		goto out;
-	}
+        rc = c2t1fs_mds_cob_unlink(csb, &mo, &unlink_rep);
+        if (rc != 0) {
+                C2_LOG(C2_ERROR, "mdservive unlink fop failed: %d\n", rc);
+                goto out;
+        }
 
-	rc = c2t1fs_component_objects_op(ci, c2t1fs_ios_cob_delete);
-	if (rc != 0) {
-		C2_LOG(C2_ERROR, "ioservice delete fop failed: %d", rc);
-		goto out;
-	}
+        if (mo.mo_attr.ca_nlink == 0) {
+                rc = c2t1fs_component_objects_op(ci, c2t1fs_ios_cob_delete);
+                if (rc != 0) {
+                        C2_LOG(C2_ERROR, "ioservice delete fop failed: %d", rc);
+                        goto out;
+                }
+        }
 
-	dir->i_ctime = dir->i_mtime = CURRENT_TIME_SEC;
-	mark_inode_dirty(dir);
-	inode->i_ctime = dir->i_ctime;
-	
-	/** XXX: We may need to set nlinks from unlink fop reply. */
-	inode_dec_link_count(inode);
+        /** Update ctime and mtime on parent dir. */
+        C2_SET0(&mo);
+        mo.mo_attr.ca_tfid  = csb->csb_root_fid;
+        mo.mo_attr.ca_ctime = now.tv_sec;
+        mo.mo_attr.ca_mtime = now.tv_sec;
+        mo.mo_attr.ca_flags = (C2_COB_CTIME | C2_COB_MTIME);
 
+        rc = c2t1fs_mds_cob_setattr(csb, &mo, &setattr_rep);
+        if (rc != 0) {
+                C2_LOG(C2_ERROR, "Setattr on parent dir failed with %d", rc);
+                goto out;
+        }
+
+        inode->i_ctime = dir->i_ctime = dir->i_mtime = now;
+        inode_dec_link_count(inode);
 out:
-	c2t1fs_fs_unlock(csb);
-	C2_LEAVE("rc: %d", rc);
-	return rc;
+        c2t1fs_fs_unlock(csb);
+        C2_LEAVE("rc: %d", rc);
+        return rc;
 }
 
 C2_INTERNAL int c2t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
@@ -756,8 +775,8 @@ static int c2t1fs_mds_cob_fop_populate(const struct c2t1fs_mdop *mo,
                 create = c2_fop_data(fop);
                 req = &create->c_body;
 
-                req->b_tfid = mo->mo_attr.ca_tfid;
                 req->b_pfid = mo->mo_attr.ca_pfid;
+                req->b_tfid = mo->mo_attr.ca_tfid;
                 body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_flags);
                 rc = name_mem2wire(&create->c_name, &mo->mo_attr.ca_name);
                 break;
@@ -765,8 +784,8 @@ static int c2t1fs_mds_cob_fop_populate(const struct c2t1fs_mdop *mo,
                 link = c2_fop_data(fop);
                 req = &link->l_body;
 
-                req->b_tfid = mo->mo_attr.ca_tfid;
                 req->b_pfid = mo->mo_attr.ca_pfid;
+                req->b_tfid = mo->mo_attr.ca_tfid;
                 body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_flags);
                 rc = name_mem2wire(&link->l_name, &mo->mo_attr.ca_name);
                 break;
@@ -774,8 +793,9 @@ static int c2t1fs_mds_cob_fop_populate(const struct c2t1fs_mdop *mo,
                 unlink = c2_fop_data(fop);
                 req = &unlink->u_body;
 
-                req->b_tfid = mo->mo_attr.ca_tfid;
                 req->b_pfid = mo->mo_attr.ca_pfid;
+                req->b_tfid = mo->mo_attr.ca_tfid;
+                body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_flags);
                 rc = name_mem2wire(&unlink->u_name, &mo->mo_attr.ca_name);
                 break;
         case C2_MDSERVICE_STATFS_OPCODE:
@@ -850,7 +870,7 @@ static int c2t1fs_mds_cob_op(struct c2t1fs_sb            *csb,
              fid, which has container != 0 and we cannot change it as it
              will conflict with cob io objects in case they share the same
              db;
-           - we can't use @mo->mo_attr.ca_tfid is not always set, some ops
+           - we can't use @mo->mo_attr.ca_tfid it is not always set, some ops
              do not require it;
            - using @ci is not an option as well as it is not always used.
              For example, it is not available for lookup.
