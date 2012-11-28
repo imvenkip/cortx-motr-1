@@ -655,10 +655,11 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 static void target_ioreq_seg_add      (struct target_ioreq *ti,
 				       uint64_t		    frame,
-				       m0_bindex_t	    gob_offset,
-				       m0_bindex_t	    par_offset,
-				       m0_bcount_t	    count,
-				       uint64_t		    unit);
+				       c2_bindex_t	    gob_offset,
+				       c2_bindex_t	    par_offset,
+				       c2_bcount_t	    count,
+				       uint64_t		    unit,
+				       struct pargrp_iomap *map);
 
 static const struct target_ioreq_ops tioreq_ops = {
 	.tio_seg_add	    = target_ioreq_seg_add,
@@ -675,10 +676,6 @@ static int  ioreq_iomaps_prepare(struct io_request *req);
 
 static void ioreq_iomaps_destroy(struct io_request *req);
 
-static void ioreq_iomap_locate	(struct io_request    *req,
-				 uint64_t	       grpid,
-				 struct pargrp_iomap **map);
-
 static int ioreq_user_data_copy (struct io_request   *req,
 				 enum copy_direction  dir,
 				 enum page_attr	      filter);
@@ -691,7 +688,6 @@ static const struct io_request_ops ioreq_ops = {
 	.iro_iomaps_prepare = ioreq_iomaps_prepare,
 	.iro_iomaps_destroy = ioreq_iomaps_destroy,
 	.iro_user_data_copy = ioreq_user_data_copy,
-	.iro_iomap_locate   = ioreq_iomap_locate,
 	.iro_parity_recalc  = ioreq_parity_recalc,
 	.iro_iosm_handle    = ioreq_iosm_handle,
 };
@@ -917,25 +913,6 @@ static void nw_xfer_request_fini(struct nw_xfer_request *xfer)
 	nw_xfer_request_bob_fini(xfer);
 	tioreqs_tlist_fini(&xfer->nxr_tioreqs);
 	M0_LEAVE();
-}
-
-static void ioreq_iomap_locate(struct io_request *req, uint64_t grpid,
-			       struct pargrp_iomap **iomap)
-{
-	uint64_t map;
-
-	M0_ENTRY("Locate map with grpid = %llu", grpid);
-	M0_PRE(io_request_invariant(req));
-	M0_PRE(iomap != NULL);
-
-	for (map = 0; map < req->ir_iomap_nr; ++map) {
-		if (req->ir_iomaps[map]->pi_grpid == grpid) {
-			*iomap = req->ir_iomaps[map];
-			break;
-		}
-	}
-	M0_POST(map < req->ir_iomap_nr);
-	M0_LEAVE("Map = %p", *iomap);
 }
 
 /* Typically used while copying data to/from user space. */
@@ -2109,8 +2086,9 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 				goto err;
 
 			ti->ti_ops->tio_seg_add(ti, tgt.ta_frame, r_ext.e_start,
-						0, m0_ext_length(&r_ext),
-						src.sa_unit);
+						0, c2_ext_length(&r_ext),
+						src.sa_unit,
+						req->ir_iomaps[map]);
 		}
 
 		/* Maps parity units only in case of write IO. */
@@ -2137,7 +2115,8 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 							tgt.ta_frame, pgstart,
 							0,
 							layout_unit_size(play),
-							src.sa_unit);
+							src.sa_unit,
+							req->ir_iomaps[map]);
 				par_offset += layout_unit_size(play);
 			}
 		}
@@ -2650,10 +2629,11 @@ static void data_buf_dealloc_fini(struct data_buf *buf)
 
 static void target_ioreq_seg_add(struct target_ioreq *ti,
 				 uint64_t	      frame,
-				 m0_bindex_t	      gob_offset,
-				 m0_bindex_t	      par_offset,
-				 m0_bcount_t	      count,
-				 uint64_t	      unit)
+				 c2_bindex_t	      gob_offset,
+				 c2_bindex_t	      par_offset,
+				 c2_bcount_t	      count,
+				 uint64_t	      unit,
+				 struct pargrp_iomap *map)
 {
 	uint32_t		   seg;
 	m0_bindex_t		   toff;
@@ -2662,13 +2642,13 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
 	m0_bindex_t		   pgend;
 	struct data_buf		  *buf;
 	struct io_request	  *req;
-	struct pargrp_iomap	  *map;
 	struct m0_pdclust_layout  *play;
 	enum m0_pdclust_unit_type  unit_type;
 
 	M0_ENTRY("target_ioreq %p, gob_offset %llu, count %llu",
 		 ti, gob_offset, count);
 	M0_PRE(target_ioreq_invariant(ti));
+	M0_PRE(map != NULL);
 
 	req	= bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
 			 &ioreq_bobtype);
@@ -2678,9 +2658,6 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
 	M0_ASSERT(M0_IN(unit_type, (M0_PUT_DATA, M0_PUT_PARITY)));
 
 	toff	= target_offset(frame, play, gob_offset);
-	req->ir_ops->iro_iomap_locate(req, group_id(gob_offset,
-				      data_size(play)), &map);
-	M0_ASSERT(map != NULL);
 	pgstart = toff;
 	goff    = unit_type == M0_PUT_DATA ? gob_offset : par_offset;
 
