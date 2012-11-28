@@ -24,7 +24,13 @@ colibri_libcolibri_la_SOURCES += conf/onwire.h \
                                  conf/objs/node.c \
                                  conf/objs/nic.c \
                                  conf/objs/sdev.c \
-                                 conf/objs/partition.c
+                                 conf/objs/partition.c \
+                                 conf/conf_fop.c \
+                                 conf/conf_fop.h \
+                                 conf/conf_fom.c \
+                                 conf/conf_fom.h \
+                                 conf/confd.h \
+                                 conf/confd_service.c
 
 conf/onwire.h: lib/buf_xc.h
 

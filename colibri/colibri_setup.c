@@ -43,7 +43,7 @@
 #include "colibri/cs_internal.h"
 #include "colibri/magic.h"
 #include "rpc/rpclib.h"
-
+#include "rpc/rpc_internal.h"
 /**
    @addtogroup colibri_setup
    @{
@@ -522,16 +522,14 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 	}
 
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
-	rc = c2_rpc_machine_init(rpcmach, &reqh->rh_mdstore->md_dom, ndom, ep, reqh,
-				 buffer_pool, tm_colour, max_rpc_msg_size,
+	rc = c2_rpc_machine_init(rpcmach, &reqh->rh_mdstore->md_dom, ndom, ep,
+				 reqh, buffer_pool, tm_colour, max_rpc_msg_size,
 				 recv_queue_min_length);
-	if (rc != 0) {
+	if (rc == 0)
+		c2_reqh_rpc_mach_tlink_init_at_tail(rpcmach,
+						    &reqh->rh_rpc_machines);
+	else
 		c2_free(rpcmach);
-		return rc;
-	}
-
-	c2_reqh_rpc_mach_tlink_init_at_tail(rpcmach, &reqh->rh_rpc_machines);
-
 	return rc;
 }
 
@@ -808,7 +806,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	}
 
 	if (rc == 0)
-		rc = c2_balloc_allocate(&cb);
+		rc = c2_balloc_allocate(cid, &cb);
 	if (rc == 0)
 		rc = c2_ad_stob_setup(adstob->as_dom, db,
 				      *bstob, &cb->cb_ballroom,
@@ -1206,6 +1204,24 @@ static void cs_net_domains_fini(struct c2_colibri *cctx)
 		c2_net_xprt_fini(xprts[idx]);
 }
 
+static int cs_storage_prepare(struct cs_reqh_context *rctx)
+{
+	struct c2_db_tx tx;
+	int rc;
+
+	rc = c2_db_tx_init(&tx, &rctx->rc_db, 0);
+	if (rc == 0) {
+		rc = c2_rpc_root_session_cob_create(&rctx->rc_mdstore.md_dom, &tx);
+		if (rc == 0) {
+			c2_db_tx_commit(&tx);
+		} else {
+			c2_db_tx_abort(&tx);
+		}
+	}
+	return rc;
+}
+
+
 /**
    Initialises a request handler context.
    A request handler context consists of the storage domain, database,
@@ -1226,7 +1242,7 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "c2_dbenv_init", rc);
-		goto out;
+		return rc;
 	}
 	if (rctx->rc_dfilepath != NULL) {
 		rc = cs_stob_file_load(rctx->rc_dfilepath, &rctx->rc_stob,
@@ -1236,7 +1252,7 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 				    storage_init_fail,
 				    "Failed to load device configuration file",
 				    rc);
-			goto out;
+			return rc;
 		}
 	}
 
@@ -1248,8 +1264,32 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 			    "cs_storage_init", rc);
 		goto cleanup_stob;
 	}
+
 	rctx->rc_cdom_id.id = ++cdom_id;
-	rc = c2_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db, 0);
+
+	/** Mkfs cob domain before using it. */
+        if (rctx->rc_prepare_storage) {
+                /**
+                   Init mdstore without root cob init first. Now we can use its
+                   cob domain for mkfs.
+                 */
+	        rc = c2_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
+	                             &rctx->rc_db, false);
+	        if (rc != 0) {
+		        C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
+			            "c2_mdstore_init", rc);
+		        goto cleanup_stob;
+	        }
+	        rc = cs_storage_prepare(rctx);
+	        if (rc != 0) {
+		        C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
+			            "cs_storage_prepare", rc);
+		        goto cleanup_mdstore;
+		}
+	        c2_mdstore_fini(&rctx->rc_mdstore);
+        }
+
+	rc = c2_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db, true);
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "c2_cob_domain_init", rc);
@@ -1263,20 +1303,18 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 	}
 	rc = c2_reqh_init(&rctx->rc_reqh, NULL, &rctx->rc_db, &rctx->rc_mdstore,
 			  &rctx->rc_fol, NULL);
-	if (rc != 0)
-		goto cleanup_fol;
+	if (rc == 0) {
+		rctx->rc_state = RC_INITIALISED;
+		return 0;
+	}
 
-	rctx->rc_state = RC_INITIALISED;
-	goto out;
-
-cleanup_fol:
 	c2_fol_fini(&rctx->rc_fol);
 cleanup_mdstore:
 	c2_mdstore_fini(&rctx->rc_mdstore);
 cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
 	c2_dbenv_fini(&rctx->rc_db);
-out:
+	C2_ASSERT(rc != 0);
 	return rc;
 }
 
@@ -1706,6 +1744,15 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 				     "%i", &cctx->cc_recv_queue_min_length),
 			C2_FORMATARG('M', "Maximum RPC message size", "%i",
 				     &cctx->cc_max_rpc_msg_size),
+			C2_VOIDARG('p', "Prepare storage (root session, hierarchy root, etc)",
+				LAMBDA(void, (void)
+				{
+					if (rctx == NULL) {
+					        rc = -EINVAL;
+					        return;
+					}
+					rctx->rc_prepare_storage = 1;
+				})),
 			C2_VOIDARG('r', "Start request handler",
 				LAMBDA(void, (void)
 				{

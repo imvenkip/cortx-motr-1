@@ -36,6 +36,11 @@
 #include "fid/fid.h"
 #include "cob/cob.h"    /* c2_cob_domain_id */
 #include "layout/layout.h" /* c2_layout_domain, c2_layout, c2_layout_instance */
+#include "ioservice/io_fops.h"   /* c2_fop_cob_create_fopt */
+#include "ioservice/io_fops_ff.h" /* c2_fop_cob_create */
+#include "mdservice/md_fops.h"   /* c2_fop_create_fopt */
+#include "mdservice/md_fops_ff.h" /* c2_fop_create */
+#include "conf/confc.h" /* c2_confc */
 
 /**
   @defgroup c2t1fs c2t1fs
@@ -65,20 +70,18 @@
   where <options_list> is a comma separated list of option=value elements.
   Currently supported list of options is:
 
-  - mgs [value type: end-point address e.g. 192.168.50.40@tcp:12345:34:1 ]
-      end-point address of management service or confd.
-      @note terms 'mgs' and 'confd' are used interchangably in the text.
-
-  - ios [value type: end-point address]
-      end-point address of io-service. multiple io-services can be specified
-      as ios=<end-point-addr1>,ios=<end-point-addr2>
-
-  - mds [value type: end-point address]
-      end-point address of meta-data service. Currently only one mds is
-      allowed.
+  - conf [value type: end-point address, e.g. 192.168.50.40@tcp:12345:34:1]
+      end-point address of confd (a.k.a. management service, mgs).
+      @note If this value starts with "local-conf:", it is treated as
+      a configuration string, containing data to pre-load
+      configuration cache with (see @ref conf-fspec-preload).
 
   - profile [value type: string]
-      configuration profile. Used while fetching configuration from mgs.
+      configuration profile. Used while fetching configuration data from confd.
+
+  - ios [value type: end-point address]
+      end-point address of io-service. Multiple io-services can be specified
+      as ios=<end-point-addr1>,ios=<end-point-addr2>
 
   - nr_data_units [value type: number]
       Number of data units in one parity group. Optional parameter.
@@ -182,14 +185,230 @@
    component objects.
  */
 
-struct c2t1fs_dir_ent;
+/**
+  @section c2t1fs-metadata Metadata
+
+  @section c2t1fs-metadata-rq Requirements
+
+  The following requirements should be met:
+
+  - @b R.DLD.MDSERVICE - all md operations implemented by c2t1fs
+  should talk to mdservice in order to provide required functionality. In
+  other words they should not generate hardcoded attributes locally on client
+  and cache in inode/dentry cache. Required functionality here - is to provide
+  mounts persistence.
+
+  - @b R.DLD.POSIX - implemented operations should conform to POSIX
+ */
+
+/**
+  @section Overview
+
+  The main direction of this work (@ref c2t1fs-metadata-rq) is mostly to follow
+  normal linux filesystem driver requirements as for the number and meaning of
+  operations handled by the driver.
+
+  This means number of things as follows bellow:
+
+  - the fops presented below, correspond to the usual operations implemented
+  by filesystem driver, such as link, unlink, create, etc;
+  - mdservice on server side is connected by c2t1fs at mount time. Root inode
+  attributes and (optionally) filesystem information, such as free blocks, etc.,
+  that is usually needed by statfs, can be retrieved by c2t1fs from mount fop
+  response;
+  - inode attributes may also contain some information needed to perform I/O
+  (layout) and this data may be sent to client as part of getattr fop.
+
+  Fops defined by mdservice are described at @ref mdservice-fops-definition
+  In this work we use only some of them in order to provide persistence
+  between mounts.
+
+  They are the following:
+  - c2_fop_create and c2_fop_create_rep
+  - c2_fop_unlink and c2_fop_unlink_rep
+  - c2_fop_setattr and c2_fop_setattr_rep
+  - c2_fop_getattr and c2_fop_getattr_rep
+
+  @section c2t1fs-metadata-fs Detailed Functional Specification
+
+  Some functions will see modifications in order to implement the
+  client-server communication and not just create all metadata in
+  memory.
+
+  Only minimal set of operations is needed to support persitency
+  between mounts.
+
+  In order to implement mount persistency functionality, the following
+  functionality should be implemented:
+
+  - get mdservice volume information enough for statfs and get root
+  fid at mount time
+  - no hierarchy is needed, that is, no directories support will be
+  added in this work
+  - list of regular files in root directory should be supported
+  - operations with regular files should be supported
+
+  @section Initialization
+
+  c2t1fs_init() - c2_mdservice_fop_init() is added to initialize md
+  operations fops.
+
+  c2t1fs_fini() - c2_mdservice_fop_fini() is added to finalize md
+  operations fops.
+
+  c2t1fs_fill_super() -> c2t1fs_connect_to_all_services() - will
+  have also to connect the mdservice.
+
+  It also may have some fields from space csb->csb_* initialized
+  not from mount options but rather from connect reply information.
+
+  c2t1fs_kill_sb() -> c2t1fs_disconnect_from_all_services() - will
+  have also to disconnect from mdservice.
+
+  @section Inode operations
+
+  c2t1fs_mknod() - is to be added to c2t1fs_dir_inode_operations.
+  This is one of variants of create fop.
+
+  c2t1fs_create() - sending create fop is added. Layout speicified
+  with mount options or obtained in mount time is to be packed into
+  create fop and sent to the server. Errors should be handled on
+  all stages.
+
+  c2t1fs_lookup() - sending getattr/lookup fop is added. Errors are
+  handled.
+
+  c2t1fs_unlink() - sending unlink fop is added. Errors are handled
+  (not needed for this work).
+
+  c2t1fs_link() - is to be added to c2t1fs_dir_inode_operations.
+  This is normal hard-link create function that sends link fop to
+  mdservice (not needed for this work).
+
+  c2t1fs_mkdir() - is to be added to c2t1fs_dir_inode_operations.
+  This function sends create fop initialized in slightly different
+  way than for creating regular file (not needed for this work).
+
+  c2t1fs_rmdir() - is to be added to c2t1fs_dir_inode_operations.
+  This function sends unlink fop (not needed for this work).
+
+  c2t1fs_symlink() - is to be added to c2t1fs_dir_inode_operations.
+  This function sends create fop with mode initialized for symlinks
+  (not needed for this work).
+
+  c2t1fs_rename() - is to be added to c2t1fs_dir_inode_operations.
+  This function sends rename fop (not needed for this work).
+
+  c2t1fs_setattr() - is to be added to c2t1fs_dir_inode_operations
+  and c2t1fs_special_inode_operations. This function sends setattr
+  fop.
+
+  c2t1fs_getattr() - is to be added to c2t1fs_dir_inode_operations
+  and c2t1fs_special_inode_operations. This function sends getattr
+  fop and returns server side inode attributes.
+
+  c2t1fs_permission() - is to be added to c2t1fs_dir_inode_operations
+  and c2t1fs_special_inode_operations (not needed for this work).
+
+  The following extended attributes operations to be added. We need
+  them in order to run lustre on top of colibri.
+
+  c2t1fs_setxattr() - is to be added to c2t1fs_dir_inode_operations
+  and c2t1fs_special_inode_operations (not needed for this work).
+
+  c2t1fs_getxattr() - is to be added to c2t1fs_dir_inode_operations
+  and c2t1fs_special_inode_operations (not needed for this work).
+
+  c2t1fs_listxattr() - is to be added to c2t1fs_dir_inode_operations
+  and c2t1fs_special_inode_operations (not needed for this work).
+
+  c2t1fs_removexattr() - is to be added to c2t1fs_dir_inode_operations
+  and c2t1fs_special_inode_operations (not needed for this work).
+
+  Mdservice does not support xattrs fop operations yet. We will add them
+  later as part of xattr support work.
+
+  @section File operations
+
+  c2t1fs_open() - is to be added to c2t1fs_dir_file_operations and
+  c2t1fs_reg_file_operations.
+
+  This function sends open fop and handles reply and errors in a
+  standard way.
+
+  c2t1fs_release() - is to be added to c2t1fs_dir_file_operations and
+  c2t1fs_reg_file_operations.
+
+  This function sends close fop on last release call.
+
+  c2t1fs_readdir() - sending readdir and/or getpage fop is added.
+  Errors handling and page cache management code should be added.
+
+  @sections Misc changes
+
+  fid_hash() - hash should be generated including ->f_container
+  and f_key. This can be used for generating inode numbers in future.
+  Still, changing inode numbers allocation is out of scope of this work.
+ */
+
+/**
+  @section c2t1fs-metadata-ls Logical Specification
+
+  - @ref c2t1fs-metadata-fs
+  - @ref c2t1fs-metadata-rq
+
+  All the fs callback functions, implemented in c2t1fs filesystem driver,
+  are to be backed with corresponding fop request communicating mdservice
+  on server side.
+
+ */
+
+/**
+  @section c2t1fs-metadata-cf Conformance
+
+  - @b R.DLD.MDSERVICE - Add support of meta-data operations (above) to c2t1fs.
+  Implement a set of fops to be used for communicating meta-data operations
+  between c2t1fs and mdservice.
+
+  - @b R.DLD.POSIX - following standard linux fs driver callback functions
+  and reqs guarantees basic POSIX conformance. More fine-graned conformance
+  may be met with using "standard" test suites for file sytems, such as dbench,
+  which is mentioned in Testing section (@ref c2t1fs-metadata-ts). This will
+  not be applied in current work as only miimal set of operations will be
+  implemented to support between mounts persistence.
+ */
+
+/**
+  @section c2t1fs-metadata-ts Testing
+
+  In principle full featured c2t1fs should pass standard fs tests such as
+  dbench as part of integration testing. This work scope testing will cover
+  the basic functionality that includes mount, create files, re-mount and check
+  if files exist and have the same attributes as before re-mount.
+
+  As for unit testing, that may run on "before-commit" basis,  small and fast
+  set of basic fs operations (10-20 operations) can be added to standard UT
+  framework.
+
+ */
+
+/**
+  @section c2t1fs-metadata-dp Dependencies
+
+  - layout. It would be good to have layout functionality in place but without
+  it most of work also can be done.
+  - recovery. Recovery principles better to be ready to finish this work. Some
+  tests may load client node so much that connection problems can occur.
+
+ */
+
+struct c2_pdclust_layout;
 
 C2_INTERNAL int c2t1fs_init(void);
 C2_INTERNAL void c2t1fs_fini(void);
 
 enum {
 	MAX_NR_EP_PER_SERVICE_TYPE      = 10,
-	C2T1FS_MAX_NAME_LEN             = 256,
 	C2T1FS_RPC_TIMEOUT              = 10, /* seconds */
 	C2T1FS_NR_SLOTS_PER_SESSION     = 10,
 	C2T1FS_MAX_NR_RPC_IN_FLIGHT     = 100,
@@ -220,18 +439,14 @@ extern struct c2t1fs_globals c2t1fs_globals;
 
 /** Parsed mount options */
 struct c2t1fs_mnt_opts {
-	/** Input mount options */
-	char    *mo_options;
-
+	char    *mo_conf;
 	char    *mo_profile;
-	char    *mo_localconf;
 
-	char    *mo_mgs_ep_addr;
-	char    *mo_mds_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
 	char    *mo_ios_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
+	uint32_t mo_ios_ep_nr;
 
-	uint32_t mo_nr_mds_ep;
-	uint32_t mo_nr_ios_ep;
+	char    *mo_mds_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
+	uint32_t mo_mds_ep_nr;
 
 	uint32_t mo_pool_width;      /* P */
 	uint32_t mo_nr_data_units;   /* N */
@@ -241,7 +456,7 @@ struct c2t1fs_mnt_opts {
 };
 
 enum c2t1fs_service_type {
-	/** management service */
+	/** management service (confd) */
 	C2T1FS_ST_MGS = 1,
 
 	/** meta-data service */
@@ -360,23 +575,25 @@ struct c2t1fs_sb {
 
 	/** File layout ID */
 	uint64_t                      csb_layout_id;
+
+        /** Root fid, retrieved from mdservice in mount time. */
+        struct c2_fid                 csb_root_fid;
+        /** Maximal allowed namelen (retrived from mdservice) */
+        int                           csb_namelen;
+	/** Configuration client. */
+	struct c2_confc               csb_confc;
+};
+
+struct c2t1fs_filedata {
+        int                        fd_direof;
+        struct c2_bitstring       *fd_dirpos;
 };
 
 /**
-   Directory entry.
+   Metadata operation helper structure.
  */
-struct c2t1fs_dir_ent {
-	char            de_name[C2T1FS_MAX_NAME_LEN + 1];
-	struct c2_fid   de_fid;
-
-	struct dentry  *de_dentry;
-
-	/** Link in c2t1fs_inode::ci_dir_ents list.
-	    List descriptor dir_ents_tl */
-	struct c2_tlink de_link;
-
-	/** magic == C2_T1FS_DIRENT_MAGIC */
-	uint64_t        de_magic;
+struct c2t1fs_mdop {
+        struct c2_cob_attr         mo_attr;
 };
 
 /**
@@ -394,11 +611,6 @@ struct c2t1fs_inode {
 
 	/** File layout ID */
 	uint64_t                   ci_layout_id;
-
-	/** List of c2t1fs_dir_ent objects placed using de_link.
-	    List descriptor dir_ents_tl. Valid for only directory inode.
-	    Empty for regular file inodes. */
-	struct c2_tl               ci_dir_ents;
 
 	uint64_t                   ci_magic;
 };
@@ -421,11 +633,6 @@ extern const struct inode_operations c2t1fs_reg_inode_operations;
 
 /* super.c */
 
-/**
-   For now, fid of root directory is assumed to be a constant.
- */
-extern const struct c2_fid c2t1fs_root_fid;
-
 C2_INTERNAL bool c2t1fs_inode_is_root(const struct inode *inode);
 
 C2_INTERNAL int c2t1fs_get_sb(struct file_system_type *fstype,
@@ -439,6 +646,12 @@ C2_INTERNAL void c2t1fs_fs_lock(struct c2t1fs_sb *csb);
 C2_INTERNAL void c2t1fs_fs_unlock(struct c2t1fs_sb *csb);
 C2_INTERNAL bool c2t1fs_fs_is_locked(const struct c2t1fs_sb *csb);
 
+C2_INTERNAL int c2t1fs_getattr(struct vfsmount *mnt, struct dentry *de,
+                               struct kstat *stat);
+C2_INTERNAL int c2t1fs_setattr(struct dentry *de, struct iattr *attr);
+C2_INTERNAL int c2t1fs_inode_update(struct inode *inode,
+                                    struct c2_fop_cob *body);
+
 C2_INTERNAL struct c2_rpc_session *
 c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
 			       uint64_t container_id);
@@ -448,28 +661,19 @@ c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
 C2_INTERNAL int c2t1fs_inode_cache_init(void);
 C2_INTERNAL void c2t1fs_inode_cache_fini(void);
 
-C2_INTERNAL struct inode *c2t1fs_root_iget(struct super_block *sb);
+C2_INTERNAL struct inode *c2t1fs_root_iget(struct super_block *sb,
+                                           struct c2_fid *root_fid);
 C2_INTERNAL struct inode *c2t1fs_iget(struct super_block *sb,
-				      const struct c2_fid *fid);
+				      const struct c2_fid *fid,
+                          	      struct c2_fop_cob *body);
 
 C2_INTERNAL struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 C2_INTERNAL void c2t1fs_destroy_inode(struct inode *inode);
 
 C2_INTERNAL int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci);
 
-C2_INTERNAL struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci,
-					 int index);
-
-C2_TL_DESCR_DECLARE(dir_ents, C2_EXTERN);
-C2_TL_DECLARE(dir_ents, C2_INTERNAL, struct c2t1fs_dir_ent);
-
-C2_INTERNAL void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
-				     const unsigned char *name,
-				     int namelen, const struct c2_fid *fid);
-
-C2_INTERNAL int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de);
-
-C2_INTERNAL void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
+C2_INTERNAL struct c2_fid c2t1fs_ios_cob_fid(const struct c2t1fs_inode *ci,
+					     int index);
 
 struct io_mem_stats {
 	uint64_t a_ioreq_nr;
@@ -485,5 +689,39 @@ struct io_mem_stats {
 	uint64_t a_page_nr;
 	uint64_t d_page_nr;
 };
+
+C2_INTERNAL int c2t1fs_mds_cob_create(struct c2t1fs_sb          *csb,
+                                      const struct c2t1fs_mdop  *mo,
+                                      struct c2_fop_create_rep **rep);
+
+C2_INTERNAL int c2t1fs_mds_cob_unlink(struct c2t1fs_sb          *csb,
+                                      const struct c2t1fs_mdop  *mo,
+                                      struct c2_fop_unlink_rep **rep);
+
+C2_INTERNAL int c2t1fs_mds_cob_link(struct c2t1fs_sb          *csb,
+                                    const struct c2t1fs_mdop  *mo,
+                                    struct c2_fop_link_rep   **rep);
+
+C2_INTERNAL int c2t1fs_mds_cob_lookup(struct c2t1fs_sb          *csb,
+                                      const struct c2t1fs_mdop  *mo,
+                                      struct c2_fop_lookup_rep **rep);
+
+C2_INTERNAL int c2t1fs_mds_cob_getattr(struct c2t1fs_sb           *csb,
+                                       const struct c2t1fs_mdop   *mo,
+                                       struct c2_fop_getattr_rep **rep);
+
+C2_INTERNAL int c2t1fs_mds_statfs(struct c2t1fs_sb                *csb,
+                                  struct c2_fop_statfs_rep       **rep);
+
+C2_INTERNAL int c2t1fs_mds_cob_setattr(struct c2t1fs_sb           *csb,
+                                       const struct c2t1fs_mdop   *mo,
+                                       struct c2_fop_setattr_rep **rep);
+
+C2_INTERNAL int c2t1fs_mds_cob_readdir(struct c2t1fs_sb           *csb,
+                                       const struct c2t1fs_mdop   *mo,
+                                       struct c2_fop_readdir_rep **rep);
+
+C2_INTERNAL int c2t1fs_size_update(struct inode *inode,
+                                   uint64_t newsize);
 
 #endif /* __COLIBRI_C2T1FS_C2T1FS_H__ */

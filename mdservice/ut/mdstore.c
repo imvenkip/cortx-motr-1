@@ -76,14 +76,10 @@ static void wait_locked()
 
 static void fom_fini(struct c2_local_service *service, struct c2_fom *fom)
 {
-        struct c2_fop_ctx *ctx = fom->fo_fop_ctx;
-
-        if (ctx->fc_cookie) {
-                struct c2_fop **ret = ctx->fc_cookie;
-                *ret = fom->fo_rep_fop;
-        }
         if (error == 0)
                 error = c2_fom_rc(fom);
+        c2_fop_free(fom->fo_fop);
+        c2_fop_free(fom->fo_rep_fop);
         signal_locked();
 }
 
@@ -123,8 +119,7 @@ static void test_mkfs(void)
         C2_UT_ASSERT(rc == 0);
 
         /* Create root and other structures */
-        rootfid.f_container = testroot.f_seq;
-        rootfid.f_key = testroot.f_oid;
+        c2_fid_set(&rootfid, testroot.f_seq, testroot.f_oid);
         rc = c2_cob_domain_mkfs(&md.md_dom, (const struct c2_fid *)&rootfid, &C2_COB_SESSIONS_FID, &tx);
         C2_UT_ASSERT(rc == 0);
         c2_db_tx_commit(&tx);
@@ -211,10 +206,6 @@ again:
                         goto again;
                 }
 
-                /*
-                 * The fop and its contant is freed in mdservice/md_foms.c:c2_md_req_fom_fini()
-                 * that is called on fom_exec() if (c2_fom_phase(fom) == C2_FOM_PHASE_FINISH).
-                 */
                 C2_ASSERT(result == 0);
                 c2_reqh_fop_handle(&reqh, fop, NULL);
         }

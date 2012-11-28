@@ -45,16 +45,12 @@
 
 require "net/net_otw_types_ff";
 require "addb/addbff/addb_ff";
+require "fid/fid_xc";
+require "fid/fid";
 
 /**
  * @section IO FOP Definitions
  */
-record {
-	/** Sequence number for given fid. */
-	u64 f_seq;
-	/** Object Index for given fid. */
-	u64 f_oid
-} c2_fop_file_fid;
 
 /**
  * Represents the extent information for an io segment. c2_ioseg typically
@@ -172,7 +168,7 @@ record {
 
 	/** File identifier of read/write request. */
 
-	c2_fop_file_fid    crw_fid;
+	c2_fid    crw_fid;
 
 	/** Net buf descriptors representing the c2_net_buffer containing
 	    the IO buffers. */
@@ -234,12 +230,12 @@ record {
 	/**
 	 * Fid of global file.
 	 */
-	c2_fop_file_fid c_gobfid;
+	c2_fid c_gobfid;
 
 	/**
 	 * Fid of component object.
 	 */
-	c2_fop_file_fid c_cobfid;
+	c2_fid c_cobfid;
 
 	/** Unique cob index in pool. */
 	u32             c_cob_idx

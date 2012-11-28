@@ -156,7 +156,7 @@ static int file_io_ut_init(void)
 	C2_SET0(&poolmach);
 	csb.csb_pool.po_mach = &poolmach;
 
-	rc = c2_poolmach_init(csb.csb_pool.po_mach, NULL);
+	rc = c2_poolmach_init(csb.csb_pool.po_mach, NULL, 1, LAY_P, 1, LAY_K);
 	C2_ASSERT(rc == 0);
 
 	return 0;
@@ -258,8 +258,7 @@ static void ds_test(void)
 	C2_UT_ASSERT(map->pi_paritybufs[1][0] != NULL);
 	C2_UT_ASSERT(map->pi_paritybufs[2][0] != NULL);
 
-	cfid.f_container = 0;
-	cfid.f_key	 = 5;
+        c2_fid_set(&cfid, 0, 5);
 
 	/* target_ioreq attributes test. */
 	rc = target_ioreq_init(&ti, &req.ir_nwxfer, &cfid, &session, UNIT_SIZE);

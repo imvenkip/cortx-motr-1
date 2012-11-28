@@ -16,6 +16,10 @@ main()
 		return 1
 	fi
 
+	for ((i=0; i < ${#EP[*]}; i++)) ; do
+                SERVICES="${SERVICES},ios=${lnet_nid}:${EP[$i]}"
+	done
+
 	c2t1fs_system_tests
 
 	colibri_service stop

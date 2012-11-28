@@ -17,6 +17,7 @@
  * Original creation date: 01/17/2011
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_COB
 #include <sys/stat.h>    /* S_ISDIR */
 
 #include "lib/misc.h"    /* C2_SET0 */
@@ -27,6 +28,7 @@
 #include "lib/memory.h"
 #include "lib/bitstring.h"
 #include "lib/rwlock.h"
+#include "lib/trace.h"
 
 #include "fid/fid.h"
 #include "addb/addb.h"
@@ -34,6 +36,7 @@
 #include "fop/fop.h"
 #include "cob/cob.h"
 #include "mdstore/mdstore.h"
+#include "colibri/magic.h"
 
 static const struct c2_addb_ctx_type mdstore_addb_ctx = {
         .act_name = "mdstore"
@@ -43,9 +46,38 @@ static const struct c2_addb_loc mdstore_addb_loc = {
         .al_name = "mdstore"
 };
 
-C2_INTERNAL int c2_mdstore_init(struct c2_mdstore *md,
-				struct c2_cob_domain_id *id,
-				struct c2_dbenv *db, bool init_root)
+/** Let's show client that we have 1G storage. */
+#define C2_MD_FAKE_BLOCKSIZE 4096
+#define C2_MD_FAKE_VOLUME    250000
+
+C2_INTERNAL int c2_mdstore_statfs(struct c2_mdstore        *md,
+                                  struct c2_statfs         *statfs,
+                                  struct c2_db_tx          *tx)
+{
+        /**
+           We need statfs mostly to provide mdstore root fid to
+           c2t1fs at this point. It is not yet clear what else
+           info should be returned where it can be retrieved from.
+           Hence return zeros so far.
+         */
+        C2_SET0(statfs);
+        statfs->sf_type = C2_T1FS_SUPER_MAGIC;
+        statfs->sf_bsize = C2_MD_FAKE_BLOCKSIZE;
+        statfs->sf_blocks = C2_MD_FAKE_VOLUME;
+        statfs->sf_bfree = C2_MD_FAKE_VOLUME;
+        statfs->sf_bavail = C2_MD_FAKE_VOLUME;
+        statfs->sf_files = 1024000;
+        statfs->sf_ffree = 1024000;
+        statfs->sf_namelen = C2_MD_MAX_NAME_LEN;
+        if (md->md_root)
+                statfs->sf_root = *md->md_root->co_fid;
+        return 0;
+}
+
+C2_INTERNAL int c2_mdstore_init(struct c2_mdstore          *md,
+                                struct c2_cob_domain_id    *id,
+                                struct c2_dbenv            *db,
+                                bool                        init_root)
 {
         struct c2_db_tx        tx;
         int                    rc;
@@ -59,12 +91,13 @@ C2_INTERNAL int c2_mdstore_init(struct c2_mdstore *md,
         c2_addb_ctx_init(&md->md_addb, &mdstore_addb_ctx,
                          &md->md_dom.cd_dbenv->d_addb);
         if (init_root) {
+                struct c2_buf name;
+
                 rc = c2_db_tx_init(&tx, db, 0);
                 if (rc != 0)
                         goto out;
-                rc = c2_mdstore_lookup(md, NULL, C2_COB_ROOT_NAME,
-                                        strlen(C2_COB_ROOT_NAME),
-                                        &md->md_root, &tx);
+                c2_buf_init(&name, (char *)C2_COB_ROOT_NAME, strlen(C2_COB_ROOT_NAME));
+                rc = c2_mdstore_lookup(md, NULL, &name, &md->md_root, &tx);
                 C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
                             c2_addb_func_fail, "md_root_lookup", rc);
                 if (rc != 0) {
@@ -96,16 +129,18 @@ C2_INTERNAL void c2_mdstore_fini(struct c2_mdstore *md)
         c2_cob_domain_fini(&md->md_dom);
 }
 
-C2_INTERNAL int c2_mdstore_create(struct c2_mdstore *md,
-				  struct c2_fid *pfid,
-				  struct c2_cob_attr *attr,
-				  struct c2_cob **out, struct c2_db_tx *tx)
+C2_INTERNAL int c2_mdstore_create(struct c2_mdstore     *md,
+				  struct c2_fid         *pfid,
+				  struct c2_cob_attr    *attr,
+				  struct c2_cob        **out,
+				  struct c2_db_tx       *tx)
 {
         struct c2_cob         *cob;
         struct c2_cob_nskey   *nskey;
         struct c2_cob_nsrec    nsrec;
         struct c2_cob_fabrec  *fabrec;
         struct c2_cob_omgrec   omgrec;
+        int                    linklen;
         int                    rc;
 
         C2_ASSERT(pfid != NULL);
@@ -117,8 +152,8 @@ C2_INTERNAL int c2_mdstore_create(struct c2_mdstore *md,
         if (rc != 0)
                 goto out;
 
-        rc = c2_cob_nskey_make(&nskey, pfid, attr->ca_name,
-                               attr->ca_namelen);
+        rc = c2_cob_nskey_make(&nskey, pfid, (char *)attr->ca_name.b_addr,
+                               attr->ca_name.b_nob);
         if (rc != 0) {
                 c2_cob_put(cob);
                 return rc;
@@ -138,8 +173,9 @@ C2_INTERNAL int c2_mdstore_create(struct c2_mdstore *md,
         omgrec.cor_gid = attr->ca_gid;
         omgrec.cor_mode = attr->ca_mode;
 
-        rc = c2_cob_fabrec_make(&fabrec, attr->ca_link,
-                                attr->ca_link != NULL ? attr->ca_size : 0);
+        linklen = attr->ca_link.b_addr ? attr->ca_link.b_nob : 0;
+        rc = c2_cob_fabrec_make(&fabrec, (char *)attr->ca_link.b_addr,
+                                linklen);
         if (rc != 0) {
                 c2_cob_put(cob);
                 c2_free(nskey);
@@ -160,11 +196,11 @@ out:
         return rc;
 }
 
-C2_INTERNAL int c2_mdstore_link(struct c2_mdstore *md,
-				struct c2_fid *pfid,
-				struct c2_cob *cob,
-				const char *name,
-				int namelen, struct c2_db_tx *tx)
+C2_INTERNAL int c2_mdstore_link(struct c2_mdstore       *md,
+				struct c2_fid           *pfid,
+				struct c2_cob           *cob,
+				struct c2_buf           *name,
+				struct c2_db_tx         *tx)
 {
         struct c2_cob_nskey   *nskey;
         struct c2_cob_nsrec    nsrec;
@@ -180,7 +216,8 @@ C2_INTERNAL int c2_mdstore_link(struct c2_mdstore *md,
         /*
          * Link @nskey to a file described with @cob
          */
-        rc = c2_cob_nskey_make(&nskey, pfid, name, namelen);
+        rc = c2_cob_nskey_make(&nskey, pfid, (char *)name->b_addr,
+                               name->b_nob);
         if (rc != 0)
                 return rc;
         C2_PRE(c2_fid_is_set(&cob->co_nsrec.cnr_fid));
@@ -206,11 +243,11 @@ out:
         return rc;
 }
 
-C2_INTERNAL int c2_mdstore_unlink(struct c2_mdstore *md,
-				  struct c2_fid *pfid,
-				  struct c2_cob *cob,
-				  const char *name,
-				  int namelen, struct c2_db_tx *tx)
+C2_INTERNAL int c2_mdstore_unlink(struct c2_mdstore     *md,
+				  struct c2_fid         *pfid,
+				  struct c2_cob         *cob,
+				  struct c2_buf         *name,
+				  struct c2_db_tx       *tx)
 {
         struct c2_cob         *ncob;
         struct c2_cob_nskey   *nskey;
@@ -229,61 +266,79 @@ C2_INTERNAL int c2_mdstore_unlink(struct c2_mdstore *md,
          * Check for hardlinks.
          */
         if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
-                rc = c2_cob_nskey_make(&nskey, pfid, name, namelen);
-                if (rc != 0)
-                        return rc;
-
                 /*
                  * New stat data name should get updated nlink value.
                  */
                 cob->co_nsrec.cnr_nlink--;
 
+                rc = c2_cob_nskey_make(&nskey, pfid, (char *)name->b_addr,
+                                       name->b_nob);
+                if (rc != 0) {
+                        C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): nskey make "
+                               "failed with %d", rc);
+                        goto out;
+                }
+
                 /*
                  * Check if we're trying to kill stata data entry. We need to
                  * move stat data to another name if so.
                  */
-                if (cob->co_nsrec.cnr_nlink > 0 &&
-                    c2_cob_nskey_cmp(nskey, cob->co_nskey) == 0) {
-                        /*
-                         * Find another name (new stat data) in object index.
-                         */
-                        c2_cob_oikey_make(&oikey, cob->co_fid,
-                                          cob->co_nsrec.cnr_linkno + 1);
+                if (cob->co_nsrec.cnr_nlink > 0) {
+                        C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): more links exist");
+                        if (c2_cob_nskey_cmp(nskey, cob->co_nskey) == 0) {
+                                C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): unlink statdata "
+                                       "name, find new statdata with %d or more nlinks",
+                                       cob->co_nsrec.cnr_linkno + 1);
 
-                        rc = c2_cob_locate(&md->md_dom, &oikey, 0, &ncob, tx);
-                        if (rc != 0) {
-                                c2_free(nskey);
-                                goto out;
+                                /*
+                                 * Find another name (new stat data) in object index to
+                                 * move old statdata to it.
+                                 */
+                                c2_cob_oikey_make(&oikey, cob->co_fid,
+                                                  cob->co_nsrec.cnr_linkno + 1);
+
+                                rc = c2_cob_locate(&md->md_dom, &oikey, 0, &ncob, tx);
+                                if (rc != 0) {
+                                        C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): locate "
+                                               "failed with %d", rc);
+                                        c2_free(nskey);
+                                        goto out;
+                                }
+                                C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): locate found "
+                                       "name with %d nlinks", ncob->co_oikey.cok_linkno);
+                                cob->co_nsrec.cnr_linkno = ncob->co_oikey.cok_linkno;
+                        } else {
+                                C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): unlink hardlink "
+                                       "name");
+                                ncob = cob;
                         }
 
-                        /*
-                         * Copy nsrec from cob to ncob.
+                        C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): update statdata on store");
+
+                        /**
+                           Copy statdata (in case of killing old statdata) or update
+                           statdata with new nlink number.
                          */
                         rc = c2_cob_update(ncob, &cob->co_nsrec, NULL, NULL, tx);
                         if (rc != 0) {
+                                C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): new statdata "
+                                       "update failed with %d", rc);
                                 c2_free(nskey);
                                 goto out;
                         }
 
+                        /** Kill the name itself. */
                         rc = c2_cob_name_del(cob, nskey, tx);
                         if (rc != 0) {
+                                C2_LOG(C2_DEBUG, "c2_mdstore_unlink(): name del "
+                                       "failed with %d", rc);
                                 c2_free(nskey);
                                 goto out;
                         }
                 } else {
-                        if (cob->co_nsrec.cnr_nlink > 0) {
-                                rc = c2_cob_name_del(cob, nskey, tx);
-                                if (rc != 0) {
-                                        c2_free(nskey);
-                                        goto out;
-                                }
-                                rc = c2_cob_update(cob, &cob->co_nsrec,
-                                                   NULL, NULL, tx);
-                        } else {
-                                rc = c2_cob_delete(cob, tx);
-                        }
+                        /* Zero nlink reached, kill entire object. */
+                        rc = c2_cob_delete(cob, tx);
                 }
-
                 c2_free(nskey);
         } else {
                 /*
@@ -304,10 +359,10 @@ out:
         return rc;
 }
 
-C2_INTERNAL int c2_mdstore_open(struct c2_mdstore *md,
-				struct c2_cob *cob,
+C2_INTERNAL int c2_mdstore_open(struct c2_mdstore       *md,
+				struct c2_cob           *cob,
 				c2_mdstore_locate_flags_t flags,
-				struct c2_db_tx *tx)
+				struct c2_db_tx         *tx)
 {
         int rc = 0;
 
@@ -322,8 +377,9 @@ C2_INTERNAL int c2_mdstore_open(struct c2_mdstore *md,
         return rc;
 }
 
-C2_INTERNAL int c2_mdstore_close(struct c2_mdstore *md,
-				 struct c2_cob *cob, struct c2_db_tx *tx)
+C2_INTERNAL int c2_mdstore_close(struct c2_mdstore      *md,
+				 struct c2_cob          *cob,
+				 struct c2_db_tx        *tx)
 {
         int rc = 0;
 
@@ -340,15 +396,14 @@ C2_INTERNAL int c2_mdstore_close(struct c2_mdstore *md,
         return rc;
 }
 
-C2_INTERNAL int c2_mdstore_rename(struct c2_mdstore *md,
-				  struct c2_fid *pfid_tgt,
-				  struct c2_fid *pfid_src,
-				  struct c2_cob *cob_tgt,
-				  struct c2_cob *cob_src,
-				  const char *tname,
-				  int tnamelen,
-				  const char *sname,
-				  int snamelen, struct c2_db_tx *tx)
+C2_INTERNAL int c2_mdstore_rename(struct c2_mdstore     *md,
+				  struct c2_fid         *pfid_tgt,
+				  struct c2_fid         *pfid_src,
+				  struct c2_cob         *cob_tgt,
+				  struct c2_cob         *cob_src,
+				  struct c2_buf         *tname,
+				  struct c2_buf         *sname,
+				  struct c2_db_tx       *tx)
 {
         struct c2_cob_nskey  *srckey = NULL;
         struct c2_cob_nskey  *tgtkey = NULL;
@@ -364,12 +419,11 @@ C2_INTERNAL int c2_mdstore_rename(struct c2_mdstore *md,
         /*
          * Let's kill existing target name.
          */
-        rc = c2_mdstore_lookup(md, pfid_tgt, tname, tnamelen,
-                                &tncob, tx);
+        rc = c2_mdstore_lookup(md, pfid_tgt, tname, &tncob, tx);
+
         if (!c2_fid_eq(cob_tgt->co_fid, cob_src->co_fid) ||
             (tncob && tncob->co_nsrec.cnr_linkno != 0)) {
-                rc = c2_mdstore_unlink(md, pfid_tgt, cob_tgt,
-                                        tname, tnamelen, tx);
+                rc = c2_mdstore_unlink(md, pfid_tgt, cob_tgt, tname, tx);
                 if (rc != 0) {
                         if (tncob)
                                 c2_cob_put(tncob);
@@ -381,8 +435,8 @@ C2_INTERNAL int c2_mdstore_rename(struct c2_mdstore *md,
         /*
          * Prepare src and dst keys.
          */
-        c2_cob_nskey_make(&srckey, pfid_src, sname, snamelen);
-        c2_cob_nskey_make(&tgtkey, pfid_tgt, tname, tnamelen);
+        c2_cob_nskey_make(&srckey, pfid_src, (char *)sname->b_addr, sname->b_nob);
+        c2_cob_nskey_make(&tgtkey, pfid_tgt, (char *)tname->b_addr, tname->b_nob);
 
         rc = c2_cob_name_update(cob_src, srckey, tgtkey, tx);
 
@@ -394,10 +448,10 @@ out:
         return rc;
 }
 
-C2_INTERNAL int c2_mdstore_setattr(struct c2_mdstore *md,
-				   struct c2_cob *cob,
-				   struct c2_cob_attr *attr,
-				   struct c2_db_tx *tx)
+C2_INTERNAL int c2_mdstore_setattr(struct c2_mdstore    *md,
+				   struct c2_cob        *cob,
+				   struct c2_cob_attr   *attr,
+				   struct c2_db_tx      *tx)
 {
         struct c2_cob_nsrec   *nsrec = NULL;
         struct c2_cob_fabrec  *fabrec = NULL;
@@ -458,16 +512,19 @@ C2_INTERNAL int c2_mdstore_setattr(struct c2_mdstore *md,
         return rc;
 }
 
-C2_INTERNAL int c2_mdstore_getattr(struct c2_mdstore *md,
-				   struct c2_cob *cob,
-				   struct c2_cob_attr *attr,
-				   struct c2_db_tx *tx)
+C2_INTERNAL int c2_mdstore_getattr(struct c2_mdstore       *md,
+                       		   struct c2_cob           *cob,
+                       		   struct c2_cob_attr      *attr,
+                       		   struct c2_db_tx         *tx)
 {
         int                rc = 0;
 
         C2_ASSERT(cob != NULL);
 
+        C2_SET0(attr);
         attr->ca_flags = 0;
+        attr->ca_tfid = cob->co_nsrec.cnr_fid;
+        attr->ca_pfid = cob->co_nskey->cnk_pfid;
 
         /*
          * Copy permissions and owner info into rep.
@@ -505,30 +562,38 @@ C2_INTERNAL int c2_mdstore_getattr(struct c2_mdstore *md,
         return rc;
 }
 
-C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore *md,
-				   struct c2_cob *cob,
-				   struct c2_rdpg *rdpg, struct c2_db_tx *tx)
+C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore       *md,
+                                   struct c2_cob           *cob,
+                                   struct c2_rdpg          *rdpg,
+                                   struct c2_db_tx         *tx)
 {
         struct c2_cob_iterator         it;
         struct c2_dirent              *ent;
         struct c2_dirent              *last = NULL;
-        char                          *name = ".";
         int                            nob;
-        int                            recsize;
-        int                            len = 1;
+        int                            reclen;
         int                            first;
         int                            second;
         int                            rc;
 
         C2_ASSERT(cob != NULL);
 
+        C2_LOG(C2_DEBUG,
+               "Readdir on object [%lx:%lx] starting from \"%*s\" (len %d)",
+               cob->co_fid->f_container, cob->co_fid->f_key,
+               c2_bitstring_len_get(rdpg->r_pos),
+               (char *)c2_bitstring_buf_get(rdpg->r_pos),
+               c2_bitstring_len_get(rdpg->r_pos));
+
         first = c2_bitstring_len_get(rdpg->r_pos) == 1 &&
                 !strncmp(c2_bitstring_buf_get(rdpg->r_pos), ".", 1);
         second = 0;
 
         rc = c2_cob_iterator_init(cob, &it, rdpg->r_pos, tx);
-        if (rc != 0)
+        if (rc != 0) {
+                C2_LOG(C2_DEBUG, "Iterator failed to position with %d", rc);
                 goto out;
+        }
 
         rc = c2_cob_iterator_get(&it);
         if (rc == 0) {
@@ -537,40 +602,53 @@ C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore *md,
                  * let's do one step forward.
                  */
                 rc = c2_cob_iterator_next(&it);
-        } else if (rc > 0)
-                rc = 0;
+        } else if (rc > 0) {
+                if (!first) {
+                        rc = c2_cob_iterator_next(&it);
+                } else {
+                        rc = 0;
+                }
+        }
 
         ent = rdpg->r_buf.b_addr;
         nob = rdpg->r_buf.b_nob;
         while (rc == 0 || first || second) {
-                int next_step = 0;
-
+                int do_next = 0;
                 if (first) {
-                        name = ".";
-                        len = 1;
+                        c2_bitstring_copy(rdpg->r_pos, ".", 1);
                         second = 1;
                         first = 0;
                 } else if (second) {
-                        name = "..";
-                        len = 2;
+                        c2_bitstring_copy(rdpg->r_pos, "..", 2);
                         second = 0;
                 } else {
                         if (!c2_fid_eq(&it.ci_key->cnk_pfid, cob->co_fid)) {
+                                C2_LOG(C2_DEBUG,
+                                       "EOF detected. [%lx:%lx] != [%lx:%lx]",
+                                       it.ci_key->cnk_pfid.f_container,
+                                       it.ci_key->cnk_pfid.f_key,
+                                       cob->co_fid->f_container,
+                                       cob->co_fid->f_key);
                                 rc = 1;
                                 break;
                         }
 
-                        name = c2_bitstring_buf_get(&it.ci_key->cnk_name);
-                        len = c2_bitstring_len_get(&it.ci_key->cnk_name);
-                        next_step = 1;
+                        c2_bitstring_copy(rdpg->r_pos,
+                                          c2_bitstring_buf_get(&it.ci_key->cnk_name),
+                                          c2_bitstring_len_get(&it.ci_key->cnk_name));
+                        do_next = 1;
                 }
 
-                recsize = ((sizeof(*ent) + len) + 7) & ~7;
+                reclen = ((sizeof(*ent) + c2_bitstring_len_get(rdpg->r_pos)) + 7) & ~7;
 
-                if (nob >= recsize) {
-                        strncpy(ent->d_name, name, len);
-                        ent->d_namelen = len;
-                        ent->d_reclen = recsize;
+                if (nob >= reclen) {
+                        memcpy(ent->d_name, c2_bitstring_buf_get(rdpg->r_pos),
+                               c2_bitstring_len_get(rdpg->r_pos));
+                        ent->d_namelen = c2_bitstring_len_get(rdpg->r_pos);
+                        ent->d_reclen = reclen;
+                        C2_LOG(C2_DEBUG,
+                               "Readdir filled entry \"%*s\" recsize %d",
+                               ent->d_namelen, (char *)ent->d_name, ent->d_reclen);
                 } else {
                         if (last) {
                                 last->d_reclen += nob;
@@ -581,10 +659,9 @@ C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore *md,
                         goto out_end;
                 }
                 last = ent;
-                ent = (void *)ent + recsize;
-                nob -= recsize;
-
-                if (next_step)
+                ent = (void *)ent + reclen;
+                nob -= reclen;
+                if (do_next)
                         rc = c2_cob_iterator_next(&it);
         }
 out_end:
@@ -592,18 +669,25 @@ out_end:
         if (rc >= 0) {
                 if (last)
                         last->d_reclen = 0;
-                rdpg->r_end = c2_bitstring_alloc(name, len);
+                rdpg->r_end = c2_bitstring_alloc(c2_bitstring_buf_get(rdpg->r_pos),
+                                                 c2_bitstring_len_get(rdpg->r_pos));
+                C2_LOG(C2_DEBUG,
+                      "Setting last name to \"%*s\"",
+                      (int)c2_bitstring_len_get(rdpg->r_pos),
+                      (char *)c2_bitstring_buf_get(rdpg->r_pos));
         }
 out:
+        C2_LOG(C2_DEBUG, "Readdir finished with %d", rc);
         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
                     c2_addb_func_fail, "md_readdir", rc);
         return rc;
 }
 
-C2_INTERNAL int c2_mdstore_locate(struct c2_mdstore *md,
-				  const struct c2_fid *fid,
-				  struct c2_cob **cob,
-				  int flags, struct c2_db_tx *tx)
+C2_INTERNAL int c2_mdstore_locate(struct c2_mdstore     *md,
+				  const struct c2_fid   *fid,
+				  struct c2_cob        **cob,
+				  int                    flags,
+				  struct c2_db_tx       *tx)
 {
         struct c2_cob_oikey oikey;
         int                 rc;
@@ -623,11 +707,11 @@ C2_INTERNAL int c2_mdstore_locate(struct c2_mdstore *md,
         return rc;
 }
 
-C2_INTERNAL int c2_mdstore_lookup(struct c2_mdstore *md,
-				  struct c2_fid *pfid,
-				  const char *name,
-				  int namelen,
-				  struct c2_cob **cob, struct c2_db_tx *tx)
+C2_INTERNAL int c2_mdstore_lookup(struct c2_mdstore     *md,
+				  struct c2_fid         *pfid,
+				  struct c2_buf         *name,
+				  struct c2_cob        **cob,
+				  struct c2_db_tx       *tx)
 {
         struct c2_cob_nskey *nskey;
         int flags;
@@ -636,19 +720,19 @@ C2_INTERNAL int c2_mdstore_lookup(struct c2_mdstore *md,
         if (pfid == NULL)
                 pfid = (struct c2_fid *)&C2_COB_ROOT_FID;
 
-        rc = c2_cob_nskey_make(&nskey, pfid, name, namelen);
+        rc = c2_cob_nskey_make(&nskey, pfid, (char *)name->b_addr, name->b_nob);
         if (rc != 0)
                 return rc;
         flags = (C2_CA_NSKEY_FREE | C2_CA_FABREC | C2_CA_OMGREC);
-        return c2_cob_lookup(&md->md_dom, nskey, flags,
-                             cob, tx);
+        return c2_cob_lookup(&md->md_dom, nskey, flags, cob, tx);
 }
 
 #define MDSTORE_PATH_MAX 1024
 #define MDSTORE_NAME_MAX 255
 
-C2_INTERNAL int c2_mdstore_path(struct c2_mdstore *md, struct c2_fid *fid,
-				char **path)
+C2_INTERNAL int c2_mdstore_path(struct c2_mdstore       *md,
+                                struct c2_fid           *fid,
+				char                   **path)
 {
         struct c2_cob   *cob;
         struct c2_fid    pfid;
@@ -703,3 +787,4 @@ out:
         }
         return rc;
 }
+#undef C2_TRACE_SUBSYSTEM

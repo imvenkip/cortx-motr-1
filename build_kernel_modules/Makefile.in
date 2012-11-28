@@ -42,6 +42,7 @@ dirs  =                        \
         fol                    \
         fop                    \
         ioservice              \
+        mdservice              \
         ioservice/ut           \
         layout                 \
         layout/ut              \
@@ -99,8 +100,8 @@ db_linux_kernel_SOURCES         := db.c
 dtm_SOURCES                     := verno.c dtm.c verno_xc.c
 dtm_HEADERS                     := verno.h verno_xc.h
 
-fid_SOURCES                     := fid.c fid_ff.c
-fid_HEADERS                     := fid_ff.h
+fid_SOURCES                     := fid.c fid_xc.c
+fid_HEADERS                     := fid.h fid_xc.h
 
 fol_SOURCES                     := fol.c
 
@@ -111,6 +112,9 @@ fop_HEADERS                     := fom_generic_ff.h
 
 ioservice_SOURCES               := io_fops.c io_fops_ff.c
 ioservice_HEADERS               := io_fops_ff.h
+
+mdservice_SOURCES               := md_fops.c md_fops_ff.c
+mdservice_HEADERS               := md_fops_ff.h
 
 ioservice_ut_SOURCES            := bulkio_client.c
 
@@ -194,7 +198,9 @@ conf_objs_SOURCES               := common.c dir.c profile.c filesystem.c       \
 				   service.c node.c nic.c sdev.c partition.c
 
 conf_SOURCES                    := buf_ext.c confc.c obj.c obj_ops.c preload.c \
-                                   reg.c onwire_xc.c reg_debug.c conf_xcode.c
+                                   reg.c onwire_xc.c reg_debug.c conf_xcode.c  \
+                                   conf_fop.c conf_fom.c
+
 conf_HEADERS                    := onwire.h onwire_xc.h
 
 

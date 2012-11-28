@@ -70,24 +70,22 @@ C2_INTERNAL bool c2_reqh_service_invariant(const struct c2_reqh_service *svc)
 }
 C2_EXPORTED(c2_reqh_service_invariant);
 
-C2_INTERNAL struct c2_reqh_service_type *c2_reqh_service_type_find(const char
-								   *sname)
+C2_INTERNAL struct c2_reqh_service_type *
+c2_reqh_service_type_find(const char *sname)
 {
-	struct c2_reqh_service_type *stype;
+	struct c2_reqh_service_type *t;
 
 	C2_PRE(sname != NULL);
 
 	c2_rwlock_read_lock(&rstypes_rwlock);
-        c2_tl_for(rstypes, &rstypes, stype) {
-		C2_ASSERT(c2_reqh_service_type_bob_check(stype));
-                if (strcmp(stype->rst_name, sname) == 0) {
-			c2_rwlock_read_unlock(&rstypes_rwlock);
-                        return stype;
-		}
+        c2_tl_for(rstypes, &rstypes, t) {
+		C2_ASSERT(c2_reqh_service_type_bob_check(t));
+                if (strcmp(t->rst_name, sname) == 0)
+			break;
         } c2_tl_endfor;
 	c2_rwlock_read_unlock(&rstypes_rwlock);
 
-        return stype;
+        return t;
 }
 
 C2_INTERNAL int c2_reqh_service_allocate(struct c2_reqh_service_type *stype,

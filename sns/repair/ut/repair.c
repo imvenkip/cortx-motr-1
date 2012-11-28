@@ -47,7 +47,7 @@
 
 #define LOG_FILE_NAME "sr_ut.errlog"
 
-static char *sns_repair_ut_svc[] = { "colibri_setup", "-r", "-T", "linux",
+static char *sns_repair_ut_svc[] = { "colibri_setup", "-r", "-p", "-T", "linux",
                                 "-D", "sr_db", "-S", "sr_stob",
                                 "-e", "lnet:0@lo:12345:34:1" ,
                                 "-s", "sns_repair"};
@@ -201,8 +201,7 @@ static void cob_create(uint64_t cont, uint64_t key)
 	dbenv_cob_domain_get(&dbenv, &cdom);
 	rc = c2_cob_alloc(cdom, &cob);
 	C2_UT_ASSERT(rc == 0 && cob != NULL);
-	cob_fid.f_container = cont;
-	cob_fid.f_key = key;
+	c2_fid_set(&cob_fid, cont, key);
 	rc = c2_cob_nskey_make(&nskey, &cob_fid, cname, ARRAY_SIZE(cname));
 	C2_UT_ASSERT(rc == 0 && nskey != NULL);
 	nsrec.cnr_fid = cob_fid;
@@ -229,14 +228,13 @@ static void cob_delete(uint64_t cont, uint64_t key)
 	int                   rc;
 
 	dbenv_cob_domain_get(&dbenv, &cdom);
-	cob_fid.f_container = cont;
-	cob_fid.f_key = key;
+	c2_fid_set(&cob_fid, cont, key);
 	c2_cob_oikey_make(&oikey, &cob_fid, 0);
 	rc = c2_db_tx_init(&tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 	rc = c2_cob_locate(cdom, &oikey, 0, &cob, &tx.tx_dbtx);
 	C2_UT_ASSERT(rc == 0);
-	rc = c2_cob_delete(cob, &tx.tx_dbtx);
+	rc = c2_cob_delete_put(cob, &tx.tx_dbtx);
 	C2_UT_ASSERT(rc == 0);
 	c2_db_tx_commit(&tx.tx_dbtx);
 }

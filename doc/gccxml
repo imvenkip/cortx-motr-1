@@ -42,7 +42,7 @@ output and generating xcode data structures and initialization code.
 It does the same thing as ff2c compiler (xcode/ff2c/ff2c), but instead of using
 pseudo-code description of data structures, it uses C structure declarations
 directly from .h files. But it requires a little help from developer in order
-top map plain C struct declarations to a higher-level abstract types, recognized
+to map plain C struct declarations to a higher-level abstract types, recognized
 by xcode API (record, sequence, union). For this purpose each C struct
 definition, which needs xcode data to be generated for it, should be "marked"
 whith a special gcc __attribute__().

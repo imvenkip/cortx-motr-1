@@ -297,6 +297,11 @@ enum c2_cob_valid_flags {
         C2_COB_BLKSIZE = 1 << 12
 };
 
+#define C2_COB_ALL (C2_COB_ATIME | C2_COB_MTIME | C2_COB_CTIME |                \
+                    C2_COB_SIZE | C2_COB_MODE | C2_COB_UID | C2_COB_GID |       \
+                    C2_COB_BLOCKS | C2_COB_TYPE | C2_COB_FLAGS | C2_COB_NLINK | \
+                    C2_COB_RDEV | C2_COB_BLKSIZE)
+
 /**
  * Attributes describing object that needs to be created or modified.
  * This structure is filled by mdservice and used in mdstore or
@@ -304,24 +309,23 @@ enum c2_cob_valid_flags {
  * should not be dealing with fop request or response.
  */
 struct c2_cob_attr {
-        struct c2_fid     ca_pfid;    /**< parent fid */
-        struct c2_fid     ca_tfid;    /**< object fid */
-        uint16_t          ca_flags;   /**< flags (enum c2_cob_valid_flags) */
-        uint32_t          ca_mode;    /**< protection. */
-        uint32_t          ca_uid;     /**< user ID of owner. */
-        uint32_t          ca_gid;     /**< group ID of owner. */
-        uint64_t          ca_atime;   /**< time of last access. */
-        uint64_t          ca_mtime;   /**< time of last modification. */
-        uint64_t          ca_ctime;   /**< time of last status change. */
-        uint64_t          ca_rdev;    /**< devid for special devices */
-        uint32_t          ca_nlink;   /**< number of hard links. */
-        uint64_t          ca_size;    /**< total size, in bytes. */
-        uint64_t          ca_blksize; /**< blocksize for filesystem I/O. */
-        uint64_t          ca_blocks;  /**< number of blocks allocated. */
-        uint64_t          ca_version; /**< object version */
-        char             *ca_name;    /**< object name */
-        int32_t           ca_namelen; /**< name length */
-        char             *ca_link;    /**< symlink */
+        struct c2_fid       ca_pfid;    /**< parent fid */
+        struct c2_fid       ca_tfid;    /**< object fid */
+        uint16_t            ca_flags;   /**< flags (enum c2_cob_valid_flags) */
+        uint32_t            ca_mode;    /**< protection. */
+        uint32_t            ca_uid;     /**< user ID of owner. */
+        uint32_t            ca_gid;     /**< group ID of owner. */
+        uint64_t            ca_atime;   /**< time of last access. */
+        uint64_t            ca_mtime;   /**< time of last modification. */
+        uint64_t            ca_ctime;   /**< time of last status change. */
+        uint64_t            ca_rdev;    /**< devid for special devices */
+        uint32_t            ca_nlink;   /**< number of hard links. */
+        uint64_t            ca_size;    /**< total size, in bytes. */
+        uint64_t            ca_blksize; /**< blocksize for filesystem I/O. */
+        uint64_t            ca_blocks;  /**< number of blocks allocated. */
+        uint64_t            ca_version; /**< object version */
+        struct c2_buf       ca_name;    /**< object name */
+        struct c2_buf       ca_link;    /**< symlink body */
 };
 
 /**
@@ -484,6 +488,24 @@ struct c2_cob {
 };
 
 /**
+ * This is all standard readdir related stuff. This is one readdir entry.
+ */
+struct c2_dirent {
+        uint32_t             d_namelen;
+        uint32_t             d_reclen;
+        char                 d_name[0];
+};
+
+/**
+ * Readdir page.
+ */
+struct c2_rdpg {
+        struct c2_bitstring *r_pos;
+        struct c2_buf        r_buf;
+        struct c2_bitstring *r_end;
+};
+
+/**
  * Cob iterator. Holds current position inside a cob (used by readdir).
  */
 struct c2_cob_iterator {
@@ -500,11 +522,10 @@ struct c2_cob_iterator {
 enum c2_cob_flags {
         C2_CA_NSKEY      = (1 << 0),  /**< nskey in cob is up-to-date */
         C2_CA_NSKEY_FREE = (1 << 1),  /**< cob will dealloc the nskey */
-        C2_CA_NSKEY_DB   = (1 << 2),  /**< db will dealloc the nskey */
-        C2_CA_NSREC      = (1 << 3),  /**< nsrec in cob is up-to-date */
-        C2_CA_FABREC     = (1 << 4),  /**< fabrec in cob is up-to-date */
-        C2_CA_OMGREC     = (1 << 5),  /**< omgrec in cob is up-to-date */
-        C2_CA_LAYOUT     = (1 << 6),  /**< layout in cob is up-to-date */
+        C2_CA_NSREC      = (1 << 2),  /**< nsrec in cob is up-to-date */
+        C2_CA_FABREC     = (1 << 3),  /**< fabrec in cob is up-to-date */
+        C2_CA_OMGREC     = (1 << 4),  /**< omgrec in cob is up-to-date */
+        C2_CA_LAYOUT     = (1 << 5),  /**< layout in cob is up-to-date */
 };
 
 /**
@@ -573,8 +594,20 @@ C2_INTERNAL int c2_cob_create(struct c2_cob *cob,
  *
  * @param cob this cob will be deleted
  * @param tx db transaction to use
+ *
+ * Note, that c2_cob_delete() does not decrement cob's reference counter.
+ * Use c2_cob_delete_put() to have the counter decremented.
+ *
+ * @see c2_cob_delete_put()
  */
 C2_INTERNAL int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx);
+
+/**
+ * Deletes and puts cob.
+ *
+ * @see c2_cob_delete(), c2_cob_put()
+ */
+C2_INTERNAL int c2_cob_delete_put(struct c2_cob *cob, struct c2_db_tx *tx);
 
 /**
  * Update file attributes of passed cob with @nsrec, @fabrec
@@ -669,7 +702,7 @@ C2_INTERNAL void c2_cob_get(struct c2_cob *obj);
  * When the last reference is released, the object can either return to the
  * cache or can be immediately destroyed.
  *
- * @see c2_cob_get()
+ * @see c2_cob_get(), c2_cob_delete_put()
  */
 C2_INTERNAL void c2_cob_put(struct c2_cob *obj);
 

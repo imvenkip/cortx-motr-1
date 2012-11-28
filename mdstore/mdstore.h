@@ -33,6 +33,21 @@ struct c2_fid;
 struct c2_fop;
 struct c2_cob;
 
+/** Maximal name len during readdir */
+#define C2_MD_MAX_NAME_LEN    256
+
+struct c2_statfs {
+        uint64_t              sf_type;
+        uint32_t              sf_bsize;
+        uint64_t              sf_blocks;
+        uint64_t              sf_bfree;
+        uint64_t              sf_bavail;
+        uint64_t              sf_files;
+        uint64_t              sf_ffree;
+        uint32_t              sf_namelen;
+        struct c2_fid         sf_root;
+};
+
 struct c2_mdstore {
         struct c2_cob_domain  md_dom;
         struct c2_cob        *md_root;
@@ -59,30 +74,20 @@ enum c2_mdstore_locate_flags {
 typedef enum c2_mdstore_locate_flags c2_mdstore_locate_flags_t;
 
 /**
- * This is all standard readdir related stuff. This is one readdir entry.
+ * Populate @statfs with storage data such as free files, etc.
  */
-struct c2_dirent {
-        uint32_t             d_namelen;
-        uint32_t             d_reclen;
-        char                 d_name[0];
-};
-
-/**
- * Readdir page.
- */
-struct c2_rdpg {
-        struct c2_bitstring *r_pos;
-        struct c2_buf        r_buf;
-        struct c2_bitstring *r_end;
-};
+C2_INTERNAL int c2_mdstore_statfs(struct c2_mdstore      *md,
+                                  struct c2_statfs       *statfs,
+                                  struct c2_db_tx        *tx);
 
 /**
  * Init mdstore and get it ready to work. If init_root == !0
  * then root cob is initialized.
-*/
-C2_INTERNAL int c2_mdstore_init(struct c2_mdstore *md,
+ */
+C2_INTERNAL int c2_mdstore_init(struct c2_mdstore       *md,
 				struct c2_cob_domain_id *id,
-				struct c2_dbenv *db, bool init_root);
+				struct c2_dbenv         *db,
+				bool                     init_root);
 
 /**
  * Finalize mdstore instance.
@@ -94,22 +99,22 @@ C2_INTERNAL void c2_mdstore_fini(struct c2_mdstore *md);
  * cob is so called statdata cob and returned by c2_cob_locate().
  * Error code is returned in error case or zero otherwise.
  */
-C2_INTERNAL int c2_mdstore_link(struct c2_mdstore *md,
-				struct c2_fid *pfid,
-				struct c2_cob *cob,
-				const char *name,
-				int namelen, struct c2_db_tx *tx);
+C2_INTERNAL int c2_mdstore_link(struct c2_mdstore       *md,
+				struct c2_fid           *pfid,
+				struct c2_cob           *cob,
+				struct c2_buf           *name,
+				struct c2_db_tx         *tx);
 
 /**
  * Handle unlink operation described by @pfid and @name. Input
  * cob is so called statdata cob and returned by c2_cob_locate().
  * Error code is returned in error case or zero otherwise.
  */
-C2_INTERNAL int c2_mdstore_unlink(struct c2_mdstore *md,
-				  struct c2_fid *pfid,
-				  struct c2_cob *cob,
-				  const char *name,
-				  int namelen, struct c2_db_tx *tx);
+C2_INTERNAL int c2_mdstore_unlink(struct c2_mdstore     *md,
+				  struct c2_fid         *pfid,
+				  struct c2_cob         *cob,
+				  struct c2_buf         *name,
+				  struct c2_db_tx       *tx);
 
 /**
  * Handle rename operation described by params. Input cobs are
@@ -118,15 +123,14 @@ C2_INTERNAL int c2_mdstore_unlink(struct c2_mdstore *md,
  *
  * Error code is returned in error case or zero otherwise.
  */
-C2_INTERNAL int c2_mdstore_rename(struct c2_mdstore *md,
-				  struct c2_fid *pfid_tgt,
-				  struct c2_fid *pfid_src,
-				  struct c2_cob *cob_tgt,
-				  struct c2_cob *cob_src,
-				  const char *tname,
-				  int tnamelen,
-				  const char *sname,
-				  int snamelen, struct c2_db_tx *tx);
+C2_INTERNAL int c2_mdstore_rename(struct c2_mdstore     *md,
+				  struct c2_fid         *pfid_tgt,
+				  struct c2_fid         *pfid_src,
+				  struct c2_cob         *cob_tgt,
+				  struct c2_cob         *cob_src,
+				  struct c2_buf         *tname,
+				  struct c2_buf         *sname,
+				  struct c2_db_tx       *tx);
 
 /**
  * Handle create operation described by @attr on @cob. Input @cob
@@ -134,20 +138,21 @@ C2_INTERNAL int c2_mdstore_rename(struct c2_mdstore *md,
  *
  * Error code is returned in error case or zero otherwise.
 */
-C2_INTERNAL int c2_mdstore_create(struct c2_mdstore *md,
-				  struct c2_fid *pfid,
-				  struct c2_cob_attr *attr,
-				  struct c2_cob **out, struct c2_db_tx *tx);
+C2_INTERNAL int c2_mdstore_create(struct c2_mdstore     *md,
+				  struct c2_fid         *pfid,
+				  struct c2_cob_attr    *attr,
+				  struct c2_cob        **out,
+				  struct c2_db_tx       *tx);
 
 /**
  * Handle open operation described by @flags on @cob. Input @cob
  * is so called statdata cob and returned by c2_cob_locate().
  * Error code is returned in error case or zero otherwise.
 */
-C2_INTERNAL int c2_mdstore_open(struct c2_mdstore *md,
-				struct c2_cob *cob,
+C2_INTERNAL int c2_mdstore_open(struct c2_mdstore       *md,
+				struct c2_cob           *cob,
 				c2_mdstore_locate_flags_t flags,
-				struct c2_db_tx *tx);
+				struct c2_db_tx         *tx);
 
 /**
  * Handle close operation on @cob. Input @cob is so called statdata
@@ -155,8 +160,9 @@ C2_INTERNAL int c2_mdstore_open(struct c2_mdstore *md,
  *
  * Error code is returned in error case or zero otherwise.
 */
-C2_INTERNAL int c2_mdstore_close(struct c2_mdstore *md,
-				 struct c2_cob *cob, struct c2_db_tx *tx);
+C2_INTERNAL int c2_mdstore_close(struct c2_mdstore      *md,
+				 struct c2_cob          *cob,
+				 struct c2_db_tx        *tx);
 
 /**
  * Handle setattr operation described by @attr on @cob. Input @cob
@@ -164,10 +170,10 @@ C2_INTERNAL int c2_mdstore_close(struct c2_mdstore *md,
  *
  * Error code is returned in error case or zero otherwise.
 */
-C2_INTERNAL int c2_mdstore_setattr(struct c2_mdstore *md,
-				   struct c2_cob *cob,
-				   struct c2_cob_attr *attr,
-				   struct c2_db_tx *tx);
+C2_INTERNAL int c2_mdstore_setattr(struct c2_mdstore    *md,
+				   struct c2_cob        *cob,
+				   struct c2_cob_attr   *attr,
+				   struct c2_db_tx      *tx);
 
 /**
  * Get attributes of @cob into passed @attr. Input @cob
@@ -175,10 +181,10 @@ C2_INTERNAL int c2_mdstore_setattr(struct c2_mdstore *md,
  *
  * Error code is returned in error case or zero otherwise.
 */
-C2_INTERNAL int c2_mdstore_getattr(struct c2_mdstore *md,
-				   struct c2_cob *cob,
-				   struct c2_cob_attr *attr,
-				   struct c2_db_tx *tx);
+C2_INTERNAL int c2_mdstore_getattr(struct c2_mdstore    *md,
+				   struct c2_cob        *cob,
+				   struct c2_cob_attr   *attr,
+				   struct c2_db_tx      *tx);
 
 /**
  * Handle readdir operation described by @rdpg on @cob. Input @cob
@@ -186,26 +192,28 @@ C2_INTERNAL int c2_mdstore_getattr(struct c2_mdstore *md,
  *
  * Error code is returned in error case or something >= 0 otherwise.
 */
-C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore *md,
-				   struct c2_cob *cob,
-				   struct c2_rdpg *rdpg, struct c2_db_tx *tx);
+C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore    *md,
+				   struct c2_cob        *cob,
+				   struct c2_rdpg       *rdpg,
+				   struct c2_db_tx      *tx);
 
 /**
  * Find cob by fid.
  */
-C2_INTERNAL int c2_mdstore_locate(struct c2_mdstore *md,
-				  const struct c2_fid *fid,
-				  struct c2_cob **cob,
-				  int flags, struct c2_db_tx *tx);
+C2_INTERNAL int c2_mdstore_locate(struct c2_mdstore     *md,
+				  const struct c2_fid   *fid,
+				  struct c2_cob        **cob,
+				  int                    flags,
+				  struct c2_db_tx       *tx);
 
 /**
  * Find cob by parent fid and name.
  */
-C2_INTERNAL int c2_mdstore_lookup(struct c2_mdstore *md,
-				  struct c2_fid *pfid,
-				  const char *name,
-				  int namelen,
-				  struct c2_cob **cob, struct c2_db_tx *tx);
+C2_INTERNAL int c2_mdstore_lookup(struct c2_mdstore     *md,
+				  struct c2_fid         *pfid,
+				  struct c2_buf         *name,
+				  struct c2_cob        **cob,
+				  struct c2_db_tx       *tx);
 
 /**
  * Get path by @fid. Path @path is allocated by
@@ -213,8 +221,9 @@ C2_INTERNAL int c2_mdstore_lookup(struct c2_mdstore *md,
  * When it is not longer needed it may be freed
  * with c2_free().
  */
-C2_INTERNAL int c2_mdstore_path(struct c2_mdstore *md,
-				struct c2_fid *fid, char **path);
+C2_INTERNAL int c2_mdstore_path(struct c2_mdstore       *md,
+				struct c2_fid           *fid,
+				char                   **path);
 
 /* __COLIBRI_MDSTORE_MDSTORE_H__ */
 #endif

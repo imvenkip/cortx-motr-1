@@ -843,27 +843,7 @@ C2_INTERNAL void io_fom_cob_rw_stob2fid_map(const struct c2_stob_id *in,
         C2_PRE(in != NULL);
         C2_PRE(out != NULL);
 
-	out->f_container = in->si_bits.u_hi;
-	out->f_key = in->si_bits.u_lo;
-}
-
-/**
- * Function to map the on-wire FOP format to in-core FOP format.
- *
- * @param in file identifier wire format
- * @param out file identifier memory format
- *
- * @pre in != NULL
- * @pre out != NULL
- */
-C2_INTERNAL void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in,
-					    struct c2_fid *out)
-{
-	C2_PRE(in != NULL);
-	C2_PRE(out != NULL);
-
-	out->f_container = in->f_seq;
-	out->f_key = in->f_oid;
+        c2_fid_set(out, in->si_bits.u_hi, in->si_bits.u_lo);
 }
 
 /**
@@ -955,7 +935,7 @@ static int align_bufvec(struct c2_fom    *fom,
 	 * ivec_count in I/O request is already aligned with stob shift.
 	 * for bufvec count bufvec segment count should also align with shift.
 	 */
-	 bufvec_seg_size = ibuf->ov_vec.v_count[0] >> bshift;
+	bufvec_seg_size = ibuf->ov_vec.v_count[0] >> bshift;
 	/*
 	 * It calculates number of bufvecs for I/O request on
 	 * the basis of index vec count.
@@ -1408,7 +1388,6 @@ static int io_launch(struct c2_fom *fom)
 {
 	int				 rc;
 	uint32_t			 bshift;
-	struct c2_fid			 fid;
 	struct c2_fop			*fop;
 	struct c2_io_fom_cob_rw	        *fom_obj;
 	struct c2_stob_id		 stobid;
@@ -1416,7 +1395,6 @@ static int io_launch(struct c2_fom *fom)
 	struct c2_fop_cob_rw		*rwfop;
 	struct c2_io_indexvec            wire_ivec;
 	struct c2_stob_domain		*fom_stdom;
-	struct c2_fop_file_fid		*ffid;
 	struct c2_reqh                  *reqh;
 
 	C2_PRE(fom != NULL);
@@ -1433,9 +1411,7 @@ static int io_launch(struct c2_fom *fom)
 	fop = fom->fo_fop;
 	rwfop = io_rw_get(fop);
 
-	ffid = &rwfop->crw_fid;
-	io_fom_cob_rw_fid_wire2mem(ffid, &fid);
-	io_fom_cob_rw_fid2stob_map(&fid, &stobid);
+	io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stobid);
 	reqh = c2_fom_reqh(fom);
 	fom_stdom = c2_cs_stob_domain_find(reqh, &stobid);
 	if (fom_stdom == NULL) {
@@ -1454,7 +1430,7 @@ static int io_launch(struct c2_fom *fom)
 
 	/*
 	   Since the upper layer IO block size could differ with IO block size
-	   of storage object, the block alignment and mapping is necesary.
+	   of storage object, the block alignment and mapping is necessary.
 	 */
 	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 
@@ -1505,8 +1481,9 @@ static int io_launch(struct c2_fom *fom)
                  */
                 ivec_count = c2_vec_count(&mem_ivec->iv_vec);
                 fom_obj->fcrw_req_count += ivec_count;
-                C2_LOG(C2_DEBUG, "iv_count %d, req_count %d",
-                       (int)ivec_count, (int)fom_obj->fcrw_req_count);
+                C2_LOG(C2_DEBUG, "iv_count %lu, req_count %lu bshift %d",
+                       (unsigned long)ivec_count,
+		       (unsigned long)fom_obj->fcrw_req_count, bshift);
                 rc = align_bufvec(fom, &stio->si_user,
                                                 &nb->nb_buffer,
                                                 ivec_count,

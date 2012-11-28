@@ -31,12 +31,14 @@
 
 /* import */
 #include "lib/types.h"
+#include "lib/cdefs.h"
+#include "xcode/xcode_attr.h"
 
 /* @todo: add xcode */
 struct c2_fid {
-	uint64_t f_container;
-	uint64_t f_key;
-};
+        uint64_t f_container;
+        uint64_t f_key;
+}  C2_XCA_RECORD;
 
 C2_INTERNAL bool c2_fid_is_set(const struct c2_fid *fid);
 C2_INTERNAL bool c2_fid_is_valid(const struct c2_fid *fid);
@@ -44,11 +46,12 @@ C2_INTERNAL bool c2_fid_eq(const struct c2_fid *fid0,
 			   const struct c2_fid *fid1);
 C2_INTERNAL int c2_fid_cmp(const struct c2_fid *fid0,
 			   const struct c2_fid *fid1);
-C2_INTERNAL void c2_fid_set(struct c2_fid *fid, uint64_t container,
+C2_INTERNAL void c2_fid_set(struct c2_fid *fid,
+                            uint64_t container,
 			    uint64_t key);
 
-C2_INTERNAL void c2_fid_unregister(void);
-C2_INTERNAL int c2_fid_register(void);
+C2_INTERNAL int c2_fid_init(void);
+C2_INTERNAL void c2_fid_fini(void);
 
 /** @} end of fid group */
 

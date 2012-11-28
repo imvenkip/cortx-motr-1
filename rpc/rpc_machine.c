@@ -53,7 +53,6 @@ static int rpc_tm_setup(struct c2_net_transfer_mc *tm,
 			uint32_t                   qlen);
 static void __rpc_machine_init(struct c2_rpc_machine *machine);
 static void __rpc_machine_fini(struct c2_rpc_machine *machine);
-static int root_session_cob_create(struct c2_cob_domain *dom);
 static void conn_list_fini(struct c2_tl *list);
 C2_INTERNAL void rpc_worker_thread_fn(struct c2_rpc_machine *machine);
 static struct c2_rpc_chan *rpc_chan_locate(struct c2_rpc_machine *machine,
@@ -178,15 +177,8 @@ C2_INTERNAL int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 	if (rc != 0)
 		goto out_stop_worker;
 
-	rc = root_session_cob_create(dom);
-	if (rc != 0)
-		goto out_tm_cleanup;
-
 	C2_ASSERT(rc == 0);
 	C2_RETURN(0);
-
-out_tm_cleanup:
-	rpc_tm_cleanup(machine);
 
 out_stop_worker:
 	machine->rm_stopping = true;
@@ -228,30 +220,6 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_rpc_machine_bob_fini(machine);
 
 	C2_LEAVE();
-}
-
-static int root_session_cob_create(struct c2_cob_domain *dom)
-{
-	int rc = 0;
-#ifndef __KERNEL__
-	struct c2_db_tx tx;
-
-	C2_ENTRY("cob_dom: %p", dom);
-
-	if (C2_FI_ENABLED("fake_error"))
-		C2_RETURN(-EINVAL);
-
-	rc = c2_db_tx_init(&tx, dom->cd_dbenv, 0);
-	if (rc == 0) {
-		rc = c2_rpc_root_session_cob_create(dom, &tx);
-		if (rc == 0) {
-			c2_db_tx_commit(&tx);
-		} else {
-			c2_db_tx_abort(&tx);
-		}
-	}
-#endif
-	C2_RETURN(rc);
 }
 
 void c2_rpc_machine_fini(struct c2_rpc_machine *machine)

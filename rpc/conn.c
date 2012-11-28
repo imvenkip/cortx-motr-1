@@ -1053,9 +1053,9 @@ static int conn_persistent_state_destroy(struct c2_rpc_conn *conn,
 	C2_ASSERT(conn->c_cob != NULL && session0->s_cob != NULL &&
 		  slot0->sl_cob != NULL);
 
-	c2_cob_delete(conn->c_cob, tx);
-	c2_cob_delete(session0->s_cob, tx);
-	c2_cob_delete(slot0->sl_cob, tx);
+	c2_cob_delete_put(conn->c_cob, tx);
+	c2_cob_delete_put(session0->s_cob, tx);
+	c2_cob_delete_put(slot0->sl_cob, tx);
 
 	conn->c_cob = session0->s_cob = slot0->sl_cob = NULL;
 	C2_RETURN(0);

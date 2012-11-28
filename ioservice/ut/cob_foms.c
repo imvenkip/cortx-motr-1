@@ -110,7 +110,7 @@ struct cobthread_arg {
 };
 
 static char *server_args[] = {
-	"cobfoms_ut", "-r", "-T", "Linux", "-D", "cobfoms_ut.db", "-S",
+	"cobfoms_ut", "-r", "-p", "-T", "Linux", "-D", "cobfoms_ut.db", "-S",
 	"cobfoms_ut_stob", "-e", SERVER_ENDP, "-s", "ioservice",
 };
 
@@ -191,10 +191,10 @@ static void cobfops_populate_internal(struct c2_fop *fop, uint64_t index)
 	C2_UT_ASSERT(fop->f_type != NULL);
 
 	common = c2_cobfop_common_get(fop);
-	common->c_gobfid.f_seq = GOB_FID_CONTAINER_ID + index;
-	common->c_gobfid.f_oid = GOB_FID_KEY_ID + index;
-	common->c_cobfid.f_seq = COB_FID_CONTAINER_ID + index;
-	common->c_cobfid.f_oid = COB_FID_KEY_ID + index;
+	c2_fid_set(&common->c_gobfid, GOB_FID_CONTAINER_ID + index,
+		   GOB_FID_KEY_ID + index);
+	c2_fid_set(&common->c_cobfid, GOB_FID_CONTAINER_ID + index,
+		   GOB_FID_KEY_ID + index);
 }
 
 static void cobfops_populate(uint64_t index)
@@ -500,10 +500,8 @@ static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
 		break;
 	}
 	c = c2_cobfop_common_get(base_fop);
-	c->c_gobfid.f_seq = COB_TEST_ID;
-	c->c_gobfid.f_oid = COB_TEST_ID;
-	c->c_cobfid.f_seq = COB_TEST_ID;
-	c->c_cobfid.f_oid = COB_TEST_ID;
+	c2_fid_set(&c->c_gobfid, COB_TEST_ID, COB_TEST_ID);
+	c2_fid_set(&c->c_cobfid, COB_TEST_ID, COB_TEST_ID);
 	c->c_cob_idx = COB_TEST_ID;
 	fom->fo_fop = base_fop;
 	fom->fo_type = &base_fop->f_type->ft_fom_type;
@@ -660,7 +658,7 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 
         snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u",
                  (uint32_t)cob_idx);
-        nskey_bs_len = strlen(nskey_bs) + 1;
+        nskey_bs_len = strlen(nskey_bs);
 
 	rc = c2_cob_nskey_make(&nskey, &fid, (char *)nskey_bs, nskey_bs_len);
 	C2_UT_ASSERT(rc == 0);
@@ -740,7 +738,7 @@ static void cc_cob_create_test()
 	 */
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
-	rc = c2_cob_delete(test_cob, &fom->fo_tx.tx_dbtx);
+	rc = c2_cob_delete_put(test_cob, &fom->fo_tx.tx_dbtx);
 	c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
 	C2_UT_ASSERT(rc == 0);
 	test_cob = NULL;

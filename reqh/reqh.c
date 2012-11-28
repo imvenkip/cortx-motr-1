@@ -175,12 +175,7 @@ C2_INTERNAL void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop,
 
 	result = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom);
 	if (result == 0) {
-                /*
-                 * This is used by fo_state() function and finalized just
-                 * before fo_fini().
-                 */
                 fom->fo_fop_ctx = ctx;
-
 		c2_fom_queue(fom, reqh);
 	} else {
                 c2_free(ctx);

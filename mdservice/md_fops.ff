@@ -19,17 +19,18 @@
  */
 
 /**
-   @addtogroup fop
+   @addtogroup mdservice-fops-definition Metadata Fops Definition
    @{
  */
 
-/** @file md_fop.ff
+/** @file md_fops.ff
  *
  * <b>Colibri metatadata fop formats</b>
  *
  */
 
-require "fid/fid_ff";
+require "fid/fid_xc";
+require "fid/fid";
 
 sequence {
         u32 s_len;
@@ -37,6 +38,7 @@ sequence {
 } c2_fop_str;
 
 record {
+        u32 b_rc;
         u64 b_index;
         u64 b_version;
         u32 b_flags;
@@ -54,8 +56,8 @@ record {
         u32 b_atime;
         u32 b_mtime;
         u32 b_ctime;
-        c2_fop_fid b_pfid;
-        c2_fop_fid b_tfid
+        c2_fid b_pfid;
+        c2_fid b_tfid
 } c2_fop_cob;
 
 record {
@@ -68,6 +70,16 @@ record {
 record {
         c2_fop_cob c_body
 } c2_fop_create_rep;
+
+record {
+        c2_fop_cob l_body;
+        c2_fop_str l_path;
+        c2_fop_str l_name
+} c2_fop_lookup;
+
+record {
+        c2_fop_cob l_body
+} c2_fop_lookup_rep;
 
 record {
         c2_fop_cob l_body;
@@ -155,6 +167,23 @@ record {
         c2_fop_cob r_body;
         c2_fop_buf r_buf
 } c2_fop_readdir_rep;
+
+record {
+        u64        f_flags
+} c2_fop_statfs;
+
+record {
+        u32        f_rc;
+        u64        f_type;
+        u32        f_bsize;
+        u64        f_blocks;
+        u64        f_bfree;
+        u64        f_bavail;
+        u64        f_files;
+        u64        f_ffree;
+        u32        f_namelen;
+        c2_fid     f_root
+} c2_fop_statfs_rep;
 
 /** @} end of fop group */
 

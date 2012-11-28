@@ -85,21 +85,22 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 	/* Copy all server arguments to server_args list. */
 	strcpy(server_args[0], "bulkio_st");
 	strcpy(server_args[1], "-r");
-	strcpy(server_args[2], "-T");
-	strcpy(server_args[3], "AD");
-	strcpy(server_args[4], "-D");
-	strcpy(server_args[5], S_DBFILE);
-	strcpy(server_args[6], "-S");
-	strcpy(server_args[7], S_STOBFILE);
-	strcpy(server_args[8], "-e");
-	strcat(server_args[9], xprt);
-	strcat(server_args[9], saddr);
-	strcpy(server_args[10], "-s");
-	strcpy(server_args[11], "ioservice");
-	strcpy(server_args[12], "-q");
-	strcpy(server_args[13], tm_len);
-	strcpy(server_args[14], "-m");
-	strcpy(server_args[15], rpc_size);
+	strcpy(server_args[2], "-p");
+	strcpy(server_args[3], "-T");
+	strcpy(server_args[4], "AD");
+	strcpy(server_args[5], "-D");
+	strcpy(server_args[6], S_DBFILE);
+	strcpy(server_args[7], "-S");
+	strcpy(server_args[8], S_STOBFILE);
+	strcpy(server_args[9], "-e");
+	strcat(server_args[10], xprt);
+	strcat(server_args[10], saddr);
+	strcpy(server_args[11], "-s");
+	strcpy(server_args[12], "ioservice");
+	strcpy(server_args[13], "-q");
+	strcpy(server_args[14], tm_len);
+	strcpy(server_args[15], "-m");
+	strcpy(server_args[16], rpc_size);
 	C2_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
 	C2_ASSERT(stypes != NULL);
 	stypes[0] = &ds1_service_type;
@@ -149,10 +150,8 @@ static void io_fids_init(struct bulkio_params *bp)
 
 	C2_ASSERT(bp != NULL);
 	/* Populates fids. */
-	for (i = 0; i < IO_FIDS_NR; ++i) {
-		bp->bp_fids[i].f_seq = i;
-		bp->bp_fids[i].f_oid = i;
-	}
+	for (i = 0; i < IO_FIDS_NR; ++i)
+	        c2_fid_set(&bp->bp_fids[i], i, i);
 }
 
 static void io_buffers_allocate(struct bulkio_params *bp)

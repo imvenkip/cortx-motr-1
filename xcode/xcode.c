@@ -39,14 +39,14 @@ static bool is_pointer(const struct c2_xcode_type *xt,
 }
 
 static bool field_invariant(const struct c2_xcode_type *xt,
-			    const struct c2_xcode_field *field)
+                            const struct c2_xcode_field *field)
 {
-	return
-		field->xf_name != NULL && field->xf_type != NULL &&
-		ergo(xt == &C2_XT_OPAQUE, field->xf_opaque != NULL) &&
-		field->xf_offset +
-		(is_pointer(xt, field) ?
-		 sizeof(void *) : field->xf_type->xct_sizeof) <= xt->xct_sizeof;
+        return
+                field->xf_name != NULL && field->xf_type != NULL &&
+                ergo(xt == &C2_XT_OPAQUE, field->xf_opaque != NULL) &&
+                field->xf_offset +
+                (is_pointer(xt, field) ?
+                 sizeof(void *) : field->xf_type->xct_sizeof) <= xt->xct_sizeof;
 }
 
 C2_INTERNAL bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
@@ -85,10 +85,12 @@ C2_INTERNAL bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 		f = &xt->xct_child[i];
 		if (!field_invariant(xt, f))
 			return false;
+
 		/* field doesn't overlap with the previous one */
 		if (i > 0 && offset +
 		    xt->xct_child[prev].xf_type->xct_sizeof > f->xf_offset)
 			return false;
+
 		/* update the previous field offset: for UNION all branches
 		   follow the first field. */
 		if (i == 0 || xt->xct_aggr != C2_XA_UNION) {
@@ -238,6 +240,8 @@ static int ctx_walk(struct c2_xcode_ctx *ctx, enum xcode_op op)
 	struct c2_bufvec        area   = C2_BUFVEC_INIT_BUF(&ptr, &size);
 	struct c2_bufvec_cursor mem;
 	struct c2_xcode_cursor *it     = &ctx->xcx_it;
+
+	C2_PRE(C2_IN(op, (XO_ENC, XO_DEC, XO_LEN)));
 
 	while ((result = c2_xcode_next(it)) > 0) {
 		const struct c2_xcode_type     *xt;

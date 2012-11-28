@@ -287,9 +287,8 @@ C2_INTERNAL void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 	c2_fop_free(fop);
 
 	slot_item_tlist_fini(&slot->sl_item_list);
-	if (slot->sl_cob != NULL) {
+	if (slot->sl_cob != NULL)
 		c2_cob_put(slot->sl_cob);
-	}
 	C2_SET0(slot);
 	C2_LEAVE();
 }
@@ -336,22 +335,20 @@ C2_INTERNAL uint32_t c2_rpc_slot_items_possible_inflight(struct c2_rpc_slot
 static void __slot_balance(struct c2_rpc_slot *slot,
 			   bool                allow_events)
 {
-	struct c2_rpc_item  *item;
+	struct c2_rpc_item *item;
 
 	C2_ENTRY("slot: %p", slot);
 	C2_PRE(c2_rpc_slot_invariant(slot));
 	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 
 	while (slot->sl_in_flight < slot->sl_max_in_flight) {
-		if (slot_item_tlist_next(&slot->sl_item_list,
-					 slot->sl_last_sent) == NULL) {
+		item = slot_item_tlist_next(&slot->sl_item_list,
+					    slot->sl_last_sent);
+		if (item == NULL) {
 			if (allow_events)
 				slot->sl_ops->so_slot_idle(slot);
 			break;
 		}
-		/* Take slot->last_sent->next item for sending */
-		item = slot_item_tlist_next(&slot->sl_item_list,
-				             slot->sl_last_sent);
 
 		if (item->ri_stage == RPC_ITEM_STAGE_FUTURE)
 			c2_rpc_item_set_stage(item, RPC_ITEM_STAGE_IN_PROGRESS);
@@ -669,7 +666,7 @@ C2_INTERNAL int __slot_reply_received(struct c2_rpc_slot *slot,
 
 C2_INTERNAL void c2_rpc_slot_process_reply(struct c2_rpc_item *req)
 {
-	struct c2_rpc_slot    *slot;
+	struct c2_rpc_slot *slot;
 
 	C2_ENTRY("req: %p", req);
 
@@ -677,6 +674,7 @@ C2_INTERNAL void c2_rpc_slot_process_reply(struct c2_rpc_item *req)
 	C2_PRE(c2_rpc_item_is_request(req));
 	C2_PRE(C2_IN(req->ri_sm.sm_state, (C2_RPC_ITEM_WAITING_FOR_REPLY,
 					   C2_RPC_ITEM_ACCEPTED)));
+
 	c2_rpc_item_set_stage(req, RPC_ITEM_STAGE_PAST_VOLATILE);
 	slot = req->ri_slot_refs[0].sr_slot;
 	slot->sl_in_flight--;
@@ -913,7 +911,7 @@ C2_INTERNAL int c2_rpc_slot_cob_lookup(struct c2_cob *session_cob,
 	C2_RETURN(rc);
 }
 
-C2_INTERNAL int c2_rpc_slot_cob_create(struct c2_cob *session_cob,
+C2_INTERNAL int c2_rpc_slot_cob_create(const struct c2_cob *session_cob,
 				       uint32_t slot_id,
 				       uint64_t slot_generation,
 				       struct c2_cob **slot_cob,
@@ -927,9 +925,7 @@ C2_INTERNAL int c2_rpc_slot_cob_create(struct c2_cob *session_cob,
 		 session_cob, slot_id, (unsigned long long)slot_generation);
 	C2_PRE(session_cob != NULL && slot_cob != NULL);
 
-	*slot_cob = NULL;
 	sprintf(name, "SLOT_%u:%lu", slot_id, (unsigned long)slot_generation);
-
 	rc = c2_rpc_cob_create_helper(session_cob->co_dom, session_cob, name,
 					&cob, tx);
 	C2_ASSERT(ergo(rc != 0, cob == NULL));

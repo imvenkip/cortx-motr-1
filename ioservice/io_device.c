@@ -260,7 +260,8 @@ C2_INTERNAL int c2_ios_poolmach_init(struct c2_reqh *reqh)
 		goto out;
 	}
 
-	rc = c2_poolmach_init(poolmach, reqh->rh_dtm);
+	/* TODO configuration information is needed here. */
+	rc = c2_poolmach_init(poolmach, reqh->rh_dtm, 1, 10, 1, 1);
 	if (rc != 0) {
 		c2_reqh_key_fini(reqh, poolmach_key);
 		goto out;
@@ -340,7 +341,6 @@ C2_INTERNAL int c2_ios_poolmach_version_updates_pack(struct c2_poolmach *pm,
 		rc = -ENOMEM;
 		c2_tl_for(poolmach_events, &events_list, scan) {
 			poolmach_events_tlink_del_fini(scan);
-			c2_free(scan->pel_event);
 			c2_free(scan);
 		} c2_tl_endfor;
 		goto out;
@@ -348,12 +348,11 @@ C2_INTERNAL int c2_ios_poolmach_version_updates_pack(struct c2_poolmach *pm,
 
 	index = 0;
 	c2_tl_for(poolmach_events, &events_list, scan) {
-		updates->fvu_events[index].fve_type  = scan->pel_event->pe_type;
-		updates->fvu_events[index].fve_index = scan->pel_event->pe_index;
-		updates->fvu_events[index].fve_state = scan->pel_event->pe_state;
+		updates->fvu_events[index].fve_type  = scan->pel_event.pe_type;
+		updates->fvu_events[index].fve_index = scan->pel_event.pe_index;
+		updates->fvu_events[index].fve_state = scan->pel_event.pe_state;
 		index++;
 		poolmach_events_tlink_del_fini(scan);
-		c2_free(scan->pel_event);
 		c2_free(scan);
 	} c2_tl_endfor;
 

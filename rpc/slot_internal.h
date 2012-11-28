@@ -115,7 +115,7 @@ struct c2_rpc_slot_ops {
   For each slot the item has a separate verno and separate linkage into
   the slot's item list. Item state is common for all slots;
 
-  An item, has a MUTABO flag, which is set when the item is an update
+  An item has a MUTABO flag, which is set when the item is an update
   (i.e., changes the file system state). When the item is an update then
   (for each slot the item is in) its verno is greater than the verno of
   the previous item on the slot's item list. Multiple consecutive non-MUTABO
@@ -299,7 +299,7 @@ C2_INTERNAL int c2_rpc_slot_cob_lookup(struct c2_cob *session_cob,
 /**
    Creates a cob named "SLOT_$slot_id:$slot_generation" in @session_cob
  */
-C2_INTERNAL int c2_rpc_slot_cob_create(struct c2_cob *session_cob,
+C2_INTERNAL int c2_rpc_slot_cob_create(const struct c2_cob *session_cob,
 				       uint32_t slot_id,
 				       uint64_t slot_generation,
 				       struct c2_cob **slot_cob,

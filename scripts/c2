@@ -15,49 +15,55 @@ PROG="${0##*/}"
 SRC="$(readlink -f $0)"
 SRC="${SRC%/*/*}"
 
-MAKE=make
-## Note, that make command is expected to perform better if `-j'
-## option is used.  The recommended number of jobs (the value after
-## `-j') is twice the number of CPUs.  Thus, the recommended setting
-## for a DevVM with 2 cores would be
-## MAKE='make -j4'
+SUDO='sudo -E'
 
 clean() {
     cd "$SRC"
-    $MAKE distclean || true
+    make distclean $MAKE_OPTS || true
     [ "$1" = '-f' ] && git clean -fdx || true
 }
 
 build() {
-    sh autogen.sh
-    ./configure
-    $MAKE
+    autoreconf -ifs
+    ./configure $CONFIGURE_OPTS
+    make $MAKE_OPTS
 }
 
 _reset() {
-    sudo rm -rf "$RUNDIR"  # Ouch!
+    $SUDO rm -rf "$RUNDIR"  # Ouch!
     mkdir "$RUNDIR"
     cd "$RUNDIR"
 }
 
-run_ut()  { _reset; sudo "$SRC/utils/ut.sh" "$@"; }
-run_kut() { _reset; sudo "$SRC/utils/linux_kernel/ut.sh"; }
-run_st()  { _reset; sudo "$SRC/c2t1fs/linux_kernel/st/c2t1fs_test.sh"; }
+run_ut()  { _reset; $SUDO "$SRC/utils/ut.sh" "$@"; }
+run_kut() { _reset; $SUDO "$SRC/utils/linux_kernel/ut.sh"; }
+
+run_st() {
+    _reset
+    $SUDO "$SRC/c2t1fs/linux_kernel/st/st"
+    $SUDO "$SRC/c2t1fs/linux_kernel/st/c2t1fs_test.sh"
+}
 
 dist_check() {
     local DIST=colibri-0.1.0
 
     cd "$SRC"
-    $MAKE dist
+    [ -f Makefile ] || {
+	echo "You need to \`$PROG rebuild' first." >&2
+	exit 1
+    }
+    make dist $MAKE_OPTS
 
     cd ..
-    tar -xzf "$OLDPWD/$DIST.tar.gz"
+    ## Don't let NFS preserve files' ownership.
+    tar --no-same-owner -xzf "$SRC/$DIST.tar.gz"
 
     cd $DIST
     build
-
     cd ..
     rm -r $DIST
+
+    [ "$1" = '-a' ] || rm "$SRC/$DIST.tar.gz"
 }
 
 help() {
@@ -81,16 +87,25 @@ Commands:
 
     run-all             Run unit and system tests.
 
-    dist-check    Create and validate Colibri distribution archive.
+    dist-check [-a]     Create and validate Colibri distribution archive.
+                        The resulting archive file will be deleted,
+                        unless '-a' option is used.
 
-    clean [-f]    Call 'make distclean' in C2 sources directory.
-                  '-f' will also remove untracked files and
-                  directories (i.e. those not added to the git
-                  repository).
-		  *CAUTION*: You do not want to use '-f' option if
-                  there are any untracked files you care about.
+    check-everything    = rebuild + run-all + dist-check
+                        Please run this command before landing new feature.
+
+    clean [-f]          Call 'make distclean' in C2 sources directory.
+                        '-f' will also remove untracked files and
+                        directories (i.e. those not added to the git
+                        repository).
+                        *CAUTION*: You do not want to use '-f' option if
+                        there are any untracked files you care about.
 
     help    Show this help and exit.
+
+Environment variables:
+    CONFIGURE_OPTS      Extra options for './configure' command.
+    MAKE_OPTS           Extra options for 'make' command.
 
 C2 sources: $SRC
 UT output:  $RUNDIR
@@ -103,11 +118,12 @@ case "$1" in
     run-kut) run_kut;;
     run-st)  run_st;;
     run-all)
-	shift; run_ut "$@"
-	echo 'Running kernel UT ...'; run_kut
-	run_st;;
-    dist-check) dist_check;;
+        shift; run_ut "$@"
+        echo 'Running kernel UT ...'; run_kut
+        run_st;;
+    dist-check) shift; dist_check "$@";;
+    check-everything) clean; build; run_ut; run_kut; run_st;;
     clean) shift; clean "$@";;
-    help)  help 0;;
-    *)     help 1;;
+    help) help 0;;
+    *)    help 1;;
 esac

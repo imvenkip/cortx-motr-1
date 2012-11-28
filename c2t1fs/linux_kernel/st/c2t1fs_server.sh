@@ -31,6 +31,7 @@ main()
 		lctl network up &>> /dev/null
 		lnet_nid=`lctl list_nids | head -1`
 		echo $lnet_nid
+		LADDR="$lnet_nid:12345:33:1"
 	fi
 
 	colibri_service $1

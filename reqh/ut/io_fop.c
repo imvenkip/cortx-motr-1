@@ -25,6 +25,8 @@
 #include "lib/chan.h"
 #include "lib/list.h"
 
+#include "balloc/balloc.h"
+
 #include "net/net.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
@@ -285,18 +287,18 @@ static size_t stob_find_fom_home_locality(const struct c2_fom *fom)
 		break;
 	}
 	case C2_STOB_IO_WRITE_REQ_OPCODE: {
-		struct c2_stob_io_read *fop;
-		uint64_t oid;
-		fop = c2_fop_data(fom->fo_fop);
-		oid = fop->fir_object.f_oid;
-		iloc = oid;
-		break;
-	}
-	case C2_STOB_IO_READ_REQ_OPCODE: {
 		struct c2_stob_io_write *fop;
 		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fiw_object.f_oid;
+		iloc = oid;
+		break;
+	}
+	case C2_STOB_IO_READ_REQ_OPCODE: {
+		struct c2_stob_io_read *fop;
+		uint64_t oid;
+		fop = c2_fop_data(fom->fo_fop);
+		oid = fop->fir_object.f_oid;
 		iloc = oid;
 		break;
 	}
@@ -383,6 +385,7 @@ static int stob_read_fom_tick(struct c2_fom *fom)
                 C2_ASSERT(out_fop != NULL);
 
                 if (c2_fom_phase(fom) == C2_FOPH_READ_STOB_IO) {
+			uint8_t                  *buf;
 
                         in_fop = c2_fop_data(fom->fo_fop);
                         C2_ASSERT(in_fop != NULL);
@@ -393,8 +396,14 @@ static int stob_read_fom_tick(struct c2_fom *fom)
                         stobj =  fom_obj->sif_stobj;
                         bshift = stobj->so_op->sop_block_shift(stobj);
 
-                        addr = c2_stob_addr_pack(&out_fop->firr_value, bshift);
-                        count = 1 >> bshift;
+			C2_ALLOC_ARR(buf, 1 << BALLOC_DEF_BLOCK_SHIFT);
+			C2_ASSERT(buf != NULL);
+			out_fop->firr_value.fi_buf   = buf;
+			out_fop->firr_value.fi_count =
+			                            1 << BALLOC_DEF_BLOCK_SHIFT;
+
+			addr = c2_stob_addr_pack(buf, bshift);
+                        count = out_fop->firr_value.fi_count >> bshift;
                         offset = 0;
 
                         c2_stob_io_init(stio);
@@ -498,8 +507,9 @@ static int stob_write_fom_tick(struct c2_fom *fom)
                         stobj = fom_obj->sif_stobj;
                         bshift = stobj->so_op->sop_block_shift(stobj);
 
-                        addr = c2_stob_addr_pack(&in_fop->fiw_value, bshift);
-                        count = 1 >> bshift;
+                        addr = c2_stob_addr_pack(in_fop->fiw_value.fi_buf,
+			                         bshift);
+                        count = in_fop->fiw_value.fi_count >> bshift;
                         offset = 0;
 
                         c2_stob_io_init(stio);

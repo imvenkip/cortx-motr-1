@@ -48,7 +48,7 @@ struct c2_sns_repair_cp {
 	struct c2_stob_io  rc_stio;
 
 	/** Stob context. */
-	struct c2_stob     rc_stob;
+	struct c2_stob    *rc_stob;
 };
 
 C2_INTERNAL struct c2_sns_repair_cp *cp2snscp(const struct c2_cm_cp *cp);

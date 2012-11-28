@@ -68,7 +68,7 @@ int main(int argc, char **argv)
 	struct c2_net_xprt *xprt              = &c2_net_lnet_xprt;
 
 	char *default_server_argv[] = {
-		argv[0], "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+		argv[0], "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
 		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size
 	};

@@ -230,7 +230,7 @@ static int emap_next(struct c2_emap_cursor *it)
 	return IT_DO_OPEN(it, &c2_db_cursor_next);
 }
 
-#if 1
+#ifdef ENABLE_DEBUG
 static bool emap_invariant_check(struct c2_emap_cursor *it)
 {
 	int                   result;
@@ -277,7 +277,7 @@ static bool emap_invariant(struct c2_emap_cursor *it)
 	return check;
 }
 
-#else /* 0 */
+#else /* !ENABLE_DEBUG */
 
 static bool emap_invariant(struct c2_emap_cursor *it)
 {
