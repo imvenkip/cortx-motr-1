@@ -20,11 +20,11 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_TEST_USER_SPACE_STATS_U_H__
-#define __COLIBRI_NET_TEST_USER_SPACE_STATS_U_H__
+#ifndef __MERO_NET_TEST_USER_SPACE_STATS_U_H__
+#define __MERO_NET_TEST_USER_SPACE_STATS_U_H__
 
-#include "lib/time.h"		/* c2_time_t */
-#include "net/test/stats.h"	/* c2_net_test_stats */
+#include "lib/time.h"		/* m0_time_t */
+#include "net/test/stats.h"	/* m0_net_test_stats */
 
 /**
    @addtogroup NetTestStatsDFS
@@ -32,46 +32,46 @@
    @{
  */
 
-struct c2_net_test_stats;
+struct m0_net_test_stats;
 
 /**
    Get sum of all elements from sample.
-   @pre c2_net_test_stats_invariant(stats)
+   @pre m0_net_test_stats_invariant(stats)
  */
-double c2_net_test_stats_sum(const struct c2_net_test_stats *stats);
+double m0_net_test_stats_sum(const struct m0_net_test_stats *stats);
 
 /**
    Get sample average (arithmetic mean).
-   @pre c2_net_test_stats_invariant(stats)
+   @pre m0_net_test_stats_invariant(stats)
  */
-double c2_net_test_stats_avg(const struct c2_net_test_stats *stats);
+double m0_net_test_stats_avg(const struct m0_net_test_stats *stats);
 
 /**
    Get sample standard deviation.
-   @pre c2_net_test_stats_invariant(stats)
+   @pre m0_net_test_stats_invariant(stats)
  */
-double c2_net_test_stats_stddev(const struct c2_net_test_stats *stats);
+double m0_net_test_stats_stddev(const struct m0_net_test_stats *stats);
 
 /**
-   @see c2_net_test_stats_time_add()
+   @see m0_net_test_stats_time_add()
  */
-c2_time_t c2_net_test_stats_time_sum(struct c2_net_test_stats *stats);
+m0_time_t m0_net_test_stats_time_sum(struct m0_net_test_stats *stats);
 
 /**
-   @see c2_net_test_stats_time_add()
+   @see m0_net_test_stats_time_add()
  */
-c2_time_t c2_net_test_stats_time_avg(struct c2_net_test_stats *stats);
+m0_time_t m0_net_test_stats_time_avg(struct m0_net_test_stats *stats);
 
 /**
-   @see c2_net_test_stats_time_add()
+   @see m0_net_test_stats_time_add()
  */
-c2_time_t c2_net_test_stats_time_stddev(struct c2_net_test_stats *stats);
+m0_time_t m0_net_test_stats_time_stddev(struct m0_net_test_stats *stats);
 
 /**
    @} end of NetTestStatsDFS group
  */
 
-#endif /*  __COLIBRI_NET_TEST_USER_SPACE_STATS_U_H__ */
+#endif /*  __MERO_NET_TEST_USER_SPACE_STATS_U_H__ */
 
 /*
  *  Local variables:

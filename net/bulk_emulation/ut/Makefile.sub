@@ -1,1 +1,1 @@
-ut_libcolibri_ut_la_SOURCES += net/bulk_emulation/ut/bulk_mem_ut.c
+ut_libmero_ut_la_SOURCES += net/bulk_emulation/ut/bulk_mem_ut.c

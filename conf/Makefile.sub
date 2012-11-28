@@ -1,4 +1,4 @@
-colibri_libcolibri_la_SOURCES += conf/onwire.h \
+mero_libmero_la_SOURCES += conf/onwire.h \
                                  conf/onwire_xc.c \
                                  conf/buf_ext.h \
                                  conf/buf_ext.c \

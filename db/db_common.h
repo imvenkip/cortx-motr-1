@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_DB_DB_COMMON_H__
-#define __COLIBRI_DB_DB_COMMON_H__
+#ifndef __MERO_DB_DB_COMMON_H__
+#define __MERO_DB_DB_COMMON_H__
 
 #include "db/db.h"
 
@@ -31,39 +31,39 @@
    @{
  */
 
-C2_INTERNAL void c2_dbenv_common_init(struct c2_dbenv *env);
-C2_INTERNAL void c2_dbenv_common_fini(struct c2_dbenv *env);
-C2_INTERNAL void c2_table_common_init(struct c2_table *table,
-				      struct c2_dbenv *env,
-				      const struct c2_table_ops *ops);
-C2_INTERNAL void c2_table_common_fini(struct c2_table *table);
-C2_INTERNAL bool c2_db_buf_invariant(const struct c2_db_buf *buf);
-C2_INTERNAL void c2_db_buf_init(struct c2_db_buf *buf,
-				enum c2_db_buf_type btype, void *area,
+M0_INTERNAL void m0_dbenv_common_init(struct m0_dbenv *env);
+M0_INTERNAL void m0_dbenv_common_fini(struct m0_dbenv *env);
+M0_INTERNAL void m0_table_common_init(struct m0_table *table,
+				      struct m0_dbenv *env,
+				      const struct m0_table_ops *ops);
+M0_INTERNAL void m0_table_common_fini(struct m0_table *table);
+M0_INTERNAL bool m0_db_buf_invariant(const struct m0_db_buf *buf);
+M0_INTERNAL void m0_db_buf_init(struct m0_db_buf *buf,
+				enum m0_db_buf_type btype, void *area,
 				uint32_t size);
-C2_INTERNAL void c2_db_buf_fini(struct c2_db_buf *buf);
-C2_INTERNAL void c2_db_buf_steal(struct c2_db_buf *buf);
-C2_INTERNAL bool c2_db_pair_invariant(const struct c2_db_pair *p);
-C2_INTERNAL void c2_db_pair_setup(struct c2_db_pair *pair,
-				  struct c2_table *table, void *keybuf,
+M0_INTERNAL void m0_db_buf_fini(struct m0_db_buf *buf);
+M0_INTERNAL void m0_db_buf_steal(struct m0_db_buf *buf);
+M0_INTERNAL bool m0_db_pair_invariant(const struct m0_db_pair *p);
+M0_INTERNAL void m0_db_pair_setup(struct m0_db_pair *pair,
+				  struct m0_table *table, void *keybuf,
 				  uint32_t keysize, void *recbuf,
 				  uint32_t recsize);
-C2_INTERNAL void c2_db_pair_fini(struct c2_db_pair *pair);
-C2_INTERNAL void c2_db_pair_release(struct c2_db_pair *pair);
-C2_INTERNAL void c2_db_common_tx_init(struct c2_db_tx *tx,
-				      struct c2_dbenv *env);
-C2_INTERNAL void c2_db_common_tx_fini(struct c2_db_tx *tx);
+M0_INTERNAL void m0_db_pair_fini(struct m0_db_pair *pair);
+M0_INTERNAL void m0_db_pair_release(struct m0_db_pair *pair);
+M0_INTERNAL void m0_db_common_tx_init(struct m0_db_tx *tx,
+				      struct m0_dbenv *env);
+M0_INTERNAL void m0_db_common_tx_fini(struct m0_db_tx *tx);
 
-C2_INTERNAL int c2_db_tx_is_active(const struct c2_db_tx *tx);
+M0_INTERNAL int m0_db_tx_is_active(const struct m0_db_tx *tx);
 
-extern const struct c2_addb_loc      db_loc;
-extern const struct c2_addb_ctx_type db_env_ctx_type;
-extern const struct c2_addb_ctx_type db_table_ctx_type;
-extern const struct c2_addb_ctx_type db_tx_ctx_type;
+extern const struct m0_addb_loc      db_loc;
+extern const struct m0_addb_ctx_type db_env_ctx_type;
+extern const struct m0_addb_ctx_type db_table_ctx_type;
+extern const struct m0_addb_ctx_type db_tx_ctx_type;
 
 /** @} end of db group */
 
-/* __COLIBRI_DB_REC_H__ */
+/* __MERO_DB_REC_H__ */
 #endif
 
 /*

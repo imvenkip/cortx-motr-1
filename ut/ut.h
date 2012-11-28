@@ -20,28 +20,28 @@
 
 #pragma once
 
-#ifndef __COLIBRI_UT_UT_H__
-#define __COLIBRI_UT_UT_H__
+#ifndef __MERO_UT_UT_H__
+#define __MERO_UT_UT_H__
 
 /**
-   @defgroup colibri-ut Colibri UT library
+   @defgroup mero-ut Mero UT library
    @brief Common unit test library
 
    The intent of this library is to include all code, which could be potentially
    useful for several UTs and thus can be shared, avoiding duplication of
    similar code.
 
-   This library is linked as colibri module and not as colibri -ut library. This
+   This library is linked as mero module and not as mero -ut library. This
    allows to use it in both - UTs and in standalone programs which don't use CUnit.
 
    @{
 */
 
-int c2_ut_init(void);
-void c2_ut_fini(void);
+int m0_ut_init(void);
+void m0_ut_fini(void);
 
 /**
-   @} colibri-ut end group
+   @} mero-ut end group
 */
 
-#endif /* __COLIBRI_UT_UT_H__ */
+#endif /* __MERO_UT_UT_H__ */

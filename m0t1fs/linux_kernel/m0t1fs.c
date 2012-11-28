@@ -1,0 +1,299 @@
+/*
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
+ *                  Amit Jambure <amit_jambure@xyratex.com>
+ * Metadata       : Yuriy Umanets <yuriy_umanets@xyratex.com>
+ * Original creation date: 05/04/2010
+ */
+
+#include <linux/module.h>
+#include <linux/init.h>
+
+#include "m0t1fs/linux_kernel/m0t1fs.h"
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
+#include "lib/trace.h"  /* M0_LOG and M0_ENTRY */
+#include "lib/memory.h"
+#include "net/lnet/lnet.h"
+#include "fid/fid.h"
+#include "ioservice/io_fops.h"
+#include "mdservice/md_fops.h"
+#include "rpc/rpclib.h"
+
+static char *local_addr = "0@lo:12345:45:6";
+
+module_param(local_addr, charp, S_IRUGO);
+MODULE_PARM_DESC(local_addr, "End-point address of m0t1fs "
+		 "e.g. 172.18.50.40@o2ib1:12345:34:1");
+
+static uint32_t tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
+module_param(tm_recv_queue_min_len , int, S_IRUGO);
+MODULE_PARM_DESC(tm_recv_queue_min_len, "TM receive queue minimum length");
+
+static uint32_t max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
+module_param(max_rpc_msg_size, int, S_IRUGO);
+MODULE_PARM_DESC(max_rpc_msg_size, "Maximum RPC message size");
+
+static int  m0t1fs_net_init(void);
+static void m0t1fs_net_fini(void);
+
+static int  m0t1fs_rpc_init(void);
+static void m0t1fs_rpc_fini(void);
+
+static int  m0t1fs_layout_init(void);
+static void m0t1fs_layout_fini(void);
+
+static struct file_system_type m0t1fs_fs_type = {
+	.owner        = THIS_MODULE,
+	.name         = "m0t1fs",
+	.get_sb       = m0t1fs_get_sb,
+	.kill_sb      = m0t1fs_kill_sb,
+	.fs_flags     = FS_BINARY_MOUNTDATA
+};
+
+enum {
+	M0T1FS_COB_DOM_ID = 40
+};
+#define M0T1FS_DB_NAME "m0t1fs.db"
+
+struct m0t1fs_globals m0t1fs_globals = {
+	.g_xprt       = &m0_net_lnet_xprt,
+	.g_cob_dom_id = { .id = M0T1FS_COB_DOM_ID },
+	.g_db_name    = M0T1FS_DB_NAME,
+};
+
+M0_INTERNAL int m0t1fs_init(void)
+{
+	int rc;
+
+	M0_ENTRY();
+
+	m0t1fs_globals.g_laddr = local_addr;
+
+        rc = m0_fid_init();
+        if (rc != 0)
+                goto out;
+
+	rc = m0_ioservice_fop_init();
+	if (rc != 0)
+		goto fid_fini;
+
+	rc = m0_mdservice_fop_init();
+	if (rc != 0)
+		goto ioservice_fini;
+
+	rc = m0t1fs_inode_cache_init();
+	if (rc != 0)
+		goto mdservice_fini;
+
+	rc = m0t1fs_net_init();
+	if (rc != 0)
+		goto icache_fini;
+
+	rc = m0t1fs_rpc_init();
+	if (rc != 0)
+		goto net_fini;
+
+	rc = m0t1fs_layout_init();
+	if (rc != 0)
+		goto rpc_fini;
+
+	rc = register_filesystem(&m0t1fs_fs_type);
+	if (rc != 0)
+		goto layout_fini;
+
+	M0_LEAVE("rc: 0");
+	return 0;
+
+layout_fini:
+	m0t1fs_layout_fini();
+
+rpc_fini:
+	m0t1fs_rpc_fini();
+net_fini:
+	m0t1fs_net_fini();
+icache_fini:
+	m0t1fs_inode_cache_fini();
+mdservice_fini:
+        m0_mdservice_fop_fini();
+ioservice_fini:
+        m0_ioservice_fop_fini();
+fid_fini:
+        m0_fid_fini();
+out:
+	M0_LEAVE("rc: %d", rc);
+	M0_ASSERT(rc != 0);
+	return rc;
+}
+
+M0_INTERNAL void m0t1fs_fini(void)
+{
+	M0_ENTRY();
+
+	(void)unregister_filesystem(&m0t1fs_fs_type);
+
+	m0t1fs_layout_fini();
+	m0t1fs_rpc_fini();
+	m0t1fs_net_fini();
+	m0t1fs_inode_cache_fini();
+	m0_mdservice_fop_fini();
+	m0_ioservice_fop_fini();
+	m0_fid_fini();
+
+	M0_LEAVE();
+}
+
+static int m0t1fs_net_init(void)
+{
+	struct m0_net_xprt   *xprt;
+	struct m0_net_domain *ndom;
+	int		      rc;
+
+	M0_ENTRY();
+
+	xprt =  m0t1fs_globals.g_xprt;
+	ndom = &m0t1fs_globals.g_ndom;
+
+	rc = m0_net_xprt_init(xprt);
+	if (rc != 0)
+		goto out;
+
+	rc = m0_net_domain_init(ndom, xprt);
+	if (rc != 0)
+		m0_net_xprt_fini(xprt);
+out:
+	M0_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+static void m0t1fs_net_fini(void)
+{
+	M0_ENTRY();
+
+	m0_net_domain_fini(&m0t1fs_globals.g_ndom);
+	m0_net_xprt_fini(m0t1fs_globals.g_xprt);
+
+	M0_LEAVE();
+}
+
+static int m0t1fs_rpc_init(void)
+{
+	struct m0_dbenv           *dbenv;
+	struct m0_cob_domain      *cob_dom;
+	struct m0_cob_domain_id   *cob_dom_id;
+	struct m0_rpc_machine     *rpc_machine;
+	struct m0_net_domain      *ndom;
+	struct m0_net_transfer_mc *tm;
+	char                      *laddr;
+	char                      *db_name;
+	int                        rc;
+	struct m0_net_buffer_pool *buffer_pool;
+	uint32_t		   bufs_nr;
+	uint32_t		   tms_nr;
+
+	M0_ENTRY();
+
+	ndom        = &m0t1fs_globals.g_ndom;
+	laddr       =  m0t1fs_globals.g_laddr;
+	rpc_machine = &m0t1fs_globals.g_rpc_machine;
+	buffer_pool = &m0t1fs_globals.g_buffer_pool;
+
+	tms_nr	 = 1;
+	bufs_nr  = m0_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
+
+	rc = m0_rpc_net_buffer_pool_setup(ndom, buffer_pool,
+					  bufs_nr, tms_nr);
+	if (rc != 0)
+		goto pool_fini;
+
+	dbenv   = &m0t1fs_globals.g_dbenv;
+	db_name =  m0t1fs_globals.g_db_name;
+
+	rc = m0_dbenv_init(dbenv, db_name, 0);
+	if (rc != 0)
+		goto pool_fini;
+
+	cob_dom    = &m0t1fs_globals.g_cob_dom;
+	cob_dom_id = &m0t1fs_globals.g_cob_dom_id;
+
+	rc = m0_cob_domain_init(cob_dom, dbenv, cob_dom_id);
+	if (rc != 0)
+		goto dbenv_fini;
+
+	rc = m0_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, NULL,
+				 buffer_pool, M0_BUFFER_ANY_COLOUR,
+				 max_rpc_msg_size, tm_recv_queue_min_len);
+	if (rc != 0)
+		goto cob_dom_fini;
+
+	tm = &rpc_machine->rm_tm;
+	M0_ASSERT(tm->ntm_recv_pool == buffer_pool);
+
+	M0_LEAVE("rc: %d", rc);
+	return 0;
+
+cob_dom_fini:
+	m0_cob_domain_fini(cob_dom);
+
+dbenv_fini:
+	m0_dbenv_fini(dbenv);
+
+pool_fini:
+	m0_rpc_net_buffer_pool_cleanup(buffer_pool);
+	M0_LEAVE("rc: %d", rc);
+	M0_ASSERT(rc != 0);
+	return rc;
+}
+
+static void m0t1fs_rpc_fini(void)
+{
+	M0_ENTRY();
+
+	m0_rpc_machine_fini(&m0t1fs_globals.g_rpc_machine);
+	m0_cob_domain_fini(&m0t1fs_globals.g_cob_dom);
+	m0_dbenv_fini(&m0t1fs_globals.g_dbenv);
+	m0_rpc_net_buffer_pool_cleanup(&m0t1fs_globals.g_buffer_pool);
+
+	M0_LEAVE();
+}
+
+static int m0t1fs_layout_init(void)
+{
+	int rc;
+
+	M0_ENTRY();
+
+	rc = m0_layout_domain_init(&m0t1fs_globals.g_layout_dom,
+				   &m0t1fs_globals.g_dbenv);
+	if (rc == 0) {
+		rc = m0_layout_standard_types_register(
+						&m0t1fs_globals.g_layout_dom);
+		if (rc != 0)
+			m0_layout_domain_fini(&m0t1fs_globals.g_layout_dom);
+	}
+
+	M0_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+static void m0t1fs_layout_fini(void)
+{
+	M0_ENTRY();
+
+	m0_layout_standard_types_unregister(&m0t1fs_globals.g_layout_dom);
+	m0_layout_domain_fini(&m0t1fs_globals.g_layout_dom);
+
+	M0_LEAVE();
+}

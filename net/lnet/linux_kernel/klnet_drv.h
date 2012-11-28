@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_LNET_KLNET_DRV_H__
-#define __COLIBRI_NET_LNET_KLNET_DRV_H__
+#ifndef __MERO_NET_LNET_KLNET_DRV_H__
+#define __MERO_NET_LNET_KLNET_DRV_H__
 
 /**
    @page LNetDRVDLD-fspec LNet Transport Device Functional Specification
@@ -59,13 +59,13 @@
    Core interfaces require no ioctl request, because they operate directly
    on shared data structures in user space.
 
-   - c2_lnet_dev_dom_init_params
-   - c2_lnet_dev_buf_register_params
-   - c2_lnet_dev_buf_queue_params
-   - c2_lnet_dev_buf_event_wait_params
-   - c2_lnet_dev_nid_encdec_params
-   - c2_lnet_dev_nidstrs_get_params
-   - c2_lnet_dev_bev_bless_params
+   - m0_lnet_dev_dom_init_params
+   - m0_lnet_dev_buf_register_params
+   - m0_lnet_dev_buf_queue_params
+   - m0_lnet_dev_buf_event_wait_params
+   - m0_lnet_dev_nid_encdec_params
+   - m0_lnet_dev_nidstrs_get_params
+   - m0_lnet_dev_bev_bless_params
 
    The API includes several operations whose side effect is to pin or unpin
    shared data corresponding to the following data structures defined in the
@@ -102,23 +102,23 @@
    @section LNetDRVDLD-fspec-ioctl Ioctl Requests
 
    The device driver recognizes the following ioctl requests.
-   - #C2_LNET_DOM_INIT
-   - #C2_LNET_BUF_REGISTER
-   - #C2_LNET_BUF_DEREGISTER
-   - #C2_LNET_BUF_MSG_RECV
-   - #C2_LNET_BUF_MSG_SEND
-   - #C2_LNET_BUF_ACTIVE_RECV
-   - #C2_LNET_BUF_ACTIVE_SEND
-   - #C2_LNET_BUF_PASSIVE_RECV
-   - #C2_LNET_BUF_PASSIVE_SEND
-   - #C2_LNET_BUF_DEL
-   - #C2_LNET_BUF_EVENT_WAIT
-   - #C2_LNET_NIDSTR_DECODE
-   - #C2_LNET_NIDSTR_ENCODE
-   - #C2_LNET_NIDSTRS_GET
-   - #C2_LNET_TM_START
-   - #C2_LNET_TM_STOP
-   - #C2_LNET_BEV_BLESS
+   - #M0_LNET_DOM_INIT
+   - #M0_LNET_BUF_REGISTER
+   - #M0_LNET_BUF_DEREGISTER
+   - #M0_LNET_BUF_MSG_RECV
+   - #M0_LNET_BUF_MSG_SEND
+   - #M0_LNET_BUF_ACTIVE_RECV
+   - #M0_LNET_BUF_ACTIVE_SEND
+   - #M0_LNET_BUF_PASSIVE_RECV
+   - #M0_LNET_BUF_PASSIVE_SEND
+   - #M0_LNET_BUF_DEL
+   - #M0_LNET_BUF_EVENT_WAIT
+   - #M0_LNET_NIDSTR_DECODE
+   - #M0_LNET_NIDSTR_ENCODE
+   - #M0_LNET_NIDSTRS_GET
+   - #M0_LNET_TM_START
+   - #M0_LNET_TM_STOP
+   - #M0_LNET_BEV_BLESS
 
    @see @ref LNetDev "Detailed Functional Specification"
  */
@@ -130,7 +130,7 @@
    The external interfaces of the LNet transport device are obtained by
    including the file @ref net/lnet/linux_kernel/klnet_drv.h.
 
-   The device appears in file system as /dev/c2lnet.
+   The device appears in file system as /dev/m0lnet.
 
    @see The @ref LNetDRVDLD "LNet Transport Device and Driver DLD" its
    @ref LNetDRVDLD-fspec "Functional Specification"
@@ -152,16 +152,16 @@
 })
 
 /**
-   Initialise the C2 LNet Transport device.
+   Initialise the M0 LNet Transport device.
    Registers the device as a miscellaneous character device.
  */
-C2_INTERNAL int nlx_dev_init(void);
-/** Finalise the C2 LNet device. */
-C2_INTERNAL void nlx_dev_fini(void);
+M0_INTERNAL int nlx_dev_init(void);
+/** Finalise the M0 LNet device. */
+M0_INTERNAL void nlx_dev_fini(void);
 
 /** @} */ /* LNetDev */
 
-#endif /*  __COLIBRI_NET_LNET_KLNET_DRV_H__ */
+#endif /*  __MERO_NET_LNET_KLNET_DRV_H__ */
 
 /*
  *  Local variables:

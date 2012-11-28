@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_DLD_TEMPLATE_H__
-#define __COLIBRI_DLD_TEMPLATE_H__
+#ifndef __MERO_DLD_TEMPLATE_H__
+#define __MERO_DLD_TEMPLATE_H__
 
 /**
    @page DLD-fspec DLD Functional Specification Template
@@ -125,7 +125,7 @@ struct dld_sample_ds1 {
  */
 
 /**
-   @defgroup DLDDFS Colibri Sample Module
+   @defgroup DLDDFS Mero Sample Module
    @brief Detailed functional specification template.
 
    This page is part of the DLD style template.  Detailed functional
@@ -145,7 +145,7 @@ struct dld_sample_ds1 {
    external documentation in this header file.  Please make sure that the DLD
    and the modules cross-reference each other, as shown below.
 
-   @see The @ref DLD "Colibri Sample DLD" its
+   @see The @ref DLD "Mero Sample DLD" its
    @ref DLD-fspec "Functional Specification"
    and its @ref DLD-lspec-thread
 
@@ -193,11 +193,11 @@ extern unsigned int dld_bad_example;
    @pre Pre-condition, preferably expressed in code.
    @post Post-condition, preferably expressed in code.
  */
-C2_INTERNAL int dld_sample_sub1(struct dld_sample_ds1 *param1, bool read_only);
+M0_INTERNAL int dld_sample_sub1(struct dld_sample_ds1 *param1, bool read_only);
 
 /** @} */ /* DLDDFS end group */
 
-#endif /*  __COLIBRI_DLD_TEMPLATE_H__ */
+#endif /*  __MERO_DLD_TEMPLATE_H__ */
 
 /*
  *  Local variables:

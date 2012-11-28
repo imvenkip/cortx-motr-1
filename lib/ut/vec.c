@@ -34,9 +34,9 @@ enum {
 	IT = 6,
 };
 
-static c2_bcount_t segs[NR * IT];
+static m0_bcount_t segs[NR * IT];
 
-static struct c2_vec t = {
+static struct m0_vec t = {
 	.v_nr    = NR * IT,
 	.v_count = segs
 };
@@ -45,14 +45,14 @@ void test_vec(void)
 {
 	int         i;
 	int         it;
-	c2_bcount_t count;
-	c2_bcount_t sum0;
-	c2_bcount_t sum1;
-	c2_bcount_t step;
+	m0_bcount_t count;
+	m0_bcount_t sum0;
+	m0_bcount_t sum1;
+	m0_bcount_t step;
 	bool        eov;
 
-	struct c2_vec_cursor c;
-	struct c2_bufvec     bv;
+	struct m0_vec_cursor c;
+	struct m0_bufvec     bv;
 
 	for (count = 0, it = 1, sum0 = i = 0; i < ARRAY_SIZE(segs); ++i) {
 		segs[i] = count * it;
@@ -63,58 +63,58 @@ void test_vec(void)
 		}
 	};
 
-	C2_UT_ASSERT(c2_vec_count(&t) == sum0);
+	M0_UT_ASSERT(m0_vec_count(&t) == sum0);
 
-	c2_vec_cursor_init(&c, &t);
+	m0_vec_cursor_init(&c, &t);
 	for (i = 0; i < sum0; ++i) {
-		eov = c2_vec_cursor_move(&c, 1);
-		C2_UT_ASSERT(eov == (i == sum0 - 1));
+		eov = m0_vec_cursor_move(&c, 1);
+		M0_UT_ASSERT(eov == (i == sum0 - 1));
 	}
 
-	c2_vec_cursor_init(&c, &t);
+	m0_vec_cursor_init(&c, &t);
 	count = 0;
 	it = 1;
 	sum1 = 0;
-	while (!c2_vec_cursor_move(&c, 0)) {
+	while (!m0_vec_cursor_move(&c, 0)) {
 		if (count * it != 0) {
-			step = c2_vec_cursor_step(&c);
+			step = m0_vec_cursor_step(&c);
 			sum1 += step;
-			C2_UT_ASSERT(step == count * it);
-			eov = c2_vec_cursor_move(&c, step);
-			C2_UT_ASSERT(eov == (sum1 == sum0));
+			M0_UT_ASSERT(step == count * it);
+			eov = m0_vec_cursor_move(&c, step);
+			M0_UT_ASSERT(eov == (sum1 == sum0));
 		}
 		if (++count == NR) {
 			count = 0;
 			++it;
 		}
 	}
-	c2_vec_cursor_init(&c, &t);
-	c2_vec_cursor_move(&c, sum0);
-	C2_UT_ASSERT(c2_vec_cursor_move(&c, 0));
+	m0_vec_cursor_init(&c, &t);
+	m0_vec_cursor_move(&c, sum0);
+	M0_UT_ASSERT(m0_vec_cursor_move(&c, 0));
 
-	C2_UT_ASSERT(c2_bufvec_alloc(&bv, NR, C2_SEG_SIZE) == 0);
-	C2_UT_ASSERT(bv.ov_vec.v_nr == NR);
+	M0_UT_ASSERT(m0_bufvec_alloc(&bv, NR, M0_SEG_SIZE) == 0);
+	M0_UT_ASSERT(bv.ov_vec.v_nr == NR);
 	for (i = 0; i < NR; ++i) {
-		C2_UT_ASSERT(bv.ov_vec.v_count[i] == C2_SEG_SIZE);
-		C2_UT_ASSERT(bv.ov_buf[i] != NULL);
+		M0_UT_ASSERT(bv.ov_vec.v_count[i] == M0_SEG_SIZE);
+		M0_UT_ASSERT(bv.ov_buf[i] != NULL);
 	}
-	c2_bufvec_free(&bv);
-	C2_UT_ASSERT(bv.ov_vec.v_nr == 0);
-	C2_UT_ASSERT(bv.ov_buf == NULL);
-	c2_bufvec_free(&bv);    /* no-op */
+	m0_bufvec_free(&bv);
+	M0_UT_ASSERT(bv.ov_vec.v_nr == 0);
+	M0_UT_ASSERT(bv.ov_buf == NULL);
+	m0_bufvec_free(&bv);    /* no-op */
 
-	C2_UT_ASSERT(c2_bufvec_alloc_aligned(&bv, NR, C2_SEG_SIZE,
-					      C2_SEG_SHIFT) == 0);
-	C2_UT_ASSERT(bv.ov_vec.v_nr == NR);
+	M0_UT_ASSERT(m0_bufvec_alloc_aligned(&bv, NR, M0_SEG_SIZE,
+					      M0_SEG_SHIFT) == 0);
+	M0_UT_ASSERT(bv.ov_vec.v_nr == NR);
 	for (i = 0; i < NR; ++i) {
-		C2_UT_ASSERT(bv.ov_vec.v_count[i] == C2_SEG_SIZE);
-		C2_UT_ASSERT(bv.ov_buf[i] != NULL);
-		C2_UT_ASSERT(c2_addr_is_aligned(bv.ov_buf[i], C2_SEG_SHIFT));
+		M0_UT_ASSERT(bv.ov_vec.v_count[i] == M0_SEG_SIZE);
+		M0_UT_ASSERT(bv.ov_buf[i] != NULL);
+		M0_UT_ASSERT(m0_addr_is_aligned(bv.ov_buf[i], M0_SEG_SHIFT));
 	}
-	c2_bufvec_free_aligned(&bv, C2_SEG_SHIFT);
-	C2_UT_ASSERT(bv.ov_vec.v_nr == 0);
-	C2_UT_ASSERT(bv.ov_buf == NULL);
-	c2_bufvec_free_aligned(&bv, C2_SEG_SHIFT);    /* no-op */
+	m0_bufvec_free_aligned(&bv, M0_SEG_SHIFT);
+	M0_UT_ASSERT(bv.ov_vec.v_nr == 0);
+	M0_UT_ASSERT(bv.ov_buf == NULL);
+	m0_bufvec_free_aligned(&bv, M0_SEG_SHIFT);    /* no-op */
 
 	test_bufvec_cursor();
 
@@ -126,12 +126,12 @@ void test_vec(void)
 static void test_ivec_cursor(void)
 {
 	int		      nr;
-	c2_bindex_t	      segs[1];
-	c2_bindex_t	      index;
-	c2_bcount_t	      counts[1];
-	c2_bcount_t	      c;
-	struct c2_indexvec    ivec;
-	struct c2_ivec_cursor cur;
+	m0_bindex_t	      segs[1];
+	m0_bindex_t	      index;
+	m0_bcount_t	      counts[1];
+	m0_bcount_t	      c;
+	struct m0_indexvec    ivec;
+	struct m0_ivec_cursor cur;
 
 	segs[0]   = 0;
 	counts[0] = 4096;
@@ -140,26 +140,26 @@ static void test_ivec_cursor(void)
 	ivec.iv_vec.v_nr    = 1;
 	ivec.iv_vec.v_count = counts;
 
-	c2_ivec_cursor_init(&cur, &ivec);
-	C2_UT_ASSERT(cur.ic_cur.vc_vec    == &ivec.iv_vec);
-	C2_UT_ASSERT(cur.ic_cur.vc_seg    == 0);
-	C2_UT_ASSERT(cur.ic_cur.vc_offset == 0);
+	m0_ivec_cursor_init(&cur, &ivec);
+	M0_UT_ASSERT(cur.ic_cur.vc_vec    == &ivec.iv_vec);
+	M0_UT_ASSERT(cur.ic_cur.vc_seg    == 0);
+	M0_UT_ASSERT(cur.ic_cur.vc_offset == 0);
 
-	C2_UT_ASSERT(c2_ivec_cursor_step(&cur)  == 4096);
-	C2_UT_ASSERT(c2_ivec_cursor_index(&cur) == 0);
-	C2_UT_ASSERT(!c2_ivec_cursor_move(&cur, 2048));
-	C2_UT_ASSERT(c2_ivec_cursor_index(&cur) == 2048);
-	C2_UT_ASSERT(c2_ivec_cursor_move(&cur, 2048));
+	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 4096);
+	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 0);
+	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 2048));
+	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 2048);
+	M0_UT_ASSERT(m0_ivec_cursor_move(&cur, 2048));
 
-	c2_ivec_cursor_init(&cur, &ivec);
+	m0_ivec_cursor_init(&cur, &ivec);
 	c = 0;
 	nr = 0;
-	while (!c2_ivec_cursor_move(&cur, c)) {
-		index = c2_ivec_cursor_index(&cur);
-		c = c2_ivec_cursor_step(&cur);
+	while (!m0_ivec_cursor_move(&cur, c)) {
+		index = m0_ivec_cursor_index(&cur);
+		c = m0_ivec_cursor_step(&cur);
 		++nr;
 	}
-	C2_UT_ASSERT(nr == 1);
+	M0_UT_ASSERT(nr == 1);
 }
 
 static void test_bufvec_cursor(void)
@@ -171,7 +171,7 @@ static void test_bufvec_cursor(void)
 	enum { NR_BUFS = 10 };
 	static struct {
 		uint32_t    num_segs;
-		c2_bcount_t seg_size;
+		m0_bcount_t seg_size;
 	} shapes[NR_BUFS] = {
 		[0] = { 1, 48 },
 		[1] = { 1, 48 },
@@ -187,35 +187,35 @@ static void test_bufvec_cursor(void)
 	static const char *msg = "abcdefghijklmnopqrstuvwxyz0123456789"
 		"ABCDEFGHIJK";
 	size_t msglen = strlen(msg)+1;
-	struct c2_bufvec bufs[NR_BUFS];
-	struct c2_bufvec *b;
+	struct m0_bufvec bufs[NR_BUFS];
+	struct m0_bufvec *b;
 	int i;
 
-	C2_SET_ARR0(bufs);
+	M0_SET_ARR0(bufs);
 	for (i = 0; i < NR_BUFS; ++i) {
-		C2_UT_ASSERT(msglen == shapes[i].num_segs * shapes[i].seg_size);
-		C2_UT_ASSERT(c2_bufvec_alloc(&bufs[i],
+		M0_UT_ASSERT(msglen == shapes[i].num_segs * shapes[i].seg_size);
+		M0_UT_ASSERT(m0_bufvec_alloc(&bufs[i],
 					     shapes[i].num_segs,
 					     shapes[i].seg_size) == 0);
 	}
 	b = &bufs[0];
-	C2_UT_ASSERT(b->ov_vec.v_nr == 1);
+	M0_UT_ASSERT(b->ov_vec.v_nr == 1);
 	memcpy(b->ov_buf[0], msg, msglen);
-	C2_UT_ASSERT(memcmp(b->ov_buf[0], msg, msglen) == 0);
+	M0_UT_ASSERT(memcmp(b->ov_buf[0], msg, msglen) == 0);
 	for (i = 1; i < NR_BUFS; ++i) {
-		struct c2_bufvec_cursor s_cur;
-		struct c2_bufvec_cursor d_cur;
+		struct m0_bufvec_cursor s_cur;
+		struct m0_bufvec_cursor d_cur;
 		int j;
 		const char *p = msg;
 
-		c2_bufvec_cursor_init(&s_cur, &bufs[i-1]);
-		c2_bufvec_cursor_init(&d_cur, &bufs[i]);
-		C2_UT_ASSERT(c2_bufvec_cursor_copy(&d_cur, &s_cur, msglen)
+		m0_bufvec_cursor_init(&s_cur, &bufs[i-1]);
+		m0_bufvec_cursor_init(&d_cur, &bufs[i]);
+		M0_UT_ASSERT(m0_bufvec_cursor_copy(&d_cur, &s_cur, msglen)
 			     == msglen);
 
 		/* verify cursor positions */
-		C2_UT_ASSERT(c2_bufvec_cursor_move(&s_cur,0));
-		C2_UT_ASSERT(c2_bufvec_cursor_move(&d_cur,0));
+		M0_UT_ASSERT(m0_bufvec_cursor_move(&s_cur,0));
+		M0_UT_ASSERT(m0_bufvec_cursor_move(&d_cur,0));
 
 		/* verify data */
 		for (j = 0; j < bufs[i].ov_vec.v_nr; ++j) {
@@ -223,35 +223,35 @@ static void test_bufvec_cursor(void)
 			char *q;
 			for (k = 0; k < bufs[i].ov_vec.v_count[j]; ++k) {
 				q = bufs[i].ov_buf[j] + k;
-				C2_UT_ASSERT(*p++ == *q);
+				M0_UT_ASSERT(*p++ == *q);
 			}
 		}
 	}
 
 	/* bounded copy - dest buffer smaller */
 	{
-		struct c2_bufvec buf;
-		c2_bcount_t seg_size = shapes[NR_BUFS-1].seg_size - 1;
+		struct m0_bufvec buf;
+		m0_bcount_t seg_size = shapes[NR_BUFS-1].seg_size - 1;
 		uint32_t    num_segs = shapes[NR_BUFS-1].num_segs - 1;
-		c2_bcount_t buflen = seg_size * num_segs;
-		struct c2_bufvec_cursor s_cur;
-		struct c2_bufvec_cursor d_cur;
+		m0_bcount_t buflen = seg_size * num_segs;
+		struct m0_bufvec_cursor s_cur;
+		struct m0_bufvec_cursor d_cur;
 		int j;
 		const char *p = msg;
 		int len;
 
-		C2_UT_ASSERT(c2_bufvec_alloc(&buf, num_segs, seg_size) == 0);
-		C2_UT_ASSERT(buflen < msglen);
+		M0_UT_ASSERT(m0_bufvec_alloc(&buf, num_segs, seg_size) == 0);
+		M0_UT_ASSERT(buflen < msglen);
 
-		c2_bufvec_cursor_init(&s_cur, &bufs[NR_BUFS-1]);
-		c2_bufvec_cursor_init(&d_cur, &buf);
+		m0_bufvec_cursor_init(&s_cur, &bufs[NR_BUFS-1]);
+		m0_bufvec_cursor_init(&d_cur, &buf);
 
-		C2_UT_ASSERT(c2_bufvec_cursor_copy(&d_cur, &s_cur, msglen)
+		M0_UT_ASSERT(m0_bufvec_cursor_copy(&d_cur, &s_cur, msglen)
 			     == buflen);
 
 		/* verify cursor positions */
-		C2_UT_ASSERT(!c2_bufvec_cursor_move(&s_cur,0));
-		C2_UT_ASSERT(c2_bufvec_cursor_move(&d_cur,0));
+		M0_UT_ASSERT(!m0_bufvec_cursor_move(&s_cur,0));
+		M0_UT_ASSERT(m0_bufvec_cursor_move(&d_cur,0));
 
 		/* check partial copy correct */
 		len = 0;
@@ -260,38 +260,38 @@ static void test_bufvec_cursor(void)
 			char *q;
 			for (k = 0; k < buf.ov_vec.v_count[j]; ++k) {
 				q = buf.ov_buf[j] + k;
-				C2_UT_ASSERT(*p++ == *q);
+				M0_UT_ASSERT(*p++ == *q);
 				len++;
 			}
 		}
-		C2_UT_ASSERT(len == buflen);
-		c2_bufvec_free(&buf);
+		M0_UT_ASSERT(len == buflen);
+		m0_bufvec_free(&buf);
 	}
 
 	/* bounded copy - source buffer smaller */
 	{
-		struct c2_bufvec buf;
-		c2_bcount_t seg_size = shapes[NR_BUFS-1].seg_size + 1;
+		struct m0_bufvec buf;
+		m0_bcount_t seg_size = shapes[NR_BUFS-1].seg_size + 1;
 		uint32_t    num_segs = shapes[NR_BUFS-1].num_segs + 1;
-		c2_bcount_t buflen = seg_size * num_segs;
-		struct c2_bufvec_cursor s_cur;
-		struct c2_bufvec_cursor d_cur;
+		m0_bcount_t buflen = seg_size * num_segs;
+		struct m0_bufvec_cursor s_cur;
+		struct m0_bufvec_cursor d_cur;
 		int j;
 		const char *p = msg;
 		int len;
 
-		C2_UT_ASSERT(c2_bufvec_alloc(&buf, num_segs, seg_size) == 0);
-		C2_UT_ASSERT(buflen > msglen);
+		M0_UT_ASSERT(m0_bufvec_alloc(&buf, num_segs, seg_size) == 0);
+		M0_UT_ASSERT(buflen > msglen);
 
-		c2_bufvec_cursor_init(&s_cur, &bufs[NR_BUFS-1]);
-		c2_bufvec_cursor_init(&d_cur, &buf);
+		m0_bufvec_cursor_init(&s_cur, &bufs[NR_BUFS-1]);
+		m0_bufvec_cursor_init(&d_cur, &buf);
 
-		C2_UT_ASSERT(c2_bufvec_cursor_copy(&d_cur, &s_cur, buflen)
+		M0_UT_ASSERT(m0_bufvec_cursor_copy(&d_cur, &s_cur, buflen)
 			     == msglen);
 
 		/* verify cursor positions */
-		C2_UT_ASSERT(c2_bufvec_cursor_move(&s_cur,0));
-		C2_UT_ASSERT(!c2_bufvec_cursor_move(&d_cur,0));
+		M0_UT_ASSERT(m0_bufvec_cursor_move(&s_cur,0));
+		M0_UT_ASSERT(!m0_bufvec_cursor_move(&d_cur,0));
 
 		/* check partial copy correct */
 		len = 0;
@@ -301,16 +301,16 @@ static void test_bufvec_cursor(void)
 			for (k = 0; k < buf.ov_vec.v_count[j] && len < msglen;
 			     k++) {
 				q = buf.ov_buf[j] + k;
-				C2_UT_ASSERT(*p++ == *q);
+				M0_UT_ASSERT(*p++ == *q);
 				len++;
 			}
 		}
-		c2_bufvec_free(&buf);
+		m0_bufvec_free(&buf);
 	}
 
 	/* free buffer pool */
 	for (i = 0; i < ARRAY_SIZE(bufs); ++i)
-		c2_bufvec_free(&bufs[i]);
+		m0_bufvec_free(&bufs[i]);
 }
 
 static void test_bufvec_cursor_copyto_copyfrom(void)
@@ -340,101 +340,101 @@ static void test_bufvec_cursor_copyto_copyfrom(void)
 	};
 
 	void                    *area1;
-	struct c2_bufvec         bv1;
-	struct c2_bufvec_cursor  dcur1;
+	struct m0_bufvec         bv1;
+	struct m0_bufvec_cursor  dcur1;
 	struct struct_int       *struct_int2 = NULL;
 	struct struct_char      *struct_char2 = NULL;
 	struct struct_int        struct_int3;
 	struct struct_char       struct_char3;
-	c2_bcount_t              nbytes;
-	c2_bcount_t              nbytes_copied;
+	m0_bcount_t              nbytes;
+	m0_bcount_t              nbytes_copied;
 	uint32_t                 i;
 	int                      rc;
 
 	/* Prepare for the destination buffer and the cursor. */
 	nbytes = sizeof struct_int1 * 4 + sizeof struct_char1 * 4 + 1;
 
-	area1 = c2_alloc(nbytes);
-	C2_UT_ASSERT(area1 != NULL);
+	area1 = m0_alloc(nbytes);
+	M0_UT_ASSERT(area1 != NULL);
 
-	bv1 = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area1, &nbytes);
-	c2_bufvec_cursor_init(&dcur1, &bv1);
+	bv1 = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area1, &nbytes);
+	m0_bufvec_cursor_init(&dcur1, &bv1);
 
-	C2_UT_ASSERT(c2_bufvec_cursor_step(&dcur1) == nbytes);
+	M0_UT_ASSERT(m0_bufvec_cursor_step(&dcur1) == nbytes);
 
 	/*
 	 * Copy data to the destination cursor using the API
-	 * c2_bufvec_cursor_copyto().
+	 * m0_bufvec_cursor_copyto().
 	 */
 	for (i = 0; i < 4; ++i) {
 		/* Copy struct_int1 to the bufvec. */
-		nbytes_copied = c2_bufvec_cursor_copyto(&dcur1,
+		nbytes_copied = m0_bufvec_cursor_copyto(&dcur1,
 							(void *)&struct_int1,
 							sizeof struct_int1);
-		C2_UT_ASSERT(nbytes_copied == sizeof struct_int1);
+		M0_UT_ASSERT(nbytes_copied == sizeof struct_int1);
 
 		/* Copy struct_char1 to the bufvec. */
-		nbytes_copied = c2_bufvec_cursor_copyto(&dcur1,
+		nbytes_copied = m0_bufvec_cursor_copyto(&dcur1,
 							(void *)&struct_char1,
 							 sizeof struct_char1);
-		C2_UT_ASSERT(nbytes_copied == sizeof struct_char1);
+		M0_UT_ASSERT(nbytes_copied == sizeof struct_char1);
 	}
 
 	/* Rewind the cursor. */
-	c2_bufvec_cursor_init(&dcur1, &bv1);
-	C2_UT_ASSERT(c2_bufvec_cursor_step(&dcur1) == nbytes);
+	m0_bufvec_cursor_init(&dcur1, &bv1);
+	M0_UT_ASSERT(m0_bufvec_cursor_step(&dcur1) == nbytes);
 
 	/* Verify data from the destination cursor. */
 	for (i = 0; i < 3; ++i) {
 		/* Read data into struct_int2 and verify it. */
-		struct_int2 = c2_bufvec_cursor_addr(&dcur1);
-		C2_UT_ASSERT(struct_int2 != NULL);
+		struct_int2 = m0_bufvec_cursor_addr(&dcur1);
+		M0_UT_ASSERT(struct_int2 != NULL);
 
-		C2_UT_ASSERT(struct_int2->int1 == struct_int1.int1);
-		C2_UT_ASSERT(struct_int2->int2 == struct_int1.int2);
-		C2_UT_ASSERT(struct_int2->int3 == struct_int1.int3);
+		M0_UT_ASSERT(struct_int2->int1 == struct_int1.int1);
+		M0_UT_ASSERT(struct_int2->int2 == struct_int1.int2);
+		M0_UT_ASSERT(struct_int2->int3 == struct_int1.int3);
 
-		rc = c2_bufvec_cursor_move(&dcur1, sizeof *struct_int2);
-		C2_UT_ASSERT(rc == 0);
+		rc = m0_bufvec_cursor_move(&dcur1, sizeof *struct_int2);
+		M0_UT_ASSERT(rc == 0);
 
 		/* Read data into struct_char2 and verify it. */
-		struct_char2 = c2_bufvec_cursor_addr(&dcur1);
-		C2_UT_ASSERT(struct_char2 != NULL);
+		struct_char2 = m0_bufvec_cursor_addr(&dcur1);
+		M0_UT_ASSERT(struct_char2 != NULL);
 
-		C2_UT_ASSERT(struct_char2->char1 == struct_char1.char1);
-		C2_UT_ASSERT(struct_char2->char2 == struct_char1.char2);
-		C2_UT_ASSERT(struct_char2->char3 == struct_char1.char3);
+		M0_UT_ASSERT(struct_char2->char1 == struct_char1.char1);
+		M0_UT_ASSERT(struct_char2->char2 == struct_char1.char2);
+		M0_UT_ASSERT(struct_char2->char3 == struct_char1.char3);
 
-		rc = c2_bufvec_cursor_move(&dcur1, sizeof *struct_char2);
-		C2_UT_ASSERT(rc == 0);
+		rc = m0_bufvec_cursor_move(&dcur1, sizeof *struct_char2);
+		M0_UT_ASSERT(rc == 0);
 	}
 
 	/* Rewind the cursor. */
-	c2_bufvec_cursor_init(&dcur1, &bv1);
-	C2_UT_ASSERT(c2_bufvec_cursor_step(&dcur1) == nbytes);
+	m0_bufvec_cursor_init(&dcur1, &bv1);
+	M0_UT_ASSERT(m0_bufvec_cursor_step(&dcur1) == nbytes);
 
 	/*
-	 * Copy data from the cursor using the API c2_bufvec_cursor_copyfrom().
+	 * Copy data from the cursor using the API m0_bufvec_cursor_copyfrom().
 	 */
 
 	for (i = 0; i < 3; ++i) {
 		/* Copy data from dcur into the struct_int3 and verify it. */
-		nbytes_copied = c2_bufvec_cursor_copyfrom(&dcur1, &struct_int3,
+		nbytes_copied = m0_bufvec_cursor_copyfrom(&dcur1, &struct_int3,
 							  sizeof struct_int3);
-		C2_UT_ASSERT(nbytes_copied == sizeof struct_int3);
+		M0_UT_ASSERT(nbytes_copied == sizeof struct_int3);
 
-		C2_UT_ASSERT(struct_int3.int2 == struct_int1.int2);
-		C2_UT_ASSERT(struct_int3.int2 == struct_int1.int2);
-		C2_UT_ASSERT(struct_int3.int3 == struct_int1.int3);
+		M0_UT_ASSERT(struct_int3.int2 == struct_int1.int2);
+		M0_UT_ASSERT(struct_int3.int2 == struct_int1.int2);
+		M0_UT_ASSERT(struct_int3.int3 == struct_int1.int3);
 
 		/* Copy data from dcur into the struct_char3 and verify it. */
-		nbytes_copied = c2_bufvec_cursor_copyfrom(&dcur1, &struct_char3,
+		nbytes_copied = m0_bufvec_cursor_copyfrom(&dcur1, &struct_char3,
 							  sizeof struct_char3);
-		C2_UT_ASSERT(nbytes_copied == sizeof struct_char3);
+		M0_UT_ASSERT(nbytes_copied == sizeof struct_char3);
 
-		C2_UT_ASSERT(struct_char3.char1 == struct_char1.char1);
-		C2_UT_ASSERT(struct_char3.char2 == struct_char1.char2);
-		C2_UT_ASSERT(struct_char3.char3 == struct_char1.char3);
+		M0_UT_ASSERT(struct_char3.char1 == struct_char1.char1);
+		M0_UT_ASSERT(struct_char3.char2 == struct_char1.char2);
+		M0_UT_ASSERT(struct_char3.char3 == struct_char1.char3);
 	}
 }
 

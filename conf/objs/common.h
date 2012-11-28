@@ -18,19 +18,19 @@
  * Original creation date: 30-Aug-2012
  */
 #pragma once
-#ifndef __COLIBRI_CONF_OBJS_COMMON_H__
-#define __COLIBRI_CONF_OBJS_COMMON_H__
+#ifndef __MERO_CONF_OBJS_COMMON_H__
+#define __MERO_CONF_OBJS_COMMON_H__
 
-#include "conf/obj.h"     /* c2_conf_obj, c2_conf_objtype */
-#include "conf/obj_ops.h" /* c2_conf_obj_ops */
+#include "conf/obj.h"     /* m0_conf_obj, m0_conf_objtype */
+#include "conf/obj_ops.h" /* m0_conf_obj_ops */
 #include "conf/onwire.h"  /* confx_object */
 #include "conf/buf_ext.h"
-#include "lib/memory.h"   /* c2_free */
+#include "lib/memory.h"   /* m0_free */
 #include "lib/errno.h"    /* ENOMEM, ENOENT */
-#include "lib/misc.h"     /* memcpy, memcmp, strlen, C2_IN */
+#include "lib/misc.h"     /* memcpy, memcmp, strlen, M0_IN */
 
-struct c2_conf_reg;
-struct c2_buf;
+struct m0_conf_reg;
+struct m0_buf;
 
 #define MEMBER_PTR(ptr, member)                \
 ({                                             \
@@ -45,35 +45,35 @@ struct c2_buf;
 	__emb;                                                                \
 })
 
-#define C2_CONF__BOB_DEFINE(type, magic, check)                               \
-const struct c2_bob_type type ## _bob = {                                     \
+#define M0_CONF__BOB_DEFINE(type, magic, check)                               \
+const struct m0_bob_type type ## _bob = {                                     \
 	.bt_name         = #type,                                             \
-	.bt_magix_offset = C2_MAGIX_OFFSET(struct type,                       \
+	.bt_magix_offset = M0_MAGIX_OFFSET(struct type,                       \
 					   type ## _cast_field.co_con_magic), \
 	.bt_magix        = magic,                                             \
 	.bt_check        = check                                              \
 };                                                                            \
-C2_BOB_DEFINE(static, &type ## _bob, type)
+M0_BOB_DEFINE(static, &type ## _bob, type)
 
-#define C2_CONF__INVARIANT_DEFINE(name, type)                         \
-static bool name(const struct c2_conf_obj *obj)                       \
+#define M0_CONF__INVARIANT_DEFINE(name, type)                         \
+static bool name(const struct m0_conf_obj *obj)                       \
 {                                                                     \
 	return type ## _bob_check(container_of(obj, struct type,      \
 					       type ## _cast_field)); \
 }                                                                     \
 struct __ ## abbrev ## _semicolon_catcher
 
-C2_INTERNAL bool parent_check(const struct c2_conf_obj *obj);
+M0_INTERNAL bool parent_check(const struct m0_conf_obj *obj);
 
-C2_INTERNAL bool child_check(const struct c2_conf_obj *obj,
-			     const struct c2_conf_obj *child,
-			     enum c2_conf_objtype child_type);
+M0_INTERNAL bool child_check(const struct m0_conf_obj *obj,
+			     const struct m0_conf_obj *child,
+			     enum m0_conf_objtype child_type);
 
-C2_INTERNAL void child_adopt(struct c2_conf_obj *parent,
-			     struct c2_conf_obj *child);
+M0_INTERNAL void child_adopt(struct m0_conf_obj *parent,
+			     struct m0_conf_obj *child);
 
 /**
- * Creates new c2_conf_directory and populates it with stubs.
+ * Creates new m0_conf_directory and populates it with stubs.
  *
  * @param dir_id         Directory identifier.
  * @param children_type  Type of entries.
@@ -86,13 +86,13 @@ C2_INTERNAL void child_adopt(struct c2_conf_obj *parent,
  *
  * XXX @todo UT transactional property of dir_new().
  */
-C2_INTERNAL int dir_new(const struct c2_buf *dir_id,
-			enum c2_conf_objtype children_type,
-			const struct arr_buf *src, struct c2_conf_reg *reg,
-			struct c2_conf_dir **out);
+M0_INTERNAL int dir_new(const struct m0_buf *dir_id,
+			enum m0_conf_objtype children_type,
+			const struct arr_buf *src, struct m0_conf_reg *reg,
+			struct m0_conf_dir **out);
 
-C2_INTERNAL bool arrays_eq(const char **cached, const struct arr_buf *flat);
-C2_INTERNAL int strings_copy(const char ***dest, const struct arr_buf *src);
-C2_INTERNAL void strings_free(const char **arr);
+M0_INTERNAL bool arrays_eq(const char **cached, const struct arr_buf *flat);
+M0_INTERNAL int strings_copy(const char ***dest, const struct arr_buf *src);
+M0_INTERNAL void strings_free(const char **arr);
 
-#endif /* __COLIBRI_CONF_OBJS_COMMON_H__ */
+#endif /* __MERO_CONF_OBJS_COMMON_H__ */

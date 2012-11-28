@@ -31,121 +31,121 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_CORE_OPCODES_H__
-#define __COLIBRI_RPC_CORE_OPCODES_H__
+#ifndef __MERO_RPC_CORE_OPCODES_H__
+#define __MERO_RPC_CORE_OPCODES_H__
 
-enum C2_RPC_OPCODES {
+enum M0_RPC_OPCODES {
 	/** ADDB */
-	C2_ADDB_REPLY_OPCODE                = 1,
-	C2_ADDB_RECORD_REQUEST_OPCODE       = 2,
+	M0_ADDB_REPLY_OPCODE                = 1,
+	M0_ADDB_RECORD_REQUEST_OPCODE       = 2,
 
-	/** Colibri setup rpc */
-	C2_CS_DS1_REQ_OPCODE                = 3,
-	C2_CS_DS1_REP_OPCODE                = 4,
-	C2_CS_DS2_REQ_OPCODE                = 5,
-	C2_CS_DS2_REP_OPCODE                = 6,
+	/** Mero setup rpc */
+	M0_CS_DS1_REQ_OPCODE                = 3,
+	M0_CS_DS1_REP_OPCODE                = 4,
+	M0_CS_DS2_REQ_OPCODE                = 5,
+	M0_CS_DS2_REP_OPCODE                = 6,
 
 	/** Console rpc */
-	C2_CONS_FOP_DEVICE_OPCODE           = 7,
-	C2_CONS_FOP_REPLY_OPCODE            = 8,
-	C2_CONS_TEST                        = 9,
+	M0_CONS_FOP_DEVICE_OPCODE           = 7,
+	M0_CONS_FOP_REPLY_OPCODE            = 8,
+	M0_CONS_TEST                        = 9,
 
 	/** Fol rpc */
-	C2_FOL_ANCHOR_TYPE_OPCODE           = 10,
-	C2_FOL_UT_OPCODE                    = 11,
+	M0_FOL_ANCHOR_TYPE_OPCODE           = 10,
+	M0_FOL_UT_OPCODE                    = 11,
 
 	/** Fop iterator rpc */
-	C2_FOP_ITERATOR_TEST_OPCODE         = 12,
+	M0_FOP_ITERATOR_TEST_OPCODE         = 12,
 
 	/** Request handler rpc */
-	C2_REQH_ERROR_REPLY_OPCODE	    = 13,
+	M0_REQH_ERROR_REPLY_OPCODE	    = 13,
 
 	/** Stob IO rpc */
-	C2_STOB_IO_CREATE_REQ_OPCODE        = 14,
-	C2_STOB_IO_WRITE_REQ_OPCODE         = 15,
-	C2_STOB_IO_READ_REQ_OPCODE          = 16,
-	C2_STOB_IO_CREATE_REPLY_OPCODE      = 17,
-	C2_STOB_IO_WRITE_REPLY_OPCODE       = 18,
-	C2_STOB_IO_READ_REPLY_OPCODE        = 19,
-	C2_STOB_UT_WRITE_OPCODE             = 20,
-	C2_STOB_UT_READ_OPCODE              = 21,
-	C2_STOB_UT_CREATE_OPCODE            = 22,
-	C2_STOB_UT_WRITE_REPLY_OPCODE       = 23,
-	C2_STOB_UT_READ_REPLY_OPCODE        = 24,
-	C2_STOB_UT_CREATE_REPLY_OPCODE      = 25,
-	C2_STOB_UT_QUIT_OPCODE              = 26,
+	M0_STOB_IO_CREATE_REQ_OPCODE        = 14,
+	M0_STOB_IO_WRITE_REQ_OPCODE         = 15,
+	M0_STOB_IO_READ_REQ_OPCODE          = 16,
+	M0_STOB_IO_CREATE_REPLY_OPCODE      = 17,
+	M0_STOB_IO_WRITE_REPLY_OPCODE       = 18,
+	M0_STOB_IO_READ_REPLY_OPCODE        = 19,
+	M0_STOB_UT_WRITE_OPCODE             = 20,
+	M0_STOB_UT_READ_OPCODE              = 21,
+	M0_STOB_UT_CREATE_OPCODE            = 22,
+	M0_STOB_UT_WRITE_REPLY_OPCODE       = 23,
+	M0_STOB_UT_READ_REPLY_OPCODE        = 24,
+	M0_STOB_UT_CREATE_REPLY_OPCODE      = 25,
+	M0_STOB_UT_QUIT_OPCODE              = 26,
 
 	/** RPC module */
-	C2_RPC_PING_OPCODE                  = 27,
-	C2_RPC_PING_REPLY_OPCODE            = 28,
-	C2_RPC_CONN_ESTABLISH_OPCODE        = 29,
-	C2_RPC_CONN_TERMINATE_OPCODE        = 30,
-	C2_RPC_SESSION_ESTABLISH_OPCODE     = 31,
-	C2_RPC_SESSION_TERMINATE_OPCODE     = 32,
-	C2_RPC_CONN_ESTABLISH_REP_OPCODE    = 33,
-	C2_RPC_CONN_TERMINATE_REP_OPCODE    = 34,
-	C2_RPC_SESSION_ESTABLISH_REP_OPCODE = 35,
-	C2_RPC_SESSION_TERMINATE_REP_OPCODE = 36,
-	C2_RPC_NOOP_OPCODE                  = 37,
-	C2_RPC_ONWIRE_UT_OPCODE             = 38,
+	M0_RPC_PING_OPCODE                  = 27,
+	M0_RPC_PING_REPLY_OPCODE            = 28,
+	M0_RPC_CONN_ESTABLISH_OPCODE        = 29,
+	M0_RPC_CONN_TERMINATE_OPCODE        = 30,
+	M0_RPC_SESSION_ESTABLISH_OPCODE     = 31,
+	M0_RPC_SESSION_TERMINATE_OPCODE     = 32,
+	M0_RPC_CONN_ESTABLISH_REP_OPCODE    = 33,
+	M0_RPC_CONN_TERMINATE_REP_OPCODE    = 34,
+	M0_RPC_SESSION_ESTABLISH_REP_OPCODE = 35,
+	M0_RPC_SESSION_TERMINATE_REP_OPCODE = 36,
+	M0_RPC_NOOP_OPCODE                  = 37,
+	M0_RPC_ONWIRE_UT_OPCODE             = 38,
 
 	/** Network rpc */
-	C2_NET_TEST_OPCODE                  = 39,
+	M0_NET_TEST_OPCODE                  = 39,
 
 	/** I/O service read & write */
-	C2_IOSERVICE_READV_OPCODE           = 40,
-	C2_IOSERVICE_WRITEV_OPCODE          = 41,
-	C2_IOSERVICE_READV_REP_OPCODE       = 42,
-	C2_IOSERVICE_WRITEV_REP_OPCODE      = 43,
+	M0_IOSERVICE_READV_OPCODE           = 40,
+	M0_IOSERVICE_WRITEV_OPCODE          = 41,
+	M0_IOSERVICE_READV_REP_OPCODE       = 42,
+	M0_IOSERVICE_WRITEV_REP_OPCODE      = 43,
 	/** I/O service cob creation and deletion */
-	C2_IOSERVICE_COB_CREATE_OPCODE      = 44,
-	C2_IOSERVICE_COB_DELETE_OPCODE      = 45,
-	C2_IOSERVICE_COB_OP_REPLY_OPCODE    = 46,
-	C2_IOSERVICE_FV_NOTIFICATION_OPCODE = 47,
+	M0_IOSERVICE_COB_CREATE_OPCODE      = 44,
+	M0_IOSERVICE_COB_DELETE_OPCODE      = 45,
+	M0_IOSERVICE_COB_OP_REPLY_OPCODE    = 46,
+	M0_IOSERVICE_FV_NOTIFICATION_OPCODE = 47,
 
 	/** Xcode rpc */
-	C2_XCODE_UT_OPCODE                  = 48,
+	M0_XCODE_UT_OPCODE                  = 48,
 
 	/** FOP module */
-	C2_FOP_RDWR_OPCODE                  = 49,
-	C2_FOP_RDWR_REPLY_OPCODE            = 50,
+	M0_FOP_RDWR_OPCODE                  = 49,
+	M0_FOP_RDWR_REPLY_OPCODE            = 50,
 
 	/** Configuration rpc */
-	C2_CONF_FETCH_OPCODE                = 51,
-	C2_CONF_FETCH_RESP_OPCODE           = 52,
-	C2_CONF_UPDATE_OPCODE               = 53,
-	C2_CONF_UPDATE_RESP_OPCODE          = 54,
+	M0_CONF_FETCH_OPCODE                = 51,
+	M0_CONF_FETCH_RESP_OPCODE           = 52,
+	M0_CONF_UPDATE_OPCODE               = 53,
+	M0_CONF_UPDATE_RESP_OPCODE          = 54,
 
         /* Mdservice fops */
-        C2_MDSERVICE_CREATE_OPCODE          = 55,
-        C2_MDSERVICE_LOOKUP_OPCODE          = 56,
-        C2_MDSERVICE_LINK_OPCODE            = 57,
-        C2_MDSERVICE_UNLINK_OPCODE          = 58,
-        C2_MDSERVICE_RENAME_OPCODE          = 59,
-        C2_MDSERVICE_OPEN_OPCODE            = 60,
-        C2_MDSERVICE_CLOSE_OPCODE           = 61,
-        C2_MDSERVICE_SETATTR_OPCODE         = 62,
-        C2_MDSERVICE_GETATTR_OPCODE         = 63,
-        C2_MDSERVICE_STATFS_OPCODE          = 64,
-        C2_MDSERVICE_READDIR_OPCODE         = 65,
-        C2_MDSERVICE_CREATE_REP_OPCODE      = 66,
-        C2_MDSERVICE_LOOKUP_REP_OPCODE      = 67,
-        C2_MDSERVICE_LINK_REP_OPCODE        = 68,
-        C2_MDSERVICE_UNLINK_REP_OPCODE      = 69,
-        C2_MDSERVICE_RENAME_REP_OPCODE      = 70,
-        C2_MDSERVICE_OPEN_REP_OPCODE        = 71,
-        C2_MDSERVICE_CLOSE_REP_OPCODE       = 72,
-        C2_MDSERVICE_SETATTR_REP_OPCODE     = 73,
-        C2_MDSERVICE_GETATTR_REP_OPCODE     = 74,
-        C2_MDSERVICE_STATFS_REP_OPCODE      = 75,
-        C2_MDSERVICE_READDIR_REP_OPCODE     = 76,
+        M0_MDSERVICE_CREATE_OPCODE          = 55,
+        M0_MDSERVICE_LOOKUP_OPCODE          = 56,
+        M0_MDSERVICE_LINK_OPCODE            = 57,
+        M0_MDSERVICE_UNLINK_OPCODE          = 58,
+        M0_MDSERVICE_RENAME_OPCODE          = 59,
+        M0_MDSERVICE_OPEN_OPCODE            = 60,
+        M0_MDSERVICE_CLOSE_OPCODE           = 61,
+        M0_MDSERVICE_SETATTR_OPCODE         = 62,
+        M0_MDSERVICE_GETATTR_OPCODE         = 63,
+        M0_MDSERVICE_STATFS_OPCODE          = 64,
+        M0_MDSERVICE_READDIR_OPCODE         = 65,
+        M0_MDSERVICE_CREATE_REP_OPCODE      = 66,
+        M0_MDSERVICE_LOOKUP_REP_OPCODE      = 67,
+        M0_MDSERVICE_LINK_REP_OPCODE        = 68,
+        M0_MDSERVICE_UNLINK_REP_OPCODE      = 69,
+        M0_MDSERVICE_RENAME_REP_OPCODE      = 70,
+        M0_MDSERVICE_OPEN_REP_OPCODE        = 71,
+        M0_MDSERVICE_CLOSE_REP_OPCODE       = 72,
+        M0_MDSERVICE_SETATTR_REP_OPCODE     = 73,
+        M0_MDSERVICE_GETATTR_REP_OPCODE     = 74,
+        M0_MDSERVICE_STATFS_REP_OPCODE      = 75,
+        M0_MDSERVICE_READDIR_REP_OPCODE     = 76,
 
-	C2_SNS_REPAIR_TRIGGER_OPCODE        = 77,
-	C2_SNS_REPAIR_TRIGGER_REP_OPCODE    = 78
+	M0_SNS_REPAIR_TRIGGER_OPCODE        = 77,
+	M0_SNS_REPAIR_TRIGGER_REP_OPCODE    = 78
 };
 /** @} endgroup rpc_layer_core */
 
-#endif /* __COLIBRI_RPC_CORE_OPCODES_H__ */
+#endif /* __MERO_RPC_CORE_OPCODES_H__ */
 
 /*
  *  Local variables:

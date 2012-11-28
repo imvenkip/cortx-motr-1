@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_LINUX_KERNEL_TIMER_H__
-#define __COLIBRI_LIB_LINUX_KERNEL_TIMER_H__
+#ifndef __MERO_LIB_LINUX_KERNEL_TIMER_H__
+#define __MERO_LIB_LINUX_KERNEL_TIMER_H__
 
 #include <linux/timer.h>
 
@@ -33,21 +33,21 @@
    @{
  */
 
-struct c2_timer {
+struct m0_timer {
 	/**
-	   Timer type: C2_TIMER_SOFT or C2_TIMER_HARD
+	   Timer type: M0_TIMER_SOFT or M0_TIMER_HARD
 	 */
-	enum c2_timer_type t_type;
+	enum m0_timer_type t_type;
 
 	/**
 	   The expiration time for timer.
 	 */
-	c2_time_t t_expire;
+	m0_time_t t_expire;
 
 	/**
 	   Timer triggers this callback.
 	 */
-	c2_timer_callback_t t_callback;
+	m0_timer_callback_t t_callback;
 
 	/**
 	   Is timer running now?
@@ -64,7 +64,7 @@ struct c2_timer {
 
 /** @} end of timer group */
 
-/* __COLIBRI_LIB_LINUX_KERNEL_TIMER_H__ */
+/* __MERO_LIB_LINUX_KERNEL_TIMER_H__ */
 #endif
 
 /*

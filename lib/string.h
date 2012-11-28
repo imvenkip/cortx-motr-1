@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_STRING_H__
-#define __COLIBRI_LIB_STRING_H__
+#ifndef __MERO_LIB_STRING_H__
+#define __MERO_LIB_STRING_H__
 
 /*
  * Define standard string manipulation functions (strcat, strlen, strcmp, &c.)
@@ -36,7 +36,7 @@
 # include <linux/string.h>
 #endif
 
-/* __COLIBRI_LIB_STRING_H__ */
+/* __MERO_LIB_STRING_H__ */
 #endif
 
 /*

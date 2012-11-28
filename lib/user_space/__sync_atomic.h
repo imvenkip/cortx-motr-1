@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB___SYNC_ATOMIC_H__
-#define __COLIBRI_LIB___SYNC_ATOMIC_H__
+#ifndef __MERO_LIB___SYNC_ATOMIC_H__
+#define __MERO_LIB___SYNC_ATOMIC_H__
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
@@ -53,13 +53,13 @@
    atomic: [   1000]  74.35  95.29  81.38  6.37% 8.138e-02/1.229e+01
  */
 
-struct c2_atomic64 {
+struct m0_atomic64 {
 	long a_value;
 };
 
-static inline void c2_atomic64_set(struct c2_atomic64 *a, int64_t num)
+static inline void m0_atomic64_set(struct m0_atomic64 *a, int64_t num)
 {
-	C2_CASSERT(sizeof a->a_value == sizeof num);
+	M0_CASSERT(sizeof a->a_value == sizeof num);
 
 	a->a_value = num;
 }
@@ -67,7 +67,7 @@ static inline void c2_atomic64_set(struct c2_atomic64 *a, int64_t num)
 /**
    Returns value of an atomic counter.
  */
-static inline int64_t c2_atomic64_get(const struct c2_atomic64 *a)
+static inline int64_t m0_atomic64_get(const struct m0_atomic64 *a)
 {
 	return a->a_value;
 }
@@ -79,7 +79,7 @@ static inline int64_t c2_atomic64_get(const struct c2_atomic64 *a)
 
  @return none
  */
-static inline void c2_atomic64_inc(struct c2_atomic64 *a)
+static inline void m0_atomic64_inc(struct m0_atomic64 *a)
 {
 	__sync_fetch_and_add(&a->a_value, 1);
 }
@@ -91,7 +91,7 @@ static inline void c2_atomic64_inc(struct c2_atomic64 *a)
 
  @return none
  */
-static inline void c2_atomic64_dec(struct c2_atomic64 *a)
+static inline void m0_atomic64_dec(struct m0_atomic64 *a)
 {
 	__sync_fetch_and_sub(&a->a_value, 1);
 }
@@ -99,7 +99,7 @@ static inline void c2_atomic64_dec(struct c2_atomic64 *a)
 /**
    Atomically adds given amount to a counter
  */
-static inline void c2_atomic64_add(struct c2_atomic64 *a, int64_t num)
+static inline void m0_atomic64_add(struct m0_atomic64 *a, int64_t num)
 {
 	__sync_fetch_and_add(&a->a_value, num);
 }
@@ -107,7 +107,7 @@ static inline void c2_atomic64_add(struct c2_atomic64 *a, int64_t num)
 /**
    Atomically subtracts given amount from a counter
  */
-static inline void c2_atomic64_sub(struct c2_atomic64 *a, int64_t num)
+static inline void m0_atomic64_sub(struct m0_atomic64 *a, int64_t num)
 {
 	__sync_fetch_and_sub(&a->a_value, num);
 }
@@ -119,7 +119,7 @@ static inline void c2_atomic64_sub(struct c2_atomic64 *a, int64_t num)
 
  @return new value of atomic counter
  */
-static inline int64_t c2_atomic64_add_return(struct c2_atomic64 *a,
+static inline int64_t m0_atomic64_add_return(struct m0_atomic64 *a,
 						  int64_t delta)
 {
 	return __sync_add_and_fetch(&a->a_value, delta);
@@ -132,30 +132,30 @@ static inline int64_t c2_atomic64_add_return(struct c2_atomic64 *a,
 
  @return new value of atomic counter
  */
-static inline int64_t c2_atomic64_sub_return(struct c2_atomic64 *a,
+static inline int64_t m0_atomic64_sub_return(struct m0_atomic64 *a,
 						  int64_t delta)
 {
-	return c2_atomic64_add_return(a, -delta);
+	return m0_atomic64_add_return(a, -delta);
 }
 
-static inline bool c2_atomic64_inc_and_test(struct c2_atomic64 *a)
+static inline bool m0_atomic64_inc_and_test(struct m0_atomic64 *a)
 {
 	return __sync_add_and_fetch(&a->a_value, 1) == 0;
 }
 
-static inline bool c2_atomic64_dec_and_test(struct c2_atomic64 *a)
+static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a)
 {
 	return __sync_sub_and_fetch(&a->a_value, 1) == 0;
 }
 
-static inline bool c2_atomic64_cas(int64_t * loc, int64_t old, int64_t new)
+static inline bool m0_atomic64_cas(int64_t * loc, int64_t old, int64_t new)
 {
 	return __sync_bool_compare_and_swap(loc, old, new);
 }
 
 /** @} end of atomic group */
 
-#endif /* __COLIBRI_LIB___SYNC_ATOMIC_H__ */
+#endif /* __MERO_LIB___SYNC_ATOMIC_H__ */
 
 /*
  *  Local variables:

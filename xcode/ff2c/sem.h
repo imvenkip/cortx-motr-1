@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_XCODE_FF2C_SEM_H__
-#define __COLIBRI_XCODE_FF2C_SEM_H__
+#ifndef __MERO_XCODE_FF2C_SEM_H__
+#define __MERO_XCODE_FF2C_SEM_H__
 
 /**
    @addtogroup xcode
@@ -97,7 +97,7 @@ char *fmt(const char *format, ...) __attribute__((format(printf, 1, 2)));
 
 /** @} end of xcode group */
 
-/* __COLIBRI_XCODE_FF2C_SEM_H__ */
+/* __MERO_XCODE_FF2C_SEM_H__ */
 #endif
 
 /*

@@ -18,8 +18,8 @@
  * Original creation date: 09/03/2012
  */
 
-#include "lib/ut.h"		/* C2_UT_ASSERT */
-#include "lib/vec.h"		/* c2_bufvec */
+#include "lib/ut.h"		/* M0_UT_ASSERT */
+#include "lib/vec.h"		/* m0_bufvec */
 
 #include "net/test/str.h"
 
@@ -32,30 +32,30 @@ static void try_serialize(char *str)
 {
 	char		 buf[STR_BUF_LEN];
 	void		*addr = buf;
-	c2_bcount_t	 buf_len = STR_BUF_LEN;
-	struct c2_bufvec bv = C2_BUFVEC_INIT_BUF(&addr, &buf_len);
-	c2_bcount_t	 serialized_len;
-	c2_bcount_t	 len;
+	m0_bcount_t	 buf_len = STR_BUF_LEN;
+	struct m0_bufvec bv = M0_BUFVEC_INIT_BUF(&addr, &buf_len);
+	m0_bcount_t	 serialized_len;
+	m0_bcount_t	 len;
 	char		*str2;
 	int		 str_len;
 	int		 rc;
 
-	serialized_len = c2_net_test_str_serialize(C2_NET_TEST_SERIALIZE,
+	serialized_len = m0_net_test_str_serialize(M0_NET_TEST_SERIALIZE,
 						   &str, &bv, STR_BUF_OFFSET);
-	C2_UT_ASSERT(serialized_len > 0);
+	M0_UT_ASSERT(serialized_len > 0);
 
 	str2 = NULL;
-	len = c2_net_test_str_serialize(C2_NET_TEST_DESERIALIZE,
+	len = m0_net_test_str_serialize(M0_NET_TEST_DESERIALIZE,
 					&str2, &bv, STR_BUF_OFFSET);
-	C2_UT_ASSERT(len == serialized_len);
+	M0_UT_ASSERT(len == serialized_len);
 
 	str_len = strlen(str);
 	rc = strncmp(str, str2, str_len + 1);
-	C2_UT_ASSERT(rc == 0);
-	c2_net_test_str_fini(&str2);
+	M0_UT_ASSERT(rc == 0);
+	m0_net_test_str_fini(&str2);
 }
 
-void c2_net_test_str_ut(void)
+void m0_net_test_str_ut(void)
 {
 	try_serialize("");
 	try_serialize("asdf");

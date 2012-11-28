@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_SESSION_H__
-#define __COLIBRI_RPC_SESSION_H__
+#ifndef __MERO_RPC_SESSION_H__
+#define __MERO_RPC_SESSION_H__
 
 /**
 
@@ -49,24 +49,24 @@ See section 2.10.6 of rfc 5661 NFSv4.1
 http://tools.ietf.org/html/rfc5661#section-2.10.6
 
 Session module defines following types of objects:
-- rpc connection @see c2_rpc_conn
-- rpc session @see c2_rpc_session
-- slot @see c2_rpc_slot
-- slot ref @see c2_rpc_slot_ref.
+- rpc connection @see m0_rpc_conn
+- rpc session @see m0_rpc_session
+- slot @see m0_rpc_slot
+- slot ref @see m0_rpc_slot_ref.
 
-Out of these, c2_rpc_conn and c2_rpc_session are visible to user.
-c2_rpc_slot and c2_rpc_slot_ref are internal to rpc layer and not visible to
+Out of these, m0_rpc_conn and m0_rpc_session are visible to user.
+m0_rpc_slot and m0_rpc_slot_ref are internal to rpc layer and not visible to
 users outside rpc layer.
 
 Session module uses following types of objects defined by rpc-core:
-- rpc machine @see c2_rpc_machine
-- rpc item @see c2_rpc_item.
+- rpc machine @see m0_rpc_machine
+- rpc item @see m0_rpc_item.
 
 <B> Relationships among objects: </B>
 rpc_machine has two lists of rpc connections.
-- Outgoing connections: Contains c2_rpc_conn objects for which this node is
+- Outgoing connections: Contains m0_rpc_conn objects for which this node is
 sender.
-- Incoming connections: Contains c2_rpc_conn objects for which this node is
+- Incoming connections: Contains m0_rpc_conn objects for which this node is
 receiver.
 
 Rpc connection has a list of rpc sessions, which are created on this
@@ -78,7 +78,7 @@ vary over the lifetime of session (In current implementation state, the number
 of slots do not vary. The slot count is fixed for entire lifetime of session.
 Slot count is specified at the time of session initialisation).
 
-Each object of type [c2_rpc_conn|c2_rpc_session|c2_rpc_slot] on sender
+Each object of type [m0_rpc_conn|m0_rpc_session|m0_rpc_slot] on sender
 has counterpart object of same type on receiver. (Note: same structure
 definitions are used on both sender and receiver side)
 
@@ -103,7 +103,7 @@ already executed on receiver, then instead of again processing the item,
 its reply is retrieved from reply cache and returned to the sender.
 By preventing multiple executions of same item (or FOP), reply cache provides
 "exactly once" semantics. If reply cache is persistent, then EOS can be
-guaranteed even in the face of receiver restart. Colibri implements Reply
+guaranteed even in the face of receiver restart. Mero implements Reply
 Cache via FOL (File Operation Log). See section "Slot as a cob" for more
 details on this.
 
@@ -160,10 +160,10 @@ back to sender.
 
  Let's put the following data into each item:
  @code
- struct c2_rpc_item {
-       struct c2_verno     verno;
+ struct m0_rpc_item {
+       struct m0_verno     verno;
        uint64_t            xid;
-       struct c2_rpc_item *dep;
+       struct m0_rpc_item *dep;
  };
  @endcode
 
@@ -246,16 +246,16 @@ back to sender.
 #include "lib/list.h"
 #include "lib/tlist.h"
 #include "lib/time.h"
-#include "sm/sm.h"       /* c2_sm */
+#include "sm/sm.h"       /* m0_sm */
 #include "rpc/rpc_onwire.h"
 
 /* Imports */
-struct c2_rpc_conn;
-struct c2_cob;
-struct c2_rpc_slot;
+struct m0_rpc_conn;
+struct m0_cob;
+struct m0_rpc_slot;
 
 /* Exports */
-struct c2_rpc_session;
+struct m0_rpc_session;
 
 enum {
 	/** [conn|session]_[create|terminate] items go on session 0 */
@@ -270,17 +270,17 @@ enum {
 /**
    Possible states of a session object
  */
-enum c2_rpc_session_state {
+enum m0_rpc_session_state {
 	/**
 	   all lists, mutex and channels of session are initialised.
 	   No actual session is established with any end point
 	 */
-	C2_RPC_SESSION_INITIALISED,
+	M0_RPC_SESSION_INITIALISED,
 	/**
 	   When sender sends a SESSION_ESTABLISH FOP to reciever it
 	   is in CREATING state
 	 */
-	C2_RPC_SESSION_ESTABLISHING,
+	M0_RPC_SESSION_ESTABLISHING,
 	/**
 	   A session is IDLE if both of following is true
 		- for each slot S in session
@@ -290,7 +290,7 @@ enum c2_rpc_session_state {
 		- session->unbound_items list is empty
 	   A session can be terminated only if it is IDLE.
 	 */
-	C2_RPC_SESSION_IDLE,
+	M0_RPC_SESSION_IDLE,
 	/**
 	   A session is busy if any of following is true
 		- Any of slots has item to be sent (FUTURE items)
@@ -298,26 +298,26 @@ enum c2_rpc_session_state {
 			(IN_PROGRESS items)
 		- unbound_items list is not empty
 	 */
-	C2_RPC_SESSION_BUSY,
+	M0_RPC_SESSION_BUSY,
 	/**
 	   Creation/termination of session failed
 	 */
-	C2_RPC_SESSION_FAILED,
+	M0_RPC_SESSION_FAILED,
 	/**
 	   When sender sends SESSION_TERMINATE fop to receiver and is waiting
 	   for reply, then it is in state TERMINATING.
 	*/
-	C2_RPC_SESSION_TERMINATING,
+	M0_RPC_SESSION_TERMINATING,
 	/**
 	   When sender gets reply to session_terminate fop and reply informs
 	   the session termination is successful then the session enters in
 	   TERMINATED state
 	 */
-	C2_RPC_SESSION_TERMINATED,
-	/** After c2_rpc_session_fini() the RPC session instance is moved to
+	M0_RPC_SESSION_TERMINATED,
+	/** After m0_rpc_session_fini() the RPC session instance is moved to
 	    FINALISED state.
 	 */
-	C2_RPC_SESSION_FINALISED
+	M0_RPC_SESSION_FINALISED
 };
 
 /**
@@ -328,21 +328,21 @@ enum c2_rpc_session_state {
 
    <B> Liveness: </B>
 
-   On sender side, allocation and deallocation of c2_rpc_session is entirely
+   On sender side, allocation and deallocation of m0_rpc_session is entirely
    managed by user except for SESSION 0. SESSION 0 is allocated and deallocated
-   by rpc-layer internally along with c2_rpc_conn.
-   @see c2_rpc_conn for more information on creation and use of SESSION 0.
+   by rpc-layer internally along with m0_rpc_conn.
+   @see m0_rpc_conn for more information on creation and use of SESSION 0.
 
-   On receiver side, c2_rpc_session object will be allocated and deallocated
+   On receiver side, m0_rpc_session object will be allocated and deallocated
    by rpc-layer internally, in response to session create and session terminate
    requests respectively.
 
    <B> Concurrency:</B>
 
    Users of rpc-layer are never expected to take lock on session. Rpc layer
-   will internally synchronise access to c2_rpc_session.
+   will internally synchronise access to m0_rpc_session.
 
-   c2_rpc_session::s_mutex protects all fields except s_link. s_link is
+   m0_rpc_session::s_mutex protects all fields except s_link. s_link is
    protected by session->s_conn->c_mutex.
 
    There is no need to take session->s_mutex while posting item on the session.`
@@ -361,11 +361,11 @@ enum c2_rpc_session_state {
 
    @verbatim
                                       |
-                                      |c2_rpc_session_init()
-  c2_rpc_session_establish() != 0     V
+                                      |m0_rpc_session_init()
+  m0_rpc_session_establish() != 0     V
           +----------------------INITIALISED
           |                           |
-          |                           | c2_rpc_session_establish()
+          |                           | m0_rpc_session_establish()
           |                           |
           |     timed-out             V
           +-----------------------ESTABLISHING
@@ -378,7 +378,7 @@ enum c2_rpc_session_state {
 	  |           |               V  item add/n++   | V     | reply rcvd/n--
 	  |           +-------------IDLE--------------->BUSY----+
 	  |           |               |
-	  | fini()    |               | c2_rpc_session_terminate()
+	  | fini()    |               | m0_rpc_session_terminate()
 	  |           |               V
 	  |           +----------TERMINATING
 	  |                           |
@@ -401,74 +401,74 @@ enum c2_rpc_session_state {
 
    // ALLOCATE SESSION
 
-   struct c2_rpc_session *session;
-   C2_ALLOC_PTR(session);
+   struct m0_rpc_session *session;
+   M0_ALLOC_PTR(session);
 
    // INITIALISE SESSION
 
    nr_slots = 4;
-   rc = c2_rpc_session_init(session, conn, nr_slots);
-   C2_ASSERT(ergo(rc == 0, session_state(session) ==
-                           C2_RPC_SESSION_INITIALISED));
+   rc = m0_rpc_session_init(session, conn, nr_slots);
+   M0_ASSERT(ergo(rc == 0, session_state(session) ==
+                           M0_RPC_SESSION_INITIALISED));
 
    // ESTABLISH SESSION
 
-   rc = c2_rpc_session_establish(session);
+   rc = m0_rpc_session_establish(session);
 
-   rc = c2_rpc_session_timedwait(session, C2_BITS(C2_RPC_SESSION_IDLE,
-					          C2_RPC_SESSION_FAILED),
+   rc = m0_rpc_session_timedwait(session, M0_BITS(M0_RPC_SESSION_IDLE,
+					          M0_RPC_SESSION_FAILED),
 				 timeout);
 
-   if (rc == 0 && session_state(session) == C2_RPC_SESSION_IDLE) {
+   if (rc == 0 && session_state(session) == M0_RPC_SESSION_IDLE) {
 	// Session is successfully established
    } else {
 	// timeout has happened or session establish failed
    }
 
    // Assuming session is successfully established.
-   // post unbound items using c2_rpc_post(item)
+   // post unbound items using m0_rpc_post(item)
 
    item->ri_session = session;
-   item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+   item->ri_prio = M0_RPC_ITEM_PRIO_MAX;
    item->ri_deadline = absolute_time;
    item->ri_ops = item_ops;   // item_ops contains ->replied() callback which
 			      // will be called when reply to this item is
 			      // received. DO NOT FREE THIS ITEM.
 
-   c2_rpc_post(item);
+   m0_rpc_post(item);
 
    // TERMINATING SESSION
    // Wait until all the items that were posted on this session, are sent and
    // for all those items either reply is received or reply_timeout has
    // triggered.
-   c2_rpc_session_timedwait(session, C2_BITS(C2_RPC_SESSION_IDLE), timeout);
-   C2_ASSERT(session_state == C2_RPC_SESSION_IDLE);
-   rc = c2_rpc_session_terminate(session);
+   m0_rpc_session_timedwait(session, M0_BITS(M0_RPC_SESSION_IDLE), timeout);
+   M0_ASSERT(session_state == M0_RPC_SESSION_IDLE);
+   rc = m0_rpc_session_terminate(session);
    if (rc == 0) {
 	// Wait until session is terminated.
-	rc = c2_rpc_session_timedwait(session,
-				      C2_BITS(C2_RPC_SESSION_TERMINATED,
-					      C2_RPC_SESSION_FAILED),
+	rc = m0_rpc_session_timedwait(session,
+				      M0_BITS(M0_RPC_SESSION_TERMINATED,
+					      M0_RPC_SESSION_FAILED),
 				      timeout);
    }
 
    // FINALISE SESSION
 
-   c2_rpc_session_fini(session);
-   c2_free(session);
+   m0_rpc_session_fini(session);
+   m0_free(session);
    @endcode
 
    Receiver is not expected to call any of these APIs. Receiver side session
    structures will be set-up while handling fops
-   c2_rpc_fop_[conn|session]_[establish|terminate].
+   m0_rpc_fop_[conn|session]_[establish|terminate].
 
-   When receiver needs to post reply, it uses c2_rpc_reply_post().
+   When receiver needs to post reply, it uses m0_rpc_reply_post().
 
    @code
-   c2_rpc_reply_post(request_item, reply_item);
+   m0_rpc_reply_post(request_item, reply_item);
    @endcode
 
-   c2_rpc_reply_post() will copy all the session related information from
+   m0_rpc_reply_post() will copy all the session related information from
    request item to reply item and process reply item.
 
    Note: rpc connection is a two-way communication channel. There are requests
@@ -476,22 +476,22 @@ enum c2_rpc_session_state {
    have to establish other separate connection with sender, to be able to
    send replies.
  */
-struct c2_rpc_session {
+struct m0_rpc_session {
 	/** identifies a particular session. Unique in all sessions belonging
-	    to same c2_rpc_conn
+	    to same m0_rpc_conn
 	 */
 	uint64_t                  s_session_id;
 
 	/** rpc connection on which this session is created */
-	struct c2_rpc_conn       *s_conn;
+	struct m0_rpc_conn       *s_conn;
 
-	/** Link in RPC conn. c2_rpc_conn::c_sessions
+	/** Link in RPC conn. m0_rpc_conn::c_sessions
 	    List descriptor: session
 	 */
-	struct c2_tlink		  s_link;
+	struct m0_tlink		  s_link;
 
 	/** Cob representing this session in persistent state */
-	struct c2_cob            *s_cob;
+	struct m0_cob            *s_cob;
 
 	/** Number of items that needs to be sent or their reply is
 	    not yet received. i.e. count of items in {FUTURE, IN_PROGRESS}
@@ -502,9 +502,9 @@ struct c2_rpc_session {
 	int32_t                   s_nr_active_items;
 
 	/** list of items that can be sent through any available slot.
-	    items are placed using c2_rpc_item::ri_unbound_link
+	    items are placed using m0_rpc_item::ri_unbound_link
 	 */
-	struct c2_list            s_unbound_items;
+	struct m0_list            s_unbound_items;
 
 	/** Capacity of slot table */
 	uint32_t                  s_slot_table_capacity;
@@ -520,22 +520,22 @@ struct c2_rpc_session {
 	uint32_t                  s_nr_slots;
 
 	/** Array of pointers to slots */
-	struct c2_rpc_slot      **s_slot_table;
+	struct m0_rpc_slot      **s_slot_table;
 
 	/** if > 0, then session is in BUSY state */
 	uint32_t                  s_hold_cnt;
 
 	/** List of slots, which can be associated with an unbound item.
-	    Link: c2_rpc_slot::sl_link
+	    Link: m0_rpc_slot::sl_link
 	 */
-	struct c2_tl              s_ready_slots;
+	struct m0_tl              s_ready_slots;
 
 	/** RPC session state machine
-	    @see c2_rpc_session_state, session_conf
+	    @see m0_rpc_session_state, session_conf
 	 */
-	struct c2_sm		  s_sm;
+	struct m0_sm		  s_sm;
 
-	/** C2_RPC_SESSION_MAGIC */
+	/** M0_RPC_SESSION_MAGIC */
 	uint64_t		  s_magic;
 };
 
@@ -548,79 +548,79 @@ struct c2_rpc_session {
    @param conn rpc connection with which this session is associated
    @param nr_slots number of slots in the session
 
-   @post ergo(rc == 0, session_state(session) == C2_RPC_SESSION_INITIALISED &&
+   @post ergo(rc == 0, session_state(session) == M0_RPC_SESSION_INITIALISED &&
 		       session->s_conn == conn &&
 		       session->s_session_id == SESSION_ID_INVALID)
  */
-C2_INTERNAL int c2_rpc_session_init(struct c2_rpc_session *session,
-				    struct c2_rpc_conn *conn,
+M0_INTERNAL int m0_rpc_session_init(struct m0_rpc_session *session,
+				    struct m0_rpc_conn *conn,
 				    uint32_t nr_slots);
 
 /**
     Sends a SESSION_ESTABLISH fop across pre-defined session-0 in
     session->s_conn.
-    c2_rpc_session_establish_reply_received() is called when reply to
+    m0_rpc_session_establish_reply_received() is called when reply to
     SESSION_ESTABLISH fop is received.
 
-    @pre session_state(session) == C2_RPC_SESSION_INITIALISED
-    @pre conn_state(session->s_conn) == C2_RPC_CONN_ACTIVE
-    @post ergo(result != 0, session_state(session) == C2_RPC_SESSION_FAILED)
+    @pre session_state(session) == M0_RPC_SESSION_INITIALISED
+    @pre conn_state(session->s_conn) == M0_RPC_CONN_ACTIVE
+    @post ergo(result != 0, session_state(session) == M0_RPC_SESSION_FAILED)
  */
-C2_INTERNAL int c2_rpc_session_establish(struct c2_rpc_session *session);
+M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session);
 
 /**
- * Same as c2_rpc_session_establish(), but in addition uses
- * c2_rpc_session_timedwait() to ensure that session is in idle state after
- * c2_rpc_session_establish() call.
+ * Same as m0_rpc_session_establish(), but in addition uses
+ * m0_rpc_session_timedwait() to ensure that session is in idle state after
+ * m0_rpc_session_establish() call.
  *
  * @param session     A session object to operate on.
  * @param timeout_sec How much time in seconds to wait for session to become idle.
  *
- * @pre  session_state(session) == C2_RPC_SESSION_INITIALISED
- * @pre  conn_state(session->s_conn) == C2_RPC_CONN_ACTIVE
- * @post session_state(session) == C2_RPC_SESSION_IDLE
+ * @pre  session_state(session) == M0_RPC_SESSION_INITIALISED
+ * @pre  conn_state(session->s_conn) == M0_RPC_CONN_ACTIVE
+ * @post session_state(session) == M0_RPC_SESSION_IDLE
  */
-C2_INTERNAL int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
+M0_INTERNAL int m0_rpc_session_establish_sync(struct m0_rpc_session *session,
 					      uint32_t timeout_sec);
 
 /**
- * A combination of c2_rpc_session_init() and c2_rpc_session_establish_sync() in
+ * A combination of m0_rpc_session_init() and m0_rpc_session_establish_sync() in
  * a single routine - initialize session object, establish a session and wait
  * until it become idle.
  *
- * @see c2_rpc_session::s_nr_slots
+ * @see m0_rpc_session::s_nr_slots
  */
-C2_INTERNAL int c2_rpc_session_create(struct c2_rpc_session *session,
-				      struct c2_rpc_conn *conn,
+M0_INTERNAL int m0_rpc_session_create(struct m0_rpc_session *session,
+				      struct m0_rpc_conn *conn,
 				      uint32_t nr_slots, uint32_t timeout_sec);
 
 /**
    Sends terminate session fop to receiver.
    Acts as no-op if session is already in TERMINATING state.
-   c2_rpc_session_terminate_reply_received() is called when reply to
+   m0_rpc_session_terminate_reply_received() is called when reply to
    CONN_TERMINATE fop is received.
 
-   @pre C2_IN(session_state(session), (C2_RPC_SESSION_IDLE,
-				       C2_RPC_SESSION_TERMINATING))
-   @post ergo(rc != 0, session_state(session) == C2_RPC_SESSION_FAILED)
+   @pre M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
+				       M0_RPC_SESSION_TERMINATING))
+   @post ergo(rc != 0, session_state(session) == M0_RPC_SESSION_FAILED)
  */
-C2_INTERNAL int c2_rpc_session_terminate(struct c2_rpc_session *session);
+M0_INTERNAL int m0_rpc_session_terminate(struct m0_rpc_session *session);
 
 /**
- * Same as c2_rpc_session_terminate(), but in addition uses
- * c2_rpc_session_timedwait() to ensure that session is in terminated state
- * after c2_rpc_session_terminate() call.
+ * Same as m0_rpc_session_terminate(), but in addition uses
+ * m0_rpc_session_timedwait() to ensure that session is in terminated state
+ * after m0_rpc_session_terminate() call.
  *
  * @param session     A session object to operate on.
  * @param timeout_sec How much time in seconds to wait for session to become
  *                    terminated.
  *
- * @pre C2_IN(session_state(session), (C2_RPC_SESSION_IDLE,
- *				       C2_RPC_SESSION_TERMINATING))
- * @post C2_IN(session_state(session), (C2_RPC_SESSION_TERMINATED,
- *					C2_RPC_SESSION_FAILED))
+ * @pre M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
+ *				       M0_RPC_SESSION_TERMINATING))
+ * @post M0_IN(session_state(session), (M0_RPC_SESSION_TERMINATED,
+ *					M0_RPC_SESSION_FAILED))
  */
-C2_INTERNAL int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
+M0_INTERNAL int m0_rpc_session_terminate_sync(struct m0_rpc_session *session,
 					      uint32_t timeout_sec);
 
 /**
@@ -634,36 +634,36 @@ C2_INTERNAL int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
             -ETIMEDOUT if time out has occured before session reaches in desired
                 state.
  */
-C2_INTERNAL int c2_rpc_session_timedwait(struct c2_rpc_session *session,
+M0_INTERNAL int m0_rpc_session_timedwait(struct m0_rpc_session *session,
 					 uint64_t state_flags,
-					 const c2_time_t abs_timeout);
+					 const m0_time_t abs_timeout);
 
 /**
    Finalises session object
 
-   @pre C2_IN(session_state(session), (C2_RPC_SESSION_TERMINATED,
-				       C2_RPC_SESSION_FAILED,
-				       C2_RPC_SESSION_INITIALISED))
+   @pre M0_IN(session_state(session), (M0_RPC_SESSION_TERMINATED,
+				       M0_RPC_SESSION_FAILED,
+				       M0_RPC_SESSION_INITIALISED))
  */
-C2_INTERNAL void c2_rpc_session_fini(struct c2_rpc_session *session);
+M0_INTERNAL void m0_rpc_session_fini(struct m0_rpc_session *session);
 
 /**
- * A combination of c2_rpc_session_terminate_sync() and c2_rpc_session_fini() in
+ * A combination of m0_rpc_session_terminate_sync() and m0_rpc_session_fini() in
  * a single routine - terminate the session, wait until it switched to
  * terminated state and finalize session object.
  */
-int c2_rpc_session_destroy(struct c2_rpc_session *session,
+int m0_rpc_session_destroy(struct m0_rpc_session *session,
 			   uint32_t timeout_sec);
 
 /**
    Returns maximum size of an RPC item allowed on this session.
  */
-C2_INTERNAL c2_bcount_t
-c2_rpc_session_get_max_item_size(const struct c2_rpc_session *session);
+M0_INTERNAL m0_bcount_t
+m0_rpc_session_get_max_item_size(const struct m0_rpc_session *session);
 
 /** Returns maximum possible size of RPC item payload. */
-C2_INTERNAL c2_bcount_t
-c2_rpc_session_get_max_item_payload_size(const struct c2_rpc_session *session);
+M0_INTERNAL m0_bcount_t
+m0_rpc_session_get_max_item_payload_size(const struct m0_rpc_session *session);
 
 /** @} end of session group */
 

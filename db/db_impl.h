@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_DB_DB_IMPL_H__
-#define __COLIBRI_DB_DB_IMPL_H__
+#ifndef __MERO_DB_DB_IMPL_H__
+#define __MERO_DB_DB_IMPL_H__
 
 #include <db.h>
 
@@ -38,12 +38,12 @@
  */
 
 /**
-   db5-specific part of generic c2_dbenv.
+   db5-specific part of generic m0_dbenv.
 
    Most fields are only updated when the environment is set up. Others (as noted
-   below) are protected by c2_dbenv_impl::d_lock.
+   below) are protected by m0_dbenv_impl::d_lock.
  */
-struct c2_dbenv_impl {
+struct m0_dbenv_impl {
 	/** db5 private handle */
 	DB_ENV            *d_env;
 	/** File stream where error messages for this dbenv are sent to. */
@@ -54,47 +54,47 @@ struct c2_dbenv_impl {
 	/** Log cursor used to determine the current LSN. */
 	DB_LOGC           *d_logc;
 	/** Lock protecting waiters list. */
-	struct c2_mutex    d_lock;
-	/** A list of waiters (c2_db_tx_waiter). Protected by
-	    c2_dbenv_impl::d_lock.  */
-	struct c2_tl       d_waiters;
+	struct m0_mutex    d_lock;
+	/** A list of waiters (m0_db_tx_waiter). Protected by
+	    m0_dbenv_impl::d_lock.  */
+	struct m0_tl       d_waiters;
 	/** Thread for asynchronous environment related work. */
-	struct c2_thread   d_thread;
+	struct m0_thread   d_thread;
 	/** True iff the environment is being shut down. Protected by
-	    c2_dbenv_impl::d_lock.*/
+	    m0_dbenv_impl::d_lock.*/
 	bool               d_shutdown;
 	/** Condition variable signalled on shutdown. Signalled under
-	    c2_dbenv_impl::d_lock.*/
-	struct c2_cond     d_shutdown_cond;
+	    m0_dbenv_impl::d_lock.*/
+	struct m0_cond     d_shutdown_cond;
 };
 
-struct c2_table_impl {
+struct m0_table_impl {
 	/** db5 private table handle. */
 	DB              *t_db;
-	struct c2_mutex  t_lock;
+	struct m0_mutex  t_lock;
 };
 
-struct c2_db_buf_impl {
+struct m0_db_buf_impl {
 	DBT db_dbt;
 };
 
-struct c2_db_tx_impl {
+struct m0_db_tx_impl {
 	/** A db5 private transaction handle. */
 	DB_TXN *dt_txn;
 };
 
-struct c2_db_tx_waiter_impl {
+struct m0_db_tx_waiter_impl {
 	/** An lsn from the transaction this wait is for. */
 	DB_LSN tw_lsn;
 };
 
-struct c2_db_cursor_impl {
+struct m0_db_cursor_impl {
 	DBC *c_dbc;
 };
 
 /** @} end of db group */
 
-/* __COLIBRI_DB_REC_H__ */
+/* __MERO_DB_REC_H__ */
 #endif
 
 /*

@@ -20,18 +20,18 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_TRACE_INTERNAL_H__
-#define __COLIBRI_LIB_TRACE_INTERNAL_H__
+#ifndef __MERO_LIB_TRACE_INTERNAL_H__
+#define __MERO_LIB_TRACE_INTERNAL_H__
 
-C2_INTERNAL int
-c2_trace_subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask);
+M0_INTERNAL int
+m0_trace_subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask);
 
-C2_INTERNAL enum c2_trace_level c2_trace_parse_trace_level(char *str);
+M0_INTERNAL enum m0_trace_level m0_trace_parse_trace_level(char *str);
 
-C2_INTERNAL enum c2_trace_print_context
-c2_trace_parse_trace_print_context(const char *ctx_name);
+M0_INTERNAL enum m0_trace_print_context
+m0_trace_parse_trace_print_context(const char *ctx_name);
 
-#endif /* __COLIBRI_LIB_TRACE_INTERNAL_H__ */
+#endif /* __MERO_LIB_TRACE_INTERNAL_H__ */
 
 /*
  *  Local variables:

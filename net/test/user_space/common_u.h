@@ -20,12 +20,12 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_TEST_USER_SPACE_COMMON_U_H__
-#define __COLIBRI_NET_TEST_USER_SPACE_COMMON_U_H__
+#ifndef __MERO_NET_TEST_USER_SPACE_COMMON_U_H__
+#define __MERO_NET_TEST_USER_SPACE_COMMON_U_H__
 
 #include <stdio.h>		/* printf */
 
-#include "lib/time.h"		/* c2_time_t */
+#include "lib/time.h"		/* m0_time_t */
 
 /**
    @defgroup NetTestUCommonDFS Common user-space routines
@@ -36,30 +36,30 @@
    @{
  */
 
-extern bool c2_net_test_u_printf_verbose;
+extern bool m0_net_test_u_printf_verbose;
 
-#define C2_VERBOSEFLAGARG C2_FLAGARG('v', "Verbose output",		      \
-				     &c2_net_test_u_printf_verbose)
-#define C2_IFLISTARG(pflag) C2_FLAGARG('l', "List available LNET interfaces", \
+#define M0_VERBOSEFLAGARG M0_FLAGARG('v', "Verbose output",		      \
+				     &m0_net_test_u_printf_verbose)
+#define M0_IFLISTARG(pflag) M0_FLAGARG('l', "List available LNET interfaces", \
 				       pflag)
 
-char *c2_net_test_u_str_copy(const char *str);
-void c2_net_test_u_str_free(char *str);
+char *m0_net_test_u_str_copy(const char *str);
+void m0_net_test_u_str_free(char *str);
 /** perror */
-void c2_net_test_u_print_error(const char *s, int code);
-void c2_net_test_u_print_s(const char *fmt, const char *str);
-void c2_net_test_u_print_time(char *name, c2_time_t time);
-void c2_net_test_u_lnet_info(void);
-void c2_net_test_u_print_bsize(double bsize);
+void m0_net_test_u_print_error(const char *s, int code);
+void m0_net_test_u_print_s(const char *fmt, const char *str);
+void m0_net_test_u_print_time(char *name, m0_time_t time);
+void m0_net_test_u_lnet_info(void);
+void m0_net_test_u_print_bsize(double bsize);
 
-int c2_net_test_u_printf(const char *fmt, ...);
-int c2_net_test_u_printf_v(const char *fmt, ...);
+int m0_net_test_u_printf(const char *fmt, ...);
+int m0_net_test_u_printf_v(const char *fmt, ...);
 
 /**
    @} end of NetTestUCommonDFS group
  */
 
-#endif /* __COLIBRI_NET_TEST_USER_SPACE_COMMON_U_H__ */
+#endif /* __MERO_NET_TEST_USER_SPACE_COMMON_U_H__ */
 
 /*
  *  Local variables:

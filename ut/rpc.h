@@ -20,17 +20,17 @@
 
 #pragma once
 
-#ifndef __COLIBRI_UT_RPC_H__
-#define __COLIBRI_UT_RPC_H__
+#ifndef __MERO_UT_RPC_H__
+#define __MERO_UT_RPC_H__
 
-#include "ut/cs_service.h" /* c2_cs_default_stypes, c2_cs_default_stypes_nr */
-#include "rpc/rpclib.h"    /* c2_rpc_server_ctx */
+#include "ut/cs_service.h" /* m0_cs_default_stypes, m0_cs_default_stypes_nr */
+#include "rpc/rpclib.h"    /* m0_rpc_server_ctx */
 
 #ifndef __KERNEL__
-#define C2_RPC_SERVER_CTX_DEFINE(name, xprts, xprts_nr, server_argv, \
+#define M0_RPC_SERVER_CTX_DEFINE(name, xprts, xprts_nr, server_argv, \
 				 server_argc, service_types,         \
 				 service_types_nr, log_file_name)    \
-	struct c2_rpc_server_ctx name = {                            \
+	struct m0_rpc_server_ctx name = {                            \
 		.rsx_xprts            = (xprts),                     \
 		.rsx_xprts_nr         = (xprts_nr),                  \
 		.rsx_argv             = (server_argv),               \
@@ -40,31 +40,31 @@
 		.rsx_log_file_name    = (log_file_name)              \
 	}
 
-#define C2_RPC_SERVER_CTX_DEFINE_SIMPLE(name, xprt_ptr, server_argv,  \
+#define M0_RPC_SERVER_CTX_DEFINE_SIMPLE(name, xprt_ptr, server_argv,  \
 					log_file_name)                \
-	C2_RPC_SERVER_CTX_DEFINE(name, &(xprt_ptr), 1, (server_argv), \
+	M0_RPC_SERVER_CTX_DEFINE(name, &(xprt_ptr), 1, (server_argv), \
 				 ARRAY_SIZE(server_argv),             \
-				 c2_cs_default_stypes,                \
-				 c2_cs_default_stypes_nr, (log_file_name))
+				 m0_cs_default_stypes,                \
+				 m0_cs_default_stypes_nr, (log_file_name))
 #endif
 
-struct c2_rpc_client_ctx;
+struct m0_rpc_client_ctx;
 
 /**
-  A wrapper around c2_rpc_client_start(). It initializes dbenv and cob_domain
-  within c2_rpc_client_ctx structure, and then calls c2_rpc_client_start().
+  A wrapper around m0_rpc_client_start(). It initializes dbenv and cob_domain
+  within m0_rpc_client_ctx structure, and then calls m0_rpc_client_start().
 
   @param rctx  Initialized rpc context structure.
 */
-int c2_rpc_client_init(struct c2_rpc_client_ctx *ctx);
+int m0_rpc_client_init(struct m0_rpc_client_ctx *ctx);
 
 /**
-  A wrapper around c2_rpc_client_stop(). It finalizes dbenv and cob_domain
-  within c2_rpc_client_ctx structure, and then calls c2_rpc_client_stop().
+  A wrapper around m0_rpc_client_stop(). It finalizes dbenv and cob_domain
+  within m0_rpc_client_ctx structure, and then calls m0_rpc_client_stop().
 
   @param rctx  Initialized rpc context structure.
 */
-int c2_rpc_client_fini(struct c2_rpc_client_ctx *ctx);
+int m0_rpc_client_fini(struct m0_rpc_client_ctx *ctx);
 
-#endif /* __COLIBRI_UT_RPC_H__ */
+#endif /* __MERO_UT_RPC_H__ */
 

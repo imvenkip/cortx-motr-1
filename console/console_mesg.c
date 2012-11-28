@@ -19,56 +19,56 @@
  */
 
 #include "lib/errno.h" /* ENOTSUP */
-#include "lib/misc.h"  /* C2_BITS */
+#include "lib/misc.h"  /* M0_BITS */
 
 #include "console/console_fop.h"
 #include "console/console_it.h"
 #include "console/console_mesg.h"
 
-C2_INTERNAL void c2_cons_fop_name_print(const struct c2_fop_type *ftype)
+M0_INTERNAL void m0_cons_fop_name_print(const struct m0_fop_type *ftype)
 {
 	fprintf(stdout, "%.2d, %s", ftype->ft_rpc_item_type.rit_opcode,
 				    ftype->ft_name);
 }
 
-C2_INTERNAL int c2_cons_fop_send(struct c2_fop *fop,
-				 struct c2_rpc_session *session,
-				 c2_time_t timeout)
+M0_INTERNAL int m0_cons_fop_send(struct m0_fop *fop,
+				 struct m0_rpc_session *session,
+				 m0_time_t timeout)
 {
-	struct c2_rpc_item *item;
+	struct m0_rpc_item *item;
 	int		    rc;
 
-	C2_PRE(fop != NULL && session != NULL);
+	M0_PRE(fop != NULL && session != NULL);
 
 	item = &fop->f_item;
 	item->ri_deadline   = 0;
-	item->ri_prio       = C2_RPC_ITEM_PRIO_MID;
+	item->ri_prio       = M0_RPC_ITEM_PRIO_MID;
 	item->ri_session    = session;
 	item->ri_op_timeout = timeout;
 
-        rc = c2_rpc_post(item);
+        rc = m0_rpc_post(item);
 	if (rc == 0) {
-		rc = c2_rpc_item_wait_for_reply(item, C2_TIME_NEVER);
+		rc = m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER);
 		if (rc != 0)
 			fprintf(stderr, "Error while waiting for reply: %d\n",
 				rc);
 	} else {
-		fprintf(stderr, "c2_rpc_post failed!\n");
+		fprintf(stderr, "m0_rpc_post failed!\n");
 	}
 	return rc;
 }
 
-C2_INTERNAL int c2_cons_fop_show(struct c2_fop_type *fopt)
+M0_INTERNAL int m0_cons_fop_show(struct m0_fop_type *fopt)
 {
-	struct c2_fop *fop;
+	struct m0_fop *fop;
 	void	      *fdata;
 
-	fop = c2_fop_alloc(fopt, NULL);
+	fop = m0_fop_alloc(fopt, NULL);
 	if (fop != NULL) {
-		fdata = c2_fop_data(fop);
+		fdata = m0_fop_data(fop);
 		if (fdata != NULL) {
-			c2_cons_fop_fields_show(fop);
-			c2_fop_free(fop);
+			m0_cons_fop_fields_show(fop);
+			m0_fop_free(fop);
 		} else {
 			fprintf(stderr, "FOP data does not exist\n");
 			return -EINVAL;
@@ -80,24 +80,24 @@ C2_INTERNAL int c2_cons_fop_show(struct c2_fop_type *fopt)
 	return 0;
 }
 
-C2_INTERNAL void c2_cons_fop_list_show(void)
+M0_INTERNAL void m0_cons_fop_list_show(void)
 {
-        struct c2_fop_type *ftype;
+        struct m0_fop_type *ftype;
 
 	fprintf(stdout, "List of FOP's: \n");
 	ftype = NULL;
-	while ((ftype = c2_fop_type_next(ftype)) != NULL) {
-		c2_cons_fop_name_print(ftype);
+	while ((ftype = m0_fop_type_next(ftype)) != NULL) {
+		m0_cons_fop_name_print(ftype);
 		fprintf(stdout, "\n");
 	}
 }
 
-C2_INTERNAL struct c2_fop_type *c2_cons_fop_type_find(uint32_t opcode)
+M0_INTERNAL struct m0_fop_type *m0_cons_fop_type_find(uint32_t opcode)
 {
-        struct c2_fop_type *ftype;
+        struct m0_fop_type *ftype;
 
 	ftype = NULL;
-	while ((ftype = c2_fop_type_next(ftype)) != NULL) {
+	while ((ftype = m0_fop_type_next(ftype)) != NULL) {
 		if(ftype->ft_rpc_item_type.rit_opcode == opcode)
 			break;
 	}

@@ -19,59 +19,59 @@
 
 #include "sns/repair.h"
 
-static const struct c2_persistent_sm_ops;
+static const struct m0_persistent_sm_ops;
 
 /**
    Register pool state machine as a persistent state machine with the given
    transaction manager instance. This allows poolmachine to update its persisten
    state transactionally and to be call-back on node restart.
  */
-C2_INTERNAL int c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
+M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm, struct m0_dtm *dtm)
 {
-	c2_persistent_sm_register(&pm->pm_mach, dtm,
+	m0_persistent_sm_register(&pm->pm_mach, dtm,
 				  &poolmach_persistent_sm_ops);
 }
 
-C2_INTERNAL void c2_poolmach_fini(struct c2_poolmach *pm)
+M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 {
-	c2_persistent_sm_unregister(&pm->pm_mach);
+	m0_persistent_sm_unregister(&pm->pm_mach);
 }
 
-C2_INTERNAL int c2_poolmach_device_join(struct c2_poolmach *pm,
-					struct c2_pooldev *dev)
-{
-}
-
-C2_INTERNAL int c2_poolmach_device_leave(struct c2_poolmach *pm,
-					 struct c2_pooldev *dev)
+M0_INTERNAL int m0_poolmach_device_join(struct m0_poolmach *pm,
+					struct m0_pooldev *dev)
 {
 }
 
-C2_INTERNAL int c2_poolmach_node_join(struct c2_poolmach *pm,
-				      struct c2_poolnode *node)
+M0_INTERNAL int m0_poolmach_device_leave(struct m0_poolmach *pm,
+					 struct m0_pooldev *dev)
 {
 }
 
-C2_INTERNAL int c2_poolmach_node_leave(struct c2_poolmach *pm,
-				       struct c2_poolnode *node)
+M0_INTERNAL int m0_poolmach_node_join(struct m0_poolmach *pm,
+				      struct m0_poolnode *node)
+{
+}
+
+M0_INTERNAL int m0_poolmach_node_leave(struct m0_poolmach *pm,
+				       struct m0_poolnode *node)
 {
 }
 
 /**
    Pool machine recovery call-back.
 
-   This function is installed as c2_persistent_sm_ops::pso_recover method of a
+   This function is installed as m0_persistent_sm_ops::pso_recover method of a
    persistent state machine. It is called when a node hosting a pool machine
    replica reboots and starts local recovery.
  */
-static int poolmach_recover(struct c2_persistent_sm *pmach)
+static int poolmach_recover(struct m0_persistent_sm *pmach)
 {
-	struct c2_poolmach *pm;
+	struct m0_poolmach *pm;
 
-	pm = container_of(pmach, struct c2_poolmach, pm_mach);
+	pm = container_of(pmach, struct m0_poolmach, pm_mach);
 }
 
-static const struct c2_persistent_sm_ops poolmach_persistent_sm_ops = {
+static const struct m0_persistent_sm_ops poolmach_persistent_sm_ops = {
 	.pso_recover = poolmach_recover
 };
 

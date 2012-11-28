@@ -18,12 +18,12 @@
  * Original creation date: 06/27/2011
  */
 
-#include "colibri/init.h"
+#include "mero/init.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/getopts.h"
 #include "lib/memory.h"
-#include "lib/misc.h" /* C2_SET0 */
+#include "lib/misc.h" /* M0_SET0 */
 #include "lib/thread.h"
 #include "lib/time.h"
 #include "net/net.h"
@@ -31,11 +31,11 @@
 #include "rpc/rpc.h"
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fom.h"
-#include "rpc/rpclib.h" /* c2_rpc_server_start */
-#include "ut/rpc.h"     /* c2_rpc_client_init */
+#include "rpc/rpclib.h" /* m0_rpc_server_start */
+#include "ut/rpc.h"     /* m0_rpc_client_init */
 #include "ut/ut.h"
-#include "fop/fop.h"    /* c2_fop_default_item_ops */
-#include "reqh/reqh.h"  /* c2_reqh_rpc_mach_tl */
+#include "fop/fop.h"    /* m0_fop_default_item_ops */
+#include "reqh/reqh.h"  /* m0_reqh_rpc_mach_tl */
 #include "rpc/it/ping_fop_ff.h"
 
 #ifdef __KERNEL__
@@ -73,7 +73,7 @@ enum ep_type {
 enum {
 	BUF_LEN		   = 128,
 	STRING_LEN	   = 16,
-	C2_LNET_PORTAL     = 34,
+	M0_LNET_PORTAL     = 34,
 	MAX_RPCS_IN_FLIGHT = 32,
 	CLIENT_COB_DOM_ID  = 13,
 	CONNECT_TIMEOUT	   = 20,
@@ -92,13 +92,13 @@ static int   nr_client_threads = 1;
 static int   nr_slots          = 1;
 static int   nr_ping_bytes     = 8;
 static int   nr_ping_item      = 1;
-static int   tm_recv_queue_len = C2_NET_TM_RECV_QUEUE_DEF_LEN;
-static int   max_rpc_msg_size  = C2_RPC_DEF_MAX_RPC_MSG_SIZE;
+static int   tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
+static int   max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 
-static char client_endpoint[C2_NET_LNET_XEP_ADDR_LEN];
-static char server_endpoint[C2_NET_LNET_XEP_ADDR_LEN];
+static char client_endpoint[M0_NET_LNET_XEP_ADDR_LEN];
+static char server_endpoint[M0_NET_LNET_XEP_ADDR_LEN];
 
-static struct c2_net_xprt *xprt = &c2_net_lnet_xprt;
+static struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
 
 #ifdef __KERNEL__
 /* Module parameters */
@@ -157,11 +157,11 @@ static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size
 		return -1;
 	}
 
-	if (buf_size > C2_NET_LNET_XEP_ADDR_LEN)
+	if (buf_size > M0_NET_LNET_XEP_ADDR_LEN)
 		return -1;
 	else
-		snprintf(out_buf, buf_size, "%s:%u:%u:%u", nid, C2_NET_LNET_PID,
-			 C2_LNET_PORTAL, tmid);
+		snprintf(out_buf, buf_size, "%s:%u:%u:%u", nid, M0_NET_LNET_PID,
+			 M0_LNET_PORTAL, tmid);
 
 	if (verbose)
 		printf("%s endpoint: %s\n", ep_name, out_buf);
@@ -170,12 +170,12 @@ static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size
 }
 
 /* Get stats from rpc_machine and print them */
-static void __print_stats(struct c2_rpc_machine *rpc_mach)
+static void __print_stats(struct m0_rpc_machine *rpc_mach)
 {
-	struct c2_rpc_stats stats;
+	struct m0_rpc_stats stats;
 	printf("stats:\n");
 
-	c2_rpc_machine_get_stats(rpc_mach, &stats, false);
+	m0_rpc_machine_get_stats(rpc_mach, &stats, false);
 	printf("\treceived_items: %llu\n",
 	       (unsigned long long)stats.rs_nr_rcvd_items);
 	printf("\tsent_items: %llu\n",
@@ -202,28 +202,28 @@ static void __print_stats(struct c2_rpc_machine *rpc_mach)
 
 #ifndef __KERNEL__
 /* Prints stats of all the rpc machines in the given request handler. */
-static void print_stats(struct c2_reqh *reqh)
+static void print_stats(struct m0_reqh *reqh)
 {
-	struct c2_rpc_machine *rpcmach;
+	struct m0_rpc_machine *rpcmach;
 
-	C2_PRE(reqh != NULL);
+	M0_PRE(reqh != NULL);
 
-	c2_rwlock_read_lock(&reqh->rh_rwlock);
-	c2_tl_for(c2_reqh_rpc_mach, &reqh->rh_rpc_machines, rpcmach) {
-		C2_ASSERT(c2_rpc_machine_bob_check(rpcmach));
+	m0_rwlock_read_lock(&reqh->rh_rwlock);
+	m0_tl_for(m0_reqh_rpc_mach, &reqh->rh_rpc_machines, rpcmach) {
+		M0_ASSERT(m0_rpc_machine_bob_check(rpcmach));
 		__print_stats(rpcmach);
-	} c2_tl_endfor;
-	c2_rwlock_read_unlock(&reqh->rh_rwlock);
+	} m0_tl_endfor;
+	m0_rwlock_read_unlock(&reqh->rh_rwlock);
 }
 #endif
 
 /* Create a ping fop and post it to rpc layer */
-static void send_ping_fop(struct c2_rpc_session *session)
+static void send_ping_fop(struct m0_rpc_session *session)
 {
 	int                 i;
 	int                 rc;
-	struct c2_fop      *fop;
-	struct c2_fop_ping *ping_fop;
+	struct m0_fop      *fop;
+	struct m0_fop_ping *ping_fop;
 	uint32_t            nr_arr_member;
 
 	if (nr_ping_bytes % 8 == 0)
@@ -231,46 +231,46 @@ static void send_ping_fop(struct c2_rpc_session *session)
 	else
 		nr_arr_member = nr_ping_bytes / 8 + 1;
 
-	fop = c2_fop_alloc(&c2_fop_ping_fopt, NULL);
-	C2_ASSERT(fop != NULL);
+	fop = m0_fop_alloc(&m0_fop_ping_fopt, NULL);
+	M0_ASSERT(fop != NULL);
 
-	ping_fop = c2_fop_data(fop);
+	ping_fop = m0_fop_data(fop);
 	ping_fop->fp_arr.f_count = nr_arr_member;
 
-	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
-	C2_ASSERT(ping_fop->fp_arr.f_data != NULL);
+	M0_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
+	M0_ASSERT(ping_fop->fp_arr.f_data != NULL);
 
 	for (i = 0; i < nr_arr_member; i++)
 		ping_fop->fp_arr.f_data[i] = i + 100;
 
-	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
-				c2_time_from_now(1, 0) /* deadline */,
+	rc = m0_rpc_client_call(fop, session, &m0_fop_default_item_ops,
+				m0_time_from_now(1, 0) /* deadline */,
 				CONNECT_TIMEOUT);
-	C2_ASSERT(rc == 0);
-	C2_ASSERT(fop->f_item.ri_error == 0);
-	C2_ASSERT(fop->f_item.ri_reply != 0);
+	M0_ASSERT(rc == 0);
+	M0_ASSERT(fop->f_item.ri_error == 0);
+	M0_ASSERT(fop->f_item.ri_reply != 0);
 }
 
 /*
  * An rpcping-specific implementation of client fini function, which is used
- * instead of c2_rpc_client_fini(). It's required in order to get a correct
+ * instead of m0_rpc_client_fini(). It's required in order to get a correct
  * statistics from rpc machine, which is possible only when all connections,
  * associated with rpc machine, are terminated, but rpc machine itself is not
  * finalized yet.
  */
-static int client_fini(struct c2_rpc_client_ctx *cctx)
+static int client_fini(struct m0_rpc_client_ctx *cctx)
 {
 	int rc;
 
-	rc = c2_rpc_session_destroy(&cctx->rcx_session, C2_TIME_NEVER);
-	rc = c2_rpc_conn_destroy(&cctx->rcx_connection, C2_TIME_NEVER);
-	c2_net_end_point_put(cctx->rcx_remote_ep);
+	rc = m0_rpc_session_destroy(&cctx->rcx_session, M0_TIME_NEVER);
+	rc = m0_rpc_conn_destroy(&cctx->rcx_connection, M0_TIME_NEVER);
+	m0_net_end_point_put(cctx->rcx_remote_ep);
 	if (verbose)
 		__print_stats(&cctx->rcx_rpc_machine);
-	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
-	c2_cob_domain_fini(cctx->rcx_cob_dom);
-	c2_dbenv_fini(cctx->rcx_dbenv);
-	c2_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
+	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
+	m0_cob_domain_fini(cctx->rcx_cob_dom);
+	m0_dbenv_fini(cctx->rcx_dbenv);
+	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
 	return rc;
 }
@@ -280,17 +280,17 @@ static int run_client(void)
 	int  rc;
 	int  i;
 
-	struct c2_thread *client_thread;
+	struct m0_thread *client_thread;
 
 	/*
 	 * Declare these variables as static, to avoid on-stack allocation
 	 * of big structures. This is important for kernel-space, where stack
 	 * size is very small.
 	 */
-	static struct c2_net_domain     client_net_dom;
-	static struct c2_dbenv          client_dbenv;
-	static struct c2_cob_domain     client_cob_dom;
-	static struct c2_rpc_client_ctx cctx;
+	static struct m0_net_domain     client_net_dom;
+	static struct m0_dbenv          client_dbenv;
+	static struct m0_cob_domain     client_cob_dom;
+	static struct m0_rpc_client_ctx cctx;
 
 	cctx.rcx_net_dom               = &client_net_dom;
 	cctx.rcx_local_addr            = client_endpoint;
@@ -316,39 +316,39 @@ static int run_client(void)
 		return rc;
 
 #ifndef __KERNEL__
-	rc = c2_init();
+	rc = m0_init();
 	if (rc != 0)
 		return rc;
 #endif
-	rc = c2_ping_fop_init();
+	rc = m0_ping_fop_init();
 	if (rc != 0)
-		goto c2_fini;
+		goto m0_fini;
 
-	rc = c2_net_xprt_init(xprt);
+	rc = m0_net_xprt_init(xprt);
 	if (rc != 0)
 		goto fop_fini;
 
-	rc = c2_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, xprt);
 	if (rc != 0)
 		goto xprt_fini;
 
-	rc = c2_rpc_client_init(&cctx);
+	rc = m0_rpc_client_init(&cctx);
 	if (rc != 0) {
 #ifndef __KERNEL__
 		printf("rpcping: client init failed \"%s\"\n", strerror(-rc));
 #endif
 		goto net_dom_fini;
 	}
-	C2_ALLOC_ARR(client_thread, nr_client_threads);
+	M0_ALLOC_ARR(client_thread, nr_client_threads);
 
 	for (i = 0; i < nr_client_threads; i++) {
-		C2_SET0(&client_thread[i]);
+		M0_SET0(&client_thread[i]);
 
 		while (1) {
-			c2_time_t t;
+			m0_time_t t;
 
-			rc = C2_THREAD_INIT(&client_thread[i],
-					    struct c2_rpc_session*,
+			rc = M0_THREAD_INIT(&client_thread[i],
+					    struct m0_rpc_session*,
 					    NULL, &send_ping_fop,
 					    &cctx.rcx_session, "client_%d", i);
 			if (rc == 0) {
@@ -357,32 +357,32 @@ static int run_client(void)
 #ifndef __KERNEL__
 				printf("Retrying thread init\n");
 #endif
-				c2_thread_fini(&client_thread[i]);
-				c2_nanosleep(c2_time_set(&t, 1, 0), NULL);
+				m0_thread_fini(&client_thread[i]);
+				m0_nanosleep(m0_time_set(&t, 1, 0), NULL);
 			} else {
-				C2_ASSERT("THREAD_INIT_FAILED" == NULL);
+				M0_ASSERT("THREAD_INIT_FAILED" == NULL);
 			}
 		}
 	}
 
 	for (i = 0; i < nr_client_threads; i++) {
-		c2_thread_join(&client_thread[i]);
+		m0_thread_join(&client_thread[i]);
 	}
 	/*
-	 * NOTE: don't use c2_rpc_client_fini() here, see the comment above
+	 * NOTE: don't use m0_rpc_client_fini() here, see the comment above
 	 * client_fini() for explanation.
 	 */
 	rc = client_fini(&cctx);
 
 net_dom_fini:
-	c2_net_domain_fini(&client_net_dom);
+	m0_net_domain_fini(&client_net_dom);
 xprt_fini:
-	c2_net_xprt_fini(xprt);
+	m0_net_xprt_fini(xprt);
 fop_fini:
-	c2_ping_fop_fini();
-c2_fini:
+	m0_ping_fop_fini();
+m0_fini:
 #ifndef __KERNEL__
-	c2_fini();
+	m0_fini();
 #endif
 	return rc;
 }
@@ -424,24 +424,24 @@ static int run_server(void)
 	if (max_rpc_msg_size != 0)
 		sprintf(rpc_size, "%d" , max_rpc_msg_size);
 
-	C2_RPC_SERVER_CTX_DEFINE(sctx, &xprt, 1, server_argv,
-				 ARRAY_SIZE(server_argv), c2_cs_default_stypes,
-				 c2_cs_default_stypes_nr, SERVER_LOG_FILE_NAME);
+	M0_RPC_SERVER_CTX_DEFINE(sctx, &xprt, 1, server_argv,
+				 ARRAY_SIZE(server_argv), m0_cs_default_stypes,
+				 m0_cs_default_stypes_nr, SERVER_LOG_FILE_NAME);
 
-	rc = c2_init();
+	rc = m0_init();
 	if (rc != 0)
 		return rc;
-	rc = c2_ut_init();
+	rc = m0_ut_init();
 	if (rc != 0)
-		goto c2_fini;
+		goto m0_fini;
 
-	rc = c2_ping_fop_init();
+	rc = m0_ping_fop_init();
 	if (rc != 0)
-		goto c2_fini;
+		goto m0_fini;
 
 	/*
 	 * Prepend transport name to the beginning of endpoint,
-	 * as required by colibri-setup.
+	 * as required by mero-setup.
 	 */
 	strcpy(server_endpoint, TRANSPORT_NAME ":");
 
@@ -451,22 +451,22 @@ static int run_server(void)
 	if (rc != 0)
 		return rc;
 
-	rc = c2_rpc_server_start(&sctx);
+	rc = m0_rpc_server_start(&sctx);
 	if (rc != 0)
 		goto fop_fini;
 
 	quit_dialog();
 
 	if (verbose) {
-		struct c2_reqh *reqh;
+		struct m0_reqh *reqh;
 
-		reqh = c2_cs_reqh_get(&sctx.rsx_colibri_ctx, "ds1");
+		reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx, "ds1");
 		if (reqh != NULL) {
 			printf("########### Server DS1 statS ###########\n");
 			print_stats(reqh);
 		}
 
-		reqh = c2_cs_reqh_get(&sctx.rsx_colibri_ctx, "ds2");
+		reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx, "ds2");
 		if (reqh != NULL) {
 			printf("\n");
 			printf("########### Server DS2 statS ###########\n");
@@ -474,18 +474,18 @@ static int run_server(void)
 		}
 	}
 
-	c2_rpc_server_stop(&sctx);
+	m0_rpc_server_stop(&sctx);
 fop_fini:
-	c2_ping_fop_fini();
-	c2_ut_fini();
-c2_fini:
-	c2_fini();
+	m0_ping_fop_fini();
+	m0_ut_fini();
+m0_fini:
+	m0_fini();
 	return rc;
 }
 #endif
 
 #ifdef __KERNEL__
-int c2_rpc_ping_init()
+int m0_rpc_ping_init()
 #else
 /* Main function for rpc ping */
 int main(int argc, char *argv[])
@@ -493,29 +493,29 @@ int main(int argc, char *argv[])
 {
 	int rc;
 
-	c2_addb_choose_default_level(AEL_WARN);
+	m0_addb_choose_default_level(AEL_WARN);
 
 #ifndef __KERNEL__
-	rc = C2_GETOPTS("rpcping", argc, argv,
-		C2_FLAGARG('s', "run server", &server_mode),
-		C2_STRINGARG('C', "client nid",
+	rc = M0_GETOPTS("rpcping", argc, argv,
+		M0_FLAGARG('s', "run server", &server_mode),
+		M0_STRINGARG('C', "client nid",
 			LAMBDA(void, (const char *str) { client_nid =
 								(char*)str; })),
-		C2_FORMATARG('p', "client tmid", "%i", &client_tmid),
-		C2_STRINGARG('S', "server nid",
+		M0_FORMATARG('p', "client tmid", "%i", &client_tmid),
+		M0_STRINGARG('S', "server nid",
 			LAMBDA(void, (const char *str) { server_nid =
 								(char*)str; })),
-		C2_FORMATARG('P', "server tmid", "%i", &server_tmid),
-		C2_FORMATARG('b', "size in bytes", "%i", &nr_ping_bytes),
-		C2_FORMATARG('t', "number of client threads", "%i",
+		M0_FORMATARG('P', "server tmid", "%i", &server_tmid),
+		M0_FORMATARG('b', "size in bytes", "%i", &nr_ping_bytes),
+		M0_FORMATARG('t', "number of client threads", "%i",
 						&nr_client_threads),
-		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
-		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
-		C2_FORMATARG('q', "minimum TM receive queue length", "%i",
+		M0_FORMATARG('l', "number of slots", "%i", &nr_slots),
+		M0_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
+		M0_FORMATARG('q', "minimum TM receive queue length", "%i",
 						&tm_recv_queue_len),
-		C2_FORMATARG('m', "maximum RPC msg size", "%i",
+		M0_FORMATARG('m', "maximum RPC msg size", "%i",
 						&max_rpc_msg_size),
-		C2_FLAGARG('v', "verbose", &verbose)
+		M0_FLAGARG('v', "verbose", &verbose)
 		);
 	if (rc != 0)
 		return rc;
@@ -529,6 +529,6 @@ int main(int argc, char *argv[])
 	return rc;
 }
 
-C2_INTERNAL void c2_rpc_ping_fini(void)
+M0_INTERNAL void m0_rpc_ping_fini(void)
 {
 }

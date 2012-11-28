@@ -176,9 +176,9 @@ if [ -n "$Pclient_only" ]; then
     fi
 fi
 
-. c2t1fs/linux_kernel/st/common.sh
+. m0t1fs/linux_kernel/st/common.sh
 
-MODLIST="build_kernel_modules/kcolibri.ko"
+MODLIST="build_kernel_modules/kmero.ko"
 
 log='/var/log/kern'
 if [ ! -e "$log" ]; then

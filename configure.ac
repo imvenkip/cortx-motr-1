@@ -1,9 +1,9 @@
 AC_PREREQ(2.63)
-AC_INIT([colibri],[0.1.0],[colibri@xyratex.com])
+AC_INIT([mero],[0.1.0],[mero@xyratex.com])
 
 # The AC_PROG_CC macro sets CFLAGS to '-g -O2' by default if CFLAGS is not
 # initialized by the user, we don't need this because we use a separate
-# C2_CFLAGS variable to control compiler's options while allowing user to
+# M0_CFLAGS variable to control compiler's options while allowing user to
 # override it via CFLAGS from command-line.
 CFLAGS=${CFLAGS:=""}
 
@@ -12,7 +12,7 @@ AM_SILENT_RULES([yes])
 
 LT_INIT
 
-AC_CONFIG_SRCDIR([colibri/init.c])
+AC_CONFIG_SRCDIR([mero/init.c])
 AC_CONFIG_MACRO_DIR([m4])
 
 AC_CONFIG_HEADERS([config.h])
@@ -105,7 +105,7 @@ AC_ARG_ENABLE([altogether-mode],
         [AS_HELP_STRING([--disable-altogether-mode],[disable altogether build mode])],
         [], [enable_altogether_mode=yes]
 )
-AM_CONDITIONAL([ENABLE_COLIBRI_ALTOGETHER],
+AM_CONDITIONAL([ENABLE_MERO_ALTOGETHER],
                [test "x$enable_altogether_mode" = xyes])
 
 AC_ARG_ENABLE([rpm],
@@ -185,25 +185,25 @@ AC_CHECK_PROG(DOXYGEN, doxygen, doxygen,
 #
 
 # sqrt() requires m library
-COLIBRI_SEARCH_LIBS([sqrt], [c m], [MATH_LIBS],
+MERO_SEARCH_LIBS([sqrt], [c m], [MATH_LIBS],
         [sqrt cannot be found! Try to install libc-devel.]
 )
 AC_SUBST([MATH_LIBS])
 
 # pthread library is required for a subset of pthread_XXX funcs
-COLIBRI_SEARCH_LIBS([pthread_create], [c pthread], [PTHREAD_LIBS],
+MERO_SEARCH_LIBS([pthread_create], [c pthread], [PTHREAD_LIBS],
         [pthread_create cannot be found! Try to install libc-devel or libpthread-devel.]
 )
 AC_SUBST([PTHREAD_LIBS])
 
 # check for aio library (io_submit(3) & co.)
-COLIBRI_SEARCH_LIBS([io_getevents], [aio c], [AIO_LIBS],
+MERO_SEARCH_LIBS([io_getevents], [aio c], [AIO_LIBS],
         [io_getevents cannot be found! Try to install libaio-devel.]
 )
 AC_SUBST([AIO_LIBS])
 
 # rt library is required for: aio_read(3), aio_write(3), timer_create(2)
-COLIBRI_SEARCH_LIBS([aio_read], [rt aio c], [RT_LIBS],
+MERO_SEARCH_LIBS([aio_read], [rt aio c], [RT_LIBS],
         [aio_read cannot be found! Try to install librt-devel or libaio-devel.]
 )
 AC_SUBST([RT_LIBS])
@@ -256,9 +256,9 @@ AS_IF([test $ac_cv_sizeof_long -eq 8],
 
 AC_C_INLINE
 
-COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable],
-        [C2_KCFLAGS="-Wno-unused-but-set-variable $C2_KCFLAGS"],
-        [C2_KCFLAGS="$C2_KCFLAGS"])
+MERO_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable],
+        [M0_KCFLAGS="-Wno-unused-but-set-variable $M0_KCFLAGS"],
+        [M0_KCFLAGS="$M0_KCFLAGS"])
 
 #
 # Checking for required library functions
@@ -282,15 +282,15 @@ AC_CHECK_DECL([backtrace], [AC_DEFINE([HAVE_BACKTRACE])], [], [[#include <execin
 
 # Prepare linux configuration checks facility.
 # Should be done before any *_LINUX_* checks.
-COLIBRI_LINUX_INIT_CONFIG
+MERO_LINUX_INIT_CONFIG
 
-COLIBRI_LINUX_CHECK_SYMBOL([journal_abort], [AC_DEFINE([HAVE_JOURNAL_ABORT])])
+MERO_LINUX_CHECK_SYMBOL([journal_abort], [AC_DEFINE([HAVE_JOURNAL_ABORT])])
 
-COLIBRI_LINUX_INODE_BLKSIZE
-COLIBRI_LINUX_FILE_READV
-COLIBRI_LINUX_FILE_AIO_READ
-COLIBRI_LINUX_WRITE_BEGIN_END
-COLIBRI_LINUX_SENDFILE
+MERO_LINUX_INODE_BLKSIZE
+MERO_LINUX_FILE_READV
+MERO_LINUX_FILE_AIO_READ
+MERO_LINUX_WRITE_BEGIN_END
+MERO_LINUX_SENDFILE
 
 #
 # Checking for Lustre
@@ -320,7 +320,7 @@ AC_MSG_RESULT([$LUSTRE])
 #AC_MSG_RESULT([$LUSTRE/Module.symvers])
 
 #
-# Configure and build dependencies in external colibri repositories
+# Configure and build dependencies in external mero repositories
 #
 
 OLD_LIBS=$LIBS
@@ -334,7 +334,7 @@ if test x$enable_rpm = xyes; then
 
 GALOIS_SRC=""
 
-COLIBRI_SEARCH_LIBS([galois_create_mult_tables], [galois], [GALOIS_LIBS],
+MERO_SEARCH_LIBS([galois_create_mult_tables], [galois], [GALOIS_LIBS],
         [libgalois cannot be found! Try install galois package from \
 $SRCDIR/../galois or from rpm]
 )
@@ -357,14 +357,14 @@ AC_SUBST([GALOIS_SYMVERS])
 
 # Check for yaml
 
-COLIBRI_SEARCH_LIBS([yaml_parser_initialize], [yaml], [YAML_LIBS],
+MERO_SEARCH_LIBS([yaml_parser_initialize], [yaml], [YAML_LIBS],
         [yaml_parser_initialize cannot be found! Try install yaml package from \
 $SRCDIR/../yaml or from rpm]
 )
 
 # Check for CUnit
 
-COLIBRI_SEARCH_LIBS([CU_add_suite], [cunit], [CUNIT_LIBS],
+MERO_SEARCH_LIBS([CU_add_suite], [cunit], [CUNIT_LIBS],
         [CU_add_suite cannot be found! Try install CUnit package from \
 $SRCDIR/../cunit or from rpm]
 )
@@ -376,7 +376,7 @@ from $SRCDIR/../cunit or CUnit-devel rpm package])
 
 # Check for berkley db
 
-COLIBRI_SEARCH_LIBS([db_env_create], [db], [DB_LIBS],
+MERO_SEARCH_LIBS([db_env_create], [db], [DB_LIBS],
         [db_env_create cannot be found! Try install db4-devel package]
 )
 
@@ -392,7 +392,7 @@ GALOIS_SRC=$ABS_SRCDIR/../galois
 GALOIS_INCLUDES="-I$GALOIS_SRC/include"
 GALOIS_LIBS="$GALOIS_SRC/src/libgalois.la"
 AC_MSG_CHECKING([for galois libs])
-COLIBRI_BUILD_LIB([galois], [$GALOIS_SRC], [$GALOIS_LIBS], [.],
+MERO_BUILD_LIB([galois], [$GALOIS_SRC], [$GALOIS_LIBS], [.],
                   ["--with-linux-obj=$LINUX_OBJ"])
 
 GALOIS_SYMVERS="$GALOIS_SRC/src/linux_kernel/Module.symvers"
@@ -409,7 +409,7 @@ YAML_SRC=$SRCDIR/../yaml
 YAML_INCLUDES="-I$YAML_SRC/include"
 YAML_LIBS="$YAML_SRC/src/libyaml.la"
 AC_MSG_CHECKING([for yaml libs])
-COLIBRI_BUILD_LIB([yaml], [$YAML_SRC], [$YAML_LIBS])
+MERO_BUILD_LIB([yaml], [$YAML_SRC], [$YAML_LIBS])
 
 # Check for CUnit
 
@@ -417,7 +417,7 @@ CUNIT_SRC=$SRCDIR/../cunit
 CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/libcunit.la"
 CUNIT_INCLUDES="-I$CUNIT_SRC/CUnit/Headers"
 AC_MSG_CHECKING([for cunit libs])
-COLIBRI_BUILD_LIB([cunit], [$CUNIT_SRC], [$CUNIT_LIBS])
+MERO_BUILD_LIB([cunit], [$CUNIT_SRC], [$CUNIT_LIBS])
 
 # Check for berkeley db
 
@@ -425,7 +425,7 @@ DB_SRC="$SRCDIR/../db4/build_unix"
 DB_INCLUDES="-I$DB_SRC/build_unix -I$DB_SRC"
 DB_LIBS="$DB_SRC/libdb.a"
 AC_MSG_CHECKING([for db libs])
-COLIBRI_BUILD_LIB([db], [$DB_SRC], [$DB_LIBS], ["../dist"], ["--with-pic"])
+MERO_BUILD_LIB([db], [$DB_SRC], [$DB_LIBS], ["../dist"], ["--with-pic"])
 
 fi
 
@@ -446,20 +446,20 @@ AC_SUBST([DB_LIBS])
 
 AS_IF([test x$enable_debug = xyes],
       [
-       C2_CFLAGS="-g -O0 $C2_CFLAGS"
-       C2_KCFLAGS="-g -O0 $C2_KCFLAGS"
+       M0_CFLAGS="-g -O0 $M0_CFLAGS"
+       M0_KCFLAGS="-g -O0 $M0_KCFLAGS"
        AC_DEFINE([ENABLE_DEBUG])
       ],[
-       C2_CFLAGS="-g -O2 $C2_CFLAGS"
-       C2_KCFLAGS="-g -O2 $C2_KCFLAGS"
+       M0_CFLAGS="-g -O2 $M0_CFLAGS"
+       M0_KCFLAGS="-g -O2 $M0_KCFLAGS"
       ]
 )
 
 AS_IF([test x$enable_coverage = xyes],
       [
-        # Remove -O<digit> flag from $C2_CFLAGS
-        C2_CFLAGS="$(echo $C2_CFLAGS | sed 's/-O[[0-9]]//g') --coverage"
-        C2_LDFLAGS="-lgcov $C2_LDFLAGS"
+        # Remove -O<digit> flag from $M0_CFLAGS
+        M0_CFLAGS="$(echo $M0_CFLAGS | sed 's/-O[[0-9]]//g') --coverage"
+        M0_LDFLAGS="-lgcov $M0_LDFLAGS"
         K_ENABLE_COVERAGE=y
       ],
       [K_ENABLE_COVERAGE=n]
@@ -469,44 +469,44 @@ AS_IF([test x$enable_coverage = xyes],
 AC_SUBST([K_ENABLE_COVERAGE])
 
 AS_IF([test x$enable_mcheck = xyes],
-      [C2_LDFLAGS="-lmcheck $C2_LDFLAGS"]
+      [M0_LDFLAGS="-lmcheck $M0_LDFLAGS"]
 )
 
 AS_IF([test x$enable_rpm != xyes],
-      [C2_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $CUNIT_INCLUDES \
-                    $DB_INCLUDES $C2_CPPFLAGS"]
+      [M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $CUNIT_INCLUDES \
+                    $DB_INCLUDES $M0_CPPFLAGS"]
 )
 
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
-C2_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DC2_INTERNAL='' -DC2_EXTERN=extern \
+M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
              -iquote $ABS_BUILDDIR -iquote $SRCDIR -include config.h \
-             $C2_CPPFLAGS"
+             $M0_CPPFLAGS"
 
 # -Wno-attributes is required to suppress warnings about unrecognized
 # __attribute__, such as __attribute__((gccxml(...))). It's important because we
 # use -Werror, which turns warnings into errors, but we still need to be able to
 # use gccxml attributes.
-C2_CFLAGS="-Wall -Werror -Wno-attributes -fno-strict-aliasing $C2_CFLAGS"
+M0_CFLAGS="-Wall -Werror -Wno-attributes -fno-strict-aliasing $M0_CFLAGS"
 
-C2_LDFLAGS="-rdynamic $C2_LDFLAGS"
+M0_LDFLAGS="-rdynamic $M0_LDFLAGS"
 
-C2_KCPPFLAGS="-DC2_INTERNAL='' -DC2_EXTERN=extern -include $ABS_BUILDDIR/config.h \
-              -iquote $ABS_BUILDDIR $GALOIS_INCLUDES $C2_KCPPFLAGS"
+M0_KCPPFLAGS="-DM0_INTERNAL='' -DM0_EXTERN=extern -include $ABS_BUILDDIR/config.h \
+              -iquote $ABS_BUILDDIR $GALOIS_INCLUDES $M0_KCPPFLAGS"
 
-C2_KCFLAGS="-Wall -Werror -Wno-attributes $C2_KCFLAGS"
+M0_KCFLAGS="-Wall -Werror -Wno-attributes $M0_KCFLAGS"
 
 # trim spaces at the end of flags
-C2_CPPFLAGS=$(echo $C2_CPPFLAGS | sed 's/[[[:blank:]]]*$//')
-C2_CFLAGS=$(echo $C2_CFLAGS | sed 's/[[[:blank:]]]*$//')
-C2_KCPPFLAGS=$(echo $C2_KCPPFLAGS | sed 's/[[[:blank:]]]*$//')
-C2_KCFLAGS=$(echo $C2_KCFLAGS | sed 's/[[[:blank:]]]*$//')
-C2_LDFLAGS=$(echo $C2_LDFLAGS | sed 's/[[[:blank:]]]*$//')
+M0_CPPFLAGS=$(echo $M0_CPPFLAGS | sed 's/[[[:blank:]]]*$//')
+M0_CFLAGS=$(echo $M0_CFLAGS | sed 's/[[[:blank:]]]*$//')
+M0_KCPPFLAGS=$(echo $M0_KCPPFLAGS | sed 's/[[[:blank:]]]*$//')
+M0_KCFLAGS=$(echo $M0_KCFLAGS | sed 's/[[[:blank:]]]*$//')
+M0_LDFLAGS=$(echo $M0_LDFLAGS | sed 's/[[[:blank:]]]*$//')
 
-AC_SUBST([C2_CPPFLAGS])
-AC_SUBST([C2_CFLAGS])
-AC_SUBST([C2_KCPPFLAGS])
-AC_SUBST([C2_KCFLAGS])
-AC_SUBST([C2_LDFLAGS])
+AC_SUBST([M0_CPPFLAGS])
+AC_SUBST([M0_CFLAGS])
+AC_SUBST([M0_KCPPFLAGS])
+AC_SUBST([M0_KCFLAGS])
+AC_SUBST([M0_LDFLAGS])
 
 #
 # Setup output files
@@ -522,9 +522,9 @@ AC_CONFIG_FILES([
                  utils/linux_kernel/Makefile
                 ])
 AC_CONFIG_FILES([mdservice/ut/mdstore.h])
-AC_CONFIG_FILES([colibri.spec])
-AC_CONFIG_FILES([c2t1fs/linux_kernel/st/common.sh],
-                [chmod +x c2t1fs/linux_kernel/st/common.sh])
+AC_CONFIG_FILES([mero.spec])
+AC_CONFIG_FILES([m0t1fs/linux_kernel/st/common.sh],
+                [chmod +x m0t1fs/linux_kernel/st/common.sh])
 AC_CONFIG_FILES([net/test/ntc.sh], [chmod + net/test/ntc.sh])
 AC_CONFIG_FILES([net/test/ntn.sh], [chmod + net/test/ntn.sh])
 AC_CONFIG_FILES([net/test/test-user.sh], [chmod + net/test/test-user.sh])
@@ -553,11 +553,11 @@ AS_IF([test "x$LIBS" != x],
       [echo "LIBS         :  \"$LIBS\""])
 
 echo ""
-echo "C2_CPPFLAGS  :  \"$C2_CPPFLAGS\""
-echo "C2_CFLAGS    :  \"$C2_CFLAGS\""
-echo "C2_KCPPFLAGS :  \"$C2_KCPPFLAGS\""
-echo "C2_KCFLAGS   :  \"$C2_KCFLAGS\""
-echo "C2_LDFLAGS   :  \"$C2_LDFLAGS\""
+echo "M0_CPPFLAGS  :  \"$M0_CPPFLAGS\""
+echo "M0_CFLAGS    :  \"$M0_CFLAGS\""
+echo "M0_KCPPFLAGS :  \"$M0_KCPPFLAGS\""
+echo "M0_KCFLAGS   :  \"$M0_KCFLAGS\""
+echo "M0_LDFLAGS   :  \"$M0_LDFLAGS\""
 echo ""
 echo "MATH_LIBS    :  \"$MATH_LIBS\""
 echo "PTHREAD_LIBS :  \"$PTHREAD_LIBS\""
@@ -572,4 +572,4 @@ echo "Linux Obj    :  \"$LINUX_OBJ\""
 echo "Lustre       :  \"$LUSTRE\""
 echo ""
 
-echo 'Run `make` to build Colibri or `make help` for other options'
+echo 'Run `make` to build Mero or `make help` for other options'

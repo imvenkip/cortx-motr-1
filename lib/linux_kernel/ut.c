@@ -30,8 +30,8 @@
  */
 
 struct test_suite_elem {
-	const struct c2_test_suite *tse_suite;
-	struct c2_list_link	    tse_link;
+	const struct m0_test_suite *tse_suite;
+	struct m0_list_link	    tse_link;
 };
 
 static int suite_ran;
@@ -40,44 +40,44 @@ static int test_passed;
 static int test_failed;
 static int passed;
 static int failed;
-static c2_time_t started;
-static struct c2_list suites;
+static m0_time_t started;
+static struct m0_list suites;
 
 enum {
 	ONE_MILLION = 1000000ULL
 };
 
-C2_INTERNAL int c2_uts_init(void)
+M0_INTERNAL int m0_uts_init(void)
 {
-	c2_list_init(&suites);
+	m0_list_init(&suites);
 	return 0;
 }
-C2_EXPORTED(c2_uts_init);
+M0_EXPORTED(m0_uts_init);
 
-C2_INTERNAL void c2_uts_fini(void)
+M0_INTERNAL void m0_uts_fini(void)
 {
-	struct c2_list_link *link;
+	struct m0_list_link *link;
 	struct test_suite_elem *ts;
 
-	while ((link = c2_list_first(&suites)) != NULL) {
-		ts = c2_list_entry(link, struct test_suite_elem, tse_link);
-		c2_list_del(&ts->tse_link);
-		c2_free(ts);
+	while ((link = m0_list_first(&suites)) != NULL) {
+		ts = m0_list_entry(link, struct test_suite_elem, tse_link);
+		m0_list_del(&ts->tse_link);
+		m0_free(ts);
 	}
-	c2_list_fini(&suites);
+	m0_list_fini(&suites);
 }
-C2_EXPORTED(c2_uts_fini);
+M0_EXPORTED(m0_uts_fini);
 
-C2_INTERNAL void c2_ut_add(const struct c2_test_suite *ts)
+M0_INTERNAL void m0_ut_add(const struct m0_test_suite *ts)
 {
 	struct test_suite_elem *elem;
 
-	C2_ALLOC_PTR(elem);
+	M0_ALLOC_PTR(elem);
 	elem->tse_suite = ts;
-	c2_list_link_init(&elem->tse_link);
-	c2_list_add_tail(&suites, &elem->tse_link);
+	m0_list_link_init(&elem->tse_link);
+	m0_list_add_tail(&suites, &elem->tse_link);
 }
-C2_EXPORTED(c2_ut_add);
+M0_EXPORTED(m0_ut_add);
 
 /**
    Generate a run summary similar in appearance to a CUnit run summary.
@@ -85,13 +85,13 @@ C2_EXPORTED(c2_ut_add);
 static void uts_summary(void)
 {
 	int ran;
-	c2_time_t now;
-	c2_time_t diff;
+	m0_time_t now;
+	m0_time_t diff;
 	int64_t msec;
 
-	now = c2_time_now();
-	diff = c2_time_sub(now, started);
-	msec = (c2_time_nanoseconds(diff) + ONE_MILLION / 2) / ONE_MILLION;
+	now = m0_time_now();
+	diff = m0_time_sub(now, started);
+	msec = (m0_time_nanoseconds(diff) + ONE_MILLION / 2) / ONE_MILLION;
 
 	printk(KERN_INFO "Run Summary:    Type  Total    Ran Passed Failed\n");
 	/* initial "." keeps syslog from trimming leading spaces */
@@ -104,14 +104,14 @@ static void uts_summary(void)
 	printk(KERN_INFO ".%19s%7d%7d%7d%7d\n",
 	       "asserts", ran, ran, passed, failed);
 	printk(KERN_INFO "Elapsed time = %4lld.%03lld seconds\n",
-	       c2_time_seconds(diff), msec);
+	       m0_time_seconds(diff), msec);
 }
 
-C2_INTERNAL void c2_ut_run(void)
+M0_INTERNAL void m0_ut_run(void)
 {
 	struct test_suite_elem *ts;
-	struct c2_list_link    *pos;
-	const struct c2_test   *t;
+	struct m0_list_link    *pos;
+	const struct m0_test   *t;
 	int ret;
 
 	suite_ran = 0;
@@ -120,12 +120,12 @@ C2_INTERNAL void c2_ut_run(void)
 	test_failed = 0;
 	passed = 0;
 	failed = 0;
-	started = c2_time_now();
+	started = m0_time_now();
 
-	c2_list_for_each(&suites, pos) {
+	m0_list_for_each(&suites, pos) {
 		bool suite_ok = true;
 
-		ts = c2_list_entry(pos, struct test_suite_elem, tse_link);
+		ts = m0_list_entry(pos, struct test_suite_elem, tse_link);
 		printk(KERN_INFO "Suite: %s\n", ts->tse_suite->ts_name);
 		suite_ran++;
 		if (ts->tse_suite->ts_init != NULL) {
@@ -168,9 +168,9 @@ C2_INTERNAL void c2_ut_run(void)
 
 	uts_summary();
 }
-C2_EXPORTED(c2_ut_run);
+M0_EXPORTED(m0_ut_run);
 
-C2_INTERNAL bool c2_ut_assertimpl(bool c, int lno, const char *str_c,
+M0_INTERNAL bool m0_ut_assertimpl(bool c, int lno, const char *str_c,
 				  const char *file)
 {
 	if (!c) {
@@ -181,7 +181,7 @@ C2_INTERNAL bool c2_ut_assertimpl(bool c, int lno, const char *str_c,
 		passed++;
 	return c;
 }
-C2_EXPORTED(c2_ut_assertimpl);
+M0_EXPORTED(m0_ut_assertimpl);
 
 /** @} end of ut group. */
 

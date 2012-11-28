@@ -1,13 +1,13 @@
 #! /bin/sh
 
-# Small wrapper to run net-test console, which depends on kcolibri module
+# Small wrapper to run net-test console, which depends on kmero module
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Must be run as root"
     exit 1
 fi
 
-. @SRCDIR@/c2t1fs/linux_kernel/st/common.sh
+. @SRCDIR@/m0t1fs/linux_kernel/st/common.sh
 
 unload_all() {
     modunload

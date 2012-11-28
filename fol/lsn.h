@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_FOL_LSN_H__
-#define __COLIBRI_FOL_LSN_H__
+#ifndef __MERO_FOL_LSN_H__
+#define __MERO_FOL_LSN_H__
 
 /**
    @addtogroup fol
@@ -49,31 +49,31 @@
 
    Given 1M operations per second, a 64 bit counter overflows in 600000 years.
  */
-typedef uint64_t c2_lsn_t;
+typedef uint64_t m0_lsn_t;
 
 enum {
 	/** Invalid lsn value. Used to catch uninitialised lsns. */
-	C2_LSN_INVALID,
+	M0_LSN_INVALID,
 	/** Non-existent lsn. This is used, for example, as a prevlsn, when
 	    there is no previous operation on the object. */
-	C2_LSN_NONE,
+	M0_LSN_NONE,
 	/** LSN of a special dummy item always present in
-	    c2_rpc_slot::sl_item_list. */
-	C2_LSN_DUMMY_ITEM,
-	C2_LSN_RESERVED_NR,
+	    m0_rpc_slot::sl_item_list. */
+	M0_LSN_DUMMY_ITEM,
+	M0_LSN_RESERVED_NR,
 	/**
 	    LSN of a special "anchor" record always present in the fol.
 	 */
-	C2_LSN_ANCHOR = C2_LSN_RESERVED_NR + 1
+	M0_LSN_ANCHOR = M0_LSN_RESERVED_NR + 1
 };
 
 /** True iff the argument might be an lsn of an existing fol record. */
-C2_INTERNAL bool c2_lsn_is_valid(c2_lsn_t lsn);
+M0_INTERNAL bool m0_lsn_is_valid(m0_lsn_t lsn);
 /** 3-way comparison (-1, 0, +1) of lsns, compatible with record
     dependencies. */
-C2_INTERNAL int c2_lsn_cmp(c2_lsn_t lsn0, c2_lsn_t lsn1);
+M0_INTERNAL int m0_lsn_cmp(m0_lsn_t lsn0, m0_lsn_t lsn1);
 
-/* __COLIBRI_FOL_LSN_H__ */
+/* __MERO_FOL_LSN_H__ */
 #endif
 
 /*

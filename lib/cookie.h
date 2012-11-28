@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_COOKIE_H__
-#define __COLIBRI_LIB_COOKIE_H__
+#ifndef __MERO_LIB_COOKIE_H__
+#define __MERO_LIB_COOKIE_H__
 
 /**
  * @defgroup cookie Cookie
@@ -49,22 +49,22 @@
 /**
  * Holds an address of a remote object and its generation count.
  */
-struct c2_cookie {
+struct m0_cookie {
 	uint64_t co_addr;
 	uint64_t co_generation;
 };
 
 /**
- * Initializes the gencount. Gets called during colibri initialization.
+ * Initializes the gencount. Gets called during mero initialization.
  */
-C2_INTERNAL int c2_cookie_global_init(void);
+M0_INTERNAL int m0_cookie_global_init(void);
 
-C2_INTERNAL void c2_cookie_global_fini(void);
+M0_INTERNAL void m0_cookie_global_fini(void);
 
 /**
  * Increments generation-count by one and assigns the same to *gen.
  */
-C2_INTERNAL void c2_cookie_new(uint64_t * gen);
+M0_INTERNAL void m0_cookie_new(uint64_t * gen);
 
 /**
  * Embeds address of an object along with a generation-count in a cookie.
@@ -72,7 +72,7 @@ C2_INTERNAL void c2_cookie_new(uint64_t * gen);
  * @param obj (in)	 address of an object
  * @param cookie (out)   address of a cookie in which obj gets embedded
  */
-C2_INTERNAL void c2_cookie_init(struct c2_cookie *cookie, uint64_t * obj);
+M0_INTERNAL void m0_cookie_init(struct m0_cookie *cookie, uint64_t * obj);
 
 /**
  * Retrieves address of an object from a cookie.
@@ -81,29 +81,29 @@ C2_INTERNAL void c2_cookie_init(struct c2_cookie *cookie, uint64_t * obj);
  * @param addr (out)    pointer to a memory location which holds retrieved
  *                      address
  */
-C2_INTERNAL int c2_cookie_dereference(const struct c2_cookie *cookie,
+M0_INTERNAL int m0_cookie_dereference(const struct m0_cookie *cookie,
 				      uint64_t ** addr);
 
 /**
  * Checks if address is aligned to 8-byte address and is pointing to a valid
  * memory location.
  */
-C2_INTERNAL bool c2_addr_is_sane(const uint64_t * addr);
+M0_INTERNAL bool m0_addr_is_sane(const uint64_t * addr);
 
 /**
  * A macro to retrive address of a parent structure, associated with an object
  * embedded in a cookie.
  */
-#define c2_cookie_of(cookie, type, field)		      \
+#define m0_cookie_of(cookie, type, field)		      \
 ({							      \
 	uint64_t	 *__gen;			      \
-	struct c2_cookie *__cookie = (cookie);		      \
-	c2_cookie_dereference(__cookie, &__gen) != 0 ? NULL : \
+	struct m0_cookie *__cookie = (cookie);		      \
+	m0_cookie_dereference(__cookie, &__gen) != 0 ? NULL : \
 			container_of(__gen, type, field);     \
 })
 
 /** @} end of cookie group */
-/*__C2_LIB_COOKIE_H__*/
+/*__M0_LIB_COOKIE_H__*/
 #endif
 
 /*

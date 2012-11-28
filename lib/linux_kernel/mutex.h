@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_LINUX_KERNEL_MUTEX_H__
-#define __COLIBRI_LIB_LINUX_KERNEL_MUTEX_H__
+#ifndef __MERO_LIB_LINUX_KERNEL_MUTEX_H__
+#define __MERO_LIB_LINUX_KERNEL_MUTEX_H__
 
 #include <linux/mutex.h>
 
@@ -32,13 +32,13 @@
    @{
  */
 
-struct c2_mutex {
+struct m0_mutex {
 	struct mutex m_mutex;
 };
 
 /** @} end of mutex group */
 
-/* __COLIBRI_LIB_LINUX_KERNEL_MUTEX_H__ */
+/* __MERO_LIB_LINUX_KERNEL_MUTEX_H__ */
 #endif
 
 /*

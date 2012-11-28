@@ -23,8 +23,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_IOSERVICE_IO_FOMS_H__
-#define __COLIBRI_IOSERVICE_IO_FOMS_H__
+#ifndef __MERO_IOSERVICE_IO_FOMS_H__
+#define __MERO_IOSERVICE_IO_FOMS_H__
 
 /**
    @page DLD-bulk-server-fspec Functional Specification
@@ -43,7 +43,7 @@
    I/O FOMs use the following data structure:
 
    The Bulk I/O Service is required to maintain run-time context of I/O FOMs.
-   The data structure @ref c2_io_fom_cob_rw maintain required context data.
+   The data structure @ref m0_io_fom_cob_rw maintain required context data.
 
    - Pointer to generic FOM structure<br>
      This holds the information about generic FOM (e.g. its generic states,
@@ -69,18 +69,18 @@
    Bulk I/O FOM type operations:
 
    @verbatim
-   c2_io_fom_cob_rw_create()    Request handler uses this interface to
+   m0_io_fom_cob_rw_create()    Request handler uses this interface to
                                 create I/O FOM.
    @endverbatim
 
    Bulk I/O FOM operations :
 
    @verbatim
-   c2_io_fom_cob_rw_locality_get()   Request handler uses this interface to
+   m0_io_fom_cob_rw_locality_get()   Request handler uses this interface to
                                      get the locality for this I/O FOM.
-   c2_io_fom_cob_rw_tick()           Request handler uses this interface to
+   m0_io_fom_cob_rw_tick()           Request handler uses this interface to
                                      execute next phase of I/O FOM.
-   c2_io_fom_cob_rw_fini()           Request handler uses this interface after
+   m0_io_fom_cob_rw_fini()           Request handler uses this interface after
                                      I/O FOM finishes its execution.
    @endverbatim
 
@@ -88,7 +88,7 @@
 
    @verbatim
 
-   c2_io_service_init()       This interface will be called by request handler
+   m0_io_service_init()       This interface will be called by request handler
                               to create & initiate Bulk I/O Service.
 
    @endverbatim
@@ -96,13 +96,13 @@
    Bulk I/O Service operations :
    @verbatim
 
-   c2_io_service_start()      This interface will be called by request handler
+   m0_io_service_start()      This interface will be called by request handler
                               to start Buk I/O Service.
 
-   c2_io_service_stop()       This interface will be called by request handler
+   m0_io_service_stop()       This interface will be called by request handler
                               to stop Buk I/O Service.
 
-   c2_io_service_fini()       This interface will be called by request handler
+   m0_io_service_fini()       This interface will be called by request handler
                               to finish & de-allocate Bulk I/O Service.
 
    @endverbatim
@@ -125,47 +125,47 @@
  * - Writev
  *
  * @note Naming convention: For operation xyz, the FOP is named
- * as c2_fop_xyz, its corresponding reply FOP is named as c2_fop_xyz_rep
- * and FOM is named as c2_fom_xyz. For each FOM type, its corresponding
- * create, state and fini methods are named as c2_fom_xyz_create,
- * c2_fom_xyz_state, c2_fom_xyz_fini respectively.
+ * as m0_fop_xyz, its corresponding reply FOP is named as m0_fop_xyz_rep
+ * and FOM is named as m0_fom_xyz. For each FOM type, its corresponding
+ * create, state and fini methods are named as m0_fom_xyz_create,
+ * m0_fom_xyz_state, m0_fom_xyz_fini respectively.
  *
  *  @{
  */
 
-#include "reqh/reqh.h"     /* C2_FOPH_NR */
+#include "reqh/reqh.h"     /* M0_FOPH_NR */
 #include "fop/fop.h"
 #include "ioservice/io_fops.h"
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fom.h"
 
-struct c2_fid;
-struct c2_fop_file_fid;
-struct c2_io_fom_cob_rw;
+struct m0_fid;
+struct m0_fop_file_fid;
+struct m0_io_fom_cob_rw;
 
 /**
  * Since STOB I/O only launch io for single index vec, I/O service need
  * to launch multiple STOB I/O and wait for all to complete. I/O service
  * will put FOM execution into runqueue only after all STOB I/O complete.
  */
-struct c2_stob_io_desc {
-	/** Magic to verify sanity of struct c2_stob_io_desc */
+struct m0_stob_io_desc {
+	/** Magic to verify sanity of struct m0_stob_io_desc */
 	uint64_t		 siod_magic;
 	/** Stob IO packet for the operation. */
-        struct c2_stob_io        siod_stob_io;
-        /** Linkage into c2_io_fom_cob_rw::fcrw_stobio_list */
-        struct c2_tlink          siod_linkage;
-        struct c2_fom_callback   siod_fcb;
+        struct m0_stob_io        siod_stob_io;
+        /** Linkage into m0_io_fom_cob_rw::fcrw_stobio_list */
+        struct m0_tlink          siod_linkage;
+        struct m0_fom_callback   siod_fcb;
 };
 
 /**
  * Object encompassing FOM for cob I/O
  * operation and necessary context data
  */
-struct c2_io_fom_cob_rw {
-	/** Generic c2_fom object. */
-        struct c2_fom                    fcrw_gen;
+struct m0_io_fom_cob_rw {
+	/** Generic m0_fom object. */
+        struct m0_fom                    fcrw_gen;
         /** Number of desc io_fop desc list*/
         int                              fcrw_ndesc;
         /** index of net buffer descriptor under process*/
@@ -175,25 +175,25 @@ struct c2_io_fom_cob_rw {
         /** no. of descriptor going to process */
         int                              fcrw_batch_size;
         /** Number of bytes requested to transfer. */
-        c2_bcount_t                      fcrw_req_count;
+        m0_bcount_t                      fcrw_req_count;
         /** Number of bytes successfully transferred. */
-        c2_bcount_t                      fcrw_count;
+        m0_bcount_t                      fcrw_count;
         /** Number of STOB I/O launched */
         int                              fcrw_num_stobio_launched;
         /** Pointer to buffer pool refered by FOM */
-        struct c2_net_buffer_pool       *fcrw_bp;
+        struct m0_net_buffer_pool       *fcrw_bp;
 	/** Stob object on which this FOM is acting. */
-        struct c2_stob		        *fcrw_stob;
+        struct m0_stob		        *fcrw_stob;
 	/** Stob IO packets for the operation. */
-        struct c2_tl                     fcrw_stio_list;
+        struct m0_tl                     fcrw_stio_list;
         /** rpc bulk load data*/
-        struct c2_rpc_bulk               fcrw_bulk;
+        struct m0_rpc_bulk               fcrw_bulk;
         /** Start time for FOM. */
-        c2_time_t                        fcrw_fom_start_time;
+        m0_time_t                        fcrw_fom_start_time;
         /** Start time for FOM specific phase. */
-        c2_time_t                        fcrw_phase_start_time;
+        m0_time_t                        fcrw_phase_start_time;
         /** network buffer list currently acquired by io service*/
-        struct c2_tl                     fcrw_netbuf_list;
+        struct m0_tl                     fcrw_netbuf_list;
 	/** Used to store error when any of the stob io fails while
 	 *  waiting for stob io to finish(i.e. all stobio call backs
 	 *  are returned successfully).
@@ -205,24 +205,24 @@ struct c2_io_fom_cob_rw {
  * The various phases for I/O FOM.
  * complete FOM and reqh infrastructure is in place.
  */
-enum c2_io_fom_cob_rw_phases {
-        C2_FOPH_IO_FOM_BUFFER_ACQUIRE = C2_FOPH_NR + 1,
-        C2_FOPH_IO_FOM_BUFFER_WAIT,
-        C2_FOPH_IO_STOB_INIT,
-        C2_FOPH_IO_STOB_WAIT,
-        C2_FOPH_IO_ZERO_COPY_INIT,
-        C2_FOPH_IO_ZERO_COPY_WAIT,
-        C2_FOPH_IO_BUFFER_RELEASE,
+enum m0_io_fom_cob_rw_phases {
+        M0_FOPH_IO_FOM_BUFFER_ACQUIRE = M0_FOPH_NR + 1,
+        M0_FOPH_IO_FOM_BUFFER_WAIT,
+        M0_FOPH_IO_STOB_INIT,
+        M0_FOPH_IO_STOB_WAIT,
+        M0_FOPH_IO_ZERO_COPY_INIT,
+        M0_FOPH_IO_ZERO_COPY_WAIT,
+        M0_FOPH_IO_BUFFER_RELEASE,
 };
 
 /**
  * State transition information.
  */
-struct c2_io_fom_cob_rw_state_transition {
+struct m0_io_fom_cob_rw_state_transition {
         /** Current phase of I/O FOM */
         int         fcrw_st_current_phase;
         /** Function which executes current phase */
-        int         (*fcrw_st_state_function)(struct c2_fom *);
+        int         (*fcrw_st_state_function)(struct m0_fom *);
         /** Next phase in which FOM is going to execute */
         int         fcrw_st_next_phase_again;
         /** Next phase in which FOM is going to wait */
@@ -234,21 +234,21 @@ struct c2_io_fom_cob_rw_state_transition {
 /**
  * Returns string representing ioservice name given a fom.
  */
-C2_INTERNAL const char *c2_io_fom_cob_rw_service_name(struct c2_fom *fom);
+M0_INTERNAL const char *m0_io_fom_cob_rw_service_name(struct m0_fom *fom);
 
 /**
  * Maps given fid to corresponding stob id.
  * @param in Input in-core fid.
  * @param out Output stob id.
  */
-C2_INTERNAL void io_fom_cob_rw_fid2stob_map(const struct c2_fid *in,
-					    struct c2_stob_id *out);
-C2_INTERNAL void io_fom_cob_rw_stob2fid_map(const struct c2_stob_id *in,
-					    struct c2_fid *out);
+M0_INTERNAL void io_fom_cob_rw_fid2stob_map(const struct m0_fid *in,
+					    struct m0_stob_id *out);
+M0_INTERNAL void io_fom_cob_rw_stob2fid_map(const struct m0_stob_id *in,
+					    struct m0_fid *out);
 
 /** @} end of io_foms */
 
-#endif /* __COLIBRI_IOSERVICE_IO_FOMS_H__ */
+#endif /* __MERO_IOSERVICE_IO_FOMS_H__ */
  /*
  *  Local variables:
  *  c-indentation-style: "K&R"

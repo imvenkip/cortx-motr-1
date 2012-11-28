@@ -25,75 +25,75 @@
 #include "rpc/rpc.h"
 #include "fop/fom_generic.h"
 
-static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m);
+static int ping_fop_fom_create(struct m0_fop *fop, struct m0_fom **m);
 
 /** Generic ops object for ping */
-struct c2_fom_ops c2_fom_ping_ops = {
-	.fo_fini          = c2_fop_ping_fom_fini,
-	.fo_tick          = c2_fom_ping_state,
-	.fo_home_locality = c2_fom_ping_home_locality
+struct m0_fom_ops m0_fom_ping_ops = {
+	.fo_fini          = m0_fop_ping_fom_fini,
+	.fo_tick          = m0_fom_ping_state,
+	.fo_home_locality = m0_fom_ping_home_locality
 };
 
 /** FOM type specific functions for ping FOP. */
-const struct c2_fom_type_ops c2_fom_ping_type_ops = {
+const struct m0_fom_type_ops m0_fom_ping_type_ops = {
 	.fto_create = ping_fop_fom_create
 };
 
-C2_INTERNAL size_t c2_fom_ping_home_locality(const struct c2_fom *fom)
+M0_INTERNAL size_t m0_fom_ping_home_locality(const struct m0_fom *fom)
 {
-	C2_PRE(fom != NULL);
+	M0_PRE(fom != NULL);
 
-	return c2_fop_opcode(fom->fo_fop);
+	return m0_fop_opcode(fom->fo_fop);
 }
 
 /**
  * State function for ping request
  */
-C2_INTERNAL int c2_fom_ping_state(struct c2_fom *fom)
+M0_INTERNAL int m0_fom_ping_state(struct m0_fom *fom)
 {
-	struct c2_fop			*fop;
-        struct c2_fop_ping_rep		*ping_fop_rep;
-        struct c2_rpc_item              *item;
-        struct c2_fom_ping		*fom_obj;
+	struct m0_fop			*fop;
+        struct m0_fop_ping_rep		*ping_fop_rep;
+        struct m0_rpc_item              *item;
+        struct m0_fom_ping		*fom_obj;
 
-	fom_obj = container_of(fom, struct c2_fom_ping, fp_gen);
-        fop = c2_fop_alloc(&c2_fop_ping_rep_fopt, NULL);
-        C2_ASSERT(fop != NULL);
-        ping_fop_rep = c2_fop_data(fop);
+	fom_obj = container_of(fom, struct m0_fom_ping, fp_gen);
+        fop = m0_fop_alloc(&m0_fop_ping_rep_fopt, NULL);
+        M0_ASSERT(fop != NULL);
+        ping_fop_rep = m0_fop_data(fop);
         ping_fop_rep->fpr_rc = true;
-	item = c2_fop_to_rpc_item(fop);
-        c2_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
-	c2_fom_phase_set(fom, C2_FOPH_FINISH);
-	return C2_FSO_WAIT;
+	item = m0_fop_to_rpc_item(fop);
+        m0_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
+	m0_fom_phase_set(fom, M0_FOPH_FINISH);
+	return M0_FSO_WAIT;
 }
 
 /* Init for ping */
-static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
+static int ping_fop_fom_create(struct m0_fop *fop, struct m0_fom **m)
 {
-        struct c2_fom                   *fom;
-        struct c2_fom_ping		*fom_obj;
+        struct m0_fom                   *fom;
+        struct m0_fom_ping		*fom_obj;
 
-        C2_PRE(fop != NULL);
-        C2_PRE(m != NULL);
+        M0_PRE(fop != NULL);
+        M0_PRE(m != NULL);
 
-        fom_obj= c2_alloc(sizeof(struct c2_fom_ping));
+        fom_obj= m0_alloc(sizeof(struct m0_fom_ping));
         if (fom_obj == NULL)
                 return -ENOMEM;
 	fom = &fom_obj->fp_gen;
-	c2_fom_init(fom, &fop->f_type->ft_fom_type, &c2_fom_ping_ops, fop,
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, &m0_fom_ping_ops, fop,
 		    NULL);
 	fom_obj->fp_fop = fop;
 	*m = fom;
 	return 0;
 }
 
-C2_INTERNAL void c2_fop_ping_fom_fini(struct c2_fom *fom)
+M0_INTERNAL void m0_fop_ping_fom_fini(struct m0_fom *fom)
 {
-	struct c2_fom_ping *fom_obj;
+	struct m0_fom_ping *fom_obj;
 
-	fom_obj = container_of(fom, struct c2_fom_ping, fp_gen);
-	c2_fom_fini(fom);
-	c2_free(fom_obj);
+	fom_obj = container_of(fom, struct m0_fom_ping, fp_gen);
+	m0_fom_fini(fom);
+	m0_free(fom_obj);
 
 	return;
 }

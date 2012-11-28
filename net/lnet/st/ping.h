@@ -22,10 +22,10 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_LNET_PING_H__
-#define __COLIBRI_NET_LNET_PING_H__
+#ifndef __MERO_NET_LNET_PING_H__
+#define __MERO_NET_LNET_PING_H__
 
-#include "lib/bitmap.h" /* c2_bitmap */
+#include "lib/bitmap.h" /* m0_bitmap */
 
 struct nlx_ping_ctx;
 struct nlx_ping_ops {
@@ -39,8 +39,8 @@ struct nlx_ping_ops {
  */
 struct nlx_ping_ctx {
 	const struct nlx_ping_ops	     *pc_ops;
-	struct c2_net_xprt		     *pc_xprt;
-	struct c2_net_domain		      pc_dom;
+	struct m0_net_xprt		     *pc_xprt;
+	struct m0_net_domain		      pc_dom;
 	const char		             *pc_network; /* "addr@interface" */
 	uint32_t                              pc_pid;
 	uint32_t			      pc_portal;
@@ -58,13 +58,13 @@ struct nlx_ping_ctx {
 	int                                   pc_min_recv_size;
 	int                                   pc_max_recv_msgs;
 	uint64_t			      pc_bulk_size;
-	struct c2_net_buffer		     *pc_nbs;
-	const struct c2_net_buffer_callbacks *pc_buf_callbacks;
-	struct c2_bitmap		      pc_nbbm;
-	struct c2_net_transfer_mc	      pc_tm;
-	struct c2_mutex			      pc_mutex;
-	struct c2_cond			      pc_cond;
-	struct c2_list			      pc_work_queue;
+	struct m0_net_buffer		     *pc_nbs;
+	const struct m0_net_buffer_callbacks *pc_buf_callbacks;
+	struct m0_bitmap		      pc_nbbm;
+	struct m0_net_transfer_mc	      pc_tm;
+	struct m0_mutex			      pc_mutex;
+	struct m0_cond			      pc_cond;
+	struct m0_list			      pc_work_queue;
 	const char		             *pc_ident;
 	const char		             *pc_compare_buf;
 	int                                   pc_bulk_timeout;
@@ -75,16 +75,16 @@ struct nlx_ping_ctx {
 	bool                                  pc_ready;
 	char * const *                        pc_interfaces;
 	bool                                  pc_sync_events;
-	struct c2_chan                        pc_wq_chan;
-	struct c2_clink                       pc_wq_clink;
+	struct m0_chan                        pc_wq_chan;
+	struct m0_clink                       pc_wq_clink;
 	uint64_t                              pc_wq_signal_count;
-	struct c2_chan                        pc_net_chan;
-	struct c2_clink                       pc_net_clink;
+	struct m0_chan                        pc_net_chan;
+	struct m0_clink                       pc_net_clink;
 	uint64_t                              pc_net_signal_count;
 	uint64_t                              pc_blocked_count;
         uint64_t                              pc_worked_count;
-	struct c2_atomic64                    pc_errors;
-	struct c2_atomic64                    pc_retries;
+	struct m0_atomic64                    pc_errors;
+	struct m0_atomic64                    pc_retries;
 	int                                   pc_verbose;
 };
 
@@ -154,7 +154,7 @@ do {							\
 		(ctx)->pc_ops->pf(fmt , ## __VA_ARGS__);\
 } while (0)
 
-void nlx_ping_server_spawn(struct c2_thread *server_thread,
+void nlx_ping_server_spawn(struct m0_thread *server_thread,
 			   struct nlx_ping_ctx *sctx);
 void nlx_ping_server_should_stop(struct nlx_ping_ctx *ctx);
 void nlx_ping_client(struct nlx_ping_client_params *params);
@@ -166,7 +166,7 @@ uint64_t nlx_ping_parse_uint64(const char *s);
 void nlx_ping_init(void);
 void nlx_ping_fini(void);
 
-#endif /* __COLIBRI_NET_LNET_PING_H__ */
+#endif /* __MERO_NET_LNET_PING_H__ */
 
 /*
  *  Local variables:

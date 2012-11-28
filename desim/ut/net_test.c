@@ -23,7 +23,7 @@
 #include <stdio.h>
 #include <math.h> /* sqrt */
 
-#include "colibri/init.h"
+#include "mero/init.h"
 
 #include "desim/sim.h"
 #include "desim/storage.h"
@@ -125,7 +125,7 @@ int main(int argc, char **argv)
 
 	int result;
 
-	result = c2_init();
+	result = m0_init();
 	if (result == 0) {
 		client.cc_nr_clients = clients;
 		client.cc_nr_threads = threads;
@@ -138,7 +138,7 @@ int main(int argc, char **argv)
 		sim_log(&s, SLL_WARN, "%5i %5i %10.2f\n", clients, threads,
 			1000.0 * filesize * clients / s.ss_bolt);
 		sim_fini(&s);
-		c2_fini();
+		m0_fini();
 	}
 	return result;
 }

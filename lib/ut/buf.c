@@ -30,9 +30,9 @@ static bool bit_is_set(int bits, int index)
 	return (bool)(bits & (1 << index));
 }
 
-void c2_ut_lib_buf_test(void)
+void m0_ut_lib_buf_test(void)
 {
-	struct c2_buf copy = C2_BUF_INIT0;
+	struct m0_buf copy = M0_BUF_INIT0;
 	static int d0[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 	static char *d1 = "1234567890";
 	static char *d2 = "123";
@@ -43,37 +43,37 @@ void c2_ut_lib_buf_test(void)
 
 	struct /* test */ {
 		int equality_mask; /* equality to self is implied */
-		struct c2_buf buf;
+		struct m0_buf buf;
 	} test[] = {
-		[0] = { (1 << 1), C2_BUF_INIT(strlen(d1), d1) },
-	        [1] = { (1 << 0), C2_BUF_INITS(d1) },
-		[2] = { (1 << 4), C2_BUF_INITS(d2) },
-		[3] = { (1 << 6) | (1 << 7), C2_BUF_INIT(sizeof(d0), d0) },
-		[4] = { (1 << 2), C2_BUF_INIT(strlen(d2), d1) },
-		[5] = { 0, C2_BUF_INIT(sizeof(d0) - 1, d0) },
+		[0] = { (1 << 1), M0_BUF_INIT(strlen(d1), d1) },
+	        [1] = { (1 << 0), M0_BUF_INITS(d1) },
+		[2] = { (1 << 4), M0_BUF_INITS(d2) },
+		[3] = { (1 << 6) | (1 << 7), M0_BUF_INIT(sizeof(d0), d0) },
+		[4] = { (1 << 2), M0_BUF_INIT(strlen(d2), d1) },
+		[5] = { 0, M0_BUF_INIT(sizeof(d0) - 1, d0) },
 
 		/* [6] and [7] are placeholders and will be overwriten with
-		 * c2_buf_init() */
-		[6] = { (1 << 3) | (1 << 7), C2_BUF_INIT0 },
-		[7] = { (1 << 3) | (1 << 6), C2_BUF_INIT0 },
+		 * m0_buf_init() */
+		[6] = { (1 << 3) | (1 << 7), M0_BUF_INIT0 },
+		[7] = { (1 << 3) | (1 << 6), M0_BUF_INIT0 },
 	};
 
 #ifdef ENABLE_FAULT_INJECTION
-	struct c2_buf inj_copy = C2_BUF_INIT0;
-	c2_fi_enable_once("c2_alloc", "fail_allocation");
-	rc = c2_buf_copy(&inj_copy, &test[0].buf);
-	C2_UT_ASSERT(rc == -ENOMEM);
+	struct m0_buf inj_copy = M0_BUF_INIT0;
+	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	rc = m0_buf_copy(&inj_copy, &test[0].buf);
+	M0_UT_ASSERT(rc == -ENOMEM);
 #endif
 
-	c2_buf_init(&test[6].buf, d0, sizeof(d0));
-	c2_buf_init(&test[7].buf, d0, sizeof(d0));
+	m0_buf_init(&test[6].buf, d0, sizeof(d0));
+	m0_buf_init(&test[7].buf, d0, sizeof(d0));
 
 	for (k = 0; k < ARRAY_SIZE(test); ++k) {
-		rc = c2_buf_copy(&copy, &test[k].buf);
-		C2_UT_ASSERT(rc == 0);
-		C2_UT_ASSERT(c2_buf_eq(&copy, &test[k].buf));
+		rc = m0_buf_copy(&copy, &test[k].buf);
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(m0_buf_eq(&copy, &test[k].buf));
 
-		c2_buf_free(&copy);
+		m0_buf_free(&copy);
 	}
 
 	for (k = 0; k < ARRAY_SIZE(test); ++k) {
@@ -81,13 +81,13 @@ void c2_ut_lib_buf_test(void)
 			if (j == k)
 				continue;
 
-			equal = c2_buf_eq(&test[j].buf, &test[k].buf);
-			C2_UT_ASSERT(equal == bit_is_set(test[j].equality_mask,
+			equal = m0_buf_eq(&test[j].buf, &test[k].buf);
+			M0_UT_ASSERT(equal == bit_is_set(test[j].equality_mask,
 							 k));
 		}
 	}
 }
-C2_EXPORTED(c2_ut_lib_buf_test);
+M0_EXPORTED(m0_ut_lib_buf_test);
 
 /*
  *  Local variables:

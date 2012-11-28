@@ -1,4 +1,4 @@
-ut_libcolibri_ut_la_SOURCES += ut/rpc.c \
+ut_libmero_ut_la_SOURCES += ut/rpc.c \
                                ut/cs_service.c \
                                ut/cs_fop_foms.c \
                                ut/cs_test_fops_ff.c \

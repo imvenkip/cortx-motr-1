@@ -33,18 +33,18 @@
 #define LOGD(format, ...) do {} while (0)
 #endif
 
-#include "net/test/node.h"		/* c2_net_test_node_ctx */
-#include "net/test/console.h"		/* c2_net_test_console_ctx */
+#include "net/test/node.h"		/* m0_net_test_node_ctx */
+#include "net/test/console.h"		/* m0_net_test_console_ctx */
 
-#include "lib/ut.h"			/* C2_UT_ASSERT */
-#include "lib/memory.h"			/* c2_free */
-#include "lib/thread.h"			/* C2_THREAD_INIT */
-#include "lib/semaphore.h"		/* c2_semaphore_down */
-#include "lib/misc.h"			/* C2_SET0 */
-#include "net/lnet/lnet.h"		/* C2_NET_LNET_PID */
+#include "lib/ut.h"			/* M0_UT_ASSERT */
+#include "lib/memory.h"			/* m0_free */
+#include "lib/thread.h"			/* M0_THREAD_INIT */
+#include "lib/semaphore.h"		/* m0_semaphore_down */
+#include "lib/misc.h"			/* M0_SET0 */
+#include "net/lnet/lnet.h"		/* M0_NET_LNET_PID */
 
 enum {
-	NTCS_PID		  = C2_NET_LNET_PID,
+	NTCS_PID		  = M0_NET_LNET_PID,
 	NTCS_PORTAL		  = 42,
 	NTCS_NODES_MAX		  = 128,
 	NTCS_NODE_ADDR_MAX	  = 0x100,
@@ -59,9 +59,9 @@ enum {
 	NTCS_TMID_DATA_SERVERS    = NTCS_TMID_NODES + NTCS_NODES_MAX * 3,
 };
 
-static struct c2_net_test_node_cfg node_cfg[NTCS_NODES_MAX * 2];
-static struct c2_thread		   node_thread[NTCS_NODES_MAX * 2];
-static struct c2_semaphore	   node_init_sem;
+static struct m0_net_test_node_cfg node_cfg[NTCS_NODES_MAX * 2];
+static struct m0_thread		   node_thread[NTCS_NODES_MAX * 2];
+static struct m0_semaphore	   node_init_sem;
 
 static char *addr_console4clients;
 static char *addr_console4servers;
@@ -69,8 +69,8 @@ static char  clients[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
 static char  servers[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
 static char  clients_data[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
 static char  servers_data[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
-c2_time_t    timeout_send;
-c2_time_t    timeout_recv;
+m0_time_t    timeout_send;
+m0_time_t    timeout_recv;
 
 static char *addr_get(const char *nid, int tmid)
 {
@@ -80,48 +80,48 @@ static char *addr_get(const char *nid, int tmid)
 
 	rc = snprintf(addr, NTCS_NODE_ADDR_MAX,
 		     "%s:%d:%d:%d", nid, NTCS_PID, NTCS_PORTAL, tmid);
-	C2_UT_ASSERT(rc < NTCS_NODE_ADDR_MAX);
+	M0_UT_ASSERT(rc < NTCS_NODE_ADDR_MAX);
 
-	result = c2_alloc(rc + 1);
-	C2_UT_ASSERT(result != NULL);
+	result = m0_alloc(rc + 1);
+	M0_UT_ASSERT(result != NULL);
 	return strncpy(result, addr, rc + 1);
 }
 
 static void addr_free(char *addr)
 {
-	c2_free(addr);
+	m0_free(addr);
 }
 
-static void net_test_node(struct c2_net_test_node_cfg *node_cfg)
+static void net_test_node(struct m0_net_test_node_cfg *node_cfg)
 {
-	struct c2_net_test_node_ctx *ctx;
+	struct m0_net_test_node_ctx *ctx;
 	int			     rc;
 
-	C2_PRE(node_cfg != NULL);
+	M0_PRE(node_cfg != NULL);
 
-	C2_ALLOC_PTR(ctx);
-	C2_ASSERT(ctx != NULL);
-	rc = c2_net_test_node_init(ctx, node_cfg);
-	C2_UT_ASSERT(rc == 0);
-	rc = c2_net_test_node_start(ctx);
-	C2_UT_ASSERT(rc == 0);
-	c2_semaphore_up(&node_init_sem);
+	M0_ALLOC_PTR(ctx);
+	M0_ASSERT(ctx != NULL);
+	rc = m0_net_test_node_init(ctx, node_cfg);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_net_test_node_start(ctx);
+	M0_UT_ASSERT(rc == 0);
+	m0_semaphore_up(&node_init_sem);
 	/* wait for the test node thread */
-	c2_semaphore_down(&ctx->ntnc_thread_finished_sem);
-	c2_net_test_node_stop(ctx);
-	c2_net_test_node_fini(ctx);
-	c2_free(ctx);
+	m0_semaphore_down(&ctx->ntnc_thread_finished_sem);
+	m0_net_test_node_stop(ctx);
+	m0_net_test_node_fini(ctx);
+	m0_free(ctx);
 }
 
-static c2_time_t ms2time(int ms)
+static m0_time_t ms2time(int ms)
 {
-	c2_time_t time;
+	m0_time_t time;
 
-	return c2_time_set(&time,NTCS_TIMEOUT_SEND_MS / 1000,
+	return m0_time_set(&time,NTCS_TIMEOUT_SEND_MS / 1000,
 			   (NTCS_TIMEOUT_SEND_MS % 1000) * 1000000);
 }
 
-static void node_cfg_fill(struct c2_net_test_node_cfg *ncfg,
+static void node_cfg_fill(struct m0_net_test_node_cfg *ncfg,
 			  char *addr_cmd,
 			  char *addr_cmd_list,
 			  char *addr_data,
@@ -142,7 +142,7 @@ static void node_cfg_fill(struct c2_net_test_node_cfg *ncfg,
 }
 
 static void msg_nr_print(const char *prefix,
-			 const struct c2_net_test_msg_nr *msg_nr)
+			 const struct m0_net_test_msg_nr *msg_nr)
 {
 	LOGD("%s total/failed/bad = %lu/%lu/%lu\n", prefix,
 	     msg_nr->ntmn_total, msg_nr->ntmn_failed, msg_nr->ntmn_bad);
@@ -153,22 +153,22 @@ static void msg_nr_print(const char *prefix,
  * between test console and test nodes.
  */
 static void net_test_client_server(const char *nid,
-				   enum c2_net_test_type type,
+				   enum m0_net_test_type type,
 				   size_t clients_nr,
 				   size_t servers_nr,
 				   size_t concurrency_client,
 				   size_t concurrency_server,
 				   size_t msg_nr,
-				   c2_bcount_t msg_size)
+				   m0_bcount_t msg_size)
 {
-	struct c2_net_test_console_cfg console_cfg;
-	struct c2_net_test_console_ctx console;
+	struct m0_net_test_console_cfg console_cfg;
+	struct m0_net_test_console_ctx console;
 	int			       rc;
 	int			       i;
-	c2_time_t		       _1s = C2_MKTIME(1, 0);
+	m0_time_t		       _1s = M0_MKTIME(1, 0);
 
-	C2_PRE(clients_nr <= NTCS_NODES_MAX);
-	C2_PRE(servers_nr <= NTCS_NODES_MAX);
+	M0_PRE(clients_nr <= NTCS_NODES_MAX);
+	M0_PRE(servers_nr <= NTCS_NODES_MAX);
 	/* prepare config for test clients and test servers */
 	timeout_send = ms2time(NTCS_TIMEOUT_SEND_MS);
 	timeout_recv = ms2time(NTCS_TIMEOUT_RECV_MS);
@@ -191,18 +191,18 @@ static void net_test_client_server(const char *nid,
 			      i == servers_nr - 1);
 	}
 	/* spawn test clients and test servers */
-	c2_semaphore_init(&node_init_sem, 0);
+	m0_semaphore_init(&node_init_sem, 0);
 	for (i = 0; i < clients_nr + servers_nr; ++i) {
-		rc = C2_THREAD_INIT(&node_thread[i],
-				    struct c2_net_test_node_cfg *,
+		rc = M0_THREAD_INIT(&node_thread[i],
+				    struct m0_net_test_node_cfg *,
 				    NULL, &net_test_node, &node_cfg[i],
 				    "node_thread#%d", i);
-		C2_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(rc == 0);
 	}
 	/* wait until test node started */
 	for (i = 0; i < clients_nr + servers_nr; ++i)
-		c2_semaphore_down(&node_init_sem);
-	c2_semaphore_fini(&node_init_sem);
+		m0_semaphore_down(&node_init_sem);
+	m0_semaphore_fini(&node_init_sem);
 	/* prepare console config */
 	console_cfg.ntcc_addr_console4servers = addr_console4servers;
 	console_cfg.ntcc_addr_console4clients = addr_console4clients;
@@ -212,16 +212,16 @@ static void net_test_client_server(const char *nid,
 	LOGD("servers		   = %s\n", servers);
 	LOGD("clients_data	   = %s\n", clients_data);
 	LOGD("servers_data	   = %s\n", servers_data);
-	rc = c2_net_test_slist_init(&console_cfg.ntcc_clients, clients, ',');
-	C2_UT_ASSERT(rc == 0);
-	rc = c2_net_test_slist_init(&console_cfg.ntcc_servers, servers, ',');
-	C2_UT_ASSERT(rc == 0);
-	rc = c2_net_test_slist_init(&console_cfg.ntcc_data_clients,
+	rc = m0_net_test_slist_init(&console_cfg.ntcc_clients, clients, ',');
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_net_test_slist_init(&console_cfg.ntcc_servers, servers, ',');
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_net_test_slist_init(&console_cfg.ntcc_data_clients,
 				    clients_data, ',');
-	C2_UT_ASSERT(rc == 0);
-	rc = c2_net_test_slist_init(&console_cfg.ntcc_data_servers,
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_net_test_slist_init(&console_cfg.ntcc_data_servers,
 				    servers_data, ',');
-	C2_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	console_cfg.ntcc_cmd_send_timeout   = timeout_send;
 	console_cfg.ntcc_cmd_recv_timeout   = timeout_recv;
 	console_cfg.ntcc_buf_send_timeout   = timeout_send;
@@ -232,35 +232,35 @@ static void net_test_client_server(const char *nid,
 	console_cfg.ntcc_concurrency_server = concurrency_server;
 	console_cfg.ntcc_concurrency_client = concurrency_client;
 	/* initialize console */
-	rc = c2_net_test_console_init(&console, &console_cfg);
-	C2_UT_ASSERT(rc == 0);
+	rc = m0_net_test_console_init(&console, &console_cfg);
+	M0_UT_ASSERT(rc == 0);
 	/* send INIT to the test servers */
-	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_SERVER,
-				     C2_NET_TEST_CMD_INIT);
-	C2_UT_ASSERT(rc == servers_nr);
+	rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_SERVER,
+				     M0_NET_TEST_CMD_INIT);
+	M0_UT_ASSERT(rc == servers_nr);
 	/* send INIT to the test clients */
-	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
-				     C2_NET_TEST_CMD_INIT);
-	C2_UT_ASSERT(rc == clients_nr);
+	rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_CLIENT,
+				     M0_NET_TEST_CMD_INIT);
+	M0_UT_ASSERT(rc == clients_nr);
 	/* send START command to the test servers */
-	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_SERVER,
-				     C2_NET_TEST_CMD_START);
-	C2_UT_ASSERT(rc == servers_nr);
+	rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_SERVER,
+				     M0_NET_TEST_CMD_START);
+	M0_UT_ASSERT(rc == servers_nr);
 	/* send START command to the test clients */
-	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
-				     C2_NET_TEST_CMD_START);
-	C2_UT_ASSERT(rc == clients_nr);
+	rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_CLIENT,
+				     M0_NET_TEST_CMD_START);
+	M0_UT_ASSERT(rc == clients_nr);
 	/* send STATUS command to the test clients until it finishes. */
 	do {
-		c2_nanosleep(_1s, NULL);
-		rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
-					     C2_NET_TEST_CMD_STATUS);
-		C2_UT_ASSERT(rc == clients_nr);
+		m0_nanosleep(_1s, NULL);
+		rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_CLIENT,
+					     M0_NET_TEST_CMD_STATUS);
+		M0_UT_ASSERT(rc == clients_nr);
 	} while (!console.ntcc_clients.ntcrc_sd->ntcsd_finished);
 	/* send STATUS command to the test servers */
-	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_SERVER,
-				     C2_NET_TEST_CMD_STATUS);
-	C2_UT_ASSERT(rc == servers_nr);
+	rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_SERVER,
+				     M0_NET_TEST_CMD_STATUS);
+	M0_UT_ASSERT(rc == servers_nr);
 	msg_nr_print("client sent\t",
 		     &console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_send);
 	msg_nr_print("client received\t",
@@ -269,46 +269,46 @@ static void net_test_client_server(const char *nid,
 		     &console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_send);
 	msg_nr_print("server received\t",
 		     &console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_recv);
-	C2_UT_ASSERT(
+	M0_UT_ASSERT(
 		console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_send.ntmn_total ==
 		console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_recv.ntmn_total);
 	/* send STOP command to the test clients */
-	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
-				     C2_NET_TEST_CMD_STOP);
-	C2_UT_ASSERT(rc == clients_nr);
+	rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_CLIENT,
+				     M0_NET_TEST_CMD_STOP);
+	M0_UT_ASSERT(rc == clients_nr);
 	/* send STOP command to the test servers */
-	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_SERVER,
-				     C2_NET_TEST_CMD_STOP);
-	C2_UT_ASSERT(rc == servers_nr);
+	rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_SERVER,
+				     M0_NET_TEST_CMD_STOP);
+	M0_UT_ASSERT(rc == servers_nr);
 	/* finalize console */
-	c2_net_test_slist_fini(&console_cfg.ntcc_servers);
-	c2_net_test_slist_fini(&console_cfg.ntcc_clients);
-	c2_net_test_console_fini(&console);
+	m0_net_test_slist_fini(&console_cfg.ntcc_servers);
+	m0_net_test_slist_fini(&console_cfg.ntcc_clients);
+	m0_net_test_console_fini(&console);
 	/* finalize test clients and test servers */
 	for (i = 0; i < clients_nr + servers_nr; ++i) {
-		rc = c2_thread_join(&node_thread[i]);
-		C2_UT_ASSERT(rc == 0);
-		c2_thread_fini(&node_thread[i]);
+		rc = m0_thread_join(&node_thread[i]);
+		M0_UT_ASSERT(rc == 0);
+		m0_thread_fini(&node_thread[i]);
 		addr_free(node_cfg[i].ntnc_addr);
 	}
 	addr_free(addr_console4servers);
 	addr_free(addr_console4clients);
 }
 
-void c2_net_test_client_server_ping_ut(void)
+void m0_net_test_client_server_ping_ut(void)
 {
-	net_test_client_server("0@lo", C2_NET_TEST_TYPE_PING,
+	net_test_client_server("0@lo", M0_NET_TEST_TYPE_PING,
 			       8, 8, 8, 128, 0x1000, 0x1000);
 	/*
-	net_test_client_server("0@lo", C2_NET_TEST_TYPE_PING,
+	net_test_client_server("0@lo", M0_NET_TEST_TYPE_PING,
 			       8, 8, 4, 16, 0x100, 0x100);
 	*/
 }
 
-void c2_net_test_client_server_bulk_ut(void)
+void m0_net_test_client_server_bulk_ut(void)
 {
 	/*
-	net_test_client_server("0@lo", C2_NET_TEST_TYPE_BULK,
+	net_test_client_server("0@lo", M0_NET_TEST_TYPE_BULK,
 			       8, 8, 4, 16, 0x100, 0x10000);
 	*/
 }

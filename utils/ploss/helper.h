@@ -19,11 +19,11 @@
 
 #pragma once
 
-#ifndef __COLIBRI_UTILS_PLOSS_HELPER_H__
-#define __COLIBRI_UTILS_PLOSS_HELPER_H__
+#ifndef __MERO_UTILS_PLOSS_HELPER_H__
+#define __MERO_UTILS_PLOSS_HELPER_H__
 
 #include <stdarg.h>
 
 extern void show_msg (int level, const char *fmt, ...);
 
-#endif /* __COLIBRI_UTILS_PLOSS_HELPER_H__ */
+#endif /* __MERO_UTILS_PLOSS_HELPER_H__ */

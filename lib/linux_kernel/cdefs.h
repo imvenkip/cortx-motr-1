@@ -20,18 +20,18 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H__
-#define __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H__
+#ifndef __MERO_LIB_LINUX_KERNEL_CDEFS_H__
+#define __MERO_LIB_LINUX_KERNEL_CDEFS_H__
 
 #include <linux/stddef.h> /* offsetof, NULL */
 #include <linux/kernel.h> /* container_of, ARRAY_SIZE */
 #include <linux/module.h> /* EXPORT_SYMBOL */
 
-#define C2_EXPORTED(s) EXPORT_SYMBOL(s)
+#define M0_EXPORTED(s) EXPORT_SYMBOL(s)
 
 #define CHAR_BIT (8)
 
-/* __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H__ */
+/* __MERO_LIB_LINUX_KERNEL_CDEFS_H__ */
 #endif
 
 /*

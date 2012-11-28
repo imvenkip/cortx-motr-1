@@ -40,13 +40,13 @@ static struct nlx_core_bev_link *bev_cqueue_pnext(
 	const struct nlx_core_kmem_loc *loc;
 	char *ptr;
 
-	C2_PRE(bev_cqueue_invariant(q));
+	M0_PRE(bev_cqueue_invariant(q));
 	loc = &q->cbcq_producer_loc;
-	C2_PRE(nlx_core_kmem_loc_invariant(loc) && loc->kl_page != NULL);
+	M0_PRE(nlx_core_kmem_loc_invariant(loc) && loc->kl_page != NULL);
 	ptr = kmap_atomic(loc->kl_page, KM_USER1);
 	p = (struct nlx_core_bev_link *) (ptr + loc->kl_offset);
-	C2_POST(nlx_core_kmem_loc_invariant(&p->cbl_p_self_loc));
-	C2_POST(p->cbl_c_self != q->cbcq_consumer);
+	M0_POST(nlx_core_kmem_loc_invariant(&p->cbl_p_self_loc));
+	M0_POST(p->cbl_c_self != q->cbcq_consumer);
 	return p;
 }
 
@@ -62,12 +62,12 @@ static void bev_cqueue_put(struct nlx_core_bev_cqueue *q,
 			   struct nlx_core_bev_link *p)
 {
 
-	C2_PRE(bev_cqueue_invariant(q));
-	C2_PRE(p->cbl_c_self != q->cbcq_consumer);
-	C2_PRE(nlx_core_kmem_loc_eq(&q->cbcq_producer_loc, &p->cbl_p_self_loc));
+	M0_PRE(bev_cqueue_invariant(q));
+	M0_PRE(p->cbl_c_self != q->cbcq_consumer);
+	M0_PRE(nlx_core_kmem_loc_eq(&q->cbcq_producer_loc, &p->cbl_p_self_loc));
 	q->cbcq_producer_loc = p->cbl_p_next_loc;
 	kunmap_atomic(p, KM_USER1);
-	c2_atomic64_inc(&q->cbcq_count);
+	m0_atomic64_inc(&q->cbcq_count);
 }
 
 /**

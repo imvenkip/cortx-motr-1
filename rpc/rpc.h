@@ -34,8 +34,8 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_RPCCORE_H__
-#define __COLIBRI_RPC_RPCCORE_H__
+#ifndef __MERO_RPC_RPCCORE_H__
+#define __MERO_RPC_RPCCORE_H__
 
 #include "lib/arith.h"                /* max32u */
 #include "rpc/rpc_machine.h"
@@ -46,15 +46,15 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "rpc/service.h"
 #include "rpc/rpc_helpers.h"
 #include "net/buffer_pool.h"
-#include "rpc/item.h"        /* c2_rpc_item_onwire_header_size() */
+#include "rpc/item.h"        /* m0_rpc_item_onwire_header_size() */
 
 /** @todo Add these declarations to some internal header */
-extern const struct c2_addb_ctx_type c2_rpc_addb_ctx_type;
-extern const struct c2_addb_loc      c2_rpc_addb_loc;
-extern       struct c2_addb_ctx      c2_rpc_addb_ctx;
+extern const struct m0_addb_ctx_type m0_rpc_addb_ctx_type;
+extern const struct m0_addb_loc      m0_rpc_addb_loc;
+extern       struct m0_addb_ctx      m0_rpc_addb_ctx;
 
-C2_INTERNAL int c2_rpc_init(void);
-C2_INTERNAL void c2_rpc_fini(void);
+M0_INTERNAL int m0_rpc_init(void);
+M0_INTERNAL void m0_rpc_fini(void);
 
 /**
  * Calculates the total number of buffers needed in network domain for
@@ -62,24 +62,24 @@ C2_INTERNAL void c2_rpc_fini(void);
  * @param len total Length of the TM's in a network domain
  * @param tms_nr    Number of TM's in the network domain
  */
-C2_INTERNAL uint32_t c2_rpc_bufs_nr(uint32_t len, uint32_t tms_nr);
+M0_INTERNAL uint32_t m0_rpc_bufs_nr(uint32_t len, uint32_t tms_nr);
 
 /** Returns the maximum segment size of receive pool of network domain. */
-C2_INTERNAL c2_bcount_t c2_rpc_max_seg_size(struct c2_net_domain *ndom);
+M0_INTERNAL m0_bcount_t m0_rpc_max_seg_size(struct m0_net_domain *ndom);
 
 /** Returns the maximum number of segments of receive pool of network domain. */
-C2_INTERNAL uint32_t c2_rpc_max_segs_nr(struct c2_net_domain *ndom);
+M0_INTERNAL uint32_t m0_rpc_max_segs_nr(struct m0_net_domain *ndom);
 
 /** Returns the maximum RPC message size in the network domain. */
-C2_INTERNAL c2_bcount_t c2_rpc_max_msg_size(struct c2_net_domain *ndom,
-					    c2_bcount_t rpc_size);
+M0_INTERNAL m0_bcount_t m0_rpc_max_msg_size(struct m0_net_domain *ndom,
+					    m0_bcount_t rpc_size);
 
 /**
  * Returns the maximum number of messages that can be received in a buffer
  * of network domain for a specific maximum receive message size.
  */
-C2_INTERNAL uint32_t c2_rpc_max_recv_msgs(struct c2_net_domain *ndom,
-					  c2_bcount_t rpc_size);
+M0_INTERNAL uint32_t m0_rpc_max_recv_msgs(struct m0_net_domain *ndom,
+					  m0_bcount_t rpc_size);
 
 /**
   Posts an unbound item to the rpc layer.
@@ -92,7 +92,7 @@ C2_INTERNAL uint32_t c2_rpc_max_recv_msgs(struct c2_net_domain *ndom,
   If this call returns without errors, the item's reply call-back is
   guaranteed to be called eventually.
 
-  After successful call to c2_rpc_post(), user should not free the item.
+  After successful call to m0_rpc_post(), user should not free the item.
   Rpc-layer will internally free the item when rpc-layer is sure that the item
   will not take part in recovery.
 
@@ -103,41 +103,41 @@ C2_INTERNAL uint32_t c2_rpc_max_recv_msgs(struct c2_net_domain *ndom,
   If any error occured, item->ri_error is set to non-zero value.
 
   Note: setting item->ri_ops and adding clink to item->ri_chan MUST be done
-  before calling c2_rpc_post(), because reply to the item can arrive even
-  before c2_rpc_post() returns.
+  before calling m0_rpc_post(), because reply to the item can arrive even
+  before m0_rpc_post() returns.
 
   @pre item->ri_session != NULL
   @pre item->ri_priority is sane.
 */
-C2_INTERNAL int c2_rpc_post(struct c2_rpc_item *item);
+M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item);
 
 /**
   Posts reply item on the same session on which the request item is received.
 
-  After successful call to c2_rpc_reply_post(), user should not free the reply
+  After successful call to m0_rpc_reply_post(), user should not free the reply
   item. Rpc-layer will internally free the item when rpc-layer is sure that
   the corresponding request item will not take part in recovery.
  */
-int c2_rpc_reply_post(struct c2_rpc_item *request, struct c2_rpc_item *reply);
+int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply);
 
-C2_INTERNAL int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
-					struct c2_rpc_item *item);
+M0_INTERNAL int m0_rpc_oneway_item_post(const struct m0_rpc_conn *conn,
+					struct m0_rpc_item *item);
 
 /**
    Create a buffer pool per net domain which to be shared by TM's in it.
    @pre ndom != NULL && app_pool != NULL
    @pre bufs_nr != 0
  */
-C2_INTERNAL int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
-					     struct c2_net_buffer_pool
+M0_INTERNAL int m0_rpc_net_buffer_pool_setup(struct m0_net_domain *ndom,
+					     struct m0_net_buffer_pool
 					     *app_pool, uint32_t bufs_nr,
 					     uint32_t tm_nr);
 
-void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
+void m0_rpc_net_buffer_pool_cleanup(struct m0_net_buffer_pool *app_pool);
 
 /** @} end group rpc */
 
-#endif /* __COLIBRI_RPC_RPCCORE_H__  */
+#endif /* __MERO_RPC_RPCCORE_H__  */
 
 /*
  *  Local variables:

@@ -20,13 +20,13 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_ONWIRE_H__
-#define __COLIBRI_RPC_ONWIRE_H__
+#ifndef __MERO_RPC_ONWIRE_H__
+#define __MERO_RPC_ONWIRE_H__
 
 #include "lib/types.h" /* uint64_t */
-#include "dtm/verno.h" /* c2_verno */
-#include "dtm/verno_xc.h" /* c2_verno_xc */
-#include "xcode/xcode_attr.h" /* C2_XCA_RECORD */
+#include "dtm/verno.h" /* m0_verno */
+#include "dtm/verno_xc.h" /* m0_verno_xc */
+#include "xcode/xcode_attr.h" /* M0_XCA_RECORD */
 
 /**
  * @addtogroup rpc
@@ -34,7 +34,7 @@
  */
 
 enum {
-	C2_RPC_VERSION_1 = 1,
+	M0_RPC_VERSION_1 = 1,
 };
 
 /**
@@ -43,14 +43,14 @@ enum {
    * for a client with persistent state (e.g., a disk) uuid
      must survive reboots.
 */
-struct c2_rpc_sender_uuid {
+struct m0_rpc_sender_uuid {
 	/** XXX Temporary */
 	uint64_t su_uuid;
-} C2_XCA_RECORD;
+} M0_XCA_RECORD;
 
-struct c2_rpc_onwire_slot_ref {
+struct m0_rpc_onwire_slot_ref {
 
-	struct c2_rpc_sender_uuid  osr_uuid;
+	struct m0_rpc_sender_uuid  osr_uuid;
 
 	uint64_t                   osr_sender_id;
 
@@ -64,7 +64,7 @@ struct c2_rpc_onwire_slot_ref {
 	/** If slot has verno matching sr_verno, then only the item can be
 	    APPLIED to the slot
 	 */
-	struct c2_verno            osr_verno;
+	struct m0_verno            osr_verno;
 	/**
 	 * @todo These are temporary fields; there is no need to duplicate
 	 * this information with each and every reply. In the future, special
@@ -73,10 +73,10 @@ struct c2_rpc_onwire_slot_ref {
 	/** In each reply item, receiver reports to sender, verno of item
 	    whose effects have reached persistent storage, using this field
 	 */
-	struct c2_verno            osr_last_persistent_verno;
+	struct m0_verno            osr_last_persistent_verno;
 
 	/** Inform the sender about current slot version */
-	struct c2_verno            osr_last_seen_verno;
+	struct m0_verno            osr_last_seen_verno;
 
 	/** An identifier that uniquely identifies item within
 	    slot->item_list.
@@ -85,9 +85,9 @@ struct c2_rpc_onwire_slot_ref {
 
 	/** Generation number of slot */
 	uint64_t                   osr_slot_gen;
-} C2_XCA_RECORD;
+} M0_XCA_RECORD;
 
-struct c2_rpc_packet_onwire_header {
+struct m0_rpc_packet_onwire_header {
 	/* Version */
 	uint32_t poh_version;
 
@@ -95,17 +95,17 @@ struct c2_rpc_packet_onwire_header {
 	uint32_t poh_nr_items;
 
 	uint64_t poh_magic;
-} C2_XCA_RECORD;
+} M0_XCA_RECORD;
 
-struct c2_rpc_item_onwire_header {
+struct m0_rpc_item_onwire_header {
 	/* Item opcode */
 	uint32_t ioh_opcode;
 
 	uint64_t ioh_magic;
-} C2_XCA_RECORD;
+} M0_XCA_RECORD;
 
-C2_INTERNAL int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
-					  struct c2_bufvec_cursor *cur);
+M0_INTERNAL int m0_rpc_item_header_encode(struct m0_rpc_item_onwire_header *ioh,
+					  struct m0_bufvec_cursor *cur);
 
 /**
     Decodes the rpc item header into a bufvec
@@ -114,10 +114,10 @@ C2_INTERNAL int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
     @retval 0 (success)
     @retval -errno  (failure)
 */
-C2_INTERNAL int c2_rpc_item_header_decode(struct c2_bufvec_cursor *cur,
-					  struct c2_rpc_item_onwire_header
+M0_INTERNAL int m0_rpc_item_header_decode(struct m0_bufvec_cursor *cur,
+					  struct m0_rpc_item_onwire_header
 					  *ioh);
 
 /** @}  End of rpc group */
 
-#endif /* __COLIBRI_RPC_ONWIRE_H__ */
+#endif /* __MERO_RPC_ONWIRE_H__ */

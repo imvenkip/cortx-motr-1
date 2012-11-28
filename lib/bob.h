@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_BOB_H__
-#define __COLIBRI_LIB_BOB_H__
+#ifndef __MERO_LIB_BOB_H__
+#define __MERO_LIB_BOB_H__
 
 /**
  * @defgroup bob Branded objects
@@ -30,26 +30,26 @@
  * identification.
  *
  * A branded object is any memory structure containing magic field at a known
- * offset. A branded object type (c2_bob_type) specifies the offset and the
+ * offset. A branded object type (m0_bob_type) specifies the offset and the
  * required magic value field, together with an optional check
- * function. c2_bob_check() function returns true iff the memory structure given
+ * function. m0_bob_check() function returns true iff the memory structure given
  * to it as a parameter has the required magic value and satisfies the optional
  * check.
  *
  * For flexibility branded objects are not represented by a special
- * data-type. Instead c2_bob_check() takes a void pointer.
+ * data-type. Instead m0_bob_check() takes a void pointer.
  *
- * A couple of helper functions are provided to initialize c2_bob_type:
+ * A couple of helper functions are provided to initialize m0_bob_type:
  *
- *     - c2_bob_type_tlist_init(): used when branded object is used as a typed
+ *     - m0_bob_type_tlist_init(): used when branded object is used as a typed
  *       list link, @see lib/tlist.h.
  *
- *     - c2_xcode_bob_type_init(): used in case where branded object type has an
+ *     - m0_xcode_bob_type_init(): used in case where branded object type has an
  *       xcode representation, @see xcode/xcode.h. This function is defined in
  *       xcode.h to avoid introducing dependencies.
  *
- * A user is explicitly allowed to initialize c2_bob_type instance manually and
- * to set up the optional check function (c2_bob_type::bt_check()) either before
+ * A user is explicitly allowed to initialize m0_bob_type instance manually and
+ * to set up the optional check function (m0_bob_type::bt_check()) either before
  * or after using these helpers.
  *
  * @{
@@ -58,15 +58,15 @@
 #include "lib/types.h"                  /* uint64_t */
 
 /* import */
-struct c2_tl_descr;
+struct m0_tl_descr;
 
 /* export */
-struct c2_bob_type;
+struct m0_bob_type;
 
 /**
  * Branded object type specifies how run-time identification is made.
  */
-struct c2_bob_type {
+struct m0_bob_type {
 	/** Human-readable name used in error messages. */
 	const char *bt_name;
 	/** Offset to the magic field. */
@@ -75,7 +75,7 @@ struct c2_bob_type {
 	uint64_t    bt_magix;
 	/**
 	 *  Optional check function. If provided, this function is called by
-	 *  c2_bob_check().
+	 *  m0_bob_check().
 	 */
 	bool      (*bt_check)(const void *bob);
 };
@@ -83,48 +83,48 @@ struct c2_bob_type {
 /**
  * Partially initializes a branded object type from a typed list descriptor.
  */
-C2_INTERNAL void c2_bob_type_tlist_init(struct c2_bob_type *bt,
-					const struct c2_tl_descr *td);
+M0_INTERNAL void m0_bob_type_tlist_init(struct m0_bob_type *bt,
+					const struct m0_tl_descr *td);
 
 /**
  *  Initializes a branded object, by setting the magic field.
  */
-C2_INTERNAL void c2_bob_init(const struct c2_bob_type *bt, void *bob);
+M0_INTERNAL void m0_bob_init(const struct m0_bob_type *bt, void *bob);
 
 /**
  *  Finalizes a branded object, by re-setting the magic field to 0.
  */
-C2_INTERNAL void c2_bob_fini(const struct c2_bob_type *bt, void *bob);
+M0_INTERNAL void m0_bob_fini(const struct m0_bob_type *bt, void *bob);
 
 /**
  * Returns true iff a branded object has the required magic value and check
  * function, if any, returns true.
  */
-C2_INTERNAL bool c2_bob_check(const struct c2_bob_type *bt, const void *bob);
+M0_INTERNAL bool m0_bob_check(const struct m0_bob_type *bt, const void *bob);
 
 /**
- * Produces a type-safe versions of c2_bob_init(), c2_bob_fini() and
- * c2_bob_check(), taking branded object of a given type.
+ * Produces a type-safe versions of m0_bob_init(), m0_bob_fini() and
+ * m0_bob_check(), taking branded object of a given type.
  */
-#define C2_BOB_DEFINE(scope, bob_type, type)		\
+#define M0_BOB_DEFINE(scope, bob_type, type)		\
 scope void type ## _bob_init(struct type *bob)		\
 {							\
-	c2_bob_init(bob_type, bob);			\
+	m0_bob_init(bob_type, bob);			\
 }							\
 							\
 scope void type ## _bob_fini(struct type *bob)		\
 {							\
-	c2_bob_fini(bob_type, bob);			\
+	m0_bob_fini(bob_type, bob);			\
 }							\
 							\
 scope bool type ## _bob_check(const struct type *bob)	\
 {							\
-	return c2_bob_check(bob_type, bob);		\
+	return m0_bob_check(bob_type, bob);		\
 }							\
 							\
 struct __ ## type ## _semicolon_catcher
 
-#define C2_BOB_DECLARE(scope, type)		        \
+#define M0_BOB_DECLARE(scope, type)		        \
 scope void type ## _bob_init(struct type *bob);		\
 scope void type ## _bob_fini(struct type *bob);		\
 scope bool type ## _bob_check(const struct type *bob)
@@ -140,15 +140,15 @@ scope bool type ## _bob_check(const struct type *bob)
 	void *__ptr = (void *)(ptr);			\
 	type *__amb;					\
 							\
-	C2_ASSERT(__ptr != NULL);			\
+	M0_ASSERT(__ptr != NULL);			\
 	__amb = container_of(__ptr, type, field);	\
-	C2_ASSERT(c2_bob_check(bt, __amb));		\
+	M0_ASSERT(m0_bob_check(bt, __amb));		\
 	__amb;						\
 })
 
 /** @} end of bob group */
 
-/* __COLIBRI_LIB_BOB_H__ */
+/* __MERO_LIB_BOB_H__ */
 #endif
 
 /*

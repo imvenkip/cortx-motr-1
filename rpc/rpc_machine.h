@@ -22,15 +22,15 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_MACHINE_H__
-#define __COLIBRI_RPC_MACHINE_H__
+#ifndef __MERO_RPC_MACHINE_H__
+#define __MERO_RPC_MACHINE_H__
 
 #include "lib/bob.h"
 #include "lib/tlist.h"
 #include "lib/thread.h"
-#include "sm/sm.h"     /* c2_sm_group */
-#include "addb/addb.h" /* c2_addb_ctx */
-#include "net/net.h"   /* c2_net_transfer_mc, c2_net_domain */
+#include "sm/sm.h"     /* m0_sm_group */
+#include "addb/addb.h" /* m0_addb_ctx */
+#include "net/net.h"   /* m0_net_transfer_mc, m0_net_domain */
 
 /**
    @addtogroup rpc
@@ -39,16 +39,16 @@
  */
 
 /* Imports */
-struct c2_cob_domain;
-struct c2_reqh;
+struct m0_cob_domain;
+struct m0_reqh;
 
 enum {
 	/** Default Maximum RPC message size is taken as 128k */
-	C2_RPC_DEF_MAX_RPC_MSG_SIZE = 1 << 17,
+	M0_RPC_DEF_MAX_RPC_MSG_SIZE = 1 << 17,
 };
 
 /** Collection of statistics per rpc machine */
-struct c2_rpc_stats {
+struct m0_rpc_stats {
 	/* Items */
 	uint64_t rs_nr_rcvd_items;
 	uint64_t rs_nr_sent_items;
@@ -70,52 +70,52 @@ struct c2_rpc_stats {
    RPC machine is an instance of RPC item (FOP/ADDB) processing context.
    Several such contexts might be existing simultaneously.
  */
-struct c2_rpc_machine {
-	struct c2_sm_group                rm_sm_grp;
-	/** List of c2_rpc_chan objects, linked using rc_linkage.
+struct m0_rpc_machine {
+	struct m0_sm_group                rm_sm_grp;
+	/** List of m0_rpc_chan objects, linked using rc_linkage.
 	    List descriptor: rpc_chan
 	 */
-	struct c2_tl			  rm_chans;
+	struct m0_tl			  rm_chans;
 	/** Transfer machine associated with this endpoint.*/
-	struct c2_net_transfer_mc	  rm_tm;
+	struct m0_net_transfer_mc	  rm_tm;
 	/** Cob domain in which cobs related to session will be stored */
-	struct c2_cob_domain		 *rm_dom;
-	/** List of c2_rpc_conn objects, linked using c_link.
+	struct m0_cob_domain		 *rm_dom;
+	/** List of m0_rpc_conn objects, linked using c_link.
 	    List descriptor: rpc_conn
 	    conn is in list if connection is not in {CONN_UNINITIALISED,
 	    CONN_FAILED, CONN_TERMINATED} states.
 	 */
-	struct c2_tl			  rm_incoming_conns;
-	struct c2_tl			  rm_outgoing_conns;
+	struct m0_tl			  rm_incoming_conns;
+	struct m0_tl			  rm_outgoing_conns;
 	/** ADDB context for this rpc_machine */
-	struct c2_addb_ctx		  rm_addb;
-	struct c2_rpc_stats		  rm_stats;
+	struct m0_addb_ctx		  rm_addb;
+	struct m0_rpc_stats		  rm_stats;
 	/**
 	    Request handler this rpc_machine belongs to.
 	    @todo There needs to be  generic mechanism to register a
 		request handler (or any other handler for future use)
 		with the rpc machine and a ops vector specifying a
 		method to be invoked for futher processing,
-		e.g. c2_reqh_fop_handle(), in case of reqh.
+		e.g. m0_reqh_fop_handle(), in case of reqh.
 	*/
-	struct c2_reqh                   *rm_reqh;
+	struct m0_reqh                   *rm_reqh;
 
         /**
 	    Linkage into request handler's list of rpc machines.
-	    c2_reqh::rh_rpc_machines
+	    m0_reqh::rh_rpc_machines
 	 */
-        struct c2_tlink                   rm_rh_linkage;
+        struct m0_tlink                   rm_rh_linkage;
 
 	/**
-	    List of c2_rpc_service instances placed using svc_tlink.
-	    tl_descr: c2_rpc_services_tl
+	    List of m0_rpc_service instances placed using svc_tlink.
+	    tl_descr: m0_rpc_services_tl
 	 */
-	struct c2_tl                      rm_services;
+	struct m0_tl                      rm_services;
 
 	/**
 	   Executes ASTs in rm_sm_grp.
 	 */
-	struct c2_thread                  rm_worker;
+	struct m0_thread                  rm_worker;
 
 	/**
 	   Flag asking rm_worker thread to stop.
@@ -125,15 +125,15 @@ struct c2_rpc_machine {
 	uint64_t                          rm_magix;
 
 	/**
-	 * @see c2_net_transfer_mc:ntm_recv_queue_min_recv_size
-	 * The default value is c2_net_domain_get_max_buffer_size()
+	 * @see m0_net_transfer_mc:ntm_recv_queue_min_recv_size
+	 * The default value is m0_net_domain_get_max_buffer_size()
 	 */
 	uint32_t			  rm_min_recv_size;
 };
 
 
-extern const struct c2_addb_loc c2_rpc_machine_addb_loc;
-C2_ADDB_EV_DECLARE(c2_rpc_machine_func_fail, C2_ADDB_FUNC_CALL);
+extern const struct m0_addb_loc m0_rpc_machine_addb_loc;
+M0_ADDB_EV_DECLARE(m0_rpc_machine_func_fail, M0_ADDB_FUNC_CALL);
 
 /**
    Rpc machine is a running instance of rpc layer. A number of rpc machine
@@ -151,34 +151,34 @@ C2_ADDB_EV_DECLARE(c2_rpc_machine_func_fail, C2_ADDB_FUNC_CALL);
 		 enabled by specifying a colour to be assigned to the internal
 		 network transfer machine; the invoker should assign each
 		 transfer machine in this network domain a unique colour.
-		 Specify the C2_BUFFER_ANY_COLOUR constant if locality
+		 Specify the M0_BUFFER_ANY_COLOUR constant if locality
 		 optimizations are not required.
    @param msg_size Maximum RPC message size.
-		   The C2_RPC_DEF_MAX_RPC_MSG_SIZE constant provides a
+		   The M0_RPC_DEF_MAX_RPC_MSG_SIZE constant provides a
 		   suitable default value.
    @param queue_len Minimum TM receive queue length.
-		    The C2_NET_TM_RECV_QUEUE_DEF_LEN constant provides a
+		    The M0_NET_TM_RECV_QUEUE_DEF_LEN constant provides a
 		    suitable default value.
-   @see c2_rpc_max_msg_size()
+   @see m0_rpc_max_msg_size()
  */
-C2_INTERNAL int c2_rpc_machine_init(struct c2_rpc_machine *machine,
-				    struct c2_cob_domain *dom,
-				    struct c2_net_domain *net_dom,
+M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
+				    struct m0_cob_domain *dom,
+				    struct m0_net_domain *net_dom,
 				    const char *ep_addr,
-				    struct c2_reqh *reqh,
-				    struct c2_net_buffer_pool *receive_pool,
+				    struct m0_reqh *reqh,
+				    struct m0_net_buffer_pool *receive_pool,
 				    uint32_t colour,
-				    c2_bcount_t msg_size, uint32_t queue_len);
+				    m0_bcount_t msg_size, uint32_t queue_len);
 
-void c2_rpc_machine_fini(struct c2_rpc_machine *machine);
+void m0_rpc_machine_fini(struct m0_rpc_machine *machine);
 
-void c2_rpc_machine_get_stats(struct c2_rpc_machine *machine,
-			      struct c2_rpc_stats *stats, bool reset);
+void m0_rpc_machine_get_stats(struct m0_rpc_machine *machine,
+			      struct m0_rpc_stats *stats, bool reset);
 
-C2_BOB_DECLARE(extern, c2_rpc_machine);
+M0_BOB_DECLARE(extern, m0_rpc_machine);
 
 /** @} end of rpc group */
-#endif /* __COLIBRI_RPC_MACHINE_H__ */
+#endif /* __MERO_RPC_MACHINE_H__ */
 
 /*
  *  Local variables:

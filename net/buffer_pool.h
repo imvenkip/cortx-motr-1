@@ -20,12 +20,12 @@
 
 #pragma once
 
-#ifndef __COLIBRI_BUFFER_POOL_H__
-#define __COLIBRI_BUFFER_POOL_H__
+#ifndef __MERO_BUFFER_POOL_H__
+#define __MERO_BUFFER_POOL_H__
 
 #include "lib/types.h" /* uint64_t */
 #include "lib/mutex.h"
-#include "net/net.h"   /* c2_net_buffer, c2_net_domain */
+#include "net/net.h"   /* m0_net_buffer, m0_net_domain */
 #include "lib/tlist.h"
 
 /**
@@ -62,9 +62,9 @@
  a buffer pool of 10, size of each segment is 1024, number of segments is
  64 and threshold is 10.
 
-    First, user needs to provide c2_net_buffer_pool_ops:
+    First, user needs to provide m0_net_buffer_pool_ops:
     @code
-	struct c2_net_buffer_pool_ops b_ops = {
+	struct m0_net_buffer_pool_ops b_ops = {
 		.nbpo_not_empty	      = notempty,
 		.nbpo_below_threshold = low,
 	};
@@ -73,90 +73,90 @@
    - Then, buffer pool needs to be assigned to a network domain and initialized
 	with above values:
     @code
-	struct c2_net_buffer_pool bp;
-	struct c2_net_xprt *xprt;
+	struct m0_net_buffer_pool bp;
+	struct m0_net_xprt *xprt;
 	...
 	bp.nbp_ops = &b_ops;
-	rc = c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 10, 64, 4096, 10, ...);
+	rc = m0_net_buffer_pool_init(&bp, bp.nbp_ndom, 10, 64, 4096, 10, ...);
 	...
     @endcode
 
    - Now, to add buffers into the pool need to acquire the lock and then specify
 	the number of buffers to be added:
     @code
-	c2_net_buffer_pool_lock(&bp);
-	c2_net_buffer_pool_provision(&bp, 10);
-	c2_net_buffer_pool_unlock(&bp);
+	m0_net_buffer_pool_lock(&bp);
+	m0_net_buffer_pool_provision(&bp, 10);
+	m0_net_buffer_pool_unlock(&bp);
     @endcode
 
     - To add a buffer in the pool:
     @code
-	c2_net_buffer_pool_lock(&bp);
-	c2_net_buffer_pool_provision(&bp, 1);
-	c2_net_buffer_pool_unlock(&bp);
+	m0_net_buffer_pool_lock(&bp);
+	m0_net_buffer_pool_provision(&bp, 1);
+	m0_net_buffer_pool_unlock(&bp);
     @endcode
 
     - To get a buffer from the pool:
 	To use any colour for the buffer variable colour should be
-	C2_BUFFER_ANY_COLOUR.
+	M0_BUFFER_ANY_COLOUR.
     @code
-	c2_net_buffer_pool_lock(&bp);
-	nb = c2_net_buffer_pool_get(&bp, colour);
+	m0_net_buffer_pool_lock(&bp);
+	nb = m0_net_buffer_pool_get(&bp, colour);
 	if (nb != NULL)
 		"Use the buffer"
 	else
 		"goto sleep until buffer is available"
-	c2_net_buffer_pool_unlock(&bp);
+	m0_net_buffer_pool_unlock(&bp);
     @endcode
 
    - To put back the buffer in the pool:
 	To use any colour for the buffer variable colour should be
-	C2_BUFFER_ANY_COLOUR.
+	M0_BUFFER_ANY_COLOUR.
     @code
-	c2_net_buffer_pool_lock(&bp);
-	c2_net_buffer_pool_put(&bp, nb, colour);
-	c2_net_buffer_pool_unlock(&bp);
+	m0_net_buffer_pool_lock(&bp);
+	m0_net_buffer_pool_put(&bp, nb, colour);
+	m0_net_buffer_pool_unlock(&bp);
     @endcode
 
     - To remove a buffer from the pool:
     @code
-	c2_net_buffer_pool_lock(&bp);
-	c2_net_buffer_pool_prune(&bp);
-	c2_net_buffer_pool_unlock(&bp);
+	m0_net_buffer_pool_lock(&bp);
+	m0_net_buffer_pool_prune(&bp);
+	m0_net_buffer_pool_unlock(&bp);
     @endcode
 
     - To finalize the pool:
     @code
-	c2_net_buffer_pool_fini(&bp);
+	m0_net_buffer_pool_fini(&bp);
     @endcode
 
-    @see Also see c2_net_tm_pool_attach() and @ref NetRQProvDLD
+    @see Also see m0_net_tm_pool_attach() and @ref NetRQProvDLD
     "Auo-Provisioning of Receive Message Queue Buffers".
    @{
   */
 
 enum {
-	C2_BUFFER_ANY_COLOUR	     = ~0,
-	C2_NET_BUFFER_POOL_THRESHOLD = 2,
+	M0_BUFFER_ANY_COLOUR	     = ~0,
+	M0_NET_BUFFER_POOL_THRESHOLD = 2,
 };
 
-struct c2_net_buffer_pool;
+struct m0_net_buffer_pool;
 
 /** Call backs that buffer pool can trigger on different memory conditions. */
-struct c2_net_buffer_pool_ops {
+struct m0_net_buffer_pool_ops {
 	/** Buffer pool is not empty. */
-	void (*nbpo_not_empty)(struct c2_net_buffer_pool *);
+	void (*nbpo_not_empty)(struct m0_net_buffer_pool *);
 	/** Buffers in pool are lower than threshold. */
-	void (*nbpo_below_threshold)(struct c2_net_buffer_pool *);
+	void (*nbpo_below_threshold)(struct m0_net_buffer_pool *);
 };
 
 /** Checks the buffer pool. */
-C2_INTERNAL bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool
+M0_INTERNAL bool m0_net_buffer_pool_invariant(const struct m0_net_buffer_pool
 					      *pool);
 
 /**
    Initializes fields of a buffer pool and tlist, which are used to populate
-   the pool using c2_net_buffer_pool_provision().
+   the pool using m0_net_buffer_pool_provision().
    @pre ndom != NULL
    @param pool      Pool to initialize.
    @param ndom      Network domain to associate with the pool.
@@ -165,59 +165,59 @@ C2_INTERNAL bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool
    @param colours   Number of colours in the pool.
    @param seg_size  Size of each segment in a buffer.
    @param shift	    Alignment needed for network buffers.
-   @pre seg_nr   <= c2_net_domain_get_max_buffer_segments(ndom) &&
-	seg_size <= c2_net_domain_get_max_buffer_segment_size(ndom)
+   @pre seg_nr   <= m0_net_domain_get_max_buffer_segments(ndom) &&
+	seg_size <= m0_net_domain_get_max_buffer_segment_size(ndom)
  */
-C2_INTERNAL int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
-					struct c2_net_domain *ndom,
+M0_INTERNAL int m0_net_buffer_pool_init(struct m0_net_buffer_pool *pool,
+					struct m0_net_domain *ndom,
 					uint32_t threshold, uint32_t seg_nr,
-					c2_bcount_t seg_size, uint32_t colours,
+					m0_bcount_t seg_size, uint32_t colours,
 					unsigned shift);
 
 /**
    It adds the buf_nr buffers in the buffer pool.
-   Suppose to add 10 items to the pool, c2_net_buffer_pool_provision(pool, 10)
+   Suppose to add 10 items to the pool, m0_net_buffer_pool_provision(pool, 10)
    can be used.
-   @pre c2_net_buffer_pool_is_locked(pool)
+   @pre m0_net_buffer_pool_is_locked(pool)
    @pre seg_size > 0 && seg_nr > 0 && buf_nr > 0
    @pre pool->nbp_ndom != NULL
    @param pool   Pool to provision.
    @param buf_nr Number of buffers to be added in the pool.
    @return result number of buffers it managed to allocate.
 */
-C2_INTERNAL int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
+M0_INTERNAL int m0_net_buffer_pool_provision(struct m0_net_buffer_pool *pool,
 					     uint32_t buf_nr);
 /** Finalizes a buffer pool.
-   @pre c2_net_buffer_pool_is_not_locked(pool)
+   @pre m0_net_buffer_pool_is_not_locked(pool)
  */
-C2_INTERNAL void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool);
+M0_INTERNAL void m0_net_buffer_pool_fini(struct m0_net_buffer_pool *pool);
 
 /** Acquires the lock on buffer pool. */
-C2_INTERNAL void c2_net_buffer_pool_lock(struct c2_net_buffer_pool *pool);
+M0_INTERNAL void m0_net_buffer_pool_lock(struct m0_net_buffer_pool *pool);
 
 /** Check whether buffer pool is locked or not. */
-C2_INTERNAL bool c2_net_buffer_pool_is_locked(const struct c2_net_buffer_pool
+M0_INTERNAL bool m0_net_buffer_pool_is_locked(const struct m0_net_buffer_pool
 					      *pool);
 
 /** Returns true when buffer pool is not locked. */
-C2_INTERNAL bool c2_net_buffer_pool_is_not_locked(const struct
-						  c2_net_buffer_pool *pool);
+M0_INTERNAL bool m0_net_buffer_pool_is_not_locked(const struct
+						  m0_net_buffer_pool *pool);
 
 /** Releases the lock on buffer pool. */
-C2_INTERNAL void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
+M0_INTERNAL void m0_net_buffer_pool_unlock(struct m0_net_buffer_pool *pool);
 
 /**
    Gets a buffer from the pool.
    If the colour is specified (i.e non zero) and the corresponding coloured
    list is not empty then the buffer is taken from the head of this list.
    Otherwise the buffer is taken from the head of the per buffer pool list.
-   @pre c2_net_buffer_pool_is_locked(pool)
-   @pre colour == C2_BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr
-   @post ergo(result != NULL, result->nb_flags & C2_NET_BUF_REGISTERED)
+   @pre m0_net_buffer_pool_is_locked(pool)
+   @pre colour == M0_BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr
+   @post ergo(result != NULL, result->nb_flags & M0_NET_BUF_REGISTERED)
    @post ergo(result != NULL, result->nb_pool == pool)
  */
-C2_INTERNAL struct c2_net_buffer *c2_net_buffer_pool_get(struct
-							 c2_net_buffer_pool
+M0_INTERNAL struct m0_net_buffer *m0_net_buffer_pool_get(struct
+							 m0_net_buffer_pool
 							 *pool,
 							 uint32_t colour);
 
@@ -225,24 +225,24 @@ C2_INTERNAL struct c2_net_buffer *c2_net_buffer_pool_get(struct
    Puts the buffer back to the pool.
    If the colour is specfied then the buffer is put at the head of corresponding
    coloured list and also put at the tail of the global list.
-   @pre c2_net_buffer_pool_is_locked(pool)
-   @pre colour == C2_BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr
+   @pre m0_net_buffer_pool_is_locked(pool)
+   @pre colour == M0_BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr
    @pre pool->nbp_ndom == buf->nb_dom
-   @pre (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
-        !(buf->nb_flags & C2_NET_BUF_QUEUED)
+   @pre (buf->nb_flags & M0_NET_BUF_REGISTERED) &&
+        !(buf->nb_flags & M0_NET_BUF_QUEUED)
  */
-C2_INTERNAL void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
-					struct c2_net_buffer *buf,
+M0_INTERNAL void m0_net_buffer_pool_put(struct m0_net_buffer_pool *pool,
+					struct m0_net_buffer *buf,
 					uint32_t colour);
 
 /**
    Removes a buffer from the pool to prune it.
-   @pre c2_net_buffer_pool_is_locked(pool)
+   @pre m0_net_buffer_pool_is_locked(pool)
  */
-C2_INTERNAL bool c2_net_buffer_pool_prune(struct c2_net_buffer_pool *pool);
+M0_INTERNAL bool m0_net_buffer_pool_prune(struct m0_net_buffer_pool *pool);
 
 /** Buffer pool. */
-struct c2_net_buffer_pool {
+struct m0_net_buffer_pool {
 	/** Number of free buffers in the pool. */
 	uint32_t			     nbp_free;
 	/** Number of buffer below which low memory condition occurs. */
@@ -252,25 +252,25 @@ struct c2_net_buffer_pool {
 	/** Number of buffers in the pool. */
 	uint32_t			     nbp_buf_nr;
 	/** Size of buffer segment of the pool. */
-	c2_bcount_t			     nbp_seg_size;
+	m0_bcount_t			     nbp_seg_size;
 	/** Buffer pool lock to protect and synchronize network buffer list.
 	    It needs to acquired to do any changes to the pool
 	 */
-	struct c2_mutex			     nbp_mutex;
+	struct m0_mutex			     nbp_mutex;
 	/** Network domain to register the buffers. */
-	struct c2_net_domain		    *nbp_ndom;
+	struct m0_net_domain		    *nbp_ndom;
 	/** Call back operations can be triggered by buffer pool. */
-	const struct c2_net_buffer_pool_ops *nbp_ops;
+	const struct m0_net_buffer_pool_ops *nbp_ops;
 	/** Number of colours in the pool. */
 	uint32_t			     nbp_colours_nr;
 	/** An array of nbp_colours_nr lists of buffers.
 	    Each list in the array contains buffers of a particular
 	    colour. Lists are maintained in LIFO order (i.e., they are stacks)
 	    to improve temporal locality of reference.
-	    Buffers are linked through c2_net_buffer::nb_tm_linkage to these
+	    Buffers are linked through m0_net_buffer::nb_tm_linkage to these
 	    lists.
 	*/
-	struct c2_tl			    *nbp_colours;
+	struct m0_tl			    *nbp_colours;
 	/* Alignment for network buffers */
 	unsigned			     nbp_align;
 	/**
@@ -278,9 +278,9 @@ struct c2_net_buffer_pool {
 	   This list is maintained in LRU order. The head of this list (which is
 	   the buffer used longest time ago) is used when coloured array is
 	   empty.
-	   Buffers are linked through c2_net_buffer::nb_lru to this list.
+	   Buffers are linked through m0_net_buffer::nb_lru to this list.
 	 */
-	struct c2_tl			     nbp_lru;
+	struct m0_tl			     nbp_lru;
 };
 
 /** @} */ /* end of net_buffer_pool */

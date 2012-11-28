@@ -87,26 +87,26 @@ enum {
 
 /**
    A node in the linked list describing processor properties. It
-   encapsulates 'struct c2_processor_descr'. This will be used to cache
+   encapsulates 'struct m0_processor_descr'. This will be used to cache
    attributes of x86 processors.
    @see lib/processor.h
  */
 struct processor_node {
 	/** Linking structure for node */
-	struct c2_list_link       pn_link;
+	struct m0_list_link       pn_link;
 
 	/** Processor descritor strcture */
-	struct c2_processor_descr pn_info;
+	struct m0_processor_descr pn_info;
 };
 
 /* Global variables */
 static bool processor_init = false;
-static struct c2_list x86_cpus;
+static struct m0_list x86_cpus;
 
 /**
-   Convert bitmap from one format to another. Copy cpumask bitmap to c2_bitmap.
+   Convert bitmap from one format to another. Copy cpumask bitmap to m0_bitmap.
 
-   @param dest -> Processors bitmap for Colibri programs.
+   @param dest -> Processors bitmap for Mero programs.
    @param src -> Processors bitmap used by Linux kernel.
    @param bmpsz -> Size of cpumask bitmap (src)
 
@@ -115,18 +115,18 @@ static struct c2_list x86_cpus;
    @see lib/processor.h
    @see lib/bitmap.h
  */
-static void processors_bitmap_copy(struct c2_bitmap *dest,
+static void processors_bitmap_copy(struct m0_bitmap *dest,
 				   const cpumask_t *src,
 				   uint32_t bmpsz)
 {
 	uint32_t bit;
 	bool     val;
 
-	C2_PRE(dest->b_nr >= bmpsz);
+	M0_PRE(dest->b_nr >= bmpsz);
 
 	for (bit = 0; bit < bmpsz; ++bit) {
 		val = cpumask_test_cpu(bit, src);
-		c2_bitmap_set(dest, bit, val);
+		m0_bitmap_set(dest, bit, val);
 	}
 }
 
@@ -137,7 +137,7 @@ static void processors_bitmap_copy(struct c2_bitmap *dest,
 
    @return id of the NUMA node to which the processor belongs.
  */
-static inline uint32_t processor_numanodeid_get(c2_processor_nr_t id)
+static inline uint32_t processor_numanodeid_get(m0_processor_nr_t id)
 {
 	return cpu_to_node(id);
 }
@@ -150,7 +150,7 @@ static inline uint32_t processor_numanodeid_get(c2_processor_nr_t id)
 
    @return id of pipeline for the given processor.
  */
-static inline uint32_t processor_pipelineid_get(c2_processor_nr_t id)
+static inline uint32_t processor_pipelineid_get(m0_processor_nr_t id)
 {
 	return id;
 }
@@ -163,7 +163,7 @@ static inline uint32_t processor_pipelineid_get(c2_processor_nr_t id)
 
    @return size of L1 or L2 cache size, in bytes, for the given processor.
  */
-static size_t processor_cache_sz_get(c2_processor_nr_t id, uint32_t cache_level)
+static size_t processor_cache_sz_get(m0_processor_nr_t id, uint32_t cache_level)
 {
 	uint32_t sz = 0;
 
@@ -215,7 +215,7 @@ static inline uint32_t processor_x86cache_shares_get(uint32_t eax)
 
    @return number of caches leaves.
  */
-static uint32_t processor_x86cache_leaves_get(c2_processor_nr_t id)
+static uint32_t processor_x86cache_leaves_get(m0_processor_nr_t id)
 {
 	uint32_t            eax;
 	uint32_t            ebx;
@@ -254,7 +254,7 @@ static uint32_t processor_x86cache_leaves_get(c2_processor_nr_t id)
 
    @return id of L2 cache for the given x86 processor.
  */
-static uint32_t processor_x86_cacheid_get(c2_processor_nr_t id,
+static uint32_t processor_x86_cacheid_get(m0_processor_nr_t id,
 					  uint32_t cache_level,
 					  uint32_t cache_leaves)
 {
@@ -325,7 +325,7 @@ static uint32_t processor_x86_cacheid_get(c2_processor_nr_t id,
 
    @return size of cache (in bytes) for the given AMD x86 processor.
  */
-static uint32_t processor_amd_cache_sz_get(c2_processor_nr_t id,
+static uint32_t processor_amd_cache_sz_get(m0_processor_nr_t id,
 					   uint32_t cache_level)
 {
 	uint32_t            eax;
@@ -361,7 +361,7 @@ static uint32_t processor_amd_cache_sz_get(c2_processor_nr_t id,
 
    @return size of cache (in bytes) for the given INTEL x86 processor.
  */
-static uint32_t processor_intel_cache_sz_get(c2_processor_nr_t id,
+static uint32_t processor_intel_cache_sz_get(m0_processor_nr_t id,
 					     uint32_t cache_level)
 {
 	uint32_t            eax;
@@ -418,7 +418,7 @@ static uint32_t processor_intel_cache_sz_get(c2_processor_nr_t id,
 
    @return size of L1 or L2 cache (in bytes) for the given x86 processor.
  */
-static uint32_t processor_x86_cache_sz_get(c2_processor_nr_t id,
+static uint32_t processor_x86_cache_sz_get(m0_processor_nr_t id,
 					   uint32_t cache_level)
 {
 	uint32_t            sz;
@@ -459,7 +459,7 @@ static uint32_t processor_x86_cache_sz_get(c2_processor_nr_t id,
 static void processor_x86_attrs_get(void *arg)
 {
 	uint32_t               c_leaves;
-	c2_processor_nr_t      cpu   = smp_processor_id();
+	m0_processor_nr_t      cpu   = smp_processor_id();
 	struct processor_node *pinfo = (struct processor_node *) arg;
 
 	/*
@@ -495,19 +495,19 @@ static void processor_x86_attrs_get(void *arg)
    @retval -EINVAL if processor information is not found
 
    @pre Memory must be allocated for pd. Interface does not allocate memory.
-   @pre c2_processors_init() must be called before calling this function.
+   @pre m0_processors_init() must be called before calling this function.
 
-   @see c2_processor_describe
+   @see m0_processor_describe
  */
-static int processor_x86_info_get(c2_processor_nr_t id,
-				  struct c2_processor_descr *pd)
+static int processor_x86_info_get(m0_processor_nr_t id,
+				  struct m0_processor_descr *pd)
 {
 	struct processor_node *pinfo;
 
-	C2_PRE(pd != NULL);
-	C2_PRE(processor_init);
+	M0_PRE(pd != NULL);
+	M0_PRE(processor_init);
 
-	c2_list_for_each_entry(&x86_cpus, pinfo, struct processor_node,
+	m0_list_for_each_entry(&x86_cpus, pinfo, struct processor_node,
 			       pn_link) {
 		if (pinfo->pn_info.pd_id == id) {
 			*pd = pinfo->pn_info;
@@ -522,25 +522,25 @@ static int processor_x86_info_get(c2_processor_nr_t id,
 /**
    Cache clean-up.
 
-   @see c2_processors_fini
-   @see c2_list_fini
+   @see m0_processors_fini
+   @see m0_list_fini
  */
 static void processor_x86cache_destroy(void)
 {
-	struct c2_list_link   *node;
+	struct m0_list_link   *node;
 	struct processor_node *pinfo;
 
 	/*
 	 * Remove all the processor nodes.
 	 */
 	node = x86_cpus.l_head;
-	while((struct c2_list *)node != &x86_cpus) {
-		pinfo = c2_list_entry(node, struct processor_node, pn_link);
-		c2_list_del(&pinfo->pn_link);
-		c2_free(pinfo);
+	while((struct m0_list *)node != &x86_cpus) {
+		pinfo = m0_list_entry(node, struct processor_node, pn_link);
+		m0_list_del(&pinfo->pn_link);
+		m0_free(pinfo);
 		node = x86_cpus.l_head;
 	}
-	c2_list_fini(&x86_cpus);
+	m0_list_fini(&x86_cpus);
 }
 
 /**
@@ -548,7 +548,7 @@ static void processor_x86cache_destroy(void)
 
    This is a blocking call.
 
-   @see c2_processors_init
+   @see m0_processors_init
    @see smp_call_function_single (Linux kernel)
  */
 static int processor_x86cache_create(void)
@@ -556,14 +556,14 @@ static int processor_x86cache_create(void)
 	uint32_t               cpu;
 	struct processor_node *pinfo;
 
-	c2_list_init(&x86_cpus);
+	m0_list_init(&x86_cpus);
 
 	/*
 	 * Using online CPU mask get details of each processor.
 	 * Unless CPU is online, we cannot execute on it.
 	 */
 	for_each_online_cpu(cpu) {
-		C2_ALLOC_PTR(pinfo);
+		M0_ALLOC_PTR(pinfo);
 		if (pinfo == NULL) {
 			processor_x86cache_destroy();
 			return -ENOMEM;
@@ -576,11 +576,11 @@ static int processor_x86cache_create(void)
 		 */
 		smp_call_function_single(cpu, processor_x86_attrs_get,
 					 (void *)pinfo, true);
-		c2_list_add(&x86_cpus, &pinfo->pn_link);
+		m0_list_add(&x86_cpus, &pinfo->pn_link);
 	}/* for - scan all the online processors */
 
-	if (c2_list_is_empty(&x86_cpus)) {
-		c2_list_fini(&x86_cpus);
+	if (m0_list_is_empty(&x86_cpus)) {
+		m0_list_fini(&x86_cpus);
 		return -ENODATA;
 	}
 
@@ -589,54 +589,54 @@ static int processor_x86cache_create(void)
 
 /* ---- Processor Interfaces ---- */
 
-C2_INTERNAL int c2_processors_init()
+M0_INTERNAL int m0_processors_init()
 {
 	int rc;
 
-	C2_PRE(!processor_init);
+	M0_PRE(!processor_init);
 	rc = processor_x86cache_create();
 	processor_init = (rc == 0);
 	return rc;
 }
 
-C2_INTERNAL void c2_processors_fini()
+M0_INTERNAL void m0_processors_fini()
 {
-	C2_PRE(processor_init);
+	M0_PRE(processor_init);
 	processor_x86cache_destroy();
 	processor_init = false;
 }
 
-C2_INTERNAL c2_processor_nr_t c2_processor_nr_max(void)
+M0_INTERNAL m0_processor_nr_t m0_processor_nr_max(void)
 {
 	return NR_CPUS - 1;
 }
 
-C2_INTERNAL void c2_processors_possible(struct c2_bitmap *map)
+M0_INTERNAL void m0_processors_possible(struct m0_bitmap *map)
 {
 	processors_bitmap_copy(map, cpu_possible_mask, nr_cpu_ids);
 }
 
-C2_INTERNAL void c2_processors_available(struct c2_bitmap *map)
+M0_INTERNAL void m0_processors_available(struct m0_bitmap *map)
 {
 	processors_bitmap_copy(map, cpu_present_mask, nr_cpu_ids);
 }
 
-C2_INTERNAL void c2_processors_online(struct c2_bitmap *map)
+M0_INTERNAL void m0_processors_online(struct m0_bitmap *map)
 {
 	processors_bitmap_copy(map, cpu_online_mask, nr_cpu_ids);
 }
 
-C2_INTERNAL int c2_processor_describe(c2_processor_nr_t id,
-				      struct c2_processor_descr *pd)
+M0_INTERNAL int m0_processor_describe(m0_processor_nr_t id,
+				      struct m0_processor_descr *pd)
 {
-	C2_PRE(pd != NULL);
+	M0_PRE(pd != NULL);
 	if (id >= nr_cpu_ids)
 		return -EINVAL;
 
 	return processor_x86_info_get(id, pd);
 }
 
-C2_INTERNAL c2_processor_nr_t c2_processor_id_get(void)
+M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 {
 	return smp_processor_id();
 }

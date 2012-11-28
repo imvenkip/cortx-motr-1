@@ -26,9 +26,9 @@
 
 #include "lib/types.h"		/* UINT32_MAX */
 
-#include "lib/misc.h"		/* C2_SET0 */
-#include "lib/ut.h"		/* C2_UT_ASSERT */
-#include "lib/vec.h"		/* c2_bufvec */
+#include "lib/misc.h"		/* M0_SET0 */
+#include "lib/ut.h"		/* M0_UT_ASSERT */
+#include "lib/vec.h"		/* m0_bufvec */
 
 #include "net/test/serialize.h"
 
@@ -90,12 +90,12 @@ TYPE_DESCR(simple_struct) = {
 	FIELD_DESCR(struct simple_struct, ss_u64),
 };
 
-static c2_bcount_t simple_struct_serialize(enum c2_net_test_serialize_op op,
+static m0_bcount_t simple_struct_serialize(enum m0_net_test_serialize_op op,
 					   struct simple_struct *ss,
-					   struct c2_bufvec *bv,
-					   c2_bcount_t bv_offset)
+					   struct m0_bufvec *bv,
+					   m0_bcount_t bv_offset)
 {
-	return c2_net_test_serialize(op, ss, USE_TYPE_DESCR(simple_struct),
+	return m0_net_test_serialize(op, ss, USE_TYPE_DESCR(simple_struct),
 				     bv, bv_offset);
 }
 
@@ -118,12 +118,12 @@ static void simple_struct_test(char		   c,
 			       int64_t		   i64,
 			       uint64_t		   u64)
 {
-	c2_bcount_t	     ss_serialized_len;
-	c2_bcount_t	     rc_bcount;
+	m0_bcount_t	     ss_serialized_len;
+	m0_bcount_t	     rc_bcount;
 	char		     buf[SERIALIZE_BUF_LEN];
 	void		    *addr = buf;
-	c2_bcount_t	     len = SERIALIZE_BUF_LEN;
-	struct c2_bufvec     bv = C2_BUFVEC_INIT_BUF(&addr, &len);
+	m0_bcount_t	     len = SERIALIZE_BUF_LEN;
+	struct m0_bufvec     bv = M0_BUFVEC_INIT_BUF(&addr, &len);
 	struct simple_struct ss = {
 		.ss_c   = c,
 		.ss_uc  = uc,
@@ -146,46 +146,46 @@ static void simple_struct_test(char		   c,
 	};
 
 	/* length of structure test */
-	ss_serialized_len = simple_struct_serialize(C2_NET_TEST_SERIALIZE, &ss,
+	ss_serialized_len = simple_struct_serialize(M0_NET_TEST_SERIALIZE, &ss,
 						    NULL, 0);
-	C2_UT_ASSERT(ss_serialized_len > 0);
+	M0_UT_ASSERT(ss_serialized_len > 0);
 
 	/* simple encode-decode test */
-	C2_SET_ARR0(buf);
-	rc_bcount = simple_struct_serialize(C2_NET_TEST_SERIALIZE, &ss, &bv, 0);
-	C2_UT_ASSERT(rc_bcount == ss_serialized_len);
+	M0_SET_ARR0(buf);
+	rc_bcount = simple_struct_serialize(M0_NET_TEST_SERIALIZE, &ss, &bv, 0);
+	M0_UT_ASSERT(rc_bcount == ss_serialized_len);
 
-	C2_SET0(&ss);
+	M0_SET0(&ss);
 
-	rc_bcount = simple_struct_serialize(C2_NET_TEST_DESERIALIZE, &ss,
+	rc_bcount = simple_struct_serialize(M0_NET_TEST_DESERIALIZE, &ss,
 					    &bv, 0);
-	C2_UT_ASSERT(rc_bcount == ss_serialized_len);
-	C2_UT_ASSERT(ss.ss_c   == c);
-	C2_UT_ASSERT(ss.ss_uc  == uc);
-	C2_UT_ASSERT(ss.ss_s   == s);
-	C2_UT_ASSERT(ss.ss_us  == us);
-	C2_UT_ASSERT(ss.ss_i   == i);
-	C2_UT_ASSERT(ss.ss_ui  == ui);
-	C2_UT_ASSERT(ss.ss_l   == l);
-	C2_UT_ASSERT(ss.ss_ul  == ul);
-	C2_UT_ASSERT(ss.ss_ll  == ll);
-	C2_UT_ASSERT(ss.ss_ull == ull);
-	C2_UT_ASSERT(ss.ss_i8  == i8);
-	C2_UT_ASSERT(ss.ss_u8  == u8);
-	C2_UT_ASSERT(ss.ss_i16 == i16);
-	C2_UT_ASSERT(ss.ss_u16 == u16);
-	C2_UT_ASSERT(ss.ss_i32 == i32);
-	C2_UT_ASSERT(ss.ss_u32 == u32);
-	C2_UT_ASSERT(ss.ss_i64 == i64);
-	C2_UT_ASSERT(ss.ss_u64 == u64);
+	M0_UT_ASSERT(rc_bcount == ss_serialized_len);
+	M0_UT_ASSERT(ss.ss_c   == c);
+	M0_UT_ASSERT(ss.ss_uc  == uc);
+	M0_UT_ASSERT(ss.ss_s   == s);
+	M0_UT_ASSERT(ss.ss_us  == us);
+	M0_UT_ASSERT(ss.ss_i   == i);
+	M0_UT_ASSERT(ss.ss_ui  == ui);
+	M0_UT_ASSERT(ss.ss_l   == l);
+	M0_UT_ASSERT(ss.ss_ul  == ul);
+	M0_UT_ASSERT(ss.ss_ll  == ll);
+	M0_UT_ASSERT(ss.ss_ull == ull);
+	M0_UT_ASSERT(ss.ss_i8  == i8);
+	M0_UT_ASSERT(ss.ss_u8  == u8);
+	M0_UT_ASSERT(ss.ss_i16 == i16);
+	M0_UT_ASSERT(ss.ss_u16 == u16);
+	M0_UT_ASSERT(ss.ss_i32 == i32);
+	M0_UT_ASSERT(ss.ss_u32 == u32);
+	M0_UT_ASSERT(ss.ss_i64 == i64);
+	M0_UT_ASSERT(ss.ss_u64 == u64);
 
 	/* failure test */
 	len = 64;
-	rc_bcount = simple_struct_serialize(C2_NET_TEST_SERIALIZE, &ss, &bv, 0);
-	C2_UT_ASSERT(rc_bcount == 0);
+	rc_bcount = simple_struct_serialize(M0_NET_TEST_SERIALIZE, &ss, &bv, 0);
+	M0_UT_ASSERT(rc_bcount == 0);
 }
 
-void c2_net_test_serialize_ut(void)
+void m0_net_test_serialize_ut(void)
 {
 	/* zero values test */
 	simple_struct_test(0, 0, 0, 0, 0, 0, 0, 0,

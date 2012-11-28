@@ -18,8 +18,8 @@
  * Original creation date: 05/05/2012
  */
 #pragma once
-#ifndef __COLIBRI_CONF_FOP_H__
-#define __COLIBRI_CONF_FOP_H__
+#ifndef __MERO_CONF_FOP_H__
+#define __MERO_CONF_FOP_H__
 
 #include "fop/fop.h"
 
@@ -29,14 +29,14 @@
  * @{
  */
 
-extern struct c2_fop_type c2_conf_fetch_fopt;
-extern struct c2_fop_type c2_conf_fetch_resp_fopt;
+extern struct m0_fop_type m0_conf_fetch_fopt;
+extern struct m0_fop_type m0_conf_fetch_resp_fopt;
 
-extern struct c2_fop_type c2_conf_update_fopt;
-extern struct c2_fop_type c2_conf_update_resp_fopt;
+extern struct m0_fop_type m0_conf_update_fopt;
+extern struct m0_fop_type m0_conf_update_resp_fopt;
 
-C2_INTERNAL int c2_conf_fops_init(void);
-C2_INTERNAL void c2_conf_fops_fini(void);
+M0_INTERNAL int m0_conf_fops_init(void);
+M0_INTERNAL void m0_conf_fops_fini(void);
 
 /** @} conf_fop */
-#endif /* __COLIBRI_CONF_FOP_H__ */
+#endif /* __MERO_CONF_FOP_H__ */

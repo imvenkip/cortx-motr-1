@@ -19,7 +19,7 @@
  */
 
 #include "lib/bob.h"
-#include "lib/misc.h"                           /* C2_SET0 */
+#include "lib/misc.h"                           /* M0_SET0 */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -32,55 +32,55 @@
    @{
  */
 
-static bool is_pointer(const struct c2_xcode_type *xt,
-		       const struct c2_xcode_field *field)
+static bool is_pointer(const struct m0_xcode_type *xt,
+		       const struct m0_xcode_field *field)
 {
-	return xt->xct_aggr == C2_XA_SEQUENCE && field == &xt->xct_child[1];
+	return xt->xct_aggr == M0_XA_SEQUENCE && field == &xt->xct_child[1];
 }
 
-static bool field_invariant(const struct c2_xcode_type *xt,
-                            const struct c2_xcode_field *field)
+static bool field_invariant(const struct m0_xcode_type *xt,
+                            const struct m0_xcode_field *field)
 {
         return
                 field->xf_name != NULL && field->xf_type != NULL &&
-                ergo(xt == &C2_XT_OPAQUE, field->xf_opaque != NULL) &&
+                ergo(xt == &M0_XT_OPAQUE, field->xf_opaque != NULL) &&
                 field->xf_offset +
                 (is_pointer(xt, field) ?
                  sizeof(void *) : field->xf_type->xct_sizeof) <= xt->xct_sizeof;
 }
 
-C2_INTERNAL bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
+M0_INTERNAL bool m0_xcode_type_invariant(const struct m0_xcode_type *xt)
 {
 	size_t   i;
 	size_t   prev;
 	uint32_t offset;
 
-	static const size_t min[C2_XA_NR] = {
-		[C2_XA_RECORD]   = 0,
-		[C2_XA_UNION]    = 2,
-		[C2_XA_SEQUENCE] = 2,
-		[C2_XA_TYPEDEF]  = 1,
-		[C2_XA_OPAQUE]   = 0,
-		[C2_XA_ATOM]     = 0
+	static const size_t min[M0_XA_NR] = {
+		[M0_XA_RECORD]   = 0,
+		[M0_XA_UNION]    = 2,
+		[M0_XA_SEQUENCE] = 2,
+		[M0_XA_TYPEDEF]  = 1,
+		[M0_XA_OPAQUE]   = 0,
+		[M0_XA_ATOM]     = 0
 	};
 
-	static const size_t max[C2_XA_NR] = {
-		[C2_XA_RECORD]   = ~0ULL,
-		[C2_XA_UNION]    = ~0ULL,
-		[C2_XA_SEQUENCE] = 2,
-		[C2_XA_TYPEDEF]  = 1,
-		[C2_XA_OPAQUE]   = 0,
-		[C2_XA_ATOM]     = 0
+	static const size_t max[M0_XA_NR] = {
+		[M0_XA_RECORD]   = ~0ULL,
+		[M0_XA_UNION]    = ~0ULL,
+		[M0_XA_SEQUENCE] = 2,
+		[M0_XA_TYPEDEF]  = 1,
+		[M0_XA_OPAQUE]   = 0,
+		[M0_XA_ATOM]     = 0
 	};
 
-	if (!(0 <= xt->xct_aggr && xt->xct_aggr < C2_XA_NR))
+	if (!(0 <= xt->xct_aggr && xt->xct_aggr < M0_XA_NR))
 		return false;
 
 	if (xt->xct_nr < min[xt->xct_aggr] || xt->xct_nr > max[xt->xct_aggr])
 		return false;
 
 	for (i = 0, offset = 0, prev = 0; i < xt->xct_nr; ++i) {
-		const struct c2_xcode_field *f;
+		const struct m0_xcode_field *f;
 
 		f = &xt->xct_child[i];
 		if (!field_invariant(xt, f))
@@ -93,28 +93,28 @@ C2_INTERNAL bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 
 		/* update the previous field offset: for UNION all branches
 		   follow the first field. */
-		if (i == 0 || xt->xct_aggr != C2_XA_UNION) {
+		if (i == 0 || xt->xct_aggr != M0_XA_UNION) {
 			offset = f->xf_offset;
 			prev   = i;
 		}
 	}
 	switch (xt->xct_aggr) {
-	case C2_XA_RECORD:
-	case C2_XA_TYPEDEF:
+	case M0_XA_RECORD:
+	case M0_XA_TYPEDEF:
 		break;
-	case C2_XA_UNION:
-	case C2_XA_SEQUENCE:
-		if (xt->xct_child[0].xf_type->xct_aggr != C2_XA_ATOM)
+	case M0_XA_UNION:
+	case M0_XA_SEQUENCE:
+		if (xt->xct_child[0].xf_type->xct_aggr != M0_XA_ATOM)
 			return false;
 		break;
-	case C2_XA_OPAQUE:
-		if (xt != &C2_XT_OPAQUE)
+	case M0_XA_OPAQUE:
+		if (xt != &M0_XT_OPAQUE)
 			return false;
 		if (xt->xct_sizeof != sizeof (void *))
 			return false;
 		break;
-	case C2_XA_ATOM:
-		if (!(0 <= xt->xct_atype && xt->xct_atype < C2_XAT_NR))
+	case M0_XA_ATOM:
+		if (!(0 <= xt->xct_atype && xt->xct_atype < M0_XAT_NR))
 			return false;
 		break;
 	default:
@@ -132,14 +132,14 @@ enum xcode_op {
 	XO_NR
 };
 
-static void **allocp(struct c2_xcode_cursor *it, size_t *out)
+static void **allocp(struct m0_xcode_cursor *it, size_t *out)
 {
-	const struct c2_xcode_cursor_frame *prev;
-	const struct c2_xcode_obj          *par;
-	const struct c2_xcode_type         *xt;
-	const struct c2_xcode_type         *pt;
-	struct c2_xcode_cursor_frame       *top;
-	struct c2_xcode_obj                *obj;
+	const struct m0_xcode_cursor_frame *prev;
+	const struct m0_xcode_obj          *par;
+	const struct m0_xcode_type         *xt;
+	const struct m0_xcode_type         *pt;
+	struct m0_xcode_cursor_frame       *top;
+	struct m0_xcode_obj                *obj;
 	size_t                              nob;
 	size_t                              size;
 	void                              **slot;
@@ -167,7 +167,7 @@ static void **allocp(struct c2_xcode_cursor *it, size_t *out)
 	 */
 
 	nob  = 0;
-	top  = c2_xcode_cursor_top(it);
+	top  = m0_xcode_cursor_top(it);
 	prev = top - 1;
 	obj  = &top->s_obj;  /* an object being decoded */
 	par  = &prev->s_obj; /* obj's parent object */
@@ -180,19 +180,19 @@ static void **allocp(struct c2_xcode_cursor *it, size_t *out)
 		nob = size;
 		slot = &obj->xo_ptr;
 	} else {
-		if (pt->xct_aggr == C2_XA_SEQUENCE &&
+		if (pt->xct_aggr == M0_XA_SEQUENCE &&
 		    prev->s_fieldno == 1 && prev->s_elno == 0 &&
-		    c2_xcode_tag(par) > 0)
+		    m0_xcode_tag(par) > 0)
 			/* allocate array */
-			nob = c2_xcode_tag(par) * size;
-		else if (pt->xct_child[prev->s_fieldno].xf_type == &C2_XT_OPAQUE)
+			nob = m0_xcode_tag(par) * size;
+		else if (pt->xct_child[prev->s_fieldno].xf_type == &M0_XT_OPAQUE)
 			/*
 			 * allocate the object referenced by an opaque
 			 * pointer. At this moment "xt" is the type of the
 			 * pointed object.
 			 */
 			nob = size;
-		slot = c2_xcode_addr(par, prev->s_fieldno, ~0ULL);
+		slot = m0_xcode_addr(par, prev->s_fieldno, ~0ULL);
 	}
 	*out = nob;
 	return slot;
@@ -204,22 +204,22 @@ static void **allocp(struct c2_xcode_cursor *it, size_t *out)
    This function takes an xcode iteration cursor and, if necessary, allocates
    memory where the object currently being decoded will reside.
 
-   The pointer to the allocated memory is returned in c2_xcode_obj::xo_ptr. In
+   The pointer to the allocated memory is returned in m0_xcode_obj::xo_ptr. In
    addition, this pointer is stored at the appropriate offset in the parent
    object.
  */
-ssize_t xcode_alloc(struct c2_xcode_cursor *it,
-		    void *(*alloc)(struct c2_xcode_cursor *, size_t))
+ssize_t xcode_alloc(struct m0_xcode_cursor *it,
+		    void *(*alloc)(struct m0_xcode_cursor *, size_t))
 {
-	struct c2_xcode_obj  *obj;
+	struct m0_xcode_obj  *obj;
 	size_t                nob = 0;
 	void                **slot;
 
-	obj  = &c2_xcode_cursor_top(it)->s_obj;  /* an object being decoded */
+	obj  = &m0_xcode_cursor_top(it)->s_obj;  /* an object being decoded */
 
 	slot = allocp(it, &nob);
 	if (nob != 0 && *slot == NULL) {
-		C2_ASSERT(obj->xo_ptr == NULL);
+		M0_ASSERT(obj->xo_ptr == NULL);
 
 		obj->xo_ptr = *slot = alloc(it, nob);
 		if (obj->xo_ptr == NULL)
@@ -231,27 +231,27 @@ ssize_t xcode_alloc(struct c2_xcode_cursor *it,
 /**
    Common xcoding function, implementing encoding, decoding and sizing.
  */
-static int ctx_walk(struct c2_xcode_ctx *ctx, enum xcode_op op)
+static int ctx_walk(struct m0_xcode_ctx *ctx, enum xcode_op op)
 {
 	void                   *ptr;
-	c2_bcount_t             size;
+	m0_bcount_t             size;
 	int                     length = 0;
 	int                     result;
-	struct c2_bufvec        area   = C2_BUFVEC_INIT_BUF(&ptr, &size);
-	struct c2_bufvec_cursor mem;
-	struct c2_xcode_cursor *it     = &ctx->xcx_it;
+	struct m0_bufvec        area   = M0_BUFVEC_INIT_BUF(&ptr, &size);
+	struct m0_bufvec_cursor mem;
+	struct m0_xcode_cursor *it     = &ctx->xcx_it;
 
-	C2_PRE(C2_IN(op, (XO_ENC, XO_DEC, XO_LEN)));
+	M0_PRE(M0_IN(op, (XO_ENC, XO_DEC, XO_LEN)));
 
-	while ((result = c2_xcode_next(it)) > 0) {
-		const struct c2_xcode_type     *xt;
-		const struct c2_xcode_type_ops *ops;
-		struct c2_xcode_obj            *cur;
-		struct c2_xcode_cursor_frame   *top;
+	while ((result = m0_xcode_next(it)) > 0) {
+		const struct m0_xcode_type     *xt;
+		const struct m0_xcode_type_ops *ops;
+		struct m0_xcode_obj            *cur;
+		struct m0_xcode_cursor_frame   *top;
 
-		top = c2_xcode_cursor_top(it);
+		top = m0_xcode_cursor_top(it);
 
-		if (top->s_flag != C2_XCODE_CURSOR_PRE)
+		if (top->s_flag != M0_XCODE_CURSOR_PRE)
 			continue;
 
 		cur = &top->s_obj;
@@ -281,19 +281,19 @@ static int ctx_walk(struct c2_xcode_ctx *ctx, enum xcode_op op)
 					length += ops->xto_length(ctx, ptr);
 				break;
 			default:
-				C2_IMPOSSIBLE("op");
+				M0_IMPOSSIBLE("op");
 			}
-			c2_xcode_skip(it);
-		} else if (xt->xct_aggr == C2_XA_ATOM) {
+			m0_xcode_skip(it);
+		} else if (xt->xct_aggr == M0_XA_ATOM) {
 			size = xt->xct_sizeof;
 
 			if (op == XO_LEN)
 				length += size;
 			else {
-				struct c2_bufvec_cursor *src;
-				struct c2_bufvec_cursor *dst;
+				struct m0_bufvec_cursor *src;
+				struct m0_bufvec_cursor *dst;
 
-				c2_bufvec_cursor_init(&mem, &area);
+				m0_bufvec_cursor_init(&mem, &area);
 				/* XXX endianness and sharing */
 				switch (op) {
 				case XO_ENC:
@@ -305,9 +305,9 @@ static int ctx_walk(struct c2_xcode_ctx *ctx, enum xcode_op op)
 					src = &ctx->xcx_buf;
 					break;
 				default:
-					C2_IMPOSSIBLE("op");
+					M0_IMPOSSIBLE("op");
 				}
-				if (c2_bufvec_cursor_copy(dst,
+				if (m0_bufvec_cursor_copy(dst,
 							  src, size) != size)
 					result = -EPROTO;
 			}
@@ -320,86 +320,86 @@ static int ctx_walk(struct c2_xcode_ctx *ctx, enum xcode_op op)
 	return result;
 }
 
-C2_INTERNAL void c2_xcode_ctx_init(struct c2_xcode_ctx *ctx,
-				   const struct c2_xcode_obj *obj)
+M0_INTERNAL void m0_xcode_ctx_init(struct m0_xcode_ctx *ctx,
+				   const struct m0_xcode_obj *obj)
 {
-	C2_SET0(ctx);
-	c2_xcode_cursor_init(&ctx->xcx_it, obj);
+	M0_SET0(ctx);
+	m0_xcode_cursor_init(&ctx->xcx_it, obj);
 }
 
-C2_INTERNAL int c2_xcode_decode(struct c2_xcode_ctx *ctx)
+M0_INTERNAL int m0_xcode_decode(struct m0_xcode_ctx *ctx)
 {
 	return ctx_walk(ctx, XO_DEC);
 }
 
-C2_INTERNAL int c2_xcode_encode(struct c2_xcode_ctx *ctx)
+M0_INTERNAL int m0_xcode_encode(struct m0_xcode_ctx *ctx)
 {
 	return ctx_walk(ctx, XO_ENC);
 }
 
-C2_INTERNAL int c2_xcode_length(struct c2_xcode_ctx *ctx)
+M0_INTERNAL int m0_xcode_length(struct m0_xcode_ctx *ctx)
 {
 	return ctx_walk(ctx, XO_LEN);
 }
 
-C2_INTERNAL void *c2_xcode_alloc(struct c2_xcode_cursor *it, size_t nob)
+M0_INTERNAL void *m0_xcode_alloc(struct m0_xcode_cursor *it, size_t nob)
 {
-	return c2_alloc(nob);
+	return m0_alloc(nob);
 }
 
-C2_INTERNAL void c2_xcode_free(struct c2_xcode_obj *obj)
+M0_INTERNAL void m0_xcode_free(struct m0_xcode_obj *obj)
 {
 	int                    result;
-	struct c2_xcode_cursor it;
+	struct m0_xcode_cursor it;
 
-	C2_SET0(&it);
-	c2_xcode_cursor_top(&it)->s_obj = *obj;
+	M0_SET0(&it);
+	m0_xcode_cursor_top(&it)->s_obj = *obj;
 
-	while ((result = c2_xcode_next(&it)) > 0) {
-		struct c2_xcode_cursor_frame *top = c2_xcode_cursor_top(&it);
+	while ((result = m0_xcode_next(&it)) > 0) {
+		struct m0_xcode_cursor_frame *top = m0_xcode_cursor_top(&it);
 		size_t                        nob = 0;
 		void                        **slot;
 
-		if (top->s_flag == C2_XCODE_CURSOR_POST) {
+		if (top->s_flag == M0_XCODE_CURSOR_POST) {
 			slot = allocp(&it, &nob);
 			if (nob != 0 && *slot != NULL)
-				c2_free(*slot);
+				m0_free(*slot);
 		}
 	}
 }
 
-C2_INTERNAL int c2_xcode_cmp(const struct c2_xcode_obj *o0,
-			     const struct c2_xcode_obj *o1)
+M0_INTERNAL int m0_xcode_cmp(const struct m0_xcode_obj *o0,
+			     const struct m0_xcode_obj *o1)
 {
 	int                    result;
-	struct c2_xcode_cursor it0;
-	struct c2_xcode_cursor it1;
+	struct m0_xcode_cursor it0;
+	struct m0_xcode_cursor it1;
 
-	C2_PRE(o0->xo_type == o1->xo_type);
+	M0_PRE(o0->xo_type == o1->xo_type);
 
-	c2_xcode_cursor_init(&it0, o0);
-	c2_xcode_cursor_init(&it1, o1);
+	m0_xcode_cursor_init(&it0, o0);
+	m0_xcode_cursor_init(&it1, o1);
 
-	while ((result = c2_xcode_next(&it0)) > 0) {
-		struct c2_xcode_cursor_frame *t0;
-		struct c2_xcode_cursor_frame *t1;
-		struct c2_xcode_obj          *s0;
-		struct c2_xcode_obj          *s1;
-		const struct c2_xcode_type   *xt;
+	while ((result = m0_xcode_next(&it0)) > 0) {
+		struct m0_xcode_cursor_frame *t0;
+		struct m0_xcode_cursor_frame *t1;
+		struct m0_xcode_obj          *s0;
+		struct m0_xcode_obj          *s1;
+		const struct m0_xcode_type   *xt;
 
-		result = c2_xcode_next(&it1);
-		C2_ASSERT(result > 0);
+		result = m0_xcode_next(&it1);
+		M0_ASSERT(result > 0);
 
-		t0 = c2_xcode_cursor_top(&it0);
-		t1 = c2_xcode_cursor_top(&it1);
-		C2_ASSERT(t0->s_flag == t1->s_flag);
+		t0 = m0_xcode_cursor_top(&it0);
+		t1 = m0_xcode_cursor_top(&it1);
+		M0_ASSERT(t0->s_flag == t1->s_flag);
 		s0 = &t0->s_obj;
 		s1 = &t1->s_obj;
 		xt = s0->xo_type;
-		C2_ASSERT(xt == s1->xo_type);
+		M0_ASSERT(xt == s1->xo_type);
 
-		if (t0->s_flag == C2_XCODE_CURSOR_PRE &&
-		    xt->xct_aggr == C2_XA_ATOM) {
+		if (t0->s_flag == M0_XCODE_CURSOR_PRE &&
+		    xt->xct_aggr == M0_XA_ATOM) {
 			result = memcmp(s0->xo_ptr, s1->xo_ptr, xt->xct_sizeof);
 			if (result != 0)
 				return result;
@@ -408,37 +408,37 @@ C2_INTERNAL int c2_xcode_cmp(const struct c2_xcode_obj *o0,
 	return 0;
 }
 
-C2_INTERNAL void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fileno,
+M0_INTERNAL void *m0_xcode_addr(const struct m0_xcode_obj *obj, int fileno,
 				uint64_t elno)
 {
 	char                        *addr = (char *)obj->xo_ptr;
-	const struct c2_xcode_type  *xt   = obj->xo_type;
-	const struct c2_xcode_field *f    = &xt->xct_child[fileno];
-	const struct c2_xcode_type  *ct   = f->xf_type;
+	const struct m0_xcode_type  *xt   = obj->xo_type;
+	const struct m0_xcode_field *f    = &xt->xct_child[fileno];
+	const struct m0_xcode_type  *ct   = f->xf_type;
 
-	C2_ASSERT(fileno < xt->xct_nr);
+	M0_ASSERT(fileno < xt->xct_nr);
 	addr += f->xf_offset;
-	if (xt->xct_aggr == C2_XA_SEQUENCE && fileno == 1 &&
+	if (xt->xct_aggr == M0_XA_SEQUENCE && fileno == 1 &&
 	    elno != ~0ULL)
 		addr = *((char **)addr) + elno * ct->xct_sizeof;
-	else if (ct == &C2_XT_OPAQUE && elno != ~0ULL)
+	else if (ct == &M0_XT_OPAQUE && elno != ~0ULL)
 		addr = *((char **)addr);
 	return addr;
 }
 
-C2_INTERNAL int c2_xcode_subobj(struct c2_xcode_obj *subobj,
-				const struct c2_xcode_obj *obj, int fieldno,
+M0_INTERNAL int m0_xcode_subobj(struct m0_xcode_obj *subobj,
+				const struct m0_xcode_obj *obj, int fieldno,
 				uint64_t elno)
 {
-	const struct c2_xcode_field *f;
+	const struct m0_xcode_field *f;
 	int                          result;
 
-	C2_PRE(0 <= fieldno && fieldno < obj->xo_type->xct_nr);
+	M0_PRE(0 <= fieldno && fieldno < obj->xo_type->xct_nr);
 
 	f = &obj->xo_type->xct_child[fieldno];
 
-	subobj->xo_ptr = c2_xcode_addr(obj, fieldno, elno);
-	if (f->xf_type == &C2_XT_OPAQUE) {
+	subobj->xo_ptr = m0_xcode_addr(obj, fieldno, elno);
+	if (f->xf_type == &M0_XT_OPAQUE) {
 		result = f->xf_opaque(obj, &subobj->xo_type);
 	} else {
 		subobj->xo_type = f->xf_type;
@@ -447,119 +447,119 @@ C2_INTERNAL int c2_xcode_subobj(struct c2_xcode_obj *subobj,
 	return result;
 }
 
-C2_INTERNAL uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj)
+M0_INTERNAL uint64_t m0_xcode_tag(const struct m0_xcode_obj *obj)
 {
-	const struct c2_xcode_type  *xt = obj->xo_type;
-	const struct c2_xcode_field *f  = &xt->xct_child[0];
+	const struct m0_xcode_type  *xt = obj->xo_type;
+	const struct m0_xcode_field *f  = &xt->xct_child[0];
 	uint64_t                     tag;
 
-	C2_PRE(xt->xct_aggr == C2_XA_SEQUENCE || xt->xct_aggr == C2_XA_UNION);
-	C2_PRE(f->xf_type->xct_aggr == C2_XA_ATOM);
+	M0_PRE(xt->xct_aggr == M0_XA_SEQUENCE || xt->xct_aggr == M0_XA_UNION);
+	M0_PRE(f->xf_type->xct_aggr == M0_XA_ATOM);
 
 	switch (f->xf_type->xct_atype) {
-	case C2_XAT_VOID:
+	case M0_XAT_VOID:
 		tag = f->xf_tag;
 		break;
-	case C2_XAT_U8:
-		tag = *C2_XCODE_VAL(obj, 0, 0, uint8_t);
+	case M0_XAT_U8:
+		tag = *M0_XCODE_VAL(obj, 0, 0, uint8_t);
 		break;
-	case C2_XAT_U32:
-		tag = *C2_XCODE_VAL(obj, 0, 0, uint32_t);
+	case M0_XAT_U32:
+		tag = *M0_XCODE_VAL(obj, 0, 0, uint32_t);
 		break;
-	case C2_XAT_U64:
-		tag = *C2_XCODE_VAL(obj, 0, 0, uint64_t);
+	case M0_XAT_U64:
+		tag = *M0_XCODE_VAL(obj, 0, 0, uint64_t);
 		break;
 	default:
-		C2_IMPOSSIBLE("atype");
+		M0_IMPOSSIBLE("atype");
 	}
 	return tag;
 }
 
-C2_INTERNAL void c2_xcode_bob_type_init(struct c2_bob_type *bt,
-					const struct c2_xcode_type *xt,
+M0_INTERNAL void m0_xcode_bob_type_init(struct m0_bob_type *bt,
+					const struct m0_xcode_type *xt,
 					size_t magix_field, uint64_t magix)
 {
-	const struct c2_xcode_field *mf = &xt->xct_child[magix_field];
+	const struct m0_xcode_field *mf = &xt->xct_child[magix_field];
 
-	C2_PRE(magix_field < xt->xct_nr);
-	C2_PRE(xt->xct_aggr == C2_XA_RECORD);
-	C2_PRE(mf->xf_type == &C2_XT_U64);
+	M0_PRE(magix_field < xt->xct_nr);
+	M0_PRE(xt->xct_aggr == M0_XA_RECORD);
+	M0_PRE(mf->xf_type == &M0_XT_U64);
 
 	bt->bt_name         = xt->xct_name;
 	bt->bt_magix        = magix;
 	bt->bt_magix_offset = mf->xf_offset;
 }
 
-C2_INTERNAL void *c2_xcode_ctx_top(const struct c2_xcode_ctx *ctx)
+M0_INTERNAL void *m0_xcode_ctx_top(const struct m0_xcode_ctx *ctx)
 {
 	return ctx->xcx_it.xcu_stack[0].s_obj.xo_ptr;
 }
 
-const struct c2_xcode_type C2_XT_VOID = {
-	.xct_aggr   = C2_XA_ATOM,
+const struct m0_xcode_type M0_XT_VOID = {
+	.xct_aggr   = M0_XA_ATOM,
 	.xct_name   = "void",
-	.xct_atype  = C2_XAT_VOID,
+	.xct_atype  = M0_XAT_VOID,
 	.xct_sizeof = 0,
 	.xct_nr     = 0
 };
 
-const struct c2_xcode_type C2_XT_U8 = {
-	.xct_aggr   = C2_XA_ATOM,
+const struct m0_xcode_type M0_XT_U8 = {
+	.xct_aggr   = M0_XA_ATOM,
 	.xct_name   = "u8",
-	.xct_atype  = C2_XAT_U8,
+	.xct_atype  = M0_XAT_U8,
 	.xct_sizeof = sizeof(uint8_t),
 	.xct_nr     = 0
 };
 
-const struct c2_xcode_type C2_XT_U32 = {
-	.xct_aggr   = C2_XA_ATOM,
+const struct m0_xcode_type M0_XT_U32 = {
+	.xct_aggr   = M0_XA_ATOM,
 	.xct_name   = "u32",
-	.xct_atype  = C2_XAT_U32,
+	.xct_atype  = M0_XAT_U32,
 	.xct_sizeof = sizeof(uint32_t),
 	.xct_nr     = 0
 };
 
-const struct c2_xcode_type C2_XT_U64 = {
-	.xct_aggr   = C2_XA_ATOM,
+const struct m0_xcode_type M0_XT_U64 = {
+	.xct_aggr   = M0_XA_ATOM,
 	.xct_name   = "u64",
-	.xct_atype  = C2_XAT_U64,
+	.xct_atype  = M0_XAT_U64,
 	.xct_sizeof = sizeof(uint64_t),
 	.xct_nr     = 0
 };
 
-const struct c2_xcode_type C2_XT_OPAQUE = {
-	.xct_aggr   = C2_XA_OPAQUE,
+const struct m0_xcode_type M0_XT_OPAQUE = {
+	.xct_aggr   = M0_XA_OPAQUE,
 	.xct_name   = "opaque",
 	.xct_sizeof = sizeof (void *),
 	.xct_nr     = 0
 };
 
-const char *c2_xcode_aggr_name[C2_XA_NR] = {
-	[C2_XA_RECORD]   = "record",
-	[C2_XA_UNION]    = "union",
-	[C2_XA_SEQUENCE] = "sequence",
-	[C2_XA_TYPEDEF]  = "typedef",
-	[C2_XA_OPAQUE]   = "opaque",
-	[C2_XA_ATOM]     = "atom"
+const char *m0_xcode_aggr_name[M0_XA_NR] = {
+	[M0_XA_RECORD]   = "record",
+	[M0_XA_UNION]    = "union",
+	[M0_XA_SEQUENCE] = "sequence",
+	[M0_XA_TYPEDEF]  = "typedef",
+	[M0_XA_OPAQUE]   = "opaque",
+	[M0_XA_ATOM]     = "atom"
 };
 
-const char *c2_xcode_atom_type_name[C2_XAT_NR] = {
-	[C2_XAT_VOID] = "void",
-	[C2_XAT_U8]   = "u8",
-	[C2_XAT_U32]  = "u32",
-	[C2_XAT_U64]  = "u64",
+const char *m0_xcode_atom_type_name[M0_XAT_NR] = {
+	[M0_XAT_VOID] = "void",
+	[M0_XAT_U8]   = "u8",
+	[M0_XAT_U32]  = "u32",
+	[M0_XAT_U64]  = "u64",
 };
 
-const char *c2_xcode_endianness_name[C2_XEND_NR] = {
-	[C2_XEND_LE] = "le",
-	[C2_XEND_BE] = "be"
+const char *m0_xcode_endianness_name[M0_XEND_NR] = {
+	[M0_XEND_LE] = "le",
+	[M0_XEND_BE] = "be"
 };
 
-const char *c2_xcode_cursor_flag_name[C2_XCODE_CURSOR_NR] = {
-	[C2_XCODE_CURSOR_NONE] = "none",
-	[C2_XCODE_CURSOR_PRE]  = "pre",
-	[C2_XCODE_CURSOR_IN]   = "in",
-	[C2_XCODE_CURSOR_POST] = "post"
+const char *m0_xcode_cursor_flag_name[M0_XCODE_CURSOR_NR] = {
+	[M0_XCODE_CURSOR_NONE] = "none",
+	[M0_XCODE_CURSOR_PRE]  = "pre",
+	[M0_XCODE_CURSOR_IN]   = "in",
+	[M0_XCODE_CURSOR_POST] = "post"
 };
 
 /** @} end of xcode group */

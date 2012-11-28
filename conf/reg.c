@@ -19,8 +19,8 @@
  */
 
 #include "conf/reg.h"
-#include "conf/obj_ops.h"   /* c2_conf_obj_delete */
-#include "colibri/magic.h"  /* C2_CONF_OBJ_MAGIC, C2_CONF_REG_MAGIC */
+#include "conf/obj_ops.h"   /* m0_conf_obj_delete */
+#include "mero/magic.h"  /* M0_CONF_OBJ_MAGIC, M0_CONF_REG_MAGIC */
 #include "lib/errno.h"      /* EEXIST */
 
 /**
@@ -34,66 +34,66 @@
  * @{
  */
 
-C2_TL_DESCR_DEFINE(c2_conf_reg, "registered c2_conf_obj-s", C2_INTERNAL,
-		   struct c2_conf_obj, co_reg_link, co_gen_magic,
-		   C2_CONF_OBJ_MAGIC, C2_CONF_REG_MAGIC);
-C2_TL_DEFINE(c2_conf_reg, C2_INTERNAL, struct c2_conf_obj);
+M0_TL_DESCR_DEFINE(m0_conf_reg, "registered m0_conf_obj-s", M0_INTERNAL,
+		   struct m0_conf_obj, co_reg_link, co_gen_magic,
+		   M0_CONF_OBJ_MAGIC, M0_CONF_REG_MAGIC);
+M0_TL_DEFINE(m0_conf_reg, M0_INTERNAL, struct m0_conf_obj);
 
-C2_INTERNAL void c2_conf_reg_init(struct c2_conf_reg *reg)
+M0_INTERNAL void m0_conf_reg_init(struct m0_conf_reg *reg)
 {
-	c2_conf_reg_tlist_init(&reg->r_objs);
+	m0_conf_reg_tlist_init(&reg->r_objs);
 }
 
-C2_INTERNAL int c2_conf_reg_add(struct c2_conf_reg *reg,
-				struct c2_conf_obj *obj)
+M0_INTERNAL int m0_conf_reg_add(struct m0_conf_reg *reg,
+				struct m0_conf_obj *obj)
 {
-	const struct c2_conf_obj *x;
-	C2_PRE(!c2_conf_reg_tlink_is_in(obj));
+	const struct m0_conf_obj *x;
+	M0_PRE(!m0_conf_reg_tlink_is_in(obj));
 
-	x = c2_conf_reg_lookup(reg, obj->co_type, &obj->co_id);
+	x = m0_conf_reg_lookup(reg, obj->co_type, &obj->co_id);
 	if (x == NULL) {
-		c2_conf_reg_tlist_add(&reg->r_objs, obj);
+		m0_conf_reg_tlist_add(&reg->r_objs, obj);
 		return 0;
 	}
 	return -EEXIST;
 }
 
-C2_INTERNAL struct c2_conf_obj *c2_conf_reg_lookup(const struct c2_conf_reg
+M0_INTERNAL struct m0_conf_obj *m0_conf_reg_lookup(const struct m0_conf_reg
 						   *reg,
-						   enum c2_conf_objtype type,
-						   const struct c2_buf *id)
+						   enum m0_conf_objtype type,
+						   const struct m0_buf *id)
 {
-	struct c2_conf_obj *obj;
+	struct m0_conf_obj *obj;
 
-	c2_tl_for(c2_conf_reg, &reg->r_objs, obj) {
-		if (obj->co_type == type && c2_buf_eq(&obj->co_id, id))
+	m0_tl_for(m0_conf_reg, &reg->r_objs, obj) {
+		if (obj->co_type == type && m0_buf_eq(&obj->co_id, id))
 			break;
-	} c2_tl_endfor;
+	} m0_tl_endfor;
 
 	return obj;
 }
 
-C2_INTERNAL void c2_conf_reg_del(const struct c2_conf_reg *reg,
-				 struct c2_conf_obj *obj)
+M0_INTERNAL void m0_conf_reg_del(const struct m0_conf_reg *reg,
+				 struct m0_conf_obj *obj)
 {
-	C2_PRE(c2_conf_reg_tlist_contains(&reg->r_objs, obj));
-	c2_conf_reg_tlist_del(obj);
+	M0_PRE(m0_conf_reg_tlist_contains(&reg->r_objs, obj));
+	m0_conf_reg_tlist_del(obj);
 }
 
-C2_INTERNAL void c2_conf_reg_fini(struct c2_conf_reg *reg)
+M0_INTERNAL void m0_conf_reg_fini(struct m0_conf_reg *reg)
 {
-	struct c2_conf_obj *obj;
+	struct m0_conf_obj *obj;
 
-	c2_tl_for(c2_conf_reg, &reg->r_objs, obj) {
-		c2_conf_reg_tlist_del(obj);
+	m0_tl_for(m0_conf_reg, &reg->r_objs, obj) {
+		m0_conf_reg_tlist_del(obj);
 
 		/* Don't let concrete invariants check relations. */
 		obj->co_mounted = false;
 
-		c2_conf_obj_delete(obj);
-	} c2_tl_endfor;
+		m0_conf_obj_delete(obj);
+	} m0_tl_endfor;
 
-	c2_conf_reg_tlist_fini(&reg->r_objs);
+	m0_conf_reg_tlist_fini(&reg->r_objs);
 }
 
 /** @} conf_dlspec_reg */

@@ -34,7 +34,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/misc.h"   /* M0_SET0 */
 
 #ifndef SIG_PF
 #define SIG_PF void(*)(int)
@@ -44,14 +44,14 @@ static void
 plprog_1(struct svc_req *rqstp, register SVCXPRT *transp)
 {
 	union {
-		struct c2_pl_ping ping_1_arg;
-		struct c2_pl_config setconfig_1_arg;
-		struct c2_pl_config getconfig_1_arg;
+		struct m0_pl_ping ping_1_arg;
+		struct m0_pl_config setconfig_1_arg;
+		struct m0_pl_config getconfig_1_arg;
 	} argument;
 	union {
-		struct c2_pl_ping_res ping_1_res;
-		struct c2_pl_config_res setconfig_1_res;
-		struct c2_pl_config_res getconfig_1_res;
+		struct m0_pl_ping_res ping_1_res;
+		struct m0_pl_config_res setconfig_1_res;
+		struct m0_pl_config_res getconfig_1_res;
 	} result;
 	bool_t retval;
 	xdrproc_t _xdr_argument, _xdr_result;
@@ -63,20 +63,20 @@ plprog_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		return;
 
 	case PING:
-		_xdr_argument = (xdrproc_t) xdr_c2_pl_ping;
-		_xdr_result = (xdrproc_t) xdr_c2_pl_ping_res;
+		_xdr_argument = (xdrproc_t) xdr_m0_pl_ping;
+		_xdr_result = (xdrproc_t) xdr_m0_pl_ping_res;
 		local = (bool_t (*) (char *, void *,  struct svc_req *))ping_1_svc;
 		break;
 
 	case SETCONFIG:
-		_xdr_argument = (xdrproc_t) xdr_c2_pl_config;
-		_xdr_result = (xdrproc_t) xdr_c2_pl_config_res;
+		_xdr_argument = (xdrproc_t) xdr_m0_pl_config;
+		_xdr_result = (xdrproc_t) xdr_m0_pl_config_res;
 		local = (bool_t (*) (char *, void *,  struct svc_req *))setconfig_1_svc;
 		break;
 
 	case GETCONFIG:
-		_xdr_argument = (xdrproc_t) xdr_c2_pl_config;
-		_xdr_result = (xdrproc_t) xdr_c2_pl_config_res;
+		_xdr_argument = (xdrproc_t) xdr_m0_pl_config;
+		_xdr_result = (xdrproc_t) xdr_m0_pl_config_res;
 		local = (bool_t (*) (char *, void *,  struct svc_req *))getconfig_1_svc;
 		break;
 
@@ -84,7 +84,7 @@ plprog_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		svcerr_noproc (transp);
 		return;
 	}
-	C2_SET0(&argument);
+	M0_SET0(&argument);
 	if (!svc_getargs (transp, (xdrproc_t) _xdr_argument, (caddr_t) &argument)) {
 		svcerr_decode (transp);
 		return;

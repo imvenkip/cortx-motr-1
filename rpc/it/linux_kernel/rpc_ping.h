@@ -19,10 +19,10 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_IT_RPC_PING_H__
-#define __COLIBRI_RPC_IT_RPC_PING_H__
+#ifndef __MERO_RPC_IT_RPC_PING_H__
+#define __MERO_RPC_IT_RPC_PING_H__
 
-int c2_rpc_ping_init(void);
-C2_INTERNAL void c2_rpc_ping_fini(void);
+int m0_rpc_ping_init(void);
+M0_INTERNAL void m0_rpc_ping_fini(void);
 
-#endif /* __COLIBRI_RPC_IT_RPC_PING_H__ */
+#endif /* __MERO_RPC_IT_RPC_PING_H__ */

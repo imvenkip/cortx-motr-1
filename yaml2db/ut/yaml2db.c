@@ -42,10 +42,10 @@ static const char parse_dump_fname[] = "parse.txt";
 static const char emit_dump_fname[] = "emit.txt";
 
 /* Global yaml2db context */
-static struct c2_yaml2db_ctx yctx;
+static struct m0_yaml2db_ctx yctx;
 
 /* Static declaration of device section keys array */
-static struct c2_yaml2db_section_key dev_section_keys[] = {
+static struct m0_yaml2db_section_key dev_section_keys[] = {
 	/* Mandatory keys */
         [0] = {"label", true},
         [1] = {"interface", true},
@@ -59,14 +59,14 @@ static struct c2_yaml2db_section_key dev_section_keys[] = {
 };
 
 /* Static declaration of device section table */
-static struct c2_yaml2db_section dev_section = {
+static struct m0_yaml2db_section dev_section = {
         .ys_table_name = "dev_table",
-        .ys_table_ops = &c2_cfg_storage_device_table_ops,
-        .ys_section_type = C2_YAML_TYPE_MAPPING,
+        .ys_table_ops = &m0_cfg_storage_device_table_ops,
+        .ys_section_type = M0_YAML_TYPE_MAPPING,
         .ys_num_keys = ARRAY_SIZE(dev_section_keys),
         .ys_valid_keys = dev_section_keys,
         .ys_key_str = "label",
-        .ys_ops = &c2_yaml2db_dev_section_ops,
+        .ys_ops = &m0_yaml2db_dev_section_ops,
 };
 
 static const char *interface_fields[] = {
@@ -113,7 +113,7 @@ static int generate_conf_file(const char *c_name, int rec_nr,
         int      index;
         char     str[STR_SIZE_NR];
 
-        C2_PRE(c_name != NULL);
+        M0_PRE(c_name != NULL);
 
         fp = fopen(c_name, "a");
         if (fp == NULL) {
@@ -183,41 +183,41 @@ static void mandatory_fields_absent(void)
 {
 	int                   rc;
         char                  str[STR_SIZE_NR];
-	struct c2_ut_redirect redir;
+	struct m0_ut_redirect redir;
 
-	c2_stream_redirect(stderr, f_err_fname, &redir);
+	m0_stream_redirect(stderr, f_err_fname, &redir);
 
 	/* Do not skip optional fields.
 	   Skip mandatory fields and expect error */
 	rc = generate_conf_file(f_name, REC_NR, true, false);
-	C2_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 
-	C2_SET0(&yctx);
+	M0_SET0(&yctx);
 
 	yctx.yc_cname = f_name;
 	yctx.yc_dpath = f_path;
-	yctx.yc_type = C2_YAML2DB_CTX_PARSER;
+	yctx.yc_type = M0_YAML2DB_CTX_PARSER;
 
 	/* Reset any existing database */
-	rc = c2_ut_db_reset(f_path);
-	C2_UT_ASSERT(rc == 0);
+	rc = m0_ut_db_reset(f_path);
+	M0_UT_ASSERT(rc == 0);
 
-	rc = c2_yaml2db_init(&yctx);
-	C2_UT_ASSERT(rc == 0);
+	rc = m0_yaml2db_init(&yctx);
+	M0_UT_ASSERT(rc == 0);
 
-	rc = c2_yaml2db_doc_load(&yctx);
-	C2_UT_ASSERT(rc == 0);
+	rc = m0_yaml2db_doc_load(&yctx);
+	M0_UT_ASSERT(rc == 0);
 
-	rc = c2_yaml2db_conf_load(&yctx, &dev_section, dev_str);
-	C2_UT_ASSERT(rc == -EINVAL);
+	rc = m0_yaml2db_conf_load(&yctx, &dev_section, dev_str);
+	M0_UT_ASSERT(rc == -EINVAL);
 
 	rewind(stderr);
-	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, stderr) != NULL);
-	C2_UT_ASSERT(strstr(str, "Error: Mandatory key not present") != NULL);
+	M0_UT_ASSERT(fgets(str, STR_SIZE_NR, stderr) != NULL);
+	M0_UT_ASSERT(strstr(str, "Error: Mandatory key not present") != NULL);
 
-	c2_stream_restore(&redir);
+	m0_stream_restore(&redir);
 
-	c2_yaml2db_fini(&yctx);
+	m0_yaml2db_fini(&yctx);
 }
 
 /*
@@ -229,28 +229,28 @@ static void optional_fields_absent(void)
 
 	/* Do not skip mandatory fields. Skip optional fields */
         rc = generate_conf_file(ma_name, REC_NR, false, true);
-        C2_UT_ASSERT(rc == 0);
+        M0_UT_ASSERT(rc == 0);
 
-	C2_SET0(&yctx);
+	M0_SET0(&yctx);
 
         yctx.yc_cname = ma_name;
         yctx.yc_dpath = ma_path;
-	yctx.yc_type = C2_YAML2DB_CTX_PARSER;
+	yctx.yc_type = M0_YAML2DB_CTX_PARSER;
 
 	/* Reset any existing database */
-	rc = c2_ut_db_reset(ma_path);
-	C2_UT_ASSERT(rc == 0);
+	rc = m0_ut_db_reset(ma_path);
+	M0_UT_ASSERT(rc == 0);
 
-        rc = c2_yaml2db_init(&yctx);
-        C2_UT_ASSERT(rc == 0);
+        rc = m0_yaml2db_init(&yctx);
+        M0_UT_ASSERT(rc == 0);
 
-        rc = c2_yaml2db_doc_load(&yctx);
-        C2_UT_ASSERT(rc == 0);
+        rc = m0_yaml2db_doc_load(&yctx);
+        M0_UT_ASSERT(rc == 0);
 
-        rc = c2_yaml2db_conf_load(&yctx, &dev_section, dev_str);
-        C2_UT_ASSERT(rc == 0);
+        rc = m0_yaml2db_conf_load(&yctx, &dev_section, dev_str);
+        M0_UT_ASSERT(rc == 0);
 
-        c2_yaml2db_fini(&yctx);
+        m0_yaml2db_fini(&yctx);
 }
 
 /*
@@ -263,30 +263,30 @@ static void optional_fields_present(void)
 
 	/* Do not skip mandatory as well as optional fields */
 	rc = generate_conf_file(mp_name, REC_NR, false, false);
-        C2_UT_ASSERT(rc == 0);
+        M0_UT_ASSERT(rc == 0);
 
-	C2_SET0(&yctx);
+	M0_SET0(&yctx);
 
         yctx.yc_cname = mp_name;
         yctx.yc_dpath = mp_path;
 	yctx.yc_dump_kv = true;
 	yctx.yc_dump_fname = parse_dump_fname;
-	yctx.yc_type = C2_YAML2DB_CTX_PARSER;
+	yctx.yc_type = M0_YAML2DB_CTX_PARSER;
 
 	/* Reset any existing database */
-	rc = c2_ut_db_reset(mp_path);
-	C2_UT_ASSERT(rc == 0);
+	rc = m0_ut_db_reset(mp_path);
+	M0_UT_ASSERT(rc == 0);
 
-        rc = c2_yaml2db_init(&yctx);
-        C2_UT_ASSERT(rc == 0);
+        rc = m0_yaml2db_init(&yctx);
+        M0_UT_ASSERT(rc == 0);
 
-        rc = c2_yaml2db_doc_load(&yctx);
-        C2_UT_ASSERT(rc == 0);
+        rc = m0_yaml2db_doc_load(&yctx);
+        M0_UT_ASSERT(rc == 0);
 
-        rc = c2_yaml2db_conf_load(&yctx, &dev_section, dev_str);
-        C2_UT_ASSERT(rc == 0);
+        rc = m0_yaml2db_conf_load(&yctx, &dev_section, dev_str);
+        M0_UT_ASSERT(rc == 0);
 
-        c2_yaml2db_fini(&yctx);
+        m0_yaml2db_fini(&yctx);
 }
 
 /*
@@ -299,25 +299,25 @@ static void emit_verify(void)
 	int  rc;
         char str[STR_SIZE_NR];
 
-	C2_SET0(&yctx);
+	M0_SET0(&yctx);
 
 	yctx.yc_dpath = mp_path;
 	yctx.yc_dump_kv = true;
 	yctx.yc_dump_fname = emit_dump_fname;
-	yctx.yc_type = C2_YAML2DB_CTX_EMITTER;
+	yctx.yc_type = M0_YAML2DB_CTX_EMITTER;
 
-	rc = c2_yaml2db_init(&yctx);
-	C2_UT_ASSERT(rc == 0);
+	rc = m0_yaml2db_init(&yctx);
+	M0_UT_ASSERT(rc == 0);
 
-	rc = c2_yaml2db_conf_emit(&yctx, &dev_section, dev_str);
-	C2_UT_ASSERT(rc == 0);
+	rc = m0_yaml2db_conf_emit(&yctx, &dev_section, dev_str);
+	M0_UT_ASSERT(rc == 0);
 
-	c2_yaml2db_fini(&yctx);
+	m0_yaml2db_fini(&yctx);
 
 	/* Take diff of the dumps generated from parsing and emitting ops */
 	sprintf(str, "diff %s %s", parse_dump_fname, emit_dump_fname);
 	rc = system (str);
-	C2_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 }
 
 /* Parser error types */
@@ -333,10 +333,10 @@ static int generate_dirty_conf_file(const char *c_name,
 	FILE *fp;
 	char  p = '%';
 
-	C2_PRE(c_name != NULL);
+	M0_PRE(c_name != NULL);
 
 	fp = fopen(c_name, "a");
-	C2_UT_ASSERT(fp != NULL);
+	M0_UT_ASSERT(fp != NULL);
 
 	switch(etype) {
 	case(SCANNER_ERROR):
@@ -350,7 +350,7 @@ static int generate_dirty_conf_file(const char *c_name,
 	case(READER_ERROR):
 		break;
 	default:
-		C2_IMPOSSIBLE("Invalid error type");
+		M0_IMPOSSIBLE("Invalid error type");
 	}
 
 	fclose(fp);
@@ -364,33 +364,33 @@ static void scanner_error_detect(void)
 {
 	int                   rc;
 	char	              str[STR_SIZE_NR];
-	struct c2_ut_redirect redir;
+	struct m0_ut_redirect redir;
 
-	c2_stream_redirect(stderr, s_err_fname, &redir);
+	m0_stream_redirect(stderr, s_err_fname, &redir);
 
 	rc = generate_dirty_conf_file(s_name, SCANNER_ERROR);
-	C2_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 
 	yctx.yc_cname = s_name;
 	yctx.yc_dpath = s_path;
 
 	/* Reset any existing database */
-	rc = c2_ut_db_reset(s_path);
-	C2_UT_ASSERT(rc == 0);
+	rc = m0_ut_db_reset(s_path);
+	M0_UT_ASSERT(rc == 0);
 
-	rc = c2_yaml2db_init(&yctx);
-	C2_UT_ASSERT(rc == 0);
+	rc = m0_yaml2db_init(&yctx);
+	M0_UT_ASSERT(rc == 0);
 
-	rc = c2_yaml2db_doc_load(&yctx);
-	C2_UT_ASSERT(rc != 0);
+	rc = m0_yaml2db_doc_load(&yctx);
+	M0_UT_ASSERT(rc != 0);
 
 	rewind(stderr);
-	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, stderr) != NULL);
-	C2_UT_ASSERT(strstr(str, "Scanner error") != NULL);
+	M0_UT_ASSERT(fgets(str, STR_SIZE_NR, stderr) != NULL);
+	M0_UT_ASSERT(strstr(str, "Scanner error") != NULL);
 
-	c2_stream_restore(&redir);
+	m0_stream_restore(&redir);
 
-	c2_yaml2db_fini(&yctx);
+	m0_yaml2db_fini(&yctx);
 }
 
 /* Introduce a parser error and check if the corresponding error is displayed
@@ -399,36 +399,36 @@ static void parser_error_detect(void)
 {
 	int                   rc;
 	char	              str[STR_SIZE_NR];
-	struct c2_ut_redirect redir;
+	struct m0_ut_redirect redir;
 
-	c2_stream_redirect(stderr, p_err_fname, &redir);
+	m0_stream_redirect(stderr, p_err_fname, &redir);
 
 	rc = generate_dirty_conf_file(p_name, PARSER_ERROR);
-	C2_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 
 	yctx.yc_cname = p_name;
 	yctx.yc_dpath = p_path;
 
 	/* Reset any existing database */
-	rc = c2_ut_db_reset(p_path);
-	C2_UT_ASSERT(rc == 0);
+	rc = m0_ut_db_reset(p_path);
+	M0_UT_ASSERT(rc == 0);
 
-	rc = c2_yaml2db_init(&yctx);
-	C2_UT_ASSERT(rc == 0);
+	rc = m0_yaml2db_init(&yctx);
+	M0_UT_ASSERT(rc == 0);
 
-	rc = c2_yaml2db_doc_load(&yctx);
-	C2_UT_ASSERT(rc != 0);
+	rc = m0_yaml2db_doc_load(&yctx);
+	M0_UT_ASSERT(rc != 0);
 
 	rewind(stderr);
-	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, stderr) != NULL);
-	C2_UT_ASSERT(strstr(str, "Parser error") != NULL);
+	M0_UT_ASSERT(fgets(str, STR_SIZE_NR, stderr) != NULL);
+	M0_UT_ASSERT(strstr(str, "Parser error") != NULL);
 
-	c2_stream_restore(&redir);
+	m0_stream_restore(&redir);
 
-	c2_yaml2db_fini(&yctx);
+	m0_yaml2db_fini(&yctx);
 }
 
-const struct c2_test_suite yaml2db_ut = {
+const struct m0_test_suite yaml2db_ut = {
 	.ts_name = "yaml2db-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,

@@ -18,8 +18,8 @@
  * Original creation date: 16-Mar-2012
  */
 #pragma once
-#ifndef __COLIBRI_CONF_PRELOAD_H__
-#define __COLIBRI_CONF_PRELOAD_H__
+#ifndef __MERO_CONF_PRELOAD_H__
+#define __MERO_CONF_PRELOAD_H__
 
 #include "lib/types.h" /* size_t */
 
@@ -43,7 +43,7 @@ struct confx_object;
  *
  * The application pre-loads confc cache by passing textual
  * description of configuration objects -- so called configuration
- * string -- to c2_confc_init() via `local_conf' parameter.
+ * string -- to m0_confc_init() via `local_conf' parameter.
  *
  * When confc API is used by a kernel module, configuration string is
  * provided via mount(8) option.
@@ -52,7 +52,7 @@ struct confx_object;
  * @subsection conf-fspec-preload-string-format Format
  *
  * The format of configuration string corresponds to the format of
- * string argument of c2_xcode_read() function.
+ * string argument of m0_xcode_read() function.
  *
  * The acceptable TAGs are enumerated in struct confx_u.
  *
@@ -60,10 +60,10 @@ struct confx_object;
  * to their order in the corresponding confx_* structure.
  *
  * Object relations are expressed via object ids.  Directory objects
- * (c2_conf_dir) are not included in a configuration string --- they
+ * (m0_conf_dir) are not included in a configuration string --- they
  * are created dynamically by a configuration module.
  *
- * c2_conf_parse() translates configuration string into an array of
+ * m0_conf_parse() translates configuration string into an array of
  * confx_objects.
  *
  * E.g., the following configuration string
@@ -82,19 +82,19 @@ struct confx_object;
  *
  * @code
  * struct confx_object a = {
- *         .o_id = C2_BUF_INITS("prof"),
+ *         .o_id = M0_BUF_INITS("prof"),
  *         .o_conf = {
- *                 .u_type = C2_CO_PROFILE,
+ *                 .u_type = M0_CO_PROFILE,
  *                 .u.u_profile = {
- *                         .xp_filesystem = C2_BUF_INITS("fs")
+ *                         .xp_filesystem = M0_BUF_INITS("fs")
  *                 }
  *         }
  * };
  *
  * struct confx_object b = {
- *         .o_id = C2_BUF_INITS("fs"),
+ *         .o_id = M0_BUF_INITS("fs"),
  *         .o_conf = {
- *                 .u_type = C2_CO_FILESYSTEM,
+ *                 .u_type = M0_CO_FILESYSTEM,
  *                 .u.u_filesystem = {
  *                         .xp_rootfid = {
  *                                 .f_container = 11,
@@ -103,10 +103,10 @@ struct confx_object;
  *                         .xp_params = {
  *                                 .an_count = 4,
  *                                 .an_elems = {
- *                                         C2_BUF_INITS("pool_width=3"),
- *                                         C2_BUF_INITS("nr_data_units=1"),
- *                                         C2_BUF_INITS("nr_parity_units=1"),
- *                                         C2_BUF_INITS("unit_size=4096")
+ *                                         M0_BUF_INITS("pool_width=3"),
+ *                                         M0_BUF_INITS("nr_data_units=1"),
+ *                                         M0_BUF_INITS("nr_parity_units=1"),
+ *                                         M0_BUF_INITS("unit_size=4096")
  *                                 }
  *                         },
  *                         .xp_services = { .ab_count = 0, .ab_elems = NULL }
@@ -145,25 +145,25 @@ struct confx_object;
  *
  * @post  retval <= n
  *
- * @note  In addition to filling `dest' array, c2_conf_parse()
+ * @note  In addition to filling `dest' array, m0_conf_parse()
  *        allocates some memory from the heap. This memory is freed by
- *        c2_confx_fini(); the user is responsible for making sure
- *        c2_confx_fini() is called eventually.
+ *        m0_confx_fini(); the user is responsible for making sure
+ *        m0_confx_fini() is called eventually.
  *
- * @see c2_confx_fini()
+ * @see m0_confx_fini()
  */
-C2_INTERNAL int c2_conf_parse(const char *src, struct confx_object *dest,
+M0_INTERNAL int m0_conf_parse(const char *src, struct confx_object *dest,
 			      size_t n);
 
 /**
- * Frees the memory, dynamically allocated by c2_conf_parse().
+ * Frees the memory, dynamically allocated by m0_conf_parse().
  *
  * @param xobjs  Array of confx_objects.
  * @param n      Number of elements in `xobjs'.
  *
- * @see c2_conf_parse()
+ * @see m0_conf_parse()
  */
-C2_INTERNAL void c2_confx_fini(struct confx_object *xobjs, size_t n);
+M0_INTERNAL void m0_confx_fini(struct confx_object *xobjs, size_t n);
 
 /**
  * Counts confx_objects encoded in a string.
@@ -173,7 +173,7 @@ C2_INTERNAL void c2_confx_fini(struct confx_object *xobjs, size_t n);
  * @returns >= 0  The number of confx_objects found.
  * @returns  < 0  Error code.
  */
-C2_INTERNAL size_t c2_confx_obj_nr(const char *src);
+M0_INTERNAL size_t m0_confx_obj_nr(const char *src);
 
 /** @} conf_dfspec_preload */
-#endif /* __COLIBRI_CONF_PRELOAD_H__ */
+#endif /* __MERO_CONF_PRELOAD_H__ */

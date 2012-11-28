@@ -21,7 +21,7 @@
 #include <setjmp.h>    /* setjmp() and longjmp() */
 #include <stdlib.h>    /* abort(3) */
 #include "lib/thread.h"
-#include "lib/misc.h"  /* C2_SET0 */
+#include "lib/misc.h"  /* M0_SET0 */
 #include "lib/errno.h" /* errno */
 
 /**
@@ -49,7 +49,7 @@ static void sigsegv(int sig)
  * Checks the validity of an address by dereferencing the same. Occurrence of
  * an error in case of an invalid address gets handled by the function sigsegv().
  */
-C2_INTERNAL bool c2_arch_addr_is_sane(const void *addr)
+M0_INTERNAL bool m0_arch_addr_is_sane(const void *addr)
 {
 	jmp_buf           buf;
 	volatile uint64_t dummy;
@@ -57,7 +57,7 @@ C2_INTERNAL bool c2_arch_addr_is_sane(const void *addr)
 	bool              result;
 
 	ret = pthread_setspecific(addr_check_key, &buf);
-	C2_ASSERT(ret == 0);
+	M0_ASSERT(ret == 0);
 	ret = setjmp(buf);
 	if (ret == 0) {
 		dummy = *(uint64_t *)addr;
@@ -65,20 +65,20 @@ C2_INTERNAL bool c2_arch_addr_is_sane(const void *addr)
 	} else
 		result = false;
 	ret = pthread_setspecific(addr_check_key, NULL);
-	C2_ASSERT(ret == 0);
+	M0_ASSERT(ret == 0);
 	return result;
 }
 
 /**
  * Sets up the signal handler for SIGSEGV to the function sigsegv.
- * Creates a pthread_key to be used in the function c2_arch_addr_is_sane.
+ * Creates a pthread_key to be used in the function m0_arch_addr_is_sane.
  */
-C2_INTERNAL int c2_arch_cookie_global_init(void)
+M0_INTERNAL int m0_arch_cookie_global_init(void)
 {
 	int		 ret;
 	struct sigaction sa_sigsegv;
 
-	C2_SET0(&sa_sigsegv);
+	M0_SET0(&sa_sigsegv);
 	sa_sigsegv.sa_handler = sigsegv;
 	sa_sigsegv.sa_flags = SA_NODEFER;
 	ret = sigemptyset(&sa_sigsegv.sa_mask);
@@ -94,19 +94,19 @@ C2_INTERNAL int c2_arch_cookie_global_init(void)
  * Sets the signal handler for SIGSEGV to the default signal handler. Deletes
  * pthread_key.
  */
-C2_INTERNAL void c2_arch_cookie_global_fini(void)
+M0_INTERNAL void m0_arch_cookie_global_fini(void)
 {
 	struct sigaction sa_sigsegv;
 	int              ret;
 
-	C2_SET0(&sa_sigsegv);
+	M0_SET0(&sa_sigsegv);
 	sa_sigsegv.sa_handler = SIG_DFL;
 	ret = sigemptyset(&sa_sigsegv.sa_mask);
-	C2_ASSERT(ret == 0);
+	M0_ASSERT(ret == 0);
 	ret = sigaction(SIGSEGV, &sa_sigsegv, NULL);
-	C2_ASSERT(ret == 0);
+	M0_ASSERT(ret == 0);
 	ret = pthread_key_delete(addr_check_key);
-	C2_ASSERT(ret == 0);
+	M0_ASSERT(ret == 0);
 }
 
 /** @} end of cookie group */

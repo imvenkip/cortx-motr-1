@@ -23,34 +23,34 @@
  * @{
  */
 
-#include "lib/misc.h"              /* C2_SET0 */
+#include "lib/misc.h"              /* M0_SET0 */
 #include "dtm/dtm.h"
 
-C2_INTERNAL void c2_dtx_init(struct c2_dtx *tx)
+M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx)
 {
-	C2_SET0(tx);
-	tx->tx_state = C2_DTX_INIT;
+	M0_SET0(tx);
+	tx->tx_state = M0_DTX_INIT;
 }
 
-C2_INTERNAL int c2_dtx_open(struct c2_dtx *tx, struct c2_dbenv *env)
+M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env)
 {
 	int result;
 
-	C2_PRE(tx->tx_state == C2_DTX_INIT);
+	M0_PRE(tx->tx_state == M0_DTX_INIT);
 
-	result = c2_db_tx_init(&tx->tx_dbtx, env, 0);
+	result = m0_db_tx_init(&tx->tx_dbtx, env, 0);
 	if (result == 0)
-		tx->tx_state = C2_DTX_OPEN;
+		tx->tx_state = M0_DTX_OPEN;
 	return result;
 }
 
-C2_INTERNAL void c2_dtx_done(struct c2_dtx *tx)
+M0_INTERNAL void m0_dtx_done(struct m0_dtx *tx)
 {
-	C2_PRE(tx->tx_state == C2_DTX_INIT || tx->tx_state == C2_DTX_OPEN);
+	M0_PRE(tx->tx_state == M0_DTX_INIT || tx->tx_state == M0_DTX_OPEN);
 
-	if (tx->tx_state == C2_DTX_OPEN)
-		c2_db_tx_commit(&tx->tx_dbtx);
-	tx->tx_state = C2_DTX_DONE;
+	if (tx->tx_state == M0_DTX_OPEN)
+		m0_db_tx_commit(&tx->tx_dbtx);
+	tx->tx_state = M0_DTX_DONE;
 }
 
 /** @} end of dtm group */

@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_TEST_STR_H__
-#define __COLIBRI_NET_TEST_STR_H__
+#ifndef __MERO_NET_TEST_STR_H__
+#define __MERO_NET_TEST_STR_H__
 
 #include "net/test/serialize.h"
 
@@ -38,32 +38,32 @@
 
 enum {
 	/** NTSTRING @todo move to lib/magic.h */
-	C2_NET_TEST_STR_MAGIC = 0x474e49525453544e,
+	M0_NET_TEST_STR_MAGIC = 0x474e49525453544e,
 };
 
 /**
    Serialize or deserialize ASCIIZ string.
-   @pre op == C2_NET_TEST_SERIALIZE || op == C2_NET_TEST_DESERIALIZE
+   @pre op == M0_NET_TEST_SERIALIZE || op == M0_NET_TEST_DESERIALIZE
    @pre str != NULL
    @note str should be finalized after deserializing using
-   c2_net_test_str_fini() to prevent memory leak.
+   m0_net_test_str_fini() to prevent memory leak.
  */
-c2_bcount_t c2_net_test_str_serialize(enum c2_net_test_serialize_op op,
+m0_bcount_t m0_net_test_str_serialize(enum m0_net_test_serialize_op op,
 				      char **str,
-				      struct c2_bufvec *bv,
-				      c2_bcount_t bv_offset);
+				      struct m0_bufvec *bv,
+				      m0_bcount_t bv_offset);
 
 /**
-   Finalize c2_net_test_str.
-   @see c2_net_test_str_serialize().
+   Finalize m0_net_test_str.
+   @see m0_net_test_str_serialize().
  */
-void c2_net_test_str_fini(char **str);
+void m0_net_test_str_fini(char **str);
 
 /**
    @} end of NetTestStrDFS group
  */
 
-#endif /*  __COLIBRI_NET_TEST_STR_H__ */
+#endif /*  __MERO_NET_TEST_STR_H__ */
 
 /*
  *  Local variables:

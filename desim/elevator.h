@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_DESIM_ELEVATOR_H__
-#define __COLIBRI_DESIM_ELEVATOR_H__
+#ifndef __MERO_DESIM_ELEVATOR_H__
+#define __MERO_DESIM_ELEVATOR_H__
 
 #include "desim/sim.h"
 #include "desim/storage.h"
@@ -37,17 +37,17 @@
 struct elevator {
 	struct storage_dev *e_dev;
 	int                 e_idle;
-	struct c2_tl        e_queue;
+	struct m0_tl        e_queue;
 	struct sim_chan     e_wait;
 };
 
-C2_INTERNAL void elevator_init(struct elevator *el, struct storage_dev *dev);
-C2_INTERNAL void elevator_fini(struct elevator *el);
+M0_INTERNAL void elevator_init(struct elevator *el, struct storage_dev *dev);
+M0_INTERNAL void elevator_fini(struct elevator *el);
 
-C2_INTERNAL void elevator_io(struct elevator *el, enum storage_req_type type,
+M0_INTERNAL void elevator_io(struct elevator *el, enum storage_req_type type,
 			     sector_t sector, unsigned long count);
 
-#endif /* __COLIBRI_DESIM_ELEVATOR_H__ */
+#endif /* __MERO_DESIM_ELEVATOR_H__ */
 
 /** @} end of desim group */
 

@@ -18,25 +18,25 @@
  */
 
 #include "stob/stob_id.h"
-C2_INTERNAL bool c2_stob_id_eq(const struct c2_stob_id *id0,
-			       const struct c2_stob_id *id1)
+M0_INTERNAL bool m0_stob_id_eq(const struct m0_stob_id *id0,
+			       const struct m0_stob_id *id1)
 {
-	return c2_uint128_eq(&id0->si_bits, &id1->si_bits);
+	return m0_uint128_eq(&id0->si_bits, &id1->si_bits);
 }
 
-C2_INTERNAL int c2_stob_id_cmp(const struct c2_stob_id *id0,
-			       const struct c2_stob_id *id1)
+M0_INTERNAL int m0_stob_id_cmp(const struct m0_stob_id *id0,
+			       const struct m0_stob_id *id1)
 {
-	return c2_uint128_cmp(&id0->si_bits, &id1->si_bits);
+	return m0_uint128_cmp(&id0->si_bits, &id1->si_bits);
 }
 
-C2_INTERNAL bool c2_stob_id_is_set(const struct c2_stob_id *id)
+M0_INTERNAL bool m0_stob_id_is_set(const struct m0_stob_id *id)
 {
-	static const struct c2_stob_id zero = {
+	static const struct m0_stob_id zero = {
 		.si_bits = {
 			.u_hi = 0,
 			.u_lo = 0
 		}
 	};
-	return !c2_stob_id_eq(id, &zero);
+	return !m0_stob_id_eq(id, &zero);
 }

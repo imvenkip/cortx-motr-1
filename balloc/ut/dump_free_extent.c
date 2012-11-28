@@ -23,9 +23,9 @@
 #include <sys/time.h>
 #include <err.h>
 
-#include "dtm/dtm.h"      /* c2_dtx */
-#include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
-#include "lib/misc.h"     /* C2_SET0 */
+#include "dtm/dtm.h"      /* m0_dtx */
+#include "lib/arith.h"    /* M0_3WAY, m0_uint128 */
+#include "lib/misc.h"     /* M0_SET0 */
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/thread.h"
@@ -36,11 +36,11 @@
 
 int main(int argc, char **argv)
 {
-	struct c2_balloc     *colibri_balloc;
+	struct m0_balloc     *mero_balloc;
 	const char           *db_name;
-	struct c2_dbenv       db;
-	struct c2_dtx         dtx;
-	c2_bcount_t	      gn;
+	struct m0_dbenv       db;
+	struct m0_dtx         dtx;
+	m0_bcount_t	      gn;
 	int                   result;
 
 	if (argc != 3) {
@@ -50,37 +50,37 @@ int main(int argc, char **argv)
 	db_name = argv[1];
 	gn = atoll(argv[2]);
 
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_ASSERT(result == 0);
+	result = m0_dbenv_init(&db, db_name, 0);
+	M0_ASSERT(result == 0);
 
-	result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
-	C2_ASSERT(result == 0);
+	result = m0_db_tx_init(&dtx.tx_dbtx, &db, 0);
+	M0_ASSERT(result == 0);
 
-	c2_balloc_allocate(0, &colibri_balloc);
+	m0_balloc_allocate(0, &mero_balloc);
 
-	result = colibri_balloc->cb_ballroom.ab_ops->bo_init
-		(&colibri_balloc->cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
+	result = mero_balloc->cb_ballroom.ab_ops->bo_init
+		(&mero_balloc->cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
 		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
 		 BALLOC_DEF_RESERVED_GROUPS);
 
 	if (result == 0) {
-		struct c2_balloc_group_info *grp =
-			c2_balloc_gn2info(colibri_balloc, gn);
+		struct m0_balloc_group_info *grp =
+			m0_balloc_gn2info(mero_balloc, gn);
 		if (grp) {
-			c2_balloc_lock_group(grp);
-			result = c2_balloc_load_extents(
-				    colibri_balloc, grp, &dtx.tx_dbtx);
+			m0_balloc_lock_group(grp);
+			result = m0_balloc_load_extents(
+				    mero_balloc, grp, &dtx.tx_dbtx);
 			if (result == 0)
-				c2_balloc_debug_dump_group_extent(argv[0], grp);
-			c2_balloc_release_extents(grp);
-			c2_balloc_unlock_group(grp);
+				m0_balloc_debug_dump_group_extent(argv[0], grp);
+			m0_balloc_release_extents(grp);
+			m0_balloc_unlock_group(grp);
 		}
 	}
-	result = c2_db_tx_commit(&dtx.tx_dbtx);
-	C2_ASSERT(result == 0);
-	colibri_balloc->cb_ballroom.ab_ops->bo_fini(&colibri_balloc->cb_ballroom);
+	result = m0_db_tx_commit(&dtx.tx_dbtx);
+	M0_ASSERT(result == 0);
+	mero_balloc->cb_ballroom.ab_ops->bo_fini(&mero_balloc->cb_ballroom);
 
-	c2_dbenv_fini(&db);
+	m0_dbenv_fini(&db);
 	printf("done\n");
 	return 0;
 }

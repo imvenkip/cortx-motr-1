@@ -1,9 +1,9 @@
-nobase_colibri_include_HEADERS += mdservice/md_foms.h \
+nobase_mero_include_HEADERS += mdservice/md_foms.h \
                                   mdservice/md_fops.h \
                                   mdservice/md_service.h \
                                   mdservice/md_fops_ff.h
 
-colibri_libcolibri_la_SOURCES  += mdservice/md_service.c \
+mero_libmero_la_SOURCES  += mdservice/md_service.c \
                                   mdservice/md_foms.c \
                                   mdservice/md_fops.c \
                                   mdservice/md_fops_ff.c

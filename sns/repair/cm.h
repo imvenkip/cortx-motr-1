@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_SNS_REPAIR_CM_H__
-#define __COLIBRI_SNS_REPAIR_CM_H__
+#ifndef __MERO_SNS_REPAIR_CM_H__
+#define __MERO_SNS_REPAIR_CM_H__
 
 #include "cm/cm.h"
 #include "net/buffer_pool.h"
@@ -41,26 +41,26 @@
   SNS Repair copy machine
 
   @subsection SNSRepairCMDLD-fspec-ds Data Structures
-  - c2_sns_repair_cm
-    Represents sns repair copy machine, this embeds generic struct c2_cm and
+  - m0_sns_repair_cm
+    Represents sns repair copy machine, this embeds generic struct m0_cm and
     sns specific copy machine objects.
 
-  - c2_sns_repair_iter
+  - m0_sns_repair_iter
     Represents sns repair copy machine data iterator.
 
   @subsection SNSRepairCMDLD-fspec-if Interfaces
-  - c2_sns_repair_cm_type_register
+  - m0_sns_repair_cm_type_register
     Registers sns repair copy machine type and its corresponding request
     handler service type.
-    @see c2_sns_init()
+    @see m0_sns_init()
 
-  - c2_sns_repair_cm_type_deregister
+  - m0_sns_repair_cm_type_deregister
     De-registers sns repair copy machine type and its corresponding request
     handler service type.
-    @see c2_sns_fini()
+    @see m0_sns_fini()
 
   @subsection SNSRepairCMDLD-fspec-usecases Recipes
-  Test: Start sns repair copy machine service using colibri_setup
+  Test: Start sns repair copy machine service using mero_setup
   Response: SNS repair copy machine service is started and copy machine is
             initialised.
  */
@@ -76,15 +76,15 @@
   @{
 */
 
-struct c2_sns_repair_cm {
-	struct c2_cm		   rc_base;
+struct m0_sns_repair_cm {
+	struct m0_cm		   rc_base;
 
 	/**
 	 * Failure data received in trigger FOP.
 	 * This is set when a TRIGGER FOP is received. For SNS Repair, this
 	 * will be the failed container id.
 	 * SNS Repair data iterator assumes this to be set before invoking
-	 * c2_sns_repair_iter_next().
+	 * m0_sns_repair_iter_next().
 	 */
 	uint64_t                   rc_fdata;
 
@@ -95,46 +95,46 @@ struct c2_sns_repair_cm {
 	uint64_t                   rc_file_size;
 
 	/** SNS Repair data iterator. */
-	struct c2_sns_repair_iter  rc_it;
+	struct m0_sns_repair_iter  rc_it;
 
 	/*
 	 * XXX Temporary location for layout domain required to build pdclust
 	 * layout.
 	 */
-	struct c2_layout_domain    rc_lay_dom;
+	struct m0_layout_domain    rc_lay_dom;
 
 	/**
 	 * Buffer pool for incoming copy packets, this is used by sliding
 	 * window.
 	 */
-	struct c2_net_buffer_pool  rc_ibp;
+	struct m0_net_buffer_pool  rc_ibp;
 
 	/** Buffer pool for outgoing copy packets. */
-	struct c2_net_buffer_pool  rc_obp;
+	struct m0_net_buffer_pool  rc_obp;
 
 	/**
-	 * Channel to wait upon before invoking c2_cm_stop() for the caller of
-	 * c2_cm_start(). This channel is signalled from struct c2_cm_ops::
+	 * Channel to wait upon before invoking m0_cm_stop() for the caller of
+	 * m0_cm_start(). This channel is signalled from struct m0_cm_ops::
 	 * cmo_complete() routine, which is invoked after all the aggregation
-	 * groups are processed and struct c2_cm::cm_aggr_grps list is empty.
+	 * groups are processed and struct m0_cm::cm_aggr_grps list is empty.
 	 */
-	struct c2_chan             rc_stop_wait;
+	struct m0_chan             rc_stop_wait;
 };
 
-C2_INTERNAL int c2_sns_repair_cm_type_register(void);
-C2_INTERNAL void c2_sns_repair_cm_type_deregister(void);
+M0_INTERNAL int m0_sns_repair_cm_type_register(void);
+M0_INTERNAL void m0_sns_repair_cm_type_deregister(void);
 
-C2_INTERNAL struct c2_net_buffer *c2_sns_repair_buffer_get(struct
-							   c2_net_buffer_pool
+M0_INTERNAL struct m0_net_buffer *m0_sns_repair_buffer_get(struct
+							   m0_net_buffer_pool
 							   *bp, size_t colour);
-C2_INTERNAL void c2_sns_repair_buffer_put(struct c2_net_buffer_pool *bp,
-					  struct c2_net_buffer *buf,
+M0_INTERNAL void m0_sns_repair_buffer_put(struct m0_net_buffer_pool *bp,
+					  struct m0_net_buffer *buf,
 					  uint64_t colour);
 
-C2_INTERNAL struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm);
+M0_INTERNAL struct m0_sns_repair_cm *cm2sns(struct m0_cm *cm);
 
 /** @} SNSRepairCM */
-#endif /* __COLIBRI_SNS_REPAIR_CM_H__ */
+#endif /* __MERO_SNS_REPAIR_CM_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

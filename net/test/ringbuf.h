@@ -20,11 +20,11 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_TEST_RINGBUF_H__
-#define __COLIBRI_NET_TEST_RINGBUF_H__
+#ifndef __MERO_NET_TEST_RINGBUF_H__
+#define __MERO_NET_TEST_RINGBUF_H__
 
 #include "lib/types.h"	/* size_t */
-#include "lib/atomic.h"	/* c2_atomic64 */
+#include "lib/atomic.h"	/* m0_atomic64 */
 
 /**
    @defgroup NetTestRingbufDFS Ringbuf
@@ -35,14 +35,14 @@
 
 /**
    Circular FIFO buffer with size_t elements.
-   @note c2_net_test_ringbuf.ntr_start and c2_net_test_ringbuf.ntr_end are
+   @note m0_net_test_ringbuf.ntr_start and m0_net_test_ringbuf.ntr_end are
    absolute indices.
  */
-struct c2_net_test_ringbuf {
+struct m0_net_test_ringbuf {
 	size_t		    ntr_size;	/**< Number of elements in ringbuf */
 	size_t		   *ntr_buf;	/**< Ringbuf array */
-	struct c2_atomic64  ntr_start;	/**< Start pointer */
-	struct c2_atomic64  ntr_end;	/**< End pointer */
+	struct m0_atomic64  ntr_start;	/**< Start pointer */
+	struct m0_atomic64  ntr_end;	/**< End pointer */
 };
 
 /**
@@ -50,42 +50,42 @@ struct c2_net_test_ringbuf {
    @param rb ring buffer
    @param size maximum number of elements.
  */
-int c2_net_test_ringbuf_init(struct c2_net_test_ringbuf *rb, size_t size);
+int m0_net_test_ringbuf_init(struct m0_net_test_ringbuf *rb, size_t size);
 
 /**
    Finalize ring buffer.
-   @pre c2_net_test_ringbuf_invariant(rb)
+   @pre m0_net_test_ringbuf_invariant(rb)
  */
-void c2_net_test_ringbuf_fini(struct c2_net_test_ringbuf *rb);
+void m0_net_test_ringbuf_fini(struct m0_net_test_ringbuf *rb);
 /** Ring buffer invariant. */
-bool c2_net_test_ringbuf_invariant(const struct c2_net_test_ringbuf *rb);
+bool m0_net_test_ringbuf_invariant(const struct m0_net_test_ringbuf *rb);
 
 /**
    Push item to the ring buffer.
-   @pre c2_net_test_ringbuf_invariant(rb)
-   @post c2_net_test_ringbuf_invariant(rb)
+   @pre m0_net_test_ringbuf_invariant(rb)
+   @post m0_net_test_ringbuf_invariant(rb)
  */
-void c2_net_test_ringbuf_push(struct c2_net_test_ringbuf *rb, size_t value);
+void m0_net_test_ringbuf_push(struct m0_net_test_ringbuf *rb, size_t value);
 
 /**
    Pop item from the ring buffer.
-   @pre c2_net_test_ringbuf_invariant(rb)
-   @post c2_net_test_ringbuf_invariant(rb)
+   @pre m0_net_test_ringbuf_invariant(rb)
+   @post m0_net_test_ringbuf_invariant(rb)
  */
-size_t c2_net_test_ringbuf_pop(struct c2_net_test_ringbuf *rb);
+size_t m0_net_test_ringbuf_pop(struct m0_net_test_ringbuf *rb);
 
 /**
    Is ring buffer empty?
    Useful with MPSC/SPSC access pattern.
-   @pre c2_net_test_ringbuf_invariant(rb)
+   @pre m0_net_test_ringbuf_invariant(rb)
  */
-bool c2_net_test_ringbuf_is_empty(struct c2_net_test_ringbuf *rb);
+bool m0_net_test_ringbuf_is_empty(struct m0_net_test_ringbuf *rb);
 
 /**
    @} end of NetTestRingbufDFS group
  */
 
-#endif /*  __COLIBRI_NET_TEST_RINGBUF_H__ */
+#endif /*  __MERO_NET_TEST_RINGBUF_H__ */
 
 /*
  *  Local variables:

@@ -25,54 +25,54 @@
 
 void test_time(void)
 {
-	c2_time_t t1, t2, t3;
+	m0_time_t t1, t2, t3;
 	int rc;
 
-	c2_time_set(&t1, 1, 0);
-	c2_time_set(&t2, 2, 0);
-	C2_UT_ASSERT(t2 > t1);
-	C2_UT_ASSERT(C2_TIME_NEVER > t1);
-	C2_UT_ASSERT(t2 < C2_TIME_NEVER);
+	m0_time_set(&t1, 1, 0);
+	m0_time_set(&t2, 2, 0);
+	M0_UT_ASSERT(t2 > t1);
+	M0_UT_ASSERT(M0_TIME_NEVER > t1);
+	M0_UT_ASSERT(t2 < M0_TIME_NEVER);
 
-	c2_time_set(&t1, 1234, 0);
-	C2_UT_ASSERT(C2_TIME_NEVER > t1);
+	m0_time_set(&t1, 1234, 0);
+	M0_UT_ASSERT(M0_TIME_NEVER > t1);
 
-	t1 = c2_time_now();
+	t1 = m0_time_now();
 	t2 = t1;
-	C2_UT_ASSERT(t1 != 0);
+	M0_UT_ASSERT(t1 != 0);
 
-	c2_time_set(&t1, 1234, 987654321);
-	C2_UT_ASSERT(t1 == 1234987654321);
+	m0_time_set(&t1, 1234, 987654321);
+	M0_UT_ASSERT(t1 == 1234987654321);
 
 	t2 = t1;
-	C2_UT_ASSERT(t2 == t1);
+	M0_UT_ASSERT(t2 == t1);
 
-	c2_time_set(&t2, 1235, 987654322);
-	C2_UT_ASSERT(t2 > t1);
+	m0_time_set(&t2, 1235, 987654322);
+	M0_UT_ASSERT(t2 > t1);
 
-	t3 = c2_time_sub(t2, t1);
-	C2_UT_ASSERT(t3 == 1000000001);
+	t3 = m0_time_sub(t2, t1);
+	M0_UT_ASSERT(t3 == 1000000001);
 
-	c2_time_set(&t2, 1, 500000000);
-	t3 = c2_time_add(t1, t2);
-	C2_UT_ASSERT(t3 == 1236487654321);
+	m0_time_set(&t2, 1, 500000000);
+	t3 = m0_time_add(t1, t2);
+	M0_UT_ASSERT(t3 == 1236487654321);
 
-	c2_time_set(&t2, 0, C2_TIME_ONE_BILLION/100);
-	rc = c2_nanosleep(t2, &t1);
-	C2_UT_ASSERT(rc == 0);
+	m0_time_set(&t2, 0, M0_TIME_ONE_BILLION/100);
+	rc = m0_nanosleep(t2, &t1);
+	M0_UT_ASSERT(rc == 0);
 
-	c2_time_set(&t1, 1234, 987654321);
-	c2_time_set(&t2, 1, 500000000);
-	t2 = c2_time_add(t1, C2_TIME_NEVER);
-	C2_UT_ASSERT(t2 == C2_TIME_NEVER);
+	m0_time_set(&t1, 1234, 987654321);
+	m0_time_set(&t2, 1, 500000000);
+	t2 = m0_time_add(t1, M0_TIME_NEVER);
+	M0_UT_ASSERT(t2 == M0_TIME_NEVER);
 
-	c2_time_set(&t2, 1, 500000000);
-	t2 = c2_time_add(C2_TIME_NEVER, t1);
-	C2_UT_ASSERT(t2 == C2_TIME_NEVER);
+	m0_time_set(&t2, 1, 500000000);
+	t2 = m0_time_add(M0_TIME_NEVER, t1);
+	M0_UT_ASSERT(t2 == M0_TIME_NEVER);
 
-	c2_time_set(&t2, 1, 500000000);
-	t2 = c2_time_sub(C2_TIME_NEVER, t1);
-	C2_UT_ASSERT(t2 == C2_TIME_NEVER);
+	m0_time_set(&t2, 1, 500000000);
+	t2 = m0_time_sub(M0_TIME_NEVER, t1);
+	M0_UT_ASSERT(t2 == M0_TIME_NEVER);
 }
 
 /*

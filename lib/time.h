@@ -21,15 +21,15 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_TIME_H__
-#define __COLIBRI_LIB_TIME_H__
+#ifndef __MERO_LIB_TIME_H__
+#define __MERO_LIB_TIME_H__
 
 #include "lib/types.h"
 
 /**
    @defgroup time Generic time manipulation
 
-   C2 time delivers resolution in nanoseconds. It is an unsigned 64-bit integer.
+   M0 time delivers resolution in nanoseconds. It is an unsigned 64-bit integer.
    @{
  */
 
@@ -39,20 +39,20 @@
 #include "lib/linux_kernel/time.h"
 #endif
 
-typedef uint64_t c2_time_t;
+typedef uint64_t m0_time_t;
 
 enum {
-	C2_TIME_ONE_BILLION = 1000000000ULL
+	M0_TIME_ONE_BILLION = 1000000000ULL
 };
 
-#define C2_MKTIME(secs, ns) ((c2_time_t)				\
-			    ((uint64_t)(secs) * C2_TIME_ONE_BILLION +	\
+#define M0_MKTIME(secs, ns) ((m0_time_t)				\
+			    ((uint64_t)(secs) * M0_TIME_ONE_BILLION +	\
 			    (uint64_t)(ns)))
-#define C2_MKTIME_HOURS(hours, mins, secs, ns)				\
-		((c2_time_t)						\
+#define M0_MKTIME_HOURS(hours, mins, secs, ns)				\
+		((m0_time_t)						\
 		 ((uint64_t)((hours) * 60 * 60 +			\
 			     (mins) * 60 +				\
-			     (secs)) * C2_TIME_ONE_BILLION +		\
+			     (secs)) * M0_TIME_ONE_BILLION +		\
 		  (uint64_t)(ns)))
 
 /**
@@ -60,48 +60,48 @@ enum {
 
    @return The current time.
  */
-C2_INTERNAL c2_time_t c2_time_now(void);
+M0_INTERNAL m0_time_t m0_time_now(void);
 
 /**
-   Create a c2_time_t initialized with seconds + nanosecond in the future.
+   Create a m0_time_t initialized with seconds + nanosecond in the future.
 
    @param secs seconds from now
    @param ns nanoseconds from now
 
    @return The result time.
  */
-c2_time_t c2_time_from_now(uint64_t secs, long ns);
+m0_time_t m0_time_from_now(uint64_t secs, long ns);
 
 /**
-   Create and return a c2_time_t from seconds and nanoseconds.
+   Create and return a m0_time_t from seconds and nanoseconds.
  */
-c2_time_t c2_time(uint64_t secs, long ns);
+m0_time_t m0_time(uint64_t secs, long ns);
 
 /**
-   Create a c2_time_t from seconds and nanoseconds.
+   Create a m0_time_t from seconds and nanoseconds.
 
    @param time [OUT] the result time.
    @param secs Seconds from epoch.
    @param ns Nanoseconds.
    @retval the result time.
  */
-c2_time_t c2_time_set(c2_time_t * time, uint64_t secs, long ns);
+m0_time_t m0_time_set(m0_time_t * time, uint64_t secs, long ns);
 
 /**
    Add t2 to t1 and return that result.
 
-   @return The result time. If either t1 or t2 is C2_TIME_NEVER, the result
-   is C2_TIME_NEVER.
+   @return The result time. If either t1 or t2 is M0_TIME_NEVER, the result
+   is M0_TIME_NEVER.
  */
-C2_INTERNAL c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2);
+M0_INTERNAL m0_time_t m0_time_add(const m0_time_t t1, const m0_time_t t2);
 
 /**
    Subtract t2 from t1 and return that result.
 
-   @return The result time. If t1 == C2_TIME_NEVER, C2_TIME_NEVER is returned.
-   @pre t2 < C2_TIME_NEVER && t1 >= t2
+   @return The result time. If t1 == M0_TIME_NEVER, M0_TIME_NEVER is returned.
+   @pre t2 < M0_TIME_NEVER && t1 >= t2
  */
-C2_INTERNAL c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2);
+M0_INTERNAL m0_time_t m0_time_sub(const m0_time_t t1, const m0_time_t t2);
 
 /**
    Sleep for requested time. If interrupted, remaining time returned.
@@ -110,28 +110,28 @@ C2_INTERNAL c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2);
    @param rem [OUT] remaining time, NULL causes remaining time to be ignored.
    @return 0 means success. -1 means error. Remaining time is stored in rem.
  */
-int c2_nanosleep(const c2_time_t req, c2_time_t * rem);
+int m0_nanosleep(const m0_time_t req, m0_time_t * rem);
 
 /**
    Get "second" part from the time.
  */
-C2_INTERNAL uint64_t c2_time_seconds(const c2_time_t time);
+M0_INTERNAL uint64_t m0_time_seconds(const m0_time_t time);
 
 /**
    Get "nanosecond" part from the time.
  */
-C2_INTERNAL uint64_t c2_time_nanoseconds(const c2_time_t time);
+M0_INTERNAL uint64_t m0_time_nanoseconds(const m0_time_t time);
 
-C2_INTERNAL bool c2_time_is_in_past(c2_time_t time);
+M0_INTERNAL bool m0_time_is_in_past(m0_time_t time);
 
 /**
    The largest time that is never reached in system life.
  */
-extern const c2_time_t C2_TIME_NEVER;
+extern const m0_time_t M0_TIME_NEVER;
 
 /** @} end of time group */
 
-/* __COLIBRI_LIB_TIME_H__ */
+/* __MERO_LIB_TIME_H__ */
 #endif
 
 /*

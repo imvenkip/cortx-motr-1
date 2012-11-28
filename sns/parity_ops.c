@@ -21,15 +21,15 @@
 #include "sns/parity_ops.h"
 #include "lib/cdefs.h"
 
-C2_INTERNAL void c2_parity_fini(void)
+M0_INTERNAL void m0_parity_fini(void)
 {
 	galois_calc_tables_release();
 }
 
-C2_INTERNAL void c2_parity_init(void)
+M0_INTERNAL void m0_parity_init(void)
 {
-	int ret = galois_create_mult_tables(C2_PARITY_GALOIS_W);
-	C2_ASSERT(ret == 0);
+	int ret = galois_create_mult_tables(M0_PARITY_GALOIS_W);
+	M0_ASSERT(ret == 0);
 }
 
 /*

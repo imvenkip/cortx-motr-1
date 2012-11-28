@@ -21,12 +21,12 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_USER_SPACE_TIMER_H__
-#define __COLIBRI_LIB_USER_SPACE_TIMER_H__
+#ifndef __MERO_LIB_USER_SPACE_TIMER_H__
+#define __MERO_LIB_USER_SPACE_TIMER_H__
 
-#include "lib/time.h"      /* c2_time_t */
-#include "lib/thread.h"    /* c2_thread */
-#include "lib/semaphore.h" /* c2_semaphore */
+#include "lib/time.h"      /* m0_time_t */
+#include "lib/thread.h"    /* m0_thread */
+#include "lib/semaphore.h" /* m0_semaphore */
 
 /**
    @addtogroup timer
@@ -39,7 +39,7 @@
    Timer state.
    @see timer_state_change()
  */
-enum c2_timer_state {
+enum m0_timer_state {
 	/** Not initialized. */
 	TIMER_UNINIT = 0,
 	/** Initialized. */
@@ -54,16 +54,16 @@ enum c2_timer_state {
 	TIMER_INVALID = TIMER_STATE_NR
 };
 
-struct c2_timer {
+struct m0_timer {
 	/**
-	   Timer type: C2_TIMER_SOFT or C2_TIMER_HARD
+	   Timer type: M0_TIMER_SOFT or M0_TIMER_HARD
 	 */
-	enum c2_timer_type t_type;
+	enum m0_timer_type t_type;
 
 	/**
 	   Timer triggers this callback.
 	 */
-	c2_timer_callback_t t_callback;
+	m0_timer_callback_t t_callback;
 
 	/**
 	   User data.
@@ -73,57 +73,57 @@ struct c2_timer {
 	/**
 	   expire time in future of this timer.
 	 */
-	c2_time_t t_expire;
+	m0_time_t t_expire;
 
 	/**
 	   working thread for soft timer
 	 */
-	struct c2_thread t_thread;
+	struct m0_thread t_thread;
 
 	/*
-	   semaphore for sleeping in c2_timer_working_thread().
+	   semaphore for sleeping in m0_timer_working_thread().
 	 */
-	struct c2_semaphore t_sleep_sem;
+	struct m0_semaphore t_sleep_sem;
 
 	/**
 	   Target thread ID for hard timer callback.
-	   Initially set in c2_timer_init() to callers TID.
-	   Can be changed by calling c2_timer_attach().
+	   Initially set in m0_timer_init() to callers TID.
+	   Can be changed by calling m0_timer_attach().
 	 */
 	pid_t t_tid;
 
 	/**
 	   Timer state.
 	   Used in state changes checking in hard timer.
-	   c2_timer_init() will set state to TIMER_INITED.
-	   c2_timer_fini()/start()/stop()/attach() will check current
+	   m0_timer_init() will set state to TIMER_INITED.
+	   m0_timer_fini()/start()/stop()/attach() will check current
 	   state using state transition matrix.
 	   If there is no transition from current state using given
-	   function, C2_ASSERT() will take `false' parameter.
+	   function, M0_ASSERT() will take `false' parameter.
 	 */
-	enum c2_timer_state t_state;
+	enum m0_timer_state t_state;
 
 	/**
 	   Used in hard timer implementation.
 	   @see timer_hard_stop()
 	 */
-	struct c2_semaphore t_stop_sem;
+	struct m0_semaphore t_stop_sem;
 
 	/**
 	   POSIX timer ID, returned by timer_create().
 	   Used in hard timer implementation.
-	   POSIX timer is creating in c2_timer_init() and c2_timer_attach().
-	   POSIX timer is deleting in c2_timer_attach() and c2_timer_fini().
+	   POSIX timer is creating in m0_timer_init() and m0_timer_attach().
+	   POSIX timer is deleting in m0_timer_attach() and m0_timer_fini().
 	 */
 	timer_t t_ptimer;
 };
 
-C2_INTERNAL int c2_timers_init();
-C2_INTERNAL void c2_timers_fini();
+M0_INTERNAL int m0_timers_init();
+M0_INTERNAL void m0_timers_fini();
 
 /** @} end of timer group */
 
-/* __COLIBRI_LIB_USER_SPACE_TIMER_H__ */
+/* __MERO_LIB_USER_SPACE_TIMER_H__ */
 #endif
 
 /*

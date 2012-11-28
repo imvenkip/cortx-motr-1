@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_LNET_CORE_H__
-#define __COLIBRI_NET_LNET_CORE_H__
+#ifndef __MERO_NET_LNET_CORE_H__
+#define __MERO_NET_LNET_CORE_H__
 
 /**
    @page LNetCoreDLD-fspec LNet Transport Core API
@@ -60,7 +60,7 @@
 
    t=>e  [label="Wait"];
    ...;
-   A=>N  [label="c2_net_buffer_add()"];
+   A=>N  [label="m0_net_buffer_add()"];
    N=>x  [label="xo_buf_add()"];
    x=>o  [label="nlx_core_buf_op()"];
    o=>L  [label="MD Operation"];
@@ -73,7 +73,7 @@
    e>>t  [label="Events present"];
    t=>e  [label="Get Event"];
    e>>t  [label="event"];
-   N<<=t [label="c2_net_buffer_event_post()"];
+   N<<=t [label="m0_net_buffer_event_post()"];
    N=>>A [label="callback"];
    t=>e  [label="Get Event"];
    e>>t  [label="empty"];
@@ -117,7 +117,7 @@
      - nlx_core_tm_stop()
      .
      These interfaces have names roughly similar to the associated
-     c2_net_xprt_ops method from which they are intended to be directly or
+     m0_net_xprt_ops method from which they are intended to be directly or
      indirectly invoked.  Note that there are no equivalents for the @c
      xo_tm_init(), @c xo_tm_fini() and @c xo_tm_confine() calls.
 
@@ -137,7 +137,7 @@
      - nlx_core_buf_desc_decode()
      .
      The buffer operation initiation calls are all invoked in the context of
-     the c2_net_buffer_add() subroutine.  All operations are immediately
+     the m0_net_buffer_add() subroutine.  All operations are immediately
      initiated in the Lustre LNet kernel module, though results will be
      returned asynchronously through buffer events.
 
@@ -167,7 +167,7 @@
    The internal, address space agnostic I/O API used by the LNet transport.
    See @ref LNetCoreDLD-fspec "LNet Transport Core API" for organizational
    details and @ref LNetDLD "LNet Transport DLD" for details of the
-   Colibri Network transport for LNet.
+   Mero Network transport for LNet.
 
    @{
  */
@@ -177,7 +177,7 @@
    @param dom The network domain pointer.
    @param lcdom The private data pointer for the domain to be initialized.
  */
-static int nlx_core_dom_init(struct c2_net_domain *dom,
+static int nlx_core_dom_init(struct m0_net_domain *dom,
 			     struct nlx_core_domain *lcdom);
 
 /**
@@ -188,12 +188,12 @@ static void nlx_core_dom_fini(struct nlx_core_domain *lcdom);
 /**
    Gets the maximum buffer size (counting all segments).
  */
-static c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom);
+static m0_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom);
 
 /**
    Gets the maximum size of a buffer segment.
  */
-static c2_bcount_t nlx_core_get_max_buffer_segment_size(
+static m0_bcount_t nlx_core_get_max_buffer_segment_size(
 						struct nlx_core_domain *lcdom);
 
 /**
@@ -212,7 +212,7 @@ static int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom);
  */
 static int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 				 nlx_core_opaque_ptr_t buffer_id,
-				 const struct c2_bufvec *bvec,
+				 const struct m0_bufvec *bvec,
 				 struct nlx_core_buffer *lcbuf);
 
 /**
@@ -445,7 +445,7 @@ static int nlx_core_buf_del(struct nlx_core_domain *lcdom,
  */
 static int nlx_core_buf_event_wait(struct nlx_core_domain *lcdom,
 				   struct nlx_core_transfer_mc *lctm,
-				   c2_time_t timeout);
+				   m0_time_t timeout);
 
 /**
    Fetches the next event from the circular buffer event queue.
@@ -466,7 +466,7 @@ static bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 /**
    Parses an end point address string and convert to internal form.
    A "*" value for the transfer machine identifier results in a value of
-   C2_NET_LNET_TMID_INVALID being set.
+   M0_NET_LNET_TMID_INVALID being set.
    @param lcdom Domain pointer.
    @param ep_addr The LNet end point address to decode.
    @param cepa On success, the parsed values are stored here.
@@ -477,7 +477,7 @@ static int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 
 /**
    Constructs the external address string from its internal form.
-   A value of C2_NET_LNET_TMID_INVALID for the cepa_tmid field results in
+   A value of M0_NET_LNET_TMID_INVALID for the cepa_tmid field results in
    a "*" being set for that field.
    @param lcdom Domain pointer.
    @param cepa The end point address parameters to encode.
@@ -485,7 +485,7 @@ static int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
  */
 static void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 				    const struct nlx_core_ep_addr *cepa,
-				    char buf[C2_NET_LNET_XEP_ADDR_LEN]);
+				    char buf[M0_NET_LNET_XEP_ADDR_LEN]);
 
 /**
    Gets a list of strings corresponding to the local LNET network interfaces.
@@ -509,15 +509,15 @@ static void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom,
    @param tm The transfer machine pointer.
    @param lctm The transfer machine private data to be initialized.  The
    nlx_core_transfer_mc::ctm_addr must be set by the caller.  If the
-   lcpea_tmid field value is C2_NET_LNET_TMID_INVALID then a transfer machine
+   lcpea_tmid field value is M0_NET_LNET_TMID_INVALID then a transfer machine
    identifier is dynamically assigned to the transfer machine and the
    nlx_core_transfer_mc::ctm_addr is modified in place.
    @note There is no equivalent of the xo_tm_init() subroutine.
-   @note This function does not create a c2_net_end_point for the transfer
+   @note This function does not create a m0_net_end_point for the transfer
    machine, because there is no equivalent object at the core layer.
  */
 static int nlx_core_tm_start(struct nlx_core_domain *lcdom,
-			     struct c2_net_transfer_mc *tm,
+			     struct m0_net_transfer_mc *tm,
 			     struct nlx_core_transfer_mc *lctm);
 
 /**
@@ -599,9 +599,9 @@ static int nlx_core_new_blessed_bev(struct nlx_core_domain *lcdom,
 				    struct nlx_core_buffer_event **bevp);
 
 /**
-   Allocate zero-filled memory, like c2_alloc().
+   Allocate zero-filled memory, like m0_alloc().
    In user space, this memory is allocated such that it will not
-   cross page boundaries using c2_alloc_aligned().
+   cross page boundaries using m0_alloc_aligned().
    @param size Memory size.
    @param shift Alignment, ignored in kernel space.
    @pre size <= PAGE_SIZE
@@ -630,14 +630,14 @@ static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
 	((ptr) = nlx_core_mem_alloc(sizeof ((ptr)[0]),                  \
 				    NLX_PO2_SHIFT(sizeof ((ptr)[0]))))
 #define NLX_ALLOC_PTR_ADDB(ptr, ctx, loc) \
-	if (NLX_ALLOC_PTR(ptr) == NULL) C2_ADDB_ADD(ctx, loc, c2_addb_oom)
+	if (NLX_ALLOC_PTR(ptr) == NULL) M0_ADDB_ADD(ctx, loc, m0_addb_oom)
 #define NLX_FREE_PTR(ptr) \
 	nlx_core_mem_free((ptr), sizeof ((ptr)[0]), \
                           NLX_PO2_SHIFT(sizeof ((ptr)[0])))
 
 /** @} */ /* LNetCore */
 
-#endif /* __COLIBRI_NET_LNET_CORE_H__ */
+#endif /* __MERO_NET_LNET_CORE_H__ */
 
 /*
  *  Local variables:

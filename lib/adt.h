@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_ADT_H__
-#define __COLIBRI_LIB_ADT_H__
+#ifndef __MERO_LIB_ADT_H__
+#define __MERO_LIB_ADT_H__
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
@@ -31,22 +31,22 @@
    @{
 */
 
-struct c2_stack;
+struct m0_stack;
 
-struct c2_stack_link;
+struct m0_stack_link;
 
-C2_INTERNAL void c2_stack_init(struct c2_stack *stack);
-C2_INTERNAL void c2_stack_fini(struct c2_stack *stack);
-C2_INTERNAL bool c2_stack_is_empty(const struct c2_stack *stack);
+M0_INTERNAL void m0_stack_init(struct m0_stack *stack);
+M0_INTERNAL void m0_stack_fini(struct m0_stack *stack);
+M0_INTERNAL bool m0_stack_is_empty(const struct m0_stack *stack);
 
-C2_INTERNAL void c2_stack_link_init(struct c2_stack_link *stack);
-C2_INTERNAL void c2_stack_link_fini(struct c2_stack_link *stack);
-C2_INTERNAL bool c2_stack_link_is_in(const struct c2_stack_link *stack);
+M0_INTERNAL void m0_stack_link_init(struct m0_stack_link *stack);
+M0_INTERNAL void m0_stack_link_fini(struct m0_stack_link *stack);
+M0_INTERNAL bool m0_stack_link_is_in(const struct m0_stack_link *stack);
 
 /** @} end of adt group */
 
 
-/* __COLIBRI_LIB_ADT_H__ */
+/* __MERO_LIB_ADT_H__ */
 #endif
 
 /*

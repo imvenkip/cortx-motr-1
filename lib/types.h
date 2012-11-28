@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_TYPES_H__
-#define __COLIBRI_LIB_TYPES_H__
+#ifndef __MERO_LIB_TYPES_H__
+#define __MERO_LIB_TYPES_H__
 
 #ifdef __KERNEL__
 #include "linux_kernel/types.h"
@@ -29,40 +29,40 @@
 #include "user_space/types.h"
 #endif
 
-struct c2_uint128 {
+struct m0_uint128 {
 	uint64_t u_hi;
 	uint64_t u_lo;
 };
 
-#define C2_UINT128(hi, lo) (struct c2_uint128) { .u_hi = (hi), .u_lo = (lo) }
+#define M0_UINT128(hi, lo) (struct m0_uint128) { .u_hi = (hi), .u_lo = (lo) }
 
-C2_INTERNAL bool c2_uint128_eq(const struct c2_uint128 *u0,
-			       const struct c2_uint128 *u1);
-C2_INTERNAL int c2_uint128_cmp(const struct c2_uint128 *u0,
-			       const struct c2_uint128 *u1);
-C2_INTERNAL void c2_uint128_init(struct c2_uint128 *u128, const char *magic);
+M0_INTERNAL bool m0_uint128_eq(const struct m0_uint128 *u0,
+			       const struct m0_uint128 *u1);
+M0_INTERNAL int m0_uint128_cmp(const struct m0_uint128 *u0,
+			       const struct m0_uint128 *u1);
+M0_INTERNAL void m0_uint128_init(struct m0_uint128 *u128, const char *magic);
 /** res = a + b; */
-C2_INTERNAL void c2_uint128_add(struct c2_uint128 *res,
-				const struct c2_uint128 a,
-				const struct c2_uint128 b);
+M0_INTERNAL void m0_uint128_add(struct m0_uint128 *res,
+				const struct m0_uint128 a,
+				const struct m0_uint128 b);
 /** res = a * b; */
-C2_INTERNAL void c2_uint128_mul64(struct c2_uint128 *res, uint64_t a,
+M0_INTERNAL void m0_uint128_mul64(struct m0_uint128 *res, uint64_t a,
 				  uint64_t b);
 
 /** count of bytes (in extent, IO operation, etc.) */
-typedef uint64_t c2_bcount_t;
+typedef uint64_t m0_bcount_t;
 /** an index (offset) in a linear name-space (e.g., in a file, storage object,
     storage device, memory buffer) measured in bytes */
-typedef uint64_t c2_bindex_t;
+typedef uint64_t m0_bindex_t;
 
 enum {
-	C2_BCOUNT_MAX = 0xffffffffffffffff,
-	C2_BINDEX_MAX = C2_BCOUNT_MAX - 1,
-	C2_BSIGNED_MAX = 0x7fffffffffffffff
+	M0_BCOUNT_MAX = 0xffffffffffffffff,
+	M0_BINDEX_MAX = M0_BCOUNT_MAX - 1,
+	M0_BSIGNED_MAX = 0x7fffffffffffffff
 };
 
 
-/* __COLIBRI_LIB_TYPES_H__ */
+/* __MERO_LIB_TYPES_H__ */
 #endif
 
 /*

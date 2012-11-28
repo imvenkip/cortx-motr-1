@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_REQH_REQH_H__
-#define __COLIBRI_REQH_REQH_H__
+#ifndef __MERO_REQH_REQH_H__
+#define __MERO_REQH_REQH_H__
 
 #include "lib/tlist.h"
 #include "lib/bob.h"
@@ -50,62 +50,62 @@
    @{
  */
 
-struct c2_fol;
-struct c2_fop;
-struct c2_net_xprt;
-struct c2_rpc_machine;
+struct m0_fol;
+struct m0_fop;
+struct m0_net_xprt;
+struct m0_rpc_machine;
 
 enum {
         REQH_KEY_MAX = 32
 };
 
-struct c2_local_service_ops;
+struct m0_local_service_ops;
 
 /** Local reply consumer service (testing or replicator) */
-struct c2_local_service {
-	const struct c2_local_service_ops    *s_ops;
+struct m0_local_service {
+	const struct m0_local_service_ops    *s_ops;
 };
 
-struct c2_local_service_ops {
-	void (*lso_fini) (struct c2_local_service *service, struct c2_fom *fom);
+struct m0_local_service_ops {
+	void (*lso_fini) (struct m0_local_service *service, struct m0_fom *fom);
 };
 
 /**
    Request handler instance.
  */
-struct c2_reqh {
-	struct c2_dtm		*rh_dtm;
+struct m0_reqh {
+	struct m0_dtm		*rh_dtm;
 
 	/** Database environment for this request handler. */
-	struct c2_dbenv         *rh_dbenv;
+	struct m0_dbenv         *rh_dbenv;
 
 	/** Mdstore for this request handler. */
-	struct c2_mdstore       *rh_mdstore;
+	struct m0_mdstore       *rh_mdstore;
 
 	/** Fol pointer for this request handler. */
-	struct c2_fol		*rh_fol;
+	struct m0_fol		*rh_fol;
 
 	/** Fom domain for this request handler. */
-	struct c2_fom_domain	 rh_fom_dom;
+	struct m0_fom_domain	 rh_fom_dom;
 
         /**
 	    Services registered with this request handler.
 
-	    @see c2_reqh_service::rs_linkage
+	    @see m0_reqh_service::rs_linkage
 	 */
-        struct c2_tl             rh_services;
+        struct m0_tl             rh_services;
 
         /**
 	    RPC machines running in this request handler
 	    There is one rpc machine per request handler
 	    end point.
 
-	    @see c2_rpc_machine::rm_rh_linkage
+	    @see m0_rpc_machine::rm_rh_linkage
 	 */
-        struct c2_tl             rh_rpc_machines;
+        struct m0_tl             rh_rpc_machines;
 
 	/** provides protected access to reqh members. */
-	struct c2_rwlock         rh_rwlock;
+	struct m0_rwlock         rh_rwlock;
 
 	/**
 	    True if request handler received a shutdown signal.
@@ -114,24 +114,24 @@ struct c2_reqh {
 	 */
 	bool                     rh_shutdown;
 
-	struct c2_addb_ctx       rh_addb;
+	struct m0_addb_ctx       rh_addb;
 
 	/**
 	    Channel to wait on for reqh shutdown.
 	 */
-	struct c2_chan           rh_sd_signal;
+	struct m0_chan           rh_sd_signal;
 
 	/**
 	 * Request handler key data.
 	 *
-	 * @see c2_reqh_key_init()
+	 * @see m0_reqh_key_init()
 	 */
         void                    *rh_key[REQH_KEY_MAX];
 	/** Request handler magic. */
 	uint64_t                 rh_magic;
 
 	/** Local service consuming reply. */
-	struct c2_local_service *rh_svc;
+	struct m0_local_service *rh_svc;
 };
 
 /**
@@ -142,16 +142,16 @@ struct c2_reqh {
    @param cdom Cob domain for this request handler
    @param fol File operation log to record fop execution
 
-   @todo use iostores instead of c2_cob_domain
+   @todo use iostores instead of m0_cob_domain
 
-   @see c2_reqh
-   @post c2_reqh_invariant()
+   @see m0_reqh
+   @post m0_reqh_invariant()
  */
-C2_INTERNAL int c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
-			     struct c2_dbenv *db, struct c2_mdstore *mdstore,
-			     struct c2_fol *fol, struct c2_local_service *svc);
+M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh, struct m0_dtm *dtm,
+			     struct m0_dbenv *db, struct m0_mdstore *mdstore,
+			     struct m0_fol *fol, struct m0_local_service *svc);
 
-C2_INTERNAL bool c2_reqh_invariant(const struct c2_reqh *reqh);
+M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh);
 
 /**
    Destructor for request handler, no fop will be further executed
@@ -161,7 +161,7 @@ C2_INTERNAL bool c2_reqh_invariant(const struct c2_reqh *reqh);
 
    @pre reqh != NULL
  */
-C2_INTERNAL void c2_reqh_fini(struct c2_reqh *reqh);
+M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh);
 
 /**
    Submit fop for request handler processing.
@@ -176,38 +176,38 @@ C2_INTERNAL void c2_reqh_fini(struct c2_reqh *reqh);
    @pre reqh != null
    @pre fop != null
  */
-C2_INTERNAL void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop);
+M0_INTERNAL void m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop);
 
 /**
-   Waits on c2_reqh::rh_sd_signal using the given clink until
-   c2_fom_domain_is_idle().
+   Waits on m0_reqh::rh_sd_signal using the given clink until
+   m0_fom_domain_is_idle().
 
    @param reqh request handler to be shutdown
  */
-C2_INTERNAL void c2_reqh_shutdown_wait(struct c2_reqh *reqh);
+M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh);
 
 /**
     Initializes global reqh objects like reqh fops and addb context,
-    invoked from c2_init().
+    invoked from m0_init().
  */
-C2_INTERNAL int c2_reqhs_init(void);
+M0_INTERNAL int m0_reqhs_init(void);
 
 /**
-   Finalises global reqh objects, invoked from c2_fini().
+   Finalises global reqh objects, invoked from m0_fini().
 */
-C2_INTERNAL void c2_reqhs_fini(void);
+M0_INTERNAL void m0_reqhs_fini(void);
 
 /** Returns number of localities in request handler FOM domain. */
-C2_INTERNAL uint64_t c2_reqh_nr_localities(const struct c2_reqh *reqh);
+M0_INTERNAL uint64_t m0_reqh_nr_localities(const struct m0_reqh *reqh);
 
 /** Descriptor for tlist of request handler services. */
-C2_TL_DESCR_DECLARE(c2_reqh_svc, C2_EXTERN);
-C2_TL_DECLARE(c2_reqh_svc, C2_INTERNAL, struct c2_reqh_service);
-C2_BOB_DECLARE(C2_EXTERN, c2_reqh_service);
+M0_TL_DESCR_DECLARE(m0_reqh_svc, M0_EXTERN);
+M0_TL_DECLARE(m0_reqh_svc, M0_INTERNAL, struct m0_reqh_service);
+M0_BOB_DECLARE(M0_EXTERN, m0_reqh_service);
 
 /** Descriptor for tlist of rpc machines. */
-C2_TL_DESCR_DECLARE(c2_reqh_rpc_mach, extern);
-C2_TL_DECLARE(c2_reqh_rpc_mach, , struct c2_rpc_machine);
+M0_TL_DESCR_DECLARE(m0_reqh_rpc_mach, extern);
+M0_TL_DECLARE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
 
 /**
    @name reqhkey
@@ -220,25 +220,25 @@ C2_TL_DECLARE(c2_reqh_rpc_mach, , struct c2_rpc_machine);
 
    Following interfaces are of interest to any request handler service intending
    to store and share its specific data with the corresponding request handler,
-   - c2_reqh_key_init()
+   - m0_reqh_key_init()
      Returns a new request handler key to access the stored data.
      Same key should be used in-order to share the data among multiple request
      handler entities if necessary.
      @note Key cannot exceed beyond REQH_KEY_MAX range for the given request
            handler.
-     @see c2_reqh::rh_key
+     @see m0_reqh::rh_key
      @see ::keymax
 
-   - c2_reqh_key_find()
+   - m0_reqh_key_find()
      Locates and returns the data corresponding to the key in the request handler.
-     The key is used to locate the data in c2_reqh::rh_key[]. If the data
+     The key is used to locate the data in m0_reqh::rh_key[]. If the data
      is NULL, then size amount of memory is allocated for the data and returned.
      @note As request handler itself does not have any knowledge about the
      purpose and usage of the allocated data, it is the responsibility of the
      caller to initialise the allocated data and verify the consistency of the
      same throughout its existence.
 
-   - c2_reqh_key_fini()
+   - m0_reqh_key_fini()
      Destroys the request handler resource accessed by the given key.
      @note This simply destroys the allocated data without formally looking
      into its contents. Thus the caller must properly finalise the data contents
@@ -262,9 +262,9 @@ C2_TL_DECLARE(c2_reqh_rpc_mach, , struct c2_rpc_machine);
 	struct foo *data;
 
 	if (!foo_key_is_initialised)
-		foo_key = c2_reqh_key_init(); //get new reqh data key
+		foo_key = m0_reqh_key_init(); //get new reqh data key
 
-	data = c2_reqh_key_find(reqh, foo_key, sizeof *foo);
+	data = m0_reqh_key_find(reqh, foo_key, sizeof *foo);
 	if (!data->foo_is_initialised)
 		foo_init(data);
 	...
@@ -274,27 +274,27 @@ C2_TL_DECLARE(c2_reqh_rpc_mach, , struct c2_rpc_machine);
      {
 	struct foo *data;
 
-	data = c2_reqh_key_find(reqh, foo_key, sizeof *foo);
+	data = m0_reqh_key_find(reqh, foo_key, sizeof *foo);
 	foo_fini(data);
-	c2_reqh_key_fini(reqh, foo_key);
+	m0_reqh_key_fini(reqh, foo_key);
      }
      @endcode
 
-     For more details please refer to @ref c2_cobfid_map_get() and
-     @ref c2_cobfid_map_put() interfaces in ioservice/cobfid_map.c.
+     For more details please refer to @ref m0_cobfid_map_get() and
+     @ref m0_cobfid_map_put() interfaces in ioservice/cobfid_map.c.
  */
 /** @{ reqhkey */
 
-C2_INTERNAL unsigned c2_reqh_key_init(void);
-C2_INTERNAL void *c2_reqh_key_find(struct c2_reqh *reqh, unsigned key,
-				   c2_bcount_t size);
-C2_INTERNAL void c2_reqh_key_fini(struct c2_reqh *reqh, unsigned key);
+M0_INTERNAL unsigned m0_reqh_key_init(void);
+M0_INTERNAL void *m0_reqh_key_find(struct m0_reqh *reqh, unsigned key,
+				   m0_bcount_t size);
+M0_INTERNAL void m0_reqh_key_fini(struct m0_reqh *reqh, unsigned key);
 
 /** @} reqhkey */
 
 /** @} endgroup reqh */
 
-/* __COLIBRI_REQH_REQH_H__ */
+/* __MERO_REQH_REQH_H__ */
 #endif
 
 /*

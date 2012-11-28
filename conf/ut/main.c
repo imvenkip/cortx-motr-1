@@ -28,7 +28,7 @@ extern void test_reg(void);
 extern void test_confx_xcode(void);
 extern void test_conf_net(void);
 
-const struct c2_test_suite conf_ut = {
+const struct m0_test_suite conf_ut = {
 	.ts_name  = "conf-ut",
 	.ts_init  = NULL,
 	.ts_fini  = NULL,

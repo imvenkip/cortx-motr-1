@@ -20,7 +20,7 @@
 
 #include <stdio.h>                          /* printf, stdout */
 
-#include "lib/misc.h"                       /* C2_SET0 */
+#include "lib/misc.h"                       /* M0_SET0 */
 #include "lib/ut.h"
 
 #include "xcode/ff2c/lex.h"
@@ -61,8 +61,8 @@ static const char sample[] =
 "						\n"
 "record {				\n"
 "	fid      p_fid;				\n"
-"	c2_vec   p_vec;				\n"
-"	*c2_cred p_cred [c2_package_cred_get];	\n"
+"	m0_vec   p_vec;				\n"
+"	*m0_cred p_cred [m0_package_cred_get];	\n"
 "	sequence {				\n"
 "		u32 s_nr;			\n"
 "		u8  s_data			\n"
@@ -84,7 +84,7 @@ static void ff2c_lex_test(void)
 	struct ff2c_context ctx;
 	/* struct ff2c_token   tok; */
 
-	C2_SET0(&ctx);
+	M0_SET0(&ctx);
 	ff2c_context_init(&ctx, sample, strlen(sample));
 
 	/* while (ff2c_token_get(&ctx, &tok) > 0)
@@ -109,10 +109,10 @@ static void ff2c_parser_test(void)
 	struct ff2c_term   *t;
 	int result;
 
-	C2_SET0(&ctx);
+	M0_SET0(&ctx);
 	ff2c_context_init(&ctx, sample, strlen(sample));
 	result = ff2c_parse(&ctx, &t);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	/*
 	printf("\n");
 	parser_print(t, 0);
@@ -131,12 +131,12 @@ static void ff2c_sem_test(void)
 	struct ff2c_type    *t;
 	struct ff2c_field   *f; */
 
-	C2_SET0(&ctx);
-	C2_SET0(&ff);
+	M0_SET0(&ctx);
+	M0_SET0(&ff);
 
 	ff2c_context_init(&ctx, sample, strlen(sample));
 	result = ff2c_parse(&ctx, &term);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 
 	ff2c_sem_init(&ff, term);
 /*
@@ -184,12 +184,12 @@ static void ff2c_gen_test(void)
 
 	int result;
 
-	C2_SET0(&ctx);
-	C2_SET0(&ff);
+	M0_SET0(&ctx);
+	M0_SET0(&ff);
 
 	ff2c_context_init(&ctx, sample, strlen(sample));
 	result = ff2c_parse(&ctx, &t);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 
 	ff2c_sem_init(&ff, t);
 
@@ -201,7 +201,7 @@ static void ff2c_gen_test(void)
 	ff2c_context_fini(&ctx);
 }
 
-const struct c2_test_suite xcode_ff2c_ut = {
+const struct m0_test_suite xcode_ff2c_ut = {
         .ts_name = "ff2c-ut",
         .ts_init = NULL,
         .ts_fini = NULL,

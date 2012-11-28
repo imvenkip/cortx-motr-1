@@ -29,7 +29,7 @@ if [ $1 != "console" -a $1 != "server" -a $1 != "client" ]; then
 	exit
 fi
 
-. @SRCDIR@/c2t1fs/linux_kernel/st/common.sh
+. @SRCDIR@/m0t1fs/linux_kernel/st/common.sh
 
 unload_all() {
     modunload

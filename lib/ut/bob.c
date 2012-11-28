@@ -29,7 +29,7 @@ enum {
 
 struct foo {
 	void           *f_payload;
-	struct c2_tlink f_linkage;
+	struct m0_tlink f_linkage;
 	char            f_x[7];
 	uint64_t        f_magix;
 };
@@ -38,50 +38,50 @@ enum {
 	magix = 0xbeda551edcaca0ffULL
 };
 
-C2_TL_DESCR_DEFINE(foo, "foo-s", static, struct foo, f_linkage,
+M0_TL_DESCR_DEFINE(foo, "foo-s", static, struct foo, f_linkage,
 		   f_magix, magix, 0);
-C2_TL_DEFINE(foo, static, struct foo);
+M0_TL_DEFINE(foo, static, struct foo);
 
-static struct c2_bob_type foo_bob;
+static struct m0_bob_type foo_bob;
 static struct foo F;
 static struct foo rank[N];
 
-C2_BOB_DEFINE(static, &foo_bob, foo);
+M0_BOB_DEFINE(static, &foo_bob, foo);
 
 static void test_tlist_init(void)
 {
-	c2_bob_type_tlist_init(&foo_bob, &foo_tl);
-	C2_UT_ASSERT(!strcmp(foo_bob.bt_name, foo_tl.td_name));
-	C2_UT_ASSERT(foo_bob.bt_magix == magix);
-	C2_UT_ASSERT(foo_bob.bt_magix_offset == foo_tl.td_link_magic_offset);
+	m0_bob_type_tlist_init(&foo_bob, &foo_tl);
+	M0_UT_ASSERT(!strcmp(foo_bob.bt_name, foo_tl.td_name));
+	M0_UT_ASSERT(foo_bob.bt_magix == magix);
+	M0_UT_ASSERT(foo_bob.bt_magix_offset == foo_tl.td_link_magic_offset);
 }
 
 static void test_bob_init(void)
 {
 	foo_bob_init(&F);
-	C2_UT_ASSERT(F.f_magix == magix);
-	C2_UT_ASSERT(foo_bob_check(&F));
+	M0_UT_ASSERT(F.f_magix == magix);
+	M0_UT_ASSERT(foo_bob_check(&F));
 }
 
 static void test_bob_fini(void)
 {
 	foo_bob_fini(&F);
-	C2_UT_ASSERT(F.f_magix == 0);
-	C2_UT_ASSERT(!foo_bob_check(&F));
+	M0_UT_ASSERT(F.f_magix == 0);
+	M0_UT_ASSERT(!foo_bob_check(&F));
 }
 
 static void test_tlink_init(void)
 {
 	foo_tlink_init(&F);
-	C2_UT_ASSERT(foo_bob_check(&F));
+	M0_UT_ASSERT(foo_bob_check(&F));
 }
 
 static void test_tlink_fini(void)
 {
 	foo_tlink_fini(&F);
-	C2_UT_ASSERT(foo_bob_check(&F));
+	M0_UT_ASSERT(foo_bob_check(&F));
 	F.f_magix = 0;
-	C2_UT_ASSERT(!foo_bob_check(&F));
+	M0_UT_ASSERT(!foo_bob_check(&F));
 }
 
 static bool foo_check(const void *bob)
@@ -103,13 +103,13 @@ static void test_check(void)
 	}
 
 	for (i = 0; i < N; ++i)
-		C2_UT_ASSERT(foo_bob_check(&rank[i]));
+		M0_UT_ASSERT(foo_bob_check(&rank[i]));
 
 	for (i = 0; i < N; ++i)
 		foo_bob_fini(&rank[i]);
 
 	for (i = 0; i < N; ++i)
-		C2_UT_ASSERT(!foo_bob_check(&rank[i]));
+		M0_UT_ASSERT(!foo_bob_check(&rank[i]));
 
 }
 
@@ -121,7 +121,7 @@ static void test_bob_of(void)
 	foo_bob_init(&F);
 	for (i = -1; i < ARRAY_SIZE(F.f_x) + 3; ++i) {
 		p = &F.f_x[i];
-		C2_UT_ASSERT(bob_of(p, struct foo, f_x[i], &foo_bob) == &F);
+		M0_UT_ASSERT(bob_of(p, struct foo, f_x[i], &foo_bob) == &F);
 	}
 }
 
@@ -135,7 +135,7 @@ void test_bob(void)
 	test_check();
 	test_bob_of();
 }
-C2_EXPORTED(test_bob);
+M0_EXPORTED(test_bob);
 
 /*
  *  Local variables:

@@ -22,7 +22,7 @@
 #include <stdio.h>
 
 #include "lib/assert.h"
-#include "colibri/magic.h"
+#include "mero/magic.h"
 #include "desim/sim.h"
 #include "desim/net.h"
 #include "desim/client.h"
@@ -41,14 +41,14 @@ struct client_thread_param {
 struct client_write_ext {
 	unsigned long long  cwe_offset;
 	unsigned long       cwe_count;
-	struct c2_tlink     cwe_linkage;
+	struct m0_tlink     cwe_linkage;
 	uint64_t            cwe_magic;
 };
 
-C2_TL_DESCR_DEFINE(cl, "client write extents", static, struct client_write_ext,
-		   cwe_linkage, cwe_magic, C2_DESIM_CLIENT_WRITE_EXT_MAGIC,
-		   C2_DESIM_CLIENT_WRITE_EXT_HEAD_MAGIC);
-C2_TL_DEFINE(cl, static, struct client_write_ext);
+M0_TL_DESCR_DEFINE(cl, "client write extents", static, struct client_write_ext,
+		   cwe_linkage, cwe_magic, M0_DESIM_CLIENT_WRITE_EXT_MAGIC,
+		   M0_DESIM_CLIENT_WRITE_EXT_HEAD_MAGIC);
+M0_TL_DEFINE(cl, static, struct client_write_ext);
 
 static void client_pageout(struct sim *s, struct sim_thread *t, void *arg)
 {
@@ -56,7 +56,7 @@ static void client_pageout(struct sim *s, struct sim_thread *t, void *arg)
 	struct client_conf      *conf = c->cl_conf;
 	unsigned                 size = conf->cc_opt_count;
 	struct client_write_ext *ext;
-	struct c2_stob_id id = {
+	struct m0_stob_id id = {
 		.si_bits = {
 			.u_hi = c->cl_fid,
 			.u_lo = c->cl_fid
@@ -69,10 +69,10 @@ static void client_pageout(struct sim *s, struct sim_thread *t, void *arg)
 			if (conf->cc_shutdown)
 				sim_thread_exit(t);
 		}
-		C2_ASSERT(!cl_tlist_is_empty(&c->cl_write_ext));
+		M0_ASSERT(!cl_tlist_is_empty(&c->cl_write_ext));
 		ext = cl_tlist_head(&c->cl_write_ext);
 		/* no real cache management for now */
-		C2_ASSERT(ext->cwe_count == size);
+		M0_ASSERT(ext->cwe_count == size);
 		cl_tlink_del_fini(ext);
 		sim_log(s, SLL_TRACE, "P%2i/%2i: %6lu %10llu %8u\n", c->cl_id,
 			c->cl_inflight, c->cl_fid, ext->cwe_offset, size);
@@ -82,8 +82,8 @@ static void client_pageout(struct sim *s, struct sim_thread *t, void *arg)
 				&id, ext->cwe_offset, size);
 		c->cl_inflight--;
 		c->cl_io -= size;
-		C2_ASSERT(c->cl_cached >= size);
-		C2_ASSERT(c->cl_dirty  >= size);
+		M0_ASSERT(c->cl_cached >= size);
+		M0_ASSERT(c->cl_dirty  >= size);
 		c->cl_cached -= size;
 		c->cl_dirty  -= size;
 		sim_chan_broadcast(&c->cl_cache_free);
@@ -103,8 +103,8 @@ static void client_write_loop(struct sim *s, struct sim_thread *t, void *arg)
 	unsigned long long          off   = conf->cc_total * trid;
 	struct client_write_ext    *ext;
 
-	C2_ASSERT(t == &cl->cl_thread[trid]);
-	C2_ASSERT(cl->cl_id == clid);
+	M0_ASSERT(t == &cl->cl_thread[trid]);
+	M0_ASSERT(cl->cl_id == clid);
 
 	while (nob < conf->cc_total) {
 		sim_sleep(t, sim_rnd(conf->cc_delay_min, conf->cc_delay_max));
@@ -149,7 +149,7 @@ static int client_threads_start(struct sim_callout *call)
 	return 1;
 }
 
-C2_INTERNAL void client_init(struct sim *s, struct client_conf *conf)
+M0_INTERNAL void client_init(struct sim *s, struct client_conf *conf)
 {
 	unsigned i;
 
@@ -178,7 +178,7 @@ C2_INTERNAL void client_init(struct sim *s, struct client_conf *conf)
 	sim_timer_add(s, 0, client_threads_start, conf);
 }
 
-C2_INTERNAL void client_fini(struct client_conf *conf)
+M0_INTERNAL void client_fini(struct client_conf *conf)
 {
 	unsigned i;
 	unsigned j;

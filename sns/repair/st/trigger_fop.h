@@ -20,11 +20,11 @@
 
 #pragma once
 
-#ifndef __COLIBRI_SNS_REPAIR_ST_TRIGGER_FOP_H__
-#define __COLIBRI_SNS_REPAIR_ST_TRIGGER_FOP_H__
+#ifndef __MERO_SNS_REPAIR_ST_TRIGGER_FOP_H__
+#define __MERO_SNS_REPAIR_ST_TRIGGER_FOP_H__
 
-int c2_sns_repair_trigger_fop_init(void);
-void c2_sns_repair_trigger_fop_fini(void);
+int m0_sns_repair_trigger_fop_init(void);
+void m0_sns_repair_trigger_fop_fini(void);
 
 #endif
 /*

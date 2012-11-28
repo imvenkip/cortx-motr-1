@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_SEMAPHORE_H__
-#define __COLIBRI_LIB_SEMAPHORE_H__
+#ifndef __MERO_LIB_SEMAPHORE_H__
+#define __MERO_LIB_SEMAPHORE_H__
 
 #include "lib/types.h"
 #include "lib/time.h"
@@ -29,7 +29,7 @@
 /**
    @defgroup semaphore Dijkstra semaphore
 
-   Wait on a c2_semaphore is non-interruptable: signals won't preempt it. Use
+   Wait on a m0_semaphore is non-interruptable: signals won't preempt it. Use
    semaphores to wait for events that are expected to arrive in a "short time".
 
    @see http://en.wikipedia.org/wiki/Semaphore_(programming)
@@ -43,40 +43,40 @@
 #include "lib/linux_kernel/semaphore.h"
 #endif
 
-/* struct c2_semaphore is defined by headers above. */
+/* struct m0_semaphore is defined by headers above. */
 
-C2_INTERNAL int c2_semaphore_init(struct c2_semaphore *semaphore,
+M0_INTERNAL int m0_semaphore_init(struct m0_semaphore *semaphore,
 				  unsigned value);
-C2_INTERNAL void c2_semaphore_fini(struct c2_semaphore *semaphore);
+M0_INTERNAL void m0_semaphore_fini(struct m0_semaphore *semaphore);
 
 /**
    Downs the semaphore (P-operation).
  */
-C2_INTERNAL void c2_semaphore_down(struct c2_semaphore *semaphore);
+M0_INTERNAL void m0_semaphore_down(struct m0_semaphore *semaphore);
 
 /**
    Ups the semaphore (V-operation).
  */
-C2_INTERNAL void c2_semaphore_up(struct c2_semaphore *semaphore);
+M0_INTERNAL void m0_semaphore_up(struct m0_semaphore *semaphore);
 
 /**
    Tries to down a semaphore without blocking.
 
    Returns true iff the P-operation succeeded without blocking.
  */
-C2_INTERNAL bool c2_semaphore_trydown(struct c2_semaphore *semaphore);
+M0_INTERNAL bool m0_semaphore_trydown(struct m0_semaphore *semaphore);
 
 
 /**
    Returns the number of times a P-operation could be executed without blocking.
 
    @note the return value might, generally, be invalid by the time
-   c2_semaphore_value() returns.
+   m0_semaphore_value() returns.
 
    @note that the parameter is not const. This is because of POSIX
    sem_getvalue() prototype.
  */
-C2_INTERNAL unsigned c2_semaphore_value(struct c2_semaphore *semaphore);
+M0_INTERNAL unsigned m0_semaphore_value(struct m0_semaphore *semaphore);
 
 /**
    Downs the semaphore, blocking for not longer than the (absolute) timeout
@@ -87,12 +87,12 @@ C2_INTERNAL unsigned c2_semaphore_value(struct c2_semaphore *semaphore);
    @return false otherwise.
 
  */
-C2_INTERNAL bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
-					const c2_time_t abs_timeout);
+M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
+					const m0_time_t abs_timeout);
 
 /** @} end of semaphore group */
 
-/* __COLIBRI_LIB_SEMAPHORE_H__ */
+/* __MERO_LIB_SEMAPHORE_H__ */
 #endif
 
 /*

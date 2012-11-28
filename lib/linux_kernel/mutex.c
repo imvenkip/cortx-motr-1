@@ -20,58 +20,58 @@
 
 #include <linux/module.h>
 
-#include "lib/cdefs.h"  /* C2_EXPORTED */
+#include "lib/cdefs.h"  /* M0_EXPORTED */
 #include "lib/mutex.h"
 #include "lib/assert.h"
 
 /**
    @addtogroup mutex
 
-   <b>Implementation of c2_mutex on top of Linux struct mutex.</b>
+   <b>Implementation of m0_mutex on top of Linux struct mutex.</b>
 
    @{
 */
 
-C2_INTERNAL void c2_mutex_init(struct c2_mutex *mutex)
+M0_INTERNAL void m0_mutex_init(struct m0_mutex *mutex)
 {
 	mutex_init(&mutex->m_mutex);
 }
-C2_EXPORTED(c2_mutex_init);
+M0_EXPORTED(m0_mutex_init);
 
-C2_INTERNAL void c2_mutex_fini(struct c2_mutex *mutex)
+M0_INTERNAL void m0_mutex_fini(struct m0_mutex *mutex)
 {
 	mutex_destroy(&mutex->m_mutex);
 }
-C2_EXPORTED(c2_mutex_fini);
+M0_EXPORTED(m0_mutex_fini);
 
-C2_INTERNAL void c2_mutex_lock(struct c2_mutex *mutex)
+M0_INTERNAL void m0_mutex_lock(struct m0_mutex *mutex)
 {
 	mutex_lock(&mutex->m_mutex);
 }
-C2_EXPORTED(c2_mutex_lock);
+M0_EXPORTED(m0_mutex_lock);
 
-C2_INTERNAL int c2_mutex_trylock(struct c2_mutex *mutex)
+M0_INTERNAL int m0_mutex_trylock(struct m0_mutex *mutex)
 {
 	return mutex_trylock(&mutex->m_mutex);
 }
 
-C2_INTERNAL void c2_mutex_unlock(struct c2_mutex *mutex)
+M0_INTERNAL void m0_mutex_unlock(struct m0_mutex *mutex)
 {
 	mutex_unlock(&mutex->m_mutex);
 }
-C2_EXPORTED(c2_mutex_unlock);
+M0_EXPORTED(m0_mutex_unlock);
 
-C2_INTERNAL bool c2_mutex_is_locked(const struct c2_mutex *mutex)
+M0_INTERNAL bool m0_mutex_is_locked(const struct m0_mutex *mutex)
 {
 	return true;
 }
-C2_EXPORTED(c2_mutex_is_locked);
+M0_EXPORTED(m0_mutex_is_locked);
 
-C2_INTERNAL bool c2_mutex_is_not_locked(const struct c2_mutex *mutex)
+M0_INTERNAL bool m0_mutex_is_not_locked(const struct m0_mutex *mutex)
 {
 	return true;
 }
-C2_EXPORTED(c2_mutex_is_not_locked);
+M0_EXPORTED(m0_mutex_is_not_locked);
 
 /** @} end of mutex group */
 

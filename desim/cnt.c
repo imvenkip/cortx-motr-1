@@ -26,7 +26,7 @@
 #include <err.h>
 #include <math.h>
 
-#include "colibri/magic.h"
+#include "mero/magic.h"
 #include "desim/sim.h"
 #include "desim/cnt.h"
 
@@ -35,14 +35,14 @@
    @{
  */
 
-C2_TL_DESCR_DEFINE(cnts, "counters", static, struct cnt,
-		   c_linkage, c_magic, C2_DESIM_CNT_MAGIC,
-		   C2_DESIM_CNTS_HEAD_MAGIC);
-C2_TL_DEFINE(cnts, static, struct cnt);
+M0_TL_DESCR_DEFINE(cnts, "counters", static, struct cnt,
+		   c_linkage, c_magic, M0_DESIM_CNT_MAGIC,
+		   M0_DESIM_CNTS_HEAD_MAGIC);
+M0_TL_DEFINE(cnts, static, struct cnt);
 
-static struct c2_tl cnts;
+static struct m0_tl cnts;
 
-C2_INTERNAL void cnt_init(struct cnt *cnt, struct cnt *parent,
+M0_INTERNAL void cnt_init(struct cnt *cnt, struct cnt *parent,
 			  const char *format, ...)
 {
 	va_list valist;
@@ -57,7 +57,7 @@ C2_INTERNAL void cnt_init(struct cnt *cnt, struct cnt *parent,
 	cnts_tlink_init_at_tail(cnt, &cnts);
 }
 
-C2_INTERNAL void cnt_dump(struct cnt *cnt)
+M0_INTERNAL void cnt_dump(struct cnt *cnt)
 {
 	cnt_t  avg;
 	double sig;
@@ -72,16 +72,16 @@ C2_INTERNAL void cnt_dump(struct cnt *cnt)
 		sim_log(NULL, SLL_INFO, "[%s: empty]\n", cnt->c_name);
 }
 
-C2_INTERNAL void cnt_dump_all(void)
+M0_INTERNAL void cnt_dump_all(void)
 {
 	struct cnt *scan;
 
-	c2_tl_for(cnts, &cnts, scan)
+	m0_tl_for(cnts, &cnts, scan)
 		cnt_dump(scan);
-	c2_tl_endfor;
+	m0_tl_endfor;
 }
 
-C2_INTERNAL void cnt_fini(struct cnt *cnt)
+M0_INTERNAL void cnt_fini(struct cnt *cnt)
 {
 	if (cnt->c_name != NULL)
 		free(cnt->c_name);
@@ -90,7 +90,7 @@ C2_INTERNAL void cnt_fini(struct cnt *cnt)
 }
 
 
-C2_INTERNAL void cnt_mod(struct cnt *cnt, cnt_t val)
+M0_INTERNAL void cnt_mod(struct cnt *cnt, cnt_t val)
 {
 	do {
 		cnt->c_sum += val;
@@ -103,18 +103,18 @@ C2_INTERNAL void cnt_mod(struct cnt *cnt, cnt_t val)
 	} while ((cnt = cnt->c_parent) != NULL);
 }
 
-C2_INTERNAL void cnt_global_init(void)
+M0_INTERNAL void cnt_global_init(void)
 {
 	cnts_tlist_init(&cnts);
 }
 
-C2_INTERNAL void cnt_global_fini(void)
+M0_INTERNAL void cnt_global_fini(void)
 {
 	struct cnt *scan;
 
-	c2_tl_for(cnts, &cnts, scan)
+	m0_tl_for(cnts, &cnts, scan)
 		cnt_fini(scan);
-	c2_tl_endfor;
+	m0_tl_endfor;
 
 	cnts_tlist_fini(&cnts);
 }

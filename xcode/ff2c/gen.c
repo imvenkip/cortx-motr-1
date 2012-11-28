@@ -115,11 +115,11 @@ int ff2c_h_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt)
 	out("\n");
 	for (t = ff->ff_type.l_head; t != NULL; t = t->t_next) {
 		if (t->t_public)
-			out("extern struct c2_xcode_type *%s;\n", t->t_xc_name);
+			out("extern struct m0_xcode_type *%s;\n", t->t_xc_name);
 	}
 	out("\n"
-	    "C2_INTERNAL void c2_xc_%s_init(void);\n"
-	    "C2_INTERNAL void c2_xc_%s_fini(void);\n\n", opt->go_basename,
+	    "M0_INTERNAL void m0_xc_%s_init(void);\n"
+	    "M0_INTERNAL void m0_xc_%s_fini(void);\n\n", opt->go_basename,
 	    opt->go_basename);
 	out("/* %s */\n"
 	    "#endif\n\n", opt->go_guardname);
@@ -129,7 +129,7 @@ int ff2c_h_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt)
 static void field_def(const struct ff2c_type *t,
 		      const struct ff2c_field *f, int i)
 {
-	out("\t_%s._child[%i] = (struct c2_xcode_field) {\n"
+	out("\t_%s._child[%i] = (struct m0_xcode_field) {\n"
 	    "\t\t.xf_name   = \"%s\",\n"
 	    "\t\t.xf_type   = %s,\n"
 	    "\t\t.xf_tag    = %s,\n"
@@ -153,25 +153,25 @@ static void type_fields(const struct ff2c_type *t)
 
 static void type_decl(const struct ff2c_type *t)
 {
-	out("%sstruct c2_xcode_type *%s",
+	out("%sstruct m0_xcode_type *%s",
 	    t->t_public ? "" : "static ", t->t_xc_name);
 }
 
 static void type_def(const struct ff2c_type *t)
 {
 	static const char *caggr[] = {
-		[FTT_VOID]     = "C2_XA_ATOM",
-		[FTT_U8]       = "C2_XA_ATOM",
-		[FTT_U32]      = "C2_XA_ATOM",
-		[FTT_U64]      = "C2_XA_ATOM",
-		[FTT_OPAQUE]   = "C2_XA_OPAQUE",
-		[FTT_RECORD]   = "C2_XA_RECORD",
-		[FTT_UNION]    = "C2_XA_UNION",
-		[FTT_SEQUENCE] = "C2_XA_SEQUENCE"
+		[FTT_VOID]     = "M0_XA_ATOM",
+		[FTT_U8]       = "M0_XA_ATOM",
+		[FTT_U32]      = "M0_XA_ATOM",
+		[FTT_U64]      = "M0_XA_ATOM",
+		[FTT_OPAQUE]   = "M0_XA_OPAQUE",
+		[FTT_RECORD]   = "M0_XA_RECORD",
+		[FTT_UNION]    = "M0_XA_UNION",
+		[FTT_SEQUENCE] = "M0_XA_SEQUENCE"
 	};
 	out("static struct _%s_s {\n"
-	    "\tstruct c2_xcode_type _type;\n"
-	    "\tstruct c2_xcode_field _child[%i];\n"
+	    "\tstruct m0_xcode_type _type;\n"
+	    "\tstruct m0_xcode_field _child[%i];\n"
 	    "} _%s = {\n"
 	    "\t._type = {\n"
 	    "\t\t.xct_aggr   = %s,\n"
@@ -185,8 +185,8 @@ static void type_def(const struct ff2c_type *t)
 	    t->t_name, t->t_c_name, t->t_nr);
 	type_decl(t);
 	out(" = &_%s._type;\n"
-	    "C2_BASSERT(offsetof(struct _%s_s, _child[0]) ==\n"
-	    "\toffsetof(struct c2_xcode_type, xct_child[0]));\n\n",
+	    "M0_BASSERT(offsetof(struct _%s_s, _child[0]) ==\n"
+	    "\toffsetof(struct m0_xcode_type, xct_child[0]));\n\n",
 	    t->t_name, t->t_name);
 }
 
@@ -220,15 +220,15 @@ int ff2c_c_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt)
 	}
 	out("\n");
 	for (e = ff->ff_escape.l_head; e != NULL; e = e->e_next) {
-		out("int %s(const struct c2_xcode_obj *par,\n"
-		    "\t\tconst struct c2_xcode_type **out);\n", e->e_escape);
+		out("int %s(const struct m0_xcode_obj *par,\n"
+		    "\t\tconst struct m0_xcode_type **out);\n", e->e_escape);
 	}
 	out("\n");
 	for (t = ff->ff_type.l_head; t != NULL; t = t->t_next)
 		type_def(t);
 
 	out("\n\n"
-	    "C2_INTERNAL void c2_xc_%s_init(void)\n"
+	    "M0_INTERNAL void m0_xc_%s_init(void)\n"
 	    "{\n", opt->go_basename);
 
 	for (t = ff->ff_type.l_head; t != NULL; t = t->t_next) {
@@ -236,7 +236,7 @@ int ff2c_c_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt)
 		out("\n");
 	}
 	out("}\n"
-	    "C2_INTERNAL void c2_xc_%s_fini(void)\n{}\n", opt->go_basename);
+	    "M0_INTERNAL void m0_xc_%s_fini(void)\n{}\n", opt->go_basename);
 
 	return 0;
 }

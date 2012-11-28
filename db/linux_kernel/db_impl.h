@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_DB_LINUX_KERNEL_DB_IMPL_H__
-#define __COLIBRI_DB_LINUX_KERNEL_DB_IMPL_H__
+#ifndef __MERO_DB_LINUX_KERNEL_DB_IMPL_H__
+#define __MERO_DB_LINUX_KERNEL_DB_IMPL_H__
 
 #include "lib/tlist.h"
 #include "lib/mutex.h"
@@ -34,44 +34,44 @@
    @{
  */
 
-struct c2_dbenv_impl {
+struct m0_dbenv_impl {
 };
 
-struct c2_table_impl {
+struct m0_table_impl {
 	/**
 	   Kernel "table" is simply a list of pairs in memory.
 	 */
-	struct c2_tl    tk_pair;
-	struct c2_mutex tk_lock;
+	struct m0_tl    tk_pair;
+	struct m0_mutex tk_lock;
 };
 
-struct c2_db_buf_impl {
+struct m0_db_buf_impl {
 };
 
-struct c2_db_tx_impl {
+struct m0_db_tx_impl {
 };
 
-struct c2_db_tx_waiter_impl {
+struct m0_db_tx_waiter_impl {
 };
 
 /**
    (key, record) pair in a kernel memory.
  */
-struct c2_db_kpair {
+struct m0_db_kpair {
 	uint64_t        dk_magix;
-	struct c2_tlink dk_linkage;
-	struct c2_buf   dk_key;
-	struct c2_buf   dk_rec;
+	struct m0_tlink dk_linkage;
+	struct m0_buf   dk_key;
+	struct m0_buf   dk_rec;
 	/* followed by dk_key.a_nob + dk_rec.a_nob bytes */
 };
 
-struct c2_db_cursor_impl {
-	struct c2_db_kpair *ck_current;
+struct m0_db_cursor_impl {
+	struct m0_db_kpair *ck_current;
 };
 
 /** @} end of db group */
 
-/* __COLIBRI_DB_LINUX_KERNEL_DB_IMPL_H__ */
+/* __MERO_DB_LINUX_KERNEL_DB_IMPL_H__ */
 #endif
 
 /*

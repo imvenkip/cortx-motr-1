@@ -18,7 +18,7 @@
  * Original creation date: 25/09/2012
  */
 
-#include "colibri/init.h"
+#include "mero/init.h"
 #include "conf/preload.h"
 #include "conf/obj_ops.h"
 #include "conf/onwire.h"
@@ -48,16 +48,16 @@ int main(int argc, char *argv[])
 	char  buf[32*KB] = {0};
 	const char *dbconf = C_PATH;
 	struct confx_object *conf;
-	struct c2_conf_obj  *obj;
-	struct c2_conf_reg   reg;
+	struct m0_conf_obj  *obj;
+	struct m0_conf_reg   reg;
 	FILE *conf_file;
 
-	rc = c2_init();
+	rc = m0_init();
 	if (rc != 0)
 		return rc;
 
-	rc = C2_GETOPTS("confc_test", argc, argv,
-			C2_STRINGARG('c', "path of config file",
+	rc = M0_GETOPTS("confc_test", argc, argv,
+			M0_STRINGARG('c', "path of config file",
 				     LAMBDA(void, (const char *str)
 					    { dbconf = str; })));
 	if (rc != 0)
@@ -74,45 +74,45 @@ int main(int argc, char *argv[])
 	}
 	buf[n] = '\0';
 
-	n = c2_confx_obj_nr(buf);
+	n = m0_confx_obj_nr(buf);
 	if (n <= 0) {
 		rc = n;
 		goto close_file;
 	}
 
-	C2_ALLOC_ARR(conf, n);
+	M0_ALLOC_ARR(conf, n);
 	if (conf == NULL) {
 		rc = ENOMEM;
 		goto close_file;
 	}
 
-	rc = c2_conf_parse(buf, conf, n);
+	rc = m0_conf_parse(buf, conf, n);
 	if (rc <= 0)
 		goto conf_free;
 
 
-	c2_conf_reg_init(&reg);
+	m0_conf_reg_init(&reg);
 	for (i = 0; i < n; ++i) {
-		rc = c2_conf_obj_find(&reg, conf[i].o_conf.u_type,
+		rc = m0_conf_obj_find(&reg, conf[i].o_conf.u_type,
 				      &conf[i].o_id, &obj);
 		if (rc != 0)
 			break;
 
-		rc = c2_conf_obj_fill(obj, &conf[i], &reg);
+		rc = m0_conf_obj_fill(obj, &conf[i], &reg);
 		if (rc != 0)
 			break;
 	}
 
-	extern void c2_conf__reg2dot(const struct c2_conf_reg *reg);
-	c2_conf__reg2dot(&reg);
-	c2_conf_reg_fini(&reg);
-	c2_confx_fini(conf, n);
+	extern void m0_conf__reg2dot(const struct m0_conf_reg *reg);
+	m0_conf__reg2dot(&reg);
+	m0_conf_reg_fini(&reg);
+	m0_confx_fini(conf, n);
 
 conf_free:
-	c2_free(conf);
+	m0_free(conf);
 close_file:
 	fclose(conf_file);
 cleanup:
-	c2_fini();
+	m0_fini();
 	return rc;
 }

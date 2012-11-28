@@ -1,1 +1,1 @@
-nobase_colibri_include_HEADERS += mw/consensus.h
+nobase_mero_include_HEADERS += mw/consensus.h

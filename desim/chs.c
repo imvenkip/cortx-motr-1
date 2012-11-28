@@ -41,7 +41,7 @@ static void chs_submit(struct storage_dev *dev,
 		       enum storage_req_type type,
 		       sector_t sector, unsigned long count);
 
-C2_INTERNAL void chs_conf_init(struct chs_conf *conf)
+M0_INTERNAL void chs_conf_init(struct chs_conf *conf)
 {
 	sim_time_t track;
 	sim_time_t avg;
@@ -78,8 +78,8 @@ C2_INTERNAL void chs_conf_init(struct chs_conf *conf)
 	full  = conf->cc_seek_full_stroke;
 	nrcyl = conf->cc_cylinders;
 
-	C2_ASSERT(4 * full + 2 * track >= 6 * avg);
-	C2_ASSERT(3 * full + 3 * track <= 6 * avg);
+	M0_ASSERT(4 * full + 2 * track >= 6 * avg);
+	M0_ASSERT(3 * full + 3 * track <= 6 * avg);
 
 	conf->cc_alpha = ( 4 * full - 6 * avg + 2 * track) / nrcyl;
 	conf->cc_beta  = (-3 * full + 6 * avg - 3 * track) / sqrt(nrcyl);
@@ -121,13 +121,13 @@ C2_INTERNAL void chs_conf_init(struct chs_conf *conf)
 	printf("total of %llu sectors\n", sectors_cum);
 }
 
-C2_INTERNAL void chs_conf_fini(struct chs_conf *conf)
+M0_INTERNAL void chs_conf_fini(struct chs_conf *conf)
 {
 	if (conf->cc_zone != NULL)
 		free(conf->cc_zone);
 }
 
-C2_INTERNAL void chs_dev_init(struct chs_dev *dev, struct sim *sim,
+M0_INTERNAL void chs_dev_init(struct chs_dev *dev, struct sim *sim,
 			      struct chs_conf *conf)
 {
 	struct storage_dev *cd = &dev->cd_storage;
@@ -145,7 +145,7 @@ C2_INTERNAL void chs_dev_init(struct chs_dev *dev, struct sim *sim,
 	cnt_init(&dev->cd_write_size, NULL, "write-size@%s", name);
 }
 
-C2_INTERNAL void chs_dev_fini(struct chs_dev *dev)
+M0_INTERNAL void chs_dev_fini(struct chs_dev *dev)
 {
 	cnt_fini(&dev->cd_write_size);
 	cnt_fini(&dev->cd_read_size);
@@ -159,7 +159,7 @@ C2_INTERNAL void chs_dev_fini(struct chs_dev *dev)
  */
 static unsigned chs_tracks(struct chs_conf *conf, unsigned cyl)
 {
-	C2_ASSERT(cyl < conf->cc_cylinders);
+	M0_ASSERT(cyl < conf->cc_cylinders);
 	return conf->cc_zone[cyl].track_sectors;
 }
 
@@ -168,7 +168,7 @@ static unsigned chs_tracks(struct chs_conf *conf, unsigned cyl)
  */
 static sector_t chs_cylinder_sectors(struct chs_conf *conf, unsigned cyl)
 {
-	C2_ASSERT(cyl < conf->cc_cylinders);
+	M0_ASSERT(cyl < conf->cc_cylinders);
 	return conf->cc_zone[cyl].cyl_first;
 }
 
@@ -181,7 +181,7 @@ static unsigned chs_sector_cylinder(struct chs_conf *conf, sector_t sector)
 	unsigned j;
 	unsigned h;
 
-	C2_ASSERT(sector <= conf->cc_zone[conf->cc_cylinders - 1].cyl_first +
+	M0_ASSERT(sector <= conf->cc_zone[conf->cc_cylinders - 1].cyl_first +
 	                 conf->cc_zone[conf->cc_cylinders - 1].cyl_sectors);
 
 	i = 0;
@@ -193,8 +193,8 @@ static unsigned chs_sector_cylinder(struct chs_conf *conf, sector_t sector)
 		else
 			j = h;
 	}
-	C2_ASSERT(conf->cc_zone[i].cyl_first <= sector);
-	C2_ASSERT(i == conf->cc_cylinders - 1 ||
+	M0_ASSERT(conf->cc_zone[i].cyl_first <= sector);
+	M0_ASSERT(i == conf->cc_cylinders - 1 ||
 	       sector < conf->cc_zone[i + 1].cyl_first);
 	return i;
 }
@@ -210,19 +210,19 @@ static void chs_sector_to_chs(struct chs_conf *conf, sector_t sector,
 	unsigned track_sects;
 
 	*cylinder = chs_sector_cylinder(conf, sector);
-	C2_ASSERT(*cylinder < conf->cc_cylinders);
+	M0_ASSERT(*cylinder < conf->cc_cylinders);
 
 	track_sects = chs_tracks(conf, *cylinder);
 	/* sectors in a cylinder */
 	cyl_sects = track_sects * conf->cc_heads;
-	C2_ASSERT(cyl_sects == conf->cc_zone[*cylinder].cyl_sectors);
+	M0_ASSERT(cyl_sects == conf->cc_zone[*cylinder].cyl_sectors);
 	sector -= chs_cylinder_sectors(conf, *cylinder);
-	C2_ASSERT(sector < cyl_sects);
+	M0_ASSERT(sector < cyl_sects);
 	*head = sector / track_sects;
-	C2_ASSERT(*head < conf->cc_heads);
+	M0_ASSERT(*head < conf->cc_heads);
 	sector -= *head * track_sects;
 	*sect_in_track = sector;
-	C2_ASSERT(*sect_in_track < track_sects);
+	M0_ASSERT(*sect_in_track < track_sects);
 }
 
 /*
@@ -256,7 +256,7 @@ static sim_time_t chs_req(struct chs_dev *dev, enum storage_req_type type,
 	sector_t   sector_at;
 	long       sects_dist;
 
-	C2_ASSERT(count >= 0);
+	M0_ASSERT(count >= 0);
 
 	/*
 	 * Request processing consists of:
@@ -351,9 +351,9 @@ static sim_time_t chs_req(struct chs_dev *dev, enum storage_req_type type,
 		cylinder, head, sector_target0, sector,
 		seek, rotation, xfer);
 
-	C2_ASSERT(count == 0);
-	C2_ASSERT(cylinder < conf->cc_cylinders);
-	C2_ASSERT(head     < conf->cc_heads);
+	M0_ASSERT(count == 0);
+	M0_ASSERT(cylinder < conf->cc_cylinders);
+	M0_ASSERT(head     < conf->cc_heads);
 	dev->cd_cylinder = cylinder;
 	dev->cd_head     = head;
 
@@ -364,7 +364,7 @@ static int chs_req_done(struct sim_callout *call)
 {
 	struct chs_dev *dev = call->sc_datum;
 
-	C2_ASSERT(dev->cd_state == CDS_XFER);
+	M0_ASSERT(dev->cd_state == CDS_XFER);
 
 	dev->cd_state = CDS_IDLE;
 	if (dev->cd_storage.sd_end_io != NULL)
@@ -379,7 +379,7 @@ static void chs_submit(struct storage_dev *sdev,
 	sim_time_t      reqtime;
 	struct chs_dev *dev = container_of(sdev, struct chs_dev, cd_storage);
 
-	C2_ASSERT(dev->cd_state == CDS_IDLE);
+	M0_ASSERT(dev->cd_state == CDS_IDLE);
 
 	reqtime = chs_req(dev, type, sector, count);
 	sim_timer_rearm(&dev->cd_todo, reqtime, chs_req_done, dev);

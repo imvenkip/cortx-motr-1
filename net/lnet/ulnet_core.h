@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_ULNET_CORE_H__
-#define __COLIBRI_NET_ULNET_CORE_H__
+#ifndef __MERO_NET_ULNET_CORE_H__
+#define __MERO_NET_ULNET_CORE_H__
 
 /**
    @defgroup ULNetCore LNet Transport Core User Space Private Interface
@@ -39,9 +39,9 @@
 struct nlx_ucore_domain {
 	uint64_t                        ud_magic;
 	/** Cached maximum buffer size (counting all segments). */
-	c2_bcount_t                     ud_max_buffer_size;
+	m0_bcount_t                     ud_max_buffer_size;
 	/** Cached maximum size of a buffer segment. */
-	c2_bcount_t                     ud_max_buffer_segment_size;
+	m0_bcount_t                     ud_max_buffer_segment_size;
 	/** Cached maximum number of buffer segments. */
 	int32_t                         ud_max_buffer_segments;
 	/** Cached NID strings.  If LNet were to support dynamically configured
@@ -49,11 +49,11 @@ struct nlx_ucore_domain {
 	 */
         char                          **ud_nidstrs;
 	/** Number of references to the NID strings */
-	struct c2_atomic64              ud_nidstrs_refcount;
+	struct m0_atomic64              ud_nidstrs_refcount;
 	/** File descriptor to the kernel device. */
 	int                             ud_fd;
 	/** ADDB context for events related to this domain. */
-	struct c2_addb_ctx              ud_addb;
+	struct m0_addb_ctx              ud_addb;
 };
 
 /**
@@ -63,7 +63,7 @@ struct nlx_ucore_domain {
 struct nlx_ucore_transfer_mc {
 	uint64_t                        utm_magic;
 	/** ADDB context for events related to this transfer machine. */
-	struct c2_addb_ctx              utm_addb;
+	struct m0_addb_ctx              utm_addb;
 };
 
 /**
@@ -73,12 +73,12 @@ struct nlx_ucore_transfer_mc {
 struct nlx_ucore_buffer {
 	uint64_t                        ub_magic;
 	/** ADDB context for events related to this buffer. */
-	struct c2_addb_ctx              ub_addb;
+	struct m0_addb_ctx              ub_addb;
 };
 
 /** @} */ /* ULNetCore */
 
-#endif /* __COLIBRI_NET_ULNET_CORE_H__ */
+#endif /* __MERO_NET_ULNET_CORE_H__ */
 
 /*
  *  Local variables:

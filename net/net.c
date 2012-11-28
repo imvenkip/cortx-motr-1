@@ -36,71 +36,71 @@
    Transport that deal with multiple domains can rely on this mutex being held
    across their xo_dom_init() and xo_dom_fini() methods.
  */
-struct c2_mutex c2_net_mutex;
+struct m0_mutex m0_net_mutex;
 
 /** @} net */
 
-const struct c2_addb_loc c2_net_addb_loc = {
+const struct m0_addb_loc m0_net_addb_loc = {
 	.al_name = "net"
 };
 
-const struct c2_addb_ctx_type c2_net_addb_ctx = {
+const struct m0_addb_ctx_type m0_net_addb_ctx = {
 	.act_name = "net"
 };
 
-struct c2_addb_ctx c2_net_addb;
+struct m0_addb_ctx m0_net_addb;
 
-C2_INTERNAL int c2_net_init()
+M0_INTERNAL int m0_net_init()
 {
-	c2_mutex_init(&c2_net_mutex);
-	c2_addb_ctx_init(&c2_net_addb, &c2_net_addb_ctx, &c2_addb_global_ctx);
-	c2_xc_net_otw_types_init();
+	m0_mutex_init(&m0_net_mutex);
+	m0_addb_ctx_init(&m0_net_addb, &m0_net_addb_ctx, &m0_addb_global_ctx);
+	m0_xc_net_otw_types_init();
 
 	return 0;
 }
 
-C2_INTERNAL void c2_net_fini()
+M0_INTERNAL void m0_net_fini()
 {
-	c2_xc_net_otw_types_fini();
-	c2_addb_ctx_fini(&c2_net_addb);
-	c2_mutex_fini(&c2_net_mutex);
+	m0_xc_net_otw_types_fini();
+	m0_addb_ctx_fini(&m0_net_addb);
+	m0_mutex_fini(&m0_net_mutex);
 }
 
-int c2_net_xprt_init(struct c2_net_xprt *xprt)
+int m0_net_xprt_init(struct m0_net_xprt *xprt)
 {
 	return 0;
 }
-C2_EXPORTED(c2_net_xprt_init);
+M0_EXPORTED(m0_net_xprt_init);
 
-void c2_net_xprt_fini(struct c2_net_xprt *xprt)
+void m0_net_xprt_fini(struct m0_net_xprt *xprt)
 {
 }
-C2_EXPORTED(c2_net_xprt_fini);
+M0_EXPORTED(m0_net_xprt_fini);
 
-C2_INTERNAL int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
-				 struct c2_net_buf_desc *to_desc)
+M0_INTERNAL int m0_net_desc_copy(const struct m0_net_buf_desc *from_desc,
+				 struct m0_net_buf_desc *to_desc)
 {
-	C2_PRE(from_desc->nbd_len > 0);
-	C2_ALLOC_ARR_ADDB(to_desc->nbd_data, from_desc->nbd_len,
-			  &c2_net_addb, &c2_net_addb_loc);
+	M0_PRE(from_desc->nbd_len > 0);
+	M0_ALLOC_ARR_ADDB(to_desc->nbd_data, from_desc->nbd_len,
+			  &m0_net_addb, &m0_net_addb_loc);
 	if (to_desc->nbd_data == NULL)
 		return -ENOMEM;
 	memcpy(to_desc->nbd_data, from_desc->nbd_data, from_desc->nbd_len);
 	to_desc->nbd_len = from_desc->nbd_len;
 	return 0;
 }
-C2_EXPORTED(c2_net_desc_copy);
+M0_EXPORTED(m0_net_desc_copy);
 
-C2_INTERNAL void c2_net_desc_free(struct c2_net_buf_desc *desc)
+M0_INTERNAL void m0_net_desc_free(struct m0_net_buf_desc *desc)
 {
 	if (desc->nbd_len > 0) {
-		C2_PRE(desc->nbd_data != NULL);
-		c2_free(desc->nbd_data);
+		M0_PRE(desc->nbd_data != NULL);
+		m0_free(desc->nbd_data);
 		desc->nbd_len = 0;
 	}
 	desc->nbd_data = NULL;
 }
-C2_EXPORTED(c2_net_desc_free);
+M0_EXPORTED(m0_net_desc_free);
 
 /*
  *  Local variables:

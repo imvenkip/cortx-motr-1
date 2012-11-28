@@ -25,7 +25,7 @@
 #include <stdlib.h>
 
 #include "lib/assert.h"
-#include "colibri/magic.h"
+#include "mero/magic.h"
 #include "desim/elevator.h"
 
 /**
@@ -38,14 +38,14 @@
  */
 
 struct io_req {
-	struct c2_tlink ir_linkage;
+	struct m0_tlink ir_linkage;
 	uint64_t        ir_magic;
 };
 
-C2_TL_DESCR_DEFINE(req, "io requests", static, struct io_req,
-		   ir_linkage, ir_magic, C2_DESIM_IO_REQ_MAGIC,
-		   C2_DESIM_IO_REQ_HEAD_MAGIC);
-C2_TL_DEFINE(req, static, struct io_req);
+M0_TL_DESCR_DEFINE(req, "io requests", static, struct io_req,
+		   ir_linkage, ir_magic, M0_DESIM_IO_REQ_MAGIC,
+		   M0_DESIM_IO_REQ_HEAD_MAGIC);
+M0_TL_DEFINE(req, static, struct io_req);
 
 static void elevator_submit(struct elevator *el,
 			    enum storage_req_type type,
@@ -61,10 +61,10 @@ static void elevator_submit(struct elevator *el,
 static void elevator_go(struct elevator *el)
 {
 	/* impossible for now */
-	C2_IMPOSSIBLE("Elevator is not yet implemented");
+	M0_IMPOSSIBLE("Elevator is not yet implemented");
 }
 
-C2_INTERNAL void el_end_io(struct storage_dev *dev)
+M0_INTERNAL void el_end_io(struct storage_dev *dev)
 {
 	struct elevator *el;
 
@@ -75,7 +75,7 @@ C2_INTERNAL void el_end_io(struct storage_dev *dev)
 	sim_chan_broadcast(&el->e_wait);
 }
 
-C2_INTERNAL void elevator_init(struct elevator *el, struct storage_dev *dev)
+M0_INTERNAL void elevator_init(struct elevator *el, struct storage_dev *dev)
 {
 	el->e_dev  = dev;
 	el->e_idle = 1;
@@ -85,13 +85,13 @@ C2_INTERNAL void elevator_init(struct elevator *el, struct storage_dev *dev)
 	sim_chan_init(&el->e_wait, "xfer-queue@%s", dev->sd_name);
 }
 
-C2_INTERNAL void elevator_fini(struct elevator *el)
+M0_INTERNAL void elevator_fini(struct elevator *el)
 {
 	req_tlist_fini(&el->e_queue);
 	sim_chan_fini(&el->e_wait);
 }
 
-C2_INTERNAL void elevator_io(struct elevator *el, enum storage_req_type type,
+M0_INTERNAL void elevator_io(struct elevator *el, enum storage_req_type type,
 			     sector_t sector, unsigned long count)
 {
 	while (!el->e_idle)

@@ -40,17 +40,17 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_SLOT_INT_H__
-#define __COLIBRI_RPC_SLOT_INT_H__
+#ifndef __MERO_RPC_SLOT_INT_H__
+#define __MERO_RPC_SLOT_INT_H__
 
 #include "lib/tlist.h"
 #include "dtm/verno.h"
 
 /* Imports */
-struct c2_rpc_item;
-struct c2_rpc_session;
-struct c2_cob;
-struct c2_db_tx;
+struct m0_rpc_item;
+struct m0_rpc_session;
+struct m0_cob;
+struct m0_db_tx;
 
 /**
    @addtogroup rpc_session
@@ -68,23 +68,23 @@ enum {
 /**
    Call-backs for events that a slot can trigger.
  */
-struct c2_rpc_slot_ops {
+struct m0_rpc_slot_ops {
 	/** Item i is ready to be consumed */
-	void (*so_item_consume)(struct c2_rpc_item *i);
+	void (*so_item_consume)(struct m0_rpc_item *i);
 	/** A @reply for a request item @req is received and is
 	    ready to be consumed */
-	void (*so_reply_consume)(struct c2_rpc_item *req,
-				 struct c2_rpc_item *reply);
+	void (*so_reply_consume)(struct m0_rpc_item *req,
+				 struct m0_rpc_item *reply);
 	/** Slot has no items to send and hence is idle. Formation
 	    can use such slot to send unbound items. */
-	void (*so_slot_idle)(struct c2_rpc_slot *slot);
+	void (*so_slot_idle)(struct m0_rpc_slot *slot);
 };
 
 /**
   In memory slot object.
 
   A slot provides the FIFO and exactly once semantics for item delivery.
-  c2_rpc_slot and its corresponding methods are equally valid on sender and
+  m0_rpc_slot and its corresponding methods are equally valid on sender and
   receiver side.
 
   One can think of a slot as a pipe. On sender side, application/formation is
@@ -111,7 +111,7 @@ struct c2_rpc_slot_ops {
 
   - future: the item wasn't sent.
 
-  An item can be linked into multiple slots (similar to c2_fol_obj_ref).
+  An item can be linked into multiple slots (similar to m0_fol_obj_ref).
   For each slot the item has a separate verno and separate linkage into
   the slot's item list. Item state is common for all slots;
 
@@ -162,8 +162,8 @@ struct c2_rpc_slot_ops {
   <B> Liveness and concurreny </B>
   Slots are allocated at the time of session initialisation and freed at the
   time of session finalisation.
-  c2_rpc_slot::sl_mutex protects all fields of slot except sl_link.
-  sl_link is protected by c2_rpc_machine::rm_ready_slots_mutex.
+  m0_rpc_slot::sl_mutex protects all fields of slot except sl_link.
+  sl_link is protected by m0_rpc_machine::rm_ready_slots_mutex.
 
   Locking order:
     - slot->sl_mutex
@@ -173,21 +173,21 @@ struct c2_rpc_slot_ops {
       now, there is no case where these two mutex are held together. If such
       need arises then ordering of these two mutex should be decided.)
  */
-struct c2_rpc_slot {
+struct m0_rpc_slot {
 	/** Session to which this slot belongs */
-	struct c2_rpc_session        *sl_session;
+	struct m0_rpc_session        *sl_session;
 
 	/** identifier of slot, unique within the session */
 	uint32_t                      sl_slot_id;
 
 	/** Cob representing this slot in persistent state */
-	struct c2_cob                *sl_cob;
+	struct m0_cob                *sl_cob;
 
-	/** list anchor to put in c2_rpc_session::s_ready_slots */
-	struct c2_tlink		      sl_link;
+	/** list anchor to put in m0_rpc_session::s_ready_slots */
+	struct m0_tlink		      sl_link;
 
 	/** Current version number of slot */
-	struct c2_verno               sl_verno;
+	struct m0_verno               sl_verno;
 
 	/** slot generation */
 	uint64_t                      sl_slot_gen;
@@ -198,16 +198,16 @@ struct c2_rpc_slot {
 	uint64_t                      sl_xid;
 
 	/** List of items, starting from oldest. Items are placed using
-	    c2_rpc_item::ri_slot_refs[0].sr_link
+	    m0_rpc_item::ri_slot_refs[0].sr_link
 	    List descriptor: slot_item
 	 */
-	struct c2_tl                  sl_item_list;
+	struct m0_tl                  sl_item_list;
 
 	/** earliest item that the receiver possibly have seen */
-	struct c2_rpc_item           *sl_last_sent;
+	struct m0_rpc_item           *sl_last_sent;
 
 	/** item that is most recently persistent on receiver */
-	struct c2_rpc_item           *sl_last_persistent;
+	struct m0_rpc_item           *sl_last_persistent;
 
 	/** On sender: Number of items in flight
 	    On receiver: Number of items submitted for execution but whose
@@ -219,9 +219,9 @@ struct c2_rpc_slot {
 	    @see SLOT_DEFAULT_MAX_IN_FLIGHT */
 	uint32_t                      sl_max_in_flight;
 
-	const struct c2_rpc_slot_ops *sl_ops;
+	const struct m0_rpc_slot_ops *sl_ops;
 
-	/** C2_RPC_SLOT_MAGIC */
+	/** M0_RPC_SLOT_MAGIC */
 	uint64_t		      sl_magic;
 };
 
@@ -230,11 +230,11 @@ struct c2_rpc_slot {
 
    @post ergo(result == 0, slot->sl_verno.vn_vc == 0 &&
 			   slot->sl_xid == 1 &&
-			   !c2_list_is_empty(slot->sl_item_list) &&
+			   !m0_list_is_empty(slot->sl_item_list) &&
 			   slot->sl_ops == ops)
  */
-C2_INTERNAL int c2_rpc_slot_init(struct c2_rpc_slot *slot,
-				 const struct c2_rpc_slot_ops *ops);
+M0_INTERNAL int m0_rpc_slot_init(struct m0_rpc_slot *slot,
+				 const struct m0_rpc_slot_ops *ops);
 
 /**
    If verno of item matches with verno of slot, then adds the item
@@ -242,8 +242,8 @@ C2_INTERNAL int c2_rpc_slot_init(struct c2_rpc_slot *slot,
    slot is advanced. if item is already present in slot->sl_item_list
    its reply is immediately consumed.
  */
-C2_INTERNAL int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
-				       struct c2_rpc_item *item);
+M0_INTERNAL int m0_rpc_slot_item_apply(struct m0_rpc_slot *slot,
+				       struct m0_rpc_item *item);
 
 /**
    Called when a reply item is received for an item which was sent on this slot.
@@ -255,77 +255,77 @@ C2_INTERNAL int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
    Takes care of duplicate replies. Sets *req_out to NULL if @reply is
    duplicate or unexpected.
  */
-C2_INTERNAL int c2_rpc_slot_reply_received(struct c2_rpc_slot *slot,
-					   struct c2_rpc_item *reply,
-					   struct c2_rpc_item **req_out);
+M0_INTERNAL int m0_rpc_slot_reply_received(struct m0_rpc_slot *slot,
+					   struct m0_rpc_item *reply,
+					   struct m0_rpc_item **req_out);
 
 /**
    Reports slot that effects of item with verno <= @last_pesistent, are
    persistent on receiver.
 
-   @post c2_verno_cmp(&slot->sl_last_persistent->ri_slot_refs[0].sr_verno,
+   @post m0_verno_cmp(&slot->sl_last_persistent->ri_slot_refs[0].sr_verno,
 		      &last_persistent) >= 0
  */
-C2_INTERNAL void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
-					 struct c2_verno last_persistent);
+M0_INTERNAL void m0_rpc_slot_persistence(struct m0_rpc_slot *slot,
+					 struct m0_verno last_persistent);
 
-C2_INTERNAL void c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
-						      struct c2_rpc_item *item);
+M0_INTERNAL void m0_rpc_slot_misordered_item_received(struct m0_rpc_slot *slot,
+						      struct m0_rpc_item *item);
 
 /**
    Resets version number of slot to @last_seen
-   @post c2_verno_cmp(&slot->sl_last_sent->ri_slot_refs[0].sr_verno,
+   @post m0_verno_cmp(&slot->sl_last_sent->ri_slot_refs[0].sr_verno,
 		      &last_seen) == 0
  */
-C2_INTERNAL void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
-				   struct c2_verno last_seen);
+M0_INTERNAL void m0_rpc_slot_reset(struct m0_rpc_slot *slot,
+				   struct m0_verno last_seen);
 
 /**
    Finalises slot
  */
-C2_INTERNAL void c2_rpc_slot_fini(struct c2_rpc_slot *slot);
+M0_INTERNAL void m0_rpc_slot_fini(struct m0_rpc_slot *slot);
 
-C2_INTERNAL bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot);
+M0_INTERNAL bool m0_rpc_slot_invariant(const struct m0_rpc_slot *slot);
 
 /**
    Lookup for a cob named "SLOT_$slot_id:$slot_generation" in @session_cob
  */
-C2_INTERNAL int c2_rpc_slot_cob_lookup(struct c2_cob *session_cob,
+M0_INTERNAL int m0_rpc_slot_cob_lookup(struct m0_cob *session_cob,
 				       uint32_t slot_id,
 				       uint64_t slot_generation,
-				       struct c2_cob **slot_cob,
-				       struct c2_db_tx *tx);
+				       struct m0_cob **slot_cob,
+				       struct m0_db_tx *tx);
 
 /**
    Creates a cob named "SLOT_$slot_id:$slot_generation" in @session_cob
  */
-C2_INTERNAL int c2_rpc_slot_cob_create(const struct c2_cob *session_cob,
+M0_INTERNAL int m0_rpc_slot_cob_create(const struct m0_cob *session_cob,
 				       uint32_t slot_id,
 				       uint64_t slot_generation,
-				       struct c2_cob **slot_cob,
-				       struct c2_db_tx *tx);
+				       struct m0_cob **slot_cob,
+				       struct m0_db_tx *tx);
 
 /**
    Adds an item to slot->sl_item_list, without triggering
    any slot related events i.e. slot->ops->consume_item()
  */
-C2_INTERNAL void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
-					       struct c2_rpc_item *item);
+M0_INTERNAL void m0_rpc_slot_item_add_internal(struct m0_rpc_slot *slot,
+					       struct m0_rpc_item *item);
 
-C2_INTERNAL void c2_rpc_slot_process_reply(struct c2_rpc_item *req);
+M0_INTERNAL void m0_rpc_slot_process_reply(struct m0_rpc_item *req);
 
 #ifndef __KERNEL__
-int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
+int m0_rpc_slot_item_list_print(struct m0_rpc_slot *slot, bool only_active,
 				int count);
 #endif
 
-C2_INTERNAL int __slot_reply_received(struct c2_rpc_slot *slot,
-				      struct c2_rpc_item *req,
-				      struct c2_rpc_item *reply);
+M0_INTERNAL int __slot_reply_received(struct m0_rpc_slot *slot,
+				      struct m0_rpc_item *req,
+				      struct m0_rpc_item *reply);
 
-C2_TL_DESCR_DECLARE(ready_slot, C2_EXTERN);
-C2_TL_DECLARE(ready_slot, C2_INTERNAL, struct c2_rpc_slot);
+M0_TL_DESCR_DECLARE(ready_slot, M0_EXTERN);
+M0_TL_DECLARE(ready_slot, M0_INTERNAL, struct m0_rpc_slot);
 
 /** @}  End of rpc_session group */
-#endif /* __COLIBRI_RPC_SLOT_INT_H__ */
+#endif /* __MERO_RPC_SLOT_INT_H__ */
 

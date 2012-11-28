@@ -22,7 +22,7 @@
 #include <linux/module.h>
 #include <linux/jiffies.h>
 
-#include "lib/cdefs.h"  /* C2_EXPORTED */
+#include "lib/cdefs.h"  /* M0_EXPORTED */
 #include "lib/time.h"
 #include "lib/timer.h"
 #include "lib/assert.h"
@@ -31,34 +31,34 @@
 /**
    @addtogroup timer
 
-   <b>Implementation of c2_timer on top of Linux struct timer_list.</b>
+   <b>Implementation of m0_timer on top of Linux struct timer_list.</b>
 
    @{
 */
 
-C2_INTERNAL void c2_timer_trampoline_callback(unsigned long data)
+M0_INTERNAL void m0_timer_trampoline_callback(unsigned long data)
 {
-	struct c2_timer *timer = (struct c2_timer*)data;
+	struct m0_timer *timer = (struct m0_timer*)data;
 
 	/* call the user callback */
-	C2_ASSERT(timer->t_callback != NULL);
-	c2_enter_awkward();
+	M0_ASSERT(timer->t_callback != NULL);
+	m0_enter_awkward();
 	timer->t_callback(timer->t_data);
-	c2_exit_awkward();
+	m0_exit_awkward();
 	timer->t_running = false;
 }
 
 /**
    Init the timer data structure.
  */
-C2_INTERNAL int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
-			      c2_time_t expire,
-			      c2_timer_callback_t callback, unsigned long data)
+M0_INTERNAL int m0_timer_init(struct m0_timer *timer, enum m0_timer_type type,
+			      m0_time_t expire,
+			      m0_timer_callback_t callback, unsigned long data)
 {
 	struct timer_list *tl;
 
-	C2_PRE(callback != NULL);
-	C2_PRE(type == C2_TIMER_SOFT || type == C2_TIMER_HARD);
+	M0_PRE(callback != NULL);
+	M0_PRE(type == M0_TIMER_SOFT || type == M0_TIMER_HARD);
 
 	timer->t_type     = type;
 	timer->t_expire   = expire;
@@ -69,7 +69,7 @@ C2_INTERNAL int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 	tl = &timer->t_timer;
 	init_timer(tl);
 	tl->data = (unsigned long)timer;
-	tl->function = c2_timer_trampoline_callback;
+	tl->function = m0_timer_trampoline_callback;
 	return 0;
 }
 
@@ -77,23 +77,23 @@ C2_INTERNAL int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 /**
    Start a timer.
  */
-C2_INTERNAL int c2_timer_start(struct c2_timer *timer)
+M0_INTERNAL int m0_timer_start(struct m0_timer *timer)
 {
-	c2_time_t now = c2_time_now();
-	c2_time_t rem;
+	m0_time_t now = m0_time_now();
+	m0_time_t rem;
 	struct timespec ts;
 
 	if (timer->t_running)
 		return -EBUSY;
 
-	C2_ASSERT(timer->t_callback != NULL);
+	M0_ASSERT(timer->t_callback != NULL);
 
 	if (timer->t_expire > now)
-		rem = c2_time_sub(timer->t_expire, now);
+		rem = m0_time_sub(timer->t_expire, now);
 	else
-		c2_time_set(&rem, 0, 0);
-	ts.tv_sec  = c2_time_seconds(rem);
-	ts.tv_nsec = c2_time_nanoseconds(rem);
+		m0_time_set(&rem, 0, 0);
+	ts.tv_sec  = m0_time_seconds(rem);
+	ts.tv_nsec = m0_time_nanoseconds(rem);
 	timer->t_timer.expires = jiffies + timespec_to_jiffies(&ts);
 
 	timer->t_running = true;
@@ -104,7 +104,7 @@ C2_INTERNAL int c2_timer_start(struct c2_timer *timer)
 /**
    Stop a timer.
  */
-C2_INTERNAL int c2_timer_stop(struct c2_timer *timer)
+M0_INTERNAL int m0_timer_stop(struct m0_timer *timer)
 {
 	int rc = del_timer_sync(&timer->t_timer);
 
@@ -112,7 +112,7 @@ C2_INTERNAL int c2_timer_stop(struct c2_timer *timer)
 	return rc;
 }
 
-C2_INTERNAL bool c2_timer_is_started(const struct c2_timer *timer)
+M0_INTERNAL bool m0_timer_is_started(const struct m0_timer *timer)
 {
 	return timer->t_running;
 }
@@ -120,7 +120,7 @@ C2_INTERNAL bool c2_timer_is_started(const struct c2_timer *timer)
 /**
    Destroy the timer.
  */
-C2_INTERNAL int c2_timer_fini(struct c2_timer *timer)
+M0_INTERNAL int m0_timer_fini(struct m0_timer *timer)
 {
 	timer->t_running = false;
 	timer->t_callback = NULL;

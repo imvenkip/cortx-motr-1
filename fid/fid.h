@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_FID_FID_H__
-#define __COLIBRI_FID_FID_H__
+#ifndef __MERO_FID_FID_H__
+#define __MERO_FID_FID_H__
 
 /**
    @defgroup fid File identifier
@@ -35,27 +35,27 @@
 #include "xcode/xcode_attr.h"
 
 /* @todo: add xcode */
-struct c2_fid {
+struct m0_fid {
         uint64_t f_container;
         uint64_t f_key;
-}  C2_XCA_RECORD;
+}  M0_XCA_RECORD;
 
-C2_INTERNAL bool c2_fid_is_set(const struct c2_fid *fid);
-C2_INTERNAL bool c2_fid_is_valid(const struct c2_fid *fid);
-C2_INTERNAL bool c2_fid_eq(const struct c2_fid *fid0,
-			   const struct c2_fid *fid1);
-C2_INTERNAL int c2_fid_cmp(const struct c2_fid *fid0,
-			   const struct c2_fid *fid1);
-C2_INTERNAL void c2_fid_set(struct c2_fid *fid,
+M0_INTERNAL bool m0_fid_is_set(const struct m0_fid *fid);
+M0_INTERNAL bool m0_fid_is_valid(const struct m0_fid *fid);
+M0_INTERNAL bool m0_fid_eq(const struct m0_fid *fid0,
+			   const struct m0_fid *fid1);
+M0_INTERNAL int m0_fid_cmp(const struct m0_fid *fid0,
+			   const struct m0_fid *fid1);
+M0_INTERNAL void m0_fid_set(struct m0_fid *fid,
                             uint64_t container,
 			    uint64_t key);
 
-C2_INTERNAL int c2_fid_init(void);
-C2_INTERNAL void c2_fid_fini(void);
+M0_INTERNAL int m0_fid_init(void);
+M0_INTERNAL void m0_fid_fini(void);
 
 /** @} end of fid group */
 
-/* __COLIBRI_FID_FID_H__ */
+/* __MERO_FID_FID_H__ */
 #endif
 
 /*

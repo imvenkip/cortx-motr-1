@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_FOL_FOL_H__
-#define __COLIBRI_FOL_FOL_H__
+#ifndef __MERO_FOL_FOL_H__
+#define __MERO_FOL_FOL_H__
 
 /**
    @defgroup fol File operations log
@@ -31,16 +31,16 @@
    the description of requirements, usage patterns and constraints on fol, as
    well as important terminology (update, operation, etc.).
 
-   A fol is represented by an instance of struct c2_fol. A fol record has two
+   A fol is represented by an instance of struct m0_fol. A fol record has two
    data-types associated with it:
 
-   @li c2_fol_rec_desc: a description of a new fol record to be added to a
-   fol. This description is used to add a record via call to c2_fol_add();
+   @li m0_fol_rec_desc: a description of a new fol record to be added to a
+   fol. This description is used to add a record via call to m0_fol_add();
 
-   @li c2_fol_rec: a record fetched from a fol. c2_fol_rec remembers its
+   @li m0_fol_rec: a record fetched from a fol. m0_fol_rec remembers its
    location it the fol.
 
-   A fol record belongs to a fol type (c2_fol_rec_type) that defines how record
+   A fol record belongs to a fol type (m0_fol_rec_type) that defines how record
    reacts to the relevant fol state changes.
 
    @see https://docs.google.com/a/horizontalscale.com/Doc?docid=0Aa9lcGbR4emcZGhxY2hqdmdfNjQ2ZHZocWJ4OWo
@@ -49,98 +49,98 @@
  */
 
 /* export */
-struct c2_fol;
-struct c2_fol_rec_desc;
-struct c2_fol_rec;
-struct c2_fol_rec_type;
+struct m0_fol;
+struct m0_fol_rec_desc;
+struct m0_fol_rec;
+struct m0_fol_rec_type;
 
 /* import */
-#include "lib/adt.h"      /* c2_buf */
+#include "lib/adt.h"      /* m0_buf */
 #include "lib/types.h"    /* uint64_t */
-#include "lib/arith.h"    /* C2_IS_8ALIGNED */
+#include "lib/arith.h"    /* M0_IS_8ALIGNED */
 #include "lib/mutex.h"
 #include "fid/fid.h"
-#include "dtm/dtm.h"      /* c2_update_id, c2_update_state */
-#include "dtm/verno.h"    /* c2_verno */
-#include "db/db.h"        /* c2_table, c2_db_cursor */
-#include "fol/lsn.h"      /* c2_lsn_t */
+#include "dtm/dtm.h"      /* m0_update_id, m0_update_state */
+#include "dtm/verno.h"    /* m0_verno */
+#include "db/db.h"        /* m0_table, m0_db_cursor */
+#include "fol/lsn.h"      /* m0_lsn_t */
 
-struct c2_dbenv;
-struct c2_db_tx;
-struct c2_epoch_id;
+struct m0_dbenv;
+struct m0_db_tx;
+struct m0_epoch_id;
 
 /**
    In-memory representation of a fol.
 
    <b>Liveness rules and concurrency control.</b>
 
-   c2_fol liveness is managed by the user (the structure is not reference
-   counted) which is responsible for guaranteeing that c2_fol_fini() is the last
+   m0_fol liveness is managed by the user (the structure is not reference
+   counted) which is responsible for guaranteeing that m0_fol_fini() is the last
    call against a given instance.
 
-   FOL code manages concurrency internally: multiple threads can call c2_fol_*()
-   functions against the same fol (except for c2_fol_init() and c2_fol_fini()).
+   FOL code manages concurrency internally: multiple threads can call m0_fol_*()
+   functions against the same fol (except for m0_fol_init() and m0_fol_fini()).
  */
-struct c2_fol {
+struct m0_fol {
 	/** Table where fol records are stored. */
-	struct c2_table f_table;
+	struct m0_table f_table;
 	/** Next lsn to use in the fol. */
-	c2_lsn_t        f_lsn;
+	m0_lsn_t        f_lsn;
 	/** Lock, serializing fol access. */
-	struct c2_mutex f_lock;
+	struct m0_mutex f_lock;
 };
 
 /**
    Initialise in-memory fol structure, creating persistent structures, if
    necessary.
 
-   @post ergo(result == 0, c2_lsn_is_valid(fol->f_lsn))
+   @post ergo(result == 0, m0_lsn_is_valid(fol->f_lsn))
  */
-C2_INTERNAL int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env);
-C2_INTERNAL void c2_fol_fini(struct c2_fol *fol);
+M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env);
+M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
 
 /**
    Constructs a in-db representation of a fol record in an allocated buffer.
 
    This function takes @desc as an input parameter, describing the record to be
    constructed. Representation size is estimated by calling
-   c2_fol_rec_type_ops::rto_pack_size(). A buffer is allocated and the record is
+   m0_fol_rec_type_ops::rto_pack_size(). A buffer is allocated and the record is
    spilled into it. It's up to the caller to free the buffer when necessary.
  */
-C2_INTERNAL int c2_fol_rec_pack(struct c2_fol_rec_desc *desc,
-				struct c2_buf *buf);
+M0_INTERNAL int m0_fol_rec_pack(struct m0_fol_rec_desc *desc,
+				struct m0_buf *buf);
 
 /**
    Reserves and returns lsn.
 
-   @post c2_lsn_is_valid(result);
+   @post m0_lsn_is_valid(result);
  */
-C2_INTERNAL c2_lsn_t c2_fol_lsn_allocate(struct c2_fol *fol);
+M0_INTERNAL m0_lsn_t m0_fol_lsn_allocate(struct m0_fol *fol);
 
 /**
    Adds a record to the fol, in the transaction context.
 
-   This function calls c2_fol_rec_pack() internally to pack the record.
+   This function calls m0_fol_rec_pack() internally to pack the record.
 
-   drec->rd_lsn is filled in by c2_fol_add() with lsn assigned to the record.
+   drec->rd_lsn is filled in by m0_fol_add() with lsn assigned to the record.
 
    drec->rd_refcounter is initial value of record's reference counter. This
    field must be filled by the caller.
 
-   @pre c2_lsn_is_valid(drec->rd_lsn);
-   @see c2_fol_add_buf()
+   @pre m0_lsn_is_valid(drec->rd_lsn);
+   @see m0_fol_add_buf()
  */
-C2_INTERNAL int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
-			   struct c2_fol_rec_desc *drec);
+M0_INTERNAL int m0_fol_add(struct m0_fol *fol, struct m0_db_tx *tx,
+			   struct m0_fol_rec_desc *drec);
 
 /**
-   Similar to c2_fol_add(), but with a record already packed into a buffer.
+   Similar to m0_fol_add(), but with a record already packed into a buffer.
 
-   @pre c2_lsn_is_valid(drec->rd_lsn);
+   @pre m0_lsn_is_valid(drec->rd_lsn);
  */
-C2_INTERNAL int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
-			       struct c2_fol_rec_desc *drec,
-			       struct c2_buf *buf);
+M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_db_tx *tx,
+			       struct m0_fol_rec_desc *drec,
+			       struct m0_buf *buf);
 
 /**
    Forces the log.
@@ -150,7 +150,7 @@ C2_INTERNAL int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
 
    The implementation is free to make other records persistent as it sees fit.
  */
-C2_INTERNAL int c2_fol_force(struct c2_fol *fol, c2_lsn_t upto);
+M0_INTERNAL int m0_fol_force(struct m0_fol *fol, m0_lsn_t upto);
 
 /**
    Reference to a file system object from a fol record.
@@ -175,12 +175,12 @@ C2_INTERNAL int c2_fol_force(struct c2_fol *fol, c2_lsn_t upto);
    one by one as prevlsn-s for the operations against the object are followed
    and their lsn-s also decrease.
  */
-struct c2_fol_obj_ref {
+struct m0_fol_obj_ref {
 	/** file identifier */
-	struct c2_fid   or_fid;
+	struct m0_fid   or_fid;
 	/** version that the object had before operation has been applied,
-	    or {C2_LSN_NONE, 0} if this is the first operation */
-	struct c2_verno or_before_ver;
+	    or {M0_LSN_NONE, 0} if this is the first operation */
+	struct m0_verno or_before_ver;
 };
 
 /**
@@ -188,18 +188,18 @@ struct c2_fol_obj_ref {
 
    @todo More detailed description is to be supplied as part of DTM design.
  */
-struct c2_fol_update_ref {
-	/* taken from enum c2_update_state  */
+struct m0_fol_update_ref {
+	/* taken from enum m0_update_state  */
 	uint32_t             ur_state;
-	struct c2_update_id  ur_id;
+	struct m0_update_id  ur_id;
 };
 
 /**
    Fixed part of a fol record.
 
-   @see c2_fol_rec_desc
+   @see m0_fol_rec_desc
  */
-struct c2_fol_rec_header {
+struct m0_fol_rec_header {
 	/** number of outstanding references to the record */
 	uint64_t            rh_refcount;
 	/** operation code */
@@ -215,41 +215,41 @@ struct c2_fol_rec_header {
 
 	    @note that the update might be for a different node.
 	 */
-	struct c2_update_id rh_self;
+	struct m0_update_id rh_self;
 };
 
-C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_fol_rec_header)));
-C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_fol_obj_ref)));
-C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_fol_update_ref)));
+M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_rec_header)));
+M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_obj_ref)));
+M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_update_ref)));
 
 /**
    In-memory representation of a fol record.
 
-   c2_fol_rec_desc is used in two ways:
+   m0_fol_rec_desc is used in two ways:
 
-   @li as an argument to c2_fol_add(). In this case c2_fol_rec_desc describes a
+   @li as an argument to m0_fol_add(). In this case m0_fol_rec_desc describes a
    new record to be added. All fields, except for rd_lsn, are filled in by a
    user and the user is responsible for the concurrency control and the liveness
    of the structure;
 
-   @li as part of c2_fol_rec returned by c2_fol_rec_lookup() or
-   c2_fol_batch(). In this case, c2_fol_rec_desc is filled by the fol code. The
-   user has read-only access to it and has to call c2_fol_rec_fini() once it is
+   @li as part of m0_fol_rec returned by m0_fol_rec_lookup() or
+   m0_fol_batch(). In this case, m0_fol_rec_desc is filled by the fol code. The
+   user has read-only access to it and has to call m0_fol_rec_fini() once it is
    done with inspecting the record.
  */
-struct c2_fol_rec_desc {
+struct m0_fol_rec_desc {
 	/** record log sequence number */
-	c2_lsn_t                      rd_lsn;
-	struct c2_fol_rec_header      rd_header;
-	const struct c2_fol_rec_type *rd_type;
+	m0_lsn_t                      rd_lsn;
+	struct m0_fol_rec_header      rd_header;
+	const struct m0_fol_rec_type *rd_type;
 	/** pointer for use by fol record type. */
 	void                         *rd_type_private;
 	/** references to the objects modified by this update. */
-	struct c2_fol_obj_ref        *rd_ref;
+	struct m0_fol_obj_ref        *rd_ref;
 	/** a DTM epoch this update is a part of. */
-	struct c2_epoch_id           *rd_epoch;
+	struct m0_epoch_id           *rd_epoch;
 	/** identifiers of sibling updates. */
-	struct c2_fol_update_ref     *rd_sibling;
+	struct m0_fol_update_ref     *rd_sibling;
 	/** pointer to the remaining operation type specific data. */
 	void                         *rd_data;
 };
@@ -257,38 +257,38 @@ struct c2_fol_rec_desc {
 /**
    Record fetched from a fol.
 
-   This structure is returned by c2_fol_rec_lookup() and
-   c2_fol_batch(). c2_fol_rec is bound to a particular fol and remembers its
+   This structure is returned by m0_fol_rec_lookup() and
+   m0_fol_batch(). m0_fol_rec is bound to a particular fol and remembers its
    location in the log.
 
-   The user must call c2_fol_rec_fini() once it has finished dealing with the
+   The user must call m0_fol_rec_fini() once it has finished dealing with the
    record.
 
-   There are two liveness and concurrency scopes for a c2_fol_rec, fetched from
+   There are two liveness and concurrency scopes for a m0_fol_rec, fetched from
    a fol:
 
    @li long-term: fol code guarantees that a record remains in the fol while its
    reference counter is greater than 0. A record's reference counter is
-   manipulated by calls to c2_fol_get() and c2_fol_put(). Initial counter value
-   is taken from c2_fol_rec_desc::rd_refcount at the moment of c2_fol_add()
-   call. (Note that this means that by the time c2_fol_add() call for a record
+   manipulated by calls to m0_fol_get() and m0_fol_put(). Initial counter value
+   is taken from m0_fol_rec_desc::rd_refcount at the moment of m0_fol_add()
+   call. (Note that this means that by the time m0_fol_add() call for a record
    with initially zero reference counter returns, the record might be already
    culled.) Between record addition to the log and its culling the only record
    fields that could change are its reference counter and sibling updates state.
 
    @li short-term: data copied from the fol and pointed to from the record
    (object references, sibling updates and operation type specific data) are
-   valid until c2_fol_rec_fini() is called. Multiple threads can access the
+   valid until m0_fol_rec_fini() is called. Multiple threads can access the
    record with a given lsn. It's up to them to synchronize access to mutable
    fields (reference counter and sibling updates state).
  */
-struct c2_fol_rec {
-	struct c2_fol               *fr_fol;
-	struct c2_fol_rec_desc       fr_desc;
+struct m0_fol_rec {
+	struct m0_fol               *fr_fol;
+	struct m0_fol_rec_desc       fr_desc;
 	/** cursor in the underlying data-base, pointing to the record location
 	    in the fol. */
-	struct c2_db_cursor          fr_ptr;
-	struct c2_db_pair            fr_pair;
+	struct m0_db_cursor          fr_ptr;
+	struct m0_db_pair            fr_pair;
 };
 
 /**
@@ -298,25 +298,25 @@ struct c2_fol_rec {
 
    @post ergo(result == 0, out->fr_d.rd_lsn == lsn)
    @post ergo(result == 0, out->fr_d.rd_refcount > 0)
-   @post ergo(result == 0, c2_fol_rec_invariant(&out->fr_d))
+   @post ergo(result == 0, m0_fol_rec_invariant(&out->fr_d))
  */
-C2_INTERNAL int c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx,
-				  c2_lsn_t lsn, struct c2_fol_rec *out);
+M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
+				  m0_lsn_t lsn, struct m0_fol_rec *out);
 /**
-   Finalizes the record, returned by the c2_fol_rec_lookup() or c2_fol_batch()
+   Finalizes the record, returned by the m0_fol_rec_lookup() or m0_fol_batch()
    and releases all associated resources.
  */
-C2_INTERNAL void c2_fol_rec_fini(struct c2_fol_rec *rec);
+M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec);
 
-C2_INTERNAL bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec);
+M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec_desc *drec);
 
 /**
    Adds a reference to a record. The record cannot be culled until its reference
    counter drops to 0. This operation updates the record in the fol.
 
-   @see c2_fol_rec_put()
+   @see m0_fol_rec_put()
  */
-C2_INTERNAL void c2_fol_rec_get(struct c2_fol_rec *rec);
+M0_INTERNAL void m0_fol_rec_get(struct m0_fol_rec *rec);
 
 /**
    Removes a reference to a record.
@@ -326,9 +326,9 @@ C2_INTERNAL void c2_fol_rec_get(struct c2_fol_rec *rec);
 
    @pre rec->fr_d.rd_refcount > 0
 
-   @see c2_fol_rec_get()
+   @see m0_fol_rec_get()
  */
-C2_INTERNAL void c2_fol_rec_put(struct c2_fol_rec *rec);
+M0_INTERNAL void m0_fol_rec_put(struct m0_fol_rec *rec);
 
 /**
    Returns a batch of no more than nr records, starting with the given
@@ -342,15 +342,15 @@ C2_INTERNAL void c2_fol_rec_put(struct c2_fol_rec *rec);
    @post \forall i >= 0 && i < result, (out[i]->fr_d.rd_lsn >= lsn &&
                                         out[i]->fr_d.rd_refcount > 0)
  */
-C2_INTERNAL int c2_fol_batch(struct c2_fol *fol, c2_lsn_t lsn, uint32_t nr,
-			     struct c2_fol_rec *out);
+M0_INTERNAL int m0_fol_batch(struct m0_fol *fol, m0_lsn_t lsn, uint32_t nr,
+			     struct m0_fol_rec *out);
 
-struct c2_fol_rec_type_ops;
+struct m0_fol_rec_type_ops;
 
 /**
    Fol record type.
 
-   There is an instance of struct c2_fol_rec_type for MKDIR, another for WRITE,
+   There is an instance of struct m0_fol_rec_type for MKDIR, another for WRITE,
    yet another for OPEN, etc.
 
    Liveness.
@@ -358,31 +358,31 @@ struct c2_fol_rec_type_ops;
    The user is responsible for guaranteeing that a fol record type is not
    unregistered while fol activity is still possible on the node.
  */
-struct c2_fol_rec_type {
+struct m0_fol_rec_type {
 	/** symbolic type name */
 	const char                       *rt_name;
 	/** opcode for records of this type */
 	uint32_t                          rt_opcode;
-	const struct c2_fol_rec_type_ops *rt_ops;
+	const struct m0_fol_rec_type_ops *rt_ops;
 };
 
 /**
    Register a new fol record type.
 
-   @pre c2_fol_rec_type_lookup(rtype->rt_opcode) == NULL
-   @post ergo(result == 0, c2_fol_rec_type_lookup(rtype->rt_opcode) == rtype)
+   @pre m0_fol_rec_type_lookup(rtype->rt_opcode) == NULL
+   @post ergo(result == 0, m0_fol_rec_type_lookup(rtype->rt_opcode) == rtype)
 
-   @see c2_fol_rec_type_unregister()
+   @see m0_fol_rec_type_unregister()
  */
-C2_INTERNAL int c2_fol_rec_type_register(const struct c2_fol_rec_type *rtype);
+M0_INTERNAL int m0_fol_rec_type_register(const struct m0_fol_rec_type *rtype);
 
 /**
-   Dual to c2_fol_rec_type_register().
+   Dual to m0_fol_rec_type_register().
 
-   @pre c2_fol_rec_type_lookup(rtype->rt_opcode) == rtype
-   @post c2_fol_rec_type_lookup(rtype->rt_opcode) == NULL
+   @pre m0_fol_rec_type_lookup(rtype->rt_opcode) == rtype
+   @post m0_fol_rec_type_lookup(rtype->rt_opcode) == NULL
  */
-C2_INTERNAL void c2_fol_rec_type_unregister(const struct c2_fol_rec_type
+M0_INTERNAL void m0_fol_rec_type_unregister(const struct m0_fol_rec_type
 					    *rtype);
 
 /**
@@ -390,58 +390,58 @@ C2_INTERNAL void c2_fol_rec_type_unregister(const struct c2_fol_rec_type
 
    @post ergo(result != NULL, result->rt_opcode == opcode)
  */
-C2_INTERNAL const struct c2_fol_rec_type *c2_fol_rec_type_lookup(uint32_t
+M0_INTERNAL const struct m0_fol_rec_type *m0_fol_rec_type_lookup(uint32_t
 								 opcode);
 
-struct c2_fol_rec_type_ops {
+struct m0_fol_rec_type_ops {
 	/**
 	   Invoked when a transaction containing a record of the type is
 	   committed.
 	 */
-	void (*rto_commit)    (const struct c2_fol_rec_type *type,
-			       struct c2_fol *fol, c2_lsn_t lsn);
+	void (*rto_commit)    (const struct m0_fol_rec_type *type,
+			       struct m0_fol *fol, m0_lsn_t lsn);
 	/**
 	   Invoked when a transaction containing a record of the type is
 	   aborted.
 	 */
-	void (*rto_abort)     (const struct c2_fol_rec_type *type,
-			       struct c2_fol *fol, c2_lsn_t lsn);
+	void (*rto_abort)     (const struct m0_fol_rec_type *type,
+			       struct m0_fol *fol, m0_lsn_t lsn);
 	/**
 	   Invoked when a record of the type becomes persistent.
 	 */
-	void (*rto_persistent)(const struct c2_fol_rec_type *type,
-			       struct c2_fol *fol, c2_lsn_t lsn);
+	void (*rto_persistent)(const struct m0_fol_rec_type *type,
+			       struct m0_fol *fol, m0_lsn_t lsn);
 	/**
 	   Invoked when a record of the type is culled from a fol.
 	 */
-	void (*rto_cull)      (const struct c2_fol_rec_type *type,
-			       struct c2_db_tx *tx, struct c2_fol_rec *rec);
+	void (*rto_cull)      (const struct m0_fol_rec_type *type,
+			       struct m0_db_tx *tx, struct m0_fol_rec *rec);
 	/**
 	   Parse operation type specific data in desc->rd_data.
 	 */
-	int  (*rto_open)      (const struct c2_fol_rec_type *type,
-			       struct c2_fol_rec_desc *desc);
+	int  (*rto_open)      (const struct m0_fol_rec_type *type,
+			       struct m0_fol_rec_desc *desc);
 	/**
 	   Release resources associated with a record being finalised.
 	 */
-	void (*rto_fini)      (struct c2_fol_rec_desc *desc);
+	void (*rto_fini)      (struct m0_fol_rec_desc *desc);
 	/**
 	   Returns number of bytes necessary to store type specific record data.
 	 */
-	size_t (*rto_pack_size)(struct c2_fol_rec_desc *desc);
+	size_t (*rto_pack_size)(struct m0_fol_rec_desc *desc);
 	/**
 	   Packs type specific record data into a buffer of size returned by
 	   ->rto_pack_size().
 	 */
-	void (*rto_pack)(struct c2_fol_rec_desc *desc, void *buf);
+	void (*rto_pack)(struct m0_fol_rec_desc *desc, void *buf);
 };
 
-C2_INTERNAL int c2_fols_init(void);
-C2_INTERNAL void c2_fols_fini(void);
+M0_INTERNAL int m0_fols_init(void);
+M0_INTERNAL void m0_fols_fini(void);
 
 /** @} end of fol group */
 
-/* __COLIBRI_FOL_FOL_H__ */
+/* __MERO_FOL_FOL_H__ */
 #endif
 
 /*

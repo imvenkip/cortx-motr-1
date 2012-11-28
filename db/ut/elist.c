@@ -23,8 +23,8 @@
 #include <err.h>
 #include <sysexits.h>
 
-#include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
-#include "lib/misc.h"     /* C2_SET0 */
+#include "lib/arith.h"    /* M0_3WAY, m0_uint128 */
+#include "lib/misc.h"     /* M0_SET0 */
 #include "lib/assert.h"
 #include "db/db.h"
 #include "db/extmap.h"
@@ -33,12 +33,12 @@ int main(int argc, char **argv)
 {
 	const char           *db_name;
 	const char           *emap_name;
-	struct c2_dbenv       db;
-	struct c2_emap        emap;
-	struct c2_uint128     prefix;
-	struct c2_db_tx       tx;
-	struct c2_emap_cursor it;
-	struct c2_emap_seg   *seg;
+	struct m0_dbenv       db;
+	struct m0_emap        emap;
+	struct m0_uint128     prefix;
+	struct m0_db_tx       tx;
+	struct m0_emap_cursor it;
+	struct m0_emap_seg   *seg;
 	int                   i;
 	int                   result;
 
@@ -49,47 +49,47 @@ int main(int argc, char **argv)
 	db_name = argv[1];
 	emap_name = argv[2];
 
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_ASSERT(result == 0);
+	result = m0_dbenv_init(&db, db_name, 0);
+	M0_ASSERT(result == 0);
 
-	result = c2_emap_init(&emap, &db, emap_name);
-	C2_ASSERT(result == 0);
+	result = m0_emap_init(&emap, &db, emap_name);
+	M0_ASSERT(result == 0);
 
-	result = c2_db_tx_init(&tx, &db, 0);
-	C2_ASSERT(result == 0);
+	result = m0_db_tx_init(&tx, &db, 0);
+	M0_ASSERT(result == 0);
 
-	C2_SET0(&prefix);
+	M0_SET0(&prefix);
 
-	seg = c2_emap_seg_get(&it);
+	seg = m0_emap_seg_get(&it);
 	while (1) {
-		result = c2_emap_lookup(&emap, &tx, &prefix, 0, &it);
+		result = m0_emap_lookup(&emap, &tx, &prefix, 0, &it);
 		if (result == -ENOENT)
 			break;
 		else if (result == -ESRCH) {
 			prefix = seg->ee_pre;
 			continue;
 		} else if (result != 0)
-			err(EX_SOFTWARE, "c2_emap_lookup(): %i", result);
+			err(EX_SOFTWARE, "m0_emap_lookup(): %i", result);
 
 		printf("%010lx:%010lx:\n", prefix.u_hi, prefix.u_lo);
 		for (i = 0; ; ++i) {
 			printf("\t%5.5i [%16lx .. %16lx) (%16lx): %16lx\n", i,
 			       seg->ee_ext.e_start, seg->ee_ext.e_end,
-			       c2_ext_length(&seg->ee_ext), seg->ee_val);
-			if (c2_emap_ext_is_last(&seg->ee_ext))
+			       m0_ext_length(&seg->ee_ext), seg->ee_val);
+			if (m0_emap_ext_is_last(&seg->ee_ext))
 				break;
-			result = c2_emap_next(&it);
-			C2_ASSERT(result == 0);
+			result = m0_emap_next(&it);
+			M0_ASSERT(result == 0);
 		}
-		c2_emap_close(&it);
+		m0_emap_close(&it);
 		if (++prefix.u_lo == 0)
 			++prefix.u_hi;
 	}
-	result = c2_db_tx_commit(&tx);
-	C2_ASSERT(result == 0);
+	result = m0_db_tx_commit(&tx);
+	M0_ASSERT(result == 0);
 
-	c2_emap_fini(&emap);
-	c2_dbenv_fini(&db);
+	m0_emap_fini(&emap);
+	m0_dbenv_fini(&db);
 	return 0;
 }
 

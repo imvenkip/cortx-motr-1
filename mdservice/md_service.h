@@ -20,19 +20,19 @@
 
 #pragma once
 
-#ifndef __COLIBRI_MDSERVICE_MD_SERVICE_H__
-#define __COLIBRI_MDSERVICE_MD_SERVICE_H__
+#ifndef __MERO_MDSERVICE_MD_SERVICE_H__
+#define __MERO_MDSERVICE_MD_SERVICE_H__
 
 /**
  * @defgroup mdservice MD Service Operations
  * @see @ref reqh
  *
  * MD Service defines service operation vector -
- * - MD Service operation @ref c2_mds_start()<br>
+ * - MD Service operation @ref m0_mds_start()<br>
  *   Initiate buffer_pool and register I/O FOP with service
- * - MD Service operation @ref c2_mds_stop()<br>
+ * - MD Service operation @ref m0_mds_stop()<br>
  *   Free buffer_pool and unregister I/O FOP with service
- * - MD Service operation @ref c2_mds_fini()<br>
+ * - MD Service operation @ref m0_mds_fini()<br>
  *   Free MD Service instance.
  *
  *  @{
@@ -42,19 +42,19 @@
  * Structure contains generic service structure and
  * service specific information.
  */
-struct c2_reqh_md_service {
+struct m0_reqh_md_service {
         /** Generic reqh service object */
-        struct c2_reqh_service       rmds_gen;
+        struct m0_reqh_service       rmds_gen;
         /** Magic to check io service object */
         uint64_t                     rmds_magic;
 };
 
-C2_INTERNAL void c2_mds_unregister(void);
-C2_INTERNAL int c2_mds_register(void);
+M0_INTERNAL void m0_mds_unregister(void);
+M0_INTERNAL int m0_mds_register(void);
 
 /** @} end of mdservice */
 
-#endif /* __COLIBRI_MDSERVICE_MD_SERVICE_H__ */
+#endif /* __MERO_MDSERVICE_MD_SERVICE_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
