@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to mount the Colibri file system locally, using remote ioservices.
+# Script to startup local/remote services and mount Colibri file system
 #
 # - The script requires the build path to be available on all the nodes.
 #   (This can be easily shared via NFS from some one node.)
@@ -148,8 +148,7 @@ function setup_host () {
 		XPT_PARAM=$XPT_PARAM_L
 	fi
 	# check if a colibri process is running
-	local SVRS
-	SVRS=$($RUN pgrep -f colibri_setup)
+	local SVRS=$($RUN pgrep -f colibri_setup)
 	if [ -n "$SVRS" ]; then
 		echo $SVRS
 		echo ERROR: colibri_setup process already running on $H
@@ -157,8 +156,7 @@ function setup_host () {
 	fi
 	if [ $H != $THIS_HOST ]; then
 		# ensure that the build path is accessible
-		local RSUM
-		RSUM=$($RUN sum $SUMFILE)
+		local RSUM=$($RUN sum $SUMFILE)
 		if [ "$RSUM" != "$LSUM" ]; then
 			echo ERROR: Build tree not accessible on $H
 			return 1
@@ -317,13 +315,21 @@ EOF
 			STOB_PARAMS="-T ad -d $DISKS_SH_FILE"
 		fi
 	fi
-	cat <<EOF >$SF
 
+	local SNAME="-s ioservice"
+	if [ $I -eq 0 ]; then
+		SNAME="-s mdservice $SNAME"
+	fi
+
+	cat <<EOF >$SF
 #!/bin/sh
 cd $SDIR
-exec $BROOT/core/colibri/colibri_setup -r $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -e $XPT:$EP -s ioservice $XPT_SETUP
+exec $BROOT/core/colibri/colibri_setup -r -p \
+	$STOB_PARAMS -D $DDIR/db -S $DDIR/stobs \
+	-e $XPT:$EP $SNAME $XPT_SETUP
 EOF
 	l_run cat $SF
+
 	if [ $H != $THIS_HOST ]; then
 		l_run scp $SF $H:$DF
 	else
@@ -423,18 +429,22 @@ fi
 sleep 5
 
 # compute mount paramters
-IOS=
-for ((i=0; i < ${#SERVERS[*]}; i += 2)) ; do
-	if ((i != 0)) ; then
-		IOS="$IOS,"
-	fi
-	IOS="${IOS}ios=${SERVERS[((i+1))]}"
+IOS="mds=${SERVERS[1]},ios=${SERVERS[1]}"
+for i in `seq 3 2 ${#SERVERS[*]}`; do
+	IOS="${IOS},ios=${SERVERS[$i]}"
 done
-LAYOUT=unit_size=$UNIT_SIZE,nr_data_units=$NR_DATA,pool_width=$POOL_WIDTH
 
 # mount the file system
 mkdir -p $MP
-l_run mount -t c2t1fs -o $IOS,$LAYOUT none $MP
+
+CONF='conf=local-conf:[2: '\
+'("prof", {1| ("fs")}), '\
+'("fs", {2| ((11, 22),'\
+" [3: \"pool_width=$POOL_WIDTH\", \"nr_data_units=$NR_DATA\","\
+" \"unit_size=$UNIT_SIZE\"],"\
+' [1: "_"])})],profile=prof'
+
+l_run mount -t c2t1fs -o "'$CONF,$IOS'" none $MP
 if [ $? -ne 0 ]; then
 	echo ERROR: Unable to mount the file system
 	exit 1
