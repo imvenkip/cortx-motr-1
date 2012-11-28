@@ -253,7 +253,7 @@ function start_server () {
 #	  filename: /dev/sda
 
 # number of disks to split by
-DISKS_SH_NR=10
+DISKS_SH_NR=4
 
 i=0; j=0; f=0;
 
@@ -321,26 +321,9 @@ EOF
 		SNAME="-s mdservice $SNAME"
 	fi
 
-	cat <<EOF >$SF
-#!/bin/sh
-cd $SDIR
-exec $BROOT/core/colibri/colibri_setup -r -p \
-	$STOB_PARAMS -D $DDIR/db -S $DDIR/stobs \
-	-e $XPT:$EP $SNAME $XPT_SETUP
-EOF
-	l_run cat $SF
-
-	if [ $H != $THIS_HOST ]; then
-		l_run scp $SF $H:$DF
-	else
-		l_run cp $SF $DF
-	fi
-	if [ $? -ne 0 ]; then
-		echo ERROR: Failed to copy script file to $H
-		return 1
-	fi
-
-	$RUN sh $DF &
+	$RUN "cd $DDIR && $BROOT/core/colibri/colibri_setup -r -p \
+$STOB_PARAMS -D $DDIR/db -S $DDIR/stobs \
+-e $XPT:$EP $SNAME $XPT_SETUP" >> $SLOG &
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to start remote server on $H
 		return 1
@@ -351,6 +334,8 @@ EOF
 
 function start_servers () {
 	local devs_conf_cnt=0
+	SLOG=$WORK_ARENA/servers.log
+	rm $SLOG
 	for ((i=0; i < ${#SERVERS[*]}; i += 2)); do
 		H=${SERVERS[$i]}
 		EP=${SERVERS[((i+1))]}
@@ -362,10 +347,16 @@ function start_servers () {
 		fi
 		devs_conf_cnt=`expr $devs_conf_cnt + 1`
 	done
-	if [ $STOB == "-ad" ]; then
-		echo "Wait for the services to start up on ad stobs..."
-		l_run sleep 40
-	fi
+
+	echo "Wait for the services to start up..."
+	local SERVICES_NR=`expr ${#SERVERS[*]} / 2`
+	while true; do
+		local STARTED_NR=`cat $SLOG | wc -l`
+		echo "Started $STARTED_NR services..."
+		[ $STARTED_NR -ge $SERVICES_NR ] && break
+		l_run sleep 5
+	done
+
 	return 0
 }
 
@@ -426,7 +417,6 @@ setup_hosts && start_servers
 if [ $? -ne 0 ]; then
 	exit 1
 fi
-sleep 5
 
 # compute mount paramters
 IOS="mds=${SERVERS[1]},ios=${SERVERS[1]}"
