@@ -473,7 +473,8 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 		}
 	}
 
-	if (c2_trace_print_context == C2_TRACE_PCTX_FUNC)
+	if (c2_trace_print_context == C2_TRACE_PCTX_FUNC ||
+	    td->td_level == C2_CALL || td->td_level == C2_NOTICE)
 		c2_console_printf("colibri: %s: ", td->td_func);
 	else
 		c2_console_printf("colibri: ");
