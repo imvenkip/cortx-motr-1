@@ -28,16 +28,16 @@
 /**
  * @defgroup cob_fid_ns_iter Cob-fid namespace iterator
  *
- * The cob on data server has cob nskey = <gob_fid, unit_index>,
+ * The cob on data server has cob nskey = <gob_fid, cob_index>,
  * where,
  * gob_fid   : global file identifier corresponding to which the cob is
  *             being created.
- * unit_index: the index of the cob in the parity group.
+ * cob_index : unique index of the cob in the pool.
  *
  * @see c2_cob_nskey
  *
  * The cob-fid iterator uniquely iterates over gob_fids, thus skipping entries
- * with same gob_fids but different unit_index.
+ * with same gob_fids but different cob_index.
  *
  * This iterator is used in SNS repair iterator. @see c2_sns_repair_iter
  *
@@ -96,4 +96,3 @@ C2_INTERNAL void c2_cob_ns_iter_fini(struct c2_cob_fid_ns_iter *iter);
  *  scroll-step: 1
  *  End:
  */
-
