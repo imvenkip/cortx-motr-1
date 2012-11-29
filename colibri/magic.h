@@ -460,6 +460,13 @@ enum c2_magic_satchel {
 	/* rpc_chans_tl::td_head_magic (idesia fossil) */
 	C2_RPC_CHAN_HEAD_MAGIC = 0x331de51af0551177,
 
+/* stob */
+	/* c2_stob_cacheable::ca_magix (bilobed flood) */
+	C2_STOB_CACHEABLE_MAGIX = 0x33b110bedf100d77,
+
+	/* stob/cache.c:cache_tl::td_head_magic (faded ballade) */
+	C2_STOB_CACHE_MAGIX     = 0x33FADEDBA11ADE77,
+
 /* Trace */
 	/* c2_trace_rec_header::trh_magic (foldable doll) */
 	C2_TRACE_MAGIC = 0x33f01dab1ed01177,

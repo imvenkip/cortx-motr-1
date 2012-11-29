@@ -28,10 +28,9 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
-#include "lib/queue.h"
 
-#include "linux.h"
-#include "linux_internal.h"
+#include "stob/linux.h"
+#include "stob/linux_internal.h"
 
 /**
    @addtogroup stoblinux
@@ -80,13 +79,6 @@ static const struct c2_addb_loc c2_linux_stob_addb_loc = {
 	.al_name = "linux-stob"
 };
 
-C2_TL_DESCR_DEFINE(ls, "linux stobs", static, struct linux_stob,
-		   sl_linkage, sl_magix,
-		   0xb1b11ca15cab105a /* biblical scabiosa */,
-		   0x11fe1e55cab00d1e /* lifeless caboodle */);
-
-C2_TL_DEFINE(ls, static, struct linux_stob);
-
 /**
    Implementation of c2_stob_type_op::sto_init().
  */
@@ -112,16 +104,10 @@ static void linux_stob_type_fini(struct c2_stob_type *stype)
 static void linux_domain_fini(struct c2_stob_domain *self)
 {
 	struct linux_domain *ldom;
-	struct linux_stob   *lstob;
 
 	ldom = domain2linux(self);
 	linux_domain_io_fini(self);
-	c2_rwlock_write_lock(&self->sd_guard);
-	c2_tl_for(ls, &ldom->sdl_object, lstob) {
-		linux_stob_fini(&lstob->sl_stob);
-	} c2_tl_endfor;
-	c2_rwlock_write_unlock(&self->sd_guard);
-	ls_tlist_fini(&ldom->sdl_object);
+	c2_stob_cache_fini(&ldom->sdl_cache);
 	c2_stob_domain_fini(self);
 	c2_free(ldom);
 }
@@ -148,11 +134,11 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 
 	C2_ALLOC_PTR(ldom);
 	if (ldom != NULL) {
-		ls_tlist_init(&ldom->sdl_object);
 		strcpy(ldom->sdl_path, domain_name);
 		dom = &ldom->sdl_base;
 		dom->sd_ops = &linux_stob_domain_op;
 		c2_stob_domain_init(dom, type);
+		c2_stob_cache_init(&ldom->sdl_cache);
 		result = linux_domain_io_init(dom);
 		if (result == 0)
 			*out = dom;
@@ -185,31 +171,31 @@ static bool linux_stob_invariant(const struct linux_stob *lstob)
 {
 	const struct c2_stob *stob;
 
-	stob = &lstob->sl_stob;
+	stob = &lstob->sl_stob.ca_stob;
 	return
 		(lstob->sl_fd >= 0) == (stob->so_state == CSS_EXISTS) &&
-		lstob->sl_stob.so_domain->sd_type == &c2_linux_stob_type;
+		stob->so_domain->sd_type == &c2_linux_stob_type;
 }
 
-/**
-   Searches for the object with a given identifier in the domain object list.
-
-   This function is used by linux_domain_stob_find() to check whether in-memory
-   representation of an object already exists.
- */
-static struct linux_stob *linux_domain_lookup(struct linux_domain *ldom,
-					      const struct c2_stob_id *id)
+static int linux_incache_init(struct c2_stob_domain *dom,
+			      const struct c2_stob_id *id,
+			      struct c2_stob_cacheable **out)
 {
-	struct linux_stob *obj;
+	struct linux_stob        *lstob;
+	struct c2_stob_cacheable *incache;
 
-	c2_tl_for(ls, &ldom->sdl_object, obj) {
-		C2_ASSERT(linux_stob_invariant(obj));
-		if (c2_stob_id_eq(id, &obj->sl_stob.so_id)) {
-			c2_stob_get(&obj->sl_stob);
-			break;
-		}
-	} c2_tl_endfor;
-	return obj;
+	C2_ALLOC_PTR(lstob);
+	if (lstob != NULL) {
+		*out = incache = &lstob->sl_stob;
+		incache->ca_stob.so_op = &linux_stob_op;
+		c2_stob_cacheable_init(incache, id, dom);
+		lstob->sl_fd = -1;
+		return 0;
+	} else {
+		C2_ADDB_ADD(&dom->sd_addb,
+			    &c2_linux_stob_addb_loc, c2_addb_oom);
+		return -ENOMEM;
+	}
 }
 
 /**
@@ -221,47 +207,39 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
 				  const struct c2_stob_id *id,
 				  struct c2_stob **out)
 {
-	struct linux_domain *ldom;
-	struct linux_stob   *lstob;
-	struct linux_stob   *ghost;
-	struct c2_stob      *stob;
-	int                  result;
+	struct c2_stob_cacheable *incache;
+	struct linux_domain      *ldom;
+	int                       result;
 
 	ldom = domain2linux(dom);
-
-	result = 0;
-	c2_rwlock_read_lock(&dom->sd_guard);
-	lstob = linux_domain_lookup(ldom, id);
-	c2_rwlock_read_unlock(&dom->sd_guard);
-
-	if (lstob == NULL) {
-		C2_ALLOC_PTR(lstob);
-		if (lstob != NULL) {
-			c2_rwlock_write_lock(&dom->sd_guard);
-			ghost = linux_domain_lookup(ldom, id);
-			if (ghost == NULL) {
-				stob = &lstob->sl_stob;
-				stob->so_op = &linux_stob_op;
-				lstob->sl_fd = -1;
-				c2_stob_init(stob, id, dom);
-				ls_tlink_init_at(lstob, &ldom->sdl_object);
-			} else {
-				c2_free(lstob);
-				lstob = ghost;
-				c2_stob_get(&lstob->sl_stob);
-			}
-			c2_rwlock_write_unlock(&dom->sd_guard);
-		} else {
-			C2_ADDB_ADD(&dom->sd_addb,
-				    &c2_linux_stob_addb_loc, c2_addb_oom);
-			result = -ENOMEM;
-		}
-	}
-	if (result == 0) {
-		*out = &lstob->sl_stob;
-		C2_ASSERT(linux_stob_invariant(lstob));
-	}
+	result = c2_stob_cache_find(&ldom->sdl_cache, dom, id,
+				    linux_incache_init, &incache);
+	*out = &incache->ca_stob;
 	return result;
+}
+
+/**
+ * Implementation of c2_stob_op::sop_fini().
+ *
+ * Closes the object's file descriptor.
+ *
+ * @see c2_linux_stob_link()
+ */
+static void linux_stob_fini(struct c2_stob *stob)
+{
+	struct linux_stob *lstob;
+
+	lstob = stob2linux(stob);
+	C2_ASSERT(linux_stob_invariant(lstob));
+	/*
+	 * No caching for now, dispose of the body^Wobject immediately.
+	 */
+	if (lstob->sl_fd != -1) {
+		close(lstob->sl_fd);
+		lstob->sl_fd = -1;
+	}
+	c2_stob_cacheable_fini(&lstob->sl_stob);
+	c2_free(lstob);
 }
 
 /**
@@ -277,41 +255,17 @@ static int linux_domain_tx_make(struct c2_stob_domain *dom, struct c2_dtx *tx)
  */
 static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
 {
-	int                  nob;
-	struct linux_domain *ldom;
+	int                   nob;
+	struct linux_domain  *ldom;
+	const struct c2_stob *stob;
 
 	C2_ASSERT(linux_stob_invariant(lstob));
 
-	ldom  = domain2linux(lstob->sl_stob.so_domain);
+	stob = &lstob->sl_stob.ca_stob;
+	ldom = domain2linux(stob->so_domain);
 	nob = snprintf(path, nr, "%s/o/%016lx.%016lx", ldom->sdl_path,
-		       lstob->sl_stob.so_id.si_bits.u_hi,
-		       lstob->sl_stob.so_id.si_bits.u_lo);
+		       stob->so_id.si_bits.u_hi, stob->so_id.si_bits.u_lo);
 	return nob < nr ? 0 : -EOVERFLOW;
-}
-
-/**
-   Implementation of c2_stob_op::sop_fini().
-
-   Closes the object's file descriptor.
-
-   @see c2_linux_stob_link()
- */
-static void linux_stob_fini(struct c2_stob *stob)
-{
-	struct linux_stob *lstob;
-
-	lstob = stob2linux(stob);
-	C2_ASSERT(linux_stob_invariant(lstob));
-	/*
-	 * No caching for now, dispose of the body^Wobject immediately.
-	 */
-	if (lstob->sl_fd != -1) {
-		close(lstob->sl_fd);
-		lstob->sl_fd = -1;
-	}
-	ls_tlink_del_fini(lstob);
-	c2_stob_fini(&lstob->sl_stob);
-	c2_free(lstob);
 }
 
 /**

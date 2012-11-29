@@ -27,10 +27,10 @@
 #include "lib/thread.h"             /* LAMBDA */
 #include "lib/memory.h"
 #include "lib/arith.h"              /* min_type, min3 */
-#include "lib/tlist.h"
 #include "lib/misc.h"		    /* C2_SET0 */
 
 #include "stob/stob.h"
+#include "stob/cache.h"
 #include "stob/ad.h"
 
 /**
@@ -114,8 +114,7 @@ struct ad_domain {
 	    are stored in.
 	 */
 	struct c2_stob            *ad_bstore;
-	/** List of all existing c2_stob's. */
-	struct c2_tl               ad_object;
+	struct c2_stob_cache       ad_cache;
 	struct c2_ad_balloc       *ad_ballroom;
 	int			   ad_babshift;
 
@@ -124,23 +123,15 @@ struct ad_domain {
 /**
    AD storage object.
 
-   There is very little of the state besides c2_stob.
+   There is very little of the state besides c2_stob_cacheable.
  */
 struct ad_stob {
-	struct c2_stob      as_stob;
-	struct c2_tlink     as_linkage;
-	uint64_t            as_magix;
+	struct c2_stob_cacheable as_stob;
 };
-
-C2_TL_DESCR_DEFINE(ad, "ad stobs", static, struct ad_stob, as_linkage, as_magix,
-		   0xc01101da1fe11c1a /* colloidal felicia */,
-		   0x1dea112ed5ea51de /* idealized seaside */);
-
-C2_TL_DEFINE(ad, static, struct ad_stob);
 
 static inline struct ad_stob *stob2ad(struct c2_stob *stob)
 {
-	return container_of(stob, struct ad_stob, as_stob);
+	return container_of(stob, struct ad_stob, as_stob.ca_stob);
 }
 
 static inline struct ad_domain *domain2ad(struct c2_stob_domain *dom)
@@ -204,7 +195,7 @@ static void ad_domain_fini(struct c2_stob_domain *self)
 		c2_emap_fini(&adom->ad_adata);
 		c2_stob_put(adom->ad_bstore);
 	}
-	ad_tlist_fini(&adom->ad_object);
+	c2_stob_cache_fini(&adom->ad_cache);
 	c2_stob_domain_fini(self);
 	c2_free(adom);
 }
@@ -232,10 +223,10 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 	C2_ALLOC_PTR(adom);
 	if (adom != NULL) {
 		adom->ad_setup = false;
-		ad_tlist_init(&adom->ad_object);
 		dom = &adom->ad_base;
 		dom->sd_ops = &ad_stob_domain_op;
 		c2_stob_domain_init(dom, type);
+		c2_stob_cache_init(&adom->ad_cache);
 		sprintf(adom->ad_path, "%s%s", prefix, domain_name);
 		dom->sd_name = adom->ad_path + ARRAY_SIZE(prefix) - 1;
 		*out = dom;
@@ -297,29 +288,23 @@ C2_INTERNAL int c2_ad_stob_setup(struct c2_stob_domain *dom,
 	return result;
 }
 
-/**
-   Searches for the object with a given identifier in the domain object list.
-
-   This function is used by ad_domain_stob_find() to check whether in-memory
-   representation of an object already exists.
- */
-static struct ad_stob *ad_domain_lookup(struct ad_domain *adom,
-					const struct c2_stob_id *id)
+static int ad_incache_init(struct c2_stob_domain *dom,
+			   const struct c2_stob_id *id,
+			   struct c2_stob_cacheable **out)
 {
-	struct ad_stob *obj;
-	bool            found;
+	struct ad_stob           *astob;
+	struct c2_stob_cacheable *incache;
 
-	C2_PRE(adom->ad_setup);
-
-	found = false;
-	c2_tl_for(ad, &adom->ad_object, obj) {
-		if (c2_stob_id_eq(id, &obj->as_stob.so_id)) {
-			c2_stob_get(&obj->as_stob);
-			found = true;
-			break;
-		}
-	} c2_tl_endfor;
-	return found ? obj : NULL;
+	C2_ALLOC_PTR(astob);
+	if (astob != NULL) {
+		*out = incache = &astob->as_stob;
+		incache->ca_stob.so_op = &ad_stob_op;
+		c2_stob_cacheable_init(incache, id, dom);
+		return 0;
+	} else {
+		C2_ADDB_ADD(&dom->sd_addb, &ad_stob_addb_loc, c2_addb_oom);
+		return -ENOMEM;
+	}
 }
 
 /**
@@ -328,48 +313,17 @@ static struct ad_stob *ad_domain_lookup(struct ad_domain *adom,
    Returns an in-memory representation of the object with a given identifier.
  */
 static int ad_domain_stob_find(struct c2_stob_domain *dom,
-				  const struct c2_stob_id *id,
-				  struct c2_stob **out)
+			       const struct c2_stob_id *id,
+			       struct c2_stob **out)
 {
-	struct ad_domain *adom;
-	struct ad_stob   *astob;
-	struct ad_stob   *ghost;
-	struct c2_stob   *stob;
-	int               result;
+	struct c2_stob_cacheable *incache;
+	struct ad_domain         *adom;
+	int                       result;
 
 	adom = domain2ad(dom);
-
-	C2_PRE(adom->ad_setup);
-
-	result = 0;
-	c2_rwlock_read_lock(&dom->sd_guard);
-	astob = ad_domain_lookup(adom, id);
-	c2_rwlock_read_unlock(&dom->sd_guard);
-
-	if (astob == NULL) {
-		C2_ALLOC_PTR(astob);
-		if (astob != NULL) {
-			c2_rwlock_write_lock(&dom->sd_guard);
-			ghost = ad_domain_lookup(adom, id);
-			if (ghost == NULL) {
-				stob = &astob->as_stob;
-				stob->so_op = &ad_stob_op;
-				c2_stob_init(stob, id, dom);
-				ad_tlink_init_at(astob, &adom->ad_object);
-			} else {
-				c2_free(astob);
-				astob = ghost;
-				c2_stob_get(&astob->as_stob);
-			}
-			c2_rwlock_write_unlock(&dom->sd_guard);
-		} else {
-			C2_ADDB_ADD(&dom->sd_addb,
-				    &ad_stob_addb_loc, c2_addb_oom);
-			result = -ENOMEM;
-		}
-	}
-	if (result == 0)
-		*out = &astob->as_stob;
+	result = c2_stob_cache_find(&adom->ad_cache, dom, id,
+				    ad_incache_init, &incache);
+	*out = &incache->ca_stob;
 	return result;
 }
 
@@ -387,16 +341,13 @@ static int ad_domain_tx_make(struct c2_stob_domain *dom, struct c2_dtx *tx)
 
 /**
    Implementation of c2_stob_op::sop_fini().
-
-   Closes the object's file descriptor.
  */
 static void ad_stob_fini(struct c2_stob *stob)
 {
 	struct ad_stob *astob;
 
 	astob = stob2ad(stob);
-	ad_tlink_del_fini(astob);
-	c2_stob_fini(&astob->as_stob);
+	c2_stob_cacheable_fini(&astob->as_stob);
 	c2_free(astob);
 }
 

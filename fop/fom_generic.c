@@ -227,8 +227,8 @@ static int create_loc_ctx(struct c2_fom *fom)
         C2_PRE(!is_tx_initialized(&fom->fo_tx.tx_dbtx));
 	reqh = c2_fom_reqh(fom);
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, reqh->rh_dbenv, 0);
-	if (rc != 0)
-		c2_fom_err_set(fom, rc);
+	if (rc < 0)
+		return rc;
 
 	return C2_FSO_AGAIN;
 }
@@ -296,8 +296,9 @@ static int fom_fol_rec_add(struct c2_fom *fom)
 	c2_fom_block_enter(fom);
 	rc = c2_fop_fol_rec_add(fom->fo_fop, c2_fom_reqh(fom)->rh_fol,
 	                        &fom->fo_tx.tx_dbtx);
-	c2_fom_err_set(fom, rc);
 	c2_fom_block_leave(fom);
+	if (rc < 0)
+		return rc;
 
 	return C2_FSO_AGAIN;
 }
@@ -311,10 +312,9 @@ static int fom_txn_commit(struct c2_fom *fom)
 	int rc;
 
 	rc = c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
-
-	if (rc != 0) {
-		c2_fom_err_set(fom, rc);
+	if (rc < 0) {
 		set_gen_err_reply(fom);
+		return rc;
 	}
 
 	return C2_FSO_AGAIN;
@@ -340,8 +340,8 @@ static int fom_txn_abort(struct c2_fom *fom)
 
 	if (is_tx_initialized(&fom->fo_tx.tx_dbtx)) {
 		rc = c2_db_tx_abort(&fom->fo_tx.tx_dbtx);
-		if (rc != 0)
-			c2_fom_err_set(fom, rc);
+		if (rc < 0)
+			return rc;
 	}
 
 	return C2_FSO_AGAIN;
@@ -640,22 +640,20 @@ int c2_fom_tick_generic(struct c2_fom *fom)
 	int			     rc;
 	const struct fom_phase_desc *fpd_phase;
 	struct c2_reqh              *reqh;
-	int			     res;
+
+	C2_PRE(fom != NULL);
+
+	reqh = c2_fom_reqh(fom);
 
 	fpd_phase = &fpd_table[c2_fom_phase(fom)];
 
 	rc = fpd_phase->fpd_action(fom);
-
-	reqh = c2_fom_reqh(fom);
-	res  = c2_fom_rc(fom);
-	if (rc == C2_FSO_AGAIN) {
-		if (res != 0 && c2_fom_phase(fom) < C2_FOPH_FAILURE) {
-			c2_fom_err_set(fom, 0);
-			c2_fom_phase_move(fom, res, C2_FOPH_FAILURE);
-			FOM_GEN_ADDB_ADD(&reqh->rh_addb, fpd_phase->fpd_name,
-					 res);
-		} else
-			c2_fom_phase_set(fom, fpd_phase->fpd_nextphase);
+	if (rc < 0) {
+		c2_fom_phase_move(fom, rc, C2_FOPH_FAILURE);
+		FOM_GEN_ADDB_ADD(&reqh->rh_addb, fpd_phase->fpd_name, rc);
+		rc = C2_FSO_AGAIN;
+	} else if (rc == C2_FSO_AGAIN) {
+		c2_fom_phase_set(fom, fpd_phase->fpd_nextphase);
 	}
 
 	if (c2_fom_phase(fom) == C2_FOPH_FINISH)

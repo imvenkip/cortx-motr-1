@@ -174,6 +174,8 @@ C2_INTERNAL int c2_arch_trace_init()
 	if (rc != 0)
 		return rc;
 
+	setlinebuf(stdout);
+
 	return randvspace_check() ?: logbuf_map();
 }
 

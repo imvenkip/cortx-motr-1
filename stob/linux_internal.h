@@ -37,6 +37,7 @@
 #include "lib/tlist.h"
 #include "lib/thread.h"
 #include "stob/stob.h"
+#include "stob/cache.h"
 
 enum {
 	/** Default number of threads to create in a storage object domain. */
@@ -74,8 +75,7 @@ struct linux_domain {
 	 */
 	char             sdl_path[MAXPATHLEN];
 
-	/** List of all existing c2_stob's. */
-	struct c2_tl     sdl_object;
+	struct c2_stob_cache sdl_cache;
 
 	/** @name ioq Linux adieu fields. @{ */
 
@@ -110,20 +110,20 @@ struct linux_domain {
    stob based on Linux file system and block devices
  */
 struct linux_stob {
-	struct c2_stob		sl_stob;
+	struct c2_stob_cacheable sl_stob;
 
 	/** fd from returned open(2) */
-	int			sl_fd;
+	int			 sl_fd;
 	/** File mode as returned by stat(2) */
-	mode_t			sl_mode;
+	mode_t			 sl_mode;
 
-	struct c2_tlink		sl_linkage;
-	uint64_t		sl_magix;
+	struct c2_tlink		 sl_linkage;
+	uint64_t		 sl_magix;
 };
 
 static inline struct linux_stob *stob2linux(struct c2_stob *stob)
 {
-	return container_of(stob, struct linux_stob, sl_stob);
+	return container_of(stob, struct linux_stob, sl_stob.ca_stob);
 }
 
 static inline struct linux_domain *domain2linux(struct c2_stob_domain *dom)
