@@ -10,12 +10,12 @@ COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs_$$
 #COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs
 COLIBRI_MODULE=kcolibri
 
-COLIBRI_MODULE_TRACE_MASK=0
-COLIBRI_TRACE_PRINT_CONTEXT=none
+COLIBRI_MODULE_TRACE_MASK='!all'
+COLIBRI_TRACE_PRINT_CONTEXT=short
 COLIBRI_TRACE_LEVEL=call+
-export C2_TRACE_IMMEDIATE_MASK=0 # put your subsystem here
+export C2_TRACE_IMMEDIATE_MASK='!all' # put your subsystem here
 #export C2_TRACE_LEVEL=debug+
-export C2_TRACE_PRINT_CONTEXT=full
+export C2_TRACE_PRINT_CONTEXT=short
 
 COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%Y-%m-%d_%T"`.log
 

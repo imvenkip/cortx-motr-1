@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
 					exit(EXIT_SUCCESS);
 				})),
 		    C2_STRINGARG('p', "trace print context, values:"
-				 " none, func, full",
+				 " none, func, short, full",
 				LAMBDA(void, (const char *str) {
 					trace_print_context = str;
 				})

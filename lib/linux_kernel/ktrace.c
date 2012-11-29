@@ -52,7 +52,7 @@ module_param(trace_print_context, charp, 0644);
 MODULE_PARM_DESC(trace_print_context,
 		 " controls whether to display additional trace point"
 		 " info, like subsystem, file, func, etc.; values:"
-		 " none, func, full");
+		 " none, func, short, full");
 
 static int set_trace_immediate_mask(void)
 {

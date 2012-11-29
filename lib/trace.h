@@ -227,7 +227,6 @@ extern unsigned long c2_trace_immediate_mask;
  *
  * Acceptable values are elements of enum c2_trace_print_context.
  */
-/* XXX: maybe c2_trace_verbose would be a better name? */
 extern unsigned int c2_trace_print_context;
 
 /**
@@ -318,9 +317,10 @@ enum c2_trace_level {
 };
 
 enum c2_trace_print_context {
-	C2_TRACE_PCTX_NONE = 0,
-	C2_TRACE_PCTX_FUNC = 1,
-	C2_TRACE_PCTX_FULL = 2,
+	C2_TRACE_PCTX_NONE  = 0,
+	C2_TRACE_PCTX_FUNC  = 1,
+	C2_TRACE_PCTX_SHORT = 2,
+	C2_TRACE_PCTX_FULL  = 3,
 
 	C2_TRACE_PCTX_INVALID
 };

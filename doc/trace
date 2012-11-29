@@ -101,19 +101,24 @@ Trace print context
 -------------------
 
 It's possible to control formatting and amount of information in C2_LOG()
-output. There are three levels of verbosity: none, func, full.
+output. There are four levels of verbosity: none, func, short and full.
 
 Here is an example, of how the same log message looks like on different print
 context levels:
 
-level 'none' (just log message, prefixed with "colibri: " and '\n' at the end,
-              this is a default one):
+level 'none' (just log message, prefixed with "colibri: " and '\n' at the end):
 
     colibri: dumping free extents@0x7ffff5dcefa0:balloc ut for 00007cff
 
 level 'func' (the same as level 'none', but also prints __func__ at the beginning):
 
     colibri: c2_balloc_debug_dump_group_extent: dumping free extents@0x7ffff5dcefa0:balloc ut for 00007cff
+
+level 'short' (trace level + [file:line:func] + message, this is a default one):
+
+    colibri:   CALL : [conf/conf_xcode.c:210:c2_confx_types_init] >
+    colibri:  ERROR : [rpc/rpc_machine.c:289:rpc_tm_setup] ! rc=-22 TM initialization
+    colibri:   CALL : [conf/conf_xcode.c:212:c2_confx_types_init] <
 
 level 'full' (full information, spreads over two lines - trace point info
               and log message):
@@ -168,12 +173,12 @@ Trace print context:
 
     1) environment variable:
 
-         export C2_TRACE_PRINT_CONTEXT=1
+         export C2_TRACE_PRINT_CONTEXT=none
          ./utils/ut.sh
 
     2) CLI options for utils/ut:
 
-         -p     string: trace print context, values: none, func, full
+         -p     string: trace print context, values: none, func, short, full
 
          $ ./utils/ut.sh -p func
 
