@@ -1273,7 +1273,6 @@ struct target_ioreq_ops {
 	 * @param par_offset Offset in case of parity units.
 	 * @param count      Number of bytes in this segment.
 	 * @param unit       Unit id in parity group.
-	 * @param map        Parent pargrp_iomap structure.
 	 * @pre   ti != NULL && count > 0.
 	 * @post  m0_vec_count(&ti->ti_ivec.iv_vec) > 0.
          */
