@@ -52,7 +52,7 @@ enum cm_cp_pump_fom_phase {
 	CPP_DATA_NEXT,
 	/**
 	 * c2_cm_cp_pump::p_fom is transitioned to CPP_NOBUFS when
-	 * c2_cm_data_next() returns -ENOBUFS(i.e No free buffers available at
+	 * c2_cm_data_next() returns -ENOBUFS (i.e no free buffers available at
 	 * this moment) in CPP_DATA_NEXT phase. The pump FOM goes to wait in
 	 * this phase and is woken up once the buffers are available.
 	 */

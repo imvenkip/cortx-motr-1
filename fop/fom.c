@@ -1090,6 +1090,12 @@ void c2_fom_phase_move(struct c2_fom *fom, int32_t rc, int phase)
 }
 C2_EXPORTED(c2_fom_phase_move);
 
+void c2_fom_phase_moveif(struct c2_fom *fom, int32_t rc, int phase0, int phase1)
+{
+	c2_fom_phase_move(fom, rc, rc == 0 ? phase0 : phase1);
+}
+C2_EXPORTED(c2_fom_phase_moveif);
+
 int c2_fom_phase(const struct c2_fom *fom)
 {
 	return fom->fo_sm_phase.sm_state;

@@ -715,6 +715,9 @@ void c2_fom_phase_set(struct c2_fom *fom, int phase);
 
 void c2_fom_phase_move(struct c2_fom *fom, int32_t rc, int phase);
 
+void c2_fom_phase_moveif(struct c2_fom *fom, int32_t rc, int phase0,
+			 int phase1);
+
 int c2_fom_phase(const struct c2_fom *fom);
 
 C2_INTERNAL int c2_fom_rc(const struct c2_fom *fom);

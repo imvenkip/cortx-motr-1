@@ -24,6 +24,7 @@
 #include "lib/memory.h"
 #include "lib/tlist.h"
 #include "lib/assert.h"
+#include "lib/misc.h"    /* C2_BITS */
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_IOSERVICE
 #include "lib/trace.h"
 #include "lib/finject.h"
@@ -694,44 +695,44 @@ static const struct c2_io_fom_cob_rw_state_transition io_fom_write_st[] = {
 struct c2_sm_state_descr io_phases[] = {
 	[C2_FOPH_IO_FOM_BUFFER_ACQUIRE] = {
 		.sd_name      = "Network buffer acquire",
-		.sd_allowed   = (1 << C2_FOPH_IO_STOB_INIT) |
-				(1 << C2_FOPH_IO_ZERO_COPY_INIT) |
-				(1 << C2_FOPH_IO_FOM_BUFFER_WAIT) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_IO_STOB_INIT,
+					C2_FOPH_IO_ZERO_COPY_INIT,
+					C2_FOPH_IO_FOM_BUFFER_WAIT,
+					C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_IO_FOM_BUFFER_WAIT] = {
 		.sd_name      = "Network buffer wait",
-		.sd_allowed   = (1 << C2_FOPH_IO_STOB_INIT) |
-				(1 << C2_FOPH_IO_ZERO_COPY_INIT) |
-				(1 << C2_FOPH_IO_FOM_BUFFER_WAIT) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_IO_STOB_INIT,
+					C2_FOPH_IO_ZERO_COPY_INIT,
+					C2_FOPH_IO_FOM_BUFFER_WAIT,
+					C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_IO_STOB_INIT] = {
 		.sd_name      = "STOB I/O launch",
-		.sd_allowed   = (1 << C2_FOPH_IO_STOB_WAIT) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_IO_STOB_WAIT,
+					C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_IO_STOB_WAIT] = {
 		.sd_name      = "STOB I/O finish",
-		.sd_allowed   = (1 << C2_FOPH_IO_ZERO_COPY_INIT) |
-				(1 << C2_FOPH_IO_BUFFER_RELEASE) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_IO_ZERO_COPY_INIT,
+					C2_FOPH_IO_BUFFER_RELEASE,
+					C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_IO_ZERO_COPY_INIT] = {
 		.sd_name      = "Zero-copy initiate",
-		.sd_allowed   = (1 << C2_FOPH_IO_ZERO_COPY_WAIT) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_IO_ZERO_COPY_WAIT,
+					C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_IO_ZERO_COPY_WAIT] = {
 		.sd_name      = "Zero-copy finish",
-		.sd_allowed   = (1 << C2_FOPH_IO_BUFFER_RELEASE) |
-				(1 << C2_FOPH_IO_STOB_INIT) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_IO_BUFFER_RELEASE,
+					C2_FOPH_IO_STOB_INIT,
+					C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_IO_BUFFER_RELEASE] = {
 		.sd_name      = "Network buffer release",
-		.sd_allowed   = (1 << C2_FOPH_IO_FOM_BUFFER_ACQUIRE) |
-				(1 << C2_FOPH_SUCCESS)
+		.sd_allowed   = C2_BITS(C2_FOPH_IO_FOM_BUFFER_ACQUIRE,
+					C2_FOPH_SUCCESS)
 	},
 };
 
@@ -1612,7 +1613,7 @@ static int io_finish(struct c2_fom *fom)
         C2_ASSERT(ergo(rc == 0,
                        fom_obj->fcrw_req_count == fom_obj->fcrw_count));
 
-	rc = fom_obj->fcrw_rc != 0 ? fom_obj->fcrw_rc : rc;
+	rc = fom_obj->fcrw_rc ?: rc;
         if (rc != 0) {
 		c2_fom_phase_move(fom, rc, C2_FOPH_FAILURE);
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
