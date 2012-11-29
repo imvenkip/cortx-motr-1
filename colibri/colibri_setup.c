@@ -785,6 +785,8 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 		if (rc == 0 || rc == -EEXIST)
 			rc = c2_stob_create_helper(stob->s_ldom, tx, bstob_id,
 						   bstob);
+			if (rc == 0)
+				c2_stob_put(*bstob);
 	}
 
 	if (rc == 0 && C2_FI_ENABLED("ad_domain_locate_fail"))
@@ -797,8 +799,10 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 					   &adstob->as_dom);
 	}
 
-	if (rc != 0)
+	if (rc != 0) {
+		c2_stob_put(*bstob);
 		c2_free(adstob);
+	}
 
 	if (rc == 0) {
 		cs_ad_stob_bob_init(adstob);
