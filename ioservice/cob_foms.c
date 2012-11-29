@@ -269,6 +269,8 @@ static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	reqh = c2_fom_reqh(fom);
 	sdom = c2_cs_stob_domain_find(reqh, &cc->fco_stobid);
 	if (sdom == NULL) {
+		C2_LOG(C2_DEBUG, "can't find domain for stob_id=%lu",
+		                 (unsigned long)cc->fco_stobid.si_bits.u_hi);
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail,
 			    "Stob creation failed in cc_stob_create().",
