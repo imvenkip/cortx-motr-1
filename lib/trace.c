@@ -266,7 +266,8 @@ static unsigned long subsys_name_to_mask(char *subsys_name)
  * @return 0 on success
  * @return -EINVAL on failure
  */
-C2_INTERNAL int subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask)
+C2_INTERNAL int
+c2_trace_subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask)
 {
 	char          *p;
 	char          *subsys = subsys_names;
@@ -372,7 +373,7 @@ static enum c2_trace_level trace_level_value_plus(char *level_name)
  * @return c2_trace_level enum value, on success
  * @return C2_NONE on failure
  */
-C2_INTERNAL enum c2_trace_level parse_trace_level(char *str)
+C2_INTERNAL enum c2_trace_level c2_trace_parse_trace_level(char *str)
 {
 	char                *level_str = str;
 	char                *p = level_str;
@@ -397,8 +398,8 @@ C2_INTERNAL enum c2_trace_level parse_trace_level(char *str)
 	return level;
 }
 
-C2_INTERNAL enum c2_trace_print_context parse_trace_print_context(const char
-								  *ctx_name)
+C2_INTERNAL enum c2_trace_print_context
+c2_trace_parse_trace_print_context(const char *ctx_name)
 {
 	int i;
 
