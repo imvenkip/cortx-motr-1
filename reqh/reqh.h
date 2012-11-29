@@ -176,8 +176,7 @@ C2_INTERNAL void c2_reqh_fini(struct c2_reqh *reqh);
    @pre reqh != null
    @pre fop != null
  */
-C2_INTERNAL void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop,
-				    void *cookie);
+C2_INTERNAL void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop);
 
 /**
    Waits on c2_reqh::rh_sd_signal using the given clink until
