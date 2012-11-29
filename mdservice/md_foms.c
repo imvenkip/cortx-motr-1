@@ -218,7 +218,7 @@ static int c2_md_tick_create(struct c2_fom *fom)
 out:
         C2_LOG(C2_DEBUG, "Create finished with %d", rc);
         rep->c_body.b_rc = rc;
-        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_moveif(fom, rc, C2_FOPH_SUCCESS, C2_FOPH_FAILURE);
         return C2_FSO_AGAIN;
 }
 
@@ -272,7 +272,7 @@ out:
                (int)req->l_name.s_len, (char *)req->l_name.s_buf,
                body->b_tfid.f_container, body->b_tfid.f_key, rc);
         rep->l_body.b_rc = rc;
-        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_moveif(fom, rc, C2_FOPH_SUCCESS, C2_FOPH_FAILURE);
         return C2_FSO_AGAIN;
 }
 
@@ -348,7 +348,7 @@ out:
                body->b_pfid.f_container, body->b_pfid.f_key,
                (int)req->u_name.s_len, (char *)req->u_name.s_buf, rc);
         rep->u_body.b_rc = rc;
-        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_moveif(fom, rc, C2_FOPH_SUCCESS, C2_FOPH_FAILURE);
         return C2_FSO_AGAIN;
 }
 
@@ -464,7 +464,7 @@ static int c2_md_tick_rename(struct c2_fom *fom)
         c2_fom_block_leave(fom);
 out:
         rep->r_body.b_rc = rc;
-        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_moveif(fom, rc, C2_FOPH_SUCCESS, C2_FOPH_FAILURE);
         return C2_FSO_AGAIN;
 }
 
@@ -536,7 +536,7 @@ static int c2_md_tick_open(struct c2_fom *fom)
         c2_fom_block_leave(fom);
 out:
         rep->o_body.b_rc = rc;
-        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_moveif(fom, rc, C2_FOPH_SUCCESS, C2_FOPH_FAILURE);
         return C2_FSO_AGAIN;
 }
 
@@ -605,7 +605,7 @@ static int c2_md_tick_close(struct c2_fom *fom)
         c2_fom_block_leave(fom);
 out:
         rep->c_body.b_rc = rc;
-        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_moveif(fom, rc, C2_FOPH_SUCCESS, C2_FOPH_FAILURE);
         return C2_FSO_AGAIN;
 }
 
@@ -671,7 +671,7 @@ out:
         C2_LOG(C2_DEBUG, "Setattr for [%lx:%lx] finished with %d",
                body->b_tfid.f_container, body->b_tfid.f_key, rc);
         rep->s_body.b_rc = rc;
-        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_moveif(fom, rc, C2_FOPH_SUCCESS, C2_FOPH_FAILURE);
         return C2_FSO_AGAIN;
 }
 
@@ -869,7 +869,7 @@ static int c2_md_tick_statfs(struct c2_fom *fom)
                 md_statfs_mem2wire(rep, &statfs);
 out:
         rep->f_rc = rc;
-        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_moveif(fom, rc, C2_FOPH_SUCCESS, C2_FOPH_FAILURE);
         return C2_FSO_AGAIN;
 }
 
@@ -989,7 +989,7 @@ out:
          * local state machine requires "normal" errors. Let's adopt @rc.
          */
         rc = (rc < 0 ? rc : 0);
-        c2_fom_phase_move(fom, rc, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+        c2_fom_phase_moveif(fom, rc, C2_FOPH_SUCCESS, C2_FOPH_FAILURE);
         return C2_FSO_AGAIN;
 }
 
