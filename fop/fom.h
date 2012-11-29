@@ -447,8 +447,6 @@ struct c2_fom {
 	const struct c2_fom_ops	 *fo_ops;
 	/** AST call-back to wake up the FOM */
 	struct c2_fom_callback	  fo_cb;
-	/** FOP ctx sent by the network service. */
-	struct c2_fop_ctx	*fo_fop_ctx;
 	/** Request fop object, this fom belongs to */
 	struct c2_fop		 *fo_fop;
 	/** Reply fop object */

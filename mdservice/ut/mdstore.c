@@ -207,7 +207,7 @@ again:
                 }
 
                 C2_ASSERT(result == 0);
-                c2_reqh_fop_handle(&reqh, fop, NULL);
+                c2_reqh_fop_handle(&reqh, fop);
         }
         close(fd);
 

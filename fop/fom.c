@@ -499,8 +499,6 @@ static void fom_exec(struct c2_fom *fom)
 {
 	int			rc;
 	struct c2_fom_locality *loc;
-	struct c2_fop_ctx      *ctx;
-
 
 	loc = fom->fo_loc;
 	fom->fo_thread = loc->fl_handler;
@@ -524,23 +522,10 @@ static void fom_exec(struct c2_fom *fom)
 	C2_ASSERT(c2_fom_group_is_locked(fom));
 
 	if (c2_fom_phase(fom) == C2_FOM_PHASE_FINISH) {
-	        /**
-	         * Get ctx from fom begore killing fom.
-	         */
-	        ctx = fom->fo_fop_ctx;
-
-                /**
+                /*
                  * Finish fom itself.
                  */
 		fom->fo_ops->fo_fini(fom);
-
-		/**
-		 * Make sure that ctx is released. It is allocated just before fto_create()
-		 * is called. We release it after fo_finish as it may use ctx.
-		 */
-		if (ctx != NULL)
-                        c2_free(ctx);
-
 		/*
 		 * Don't touch the fom after this point.
 		 */
