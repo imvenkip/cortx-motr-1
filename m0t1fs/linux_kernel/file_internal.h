@@ -37,6 +37,14 @@
       - @ref rmw-lspec-state
       - @ref rmw-lspec-thread
       - @ref rmw-lspec-numa
+   - @ref rmw-degraded-readIO
+      - @ref rmw-dgreadIO-req
+      - @ref rmw-dgreadIO-highlights
+      - @ref rmw-dgreadIO-lspec
+      - @ref rmw-dgreadIO-limitations
+      - @ref rmw-dgreadIO-conformance
+      - @ref rmw-dgreadIO-ut
+      - @ref rmw-dgreadIO-impl-plan
    - @ref rmw-conformance
    - @ref rmw-ut
    - @ref rmw-st
@@ -462,16 +470,18 @@
 	};
 	Sinit      -> Swriting   [ label = "io == write()", fontsize=9 ]
 	Sinit      -> Sreading   [ label = "io == read()", fontsize=9 ]
-	Sreading   -> Sreading   [ label = "!io_spans_full_pg()",
+	Sreading   -> Sreading   [ label = "! is_rmw()",
 				   fontsize=9 ]
 	{
 	    rank = same; Swritedone; Sreaddone;
 	};
+	Sreading   -> Sdgreading [ label = "readIO failed", fontsize=9],
+	Sdgreading -> Sreaddone  [ label = "read_complete()", fontsize=9],
 	Swriting   -> Swritedone [ label = "write_complete()", fontsize=9,
 			           weight=4 ]
 	Sreading   -> Sreaddone  [ label = "read_complete()", fontsize=9,
 			           weight=4 ]
-	Swriting   -> Sreading   [ label = "! io_spans_full_pg()",
+	Swriting   -> Sreading   [ label = "is_rmw()",
 				   fontsize=9 ]
 	Sreaddone  -> Sreqdone   [ label = "io == read()", fontsize=9 ]
 	Sreaddone  -> Swriting   [ label = "io == write()", fontsize=9 ]
@@ -498,6 +508,173 @@
    @subsection rmw-lspec-numa NUMA optimizations
 
    None.
+
+   @section rmw-degraded-readIO
+
+   This section describes the provision for read IO while SNS repair is going
+   on.  Colibri uses data redundancy patterns like pdclustered RAID to recover
+   in case of a failed device or node.
+   Parity is calculated across a parity group and stored on persistent media
+   so as to recover in case disaster strikes.
+   Since file data is distributed across multiple target objects
+   (cobs in this case), failure of a read IO request for any cobs could result
+   into triggering of degraded mode read IO.
+
+   @subsection rmw-dgreadIO-req
+
+   - @b R.dg.mode.readIO.efficient The implementation shall provide an efficient
+   way of handling degraded mode read IO requests keeping the performance hit to
+   a minimum.
+
+   - @b R.dg.mode.readIO.clientOnly The implementation shall stick to retrieving
+   the lost data unit by reading rest of the data units and/or parity unit from
+   given parity group. There is no interaction with server sns repair process.
+
+   @subsection rmw-dgreadIO-highlights
+
+   A new state will be introduced to represent degraded mode read IO.
+   The degraded mode state will find out the affected parity groups from the
+   failed IO fop and will start read for missing data units and/or parity units.
+   Amount of data to be read depends on type of read approach undertaken by the
+   pargrp group (struct pargrp_iomap), namely
+    - read_old  Read rest of the data units as well as parity units.
+    - read_rest Read parity units only since all other data units are already
+      present.
+
+   @subsection rmw-dgreadIO-lspec
+
+   A new state DEGRADED_READING will be introduced to handle degraded read IO.
+   The error in IO path will be introduced by a fault injection point which will
+   trigger degraded mode and IO state machine will transition into degraded mode
+   state.
+
+   Both simple read IO and read-modify-write IO will be supported in the process.
+   The state transition of IO state machine in both these case will be as given
+   below...
+
+    - simple readIO
+       @n READING          --> DEGRADED_READING
+       @n DEGRADED_READING --> READ_COMPLETE
+       @n READ_COMPLETE    --> REQ_COMPLETE.
+
+    - read-modify-write IO
+       @n READING          --> DEGRADED_READING
+       @n DEGRADED_READING --> READ_COMPLETE
+       @n READ_COMPLETE    --> WRITING
+       @n WRITING          --> WRITE_COMPLETE
+       @n WRITE_COMPLETE   --> REQ_COMPLETE.
+
+   Caller does not get any intimation of degraded mode read IO. It can only be
+   realised by a little lower throughput numbers since degraded mode readIO
+   state has to do more IO.
+
+   A modified state transition diagram can be seen at State specification.
+   @see rmw-lspec-state.
+
+   The existing rmw data structures will be modified to accommodate degraded
+   mode read IO as mentioned below...
+
+   - struct io_request
+    - It is the top-level data structure which represents an IO request and
+      state machine will be changed by addition of degraded read IO state.
+    - Routine iosm_handle() will be modified to handle degraded mode state
+      and transition into normal read or write states once degraded mode
+      read IO is complete.
+    - New routines will be added to handle retrieval of lost data unit/s
+      from rest of data units and parity units.
+
+   - struct pargrp_iomap
+    - a boolean flag will be added indicating if given parity group is affected
+      by failed read IO fop.
+    - Pages from the data units and/or parity units that need to be read in
+      order to retrieve lost data unit will be marked with a special page flag
+      to distinguish between normal IO and degraded mode IO.
+    - Since every parity group follows either read-old or read-rest approach
+      while doing read-modify-write, special routines catering to degraded mode
+      handling of these approaches will be developed.
+       - read_old  Since all data units may not be available in this approach,
+       all remaining data units are read. Parity units are read already.
+       - read_rest All data units are available but parity units are not.
+       Hence, parity units are read in order to retrieve lost data.
+       - simple_read A routine will be written in order to do read for rest of
+       data units and/or parity units for a simple read IO request.
+
+   - struct target_ioreq
+    - a new data structure containing a c2_indexvec and c2_bufvec will be
+      introduced to hold pages from degraded mode read IO.
+      This serves 2 purposes.
+       - Segregate degraded mode read IO from normal IO and
+       - Normal IO requests will not be affected by degraded mode read IO code.
+
+   - enum page_attr
+    - a new flag (PA_DG_READIO) will be added to identify pages issued for
+      degraded mode read IO.
+
+   - io_bottom_half
+    - This routine will be modified to host a fault injection point which will
+    simulate the behavior of system in case of read IO failure.
+
+   @subsection rmw-dgreadIO-limitations
+
+   - Since present implementation of read-modify-write IO supports only XOR
+   due to lack of differential calculation of parity for Reed-Solomon algorithm
+   only single failures will be supported as XOR supports single failures only.
+
+   - Since there is no provision in current bulk transfer/rpc bulk API to
+   pin-point failed segment/s in given IO vector during bulk transfer, all
+   parity groups referred to by segments in failed read fop will be tried for
+   regeneration of lost data.
+
+   @subsection rmw-dgreadIO-conformance
+
+   @b I.dg.mode.readIO.efficient The implementation will use async way of
+   sending fops and waiting for them. All pages are aggregated so all pending
+   IO is dispatched at once. Besides, new IO vectors will be used in
+   target_ioreq structures so as to segregate them from normal IO vector.
+
+   @b I.dg.mode.readIO.clientOnly The implementation will use parity
+   regeneration APIs from parity math library so that there is no need to
+   communicate with server.
+
+   @subsection rmw-dgreadIO-ut
+
+   The existing rmw UT will be modified to accommodate unit tests made to
+   stress the degraded mode read IO code.
+
+   @test Prepare a simple read IO request and enable the fault injection point
+   in order to simulate behavior in case of degraded mode read IO. Keep a known
+   pattern of data in data units so as to verify the contents of lost data
+   unit after degraded mode read IO completes.
+
+   @test Prepare a read-modify-write IO request with one parity group and
+   enable fault injection point in io_bottom_half. Keep only one valid data
+   unit in parity group so as to ensure read_old approach is used.
+   Trigger the fault injection point to simulate degraded mode read IO and
+   verify the contents of read buffers after degraded mode read IO completes.
+   The contents of read buffers should match the expected data pattern.
+
+   @test Preapre a read-modify-write IO request with one parity group and
+   enable the fault injection point in io_bottom_half. Keep all but one valid
+   data units in parity group so as to ensure read-rest approach is used.
+   Trigger the fault injection point to simulate degraded mode read IO and
+   verify contents of read buffers after degraded mode read IO completes.
+   The contents of read buffers should match the expected data pattern.
+
+   @subsection rmw-dgreadIO-impl-plan
+
+   Appropriate amount of unit testing will be done before proceeding with
+   any subsequent changes in production code. This helps to ensure that
+   written code works as expected.
+
+   - The implementation shall implement the changes in struct pargrp_iomap
+   so that routines for simple read, read_old and read_rest approach are
+   tested with appropriate test cases. This will form the basis of further
+   coding task.
+
+   - Next set of changes shall implement modified target_ioreq structure
+   and its routines along with state machine changes in struct io_request.
+   Subsequent UT code will be written to ensure that all these changes
+   actually work before proceeding with full-scale testing.
 
    <hr>
    @section rmw-conformance Conformance
@@ -1107,7 +1284,6 @@ struct target_ioreq_ops {
 				 m0_bindex_t	                   par_offset,
 				 m0_bcount_t	                   count,
 				 struct pargrp_iomap              *map);
-
 
         /**
 	 * Prepares io fops from index vector and buffer vector.
