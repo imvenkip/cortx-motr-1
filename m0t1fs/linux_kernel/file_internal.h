@@ -582,6 +582,8 @@
       read IO is complete.
     - New routines will be added to handle retrieval of lost data unit/s
       from rest of data units and parity units.
+    - @see rmw-dgreadIO-lspec for valid state transitions with new degraded
+      mode read IO state.
 
    - struct pargrp_iomap
     - a boolean flag will be added indicating if given parity group is affected
@@ -593,18 +595,30 @@
       while doing read-modify-write, special routines catering to degraded mode
       handling of these approaches will be developed.
        - read_old  Since all data units may not be available in this approach,
-       all remaining data units are read. Parity units are read already.
+         all remaining data units are read. Parity units are read already.
        - read_rest All data units are available but parity units are not.
-       Hence, parity units are read in order to retrieve lost data.
+         Hence, parity units are read in order to retrieve lost data.
        - simple_read A routine will be written in order to do read for rest of
-       data units and/or parity units for a simple read IO request.
+         data units and/or parity units for a simple read IO request.
+
+   - struct dgmode_vector
+    - a new data structure to hold c2_indexvec and c2_bufvec for pages
+      that needed to be read from server.
+
+   - struct nw_xfer_request
+    - nw_xfer_io_prepare() operation will be modified to distribute pages
+      amongst target objects for degraded mode read IO.
 
    - struct target_ioreq
-    - a new data structure containing a c2_indexvec and c2_bufvec will be
-      introduced to hold pages from degraded mode read IO.
+    - a new data structure (struct dgmode_vector) will be introduced to
+      hold pages from degraded mode read IO.
       This serves 2 purposes.
        - Segregate degraded mode read IO from normal IO and
        - Normal IO requests will not be affected by degraded mode read IO code.
+
+   - target_ioreq_iofops_prepare()
+      - This routine will be changed to handle IO for both healthy mode
+      as well as degraded mode IO.
 
    - enum page_attr
     - a new flag (PA_DG_READIO) will be added to identify pages issued for
@@ -613,6 +627,9 @@
    - io_bottom_half
     - This routine will be modified to host a fault injection point which will
     simulate the behavior of system in case of read IO failure.
+
+    Along with all these changes, almost all invariants will be changed
+    as necessary.
 
    @subsection rmw-dgreadIO-limitations
 
@@ -675,6 +692,9 @@
    and its routines along with state machine changes in struct io_request.
    Subsequent UT code will be written to ensure that all these changes
    actually work before proceeding with full-scale testing.
+
+   - At last, all the invariants will be changed as part of addition of new
+   members in existing data structures.
 
    <hr>
    @section rmw-conformance Conformance
