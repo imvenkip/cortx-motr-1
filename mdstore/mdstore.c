@@ -408,6 +408,7 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
         struct m0_cob_nskey  *srckey = NULL;
         struct m0_cob_nskey  *tgtkey = NULL;
         struct m0_cob        *tncob = NULL;
+        bool                  unlink;
         time_t                now;
         int                   rc;
 
@@ -420,9 +421,10 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
          * Let's kill existing target name.
          */
         rc = m0_mdstore_lookup(md, pfid_tgt, tname, &tncob, tx);
+        unlink = (tncob != NULL &&
+            m0_cob_nskey_cmp(tncob->co_nskey, cob_tgt->co_nskey) != 0);
 
-        if (!m0_fid_eq(cob_tgt->co_fid, cob_src->co_fid) ||
-            (tncob && tncob->co_nsrec.cnr_linkno != 0)) {
+        if (!m0_fid_eq(cob_tgt->co_fid, cob_src->co_fid) || unlink) {
                 rc = m0_mdstore_unlink(md, pfid_tgt, cob_tgt, tname, tx);
                 if (rc != 0) {
                         if (tncob)
