@@ -306,10 +306,8 @@ static void test_parity_math_diff(uint32_t parity_cnt)
 	c2_parity_math_fini(&math);
 
 	for(i = 0; i < parity_cnt; ++i) {
-		arr = p_old[i].b_addr;
-		c2_free(arr);
-		arr = p_new[i].b_addr;
-		c2_free(arr);
+		c2_free(p_old[i].b_addr);
+		c2_free(p_new[i].b_addr);
 	}
 	c2_free(p_old);
 	c2_free(p_new);
