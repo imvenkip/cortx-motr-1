@@ -79,7 +79,7 @@ static void bufvec_xor(struct c2_bufvec *dst, struct c2_bufvec *src,
  * @pre cp != NULL && c2_fom_phase(&cp->c_fom) == C2_CCP_XFORM
  * @param cp Copy packet that has to be transformed.
  */
-int c2_sns_repair_cp_xform(struct c2_cm_cp *cp)
+C2_INTERNAL int c2_sns_repair_cp_xform(struct c2_cm_cp *cp)
 {
         struct c2_sns_repair_ag *sns_ag;
         struct c2_cm_aggr_group *ag;
@@ -92,7 +92,6 @@ int c2_sns_repair_cp_xform(struct c2_cm_cp *cp)
         sns_ag = ag2snsag(ag);
 	res_cp = sns_ag->sag_cp;
         if (res_cp == NULL) {
-                ag->cag_cp_nr = ag->cag_ops->cago_local_cp_nr(ag);
                 /*
                  * If there is only one copy packet in the aggregation group,
                  * call the next phase of the copy packet fom.

@@ -48,8 +48,8 @@ enum {
 	C2_THREAD_NAME_LEN = 16
 };
 
-int  c2_threads_init(void);
-void c2_threads_fini(void);
+C2_INTERNAL int c2_threads_init(void);
+C2_INTERNAL void c2_threads_fini(void);
 
 /**
    Helper macro creating an anonymous function with a given body.

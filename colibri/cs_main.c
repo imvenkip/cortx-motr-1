@@ -69,10 +69,11 @@ static void cs_wait_for_termination(void)
 	sigaction(SIGQUIT, &term_act, NULL);
 
 	printf("Press CTRL+C to quit.\n");
+	fflush(stdout);
 	pause();
 }
 
-int main(int argc, char **argv)
+C2_INTERNAL int main(int argc, char **argv)
 {
 	int               rc;
 	struct c2_colibri colibri_ctx;

@@ -245,6 +245,7 @@ static void send_ping_fop(struct c2_rpc_session *session)
 		ping_fop->fp_arr.f_data[i] = i + 100;
 
 	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
+				c2_time_from_now(1, 0) /* deadline */,
 				CONNECT_TIMEOUT);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(fop->f_item.ri_error == 0);
@@ -413,7 +414,7 @@ static int run_server(void)
 	static char rpc_size[STRING_LEN];
 
 	char *server_argv[] = {
-		"rpclib_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+		"rpclib_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
 		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size,
 	};
@@ -531,6 +532,6 @@ int main(int argc, char *argv[])
 	return rc;
 }
 
-void c2_rpc_ping_fini(void)
+C2_INTERNAL void c2_rpc_ping_fini(void)
 {
 }

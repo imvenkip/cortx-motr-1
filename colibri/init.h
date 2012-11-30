@@ -35,7 +35,7 @@
 
    @see c2_fini().
  */
-int  c2_init(void);
+int c2_init(void);
 
 /**
    Finalizes all sub-systems initialised by c2_init().

@@ -25,14 +25,15 @@
 #include "console/console_it.h"
 #include "console/console_mesg.h"
 
-void c2_cons_fop_name_print(const struct c2_fop_type *ftype)
+C2_INTERNAL void c2_cons_fop_name_print(const struct c2_fop_type *ftype)
 {
 	fprintf(stdout, "%.2d, %s", ftype->ft_rpc_item_type.rit_opcode,
 				    ftype->ft_name);
 }
 
-int c2_cons_fop_send(struct c2_fop *fop, struct c2_rpc_session *session,
-		     c2_time_t timeout)
+C2_INTERNAL int c2_cons_fop_send(struct c2_fop *fop,
+				 struct c2_rpc_session *session,
+				 c2_time_t timeout)
 {
 	struct c2_rpc_item *item;
 	int		    rc;
@@ -57,7 +58,7 @@ int c2_cons_fop_send(struct c2_fop *fop, struct c2_rpc_session *session,
 	return rc;
 }
 
-int c2_cons_fop_show(struct c2_fop_type *fopt)
+C2_INTERNAL int c2_cons_fop_show(struct c2_fop_type *fopt)
 {
 	struct c2_fop *fop;
 	void	      *fdata;
@@ -79,7 +80,7 @@ int c2_cons_fop_show(struct c2_fop_type *fopt)
 	return 0;
 }
 
-void c2_cons_fop_list_show(void)
+C2_INTERNAL void c2_cons_fop_list_show(void)
 {
         struct c2_fop_type *ftype;
 
@@ -91,7 +92,7 @@ void c2_cons_fop_list_show(void)
 	}
 }
 
-struct c2_fop_type *c2_cons_fop_type_find(uint32_t opcode)
+C2_INTERNAL struct c2_fop_type *c2_cons_fop_type_find(uint32_t opcode)
 {
         struct c2_fop_type *ftype;
 

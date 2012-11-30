@@ -29,7 +29,6 @@ static bool service_check(const void *bob)
 	C2_PRE(self_obj->co_type == C2_CO_SERVICE);
 
 	return ergo(self_obj->co_status == C2_CS_READY,
-		    self->cs_endpoints != NULL &&
 		    C2_IN(self->cs_type, (C2_CFG_SERVICE_METADATA,
 					  C2_CFG_SERVICE_IO,
 					  C2_CFG_SERVICE_MGMT,
@@ -43,31 +42,6 @@ static bool service_check(const void *bob)
 C2_CONF__BOB_DEFINE(c2_conf_service, C2_CONF_SERVICE_MAGIC, service_check);
 
 C2_CONF__INVARIANT_DEFINE(service_invariant, c2_conf_service);
-
-static int endpoints_populate(const char ***dest, const struct arr_buf *src)
-{
-	uint32_t i;
-
-	C2_PRE(src->ab_count > 0 && src->ab_elems != NULL);
-
-	C2_ALLOC_ARR(*dest, src->ab_count + 1);
-	if (*dest == NULL)
-		return -ENOMEM;
-
-	for (i = 0; i < src->ab_count; ++i) {
-		(*dest)[i] = c2_buf_strdup(&src->ab_elems[i]);
-		if ((*dest)[i] == NULL)
-			goto fail;
-	}
-	(*dest)[i] = NULL; /* end of list */
-
-	return 0;
-fail:
-	for (; i != 0; --i)
-		c2_free((void *)(*dest)[i]);
-	c2_free(*dest);
-	return -ENOMEM;
-}
 
 static int service_fill(struct c2_conf_obj *dest,
 			const struct confx_object *src, struct c2_conf_reg *reg)
@@ -87,7 +61,7 @@ static int service_fill(struct c2_conf_obj *dest,
 	child_adopt(dest, child);
 	dest->co_mounted = true;
 
-	return endpoints_populate(&d->cs_endpoints, &s->xs_endpoints);
+	return strings_copy(&d->cs_endpoints, &s->xs_endpoints);
 }
 
 static bool
@@ -119,17 +93,12 @@ static void service_delete(struct c2_conf_obj *obj)
 {
 	struct c2_conf_service *x = C2_CONF_CAST(obj, c2_conf_service);
 
-	if (x->cs_endpoints != NULL) {
-		const char **p;
-		for (p = x->cs_endpoints; *p != NULL; ++p)
-			c2_free((void *)*p);
-		c2_free(x->cs_endpoints);
-	}
+	strings_free(x->cs_endpoints);
 	c2_conf_service_bob_fini(x);
 	c2_free(x);
 }
 
-static const struct c2_conf_obj_ops service_ops = {
+static const struct c2_conf_obj_ops conf_service_ops = {
 	.coo_invariant = service_invariant,
 	.coo_fill      = service_fill,
 	.coo_match     = service_match,
@@ -138,7 +107,7 @@ static const struct c2_conf_obj_ops service_ops = {
 	.coo_delete    = service_delete
 };
 
-struct c2_conf_obj *c2_conf__service_create(void)
+C2_INTERNAL struct c2_conf_obj *c2_conf__service_create(void)
 {
 	struct c2_conf_service *x;
 	struct c2_conf_obj     *ret;
@@ -149,6 +118,6 @@ struct c2_conf_obj *c2_conf__service_create(void)
 	c2_conf_service_bob_init(x);
 
 	ret = &x->cs_obj;
-	ret->co_ops = &service_ops;
+	ret->co_ops = &conf_service_ops;
 	return ret;
 }

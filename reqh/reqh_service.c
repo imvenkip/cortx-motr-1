@@ -55,45 +55,41 @@ C2_TL_DEFINE(rstypes, static, struct c2_reqh_service_type);
 static struct c2_bob_type rstypes_bob;
 C2_BOB_DEFINE(static, &rstypes_bob, c2_reqh_service_type);
 
-bool c2_reqh_service_invariant(const struct c2_reqh_service *svc)
+C2_INTERNAL bool c2_reqh_service_invariant(const struct c2_reqh_service *svc)
 {
 	return c2_reqh_service_bob_check(svc) &&
 	C2_IN(svc->rs_state, (C2_RST_INITIALISING, C2_RST_INITIALISED,
 				C2_RST_STARTING, C2_RST_STARTED,
 				C2_RST_STOPPING)) &&
 	svc->rs_type != NULL && svc->rs_ops != NULL &&
-	ergo(svc->rs_state == C2_RST_INITIALISED ||
-		svc->rs_state == C2_RST_STARTING ||
-		svc->rs_state == C2_RST_STARTED ||
-		svc->rs_state == C2_RST_STOPPING, svc->rs_uuid[0] != 0 &&
-		svc->rs_reqh != NULL) &&
-	ergo(svc->rs_state == C2_RST_STARTED ||
-		svc->rs_state == C2_RST_STOPPING,
-		c2_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc));
+	ergo(C2_IN(svc->rs_state, (C2_RST_INITIALISED, C2_RST_STARTING,
+				   C2_RST_STARTED, C2_RST_STOPPING)),
+	     svc->rs_uuid[0] != 0 && svc->rs_reqh != NULL) &&
+	ergo(C2_IN(svc->rs_state, (C2_RST_STARTED, C2_RST_STOPPING)),
+	     c2_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc));
 }
 C2_EXPORTED(c2_reqh_service_invariant);
 
-struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname)
+C2_INTERNAL struct c2_reqh_service_type *
+c2_reqh_service_type_find(const char *sname)
 {
-	struct c2_reqh_service_type *stype;
+	struct c2_reqh_service_type *t;
 
 	C2_PRE(sname != NULL);
 
 	c2_rwlock_read_lock(&rstypes_rwlock);
-        c2_tl_for(rstypes, &rstypes, stype) {
-		C2_ASSERT(c2_reqh_service_type_bob_check(stype));
-                if (strcmp(stype->rst_name, sname) == 0) {
-			c2_rwlock_read_unlock(&rstypes_rwlock);
-                        return stype;
-		}
+        c2_tl_for(rstypes, &rstypes, t) {
+		C2_ASSERT(c2_reqh_service_type_bob_check(t));
+                if (strcmp(t->rst_name, sname) == 0)
+			break;
         } c2_tl_endfor;
 	c2_rwlock_read_unlock(&rstypes_rwlock);
 
-        return stype;
+        return t;
 }
 
-int c2_reqh_service_allocate(struct c2_reqh_service_type *stype,
-			     struct c2_reqh_service **service)
+C2_INTERNAL int c2_reqh_service_allocate(struct c2_reqh_service_type *stype,
+					 struct c2_reqh_service **service)
 {
 	int rc;
 
@@ -108,7 +104,7 @@ int c2_reqh_service_allocate(struct c2_reqh_service_type *stype,
 	return rc;
 }
 
-int c2_reqh_service_start(struct c2_reqh_service *service)
+C2_INTERNAL int c2_reqh_service_start(struct c2_reqh_service *service)
 {
 	int             rc;
 	unsigned        key;
@@ -134,7 +130,7 @@ int c2_reqh_service_start(struct c2_reqh_service *service)
 	return rc;
 }
 
-void c2_reqh_service_stop(struct c2_reqh_service *service)
+C2_INTERNAL void c2_reqh_service_stop(struct c2_reqh_service *service)
 {
 	struct c2_reqh *reqh;
 	unsigned        key;
@@ -153,7 +149,8 @@ void c2_reqh_service_stop(struct c2_reqh_service *service)
 	c2_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
-void c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh)
+C2_INTERNAL void c2_reqh_service_init(struct c2_reqh_service *service,
+				      struct c2_reqh *reqh)
 {
 	const char *sname;
 
@@ -174,7 +171,7 @@ void c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh)
 	C2_POST(c2_reqh_service_invariant(service));
 }
 
-void c2_reqh_service_fini(struct c2_reqh_service *service)
+C2_INTERNAL void c2_reqh_service_fini(struct c2_reqh_service *service)
 {
 	C2_PRE(service != NULL && (service->rs_state == C2_RST_STOPPED ||
 		service->rs_state == C2_RST_FAILED) &&
@@ -210,12 +207,12 @@ void c2_reqh_service_type_unregister(struct c2_reqh_service_type *rstype)
 	c2_reqh_service_type_bob_fini(rstype);
 }
 
-int c2_reqh_service_types_length(void)
+C2_INTERNAL int c2_reqh_service_types_length(void)
 {
 	return rstypes_tlist_length(&rstypes);
 }
 
-void c2_reqh_service_list_print(void)
+C2_INTERNAL void c2_reqh_service_list_print(void)
 {
 	struct c2_reqh_service_type *stype;
 
@@ -225,13 +222,13 @@ void c2_reqh_service_list_print(void)
         } c2_tl_endfor;
 }
 
-bool c2_reqh_service_is_registered(const char *sname)
+C2_INTERNAL bool c2_reqh_service_is_registered(const char *sname)
 {
         return !c2_tl_forall(rstypes, stype, &rstypes,
                                 strcasecmp(stype->rst_name, sname) != 0);
 }
 
-int c2_reqh_service_types_init(void)
+C2_INTERNAL int c2_reqh_service_types_init(void)
 {
 	rstypes_tlist_init(&rstypes);
 	c2_bob_type_tlist_init(&rstypes_bob, &rstypes_tl);
@@ -241,16 +238,17 @@ int c2_reqh_service_types_init(void)
 }
 C2_EXPORTED(c2_reqh_service_types_init);
 
-void c2_reqh_service_types_fini(void)
+C2_INTERNAL void c2_reqh_service_types_fini(void)
 {
 	rstypes_tlist_fini(&rstypes);
 	c2_rwlock_fini(&rstypes_rwlock);
 }
 C2_EXPORTED(c2_reqh_service_types_fini);
 
-struct c2_reqh_service *
-c2_reqh_service_find(const struct c2_reqh_service_type *st,
-		     struct c2_reqh *reqh)
+C2_INTERNAL struct c2_reqh_service *c2_reqh_service_find(const struct
+							 c2_reqh_service_type
+							 *st,
+							 struct c2_reqh *reqh)
 {
 	C2_PRE(st != NULL && reqh != NULL);
 

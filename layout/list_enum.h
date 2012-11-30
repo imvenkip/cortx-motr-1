@@ -75,9 +75,9 @@ struct c2_layout_list_enum {
  * @note Enum object is not to be finalised explicitly by the user. It is
  * finalised internally through c2_layout__striped_fini().
  */
-int c2_list_enum_build(struct c2_layout_domain *dom,
-		       struct c2_fid *cob_list, uint32_t nr,
-		       struct c2_layout_list_enum **out);
+C2_INTERNAL int c2_list_enum_build(struct c2_layout_domain *dom,
+				   struct c2_fid *cob_list, uint32_t nr,
+				   struct c2_layout_list_enum **out);
 
 extern struct c2_layout_enum_type c2_list_enum_type;
 

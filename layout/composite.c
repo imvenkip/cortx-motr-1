@@ -54,10 +54,10 @@ struct layout_prefix {
  * the reference when done with the usage. The layout is finalised when it is
  * the last reference being released.
  */
-void c2_composite_build(struct c2_layout_domain *dom,
-			uint64_t lid,
-			struct c2_tl *sub_layouts,
-			struct c2_composite_layout **out)
+C2_INTERNAL void c2_composite_build(struct c2_layout_domain *dom,
+				    uint64_t lid,
+				    struct c2_tl *sub_layouts,
+				    struct c2_composite_layout **out)
 {
 }
 

@@ -105,7 +105,7 @@ static const struct c2_conf_obj_ops sdev_ops = {
 	.coo_delete    = sdev_delete
 };
 
-struct c2_conf_obj *c2_conf__sdev_create(void)
+C2_INTERNAL struct c2_conf_obj *c2_conf__sdev_create(void)
 {
 	struct c2_conf_sdev *x;
 	struct c2_conf_obj  *ret;

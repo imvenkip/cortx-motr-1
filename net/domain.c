@@ -48,7 +48,8 @@ void c2_net_domain_fini(struct c2_net_domain *dom)
 }
 C2_EXPORTED(c2_net_domain_fini);
 
-int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
+C2_INTERNAL int c2_net__domain_init(struct c2_net_domain *dom,
+				    struct c2_net_xprt *xprt)
 {
 	int rc;
 
@@ -72,7 +73,7 @@ int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	return rc;
 }
 
-void c2_net__domain_fini(struct c2_net_domain *dom)
+C2_INTERNAL void c2_net__domain_fini(struct c2_net_domain *dom)
 {
 	C2_PRE(c2_mutex_is_locked(&c2_net_mutex));
 	C2_ASSERT(c2_list_is_empty(&dom->nd_tms));

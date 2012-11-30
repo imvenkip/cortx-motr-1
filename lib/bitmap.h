@@ -55,7 +55,7 @@ struct c2_bitmap {
    @retval 0 success
    @retval !0 failure, -errno
  */
-int c2_bitmap_init(struct c2_bitmap *map, size_t nr);
+C2_INTERNAL int c2_bitmap_init(struct c2_bitmap *map, size_t nr);
 
 /**
    Finalise the bitmap.
@@ -63,7 +63,7 @@ int c2_bitmap_init(struct c2_bitmap *map, size_t nr);
 
    @param map bitmap to finalise
  */
-void c2_bitmap_fini(struct c2_bitmap *map);
+C2_INTERNAL void c2_bitmap_fini(struct c2_bitmap *map);
 
 /**
    Get a bit value from a bitmap.
@@ -74,7 +74,7 @@ void c2_bitmap_fini(struct c2_bitmap *map);
    @param idx bit offset in the bitmap to query
    @return the bit value, true or false.
  */
-bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx);
+C2_INTERNAL bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx);
 
 /**
    Set a bit value in a bitmap.
@@ -84,7 +84,7 @@ bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx);
    of the bitmap results is not allowed (causes and assert to fail).
    @param val new bit value, true or false
  */
-void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val);
+C2_INTERNAL void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val);
 
 /**
    Copies the bit values from one bitmap to another.
@@ -93,7 +93,8 @@ void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val);
    @param src source bitmap
    @pre dst->b_nr >= src->b_nr
  */
-void c2_bitmap_copy(struct c2_bitmap *dst, const struct c2_bitmap *src);
+C2_INTERNAL void c2_bitmap_copy(struct c2_bitmap *dst,
+				const struct c2_bitmap *src);
 
 C2_BASSERT(8 == sizeof ((struct c2_bitmap *)0)->b_words[0]);
 

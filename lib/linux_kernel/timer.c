@@ -36,7 +36,7 @@
    @{
 */
 
-void c2_timer_trampoline_callback(unsigned long data)
+C2_INTERNAL void c2_timer_trampoline_callback(unsigned long data)
 {
 	struct c2_timer *timer = (struct c2_timer*)data;
 
@@ -51,9 +51,9 @@ void c2_timer_trampoline_callback(unsigned long data)
 /**
    Init the timer data structure.
  */
-int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
-		  c2_time_t expire,
-		  c2_timer_callback_t callback, unsigned long data)
+C2_INTERNAL int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
+			      c2_time_t expire,
+			      c2_timer_callback_t callback, unsigned long data)
 {
 	struct timer_list *tl;
 
@@ -77,7 +77,7 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 /**
    Start a timer.
  */
-int c2_timer_start(struct c2_timer *timer)
+C2_INTERNAL int c2_timer_start(struct c2_timer *timer)
 {
 	c2_time_t now = c2_time_now();
 	c2_time_t rem;
@@ -104,7 +104,7 @@ int c2_timer_start(struct c2_timer *timer)
 /**
    Stop a timer.
  */
-int c2_timer_stop(struct c2_timer *timer)
+C2_INTERNAL int c2_timer_stop(struct c2_timer *timer)
 {
 	int rc = del_timer_sync(&timer->t_timer);
 
@@ -112,7 +112,7 @@ int c2_timer_stop(struct c2_timer *timer)
 	return rc;
 }
 
-bool c2_timer_is_started(const struct c2_timer *timer)
+C2_INTERNAL bool c2_timer_is_started(const struct c2_timer *timer)
 {
 	return timer->t_running;
 }
@@ -120,7 +120,7 @@ bool c2_timer_is_started(const struct c2_timer *timer)
 /**
    Destroy the timer.
  */
-int c2_timer_fini(struct c2_timer *timer)
+C2_INTERNAL int c2_timer_fini(struct c2_timer *timer)
 {
 	timer->t_running = false;
 	timer->t_callback = NULL;

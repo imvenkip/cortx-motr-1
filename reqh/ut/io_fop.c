@@ -25,6 +25,8 @@
 #include "lib/chan.h"
 #include "lib/list.h"
 
+#include "balloc/balloc.h"
+
 #include "net/net.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
@@ -285,18 +287,18 @@ static size_t stob_find_fom_home_locality(const struct c2_fom *fom)
 		break;
 	}
 	case C2_STOB_IO_WRITE_REQ_OPCODE: {
-		struct c2_stob_io_read *fop;
-		uint64_t oid;
-		fop = c2_fop_data(fom->fo_fop);
-		oid = fop->fir_object.f_oid;
-		iloc = oid;
-		break;
-	}
-	case C2_STOB_IO_READ_REQ_OPCODE: {
 		struct c2_stob_io_write *fop;
 		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fiw_object.f_oid;
+		iloc = oid;
+		break;
+	}
+	case C2_STOB_IO_READ_REQ_OPCODE: {
+		struct c2_stob_io_read *fop;
+		uint64_t oid;
+		fop = c2_fop_data(fom->fo_fop);
+		oid = fop->fir_object.f_oid;
 		iloc = oid;
 		break;
 	}
@@ -337,8 +339,8 @@ static int stob_create_fom_tick(struct c2_fom *fom)
 		item = c2_fop_to_rpc_item(fop);
 		item->ri_type = &fop->f_type->ft_rpc_item_type;
 		fom->fo_rep_fop = fom_obj->sif_rep_fop;
-		c2_fom_phase_move(fom, result, result != 0 ? C2_FOPH_FAILURE :
-							     C2_FOPH_SUCCESS);
+		c2_fom_phase_moveif(fom, result, C2_FOPH_SUCCESS,
+				    C2_FOPH_FAILURE);
 
 		result = c2_fop_fol_rec_add(fom->fo_fop,
 		                            c2_fom_reqh(fom)->rh_fol,
@@ -383,6 +385,7 @@ static int stob_read_fom_tick(struct c2_fom *fom)
                 C2_ASSERT(out_fop != NULL);
 
                 if (c2_fom_phase(fom) == C2_FOPH_READ_STOB_IO) {
+			uint8_t                  *buf;
 
                         in_fop = c2_fop_data(fom->fo_fop);
                         C2_ASSERT(in_fop != NULL);
@@ -393,8 +396,14 @@ static int stob_read_fom_tick(struct c2_fom *fom)
                         stobj =  fom_obj->sif_stobj;
                         bshift = stobj->so_op->sop_block_shift(stobj);
 
-                        addr = c2_stob_addr_pack(&out_fop->firr_value, bshift);
-                        count = 1 >> bshift;
+			C2_ALLOC_ARR(buf, 1 << BALLOC_DEF_BLOCK_SHIFT);
+			C2_ASSERT(buf != NULL);
+			out_fop->firr_value.fi_buf   = buf;
+			out_fop->firr_value.fi_count =
+			                            1 << BALLOC_DEF_BLOCK_SHIFT;
+
+			addr = c2_stob_addr_pack(buf, bshift);
+                        count = out_fop->firr_value.fi_count >> bshift;
                         offset = 0;
 
                         c2_stob_io_init(stio);
@@ -423,9 +432,8 @@ static int stob_read_fom_tick(struct c2_fom *fom)
                         stobj = fom_obj->sif_stobj;
 			bshift = stobj->so_op->sop_block_shift(stobj);
 			out_fop->firr_count = stio->si_count << bshift;
-			c2_fom_phase_move(fom, stio->si_rc, stio->si_rc != 0 ?
-							    C2_FOPH_FAILURE :
-							    C2_FOPH_SUCCESS);
+			c2_fom_phase_moveif(fom, stio->si_rc, C2_FOPH_SUCCESS,
+					    C2_FOPH_FAILURE);
                 }
 
                 if (c2_fom_phase(fom) == C2_FOPH_FAILURE ||
@@ -498,8 +506,9 @@ static int stob_write_fom_tick(struct c2_fom *fom)
                         stobj = fom_obj->sif_stobj;
                         bshift = stobj->so_op->sop_block_shift(stobj);
 
-                        addr = c2_stob_addr_pack(&in_fop->fiw_value, bshift);
-                        count = 1 >> bshift;
+                        addr = c2_stob_addr_pack(in_fop->fiw_value.fi_buf,
+			                         bshift);
+                        count = in_fop->fiw_value.fi_count >> bshift;
                         offset = 0;
 
                         c2_stob_io_init(stio);
@@ -519,8 +528,7 @@ static int stob_write_fom_tick(struct c2_fom *fom)
 
                         if (result != 0) {
                                 c2_fom_callback_cancel(&fom->fo_cb);
-                                c2_fom_phase_move(fom, result,
-						  C2_FOPH_FAILURE);
+                                c2_fom_phase_move(fom, result, C2_FOPH_FAILURE);
                         } else {
                                 c2_fom_phase_set(fom,
 						 C2_FOPH_WRITE_STOB_IO_WAIT);
@@ -530,9 +538,8 @@ static int stob_write_fom_tick(struct c2_fom *fom)
                         stobj = fom_obj->sif_stobj;
 			bshift = stobj->so_op->sop_block_shift(stobj);
 			out_fop->fiwr_count = stio->si_count << bshift;
-			c2_fom_phase_move(fom, stio->si_rc, stio->si_rc != 0 ?
-							    C2_FOPH_FAILURE :
-							    C2_FOPH_SUCCESS);
+			c2_fom_phase_moveif(fom, stio->si_rc, C2_FOPH_SUCCESS,
+					    C2_FOPH_FAILURE);
                 }
 
                 if (c2_fom_phase(fom) == C2_FOPH_FAILURE ||

@@ -143,24 +143,24 @@ enum frm_state {
    Formation partitions RPC items in these types of queues.
    An item can migrate from one queue to another depending on its state.
 
-   TIMEDOUT_* are the queues which contain items whose deadline has been
+   URGENT_* are the queues which contain items whose deadline has been
    passed. These items should be sent as soon as possible.
 
    WAITING_* are the queues which contain items whose deadline is not yet
    reached. An item from these queues can be picked for formation even
    before its deadline is passed.
 
-   (TIMEDOUT|WAITING)_BOUND queues contain items for which slot is already
+   (URGENT|WAITING)_BOUND queues contain items for which slot is already
    assigned. These are "ready to go" items.
-   (TIMEDOUT|WAITING)_UNBOUND queues contain items for which slot needs to
+   (URGENT|WAITING)_UNBOUND queues contain items for which slot needs to
    assigned first. @see c2_rpc_frm_ops::fo_item_bind()
 
    A bound item cannot be merged with other bound RPC items.
  */
 enum c2_rpc_frm_itemq_type {
-	FRMQ_TIMEDOUT_BOUND,
-	FRMQ_TIMEDOUT_UNBOUND,
-	FRMQ_TIMEDOUT_ONEWAY,
+	FRMQ_URGENT_BOUND,
+	FRMQ_URGENT_UNBOUND,
+	FRMQ_URGENT_ONEWAY,
 	FRMQ_WAITING_BOUND,
 	FRMQ_WAITING_UNBOUND,
 	FRMQ_WAITING_ONEWAY,
@@ -260,8 +260,7 @@ struct c2_rpc_frm {
 struct c2_rpc_frm_ops {
 	/**
 	   A packet is ready to be sent over network.
-	   @return true iff packet has been submitted to network layer, false
-		   otherwise.
+	   @return true iff packet has been submitted to network layer.
 		   If result is false then all the items in packet
 		   p are moved to FAILED state and are removed from p.
 		   c2_rpc_packet instance pointed by p is freed.
@@ -288,7 +287,7 @@ extern const struct c2_rpc_frm_ops c2_rpc_frm_default_ops;
    Load default values for various constraints, that just works.
    Useful for unit tests.
  */
-void
+C2_INTERNAL void
 c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *constraint);
 
 /**
@@ -299,9 +298,9 @@ c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *constraint);
    @pre  frm->f_state == FRM_UNINITIALISED
    @post frm->f_state == FRM_IDLE
  */
-void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
-		     struct c2_rpc_frm_constraints *constraints,
-		     const struct c2_rpc_frm_ops   *ops);
+C2_INTERNAL void c2_rpc_frm_init(struct c2_rpc_frm *frm,
+				 struct c2_rpc_frm_constraints *constraints,
+				 const struct c2_rpc_frm_ops *ops);
 
 /**
    Finalises c2_rpc_frm instance.
@@ -309,31 +308,37 @@ void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
    @pre  frm->f_state == FRM_IDLE
    @post frm->f_state == FRM_UNINITIALISED
  */
-void c2_rpc_frm_fini(struct c2_rpc_frm *frm);
+C2_INTERNAL void c2_rpc_frm_fini(struct c2_rpc_frm *frm);
 
 /**
    Enqueue an item for sending.
  */
-void c2_rpc_frm_enq_item(struct c2_rpc_frm  *frm,
-			 struct c2_rpc_item *item);
+C2_INTERNAL void c2_rpc_frm_enq_item(struct c2_rpc_frm *frm,
+				     struct c2_rpc_item *item);
+
+C2_INTERNAL void c2_rpc_frm_item_deadline_passed(struct c2_rpc_frm *frm,
+						 struct c2_rpc_item *item);
 
 /**
    Callback for a packet which was previously enqueued.
  */
-void c2_rpc_frm_packet_done(struct c2_rpc_packet *packet);
+C2_INTERNAL void c2_rpc_frm_packet_done(struct c2_rpc_packet *packet);
 
 /**
    Runs formation algorithm.
  */
-void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm);
+C2_INTERNAL void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm);
 
-struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s);
+C2_INTERNAL struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s);
 
-C2_TL_DESCR_DECLARE(itemq, extern);
-C2_TL_DECLARE(itemq, extern, struct c2_rpc_item);
+C2_TL_DESCR_DECLARE(itemq, C2_EXTERN);
+C2_TL_DECLARE(itemq, C2_INTERNAL, struct c2_rpc_item);
 
-struct c2_rpc_chan    *frm_rchan(const struct c2_rpc_frm *frm);
-struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm);
+C2_INTERNAL struct c2_rpc_chan *frm_rchan(const struct c2_rpc_frm *frm);
+C2_INTERNAL struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm);
+
+C2_INTERNAL bool item_is_in_waiting_queue(const struct c2_rpc_item *item,
+					  const struct c2_rpc_frm *frm);
 
 /** @} */
 #endif /* __COLIBRI_RPC_FORMATION2_H__ */

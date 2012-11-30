@@ -469,21 +469,21 @@ struct c2_sm_group {
 
    @pre conf->scf_state[state].sd_flags & C2_SDF_INITIAL
  */
-void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
-		uint32_t state, struct c2_sm_group *grp,
-		struct c2_addb_ctx *ctx);
+C2_INTERNAL void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
+			    uint32_t state, struct c2_sm_group *grp,
+			    struct c2_addb_ctx *ctx);
 /**
    Finalises a state machine.
 
    @pre conf->scf_state[state].sd_flags & C2_SDF_TERMINAL
  */
-void c2_sm_fini(struct c2_sm *mach);
+C2_INTERNAL void c2_sm_fini(struct c2_sm *mach);
 
-void c2_sm_group_init(struct c2_sm_group *grp);
-void c2_sm_group_fini(struct c2_sm_group *grp);
+C2_INTERNAL void c2_sm_group_init(struct c2_sm_group *grp);
+C2_INTERNAL void c2_sm_group_fini(struct c2_sm_group *grp);
 
-void c2_sm_group_lock(struct c2_sm_group *grp);
-void c2_sm_group_unlock(struct c2_sm_group *grp);
+C2_INTERNAL void c2_sm_group_lock(struct c2_sm_group *grp);
+C2_INTERNAL void c2_sm_group_unlock(struct c2_sm_group *grp);
 
 /**
    Waits until a given state machine enters any of states enumerated by a given
@@ -502,7 +502,8 @@ void c2_sm_group_unlock(struct c2_sm_group *grp);
    @note this interface assumes that states are numbered by numbers less than
    64.
  */
-int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline);
+C2_INTERNAL int c2_sm_timedwait(struct c2_sm *mach, uint64_t states,
+				c2_time_t deadline);
 
 /**
    Moves a state machine into fail_state state atomically with setting rc code.
@@ -515,13 +516,13 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline);
    @post mach->sm_state == fail_state
    @post c2_mutex_is_locked(&mach->sm_grp->s_lock)
  */
-void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc);
+C2_INTERNAL void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc);
 
 /**
  * Moves a state machine into the next state, calling either c2_sm_state_set()
  * or c2_sm_fail() depending on "rc".
  */
-void c2_sm_move(struct c2_sm *mach, int32_t rc, int state);
+C2_INTERNAL void c2_sm_move(struct c2_sm *mach, int32_t rc, int state);
 
 /**
    Transits a state machine into the indicated state.
@@ -579,17 +580,17 @@ struct c2_sm_timeout {
    @pre state transition from current state to the target state is allowed.
    @post c2_mutex_is_locked(&mach->sm_grp->s_lock)
  */
-int c2_sm_timeout(struct c2_sm *mach, struct c2_sm_timeout *to,
-		  c2_time_t timeout, int state);
+C2_INTERNAL int c2_sm_timeout(struct c2_sm *mach, struct c2_sm_timeout *to,
+			      c2_time_t timeout, int state);
 /**
    Finaliser that must be called before @to can be freed.
  */
-void c2_sm_timeout_fini(struct c2_sm_timeout *to);
+C2_INTERNAL void c2_sm_timeout_fini(struct c2_sm_timeout *to);
 
 /**
    Posts an AST to a group.
  */
-void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast);
+C2_INTERNAL void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast);
 
 /**
    Runs posted, but not yet executed ASTs.
@@ -597,7 +598,7 @@ void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast);
    @pre c2_mutex_is_locked(&grp->s_lock)
    @post c2_mutex_is_locked(&grp->s_lock)
  */
-void c2_sm_asts_run(struct c2_sm_group *grp);
+C2_INTERNAL void c2_sm_asts_run(struct c2_sm_group *grp);
 
 enum c2_sm_return {
 	/**
@@ -613,10 +614,10 @@ enum c2_sm_return {
  * Updates sub in place to become a merged state machine descriptions array that
  * uses base state descriptors, unless overridden by sub.
  */
-void c2_sm_conf_extend(const struct c2_sm_state_descr *base,
-		       struct c2_sm_state_descr *sub, uint32_t nr);
+C2_INTERNAL void c2_sm_conf_extend(const struct c2_sm_state_descr *base,
+				   struct c2_sm_state_descr *sub, uint32_t nr);
 
-bool c2_sm_invariant(const struct c2_sm *mach);
+C2_INTERNAL bool c2_sm_invariant(const struct c2_sm *mach);
 
 /** @} end of sm group */
 

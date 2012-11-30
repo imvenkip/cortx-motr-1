@@ -22,12 +22,9 @@
 #define __COLIBRI_CONF_CONFD_H__
 
 #include "conf/onwire.h" /* c2_conf_fetch, c2_conf_fetch_resp */
-#include "conf/map.h"
 #include "conf/conf_fop.h"
 #include "reqh/reqh_service.h"
 #include "db/db.h"
-#inclide "lib/atomic.h"
-#inclide "lib/rwlock.h"
 
 /**
  * @page confd-fspec Configuration Service (confd)
@@ -151,41 +148,38 @@ struct c2_confd_cache {
 	 * Database environment pointer on c2_reqh::rh_dbenv of the
 	 * request handler in which c2_confd is registered.
 	 */
-	struct c2_dbenv	       *ca_db;
+	struct c2_dbenv   *ca_db;
+#if 0
 	/** Registry of cached configuration objects */
-	struct c2_conf_map	ca_cache;
+	struct c2_conf_map ca_cache;
 	/** Protects this structure while processing of c2_conf_fetch
 	 * and c2_conf_update FOPs */
-	struct c2_longlock	ca_rwlock;
+	struct c2_longlock ca_rwlock;
+#endif
 };
 
 /**
  * Configuration service statistics
  * @todo To be defined.
  */
-struct c2_confd_stat {
-};
+struct c2_confd_stat {};
 
-int c2_confd_service_register(void);
-void c2_confd_service_unregister(void);
+C2_INTERNAL int c2_confd_service_register(void);
+C2_INTERNAL void c2_confd_service_unregister(void);
 
 enum {
 	/* magic for reqh services */
-        C2_REQH_CONFD_SERVICE_MAGIC = 0x7265716873766373
+	C2_REQH_CONFD_SERVICE_MAGIC = 0x7265716873766373
 };
 
 /**
  * Confd service, registered in request handler
  */
 struct c2_confd {
-        /** Generic reqh service object */
-        struct c2_reqh_service	rcs_gen;
-        /** magic to check confd service object */
-        uint64_t		rcs_magic;
-
-	struct c2_addb_ctx	c_addb;
-	struct c2_confd_cache   c_cache;
-	struct c2_confd_stat	c_stat;
+	struct c2_reqh_service c_reqh;
+	struct c2_confd_cache  c_cache;
+	struct c2_confd_stat   c_stat;
+	uint64_t               c_magic;
 };
 
 /** @} confd_dfspec */

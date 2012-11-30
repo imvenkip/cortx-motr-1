@@ -133,7 +133,11 @@ static void rpc_mc_init_fail_test(void)
 				 max_rpc_msg_size,
 				 tm_recv_queue_min_len);
 	C2_UT_ASSERT(rc == -ENETUNREACH);
-#ifndef __KERNEL__
+	/**
+	  Root session cob as well as other mkfs related structres are now
+	  created on behalf of serivice startup if -p option is specified.
+	 */
+/*#ifndef __KERNEL__
 	c2_fi_enable_once("root_session_cob_create", "fake_error");
 	rc = c2_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
 				 &buf_pool, C2_BUFFER_ANY_COLOUR,
@@ -147,7 +151,7 @@ static void rpc_mc_init_fail_test(void)
 				 max_rpc_msg_size,
 				 tm_recv_queue_min_len);
 	C2_UT_ASSERT(rc == -EINVAL);
-#endif
+#endif*/
 }
 
 const struct c2_test_suite rpc_mc_ut = {

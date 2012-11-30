@@ -29,19 +29,13 @@
 #include "colibri/magic.h"
 #include "rpc/rpc_opcodes.h"
 
-#ifdef __KERNEL__
-# define c2_addb_handler NULL
-#else
-int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
-#endif
-
 static struct c2_fop_type_ops addb_ops = {
 };
 
 struct c2_fop_type c2_addb_record_fopt;
 struct c2_fop_type c2_addb_reply_fopt;
 
-int c2_addb_fop_init(void)
+C2_INTERNAL int c2_addb_fop_init(void)
 {
 	c2_xc_addb_init();
 
@@ -59,7 +53,7 @@ int c2_addb_fop_init(void)
 }
 C2_EXPORTED(c2_addb_fop_init);
 
-void c2_addb_fop_fini(void)
+C2_INTERNAL void c2_addb_fop_fini(void)
 {
 	c2_fop_type_fini(&c2_addb_record_fopt);
 	c2_fop_type_fini(&c2_addb_reply_fopt);
@@ -112,9 +106,9 @@ struct c2_addb_trace_body {
 	char     msg[0];
 };
 
-int c2_addb_record_header_pack(struct c2_addb_dp *dp,
-			       struct c2_addb_record_header *header,
-			       int size)
+C2_INTERNAL int c2_addb_record_header_pack(struct c2_addb_dp *dp,
+					   struct c2_addb_record_header *header,
+					   int size)
 {
 	header->arh_magic1    = C2_ADDB_REC_HEADER_MAGIC1;
 	header->arh_version   = ADDB_REC_HEADER_VERSION;
@@ -127,39 +121,39 @@ int c2_addb_record_header_pack(struct c2_addb_dp *dp,
 };
 
 /** get size for data point opaque data */
-int c2_addb_func_fail_getsize(struct c2_addb_dp *dp)
+C2_INTERNAL int c2_addb_func_fail_getsize(struct c2_addb_dp *dp)
 {
 	return c2_align(sizeof(uint32_t) + strlen(dp->ad_name) + 1,
 			C2_ADDB_RECORD_LEN_ALIGN);
 }
 
-int c2_addb_call_getsize(struct c2_addb_dp *dp)
+C2_INTERNAL int c2_addb_call_getsize(struct c2_addb_dp *dp)
 {
 	return c2_align(sizeof(uint32_t), C2_ADDB_RECORD_LEN_ALIGN);
 }
-int c2_addb_flag_getsize(struct c2_addb_dp *dp)
+C2_INTERNAL int c2_addb_flag_getsize(struct c2_addb_dp *dp)
 {
 	return c2_align(sizeof(bool), C2_ADDB_RECORD_LEN_ALIGN);
 }
 
-int c2_addb_inval_getsize(struct c2_addb_dp *dp)
+C2_INTERNAL int c2_addb_inval_getsize(struct c2_addb_dp *dp)
 {
 	return c2_align(sizeof(uint64_t), C2_ADDB_RECORD_LEN_ALIGN);
 }
 
-int c2_addb_empty_getsize(struct c2_addb_dp *dp)
+C2_INTERNAL int c2_addb_empty_getsize(struct c2_addb_dp *dp)
 {
 	return 0;
 }
 
-int c2_addb_trace_getsize(struct c2_addb_dp *dp)
+C2_INTERNAL int c2_addb_trace_getsize(struct c2_addb_dp *dp)
 {
 	return c2_align(strlen(dp->ad_name) + 1, 8);
 }
 
 /** packing func fail addb record */
-int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
-			   struct c2_addb_record *rec)
+C2_INTERNAL int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
+				       struct c2_addb_record *rec)
 {
 	struct c2_addb_record_header  *header = &rec->ar_header;
 	struct c2_addb_func_fail_body *body;
@@ -180,8 +174,8 @@ int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
 	return rc;
 }
 
-int c2_addb_call_pack(struct c2_addb_dp *dp,
-		      struct c2_addb_record *rec)
+C2_INTERNAL int c2_addb_call_pack(struct c2_addb_dp *dp,
+				  struct c2_addb_record *rec)
 {
 	struct c2_addb_record_header *header = &rec->ar_header;
 	struct c2_addb_call_body     *body;
@@ -199,8 +193,8 @@ int c2_addb_call_pack(struct c2_addb_dp *dp,
 	return rc;
 }
 
-int c2_addb_flag_pack(struct c2_addb_dp *dp,
-		      struct c2_addb_record *rec)
+C2_INTERNAL int c2_addb_flag_pack(struct c2_addb_dp *dp,
+				  struct c2_addb_record *rec)
 {
 	struct c2_addb_record_header *header = &rec->ar_header;
 	struct c2_addb_flag_body     *body;
@@ -218,8 +212,8 @@ int c2_addb_flag_pack(struct c2_addb_dp *dp,
 	return rc;
 }
 
-int c2_addb_inval_pack(struct c2_addb_dp *dp,
-		       struct c2_addb_record *rec)
+C2_INTERNAL int c2_addb_inval_pack(struct c2_addb_dp *dp,
+				   struct c2_addb_record *rec)
 {
 	struct c2_addb_record_header *header = &rec->ar_header;
 	struct c2_addb_inval_body    *body;
@@ -238,8 +232,8 @@ int c2_addb_inval_pack(struct c2_addb_dp *dp,
 
 }
 
-int c2_addb_empty_pack(struct c2_addb_dp *dp,
-		       struct c2_addb_record *rec)
+C2_INTERNAL int c2_addb_empty_pack(struct c2_addb_dp *dp,
+				   struct c2_addb_record *rec)
 {
 	struct c2_addb_record_header *header = &rec->ar_header;
 
@@ -248,8 +242,8 @@ int c2_addb_empty_pack(struct c2_addb_dp *dp,
 	return c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
 }
 
-int c2_addb_trace_pack(struct c2_addb_dp *dp,
-		       struct c2_addb_record *rec)
+C2_INTERNAL int c2_addb_trace_pack(struct c2_addb_dp *dp,
+				   struct c2_addb_record *rec)
 {
 	struct c2_addb_record_header	*header = &rec->ar_header;
 	struct c2_addb_trace_body	*body;

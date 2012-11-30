@@ -58,15 +58,16 @@ extern struct c2_net_xprt c2_net_bulk_mem_xprt;
    @param num Number of threads.
    @pre tm->ntm_state == C2_NET_TM_INITIALZIED
  */
-void c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc *tm,
-					size_t num);
+C2_INTERNAL void c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc
+						    *tm, size_t num);
 
 /**
    Return the number of threads used by a bulk in-memory transfer machine.
    @param tm  Pointer to the transfer machine.
    @retval Number-of-threads
  */
-size_t c2_net_bulk_mem_tm_get_num_threads(const struct c2_net_transfer_mc *tm);
+C2_INTERNAL size_t c2_net_bulk_mem_tm_get_num_threads(const struct
+						      c2_net_transfer_mc *tm);
 
 
 /**

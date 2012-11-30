@@ -277,9 +277,6 @@ C2_TL_DEFINE(cmtypes, static, struct c2_cm_type);
 static struct c2_bob_type cmtypes_bob;
 C2_BOB_DEFINE(static, &cmtypes_bob, c2_cm_type);
 
-C2_TL_DESCR_DEFINE(cm_ag, "aggregation groups", static, struct c2_cm_aggr_group,
-		   cag_cm_linkage, cag_magic, CM_AG_LINK_MAGIX, CM_AG_HEAD_MAGIX);
-C2_TL_DEFINE(cm_ag, static, struct c2_cm_aggr_group);
 
 C2_ADDB_EV_DEFINE(cm_setup_fail, "cm_setup_fail",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
@@ -350,7 +347,8 @@ static const struct c2_sm_conf cm_sm_conf = {
 	.scf_state	= cm_state_descr
 };
 
-void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure, int rc)
+C2_INTERNAL void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure,
+			    int rc)
 {
 	C2_ENTRY("cm: %p fc: %u rc: %d", cm, failure, rc);
 
@@ -405,29 +403,29 @@ void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure, int rc)
 	C2_LEAVE();
 }
 
-void c2_cm_lock(struct c2_cm *cm)
+C2_INTERNAL void c2_cm_lock(struct c2_cm *cm)
 {
 	c2_sm_group_lock(&cm->cm_sm_group);
 }
 
-void c2_cm_unlock(struct c2_cm *cm)
+C2_INTERNAL void c2_cm_unlock(struct c2_cm *cm)
 {
 	c2_sm_group_unlock(&cm->cm_sm_group);
 }
 
-bool c2_cm_is_locked(const struct c2_cm *cm)
+C2_INTERNAL bool c2_cm_is_locked(const struct c2_cm *cm)
 {
 	return c2_mutex_is_locked(&cm->cm_sm_group.s_lock);
 }
 
-enum c2_cm_state c2_cm_state_get(const struct c2_cm *cm)
+C2_INTERNAL enum c2_cm_state c2_cm_state_get(const struct c2_cm *cm)
 {
 	C2_PRE(c2_cm_is_locked(cm));
 
 	return (enum c2_cm_state)cm->cm_mach.sm_state;
 }
 
-void c2_cm_state_set(struct c2_cm *cm, enum c2_cm_state state)
+C2_INTERNAL void c2_cm_state_set(struct c2_cm *cm, enum c2_cm_state state)
 {
 	C2_PRE(c2_cm_is_locked(cm));
 
@@ -436,7 +434,7 @@ void c2_cm_state_set(struct c2_cm *cm, enum c2_cm_state state)
 	       cm->cm_id, c2_cm_state_get(cm));
 }
 
-bool c2_cm_invariant(const struct c2_cm *cm)
+C2_INTERNAL bool c2_cm_invariant(const struct c2_cm *cm)
 {
 	int state = cm->cm_mach.sm_state;
 
@@ -457,7 +455,7 @@ static void cm_move(struct c2_cm *cm, int rc, enum c2_cm_state state,
 	rc != 0 ? c2_cm_fail(cm, failure, rc) : c2_cm_state_set(cm, state);
 }
 
-int c2_cm_setup(struct c2_cm *cm)
+C2_INTERNAL int c2_cm_setup(struct c2_cm *cm)
 {
 	int	rc;
 
@@ -484,7 +482,7 @@ int c2_cm_setup(struct c2_cm *cm)
 	return rc;
 }
 
-int c2_cm_start(struct c2_cm *cm)
+C2_INTERNAL int c2_cm_start(struct c2_cm *cm)
 {
 	int	rc;
 
@@ -509,7 +507,7 @@ int c2_cm_start(struct c2_cm *cm)
 	return rc;
 }
 
-int c2_cm_stop(struct c2_cm *cm)
+C2_INTERNAL int c2_cm_stop(struct c2_cm *cm)
 {
 	int	rc;
 
@@ -538,7 +536,7 @@ int c2_cm_stop(struct c2_cm *cm)
 	return rc;
 }
 
-int c2_cm_module_init(void)
+C2_INTERNAL int c2_cm_module_init(void)
 {
 	C2_ENTRY();
 	cmtypes_tlist_init(&cmtypes);
@@ -550,7 +548,7 @@ int c2_cm_module_init(void)
         return 0;
 }
 
-void c2_cm_module_fini(void)
+C2_INTERNAL void c2_cm_module_fini(void)
 {
 	C2_ENTRY();
 	cmtypes_tlist_fini(&cmtypes);
@@ -568,8 +566,8 @@ static uint64_t cm_id_generate(void)
 	return ++id;
 }
 
-int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
-	       const struct c2_cm_ops *cm_ops)
+C2_INTERNAL int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
+			   const struct c2_cm_ops *cm_ops)
 {
 	C2_ENTRY("cm_type: %p cm: %p", cm_type, cm);
 	C2_PRE(cm != NULL && cm_type != NULL && cm_ops != NULL &&
@@ -593,7 +591,7 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
 	 */
 	c2_cm_lock(cm);
 	C2_ASSERT(c2_cm_state_get(cm) == C2_CMS_INIT);
-	cm_ag_tlist_init(&cm->cm_aggr_grps);
+	aggr_grps_tlist_init(&cm->cm_aggr_grps);
 
 	C2_POST(c2_cm_invariant(cm));
 	c2_cm_unlock(cm);
@@ -602,7 +600,7 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
 	return 0;
 }
 
-void c2_cm_fini(struct c2_cm *cm)
+C2_INTERNAL void c2_cm_fini(struct c2_cm *cm)
 {
 	C2_ENTRY("cm: %p", cm);
 	C2_PRE(cm != NULL);
@@ -626,7 +624,7 @@ void c2_cm_fini(struct c2_cm *cm)
 	C2_LEAVE();
 }
 
-int c2_cm_type_register(struct c2_cm_type *cmtype)
+C2_INTERNAL int c2_cm_type_register(struct c2_cm_type *cmtype)
 {
 	int	rc;
 
@@ -647,7 +645,7 @@ int c2_cm_type_register(struct c2_cm_type *cmtype)
 	return rc;
 }
 
-void c2_cm_type_deregister(struct c2_cm_type *cmtype)
+C2_INTERNAL void c2_cm_type_deregister(struct c2_cm_type *cmtype)
 {
 	C2_ENTRY("cmtype: %p", cmtype);
 	C2_PRE(cmtype != NULL && c2_cm_type_bob_check(cmtype));
@@ -662,7 +660,7 @@ void c2_cm_type_deregister(struct c2_cm_type *cmtype)
 	C2_LEAVE();
 }
 
-void c2_cm_sw_fill(struct c2_cm *cm)
+C2_INTERNAL void c2_cm_sw_fill(struct c2_cm *cm)
 {
 	C2_ENTRY("cm: %p", cm);
 	C2_PRE(c2_cm_invariant(cm));
@@ -672,7 +670,7 @@ void c2_cm_sw_fill(struct c2_cm *cm)
 	C2_LEAVE();
 }
 
-int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
+C2_INTERNAL int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
 	int rc;
 
@@ -688,6 +686,15 @@ int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
 	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
+
+C2_INTERNAL bool c2_cm_has_more_data(const struct c2_cm *cm)
+{
+	C2_PRE(c2_cm_invariant(cm));
+
+	return c2_fom_rc(&cm->cm_cp_pump.p_fom) != -ENODATA;
+}
+
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} endgroup CM */
 

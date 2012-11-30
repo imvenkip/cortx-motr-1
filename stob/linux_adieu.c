@@ -25,7 +25,7 @@
 #include "lib/queue.h"
 #include "lib/arith.h"
 #include "lib/thread.h"
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_IOSERVICE
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_STOB
 #include "lib/trace.h"
 #include "addb/addb.h"
 
@@ -169,7 +169,7 @@ C2_ADDB_ADD(&(obj)->so_addb, &adieu_addb_loc, ev , ## __VA_ARGS__)
 #define ADDB_CALL(obj, name, rc)	\
 C2_ADDB_ADD(&(obj)->so_addb, &adieu_addb_loc, c2_addb_func_fail, (name), (rc))
 
-int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
+C2_INTERNAL int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 {
 	struct linux_stob_io *lio;
 	int                   result;
@@ -325,21 +325,21 @@ static const struct c2_stob_io_op linux_stob_io_op = {
 /**
    An implementation of c2_stob_op::sop_lock() method.
  */
-void linux_stob_io_lock(struct c2_stob *stob)
+C2_INTERNAL void linux_stob_io_lock(struct c2_stob *stob)
 {
 }
 
 /**
    An implementation of c2_stob_op::sop_unlock() method.
  */
-void linux_stob_io_unlock(struct c2_stob *stob)
+C2_INTERNAL void linux_stob_io_unlock(struct c2_stob *stob)
 {
 }
 
 /**
    An implementation of c2_stob_op::sop_is_locked() method.
  */
-bool linux_stob_io_is_locked(const struct c2_stob *stob)
+C2_INTERNAL bool linux_stob_io_is_locked(const struct c2_stob *stob)
 {
 	return true;
 }
@@ -347,7 +347,7 @@ bool linux_stob_io_is_locked(const struct c2_stob *stob)
 /**
    An implementation of c2_stob_op::sop_block_shift() method.
  */
-uint32_t linux_stob_block_shift(const struct c2_stob *stob)
+C2_INTERNAL uint32_t linux_stob_block_shift(const struct c2_stob *stob)
 {
 	struct linux_domain *ldom;
 
@@ -358,7 +358,8 @@ uint32_t linux_stob_block_shift(const struct c2_stob *stob)
 /**
    An implementation of c2_stob_domain_op::sdo_block_shift() method.
  */
-uint32_t linux_stob_domain_block_shift(struct c2_stob_domain *sdomain)
+C2_INTERNAL uint32_t linux_stob_domain_block_shift(struct c2_stob_domain
+						   *sdomain)
 {
 	struct linux_domain *ldom;
 
@@ -541,7 +542,7 @@ static void ioq_thread(struct linux_domain *ldom)
 	}
 }
 
-void linux_domain_io_fini(struct c2_stob_domain *dom)
+C2_INTERNAL void linux_domain_io_fini(struct c2_stob_domain *dom)
 {
 	int i;
 	struct linux_domain *ldom;
@@ -559,7 +560,7 @@ void linux_domain_io_fini(struct c2_stob_domain *dom)
 	c2_mutex_fini(&ldom->ioq_lock);
 }
 
-int linux_domain_io_init(struct c2_stob_domain *dom)
+C2_INTERNAL int linux_domain_io_init(struct c2_stob_domain *dom)
 {
 	int                          result;
 	int                          i;
@@ -591,6 +592,11 @@ int linux_domain_io_init(struct c2_stob_domain *dom)
 		linux_domain_io_fini(dom);
 	return result;
 }
+
+#undef C2_TRACE_SUBSYSTEM
+#undef ADDB_GLOBAL_ADD
+#undef ADDB_ADD
+#undef ADDB_CALL
 
 /** @} end group stoblinux */
 

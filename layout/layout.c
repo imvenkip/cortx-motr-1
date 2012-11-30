@@ -149,7 +149,7 @@ C2_TL_DESCR_DEFINE(layout, "layout-list", static,
 		   C2_LAYOUT_MAGIC, C2_LAYOUT_HEAD_MAGIC);
 C2_TL_DEFINE(layout, static, struct c2_layout);
 
-bool c2_layout__domain_invariant(const struct c2_layout_domain *dom)
+C2_INTERNAL bool c2_layout__domain_invariant(const struct c2_layout_domain *dom)
 {
 	return
 		dom != NULL &&
@@ -167,7 +167,7 @@ static bool layout_invariant_internal(const struct c2_layout *l)
 		l->l_ops != NULL;
 }
 
-bool c2_layout__allocated_invariant(const struct c2_layout *l)
+C2_INTERNAL bool c2_layout__allocated_invariant(const struct c2_layout *l)
 {
 	return
 		layout_invariant_internal(l) &&
@@ -175,7 +175,7 @@ bool c2_layout__allocated_invariant(const struct c2_layout *l)
 		l->l_user_count == 0;
 }
 
-bool c2_layout__invariant(const struct c2_layout *l)
+C2_INTERNAL bool c2_layout__invariant(const struct c2_layout *l)
 {
 	/*
 	 * l->l_ref is always going to be > 0 throughout the life of
@@ -190,7 +190,7 @@ bool c2_layout__invariant(const struct c2_layout *l)
 		l->l_user_count >= 0;
 }
 
-bool c2_layout__enum_invariant(const struct c2_layout_enum *e)
+C2_INTERNAL bool c2_layout__enum_invariant(const struct c2_layout_enum *e)
 {
 	return
 		c2_layout_enum_bob_check(e) &&
@@ -200,7 +200,7 @@ bool c2_layout__enum_invariant(const struct c2_layout_enum *e)
 		e->le_ops != NULL;
 }
 
-bool
+C2_INTERNAL bool
 c2_layout__striped_allocated_invariant(const struct c2_striped_layout *stl)
 {
 	return
@@ -209,7 +209,8 @@ c2_layout__striped_allocated_invariant(const struct c2_striped_layout *stl)
 		c2_layout__allocated_invariant(&stl->sl_base);
 }
 
-bool c2_layout__striped_invariant(const struct c2_striped_layout *stl)
+C2_INTERNAL bool c2_layout__striped_invariant(const struct c2_striped_layout
+					      *stl)
 {
 	return
 		stl != NULL &&
@@ -217,7 +218,8 @@ bool c2_layout__striped_invariant(const struct c2_striped_layout *stl)
 		c2_layout__invariant(&stl->sl_base);
 }
 
-bool c2_layout__instance_invariant(const struct c2_layout_instance *li)
+C2_INTERNAL bool c2_layout__instance_invariant(const struct c2_layout_instance
+					       *li)
 {
 	return
 		c2_layout_instance_bob_check(li) &&
@@ -292,9 +294,10 @@ static void layout_list_add(struct c2_layout *l)
  * reference is acquired on it if value of ref_increment is true.
  * @post ergo(l != NULL && ref_increment, c2_ref_read(&l->l_ref) > 1);
  */
-struct c2_layout *c2_layout__list_lookup(const struct c2_layout_domain *dom,
-					 uint64_t lid,
-					 bool ref_increment)
+C2_INTERNAL struct c2_layout *c2_layout__list_lookup(const struct
+						     c2_layout_domain *dom,
+						     uint64_t lid,
+						     bool ref_increment)
 {
 	struct c2_layout *l;
 
@@ -335,11 +338,11 @@ static struct c2_layout *list_lookup(struct c2_layout_domain *dom,
  * Initialises a layout with initial l_ref as 1, adds a reference on the
  * respective layout type.
  */
-void c2_layout__init(struct c2_layout *l,
-		     struct c2_layout_domain *dom,
-		     uint64_t lid,
-		     struct c2_layout_type *lt,
-		     const struct c2_layout_ops *ops)
+C2_INTERNAL void c2_layout__init(struct c2_layout *l,
+				 struct c2_layout_domain *dom,
+				 uint64_t lid,
+				 struct c2_layout_type *lt,
+				 const struct c2_layout_ops *ops)
 {
 	C2_PRE(l != NULL);
 	C2_PRE(c2_layout__domain_invariant(dom));
@@ -371,7 +374,7 @@ void c2_layout__init(struct c2_layout *l,
 /**
  * @post c2_layout__list_lookup(l->l_dom, l->l_id, false) == l
  */
-void c2_layout__populate(struct c2_layout *l, uint32_t user_count)
+C2_INTERNAL void c2_layout__populate(struct c2_layout *l, uint32_t user_count)
 {
 	C2_PRE(c2_layout__allocated_invariant(l));
 	C2_PRE(user_count >= 0);
@@ -383,7 +386,7 @@ void c2_layout__populate(struct c2_layout *l, uint32_t user_count)
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
-void c2_layout__fini_internal(struct c2_layout *l)
+C2_INTERNAL void c2_layout__fini_internal(struct c2_layout *l)
 {
 	C2_PRE(c2_mutex_is_not_locked(&l->l_lock));
 	c2_addb_ctx_fini(&l->l_addb);
@@ -394,7 +397,7 @@ void c2_layout__fini_internal(struct c2_layout *l)
 }
 
 /* Used only in case of exceptions or errors. */
-void c2_layout__delete(struct c2_layout *l)
+C2_INTERNAL void c2_layout__delete(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__allocated_invariant(l));
 	C2_PRE(list_lookup(l->l_dom, l->l_id) != l);
@@ -406,7 +409,7 @@ void c2_layout__delete(struct c2_layout *l)
 }
 
 /** Finalises a layout, releases a reference on the respective layout type. */
-void c2_layout__fini(struct c2_layout *l)
+C2_INTERNAL void c2_layout__fini(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(list_lookup(l->l_dom, l->l_id) == NULL);
@@ -418,11 +421,11 @@ void c2_layout__fini(struct c2_layout *l)
 	C2_LEAVE();
 }
 
-void c2_layout__striped_init(struct c2_striped_layout *stl,
-			     struct c2_layout_domain *dom,
-			     uint64_t lid,
-			     struct c2_layout_type *type,
-			     const struct c2_layout_ops *ops)
+C2_INTERNAL void c2_layout__striped_init(struct c2_striped_layout *stl,
+					 struct c2_layout_domain *dom,
+					 uint64_t lid,
+					 struct c2_layout_type *type,
+					 const struct c2_layout_ops *ops)
 {
 	C2_PRE(stl != NULL);
 	C2_PRE(c2_layout__domain_invariant(dom));
@@ -445,10 +448,9 @@ void c2_layout__striped_init(struct c2_striped_layout *stl,
  * @post Pointer to the c2_layout object is set back in the c2_layout_enum
  * object.
  */
-void c2_layout__striped_populate(struct c2_striped_layout *str_l,
-				 struct c2_layout_enum *e,
-				 uint32_t user_count)
-
+C2_INTERNAL void c2_layout__striped_populate(struct c2_striped_layout *str_l,
+					     struct c2_layout_enum *e,
+					     uint32_t user_count)
 {
 	C2_PRE(c2_layout__striped_allocated_invariant(str_l));
 	C2_PRE(e != NULL);
@@ -471,7 +473,7 @@ void c2_layout__striped_populate(struct c2_striped_layout *str_l,
 	C2_LEAVE("lid %llu", (unsigned long long)str_l->sl_base.l_id);
 }
 
-void c2_layout__striped_delete(struct c2_striped_layout *stl)
+C2_INTERNAL void c2_layout__striped_delete(struct c2_striped_layout *stl)
 {
 	C2_PRE(c2_layout__striped_allocated_invariant(stl));
 
@@ -485,7 +487,7 @@ void c2_layout__striped_delete(struct c2_striped_layout *stl)
  * @post The enum object which is part of striped layout object, is finalised
  * as well.
  */
-void c2_layout__striped_fini(struct c2_striped_layout *str_l)
+C2_INTERNAL void c2_layout__striped_fini(struct c2_striped_layout *str_l)
 {
 	C2_PRE(c2_layout__striped_invariant(str_l));
 
@@ -499,10 +501,10 @@ void c2_layout__striped_fini(struct c2_striped_layout *str_l)
  * Initialises an enumeration object, adds a reference on the respective
  * enum type.
  */
-void c2_layout__enum_init(struct c2_layout_domain *dom,
-			  struct c2_layout_enum *le,
-			  struct c2_layout_enum_type *let,
-			  const struct c2_layout_enum_ops *ops)
+C2_INTERNAL void c2_layout__enum_init(struct c2_layout_domain *dom,
+				      struct c2_layout_enum *le,
+				      struct c2_layout_enum_type *let,
+				      const struct c2_layout_enum_ops *ops)
 {
 	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(le != NULL);
@@ -526,7 +528,7 @@ void c2_layout__enum_init(struct c2_layout_domain *dom,
  * Finalises an enum object, releases a reference on the respective enum
  * type.
  */
-void c2_layout__enum_fini(struct c2_layout_enum *le)
+C2_INTERNAL void c2_layout__enum_fini(struct c2_layout_enum *le)
 {
 	C2_PRE(c2_layout__enum_invariant(le));
 
@@ -537,7 +539,7 @@ void c2_layout__enum_fini(struct c2_layout_enum *le)
 	C2_LEAVE();
 }
 
-void c2_layout_enum_fini(struct c2_layout_enum *le)
+C2_INTERNAL void c2_layout_enum_fini(struct c2_layout_enum *le)
 {
 	C2_PRE(le != NULL);
 	C2_PRE(le->le_ops != NULL);
@@ -572,7 +574,8 @@ static const struct c2_table_ops layouts_table_ops = {
 	.key_cmp = l_key_cmp
 };
 
-c2_bcount_t c2_layout__enum_max_recsize(struct c2_layout_domain *dom)
+C2_INTERNAL c2_bcount_t c2_layout__enum_max_recsize(struct c2_layout_domain
+						    *dom)
 {
 	c2_bcount_t e_recsize;
 	c2_bcount_t max_recsize = 0;
@@ -681,12 +684,10 @@ static void addb_add(struct c2_addb_ctx *ctx,
  *    (ii) C2_LEAVE() or C2_LOG() are used directly to log the trace records,
  *         avoiding the function call overhead.
  */
-void c2_layout__log(const char *fn_name,
-		    const char *err_msg,
-		    const struct c2_addb_ev *ev,
-		    struct c2_addb_ctx *ctx,
-		    uint64_t lid,
-		    int rc)
+C2_INTERNAL void c2_layout__log(const char *fn_name,
+				const char *err_msg,
+				const struct c2_addb_ev *ev,
+				struct c2_addb_ctx *ctx, uint64_t lid, int rc)
 {
 	C2_PRE(fn_name != NULL);
 	C2_PRE(err_msg != NULL);
@@ -703,16 +704,17 @@ void c2_layout__log(const char *fn_name,
 	       (const char *)err_msg, rc);
 }
 
-int c2_layouts_init(void)
+C2_INTERNAL int c2_layouts_init(void)
 {
 	return 0;
 }
 
-void c2_layouts_fini(void)
+C2_INTERNAL void c2_layouts_fini(void)
 {
 }
 
-int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
+C2_INTERNAL int c2_layout_domain_init(struct c2_layout_domain *dom,
+				      struct c2_dbenv *dbenv)
 {
 	int rc;
 
@@ -740,7 +742,7 @@ err1_injected:
 	return rc;
 }
 
-void c2_layout_domain_fini(struct c2_layout_domain *dom)
+C2_INTERNAL void c2_layout_domain_fini(struct c2_layout_domain *dom)
 {
 	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(c2_mutex_is_not_locked(&dom->ld_lock));
@@ -764,7 +766,7 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 	dom->ld_dbenv = NULL;
 }
 
-int c2_layout_standard_types_register(struct c2_layout_domain *dom)
+C2_INTERNAL int c2_layout_standard_types_register(struct c2_layout_domain *dom)
 {
 	int rc;
 
@@ -790,7 +792,8 @@ int c2_layout_standard_types_register(struct c2_layout_domain *dom)
 	return rc;
 }
 
-void c2_layout_standard_types_unregister(struct c2_layout_domain *dom)
+C2_INTERNAL void c2_layout_standard_types_unregister(struct c2_layout_domain
+						     *dom)
 {
 	C2_PRE(c2_layout__domain_invariant(dom));
 
@@ -799,8 +802,8 @@ void c2_layout_standard_types_unregister(struct c2_layout_domain *dom)
 	c2_layout_type_unregister(dom, &c2_pdclust_layout_type);
 }
 
-int c2_layout_type_register(struct c2_layout_domain *dom,
-			    struct c2_layout_type *lt)
+C2_INTERNAL int c2_layout_type_register(struct c2_layout_domain *dom,
+					struct c2_layout_type *lt)
 {
 	int rc;
 
@@ -837,8 +840,8 @@ err1_injected:
 	return rc;
 }
 
-void c2_layout_type_unregister(struct c2_layout_domain *dom,
-			       struct c2_layout_type *lt)
+C2_INTERNAL void c2_layout_type_unregister(struct c2_layout_domain *dom,
+					   struct c2_layout_type *lt)
 {
 	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(lt != NULL);
@@ -858,8 +861,8 @@ void c2_layout_type_unregister(struct c2_layout_domain *dom,
 	C2_LEAVE("Layout-type-id %lu", (unsigned long)lt->lt_id);
 }
 
-int c2_layout_enum_type_register(struct c2_layout_domain *dom,
-				 struct c2_layout_enum_type *let)
+C2_INTERNAL int c2_layout_enum_type_register(struct c2_layout_domain *dom,
+					     struct c2_layout_enum_type *let)
 {
 	int rc;
 
@@ -896,8 +899,8 @@ err1_injected:
 	return rc;
 }
 
-void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
-				    struct c2_layout_enum_type *let)
+C2_INTERNAL void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
+						struct c2_layout_enum_type *let)
 {
 	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(let != NULL);
@@ -916,7 +919,8 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)let->let_id);
 }
 
-struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
+C2_INTERNAL struct c2_layout *c2_layout_find(struct c2_layout_domain *dom,
+					     uint64_t lid)
 {
 	struct c2_layout *l;
 
@@ -934,7 +938,7 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 	return l;
 }
 
-void c2_layout_get(struct c2_layout *l)
+C2_INTERNAL void c2_layout_get(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__invariant(l));
 
@@ -947,7 +951,7 @@ void c2_layout_get(struct c2_layout *l)
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
-void c2_layout_put(struct c2_layout *l)
+C2_INTERNAL void c2_layout_put(struct c2_layout *l)
 {
 	bool killme;
 
@@ -975,7 +979,7 @@ void c2_layout_put(struct c2_layout *l)
 	C2_LEAVE();
 }
 
-void c2_layout_user_count_inc(struct c2_layout *l)
+C2_INTERNAL void c2_layout_user_count_inc(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__invariant(l));
 
@@ -988,7 +992,7 @@ void c2_layout_user_count_inc(struct c2_layout *l)
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
-void c2_layout_user_count_dec(struct c2_layout *l)
+C2_INTERNAL void c2_layout_user_count_dec(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__invariant(l));
 
@@ -1001,10 +1005,10 @@ void c2_layout_user_count_dec(struct c2_layout *l)
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
-int c2_layout_decode(struct c2_layout *l,
-		     struct c2_bufvec_cursor *cur,
-		     enum c2_layout_xcode_op op,
-		     struct c2_db_tx *tx)
+C2_INTERNAL int c2_layout_decode(struct c2_layout *l,
+				 struct c2_bufvec_cursor *cur,
+				 enum c2_layout_xcode_op op,
+				 struct c2_db_tx *tx)
 {
 	struct c2_layout_rec *rec;
 	int                   rc;
@@ -1056,10 +1060,10 @@ err1_injected:
 	return rc;
 }
 
-int c2_layout_encode(struct c2_layout *l,
-		     enum c2_layout_xcode_op op,
-		     struct c2_db_tx *tx,
-		     struct c2_bufvec_cursor *out)
+C2_INTERNAL int c2_layout_encode(struct c2_layout *l,
+				 enum c2_layout_xcode_op op,
+				 struct c2_db_tx *tx,
+				 struct c2_bufvec_cursor *out)
 {
 	struct c2_layout_rec  rec;
 	c2_bcount_t           nbytes;
@@ -1093,14 +1097,16 @@ err1_injected:
 	return rc;
 }
 
-c2_bcount_t c2_layout_max_recsize(const struct c2_layout_domain *dom)
+C2_INTERNAL c2_bcount_t c2_layout_max_recsize(const struct c2_layout_domain
+					      *dom)
 {
 	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_POST(dom->ld_max_recsize >= sizeof (struct c2_layout_rec));
 	return dom->ld_max_recsize;
 }
 
-struct c2_striped_layout *c2_layout_to_striped(const struct c2_layout *l)
+C2_INTERNAL struct c2_striped_layout *c2_layout_to_striped(const struct
+							   c2_layout *l)
 {
 	struct c2_striped_layout *stl;
 
@@ -1110,14 +1116,15 @@ struct c2_striped_layout *c2_layout_to_striped(const struct c2_layout *l)
 	return stl;
 }
 
-struct c2_layout_enum *
-c2_striped_layout_to_enum(const struct c2_striped_layout *stl)
+C2_INTERNAL struct c2_layout_enum *c2_striped_layout_to_enum(const struct
+							     c2_striped_layout
+							     *stl)
 {
 	C2_PRE(c2_layout__striped_invariant(stl));
 	return stl->sl_enum;
 }
 
-struct c2_layout_enum *c2_layout_to_enum(const struct c2_layout *l)
+C2_INTERNAL struct c2_layout_enum *c2_layout_to_enum(const struct c2_layout *l)
 {
 	struct c2_striped_layout *stl;
 
@@ -1127,25 +1134,26 @@ struct c2_layout_enum *c2_layout_to_enum(const struct c2_layout *l)
 	return stl->sl_enum;
 }
 
-uint32_t c2_layout_enum_nr(const struct c2_layout_enum *e)
+C2_INTERNAL uint32_t c2_layout_enum_nr(const struct c2_layout_enum *e)
 {
 	C2_PRE(c2_layout__enum_invariant(e));
 	return e->le_ops->leo_nr(e);
 }
 
-void c2_layout_enum_get(const struct c2_layout_enum *e,
-			uint32_t idx,
-			const struct c2_fid *gfid,
-			struct c2_fid *out)
+C2_INTERNAL void c2_layout_enum_get(const struct c2_layout_enum *e,
+				    uint32_t idx,
+				    const struct c2_fid *gfid,
+				    struct c2_fid *out)
 {
 	C2_PRE(c2_layout__enum_invariant(e));
 	e->le_ops->leo_get(e, idx, gfid, out);
 }
 
-void c2_layout__instance_init(struct c2_layout_instance *li,
-			      const struct c2_fid *gfid,
-			      struct c2_layout *l,
-			      const struct c2_layout_instance_ops *ops)
+C2_INTERNAL void c2_layout__instance_init(struct c2_layout_instance *li,
+					  const struct c2_fid *gfid,
+					  struct c2_layout *l,
+					  const struct c2_layout_instance_ops
+					  *ops)
 {
 	C2_PRE(li != NULL);
 	C2_PRE(c2_layout__invariant(l));
@@ -1158,16 +1166,16 @@ void c2_layout__instance_init(struct c2_layout_instance *li,
 	C2_POST(c2_layout__instance_invariant(li));
 }
 
-void c2_layout__instance_fini(struct c2_layout_instance *li)
+C2_INTERNAL void c2_layout__instance_fini(struct c2_layout_instance *li)
 {
 	C2_PRE(c2_layout__instance_invariant(li));
 	c2_layout_put(li->li_l);
 	c2_layout_instance_bob_fini(li);
 }
 
-int c2_layout_instance_build(struct c2_layout *l,
-			     const struct c2_fid *fid,
-			     struct c2_layout_instance **out)
+C2_INTERNAL int c2_layout_instance_build(struct c2_layout *l,
+					 const struct c2_fid *fid,
+					 struct c2_layout_instance **out)
 {
 	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(l->l_ops->lo_instance_build != NULL);
@@ -1175,7 +1183,7 @@ int c2_layout_instance_build(struct c2_layout *l,
 	return l->l_ops->lo_instance_build(l, fid, out);
 }
 
-void c2_layout_instance_fini(struct c2_layout_instance *li)
+C2_INTERNAL void c2_layout_instance_fini(struct c2_layout_instance *li)
 {
 	C2_PRE(c2_layout__instance_invariant(li));
 	C2_PRE(li->li_ops->lio_fini != NULL);
@@ -1184,14 +1192,17 @@ void c2_layout_instance_fini(struct c2_layout_instance *li)
 	li->li_ops->lio_fini(li);
 }
 
-struct c2_layout_enum *
-c2_layout_instance_to_enum(const struct c2_layout_instance *li)
+C2_INTERNAL struct c2_layout_enum *c2_layout_instance_to_enum(const struct
+							      c2_layout_instance
+							      *li)
 {
 	C2_PRE(c2_layout__instance_invariant(li));
 	C2_PRE(li->li_ops->lio_to_enum != NULL);
 
 	return li->li_ops->lio_to_enum(li);
 }
+
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} end group layout */
 

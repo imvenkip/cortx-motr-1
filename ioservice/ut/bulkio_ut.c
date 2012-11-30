@@ -339,12 +339,10 @@ static int check_write_fom_tick(struct c2_fom *fom)
         struct c2_net_domain         *netdom;
         struct c2_fop                *fop;
         struct c2_io_fom_cob_rw      *fom_obj;
-        struct c2_fop_file_fid        saved_fid;
-        struct c2_fop_file_fid        invalid_fid;
+        struct c2_fid                 saved_fid;
+        struct c2_fid                 invalid_fid;
         struct c2_stob_io_desc       *saved_stobio_desc;
         struct c2_stob_domain        *fom_stdom;
-        struct c2_fop_file_fid       *ffid;
-        struct c2_fid                 fid;
         struct c2_stob_id             stobid;
         struct c2_net_transfer_mc    *tm;
 	struct c2_reqh               *reqh;
@@ -543,8 +541,7 @@ static int check_write_fom_tick(struct c2_fom *fom)
                 /* Save original fid and pass invialid fid
                  * to make I/O launch fail. */
                 saved_fid = rwfop->crw_fid;
-                invalid_fid.f_seq = 111;
-                invalid_fid.f_oid = 222;
+                c2_fid_set(&invalid_fid, 111, 222);
 
                 rwfop->crw_fid = invalid_fid;
                 fom_phase_set(fom, C2_FOPH_IO_STOB_INIT);
@@ -605,9 +602,7 @@ static int check_write_fom_tick(struct c2_fom *fom)
                  * Restore original fom.
                  */
                 stobio_tlist_add(&fom_obj->fcrw_stio_list, saved_stobio_desc);
-                ffid = &rwfop->crw_fid;
-                io_fom_cob_rw_fid_wire2mem(ffid, &fid);
-                io_fom_cob_rw_fid2stob_map(&fid, &stobid);
+                io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stobid);
 		reqh = c2_fom_reqh(fom);
                 fom_stdom = c2_cs_stob_domain_find(reqh, &stobid);
 		C2_UT_ASSERT(fom_stdom != NULL);
@@ -692,12 +687,10 @@ static int check_read_fom_tick(struct c2_fom *fom)
         struct c2_net_domain         *netdom;
         struct c2_fop                *fop;
         struct c2_io_fom_cob_rw      *fom_obj;
-        struct c2_fop_file_fid        saved_fid;
-        struct c2_fop_file_fid        invalid_fid;
+        struct c2_fid                 saved_fid;
+        struct c2_fid                 invalid_fid;
         struct c2_stob_io_desc       *saved_stobio_desc;
         struct c2_stob_domain        *fom_stdom;
-        struct c2_fop_file_fid       *ffid;
-        struct c2_fid                 fid;
         struct c2_stob_id             stobid;
         struct c2_net_transfer_mc    *tm;
 	struct c2_reqh               *reqh;
@@ -822,8 +815,7 @@ static int check_read_fom_tick(struct c2_fom *fom)
                 /* Save original fid and pass invalid fid to make I/O launch
                  * fail. */
                 saved_fid = rwfop->crw_fid;
-                invalid_fid.f_seq = 111;
-                invalid_fid.f_oid = 222;
+                c2_fid_set(&invalid_fid, 111, 222);
 
                 rwfop->crw_fid = invalid_fid;
 
@@ -890,9 +882,7 @@ static int check_read_fom_tick(struct c2_fom *fom)
                  * Restore original fom.
                  */
                 stobio_tlist_add(&fom_obj->fcrw_stio_list, saved_stobio_desc);
-                ffid = &rwfop->crw_fid;
-                io_fom_cob_rw_fid_wire2mem(ffid, &fid);
-                io_fom_cob_rw_fid2stob_map(&fid, &stobid);
+                io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stobid);
 		reqh = c2_fom_reqh(fom);
                 fom_stdom = c2_cs_stob_domain_find(reqh, &stobid);
 		C2_UT_ASSERT(fom_stdom != NULL);
@@ -1034,8 +1024,6 @@ static int bulkio_stob_create_fom_tick(struct c2_fom *fom)
 {
         struct c2_fop_cob_rw            *rwfop;
         struct c2_stob_domain           *fom_stdom;
-        struct c2_fop_file_fid          *ffid;
-        struct c2_fid                    fid;
         struct c2_stob_id                stobid;
         int				 rc;
 	struct c2_fop_cob_writev_rep	*wrep;
@@ -1046,9 +1034,7 @@ static int bulkio_stob_create_fom_tick(struct c2_fom *fom)
         rwfop = io_rw_get(fom->fo_fop);
 
 	C2_UT_ASSERT(rwfop->crw_desc.id_nr == rwfop->crw_ivecs.cis_nr);
-        ffid = &rwfop->crw_fid;
-        io_fom_cob_rw_fid_wire2mem(ffid, &fid);
-        io_fom_cob_rw_fid2stob_map(&fid, &stobid);
+        io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stobid);
 	reqh = c2_fom_reqh(fom);
         fom_stdom = c2_cs_stob_domain_find(reqh, &stobid);
 	C2_UT_ASSERT(fom_stdom != NULL);
@@ -1548,6 +1534,7 @@ void bulkio_server_read_write_fv_mismatch(void)
 
 	rc = c2_rpc_client_call(wfop, &bp->bp_cctx->rcx_session,
 				&c2_fop_default_item_ops,
+				0 /* deadline */,
 				IO_RPC_ITEM_TIMEOUT);
 	C2_ASSERT(rc == 0);
 	rw_reply = io_rw_rep_get(c2_rpc_item_to_fop(wfop->f_item.ri_reply));
@@ -1561,7 +1548,7 @@ void bulkio_server_read_write_fv_mismatch(void)
         rfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
 
 	rc = c2_rpc_client_call(rfop, &bp->bp_cctx->rcx_session,
-				&c2_fop_default_item_ops,
+				&c2_fop_default_item_ops, 0 /* deadline */,
 				IO_RPC_ITEM_TIMEOUT);
 	C2_ASSERT(rc == 0);
 	rw_reply = io_rw_rep_get(c2_rpc_item_to_fop(rfop->f_item.ri_reply));

@@ -78,9 +78,9 @@ struct c2_layout_linear_enum {
  * @note Enum object is not to be finalised explicitly by the user. It is
  * finalised internally through c2_layout__striped_fini().
  */
-int c2_linear_enum_build(struct c2_layout_domain *dom,
-			 const struct c2_layout_linear_attr *attr,
-			 struct c2_layout_linear_enum **out);
+C2_INTERNAL int c2_linear_enum_build(struct c2_layout_domain *dom,
+				     const struct c2_layout_linear_attr *attr,
+				     struct c2_layout_linear_enum **out);
 
 extern struct c2_layout_enum_type c2_linear_enum_type;
 

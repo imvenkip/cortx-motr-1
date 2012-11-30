@@ -19,6 +19,11 @@
  * Original creation date: 02/18/2011
  */
 
+#include <stdlib.h>     /* getenv */
+#include <unistd.h>     /* getpid */
+#include <errno.h>      /* program_invocation_name */
+#include <stdio.h>      /* snprinf */
+
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/memory.h"
 #include "lib/errno.h"
@@ -57,7 +62,7 @@ static pthread_key_t pthread_data_key;
 /**
  * Initialize thread specific data.
  */
-int uthread_specific_data_init(void)
+C2_INTERNAL int uthread_specific_data_init(void)
 {
 	struct uthread_specific_data *ptr;
 
@@ -72,7 +77,7 @@ int uthread_specific_data_init(void)
 /**
  * Finalise thread specific data.
  */
-void uthread_specific_data_fini(void)
+C2_INTERNAL void uthread_specific_data_fini(void)
 {
 	struct uthread_specific_data *ptr;
 
@@ -97,7 +102,7 @@ static void *uthread_trampoline(void *arg)
 	return NULL;
 }
 
-int c2_thread_init_impl(struct c2_thread *q, const char *namebuf)
+C2_INTERNAL int c2_thread_init_impl(struct c2_thread *q, const char *namebuf)
 {
 	C2_PRE(q->t_state == TS_RUNNING);
 
@@ -117,12 +122,13 @@ int c2_thread_join(struct c2_thread *q)
 	return result;
 }
 
-int c2_thread_signal(struct c2_thread *q, int sig)
+C2_INTERNAL int c2_thread_signal(struct c2_thread *q, int sig)
 {
 	return -pthread_kill(q->t_h.h_id, sig);
 }
 
-int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
+C2_INTERNAL int c2_thread_confine(struct c2_thread *q,
+				  const struct c2_bitmap *processors)
 {
 	size_t    idx;
 	size_t    nr_bits = min64u(processors->b_nr, CPU_SETSIZE);
@@ -138,9 +144,25 @@ int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 	return -pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
 }
 
-int c2_threads_init(void)
+C2_INTERNAL char *c2_debugger_args[4] = {
+	NULL, /* debugger name */
+	NULL, /* our binary name */
+	NULL, /* our process id */
+	NULL
+};
+
+C2_INTERNAL int c2_threads_init(void)
 {
-	int result;
+	int    result;
+	static char pidbuf[20];
+
+	c2_debugger_args[0] = getenv("COLIBRI_DEBUGGER");
+	/*
+	 * Note: program_invocation_name requires _GNU_SOURCE.
+	 */
+	c2_debugger_args[1] = program_invocation_name;
+	c2_debugger_args[2] = pidbuf;
+	snprintf(pidbuf, ARRAY_SIZE(pidbuf), "%i", getpid());
 
 	result = -pthread_attr_init(&pthread_attr_default);
 	if (result != 0)
@@ -161,25 +183,25 @@ int c2_threads_init(void)
 	return uthread_specific_data_init();
 }
 
-void c2_threads_fini(void)
+C2_INTERNAL void c2_threads_fini(void)
 {
 	pthread_attr_destroy(&pthread_attr_default);
 	uthread_specific_data_fini();
 	pthread_key_delete(pthread_data_key);
 }
 
-void c2_thread_self(struct c2_thread_handle *id)
+C2_INTERNAL void c2_thread_self(struct c2_thread_handle *id)
 {
 	id->h_id = pthread_self();
 }
 
-bool c2_thread_handle_eq(struct c2_thread_handle *h1,
-			 struct c2_thread_handle *h2)
+C2_INTERNAL bool c2_thread_handle_eq(struct c2_thread_handle *h1,
+				     struct c2_thread_handle *h2)
 {
 	return h1->h_id == h2->h_id;
 }
 
-void c2_enter_awkward(void)
+C2_INTERNAL void c2_enter_awkward(void)
 {
 	struct uthread_specific_data *ptr;
 
@@ -189,7 +211,7 @@ void c2_enter_awkward(void)
 	ptr->tsd_is_awkward = true;
 }
 
-void c2_exit_awkward(void)
+C2_INTERNAL void c2_exit_awkward(void)
 {
 	struct uthread_specific_data *ptr;
 
@@ -199,7 +221,7 @@ void c2_exit_awkward(void)
 	ptr->tsd_is_awkward = false;
 }
 
-bool c2_is_awkward(void)
+C2_INTERNAL bool c2_is_awkward(void)
 {
 	struct uthread_specific_data *ptr;
 

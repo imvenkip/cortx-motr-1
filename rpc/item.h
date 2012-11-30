@@ -42,6 +42,7 @@
 struct c2_rpc_slot;
 struct c2_rpc_session;
 struct c2_bufvec_cursor;
+struct c2_rpc_frm;
 
 /* Forward declarations */
 struct c2_rpc_item_ops;
@@ -65,11 +66,17 @@ enum c2_rpc_item_state {
 	 */
 	C2_RPC_ITEM_WAITING_IN_STREAM,
 	/**
-	 * Item is in one of the queues maintained by formation.
+	 * Item is in one of the WAITING_ queues maintained by formation.
 	 * The item is waiting to be selected by formation machine for sending
 	 * on the network.
 	 */
 	C2_RPC_ITEM_ENQUEUED,
+	/*
+	 * Deadline of item is expired.
+	 * Item is in one of URGENT_* queues maintained by formation.
+	 * Formation should send the item as early as possible.
+	 */
+	C2_RPC_ITEM_URGENT,
 	/**
 	 * Item is serialised in a network buffer and the buffer is submitted
 	 * to network layer for sending.
@@ -170,7 +177,9 @@ enum c2_rpc_item_dir {
 struct c2_rpc_item {
 	enum c2_rpc_item_priority	 ri_prio;
 	c2_time_t			 ri_deadline;
+	struct c2_sm_timeout             ri_deadline_to;
 	c2_time_t                        ri_op_timeout;
+	struct c2_sm_timeout             ri_timeout;
 	struct c2_sm                     ri_sm;
 	enum c2_rpc_item_stage		 ri_stage;
 	uint64_t			 ri_flags;
@@ -183,7 +192,6 @@ struct c2_rpc_item {
 	const struct c2_rpc_item_type	*ri_type;
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
-	struct c2_sm_timeout             ri_timeout;
 	/** item operations */
 	const struct c2_rpc_item_ops	*ri_ops;
 	/** Time spent in rpc layer. */
@@ -206,6 +214,7 @@ struct c2_rpc_item {
 	struct c2_tlink                  ri_plink;
 	/** One of c2_rpc_frm::f_itemq[], in which this item is placed. */
 	struct c2_tl                    *ri_itemq;
+	struct c2_rpc_frm               *ri_frm;
 	/** C2_RPC_ITEM_MAGIC */
 	uint64_t			 ri_magic;
 };
@@ -244,23 +253,23 @@ struct c2_rpc_item_ops {
 	void (*rio_free)(struct c2_rpc_item *item);
 };
 
-void c2_rpc_item_init(struct c2_rpc_item *item,
-		      const struct c2_rpc_item_type *itype);
+C2_INTERNAL void c2_rpc_item_init(struct c2_rpc_item *item,
+				  const struct c2_rpc_item_type *itype);
 
-void c2_rpc_item_fini(struct c2_rpc_item *item);
+C2_INTERNAL void c2_rpc_item_fini(struct c2_rpc_item *item);
 
-c2_bcount_t c2_rpc_item_onwire_header_size(void);
+C2_INTERNAL c2_bcount_t c2_rpc_item_onwire_header_size(void);
 
-c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item);
-struct c2_rpc_machine *item_machine(const struct c2_rpc_item *item);
+C2_INTERNAL c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item);
+C2_INTERNAL struct c2_rpc_machine *item_machine(const struct c2_rpc_item *item);
 
-int c2_rpc_item_timedwait(struct c2_rpc_item *item,
-			  uint64_t            states,
-			  c2_time_t           timeout);
+C2_INTERNAL int c2_rpc_item_timedwait(struct c2_rpc_item *item,
+				      uint64_t states, c2_time_t timeout);
 
-int c2_rpc_item_wait_for_reply(struct c2_rpc_item *item, c2_time_t timeout);
+C2_INTERNAL int c2_rpc_item_wait_for_reply(struct c2_rpc_item *item,
+					   c2_time_t timeout);
 
-void c2_rpc_item_free(struct c2_rpc_item *item);
+C2_INTERNAL void c2_rpc_item_free(struct c2_rpc_item *item);
 
 /** @todo: different callbacks called on events occured while processing
    in update stream */
@@ -355,14 +364,15 @@ struct c2_rpc_item_type (itype) = {                      \
 
   @param item_type The rpc item type to be registered.
 */
-int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type);
+C2_INTERNAL int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type);
 
 /** De-registers an rpc item type by deleting the corresponding entry in the
     rpc item types list.
 
     @param item_type The rpc item type to be deregistered.
 */
-void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type);
+C2_INTERNAL void c2_rpc_item_type_deregister(struct c2_rpc_item_type
+					     *item_type);
 
 /** Returns a pointer to rpc item type registered for an opcode
 
@@ -370,7 +380,7 @@ void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type);
   @retval Pointer to the rpc item type for that opcode.
   @retval NULL if the item type is not registered.
 */
-struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
+C2_INTERNAL struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
 
 #endif
 

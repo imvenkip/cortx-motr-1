@@ -1,17 +1,29 @@
-COLIBRI_CORE_ROOT=`dirname $0`/../../..
+# COLIBRI_CORE_ROOT should be absolute path
+if [ ${0:0:1} = "/" ]; then
+	COLIBRI_CORE_ROOT=`dirname $0`
+else
+	COLIBRI_CORE_ROOT=$PWD/`dirname $0`
+fi
+COLIBRI_CORE_ROOT=${COLIBRI_CORE_ROOT%/c2t1fs*}
 COLIBRI_C2T1FS_MOUNT_DIR=/tmp/test_c2t1fs_`date +"%d-%m-%Y_%T"`
 COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs_$$
+#COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs
 COLIBRI_MODULE=kcolibri
 
 COLIBRI_MODULE_TRACE_MASK=0
 COLIBRI_TRACE_PRINT_CONTEXT=none
 COLIBRI_TRACE_LEVEL=call+
+export C2_TRACE_IMMEDIATE_MASK=0 # put your subsystem here
+#export C2_TRACE_LEVEL=debug+
+export C2_TRACE_PRINT_CONTEXT=full
 
 COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%Y-%m-%d_%T"`.log
 
-COLIBRI_SERVICE_NAME=ioservice
+COLIBRI_IOSERVICE_NAME=ioservice
+COLIBRI_MDSERVICE_NAME=mdservice
 COLIBRI_STOB_DOMAIN=linux
 
+PREPARE_STORAGE="-p"
 POOL_WIDTH=4
 NR_DATA=2
 NR_PARITY=1
@@ -19,8 +31,6 @@ MAX_NR_FILES=250
 TM_MIN_RECV_QUEUE_LEN=16
 # Maximum value needed to run current ST is 160k.
 MAX_RPC_MSG_SIZE=163840
-IOS=""
-STRIPE="pool_width=$POOL_WIDTH,nr_data_units=$NR_DATA"
 XPT=lnet
 lnet_nid=0@lo
 
@@ -34,6 +44,8 @@ EP=(
     12345:33:103
     12345:33:104
 )
+
+SERVICES="mds=${lnet_nid}:${EP[0]}"
 
 unload_kernel_module()
 {
@@ -102,7 +114,8 @@ prepare()
 
 unprepare()
 {
-	if mount | grep ^c2t1fs > /dev/null; then
+	sleep 2 # allow pending IO to complete
+	if mount | grep c2t1fs > /dev/null; then
 		umount $COLIBRI_C2T1FS_MOUNT_DIR
 		sleep 2
 		rm -rf $COLIBRI_C2T1FS_MOUNT_DIR
@@ -113,30 +126,9 @@ unprepare()
 	fi
 	modunload_galois
 
-	rm -rf $COLIBRI_C2T1FS_TEST_DIR
-}
-
-c2t1fs_system_tests()
-{
-	file_creation_test $MAX_NR_FILES
-	if [ $? -ne "0" ]
-        then
-                echo "Failed: File creation test failed."
-        fi
-
-	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY
-	if [ $? -ne "0" ]
-	then
-		echo "Failed: IO failed.."
+	if [ -d $COLIBRI_C2T1FS_TEST_DIR ]; then
+		# don't cleanup core dumps
+		[ `find $COLIBRI_C2T1FS_TEST_DIR -name 'core.*'` ] ||
+			rm -rf $COLIBRI_C2T1FS_TEST_DIR
 	fi
-
-	rmw_test
-	if [ $? -ne "0" ]
-	then
-		echo "Failed: IO-RMW failed.."
-	fi
-
-	c2loop_st || return 1
-
-	return 0
 }

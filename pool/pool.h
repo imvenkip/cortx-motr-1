@@ -48,25 +48,25 @@ struct c2_pool {
 	struct c2_poolmach *po_mach;
 };
 
-int  c2_pool_init(struct c2_pool *pool, uint32_t width);
-void c2_pool_fini(struct c2_pool *pool);
+C2_INTERNAL int c2_pool_init(struct c2_pool *pool, uint32_t width);
+C2_INTERNAL void c2_pool_fini(struct c2_pool *pool);
 
 /**
    Allocates object id in the pool.
 
    @post ergo(result == 0, c2_stob_id_is_set(id))
  */
-int c2_pool_alloc(struct c2_pool *pool, struct c2_stob_id *id);
+C2_INTERNAL int c2_pool_alloc(struct c2_pool *pool, struct c2_stob_id *id);
 
 /**
    Releases object id back to the pool.
 
    @pre c2_stob_id_is_set(id)
  */
-void c2_pool_put(struct c2_pool *pool, struct c2_stob_id *id);
+C2_INTERNAL void c2_pool_put(struct c2_pool *pool, struct c2_stob_id *id);
 
-int  c2_pools_init(void);
-void c2_pools_fini(void);
+C2_INTERNAL int c2_pools_init(void);
+C2_INTERNAL void c2_pools_fini(void);
 
 /** @} end group pool */
 
@@ -96,8 +96,26 @@ enum c2_pool_nd_state {
 	/** a node/device turned off-line by an administrative request */
 	C2_PNDS_OFFLINE,
 
-	/** a node/device is active, but not yet serving IO */
-	C2_PNDS_RECOVERING,
+	/** a node/device is active in sns repair. */
+	C2_PNDS_SNS_REPAIRING,
+
+	/**
+	 * a node/device completed sns repair. Its data is re-constructed
+	 * on its corresponding spare space
+	 */
+	C2_PNDS_SNS_REPAIRED,
+
+	/** a node/device is active in sns re-balance. */
+	C2_PNDS_SNS_REBALANCING,
+
+	/**
+	 * a node/device completed sns re-rebalance. Its data is copyied
+	 * back to its original location. This usually happens when a
+	 * new device replaced a failed device and re-balance completed.
+	 * After this, the device can be set to ONLINE, and its corresponding
+	 * space space can be returned to pool.
+	 */
+	C2_PNDS_SNS_REBALANCED,
 
 	/** number of state */
 	C2_PNDS_NR
@@ -185,7 +203,7 @@ struct c2_pool_event {
  */
 struct c2_pool_event_link {
 	/** the event itself */
-	struct c2_pool_event          *pel_event;
+	struct c2_pool_event           pel_event;
 
 	/**
 	 * Pool machine's new version when this event handled
@@ -202,6 +220,18 @@ struct c2_pool_event_link {
 	struct c2_tlink                pel_linkage;
 
 	uint64_t                       pel_magic;
+};
+
+/**
+ * Tracking spare slot usage.
+ * If spare slot is not used for repair/rebalance, its :psp_device_index is -1.
+ */
+struct c2_pool_spare_usage {
+	/** index of the device to use this spare slot */
+	uint32_t psp_device_index;
+
+	/** state of the device to use this spare slot */
+	enum c2_pool_nd_state psp_device_state;
 };
 
 /**
@@ -239,6 +269,12 @@ struct c2_poolmach_state {
 	uint32_t                       pst_max_device_failures;
 
 	/**
+	 * Spare slot usage array.
+	 * The size of this array is pst_max_device_failures;
+	 */
+	struct c2_pool_spare_usage    *pst_spare_usage_array;
+
+	/**
 	 * All Events ever happened to this pool machine, ordered by time.
 	 */
 	struct c2_tl                   pst_events_list;
@@ -266,11 +302,18 @@ struct c2_poolmach {
 	struct c2_rwlock         pm_lock;
 };
 
-bool c2_poolmach_version_equal(const struct c2_pool_version_numbers *v1,
-			       const struct c2_pool_version_numbers *v2);
+C2_INTERNAL bool c2_poolmach_version_equal(const struct c2_pool_version_numbers
+					   *v1,
+					   const struct c2_pool_version_numbers
+					   *v2);
 
-int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm);
-void c2_poolmach_fini(struct c2_poolmach *pm);
+C2_INTERNAL int c2_poolmach_init(struct c2_poolmach *pm,
+				 struct c2_dtm *dtm,
+				 uint32_t nr_nodes,
+				 uint32_t nr_devices,
+				 uint32_t max_node_failures,
+				 uint32_t max_device_failures);
+C2_INTERNAL void c2_poolmach_fini(struct c2_poolmach *pm);
 
 /**
  * Change the pool machine state according to this event.
@@ -279,8 +322,8 @@ void c2_poolmach_fini(struct c2_poolmach *pm);
  *        will be copied into pool machine state, and it can
  *        be used or released by caller after call.
  */
-int c2_poolmach_state_transit(struct c2_poolmach *pm,
-			      struct c2_pool_event *event);
+C2_INTERNAL int c2_poolmach_state_transit(struct c2_poolmach *pm,
+					  struct c2_pool_event *event);
 
 /**
  * Query the state changes between the "from" and "to" version.
@@ -292,18 +335,60 @@ int c2_poolmach_state_transit(struct c2_poolmach *pm,
  * @param event_list_head the state changes in this region will be represented
  *        by events linked in this list.
  */
-int c2_poolmach_state_query(struct c2_poolmach *pm,
-			    const struct c2_pool_version_numbers *from,
-			    const struct c2_pool_version_numbers *to,
-			    struct c2_tl *event_list_head);
+C2_INTERNAL int c2_poolmach_state_query(struct c2_poolmach *pm,
+					const struct c2_pool_version_numbers
+					*from,
+					const struct c2_pool_version_numbers
+					*to, struct c2_tl *event_list_head);
 
 /**
  * Query the current version of a pool state.
  *
  * @param curr the returned current version number stored here.
  */
-int c2_poolmach_current_version_get(struct c2_poolmach *pm,
-				    struct c2_pool_version_numbers *curr);
+C2_INTERNAL int c2_poolmach_current_version_get(struct c2_poolmach *pm,
+						struct c2_pool_version_numbers
+						*curr);
+
+/**
+ * Query the current state of a specified device.
+ * @param pm pool machine.
+ * @param device_index the index of the device to query.
+ * @param state_out the output state.
+ */
+C2_INTERNAL int c2_poolmach_device_state(struct c2_poolmach *pm,
+					 uint32_t device_index,
+					 enum c2_pool_nd_state *state_out);
+
+/**
+ * Query the current state of a specified device.
+ * @param pm pool machine.
+ * @param node_index the index of the node to query.
+ * @param state_out the output state.
+ */
+C2_INTERNAL int c2_poolmach_node_state(struct c2_poolmach *pm,
+				       uint32_t node_index,
+				       enum c2_pool_nd_state *state_out);
+
+/**
+ * Query the {sns repair, spare slot} pair of a specified device.
+ * @param pm pool machine.
+ * @param device_index the index of the device to query.
+ * @param spare_slot_out the output spair slot.
+ */
+C2_INTERNAL int c2_poolmach_sns_repair_spare_query(struct c2_poolmach *pm,
+						   uint32_t device_index,
+						   uint32_t *spare_slot_out);
+
+/**
+ * Query the {sns rebalance, spare slot} pair of a specified device.
+ * @param pm pool machine.
+ * @param device_index the index of the device to query.
+ * @param spare_slot_out the output spair slot.
+ */
+C2_INTERNAL int c2_poolmach_sns_rebalance_spare_query(struct c2_poolmach *pm,
+						      uint32_t device_index,
+						      uint32_t *spare_slot_out);
 
 /**
  * Return a copy of current pool machine state.
@@ -316,16 +401,17 @@ int c2_poolmach_current_version_get(struct c2_poolmach *pm,
  *
  * @param state_copy the returned state stored here.
  */
-int c2_poolmach_current_state_get(struct c2_poolmach *pm,
-				  struct c2_poolmach_state **state_copy);
+C2_INTERNAL int c2_poolmach_current_state_get(struct c2_poolmach *pm,
+					      struct c2_poolmach_state
+					      **state_copy);
 /**
  * Frees the state copy returned from c2_poolmach_current_state_get().
  */
-void c2_poolmach_state_free(struct c2_poolmach *pm,
-			    struct c2_poolmach_state *state);
+C2_INTERNAL void c2_poolmach_state_free(struct c2_poolmach *pm,
+					struct c2_poolmach_state *state);
 
-C2_TL_DESCR_DECLARE(poolmach_events, extern);
-C2_TL_DECLARE(poolmach_events, extern, struct c2_pool_event_link);
+C2_TL_DESCR_DECLARE(poolmach_events, C2_EXTERN);
+C2_TL_DECLARE(poolmach_events, C2_INTERNAL, struct c2_pool_event_link);
 /** @} end of poolmach group */
 
 /**
@@ -362,16 +448,17 @@ struct c2_poolserver {
 	struct c2_rlimit	ps_rl_usage; /**< the current resource usage */
 };
 
-int  c2_poolserver_init(struct c2_poolserver *srv);
-void c2_poolserver_fini(struct c2_poolserver *srv);
-int  c2_poolserver_reset(struct c2_poolserver *srv);
-int  c2_poolserver_on(struct c2_poolserver *srv);
-int  c2_poolserver_off(struct c2_poolserver *srv);
-int  c2_poolserver_io_req(struct c2_poolserver *srv, struct c2_io_req *req);
-int  c2_poolserver_device_join(struct c2_poolserver *srv,
-			       struct c2_pooldev *dev);
-int  c2_poolserver_device_leave(struct c2_poolserver *srv,
-				struct c2_pooldev *dev);
+C2_INTERNAL int c2_poolserver_init(struct c2_poolserver *srv);
+C2_INTERNAL void c2_poolserver_fini(struct c2_poolserver *srv);
+C2_INTERNAL int c2_poolserver_reset(struct c2_poolserver *srv);
+C2_INTERNAL int c2_poolserver_on(struct c2_poolserver *srv);
+C2_INTERNAL int c2_poolserver_off(struct c2_poolserver *srv);
+C2_INTERNAL int c2_poolserver_io_req(struct c2_poolserver *srv,
+				     struct c2_io_req *req);
+C2_INTERNAL int c2_poolserver_device_join(struct c2_poolserver *srv,
+					  struct c2_pooldev *dev);
+C2_INTERNAL int c2_poolserver_device_leave(struct c2_poolserver *srv,
+					   struct c2_pooldev *dev);
 
 /** @} end of servermachine group */
 

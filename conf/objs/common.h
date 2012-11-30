@@ -63,14 +63,16 @@ static bool name(const struct c2_conf_obj *obj)                       \
 }                                                                     \
 struct __ ## abbrev ## _semicolon_catcher
 
-bool obj_is_stub(const struct c2_conf_obj *obj);
+C2_INTERNAL bool obj_is_stub(const struct c2_conf_obj *obj);
 
-bool parent_check(const struct c2_conf_obj *obj);
+C2_INTERNAL bool parent_check(const struct c2_conf_obj *obj);
 
-bool child_check(const struct c2_conf_obj *obj, const struct c2_conf_obj *child,
-		 enum c2_conf_objtype child_type);
+C2_INTERNAL bool child_check(const struct c2_conf_obj *obj,
+			     const struct c2_conf_obj *child,
+			     enum c2_conf_objtype child_type);
 
-void child_adopt(struct c2_conf_obj *parent, struct c2_conf_obj *child);
+C2_INTERNAL void child_adopt(struct c2_conf_obj *parent,
+			     struct c2_conf_obj *child);
 
 /**
  * Creates new c2_conf_directory and populates it with stubs.
@@ -86,10 +88,13 @@ void child_adopt(struct c2_conf_obj *parent, struct c2_conf_obj *child);
  *
  * XXX @todo UT transactional property of dir_new().
  */
-int dir_new(const struct c2_buf *dir_id, enum c2_conf_objtype children_type,
-	    const struct arr_buf *src, struct c2_conf_reg *reg,
-	    struct c2_conf_dir **out);
+C2_INTERNAL int dir_new(const struct c2_buf *dir_id,
+			enum c2_conf_objtype children_type,
+			const struct arr_buf *src, struct c2_conf_reg *reg,
+			struct c2_conf_dir **out);
 
-bool arrays_eq(const char **cached, const struct arr_buf *flat);
+C2_INTERNAL bool arrays_eq(const char **cached, const struct arr_buf *flat);
+C2_INTERNAL int strings_copy(const char ***dest, const struct arr_buf *src);
+C2_INTERNAL void strings_free(const char **arr);
 
 #endif /* __COLIBRI_CONF_OBJS_COMMON_H__ */

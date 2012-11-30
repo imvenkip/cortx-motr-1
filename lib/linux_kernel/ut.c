@@ -47,14 +47,14 @@ enum {
 	ONE_MILLION = 1000000ULL
 };
 
-int c2_uts_init(void)
+C2_INTERNAL int c2_uts_init(void)
 {
 	c2_list_init(&suites);
 	return 0;
 }
 C2_EXPORTED(c2_uts_init);
 
-void c2_uts_fini(void)
+C2_INTERNAL void c2_uts_fini(void)
 {
 	struct c2_list_link *link;
 	struct test_suite_elem *ts;
@@ -68,7 +68,7 @@ void c2_uts_fini(void)
 }
 C2_EXPORTED(c2_uts_fini);
 
-void c2_ut_add(const struct c2_test_suite *ts)
+C2_INTERNAL void c2_ut_add(const struct c2_test_suite *ts)
 {
 	struct test_suite_elem *elem;
 
@@ -107,7 +107,7 @@ static void uts_summary(void)
 	       c2_time_seconds(diff), msec);
 }
 
-void c2_ut_run(void)
+C2_INTERNAL void c2_ut_run(void)
 {
 	struct test_suite_elem *ts;
 	struct c2_list_link    *pos;
@@ -170,7 +170,8 @@ void c2_ut_run(void)
 }
 C2_EXPORTED(c2_ut_run);
 
-bool c2_ut_assertimpl(bool c, int lno, const char *str_c, const char *file)
+C2_INTERNAL bool c2_ut_assertimpl(bool c, int lno, const char *str_c,
+				  const char *file)
 {
 	if (!c) {
 		printk(KERN_ERR "Unit test assertion failed: %s at %s:%d\n",

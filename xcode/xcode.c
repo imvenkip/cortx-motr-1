@@ -39,17 +39,17 @@ static bool is_pointer(const struct c2_xcode_type *xt,
 }
 
 static bool field_invariant(const struct c2_xcode_type *xt,
-			    const struct c2_xcode_field *field)
+                            const struct c2_xcode_field *field)
 {
-	return
-		field->xf_name != NULL && field->xf_type != NULL &&
-		ergo(xt == &C2_XT_OPAQUE, field->xf_opaque != NULL) &&
-		field->xf_offset +
-		(is_pointer(xt, field) ?
-		 sizeof(void *) : field->xf_type->xct_sizeof) <= xt->xct_sizeof;
+        return
+                field->xf_name != NULL && field->xf_type != NULL &&
+                ergo(xt == &C2_XT_OPAQUE, field->xf_opaque != NULL) &&
+                field->xf_offset +
+                (is_pointer(xt, field) ?
+                 sizeof(void *) : field->xf_type->xct_sizeof) <= xt->xct_sizeof;
 }
 
-bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
+C2_INTERNAL bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 {
 	size_t   i;
 	size_t   prev;
@@ -85,10 +85,12 @@ bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 		f = &xt->xct_child[i];
 		if (!field_invariant(xt, f))
 			return false;
+
 		/* field doesn't overlap with the previous one */
 		if (i > 0 && offset +
 		    xt->xct_child[prev].xf_type->xct_sizeof > f->xf_offset)
 			return false;
+
 		/* update the previous field offset: for UNION all branches
 		   follow the first field. */
 		if (i == 0 || xt->xct_aggr != C2_XA_UNION) {
@@ -239,6 +241,8 @@ static int ctx_walk(struct c2_xcode_ctx *ctx, enum xcode_op op)
 	struct c2_bufvec_cursor mem;
 	struct c2_xcode_cursor *it     = &ctx->xcx_it;
 
+	C2_PRE(C2_IN(op, (XO_ENC, XO_DEC, XO_LEN)));
+
 	while ((result = c2_xcode_next(it)) > 0) {
 		const struct c2_xcode_type     *xt;
 		const struct c2_xcode_type_ops *ops;
@@ -316,33 +320,34 @@ static int ctx_walk(struct c2_xcode_ctx *ctx, enum xcode_op op)
 	return result;
 }
 
-void c2_xcode_ctx_init(struct c2_xcode_ctx *ctx, const struct c2_xcode_obj *obj)
+C2_INTERNAL void c2_xcode_ctx_init(struct c2_xcode_ctx *ctx,
+				   const struct c2_xcode_obj *obj)
 {
 	C2_SET0(ctx);
 	c2_xcode_cursor_init(&ctx->xcx_it, obj);
 }
 
-int c2_xcode_decode(struct c2_xcode_ctx *ctx)
+C2_INTERNAL int c2_xcode_decode(struct c2_xcode_ctx *ctx)
 {
 	return ctx_walk(ctx, XO_DEC);
 }
 
-int c2_xcode_encode(struct c2_xcode_ctx *ctx)
+C2_INTERNAL int c2_xcode_encode(struct c2_xcode_ctx *ctx)
 {
 	return ctx_walk(ctx, XO_ENC);
 }
 
-int c2_xcode_length(struct c2_xcode_ctx *ctx)
+C2_INTERNAL int c2_xcode_length(struct c2_xcode_ctx *ctx)
 {
 	return ctx_walk(ctx, XO_LEN);
 }
 
-void *c2_xcode_alloc(struct c2_xcode_cursor *it, size_t nob)
+C2_INTERNAL void *c2_xcode_alloc(struct c2_xcode_cursor *it, size_t nob)
 {
 	return c2_alloc(nob);
 }
 
-void c2_xcode_free(struct c2_xcode_obj *obj)
+C2_INTERNAL void c2_xcode_free(struct c2_xcode_obj *obj)
 {
 	int                    result;
 	struct c2_xcode_cursor it;
@@ -363,7 +368,8 @@ void c2_xcode_free(struct c2_xcode_obj *obj)
 	}
 }
 
-int c2_xcode_cmp(const struct c2_xcode_obj *o0, const struct c2_xcode_obj *o1)
+C2_INTERNAL int c2_xcode_cmp(const struct c2_xcode_obj *o0,
+			     const struct c2_xcode_obj *o1)
 {
 	int                    result;
 	struct c2_xcode_cursor it0;
@@ -402,7 +408,8 @@ int c2_xcode_cmp(const struct c2_xcode_obj *o0, const struct c2_xcode_obj *o1)
 	return 0;
 }
 
-void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fileno, uint64_t elno)
+C2_INTERNAL void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fileno,
+				uint64_t elno)
 {
 	char                        *addr = (char *)obj->xo_ptr;
 	const struct c2_xcode_type  *xt   = obj->xo_type;
@@ -419,8 +426,9 @@ void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fileno, uint64_t elno)
 	return addr;
 }
 
-int c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
-		    int fieldno, uint64_t elno)
+C2_INTERNAL int c2_xcode_subobj(struct c2_xcode_obj *subobj,
+				const struct c2_xcode_obj *obj, int fieldno,
+				uint64_t elno)
 {
 	const struct c2_xcode_field *f;
 	int                          result;
@@ -439,7 +447,7 @@ int c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
 	return result;
 }
 
-uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj)
+C2_INTERNAL uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj)
 {
 	const struct c2_xcode_type  *xt = obj->xo_type;
 	const struct c2_xcode_field *f  = &xt->xct_child[0];
@@ -467,9 +475,9 @@ uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj)
 	return tag;
 }
 
-void c2_xcode_bob_type_init(struct c2_bob_type *bt,
-			    const struct c2_xcode_type *xt,
-			    size_t magix_field, uint64_t magix)
+C2_INTERNAL void c2_xcode_bob_type_init(struct c2_bob_type *bt,
+					const struct c2_xcode_type *xt,
+					size_t magix_field, uint64_t magix)
 {
 	const struct c2_xcode_field *mf = &xt->xct_child[magix_field];
 
@@ -482,7 +490,7 @@ void c2_xcode_bob_type_init(struct c2_bob_type *bt,
 	bt->bt_magix_offset = mf->xf_offset;
 }
 
-void *c2_xcode_ctx_top(const struct c2_xcode_ctx *ctx)
+C2_INTERNAL void *c2_xcode_ctx_top(const struct c2_xcode_ctx *ctx)
 {
 	return ctx->xcx_it.xcu_stack[0].s_obj.xo_ptr;
 }

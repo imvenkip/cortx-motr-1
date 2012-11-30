@@ -53,8 +53,8 @@ extern const struct c2_addb_ctx_type c2_rpc_addb_ctx_type;
 extern const struct c2_addb_loc      c2_rpc_addb_loc;
 extern       struct c2_addb_ctx      c2_rpc_addb_ctx;
 
-int  c2_rpc_init(void);
-void c2_rpc_fini(void);
+C2_INTERNAL int c2_rpc_init(void);
+C2_INTERNAL void c2_rpc_fini(void);
 
 /**
  * Calculates the total number of buffers needed in network domain for
@@ -62,61 +62,24 @@ void c2_rpc_fini(void);
  * @param len total Length of the TM's in a network domain
  * @param tms_nr    Number of TM's in the network domain
  */
-static inline uint32_t c2_rpc_bufs_nr(uint32_t len, uint32_t tms_nr)
-{
-	return len +
-	       /* It is used so that more than one free buffer is present
-		* for each TM when tms_nr > 8.
-		*/
-	       max32u(tms_nr / 4, 1) +
-	       /* It is added so that frequent low_threshold callbacks of
-		* buffer pool can be reduced.
-		*/
-	       C2_NET_BUFFER_POOL_THRESHOLD;
-}
+C2_INTERNAL uint32_t c2_rpc_bufs_nr(uint32_t len, uint32_t tms_nr);
 
 /** Returns the maximum segment size of receive pool of network domain. */
-static inline c2_bcount_t c2_rpc_max_seg_size(struct c2_net_domain *ndom)
-{
-	C2_PRE(ndom != NULL);
-
-	return min64u(c2_net_domain_get_max_buffer_segment_size(ndom),
-		      C2_SEG_SIZE);
-}
+C2_INTERNAL c2_bcount_t c2_rpc_max_seg_size(struct c2_net_domain *ndom);
 
 /** Returns the maximum number of segments of receive pool of network domain. */
-static inline uint32_t c2_rpc_max_segs_nr(struct c2_net_domain *ndom)
-{
-	C2_PRE(ndom != NULL);
-
-	return c2_net_domain_get_max_buffer_size(ndom) /
-	       c2_rpc_max_seg_size(ndom);
-}
+C2_INTERNAL uint32_t c2_rpc_max_segs_nr(struct c2_net_domain *ndom);
 
 /** Returns the maximum RPC message size in the network domain. */
-static inline c2_bcount_t c2_rpc_max_msg_size(struct c2_net_domain *ndom,
-					      c2_bcount_t rpc_size)
-{
-	c2_bcount_t mbs;
-
-	C2_PRE(ndom != NULL);
-
-	mbs = c2_net_domain_get_max_buffer_size(ndom);
-	return rpc_size != 0 ? min64u(mbs, max64u(rpc_size, C2_SEG_SIZE)) : mbs;
-}
+C2_INTERNAL c2_bcount_t c2_rpc_max_msg_size(struct c2_net_domain *ndom,
+					    c2_bcount_t rpc_size);
 
 /**
  * Returns the maximum number of messages that can be received in a buffer
  * of network domain for a specific maximum receive message size.
  */
-static inline uint32_t c2_rpc_max_recv_msgs(struct c2_net_domain *ndom,
-					    c2_bcount_t rpc_size)
-{
-	C2_PRE(ndom != NULL);
-
-	return c2_net_domain_get_max_buffer_size(ndom) /
-	       c2_rpc_max_msg_size(ndom, rpc_size);
-}
+C2_INTERNAL uint32_t c2_rpc_max_recv_msgs(struct c2_net_domain *ndom,
+					  c2_bcount_t rpc_size);
 
 /**
   Posts an unbound item to the rpc layer.
@@ -146,7 +109,7 @@ static inline uint32_t c2_rpc_max_recv_msgs(struct c2_net_domain *ndom,
   @pre item->ri_session != NULL
   @pre item->ri_priority is sane.
 */
-int c2_rpc_post(struct c2_rpc_item *item);
+C2_INTERNAL int c2_rpc_post(struct c2_rpc_item *item);
 
 /**
   Posts reply item on the same session on which the request item is received.
@@ -155,20 +118,20 @@ int c2_rpc_post(struct c2_rpc_item *item);
   item. Rpc-layer will internally free the item when rpc-layer is sure that
   the corresponding request item will not take part in recovery.
  */
-int c2_rpc_reply_post(struct c2_rpc_item *request,
-		      struct c2_rpc_item *reply);
+int c2_rpc_reply_post(struct c2_rpc_item *request, struct c2_rpc_item *reply);
 
-int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
-				 struct c2_rpc_item *item);
+C2_INTERNAL int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
+					struct c2_rpc_item *item);
 
 /**
    Create a buffer pool per net domain which to be shared by TM's in it.
    @pre ndom != NULL && app_pool != NULL
    @pre bufs_nr != 0
  */
-int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
-				 struct c2_net_buffer_pool *app_pool,
-				 uint32_t bufs_nr, uint32_t tm_nr);
+C2_INTERNAL int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
+					     struct c2_net_buffer_pool
+					     *app_pool, uint32_t bufs_nr,
+					     uint32_t tm_nr);
 
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
 

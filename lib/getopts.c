@@ -41,7 +41,7 @@
 
 const char C2_GETOPTS_DECIMAL_POINT = '.';
 
-int c2_bcount_get(const char *arg, c2_bcount_t *out)
+C2_INTERNAL int c2_bcount_get(const char *arg, c2_bcount_t * out)
 {
 	char		 *end = NULL;
 	char		 *pos;
@@ -75,7 +75,7 @@ int c2_bcount_get(const char *arg, c2_bcount_t *out)
 	return rc;
 }
 
-int c2_time_get(const char *arg, c2_time_t *out)
+C2_INTERNAL int c2_time_get(const char *arg, c2_time_t * out)
 {
 	char	*end = NULL;
 	uint64_t before;	/* before decimal point */

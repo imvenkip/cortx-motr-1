@@ -37,14 +37,14 @@
 static bool itemq_invariant(const struct c2_tl *q);
 static c2_bcount_t itemq_nr_bytes_acc(const struct c2_tl *q);
 
-static struct c2_tl *frm_which_queue(struct c2_rpc_frm        *frm,
-				     const struct c2_rpc_item *item);
+static enum c2_rpc_frm_itemq_type
+frm_which_qtype(struct c2_rpc_frm *frm, const struct c2_rpc_item *item);
 static bool frm_is_idle(const struct c2_rpc_frm *frm);
-static void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
+static void frm_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
 static void __itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item);
-static void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
+static void frm_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
+static void __itemq_remove(struct c2_rpc_item *item);
 static void frm_balance(struct c2_rpc_frm *frm);
-static void frm_filter_timedout_items(struct c2_rpc_frm *frm);
 static bool frm_is_ready(const struct c2_rpc_frm *frm);
 static void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
 static bool frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
@@ -69,11 +69,11 @@ static bool
 constraints_are_valid(const struct c2_rpc_frm_constraints *constraints);
 
 static const char *str_qtype[] = {
-	[FRMQ_TIMEDOUT_BOUND]   = "TIMEDOUT_BOUND",
-	[FRMQ_TIMEDOUT_UNBOUND] = "TIMEDOUT_UNBOUND",
-	[FRMQ_TIMEDOUT_ONEWAY] = "TIMEDOUT_ONEWAY",
-	[FRMQ_WAITING_UNBOUND]  = "WAITING_UNBOUND",
-	[FRMQ_WAITING_BOUND]    = "WAITING_BOUND",
+	[FRMQ_URGENT_BOUND]    = "URGENT_BOUND",
+	[FRMQ_URGENT_UNBOUND]  = "URGENT_UNBOUND",
+	[FRMQ_URGENT_ONEWAY]   = "URGENT_ONEWAY",
+	[FRMQ_WAITING_UNBOUND] = "WAITING_UNBOUND",
+	[FRMQ_WAITING_BOUND]   = "WAITING_BOUND",
 	[FRMQ_WAITING_ONEWAY]  = "WAITING_ONEWAY"
 };
 
@@ -95,10 +95,10 @@ for (itemq = frm_first_itemq(frm); \
      itemq < frm_end_itemq(frm); \
      ++itemq)
 
-C2_TL_DESCR_DEFINE(itemq, "rpc_itemq", /* global */, struct c2_rpc_item,
+C2_TL_DESCR_DEFINE(itemq, "rpc_itemq", C2_INTERNAL, struct c2_rpc_item,
 		   ri_iq_link, ri_magic, C2_RPC_ITEM_MAGIC,
 		   C2_RPC_ITEMQ_HEAD_MAGIC);
-C2_TL_DEFINE(itemq, /* global */, struct c2_rpc_item);
+C2_TL_DEFINE(itemq, C2_INTERNAL, struct c2_rpc_item);
 
 static bool frm_invariant(const struct c2_rpc_frm *frm)
 {
@@ -163,12 +163,12 @@ static c2_bcount_t itemq_nr_bytes_acc(const struct c2_tl *q)
 	return size;
 }
 
-struct c2_rpc_chan *frm_rchan(const struct c2_rpc_frm *frm)
+C2_INTERNAL struct c2_rpc_chan *frm_rchan(const struct c2_rpc_frm *frm)
 {
 	return container_of(frm, struct c2_rpc_chan, rc_frm);
 }
 
-struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm)
+C2_INTERNAL struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm)
 {
 	return frm_rchan(frm)->rc_rpc_machine;
 }
@@ -178,7 +178,8 @@ static bool frm_rmachine_is_locked(const struct c2_rpc_frm *frm)
 	return c2_rpc_machine_is_locked(frm_rmachine(frm));
 }
 
-void c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *c)
+C2_INTERNAL void c2_rpc_frm_constraints_get_defaults(struct
+						     c2_rpc_frm_constraints *c)
 {
 	C2_ENTRY();
 
@@ -203,9 +204,9 @@ static bool frm_is_idle(const struct c2_rpc_frm *frm)
 	return frm->f_nr_items == 0 && frm->f_nr_packets_enqed == 0;
 }
 
-void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
-		     struct c2_rpc_frm_constraints *constraints,
-		     const struct c2_rpc_frm_ops   *ops)
+C2_INTERNAL void c2_rpc_frm_init(struct c2_rpc_frm *frm,
+				 struct c2_rpc_frm_constraints *constraints,
+				 const struct c2_rpc_frm_ops *ops)
 {
 	struct c2_tl *q;
 
@@ -231,7 +232,7 @@ void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
 	C2_LEAVE();
 }
 
-void c2_rpc_frm_fini(struct c2_rpc_frm *frm)
+C2_INTERNAL void c2_rpc_frm_fini(struct c2_rpc_frm *frm)
 {
 	struct c2_tl *q;
 
@@ -251,51 +252,70 @@ void c2_rpc_frm_fini(struct c2_rpc_frm *frm)
 	C2_LEAVE();
 }
 
-void c2_rpc_frm_enq_item(struct c2_rpc_frm  *frm,
-			 struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_frm_enq_item(struct c2_rpc_frm *frm,
+				     struct c2_rpc_item *item)
 {
 	C2_ENTRY("frm: %p item: %p", frm, item);
 	C2_PRE(frm_rmachine_is_locked(frm));
 	C2_PRE(frm_invariant(frm) && item != NULL);
 
-	frm_itemq_insert(frm, item);
-	c2_rpc_item_change_state(item, C2_RPC_ITEM_ENQUEUED);
+	frm_insert(frm, item);
 	frm_balance(frm);
 
 	C2_LEAVE();
 }
 
-static void
-frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *new_item)
+static void frm_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 {
-	struct c2_tl *q;
+	enum c2_rpc_frm_itemq_type  qtype;
+	struct c2_tl               *q;
+	int                         rc;
 
-	C2_ENTRY("frm: %p item: %p", frm, new_item);
-	C2_PRE(new_item != NULL);
-	C2_LOG(C2_DEBUG, "priority: %d", new_item->ri_prio);
+	C2_ENTRY("frm: %p item: %p", frm, item);
+	C2_PRE(item != NULL);
+	C2_LOG(C2_DEBUG, "priority: %d", item->ri_prio);
 
-	q = frm_which_queue(frm, new_item);
+	qtype = frm_which_qtype(frm, item);
+	q     = &frm->f_itemq[qtype];
 
-	__itemq_insert(q, new_item);
+	__itemq_insert(q, item);
 
-	new_item->ri_itemq = q;
 	C2_CNT_INC(frm->f_nr_items);
-	frm->f_nr_bytes_accumulated += c2_rpc_item_size(new_item);
-
+	frm->f_nr_bytes_accumulated += c2_rpc_item_size(item);
+	item->ri_frm = frm;
 	if (frm->f_state == FRM_IDLE)
 		frm->f_state = FRM_BUSY;
 
+	if (item_is_in_waiting_queue(item, frm)) {
+		c2_rpc_item_change_state(item, C2_RPC_ITEM_ENQUEUED);
+		C2_LOG(C2_DEBUG, "%p Starting deadline timer", item);
+		rc = c2_sm_timeout(&item->ri_sm, &item->ri_deadline_to,
+				   item->ri_deadline, C2_RPC_ITEM_URGENT);
+		if (rc != 0)
+			C2_LOG(C2_NOTICE, "%p failed to start deadline timer",
+			       item);
+	} else {
+		c2_rpc_item_change_state(item, C2_RPC_ITEM_URGENT);
+	}
 	C2_LEAVE("nr_items: %llu bytes: %llu",
 			(unsigned long long)frm->f_nr_items,
 			(unsigned long long)frm->f_nr_bytes_accumulated);
 }
 
+C2_INTERNAL bool item_is_in_waiting_queue(const struct c2_rpc_item *item,
+					  const struct c2_rpc_frm *frm)
+{
+	return  C2_IN(item->ri_itemq, (&frm->f_itemq[FRMQ_WAITING_BOUND],
+				       &frm->f_itemq[FRMQ_WAITING_UNBOUND],
+				       &frm->f_itemq[FRMQ_WAITING_ONEWAY]));
+}
+
 /**
    Depending on item->ri_deadline and item->ri_prio returns one of
-   frm->f_itemq[], in which the item should be placed.
+   enum c2_rpc_frm_itemq_type in which the item should be placed.
  */
-static struct c2_tl *
-frm_which_queue(struct c2_rpc_frm *frm, const struct c2_rpc_item *item)
+static enum c2_rpc_frm_itemq_type
+frm_which_qtype(struct c2_rpc_frm *frm, const struct c2_rpc_item *item)
 {
 	enum c2_rpc_frm_itemq_type qtype;
 	bool                       oneway;
@@ -317,15 +337,15 @@ frm_which_queue(struct c2_rpc_frm *frm, const struct c2_rpc_item *item)
 	       c2_bool_to_str(deadline_passed));
 
 	if (deadline_passed)
-		qtype = oneway ? FRMQ_TIMEDOUT_ONEWAY
-			       : bound  ? FRMQ_TIMEDOUT_BOUND
-					: FRMQ_TIMEDOUT_UNBOUND;
+		qtype = oneway ? FRMQ_URGENT_ONEWAY
+			       : bound  ? FRMQ_URGENT_BOUND
+					: FRMQ_URGENT_UNBOUND;
 	else
 		qtype = oneway ? FRMQ_WAITING_ONEWAY
 			       : bound  ? FRMQ_WAITING_BOUND
 					: FRMQ_WAITING_UNBOUND;
 	C2_LEAVE("qtype: %s", str_qtype[qtype]);
-	return &frm->f_itemq[qtype];
+	return qtype;
 }
 
 /**
@@ -349,8 +369,28 @@ static void __itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item)
 	} c2_tl_endfor;
 	if (item == NULL)
 		itemq_tlink_init_at_tail(new_item, q);
+	new_item->ri_itemq = q;
 
 	C2_ASSERT(itemq_invariant(q));
+	C2_LEAVE();
+}
+
+C2_INTERNAL void c2_rpc_frm_item_deadline_passed(struct c2_rpc_frm *frm,
+						 struct c2_rpc_item *item)
+{
+	enum c2_rpc_frm_itemq_type  qtype;
+	struct c2_tl               *q;
+
+	C2_ENTRY("frm: %p item: %p", frm, item);
+	C2_PRE(item != NULL && item->ri_deadline <= c2_time_now());
+
+	__itemq_remove(item);
+	qtype = frm_which_qtype(frm, item);
+	q     = &frm->f_itemq[qtype];
+	__itemq_insert(q, item);
+
+	frm_balance(frm);
+
 	C2_LEAVE();
 }
 
@@ -375,7 +415,6 @@ static void frm_balance(struct c2_rpc_frm *frm)
 	       (char *)c2_bool_to_str(frm_is_ready(frm)));
 	packet_count = item_count = 0;
 
-	frm_filter_timedout_items(frm);
 	while (frm_is_ready(frm)) {
 		C2_ALLOC_PTR_ADDB(p, &frm->f_addb_ctx, &frm_addb_loc);
 		if (p == NULL) {
@@ -417,49 +456,6 @@ static void frm_balance(struct c2_rpc_frm *frm)
  */
 
 /**
-   Moves all timed-out items from WAITING_* queues to TIMEDOUT_* queues.
-
-   XXX This entire routine is temporary and will be removed in future.
-       Currently we don't start any timer for every item. Instead a
-       background thread c2_rpc_machine::rm_frm_worker periodically runs
-       formation to send any timedout items.
- */
-static void frm_filter_timedout_items(struct c2_rpc_frm *frm)
-{
-	static const enum c2_rpc_frm_itemq_type qtypes[] = {
-		FRMQ_WAITING_BOUND,
-		FRMQ_WAITING_UNBOUND,
-		FRMQ_WAITING_ONEWAY
-	};
-	enum c2_rpc_frm_itemq_type  qtype;
-	struct c2_rpc_item         *item;
-	struct c2_tl               *q;
-	int                         i;
-	c2_time_t                   now = c2_time_now();
-
-	C2_ENTRY("frm: %p", frm);
-	C2_PRE(frm_invariant(frm));
-
-	for (i = 0; i < ARRAY_SIZE(qtypes); ++i) {
-		qtype = qtypes[i];
-		q     = &frm->f_itemq[qtype];
-		c2_tl_for(itemq, q, item) {
-			if (item->ri_deadline <= now) {
-				frm_itemq_remove(frm, item);
-				/*
-				 * This time the item will be inserted in
-				 * one of TIMEDOUT_* queues.
-				 */
-				frm_itemq_insert(frm, item);
-			}
-		} c2_tl_endfor;
-	}
-
-	C2_ASSERT(frm_invariant(frm));
-	C2_LEAVE();
-}
-
-/**
    Is frm ready to form a packet?
 
    It is possible that frm_is_ready() returns true but no packet could
@@ -468,18 +464,18 @@ static void frm_filter_timedout_items(struct c2_rpc_frm *frm)
 static bool frm_is_ready(const struct c2_rpc_frm *frm)
 {
 	const struct c2_rpc_frm_constraints *c;
-	bool                                 has_timedout_items;
+	bool                                 has_urgent_items;
 
 	C2_PRE(frm != NULL);
 
-	has_timedout_items =
-		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_TIMEDOUT_BOUND]) ||
-		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_TIMEDOUT_UNBOUND]) ||
-		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_TIMEDOUT_ONEWAY]);
+	has_urgent_items =
+		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_BOUND]) ||
+		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_UNBOUND]) ||
+		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_ONEWAY]);
 
 	c = &frm->f_constraints;
 	return frm->f_nr_packets_enqed < c->fc_max_nr_packets_enqed &&
-	       (has_timedout_items ||
+	       (has_urgent_items ||
 		frm->f_nr_bytes_accumulated >= c->fc_max_nr_bytes_accumulated);
 }
 
@@ -514,7 +510,7 @@ static void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 			}
 			C2_ASSERT(c2_rpc_item_is_oneway(item) ||
 				  c2_rpc_item_is_bound(item));
-			frm_itemq_remove(frm, item);
+			frm_remove(frm, item);
 			if (item_supports_merging(item)) {
 				limit = available_space_in_packet(p, frm);
 				frm_try_merging_item(frm, item, limit);
@@ -524,11 +520,9 @@ static void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 			c2_rpc_item_change_state(item, C2_RPC_ITEM_SENDING);
 		} c2_tl_endfor;
 	}
-
 out:
 	C2_ASSERT(frm_invariant(frm));
 	C2_LEAVE();
-	return;
 }
 /*
  * FRM_FILL_PACKET_NOTE_1
@@ -584,15 +578,14 @@ frm_try_to_bind_item(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 	return result;
 }
 
-void
-frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
+static void frm_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 {
 	C2_ENTRY("frm: %p item: %p", frm, item);
 	C2_PRE(frm != NULL && item != NULL);
 	C2_PRE(frm->f_nr_items > 0 && item->ri_itemq != NULL);
 
-	itemq_tlink_del_fini(item);
-	item->ri_itemq = NULL;
+	__itemq_remove(item);
+	item->ri_frm = NULL;
 	C2_CNT_DEC(frm->f_nr_items);
 	frm->f_nr_bytes_accumulated -= c2_rpc_item_size(item);
 	C2_ASSERT(frm->f_nr_bytes_accumulated >= 0);
@@ -601,6 +594,12 @@ frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 		frm->f_state = FRM_IDLE;
 
 	C2_LEAVE();
+}
+
+static void __itemq_remove(struct c2_rpc_item *item)
+{
+	itemq_tlink_del_fini(item);
+	item->ri_itemq = NULL;
 }
 
 static void frm_try_merging_item(struct c2_rpc_frm  *frm,
@@ -636,7 +635,7 @@ static bool frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 	return packet_enqed;
 }
 
-void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm)
+C2_INTERNAL void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm)
 {
 	if (C2_FI_ENABLED("do_nothing"))
 		return;
@@ -650,7 +649,7 @@ void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm)
 	C2_LEAVE();
 }
 
-void c2_rpc_frm_packet_done(struct c2_rpc_packet *p)
+C2_INTERNAL void c2_rpc_frm_packet_done(struct c2_rpc_packet *p)
 {
 	struct c2_rpc_frm *frm;
 
@@ -673,9 +672,11 @@ void c2_rpc_frm_packet_done(struct c2_rpc_packet *p)
 	C2_LEAVE();
 }
 
-struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s)
+C2_INTERNAL struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s)
 {
 	return &s->s_conn->c_rpcchan->rc_frm;
 }
+
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} */

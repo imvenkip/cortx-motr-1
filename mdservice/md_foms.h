@@ -30,7 +30,6 @@ struct c2_fop;
 struct c2_fid;
 
 struct c2_cob;
-struct c2_fop_fid;
 struct c2_cob_nskey;
 struct c2_cob_oikey;
 
@@ -43,19 +42,13 @@ enum c2_md_fom_phases {
         C2_FOPH_MD_GENERIC = C2_FOPH_NR + 1
 };
 
-int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom);
+C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom);
 
 /**
    Init request fom for all types of requests.
 */
-int c2_md_req_fom_create(struct c2_fop *fop, struct c2_fom **m);
-int c2_md_rep_fom_create(struct c2_fop *fop, struct c2_fom **m);
-
-/**
-   Make in-memory fid from wire fid (wid).
-*/
-void c2_md_fid_make(struct c2_fid *fid,
-                    const struct c2_fop_fid *wid);
+C2_INTERNAL int c2_md_req_fom_create(struct c2_fop *fop, struct c2_fom **m);
+C2_INTERNAL int c2_md_rep_fom_create(struct c2_fop *fop, struct c2_fom **m);
 
 #endif /* __COLIBRI_MDSERVICE_MD_FOMS_H__ */
 

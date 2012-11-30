@@ -52,7 +52,7 @@ struct c2_bufvec src;
 struct c2_bufvec dst;
 struct c2_bufvec xor;
 
-static uint64_t cp_single_get(struct c2_cm_aggr_group *ag)
+static uint64_t cp_single_get(const struct c2_cm_aggr_group *ag)
 {
 	return CP_SINGLE;
 }
@@ -61,7 +61,7 @@ static const struct c2_cm_aggr_group_ops group_single_ops = {
 	.cago_local_cp_nr = &cp_single_get,
 };
 
-static uint64_t cp_multi_get(struct c2_cm_aggr_group *ag)
+static uint64_t cp_multi_get(const struct c2_cm_aggr_group *ag)
 {
 	return CP_MULTI;
 }
@@ -140,6 +140,7 @@ static void test_single_cp(void)
 	cp_prepare(&s_cp, &s_bv, SEG_NR, SEG_SIZE, &s_sag, 'e',
 		   &single_cp_fom_ops);
 	s_cp.c_ag->cag_ops = &group_single_ops;
+	s_cp.c_ag->cag_cp_nr = s_cp.c_ag->cag_ops->cago_local_cp_nr(s_cp.c_ag);
 	c2_fom_queue(&s_cp.c_fom, &reqh);
 
 	/* Wait till ast gets posted. */
@@ -174,6 +175,8 @@ static void test_multiple_cp(void)
 		cp_prepare(&m_cp[i], &m_bv[i], SEG_NR, SEG_SIZE, &m_sag, 'r',
 			   &multiple_cp_fom_ops);
 		m_cp[i].c_ag->cag_ops = &group_multi_ops;
+		m_cp[i].c_ag->cag_cp_nr =
+			m_cp[i].c_ag->cag_ops->cago_local_cp_nr(m_cp[i].c_ag);
 		c2_fom_queue(&m_cp[i].c_fom, &reqh);
 		c2_semaphore_down(&sem);
 	}

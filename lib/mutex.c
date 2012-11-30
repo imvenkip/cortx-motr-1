@@ -35,18 +35,18 @@ static void mutex_owner_reset(struct c2_mutex *mutex)
 	C2_SET0(&mutex->m_owner);
 }
 
-void c2_mutex_init(struct c2_mutex *mutex)
+C2_INTERNAL void c2_mutex_init(struct c2_mutex *mutex)
 {
 	pthread_mutex_init(&mutex->m_impl, NULL);
 	mutex_owner_reset(mutex);
 }
 
-void c2_mutex_fini(struct c2_mutex *mutex)
+C2_INTERNAL void c2_mutex_fini(struct c2_mutex *mutex)
 {
 	pthread_mutex_destroy(&mutex->m_impl);
 }
 
-void c2_mutex_lock(struct c2_mutex *mutex)
+C2_INTERNAL void c2_mutex_lock(struct c2_mutex *mutex)
 {
 	pthread_t self;
 
@@ -56,7 +56,7 @@ void c2_mutex_lock(struct c2_mutex *mutex)
 	memcpy(&mutex->m_owner, &self, sizeof self);
 }
 
-void c2_mutex_unlock(struct c2_mutex *mutex)
+C2_INTERNAL void c2_mutex_unlock(struct c2_mutex *mutex)
 {
 	pthread_t self;
 
@@ -66,7 +66,7 @@ void c2_mutex_unlock(struct c2_mutex *mutex)
 	pthread_mutex_unlock(&mutex->m_impl);
 }
 
-int c2_mutex_trylock(struct c2_mutex *mutex)
+C2_INTERNAL int c2_mutex_trylock(struct c2_mutex *mutex)
 {
 	pthread_t self;
 	int ret;
@@ -80,12 +80,12 @@ int c2_mutex_trylock(struct c2_mutex *mutex)
 	return ret;
 }
 
-bool c2_mutex_is_locked(const struct c2_mutex *mutex)
+C2_INTERNAL bool c2_mutex_is_locked(const struct c2_mutex *mutex)
 {
 	return pthread_equal(mutex->m_owner, pthread_self());
 }
 
-bool c2_mutex_is_not_locked(const struct c2_mutex *mutex)
+C2_INTERNAL bool c2_mutex_is_not_locked(const struct c2_mutex *mutex)
 {
 	return !pthread_equal(mutex->m_owner, pthread_self());
 }

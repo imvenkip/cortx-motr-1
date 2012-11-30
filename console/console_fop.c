@@ -39,7 +39,7 @@ struct c2_fop_type c2_cons_fop_device_fopt;
 struct c2_fop_type c2_cons_fop_reply_fopt;
 struct c2_fop_type c2_cons_fop_test_fopt;
 
-void c2_console_fop_fini(void)
+C2_INTERNAL void c2_console_fop_fini(void)
 {
 	c2_fop_type_fini(&c2_cons_fop_device_fopt);
 	c2_fop_type_fini(&c2_cons_fop_reply_fopt);
@@ -49,7 +49,7 @@ void c2_console_fop_fini(void)
 
 extern const struct c2_fom_type_ops c2_cons_fom_device_type_ops;
 
-int c2_console_fop_init(void)
+C2_INTERNAL int c2_console_fop_init(void)
 {
 	c2_xc_console_init();
 

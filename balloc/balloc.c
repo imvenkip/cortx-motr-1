@@ -62,8 +62,8 @@ static void balloc_debug_dump_extent(const char *tag, struct c2_ext *ex)
 #endif
 }
 
-void c2_balloc_debug_dump_group(const char *tag,
-				struct c2_balloc_group_info *grp)
+C2_INTERNAL void c2_balloc_debug_dump_group(const char *tag,
+					    struct c2_balloc_group_info *grp)
 {
 #ifdef BALLOC_ENABLE_DUMP
 	if (grp == NULL)
@@ -80,8 +80,9 @@ void c2_balloc_debug_dump_group(const char *tag,
 #endif
 }
 
-void c2_balloc_debug_dump_group_extent(const char *tag,
-				       struct c2_balloc_group_info *grp)
+C2_INTERNAL void c2_balloc_debug_dump_group_extent(const char *tag,
+						   struct c2_balloc_group_info
+						   *grp)
 {
 #ifdef BALLOC_ENABLE_DUMP
 	c2_bcount_t	 i;
@@ -102,7 +103,8 @@ void c2_balloc_debug_dump_group_extent(const char *tag,
 #endif
 }
 
-void c2_balloc_debug_dump_sb(const char *tag, struct c2_balloc_super_block *sb)
+C2_INTERNAL void c2_balloc_debug_dump_sb(const char *tag,
+					 struct c2_balloc_super_block *sb)
 {
 #ifdef BALLOC_ENABLE_DUMP
 	if (sb == NULL)
@@ -150,8 +152,8 @@ balloc_bn2gn(c2_bindex_t blockno, struct c2_balloc *cb)
 	return blockno >> cb->cb_sb.bsb_gsbits;
 }
 
-struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
-						c2_bindex_t groupno)
+C2_INTERNAL struct c2_balloc_group_info *c2_balloc_gn2info(struct c2_balloc *cb,
+							   c2_bindex_t groupno)
 {
 	if (cb->cb_group_info)
 		return &cb->cb_group_info[groupno];
@@ -159,7 +161,7 @@ struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
 		return NULL;
 }
 
-int c2_balloc_release_extents(struct c2_balloc_group_info *grp)
+C2_INTERNAL int c2_balloc_release_extents(struct c2_balloc_group_info *grp)
 {
 	C2_ASSERT(c2_mutex_is_locked(&grp->bgi_mutex));
 	if (grp->bgi_extents) {
@@ -169,17 +171,17 @@ int c2_balloc_release_extents(struct c2_balloc_group_info *grp)
 	return 0;
 }
 
-void c2_balloc_lock_group(struct c2_balloc_group_info *grp)
+C2_INTERNAL void c2_balloc_lock_group(struct c2_balloc_group_info *grp)
 {
 	c2_mutex_lock(&grp->bgi_mutex);
 }
 
-int c2_balloc_trylock_group(struct c2_balloc_group_info *grp)
+C2_INTERNAL int c2_balloc_trylock_group(struct c2_balloc_group_info *grp)
 {
 	return c2_mutex_trylock(&grp->bgi_mutex);
 }
 
-void c2_balloc_unlock_group(struct c2_balloc_group_info *grp)
+C2_INTERNAL void c2_balloc_unlock_group(struct c2_balloc_group_info *grp)
 {
 	c2_mutex_unlock(&grp->bgi_mutex);
 }
@@ -188,7 +190,7 @@ void c2_balloc_unlock_group(struct c2_balloc_group_info *grp)
 #define MAX_ALLOCATION_CHUNK 2048ULL
 
 /**
-   finaliazation of the balloc environment.
+   finalization of the balloc environment.
  */
 static int balloc_fini_internal(struct c2_balloc *colibri,
 				struct c2_db_tx  *tx)
@@ -259,7 +261,7 @@ static const struct c2_table_ops c2_group_desc_ops = {
 
    This routine will create a "super_block" database to store global parameters
    for this container. It will also create "group free extent" and "group_desc"
-   for every group. If some groups are reserved for special purpse, then they
+   for every group. If some groups are reserved for special purpose, then they
    will be marked as "allocated" at the format time, and those groups will not
    be used by normal allocation routines.
 
@@ -287,8 +289,8 @@ static int balloc_format(struct c2_balloc *colibri,
 	C2_PRE(c2_is_po2(req->bfr_blocksize));
 	C2_PRE(c2_is_po2(req->bfr_groupsize));
 
-	number_of_groups = req->bfr_totalsize / req->bfr_groupsize /
-		req->bfr_blocksize;
+	number_of_groups = req->bfr_totalsize / req->bfr_blocksize /
+	                            req->bfr_groupsize;
 
 	if (number_of_groups == 0)
 		number_of_groups = 1;
@@ -319,7 +321,7 @@ static int balloc_format(struct c2_balloc *colibri,
 	sb->bsb_groupcount	= number_of_groups;
 	sb->bsb_reserved_groups = req->bfr_reserved_groups;
 	sb->bsb_freeblocks	= (number_of_groups - sb->bsb_reserved_groups)
-				<< sb->bsb_gsbits;
+				  << sb->bsb_gsbits;
 	sb->bsb_prealloc_count	= 16;
 	sb->bsb_format_time	= ((uint64_t)now.tv_sec) << 32 | now.tv_usec;
 	sb->bsb_write_time	= sb->bsb_format_time;
@@ -347,7 +349,7 @@ static int balloc_format(struct c2_balloc *colibri,
 		return rc;
 	}
 
-	sz = sb->bsb_groupcount * sizeof (struct c2_balloc_group_info);
+	sz = number_of_groups * sizeof (struct c2_balloc_group_info);
 	colibri->cb_group_info = c2_alloc(sz);
 	if (colibri->cb_group_info == NULL) {
 		C2_LOG(C2_ERROR, "create allocate memory for group info\n");
@@ -361,11 +363,11 @@ static int balloc_format(struct c2_balloc *colibri,
 		C2_LOG(C2_DEBUG, "creating group_extents for group %llu\n",
 		       (unsigned long long)i);
 		ext.e_start = i << sb->bsb_gsbits;
-		if (i < req->bfr_reserved_groups) {
+		if (i < req->bfr_reserved_groups)
 			ext.e_end = ext.e_start;
-		} else {
-			ext.e_end = (i + 1) << sb->bsb_gsbits;
-		}
+		else
+			ext.e_end = ext.e_start + sb->bsb_groupsize;
+
 		c2_db_pair_setup(&pair, &colibri->cb_db_group_extents,
 				 &ext.e_start, sizeof ext.e_start,
 				 &ext.e_end, sizeof ext.e_end);
@@ -559,10 +561,12 @@ static int balloc_init_internal(struct c2_balloc *colibri,
 				c2_bcount_t res_groups)
 {
 	struct c2_balloc_group_info	*gi;
-	int				 rc;
-	c2_bcount_t			 i;
 	struct c2_db_tx			 init_tx;
 	struct timeval			 now;
+	char                             table_name[MAXPATHLEN];
+	uint64_t                         cid = colibri->cb_container_id;
+	int				 rc;
+	c2_bcount_t			 i;
 	int				 tx_started = 0;
 	C2_ENTRY();
 
@@ -572,16 +576,25 @@ static int balloc_init_internal(struct c2_balloc *colibri,
 	C2_SET0(&colibri->cb_sb);
 	C2_SET0(&colibri->cb_db_group_extents);
 	C2_SET0(&colibri->cb_db_group_desc);
+	C2_SET_ARR0(table_name);
 
+	sprintf(table_name, "%s_%lu", "super_block", cid);
 	rc = c2_table_init(&colibri->cb_db_sb, dbenv,
-			   "super_block", 0,
-			   &c2_super_block_ops) ||
-	     c2_table_init(&colibri->cb_db_group_desc, dbenv,
-			   "group_desc", 0,
-			   &c2_group_desc_ops)	||
-	     c2_table_init(&colibri->cb_db_group_extents, dbenv,
-			   "group_extents", 0,
-			   &c2_group_extent_ops);
+			   table_name, 0,
+			   &c2_super_block_ops);
+	if (rc == 0) {
+		C2_SET_ARR0(table_name);
+		sprintf(table_name, "%s_%lu", "group_desc", cid);
+		rc = c2_table_init(&colibri->cb_db_group_desc, dbenv, table_name, 0,
+				   &c2_group_desc_ops);
+	}
+	if (rc == 0) {
+		C2_SET_ARR0(table_name);
+		sprintf(table_name, "%s_%lu", "group_extents", cid);
+		rc = c2_table_init(&colibri->cb_db_group_extents, dbenv, table_name,
+				   0, &c2_group_extent_ops);
+	}
+
 	if (rc != 0)
 		goto out;
 
@@ -751,9 +764,7 @@ static int balloc_claim_free_blocks(struct c2_balloc *colibri,
 	C2_LOG(C2_DEBUG, "bsb_freeblocks = %llu, blocks=%llu\n",
 		(unsigned long long)colibri->cb_sb.bsb_freeblocks,
 		(unsigned long long)blocks);
-	c2_mutex_lock(&colibri->cb_sb_mutex);
-		rc = (colibri->cb_sb.bsb_freeblocks >= blocks);
-	c2_mutex_unlock(&colibri->cb_sb_mutex);
+	rc = (colibri->cb_sb.bsb_freeblocks >= blocks);
 
 	C2_LEAVE();
 	return rc;
@@ -818,7 +829,7 @@ balloc_normalize_request(struct c2_balloc_allocation_context *bac)
 	} else if (size <= 2048) {
 		size = 2048;
 	} else {
-		C2_LOG(C2_WARN, "lenth %llu is too large, truncate to %llu\n",
+		C2_LOG(C2_WARN, "length %llu is too large, truncate to %llu\n",
 			(unsigned long long) size, MAX_ALLOCATION_CHUNK);
 		size = MAX_ALLOCATION_CHUNK;
 	}
@@ -841,9 +852,9 @@ balloc_normalize_request(struct c2_balloc_allocation_context *bac)
 }
 
 /* called under group lock */
-int c2_balloc_load_extents(struct c2_balloc *cb,
-			   struct c2_balloc_group_info *grp,
-			   struct c2_db_tx *tx)
+C2_INTERNAL int c2_balloc_load_extents(struct c2_balloc *cb,
+				       struct c2_balloc_group_info *grp,
+				       struct c2_db_tx *tx)
 {
 	struct c2_table		*db_ext	  = &cb->cb_db_group_extents;
 	struct c2_db_cursor	 cursor;
@@ -897,7 +908,7 @@ int c2_balloc_load_extents(struct c2_balloc *cb,
 				 &ex->e_start, sizeof ex->e_start,
 				 &ex->e_end, sizeof ex->e_end);
 		result = c2_db_cursor_next(&cursor, &pair);
-		if ( result != 0)
+		if (result != 0)
 			break;
 
 		if (c2_ext_length(ex) > maxchunk)
@@ -1157,13 +1168,19 @@ static int balloc_update_db(struct c2_balloc *colibri,
 		balloc_debug_dump_extent("current=", cur);
 
 		if (found && cur && tgt->e_end > cur->e_start) {
-			C2_LOG(C2_ERROR, "!!!!!!!!!!!!!double free\n");
+			C2_LOG(C2_ERROR, "!!!!!!!!!!!!!double free: "
+			                 "tgt_end=%llu cur_start=%llu\n",
+			       (unsigned long long)tgt->e_end,
+			       (unsigned long long)cur->e_start);
 			c2_balloc_debug_dump_group_extent(
 				    "double free with cur", grp);
 			return -EINVAL;
 		}
 		if (pre && pre->e_end > tgt->e_start) {
-			C2_LOG(C2_ERROR, "!!!!!!!!!!!!!double free\n");
+			C2_LOG(C2_ERROR, "!!!!!!!!!!!!!double free: "
+			                 "pre_end=%llu tgt_start=%llu\n",
+			       (unsigned long long)pre->e_end,
+			       (unsigned long long)tgt->e_start);
 			c2_balloc_debug_dump_group_extent(
 				    "double free with pre", grp);
 			return -EINVAL;
@@ -1848,7 +1865,7 @@ out:
    can be per-object, or group based.
 
    This routine will first check the group description to see if enough free
-   space is availabe, and if largest contiguous chunk satisfy the request. This
+   space is available, and if largest contiguous chunk satisfy the request. This
    checking will be done group by group, until allocation succeeded or failed.
    If failed, the largest available contiguous chunk size is returned, and the
    caller can decide whether to use a smaller request.
@@ -1856,7 +1873,7 @@ out:
    While searching free space from group to group, the free space extent will be
    loaded into cache.  We cache as much free space extent up to some
    specified memory limitation.	 This is a configurable parameter, or default
-   value will be choosed based on system memory.
+   value will be chosen based on system memory.
 
    @param ctxt balloc operation context environment.
    @param req allocate request which includes all parameters.
@@ -2032,14 +2049,16 @@ static int balloc_alloc(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
 	struct c2_balloc_allocate_req	 req;
 	int				 rc;
 
+	C2_LOG(C2_DEBUG, "count=%lu", (unsigned long)count);
 	C2_ASSERT(count > 0);
 
 	req.bar_goal  = out->e_start; /* this also plays as the goal */
 	req.bar_len   = count;
-	req.bar_flags = 0;/*C2_BALLOC_HINT_DATA | C2_BALLOC_HINT_TRY_GOAL;*/
+	req.bar_flags = 0 /*C2_BALLOC_HINT_DATA | C2_BALLOC_HINT_TRY_GOAL*/;
 
 	C2_SET0(out);
 
+	c2_mutex_lock(&colibri->cb_sb_mutex);
 	rc = balloc_allocate_internal(colibri, &tx->tx_dbtx, &req);
 	if (rc == 0 && !c2_ext_is_empty(&req.bar_result)) {
 		out->e_start = req.bar_result.e_start;
@@ -2047,6 +2066,7 @@ static int balloc_alloc(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
 		colibri->cb_last = *out;
 	} else if (rc == 0)
 		rc = -ENOENT;
+	c2_mutex_unlock(&colibri->cb_sb_mutex);
 
 	return rc;
 }
@@ -2121,7 +2141,7 @@ static const struct c2_ad_balloc_ops balloc_ops = {
 	.bo_free  = balloc_free,
 };
 
-int c2_balloc_allocate(struct c2_balloc **out)
+C2_INTERNAL int c2_balloc_allocate(uint64_t cid, struct c2_balloc **out)
 {
 	struct c2_balloc *cb;
 	int               result;
@@ -2130,6 +2150,7 @@ int c2_balloc_allocate(struct c2_balloc **out)
 
 	C2_ALLOC_PTR(cb);
 	if (cb != NULL) {
+		cb->cb_container_id = cid;
                 cb->cb_ballroom.ab_ops = &balloc_ops;
                 *out = cb;
                 result = 0;
@@ -2138,6 +2159,8 @@ int c2_balloc_allocate(struct c2_balloc **out)
 
 	return result;
 }
+
+#undef C2_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

@@ -9,4 +9,5 @@ colibri_colibri_setup_SOURCES   = colibri/cs_main.c \
                                   colibri/cs_internal.h
 
 EXTRA_DIST += colibri/devices.sh \
-              colibri/DS-Reqh.gif
+              colibri/DS-Reqh.gif \
+              colibri/colibri-pub.api

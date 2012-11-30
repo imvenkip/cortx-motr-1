@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,15 +14,19 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
- * Original creation date: 03/29/2011
+ * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
+ * Original creation date: 09/11/2011
  */
 
-record {
-    u64 f_seq;
-    u64 f_oid
-} c2_fop_fid;
+#pragma once
 
+#ifndef __COLIBRI_SNS_REPAIR_ST_TRIGGER_FOP_H__
+#define __COLIBRI_SNS_REPAIR_ST_TRIGGER_FOP_H__
+
+int c2_sns_repair_trigger_fop_init(void);
+void c2_sns_repair_trigger_fop_fini(void);
+
+#endif
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

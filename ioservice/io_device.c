@@ -243,7 +243,7 @@
 static bool poolmach_is_initialised = false;
 static unsigned poolmach_key = 0;
 
-int c2_ios_poolmach_init(struct c2_reqh *reqh)
+C2_INTERNAL int c2_ios_poolmach_init(struct c2_reqh *reqh)
 {
 	int                 rc;
 	struct c2_poolmach *poolmach;
@@ -260,7 +260,8 @@ int c2_ios_poolmach_init(struct c2_reqh *reqh)
 		goto out;
 	}
 
-	rc = c2_poolmach_init(poolmach, reqh->rh_dtm);
+	/* TODO configuration information is needed here. */
+	rc = c2_poolmach_init(poolmach, reqh->rh_dtm, 1, 10, 1, 1);
 	if (rc != 0) {
 		c2_reqh_key_fini(reqh, poolmach_key);
 		goto out;
@@ -272,7 +273,7 @@ out:
 	return rc;
 }
 
-struct c2_poolmach *c2_ios_poolmach_get(struct c2_reqh *reqh)
+C2_INTERNAL struct c2_poolmach *c2_ios_poolmach_get(struct c2_reqh *reqh)
 {
 	struct c2_poolmach *pm;
 
@@ -285,7 +286,7 @@ struct c2_poolmach *c2_ios_poolmach_get(struct c2_reqh *reqh)
 	return pm;
 }
 
-void c2_ios_poolmach_fini(struct c2_reqh *reqh)
+C2_INTERNAL void c2_ios_poolmach_fini(struct c2_reqh *reqh)
 {
 	struct c2_poolmach *pm;
 	C2_PRE(reqh != NULL);
@@ -299,10 +300,13 @@ void c2_ios_poolmach_fini(struct c2_reqh *reqh)
 	c2_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
-int c2_ios_poolmach_version_updates_pack(struct c2_poolmach         *pm,
-					 const struct c2_fv_version *cli,
-					 struct c2_fv_version       *version,
-					 struct c2_fv_updates       *updates)
+C2_INTERNAL int c2_ios_poolmach_version_updates_pack(struct c2_poolmach *pm,
+						     const struct c2_fv_version
+						     *cli,
+						     struct c2_fv_version
+						     *version,
+						     struct c2_fv_updates
+						     *updates)
 {
 	struct c2_pool_version_numbers  curr;
 	struct c2_pool_version_numbers *verp;
@@ -337,7 +341,6 @@ int c2_ios_poolmach_version_updates_pack(struct c2_poolmach         *pm,
 		rc = -ENOMEM;
 		c2_tl_for(poolmach_events, &events_list, scan) {
 			poolmach_events_tlink_del_fini(scan);
-			c2_free(scan->pel_event);
 			c2_free(scan);
 		} c2_tl_endfor;
 		goto out;
@@ -345,12 +348,11 @@ int c2_ios_poolmach_version_updates_pack(struct c2_poolmach         *pm,
 
 	index = 0;
 	c2_tl_for(poolmach_events, &events_list, scan) {
-		updates->fvu_events[index].fve_type  = scan->pel_event->pe_type;
-		updates->fvu_events[index].fve_index = scan->pel_event->pe_index;
-		updates->fvu_events[index].fve_state = scan->pel_event->pe_state;
+		updates->fvu_events[index].fve_type  = scan->pel_event.pe_type;
+		updates->fvu_events[index].fve_index = scan->pel_event.pe_index;
+		updates->fvu_events[index].fve_state = scan->pel_event.pe_state;
 		index++;
 		poolmach_events_tlink_del_fini(scan);
-		c2_free(scan->pel_event);
 		c2_free(scan);
 	} c2_tl_endfor;
 

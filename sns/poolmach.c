@@ -26,30 +26,34 @@ static const struct c2_persistent_sm_ops;
    transaction manager instance. This allows poolmachine to update its persisten
    state transactionally and to be call-back on node restart.
  */
-int c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
+C2_INTERNAL int c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
 {
 	c2_persistent_sm_register(&pm->pm_mach, dtm,
 				  &poolmach_persistent_sm_ops);
 }
 
-void c2_poolmach_fini(struct c2_poolmach *pm)
+C2_INTERNAL void c2_poolmach_fini(struct c2_poolmach *pm)
 {
 	c2_persistent_sm_unregister(&pm->pm_mach);
 }
 
-int  c2_poolmach_device_join (struct c2_poolmach *pm, struct c2_pooldev *dev)
+C2_INTERNAL int c2_poolmach_device_join(struct c2_poolmach *pm,
+					struct c2_pooldev *dev)
 {
 }
 
-int  c2_poolmach_device_leave(struct c2_poolmach *pm, struct c2_pooldev *dev)
+C2_INTERNAL int c2_poolmach_device_leave(struct c2_poolmach *pm,
+					 struct c2_pooldev *dev)
 {
 }
 
-int  c2_poolmach_node_join (struct c2_poolmach *pm, struct c2_poolnode *node)
+C2_INTERNAL int c2_poolmach_node_join(struct c2_poolmach *pm,
+				      struct c2_poolnode *node)
 {
 }
 
-int  c2_poolmach_node_leave(struct c2_poolmach *pm, struct c2_poolnode *node)
+C2_INTERNAL int c2_poolmach_node_leave(struct c2_poolmach *pm,
+				       struct c2_poolnode *node)
 {
 }
 

@@ -127,13 +127,20 @@ enum c2_balloc_super_block_version {
 struct c2_balloc {
 	struct c2_dbenv             *cb_dbenv;
 
-	struct c2_table              cb_db_sb;            /*< db for sb */
-	struct c2_balloc_super_block cb_sb;               /*< the on-disk and in-memory sb */
-        struct c2_mutex              cb_sb_mutex;         /*< super block lock */
-
-	struct c2_table              cb_db_group_extents; /*< db for free extent */
-	struct c2_table              cb_db_group_desc;    /*< db for group desc */
-	struct c2_balloc_group_info *cb_group_info;       /*< array of group info */
+	/** container this block allocator belongs to. */
+	uint64_t                     cb_container_id;
+	/** db for sb */
+	struct c2_table              cb_db_sb;
+	/** the on-disk and in-memory sb */
+	struct c2_balloc_super_block cb_sb;
+	/** super block lock */
+        struct c2_mutex              cb_sb_mutex;
+	/** db for free extent */
+	struct c2_table              cb_db_group_extents;
+	/** db for group desc */
+	struct c2_table              cb_db_group_desc;
+	/** array of group info */
+	struct c2_balloc_group_info *cb_group_info;
 
 	struct c2_ext                cb_last;
 
@@ -234,10 +241,9 @@ struct c2_balloc_discard_req {
 };
 
 /*
- * BALLOC_DEF_BLOCKS_PER_GROUP * 1 << BALLOC_DEF_BLOCK_SHIFT = 128 MB -->
+ * BALLOC_DEF_BLOCKS_PER_GROUP * (1 << BALLOC_DEF_BLOCK_SHIFT) = 128 MB -->
  * which equals group size in ext4
  */
-
 enum {
 	BALLOC_DEF_CONTAINER_SIZE	= 4096ULL * 1024 * 1024 * 1000,
 	BALLOC_DEF_BLOCK_SHIFT		= 12,// 4K Blocks
@@ -253,25 +259,26 @@ enum {
    @see struct ad_balloc_ops
    @pre out != NULL
  */
-int c2_balloc_allocate(struct c2_balloc **out);
+C2_INTERNAL int c2_balloc_allocate(uint64_t cid, struct c2_balloc **out);
 
 /* Interfaces for UT */
-void c2_balloc_debug_dump_sb(const char *tag,
-			     struct c2_balloc_super_block *sb);
-void c2_balloc_debug_dump_group_extent(const char *tag,
-				       struct c2_balloc_group_info *grp);
+C2_INTERNAL void c2_balloc_debug_dump_sb(const char *tag,
+					 struct c2_balloc_super_block *sb);
+C2_INTERNAL void c2_balloc_debug_dump_group_extent(const char *tag,
+						   struct c2_balloc_group_info
+						   *grp);
 
-int c2_balloc_release_extents(struct c2_balloc_group_info *grp);
-int c2_balloc_load_extents(struct c2_balloc *cb,
-			   struct c2_balloc_group_info *grp,
-			   struct c2_db_tx *tx);
-struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
-						c2_bindex_t groupno);
-void c2_balloc_debug_dump_group(const char *tag,
-				struct c2_balloc_group_info *grp);
-void c2_balloc_lock_group(struct c2_balloc_group_info *grp);
-int c2_balloc_trylock_group(struct c2_balloc_group_info *grp);
-void c2_balloc_unlock_group(struct c2_balloc_group_info *grp);
+C2_INTERNAL int c2_balloc_release_extents(struct c2_balloc_group_info *grp);
+C2_INTERNAL int c2_balloc_load_extents(struct c2_balloc *cb,
+				       struct c2_balloc_group_info *grp,
+				       struct c2_db_tx *tx);
+C2_INTERNAL struct c2_balloc_group_info *c2_balloc_gn2info(struct c2_balloc *cb,
+							   c2_bindex_t groupno);
+C2_INTERNAL void c2_balloc_debug_dump_group(const char *tag,
+					    struct c2_balloc_group_info *grp);
+C2_INTERNAL void c2_balloc_lock_group(struct c2_balloc_group_info *grp);
+C2_INTERNAL int c2_balloc_trylock_group(struct c2_balloc_group_info *grp);
+C2_INTERNAL void c2_balloc_unlock_group(struct c2_balloc_group_info *grp);
 
 /** @} end of balloc */
 

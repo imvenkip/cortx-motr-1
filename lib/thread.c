@@ -67,7 +67,7 @@ int c2_thread_init(struct c2_thread *q, int (*init)(void *),
 }
 C2_EXPORTED(c2_thread_init);
 
-void *c2_thread_trampoline(void *arg)
+C2_INTERNAL void *c2_thread_trampoline(void *arg)
 {
 	struct c2_thread *t = arg;
 

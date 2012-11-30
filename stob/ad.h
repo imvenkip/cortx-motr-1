@@ -102,13 +102,15 @@ struct c2_ad_balloc_ops {
    @param blocks_per_group - Number of blocks per group;
    @param res_groups - Number of reserved groups.
  */
-int  c2_ad_stob_setup(struct c2_stob_domain *adom, struct c2_dbenv *dbenv,
-		      struct c2_stob *bstore, struct c2_ad_balloc *ballroom,
-		      c2_bindex_t container_size, c2_bcount_t bshift,
-		      c2_bcount_t blocks_per_group, c2_bcount_t res_groups);
+C2_INTERNAL int c2_ad_stob_setup(struct c2_stob_domain *adom,
+				 struct c2_dbenv *dbenv, struct c2_stob *bstore,
+				 struct c2_ad_balloc *ballroom,
+				 c2_bindex_t container_size, uint32_t bshift,
+				 c2_bcount_t blocks_per_group,
+				 c2_bcount_t res_groups);
 
-int  c2_ad_stobs_init(void);
-void c2_ad_stobs_fini(void);
+C2_INTERNAL int c2_ad_stobs_init(void);
+C2_INTERNAL void c2_ad_stobs_fini(void);
 
 /** @} end group stobad */
 

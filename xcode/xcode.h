@@ -386,8 +386,8 @@ struct c2_xcode_cursor {
 	} xcu_stack[C2_XCODE_DEPTH_MAX];
 };
 
-void c2_xcode_cursor_init(struct c2_xcode_cursor *it,
-			  const struct c2_xcode_obj *obj);
+C2_INTERNAL void c2_xcode_cursor_init(struct c2_xcode_cursor *it,
+				      const struct c2_xcode_obj *obj);
 
 /**
    Iterates over tree of xcode types.
@@ -435,15 +435,17 @@ void c2_xcode_cursor_init(struct c2_xcode_cursor *it,
    }
    @endcode
  */
-int  c2_xcode_next(struct c2_xcode_cursor *it);
+C2_INTERNAL int c2_xcode_next(struct c2_xcode_cursor *it);
 
 /**
    Abandons the iteration at the current level and returns one level up.
  */
-void c2_xcode_skip(struct c2_xcode_cursor *it);
+C2_INTERNAL void c2_xcode_skip(struct c2_xcode_cursor *it);
 
 /** Returns the topmost frame in the cursor's stack. */
-struct c2_xcode_cursor_frame *c2_xcode_cursor_top(struct c2_xcode_cursor *it);
+C2_INTERNAL struct c2_xcode_cursor_frame *c2_xcode_cursor_top(struct
+							      c2_xcode_cursor
+							      *it);
 
 /** @} iteration. */
 
@@ -530,21 +532,22 @@ struct c2_xcode_ctx {
 /**
    Sets up the context to start xcoding of a given object.
  */
-void c2_xcode_ctx_init(struct c2_xcode_ctx *ctx, const struct c2_xcode_obj *obj);
+C2_INTERNAL void c2_xcode_ctx_init(struct c2_xcode_ctx *ctx,
+				   const struct c2_xcode_obj *obj);
 
 /**
    @see c2_xcode_ctx::xcx_buf
  */
-int c2_xcode_decode(struct c2_xcode_ctx *ctx);
+C2_INTERNAL int c2_xcode_decode(struct c2_xcode_ctx *ctx);
 
 /**
    @see c2_xcode_ctx::xcx_buf
  */
-int c2_xcode_encode(struct c2_xcode_ctx *ctx);
+C2_INTERNAL int c2_xcode_encode(struct c2_xcode_ctx *ctx);
 
 /** Calculates the length of serialized representation. */
-int c2_xcode_length(struct c2_xcode_ctx *ctx);
-void *c2_xcode_alloc(struct c2_xcode_cursor *it, size_t nob);
+C2_INTERNAL int c2_xcode_length(struct c2_xcode_ctx *ctx);
+C2_INTERNAL void *c2_xcode_alloc(struct c2_xcode_cursor *it, size_t nob);
 /** @} xcoding. */
 
 /**
@@ -575,7 +578,7 @@ void *c2_xcode_alloc(struct c2_xcode_cursor *it, size_t nob);
  * {1| (1, 2)}
  * {2| 6}
  * {3|}               -- a union with invalid discriminant or with a void value
- * [0:]               -- 0 sized array
+ * [0]                -- 0 sized array
  * [3: 6, 5, 4]
  * [: 1, 2, 3]        -- fixed size sequence
  * "incomprehensible" -- a byte (U8) sequence with 16 elements
@@ -595,9 +598,10 @@ void *c2_xcode_alloc(struct c2_xcode_cursor *it, size_t nob);
  * Error or not, the caller should free the (partially) constructed object with
  * c2_xcode_free().
  */
-int  c2_xcode_read(struct c2_xcode_obj *obj, const char *str);
-void c2_xcode_free(struct c2_xcode_obj *obj);
-int  c2_xcode_cmp (const struct c2_xcode_obj *o0, const struct c2_xcode_obj *o1);
+C2_INTERNAL int c2_xcode_read(struct c2_xcode_obj *obj, const char *str);
+C2_INTERNAL void c2_xcode_free(struct c2_xcode_obj *obj);
+C2_INTERNAL int c2_xcode_cmp(const struct c2_xcode_obj *o0,
+			     const struct c2_xcode_obj *o1);
 
 /**
    Returns the address of a sub-object within an object.
@@ -626,7 +630,8 @@ int  c2_xcode_cmp (const struct c2_xcode_obj *o0, const struct c2_xcode_obj *o1)
 
        - &xseq->xs_body[elno] otherwise.
  */
-void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fieldno, uint64_t elno);
+C2_INTERNAL void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fieldno,
+				uint64_t elno);
 
 /**
    Helper macro to return field value cast to a given type.
@@ -645,8 +650,9 @@ void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fieldno, uint64_t elno);
    object's field (c2_xcode_field::xf_type), but for opaque fields it is
    obtained by calling c2_xcode_field::xf_opaque().
  */
-int c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
-		    int fieldno, uint64_t elno);
+C2_INTERNAL int c2_xcode_subobj(struct c2_xcode_obj *subobj,
+				const struct c2_xcode_obj *obj, int fieldno,
+				uint64_t elno);
 
 /**
    Returns the value of first field in a given object, assuming this field is
@@ -658,9 +664,9 @@ int c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
    @note when the first field has C2_XT_VOID type, the tag
    (c2_xcode_field::xf_tag) of this field is returned.
  */
-uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj);
+C2_INTERNAL uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj);
 
-bool c2_xcode_type_invariant(const struct c2_xcode_type *xt);
+C2_INTERNAL bool c2_xcode_type_invariant(const struct c2_xcode_type *xt);
 
 extern const struct c2_xcode_type C2_XT_VOID;
 extern const struct c2_xcode_type C2_XT_U8;
@@ -694,7 +700,7 @@ typedef char c2_void_t[0];
    f->xf_decor[foo_decor_num] = c2_alloc(sizeof(struct foo_field_decor));
    @endcode
  */
-int c2_xcode_decor_register(void);
+C2_INTERNAL int c2_xcode_decor_register(void);
 
 struct c2_bob_type;
 
@@ -703,11 +709,11 @@ struct c2_bob_type;
  *
  * @see bob.h
  */
-void c2_xcode_bob_type_init(struct c2_bob_type *bt,
-			    const struct c2_xcode_type *xt,
-			    size_t magix_field, uint64_t magix);
+C2_INTERNAL void c2_xcode_bob_type_init(struct c2_bob_type *bt,
+					const struct c2_xcode_type *xt,
+					size_t magix_field, uint64_t magix);
 
-void *c2_xcode_ctx_top(const struct c2_xcode_ctx *ctx);
+C2_INTERNAL void *c2_xcode_ctx_top(const struct c2_xcode_ctx *ctx);
 
 #define C2_XCODE_OBJ(type, ptr) (struct c2_xcode_obj) {	\
 	.xo_type = type,			        \

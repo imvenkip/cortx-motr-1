@@ -47,8 +47,8 @@ struct c2_conf_xcode_pair {
  * @returns = 0  Success.
  * @returns < 0  Error code.
  */
-int c2_confx_encode(struct confx_object *obj,
-		    struct c2_conf_xcode_pair *out_kv);
+C2_INTERNAL int c2_confx_encode(struct confx_object *obj,
+				struct c2_conf_xcode_pair *out_kv);
 
 /**
  * Deserializes serialized representation of a configuration object
@@ -64,8 +64,8 @@ int c2_confx_encode(struct confx_object *obj,
  * @returns = 0  Success.
  * @returns < 0  Error code.
  */
-int c2_confx_decode(struct c2_conf_xcode_pair *kv,
-		    struct confx_object *out_obj);
+C2_INTERNAL int c2_confx_decode(struct c2_conf_xcode_pair *kv,
+				struct confx_object *out_obj);
 
 /**
  * Creates configuration db, from the given configuration objects array
@@ -77,8 +77,8 @@ int c2_confx_decode(struct c2_conf_xcode_pair *kv,
  * @returns = 0  Success.
  * @returns < 0  Error code.
  */
-int c2_confx_db_create(const char *db_name,
-		       struct confx_object *obj, size_t obj_nr);
+C2_INTERNAL int c2_confx_db_create(const char *db_name,
+				   struct confx_object *obj, size_t obj_nr);
 
 /**
  * Reads configuration db, into the given configuration objects array
@@ -91,13 +91,13 @@ int c2_confx_db_create(const char *db_name,
  *
  * @note User has to c2_free obj, and call c2_xcode_free for all obj[i]
  */
-int c2_confx_db_read(const char *db_name, struct confx_object **obj);
+C2_INTERNAL int c2_confx_db_read(const char *db_name,
+				 struct confx_object **obj);
 
 /** xcode type initializer defined in onwire.h */
-int c2_confx_types_init(void);
+C2_INTERNAL int c2_confx_types_init(void);
 
 /** xcode type finalizer defined in onwire.h */
-void c2_confx_types_fini(void);
-
+C2_INTERNAL void c2_confx_types_fini(void);
 
 #endif /* __COLIBRI_CONF_XCODE_H__ */

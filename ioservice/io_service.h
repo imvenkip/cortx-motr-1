@@ -52,8 +52,8 @@
 #include "lib/chan.h"
 #include "lib/tlist.h"
 
-int c2_ios_register(void);
-void c2_ios_unregister(void);
+C2_INTERNAL int c2_ios_register(void);
+C2_INTERNAL void c2_ios_unregister(void);
 
 /**
  * Data structure represents list of buffer pool per network domain.

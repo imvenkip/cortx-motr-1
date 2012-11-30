@@ -22,7 +22,7 @@
 #include "conf/reg.h"
 #include "conf/buf_ext.h" /* c2_buf_is_aimed */
 
-bool obj_is_stub(const struct c2_conf_obj *obj)
+C2_INTERNAL bool obj_is_stub(const struct c2_conf_obj *obj)
 {
 	return obj->co_status != C2_CS_READY;
 }
@@ -32,7 +32,7 @@ static bool mounted_as(const struct c2_conf_obj *obj, enum c2_conf_objtype type)
 	return obj->co_mounted && obj->co_type == type;
 }
 
-bool parent_check(const struct c2_conf_obj *obj)
+C2_INTERNAL bool parent_check(const struct c2_conf_obj *obj)
 {
 	enum { _NOT_SURE = -9, _ORPHAN = -1 };
 	static const enum c2_conf_objtype expected[C2_CO_NR] = {
@@ -67,8 +67,9 @@ bool parent_check(const struct c2_conf_obj *obj)
 		     obj->co_type);
 }
 
-bool child_check(const struct c2_conf_obj *obj, const struct c2_conf_obj *child,
-		 enum c2_conf_objtype child_type)
+C2_INTERNAL bool child_check(const struct c2_conf_obj *obj,
+			     const struct c2_conf_obj *child,
+			     enum c2_conf_objtype child_type)
 {
 	C2_PRE(obj->co_mounted);
 
@@ -81,7 +82,8 @@ bool child_check(const struct c2_conf_obj *obj, const struct c2_conf_obj *child,
 					 obj));
 }
 
-void child_adopt(struct c2_conf_obj *parent, struct c2_conf_obj *child)
+C2_INTERNAL void child_adopt(struct c2_conf_obj *parent,
+			     struct c2_conf_obj *child)
 {
 	/* Profile cannot be a child, because it is a topmost object. */
 	C2_PRE(child->co_type != C2_CO_PROFILE);
@@ -99,9 +101,10 @@ void child_adopt(struct c2_conf_obj *parent, struct c2_conf_obj *child)
 	child->co_mounted = true;
 }
 
-int dir_new(const struct c2_buf *dir_id, enum c2_conf_objtype children_type,
-	    const struct arr_buf *src, struct c2_conf_reg *reg,
-	    struct c2_conf_dir **out)
+C2_INTERNAL int dir_new(const struct c2_buf *dir_id,
+			enum c2_conf_objtype children_type,
+			const struct arr_buf *src, struct c2_conf_reg *reg,
+			struct c2_conf_dir **out)
 {
 	struct c2_conf_obj *dir;
 	struct c2_conf_obj *child;
@@ -144,7 +147,7 @@ int dir_new(const struct c2_buf *dir_id, enum c2_conf_objtype children_type,
 	return rc;
 }
 
-bool arrays_eq(const char **cached, const struct arr_buf *flat)
+C2_INTERNAL bool arrays_eq(const char **cached, const struct arr_buf *flat)
 {
 	uint32_t i;
 
@@ -156,4 +159,43 @@ bool arrays_eq(const char **cached, const struct arr_buf *flat)
 			return false;
 	}
 	return i == flat->ab_count;
+}
+
+int strings_copy(const char ***dest, const struct arr_buf *src)
+{
+	uint32_t i;
+
+	C2_PRE(*dest == NULL);
+	C2_PRE(equi(src->ab_count == 0, src->ab_elems == NULL));
+
+	if (src->ab_count == 0)
+		return 0; /* there is nothing to copy */
+
+	C2_ALLOC_ARR(*dest, src->ab_count + 1);
+	if (*dest == NULL)
+		return -ENOMEM;
+
+	for (i = 0; i < src->ab_count; ++i) {
+		(*dest)[i] = c2_buf_strdup(&src->ab_elems[i]);
+		if ((*dest)[i] == NULL)
+			goto fail;
+	}
+	(*dest)[i] = NULL; /* end of list */
+
+	return 0;
+fail:
+	for (; i != 0; --i)
+		c2_free((void *)(*dest)[i]);
+	c2_free(*dest);
+	return -ENOMEM;
+}
+
+void strings_free(const char **arr)
+{
+	if (arr != NULL) {
+		const char **p;
+		for (p = arr; *p != NULL; ++p)
+			c2_free((void *)*p);
+		c2_free(arr);
+	}
 }

@@ -50,7 +50,7 @@ const struct c2_addb_ctx_type c2_net_addb_ctx = {
 
 struct c2_addb_ctx c2_net_addb;
 
-int c2_net_init()
+C2_INTERNAL int c2_net_init()
 {
 	c2_mutex_init(&c2_net_mutex);
 	c2_addb_ctx_init(&c2_net_addb, &c2_net_addb_ctx, &c2_addb_global_ctx);
@@ -59,7 +59,7 @@ int c2_net_init()
 	return 0;
 }
 
-void c2_net_fini()
+C2_INTERNAL void c2_net_fini()
 {
 	c2_xc_net_otw_types_fini();
 	c2_addb_ctx_fini(&c2_net_addb);
@@ -77,8 +77,8 @@ void c2_net_xprt_fini(struct c2_net_xprt *xprt)
 }
 C2_EXPORTED(c2_net_xprt_fini);
 
-int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
-		     struct c2_net_buf_desc *to_desc)
+C2_INTERNAL int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
+				 struct c2_net_buf_desc *to_desc)
 {
 	C2_PRE(from_desc->nbd_len > 0);
 	C2_ALLOC_ARR_ADDB(to_desc->nbd_data, from_desc->nbd_len,
@@ -91,7 +91,7 @@ int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
 }
 C2_EXPORTED(c2_net_desc_copy);
 
-void c2_net_desc_free(struct c2_net_buf_desc *desc)
+C2_INTERNAL void c2_net_desc_free(struct c2_net_buf_desc *desc)
 {
 	if (desc->nbd_len > 0) {
 		C2_PRE(desc->nbd_data != NULL);

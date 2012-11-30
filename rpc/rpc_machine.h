@@ -113,13 +113,12 @@ struct c2_rpc_machine {
 	struct c2_tl                      rm_services;
 
 	/**
-	    A worker thread to run formation periodically in order to
-	    send timedout items if any.
+	   Executes ASTs in rm_sm_grp.
 	 */
-	struct c2_thread                  rm_frm_worker;
+	struct c2_thread                  rm_worker;
 
 	/**
-	   Flag asking rm_frm_worker thread to stop.
+	   Flag asking rm_worker thread to stop.
 	 */
 	bool                              rm_stopping;
 
@@ -162,15 +161,14 @@ C2_ADDB_EV_DECLARE(c2_rpc_machine_func_fail, C2_ADDB_FUNC_CALL);
 		    suitable default value.
    @see c2_rpc_max_msg_size()
  */
-int  c2_rpc_machine_init(struct c2_rpc_machine	   *machine,
-			 struct c2_cob_domain	   *dom,
-			 struct c2_net_domain	   *net_dom,
-			 const char		   *ep_addr,
-			 struct c2_reqh            *reqh,
-			 struct c2_net_buffer_pool *receive_pool,
-			 uint32_t		    colour,
-			 c2_bcount_t		    msg_size,
-			 uint32_t		    queue_len);
+C2_INTERNAL int c2_rpc_machine_init(struct c2_rpc_machine *machine,
+				    struct c2_cob_domain *dom,
+				    struct c2_net_domain *net_dom,
+				    const char *ep_addr,
+				    struct c2_reqh *reqh,
+				    struct c2_net_buffer_pool *receive_pool,
+				    uint32_t colour,
+				    c2_bcount_t msg_size, uint32_t queue_len);
 
 void c2_rpc_machine_fini(struct c2_rpc_machine *machine);
 

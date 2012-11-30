@@ -99,13 +99,10 @@ static void test_create(void)
         C2_SET0(&omgrec);
 
         /* pfid, filename */
-        pfid.f_container = 0x123;
-        pfid.f_key = 0x456;
+        c2_fid_set(&pfid, 0x123, 0x456);
         c2_cob_nskey_make(&key, &pfid, test_name, strlen(test_name));
 
-        nsrec.cnr_fid.f_container = 0xabc;
-        nsrec.cnr_fid.f_key = 0xdef;
-
+        c2_fid_set(&nsrec.cnr_fid, 0xabc, 0xdef);
         nsrec.cnr_nlink = 0;
 
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
@@ -132,8 +129,7 @@ static void test_add_name(void)
         struct c2_db_tx      tx;
 
         /* pfid, filename */
-        pfid.f_container = 0x123;
-        pfid.f_key = 0x456;
+        c2_fid_set(&pfid, 0x123, 0x456);
 
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
 
@@ -174,8 +170,7 @@ static void test_del_name(void)
         struct c2_db_tx      tx;
 
         /* pfid, filename */
-        pfid.f_container = 0x123;
-        pfid.f_key = 0x456;
+        c2_fid_set(&pfid, 0x123, 0x456);
 
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
 
@@ -207,8 +202,7 @@ static void test_lookup(void)
         struct c2_cob_nskey *nskey;
         struct c2_fid        pfid;
 
-        pfid.f_container = 0x123;
-        pfid.f_key = 0x456;
+        c2_fid_set(&pfid, 0x123, 0x456);
         c2_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
         rc = c2_cob_lookup(&dom, nskey, C2_CA_NSKEY_FREE, &cob, &tx);
@@ -232,8 +226,7 @@ static int test_locate_internal(void)
         struct c2_fid        fid;
         struct c2_cob_oikey  oikey;
 
-        fid.f_container = 0xabc;
-        fid.f_key = 0xdef;
+        c2_fid_set(&fid, 0xabc, 0xdef);
 
         oikey.cok_fid = fid;
         oikey.cok_linkno = 0;
@@ -271,15 +264,14 @@ static void test_locate(void)
 */
 static void test_delete(void)
 {
-        struct c2_db_tx      tx;
+        struct c2_db_tx tx;
 
         /* gets ref */
         rc = test_locate_internal();
         C2_ASSERT(rc == 0);
 
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
-        /* drops ref */
-        rc = c2_cob_delete(cob, &tx);
+        rc = c2_cob_delete_put(cob, &tx);
         c2_db_tx_commit(&tx);
         C2_UT_ASSERT(rc == 0);
 
@@ -361,16 +353,14 @@ static void ub_create(int i)
 
         /* pfid == cfid for data objects, so here we are identifying
            uniquely in the namespace by {pfid, ""} */
-        fid.f_container = 0xAA;
-        fid.f_key = i;
+        c2_fid_set(&fid, 0xAA, i);
         c2_cob_nskey_make(&key, &fid, "", 0);
 
-        nsrec.cnr_fid.f_container = 0xAA;
-        nsrec.cnr_fid.f_key = i;
+        c2_fid_set(&nsrec.cnr_fid, 0xAA, i);
         nsrec.cnr_nlink = 1;
 
         rc = c2_cob_alloc(&dom, &cob);
-        C2_UT_ASSERT(rc == 0);
+        C2_UB_ASSERT(rc == 0);
 
         c2_cob_fabrec_make(&fabrec, NULL, 0);
         rc = c2_cob_create(cob, key, &nsrec, fabrec, &omgrec, &cob_ub_tx);
@@ -387,8 +377,7 @@ static void ub_lookup(int i)
         newtx(i);
 
         /* pfid == cfid for data objects */
-        fid.f_container = 0xAA;
-        fid.f_key = i;
+        c2_fid_set(&fid, 0xAA, i);
         c2_cob_nskey_make(&key, &fid, "", 0);
         rc = c2_cob_lookup(&dom, key, C2_CA_NSKEY_FREE, &cob, &cob_ub_tx);
         C2_UB_ASSERT(rc == 0);

@@ -82,7 +82,7 @@ static int kthread_trampoline(void *arg)
 	return 0;
 }
 
-int c2_thread_init_impl(struct c2_thread *q, const char *namebuf)
+C2_INTERNAL int c2_thread_init_impl(struct c2_thread *q, const char *namebuf)
 {
 	int result;
 
@@ -98,7 +98,7 @@ int c2_thread_init_impl(struct c2_thread *q, const char *namebuf)
 	return result;
 }
 
-int c2_thread_join(struct c2_thread *q)
+C2_INTERNAL int c2_thread_join(struct c2_thread *q)
 {
 	int result;
 
@@ -121,12 +121,13 @@ int c2_thread_join(struct c2_thread *q)
 }
 C2_EXPORTED(c2_thread_join);
 
-int c2_thread_signal(struct c2_thread *q, int sig)
+C2_INTERNAL int c2_thread_signal(struct c2_thread *q, int sig)
 {
 	return -ENOSYS;
 }
 
-int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
+C2_INTERNAL int c2_thread_confine(struct c2_thread *q,
+				  const struct c2_bitmap *processors)
 {
 	int                 result = 0;
 	size_t              idx;
@@ -170,28 +171,28 @@ int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 	return result;
 }
 
-void c2_thread_self(struct c2_thread_handle *id)
+C2_INTERNAL void c2_thread_self(struct c2_thread_handle *id)
 {
 	id->h_t = current;
 }
 
-bool c2_thread_handle_eq(struct c2_thread_handle *h1,
-			 struct c2_thread_handle *h2)
+C2_INTERNAL bool c2_thread_handle_eq(struct c2_thread_handle *h1,
+				     struct c2_thread_handle *h2)
 {
 	return h1->h_t == h2->h_t;
 }
 
-void c2_enter_awkward(void)
+C2_INTERNAL void c2_enter_awkward(void)
 {
 	__irq_enter();
 }
 
-void c2_exit_awkward(void)
+C2_INTERNAL void c2_exit_awkward(void)
 {
 	__irq_exit();
 }
 
-bool c2_is_awkward(void)
+C2_INTERNAL bool c2_is_awkward(void)
 {
 	return in_irq();
 }

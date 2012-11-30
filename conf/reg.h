@@ -77,11 +77,11 @@ struct c2_conf_reg {
 	uint64_t     r_magic;
 };
 
-C2_TL_DESCR_DECLARE(c2_conf_reg, extern);
-C2_TL_DECLARE(c2_conf_reg, , struct c2_conf_obj);
+C2_TL_DESCR_DECLARE(c2_conf_reg, C2_EXTERN);
+C2_TL_DECLARE(c2_conf_reg, C2_INTERNAL, struct c2_conf_obj);
 
 /** Initialises a registry. */
-void c2_conf_reg_init(struct c2_conf_reg *reg);
+C2_INTERNAL void c2_conf_reg_init(struct c2_conf_reg *reg);
 
 /**
  * Finalises a registry.
@@ -89,30 +89,33 @@ void c2_conf_reg_init(struct c2_conf_reg *reg);
  * This function c2_conf_obj_delete()s every registered configuration
  * object.
  */
-void c2_conf_reg_fini(struct c2_conf_reg *reg);
+C2_INTERNAL void c2_conf_reg_fini(struct c2_conf_reg *reg);
 
 /**
  * Registers configuration object.
  *
  * @pre  !c2_conf_reg_tlink_is_in(obj)
  */
-int c2_conf_reg_add(struct c2_conf_reg *reg, struct c2_conf_obj *obj);
+C2_INTERNAL int c2_conf_reg_add(struct c2_conf_reg *reg,
+				struct c2_conf_obj *obj);
 
 /**
  * Un-registers configuration object.
  *
  * @pre  c2_conf_reg_tlist_contains(&reg->r_objs, obj)
  */
-void c2_conf_reg_del(const struct c2_conf_reg *reg, struct c2_conf_obj *obj);
+C2_INTERNAL void c2_conf_reg_del(const struct c2_conf_reg *reg,
+				 struct c2_conf_obj *obj);
 
 /**
  * Searches for a configuration object given its identity (type & id).
  *
  * Returns NULL if there is no such object in the registry.
  */
-struct c2_conf_obj *c2_conf_reg_lookup(const struct c2_conf_reg *reg,
-				       enum c2_conf_objtype type,
-				       const struct c2_buf *id);
+C2_INTERNAL struct c2_conf_obj *c2_conf_reg_lookup(const struct c2_conf_reg
+						   *reg,
+						   enum c2_conf_objtype type,
+						   const struct c2_buf *id);
 
 /** @} conf_dfspec_reg */
 #endif /* __COLIBRI_CONF_REG_H__ */

@@ -35,7 +35,7 @@
  * @{
  */
 
-int c2_rpc__post_locked(struct c2_rpc_item *item);
+C2_INTERNAL int c2_rpc__post_locked(struct c2_rpc_item *item);
 
 const struct c2_addb_ctx_type c2_rpc_addb_ctx_type = {
 	.act_name = "rpc"
@@ -48,7 +48,7 @@ const struct c2_addb_loc c2_rpc_addb_loc = {
 struct c2_addb_ctx c2_rpc_addb_ctx;
 
 
-int c2_rpc_init(void)
+C2_INTERNAL int c2_rpc_init(void)
 {
 	int rc;
 
@@ -63,7 +63,7 @@ int c2_rpc_init(void)
 	C2_RETURN(rc);
 }
 
-void c2_rpc_fini(void)
+C2_INTERNAL void c2_rpc_fini(void)
 {
 	C2_ENTRY();
 
@@ -75,19 +75,19 @@ void c2_rpc_fini(void)
 	C2_LEAVE();
 }
 
-int c2_rpc_post(struct c2_rpc_item *item)
+C2_INTERNAL int c2_rpc_post(struct c2_rpc_item *item)
 {
-	struct c2_rpc_machine *machine = item_machine(item);
 	int                    rc;
-	uint64_t	       item_size;
+	uint64_t               size;
+	struct c2_rpc_machine *machine = item_machine(item);
 
 	C2_ENTRY("item: %p", item);
 	C2_PRE(item->ri_session != NULL);
 
-	item_size = c2_rpc_item_size(item);
+	size = c2_rpc_item_size(item);
+	C2_ASSERT(size <= machine->rm_min_recv_size);
 
 	c2_rpc_machine_lock(machine);
-	C2_ASSERT(item_size <= machine->rm_min_recv_size);
 	rc = c2_rpc__post_locked(item);
 	c2_rpc_machine_unlock(machine);
 
@@ -95,19 +95,19 @@ int c2_rpc_post(struct c2_rpc_item *item)
 }
 C2_EXPORTED(c2_rpc_post);
 
-void c2_rpc_item_get(struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_item_get(struct c2_rpc_item *item)
 {
 	/* XXX TODO */
 }
 C2_EXPORTED(c2_rpc_item_get);
 
-void c2_rpc_item_put(struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_item_put(struct c2_rpc_item *item)
 {
 	/* XXX TODO */
 }
 C2_EXPORTED(c2_rpc_item_put);
 
-int c2_rpc__post_locked(struct c2_rpc_item *item)
+C2_INTERNAL int c2_rpc__post_locked(struct c2_rpc_item *item)
 {
 	struct c2_rpc_session *session;
 
@@ -145,8 +145,7 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 	C2_RETURN(0);
 }
 
-int c2_rpc_reply_post(struct c2_rpc_item *request,
-		      struct c2_rpc_item *reply)
+int c2_rpc_reply_post(struct c2_rpc_item *request, struct c2_rpc_item *reply)
 {
 	struct c2_rpc_slot_ref *sref;
 	struct c2_rpc_machine  *machine;
@@ -160,6 +159,7 @@ int c2_rpc_reply_post(struct c2_rpc_item *request,
 	C2_PRE(reply->ri_ops != NULL && reply->ri_ops->rio_free != NULL);
 	C2_PRE(c2_rpc_item_size(reply) <=
 			c2_rpc_session_get_max_item_size(request->ri_session));
+
 	reply->ri_rpc_time = c2_time_now();
 	reply->ri_session  = request->ri_session;
 
@@ -191,8 +191,8 @@ int c2_rpc_reply_post(struct c2_rpc_item *request,
 }
 C2_EXPORTED(c2_rpc_reply_post);
 
-int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
-			     struct c2_rpc_item      *item)
+C2_INTERNAL int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
+					struct c2_rpc_item *item)
 {
 	struct c2_rpc_machine *machine;
 
@@ -210,7 +210,8 @@ int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
 	C2_RETURN(0);
 }
 
-int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
+C2_INTERNAL int c2_rpc_reply_timedwait(struct c2_clink *clink,
+				       const c2_time_t timeout)
 {
 	int rc;
 	C2_ENTRY("timeout: [%llu:%llu]",
@@ -225,19 +226,20 @@ int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
 C2_EXPORTED(c2_rpc_reply_timedwait);
 
 
-static void buffer_pool_low(struct c2_net_buffer_pool *bp)
+static void rpc_buffer_pool_low(struct c2_net_buffer_pool *bp)
 {
 	/* Buffer pool is below threshold.  */
 }
 
 static const struct c2_net_buffer_pool_ops b_ops = {
 	.nbpo_not_empty	      = c2_net_domain_buffer_pool_not_empty,
-	.nbpo_below_threshold = buffer_pool_low,
+	.nbpo_below_threshold = rpc_buffer_pool_low,
 };
 
-int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
-				 struct c2_net_buffer_pool *app_pool,
-				 uint32_t bufs_nr, uint32_t tm_nr)
+C2_INTERNAL int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
+					     struct c2_net_buffer_pool
+					     *app_pool, uint32_t bufs_nr,
+					     uint32_t tm_nr)
 {
 	int	    rc;
 	uint32_t    segs_nr;
@@ -272,6 +274,55 @@ void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool)
 	c2_net_buffer_pool_fini(app_pool);
 }
 C2_EXPORTED(c2_rpc_net_buffer_pool_cleanup);
+
+C2_INTERNAL uint32_t c2_rpc_bufs_nr(uint32_t len, uint32_t tms_nr)
+{
+	return len +
+	       /* It is used so that more than one free buffer is present
+		* for each TM when tms_nr > 8.
+		*/
+	       max32u(tms_nr / 4, 1) +
+	       /* It is added so that frequent low_threshold callbacks of
+		* buffer pool can be reduced.
+		*/
+	       C2_NET_BUFFER_POOL_THRESHOLD;
+}
+
+C2_INTERNAL c2_bcount_t c2_rpc_max_seg_size(struct c2_net_domain *ndom)
+{
+	C2_PRE(ndom != NULL);
+
+	return min64u(c2_net_domain_get_max_buffer_segment_size(ndom),
+		      C2_SEG_SIZE);
+}
+
+C2_INTERNAL uint32_t c2_rpc_max_segs_nr(struct c2_net_domain *ndom)
+{
+	C2_PRE(ndom != NULL);
+
+	return c2_net_domain_get_max_buffer_size(ndom) /
+	       c2_rpc_max_seg_size(ndom);
+}
+
+C2_INTERNAL c2_bcount_t c2_rpc_max_msg_size(struct c2_net_domain *ndom,
+					    c2_bcount_t rpc_size)
+{
+	c2_bcount_t mbs;
+
+	C2_PRE(ndom != NULL);
+
+	mbs = c2_net_domain_get_max_buffer_size(ndom);
+	return rpc_size != 0 ? min64u(mbs, max64u(rpc_size, C2_SEG_SIZE)) : mbs;
+}
+
+C2_INTERNAL uint32_t c2_rpc_max_recv_msgs(struct c2_net_domain *ndom,
+					  c2_bcount_t rpc_size)
+{
+	C2_PRE(ndom != NULL);
+
+	return c2_net_domain_get_max_buffer_size(ndom) /
+	       c2_rpc_max_msg_size(ndom, rpc_size);
+}
 
 /** @} */
 

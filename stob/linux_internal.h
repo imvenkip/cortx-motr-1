@@ -37,6 +37,7 @@
 #include "lib/tlist.h"
 #include "lib/thread.h"
 #include "stob/stob.h"
+#include "stob/cache.h"
 
 enum {
 	/** Default number of threads to create in a storage object domain. */
@@ -74,8 +75,7 @@ struct linux_domain {
 	 */
 	char             sdl_path[MAXPATHLEN];
 
-	/** List of all existing c2_stob's. */
-	struct c2_tl     sdl_object;
+	struct c2_stob_cache sdl_cache;
 
 	/** @name ioq Linux adieu fields. @{ */
 
@@ -110,20 +110,20 @@ struct linux_domain {
    stob based on Linux file system and block devices
  */
 struct linux_stob {
-	struct c2_stob		sl_stob;
+	struct c2_stob_cacheable sl_stob;
 
 	/** fd from returned open(2) */
-	int			sl_fd;
+	int			 sl_fd;
 	/** File mode as returned by stat(2) */
-	mode_t			sl_mode;
+	mode_t			 sl_mode;
 
-	struct c2_tlink		sl_linkage;
-	uint64_t		sl_magix;
+	struct c2_tlink		 sl_linkage;
+	uint64_t		 sl_magix;
 };
 
 static inline struct linux_stob *stob2linux(struct c2_stob *stob)
 {
-	return container_of(stob, struct linux_stob, sl_stob);
+	return container_of(stob, struct linux_stob, sl_stob.ca_stob);
 }
 
 static inline struct linux_domain *domain2linux(struct c2_stob_domain *dom)
@@ -131,15 +131,16 @@ static inline struct linux_domain *domain2linux(struct c2_stob_domain *dom)
 	return container_of(dom, struct linux_domain, sdl_base);
 }
 
-int      linux_stob_io_init     (struct c2_stob *stob, struct c2_stob_io *io);
-void     linux_stob_io_lock     (struct c2_stob *stob);
-void     linux_stob_io_unlock   (struct c2_stob *stob);
-bool     linux_stob_io_is_locked(const struct c2_stob *stob);
-uint32_t linux_stob_block_shift (const struct c2_stob *stob);
-void     linux_domain_io_fini   (struct c2_stob_domain *dom);
-int      linux_domain_io_init   (struct c2_stob_domain *dom);
+C2_INTERNAL int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io);
+C2_INTERNAL void linux_stob_io_lock(struct c2_stob *stob);
+C2_INTERNAL void linux_stob_io_unlock(struct c2_stob *stob);
+C2_INTERNAL bool linux_stob_io_is_locked(const struct c2_stob *stob);
+C2_INTERNAL uint32_t linux_stob_block_shift(const struct c2_stob *stob);
+C2_INTERNAL void linux_domain_io_fini(struct c2_stob_domain *dom);
+C2_INTERNAL int linux_domain_io_init(struct c2_stob_domain *dom);
 
-uint32_t linux_stob_domain_block_shift(struct c2_stob_domain *sdomain);
+C2_INTERNAL uint32_t linux_stob_domain_block_shift(struct c2_stob_domain
+						   *sdomain);
 extern struct c2_addb_ctx adieu_addb_ctx;
 
 /** @} end group stoblinux */

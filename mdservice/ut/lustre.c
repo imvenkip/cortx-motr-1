@@ -34,11 +34,10 @@
 
 typedef int (*fop_translate_t)(struct c2_fop *fop, void *data);
 
-static void lustre_copy_fid(struct c2_fop_fid *bf,
+static void lustre_copy_fid(struct c2_fid *bf,
                             const struct c2_md_lustre_fid *cf)
 {
-        bf->f_oid = cf->f_oid;
-        bf->f_seq = cf->f_seq;
+        c2_fid_set(bf, cf->f_seq, cf->f_oid);
 }
 
 static int lustre_copy_name(struct c2_fop_str *n,

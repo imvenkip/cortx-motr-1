@@ -24,7 +24,6 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-
 #include "colibri/magic.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
@@ -69,13 +68,13 @@ static const struct c2_reqh_service_ops mds_ops = {
 
 C2_REQH_SERVICE_TYPE_DECLARE(c2_mds_type, &mds_type_ops, "mdservice");
 
-int c2_mds_register(void)
+C2_INTERNAL int c2_mds_register(void)
 {
         c2_reqh_service_type_register(&c2_mds_type);
         return c2_mdservice_fop_init();
 }
 
-void c2_mds_unregister(void)
+C2_INTERNAL void c2_mds_unregister(void)
 {
         c2_reqh_service_type_unregister(&c2_mds_type);
         c2_mdservice_fop_fini();
@@ -111,7 +110,6 @@ static int mds_allocate(struct c2_reqh_service_type *stype,
 
         serv->rs_type = stype;
         serv->rs_ops = &mds_ops;
-
         *service = serv;
 
         return 0;
@@ -139,8 +137,6 @@ static void mds_fini(struct c2_reqh_service *service)
 
 /**
  * Start MD Service.
- * - Mount local storage
- *
  * @param service pointer to service instance.
  *
  * @pre service != NULL
@@ -148,18 +144,12 @@ static void mds_fini(struct c2_reqh_service *service)
 static int mds_start(struct c2_reqh_service *service)
 {
         int rc = 0;
-
         C2_PRE(service != NULL);
-
-        /** TODO: Mount local storage */
-
         return rc;
 }
 
 /**
  * Stops MD Service.
- * - Umount local storage
- *
  * @param service pointer to service instance.
  *
  * @pre service != NULL
@@ -167,8 +157,6 @@ static int mds_start(struct c2_reqh_service *service)
 static void mds_stop(struct c2_reqh_service *service)
 {
         C2_PRE(service != NULL);
-
-        /** TODO: Umount local storage */
 }
 
 /** @} endgroup mdservice */

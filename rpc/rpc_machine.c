@@ -53,9 +53,8 @@ static int rpc_tm_setup(struct c2_net_transfer_mc *tm,
 			uint32_t                   qlen);
 static void __rpc_machine_init(struct c2_rpc_machine *machine);
 static void __rpc_machine_fini(struct c2_rpc_machine *machine);
-static int root_session_cob_create(struct c2_cob_domain *dom);
 static void conn_list_fini(struct c2_tl *list);
-static void frm_worker_fn(struct c2_rpc_machine *machine);
+C2_INTERNAL void rpc_worker_thread_fn(struct c2_rpc_machine *machine);
 static struct c2_rpc_chan *rpc_chan_locate(struct c2_rpc_machine *machine,
 					   struct c2_net_end_point *dest_ep);
 static int rpc_chan_create(struct c2_rpc_chan **chan,
@@ -97,7 +96,7 @@ static const struct c2_bob_type rpc_machine_bob_type = {
 	.bt_check        = NULL
 };
 
-C2_BOB_DEFINE(/* global */, &rpc_machine_bob_type, c2_rpc_machine);
+C2_BOB_DEFINE(, &rpc_machine_bob_type, c2_rpc_machine);
 
 /**
    Buffer callback for buffers added by rpc layer for receiving messages.
@@ -113,9 +112,9 @@ C2_TL_DESCR_DEFINE(rpc_chan, "rpc_channels", static, struct c2_rpc_chan,
 		   C2_RPC_CHAN_HEAD_MAGIC);
 C2_TL_DEFINE(rpc_chan, static, struct c2_rpc_chan);
 
-C2_TL_DESCR_DEFINE(rpc_conn, "rpc-conn", /* global */, struct c2_rpc_conn,
+C2_TL_DESCR_DEFINE(rpc_conn, "rpc-conn", C2_INTERNAL, struct c2_rpc_conn,
 		   c_link, c_magic, C2_RPC_CONN_MAGIC, C2_RPC_CONN_HEAD_MAGIC);
-C2_TL_DEFINE(rpc_conn, /* global */, struct c2_rpc_conn);
+C2_TL_DEFINE(rpc_conn, C2_INTERNAL, struct c2_rpc_conn);
 
 static void rpc_tm_event_cb(const struct c2_net_tm_event *ev)
 {
@@ -138,15 +137,14 @@ static void rmachine_addb_failure(struct c2_rpc_machine *machine,
 		    c2_rpc_machine_func_fail, msg, rc);
 }
 
-int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
-			struct c2_cob_domain      *dom,
-			struct c2_net_domain      *net_dom,
-			const char                *ep_addr,
-			struct c2_reqh            *reqh,
-			struct c2_net_buffer_pool *receive_pool,
-			uint32_t		   colour,
-			c2_bcount_t		   msg_size,
-			uint32_t		   queue_len)
+C2_INTERNAL int c2_rpc_machine_init(struct c2_rpc_machine *machine,
+				    struct c2_cob_domain *dom,
+				    struct c2_net_domain *net_dom,
+				    const char *ep_addr,
+				    struct c2_reqh *reqh,
+				    struct c2_net_buffer_pool *receive_pool,
+				    uint32_t colour,
+				    c2_bcount_t msg_size, uint32_t queue_len)
 {
 	int		rc;
 
@@ -169,31 +167,23 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	__rpc_machine_init(machine);
 
 	machine->rm_stopping = false;
-	rc = C2_THREAD_INIT(&machine->rm_frm_worker, struct c2_rpc_machine *,
-			    NULL, &frm_worker_fn, machine, "frm_worker");
+	rc = C2_THREAD_INIT(&machine->rm_worker, struct c2_rpc_machine *,
+			    NULL, &rpc_worker_thread_fn, machine, "rpc_worker");
 	if (rc != 0)
 		goto out_fini;
 
 	rc = rpc_tm_setup(&machine->rm_tm, net_dom, ep_addr, receive_pool,
 			  colour, msg_size, queue_len);
-	if (rc != 0) {
-		goto out_stop_frm_worker;
-	}
-
-	rc = root_session_cob_create(dom);
-	if (rc != 0) {
-		goto out_tm_cleanup;
-	}
+	if (rc != 0)
+		goto out_stop_worker;
 
 	C2_ASSERT(rc == 0);
 	C2_RETURN(0);
 
-out_tm_cleanup:
-	rpc_tm_cleanup(machine);
-
-out_stop_frm_worker:
+out_stop_worker:
 	machine->rm_stopping = true;
-	c2_thread_join(&machine->rm_frm_worker);
+	c2_clink_signal(&machine->rm_sm_grp.s_clink);
+	c2_thread_join(&machine->rm_worker);
 
 out_fini:
 	__rpc_machine_fini(machine);
@@ -232,30 +222,6 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 	C2_LEAVE();
 }
 
-static int root_session_cob_create(struct c2_cob_domain *dom)
-{
-	int rc = 0;
-#ifndef __KERNEL__
-	struct c2_db_tx tx;
-
-	C2_ENTRY("cob_dom: %p", dom);
-
-	if (C2_FI_ENABLED("fake_error"))
-		C2_RETURN(-EINVAL);
-
-	rc = c2_db_tx_init(&tx, dom->cd_dbenv, 0);
-	if (rc == 0) {
-		rc = c2_rpc_root_session_cob_create(dom, &tx);
-		if (rc == 0) {
-			c2_db_tx_commit(&tx);
-		} else {
-			c2_db_tx_abort(&tx);
-		}
-	}
-#endif
-	C2_RETURN(rc);
-}
-
 void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 {
 	C2_ENTRY("machine: %p", machine);
@@ -263,10 +229,11 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 
 	c2_rpc_machine_lock(machine);
 	machine->rm_stopping = true;
+	c2_clink_signal(&machine->rm_sm_grp.s_clink);
 	c2_rpc_machine_unlock(machine);
 
-	C2_LOG(C2_INFO, "Waiting for Frm worker to join");
-	c2_thread_join(&machine->rm_frm_worker);
+	C2_LOG(C2_INFO, "Waiting for RPC worker to join");
+	c2_thread_join(&machine->rm_worker);
 
 	c2_rpc_machine_lock(machine);
 	C2_PRE(rpc_conn_tlist_is_empty(&machine->rm_outgoing_conns));
@@ -279,18 +246,9 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 }
 C2_EXPORTED(c2_rpc_machine_fini);
 
-/**
-   Worker thread that runs formation periodically on all formation machines,
-   in an attempt to send timedout items.
-
-   XXX This entire routine is temporary. The item deadline timeout mechanism
-       should be based on generic sm framework.
- */
-static void frm_worker_fn(struct c2_rpc_machine *machine)
+/* Not static because formation ut requires it. */
+C2_INTERNAL void rpc_worker_thread_fn(struct c2_rpc_machine *machine)
 {
-	struct c2_rpc_chan *chan;
-	enum { MILLI_SEC = 1000 * 1000 };
-
 	C2_ENTRY();
 	C2_PRE(machine != NULL);
 
@@ -298,14 +256,12 @@ static void frm_worker_fn(struct c2_rpc_machine *machine)
 		c2_rpc_machine_lock(machine);
 		if (machine->rm_stopping) {
 			c2_rpc_machine_unlock(machine);
-			C2_LEAVE("frm worker thread STOPPED");
+			C2_LEAVE("RPC worker thread STOPPED");
 			return;
 		}
-		c2_tl_for(rpc_chan, &machine->rm_chans, chan) {
-			c2_rpc_frm_run_formation(&chan->rc_frm);
-		} c2_tl_endfor;
+		c2_sm_asts_run(&machine->rm_sm_grp);
 		c2_rpc_machine_unlock(machine);
-		c2_nanosleep(c2_time(0, 100 * MILLI_SEC), NULL);
+		c2_chan_wait(&machine->rm_sm_grp.s_clink);
 	}
 }
 
@@ -426,19 +382,19 @@ static void conn_list_fini(struct c2_tl *list)
 	C2_LEAVE();
 }
 
-void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
+C2_INTERNAL void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
 	c2_sm_group_lock(&machine->rm_sm_grp);
 }
 
-void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
+C2_INTERNAL void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
 	c2_sm_group_unlock(&machine->rm_sm_grp);
 }
 
-bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine)
+C2_INTERNAL bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
 	return c2_mutex_is_locked(&machine->rm_sm_grp.s_lock);
@@ -459,9 +415,9 @@ void c2_rpc_machine_get_stats(struct c2_rpc_machine *machine,
 }
 C2_EXPORTED(c2_rpc_machine_get_stats);
 
-struct c2_rpc_chan *rpc_chan_get(struct c2_rpc_machine *machine,
-				 struct c2_net_end_point *dest_ep,
-				 uint64_t max_packets_in_flight)
+C2_INTERNAL struct c2_rpc_chan *rpc_chan_get(struct c2_rpc_machine *machine,
+					     struct c2_net_end_point *dest_ep,
+					     uint64_t max_packets_in_flight)
 {
 	struct c2_rpc_chan	*chan;
 
@@ -553,7 +509,7 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	C2_RETURN(0);
 }
 
-void rpc_chan_put(struct c2_rpc_chan *chan)
+C2_INTERNAL void rpc_chan_put(struct c2_rpc_chan *chan)
 {
 	struct c2_rpc_machine *machine;
 
@@ -719,6 +675,8 @@ static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 
 	C2_LEAVE();
 }
+
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} end of rpc group */
 

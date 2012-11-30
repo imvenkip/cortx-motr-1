@@ -130,8 +130,7 @@ static void enumerate_generic(const int rec_total, const char *map_path,
 	   order of the fid key.*/
 	for (i = 0; i < rec_total; i++) {
 		/* Populate some random data */
-		fid_in[i].f_container = 0;
-		fid_in[i].f_key = j;
+		c2_fid_set(&fid_in[i], 0, j);
 		cob_fid_in[i].u_hi = 333;
 		cob_fid_in[i].u_lo = j;
 
@@ -304,8 +303,7 @@ static void test_iter_sensitivity(void)
 
 	/* Populate initial key-values */
 	container_id_in = 300;
-	fid_in.f_container = 0;
-	fid_in.f_key = 31;
+	c2_fid_set(&fid_in, 0, 31);
 	cob_fid_in.u_hi = 0;
 	cob_fid_in.u_lo = 31;
 
@@ -511,8 +509,7 @@ static void cfm_op(const int tid)
            order of the fid key.*/
         for (i = 0; i < rec_total; i++) {
                 /* Populate some random data */
-                fid_in[tid][i].f_container = 0;
-                fid_in[tid][i].f_key = j;
+                c2_fid_set(&fid_in[tid][i], 0, j);
                 cob_fid_in[tid][i].u_hi = 3212;
                 cob_fid_in[tid][i].u_lo = j;
 

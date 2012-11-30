@@ -35,14 +35,14 @@
 #include "ioservice/io_fops_ff.h"
 
 /* tlists and tlist APIs referred from rpc layer. */
-C2_TL_DESCR_DECLARE(rpcbulk, extern);
-C2_TL_DESCR_DECLARE(rpcitem, extern);
-C2_TL_DECLARE(rpcbulk, extern, struct c2_rpc_bulk_buf);
-C2_TL_DECLARE(rpcitem, extern, struct c2_rpc_item);
+C2_TL_DESCR_DECLARE(rpcbulk, C2_EXTERN);
+C2_TL_DESCR_DECLARE(rpcitem, C2_EXTERN);
+C2_TL_DECLARE(rpcbulk, C2_INTERNAL, struct c2_rpc_bulk_buf);
+C2_TL_DECLARE(rpcitem, C2_INTERNAL, struct c2_rpc_item);
 
-void c2_io_item_free(struct c2_rpc_item *item);
+C2_INTERNAL void c2_io_item_free(struct c2_rpc_item *item);
 
-static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop);
+static struct c2_fid *io_fop_fid_get(struct c2_fop *fop);
 
 static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 			     uint64_t size);
@@ -123,7 +123,7 @@ static const struct c2_rpc_item_type_ops cob_rpc_type_ops = {
 	.rito_decode	     = c2_fop_item_type_default_decode,
 };
 
-void c2_ioservice_fop_fini(void)
+C2_INTERNAL void c2_ioservice_fop_fini(void)
 {
 	c2_fop_type_fini(&c2_fop_cob_op_reply_fopt);
 	c2_fop_type_fini(&c2_fop_fv_notification_fopt);
@@ -144,7 +144,7 @@ extern const struct c2_fom_type_ops io_fom_type_ops;
 extern const struct c2_sm_conf io_conf;
 extern struct c2_sm_state_descr io_phases[];
 
-int c2_ioservice_fop_init(void)
+C2_INTERNAL int c2_ioservice_fop_init(void)
 {
 	c2_addb_ctx_init(&bulkclient_addb, &bulkclient_addb_ctx_type,
 			 &c2_addb_global_ctx);
@@ -564,7 +564,8 @@ static bool io_fop_invariant(struct c2_io_fop *iofop)
 	return i != ARRAY_SIZE(ioservice_fops);
 }
 
-int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype)
+C2_INTERNAL int c2_io_fop_init(struct c2_io_fop *iofop,
+			       struct c2_fop_type *ftype)
 {
 	int rc;
 
@@ -586,14 +587,14 @@ int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype)
 	return rc;
 }
 
-void c2_io_fop_fini(struct c2_io_fop *iofop)
+C2_INTERNAL void c2_io_fop_fini(struct c2_io_fop *iofop)
 {
 	C2_PRE(io_fop_invariant(iofop));
 	c2_rpc_bulk_fini(&iofop->if_rbulk);
 	c2_fop_fini(&iofop->if_fop);
 }
 
-struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop)
+C2_INTERNAL struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop)
 {
 	struct c2_io_fop *iofop;
 
@@ -605,58 +606,58 @@ struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop)
 
 /** @} end of bulkclientDFSInternal */
 
-bool c2_is_read_fop(const struct c2_fop *fop)
+C2_INTERNAL bool c2_is_read_fop(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_readv_fopt;
 }
 
-bool c2_is_write_fop(const struct c2_fop *fop)
+C2_INTERNAL bool c2_is_write_fop(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_writev_fopt;
 }
 
-bool c2_is_io_fop(const struct c2_fop *fop)
+C2_INTERNAL bool c2_is_io_fop(const struct c2_fop *fop)
 {
 	return c2_is_read_fop(fop) || c2_is_write_fop(fop);
 }
 
-bool c2_is_read_fop_rep(const struct c2_fop *fop)
+C2_INTERNAL bool c2_is_read_fop_rep(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_readv_rep_fopt;
 }
 
-bool is_write_rep(const struct c2_fop *fop)
+C2_INTERNAL bool is_write_rep(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_writev_rep_fopt;
 }
 
-bool c2_is_io_fop_rep(const struct c2_fop *fop)
+C2_INTERNAL bool c2_is_io_fop_rep(const struct c2_fop *fop)
 {
 	return c2_is_read_fop_rep(fop) || is_write_rep(fop);
 }
 
-bool c2_is_cob_create_fop(const struct c2_fop *fop)
+C2_INTERNAL bool c2_is_cob_create_fop(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_create_fopt;
 }
 
-bool c2_is_cob_delete_fop(const struct c2_fop *fop)
+C2_INTERNAL bool c2_is_cob_delete_fop(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_delete_fopt;
 }
 
-bool c2_is_cob_create_delete_fop(const struct c2_fop *fop)
+C2_INTERNAL bool c2_is_cob_create_delete_fop(const struct c2_fop *fop)
 {
 	return c2_is_cob_create_fop(fop) || c2_is_cob_delete_fop(fop);
 }
 
-struct c2_fop_cob_common *c2_cobfop_common_get(struct c2_fop *fop)
+C2_INTERNAL struct c2_fop_cob_common *c2_cobfop_common_get(struct c2_fop *fop)
 {
 	struct c2_fop_cob_create *cc;
 	struct c2_fop_cob_delete *cd;
@@ -674,7 +675,7 @@ struct c2_fop_cob_common *c2_cobfop_common_get(struct c2_fop *fop)
 	}
 }
 
-struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop)
+C2_INTERNAL struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop)
 {
 	struct c2_fop_cob_readv  *rfop;
 	struct c2_fop_cob_writev *wfop;
@@ -691,7 +692,7 @@ struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop)
 	}
 }
 
-struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop)
+C2_INTERNAL struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop)
 {
 	struct c2_fop_cob_readv_rep	*rfop;
 	struct c2_fop_cob_writev_rep	*wfop;
@@ -909,7 +910,7 @@ cleanup:
 }
 
 /* Deallocates memory claimed by index vector/s from io fop wire format. */
-void io_fop_ivec_dealloc(struct c2_fop *fop)
+C2_INTERNAL void io_fop_ivec_dealloc(struct c2_fop *fop)
 {
 	int			 i;
 	struct c2_fop_cob_rw	*rw;
@@ -1071,7 +1072,7 @@ static void io_fop_desc_dealloc(struct c2_fop *fop)
  * Allocates memory for net buf descriptors array and index vector array
  * and populates the array of index vectors in io fop wire format.
  */
-int c2_io_fop_prepare(struct c2_fop *fop)
+C2_INTERNAL int c2_io_fop_prepare(struct c2_fop *fop)
 {
 	int		       rc;
 	struct c2_rpc_bulk    *rbulk;
@@ -1140,7 +1141,7 @@ static int io_fop_desc_ivec_prepare(struct c2_fop *fop,
  * Deallocates memory for sequence of net buf desc and sequence of index
  * vectors from io fop wire format.
  */
-void c2_io_fop_destroy(struct c2_fop *fop)
+C2_INTERNAL void c2_io_fop_destroy(struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 
@@ -1148,7 +1149,7 @@ void c2_io_fop_destroy(struct c2_fop *fop)
 	io_fop_ivec_dealloc(fop);
 }
 
-size_t c2_io_fop_size_get(struct c2_fop *fop)
+C2_INTERNAL size_t c2_io_fop_size_get(struct c2_fop *fop)
 {
 	struct c2_xcode_ctx  ctx;
 
@@ -1330,23 +1331,14 @@ cleanup:
 	return rc;
 }
 
-static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop)
+static struct c2_fid *io_fop_fid_get(struct c2_fop *fop)
 {
 	return &(io_rw_get(fop))->crw_fid;
 }
 
 static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 {
-	struct c2_fop_file_fid *ffid1;
-	struct c2_fop_file_fid *ffid2;
-
-	C2_PRE(fop1 != NULL);
-	C2_PRE(fop2 != NULL);
-
-	ffid1 = io_fop_fid_get(fop1);
-	ffid2 = io_fop_fid_get(fop2);
-
-	return ffid1->f_seq == ffid2->f_seq && ffid1->f_oid == ffid2->f_oid;
+        return c2_fid_eq(io_fop_fid_get(fop1), io_fop_fid_get(fop2));
 }
 
 static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop)
@@ -1540,7 +1532,7 @@ static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 	}
 }
 
-c2_bcount_t c2_io_fop_byte_count(struct c2_io_fop *iofop)
+C2_INTERNAL c2_bcount_t c2_io_fop_byte_count(struct c2_io_fop *iofop)
 {
 	c2_bcount_t             count = 0;
 	struct c2_rpc_bulk_buf *rbuf;
@@ -1570,7 +1562,7 @@ static void io_fop_free_internal(struct c2_rpc_item *item)
  * From bulk client side, IO REQUEST fops are typically bundled in
  * struct c2_io_fop. So c2_io_fop is deallocated from here.
  */
-void c2_io_item_free(struct c2_rpc_item *item)
+C2_INTERNAL void c2_io_item_free(struct c2_rpc_item *item)
 {
 	struct c2_rpc_item *ri;
 

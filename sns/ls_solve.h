@@ -48,17 +48,16 @@ struct c2_linsys {
  * @pre mat->m_height > 0 && mat->width > 0
  * @pre mat->m_width == mat->m_height && res->v_size == vec->v_size && vec->v_size == mat->m_width
  */
-void c2_linsys_init(struct c2_linsys *linsys,
-                    struct c2_matrix *mat,
-                    struct c2_vector *vec,
-                    struct c2_vector *res);
+C2_INTERNAL void c2_linsys_init(struct c2_linsys *linsys,
+				struct c2_matrix *mat,
+				struct c2_vector *vec, struct c2_vector *res);
 
-void c2_linsys_fini(struct c2_linsys *linsys);
+C2_INTERNAL void c2_linsys_fini(struct c2_linsys *linsys);
 
 /**
  * Solves given system of linear equatons, writes result into 'linsys->l_res'.
  */
-void c2_linsys_solve(struct c2_linsys *linsys);
+C2_INTERNAL void c2_linsys_solve(struct c2_linsys *linsys);
 
 /** @} end group c2_linsys */
 

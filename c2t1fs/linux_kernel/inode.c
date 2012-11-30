@@ -15,6 +15,7 @@
  *
  * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
  *                  Amit Jambure <amit_jambure@xyratex.com>
+ * Metadata       : Yuriy Umanets <yuriy_umanets@xyratex.com>
  * Original creation date: 10/14/2011
  */
 
@@ -39,12 +40,6 @@ static int c2t1fs_build_layout_instance(const uint64_t              layout_id,
 
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 
-C2_TL_DESCR_DEFINE(dir_ents, "Dir entries", , struct c2t1fs_dir_ent,
-		   de_link, de_magic,
-		   C2_T1FS_DIRENT_MAGIC, C2_T1FS_DIRENT_HEAD_MAGIC);
-
-C2_TL_DEFINE(dir_ents, , struct c2t1fs_dir_ent);
-
 static const struct c2_bob_type c2t1fs_inode_bob = {
 	.bt_name         = "c2t1fs_inode",
 	.bt_magix_offset = offsetof(struct c2t1fs_inode, ci_magic),
@@ -52,14 +47,12 @@ static const struct c2_bob_type c2t1fs_inode_bob = {
 	.bt_check        = NULL
 };
 
-C2_BOB_DEFINE(, &c2t1fs_inode_bob, c2t1fs_inode);
+C2_BOB_DEFINE(C2_INTERNAL, &c2t1fs_inode_bob, c2t1fs_inode);
 
-bool c2t1fs_inode_is_root(const struct inode *inode)
+C2_INTERNAL bool c2t1fs_inode_is_root(const struct inode *inode)
 {
-	struct c2t1fs_inode *ci;
-
-	ci = C2T1FS_I(inode);
-	return c2_fid_eq(&ci->ci_fid, &c2t1fs_root_fid);
+	struct c2t1fs_inode *ci = C2T1FS_I(inode);
+	return c2_fid_eq(&ci->ci_fid, &C2T1FS_SB(inode->i_sb)->csb_root_fid);
 }
 
 static void init_once(void *foo)
@@ -68,15 +61,13 @@ static void init_once(void *foo)
 
 	C2_ENTRY();
 
-	ci->ci_fid.f_container = 0;
-	ci->ci_fid.f_key       = 0;
-
+        c2_fid_set(&ci->ci_fid, 0, 0);
 	inode_init_once(&ci->ci_inode);
 
 	C2_LEAVE();
 }
 
-int c2t1fs_inode_cache_init(void)
+C2_INTERNAL int c2t1fs_inode_cache_init(void)
 {
 	int rc = 0;
 
@@ -92,7 +83,7 @@ int c2t1fs_inode_cache_init(void)
 	return rc;
 }
 
-void c2t1fs_inode_cache_fini(void)
+C2_INTERNAL void c2t1fs_inode_cache_fini(void)
 {
 	C2_ENTRY();
 
@@ -104,29 +95,24 @@ void c2t1fs_inode_cache_fini(void)
 	C2_LEAVE();
 }
 
-void c2t1fs_inode_init(struct c2t1fs_inode *ci)
+C2_INTERNAL void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 {
 	C2_ENTRY("ci: %p", ci);
 
 	C2_SET0(&ci->ci_fid);
 	ci->ci_layout_instance = NULL;
-
-	dir_ents_tlist_init(&ci->ci_dir_ents);
 	c2t1fs_inode_bob_init(ci);
 
 	C2_LEAVE();
 }
 
-void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
+C2_INTERNAL void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 {
 	C2_ENTRY("ci: %p, is_root %s, layout_instance %p",
 		 ci, c2_bool_to_str(c2t1fs_inode_is_root(&ci->ci_inode)),
 		 ci->ci_layout_instance);
 
 	C2_PRE(c2t1fs_inode_bob_check(ci));
-	C2_PRE(dir_ents_tlist_is_empty(&ci->ci_dir_ents));
-
-	dir_ents_tlist_fini(&ci->ci_dir_ents);
 
 	if (!c2t1fs_inode_is_root(&ci->ci_inode))
 		c2_layout_instance_fini(ci->ci_layout_instance);
@@ -138,7 +124,7 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 /**
    Implementation of super_operations::alloc_inode() interface.
  */
-struct inode *c2t1fs_alloc_inode(struct super_block *sb)
+C2_INTERNAL struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 {
 	struct c2t1fs_inode *ci;
 
@@ -159,7 +145,7 @@ struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 /**
    Implementation of super_operations::destroy_inode() interface.
  */
-void c2t1fs_destroy_inode(struct inode *inode)
+C2_INTERNAL void c2t1fs_destroy_inode(struct inode *inode)
 {
 	struct c2t1fs_inode *ci;
 
@@ -175,20 +161,28 @@ void c2t1fs_destroy_inode(struct inode *inode)
 	C2_LEAVE();
 }
 
-struct inode *c2t1fs_root_iget(struct super_block *sb)
+C2_INTERNAL struct inode *c2t1fs_root_iget(struct super_block *sb,
+                                           struct c2_fid *root_fid)
 {
+        struct c2_fop_getattr_rep *rep = NULL;
+	struct c2t1fs_mdop mo;
 	struct inode *inode;
+	int rc;
 
 	C2_ENTRY("sb: %p", sb);
 
-	/*
-	 * Currently it is assumed, that fid of root of file-system is
-	 * well-known. But this can change when configuration modules are
-	 * implemented. And we might need to get fid of root directory from
-	 * configuration module. c2t1fs_root_iget() hides these details from
-	 * mount code path.
-	 */
-	inode = c2t1fs_iget(sb, &c2t1fs_root_fid);
+        C2_SET0(&mo);
+        mo.mo_attr.ca_tfid = *root_fid;
+        C2T1FS_SB(sb)->csb_root_fid = *root_fid;
+        C2T1FS_SB(sb)->csb_next_key = root_fid->f_key + 1;
+
+	rc = c2t1fs_mds_cob_getattr(C2T1FS_SB(sb), &mo, &rep);
+	if (rc != 0) {
+	        C2_LOG(C2_FATAL, "c2t1fs_mds_cob_getattr() failed with %d", rc);
+	        return ERR_PTR(rc);
+	}
+
+	inode = c2t1fs_iget(sb, root_fid, &rep->g_body);
 
 	C2_LEAVE("root_inode: %p", inode);
 	return inode;
@@ -243,57 +237,66 @@ static int c2t1fs_inode_set(struct inode *inode, void *opaque)
 	return 0;
 }
 
-static int c2t1fs_inode_refresh(struct inode *inode)
+C2_INTERNAL int c2t1fs_inode_update(struct inode *inode,
+                                    struct c2_fop_cob *body)
 {
+	int rc = 0;
+
 	C2_ENTRY();
 
-	/* XXX Make rpc call to fetch attributes of cob having fid == @fid */
-	if (c2t1fs_inode_is_root(inode)) {
-		inode->i_mode = S_IFDIR | 0755;
-	} else {
-		/*
-		 * Flat file structure. root is the only directory. Rest are
-		 * regular files
-		 */
-		inode->i_mode = S_IFREG | 0755;
-	}
+        if (body->b_valid & C2_COB_ATIME)
+	        inode->i_atime.tv_sec  = body->b_atime;
+        if (body->b_valid & C2_COB_MTIME)
+	        inode->i_mtime.tv_sec  = body->b_mtime;
+        if (body->b_valid & C2_COB_CTIME)
+	        inode->i_ctime.tv_sec  = body->b_ctime;
+        if (body->b_valid & C2_COB_UID)
+                inode->i_uid    = body->b_uid;
+        if (body->b_valid & C2_COB_GID)
+	        inode->i_gid    = body->b_gid;
+        if (body->b_valid & C2_COB_BLOCKS)
+	        inode->i_blocks = body->b_blocks;
+        if (body->b_valid & C2_COB_SIZE)
+	        inode->i_size = body->b_size;
+        if (body->b_valid & C2_COB_NLINK)
+	        inode->i_nlink = body->b_nlink;
+        if (body->b_valid & C2_COB_MODE)
+	        inode->i_mode = body->b_mode;
+
+	C2_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+static int c2t1fs_inode_read(struct inode *inode,
+                             struct c2_fop_cob *body)
+{
+        struct c2t1fs_inode *ci = C2T1FS_I(inode);
+	int rc = 0;
+
+	C2_ENTRY();
 
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 	inode->i_uid   = 0;
 	inode->i_gid   = 0;
-	inode->i_nlink = 1;
+	inode->i_rdev  = 0;
 
-	C2_LEAVE("rc: 0");
-	return 0;
-}
-
-static int c2t1fs_inode_read(struct inode *inode)
-{
-	int rc;
-
-	C2_ENTRY();
-
-	rc = c2t1fs_inode_refresh(inode);
+	rc = c2t1fs_inode_update(inode, body);
 	if (rc != 0)
-		goto out;
+	        goto out;
 
 	if (S_ISREG(inode->i_mode)) {
-
 		inode->i_op   = &c2t1fs_reg_inode_operations;
 		inode->i_fop  = &c2t1fs_reg_file_operations;
-
 	} else if (S_ISDIR(inode->i_mode)) {
-
 		inode->i_op   = &c2t1fs_dir_inode_operations;
 		inode->i_fop  = &c2t1fs_dir_file_operations;
-		inc_nlink(inode);
-
 	} else {
-
 		rc = -ENOSYS;
-
 	}
-
+        if (!c2t1fs_inode_is_root(inode)) {
+                ci->ci_layout_id = (C2T1FS_SB(inode->i_sb))->csb_layout_id;
+                rc = c2t1fs_inode_layout_init(ci);
+        }
 out:
 	C2_LEAVE("rc: %d", rc);
 	return rc;
@@ -309,11 +312,13 @@ static unsigned long fid_hash(const struct c2_fid *fid)
 	return fid->f_key;
 }
 
-struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid)
+C2_INTERNAL struct inode *c2t1fs_iget(struct super_block *sb,
+				      const struct c2_fid *fid,
+                          	      struct c2_fop_cob *body)
 {
 	struct inode *inode;
 	unsigned long hash;
-	int           err;
+	int           err = 0;
 
 	C2_ENTRY();
 
@@ -326,28 +331,32 @@ struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid)
 	 * set I_NEW flag in inode->i_state for newly allocated inode.
 	 */
 	inode = iget5_locked(sb, hash, c2t1fs_inode_test, c2t1fs_inode_set,
-				(void *)fid);
-	if (inode != NULL) {
-		if ((inode->i_state & I_NEW) == 0) {
-			/* Not a new inode. No need to read it again */
-			C2_LEAVE("inode: %p", inode);
-			return inode;
-		}
-		err = c2t1fs_inode_read(inode);
-		if (err != 0)
-			goto out_err;
-		unlock_new_inode(inode);
+                             (void *)fid);
+        if (IS_ERR(inode)) {
+	        C2_LEAVE("inode: %p", ERR_CAST(inode));
+	        return ERR_CAST(inode);
+        }
+	
+        if ((inode->i_state & I_NEW) != 0) {
+	        /* New inode, set its fields from @body */
+	        err = c2t1fs_inode_read(inode, body);
+	} else if (!(inode->i_state & (I_FREEING | I_CLEAR))) {
+	        /* Not a new inode, let's update its attributes from @body */
+	        err = c2t1fs_inode_update(inode, body);
 	}
+	if (err != 0)
+	        goto out_err;
+	unlock_new_inode(inode);
 	C2_LEAVE("inode: %p", inode);
 	return inode;
 
 out_err:
 	iget_failed(inode);
-	C2_LEAVE("ERR: %p", ERR_PTR(-EIO));
-	return ERR_PTR(-EIO);
+	C2_LEAVE("ERR: %p", ERR_PTR(err));
+	return ERR_PTR(err);
 }
 
-int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci)
+C2_INTERNAL int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci)
 {
 	struct c2_layout_instance *linst;
 	int                        rc;

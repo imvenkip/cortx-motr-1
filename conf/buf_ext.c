@@ -23,12 +23,12 @@
 #include "lib/misc.h"   /* memcmp, memcpy, strlen, memchr */
 #include "lib/memory.h" /* C2_ALLOC_ARR */
 
-bool c2_buf_is_aimed(const struct c2_buf *buf)
+C2_INTERNAL bool c2_buf_is_aimed(const struct c2_buf *buf)
 {
 	return buf->b_nob > 0 && buf->b_addr != NULL;
 }
 
-bool c2_buf_streq(const struct c2_buf *buf, const char *str)
+C2_INTERNAL bool c2_buf_streq(const struct c2_buf *buf, const char *str)
 {
 	C2_PRE(c2_buf_is_aimed(buf) && str != NULL);
 
@@ -36,7 +36,7 @@ bool c2_buf_streq(const struct c2_buf *buf, const char *str)
 		strlen(str) == buf->b_nob;
 }
 
-char *c2_buf_strdup(const struct c2_buf *buf)
+C2_INTERNAL char *c2_buf_strdup(const struct c2_buf *buf)
 {
 	size_t len;
 	char  *s;

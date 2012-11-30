@@ -271,9 +271,9 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
               rc == 0 && !lcbev->cbe_unlinked);
    @post rc == 0 || rc == -ENOMEM
  */
-int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
-			       struct nlx_core_buffer_event *lcbev,
-			       struct c2_net_buffer_event *nbev)
+C2_INTERNAL int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
+					   struct nlx_core_buffer_event *lcbev,
+					   struct c2_net_buffer_event *nbev)
 {
 	struct nlx_xo_transfer_mc *tp;
 	struct c2_net_buffer *nb;

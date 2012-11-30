@@ -70,7 +70,8 @@ struct c2_dbenv_impl {
 
 struct c2_table_impl {
 	/** db5 private table handle. */
-	DB                        *t_db;
+	DB              *t_db;
+	struct c2_mutex  t_lock;
 };
 
 struct c2_db_buf_impl {
@@ -79,16 +80,16 @@ struct c2_db_buf_impl {
 
 struct c2_db_tx_impl {
 	/** A db5 private transaction handle. */
-	DB_TXN            *dt_txn;
+	DB_TXN *dt_txn;
 };
 
 struct c2_db_tx_waiter_impl {
 	/** An lsn from the transaction this wait is for. */
-	DB_LSN              tw_lsn;
+	DB_LSN tw_lsn;
 };
 
 struct c2_db_cursor_impl {
-	DBC             *c_dbc;
+	DBC *c_dbc;
 };
 
 /** @} end of db group */

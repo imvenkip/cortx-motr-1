@@ -24,9 +24,8 @@
 #include "lib/cdefs.h"
 #include <linux/pagemap.h> /* PAGE_CACHE_SIZE */
 
-int c2_0vec_page_add(struct c2_0vec *zvec,
-		     struct page *pg,
-		     c2_bindex_t index)
+C2_INTERNAL int c2_0vec_page_add(struct c2_0vec *zvec,
+				 struct page *pg, c2_bindex_t index)
 {
 	struct c2_buf	  buf;
 

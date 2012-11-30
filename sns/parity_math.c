@@ -202,7 +202,7 @@ static int vandmat_norm(struct c2_matrix *m)
 	return 0;
 }
 
-void c2_parity_math_fini(struct c2_parity_math *math)
+C2_INTERNAL void c2_parity_math_fini(struct c2_parity_math *math)
 {
 	if (math->pmi_parity_algo == C2_PARITY_CAL_ALGO_REED_SOLOMON) {
 		vandmat_fini(&math->pmi_vandmat);
@@ -219,8 +219,8 @@ void c2_parity_math_fini(struct c2_parity_math *math)
 	}
 }
 
-int  c2_parity_math_init(struct c2_parity_math *math,
-			 uint32_t data_count, uint32_t parity_count)
+C2_INTERNAL int c2_parity_math_init(struct c2_parity_math *math,
+				    uint32_t data_count, uint32_t parity_count)
 {
 	int ret;
 
@@ -373,26 +373,25 @@ static void reed_solomon_encode(struct c2_parity_math *math,
 	}
 }
 
-void c2_parity_math_calculate(struct c2_parity_math *math,
-			      struct c2_buf *data,
-			      struct c2_buf *parity)
+C2_INTERNAL void c2_parity_math_calculate(struct c2_parity_math *math,
+					  struct c2_buf *data,
+					  struct c2_buf *parity)
 {
 	(*calculate[math->pmi_parity_algo])(math, data, parity);
 }
 
-void c2_parity_math_diff(struct c2_parity_math *math,
-			 struct c2_buf         *old,
-			 struct c2_buf         *new,
-			 struct c2_buf         *parity,
-			 uint32_t               index)
+C2_INTERNAL void c2_parity_math_diff(struct c2_parity_math *math,
+				     struct c2_buf *old,
+				     struct c2_buf *new,
+				     struct c2_buf *parity, uint32_t index)
 {
 	(*diff[math->pmi_parity_algo])(math, old, new, parity, index);
 }
 
-void c2_parity_math_refine(struct c2_parity_math *math,
-			   struct c2_buf *data,
-			   struct c2_buf *parity,
-			   uint32_t data_ind_changed)
+C2_INTERNAL void c2_parity_math_refine(struct c2_parity_math *math,
+				       struct c2_buf *data,
+				       struct c2_buf *parity,
+				       uint32_t data_ind_changed)
 {
 	/* for simplicity: */
 	c2_parity_math_calculate(math, data, parity);
@@ -549,10 +548,10 @@ static void reed_solomon_recover(struct c2_parity_math *math,
 	c2_parity_math_calculate(math, data, parity);
 }
 
-void c2_parity_math_recover(struct c2_parity_math *math,
-			    struct c2_buf *data,
-			    struct c2_buf *parity,
-			    struct c2_buf *fails)
+C2_INTERNAL void c2_parity_math_recover(struct c2_parity_math *math,
+					struct c2_buf *data,
+					struct c2_buf *parity,
+					struct c2_buf *fails)
 {
 	(*recover[math->pmi_parity_algo])(math, data, parity, fails);
 }
@@ -600,15 +599,16 @@ static void fail_idx_reed_solomon_recover(struct c2_parity_math *math,
 {
 }
 
-void c2_parity_math_fail_index_recover(struct c2_parity_math *math,
-                                       struct c2_buf *data,
-                                       struct c2_buf *parity,
-                                       const uint32_t fidx)
+C2_INTERNAL void c2_parity_math_fail_index_recover(struct c2_parity_math *math,
+						   struct c2_buf *data,
+						   struct c2_buf *parity,
+						   const uint32_t fidx)
 {
 	(*fidx_recover[math->pmi_parity_algo])(math, data, parity, fidx);
 }
 
-void c2_parity_math_buffer_xor(struct c2_buf *dest, const struct c2_buf *src)
+C2_INTERNAL void c2_parity_math_buffer_xor(struct c2_buf *dest,
+					   const struct c2_buf *src)
 {
         uint32_t  ei; /* block element index. */
 

@@ -15,6 +15,7 @@
  *
  * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
  *                  Amit Jambure <amit_jambure@xyratex.com>
+ * Metadata       : Yuriy Umanets <yuriy_umanets@xyratex.com>
  * Original creation date: 05/04/2010
  */
 
@@ -26,7 +27,9 @@
 #include "lib/trace.h"  /* C2_LOG and C2_ENTRY */
 #include "lib/memory.h"
 #include "net/lnet/lnet.h"
+#include "fid/fid.h"
 #include "ioservice/io_fops.h"
+#include "mdservice/md_fops.h"
 #include "rpc/rpclib.h"
 
 static char *local_addr = "0@lo:12345:45:6";
@@ -71,7 +74,7 @@ struct c2t1fs_globals c2t1fs_globals = {
 	.g_db_name    = C2T1FS_DB_NAME,
 };
 
-int c2t1fs_init(void)
+C2_INTERNAL int c2t1fs_init(void)
 {
 	int rc;
 
@@ -79,13 +82,21 @@ int c2t1fs_init(void)
 
 	c2t1fs_globals.g_laddr = local_addr;
 
+        rc = c2_fid_init();
+        if (rc != 0)
+                goto out;
+
 	rc = c2_ioservice_fop_init();
 	if (rc != 0)
-		goto out;
+		goto fid_fini;
+
+	rc = c2_mdservice_fop_init();
+	if (rc != 0)
+		goto ioservice_fini;
 
 	rc = c2t1fs_inode_cache_init();
 	if (rc != 0)
-		goto out;
+		goto mdservice_fini;
 
 	rc = c2t1fs_net_init();
 	if (rc != 0)
@@ -111,20 +122,23 @@ layout_fini:
 
 rpc_fini:
 	c2t1fs_rpc_fini();
-
 net_fini:
 	c2t1fs_net_fini();
-
 icache_fini:
 	c2t1fs_inode_cache_fini();
-
+mdservice_fini:
+        c2_mdservice_fop_fini();
+ioservice_fini:
+        c2_ioservice_fop_fini();
+fid_fini:
+        c2_fid_fini();
 out:
 	C2_LEAVE("rc: %d", rc);
 	C2_ASSERT(rc != 0);
 	return rc;
 }
 
-void c2t1fs_fini(void)
+C2_INTERNAL void c2t1fs_fini(void)
 {
 	C2_ENTRY();
 
@@ -134,7 +148,9 @@ void c2t1fs_fini(void)
 	c2t1fs_rpc_fini();
 	c2t1fs_net_fini();
 	c2t1fs_inode_cache_fini();
+	c2_mdservice_fop_fini();
 	c2_ioservice_fop_fini();
+	c2_fid_fini();
 
 	C2_LEAVE();
 }

@@ -20,11 +20,13 @@
 
 #include <stdio.h>  /* fprintf, fflush */
 #include <stdlib.h> /* abort */
+#include <unistd.h> /* fork, execvp */
 
 #ifdef HAVE_BACKTRACE
 #  include <execinfo.h>
 #endif
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -40,6 +42,8 @@
 enum {
 	BACKTRACE_DEPTH_MAX = 256
 };
+
+C2_EXTERN char *c2_debugger_args[4];
 
 /**
    Simple user space panic function: issue diagnostics to the stderr, flush the
@@ -64,8 +68,26 @@ void c2_panic(const char *expr, const char *func, const char *file, int lineno)
 	}
 #endif
 	C2_LOG(C2_FATAL, "panic: %s %s() (%s:%i)", expr, func, file, lineno);
+	if (c2_debugger_args[0] != NULL) {
+		int rc;
+
+		rc = fork();
+		if (rc > 0) {
+			/* parent */
+			volatile bool stop = true;
+
+			while (stop) {
+				;
+			}
+		} else if (rc == 0) {
+			/* child */
+			rc = execvp(c2_debugger_args[0], c2_debugger_args);
+		}
+	}
 	abort();
 }
+
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} end of assert group */
 

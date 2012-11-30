@@ -195,7 +195,7 @@ static void group_unlock(struct c2_fom_locality *loc)
 	c2_sm_group_unlock(&loc->fl_group);
 }
 
-bool c2_fom_group_is_locked(const struct c2_fom *fom)
+C2_INTERNAL bool c2_fom_group_is_locked(const struct c2_fom *fom)
 {
 	return c2_mutex_is_locked(&fom->fo_loc->fl_group.s_lock);
 }
@@ -221,13 +221,13 @@ static bool thread_invariant(const struct c2_loc_thread *t)
 		     c2_atomic64_get(&loc->fl_unblocking) > 0);
 }
 
-bool c2_fom_domain_invariant(const struct c2_fom_domain *dom)
+C2_INTERNAL bool c2_fom_domain_invariant(const struct c2_fom_domain *dom)
 {
 	return dom != NULL && dom->fd_localities != NULL &&
 		dom->fd_ops != NULL;
 }
 
-bool c2_locality_invariant(const struct c2_fom_locality *loc)
+C2_INTERNAL bool c2_locality_invariant(const struct c2_fom_locality *loc)
 {
 	return	loc != NULL && loc->fl_dom != NULL &&
 		c2_mutex_is_locked(&loc->fl_group.s_lock) &&
@@ -240,7 +240,7 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 
 }
 
-struct c2_reqh *c2_fom_reqh(const struct c2_fom *fom)
+C2_INTERNAL struct c2_reqh *c2_fom_reqh(const struct c2_fom *fom)
 {
 	return fom->fo_loc->fl_dom->fd_reqh;
 }
@@ -268,7 +268,7 @@ static inline struct c2_fom *sm2fom(struct c2_sm *sm)
 	return container_of(sm, struct c2_fom, fo_sm_state);
 }
 
-bool c2_fom_invariant(const struct c2_fom *fom)
+C2_INTERNAL bool c2_fom_invariant(const struct c2_fom *fom)
 {
 	return
 		fom != NULL && fom->fo_loc != NULL &&
@@ -322,7 +322,7 @@ static void fom_ready(struct c2_fom *fom)
 	C2_POST(c2_fom_invariant(fom));
 }
 
-void c2_fom_ready(struct c2_fom *fom)
+C2_INTERNAL void c2_fom_ready(struct c2_fom *fom)
 {
 	C2_PRE(c2_fom_invariant(fom));
 
@@ -349,13 +349,13 @@ static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	fom_ready(fom);
 }
 
-void c2_fom_wakeup(struct c2_fom *fom)
+C2_INTERNAL void c2_fom_wakeup(struct c2_fom *fom)
 {
 	fom->fo_cb.fc_ast.sa_cb = readyit;
 	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 }
 
-void c2_fom_block_enter(struct c2_fom *fom)
+C2_INTERNAL void c2_fom_block_enter(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
 	struct c2_loc_thread   *thr;
@@ -397,7 +397,7 @@ void c2_fom_block_enter(struct c2_fom *fom)
 	group_unlock(loc);
 }
 
-void c2_fom_block_leave(struct c2_fom *fom)
+C2_INTERNAL void c2_fom_block_leave(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
 	struct c2_loc_thread   *thr;
@@ -427,7 +427,7 @@ void c2_fom_block_leave(struct c2_fom *fom)
 	C2_ASSERT(c2_locality_invariant(loc));
 }
 
-void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
+C2_INTERNAL void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 {
 	struct c2_fom_domain		  *dom;
 	const struct c2_reqh_service_type *stype;
@@ -499,8 +499,6 @@ static void fom_exec(struct c2_fom *fom)
 {
 	int			rc;
 	struct c2_fom_locality *loc;
-	struct c2_fop_ctx      *ctx;
-
 
 	loc = fom->fo_loc;
 	fom->fo_thread = loc->fl_handler;
@@ -524,23 +522,10 @@ static void fom_exec(struct c2_fom *fom)
 	C2_ASSERT(c2_fom_group_is_locked(fom));
 
 	if (c2_fom_phase(fom) == C2_FOM_PHASE_FINISH) {
-	        /**
-	         * Get ctx from fom begore killing fom.
-	         */
-	        ctx = fom->fo_fop_ctx;
-
-                /**
+                /*
                  * Finish fom itself.
                  */
 		fom->fo_ops->fo_fini(fom);
-
-		/**
-		 * Make sure that ctx is released. It is allocated just before fto_create()
-		 * is called. We release it after fo_finish as it may use ctx.
-		 */
-		if (ctx != NULL)
-                        c2_free(ctx);
-
 		/*
 		 * Don't touch the fom after this point.
 		 */
@@ -809,7 +794,7 @@ static int loc_init(struct c2_fom_locality *loc, size_t cpu, size_t cpu_max)
 	return result;
 }
 
-int c2_fom_domain_init(struct c2_fom_domain *dom)
+C2_INTERNAL int c2_fom_domain_init(struct c2_fom_domain *dom)
 {
 	int                     result;
 	size_t                  cpu;
@@ -855,7 +840,7 @@ int c2_fom_domain_init(struct c2_fom_domain *dom)
 	return result;
 }
 
-void c2_fom_domain_fini(struct c2_fom_domain *dom)
+C2_INTERNAL void c2_fom_domain_fini(struct c2_fom_domain *dom)
 {
 	int fd_loc_nr;
 
@@ -871,7 +856,7 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 	c2_free(dom->fd_localities);
 }
 
-bool c2_fom_domain_is_idle(const struct c2_fom_domain *dom)
+C2_INTERNAL bool c2_fom_domain_is_idle(const struct c2_fom_domain *dom)
 {
 	return c2_forall(i, dom->fd_localities_nr,
 			 dom->fd_localities[i].fl_foms == 0);
@@ -962,13 +947,13 @@ static void fom_ast_cb(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	}
 }
 
-void c2_fom_callback_init(struct c2_fom_callback *cb)
+C2_INTERNAL void c2_fom_callback_init(struct c2_fom_callback *cb)
 {
 	cb->fc_state = C2_FCS_DONE;
 }
 
-void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
-                         struct c2_fom_callback *cb)
+C2_INTERNAL void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
+				     struct c2_fom_callback *cb)
 {
 	C2_PRE(cb->fc_bottom != NULL);
 	C2_PRE(cb->fc_state == C2_FCS_DONE);
@@ -988,20 +973,20 @@ static void fom_ready_cb(struct c2_fom_callback *cb)
 	c2_fom_ready(cb->fc_fom);
 }
 
-void c2_fom_wait_on(struct c2_fom *fom, struct c2_chan *chan,
-                    struct c2_fom_callback *cb)
+C2_INTERNAL void c2_fom_wait_on(struct c2_fom *fom, struct c2_chan *chan,
+				struct c2_fom_callback *cb)
 {
 	cb->fc_bottom = fom_ready_cb;
 	c2_fom_callback_arm(fom, chan, cb);
 }
 
-void c2_fom_callback_fini(struct c2_fom_callback *cb)
+C2_INTERNAL void c2_fom_callback_fini(struct c2_fom_callback *cb)
 {
 	C2_PRE(cb->fc_state == C2_FCS_DONE);
 	/* c2_clink_fini() is called in cb_run() */
 }
 
-bool c2_fom_callback_cancel(struct c2_fom_callback *cb)
+C2_INTERNAL bool c2_fom_callback_cancel(struct c2_fom_callback *cb)
 {
 	bool result;
 	C2_PRE(cb->fc_state >= C2_FCS_ARMED);
@@ -1016,10 +1001,10 @@ bool c2_fom_callback_cancel(struct c2_fom_callback *cb)
 	return result;
 }
 
-void c2_fom_type_init(struct c2_fom_type *type,
-		      const struct c2_fom_type_ops *ops,
-		      const struct c2_reqh_service_type  *svc_type,
-		      const struct c2_sm_conf *sm)
+C2_INTERNAL void c2_fom_type_init(struct c2_fom_type *type,
+				  const struct c2_fom_type_ops *ops,
+				  const struct c2_reqh_service_type *svc_type,
+				  const struct c2_sm_conf *sm)
 {
 	type->ft_ops    = ops;
 	type->ft_conf   = sm;
@@ -1057,7 +1042,7 @@ static const struct c2_sm_conf	fom_conf = {
 	.scf_state     = fom_states
 };
 
-void c2_fom_sm_init(struct c2_fom *fom)
+C2_INTERNAL void c2_fom_sm_init(struct c2_fom *fom)
 {
 	struct c2_sm_group	*fom_group;
 	struct c2_addb_ctx	*fom_addb_ctx;
@@ -1076,6 +1061,35 @@ void c2_fom_sm_init(struct c2_fom *fom)
 		    fom_addb_ctx);
 	c2_sm_init(&fom->fo_sm_state, &fom_conf, C2_FOS_INIT, fom_group,
 		    fom_addb_ctx);
+}
+
+void c2_fom_phase_set(struct c2_fom *fom, int phase)
+{
+	c2_sm_state_set(&fom->fo_sm_phase, phase);
+}
+C2_EXPORTED(c2_fom_phase_set);
+
+void c2_fom_phase_move(struct c2_fom *fom, int32_t rc, int phase)
+{
+	c2_sm_move(&fom->fo_sm_phase, rc, phase);
+}
+C2_EXPORTED(c2_fom_phase_move);
+
+void c2_fom_phase_moveif(struct c2_fom *fom, int32_t rc, int phase0, int phase1)
+{
+	c2_fom_phase_move(fom, rc, rc == 0 ? phase0 : phase1);
+}
+C2_EXPORTED(c2_fom_phase_moveif);
+
+int c2_fom_phase(const struct c2_fom *fom)
+{
+	return fom->fo_sm_phase.sm_state;
+}
+C2_EXPORTED(c2_fom_phase);
+
+C2_INTERNAL int c2_fom_rc(const struct c2_fom *fom)
+{
+	return fom->fo_sm_phase.sm_rc;
 }
 
 /** @} endgroup fom */

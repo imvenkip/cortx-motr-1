@@ -103,10 +103,10 @@ static const char *trace_print_ctx_str[] = {
 	[C2_TRACE_PCTX_FULL] = "full",
 };
 
-extern int  c2_arch_trace_init(void);
-extern void c2_arch_trace_fini(void);
+C2_INTERNAL int c2_arch_trace_init(void);
+C2_INTERNAL void c2_arch_trace_fini(void);
 
-int c2_trace_init(void)
+C2_INTERNAL int c2_trace_init(void)
 {
 	int psize;
 
@@ -122,7 +122,7 @@ int c2_trace_init(void)
 	return c2_arch_trace_init();
 }
 
-void c2_trace_fini(void)
+C2_INTERNAL void c2_trace_fini(void)
 {
 	c2_arch_trace_fini();
 	c2_logbuf = NULL;
@@ -142,7 +142,8 @@ static inline uint64_t rdtsc(void)
 	return ((uint64_t)count_lo) | (((uint64_t)count_hi) << 32);
 }
 
-void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
+C2_INTERNAL void c2_trace_allot(const struct c2_trace_descr *td,
+				const void *body)
 {
 	uint32_t header_len;
 	uint32_t record_len;
@@ -151,7 +152,7 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 	uint64_t pos;
 	uint64_t endpos;
 	struct c2_trace_rec_header *header;
-	register unsigned long sp asm ("sp"); /* stack pointer */
+	register unsigned long sp asm("sp"); /* stack pointer */
 
 	/*
 	 * Allocate space in trace buffer to store trace record header
@@ -265,7 +266,7 @@ static unsigned long subsys_name_to_mask(char *subsys_name)
  * @return 0 on success
  * @return -EINVAL on failure
  */
-int subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask)
+C2_INTERNAL int subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask)
 {
 	char          *p;
 	char          *subsys = subsys_names;
@@ -371,7 +372,7 @@ static enum c2_trace_level trace_level_value_plus(char *level_name)
  * @return c2_trace_level enum value, on success
  * @return C2_NONE on failure
  */
-enum c2_trace_level parse_trace_level(char *str)
+C2_INTERNAL enum c2_trace_level parse_trace_level(char *str)
 {
 	char                *level_str = str;
 	char                *p = level_str;
@@ -396,7 +397,8 @@ enum c2_trace_level parse_trace_level(char *str)
 	return level;
 }
 
-enum c2_trace_print_context parse_trace_print_context(const char *ctx_name)
+C2_INTERNAL enum c2_trace_print_context parse_trace_print_context(const char
+								  *ctx_name)
 {
 	int i;
 
@@ -410,7 +412,7 @@ enum c2_trace_print_context parse_trace_print_context(const char *ctx_name)
 	return C2_TRACE_PCTX_INVALID;
 }
 
-void c2_trace_print_subsystems(void)
+C2_INTERNAL void c2_trace_print_subsystems(void)
 {
 	int i;
 
@@ -422,7 +424,7 @@ void c2_trace_print_subsystems(void)
 		c2_console_printf("    - %s\n", trace_subsys_str[i]);
 }
 
-void
+C2_INTERNAL void
 c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 {
 	int i;
@@ -482,7 +484,7 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 }
 
 
-void c2_console_printf(const char *fmt, ...)
+C2_INTERNAL void c2_console_printf(const char *fmt, ...)
 {
 	va_list ap;
 

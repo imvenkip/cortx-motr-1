@@ -105,7 +105,7 @@ enum C2_RPC_OPCODES {
 
 	/** Xcode rpc */
 	C2_XCODE_UT_OPCODE                  = 48,
-	
+
 	/** FOP module */
 	C2_FOP_RDWR_OPCODE                  = 49,
 	C2_FOP_RDWR_REPLY_OPCODE            = 50,
@@ -113,26 +113,35 @@ enum C2_RPC_OPCODES {
 	/** Configuration rpc */
 	C2_CONF_FETCH_OPCODE                = 51,
 	C2_CONF_FETCH_RESP_OPCODE           = 52,
+	C2_CONF_UPDATE_OPCODE               = 53,
+	C2_CONF_UPDATE_RESP_OPCODE          = 54,
 
         /* Mdservice fops */
-        C2_MDSERVICE_CREATE_OPCODE          = 64,
-        C2_MDSERVICE_LINK_OPCODE            = 65,
-        C2_MDSERVICE_UNLINK_OPCODE          = 66,
-        C2_MDSERVICE_RENAME_OPCODE          = 67,
-        C2_MDSERVICE_OPEN_OPCODE            = 68,
-        C2_MDSERVICE_CLOSE_OPCODE           = 69,
-        C2_MDSERVICE_SETATTR_OPCODE         = 70,
-        C2_MDSERVICE_GETATTR_OPCODE         = 71,
-        C2_MDSERVICE_READDIR_OPCODE         = 72,
-        C2_MDSERVICE_CREATE_REP_OPCODE      = 73,
-        C2_MDSERVICE_LINK_REP_OPCODE        = 74,
-        C2_MDSERVICE_UNLINK_REP_OPCODE      = 75,
-        C2_MDSERVICE_RENAME_REP_OPCODE      = 76,
-        C2_MDSERVICE_OPEN_REP_OPCODE        = 77,
-        C2_MDSERVICE_CLOSE_REP_OPCODE       = 78,
-        C2_MDSERVICE_SETATTR_REP_OPCODE     = 79,
-        C2_MDSERVICE_GETATTR_REP_OPCODE     = 80,
-        C2_MDSERVICE_READDIR_REP_OPCODE     = 81
+        C2_MDSERVICE_CREATE_OPCODE          = 55,
+        C2_MDSERVICE_LOOKUP_OPCODE          = 56,
+        C2_MDSERVICE_LINK_OPCODE            = 57,
+        C2_MDSERVICE_UNLINK_OPCODE          = 58,
+        C2_MDSERVICE_RENAME_OPCODE          = 59,
+        C2_MDSERVICE_OPEN_OPCODE            = 60,
+        C2_MDSERVICE_CLOSE_OPCODE           = 61,
+        C2_MDSERVICE_SETATTR_OPCODE         = 62,
+        C2_MDSERVICE_GETATTR_OPCODE         = 63,
+        C2_MDSERVICE_STATFS_OPCODE          = 64,
+        C2_MDSERVICE_READDIR_OPCODE         = 65,
+        C2_MDSERVICE_CREATE_REP_OPCODE      = 66,
+        C2_MDSERVICE_LOOKUP_REP_OPCODE      = 67,
+        C2_MDSERVICE_LINK_REP_OPCODE        = 68,
+        C2_MDSERVICE_UNLINK_REP_OPCODE      = 69,
+        C2_MDSERVICE_RENAME_REP_OPCODE      = 70,
+        C2_MDSERVICE_OPEN_REP_OPCODE        = 71,
+        C2_MDSERVICE_CLOSE_REP_OPCODE       = 72,
+        C2_MDSERVICE_SETATTR_REP_OPCODE     = 73,
+        C2_MDSERVICE_GETATTR_REP_OPCODE     = 74,
+        C2_MDSERVICE_STATFS_REP_OPCODE      = 75,
+        C2_MDSERVICE_READDIR_REP_OPCODE     = 76,
+
+	C2_SNS_REPAIR_TRIGGER_OPCODE        = 77,
+	C2_SNS_REPAIR_TRIGGER_REP_OPCODE    = 78
 };
 /** @} endgroup rpc_layer_core */
 

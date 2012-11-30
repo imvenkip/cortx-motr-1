@@ -72,7 +72,7 @@ const struct c2_rpc_frm_ops c2_rpc_frm_default_ops = {
          A buffer can carry only one packet at some point. There is a limit
          on number of packets that can be "in-flight". In near future we
          might want to keep per c2_rpc_chan buffer pool with few pre-allocated
-         buffers. In that case same buffer will carry many packets  during
+         buffers.  In that case same buffer will carry many packets during
          its lifetime (but only one at a time).
  */
 struct rpc_buffer {
@@ -383,9 +383,8 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 	p = rpcbuf->rb_packet;
 	p->rp_status = ev->nbe_status;
 
-	if (C2_FI_ENABLED("fake_err")) {
+	if (C2_FI_ENABLED("fake_err"))
 		p->rp_status = -EINVAL;
-	}
 	rpc_buffer_fini(rpcbuf);
 	c2_free(rpcbuf);
 
@@ -421,12 +420,12 @@ static void item_done(struct c2_rpc_item *item, unsigned long rc)
 		 * WAITING_FOR_REPLY state.
 		 */
 		if (c2_rpc_item_is_request(item)) {
-			if (item->ri_reply != NULL) {
+			if (item->ri_reply == NULL) {
+				c2_rpc_item_start_timer(item);
+			} else {
 				/* Reply has already been received when we
 				   were waiting for buffer callback */
 				c2_rpc_slot_process_reply(item);
-			} else {
-				c2_rpc_item_start_timer(item);
 			}
 		}
 	} else {
@@ -459,4 +458,7 @@ static bool item_bind(struct c2_rpc_item *item)
 	C2_LEAVE("result: %s", c2_bool_to_str(result));
 	return result;
 }
+
+#undef C2_TRACE_SUBSYSTEM
+
 /** @} */

@@ -55,8 +55,7 @@ static void fop_obj_init(struct c2_fop_iterator_test *fop)
 {
 	int i;
 
-	fop->fit_fid.ff_seq = 1;
-	fop->fit_fid.ff_oid = 2;
+        c2_fid_set(&fop->fit_fid, 1, 2);
 
 	fop->fit_vec.fv_count = 2;
 	C2_ALLOC_ARR(fop->fit_vec.fv_seg, fop->fit_vec.fv_count);
@@ -66,19 +65,11 @@ static void fop_obj_init(struct c2_fop_iterator_test *fop)
 		fop->fit_vec.fv_seg[i].fs_offset = i*2;
 	}
 
-	fop->fit_opt0.fo_fid.ff_seq = 131;
-	fop->fit_opt0.fo_fid.ff_oid = 132;
-
-	fop->fit_opt1.fo_fid.ff_seq = 31;
-	fop->fit_opt1.fo_fid.ff_oid = 32;
-
-	fop->fit_topt.fo_fid.ff_seq = 41;
-	fop->fit_topt.fo_fid.ff_oid = 42;
-
-	fop->fit_rec.fr_fid.ff_seq = 5;
-	fop->fit_rec.fr_fid.ff_oid = 6;
-	fop->fit_rec.fr_seq.fr_fid.ff_seq = 7;
-	fop->fit_rec.fr_seq.fr_fid.ff_oid = 8;
+        c2_fid_set(&fop->fit_opt0.fo_fid, 131, 132);
+        c2_fid_set(&fop->fit_opt1.fo_fid, 31, 32);
+        c2_fid_set(&fop->fit_topt.fo_fid, 41, 42);
+        c2_fid_set(&fop->fit_rec.fr_fid, 5, 6);
+        c2_fid_set(&fop->fit_rec.fr_seq.fr_fid, 7, 8);
 	fop->fit_rec.fr_seq.fr_seq.fv_count = 3;
 	C2_ALLOC_ARR(fop->fit_rec.fr_seq.fr_seq.fv_seg,
 		     fop->fit_rec.fr_seq.fr_seq.fv_count);
@@ -87,8 +78,7 @@ static void fop_obj_init(struct c2_fop_iterator_test *fop)
 		fop->fit_rec.fr_seq.fr_seq.fv_seg[i].fs_count = i;
 		fop->fit_rec.fr_seq.fr_seq.fv_seg[i].fs_offset = i*2;
 	}
-	fop->fit_rec.fr_seq.fr_unn.fo_fid.ff_seq = 41;
-	fop->fit_rec.fr_seq.fr_unn.fo_fid.ff_oid = 42;
+	c2_fid_set(&fop->fit_rec.fr_seq.fr_unn.fo_fid, 41, 42);
 }
 
 static void fit_test(void)
@@ -134,7 +124,7 @@ static void fit_test(void)
 		cur = &top->s_obj;
 		xt  = cur->xo_type;
 
-		if (xt == c2_fop_fid_xc) {
+		if (xt == c2_fid_xc) {
 			fid = cur->xo_ptr;
 			C2_UT_ASSERT(fid->f_container ==
 				     expected[i].f_container);

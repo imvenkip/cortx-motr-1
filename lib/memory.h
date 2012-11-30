@@ -64,7 +64,7 @@ do {									\
    In kernel mode due to the usage of __GFP_ZERO, it can't be used from hard or
    soft interrupt context.
  */
-void *c2_alloc_aligned(size_t size, unsigned shift);
+C2_INTERNAL void *c2_alloc_aligned(size_t size, unsigned shift);
 
 /** It returns true when addr is aligned by value shift. */
 static inline bool c2_addr_is_aligned(void *addr, unsigned shift)
@@ -91,18 +91,18 @@ void c2_free(void *data);
  * @param data pointer to allocated block
  *
  */
-void c2_free_aligned(void *data, size_t size, unsigned shift);
+C2_INTERNAL void c2_free_aligned(void *data, size_t size, unsigned shift);
 
 /**
  * Return amount of memory currently allocated.
  */
-size_t c2_allocated(void);
+C2_INTERNAL size_t c2_allocated(void);
 
 /**
  * Same as system getpagesize(3).
  * Used in the code shared between user and kernel.
  */
-int c2_pagesize_get(void);
+C2_INTERNAL int c2_pagesize_get(void);
 
 /** @} end of memory group */
 
