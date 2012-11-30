@@ -128,7 +128,7 @@ unprepare()
 
 	if [ -d $COLIBRI_C2T1FS_TEST_DIR ]; then
 		# don't cleanup core dumps
-		[ `find $COLIBRI_C2T1FS_TEST_DIR -name 'core.*'` ] ||
+		[ "`find $COLIBRI_C2T1FS_TEST_DIR -name 'core.*'`" ] ||
 			rm -rf $COLIBRI_C2T1FS_TEST_DIR
 	fi
 }
