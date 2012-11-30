@@ -23,18 +23,20 @@
 #include "lib/types.h"
 #include "lib/adt.h"
 #include "lib/assert.h"
+#include "lib/memory.h"
 
 #include "lib/ub.h"
 #include "lib/ut.h"
 #include "sns/parity_math.h"
 
 enum {
-	DATA_UNIT_COUNT_MAX    = 30,
-	PRTY_UNIT_COUNT_MAX    = 12,
-	DATA_TO_PRTY_RATIO_MAX = DATA_UNIT_COUNT_MAX / PRTY_UNIT_COUNT_MAX,
-	UNIT_BUFF_SIZE_MAX     = 1048576,
-	DATA_UNIT_COUNT        = 7,
-	PARITY_UNIT_COUNT      = 1,
+	DATA_UNIT_COUNT_MAX      = 30,
+	PRTY_UNIT_COUNT_MAX      = 12,
+	DATA_TO_PRTY_RATIO_MAX   = DATA_UNIT_COUNT_MAX / PRTY_UNIT_COUNT_MAX,
+	UNIT_BUFF_SIZE_MAX       = 1048576,
+	DATA_UNIT_COUNT          = 15,
+	PARITY_UNIT_COUNT        = 1,
+	RS_MAX_PARITY_UNIT_COUNT = DATA_UNIT_COUNT - 1,
 };
 
 static uint8_t expected[DATA_UNIT_COUNT_MAX][UNIT_BUFF_SIZE_MAX];
@@ -146,7 +148,7 @@ static bool config_generate(uint32_t *data_count,
 	*buff_size = UNIT_BUFF_SIZE;
 
 	if (algo == C2_PARITY_CAL_ALGO_REED_SOLOMON)
-		fuc-=3;
+		fuc -= 3;
 
 	return true;
 }
@@ -181,11 +183,11 @@ static void test_recovery(const enum c2_parity_cal_algo algo,
 
 		unit_spoil(buff_size, fail_count, data_count);
 
-		if (rt == FAIL_INDEX)
+		if (rt == FAIL_INDEX) {
 			c2_parity_math_fail_index_recover(&math, data_buf,
 							  parity_buf,
 							  fail_index_xor);
-		else if (rt == FAIL_VECTOR)
+		} else if (rt == FAIL_VECTOR)
 			c2_parity_math_recover(&math, data_buf, parity_buf,
 					       &fail_buf);
 
@@ -238,18 +240,18 @@ static void test_buffer_xor(void)
 		C2_UT_ASSERT(0 && "Recovered data is unexpected");
 }
 
-static void test_parity_math_diff(void)
+static void test_parity_math_diff(uint32_t parity_cnt)
 {
 	uint32_t              i;
 	uint32_t              j;
+	uint32_t              ret;
+	uint8_t		     *arr;
 	struct c2_buf         data_buf_old[DATA_UNIT_COUNT];
 	struct c2_buf         data_buf_new[DATA_UNIT_COUNT];
-	struct c2_buf         parity_buf_old;
-	struct c2_buf         parity_buf_expected;
 	struct c2_parity_math math;
+	struct c2_buf        *p_old;
+	struct c2_buf	     *p_new;
 
-	C2_UT_ASSERT(c2_parity_math_init(&math, DATA_UNIT_COUNT,
-					 PARITY_UNIT_COUNT) == 0);
 
 	for (i = 0; i < DATA_UNIT_COUNT; ++i) {
 		for (j = 0; j < UNIT_BUFF_SIZE; ++j) {
@@ -268,24 +270,62 @@ static void test_parity_math_diff(void)
 			    UNIT_BUFF_SIZE);
 	}
 
-	c2_buf_init(&parity_buf_old, parity[0], UNIT_BUFF_SIZE);
-	c2_buf_init(&parity_buf_expected, parity[1], UNIT_BUFF_SIZE);
+	ret = c2_parity_math_init(&math, DATA_UNIT_COUNT,
+				  parity_cnt);
+	C2_UT_ASSERT(ret == 0);
+	C2_ALLOC_ARR(p_old, parity_cnt);
+	C2_UT_ASSERT(p_old != NULL);
+	C2_ALLOC_ARR(p_new, parity_cnt);
+	C2_UT_ASSERT(p_new != NULL);
 
-	c2_parity_math_calculate(&math, data_buf_old, &parity_buf_old);
+	for(i = 0; i < parity_cnt; ++i) {
+		C2_ALLOC_ARR(arr, UNIT_BUFF_SIZE);
+		C2_UT_ASSERT(arr != NULL);
+		p_old[i].b_addr = arr;
+		C2_ALLOC_ARR(arr, UNIT_BUFF_SIZE);
+		C2_UT_ASSERT(arr != NULL);
+		p_new[i].b_addr = arr;
+		p_old[i].b_nob = p_new[i].b_nob = UNIT_BUFF_SIZE;
+	}
 
-	c2_parity_math_calculate(&math, data_buf_new, &parity_buf_expected);
+	c2_parity_math_calculate(&math, data_buf_old, p_old);
+	c2_parity_math_calculate(&math, data_buf_new, p_new);
 
 	for (i = 0; i < DATA_UNIT_COUNT; ++i) {
 		if (i % 2)
-			c2_parity_math_diff(&math, data_buf_old, data_buf_new,
-					    &parity_buf_old, i);
+			c2_parity_math_diff(&math, data_buf_old,
+					    data_buf_new,
+					    p_old, i);
 	}
 
-	C2_UT_ASSERT(memcmp(parity[0], parity[1], UNIT_BUFF_SIZE) == 0);
+	for(i = 0; i < parity_cnt; ++i) {
+		C2_UT_ASSERT(memcmp(p_old[i].b_addr, p_new[i].b_addr,
+			            UNIT_BUFF_SIZE) == 0);
+	}
 
 	c2_parity_math_fini(&math);
+
+	for(i = 0; i < parity_cnt; ++i) {
+		c2_free(p_old[i].b_addr);
+		c2_free(p_new[i].b_addr);
+	}
+	c2_free(p_old);
+	c2_free(p_new);
 }
 
+static void test_parity_math_diff_xor(void)
+{
+	test_parity_math_diff(PARITY_UNIT_COUNT);
+}
+
+
+static void test_parity_math_diff_rs(void)
+{
+	uint32_t i;
+	for (i = 2; i <= RS_MAX_PARITY_UNIT_COUNT; ++i) {
+		test_parity_math_diff(i);
+	}
+}
 const struct c2_test_suite parity_math_ut = {
         .ts_name = "parity_math-ut",
         .ts_init = NULL,
@@ -295,7 +335,8 @@ const struct c2_test_suite parity_math_ut = {
                 { "xor_recover_with_fail_vec", test_xor_fv_recover },
                 { "xor_recover_with_fail_index", test_xor_fail_idx_recover },
                 { "buffer_xor", test_buffer_xor },
-		{ "parity_math_diff", test_parity_math_diff },
+                { "parity_math_diff_xor", test_parity_math_diff_xor },
+                { "parity_math_diff_rs", test_parity_math_diff_rs },
                 { NULL, NULL }
         }
 };
