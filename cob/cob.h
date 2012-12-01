@@ -264,8 +264,8 @@ struct c2_cob_domain {
         struct c2_addb_ctx      cd_addb;
 };
 
-int c2_cob_domain_init(struct c2_cob_domain *dom,
-		       struct c2_dbenv *env, struct c2_cob_domain_id *id);
+int c2_cob_domain_init(struct c2_cob_domain *dom, struct c2_dbenv *env,
+		       const struct c2_cob_domain_id *id);
 
 void c2_cob_domain_fini(struct c2_cob_domain *dom);
 
