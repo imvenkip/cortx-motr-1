@@ -56,8 +56,8 @@ static const struct c2_reqh_service_ops ds2_service_ops = {
         .rso_fini = ds_service_fini
 };
 
-C2_REQH_SERVICE_TYPE_DECLARE(ds1_service_type, &ds1_service_type_ops, "ds1");
-C2_REQH_SERVICE_TYPE_DECLARE(ds2_service_type, &ds2_service_type_ops, "ds2");
+C2_REQH_SERVICE_TYPE_DEFINE(ds1_service_type, &ds1_service_type_ops, "ds1");
+C2_REQH_SERVICE_TYPE_DEFINE(ds2_service_type, &ds2_service_type_ops, "ds2");
 
 struct c2_reqh_service_type *c2_cs_default_stypes[] = {
 	&ds1_service_type,

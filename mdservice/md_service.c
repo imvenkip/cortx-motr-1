@@ -66,7 +66,7 @@ static const struct c2_reqh_service_ops mds_ops = {
         .rso_fini  = mds_fini
 };
 
-C2_REQH_SERVICE_TYPE_DECLARE(c2_mds_type, &mds_type_ops, "mdservice");
+C2_REQH_SERVICE_TYPE_DEFINE(c2_mds_type, &mds_type_ops, "mdservice");
 
 C2_INTERNAL int c2_mds_register(void)
 {
