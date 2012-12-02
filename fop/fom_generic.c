@@ -370,13 +370,10 @@ static int fom_txn_abort_wait(struct c2_fom *fom)
  */
 static int fom_queue_reply(struct c2_fom *fom)
 {
-	struct c2_rpc_item *item;
-
 	C2_PRE(fom->fo_rep_fop != NULL);
 
-        item = c2_fop_to_rpc_item(fom->fo_rep_fop);
-        c2_rpc_reply_post(&fom->fo_fop->f_item, item);
-
+        c2_rpc_reply_post(&fom->fo_fop->f_item,
+			  c2_fop_to_rpc_item(fom->fo_rep_fop));
 	return C2_FSO_AGAIN;
 }
 
