@@ -281,11 +281,10 @@ static void test_parity_math_diff(uint32_t parity_cnt)
 	for(i = 0; i < parity_cnt; ++i) {
 		C2_ALLOC_ARR(arr, UNIT_BUFF_SIZE);
 		C2_UT_ASSERT(arr != NULL);
-		p_old[i].b_addr = arr;
+		c2_buf_init(&p_old[i], arr, UNIT_BUFF_SIZE);
 		C2_ALLOC_ARR(arr, UNIT_BUFF_SIZE);
 		C2_UT_ASSERT(arr != NULL);
-		p_new[i].b_addr = arr;
-		p_old[i].b_nob = p_new[i].b_nob = UNIT_BUFF_SIZE;
+		c2_buf_init(&p_new[i], arr, UNIT_BUFF_SIZE);
 	}
 
 	c2_parity_math_calculate(&math, data_buf_old, p_old);
@@ -299,15 +298,14 @@ static void test_parity_math_diff(uint32_t parity_cnt)
 	}
 
 	for(i = 0; i < parity_cnt; ++i) {
-		C2_UT_ASSERT(memcmp(p_old[i].b_addr, p_new[i].b_addr,
-			            UNIT_BUFF_SIZE) == 0);
+		C2_UT_ASSERT(c2_buf_eq(&p_old[i], &p_new[i]));
 	}
 
 	c2_parity_math_fini(&math);
 
 	for(i = 0; i < parity_cnt; ++i) {
-		c2_free(p_old[i].b_addr);
-		c2_free(p_new[i].b_addr);
+		c2_buf_free(&p_old[i]);
+		c2_buf_free(&p_new[i]);
 	}
 	c2_free(p_old);
 	c2_free(p_new);
