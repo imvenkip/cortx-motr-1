@@ -367,6 +367,33 @@ In Colibri project we define the following tags:
 
         Reported-by: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
 
+    Bloated-by:
+
+      <size>
+        `./scripts/bloatmeter`
+      </size>
+
+        Provides an information about how the image size of main binary files,
+        like libcolibri.so or kcolibri.ko, is affected by the current patch.
+        The idea, is to be able to track down how much each particular feature
+        contributes to the whole image size and to find the "culprit" if image
+        size goes out of control.
+        As a general guideline, this tag should be added to merge commits during
+        landing a feature branch on master. It should tell the difference in
+        image sizes between the original master (on which feature branch is
+        based) and current master (with landed feature branch). In case if
+        feature is landed as a single patch (w/o a merge), then this tag should
+        be added to that commit.
+
+        Example:
+
+          <size>
+              text     data      bss    total filename
+              -312        0        0     -312 libcolibri-altogether.so
+              -288        0        0     -288 kcolibri.ko
+              -288        0        0     -288 libcolibri.so
+          </size>
+
 
 ORGANIZING YOUR COMMITS
 -----------------------
