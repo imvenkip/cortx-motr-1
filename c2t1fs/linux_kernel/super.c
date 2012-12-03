@@ -29,13 +29,11 @@
 
 #include "lib/misc.h"         /* C2_SET0()                      */
 #include "lib/memory.h"       /* C2_ALLOC_PTR(), c2_free()      */
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
-#include "lib/trace.h"        /* C2_LOG and C2_ENTRY            */
+#include "c2t1fs/linux_kernel/c2t1fs.h"
 #include "layout/linear_enum.h"
 #include "layout/pdclust.h"
 #include "colibri/magic.h"
 #include "conf/conf_fop.h"
-#include "c2t1fs/linux_kernel/c2t1fs.h"
 #include "rpc/rpclib.h"       /* c2_rpc_client_call */
 
 static int c2t1fs_sb_layout_init(struct c2t1fs_sb *csb);
@@ -103,7 +101,7 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb);
 /* global instances */
 
 static const struct super_operations c2t1fs_super_operations = {
-        .statfs        = c2t1fs_statfs,
+	.statfs        = c2t1fs_statfs,
 	.alloc_inode   = c2t1fs_alloc_inode,
 	.destroy_inode = c2t1fs_destroy_inode,
 	.drop_inode    = generic_delete_inode /* provided by linux kernel */
@@ -155,7 +153,7 @@ static void ast_thread(struct c2t1fs_sb *csb)
 
 static void ast_thread_stop(struct c2t1fs_sb *csb)
 {
-        struct c2_clink w;
+	struct c2_clink w;
 
 	c2_clink_init(&w, NULL);
 	c2_clink_add(&csb->csb_iowait, &w);
@@ -173,59 +171,59 @@ extern struct io_mem_stats iommstats;
 
 static int c2t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 {
-        struct c2_fop_statfs_rep *rep = NULL;
-        struct super_block *sb = dentry->d_sb;
-        struct c2t1fs_sb   *csb = C2T1FS_SB(sb);
-        int                 rc;
+	struct c2_fop_statfs_rep *rep = NULL;
+	struct super_block *sb = dentry->d_sb;
+	struct c2t1fs_sb   *csb = C2T1FS_SB(sb);
+	int                 rc;
 
-        c2t1fs_fs_lock(csb);
-        rc = c2t1fs_mds_statfs(csb, &rep);
-        if (rc != 0) {
-                c2t1fs_fs_unlock(csb);
-                return rc;
-        }
-        buf->f_type = rep->f_type;
-        buf->f_bsize = rep->f_bsize;
-        buf->f_blocks = rep->f_blocks;
-        buf->f_bfree = buf->f_bavail = rep->f_bfree;
-        buf->f_files = rep->f_files;
-        buf->f_ffree = rep->f_ffree;
-        buf->f_namelen = rep->f_namelen;
-        c2t1fs_fs_unlock(csb);
-        return 0;
+	c2t1fs_fs_lock(csb);
+	rc = c2t1fs_mds_statfs(csb, &rep);
+	if (rc != 0) {
+		c2t1fs_fs_unlock(csb);
+		return rc;
+	}
+	buf->f_type = rep->f_type;
+	buf->f_bsize = rep->f_bsize;
+	buf->f_blocks = rep->f_blocks;
+	buf->f_bfree = buf->f_bavail = rep->f_bfree;
+	buf->f_files = rep->f_files;
+	buf->f_ffree = rep->f_ffree;
+	buf->f_namelen = rep->f_namelen;
+	c2t1fs_fs_unlock(csb);
+	return 0;
 }
 
 static int fs_params_parse(struct c2t1fs_mnt_opts *dest, const char **src);
 
 static int root_alloc(struct super_block *sb)
 {
-        struct c2_fop_statfs_rep *rep = NULL;
+	struct c2_fop_statfs_rep *rep = NULL;
 	struct c2t1fs_sb         *csb = C2T1FS_SB(sb);
 	struct inode             *root_inode;
 	int                       rc;
 
-        rc = c2t1fs_mds_statfs(csb, &rep);
-        if (rc != 0)
+	rc = c2t1fs_mds_statfs(csb, &rep);
+	if (rc != 0)
 		return rc;
 
 	sb->s_magic = rep->f_type;
-        csb->csb_namelen = rep->f_namelen;
+	csb->csb_namelen = rep->f_namelen;
 
-        C2_LOG(C2_DEBUG, "Got mdservice root fid [%llx:%llx]",
-               rep->f_root.f_container, rep->f_root.f_key);
+	C2_LOG(C2_DEBUG, "Got mdservice root fid [%llx:%llx]",
+	       rep->f_root.f_container, rep->f_root.f_key);
 
 	root_inode = c2t1fs_root_iget(sb, &rep->f_root);
 	if (IS_ERR(root_inode)) {
-	        rc = PTR_ERR(root_inode);
-	        C2_LOG(C2_ERROR, "c2t1fs_root_iget() failed with %d", rc);
-	        return rc;
+		rc = PTR_ERR(root_inode);
+		C2_LOG(C2_ERROR, "c2t1fs_root_iget() failed with %d", rc);
+		return rc;
 	}
 
 	sb->s_root = d_alloc_root(root_inode);
 	if (sb->s_root == NULL) {
 		iput(root_inode);
 		rc = -ENOMEM;
-	        C2_LOG(C2_ERROR, "d_alloc_root() failed with %d", rc);
+		C2_LOG(C2_ERROR, "d_alloc_root() failed with %d", rc);
 		return rc;
 	}
 	return 0;
@@ -247,6 +245,70 @@ static int conf_read(struct c2t1fs_mnt_opts *mops, const struct c2t1fs_sb *csb)
 
 	C2_RETURN(rc);
 }
+
+#if 0 /* XXX conf-ut:conf-net <<<<<<< */
+/* XXX This function is temporary. It is part of conf-net demonstration. */
+static struct c2_fop *conf_fop_alloc(void)
+{
+	struct c2_fop *fop;
+
+	C2_ENTRY();
+
+	fop = c2_fop_alloc(&c2_conf_fetch_fopt, NULL);
+	if (unlikely(fop == NULL)) {
+		C2_LOG(C2_ERROR, "fop allocation failed");
+	} else {
+		struct c2_conf_fetch *req = c2_fop_data(fop);
+
+		req->f_origin.oi_type = 999; /* XXX */
+		req->f_origin.oi_id = (const struct c2_buf)C2_BUF_INIT0;
+		req->f_path.ab_count = 0;
+	}
+
+	C2_LEAVE();
+	return fop;
+}
+
+/* XXX This function is temporary. It is part of conf-net demonstration. */
+static void conf_ping(struct c2_rpc_session *session)
+{
+	struct c2_fop             *fop;
+	struct c2_rpc_item        *item;
+	struct c2_conf_fetch_resp *resp;
+	int                        rc;
+
+	C2_ENTRY();
+
+	fop = conf_fop_alloc();
+	if (fop == NULL) {
+		C2_LOG(C2_ERROR, "conf_fop_alloc() failed");
+		goto out;
+	}
+
+	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops, 0,
+				C2T1FS_RPC_TIMEOUT);
+	if (rc != 0) {
+		C2_LOG(C2_ERROR, "c2_rpc_client_call() error: %d", rc);
+		goto out;
+	}
+
+	item = &fop->f_item;
+	C2_ASSERT((item->ri_error == 0) == (item->ri_reply != NULL));
+
+	if (item->ri_reply != NULL) {
+		resp = c2_fop_data(c2_rpc_item_to_fop(item->ri_reply));
+		C2_ASSERT(resp != NULL && resp->fr_rc == 0);
+#if 1 /*XXX*/
+		C2_LOG(C2_FATAL, "XXX [%s:%d (%s)] resp: nr_objs=%u,"
+		       " id[0]=`%s'", (char *)__FILE__, __LINE__,
+		       (char *)__func__, resp->fr_data.ec_nr,
+		       (char *)resp->fr_data.ec_objs[0].o_id.b_addr);
+#endif
+	}
+out:
+	C2_LEAVE();
+}
+#endif /* XXX >>>>>>> */
 
 static int c2t1fs_fill_super(struct super_block *sb, void *data,
 			     int silent __attribute__((unused)))
@@ -272,10 +334,9 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data,
 	if (rc != 0)
 		goto sb_fini;
 
-	C2_ASSERT(mops->mo_profile != NULL && *mops->mo_profile != '\0');
-	rc = c2_confc_init(&csb->csb_confc, mops->mo_conf,
+	rc = c2_confc_init(&csb->csb_confc, &csb->csb_iogroup,
 			   &(const struct c2_buf)C2_BUF_INITS(mops->mo_profile),
-			   &csb->csb_iogroup);
+			   mops->mo_confd, NULL, mops->mo_local_conf);
 	if (rc != 0)
 		goto sb_fini;
 
@@ -331,12 +392,11 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data,
 	if (rc != 0)
 		goto map_fini;
 
-        io_bob_tlists_init();
-
+	io_bob_tlists_init();
 	C2_SET0(&iommstats);
-#if 0 /* XXX conf-ut:conf-net */
-	c2t1fs_conf_ping(c2t1fs_container_id_to_session(csb, 1));
-#endif
+
+	/* conf_ping(c2t1fs_container_id_to_session(csb, 1)); /\* XXX *\/ */
+
 	C2_RETURN(0);
 
 map_fini:
@@ -539,8 +599,8 @@ static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 	c2_mutex_init(&csb->csb_mutex);
 	c2t1fs_mnt_opts_init(&csb->csb_mnt_opts);
 	svc_ctx_tlist_init(&csb->csb_service_contexts);
-        c2_sm_group_init(&csb->csb_iogroup);
-        c2_addb_ctx_init(&c2t1fs_addb, &c2t1fs_addb_type, &c2_addb_global_ctx);
+	c2_sm_group_init(&csb->csb_iogroup);
+	c2_addb_ctx_init(&c2t1fs_addb, &c2t1fs_addb_type, &c2_addb_global_ctx);
 	csb->csb_active = true;
 	c2_chan_init(&csb->csb_iowait);
 	c2_atomic64_set(&csb->csb_pending_io_nr, 0);
@@ -559,24 +619,26 @@ static void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 	c2_mutex_fini(&csb->csb_mutex);
 	c2t1fs_mnt_opts_fini(&csb->csb_mnt_opts);
 	csb->csb_next_key = 0;
-        c2_addb_ctx_fini(&c2t1fs_addb);
+	c2_addb_ctx_fini(&c2t1fs_addb);
 
 	C2_LEAVE();
 }
 
 enum c2t1fs_mntopts {
-	C2T1FS_MNTOPT_CONF = 1,
+	C2T1FS_MNTOPT_CONFD = 1,
 	C2T1FS_MNTOPT_PROFILE,
-	C2T1FS_MNTOPT_IOS,
+	C2T1FS_MNTOPT_LOCAL_CONF,
 	C2T1FS_MNTOPT_MDS,
+	C2T1FS_MNTOPT_IOS,
 	C2T1FS_MNTOPT_ERR,
 };
 
 static const match_table_t c2t1fs_mntopt_tokens = {
-	{ C2T1FS_MNTOPT_CONF,    "conf=%s"    },
-	{ C2T1FS_MNTOPT_PROFILE, "profile=%s" },
-	{ C2T1FS_MNTOPT_IOS,     "ios=%s"     },
-	{ C2T1FS_MNTOPT_MDS,     "mds=%s"     },
+	{ C2T1FS_MNTOPT_CONFD,      "confd=%s" },
+	{ C2T1FS_MNTOPT_PROFILE,    "profile=%s" },
+	{ C2T1FS_MNTOPT_LOCAL_CONF, "local_conf=%s" },
+	{ C2T1FS_MNTOPT_MDS,        "mds=%s" },
+	{ C2T1FS_MNTOPT_IOS,        "ios=%s" },
 	/* match_token() requires 2nd field of the last element to be NULL */
 	{ C2T1FS_MNTOPT_ERR, NULL }
 };
@@ -596,57 +658,53 @@ static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts)
 	int i;
 
 	C2_ENTRY();
-	C2_ASSERT(mntopts != NULL);
+	C2_PRE(mntopts != NULL);
+
+	/* Here we use kfree() instead of c2_free() because the memory
+	 * was allocated using match_strdup(). */
 
 	for (i = 0; i < mntopts->mo_ios_ep_nr; i++) {
 		C2_ASSERT(mntopts->mo_ios_ep_addr[i] != NULL);
-		/*
-		 * using kfree() instead of c2_free() because the memory
-		 * was allocated using match_strdup().
-		 */
 		kfree(mntopts->mo_ios_ep_addr[i]);
 	}
-
 	for (i = 0; i < mntopts->mo_mds_ep_nr; i++) {
 		C2_ASSERT(mntopts->mo_mds_ep_addr[i] != NULL);
-		/*
-		 * using kfree() instead of c2_free() because the memory
-		 * was allocated using match_strdup().
-		 */
 		kfree(mntopts->mo_mds_ep_addr[i]);
 	}
-
-	if (mntopts->mo_conf != NULL)
-		kfree(mntopts->mo_conf);
-
+	if (mntopts->mo_confd != NULL)
+		kfree(mntopts->mo_confd);
 	if (mntopts->mo_profile != NULL)
 		kfree(mntopts->mo_profile);
+	if (mntopts->mo_local_conf != NULL)
+		kfree(mntopts->mo_local_conf);
 
 	C2_SET0(mntopts);
-
 	C2_LEAVE();
+}
+
+static bool is_empty(const char *s)
+{
+	return s == NULL || *s == '\0';
 }
 
 static int c2t1fs_mnt_opts_validate(const struct c2t1fs_mnt_opts *mops)
 {
 	C2_ENTRY();
 
-	if (mops->mo_conf == NULL || *mops->mo_conf == '\0')
-		C2_RETERR(-EINVAL, "Mandatory parameter is missing: conf");
-	if (mops->mo_profile == NULL || *mops->mo_profile == '\0')
+	if (is_empty(mops->mo_confd) && is_empty(mops->mo_local_conf))
+		C2_RETERR(-EINVAL, "Configuration source is not specified");
+
+	if (is_empty(mops->mo_profile))
 		C2_RETERR(-EINVAL, "Mandatory parameter is missing: profile");
 
-	if (mops->mo_ios_ep_nr == 0)
-		C2_RETERR(-EINVAL,
-			  "Must specify at least one ioservice endpoint");
-
 	if (mops->mo_mds_ep_nr == 0)
-		C2_RETERR(-EINVAL,
-			  "Must specify at least one mdservice endpoint");
+		C2_RETERR(-EINVAL, "No mdservice endpoints specified");
+	if (mops->mo_ios_ep_nr == 0)
+		C2_RETERR(-EINVAL, "No ioservice endpoints specified");
 
 	/* c2t1fs_mnt_opts_parse() guarantees that this condition holds: */
-	C2_ASSERT(mops->mo_ios_ep_nr <= ARRAY_SIZE(mops->mo_ios_ep_addr));
-	C2_ASSERT(mops->mo_mds_ep_nr <= ARRAY_SIZE(mops->mo_mds_ep_addr));
+	C2_ASSERT(mops->mo_mds_ep_nr <= ARRAY_SIZE(mops->mo_mds_ep_addr) &&
+		  mops->mo_ios_ep_nr <= ARRAY_SIZE(mops->mo_ios_ep_addr));
 
 	C2_RETURN(0);
 }
@@ -785,11 +843,12 @@ end:
 }
 
 /**
- * Consumes a chunk of `conf=' mount option value.
+ * Consumes a chunk of `local_conf=' mount option value.
  *
- * conf_step() knows how to tell the end of `conf=' value by counting
- * '[' and ']' characters.  conf_step() restores comma (',') at the
- * end of given chunk, unless this is the last chunk of `conf=' value.
+ * local_conf_step() knows how to tell the end of `local_conf=' value
+ * by counting '[' and ']' characters.  local_conf_step() restores
+ * comma at the end of given chunk, unless this is the last chunk of
+ * `local_conf=' value.
  *
  * @retval 0        End of configuration string has been reached.
  * @retval 1        A chunk has been consumed. Parsing should be continued.
@@ -797,7 +856,7 @@ end:
  *
  * @see @ref conf-fspec-preload
  */
-static int conf_step(char *s, uint8_t *depth)
+static int local_conf_step(char *s, uint8_t *depth)
 {
 	C2_PRE(*s != '\0');
 
@@ -838,13 +897,27 @@ static int c2t1fs_mnt_opts_parse(char *options, struct c2t1fs_mnt_opts *mops)
 
 	while ((op = strsep(&options, ",")) != NULL && *op != '\0') {
 		switch (match_token(op, c2t1fs_mntopt_tokens, args)) {
-		case C2T1FS_MNTOPT_CONF: {
+		case C2T1FS_MNTOPT_CONFD:
+			rc = str_parse(&mops->mo_confd, args);
+			if (rc != 0)
+				goto out;
+			C2_LOG(C2_INFO, "confd: %s", mops->mo_confd);
+			break;
+
+		case C2T1FS_MNTOPT_PROFILE:
+			rc = str_parse(&mops->mo_profile, args);
+			if (rc != 0)
+				goto out;
+			C2_LOG(C2_INFO, "profile: %s", mops->mo_profile);
+			break;
+
+		case C2T1FS_MNTOPT_LOCAL_CONF: {
 			const char *start = args->from;
 			uint8_t     depth = 0;
 
 			op = args->from;
 			do {
-				rc = conf_step(op, &depth);
+				rc = local_conf_step(op, &depth);
 			} while (rc > 0 &&
 				 (op = strsep(&options, ",")) != NULL &&
 				 *op != '\0');
@@ -855,18 +928,27 @@ static int c2t1fs_mnt_opts_parse(char *options, struct c2t1fs_mnt_opts *mops)
 					  "too nested");
 			}
 
-			mops->mo_conf = kstrdup(start, GFP_KERNEL);
-			if (mops->mo_conf == NULL)
+			mops->mo_local_conf = kstrdup(start, GFP_KERNEL);
+			if (mops->mo_local_conf == NULL)
 				C2_RETURN(-ENOMEM);
 
-			C2_LOG(C2_INFO, "conf: `%s'", mops->mo_conf);
+			C2_LOG(C2_INFO, "local_conf: `%s'",
+			       mops->mo_local_conf);
 			break;
 		}
-		case C2T1FS_MNTOPT_PROFILE:
-			rc = str_parse(&mops->mo_profile, args);
+		case C2T1FS_MNTOPT_MDS:
+			if (mops->mo_mds_ep_nr ==
+			    ARRAY_SIZE(mops->mo_mds_ep_addr))
+				C2_RETERR(-EINVAL, "No more than %lu mds"
+					  " addresses can be provided",
+					  ARRAY_SIZE(mops->mo_mds_ep_addr));
+
+			pstr = &mops->mo_mds_ep_addr[mops->mo_mds_ep_nr];
+			rc = str_parse(pstr, args);
 			if (rc != 0)
 				goto out;
-			C2_LOG(C2_INFO, "profile: %s", mops->mo_profile);
+			++mops->mo_mds_ep_nr;
+			C2_LOG(C2_INFO, "mdservice: %s", *pstr);
 			break;
 
 		case C2T1FS_MNTOPT_IOS:
@@ -884,30 +966,12 @@ static int c2t1fs_mnt_opts_parse(char *options, struct c2t1fs_mnt_opts *mops)
 			C2_LOG(C2_INFO, "ioservice: %s", *pstr);
 			break;
 
-		case C2T1FS_MNTOPT_MDS:
-			if (mops->mo_mds_ep_nr ==
-			    ARRAY_SIZE(mops->mo_mds_ep_addr))
-				C2_RETERR(-EINVAL, "No more than %lu mds"
-					  " addresses can be provided",
-					  ARRAY_SIZE(mops->mo_mds_ep_addr));
-
-			pstr = &mops->mo_mds_ep_addr[mops->mo_mds_ep_nr];
-			rc = str_parse(pstr, args);
-			if (rc != 0)
-				goto out;
-			++mops->mo_mds_ep_nr;
-			C2_LOG(C2_INFO, "mdservice: %s", *pstr);
-			break;
-
 		default:
-			C2_RETERR(-EINVAL, "Unrecognized option: %s\n"
-				  "Supported options: conf,profile,ios", op);
+			C2_RETERR(-EINVAL, "Unrecognized option: %s", op);
 		}
 	}
-
-	rc = c2t1fs_mnt_opts_validate(mops);
 out:
-	C2_RETURN(rc);
+	C2_RETURN(rc ?: c2t1fs_mnt_opts_validate(mops));
 }
 
 static void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
@@ -1022,7 +1086,6 @@ static void c2t1fs_service_contexts_delete(struct c2t1fs_sb *csb)
 static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 {
 	struct c2_rpc_machine     *rpc_mach;
-	struct c2_net_transfer_mc *tm;
 	struct c2_net_end_point   *ep;
 	struct c2_rpc_conn        *conn;
 	struct c2_rpc_session     *session;
@@ -1031,10 +1094,9 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 	C2_ENTRY();
 
 	rpc_mach = &c2t1fs_globals.g_rpc_machine;
-	tm       = &rpc_mach->rm_tm;
 
 	/* Create target end-point */
-	rc = c2_net_end_point_create(&ep, tm, ctx->sc_addr);
+	rc = c2_net_end_point_create(&ep, &rpc_mach->rm_tm, ctx->sc_addr);
 	if (rc != 0)
 		goto out;
 
@@ -1057,8 +1119,7 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 	C2_RETURN(rc);
 
 conn_term:
-	(void)c2_rpc_conn_terminate_sync(conn, C2_TIME_NEVER);
-	c2_rpc_conn_fini(conn);
+	(void)c2_rpc_conn_destroy(conn, C2_TIME_NEVER);
 out:
 	C2_ASSERT(rc != 0);
 	C2_RETURN(rc);
@@ -1068,13 +1129,8 @@ static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx)
 {
 	C2_ENTRY();
 
-	(void)c2_rpc_session_terminate_sync(&ctx->sc_session, C2_TIME_NEVER);
-	/* session_fini() before conn_terminate is necessary, to detach
-	   session from connection */
-	c2_rpc_session_fini(&ctx->sc_session);
-
-	(void)c2_rpc_conn_terminate_sync(&ctx->sc_conn, C2_TIME_NEVER);
-	c2_rpc_conn_fini(&ctx->sc_conn);
+	(void)c2_rpc_session_destroy(&ctx->sc_session, C2_TIME_NEVER);
+	(void)c2_rpc_conn_destroy(&ctx->sc_conn, C2_TIME_NEVER);
 
 	--ctx->sc_csb->csb_nr_active_contexts;
 	C2_LOG(C2_INFO, "Disconnected from service [%s]. Active contexts: %d",
@@ -1175,9 +1231,12 @@ c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
 {
 	struct c2t1fs_service_context *ctx;
 
-	C2_ASSERT(container_id < csb->csb_nr_containers);
+	C2_ENTRY();
+	C2_PRE(container_id < csb->csb_nr_containers);
+
 	ctx = csb->csb_cl_map.clm_map[container_id];
 	C2_ASSERT(ctx != NULL);
+
 	C2_LEAVE("session: %p", &ctx->sc_session);
 	return &ctx->sc_session;
 }

@@ -95,18 +95,6 @@ C2_INTERNAL int c2_rpc_post(struct c2_rpc_item *item)
 }
 C2_EXPORTED(c2_rpc_post);
 
-C2_INTERNAL void c2_rpc_item_get(struct c2_rpc_item *item)
-{
-	/* XXX TODO */
-}
-C2_EXPORTED(c2_rpc_item_get);
-
-C2_INTERNAL void c2_rpc_item_put(struct c2_rpc_item *item)
-{
-	/* XXX TODO */
-}
-C2_EXPORTED(c2_rpc_item_put);
-
 C2_INTERNAL int c2_rpc__post_locked(struct c2_rpc_item *item)
 {
 	struct c2_rpc_session *session;

@@ -98,7 +98,7 @@ struct c2_net_buffer_pool_ops buffer_pool_ops = {
 	.nbpo_below_threshold = buffer_pool_low,
 };
 
-C2_REQH_SERVICE_TYPE_DECLARE(c2_ios_type, &ios_type_ops, "ioservice");
+C2_REQH_SERVICE_TYPE_DEFINE(c2_ios_type, &ios_type_ops, "ioservice");
 
 /**
  * Buffer pool operation function. This function gets called when buffer pool

@@ -33,49 +33,33 @@ struct c2_conf_xcode_pair {
 };
 
 /**
- * Serializes obj into out_kv.xp_key and out_kv.xp_val used to be written as a
- * key and value into configuration db.
+ * Serializes configuration object into xcode representation.
  *
- * @note User is responsible to c2_free out_kv.xp_val, when it's no more needed.
+ * Resulting c2_conf_xcode_pair can be stored in the configuration database.
  *
- * @note xcode interfaces don't allow to make obj to be
- * const struct confx_object *
- *
- * @param[in]  obj serialized configuration object
- * @param[out] out_kv serialized configuration buffers, obj is xcoded into
- *
- * @returns = 0  Success.
- * @returns < 0  Error code.
+ * Notes:
+ *  1. User is responsible for freeing dest->xp_val.
+ *  2. xcode interfaces don't allow `src' to be const.
  */
-C2_INTERNAL int c2_confx_encode(struct confx_object *obj,
-				struct c2_conf_xcode_pair *out_kv);
+C2_INTERNAL int
+c2_confx_encode(struct confx_object *src, struct c2_conf_xcode_pair *dest);
 
 /**
- * Deserializes serialized representation of a configuration object
+ * Deserializes on-wire representation of a configuration object.
  *
- * @note User is responsible to free out_obj array with c2_confx_fini()
- *
- * @note xcode interfaces don't allow to make kv to be
- * const struct c2_conf_xcode_pair *
- *
- * @param[in]  kv serialized representation of configuration object
- * @param[out] out_obj deserialized configuration object
- *
- * @returns = 0  Success.
- * @returns < 0  Error code.
+ * Notes:
+ *  1. User is responsible for freeing dest array with c2_confx_fini().
+ *  2. xcode interfaces don't allow `src' to be const.
  */
-C2_INTERNAL int c2_confx_decode(struct c2_conf_xcode_pair *kv,
-				struct confx_object *out_obj);
+C2_INTERNAL int c2_confx_decode(struct c2_conf_xcode_pair *src,
+				struct confx_object *dest);
 
 /**
- * Creates configuration db, from the given configuration objects array
+ * Creates configuration db, populating it with given configuration data.
  *
- * @param[in]  db_name a path, where db has to be stored
- * @param[in]  obj an array of configuration objects
- * @param[in]  obj_nr a number of initialized objects in obj
- *
- * @returns = 0  Success.
- * @returns < 0  Error code.
+ * @param db_name  path to the database
+ * @param obj      input array of configuration objects
+ * @param obj_nr   the number of objects
  */
 C2_INTERNAL int c2_confx_db_create(const char *db_name,
 				   struct confx_object *obj, size_t obj_nr);
@@ -83,11 +67,11 @@ C2_INTERNAL int c2_confx_db_create(const char *db_name,
 /**
  * Reads configuration db, into the given configuration objects array
  *
- * @param[in]     db_name a path, where db has is stored
- * @param[inout]  obj an array of configuration objects
+ * @param db_name  path to the database
+ * @param obj      resulting array of configuration objects
  *
- * @returns => 0  Success, the number of read configuration objects
- * @returns <  0  Error code.
+ * @returns => 0 The number of read configuration objects
+ * @returns < 0  Error code
  *
  * @note User has to c2_free obj, and call c2_xcode_free for all obj[i]
  */

@@ -338,8 +338,7 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	int                    i;
 
 	C2_ENTRY("conn: %p", conn);
-	C2_ASSERT(conn != NULL &&
-		  c2_rpc_machine_is_locked(conn->c_rpc_machine));
+	C2_PRE(conn != NULL && c2_rpc_machine_is_locked(conn->c_rpc_machine));
 
 	C2_ALLOC_PTR(session);
 	if (session == NULL)

@@ -43,7 +43,7 @@
  *   - @ref confd-fspec-sub-setup
  * - @ref confd-fspec-cli
  * - @ref confd-fspec-recipes
- *   - @ref confd-fspec-ex1
+ *   - @ref confd-fspec-recipe1
  * - @ref confd_dfspec "Detailed Functional Specification"
  *
  * <hr> <!------------------------------------------------------------>
@@ -75,18 +75,18 @@
  * - c2_conf_update_resp --- Confd's response to c2_conf_update;
  *
  * <hr> <!------------------------------------------------------------->
- * @section confd-dld-fspec-sub  Subroutines
+ * @section confd-fspec-sub  Subroutines
  *
- * - c2_confd_service_register()  - registers confd service in the system.
- * - c2_confd_service_unregister() - unregisters confd service.
+ * - c2_confd_register()  - registers confd service in the system.
+ * - c2_confd_unregister() - unregisters confd service.
  *
  * <!------------------------------------------------------------------>
- * @subsection confd-dld-fspec-sub-setup Initialization and termination
+ * @subsection confd-fspec-sub-setup Initialization and termination
  *
  * Confd is initiated and put into operation by request handler logic,
  * after colibri is started. Confd service should be registered in
- * request handler with c2_confd_service_register() call, where it has
- * to initialise own data structures and FOPs used for communication.
+ * request handler with c2_confd_register() call, where it has to
+ * initialise own data structures and FOPs used for communication.
  *
  * Initial configuration database is manually created prior to startup.
  * Confd assumes that:
@@ -106,7 +106,7 @@
  * entire configuration db into memory-based structures. Pre-loading
  * details can be found in @ref confd-lspec.
  *
- * Initialised confd may be eventually terminated by c2_confd_service_unregister()
+ * Initialised confd may be eventually terminated by c2_confd_unregister()
  * in which confd has to finalise own data structures and FOPs.
  *
  * After a confd instance is started it manages configuration
@@ -120,67 +120,70 @@
  * @ref colibri_setup in cs_help() function are used.
  *
  * <hr> <!------------------------------------------------------------->
- * @section confd-dld-fspec-recipes  Recipes
+ * @section confd-fspec-recipes  Recipes
  *
- * @subsection ex1  Typical interaction between confc and confd
+ * @subsection confd-fspec-recipe1 Typical interaction between confc and confd
  *
  * Client sends a c2_conf_fetch FOP request to confd;
  *
  * Configuration service processes confc requests in
- * `c2_fom_ops::fo_state()' state function of c2_conf_fetch FOP
- * request and sends c2_conf_fetch_resp FOP back.
+ * c2_fom_ops::fo_tick() function of c2_conf_fetch FOP request and
+ * sends c2_conf_fetch_resp FOP back.
  *
  * @see confd_dfspec
  */
-
+
 /**
  * @defgroup confd_dfspec Configuration Service (confd)
  * @brief Detailed Functional Specification.
  *
- * @see @ref confd-dld, @ref confd-dld-fspec
+ * @see @ref confd-fspec
  *
  * @{
  */
 
-/** Configuration data accessor. */
-struct c2_confd_cache {
-	/**
-	 * Database environment pointer on c2_reqh::rh_dbenv of the
-	 * request handler in which c2_confd is registered.
-	 */
-	struct c2_dbenv   *ca_db;
-#if 0
-	/** Registry of cached configuration objects */
-	struct c2_conf_map ca_cache;
-	/** Protects this structure while processing of c2_conf_fetch
-	 * and c2_conf_update FOPs */
-	struct c2_longlock ca_rwlock;
-#endif
-};
+extern struct c2_reqh_service_type c2_confd_stype;
+extern const struct c2_bob_type c2_confd_bob;
 
-/**
- * Configuration service statistics
- * @todo To be defined.
- */
-struct c2_confd_stat {};
-
-C2_INTERNAL int c2_confd_service_register(void);
-C2_INTERNAL void c2_confd_service_unregister(void);
-
-enum {
-	/* magic for reqh services */
-	C2_REQH_CONFD_SERVICE_MAGIC = 0x7265716873766373
-};
-
-/**
- * Confd service, registered in request handler
- */
+/** Configuration server. */
 struct c2_confd {
-	struct c2_reqh_service c_reqh;
-	struct c2_confd_cache  c_cache;
-	struct c2_confd_stat   c_stat;
-	uint64_t               c_magic;
+	struct c2_reqh_service d_reqh;
+	/**
+	 * Configuration string, used as a temporary substitution for
+	 * configuration cache.
+	 *
+	 * @todo XXX confd should cache configuration data properly.
+	 */
+	const char            *d_local_conf;
+	/* struct c2_confd_cache  d_cache; */
+	/* struct c2_confd_stat   d_stat; */
+	uint64_t               d_magic;
 };
+
+C2_INTERNAL int c2_confd_register(void);
+C2_INTERNAL void c2_confd_unregister(void);
+
+/* /\** Configuration data accessor. *\/ */
+/* struct c2_confd_cache { */
+/* 	/\** */
+/* 	 * Database environment pointer on c2_reqh::rh_dbenv of the */
+/* 	 * request handler in which c2_confd is registered. */
+/* 	 *\/ */
+/* 	struct c2_dbenv   *ca_db; */
+/* #if 0 /\*XXX*\/ */
+/* 	/\** Registry of cached configuration objects *\/ */
+/* 	struct c2_conf_map ca_cache; */
+/* 	/\** Protects this structure while processing of c2_conf_fetch */
+/* 	 * and c2_conf_update FOPs *\/ */
+/* 	struct c2_longlock ca_rwlock; */
+/* #endif */
+/* }; */
+
+/* /\** */
+/*  * Configuration service statistics */
+/*  * @todo To be defined. */
+/*  *\/ */
+/* struct c2_confd_stat {}; */
 
 /** @} confd_dfspec */
 #endif /* __COLIBRI_CONF_CONFD_H__ */

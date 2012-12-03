@@ -152,6 +152,8 @@ enum c2_conf_objtype {
 /**
  * Status of configuration object.
  * Configuration object is a stub unless its status is C2_CS_READY.
+ *
+ * @see c2_conf_obj_is_stub()
  */
 enum c2_conf_status {
 	C2_CS_MISSING, /*< Configuration is absent; no retrieval in progress. */
@@ -240,7 +242,8 @@ struct c2_conf_obj {
 	 *
 	 * @todo XXX Property (to be verified):
 	 * ergo(obj->co_mounted,
-	 *      parent_check(obj) && (obj_is_stub(obj) || children_check(obj))),
+	 *      parent_check(obj) && (c2_conf_obj_is_stub(obj) ||
+	 *                            children_check(obj))),
 	 * where
 	 *   children_check(obj) verifies that `obj' has established
 	 *   relations with its children.
@@ -249,6 +252,13 @@ struct c2_conf_obj {
 	 */
 	bool                          co_mounted;
 };
+
+/**
+ * Returns true iff obj->co_status != C2_CS_READY.
+ *
+ * @pre C2_IN(obj->co_status, (C2_CS_MISSING, C2_CS_LOADING, C2_CS_READY))
+ */
+C2_INTERNAL bool c2_conf_obj_is_stub(const struct c2_conf_obj *obj);
 
 /* ------------------------------------------------------------------
  * Concrete configuration objects

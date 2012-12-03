@@ -387,14 +387,12 @@
 
    - Service Type Declaration
 
-   Request handler provides the macro C2_REQH_SERVICE_TYPE_DECLARE to declare
-   service type. Bulk I/O Service use this macro to declare service type as
-   follows -
+   Bulk I/O Service defines service type as follows -
 
-   C2_REQH_SERVICE_TYPE_DECLARE(c2_io_service_type, &c2_io_service_type_ops,
-                                "ioservice");
+   C2_REQH_SERVICE_TYPE_DEFINE(c2_io_service_type, &c2_io_service_type_ops,
+                               "ioservice");
 
-   It's also assign service name and service type operations for Bulk I/O
+   It also assigns service name and service type operations for Bulk I/O
    Service.
 
    - Service Type Registration

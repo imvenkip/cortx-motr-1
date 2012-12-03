@@ -14,12 +14,12 @@ mount_c2t1fs()
 		return 1
 	}
 
-	local CONF='conf=local-conf:[2: '\
+	local CONF='profile=prof,local_conf=[2: '\
 '("prof", {1| ("fs")}), '\
 '("fs", {2| ((11, 22),'\
 " [3: \"pool_width=$POOL_WIDTH\", \"nr_data_units=$NR_DATA\","\
 " \"unit_size=$stride_size\"],"\
-' [1: "_"])})],profile=prof'
+' [1: "_"])})]'
 
 	echo "Mounting file system..."
 	cmd="mount -t c2t1fs -o '$CONF,$SERVICES' c2t1fs $c2t1fs_mount_dir"

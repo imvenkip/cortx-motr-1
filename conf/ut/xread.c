@@ -297,6 +297,9 @@ void test_confx_xcode(void)
 	cleanup();
 	conf_xc_read(buf, ARRAY_SIZE(buf));
 
+	rc = c2_conf_parse("[0]", objx, ARRAY_SIZE(objx));
+	C2_UT_ASSERT(rc == 0);
+
 	n = c2_confx_obj_nr(buf);
 	C2_UT_ASSERT(n == 8);
 

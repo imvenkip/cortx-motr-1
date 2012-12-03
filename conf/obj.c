@@ -18,6 +18,7 @@
  * Original creation date: 03-Feb-2012
  */
 
+#include "lib/misc.h"  /* C2_IN */
 #include "conf/obj.h"
 
 /**
@@ -384,3 +385,10 @@
  * (@todo Delete this section from the DLD when the feature is landed
  * into master.)
  */
+
+C2_INTERNAL bool c2_conf_obj_is_stub(const struct c2_conf_obj *obj)
+{
+	C2_PRE(C2_IN(obj->co_status,
+		     (C2_CS_MISSING, C2_CS_LOADING, C2_CS_READY)));
+	return obj->co_status != C2_CS_READY;
+}

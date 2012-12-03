@@ -509,8 +509,13 @@ struct c2_rpc_session {
 	/** Capacity of slot table */
 	uint32_t                  s_slot_table_capacity;
 
-	/** Only [0, s_nr_slots) slots from the s_slot_table can be used to
-            bind items. s_nr_slots <= s_slot_table_capacity
+	/**
+	 * Only [0, s_nr_slots) slots from the s_slot_table can be used to bind
+	 * items.  s_nr_slots <= s_slot_table_capacity
+	 *
+	 * Each slot is serial: the next fop is sent only once the reply to the
+	 * previous one has been received.  Hence, ->s_nr_slots should be equal
+	 * to the expected concurrency level.
 	 */
 	uint32_t                  s_nr_slots;
 
@@ -582,6 +587,8 @@ C2_INTERNAL int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
  * A combination of c2_rpc_session_init() and c2_rpc_session_establish_sync() in
  * a single routine - initialize session object, establish a session and wait
  * until it become idle.
+ *
+ * @see c2_rpc_session::s_nr_slots
  */
 C2_INTERNAL int c2_rpc_session_create(struct c2_rpc_session *session,
 				      struct c2_rpc_conn *conn,

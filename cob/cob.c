@@ -303,8 +303,8 @@ static char *cob_dom_id_make(char *buf, const struct c2_cob_domain_id *id,
    Tables are identified by the domain id, which must be set before calling
    this function.
   */
-int c2_cob_domain_init(struct c2_cob_domain *dom,
-		       struct c2_dbenv *env, struct c2_cob_domain_id *id)
+int c2_cob_domain_init(struct c2_cob_domain *dom, struct c2_dbenv *env,
+		       const struct c2_cob_domain_id *id)
 {
         char table[16];
         int rc;

@@ -26,7 +26,7 @@
 #include "lib/getopts.h"	  /* C2_GETOPTS */
 
 #include "rpc/rpclib.h"           /* c2_rpc_server_start */
-#include "ut/rpc.h"               /* C2_RPC_SERVER_CTX_DECLARE */
+#include "ut/rpc.h"               /* C2_RPC_SERVER_CTX_DEFINE */
 
 #include "console/console.h"
 #include "console/console_fop.h"
@@ -50,14 +50,7 @@ static void sig_handler(int num)
 	signaled = 1;
 }
 
-/**
- * @brief Test server for c2console
- *
- *	  Usage: server options...
- *	  where valid options are
- *
- *		-v       : verbose
- */
+/** @brief Test server for c2console */
 int main(int argc, char **argv)
 {
 	int                 result;
@@ -73,8 +66,8 @@ int main(int argc, char **argv)
 		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size
 	};
 
-	C2_RPC_SERVER_CTX_DECLARE_SIMPLE(sctx, xprt, default_server_argv,
-					 SERVER_LOG_FILE_NAME);
+	C2_RPC_SERVER_CTX_DEFINE_SIMPLE(sctx, xprt, default_server_argv,
+					SERVER_LOG_FILE_NAME);
 
 	verbose = false;
 

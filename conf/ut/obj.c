@@ -113,7 +113,7 @@ void test_obj_fill(void)
 		rc = c2_conf_obj_fill(obj, &xobjs[i], &reg);
 		C2_UT_ASSERT(rc == 0);
 	}
-#if 0
+#if 0 /*XXX*/
 	extern void c2_conf__reg2dot(const struct c2_conf_reg *reg);
 	c2_conf__reg2dot(&reg);
 #endif

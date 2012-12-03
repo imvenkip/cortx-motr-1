@@ -90,7 +90,7 @@ enum c2_magic_satchel {
         /* pargrp_iomap::pi_magic (incandescent) */
         C2_T1FS_PGROUP_MAGIC = 0x3319ca9de5ce9177,
 
-/* Configuration Caching */
+/* Configuration */
 	/* c2_conf_reg::r_magic (fabled feodal) */
 	C2_CONF_REG_MAGIC = 0x33fab1edfe0da177,
 
@@ -126,6 +126,9 @@ enum c2_magic_satchel {
 
 	/* c2_confc_ctx::fc_magic (ablaze filial) */
 	C2_CONFC_CTX_MAGIC = 0x33ab1a2ef111a177,
+
+	/* c2_confd::c_magic (isolable lasi) */
+	C2_CONFD_MAGIC = 0x331501ab1e1a5177,
 
 /* Colibri Setup */
 	/* cs_buffer_pool::cs_bp_magic (felicia feliz) */

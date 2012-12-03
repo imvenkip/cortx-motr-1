@@ -18,22 +18,54 @@
  * Original creation date: 17-Sep-2012
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_UT
+#include "lib/trace.h"
+
+#include "net/lnet/lnet.h"  /* c2_net_lnet_xprt */
+#include "rpc/rpclib.h"     /* c2_rpc_server_ctx */
+#include "ut/rpc.h"         /* C2_RPC_SERVER_CTX_DEFINE */
 #include "conf/confc.h"
-#include "conf/buf_ext.h" /* c2_buf_streq */
-#include "conf/conf_xcode.h"
+#include "conf/buf_ext.h"   /* c2_buf_streq */
+#include "conf/ut/rpc_helpers.h"
 #include "lib/ut.h"
 
-static struct c2_sm_group g_grp;
+#define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
+#define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
+#define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"
 
-/*
- * CAUTION: This is not a proper format of configuration string!
- *
- * Double quotes are substituted with single quotes to improve
- * readability (escaping double quotes with backslashes adds too much
- * noise). This string needs to be processed with
- * conf_source_normalize() prior to passing to c2_confc_init().
- */
-static char g_conf_source[] = "local-conf:"
+static struct c2_sm_group  g_grp;
+static struct c2_net_xprt *g_xprt = &c2_net_lnet_xprt;
+
+static void _confc_test(const char *confd_addr, struct c2_rpc_machine *rpc_mach,
+			const char *local_conf);
+
+static int service_start(struct c2_rpc_server_ctx *sctx)
+{
+	return c2_net_xprt_init(g_xprt) ?: c2_rpc_server_start(sctx);
+}
+
+static void service_stop(struct c2_rpc_server_ctx *sctx)
+{
+	c2_rpc_server_stop(sctx);
+	c2_net_xprt_fini(g_xprt);
+}
+
+/** tr/'/"/ */
+static void requote(char *s)
+{
+	for (; *s != '\0'; ++s) {
+		if (*s == '\'')
+			*s = '"';
+	}
+}
+
+static void test_confc_local(void)
+{
+	struct c2_confc confc;
+	int rc;
+	/* WARNING: This is not a valid format of configuration string!
+	 * Here we use single quotes for the sake of readability. */
+	char local_conf[] =
 "[6: ('prof', {1| ('fs')}),\n"
 "    ('fs', {2| ((11, 22),\n"
 "                [3: 'par1', 'par2', 'par3'],\n"
@@ -44,6 +76,49 @@ static char g_conf_source[] = "local-conf:"
 "    ('node-0', {4| (8000, 2, 3, 2, 0, [2: 'nic-0', 'nic-1'],\n"
 "                    [1: 'sdev-0'])})]\n";
 
+	requote(local_conf); /* fix configuration string */
+
+	rc = c2_confc_init(&confc, &g_grp,
+			   &(const struct c2_buf)C2_BUF_INITS("prof"),
+			   NULL, NULL, "bad configuration string");
+	C2_UT_ASSERT(rc == -EPROTO);
+
+	rc = c2_confc_init(&confc, &g_grp,
+			   &(const struct c2_buf)C2_BUF_INITS("bad profile"),
+			   NULL, NULL, local_conf);
+	C2_UT_ASSERT(rc == -EBADF);
+
+	_confc_test(NULL, NULL, local_conf);
+}
+
+static void test_confc_net(void)
+{
+	struct c2_rpc_machine mach;  /* client's RPC machine */
+	int rc;
+#define NAME(ext) "ut_confd" ext
+	char *argv[] = {
+		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
+		"-S", NAME(".stob"), "-e", SERVER_ENDPOINT, "-s", "confd"
+	};
+	C2_RPC_SERVER_CTX_DEFINE(confd, &g_xprt, 1, argv, ARRAY_SIZE(argv),
+				 NULL, 0, NAME(".log"));
+#undef NAME
+
+	rc = service_start(&confd);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_ut_rpc_machine_start(&mach, g_xprt, CLIENT_ENDPOINT_ADDR,
+				     "ut_confc.db");
+	C2_UT_ASSERT(rc == 0);
+
+	_confc_test(SERVER_ENDPOINT_ADDR, &mach, NULL);
+
+	c2_ut_rpc_machine_stop(&mach);
+	service_stop(&confd);
+}
+
+/* ------------------------------------------------------------------ */
+
 struct waiter {
 	struct c2_confc_ctx w_ctx;
 	struct c2_clink     w_clink;
@@ -52,37 +127,22 @@ struct waiter {
 static void waiter_init(struct waiter *w, struct c2_confc *confc);
 static void waiter_fini(struct waiter *w);
 
-static void test_confc_preload(void)
-{
-	struct c2_confc confc;
-	int             rc;
-
-	rc = c2_confc_init(&confc, "local-conf:bad configuration string",
-			   &(const struct c2_buf)C2_BUF_INITS("_"), &g_grp);
-	C2_UT_ASSERT(rc != 0);
-	C2_UT_ASSERT(confc.cc_root == NULL);
-
-	rc = c2_confc_init(&confc, g_conf_source,
-			   &(const struct c2_buf)C2_BUF_INITS("prof"), &g_grp);
-	C2_UT_ASSERT(rc == 0);
-
-	c2_confc_fini(&confc);
-}
-
 static bool streq(const char *s1, const char *s2)
 {
 	return strcmp(s1, s2) == 0;
 }
 
-static void test_confc_open(void)
+static void _confc_test(const char *confd_addr, struct c2_rpc_machine *rpc_mach,
+			const char *local_conf)
 {
 	struct c2_confc         confc;
 	struct waiter           w;
 	struct c2_conf_service *svc;
 	int                     rc;
 
-	rc = c2_confc_init(&confc, g_conf_source,
-			   &(const struct c2_buf)C2_BUF_INITS("prof"), &g_grp);
+	rc = c2_confc_init(&confc, &g_grp,
+			   &(const struct c2_buf)C2_BUF_INITS("prof"),
+			   confd_addr, rpc_mach, local_conf);
 	C2_UT_ASSERT(rc == 0);
 
 	waiter_init(&w, &confc);
@@ -146,33 +206,12 @@ static void ast_thread(int _ __attribute__((unused)))
 	}
 }
 
-/** Normalizes `g_conf_source' string, replacing ' with ". */
-static void conf_source_normalize(void)
-{
-	static bool done = false;
-	char       *p;
-
-	if (!done) {
-		for (p = g_conf_source; *p != '\0'; ++p) {
-			if (*p == '\'')
-				*p = '"';
-		}
-		done = true;
-	}
-}
-
 static int ast_thread_init(void)
 {
-	int rc;
-
-	conf_source_normalize();
-
 	c2_sm_group_init(&g_grp);
 	g_ast.run = true;
-	rc = C2_THREAD_INIT(&g_ast.thread, int, NULL, &ast_thread, 0,
-			    "ast_thread");
-	C2_ASSERT(rc == 0);
-
+	C2_ASSERT(C2_THREAD_INIT(&g_ast.thread, int, NULL, &ast_thread, 0,
+				 "ast_thread") == 0);
 	return 0;
 }
 
@@ -212,8 +251,8 @@ const struct c2_test_suite confc_ut = {
 	.ts_init  = ast_thread_init,
 	.ts_fini  = ast_thread_fini,
 	.ts_tests = {
-		{ "confc-preload", test_confc_preload },
-		{ "confc-open",    test_confc_open },
+		{ "confc-local", test_confc_local },
+		{ "confc-net",   test_confc_net },
 		{ NULL, NULL }
 	}
 };

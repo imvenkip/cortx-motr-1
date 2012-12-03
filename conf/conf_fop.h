@@ -24,49 +24,19 @@
 #include "fop/fop.h"
 
 /**
- * @defgroup confd_fop_dfspec Configuration service FOP definitions
+ * @defgroup conf_fop Configuration FOPs
  *
  * @{
- */
-
-C2_INTERNAL int c2_conf_fops_init(void);
-C2_INTERNAL void c2_conf_fops_fini(void);
-
-/*
- * Confd fetch reply and request FOP definitions:
  */
 
 extern struct c2_fop_type c2_conf_fetch_fopt;
 extern struct c2_fop_type c2_conf_fetch_resp_fopt;
 
-extern const struct c2_fop_type_ops c2_conf_fetch_ops;
-extern const struct c2_fop_type_ops c2_conf_fetch_resp_ops;
-
-extern const struct c2_rpc_item_type c2_rpc_item_type_fetch;
-extern const struct c2_rpc_item_type c2_rpc_item_type_fetch_resp;
-
-/*
- * Confd update reply and request FOP definitions:
- */
-
 extern struct c2_fop_type c2_conf_update_fopt;
 extern struct c2_fop_type c2_conf_update_resp_fopt;
 
-extern const struct c2_fop_type_ops c2_conf_update_ops;
-extern const struct c2_fop_type_ops c2_conf_update_resp_ops;
+C2_INTERNAL int c2_conf_fops_init(void);
+C2_INTERNAL void c2_conf_fops_fini(void);
 
-extern const struct c2_rpc_item_type c2_rpc_item_type_update;
-extern const struct c2_rpc_item_type c2_rpc_item_type_update_resp;
-
-/** @} confd_fop_dfspec */
+/** @} conf_fop */
 #endif /* __COLIBRI_CONF_FOP_H__ */
-
-/*
- *  Local variables:
- *  c-indentation-style: "K&R"
- *  c-basic-offset: 8
- *  tab-width: 8
- *  fill-column: 80
- *  scroll-step: 1
- *  End:
- */

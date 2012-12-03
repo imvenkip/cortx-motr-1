@@ -19,14 +19,16 @@
 
 #include "conf/conf_fop.h"
 #include "conf/onwire_xc.h"
-#include "fop/fop.h"
-#include "fop/fop_item_type.h"
-#include "fop/fom.h"
-#include "fop/fom_generic.h"
-#include "rpc/rpc.h"
+#include "conf/confd_fom.h"   /* c2_confd_fom_create */
+#include "conf/confd.h"       /* c2_confd_stype */
 #include "rpc/rpc_opcodes.h"
-#include "lib/errno.h"
-#include "lib/memory.h"
+#include "fop/fom_generic.h"  /* c2_generic_conf */
+
+/**
+ * @addtogroup conf_fop
+ *
+ * @{
+ */
 
 struct c2_fop_type c2_conf_fetch_fopt;
 struct c2_fop_type c2_conf_fetch_resp_fopt;
@@ -34,41 +36,46 @@ struct c2_fop_type c2_conf_fetch_resp_fopt;
 struct c2_fop_type c2_conf_update_fopt;
 struct c2_fop_type c2_conf_update_resp_fopt;
 
-extern const struct c2_fom_type_ops c2_fom_conf_fetch_type_ops;
-extern const struct c2_fom_type_ops c2_fom_conf_update_type_ops;
+#ifndef __KERNEL__
+static const struct c2_fom_type_ops confd_fom_ops = {
+	.fto_create = c2_confd_fom_create
+};
+#endif
 
 C2_INTERNAL int c2_conf_fops_init(void)
 {
-        return
-		/* Fetch request/response */
-		C2_FOP_TYPE_INIT(&c2_conf_fetch_fopt,
-				 .name      = "c2_conf_fetch fop",
+        return  C2_FOP_TYPE_INIT(&c2_conf_fetch_fopt,
+				 .name      = "Configuration fetch request",
 				 .opcode    = C2_CONF_FETCH_OPCODE,
 				 .xt        = c2_conf_fetch_xc,
-				 /* XXX FIXME Why setting MUTABO flag?  This fop
-				  * does not change file system state.  (Search
-				  * for MUTABO in rpc/slot_internal.h
-				  * documentation.)  --vvv */
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
-					      C2_RPC_ITEM_TYPE_MUTABO,
-				 .fom_ops   = &c2_fom_conf_fetch_type_ops,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
+#ifndef __KERNEL__
+				 .fom_ops   = &confd_fom_ops,
+				 .svc_type  = &c2_confd_stype,
+#endif
 				 .sm        = &c2_generic_conf) ?:
 		C2_FOP_TYPE_INIT(&c2_conf_fetch_resp_fopt,
-				 .name      = "c2_conf_fetch_resp fop",
+				 .name      = "Configuration fetch response",
 				 .opcode    = C2_CONF_FETCH_RESP_OPCODE,
 				 .xt        = c2_conf_fetch_resp_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
-		/* Update request/response */
+		/*
+		 * XXX Argh! Why bother defining update _stubs_?
+		 * Do we win anything? Is it worth the cost of maintenance?
+		 */
 		C2_FOP_TYPE_INIT(&c2_conf_update_fopt,
-				 .name      = "c2_conf_update fop",
+				 .name      = "Configuration update request",
 				 .opcode    = C2_CONF_UPDATE_OPCODE,
 				 .xt        = c2_conf_update_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 					      C2_RPC_ITEM_TYPE_MUTABO,
-				 .fom_ops   = &c2_fom_conf_update_type_ops,
+#ifndef __KERNEL__
+				 .fom_ops   = &confd_fom_ops,
+				 .svc_type  = &c2_confd_stype,
+#endif
 				 .sm        = &c2_generic_conf) ?:
 		C2_FOP_TYPE_INIT(&c2_conf_update_resp_fopt,
-				 .name      = "c2_conf_update_resp fop",
+				 .name      = "Configuration update response",
 				 .opcode    = C2_CONF_UPDATE_RESP_OPCODE,
 				 .xt        = c2_conf_update_resp_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
@@ -83,12 +90,4 @@ C2_INTERNAL void c2_conf_fops_fini(void)
 	c2_fop_type_fini(&c2_conf_update_resp_fopt);
 }
 
-/*
- *  Local variables:
- *  c-indentation-style: "K&R"
- *  c-basic-offset: 8
- *  tab-width: 8
- *  fill-column: 80
- *  scroll-step: 1
- *  End:
- */
+/** @} conf_fop */

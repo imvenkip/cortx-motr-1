@@ -69,44 +69,34 @@ static struct c2_rpc_client_ctx cctx = {
 };
 
 static char *server_argv[] = {
-	"conf_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
-	"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
-	"-s", "ds1", "-s", "ds2", "-s", "confd-service"
+	"conf_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+	"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT, "-s", "confd"
 };
 
-static struct c2_rpc_server_ctx sctx = {
-	.rsx_xprts            = &xprt,
-	.rsx_xprts_nr         = 1,
-	.rsx_argv             = server_argv,
-	.rsx_argc             = ARRAY_SIZE(server_argv),
-	.rsx_service_types    = c2_cs_default_stypes,
-	.rsx_service_types_nr = 2,
-	.rsx_log_file_name    = SERVER_LOG_FILE_NAME,
-};
+static C2_RPC_SERVER_CTX_DEFINE(sctx, &xprt, 1, server_argv,
+				ARRAY_SIZE(server_argv), NULL, 0,
+				SERVER_LOG_FILE_NAME);
 
 static void conf_net_init(void)
 {
 	int rc;
 
 	rc = c2_net_xprt_init(xprt);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_net_domain_init(&client_net_dom, xprt);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_rpc_server_start(&sctx);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_rpc_client_init(&cctx);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 }
 
 static void conf_net_fini(void)
 {
-	int rc;
-
-	rc = c2_rpc_client_fini(&cctx);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(c2_rpc_client_fini(&cctx) == 0);
 	c2_rpc_server_stop(&sctx);
 	c2_net_domain_fini(&client_net_dom);
 	c2_net_xprt_fini(xprt);

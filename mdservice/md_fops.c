@@ -236,7 +236,7 @@ const struct c2_fop_type_ops c2_md_fop_ops = {
 };
 
 #ifndef __KERNEL__
-static struct c2_fom_type_ops c2_md_fom_ops = {
+static const struct c2_fom_type_ops c2_md_fom_ops = {
         .fto_create   = c2_md_req_fom_create
 };
 

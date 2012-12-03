@@ -258,6 +258,12 @@ C2_INTERNAL void c2_rpc_item_init(struct c2_rpc_item *item,
 
 C2_INTERNAL void c2_rpc_item_fini(struct c2_rpc_item *item);
 
+/** Increments item's reference counter. */
+C2_INTERNAL void c2_rpc_item_get(struct c2_rpc_item *item);
+
+/** Decrements item's reference counter. */
+C2_INTERNAL void c2_rpc_item_put(struct c2_rpc_item *item);
+
 C2_INTERNAL c2_bcount_t c2_rpc_item_onwire_header_size(void);
 
 C2_INTERNAL c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item);

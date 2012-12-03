@@ -28,7 +28,7 @@ static bool partition_check(const void *bob)
 
 	C2_PRE(self_obj->co_type == C2_CO_PARTITION);
 
-	return obj_is_stub(self_obj) == (self->pa_filename == NULL) &&
+	return c2_conf_obj_is_stub(self_obj) == (self->pa_filename == NULL) &&
 		ergo(self_obj->co_mounted, parent_check(self_obj));
 }
 
