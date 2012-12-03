@@ -586,8 +586,10 @@ pre-all: check-sources-prebuild generate-files
 
 .PHONY: check-sources-prebuild
 check-sources-prebuild:
-	@#echo "Checking source files..."
+	@echo -n 'Checking source files... '
 	@$(top_srcdir)/scripts/check-include-guards --noisy $(top_srcdir)
+	@$(top_srcdir)/scripts/check-xlibri-traces $(top_srcdir)
+	@echo 'OK'
 
 .PHONY: generate-files
 generate-files: generate-xc-files generate-ff-files
