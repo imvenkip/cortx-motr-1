@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
+ * Original author: Rajesh Bhalerao <rajesh_bhalerao@xyratex.com>
  * Original creation date: 05/12/2011
  */
 #include "lib/mutex.h"
