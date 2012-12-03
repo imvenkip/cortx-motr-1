@@ -54,7 +54,7 @@
   @ingroup CM
 
   SNS-Rebalance copy machine is a replicated state machine similar to sns repair
-  copy machine. SNS-Rebalnce copy machine is triggered after completion of sns
+  copy machine. SNS-Rebalance copy machine is triggered after completion of sns
   repair.
 
   @see The @ref SNSRebalanceCMDLD
