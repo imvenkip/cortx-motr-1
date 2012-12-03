@@ -378,9 +378,26 @@ rmw_test()
 			io_size=1M
 			echo -n "IORMW Large Count Test: I/O for stride ="\
 			     "${stride_size}K, bs = $io_size, count = $i... "
-			bulkio_test $stride_size $i &>> $MERO_TEST_LOGFILE ||				return 1
+			bulkio_test $stride_size $i &>> \
+				$MERO_TEST_LOGFILE || return 1
 			show_write_speed
 		done
+
+		for ((stride_size=4; stride_size<=$max_stride_size; stride_size*=2))
+		do
+			# I/O With large Block
+			for i in 16M 32M 64M 100M
+			do
+				io_size=$i
+				echo -n "IORMW Large Block Test: I/O for stride ="\
+				"${stride_size}K, bs = $io_size, count = 1... "
+				bulkio_test $stride_size 1 &>> \
+				$COLIBRI_TEST_LOGFILE || return 1
+				show_write_speed
+			done
+
+		done
+
 	done
 
 	echo "Test: IORMW: Success." | tee $MERO_TEST_LOGFILE

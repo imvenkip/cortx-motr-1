@@ -2922,6 +2922,7 @@ static ssize_t file_aio_write(struct kiocb	 *kcb,
 	/* Updates file position. */
 	kcb->ki_pos = pos + count;
 
+	m0_indexvec_free(ivec);
 	m0_free(ivec);
 	M0_LEAVE();
 	return count;
@@ -2984,6 +2985,7 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	}
 
 	if (m0_vec_count(&ivec->iv_vec) == 0) {
+		m0_indexvec_free(ivec);
 		m0_free(ivec);
 		return 0;
 	}
@@ -2994,6 +2996,7 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	/* Updates file position. */
 	kcb->ki_pos = pos + count;
 
+	m0_indexvec_free(ivec);
 	m0_free(ivec);
 	M0_LEAVE();
 	return count;
