@@ -128,7 +128,8 @@ int c2_rm_resource_owner_find(const struct c2_rm_resource *resource,
  * c2_rm_outgoing_complete() to be called on fop reply or timeout.
  *
  */
-C2_INTERNAL int c2_rm_request_out(struct c2_rm_incoming *in,
+C2_INTERNAL int c2_rm_request_out(enum c2_rm_outgoing_type otype,
+				  struct c2_rm_incoming *in,
 				  struct c2_rm_loan *loan,
 				  struct c2_rm_right *right);
 

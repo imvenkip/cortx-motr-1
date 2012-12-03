@@ -67,14 +67,13 @@ const struct c2_rpc_item_ops rm_revoke_rpc_ops = {
  */
 struct c2_fop_type c2_fop_rm_borrow_fopt;
 struct c2_fop_type c2_fop_rm_borrow_rep_fopt;
-extern struct c2_sm_state_descr borrow_phases[];
+extern struct c2_sm_state_descr rm_req_phases[];
 
 /**
  * FOP definitions for resource-right revoke request and reply.
  */
 struct c2_fop_type c2_fop_rm_revoke_fopt;
 struct c2_fop_type c2_fom_error_rep_fopt;
-extern struct c2_sm_state_descr revoke_phases[];
 
 /*
  * Extern FOM params
@@ -123,6 +122,7 @@ out:
 static int fop_common_fill(struct rm_out *outreq,
 			   struct c2_rm_incoming *in,
 			   struct c2_rm_right *right,
+			   struct c2_cookie *cookie,
 			   struct c2_fop_type *fopt,
 			   size_t offset, void **data)
 {
@@ -138,8 +138,7 @@ static int fop_common_fill(struct rm_out *outreq,
 		req = (struct c2_fop_rm_req *) (char *)*data + offset;
 		req->rrq_policy = in->rin_policy;
 		req->rrq_flags = in->rin_flags;
-		c2_cookie_init(&req->rrq_owner.ow_cookie,
-			       &in->rin_want.ri_owner->ro_id);
+		req->rrq_owner.ow_cookie = *cookie;
 		rc = c2_rm_right_encode(right, &req->rrq_right.ri_opaque);
 		if (rc != 0)
 			c2_fop_fini(fop);
@@ -152,9 +151,11 @@ static int borrow_fop_fill(struct rm_out *outreq,
 			   struct c2_rm_right *right)
 {
 	struct c2_fop_rm_borrow *bfop;
+	struct c2_cookie	cookie;
 	int			 rc;
 
-	rc = fop_common_fill(outreq, in, right, &c2_fop_rm_borrow_fopt,
+	c2_cookie_init(&cookie, &in->rin_want.ri_owner->ro_id);
+	rc = fop_common_fill(outreq, in, right, &cookie, &c2_fop_rm_borrow_fopt,
 			     offsetof(struct c2_fop_rm_borrow, bo_base),
 			     (void **)&bfop);
 
@@ -174,12 +175,13 @@ static int revoke_fop_fill(struct rm_out *outreq,
 	struct c2_fop_rm_revoke *rfop;
 	int			 rc;
 
-	rc = fop_common_fill(outreq, in, right, &c2_fop_rm_revoke_fopt,
+	rc = fop_common_fill(outreq, in, right, &loan->rl_other->rem_cookie,
+			     &c2_fop_rm_revoke_fopt,
 			     offsetof(struct c2_fop_rm_revoke, rr_base),
 			     (void **)&rfop);
 
 	if (rc == 0)
-		c2_cookie_init(&rfop->rr_loan.lo_cookie, &loan->rl_id);
+		rfop->rr_loan.lo_cookie = loan->rl_cookie;
 
 	return rc;
 }
@@ -196,28 +198,38 @@ static void rm_out_fini(struct rm_out *out)
 	 */
 }
 
-int c2_rm_request_out(struct c2_rm_incoming *in,
+int c2_rm_request_out(enum c2_rm_outgoing_type otype,
+		      struct c2_rm_incoming *in,
 		      struct c2_rm_loan *loan,
 		      struct c2_rm_right *right)
 {
-	struct c2_rpc_session *session = NULL;
-	struct rm_out	      *outreq;
-	int		       rc;
+	const struct c2_rpc_item_ops *ri_ops;
+	struct c2_rpc_session	     *session = NULL;
+	struct rm_out		     *outreq;
+	int			      rc;
 
-	C2_PRE(in->rin_flags & (RIF_MAY_BORROW | RIF_MAY_REVOKE));
+	C2_PRE(C2_IN(otype, (C2_ROT_BORROW, C2_ROT_REVOKE)));
 
 	rc = rm_out_create(&outreq, in, right);
 	if (rc != 0)
 		goto out;
 
-	if (in->rin_flags & RIF_MAY_BORROW) {
+	switch (otype) {
+	case C2_ROT_BORROW:
 		rc = borrow_fop_fill(outreq, in, right);
 		session = in->rin_want.ri_owner->ro_creditor->rem_session;
-	} else if (in->rin_flags & RIF_MAY_REVOKE) {
+		ri_ops = &rm_borrow_rpc_ops;
+		break;
+	case C2_ROT_REVOKE:
 		C2_ASSERT(loan != NULL);
 		C2_ASSERT(loan->rl_other != NULL);
 		rc = revoke_fop_fill(outreq, in, loan, right);
 		session = loan->rl_other->rem_session;
+		ri_ops = &rm_revoke_rpc_ops;
+		break;
+	default:
+		C2_IMPOSSIBLE("No such RM outgoing request type");
+		break;
 	}
 
 	if (rc != 0) {
@@ -229,11 +241,11 @@ int c2_rm_request_out(struct c2_rm_incoming *in,
 	pin_add(in, &outreq->ou_req.rog_want.rl_right, C2_RPF_TRACK);
 	c2_rm_ur_tlist_add(&in->rin_want.ri_owner->ro_outgoing[OQS_GROUND],
 			   &outreq->ou_req.rog_want.rl_right);
-	outreq->ou_fop.f_item.ri_ops = &rm_borrow_rpc_ops;
 	if (C2_FI_ENABLED("no-rpc"))
 		goto out;
 
 	outreq->ou_fop.f_item.ri_session = session;
+	outreq->ou_fop.f_item.ri_ops = ri_ops;
 	c2_rpc_post(&outreq->ou_fop.f_item);
 
 out:
@@ -368,9 +380,7 @@ C2_INTERNAL int c2_rm_fop_init(void)
 	c2_xc_fom_generic_init();
 	c2_xc_rm_init();
 #ifndef __KERNEL__
-	c2_sm_conf_extend(c2_generic_conf.scf_state, borrow_phases,
-			  c2_generic_conf.scf_nr_states);
-	c2_sm_conf_extend(c2_generic_conf.scf_state, revoke_phases,
+	c2_sm_conf_extend(c2_generic_conf.scf_state, rm_req_phases,
 			  c2_generic_conf.scf_nr_states);
 #endif
 	return  C2_FOP_TYPE_INIT(&c2_fop_rm_borrow_fopt,

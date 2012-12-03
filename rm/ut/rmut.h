@@ -14,46 +14,48 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
- * Original creation date: 07/07/2011
+ * Original author: Rajesh Bhalerao <rajesh_bhalerao@xyratex.com>
+ * Original creation date: 07/20/2012
  */
-
 #pragma once
+#ifndef __COLIBRI_RM_UT_RMUT_H__
+#define __COLIBRI_RM_UT_RMUT_H__
 
-#ifndef __COLIBRI_RM_FOMS_H__
-#define __COLIBRI_RM_FOMS_H__
+#include "rings.h"
 
-#include "fop/fop.h"
-#include "rm/rm.h"
-#include "rm/rm_internal.h"
+enum obj_type {
+	OBJ_DOMAIN = 1,
+	OBJ_RES_TYPE,
+	OBJ_RES,
+	OBJ_OWNER
+};
 
-/**
- * @addtogroup rm
- *
- * This file includes data structures used by RM:fop layer.
- *
- * @{
- *
+/*
+ * Resource manager class-collection.
  */
-enum c2_rm_fom_phases {
-	FOPH_RM_REQ_START = C2_FOPH_NR + 1,
-	FOPH_RM_REQ_WAIT = C2_FOPH_NR + 2,
-	FOPH_RM_REQ_FINISH = C2_FOPH_NR + 3,
+struct rm_ut_data {
+	struct c2_rm_domain	   rd_dom;
+	struct c2_rm_resource_type rd_rt;
+	struct c2_rings		   rd_res;
+	struct c2_rm_owner	   rd_owner;
+	struct c2_rm_incoming	   rd_in;
+	struct c2_rm_right	   rd_right;
 };
 
-struct rm_request_fom {
-	/** Generic c2_fom object */
-	struct c2_fom		     rf_fom;
-	/** Incoming request */
-	struct c2_rm_remote_incoming rf_in;
-};
+/*
+ * Test variable(s)
+ */
+struct rm_ut_data	   test_data;
 
-/** @} */
+void rm_utdata_init(struct rm_ut_data *data, enum obj_type type);
+void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type);
+void rm_test_owner_capital_raise(struct c2_rm_owner *owner,
+				 struct c2_rm_right *right);
 
-/* __COLIBRI_RM_FOMS_H__ */
+/* __COLIBRI_RM_UT_RMUT_H__ */
 #endif
 
-/**
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

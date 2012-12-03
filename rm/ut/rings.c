@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -32,9 +32,16 @@ static void rings_policy(struct c2_rm_resource *resource,
 {
 }
 
+static void rings_right_init(struct c2_rm_resource *resource,
+			     struct c2_rm_right *right)
+{
+	right->ri_ops = &rings_right_ops;
+}
+
 const struct c2_rm_resource_ops rings_ops = {
 	.rop_right_decode = NULL,
-	.rop_policy	  = rings_policy
+	.rop_policy	  = rings_policy,
+	.rop_right_init   = rings_right_init
 };
 
 static bool resources_are_equal(const struct c2_rm_resource *r0,
@@ -63,20 +70,43 @@ static bool right_intersects(const struct c2_rm_right *r0,
       return (r0->ri_datum & r1->ri_datum) != 0;
 }
 
-static int right_join(struct c2_rm_right *r0, const struct c2_rm_right *r1)
+static int right_join(struct c2_rm_right *r0,
+		       const struct c2_rm_right *r1)
 {
-	return true;
+	r0->ri_datum |= r1->ri_datum;
+	return 0;
 }
 
 static int right_diff(struct c2_rm_right *r0, const struct c2_rm_right *r1)
 {
-	r0->ri_datum &= ~r1->ri_datum ;
+	r0->ri_datum &= ~r1->ri_datum;
 	return 0;
 }
 
 static void rings_right_free(struct c2_rm_right *right)
 {
 	right->ri_datum = 0;
+}
+
+static int rings_right_encode(const struct c2_rm_right *right,
+			      struct c2_bufvec_cursor *cur)
+{
+	void *buf;
+
+	buf = c2_bufvec_cursor_addr(cur);
+	memcpy(buf, &right->ri_datum, sizeof right->ri_datum);
+
+	return 0;
+}
+
+static int rings_right_decode(struct c2_rm_right *right,
+			      struct c2_bufvec_cursor *cur)
+{
+	void *buf;
+
+	buf = c2_bufvec_cursor_addr(cur);
+	memcpy(&right->ri_datum, buf, sizeof right->ri_datum);
+	return 0;
 }
 
 static int rings_right_copy(struct c2_rm_right *dest,
@@ -88,19 +118,50 @@ static int rings_right_copy(struct c2_rm_right *dest,
 	return 0;
 }
 
+static c2_bcount_t rings_right_len(const struct c2_rm_right *right)
+{
+	return (c2_bcount_t) sizeof(uint64_t);
+}
+
+static bool rings_is_subset(const struct c2_rm_right *src,
+			    const struct c2_rm_right *dest)
+{
+	return (dest->ri_datum == src->ri_datum) ||
+	       (dest->ri_datum & ~src->ri_datum);
+}
+
+static int rings_disjoin(struct c2_rm_right *src,
+			 const struct c2_rm_right *dest,
+			 struct c2_rm_right *intersection)
+{
+	intersection->ri_datum = src->ri_datum & dest->ri_datum;
+	src->ri_datum &= ~intersection->ri_datum;
+	return 0;
+}
+
+static bool rings_conflicts(const struct c2_rm_right *r0,
+			    const struct c2_rm_right *r1)
+{
+	return r0->ri_datum & r1->ri_datum;
+}
+
 const struct c2_rm_right_ops rings_right_ops = {
 	.rro_intersects = right_intersects,
 	.rro_join	= right_join,
 	.rro_diff	= right_diff,
 	.rro_copy	= rings_right_copy,
-	.rro_free	= rings_right_free
+	.rro_free	= rings_right_free,
+	.rro_encode	= rings_right_encode,
+	.rro_decode	= rings_right_decode,
+	.rro_len	= rings_right_len,
+	.rro_is_subset	= rings_is_subset,
+	.rro_disjoin	= rings_disjoin,
+	.rro_conflicts	= rings_conflicts,
 };
 
 static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 {
 	C2_PRE(in != NULL);
-
-	/* c2_chan_broadcast(&in->rin_signal); */
 }
 
 static void incoming_conflict(struct c2_rm_incoming *in)

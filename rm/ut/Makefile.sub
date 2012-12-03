@@ -1,3 +1,9 @@
 ut_libcolibri_ut_la_SOURCES += rm/ut/rings.h \
+                               rm/ut/rmut.h \
                                rm/ut/rings.c \
+                               rm/ut/rmapi.c \
+                               rm/ut/lrights.c \
+                               rm/ut/rrights.c \
+                               rm/ut/rm_foms.c \
+                               rm/ut/rm_fops.c \
                                rm/ut/rmut.c

@@ -70,23 +70,6 @@ const struct c2_fom_type_ops rm_borrow_fom_type_ops = {
 	.fto_create = borrow_fom_create,
 };
 
-struct c2_sm_state_descr borrow_phases[] = {
-	[FOPH_RM_BORROW] = {
-		.sd_name      = "Borrow Begin",
-		.sd_allowed   = C2_BITS(FOPH_RM_BORROW_WAIT, C2_FOPH_FAILURE)
-	},
-	[FOPH_RM_BORROW_WAIT] = {
-		.sd_name      = "Borrow Completion Wait",
-		.sd_allowed   = C2_BITS(C2_FOPH_SUCCESS, C2_FOPH_FAILURE)
-	}
-};
-
-const struct c2_sm_conf borrow_sm_conf = {
-	.scf_name      = "Borrow FOM conf",
-	.scf_nr_states = ARRAY_SIZE(borrow_phases),
-	.scf_state     = borrow_phases
-};
-
 /*
  * Revoke FOM ops.
  */
@@ -100,46 +83,63 @@ const struct c2_fom_type_ops rm_revoke_fom_type_ops = {
 	.fto_create = revoke_fom_create,
 };
 
-struct c2_sm_state_descr revoke_phases[] = {
-	[FOPH_RM_REVOKE] = {
-		.sd_name      = "Revoke Begin",
-		.sd_allowed   = C2_BITS(FOPH_RM_REVOKE_WAIT, C2_FOPH_FAILURE)
+struct c2_sm_state_descr rm_req_phases[] = {
+	[FOPH_RM_REQ_START] = {
+		.sd_name      = "RM Request Begin",
+		.sd_allowed   = C2_BITS(FOPH_RM_REQ_WAIT, FOPH_RM_REQ_FINISH, C2_FOPH_FAILURE)
 	},
-	[FOPH_RM_REVOKE_WAIT] = {
-		.sd_name      = "Revoke Completion Wait",
+	[FOPH_RM_REQ_WAIT] = {
+		.sd_name      = "RM Request Wait",
+		.sd_allowed   = C2_BITS(FOPH_RM_REQ_FINISH, C2_FOPH_SUCCESS, C2_FOPH_FAILURE)
+	},
+	[FOPH_RM_REQ_FINISH] = {
+		.sd_name      = "RM Request Completion",
 		.sd_allowed   = C2_BITS(C2_FOPH_SUCCESS, C2_FOPH_FAILURE)
-	}
+	},
+};
+
+const struct c2_sm_conf borrow_sm_conf = {
+	.scf_name      = "Borrow FOM conf",
+	.scf_nr_states = ARRAY_SIZE(rm_req_phases),
+	.scf_state     = rm_req_phases
 };
 
 const struct c2_sm_conf revoke_sm_conf = {
 	.scf_name      = "Revoke FOM conf",
-	.scf_nr_states = ARRAY_SIZE(revoke_phases),
-	.scf_state     = revoke_phases
+	.scf_nr_states = ARRAY_SIZE(rm_req_phases),
+	.scf_state     = rm_req_phases
 };
 
 static void remote_incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 {
 	struct c2_rm_remote_incoming *rem_in;
-
-	if (rc != 0)
-		return;
+	struct rm_request_fom	     *rqfom;
+	enum c2_rm_fom_phases	      phase;
 
 	rem_in = container_of(in, struct c2_rm_remote_incoming, ri_incoming);
+	rqfom = container_of(rem_in, struct rm_request_fom, rf_in);
+	phase = c2_fom_phase(&rqfom->rf_fom);
+	C2_ASSERT(C2_IN(phase, (FOPH_RM_REQ_START, FOPH_RM_REQ_WAIT)));
+
 	switch (in->rin_type) {
 	case C2_RIT_BORROW:
-		rc = c2_rm_borrow_commit(rem_in);
+		rc = rc ?: c2_rm_borrow_commit(rem_in);
 		break;
 	case C2_RIT_REVOKE:
-		rc = c2_rm_revoke_commit(rem_in);
+		rc = rc ?: c2_rm_revoke_commit(rem_in);
 		break;
 	default:
 		C2_IMPOSSIBLE("Unrecognized RM request");
 		break;
 	}
+
 	/*
 	 * Override the rc.
 	 */
 	in->rin_rc = rc;
+
+	if (phase == FOPH_RM_REQ_WAIT)
+		c2_fom_wakeup(&rqfom->rf_fom);
 }
 
 static void remote_incoming_conflict(struct c2_rm_incoming *in)
@@ -323,8 +323,7 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		 * This server is debtor; hence it received REVOKE request.
 		 * This is used later by locality().
 		 */
-		rfom->rf_in.ri_owner_cookie =
-			rfop->rr_base.rrq_owner.ow_cookie;
+		rfom->rf_in.ri_owner_cookie = basefop->rrq_owner.ow_cookie;
 
 		/*
 		 * Populate the loan cookie.
@@ -364,8 +363,7 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
  * Prepare incoming request. Send request for the rights.
  */
 static int request_pre_process(struct c2_fom *fom,
-			       enum c2_rm_incoming_type type,
-			       enum c2_rm_fom_phases next_phase)
+			       enum c2_rm_incoming_type type)
 {
 	struct rm_request_fom *rfom;
 	struct c2_rm_incoming *in;
@@ -388,11 +386,12 @@ static int request_pre_process(struct c2_fom *fom,
 	in = &rfom->rf_in.ri_incoming;
 	c2_rm_right_get(in);
 
-	c2_fom_phase_set(fom, next_phase);
 	/*
-	 * If c2_rm_incoming goes in WAIT state, the put the fom in wait
-	 * queue otherwise proceed with the next phase.
+	 * If c2_rm_incoming goes in WAIT state, then put the fom in wait
+	 * queue otherwise proceed with the next (finish) phase.
 	 */
+	c2_fom_phase_set(fom, incoming_state(in) == RI_WAIT ?
+			      FOPH_RM_REQ_WAIT : FOPH_RM_REQ_FINISH);
 	return incoming_state(in) == RI_WAIT ? C2_FSO_WAIT : C2_FSO_AGAIN;
 }
 
@@ -421,26 +420,22 @@ static int request_post_process(struct c2_fom *fom)
 }
 
 static int request_fom_tick(struct c2_fom *fom,
-			    enum c2_rm_incoming_type type,
-			    enum c2_rm_fom_phases next_phase)
+			    enum c2_rm_incoming_type type)
 {
 	int rc;
 
 	if (c2_fom_phase(fom) < C2_FOPH_NR)
 		rc = c2_fom_tick_generic(fom);
 	else {
-		/*
-		 * The same code is executed for REVOKE. The case statements
-		 * for REVOKE have not been added because, they have same
-		 * phase values as BORROW. It causes compilation error.
-		 * In future, if the phase values of REVOKE change, please
-		 * add the appropriate case statements below.
-		 */
 		switch (c2_fom_phase(fom)) {
-		case FOPH_RM_BORROW:
-			rc = request_pre_process(fom, type, next_phase);
+		case FOPH_RM_REQ_START:
+			rc = request_pre_process(fom, type);
 			break;
-		case FOPH_RM_BORROW_WAIT:
+		case FOPH_RM_REQ_WAIT:
+			c2_fom_phase_set(fom, FOPH_RM_REQ_FINISH);
+			rc = C2_FSO_AGAIN;
+			break;
+		case FOPH_RM_REQ_FINISH:
 			rc = request_post_process(fom);
 			break;
 		default:
@@ -461,7 +456,7 @@ static int request_fom_tick(struct c2_fom *fom,
  */
 static int borrow_fom_tick(struct c2_fom *fom)
 {
-	return request_fom_tick(fom, C2_RIT_BORROW, FOPH_RM_BORROW_WAIT);
+	return request_fom_tick(fom, C2_RIT_BORROW);
 }
 
 /**
@@ -475,7 +470,7 @@ static int borrow_fom_tick(struct c2_fom *fom)
  */
 static int revoke_fom_tick(struct c2_fom *fom)
 {
-	return request_fom_tick(fom, C2_RIT_REVOKE, FOPH_RM_REVOKE_WAIT);
+	return request_fom_tick(fom, C2_RIT_REVOKE);
 }
 
 /*

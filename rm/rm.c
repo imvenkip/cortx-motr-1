@@ -854,9 +854,7 @@ static int remote_find(struct c2_rm_remote **rem,
 			break;
 	} c2_tl_endfor;
 
-	if (other != NULL)
-		*rem = other;
-	else {
+	if (other == NULL) {
 		C2_ALLOC_PTR(other);
 		if (other != NULL) {
 			c2_rm_remote_init(other, res);
@@ -869,6 +867,7 @@ static int remote_find(struct c2_rm_remote **rem,
 		} else
 			rc = -ENOMEM;
 	}
+	*rem = other;
 	return rc;
 }
 
@@ -1024,27 +1023,19 @@ C2_INTERNAL int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rem_in)
 	struct c2_rm_loan     *remnant_loan;
 	struct c2_rm_loan     *add_loan;
 	struct c2_rm_loan     *remove_loan;
+	struct c2_rm_right    *right;
+	struct c2_cookie      *cookie;
 	int                    rc = 0;
 	bool		       is_remnant = false;
 
 	C2_PRE(in->rin_type == C2_RIT_REVOKE);
-	/*
-	 * Check if the loan cookie is stale. If the cookie is stale
-	 * don't proceed with the reovke processing.
-	 */
-	rvk_loan = c2_cookie_of(&rem_in->ri_loan_cookie,
-				struct c2_rm_loan, rl_id);
-	rc = rvk_loan ? 0: -EPROTO;
-	if (rc != 0)
-		goto out;
-
+	cookie = &rem_in->ri_loan_cookie;
 	/*
 	 * Flush the rights cache and remove incoming rights from the cache.
 	 *
 	 * Check the difference between the borrowed rights and the revoke
 	 * rights. If the revoke fully intersects the previously borrowed right,
-	 * remove it from the list and FOM will take care of releasing the
-	 * memory.
+	 * remove it from the list.
 	 *
 	 * If it's a partial revoke, right_diff() will retain the remnant
 	 * borrowed right. In such case make, rem_in->ri_loan NULL so that
@@ -1054,7 +1045,17 @@ C2_INTERNAL int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rem_in)
 	/*
 	 * Remove the loan from borrowed list.
 	 */
-	c2_rm_ur_tlist_del(&rvk_loan->rl_right);
+	c2_tl_for(c2_rm_ur, &owner->ro_borrowed, right) {
+		rvk_loan = bob_of(right, struct c2_rm_loan,
+				  rl_right, &loan_bob);
+		if (rvk_loan->rl_cookie.co_addr == cookie->co_addr &&
+		    rvk_loan->rl_cookie.co_generation ==
+			cookie->co_generation) {
+			c2_rm_ur_tlist_del(right);
+			break;
+		}
+	} c2_tl_endfor;
+
 	/*
 	 * Check if there is partial revoke.
 	 */
@@ -1089,7 +1090,6 @@ C2_INTERNAL int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rem_in)
 	}
 
 	C2_POST(owner_invariant(owner));
-out:
 	return rc;
 }
 C2_EXPORTED(c2_rm_revoke_commit);
@@ -1208,9 +1208,10 @@ static int cached_rights_hold(struct c2_rm_incoming *in)
 	c2_tl_for(pi, &in->rin_pins, pin) {
 		C2_ASSERT(pin->rp_flags == C2_RPF_PROTECT);
 		right = pin->rp_right;
-		C2_ASSERT(right_intersects(&rest, right));
+		C2_ASSERT(right != NULL);
 		C2_ASSERT(right->ri_ops != NULL);
 		C2_ASSERT(right->ri_ops->rro_is_subset != NULL);
+		C2_ASSERT(right_intersects(&rest, right));
 
 		/* If the right is already part of HELD list, skip it */
 		if (right_pin_nr(right, C2_RPF_PROTECT) > 1) {
@@ -1376,10 +1377,9 @@ static void incoming_check(struct c2_rm_incoming *in)
 	} else
 		rc = in->rin_rc;
 
-	if (rc > 0) {
-		C2_ASSERT(incoming_pin_nr(in, C2_RPF_PROTECT) == 0);
+	if (rc > 0)
 		incoming_state_set(in, RI_WAIT);
-	} else {
+	else {
 		if (rc == 0) {
 			C2_ASSERT(incoming_pin_nr(in, C2_RPF_TRACK) == 0);
 			incoming_policy_apply(in);
@@ -1451,7 +1451,6 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 
 	C2_PRE(c2_rm_ur_tlist_contains(
 		       &o->ro_incoming[in->rin_priority][OQS_GROUND], want));
-	C2_PRE(pi_tlist_is_empty(&in->rin_pins));
 
 	/*
 	 * 1. Scan owned lists first. Check for "local" wait/try conditions.
@@ -1499,7 +1498,8 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 			 * @todo use rpc grouping here.
 			 */
 			wait++;
-			rc = revoke_send(in, loan, rest) ?: right_diff(rest, r);
+			/* @todo - Revoke entire loan?? rest could be subset of r */
+			rc = revoke_send(in, loan, r) ?: right_diff(rest, r);
 			if (rc != 0)
 				return rc;
 		} c2_tl_endfor;
@@ -1646,7 +1646,7 @@ static int revoke_send(struct c2_rm_incoming *in,
 
 	rc = outgoing_check(in, C2_ROT_REVOKE, right, loan->rl_other);
 	if (!right_is_empty(right) && rc == 0)
-		rc = c2_rm_request_out(in, loan, right);
+		rc = c2_rm_request_out(C2_ROT_REVOKE, in, loan, right);
 	return rc;
 }
 
@@ -1663,7 +1663,7 @@ static int borrow_send(struct c2_rm_incoming *in, struct c2_rm_right *right)
 	rc = outgoing_check(in, C2_ROT_BORROW, right,
 				in->rin_want.ri_owner->ro_creditor);
 	if (!right_is_empty(right) && rc == 0)
-		rc = c2_rm_request_out(in, NULL, right);
+		rc = c2_rm_request_out(C2_ROT_BORROW, in, NULL, right);
 	return rc;
 }
 
@@ -2037,6 +2037,17 @@ int pin_add(struct c2_rm_incoming *in,
 	    uint32_t flags)
 {
 	struct c2_rm_pin *pin;
+
+	/*
+ 	 * In some cases, an incoming may scan owner lists multiple times.
+ 	 * It may end up adding mutiple pins for the same right. Hence, check
+ 	 * before adding the pin.
+ 	 */
+	c2_tl_for(pi, &in->rin_pins, pin) {
+		C2_ASSERT(pin->rp_incoming == in);
+		if (pin->rp_right == right)
+			return 0;
+	} c2_tl_endfor;
 
 	C2_ALLOC_PTR(pin);
 	if (pin != NULL) {
