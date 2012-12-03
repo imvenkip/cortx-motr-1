@@ -415,6 +415,7 @@ static int iter_fid_next(struct c2_sns_repair_cm *rcm)
 		return -ENODATA;
 	if (rc == 0) {
 		/* Save next GOB fid in the iterator. */
+		rcm->rc_it.ri_pl.rpl_gob_fid = fid_next;
 		rc = cm_layout_fetch(rcm);
 		if (rc == IT_WAIT) {
 			iter_phase_set(&rcm->rc_it, ITPH_FID_NEXT_WAIT);
@@ -797,7 +798,7 @@ C2_INTERNAL int c2_sns_repair_iter_init(struct c2_sns_repair_cm *rcm)
 	int                   rc;
 	struct c2_dbenv      *dbenv;
 	struct c2_cob_domain *cdom;
-	struct c2_fid         gfid = {0, 0};
+	struct c2_fid         gfid = {1, 4};
 
 
 	C2_PRE(rcm != NULL);

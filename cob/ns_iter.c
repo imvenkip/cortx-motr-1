@@ -51,11 +51,14 @@ C2_INTERNAL int c2_cob_ns_iter_next(struct c2_cob_fid_ns_iter *iter,
                                     struct c2_fid *gfid)
 {
 	int                  rc;
-        struct c2_cob_nskey  key;
-        struct c2_cob_nsrec  rec;
+        struct c2_cob_nskey *key = NULL;
         struct c2_db_pair    db_pair;
         struct c2_db_cursor  db_cursor;
 	struct c2_table     *db_table;
+	uint32_t             cob_idx = 1;
+        char                 nskey_bs[UINT32_MAX_STR_LEN];
+        uint32_t             nskey_bs_len;
+	struct c2_fid        key_fid;
 
 	C2_PRE(iter != NULL);
 	C2_PRE(gfid != NULL);
@@ -68,11 +71,18 @@ C2_INTERNAL int c2_cob_ns_iter_next(struct c2_cob_fid_ns_iter *iter,
                 return rc;
         }
 
-	key.cnk_pfid.f_container = iter->cni_last_fid.f_container;
-	key.cnk_pfid.f_key = iter->cni_last_fid.f_key;
+	C2_SET0(&nskey_bs);
+        snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u", (uint32_t)cob_idx);
+        nskey_bs_len = UINT32_MAX_STR_LEN;
 
-        c2_db_pair_setup(&db_pair, db_table, &key, sizeof(struct c2_cob_nskey),
-			 &rec, sizeof(struct c2_cob_nsrec));
+	key_fid.f_container = iter->cni_last_fid.f_container;
+	key_fid.f_key = iter->cni_last_fid.f_key;
+
+        rc = c2_cob_nskey_make(&key, &key_fid, (char *)nskey_bs,
+			       nskey_bs_len);
+
+        c2_db_pair_setup(&db_pair, db_table, key, c2_cob_nskey_size(key),
+			 NULL, 0);
 
         rc = c2_db_cursor_get(&db_cursor, &db_pair);
         if (rc != 0)
@@ -82,13 +92,13 @@ C2_INTERNAL int c2_cob_ns_iter_next(struct c2_cob_fid_ns_iter *iter,
 	 * Assign the fetched value to gfid, which is treated as
 	 * iterator output.
 	 */
-	gfid->f_container = key.cnk_pfid.f_container;
-	gfid->f_key = key.cnk_pfid.f_key;
+	gfid->f_container = key->cnk_pfid.f_container;
+	gfid->f_key = key->cnk_pfid.f_key;
 
 	/* Container (f_container) value remains same, typically 0. */
-	iter->cni_last_fid.f_container = key.cnk_pfid.f_container;
+	iter->cni_last_fid.f_container = key->cnk_pfid.f_container;
 	/* Increment the f_key by 1, to exploit c2_db_cursor_get() property. */
-	iter->cni_last_fid.f_key = key.cnk_pfid.f_key++;
+	iter->cni_last_fid.f_key = key->cnk_pfid.f_key++;
 
 cleanup:
         c2_db_pair_release(&db_pair);

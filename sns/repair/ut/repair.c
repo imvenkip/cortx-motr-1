@@ -58,7 +58,7 @@ static struct c2_net_xprt *sr_xprts[] = {
 
 enum {
 	ITER_UT_BUF_NR = 1 << 4,
-	ITER_DEFAULT_COB_FID_KEY = 4
+	ITER_DEFAULT_COB_FID_CONT = 4
 };
 
 
@@ -193,7 +193,9 @@ static void cob_create(uint64_t cont, uint64_t key)
 	struct c2_cob_nsrec   nsrec;
 	struct c2_cob_fabrec *fabrec;
 	struct c2_cob_omgrec  omgrec;
-	char                  cname[] = "iter_ut_cob";
+        char                  nskey_bs[UINT32_MAX_STR_LEN];
+        uint32_t              nskey_bs_len;
+        uint32_t              cob_idx = 1;
 	int                   rc;
 
 	C2_SET0(&nsrec);
@@ -202,7 +204,14 @@ static void cob_create(uint64_t cont, uint64_t key)
 	rc = c2_cob_alloc(cdom, &cob);
 	C2_UT_ASSERT(rc == 0 && cob != NULL);
 	c2_fid_set(&cob_fid, cont, key);
-	rc = c2_cob_nskey_make(&nskey, &cob_fid, cname, ARRAY_SIZE(cname));
+
+	C2_SET_ARR0(nskey_bs);
+        snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u",
+                 (uint32_t)cob_idx);
+        nskey_bs_len = strlen(nskey_bs);
+
+	rc = c2_cob_nskey_make(&nskey, &cob_fid, (char *)nskey_bs,
+			       nskey_bs_len);
 	C2_UT_ASSERT(rc == 0 && nskey != NULL);
 	nsrec.cnr_fid = cob_fid;
 	nsrec.cnr_nlink = 1;
@@ -260,8 +269,8 @@ static void cobs_create(uint64_t nr_cobs)
 {
 	int i;
 
-	for (i = 1; i <= nr_cobs; ++i)
-		cob_create(i, ITER_DEFAULT_COB_FID_KEY);
+	for (i = 5; i <= 10; ++i)
+		cob_create(ITER_DEFAULT_COB_FID_CONT, i);
 
 }
 
@@ -269,8 +278,8 @@ static void cobs_delete(uint64_t nr_cobs)
 {
 	int i;
 
-	for (i = 1; i <= nr_cobs; ++i)
-		cob_delete(i, ITER_DEFAULT_COB_FID_KEY);
+	for (i = 5; i <= 10; ++i)
+		cob_delete(ITER_DEFAULT_COB_FID_CONT, i);
 }
 
 static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata)

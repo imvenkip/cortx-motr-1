@@ -44,6 +44,9 @@
  * @{
  */
 
+enum {
+	UINT32_MAX_STR_LEN      = 12
+};
 
 struct c2_cob_fid_ns_iter {
 	/** DB environment. */

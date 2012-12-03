@@ -25,6 +25,7 @@
 #include "lib/misc.h"               /* C2_SET0() */
 #include "lib/trace.h"
 #include "fid/fid.h"                /* c2_fid */
+#include "cob/ns_iter.h"
 #include "fop/fom_generic.h"        /* c2_fom_tick_generic() */
 #include "ioservice/io_foms.h"      /* io_fom_cob_rw_fid2stob_map */
 #include "ioservice/io_fops.h"      /* c2_cobfop_common_get */
@@ -58,7 +59,6 @@ enum {
 	CC_COB_VERSION_INIT	= 0,
 	CC_COB_HARDLINK_NR	= 1,
 	CD_FOM_STOBIO_LAST_REFS = 1,
-	UINT32_MAX_STR_LEN      = 12
 };
 
 static const struct c2_addb_loc cc_fom_addb_loc = {
