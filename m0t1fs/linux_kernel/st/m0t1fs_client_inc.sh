@@ -392,7 +392,7 @@ rmw_test()
 				echo -n "IORMW Large Block Test: I/O for stride ="\
 				"${stride_size}K, bs = $io_size, count = 1... "
 				bulkio_test $stride_size 1 &>> \
-				$COLIBRI_TEST_LOGFILE || return 1
+				$MERO_TEST_LOGFILE || return 1
 				show_write_speed
 			done
 

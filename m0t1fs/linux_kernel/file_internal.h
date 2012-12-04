@@ -1099,9 +1099,9 @@ struct target_ioreq_ops {
          */
         void (*tio_seg_add)        (struct target_ioreq *ti,
                                     uint64_t             frame,
-                                    c2_bindex_t          gob_offset,
-                                    c2_bindex_t          par_offset,
-                                    c2_bcount_t          count,
+                                    m0_bindex_t          gob_offset,
+                                    m0_bindex_t          par_offset,
+                                    m0_bcount_t          count,
                                     uint64_t             unit,
 				    struct pargrp_iomap *map);
 

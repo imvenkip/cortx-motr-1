@@ -655,9 +655,9 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 static void target_ioreq_seg_add      (struct target_ioreq *ti,
 				       uint64_t		    frame,
-				       c2_bindex_t	    gob_offset,
-				       c2_bindex_t	    par_offset,
-				       c2_bcount_t	    count,
+				       m0_bindex_t	    gob_offset,
+				       m0_bindex_t	    par_offset,
+				       m0_bcount_t	    count,
 				       uint64_t		    unit,
 				       struct pargrp_iomap *map);
 
@@ -2086,7 +2086,7 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 				goto err;
 
 			ti->ti_ops->tio_seg_add(ti, tgt.ta_frame, r_ext.e_start,
-						0, c2_ext_length(&r_ext),
+						0, m0_ext_length(&r_ext),
 						src.sa_unit,
 						req->ir_iomaps[map]);
 		}
@@ -2629,9 +2629,9 @@ static void data_buf_dealloc_fini(struct data_buf *buf)
 
 static void target_ioreq_seg_add(struct target_ioreq *ti,
 				 uint64_t	      frame,
-				 c2_bindex_t	      gob_offset,
-				 c2_bindex_t	      par_offset,
-				 c2_bcount_t	      count,
+				 m0_bindex_t	      gob_offset,
+				 m0_bindex_t	      par_offset,
+				 m0_bcount_t	      count,
 				 uint64_t	      unit,
 				 struct pargrp_iomap *map)
 {

@@ -1772,7 +1772,7 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
  */
 static size_t m0_io_fom_cob_rw_locality_get(const struct m0_fom *fom)
 {
-	struct c2_fop_cob_rw *rw;
+	struct m0_fop_cob_rw *rw;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_fop != NULL);
