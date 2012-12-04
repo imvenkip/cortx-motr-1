@@ -24,15 +24,15 @@
 #include "lib/cdefs.h"
 #include <linux/pagemap.h> /* PAGE_CACHE_SIZE */
 
-C2_INTERNAL int c2_0vec_page_add(struct c2_0vec *zvec,
-				 struct page *pg, c2_bindex_t index)
+M0_INTERNAL int m0_0vec_page_add(struct m0_0vec *zvec,
+				 struct page *pg, m0_bindex_t index)
 {
-	struct c2_buf	  buf;
+	struct m0_buf	  buf;
 
 	buf.b_addr = page_address(pg);
 	buf.b_nob = PAGE_CACHE_SIZE;
 
-	return c2_0vec_cbuf_add(zvec, &buf, &index);
+	return m0_0vec_cbuf_add(zvec, &buf, &index);
 }
 
 /*

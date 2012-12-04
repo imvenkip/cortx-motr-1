@@ -18,10 +18,10 @@
  * Original creation date: 05/07/2010
  */
 
-#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/misc.h"   /* M0_SET0 */
 #include "lib/ub.h"
 #include "lib/ut.h"
-#include "lib/vec.h"    /* C2_SEG_SIZE & C2_SEG_SHIFT */
+#include "lib/vec.h"    /* M0_SEG_SIZE & M0_SEG_SHIFT */
 #include "lib/memory.h"
 
 struct test1 {
@@ -34,22 +34,22 @@ void test_memory(void)
 	struct test1 *ptr2;
 	size_t        allocated;
 	int           i;
-	allocated = c2_allocated();
-	ptr1 = c2_alloc(100);
-	C2_UT_ASSERT(ptr1 != NULL);
+	allocated = m0_allocated();
+	ptr1 = m0_alloc(100);
+	M0_UT_ASSERT(ptr1 != NULL);
 
-	C2_ALLOC_PTR(ptr2);
-	C2_UT_ASSERT(ptr2 != NULL);
+	M0_ALLOC_PTR(ptr2);
+	M0_UT_ASSERT(ptr2 != NULL);
 
-	c2_free(ptr1);
-	c2_free(ptr2);
-	C2_UT_ASSERT(allocated == c2_allocated());
+	m0_free(ptr1);
+	m0_free(ptr2);
+	M0_UT_ASSERT(allocated == m0_allocated());
 
-	/* Checking c2_alloc_aligned for buffer sizes from 4K to 64Kb. */
-	for (i = 0; i <= C2_SEG_SIZE * 16; i += C2_SEG_SIZE / 2) {
-		ptr1 = c2_alloc_aligned(i, C2_SEG_SHIFT);
-		C2_UT_ASSERT(c2_addr_is_aligned(ptr1, C2_SEG_SHIFT));
-		c2_free_aligned(ptr1, (size_t)i, C2_SEG_SHIFT);
+	/* Checking m0_alloc_aligned for buffer sizes from 4K to 64Kb. */
+	for (i = 0; i <= M0_SEG_SIZE * 16; i += M0_SEG_SIZE / 2) {
+		ptr1 = m0_alloc_aligned(i, M0_SEG_SHIFT);
+		M0_UT_ASSERT(m0_addr_is_aligned(ptr1, M0_SEG_SHIFT));
+		m0_free_aligned(ptr1, (size_t)i, M0_SEG_SHIFT);
 	}
 
 }
@@ -66,32 +66,32 @@ static void *ubx[UB_ITER];
 
 static void ub_init(void)
 {
-	C2_SET_ARR0(ubx);
+	M0_SET_ARR0(ubx);
 }
 
 static void ub_free(int i)
 {
-	c2_free(ubx[i]);
+	m0_free(ubx[i]);
 }
 
 static void ub_small(int i)
 {
-	ubx[i] = c2_alloc(UB_SMALL);
+	ubx[i] = m0_alloc(UB_SMALL);
 }
 
 static void ub_medium(int i)
 {
-	ubx[i] = c2_alloc(UB_MEDIUM);
+	ubx[i] = m0_alloc(UB_MEDIUM);
 }
 
 static void ub_large(int i)
 {
-	ubx[i] = c2_alloc(UB_LARGE);
+	ubx[i] = m0_alloc(UB_LARGE);
 }
 
 static void ub_huge(int i)
 {
-	ubx[i] = c2_alloc(UB_HUGE);
+	ubx[i] = m0_alloc(UB_HUGE);
 }
 
 #if 0
@@ -100,11 +100,11 @@ static void ub_free_all(void)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(ubx); ++i)
-		c2_free(ubx[i]);
+		m0_free(ubx[i]);
 }
 #endif
 
-struct c2_ub_set c2_memory_ub = {
+struct m0_ub_set m0_memory_ub = {
 	.us_name = "memory-ub",
 	.us_init = ub_init,
 	.us_fini = NULL,

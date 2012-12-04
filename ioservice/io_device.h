@@ -20,11 +20,11 @@
 
 #pragma once
 
-#ifndef __COLIBRI_IOSERVICE_IO_DEVICE_H__
-#define __COLIBRI_IOSERVICE_IO_DEVICE_H__
+#ifndef __MERO_IOSERVICE_IO_DEVICE_H__
+#define __MERO_IOSERVICE_IO_DEVICE_H__
 
-struct c2_fv_version;
-struct c2_fv_updates;
+struct m0_fv_version;
+struct m0_fv_updates;
 
 /**
    @page io_calls_params_dld-fspec I/O calls Parameters Functional Specification
@@ -33,10 +33,10 @@ struct c2_fv_updates;
    - @ref io_calls_params_dldDFS "Detailed Functional Specification"
 
    @section DLD-fspec-ds Data Structures
-   - c2_fop_cob_rw
-   - c2_fop_cob_rw_reply
-   - c2_fop_cob_common
-   - c2_fop_cob_op_reply
+   - m0_fop_cob_rw
+   - m0_fop_cob_rw_reply
+   - m0_fop_cob_common
+   - m0_fop_cob_op_reply
 
    The followsing code is used to present the failure vector version which is
    tagged to every i/o request, and failure vector updates which is replied
@@ -44,18 +44,18 @@ struct c2_fv_updates;
 
    @code
 
-   DEF(c2_fv_version, RECORD,
+   DEF(m0_fv_version, RECORD,
           _(fvv_read, U64),
           _(fvv_write, U64));
 
-   DEF(c2_fv_event, RECORD,
+   DEF(m0_fv_event, RECORD,
 	_(fve_type, U32),
 	_(fve_index, U32),
 	_(fve_state, U32));
 
-   DEF(c2_fv_updates, SEQUENCE,
+   DEF(m0_fv_updates, SEQUENCE,
           _(fvu_count, U32),
-          _(fvu_events, struct c2_fv_event));
+          _(fvu_events, struct m0_fv_event));
 
    @endcode
 
@@ -82,32 +82,32 @@ struct c2_fv_updates;
 
    @{
  */
-struct c2_reqh;
-struct c2_poolmach;
+struct m0_reqh;
+struct m0_poolmach;
 
 enum {
 	/**
 	 * i/o reply error code to indicate the client known failure vector
 	 * version is mismatch with the server's.
 	 */
-	C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH = -1001
+	M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH = -1001
 };
 
 /**
  * Initializes the pool machine. This will create a shared reqh key
- * and call c2_poolmach_init() internally.
+ * and call m0_poolmach_init() internally.
  */
-C2_INTERNAL int c2_ios_poolmach_init(struct c2_reqh *reqh);
+M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh *reqh);
 
 /**
  * Gets the shared pool machine.
  */
-C2_INTERNAL struct c2_poolmach *c2_ios_poolmach_get(struct c2_reqh *reqh);
+M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(struct m0_reqh *reqh);
 
 /**
  * Finializes the pool machine when it is no longer used.
  */
-C2_INTERNAL void c2_ios_poolmach_fini(struct c2_reqh *reqh);
+M0_INTERNAL void m0_ios_poolmach_fini(struct m0_reqh *reqh);
 
 /**
  * Pack the current server version and delta of failure vectors
@@ -117,17 +117,17 @@ C2_INTERNAL void c2_ios_poolmach_fini(struct c2_reqh *reqh);
  * @param version [out] pack the server known version into this.
  * @param updates [out] pack events from @cli to @version into this buffer.
  */
-C2_INTERNAL int c2_ios_poolmach_version_updates_pack(struct c2_poolmach *pm,
-						     const struct c2_fv_version
+M0_INTERNAL int m0_ios_poolmach_version_updates_pack(struct m0_poolmach *pm,
+						     const struct m0_fv_version
 						     *cli,
-						     struct c2_fv_version
+						     struct m0_fv_version
 						     *version,
-						     struct c2_fv_updates
+						     struct m0_fv_updates
 						     *updates);
 
 /** @} */ /* io_calls_params_dldDFS end group */
 
-#endif /*  __COLIBRI_IOSERVICE_IO_DEVICE_H__ */
+#endif /*  __MERO_IOSERVICE_IO_DEVICE_H__ */
 
 /*
  *  Local variables:

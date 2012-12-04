@@ -23,21 +23,21 @@
  * @{
  */
 
-#include "lib/memory.h" /* C2_ALLOC_PTR() */
+#include "lib/memory.h" /* M0_ALLOC_PTR() */
 
 #include "layout/layout_internal.h"
 #include "layout/composite.h"
 
 struct composite_schema_data {
 	/** Table to store extent maps for all the composite layouts. */
-	struct c2_emap csd_comp_layout_ext_map;
+	struct m0_emap csd_comp_layout_ext_map;
 };
 
 /** Prefix for comp_layout_ext_map table. */
 struct layout_prefix {
 	/**
 	 * Layout id for the composite layout.
-	 * Value is same as c2_layout::l_id.
+	 * Value is same as m0_layout::l_id.
 	 */
 	uint64_t lp_l_id;
 
@@ -54,33 +54,33 @@ struct layout_prefix {
  * the reference when done with the usage. The layout is finalised when it is
  * the last reference being released.
  */
-C2_INTERNAL void c2_composite_build(struct c2_layout_domain *dom,
+M0_INTERNAL void m0_composite_build(struct m0_layout_domain *dom,
 				    uint64_t lid,
-				    struct c2_tl *sub_layouts,
-				    struct c2_composite_layout **out)
+				    struct m0_tl *sub_layouts,
+				    struct m0_composite_layout **out)
 {
 }
 
 /** Implementation of lo_fini for COMPOSITE layout type. */
-static void composite_fini(struct c2_ref *ref)
+static void composite_fini(struct m0_ref *ref)
 {
 }
 
 /* Implementation of lto_allocate for COMPOSITE layout type. */
-static int composite_allocate(struct c2_layout_domain *dom,
+static int composite_allocate(struct m0_layout_domain *dom,
 			      uint64_t lid,
-			      struct c2_layout **out)
+			      struct m0_layout **out)
 {
 	return 0;
 }
 
 /** Implementation of lo_delete for COMPOSITE layout type. */
-static void composite_delete(struct c2_layout *l)
+static void composite_delete(struct m0_layout *l)
 {
 }
 
 /** Implementation of lo_recsize() for COMPOSITE layout type. */
-static c2_bcount_t composite_recsize(const struct c2_layout *l)
+static m0_bcount_t composite_recsize(const struct m0_layout *l)
 {
 	return 0;
 }
@@ -90,14 +90,14 @@ static c2_bcount_t composite_recsize(const struct c2_layout *l)
  *
  * Initialises table specifically required for COMPOSITE layout type.
  */
-static int composite_register(struct c2_layout_domain *dom,
-			      const struct c2_layout_type *lt)
+static int composite_register(struct m0_layout_domain *dom,
+			      const struct m0_layout_type *lt)
 {
 	/*
 	@code
 	struct composite_schema_data *csd;
 
-	C2_ALLOC_PTR(csd);
+	M0_ALLOC_PTR(csd);
 
 	Initialise csd->csd_comp_layout_ext_map table.
 
@@ -112,8 +112,8 @@ static int composite_register(struct c2_layout_domain *dom,
  *
  * Finalises table specifically required for COMPOSITE layout type.
  */
-static void composite_unregister(struct c2_layout_domain *dom,
-				 const struct c2_layout_type *lt)
+static void composite_unregister(struct m0_layout_domain *dom,
+				 const struct m0_layout_type *lt)
 {
 	/*
 	@code
@@ -127,12 +127,12 @@ static void composite_unregister(struct c2_layout_domain *dom,
 }
 
 /** Implementation of lto_max_recsize() for COMPOSITE layout type. */
-static c2_bcount_t composite_max_recsize(struct c2_layout_domain *dom)
+static m0_bcount_t composite_max_recsize(struct m0_layout_domain *dom)
 {
 	return 0;
 }
 
-static const struct c2_layout_ops composite_ops;
+static const struct m0_layout_ops composite_ops;
 
 /**
  * Implementation of lo_decode() for composite layout type.
@@ -145,24 +145,24 @@ static const struct c2_layout_ops composite_ops;
  * If it is BUFFER_OP, then the layout is decoded from its representation
  * received through the buffer.
  */
-static int composite_decode(struct c2_layout *l,
-			    struct c2_bufvec_cursor *cur,
-			    enum c2_layout_xcode_op op,
-			    struct c2_db_tx *tx,
+static int composite_decode(struct m0_layout *l,
+			    struct m0_bufvec_cursor *cur,
+			    enum m0_layout_xcode_op op,
+			    struct m0_db_tx *tx,
 			    uint32_t user_count)
 {
 	/*
 	@code
-	struct c2_composite_layout *cl;
+	struct m0_composite_layout *cl;
 
-	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP));
+	M0_PRE(M0_IN(op, (M0_LXO_DB_LOOKUP, M0_LXO_BUFFER_OP));
 
-	C2_ALLOC_PTR(cl);
+	M0_ALLOC_PTR(cl);
 
-	c2_layout__init(dom, &cl->cl_base, lid,
-			&c2_composite_layout_type, &composite_ops);
+	m0_layout__init(dom, &cl->cl_base, lid,
+			&m0_composite_layout_type, &composite_ops);
 
-	if (op == C2_LXO_DB_LOOKUP) {
+	if (op == M0_LXO_DB_LOOKUP) {
 		Read all the segments from the comp_layout_ext_map table,
 		belonging to composite layout with layout id 'lid' and store
 		them in the cl->cl_sub_layouts.
@@ -190,26 +190,26 @@ static int composite_decode(struct c2_layout *l,
  * ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is stored in the
  * buffer.
  */
-static int composite_encode(struct c2_layout *l,
-			    enum c2_layout_xcode_op op,
-			    struct c2_db_tx *tx,
-			    struct c2_bufvec_cursor *out)
+static int composite_encode(struct m0_layout *l,
+			    enum m0_layout_xcode_op op,
+			    struct m0_db_tx *tx,
+			    struct m0_bufvec_cursor *out)
 {
 	/*
 	@code
 
-	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
-			  C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
+	M0_PRE(M0_IN(op, (M0_LXO_DB_ADD, M0_LXO_DB_UPDATE,
+			  M0_LXO_DB_DELETE, M0_LXO_BUFFER_OP)));
 
-	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
-            (op == C2_LXO_DB_DELETE)) {
+	if ((op == M0_LXO_DB_ADD) || (op == M0_LXO_DB_UPDATE) ||
+            (op == M0_LXO_DB_DELETE)) {
 		Form records for the cob_lists table by using data from the
-		c2_layout object l and depending on the value of op,
+		m0_layout object l and depending on the value of op,
 		insert/update/delete those records to/from the cob_lists table.
 	} else {
 		Store composite layout type specific fields like information
 		about the sub-layouts, into the buffer by referring it from
-		c2_layout object l.
+		m0_layout object l.
 	}
 
 	@endcode
@@ -218,7 +218,7 @@ static int composite_encode(struct c2_layout *l,
 	return 0;
 }
 
-static const struct c2_layout_ops composite_ops = {
+static const struct m0_layout_ops composite_ops = {
 	.lo_fini    = composite_fini,
 	.lo_delete  = composite_delete,
 	.lo_recsize = composite_recsize,
@@ -226,7 +226,7 @@ static const struct c2_layout_ops composite_ops = {
 	.lo_encode  = composite_encode
 };
 
-static const struct c2_layout_type_ops composite_type_ops = {
+static const struct m0_layout_type_ops composite_type_ops = {
 	.lto_register    = composite_register,
 	.lto_unregister  = composite_unregister,
 	.lto_max_recsize = composite_max_recsize,
@@ -234,7 +234,7 @@ static const struct c2_layout_type_ops composite_type_ops = {
 };
 
 
-const struct c2_layout_type c2_composite_layout_type = {
+const struct m0_layout_type m0_composite_layout_type = {
 	.lt_name = "composite",
 	.lt_id   = 1,
 	.lt_ops  = &composite_type_ops

@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_COB_COB_H__
-#define __COLIBRI_COB_COB_H__
+#ifndef __MERO_COB_COB_H__
+#define __MERO_COB_COB_H__
 
 #include "lib/atomic.h"
 #include "lib/cdefs.h"
@@ -38,14 +38,14 @@
 #include "dtm/verno.h"
 
 /* import */
-struct c2_db_tx;
+struct m0_db_tx;
 
 /**
    @defgroup cob Component objects
 
    A Component object is a metadata layer that holds metadata information.
    It references a single storage object and contains metadata describing
-   the object. The metadata is stored in database tables. A C2 Global
+   the object. The metadata is stored in database tables. A M0 Global
    Object (i.e. file) is made up of a collection of Component Objects
    (stripes).
 
@@ -116,7 +116,7 @@ struct c2_db_tx;
    That is, we need a key containing (a.fid, "f0"). Using this key we can
    find its position in namespace table and delete the record. Before killing it,
    we need to check if this record stores stat data. This is easy to do
-   as ->c2_cob_nsrec::cnr_linkno field is zero for stat data records. Stat data
+   as ->m0_cob_nsrec::cnr_linkno field is zero for stat data records. Stat data
    should be moved to next name and we need to find it somehow. To do this quickly
    we do lookup in object index for second file name, i.e. - (a.fid, 1).
 
@@ -163,66 +163,66 @@ struct c2_db_tx;
 
    In order to iterate over all names that "dir" cob contains, cob iterator
    is used. It is simple cursor based API, that contains four methods:
-   - c2_cob_iterator_init() - init iterator with cob fid and file name;
-   - c2_cob_iterator_get()  - position iterator according with its properies;
-   - c2_cob_iterator_next() - move to next position;
-   - c2_cob_iterator_fini() - fini iterator.
+   - m0_cob_iterator_init() - init iterator with cob fid and file name;
+   - m0_cob_iterator_get()  - position iterator according with its properies;
+   - m0_cob_iterator_next() - move to next position;
+   - m0_cob_iterator_fini() - fini iterator.
 
-   `cob' and `name' parameters, passed to c2_cob_iterator_init(), specify initial
-   position of the iterator. Then iterator moves with c2_cob_iterator_next()
+   `cob' and `name' parameters, passed to m0_cob_iterator_init(), specify initial
+   position of the iterator. Then iterator moves with m0_cob_iterator_next()
    method over namespace table until end of table is reached or a record with
    another parent fid is found.
 
-   Once iterator is not needed, it is fininalized by c2_cob_iterator_fini().
+   Once iterator is not needed, it is fininalized by m0_cob_iterator_fini().
 
-   @see c2_mdstore_readdir() for example of using iterator.
+   @see m0_mdstore_readdir() for example of using iterator.
 
    Mkfs.
 
-   Cob cannot be used before c2_cob_domain_mkfs() is called. For details consult
-   with c2_cob_domain_mkfs()
+   Cob cannot be used before m0_cob_domain_mkfs() is called. For details consult
+   with m0_cob_domain_mkfs()
 
    This function creates the following structures [records? objects?] in cob
    tables:
 
-   - the main root cob with fid C2_COB_ROOT_FID;
+   - the main root cob with fid M0_COB_ROOT_FID;
 
    - metadata hierarchy root cob (what potentially metadata client can see)
-   with fid C2_COB_ROOT_FID and name C2_COB_ROOT_NAME;
+   with fid M0_COB_ROOT_FID and name M0_COB_ROOT_NAME;
 
    - sessions root cob (all sessions are created below it) with fid
-   C2_COB_SESSIONS_FID and name C2_COB_SESSIONS_NAME;
+   M0_COB_SESSIONS_FID and name M0_COB_SESSIONS_NAME;
 
    - omgid terminator record with id = ~0ULL. This is used for omgid allocation
-   during c2_cob_create();
+   during m0_cob_create();
 
    Mdstore based cobs cannot be used properly without mkfs done. All unit tests
-   that access cob and also all modules using cobs should do c2_cob_domain_mkfs()
+   that access cob and also all modules using cobs should do m0_cob_domain_mkfs()
    on startup.
 
    @{
  */
 
-struct c2_cob;
-struct c2_fid;
-struct c2_cob_id;
-struct c2_cob_domain;
-struct c2_cob_domain_id;
+struct m0_cob;
+struct m0_fid;
+struct m0_cob_id;
+struct m0_cob_domain;
+struct m0_cob_domain_id;
 
 /* Namespace name for root cob (not exposed to user) */
-extern const char C2_COB_ROOT_NAME[];
+extern const char M0_COB_ROOT_NAME[];
 
 /* Namespace name for sessions root cob. */
-extern const char C2_COB_SESSIONS_NAME[];
+extern const char M0_COB_SESSIONS_NAME[];
 
 /* Grobal cob root fid. */
-extern const struct c2_fid C2_COB_ROOT_FID;
+extern const struct m0_fid M0_COB_ROOT_FID;
 
 /* Hierarchy root fid (exposed to user). */
-extern const struct c2_fid C2_COB_SLASH_FID;
+extern const struct m0_fid M0_COB_SLASH_FID;
 
 /* Root sessions cob fid. */
-extern const struct c2_fid C2_COB_SESSIONS_FID;
+extern const struct m0_fid M0_COB_SESSIONS_FID;
 
 /**
    Unique cob domain identifier.
@@ -230,7 +230,7 @@ extern const struct c2_fid C2_COB_SESSIONS_FID;
    A cob_domain identifier distinguishes domains within a single
    database environment.
  */
-struct c2_cob_domain_id {
+struct m0_cob_domain_id {
         uint32_t id;
 };
 
@@ -242,65 +242,65 @@ struct c2_cob_domain_id {
    of cob's described by a namespace or object index.  The objects referenced
    by the tables will reside in other, filedata containers.
 
-   A c2_cob_domain is an in-memory structure that identifies these tables.
+   A m0_cob_domain is an in-memory structure that identifies these tables.
    The list of domains will be created at metadata container ingest (when
    a container is first "started/read/initialized/opened".)
 
-   A c2_cob_domain cannot span multiple containers.  Eventually, there should
+   A m0_cob_domain cannot span multiple containers.  Eventually, there should
    be methods for combining/splitting containers and therefore cob
    domains and databases.
 */
-struct c2_cob_domain {
-        struct c2_cob_domain_id cd_id;
-        struct c2_dbenv        *cd_dbenv;
-        struct c2_table         cd_object_index;
-        struct c2_table         cd_namespace;
-        struct c2_table         cd_fileattr_basic;
-        struct c2_table         cd_fileattr_omg;
+struct m0_cob_domain {
+        struct m0_cob_domain_id cd_id;
+        struct m0_dbenv        *cd_dbenv;
+        struct m0_table         cd_object_index;
+        struct m0_table         cd_namespace;
+        struct m0_table         cd_fileattr_basic;
+        struct m0_table         cd_fileattr_omg;
 
         /**
          * An ADDB context for events related to this domain.
          */
-        struct c2_addb_ctx      cd_addb;
+        struct m0_addb_ctx      cd_addb;
 };
 
-int c2_cob_domain_init(struct c2_cob_domain *dom, struct c2_dbenv *env,
-		       const struct c2_cob_domain_id *id);
+int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_dbenv *env,
+		       const struct m0_cob_domain_id *id);
 
-void c2_cob_domain_fini(struct c2_cob_domain *dom);
+void m0_cob_domain_fini(struct m0_cob_domain *dom);
 
 /**
  * Prepare storage before using. Create root cob for session objects and
  * root for files hierarchy.
  */
-C2_INTERNAL int c2_cob_domain_mkfs(struct c2_cob_domain *dom,
-				   const struct c2_fid *rootfid,
-				   const struct c2_fid *sessfid,
-				   struct c2_db_tx *tx);
+M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+				   const struct m0_fid *rootfid,
+				   const struct m0_fid *sessfid,
+				   struct m0_db_tx *tx);
 
 /**
  * Flags for cob attributes.
  */
-enum c2_cob_valid_flags {
-        C2_COB_ATIME   = 1 << 0,
-        C2_COB_MTIME   = 1 << 1,
-        C2_COB_CTIME   = 1 << 2,
-        C2_COB_SIZE    = 1 << 3,
-        C2_COB_MODE    = 1 << 4,
-        C2_COB_UID     = 1 << 5,
-        C2_COB_GID     = 1 << 6,
-        C2_COB_BLOCKS  = 1 << 7,
-        C2_COB_TYPE    = 1 << 8,
-        C2_COB_FLAGS   = 1 << 9,
-        C2_COB_NLINK   = 1 << 10,
-        C2_COB_RDEV    = 1 << 11,
-        C2_COB_BLKSIZE = 1 << 12
+enum m0_cob_valid_flags {
+        M0_COB_ATIME   = 1 << 0,
+        M0_COB_MTIME   = 1 << 1,
+        M0_COB_CTIME   = 1 << 2,
+        M0_COB_SIZE    = 1 << 3,
+        M0_COB_MODE    = 1 << 4,
+        M0_COB_UID     = 1 << 5,
+        M0_COB_GID     = 1 << 6,
+        M0_COB_BLOCKS  = 1 << 7,
+        M0_COB_TYPE    = 1 << 8,
+        M0_COB_FLAGS   = 1 << 9,
+        M0_COB_NLINK   = 1 << 10,
+        M0_COB_RDEV    = 1 << 11,
+        M0_COB_BLKSIZE = 1 << 12
 };
 
-#define C2_COB_ALL (C2_COB_ATIME | C2_COB_MTIME | C2_COB_CTIME |                \
-                    C2_COB_SIZE | C2_COB_MODE | C2_COB_UID | C2_COB_GID |       \
-                    C2_COB_BLOCKS | C2_COB_TYPE | C2_COB_FLAGS | C2_COB_NLINK | \
-                    C2_COB_RDEV | C2_COB_BLKSIZE)
+#define M0_COB_ALL (M0_COB_ATIME | M0_COB_MTIME | M0_COB_CTIME |                \
+                    M0_COB_SIZE | M0_COB_MODE | M0_COB_UID | M0_COB_GID |       \
+                    M0_COB_BLOCKS | M0_COB_TYPE | M0_COB_FLAGS | M0_COB_NLINK | \
+                    M0_COB_RDEV | M0_COB_BLKSIZE)
 
 /**
  * Attributes describing object that needs to be created or modified.
@@ -308,10 +308,10 @@ enum c2_cob_valid_flags {
  * in cob modules for carrying in-request information to layers that
  * should not be dealing with fop request or response.
  */
-struct c2_cob_attr {
-        struct c2_fid       ca_pfid;    /**< parent fid */
-        struct c2_fid       ca_tfid;    /**< object fid */
-        uint16_t            ca_flags;   /**< flags (enum c2_cob_valid_flags) */
+struct m0_cob_attr {
+        struct m0_fid       ca_pfid;    /**< parent fid */
+        struct m0_fid       ca_tfid;    /**< object fid */
+        uint16_t            ca_flags;   /**< flags (enum m0_cob_valid_flags) */
         uint32_t            ca_mode;    /**< protection. */
         uint32_t            ca_uid;     /**< user ID of owner. */
         uint32_t            ca_gid;     /**< group ID of owner. */
@@ -324,34 +324,34 @@ struct c2_cob_attr {
         uint64_t            ca_blksize; /**< blocksize for filesystem I/O. */
         uint64_t            ca_blocks;  /**< number of blocks allocated. */
         uint64_t            ca_version; /**< object version */
-        struct c2_buf       ca_name;    /**< object name */
-        struct c2_buf       ca_link;    /**< symlink body */
+        struct m0_buf       ca_name;    /**< object name */
+        struct m0_buf       ca_link;    /**< symlink body */
 };
 
 /**
  * Namespace table key. For data objects, cnk_pfid = cfid and cnk_name = "".
  */
-struct c2_cob_nskey {
-        struct c2_fid       cnk_pfid;
-        struct c2_bitstring cnk_name;
+struct m0_cob_nskey {
+        struct m0_fid       cnk_pfid;
+        struct m0_bitstring cnk_name;
 };
 
-C2_INTERNAL size_t c2_cob_nskey_size(const struct c2_cob_nskey *nskey);
+M0_INTERNAL size_t m0_cob_nskey_size(const struct m0_cob_nskey *nskey);
 
 /**
  * Compare two keys. Return: k0 > k1: +1, k0 < k1: -1, 0 - otherwise.
  */
-C2_INTERNAL int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0,
-				 const struct c2_cob_nskey *k1);
+M0_INTERNAL int m0_cob_nskey_cmp(const struct m0_cob_nskey *k0,
+				 const struct m0_cob_nskey *k1);
 
 /**
  * Namespace table record "value" part. For each file there may exist
- * several c2_cob_nsrecs, given that there are several hardlinks. First
+ * several m0_cob_nsrecs, given that there are several hardlinks. First
  * of the records -- so called "zero record", aka stat data -- contains
  * file attributes.
  */
-struct c2_cob_nsrec {
-        struct c2_fid     cnr_fid;     /**< object fid */
+struct m0_cob_nsrec {
+        struct m0_fid     cnr_fid;     /**< object fid */
         uint32_t          cnr_linkno;  /**< number of link for the name */
 
         /**
@@ -369,14 +369,14 @@ struct c2_cob_nsrec {
         uint64_t          cnr_ctime;   /**< time of last status change */
 };
 
-/** Object index table key. The oi table record is a struct c2_cob_nskey. */
-struct c2_cob_oikey {
-        struct c2_fid     cok_fid;
+/** Object index table key. The oi table record is a struct m0_cob_nskey. */
+struct m0_cob_oikey {
+        struct m0_fid     cok_fid;
         uint32_t          cok_linkno;  /**< hardlink ordinal index */
 };
 
 /**
- * Fileattr_basic table, key is c2_cob_fabkey
+ * Fileattr_basic table, key is m0_cob_fabkey
  *
  * @note version should change on every namespace manipulation and data write.
  * If version and mtime/ctime both change frequently, at the same time,
@@ -387,12 +387,12 @@ struct c2_cob_oikey {
  * as compact as possible to reduce lookup footprint. Also, readdir benefits
  * from smaller namespace entries.
  */
-struct c2_cob_fabkey {
-        struct c2_fid     cfb_fid;
+struct m0_cob_fabkey {
+        struct m0_fid     cfb_fid;
 };
 
-struct c2_cob_fabrec {
-        struct c2_verno   cfb_version;  /**< version from last fop */
+struct m0_cob_fabrec {
+        struct m0_verno   cfb_version;  /**< version from last fop */
         uint64_t          cfb_layoutid; /**< reference to layout */
         uint16_t          cfb_linklen;  /**< symlink len if any */
         char              cfb_link[0];  /**< symlink body */
@@ -402,14 +402,14 @@ struct c2_cob_fabrec {
 /**
  * Omg (owner/mode/group) table key
  */
-struct c2_cob_omgkey {
+struct m0_cob_omgkey {
         uint64_t          cok_omgid;   /**< omg id ref */
 };
 
 /**
  * Protection and access flags are stored in omg table.
  */
-struct c2_cob_omgrec {
+struct m0_cob_omgrec {
         uint32_t          cor_uid;     /**< user ID of owner */
         uint32_t          cor_mode;    /**< protection */
         uint32_t          cor_gid;     /**< group ID of owner */
@@ -418,8 +418,8 @@ struct c2_cob_omgrec {
 /**
  * In-memory representation of a component object.
  *
- * c2_cob is an in-memory structure, populated from database tables
- * on demand. c2_cob is not cached for long time (except for root)
+ * m0_cob is an in-memory structure, populated from database tables
+ * on demand. m0_cob is not cached for long time (except for root)
  * and is only used as a temporary handle of database structures for the
  * sake of handyness. This means, we don't need to bother with locking
  * as everytime we pass cob to some function this is new instance of it.
@@ -427,39 +427,39 @@ struct c2_cob_omgrec {
  * database (db[45] or rvm).
  *
  * The exposed methods to get a new instance of cob are:
- * - c2_cob_lookup() - allocate new in-memory cob and populate it with lookup
+ * - m0_cob_lookup() - allocate new in-memory cob and populate it with lookup
  *                     by name.
- * - c2_cob_locate() - allocate new in-memory cob and populate it with lookup
+ * - m0_cob_locate() - allocate new in-memory cob and populate it with lookup
  *                     by fid.
- * - c2_cob_create() - allocate new in-memory cob, populate it with passed
+ * - m0_cob_create() - allocate new in-memory cob, populate it with passed
  *                     records and create database structures.
  *
  * The cobs returned by these methods are always populated.
  *
- * Not populated cob is only exposed with c2_cob_alloc() method, which is used
+ * Not populated cob is only exposed with m0_cob_alloc() method, which is used
  * by request handler and (possibly) others. Such a cob is used as an input
  * parameter to functions mentioned above.
  *
- * Users use c2_cob_get/put to hold/release references; a cob may be destroyed
+ * Users use m0_cob_get/put to hold/release references; a cob may be destroyed
  * on the last put, or it may be cached for some time (just like root cob is).
  * @todo at some point, we may replace the co_ref by taking a reference on the
  * underlying co_stob.  At that point, we will need a callback at last put.
  * We wait to see how cob users will use these references, whether they need
  * callbacks in turn, etc.
  *
- * A c2_cob serves several purposes:
+ * A m0_cob serves several purposes:
  *
  * - it acts as a handle for the underlying metadata storage. Meta-data
  * operations can be executed on persistent storage by calling functions on
- * c2_cob;
+ * m0_cob;
  *
  * - it caches certain metadata attributes in memory (controlled by ->co_flags);
  *
  * <b>Liveness</b>
- * A c2_cob may be freed when the reference count drops to 0.
+ * A m0_cob may be freed when the reference count drops to 0.
  *
- * @note c2_cob_nskey is allocated separately because it is variable
- * length. Once allocated, it can be released if C2_CA_NSKEY_FREE flag
+ * @note m0_cob_nskey is allocated separately because it is variable
+ * length. Once allocated, it can be released if M0_CA_NSKEY_FREE flag
  * is specified in its allocation time.
  *
  * <b>Caching and concurrency</b>
@@ -472,25 +472,25 @@ struct c2_cob_omgrec {
  * - using cache means substantial complications with locking and concurrent
  * access. Currently these issues are completely covered by db[45].
  */
-struct c2_cob {
-        struct c2_cob_domain  *co_dom;
-        struct c2_stob        *co_stob;     /**< underlying storage object */
-        struct c2_ref          co_ref;      /**< refcounter for caching cobs */
-        uint64_t               co_flags;    /**< @see enum c2_cob_valid_flags */
-        struct c2_fid         *co_fid;      /**< object fid, ref to nsrec fid */
-        struct c2_cob_nskey   *co_nskey;    /**< cob statdata nskey */
-        struct c2_cob_oikey    co_oikey;    /**< object fid, linkno */
-        struct c2_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
-        struct c2_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl...) */
-        struct c2_cob_omgrec   co_omgrec;   /**< permission data */
-        struct c2_db_pair      co_oipair;   /**< used for object index access */
-        struct c2_addb_ctx     co_addb;     /**< cob private addb ctx */
+struct m0_cob {
+        struct m0_cob_domain  *co_dom;
+        struct m0_stob        *co_stob;     /**< underlying storage object */
+        struct m0_ref          co_ref;      /**< refcounter for caching cobs */
+        uint64_t               co_flags;    /**< @see enum m0_cob_valid_flags */
+        struct m0_fid         *co_fid;      /**< object fid, ref to nsrec fid */
+        struct m0_cob_nskey   *co_nskey;    /**< cob statdata nskey */
+        struct m0_cob_oikey    co_oikey;    /**< object fid, linkno */
+        struct m0_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
+        struct m0_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl...) */
+        struct m0_cob_omgrec   co_omgrec;   /**< permission data */
+        struct m0_db_pair      co_oipair;   /**< used for object index access */
+        struct m0_addb_ctx     co_addb;     /**< cob private addb ctx */
 };
 
 /**
  * This is all standard readdir related stuff. This is one readdir entry.
  */
-struct c2_dirent {
+struct m0_dirent {
         uint32_t             d_namelen;
         uint32_t             d_reclen;
         char                 d_name[0];
@@ -499,33 +499,33 @@ struct c2_dirent {
 /**
  * Readdir page.
  */
-struct c2_rdpg {
-        struct c2_bitstring *r_pos;
-        struct c2_buf        r_buf;
-        struct c2_bitstring *r_end;
+struct m0_rdpg {
+        struct m0_bitstring *r_pos;
+        struct m0_buf        r_buf;
+        struct m0_bitstring *r_end;
 };
 
 /**
  * Cob iterator. Holds current position inside a cob (used by readdir).
  */
-struct c2_cob_iterator {
-        struct c2_cob         *ci_cob;      /**< the cob we iterate */
-        struct c2_db_cursor    ci_cursor;   /**< cob iterator cursor */
-        struct c2_cob_nskey   *ci_key;      /**< current iterator pos */
-        struct c2_cob_nsrec    ci_rec;      /**< current iterator rec */
-        struct c2_db_pair      ci_pair;     /**< used for iterator cursor */
+struct m0_cob_iterator {
+        struct m0_cob         *ci_cob;      /**< the cob we iterate */
+        struct m0_db_cursor    ci_cursor;   /**< cob iterator cursor */
+        struct m0_cob_nskey   *ci_key;      /**< current iterator pos */
+        struct m0_cob_nsrec    ci_rec;      /**< current iterator rec */
+        struct m0_db_pair      ci_pair;     /**< used for iterator cursor */
 };
 
 /**
  * Cob flags and valid attributes.
  */
-enum c2_cob_flags {
-        C2_CA_NSKEY      = (1 << 0),  /**< nskey in cob is up-to-date */
-        C2_CA_NSKEY_FREE = (1 << 1),  /**< cob will dealloc the nskey */
-        C2_CA_NSREC      = (1 << 2),  /**< nsrec in cob is up-to-date */
-        C2_CA_FABREC     = (1 << 3),  /**< fabrec in cob is up-to-date */
-        C2_CA_OMGREC     = (1 << 4),  /**< omgrec in cob is up-to-date */
-        C2_CA_LAYOUT     = (1 << 5),  /**< layout in cob is up-to-date */
+enum m0_cob_flags {
+        M0_CA_NSKEY      = (1 << 0),  /**< nskey in cob is up-to-date */
+        M0_CA_NSKEY_FREE = (1 << 1),  /**< cob will dealloc the nskey */
+        M0_CA_NSREC      = (1 << 2),  /**< nsrec in cob is up-to-date */
+        M0_CA_FABREC     = (1 << 3),  /**< fabrec in cob is up-to-date */
+        M0_CA_OMGREC     = (1 << 4),  /**< omgrec in cob is up-to-date */
+        M0_CA_LAYOUT     = (1 << 5),  /**< layout in cob is up-to-date */
 };
 
 /**
@@ -541,12 +541,12 @@ enum c2_cob_flags {
  * @param out   resulting cob is store here
  * @param tx    db transaction to be used
  *
- * @see c2_cob_locate
+ * @see m0_cob_locate
  */
-C2_INTERNAL int c2_cob_lookup(struct c2_cob_domain *dom,
-			      struct c2_cob_nskey *nskey,
+M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
+			      struct m0_cob_nskey *nskey,
 			      uint64_t flags,
-			      struct c2_cob **out, struct c2_db_tx *tx);
+			      struct m0_cob **out, struct m0_db_tx *tx);
 
 /**
  * Locate cob by object index key.
@@ -561,12 +561,12 @@ C2_INTERNAL int c2_cob_lookup(struct c2_cob_domain *dom,
  * @param out   resulting cob is store here
  * @param tx    db transaction to be used
  *
- * @see c2_cob_lookup
+ * @see m0_cob_lookup
  */
-C2_INTERNAL int c2_cob_locate(struct c2_cob_domain *dom,
-			      struct c2_cob_oikey *oikey,
+M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
+			      struct m0_cob_oikey *oikey,
 			      uint64_t flags,
-			      struct c2_cob **out, struct c2_db_tx *tx);
+			      struct m0_cob **out, struct m0_db_tx *tx);
 
 /**
  * Add a cob to the namespace.
@@ -574,19 +574,19 @@ C2_INTERNAL int c2_cob_locate(struct c2_cob_domain *dom,
  * This doesn't create a new storage object; just creates
  * metadata table entries for it to enable namespace and oi lookup.
  *
- * @param cob    cob instance allocted with c2_cob_alloc()
- * @param nskey  namespace key made with c2_cob_nskey_make()
+ * @param cob    cob instance allocted with m0_cob_alloc()
+ * @param nskey  namespace key made with m0_cob_nskey_make()
  * @param nsrec  namespace record with all attrbiutes set
  * @param fabrec basic attributes record
  * @param omgrec owner/mode/group record
  * @param tx     transaction handle
  */
-C2_INTERNAL int c2_cob_create(struct c2_cob *cob,
-			      struct c2_cob_nskey *nskey,
-			      struct c2_cob_nsrec *nsrec,
-			      struct c2_cob_fabrec *fabrec,
-			      struct c2_cob_omgrec *omgrec,
-			      struct c2_db_tx *tx);
+M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
+			      struct m0_cob_nskey *nskey,
+			      struct m0_cob_nsrec *nsrec,
+			      struct m0_cob_fabrec *fabrec,
+			      struct m0_cob_omgrec *omgrec,
+			      struct m0_db_tx *tx);
 
 /**
  * Delete name with stat data, entry in object index and all file
@@ -595,19 +595,19 @@ C2_INTERNAL int c2_cob_create(struct c2_cob *cob,
  * @param cob this cob will be deleted
  * @param tx db transaction to use
  *
- * Note, that c2_cob_delete() does not decrement cob's reference counter.
- * Use c2_cob_delete_put() to have the counter decremented.
+ * Note, that m0_cob_delete() does not decrement cob's reference counter.
+ * Use m0_cob_delete_put() to have the counter decremented.
  *
- * @see c2_cob_delete_put()
+ * @see m0_cob_delete_put()
  */
-C2_INTERNAL int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx);
+M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_db_tx *tx);
 
 /**
  * Deletes and puts cob.
  *
- * @see c2_cob_delete(), c2_cob_put()
+ * @see m0_cob_delete(), m0_cob_put()
  */
-C2_INTERNAL int c2_cob_delete_put(struct c2_cob *cob, struct c2_db_tx *tx);
+M0_INTERNAL int m0_cob_delete_put(struct m0_cob *cob, struct m0_db_tx *tx);
 
 /**
  * Update file attributes of passed cob with @nsrec, @fabrec
@@ -619,11 +619,11 @@ C2_INTERNAL int c2_cob_delete_put(struct c2_cob *cob, struct c2_db_tx *tx);
  * @param omgrec omg record to store or null
  * @param tx     db transaction to be used
  */
-C2_INTERNAL int c2_cob_update(struct c2_cob *cob,
-			      struct c2_cob_nsrec *nsrec,
-			      struct c2_cob_fabrec *fabrec,
-			      struct c2_cob_omgrec *omgrec,
-			      struct c2_db_tx *tx);
+M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
+			      struct m0_cob_nsrec *nsrec,
+			      struct m0_cob_fabrec *fabrec,
+			      struct m0_cob_omgrec *omgrec,
+			      struct m0_db_tx *tx);
 
 /**
  * Add name to namespace and object index.
@@ -632,10 +632,10 @@ C2_INTERNAL int c2_cob_update(struct c2_cob *cob,
  * @param nsrec nsrec that will be added;
  * @param tx    transaction handle.
  */
-C2_INTERNAL int c2_cob_name_add(struct c2_cob *cob,
-				struct c2_cob_nskey *nskey,
-				struct c2_cob_nsrec *nsrec,
-				struct c2_db_tx *tx);
+M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
+				struct m0_cob_nskey *nskey,
+				struct m0_cob_nsrec *nsrec,
+				struct m0_db_tx *tx);
 
 /**
  * Delete name from namespace and object index.
@@ -644,9 +644,9 @@ C2_INTERNAL int c2_cob_name_add(struct c2_cob *cob,
  * @param nskey name to kill (may be the name of statdata);
  * @param tx    transaction handle.
  */
-C2_INTERNAL int c2_cob_name_del(struct c2_cob *cob,
-				struct c2_cob_nskey *nskey,
-				struct c2_db_tx *tx);
+M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
+				struct m0_cob_nskey *nskey,
+				struct m0_db_tx *tx);
 
 /**
  * Rename old record with new record.
@@ -656,45 +656,45 @@ C2_INTERNAL int c2_cob_name_del(struct c2_cob *cob,
  * @param tgtkey target name;
  * @param tx     transaction handle
 */
-C2_INTERNAL int c2_cob_name_update(struct c2_cob *cob,
-				   struct c2_cob_nskey *srckey,
-				   struct c2_cob_nskey *tgtkey,
-				   struct c2_db_tx *tx);
+M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
+				   struct m0_cob_nskey *srckey,
+				   struct m0_cob_nskey *tgtkey,
+				   struct m0_db_tx *tx);
 
 /**
  * Init cob iterator on passed @cob and @name as a start position.
  */
-C2_INTERNAL int c2_cob_iterator_init(struct c2_cob *cob,
-				     struct c2_cob_iterator *it,
-				     struct c2_bitstring *name,
-				     struct c2_db_tx *tx);
+M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
+				     struct m0_cob_iterator *it,
+				     struct m0_bitstring *name,
+				     struct m0_db_tx *tx);
 
 /**
  * Position to next name in a dir cob.
  */
-C2_INTERNAL int c2_cob_iterator_next(struct c2_cob_iterator *it);
+M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it);
 
 /**
  * Position in table according with @it properties.
  */
-C2_INTERNAL int c2_cob_iterator_get(struct c2_cob_iterator *it);
+M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it);
 
 /**
  * Finish cob iterator.
  */
-C2_INTERNAL void c2_cob_iterator_fini(struct c2_cob_iterator *it);
+M0_INTERNAL void m0_cob_iterator_fini(struct m0_cob_iterator *it);
 
 /**
  * Allocate a new cob on passed @dom.
  */
-C2_INTERNAL int c2_cob_alloc(struct c2_cob_domain *dom, struct c2_cob **out);
+M0_INTERNAL int m0_cob_alloc(struct m0_cob_domain *dom, struct m0_cob **out);
 
 /**
  * Acquires an additional reference on the object.
  *
- * @see c2_cob_put()
+ * @see m0_cob_put()
  */
-C2_INTERNAL void c2_cob_get(struct c2_cob *obj);
+M0_INTERNAL void m0_cob_get(struct m0_cob *obj);
 
 /**
  * Releases a reference on the object.
@@ -702,43 +702,43 @@ C2_INTERNAL void c2_cob_get(struct c2_cob *obj);
  * When the last reference is released, the object can either return to the
  * cache or can be immediately destroyed.
  *
- * @see c2_cob_get(), c2_cob_delete_put()
+ * @see m0_cob_get(), m0_cob_delete_put()
  */
-C2_INTERNAL void c2_cob_put(struct c2_cob *obj);
+M0_INTERNAL void m0_cob_put(struct m0_cob *obj);
 
 /**
  * Create object index key that is used for operations on object index table.
  * It consists of object fid an linkno depending on what record we want to
  * find.
  */
-C2_INTERNAL void c2_cob_oikey_make(struct c2_cob_oikey *oikey,
-				   const struct c2_fid *fid, int linkno);
+M0_INTERNAL void m0_cob_oikey_make(struct m0_cob_oikey *oikey,
+				   const struct m0_fid *fid, int linkno);
 
 /**
  * Create namespace table key for ns table manipulation. It contains parent fid
  * and child name.
  */
-C2_INTERNAL int c2_cob_nskey_make(struct c2_cob_nskey **keyh,
-				  const struct c2_fid *pfid,
+M0_INTERNAL int m0_cob_nskey_make(struct m0_cob_nskey **keyh,
+				  const struct m0_fid *pfid,
 				  const char *name, size_t namelen);
 
 /**
  * Allocate fabrec record according with @link and @linklen and setup record
  * fields.
  */
-C2_INTERNAL int c2_cob_fabrec_make(struct c2_cob_fabrec **rech,
+M0_INTERNAL int m0_cob_fabrec_make(struct m0_cob_fabrec **rech,
 				   const char *link, size_t linklen);
 
 /**
  * Try to allocate new omgid using omg table and terminator record. Save
  * allocated id in @omgid if not NULL.
  */
-C2_INTERNAL int c2_cob_alloc_omgid(struct c2_cob_domain *dom,
-				   struct c2_db_tx *tx, uint64_t * omgid);
+M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom,
+				   struct m0_db_tx *tx, uint64_t * omgid);
 
 /** @} end group cob */
 
-/* __COLIBRI_COB_COB_H__ */
+/* __MERO_COB_COB_H__ */
 #endif
 
 /*

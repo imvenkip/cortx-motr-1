@@ -20,15 +20,15 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_TEST_CONSOLE_H__
-#define __COLIBRI_NET_TEST_CONSOLE_H__
+#ifndef __MERO_NET_TEST_CONSOLE_H__
+#define __MERO_NET_TEST_CONSOLE_H__
 
-#include "lib/time.h"			/* c2_time_t */
-#include "lib/types.h"			/* c2_bcount_t */
+#include "lib/time.h"			/* m0_time_t */
+#include "lib/types.h"			/* m0_bcount_t */
 
-#include "net/test/commands.h"		/* c2_net_test_cmd_ctx */
-#include "net/test/node.h"		/* c2_net_test_role */
-#include "net/test/slist.h"		/* c2_net_test_slist */
+#include "net/test/commands.h"		/* m0_net_test_cmd_ctx */
+#include "net/test/node.h"		/* m0_net_test_role */
+#include "net/test/slist.h"		/* m0_net_test_slist */
 
 
 /**
@@ -43,9 +43,9 @@
 
 /**
  * Console configuration.
- * Set by console user before calling c2_net_test_init()
+ * Set by console user before calling m0_net_test_init()
  */
-struct c2_net_test_console_cfg {
+struct m0_net_test_console_cfg {
 	/** Console commands endpoint address for the test servers */
 	char			*ntcc_addr_console4servers;
 	/** Console commands endpoint address for the test clients */
@@ -55,56 +55,56 @@ struct c2_net_test_console_cfg {
 	 * Test console will use this endpoints for sending/receiving
 	 * commands to/from test servers.
 	 */
-	struct c2_net_test_slist ntcc_servers;
+	struct m0_net_test_slist ntcc_servers;
 	/**
 	 * List of test client command endpoints.
-	 * @see c2_net_test_console_cfg.ntcc_servers
+	 * @see m0_net_test_console_cfg.ntcc_servers
 	 */
-	struct c2_net_test_slist ntcc_clients;
+	struct m0_net_test_slist ntcc_clients;
 	/**
 	 * List of test server data endpoints.
 	 * Every test server will create one transfer machine with endpoint
 	 * from this list. Every test client will send/receive test messages
 	 * to/from all test server data endpoints.
 	 */
-	struct c2_net_test_slist ntcc_data_servers;
+	struct m0_net_test_slist ntcc_data_servers;
 	/**
 	 * List of test client data endpoints.
-	 * @see c2_net_test_console_cfg.ntcc_data_servers
+	 * @see m0_net_test_console_cfg.ntcc_data_servers
 	 */
-	struct c2_net_test_slist ntcc_data_clients;
+	struct m0_net_test_slist ntcc_data_clients;
 	/** Commands send timeout for the test nodes */
-	c2_time_t		 ntcc_cmd_send_timeout;
+	m0_time_t		 ntcc_cmd_send_timeout;
 	/** Commands receive timeout for the test nodes */
-	c2_time_t		 ntcc_cmd_recv_timeout;
+	m0_time_t		 ntcc_cmd_recv_timeout;
 	/** Test messages send timeout for the test nodes */
-	c2_time_t		 ntcc_buf_send_timeout;
+	m0_time_t		 ntcc_buf_send_timeout;
 	/** Test messages receive timeout for the test nodes */
-	c2_time_t		 ntcc_buf_recv_timeout;
+	m0_time_t		 ntcc_buf_recv_timeout;
 	/** Test type */
-	enum c2_net_test_type	 ntcc_test_type;
+	enum m0_net_test_type	 ntcc_test_type;
 	/** Number of test messages for the test client */
 	size_t			 ntcc_msg_nr;
 	/** Test messages size */
-	c2_bcount_t		 ntcc_msg_size;
+	m0_bcount_t		 ntcc_msg_size;
 	/**
 	 * Test server concurrency.
-	 * @see c2_net_test_cmd_init.ntci_concurrency
+	 * @see m0_net_test_cmd_init.ntci_concurrency
 	 */
 	size_t			 ntcc_concurrency_server;
 	/**
 	 * Test client concurrency.
-	 * @see c2_net_test_cmd_init.ntci_concurrency
+	 * @see m0_net_test_cmd_init.ntci_concurrency
 	 */
 	size_t			 ntcc_concurrency_client;
 };
 
 /** Test console context for the node role */
-struct c2_net_test_console_role_ctx {
+struct m0_net_test_console_role_ctx {
 	/** Commands structure */
-	struct c2_net_test_cmd_ctx	   *ntcrc_cmd;
+	struct m0_net_test_cmd_ctx	   *ntcrc_cmd;
 	/** Accumulated status data */
-	struct c2_net_test_cmd_status_data *ntcrc_sd;
+	struct m0_net_test_cmd_status_data *ntcrc_sd;
 	/** Number of nodes */
 	size_t				    ntcrc_nr;
 	/** -errno for the last function */
@@ -114,19 +114,19 @@ struct c2_net_test_console_role_ctx {
 };
 
 /** Test console context */
-struct c2_net_test_console_ctx {
+struct m0_net_test_console_ctx {
 	/** Test console configuration */
-	struct c2_net_test_console_cfg	   *ntcc_cfg;
+	struct m0_net_test_console_cfg	   *ntcc_cfg;
 	/** Test clients */
-	struct c2_net_test_console_role_ctx ntcc_clients;
+	struct m0_net_test_console_role_ctx ntcc_clients;
 	/** Test servers */
-	struct c2_net_test_console_role_ctx ntcc_servers;
+	struct m0_net_test_console_role_ctx ntcc_servers;
 };
 
-int c2_net_test_console_init(struct c2_net_test_console_ctx *ctx,
-			     struct c2_net_test_console_cfg *cfg);
+int m0_net_test_console_init(struct m0_net_test_console_ctx *ctx,
+			     struct m0_net_test_console_cfg *cfg);
 
-void c2_net_test_console_fini(struct c2_net_test_console_ctx *ctx);
+void m0_net_test_console_fini(struct m0_net_test_console_ctx *ctx);
 
 /**
    Send command from console to the set of test nodes and wait for reply.
@@ -135,20 +135,20 @@ void c2_net_test_console_fini(struct c2_net_test_console_ctx *ctx);
 	       nodes with this role only.
    @param cmd_type Command type. Test console will create and send command
 		   with this type and wait for the corresponding reply
-		   type (for example, if cmd_type == C2_NET_TEST_CMD_INIT,
-		   then test console will wait for C2_NET_TEST_CMD_INIT_DONE
+		   type (for example, if cmd_type == M0_NET_TEST_CMD_INIT,
+		   then test console will wait for M0_NET_TEST_CMD_INIT_DONE
 		   reply).
    @return number of successfully received replies for sent command.
  */
-size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
-			       enum c2_net_test_role role,
-			       enum c2_net_test_cmd_type cmd_type);
+size_t m0_net_test_console_cmd(struct m0_net_test_console_ctx *ctx,
+			       enum m0_net_test_role role,
+			       enum m0_net_test_cmd_type cmd_type);
 
 /**
    @} end of NetTestConsoleDFS group
  */
 
-#endif /*  __COLIBRI_NET_TEST_CONSOLE_H__ */
+#endif /*  __MERO_NET_TEST_CONSOLE_H__ */
 
 /*
  *  Local variables:

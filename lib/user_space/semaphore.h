@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_USER_SPACE_SEMAPHORE_H__
-#define __COLIBRI_LIB_USER_SPACE_SEMAPHORE_H__
+#ifndef __MERO_LIB_USER_SPACE_SEMAPHORE_H__
+#define __MERO_LIB_USER_SPACE_SEMAPHORE_H__
 
 #include <semaphore.h>
 
@@ -32,14 +32,14 @@
    @{
 */
 
-struct c2_semaphore {
+struct m0_semaphore {
 	/* POSIX semaphore. */
 	sem_t s_sem;
 };
 
 /** @} end of semaphore group */
 
-/* __COLIBRI_LIB_USER_SPACE_SEMAPHORE_H__ */
+/* __MERO_LIB_USER_SPACE_SEMAPHORE_H__ */
 #endif
 
 /*

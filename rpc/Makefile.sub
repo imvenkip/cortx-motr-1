@@ -1,4 +1,4 @@
-nobase_colibri_include_HEADERS += rpc/session.h \
+nobase_mero_include_HEADERS += rpc/session.h \
                                   rpc/session_fops.h \
                                   rpc/session_foms.h \
                                   rpc/session_internal.h \
@@ -21,7 +21,7 @@ nobase_colibri_include_HEADERS += rpc/session.h \
                                   rpc/slot_internal.h \
                                   rpc/rpc_internal.h
 
-colibri_libcolibri_la_SOURCES  += rpc/session.c \
+mero_libmero_la_SOURCES  += rpc/session.c \
                                   rpc/slot.c \
                                   rpc/conn.c \
                                   rpc/session_utils.c \

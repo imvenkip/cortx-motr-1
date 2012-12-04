@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LAYOUT_LAYOUT_DB_H__
-#define __COLIBRI_LAYOUT_LAYOUT_DB_H__
+#ifndef __MERO_LAYOUT_LAYOUT_DB_H__
+#define __MERO_LAYOUT_LAYOUT_DB_H__
 
 /**
  * @page Layout-DB-fspec Layout DB Functional Specification
@@ -38,13 +38,13 @@
  * - @ref LayoutDBDFS "Detailed Functional Specification"
  *
  * @section Layout-DB-fspec-ds Data Structures
- * - struct c2_layout_rec
+ * - struct m0_layout_rec
  *
  * @section Layout-DB-fspec-sub Subroutines
- * - int c2_layout_lookup(struct c2_layout_domain *dom, uint64_t lid, struct c2_db_tx *tx, struct c2_db_pair *pair, struct c2_layout **out);
- * - int c2_layout_add(struct c2_layout *l, struct c2_db_tx *tx, struct c2_db_pair *pair);
- * - int c2_layout_update(struct c2_layout *l, struct c2_db_tx *tx, struct c2_db_pair *pair);
-int c2_layout_delete(struct c2_layout *l, struct c2_db_tx *tx, struct c2_db_pair *pair);
+ * - int m0_layout_lookup(struct m0_layout_domain *dom, uint64_t lid, struct m0_db_tx *tx, struct m0_db_pair *pair, struct m0_layout **out);
+ * - int m0_layout_add(struct m0_layout *l, struct m0_db_tx *tx, struct m0_db_pair *pair);
+ * - int m0_layout_update(struct m0_layout *l, struct m0_db_tx *tx, struct m0_db_pair *pair);
+int m0_layout_delete(struct m0_layout *l, struct m0_db_tx *tx, struct m0_db_pair *pair);
  *
  * @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
  *
@@ -59,9 +59,9 @@ int c2_layout_delete(struct c2_layout *l, struct c2_db_tx *tx, struct c2_db_pair
  *   attributes table).
  * - The layout id is obtained from the basic file attributes.
  * - A query is sent to the Layout module to obtain layout for this layout id
- *   using the API c2_layout_lookup()
- *   - c2_layout_lookup() returns the layout object if it is cached.
- *   - If the layout is not cached, c2_layout_lookup() return it by reading
+ *   using the API m0_layout_lookup()
+ *   - m0_layout_lookup() returns the layout object if it is cached.
+ *   - If the layout is not cached, m0_layout_lookup() return it by reading
  *     it from the layout DB and by keeping it in the cache.
  * - Reading a layout record from the layout DB involves the following for
  *   example:
@@ -108,14 +108,14 @@ int c2_layout_delete(struct c2_layout *l, struct c2_db_tx *tx, struct c2_db_pair
  * All operations are performed in the context of the caller-supplied
  * transaction.
  *
- * @param pair A c2_db_pair sent by the caller along with having set
+ * @param pair A m0_db_pair sent by the caller along with having set
  * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
  * allocation with the caller.
  *
  * Regarding the size of the pair->dp_rec.db_buf:
  * The buffer size should be large enough to contain the data that is to be
  * read specifically from the layouts table. It means it needs to be at the
- * most the size returned by c2_layout_max_recsize(). It is no harm if it is
+ * most the size returned by m0_layout_max_recsize(). It is no harm if it is
  * bigger than that.
  *
  * @post
@@ -127,29 +127,29 @@ int c2_layout_delete(struct c2_layout *l, struct c2_db_tx *tx, struct c2_db_pair
  * - In case of successful return, an additional reference is acquired on
  *   the layout object returned in the variable "out".
  */
-C2_INTERNAL int c2_layout_lookup(struct c2_layout_domain *dom,
+M0_INTERNAL int m0_layout_lookup(struct m0_layout_domain *dom,
 				 uint64_t lid,
-				 struct c2_layout_type *lt,
-				 struct c2_db_tx *tx,
-				 struct c2_db_pair *pair,
-				 struct c2_layout **out);
+				 struct m0_layout_type *lt,
+				 struct m0_db_tx *tx,
+				 struct m0_db_pair *pair,
+				 struct m0_layout **out);
 
 /**
  * Adds a new layout record entry into the layouts table.
  * If applicable, adds layout type and enum type specific entries into the
  * relevant tables.
  *
- * @param pair A c2_db_pair sent by the caller along with having set
+ * @param pair A m0_db_pair sent by the caller along with having set
  * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
  * allocation with the caller.
  *
  * Regarding the size of the pair->dp_rec.db_buf:
  * The buffer size should be large enough to contain the data that is to be
  * written specifically to the layouts table. It means it needs to be at the
- * most the size returned by c2_layout_max_recsize().
+ * most the size returned by m0_layout_max_recsize().
  */
-C2_INTERNAL int c2_layout_add(struct c2_layout *l,
-			      struct c2_db_tx *tx, struct c2_db_pair *pair);
+M0_INTERNAL int m0_layout_add(struct m0_layout *l,
+			      struct m0_db_tx *tx, struct m0_db_pair *pair);
 
 /**
  * Updates a layout record from the DB. The only field that can be updated for
@@ -157,42 +157,42 @@ C2_INTERNAL int c2_layout_add(struct c2_layout *l,
  * through the implementation to update any other fields since it was found to
  * be costly through performance perspective.
  *
- * @param pair A c2_db_pair sent by the caller along with having set
+ * @param pair A m0_db_pair sent by the caller along with having set
  * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
  * allocation with the caller.
  *
  * Regarding the size of the pair->dp_rec.db_buf:
  * The buffer size should be large enough to contain the data that is to be
  * written specifically to the layouts table. It means it needs to be at the
- * most the size returned by c2_layout_max_recsize().
+ * most the size returned by m0_layout_max_recsize().
  *
  * @note Even a non-existing record can be written to the database using
- * the database update operation. In other words, not using c2_layout_add()
- * and directly using c2_layout_update() results into the layout record being
+ * the database update operation. In other words, not using m0_layout_add()
+ * and directly using m0_layout_update() results into the layout record being
  * written to the DB.
  */
-C2_INTERNAL int c2_layout_update(struct c2_layout *l,
-				 struct c2_db_tx *tx, struct c2_db_pair *pair);
+M0_INTERNAL int m0_layout_update(struct m0_layout *l,
+				 struct m0_db_tx *tx, struct m0_db_pair *pair);
 
 /**
  * Deletes a layout record with given layout id and its related information
  * from the relevant tables.
  *
- * @param pair A c2_db_pair sent by the caller along with having set
+ * @param pair A m0_db_pair sent by the caller along with having set
  * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
  * allocation with the caller.
  *
  * Regarding the size of the pair->dp_rec.db_buf:
  * The buffer size should be large enough to contain the data that is to be
  * written specifically to the layouts table. It means it needs to be at the
- * most the size returned by c2_layout_max_recsize().
+ * most the size returned by m0_layout_max_recsize().
  */
-C2_INTERNAL int c2_layout_delete(struct c2_layout *l,
-				 struct c2_db_tx *tx, struct c2_db_pair *pair);
+M0_INTERNAL int m0_layout_delete(struct m0_layout *l,
+				 struct m0_db_tx *tx, struct m0_db_pair *pair);
 
 /** @} end group LayoutDBDFS */
 
-#endif /*  __COLIBRI_LAYOUT_LAYOUT_DB_H__ */
+#endif /*  __MERO_LAYOUT_LAYOUT_DB_H__ */
 
 /*
  *  Local variables:

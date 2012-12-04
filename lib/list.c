@@ -22,28 +22,28 @@
 
 /** @addtogroup list @{ */
 
-C2_INTERNAL void c2_list_init(struct c2_list *head)
+M0_INTERNAL void m0_list_init(struct m0_list *head)
 {
-	head->l_head = (struct c2_list_link *)head;
-	head->l_tail = (struct c2_list_link *)head;
+	head->l_head = (struct m0_list_link *)head;
+	head->l_tail = (struct m0_list_link *)head;
 }
-C2_EXPORTED(c2_list_init);
+M0_EXPORTED(m0_list_init);
 
-C2_INTERNAL void c2_list_fini(struct c2_list *head)
+M0_INTERNAL void m0_list_fini(struct m0_list *head)
 {
-	C2_ASSERT(c2_list_is_empty(head));
+	M0_ASSERT(m0_list_is_empty(head));
 }
-C2_EXPORTED(c2_list_fini);
+M0_EXPORTED(m0_list_fini);
 
-C2_INTERNAL bool c2_list_is_empty(const struct c2_list *head)
+M0_INTERNAL bool m0_list_is_empty(const struct m0_list *head)
 {
 	return head->l_head == (void *)head;
 }
-C2_EXPORTED(c2_list_is_empty);
+M0_EXPORTED(m0_list_is_empty);
 
-C2_INTERNAL bool c2_list_link_invariant(const struct c2_list_link *link)
+M0_INTERNAL bool m0_list_link_invariant(const struct m0_list_link *link)
 {
-	struct c2_list_link *scan;
+	struct m0_list_link *scan;
 
 	if ((link->ll_next == link) != (link->ll_prev == link))
 		return false;
@@ -56,124 +56,124 @@ C2_INTERNAL bool c2_list_link_invariant(const struct c2_list_link *link)
 	return true;
 }
 
-C2_INTERNAL bool c2_list_invariant(const struct c2_list *head)
+M0_INTERNAL bool m0_list_invariant(const struct m0_list *head)
 {
-	return c2_list_link_invariant((void *)head);
+	return m0_list_link_invariant((void *)head);
 }
 
-C2_INTERNAL size_t c2_list_length(const struct c2_list *list)
+M0_INTERNAL size_t m0_list_length(const struct m0_list *list)
 {
 	size_t               length;
-	struct c2_list_link *scan;
+	struct m0_list_link *scan;
 
-	C2_ASSERT(c2_list_invariant(list));
+	M0_ASSERT(m0_list_invariant(list));
 	length = 0;
 	for (scan = list->l_head; scan != (void *)list; scan = scan->ll_next)
 		length++;
 	return length;
 }
 
-C2_INTERNAL bool c2_list_contains(const struct c2_list *list,
-				  const struct c2_list_link *link)
+M0_INTERNAL bool m0_list_contains(const struct m0_list *list,
+				  const struct m0_list_link *link)
 {
-	struct c2_list_link *scan;
+	struct m0_list_link *scan;
 
-	C2_ASSERT(c2_list_invariant(list));
+	M0_ASSERT(m0_list_invariant(list));
 	for (scan = list->l_head; scan != (void *)list; scan = scan->ll_next)
 		if (scan == link)
 			return true;
 	return false;
 }
 
-static inline void __c2_list_add(struct c2_list_link *next,
-				 struct c2_list_link *prev,
-			         struct c2_list_link *new)
+static inline void __m0_list_add(struct m0_list_link *next,
+				 struct m0_list_link *prev,
+			         struct m0_list_link *new)
 {
-	C2_ASSERT(prev->ll_next == next && next->ll_prev == prev);
-	C2_ASSERT(c2_list_link_invariant(next));
+	M0_ASSERT(prev->ll_next == next && next->ll_prev == prev);
+	M0_ASSERT(m0_list_link_invariant(next));
 	new->ll_next = next;
 	new->ll_prev = prev;
 
 	next->ll_prev = new;
 	prev->ll_next = new;
-	C2_ASSERT(c2_list_link_invariant(next));
+	M0_ASSERT(m0_list_link_invariant(next));
 }
 
-C2_INTERNAL void c2_list_add(struct c2_list *head, struct c2_list_link *new)
+M0_INTERNAL void m0_list_add(struct m0_list *head, struct m0_list_link *new)
 {
-	__c2_list_add(head->l_head, (void *)head, new);
+	__m0_list_add(head->l_head, (void *)head, new);
 }
-C2_EXPORTED(c2_list_add);
+M0_EXPORTED(m0_list_add);
 
-C2_INTERNAL void c2_list_add_tail(struct c2_list *head,
-				  struct c2_list_link *new)
+M0_INTERNAL void m0_list_add_tail(struct m0_list *head,
+				  struct m0_list_link *new)
 {
-	__c2_list_add((void *)head, head->l_tail, new);
+	__m0_list_add((void *)head, head->l_tail, new);
 }
-C2_EXPORTED(c2_list_add_tail);
+M0_EXPORTED(m0_list_add_tail);
 
-C2_INTERNAL void c2_list_add_after(struct c2_list_link *anchor,
-				   struct c2_list_link *new)
+M0_INTERNAL void m0_list_add_after(struct m0_list_link *anchor,
+				   struct m0_list_link *new)
 {
-	__c2_list_add(anchor->ll_next, anchor, new);
+	__m0_list_add(anchor->ll_next, anchor, new);
 }
-C2_EXPORTED(c2_list_add_after);
+M0_EXPORTED(m0_list_add_after);
 
-C2_INTERNAL void c2_list_add_before(struct c2_list_link *anchor,
-				    struct c2_list_link *new)
+M0_INTERNAL void m0_list_add_before(struct m0_list_link *anchor,
+				    struct m0_list_link *new)
 {
-	__c2_list_add(anchor, anchor->ll_prev, new);
+	__m0_list_add(anchor, anchor->ll_prev, new);
 }
-C2_EXPORTED(c2_list_add_before);
+M0_EXPORTED(m0_list_add_before);
 
-static void __c2_list_del(struct c2_list_link *old)
+static void __m0_list_del(struct m0_list_link *old)
 {
-	C2_ASSERT(c2_list_link_invariant(old));
+	M0_ASSERT(m0_list_link_invariant(old));
 	old->ll_prev->ll_next = old->ll_next;
 	old->ll_next->ll_prev = old->ll_prev;
 }
 
-C2_INTERNAL void c2_list_del(struct c2_list_link *old)
+M0_INTERNAL void m0_list_del(struct m0_list_link *old)
 {
-	__c2_list_del(old);
-	c2_list_link_init(old);
+	__m0_list_del(old);
+	m0_list_link_init(old);
 }
-C2_EXPORTED(c2_list_del);
+M0_EXPORTED(m0_list_del);
 
-C2_INTERNAL void c2_list_move(struct c2_list *head, struct c2_list_link *old)
+M0_INTERNAL void m0_list_move(struct m0_list *head, struct m0_list_link *old)
 {
-	__c2_list_del(old);
-	c2_list_add(head, old);
-	C2_ASSERT(c2_list_invariant(head));
-}
-
-C2_INTERNAL void c2_list_move_tail(struct c2_list *head,
-				   struct c2_list_link *old)
-{
-	__c2_list_del(old);
-	c2_list_add_tail(head, old);
-	C2_ASSERT(c2_list_invariant(head));
+	__m0_list_del(old);
+	m0_list_add(head, old);
+	M0_ASSERT(m0_list_invariant(head));
 }
 
-C2_INTERNAL void c2_list_link_init(struct c2_list_link *link)
+M0_INTERNAL void m0_list_move_tail(struct m0_list *head,
+				   struct m0_list_link *old)
+{
+	__m0_list_del(old);
+	m0_list_add_tail(head, old);
+	M0_ASSERT(m0_list_invariant(head));
+}
+
+M0_INTERNAL void m0_list_link_init(struct m0_list_link *link)
 {
 	link->ll_prev = link;
 	link->ll_next = link;
 }
-C2_EXPORTED(c2_list_link_init);
+M0_EXPORTED(m0_list_link_init);
 
-C2_INTERNAL void c2_list_link_fini(struct c2_list_link *link)
+M0_INTERNAL void m0_list_link_fini(struct m0_list_link *link)
 {
-	C2_ASSERT(!c2_list_link_is_in(link));
+	M0_ASSERT(!m0_list_link_is_in(link));
 }
 
-C2_INTERNAL bool c2_list_link_is_in(const struct c2_list_link *link)
+M0_INTERNAL bool m0_list_link_is_in(const struct m0_list_link *link)
 {
 	return link->ll_prev != link;
 }
 
-C2_INTERNAL bool c2_list_link_is_last(const struct c2_list_link *link,
-				      const struct c2_list *head)
+M0_INTERNAL bool m0_list_link_is_last(const struct m0_list_link *link,
+				      const struct m0_list *head)
 {
 	return link->ll_next == (void *)head;
 }

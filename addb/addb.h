@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_ADDB_ADDB_H__
-#define __COLIBRI_ADDB_ADDB_H__
+#ifndef __MERO_ADDB_ADDB_H__
+#define __MERO_ADDB_ADDB_H__
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
@@ -36,21 +36,21 @@
    @{
 */
 
-struct c2_addb_ctx_type;
-struct c2_addb_ctx;
-struct c2_addb_loc;
-struct c2_addb_ev;
-struct c2_addb_dp;
-struct c2_addb_rec;
-enum c2_addb_ev_level;
-struct c2_dbenv;
-struct c2_dtx;
+struct m0_addb_ctx_type;
+struct m0_addb_ctx;
+struct m0_addb_loc;
+struct m0_addb_ev;
+struct m0_addb_dp;
+struct m0_addb_rec;
+enum m0_addb_ev_level;
+struct m0_dbenv;
+struct m0_dtx;
 
 
 /* these are needed earlier than they are defined */
-struct c2_stob;
-struct c2_table;
-struct c2_net_conn;
+struct m0_stob;
+struct m0_table;
+struct m0_net_conn;
 
 /**
    ADDB record store type
@@ -61,49 +61,49 @@ struct c2_net_conn;
    NETWORK: ADDB records will be sent onto network.
 
    Corresponding operation will be called according to this type in
-   c2_addb_add();
+   m0_addb_add();
  */
-enum c2_addb_rec_store_type {
-	C2_ADDB_REC_STORE_NONE    = 0,
-	C2_ADDB_REC_STORE_STOB    = 1,
-	C2_ADDB_REC_STORE_DB      = 2,
-	C2_ADDB_REC_STORE_NETWORK = 3
+enum m0_addb_rec_store_type {
+	M0_ADDB_REC_STORE_NONE    = 0,
+	M0_ADDB_REC_STORE_STOB    = 1,
+	M0_ADDB_REC_STORE_DB      = 2,
+	M0_ADDB_REC_STORE_NETWORK = 3
 };
 
 
 /**
    Common state of addb contexts.
 
-   @see c2_addb_ctx
+   @see m0_addb_ctx
  */
-struct c2_addb_ctx_type {
+struct m0_addb_ctx_type {
 	const char *act_name;
 };
 
 /**
     Write addb records into this stob.
  */
-typedef int (*c2_addb_stob_add_t)(struct c2_addb_dp *dp, struct c2_dtx *tx,
-				  struct c2_stob *stob);
-C2_INTERNAL int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
-				 struct c2_stob *stob);
+typedef int (*m0_addb_stob_add_t)(struct m0_addb_dp *dp, struct m0_dtx *tx,
+				  struct m0_stob *stob);
+M0_INTERNAL int m0_addb_stob_add(struct m0_addb_dp *dp, struct m0_dtx *tx,
+				 struct m0_stob *stob);
 
 /**
     Write addb records into this db.
  */
-typedef int (*c2_addb_db_add_t)(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
-				struct c2_table *db);
-C2_INTERNAL int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
-			       struct c2_table *db);
+typedef int (*m0_addb_db_add_t)(struct m0_addb_dp *dp, struct m0_dbenv *dbenv,
+				struct m0_table *db);
+M0_INTERNAL int m0_addb_db_add(struct m0_addb_dp *dp, struct m0_dbenv *dbenv,
+			       struct m0_table *db);
 
 /**
     Send addb records through this network connection.
  */
-typedef int (*c2_addb_net_add_t)(struct c2_addb_dp *dp, struct c2_net_conn *);
-C2_INTERNAL int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *);
+typedef int (*m0_addb_net_add_t)(struct m0_addb_dp *dp, struct m0_net_conn *);
+M0_INTERNAL int m0_addb_net_add(struct m0_addb_dp *dp, struct m0_net_conn *);
 
-C2_INTERNAL int
-c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...);
+M0_INTERNAL int
+m0_addb_choose_store_media(enum m0_addb_rec_store_type type, ...);
 
 
 
@@ -114,31 +114,31 @@ c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...);
    "global" per address space context for events not related to any identifiable
    activity (e.g., for reception of unsolicited signals).
 
-   There are multiple instances of struct c2_addb_ctx in the system, e.g., one
+   There are multiple instances of struct m0_addb_ctx in the system, e.g., one
    for each FOP being processed. State common to contexts of the same "type" is
-   described in c2_addb_ctx_type.
+   described in m0_addb_ctx_type.
 
-   @see c2_addb_ctx_type
+   @see m0_addb_ctx_type
  */
-struct c2_addb_ctx {
-	const struct c2_addb_ctx_type *ac_type;
-	struct c2_addb_ctx            *ac_parent;
+struct m0_addb_ctx {
+	const struct m0_addb_ctx_type *ac_type;
+	struct m0_addb_ctx            *ac_parent;
 };
 
 /**
    Part of the system where addb event happened.
 
    This can be a module (sns, net, fop, etc.) or a part of a module. Instances
-   of c2_addb_loc are typically statically allocated.
+   of m0_addb_loc are typically statically allocated.
  */
-struct c2_addb_loc {
+struct m0_addb_loc {
 	const char *al_name;
 };
 
-typedef int (*c2_addb_ev_subst_t)(struct c2_addb_dp *dp, ...);
+typedef int (*m0_addb_ev_subst_t)(struct m0_addb_dp *dp, ...);
 
 /** Event severity level. */
-enum c2_addb_ev_level {
+enum m0_addb_ev_level {
 	AEL_NONE = 0,
 	AEL_TRACE,
 	AEL_INFO,
@@ -160,15 +160,15 @@ enum c2_addb_ev_level {
 
    @note the record length should keep 64bit aligned.
 */
-struct c2_addb_record_header;
+struct m0_addb_record_header;
 /**
    ADDB record (on-wire)
 */
-struct c2_addb_record;
+struct m0_addb_record;
 
 enum {
 	/** addb record size alignment */
-	C2_ADDB_RECORD_LEN_ALIGN = 8,
+	M0_ADDB_RECORD_LEN_ALIGN = 8,
 };
 
 /**
@@ -178,8 +178,8 @@ enum {
    @param header pointer to the header within the buffer
    @param size total size of the record
  */
-C2_INTERNAL int c2_addb_record_header_pack(struct c2_addb_dp *dp,
-					   struct c2_addb_record_header *header,
+M0_INTERNAL int m0_addb_record_header_pack(struct m0_addb_dp *dp,
+					   struct m0_addb_record_header *header,
 					   int size);
 
 /**
@@ -190,8 +190,8 @@ C2_INTERNAL int c2_addb_record_header_pack(struct c2_addb_dp *dp,
 
    @return 0 on success. Other negative values mean error.
 */
-typedef	int (*c2_addb_ev_pack_t)(struct c2_addb_dp *dp,
-				 struct c2_addb_record *rec);
+typedef	int (*m0_addb_ev_pack_t)(struct m0_addb_dp *dp,
+				 struct m0_addb_record *rec);
 
 /**
    Get size for this event data point.
@@ -200,15 +200,15 @@ typedef	int (*c2_addb_ev_pack_t)(struct c2_addb_dp *dp,
    @param dp the data point
    @return actual size is returned on success. Negative values mean error.
 */
-typedef	int (*c2_addb_ev_getsize_t)(struct c2_addb_dp *dp);
+typedef	int (*m0_addb_ev_getsize_t)(struct m0_addb_dp *dp);
 
-struct c2_addb_ev_ops {
-	c2_addb_ev_subst_t    aeo_subst;
-	c2_addb_ev_pack_t     aeo_pack;
-	c2_addb_ev_getsize_t  aeo_getsize;
+struct m0_addb_ev_ops {
+	m0_addb_ev_subst_t    aeo_subst;
+	m0_addb_ev_pack_t     aeo_pack;
+	m0_addb_ev_getsize_t  aeo_getsize;
 	size_t                aeo_size;
 	const char           *aeo_name;
-	enum c2_addb_ev_level aeo_level;
+	enum m0_addb_ev_level aeo_level;
 };
 
 /**
@@ -216,29 +216,29 @@ struct c2_addb_ev_ops {
 
    To avoid event ID conflict, all event ID should be defined here.
 */
-enum c2_addb_event_id {
-	C2_ADDB_EVENT_OOM                   = 0x1ULL,
-	C2_ADDB_EVENT_FUNC_FAIL             = 0x2ULL,
+enum m0_addb_event_id {
+	M0_ADDB_EVENT_OOM                   = 0x1ULL,
+	M0_ADDB_EVENT_FUNC_FAIL             = 0x2ULL,
 
-	C2_ADDB_EVENT_NET_SEND              = 0x10ULL,
-	C2_ADDB_EVENT_NET_CALL              = 0x11ULL,
-	C2_ADDB_EVENT_NET_QSTATS            = 0x12ULL,
-	C2_ADDB_EVENT_NET_LNET_OPEN         = 0x13ULL,
-	C2_ADDB_EVENT_NET_LNET_CLOSE        = 0x14ULL,
-	C2_ADDB_EVENT_NET_LNET_CLEANUP      = 0x15ULL,
+	M0_ADDB_EVENT_NET_SEND              = 0x10ULL,
+	M0_ADDB_EVENT_NET_CALL              = 0x11ULL,
+	M0_ADDB_EVENT_NET_QSTATS            = 0x12ULL,
+	M0_ADDB_EVENT_NET_LNET_OPEN         = 0x13ULL,
+	M0_ADDB_EVENT_NET_LNET_CLOSE        = 0x14ULL,
+	M0_ADDB_EVENT_NET_LNET_CLEANUP      = 0x15ULL,
 
-	C2_ADDB_EVENT_COB_MDEXISTS          = 0x21ULL,
-	C2_ADDB_EVENT_COB_MDDELETE          = 0x22ULL,
+	M0_ADDB_EVENT_COB_MDEXISTS          = 0x21ULL,
+	M0_ADDB_EVENT_COB_MDDELETE          = 0x22ULL,
 
-	C2_ADDB_EVENT_TRACE		    = 0x30ULL,
+	M0_ADDB_EVENT_TRACE		    = 0x30ULL,
 
-	C2_ADDB_EVENT_LAYOUT_DECODE_FAIL    = 0x41ULL,
-	C2_ADDB_EVENT_LAYOUT_ENCODE_FAIL    = 0x42ULL,
-	C2_ADDB_EVENT_LAYOUT_LOOKUP_FAIL    = 0x43ULL,
-	C2_ADDB_EVENT_LAYOUT_ADD_FAIL       = 0x44ULL,
-	C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL    = 0x45ULL,
-	C2_ADDB_EVENT_LAYOUT_DELETE_FAIL    = 0x46ULL,
-	C2_ADDB_EVENT_LAYOUT_TILE_CACHE_HIT = 0x47ULL
+	M0_ADDB_EVENT_LAYOUT_DECODE_FAIL    = 0x41ULL,
+	M0_ADDB_EVENT_LAYOUT_ENCODE_FAIL    = 0x42ULL,
+	M0_ADDB_EVENT_LAYOUT_LOOKUP_FAIL    = 0x43ULL,
+	M0_ADDB_EVENT_LAYOUT_ADD_FAIL       = 0x44ULL,
+	M0_ADDB_EVENT_LAYOUT_UPDATE_FAIL    = 0x45ULL,
+	M0_ADDB_EVENT_LAYOUT_DELETE_FAIL    = 0x46ULL,
+	M0_ADDB_EVENT_LAYOUT_TILE_CACHE_HIT = 0x47ULL
 };
 
 /**
@@ -248,18 +248,18 @@ enum c2_addb_event_id {
    microseconds", "incoming FOP queue length is L", "memory allocation failure",
    etc.
 
-   c2_addb_ev describes a type of event (not a particular instance of
-   it). c2_addb_ev instances are typically statically allocated.
+   m0_addb_ev describes a type of event (not a particular instance of
+   it). m0_addb_ev instances are typically statically allocated.
 
-   c2_addb_ev accepts "formal parameters" (e.g., actual time it took to read
+   m0_addb_ev accepts "formal parameters" (e.g., actual time it took to read
    data) and produces a "data-point". Related data-points are packed into an
    "addb record" that is used for further analysis.
  */
-struct c2_addb_ev {
+struct m0_addb_ev {
 	const char                  *ae_name;
 	uint64_t                     ae_id;
-	const struct c2_addb_ev_ops *ae_ops;
-	enum c2_addb_ev_level        ae_level;
+	const struct m0_addb_ev_ops *ae_ops;
+	enum m0_addb_ev_level        ae_level;
 };
 
 enum {
@@ -269,32 +269,32 @@ enum {
 /**
    An instance of addb event packet together with its formal parameters.
  */
-struct c2_addb_dp {
-	struct c2_addb_ctx       *ad_ctx;
-	const struct c2_addb_loc *ad_loc;
-	const struct c2_addb_ev  *ad_ev;
-	enum c2_addb_ev_level     ad_level;
+struct m0_addb_dp {
+	struct m0_addb_ctx       *ad_ctx;
+	const struct m0_addb_loc *ad_loc;
+	const struct m0_addb_ev  *ad_ev;
+	enum m0_addb_ev_level     ad_level;
 
 	/* XXX temporary */
 	uint64_t    ad_rc;
 	const char *ad_name;
 };
 
-C2_INTERNAL void c2_addb_ctx_init(struct c2_addb_ctx *ctx,
-				  const struct c2_addb_ctx_type *t,
-				  struct c2_addb_ctx *parent);
-C2_INTERNAL void c2_addb_ctx_fini(struct c2_addb_ctx *ctx);
+M0_INTERNAL void m0_addb_ctx_init(struct m0_addb_ctx *ctx,
+				  const struct m0_addb_ctx_type *t,
+				  struct m0_addb_ctx *parent);
+M0_INTERNAL void m0_addb_ctx_fini(struct m0_addb_ctx *ctx);
 
 /**
    Low-level interface posting a data-point to the addb.
 
-   Use this, if type-safe interface (C2_ADDB_ADD()) is for some reason
+   Use this, if type-safe interface (M0_ADDB_ADD()) is for some reason
    inadequate.
  */
-C2_INTERNAL void c2_addb_add(struct c2_addb_dp *dp);
+M0_INTERNAL void m0_addb_add(struct m0_addb_dp *dp);
 
-C2_INTERNAL int c2_addb_init(void);
-C2_INTERNAL void c2_addb_fini(void);
+M0_INTERNAL int m0_addb_init(void);
+M0_INTERNAL void m0_addb_fini(void);
 
 /*
  * The ugly pre-processor code below implements a type-safe interface to addb,
@@ -306,9 +306,9 @@ C2_INTERNAL void c2_addb_fini(void);
 /**
    Defines an addb event with a given name, identifier and operations vector.
 
-   "ops" MUST be a variable name, usually introduced by C2_ADDB_OPS_DEFINE()
+   "ops" MUST be a variable name, usually introduced by M0_ADDB_OPS_DEFINE()
    macro.
-   "id" should be system wide unique. Please define ID in enum c2_addb_event_id.
+   "id" should be system wide unique. Please define ID in enum m0_addb_event_id.
 
    Example:
 
@@ -316,32 +316,32 @@ C2_INTERNAL void c2_addb_fini(void);
    // addb event recording directory entry cache hits and misses during
    // fop processing
    //
-   // This call defines const struct c2_addb_ev reqh_dirent_cache;
-   C2_ADDB_EV_DEFINE(reqh_dirent_cache,
+   // This call defines const struct m0_addb_ev reqh_dirent_cache;
+   M0_ADDB_EV_DEFINE(reqh_dirent_cache,
                      "sendreply",           // human-readable name
                      REQH_ADDB_DIRENT_CACHE,// unique identifier
-		     C2_ADDB_FLAG);         // event type (Boolean: hit or miss)
+		     M0_ADDB_FLAG);         // event type (Boolean: hit or miss)
    @endcode
  */
 
-#define __C2_ADDB_EV_DEFINE(var, name, id, ops)				\
-const struct c2_addb_ev var = {						\
+#define __M0_ADDB_EV_DEFINE(var, name, id, ops)				\
+const struct m0_addb_ev var = {						\
 	.ae_name  = (name),						\
 	.ae_id    = (id),						\
 	.ae_ops   = &(ops)						\
 };
 
-#define C2_ADDB_EV_DEFINE(var, name, id, ops)				\
-	__C2_ADDB_EV_DEFINE(var, name, id, ops)				\
+#define M0_ADDB_EV_DEFINE(var, name, id, ops)				\
+	__M0_ADDB_EV_DEFINE(var, name, id, ops)				\
 									\
 	typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
 
 
-#define C2_ADDB_EV_DEFINE_PUBLIC(var, name, id, ops)	\
-	__C2_ADDB_EV_DEFINE(var, name, id, ops)
+#define M0_ADDB_EV_DEFINE_PUBLIC(var, name, id, ops)	\
+	__M0_ADDB_EV_DEFINE(var, name, id, ops)
 
-#define C2_ADDB_EV_DECLARE(var, ops)					\
-	extern const struct c2_addb_ev var;				\
+#define M0_ADDB_EV_DECLARE(var, ops)					\
+	extern const struct m0_addb_ev var;				\
 									\
 	typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
 
@@ -354,91 +354,91 @@ const struct c2_addb_ev var = {						\
 
    Event formal parameters are supplied as variadic arguments. This macro checks
    that their number and types conform to the event definition
-   (C2_ADDB_EV_DEFINE(), which in turn conforms to the event operation vector
-   definition in C2_ADDB_OPS_DEFINE()).
+   (M0_ADDB_EV_DEFINE(), which in turn conforms to the event operation vector
+   definition in M0_ADDB_OPS_DEFINE()).
 
-   "ev" MUST be a variable name, usually introduced by C2_ADDB_EV_DEFINE().
+   "ev" MUST be a variable name, usually introduced by M0_ADDB_EV_DEFINE().
 
    @code
-   hit = c2_dirent_cache_lookup(pdir, name, &entry);
-   C2_ADDB_ADD(&fop->f_addb_ctx, &reqh_addb_loc, &reqh_dirent_cache, hit);
+   hit = m0_dirent_cache_lookup(pdir, name, &entry);
+   M0_ADDB_ADD(&fop->f_addb_ctx, &reqh_addb_loc, &reqh_dirent_cache, hit);
    @endcode
  */
-#define C2_ADDB_ADD(ctx, loc, ev, ...)				\
+#define M0_ADDB_ADD(ctx, loc, ev, ...)				\
 ({								\
-	struct c2_addb_dp __dp;					\
+	struct m0_addb_dp __dp;					\
 								\
 	__dp.ad_ctx   = (ctx);					\
 	__dp.ad_loc   = (loc);					\
 	__dp.ad_ev    = &(ev);					\
-	__dp.ad_level = (c2_addb_level_default);		\
+	__dp.ad_level = (m0_addb_level_default);		\
 								\
 	(void)sizeof(((__ ## ev ## _typecheck_t *)NULL)		\
 		     (&__dp , ## __VA_ARGS__));			\
 	if (ev.ae_ops->aeo_subst(&__dp , ## __VA_ARGS__) == 0)	\
-		c2_addb_add(&__dp);				\
+		m0_addb_add(&__dp);				\
 })
 
-extern enum c2_addb_ev_level c2_addb_level_default;
-enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level);
+extern enum m0_addb_ev_level m0_addb_level_default;
+enum m0_addb_ev_level m0_addb_choose_default_level(enum m0_addb_ev_level level);
 
 
-C2_INTERNAL enum c2_addb_ev_level
-c2_addb_choose_default_level_console(enum c2_addb_ev_level level);
+M0_INTERNAL enum m0_addb_ev_level
+m0_addb_choose_default_level_console(enum m0_addb_ev_level level);
 
 /**
    Declare addb event operations vector with a given collection of formal
    parameter.
 
-   @see C2_ADDB_SYSCALL, C2_ADDB_FUNC_CALL, C2_ADDB_CALL
-   @see C2_ADDB_STAMP, C2_ADDB_FLAG
+   @see M0_ADDB_SYSCALL, M0_ADDB_FUNC_CALL, M0_ADDB_CALL
+   @see M0_ADDB_STAMP, M0_ADDB_FLAG
  */
-#define C2_ADDB_OPS_DEFINE(ops, ...)					\
-extern const struct c2_addb_ev_ops ops;					\
+#define M0_ADDB_OPS_DEFINE(ops, ...)					\
+extern const struct m0_addb_ev_ops ops;					\
 									\
 typedef int								\
-__ ## ops ## _typecheck_t(struct c2_addb_dp *dp , ## __VA_ARGS__)
+__ ## ops ## _typecheck_t(struct m0_addb_dp *dp , ## __VA_ARGS__)
 
 /** A call to an external system component failed. */
-C2_ADDB_OPS_DEFINE(C2_ADDB_SYSCALL, int rc);
+M0_ADDB_OPS_DEFINE(M0_ADDB_SYSCALL, int rc);
 /** A call to a given function failed. */
-C2_ADDB_OPS_DEFINE(C2_ADDB_FUNC_CALL, const char *fname, int rc);
-/** A call to a C2 component failed. */
-C2_ADDB_OPS_DEFINE(C2_ADDB_CALL, int rc);
+M0_ADDB_OPS_DEFINE(M0_ADDB_FUNC_CALL, const char *fname, int rc);
+/** A call to a M0 component failed. */
+M0_ADDB_OPS_DEFINE(M0_ADDB_CALL, int rc);
 /** An invalid value was supplied. */
-C2_ADDB_OPS_DEFINE(C2_ADDB_INVAL, uint64_t val);
+M0_ADDB_OPS_DEFINE(M0_ADDB_INVAL, uint64_t val);
 /** Time-stamp. */
-C2_ADDB_OPS_DEFINE(C2_ADDB_STAMP);
+M0_ADDB_OPS_DEFINE(M0_ADDB_STAMP);
 /** Record a Boolean condition. */
-C2_ADDB_OPS_DEFINE(C2_ADDB_FLAG, bool flag);
+M0_ADDB_OPS_DEFINE(M0_ADDB_FLAG, bool flag);
 /** Record a trace event. */
-C2_ADDB_OPS_DEFINE(C2_ADDB_TRACE, const char *message);
+M0_ADDB_OPS_DEFINE(M0_ADDB_TRACE, const char *message);
 
-/** Events which are used throughout Colibri */
+/** Events which are used throughout Mero */
 
 /** Report this event when memory allocation fails. */
-C2_ADDB_EV_DECLARE(c2_addb_oom, C2_ADDB_STAMP);
+M0_ADDB_EV_DECLARE(m0_addb_oom, M0_ADDB_STAMP);
 
 /** Report this event when function call fails that doesn't fit into a more
     specific event. */
-C2_ADDB_EV_DECLARE(c2_addb_func_fail, C2_ADDB_FUNC_CALL);
+M0_ADDB_EV_DECLARE(m0_addb_func_fail, M0_ADDB_FUNC_CALL);
 
 /** Report this event when a trace message has to be put into addb */
-C2_ADDB_EV_DECLARE(c2_addb_trace, C2_ADDB_TRACE);
+M0_ADDB_EV_DECLARE(m0_addb_trace, M0_ADDB_TRACE);
 
 /** Global (per address space) addb context, used when no other context is
     applicable. */
-extern struct c2_addb_ctx c2_addb_global_ctx;
+extern struct m0_addb_ctx m0_addb_global_ctx;
 
-extern struct c2_fop_type c2_addb_record_fopt;
-extern struct c2_fop_type c2_addb_reply_fopt;
+extern struct m0_fop_type m0_addb_record_fopt;
+extern struct m0_fop_type m0_addb_reply_fopt;
 
-C2_INTERNAL int c2_addb_fop_init(void);
-C2_INTERNAL void c2_addb_fop_fini(void);
+M0_INTERNAL int m0_addb_fop_init(void);
+M0_INTERNAL void m0_addb_fop_fini(void);
 
 /** @} end of addb group */
 
-/* __COLIBRI_ADDB_ADDB_H__ */
+/* __MERO_ADDB_ADDB_H__ */
 #endif
 
 /*

@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_XCODE_XCODE_ATTR_H__
-#define __COLIBRI_XCODE_XCODE_ATTR_H__
+#ifndef __MERO_XCODE_XCODE_ATTR_H__
+#define __MERO_XCODE_XCODE_ATTR_H__
 
 /**
  * @addtogroup xcode
@@ -35,24 +35,24 @@
  *
  * Please, refer to gccxml2xcode documentation for more details.
  */
-#define C2_XC_ATTR(name, val)	__attribute__((gccxml("xc_"name,val)))
+#define M0_XC_ATTR(name, val)	__attribute__((gccxml("xc_"name,val)))
 
 /**
- * Shortened versions of C2_XC_ATTR to specifiy c2_xcode_aggr types.
+ * Shortened versions of M0_XC_ATTR to specifiy m0_xcode_aggr types.
  */
-#define C2_XCA_RECORD   C2_XC_ATTR("atype","C2_XA_RECORD")
-#define C2_XCA_SEQUENCE C2_XC_ATTR("atype","C2_XA_SEQUENCE")
-#define C2_XCA_UNION    C2_XC_ATTR("atype","C2_XA_UNION")
+#define M0_XCA_RECORD   M0_XC_ATTR("atype","M0_XA_RECORD")
+#define M0_XCA_SEQUENCE M0_XC_ATTR("atype","M0_XA_SEQUENCE")
+#define M0_XCA_UNION    M0_XC_ATTR("atype","M0_XA_UNION")
 
 /**
- * Shortened versions of C2_XC_ATTR for TAG and OPAQUE attributes.
+ * Shortened versions of M0_XC_ATTR for TAG and OPAQUE attributes.
  */
-#define C2_XCA_OPAQUE(value)   C2_XC_ATTR("opaque",value)
-#define C2_XCA_TAG(value)      C2_XC_ATTR("tag",value)
+#define M0_XCA_OPAQUE(value)   M0_XC_ATTR("opaque",value)
+#define M0_XCA_TAG(value)      M0_XC_ATTR("tag",value)
 
 /** @} end of xcode group */
 
-/* __COLIBRI_XCODE_XCODE_ATTR_H__ */
+/* __MERO_XCODE_XCODE_ATTR_H__ */
 #endif
 
 /*

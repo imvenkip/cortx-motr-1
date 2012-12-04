@@ -22,45 +22,45 @@
 #include "lib/ub.h"
 #include "lib/time.h"
 #include "lib/errno.h"
-#include "lib/arith.h"                    /* c2_rnd */
-#include "lib/misc.h"                     /* C2_IN */
+#include "lib/arith.h"                    /* m0_rnd */
+#include "lib/misc.h"                     /* M0_IN */
 #include "lib/thread.h"
 
 #include "addb/addb.h"
 #include "sm/sm.h"
 
-static struct c2_sm_group G;
-static struct c2_addb_ctx actx;
-static struct c2_sm       m;
-static struct c2_sm_ast   ast;
+static struct m0_sm_group G;
+static struct m0_addb_ctx actx;
+static struct m0_sm       m;
+static struct m0_sm_ast   ast;
 static bool               more = true;
-static struct c2_thread   ath;
+static struct m0_thread   ath;
 
 static void ast_thread(int __d)
 {
 	while (more) {
-		c2_chan_wait(&G.s_clink);
-		c2_sm_group_lock(&G);
-		c2_sm_asts_run(&G);
-		c2_sm_group_unlock(&G);
+		m0_chan_wait(&G.s_clink);
+		m0_sm_group_lock(&G);
+		m0_sm_asts_run(&G);
+		m0_sm_group_unlock(&G);
 	}
 }
 
 static int init(void) {
-	c2_sm_group_init(&G);
+	m0_sm_group_init(&G);
 	return 0;
 }
 
 static int fini(void) {
 	more = false;
-	c2_clink_signal(&G.s_clink);
-	c2_thread_join(&ath);
-	c2_sm_group_fini(&G);
+	m0_clink_signal(&G.s_clink);
+	m0_thread_join(&ath);
+	m0_sm_group_fini(&G);
 	return 0;
 }
 
 /**
-   Unit test for c2_sm_state_set().
+   Unit test for m0_sm_state_set().
 
    Performs a state transition for a very simple state machine:
    @dot
@@ -72,9 +72,9 @@ static int fini(void) {
 static void transition(void)
 {
 	enum { S_INITIAL, S_TERMINAL, S_FAILURE, S_NR };
-	const struct c2_sm_state_descr states[S_NR] = {
+	const struct m0_sm_state_descr states[S_NR] = {
 		[S_INITIAL] = {
-			.sd_flags     = C2_SDF_INITIAL,
+			.sd_flags     = M0_SDF_INITIAL,
 			.sd_name      = "initial",
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
@@ -82,7 +82,7 @@ static void transition(void)
 			.sd_allowed   = (1 << S_TERMINAL)|(1 << S_FAILURE)
 		},
 		[S_FAILURE] = {
-			.sd_flags     = C2_SDF_FAILURE,
+			.sd_flags     = M0_SDF_FAILURE,
 			.sd_name      = "initial",
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
@@ -90,7 +90,7 @@ static void transition(void)
 			.sd_allowed   = (1 << S_TERMINAL)
 		},
 		[S_TERMINAL] = {
-			.sd_flags     = C2_SDF_TERMINAL,
+			.sd_flags     = M0_SDF_TERMINAL,
 			.sd_name      = "terminal",
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
@@ -98,48 +98,48 @@ static void transition(void)
 			.sd_allowed   = 0
 		}
 	};
-	const struct c2_sm_conf        conf = {
+	const struct m0_sm_conf        conf = {
 		.scf_name      = "test drive: transition",
 		.scf_nr_states = S_NR,
 		.scf_state     = states
 	};
 
-	c2_sm_group_lock(&G);
-	c2_sm_init(&m, &conf, S_INITIAL, &G, &actx);
-	C2_UT_ASSERT(m.sm_state == S_INITIAL);
-	c2_sm_state_set(&m, S_TERMINAL);
-	C2_UT_ASSERT(m.sm_state == S_TERMINAL);
-	c2_sm_fini(&m);
+	m0_sm_group_lock(&G);
+	m0_sm_init(&m, &conf, S_INITIAL, &G, &actx);
+	M0_UT_ASSERT(m.sm_state == S_INITIAL);
+	m0_sm_state_set(&m, S_TERMINAL);
+	M0_UT_ASSERT(m.sm_state == S_TERMINAL);
+	m0_sm_fini(&m);
 
-	c2_sm_init(&m, &conf, S_INITIAL, &G, &actx);
-	C2_UT_ASSERT(m.sm_state == S_INITIAL);
-	c2_sm_move(&m, 0, S_TERMINAL);
-	C2_UT_ASSERT(m.sm_state == S_TERMINAL);
-	c2_sm_fini(&m);
+	m0_sm_init(&m, &conf, S_INITIAL, &G, &actx);
+	M0_UT_ASSERT(m.sm_state == S_INITIAL);
+	m0_sm_move(&m, 0, S_TERMINAL);
+	M0_UT_ASSERT(m.sm_state == S_TERMINAL);
+	m0_sm_fini(&m);
 
-	c2_sm_init(&m, &conf, S_INITIAL, &G, &actx);
-	C2_UT_ASSERT(m.sm_state == S_INITIAL);
-	c2_sm_move(&m, -EINVAL, S_FAILURE);
-	C2_UT_ASSERT(m.sm_state == S_FAILURE);
-	C2_UT_ASSERT(m.sm_rc == -EINVAL);
-	c2_sm_state_set(&m, S_TERMINAL);
-	c2_sm_fini(&m);
+	m0_sm_init(&m, &conf, S_INITIAL, &G, &actx);
+	M0_UT_ASSERT(m.sm_state == S_INITIAL);
+	m0_sm_move(&m, -EINVAL, S_FAILURE);
+	M0_UT_ASSERT(m.sm_state == S_FAILURE);
+	M0_UT_ASSERT(m.sm_rc == -EINVAL);
+	m0_sm_state_set(&m, S_TERMINAL);
+	m0_sm_fini(&m);
 
-	c2_sm_group_unlock(&G);
+	m0_sm_group_unlock(&G);
 }
 
 static bool x;
 
-static void ast_cb(struct c2_sm_group *g, struct c2_sm_ast *a)
+static void ast_cb(struct m0_sm_group *g, struct m0_sm_ast *a)
 {
-	C2_UT_ASSERT(g == &G);
-	C2_UT_ASSERT(a == &ast);
-	C2_UT_ASSERT(a->sa_datum == &ast_cb);
+	M0_UT_ASSERT(g == &G);
+	M0_UT_ASSERT(a == &ast);
+	M0_UT_ASSERT(a->sa_datum == &ast_cb);
 	x = true;
 }
 
 /**
-   Unit test for c2_sm_ast_post().
+   Unit test for m0_sm_ast_post().
  */
 static void ast_test(void)
 {
@@ -147,15 +147,15 @@ static void ast_test(void)
 	x = false;
 	ast.sa_cb = &ast_cb;
 	ast.sa_datum = &ast_cb;
-	c2_sm_ast_post(&G, &ast);
-	C2_UT_ASSERT(!x);
-	c2_sm_group_lock(&G);
-	C2_UT_ASSERT(x);
-	c2_sm_group_unlock(&G);
+	m0_sm_ast_post(&G, &ast);
+	M0_UT_ASSERT(!x);
+	m0_sm_group_lock(&G);
+	M0_UT_ASSERT(x);
+	m0_sm_group_unlock(&G);
 }
 
 /**
-   Unit test for c2_sm_timeout().
+   Unit test for m0_sm_timeout().
 
    @dot
    digraph M {
@@ -170,9 +170,9 @@ static void ast_test(void)
 static void timeout(void)
 {
 	enum { S_INITIAL, S_0, S_1, S_2, S_TERMINAL, S_NR };
-	const struct c2_sm_state_descr states[S_NR] = {
+	const struct m0_sm_state_descr states[S_NR] = {
 		[S_INITIAL] = {
-			.sd_flags     = C2_SDF_INITIAL,
+			.sd_flags     = M0_SDF_INITIAL,
 			.sd_name      = "initial",
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
@@ -204,7 +204,7 @@ static void timeout(void)
 			.sd_allowed   = 1 << S_TERMINAL
 		},
 		[S_TERMINAL] = {
-			.sd_flags     = C2_SDF_TERMINAL,
+			.sd_flags     = M0_SDF_TERMINAL,
 			.sd_name      = "terminal",
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
@@ -212,74 +212,74 @@ static void timeout(void)
 			.sd_allowed   = 0
 		}
 	};
-	const struct c2_sm_conf        conf = {
+	const struct m0_sm_conf        conf = {
 		.scf_name      = "test drive: timeout",
 		.scf_nr_states = S_NR,
 		.scf_state     = states
 	};
-	struct c2_sm_timeout t0;
-	struct c2_sm_timeout t1;
-	c2_time_t            delta;
+	struct m0_sm_timeout t0;
+	struct m0_sm_timeout t1;
+	m0_time_t            delta;
 	int                  result;
 
-	result = C2_THREAD_INIT(&ath, int, NULL, &ast_thread, 0, "ast_thread");
-	C2_UT_ASSERT(result == 0);
+	result = M0_THREAD_INIT(&ath, int, NULL, &ast_thread, 0, "ast_thread");
+	M0_UT_ASSERT(result == 0);
 
-	c2_time_set(&delta, 0, C2_TIME_ONE_BILLION/100);
+	m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/100);
 
-	c2_sm_group_lock(&G);
-	c2_sm_init(&m, &conf, S_INITIAL, &G, &actx);
+	m0_sm_group_lock(&G);
+	m0_sm_init(&m, &conf, S_INITIAL, &G, &actx);
 
 	/* check that timeout works */
-	result = c2_sm_timeout(&m, &t0, c2_time_add(c2_time_now(), delta), S_0);
-	C2_UT_ASSERT(result == 0);
-	C2_UT_ASSERT(t0.st_active);
+	result = m0_sm_timeout(&m, &t0, m0_time_add(m0_time_now(), delta), S_0);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(t0.st_active);
 
-	result = c2_sm_timedwait(&m, ~(1 << S_INITIAL), C2_TIME_NEVER);
-	C2_UT_ASSERT(result == 0);
-	C2_UT_ASSERT(m.sm_state == S_0);
-	C2_UT_ASSERT(!t0.st_active);
+	result = m0_sm_timedwait(&m, ~(1 << S_INITIAL), M0_TIME_NEVER);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(m.sm_state == S_0);
+	M0_UT_ASSERT(!t0.st_active);
 
-	c2_sm_timeout_fini(&t0);
+	m0_sm_timeout_fini(&t0);
 
 	/* check that state transition cancels the timeout */
-	result = c2_sm_timeout(&m, &t1, c2_time_add(c2_time_now(), delta), S_1);
-	C2_UT_ASSERT(result == 0);
-	C2_UT_ASSERT(t1.st_active);
+	result = m0_sm_timeout(&m, &t1, m0_time_add(m0_time_now(), delta), S_1);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(t1.st_active);
 
-	c2_sm_state_set(&m, S_2);
-	C2_UT_ASSERT(m.sm_state == S_2);
-	C2_UT_ASSERT(!t1.st_active);
+	m0_sm_state_set(&m, S_2);
+	M0_UT_ASSERT(m.sm_state == S_2);
+	M0_UT_ASSERT(!t1.st_active);
 
-	result = c2_sm_timedwait(&m, ~(1 << S_2),
-				 c2_time_add(c2_time_now(),
-					     c2_time_add(delta, delta)));
-	C2_UT_ASSERT(result == -ETIMEDOUT);
-	C2_UT_ASSERT(m.sm_state == S_2);
+	result = m0_sm_timedwait(&m, ~(1 << S_2),
+				 m0_time_add(m0_time_now(),
+					     m0_time_add(delta, delta)));
+	M0_UT_ASSERT(result == -ETIMEDOUT);
+	M0_UT_ASSERT(m.sm_state == S_2);
 
-	c2_sm_timeout_fini(&t1);
+	m0_sm_timeout_fini(&t1);
 
-	c2_sm_state_set(&m, S_TERMINAL);
-	C2_UT_ASSERT(m.sm_state == S_TERMINAL);
+	m0_sm_state_set(&m, S_TERMINAL);
+	M0_UT_ASSERT(m.sm_state == S_TERMINAL);
 
-	c2_sm_fini(&m);
-	c2_sm_group_unlock(&G);
+	m0_sm_fini(&m);
+	m0_sm_group_unlock(&G);
 }
 
 struct story {
-	struct c2_sm cain;
-	struct c2_sm abel;
+	struct m0_sm cain;
+	struct m0_sm abel;
 };
 
 enum { S_INITIAL, S_ITERATE, S_FRATRICIDE, S_TERMINAL, S_NR };
 
-static int genesis_4_8(struct c2_sm *mach)
+static int genesis_4_8(struct m0_sm *mach)
 {
 	struct story *s;
 
 	s = container_of(mach, struct story, cain);
-	c2_sm_fail(&s->abel, S_TERMINAL, -EINTR);
-	return C2_SM_BREAK;
+	m0_sm_fail(&s->abel, S_TERMINAL, -EINTR);
+	return M0_SM_BREAK;
 }
 
 /**
@@ -297,9 +297,9 @@ static int genesis_4_8(struct c2_sm *mach)
  */
 static void group(void)
 {
-	const struct c2_sm_state_descr states[S_NR] = {
+	const struct m0_sm_state_descr states[S_NR] = {
 		[S_INITIAL] = {
-			.sd_flags     = C2_SDF_INITIAL,
+			.sd_flags     = M0_SDF_INITIAL,
 			.sd_name      = "initial",
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
@@ -323,7 +323,7 @@ static void group(void)
 			.sd_allowed   = 1 << S_TERMINAL
 		},
 		[S_TERMINAL] = {
-			.sd_flags     = C2_SDF_TERMINAL|C2_SDF_FAILURE,
+			.sd_flags     = M0_SDF_TERMINAL|M0_SDF_FAILURE,
 			.sd_name      = "terminal",
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
@@ -331,44 +331,44 @@ static void group(void)
 			.sd_allowed   = 0
 		}
 	};
-	const struct c2_sm_conf        conf = {
+	const struct m0_sm_conf        conf = {
 		.scf_name      = "test drive: group",
 		.scf_nr_states = S_NR,
 		.scf_state     = states
 	};
 
 	struct story         s;
-	struct c2_sm_timeout to;
-	c2_time_t            delta;
+	struct m0_sm_timeout to;
+	m0_time_t            delta;
 	int                  result;
 
-	c2_time_set(&delta, 0, C2_TIME_ONE_BILLION/100);
+	m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/100);
 
-	c2_sm_group_lock(&G);
-	c2_sm_init(&s.cain, &conf, S_INITIAL, &G, &actx);
-	c2_sm_init(&s.abel, &conf, S_INITIAL, &G, &actx);
+	m0_sm_group_lock(&G);
+	m0_sm_init(&s.cain, &conf, S_INITIAL, &G, &actx);
+	m0_sm_init(&s.abel, &conf, S_INITIAL, &G, &actx);
 
 	/* check that timeout works */
-	result = c2_sm_timeout(&s.cain, &to,
-			       c2_time_add(c2_time_now(), delta), S_FRATRICIDE);
-	C2_UT_ASSERT(result == 0);
+	result = m0_sm_timeout(&s.cain, &to,
+			       m0_time_add(m0_time_now(), delta), S_FRATRICIDE);
+	M0_UT_ASSERT(result == 0);
 
 	while (s.abel.sm_rc == 0) {
 		/* live, while you can */
-		c2_sm_state_set(&s.abel, S_ITERATE);
+		m0_sm_state_set(&s.abel, S_ITERATE);
 		/* give providence a chance to run */
-		c2_sm_asts_run(&G);
+		m0_sm_asts_run(&G);
 	}
-	C2_UT_ASSERT(s.abel.sm_state == S_TERMINAL);
-	C2_UT_ASSERT(s.cain.sm_state == S_FRATRICIDE);
+	M0_UT_ASSERT(s.abel.sm_state == S_TERMINAL);
+	M0_UT_ASSERT(s.cain.sm_state == S_FRATRICIDE);
 
-	c2_sm_fail(&s.cain, S_TERMINAL, -1);
+	m0_sm_fail(&s.cain, S_TERMINAL, -1);
 
-	c2_sm_timeout_fini(&to);
+	m0_sm_timeout_fini(&to);
 
-	c2_sm_fini(&s.abel);
-	c2_sm_fini(&s.cain);
-	c2_sm_group_unlock(&G);
+	m0_sm_fini(&s.abel);
+	m0_sm_fini(&s.cain);
+	m0_sm_group_unlock(&G);
 }
 
 enum { C_INIT, C_FLIP, C_HEAD, C_TAIL, C_DONE, C_OVER, C_WIN, C_LOSE, C_TIE,
@@ -377,26 +377,26 @@ enum { C_INIT, C_FLIP, C_HEAD, C_TAIL, C_DONE, C_OVER, C_WIN, C_LOSE, C_TIE,
 static int heads = 0;
 static int tails = 0;
 
-static int flip(struct c2_sm *mach)
+static int flip(struct m0_sm *mach)
 {
 	uint64_t cookie = ~heads + 11 * tails + 42;
 
-	return c2_rnd(10, &cookie) >= 5 ? C_HEAD : C_TAIL;
+	return m0_rnd(10, &cookie) >= 5 ? C_HEAD : C_TAIL;
 }
 
-static int head(struct c2_sm *mach)
+static int head(struct m0_sm *mach)
 {
 	++heads;
 	return C_DONE;
 }
 
-static int tail(struct c2_sm *mach)
+static int tail(struct m0_sm *mach)
 {
 	++tails;
 	return C_DONE;
 }
 
-static int over(struct c2_sm *mach)
+static int over(struct m0_sm *mach)
 {
 	if (tails > heads) {
 		return C_WIN;
@@ -430,9 +430,9 @@ static int over(struct c2_sm *mach)
 static void chain(void)
 {
 	enum { NR_RUNS = 20 };
-	const struct c2_sm_state_descr states[C_NR] = {
+	const struct m0_sm_state_descr states[C_NR] = {
 		[C_INIT] = {
-			.sd_flags     = C2_SDF_INITIAL,
+			.sd_flags     = M0_SDF_INITIAL,
 			.sd_name      = "initial",
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
@@ -480,7 +480,7 @@ static void chain(void)
 			.sd_allowed   = (1 << C_WIN)|(1 << C_LOSE)|(1 << C_TIE)
 		},
 		[C_WIN] = {
-			.sd_flags     = C2_SDF_TERMINAL,
+			.sd_flags     = M0_SDF_TERMINAL,
 			.sd_name      = "tails win",
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
@@ -488,7 +488,7 @@ static void chain(void)
 			.sd_allowed   = 0
 		},
 		[C_LOSE] = {
-			.sd_flags     = C2_SDF_TERMINAL|C2_SDF_FAILURE,
+			.sd_flags     = M0_SDF_TERMINAL|M0_SDF_FAILURE,
 			.sd_name      = "tails lose",
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
@@ -496,7 +496,7 @@ static void chain(void)
 			.sd_allowed   = 0
 		},
 		[C_TIE] = {
-			.sd_flags     = C2_SDF_TERMINAL,
+			.sd_flags     = M0_SDF_TERMINAL,
 			.sd_name      = "tie",
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
@@ -504,30 +504,30 @@ static void chain(void)
 			.sd_allowed   = 0
 		},
 	};
-	const struct c2_sm_conf conf = {
+	const struct m0_sm_conf conf = {
 		.scf_name      = "test drive: chain",
 		.scf_nr_states = C_NR,
 		.scf_state     = states
 	};
 	int i;
 
-	c2_sm_group_lock(&G);
-	c2_sm_init(&m, &conf, C_INIT, &G, &actx);
-	C2_UT_ASSERT(m.sm_state == C_INIT);
+	m0_sm_group_lock(&G);
+	m0_sm_init(&m, &conf, C_INIT, &G, &actx);
+	M0_UT_ASSERT(m.sm_state == C_INIT);
 
 	for (i = 0; i < NR_RUNS; ++i) {
-		c2_sm_state_set(&m, C_FLIP);
-		C2_UT_ASSERT(m.sm_state == C_DONE);
+		m0_sm_state_set(&m, C_FLIP);
+		M0_UT_ASSERT(m.sm_state == C_DONE);
 	}
-	C2_UT_ASSERT(tails + heads == NR_RUNS);
-	c2_sm_state_set(&m, C_OVER);
-	C2_UT_ASSERT(C2_IN(m.sm_state, (C_WIN, C_LOSE, C_TIE)));
+	M0_UT_ASSERT(tails + heads == NR_RUNS);
+	m0_sm_state_set(&m, C_OVER);
+	M0_UT_ASSERT(M0_IN(m.sm_state, (C_WIN, C_LOSE, C_TIE)));
 
-	c2_sm_fini(&m);
-	c2_sm_group_unlock(&G);
+	m0_sm_fini(&m);
+	m0_sm_group_unlock(&G);
 }
 
-const struct c2_test_suite sm_ut = {
+const struct m0_test_suite sm_ut = {
 	.ts_name = "sm-ut",
 	.ts_init = init,
 	.ts_fini = fini,
@@ -540,7 +540,7 @@ const struct c2_test_suite sm_ut = {
 		{ NULL, NULL }
 	}
 };
-C2_EXPORTED(sm_ut);
+M0_EXPORTED(sm_ut);
 
 /*
  *  Local variables:

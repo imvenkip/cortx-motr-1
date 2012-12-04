@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_ASSERT_H__
-#define __COLIBRI_LIB_ASSERT_H__
+#ifndef __MERO_LIB_ASSERT_H__
+#define __MERO_LIB_ASSERT_H__
 
 /**
    @defgroup assert Assertions, pre-conditions, post-conditions, invariants.
@@ -36,48 +36,48 @@
 #endif
 
 /**
-   A macro to check that a function pre-condition holds. C2_PRE() is
-   functionally equivalent to C2_ASSERT().
+   A macro to check that a function pre-condition holds. M0_PRE() is
+   functionally equivalent to M0_ASSERT().
 
-   @see C2_POST()
+   @see M0_POST()
  */
-#define C2_PRE(cond) C2_ASSERT(cond)
+#define M0_PRE(cond) M0_ASSERT(cond)
 
 /**
-   A macro to check that a function post-condition holds. C2_POST() is
-   functionally equivalent to C2_ASSERT().
+   A macro to check that a function post-condition holds. M0_POST() is
+   functionally equivalent to M0_ASSERT().
 
-   @see C2_PRE()
+   @see M0_PRE()
  */
-#define C2_POST(cond) C2_ASSERT(cond)
+#define M0_POST(cond) M0_ASSERT(cond)
 
 /**
    A macro to assert that compile-time condition is true. Condition must be a
    constant expression (as defined in the section 6.6 of ISO/IEC
-   9899). C2_CASSERT() can be used anywhere where a statement can be.
+   9899). M0_CASSERT() can be used anywhere where a statement can be.
 
-   @see C2_BASSERT()
+   @see M0_BASSERT()
  */
-#define C2_CASSERT(cond) do { switch (1) {case 0: case !!(cond): ;} } while (0)
+#define M0_CASSERT(cond) do { switch (1) {case 0: case !!(cond): ;} } while (0)
 
 /**
    A macro to assert that compile-time condition is true. Condition must be a
-   constant expression. C2_BASSERT() can be used anywhere where a declaration
+   constant expression. M0_BASSERT() can be used anywhere where a declaration
    can be.
 
-   @see C2_CASSERT()
+   @see M0_CASSERT()
  */
-#define C2_BASSERT(cond) extern int __dummy_[sizeof(struct { \
+#define M0_BASSERT(cond) extern int __dummy_[sizeof(struct { \
 	int __build_time_assertion_failure:!!(cond); })]
 
 /**
    A macro indicating that computation reached an invalid state.
  */
-#define C2_IMPOSSIBLE(msg) C2_ASSERT("Impossible: " msg == NULL)
+#define M0_IMPOSSIBLE(msg) M0_ASSERT("Impossible: " msg == NULL)
 
 /** @} end of assert group */
 
-/* __COLIBRI_LIB_ASSERT_H__ */
+/* __MERO_LIB_ASSERT_H__ */
 #endif
 
 /*

@@ -24,7 +24,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "colibri/init.h"
+#include "mero/init.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/getopts.h"
@@ -36,7 +36,7 @@
 
 static struct nlx_ping_ctx sctx = {
 	.pc_tm = {
-		.ntm_state     = C2_NET_TM_UNDEFINED
+		.ntm_state     = M0_NET_TM_UNDEFINED
 	}
 };
 
@@ -82,63 +82,63 @@ int main(int argc, char *argv[])
 	int                      server_min_recv_size = -1;
 	int                      server_max_recv_msgs = -1;
 	int                      send_msg_size = -1;
-	struct c2_thread	 server_thread;
+	struct m0_thread	 server_thread;
 
-	rc = c2_init();
-	C2_ASSERT(rc == 0);
+	rc = m0_init();
+	M0_ASSERT(rc == 0);
 
-	rc = C2_GETOPTS("lnetping", argc, argv,
-			C2_FLAGARG('s', "run server only", &server_only),
-			C2_FLAGARG('c', "run client only", &client_only),
-			C2_FORMATARG('b', "number of buffers", "%i", &nr_bufs),
-			C2_FORMATARG('B', "number of receive buffers "
+	rc = M0_GETOPTS("lnetping", argc, argv,
+			M0_FLAGARG('s', "run server only", &server_only),
+			M0_FLAGARG('c', "run client only", &client_only),
+			M0_FORMATARG('b', "number of buffers", "%i", &nr_bufs),
+			M0_FORMATARG('B', "number of receive buffers "
 				     "(server only)",
 				     "%u", &nr_recv_bufs),
-			C2_FORMATARG('l', "loops to run", "%i", &loops),
-			C2_STRINGARG('d', "bulk data size",
+			M0_FORMATARG('l', "loops to run", "%i", &loops),
+			M0_STRINGARG('d', "bulk data size",
 				     LAMBDA(void, (const char *str) {
 					     bulk_size =
 						     nlx_ping_parse_uint64(str);
 					     })),
-			C2_FORMATARG('n', "number of client threads", "%i",
+			M0_FORMATARG('n', "number of client threads", "%i",
 				     &nr_clients),
-			C2_FORMATARG('D', "server active bulk delay",
+			M0_FORMATARG('D', "server active bulk delay",
 				     "%i", &active_bulk_delay),
-			C2_STRINGARG('i', "client network interface (ip@intf)",
+			M0_STRINGARG('i', "client network interface (ip@intf)",
 				     LAMBDA(void, (const char *str) {
 						     client_network = str; })),
-			C2_FORMATARG('p', "client portal (optional)",
+			M0_FORMATARG('p', "client portal (optional)",
 				     "%i", &client_portal),
-			C2_FORMATARG('t', "client base TMID (optional)",
+			M0_FORMATARG('t', "client base TMID (optional)",
 				     "%i", &client_tmid),
-			C2_STRINGARG('I', "server network interface (ip@intf)",
+			M0_STRINGARG('I', "server network interface (ip@intf)",
 				     LAMBDA(void, (const char *str) {
 						     server_network = str; })),
-			C2_FORMATARG('P', "server portal (optional)",
+			M0_FORMATARG('P', "server portal (optional)",
 				     "%i", &server_portal),
-			C2_FORMATARG('T', "server TMID (optional)",
+			M0_FORMATARG('T', "server TMID (optional)",
 				     "%i", &server_tmid),
-			C2_FORMATARG('o', "message timeout in seconds",
+			M0_FORMATARG('o', "message timeout in seconds",
 				     "%i", &msg_timeout),
-			C2_FORMATARG('O', "bulk timeout in seconds",
+			M0_FORMATARG('O', "bulk timeout in seconds",
 				     "%i", &bulk_timeout),
-			C2_FORMATARG('x', "client debug",
+			M0_FORMATARG('x', "client debug",
 				     "%i", &client_debug),
-			C2_FORMATARG('X', "server debug",
+			M0_FORMATARG('X', "server debug",
 				     "%i", &server_debug),
-			C2_FLAGARG('A', "async event processing (old style)",
+			M0_FLAGARG('A', "async event processing (old style)",
 				   &async_events),
-			C2_FORMATARG('R', "receive message max size "
+			M0_FORMATARG('R', "receive message max size "
 				     "(server only)",
 				     "%i", &server_min_recv_size),
-			C2_FORMATARG('M', "max receive messages in a single "
+			M0_FORMATARG('M', "max receive messages in a single "
 				     "buffer (server only)",
 				     "%i", &server_max_recv_msgs),
-			C2_FORMATARG('m', "message size (client only)",
+			M0_FORMATARG('m', "message size (client only)",
 				     "%i", &send_msg_size),
-			C2_FORMATARG('v', "verbosity level",
+			M0_FORMATARG('v', "verbosity level",
 				     "%i", &verbose),
-			C2_FLAGARG('q', "quiet", &quiet));
+			M0_FLAGARG('q', "quiet", &quiet));
 	if (rc != 0)
 		return rc;
 
@@ -175,14 +175,14 @@ int main(int argc, char *argv[])
 	if (verbose < 0)
 		verbose = 0;
 
-	rc = c2_net_xprt_init(&c2_net_lnet_xprt);
-	C2_ASSERT(rc == 0);
+	rc = m0_net_xprt_init(&m0_net_lnet_xprt);
+	M0_ASSERT(rc == 0);
 	nlx_ping_init();
 
 	if (!client_only) {
 		/* start server in background thread */
-		c2_mutex_init(&sctx.pc_mutex);
-		c2_cond_init(&sctx.pc_cond);
+		m0_mutex_init(&sctx.pc_mutex);
+		m0_cond_init(&sctx.pc_cond);
 		if (!quiet)
 			sctx.pc_ops = &verbose_ops;
 		else
@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
 		sctx.pc_msg_timeout = msg_timeout;
 		sctx.pc_server_bulk_delay = active_bulk_delay;
 		sctx.pc_network = server_network;
-		sctx.pc_pid = C2_NET_LNET_PID;
+		sctx.pc_pid = M0_NET_LNET_PID;
 		sctx.pc_portal = server_portal;
 		sctx.pc_tmid = server_tmid;
 		sctx.pc_dom_debug = server_debug;
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
 		nlx_ping_server_spawn(&server_thread, &sctx);
 
 		if (!quiet)
-			printf("Colibri LNet System Test Server Initialized\n");
+			printf("Mero LNet System Test Server Initialized\n");
 	}
 
 	if (server_only) {
@@ -223,11 +223,11 @@ int main(int argc, char *argv[])
 		}
 	} else {
 		int		      i;
-		struct c2_thread     *client_thread;
+		struct m0_thread     *client_thread;
 		struct nlx_ping_client_params *params;
 		int32_t               client_base_tmid = client_tmid;
-		C2_ALLOC_ARR(client_thread, nr_clients);
-		C2_ALLOC_ARR(params, nr_clients);
+		M0_ALLOC_ARR(client_thread, nr_clients);
+		M0_ALLOC_ARR(params, nr_clients);
 
 		/* start all the client threads */
 		for (i = 0; i < nr_clients; ++i) {
@@ -249,27 +249,27 @@ int main(int argc, char *argv[])
 			CPARAM_SET(verbose);
 #undef CPARAM_SET
 			params[i].client_id = i + 1;
-			params[i].client_pid = C2_NET_LNET_PID;
-			params[i].server_pid = C2_NET_LNET_PID;
+			params[i].client_pid = M0_NET_LNET_PID;
+			params[i].server_pid = M0_NET_LNET_PID;
 			params[i].debug = client_debug;
 			if (!quiet)
 				params[i].ops = &verbose_ops;
 			else
 				params[i].ops = &quiet_ops;
 
-			rc = C2_THREAD_INIT(&client_thread[i],
+			rc = M0_THREAD_INIT(&client_thread[i],
 					    struct nlx_ping_client_params *,
 					    NULL, &nlx_ping_client, &params[i],
 					    "client_%d", params[i].client_id);
-			C2_ASSERT(rc == 0);
+			M0_ASSERT(rc == 0);
 		}
 		if (!quiet)
-			printf("Colibri LNet System Test %d Client(s)"
+			printf("Mero LNet System Test %d Client(s)"
 			       " Initialized\n", nr_clients);
 
 		/* ...and wait for them */
 		for (i = 0; i < nr_clients; ++i) {
-			c2_thread_join(&client_thread[i]);
+			m0_thread_join(&client_thread[i]);
 			if (!quiet && verbose > 0) {
 				printf("Client %d: joined\n",
 				       params[i].client_id);
@@ -278,22 +278,22 @@ int main(int argc, char *argv[])
 		if (!quiet)
 			nlx_ping_print_qstats_total("Client total",
 						    &verbose_ops);
-		c2_free(client_thread);
-		c2_free(params);
+		m0_free(client_thread);
+		m0_free(params);
 	}
 
 	if (!client_only) {
 		if (!quiet)
 			nlx_ping_print_qstats_tm(&sctx, false);
 		nlx_ping_server_should_stop(&sctx);
-		c2_thread_join(&server_thread);
-		c2_cond_fini(&sctx.pc_cond);
-		c2_mutex_fini(&sctx.pc_mutex);
+		m0_thread_join(&server_thread);
+		m0_cond_fini(&sctx.pc_cond);
+		m0_mutex_fini(&sctx.pc_mutex);
 	}
 
 	nlx_ping_fini();
-	c2_net_xprt_fini(&c2_net_lnet_xprt);
-	c2_fini();
+	m0_net_xprt_fini(&m0_net_lnet_xprt);
+	m0_fini();
 
 	return 0;
 }

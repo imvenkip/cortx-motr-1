@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_BITMAP_H__
-#define __COLIBRI_LIB_BITMAP_H__
+#ifndef __MERO_LIB_BITMAP_H__
+#define __MERO_LIB_BITMAP_H__
 
 #include "lib/types.h"
 #include "lib/assert.h"
@@ -36,7 +36,7 @@
 
    The bitmap is stored as an array of 64-bit "words"
  */
-struct c2_bitmap {
+struct m0_bitmap {
 	/** Number of bits in this map. */
 	size_t    b_nr;
 	/** Words with bits. */
@@ -55,7 +55,7 @@ struct c2_bitmap {
    @retval 0 success
    @retval !0 failure, -errno
  */
-C2_INTERNAL int c2_bitmap_init(struct c2_bitmap *map, size_t nr);
+M0_INTERNAL int m0_bitmap_init(struct m0_bitmap *map, size_t nr);
 
 /**
    Finalise the bitmap.
@@ -63,7 +63,7 @@ C2_INTERNAL int c2_bitmap_init(struct c2_bitmap *map, size_t nr);
 
    @param map bitmap to finalise
  */
-C2_INTERNAL void c2_bitmap_fini(struct c2_bitmap *map);
+M0_INTERNAL void m0_bitmap_fini(struct m0_bitmap *map);
 
 /**
    Get a bit value from a bitmap.
@@ -74,7 +74,7 @@ C2_INTERNAL void c2_bitmap_fini(struct c2_bitmap *map);
    @param idx bit offset in the bitmap to query
    @return the bit value, true or false.
  */
-C2_INTERNAL bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx);
+M0_INTERNAL bool m0_bitmap_get(const struct m0_bitmap *map, size_t idx);
 
 /**
    Set a bit value in a bitmap.
@@ -84,7 +84,7 @@ C2_INTERNAL bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx);
    of the bitmap results is not allowed (causes and assert to fail).
    @param val new bit value, true or false
  */
-C2_INTERNAL void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val);
+M0_INTERNAL void m0_bitmap_set(struct m0_bitmap *map, size_t idx, bool val);
 
 /**
    Copies the bit values from one bitmap to another.
@@ -93,14 +93,14 @@ C2_INTERNAL void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val);
    @param src source bitmap
    @pre dst->b_nr >= src->b_nr
  */
-C2_INTERNAL void c2_bitmap_copy(struct c2_bitmap *dst,
-				const struct c2_bitmap *src);
+M0_INTERNAL void m0_bitmap_copy(struct m0_bitmap *dst,
+				const struct m0_bitmap *src);
 
-C2_BASSERT(8 == sizeof ((struct c2_bitmap *)0)->b_words[0]);
+M0_BASSERT(8 == sizeof ((struct m0_bitmap *)0)->b_words[0]);
 
 /** @} end of bitmap group */
 
-/* __COLIBRI_LIB_BITMAP_H__ */
+/* __MERO_LIB_BITMAP_H__ */
 #endif
 
 /*

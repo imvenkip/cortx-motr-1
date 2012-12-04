@@ -18,19 +18,19 @@
  * Original creation date: 01-Dec-2012
  */
 #pragma once
-#ifndef __COLIBRI_CONF_UT_RPC_HELPERS_H__
-#define __COLIBRI_CONF_UT_RPC_HELPERS_H__
+#ifndef __MERO_CONF_UT_RPC_HELPERS_H__
+#define __MERO_CONF_UT_RPC_HELPERS_H__
 
-struct c2_net_xprt;
-struct c2_rpc_machine;
+struct m0_net_xprt;
+struct m0_rpc_machine;
 
-/** Initialises net and rpc layers, performs c2_rpc_machine_init(). */
-C2_INTERNAL int c2_ut_rpc_machine_start(struct c2_rpc_machine *mach,
-					struct c2_net_xprt *xprt,
+/** Initialises net and rpc layers, performs m0_rpc_machine_init(). */
+M0_INTERNAL int m0_ut_rpc_machine_start(struct m0_rpc_machine *mach,
+					struct m0_net_xprt *xprt,
 					const char *ep_addr,
 					const char *dbname);
 
-/** Performs c2_rpc_machine_fini(), finalises rpc and net layers. */
-C2_INTERNAL void c2_ut_rpc_machine_stop(struct c2_rpc_machine *mach);
+/** Performs m0_rpc_machine_fini(), finalises rpc and net layers. */
+M0_INTERNAL void m0_ut_rpc_machine_stop(struct m0_rpc_machine *mach);
 
-#endif /* __COLIBRI_CONF_UT_RPC_HELPERS_H__ */
+#endif /* __MERO_CONF_UT_RPC_HELPERS_H__ */

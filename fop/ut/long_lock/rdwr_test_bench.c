@@ -24,8 +24,8 @@
 #include "reqh/reqh.h"
 #include "fop/fom_long_lock.h"
 
-C2_TL_DESCR_DECLARE(c2_lll, C2_EXTERN);
-C2_TL_DECLARE(c2_lll, C2_INTERNAL, struct c2_long_lock_link);
+M0_TL_DESCR_DECLARE(m0_lll, M0_EXTERN);
+M0_TL_DECLARE(m0_lll, M0_INTERNAL, struct m0_long_lock_link);
 
 enum tb_request_type {
 	RQ_READ,
@@ -36,8 +36,8 @@ enum tb_request_type {
 
 enum tb_request_phase {
 	/* See comment on PH_REQ_LOCK value in fom_rdwr_state() function */
-	PH_REQ_LOCK = C2_FOM_PHASE_INIT,
-	PH_GOT_LOCK = C2_FOPH_NR + 1,
+	PH_REQ_LOCK = M0_FOM_PHASE_INIT,
+	PH_GOT_LOCK = M0_FOPH_NR + 1,
 };
 
 struct test_min_max {
@@ -57,28 +57,28 @@ struct test_request {
 	struct test_min_max tr_owners;
 };
 
-static struct c2_fom      *sleeper;
-static struct c2_chan      chan[RDWR_REQUEST_MAX];
-static struct c2_clink	   clink[RDWR_REQUEST_MAX];
-static struct c2_long_lock long_lock;
+static struct m0_fom      *sleeper;
+static struct m0_chan      chan[RDWR_REQUEST_MAX];
+static struct m0_clink	   clink[RDWR_REQUEST_MAX];
+static struct m0_long_lock long_lock;
 
 /**
  * a. Checks that multiple readers can hold the read lock concurrently, but
  * writers (more than one) get blocked.
  */
-static bool readers_check(struct c2_long_lock *lock)
+static bool readers_check(struct m0_long_lock *lock)
 {
-	struct c2_long_lock_link *head;
+	struct m0_long_lock_link *head;
 	bool result;
 
-	c2_mutex_lock(&lock->l_lock);
+	m0_mutex_lock(&lock->l_lock);
 
-	head = c2_lll_tlist_head(&lock->l_waiters);
-	result = c2_tl_forall(c2_lll, l, &lock->l_owners,
-			      l->lll_lock_type == C2_LONG_LOCK_READER) &&
-		ergo(head != NULL, head->lll_lock_type == C2_LONG_LOCK_WRITER);
+	head = m0_lll_tlist_head(&lock->l_waiters);
+	result = m0_tl_forall(m0_lll, l, &lock->l_owners,
+			      l->lll_lock_type == M0_LONG_LOCK_READER) &&
+		ergo(head != NULL, head->lll_lock_type == M0_LONG_LOCK_WRITER);
 
-	c2_mutex_unlock(&lock->l_lock);
+	m0_mutex_unlock(&lock->l_lock);
 
 	return result;
 }
@@ -87,19 +87,19 @@ static bool readers_check(struct c2_long_lock *lock)
  * b. Only one writer at a time can hold the write lock. All other contenders
  * wait.
  */
-static bool writer_check(struct c2_long_lock *lock)
+static bool writer_check(struct m0_long_lock *lock)
 {
-	struct c2_long_lock_link *head;
+	struct m0_long_lock_link *head;
 	bool result;
 
-	c2_mutex_lock(&lock->l_lock);
+	m0_mutex_lock(&lock->l_lock);
 
-	head = c2_lll_tlist_head(&lock->l_owners);
+	head = m0_lll_tlist_head(&lock->l_owners);
 	result = head != NULL &&
-		head->lll_lock_type == C2_LONG_LOCK_WRITER &&
-		c2_lll_tlist_length(&lock->l_owners) == 1;
+		head->lll_lock_type == M0_LONG_LOCK_WRITER &&
+		m0_lll_tlist_length(&lock->l_owners) == 1;
 
-	c2_mutex_unlock(&lock->l_lock);
+	m0_mutex_unlock(&lock->l_lock);
 
 	return result;
 }
@@ -107,28 +107,28 @@ static bool writer_check(struct c2_long_lock *lock)
 /**
  * Checks expected readers and writers against actual.
  */
-static bool lock_check(struct c2_long_lock *lock, enum tb_request_type type,
+static bool lock_check(struct m0_long_lock *lock, enum tb_request_type type,
 		       size_t owners_min, size_t owners_max, size_t waiters)
 {
 	bool result;
 	size_t owners_len;
 
-	c2_mutex_lock(&lock->l_lock);
+	m0_mutex_lock(&lock->l_lock);
 
-	owners_len = c2_lll_tlist_length(&lock->l_owners);
+	owners_len = m0_lll_tlist_length(&lock->l_owners);
 	result = owners_min <= owners_len && owners_len <= owners_max &&
-		c2_lll_tlist_length(&lock->l_waiters) == waiters &&
+		m0_lll_tlist_length(&lock->l_waiters) == waiters &&
 
-		(type == RQ_WRITE) ? lock->l_state == C2_LONG_LOCK_WR_LOCKED :
-		(type == RQ_READ)  ? lock->l_state == C2_LONG_LOCK_RD_LOCKED :
+		(type == RQ_WRITE) ? lock->l_state == M0_LONG_LOCK_WR_LOCKED :
+		(type == RQ_READ)  ? lock->l_state == M0_LONG_LOCK_RD_LOCKED :
 		false;
 
-	c2_mutex_unlock(&lock->l_lock);
+	m0_mutex_unlock(&lock->l_lock);
 
 	return result;
 }
 
-static int fom_rdwr_tick(struct c2_fom *fom)
+static int fom_rdwr_tick(struct m0_fom *fom)
 {
 	struct fom_rdwr	*request;
 	int		 rq_type;
@@ -136,52 +136,52 @@ static int fom_rdwr_tick(struct c2_fom *fom)
 	int		 result;
 
 	request = container_of(fom, struct fom_rdwr, fr_gen);
-	C2_UT_ASSERT(request != NULL);
+	M0_UT_ASSERT(request != NULL);
 	rq_type = request->fr_req->tr_type;
 	rq_seqn = request->fr_seqn;
 
 	/*
-	 * To pacify C2_PRE(C2_IN(c2_fom_phase(fom), (C2_FOPH_INIT,
-	 * C2_FOPH_FAILURE))) precondition in c2_fom_queue(), special processing
+	 * To pacify M0_PRE(M0_IN(m0_fom_phase(fom), (M0_FOPH_INIT,
+	 * M0_FOPH_FAILURE))) precondition in m0_fom_queue(), special processing
 	 * order of FOM phases is used.
 	 *
 	 * Do NOT use this code as a template for the general purpose. It's
-	 * designed for tesing of c2_long_lock ONLY!
+	 * designed for tesing of m0_long_lock ONLY!
 	 */
-	if (c2_fom_phase(fom) == PH_REQ_LOCK) {
+	if (m0_fom_phase(fom) == PH_REQ_LOCK) {
 		if (rq_seqn == 0)
 			sleeper = fom;
 
 		switch (rq_type) {
 		case RQ_READ:
-			result = C2_FOM_LONG_LOCK_RETURN(
-					c2_long_read_lock(&long_lock,
+			result = M0_FOM_LONG_LOCK_RETURN(
+					m0_long_read_lock(&long_lock,
 							  &request->fr_link,
 							  PH_GOT_LOCK));
-			C2_UT_ASSERT((result == C2_FSO_AGAIN)
+			M0_UT_ASSERT((result == M0_FSO_AGAIN)
 				     == (rq_seqn == 0));
-			result = C2_FSO_WAIT;
+			result = M0_FSO_WAIT;
 			break;
 		case RQ_WRITE:
-			result = C2_FOM_LONG_LOCK_RETURN(
-					c2_long_write_lock(&long_lock,
+			result = M0_FOM_LONG_LOCK_RETURN(
+					m0_long_write_lock(&long_lock,
 							   &request->fr_link,
 							   PH_GOT_LOCK));
-			C2_UT_ASSERT((result == C2_FSO_AGAIN)
+			M0_UT_ASSERT((result == M0_FSO_AGAIN)
 				     == (rq_seqn == 0));
-			result = C2_FSO_WAIT;
+			result = M0_FSO_WAIT;
 			break;
 		case RQ_WAKE_UP:
 		default:
-			c2_fom_wakeup(sleeper);
-			c2_fom_phase_set(fom, PH_GOT_LOCK);
-			result = C2_FSO_AGAIN;
+			m0_fom_wakeup(sleeper);
+			m0_fom_phase_set(fom, PH_GOT_LOCK);
+			result = M0_FSO_AGAIN;
 		}
 
 		/* notify, fom ready */
-		c2_chan_signal(&chan[rq_seqn]);
-	} else if (c2_fom_phase(fom) == PH_GOT_LOCK) {
-		C2_UT_ASSERT(ergo(C2_IN(rq_type, (RQ_READ, RQ_WRITE)),
+		m0_chan_signal(&chan[rq_seqn]);
+	} else if (m0_fom_phase(fom) == PH_GOT_LOCK) {
+		M0_UT_ASSERT(ergo(M0_IN(rq_type, (RQ_READ, RQ_WRITE)),
 				  lock_check(&long_lock, rq_type,
 					     request->fr_req->tr_owners.min,
 					     request->fr_req->tr_owners.max,
@@ -189,14 +189,14 @@ static int fom_rdwr_tick(struct c2_fom *fom)
 
 		switch (rq_type) {
 		case RQ_READ:
-			C2_UT_ASSERT(readers_check(&long_lock));
-			C2_UT_ASSERT(c2_long_is_read_locked(&long_lock, fom));
-			c2_long_read_unlock(&long_lock, &request->fr_link);
+			M0_UT_ASSERT(readers_check(&long_lock));
+			M0_UT_ASSERT(m0_long_is_read_locked(&long_lock, fom));
+			m0_long_read_unlock(&long_lock, &request->fr_link);
 			break;
 		case RQ_WRITE:
-			C2_UT_ASSERT(writer_check(&long_lock));
-			C2_UT_ASSERT(c2_long_is_write_locked(&long_lock, fom));
-			c2_long_write_unlock(&long_lock, &request->fr_link);
+			M0_UT_ASSERT(writer_check(&long_lock));
+			M0_UT_ASSERT(m0_long_is_write_locked(&long_lock, fom));
+			m0_long_write_unlock(&long_lock, &request->fr_link);
 			break;
 		case RQ_WAKE_UP:
 		default:
@@ -204,33 +204,33 @@ static int fom_rdwr_tick(struct c2_fom *fom)
 		}
 
 		/* notify, fom ready */
-		c2_chan_signal(&chan[rq_seqn]);
-		c2_fom_phase_set(fom, C2_FOM_PHASE_FINISH);
-		result = C2_FSO_WAIT;
+		m0_chan_signal(&chan[rq_seqn]);
+		m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
+		result = M0_FSO_WAIT;
         } else
-		C2_IMPOSSIBLE("");
+		M0_IMPOSSIBLE("");
 
 	return result;
 }
 
-static void reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fom *fom)
+static void reqh_fop_handle(struct m0_reqh *reqh,  struct m0_fom *fom)
 {
-	C2_PRE(reqh != NULL);
-	c2_rwlock_read_lock(&reqh->rh_rwlock);
-	C2_PRE(!reqh->rh_shutdown);
-	c2_fom_queue(fom, reqh);
-	c2_rwlock_read_unlock(&reqh->rh_rwlock);
+	M0_PRE(reqh != NULL);
+	m0_rwlock_read_lock(&reqh->rh_rwlock);
+	M0_PRE(!reqh->rh_shutdown);
+	m0_fom_queue(fom, reqh);
+	m0_rwlock_read_unlock(&reqh->rh_rwlock);
 }
 
-static void test_req_handle(struct c2_reqh *reqh,
+static void test_req_handle(struct m0_reqh *reqh,
 			    struct test_request *rq, int seqn)
 {
-	struct c2_fom   *fom;
+	struct m0_fom   *fom;
 	struct fom_rdwr *obj;
 	int rc;
 
 	rc = rdwr_fom_create(&fom);
-	C2_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 
 	obj = container_of(fom, struct fom_rdwr, fr_gen);
 	obj->fr_req  = rq;
@@ -289,18 +289,18 @@ static struct test_request test[3][RDWR_REQUEST_MAX] = {
 	},
 };
 
-static void rdwr_send_fop(struct c2_reqh **reqh, size_t reqh_nr)
+static void rdwr_send_fop(struct m0_reqh **reqh, size_t reqh_nr)
 {
 	int i;
 	int j;
 
 	for (j = 0; j < ARRAY_SIZE(test); ++j) {
-		c2_long_lock_init(&long_lock);
+		m0_long_lock_init(&long_lock);
 
 		for (i = 0; test[j][i].tr_type != RQ_LAST; ++i) {
-			c2_chan_init(&chan[i]);
-			c2_clink_init(&clink[i], NULL);
-			c2_clink_add(&chan[i], &clink[i]);
+			m0_chan_init(&chan[i]);
+			m0_clink_init(&clink[i], NULL);
+			m0_clink_add(&chan[i], &clink[i]);
 
 			/* d. Send FOMs from multiple request handlers, where
 			 * they can contend for the lock. 'reqh[i % reqh_nr]'
@@ -311,22 +311,22 @@ static void rdwr_send_fop(struct c2_reqh **reqh, size_t reqh_nr)
 			/* Wait until the fom completes the first state
 			 * transition. This is needed to achieve deterministic
 			 * lock acquisition order. */
-			c2_chan_wait(&clink[i]);
+			m0_chan_wait(&clink[i]);
 		}
 
 		/* Wait until all queued foms are processed. */
 		for (i = 0; test[j][i].tr_type != RQ_LAST; ++i) {
-			c2_chan_wait(&clink[i]);
+			m0_chan_wait(&clink[i]);
 		}
 
 		/* Cleanup */
 		for (i = 0; test[j][i].tr_type != RQ_LAST; ++i) {
-			c2_clink_del(&clink[i]);
-			c2_chan_fini(&chan[i]);
-			c2_clink_fini(&clink[i]);
+			m0_clink_del(&clink[i]);
+			m0_chan_fini(&chan[i]);
+			m0_clink_fini(&clink[i]);
 		}
 
-		c2_long_lock_fini(&long_lock);
+		m0_long_lock_fini(&long_lock);
 	}
 }
 

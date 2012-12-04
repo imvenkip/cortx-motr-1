@@ -19,10 +19,10 @@
 
 #include "conf/conf_fop.h"
 #include "conf/onwire_xc.h"
-#include "conf/confd_fom.h"   /* c2_confd_fom_create */
-#include "conf/confd.h"       /* c2_confd_stype */
+#include "conf/confd_fom.h"   /* m0_confd_fom_create */
+#include "conf/confd.h"       /* m0_confd_stype */
 #include "rpc/rpc_opcodes.h"
-#include "fop/fom_generic.h"  /* c2_generic_conf */
+#include "fop/fom_generic.h"  /* m0_generic_conf */
 
 /**
  * @addtogroup conf_fop
@@ -30,64 +30,64 @@
  * @{
  */
 
-struct c2_fop_type c2_conf_fetch_fopt;
-struct c2_fop_type c2_conf_fetch_resp_fopt;
+struct m0_fop_type m0_conf_fetch_fopt;
+struct m0_fop_type m0_conf_fetch_resp_fopt;
 
-struct c2_fop_type c2_conf_update_fopt;
-struct c2_fop_type c2_conf_update_resp_fopt;
+struct m0_fop_type m0_conf_update_fopt;
+struct m0_fop_type m0_conf_update_resp_fopt;
 
 #ifndef __KERNEL__
-static const struct c2_fom_type_ops confd_fom_ops = {
-	.fto_create = c2_confd_fom_create
+static const struct m0_fom_type_ops confd_fom_ops = {
+	.fto_create = m0_confd_fom_create
 };
 #endif
 
-C2_INTERNAL int c2_conf_fops_init(void)
+M0_INTERNAL int m0_conf_fops_init(void)
 {
-        return  C2_FOP_TYPE_INIT(&c2_conf_fetch_fopt,
+        return  M0_FOP_TYPE_INIT(&m0_conf_fetch_fopt,
 				 .name      = "Configuration fetch request",
-				 .opcode    = C2_CONF_FETCH_OPCODE,
-				 .xt        = c2_conf_fetch_xc,
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
+				 .opcode    = M0_CONF_FETCH_OPCODE,
+				 .xt        = m0_conf_fetch_xc,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 #ifndef __KERNEL__
 				 .fom_ops   = &confd_fom_ops,
-				 .svc_type  = &c2_confd_stype,
+				 .svc_type  = &m0_confd_stype,
 #endif
-				 .sm        = &c2_generic_conf) ?:
-		C2_FOP_TYPE_INIT(&c2_conf_fetch_resp_fopt,
+				 .sm        = &m0_generic_conf) ?:
+		M0_FOP_TYPE_INIT(&m0_conf_fetch_resp_fopt,
 				 .name      = "Configuration fetch response",
-				 .opcode    = C2_CONF_FETCH_RESP_OPCODE,
-				 .xt        = c2_conf_fetch_resp_xc,
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
+				 .opcode    = M0_CONF_FETCH_RESP_OPCODE,
+				 .xt        = m0_conf_fetch_resp_xc,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
 		/*
 		 * XXX Argh! Why bother defining update _stubs_?
 		 * Do we win anything? Is it worth the cost of maintenance?
 		 */
-		C2_FOP_TYPE_INIT(&c2_conf_update_fopt,
+		M0_FOP_TYPE_INIT(&m0_conf_update_fopt,
 				 .name      = "Configuration update request",
-				 .opcode    = C2_CONF_UPDATE_OPCODE,
-				 .xt        = c2_conf_update_xc,
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
-					      C2_RPC_ITEM_TYPE_MUTABO,
+				 .opcode    = M0_CONF_UPDATE_OPCODE,
+				 .xt        = m0_conf_update_xc,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+					      M0_RPC_ITEM_TYPE_MUTABO,
 #ifndef __KERNEL__
 				 .fom_ops   = &confd_fom_ops,
-				 .svc_type  = &c2_confd_stype,
+				 .svc_type  = &m0_confd_stype,
 #endif
-				 .sm        = &c2_generic_conf) ?:
-		C2_FOP_TYPE_INIT(&c2_conf_update_resp_fopt,
+				 .sm        = &m0_generic_conf) ?:
+		M0_FOP_TYPE_INIT(&m0_conf_update_resp_fopt,
 				 .name      = "Configuration update response",
-				 .opcode    = C2_CONF_UPDATE_RESP_OPCODE,
-				 .xt        = c2_conf_update_resp_xc,
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
+				 .opcode    = M0_CONF_UPDATE_RESP_OPCODE,
+				 .xt        = m0_conf_update_resp_xc,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 }
 
-C2_INTERNAL void c2_conf_fops_fini(void)
+M0_INTERNAL void m0_conf_fops_fini(void)
 {
-	c2_fop_type_fini(&c2_conf_fetch_fopt);
-	c2_fop_type_fini(&c2_conf_fetch_resp_fopt);
+	m0_fop_type_fini(&m0_conf_fetch_fopt);
+	m0_fop_type_fini(&m0_conf_fetch_resp_fopt);
 
-	c2_fop_type_fini(&c2_conf_update_fopt);
-	c2_fop_type_fini(&c2_conf_update_resp_fopt);
+	m0_fop_type_fini(&m0_conf_update_fopt);
+	m0_fop_type_fini(&m0_conf_update_resp_fopt);
 }
 
 /** @} conf_fop */

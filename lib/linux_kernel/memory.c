@@ -20,10 +20,10 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 
-#include "lib/cdefs.h"  /* C2_EXPORTED */
-#include "lib/assert.h"  /* C2_PRE */
+#include "lib/cdefs.h"  /* M0_EXPORTED */
+#include "lib/assert.h"  /* M0_PRE */
 #include "lib/memory.h"
-#include "lib/finject.h" /* C2_FI_ENABLED */
+#include "lib/finject.h" /* M0_FI_ENABLED */
 
 /**
    @addtogroup memory
@@ -33,49 +33,49 @@
    @{
 */
 
-C2_INTERNAL void *c2_alloc(size_t size)
+M0_INTERNAL void *m0_alloc(size_t size)
 {
-	if (C2_FI_ENABLED("fail_allocation"))
+	if (M0_FI_ENABLED("fail_allocation"))
 		return NULL;
 
 	return kzalloc(size, GFP_KERNEL);
 }
-C2_EXPORTED(c2_alloc);
+M0_EXPORTED(m0_alloc);
 
-C2_INTERNAL void *c2_alloc_aligned(size_t size, unsigned shift)
+M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
 {
 	/*
 	 * Currently it supports alignment of PAGE_SHIFT only.
 	 */
-	C2_PRE(shift == PAGE_SHIFT);
+	M0_PRE(shift == PAGE_SHIFT);
 	if (size == 0)
 		return NULL;
 	else
 		return alloc_pages_exact(size, GFP_KERNEL | __GFP_ZERO);
 }
-C2_EXPORTED(c2_alloc_aligned);
+M0_EXPORTED(m0_alloc_aligned);
 
-C2_INTERNAL void c2_free(void *data)
+M0_INTERNAL void m0_free(void *data)
 {
 	kfree(data);
 }
-C2_EXPORTED(c2_free);
+M0_EXPORTED(m0_free);
 
-C2_INTERNAL void c2_free_aligned(void *addr, size_t size, unsigned shift)
+M0_INTERNAL void m0_free_aligned(void *addr, size_t size, unsigned shift)
 {
-	C2_PRE(shift == PAGE_SHIFT);
-	C2_PRE(c2_addr_is_aligned(addr, shift));
+	M0_PRE(shift == PAGE_SHIFT);
+	M0_PRE(m0_addr_is_aligned(addr, shift));
 	free_pages_exact(addr, size);
 }
-C2_EXPORTED(c2_free_aligned);
+M0_EXPORTED(m0_free_aligned);
 
-C2_INTERNAL size_t c2_allocated(void)
+M0_INTERNAL size_t m0_allocated(void)
 {
 	return 0;
 }
-C2_EXPORTED(c2_allocated);
+M0_EXPORTED(m0_allocated);
 
-C2_INTERNAL int c2_pagesize_get(void)
+M0_INTERNAL int m0_pagesize_get(void)
 {
 	return PAGE_SIZE;
 }

@@ -28,36 +28,36 @@
 #include "net/buffer_pool.h"
 #include "net/lnet/lnet.h"
 
-struct c2_rpc_machine            machine;
-static uint32_t                  max_rpc_msg_size = C2_RPC_DEF_MAX_RPC_MSG_SIZE;
+struct m0_rpc_machine            machine;
+static uint32_t                  max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 static const char               *ep_addr = "0@lo:12345:34:2";
-static struct c2_cob_domain      cdom;
-static struct c2_net_domain      ndom;
-static struct c2_cob_domain_id   cdom_id = {
+static struct m0_cob_domain      cdom;
+static struct m0_net_domain      ndom;
+static struct m0_cob_domain_id   cdom_id = {
 	.id = 10000
 };
-static struct c2_dbenv           dbenv;
+static struct m0_dbenv           dbenv;
 static const char               *dbname = "db";
-static struct c2_net_buffer_pool buf_pool;
-static struct c2_net_xprt        *net_xprt = &c2_net_lnet_xprt;
+static struct m0_net_buffer_pool buf_pool;
+static struct m0_net_xprt        *net_xprt = &m0_net_lnet_xprt;
 
-static uint32_t tm_recv_queue_min_len = C2_NET_TM_RECV_QUEUE_DEF_LEN;
+static uint32_t tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 
 static void cob_domain_init(void)
 {
 	int rc;
 
-	rc = c2_dbenv_init(&dbenv, dbname, 0);
-	C2_ASSERT(rc == 0);
+	rc = m0_dbenv_init(&dbenv, dbname, 0);
+	M0_ASSERT(rc == 0);
 
-	rc = c2_cob_domain_init(&cdom, &dbenv, &cdom_id);
-	C2_ASSERT(rc == 0);
+	rc = m0_cob_domain_init(&cdom, &dbenv, &cdom_id);
+	M0_ASSERT(rc == 0);
 }
 
 static void cob_domain_fini(void)
 {
-	c2_cob_domain_fini(&cdom);
-	c2_dbenv_fini(&dbenv);
+	m0_cob_domain_fini(&cdom);
+	m0_dbenv_fini(&dbenv);
 }
 
 static int rpc_mc_ut_init(void)
@@ -67,23 +67,23 @@ static int rpc_mc_ut_init(void)
 	uint32_t tms_nr;
 
 	tms_nr = 1;
-	rc = c2_net_domain_init(&ndom, net_xprt);
-	C2_ASSERT(rc == 0);
+	rc = m0_net_domain_init(&ndom, net_xprt);
+	M0_ASSERT(rc == 0);
 
 	cob_domain_init();
 
-	bufs_nr = c2_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
-	rc = c2_rpc_net_buffer_pool_setup(&ndom, &buf_pool, bufs_nr, tms_nr);
-	C2_ASSERT(rc == 0);
+	bufs_nr = m0_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
+	rc = m0_rpc_net_buffer_pool_setup(&ndom, &buf_pool, bufs_nr, tms_nr);
+	M0_ASSERT(rc == 0);
 
 	return 0;
 }
 
 static int rpc_mc_ut_fini(void)
 {
-	c2_rpc_net_buffer_pool_cleanup(&buf_pool);
+	m0_rpc_net_buffer_pool_cleanup(&buf_pool);
 	cob_domain_fini();
-	c2_net_domain_fini(&ndom);
+	m0_net_domain_fini(&ndom);
 
 	return 0;
 }
@@ -96,15 +96,15 @@ static void rpc_mc_init_fini_test(void)
 	 * Test - rpc_machine_init & rpc_machine_fini for success case
 	 */
 
-	rc = c2_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
-			         &buf_pool, C2_BUFFER_ANY_COLOUR,
+	rc = m0_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
+			         &buf_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size,
 				 tm_recv_queue_min_len);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(machine.rm_reqh == NULL);
-	C2_UT_ASSERT(machine.rm_dom == &cdom);
-	C2_UT_ASSERT(machine.rm_stopping == false);
-	c2_rpc_machine_fini(&machine);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(machine.rm_reqh == NULL);
+	M0_UT_ASSERT(machine.rm_dom == &cdom);
+	M0_UT_ASSERT(machine.rm_stopping == false);
+	m0_rpc_machine_fini(&machine);
 }
 
 static void rpc_mc_init_fail_test(void)
@@ -113,48 +113,48 @@ static void rpc_mc_init_fail_test(void)
 
 	/*
 	 * Test - rpc_machine_init for failure cases
-	 *	Case 1 - c2_net_tm_init failed, should return -EINVAL
-	 *	Case 2 - c2_net_tm_start failed, should return -ENETUNREACH
+	 *	Case 1 - m0_net_tm_init failed, should return -EINVAL
+	 *	Case 2 - m0_net_tm_start failed, should return -ENETUNREACH
 	 *	Case 3 - root_session_cob_create failed, should return -EINVAL
-	 *	Case 4 - c2_root_session_cob_create failed, should ret -EINVAL
+	 *	Case 4 - m0_root_session_cob_create failed, should ret -EINVAL
 	 *		checks for db_tx_abort code path execution
 	 */
 
-	c2_fi_enable_once("c2_net_tm_init", "fake_error");
-	rc = c2_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
-				 &buf_pool, C2_BUFFER_ANY_COLOUR,
+	m0_fi_enable_once("m0_net_tm_init", "fake_error");
+	rc = m0_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
+				 &buf_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size,
 				 tm_recv_queue_min_len);
-	C2_UT_ASSERT(rc == -EINVAL);
+	M0_UT_ASSERT(rc == -EINVAL);
 
-	c2_fi_enable_once("c2_net_tm_start", "fake_error");
-	rc = c2_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
-				 &buf_pool, C2_BUFFER_ANY_COLOUR,
+	m0_fi_enable_once("m0_net_tm_start", "fake_error");
+	rc = m0_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
+				 &buf_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size,
 				 tm_recv_queue_min_len);
-	C2_UT_ASSERT(rc == -ENETUNREACH);
+	M0_UT_ASSERT(rc == -ENETUNREACH);
 	/**
 	  Root session cob as well as other mkfs related structres are now
 	  created on behalf of serivice startup if -p option is specified.
 	 */
 /*#ifndef __KERNEL__
-	c2_fi_enable_once("root_session_cob_create", "fake_error");
-	rc = c2_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
-				 &buf_pool, C2_BUFFER_ANY_COLOUR,
+	m0_fi_enable_once("root_session_cob_create", "fake_error");
+	rc = m0_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
+				 &buf_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size,
 				 tm_recv_queue_min_len);
-	C2_UT_ASSERT(rc == -EINVAL);
+	M0_UT_ASSERT(rc == -EINVAL);
 
-	c2_fi_enable_once("c2_rpc_root_session_cob_create", "fake_error");
-	rc = c2_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
-				 &buf_pool, C2_BUFFER_ANY_COLOUR,
+	m0_fi_enable_once("m0_rpc_root_session_cob_create", "fake_error");
+	rc = m0_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
+				 &buf_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size,
 				 tm_recv_queue_min_len);
-	C2_UT_ASSERT(rc == -EINVAL);
+	M0_UT_ASSERT(rc == -EINVAL);
 #endif*/
 }
 
-const struct c2_test_suite rpc_mc_ut = {
+const struct m0_test_suite rpc_mc_ut = {
 	.ts_name = "rpc_mc_ut",
 	.ts_init = rpc_mc_ut_init,
 	.ts_fini = rpc_mc_ut_fini,
@@ -164,7 +164,7 @@ const struct c2_test_suite rpc_mc_ut = {
 		{ NULL, NULL}
 	}
 };
-C2_EXPORTED(rpc_mc_ut);
+M0_EXPORTED(rpc_mc_ut);
 
 /*
  *  Local variables:

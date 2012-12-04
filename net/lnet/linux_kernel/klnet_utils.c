@@ -23,25 +23,25 @@
 
 #ifdef NLX_DEBUG
 
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LNET
-#include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LNET
+#include "lib/trace.h"        /* M0_LOG and M0_ENTRY */
 
 static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
 {
 	char buf[32];
 	LNetSnprintHandle(buf, sizeof buf, h);
-	C2_LOG(C2_DEBUG, "%s: %s (lnet_handle_any_t)\n", (char*)pre, (char*)buf);
+	M0_LOG(M0_DEBUG, "%s: %s (lnet_handle_any_t)\n", (char*)pre, (char*)buf);
 }
 
 static void nlx_kprint_lnet_process_id(const char *pre, lnet_process_id_t p)
 {
-	C2_LOG(C2_DEBUG, "%s: NID=%lu PID=%u\n", (char*)pre,
+	M0_LOG(M0_DEBUG, "%s: NID=%lu PID=%u\n", (char*)pre,
 	       (long unsigned) p.nid, (unsigned) p.pid);
 }
 
 static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
 {
-	C2_LOG(C2_DEBUG, "%s: %p (lnet_md_t)\n"
+	M0_LOG(M0_DEBUG, "%s: %p (lnet_md_t)\n"
 		"\t    start: %p\n"
 		"\t  options: %x\n"
 		"\t   length: %d\n"
@@ -56,7 +56,7 @@ static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
 	{
 		int i;
 		for(i = 0; i < kcb->kb_kiov_len; ++i) {
-			C2_LOG(C2_DEBUG, "\t[%d] %p %d %d\n", i,
+			M0_LOG(M0_DEBUG, "\t[%d] %p %d %d\n", i,
 			       kcb->kb_kiov[i].kiov_page,
 			       kcb->kb_kiov[i].kiov_len,
 			       kcb->kb_kiov[i].kiov_offset);
@@ -71,7 +71,7 @@ static const char *nlx_kcore_lnet_event_type_to_string(lnet_event_kind_t et)
 		"GET", "PUT", "REPLY", "ACK", "SEND", "UNLINK", "<Unknown>"
 	};
 	const char *name;
-	C2_CASSERT(ARRAY_SIZE(lnet_event_s) == LNET_EVENT_UNLINK + 2);
+	M0_CASSERT(ARRAY_SIZE(lnet_event_s) == LNET_EVENT_UNLINK + 2);
 	if (et >= 0 && et <= LNET_EVENT_UNLINK)
 		name = lnet_event_s[et];
 	else
@@ -83,16 +83,16 @@ static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
 {
 
 	if (e == NULL) {
-		C2_LOG(C2_DEBUG, "%s: <null> (lnet_event_t)\n", (char*) pre);
+		M0_LOG(M0_DEBUG, "%s: <null> (lnet_event_t)\n", (char*) pre);
 		return;
 	}
 
-	C2_LOG(C2_DEBUG, "%s: %p (lnet_event_t)\n", (char*) pre, e);
+	M0_LOG(M0_DEBUG, "%s: %p (lnet_event_t)\n", (char*) pre, e);
 
 	nlx_kprint_lnet_process_id("\t   target:", e->target);
 	nlx_kprint_lnet_process_id("\tinitiator:", e->target);
 
-	C2_LOG(C2_DEBUG,
+	M0_LOG(M0_DEBUG,
 	       "\t    sender: %ld\n"
 	       "\t      type: %d %s\n"
 	       "\t  pt_index: %u\n"
@@ -106,7 +106,7 @@ static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
 
 	nlx_kprint_lnet_handle("\t md_handle", e->md_handle);
 
-	C2_LOG(C2_DEBUG,
+	M0_LOG(M0_DEBUG,
 	       "\t  hdr_data: %lx\n"
 	       "\t    status: %d\n"
 	       "\t  unlinked: %d\n"
@@ -119,10 +119,10 @@ static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
 static void nlx_kprint_kcore_tm(const char *pre,
 				const struct nlx_kcore_transfer_mc *ktm)
 {
-	C2_LOG(C2_DEBUG, "%s: %p (nlx_kcore_transfer_mc)\n", (char*) pre, ktm);
+	M0_LOG(M0_DEBUG, "%s: %p (nlx_kcore_transfer_mc)\n", (char*) pre, ktm);
 	if (ktm == NULL)
 		return;
-	C2_LOG(C2_DEBUG, "\t      magic: %lu\n", (unsigned long) ktm->ktm_magic);
+	M0_LOG(M0_DEBUG, "\t      magic: %lu\n", (unsigned long) ktm->ktm_magic);
 	nlx_kprint_lnet_handle("\t        eqh", ktm->ktm_eqh);
 }
 #endif
@@ -141,8 +141,8 @@ static void nlx_kprint_kcore_tm(const char *pre,
 static inline uint64_t nlx_kcore_hdr_data_encode_raw(uint32_t tmid,
 						     uint32_t portal)
 {
-	return ((uint64_t) tmid << C2_NET_LNET_TMID_SHIFT) |
-		(portal & C2_NET_LNET_PORTAL_MASK);
+	return ((uint64_t) tmid << M0_NET_LNET_TMID_SHIFT) |
+		(portal & M0_NET_LNET_PORTAL_MASK);
 }
 
 /**
@@ -154,7 +154,7 @@ static uint64_t nlx_kcore_hdr_data_encode(struct nlx_kcore_transfer_mc *kctm)
 {
 	struct nlx_core_ep_addr *cepa;
 
-	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	M0_PRE(nlx_kcore_tm_invariant(kctm));
 	cepa = &kctm->ktm_addr;
 	return nlx_kcore_hdr_data_encode_raw(cepa->cepa_tmid,cepa->cepa_portal);
 }
@@ -171,8 +171,8 @@ static inline void nlx_kcore_hdr_data_decode(uint64_t hdr_data,
 					     uint32_t *portal,
 					     uint32_t *tmid)
 {
-	*portal = (uint32_t) (hdr_data & C2_NET_LNET_PORTAL_MASK);
-	*tmid = hdr_data >> C2_NET_LNET_TMID_SHIFT;
+	*portal = (uint32_t) (hdr_data & M0_NET_LNET_PORTAL_MASK);
+	*tmid = hdr_data >> M0_NET_LNET_TMID_SHIFT;
 	return;
 }
 
@@ -203,23 +203,23 @@ static void nlx_kcore_umd_init(struct nlx_kcore_transfer_mc *kctm,
 			       bool isLNetGetOp,
 			       lnet_md_t *umd)
 {
-	C2_PRE(nlx_kcore_tm_invariant(kctm));
-	C2_PRE(nlx_core_buffer_invariant(lcbuf));
-	C2_PRE(nlx_kcore_buffer_invariant(kcb));
-	C2_PRE(threshold > 0);
-	C2_PRE(kcb->kb_kiov_len > 0);
-	C2_PRE(max_size >= 0);
-	C2_PRE(options == 0 ||
+	M0_PRE(nlx_kcore_tm_invariant(kctm));
+	M0_PRE(nlx_core_buffer_invariant(lcbuf));
+	M0_PRE(nlx_kcore_buffer_invariant(kcb));
+	M0_PRE(threshold > 0);
+	M0_PRE(kcb->kb_kiov_len > 0);
+	M0_PRE(max_size >= 0);
+	M0_PRE(options == 0 ||
 	       options == LNET_MD_OP_PUT ||
 	       options == LNET_MD_OP_GET);
 
-	C2_SET0(umd);
+	M0_SET0(umd);
 	umd->options = options;
 	umd->start = kcb->kb_kiov;
 	umd->options |= LNET_MD_KIOV;
 	umd->length = kcb->kb_kiov_len;
 	kcb->kb_qtype = lcbuf->cb_qtype;
-	kcb->kb_add_time = c2_time_now();
+	kcb->kb_add_time = m0_time_now();
 	if (isLNetGetOp) {
 		umd->threshold = 2;
 		kcb->kb_ooo_reply   = false;
@@ -236,7 +236,7 @@ static void nlx_kcore_umd_init(struct nlx_kcore_transfer_mc *kctm,
 	umd->eq_handle = kctm->ktm_eqh;
 
 	NLXDBG(kctm, 2, nlx_kprint_lnet_md("umd init", umd));
-	C2_POST(ergo(isLNetGetOp, umd->threshold == 2 && !kcb->kb_ooo_reply));
+	M0_POST(ergo(isLNetGetOp, umd->threshold == 2 && !kcb->kb_ooo_reply));
 }
 
 /**
@@ -256,17 +256,17 @@ static void nlx_kcore_umd_init(struct nlx_kcore_transfer_mc *kctm,
 static void nlx_kcore_kiov_adjust_length(struct nlx_kcore_transfer_mc *ktm,
 					 struct nlx_kcore_buffer *kcb,
 					 lnet_md_t *umd,
-					 c2_bcount_t bytes)
+					 m0_bcount_t bytes)
 {
 	size_t num;
 	unsigned last;
 
-	C2_PRE(umd->start != NULL);
-	C2_PRE(umd->options & LNET_MD_KIOV);
-	C2_PRE(umd->length > 0);
-	C2_PRE(nlx_kcore_tm_invariant(ktm));
-	C2_PRE(nlx_kcore_buffer_invariant(kcb));
-	C2_PRE(umd->start == kcb->kb_kiov);
+	M0_PRE(umd->start != NULL);
+	M0_PRE(umd->options & LNET_MD_KIOV);
+	M0_PRE(umd->length > 0);
+	M0_PRE(nlx_kcore_tm_invariant(ktm));
+	M0_PRE(nlx_kcore_buffer_invariant(kcb));
+	M0_PRE(umd->start == kcb->kb_kiov);
 
 	num = nlx_kcore_num_kiov_entries_for_bytes((lnet_kiov_t *) umd->start,
 						   umd->length, bytes, &last);
@@ -274,12 +274,12 @@ static void nlx_kcore_kiov_adjust_length(struct nlx_kcore_transfer_mc *ktm,
 		ktm, kcb, (unsigned long) bytes,
 		(unsigned long) num, (unsigned long) umd->length, last);
 	kcb->kb_kiov_adj_idx = num - 1;
-	C2_POST(kcb->kb_kiov_adj_idx >= 0);
-	C2_POST(kcb->kb_kiov_adj_idx < kcb->kb_kiov_len);
+	M0_POST(kcb->kb_kiov_adj_idx >= 0);
+	M0_POST(kcb->kb_kiov_adj_idx < kcb->kb_kiov_len);
 	kcb->kb_kiov_orig_len = kcb->kb_kiov[kcb->kb_kiov_adj_idx].kiov_len;
 	kcb->kb_kiov[kcb->kb_kiov_adj_idx].kiov_len = last;
 	umd->length = num;
-	C2_POST(nlx_kcore_kiov_invariant(umd->start, umd->length));
+	M0_POST(nlx_kcore_kiov_invariant(umd->start, umd->length));
 	return;
 }
 
@@ -293,11 +293,11 @@ static void nlx_kcore_kiov_adjust_length(struct nlx_kcore_transfer_mc *ktm,
 */
 static void nlx_kcore_kiov_restore_length(struct nlx_kcore_buffer *kcb)
 {
-	C2_PRE(nlx_kcore_buffer_invariant(kcb));
-	C2_PRE(kcb->kb_kiov_adj_idx >= 0);
-	C2_PRE(kcb->kb_kiov_adj_idx < kcb->kb_kiov_len);
+	M0_PRE(nlx_kcore_buffer_invariant(kcb));
+	M0_PRE(kcb->kb_kiov_adj_idx >= 0);
+	M0_PRE(kcb->kb_kiov_adj_idx < kcb->kb_kiov_len);
 	kcb->kb_kiov[kcb->kb_kiov_adj_idx].kiov_len = kcb->kb_kiov_orig_len;
-	C2_POST(nlx_kcore_kiov_invariant(kcb->kb_kiov, kcb->kb_kiov_len));
+	M0_POST(nlx_kcore_kiov_invariant(kcb->kb_kiov, kcb->kb_kiov_len));
 	return;
 }
 
@@ -325,10 +325,10 @@ static int nlx_kcore_LNetMDAttach(struct nlx_kcore_transfer_mc *kctm,
 	lnet_process_id_t id;
 	int rc;
 
-	C2_PRE(nlx_kcore_tm_invariant(kctm));
-	C2_PRE(nlx_core_buffer_invariant(lcbuf));
-	C2_PRE(nlx_kcore_buffer_invariant(kcb));
-	C2_PRE(lcbuf->cb_match_bits != 0);
+	M0_PRE(nlx_kcore_tm_invariant(kctm));
+	M0_PRE(nlx_core_buffer_invariant(lcbuf));
+	M0_PRE(nlx_kcore_buffer_invariant(kcb));
+	M0_PRE(lcbuf->cb_match_bits != 0);
 
 	id.nid = LNET_NID_ANY;
 	id.pid = LNET_PID_ANY;
@@ -339,7 +339,7 @@ static int nlx_kcore_LNetMDAttach(struct nlx_kcore_transfer_mc *kctm,
 		NLXDBGP(kctm, 1,"LNetMEAttach: %d\n", rc);
 		return rc;
 	}
-	C2_POST(!LNetHandleIsInvalid(meh));
+	M0_POST(!LNetHandleIsInvalid(meh));
 	NLXDBG(kctm, 2, nlx_print_core_buffer("nlx_kcore_LNetMDAttach", lcbuf));
 
 	kcb->kb_ktm = kctm; /* loopback can deliver in the LNetPut call */
@@ -350,15 +350,15 @@ static int nlx_kcore_LNetMDAttach(struct nlx_kcore_transfer_mc *kctm,
 		int trc = LNetMEUnlink(meh);
 		NLXDBGP(kctm, 1, "LNetMDAttach: %d\n", rc);
 		NLXDBGP(kctm, 1, "LNetMEUnlink: %d\n", trc);
-		C2_ASSERT(trc == 0);
+		M0_ASSERT(trc == 0);
 		LNetInvalidateHandle(&kcb->kb_mdh);
 		kcb->kb_ktm = NULL;
 	}
 
 	/* Cannot make these assertions here as delivery is asynchronous, and
 	   could have completed before we got here.
-	   C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
-	   C2_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
+	   M0_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
+	   M0_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
 	*/
 	return rc;
 }
@@ -377,8 +377,8 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_kcore_transfer_mc *kctm,
 {
 	int rc;
 
-	C2_PRE(nlx_kcore_tm_invariant(kctm));
-	C2_PRE(nlx_kcore_buffer_invariant(kcb));
+	M0_PRE(nlx_kcore_tm_invariant(kctm));
+	M0_PRE(nlx_kcore_buffer_invariant(kcb));
 	rc = LNetMDUnlink(kcb->kb_mdh);
 	NLXDBG(kctm, 1, NLXP("LNetMDUnlink: %d\n", rc));
 	if (rc != 0)
@@ -410,10 +410,10 @@ static int nlx_kcore_LNetPut(struct nlx_kcore_transfer_mc *kctm,
 	lnet_process_id_t target;
 	int rc;
 
-	C2_PRE(nlx_kcore_tm_invariant(kctm));
-	C2_PRE(nlx_core_buffer_invariant(lcbuf));
-	C2_PRE(nlx_kcore_buffer_invariant(kcb));
-	C2_PRE(lcbuf->cb_match_bits != 0);
+	M0_PRE(nlx_kcore_tm_invariant(kctm));
+	M0_PRE(nlx_core_buffer_invariant(lcbuf));
+	M0_PRE(nlx_kcore_buffer_invariant(kcb));
+	M0_PRE(lcbuf->cb_match_bits != 0);
 
 	rc = LNetMDBind(*umd, LNET_UNLINK, &kcb->kb_mdh);
 	if (rc != 0) {
@@ -434,15 +434,15 @@ static int nlx_kcore_LNetPut(struct nlx_kcore_transfer_mc *kctm,
 		int trc = LNetMDUnlink(kcb->kb_mdh);
 		NLXDBGP(kctm, 1, "LNetPut: %d\n", rc);
 		NLXDBGP(kctm, 1, "LNetMDUnlink: %d\n", trc);
-		C2_ASSERT(trc == 0);
+		M0_ASSERT(trc == 0);
 		LNetInvalidateHandle(&kcb->kb_mdh);
 		kcb->kb_ktm = NULL;
 	}
 
 	/* Cannot make these assertions here, because loopback can deliver
 	   before we get here.  Leaving the assertions in the comment.
-	   C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
-	   C2_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
+	   M0_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
+	   M0_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
 	*/
 	return rc;
 }
@@ -472,12 +472,12 @@ static int nlx_kcore_LNetGet(struct nlx_kcore_transfer_mc *kctm,
 	lnet_process_id_t target;
 	int rc;
 
-	C2_PRE(nlx_kcore_tm_invariant(kctm));
-	C2_PRE(nlx_core_buffer_invariant(lcbuf));
-	C2_PRE(nlx_kcore_buffer_invariant(kcb));
-	C2_PRE(lcbuf->cb_match_bits != 0);
+	M0_PRE(nlx_kcore_tm_invariant(kctm));
+	M0_PRE(nlx_core_buffer_invariant(lcbuf));
+	M0_PRE(nlx_kcore_buffer_invariant(kcb));
+	M0_PRE(lcbuf->cb_match_bits != 0);
 
-	C2_PRE(umd->threshold == 2);
+	M0_PRE(umd->threshold == 2);
 
 	rc = LNetMDBind(*umd, LNET_UNLINK, &kcb->kb_mdh);
 	if (rc != 0) {
@@ -497,15 +497,15 @@ static int nlx_kcore_LNetGet(struct nlx_kcore_transfer_mc *kctm,
 		int trc = LNetMDUnlink(kcb->kb_mdh);
 		NLXDBGP(kctm, 1, "LNetGet: %d\n", rc);
 		NLXDBGP(kctm, 1, "LNetMDUnlink: %d\n", trc);
-		C2_ASSERT(trc == 0);
+		M0_ASSERT(trc == 0);
 		LNetInvalidateHandle(&kcb->kb_mdh);
 		kcb->kb_ktm = NULL;
 	}
 
 	/* Cannot make these assertions here, because loopback can deliver
 	   before we get here.  Leaving the assertions in the comment.
-	   C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
-	   C2_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
+	   M0_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
+	   M0_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
 	*/
 	return rc;
 }
@@ -525,12 +525,12 @@ static struct nlx_core_domain *nlx_kcore_core_domain_map(
 	struct nlx_core_kmem_loc *loc;
 	struct nlx_core_domain *ret;
 
-	C2_PRE(nlx_kcore_domain_invariant(kd));
+	M0_PRE(nlx_kcore_domain_invariant(kd));
 	loc = &kd->kd_cd_loc;
-	C2_PRE(!nlx_core_kmem_loc_is_empty(loc));
+	M0_PRE(!nlx_core_kmem_loc_is_empty(loc));
 	ptr = kmap(loc->kl_page);
 	ret = (struct nlx_core_domain *) (ptr + loc->kl_offset);
-	C2_POST(ret != NULL);
+	M0_POST(ret != NULL);
 	return ret;
 }
 
@@ -541,7 +541,7 @@ static struct nlx_core_domain *nlx_kcore_core_domain_map(
  */
 static void nlx_kcore_core_domain_unmap(struct nlx_kcore_domain *kd)
 {
-	C2_PRE(nlx_kcore_domain_invariant(kd));
+	M0_PRE(nlx_kcore_domain_invariant(kd));
 	kunmap(kd->kd_cd_loc.kl_page);
 }
 
@@ -560,11 +560,11 @@ static struct nlx_core_buffer *nlx_kcore_core_buffer_map(
 	struct nlx_core_kmem_loc *loc;
 	struct nlx_core_buffer *ret;
 
-	C2_PRE(nlx_kcore_buffer_invariant(kb));
+	M0_PRE(nlx_kcore_buffer_invariant(kb));
 	loc = &kb->kb_cb_loc;
 	ptr = kmap(loc->kl_page);
 	ret = (struct nlx_core_buffer *) (ptr + loc->kl_offset);
-	C2_POST(ret != NULL);
+	M0_POST(ret != NULL);
 	return ret;
 }
 
@@ -575,7 +575,7 @@ static struct nlx_core_buffer *nlx_kcore_core_buffer_map(
  */
 static void nlx_kcore_core_buffer_unmap(struct nlx_kcore_buffer *kb)
 {
-	C2_PRE(nlx_core_kmem_loc_invariant(&kb->kb_cb_loc));
+	M0_PRE(nlx_core_kmem_loc_invariant(&kb->kb_cb_loc));
 	kunmap(kb->kb_cb_loc.kl_page);
 }
 
@@ -594,11 +594,11 @@ static struct nlx_core_buffer_event *nlx_kcore_core_bev_map(
 	struct nlx_core_kmem_loc *loc;
 	struct nlx_core_buffer_event *ret;
 
-	C2_PRE(nlx_kcore_buffer_event_invariant(kbe));
+	M0_PRE(nlx_kcore_buffer_event_invariant(kbe));
 	loc = &kbe->kbe_bev_loc;
 	ptr = kmap(loc->kl_page);
 	ret = (struct nlx_core_buffer_event *) (ptr + loc->kl_offset);
-	C2_POST(ret != NULL);
+	M0_POST(ret != NULL);
 	return ret;
 }
 
@@ -609,7 +609,7 @@ static struct nlx_core_buffer_event *nlx_kcore_core_bev_map(
  */
 static void nlx_kcore_core_bev_unmap(struct nlx_kcore_buffer_event *kbe)
 {
-	C2_PRE(nlx_core_kmem_loc_invariant(&kbe->kbe_bev_loc));
+	M0_PRE(nlx_core_kmem_loc_invariant(&kbe->kbe_bev_loc));
 	kunmap(kbe->kbe_bev_loc.kl_page);
 }
 
@@ -628,11 +628,11 @@ static struct nlx_core_transfer_mc *nlx_kcore_core_tm_map(
 	struct nlx_core_kmem_loc *loc;
 	struct nlx_core_transfer_mc *ret;
 
-	C2_PRE(nlx_kcore_tm_invariant(ktm));
+	M0_PRE(nlx_kcore_tm_invariant(ktm));
 	loc = &ktm->ktm_ctm_loc;
 	ptr = kmap(loc->kl_page);
 	ret = (struct nlx_core_transfer_mc *) (ptr + loc->kl_offset);
-	C2_POST(ret != NULL);
+	M0_POST(ret != NULL);
 	return ret;
 }
 
@@ -643,7 +643,7 @@ static struct nlx_core_transfer_mc *nlx_kcore_core_tm_map(
  */
 static void nlx_kcore_core_tm_unmap(struct nlx_kcore_transfer_mc *ktm)
 {
-	C2_PRE(nlx_core_kmem_loc_invariant(&ktm->ktm_ctm_loc));
+	M0_PRE(nlx_core_kmem_loc_invariant(&ktm->ktm_ctm_loc));
 	kunmap(ktm->ktm_ctm_loc.kl_page);
 }
 
@@ -662,11 +662,11 @@ static struct nlx_core_transfer_mc *nlx_kcore_core_tm_map_atomic(
 	struct nlx_core_kmem_loc *loc;
 	struct nlx_core_transfer_mc *ret;
 
-	C2_PRE(nlx_kcore_tm_invariant(ktm));
+	M0_PRE(nlx_kcore_tm_invariant(ktm));
 	loc = &ktm->ktm_ctm_loc;
 	ptr = kmap_atomic(loc->kl_page, KM_USER0);
 	ret = (struct nlx_core_transfer_mc *) (ptr + loc->kl_offset);
-	C2_POST(ret != NULL);
+	M0_POST(ret != NULL);
 	return ret;
 }
 
@@ -681,7 +681,7 @@ static struct nlx_core_transfer_mc *nlx_kcore_core_tm_map_atomic(
  */
 static void nlx_kcore_core_tm_unmap_atomic(struct nlx_core_transfer_mc *ctm)
 {
-	C2_PRE(nlx_core_tm_invariant(ctm));
+	M0_PRE(nlx_core_tm_invariant(ctm));
 	kunmap_atomic(ctm, KM_USER0);
 }
 

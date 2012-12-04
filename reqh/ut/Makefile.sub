@@ -1,4 +1,4 @@
-ut_libcolibri_ut_la_SOURCES += reqh/ut/reqh_fom_ut.c \
+ut_libmero_ut_la_SOURCES += reqh/ut/reqh_fom_ut.c \
                                reqh/ut/io_fop.c \
                                reqh/ut/io_fop.h \
                                reqh/ut/io_fop_ff.c

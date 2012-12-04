@@ -22,15 +22,15 @@
 sequence {
 	u32 f_count;
 	u64 f_data
-} c2_fop_ping_arr;
+} m0_fop_ping_arr;
 
 record {
-	c2_fop_ping_arr fp_arr
-} c2_fop_ping;
+	m0_fop_ping_arr fp_arr
+} m0_fop_ping;
 
 record {
 	u32 fpr_rc
-} c2_fop_ping_rep;
+} m0_fop_ping_rep;
 
 /*
  *  Local variables:

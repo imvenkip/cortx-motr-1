@@ -18,30 +18,30 @@
  * Original creation date: 19-Sep-2012
  */
 #pragma once
-#ifndef __COLIBRI_CONF_BUF_EXT_H__
-#define __COLIBRI_CONF_BUF_EXT_H__
+#ifndef __MERO_CONF_BUF_EXT_H__
+#define __MERO_CONF_BUF_EXT_H__
 
 #include "lib/types.h" /* bool */
 
 /**
- * @defgroup buf_ext c2_buf extensions
+ * @defgroup buf_ext m0_buf extensions
  *
  * @see @ref buf
  *
  * @{
  */
 
-struct c2_buf;
+struct m0_buf;
 
 /** Does the buffer point at anything? */
-C2_INTERNAL bool c2_buf_is_aimed(const struct c2_buf *buf);
+M0_INTERNAL bool m0_buf_is_aimed(const struct m0_buf *buf);
 
 /**
  * Do `buf' and `str' contain equal sequences of non-'\0' characters?
  *
- * @pre  c2_buf_is_aimed(buf) && str != NULL
+ * @pre  m0_buf_is_aimed(buf) && str != NULL
  */
-C2_INTERNAL bool c2_buf_streq(const struct c2_buf *buf, const char *str);
+M0_INTERNAL bool m0_buf_streq(const struct m0_buf *buf, const char *str);
 
 /**
  * Duplicates a string pointed to by buf->b_addr.
@@ -49,9 +49,9 @@ C2_INTERNAL bool c2_buf_streq(const struct c2_buf *buf, const char *str);
  * Maximum length of the resulting string, including null character,
  * is buf->b_nob.
  *
- * @pre  c2_buf_is_aimed(buf)
+ * @pre  m0_buf_is_aimed(buf)
  */
-C2_INTERNAL char *c2_buf_strdup(const struct c2_buf *buf);
+M0_INTERNAL char *m0_buf_strdup(const struct m0_buf *buf);
 
 /** @} buf_ext */
-#endif /* __COLIBRI_CONF_BUF_EXT_H__ */
+#endif /* __MERO_CONF_BUF_EXT_H__ */

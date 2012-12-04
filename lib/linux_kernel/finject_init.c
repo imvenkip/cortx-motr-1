@@ -24,8 +24,8 @@
 #include <linux/random.h>  /* random32 */
 #include <linux/sched.h>   /* current */
 
-#include "lib/mutex.h"     /* c2_mutex */
-#include "lib/time.h"      /* c2_time_now */
+#include "lib/mutex.h"     /* m0_mutex */
+#include "lib/time.h"      /* m0_time_now */
 #include "lib/finject.h"
 #include "lib/finject_internal.h"
 
@@ -36,23 +36,23 @@ enum {
 };
 
 
-C2_INTERNAL int c2_fi_init(void)
+M0_INTERNAL int m0_fi_init(void)
 {
-	c2_mutex_init(&fi_states_mutex);
+	m0_mutex_init(&fi_states_mutex);
 	fi_states_init();
 	return 0;
 }
 
-C2_INTERNAL void c2_fi_fini(void)
+M0_INTERNAL void m0_fi_fini(void)
 {
 	fi_states_fini();
-	c2_mutex_fini(&fi_states_mutex);
+	m0_mutex_fini(&fi_states_mutex);
 }
 
 /**
  * Returns random value in range [0..FI_RAND_PROB_SCALE]
  */
-C2_INTERNAL uint32_t fi_random(void)
+M0_INTERNAL uint32_t fi_random(void)
 {
 	u32 rnd     = random32();
 	u32 roundup = rnd % FI_RAND_SCALE_UNIT ? 1 : 0;
@@ -62,12 +62,12 @@ C2_INTERNAL uint32_t fi_random(void)
 
 #else /* ENABLE_FAULT_INJECTION */
 
-C2_INTERNAL int c2_fi_init(void)
+M0_INTERNAL int m0_fi_init(void)
 {
 	return 0;
 }
 
-C2_INTERNAL void c2_fi_fini(void)
+M0_INTERNAL void m0_fi_fini(void)
 {
 }
 

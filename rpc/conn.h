@@ -20,23 +20,23 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_CONN_H__
-#define __COLIBRI_RPC_CONN_H__
+#ifndef __MERO_RPC_CONN_H__
+#define __MERO_RPC_CONN_H__
 
 #include "lib/tlist.h"
-#include "lib/time.h"          /* c2_time_t */
+#include "lib/time.h"          /* m0_time_t */
 #include "sm/sm.h"
-#include "rpc/rpc_onwire.h"    /* c2_rpc_sender_uuid */
+#include "rpc/rpc_onwire.h"    /* m0_rpc_sender_uuid */
 
 /* Imports */
-struct c2_rpc_machine;
-struct c2_rpc_service;
-struct c2_rpc_chan;
-struct c2_cob;
-struct c2_net_end_point;
+struct m0_rpc_machine;
+struct m0_rpc_service;
+struct m0_rpc_chan;
+struct m0_cob;
+struct m0_net_end_point;
 
 /* Exports */
-struct c2_rpc_conn;
+struct m0_rpc_conn;
 
 /**
    @addtogroup rpc_session
@@ -44,56 +44,56 @@ struct c2_rpc_conn;
    @{
  */
 
-enum c2_rpc_conn_state {
+enum m0_rpc_conn_state {
 	/**
 	  All the fields of conn are initialised locally. But the connection
 	  is not yet established.
 	 */
-	C2_RPC_CONN_INITIALISED,
+	M0_RPC_CONN_INITIALISED,
 
 	/**
 	   When sender is waiting for receiver reply to get its sender ID it is
 	   in CONNECTING state.
 	 */
-	C2_RPC_CONN_CONNECTING,
+	M0_RPC_CONN_CONNECTING,
 
 	/**
 	   When initialization is successfull connection enters in ACTIVE state.
 	   It stays in this state for until termination.
 	 */
-	C2_RPC_CONN_ACTIVE,
+	M0_RPC_CONN_ACTIVE,
 
 	/**
 	   If conn init or terminate fails or time-outs connection enters in
-	   FAILED state. c2_rpc_conn::c_sm::sm_rc contains reason for failure.
+	   FAILED state. m0_rpc_conn::c_sm::sm_rc contains reason for failure.
 	*/
-	C2_RPC_CONN_FAILED,
+	M0_RPC_CONN_FAILED,
 
 	/**
-	   When sender calls c2_rpc_conn_terminate() on c2_rpc_conn object
+	   When sender calls m0_rpc_conn_terminate() on m0_rpc_conn object
 	   a FOP is sent to the receiver side to terminate the rpc connection.
-	   Until reply is received, c2_rpc_conn object stays in TERMINATING
+	   Until reply is received, m0_rpc_conn object stays in TERMINATING
 	   state
 	 */
-	C2_RPC_CONN_TERMINATING,
+	M0_RPC_CONN_TERMINATING,
 
 	/**
 	   When sender receives reply for conn_terminate FOP and reply FOP
 	   specifies the conn_terminate operation is successful then
-	   the object of c2_rpc_conn enters in TERMINATED state
+	   the object of m0_rpc_conn enters in TERMINATED state
 	 */
-	C2_RPC_CONN_TERMINATED,
+	M0_RPC_CONN_TERMINATED,
 
-	/** After c2_rpc_conn_fini() the RPC connection instance is moved to
+	/** After m0_rpc_conn_fini() the RPC connection instance is moved to
 	    FINALISED state.
 	 */
-	C2_RPC_CONN_FINALISED,
+	M0_RPC_CONN_FINALISED,
 };
 
 /**
    RPC Connection flags
  */
-enum c2_rpc_conn_flags {
+enum m0_rpc_conn_flags {
 	RCF_SENDER_END = 1 << 0,
 	RCF_RECV_END   = 1 << 1
 };
@@ -114,16 +114,16 @@ enum c2_rpc_conn_flags {
    UUID being larger in size compared to SenderID, it is efficient to use
    sender id to locate rpc connection object.
 
-   c2_rpc_machine maintains two lists of c2_rpc_conn
-   - rm_outgoing_conns: list of c2_rpc_conn objects for which this node is
+   m0_rpc_machine maintains two lists of m0_rpc_conn
+   - rm_outgoing_conns: list of m0_rpc_conn objects for which this node is
      sender
-   - rm_incoming_conns: list of c2_rpc_conn object for which this node is
+   - rm_incoming_conns: list of m0_rpc_conn object for which this node is
      receiver
 
-   Instance of c2_rpc_conn stores a list of all sessions currently active with
+   Instance of m0_rpc_conn stores a list of all sessions currently active with
    the service.
 
-   At the time of creation of a c2_rpc_conn, a "special" session with
+   At the time of creation of a m0_rpc_conn, a "special" session with
    SESSION_ID_0 is also created. It is special in the sense that it is
    "hand-made" and there is no need to communicate to receiver in order to
    create this session. Receiver assumes that there always exists a session 0
@@ -137,48 +137,48 @@ enum c2_rpc_conn_flags {
    <B> State transition diagram: </B>
 
    @verbatim
-                                    | c2_rpc_conn_init()
-   c2_rpc_conn_establish() != 0     V
+                                    | m0_rpc_conn_init()
+   m0_rpc_conn_establish() != 0     V
          +---------------------INITIALISED
          |                          |
-         |                          |  c2_rpc_conn_establish()
+         |                          |  m0_rpc_conn_establish()
          |                          |
          |                          V
          +---------------------- CONNECTING
          | time-out ||              |
-         |     reply.rc != 0        | c2_rpc_conn_establish_reply_received() &&
+         |     reply.rc != 0        | m0_rpc_conn_establish_reply_received() &&
          |                          |    reply.rc == 0
          V                          |
        FAILED                       |
          |  ^                       V
          |  |                    ACTIVE
          |  |                       |
-         |  |                       | c2_rpc_conn_terminate()
+         |  |                       | m0_rpc_conn_terminate()
          |  | failed || timeout     |
          |  |                       V
          |  +-------------------TERMINATING
 	 |                          |
-         |                          | c2_rpc_conn_terminate_reply_received() &&
+         |                          | m0_rpc_conn_terminate_reply_received() &&
          |                          |              rc== 0
 	 |                          V
 	 |			TERMINATED
 	 |                          |
-	 |c2_rpc_conn_fini()        V  c2_rpc_conn_fini()
+	 |m0_rpc_conn_fini()        V  m0_rpc_conn_fini()
 	 +--------------------->FINALISED
 
   @endverbatim
 
   <B> Liveness and Concurrency: </B>
-  - Sender side allocation and deallocation of c2_rpc_conn object is
-    entirely handled by user (c2_rpc_conn object is not reference counted).
+  - Sender side allocation and deallocation of m0_rpc_conn object is
+    entirely handled by user (m0_rpc_conn object is not reference counted).
   - On receiver side, user is not expected to allocate or deallocate
-    c2_rpc_conn objects explicitly.
-  - Receiver side c2_rpc_conn object will be instantiated in response to
+    m0_rpc_conn objects explicitly.
+  - Receiver side m0_rpc_conn object will be instantiated in response to
     rpc connection establish request and is deallocated while terminating the
     rpc connection.
-  - User is not expected to take lock on c2_rpc_conn object. Session module
-    will internally synchronise access to c2_rpc_conn.
-  - c2_rpc_conn::c_mutex protects all but c_link fields of c2_rpc_conn.
+  - User is not expected to take lock on m0_rpc_conn object. Session module
+    will internally synchronise access to m0_rpc_conn.
+  - m0_rpc_conn::c_mutex protects all but c_link fields of m0_rpc_conn.
   - Locking order:
     - slot->sl_mutex
     - session->s_mutex
@@ -192,26 +192,26 @@ enum c2_rpc_conn_flags {
 
   @code
   // ALLOCATE CONN
-  struct c2_rpc_conn *conn;
-  C2_ALLOC_PTR(conn);
+  struct m0_rpc_conn *conn;
+  M0_ALLOC_PTR(conn);
 
   // INITIALISE CONN
-  rc = c2_rpc_conn_init(conn, tgt_end_point, rpc_machine);
-  C2_ASSERT(ergo(rc == 0, conn_state(conn) == C2_RPC_CONN_INITIALISED));
+  rc = m0_rpc_conn_init(conn, tgt_end_point, rpc_machine);
+  M0_ASSERT(ergo(rc == 0, conn_state(conn) == M0_RPC_CONN_INITIALISED));
 
   // ESTABLISH RPC CONNECTION
-  rc = c2_rpc_conn_establish(conn);
+  rc = m0_rpc_conn_establish(conn);
 
   if (rc != 0) {
 	// some error occured. Cannot establish connection.
         // handle the situation and return
   }
   // WAIT UNTIL CONNECTION IS ESTABLISHED
-  rc = c2_rpc_conn_timedwait(conn, C2_BITS(C2_RPC_CONN_ACTIVE,
-					   C2_RPC_CONN_FAILED),
+  rc = m0_rpc_conn_timedwait(conn, M0_BITS(M0_RPC_CONN_ACTIVE,
+					   M0_RPC_CONN_FAILED),
 			     absolute_timeout);
   if (rc == 0) {
-	if (conn_state(conn) == C2_RPC_CONN_ACTIVE)
+	if (conn_state(conn) == M0_RPC_CONN_ACTIVE)
 		// connection is established and is ready to be used
 	else
 		// connection establishing failed
@@ -219,21 +219,21 @@ enum c2_rpc_conn_flags {
 	// timeout
   }
   // Assuming connection is established.
-  // Create one or more sessions using this connection. @see c2_rpc_session
+  // Create one or more sessions using this connection. @see m0_rpc_session
 
   // TERMINATING CONNECTION
   // Make sure that all the sessions that were created on this connection are
   // terminated
-  C2_ASSERT(conn->c_nr_sessions == 0);
+  M0_ASSERT(conn->c_nr_sessions == 0);
 
-  rc = c2_rpc_conn_terminate(conn);
+  rc = m0_rpc_conn_terminate(conn);
 
   // WAIT UNTIL CONNECTION IS TERMINATED
-  rc = c2_rpc_conn_timedwait(conn, C2_BITS(C2_RPC_CONN_TERMINATED,
-					   C2_RPC_CONN_FAILED),
+  rc = m0_rpc_conn_timedwait(conn, M0_BITS(M0_RPC_CONN_TERMINATED,
+					   M0_RPC_CONN_FAILED),
 			     absolute_timeout);
   if (rc == 0) {
-	if (conn_state(conn) == C2_RPC_CONN_TERMINATED)
+	if (conn_state(conn) == M0_RPC_CONN_TERMINATED)
 		// conn is successfully terminated
 	else
 		// conn terminate has failed
@@ -241,8 +241,8 @@ enum c2_rpc_conn_flags {
 	// timeout
   }
   // assuming conn is terminated
-  c2_rpc_conn_fini(conn);
-  c2_free(conn);
+  m0_rpc_conn_fini(conn);
+  m0_free(conn);
 
   @endcode
 
@@ -250,52 +250,52 @@ enum c2_rpc_conn_flags {
   Receiver side rpc-layer will internally allocate/deallocate and manage
   all the state transitions of conn internally.
  */
-struct c2_rpc_conn {
+struct m0_rpc_conn {
 	/** Sender ID unique on receiver */
 	uint64_t                  c_sender_id;
 
 	/** Globally unique ID of rpc connection */
-	struct c2_rpc_sender_uuid c_uuid;
+	struct m0_rpc_sender_uuid c_uuid;
 
-	/** @see c2_rpc_conn_flags for list of flags */
+	/** @see m0_rpc_conn_flags for list of flags */
 	uint64_t                  c_flags;
 
 	/** rpc_machine with which this conn is associated */
-	struct c2_rpc_machine    *c_rpc_machine;
+	struct m0_rpc_machine    *c_rpc_machine;
 
-	/** list_link to put c2_rpc_conn in either
-	    c2_rpc_machine::rm_incoming_conns or
-	    c2_rpc_machine::rm_outgoing_conns.
+	/** list_link to put m0_rpc_conn in either
+	    m0_rpc_machine::rm_incoming_conns or
+	    m0_rpc_machine::rm_outgoing_conns.
 	    List descriptor: rpc_conn
 	 */
-	struct c2_tlink		  c_link;
+	struct m0_tlink		  c_link;
 
 	/** Counts number of sessions (excluding session 0) */
 	uint64_t                  c_nr_sessions;
 
 	/** List of all the sessions created under this rpc connection.
-	    c2_rpc_session objects are placed in this list using
-	    c2_rpc_session::s_link.
+	    m0_rpc_session objects are placed in this list using
+	    m0_rpc_session::s_link.
 	    List descriptor: session
 	 */
-	struct c2_tl              c_sessions;
+	struct m0_tl              c_sessions;
 
-	struct c2_rpc_service    *c_service;
+	struct m0_rpc_service    *c_service;
 
-	/** A c2_rpc_chan structure that will point to the transfer
-	    machine used by this c2_rpc_conn.
+	/** A m0_rpc_chan structure that will point to the transfer
+	    machine used by this m0_rpc_conn.
 	 */
-	struct c2_rpc_chan       *c_rpcchan;
+	struct m0_rpc_chan       *c_rpcchan;
 
 	/** cob representing the connection */
-	struct c2_cob            *c_cob;
+	struct m0_cob            *c_cob;
 
 	/** RPC connection state machine
-	    @see c2_rpc_conn_state, conn_conf
+	    @see m0_rpc_conn_state, conn_conf
 	 */
-	struct c2_sm		  c_sm;
+	struct m0_sm		  c_sm;
 
-	/** C2_RPC_CONN_MAGIC */
+	/** M0_RPC_CONN_MAGIC */
 	uint64_t		  c_magic;
 };
 
@@ -303,101 +303,101 @@ struct c2_rpc_conn {
    Initialises @conn object and associates it with @machine.
    No network communication is involved.
 
-   Note: c2_rpc_conn_init() can fail with -ENOMEM, -EINVAL.
-	 if c2_rpc_conn_init() fails, conn is left in undefined state.
+   Note: m0_rpc_conn_init() can fail with -ENOMEM, -EINVAL.
+	 if m0_rpc_conn_init() fails, conn is left in undefined state.
 
    @pre conn != NULL && ep != NULL && machine != NULL
-   @post ergo(rc == 0, conn_state(conn) == C2_RPC_CONN_INITIALISED &&
+   @post ergo(rc == 0, conn_state(conn) == M0_RPC_CONN_INITIALISED &&
 			conn->c_machine == machine &&
 			conn->c_sender_id == SENDER_ID_INVALID &&
 			(conn->c_flags & RCF_SENDER_END) != 0)
  */
-C2_INTERNAL int c2_rpc_conn_init(struct c2_rpc_conn *conn,
-				 struct c2_net_end_point *ep,
-				 struct c2_rpc_machine *machine,
+M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
+				 struct m0_net_end_point *ep,
+				 struct m0_rpc_machine *machine,
 				 uint64_t max_rpcs_in_flight);
 
 /**
     Sends handshake CONN_ESTABLISH fop to the remote end.
     When reply to CONN_ESTABLISH is received,
-    c2_rpc_conn_establish_reply_received() is called.
+    m0_rpc_conn_establish_reply_received() is called.
 
-    @pre conn_state(conn) == C2_RPC_CONN_INITIALISED
-    @post ergo(result != 0, conn_state(conn) == C2_RPC_CONN_FAILED)
+    @pre conn_state(conn) == M0_RPC_CONN_INITIALISED
+    @post ergo(result != 0, conn_state(conn) == M0_RPC_CONN_FAILED)
  */
-C2_INTERNAL int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
+M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn);
 
 /**
- * Same as c2_rpc_conn_establish(), but in addition uses c2_rpc_conn_timedwait()
- * to ensure that connection is in active state after c2_rpc_conn_establish()
+ * Same as m0_rpc_conn_establish(), but in addition uses m0_rpc_conn_timedwait()
+ * to ensure that connection is in active state after m0_rpc_conn_establish()
  * call.
  *
  * @param conn        A connection object to operate on.
  * @param timeout_sec How much time in seconds to wait for connection
  *                    to become active.
  *
- * @pre  conn_state(conn) == C2_RPC_CONN_INITIALISED
- * @post conn_state(conn) == C2_RPC_CONN_ACTIVE
+ * @pre  conn_state(conn) == M0_RPC_CONN_INITIALISED
+ * @post conn_state(conn) == M0_RPC_CONN_ACTIVE
  */
-C2_INTERNAL int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn,
+M0_INTERNAL int m0_rpc_conn_establish_sync(struct m0_rpc_conn *conn,
 					   uint32_t timeout_sec);
 
 /**
- * A combination of c2_rpc_conn_init() and c2_rpc_conn_establish_sync() in a
+ * A combination of m0_rpc_conn_init() and m0_rpc_conn_establish_sync() in a
  * single routine - initialize connection object, establish a connection and
  * wait until it become active.
  */
-C2_INTERNAL int c2_rpc_conn_create(struct c2_rpc_conn *conn,
-				   struct c2_net_end_point *ep,
-				   struct c2_rpc_machine *rpc_machine,
+M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
+				   struct m0_net_end_point *ep,
+				   struct m0_rpc_machine *rpc_machine,
 				   uint64_t max_rpcs_in_flight,
 				   uint32_t timeout_sec);
 
 /**
    Sends "conn_terminate" FOP to receiver.
-   c2_rpc_conn_terminate() is a no-op if @conn is already in TERMINATING
+   m0_rpc_conn_terminate() is a no-op if @conn is already in TERMINATING
    state.
-   c2_rpc_conn_terminate_reply_received() is called when reply to
+   m0_rpc_conn_terminate_reply_received() is called when reply to
    CONN_TERMINATE is received.
 
-   @pre (conn_state(conn) == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0 &&
+   @pre (conn_state(conn) == M0_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0 &&
 	 conn->c_service == NULL) ||
-	 conn_state(conn) == C2_RPC_CONN_TERMINATING
-   @post ergo(rc != 0, conn_state(conn) == C2_RPC_CONN_FAILED)
+	 conn_state(conn) == M0_RPC_CONN_TERMINATING
+   @post ergo(rc != 0, conn_state(conn) == M0_RPC_CONN_FAILED)
  */
-C2_INTERNAL int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
+M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn);
 
 /**
- * Same as c2_rpc_conn_terminate(), but in addition uses c2_rpc_conn_timedwait()
- * to ensure that connection is in terminated state after c2_rpc_conn_terminate()
+ * Same as m0_rpc_conn_terminate(), but in addition uses m0_rpc_conn_timedwait()
+ * to ensure that connection is in terminated state after m0_rpc_conn_terminate()
  * call.
  *
  * @param conn        A connection object to operate on.
  * @param timeout_sec How much time in seconds to wait for connection
  *                    to become terminated.
  *
- * @pre (conn_state(conn) == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0) ||
- *       conn_state(conn) == C2_RPC_CONN_TERMINATING
- * @post conn_state(conn) == C2_RPC_CONN_TERMINATED
+ * @pre (conn_state(conn) == M0_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0) ||
+ *       conn_state(conn) == M0_RPC_CONN_TERMINATING
+ * @post conn_state(conn) == M0_RPC_CONN_TERMINATED
  */
-C2_INTERNAL int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn,
+M0_INTERNAL int m0_rpc_conn_terminate_sync(struct m0_rpc_conn *conn,
 					   uint32_t timeout_sec);
 
 /**
-   Finalises c2_rpc_conn.
+   Finalises m0_rpc_conn.
    No network communication involved.
-   @pre conn_state(conn) == C2_RPC_CONN_FAILED ||
-	conn_state(conn) == C2_RPC_CONN_INITIALISED ||
-	conn_state(conn) == C2_RPC_CONN_TERMINATED
+   @pre conn_state(conn) == M0_RPC_CONN_FAILED ||
+	conn_state(conn) == M0_RPC_CONN_INITIALISED ||
+	conn_state(conn) == M0_RPC_CONN_TERMINATED
  */
-C2_INTERNAL void c2_rpc_conn_fini(struct c2_rpc_conn *conn);
+M0_INTERNAL void m0_rpc_conn_fini(struct m0_rpc_conn *conn);
 
 /**
- * A combination of c2_rpc_conn_terminate_sync() and c2_rpc_conn_fini() in a
+ * A combination of m0_rpc_conn_terminate_sync() and m0_rpc_conn_fini() in a
  * single routine - terminate the connection, wait until it switched to
  * terminated state and finalize connection object.
  */
-int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec);
+int m0_rpc_conn_destroy(struct m0_rpc_conn *conn, uint32_t timeout_sec);
 
 /**
     Waits until @conn reaches in any one of states specified by @state_flags.
@@ -410,9 +410,9 @@ int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec);
             -ETIMEDOUT if time out has occured before @conn reaches in desired
                 state.
  */
-C2_INTERNAL int c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
+M0_INTERNAL int m0_rpc_conn_timedwait(struct m0_rpc_conn *conn,
 				      uint64_t state_flags,
-				      const c2_time_t abs_timeout);
+				      const m0_time_t abs_timeout);
 
 /** @}  End of rpc_session group */
-#endif /* __COLIBRI_RPC_CONN_H__ */
+#endif /* __MERO_RPC_CONN_H__ */

@@ -21,27 +21,27 @@
 /**
  * @addtogroup cookie
  *
- * The key data-structure in Lib-Cookie is c2_cookie. It holds the address of
+ * The key data-structure in Lib-Cookie is m0_cookie. It holds the address of
  * an object along with a generation-count which is used to check validity of a
  * cookie.
  *
- * The constructor of an object calls c2_cookie_new, which increments a
+ * The constructor of an object calls m0_cookie_new, which increments a
  * global counter cookie_generation, and embeds it in the object.
- * On arrival of a query for the object, c2_cookie_init creates
- * a cookie, and embeds the address for the object in c2_cookie along with a
+ * On arrival of a query for the object, m0_cookie_init creates
+ * a cookie, and embeds the address for the object in m0_cookie along with a
  * copy of cookie_generation embedded in the object.
  *
  * For subsequent requests for the same object, client communicates a cookie
- * to a server. On server, function c2_cookie_dereference validates a cookie,
+ * to a server. On server, function m0_cookie_dereference validates a cookie,
  * and retrieves an address of the object for a valid cookie.
  *
- * c2_cookie_dereference checks the validity of a cookie in two steps.
+ * m0_cookie_dereference checks the validity of a cookie in two steps.
  * The first step validates an address embedded inside the cookie.
  * The second step ensures that the cookie is not stale. To identify a stale
  * cookie, it compares its generation count with the generation count in the
  * object. In order to reduce the probability of false validation,
- * the function c2_cookie_global_init initializes the cookie_generation with
- * the system-time during initialisation of Colibri.
+ * the function m0_cookie_global_init initializes the cookie_generation with
+ * the system-time during initialisation of Mero.
  *
  * @{
  */
@@ -49,62 +49,62 @@
 #include "lib/types.h"
 #include "lib/errno.h" /* -EPROTO */
 #include "lib/cookie.h"
-#include "lib/arith.h" /* C2_IS_8ALIGNED */
-#include "lib/time.h"  /* c2_time_now() */
+#include "lib/arith.h" /* M0_IS_8ALIGNED */
+#include "lib/time.h"  /* m0_time_now() */
 
 static uint64_t cookie_generation;
 
-C2_INTERNAL bool c2_arch_addr_is_sane(const void *addr);
-C2_INTERNAL int c2_arch_cookie_global_init(void);
-C2_INTERNAL void c2_arch_cookie_global_fini(void);
+M0_INTERNAL bool m0_arch_addr_is_sane(const void *addr);
+M0_INTERNAL int m0_arch_cookie_global_init(void);
+M0_INTERNAL void m0_arch_cookie_global_fini(void);
 
-C2_INTERNAL int c2_cookie_global_init(void)
+M0_INTERNAL int m0_cookie_global_init(void)
 {
-	cookie_generation = c2_time_now();
-	return c2_arch_cookie_global_init();
+	cookie_generation = m0_time_now();
+	return m0_arch_cookie_global_init();
 }
 
-C2_INTERNAL void c2_cookie_new(uint64_t * gen)
+M0_INTERNAL void m0_cookie_new(uint64_t * gen)
 {
-	C2_PRE(gen != NULL);
+	M0_PRE(gen != NULL);
 
 	*gen = ++cookie_generation;
 }
 
-C2_INTERNAL void c2_cookie_init(struct c2_cookie *cookie, uint64_t * obj)
+M0_INTERNAL void m0_cookie_init(struct m0_cookie *cookie, uint64_t * obj)
 {
-	C2_PRE(cookie != NULL);
-	C2_PRE(obj != NULL);
+	M0_PRE(cookie != NULL);
+	M0_PRE(obj != NULL);
 
 	cookie->co_addr = (uint64_t)obj;
 	cookie->co_generation = *obj;
 }
 
-C2_INTERNAL bool c2_addr_is_sane(const uint64_t * addr)
+M0_INTERNAL bool m0_addr_is_sane(const uint64_t * addr)
 {
-	return addr > (uint64_t *)4096 && C2_IS_8ALIGNED(addr) &&
-		c2_arch_addr_is_sane(addr);
+	return addr > (uint64_t *)4096 && M0_IS_8ALIGNED(addr) &&
+		m0_arch_addr_is_sane(addr);
 }
 
-C2_INTERNAL int c2_cookie_dereference(const struct c2_cookie *cookie,
+M0_INTERNAL int m0_cookie_dereference(const struct m0_cookie *cookie,
 				      uint64_t ** addr)
 {
 	uint64_t *obj;
 
-	C2_PRE(cookie != NULL);
-	C2_PRE(addr != NULL);
+	M0_PRE(cookie != NULL);
+	M0_PRE(addr != NULL);
 
 	obj = (uint64_t *)cookie->co_addr;
-	if (c2_addr_is_sane(obj) && cookie->co_generation == *obj) {
+	if (m0_addr_is_sane(obj) && cookie->co_generation == *obj) {
 		*addr = obj;
 		return 0;
 	} else
 		return -EPROTO;
 }
 
-C2_INTERNAL void c2_cookie_global_fini(void)
+M0_INTERNAL void m0_cookie_global_fini(void)
 {
-	c2_arch_cookie_global_fini();
+	m0_arch_cookie_global_fini();
 }
 
 /** @} end of cookie group */

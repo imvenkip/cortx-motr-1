@@ -22,7 +22,7 @@
 #include "config.h"
 #endif
 
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_SNSREPAIR
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSREPAIR
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -41,153 +41,153 @@
   @{
 */
 
-const struct c2_addb_loc sns_repair_addb_loc = {
+const struct m0_addb_loc sns_repair_addb_loc = {
         .al_name = "sns repair"
 };
 
-const struct c2_addb_ctx_type sns_repair_addb_ctx_type = {
+const struct m0_addb_ctx_type sns_repair_addb_ctx_type = {
         .act_name = "sns repair"
 };
 
-C2_ADDB_EV_DEFINE(svc_init_fail, "svc_init_fail",
-                  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
-C2_ADDB_EV_DEFINE(service_start_fail, "service_start_fail",
-                  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
-C2_ADDB_EV_DEFINE(config_fetch_fail, "config_fetch_fail",
-                  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+M0_ADDB_EV_DEFINE(svc_init_fail, "svc_init_fail",
+                  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
+M0_ADDB_EV_DEFINE(service_start_fail, "service_start_fail",
+                  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
+M0_ADDB_EV_DEFINE(config_fetch_fail, "config_fetch_fail",
+                  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 
 
 /** Copy machine service type operations.*/
-static int service_allocate(struct c2_reqh_service_type *stype,
-			    struct c2_reqh_service **service);
+static int service_allocate(struct m0_reqh_service_type *stype,
+			    struct m0_reqh_service **service);
 
-static const struct c2_reqh_service_type_ops service_type_ops = {
+static const struct m0_reqh_service_type_ops service_type_ops = {
 	.rsto_service_allocate = service_allocate,
 };
 
 /** Copy machine service operations.*/
-static int service_start(struct c2_reqh_service *service);
-static void service_stop(struct c2_reqh_service *service);
-static void service_fini(struct c2_reqh_service *service);
+static int service_start(struct m0_reqh_service *service);
+static void service_stop(struct m0_reqh_service *service);
+static void service_fini(struct m0_reqh_service *service);
 
-static const struct c2_reqh_service_ops service_ops = {
+static const struct m0_reqh_service_ops service_ops = {
 	.rso_start = service_start,
 	.rso_stop  = service_stop,
 	.rso_fini  = service_fini
 };
 
-C2_CM_TYPE_DECLARE(sns_repair, &service_type_ops, "sns_repair");
+M0_CM_TYPE_DECLARE(sns_repair, &service_type_ops, "sns_repair");
 
-extern const struct c2_cm_ops cm_ops;
+extern const struct m0_cm_ops cm_ops;
 
 /**
  * Allocates and initialises SNS Repair copy machine.
- * This allocates struct c2_sns_repair_cm and invokes c2_cm_init() to initialise
- * c2_sns_repair_cm::rc_base.
+ * This allocates struct m0_sns_repair_cm and invokes m0_cm_init() to initialise
+ * m0_sns_repair_cm::rc_base.
  */
-static int service_allocate(struct c2_reqh_service_type *stype,
-			    struct c2_reqh_service **service)
+static int service_allocate(struct m0_reqh_service_type *stype,
+			    struct m0_reqh_service **service)
 {
-	struct c2_sns_repair_cm   *rmach;
-	struct c2_cm              *cm;
-	struct c2_cm_type         *cm_type;
+	struct m0_sns_repair_cm   *rmach;
+	struct m0_cm              *cm;
+	struct m0_cm_type         *cm_type;
 	int                        rc;
 
-	C2_ENTRY("stype: %p", stype);
-	C2_PRE(stype != NULL && service != NULL);
+	M0_ENTRY("stype: %p", stype);
+	M0_PRE(stype != NULL && service != NULL);
 
-	C2_ALLOC_PTR(rmach);
+	M0_ALLOC_PTR(rmach);
 	if (rmach != NULL) {
 		cm = &rmach->rc_base;
-		cm_type = container_of(stype, struct c2_cm_type, ct_stype);
+		cm_type = container_of(stype, struct m0_cm_type, ct_stype);
 		*service = &cm->cm_service;
 		(*service)->rs_type = stype;
 		(*service)->rs_ops = &service_ops;
-		c2_addb_ctx_init(&cm->cm_addb, &sns_repair_addb_ctx_type,
-		                 &c2_addb_global_ctx);
-		rc = c2_cm_init(cm, cm_type, &cm_ops);
+		m0_addb_ctx_init(&cm->cm_addb, &sns_repair_addb_ctx_type,
+		                 &m0_addb_global_ctx);
+		rc = m0_cm_init(cm, cm_type, &cm_ops);
 		if (rc != 0) {
-			C2_ADDB_ADD(&cm->cm_addb, &sns_repair_addb_loc,
+			M0_ADDB_ADD(&cm->cm_addb, &sns_repair_addb_loc,
 			            svc_init_fail,
-				    "c2_cm_init", rc);
-			c2_addb_ctx_fini(&cm->cm_addb);
-			c2_free(rmach);
+				    "m0_cm_init", rc);
+			m0_addb_ctx_fini(&cm->cm_addb);
+			m0_free(rmach);
 		}
 	} else
 		rc = -ENOMEM;
 
-	C2_LEAVE("rmach: %p service: %p", rmach, *service);
+	M0_LEAVE("rmach: %p service: %p", rmach, *service);
 	return rc;
 }
 
 /**
  * Registers SNS Repair specific FOP types.
  */
-static int service_start(struct c2_reqh_service *service)
+static int service_start(struct m0_reqh_service *service)
 {
-	struct c2_cm *cm;
+	struct m0_cm *cm;
 	int           rc;
 
-	C2_ENTRY("service: %p", service);
-	C2_PRE(service != NULL);
+	M0_ENTRY("service: %p", service);
+	M0_PRE(service != NULL);
 
         /* XXX Register SNS Repair FOP types */
-	cm = container_of(service, struct c2_cm, cm_service);
-	rc = c2_cm_setup(cm);
+	cm = container_of(service, struct m0_cm, cm_service);
+	rc = m0_cm_setup(cm);
 	if (rc != 0)
-		C2_ADDB_ADD(&cm->cm_addb, &sns_repair_addb_loc,
+		M0_ADDB_ADD(&cm->cm_addb, &sns_repair_addb_loc,
 			    service_start_fail,
-			    "c2_cm_start", rc);
+			    "m0_cm_start", rc);
 
 	/* Build sns repair trigger fop. */
 	if (rc == 0)
-		rc = c2_sns_repair_trigger_fop_init();
+		rc = m0_sns_repair_trigger_fop_init();
 
-	C2_LEAVE();
+	M0_LEAVE();
 	return rc;
 }
 
 /**
  * Destroys SNS Repair specific FOP types and stops the copy machine.
  */
-static void service_stop(struct c2_reqh_service *service)
+static void service_stop(struct m0_reqh_service *service)
 {
-	struct c2_cm *cm;
+	struct m0_cm *cm;
 
-	C2_ENTRY("service: %p", service);
-	C2_PRE(service != NULL);
+	M0_ENTRY("service: %p", service);
+	M0_PRE(service != NULL);
 
         /* XXX Destroy SNS Repair FOP types and finlise copy machine. */
-	cm = container_of(service, struct c2_cm, cm_service);
+	cm = container_of(service, struct m0_cm, cm_service);
 	/*
 	 * Finalise the copy machine as the copy machine as the service is
 	 * stopped.
 	 */
-	c2_cm_fini(cm);
-	c2_sns_repair_trigger_fop_fini();
+	m0_cm_fini(cm);
+	m0_sns_repair_trigger_fop_fini();
 
-	C2_LEAVE();
+	M0_LEAVE();
 }
 
 /**
  * Destorys SNS Repair copy machine.
  */
-static void service_fini(struct c2_reqh_service *service)
+static void service_fini(struct m0_reqh_service *service)
 {
-	struct c2_cm            *cm;
-	struct c2_sns_repair_cm *sns_cm;
+	struct m0_cm            *cm;
+	struct m0_sns_repair_cm *sns_cm;
 
-	C2_ENTRY("service: %p", service);
-	C2_PRE(service != NULL);
+	M0_ENTRY("service: %p", service);
+	M0_PRE(service != NULL);
 
-	cm = container_of(service, struct c2_cm, cm_service);
+	cm = container_of(service, struct m0_cm, cm_service);
 	sns_cm = cm2sns(cm);
-	c2_free(sns_cm);
+	m0_free(sns_cm);
 
-	C2_LEAVE();
+	M0_LEAVE();
 }
 
-#undef C2_TRACE_SUBSYSTEM
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} SNSRepairSVC */
 /*

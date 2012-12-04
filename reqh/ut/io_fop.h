@@ -20,31 +20,31 @@
 
 #pragma once
 
-#ifndef __COLIBRI_STOB_IO_FOP_H__
-#define __COLIBRI_STOB_IO_FOP_H__
+#ifndef __MERO_STOB_IO_FOP_H__
+#define __MERO_STOB_IO_FOP_H__
 
 #include "fop/fop.h"
 
-extern struct c2_fop_type c2_stob_io_create_fopt;
-extern struct c2_fop_type c2_stob_io_read_fopt;
-extern struct c2_fop_type c2_stob_io_write_fopt;
+extern struct m0_fop_type m0_stob_io_create_fopt;
+extern struct m0_fop_type m0_stob_io_read_fopt;
+extern struct m0_fop_type m0_stob_io_write_fopt;
 
-extern struct c2_fop_type c2_stob_io_create_rep_fopt;
-extern struct c2_fop_type c2_stob_io_read_rep_fopt;
-extern struct c2_fop_type c2_stob_io_write_rep_fopt;
+extern struct m0_fop_type m0_stob_io_create_rep_fopt;
+extern struct m0_fop_type m0_stob_io_read_rep_fopt;
+extern struct m0_fop_type m0_stob_io_write_rep_fopt;
 
-extern struct c2_rpc_item_type c2_stob_create_rpc_item_type;
-extern struct c2_rpc_item_type c2_stob_read_rpc_item_type;
-extern struct c2_rpc_item_type c2_stob_write_rpc_item_type;
+extern struct m0_rpc_item_type m0_stob_create_rpc_item_type;
+extern struct m0_rpc_item_type m0_stob_read_rpc_item_type;
+extern struct m0_rpc_item_type m0_stob_write_rpc_item_type;
 
-extern struct c2_rpc_item_type c2_stob_create_rep_rpc_item_type;
-extern struct c2_rpc_item_type c2_stob_read_rep_rpc_item_type;
-extern struct c2_rpc_item_type c2_stob_write_rep_rpc_item_type;
+extern struct m0_rpc_item_type m0_stob_create_rep_rpc_item_type;
+extern struct m0_rpc_item_type m0_stob_read_rep_rpc_item_type;
+extern struct m0_rpc_item_type m0_stob_write_rep_rpc_item_type;
 
-int c2_stob_io_fop_init(void);
-void c2_stob_io_fop_fini(void);
+int m0_stob_io_fop_init(void);
+void m0_stob_io_fop_fini(void);
 
-#endif /* !__COLIBRI_STOB_IO_FOP_H__ */
+#endif /* !__MERO_STOB_IO_FOP_H__ */
 
 /*
  *  Local variables:

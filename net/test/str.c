@@ -24,7 +24,7 @@
 #include <linux/string.h>	/* strlen */
 #endif
 
-#include "lib/memory.h"		/* c2_alloc */
+#include "lib/memory.h"		/* m0_alloc */
 
 #include "net/test/str.h"
 
@@ -50,34 +50,34 @@ TYPE_DESCR(net_test_str_len) = {
 	FIELD_DESCR(struct net_test_str_len, ntsl_magic),
 };
 
-c2_bcount_t c2_net_test_str_serialize(enum c2_net_test_serialize_op op,
+m0_bcount_t m0_net_test_str_serialize(enum m0_net_test_serialize_op op,
 				      char **str,
-				      struct c2_bufvec *bv,
-				      c2_bcount_t bv_offset)
+				      struct m0_bufvec *bv,
+				      m0_bcount_t bv_offset)
 {
 	struct net_test_str_len str_len;
-	c2_bcount_t		len = 0;
-	c2_bcount_t		len_total;
+	m0_bcount_t		len = 0;
+	m0_bcount_t		len_total;
 
-	C2_PRE(op == C2_NET_TEST_SERIALIZE || op == C2_NET_TEST_DESERIALIZE);
-	C2_PRE(str != NULL);
+	M0_PRE(op == M0_NET_TEST_SERIALIZE || op == M0_NET_TEST_DESERIALIZE);
+	M0_PRE(str != NULL);
 
-	if (op == C2_NET_TEST_SERIALIZE) {
+	if (op == M0_NET_TEST_SERIALIZE) {
 		str_len.ntsl_len = strlen(*str) + 1;
-		str_len.ntsl_magic = C2_NET_TEST_STR_MAGIC;
+		str_len.ntsl_magic = M0_NET_TEST_STR_MAGIC;
 	}
-	len_total = c2_net_test_serialize(op, &str_len,
+	len_total = m0_net_test_serialize(op, &str_len,
 					  USE_TYPE_DESCR(net_test_str_len),
 					  bv, bv_offset);
 	if (len_total != 0) {
-		if (op == C2_NET_TEST_DESERIALIZE) {
-			if (str_len.ntsl_magic != C2_NET_TEST_STR_MAGIC)
+		if (op == M0_NET_TEST_DESERIALIZE) {
+			if (str_len.ntsl_magic != M0_NET_TEST_STR_MAGIC)
 				return 0;
-			*str = c2_alloc(str_len.ntsl_len);
+			*str = m0_alloc(str_len.ntsl_len);
 			if (*str == NULL)
 				return 0;
 		}
-		len = c2_net_test_serialize_data(op, *str, str_len.ntsl_len,
+		len = m0_net_test_serialize_data(op, *str, str_len.ntsl_len,
 						 true,
 						 bv, bv_offset + len_total);
 		len_total += len;
@@ -86,9 +86,9 @@ c2_bcount_t c2_net_test_str_serialize(enum c2_net_test_serialize_op op,
 	return len == 0 ? 0 : len_total;
 }
 
-void c2_net_test_str_fini(char **str)
+void m0_net_test_str_fini(char **str)
 {
-	c2_free(*str);
+	m0_free(*str);
 	*str = NULL;
 }
 

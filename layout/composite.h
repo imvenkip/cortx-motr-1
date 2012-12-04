@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LAYOUT_COMPOSITE_H__
-#define __COLIBRI_LAYOUT_COMPOSITE_H__
+#ifndef __MERO_LAYOUT_COMPOSITE_H__
+#define __MERO_LAYOUT_COMPOSITE_H__
 
 /**
  * @defgroup composite Composite Layout Type.
@@ -34,33 +34,33 @@
  */
 
 /* import */
-#include "db/extmap.h"	    /* struct c2_emap */
+#include "db/extmap.h"	    /* struct m0_emap */
 #include "layout/layout.h"
 
 /* export */
-struct c2_composite_layout;
+struct m0_composite_layout;
 
 /**
- * Extension of the generic c2_layout for the composite layout type.
+ * Extension of the generic m0_layout for the composite layout type.
  */
-struct c2_composite_layout {
+struct m0_composite_layout {
 	/** Super class. */
-	struct c2_layout  cl_base;
+	struct m0_layout  cl_base;
 
 	/** List of sub-layouts owned by this composite layout. */
-	struct c2_tl      cl_sub_layouts;
+	struct m0_tl      cl_sub_layouts;
 };
 
-C2_INTERNAL void c2_composite_build(struct c2_layout_domain *dom,
+M0_INTERNAL void m0_composite_build(struct m0_layout_domain *dom,
 				    uint64_t lid,
-				    struct c2_tl *sub_layouts,
-				    struct c2_composite_layout **out);
+				    struct m0_tl *sub_layouts,
+				    struct m0_composite_layout **out);
 
-extern const struct c2_layout_type c2_composite_layout_type;
+extern const struct m0_layout_type m0_composite_layout_type;
 
 /** @} end group composite */
 
-/* __COLIBRI_LAYOUT_COMPOSITE_H__ */
+/* __MERO_LAYOUT_COMPOSITE_H__ */
 #endif
 
 /*

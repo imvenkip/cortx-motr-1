@@ -23,7 +23,7 @@
 #include <stdio.h>
 #include <math.h> /* sqrt */
 
-#include "colibri/init.h"
+#include "mero/init.h"
 
 #include "desim/sim.h"
 #include "desim/storage.h"
@@ -216,7 +216,7 @@ int main(int argc, char **argv)
 	struct sim s;
 	int result;
 
-	result = c2_init();
+	result = m0_init();
 	if (result == 0) {
 		chs_conf_init(&ST31000640SS);
 		chs_dev_init(&disc, &s, &ST31000640SS);
@@ -229,7 +229,7 @@ int main(int argc, char **argv)
 		cnt_dump_all();
 		sim_log(&s, SLL_WARN, "done\n");
 		sim_fini(&s);
-		c2_fini();
+		m0_fini();
 	}
 	return result;
 }

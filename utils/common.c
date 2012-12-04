@@ -28,7 +28,7 @@
 #include <string.h>   /* strdup */
 
 #include "yaml.h"
-#include "colibri/init.h"
+#include "mero/init.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/list.h"
@@ -43,7 +43,7 @@ static int reset_sandbox(const char *sandbox)
 	int   rc;
 
 	rc = asprintf(&cmd, "rm -fr '%s'", sandbox);
-	C2_ASSERT(rc > 0);
+	M0_ASSERT(rc > 0);
 
 	rc = system(cmd);
 	if (rc != 0) {
@@ -64,7 +64,7 @@ int unit_start(const char *sandbox)
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
-	result = c2_init();
+	result = m0_init();
 	if (result == 0) {
 		result = reset_sandbox(sandbox);
 		if (result == 0) {
@@ -76,7 +76,7 @@ int unit_start(const char *sandbox)
 		}
 	}
 	if (result == 0)
-		c2_ut_init();
+		m0_ut_init();
 
 	return result;
 }
@@ -85,22 +85,22 @@ void unit_end(const char *sandbox, bool keep_sandbox)
 {
 	int rc;
 
-	c2_ut_fini();
-	c2_fini();
+	m0_ut_fini();
+	m0_fini();
 
 	rc = chdir("..");
-	C2_ASSERT(rc == 0);
+	M0_ASSERT(rc == 0);
 
         if (!keep_sandbox)
                 reset_sandbox(sandbox);
 }
 
-int parse_test_list(char *str, struct c2_list *list)
+int parse_test_list(char *str, struct m0_list *list)
 {
 	char *token;
 	char *subtoken;
 	char *saveptr = NULL;
-	struct c2_test_suite_entry *ts_entry;
+	struct m0_test_suite_entry *ts_entry;
 
 	while (true) {
 		token = strtok_r(str, ",", &saveptr);
@@ -111,7 +111,7 @@ int parse_test_list(char *str, struct c2_list *list)
 		if (subtoken != NULL)
 			*subtoken++ = '\0';
 
-		C2_ALLOC_PTR(ts_entry);
+		M0_ALLOC_PTR(ts_entry);
 		if (ts_entry == NULL)
 			return -ENOMEM;
 
@@ -119,8 +119,8 @@ int parse_test_list(char *str, struct c2_list *list)
 		/* subtoken can be NULL if no test was specified */
 		ts_entry->tse_test_name = subtoken;
 
-		c2_list_link_init(&ts_entry->tse_linkage);
-		c2_list_add_tail(list, &ts_entry->tse_linkage);
+		m0_list_link_init(&ts_entry->tse_linkage);
+		m0_list_add_tail(list, &ts_entry->tse_linkage);
 
 		/* str should be NULL for subsequent strtok_r(3) calls */
 		str = NULL;
@@ -129,15 +129,15 @@ int parse_test_list(char *str, struct c2_list *list)
 	return 0;
 }
 
-void free_test_list(struct c2_list *list)
+void free_test_list(struct m0_list *list)
 {
-	struct c2_test_suite_entry *entry;
-	struct c2_test_suite_entry *n;
-	c2_list_for_each_entry_safe(list, entry, n,
-			struct c2_test_suite_entry, tse_linkage)
+	struct m0_test_suite_entry *entry;
+	struct m0_test_suite_entry *n;
+	m0_list_for_each_entry_safe(list, entry, n,
+			struct m0_test_suite_entry, tse_linkage)
 	{
-		c2_list_del(&entry->tse_linkage);
-		c2_free(entry);
+		m0_list_del(&entry->tse_linkage);
+		m0_free(entry);
 	}
 }
 
@@ -158,7 +158,7 @@ int enable_fault_point(char *str)
 	const char *data2;
 	const char **fp_map[] = { &func, &tag, &type, &data1, &data2 };
 
-	struct c2_fi_fpoint_data data = { 0 };
+	struct m0_fi_fpoint_data data = { 0 };
 
 	while (true) {
 		func = tag = type = data1 = data2 = NULL;
@@ -186,21 +186,21 @@ int enable_fault_point(char *str)
 			return -EINVAL;
 		}
 
-		data.fpd_type = c2_fi_fpoint_type_from_str(type);
-		if (data.fpd_type == C2_FI_INVALID_TYPE) {
+		data.fpd_type = m0_fi_fpoint_type_from_str(type);
+		if (data.fpd_type == M0_FI_INVALID_TYPE) {
 			fprintf(stderr, "Incorrect fault point type '%s'\n",
 					type);
 			return -EINVAL;
 		}
 
-		if (data.fpd_type == C2_FI_RANDOM) {
+		if (data.fpd_type == M0_FI_RANDOM) {
 			if (data1 == NULL) {
 				fprintf(stderr, "No probability was specified"
 						" for 'random' FP type\n");
 				return -EINVAL;
 			}
 			data.u.fpd_p = atoi(data1);
-		} else if (data.fpd_type == C2_FI_OFF_N_ON_M) {
+		} else if (data.fpd_type == M0_FI_OFF_N_ON_M) {
 			if (data1 == NULL || data2 == NULL) {
 				fprintf(stderr, "No N or M was specified"
 						" for 'off_n_on_m' FP type\n");
@@ -210,7 +210,7 @@ int enable_fault_point(char *str)
 			data.u.s1.fpd_m = atoi(data2);
 		}
 
-		c2_fi_enable_generic(func, tag, &data);
+		m0_fi_enable_generic(func, tag, &data);
 
 		/* str should be NULL for subsequent strtok_r(3) calls */
 		str = NULL;
@@ -231,7 +231,7 @@ static inline const char *pair_val(yaml_document_t *doc, yaml_node_pair_t *pair)
 
 static int extract_fpoint_data(yaml_document_t *doc, yaml_node_t *node,
 			       const char **func, const char **tag,
-			       struct c2_fi_fpoint_data *data)
+			       struct m0_fi_fpoint_data *data)
 {
 	yaml_node_pair_t *pair;
 
@@ -244,8 +244,8 @@ static int extract_fpoint_data(yaml_document_t *doc, yaml_node_t *node,
 		} else if (strcmp(key, "tag") == 0) {
 			*tag = val;
 		} else if (strcmp(key, "type") == 0) {
-			data->fpd_type = c2_fi_fpoint_type_from_str(val);
-			if (data->fpd_type == C2_FI_INVALID_TYPE) {
+			data->fpd_type = m0_fi_fpoint_type_from_str(val);
+			if (data->fpd_type == M0_FI_INVALID_TYPE) {
 				fprintf(stderr, "Incorrect FP type '%s'\n", val);
 				return -EINVAL;
 			}
@@ -272,14 +272,14 @@ static int process_yaml(yaml_document_t *doc)
 	const char   *func = 0;
 	const char   *tag = 0;
 
-	struct c2_fi_fpoint_data data = { 0 };
+	struct m0_fi_fpoint_data data = { 0 };
 
 	for (node = doc->nodes.start; node < doc->nodes.top; node++)
 		if (node->type == YAML_MAPPING_NODE) {
 			rc = extract_fpoint_data(doc, node, &func, &tag, &data);
 			if (rc != 0)
 				return rc;
-			c2_fi_enable_generic(strdup(func), strdup(tag), &data);
+			m0_fi_enable_generic(strdup(func), strdup(tag), &data);
 		}
 
 	return 0;

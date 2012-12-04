@@ -24,14 +24,14 @@
 #include "net/test/node_config.h"
 
 /*
-   Set c2_net_test_node_config structure according to kernel module parameters.
+   Set m0_net_test_node_config structure according to kernel module parameters.
  */
-int c2_net_test_node_config_init(struct c2_net_test_node_config *cfg);
+int m0_net_test_node_config_init(struct m0_net_test_node_config *cfg);
 
 /**
-   Finalize c2_net_test_node_config structure (free memory etc.)
+   Finalize m0_net_test_node_config structure (free memory etc.)
  */
-void c2_net_test_node_config_fini(struct c2_net_test_node_config *cfg);
+void m0_net_test_node_config_fini(struct m0_net_test_node_config *cfg);
 #endif
 
 /* node_config_k.c */
@@ -43,10 +43,10 @@ void c2_net_test_node_config_fini(struct c2_net_test_node_config *cfg);
 
 static char *node_role	      = NULL;
 static char *test_type	      = NULL;
-static long  count	      = C2_NET_TEST_CONFIG_COUNT_DEFAULT;
-static long  size	      = C2_NET_TEST_CONFIG_SIZE_DEFAULT;
-static char *console	      = C2_NET_TEST_CONFIG_CONSOLE_DEFAULT;
-static char *target[C2_NET_TEST_CONFIG_TARGETS_MAX];
+static long  count	      = M0_NET_TEST_CONFIG_COUNT_DEFAULT;
+static long  size	      = M0_NET_TEST_CONFIG_SIZE_DEFAULT;
+static char *console	      = M0_NET_TEST_CONFIG_CONSOLE_DEFAULT;
+static char *target[M0_NET_TEST_CONFIG_TARGETS_MAX];
 static int   target_nr        = 0;
 
 module_param(node_role, charp, S_IRUGO);
@@ -68,7 +68,7 @@ MODULE_PARM_DESC(console, "console address");
 module_param_array(target, charp, &target_nr, S_IRUGO);
 MODULE_PARM_DESC(target, "test targets");
 
-int c2_net_test_node_config_init(struct c2_net_test_node_config *cfg)
+int m0_net_test_node_config_init(struct m0_net_test_node_config *cfg)
 {
 	int i;
 
@@ -89,7 +89,7 @@ int c2_net_test_node_config_init(struct c2_net_test_node_config *cfg)
 	return -ENOSYS;
 }
 
-void c2_net_test_node_config_fini(struct c2_net_test_node_config *cfg)
+void m0_net_test_node_config_fini(struct m0_net_test_node_config *cfg)
 {
 }
 #endif
@@ -103,30 +103,30 @@ void c2_net_test_node_config_fini(struct c2_net_test_node_config *cfg)
 #include "net/test/linux_kernel/node_config_k.h"
 
 MODULE_AUTHOR("Xyratex International");
-MODULE_DESCRIPTION("Colibri Network Benchmark Module");
+MODULE_DESCRIPTION("Mero Network Benchmark Module");
 MODULE_LICENSE("proprietary");
 
-static struct c2_net_test_node_config node_config;
+static struct m0_net_test_node_config node_config;
 
-static int __init c2_net_test_module_init(void)
+static int __init m0_net_test_module_init(void)
 {
 	int rc;
 
-	rc = c2_net_test_node_config_init(&node_config);
+	rc = m0_net_test_node_config_init(&node_config);
 	if (rc == 0)
-		rc = c2_net_test_init(&node_config);
+		rc = m0_net_test_init(&node_config);
 
 	return rc;
 }
 
-static void __exit c2_net_test_module_fini(void)
+static void __exit m0_net_test_module_fini(void)
 {
-	c2_net_test_fini();
-	c2_net_test_node_config_fini(&node_config);
+	m0_net_test_fini();
+	m0_net_test_node_config_fini(&node_config);
 }
 
-module_init(c2_net_test_module_init)
-module_exit(c2_net_test_module_fini)
+module_init(m0_net_test_module_init)
+module_exit(m0_net_test_module_fini)
 #endif
 
 /*

@@ -1,4 +1,4 @@
-ut_libcolibri_ut_la_SOURCES += fop/ut/iterator_test.c \
+ut_libmero_ut_la_SOURCES += fop/ut/iterator_test.c \
                                fop/ut/iterator_test_ff.c \
                                fop/ut/long_lock/long_lock_ut.c
 

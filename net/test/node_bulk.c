@@ -20,9 +20,9 @@
 
 #include "lib/errno.h"		/* ENOSYS */
 
-#include "net/test/network.h"	/* c2_net_test_network_ctx */
-#include "net/test/node.h"	/* c2_net_test_node_ctx */
-#include "net/test/service.h"	/* c2_net_test_service */
+#include "net/test/network.h"	/* m0_net_test_network_ctx */
+#include "net/test/node.h"	/* m0_net_test_node_ctx */
+#include "net/test/service.h"	/* m0_net_test_service */
 
 #include "net/test/node_bulk.h"
 
@@ -33,44 +33,44 @@
    @{
  */
 
-static void node_bulk_tm_event_cb(const struct c2_net_tm_event *ev)
+static void node_bulk_tm_event_cb(const struct m0_net_tm_event *ev)
 {
 	/* nothing for now */
 }
 
-static const struct c2_net_tm_callbacks node_bulk_tm_cb = {
+static const struct m0_net_tm_callbacks node_bulk_tm_cb = {
 	.ntc_event_cb = node_bulk_tm_event_cb
 };
 
-static void node_bulk_msg_cb(struct c2_net_test_network_ctx *net_ctx,
+static void node_bulk_msg_cb(struct m0_net_test_network_ctx *net_ctx,
 			     const uint32_t buf_index,
-			     enum c2_net_queue_type q,
-			     const struct c2_net_buffer_event *ev)
+			     enum m0_net_queue_type q,
+			     const struct m0_net_buffer_event *ev)
 {
 }
 
 /**
 @todo static
 */
-struct c2_net_test_network_buffer_callbacks node_bulk_buf_cb = {
+struct m0_net_test_network_buffer_callbacks node_bulk_buf_cb = {
 	.ntnbc_cb = {
-		[C2_NET_QT_MSG_RECV]		= node_bulk_msg_cb,
-		[C2_NET_QT_MSG_SEND]		= node_bulk_msg_cb,
-		[C2_NET_QT_PASSIVE_BULK_RECV]	= node_bulk_msg_cb,
-		[C2_NET_QT_PASSIVE_BULK_SEND]	= node_bulk_msg_cb,
-		[C2_NET_QT_ACTIVE_BULK_RECV]	= node_bulk_msg_cb,
-		[C2_NET_QT_ACTIVE_BULK_SEND]	= node_bulk_msg_cb,
+		[M0_NET_QT_MSG_RECV]		= node_bulk_msg_cb,
+		[M0_NET_QT_MSG_SEND]		= node_bulk_msg_cb,
+		[M0_NET_QT_PASSIVE_BULK_RECV]	= node_bulk_msg_cb,
+		[M0_NET_QT_PASSIVE_BULK_SEND]	= node_bulk_msg_cb,
+		[M0_NET_QT_ACTIVE_BULK_RECV]	= node_bulk_msg_cb,
+		[M0_NET_QT_ACTIVE_BULK_SEND]	= node_bulk_msg_cb,
 	}
 };
 
-static void *node_bulk_init_fini(struct c2_net_test_service *svc,
+static void *node_bulk_init_fini(struct m0_net_test_service *svc,
 				 void *ctx_,
 				 bool init)
 {
 	return NULL;
 }
 
-static void *node_bulk_init(struct c2_net_test_service *svc)
+static void *node_bulk_init(struct m0_net_test_service *svc)
 {
 	return node_bulk_init_fini(svc, NULL, true);
 }
@@ -78,7 +78,7 @@ static void *node_bulk_init(struct c2_net_test_service *svc)
 static void node_bulk_fini(void *ctx_)
 {
 	void *rc = node_bulk_init_fini(NULL, ctx_, false);
-	C2_POST(rc == NULL);
+	M0_POST(rc == NULL);
 }
 
 static int node_bulk_step(void *ctx_)
@@ -87,53 +87,53 @@ static int node_bulk_step(void *ctx_)
 }
 
 static int node_bulk_cmd_init(void *ctx_,
-			      const struct c2_net_test_cmd *cmd,
-			      struct c2_net_test_cmd *reply)
+			      const struct m0_net_test_cmd *cmd,
+			      struct m0_net_test_cmd *reply)
 {
 	return -ENOSYS;
 }
 
 static int node_bulk_cmd_start(void *ctx,
-			       const struct c2_net_test_cmd *cmd,
-			       struct c2_net_test_cmd *reply)
+			       const struct m0_net_test_cmd *cmd,
+			       struct m0_net_test_cmd *reply)
 {
 	return -ENOSYS;
 }
 
 static int node_bulk_cmd_stop(void *ctx,
-			      const struct c2_net_test_cmd *cmd,
-			      struct c2_net_test_cmd *reply)
+			      const struct m0_net_test_cmd *cmd,
+			      struct m0_net_test_cmd *reply)
 {
 	return -ENOSYS;
 }
 
 static int node_bulk_cmd_status(void *ctx,
-				const struct c2_net_test_cmd *cmd,
-				struct c2_net_test_cmd *reply)
+				const struct m0_net_test_cmd *cmd,
+				struct m0_net_test_cmd *reply)
 {
 	return -ENOSYS;
 }
 
-static struct c2_net_test_service_cmd_handler node_bulk_cmd_handler[] = {
+static struct m0_net_test_service_cmd_handler node_bulk_cmd_handler[] = {
 	{
-		.ntsch_type    = C2_NET_TEST_CMD_INIT,
+		.ntsch_type    = M0_NET_TEST_CMD_INIT,
 		.ntsch_handler = node_bulk_cmd_init,
 	},
 	{
-		.ntsch_type    = C2_NET_TEST_CMD_START,
+		.ntsch_type    = M0_NET_TEST_CMD_START,
 		.ntsch_handler = node_bulk_cmd_start,
 	},
 	{
-		.ntsch_type    = C2_NET_TEST_CMD_STOP,
+		.ntsch_type    = M0_NET_TEST_CMD_STOP,
 		.ntsch_handler = node_bulk_cmd_stop,
 	},
 	{
-		.ntsch_type    = C2_NET_TEST_CMD_STATUS,
+		.ntsch_type    = M0_NET_TEST_CMD_STATUS,
 		.ntsch_handler = node_bulk_cmd_status,
 	},
 };
 
-struct c2_net_test_service_ops c2_net_test_node_bulk_ops = {
+struct m0_net_test_service_ops m0_net_test_node_bulk_ops = {
 	.ntso_init	     = node_bulk_init,
 	.ntso_fini	     = node_bulk_fini,
 	.ntso_step	     = node_bulk_step,

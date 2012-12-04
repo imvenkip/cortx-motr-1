@@ -28,198 +28,198 @@
 /**
    Returns the address of a link embedded in an ambient object.
  */
-static struct c2_list_link *__link(const struct c2_tl_descr *d, const void *obj);
+static struct m0_list_link *__link(const struct m0_tl_descr *d, const void *obj);
 
 /**
    Returns the value of the magic field in an ambient object
  */
-static uint64_t magic(const struct c2_tl_descr *d, const void *obj);
+static uint64_t magic(const struct m0_tl_descr *d, const void *obj);
 
 /**
    Casts a link to its ambient object.
  */
-static void *amb(const struct c2_tl_descr *d, struct c2_list_link *link);
+static void *amb(const struct m0_tl_descr *d, struct m0_list_link *link);
 
-C2_INTERNAL void c2_tlist_init(const struct c2_tl_descr *d, struct c2_tl *list)
+M0_INTERNAL void m0_tlist_init(const struct m0_tl_descr *d, struct m0_tl *list)
 {
 	list->t_magic = d->td_head_magic;
-	c2_list_init(&list->t_head);
-	C2_POST(c2_tlist_invariant(d, list));
+	m0_list_init(&list->t_head);
+	M0_POST(m0_tlist_invariant(d, list));
 }
 
-C2_INTERNAL void c2_tlist_fini(const struct c2_tl_descr *d, struct c2_tl *list)
+M0_INTERNAL void m0_tlist_fini(const struct m0_tl_descr *d, struct m0_tl *list)
 {
-	C2_PRE(c2_tlist_invariant(d, list));
-	c2_list_fini(&list->t_head);
+	M0_PRE(m0_tlist_invariant(d, list));
+	m0_list_fini(&list->t_head);
 	/*
 	 * We don't unset the magic field (list->t_magic), because it can be
 	 * shared by multiple tlinks embedded in the same ambient object.
 	 */
 }
 
-C2_INTERNAL void c2_tlink_init(const struct c2_tl_descr *d, void *obj)
+M0_INTERNAL void m0_tlink_init(const struct m0_tl_descr *d, void *obj)
 {
-	c2_list_link_init(__link(d, obj));
+	m0_list_link_init(__link(d, obj));
 	if (d->td_link_magic != 0)
 		*(uint64_t *)(obj + d->td_link_magic_offset) = d->td_link_magic;
-	C2_POST(c2_tlink_invariant(d, obj));
+	M0_POST(m0_tlink_invariant(d, obj));
 }
 
-C2_INTERNAL void c2_tlink_init_at(const struct c2_tl_descr *d, void *obj,
-				  struct c2_tl *list)
+M0_INTERNAL void m0_tlink_init_at(const struct m0_tl_descr *d, void *obj,
+				  struct m0_tl *list)
 {
-	c2_tlink_init(d, obj);
-	c2_tlist_add(d, list, obj);
+	m0_tlink_init(d, obj);
+	m0_tlist_add(d, list, obj);
 }
 
-C2_INTERNAL void c2_tlink_init_at_tail(const struct c2_tl_descr *d, void *obj,
-				       struct c2_tl *list)
+M0_INTERNAL void m0_tlink_init_at_tail(const struct m0_tl_descr *d, void *obj,
+				       struct m0_tl *list)
 {
-	c2_tlink_init(d, obj);
-	c2_tlist_add_tail(d, list, obj);
+	m0_tlink_init(d, obj);
+	m0_tlist_add_tail(d, list, obj);
 }
 
-C2_INTERNAL void c2_tlink_fini(const struct c2_tl_descr *d, void *obj)
+M0_INTERNAL void m0_tlink_fini(const struct m0_tl_descr *d, void *obj)
 {
-	c2_list_link_fini(__link(d, obj));
+	m0_list_link_fini(__link(d, obj));
 }
 
-C2_INTERNAL void c2_tlink_del_fini(const struct c2_tl_descr *d, void *obj)
+M0_INTERNAL void m0_tlink_del_fini(const struct m0_tl_descr *d, void *obj)
 {
-	c2_tlist_del(d, obj);
-	c2_tlink_fini(d, obj);
+	m0_tlist_del(d, obj);
+	m0_tlink_fini(d, obj);
 }
 
-C2_INTERNAL bool c2_tlist_is_empty(const struct c2_tl_descr *d,
-				   const struct c2_tl *list)
+M0_INTERNAL bool m0_tlist_is_empty(const struct m0_tl_descr *d,
+				   const struct m0_tl *list)
 {
-	C2_PRE(c2_tlist_invariant(d, list));
-	return c2_list_is_empty(&list->t_head);
+	M0_PRE(m0_tlist_invariant(d, list));
+	return m0_list_is_empty(&list->t_head);
 }
 
-C2_INTERNAL bool c2_tlink_is_in(const struct c2_tl_descr *d, const void *obj)
+M0_INTERNAL bool m0_tlink_is_in(const struct m0_tl_descr *d, const void *obj)
 {
-	C2_PRE(c2_tlink_invariant(d, obj));
-	return c2_list_link_is_in(__link(d, obj));
+	M0_PRE(m0_tlink_invariant(d, obj));
+	return m0_list_link_is_in(__link(d, obj));
 }
 
-C2_INTERNAL bool c2_tlist_contains(const struct c2_tl_descr *d,
-				   const struct c2_tl *list, const void *obj)
+M0_INTERNAL bool m0_tlist_contains(const struct m0_tl_descr *d,
+				   const struct m0_tl *list, const void *obj)
 {
-	C2_PRE(c2_tlist_invariant(d, list));
-	C2_PRE(c2_tlink_invariant(d, obj));
-	return c2_list_contains(&list->t_head, __link(d, obj));
+	M0_PRE(m0_tlist_invariant(d, list));
+	M0_PRE(m0_tlink_invariant(d, obj));
+	return m0_list_contains(&list->t_head, __link(d, obj));
 }
 
-C2_INTERNAL size_t c2_tlist_length(const struct c2_tl_descr *d,
-				   const struct c2_tl *list)
+M0_INTERNAL size_t m0_tlist_length(const struct m0_tl_descr *d,
+				   const struct m0_tl *list)
 {
-	C2_PRE(c2_tlist_invariant(d, list));
-	return c2_list_length(&list->t_head);
+	M0_PRE(m0_tlist_invariant(d, list));
+	return m0_list_length(&list->t_head);
 }
-C2_EXPORTED(c2_tlist_length);
+M0_EXPORTED(m0_tlist_length);
 
-C2_INTERNAL void c2_tlist_add(const struct c2_tl_descr *d, struct c2_tl *list,
+M0_INTERNAL void m0_tlist_add(const struct m0_tl_descr *d, struct m0_tl *list,
 			      void *obj)
 {
-	C2_PRE(c2_tlist_invariant(d, list));
-	C2_PRE(!c2_tlink_is_in(d, obj));
-	c2_list_add(&list->t_head, __link(d, obj));
+	M0_PRE(m0_tlist_invariant(d, list));
+	M0_PRE(!m0_tlink_is_in(d, obj));
+	m0_list_add(&list->t_head, __link(d, obj));
 }
 
-C2_INTERNAL void c2_tlist_add_tail(const struct c2_tl_descr *d,
-				   struct c2_tl *list, void *obj)
+M0_INTERNAL void m0_tlist_add_tail(const struct m0_tl_descr *d,
+				   struct m0_tl *list, void *obj)
 {
-	C2_PRE(c2_tlist_invariant(d, list));
-	C2_PRE(!c2_tlink_is_in(d, obj));
-	c2_list_add_tail(&list->t_head, __link(d, obj));
+	M0_PRE(m0_tlist_invariant(d, list));
+	M0_PRE(!m0_tlink_is_in(d, obj));
+	m0_list_add_tail(&list->t_head, __link(d, obj));
 }
 
-C2_INTERNAL void c2_tlist_add_after(const struct c2_tl_descr *d, void *obj,
+M0_INTERNAL void m0_tlist_add_after(const struct m0_tl_descr *d, void *obj,
 				    void *new)
 {
-	C2_PRE(c2_tlink_is_in(d, obj));
-	C2_PRE(!c2_tlink_is_in(d, new));
-	c2_list_add_after(__link(d, obj), __link(d, new));
+	M0_PRE(m0_tlink_is_in(d, obj));
+	M0_PRE(!m0_tlink_is_in(d, new));
+	m0_list_add_after(__link(d, obj), __link(d, new));
 }
 
-C2_INTERNAL void c2_tlist_add_before(const struct c2_tl_descr *d, void *obj,
+M0_INTERNAL void m0_tlist_add_before(const struct m0_tl_descr *d, void *obj,
 				     void *new)
 {
-	C2_PRE(c2_tlink_is_in(d, obj));
-	C2_PRE(!c2_tlink_is_in(d, new));
-	c2_list_add_before(__link(d, obj), __link(d, new));
+	M0_PRE(m0_tlink_is_in(d, obj));
+	M0_PRE(!m0_tlink_is_in(d, new));
+	m0_list_add_before(__link(d, obj), __link(d, new));
 }
 
-C2_INTERNAL void c2_tlist_del(const struct c2_tl_descr *d, void *obj)
+M0_INTERNAL void m0_tlist_del(const struct m0_tl_descr *d, void *obj)
 {
-	C2_PRE(c2_tlink_invariant(d, obj));
-	C2_PRE(c2_tlink_is_in(d, obj));
-	c2_list_del(__link(d, obj));
-	C2_PRE(!c2_tlink_is_in(d, obj));
+	M0_PRE(m0_tlink_invariant(d, obj));
+	M0_PRE(m0_tlink_is_in(d, obj));
+	m0_list_del(__link(d, obj));
+	M0_PRE(!m0_tlink_is_in(d, obj));
 }
 
-C2_INTERNAL void c2_tlist_move(const struct c2_tl_descr *d, struct c2_tl *list,
+M0_INTERNAL void m0_tlist_move(const struct m0_tl_descr *d, struct m0_tl *list,
 			       void *obj)
 {
-	C2_PRE(c2_tlist_invariant(d, list));
-	C2_PRE(c2_tlink_is_in(d, obj));
+	M0_PRE(m0_tlist_invariant(d, list));
+	M0_PRE(m0_tlink_is_in(d, obj));
 
-	c2_list_move(&list->t_head, __link(d, obj));
+	m0_list_move(&list->t_head, __link(d, obj));
 }
 
-C2_INTERNAL void c2_tlist_move_tail(const struct c2_tl_descr *d,
-				    struct c2_tl *list, void *obj)
+M0_INTERNAL void m0_tlist_move_tail(const struct m0_tl_descr *d,
+				    struct m0_tl *list, void *obj)
 {
-	C2_PRE(c2_tlist_invariant(d, list));
+	M0_PRE(m0_tlist_invariant(d, list));
 
-	c2_list_move_tail(&list->t_head, __link(d, obj));
+	m0_list_move_tail(&list->t_head, __link(d, obj));
 }
 
-void *c2_tlist_head(const struct c2_tl_descr *d, const struct c2_tl *list)
+void *m0_tlist_head(const struct m0_tl_descr *d, const struct m0_tl *list)
 {
-	const struct c2_list *head;
+	const struct m0_list *head;
 
-	C2_PRE(c2_tlist_invariant(d, list));
+	M0_PRE(m0_tlist_invariant(d, list));
 
 	head = &list->t_head;
 	return head->l_head != (void *)head ? amb(d, head->l_head) : NULL;
 }
 
-C2_INTERNAL void *c2_tlist_tail(const struct c2_tl_descr *d,
-				const struct c2_tl *list)
+M0_INTERNAL void *m0_tlist_tail(const struct m0_tl_descr *d,
+				const struct m0_tl *list)
 {
-	const struct c2_list *head;
+	const struct m0_list *head;
 
-	C2_PRE(c2_tlist_invariant(d, list));
+	M0_PRE(m0_tlist_invariant(d, list));
 
 	head = &list->t_head;
 	return head->l_tail != (void *)head ? amb(d, head->l_tail) : NULL;
 }
 
-void *c2_tlist_next(const struct c2_tl_descr *d,
-		    const struct c2_tl *list, const void *obj)
+void *m0_tlist_next(const struct m0_tl_descr *d,
+		    const struct m0_tl *list, const void *obj)
 {
-	struct c2_list_link *next;
+	struct m0_list_link *next;
 
 	next = __link(d, obj)->ll_next;
 	return (void *)next != &list->t_head ? amb(d, next) : NULL;
 }
 
-C2_INTERNAL void *c2_tlist_prev(const struct c2_tl_descr *d,
-				const struct c2_tl *list, const void *obj)
+M0_INTERNAL void *m0_tlist_prev(const struct m0_tl_descr *d,
+				const struct m0_tl *list, const void *obj)
 {
-	struct c2_list_link *prev;
+	struct m0_list_link *prev;
 
 	prev = __link(d, obj)->ll_prev;
 	return (void *)prev != &list->t_head ? amb(d, prev) : NULL;
 }
 
-C2_INTERNAL bool c2_tlist_invariant(const struct c2_tl_descr *d,
-				    const struct c2_tl *list)
+M0_INTERNAL bool m0_tlist_invariant(const struct m0_tl_descr *d,
+				    const struct m0_tl *list)
 {
-	const struct c2_list_link *head;
-	struct c2_list_link       *scan;
+	const struct m0_list_link *head;
+	struct m0_list_link       *scan;
 
 	head = (void *)&list->t_head;
 
@@ -232,31 +232,31 @@ C2_INTERNAL bool c2_tlist_invariant(const struct c2_tl_descr *d,
 		if (scan->ll_next->ll_prev != scan ||
 		    scan->ll_prev->ll_next != scan)
 			return false;
-		if (!c2_tlink_invariant(d, amb(d, scan)))
+		if (!m0_tlink_invariant(d, amb(d, scan)))
 			return false;
 	}
 	return true;
 }
 
-C2_INTERNAL bool c2_tlink_invariant(const struct c2_tl_descr *d,
+M0_INTERNAL bool m0_tlink_invariant(const struct m0_tl_descr *d,
 				    const void *obj)
 {
 	return d->td_link_magic == 0 || magic(d, obj) == d->td_link_magic;
 }
 
-static struct c2_list_link *__link(const struct c2_tl_descr *d, const void *obj)
+static struct m0_list_link *__link(const struct m0_tl_descr *d, const void *obj)
 {
-	return &((struct c2_tlink *)(obj + d->td_link_offset))->t_link;
+	return &((struct m0_tlink *)(obj + d->td_link_offset))->t_link;
 }
 
-static uint64_t magic(const struct c2_tl_descr *d, const void *obj)
+static uint64_t magic(const struct m0_tl_descr *d, const void *obj)
 {
 	return *(uint64_t *)(obj + d->td_link_magic_offset);
 }
 
-static void *amb(const struct c2_tl_descr *d, struct c2_list_link *link)
+static void *amb(const struct m0_tl_descr *d, struct m0_list_link *link)
 {
-	return (void *)container_of(link, struct c2_tlink,
+	return (void *)container_of(link, struct m0_tlink,
 				    t_link) - d->td_link_offset;
 }
 

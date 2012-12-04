@@ -28,7 +28,7 @@
 
 #include <execinfo.h>
 
-#include "colibri/magic.h"
+#include "mero/magic.h"
 #include "lib/assert.h"
 #include "desim/sim.h"
 
@@ -37,15 +37,15 @@
    @{
  */
 
-C2_TL_DESCR_DEFINE(ca, "call-outs", static, struct sim_callout,
-		   sc_linkage, sc_magic, C2_DESIM_SIM_CALLOUT_MAGIC,
-		   C2_DESIM_SIM_CALLOUT_HEAD_MAGIC);
-C2_TL_DEFINE(ca, static, struct sim_callout);
+M0_TL_DESCR_DEFINE(ca, "call-outs", static, struct sim_callout,
+		   sc_linkage, sc_magic, M0_DESIM_SIM_CALLOUT_MAGIC,
+		   M0_DESIM_SIM_CALLOUT_HEAD_MAGIC);
+M0_TL_DEFINE(ca, static, struct sim_callout);
 
-C2_TL_DESCR_DEFINE(sim_thr, "threads", static, struct sim_thread,
-		   st_block, st_magic, C2_DESIM_SIM_THREAD_MAGIC,
-		   C2_DESIM_SIM_THREAD_HEAD_MAGIC);
-C2_TL_DEFINE(sim_thr, static, struct sim_thread);
+M0_TL_DESCR_DEFINE(sim_thr, "threads", static, struct sim_thread,
+		   st_block, st_magic, M0_DESIM_SIM_THREAD_MAGIC,
+		   M0_DESIM_SIM_THREAD_HEAD_MAGIC);
+M0_TL_DEFINE(sim_thr, static, struct sim_thread);
 
 int vasprintf(char **strp, const char *fmt, va_list ap);
 
@@ -82,12 +82,12 @@ static ucontext_t sim_idle_ctx;
 /**
  * Wrapper around malloc(3), aborting the simulation when allocation fails.
  */
-C2_INTERNAL void *sim_alloc(size_t size)
+M0_INTERNAL void *sim_alloc(size_t size)
 {
 	void *area;
 
 	area = malloc(size);
-	C2_ASSERT(area != NULL);
+	M0_ASSERT(area != NULL);
 	memset(area, 0, size);
 	return area;
 }
@@ -95,7 +95,7 @@ C2_INTERNAL void *sim_alloc(size_t size)
 /**
  * Wrapper around free(3), dual to sim_alloc().
  */
-C2_INTERNAL void sim_free(void *ptr)
+M0_INTERNAL void sim_free(void *ptr)
 {
 	free(ptr);
 }
@@ -103,7 +103,7 @@ C2_INTERNAL void sim_free(void *ptr)
 /**
  * Initialize simulator state (struct sim).
  */
-C2_INTERNAL void sim_init(struct sim *state)
+M0_INTERNAL void sim_init(struct sim *state)
 {
 	state->ss_bolt = 0;
 	ca_tlist_init(&state->ss_future);
@@ -113,7 +113,7 @@ C2_INTERNAL void sim_init(struct sim *state)
 /**
  * Finalize simulator state.
  */
-C2_INTERNAL void sim_fini(struct sim *state)
+M0_INTERNAL void sim_fini(struct sim *state)
 {
 	ca_tlist_fini(&state->ss_future);
 }
@@ -126,16 +126,16 @@ C2_INTERNAL void sim_fini(struct sim *state)
  * queue (ordered by the logical time). The loop exits when the queue becomes
  * empty.
  */
-C2_INTERNAL void sim_run(struct sim *state)
+M0_INTERNAL void sim_run(struct sim *state)
 {
 	struct sim_callout *call;
 	unsigned long i;
 
 	i = 0;
 	while (!ca_tlist_is_empty(&state->ss_future)) {
-		C2_ASSERT(sim_current == NULL);
+		M0_ASSERT(sim_current == NULL);
 		call = ca_tlist_head(&state->ss_future);
-		C2_ASSERT(call->sc_time >= state->ss_bolt);
+		M0_ASSERT(call->sc_time >= state->ss_bolt);
 		/* jump to the future */
 		state->ss_bolt = call->sc_time;
 		ca_tlist_del(call);
@@ -161,12 +161,12 @@ static void sim_call_place(struct sim *sim, struct sim_callout *call)
 	 * data structure, like a tree or a skip-list of some sort.
 	 */
 
-	c2_tl_for(ca, &sim->ss_future, scan) {
+	m0_tl_for(ca, &sim->ss_future, scan) {
 		if (scan->sc_time > call->sc_time) {
 			ca_tlist_add_before(scan, call);
 			return;
 		}
-	} c2_tl_endfor;
+	} m0_tl_endfor;
 	ca_tlist_add_tail(&sim->ss_future, call);
 }
 
@@ -177,7 +177,7 @@ static void sim_timer_init(struct sim *state, struct sim_callout *call,
 			   sim_time_t delta, sim_call_t *cfunc, void *datum)
 {
 	call->sc_time  = state->ss_bolt + delta;
-	C2_ASSERT(call->sc_time >= state->ss_bolt); /* overflow */
+	M0_ASSERT(call->sc_time >= state->ss_bolt); /* overflow */
 	call->sc_call  = cfunc;
 	call->sc_datum = datum;
 	call->sc_sim   = state;
@@ -190,7 +190,7 @@ static void sim_timer_init(struct sim *state, struct sim_callout *call,
  * delta units of simulation logical time by calling cfunc call-back. datum in
  * installed into sim_callout::sc_datum field of a newly allocated call-out.
  */
-C2_INTERNAL void sim_timer_add(struct sim *state, sim_time_t delta,
+M0_INTERNAL void sim_timer_add(struct sim *state, sim_time_t delta,
 			       sim_call_t * cfunc, void *datum)
 {
 	struct sim_callout *call;
@@ -203,7 +203,7 @@ C2_INTERNAL void sim_timer_add(struct sim *state, sim_time_t delta,
  * Re-arm already allocated call-out to be executed (possibly again) after delta
  * units of logical time. The call-out must be not in the logical time queue.
  */
-C2_INTERNAL void sim_timer_rearm(struct sim_callout *call, sim_time_t delta,
+M0_INTERNAL void sim_timer_rearm(struct sim_callout *call, sim_time_t delta,
 				 sim_call_t * cfunc, void *datum)
 {
 	sim_timer_init(call->sc_sim, call, delta, cfunc, datum);
@@ -225,7 +225,7 @@ static void sim_thread_resume(struct sim_thread *thread)
 {
 	int rc;
 
-	C2_ASSERT(sim_current == NULL);
+	M0_ASSERT(sim_current == NULL);
 	sim_current = thread;
 	rc = swapcontext(&sim_idle_ctx, &thread->st_ctx);
 	if (rc != 0)
@@ -240,7 +240,7 @@ static void sim_thread_suspend(struct sim_thread *thread)
 {
 	int rc;
 
-	C2_ASSERT(sim_current == thread);
+	M0_ASSERT(sim_current == thread);
 	sim_current = NULL;
 	rc = swapcontext(&thread->st_ctx, &sim_idle_ctx);
 	if (rc != 0)
@@ -294,7 +294,7 @@ static void sim_trampoline(int func0, int func1,
  * The newly initialized thread is immediately switched to. This function can be
  * called only in the scheduler mode.
  */
-C2_INTERNAL void sim_thread_init(struct sim *state, struct sim_thread *thread,
+M0_INTERNAL void sim_thread_init(struct sim *state, struct sim_thread *thread,
 				 unsigned stacksize, sim_func_t func, void *arg)
 {
 	int rc;
@@ -334,10 +334,10 @@ C2_INTERNAL void sim_thread_init(struct sim *state, struct sim_thread *thread,
 /**
  * Finalize thread, releasing its resources (stack).
  */
-C2_INTERNAL void sim_thread_fini(struct sim_thread *thread)
+M0_INTERNAL void sim_thread_fini(struct sim_thread *thread)
 {
-	C2_PRE(sim_thread_current() != thread);
-	C2_PRE(!ca_tlink_is_in(&thread->st_wake));
+	M0_PRE(sim_thread_current() != thread);
+	M0_PRE(!ca_tlink_is_in(&thread->st_wake));
 	sim_thr_tlink_fini(thread);
 	if (thread->st_stack != NULL)
 		sim_free(thread->st_stack);
@@ -347,7 +347,7 @@ C2_INTERNAL void sim_thread_fini(struct sim_thread *thread)
  * Exit thread execution. Simulation threads must call this before returning
  * from their top-level function.
  */
-C2_INTERNAL void sim_thread_exit(struct sim_thread *thread)
+M0_INTERNAL void sim_thread_exit(struct sim_thread *thread)
 {
 	sim_thread_suspend(thread);
 }
@@ -373,9 +373,9 @@ static void sim_wakeup_post(struct sim *sim,
 /**
  * Delay thread execution for a given amount of logical time.
  */
-C2_INTERNAL void sim_sleep(struct sim_thread *thread, sim_time_t nap)
+M0_INTERNAL void sim_sleep(struct sim_thread *thread, sim_time_t nap)
 {
-	C2_ASSERT(sim_current == thread);
+	M0_ASSERT(sim_current == thread);
 	sim_wakeup_post(thread->st_sim, thread, nap);
 	sim_thread_suspend(thread);
 }
@@ -386,7 +386,7 @@ C2_INTERNAL void sim_sleep(struct sim_thread *thread, sim_time_t nap)
  * statistical counter embedded into the channel. This name is used in the final
  * statistics dump after simulation completes.
  */
-C2_INTERNAL void sim_chan_init(struct sim_chan *chan, char *format, ...)
+M0_INTERNAL void sim_chan_init(struct sim_chan *chan, char *format, ...)
 {
 	sim_thr_tlist_init(&chan->ch_threads);
 	cnt_init(&chan->ch_cnt_sleep, NULL, "chan#%p", chan);
@@ -401,7 +401,7 @@ C2_INTERNAL void sim_chan_init(struct sim_chan *chan, char *format, ...)
 /**
  * Finalize the channel, releasing its resources.
  */
-C2_INTERNAL void sim_chan_fini(struct sim_chan *chan)
+M0_INTERNAL void sim_chan_fini(struct sim_chan *chan)
 {
 	sim_thr_tlist_fini(&chan->ch_threads);
 	cnt_fini(&chan->ch_cnt_sleep);
@@ -412,9 +412,9 @@ C2_INTERNAL void sim_chan_fini(struct sim_chan *chan)
  * by a sim_chan_{signal,broadcast}() call. The calling thread is added to the
  * tail of the list, so that sim_chan_signal() wakes threads up in FIFO order.
  */
-C2_INTERNAL void sim_chan_wait(struct sim_chan *chan, struct sim_thread *thread)
+M0_INTERNAL void sim_chan_wait(struct sim_chan *chan, struct sim_thread *thread)
 {
-	C2_ASSERT(sim_current == thread);
+	M0_ASSERT(sim_current == thread);
 	sim_thr_tlist_add_tail(&chan->ch_threads, thread);
 	/*
 	 * The simplest way to measure the time threads are blocked on a channel
@@ -449,7 +449,7 @@ static void sim_chan_wake_head(struct sim_chan *chan)
 /**
  * Wake-up a thread at head of the channel list of waiting threads.
  */
-C2_INTERNAL void sim_chan_signal(struct sim_chan *chan)
+M0_INTERNAL void sim_chan_signal(struct sim_chan *chan)
 {
 	if (!sim_thr_tlist_is_empty(&chan->ch_threads))
 		sim_chan_wake_head(chan);
@@ -458,7 +458,7 @@ C2_INTERNAL void sim_chan_signal(struct sim_chan *chan)
 /**
  * Wake-up all threads waiting on a channel.
  */
-C2_INTERNAL void sim_chan_broadcast(struct sim_chan *chan)
+M0_INTERNAL void sim_chan_broadcast(struct sim_chan *chan)
 {
 	while (!sim_thr_tlist_is_empty(&chan->ch_threads))
 		sim_chan_wake_head(chan);
@@ -467,13 +467,13 @@ C2_INTERNAL void sim_chan_broadcast(struct sim_chan *chan)
 /**
  * Currently executing thread or NULL if in the scheduler mode.
  */
-C2_INTERNAL struct sim_thread *sim_thread_current(void)
+M0_INTERNAL struct sim_thread *sim_thread_current(void)
 {
 	return sim_current;
 }
 
 /** get a pseudo-random number in the interval [a, b] */
-C2_INTERNAL unsigned long long sim_rnd(unsigned long long a,
+M0_INTERNAL unsigned long long sim_rnd(unsigned long long a,
 				       unsigned long long b)
 {
 	/*
@@ -484,7 +484,7 @@ C2_INTERNAL unsigned long long sim_rnd(unsigned long long a,
 	unsigned long long scaled;
 #if 0
 
-	C2_ASSERT(a <= b);
+	M0_ASSERT(a <= b);
 
 	scaled = ((random()*(b - a + 1)) >> 31) + a;
 #else /* glibc */
@@ -494,7 +494,7 @@ C2_INTERNAL unsigned long long sim_rnd(unsigned long long a,
 
 	scaled = ((seed * (b - a + 1)) >> 32) + a;
 #endif
-	C2_ASSERT(a <= scaled && scaled <= b);
+	M0_ASSERT(a <= scaled && scaled <= b);
 	return scaled;
 }
 
@@ -502,7 +502,7 @@ C2_INTERNAL unsigned long long sim_rnd(unsigned long long a,
  * Format optional arguments according to the format and store resulting
  * allocated string at a given place, freeing its previous contents if any.
  */
-C2_INTERNAL void sim_name_set(char **name, const char *format, ...)
+M0_INTERNAL void sim_name_set(char **name, const char *format, ...)
 {
 	va_list valist;
 
@@ -515,7 +515,7 @@ C2_INTERNAL void sim_name_set(char **name, const char *format, ...)
  * Format arguments in valist according to the format and store resulting
  * allocated string at a given place, freeing its previous contents if any.
  */
-C2_INTERNAL void sim_name_vaset(char **name, const char *format, va_list valist)
+M0_INTERNAL void sim_name_vaset(char **name, const char *format, va_list valist)
 {
 	if (*name != NULL)
 		free(*name);
@@ -529,7 +529,7 @@ enum sim_log_level sim_log_level = SLL_INFO;
 /**
  * Write a log message to the console.
  */
-C2_INTERNAL void sim_log(struct sim *s, enum sim_log_level level,
+M0_INTERNAL void sim_log(struct sim *s, enum sim_log_level level,
 			 const char *format, ...)
 {
 	if (level <= sim_log_level) {
@@ -545,13 +545,13 @@ C2_INTERNAL void sim_log(struct sim *s, enum sim_log_level level,
 	}
 }
 
-C2_INTERNAL int sim_global_init(void)
+M0_INTERNAL int sim_global_init(void)
 {
 	cnt_global_init();
 	return 0;
 }
 
-C2_INTERNAL void sim_global_fini(void)
+M0_INTERNAL void sim_global_fini(void)
 {
 	cnt_global_fini();
 }

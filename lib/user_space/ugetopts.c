@@ -44,7 +44,7 @@ extern int   optreset;
  */
 
 static void usage(const char *progname,
-		  const struct c2_getopts_opt *opts, unsigned nr)
+		  const struct m0_getopts_opt *opts, unsigned nr)
 {
 	int i;
 
@@ -52,7 +52,7 @@ static void usage(const char *progname,
 			progname);
 
 	for (i = 0; i < nr; ++i) {
-		const struct c2_getopts_opt *o;
+		const struct m0_getopts_opt *o;
 
 		o = &opts[i];
 		fprintf(stderr, "\t -%c %10s: %s\n", o->go_opt,
@@ -79,19 +79,19 @@ static int getnum(const char *arg, const char *desc, int64_t *out)
 		return 0;
 }
 
-static int getscaled(const char *arg, const char *desc, c2_bcount_t *out)
+static int getscaled(const char *arg, const char *desc, m0_bcount_t *out)
 {
 	int rc;
 
-	rc = c2_bcount_get(arg, out);
+	rc = m0_bcount_get(arg, out);
 	if (rc != 0)
 		fprintf(stderr, "Failed conversion of \"%s\" to %s\n",
 			arg, desc);
 	return rc;
 }
 
-int c2_getopts(const char *progname, int argc, char *const *argv,
-	       const struct c2_getopts_opt *opts, unsigned nr)
+int m0_getopts(const char *progname, int argc, char *const *argv,
+	       const struct m0_getopts_opt *opts, unsigned nr)
 {
 	char *optstring;
 	int   i;
@@ -99,14 +99,14 @@ int c2_getopts(const char *progname, int argc, char *const *argv,
 	int   ch;
 	int   result;
 
-	C2_ALLOC_ARR(optstring, 2 * nr + 1);
+	M0_ALLOC_ARR(optstring, 2 * nr + 1);
 	if (optstring == NULL)
 		return -ENOMEM;
 
 	for (scan = i = 0; i < nr; ++i) {
 		/* -W is reserved by POSIX.2 and used by GNU getopts as a long
                     option escape. */
-		C2_ASSERT(opts[i].go_opt != 'W');
+		M0_ASSERT(opts[i].go_opt != 'W');
 		optstring[scan++] = opts[i].go_opt;
 		if (opts[i].go_type != GOT_VOID && opts[i].go_type != GOT_FLAG
 		    && opts[i].go_type != GOT_HELP)
@@ -125,8 +125,8 @@ int c2_getopts(const char *progname, int argc, char *const *argv,
 
 	while (result == 0 && (ch = getopt(argc, argv, optstring)) != -1) {
 		for (i = 0; i < nr; ++i) {
-			const struct c2_getopts_opt  *o;
-			const union c2_getopts_union *u;
+			const struct m0_getopts_opt  *o;
+			const union m0_getopts_union *u;
 
 			o = &opts[i];
 			if (ch != o->go_opt)
@@ -146,7 +146,7 @@ int c2_getopts(const char *progname, int argc, char *const *argv,
 				break;
 			}
 			case GOT_SCALED: {
-				c2_bcount_t num;
+				m0_bcount_t num;
 
 				result = getscaled(optarg, o->go_desc, &num);
 				if (result == 0)
@@ -175,19 +175,19 @@ int c2_getopts(const char *progname, int argc, char *const *argv,
 				exit(EXIT_FAILURE);
 				break;
 			default:
-				C2_IMPOSSIBLE("Wrong option type.");
+				M0_IMPOSSIBLE("Wrong option type.");
 			}
 			break;
 		}
 		if (i == nr)  {
-			C2_ASSERT(ch == '?');
+			M0_ASSERT(ch == '?');
 			fprintf(stderr, "Unknown option '%c'\n", optopt);
 			usage(progname, opts, nr);
 			result = -EINVAL;
 		}
 	}
 
-	c2_free(optstring);
+	m0_free(optstring);
 	return result;
 }
 

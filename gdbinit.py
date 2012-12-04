@@ -52,28 +52,28 @@ def sum(start_addr, count):
 #
 #==============================================================================
 #
-class C2ListPrint(gdb.Command):
-	"""Prints c2_list/c2_tl elements.
+class M0ListPrint(gdb.Command):
+	"""Prints m0_list/m0_tl elements.
 
-Usage: c2-list-print [&]list [[struct|union] tag link [visit|"in-detail"]]
+Usage: m0-list-print [&]list [[struct|union] tag link [visit|"in-detail"]]
 
 First argument is only mandatory argument. It can be of type
-- struct c2_list or struct c2_list *,
-- struct c2_tl or struct c2_tl *
-If this is the only argument supplied, then c2-list-print prints
+- struct m0_list or struct m0_list *,
+- struct m0_tl or struct m0_tl *
+If this is the only argument supplied, then m0-list-print prints
 address of each of links forming the list.
 Example:
-(gdb) c2-list-print session->s_slot_table[0]->sl_item_list
+(gdb) m0-list-print session->s_slot_table[0]->sl_item_list
 0x6257d0
 0x7fffd80009d0
 Total: 2
 
 Later three arguments can be either all present or all absent.
 The three arguments together specify name of link field
-within ambient object. This form of c2-list-print prints pointers to
+within ambient object. This form of m0-list-print prints pointers to
 ambient objects.
 Example:
-(gdb) c2-list-print session->s_slot_table[0]->sl_item_list struct c2_rpc_item ri_slot_refs[0].sr_link
+(gdb) m0-list-print session->s_slot_table[0]->sl_item_list struct m0_rpc_item ri_slot_refs[0].sr_link
 0x6256e0
 0x7fffd80008e0
 Total: 2
@@ -83,37 +83,37 @@ are displayed:
 - If the last parameter == "in-detail", then it prints all the contents of
   ambient objects(not addreses) of the list
 - Otherwise the last argument 'visit' if present is name of a user-defined command
-  that takes one argument(think c2-list-print as a list traversing function
+  that takes one argument(think m0-list-print as a list traversing function
   with pointer to 'visit' function as arguemnt).
   The visit command will be executed for each object in list.
   The implementation of visit command can decide which objects to print and how.
 Example:
-(gdb) c2-list-print fop_types_list struct c2_fop_type ft_linkage in-detail
-<Prints all c2_fop_type objects from fop_types_list>
+(gdb) m0-list-print fop_types_list struct m0_fop_type ft_linkage in-detail
+<Prints all m0_fop_type objects from fop_types_list>
 
 (gdb) define session_visit
->set $s = (struct c2_rpc_session *)$arg0
+>set $s = (struct m0_rpc_session *)$arg0
 >printf "session %p id %lu state %d\\n", $s, $s->s_session_id, $s->s_state
 >end
-(gdb) c2-list-print session->s_conn->c_sessions struct c2_rpc_session s_link session_visit
+(gdb) m0-list-print session->s_conn->c_sessions struct m0_rpc_session s_link session_visit
 session 0x604c60 id 191837184000000002 state 4
 session 0x624e50 id 0 state 4
 Total: 2
-(gdb) c2-list-print session->s_conn->c_sessions struct c2_rpc_session s_link
+(gdb) m0-list-print session->s_conn->c_sessions struct m0_rpc_session s_link
 0x604c60
 0x624e50
 Total: 2
 """
 
 	def __init__(self):
-		gdb.Command.__init__(self, "c2-list-print", \
+		gdb.Command.__init__(self, "m0-list-print", \
 				     gdb.COMMAND_SUPPORT, gdb.COMPLETE_SYMBOL)
 
 	def invoke(self, arg, from_tty):
 		argv = gdb.string_to_argv(arg)
 		argc = len(argv)
 		if argc != 1 and argc != 4 and argc != 5:
-			print "Error: Usage: c2-list-print [&]list " + \
+			print "Error: Usage: m0-list-print [&]list " + \
 			      "[[struct|union] tag link [visit]]"
 			return
 
@@ -157,15 +157,15 @@ Total: 2
 		vhead = gdb.parse_and_eval(argv[0])
 		type  = str(vhead.type)
 
-		if type == "struct c2_list":
+		if type == "struct m0_list":
 			head = long(vhead.address)
-		elif type == "struct c2_list *":
+		elif type == "struct m0_list *":
 			head = long(vhead)
-		elif type == "struct c2_tl" or type == "struct c2_tl *":
+		elif type == "struct m0_tl" or type == "struct m0_tl *":
 			vhead = vhead['t_head']
 			head = long(vhead.address)
 		else:
-			print "Error: Argument 1 is not a [&]c2_list or [&]c2_tl"
+			print "Error: Argument 1 is not a [&]m0_list or [&]m0_tl"
 			ok = False
 
 		return vhead, head, ok
@@ -190,11 +190,11 @@ Total: 2
 				return 0, None, False
 
 			type = field_type(str_elm_type, anchor)
-			if str(type) != "struct c2_list_link" and str(type) != "struct c2_tlink":
-				print "Error: Argument 4 must be of type c2_list_link or c2_tlink"
+			if str(type) != "struct m0_list_link" and str(type) != "struct m0_tlink":
+				print "Error: Argument 4 must be of type m0_list_link or m0_tlink"
 				return 0, None, False
 
-			if str(type) == "struct c2_tlink":
+			if str(type) == "struct m0_tlink":
 				anchor = anchor.strip() + ".t_link"
 
 			offset = offset_of(str_elm_type, anchor)
@@ -205,21 +205,21 @@ Total: 2
 #==============================================================================
 #
 
-class C2BufvecPrint(gdb.Command):
-	"""Prints segments in c2_bufvec
+class M0BufvecPrint(gdb.Command):
+	"""Prints segments in m0_bufvec
 
-Usage: c2-bufvec-print [&]c2_bufvec
+Usage: m0-bufvec-print [&]m0_bufvec
 For each segment, the command prints,
 - segment number,
 - [start address, end_address),
-- offset of first byte of segment, inside entire c2_bufvec, along with its
+- offset of first byte of segment, inside entire m0_bufvec, along with its
   human readable representation,
 - number of bytes in segment in human readable form,
 - sumation of all the bytes in the segment. sum = 0, implies all the bytes in
   the segment are zero.
 """
 	def __init__(self):
-		gdb.Command.__init__(self, "c2-bufvec-print", \
+		gdb.Command.__init__(self, "m0-bufvec-print", \
 				     gdb.COMMAND_SUPPORT, gdb.COMPLETE_SYMBOL)
 
 	def invoke(self, arg, from_tty):
@@ -227,14 +227,14 @@ For each segment, the command prints,
 		argc = len(argv)
 
 		if argc != 1:
-			print "Error: Usage: c2-bufvec-print [&]c2_bufvec"
+			print "Error: Usage: m0-bufvec-print [&]m0_bufvec"
 			return
 
 		vbufvec = gdb.parse_and_eval(argv[0])
 		t = str(vbufvec.type)
-		if t != "struct c2_bufvec" and t != "struct c2_bufvec *":
-			print "Error: Argument 1 must be either 'struct c2_bufvec' or" + \
-					" 'struct c2_bufvec *' type"
+		if t != "struct m0_bufvec" and t != "struct m0_bufvec *":
+			print "Error: Argument 1 must be either 'struct m0_bufvec' or" + \
+					" 'struct m0_bufvec *' type"
 			return
 
 		nr_seg   = long(vbufvec['ov_vec']['v_nr'])
@@ -262,13 +262,13 @@ For each segment, the command prints,
 #==============================================================================
 #
 
-class C2IndexvecPrint(gdb.Command):
-	"""Prints segments in c2_indexvec
+class M0IndexvecPrint(gdb.Command):
+	"""Prints segments in m0_indexvec
 
-Usage: c2-indexvec-print [&]c2_indexvec
+Usage: m0-indexvec-print [&]m0_indexvec
 """
 	def __init__(self):
-		gdb.Command.__init__(self, "c2-indexvec-print", \
+		gdb.Command.__init__(self, "m0-indexvec-print", \
 				     gdb.COMMAND_SUPPORT, gdb.COMPLETE_SYMBOL)
 
 	def invoke(self, arg, from_tty):
@@ -276,14 +276,14 @@ Usage: c2-indexvec-print [&]c2_indexvec
 		argc = len(argv)
 
 		if argc != 1:
-			print "Error: Usage: c2-indexvec-print [&]c2_indexvec"
+			print "Error: Usage: m0-indexvec-print [&]m0_indexvec"
 			return
 
 		v_ivec = gdb.parse_and_eval(argv[0])
 		t = str(v_ivec.type)
-		if t != "struct c2_indexvec" and t != "struct c2_indexvec *":
-			print "Error: Argument 1 must be of either 'struct c2_indexvec' or" + \
-					" 'struct c2_indexvec *' type."
+		if t != "struct m0_indexvec" and t != "struct m0_indexvec *":
+			print "Error: Argument 1 must be of either 'struct m0_indexvec' or" + \
+					" 'struct m0_indexvec *' type."
 			return
 
 		nr_seg      = long(v_ivec['iv_vec']['v_nr'])
@@ -310,9 +310,9 @@ macros = [ \
 for m in macros:
 	gdb.execute("macro define %s" % m)
 
-C2ListPrint()
-C2BufvecPrint()
-C2IndexvecPrint()
+M0ListPrint()
+M0BufvecPrint()
+M0IndexvecPrint()
 
-print "Loading gdb commands for Colibri..."
+print "Loading gdb commands for Mero..."
 print "NOTE: If you've not already loaded, you may also want to load core/gdbinit"

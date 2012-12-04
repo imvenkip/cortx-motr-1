@@ -20,62 +20,62 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_RPCLIB_H__
-#define __COLIBRI_RPC_RPCLIB_H__
+#ifndef __MERO_RPC_RPCLIB_H__
+#define __MERO_RPC_RPCLIB_H__
 
 #ifndef __KERNEL__
 #include <stdio.h> /* FILE */
 #endif
 
 #include "rpc/rpc.h"
-#include "db/db.h"       /* struct c2_dbenv */
-#include "cob/cob.h"     /* struct c2_cob_domain */
-#include "net/net.h"     /* struct c2_net_end_point */
+#include "db/db.h"       /* struct m0_dbenv */
+#include "cob/cob.h"     /* struct m0_cob_domain */
+#include "net/net.h"     /* struct m0_net_end_point */
 #include "net/buffer_pool.h"
 
 #ifndef __KERNEL__
-#include "colibri/colibri_setup.h" /* struct c2_colibri */
+#include "mero/mero_setup.h" /* struct m0_mero */
 #endif
 
-struct c2_fop;
+struct m0_fop;
 
 #ifndef __KERNEL__
-struct c2_reqh;
-struct c2_reqh_service_type;
+struct m0_reqh;
+struct m0_reqh_service_type;
 
 /**
  * RPC server context structure.
  *
  * Contains all required data to initialize an RPC server,
- * using colibri-setup API.
+ * using mero-setup API.
  */
-struct c2_rpc_server_ctx {
+struct m0_rpc_server_ctx {
 
 	/** a pointer to array of transports, which can be used by server */
-	struct c2_net_xprt          **rsx_xprts;
+	struct m0_net_xprt          **rsx_xprts;
 	/** number of transports in array */
 	int                           rsx_xprts_nr;
 
 	/**
-	 * ARGV-like array of CLI options to configure colibri-setup, which is
-	 * passed to c2_cs_setup_env()
+	 * ARGV-like array of CLI options to configure mero-setup, which is
+	 * passed to m0_cs_setup_env()
 	 */
 	char                        **rsx_argv;
 	/** number of elements in rsx_argv array */
 	int                           rsx_argc;
 
 	/** a pointer to array of service types, which can be used by server */
-	struct c2_reqh_service_type **rsx_service_types;
+	struct m0_reqh_service_type **rsx_service_types;
 	/** number of service types in array */
 	int                           rsx_service_types_nr;
 
 	const char                   *rsx_log_file_name;
 
-	/** an embedded colibri context structure */
-	struct c2_colibri             rsx_colibri_ctx;
+	/** an embedded mero context structure */
+	struct m0_mero             rsx_mero_ctx;
 
 	/**
-	 * this is an internal variable, which is used by c2_rpc_server_stop()
+	 * this is an internal variable, which is used by m0_rpc_server_stop()
 	 * to close log file; it should not be initialized by a caller
 	 */
 	FILE                         *rsx_log_file;
@@ -88,38 +88,38 @@ struct c2_rpc_server_ctx {
 
   @pre sctx->rcx_dbenv and rctx->rcx_cob_dom are initialized
 */
-int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx);
+int m0_rpc_server_start(struct m0_rpc_server_ctx *sctx);
 
 /**
   Stops RPC server.
 
   @param sctx  Initialized rpc context structure.
 */
-void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx);
+void m0_rpc_server_stop(struct m0_rpc_server_ctx *sctx);
 #endif
 
-struct c2_net_xprt;
-struct c2_net_domain;
+struct m0_net_xprt;
+struct m0_net_domain;
 
 /**
  * RPC client context structure.
  *
  * Contains all required data to initialize an RPC client and connect to server.
  */
-struct c2_rpc_client_ctx {
+struct m0_rpc_client_ctx {
 
 	/**
 	 * Input parameters.
 	 *
 	 * They are initialized and filled in by a caller of
-	 * c2_rpc_client_start().
+	 * m0_rpc_client_start().
 	 */
 
 	/**
 	 * A pointer to net domain struct which will be initialized and used by
-	 * c2_rpc_client_start()
+	 * m0_rpc_client_start()
 	 */
-	struct c2_net_domain      *rcx_net_dom;
+	struct m0_net_domain      *rcx_net_dom;
 
 	/** Transport specific local address (client's address) */
 	const char                *rcx_local_addr;
@@ -132,18 +132,18 @@ struct c2_rpc_client_ctx {
 
 	/**
 	 * A pointer to dbenv struct which will be initialized and used by
-	 * c2_rpc_client_start()
+	 * m0_rpc_client_start()
 	 */
-	struct c2_dbenv           *rcx_dbenv;
+	struct m0_dbenv           *rcx_dbenv;
 
 	/** Identity of cob used by the RPC machine */
 	uint32_t                   rcx_cob_dom_id;
 
 	/**
 	 * A pointer to cob domain struct which will be initialized and used by
-	 * c2_rpc_client_start()
+	 * m0_rpc_client_start()
 	 */
-	struct c2_cob_domain      *rcx_cob_dom;
+	struct m0_cob_domain      *rcx_cob_dom;
 
 	/** Number of session slots */
 	uint32_t		   rcx_nr_slots;
@@ -159,20 +159,20 @@ struct c2_rpc_client_ctx {
 	/**
 	 * Output parameters.
 	 *
-	 * They are initialized and filled in by c2_rpc_client_start().
+	 * They are initialized and filled in by m0_rpc_client_start().
 	 */
 
-	struct c2_rpc_machine	   rcx_rpc_machine;
-	struct c2_net_end_point	  *rcx_remote_ep;
-	struct c2_rpc_conn	   rcx_connection;
-	struct c2_rpc_session	   rcx_session;
+	struct m0_rpc_machine	   rcx_rpc_machine;
+	struct m0_net_end_point	  *rcx_remote_ep;
+	struct m0_rpc_conn	   rcx_connection;
+	struct m0_rpc_session	   rcx_session;
 
 	/** Buffer pool used to provision TM receive queue. */
-	struct c2_net_buffer_pool  rcx_buffer_pool;
+	struct m0_net_buffer_pool  rcx_buffer_pool;
 
 	/**
-	 * List of buffer pools in colibri context.
-	 * @see c2_cs_buffer_pool::cs_bp_linkage
+	 * List of buffer pools in mero context.
+	 * @see m0_cs_buffer_pool::cs_bp_linkage
 	 */
         uint32_t		   rcx_recv_queue_min_length;
 
@@ -183,13 +183,13 @@ struct c2_rpc_client_ctx {
 /**
   Starts client's rpc machine. Creates a connection to a server and establishes
   an rpc session on top of it.  Created session object can be set in an rpc item
-  and used in c2_rpc_post().
+  and used in m0_rpc_post().
 
   @param cctx  Initialized rpc context structure.
 
   @pre cctx->rcx_dbenv and rctx->rcx_cob_dom are initialized
 */
-int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx);
+int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx);
 
 /**
   Make an RPC call to a server, blocking for a reply if desired.
@@ -203,10 +203,10 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx);
 		     wait in formation queue and should be sent immediately.
   @param timeout_s   Timeout in seconds.  0 implies don't wait for a reply.
 */
-int c2_rpc_client_call(struct c2_fop *fop,
-		       struct c2_rpc_session *session,
-		       const struct c2_rpc_item_ops *ri_ops,
-		       c2_time_t deadline, uint32_t timeout_s);
+int m0_rpc_client_call(struct m0_fop *fop,
+		       struct m0_rpc_session *session,
+		       const struct m0_rpc_item_ops *ri_ops,
+		       m0_time_t deadline, uint32_t timeout_s);
 
 /**
   Terminates RPC session and connection with server and finalize client's RPC
@@ -214,7 +214,7 @@ int c2_rpc_client_call(struct c2_fop *fop,
 
   @param cctx  Initialized rpc context structure.
 */
-int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx);
+int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx);
 
-#endif /* __COLIBRI_RPC_RPCLIB_H__ */
+#endif /* __MERO_RPC_RPCLIB_H__ */
 

@@ -1,2 +1,2 @@
-ut_libcolibri_ut_la_SOURCES += cm/ut/cp.c \
+ut_libmero_ut_la_SOURCES += cm/ut/cp.c \
                                cm/ut/cm.c

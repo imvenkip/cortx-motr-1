@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_BULK_H__
-#define __COLIBRI_RPC_BULK_H__
+#ifndef __MERO_RPC_BULK_H__
+#define __MERO_RPC_BULK_H__
 
 /**
    @addtogroup rpc
@@ -36,7 +36,7 @@
    @{
 
    Detailed Level Design for bulk IO interface from rpc layer.
-   Colibri rpc layer, network layer and the underlying transport are
+   Mero rpc layer, network layer and the underlying transport are
    supposed to constitute a zero-copy path for data IO.
    In order to do this, rpc layer needs to provide support for
    bulk interface exported by network layer which gives the capability
@@ -46,12 +46,12 @@
    There are 2 major use cases here - read IO and write IO in which
    bulk interface is needed.
    The bulk IO interface from network layer provides abstractions like
-   - c2_net_buffer (a generic buffer identified at network layer) and
-   - c2_net_buf_desc (an identifier to point to a c2_net_buffer).
+   - m0_net_buffer (a generic buffer identified at network layer) and
+   - m0_net_buf_desc (an identifier to point to a m0_net_buffer).
 
    Whenever data buffers are encountered in rpc layer, rpc layer
    (especially formation sub-component) is supposed to take care of
-   segregating these rpc items and register c2_net_buffers where
+   segregating these rpc items and register m0_net_buffers where
    data buffers are encountered (during write request and read reply)
    and buffer descriptors are copied into rpc items after registering
    net buffers.
@@ -70,11 +70,11 @@
    client=>crpc [ label = "Adds pages to rpc bulk" ];
    crpc=>crpc [ label = "Populates net buf desc from IO fop" ];
    crpc=>crpc [ label = "net buffer enqueued to
-		C2_NET_QT_PASSIVE_BULK_SEND queue" ];
+		M0_NET_QT_PASSIVE_BULK_SEND queue" ];
    crpc=>srpc [ label = "Sends fop over wire" ];
    srpc=>server [ label = "IO fop submitted to ioservice" ];
    server=>srpc [ label = "Adds pages to rpc bulk" ];
-   server=>srpc [ label = "Net buffer enqueued to C2_NET_QT_ACTIVE_BULK_RECV
+   server=>srpc [ label = "Net buffer enqueued to M0_NET_QT_ACTIVE_BULK_RECV
 		  queue" ];
    server=>srpc [ label = "Start zero copy" ];
    srpc=>crpc [ label = "Start zero copy" ];
@@ -92,7 +92,7 @@
    Assumptions
    - Read request fop has IO buffers associated with it. These buffers are
      actually empty, they contain no user data. These buffers are replaced
-     by c2_net_buf_desc and packed with rpc.
+     by m0_net_buf_desc and packed with rpc.
    - And read reply fop consists of number of bytes read.
    - Underlying transport supports zero-copy.
 
@@ -103,11 +103,11 @@
    client=>crpc [ label = "Adds pages to rpc bulk" ];
    crpc=>crpc [ label = "Populates net buf desc from IO fop" ];
    crpc=>crpc [ label = "net buffer enqueued to
-		C2_NET_QT_PASSIVE_BULK_RECV queue" ];
+		M0_NET_QT_PASSIVE_BULK_RECV queue" ];
    crpc=>srpc [ label = "Sends fop over wire" ];
    srpc=>server [ label = "IO fop submitted to ioservice" ];
    server=>srpc [ label = "Adds pages to rpc bulk" ];
-   server=>srpc [ label = "Net buffer enqueued to C2_NET_QT_ACTIVE_BULK_SEND
+   server=>srpc [ label = "Net buffer enqueued to M0_NET_QT_ACTIVE_BULK_SEND
 		  queue" ];
    server=>server [ label = "Dispatch IO request" ];
    server=>server [ label = "IO request complete" ];
@@ -126,76 +126,76 @@
 #include "lib/mutex.h"
 #include "lib/chan.h"
 
-struct c2_net_buffer;
-struct c2_net_domain;
-struct c2_net_buf_desc;
-struct c2_rpc_conn;
-enum c2_net_queue_type;
+struct m0_net_buffer;
+struct m0_net_domain;
+struct m0_net_buf_desc;
+struct m0_rpc_conn;
+enum m0_net_queue_type;
 
 /**
-   Represents attributes of struct c2_rpc_bulk_buf.
+   Represents attributes of struct m0_rpc_bulk_buf.
  */
 enum {
 	/**
-	 * The net buffer belonging to struct c2_rpc_bulk_buf is
+	 * The net buffer belonging to struct m0_rpc_bulk_buf is
 	 * allocated by rpc bulk APIs.
 	 * So it should be deallocated by rpc bulk APIs as well.
 	 */
-	C2_RPC_BULK_NETBUF_ALLOCATED = 1,
+	M0_RPC_BULK_NETBUF_ALLOCATED = 1,
 	/**
-	 * The net buffer belonging to struct c2_rpc_bulk_buf is
+	 * The net buffer belonging to struct m0_rpc_bulk_buf is
 	 * registered with net domain by rpc bulk APIs.
 	 * So it should be deregistered by rpc bulk APIs as well.
 	 */
-	C2_RPC_BULK_NETBUF_REGISTERED,
+	M0_RPC_BULK_NETBUF_REGISTERED,
 };
 
 /**
-   Represents rpc bulk equivalent of a c2_net_buffer. Contains a net buffer
+   Represents rpc bulk equivalent of a m0_net_buffer. Contains a net buffer
    pointer, a zero vector which does all the in-memory manipulations
-   and a backlink to c2_rpc_bulk structure to report back the status.
+   and a backlink to m0_rpc_bulk structure to report back the status.
  */
-struct c2_rpc_bulk_buf {
+struct m0_rpc_bulk_buf {
 	/** Magic constant to verify sanity of data. */
 	uint64_t		 bb_magic;
 	/** Net buffer containing IO data. */
-	struct c2_net_buffer	*bb_nbuf;
+	struct m0_net_buffer	*bb_nbuf;
 	/** Zero vector pointing to user data. */
-	struct c2_0vec		 bb_zerovec;
-	/** Linkage into list of c2_rpc_bulk_buf hanging off
-	    c2_rpc_bulk::rb_buflist. */
-	struct c2_tlink		 bb_link;
-	/** Back link to parent c2_rpc_bulk structure. */
-	struct c2_rpc_bulk	*bb_rbulk;
-	/** Flags bearing attributes of c2_rpc_bulk_buf structure. */
+	struct m0_0vec		 bb_zerovec;
+	/** Linkage into list of m0_rpc_bulk_buf hanging off
+	    m0_rpc_bulk::rb_buflist. */
+	struct m0_tlink		 bb_link;
+	/** Back link to parent m0_rpc_bulk structure. */
+	struct m0_rpc_bulk	*bb_rbulk;
+	/** Flags bearing attributes of m0_rpc_bulk_buf structure. */
 	uint64_t		 bb_flags;
 };
 
 /**
-   Adds a c2_rpc_bulk_buf structure to the list of such structures in a
-   c2_rpc_bulk structure.
-   @param segs_nr Number of segments needed in new c2_rpc_bulk_buf
+   Adds a m0_rpc_bulk_buf structure to the list of such structures in a
+   m0_rpc_bulk structure.
+   @param segs_nr Number of segments needed in new m0_rpc_bulk_buf
    structure.
-   @param netdom The c2_net_domain structure to which new c2_rpc_bulk_buf
+   @param netdom The m0_net_domain structure to which new m0_rpc_bulk_buf
    structure will belong to. It is primarily used to keep a check on
    thresholds like max_seg_size, max_buf_size and max_number_of_segs.
    @param nb Net buf pointer if user wants to use preallocated network
    buffer. (nb == NULL) implies that net buffer should be allocated by
-   c2_rpc_bulk_buf_add().
-   @param out Out parameter through which newly created c2_rpc_bulk_buf
+   m0_rpc_bulk_buf_add().
+   @param out Out parameter through which newly created m0_rpc_bulk_buf
    structure is returned back to the caller.
-   Users need not remove the c2_rpc_bulk_buf structures manually.
+   Users need not remove the m0_rpc_bulk_buf structures manually.
    These structures are removed by rpc bulk callback.
    @see rpc_bulk_buf_cb().
    @pre rbulk != NULL && segs_nr != 0.
    @post (rc == 0 && *out != NULL) || rc != 0.
-   @see c2_rpc_bulk.
+   @see m0_rpc_bulk.
  */
-C2_INTERNAL int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
+M0_INTERNAL int m0_rpc_bulk_buf_add(struct m0_rpc_bulk *rbulk,
 				    uint32_t segs_nr,
-				    struct c2_net_domain *netdom,
-				    struct c2_net_buffer *nb,
-				    struct c2_rpc_bulk_buf **out);
+				    struct m0_net_domain *netdom,
+				    struct m0_net_buffer *nb,
+				    struct m0_rpc_bulk_buf **out);
 
 /**
    Adds a data buffer to zero vector referred to by rpc bulk structure.
@@ -203,44 +203,44 @@ C2_INTERNAL int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
    @param buf User space buffer starting address.
    @param count Number of bytes in user space buffer.
    @param index Index of target object to which io is targeted.
-   @param netdom Net domain to which the net buffer from c2_rpc_bulk_buf
+   @param netdom Net domain to which the net buffer from m0_rpc_bulk_buf
    belongs.
    @pre buf != NULL && count != 0 && netdom != NULL &&
    rpc_bulk_invariant(rbulk).
    @post rpc_bulk_invariant(rbulk).
  */
-C2_INTERNAL int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
+M0_INTERNAL int m0_rpc_bulk_buf_databuf_add(struct m0_rpc_bulk_buf *rbuf,
 					    void *buf,
-					    c2_bcount_t count,
-					    c2_bindex_t index,
-					    struct c2_net_domain *netdom);
+					    m0_bcount_t count,
+					    m0_bindex_t index,
+					    struct m0_net_domain *netdom);
 
 /**
    An abstract data structure that avails bulk transport for io operations.
    End users will register the IO vectors using this structure and bulk
    transfer apis will take care of doing the data transfer in zero-copy
    fashion.
-   These APIs are primarily used by another in-memory structure c2_io_fop.
-   @see c2_io_fop.
+   These APIs are primarily used by another in-memory structure m0_io_fop.
+   @see m0_io_fop.
    @note Passive entities engaging in bulk transfer do not block for
-   c2_rpc_bulk callback. Only active entities are blocked since they
+   m0_rpc_bulk callback. Only active entities are blocked since they
    can not proceed until bulk transfer is complete.
    @see rpc_bulk_buf_cb().
  */
-struct c2_rpc_bulk {
-	/** Magic to verify sanity of struct c2_rpc_bulk. */
+struct m0_rpc_bulk {
+	/** Magic to verify sanity of struct m0_rpc_bulk. */
 	uint64_t		 rb_magic;
 	/** Mutex to protect access on list rb_buflist. */
-	struct c2_mutex		 rb_mutex;
+	struct m0_mutex		 rb_mutex;
 	/**
-	 * List of c2_rpc_bulk_buf structures linkged through
-	 * c2_rpc_bulk_buf::rb_link.
+	 * List of m0_rpc_bulk_buf structures linkged through
+	 * m0_rpc_bulk_buf::rb_link.
 	 */
-	struct c2_tl		 rb_buflist;
+	struct m0_tl		 rb_buflist;
 	/** Channel to wait on rpc bulk to complete the io. */
-	struct c2_chan		 rb_chan;
+	struct m0_chan		 rb_chan;
 	/** Number of bytes read/written through this structure. */
-	c2_bcount_t		 rb_bytes;
+	m0_bcount_t		 rb_bytes;
 	/**
 	 * Return value of operations like addition of buffers to transfer
 	 * machine and zero-copy operation. This field is updated by
@@ -255,93 +255,93 @@ struct c2_rpc_bulk {
    @pre rbulk != NULL.
    @post rpc_bulk_invariant(rbulk).
  */
-C2_INTERNAL void c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk);
+M0_INTERNAL void m0_rpc_bulk_init(struct m0_rpc_bulk *rbulk);
 
 /**
-   Removes all c2_rpc_bulk_buf structures from list of such structures in
-   c2_rpc_bulk structure and deallocates it.
+   Removes all m0_rpc_bulk_buf structures from list of such structures in
+   m0_rpc_bulk structure and deallocates it.
    @pre rbulk != NULL.
    @post rpcbulk_tlist_length(&rbulk->rb_buflist) = 0.
  */
-C2_INTERNAL void c2_rpc_bulk_buflist_empty(struct c2_rpc_bulk *rbulk);
+M0_INTERNAL void m0_rpc_bulk_buflist_empty(struct m0_rpc_bulk *rbulk);
 
 /**
    Finalizes the rpc bulk structure.
    @pre rbulk != NULL && rpc_bulk_invariant(rbulk).
  */
-C2_INTERNAL void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk);
+M0_INTERNAL void m0_rpc_bulk_fini(struct m0_rpc_bulk *rbulk);
 
 /**
    Enum to identify the type of bulk operation going on.
  */
-enum c2_rpc_bulk_op_type {
+enum m0_rpc_bulk_op_type {
 	/**
 	 * Store the net buf descriptors from net buffers to io fops.
 	 * Typically used by bulk client.
 	 */
-	C2_RPC_BULK_STORE = (1 << 0),
+	M0_RPC_BULK_STORE = (1 << 0),
 	/**
 	 * Load the net buf descriptors from io fops to destination
 	 * net buffers.
 	 * Typically used by bulk server.
 	 */
-	C2_RPC_BULK_LOAD  = (1 << 1),
+	M0_RPC_BULK_LOAD  = (1 << 1),
 };
 
 /**
    Assigns queue type for buffers maintained in rbulk->rb_buflist from
    argument q.
-   @param rbulk c2_rpc_bulk structure containing list of c2_rpc_bulk_buf
+   @param rbulk m0_rpc_bulk structure containing list of m0_rpc_bulk_buf
    structures whose net buffers queue type has to be assigned.
-   @param q Queue type for c2_net_buffer structures.
-   @pre rbulk != NULL && !c2_tlist_is_empty(rbulk->rb_buflist) &&
-   c2_mutex_is_locked(&rbulk->rb_mutex) &&
-   q == C2_NET_QT_PASSIVE_BULK_RECV || q == C2_NET_QT_PASSIVE_BULK_SEND ||
-   q == C2_NET_QT_ACTIVE_BULK_RECV  || q == C2_NET_QT_ACTIVE_BULK_SEND.
+   @param q Queue type for m0_net_buffer structures.
+   @pre rbulk != NULL && !m0_tlist_is_empty(rbulk->rb_buflist) &&
+   m0_mutex_is_locked(&rbulk->rb_mutex) &&
+   q == M0_NET_QT_PASSIVE_BULK_RECV || q == M0_NET_QT_PASSIVE_BULK_SEND ||
+   q == M0_NET_QT_ACTIVE_BULK_RECV  || q == M0_NET_QT_ACTIVE_BULK_SEND.
  */
-C2_INTERNAL void c2_rpc_bulk_qtype(struct c2_rpc_bulk *rbulk,
-				   enum c2_net_queue_type q);
+M0_INTERNAL void m0_rpc_bulk_qtype(struct m0_rpc_bulk *rbulk,
+				   enum m0_net_queue_type q);
 
 /**
-   Stores the c2_net_buf_desc/s for net buffer/s pointed to by c2_rpc_bulk_buf
+   Stores the m0_net_buf_desc/s for net buffer/s pointed to by m0_rpc_bulk_buf
    structure/s in the io fop wire format.
    This API is typically invoked by bulk client in a zero-copy buffer
    transfer.
-   @param rbulk Rpc bulk structure from whose list of c2_rpc_bulk_buf
+   @param rbulk Rpc bulk structure from whose list of m0_rpc_bulk_buf
    structures, the net buf descriptors of io fops will be populated.
-   @param conn The c2_rpc_conn object that represents the rpc connection
+   @param conn The m0_rpc_conn object that represents the rpc connection
    made with receiving node.
    @param to_desc Net buf descriptor from fop which will be populated.
    @pre rbuf != NULL && item != NULL && to_desc != NULL &&
-   (rbuf->bb_nbuf & C2_NET_BUF_REGISTERED) &&
-   (rbuf->bb_nbuf.nb_qtype == C2_NET_QT_PASSIVE_BULK_RECV ||
-    rbuf->bb_nbuf.nb_qtype == C2_NET_QT_PASSIVE_BULK_SEND).
+   (rbuf->bb_nbuf & M0_NET_BUF_REGISTERED) &&
+   (rbuf->bb_nbuf.nb_qtype == M0_NET_QT_PASSIVE_BULK_RECV ||
+    rbuf->bb_nbuf.nb_qtype == M0_NET_QT_PASSIVE_BULK_SEND).
    @post rpc_bulk_invariant(rbulk).
  */
-C2_INTERNAL int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
-				  const struct c2_rpc_conn *conn,
-				  struct c2_net_buf_desc *to_desc);
+M0_INTERNAL int m0_rpc_bulk_store(struct m0_rpc_bulk *rbulk,
+				  const struct m0_rpc_conn *conn,
+				  struct m0_net_buf_desc *to_desc);
 
 /**
-   Loads the c2_net_buf_desc/s pointing to net buffer/s contained by
-   c2_rpc_bulk_buf structure/s in rbulk->rb_buflist and starts RDMA transfer
+   Loads the m0_net_buf_desc/s pointing to net buffer/s contained by
+   m0_rpc_bulk_buf structure/s in rbulk->rb_buflist and starts RDMA transfer
    of buffers.
    This API is typically used by bulk server in a zero-copy buffer transfer.
-   @param rbulk Rpc bulk structure from whose list of c2_rpc_bulk_buf
+   @param rbulk Rpc bulk structure from whose list of m0_rpc_bulk_buf
    structures, net buffers will be added to transfer machine.
-   @param conn The c2_rpc_conn object which represents the rpc connection
+   @param conn The m0_rpc_conn object which represents the rpc connection
    made with receiving node.
    @param from_desc The source net buf descriptor which points to the source
    buffer from which data is copied.
    @pre rbuf != NULL && item != NULL && from_desc != NULL &&
-   (rbuf->bb_nbuf & C2_NET_BUF_REGISTERED) &&
-   (rbuf->bb_nbuf.nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV ||
-    rbuf->bb_nbuf.nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND).
+   (rbuf->bb_nbuf & M0_NET_BUF_REGISTERED) &&
+   (rbuf->bb_nbuf.nb_qtype == M0_NET_QT_ACTIVE_BULK_RECV ||
+    rbuf->bb_nbuf.nb_qtype == M0_NET_QT_ACTIVE_BULK_SEND).
    @post rpc_bulk_invariant(rbulk).
  */
-C2_INTERNAL int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
-				 const struct c2_rpc_conn *conn,
-				 struct c2_net_buf_desc *from_desc);
+M0_INTERNAL int m0_rpc_bulk_load(struct m0_rpc_bulk *rbulk,
+				 const struct m0_rpc_conn *conn,
+				 struct m0_net_buf_desc *from_desc);
 
 /** @} bulkclientDFS end group */
 

@@ -27,15 +27,15 @@
 
 #pragma once
 
-#ifndef __COLIBRI_CONSOLE_FOM_H__
-#define __COLIBRI_CONSOLE_FOM_H__
+#ifndef __MERO_CONSOLE_FOM_H__
+#define __MERO_CONSOLE_FOM_H__
 
-#include "fop/fop.h" /* c2_fop_ */
+#include "fop/fop.h" /* m0_fop_ */
 
-extern const struct c2_fom_ops c2_cons_fom_device_ops;
-extern struct c2_fom_type c2_cons_fom_device_type;
+extern const struct m0_fom_ops m0_cons_fom_device_ops;
+extern struct m0_fom_type m0_cons_fom_device_type;
 
-/* __COLIBRI_CONSOLE_FOM_H__ */
+/* __MERO_CONSOLE_FOM_H__ */
 #endif
 
 /*

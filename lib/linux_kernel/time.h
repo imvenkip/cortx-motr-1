@@ -20,12 +20,12 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_LINUX_KERNEL_TIME_H__
-#define __COLIBRI_LIB_LINUX_KERNEL_TIME_H__
+#ifndef __MERO_LIB_LINUX_KERNEL_TIME_H__
+#define __MERO_LIB_LINUX_KERNEL_TIME_H__
 
 #include <linux/time.h>
 
-/* __COLIBRI_LIB_LINUX_KERNEL_TIME_H__ */
+/* __MERO_LIB_LINUX_KERNEL_TIME_H__ */
 #endif
 
 /*

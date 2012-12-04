@@ -20,11 +20,11 @@
 
 #pragma once
 
-#ifndef __COLIBRI_UTILS_FINJECT_DEBUGFS_H__
-#define __COLIBRI_UTILS_FINJECT_DEBUGFS_H__
+#ifndef __MERO_UTILS_FINJECT_DEBUGFS_H__
+#define __MERO_UTILS_FINJECT_DEBUGFS_H__
 
 int fi_dfs_init(void);
 void fi_dfs_cleanup(void);
 
-#endif /* __COLIBRI_UTILS_FINJECT_DEBUGFS_H__ */
+#endif /* __MERO_UTILS_FINJECT_DEBUGFS_H__ */
 

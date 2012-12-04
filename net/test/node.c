@@ -32,14 +32,14 @@
 #endif
 
 #include "lib/errno.h"		/* ETIMEDOUT */
-#include "lib/misc.h"		/* C2_SET0 */
+#include "lib/misc.h"		/* M0_SET0 */
 
-#include "net/test/node.h"	/* c2_net_test_node_ctx */
-#include "net/test/node_ping.h"	/* c2_net_test_node_ping_ops */
-#include "net/test/node_bulk.h"	/* c2_net_test_node_bulk_ops */
+#include "net/test/node.h"	/* m0_net_test_node_ctx */
+#include "net/test/node_ping.h"	/* m0_net_test_node_ping_ops */
+#include "net/test/node_bulk.h"	/* m0_net_test_node_bulk_ops */
 
 /**
-   @page net-test Colibri Network Benchmark
+   @page net-test Mero Network Benchmark
 
    - @ref net-test-ovw
    - @ref net-test-def
@@ -62,10 +62,10 @@
    <hr>
    @section net-test-ovw Overview
 
-   Colibri network benchmark is designed to test network subsystem of Colibri
-   and network connections between nodes that are running Colibri.
+   Mero network benchmark is designed to test network subsystem of Mero
+   and network connections between nodes that are running Mero.
 
-   Colibri Network Benchmark is implemented as a kernel module for test node
+   Mero Network Benchmark is implemented as a kernel module for test node
    and user space program for test console.
    Before testing kernel module must be copied to every test node.
    Then test console will perform test in this way:
@@ -88,7 +88,7 @@
    @section net-test-def Definitions
 
    Previously defined terms:
-   @see @ref net-test-hld "Colibri Network Benchmark HLD"
+   @see @ref net-test-hld "Mero Network Benchmark HLD"
 
    New terms:
    - <b>Configuration variable</b> Variable with name. It can have some value.
@@ -97,31 +97,31 @@
    <hr>
    @section net-test-req Requirements
 
-   - @b R.c2.net.self-test.statistics statistics from the all nodes
+   - @b R.m0.net.self-test.statistics statistics from the all nodes
      can be collected on the test console.
-   - @b R.c2.net.self-test.statistics.live statistics from the all nodes
+   - @b R.m0.net.self-test.statistics.live statistics from the all nodes
      can be collected on the test console at any time during the test.
-   - @b R.c2.net.self-test.statistics.live pdsh is used to perform
+   - @b R.m0.net.self-test.statistics.live pdsh is used to perform
      statistics collecting from the all nodes with some interval.
-   - @b R.c2.net.self-test.test.ping latency is automatically measured for
+   - @b R.m0.net.self-test.test.ping latency is automatically measured for
      all messages.
-   - @b R.c2.net.self-test.test.bulk used messages with additional data.
-   - @b R.c2.net.self-test.test.bulk.integrity.no-check bulk messages
+   - @b R.m0.net.self-test.test.bulk used messages with additional data.
+   - @b R.m0.net.self-test.test.bulk.integrity.no-check bulk messages
       additional data isn't checked.
-   - @b R.c2.net.self-test.test.duration.simple end user should be able to
+   - @b R.m0.net.self-test.test.duration.simple end user should be able to
      specify how long a test should run, by loop.
-   - @b R.c2.net.self-test.kernel test client/server is implemented as
+   - @b R.m0.net.self-test.kernel test client/server is implemented as
      a kernel module.
 
    <hr>
    @section net-test-depends Dependencies
 
-   - R.c2.net
+   - R.m0.net
 
    <hr>
    @section net-test-highlights Design Highlights
 
-   - c2_net is used as network library.
+   - m0_net is used as network library.
    - To make latency measurement error as little as possible all
      heavy operations (such as buffer allocation) will be done before
      test message exchanging between test client and test server.
@@ -181,18 +181,18 @@
 
    @code
    int rc;
-   struct c2_net_test_node_ctx node;
-   struct c2_net_test_node_cfg cfg;
+   struct m0_net_test_node_ctx node;
+   struct m0_net_test_node_cfg cfg;
    int rc;
-   // prepare config, c2_init() etc.
-   rc = c2_net_test_node_init(&node, &cfg);
+   // prepare config, m0_init() etc.
+   rc = m0_net_test_node_init(&node, &cfg);
    if (rc == 0) {
-	rc = c2_net_test_node_start(&node);
+	rc = m0_net_test_node_start(&node);
 	if (rc == 0) {
-		c2_semaphore_down(&node.ntnc_thread_finished_sem);
-		c2_net_test_node_stop(&node);
+		m0_semaphore_down(&node.ntnc_thread_finished_sem);
+		m0_net_test_node_stop(&node);
 	}
-	c2_net_test_node_fini(&node);
+	m0_net_test_node_fini(&node);
    }
    @endcode
 
@@ -289,18 +289,18 @@ finished.up();\l", shape=box];
    @enddot
 
    Callbacks for ping test
-   - C2_NET_QT_MSG_SEND
+   - M0_NET_QT_MSG_SEND
      - update stats
-   - C2_NET_QT_MSG_RECV
+   - M0_NET_QT_MSG_RECV
      - update stats
      - buf_free.up()
 
    Callbacks for bulk test
-   - C2_NET_QT_MSG_SEND
+   - M0_NET_QT_MSG_SEND
      - nothing
-   - C2_NET_QT_PASSIVE_BULK_SEND
+   - M0_NET_QT_PASSIVE_BULK_SEND
      - update stats
-   - C2_NET_QT_PASSIVE_BULK_RECV
+   - M0_NET_QT_PASSIVE_BULK_RECV
      - update stats
      - buf_free.up()
 
@@ -321,20 +321,20 @@ finished.up();\l", shape=box];
    machine. Then it just works in transfer machine callbacks.
 
    Ping test callbacks
-   - C2_NET_QT_MSG_RECV
+   - M0_NET_QT_MSG_RECV
      - add buffer to msg send queue
      - update stats
-   - C2_NET_QT_MSG_SEND
+   - M0_NET_QT_MSG_SEND
      - add buffer to msg recv queue
 
    Bulk test callbacks
-   - C2_NET_QT_MSG_RECV
+   - M0_NET_QT_MSG_RECV
      - add first buffer descriptor to ACTIVE_BULK_RECV queue
      - add msg buffer to MSG_RECV queue
-   - C2_NET_QT_ACTIVE_BULK_RECV
+   - M0_NET_QT_ACTIVE_BULK_RECV
      - add second buffer descriptor to ACTIVE_BULK_SEND queue
      (to send just received buffer)
-   - C2_NET_QT_ACTIVE_BULK_SEND
+   - M0_NET_QT_ACTIVE_BULK_SEND
      - add sent buffer to ACTIVE_BULK_RECV queue
 
    @subsubsection net-test-lspec-console Test Console
@@ -374,20 +374,20 @@ finished.up();\l", shape=box];
 
    @subsubsection net-test-lspec-misc Misc
    - Typed variables are used to store configuration.
-   - Configuration variables are set in c2_net_test_config_init(). They
+   - Configuration variables are set in m0_net_test_config_init(). They
    should be never changed in other place.
-   - c2_net_test_stats is used for keeping some data for sample,
+   - m0_net_test_stats is used for keeping some data for sample,
    based on which min/max/average/standard deviation can be calculated.
-   - c2_net_test_network_init()/c2_net_test_network_fini() need to be called to
-   initialize/finalize c2_net_test network.
-   - c2_net_test_network_(msg/bulk)_(send/recv)_* is a wrapper around c2_net.
-   This functions use c2_net_test_ctx as containter for buffers, callbacks,
+   - m0_net_test_network_init()/m0_net_test_network_fini() need to be called to
+   initialize/finalize m0_net_test network.
+   - m0_net_test_network_(msg/bulk)_(send/recv)_* is a wrapper around m0_net.
+   This functions use m0_net_test_ctx as containter for buffers, callbacks,
    endpoints and transfer machine. Buffer/endpoint index (int in range
    [0, NR), where NR is number of corresponding elements) is used for selecting
-   buffer/endpoint structure from c2_net_test_ctx.
-   - All buffers are allocated in c2_net_test_network_ctx_init().
-   - Endpoints can be added after c2_net_test_network_ctx_init() using
-   c2_net_test_network_ep_add().
+   buffer/endpoint structure from m0_net_test_ctx.
+   - All buffers are allocated in m0_net_test_network_ctx_init().
+   - Endpoints can be added after m0_net_test_network_ctx_init() using
+   m0_net_test_network_ep_add().
 
    @subsection net-test-lspec-state State Specification
 
@@ -399,12 +399,12 @@ finished.up();\l", shape=box];
      S1 [label="Ready"];
      S2 [label="Finished"];
      S3 [label="Failed"];
-     S0 -> S1 [label="succesful c2_net_test_service_init()"];
-     S1 -> S0 [label="c2_net_test_service_fini()"];
+     S0 -> S1 [label="succesful m0_net_test_service_init()"];
+     S1 -> S0 [label="m0_net_test_service_fini()"];
      S1 -> S2 [label="service state change: service was finished"];
      S1 -> S3 [label="service state change: service was failed"];
-     S2 -> S0 [label="c2_net_test_service_fini()"];
-     S3 -> S0 [label="c2_net_test_service_fini()"];
+     S2 -> S0 [label="m0_net_test_service_fini()"];
+     S3 -> S0 [label="m0_net_test_service_fini()"];
    }
    @enddot
 
@@ -413,35 +413,35 @@ finished.up();\l", shape=box];
    - Configuration is not protected by any synchronization mechanism.
      Configuration is not intended to change after initialization,
      so no need to use synchronization mechanism for reading configuration.
-   - struct c2_net_test_stats is not protected by any synchronization mechanism.
-   - struct c2_net_test_ctx is not protected by any synchronization mechanism.
+   - struct m0_net_test_stats is not protected by any synchronization mechanism.
+   - struct m0_net_test_ctx is not protected by any synchronization mechanism.
 
    @subsection net-test-lspec-numa NUMA optimizations
 
    - Configuration is not intended to change after initial initialization,
      so cache coherence overhead will not exists.
-   - One c2_net_test_stats per locality can be used. Summary statistics can
-     be collected from all localities using c2_net_test_stats_add_stats()
+   - One m0_net_test_stats per locality can be used. Summary statistics can
+     be collected from all localities using m0_net_test_stats_add_stats()
      only when it needed.
-   - One c2_net_test_ctx per locality can be used.
+   - One m0_net_test_ctx per locality can be used.
 
    <hr>
    @section net-test-conformance Conformance
 
-   - @b I.c2.net.self-test.statistics user-space LNet implementation is used
+   - @b I.m0.net.self-test.statistics user-space LNet implementation is used
      to collect statistics from all nodes.
-   - @b I.c2.net.self-test.statistics.live user-space LNet implementation
+   - @b I.m0.net.self-test.statistics.live user-space LNet implementation
      is used to perform statistics collecting from the all nodes with
      some interval.
-   - @b I.c2.net.self-test.test.ping latency is automatically measured for
+   - @b I.m0.net.self-test.test.ping latency is automatically measured for
      all messages.
-   - @b I.c2.net.self-test.test.bulk used messages with additional data.
-   - @b I.c2.net.self-test.test.bulk.integrity.no-check bulk messages
+   - @b I.m0.net.self-test.test.bulk used messages with additional data.
+   - @b I.m0.net.self-test.test.bulk.integrity.no-check bulk messages
       additional data isn't checked.
-   - @b I.c2.net.self-test.test.duration.simple end user is able to
+   - @b I.m0.net.self-test.test.duration.simple end user is able to
      specify how long a test should run, by loop - see
      @ref net-test-fspec-cli-console.
-   - @b I.c2.net.self-test.kernel test client/server is implemented as
+   - @b I.m0.net.self-test.kernel test client/server is implemented as
      a kernel module.
 
    <hr>
@@ -453,8 +453,8 @@ finished.up();\l", shape=box];
    @test Bulk passive send/active receive over loopback device.
    @test Statistics for sample with one value.
    @test Statistics for sample with ten values.
-   @test Merge two c2_net_test_stats structures with
-	 c2_net_test_stats_add_stats()
+   @test Merge two m0_net_test_stats structures with
+	 m0_net_test_stats_add_stats()
 
    <hr>
    @section net-test-st System Tests
@@ -466,11 +466,11 @@ finished.up();\l", shape=box];
    <hr>
    @section net-test-O Analysis
 
-   - all c2_net_test_stats_* functions have O(1) complexity;
+   - all m0_net_test_stats_* functions have O(1) complexity;
    - one mutex lock/unlock per statistics update in test client/server/console;
    - one semaphore up/down per test message in test client;
 
-   @see @ref net-test-hld "Colibri Network Benchmark HLD"
+   @see @ref net-test-hld "Mero Network Benchmark HLD"
 
    <hr>
    @section net-test-ref References
@@ -478,7 +478,7 @@ finished.up();\l", shape=box];
    @anchor net-test-hld
    - <a href="https://docs.google.com/a/xyratex.com/document/
 view?id=1_dAYA4_5rLEr9Z4PSkH1OTDTMlGBmAcIEEJRvwCRDV4">
-Colibri Network Benchmark HLD</a>
+Mero Network Benchmark HLD</a>
    - <a href="http://wiki.lustre.org/manual/LustreManual20_HTML/
 LNETSelfTest.html">LNET Self-Test manual</a>
    - <a href="http://reviewboard.clusterstor.com/r/773">DLD review request</a>
@@ -505,36 +505,36 @@ enum {
 	NODE_WAIT_CMD_GRANULARITY_MS = 20,
 };
 
-static void node_tm_event_cb(const struct c2_net_tm_event *ev)
+static void node_tm_event_cb(const struct m0_net_tm_event *ev)
 {
 }
 
-static const struct c2_net_tm_callbacks node_tm_cb = {
+static const struct m0_net_tm_callbacks node_tm_cb = {
 	.ntc_event_cb = node_tm_event_cb
 };
 
-static struct c2_net_test_service_ops *
-service_ops_get(struct c2_net_test_cmd *cmd)
+static struct m0_net_test_service_ops *
+service_ops_get(struct m0_net_test_cmd *cmd)
 {
-	C2_PRE(cmd->ntc_type == C2_NET_TEST_CMD_INIT);
+	M0_PRE(cmd->ntc_type == M0_NET_TEST_CMD_INIT);
 
 	switch (cmd->ntc_init.ntci_type) {
-	case C2_NET_TEST_TYPE_PING:
-		return &c2_net_test_node_ping_ops;
-	case C2_NET_TEST_TYPE_BULK:
-		return &c2_net_test_node_bulk_ops;
+	case M0_NET_TEST_TYPE_PING:
+		return &m0_net_test_node_ping_ops;
+	case M0_NET_TEST_TYPE_BULK:
+		return &m0_net_test_node_bulk_ops;
 	default:
 		return NULL;
 	}
 }
 
-static int node_cmd_get(struct c2_net_test_cmd_ctx *cmd_ctx,
-			struct c2_net_test_cmd *cmd,
-			c2_time_t deadline)
+static int node_cmd_get(struct m0_net_test_cmd_ctx *cmd_ctx,
+			struct m0_net_test_cmd *cmd,
+			m0_time_t deadline)
 {
-	int rc = c2_net_test_commands_recv(cmd_ctx, cmd, deadline);
+	int rc = m0_net_test_commands_recv(cmd_ctx, cmd, deadline);
 	if (rc == 0)
-		rc = c2_net_test_commands_recv_enqueue(cmd_ctx,
+		rc = m0_net_test_commands_recv_enqueue(cmd_ctx,
 						       cmd->ntc_buf_index);
 	if (rc == 0) {
 		LOGD("node_cmd_get: rc = %d\n", rc);
@@ -545,17 +545,17 @@ static int node_cmd_get(struct c2_net_test_cmd_ctx *cmd_ctx,
 	return rc;
 }
 
-static int node_cmd_wait(struct c2_net_test_node_ctx *ctx,
-			 struct c2_net_test_cmd *cmd,
-			 enum c2_net_test_cmd_type type)
+static int node_cmd_wait(struct m0_net_test_node_ctx *ctx,
+			 struct m0_net_test_cmd *cmd,
+			 enum m0_net_test_cmd_type type)
 {
-	c2_time_t deadline;
-	const int TIME_ONE_MS = C2_TIME_ONE_BILLION / 1000;
+	m0_time_t deadline;
+	const int TIME_ONE_MS = M0_TIME_ONE_BILLION / 1000;
 	int	  rc;
 
-	C2_PRE(ctx != NULL);
+	M0_PRE(ctx != NULL);
 	do {
-		deadline = c2_time_from_now(0, NODE_WAIT_CMD_GRANULARITY_MS *
+		deadline = m0_time_from_now(0, NODE_WAIT_CMD_GRANULARITY_MS *
 					       TIME_ONE_MS);
 		rc = node_cmd_get(&ctx->ntnc_cmd, cmd, deadline);
 		if (rc != 0 && rc != -ETIMEDOUT)
@@ -564,23 +564,23 @@ static int node_cmd_wait(struct c2_net_test_node_ctx *ctx,
 	return 0;
 }
 
-static void node_thread(struct c2_net_test_node_ctx *ctx)
+static void node_thread(struct m0_net_test_node_ctx *ctx)
 {
-	struct c2_net_test_service	svc;
-	struct c2_net_test_service_ops *svc_ops;
-	enum c2_net_test_service_state	svc_state;
-	struct c2_net_test_cmd		cmd;
-	struct c2_net_test_cmd		reply;
+	struct m0_net_test_service	svc;
+	struct m0_net_test_service_ops *svc_ops;
+	enum m0_net_test_service_state	svc_state;
+	struct m0_net_test_cmd		cmd;
+	struct m0_net_test_cmd		reply;
 	int				rc;
 	bool				skip_cmd_get;
 
-	C2_PRE(ctx != NULL);
+	M0_PRE(ctx != NULL);
 
 	/* wait for INIT command */
-	C2_SET0(&cmd);
-	ctx->ntnc_errno = node_cmd_wait(ctx, &cmd, C2_NET_TEST_CMD_INIT);
+	M0_SET0(&cmd);
+	ctx->ntnc_errno = node_cmd_wait(ctx, &cmd, M0_NET_TEST_CMD_INIT);
 	if (ctx->ntnc_exit_flag) {
-		c2_net_test_commands_received_free(&cmd);
+		m0_net_test_commands_received_free(&cmd);
 		return;
 	}
 	if (ctx->ntnc_errno != 0)
@@ -588,12 +588,12 @@ static void node_thread(struct c2_net_test_node_ctx *ctx)
 	/* we have configuration; initialize test service */
 	svc_ops = service_ops_get(&cmd);
 	if (svc_ops == NULL) {
-		c2_net_test_commands_received_free(&cmd);
+		m0_net_test_commands_received_free(&cmd);
 		return;
 	}
-	rc = c2_net_test_service_init(&svc, svc_ops);
+	rc = m0_net_test_service_init(&svc, svc_ops);
 	if (rc != 0) {
-		c2_net_test_commands_received_free(&cmd);
+		m0_net_test_commands_received_free(&cmd);
 		return;
 	}
 	/* handle INIT command inside main loop */
@@ -602,7 +602,7 @@ static void node_thread(struct c2_net_test_node_ctx *ctx)
 	do {
 		/* get command */
 		if (rc == 0 && !skip_cmd_get)
-			rc = node_cmd_get(&ctx->ntnc_cmd, &cmd, c2_time_now());
+			rc = node_cmd_get(&ctx->ntnc_cmd, &cmd, m0_time_now());
 		else
 			skip_cmd_get = false;
 		if (rc == 0)
@@ -612,120 +612,120 @@ static void node_thread(struct c2_net_test_node_ctx *ctx)
 		if (rc == 0 && cmd.ntc_ep_index >= 0) {
 			LOGD("node_thread: have command\n");
 			/* we have command. handle it */
-			rc = c2_net_test_service_cmd_handle(&svc, &cmd, &reply);
+			rc = m0_net_test_service_cmd_handle(&svc, &cmd, &reply);
 			LOGD("node_thread: cmd handle: rc = %d\n", rc);
 			reply.ntc_ep_index = cmd.ntc_ep_index;
-			c2_net_test_commands_received_free(&cmd);
+			m0_net_test_commands_received_free(&cmd);
 			/* send reply */
 			LOGD("node_thread: reply.ntc_ep_index = %lu\n",
 			     reply.ntc_ep_index);
-			c2_net_test_commands_send_wait_all(&ctx->ntnc_cmd);
-			rc = c2_net_test_commands_send(&ctx->ntnc_cmd, &reply);
+			m0_net_test_commands_send_wait_all(&ctx->ntnc_cmd);
+			rc = m0_net_test_commands_send(&ctx->ntnc_cmd, &reply);
 			LOGD("node_thread: send reply: rc = %d\n", rc);
-			C2_SET0(&cmd);
+			M0_SET0(&cmd);
 		} else if (rc == -ETIMEDOUT) {
 			/* we haven't command. take a step. */
-			rc = c2_net_test_service_step(&svc);
+			rc = m0_net_test_service_step(&svc);
 		} else {
 			break;
 		}
-		svc_state = c2_net_test_service_state_get(&svc);
-	} while (svc_state != C2_NET_TEST_SERVICE_FAILED &&
-		 svc_state != C2_NET_TEST_SERVICE_FINISHED &&
+		svc_state = m0_net_test_service_state_get(&svc);
+	} while (svc_state != M0_NET_TEST_SERVICE_FAILED &&
+		 svc_state != M0_NET_TEST_SERVICE_FINISHED &&
 		 !ctx->ntnc_exit_flag &&
 		 rc == 0);
 
 	LOGD("6, rc = %d\n", rc);
 	ctx->ntnc_errno = rc;
 	/* finalize test service */
-	c2_net_test_service_fini(&svc);
+	m0_net_test_service_fini(&svc);
 
-	c2_semaphore_up(&ctx->ntnc_thread_finished_sem);
+	m0_semaphore_up(&ctx->ntnc_thread_finished_sem);
 }
 
-static int node_init_fini(struct c2_net_test_node_ctx *ctx,
-			  struct c2_net_test_node_cfg *cfg,
+static int node_init_fini(struct m0_net_test_node_ctx *ctx,
+			  struct m0_net_test_node_cfg *cfg,
 			  bool init)
 {
-	struct c2_net_test_slist ep_list;
+	struct m0_net_test_slist ep_list;
 	int			 rc;
 
-	C2_PRE(ctx != NULL);
-	C2_PRE(ergo(init, cfg != NULL));
+	M0_PRE(ctx != NULL);
+	M0_PRE(ergo(init, cfg != NULL));
 	if (!init)
 		goto fini;
 
-	C2_SET0(ctx);
+	M0_SET0(ctx);
 
-	rc = c2_net_test_slist_init(&ep_list, cfg->ntnc_addr_console, '`');
+	rc = m0_net_test_slist_init(&ep_list, cfg->ntnc_addr_console, '`');
 	if (rc != 0)
 		goto failed;
-	rc = c2_net_test_commands_init(&ctx->ntnc_cmd,
+	rc = m0_net_test_commands_init(&ctx->ntnc_cmd,
 				       cfg->ntnc_addr,
 				       cfg->ntnc_send_timeout,
 				       NULL,
 				       &ep_list);
-	c2_net_test_slist_fini(&ep_list);
+	m0_net_test_slist_fini(&ep_list);
 	if (rc != 0)
 		goto failed;
-	rc = c2_semaphore_init(&ctx->ntnc_thread_finished_sem, 0);
+	rc = m0_semaphore_init(&ctx->ntnc_thread_finished_sem, 0);
 	if (rc != 0)
 		goto commands_fini;
 
 	return 0;
 fini:
 	rc = 0;
-	c2_semaphore_fini(&ctx->ntnc_thread_finished_sem);
+	m0_semaphore_fini(&ctx->ntnc_thread_finished_sem);
 commands_fini:
-	c2_net_test_commands_fini(&ctx->ntnc_cmd);
+	m0_net_test_commands_fini(&ctx->ntnc_cmd);
 failed:
 	return rc;
 }
 
-int c2_net_test_node_init(struct c2_net_test_node_ctx *ctx,
-			  struct c2_net_test_node_cfg *cfg)
+int m0_net_test_node_init(struct m0_net_test_node_ctx *ctx,
+			  struct m0_net_test_node_cfg *cfg)
 {
 	return node_init_fini(ctx, cfg, true);
 }
 
-void c2_net_test_node_fini(struct c2_net_test_node_ctx *ctx)
+void m0_net_test_node_fini(struct m0_net_test_node_ctx *ctx)
 {
 	int rc = node_init_fini(ctx, NULL, false);
-	C2_POST(rc == 0);
+	M0_POST(rc == 0);
 }
 
-int c2_net_test_node_start(struct c2_net_test_node_ctx *ctx)
+int m0_net_test_node_start(struct m0_net_test_node_ctx *ctx)
 {
 	int rc;
 
-	C2_PRE(ctx != NULL);
+	M0_PRE(ctx != NULL);
 
 	ctx->ntnc_exit_flag = false;
 	ctx->ntnc_errno	    = 0;
 
-	rc = C2_THREAD_INIT(&ctx->ntnc_thread, struct c2_net_test_node_ctx *,
+	rc = M0_THREAD_INIT(&ctx->ntnc_thread, struct m0_net_test_node_ctx *,
 			    NULL, &node_thread, ctx, "net_test_node_thread");
 	return rc;
 }
 
-void c2_net_test_node_stop(struct c2_net_test_node_ctx *ctx)
+void m0_net_test_node_stop(struct m0_net_test_node_ctx *ctx)
 {
 	int rc;
 
-	C2_PRE(ctx != NULL);
+	M0_PRE(ctx != NULL);
 
 	ctx->ntnc_exit_flag = true;
-	c2_net_test_commands_send_wait_all(&ctx->ntnc_cmd);
-	rc = c2_thread_join(&ctx->ntnc_thread);
+	m0_net_test_commands_send_wait_all(&ctx->ntnc_cmd);
+	rc = m0_thread_join(&ctx->ntnc_thread);
 	/*
 	 * In either case when rc != 0 there is an unmatched
-	 * c2_net_test_node_start() and c2_net_test_node_stop()
+	 * m0_net_test_node_start() and m0_net_test_node_stop()
 	 * or deadlock. If non-zero rc is returned as result of this function,
-	 * then c2_net_test_node_stop() leaves c2_net_test_node_ctx in
+	 * then m0_net_test_node_stop() leaves m0_net_test_node_ctx in
 	 * inconsistent state (also possible resource leak).
 	 */
-	C2_ASSERT(rc == 0);
-	c2_thread_fini(&ctx->ntnc_thread);
+	M0_ASSERT(rc == 0);
+	m0_thread_fini(&ctx->ntnc_thread);
 }
 
 /**

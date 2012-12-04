@@ -20,14 +20,14 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_LINUX_KERNEL_TYPES_H__
-#define __COLIBRI_LIB_LINUX_KERNEL_TYPES_H__
+#ifndef __MERO_LIB_LINUX_KERNEL_TYPES_H__
+#define __MERO_LIB_LINUX_KERNEL_TYPES_H__
 
 #include <linux/types.h>
 
 #include "lib/assert.h"
 
-C2_BASSERT(((uint32_t)0) - 1 == ~(uint32_t)0);
+M0_BASSERT(((uint32_t)0) - 1 == ~(uint32_t)0);
 
 #define UINT8_MAX  ((uint8_t)0xff)
 #define INT8_MIN   ((int8_t)0x80)
@@ -42,16 +42,16 @@ C2_BASSERT(((uint32_t)0) - 1 == ~(uint32_t)0);
 #define INT64_MIN  ((int64_t)0x8000000000000000)
 #define INT64_MAX  ((int64_t)0x7fffffffffffffff)
 
-C2_BASSERT(INT8_MIN < 0);
-C2_BASSERT(INT8_MAX > 0);
-C2_BASSERT(INT16_MIN < 0);
-C2_BASSERT(INT16_MAX > 0);
-C2_BASSERT(INT32_MIN < 0);
-C2_BASSERT(INT32_MAX > 0);
-C2_BASSERT(INT64_MIN < 0);
-C2_BASSERT(INT64_MAX > 0);
+M0_BASSERT(INT8_MIN < 0);
+M0_BASSERT(INT8_MAX > 0);
+M0_BASSERT(INT16_MIN < 0);
+M0_BASSERT(INT16_MAX > 0);
+M0_BASSERT(INT32_MIN < 0);
+M0_BASSERT(INT32_MAX > 0);
+M0_BASSERT(INT64_MIN < 0);
+M0_BASSERT(INT64_MAX > 0);
 
-/* __COLIBRI_LIB_LINUX_KERNEL_TYPES_H__ */
+/* __MERO_LIB_LINUX_KERNEL_TYPES_H__ */
 #endif
 /*
  *  Local variables:

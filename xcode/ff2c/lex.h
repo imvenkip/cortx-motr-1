@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_XCODE_FF2C_LEX_H__
-#define __COLIBRI_XCODE_FF2C_LEX_H__
+#ifndef __MERO_XCODE_FF2C_LEX_H__
+#define __MERO_XCODE_FF2C_LEX_H__
 
 /**
    @addtogroup xcode
@@ -147,7 +147,7 @@ int  ff2c_context_loc(struct ff2c_context *ctx, int nr, char *buf);
 
 /** @} end of xcode group */
 
-/* __COLIBRI_XCODE_FF2C_LEX_H__ */
+/* __MERO_XCODE_FF2C_LEX_H__ */
 #endif
 
 /*

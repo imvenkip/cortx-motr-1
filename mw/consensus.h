@@ -20,63 +20,63 @@
 
 #pragma once
 
-#ifndef __COLIBRI_MW_CONSENSUS_H__
-#define __COLIBRI_MW_CONSENSUS_H__
+#ifndef __MERO_MW_CONSENSUS_H__
+#define __MERO_MW_CONSENSUS_H__
 
 
-struct c2_m_container;
-struct c2_id_factory;
-struct c2_tx;
+struct m0_m_container;
+struct m0_id_factory;
+struct m0_tx;
 
 /**
    @defgroup consensus Consensus
    @{
 */
 
-struct c2_consensus_domain;
-struct c2_consensus_proposer;
-struct c2_consensus_acceptor;
-struct c2_consensus;
+struct m0_consensus_domain;
+struct m0_consensus_proposer;
+struct m0_consensus_acceptor;
+struct m0_consensus;
 
-struct c2_consensus_acceptor_ops {
-	int  (*cacc_is_value_ok)(struct c2_consensus_acceptor *acc,
-				 const struct c2_consensus *cons);
-	void (*cacc_reached)(struct c2_consensus_acceptor *acc,
-			     struct c2_tx *tx, const struct c2_consensus *cons);
+struct m0_consensus_acceptor_ops {
+	int  (*cacc_is_value_ok)(struct m0_consensus_acceptor *acc,
+				 const struct m0_consensus *cons);
+	void (*cacc_reached)(struct m0_consensus_acceptor *acc,
+			     struct m0_tx *tx, const struct m0_consensus *cons);
 };
 
-C2_INTERNAL int c2_consensus_domain_init(struct c2_consensus_domain **domain);
-C2_INTERNAL void c2_consensus_domain_fini(struct c2_consensus_domain *domain);
-C2_INTERNAL int c2_consensus_domain_add(struct c2_consensus_domain *domain,
-					struct c2_server *server);
+M0_INTERNAL int m0_consensus_domain_init(struct m0_consensus_domain **domain);
+M0_INTERNAL void m0_consensus_domain_fini(struct m0_consensus_domain *domain);
+M0_INTERNAL int m0_consensus_domain_add(struct m0_consensus_domain *domain,
+					struct m0_server *server);
 
-C2_INTERNAL int c2_consensus_proposer_init(struct c2_consensus_proposer
+M0_INTERNAL int m0_consensus_proposer_init(struct m0_consensus_proposer
 					   **proposer,
-					   struct c2_id_factory *idgen);
-C2_INTERNAL void c2_consensus_proposer_fini(struct c2_consensus_proposer
+					   struct m0_id_factory *idgen);
+M0_INTERNAL void m0_consensus_proposer_fini(struct m0_consensus_proposer
 					    *proposer);
 
-C2_INTERNAL int c2_consensus_acceptor_init(struct c2_consensus_acceptor
+M0_INTERNAL int m0_consensus_acceptor_init(struct m0_consensus_acceptor
 					   **acceptor,
-					   struct c2_m_container *store,
+					   struct m0_m_container *store,
 					   const struct
-					   c2_consensus_acceptor_ops *ops);
-C2_INTERNAL void c2_consensus_acceptor_fini(struct c2_consensus_acceptor
+					   m0_consensus_acceptor_ops *ops);
+M0_INTERNAL void m0_consensus_acceptor_fini(struct m0_consensus_acceptor
 					    *acceptor);
 
-C2_INTERNAL int c2_consensus_init(struct c2_consensus **cons,
-				  struct c2_consensus_proposer *prop,
-				  const struct c2_buf *val);
-C2_INTERNAL void c2_consensus_fini(struct c2_consensus *cons);
+M0_INTERNAL int m0_consensus_init(struct m0_consensus **cons,
+				  struct m0_consensus_proposer *prop,
+				  const struct m0_buf *val);
+M0_INTERNAL void m0_consensus_fini(struct m0_consensus *cons);
 
-C2_INTERNAL int c2_consensus_establish(struct c2_consensus_proposer *proposer,
-				       struct c2_consensus *cons);
+M0_INTERNAL int m0_consensus_establish(struct m0_consensus_proposer *proposer,
+				       struct m0_consensus *cons);
 
-C2_INTERNAL struct c2_buf *c2_consensus_value(const struct c2_consensus *cons);
+M0_INTERNAL struct m0_buf *m0_consensus_value(const struct m0_consensus *cons);
 
 /** @} end of consensus group */
 
-/* __COLIBRI_MW_CONSENSUS_H__ */
+/* __MERO_MW_CONSENSUS_H__ */
 #endif
 
 /*

@@ -18,10 +18,10 @@
  * Original creation date: 05/05/2012
  */
 #pragma once
-#ifndef __COLIBRI_CONFD_FOM_H__
-#define __COLIBRI_CONFD_FOM_H__
+#ifndef __MERO_CONFD_FOM_H__
+#define __MERO_CONFD_FOM_H__
 
-#include "fop/fom.h"  /* c2_fom */
+#include "fop/fom.h"  /* m0_fom */
 
 /**
  * @addtogroup confd_dfspec
@@ -29,11 +29,11 @@
  * @{
  */
 
-struct c2_confd_fom {
-	struct c2_fom dm_fom;
+struct m0_confd_fom {
+	struct m0_fom dm_fom;
 };
 
-C2_INTERNAL int c2_confd_fom_create(struct c2_fop *fop, struct c2_fom **out);
+M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out);
 
 /** @} confd_dfspec */
-#endif /* __COLIBRI_CONFD_FOM_H__ */
+#endif /* __MERO_CONFD_FOM_H__ */

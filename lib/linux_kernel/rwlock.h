@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_LINUX_KERNEL_RWLOCK_H__
-#define __COLIBRI_LIB_LINUX_KERNEL_RWLOCK_H__
+#ifndef __MERO_LIB_LINUX_KERNEL_RWLOCK_H__
+#define __MERO_LIB_LINUX_KERNEL_RWLOCK_H__
 
 #include <linux/rwsem.h>
 
@@ -36,13 +36,13 @@
    @{
  */
 
-struct c2_rwlock {
+struct m0_rwlock {
 	struct rw_semaphore rw_sem;
 };
 
 /** @} end of mutex group */
 
-/* __COLIBRI_LIB_LINUX_KERNEL_RWLOCK_H__ */
+/* __MERO_LIB_LINUX_KERNEL_RWLOCK_H__ */
 #endif
 
 /*

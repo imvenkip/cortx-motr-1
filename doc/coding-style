@@ -1,4 +1,4 @@
-This document describes Colibri project coding style. This document
+This document describes Mero project coding style. This document
 does NOT describe code documentation practices, they are explained
 elsewhere.
 
@@ -8,7 +8,7 @@ participant. To this end, a code should be as uniform and idiomatic as
 possible similarly with the properties that make usual human speech
 easier to understand.
 
-Colibri coding style is based on the Linux kernel coding style, which
+Mero coding style is based on the Linux kernel coding style, which
 everyone is advised to familiarize with at
 http://www.kernel.org/doc/Documentation/CodingStyle
 
@@ -51,9 +51,9 @@ To summarise:
     * continuation line starts one column after the last unclosed
       opening parenthesis:
 
-	C2_ASSERT(ergo(service != NULL,
-		       c2_rpc_service_invariant(service) &&
-		       service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED));
+	M0_ASSERT(ergo(service != NULL,
+		       m0_rpc_service_invariant(service) &&
+		       service->svc_state == M0_RPC_SERVICE_STATE_INITIALISED));
 
     * a new line should not start with an operator:
 
@@ -74,7 +74,7 @@ To summarise:
       This rule applied to block-level variable declarations too.
 
 
-In addition to the above syntactic conventions, Colibri code should
+In addition to the above syntactic conventions, Mero code should
 try to adhere to some higher level idioms.
 
     * a loop repeated N times is written
@@ -85,7 +85,7 @@ try to adhere to some higher level idioms.
 
       or, if appropriate,
 
-        c2_forall(i, N, body);
+        m0_forall(i, N, body);
 
     * an infinite loop is written as
 
@@ -111,7 +111,7 @@ try to adhere to some higher level idioms.
 
     * sizeof expr is preferred to sizeof(type):
 
-        struct foo *bar = c2_alloc(sizeof *bar);
+        struct foo *bar = m0_alloc(sizeof *bar);
 
       (Rationale: when bar's type changes code remains correct.);
 
@@ -160,18 +160,18 @@ try to adhere to some higher level idioms.
 
       globally visible name:
 
-         struct c2_<module>_<noun> { ... }; /* data-type */
-         int    c2_<module>_<noun>[size];   /* variable */
-         int    c2_<module>_<noun>_<verb>(...); /* function */
-	 bool   c2_<module>_<noun>_is_<adjective>(...); /* predicate function */
+         struct m0_<module>_<noun> { ... }; /* data-type */
+         int    m0_<module>_<noun>[size];   /* variable */
+         int    m0_<module>_<noun>_<verb>(...); /* function */
+	 bool   m0_<module>_<noun>_is_<adjective>(...); /* predicate function */
 
-      Static names don't have "c2_" prefix. Function pointers within
+      Static names don't have "m0_" prefix. Function pointers within
       "operation" structs count as static. Names of constants are
       capitalized.
 
       Functions which are not static, not globally exported, and are shared
       only across multiple files within a module - shall be prefixed with
-      c2_<module-name>__ (that is double _). This rule applies to invariants as
+      m0_<module-name>__ (that is double _). This rule applies to invariants as
       well;
 
     * use C99 "designated initializers":
@@ -302,21 +302,21 @@ try to adhere to some higher level idioms.
 
         #pragma once
 
-        #ifndef __COLIBRI_SUBSYS_HEADER_H__
-        #define __COLIBRI_SUBSYS_HEADER_H__
+        #ifndef __MERO_SUBSYS_HEADER_H__
+        #define __MERO_SUBSYS_HEADER_H__
         ...
-        #endif /* __COLIBRI_SUBSYS_HEADER_H__ */
+        #endif /* __MERO_SUBSYS_HEADER_H__ */
 
       notice, that include guards should use names conforming to the
       following regular expression:
 
-              __COLIBRI_\w+_H__
+              __MERO_\w+_H__
 
       this is required for a build script which automatically checks
       correctness of include guards and reports duplicates;
 
     * specify invariants as a conjunction of positive properties one can rely
-      upon, rather than as a disjunction of exceptions. Use c2_*_forall() macros
+      upon, rather than as a disjunction of exceptions. Use m0_*_forall() macros
       to build conjunctions over containers and sequences;
 
     * a header file should include only headers, which are necessary for the
@@ -331,18 +331,18 @@ try to adhere to some higher level idioms.
       (Rationale: reduces dependencies between modules, makes inclusion tree
       re-structuring easier and compilation faster.).
 
-    * use C2_LOG() from lib/trace.h instead of printf(3)/printk() in
-      all source files which are part of libcolibri.so library or
-      kcolibri.ko module (UT, ST and various helper utilities and
+    * use M0_LOG() from lib/trace.h instead of printf(3)/printk() in
+      all source files which are part of libmero.so library or
+      kmero.ko module (UT, ST and various helper utilities and
       modules should use printf(3)/printk()).
 
-    * consider using C2_LOG() with some meaningful information to
+    * consider using M0_LOG() with some meaningful information to
       describe important error conditions; preferably it should be
       done close to the place where the error is detected:
 
-        reply = c2_fop_alloc(&c2_addb_reply_fopt, NULL);
+        reply = m0_fop_alloc(&m0_addb_reply_fopt, NULL);
         if (reply == NULL)
-            C2_LOG(C2_ERROR, "failed to allocate addb reply fop");
+            M0_LOG(M0_ERROR, "failed to allocate addb reply fop");
 
       try to describe error using current context, and not a low-level
       (which might be already logged by the other func), for example
@@ -350,12 +350,12 @@ try to adhere to some higher level idioms.
 
             "failed to allocate memory"
 
-    * choose appropriate trace level for each C2_LOG(), a general
+    * choose appropriate trace level for each M0_LOG(), a general
       guidelines for this can be found in lib/trace.h in
-      documentation of c2_trace_level enum.
+      documentation of m0_trace_level enum.
 
-    * consider using C2_ENTRY()/C2_LEAVE() at function's entry and
-      exit points, as well as C2_RETURN() and C2_RETERR() to
+    * consider using M0_ENTRY()/M0_LEAVE() at function's entry and
+      exit points, as well as M0_RETURN() and M0_RETERR() to
       explicitly return from function, which conforms to the standard
       return code convention.
 
@@ -368,30 +368,30 @@ Things to look after:
         struct foo {
                 ...
                 /* Protects foo object from concurrent modifications. */
-                struct c2_mutex f_lock;
+                struct m0_mutex f_lock;
         };
 
         int foo_init(struct foo *foo)
         {
-                c2_mutex_init(&foo->f_lock);
-                c2_mutex_lock(&foo->f_lock);
+                m0_mutex_init(&foo->f_lock);
+                m0_mutex_lock(&foo->f_lock);
                 /* ... Initialize foo ... */
-                c2_mutex_unlock(&foo->f_lock);
+                m0_mutex_unlock(&foo->f_lock);
         }
 
         void foo_fini(struct foo *foo)
         {
-                c2_mutex_lock(&foo->f_lock);
+                m0_mutex_lock(&foo->f_lock);
                 /* ... Finalize foo ... */
-                c2_mutex_unlock(&foo->f_lock);
-                c2_mutex_fini(&foo->f_lock);           /* <--- Thread A */
+                m0_mutex_unlock(&foo->f_lock);
+                m0_mutex_fini(&foo->f_lock);           /* <--- Thread A */
         }
 
         int foo_modify(struct foo *foo, ...)
         {
-                c2_mutex_lock(&foo->f_lock);
+                m0_mutex_lock(&foo->f_lock);
                 /* ... Modify field(s) of foo ... */   /* <--- Thread B */
-                c2_mutex_unlock(&foo->f_lock);
+                m0_mutex_unlock(&foo->f_lock);
         }
 
       Here it is possible that some thread (B) tries to unlock the

@@ -22,63 +22,63 @@
 
 #include "lib/semaphore.h"
 #include "lib/assert.h"
-#include "lib/cdefs.h"     /* C2_EXPORTED */
+#include "lib/cdefs.h"     /* M0_EXPORTED */
 #include "lib/time.h"
 
 /**
    @addtogroup semaphore
 
-   <b>Implementation of c2_semaphore on top of Linux struct semaphore.</b>
+   <b>Implementation of m0_semaphore on top of Linux struct semaphore.</b>
 
    @{
  */
 
-C2_INTERNAL int c2_semaphore_init(struct c2_semaphore *semaphore,
+M0_INTERNAL int m0_semaphore_init(struct m0_semaphore *semaphore,
 				  unsigned value)
 {
 	sema_init(&semaphore->s_sem, value);
 	return 0;
 }
 
-C2_INTERNAL void c2_semaphore_fini(struct c2_semaphore *semaphore)
+M0_INTERNAL void m0_semaphore_fini(struct m0_semaphore *semaphore)
 {
 }
 
-C2_INTERNAL void c2_semaphore_down(struct c2_semaphore *semaphore)
+M0_INTERNAL void m0_semaphore_down(struct m0_semaphore *semaphore)
 {
 	down(&semaphore->s_sem);
 }
 
-C2_INTERNAL bool c2_semaphore_trydown(struct c2_semaphore *semaphore)
+M0_INTERNAL bool m0_semaphore_trydown(struct m0_semaphore *semaphore)
 {
 	return !down_trylock(&semaphore->s_sem);
 }
 
-C2_INTERNAL void c2_semaphore_up(struct c2_semaphore *semaphore)
+M0_INTERNAL void m0_semaphore_up(struct m0_semaphore *semaphore)
 {
 	up(&semaphore->s_sem);
 }
 
-C2_INTERNAL unsigned c2_semaphore_value(struct c2_semaphore *semaphore)
+M0_INTERNAL unsigned m0_semaphore_value(struct m0_semaphore *semaphore)
 {
 	return semaphore->s_sem.count;
 }
 
-C2_INTERNAL bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
-					const c2_time_t abs_timeout)
+M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
+					const m0_time_t abs_timeout)
 {
-	c2_time_t nowtime = c2_time_now();
-	c2_time_t reltime;
+	m0_time_t nowtime = m0_time_now();
+	m0_time_t reltime;
 	unsigned long reljiffies;
 	struct timespec ts;
 
 	/* same semantics as user_space semaphore: allow abs_time < now */
 	if (abs_timeout > nowtime)
-		reltime = c2_time_sub(abs_timeout, nowtime);
+		reltime = m0_time_sub(abs_timeout, nowtime);
 	else
 		reltime = 0;
-	ts.tv_sec  = c2_time_seconds(reltime);
-	ts.tv_nsec = c2_time_nanoseconds(reltime);
+	ts.tv_sec  = m0_time_seconds(reltime);
+	ts.tv_nsec = m0_time_nanoseconds(reltime);
 	reljiffies = timespec_to_jiffies(&ts);
 
 	return down_timeout(&semaphore->s_sem, reljiffies) == 0;

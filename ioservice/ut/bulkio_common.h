@@ -20,21 +20,21 @@
 
 #pragma once
 
-#ifndef __COLIBRI_IOSERVICE_ST_COMMON_H__
-#define __COLIBRI_IOSERVICE_ST_COMMON_H__
+#ifndef __MERO_IOSERVICE_ST_COMMON_H__
+#define __MERO_IOSERVICE_ST_COMMON_H__
 
 #include "lib/list.h"
-#include "colibri/init.h"
+#include "mero/init.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "ioservice/io_fops.h"	/* c2_io_fop */
+#include "ioservice/io_fops.h"	/* m0_io_fop */
 #include "ioservice/io_fops_ff.h"
-#include "rpc/rpc.h"		/* c2_rpc_bulk, c2_rpc_bulk_buf */
-#include "rpc/rpc_opcodes.h"	/* enum C2_RPC_OPCODES */
-#include "rpc/rpclib.h"		/* c2_rpc_ctx */
-#include "ut/rpc.h"		/* c2_rpc_client_init, c2_rpc_server_init */
-#include "lib/thread.h"		/* C2_THREAD_INIT */
-#include "lib/misc.h"		/* C2_SET_ARR0 */
+#include "rpc/rpc.h"		/* m0_rpc_bulk, m0_rpc_bulk_buf */
+#include "rpc/rpc_opcodes.h"	/* enum M0_RPC_OPCODES */
+#include "rpc/rpclib.h"		/* m0_rpc_ctx */
+#include "ut/rpc.h"		/* m0_rpc_client_init, m0_rpc_server_init */
+#include "lib/thread.h"		/* M0_THREAD_INIT */
+#include "lib/misc.h"		/* M0_SET_ARR0 */
 
 enum IO_UT_VALUES {
 	IO_FIDS_NR		= 2,
@@ -69,22 +69,22 @@ enum IO_UT_VALUES {
 /* Structure containing data needed for UT. */
 struct bulkio_params {
 	/* Fids of global files. */
-	struct c2_fid		          bp_fids[IO_FIDS_NR];
+	struct m0_fid		          bp_fids[IO_FIDS_NR];
 
 	/* Tracks offsets for global fids. */
 	uint64_t			  bp_offsets[IO_FIDS_NR];
 
 	/* In-memory fops for read IO. */
-	struct c2_io_fop		**bp_rfops;
+	struct m0_io_fop		**bp_rfops;
 
 	/* In-memory fops for write IO. */
-	struct c2_io_fop		**bp_wfops;
+	struct m0_io_fop		**bp_wfops;
 
 	/* Read buffers to which data will be transferred. */
-	struct c2_net_buffer		**bp_iobuf;
+	struct m0_net_buffer		**bp_iobuf;
 
 	/* Threads to post rpc items to rpc layer. */
-	struct c2_thread		**bp_threads;
+	struct m0_thread		**bp_threads;
 
 	/*
 	 * Standard buffers containing a data pattern.
@@ -94,19 +94,19 @@ struct bulkio_params {
 	char				 *bp_writebuf;
 
 	/* Structures used by client-side rpc code. */
-	struct c2_dbenv			  bp_cdbenv;
-	struct c2_cob_domain		  bp_ccbdom;
-	struct c2_net_domain		  bp_cnetdom;
+	struct m0_dbenv			  bp_cdbenv;
+	struct m0_cob_domain		  bp_ccbdom;
+	struct m0_net_domain		  bp_cnetdom;
 
 	const char			 *bp_caddr;
 	char				 *bp_cdbname;
 	const char			 *bp_saddr;
 	char				 *bp_slogfile;
 
-	struct c2_rpc_client_ctx	 *bp_cctx;
-	struct c2_rpc_server_ctx	 *bp_sctx;
+	struct m0_rpc_client_ctx	 *bp_cctx;
+	struct m0_rpc_server_ctx	 *bp_sctx;
 
-	struct c2_net_xprt		 *bp_xprt;
+	struct m0_net_xprt		 *bp_xprt;
 };
 
 /* A structure used to pass as argument to io threads. */
@@ -114,7 +114,7 @@ struct thrd_arg {
 	/* Index in fops array to be posted to rpc layer. */
 	int			 ta_index;
 	/* Type of fop to be sent (read/write). */
-	enum C2_RPC_OPCODES	 ta_op;
+	enum M0_RPC_OPCODES	 ta_op;
 	/* bulkio_params structure which contains common data. */
 	struct bulkio_params	*ta_bp;
 };
@@ -123,11 +123,11 @@ struct thrd_arg {
 int bulkio_client_start(struct bulkio_params *bp, const char *caddr,
 			const char *saddr);
 
-void bulkio_client_stop(struct c2_rpc_client_ctx *cctx);
+void bulkio_client_stop(struct m0_rpc_client_ctx *cctx);
 
 int bulkio_server_start(struct bulkio_params *bp, const char *saddr);
 
-void bulkio_server_stop(struct c2_rpc_server_ctx *sctx);
+void bulkio_server_stop(struct m0_rpc_server_ctx *sctx);
 
 void bulkio_params_init(struct bulkio_params *bp);
 
@@ -136,14 +136,14 @@ void bulkio_params_fini(struct bulkio_params *bp);
 void bulkio_test(struct bulkio_params *bp, int fids_nr, int fops_nr,
 		 int segs_nr);
 
-extern int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec, uint32_t num_segs,
-				   c2_bcount_t seg_size, unsigned shift);
+extern int m0_bufvec_alloc_aligned(struct m0_bufvec *bufvec, uint32_t num_segs,
+				   m0_bcount_t seg_size, unsigned shift);
 
 void io_fops_rpc_submit(struct thrd_arg *t);
 
 void io_fops_destroy(struct bulkio_params *bp);
 
-void io_fops_create(struct bulkio_params *bp, enum C2_RPC_OPCODES op,
+void io_fops_create(struct bulkio_params *bp, enum M0_RPC_OPCODES op,
 		    int fids_nr, int fops_nr, int segs_nr);
 
-#endif /* __COLIBRI_IOSERVICE_ST_COMMON_H__ */
+#endif /* __MERO_IOSERVICE_ST_COMMON_H__ */

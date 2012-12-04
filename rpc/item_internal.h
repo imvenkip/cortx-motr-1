@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_ITEM_INT_H__
-#define __COLIBRI_RPC_ITEM_INT_H__
+#ifndef __MERO_RPC_ITEM_INT_H__
+#define __MERO_RPC_ITEM_INT_H__
 
 #include "rpc/item.h"
 
@@ -32,59 +32,59 @@
  */
 
 /** Initialises the rpc item types list and lock */
-C2_INTERNAL int c2_rpc_item_type_list_init(void);
+M0_INTERNAL int m0_rpc_item_type_list_init(void);
 
 /**
   Finalizes and destroys the rpc item type list by traversing the list and
   deleting and finalizing each element.
 */
-C2_INTERNAL void c2_rpc_item_type_list_fini(void);
+M0_INTERNAL void m0_rpc_item_type_list_fini(void);
 
-C2_INTERNAL bool c2_rpc_item_is_bound(const struct c2_rpc_item *item);
+M0_INTERNAL bool m0_rpc_item_is_bound(const struct m0_rpc_item *item);
 
-C2_INTERNAL bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item);
+M0_INTERNAL bool m0_rpc_item_is_unbound(const struct m0_rpc_item *item);
 
-C2_INTERNAL bool c2_rpc_item_is_oneway(const struct c2_rpc_item *item);
+M0_INTERNAL bool m0_rpc_item_is_oneway(const struct m0_rpc_item *item);
 
-C2_INTERNAL void c2_rpc_item_sm_init(struct c2_rpc_item *item,
-				     struct c2_sm_group *grp,
-				     enum c2_rpc_item_dir dir);
-C2_INTERNAL void c2_rpc_item_sm_fini(struct c2_rpc_item *item);
+M0_INTERNAL void m0_rpc_item_sm_init(struct m0_rpc_item *item,
+				     struct m0_sm_group *grp,
+				     enum m0_rpc_item_dir dir);
+M0_INTERNAL void m0_rpc_item_sm_fini(struct m0_rpc_item *item);
 
-C2_INTERNAL void c2_rpc_item_change_state(struct c2_rpc_item *item,
-					  enum c2_rpc_item_state state);
+M0_INTERNAL void m0_rpc_item_change_state(struct m0_rpc_item *item,
+					  enum m0_rpc_item_state state);
 
-C2_INTERNAL void c2_rpc_item_failed(struct c2_rpc_item *item, int32_t rc);
+M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc);
 
-C2_INTERNAL int c2_rpc_item_start_timer(struct c2_rpc_item *item);
+M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item);
 
-C2_INTERNAL void c2_rpc_item_set_stage(struct c2_rpc_item *item,
-				       enum c2_rpc_item_stage s);
+M0_INTERNAL void m0_rpc_item_set_stage(struct m0_rpc_item *item,
+				       enum m0_rpc_item_stage s);
 
 /**
    Returns true if item modifies file system state, false otherwise
  */
-C2_INTERNAL bool c2_rpc_item_is_update(const struct c2_rpc_item *item);
+M0_INTERNAL bool m0_rpc_item_is_update(const struct m0_rpc_item *item);
 
 /**
    Returns true if item is request item. False if it is a reply item
  */
-C2_INTERNAL bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
+M0_INTERNAL bool m0_rpc_item_is_request(const struct m0_rpc_item *item);
 
-C2_INTERNAL bool c2_rpc_item_is_reply(const struct c2_rpc_item *item);
+M0_INTERNAL bool m0_rpc_item_is_reply(const struct m0_rpc_item *item);
 
-C2_INTERNAL bool item_is_active(const struct c2_rpc_item *item);
-C2_INTERNAL struct c2_verno *item_verno(struct c2_rpc_item *item, int idx);
-C2_INTERNAL uint64_t item_xid(struct c2_rpc_item *item, int idx);
-C2_INTERNAL const char *item_kind(const struct c2_rpc_item *item);
+M0_INTERNAL bool item_is_active(const struct m0_rpc_item *item);
+M0_INTERNAL struct m0_verno *item_verno(struct m0_rpc_item *item, int idx);
+M0_INTERNAL uint64_t item_xid(struct m0_rpc_item *item, int idx);
+M0_INTERNAL const char *item_kind(const struct m0_rpc_item *item);
 
-C2_TL_DESCR_DECLARE(slot_item, C2_EXTERN);
-C2_TL_DECLARE(slot_item, C2_INTERNAL, struct c2_rpc_item);
+M0_TL_DESCR_DECLARE(slot_item, M0_EXTERN);
+M0_TL_DECLARE(slot_item, M0_INTERNAL, struct m0_rpc_item);
 
 /** Helper macro to iterate over every item in a slot */
 #define for_each_item_in_slot(item, slot) \
-	        c2_tl_for(slot_item, &slot->sl_item_list, item)
-#define end_for_each_item_in_slot c2_tl_endfor
+	        m0_tl_for(slot_item, &slot->sl_item_list, item)
+#define end_for_each_item_in_slot m0_tl_endfor
 
 /** @} */
-#endif /* __COLIBRI_RPC_ITEM_INT_H__ */
+#endif /* __MERO_RPC_ITEM_INT_H__ */

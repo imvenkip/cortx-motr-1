@@ -18,7 +18,7 @@
  * Original creation date: 05/30/2010
  */
 
-#include "lib/misc.h"  /* C2_SET_ARR0 */
+#include "lib/misc.h"  /* M0_SET_ARR0 */
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "lib/thread.h"
@@ -38,7 +38,7 @@ static void t0(int x)
 	t0place = x;
 }
 
-static struct c2_thread t[NR];
+static struct m0_thread t[NR];
 static int r[NR];
 
 static void t2(int n)
@@ -46,8 +46,8 @@ static void t2(int n)
 	int result;
 
 	if (n > 0) {
-		result = C2_THREAD_INIT(&t[n - 1], int, NULL, &t2, n - 1, "t2");
-		C2_UT_ASSERT(result == 0);
+		result = M0_THREAD_INIT(&t[n - 1], int, NULL, &t2, n - 1, "t2");
+		M0_UT_ASSERT(result == 0);
 	}
 	r[n] = n;
 }
@@ -55,21 +55,21 @@ static void t2(int n)
 static void t3(int n)
 {
 	int result;
-	struct c2_bitmap t3bm;
-	struct c2_thread_handle myhandle;
+	struct m0_bitmap t3bm;
+	struct m0_thread_handle myhandle;
 
 	/* set affinity (confine) to CPU 0 */
-	C2_UT_ASSERT(c2_bitmap_init(&t3bm, 3) == 0);
-	c2_bitmap_set(&t3bm, 0, true);
+	M0_UT_ASSERT(m0_bitmap_init(&t3bm, 3) == 0);
+	m0_bitmap_set(&t3bm, 0, true);
 
-	result = c2_thread_confine(&t[n], &t3bm);
-	C2_UT_ASSERT(result == 0);
+	result = m0_thread_confine(&t[n], &t3bm);
+	M0_UT_ASSERT(result == 0);
 
-	c2_bitmap_fini(&t3bm);
+	m0_bitmap_fini(&t3bm);
 
 	/* another handle test */
-	c2_thread_self(&myhandle);
-	C2_UT_ASSERT(c2_thread_handle_eq(&myhandle, &t[n].t_h));
+	m0_thread_self(&myhandle);
+	M0_UT_ASSERT(m0_thread_handle_eq(&myhandle, &t[n].t_h));
 }
 
 static char t1place[100];
@@ -101,73 +101,73 @@ void test_thread(void)
 {
 	int i;
 	int result;
-	struct c2_thread_handle thandle;
-	struct c2_thread_handle myhandle;
+	struct m0_thread_handle thandle;
+	struct m0_thread_handle myhandle;
 
-	c2_thread_self(&myhandle);
-	c2_thread_self(&thandle);
-	C2_UT_ASSERT(c2_thread_handle_eq(&myhandle, &thandle));
+	m0_thread_self(&myhandle);
+	m0_thread_self(&thandle);
+	M0_UT_ASSERT(m0_thread_handle_eq(&myhandle, &thandle));
 
-	C2_SET_ARR0(r);
+	M0_SET_ARR0(r);
 	t0place = 0;
-	result = C2_THREAD_INIT(&t[0], int, NULL, &t0, 42, "t0");
-	C2_UT_ASSERT(result == 0);
+	result = M0_THREAD_INIT(&t[0], int, NULL, &t0, 42, "t0");
+	M0_UT_ASSERT(result == 0);
 
-	C2_UT_ASSERT(!c2_thread_handle_eq(&myhandle, &t[0].t_h));
-	C2_UT_ASSERT(c2_thread_handle_eq(&t[0].t_h, &t[0].t_h));
+	M0_UT_ASSERT(!m0_thread_handle_eq(&myhandle, &t[0].t_h));
+	M0_UT_ASSERT(m0_thread_handle_eq(&t[0].t_h, &t[0].t_h));
 
-	C2_UT_ASSERT(c2_thread_join(&t[0]) == 0);
-	c2_thread_fini(&t[0]);
-	C2_UT_ASSERT(t0place == 42);
+	M0_UT_ASSERT(m0_thread_join(&t[0]) == 0);
+	m0_thread_fini(&t[0]);
+	M0_UT_ASSERT(t0place == 42);
 
-	result = C2_THREAD_INIT(&t[0], const char *, NULL, &forty_two_func,
+	result = M0_THREAD_INIT(&t[0], const char *, NULL, &forty_two_func,
 				(const char *)"forty-two", "fourty-two");
-	C2_UT_ASSERT(result == 0);
-	c2_thread_join(&t[0]);
-	c2_thread_fini(&t[0]);
-	C2_UT_ASSERT(!strcmp(t1place, "forty-two"));
+	M0_UT_ASSERT(result == 0);
+	m0_thread_join(&t[0]);
+	m0_thread_fini(&t[0]);
+	M0_UT_ASSERT(!strcmp(t1place, "forty-two"));
 
 	t2(NR - 1);
 	for (i = NR - 2; i >= 0; --i) {
 		/* this loop is safe, because t[n] fills t[n - 1] before
 		   exiting. */
-		c2_thread_join(&t[i]);
-		c2_thread_fini(&t[i]);
-		C2_UT_ASSERT(r[i] == i);
+		m0_thread_join(&t[i]);
+		m0_thread_fini(&t[i]);
+		M0_UT_ASSERT(r[i] == i);
 	}
 
 	/* test init functions */
-	result = C2_THREAD_INIT(&t[0], int, &lambda42_init, &lambda42_func,
+	result = M0_THREAD_INIT(&t[0], int, &lambda42_init, &lambda42_func,
 				42, "lambda42");
-	C2_UT_ASSERT(result == 0);
-	c2_thread_join(&t[0]);
-	c2_thread_fini(&t[0]);
+	M0_UT_ASSERT(result == 0);
+	m0_thread_join(&t[0]);
+	m0_thread_fini(&t[0]);
 
-	result = C2_THREAD_INIT(&t[0], int, &lambda_42_init, &lambda_42_func,
+	result = M0_THREAD_INIT(&t[0], int, &lambda_42_init, &lambda_42_func,
 				42, "lambda-42");
-	C2_UT_ASSERT(result == -42);
-	c2_thread_fini(&t[0]);
+	M0_UT_ASSERT(result == -42);
+	m0_thread_fini(&t[0]);
 
 	/* test confine */
-	result = C2_THREAD_INIT(&t[0], int, NULL, &t3, 0, "t3");
-	C2_UT_ASSERT(result == 0);
-	c2_thread_join(&t[0]);
-	c2_thread_fini(&t[0]);
+	result = M0_THREAD_INIT(&t[0], int, NULL, &t3, 0, "t3");
+	M0_UT_ASSERT(result == 0);
+	m0_thread_join(&t[0]);
+	m0_thread_fini(&t[0]);
 
-	/* test c2_is_awkward() */
+	/* test m0_is_awkward() */
 	test_is_awkward();
 }
-C2_EXPORTED(test_thread);
+M0_EXPORTED(test_thread);
 
 enum {
 	UB_ITER = 10000
 };
 
-static struct c2_thread ubt[UB_ITER];
+static struct m0_thread ubt[UB_ITER];
 
 static void ub_init(void)
 {
-	C2_SET_ARR0(ubt);
+	M0_SET_ARR0(ubt);
 }
 
 static void ub_fini(void)
@@ -175,7 +175,7 @@ static void ub_fini(void)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(ubt); ++i)
-		c2_thread_fini(&ubt[i]);
+		m0_thread_fini(&ubt[i]);
 }
 
 static void ub0(int x)
@@ -185,13 +185,13 @@ static void ub0(int x)
 static void ub_spawn(int i)
 {
 	int result;
-	result = C2_THREAD_INIT(&ubt[i], int, NULL, &ub0, 0, "ub0");
-	C2_ASSERT(result == 0);
+	result = M0_THREAD_INIT(&ubt[i], int, NULL, &ub0, 0, "ub0");
+	M0_ASSERT(result == 0);
 }
 
 static void ub_join(int i)
 {
-	c2_thread_join(&ubt[i]);
+	m0_thread_join(&ubt[i]);
 }
 
 static int ub_spawn_initcall(int x)
@@ -202,9 +202,9 @@ static int ub_spawn_initcall(int x)
 static void ub_spawn_init(int i)
 {
 	int result;
-	result = C2_THREAD_INIT(&ubt[i], int, &ub_spawn_initcall, &ub0, 0,
+	result = M0_THREAD_INIT(&ubt[i], int, &ub_spawn_initcall, &ub0, 0,
 				"ub0");
-	C2_ASSERT(result == 0);
+	M0_ASSERT(result == 0);
 }
 
 static void ub_join_all(void)
@@ -212,11 +212,11 @@ static void ub_join_all(void)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(ubt); ++i)
-		c2_thread_join(&ubt[i]);
+		m0_thread_join(&ubt[i]);
 	ub_init();
 }
 
-struct c2_ub_set c2_thread_ub = {
+struct m0_ub_set m0_thread_ub = {
 	.us_name = "thread-ub",
 	.us_init = ub_init,
 	.us_fini = ub_fini,
@@ -241,17 +241,17 @@ struct c2_ub_set c2_thread_ub = {
 
 static void set_and_check_is_awkward(void)
 {
-	c2_enter_awkward();
-	C2_UT_ASSERT(c2_is_awkward() == true);
+	m0_enter_awkward();
+	M0_UT_ASSERT(m0_is_awkward() == true);
 
-	c2_exit_awkward();
-	C2_UT_ASSERT(c2_is_awkward() == false);
+	m0_exit_awkward();
+	M0_UT_ASSERT(m0_is_awkward() == false);
 }
 
 static void ut_t0_handler1(int arg)
 {
 	/* check default */
-	C2_UT_ASSERT(c2_is_awkward() == false);
+	M0_UT_ASSERT(m0_is_awkward() == false);
 
 	/* set and check is_awkward() */
 	set_and_check_is_awkward();
@@ -261,12 +261,12 @@ void test_is_awkward(void)
 {
 	int result;
 
-	result = C2_THREAD_INIT(&t[0], int, NULL, &ut_t0_handler1,
+	result = M0_THREAD_INIT(&t[0], int, NULL, &ut_t0_handler1,
 				0, "ut_t0_handler1");
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 
-	c2_thread_join(&t[0]);
-	c2_thread_fini(&t[0]);
+	m0_thread_join(&t[0]);
+	m0_thread_fini(&t[0]);
 }
 
 /*

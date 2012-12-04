@@ -23,124 +23,124 @@
 
 #include "lib/ut.h"
 #include "lib/trace.h"
-#include "lib/user_space/trace.h" /* c2_trace_set_print_context */
+#include "lib/user_space/trace.h" /* m0_trace_set_print_context */
 #include "lib/thread.h"    /* LAMBDA */
 #include "lib/getopts.h"
-#include "lib/finject.h"   /* c2_fi_print_info */
+#include "lib/finject.h"   /* m0_fi_print_info */
 #include "utils/common.h"
 
 /* sort test suites in alphabetic order */
-extern const struct c2_test_suite libc2_ut; /* test lib first */
-extern const struct c2_test_suite ad_ut;
-extern const struct c2_test_suite addb_ut;
-extern const struct c2_test_suite adieu_ut;
-extern const struct c2_test_suite balloc_ut;
-extern const struct c2_test_suite buffer_pool_ut;
-extern const struct c2_test_suite bulkio_client_ut;
-extern const struct c2_test_suite bulkio_server_ut;
-extern const struct c2_test_suite c2_fop_lock_ut;
-extern const struct c2_test_suite c2_net_bulk_if_ut;
-extern const struct c2_test_suite c2_net_bulk_mem_ut;
-extern const struct c2_test_suite c2_net_lnet_ut;
-extern const struct c2_test_suite c2_net_test_ut;
-extern const struct c2_test_suite c2_net_tm_prov_ut;
-extern const struct c2_test_suite capa_ut;
-extern const struct c2_test_suite cm_cp_ut;
-extern const struct c2_test_suite cm_generic_ut;
-extern const struct c2_test_suite cob_ut;
-extern const struct c2_test_suite mdservice_ut;
-extern const struct c2_test_suite cobfoms_ut;
-extern const struct c2_test_suite colibri_setup_ut;
-extern const struct c2_test_suite conf_ut;
-extern const struct c2_test_suite confc_ut;
-extern const struct c2_test_suite conn_ut;
-extern const struct c2_test_suite console_ut;
-extern const struct c2_test_suite db_cursor_ut;
-extern const struct c2_test_suite db_ut;
-extern const struct c2_test_suite emap_ut;
-extern const struct c2_test_suite fit_ut;
-extern const struct c2_test_suite fol_ut;
-extern const struct c2_test_suite frm_ut;
-extern const struct c2_test_suite ios_bufferpool_ut;
-extern const struct c2_test_suite item_ut;
-extern const struct c2_test_suite layout_ut;
-extern const struct c2_test_suite packet_encdec_ut;
-extern const struct c2_test_suite parity_math_ut;
-extern const struct c2_test_suite poolmach_ut;
-extern const struct c2_test_suite reqh_ut;
-extern const struct c2_test_suite rpc_mc_ut;
-extern const struct c2_test_suite rpc_service_ut;
-extern const struct c2_test_suite rpclib_ut;
-extern const struct c2_test_suite session_ut;
-extern const struct c2_test_suite sm_ut;
-extern const struct c2_test_suite sns_repair_ut;
-extern const struct c2_test_suite snsrepair_storage_ut;
-extern const struct c2_test_suite snsrepair_xform_ut;
-extern const struct c2_test_suite stobio_ut;
-extern const struct c2_test_suite udb_ut;
-extern const struct c2_test_suite xcode_bufvec_fop_ut;
-extern const struct c2_test_suite xcode_ff2c_ut;
-extern const struct c2_test_suite xcode_ut;
-extern const struct c2_test_suite yaml2db_ut;
+extern const struct m0_test_suite libm0_ut; /* test lib first */
+extern const struct m0_test_suite ad_ut;
+extern const struct m0_test_suite addb_ut;
+extern const struct m0_test_suite adieu_ut;
+extern const struct m0_test_suite balloc_ut;
+extern const struct m0_test_suite buffer_pool_ut;
+extern const struct m0_test_suite bulkio_client_ut;
+extern const struct m0_test_suite bulkio_server_ut;
+extern const struct m0_test_suite m0_fop_lock_ut;
+extern const struct m0_test_suite m0_net_bulk_if_ut;
+extern const struct m0_test_suite m0_net_bulk_mem_ut;
+extern const struct m0_test_suite m0_net_lnet_ut;
+extern const struct m0_test_suite m0_net_test_ut;
+extern const struct m0_test_suite m0_net_tm_prov_ut;
+extern const struct m0_test_suite capa_ut;
+extern const struct m0_test_suite cm_cp_ut;
+extern const struct m0_test_suite cm_generic_ut;
+extern const struct m0_test_suite cob_ut;
+extern const struct m0_test_suite mdservice_ut;
+extern const struct m0_test_suite cobfoms_ut;
+extern const struct m0_test_suite mero_setup_ut;
+extern const struct m0_test_suite conf_ut;
+extern const struct m0_test_suite confc_ut;
+extern const struct m0_test_suite conn_ut;
+extern const struct m0_test_suite console_ut;
+extern const struct m0_test_suite db_cursor_ut;
+extern const struct m0_test_suite db_ut;
+extern const struct m0_test_suite emap_ut;
+extern const struct m0_test_suite fit_ut;
+extern const struct m0_test_suite fol_ut;
+extern const struct m0_test_suite frm_ut;
+extern const struct m0_test_suite ios_bufferpool_ut;
+extern const struct m0_test_suite item_ut;
+extern const struct m0_test_suite layout_ut;
+extern const struct m0_test_suite packet_encdec_ut;
+extern const struct m0_test_suite parity_math_ut;
+extern const struct m0_test_suite poolmach_ut;
+extern const struct m0_test_suite reqh_ut;
+extern const struct m0_test_suite rpc_mc_ut;
+extern const struct m0_test_suite rpc_service_ut;
+extern const struct m0_test_suite rpclib_ut;
+extern const struct m0_test_suite session_ut;
+extern const struct m0_test_suite sm_ut;
+extern const struct m0_test_suite sns_repair_ut;
+extern const struct m0_test_suite snsrepair_storage_ut;
+extern const struct m0_test_suite snsrepair_xform_ut;
+extern const struct m0_test_suite stobio_ut;
+extern const struct m0_test_suite udb_ut;
+extern const struct m0_test_suite xcode_bufvec_fop_ut;
+extern const struct m0_test_suite xcode_ff2c_ut;
+extern const struct m0_test_suite xcode_ut;
+extern const struct m0_test_suite yaml2db_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
 void add_uts(void)
 {
 	/* sort test suites in alphabetic order */
-	c2_ut_add(&libc2_ut); /* test lib first */
-	c2_ut_add(&ad_ut);
-	c2_ut_add(&adieu_ut);
-	c2_ut_add(&balloc_ut);
-	c2_ut_add(&buffer_pool_ut);
-	c2_ut_add(&bulkio_client_ut);
-	c2_ut_add(&bulkio_server_ut);
-	c2_ut_add(&c2_fop_lock_ut);
-	c2_ut_add(&c2_net_bulk_if_ut);
-	c2_ut_add(&c2_net_bulk_mem_ut);
-	c2_ut_add(&c2_net_lnet_ut);
-	c2_ut_add(&c2_net_test_ut);
-	c2_ut_add(&c2_net_tm_prov_ut);
-	c2_ut_add(&capa_ut);
-	c2_ut_add(&cm_cp_ut);
-	c2_ut_add(&cm_generic_ut);
-	c2_ut_add(&cob_ut);
-        c2_ut_add(&cobfoms_ut);
-        c2_ut_add(&mdservice_ut);
-	c2_ut_add(&colibri_setup_ut);
-	c2_ut_add(&conf_ut);
-	c2_ut_add(&confc_ut);
-	c2_ut_add(&conn_ut);
-	c2_ut_add(&db_cursor_ut);
-	c2_ut_add(&db_ut);
-	c2_ut_add(&emap_ut);
-	c2_ut_add(&fit_ut);
-	c2_ut_add(&fol_ut);
-	c2_ut_add(&frm_ut);
-	c2_ut_add(&ios_bufferpool_ut);
-	c2_ut_add(&item_ut);
-	c2_ut_add(&layout_ut);
-	c2_ut_add(&packet_encdec_ut);
-	c2_ut_add(&parity_math_ut);
-	c2_ut_add(&poolmach_ut);
-	c2_ut_add(&reqh_ut);
-	c2_ut_add(&rpc_mc_ut);
-	c2_ut_add(&rpc_service_ut);
-	c2_ut_add(&rpclib_ut);
-	c2_ut_add(&session_ut);
-	c2_ut_add(&sm_ut);
-	c2_ut_add(&sns_repair_ut);
-	c2_ut_add(&snsrepair_storage_ut);
-	c2_ut_add(&snsrepair_xform_ut);
-	c2_ut_add(&stobio_ut);
-	c2_ut_add(&udb_ut);
-	c2_ut_add(&xcode_bufvec_fop_ut);
-	c2_ut_add(&xcode_ff2c_ut);
-	c2_ut_add(&xcode_ut);
+	m0_ut_add(&libm0_ut); /* test lib first */
+	m0_ut_add(&ad_ut);
+	m0_ut_add(&adieu_ut);
+	m0_ut_add(&balloc_ut);
+	m0_ut_add(&buffer_pool_ut);
+	m0_ut_add(&bulkio_client_ut);
+	m0_ut_add(&bulkio_server_ut);
+	m0_ut_add(&m0_fop_lock_ut);
+	m0_ut_add(&m0_net_bulk_if_ut);
+	m0_ut_add(&m0_net_bulk_mem_ut);
+	m0_ut_add(&m0_net_lnet_ut);
+	m0_ut_add(&m0_net_test_ut);
+	m0_ut_add(&m0_net_tm_prov_ut);
+	m0_ut_add(&capa_ut);
+	m0_ut_add(&cm_cp_ut);
+	m0_ut_add(&cm_generic_ut);
+	m0_ut_add(&cob_ut);
+        m0_ut_add(&cobfoms_ut);
+        m0_ut_add(&mdservice_ut);
+	m0_ut_add(&mero_setup_ut);
+	m0_ut_add(&conf_ut);
+	m0_ut_add(&confc_ut);
+	m0_ut_add(&conn_ut);
+	m0_ut_add(&db_cursor_ut);
+	m0_ut_add(&db_ut);
+	m0_ut_add(&emap_ut);
+	m0_ut_add(&fit_ut);
+	m0_ut_add(&fol_ut);
+	m0_ut_add(&frm_ut);
+	m0_ut_add(&ios_bufferpool_ut);
+	m0_ut_add(&item_ut);
+	m0_ut_add(&layout_ut);
+	m0_ut_add(&packet_encdec_ut);
+	m0_ut_add(&parity_math_ut);
+	m0_ut_add(&poolmach_ut);
+	m0_ut_add(&reqh_ut);
+	m0_ut_add(&rpc_mc_ut);
+	m0_ut_add(&rpc_service_ut);
+	m0_ut_add(&rpclib_ut);
+	m0_ut_add(&session_ut);
+	m0_ut_add(&sm_ut);
+	m0_ut_add(&sns_repair_ut);
+	m0_ut_add(&snsrepair_storage_ut);
+	m0_ut_add(&snsrepair_xform_ut);
+	m0_ut_add(&stobio_ut);
+	m0_ut_add(&udb_ut);
+	m0_ut_add(&xcode_bufvec_fop_ut);
+	m0_ut_add(&xcode_ff2c_ut);
+	m0_ut_add(&xcode_ut);
 	/* These tests have redirection of messages. */
-	c2_ut_add(&addb_ut);
-	c2_ut_add(&console_ut);
-	c2_ut_add(&yaml2db_ut);
+	m0_ut_add(&addb_ut);
+	m0_ut_add(&console_ut);
+	m0_ut_add(&yaml2db_ut);
 }
 
 int main(int argc, char *argv[])
@@ -161,11 +161,11 @@ int main(int argc, char *argv[])
 	const char *trace_level         = NULL;
 	const char *trace_print_context = NULL;
 
-	struct c2_list  test_list;
-	struct c2_list  exclude_list;
+	struct m0_list  test_list;
+	struct m0_list  exclude_list;
 
-	struct c2_ut_run_cfg cfg = {
-		.urc_mode              = C2_UT_BASIC_MODE,
+	struct m0_ut_run_cfg cfg = {
+		.urc_mode              = M0_UT_BASIC_MODE,
 		.urc_abort_cu_assert   = true,
 		.urc_report_exec_time  = true,
 		.urc_test_list         = &test_list,
@@ -176,104 +176,104 @@ int main(int argc, char *argv[])
 	if (result != 0)
 		return result;
 
-	result = C2_GETOPTS("ut", argc, argv,
-		    C2_HELPARG('h'),
-		    C2_FLAGARG('T', "parse trace log produced earlier"
+	result = M0_GETOPTS("ut", argc, argv,
+		    M0_HELPARG('h'),
+		    M0_FLAGARG('T', "parse trace log produced earlier"
 			       " (trace data is read from STDIN)",
 				&parse_trace),
-		    C2_STRINGARG('m', "trace mask, either numeric (HEX/DEC) or"
+		    M0_STRINGARG('m', "trace mask, either numeric (HEX/DEC) or"
 			         " comma-separated list of subsystem names"
 				 " (use ! at the beginning to invert)",
 				LAMBDA(void, (const char *str) {
 					trace_mask = strdup(str);
 				})
 				),
-		    C2_VOIDARG('M', "print available trace subsystems",
+		    M0_VOIDARG('M', "print available trace subsystems",
 				LAMBDA(void, (void) {
-					c2_trace_print_subsystems();
+					m0_trace_print_subsystems();
 					exit(EXIT_SUCCESS);
 				})),
-		    C2_STRINGARG('p', "trace print context, values:"
+		    M0_STRINGARG('p', "trace print context, values:"
 				 " none, func, short, full",
 				LAMBDA(void, (const char *str) {
 					trace_print_context = str;
 				})
 				),
-		    C2_STRINGARG('e', "trace level: level[+][,level[+]]"
+		    M0_STRINGARG('e', "trace level: level[+][,level[+]]"
 				 " where level is one of call|debug|info|"
 				 "notice|warn|error|fatal",
 				LAMBDA(void, (const char *str) {
 					trace_level = str;
 				})
 				),
-		    C2_FLAGARG('k', "keep the sandbox directory",
+		    M0_FLAGARG('k', "keep the sandbox directory",
 				&keep_sandbox),
-		    C2_VOIDARG('i', "CUnit interactive console",
+		    M0_VOIDARG('i', "CUnit interactive console",
 				LAMBDA(void, (void) {
-					cfg.urc_mode = C2_UT_ICONSOLE_MODE;
+					cfg.urc_mode = M0_UT_ICONSOLE_MODE;
 				})),
-		    C2_VOIDARG('a', "automated CUnit with xml output",
+		    M0_VOIDARG('a', "automated CUnit with xml output",
 				LAMBDA(void, (void) {
-					cfg.urc_mode = C2_UT_AUTOMATED_MODE;
+					cfg.urc_mode = M0_UT_AUTOMATED_MODE;
 				})),
-		    C2_FLAGARG('l', "list available test suites",
+		    M0_FLAGARG('l', "list available test suites",
 				&list_ut),
-		    C2_VOIDARG('L', "list available test suites with"
+		    M0_VOIDARG('L', "list available test suites with"
 				    " their tests",
 				LAMBDA(void, (void) {
 						list_ut = true;
 						with_tests = true;
 				})),
-		    C2_STRINGARG('t', "test list 'suite[:test][,suite"
+		    M0_STRINGARG('t', "test list 'suite[:test][,suite"
 				      "[:test]]'",
 				      LAMBDA(void, (const char *str) {
 					    test_list_str = strdup(str);
 				      })
 				),
-		    C2_STRINGARG('x', "exclude list 'suite[:test][,suite"
+		    M0_STRINGARG('x', "exclude list 'suite[:test][,suite"
 				      "[:test]]'",
 				      LAMBDA(void, (const char *str) {
 					 exclude_list_str = strdup(str);
 				      })
 				),
-		    C2_VOIDARG('A', "don't abort program on CU_ASSERT"
+		    M0_VOIDARG('A', "don't abort program on CU_ASSERT"
 				    " failure",
 				LAMBDA(void, (void) {
 					cfg.urc_abort_cu_assert = false;
 				})),
-		    C2_VOIDARG('P', "don't report test execution time",
+		    M0_VOIDARG('P', "don't report test execution time",
 				LAMBDA(void, (void) {
 					cfg.urc_report_exec_time = false;
 				})),
-		    C2_STRINGARG('f', "fault point to enable func:tag:type"
+		    M0_STRINGARG('f', "fault point to enable func:tag:type"
 				      "[:integer[:integer]]",
 				      LAMBDA(void, (const char *str) {
 					 fault_point = strdup(str);
 				      })
 				),
-		    C2_STRINGARG('F', "yaml file, which contains a list"
+		    M0_STRINGARG('F', "yaml file, which contains a list"
 				      " of fault points to enable",
 				      LAMBDA(void, (const char *str) {
 					 fp_file_name = strdup(str);
 				      })
 				),
-		    C2_FLAGARG('s', "report fault injection stats before UT",
+		    M0_FLAGARG('s', "report fault injection stats before UT",
 				&finject_stats_before),
-		    C2_FLAGARG('S', "report fault injection stats after UT",
+		    M0_FLAGARG('S', "report fault injection stats after UT",
 				&finject_stats_after),
 		    );
 	if (result != 0)
 		goto out;
 
-	result = c2_trace_set_immediate_mask(trace_mask);
+	result = m0_trace_set_immediate_mask(trace_mask);
 	if (result != 0)
 		goto out;
 
-	result = c2_trace_set_level(trace_level);
+	result = m0_trace_set_level(trace_level);
 	if (result != 0)
 		goto out;
 
-	result = c2_trace_set_print_context(trace_print_context);
+	result = m0_trace_set_print_context(trace_print_context);
 	if (result != 0) {
 		fprintf(stderr, "Error: invalid value for -p option,"
 				" allowed are: 0, 1, 2\n");
@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (parse_trace) {
-		result = c2_trace_parse();
+		result = m0_trace_parse();
 		goto out;
 	}
 
@@ -299,12 +299,12 @@ int main(int argc, char *argv[])
 	}
 
 	if (finject_stats_before) {
-		c2_fi_print_info();
+		m0_fi_print_info();
 		printf("\n");
 	}
 
 	/* check conflicting options */
-	if ((cfg.urc_mode != C2_UT_BASIC_MODE && (list_ut ||
+	if ((cfg.urc_mode != M0_UT_BASIC_MODE && (list_ut ||
 	     test_list_str != NULL || exclude_list_str != NULL)) ||
 	     (list_ut && (test_list_str != NULL || exclude_list_str != NULL)))
 	{
@@ -315,8 +315,8 @@ int main(int argc, char *argv[])
 		goto out;
 	}
 
-	c2_list_init(&test_list);
-	c2_list_init(&exclude_list);
+	m0_list_init(&test_list);
+	m0_list_init(&exclude_list);
 
 	if (test_list_str != NULL)
 		parse_test_list(test_list_str, &test_list);
@@ -326,13 +326,13 @@ int main(int argc, char *argv[])
 	add_uts();
 
 	if (list_ut)
-		c2_ut_list(with_tests);
+		m0_ut_list(with_tests);
 	else
-		c2_ut_run(&cfg);
+		m0_ut_run(&cfg);
 
 	if (finject_stats_after) {
 		printf("\n");
-		c2_fi_print_info();
+		m0_fi_print_info();
 	}
 
 	if (test_list_str != NULL)
@@ -343,8 +343,8 @@ int main(int argc, char *argv[])
 	free_test_list(&test_list);
 	free_test_list(&exclude_list);
 
-	c2_list_fini(&test_list);
-	c2_list_fini(&exclude_list);
+	m0_list_fini(&test_list);
+	m0_list_fini(&exclude_list);
 out:
 	unit_end(UT_SANDBOX, keep_sandbox);
 	return result;

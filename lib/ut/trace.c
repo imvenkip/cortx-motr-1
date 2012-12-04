@@ -18,12 +18,12 @@
  * Original creation date: 08/12/2010
  */
 
-#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/misc.h"   /* M0_SET0 */
 #include "lib/ub.h"
 #include "lib/ut.h"
 #include "lib/thread.h"
 #include "lib/assert.h"
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_UT
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
 enum {
@@ -31,14 +31,14 @@ enum {
 	NR_INNER = 100000
 };
 
-static struct c2_thread t[NR];
+static struct m0_thread t[NR];
 
 void trace_thread_func(int d)
 {
 	int j;
 
 	for (j = 0; j < NR_INNER; ++j)
-		C2_LOG(C2_DEBUG, "d: %i, d*j: %i", d, d * j);
+		M0_LOG(M0_DEBUG, "d: %i, d*j: %i", d, d * j);
 }
 
 void test_trace(void)
@@ -47,24 +47,24 @@ void test_trace(void)
 	int result;
 	uint64_t u64;
 
-	C2_LOG(C2_DEBUG, "forty two: %i", 42);
-	C2_LOG(C2_DEBUG, "forty three and tree: %i %llu", 43,
+	M0_LOG(M0_DEBUG, "forty two: %i", 42);
+	M0_LOG(M0_DEBUG, "forty three and tree: %i %llu", 43,
 			(unsigned long long)(u64 = 3));
 	for (i = 0; i < NR_INNER; ++i)
-		C2_LOG(C2_DEBUG, "c: %i, d: %i", i, i*i);
+		M0_LOG(M0_DEBUG, "c: %i, d: %i", i, i*i);
 
-	C2_SET_ARR0(t);
+	M0_SET_ARR0(t);
 	for (i = 0; i < NR; ++i) {
-		result = C2_THREAD_INIT(&t[i], int, NULL, &trace_thread_func,
+		result = M0_THREAD_INIT(&t[i], int, NULL, &trace_thread_func,
 					i, "test_trace_%i", i);
-		C2_ASSERT(result == 0);
+		M0_ASSERT(result == 0);
 	}
 	for (i = 0; i < NR; ++i) {
-		c2_thread_join(&t[i]);
-		c2_thread_fini(&t[i]);
+		m0_thread_join(&t[i]);
+		m0_thread_fini(&t[i]);
 	}
-	C2_LOG(C2_DEBUG, "X: %i and Y: %i", 43, result + 1);
-	C2_LOG(C2_DEBUG, "%llx char: %c %llx string: %s",
+	M0_LOG(M0_DEBUG, "X: %i and Y: %i", 43, result + 1);
+	M0_LOG(M0_DEBUG, "%llx char: %c %llx string: %s",
 		0x1234567887654321ULL,
 		'c',
 		0xfefefefefefefefeULL,
@@ -77,22 +77,22 @@ enum {
 
 static void ub_empty(int i)
 {
-	C2_LOG(C2_DEBUG, "msg");
+	M0_LOG(M0_DEBUG, "msg");
 }
 
 static void ub_8(int i)
 {
-	C2_LOG(C2_DEBUG, "%i", i);
+	M0_LOG(M0_DEBUG, "%i", i);
 }
 
 static void ub_64(int i)
 {
-	C2_LOG(C2_DEBUG, "%i %i %i %i %i %i %i %i",
+	M0_LOG(M0_DEBUG, "%i %i %i %i %i %i %i %i",
 		i, i + 1, i + 2, i + 3, i + 4, i + 5,
 		i + 6, i + 7);
 }
 
-struct c2_ub_set c2_trace_ub = {
+struct m0_ub_set m0_trace_ub = {
 	.us_name = "trace-ub",
 	.us_run  = {
 		{ .ut_name = "empty",

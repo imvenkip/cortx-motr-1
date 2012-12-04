@@ -12,7 +12,7 @@ $(LNETST_MOD)-y  := $(all_obj)
 
 dist_src         := Makefile.in lnetping.sh $(local_src)
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @top_srcdir@ @C2_KCPPFLAGS@ @C2_KCFLAGS@ \
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @top_srcdir@ @M0_KCPPFLAGS@ @M0_KCFLAGS@ \
 	       @KCFLAGS@
 
 prepare:

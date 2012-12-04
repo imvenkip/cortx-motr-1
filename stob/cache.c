@@ -17,7 +17,7 @@
  * Original creation date: 11-Nov-2012
  */
 
-#include "colibri/magic.h"
+#include "mero/magic.h"
 
 #include "stob/cache.h"
 
@@ -27,87 +27,87 @@
  * @{
  */
 
-C2_TL_DESCR_DEFINE(cache, "cacheable stobs", static, struct c2_stob_cacheable,
+M0_TL_DESCR_DEFINE(cache, "cacheable stobs", static, struct m0_stob_cacheable,
 		   ca_linkage, ca_magix,
-		   C2_STOB_CACHEABLE_MAGIX, C2_STOB_CACHE_MAGIX);
+		   M0_STOB_CACHEABLE_MAGIX, M0_STOB_CACHE_MAGIX);
 
-C2_TL_DEFINE(cache, static, struct c2_stob_cacheable);
+M0_TL_DEFINE(cache, static, struct m0_stob_cacheable);
 
-C2_INTERNAL void c2_stob_cacheable_init(struct c2_stob_cacheable *obj,
-					const struct c2_stob_id *id,
-					struct c2_stob_domain *dom)
+M0_INTERNAL void m0_stob_cacheable_init(struct m0_stob_cacheable *obj,
+					const struct m0_stob_id *id,
+					struct m0_stob_domain *dom)
 {
-	c2_stob_init(&obj->ca_stob, id, dom);
+	m0_stob_init(&obj->ca_stob, id, dom);
 	cache_tlink_init(obj);
 }
 
-C2_INTERNAL void c2_stob_cacheable_fini(struct c2_stob_cacheable *obj)
+M0_INTERNAL void m0_stob_cacheable_fini(struct m0_stob_cacheable *obj)
 {
 	cache_tlink_del_fini(obj);
-	c2_stob_fini(&obj->ca_stob);
+	m0_stob_fini(&obj->ca_stob);
 }
 
-C2_INTERNAL void c2_stob_cache_init(struct c2_stob_cache *cache)
+M0_INTERNAL void m0_stob_cache_init(struct m0_stob_cache *cache)
 {
 	cache_tlist_init(&cache->ch_head);
 }
 
-C2_INTERNAL void c2_stob_cache_fini(struct c2_stob_cache *cache)
+M0_INTERNAL void m0_stob_cache_fini(struct m0_stob_cache *cache)
 {
-	struct c2_stob_cacheable *obj;
+	struct m0_stob_cacheable *obj;
 
-	c2_tl_for(cache, &cache->ch_head, obj) {
-		c2_stob_put(&obj->ca_stob);
-	} c2_tl_endfor;
+	m0_tl_for(cache, &cache->ch_head, obj) {
+		m0_stob_put(&obj->ca_stob);
+	} m0_tl_endfor;
 	cache_tlist_fini(&cache->ch_head);
 }
 
-C2_INTERNAL struct c2_stob_cacheable *
-c2_stob_cacheable_lookup(struct c2_stob_cache *cache,
-			 const struct c2_stob_id *id)
+M0_INTERNAL struct m0_stob_cacheable *
+m0_stob_cacheable_lookup(struct m0_stob_cache *cache,
+			 const struct m0_stob_id *id)
 {
-	struct c2_stob_cacheable *obj;
+	struct m0_stob_cacheable *obj;
 
-	c2_tl_for(cache, &cache->ch_head, obj) {
-		if (c2_stob_id_eq(id, &obj->ca_stob.so_id)) {
-			c2_stob_get(&obj->ca_stob);
+	m0_tl_for(cache, &cache->ch_head, obj) {
+		if (m0_stob_id_eq(id, &obj->ca_stob.so_id)) {
+			m0_stob_get(&obj->ca_stob);
 			break;
 		}
-	} c2_tl_endfor;
+	} m0_tl_endfor;
 	return obj;
 }
 
-C2_INTERNAL int c2_stob_cache_find(struct c2_stob_cache *cache,
-				   struct c2_stob_domain *dom,
-				   const struct c2_stob_id *id,
-				   int (*init)(struct c2_stob_domain *,
-					       const struct c2_stob_id *,
-					       struct c2_stob_cacheable **),
-				   struct c2_stob_cacheable **out)
+M0_INTERNAL int m0_stob_cache_find(struct m0_stob_cache *cache,
+				   struct m0_stob_domain *dom,
+				   const struct m0_stob_id *id,
+				   int (*init)(struct m0_stob_domain *,
+					       const struct m0_stob_id *,
+					       struct m0_stob_cacheable **),
+				   struct m0_stob_cacheable **out)
 {
-	struct c2_stob_cacheable *obj;
-	struct c2_stob_cacheable *ghost;
+	struct m0_stob_cacheable *obj;
+	struct m0_stob_cacheable *ghost;
 	int                       result;
 
 	result = 0;
-	c2_rwlock_read_lock(&dom->sd_guard);
-	obj = c2_stob_cacheable_lookup(cache, id);
-	c2_rwlock_read_unlock(&dom->sd_guard);
+	m0_rwlock_read_lock(&dom->sd_guard);
+	obj = m0_stob_cacheable_lookup(cache, id);
+	m0_rwlock_read_unlock(&dom->sd_guard);
 
 	if (obj == NULL) {
 		result = (*init)(dom, id, &obj);
 		if (result == 0) {
-			C2_ASSERT(obj != NULL);
-			c2_rwlock_write_lock(&dom->sd_guard);
-			ghost = c2_stob_cacheable_lookup(cache, id);
+			M0_ASSERT(obj != NULL);
+			m0_rwlock_write_lock(&dom->sd_guard);
+			ghost = m0_stob_cacheable_lookup(cache, id);
 			if (ghost == NULL)
 				cache_tlist_add(&cache->ch_head, obj);
 			else {
 				obj->ca_stob.so_op->sop_fini(&obj->ca_stob);
 				obj = ghost;
 			}
-			c2_stob_get(&obj->ca_stob);
-			c2_rwlock_write_unlock(&dom->sd_guard);
+			m0_stob_get(&obj->ca_stob);
+			m0_rwlock_write_unlock(&dom->sd_guard);
 		}
 	}
 	*out = obj;

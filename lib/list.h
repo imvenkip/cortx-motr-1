@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_LIST_H__
-#define __COLIBRI_LIB_LIST_H__
+#ifndef __MERO_LIB_LIST_H__
+#define __MERO_LIB_LIST_H__
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
@@ -37,82 +37,82 @@
 /**
    List entry.
  */
-struct c2_list_link {
+struct m0_list_link {
 	/**
 	 * Next entry in the list
 	 */
-	struct c2_list_link *ll_next;
+	struct m0_list_link *ll_next;
 	/**
 	 * Previous entry in the list
 	 */
-	struct c2_list_link *ll_prev;
+	struct m0_list_link *ll_prev;
 };
 
 /**
  initialize list link entry
 
  It is not necessary to call this function if the first operation on the link is
- any of c2_list_add*() functions.
+ any of m0_list_add*() functions.
 
  @param link - pointer to link enty
 */
-C2_INTERNAL void c2_list_link_init(struct c2_list_link *link);
+M0_INTERNAL void m0_list_link_init(struct m0_list_link *link);
 
 /**
  free resources associated with link entry
 
  @param link - pointer to link enty
 */
-C2_INTERNAL void c2_list_link_fini(struct c2_list_link *link);
+M0_INTERNAL void m0_list_link_fini(struct m0_list_link *link);
 
-C2_INTERNAL bool c2_list_link_invariant(const struct c2_list_link *link);
+M0_INTERNAL bool m0_list_link_invariant(const struct m0_list_link *link);
 
 /**
    List head.
  */
-struct c2_list {
+struct m0_list {
 	/**
 	 * Pointer to the first entry in the list.
 	 */
-	struct c2_list_link *l_head;
+	struct m0_list_link *l_head;
 	/**
 	 * Pointer to the last entry in the list.
 	 */
-	struct c2_list_link *l_tail;
+	struct m0_list_link *l_tail;
 };
 
 /*
-   It is necessary that c2_list and c2_list_link structures have exactly the
+   It is necessary that m0_list and m0_list_link structures have exactly the
    same layout as.
  */
 
-C2_BASSERT(offsetof(struct c2_list, l_head) ==
-	   offsetof(struct c2_list_link, ll_next));
-C2_BASSERT(offsetof(struct c2_list, l_tail) ==
-	   offsetof(struct c2_list_link, ll_prev));
+M0_BASSERT(offsetof(struct m0_list, l_head) ==
+	   offsetof(struct m0_list_link, ll_next));
+M0_BASSERT(offsetof(struct m0_list, l_tail) ==
+	   offsetof(struct m0_list_link, ll_prev));
 
 /**
    Initializes list head.
  */
-C2_INTERNAL void c2_list_init(struct c2_list *head);
+M0_INTERNAL void m0_list_init(struct m0_list *head);
 
 /**
    Finalizes the list.
  */
-C2_INTERNAL void c2_list_fini(struct c2_list *head);
+M0_INTERNAL void m0_list_fini(struct m0_list *head);
 
 /**
  check list is empty
 
  @param head pointer to list head
  */
-C2_INTERNAL bool c2_list_is_empty(const struct c2_list *head);
+M0_INTERNAL bool m0_list_is_empty(const struct m0_list *head);
 
 /**
    Returns true iff @link is in @list.
  */
-C2_INTERNAL bool c2_list_contains(const struct c2_list *list,
-				  const struct c2_list_link *link);
+M0_INTERNAL bool m0_list_contains(const struct m0_list *list,
+				  const struct m0_list_link *link);
 
 /**
  This function iterate over the argument list checking that double-linked
@@ -120,9 +120,9 @@ C2_INTERNAL bool c2_list_contains(const struct c2_list *list,
 
  @return true iff @list isn't corrupted
 */
-C2_INTERNAL bool c2_list_invariant(const struct c2_list *list);
+M0_INTERNAL bool m0_list_invariant(const struct m0_list *list);
 
-C2_INTERNAL size_t c2_list_length(const struct c2_list *list);
+M0_INTERNAL size_t m0_list_length(const struct m0_list *list);
 
 /**
  add list to top on the list
@@ -134,7 +134,7 @@ C2_INTERNAL size_t c2_list_length(const struct c2_list *list);
  @param new  pointer to list entry
 
  */
-C2_INTERNAL void c2_list_add(struct c2_list *head, struct c2_list_link *new);
+M0_INTERNAL void m0_list_add(struct m0_list *head, struct m0_list_link *new);
 
 /**
  add list to tail on the list
@@ -145,8 +145,8 @@ C2_INTERNAL void c2_list_add(struct c2_list *head, struct c2_list_link *new);
  @param head pointer to list head
  @param new  pointer to list entry
  */
-C2_INTERNAL void c2_list_add_tail(struct c2_list *head,
-				  struct c2_list_link *new);
+M0_INTERNAL void m0_list_add_tail(struct m0_list *head,
+				  struct m0_list_link *new);
 
 /**
    Adds an element to the list right after the specified element.
@@ -154,8 +154,8 @@ C2_INTERNAL void c2_list_add_tail(struct c2_list *head,
    This function can be called on an uninitialised @new link. All @new fields
    are overwritten.
  */
-C2_INTERNAL void c2_list_add_after(struct c2_list_link *anchor,
-				   struct c2_list_link *new);
+M0_INTERNAL void m0_list_add_after(struct m0_list_link *anchor,
+				   struct m0_list_link *new);
 
 /**
    Adds an element to the list right before the specified element.
@@ -163,24 +163,24 @@ C2_INTERNAL void c2_list_add_after(struct c2_list_link *anchor,
    This function can be called on an uninitialised @new link. All @new fields
    are overwritten.
  */
-C2_INTERNAL void c2_list_add_before(struct c2_list_link *anchor,
-				    struct c2_list_link *new);
+M0_INTERNAL void m0_list_add_before(struct m0_list_link *anchor,
+				    struct m0_list_link *new);
 
 /**
    Deletes an entry from the list and re-initializes the entry.
  */
-C2_INTERNAL void c2_list_del(struct c2_list_link *old);
+M0_INTERNAL void m0_list_del(struct m0_list_link *old);
 
 /**
    Moves an entry to head of the list.
  */
-C2_INTERNAL void c2_list_move(struct c2_list *head, struct c2_list_link *new);
+M0_INTERNAL void m0_list_move(struct m0_list *head, struct m0_list_link *new);
 
 /**
    Moves an entry to tail of the list.
  */
-C2_INTERNAL void c2_list_move_tail(struct c2_list *head,
-				   struct c2_list_link *new);
+M0_INTERNAL void m0_list_move_tail(struct m0_list *head,
+				   struct m0_list_link *new);
 
 /**
  * return first entry from the list
@@ -189,7 +189,7 @@ C2_INTERNAL void c2_list_move_tail(struct c2_list *head,
  *
  * @return pointer to first list entry or NULL if list empty
  */
-static inline struct c2_list_link *c2_list_first(const struct c2_list *head)
+static inline struct m0_list_link *m0_list_first(const struct m0_list *head)
 {
 	return head->l_head != (void *)head ? head->l_head : NULL ;
 }
@@ -203,17 +203,17 @@ static inline struct c2_list_link *c2_list_first(const struct c2_list *head)
  @retval true - entry connected to a list
  @retval false - entry disconnected from a list
 */
-C2_INTERNAL bool c2_list_link_is_in(const struct c2_list_link *link);
+M0_INTERNAL bool m0_list_link_is_in(const struct m0_list_link *link);
 
-C2_INTERNAL bool c2_list_link_is_last(const struct c2_list_link *link,
-				      const struct c2_list *head);
+M0_INTERNAL bool m0_list_link_is_last(const struct m0_list_link *link,
+				      const struct m0_list *head);
 
-C2_INTERNAL size_t c2_list_length(const struct c2_list *list);
+M0_INTERNAL size_t m0_list_length(const struct m0_list *list);
 
 /**
  * get pointer to object from pointer to list link entry
  */
-#define c2_list_entry(link, type, member) \
+#define m0_list_entry(link, type, member) \
 	container_of(link, type, member)
 
 /**
@@ -222,7 +222,7 @@ C2_INTERNAL size_t c2_list_length(const struct c2_list *list);
  * @param head	the head of list.
  * @param pos	the pointer to list_link to use as a loop counter.
  */
-#define c2_list_for_each(head, pos) \
+#define m0_list_for_each(head, pos) \
 	for (pos = (head)->l_head; pos != (void *)(head); \
 	     pos = (pos)->ll_next)
 
@@ -231,10 +231,10 @@ C2_INTERNAL size_t c2_list_length(const struct c2_list *list);
 
    The loop body is not allowed to modify the list.
  */
-#define c2_list_for_each_entry(head, pos, type, member) \
-	for (pos = c2_list_entry((head)->l_head, type, member); \
+#define m0_list_for_each_entry(head, pos, type, member) \
+	for (pos = m0_list_entry((head)->l_head, type, member); \
 	     &(pos->member) != (void *)head; \
-	     pos = c2_list_entry((pos)->member.ll_next, type, member))
+	     pos = m0_list_entry((pos)->member.ll_next, type, member))
 
 /**
    Iterates over a "typed" list safely: the loop body is allowed to remove the
@@ -243,18 +243,18 @@ C2_INTERNAL size_t c2_list_length(const struct c2_list *list);
    @param head	the head of list.
    @param pos	the pointer to list_link to use as a loop counter.
  */
-#define c2_list_for_each_entry_safe(head, pos, next, type, member)	\
-	for (pos = c2_list_entry((head)->l_head, type, member),		\
-	     next = c2_list_entry((pos)->member.ll_next, type, member); \
+#define m0_list_for_each_entry_safe(head, pos, next, type, member)	\
+	for (pos = m0_list_entry((head)->l_head, type, member),		\
+	     next = m0_list_entry((pos)->member.ll_next, type, member); \
 	     &(pos)->member != (void *)head;				\
 	     pos = next,						\
-	     next = c2_list_entry((next)->member.ll_next, type, member))
+	     next = m0_list_entry((next)->member.ll_next, type, member))
 
 /**
  * Returns a conjunction (logical AND) of an expression evaluated for each list
  * element.
  *
- * Declares a struct c2_list_link pointer variable named "var" in a new scope
+ * Declares a struct m0_list_link pointer variable named "var" in a new scope
  * and evaluates user-supplied expression (the last argument) with "var"
  * iterated over successive list elements, while this expression returns
  * true. Returns true iff the whole list was iterated over.
@@ -266,20 +266,20 @@ C2_INTERNAL size_t c2_list_length(const struct c2_list *list);
  * @code
  * bool foo_invariant(const struct foo *f)
  * {
- *         return c2_list_forall(bar, &f->f_bars,
+ *         return m0_list_forall(bar, &f->f_bars,
  *                               bar_is_valid(container_of(bar, struct bar,
  *                                            b_linkage)));
  * }
  * @endcode
  *
- * @see c2_tlist_forall(), c2_tl_forall(),
- * @see c2_forall(), c2_list_entry_forall().
+ * @see m0_tlist_forall(), m0_tl_forall(),
+ * @see m0_forall(), m0_list_entry_forall().
  */
-#define c2_list_forall(var, head, ...)		\
+#define m0_list_forall(var, head, ...)		\
 ({						\
-	struct c2_list_link *var;		\
+	struct m0_list_link *var;		\
 						\
-	c2_list_for_each(head, var) {		\
+	m0_list_for_each(head, var) {		\
 		if (!({ __VA_ARGS__ ; }))	\
 		    break;			\
 	}					\
@@ -302,19 +302,19 @@ C2_INTERNAL size_t c2_list_length(const struct c2_list *list);
  * @code
  * bool foo_invariant(const struct foo *f)
  * {
- *         return c2_list_entry_forall(b, &f->f_bars, struct bar, b_linkage,
+ *         return m0_list_entry_forall(b, &f->f_bars, struct bar, b_linkage,
  *                                     b->b_count > 0 && b->b_parent == f);
  * }
  * @endcode
  *
- * @see c2_tlist_forall(), c2_tl_forall(), c2_list_forall(), c2_forall().
+ * @see m0_tlist_forall(), m0_tl_forall(), m0_list_forall(), m0_forall().
  */
-#define c2_list_entry_forall(var, head, type, member, ...)		\
+#define m0_list_entry_forall(var, head, type, member, ...)		\
 ({									\
 	type *var;							\
 	type *next;							\
 									\
-	c2_list_for_each_entry_safe(head, var, next, type, member) {	\
+	m0_list_for_each_entry_safe(head, var, next, type, member) {	\
 		if (!({ __VA_ARGS__ ; }))				\
 		    break;						\
 	}								\
@@ -323,7 +323,7 @@ C2_INTERNAL size_t c2_list_length(const struct c2_list *list);
 
 /** @} end of list group */
 
-/* __COLIBRI_LIB_LIST_H__ */
+/* __MERO_LIB_LIST_H__ */
 #endif
 
 /*

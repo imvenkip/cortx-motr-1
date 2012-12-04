@@ -21,33 +21,33 @@
 #include "conf/buf_ext.h"
 #include "lib/buf.h"
 #include "lib/misc.h"   /* memcmp, memcpy, strlen, memchr */
-#include "lib/memory.h" /* C2_ALLOC_ARR */
+#include "lib/memory.h" /* M0_ALLOC_ARR */
 
-C2_INTERNAL bool c2_buf_is_aimed(const struct c2_buf *buf)
+M0_INTERNAL bool m0_buf_is_aimed(const struct m0_buf *buf)
 {
 	return buf->b_nob > 0 && buf->b_addr != NULL;
 }
 
-C2_INTERNAL bool c2_buf_streq(const struct c2_buf *buf, const char *str)
+M0_INTERNAL bool m0_buf_streq(const struct m0_buf *buf, const char *str)
 {
-	C2_PRE(c2_buf_is_aimed(buf) && str != NULL);
+	M0_PRE(m0_buf_is_aimed(buf) && str != NULL);
 
 	return memcmp(str, buf->b_addr, buf->b_nob) == 0 &&
 		strlen(str) == buf->b_nob;
 }
 
-C2_INTERNAL char *c2_buf_strdup(const struct c2_buf *buf)
+M0_INTERNAL char *m0_buf_strdup(const struct m0_buf *buf)
 {
 	size_t len;
 	char  *s;
 
-	C2_PRE(c2_buf_is_aimed(buf));
+	M0_PRE(m0_buf_is_aimed(buf));
 
 	/* Measure the size of payload. */
 	s = memchr(buf->b_addr, 0, buf->b_nob);
 	len = s == NULL ? buf->b_nob : s - (char *)buf->b_addr;
 
-	C2_ALLOC_ARR(s, len + 1);
+	M0_ALLOC_ARR(s, len + 1);
 	if (s != NULL) {
 		memcpy(s, buf->b_addr, len);
 		s[len] = 0;

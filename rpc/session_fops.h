@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_SESSION_FOPS_H__
-#define __COLIBRI_RPC_SESSION_FOPS_H__
+#ifndef __MERO_RPC_SESSION_FOPS_H__
+#define __MERO_RPC_SESSION_FOPS_H__
 
 #include "fop/fop.h"
 #include "fop/fom.h"
@@ -37,49 +37,49 @@
    associated item types.
  */
 
-extern const struct c2_fop_type_ops c2_rpc_fop_conn_establish_ops;
-extern const struct c2_fop_type_ops c2_rpc_fop_conn_terminate_ops;
-extern const struct c2_fop_type_ops c2_rpc_fop_session_establish_ops;
-extern const struct c2_fop_type_ops c2_rpc_fop_session_terminate_ops;
+extern const struct m0_fop_type_ops m0_rpc_fop_conn_establish_ops;
+extern const struct m0_fop_type_ops m0_rpc_fop_conn_terminate_ops;
+extern const struct m0_fop_type_ops m0_rpc_fop_session_establish_ops;
+extern const struct m0_fop_type_ops m0_rpc_fop_session_terminate_ops;
 
-extern struct c2_fop_type c2_rpc_fop_conn_establish_fopt;
-extern struct c2_fop_type c2_rpc_fop_conn_establish_rep_fopt;
-extern struct c2_fop_type c2_rpc_fop_conn_terminate_fopt;
-extern struct c2_fop_type c2_rpc_fop_conn_terminate_rep_fopt;
-extern struct c2_fop_type c2_rpc_fop_session_establish_fopt;
-extern struct c2_fop_type c2_rpc_fop_session_establish_rep_fopt;
-extern struct c2_fop_type c2_rpc_fop_session_terminate_fopt;
-extern struct c2_fop_type c2_rpc_fop_session_terminate_rep_fopt;
-extern struct c2_fop_type c2_rpc_fop_noop_fopt;
+extern struct m0_fop_type m0_rpc_fop_conn_establish_fopt;
+extern struct m0_fop_type m0_rpc_fop_conn_establish_rep_fopt;
+extern struct m0_fop_type m0_rpc_fop_conn_terminate_fopt;
+extern struct m0_fop_type m0_rpc_fop_conn_terminate_rep_fopt;
+extern struct m0_fop_type m0_rpc_fop_session_establish_fopt;
+extern struct m0_fop_type m0_rpc_fop_session_establish_rep_fopt;
+extern struct m0_fop_type m0_rpc_fop_session_terminate_fopt;
+extern struct m0_fop_type m0_rpc_fop_session_terminate_rep_fopt;
+extern struct m0_fop_type m0_rpc_fop_noop_fopt;
 
-C2_INTERNAL int c2_rpc_session_fop_init(void);
+M0_INTERNAL int m0_rpc_session_fop_init(void);
 
-C2_INTERNAL void c2_rpc_session_fop_fini(void);
+M0_INTERNAL void m0_rpc_session_fop_fini(void);
 
 /**
    Container for CONN_ESTABLISH fop.
 
    This is required only on receiver side so that,
-   c2_rpc_fom_conn_establish_state() can find out sender's endpoint, while
-   initialising receiver side c2_rpc_conn object.
+   m0_rpc_fom_conn_establish_state() can find out sender's endpoint, while
+   initialising receiver side m0_rpc_conn object.
 
-   Just before calling c2_rpc_item_received(), rpc_net_buf_received(), sets
-   cec_sender_ep, by using c2_net_buffer::nb_ep attribute.
+   Just before calling m0_rpc_item_received(), rpc_net_buf_received(), sets
+   cec_sender_ep, by using m0_net_buffer::nb_ep attribute.
  */
-struct c2_rpc_fop_conn_establish_ctx
+struct m0_rpc_fop_conn_establish_ctx
 {
-	/** fop instance of type c2_rpc_fop_conn_establish_fopt */
-	struct c2_fop            cec_fop;
+	/** fop instance of type m0_rpc_fop_conn_establish_fopt */
+	struct m0_fop            cec_fop;
 
 	/** end point of sender, who has sent the conn_establish request fop */
-	struct c2_net_end_point *cec_sender_ep;
+	struct m0_net_end_point *cec_sender_ep;
 
 	/** New rpc connection needs to be established in context of this
 	    rpc_machine */
-	struct c2_rpc_machine   *cec_rpc_machine;
+	struct m0_rpc_machine   *cec_rpc_machine;
 };
 
-/* __COLIBRI_RPC_SESSION_FOPS_H__ */
+/* __MERO_RPC_SESSION_FOPS_H__ */
 
 /** @}  End of rpc_session group */
 #endif

@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_XCODE_FF2C_PARSER_H__
-#define __COLIBRI_XCODE_FF2C_PARSER_H__
+#ifndef __MERO_XCODE_FF2C_PARSER_H__
+#define __MERO_XCODE_FF2C_PARSER_H__
 
 /**
    @addtogroup xcode
@@ -65,7 +65,7 @@ void ff2c_term_fini(struct ff2c_term *term);
 
 /** @} end of xcode group */
 
-/* __COLIBRI_XCODE_FF2C_PARSER_H__ */
+/* __MERO_XCODE_FF2C_PARSER_H__ */
 #endif
 
 /*

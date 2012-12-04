@@ -1,11 +1,11 @@
-nobase_colibri_include_HEADERS += ioservice/io_foms.h \
+nobase_mero_include_HEADERS += ioservice/io_foms.h \
                                   ioservice/io_fops.h \
                                   ioservice/io_fops_ff.h \
                                   ioservice/io_service.h \
                                   ioservice/cob_foms.h \
                                   ioservice/io_device.h
 
-colibri_libcolibri_la_SOURCES  += ioservice/io_foms.c \
+mero_libmero_la_SOURCES  += ioservice/io_foms.c \
                                   ioservice/io_fops.c \
                                   ioservice/io_service.c \
                                   ioservice/io_fops_ff.c \

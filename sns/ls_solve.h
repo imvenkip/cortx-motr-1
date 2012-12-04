@@ -20,15 +20,15 @@
 
 #pragma once
 
-#ifndef __COLIBRI_SNS_LS_SOLVE_H__
-#define __COLIBRI_SNS_LS_SOLVE_H__
+#ifndef __MERO_SNS_LS_SOLVE_H__
+#define __MERO_SNS_LS_SOLVE_H__
 
 #include "matvec.h"
 
 /**
-   @defgroup c2_linsys Systems of Linear Equations Solving Algorithm:
+   @defgroup m0_linsys Systems of Linear Equations Solving Algorithm:
 
-   A systems of linear equations solving algorithm is a part of C2 core.
+   A systems of linear equations solving algorithm is a part of M0 core.
    It is based on Gauss method and performs the following:
    @li Solves a linear system of equations represented by (NxN) matrix and (1xN) vector, result is (1xN) vector.
    @{
@@ -37,31 +37,31 @@
 /**
  * Represents linear system of equations [l_mat]*[l_res]=[l_vec]
  */
-struct c2_linsys {
-	struct c2_matrix *l_mat;
-	struct c2_vector *l_vec;
-	struct c2_vector *l_res;
+struct m0_linsys {
+	struct m0_matrix *l_mat;
+	struct m0_vector *l_vec;
+	struct m0_vector *l_res;
 };
 
 /**
- * @pre c2_matrix_init(mat) && c2_vector_init(vec) && c2_vec_init(res)
+ * @pre m0_matrix_init(mat) && m0_vector_init(vec) && m0_vec_init(res)
  * @pre mat->m_height > 0 && mat->width > 0
  * @pre mat->m_width == mat->m_height && res->v_size == vec->v_size && vec->v_size == mat->m_width
  */
-C2_INTERNAL void c2_linsys_init(struct c2_linsys *linsys,
-				struct c2_matrix *mat,
-				struct c2_vector *vec, struct c2_vector *res);
+M0_INTERNAL void m0_linsys_init(struct m0_linsys *linsys,
+				struct m0_matrix *mat,
+				struct m0_vector *vec, struct m0_vector *res);
 
-C2_INTERNAL void c2_linsys_fini(struct c2_linsys *linsys);
+M0_INTERNAL void m0_linsys_fini(struct m0_linsys *linsys);
 
 /**
  * Solves given system of linear equatons, writes result into 'linsys->l_res'.
  */
-C2_INTERNAL void c2_linsys_solve(struct c2_linsys *linsys);
+M0_INTERNAL void m0_linsys_solve(struct m0_linsys *linsys);
 
-/** @} end group c2_linsys */
+/** @} end group m0_linsys */
 
-/* __COLIBRI_SNS_LS_SOLVE_H__*/
+/* __MERO_SNS_LS_SOLVE_H__*/
 #endif
 
 /*

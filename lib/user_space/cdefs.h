@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_USER_SPACE_CDEFS_H__
-#define __COLIBRI_LIB_USER_SPACE_CDEFS_H__
+#ifndef __MERO_LIB_USER_SPACE_CDEFS_H__
+#define __MERO_LIB_USER_SPACE_CDEFS_H__
 
 #ifndef offsetof
 #define offsetof(typ,memb) ((unsigned long)((char *)&(((typ *)0)->memb)))
@@ -51,9 +51,9 @@
 #define ARRAY_SIZE(a) ((sizeof (a)) / (sizeof (a)[0] ))
 #endif
 
-#define C2_EXPORTED(s)
+#define M0_EXPORTED(s)
 
-/* __COLIBRI_LIB_USER_SPACE_CDEFS_H__ */
+/* __MERO_LIB_USER_SPACE_CDEFS_H__ */
 #endif
 
 /*

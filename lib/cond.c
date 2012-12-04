@@ -30,26 +30,26 @@
 
    Self-explanatory.
 
-   @see c2_chan
+   @see m0_chan
 
    @{
  */
 
-C2_INTERNAL void c2_cond_init(struct c2_cond *cond)
+M0_INTERNAL void m0_cond_init(struct m0_cond *cond)
 {
-	c2_chan_init(&cond->c_chan);
+	m0_chan_init(&cond->c_chan);
 }
-C2_EXPORTED(c2_cond_init);
+M0_EXPORTED(m0_cond_init);
 
-C2_INTERNAL void c2_cond_fini(struct c2_cond *cond)
+M0_INTERNAL void m0_cond_fini(struct m0_cond *cond)
 {
-	c2_chan_fini(&cond->c_chan);
+	m0_chan_fini(&cond->c_chan);
 }
-C2_EXPORTED(c2_cond_fini);
+M0_EXPORTED(m0_cond_fini);
 
-C2_INTERNAL void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex)
+M0_INTERNAL void m0_cond_wait(struct m0_cond *cond, struct m0_mutex *mutex)
 {
-	struct c2_clink clink;
+	struct m0_clink clink;
 
 	/*
 	 * First, register the clink with the channel, *then* unlock the
@@ -57,49 +57,49 @@ C2_INTERNAL void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex)
 	 * missed, because they are done under the mutex.
 	 */
 
-	C2_PRE(c2_mutex_is_locked(mutex));
+	M0_PRE(m0_mutex_is_locked(mutex));
 
-	c2_clink_init(&clink, NULL);
-	c2_clink_add(&cond->c_chan, &clink);
-	c2_mutex_unlock(mutex);
-	c2_chan_wait(&clink);
-	c2_mutex_lock(mutex);
-	c2_clink_del(&clink);
-	c2_clink_fini(&clink);
+	m0_clink_init(&clink, NULL);
+	m0_clink_add(&cond->c_chan, &clink);
+	m0_mutex_unlock(mutex);
+	m0_chan_wait(&clink);
+	m0_mutex_lock(mutex);
+	m0_clink_del(&clink);
+	m0_clink_fini(&clink);
 }
-C2_EXPORTED(c2_cond_wait);
+M0_EXPORTED(m0_cond_wait);
 
-C2_INTERNAL bool c2_cond_timedwait(struct c2_cond *cond, struct c2_mutex *mutex,
-				   const c2_time_t abs_timeout)
+M0_INTERNAL bool m0_cond_timedwait(struct m0_cond *cond, struct m0_mutex *mutex,
+				   const m0_time_t abs_timeout)
 {
-	struct c2_clink clink;
+	struct m0_clink clink;
 	bool retval;
 
-	C2_PRE(c2_mutex_is_locked(mutex));
+	M0_PRE(m0_mutex_is_locked(mutex));
 
-	c2_clink_init(&clink, NULL);
-	c2_clink_add(&cond->c_chan, &clink);
-	c2_mutex_unlock(mutex);
-	retval = c2_chan_timedwait(&clink, abs_timeout);
-	c2_mutex_lock(mutex);
-	c2_clink_del(&clink);
-	c2_clink_fini(&clink);
+	m0_clink_init(&clink, NULL);
+	m0_clink_add(&cond->c_chan, &clink);
+	m0_mutex_unlock(mutex);
+	retval = m0_chan_timedwait(&clink, abs_timeout);
+	m0_mutex_lock(mutex);
+	m0_clink_del(&clink);
+	m0_clink_fini(&clink);
 
 	return retval;
 }
-C2_EXPORTED(c2_cond_timedwait);
+M0_EXPORTED(m0_cond_timedwait);
 
-C2_INTERNAL void c2_cond_signal(struct c2_cond *cond, struct c2_mutex *mutex)
+M0_INTERNAL void m0_cond_signal(struct m0_cond *cond, struct m0_mutex *mutex)
 {
-	C2_PRE(c2_mutex_is_locked(mutex));
-	c2_chan_signal(&cond->c_chan);
+	M0_PRE(m0_mutex_is_locked(mutex));
+	m0_chan_signal(&cond->c_chan);
 }
-C2_EXPORTED(c2_cond_signal);
+M0_EXPORTED(m0_cond_signal);
 
-C2_INTERNAL void c2_cond_broadcast(struct c2_cond *cond, struct c2_mutex *mutex)
+M0_INTERNAL void m0_cond_broadcast(struct m0_cond *cond, struct m0_mutex *mutex)
 {
-	C2_PRE(c2_mutex_is_locked(mutex));
-	c2_chan_broadcast(&cond->c_chan);
+	M0_PRE(m0_mutex_is_locked(mutex));
+	m0_chan_broadcast(&cond->c_chan);
 }
 
 /** @} end of cond group */

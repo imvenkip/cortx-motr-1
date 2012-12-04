@@ -29,87 +29,87 @@ enum {
 
 static void test_bitmap_copy(void)
 {
-	struct c2_bitmap src;
-	struct c2_bitmap dst;
+	struct m0_bitmap src;
+	struct m0_bitmap dst;
 	size_t dst_nr;
 	size_t i;
 	int n;
 
-	C2_UT_ASSERT(c2_bitmap_init(&src, UT_BITMAP_SIZE) == 0);
+	M0_UT_ASSERT(m0_bitmap_init(&src, UT_BITMAP_SIZE) == 0);
 	for (i = 0; i < UT_BITMAP_SIZE; i += 3)
-		c2_bitmap_set(&src, i, true);
+		m0_bitmap_set(&src, i, true);
 
 	for (n = 1; n < 3; ++n) {
 		/* n == 1: equal sized, n == 2: dst size is bigger */
 		dst_nr = n * UT_BITMAP_SIZE;
-		C2_UT_ASSERT(c2_bitmap_init(&dst, dst_nr) == 0);
+		M0_UT_ASSERT(m0_bitmap_init(&dst, dst_nr) == 0);
 		for (i = 1; i < dst_nr; i += 2)
-			c2_bitmap_set(&dst, i, true);
+			m0_bitmap_set(&dst, i, true);
 
-		c2_bitmap_copy(&dst, &src);
+		m0_bitmap_copy(&dst, &src);
 		for (i = 0; i < UT_BITMAP_SIZE; ++i)
-			C2_UT_ASSERT(c2_bitmap_get(&src, i) ==
-				     c2_bitmap_get(&dst, i));
+			M0_UT_ASSERT(m0_bitmap_get(&src, i) ==
+				     m0_bitmap_get(&dst, i));
 		for (; i < dst_nr; ++i)
-			C2_UT_ASSERT(!c2_bitmap_get(&dst, i));
-		c2_bitmap_fini(&dst);
+			M0_UT_ASSERT(!m0_bitmap_get(&dst, i));
+		m0_bitmap_fini(&dst);
 	}
-	c2_bitmap_fini(&src);
+	m0_bitmap_fini(&src);
 }
 
 void test_bitmap(void)
 {
-	struct c2_bitmap bm;
+	struct m0_bitmap bm;
 	size_t idx;
 
-	C2_UT_ASSERT(c2_bitmap_init(&bm, UT_BITMAP_SIZE) == 0);
-	C2_UT_ASSERT(bm.b_nr == UT_BITMAP_SIZE);
-	C2_UT_ASSERT(bm.b_words != NULL);
+	M0_UT_ASSERT(m0_bitmap_init(&bm, UT_BITMAP_SIZE) == 0);
+	M0_UT_ASSERT(bm.b_nr == UT_BITMAP_SIZE);
+	M0_UT_ASSERT(bm.b_words != NULL);
 
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
-		C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == false);
+		M0_UT_ASSERT(m0_bitmap_get(&bm, idx) == false);
 	}
 
-	c2_bitmap_set(&bm, 0, true);
-	C2_UT_ASSERT(c2_bitmap_get(&bm, 0) == true);
-	c2_bitmap_set(&bm, 0, false);
+	m0_bitmap_set(&bm, 0, true);
+	M0_UT_ASSERT(m0_bitmap_get(&bm, 0) == true);
+	m0_bitmap_set(&bm, 0, false);
 
-	c2_bitmap_set(&bm, 1, true);
+	m0_bitmap_set(&bm, 1, true);
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
-		C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == (idx == 1));
+		M0_UT_ASSERT(m0_bitmap_get(&bm, idx) == (idx == 1));
 	}
 
-	c2_bitmap_set(&bm, 2, true);
+	m0_bitmap_set(&bm, 2, true);
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
-		C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == (idx == 1 || idx == 2));
+		M0_UT_ASSERT(m0_bitmap_get(&bm, idx) == (idx == 1 || idx == 2));
 	}
 
-	c2_bitmap_set(&bm, 64, true);
+	m0_bitmap_set(&bm, 64, true);
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
-		C2_UT_ASSERT(c2_bitmap_get(&bm, idx) ==
+		M0_UT_ASSERT(m0_bitmap_get(&bm, idx) ==
 			     (idx == 1 || idx == 2 || idx == 64));
 	}
 
-	c2_bitmap_set(&bm, 2, false);
+	m0_bitmap_set(&bm, 2, false);
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
-		C2_UT_ASSERT(c2_bitmap_get(&bm, idx) ==
+		M0_UT_ASSERT(m0_bitmap_get(&bm, idx) ==
 			     (idx == 1 || idx == 64));
 	}
 
-	c2_bitmap_set(&bm, 1, false);
-	c2_bitmap_set(&bm, 64, false);
+	m0_bitmap_set(&bm, 1, false);
+	m0_bitmap_set(&bm, 64, false);
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
-		C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == false);
+		M0_UT_ASSERT(m0_bitmap_get(&bm, idx) == false);
 	}
 
-	c2_bitmap_fini(&bm);
-	C2_UT_ASSERT(bm.b_nr == 0);
-	C2_UT_ASSERT(bm.b_words == NULL);
+	m0_bitmap_fini(&bm);
+	M0_UT_ASSERT(bm.b_nr == 0);
+	M0_UT_ASSERT(bm.b_words == NULL);
 
-	C2_UT_ASSERT(c2_bitmap_init(&bm, 0) == 0);
-	C2_UT_ASSERT(bm.b_nr == 0);
-	C2_UT_ASSERT(bm.b_words != NULL);
-	c2_bitmap_fini(&bm);
+	M0_UT_ASSERT(m0_bitmap_init(&bm, 0) == 0);
+	M0_UT_ASSERT(bm.b_nr == 0);
+	M0_UT_ASSERT(bm.b_words != NULL);
+	m0_bitmap_fini(&bm);
 
 	test_bitmap_copy();
 }
@@ -118,16 +118,16 @@ enum {
 	UB_ITER = 100000
 };
 
-static struct c2_bitmap ub_bm;
+static struct m0_bitmap ub_bm;
 
 static void ub_init(void)
 {
-	c2_bitmap_init(&ub_bm, UT_BITMAP_SIZE);
+	m0_bitmap_init(&ub_bm, UT_BITMAP_SIZE);
 }
 
 static void ub_fini(void)
 {
-	c2_bitmap_fini(&ub_bm);
+	m0_bitmap_fini(&ub_bm);
 }
 
 static void ub_set0(int i)
@@ -135,7 +135,7 @@ static void ub_set0(int i)
 	size_t idx;
 
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx)
-		c2_bitmap_set(&ub_bm, idx, false);
+		m0_bitmap_set(&ub_bm, idx, false);
 }
 
 static void ub_set1(int i)
@@ -143,7 +143,7 @@ static void ub_set1(int i)
 	size_t idx;
 
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx)
-		c2_bitmap_set(&ub_bm, idx, true);
+		m0_bitmap_set(&ub_bm, idx, true);
 }
 
 static void ub_get(int i)
@@ -151,10 +151,10 @@ static void ub_get(int i)
 	size_t idx;
 
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx)
-		c2_bitmap_get(&ub_bm, idx);
+		m0_bitmap_get(&ub_bm, idx);
 }
 
-struct c2_ub_set c2_bitmap_ub = {
+struct m0_ub_set m0_bitmap_ub = {
 	.us_name = "bitmap-ub",
 	.us_init = ub_init,
 	.us_fini = ub_fini,

@@ -21,8 +21,8 @@
  */
 
 #include "lib/errno.h"		/* EINVAL */
-#include "lib/memory.h"		/* C2_ALLOC_PTR */
-#include "fop/fom_generic.h"    /* C2_FOPH_FAILURE */
+#include "lib/memory.h"		/* M0_ALLOC_PTR */
+#include "fop/fom_generic.h"    /* M0_FOPH_FAILURE */
 #include "console/console_fom.h"
 #include "console/console_fop.h"
 #include "console/console_mesg.h"
@@ -33,70 +33,70 @@
    @{
 */
 
-static size_t home_locality(const struct c2_fom *fom)
+static size_t home_locality(const struct m0_fom *fom)
 {
-        C2_PRE(fom != NULL);
+        M0_PRE(fom != NULL);
 
-        return c2_fop_opcode(fom->fo_fop);
+        return m0_fop_opcode(fom->fo_fop);
 }
 
-static void default_fom_fini(struct c2_fom *fom)
+static void default_fom_fini(struct m0_fom *fom)
 {
-	c2_fom_fini(fom);
-	c2_free(fom);
+	m0_fom_fini(fom);
+	m0_free(fom);
 }
 
-static int cons_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
+static int cons_fop_fom_create(struct m0_fop *fop, struct m0_fom **m)
 {
-        struct c2_fom *fom;
-	struct c2_fop *rep_fop;
+        struct m0_fom *fom;
+	struct m0_fop *rep_fop;
 
-        C2_PRE(fop != NULL);
-        C2_PRE(m != NULL);
-	C2_PRE(fop->f_type == &c2_cons_fop_device_fopt);
+        M0_PRE(fop != NULL);
+        M0_PRE(m != NULL);
+	M0_PRE(fop->f_type == &m0_cons_fop_device_fopt);
 
 	/*
 	 * XXX
 	 * The proper way to do this is to do
-	 * struct c2_cons_fom {
-	 *         struct c2_fom cf_fom;
-	 *         struct c2_fop cf_reply;
-	 *         struct c2_cons_fop_reply cf_reply_data;
+	 * struct m0_cons_fom {
+	 *         struct m0_fom cf_fom;
+	 *         struct m0_fop cf_reply;
+	 *         struct m0_cons_fop_reply cf_reply_data;
 	 * };
 	 * Then fom, reply fop and its data packet can be allocated at once,
 	 * simplifying memory management.
 	 */
-        C2_ALLOC_PTR(fom);
+        M0_ALLOC_PTR(fom);
         if (fom == NULL)
                 return -ENOMEM;
-        rep_fop = c2_fop_alloc(&c2_cons_fop_reply_fopt, NULL);
+        rep_fop = m0_fop_alloc(&m0_cons_fop_reply_fopt, NULL);
 	if (rep_fop == NULL) {
-		c2_free(fom);
+		m0_free(fom);
 		return -ENOMEM;
 	}
 
-	c2_fom_init(fom, &fop->f_type->ft_fom_type, &c2_cons_fom_device_ops,
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, &m0_cons_fom_device_ops,
 		    fop, rep_fop);
 
         *m = fom;
         return 0;
 }
 
-static int cons_fom_tick(struct c2_fom *fom)
+static int cons_fom_tick(struct m0_fom *fom)
 {
-        struct c2_cons_fop_reply *reply_fop;
-        struct c2_rpc_item       *reply_item;
-        struct c2_rpc_item       *req_item;
-	struct c2_fop		 *fop = fom->fo_fop;
-	struct c2_fop		 *rfop = fom->fo_rep_fop;
+        struct m0_cons_fop_reply *reply_fop;
+        struct m0_rpc_item       *reply_item;
+        struct m0_rpc_item       *req_item;
+	struct m0_fop		 *fop = fom->fo_fop;
+	struct m0_fop		 *rfop = fom->fo_rep_fop;
 
-	C2_PRE(fom != NULL && fop != NULL && rfop != NULL);
+	M0_PRE(fom != NULL && fop != NULL && rfop != NULL);
 
 	/* Reply fop */
-        reply_fop = c2_fop_data(rfop);
+        reply_fop = m0_fop_data(rfop);
 	if (reply_fop == NULL) {
-		c2_fom_phase_set(fom, C2_FOPH_FAILURE);
-		return C2_FSO_AGAIN;
+		m0_fom_phase_set(fom, M0_FOPH_FAILURE);
+		return M0_FSO_AGAIN;
 	}
 
 	/* Request item */
@@ -108,18 +108,18 @@ static int cons_fom_tick(struct c2_fom *fom)
 
 	/* Reply item */
 	reply_item = &rfop->f_item;
-	c2_fom_phase_set(fom, C2_FOM_PHASE_FINISH);
-        c2_rpc_reply_post(req_item, reply_item);
-	return C2_FSO_WAIT;
+	m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
+        m0_rpc_reply_post(req_item, reply_item);
+	return M0_FSO_WAIT;
 }
 
-const struct c2_fom_ops c2_cons_fom_device_ops = {
+const struct m0_fom_ops m0_cons_fom_device_ops = {
         .fo_tick	  = cons_fom_tick,
 	.fo_fini	  = default_fom_fini,
 	.fo_home_locality = home_locality,
 };
 
-const struct c2_fom_type_ops c2_cons_fom_device_type_ops = {
+const struct m0_fom_type_ops m0_cons_fom_device_type_ops = {
         .fto_create = cons_fop_fom_create
 };
 

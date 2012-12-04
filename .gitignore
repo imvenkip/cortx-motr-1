@@ -52,7 +52,7 @@ GTAGS
 /Makefile.in
 /aclocal.m4
 /autom4te.cache/
-/colibri.spec
+/mero.spec
 /compile
 /config.*
 /config/
@@ -103,7 +103,7 @@ gmon.out
 #
 /ut-sandbox/
 /ub-sandbox/
-/c2.trace.*
+/m0.trace.*
 
 #
 # Generated documentation

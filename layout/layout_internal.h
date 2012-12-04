@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LAYOUT_LAYOUT_INTERNAL_H__
-#define __COLIBRI_LAYOUT_LAYOUT_INTERNAL_H__
+#ifndef __MERO_LAYOUT_LAYOUT_INTERNAL_H__
+#define __MERO_LAYOUT_LAYOUT_INTERNAL_H__
 
 /**
  * @addtogroup layout
@@ -29,27 +29,27 @@
  */
 
 /* import */
-struct c2_layout_domain;
-struct c2_layout;
-struct c2_layout_ops;
-struct c2_layout_type;
-struct c2_layout_enum;
-struct c2_layout_enum_ops;
-struct c2_layout_enum_type;
-struct c2_striped_layout;
-struct c2_layout_instance;
-struct c2_layout_instance_ops;
-enum c2_addb_event_id;
-struct c2_addb_ev;
-struct c2_addb_ctx;
-struct c2_addb_loc;
-struct c2_fid;
+struct m0_layout_domain;
+struct m0_layout;
+struct m0_layout_ops;
+struct m0_layout_type;
+struct m0_layout_enum;
+struct m0_layout_enum_ops;
+struct m0_layout_enum_type;
+struct m0_striped_layout;
+struct m0_layout_instance;
+struct m0_layout_instance_ops;
+enum m0_addb_event_id;
+struct m0_addb_ev;
+struct m0_addb_ctx;
+struct m0_addb_loc;
+struct m0_fid;
 
 enum {
 	/** Invalid layout id. */
 	LID_NONE                   = 0,
 
-	/** Flag used during table creation, using c2_table_init() */
+	/** Flag used during table creation, using m0_table_init() */
 	DEFAULT_DB_FLAG            = 0,
 
 	/**
@@ -60,103 +60,103 @@ enum {
 	LDB_MAX_INLINE_COB_ENTRIES = 20,
 
 	/*
-	 * Simulation for c2_table_init() facing error in
-	 * c2_layout_domain_init().
+	 * Simulation for m0_table_init() facing error in
+	 * m0_layout_domain_init().
 	 */
 	L_TABLE_INIT_ERR           = -501,
 
 	/*
 	 * Simulation for lto_register() facing error in
-	 * c2_layout_type_register().
+	 * m0_layout_type_register().
 	 */
 	LTO_REG_ERR                = -502,
 
 	/*
 	 * Simulation for leto_register() facing error in
-	 * c2_layout_enum_type_register().
+	 * m0_layout_enum_type_register().
 	 */
 	LETO_REG_ERR               = -503,
 
 	/*
 	 * Simulation for lo_decode() facing error in
-	 * c2_layout_decode().
+	 * m0_layout_decode().
 	 */
 	LO_DECODE_ERR              = -504,
 
 	/*
 	 * Simulation for lo_encode() facing error in
-	 * c2_layout_encode().
+	 * m0_layout_encode().
 	 */
 	LO_ENCODE_ERR              = -505,
 
 	/*
-	 * Simulation for c2_table_update() facing error in
-	 * c2_layout_update().
+	 * Simulation for m0_table_update() facing error in
+	 * m0_layout_update().
 	 */
 	L_TABLE_UPDATE_ERR         = -506
 };
 
-C2_INTERNAL bool c2_layout__domain_invariant(const struct c2_layout_domain
+M0_INTERNAL bool m0_layout__domain_invariant(const struct m0_layout_domain
 					     *dom);
-C2_INTERNAL bool c2_layout__allocated_invariant(const struct c2_layout *l);
-C2_INTERNAL bool c2_layout__invariant(const struct c2_layout *l);
-C2_INTERNAL bool c2_layout__enum_invariant(const struct c2_layout_enum *le);
-C2_INTERNAL bool c2_layout__striped_allocated_invariant(const struct
-							c2_striped_layout *s);
-C2_INTERNAL bool c2_layout__striped_invariant(const struct c2_striped_layout
+M0_INTERNAL bool m0_layout__allocated_invariant(const struct m0_layout *l);
+M0_INTERNAL bool m0_layout__invariant(const struct m0_layout *l);
+M0_INTERNAL bool m0_layout__enum_invariant(const struct m0_layout_enum *le);
+M0_INTERNAL bool m0_layout__striped_allocated_invariant(const struct
+							m0_striped_layout *s);
+M0_INTERNAL bool m0_layout__striped_invariant(const struct m0_striped_layout
 					      *stl);
 
-C2_INTERNAL struct c2_layout *c2_layout__list_lookup(const struct
-						     c2_layout_domain *dom,
+M0_INTERNAL struct m0_layout *m0_layout__list_lookup(const struct
+						     m0_layout_domain *dom,
 						     uint64_t lid,
 						     bool ref_increment);
 
-C2_INTERNAL void c2_layout__init(struct c2_layout *l,
-				 struct c2_layout_domain *dom,
+M0_INTERNAL void m0_layout__init(struct m0_layout *l,
+				 struct m0_layout_domain *dom,
 				 uint64_t lid,
-				 struct c2_layout_type *type,
-				 const struct c2_layout_ops *ops);
-C2_INTERNAL void c2_layout__fini(struct c2_layout *l);
-C2_INTERNAL void c2_layout__populate(struct c2_layout *l, uint32_t user_count);
-C2_INTERNAL void c2_layout__delete(struct c2_layout *l);
+				 struct m0_layout_type *type,
+				 const struct m0_layout_ops *ops);
+M0_INTERNAL void m0_layout__fini(struct m0_layout *l);
+M0_INTERNAL void m0_layout__populate(struct m0_layout *l, uint32_t user_count);
+M0_INTERNAL void m0_layout__delete(struct m0_layout *l);
 
-C2_INTERNAL void c2_layout__striped_init(struct c2_striped_layout *stl,
-					 struct c2_layout_domain *dom,
+M0_INTERNAL void m0_layout__striped_init(struct m0_striped_layout *stl,
+					 struct m0_layout_domain *dom,
 					 uint64_t lid,
-					 struct c2_layout_type *type,
-					 const struct c2_layout_ops *ops);
-C2_INTERNAL void c2_layout__striped_fini(struct c2_striped_layout *stl);
-C2_INTERNAL void c2_layout__striped_populate(struct c2_striped_layout *str_l,
-					     struct c2_layout_enum *e,
+					 struct m0_layout_type *type,
+					 const struct m0_layout_ops *ops);
+M0_INTERNAL void m0_layout__striped_fini(struct m0_striped_layout *stl);
+M0_INTERNAL void m0_layout__striped_populate(struct m0_striped_layout *str_l,
+					     struct m0_layout_enum *e,
 					     uint32_t user_count);
-C2_INTERNAL void c2_layout__striped_delete(struct c2_striped_layout *stl);
+M0_INTERNAL void m0_layout__striped_delete(struct m0_striped_layout *stl);
 
-C2_INTERNAL void c2_layout__enum_init(struct c2_layout_domain *dom,
-				      struct c2_layout_enum *le,
-				      struct c2_layout_enum_type *et,
-				      const struct c2_layout_enum_ops *ops);
-C2_INTERNAL void c2_layout__enum_fini(struct c2_layout_enum *le);
+M0_INTERNAL void m0_layout__enum_init(struct m0_layout_domain *dom,
+				      struct m0_layout_enum *le,
+				      struct m0_layout_enum_type *et,
+				      const struct m0_layout_enum_ops *ops);
+M0_INTERNAL void m0_layout__enum_fini(struct m0_layout_enum *le);
 
-C2_INTERNAL void c2_layout__log(const char *fn_name,
+M0_INTERNAL void m0_layout__log(const char *fn_name,
 				const char *err_msg,
-				const struct c2_addb_ev *ev,
-				struct c2_addb_ctx *ctx, uint64_t lid, int rc);
+				const struct m0_addb_ev *ev,
+				struct m0_addb_ctx *ctx, uint64_t lid, int rc);
 
-C2_INTERNAL c2_bcount_t c2_layout__enum_max_recsize(struct c2_layout_domain
+M0_INTERNAL m0_bcount_t m0_layout__enum_max_recsize(struct m0_layout_domain
 						    *dom);
 
-C2_INTERNAL void c2_layout__instance_init(struct c2_layout_instance *li,
-					  const struct c2_fid *gfid,
-					  struct c2_layout *l,
-					  const struct c2_layout_instance_ops
+M0_INTERNAL void m0_layout__instance_init(struct m0_layout_instance *li,
+					  const struct m0_fid *gfid,
+					  struct m0_layout *l,
+					  const struct m0_layout_instance_ops
 					  *ops);
-C2_INTERNAL void c2_layout__instance_fini(struct c2_layout_instance *li);
-C2_INTERNAL bool c2_layout__instance_invariant(const struct c2_layout_instance
+M0_INTERNAL void m0_layout__instance_fini(struct m0_layout_instance *li);
+M0_INTERNAL bool m0_layout__instance_invariant(const struct m0_layout_instance
 					       *li);
 
 /** @} end group layout */
 
-/* __COLIBRI_LAYOUT_LAYOUT_INTERNAL_H__ */
+/* __MERO_LAYOUT_LAYOUT_INTERNAL_H__ */
 #endif
 
 /*

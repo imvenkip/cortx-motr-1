@@ -23,8 +23,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_DESIM_CHS_H__
-#define __COLIBRI_DESIM_CHS_H__
+#ifndef __MERO_DESIM_CHS_H__
+#define __MERO_DESIM_CHS_H__
 
 /**
    @addtogroup desim desim
@@ -90,14 +90,14 @@ struct chs_dev {
 	struct cnt          cd_write_size;
 };
 
-C2_INTERNAL void chs_conf_init(struct chs_conf *conf);
-C2_INTERNAL void chs_conf_fini(struct chs_conf *conf);
+M0_INTERNAL void chs_conf_init(struct chs_conf *conf);
+M0_INTERNAL void chs_conf_fini(struct chs_conf *conf);
 
-C2_INTERNAL void chs_dev_init(struct chs_dev *dev, struct sim *sim,
+M0_INTERNAL void chs_dev_init(struct chs_dev *dev, struct sim *sim,
 			      struct chs_conf *conf);
-C2_INTERNAL void chs_dev_fini(struct chs_dev *dev);
+M0_INTERNAL void chs_dev_fini(struct chs_dev *dev);
 
-#endif /* __COLIBRI_DESIM_CHS_H__ */
+#endif /* __MERO_DESIM_CHS_H__ */
 
 /** @} end of desim group */
 

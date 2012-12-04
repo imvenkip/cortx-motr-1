@@ -37,35 +37,35 @@ record {
 sequence {
 	u32 fi_count;
 	u8  fi_buf
-} c2_fi_value;
+} m0_fi_value;
 
 record {
 	stob_io_fop_fid fiw_object;
-	c2_fi_value     fiw_value
-} c2_stob_io_write;
+	m0_fi_value     fiw_value
+} m0_stob_io_write;
 
 record {
 	u32 fiwr_rc;
 	u32 fiwr_count
-} c2_stob_io_write_rep;
+} m0_stob_io_write_rep;
 
 record {
 	stob_io_fop_fid fir_object
-} c2_stob_io_read;
+} m0_stob_io_read;
 
 record {
 	u32 firr_rc;
 	u32 firr_count;
-	c2_fi_value firr_value
-} c2_stob_io_read_rep;
+	m0_fi_value firr_value
+} m0_stob_io_read_rep;
 
 record {
 	stob_io_fop_fid fic_object
-} c2_stob_io_create;
+} m0_stob_io_create;
 
 record {
 	u32 ficr_rc
-} c2_stob_io_create_rep;
+} m0_stob_io_create_rep;
 
 /** @} end of reqh group */
 

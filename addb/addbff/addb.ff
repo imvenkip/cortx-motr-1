@@ -24,7 +24,7 @@
 sequence {
 	u32 cmb_count;
 	u8  cmb_value
-} c2_mem_buf;
+} m0_mem_buf;
 
 /* on-wire and on-disk addb record header */
 record {
@@ -34,18 +34,18 @@ record {
 	u64 arh_event_id;
 	u64 arh_timestamp;
 	u64 arh_magic2
-} c2_addb_record_header;
+} m0_addb_record_header;
 
 /* on wire addb record */
 record {
-	c2_addb_record_header ar_header;
-	c2_mem_buf            ar_data
-} c2_addb_record;
+	m0_addb_record_header ar_header;
+	m0_mem_buf            ar_data
+} m0_addb_record;
 
 /* on wire addb record reply */
 record {
 	u32 ar_rc
-} c2_addb_reply;
+} m0_addb_reply;
 
 /*
  *  Local variables:

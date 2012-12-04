@@ -1,6 +1,6 @@
-nobase_colibri_include_HEADERS += net/bulk_emulation/mem_xprt.h
+nobase_mero_include_HEADERS += net/bulk_emulation/mem_xprt.h
 
-colibri_libcolibri_la_SOURCES  += net/bulk_emulation/mem_xprt_xo.c
+mero_libmero_la_SOURCES  += net/bulk_emulation/mem_xprt_xo.c
 
 EXTRA_DIST += net/bulk_emulation/mem_xprt_ep.c \
               net/bulk_emulation/mem_xprt_bulk.c \

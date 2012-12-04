@@ -59,12 +59,12 @@
    <hr>
    @section cqueueDLD-def Definitions
 
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Mero LNet Transport</a>
 
    <hr>
    @section cqueueDLD-req Requirements
 
-   - @b r.c2.lib.atomic.interoperable-kernel-user-support The
+   - @b r.m0.lib.atomic.interoperable-kernel-user-support The
    implementation shall provide a queue that supports atomic,
    interoperable sharing between kernel to user-space.
    - @b r.net.xprt.lnet.growable-event-queue The implementation shall
@@ -391,8 +391,8 @@
    still has room for additional element production. This can be expressed as
    @code count > 0 && count < (total_number - 1) @endcode
 
-   Recall that the @c count is stored as a @c c2_atomic64, so it must
-   be access using @c c2_atomic64_get(), requiring the use of a temporary
+   Recall that the @c count is stored as a @c m0_atomic64, so it must
+   be access using @c m0_atomic64_get(), requiring the use of a temporary
    variable in the case of testing if the queue is in the partial state.
 
    @subsection cqueueDLD-lspec-thread Threading and Concurrency Model
@@ -409,7 +409,7 @@
    The transport layer acts both as the consumer and the allocator, and both
    operations use and modify the @c consumer variable and related pointers.  As
    such, calls to bev_cqueue_add() and bev_cqueue_get() must be synchronized.
-   The transport layer holds the transfer machine c2_net_transfer_mc::ntm_mutex
+   The transport layer holds the transfer machine m0_net_transfer_mc::ntm_mutex
    when it calls bev_cqueue_add().  The transport layer will also hold this
    mutex when it calls bev_cqueue_get().
 
@@ -420,7 +420,7 @@
    <hr>
    @section cqueueDLD-conformance Conformance
 
-   - @b i.c2.lib.atomic.interoperable-kernel-user-support The
+   - @b i.m0.lib.atomic.interoperable-kernel-user-support The
    nlx_core_bev_link data structure allows for tracking the pointers to the
    link in both address spaces.  The atomic operations allow the FIFO to be
    produced and consumed simultaneously in both spaces without synchronization
@@ -467,7 +467,7 @@
    <hr>
    @section cqueueDLD-ref References
 
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Mero LNet Transport</a>
    - <a href="http://drdobbs.com/high-performance-computing/210604448">Writing Lock-Free Code: A Corrected Queue, Herb Sutter, in Dr Dobbs Journal, 2008</a>
 
  */
@@ -512,8 +512,8 @@
    struct nlx_core_buffer_event *e2;
    struct nlx_core_bev_cqueue myqueue;
 
-   C2_ALLOC_PTR_ADDB(e1, ...);
-   C2_ALLOC_PTR_ADDB(e2, ...);
+   M0_ALLOC_PTR_ADDB(e1, ...);
+   M0_ALLOC_PTR_ADDB(e2, ...);
    bev_cqueue_init(&myqueue, &e1->cbe_tm_link, &e2->cbe_tm_link);
    @endcode
 
@@ -530,7 +530,7 @@
 
    ... ; // acquire the lock shared with the consumer
    while (needed > bev_cqueue_size(&myqueue)) {
-       C2_ALLOC_PTR_ADDB(el, ...);
+       M0_ALLOC_PTR_ADDB(el, ...);
        ... ; // initialize the new element for both address spaces
        bev_cqueue_add(&myqueue, el);
    }
@@ -590,7 +590,7 @@
    The buffer event FIFO circular queue, used between the LNet Kernel Core
    and LNet transport.
 
-   Unlike the standard c2_queue, this queue supports a producer and consumer in
+   Unlike the standard m0_queue, this queue supports a producer and consumer in
    different address spaces sharing the queue via shared memory.  No locking is
    required by this single producer or consumer.
 
@@ -603,8 +603,8 @@
 static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q)
 {
 	return q != NULL && q->cbcq_consumer != 0 &&
-	    q->cbcq_nr >= C2_NET_LNET_BEVQ_MIN_SIZE &&
-	    c2_atomic64_get(&q->cbcq_count) < q->cbcq_nr &&
+	    q->cbcq_nr >= M0_NET_LNET_BEVQ_MIN_SIZE &&
+	    m0_atomic64_get(&q->cbcq_count) < q->cbcq_nr &&
 	    !nlx_core_kmem_loc_is_empty(&q->cbcq_producer_loc);
 }
 
@@ -624,8 +624,8 @@ static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
 {
 	struct nlx_core_bev_link *consumer =
 	    (struct nlx_core_bev_link *) (q->cbcq_consumer);
-	C2_PRE(q->cbcq_nr > 0 && consumer != NULL);
-	C2_PRE(nlx_core_kmem_loc_invariant(&ql->cbl_p_self_loc));
+	M0_PRE(q->cbcq_nr > 0 && consumer != NULL);
+	M0_PRE(nlx_core_kmem_loc_invariant(&ql->cbl_p_self_loc));
 	ql->cbl_c_self = (nlx_core_opaque_ptr_t) ql;
 
 	ql->cbl_c_next = consumer->cbl_c_next;
@@ -635,7 +635,7 @@ static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
 	q->cbcq_consumer = (nlx_core_opaque_ptr_t) ql;
 	q->cbcq_nr++;
 
-	C2_POST(bev_cqueue_invariant(q));
+	M0_POST(bev_cqueue_invariant(q));
 }
 
 /**
@@ -653,8 +653,8 @@ static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
 			    struct nlx_core_bev_link *ql1,
 			    struct nlx_core_bev_link *ql2)
 {
-	C2_PRE(q != NULL && q->cbcq_nr == 0 && ql1 != NULL && ql2 != NULL);
-	C2_PRE(nlx_core_kmem_loc_invariant(&ql1->cbl_p_self_loc));
+	M0_PRE(q != NULL && q->cbcq_nr == 0 && ql1 != NULL && ql2 != NULL);
+	M0_PRE(nlx_core_kmem_loc_invariant(&ql1->cbl_p_self_loc));
 	/* special case: add first element to the circular queue */
 	ql1->cbl_c_self = (nlx_core_opaque_ptr_t) ql1;
 	ql1->cbl_c_next = (nlx_core_opaque_ptr_t) ql1;
@@ -664,8 +664,8 @@ static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
 	q->cbcq_nr++;
 
 	bev_cqueue_add(q, ql2);
-	c2_atomic64_set(&q->cbcq_count, 0);
-	C2_POST(bev_cqueue_invariant(q));
+	m0_atomic64_set(&q->cbcq_count, 0);
+	M0_POST(bev_cqueue_invariant(q));
 }
 
 /**
@@ -679,8 +679,8 @@ static void bev_cqueue_fini(struct nlx_core_bev_cqueue *q,
 	struct nlx_core_bev_link *ql;
 	struct nlx_core_bev_link *nql = NULL;
 
-	C2_PRE(bev_cqueue_invariant(q));
-	C2_PRE(free_cb != NULL);
+	M0_PRE(bev_cqueue_invariant(q));
+	M0_PRE(free_cb != NULL);
 	for (ql = (struct nlx_core_bev_link *) q->cbcq_consumer;
 	     q->cbcq_nr > 0; ql = nql, --q->cbcq_nr) {
 		nql = (struct nlx_core_bev_link *) ql->cbl_c_next;
@@ -695,8 +695,8 @@ static void bev_cqueue_fini(struct nlx_core_bev_cqueue *q,
  */
 static bool bev_cqueue_is_empty(const struct nlx_core_bev_cqueue *q)
 {
-	C2_PRE(bev_cqueue_invariant(q));
-	return c2_atomic64_get(&q->cbcq_count) == 0;
+	M0_PRE(bev_cqueue_invariant(q));
+	return m0_atomic64_get(&q->cbcq_count) == 0;
 }
 
 /**
@@ -720,9 +720,9 @@ static struct nlx_core_bev_link *bev_cqueue_get(struct nlx_core_bev_cqueue *q)
 	if (bev_cqueue_is_empty(q)) /* also checks invariant */
 		return NULL;
 	link = (struct nlx_core_bev_link *) q->cbcq_consumer;
-	C2_ASSERT(link->cbl_c_next != 0);
+	M0_ASSERT(link->cbl_c_next != 0);
 	q->cbcq_consumer = (nlx_core_opaque_ptr_t) link->cbl_c_next;
-	c2_atomic64_dec(&q->cbcq_count);
+	m0_atomic64_dec(&q->cbcq_count);
 	return (struct nlx_core_bev_link *) (q->cbcq_consumer);
 }
 

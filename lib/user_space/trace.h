@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_USERSP_TRACE_H__
-#define __COLIBRI_LIB_USERSP_TRACE_H__
+#ifndef __MERO_LIB_USERSP_TRACE_H__
+#define __MERO_LIB_USERSP_TRACE_H__
 
 /**
    @defgroup trace Tracing.
@@ -30,17 +30,17 @@
 
  */
 
-C2_INTERNAL int c2_trace_parse(void);
+M0_INTERNAL int m0_trace_parse(void);
 
-C2_INTERNAL int c2_trace_set_immediate_mask(const char *mask);
+M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask);
 
-C2_INTERNAL int c2_trace_set_print_context(const char *ctx_name);
+M0_INTERNAL int m0_trace_set_print_context(const char *ctx_name);
 
-C2_INTERNAL int c2_trace_set_level(const char *level);
+M0_INTERNAL int m0_trace_set_level(const char *level);
 
 /** @} end of trace group */
 
-/* __COLIBRI_LIB_USERSP_TRACE_H__ */
+/* __MERO_LIB_USERSP_TRACE_H__ */
 #endif
 
 /*

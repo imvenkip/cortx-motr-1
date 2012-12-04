@@ -31,7 +31,7 @@
 
 record {
 	u32 rerr_rc
-} c2_fom_error_rep;
+} m0_fom_error_rep;
 
 /** @} end of fom group */
 

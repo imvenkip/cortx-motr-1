@@ -18,7 +18,7 @@
  * Original creation date: 25/09/2012
  */
 
-#include "colibri/init.h"
+#include "mero/init.h"
 #include "conf/preload.h"
 #include "conf/onwire.h"
 #include "conf/conf_xcode.h"
@@ -50,15 +50,15 @@ int main(int argc, char *argv[])
 	struct confx_object *conf;
 	FILE *conf_file;
 
-	rc = c2_init();
+	rc = m0_init();
 	if (rc != 0)
 		return rc;
 
-	rc = C2_GETOPTS("objx2db", argc, argv,
-			C2_STRINGARG('b', "path of database directory",
+	rc = M0_GETOPTS("objx2db", argc, argv,
+			M0_STRINGARG('b', "path of database directory",
 				     LAMBDA(void, (const char *str)
 					    { dbpath = str; })),
-			C2_STRINGARG('c', "path of config file",
+			M0_STRINGARG('c', "path of config file",
 				     LAMBDA(void, (const char *str)
 					    { dbconf = str; })));
 	if (rc != 0)
@@ -82,30 +82,30 @@ int main(int argc, char *argv[])
 	}
 	buf[n] = '\0';
 
-	n = c2_confx_obj_nr(buf);
+	n = m0_confx_obj_nr(buf);
 	if (n <= 0) {
 		rc = n;
 		goto close_file;
 	}
 
-	C2_ALLOC_ARR(conf, n);
+	M0_ALLOC_ARR(conf, n);
 	if (conf == NULL) {
 		rc = ENOMEM;
 		goto close_file;
 	}
 
-	rc = c2_conf_parse(buf, conf, n);
+	rc = m0_conf_parse(buf, conf, n);
 	if (rc <= 0)
 		goto conf_free;
 
 
-	rc = c2_confx_db_create(dbpath, conf, n);
-	c2_confx_fini(conf, n);
+	rc = m0_confx_db_create(dbpath, conf, n);
+	m0_confx_fini(conf, n);
 conf_free:
-	c2_free(conf);
+	m0_free(conf);
 close_file:
 	fclose(conf_file);
 cleanup:
-	c2_fini();
+	m0_fini();
 	return rc;
 }

@@ -20,21 +20,21 @@
 
 #pragma once
 
-#ifndef __COLIBRI_MDSERVICE_UT_LUSTRE_H__
-#define __COLIBRI_MDSERVICE_UT_LUSTRE_H__
+#ifndef __MERO_MDSERVICE_UT_LUSTRE_H__
+#define __MERO_MDSERVICE_UT_LUSTRE_H__
 
 /**
    These two structures used for testing mdstore functionality. To do
    so we use changelog dump created by dump.changelog program, parse
    it, convert to fops and feed to test program in fops form.
 */
-struct c2_md_lustre_fid {
+struct m0_md_lustre_fid {
         uint64_t f_seq;
         uint32_t f_oid;
         uint32_t f_ver;
 };
 
-struct c2_md_lustre_logrec {
+struct m0_md_lustre_logrec {
         uint16_t                 cr_namelen;
         uint16_t                 cr_flags;
         uint16_t                 cr_valid;
@@ -55,12 +55,12 @@ struct c2_md_lustre_logrec {
         uint32_t                 cr_gid;
         uint32_t                 cr_sid;
         uint64_t                 cr_clnid;
-        struct c2_md_lustre_fid  cr_tfid;
-        struct c2_md_lustre_fid  cr_pfid;
+        struct m0_md_lustre_fid  cr_tfid;
+        struct m0_md_lustre_fid  cr_pfid;
         char                     cr_name[0];
 } __attribute__((packed));
 
-enum c2_md_lustre_logrec_type {
+enum m0_md_lustre_logrec_type {
         RT_MARK     = 0,
         RT_CREATE   = 1,
         RT_MKDIR    = 2,

@@ -30,8 +30,8 @@
 #define LOGD(format, ...) do {} while (0)
 #endif
 
-#include "lib/memory.h"		/* C2_ALLOC_PTR */
-#include "lib/misc.h"		/* C2_SET0 */
+#include "lib/memory.h"		/* M0_ALLOC_PTR */
+#include "lib/misc.h"		/* M0_SET0 */
 #include "lib/errno.h"		/* ENOENT */
 
 #include "net/test/service.h"
@@ -48,64 +48,64 @@
 
 /** Service state transition matrix. @see @ref net-test-lspec-state */
 const static bool
-state_transition[C2_NET_TEST_SERVICE_NR][C2_NET_TEST_SERVICE_NR] = {
-	[C2_NET_TEST_SERVICE_UNINITIALIZED] = {
-		[C2_NET_TEST_SERVICE_UNINITIALIZED] = false,
-		[C2_NET_TEST_SERVICE_READY]	    = true,
-		[C2_NET_TEST_SERVICE_FINISHED]	    = false,
-		[C2_NET_TEST_SERVICE_FAILED]	    = false,
+state_transition[M0_NET_TEST_SERVICE_NR][M0_NET_TEST_SERVICE_NR] = {
+	[M0_NET_TEST_SERVICE_UNINITIALIZED] = {
+		[M0_NET_TEST_SERVICE_UNINITIALIZED] = false,
+		[M0_NET_TEST_SERVICE_READY]	    = true,
+		[M0_NET_TEST_SERVICE_FINISHED]	    = false,
+		[M0_NET_TEST_SERVICE_FAILED]	    = false,
 	},
-	[C2_NET_TEST_SERVICE_READY] = {
-		[C2_NET_TEST_SERVICE_UNINITIALIZED] = true,
-		[C2_NET_TEST_SERVICE_READY]	    = false,
-		[C2_NET_TEST_SERVICE_FINISHED]	    = true,
-		[C2_NET_TEST_SERVICE_FAILED]	    = true,
+	[M0_NET_TEST_SERVICE_READY] = {
+		[M0_NET_TEST_SERVICE_UNINITIALIZED] = true,
+		[M0_NET_TEST_SERVICE_READY]	    = false,
+		[M0_NET_TEST_SERVICE_FINISHED]	    = true,
+		[M0_NET_TEST_SERVICE_FAILED]	    = true,
 	},
-	[C2_NET_TEST_SERVICE_FINISHED] = {
-		[C2_NET_TEST_SERVICE_UNINITIALIZED] = true,
-		[C2_NET_TEST_SERVICE_READY]	    = false,
-		[C2_NET_TEST_SERVICE_FINISHED]	    = false,
-		[C2_NET_TEST_SERVICE_FAILED]	    = false,
+	[M0_NET_TEST_SERVICE_FINISHED] = {
+		[M0_NET_TEST_SERVICE_UNINITIALIZED] = true,
+		[M0_NET_TEST_SERVICE_READY]	    = false,
+		[M0_NET_TEST_SERVICE_FINISHED]	    = false,
+		[M0_NET_TEST_SERVICE_FAILED]	    = false,
 	},
-	[C2_NET_TEST_SERVICE_FAILED] = {
-		[C2_NET_TEST_SERVICE_UNINITIALIZED] = true,
-		[C2_NET_TEST_SERVICE_READY]	    = false,
-		[C2_NET_TEST_SERVICE_FINISHED]	    = false,
-		[C2_NET_TEST_SERVICE_FAILED]	    = false,
+	[M0_NET_TEST_SERVICE_FAILED] = {
+		[M0_NET_TEST_SERVICE_UNINITIALIZED] = true,
+		[M0_NET_TEST_SERVICE_READY]	    = false,
+		[M0_NET_TEST_SERVICE_FINISHED]	    = false,
+		[M0_NET_TEST_SERVICE_FAILED]	    = false,
 	},
 };
 
-int c2_net_test_service_init(struct c2_net_test_service *svc,
-			     struct c2_net_test_service_ops *ops)
+int m0_net_test_service_init(struct m0_net_test_service *svc,
+			     struct m0_net_test_service_ops *ops)
 {
-	C2_PRE(svc != NULL);
-	C2_PRE(ops != NULL);
+	M0_PRE(svc != NULL);
+	M0_PRE(ops != NULL);
 
-	C2_SET0(svc);
+	M0_SET0(svc);
 	svc->nts_ops = ops;
 
 	svc->nts_svc_ctx = svc->nts_ops->ntso_init(svc);
 	if (svc->nts_svc_ctx != NULL)
-		c2_net_test_service_state_change(svc,
-				C2_NET_TEST_SERVICE_READY);
+		m0_net_test_service_state_change(svc,
+				M0_NET_TEST_SERVICE_READY);
 
-	C2_POST(ergo(svc->nts_svc_ctx != NULL,
-		     c2_net_test_service_invariant(svc)));
+	M0_POST(ergo(svc->nts_svc_ctx != NULL,
+		     m0_net_test_service_invariant(svc)));
 
 	return svc->nts_errno;
 }
 
-void c2_net_test_service_fini(struct c2_net_test_service *svc)
+void m0_net_test_service_fini(struct m0_net_test_service *svc)
 {
-	C2_PRE(c2_net_test_service_invariant(svc));
-	C2_PRE(svc->nts_state != C2_NET_TEST_SERVICE_UNINITIALIZED);
+	M0_PRE(m0_net_test_service_invariant(svc));
+	M0_PRE(svc->nts_state != M0_NET_TEST_SERVICE_UNINITIALIZED);
 
 	svc->nts_ops->ntso_fini(svc->nts_svc_ctx);
-	c2_net_test_service_state_change(svc,
-			C2_NET_TEST_SERVICE_UNINITIALIZED);
+	m0_net_test_service_state_change(svc,
+			M0_NET_TEST_SERVICE_UNINITIALIZED);
 }
 
-bool c2_net_test_service_invariant(struct c2_net_test_service *svc)
+bool m0_net_test_service_invariant(struct m0_net_test_service *svc)
 {
 	if (svc == NULL)
 		return false;
@@ -114,31 +114,31 @@ bool c2_net_test_service_invariant(struct c2_net_test_service *svc)
 	return true;
 }
 
-int c2_net_test_service_step(struct c2_net_test_service *svc)
+int m0_net_test_service_step(struct m0_net_test_service *svc)
 {
-	C2_PRE(c2_net_test_service_invariant(svc));
-	C2_PRE(svc->nts_state == C2_NET_TEST_SERVICE_READY);
+	M0_PRE(m0_net_test_service_invariant(svc));
+	M0_PRE(svc->nts_state == M0_NET_TEST_SERVICE_READY);
 
 	svc->nts_errno = svc->nts_ops->ntso_step(svc->nts_svc_ctx);
 	if (svc->nts_errno != 0)
-		c2_net_test_service_state_change(svc,
-				C2_NET_TEST_SERVICE_FAILED);
+		m0_net_test_service_state_change(svc,
+				M0_NET_TEST_SERVICE_FAILED);
 
-	C2_POST(c2_net_test_service_invariant(svc));
+	M0_POST(m0_net_test_service_invariant(svc));
 	return svc->nts_errno;
 }
 
-int c2_net_test_service_cmd_handle(struct c2_net_test_service *svc,
-				   struct c2_net_test_cmd *cmd,
-				   struct c2_net_test_cmd *reply)
+int m0_net_test_service_cmd_handle(struct m0_net_test_service *svc,
+				   struct m0_net_test_cmd *cmd,
+				   struct m0_net_test_cmd *reply)
 {
-	struct c2_net_test_service_cmd_handler *handler;
+	struct m0_net_test_service_cmd_handler *handler;
 	int					i;
 
-	C2_PRE(c2_net_test_service_invariant(svc));
-	C2_PRE(cmd != NULL);
-	C2_PRE(reply != NULL);
-	C2_PRE(svc->nts_state == C2_NET_TEST_SERVICE_READY);
+	M0_PRE(m0_net_test_service_invariant(svc));
+	M0_PRE(cmd != NULL);
+	M0_PRE(reply != NULL);
+	M0_PRE(svc->nts_state == M0_NET_TEST_SERVICE_READY);
 
 	svc->nts_errno = -ENOENT;
 	for (i = 0; i < svc->nts_ops->ntso_cmd_handler_nr; ++i) {
@@ -150,25 +150,25 @@ int c2_net_test_service_cmd_handle(struct c2_net_test_service *svc,
 		}
 	}
 
-	C2_POST(c2_net_test_service_invariant(svc));
+	M0_POST(m0_net_test_service_invariant(svc));
 	return svc->nts_errno;
 }
 
-void c2_net_test_service_state_change(struct c2_net_test_service *svc,
-				      enum c2_net_test_service_state state)
+void m0_net_test_service_state_change(struct m0_net_test_service *svc,
+				      enum m0_net_test_service_state state)
 {
-	C2_PRE(c2_net_test_service_invariant(svc));
+	M0_PRE(m0_net_test_service_invariant(svc));
 
-	C2_ASSERT(state_transition[svc->nts_state][state]);
+	M0_ASSERT(state_transition[svc->nts_state][state]);
 	svc->nts_state = state;
 
-	C2_POST(c2_net_test_service_invariant(svc));
+	M0_POST(m0_net_test_service_invariant(svc));
 }
 
-enum c2_net_test_service_state
-c2_net_test_service_state_get(struct c2_net_test_service *svc)
+enum m0_net_test_service_state
+m0_net_test_service_state_get(struct m0_net_test_service *svc)
 {
-	C2_PRE(c2_net_test_service_invariant(svc));
+	M0_PRE(m0_net_test_service_invariant(svc));
 
 	return svc->nts_state;
 }

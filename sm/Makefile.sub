@@ -1,2 +1,2 @@
-nobase_colibri_include_HEADERS += sm/sm.h
-colibri_libcolibri_la_SOURCES  += sm/sm.c
+nobase_mero_include_HEADERS += sm/sm.h
+mero_libmero_la_SOURCES  += sm/sm.c

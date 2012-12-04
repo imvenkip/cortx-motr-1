@@ -18,30 +18,30 @@
  * Original creation date: 30-Jan-2012
  */
 #pragma once
-#ifndef __COLIBRI_CONF_OBJ_H__
-#define __COLIBRI_CONF_OBJ_H__
+#ifndef __MERO_CONF_OBJ_H__
+#define __MERO_CONF_OBJ_H__
 
-#include "lib/buf.h"   /* c2_buf */
-#include "lib/chan.h"  /* c2_chan */
-#include "fid/fid.h"   /* c2_fid */
-#include "lib/tlist.h" /* c2_tl, c2_tlink */
-#include "lib/bob.h"   /* c2_bob_type */
+#include "lib/buf.h"   /* m0_buf */
+#include "lib/chan.h"  /* m0_chan */
+#include "fid/fid.h"   /* m0_fid */
+#include "lib/tlist.h" /* m0_tl, m0_tlink */
+#include "lib/bob.h"   /* m0_bob_type */
 #include "lib/types.h"
 
-struct c2_conf_obj_ops;
-struct c2_confc;
+struct m0_conf_obj_ops;
+struct m0_confc;
 
 /* XXX @todo Move definitions from cfg/cfg.h to conf/schema.ff */
-/* #include "cfg/cfg.h"   /\* c2_cfg_service_type *\/ */
-enum c2_cfg_service_type {
+/* #include "cfg/cfg.h"   /\* m0_cfg_service_type *\/ */
+enum m0_cfg_service_type {
 	/** metadata service       */
-	C2_CFG_SERVICE_METADATA = 1,
+	M0_CFG_SERVICE_METADATA = 1,
 	/** io/data service        */
-	C2_CFG_SERVICE_IO,
+	M0_CFG_SERVICE_IO,
 	/** management service     */
-	C2_CFG_SERVICE_MGMT,
+	M0_CFG_SERVICE_MGMT,
 	/** DLM service            */
-	C2_CFG_SERVICE_DLM,
+	M0_CFG_SERVICE_DLM,
 };
 
 /**
@@ -60,49 +60,49 @@ enum c2_cfg_service_type {
  * filesystems, services, nodes, storage devices, etc.  Configuration
  * data is contained in configuration objects of which there are 8
  * types:
- * - c2_conf_dir (a container for configuration objects),
- * - c2_conf_profile,
- * - c2_conf_filesystem,
- * - c2_conf_service,
- * - c2_conf_node,
- * - c2_conf_nic,
- * - c2_conf_sdev,
- * - c2_conf_partition.
+ * - m0_conf_dir (a container for configuration objects),
+ * - m0_conf_profile,
+ * - m0_conf_filesystem,
+ * - m0_conf_service,
+ * - m0_conf_node,
+ * - m0_conf_nic,
+ * - m0_conf_sdev,
+ * - m0_conf_partition.
  *
  * Some attributes are applicable to any type of configuration object.
- * Such common attributes are put together into c2_conf_obj structure,
+ * Such common attributes are put together into m0_conf_obj structure,
  * which is embedded into concrete configuration objects.
  *
  * <hr> <!------------------------------------------------------------>
  * @section conf-fspec-obj-enum Enumerations
  *
- * - c2_conf_objtype --- numeric tag that corresponds to a type of
+ * - m0_conf_objtype --- numeric tag that corresponds to a type of
  *   concrete configuration objects.
- * - c2_conf_status --- readiness of object's configuration data.
+ * - m0_conf_status --- readiness of object's configuration data.
  *
  * @subsection conf-fspec-obj-enum-status Configuration Object Status
  *
  * A configuration object exists in one of three states:
- *   - C2_CS_MISSING --- configuration data is absent and is not being
+ *   - M0_CS_MISSING --- configuration data is absent and is not being
  *     retrieved; the object is a stub.
- *   - C2_CS_LOADING --- retrieval of configuration is in progress; the
+ *   - M0_CS_LOADING --- retrieval of configuration is in progress; the
  *     object is a stub.
- *   - C2_CS_READY --- configuration is available; this is a
+ *   - M0_CS_READY --- configuration is available; this is a
  *     fully-fledged object, not a stub.
  *
- * These values make up @ref c2_conf_status enumeration.
+ * These values make up @ref m0_conf_status enumeration.
  *
- * Status field of a configuration object -- c2_conf_obj::co_status --
+ * Status field of a configuration object -- m0_conf_obj::co_status --
  * is accessed and modified by object's owner (confc or confd).
- * Initial status is C2_CS_MISSING. Possible transitions are shown on
+ * Initial status is M0_CS_MISSING. Possible transitions are shown on
  * the diagram below:
  *
  * @dot
  * digraph obj_status {
- *     C2_CS_MISSING -> C2_CS_LOADING [label="loading started"];
- *     C2_CS_LOADING -> C2_CS_MISSING [label="loading failed"];
- *     C2_CS_LOADING -> C2_CS_READY [label="loading succeeded"];
- *     C2_CS_MISSING -> C2_CS_READY [label=
+ *     M0_CS_MISSING -> M0_CS_LOADING [label="loading started"];
+ *     M0_CS_LOADING -> M0_CS_MISSING [label="loading failed"];
+ *     M0_CS_LOADING -> M0_CS_READY [label="loading succeeded"];
+ *     M0_CS_MISSING -> M0_CS_READY [label=
  *  "configuration data is filled\nby some loading operation"];
  * }
  * @enddot
@@ -110,9 +110,9 @@ enum c2_cfg_service_type {
  * <hr> <!------------------------------------------------------------>
  * @section conf-fspec-obj-pinned Pinned Objects
  *
- * If object's reference counter -- c2_conf_obj::co_nrefs -- is
+ * If object's reference counter -- m0_conf_obj::co_nrefs -- is
  * non-zero, the object is said to be @em pinned. Stubs cannot be
- * pinned, only C2_CS_READY objects can.  Object's reference counter
+ * pinned, only M0_CS_READY objects can.  Object's reference counter
  * is used by confc and confd implementations and is not supposed to
  * be accessed by a configuration consumer.
  *
@@ -137,64 +137,64 @@ enum c2_cfg_service_type {
  */
 
 /** Type of configuration object. */
-enum c2_conf_objtype {
-	C2_CO_DIR,        /* 0 */
-	C2_CO_PROFILE,    /* 1 */
-	C2_CO_FILESYSTEM, /* 2 */
-	C2_CO_SERVICE,    /* 3 */
-	C2_CO_NODE,       /* 4 */
-	C2_CO_NIC,        /* 5 */
-	C2_CO_SDEV,       /* 6 */
-	C2_CO_PARTITION,  /* 7 */
-	C2_CO_NR
+enum m0_conf_objtype {
+	M0_CO_DIR,        /* 0 */
+	M0_CO_PROFILE,    /* 1 */
+	M0_CO_FILESYSTEM, /* 2 */
+	M0_CO_SERVICE,    /* 3 */
+	M0_CO_NODE,       /* 4 */
+	M0_CO_NIC,        /* 5 */
+	M0_CO_SDEV,       /* 6 */
+	M0_CO_PARTITION,  /* 7 */
+	M0_CO_NR
 };
 
 /**
  * Status of configuration object.
- * Configuration object is a stub unless its status is C2_CS_READY.
+ * Configuration object is a stub unless its status is M0_CS_READY.
  *
- * @see c2_conf_obj_is_stub()
+ * @see m0_conf_obj_is_stub()
  */
-enum c2_conf_status {
-	C2_CS_MISSING, /*< Configuration is absent; no retrieval in progress. */
-	C2_CS_LOADING, /*< Retrieval of configuration is in progress. */
-	C2_CS_READY    /*< Configuration is available. */
+enum m0_conf_status {
+	M0_CS_MISSING, /*< Configuration is absent; no retrieval in progress. */
+	M0_CS_LOADING, /*< Retrieval of configuration is in progress. */
+	M0_CS_READY    /*< Configuration is available. */
 };
 
 /**
  * Generic configuration object.
  *
- * The fields of struct c2_conf_obj are common to all configuration
- * objects.  c2_conf_obj is embedded into each concrete configuration
+ * The fields of struct m0_conf_obj are common to all configuration
+ * objects.  m0_conf_obj is embedded into each concrete configuration
  * object.
  */
-struct c2_conf_obj {
+struct m0_conf_obj {
 	/** Type of the ambient (concrete) configuration object. */
-	enum c2_conf_objtype          co_type;
+	enum m0_conf_objtype          co_type;
 
 	/**
 	 * Object identifier.
 	 * This value is unique among the object of given ->co_type.
 	 */
-	struct c2_buf                 co_id;
+	struct m0_buf                 co_id;
 
-	enum c2_conf_status           co_status;
+	enum m0_conf_status           co_status;
 
-	const struct c2_conf_obj_ops *co_ops;
+	const struct m0_conf_obj_ops *co_ops;
 
 	/**
 	 * Pointer to the parent object.
 	 *
 	 * The value is NULL for objects that may have several parents
-         * (e.g., c2_conf_node).
+         * (e.g., m0_conf_node).
 	 */
-	struct c2_conf_obj           *co_parent;
+	struct m0_conf_obj           *co_parent;
 
 	/**
 	 * Reference counter.
 	 * The object is "pinned" if this value is non-zero.
 	 *
-	 * @see c2_conf_obj_get(), c2_conf_obj_put()
+	 * @see m0_conf_obj_get(), m0_conf_obj_put()
 	 */
 	uint64_t                      co_nrefs;
 
@@ -202,19 +202,19 @@ struct c2_conf_obj {
 	 * Channel on which "configuration loading completed" and
 	 * "object unpinned" events are announced.
 	 */
-	struct c2_chan                co_chan;
+	struct m0_chan                co_chan;
 
-	/** Linkage to c2_conf_reg::r_objs. */
-	struct c2_tlink               co_reg_link;
+	/** Linkage to m0_conf_reg::r_objs. */
+	struct m0_tlink               co_reg_link;
 
-	/** Linkage to c2_conf_dir::cd_items. */
-	struct c2_tlink               co_dir_link;
+	/** Linkage to m0_conf_dir::cd_items. */
+	struct m0_tlink               co_dir_link;
 
 	/**
 	 * Private data of confc implementation.
 	 * NULL at confd side.
 	 */
-	struct c2_confc              *co_confc;
+	struct m0_confc              *co_confc;
 
 	/**
 	 * Generic magic.
@@ -233,7 +233,7 @@ struct c2_conf_obj {
 	 * ->co_con_magic.
 	 *
 	 * This magic value is used for generic-to-concrete casting
-	 * (see C2_CONF_CAST()).
+	 * (see M0_CONF_CAST()).
 	 */
 	uint64_t                      co_con_magic;
 
@@ -242,7 +242,7 @@ struct c2_conf_obj {
 	 *
 	 * @todo XXX Property (to be verified):
 	 * ergo(obj->co_mounted,
-	 *      parent_check(obj) && (c2_conf_obj_is_stub(obj) ||
+	 *      parent_check(obj) && (m0_conf_obj_is_stub(obj) ||
 	 *                            children_check(obj))),
 	 * where
 	 *   children_check(obj) verifies that `obj' has established
@@ -254,43 +254,43 @@ struct c2_conf_obj {
 };
 
 /**
- * Returns true iff obj->co_status != C2_CS_READY.
+ * Returns true iff obj->co_status != M0_CS_READY.
  *
- * @pre C2_IN(obj->co_status, (C2_CS_MISSING, C2_CS_LOADING, C2_CS_READY))
+ * @pre M0_IN(obj->co_status, (M0_CS_MISSING, M0_CS_LOADING, M0_CS_READY))
  */
-C2_INTERNAL bool c2_conf_obj_is_stub(const struct c2_conf_obj *obj);
+M0_INTERNAL bool m0_conf_obj_is_stub(const struct m0_conf_obj *obj);
 
 /* ------------------------------------------------------------------
  * Concrete configuration objects
  * ------------------------------------------------------------------ */
 
 /** Directory object --- container for configuration objects. */
-struct c2_conf_dir {
-	struct c2_conf_obj   cd_obj;
-	/** List of c2_conf_obj-s, linked through c2_conf_obj::co_dir_link. */
-	struct c2_tl         cd_items;
+struct m0_conf_dir {
+	struct m0_conf_obj   cd_obj;
+	/** List of m0_conf_obj-s, linked through m0_conf_obj::co_dir_link. */
+	struct m0_tl         cd_items;
 	/**
 	 * Type of items.
 	 *
-	 * This field lets c2_conf_dir know which "relation" it represents.
+	 * This field lets m0_conf_dir know which "relation" it represents.
 	 */
-	enum c2_conf_objtype cd_item_type;
+	enum m0_conf_objtype cd_item_type;
 };
 
-struct c2_conf_profile {
+struct m0_conf_profile {
 	/*
-	 * ->cp_obj.co_parent == NULL: c2_conf_profile is the top-most
+	 * ->cp_obj.co_parent == NULL: m0_conf_profile is the top-most
 	 * object in a DAG of configuration objects.
 	 */
-	struct c2_conf_obj         cp_obj;
-	struct c2_conf_filesystem *cp_filesystem;
+	struct m0_conf_obj         cp_obj;
+	struct m0_conf_filesystem *cp_filesystem;
 };
 
-struct c2_conf_filesystem {
-	struct c2_conf_obj  cf_obj;
-	struct c2_conf_dir *cf_services;
+struct m0_conf_filesystem {
+	struct m0_conf_obj  cf_obj;
+	struct m0_conf_dir *cf_services;
 /* configuration data (for the application) */
-	struct c2_fid       cf_rootfid;
+	struct m0_fid       cf_rootfid;
 	/**
 	 * Filesystem parameters.
 	 * NULL terminated array of C strings.
@@ -299,12 +299,12 @@ struct c2_conf_filesystem {
 	const char        **cf_params;
 };
 
-struct c2_conf_service {
-	struct c2_conf_obj       cs_obj;
+struct m0_conf_service {
+	struct m0_conf_obj       cs_obj;
 	/** The node this service is hosted at. */
-	struct c2_conf_node     *cs_node;
+	struct m0_conf_node     *cs_node;
 /* configuration data (for the application) */
-	enum c2_cfg_service_type cs_type;
+	enum m0_cfg_service_type cs_type;
 	/**
 	 * Service end points.
 	 * NULL terminated array of C strings.
@@ -312,14 +312,14 @@ struct c2_conf_service {
 	const char             **cs_endpoints;
 };
 
-struct c2_conf_node {
+struct m0_conf_node {
 	/*
 	 * Note that ->cn_obj.co_parent == NULL: a node can host
 	 * several services, so there may be no single parent.
 	 */
-	struct c2_conf_obj  cn_obj;
-	struct c2_conf_dir *cn_nics;
-	struct c2_conf_dir *cn_sdevs;
+	struct m0_conf_obj  cn_obj;
+	struct m0_conf_dir *cn_nics;
+	struct m0_conf_dir *cn_sdevs;
 /* configuration data (for the application) */
 	uint32_t            cn_memsize;
 	uint32_t            cn_nr_cpu;
@@ -329,8 +329,8 @@ struct c2_conf_node {
 };
 
 /** Network interface controller. */
-struct c2_conf_nic {
-	struct c2_conf_obj ni_obj;
+struct m0_conf_nic {
+	struct m0_conf_obj ni_obj;
 /* configuration data (for the application) */
 	uint32_t           ni_iface;
 	uint32_t           ni_mtu;
@@ -340,9 +340,9 @@ struct c2_conf_nic {
 };
 
 /** Storage device. */
-struct c2_conf_sdev {
-	struct c2_conf_obj  sd_obj;
-	struct c2_conf_dir *sd_partitions;
+struct m0_conf_sdev {
+	struct m0_conf_obj  sd_obj;
+	struct m0_conf_dir *sd_partitions;
 /* configuration data (for the application) */
 	uint32_t            sd_iface;
 	uint32_t            sd_media;
@@ -353,8 +353,8 @@ struct c2_conf_sdev {
 };
 
 /** Storage device partition. */
-struct c2_conf_partition {
-	struct c2_conf_obj pa_obj;
+struct m0_conf_partition {
+	struct m0_conf_obj pa_obj;
 /* configuration data (for the application) */
 	uint64_t           pa_start;
 	uint64_t           pa_size;
@@ -368,36 +368,36 @@ struct c2_conf_partition {
  * ------------------------------------------------------------------ */
 
 /**
- * Casts c2_conf_obj to the ambient concrete configuration object.
+ * Casts m0_conf_obj to the ambient concrete configuration object.
  *
- * @param ptr   Pointer to c2_conf_obj member.
+ * @param ptr   Pointer to m0_conf_obj member.
  * @param type  Type of concrete configuration object (without `struct').
  *
  * Example:
  * @code
- * struct c2_conf_service *svc = C2_CONF_CAST(svc_obj, c2_conf_service);
+ * struct m0_conf_service *svc = M0_CONF_CAST(svc_obj, m0_conf_service);
  * @endcode
  */
-#define C2_CONF_CAST(ptr, type) \
+#define M0_CONF_CAST(ptr, type) \
 	bob_of(ptr, struct type, type ## _cast_field, &type ## _bob)
 
-#define c2_conf_dir_cast_field        cd_obj
-#define c2_conf_profile_cast_field    cp_obj
-#define c2_conf_filesystem_cast_field cf_obj
-#define c2_conf_service_cast_field    cs_obj
-#define c2_conf_node_cast_field       cn_obj
-#define c2_conf_nic_cast_field        ni_obj
-#define c2_conf_sdev_cast_field       sd_obj
-#define c2_conf_partition_cast_field  pa_obj
+#define m0_conf_dir_cast_field        cd_obj
+#define m0_conf_profile_cast_field    cp_obj
+#define m0_conf_filesystem_cast_field cf_obj
+#define m0_conf_service_cast_field    cs_obj
+#define m0_conf_node_cast_field       cn_obj
+#define m0_conf_nic_cast_field        ni_obj
+#define m0_conf_sdev_cast_field       sd_obj
+#define m0_conf_partition_cast_field  pa_obj
 
-extern const struct c2_bob_type c2_conf_dir_bob;
-extern const struct c2_bob_type c2_conf_profile_bob;
-extern const struct c2_bob_type c2_conf_filesystem_bob;
-extern const struct c2_bob_type c2_conf_service_bob;
-extern const struct c2_bob_type c2_conf_node_bob;
-extern const struct c2_bob_type c2_conf_nic_bob;
-extern const struct c2_bob_type c2_conf_sdev_bob;
-extern const struct c2_bob_type c2_conf_partition_bob;
+extern const struct m0_bob_type m0_conf_dir_bob;
+extern const struct m0_bob_type m0_conf_profile_bob;
+extern const struct m0_bob_type m0_conf_filesystem_bob;
+extern const struct m0_bob_type m0_conf_service_bob;
+extern const struct m0_bob_type m0_conf_node_bob;
+extern const struct m0_bob_type m0_conf_nic_bob;
+extern const struct m0_bob_type m0_conf_sdev_bob;
+extern const struct m0_bob_type m0_conf_partition_bob;
 
 /** @} conf_dfspec_obj */
-#endif /* __COLIBRI_CONF_OBJ_H__ */
+#endif /* __MERO_CONF_OBJ_H__ */

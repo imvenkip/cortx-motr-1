@@ -20,13 +20,13 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_USER_SPACE_TIME_H__
-#define __COLIBRI_LIB_USER_SPACE_TIME_H__
+#ifndef __MERO_LIB_USER_SPACE_TIME_H__
+#define __MERO_LIB_USER_SPACE_TIME_H__
 
 #include <sys/time.h>
 #include <time.h>
 
-/* __COLIBRI_LIB_USER_SPACE_TIME_H__ */
+/* __MERO_LIB_USER_SPACE_TIME_H__ */
 #endif
 
 /*

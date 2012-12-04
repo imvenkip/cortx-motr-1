@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_DESIM_CLIENT_H__
-#define __COLIBRI_DESIM_CLIENT_H__
+#ifndef __MERO_DESIM_CLIENT_H__
+#define __MERO_DESIM_CLIENT_H__
 
 /**
    @addtogroup desim desim
@@ -47,7 +47,7 @@ struct client {
 	struct sim_chan     cl_cache_free;
 	struct sim_chan     cl_cache_busy;
 	struct client_conf *cl_conf;
-	struct c2_tl        cl_write_ext;
+	struct m0_tl        cl_write_ext;
 };
 
 struct client_conf {
@@ -69,10 +69,10 @@ struct client_conf {
 	int                cc_shutdown;
 };
 
-C2_INTERNAL void client_init(struct sim *s, struct client_conf *conf);
-C2_INTERNAL void client_fini(struct client_conf *conf);
+M0_INTERNAL void client_init(struct sim *s, struct client_conf *conf);
+M0_INTERNAL void client_fini(struct client_conf *conf);
 
-#endif /* __COLIBRI_DESIM_CLIENT_H__ */
+#endif /* __MERO_DESIM_CLIENT_H__ */
 
 /** @} end of desim group */
 

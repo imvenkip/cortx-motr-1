@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_DB_NOBL_H__
-#define __COLIBRI_DB_NOBL_H__
+#ifndef __MERO_DB_NOBL_H__
+#define __MERO_DB_NOBL_H__
 
 #include "lib/chan.h"
 
@@ -44,9 +44,9 @@
  */
 
 /* export */
-enum c2_nobl_state;
-enum c2_nobl_opcode;
-struct c2_nobl_ctx;
+enum m0_nobl_state;
+enum m0_nobl_opcode;
+struct m0_nobl_ctx;
 
 /**
    A context in which nobl operation proceeds.
@@ -55,24 +55,24 @@ struct c2_nobl_ctx;
    point. A context object is used to notify the caller about operation
    progress and to track resources associated with the operation.
 
-   A context object is embedded into a c2_db_tx.
+   A context object is embedded into a m0_db_tx.
  */
-struct c2_nobl_ctx {
-	enum c2_nobl_opcode  nc_opcode;
-	enum c2_nobl_state   nc_state;
+struct m0_nobl_ctx {
+	enum m0_nobl_opcode  nc_opcode;
+	enum m0_nobl_state   nc_state;
 	int32_t              nc_rc;
-	struct c2_chan       nc_signal;
-	struct c2_db_pair   *nc_pair;
-	struct c2_db_cursor *nc_cur;
+	struct m0_chan       nc_signal;
+	struct m0_db_pair   *nc_pair;
+	struct m0_db_cursor *nc_cur;
 };
 
-enum c2_nobl_state {
+enum m0_nobl_state {
 	NC_INITIALISED = 1,
 	NC_ONGOING,
 	NC_DONE
 };
 
-enum c2_nobl_opcode {
+enum m0_nobl_opcode {
 	NOBO_TX_INIT,
 	NOBO_TX_ABORT,
 	NOBO_TX_COMMIT,
@@ -94,7 +94,7 @@ enum c2_nobl_opcode {
 
 /** @} end of db group */
 
-/* __COLIBRI_DB_NOBL_H__ */
+/* __MERO_DB_NOBL_H__ */
 #endif
 
 /*

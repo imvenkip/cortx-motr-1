@@ -19,17 +19,17 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_UT_NET_FOP_H__
-#define __COLIBRI_NET_UT_NET_FOP_H__
+#ifndef __MERO_NET_UT_NET_FOP_H__
+#define __MERO_NET_UT_NET_FOP_H__
 
 #include "fop/fop.h"
 
-extern struct c2_fop_type c2_nettest_fopt;
+extern struct m0_fop_type m0_nettest_fopt;
 
 int nettest_fop_init(void);
 void nettest_fop_fini(void);
 
-#endif /* __COLIBRI_NET_UT_NET_FOP_H__ */
+#endif /* __MERO_NET_UT_NET_FOP_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

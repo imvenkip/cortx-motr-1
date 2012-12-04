@@ -19,8 +19,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_UB_H__
-#define __COLIBRI_LIB_UB_H__
+#ifndef __MERO_LIB_UB_H__
+#define __MERO_LIB_UB_H__
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
@@ -31,7 +31,7 @@
    @{
  */
 
-struct c2_ub_bench {
+struct m0_ub_bench {
 	const char *ut_name;
 	uint32_t    ut_iter;
 	void      (*ut_round)(int iter);
@@ -43,20 +43,20 @@ struct c2_ub_bench {
 	double      ut_max;
 };
 
-struct c2_ub_set {
+struct m0_ub_set {
 	const char        *us_name;
 	void             (*us_init)(void);
 	void             (*us_fini)(void);
-	struct c2_ub_set  *us_prev;
-	struct c2_ub_bench us_run[];
+	struct m0_ub_set  *us_prev;
+	struct m0_ub_bench us_run[];
 };
 
-C2_INTERNAL void c2_ub_set_add(struct c2_ub_set *set);
-C2_INTERNAL void c2_ub_run(uint32_t rounds);
+M0_INTERNAL void m0_ub_set_add(struct m0_ub_set *set);
+M0_INTERNAL void m0_ub_run(uint32_t rounds);
 
 /** @} end of ub group. */
 
-/* __COLIBRI_LIB_UB_H__ */
+/* __MERO_LIB_UB_H__ */
 #endif
 
 /*

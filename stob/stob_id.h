@@ -19,8 +19,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_STOB_STOB_ID_H__
-#define __COLIBRI_STOB_STOB_ID_H__
+#ifndef __MERO_STOB_STOB_ID_H__
+#define __MERO_STOB_STOB_ID_H__
 
 #include "lib/arith.h"
 
@@ -29,15 +29,15 @@
 
    A storage object in a cluster is identified by identifier of this type.
  */
-struct c2_stob_id {
-	struct c2_uint128 si_bits;
+struct m0_stob_id {
+	struct m0_uint128 si_bits;
 };
 
-C2_INTERNAL bool c2_stob_id_eq(const struct c2_stob_id *id0,
-			       const struct c2_stob_id *id1);
-C2_INTERNAL int c2_stob_id_cmp(const struct c2_stob_id *id0,
-			       const struct c2_stob_id *id1);
-C2_INTERNAL bool c2_stob_id_is_set(const struct c2_stob_id *id);
+M0_INTERNAL bool m0_stob_id_eq(const struct m0_stob_id *id0,
+			       const struct m0_stob_id *id1);
+M0_INTERNAL int m0_stob_id_cmp(const struct m0_stob_id *id0,
+			       const struct m0_stob_id *id1);
+M0_INTERNAL bool m0_stob_id_is_set(const struct m0_stob_id *id);
 
-/* __COLIBRI_STOB_STOB_ID_H__ */
+/* __MERO_STOB_STOB_ID_H__ */
 #endif

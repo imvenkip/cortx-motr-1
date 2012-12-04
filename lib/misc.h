@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_MISC_H__
-#define __COLIBRI_LIB_MISC_H__
+#ifndef __MERO_LIB_MISC_H__
+#define __MERO_LIB_MISC_H__
 
 #ifndef __KERNEL__
 #include <string.h>               /* memset, ffs, strstr */
@@ -31,33 +31,33 @@
 #endif
 
 #include "lib/types.h"
-#include "lib/assert.h"           /* C2_CASSERT */
-#include "lib/cdefs.h"            /* c2_is_array */
+#include "lib/assert.h"           /* M0_CASSERT */
+#include "lib/cdefs.h"            /* m0_is_array */
 #include "lib/types.h"
 
 /**
  * Returns rounded up value of @val in chunks of @size.
- * @pre c2_is_po2(size)
+ * @pre m0_is_po2(size)
  */
-C2_INTERNAL uint64_t c2_round_up(uint64_t val, uint64_t size);
+M0_INTERNAL uint64_t m0_round_up(uint64_t val, uint64_t size);
 
 /**
  * Returns rounded down value of @val in chunks of @size.
- * @pre c2_is_po2(size)
+ * @pre m0_is_po2(size)
  */
-C2_INTERNAL uint64_t c2_round_down(uint64_t val, uint64_t size);
+M0_INTERNAL uint64_t m0_round_down(uint64_t val, uint64_t size);
 
-#define C2_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
+#define M0_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
 
-#define C2_SET0(obj)				\
+#define M0_SET0(obj)				\
 ({						\
-	C2_CASSERT(!c2_is_array(obj));		\
+	M0_CASSERT(!m0_is_array(obj));		\
 	memset((obj), 0, sizeof *(obj));	\
 })
 
-#define C2_SET_ARR0(arr)			\
+#define M0_SET_ARR0(arr)			\
 ({						\
-	C2_CASSERT(c2_is_array(arr));		\
+	M0_CASSERT(m0_is_array(arr));		\
 	memset((arr), 0, sizeof (arr));		\
 })
 
@@ -74,14 +74,14 @@ C2_INTERNAL uint64_t c2_round_down(uint64_t val, uint64_t size);
  * @code
  * bool foo_invariant(const struct foo *f)
  * {
- *        return c2_forall(i, ARRAY_SIZE(f->f_nr_bar), f->f_bar[i].b_count > 0);
+ *        return m0_forall(i, ARRAY_SIZE(f->f_nr_bar), f->f_bar[i].b_count > 0);
  * }
  * @endcode
  *
- * @see c2_tlist_forall(), c2_tl_forall(), c2_list_forall().
- * @see c2_list_entry_forall().
+ * @see m0_tlist_forall(), m0_tl_forall(), m0_list_forall().
+ * @see m0_list_entry_forall().
  */
-#define c2_forall(var, nr, ...)					\
+#define m0_forall(var, nr, ...)					\
 ({								\
 	unsigned __nr = (nr);					\
 	unsigned var;						\
@@ -94,30 +94,30 @@ C2_INTERNAL uint64_t c2_round_down(uint64_t val, uint64_t size);
 /**
    Evaluates to true iff x is present in set.
 
-   e.g. C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
-                                 C2_RPC_SESSION_BUSY,
-                                 C2_RPC_SESSION_TERMINATING))
+   e.g. M0_IN(session->s_state, (M0_RPC_SESSION_IDLE,
+                                 M0_RPC_SESSION_BUSY,
+                                 M0_RPC_SESSION_TERMINATING))
 
    Parentheses around "set" members are mandatory.
  */
-#define C2_IN(x, set) C2_IN0(x, C2_UNPACK set)
-#define C2_UNPACK(...) __VA_ARGS__
+#define M0_IN(x, set) M0_IN0(x, M0_UNPACK set)
+#define M0_UNPACK(...) __VA_ARGS__
 
-#define C2_IN0(...) \
-	C2_CAT(C2_IN_, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
+#define M0_IN0(...) \
+	M0_CAT(M0_IN_, M0_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
 
-#define C2_IN_1(x, v) ((x) == (v))
-#define C2_IN_2(x, v, ...) ((x) == (v) || C2_IN_1(x, __VA_ARGS__))
-#define C2_IN_3(x, v, ...) ((x) == (v) || C2_IN_2(x, __VA_ARGS__))
-#define C2_IN_4(x, v, ...) ((x) == (v) || C2_IN_3(x, __VA_ARGS__))
-#define C2_IN_5(x, v, ...) ((x) == (v) || C2_IN_4(x, __VA_ARGS__))
-#define C2_IN_6(x, v, ...) ((x) == (v) || C2_IN_5(x, __VA_ARGS__))
-#define C2_IN_7(x, v, ...) ((x) == (v) || C2_IN_6(x, __VA_ARGS__))
-#define C2_IN_8(x, v, ...) ((x) == (v) || C2_IN_7(x, __VA_ARGS__))
-#define C2_IN_9(x, v, ...) ((x) == (v) || C2_IN_8(x, __VA_ARGS__))
+#define M0_IN_1(x, v) ((x) == (v))
+#define M0_IN_2(x, v, ...) ((x) == (v) || M0_IN_1(x, __VA_ARGS__))
+#define M0_IN_3(x, v, ...) ((x) == (v) || M0_IN_2(x, __VA_ARGS__))
+#define M0_IN_4(x, v, ...) ((x) == (v) || M0_IN_3(x, __VA_ARGS__))
+#define M0_IN_5(x, v, ...) ((x) == (v) || M0_IN_4(x, __VA_ARGS__))
+#define M0_IN_6(x, v, ...) ((x) == (v) || M0_IN_5(x, __VA_ARGS__))
+#define M0_IN_7(x, v, ...) ((x) == (v) || M0_IN_6(x, __VA_ARGS__))
+#define M0_IN_8(x, v, ...) ((x) == (v) || M0_IN_7(x, __VA_ARGS__))
+#define M0_IN_9(x, v, ...) ((x) == (v) || M0_IN_8(x, __VA_ARGS__))
 
 /**
-   C2_BITS(...) returns bitmask of passed states.
+   M0_BITS(...) returns bitmask of passed states.
    e.g.
 @code
    enum foo_states {
@@ -129,35 +129,35 @@ C2_INTERNAL uint64_t c2_round_down(uint64_t val, uint64_t size);
    };
 @endcode
 
-   then @code C2_BITS(FOO_ACTIVE, FOO_FAILED) @endcode returns
+   then @code M0_BITS(FOO_ACTIVE, FOO_FAILED) @endcode returns
    (1 << FOO_ACTIVE) | (1 << FOO_FAILED)
 
-   @code C2_BITS() @endcode (C2_BITS macro with no parameters will cause
+   @code M0_BITS() @endcode (M0_BITS macro with no parameters will cause
    compilation failure.
  */
-#define C2_BITS(...) \
-	C2_CAT(__C2_BITS_, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
+#define M0_BITS(...) \
+	M0_CAT(__M0_BITS_, M0_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
 
-#define __C2_BITS_0(i)       (1 << (i))
-#define __C2_BITS_1(i, ...)  ((1 << (i)) | __C2_BITS_0(__VA_ARGS__))
-#define __C2_BITS_2(i, ...)  ((1 << (i)) | __C2_BITS_1(__VA_ARGS__))
-#define __C2_BITS_3(i, ...)  ((1 << (i)) | __C2_BITS_2(__VA_ARGS__))
-#define __C2_BITS_4(i, ...)  ((1 << (i)) | __C2_BITS_3(__VA_ARGS__))
-#define __C2_BITS_5(i, ...)  ((1 << (i)) | __C2_BITS_4(__VA_ARGS__))
-#define __C2_BITS_6(i, ...)  ((1 << (i)) | __C2_BITS_5(__VA_ARGS__))
-#define __C2_BITS_7(i, ...)  ((1 << (i)) | __C2_BITS_6(__VA_ARGS__))
-#define __C2_BITS_8(i, ...)  ((1 << (i)) | __C2_BITS_7(__VA_ARGS__))
+#define __M0_BITS_0(i)       (1 << (i))
+#define __M0_BITS_1(i, ...)  ((1 << (i)) | __M0_BITS_0(__VA_ARGS__))
+#define __M0_BITS_2(i, ...)  ((1 << (i)) | __M0_BITS_1(__VA_ARGS__))
+#define __M0_BITS_3(i, ...)  ((1 << (i)) | __M0_BITS_2(__VA_ARGS__))
+#define __M0_BITS_4(i, ...)  ((1 << (i)) | __M0_BITS_3(__VA_ARGS__))
+#define __M0_BITS_5(i, ...)  ((1 << (i)) | __M0_BITS_4(__VA_ARGS__))
+#define __M0_BITS_6(i, ...)  ((1 << (i)) | __M0_BITS_5(__VA_ARGS__))
+#define __M0_BITS_7(i, ...)  ((1 << (i)) | __M0_BITS_6(__VA_ARGS__))
+#define __M0_BITS_8(i, ...)  ((1 << (i)) | __M0_BITS_7(__VA_ARGS__))
 
-C2_INTERNAL const char *c2_bool_to_str(bool b);
+M0_INTERNAL const char *m0_bool_to_str(bool b);
 
 /**
- * Extracts the file name, relative to a colibri sources directory, from a
- * full-path file name. A colibri source directory is detected by a name
+ * Extracts the file name, relative to a mero sources directory, from a
+ * full-path file name. A mero source directory is detected by a name
  * "core/".
  *
  * For example, given the following full-path file name:
  *
- *     /data/colibri/core/lib/ut/finject.c
+ *     /data/mero/core/lib/ut/finject.c
  *
  * A short file name, relative to the "core/" directory, is:
  *
@@ -166,31 +166,31 @@ C2_INTERNAL const char *c2_bool_to_str(bool b);
  * If there is a "core/build_kernel_modules/" directory in the file's full path,
  * then short file name is stripped relative to this directory:
  *
- *     /data/colibri/core/build_kernel_modules/rpc/packet.c => rpc/packet.c
+ *     /data/mero/core/build_kernel_modules/rpc/packet.c => rpc/packet.c
  *
  * @bug {
  *     This function doesn't search for the right-most occurrence of "core/"
  *     in a file path, if "core/" encounters several times in the path the first
  *     one will be picked up:
  *
- *       /prj/core/fs/colibri/core/lib/misc.h => fs/colibri/core/lib/misc.h
+ *       /prj/core/fs/mero/core/lib/misc.h => fs/mero/core/lib/misc.h
  * }
  *
  * @param   fname  full path
  *
  * @return  short file name - a pointer inside fname string to the remaining
- *          file path, after colibri source directory;
+ *          file path, after mero source directory;
  *          if short file name cannot be found, then full fname is returned.
  */
-C2_INTERNAL const char *c2_short_file_name(const char *fname);
+M0_INTERNAL const char *m0_short_file_name(const char *fname);
 
 /* strtoull for user- and kernel-space */
-C2_INTERNAL uint64_t c2_strtou64(const char *str, char **endptr, int base);
+M0_INTERNAL uint64_t m0_strtou64(const char *str, char **endptr, int base);
 
 /* strtoul for user- and kernel-space */
-C2_INTERNAL uint32_t c2_strtou32(const char *str, char **endptr, int base);
+M0_INTERNAL uint32_t m0_strtou32(const char *str, char **endptr, int base);
 
-/* __COLIBRI_LIB_MISC_H__ */
+/* __MERO_LIB_MISC_H__ */
 #endif
 
 /*

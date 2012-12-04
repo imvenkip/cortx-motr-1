@@ -25,7 +25,7 @@
 
 /** @file md_fops.ff
  *
- * <b>Colibri metatadata fop formats</b>
+ * <b>Mero metatadata fop formats</b>
  *
  */
 
@@ -35,7 +35,7 @@ require "fid/fid";
 sequence {
         u32 s_len;
         u8  s_buf
-} c2_fop_str;
+} m0_fop_str;
 
 record {
         u32 b_rc;
@@ -56,121 +56,121 @@ record {
         u32 b_atime;
         u32 b_mtime;
         u32 b_ctime;
-        c2_fid b_pfid;
-        c2_fid b_tfid
-} c2_fop_cob;
+        m0_fid b_pfid;
+        m0_fid b_tfid
+} m0_fop_cob;
 
 record {
-        c2_fop_cob c_body;
-        c2_fop_str c_target;
-        c2_fop_str c_path;
-        c2_fop_str c_name
-} c2_fop_create;
+        m0_fop_cob c_body;
+        m0_fop_str c_target;
+        m0_fop_str c_path;
+        m0_fop_str c_name
+} m0_fop_create;
 
 record {
-        c2_fop_cob c_body
-} c2_fop_create_rep;
+        m0_fop_cob c_body
+} m0_fop_create_rep;
 
 record {
-        c2_fop_cob l_body;
-        c2_fop_str l_path;
-        c2_fop_str l_name
-} c2_fop_lookup;
+        m0_fop_cob l_body;
+        m0_fop_str l_path;
+        m0_fop_str l_name
+} m0_fop_lookup;
 
 record {
-        c2_fop_cob l_body
-} c2_fop_lookup_rep;
+        m0_fop_cob l_body
+} m0_fop_lookup_rep;
 
 record {
-        c2_fop_cob l_body;
-        c2_fop_str l_spath;
-        c2_fop_str l_tpath;
-        c2_fop_str l_name
-} c2_fop_link;
+        m0_fop_cob l_body;
+        m0_fop_str l_spath;
+        m0_fop_str l_tpath;
+        m0_fop_str l_name
+} m0_fop_link;
 
 record {
-        c2_fop_cob l_body
-} c2_fop_link_rep;
+        m0_fop_cob l_body
+} m0_fop_link_rep;
 
 record {
-        c2_fop_cob u_body;
-        c2_fop_str u_path;
-        c2_fop_str u_name
-} c2_fop_unlink;
+        m0_fop_cob u_body;
+        m0_fop_str u_path;
+        m0_fop_str u_name
+} m0_fop_unlink;
 
 record {
-        c2_fop_cob u_body
-} c2_fop_unlink_rep;
+        m0_fop_cob u_body
+} m0_fop_unlink_rep;
 
 record {
-        c2_fop_cob r_sbody;
-        c2_fop_cob r_tbody;
-        c2_fop_str r_spath;
-        c2_fop_str r_tpath;
-        c2_fop_str r_sname;
-        c2_fop_str r_tname
-} c2_fop_rename;
+        m0_fop_cob r_sbody;
+        m0_fop_cob r_tbody;
+        m0_fop_str r_spath;
+        m0_fop_str r_tpath;
+        m0_fop_str r_sname;
+        m0_fop_str r_tname
+} m0_fop_rename;
 
 record {
-        c2_fop_cob r_body
-} c2_fop_rename_rep;
+        m0_fop_cob r_body
+} m0_fop_rename_rep;
 
 record {
-        c2_fop_str o_path;
-        c2_fop_cob o_body
-} c2_fop_open;
+        m0_fop_str o_path;
+        m0_fop_cob o_body
+} m0_fop_open;
 
 record {
-        c2_fop_cob o_body
-} c2_fop_open_rep;
+        m0_fop_cob o_body
+} m0_fop_open_rep;
 
 record {
-        c2_fop_cob c_body;
-        c2_fop_str c_path
-} c2_fop_close;
+        m0_fop_cob c_body;
+        m0_fop_str c_path
+} m0_fop_close;
 
 record {
-        c2_fop_cob c_body
-} c2_fop_close_rep;
+        m0_fop_cob c_body
+} m0_fop_close_rep;
 
 record {
-        c2_fop_cob s_body;
-        c2_fop_str s_path
-} c2_fop_setattr;
+        m0_fop_cob s_body;
+        m0_fop_str s_path
+} m0_fop_setattr;
 
 record {
-        c2_fop_cob s_body
-} c2_fop_setattr_rep;
+        m0_fop_cob s_body
+} m0_fop_setattr_rep;
 
 record {
-        c2_fop_cob g_body;
-        c2_fop_str g_path
-} c2_fop_getattr;
+        m0_fop_cob g_body;
+        m0_fop_str g_path
+} m0_fop_getattr;
 
 record {
-        c2_fop_cob g_body
-} c2_fop_getattr_rep;
+        m0_fop_cob g_body
+} m0_fop_getattr_rep;
 
 record {
-        c2_fop_cob r_body;
-        c2_fop_str r_path;
-        c2_fop_str r_pos
-} c2_fop_readdir;
+        m0_fop_cob r_body;
+        m0_fop_str r_path;
+        m0_fop_str r_pos
+} m0_fop_readdir;
 
 sequence {
         u32 b_count;
         u8  b_addr
-} c2_fop_buf;
+} m0_fop_buf;
 
 record {
-        c2_fop_str r_end;
-        c2_fop_cob r_body;
-        c2_fop_buf r_buf
-} c2_fop_readdir_rep;
+        m0_fop_str r_end;
+        m0_fop_cob r_body;
+        m0_fop_buf r_buf
+} m0_fop_readdir_rep;
 
 record {
         u64        f_flags
-} c2_fop_statfs;
+} m0_fop_statfs;
 
 record {
         u32        f_rc;
@@ -182,8 +182,8 @@ record {
         u64        f_files;
         u64        f_ffree;
         u32        f_namelen;
-        c2_fid     f_root
-} c2_fop_statfs_rep;
+        m0_fid     f_root
+} m0_fop_statfs_rep;
 
 /** @} end of fop group */
 

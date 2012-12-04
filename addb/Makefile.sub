@@ -1,6 +1,6 @@
-nobase_colibri_include_HEADERS += addb/addb.h
+nobase_mero_include_HEADERS += addb/addb.h
 
-colibri_libcolibri_la_SOURCES  += addb/addb.c \
+mero_libmero_la_SOURCES  += addb/addb.c \
                                   addb/addb_console.c \
                                   addb/addb_fop.c \
                                   addb/addb_store.c

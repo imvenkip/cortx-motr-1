@@ -88,7 +88,7 @@ sequence {
  * Produced C declaration is:
  *
  *                            struct fixarray {
- *                                    c2_void_t fa_none;
+ *                                    m0_void_t fa_none;
  *                                    struct optfid *fa_data;
  *                            };
  */
@@ -99,10 +99,10 @@ record {
 
         /*
 	 * "p_cred" is opaque field. It is represented as a pointer to struct
-         * c2_cred. The actual type of pointed object is returned by
-         * c2_package_cred_get() function.
+         * m0_cred. The actual type of pointed object is returned by
+         * m0_package_cred_get() function.
 	 */
-       *c2_cred  p_cred [c2_package_cred_get];
+       *m0_cred  p_cred [m0_package_cred_get];
 
         /*
 	 * field's type can be defined in-place. ff2c generates a name of the
@@ -125,7 +125,7 @@ record {
  *
  *                            struct package {
  *                                    struct fid p_fid;
- *                                    struct c2_cred *p_cred;
+ *                                    struct m0_cred *p_cred;
  *                                    struct package_p_name {
  *                                            uint32_t s_nr;
  *                                            struct p_name_s_el {
@@ -141,7 +141,7 @@ record {
  *
  * And (in sample.c):
  *
- * int c2_package_cred_get(const struct c2_xcode_obj *par,
- *                         const struct c2_xcode_type **out);
+ * int m0_package_cred_get(const struct m0_xcode_obj *par,
+ *                         const struct m0_xcode_type **out);
  *
  */

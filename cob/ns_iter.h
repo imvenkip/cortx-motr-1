@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_COB_NS_ITER_H__
-#define __COLIBRI_COB_NS_ITER_H__
+#ifndef __MERO_COB_NS_ITER_H__
+#define __MERO_COB_NS_ITER_H__
 
 #include "cob/cob.h"
 
@@ -34,12 +34,12 @@
  *             being created.
  * cob_index : unique index of the cob in the pool.
  *
- * @see c2_cob_nskey
+ * @see m0_cob_nskey
  *
  * The cob-fid iterator uniquely iterates over gob_fids, thus skipping entries
  * with same gob_fids but different cob_index.
  *
- * This iterator is used in SNS repair iterator. @see c2_sns_repair_iter
+ * This iterator is used in SNS repair iterator. @see m0_sns_repair_iter
  *
  * @{
  */
@@ -48,15 +48,15 @@ enum {
 	UINT32_MAX_STR_LEN      = 12
 };
 
-struct c2_cob_fid_ns_iter {
+struct m0_cob_fid_ns_iter {
 	/** DB environment. */
-	struct c2_dbenv      *cni_dbenv;
+	struct m0_dbenv      *cni_dbenv;
 
 	/** Cob domain. */
-	struct c2_cob_domain *cni_cdom;
+	struct m0_cob_domain *cni_cdom;
 
 	/** Last fid value returned. */
-	struct c2_fid         cni_last_fid;
+	struct m0_fid         cni_last_fid;
 };
 
 /**
@@ -66,10 +66,10 @@ struct c2_cob_fid_ns_iter {
  * @param dbenv - DB environment from which the records should be extracted.
  * @param cdom - Cob domain.
  */
-C2_INTERNAL int c2_cob_ns_iter_init(struct c2_cob_fid_ns_iter *iter,
-				    struct c2_fid *gfid,
-				    struct c2_dbenv *dbenv,
-				    struct c2_cob_domain *cdom);
+M0_INTERNAL int m0_cob_ns_iter_init(struct m0_cob_fid_ns_iter *iter,
+				    struct m0_fid *gfid,
+				    struct m0_dbenv *dbenv,
+				    struct m0_cob_domain *cdom);
 
 /**
  * Iterates over namespace to point to unique gob fid in the namespace.
@@ -77,19 +77,19 @@ C2_INTERNAL int c2_cob_ns_iter_init(struct c2_cob_fid_ns_iter *iter,
  * @param tx - Database transaction used for DB operations by iterator.
  * @param gfid - Next unique gob-fid in the iterator. This is output variable.
  */
-C2_INTERNAL int c2_cob_ns_iter_next(struct c2_cob_fid_ns_iter *iter,
-				    struct c2_db_tx *tx,
-				    struct c2_fid *gfid);
+M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
+				    struct m0_db_tx *tx,
+				    struct m0_fid *gfid);
 
 /**
  * Finalises the namespace iterator.
  * @param iter - Namespace iterator that is to be finalised.
  */
-C2_INTERNAL void c2_cob_ns_iter_fini(struct c2_cob_fid_ns_iter *iter);
+M0_INTERNAL void m0_cob_ns_iter_fini(struct m0_cob_fid_ns_iter *iter);
 
 /** @} end group cob_fid_ns_iter */
 
-#endif    /* __COLIBRI_COB_NS_ITER_H__ */
+#endif    /* __MERO_COB_NS_ITER_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

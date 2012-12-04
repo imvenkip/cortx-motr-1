@@ -19,92 +19,92 @@
  * Original creation date: 12/10/2010
  */
 
-#include "lib/cdefs.h"	/* C2_EXPORTED */
-#include "lib/assert.h" /* C2_PRE */
+#include "lib/cdefs.h"	/* M0_EXPORTED */
+#include "lib/assert.h" /* M0_PRE */
 #include "lib/time.h"
 
 /**
    @addtogroup time
 
-   Implementation of time functions on top of all c2_time_t defs
+   Implementation of time functions on top of all m0_time_t defs
 
    @{
 */
 
-c2_time_t c2_time(uint64_t secs, long ns)
+m0_time_t m0_time(uint64_t secs, long ns)
 {
-	c2_time_t t;
-	c2_time_set(&t, secs, ns);
+	m0_time_t t;
+	m0_time_set(&t, secs, ns);
 	return t;
 }
 
-c2_time_t c2_time_set(c2_time_t * time, uint64_t secs, long ns)
+m0_time_t m0_time_set(m0_time_t * time, uint64_t secs, long ns)
 {
-	*time = secs * C2_TIME_ONE_BILLION + ns;
+	*time = secs * M0_TIME_ONE_BILLION + ns;
 	return *time;
 }
-C2_EXPORTED(c2_time_set);
+M0_EXPORTED(m0_time_set);
 
-C2_INTERNAL c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2)
+M0_INTERNAL m0_time_t m0_time_add(const m0_time_t t1, const m0_time_t t2)
 {
-	c2_time_t res;
+	m0_time_t res;
 
-	C2_PRE(C2_TIME_NEVER >= t1);
-	C2_PRE(C2_TIME_NEVER >= t2);
+	M0_PRE(M0_TIME_NEVER >= t1);
+	M0_PRE(M0_TIME_NEVER >= t2);
 
-	if (t1 == C2_TIME_NEVER || t2 == C2_TIME_NEVER)
-		res = C2_TIME_NEVER;
+	if (t1 == M0_TIME_NEVER || t2 == M0_TIME_NEVER)
+		res = M0_TIME_NEVER;
 	else
 		res = t1 + t2;
 
-	C2_POST(res >= t1);
-	C2_POST(res >= t2);
+	M0_POST(res >= t1);
+	M0_POST(res >= t2);
 	return res;
 }
-C2_EXPORTED(c2_time_add);
+M0_EXPORTED(m0_time_add);
 
-C2_INTERNAL c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2)
+M0_INTERNAL m0_time_t m0_time_sub(const m0_time_t t1, const m0_time_t t2)
 {
-	c2_time_t res;
-	C2_PRE(C2_TIME_NEVER >= t1);
-	C2_PRE(t2 < C2_TIME_NEVER);
-	C2_PRE(t1 >= t2);
+	m0_time_t res;
+	M0_PRE(M0_TIME_NEVER >= t1);
+	M0_PRE(t2 < M0_TIME_NEVER);
+	M0_PRE(t1 >= t2);
 
-	if (t1 == C2_TIME_NEVER)
-		res = C2_TIME_NEVER;
+	if (t1 == M0_TIME_NEVER)
+		res = M0_TIME_NEVER;
 	else
 		res = t1 - t2;
 
-	C2_POST(t1 >= res);
+	M0_POST(t1 >= res);
 	return res;
 }
 
-C2_INTERNAL uint64_t c2_time_seconds(const c2_time_t time)
+M0_INTERNAL uint64_t m0_time_seconds(const m0_time_t time)
 {
-	return time / C2_TIME_ONE_BILLION;
+	return time / M0_TIME_ONE_BILLION;
 }
-C2_EXPORTED(c2_time_seconds);
+M0_EXPORTED(m0_time_seconds);
 
-C2_INTERNAL uint64_t c2_time_nanoseconds(const c2_time_t time)
+M0_INTERNAL uint64_t m0_time_nanoseconds(const m0_time_t time)
 {
 
-        return time % C2_TIME_ONE_BILLION;
+        return time % M0_TIME_ONE_BILLION;
 }
-C2_EXPORTED(c2_time_nanoseconds);
+M0_EXPORTED(m0_time_nanoseconds);
 
-c2_time_t c2_time_from_now(uint64_t secs, long ns)
+m0_time_t m0_time_from_now(uint64_t secs, long ns)
 {
-	return c2_time_now() + secs * C2_TIME_ONE_BILLION + ns;
+	return m0_time_now() + secs * M0_TIME_ONE_BILLION + ns;
 }
-C2_EXPORTED(c2_time_from_now);
+M0_EXPORTED(m0_time_from_now);
 
-C2_INTERNAL bool c2_time_is_in_past(c2_time_t t)
+M0_INTERNAL bool m0_time_is_in_past(m0_time_t t)
 {
-	return t < c2_time_now();
+	return t < m0_time_now();
 }
 
-const c2_time_t C2_TIME_NEVER = ~0ULL;
-C2_EXPORTED(C2_TIME_NEVER);
+const m0_time_t M0_TIME_NEVER = ~0ULL;
+M0_EXPORTED(M0_TIME_NEVER);
 
 /** @} end of time group */
 

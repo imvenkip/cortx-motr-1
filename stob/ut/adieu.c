@@ -23,8 +23,8 @@
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
 
-#include "lib/misc.h"   /* C2_SET0 */
-#include "lib/memory.h" /* c2_alloc_align */
+#include "lib/misc.h"   /* M0_SET0 */
+#include "lib/memory.h" /* m0_alloc_align */
 #include "lib/errno.h"
 #include "lib/ub.h"
 #include "lib/ut.h"
@@ -46,24 +46,24 @@ enum {
 	MIN_BUF_SIZE_IN_BLOCKS = 4,
 };
 
-static struct c2_stob_domain *dom;
-static const struct c2_stob_id id = {
+static struct m0_stob_domain *dom;
+static const struct m0_stob_id id = {
 	.si_bits = {
 		.u_hi = 1,
 		.u_lo = 2
 	}
 };
-static struct c2_stob *obj;
-static struct c2_stob *obj1;
+static struct m0_stob *obj;
+static struct m0_stob *obj1;
 static const char path[] = "./__s/o/0000000000000001.0000000000000002";
-static struct c2_stob_io io;
-static c2_bcount_t user_vec[NR];
+static struct m0_stob_io io;
+static m0_bcount_t user_vec[NR];
 static char *user_buf[NR];
 static char *read_buf[NR];
 static char *user_bufs[NR];
 static char *read_bufs[NR];
-static c2_bindex_t stob_vec[NR];
-static struct c2_clink clink;
+static m0_bindex_t stob_vec[NR];
+static struct m0_clink clink;
 static FILE *f;
 static uint32_t block_shift;
 static uint32_t buf_size;
@@ -74,49 +74,49 @@ static int test_adieu_init(void)
 	int result;
 
 	result = system("rm -fr ./__s");
-	C2_ASSERT(result == 0);
+	M0_ASSERT(result == 0);
 
 	result = mkdir("./__s", 0700);
-	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
+	M0_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
 	result = mkdir("./__s/o", 0700);
-	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
+	M0_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
-	result = c2_stob_domain_locate(&c2_linux_stob_type, "./__s", &dom);
-	C2_ASSERT(result == 0);
+	result = m0_stob_domain_locate(&m0_linux_stob_type, "./__s", &dom);
+	M0_ASSERT(result == 0);
 
-	result = c2_stob_find(dom, &id, &obj);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
+	result = m0_stob_find(dom, &id, &obj);
+	M0_ASSERT(result == 0);
+	M0_ASSERT(obj->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_locate(obj, NULL);
-	C2_ASSERT(result == -ENOENT);
-	C2_ASSERT(obj->so_state == CSS_NOENT);
+	result = m0_stob_locate(obj, NULL);
+	M0_ASSERT(result == -ENOENT);
+	M0_ASSERT(obj->so_state == CSS_NOENT);
 
-	result = c2_stob_find(dom, &id, &obj1);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj == obj1);
+	result = m0_stob_find(dom, &id, &obj1);
+	M0_ASSERT(result == 0);
+	M0_ASSERT(obj == obj1);
 
-	c2_stob_put(obj);
-	c2_stob_put(obj1);
+	m0_stob_put(obj);
+	m0_stob_put(obj1);
 
-	result = c2_stob_find(dom, &id, &obj);
-	C2_ASSERT(result == 0);
+	result = m0_stob_find(dom, &id, &obj);
+	M0_ASSERT(result == 0);
 	/* This checks that obj is still in the cache. */
-	C2_ASSERT(obj->so_state == CSS_NOENT);
+	M0_ASSERT(obj->so_state == CSS_NOENT);
 
-	result = c2_stob_create(obj, NULL);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_EXISTS);
-	c2_stob_put(obj);
+	result = m0_stob_create(obj, NULL);
+	M0_ASSERT(result == 0);
+	M0_ASSERT(obj->so_state == CSS_EXISTS);
+	m0_stob_put(obj);
 
-	result = c2_stob_find(dom, &id, &obj);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_EXISTS); /* still in the cache. */
+	result = m0_stob_find(dom, &id, &obj);
+	M0_ASSERT(result == 0);
+	M0_ASSERT(obj->so_state == CSS_EXISTS); /* still in the cache. */
 
-	result = c2_stob_locate(obj, NULL);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_EXISTS);
+	result = m0_stob_locate(obj, NULL);
+	M0_ASSERT(result == 0);
+	M0_ASSERT(obj->so_state == CSS_EXISTS);
 
 	block_shift = obj->so_op->sop_block_shift(obj);
 	/* buf_size is chosen so it would be at least MIN_BUF_SIZE in bytes
@@ -125,18 +125,18 @@ static int test_adieu_init(void)
 			, (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
 
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i) {
-		user_buf[i] = c2_alloc_aligned(buf_size, block_shift);
-		C2_ASSERT(user_buf[i] != NULL);
+		user_buf[i] = m0_alloc_aligned(buf_size, block_shift);
+		M0_ASSERT(user_buf[i] != NULL);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i) {
-		read_buf[i] = c2_alloc_aligned(buf_size, block_shift);
-		C2_ASSERT(read_buf[i] != NULL);
+		read_buf[i] = m0_alloc_aligned(buf_size, block_shift);
+		M0_ASSERT(read_buf[i] != NULL);
 	}
 
 	for (i = 0; i < NR; ++i) {
-		user_bufs[i] = c2_stob_addr_pack(user_buf[i], block_shift);
-		read_bufs[i] = c2_stob_addr_pack(read_buf[i], block_shift);
+		user_bufs[i] = m0_stob_addr_pack(user_buf[i], block_shift);
+		read_bufs[i] = m0_stob_addr_pack(read_buf[i], block_shift);
 		user_vec[i] = buf_size >> block_shift;
 		stob_vec[i] = (buf_size * (2 * i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
@@ -148,21 +148,21 @@ static int test_adieu_fini(void)
 {
 	int i;
 
-	c2_stob_put(obj);
+	m0_stob_put(obj);
 	dom->sd_ops->sdo_fini(dom);
 
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i)
-		c2_free(user_buf[i]);
+		m0_free(user_buf[i]);
 
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i)
-		c2_free(read_buf[i]);
+		m0_free(read_buf[i]);
 	return 0;
 }
 
 static void test_write(int i)
 {
 	int result;
-	c2_stob_io_init(&io);
+	m0_stob_io_init(&io);
 
 	io.si_opcode = SIO_WRITE;
 	io.si_flags  = 0;
@@ -174,27 +174,27 @@ static void test_write(int i)
 	io.si_stob.iv_vec.v_count = user_vec;
 	io.si_stob.iv_index = stob_vec;
 
-	c2_clink_init(&clink, NULL);
-	c2_clink_add(&io.si_wait, &clink);
+	m0_clink_init(&clink, NULL);
+	m0_clink_add(&io.si_wait, &clink);
 
-	result = c2_stob_io_launch(&io, obj, NULL, NULL);
-	C2_ASSERT(result == 0);
+	result = m0_stob_io_launch(&io, obj, NULL, NULL);
+	M0_ASSERT(result == 0);
 
-	c2_chan_wait(&clink);
+	m0_chan_wait(&clink);
 
-	C2_ASSERT(io.si_rc == 0);
-	C2_ASSERT(io.si_count == (buf_size * i) >> block_shift);
+	M0_ASSERT(io.si_rc == 0);
+	M0_ASSERT(io.si_count == (buf_size * i) >> block_shift);
 
-	c2_clink_del(&clink);
-	c2_clink_fini(&clink);
+	m0_clink_del(&clink);
+	m0_clink_fini(&clink);
 
-	c2_stob_io_fini(&io);
+	m0_stob_io_fini(&io);
 }
 
 static void test_read(int i)
 {
 	int result;
-	c2_stob_io_init(&io);
+	m0_stob_io_init(&io);
 
 	io.si_opcode = SIO_READ;
 	io.si_flags  = 0;
@@ -206,21 +206,21 @@ static void test_read(int i)
 	io.si_stob.iv_vec.v_count = user_vec;
 	io.si_stob.iv_index = stob_vec;
 
-	c2_clink_init(&clink, NULL);
-	c2_clink_add(&io.si_wait, &clink);
+	m0_clink_init(&clink, NULL);
+	m0_clink_add(&io.si_wait, &clink);
 
-	result = c2_stob_io_launch(&io, obj, NULL, NULL);
-	C2_ASSERT(result == 0);
+	result = m0_stob_io_launch(&io, obj, NULL, NULL);
+	M0_ASSERT(result == 0);
 
-	c2_chan_wait(&clink);
+	m0_chan_wait(&clink);
 
-	C2_ASSERT(io.si_rc == 0);
-	C2_ASSERT(io.si_count == (buf_size * i) >> block_shift);
+	M0_ASSERT(io.si_rc == 0);
+	M0_ASSERT(io.si_count == (buf_size * i) >> block_shift);
 
-	c2_clink_del(&clink);
-	c2_clink_fini(&clink);
+	m0_clink_del(&clink);
+	m0_clink_fini(&clink);
 
-	c2_stob_io_fini(&io);
+	m0_stob_io_fini(&io);
 }
 
 /**
@@ -241,27 +241,27 @@ static void test_adieu(void)
 
 			for (k = 0; k < buf_size; ++k) {
 				ch = fgetc(f);
-				C2_ASSERT(ch == '\0');
-				C2_ASSERT(!feof(f));
+				M0_ASSERT(ch == '\0');
+				M0_ASSERT(!feof(f));
 			}
 			for (k = 0; k < buf_size; ++k) {
 				ch = fgetc(f);
-				C2_ASSERT(ch != '\0');
-				C2_ASSERT(!feof(f));
+				M0_ASSERT(ch != '\0');
+				M0_ASSERT(!feof(f));
 			}
 		}
 		ch = fgetc(f);
-		C2_ASSERT(ch == EOF);
+		M0_ASSERT(ch == EOF);
 		fclose(f);
 	}
 
 	for (i = 1; i < NR; ++i) {
 		test_read(i);
-		C2_ASSERT(memcmp(user_buf[i - 1], read_buf[i - 1], buf_size) == 0);
+		M0_ASSERT(memcmp(user_buf[i - 1], read_buf[i - 1], buf_size) == 0);
 	}
 }
 
-const struct c2_test_suite adieu_ut = {
+const struct m0_test_suite adieu_ut = {
 	.ts_name = "adieu-ut",
 	.ts_init = test_adieu_init,
 	.ts_fini = test_adieu_fini,
@@ -288,9 +288,9 @@ static void ub_read(int i)
 
 
 
-static c2_bcount_t  user_vec1[NR_SORT];
+static m0_bcount_t  user_vec1[NR_SORT];
 static char        *user_bufs1[NR_SORT];
-static c2_bindex_t  stob_vec1[NR_SORT];
+static m0_bindex_t  stob_vec1[NR_SORT];
 
 static void ub_iovec_init()
 {
@@ -299,7 +299,7 @@ static void ub_iovec_init()
 	for (i = 0; i < NR_SORT ; i++)
 		stob_vec1[i] = MIN_BUF_SIZE * i;
 
-	c2_stob_io_init(&io);
+	m0_stob_io_init(&io);
 
 	io.si_opcode              = SIO_WRITE;
 	io.si_flags               = 0;
@@ -323,7 +323,7 @@ static void ub_iovec_invert()
 		swapped = false;
 		for (i = 0; i < NR_SORT - 1; i++) {
 			if (stob_vec1[i] < stob_vec1[i + 1]) {
-				c2_bindex_t tmp  = stob_vec1[i];
+				m0_bindex_t tmp  = stob_vec1[i];
 				stob_vec1[i]     = stob_vec1[i + 1];
 				stob_vec1[i + 1] = tmp;
 				swapped          = true;
@@ -334,16 +334,16 @@ static void ub_iovec_invert()
 
 static void ub_iovec_sort()
 {
-	c2_stob_iovec_sort(&io);
+	m0_stob_iovec_sort(&io);
 }
 
 static void ub_iovec_sort_invert()
 {
 	ub_iovec_invert();
-	c2_stob_iovec_sort(&io);
+	m0_stob_iovec_sort(&io);
 }
 
-struct c2_ub_set c2_adieu_ub = {
+struct m0_ub_set m0_adieu_ub = {
 	.us_name = "adieu-ub",
 	.us_init = (void *)test_adieu_init,
 	.us_fini = (void *)test_adieu_fini,

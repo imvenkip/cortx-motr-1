@@ -1,2 +1,2 @@
-nobase_colibri_include_HEADERS += yaml2db/yaml2db.h
-colibri_libcolibri_la_SOURCES  += yaml2db/yaml2db.c
+nobase_mero_include_HEADERS += yaml2db/yaml2db.h
+mero_libmero_la_SOURCES  += yaml2db/yaml2db.c

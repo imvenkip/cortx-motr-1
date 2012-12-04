@@ -1,4 +1,4 @@
-                        Colibri project Git policy
+                        Mero project Git policy
 
 Some parts of this document are based on the content of a similar guides,
 found in the Linux kernel's documentations:
@@ -100,10 +100,10 @@ The tag has format
 
 where P, L and S are decimal numbers with the following meaning:
 
-    P - a current phase of colibri development (at the moment of writing
+    P - a current phase of mero development (at the moment of writing
         this document it's still 1 ;)
 
-    L - a sub-phase, usually it's a serial number of a "colibri launch" or
+    L - a sub-phase, usually it's a serial number of a "mero launch" or
         "re-launch" in the current phase
 
     S - a sprint number, counting from the beginning of the phase
@@ -255,8 +255,8 @@ commit message will be composed of the following:
    70-75 characters. It's usually formatted with the relevant subsystem name
    first, followed by the purpose of the commit. For example:
 
-     rpc: embed transfer machine into c2_rpcmachine structure
-     rpc/session: add c2_rpc_session_establish_sync() function
+     rpc: embed transfer machine into m0_rpcmachine structure
+     rpc/session: add m0_rpc_session_establish_sync() function
      stob/ut: add direct-io test
 
    But don't put 'LogD#XXX' into the summary. It just eats up precious
@@ -297,7 +297,7 @@ searching for a solution to the same problem. If the change is meant to
 support other changes coming in later patch, say so. If internal APIs are
 changed, detail those changes and how other developers should respond. In
 general, the more you can put yourself into the shoes of everybody who will
-be reading your changelog, the better that changelog (and the Colibri
+be reading your changelog, the better that changelog (and the Mero
 project as a whole) will be.
 
 
@@ -315,7 +315,7 @@ tags. These are defined by agreement. The idea is that information in tag
 line can be extracted and processed by scripts and also it provides a
 standard way to specify additional information about commit.
 
-In Colibri project we define the following tags:
+In Mero project we define the following tags:
 
     Reviewed-on: URL
 
@@ -374,7 +374,7 @@ In Colibri project we define the following tags:
       </size>
 
         Provides an information about how the image size of main binary files,
-        like libcolibri.so or kcolibri.ko, is affected by the current patch.
+        like libmero.so or kmero.ko, is affected by the current patch.
         The idea, is to be able to track down how much each particular feature
         contributes to the whole image size and to find the "culprit" if image
         size goes out of control.
@@ -389,9 +389,9 @@ In Colibri project we define the following tags:
 
           <size>
               text     data      bss    total filename
-              -312        0        0     -312 libcolibri-altogether.so
-              -288        0        0     -288 kcolibri.ko
-              -288        0        0     -288 libcolibri.so
+              -312        0        0     -312 libmero-altogether.so
+              -288        0        0     -288 kmero.ko
+              -288        0        0     -288 libmero.so
           </size>
 
 

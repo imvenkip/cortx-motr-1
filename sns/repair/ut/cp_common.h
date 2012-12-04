@@ -20,29 +20,29 @@
 
 #pragma once
 
-#ifndef __COLIBRI_SNS_REPAIR_UT_CP_COMMON_H__
-#define __COLIBRI_SNS_REPAIR_UT_CP_COMMON_H__
+#ifndef __MERO_SNS_REPAIR_UT_CP_COMMON_H__
+#define __MERO_SNS_REPAIR_UT_CP_COMMON_H__
 
 #include "lib/ut.h"
 #include "sns/repair/cp.h"
 #include "sns/repair/ag.h"
 
 /* Populates the bufvec with a character value. */
-void bv_populate(struct c2_bufvec *b, char data, uint32_t seg_nr,
+void bv_populate(struct m0_bufvec *b, char data, uint32_t seg_nr,
 		 uint32_t seg_size);
 
 /* Compares 2 bufvecs and asserts if not equal. */
-void bv_compare(struct c2_bufvec *b1, struct c2_bufvec *b2, uint32_t seg_nr,
+void bv_compare(struct m0_bufvec *b1, struct m0_bufvec *b2, uint32_t seg_nr,
 		uint32_t seg_size);
 
-inline void bv_free(struct c2_bufvec *b);
+inline void bv_free(struct m0_bufvec *b);
 
-void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
+void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
 		uint32_t bv_seg_nr, uint32_t bv_seg_size,
-                struct c2_sns_repair_ag *sns_ag,
-                char data, struct c2_fom_ops *cp_fom_ops);
+                struct m0_sns_repair_ag *sns_ag,
+                char data, struct m0_fom_ops *cp_fom_ops);
 
-#endif /* __COLIBRI_SNS_REPAIR_UT_CP_COMMON_H__ */
+#endif /* __MERO_SNS_REPAIR_UT_CP_COMMON_H__ */
 
 /*
  *  Local variables:

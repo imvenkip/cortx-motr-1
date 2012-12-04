@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_THREAD_H__
-#define __COLIBRI_LIB_THREAD_H__
+#ifndef __MERO_LIB_THREAD_H__
+#define __MERO_LIB_THREAD_H__
 
 #include "cdefs.h"
 #include "semaphore.h"
@@ -33,7 +33,7 @@
 #include "linux_kernel/thread.h"
 #endif
 
-/* platform-specific headers above must define struct c2_thread_handle */
+/* platform-specific headers above must define struct m0_thread_handle */
 
 /**
    @defgroup thread Thread
@@ -48,7 +48,7 @@
    The only operation on a started thread is waiting for its completion
    ("joining" the thread).
 
-   @see c2_thread
+   @see m0_thread
 
    @{
  */
@@ -56,9 +56,9 @@
 /**
    Thread states used to validate thread interface usage.
 
-   @see c2_thread
+   @see m0_thread
  */
-enum c2_thread_state {
+enum m0_thread_state {
 	TS_PARKED = 0,
 	TS_RUNNING
 };
@@ -71,60 +71,60 @@ enum c2_thread_state {
    A thread control block can be in one of the following states:
 
    @li PARKED: thread is not yet started or has been joined already. In this
-   state c2_thread::t_func is NULL;
+   state m0_thread::t_func is NULL;
 
-   @li RUNNING: the thread started execution of c2_thread::t_func function, but
+   @li RUNNING: the thread started execution of m0_thread::t_func function, but
    hasn't yet been joined. Note that the thread can be in this state after
-   return from c2_thread::t_func.
+   return from m0_thread::t_func.
 
    <b>Concurrency control</b>
 
    A user is responsible for serialising access to a control block. For example,
-   there should be no concurrent calls to c2_thread_init() or c2_thread_join()
-   for the same c2_thread.
+   there should be no concurrent calls to m0_thread_init() or m0_thread_join()
+   for the same m0_thread.
 
    <b>Liveness</b>
 
    Implementation only accesses control block as part of explicit calls to
-   c2_thread interface functions. A user is free to destroy the control block at
+   m0_thread interface functions. A user is free to destroy the control block at
    any moment, except for the possible resource leak in the case of running (and
    not yet joined) thread.
  */
-struct c2_thread {
-	enum c2_thread_state    t_state;
-	struct c2_thread_handle t_h;
+struct m0_thread {
+	enum m0_thread_state    t_state;
+	struct m0_thread_handle t_h;
 	int                   (*t_init)(void *);
 	void                  (*t_func)(void *);
 	void                   *t_arg;
-	struct c2_semaphore     t_wait;
+	struct m0_semaphore     t_wait;
 	int                     t_initrc;
 };
 
 /**
-   Type-safe wrapper around c2_thread_init().
+   Type-safe wrapper around m0_thread_init().
 
    With this macro one can initialise a thread with a function taking an
    argument of a particular type:
 
    @code
    static void worker(struct foo *arg) { ... }
-   static struct c2_thread tcb;
+   static struct m0_thread tcb;
 
-   result = C2_THREAD_INIT(&tcb, struct foo *, NULL, &worker, arg, "worker");
+   result = M0_THREAD_INIT(&tcb, struct foo *, NULL, &worker, arg, "worker");
    @endcode
 
-   C2_THREAD_INIT() checks that type of the argument matches function prototype.
+   M0_THREAD_INIT() checks that type of the argument matches function prototype.
 
    @note TYPE cannot be void.
  */
-#define C2_THREAD_INIT(thread, TYPE, init, func, arg, namefmt, ...)	\
+#define M0_THREAD_INIT(thread, TYPE, init, func, arg, namefmt, ...)	\
 ({									\
 	typeof(func) __func = (func);					\
 	typeof(arg)  __arg  = (arg);					\
 	TYPE         __dummy;						\
 	(void)(__func == (void (*)(TYPE))NULL);				\
 	(void)(&__arg == &__dummy);					\
-	c2_thread_init(thread,						\
+	m0_thread_init(thread,						\
                        (int  (*)(void *))init,				\
 		       (void (*)(void *))__func,			\
 		       (void *)(unsigned long)__arg,			\
@@ -132,39 +132,39 @@ struct c2_thread {
 })
 
 /**
-   Internal helper for c2_thread_init() that creates the user or kernel thread
-   after the c2_thread q has been initialised.
+   Internal helper for m0_thread_init() that creates the user or kernel thread
+   after the m0_thread q has been initialised.
    @pre q->t_state == TS_RUNNING
    @retval 0 thread created
    @retval -errno failed
  */
-C2_INTERNAL int c2_thread_init_impl(struct c2_thread *q, const char *name);
+M0_INTERNAL int m0_thread_init_impl(struct m0_thread *q, const char *name);
 
 /**
-   Threads created by c2_thread_init_impl execute this function to
+   Threads created by m0_thread_init_impl execute this function to
    perform common bookkeeping, executing t->t_init if appropriate,
    and then executing t->t_func.
    @pre t->t_state == TS_RUNNING && t->t_initrc == 0
-   @param t a c2_thread*, passed as void* to be compatible with
+   @param t a m0_thread*, passed as void* to be compatible with
    pthread_create function argument.
    @retval NULL
  */
-C2_INTERNAL void *c2_thread_trampoline(void *t);
+M0_INTERNAL void *m0_thread_trampoline(void *t);
 
 /**
    Creates a new thread.
 
    If "init" is not NULL, the created thread starts execution by calling
    (*init)(arg). If this call returns non-zero, thread exits and
-   c2_thread_init() returns the value returned by "init".
+   m0_thread_init() returns the value returned by "init".
 
-   Otherwise (or in the case where "init" is NULL), c2_thread_init() returns 0
+   Otherwise (or in the case where "init" is NULL), m0_thread_init() returns 0
    and the thread calls (*func)(arg) and exits when this call completes.
 
    The namefmt and its arguments are used to name the thread.  The formatted
-   name is truncated to C2_THREAD_NAME_LEN characters (based on TASK_COMM_LEN).
+   name is truncated to M0_THREAD_NAME_LEN characters (based on TASK_COMM_LEN).
 
-   @note it is possible that after successful return from c2_thread_init() the
+   @note it is possible that after successful return from m0_thread_init() the
    thread hasn't yet entered "func" code, it is also possible that the thread
    has finished its execution.
 
@@ -172,7 +172,7 @@ C2_INTERNAL void *c2_thread_trampoline(void *t);
    @post (result != 0) == (q->t_state == TS_PARKED)
    @post (result == 0) == (q->t_state == TS_RUNNING)
  */
-int  c2_thread_init(struct c2_thread *q, int (*init)(void *),
+int  m0_thread_init(struct m0_thread *q, int (*init)(void *),
 		    void (*func)(void *), void *arg, const char *namefmt, ...)
 	__attribute__ ((format (printf, 5, 6)));
 
@@ -181,7 +181,7 @@ int  c2_thread_init(struct c2_thread *q, int (*init)(void *),
 
    @pre q->t_state == TS_PARKED
  */
-void c2_thread_fini(struct c2_thread *q);
+void m0_thread_fini(struct m0_thread *q);
 
 /**
    Waits until the thread exits.
@@ -191,7 +191,7 @@ void c2_thread_fini(struct c2_thread *q);
    pages. Note that the same effect can not be reliably achieved by the explicit
    synchronization (e.g., by signalling a condition variable at the end of a
    thread function), because the thread might be still executing instructions
-   after it returns from c2_thread::t_func.
+   after it returns from m0_thread::t_func.
 
    @pre q->t_state == TS_RUNNING
    @pre q is different from the calling thread
@@ -199,14 +199,14 @@ void c2_thread_fini(struct c2_thread *q);
    @retval 0 thread joined (thread is terminated)
    @retval -errno failed to join, not exit status of thread
  */
-int c2_thread_join(struct c2_thread *q);
+int m0_thread_join(struct m0_thread *q);
 
 /**
    Send specified signal to this thread.
 */
-C2_INTERNAL int c2_thread_signal(struct c2_thread *q, int sig);
+M0_INTERNAL int m0_thread_signal(struct m0_thread *q, int sig);
 
-struct c2_bitmap;
+struct m0_bitmap;
 
 /**
    Sets thread affinity to a given processor bitmap.
@@ -224,41 +224,41 @@ struct c2_bitmap;
    @retval 0 success
    @retval !0 failed to set affinity, -errno
  */
-C2_INTERNAL int c2_thread_confine(struct c2_thread *q,
-				  const struct c2_bitmap *processors);
+M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
+				  const struct m0_bitmap *processors);
 
 /**
    Returns the handle of the current thread.
    @pre The kernel code will assert !in_interrupt().
 */
-C2_INTERNAL void c2_thread_self(struct c2_thread_handle *id);
+M0_INTERNAL void m0_thread_self(struct m0_thread_handle *id);
 
 /**
    Tests whether two thread handles are identical.
    @ret true if h1 == h2
    @ret false if h1 != h2
 */
-C2_INTERNAL bool c2_thread_handle_eq(struct c2_thread_handle *h1,
-				     struct c2_thread_handle *h2);
+M0_INTERNAL bool m0_thread_handle_eq(struct m0_thread_handle *h1,
+				     struct m0_thread_handle *h2);
 
 /**
  * Sets the thread in awkward context.
  */
-C2_INTERNAL void c2_enter_awkward(void);
+M0_INTERNAL void m0_enter_awkward(void);
 
 /**
  * Reset thread from awkward context.
  */
-C2_INTERNAL void c2_exit_awkward(void);
+M0_INTERNAL void m0_exit_awkward(void);
 
 /**
  * Tells if executing thread is in awkward context.
  */
-C2_INTERNAL bool c2_is_awkward(void);
+M0_INTERNAL bool m0_is_awkward(void);
 
 /** @} end of thread group */
 
-/* __COLIBRI_LIB_THREAD_H__ */
+/* __MERO_LIB_THREAD_H__ */
 #endif
 
 /*

@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_LINUX_KERNEL_ASSERT_H__
-#define __COLIBRI_LIB_LINUX_KERNEL_ASSERT_H__
+#ifndef __MERO_LIB_LINUX_KERNEL_ASSERT_H__
+#define __MERO_LIB_LINUX_KERNEL_ASSERT_H__
 
 /**
    @addtogroup assert
@@ -33,11 +33,11 @@
    @{
 */
 
-#define C2_ASSERT(cond) do { if (!(cond)) { printk("Assertion failed %s\n", #cond); dump_stack(); while(1){}; } } while (0)
+#define M0_ASSERT(cond) do { if (!(cond)) { printk("Assertion failed %s\n", #cond); dump_stack(); while(1){}; } } while (0)
 
 /** @} end of assert group */
 
-/* __COLIBRI_LIB_LINUX_KERNEL_ASSERT_H__ */
+/* __MERO_LIB_LINUX_KERNEL_ASSERT_H__ */
 #endif
 
 /*

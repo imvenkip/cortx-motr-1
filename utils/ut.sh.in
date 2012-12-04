@@ -1,13 +1,13 @@
 #! /bin/sh
 
-# Small wrapper to run user-space UT, which depends on kcolibri module
+# Small wrapper to run user-space UT, which depends on kmero module
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Must be run as root"
     exit 1
 fi
 
-. @abs_top_srcdir@/c2t1fs/linux_kernel/st/common.sh
+. @abs_top_srcdir@/m0t1fs/linux_kernel/st/common.sh
 
 unload_all() {
     modunload
@@ -23,7 +23,7 @@ modload || exit $?
 # default, to prevent cluttering of UT output with "fake" error messages,
 # generated while testing various error paths using fault injection;
 # this can be overridden with '-e' CLI option.
-export C2_TRACE_LEVEL='fatal+'
+export M0_TRACE_LEVEL='fatal+'
 
 if test x$enable_rpm = xyes; then
     ut "$@"

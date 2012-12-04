@@ -21,14 +21,14 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_SESSION_FOM_H__
-#define __COLIBRI_RPC_SESSION_FOM_H__
+#ifndef __MERO_RPC_SESSION_FOM_H__
+#define __MERO_RPC_SESSION_FOM_H__
 
 #include "fop/fop.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_ff.h"
 #include "fop/fom.h"
-#include "fop/fom_generic.h"     /* C2_FOPH_NR */
+#include "fop/fom_generic.h"     /* M0_FOPH_NR */
 
 /**
    @addtogroup rpc_session
@@ -43,59 +43,59 @@
  * FOM to execute "RPC connection create" request
  */
 
-enum c2_rpc_fom_conn_establish_phase {
-	C2_FOPH_CONN_ESTABLISHING = C2_FOPH_NR + 1
+enum m0_rpc_fom_conn_establish_phase {
+	M0_FOPH_CONN_ESTABLISHING = M0_FOPH_NR + 1
 };
 
-extern struct c2_fom_type c2_rpc_fom_conn_establish_type;
-extern const struct c2_fom_ops c2_rpc_fom_conn_establish_ops;
+extern struct m0_fom_type m0_rpc_fom_conn_establish_type;
+extern const struct m0_fom_ops m0_rpc_fom_conn_establish_ops;
 
-C2_INTERNAL size_t c2_rpc_session_default_home_locality(const struct c2_fom
+M0_INTERNAL size_t m0_rpc_session_default_home_locality(const struct m0_fom
 							*fom);
-C2_INTERNAL int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom);
-C2_INTERNAL void c2_rpc_fom_conn_establish_fini(struct c2_fom *fom);
+M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom);
+M0_INTERNAL void m0_rpc_fom_conn_establish_fini(struct m0_fom *fom);
 
 /*
  * FOM to execute "Session Create" request
  */
 
-enum c2_rpc_fom_session_establish_phase {
-	C2_FOPH_SESSION_ESTABLISHING = C2_FOPH_NR + 1
+enum m0_rpc_fom_session_establish_phase {
+	M0_FOPH_SESSION_ESTABLISHING = M0_FOPH_NR + 1
 };
 
-extern struct c2_fom_type c2_rpc_fom_session_establish_type;
-extern const struct c2_fom_ops c2_rpc_fom_session_establish_ops;
+extern struct m0_fom_type m0_rpc_fom_session_establish_type;
+extern const struct m0_fom_ops m0_rpc_fom_session_establish_ops;
 
-C2_INTERNAL int c2_rpc_fom_session_establish_tick(struct c2_fom *fom);
-C2_INTERNAL void c2_rpc_fom_session_establish_fini(struct c2_fom *fom);
+M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom);
+M0_INTERNAL void m0_rpc_fom_session_establish_fini(struct m0_fom *fom);
 
 /*
  * FOM to execute session terminate request
  */
 
-enum c2_rpc_fom_session_terminate_phase {
-	C2_FOPH_SESSION_TERMINATING = C2_FOPH_NR + 1
+enum m0_rpc_fom_session_terminate_phase {
+	M0_FOPH_SESSION_TERMINATING = M0_FOPH_NR + 1
 };
 
-extern struct c2_fom_type c2_rpc_fom_session_terminate_type;
-extern const struct c2_fom_ops c2_rpc_fom_session_terminate_ops;
+extern struct m0_fom_type m0_rpc_fom_session_terminate_type;
+extern const struct m0_fom_ops m0_rpc_fom_session_terminate_ops;
 
-C2_INTERNAL int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom);
-C2_INTERNAL void c2_rpc_fom_session_terminate_fini(struct c2_fom *fom);
+M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom);
+M0_INTERNAL void m0_rpc_fom_session_terminate_fini(struct m0_fom *fom);
 
 /*
  * FOM to execute RPC connection terminate request
  */
 
-enum c2_rpc_fom_conn_terminate_phase {
-	C2_FOPH_CONN_TERMINATING = C2_FOPH_NR + 1
+enum m0_rpc_fom_conn_terminate_phase {
+	M0_FOPH_CONN_TERMINATING = M0_FOPH_NR + 1
 };
 
-extern struct c2_fom_type c2_rpc_fom_conn_terminate_type;
-extern const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops;
+extern struct m0_fom_type m0_rpc_fom_conn_terminate_type;
+extern const struct m0_fom_ops m0_rpc_fom_conn_terminate_ops;
 
-C2_INTERNAL int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom);
-C2_INTERNAL void c2_rpc_fom_conn_terminate_fini(struct c2_fom *fom);
+M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom);
+M0_INTERNAL void m0_rpc_fom_conn_terminate_fini(struct m0_fom *fom);
 
 #endif
 

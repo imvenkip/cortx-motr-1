@@ -20,11 +20,11 @@
  * Revision date         : 07/31/2012
  */
 
-#include "lib/memory.h"		/* C2_ALLOC_PTR */
+#include "lib/memory.h"		/* M0_ALLOC_PTR */
 #include "lib/errno.h"		/* ENOMEM */
 #include "fop/fop_item_type.h"	/* default fop encode/decode */
-#include "fop/fop.h"            /* c2_fop_xcode_length */
-#include "fop/fom_generic.h"    /* c2_generic_conf */
+#include "fop/fop.h"            /* m0_fop_xcode_length */
+#include "fop/fom_generic.h"    /* m0_generic_conf */
 
 #include "console/console_fop.h" /* FOPs defs */
 #include "console/console_fom.h" /* FOMs defs */
@@ -35,41 +35,41 @@
    @{
 */
 
-struct c2_fop_type c2_cons_fop_device_fopt;
-struct c2_fop_type c2_cons_fop_reply_fopt;
-struct c2_fop_type c2_cons_fop_test_fopt;
+struct m0_fop_type m0_cons_fop_device_fopt;
+struct m0_fop_type m0_cons_fop_reply_fopt;
+struct m0_fop_type m0_cons_fop_test_fopt;
 
-C2_INTERNAL void c2_console_fop_fini(void)
+M0_INTERNAL void m0_console_fop_fini(void)
 {
-	c2_fop_type_fini(&c2_cons_fop_device_fopt);
-	c2_fop_type_fini(&c2_cons_fop_reply_fopt);
-	c2_fop_type_fini(&c2_cons_fop_test_fopt);
-	c2_xc_console_fini();
+	m0_fop_type_fini(&m0_cons_fop_device_fopt);
+	m0_fop_type_fini(&m0_cons_fop_reply_fopt);
+	m0_fop_type_fini(&m0_cons_fop_test_fopt);
+	m0_xc_console_fini();
 }
 
-extern const struct c2_fom_type_ops c2_cons_fom_device_type_ops;
+extern const struct m0_fom_type_ops m0_cons_fom_device_type_ops;
 
-C2_INTERNAL int c2_console_fop_init(void)
+M0_INTERNAL int m0_console_fop_init(void)
 {
-	c2_xc_console_init();
+	m0_xc_console_init();
 
-	return  C2_FOP_TYPE_INIT(&c2_cons_fop_device_fopt,
+	return  M0_FOP_TYPE_INIT(&m0_cons_fop_device_fopt,
 			 .name      = "Device Failed",
-			 .opcode    = C2_CONS_FOP_DEVICE_OPCODE,
-			 .xt        = c2_cons_fop_device_xc,
-			 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
-			 .sm        = &c2_generic_conf,
-			 .fom_ops   = &c2_cons_fom_device_type_ops) ?:
-		C2_FOP_TYPE_INIT(&c2_cons_fop_reply_fopt,
+			 .opcode    = M0_CONS_FOP_DEVICE_OPCODE,
+			 .xt        = m0_cons_fop_device_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .sm        = &m0_generic_conf,
+			 .fom_ops   = &m0_cons_fom_device_type_ops) ?:
+		M0_FOP_TYPE_INIT(&m0_cons_fop_reply_fopt,
 			 .name      = "Console Reply",
-			 .opcode    = C2_CONS_FOP_REPLY_OPCODE,
-			 .xt        = c2_cons_fop_reply_xc,
-			 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
-		C2_FOP_TYPE_INIT(&c2_cons_fop_test_fopt,
+			 .opcode    = M0_CONS_FOP_REPLY_OPCODE,
+			 .xt        = m0_cons_fop_reply_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
+		M0_FOP_TYPE_INIT(&m0_cons_fop_test_fopt,
 			 .name      = "Console Test",
-			 .opcode    = C2_CONS_TEST,
-			 .xt        = c2_cons_fop_test_xc,
-			 .sm        = &c2_generic_conf,
+			 .opcode    = M0_CONS_TEST,
+			 .xt        = m0_cons_fop_test_xc,
+			 .sm        = &m0_generic_conf,
 			 .rpc_flags = 0);
 }
 

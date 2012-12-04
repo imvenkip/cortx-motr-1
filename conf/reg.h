@@ -18,17 +18,17 @@
  * Original creation date: 04-Mar-2012
  */
 #pragma once
-#ifndef __COLIBRI_CONF_REG_H__
-#define __COLIBRI_CONF_REG_H__
+#ifndef __MERO_CONF_REG_H__
+#define __MERO_CONF_REG_H__
 
-#include "conf/obj.h"  /* c2_conf_objtype */
-#include "lib/tlist.h" /* c2_tl, C2_TL_DESCR_DECLARE */
+#include "conf/obj.h"  /* m0_conf_objtype */
+#include "lib/tlist.h" /* m0_tl, M0_TL_DESCR_DECLARE */
 
 /**
  * @page conf-fspec-reg Registry of Cached Configuration Objects
  *
  * A registry of cached configuration objects, represented by
- * c2_conf_reg structure, serves two goals:
+ * m0_conf_reg structure, serves two goals:
  *
  * 1) It ensures uniqueness of configuration objects in the cache.
  *    After an object is added to the registry, any attempt to add
@@ -40,21 +40,21 @@
  *
  * @section conf-fspec-reg-data Data structures
  *
- * - c2_conf_reg --- a registry of cached configuration objects.
+ * - m0_conf_reg --- a registry of cached configuration objects.
  *
  * @section conf-fspec-reg-sub Subroutines
  *
- * - c2_conf_reg_init() initialises a registry.
- * - c2_conf_reg_fini() finalises a registry.
+ * - m0_conf_reg_init() initialises a registry.
+ * - m0_conf_reg_fini() finalises a registry.
  *
- * - c2_conf_reg_add() registers configuration object.
- * - c2_conf_reg_lookup() returns the address of registered
+ * - m0_conf_reg_add() registers configuration object.
+ * - m0_conf_reg_lookup() returns the address of registered
  *   configuration object given its identity.
- * - c2_conf_reg_del() unregisters configuration object.
+ * - m0_conf_reg_del() unregisters configuration object.
  *
  * @section conf-fspec-reg-thread Concurrency control
  *
- * A user must guarantee that c2_conf_reg_*() calls performed against
+ * A user must guarantee that m0_conf_reg_*() calls performed against
  * the same registry are not concurrent.
  *
  * @see @ref conf_dfspec_reg "Detailed Functional Specification"
@@ -70,52 +70,52 @@
  */
 
 /** Registry of cached configuration objects. */
-struct c2_conf_reg {
-	/** List of c2_conf_obj-s, linked through c2_conf_obj::co_reg_link. */
-	struct c2_tl r_objs;
+struct m0_conf_reg {
+	/** List of m0_conf_obj-s, linked through m0_conf_obj::co_reg_link. */
+	struct m0_tl r_objs;
 	/** Magic value. */
 	uint64_t     r_magic;
 };
 
-C2_TL_DESCR_DECLARE(c2_conf_reg, C2_EXTERN);
-C2_TL_DECLARE(c2_conf_reg, C2_INTERNAL, struct c2_conf_obj);
+M0_TL_DESCR_DECLARE(m0_conf_reg, M0_EXTERN);
+M0_TL_DECLARE(m0_conf_reg, M0_INTERNAL, struct m0_conf_obj);
 
 /** Initialises a registry. */
-C2_INTERNAL void c2_conf_reg_init(struct c2_conf_reg *reg);
+M0_INTERNAL void m0_conf_reg_init(struct m0_conf_reg *reg);
 
 /**
  * Finalises a registry.
  *
- * This function c2_conf_obj_delete()s every registered configuration
+ * This function m0_conf_obj_delete()s every registered configuration
  * object.
  */
-C2_INTERNAL void c2_conf_reg_fini(struct c2_conf_reg *reg);
+M0_INTERNAL void m0_conf_reg_fini(struct m0_conf_reg *reg);
 
 /**
  * Registers configuration object.
  *
- * @pre  !c2_conf_reg_tlink_is_in(obj)
+ * @pre  !m0_conf_reg_tlink_is_in(obj)
  */
-C2_INTERNAL int c2_conf_reg_add(struct c2_conf_reg *reg,
-				struct c2_conf_obj *obj);
+M0_INTERNAL int m0_conf_reg_add(struct m0_conf_reg *reg,
+				struct m0_conf_obj *obj);
 
 /**
  * Un-registers configuration object.
  *
- * @pre  c2_conf_reg_tlist_contains(&reg->r_objs, obj)
+ * @pre  m0_conf_reg_tlist_contains(&reg->r_objs, obj)
  */
-C2_INTERNAL void c2_conf_reg_del(const struct c2_conf_reg *reg,
-				 struct c2_conf_obj *obj);
+M0_INTERNAL void m0_conf_reg_del(const struct m0_conf_reg *reg,
+				 struct m0_conf_obj *obj);
 
 /**
  * Searches for a configuration object given its identity (type & id).
  *
  * Returns NULL if there is no such object in the registry.
  */
-C2_INTERNAL struct c2_conf_obj *c2_conf_reg_lookup(const struct c2_conf_reg
+M0_INTERNAL struct m0_conf_obj *m0_conf_reg_lookup(const struct m0_conf_reg
 						   *reg,
-						   enum c2_conf_objtype type,
-						   const struct c2_buf *id);
+						   enum m0_conf_objtype type,
+						   const struct m0_buf *id);
 
 /** @} conf_dfspec_reg */
-#endif /* __COLIBRI_CONF_REG_H__ */
+#endif /* __MERO_CONF_REG_H__ */

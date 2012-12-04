@@ -20,12 +20,12 @@
 
 #pragma once
 
-#ifndef __COLIBRI_DB_DB_H__
-#define __COLIBRI_DB_DB_H__
+#ifndef __MERO_DB_DB_H__
+#define __MERO_DB_DB_H__
 
 #include "addb/addb.h"
 #include "lib/tlist.h"
-#include "lib/adt.h"           /* c2_buf */
+#include "lib/adt.h"           /* m0_buf */
 
 /**
    @defgroup db Data-base interfaces.
@@ -40,30 +40,30 @@
 
    Main data-types introduced here are:
 
-   @li data-base environment (c2_dbenv), where tables are located in and to
+   @li data-base environment (m0_dbenv), where tables are located in and to
    which transactions are confined;
 
-   @li data-base table (c2_table): a container for records indexed by key;
+   @li data-base table (m0_table): a container for records indexed by key;
 
-   @li transaction (c2_db_tx): a group of operations over tables that is atomic
+   @li transaction (m0_db_tx): a group of operations over tables that is atomic
    and isolated (in the standard data-base sense of these words);
 
    Auxiliary data-types are:
 
-   @li table cursor (c2_db_cursor) used to iterate over table records, and
+   @li table cursor (m0_db_cursor) used to iterate over table records, and
 
-   @li transaction waiter (c2_db_tx_waiter) used to get notifications of (or to
+   @li transaction waiter (m0_db_tx_waiter) used to get notifications of (or to
    wait until) transaction state changes.
 
    @{
  */
 
-struct c2_dbenv;
-struct c2_table;
-struct c2_table_ops;
-struct c2_db_rec;
-struct c2_db_tx;
-struct c2_buf;
+struct m0_dbenv;
+struct m0_table;
+struct m0_table_ops;
+struct m0_db_rec;
+struct m0_db_tx;
+struct m0_buf;
 
 #ifdef __KERNEL__
 #include "db/linux_kernel/db_impl.h"
@@ -73,13 +73,13 @@ struct c2_buf;
 
 /** Data-base environment.
 
-    c2_dbenv represents a collection of related tables (c2_table). Transactions
-    (c2_db_tx) cannot cross data-base environment boundary.
+    m0_dbenv represents a collection of related tables (m0_table). Transactions
+    (m0_db_tx) cannot cross data-base environment boundary.
  */
-struct c2_dbenv {
-	struct c2_dbenv_impl d_i;
+struct m0_dbenv {
+	struct m0_dbenv_impl d_i;
 	/** ADDB context for events related to this environment. */
-	struct c2_addb_ctx   d_addb;
+	struct m0_addb_ctx   d_addb;
 };
 
 /**
@@ -91,27 +91,27 @@ struct c2_dbenv {
 
    @see http://www.oracle.com/technology/documentation/berkeley-db/db/api_reference/C/envopen.html
  */
-int c2_dbenv_init(struct c2_dbenv *env, const char *name, uint64_t flags);
+int m0_dbenv_init(struct m0_dbenv *env, const char *name, uint64_t flags);
 
 /**
    Finalize the data-base environment and release all associated resources.
  */
-void c2_dbenv_fini(struct c2_dbenv *env);
+void m0_dbenv_fini(struct m0_dbenv *env);
 
 /**
    When this call returns, results of all operations against the environment
    that completed before this call started are guaranteed to be persistent.
  */
-C2_INTERNAL int c2_dbenv_sync(struct c2_dbenv *env);
+M0_INTERNAL int m0_dbenv_sync(struct m0_dbenv *env);
 
 /**
     Data-base table.
 
-    A c2_table is (notionally) a container of (key, record) pairs. A new pair
+    A m0_table is (notionally) a container of (key, record) pairs. A new pair
     can be inserted, an existing pair can be deleted, given its key, and a
     record with a given key can be looked up.
 
-    c2_table operations are scalable and efficient (O(log(N)), where N is number
+    m0_table operations are scalable and efficient (O(log(N)), where N is number
     of pairs in the table). It is implemented over B-tree.
 
     @note currently, interface enforces key uniqueness although underlying
@@ -119,10 +119,10 @@ C2_INTERNAL int c2_dbenv_sync(struct c2_dbenv *env);
 
     @note confusingly, db5 refers to a table as "a data-base".
  */
-struct c2_table {
+struct m0_table {
 	/** an environment this table is in. */
-	struct c2_dbenv           *t_env;
-	struct c2_table_impl       t_i;
+	struct m0_dbenv           *t_env;
+	struct m0_table_impl       t_i;
 	/**
 	    operations vector.
 
@@ -140,9 +140,9 @@ struct c2_table {
 	    placement in the tree and might have serious performance
 	    implications.
 	 */
-	const struct c2_table_ops *t_ops;
+	const struct m0_table_ops *t_ops;
 	/** an ADDB context for events related to this table. */
-	struct c2_addb_ctx         t_addb;
+	struct m0_addb_ctx         t_addb;
 };
 
 /**
@@ -155,22 +155,22 @@ struct c2_table {
 
    @see http://www.oracle.com/technology/documentation/berkeley-db/db/api_reference/C/dbopen.html
  */
-C2_INTERNAL int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
+M0_INTERNAL int m0_table_init(struct m0_table *table, struct m0_dbenv *env,
 			      const char *name, uint64_t flags,
-			      const struct c2_table_ops *ops);
+			      const struct m0_table_ops *ops);
 
 /**
     Finalize the table and release all resources associated with it.
  */
-C2_INTERNAL void c2_table_fini(struct c2_table *table);
+M0_INTERNAL void m0_table_fini(struct m0_table *table);
 
 /**
    How a memory buffer (for a key or a record) in a pair is allocated and who
    owns it.
 
-   @see c2_db_buf
+   @see m0_db_buf
  */
-enum c2_db_buf_type {
+enum m0_db_buf_type {
 	DBT_ZERO,
 	DBT_COPYOUT,
 	DBT_ALLOC,
@@ -178,43 +178,43 @@ enum c2_db_buf_type {
 	DBT_NR
 };
 
-struct c2_db_buf {
-	enum c2_db_buf_type   db_type;
+struct m0_db_buf {
+	enum m0_db_buf_type   db_type;
 	bool                  db_static;
-	struct c2_buf         db_buf;
-	struct c2_db_buf_impl db_i;
+	struct m0_buf         db_buf;
+	struct m0_db_buf_impl db_i;
 };
 
 /**
    Pair of buffers for data-base operations.
 
-   c2_db_pair is a descriptor of buffers where user supplied key and record are
+   m0_db_pair is a descriptor of buffers where user supplied key and record are
    stored in and where data-base supplied key and record are retrieved to.
 
-   c2_db_pair also describes the method of memory buffer allocation (and their
+   m0_db_pair also describes the method of memory buffer allocation (and their
    ownership) used for exchanging data with the underlying data-base.
  */
-struct c2_db_pair {
-	struct c2_table  *dp_table;
-	struct c2_db_buf  dp_key;
-	struct c2_db_buf  dp_rec;
+struct m0_db_pair {
+	struct m0_table  *dp_table;
+	struct m0_db_buf  dp_key;
+	struct m0_db_buf  dp_rec;
 };
 
-C2_INTERNAL void c2_db_pair_fini(struct c2_db_pair *pair);
+M0_INTERNAL void m0_db_pair_fini(struct m0_db_pair *pair);
 
 /**
    Initialise a pair and set buffers to the given values.
 
  */
-C2_INTERNAL void c2_db_pair_setup(struct c2_db_pair *pair,
-				  struct c2_table *table, void *keybuf,
+M0_INTERNAL void m0_db_pair_setup(struct m0_db_pair *pair,
+				  struct m0_table *table, void *keybuf,
 				  uint32_t keysize, void *recbuf,
 				  uint32_t recsize);
 
 /**
-   Finalize the record returned by c2_table_lookup().
+   Finalize the record returned by m0_table_lookup().
  */
-C2_INTERNAL void c2_db_pair_release(struct c2_db_pair *pair);
+M0_INTERNAL void m0_db_pair_release(struct m0_db_pair *pair);
 
 enum {
 	TO_KEY,
@@ -225,13 +225,13 @@ enum {
 /**
    Table operations vector.
 
-   @see c2_table
+   @see m0_table
  */
-struct c2_table_ops {
+struct m0_table_ops {
 	struct {
 		/**
 		    Maximal size of key or record (as determined by the index in
-		    c2_table_ops::to).
+		    m0_table_ops::to).
 		 */
 		uint32_t max_size;
 		/**
@@ -239,14 +239,14 @@ struct c2_table_ops {
 
 		   @note not currently used.
 		 */
-		void   (*pack)(struct c2_table *table, uint32_t *size,
+		void   (*pack)(struct m0_table *table, uint32_t *size,
 			       const void *src, void **dst);
 		/**
 		   Convert in-db key or record representation to in-memory one.
 
 		   @note not currently used.
 		 */
-		void   (*open)(struct c2_table *table, uint32_t size,
+		void   (*open)(struct m0_table *table, uint32_t size,
 			       const void *src, void **dst);
 	} to[TO_NR];
 	/**
@@ -255,7 +255,7 @@ struct c2_table_ops {
 	   Should return -ve, 0 or +ve value depending on how key0 and key1
 	   compare in key ordering.
 	 */
-	int (*key_cmp)(struct c2_table *table,
+	int (*key_cmp)(struct m0_table *table,
 		       const void *key0, const void *key1);
 };
 
@@ -265,14 +265,14 @@ struct c2_table_ops {
    A context for a group of data-base updates that are atomic w.r.t. concurrent
    data-base updates and failures.
  */
-struct c2_db_tx {
+struct m0_db_tx {
 	/** An environment this transaction operates in. */
-	struct c2_dbenv     *dt_env;
-	/** A list of waiters (c2_db_tx_waiter). */
-	struct c2_tl         dt_waiters;
-	struct c2_db_tx_impl dt_i;
+	struct m0_dbenv     *dt_env;
+	/** A list of waiters (m0_db_tx_waiter). */
+	struct m0_tl         dt_waiters;
+	struct m0_db_tx_impl dt_i;
 	/** An ADDB context for events related to this transaction. */
-	struct c2_addb_ctx   dt_addb;
+	struct m0_addb_ctx   dt_addb;
 };
 
 /**
@@ -282,7 +282,7 @@ struct c2_db_tx {
 
    @see http://www.oracle.com/technology/documentation/berkeley-db/db/api_reference/C/txnbegin.html
  */
-C2_INTERNAL int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env,
+M0_INTERNAL int m0_db_tx_init(struct m0_db_tx *tx, struct m0_dbenv *env,
 			      uint64_t flags);
 
 /**
@@ -291,46 +291,46 @@ C2_INTERNAL int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env,
    Commit is _not_ durable: log is not forced out. Transaction is invalid after
    this function returns.
  */
-C2_INTERNAL int c2_db_tx_commit(struct c2_db_tx *tx);
+M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx);
 
 /**
    Aborts the transaction.
 
    Transaction is invalid after this returns.
  */
-C2_INTERNAL int c2_db_tx_abort(struct c2_db_tx *tx);
+M0_INTERNAL int m0_db_tx_abort(struct m0_db_tx *tx);
 
 /**
    An anchor to wait for transaction state change.
 
    Liveness.
 
-   Once c2_db_tx_waiter::tw_commit() has been called, it is guaranteed that
-   c2_db_tx_waiter::tw_persistent() would eventually be called.
+   Once m0_db_tx_waiter::tw_commit() has been called, it is guaranteed that
+   m0_db_tx_waiter::tw_persistent() would eventually be called.
 
-   The implementation calls c2_db_tx_waiter::tw_done() as the last call-back and
+   The implementation calls m0_db_tx_waiter::tw_done() as the last call-back and
    won't touch the waiter afterwards. It is up to the caller to free the waiter
-   data-structure (e.g., this can be done inside of c2_db_tx_waiter::tw_done()).
+   data-structure (e.g., this can be done inside of m0_db_tx_waiter::tw_done()).
  */
-struct c2_db_tx_waiter {
+struct m0_db_tx_waiter {
 	/** Called when the transaction is committed */
-	void                      (*tw_commit)(struct c2_db_tx_waiter *w);
+	void                      (*tw_commit)(struct m0_db_tx_waiter *w);
 	/** Called when the transaction is aborted */
-	void                      (*tw_abort) (struct c2_db_tx_waiter *w);
+	void                      (*tw_abort) (struct m0_db_tx_waiter *w);
 	/** Called when a committed transaction becomes persistent. */
-	void                      (*tw_persistent)(struct c2_db_tx_waiter *w);
+	void                      (*tw_persistent)(struct m0_db_tx_waiter *w);
 	/** Called when no further call-backs will be coming. */
-	void                      (*tw_done)(struct c2_db_tx_waiter *w);
+	void                      (*tw_done)(struct m0_db_tx_waiter *w);
 	/** Linkage into a list of all waiters for data-base environment. */
-	struct c2_tlink             tw_env;
+	struct m0_tlink             tw_env;
 	/** Linkage into a list of all waiters for a given transaction. */
-	struct c2_tlink             tw_tx;
-	struct c2_db_tx_waiter_impl tw_i;
+	struct m0_tlink             tw_tx;
+	struct m0_db_tx_waiter_impl tw_i;
 	uint64_t                    tw_magix;
 };
 
-C2_TL_DESCR_DECLARE(txw, C2_EXTERN);
-C2_TL_DEFINE(txw, static inline, struct c2_db_tx_waiter);
+M0_TL_DESCR_DECLARE(txw, M0_EXTERN);
+M0_TL_DEFINE(txw, static inline, struct m0_db_tx_waiter);
 
 /**
    Adds a waiter for a transaction.
@@ -338,57 +338,57 @@ C2_TL_DEFINE(txw, static inline, struct c2_db_tx_waiter);
    Waiters call-backs will be called when the transaction changes its state
    appropriately.
  */
-C2_INTERNAL void c2_db_tx_waiter_add(struct c2_db_tx *tx,
-				     struct c2_db_tx_waiter *w);
+M0_INTERNAL void m0_db_tx_waiter_add(struct m0_db_tx *tx,
+				     struct m0_db_tx_waiter *w);
 
 /**
    Inserts (key, rec) pair into table as part of transaction tx.
  */
-C2_INTERNAL int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair);
+M0_INTERNAL int m0_table_insert(struct m0_db_tx *tx, struct m0_db_pair *pair);
 
 /**
    Updates (key, rec) pair into table as part of transaction tx.
  */
-C2_INTERNAL int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair);
+M0_INTERNAL int m0_table_update(struct m0_db_tx *tx, struct m0_db_pair *pair);
 
 
 /**
    Looks up a record with a given key in the table and returns it.
 
-   Returned record must be finalized with a call to c2_db_pair_fini().
+   Returned record must be finalized with a call to m0_db_pair_fini().
 
    @note lookup does require transaction (for locking context at least).
 
    @note no alignment guarantees on returned record.
  */
-C2_INTERNAL int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair);
+M0_INTERNAL int m0_table_lookup(struct m0_db_tx *tx, struct m0_db_pair *pair);
 
 /**
    Delete a record with the key in the table as part of transaction tx.
  */
-C2_INTERNAL int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair);
+M0_INTERNAL int m0_table_delete(struct m0_db_tx *tx, struct m0_db_pair *pair);
 
 /**
    Data-base cursor.
 
    A cursor can be positioned at a given (key, rec) in a table, moved around
-   (c2_db_cursor_next(), c2_db_cursor_prev()) and used to update the table
-   (c2_db_cursor_set(), c2_db_cursor_add(), c2_db_cursor_del()).
+   (m0_db_cursor_next(), m0_db_cursor_prev()) and used to update the table
+   (m0_db_cursor_set(), m0_db_cursor_add(), m0_db_cursor_del()).
  */
-struct c2_db_cursor {
+struct m0_db_cursor {
         uint32_t                 c_flags;
-	struct c2_table         *c_table;
-	struct c2_db_tx         *c_tx;
-	struct c2_db_cursor_impl c_i;
+	struct m0_table         *c_table;
+	struct m0_db_tx         *c_tx;
+	struct m0_db_cursor_impl c_i;
 };
 
 /**
  * Cursor flags
  */
-enum c2_db_cursor_flags {
-        C2_DB_CURSOR_READ_UNCOMMITTED  = 1 << 0,
-        C2_DB_CURSOR_READ_COMMITTED    = 1 << 1,
-        C2_DB_CURSOR_RMW               = 1 << 2,
+enum m0_db_cursor_flags {
+        M0_DB_CURSOR_READ_UNCOMMITTED  = 1 << 0,
+        M0_DB_CURSOR_READ_COMMITTED    = 1 << 1,
+        M0_DB_CURSOR_RMW               = 1 << 2,
 };
 
 /**
@@ -397,55 +397,55 @@ enum c2_db_cursor_flags {
    The cursor is not initially positioned anywhere. All operations with the
    cursor will be done in the context of a given transaction.
  */
-C2_INTERNAL int c2_db_cursor_init(struct c2_db_cursor *cursor,
-				  struct c2_table *table, struct c2_db_tx *tx,
+M0_INTERNAL int m0_db_cursor_init(struct m0_db_cursor *cursor,
+				  struct m0_table *table, struct m0_db_tx *tx,
 				  uint32_t flags);
 
 /**
    Release the resources associated with the cursor.
  */
-C2_INTERNAL void c2_db_cursor_fini(struct c2_db_cursor *cursor);
+M0_INTERNAL void m0_db_cursor_fini(struct m0_db_cursor *cursor);
 
 /**
    Position the cursor at the (key, rec) pair with the least key not less than
    the key of a given pair.
  */
-C2_INTERNAL int c2_db_cursor_get(struct c2_db_cursor *cursor,
-				 struct c2_db_pair *pair);
+M0_INTERNAL int m0_db_cursor_get(struct m0_db_cursor *cursor,
+				 struct m0_db_pair *pair);
 /** Move cursor to the next key */
-C2_INTERNAL int c2_db_cursor_next(struct c2_db_cursor *cursor,
-				  struct c2_db_pair *pair);
+M0_INTERNAL int m0_db_cursor_next(struct m0_db_cursor *cursor,
+				  struct m0_db_pair *pair);
 /** Move cursor to the previous key */
-C2_INTERNAL int c2_db_cursor_prev(struct c2_db_cursor *cursor,
-				  struct c2_db_pair *pair);
+M0_INTERNAL int m0_db_cursor_prev(struct m0_db_cursor *cursor,
+				  struct m0_db_pair *pair);
 /** Move cursor to the first key in the table */
-C2_INTERNAL int c2_db_cursor_first(struct c2_db_cursor *cursor,
-				   struct c2_db_pair *pair);
+M0_INTERNAL int m0_db_cursor_first(struct m0_db_cursor *cursor,
+				   struct m0_db_pair *pair);
 /** Move cursor to the last key in the table */
-C2_INTERNAL int c2_db_cursor_last(struct c2_db_cursor *cursor,
-				  struct c2_db_pair *pair);
+M0_INTERNAL int m0_db_cursor_last(struct m0_db_cursor *cursor,
+				  struct m0_db_pair *pair);
 /** Change the key and record of the current cursor pair.  */
-C2_INTERNAL int c2_db_cursor_set(struct c2_db_cursor *cursor,
-				 struct c2_db_pair *pair);
+M0_INTERNAL int m0_db_cursor_set(struct m0_db_cursor *cursor,
+				 struct m0_db_pair *pair);
 /** Add new pair to the table and position the cursor on it. */
-C2_INTERNAL int c2_db_cursor_add(struct c2_db_cursor *cursor,
-				 struct c2_db_pair *pair);
+M0_INTERNAL int m0_db_cursor_add(struct m0_db_cursor *cursor,
+				 struct m0_db_pair *pair);
 /**
     Delete the current pair from the table. For the purpose of following
-    c2_db_cursor_next() and c2_db_cursor_prev() calls, the cursor remains
+    m0_db_cursor_next() and m0_db_cursor_prev() calls, the cursor remains
     positioned over the deleted pair.
 
-    Following calls to c2_db_cursor_del() and c2_db_cursor_set() in the same
+    Following calls to m0_db_cursor_del() and m0_db_cursor_set() in the same
     cursor position will fail.
  */
-C2_INTERNAL int c2_db_cursor_del(struct c2_db_cursor *cursor);
+M0_INTERNAL int m0_db_cursor_del(struct m0_db_cursor *cursor);
 
-C2_INTERNAL int c2_db_init(void);
-C2_INTERNAL void c2_db_fini(void);
+M0_INTERNAL int m0_db_init(void);
+M0_INTERNAL void m0_db_fini(void);
 
 /** @} end of db group */
 
-/* __COLIBRI_DB_REC_H__ */
+/* __MERO_DB_REC_H__ */
 #endif
 
 /*

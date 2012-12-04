@@ -22,32 +22,32 @@
 #  include "config.h"
 #endif
 
-#include "lib/ut.h"	/* C2_UT_ASSERT */
-#include "lib/types.h"	/* c2_uint128 */
+#include "lib/ut.h"	/* M0_UT_ASSERT */
+#include "lib/types.h"	/* m0_uint128 */
 
-static const struct c2_uint128 zero    = C2_UINT128(0, 0);
-static const struct c2_uint128 one     = C2_UINT128(0, 1);
-static const struct c2_uint128 two     = C2_UINT128(0, 2);
-static const struct c2_uint128 three   = C2_UINT128(0, 3);
-static const struct c2_uint128 max64   = C2_UINT128(0,		UINT64_MAX);
-static const struct c2_uint128 max64_1 = C2_UINT128(1,	        0);
-static const struct c2_uint128 max64_2 = C2_UINT128(1,	        1);
-static const struct c2_uint128 max128  = C2_UINT128(UINT64_MAX, UINT64_MAX);
+static const struct m0_uint128 zero    = M0_UINT128(0, 0);
+static const struct m0_uint128 one     = M0_UINT128(0, 1);
+static const struct m0_uint128 two     = M0_UINT128(0, 2);
+static const struct m0_uint128 three   = M0_UINT128(0, 3);
+static const struct m0_uint128 max64   = M0_UINT128(0,		UINT64_MAX);
+static const struct m0_uint128 max64_1 = M0_UINT128(1,	        0);
+static const struct m0_uint128 max64_2 = M0_UINT128(1,	        1);
+static const struct m0_uint128 max128  = M0_UINT128(UINT64_MAX, UINT64_MAX);
 
 /* a + b = c */
-static void uint128_add_check(const struct c2_uint128 a,
-			      const struct c2_uint128 b,
-			      const struct c2_uint128 c)
+static void uint128_add_check(const struct m0_uint128 a,
+			      const struct m0_uint128 b,
+			      const struct m0_uint128 c)
 {
-	struct c2_uint128 result;
+	struct m0_uint128 result;
 
-	c2_uint128_add(&result, a, b);
-	C2_UT_ASSERT(c2_uint128_eq(&result, &c));
+	m0_uint128_add(&result, a, b);
+	M0_UT_ASSERT(m0_uint128_eq(&result, &c));
 }
 
-static void uint128_add_check1(const struct c2_uint128 a,
-			       const struct c2_uint128 b,
-			       const struct c2_uint128 c)
+static void uint128_add_check1(const struct m0_uint128 a,
+			       const struct m0_uint128 b,
+			       const struct m0_uint128 c)
 {
 	uint128_add_check(a, b, c);
 	uint128_add_check(b, a, c);
@@ -72,17 +72,17 @@ static void uint128_add_ut(void)
 /* a * b = c */
 static void uint128_mul_check(uint64_t a,
 			      uint64_t b,
-			      const struct c2_uint128 *c)
+			      const struct m0_uint128 *c)
 {
-	struct c2_uint128 result;
+	struct m0_uint128 result;
 
-	c2_uint128_mul64(&result, a, b);
-	C2_UT_ASSERT(c2_uint128_eq(&result, c));
+	m0_uint128_mul64(&result, a, b);
+	M0_UT_ASSERT(m0_uint128_eq(&result, c));
 }
 
 static void uint128_mul_check1(uint64_t a,
 			       uint64_t b,
-			       const struct c2_uint128 *c)
+			       const struct m0_uint128 *c)
 {
 	uint128_mul_check(a, b, c);
 	uint128_mul_check(b, a, c);
@@ -96,18 +96,18 @@ static void uint128_mul_ut(void)
 	uint128_mul_check1(1, 1, &one);
 	uint128_mul_check1(1, 2, &two);
 	uint128_mul_check1(1, UINT64_MAX, &max64);
-	uint128_mul_check1(2, UINT64_MAX, &C2_UINT128(1, UINT64_MAX - 1));
-	uint128_mul_check1(3, UINT64_MAX, &C2_UINT128(2, UINT64_MAX - 2));
+	uint128_mul_check1(2, UINT64_MAX, &M0_UINT128(1, UINT64_MAX - 1));
+	uint128_mul_check1(3, UINT64_MAX, &M0_UINT128(2, UINT64_MAX - 2));
 	uint128_mul_check1(UINT64_MAX, UINT64_MAX,
-			   &C2_UINT128(UINT64_MAX - 1, 1));
+			   &M0_UINT128(UINT64_MAX - 1, 1));
 	uint128_mul_check1(UINT32_MAX + 1ul, UINT32_MAX + 1ul, &max64_1);
 	uint128_mul_check1(UINT32_MAX + 1ul, UINT64_MAX,
-			   &C2_UINT128(UINT32_MAX,
+			   &M0_UINT128(UINT32_MAX,
 				       (uint64_t) UINT32_MAX << 32));
 	uint128_mul_check1(UINT32_MAX + 2ul, UINT32_MAX, &max64);
 }
 
-void c2_test_misc(void)
+void m0_test_misc(void)
 {
 	uint128_add_ut();
 	uint128_mul_ut();

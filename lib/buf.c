@@ -29,36 +29,36 @@
    @{
 */
 
-C2_INTERNAL void c2_buf_init(struct c2_buf *buf, void *data, uint32_t nob)
+M0_INTERNAL void m0_buf_init(struct m0_buf *buf, void *data, uint32_t nob)
 {
 	buf->b_addr = data;
 	buf->b_nob  = nob;
 }
 
-C2_INTERNAL void c2_buf_free(struct c2_buf *buf)
+M0_INTERNAL void m0_buf_free(struct m0_buf *buf)
 {
-	c2_free(buf->b_addr);
+	m0_free(buf->b_addr);
 	buf->b_addr = NULL;
 	buf->b_nob = 0;
 }
 
-C2_INTERNAL bool c2_buf_eq(const struct c2_buf *x, const struct c2_buf *y)
+M0_INTERNAL bool m0_buf_eq(const struct m0_buf *x, const struct m0_buf *y)
 {
 	return x->b_nob == y->b_nob &&
 		memcmp(x->b_addr, y->b_addr, x->b_nob) == 0;
 }
 
-C2_INTERNAL int c2_buf_copy(struct c2_buf *dest, const struct c2_buf *src)
+M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src)
 {
-	C2_PRE(dest->b_nob == 0 && dest->b_addr == NULL);
+	M0_PRE(dest->b_nob == 0 && dest->b_addr == NULL);
 
-	C2_ALLOC_ARR(dest->b_addr, src->b_nob);
+	M0_ALLOC_ARR(dest->b_addr, src->b_nob);
 	if (dest->b_addr == NULL)
 		return -ENOMEM;
 	dest->b_nob = src->b_nob;
 	memcpy(dest->b_addr, src->b_addr, src->b_nob);
 
-	C2_POST(c2_buf_eq(dest, src));
+	M0_POST(m0_buf_eq(dest, src));
 	return 0;
 }
 

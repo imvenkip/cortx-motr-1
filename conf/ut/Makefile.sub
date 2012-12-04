@@ -1,4 +1,4 @@
-ut_libcolibri_ut_la_SOURCES += \
+ut_libmero_ut_la_SOURCES += \
     conf/ut/confc.c            \
     conf/ut/main.c             \
     conf/ut/network.c          \
@@ -8,6 +8,6 @@ ut_libcolibri_ut_la_SOURCES += \
     conf/ut/rpc_helpers.h      \
     conf/ut/xread.c
 
-ut_libcolibri_ut_la_CPPFLAGS += \
-    -DCOLIBRI_CONFX_OBJ_CFG=$(abs_top_builddir)/conf/ut/conf_xc.txt \
-    -DCOLIBRI_CONFX_OBJ_CFG_XC=$(abs_top_builddir)/conf/ut/conf_xc.txt
+ut_libmero_ut_la_CPPFLAGS += \
+    -DMERO_CONFX_OBJ_CFG=$(abs_top_builddir)/conf/ut/conf_xc.txt \
+    -DMERO_CONFX_OBJ_CFG_XC=$(abs_top_builddir)/conf/ut/conf_xc.txt
