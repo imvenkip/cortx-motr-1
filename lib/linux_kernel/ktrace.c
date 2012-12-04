@@ -52,7 +52,7 @@ module_param(trace_print_context, charp, 0644);
 MODULE_PARM_DESC(trace_print_context,
 		 " controls whether to display additional trace point"
 		 " info, like subsystem, file, func, etc.; values:"
-		 " none, func, full");
+		 " none, func, short, full");
 
 static int set_trace_immediate_mask(void)
 {
@@ -78,7 +78,7 @@ static int set_trace_immediate_mask(void)
 	mask_str = kstrdup(trace_immediate_mask, GFP_KERNEL);
 	if (mask_str == NULL)
 		return -ENOMEM;
-	rc = subsys_list_to_mask(mask_str, &mask);
+	rc = c2_trace_subsys_list_to_mask(mask_str, &mask);
 	kfree(mask_str);
 
 	if (rc != 0)
@@ -104,7 +104,7 @@ static int set_trace_level(void)
 	if (level_str == NULL)
 		return -ENOMEM;
 
-	c2_trace_level = parse_trace_level(level_str);
+	c2_trace_level = c2_trace_parse_trace_level(level_str);
 	kfree(level_str);
 
 	if (c2_trace_level == C2_NONE)
@@ -123,7 +123,7 @@ static int set_trace_print_context(void)
 	if (trace_print_context == NULL)
 		return 0;
 
-	ctx = parse_trace_print_context(trace_print_context);
+	ctx = c2_trace_parse_trace_print_context(trace_print_context);
 	if (ctx == C2_TRACE_PCTX_INVALID)
 		return -EINVAL;
 

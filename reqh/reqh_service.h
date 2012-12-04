@@ -35,8 +35,8 @@
    c2_reqh_service_type data structure.
    Every service should register its corresponding c2_reqh_service_type
    instance containing service specific initialisation method, service
-   name. A c2_reqh_service_type instance can be declared using
-   C2_REQH_SERVICE_TYPE_DECLARE macro. Once the service type is declared
+   name. A c2_reqh_service_type instance can be defined using
+   C2_REQH_SERVICE_TYPE_DEFINE macro. Once the service type is defined
    it should be registered using c2_reqh_service_type_register() and
    unregister using c2_reqh_service_type_unregister().
    During service type registration, the service type is added to the global
@@ -57,7 +57,7 @@
 
    First, we have to define service type operations,
    @code
-   static const struct c2_reqh_service_type_ops dummy_service_type_ops = {
+   static const struct c2_reqh_service_type_ops dummy_stype_ops = {
         .rsto_service_allocate = dummy_service_allocate
    };
    @endcode
@@ -88,15 +88,14 @@
    }
    @endcode
 
-   - declare service type using C2_REQH_SERVICE_TYPE_DECLARE macro,
+   - define service type using C2_REQH_SERVICE_TYPE_DEFINE macro,
    @code
-   C2_REQH_SERVICE_TYPE_DECLARE(dummy_service_type, &dummy_service_type_ops,
-                                                                     "dummy");
+   C2_REQH_SERVICE_TYPE_DEFINE(dummy_stype, &dummy_stype_ops, "dummy");
    @endcode
 
    - now, the above service type can be registered as below,
    @code
-   c2_reqh_service_type_register(&dummy_service_type);
+   c2_reqh_service_type_register(&dummy_stype);
    @endcode
 
    - unregister service using c2_reqh_service_type_unregister().
@@ -429,11 +428,11 @@ C2_INTERNAL void c2_reqh_service_init(struct c2_reqh_service *service,
  */
 C2_INTERNAL void c2_reqh_service_fini(struct c2_reqh_service *service);
 
-#define C2_REQH_SERVICE_TYPE_DECLARE(stype, ops, name) \
-struct c2_reqh_service_type stype = {                  \
-        .rst_name  = (name),	                       \
-	.rst_ops   = (ops),                            \
-}                                                     \
+#define C2_REQH_SERVICE_TYPE_DEFINE(stype, ops, name) \
+struct c2_reqh_service_type stype = {                 \
+	.rst_name = (name),                           \
+	.rst_ops  = (ops)                             \
+}
 
 /**
    Registers a service type in a global service types list,

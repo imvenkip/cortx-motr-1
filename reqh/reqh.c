@@ -137,10 +137,8 @@ C2_INTERNAL int c2_reqhs_init(void)
 	return 0;
 }
 
-C2_INTERNAL void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop,
-				    void *cookie)
+C2_INTERNAL void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop)
 {
-	struct c2_fop_ctx      *ctx;
 	struct c2_fom	       *fom;
 	int			result;
 	bool                    rsd;
@@ -148,23 +146,11 @@ C2_INTERNAL void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop,
 	C2_PRE(reqh != NULL);
 	C2_PRE(fop != NULL);
 
-        C2_ALLOC_PTR(ctx);
-        if (ctx == NULL) {
-		REQH_ADDB_ADD(&reqh->rh_addb, "c2_reqh_fop_handle",
-                              ENOMEM);
-		return;
-        }
 	c2_rwlock_read_lock(&reqh->rh_rwlock);
-
-        ctx->fc_fol  = reqh->rh_fol;
-        ctx->fc_reqh = reqh;
-        ctx->fc_cookie  = cookie;
 
 	rsd = reqh->rh_shutdown;
 	if (rsd) {
-		REQH_ADDB_ADD(&reqh->rh_addb, "c2_reqh_fop_handle",
-                              ESHUTDOWN);
-                c2_free(ctx);
+		REQH_ADDB_ADD(&reqh->rh_addb, "c2_reqh_fop_handle", ESHUTDOWN);
 		c2_rwlock_read_unlock(&reqh->rh_rwlock);
 		return;
 	}
@@ -175,10 +161,8 @@ C2_INTERNAL void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop,
 
 	result = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom);
 	if (result == 0) {
-                fom->fo_fop_ctx = ctx;
 		c2_fom_queue(fom, reqh);
 	} else {
-                c2_free(ctx);
 		REQH_ADDB_ADD(&reqh->rh_addb, "c2_reqh_fop_handle", result);
         }
 

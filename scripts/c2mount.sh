@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to mount the Colibri file system locally, using remote ioservices.
+# Script to startup local/remote services and mount Colibri file system
 #
 # - The script requires the build path to be available on all the nodes.
 #   (This can be easily shared via NFS from some one node.)
@@ -52,7 +52,7 @@
 # $ ipmitool -H 10.76.50.42 -U admin -P admin power reset
 #
 # Provide a list of servers, represented by the 2-tuple of node IP and end
-# point, in the SERVERS array.
+# point, in the SERVICES array.
 #
 #   e.g. 	sjt02-c2 172.18.50.45@o2ib:12345:33:101
 #
@@ -60,7 +60,7 @@
 # - The number of server records is the POOL_WIDTH.
 
 # This example uses co-located remote ioservices.
-#SERVERS=(
+#SERVICES=(
 #	sjt02-c2 172.18.50.45@o2ib:12345:41:101
 #	sjt02-c2 172.18.50.45@o2ib:12345:41:102
 #	sjt02-c2 172.18.50.45@o2ib:12345:41:103
@@ -71,7 +71,7 @@
 #NR_DATA=2
 
 # This example puts ioservices on 3 nodes, and uses 4 data blocks
-SERVERS=(
+SERVICES=(
 	sjt02-c1 172.18.50.40@o2ib:12345:41:101
 	sjt02-c1 172.18.50.40@o2ib:12345:41:102
 	sjt02-c2 172.18.50.45@o2ib:12345:41:101
@@ -81,10 +81,19 @@ SERVERS=(
 )
 
 UNIT_SIZE=262144
-POOL_WIDTH=$(expr ${#SERVERS[*]} / 2)
+SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
+POOL_WIDTH=$(expr $SERVICES_NR \* 1)
 NR_DATA=$(expr $POOL_WIDTH - 2)
 
+C2_TRACE_IMMEDIATE_MASK=0
+C2_TRACE_LEVEL=debug+
+C2_TRACE_PRINT_CONTEXT=full
+
 STOB=${1:-linux}
+
+# number of disks to split by for each service
+# in ad-stob mode
+DISKS_SH_NR=`expr $POOL_WIDTH / $SERVICES_NR`
 
 # Local mount data
 MP=/mnt/c2
@@ -148,8 +157,7 @@ function setup_host () {
 		XPT_PARAM=$XPT_PARAM_L
 	fi
 	# check if a colibri process is running
-	local SVRS
-	SVRS=$($RUN pgrep -f colibri_setup)
+	local SVRS=$($RUN pgrep -f colibri_setup)
 	if [ -n "$SVRS" ]; then
 		echo $SVRS
 		echo ERROR: colibri_setup process already running on $H
@@ -157,8 +165,7 @@ function setup_host () {
 	fi
 	if [ $H != $THIS_HOST ]; then
 		# ensure that the build path is accessible
-		local RSUM
-		RSUM=$($RUN sum $SUMFILE)
+		local RSUM=$($RUN sum $SUMFILE)
 		if [ "$RSUM" != "$LSUM" ]; then
 			echo ERROR: Build tree not accessible on $H
 			return 1
@@ -189,9 +196,9 @@ function setup_host () {
 }
 
 function setup_hosts () {
-	for ((i=0; i < ${#SERVERS[*]}; i += 2)); do
-		H=${SERVERS[$i]}
-		EP=${SERVERS[((i+1))]}
+	for ((i=0; i < ${#SERVICES[*]}; i += 2)); do
+		H=${SERVICES[$i]}
+		EP=${SERVICES[((i+1))]}
 		if [ X${SETUP[$H]} = X ]; then
 			setup_host $H $EP || return 1
 			SETUP[$H]=$H
@@ -218,6 +225,68 @@ function teardown_hosts () {
 	done
 }
 
+function gen_disks_conf_files()
+{
+	local dev_id=$1
+	local DISKS_SH=$WORK_ARENA/find_disks.sh
+	local SF=/tmp/nh.$$
+
+	cat <<EOF >$SF
+#!/bin/bash
+
+#This script helps to create a disks configuration file on Titan controllers.
+#
+#The file uses yaml format, as desired by the colibri_setup program.
+#The script uses the fdisk command and extracts only the unused disks
+#present on the system (i.e without valid partition table).
+#
+#Below illustration describes a typical disks.conf entry,
+#Device:
+#       - id: 1
+#	  filename: /dev/sda
+
+# number of disks to split by
+DISKS_SH_NR=$DISKS_SH_NR
+
+i=$dev_id; j=0; f=0;
+
+echo "Device:" > disks.conf
+
+devs=\`ls /dev/disk/by-id/scsi-35* | grep -v part\`
+
+fdisk -l \$devs 2>&1 1>/dev/null | \
+sed -n 's;^Disk \\(/dev/.*\\) doesn.*;\1;p' | \
+while read dev; do
+	[ \$j -eq 0 ] && echo "Device:" > disks\$f.conf
+	echo "       - id: \$i" >> disks.conf
+	echo "       - id: \$i" >> disks\$f.conf
+	echo "         filename: \$dev" >> disks.conf
+	echo "         filename: \$dev" >> disks\$f.conf
+	i=\`expr \$i + 1\`
+	j=\`expr \$j + 1\`
+	[ \$j -eq \$DISKS_SH_NR ] && j=0 && f=\`expr \$f + 1\`
+done
+
+exit 0
+EOF
+
+	if [ $H != $THIS_HOST ]; then
+		l_run scp $SF $H:$DISKS_SH
+	else
+		$RUN cp $SF $DISKS_SH
+	fi
+	if [ $? -ne 0 ]; then
+		echo ERROR: Failed to copy script file to $H
+		return 1
+	fi
+
+	$RUN "(cd $WORK_ARENA && sh $DISKS_SH)"
+	if [ $? -ne 0 ]; then
+		echo ERROR: Failed to get disks list on $H
+		return 1
+	fi
+}
+
 function start_server () {
 	H=$1
 	EP=$2
@@ -235,67 +304,19 @@ function start_server () {
 	local DDIR=$SDIR
 	$RUN rm -rf $SDIR
 	$RUN mkdir -p $SDIR
-	local SF=/tmp/nh.$$
 	local DF=$SDIR/colibri_setup.sh
-	local DISKS_SH=$SDIR/find_disks.sh
+	local DISKS_SH_FILE=$WORK_ARENA/disks$dcf_id.conf
 	local STOB_PARAMS="-T linux"
 	if [ $STOB == "-ad" -o $STOB == "-td" ]; then
-		cat <<EOF >$SF
-#!/bin/bash
 
-#This script helps to create a disks configuration file on Titan controllers.
-#
-#The file uses yaml format, as desired by the colibri_setup program.
-#The script uses the fdisk command and extracts only the unused disks
-#present on the system (i.e without valid partition table).
-#
-#Below illustration describes a typical disks.conf entry,
-#Device:
-#       - id: 1
-#	  filename: /dev/sda
-
-# number of disks to split by
-DISKS_SH_NR=10
-
-i=0; j=0; f=0;
-
-echo "Device:" > disks.conf
-
-devs=\`ls /dev/disk/by-id/scsi-35* | grep -v part\`
-
-fdisk -l \$devs 2>&1 1>/dev/null | \
-sed -n 's;^Disk \\(/dev/.*\\) doesn.*;\1;p' | \
-while read dev; do
-	[ \$j -eq 0 ] && echo "Device:" > disks\$f.conf
-	echo "       - id: \$i" >> disks.conf
-	echo "       - id: \$j" >> disks\$f.conf
-	echo "         filename: \$dev" >> disks.conf
-	echo "         filename: \$dev" >> disks\$f.conf
-	i=\`expr \$i + 1\`
-	j=\`expr \$j + 1\`
-	[ \$j -eq \$DISKS_SH_NR ] && j=0 && f=\`expr \$f + 1\`
-done
-
-exit 0
-EOF
-
-		if [ $H != $THIS_HOST ]; then
-			l_run scp $SF $H:$DISKS_SH
-		else
-			$RUN cp $SF $DISKS_SH
-		fi
-		if [ $? -ne 0 ]; then
-			echo ERROR: Failed to copy script file to $H
-			return 1
+		if ! $RUN [ -f $DISKS_SH_FILE ]; then
+			local dev_id=1
+			if [ $dcf_id -eq 0 ]; then
+				dev_id=`expr $I \* $DISKS_SH_NR + 1`
+			fi
+			gen_disks_conf_files $dev_id || return 1
 		fi
 
-		$RUN "(cd $SDIR && sh $DISKS_SH)"
-		if [ $? -ne 0 ]; then
-			echo ERROR: Failed to get disks list on $H
-			return 1
-		fi
-
-		local DISKS_SH_FILE=$SDIR/disks$dcf_id.conf
 		if [ $STOB == "-ad" ]; then
 			$RUN cat $DISKS_SH_FILE
 		else
@@ -317,24 +338,19 @@ EOF
 			STOB_PARAMS="-T ad -d $DISKS_SH_FILE"
 		fi
 	fi
-	cat <<EOF >$SF
 
-#!/bin/sh
-cd $SDIR
-exec $BROOT/core/colibri/colibri_setup -r $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -e $XPT:$EP -s ioservice $XPT_SETUP
-EOF
-	l_run cat $SF
-	if [ $H != $THIS_HOST ]; then
-		l_run scp $SF $H:$DF
-	else
-		l_run cp $SF $DF
-	fi
-	if [ $? -ne 0 ]; then
-		echo ERROR: Failed to copy script file to $H
-		return 1
+	local SNAME="-s ioservice"
+	if [ $I -eq 0 ]; then
+		SNAME="-s mdservice $SNAME"
 	fi
 
-	$RUN sh $DF &
+	$RUN "cd $DDIR && \
+C2_TRACE_IMMEDIATE_MASK=$C2_TRACE_IMMEDIATE_MASK \
+C2_TRACE_LEVEL=$C2_TRACE_LEVEL \
+C2_TRACE_PRINT_CONTEXT=$C2_TRACE_PRINT_CONTEXT \
+$BROOT/core/colibri/colibri_setup -r -p \
+$STOB_PARAMS -D $DDIR/db -S $DDIR/stobs \
+-e $XPT:$EP $SNAME $XPT_SETUP" > ${SLOG}$I.log &
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to start remote server on $H
 		return 1
@@ -345,10 +361,20 @@ EOF
 
 function start_servers () {
 	local devs_conf_cnt=0
-	for ((i=0; i < ${#SERVERS[*]}; i += 2)); do
-		H=${SERVERS[$i]}
-		EP=${SERVERS[((i+1))]}
-		[ $i -gt 0 ] && [ ${H%-*} != ${SERVERS[((i-2))]%-*} ] && \
+	if [ $STOB == "-ad" -o $STOB == "-td" ]; then
+		for ((i=0; i < ${#SERVICES[*]}; i += 2)); do
+			H=${SERVICES[$i]}
+			local RUN
+			[ $H == $THIS_HOST ] && RUN=l_run || RUN="r_run $H"
+			$RUN rm -f $WORK_ARENA/disks*.conf
+		done
+	fi
+	SLOG=$WORK_ARENA/server
+	for ((i=0; i < ${#SERVICES[*]}; i += 2)); do
+		H=${SERVICES[$i]}
+		EP=${SERVICES[((i+1))]}
+		# new Titan couple?
+		[ $i -gt 0 ] && [ ${H%-*} != ${SERVICES[((i-2))]%-*} ] && \
 			devs_conf_cnt=0
 		start_server $H $EP $((i / 2)) $devs_conf_cnt
 		if [ $? -ne 0 ]; then
@@ -356,10 +382,15 @@ function start_servers () {
 		fi
 		devs_conf_cnt=`expr $devs_conf_cnt + 1`
 	done
-	if [ $STOB == "-ad" ]; then
-		echo "Wait for the services to start up on ad stobs..."
-		l_run sleep 40
-	fi
+
+	echo "Wait for the services to start up..."
+	while true; do
+		local STARTED_NR=`cat ${SLOG}*.log | grep CTRL | wc -l`
+		echo "Started $STARTED_NR services..."
+		[ $STARTED_NR -ge $SERVICES_NR ] && break
+		l_run sleep 5
+	done
+
 	return 0
 }
 
@@ -420,21 +451,24 @@ setup_hosts && start_servers
 if [ $? -ne 0 ]; then
 	exit 1
 fi
-sleep 5
 
 # compute mount paramters
-IOS=
-for ((i=0; i < ${#SERVERS[*]}; i += 2)) ; do
-	if ((i != 0)) ; then
-		IOS="$IOS,"
-	fi
-	IOS="${IOS}ios=${SERVERS[((i+1))]}"
+IOS="mds=${SERVICES[1]},ios=${SERVICES[1]}"
+for i in `seq 3 2 ${#SERVICES[*]}`; do
+	IOS="${IOS},ios=${SERVICES[$i]}"
 done
-LAYOUT=unit_size=$UNIT_SIZE,nr_data_units=$NR_DATA,pool_width=$POOL_WIDTH
 
 # mount the file system
 mkdir -p $MP
-l_run mount -t c2t1fs -o $IOS,$LAYOUT none $MP
+
+CONF='conf=local-conf:[2: '\
+'("prof", {1| ("fs")}), '\
+'("fs", {2| ((11, 22),'\
+" [3: \"pool_width=$POOL_WIDTH\", \"nr_data_units=$NR_DATA\","\
+" \"unit_size=$UNIT_SIZE\"],"\
+' [1: "_"])})],profile=prof'
+
+l_run mount -t c2t1fs -o "'$CONF,$IOS'" none $MP
 if [ $? -ne 0 ]; then
 	echo ERROR: Unable to mount the file system
 	exit 1

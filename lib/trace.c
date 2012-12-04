@@ -68,7 +68,7 @@ uint32_t   c2_logbufsize = sizeof bootbuf;
 unsigned long c2_trace_immediate_mask = 0;
 C2_BASSERT(sizeof(c2_trace_immediate_mask) == 8);
 
-unsigned int c2_trace_print_context = C2_TRACE_PCTX_NONE;
+unsigned int c2_trace_print_context = C2_TRACE_PCTX_SHORT;
 unsigned int c2_trace_level         = C2_WARN | C2_ERROR | C2_FATAL;
 
 static uint32_t           bufmask;
@@ -98,9 +98,10 @@ static struct {
 
 /** Array of trace print context names */
 static const char *trace_print_ctx_str[] = {
-	[C2_TRACE_PCTX_NONE] = "none",
-	[C2_TRACE_PCTX_FUNC] = "func",
-	[C2_TRACE_PCTX_FULL] = "full",
+	[C2_TRACE_PCTX_NONE]  = "none",
+	[C2_TRACE_PCTX_FUNC]  = "func",
+	[C2_TRACE_PCTX_SHORT] = "short",
+	[C2_TRACE_PCTX_FULL]  = "full",
 };
 
 C2_INTERNAL int c2_arch_trace_init(void);
@@ -266,7 +267,8 @@ static unsigned long subsys_name_to_mask(char *subsys_name)
  * @return 0 on success
  * @return -EINVAL on failure
  */
-C2_INTERNAL int subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask)
+C2_INTERNAL int
+c2_trace_subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask)
 {
 	char          *p;
 	char          *subsys = subsys_names;
@@ -372,7 +374,7 @@ static enum c2_trace_level trace_level_value_plus(char *level_name)
  * @return c2_trace_level enum value, on success
  * @return C2_NONE on failure
  */
-C2_INTERNAL enum c2_trace_level parse_trace_level(char *str)
+C2_INTERNAL enum c2_trace_level c2_trace_parse_trace_level(char *str)
 {
 	char                *level_str = str;
 	char                *p = level_str;
@@ -397,8 +399,8 @@ C2_INTERNAL enum c2_trace_level parse_trace_level(char *str)
 	return level;
 }
 
-C2_INTERNAL enum c2_trace_print_context parse_trace_print_context(const char
-								  *ctx_name)
+C2_INTERNAL enum c2_trace_print_context
+c2_trace_parse_trace_print_context(const char *ctx_name)
 {
 	int i;
 
@@ -473,9 +475,16 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 		}
 	}
 
-	if (c2_trace_print_context == C2_TRACE_PCTX_FUNC)
+	if (c2_trace_print_context == C2_TRACE_PCTX_SHORT)
+		c2_console_printf("colibri: %6s : [%s:%i:%s] ",
+				  trace_level_name(td->td_level),
+				  c2_short_file_name(td->td_file),
+				  td->td_line, td->td_func);
+	else if (c2_trace_print_context == C2_TRACE_PCTX_FUNC ||
+		 (c2_trace_print_context == C2_TRACE_PCTX_NONE &&
+		  (td->td_level == C2_CALL || td->td_level == C2_NOTICE)))
 		c2_console_printf("colibri: %s: ", td->td_func);
-	else
+	else /* td->td_level == C2_TRACE_PCTX_NONE */
 		c2_console_printf("colibri: ");
 
 	c2_console_printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],

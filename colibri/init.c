@@ -48,20 +48,19 @@
 #include "fop/fom_generic.h"
 #include "colibri/init.h"
 #include "lib/cookie.h"
-#include "conf/conf_xcode.h"
-#include "conf/conf_fop.h"
-
+#include "conf/conf_xcode.h" /* c2_confx_types_init, c2_confx_types_fini */
+#include "conf/conf_fop.h"   /* c2_conf_fops_init, c2_conf_fops_fini */
 #ifdef __KERNEL__
-#   include "c2t1fs/linux_kernel/c2t1fs.h"
-#   include "build_kernel_modules/dummy_init_fini.h"
+#  include "c2t1fs/linux_kernel/c2t1fs.h"
+#  include "build_kernel_modules/dummy_init_fini.h"
+#else
+#  include "conf/confd.h"    /* c2_confd_register, c2_confd_unregister */
 #endif
-
 #include "cob/cob.h"
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
 #include "mdservice/md_fops.h"
 #include "mdservice/md_service.h"
-
 #include "sns/sns.h"
 #include "cm/cm.h"
 
@@ -70,9 +69,6 @@ C2_INTERNAL void c2_memory_fini(void);
 
 C2_INTERNAL int libc2_init(void);
 C2_INTERNAL void libc2_fini(void);
-
-C2_INTERNAL int c2_confd_service_register(void);
-C2_INTERNAL void c2_confd_service_unregister(void);
 
 /**
    @addtogroup init
@@ -95,7 +91,6 @@ struct init_fini_call subsystem[] = {
 	{ &c2_memory_init,      &c2_memory_fini,      "memory" },
 	{ &libc2_init,          &libc2_fini,          "libc2" },
 	{ &c2_fid_init,         &c2_fid_fini,         "fid" },
-	{ &c2_confx_types_init, &c2_confx_types_fini, "conf-xtypes" },
 	{ &c2_cookie_global_init, &c2_cookie_global_fini, "cookie" },
 	{ &c2_uts_init,         &c2_uts_fini,         "ut" },
 	{ &c2_processors_init,  &c2_processors_fini,  "processors" },
@@ -118,23 +113,20 @@ struct init_fini_call subsystem[] = {
 	{ &c2_fom_generic_init, &c2_fom_generic_fini, "fom-generic" },
 	{ &c2_mem_xprt_init,    &c2_mem_xprt_fini,    "bulk/mem" },
 	{ &c2_net_lnet_init,    &c2_net_lnet_fini,    "net/lnet" },
-#ifdef __KERNEL__
-	{ &c2t1fs_init,         &c2t1fs_fini,         "c2t1fs" },
-#endif /* __KERNEL__ */
 	{ &c2_linux_stobs_init, &c2_linux_stobs_fini, "linux-stob" },
 	{ &c2_ad_stobs_init,    &c2_ad_stobs_fini,    "ad-stob" },
 	{ &sim_global_init,     &sim_global_fini,     "desim" },
 	{ &c2_reqhs_init,       &c2_reqhs_fini,       "reqh" },
-#ifndef __KERNEL__
+	{ &c2_confx_types_init, &c2_confx_types_fini, "conf-xtypes" },
+	{ &c2_conf_fops_init,   &c2_conf_fops_fini,   "conf-fops" },
+#ifdef __KERNEL__
+	{ &c2t1fs_init,         &c2t1fs_fini,         "c2t1fs" },
+#else
+	{ &c2_confd_register,   &c2_confd_unregister, "confd" },
 	{ &c2_ios_register,     &c2_ios_unregister,   "ioservice" },
 	{ &c2_mds_register,     &c2_mds_unregister,   "mdservice"},
 	{ &c2_cm_module_init,   &c2_cm_module_fini,   "copy machine" },
 	{ &c2_sns_init,         &c2_sns_fini,         "sns" },
-	{ &c2_confd_service_register, &c2_confd_service_unregister,
-	  "confd-service" },
-#endif /* __KERNEL__ */
-#ifdef __KERNEL__
-	{ &c2_conf_fops_init,   &c2_conf_fops_fini,   "conf-fops" },
 #endif
 };
 

@@ -29,12 +29,6 @@
 #include "colibri/magic.h"
 #include "rpc/rpc_opcodes.h"
 
-#ifdef __KERNEL__
-# define c2_addb_handler NULL
-#else
-int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
-#endif
-
 static struct c2_fop_type_ops addb_ops = {
 };
 

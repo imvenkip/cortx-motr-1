@@ -28,7 +28,7 @@ static bool sdev_check(const void *bob)
 
 	C2_PRE(self_obj->co_type == C2_CO_SDEV);
 
-	return obj_is_stub(self_obj) == (self->sd_filename == NULL) &&
+	return c2_conf_obj_is_stub(self_obj) == (self->sd_filename == NULL) &&
 		ergo(self_obj->co_mounted, /* check relations */
 		     parent_check(self_obj) &&
 		     child_check(self_obj, MEMBER_PTR(self->sd_partitions,

@@ -145,6 +145,7 @@ struct cs_reqh_context {
 	/** Storage path for request handler context. */
 	const char                  *rc_stpath;
 
+	/** Path to device configuration file. */
 	const char                  *rc_dfilepath;
 
 	/** Type of storage to be initialised. */

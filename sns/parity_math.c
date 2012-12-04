@@ -320,6 +320,31 @@ static void reed_solomon_diff(struct c2_parity_math *math,
 			      struct c2_buf         *parity,
 			      uint32_t               index)
 {
+	struct c2_matrix *mat;
+	uint32_t          ei;
+	uint32_t          ui;
+	uint8_t		  diff_data;
+	c2_parity_elem_t  mat_elem;
+
+	C2_PRE(math   != NULL);
+	C2_PRE(old    != NULL);
+	C2_PRE(new    != NULL);
+	C2_PRE(parity != NULL);
+	C2_PRE(index  <  math->pmi_data_count);
+	C2_PRE(old[index].b_nob == new[index].b_nob);
+	C2_PRE(c2_forall(i, math->pmi_parity_count,
+		         new[index].b_nob == parity[i].b_nob));
+
+	mat = &math->pmi_vandmat_parity_slice;
+	for (ui = 0; ui < math->pmi_parity_count; ++ui) {
+		for (ei = 0; ei < new[index].b_nob; ++ei) {
+			mat_elem = *c2_matrix_elem_get(mat, index, ui);
+			diff_data = ((uint8_t *)old[index].b_addr)[ei] ^
+				    ((uint8_t *)new[index].b_addr)[ei];
+			((uint8_t*)parity[ui].b_addr)[ei] ^=
+				gmul(diff_data, mat_elem);
+		}
+	}
 }
 
 static void xor_diff(struct c2_parity_math *math,

@@ -23,7 +23,7 @@
 
 #include "conf/onwire.h"
 #include "conf/onwire_xc.h"
-#include "conf/obj.h" /* c2_conf_objtype: @todo: should it be in other place */
+#include "conf/obj.h" /* c2_conf_objtype (TODO: relocate the definition) */
 
 #include "conf/conf_xcode.h"
 #include "conf/obj.h"
@@ -92,15 +92,15 @@ xcode_ctx_init(struct c2_xcode_ctx *ctx, struct confx_object *obj, bool decode)
 }
 
 C2_INTERNAL int
-c2_confx_decode(struct c2_conf_xcode_pair *kv, struct confx_object *obj_out)
+c2_confx_decode(struct c2_conf_xcode_pair *src, struct confx_object *dest)
 {
 	struct c2_xcode_ctx ctx;
 	int                 rc;
-	struct c2_bufvec    bvec = C2_BUFVEC_INIT_BUF(&kv->xp_val.b_addr,
-						      &kv->xp_val.b_nob);
+	struct c2_bufvec    bvec = C2_BUFVEC_INIT_BUF(&src->xp_val.b_addr,
+						      &src->xp_val.b_nob);
 	C2_ENTRY();
 
-	rc = xcode_ctx_init(&ctx, obj_out, true);
+	rc = xcode_ctx_init(&ctx, dest, true);
 	if (rc != 0)
 		C2_RETURN(rc);
 
@@ -109,43 +109,29 @@ c2_confx_decode(struct c2_conf_xcode_pair *kv, struct confx_object *obj_out)
 	if (rc != 0)
 		C2_RETURN(rc);
 
-	/* @todo: check if 'deep copy' is needed ... */
-	switch(obj_out->o_conf.u_type) {
-	case C2_CO_PROFILE:
-		obj_out->o_conf.u.u_profile = *(struct confx_profile *)
-			ctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
-		break;
-	case C2_CO_FILESYSTEM:
-		obj_out->o_conf.u.u_filesystem = *(struct confx_filesystem *)
-			ctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
-		break;
-	case C2_CO_SERVICE:
-		obj_out->o_conf.u.u_service = *(struct confx_service *)
-			ctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
-		break;
-	case C2_CO_NODE:
-		obj_out->o_conf.u.u_node = *(struct confx_node *)
-			ctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
-		break;
-	case C2_CO_NIC:
-		obj_out->o_conf.u.u_nic = *(struct confx_nic *)
-			ctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
-		break;
-	case C2_CO_SDEV:
-		obj_out->o_conf.u.u_sdev = *(struct confx_sdev *)
-			ctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
-		break;
-	case C2_CO_PARTITION:
-		obj_out->o_conf.u.u_partition = *(struct confx_partition *)
-			ctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
-		break;
+	/* XXX TODO: check if "deep copy" is needed */
+	switch(dest->o_conf.u_type) {
+#define _CASE(type, abbrev)                                                \
+	case type:                                                         \
+		dest->o_conf.u.u_ ## abbrev = *(struct confx_ ## abbrev *) \
+			ctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;              \
+		break
+
+	_CASE(C2_CO_PROFILE,    profile);
+	_CASE(C2_CO_FILESYSTEM, filesystem);
+	_CASE(C2_CO_SERVICE,    service);
+	_CASE(C2_CO_NODE,       node);
+	_CASE(C2_CO_NIC,        nic);
+	_CASE(C2_CO_SDEV,       sdev);
+	_CASE(C2_CO_PARTITION,  partition);
+#undef _CASE
 	case C2_CO_DIR:
 	default:
 		rc = -EINVAL;
 	}
 
-	C2_SET0(&obj_out->o_id);
-	c2_buf_copy(&obj_out->o_id, &kv->xp_key);
+	C2_SET0(&dest->o_id);
+	c2_buf_copy(&dest->o_id, &src->xp_key);
 
 	c2_free(ctx.xcx_it.xcu_stack[0].s_obj.xo_ptr);
 	C2_RETURN(rc);
@@ -171,7 +157,7 @@ static int confx_object_measure(struct confx_object *xobj, c2_bcount_t *len)
 }
 
 C2_INTERNAL int
-c2_confx_encode(struct confx_object *obj, struct c2_conf_xcode_pair *out_kv)
+c2_confx_encode(struct confx_object *src, struct c2_conf_xcode_pair *dest)
 {
 	struct c2_xcode_ctx ctx;
 	int                 rc;
@@ -181,8 +167,8 @@ c2_confx_encode(struct confx_object *obj, struct c2_conf_xcode_pair *out_kv)
 
 	C2_ENTRY();
 
-	rc = confx_object_measure(obj, &len) ?:
-		xcode_ctx_init(&ctx, obj, false);
+	rc = confx_object_measure(src, &len) ?:
+		xcode_ctx_init(&ctx, src, false);
 	if (rc != 0)
 		C2_RETURN(rc);
 
@@ -198,9 +184,9 @@ c2_confx_encode(struct confx_object *obj, struct c2_conf_xcode_pair *out_kv)
 		C2_RETURN(rc);
 	}
 
-	out_kv->xp_val.b_addr = vec;
-	out_kv->xp_val.b_nob  = len;
-	out_kv->xp_key        = obj->o_id;
+	dest->xp_val.b_addr = vec;
+	dest->xp_val.b_nob  = len;
+	dest->xp_key = src->o_id;
 
 	C2_RETURN(0);
 }
@@ -232,7 +218,7 @@ enum {
 	C2_CONF_XCODE_UUID_SIZE  = 40,
 	C2_CONF_XCODE_NAME_LEN   = 256,
 
-	/* @todo: a very inaccurate estimations: */
+	/* XXX FIXME: very inaccurate estimations */
 	C2_CONF_XCODE_VAL_MAX    = sizeof(struct confx_object)    +
 					C2_CONF_XCODE_NAME_LEN    *
 					(C2_CONF_XCODE_SRV_EP_MAX +

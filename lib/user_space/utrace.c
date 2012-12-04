@@ -95,7 +95,7 @@ C2_INTERNAL int c2_trace_set_print_context(const char *ctx_name)
 {
 	if (ctx_name != NULL) {
 		enum c2_trace_print_context ctx =
-			parse_trace_print_context(ctx_name);
+			c2_trace_parse_trace_print_context(ctx_name);
 
 		if (ctx == C2_TRACE_PCTX_INVALID)
 			return -EINVAL;
@@ -126,7 +126,7 @@ C2_INTERNAL int c2_trace_set_immediate_mask(const char *mask)
 			if (s == NULL)
 				return -ENOMEM;
 
-			rc = subsys_list_to_mask(s, &m);
+			rc = c2_trace_subsys_list_to_mask(s, &m);
 			free(s);
 
 			if (rc != 0)
@@ -145,7 +145,7 @@ C2_INTERNAL int c2_trace_set_level(const char *level)
 		char *s = strdup(level);
 		if (s == NULL)
 			return -ENOMEM;
-		c2_trace_level = parse_trace_level(s);
+		c2_trace_level = c2_trace_parse_trace_level(s);
 		free(s);
 		if (c2_trace_level == C2_NONE)
 			return -EINVAL;
@@ -173,6 +173,8 @@ C2_INTERNAL int c2_arch_trace_init()
 	rc = c2_trace_set_print_context(var);
 	if (rc != 0)
 		return rc;
+
+	setlinebuf(stdout);
 
 	return randvspace_check() ?: logbuf_map();
 }

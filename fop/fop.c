@@ -101,7 +101,7 @@ C2_EXPORTED(c2_fop_alloc);
 
 C2_INTERNAL void c2_fop_fini(struct c2_fop *fop)
 {
-	C2_ASSERT(fop != NULL);
+	C2_PRE(fop != NULL);
 
 	c2_rpc_item_fini(&fop->f_item);
 	c2_addb_ctx_fini(&fop->f_addb);

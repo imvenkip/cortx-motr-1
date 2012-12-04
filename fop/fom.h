@@ -447,8 +447,6 @@ struct c2_fom {
 	const struct c2_fom_ops	 *fo_ops;
 	/** AST call-back to wake up the FOM */
 	struct c2_fom_callback	  fo_cb;
-	/** FOP ctx sent by the network service. */
-	struct c2_fop_ctx	*fo_fop_ctx;
 	/** Request fop object, this fom belongs to */
 	struct c2_fop		 *fo_fop;
 	/** Reply fop object */
@@ -711,30 +709,16 @@ C2_INTERNAL bool c2_fom_group_is_locked(const struct c2_fom *fom);
  */
 C2_INTERNAL void c2_fom_sm_init(struct c2_fom *fom);
 
-static inline void c2_fom_phase_set(struct c2_fom *fom, int phase)
-{
-	c2_sm_state_set(&fom->fo_sm_phase, phase);
-}
+void c2_fom_phase_set(struct c2_fom *fom, int phase);
 
-static inline void c2_fom_phase_move(struct c2_fom *fom, int32_t rc, int phase)
-{
-	c2_sm_move(&fom->fo_sm_phase, rc, phase);
-}
+void c2_fom_phase_move(struct c2_fom *fom, int32_t rc, int phase);
 
-static inline int c2_fom_phase(const struct c2_fom *fom)
-{
-	return fom->fo_sm_phase.sm_state;
-}
+void c2_fom_phase_moveif(struct c2_fom *fom, int32_t rc, int phase0,
+			 int phase1);
 
-static inline void c2_fom_err_set(struct c2_fom *fom, int32_t rc)
-{
-	fom->fo_sm_phase.sm_rc = rc;
-}
+int c2_fom_phase(const struct c2_fom *fom);
 
-static inline int c2_fom_rc(const struct c2_fom *fom)
-{
-	return fom->fo_sm_phase.sm_rc;
-}
+C2_INTERNAL int c2_fom_rc(const struct c2_fom *fom);
 
 C2_INTERNAL void c2_fom_type_init(struct c2_fom_type *type,
 				  const struct c2_fom_type_ops *ops,

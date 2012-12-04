@@ -379,6 +379,18 @@ C2_INTERNAL void c2_rpc_item_init(struct c2_rpc_item *item,
 }
 C2_EXPORTED(c2_rpc_item_init);
 
+C2_INTERNAL void c2_rpc_item_get(struct c2_rpc_item *item)
+{
+	/* XXX TODO */
+}
+C2_EXPORTED(c2_rpc_item_get);
+
+C2_INTERNAL void c2_rpc_item_put(struct c2_rpc_item *item)
+{
+	/* XXX TODO */
+}
+C2_EXPORTED(c2_rpc_item_put);
+
 static bool item_is_dummy(struct c2_rpc_item *item)
 {
 	struct c2_verno *v = item_verno(item, 0);

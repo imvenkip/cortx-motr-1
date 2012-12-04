@@ -30,8 +30,8 @@ lnet_up() {
     local LNET_NID=`lctl list_nids | head -1`
 
     export    C2T1FS_ENDPOINT="$LNET_NID:12345:34:6"
-    export IOSERVICE_ENDPOINT="$LNET_NID:12345:34:1"
     export MDSERVICE_ENDPOINT="$LNET_NID:12345:34:1"
+    export IOSERVICE_ENDPOINT="$LNET_NID:12345:34:1"
 }
 
 ### Usage: c2_modules {insert|remove}
@@ -79,9 +79,9 @@ c2_service() {
 	start)
 	    $C2_CORE_DIR/colibri/colibri_setup -r -p -D $SANDBOX_DIR/db \
 		-T linux -S $SANDBOX_DIR/stobs -e lnet:$IOSERVICE_ENDPOINT \
-		-s mdservice \
-		-s ioservice -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
-		-s confd-service >$SANDBOX_DIR/colibri_setup.log 2>&1 &
+		-s confd -s mdservice -s ioservice \
+		-m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
+		>$SANDBOX_DIR/colibri_setup.log 2>&1 &
 	    sleep 1
 	    status $C2_CORE_DIR/colibri/.libs/lt-colibri_setup >/dev/null || \
 		return 1
@@ -126,17 +126,17 @@ _fini() {
 }
 
 _mount() {
-    local CONF=
+    local LOCAL_CONF=
     local FS_PARAMS=\
 '[4: "pool_width=3","nr_data_units=1","nr_parity_units=1","unit_size=4096"]'
 
     case "${1:-}" in
-	bad_conf) CONF='local-conf:garbage';;
+	bad_conf) LOCAL_CONF='garbage';;
 	bad_fs_param) FS_PARAMS='[1: "bad_param"]';;
     esac
 
-    if [ -z "$CONF" ]; then
-	CONF='local-conf:[3: '\
+    if [ -z "$LOCAL_CONF" ]; then
+	LOCAL_CONF='[3: '\
 '("prof", {1| ("fs")}), '\
 '("fs", {2| ((11, 22),'\
 " $FS_PARAMS,"\
@@ -146,7 +146,7 @@ _mount() {
 ' "node-0")})]'
     fi
 
-    mount -t c2t1fs -o "conf=$CONF",profile=prof,\
+    mount -t c2t1fs -o profile=prof,"local_conf=$LOCAL_CONF",\
 mds=$MDSERVICE_ENDPOINT,ios=$IOSERVICE_ENDPOINT none \
 	$SANDBOX_DIR/mnt || return $?
 }

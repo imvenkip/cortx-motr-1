@@ -102,7 +102,8 @@ static int test_adieu_init(void)
 
 	result = c2_stob_find(dom, &id, &obj);
 	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
+	/* This checks that obj is still in the cache. */
+	C2_ASSERT(obj->so_state == CSS_NOENT);
 
 	result = c2_stob_create(obj, NULL);
 	C2_ASSERT(result == 0);
@@ -111,7 +112,7 @@ static int test_adieu_init(void)
 
 	result = c2_stob_find(dom, &id, &obj);
 	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
+	C2_ASSERT(obj->so_state == CSS_EXISTS); /* still in the cache. */
 
 	result = c2_stob_locate(obj, NULL);
 	C2_ASSERT(result == 0);

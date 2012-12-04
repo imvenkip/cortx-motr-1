@@ -55,11 +55,6 @@ C2_INTERNAL bool c2_conf_obj_invariant(const struct c2_conf_obj *obj)
 	return c2_conf_obj_bob_check(obj) && _concrete_obj_invariant(obj);
 }
 
-static bool __obj_is_stub(const struct c2_conf_obj *obj)
-{
-	return obj->co_status != C2_CS_READY;
-}
-
 static bool _generic_obj_invariant(const void *bob)
 {
 	const struct c2_conf_obj *obj = bob;
@@ -68,7 +63,7 @@ static bool _generic_obj_invariant(const void *bob)
 		c2_buf_is_aimed(&obj->co_id) && obj->co_ops != NULL &&
 		C2_IN(obj->co_status,
 		      (C2_CS_MISSING, C2_CS_LOADING, C2_CS_READY)) &&
-		ergo(__obj_is_stub(obj), obj->co_nrefs == 0);
+		ergo(c2_conf_obj_is_stub(obj), obj->co_nrefs == 0);
 }
 
 static bool _concrete_obj_invariant(const struct c2_conf_obj *obj)
@@ -140,16 +135,18 @@ static int _stub_create(struct c2_conf_reg *reg, enum c2_conf_objtype type,
 {
 	int rc;
 
+	C2_ENTRY();
+
 	*out = c2_conf_obj_create(type, id);
 	if (*out == NULL)
-		return -ENOMEM;
+		C2_RETURN(-ENOMEM);
 
 	rc = c2_conf_reg_add(reg, *out);
 	if (rc != 0) {
 		c2_conf_obj_delete(*out);
 		*out = NULL;
 	}
-	return rc;
+	C2_RETURN(rc);
 }
 
 C2_INTERNAL int c2_conf_obj_find(struct c2_conf_reg *reg,
@@ -157,8 +154,9 @@ C2_INTERNAL int c2_conf_obj_find(struct c2_conf_reg *reg,
 				 const struct c2_buf *id,
 				 struct c2_conf_obj **out)
 {
+	C2_ENTRY();
 	*out = c2_conf_reg_lookup(reg, type, id);
-	return *out == NULL ? _stub_create(reg, type, id, out) : 0;
+	C2_RETURN(*out == NULL ? _stub_create(reg, type, id, out) : 0);
 }
 
 static bool confc_is_unset_or_locked(const struct c2_conf_obj *obj)
@@ -214,7 +212,7 @@ C2_INTERNAL int c2_conf_obj_fill(struct c2_conf_obj *dest,
 
 	C2_PRE(c2_conf_obj_invariant(dest));
 	C2_PRE(confc_is_unset_or_locked(dest));
-	C2_PRE(__obj_is_stub(dest) && dest->co_nrefs == 0);
+	C2_PRE(c2_conf_obj_is_stub(dest) && dest->co_nrefs == 0);
 	C2_PRE(dest->co_type == src->o_conf.u_type);
 	C2_PRE(c2_buf_eq(&dest->co_id, &src->o_id));
 	C2_PRE(confx_object_is_valid(src));
@@ -236,7 +234,7 @@ C2_INTERNAL bool c2_conf_obj_match(const struct c2_conf_obj *cached,
 
 	return cached->co_type == flat->o_conf.u_type &&
 		c2_buf_eq(&cached->co_id, &flat->o_id) &&
-		(__obj_is_stub(cached) ||
+		(c2_conf_obj_is_stub(cached) ||
 		 cached->co_ops->coo_match(cached, flat));
 }
 

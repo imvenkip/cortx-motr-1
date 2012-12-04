@@ -36,7 +36,12 @@ _reset() {
 }
 
 run_ut()  { _reset; $SUDO "$SRC/utils/ut.sh" "$@"; }
-run_kut() { _reset; $SUDO "$SRC/utils/linux_kernel/ut.sh"; }
+
+run_kut() {
+    _reset
+    echo 'Running kernel UT (may take a while) ...'
+    $SUDO "$SRC/utils/linux_kernel/ut.sh"
+}
 
 run_st() {
     _reset
@@ -119,10 +124,16 @@ case "$1" in
     run-st)  run_st;;
     run-all)
         shift; run_ut "$@"
-        echo 'Running kernel UT ...'; run_kut
+        run_kut
         run_st;;
     dist-check) shift; dist_check "$@";;
-    check-everything) clean; build; run_ut; run_kut; run_st;;
+    check-everything)
+	clean
+	build
+	run_ut
+	run_kut
+	run_st
+	dist_check;;
     clean) shift; clean "$@";;
     help) help 0;;
     *)    help 1;;
