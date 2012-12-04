@@ -35,17 +35,17 @@
  * @{
  *
  */
-enum c2_rm_fom_phases {
+enum m0_rm_fom_phases {
 	FOPH_RM_REQ_START = C2_FOPH_NR + 1,
 	FOPH_RM_REQ_WAIT = C2_FOPH_NR + 2,
 	FOPH_RM_REQ_FINISH = C2_FOPH_NR + 3,
 };
 
 struct rm_request_fom {
-	/** Generic c2_fom object */
-	struct c2_fom		     rf_fom;
+	/** Generic m0_fom object */
+	struct m0_fom		     rf_fom;
 	/** Incoming request */
-	struct c2_rm_remote_incoming rf_in;
+	struct m0_rm_remote_incoming rf_in;
 };
 
 /** @} */

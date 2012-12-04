@@ -29,16 +29,16 @@
 /**
  * Externs
  */
-extern struct c2_fop_type c2_fop_rm_borrow_fopt;
-extern struct c2_fop_type c2_fop_rm_borrow_rep_fopt;
-extern struct c2_fop_type c2_fop_rm_revoke_fopt;
-extern struct c2_fop_type c2_fom_error_rep_fopt;
+extern struct m0_fop_type m0_fop_rm_borrow_fopt;
+extern struct m0_fop_type m0_fop_rm_borrow_rep_fopt;
+extern struct m0_fop_type m0_fop_rm_revoke_fopt;
+extern struct m0_fop_type m0_fom_error_rep_fopt;
 
 /**
  * FOP init() and fini() functions.
  */
-C2_INTERNAL int c2_rm_fop_init();
-C2_INTERNAL void c2_rm_fop_fini();
+C2_INTERNAL int m0_rm_fop_init();
+C2_INTERNAL void m0_rm_fop_fini();
 
 /* __COLIBRI_RM_FOPS_H__ */
 #endif

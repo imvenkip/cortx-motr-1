@@ -75,15 +75,15 @@ enum {
 
 };
 
-struct c2_rings {
-        struct c2_rm_resource rs_resource;
+struct m0_rings {
+        struct m0_rm_resource rs_resource;
 	uint64_t              rs_id;
 };
 
-extern const struct c2_rm_resource_ops rings_ops;
-extern const struct c2_rm_resource_type_ops rings_rtype_ops;
-extern const struct c2_rm_right_ops rings_right_ops;
-extern const struct c2_rm_incoming_ops rings_incoming_ops;
+extern const struct m0_rm_resource_ops rings_ops;
+extern const struct m0_rm_resource_type_ops rings_rtype_ops;
+extern const struct m0_rm_credit_ops rings_credit_ops;
+extern const struct m0_rm_incoming_ops rings_incoming_ops;
 
 /* __COLIBRI_RM_RINGS_H__ */
 #endif

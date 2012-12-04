@@ -33,7 +33,7 @@ require "fop/fom_generic_ff";
  *
  * This file defines RM-fops needed for RM-generic layer. All the layers using
  * RM will have to define their own FOPs to fetch resource data. RM-generic FOPs
- * provide a facility for resource rights management and to fetch small resource
+ * provide a facility for resource credits management and to fetch small resource
  * data.
  *
  * <b>RM fop formats</b>
@@ -42,62 +42,62 @@ require "fop/fom_generic_ff";
  * fops:
  *
  *     - resource type: identified by 64-bit identifier
- *       (c2_rm_resource_type::rt_id),
+ *       (m0_rm_resource_type::rt_id),
  *
  *     - resource: resource information is never passed separately, but only to
  *       identify a resource owner,
  *
  *     - owner: when a first request to a remote resource owner is made, the
  *       owner is identified by the resource
- *       (c2_rm_resource_type_ops::rto_encode()) it is a responsibility of the
+ *       (m0_rm_resource_type_ops::rto_encode()) it is a responsibility of the
  *       remote RM to locate the owner. In the subsequent fops for the same
- *       owner, it is identified by a 128-bit cookie (c2_rm_cookie),
+ *       owner, it is identified by a 128-bit cookie (m0_rm_cookie),
  *
- *     - right: identified by an opaque byte array
- *       (c2_rm_resource_ops::rop_right_decode(),
- *       c2_rm_right_ops::rro_encode()). A 0-sized array in REVOKE and CANCEL
- *       fops is interpreted to mean "whole right previously granted",
+ *     - credit: identified by an opaque byte array
+ *       (m0_rm_resource_ops::rop_credit_decode(),
+ *       m0_rm_credit_ops::rro_encode()). A 0-sized array in REVOKE and CANCEL
+ *       fops is interpreted to mean "whole credit previously granted",
  *
- *     - loan: identified by a 128-bit cookie (c2_rm_cookie).
+ *     - loan: identified by a 128-bit cookie (m0_rm_cookie).
  *
  */
 
 record {
-	c2_cookie ow_cookie;
-	c2_buf    ow_resource
-} c2_fop_rm_owner;
+	m0_cookie ow_cookie;
+	m0_buf    ow_resource
+} m0_fop_rm_owner;
 
 record {
-	c2_cookie lo_cookie
-} c2_fop_rm_loan;
+	m0_cookie lo_cookie
+} m0_fop_rm_loan;
 
 record {
-	c2_buf ri_opaque
-} c2_fop_rm_right;
+	m0_buf cr_opaque
+} m0_fop_rm_credit;
 
 record {
-	c2_fop_rm_owner rrq_owner; /* Could either be debtor or creditor */
-	c2_fop_rm_right rrq_right;
-	u64             rrq_policy;
-	u64             rrq_flags
-} c2_fop_rm_req;
+	m0_fop_rm_owner  rrq_owner; /* Could either be debtor or creditor */
+	m0_fop_rm_credit rrq_credit;
+	u64              rrq_policy;
+	u64              rrq_flags
+} m0_fop_rm_req;
 
 record {
-	c2_fop_rm_req   bo_base;
-	c2_fop_rm_owner bo_creditor
-} c2_fop_rm_borrow;
+	m0_fop_rm_req   bo_base;
+	m0_fop_rm_owner bo_creditor
+} m0_fop_rm_borrow;
 
 record {
-	c2_fom_error_rep br_rc;
-	c2_fop_rm_loan   br_loan;
-	c2_fop_rm_right  br_right;
-	c2_buf           br_lvb
-} c2_fop_rm_borrow_rep;
+	m0_fom_error_rep br_rc;
+	m0_fop_rm_loan   br_loan;
+	m0_fop_rm_credit br_credit;
+	m0_buf           br_lvb
+} m0_fop_rm_borrow_rep;
 
 record {
-	c2_fop_rm_req  rr_base;
-	c2_fop_rm_loan rr_loan
-} c2_fop_rm_revoke;
+	m0_fop_rm_req  rr_base;
+	m0_fop_rm_loan rr_loan
+} m0_fop_rm_revoke;
 
 /** @} end of rm group */
 

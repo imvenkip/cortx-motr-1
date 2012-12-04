@@ -34,12 +34,12 @@ enum obj_type {
  * Resource manager class-collection.
  */
 struct rm_ut_data {
-	struct c2_rm_domain	   rd_dom;
-	struct c2_rm_resource_type rd_rt;
-	struct c2_rings		   rd_res;
-	struct c2_rm_owner	   rd_owner;
-	struct c2_rm_incoming	   rd_in;
-	struct c2_rm_right	   rd_right;
+	struct m0_rm_domain	   rd_dom;
+	struct m0_rm_resource_type rd_rt;
+	struct m0_rings		   rd_res;
+	struct m0_rm_owner	   rd_owner;
+	struct m0_rm_incoming	   rd_in;
+	struct m0_rm_credit	   rd_credit;
 };
 
 /*
@@ -49,8 +49,8 @@ struct rm_ut_data	   test_data;
 
 void rm_utdata_init(struct rm_ut_data *data, enum obj_type type);
 void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type);
-void rm_test_owner_capital_raise(struct c2_rm_owner *owner,
-				 struct c2_rm_right *right);
+void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
+				 struct m0_rm_credit *credit);
 
 /* __COLIBRI_RM_UT_RMUT_H__ */
 #endif

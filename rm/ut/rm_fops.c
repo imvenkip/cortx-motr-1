@@ -32,18 +32,18 @@
 #include "rm/ut/rings.h"
 #include "rm/rm_fops.c"          /* To access static APIs. */
 
-static struct c2_rm_loan *test_loan;
-static struct c2_rm_remote remote;
+static struct m0_rm_loan *test_loan;
+static struct m0_rm_remote remote;
 
 static void post_borrow_validate(int err);
-static void borrow_reply_populate(struct c2_fop_rm_borrow_rep *breply,
+static void borrow_reply_populate(struct m0_fop_rm_borrow_rep *breply,
 				  int err);
-static void post_borrow_cleanup(struct c2_rpc_item *item, int err);
-static void borrow_fop_validate(struct c2_fop_rm_borrow *bfop);
+static void post_borrow_cleanup(struct m0_rpc_item *item, int err);
+static void borrow_fop_validate(struct m0_fop_rm_borrow *bfop);
 static void post_revoke_validate(int err);
-static void revoke_fop_validate(struct c2_fop_rm_revoke *rfop);
-static void post_revoke_cleanup(struct c2_rpc_item *item, int err);
-static void revoke_reply_populate(struct c2_fom_error_rep *rreply,
+static void revoke_fop_validate(struct m0_fop_rm_revoke *rfop);
+static void post_revoke_cleanup(struct m0_rpc_item *item, int err);
+static void revoke_reply_populate(struct m0_fom_error_rep *rreply,
 				  int err);
 
 /*
@@ -53,47 +53,47 @@ static void revoke_reply_populate(struct c2_fom_error_rep *rreply,
  */
 static void rmfops_utinit(void)
 {
-	c2_rm_fop_init();
+	m0_rm_fop_init();
 }
 
 static void rmfops_utfini(void)
 {
-	c2_rm_fop_fini();
+	m0_rm_fop_fini();
 }
 
 /*
  * Prepare parameters (request) for testing RM-FOP-send functions.
  */
-static void request_param_init(enum c2_rm_incoming_type reqtype)
+static void request_param_init(enum m0_rm_incoming_type reqtype)
 {
 	C2_SET0(&test_data.rd_in);
-	c2_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner, reqtype,
+	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner, reqtype,
 			    RIP_NONE, RIF_LOCAL_WAIT);
 
-	c2_rm_right_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
-	test_data.rd_in.rin_want.ri_datum = NENYA;
+	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
+	test_data.rd_in.rin_want.cr_datum = NENYA;
 	test_data.rd_in.rin_ops = &rings_incoming_ops;
 
-	C2_SET0(&test_data.rd_right);
-	c2_rm_right_init(&test_data.rd_right, &test_data.rd_owner);
-	test_data.rd_right.ri_datum = NENYA;
-	test_data.rd_right.ri_ops = &rings_right_ops;
+	C2_SET0(&test_data.rd_credit);
+	m0_rm_credit_init(&test_data.rd_credit, &test_data.rd_owner);
+	test_data.rd_credit.cr_datum = NENYA;
+	test_data.rd_credit.cr_ops = &rings_credit_ops;
 
 	C2_ALLOC_PTR(test_data.rd_owner.ro_creditor);
 	C2_UT_ASSERT(test_data.rd_owner.ro_creditor != NULL);
-	c2_rm_remote_init(test_data.rd_owner.ro_creditor,
+	m0_rm_remote_init(test_data.rd_owner.ro_creditor,
 			  test_data.rd_owner.ro_resource);
-	c2_cookie_init(&test_data.rd_owner.ro_creditor->rem_cookie,
+	m0_cookie_init(&test_data.rd_owner.ro_creditor->rem_cookie,
 		       &test_data.rd_owner.ro_id);
 	C2_ALLOC_PTR(test_loan);
 	C2_UT_ASSERT(test_loan != NULL);
-	c2_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
+	m0_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
 	remote.rem_state = REM_FREED;
-	c2_rm_remote_init(&remote, &test_data.rd_res.rs_resource);
-	c2_cookie_init(&remote.rem_cookie, &test_data.rd_owner.ro_id);
+	m0_rm_remote_init(&remote, &test_data.rd_res.rs_resource);
+	m0_cookie_init(&remote.rem_cookie, &test_data.rd_owner.ro_id);
 	test_loan->rl_other = &remote;
-	c2_rm_loan_init(test_loan, &test_data.rd_right, &remote);
-	c2_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
+	m0_rm_loan_init(test_loan, &test_data.rd_credit, &remote);
+	m0_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
 }
 
 /*
@@ -101,84 +101,84 @@ static void request_param_init(enum c2_rm_incoming_type reqtype)
  */
 static void request_param_fini()
 {
-	c2_free(test_loan);
-	c2_free(test_data.rd_owner.ro_creditor);
+	m0_free(test_loan);
+	m0_free(test_data.rd_owner.ro_creditor);
 	test_data.rd_owner.ro_creditor = NULL;
 }
 
 /*
  * Validate FOP and other data structures after RM-FOP-send function is called.
  */
-static void rm_req_fop_validate(enum c2_rm_incoming_type reqtype)
+static void rm_req_fop_validate(enum m0_rm_incoming_type reqtype)
 {
-	struct c2_fop_rm_borrow *bfop;
-	struct c2_fop_rm_revoke *rfop;
-	struct c2_rm_pin	*pin;
-	struct c2_rm_loan	*loan;
-	struct c2_rm_outgoing	*og;
+	struct m0_fop_rm_borrow *bfop;
+	struct m0_fop_rm_revoke *rfop;
+	struct m0_rm_pin	*pin;
+	struct m0_rm_loan	*loan;
+	struct m0_rm_outgoing	*og;
 	struct rm_out		*oreq;
 	uint32_t		 pins_nr = 0;
 
-	c2_tl_for(pi, &test_data.rd_in.rin_pins, pin) {
+	m0_tl_for(pi, &test_data.rd_in.rin_pins, pin) {
 
 		C2_UT_ASSERT(pin->rp_flags == C2_RPF_TRACK);
 		/* It's time to introduce ladder_of() */
-		loan = bob_of(pin->rp_right, struct c2_rm_loan,
-			      rl_right, &loan_bob);
-		og = container_of(loan, struct c2_rm_outgoing, rog_want);
+		loan = bob_of(pin->rp_credit, struct m0_rm_loan,
+			      rl_credit, &loan_bob);
+		og = container_of(loan, struct m0_rm_outgoing, rog_want);
 		oreq = container_of(og, struct rm_out, ou_req);
 
 		switch (reqtype) {
 		case C2_RIT_BORROW:
-			bfop = c2_fop_data(&oreq->ou_fop);
+			bfop = m0_fop_data(&oreq->ou_fop);
 			borrow_fop_validate(bfop);
 			break;
 		case C2_RIT_REVOKE:
-			rfop = c2_fop_data(&oreq->ou_fop);
+			rfop = m0_fop_data(&oreq->ou_fop);
 			revoke_fop_validate(rfop);
 			break;
 		default:
 			break;
 		}
 
-		c2_rm_ur_tlist_del(pin->rp_right);
-		c2_fop_fini(&oreq->ou_fop);
+		m0_rm_ur_tlist_del(pin->rp_credit);
+		m0_fop_fini(&oreq->ou_fop);
 		rm_out_fini(oreq);
 
 		pi_tlink_del_fini(pin);
 		pr_tlink_del_fini(pin);
-		c2_free(pin);
+		m0_free(pin);
 
 		++pins_nr;
-	} c2_tl_endfor;
+	} m0_tl_endfor;
 	C2_UT_ASSERT(pins_nr == 1);
 }
 
 /*
  * Create reply for each FOP.
  */
-static struct c2_rpc_item *rm_reply_create(enum c2_rm_incoming_type reqtype,
+static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
 					   int err)
 {
-	struct c2_fop_rm_borrow_rep *breply;
-	struct c2_fom_error_rep     *rreply;
+	struct m0_fop_rm_borrow_rep *breply;
+	struct m0_fom_error_rep     *rreply;
 
-	struct c2_fop		    *fop;
-	struct c2_rm_pin	    *pin;
-	struct c2_rm_loan	    *loan;
-	struct c2_rm_outgoing	    *og;
-	struct c2_rpc_item	    *item = NULL;
-	struct c2_rm_owner	    *owner;
+	struct m0_fop		    *fop;
+	struct m0_rm_pin	    *pin;
+	struct m0_rm_loan	    *loan;
+	struct m0_rm_outgoing	    *og;
+	struct m0_rpc_item	    *item = NULL;
+	struct m0_rm_owner	    *owner;
 	struct rm_out		    *oreq;
 	uint32_t		     pins_nr = 0;
 
-	c2_tl_for(pi, &test_data.rd_in.rin_pins, pin) {
+	m0_tl_for(pi, &test_data.rd_in.rin_pins, pin) {
 
 		C2_UT_ASSERT(pin->rp_flags == C2_RPF_TRACK);
 		/* It's time to introduce ladder_of() */
-		loan = bob_of(pin->rp_right, struct c2_rm_loan,
-			      rl_right, &loan_bob);
-		og = container_of(loan, struct c2_rm_outgoing, rog_want);
+		loan = bob_of(pin->rp_credit, struct m0_rm_loan,
+			      rl_credit, &loan_bob);
+		og = container_of(loan, struct m0_rm_outgoing, rog_want);
 		oreq = container_of(og, struct rm_out, ou_req);
 
 		C2_ALLOC_PTR(fop);
@@ -187,33 +187,33 @@ static struct c2_rpc_item *rm_reply_create(enum c2_rm_incoming_type reqtype,
 		case C2_RIT_BORROW:
 			item = &oreq->ou_fop.f_item;
 			/* Initialise Reply FOP */
-			c2_fop_init(fop, &c2_fop_rm_borrow_rep_fopt, NULL);
-			C2_UT_ASSERT(c2_fop_data_alloc(fop) == 0);
-			breply = c2_fop_data(fop);
+			m0_fop_init(fop, &m0_fop_rm_borrow_rep_fopt, NULL);
+			C2_UT_ASSERT(m0_fop_data_alloc(fop) == 0);
+			breply = m0_fop_data(fop);
 			borrow_reply_populate(breply, err);
 			item->ri_reply = &fop->f_item;
 			break;
 		case C2_RIT_REVOKE:
 			item = &oreq->ou_fop.f_item;
 			/* Initialise Reply FOP */
-			c2_fop_init(fop, &c2_fom_error_rep_fopt, NULL);
-			C2_UT_ASSERT(c2_fop_data_alloc(fop) == 0);
-			rreply = c2_fop_data(fop);
+			m0_fop_init(fop, &m0_fom_error_rep_fopt, NULL);
+			C2_UT_ASSERT(m0_fop_data_alloc(fop) == 0);
+			rreply = m0_fop_data(fop);
 			revoke_reply_populate(rreply, err);
 			item->ri_reply = &fop->f_item;
 			break;
 		default:
 			break;
 		}
-		owner = og->rog_want.rl_right.ri_owner;
+		owner = og->rog_want.rl_credit.cr_owner;
 		/* Delete the pin so that owner_balance() does not process it */
-		c2_rm_owner_lock(owner);
+		m0_rm_owner_lock(owner);
 		pi_tlink_del_fini(pin);
 		pr_tlink_del_fini(pin);
-		c2_rm_owner_unlock(owner);
-		c2_free(pin);
+		m0_rm_owner_unlock(owner);
+		m0_free(pin);
 		++pins_nr;
-	} c2_tl_endfor;
+	} m0_tl_endfor;
 	C2_UT_ASSERT(pins_nr == 1);
 
 	return item;
@@ -222,19 +222,19 @@ static struct c2_rpc_item *rm_reply_create(enum c2_rm_incoming_type reqtype,
 /*
  * Test a reply FOP.
  */
-static void reply_test(enum c2_rm_incoming_type reqtype, int err)
+static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 {
 	int		    rc;
-	struct c2_rpc_item *item;
+	struct m0_rpc_item *item;
 
 	request_param_init(reqtype);
 
-	c2_fi_enable_once("c2_rm_request_out", "no-rpc");
+	m0_fi_enable_once("m0_rm_request_out", "no-rpc");
 	switch (reqtype) {
 	case C2_RIT_BORROW:
 		test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
-		rc = c2_rm_request_out(C2_ROT_BORROW, &test_data.rd_in, NULL,
-				       &test_data.rd_right);
+		rc = m0_rm_request_out(C2_ROT_BORROW, &test_data.rd_in, NULL,
+				       &test_data.rd_credit);
 		C2_UT_ASSERT(rc == 0);
 		item = rm_reply_create(C2_RIT_BORROW, err);
 		borrow_reply(item);
@@ -244,12 +244,12 @@ static void reply_test(enum c2_rm_incoming_type reqtype, int err)
 		break;
 	case C2_RIT_REVOKE:
 		test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
-		rc = c2_rm_request_out(C2_ROT_REVOKE, &test_data.rd_in,
-				       test_loan, &test_loan->rl_right);
+		rc = m0_rm_request_out(C2_ROT_REVOKE, &test_data.rd_in,
+				       test_loan, &test_loan->rl_credit);
 		item = rm_reply_create(C2_RIT_REVOKE, err);
-		c2_rm_owner_lock(&test_data.rd_owner);
-		c2_rm_ur_tlist_add(&test_data.rd_owner.ro_sublet, &test_loan->rl_right);
-		c2_rm_owner_unlock(&test_data.rd_owner);
+		m0_rm_owner_lock(&test_data.rd_owner);
+		m0_rm_ur_tlist_add(&test_data.rd_owner.ro_sublet, &test_loan->rl_credit);
+		m0_rm_owner_unlock(&test_data.rd_owner);
 		revoke_reply(item);
 		post_revoke_validate(err);
 		post_revoke_cleanup(item, err);
@@ -272,23 +272,23 @@ static void reply_test(enum c2_rm_incoming_type reqtype, int err)
 /*
  * Test a request FOP.
  */
-static void request_test(enum c2_rm_incoming_type reqtype)
+static void request_test(enum m0_rm_incoming_type reqtype)
 {
 	int rc;
 
 	request_param_init(reqtype);
 
-	c2_fi_enable_once("c2_rm_request_out", "no-rpc");
+	m0_fi_enable_once("m0_rm_request_out", "no-rpc");
 	switch (reqtype) {
 	case C2_RIT_BORROW:
 		test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
-		rc = c2_rm_request_out(C2_ROT_BORROW, &test_data.rd_in, NULL,
-				       &test_data.rd_right);
+		rc = m0_rm_request_out(C2_ROT_BORROW, &test_data.rd_in, NULL,
+				       &test_data.rd_credit);
 		break;
 	case C2_RIT_REVOKE:
 		test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
-		rc = c2_rm_request_out(C2_ROT_REVOKE, &test_data.rd_in,
-				       test_loan, &test_loan->rl_right);
+		rc = m0_rm_request_out(C2_ROT_REVOKE, &test_data.rd_in,
+				       test_loan, &test_loan->rl_credit);
 		break;
 	default:
 		C2_IMPOSSIBLE("Invalid RM-FOM type");
@@ -309,17 +309,17 @@ static void request_test(enum c2_rm_incoming_type reqtype)
  */
 static void post_borrow_validate(int err)
 {
-	bool got_right;
+	bool got_credit;
 
-	c2_rm_owner_lock(&test_data.rd_owner);
-	got_right = !c2_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_borrowed) &&
-		    !c2_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_owned[OWOS_CACHED]);
-	c2_rm_owner_unlock(&test_data.rd_owner);
-	C2_UT_ASSERT(ergo(err, !got_right));
-	C2_UT_ASSERT(ergo(err == 0, got_right));
+	m0_rm_owner_lock(&test_data.rd_owner);
+	got_credit = !m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_borrowed) &&
+		    !m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_owned[OWOS_CACHED]);
+	m0_rm_owner_unlock(&test_data.rd_owner);
+	C2_UT_ASSERT(ergo(err, !got_credit));
+	C2_UT_ASSERT(ergo(err == 0, got_credit));
 }
 
-static void borrow_reply_populate(struct c2_fop_rm_borrow_rep *breply,
+static void borrow_reply_populate(struct m0_fop_rm_borrow_rep *breply,
 				  int err)
 {
 	int rc;
@@ -327,33 +327,33 @@ static void borrow_reply_populate(struct c2_fop_rm_borrow_rep *breply,
 	breply->br_rc.rerr_rc = err;
 
 	if (err == 0) {
-		rc = c2_rm_right_encode(&test_data.rd_right,
-					&breply->br_right.ri_opaque);
+		rc = m0_rm_credit_encode(&test_data.rd_credit,
+					&breply->br_credit.cr_opaque);
 		C2_UT_ASSERT(rc == 0);
 	}
 }
 
-static void post_borrow_cleanup(struct c2_rpc_item *item, int err)
+static void post_borrow_cleanup(struct m0_rpc_item *item, int err)
 {
-	struct c2_rm_right	    *right;
-	struct c2_rm_loan	    *loan;
-	struct c2_fop		    *fop;
-	struct c2_fop_rm_borrow_rep *breply;
-	struct c2_fop_rm_borrow	    *bfop;
+	struct m0_rm_credit	    *credit;
+	struct m0_rm_loan	    *loan;
+	struct m0_fop		    *fop;
+	struct m0_fop_rm_borrow_rep *breply;
+	struct m0_fop_rm_borrow	    *bfop;
 
 	/*
 	 * Clean-up borrow request and reply FOPs first.
 	 */
-	fop = c2_rpc_item_to_fop(item->ri_reply);
-	breply = c2_fop_data(fop);
+	fop = m0_rpc_item_to_fop(item->ri_reply);
+	breply = m0_fop_data(fop);
 
-	c2_buf_free(&breply->br_right.ri_opaque);
-	c2_fop_fini(fop);
-	c2_free(fop);
+	m0_buf_free(&breply->br_credit.cr_opaque);
+	m0_fop_fini(fop);
+	m0_free(fop);
 
-	fop = c2_rpc_item_to_fop(item);
-	bfop = c2_fop_data(fop);
-	c2_buf_free(&bfop->bo_base.rrq_right.ri_opaque);
+	fop = m0_rpc_item_to_fop(item);
+	bfop = m0_fop_data(fop);
+	m0_buf_free(&bfop->bo_base.rrq_credit.cr_opaque);
 
 	/*
 	 * A borrow error leaves owner lists unaffected.
@@ -363,50 +363,50 @@ static void post_borrow_cleanup(struct c2_rpc_item *item, int err)
 	if (err)
 		return;
 
-	c2_rm_owner_lock(&test_data.rd_owner);
-	c2_tl_for(c2_rm_ur, &test_data.rd_owner.ro_owned[OWOS_CACHED], right) {
-		c2_rm_ur_tlink_del_fini(right);
-		c2_free(right);
-	} c2_tl_endfor;
+	m0_rm_owner_lock(&test_data.rd_owner);
+	m0_tl_for(m0_rm_ur, &test_data.rd_owner.ro_owned[OWOS_CACHED], credit) {
+		m0_rm_ur_tlink_del_fini(credit);
+		m0_free(credit);
+	} m0_tl_endfor;
 
-	c2_tl_for(c2_rm_ur, &test_data.rd_owner.ro_borrowed, right) {
-		c2_rm_ur_tlink_del_fini(right);
-		loan = bob_of(right, struct c2_rm_loan, rl_right, &loan_bob);
-		c2_free(loan);
-	} c2_tl_endfor;
-	c2_rm_owner_unlock(&test_data.rd_owner);
+	m0_tl_for(m0_rm_ur, &test_data.rd_owner.ro_borrowed, credit) {
+		m0_rm_ur_tlink_del_fini(credit);
+		loan = bob_of(credit, struct m0_rm_loan, rl_credit, &loan_bob);
+		m0_free(loan);
+	} m0_tl_endfor;
+	m0_rm_owner_unlock(&test_data.rd_owner);
 }
 
 /*
- * Check if c2_rm_request_out() has filled the FOP correctly
+ * Check if m0_rm_request_out() has filled the FOP correctly
  */
-static void borrow_fop_validate(struct c2_fop_rm_borrow *bfop)
+static void borrow_fop_validate(struct m0_fop_rm_borrow *bfop)
 {
-	struct c2_rm_owner *owner;
-	struct c2_rm_right  right;
+	struct m0_rm_owner *owner;
+	struct m0_rm_credit  credit;
 	int		    rc;
 
-	owner = c2_cookie_of(&bfop->bo_base.rrq_owner.ow_cookie,
-			     struct c2_rm_owner, ro_id);
+	owner = m0_cookie_of(&bfop->bo_base.rrq_owner.ow_cookie,
+			     struct m0_rm_owner, ro_id);
 
 	C2_UT_ASSERT(owner != NULL);
 	C2_UT_ASSERT(owner == &test_data.rd_owner);
 
-	c2_rm_right_init(&right, &test_data.rd_owner);
-	right.ri_ops = &rings_right_ops;
-	rc = c2_rm_right_decode(&right, &bfop->bo_base.rrq_right.ri_opaque);
+	m0_rm_credit_init(&credit, &test_data.rd_owner);
+	credit.cr_ops = &rings_credit_ops;
+	rc = m0_rm_credit_decode(&credit, &bfop->bo_base.rrq_credit.cr_opaque);
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(right.ri_datum == test_data.rd_right.ri_datum);
-	c2_rm_right_fini(&right);
+	C2_UT_ASSERT(credit.cr_datum == test_data.rd_credit.cr_datum);
+	m0_rm_credit_fini(&credit);
 
 	C2_UT_ASSERT(bfop->bo_base.rrq_policy == RIP_NONE);
 	C2_UT_ASSERT(bfop->bo_base.rrq_flags &
 			(RIF_LOCAL_WAIT | RIF_MAY_BORROW));
-	c2_buf_free(&bfop->bo_base.rrq_right.ri_opaque);
+	m0_buf_free(&bfop->bo_base.rrq_credit.cr_opaque);
 }
 
 /*
- * Test function for c2_rm_request_out() for BORROW FOP.
+ * Test function for m0_rm_request_out() for BORROW FOP.
  */
 static void borrow_request_test()
 {
@@ -438,102 +438,102 @@ static void post_revoke_validate(int err)
 	bool sublet;
 	bool owned;
 
-	c2_rm_owner_lock(&test_data.rd_owner);
-	sublet = !c2_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_sublet);
-	owned = !c2_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_owned[OWOS_CACHED]);
-	c2_rm_owner_unlock(&test_data.rd_owner);
+	m0_rm_owner_lock(&test_data.rd_owner);
+	sublet = !m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_sublet);
+	owned = !m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_owned[OWOS_CACHED]);
+	m0_rm_owner_unlock(&test_data.rd_owner);
 
-	/* If revoke fails, right remains in sublet list */
+	/* If revoke fails, credit remains in sublet list */
 	C2_UT_ASSERT(ergo(err, sublet && !owned));
-	/* If revoke succeds, right will be part of cached list*/
+	/* If revoke succeds, credit will be part of cached list*/
 	C2_UT_ASSERT(ergo(err == 0, owned && !sublet));
 }
 
 /*
- * Check if c2_rm_request_out() has filled the FOP correctly
+ * Check if m0_rm_request_out() has filled the FOP correctly
  */
-static void revoke_fop_validate(struct c2_fop_rm_revoke *rfop)
+static void revoke_fop_validate(struct m0_fop_rm_revoke *rfop)
 {
-	struct c2_rm_owner *owner;
-	struct c2_rm_right  right;
-	struct c2_rm_loan  *loan;
+	struct m0_rm_owner *owner;
+	struct m0_rm_credit  credit;
+	struct m0_rm_loan  *loan;
 	int		    rc;
 
-	owner = c2_cookie_of(&rfop->rr_base.rrq_owner.ow_cookie,
-			     struct c2_rm_owner, ro_id);
+	owner = m0_cookie_of(&rfop->rr_base.rrq_owner.ow_cookie,
+			     struct m0_rm_owner, ro_id);
 
 	C2_UT_ASSERT(owner != NULL);
 	C2_UT_ASSERT(owner == &test_data.rd_owner);
 
-	loan = c2_cookie_of(&rfop->rr_loan.lo_cookie, struct c2_rm_loan, rl_id);
+	loan = m0_cookie_of(&rfop->rr_loan.lo_cookie, struct m0_rm_loan, rl_id);
 	C2_UT_ASSERT(loan != NULL);
 	C2_UT_ASSERT(loan == test_loan);
 
-	c2_rm_right_init(&right, &test_data.rd_owner);
-	right.ri_ops = &rings_right_ops;
-	rc = c2_rm_right_decode(&right, &rfop->rr_base.rrq_right.ri_opaque);
+	m0_rm_credit_init(&credit, &test_data.rd_owner);
+	credit.cr_ops = &rings_credit_ops;
+	rc = m0_rm_credit_decode(&credit, &rfop->rr_base.rrq_credit.cr_opaque);
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(right.ri_datum == test_data.rd_right.ri_datum);
-	c2_rm_right_fini(&right);
+	C2_UT_ASSERT(credit.cr_datum == test_data.rd_credit.cr_datum);
+	m0_rm_credit_fini(&credit);
 
 	C2_UT_ASSERT(rfop->rr_base.rrq_policy == RIP_NONE);
 	C2_UT_ASSERT(rfop->rr_base.rrq_flags &
 		     (RIF_LOCAL_WAIT | RIF_MAY_REVOKE));
-	c2_buf_free(&rfop->rr_base.rrq_right.ri_opaque);
+	m0_buf_free(&rfop->rr_base.rrq_credit.cr_opaque);
 }
 
-static void post_revoke_cleanup(struct c2_rpc_item *item, int err)
+static void post_revoke_cleanup(struct m0_rpc_item *item, int err)
 {
-	struct c2_fop_rm_reovke_rep *rreply;
-	struct c2_fop_rm_revoke	    *rfop;
-	struct c2_rm_right	    *right;
-	struct c2_rm_loan	    *loan;
-	struct c2_fop		    *fop;
+	struct m0_fop_rm_reovke_rep *rreply;
+	struct m0_fop_rm_revoke	    *rfop;
+	struct m0_rm_credit	    *credit;
+	struct m0_rm_loan	    *loan;
+	struct m0_fop		    *fop;
 
 	/*
 	 * Clean-up revoke request and reply FOPs first.
 	 */
-	fop = c2_rpc_item_to_fop(item->ri_reply);
-	rreply = c2_fop_data(fop);
+	fop = m0_rpc_item_to_fop(item->ri_reply);
+	rreply = m0_fop_data(fop);
 
-	c2_fop_fini(fop);
-	c2_free(fop);
+	m0_fop_fini(fop);
+	m0_free(fop);
 
-	fop = c2_rpc_item_to_fop(item);
-	rfop = c2_fop_data(fop);
-	c2_buf_free(&rfop->rr_base.rrq_right.ri_opaque);
+	fop = m0_rpc_item_to_fop(item);
+	rfop = m0_fop_data(fop);
+	m0_buf_free(&rfop->rr_base.rrq_credit.cr_opaque);
 
 	/*
-	 * After a successful revoke, sublet right is transferred to
+	 * After a successful revoke, sublet credit is transferred to
 	 * OWOS_CACHED. Otherwise it remains in the sublet list.
 	 * Clean up the lists.
 	 */
-	c2_rm_owner_lock(&test_data.rd_owner);
+	m0_rm_owner_lock(&test_data.rd_owner);
 	if (err == 0) {
-		c2_tl_for(c2_rm_ur, &test_data.rd_owner.ro_owned[OWOS_CACHED],
-			  right) {
-			c2_rm_ur_tlink_del_fini(right);
-			c2_free(right);
-		} c2_tl_endfor;
+		m0_tl_for(m0_rm_ur, &test_data.rd_owner.ro_owned[OWOS_CACHED],
+			  credit) {
+			m0_rm_ur_tlink_del_fini(credit);
+			m0_free(credit);
+		} m0_tl_endfor;
 	} else {
-		c2_tl_for(c2_rm_ur, &test_data.rd_owner.ro_sublet, right) {
-			c2_rm_ur_tlink_del_fini(right);
-			loan = bob_of(right, struct c2_rm_loan,
-				      rl_right, &loan_bob);
-			c2_free(loan);
-		} c2_tl_endfor;
+		m0_tl_for(m0_rm_ur, &test_data.rd_owner.ro_sublet, credit) {
+			m0_rm_ur_tlink_del_fini(credit);
+			loan = bob_of(credit, struct m0_rm_loan,
+				      rl_credit, &loan_bob);
+			m0_free(loan);
+		} m0_tl_endfor;
 	}
-	c2_rm_owner_unlock(&test_data.rd_owner);
+	m0_rm_owner_unlock(&test_data.rd_owner);
 }
 
-static void revoke_reply_populate(struct c2_fom_error_rep *rreply,
+static void revoke_reply_populate(struct m0_fom_error_rep *rreply,
 				  int err)
 {
 	rreply->rerr_rc = err;
 }
 
 /*
- * Test function for c2_rm_request_out() for REVOKE FOP.
+ * Test function for m0_rm_request_out() for REVOKE FOP.
  */
 static void revoke_request_test()
 {
@@ -562,7 +562,7 @@ static void borrow_fop_funcs_test(void)
 	/* Initialise hierarchy of RM objects */
 	rm_utdata_init(&test_data, OBJ_OWNER);
 
-	/* 1. Test c2_rm_request_out() - sending BORROW FOP */
+	/* 1. Test m0_rm_request_out() - sending BORROW FOP */
 	borrow_request_test();
 
 	/* 2. Test borrow_reply() - reply for BORROW FOP */
@@ -576,7 +576,7 @@ static void revoke_fop_funcs_test(void)
 	/* Initialise hierarchy of RM objects */
 	rm_utdata_init(&test_data, OBJ_OWNER);
 
-	/* 1. Test c2_rm_request_out() - sending REVOKE FOP */
+	/* 1. Test m0_rm_request_out() - sending REVOKE FOP */
 	revoke_request_test();
 
 	/* 2. Test revoke_reply() - reply for REVOKE FOP */

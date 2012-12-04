@@ -32,10 +32,10 @@
 /**
  * @defgroup rm Resource management
  *
- * A resource is an entity in Colibri for which a notion of ownership can be
+ * A resource is an entity in Mero for which a notion of ownership can be
  * well-defined. See the HLD referenced below for more details.
  *
- * In Colibri almost everything is a resource, except for the low-level
+ * In Mero almost everything is a resource, except for the low-level
  * types that are used to implement the resource framework.
  *
  * Resource management is split into two parts:
@@ -44,8 +44,8 @@
  *
  *     - resource type specific functionality.
  *
- * These parts interact through the operation vectors (c2_rm_resource_ops,
- * c2_rm_resource_type_ops and c2_rm_right_ops) provided by a resource type
+ * These parts interact through the operation vectors (m0_rm_resource_ops,
+ * m0_rm_resource_type_ops and m0_rm_credit_ops) provided by a resource type
  * and called by the generic code. Type specific code, in turn, calls
  * generic entry-points described in the @b Resource type interface
  * section.
@@ -55,61 +55,62 @@
  *
  * @b Overview
  *
- * A resource (c2_rm_resource) is associated with various file system entities:
+ * A resource (m0_rm_resource) is associated with various file system entities:
  *
- *     - file meta-data. Rights to use this resource can be thought of as locks
+ *     - file meta-data. Credits to use this resource can be thought of as locks
  *       on file attributes that allow them to be cached or modified locally;
  *
- *     - file data. Rights to use this resource are extents in the file plus
+ *     - file data. Credits to use this resource are extents in the file plus
  *       access mode bits (read, write);
  *
  *     - free storage space on a server (a "grant" in Lustre
- *       terminology). Right to use this resource is a reservation of a given
+ *       terminology). Credit to use this resource is a reservation of a given
  *       number of bytes;
  *
  *     - quota;
  *
  *     - many more, see the HLD for examples.
  *
- * A resource owner (c2_rm_owner) represents a collection of rights to use a
+ * A resource owner (m0_rm_owner) represents a collection of credits to use a
  * particular resource.
  *
  * To use a resource, a user of the resource manager creates an incoming
- * resource request (c2_rm_incoming), that describes a wanted usage right
- * (c2_rm_right_get()). Sometimes the request can be fulfilled immediately,
- * sometimes it requires changes in the right ownership. In the latter case
+ * resource request (m0_rm_incoming), that describes a wanted usage credit
+ * (m0_rm_credit_get()). Sometimes the request can be fulfilled immediately,
+ * sometimes it requires changes in the credit ownership. In the latter case
  * outgoing requests are directed to the remote resource owners (which typically
- * means a network communication) to collect the wanted usage right at the
+ * means a network communication) to collect the wanted usage credit at the
  * owner. When an outgoing request reaches its target remote domain, an incoming
  * request is created and processed (which in turn might result in sending
  * further outgoing requests). Eventually, a reply is received for the outgoing
  * request. When incoming request processing is complete, it "pins" the wanted
- * right. This right can be used until the incoming request structure is
- * destroyed (c2_rm_right_put()) and the pin is released.
+ * credit. This credit can be used until the incoming request structure is
+ * destroyed (m0_rm_credit_put()) and the pin is released.
  *
  * See the documentation for individual resource management data-types and
  * interfaces for more detailed description of their behaviour.
  *
  * @b Terminology.
  *
- * Various terms are used to described right ownership flow in a cluster.
+ * Various terms are used to described credit flow of the resources in a
+ * cluster.
  *
- * Owners of rights for a particular resource are arranged in a cluster-wide
+ * Owners of credits for a particular resource are arranged in a cluster-wide
  * hierarchy. This hierarchical arrangement depends on system structure (e.g.,
  * where devices are connected, how network topology looks like) and dynamic
  * system behaviour (how accesses to a resource are distributed).
  *
- * Originally, all rights on the resource belong to a single owner or a set of
+ * Originally, all credits on the resource belong to a single owner or a set of
  * owners, residing on some well-known servers. Proxy servers request and cache
- * rights from there. Lower level proxies and clients request rights in
+ * credits from there. Lower level proxies and clients request credits in
  * turn. According to the order in this hierarchy, one distinguishes "upward"
  * and "downward" owners relative to a given one.
  *
  * In a given ownership transfer operation, a downward owner is "debtor" and
- * upward owner is "creditor". The right being transferred is called a "loan"
- * (note that this word is used only as a noun). When a right is transferred
+ * upward owner is "creditor". The credit being transferred is called a "loan"
+ * (note that this word is used only as a noun). When a credit is transferred
  * from a creditor to a debtor, the latter "borrows" and the former "sub-lets"
- * the loan. When a right is transferred in the other direction, the creditor
+ * the loan. When a credit is transferred in the other direction, the creditor
  * "revokes" and debtor "returns" the loan.
  *
  * A debtor can voluntary return a loan. This is called a "cancel" operation.
@@ -121,25 +122,26 @@
  *
  * 3 types of locks protect all generic resource manager states:
  *
- *     - per domain c2_rm_domain::rd_lock. This lock serialises addition and
+ *     - per domain m0_rm_domain::rd_lock. This lock serialises addition and
  *       removal of resource types. Typically, it won't be contended much after
  *       the system start-up;
  *
- *     - per resource type c2_rm_resource_type::rt_lock. This lock is taken
+ *     - per resource type m0_rm_resource_type::rt_lock. This lock is taken
  *       whenever a resource or a resource owner is created or
  *       destroyed. Typically, that would be when a file system object is
  *       accessed which is not in the cache;
  *
- *     - per resource owner c2_rm_owner::ro_lock. These locks protect a bulk of
- *       generic resource management state:
+ *     - per resource owner m0_rm_owner::ro_lock.
  *
- *           - lists of possessed, borrowed and sub-let usage rights;
+ *       These locks protect a bulk of generic resource management state:
+ *
+ *           - lists of possessed, borrowed and sub-let usage credits;
  *
  *           - incoming requests and their state transitions;
  *
  *           - outgoing requests and their state transitions;
  *
- *           - pins (c2_rm_pin).
+ *           - pins (m0_rm_pin).
  *
  *       Owner lock is accessed (taken and released) at least once during
  *       processing of an incoming request. Main owner state machine logic
@@ -153,21 +155,21 @@
  *
  * @b Liveness.
  *
- * None of the resource manager structures, except for c2_rm_resource, require
+ * None of the resource manager structures, except for m0_rm_resource, require
  * reference counting, because their liveness is strictly determined by the
  * liveness of an "owning" structure into which they are logically embedded.
  *
- * The resource structure (c2_rm_resource) can be shared between multiple
- * resource owners (c2_rm_owner) and its liveness is determined by the
- * reference counting (c2_rm_resource::r_ref).
+ * The resource structure (m0_rm_resource) can be shared between multiple
+ * resource owners (m0_rm_owner) and its liveness is determined by the
+ * reference counting (m0_rm_resource::r_ref).
  *
- * As in many other places in Colibri, liveness of "global" long-living
- * structures (c2_rm_domain, c2_rm_resource_type) is managed by the upper
+ * As in many other places in Mero, liveness of "global" long-living
+ * structures (m0_rm_domain, m0_rm_resource_type) is managed by the upper
  * layers which are responsible for determining when it is safe to finalise
  * the structures. Typically, an upper layer would achieve this by first
  * stopping and finalising all possible resource manager users.
  *
- * Similarly, a resource owner (c2_rm_owner) liveness is not explicitly
+ * Similarly, a resource owner (m0_rm_owner) liveness is not explicitly
  * determined by the resource manager. It is up to the user to determine when
  * an owner (which can be associated with a file, or a client, or a similar
  * entity) is safe to be finalised.
@@ -178,7 +180,7 @@
  *
  * @b Resource identification and location.
  *
- * @see c2_rm_remote
+ * @see m0_rm_remote
  *
  * @b Persistent state.
  *
@@ -190,24 +192,24 @@
 */
 
 /* import */
-struct c2_bufvec_cursor;
+struct m0_bufvec_cursor;
 
 /* export */
-struct c2_rm_domain;
-struct c2_rm_resource;
-struct c2_rm_resource_ops;
-struct c2_rm_resource_type;
-struct c2_rm_resource_type_ops;
-struct c2_rm_owner;
-struct c2_rm_remote;
-struct c2_rm_loan;
-struct c2_rm_group;
-struct c2_rm_right;
-struct c2_rm_right_ops;
-struct c2_rm_incoming;
-struct c2_rm_incoming_ops;
-struct c2_rm_outgoing;
-struct c2_rm_lease;
+struct m0_rm_domain;
+struct m0_rm_resource;
+struct m0_rm_resource_ops;
+struct m0_rm_resource_type;
+struct m0_rm_resource_type_ops;
+struct m0_rm_owner;
+struct m0_rm_remote;
+struct m0_rm_loan;
+struct m0_rm_group;
+struct m0_rm_credit;
+struct m0_rm_credit_ops;
+struct m0_rm_incoming;
+struct m0_rm_incoming_ops;
+struct m0_rm_outgoing;
+struct m0_rm_lease;
 
 enum {
 	C2_RM_RESOURCE_TYPE_ID_MAX     = 64,
@@ -218,22 +220,22 @@ enum {
  * Domain of resource management.
  *
  * All other resource manager data-structures (resource types, resources,
- * owners, rights, &c.) belong to some domain, directly or indirectly.
+ * owners, credits, &c.) belong to some domain, directly or indirectly.
  *
  * Domains support multiple independent resource management services in the same
  * address space (user process or kernel). Each request handler and each client
  * kernel instance run a resource management service, but multiple request
  * handlers can co-exist in the same address space.
  */
-struct c2_rm_domain {
+struct m0_rm_domain {
 	/**
 	 * An array where resource types are registered. Protected by
-	 * c2_rm_domain::rd_lock.
+	 * m0_rm_domain::rd_lock.
 	 *
-	 * @see c2_rm_resource_type::rt_id
+	 * @see m0_rm_resource_type::rt_id
 	 */
-	struct c2_rm_resource_type *rd_types[C2_RM_RESOURCE_TYPE_ID_MAX];
-	struct c2_mutex             rd_lock;
+	struct m0_rm_resource_type *rd_types[C2_RM_RESOURCE_TYPE_ID_MAX];
+	struct m0_mutex             rd_lock;
 };
 
 /**
@@ -241,54 +243,54 @@ struct c2_rm_domain {
  * same name may exist in different resource management domains, but no more
  * than a single copy per domain.
  *
- * c2_rm_resource is allocated and destroyed by the appropriate resource
- * type. An instance of c2_rm_resource would be typically embedded into a
+ * m0_rm_resource is allocated and destroyed by the appropriate resource
+ * type. An instance of m0_rm_resource would be typically embedded into a
  * larger resource type specific structure containing details of resource
  * identification.
  *
- * Generic code uses c2_rm_resource to efficiently compare resource
+ * Generic code uses m0_rm_resource to efficiently compare resource
  * identities.
  */
-struct c2_rm_resource {
-	struct c2_rm_resource_type      *r_type;
-	const struct c2_rm_resource_ops *r_ops;
+struct m0_rm_resource {
+	struct m0_rm_resource_type      *r_type;
+	const struct m0_rm_resource_ops *r_ops;
 	/**
 	 * Linkage to a list of all resources of this type, hanging off
-	 * c2_rm_resource_type::rt_resources.
+	 * m0_rm_resource_type::rt_resources.
 	 */
-	struct c2_tlink                  r_linkage;
+	struct m0_tlink                  r_linkage;
 	/**
-	 * List of remote owners (linked through c2_rm_remote::rem_linkage) with
-	 * which local owner with rights to this resource communicates.
+	 * List of remote owners (linked through m0_rm_remote::rem_linkage) with
+	 * which local owner of credits to this resource communicates.
 	 */
-	struct c2_tl                     r_remote;
+	struct m0_tl                     r_remote;
 	/**
 	 * Active references to this resource from resource owners
-	 * (c2_rm_resource::r_type) and from remote resource owners
-	 * (c2_rm_remote::rem_resource) Protected by
-	 * c2_rm_resource_type::rt_lock.
+	 * (m0_rm_resource::r_type) and from remote resource owners
+	 * (m0_rm_remote::rem_resource) Protected by
+	 * m0_rm_resource_type::rt_lock.
 	 */
 	uint32_t                         r_ref;
 	uint64_t                         r_magix;
 };
 
-struct c2_rm_resource_ops {
+struct m0_rm_resource_ops {
 	/**
-	 * Called when a new right is allocated for the resource. The resource
-	 * specific code should parse the right description stored in the
-	 * buffer and fill c2_rm_right::ri_datum appropriately.
+	 * Called when a new credit is allocated for the resource. The resource
+	 * specific code should parse the credit description stored in the
+	 * buffer and fill m0_rm_credit::cr_datum appropriately.
 	 */
-	int (*rop_right_decode)(struct c2_rm_resource *resource,
-				struct c2_rm_right *right,
-				struct c2_bufvec_cursor *cur);
-	void (*rop_policy)(struct c2_rm_resource *resource,
-			   struct c2_rm_incoming *in);
+	int (*rop_credit_decode)(struct m0_rm_resource *resource,
+				 struct m0_rm_credit *credit,
+				 struct m0_bufvec_cursor *cur);
+	void (*rop_policy)(struct m0_rm_resource *resource,
+			   struct m0_rm_incoming *in);
 	/**
-	 * Called to initialise a usage right for this resource.
-	 * Sets up c2_rm_right::ri_ops.
+	 * Called to initialise a usage credit for this resource.
+	 * Sets up m0_rm_credit::cr_ops.
 	 */
-	void (*rop_right_init)(struct c2_rm_resource *resource,
-			       struct c2_rm_right *right);
+	void (*rop_credit_init)(struct m0_rm_resource *resource,
+			        struct m0_rm_credit *credit);
 };
 
 /**
@@ -301,21 +303,21 @@ struct c2_rm_resource_ops {
  *
  * - it determines how the resources of this type are located;
  *
- * - it determines what resource rights are defined on the resources of
+ * - it determines what resource credits are defined on the resources of
  *   this type;
  *
- * - how rights are ordered;
+ * - how credits are ordered;
  *
- * - how right conflicts are resolved.
+ * - how credit conflicts are resolved.
  */
-struct c2_rm_resource_type {
-	const struct c2_rm_resource_type_ops *rt_ops;
+struct m0_rm_resource_type {
+	const struct m0_rm_resource_type_ops *rt_ops;
 	const char                           *rt_name;
 	/**
 	 * A resource type identifier, globally unique within a cluster, used
 	 * to identify resource types on wire and storage.
 	 *
-	 * This identifier is used as an index in c2_rm_domain::rd_index.
+	 * This identifier is used as an index in m0_rm_domain::rd_index.
 	 *
 	 * @todo currently this is assigned manually and centrally. In the
 	 * future, resource types identifiers (as well as rpc item opcodes)
@@ -325,129 +327,129 @@ struct c2_rm_resource_type {
 	 * bootstrapping.
 	 */
 	uint64_t			      rt_id;
-	struct c2_mutex			      rt_lock;
+	struct m0_mutex			      rt_lock;
 	/**
 	 * List of all resources of this type. Protected by
-	 * c2_rm_resource_type::rt_lock.
+	 * m0_rm_resource_type::rt_lock.
 	 */
-	struct c2_tl			      rt_resources;
+	struct m0_tl			      rt_resources;
 	/**
 	 * Active references to this resource type from resource instances
-	 * (c2_rm_owner::ro_resource). Protected by
-	 * c2_rm_resource_type::rt_lock.
+	 * (m0_rm_owner::ro_resource). Protected by
+	 * m0_rm_resource_type::rt_lock.
 	 */
 	uint32_t			      rt_nr_resources;
 	/**
 	 * Domain this resource type is registered with.
 	 */
-	struct c2_rm_domain		     *rt_dom;
+	struct m0_rm_domain		     *rt_dom;
 };
 
-struct c2_rm_resource_type_ops {
+struct m0_rm_resource_type_ops {
 	/**
 	 * Checks if the two resources are equal.
 	 */
-	bool (*rto_eq)(const struct c2_rm_resource *resource0,
-		       const struct c2_rm_resource *resource1);
+	bool (*rto_eq)(const struct m0_rm_resource *resource0,
+		       const struct m0_rm_resource *resource1);
 	/**
 	 * Checks if the resource has "id".
 	 */
-	bool (*rto_is)(const struct c2_rm_resource *resource,
+	bool (*rto_is)(const struct m0_rm_resource *resource,
 		       uint64_t id);
 	/**
 	 * De-serialises the resource from a buffer.
 	 */
-	int  (*rto_decode)(const struct c2_bufvec_cursor *cur,
-			   struct c2_rm_resource **resource);
+	int  (*rto_decode)(const struct m0_bufvec_cursor *cur,
+			   struct m0_rm_resource **resource);
 	/**
 	 * Serialise a resource into a buffer.
 	 */
-	int  (*rto_encode)(struct c2_bufvec_cursor *cur,
-			   const struct c2_rm_resource *resource);
+	int  (*rto_encode)(struct m0_bufvec_cursor *cur,
+			   const struct m0_rm_resource *resource);
 };
 
 /**
- * A resource owner uses the resource via a usage right (also called
- * resource right or simply right as context permits). E.g., a client might
- * have a right of a read-only or write-only or read-write access to a
- * certain extent in a file. An owner is granted a right to use a resource.
+ * A resource owner uses the resource via a usage credit (also called
+ * resource credit or simply credit as context permits). E.g., a client might
+ * have a credit of a read-only or write-only or read-write access to a
+ * certain extent in a file. An owner is granted a credit to use a resource.
  *
- * The meaning of a resource right is determined by the resource
- * type. c2_rm_right is allocated and managed by the generic code, but it has a
- * scratchpad field (c2_rm_right::ri_datum), where type specific code stores
+ * The meaning of a resource credit is determined by the resource
+ * type. m0_rm_credit is allocated and managed by the generic code, but it has a
+ * scratchpad field (m0_rm_credit::cr_datum), where type specific code stores
  * some additional information.
  *
- * A right can be something simple as a single bit (conveying, for example,
+ * A credit can be something simple as a single bit (conveying, for example,
  * an exclusive ownership of some datum) or a collection of extents tagged
  * with access masks.
  *
- * A right is said to be "pinned" or "held" when it is necessary for some
- * ongoing operation. A pinned right has C2_RPF_PROTECT pins (c2_rm_pin) on its
- * c2_rm_right::ri_pins list. Otherwise a right is simply "cached".
+ * A credit is said to be "pinned" or "held" when it is necessary for some
+ * ongoing operation. A pinned credit has C2_RPF_PROTECT pins (m0_rm_pin) on its
+ * m0_rm_credit::cr_pins list. Otherwise a credit is simply "cached".
  *
- * Rights are typically linked into one of c2_rm_owner lists. Pinned rights can
- * only happen on c2_rm_owner::ro_owned[OWOS_HELD] list. They cannot be moved
- * out of this list until unpinned.
+ * Credits are typically linked into one of m0_rm_owner lists. Pinned credits
+ * can only happen on m0_rm_owner::ro_owned[OWOS_HELD] list. They cannot be
+ * moved out of this list until unpinned.
  */
-struct c2_rm_right {
-	struct c2_rm_owner           *ri_owner;
-	const struct c2_rm_right_ops *ri_ops;
+struct m0_rm_credit {
+	struct m0_rm_owner            *cr_owner;
+	const struct m0_rm_credit_ops *cr_ops;
 	/**
 	 * resource type private field. By convention, 0 means "empty"
-	 * right.
+	 * credit.
 	 */
-	uint64_t                      ri_datum;
+	uint64_t                      cr_datum;
 	/**
-	 * Linkage of a right (and the corresponding loan, if applicable) to a
-	 * list hanging off c2_rm_owner.
+	 * Linkage of a credit (and the corresponding loan, if applicable) to a
+	 * list hanging off m0_rm_owner.
 	 */
-	struct c2_tlink               ri_linkage;
+	struct m0_tlink               cr_linkage;
 	/**
-	 * A list of pins, linked through c2_rm_pins::rp_right, stuck into this
-	 * right.
+	 * A list of pins, linked through m0_rm_pins::rp_credit, stuck into this
+	 * credit.
 	 */
-	struct c2_tl                  ri_pins;
-	uint64_t                      ri_magix;
+	struct m0_tl                  cr_pins;
+	uint64_t                      cr_magix;
 };
 
-struct c2_rm_right_ops {
+struct m0_rm_credit_ops {
 	/**
-	 * Called when the generic code is about to free a right. Type specific
-	 * code releases any resources associated with the right.
+	 * Called when the generic code is about to free a credit. Type specific
+	 * code releases any resources associated with the credit.
 	 */
-	void (*rro_free)(struct c2_rm_right *droit);
+	void (*cro_free)(struct m0_rm_credit *droit);
 	/**
 	 * Serialise a resource into a buffer.
 	 */
-	int  (*rro_encode)(const struct c2_rm_right *right,
-			   struct c2_bufvec_cursor *cur);
+	int  (*cro_encode)(const struct m0_rm_credit *credit,
+			   struct m0_bufvec_cursor *cur);
 	/**
 	 * De-serialises the resource from a buffer.
 	 */
-	int  (*rro_decode)(struct c2_rm_right *right,
-			   struct c2_bufvec_cursor *cur);
+	int  (*cro_decode)(struct m0_rm_credit *credit,
+			   struct m0_bufvec_cursor *cur);
 	/**
-	 * Return the size of the right's data.
+	 * Return the size of the credit's data.
 	 */
-	c2_bcount_t (*rro_len) (const struct c2_rm_right *right);
+	m0_bcount_t (*cro_len) (const struct m0_rm_credit *credit);
 
 	/** @name operations.
 	 *
 	 *  The following operations are implemented by resource type and used
-	 *  by generic code to analyse rights relationships.
+	 *  by generic code to analyse credits relationships.
 	 *
-	 *  "0" means the empty right in the following.
+	 *  "0" means the empty credit in the following.
          */
         /** @{ */
         /**
-         * @retval True, iff r0 intersects with r1.
-	 *  Rights intersect when there is some usage authorised by right r0 and
-	 *  by right r1.
+         * @retval True, iff c0 intersects with c1.
+	 * Credits intersect when there is some usage authorised by credit c0
+	 * and by credit c1.
 	 *
-	 *  For example, a right to read an extent [0, 100] (denoted R:[0, 100])
-	 *  intersects with a right to read or write an extent [50, 150],
-	 *  (denoted RW:[50, 150]) because they can be both used to read bytes
-	 *  in the extent [50, 100].
+	 * For example, a credit to read an extent [0, 100] (denoted R:[0, 100])
+	 * intersects with a credit to read or write an extent [50, 150],
+	 * (denoted RW:[50, 150]) because they can be both used to read bytes
+	 * in the extent [50, 100].
 	 *
 	 *  "Intersects" is assumed to satisfy the following conditions:
 	 *
@@ -457,55 +459,55 @@ struct c2_rm_right_ops {
 	 *
 	 *      - !intersects(A, 0)
 	 */
-        bool (*rro_intersects) (const struct c2_rm_right *r0,
-                                const struct c2_rm_right *r1);
+        bool (*cro_intersects) (const struct m0_rm_credit *c0,
+                                const struct m0_rm_credit *c1);
         /**
-         * @retval True if r0 is subset (or proper subset) of r1.
+         * @retval True if c0 is subset (or proper subset) of c1.
 	 */
-        bool (*rro_is_subset) (const struct c2_rm_right *r0,
-                               const struct c2_rm_right *r1);
+        bool (*cro_is_subset) (const struct m0_rm_credit *c0,
+                               const struct m0_rm_credit *c1);
         /**
-         * Adjoins r1 to r0, updating r0 in place to be the sum right.
+         * Adjoins c1 to c0, updating c0 in place to be the sum credit.
 	 */
-        int (*rro_join) (struct c2_rm_right *r0,
-                          const struct c2_rm_right *r1);
+        int (*cro_join) (struct m0_rm_credit *c0,
+                          const struct m0_rm_credit *c1);
         /**
-         * Splits r0 into two parts - diff(r0,r1) and intersection(r0, r1)
-	 * Destructively updates r0 with diff(r0, r1) and updates
-	 * intersection with intersection of (r0, r1)
+         * Splits c0 into two parts - diff(c0,c1) and intersection(c0, c1)
+	 * Destructively updates c0 with diff(c0, c1) and updates
+	 * intersection with intersection of (c0, c1)
 	 */
-        int (*rro_disjoin) (struct c2_rm_right *r0,
-                            const struct c2_rm_right *r1,
-			    struct c2_rm_right *intersection);
+        int (*cro_disjoin) (struct m0_rm_credit *c0,
+                            const struct m0_rm_credit *c1,
+			    struct m0_rm_credit *intersection);
 	/**
-         * @retval True, iff r0 conflicts with r1.
-	 *  Rights conflict iff one of them authorises a usage incompatible with
-	 *  another.
+         * @retval True, iff c0 conflicts with c1.
+	 * Credits conflict iff one of them authorises a usage incompatible with
+	 * another.
 	 *
-	 *  For example, R:[0, 100] conflicts with RW:[50, 150], because the
-	 *  latter authorises writes to bytes in the [50, 100] extent, which
-	 *  cannot be done while R:[0, 100] is held by some other owner.
+	 * For example, R:[0, 100] conflicts with RW:[50, 150], because the
+	 * latter authorises writes to bytes in the [50, 100] extent, which
+	 * cannot be done while R:[0, 100] is held by some other owner.
 	 *
-	 *  "Conflicts" is assumed to satisfy the same conditions as
-	 *  "intersects" and, in addition,
+	 * "Conflicts" is assumed to satisfy the same conditions as
+	 * "intersects" and, in addition,
 	 *
-	 *      - conflicts(A, B) => intersects(A, B), because if rights share
-         *        nothing they cannot conflict. Note that this condition
-         *        restricts possible resource semantics. For example, to satisfy
-         *        it, a right to write to a variable must always imply a right
-         *        to read it.
+	 *     - conflicts(A, B) => intersects(A, B), because if credits share
+         *       nothing they cannot conflict. Note that this condition
+         *       restricts possible resource semantics. For example, to satisfy
+         *       it, a credit to write to a variable must always imply a credit
+         *       to read it.
 	 */
-        bool (*rro_conflicts) (const struct c2_rm_right *r0,
-			       const struct c2_rm_right *r1);
-        /** Difference between rights.
+        bool (*cro_conflicts) (const struct m0_rm_credit *c0,
+			       const struct m0_rm_credit *c1);
+        /** Difference between credits.
 	 *
-	 *  The difference is a part of r0 that doesn't intersect with r1.
+	 *  The difference is a part of c0 that doesn't intersect with c1.
 	 *
 	 *  For example, diff(RW:[50, 150], R:[0, 100]) == RW:[101, 150].
 	 *
 	 *   X <= Y means that diff(X, Y) is 0. X >= Y means Y <= X.
 	 *
-	 *   Two rights are equal, X == Y, when X <= Y and Y <= X.
+	 *   Two credits are equal, X == Y, when X <= Y and Y <= X.
 	 *
 	 *   "Difference" must satisfy the following conditions:
 	 *
@@ -520,7 +522,7 @@ struct c2_rm_right_ops {
 	 *       - diff(A, diff(A, B)) == diff(B, diff(B, A)).
 	 *
 	 *  diff(A, diff(A, B)) is called a "meet" of A and B, it's an
-	 *  intersection of rights A and B. The condition above ensures
+	 *  intersection of credits A and B. The condition above ensures
 	 *  that meet(A, B) == meet(B, A),
 	 *
 	 *       - diff(A, B) == diff(A, meet(A, B)),
@@ -535,19 +537,19 @@ struct c2_rm_right_ops {
 	 *
 	 *       - intersects(A, B) iff meet(A, B) != 0.
 	 *
-	 *  This function destructively updates "r0" in place.
+	 *  This function destructively updates "c0" in place.
          */
-        int  (*rro_diff)(struct c2_rm_right *r0, const struct c2_rm_right *r1);
+        int  (*cro_diff)(struct m0_rm_credit *c0, const struct m0_rm_credit *c1);
 	/** Creates a copy of "src" in "dst".
 	 *
 	 *  @pre dst is empty.
 	 */
-        int  (*rro_copy)(struct c2_rm_right *dst,
-			 const struct c2_rm_right *src);
-        /** @} end of Rights operations. */
+        int  (*cro_copy)(struct m0_rm_credit *dst,
+			 const struct m0_rm_credit *src);
+        /** @} end of Credits operations. */
 };
 
-enum c2_rm_remote_state {
+enum m0_rm_remote_state {
 	REM_FREED = 0,
 	REM_INITIALISED,
 	REM_SERVICE_LOCATING,
@@ -561,8 +563,8 @@ enum c2_rm_remote_state {
  *
  * This is a generic structure.
  *
- * c2_rm_remote is a portal through which interaction with the remote resource
- * owners is transacted. c2_rm_remote state transitions happen under its
+ * m0_rm_remote is a portal through which interaction with the remote resource
+ * owners is transacted. m0_rm_remote state transitions happen under its
  * resource's lock.
  *
  * A remote owner is needed to borrow from or sub-let to an owner in a different
@@ -575,7 +577,7 @@ enum c2_rm_remote_state {
  *       "grant" (i.e., a reservation of a free storage space on a data
  *       service) is provided by the data service, which is already known by
  *       the time the grant is needed. For such resource types,
- *       c2_rm_remote::rem_state is initialised to REM_SERVICE_LOCATED. For
+ *       m0_rm_remote::rem_state is initialised to REM_SERVICE_LOCATED. For
  *       other resource types, a distributed resource location data-base is
  *       consulted to locate the service. While the data-base query is going
  *       on, the remote owner is in REM_SERVICE_LOCATING state;
@@ -583,9 +585,9 @@ enum c2_rm_remote_state {
  *     - once the service is known, the owner within the service should be
  *       located. This is done generically, by sending a resource management fop
  *       to the service. The service responds with the remote owner identifier
- *       (c2_rm_remote::rem_cookie) used for further communications. The service
+ *       (m0_rm_remote::rem_cookie) used for further communications. The service
  *       might respond with an error, if the owner is no longer there. In this
- *       case, c2_rm_state::rem_state goes back to REM_SERVICE_LOCATING.
+ *       case, m0_rm_state::rem_state goes back to REM_SERVICE_LOCATING.
  *
  *       Owner identification is an optional step, intended to optimise remote
  *       service performance. The service should be able to deal with the
@@ -619,26 +621,26 @@ enum c2_rm_remote_state {
  *
  * @endverbatim
  */
-struct c2_rm_remote {
-	enum c2_rm_remote_state rem_state;
+struct m0_rm_remote {
+	enum m0_rm_remote_state rem_state;
 	/**
 	 * A resource for which the remote owner is represented.
 	 */
-	struct c2_rm_resource  *rem_resource;
+	struct m0_rm_resource  *rem_resource;
 
-	struct c2_rpc_session  *rem_session;
+	struct m0_rpc_session  *rem_session;
 	/** A channel to signal state changes. */
-	struct c2_chan          rem_signal;
+	struct m0_chan          rem_signal;
 	/**
 	 * A linkage into the list of remotes for a given resource hanging off
-	 * c2_rm_resource::r_remote.
+	 * m0_rm_resource::r_remote.
 	 */
-	struct c2_tlink         rem_linkage;
+	struct m0_tlink         rem_linkage;
 	/** An identifier of the remote owner within the service. Valid in
 	 *  REM_OWNER_LOCATED state. This identifier is generated by the
 	 *  resource manager service.
 	 */
-	struct c2_cookie        rem_cookie;
+	struct m0_cookie        rem_cookie;
 	uint64_t                rem_id;
 	uint64_t                rem_magix;
 };
@@ -650,7 +652,7 @@ struct c2_rm_remote {
  * outside of resource manager control) as far as resource management is
  * concerned.
  *
- * Resource manager assumes that rights granted to the owners from the same
+ * Resource manager assumes that credits granted to the owners from the same
  * group never conflict.
  *
  * Typical usage is to assign all owners from the same distributed
@@ -659,11 +661,11 @@ struct c2_rm_remote {
  * owners within a group must coordinate access between themselves to
  * maintain whatever scheduling properties are desired, like serialisability.
  */
-struct c2_rm_group {
+struct m0_rm_group {
 };
 
 /**
-   c2_rm_owner state machine states.
+   m0_rm_owner state machine states.
 
    @dot
    digraph rm_owner {
@@ -678,11 +680,11 @@ struct c2_rm_group {
    }
    @enddot
  */
-enum c2_rm_owner_state {
+enum m0_rm_owner_state {
 	/**
 	 *  Initial state.
 	 *
-	 *  In this state owner rights lists are empty (including incoming and
+	 *  In this state owner credits lists are empty (including incoming and
 	 *  outgoing request lists).
 	 */
 	ROS_INITIAL = 1,
@@ -719,7 +721,7 @@ enum c2_rm_owner_state {
 	/**
 	 *  Final state.
 	 *
-	 *  In this state owner rights lists are empty (including incoming and
+	 *  In this state owner credits lists are empty (including incoming and
 	 *  outgoing request lists).
 	 */
 	ROS_FINAL
@@ -736,19 +738,19 @@ enum {
 };
 
 /**
- * c2_rm_owner::ro_owned[] list of usage rights possessed by the owner is split
+ * m0_rm_owner::ro_owned[] list of usage credits possessed by the owner is split
  * into sub-lists enumerated by this enum.
  */
-enum c2_rm_owner_owned_state {
+enum m0_rm_owner_owned_state {
 	/**
-	 * Sub-list of pinned rights.
+	 * Sub-list of pinned credits.
 	 *
-	 * @see c2_rm_right
+	 * @see m0_rm_credit
 	 */
 	OWOS_HELD,
 	/**
-	 * Not-pinned right is "cached". Such right can be returned to an
-	 * upward owner from which it was previously borrowed (i.e., right can
+	 * Not-pinned credit is "cached". Such credit can be returned to an
+	 * upward owner from which it was previously borrowed (i.e., credit can
 	 * be "cancelled") or sub-let to downward owners.
 	 */
 	OWOS_CACHED,
@@ -758,7 +760,7 @@ enum c2_rm_owner_owned_state {
 /**
  * Lists of incoming and outgoing requests are subdivided into sub-lists.
  */
-enum c2_rm_owner_queue_state {
+enum m0_rm_owner_queue_state {
 	/**
 	 * "Ground" request is not excited.
 	 */
@@ -794,36 +796,36 @@ enum c2_rm_owner_queue_state {
  *    mechanism. Global cluster-wide cache management policy can be
  *    implemented on top of resources.
  *
- * A resource owner possesses rights on a particular resource. Multiple
- * owners within the same domain can possess rights on the same resource,
- * but no two owners in the cluster can possess conflicting rights at the
+ * A resource owner possesses credits on a particular resource. Multiple
+ * owners within the same domain can possess credits on the same resource,
+ * but no two owners in the cluster can possess conflicting credits at the
  * same time. The last statement requires some qualification:
  *
  *  - "time" here means the logical time in an observable history of the
  *    file system. It might so happen, that at a certain moment in physical
  *    time, data-structures (on different nodes, typically) would look as
- *    if conflicting rights were granted, but this is only possible when
- *    such rights will never affect visible system behaviour (e.g., a
+ *    if conflicting credits were granted, but this is only possible when
+ *    such credits will never affect visible system behaviour (e.g., a
  *    consensual decision has been made by that time to evict one of the
  *    nodes);
  *
- *  - in a case of optimistic conflict resolution, "no conflicting rights"
- *    means "no rights on which conflicts cannot be resolved afterwards by
+ *  - in a case of optimistic conflict resolution, "no conflicting credits"
+ *    means "no credits on which conflicts cannot be resolved afterwards by
  *    the optimistic conflict resolution policy".
  *
- * c2_rm_owner is a generic structure, created and maintained by the
+ * m0_rm_owner is a generic structure, created and maintained by the
  * generic resource manager code.
  *
- * Off a c2_rm_owner, hang several lists and arrays of lists for rights
- * book-keeping: c2_rm_owner::ro_borrowed, c2_rm_owner::ro_sublet and
- * c2_rm_owner::ro_owned[], further subdivided by states.
+ * Off a m0_rm_owner, hang several lists and arrays of lists for credits
+ * book-keeping: m0_rm_owner::ro_borrowed, m0_rm_owner::ro_sublet and
+ * m0_rm_owner::ro_owned[], further subdivided by states.
  *
- * As rights form a lattice (see c2_rm_right_ops), it is always possible to
- * represent the cumulative sum of all rights on a list as a single
- * c2_rm_right. The reason the lists are needed is that rights in the lists
+ * As credits form a lattice (see m0_rm_credit_ops), it is always possible to
+ * represent the cumulative sum of all credits on a list as a single
+ * m0_rm_credit. The reason the lists are needed is that credits in the lists
  * have some additional state associated with them (e.g., loans for
- * c2_rm_owner::ro_borrowed, c2_rm_owner::ro_sublet or pins
- * (c2_rm_right::ri_pins) for c2_rm_owner::ro_owned[]) that can be manipulated
+ * m0_rm_owner::ro_borrowed, m0_rm_owner::ro_sublet or pins
+ * (m0_rm_credit::cr_pins) for m0_rm_owner::ro_owned[]) that can be manipulated
  * independently.
  *
  * Owner state diagram:
@@ -847,73 +849,73 @@ enum c2_rm_owner_queue_state {
  * @endverbatim
  *
  * @invariant under ->ro_lock { // keep books balanced at all times
- *         join of rights on ->ro_owned[] and
- *                 rights on ->ro_sublet equals to
- *         join of rights on ->ro_borrowed           &&
+ *         join of credits on ->ro_owned[] and
+ *                 credits on ->ro_sublet equals to
+ *         join of credits on ->ro_borrowed           &&
  *
- *         meet of (join of rights on ->ro_owned[]) and
- *                 (join of rights on ->ro_sublet) is empty.
+ *         meet of (join of credits on ->ro_owned[]) and
+ *                 (join of credits on ->ro_sublet) is empty.
  * }
  *
  * @invariant under ->ro_lock {
- *         ->ro_owned[OWOS_HELD] is exactly the list of all held rights (ones
+ *         ->ro_owned[OWOS_HELD] is exactly the list of all held credits (ones
  *         with elevated user count)
  *
  * invariant is checked by rm/rm.c:owner_invariant().
  *
  * }
  */
-struct c2_rm_owner {
-	struct c2_sm           ro_sm;
+struct m0_rm_owner {
+	struct m0_sm           ro_sm;
 
-	struct c2_sm_group     ro_sm_grp;
+	struct m0_sm_group     ro_sm_grp;
 	/**
-	 * Resource this owner possesses the rights on.
+	 * Resource this owner possesses the credits on.
 	 */
-	struct c2_rm_resource *ro_resource;
+	struct m0_rm_resource *ro_resource;
 	/**
 	 * A group this owner is part of.
 	 *
 	 * If this is NULL, the owner is not a member of any group (a
 	 * "standalone" owner).
 	 */
-	struct c2_rm_group    *ro_group;
+	struct m0_rm_group    *ro_group;
 	/**
-	 * An upward creditor, from where this owner borrows rights.
+	 * An upward creditor, from where this owner borrows credits.
 	 */
-	struct c2_rm_remote   *ro_creditor;
+	struct m0_rm_remote   *ro_creditor;
 	/**
-	 * A list of loans, linked through c2_rm_loan::rl_right:ri_linkage that
+	 * A list of loans, linked through m0_rm_loan::rl_credit:cr_linkage that
 	 * this owner borrowed from other owners.
 	 *
-	 * @see c2_rm_loan
+	 * @see m0_rm_loan
 	 */
-	struct c2_tl           ro_borrowed;
+	struct m0_tl           ro_borrowed;
 	/**
-	 * A list of loans, linked through c2_rm_loan::rl_right:ri_linkage that
-	 * this owner extended to other owners. Rights on this list are not
+	 * A list of loans, linked through m0_rm_loan::rl_credit:cr_linkage that
+	 * this owner extended to other owners. Credits on this list are not
 	 * longer possessed by this owner: they are counted in
-	 * c2_rm_owner::ro_borrowed, but not in c2_rm_owner::ro_owned.
+	 * m0_rm_owner::ro_borrowed, but not in m0_rm_owner::ro_owned.
 	 *
-	 * @see c2_rm_loan
+	 * @see m0_rm_loan
 	 */
-	struct c2_tl           ro_sublet;
+	struct m0_tl           ro_sublet;
 	/**
-	 * A list of rights, linked through c2_rm_right::ri_linkage possessed
+	 * A list of credits, linked through m0_rm_credit::cr_linkage possessed
 	 * by the owner.
 	 */
-	struct c2_tl           ro_owned[OWOS_NR];
+	struct m0_tl           ro_owned[OWOS_NR];
 	/**
 	 * An array of lists, sorted by priority, of incoming requests. Requests
-	 * are linked through c2_rm_incoming::rin_want::ri_linkage.
+	 * are linked through m0_rm_incoming::rin_want::cr_linkage.
 	 *
-	 * @see c2_rm_incoming
+	 * @see m0_rm_incoming
 	 */
-	struct c2_tl           ro_incoming[C2_RM_REQUEST_PRIORITY_NR][OQS_NR];
+	struct m0_tl           ro_incoming[C2_RM_REQUEST_PRIORITY_NR][OQS_NR];
 	/**
 	 * An array of lists, of outgoing, not yet completed, requests.
 	 */
-	struct c2_tl           ro_outgoing[OQS_NR];
+	struct m0_tl           ro_outgoing[OQS_NR];
 	/**
 	 * Generation count associated with a owner cookie.
 	 */
@@ -922,39 +924,40 @@ struct c2_rm_owner {
 
 enum {
 	/**
-	 * Value of c2_rm_loan::rl_id for a self-loan.
+	 * Value of m0_rm_loan::rl_id for a self-loan.
 	 * This value is invalid for any other type of loan.
 	 */
 	C2_RM_LOAN_SELF_ID = 1
 };
 
 /**
- * A loan (of a right) from one owner to another.
+ * A loan (a credit) from one owner to another. In finance world, a loan
+ * is closed-end credit.
  *
- * c2_rm_loan is always on some list (to which it is linked through
- * c2_rm_loan::rl_right:ri_linkage field) in an owner structure. This owner is
- * one party of the loan. Another party is c2_rm_loan::rl_other. Which party is
+ * m0_rm_loan is always on some list (to which it is linked through
+ * m0_rm_loan::rl_credit:cr_linkage field) in an owner structure. This owner is
+ * one party of the loan. Another party is m0_rm_loan::rl_other. Which party is
  * creditor and which is debtor is determined by the list the loan is on.
  */
-struct c2_rm_loan {
-	struct c2_rm_right   rl_right;
+struct m0_rm_loan {
+	struct m0_rm_credit   rl_credit;
 	/**
 	 * Other party in the loan. Either an "upward" creditor or "downward"
 	 * debtor, or "self" in case of a fake loan issued by the top-level
 	 * creditor to maintain its invariants.
 	 */
-	struct c2_rm_remote *rl_other;
+	struct m0_rm_remote *rl_other;
 	/**
 	 * An identifier generated by the remote end that should be passed back
 	 * whenever operating on a loan (think loan agreement number).
 	 */
-	struct c2_cookie     rl_cookie;
+	struct m0_cookie     rl_cookie;
 	uint64_t             rl_id;
 	uint64_t             rl_magix;
 };
 
 /**
-   States of incoming request. See c2_rm_incoming for description.
+   States of incoming request. See m0_rm_incoming for description.
 
    @dot
    digraph rm_incoming_state {
@@ -966,13 +969,13 @@ struct c2_rm_loan {
 	RI_WAIT -> RI_FAILURE [label="Timeout"]
 	RI_WAIT -> RI_CHECK [label="Last completion"]
 	RI_WAIT -> RI_WAIT [label="Completion"]
-	RI_SUCCESS -> RI_RELEASED [label="Right released"]
+	RI_SUCCESS -> RI_RELEASED [label="Credit released"]
 	RI_FAILURE -> RI_FINAL [label="Finalised"]
 	RI_RELEASED -> RI_FINAL
    }
    @enddot
  */
-enum c2_rm_incoming_state {
+enum m0_rm_incoming_state {
 	RI_INITIALISED = 1,
 	/** Ready to check whether the request can be fulfilled. */
 	RI_CHECK,
@@ -981,32 +984,32 @@ enum c2_rm_incoming_state {
 	/** Request cannot be fulfilled. */
 	RI_FAILURE,
 	/** Has to wait for some future event, like outgoing request completion
-	 *  or release of a locally held usage right.
+	 *  or release of a locally held usage credit.
 	 */
 	RI_WAIT,
-	/** Right has been released (possibly by c2_rm_right_put()). */
+	/** Credit has been released (possibly by m0_rm_credit_put()). */
 	RI_RELEASED,
 	/** Request finalised. */
 	RI_FINAL
 };
 
 /**
- * Types of an incoming usage right request.
+ * Types of an incoming usage credit request.
  */
-enum c2_rm_incoming_type {
+enum m0_rm_incoming_type {
 	/**
-	 * A request for a usage right from a local user. When the request
-	 * succeeds, the right is held by the owner.
+	 * A request for a usage credit from a local user. When the request
+	 * succeeds, the credit is held by the owner.
 	 */
 	C2_RIT_LOCAL,
 	/**
-	 * A request to loan a usage right to a remote owner. Fulfillment of
+	 * A request to loan a usage (credit) to a remote owner. Fulfillment of
 	 * this request might cause further outgoing requests to be sent, e.g.,
-	 * to revoke rights sub-let to remote owner.
+	 * to revoke credits sub-let to remote owner.
 	 */
 	C2_RIT_BORROW,
 	/**
-	 * A request to return a usage right previously sub-let to this owner.
+	 * A request to return a usage credit previously sub-let to this owner.
 	 */
 	C2_RIT_REVOKE
 };
@@ -1014,17 +1017,17 @@ enum c2_rm_incoming_type {
 /**
  * Some universal (i.e., not depending on a resource type) granting policies.
  */
-enum c2_rm_incoming_policy {
+enum m0_rm_incoming_policy {
 	RIP_NONE = 1,
 	/**
-	 * If possible, don't insert a new right into the list of possessed
-	 * rights. Instead, pin possessed rights overlapping with the requested
-	 * right.
+	 * If possible, don't insert a new credit into the list of possessed
+	 * credits. Instead, pin possessed credits overlapping with the
+	 * requested credit.
 	 */
 	RIP_INPLACE,
 	/**
-	 * Insert a new right into the list of possessed rights, equal to the
-	 * requested right.
+	 * Insert a new credit into the list of possessed credits, equal to the
+	 * requested credit.
 	 */
 	RIP_STRICT,
 	/**
@@ -1032,42 +1035,42 @@ enum c2_rm_incoming_policy {
 	 */
 	RIP_JOIN,
 	/**
-	 * Grant maximal possible right, not conflicting with others.
+	 * Grant maximal possible credit, not conflicting with others.
 	 */
 	RIP_MAX,
 	RIP_NR
 };
 
 /**
- * Flags controlling incoming usage right request processing. These flags are
- * stored in c2_rm_incoming::rin_flags and analysed in c2_rm_right_get().
+ * Flags controlling incoming usage credit request processing. These flags are
+ * stored in m0_rm_incoming::rin_flags and analysed in m0_rm_credit_get().
  */
-enum c2_rm_incoming_flags {
+enum m0_rm_incoming_flags {
 	/**
-	 * Previously sub-let rights may be revoked, if necessary, to fulfill
+	 * Previously sub-let credits may be revoked, if necessary, to fulfill
 	 * this request.
 	 */
 	RIF_MAY_REVOKE = (1 << 0),
 	/**
-	 * More rights may be borrowed, if necessary, to fulfill this request.
+	 * More credits may be borrowed, if necessary, to fulfill this request.
 	 */
 	RIF_MAY_BORROW = (1 << 1),
 	/**
-	 * The interaction between the request and locally possessed rights is
+	 * The interaction between the request and locally possessed credits is
 	 * the following:
 	 *
-	 *     - by default, locally possessed rights are ignored. This scenario
-	 *       is typical for a local request (C2_RIT_LOCAL), because local
-	 *       users resolve conflicts by some other means (usually some
-	 *       form of concurrency control, like locking);
+	 *     - by default, locally possessed credits are ignored. This
+	 *       scenario is typical for a local request (C2_RIT_LOCAL),
+	 *       because local users resolve conflicts by some other means
+	 *       (usually some form of concurrency control, like locking);
 	 *
 	 *      - if RIF_LOCAL_WAIT is set, the request can be fulfilled only
-	 *        when there is no locally possessed rights conflicting with the
-	 *        wanted right. This is typical for a remote request
+	 *        when there is no locally possessed credits conflicting with
+	 *	  the wanted credit. This is typical for a remote request
 	 *        (C2_RIT_BORROW or C2_RIT_REVOKE);
 	 *
 	 *      - if RIF_LOCAL_TRY is set, the request will be immediately
-	 *        denied, if there are conflicting local rights. This allows to
+	 *        denied, if there are conflicting local credits. This allows to
 	 *        implement a "try-lock" like functionality.
 	 */
 	RIF_LOCAL_WAIT = (1 << 2),
@@ -1081,73 +1084,73 @@ enum c2_rm_incoming_flags {
 };
 
 /**
- * Resource usage right request.
+ * Resource usage credit request.
  *
- * The same c2_rm_incoming structure is used to track state of the incoming
+ * The same m0_rm_incoming structure is used to track state of the incoming
  * requests both "local", i.e., from the same domain where the owner resides
  * and "remote".
  *
  * An incoming request is created for
  *
- *     - local right request, when some user wants to use the resource;
+ *     - local credit request, when some user wants to use the resource;
  *
- *     - remote right request from a "downward" owner which asks to sub-let
- *       some rights;
+ *     - remote credit request from a "downward" owner which asks to sub-let
+ *       some credits;
  *
- *     - remote right request from an "upward" owner which wants to revoke some
- *       rights.
+ *     - remote credit request from an "upward" owner which wants to revoke some
+ *       credits.
  *
- * These usages are differentiated by c2_rm_incoming::rin_type.
+ * These usages are differentiated by m0_rm_incoming::rin_type.
  *
  * An incoming request is a state machine, going through the following stages:
  *
  *     - [CHECK]   This stage determines whether the request can be fulfilled
  *                 immediately. Local request can be fulfilled immediately if
- *                 the wanted right is possessed by the owner, that is, if
+ *                 the wanted credit is possessed by the owner, that is, if
  *                 in->rin_want is implied by a join of owner->ro_owned[].
  *
  *                 A non-local (loan or revoke) request can be fulfilled
- *                 immediately if the wanted right is implied by a join of
+ *                 immediately if the wanted credit is implied by a join of
  *                 owner->ro_owned[OWOS_CACHED], that is, if the owner has
- *                 enough rights to grant the loan and the wanted right does
- *                 not conflict with locally held rights.
+ *                 enough credits to grant the loan and the wanted credit does
+ *                 not conflict with locally held credits.
  *
  *     - [POLICY]  If the request can be fulfilled immediately, the "policy" is
- *                 invoked which decides which right should be actually granted,
- *                 sublet or revoked. That right can be larger than
+ *                 invoked which decides which credit should be actually granted,
+ *                 sublet or revoked. That credit can be larger than
  *                 requested. A policy is, generally, resource type dependent,
  *                 with a few universal policies defined by enum
- *                 c2_rm_incoming_policy.
+ *                 m0_rm_incoming_policy.
  *
  *     - [SUCCESS] Finally, fulfilled request succeeds.
  *
  *     - [ISSUE]   Otherwise, if the request can not be fulfilled immediately,
- *                 "pins" (c2_rm_pin) are added which will notify the request
+ *                 "pins" (m0_rm_pin) are added which will notify the request
  *                 when the fulfillment check might succeed.
  *
  *                 Pins are added to:
  *
- *                     - every conflicting right held by this owner (when
+ *                     - every conflicting credit held by this owner (when
  *                       RIF_LOCAL_WAIT flag is set on the request and always
  *                       for a remote request);
  *
- *                     - outgoing requests to revoke conflicting rights sub-let
+ *                     - outgoing requests to revoke conflicting credits sub-let
  *                       to remote owners (when RIF_MAY_REVOKE flag is set);
  *
- *                     - outgoing requests to borrow missing rights from remote
+ *                     - outgoing requests to borrow missing credits from remote
  *                       owners (when RIF_MAY_BORROW flag is set);
  *
  *                 Outgoing requests mentioned above are created as necessary
  *                 in the ISSUE stage.
  *
  *     - [CYCLE]   When all the pins stuck in the ISSUE state are released
- *                 (either when a local right is released or when an outgoing
+ *                 (either when a local credit is released or when an outgoing
  *                 request completes), go back to the CHECK state.
  *
- * Looping back to the CHECK state is necessary, because possessed rights are
- * not "pinned" during wait and can go away (be revoked or sub-let). The rights
- * are not pinned to avoid dependencies between rights that can lead to
- * dead-locks and "cascading evictions". The alternative is to pin rights and
+ * Looping back to the CHECK state is necessary, because possessed credits are
+ * not "pinned" during wait and can go away (be revoked or sub-let). The credits
+ * are not pinned to avoid dependencies between credits that can lead to
+ * dead-locks and "cascading evictions". The alternative is to pin credits and
  * issue outgoing requests synchronously one by one and in a strict order (to
  * avoid dead-locks). The rationale behind current decision is that probability
  * of a live-lock is low enough and the advantage of issuing concurrent
@@ -1164,24 +1167,24 @@ enum c2_rm_incoming_flags {
  *
  * It is also a matter of policy, how exactly the request is satisfied after a
  * successful CHECK state. Suppose, for example, that the owner possesses
- * rights R0 and R1 such that wanted right W is implied by join(R0, R1), but
- * neither R0 nor R1 alone imply W. Some possible CHECK outcomes are:
+ * credits C0 and C1 such that wanted credit W is implied by join(C0, C1), but
+ * neither C0 nor C1 alone imply W. Some possible CHECK outcomes are:
  *
- *     - increase user counts in both R0 and R1;
+ *     - increase user counts in both C0 and C1;
  *
- *     - insert a new right equal to W into owner->ro_owned[];
+ *     - insert a new credit equal to W into owner->ro_owned[];
  *
- *     - insert a new right equal to join(R0, R1) into owner->ro_owned[].
+ *     - insert a new credit equal to join(C0, C1) into owner->ro_owned[].
  *
  * All have their advantages and drawbacks:
  *
- *     - elevating R0 and R1 user counts keeps owner->ro_owned[] smaller, but
- *       pins more rights than strictly necessary;
+ *     - elevating C0 and C1 user counts keeps owner->ro_owned[] smaller, but
+ *       pins more credits than strictly necessary;
  *
  *     - inserting W behaves badly in a standard use case where a thread doing
- *       sequential IO requests a right on each iteration;
+ *       sequential IO requests a credit on each iteration;
  *
- *     - inserting the join pins more rights than strictly necessary.
+ *     - inserting the join pins more credits than strictly necessary.
  *
  * All policy questions are settled by per-request flags and owner settings,
  * based on access pattern analysis.
@@ -1216,25 +1219,25 @@ enum c2_rm_incoming_flags {
  *
  * @endverbatim
  *
- * c2_rm_incoming fields and state transitions are protected by the owner's
+ * m0_rm_incoming fields and state transitions are protected by the owner's
  * mutex.
  *
- * @note a cedent can grant a usage right larger than requested.
+ * @note a cedent can grant a usage credit larger than requested.
  *
- * An incoming request is placed by c2_rm_right_get() on one of owner's
- * c2_rm_owner::ro_incoming[] lists depending on its priority. It remains on
- * this list until request processing failure or c2_rm_right_put() call.
+ * An incoming request is placed by m0_rm_credit_get() on one of owner's
+ * m0_rm_owner::ro_incoming[] lists depending on its priority. It remains on
+ * this list until request processing failure or m0_rm_credit_put() call.
  *
  * @todo a new type of incoming request C2_RIT_GRANT (C2_RIT_FOIEGRAS?) can be
- * added to forcibly grant new rights to the owner, for example, as part of a
+ * added to forcibly grant new credits to the owner, for example, as part of a
  * coordinated global distributed resource usage balancing between
  * owners. Processing of requests of this type would be very simple, because
- * adding new rights never blocks. Similarly, a new outgoing request type
+ * adding new credits never blocks. Similarly, a new outgoing request type
  * C2_ROT_TAKE could be added.
  */
-struct c2_rm_incoming {
-	enum c2_rm_incoming_type	 rin_type;
-	struct c2_sm                     rin_sm;
+struct m0_rm_incoming {
+	enum m0_rm_incoming_type	 rin_type;
+	struct m0_sm                     rin_sm;
 	/**
 	 * Stores the error code for incoming request. A separate field is
 	 * needed because rin_sm.sm_rc is associated with an error of a state.
@@ -1245,31 +1248,31 @@ struct c2_rm_incoming {
 	 * this well.
 	 */
 	int32_t				 rin_rc;
-	enum c2_rm_incoming_policy	 rin_policy;
+	enum m0_rm_incoming_policy	 rin_policy;
 	uint64_t			 rin_flags;
-	/** The right requested. */
-	struct c2_rm_right		 rin_want;
+	/** The credit requested. */
+	struct m0_rm_credit		 rin_want;
 	/**
-	 * List of pins, linked through c2_rm_pin::rp_incoming_linkage, for all
-	 * rights held to satisfy this request.
+	 * List of pins, linked through m0_rm_pin::rp_incoming_linkage, for all
+	 * credits held to satisfy this request.
 	 *
 	 * @invariant meaning of this list depends on the request state:
 	 *
-	 *     - RI_CHECK, RI_SUCCESS: a list of C2_RPF_PROTECT pins on rights
-	 *       in ->rin_want.ri_owner->ro_owned[];
+	 *     - RI_CHECK, RI_SUCCESS: a list of C2_RPF_PROTECT pins on credits
+	 *       in ->rin_want.cr_owner->ro_owned[];
 	 *
 	 *      - RI_WAIT: a list of C2_RPF_TRACK pins on outgoing requests
-	 *        (through c2_rm_outgoing::rog_want::rl_right::ri_pins) and
-	 *        held rights in ->rin_want.ri_owner->ro_owned[OWOS_HELD];
+	 *        (through m0_rm_outgoing::rog_want::rl_credit::cr_pins) and
+	 *        held credits in ->rin_want.cr_owner->ro_owned[OWOS_HELD];
 	 *
 	 *      - other states: empty.
 	 */
-	struct c2_tl			 rin_pins;
+	struct m0_tl			 rin_pins;
 	/**
 	 * Request priority from 0 to C2_RM_REQUEST_PRIORITY_MAX.
 	 */
 	int				 rin_priority;
-	const struct c2_rm_incoming_ops *rin_ops;
+	const struct m0_rm_incoming_ops *rin_ops;
 	uint64_t                         rin_magix;
 };
 
@@ -1278,34 +1281,34 @@ struct c2_rm_incoming {
  * request. Resource manager calls methods in this operation vector when events
  * related to the request happen.
  */
-struct c2_rm_incoming_ops {
+struct m0_rm_incoming_ops {
 	/**
 	 * This is called when incoming request processing completes either
 	 * successfully (rc == 0) or with an error (-ve rc).
 	 */
-	void (*rio_complete)(struct c2_rm_incoming *in, int32_t rc);
+	void (*rio_complete)(struct m0_rm_incoming *in, int32_t rc);
 	/**
-	 * This is called when a request arrives that conflicts with the right
+	 * This is called when a request arrives that conflicts with the credit
 	 * held by this incoming request.
 	 */
-	void (*rio_conflict)(struct c2_rm_incoming *in);
+	void (*rio_conflict)(struct m0_rm_incoming *in);
 };
 
 /**
  * Types of outgoing requests sent by the request manager.
  */
-enum c2_rm_outgoing_type {
+enum m0_rm_outgoing_type {
 	/**
-	 * A request to borrow a right from an upward resource owner. This
+	 * A request to borrow a credit from an upward resource owner. This
 	 * translates into a C2_RIT_BORROW incoming request.
 	 */
 	C2_ROT_BORROW = 1,
 	/**
-	 * A request returning a previously borrowed right.
+	 * A request returning a previously borrowed credit.
 	 */
 	C2_ROT_CANCEL,
 	/**
-	 * A request to return previously borrowed right. This translates into
+	 * A request to return previously borrowed credit. This translates into
 	 * a C2_RIT_REVOKE incoming request on the remote owner.
 	 */
 	C2_ROT_REVOKE
@@ -1313,37 +1316,37 @@ enum c2_rm_outgoing_type {
 
 /**
  * An outgoing request is created on behalf of some incoming request to track
- * the state of right transfer with some remote domain.
+ * the state of credit transfer with some remote domain.
  *
  * An outgoing request is created to:
  *
- *     - borrow a new right from some remote owner (an "upward" request) or
+ *     - borrow a new credit from some remote owner (an "upward" request) or
  *
- *     - revoke a right sublet to some remote owner (a "downward" request) or
+ *     - revoke a credit sublet to some remote owner (a "downward" request) or
  *
- *     - cancel this owner's right and return it to an upward owner.
+ *     - cancel this owner's credit and return it to an upward owner.
  *
  * Before a new outgoing request is created, a list of already existing
- * outgoing requests (c2_rm_owner::ro_outgoing) is scanned. If an outgoing
- * request of a matching type for a greater or equal right exists, new request
+ * outgoing requests (m0_rm_owner::ro_outgoing) is scanned. If an outgoing
+ * request of a matching type for a greater or equal credit exists, new request
  * is not created. Instead, the incoming request pins existing outgoing
  * request.
  *
- * c2_rm_outgoing fields and state transitions are protected by the owner's
+ * m0_rm_outgoing fields and state transitions are protected by the owner's
  * mutex.
  */
-struct c2_rm_outgoing {
-	enum c2_rm_outgoing_type rog_type;
+struct m0_rm_outgoing {
+	enum m0_rm_outgoing_type rog_type;
 	/*
 	 * The error code (from reply or timeout) for this outgoing request.
 	 */
 	int32_t			 rog_rc;
-	/** A right that is to be transferred. */
-	struct c2_rm_loan        rog_want;
+	/** A credit that is to be transferred. */
+	struct m0_rm_loan        rog_want;
 	uint64_t                 rog_magix;
 };
 
-enum c2_rm_pin_flags {
+enum m0_rm_pin_flags {
 	C2_RPF_TRACK   = (1 << 0),
 	C2_RPF_PROTECT = (1 << 1),
 	C2_RPF_BARRIER = (1 << 2)
@@ -1352,52 +1355,52 @@ enum c2_rm_pin_flags {
 /**
  * A pin is used to
  *
- *     - C2_RPF_TRACK: track when a right changes its state;
+ *     - C2_RPF_TRACK: track when a credit changes its state;
  *
- *     - C2_RPF_PROTECT: to protect a right from revocation;
+ *     - C2_RPF_PROTECT: to protect a credit from revocation;
  *
  *     - C2_RPF_BARRIER: to prohibit C2_RPF_PROTECT pins from being added to the
- *       right.
+ *       credit.
  *
  * Fields of this struct are protected by the owner's lock.
  *
  * Abstractly speaking, pins allow N:M (many to many) relationships between
- * incoming requests and rights: an incoming request has a list of pins "from"
- * it and a right has a list of pins "to" it. A typical use case is as follows:
+ * incoming requests and credits: an incoming request has a list of pins "from"
+ * it and a credit has a list of pins "to" it. A typical use case is as follows:
  *
  * @b Protection.
  *
- * While a right is actively used, it cannot be revoked. For example, while file
- * write is going on, the right to write in the target file extent must be
- * held. A right is held (or pinned) from the return from c2_rm_right_get()
- * until the matching call to c2_rm_right_put(). To mark the right as pinned,
- * c2_rm_right_get() adds a C2_RPF_PROTECT pin from the incoming request to the
- * returned right (generally, more than one right can be pinned as result on
- * c2_rm_right_get()). This pin is removed by the call to
- * c2_rm_right_put(). Multiple incoming requests can pin the same right.
+ * While a credit is actively used, it cannot be revoked. For example, while
+ * file write is going on, the credit to write in the target file extent must be
+ * held. A credit is held (or pinned) from the return from m0_rm_credit_get()
+ * until the matching call to m0_rm_credit_put(). To mark the credit as pinned,
+ * m0_rm_credit_get() adds a C2_RPF_PROTECT pin from the incoming request to the
+ * returned credit (generally, more than one credit can be pinned as result on
+ * m0_rm_credit_get()). This pin is removed by the call to
+ * m0_rm_credit_put(). Multiple incoming requests can pin the same credit.
  *
  * @b Tracking.
  *
  * An incoming request with a RIF_LOCAL_WAIT flag might need to wait until a
- * conflicting pinned right becomes unpinned. To this end, an C2_RPF_TRACK pin
- * is added from the incoming request to the right.
+ * conflicting pinned credit becomes unpinned. To this end, an C2_RPF_TRACK pin
+ * is added from the incoming request to the credit.
  *
- * When the last C2_RPF_PROTECT pin is removed from a right, the right becomes
- * "cached" and the list of pins to the right is scanned. For each C2_RPF_TRACK
+ * When the last C2_RPF_PROTECT pin is removed from a credit, the credit becomes
+ * "cached" and the list of pins to the credit is scanned. For each C2_RPF_TRACK
  * pin on the list, its incoming request is checked to see whether this was the
  * last tracking pin the request is waiting for.
  *
  * An incoming request might also issue an outgoing request to borrow or revoke
- * some rights, necessary to fulfill the request. An C2_RPF_TRACK pin is added
- * from the incoming request to the right embedded in the outgoing request
- * (c2_rm_outgoing::rog_want::rl_right). Multiple incoming requests can pin the
+ * some credits, necessary to fulfill the request. An C2_RPF_TRACK pin is added
+ * from the incoming request to the credit embedded in the outgoing request
+ * (m0_rm_outgoing::rog_want::rl_credit). Multiple incoming requests can pin the
  * same outgoing request. When the outgoing request completes, the incoming
  * requests waiting for it are checked as above.
  *
  * @b Barrier.
  *
  * Not currently used. The idea is to avoid live-locks and guarantee progress of
- * incoming request processing by pinning the rights with a C2_RPF_BARRIER pin.
+ * incoming request processing by pinning the credits with a C2_RPF_BARRIER pin.
  *
  * @verbatim
  *
@@ -1420,41 +1423,41 @@ enum c2_rm_pin_flags {
  *
  * @endverbatim
  *
- * On this diagram, INC[S] is an incoming request in a state S, R is a right, T
+ * On this diagram, INC[S] is an incoming request in a state S, R is a credit, T
  * is an C2_RPF_TRACK pin and P is an C2_RPF_PROTECT pin.
  *
  * The incoming request in the middle has been processed successfully and now
- * protects its right.
+ * protects its credit.
  *
- * The topmost incoming request waits for 2 possessed rights to become unpinned
+ * The topmost incoming request waits for 2 possessed credits to become unpinned
  * and also waiting for completion of 2 outgoing requests. The incoming request
  * on the bottom waits for completion of the same outgoing request.
  *
- * c2_rm_right_put() scans the request's pin list (horizontal direction) and
- * removes all pins. If the last pin was removed from a right, right's pin list
- * is scanned (vertical direction), checking incoming requests for possible
+ * m0_rm_credit_put() scans the request's pin list (horizontal direction) and
+ * removes all pins. If the last pin was removed from a credit, credit's pin
+ * list is scanned (vertical direction), checking incoming requests for possible
  * state transitions.
  */
-struct c2_rm_pin {
+struct m0_rm_pin {
 	uint32_t               rp_flags;
-	struct c2_rm_right    *rp_right;
+	struct m0_rm_credit    *rp_credit;
 	/** An incoming request that stuck this pin. */
-	struct c2_rm_incoming *rp_incoming;
+	struct m0_rm_incoming *rp_incoming;
 	/**
-	 * Linkage into a list of all pins for a right, hanging off
-	 *  c2_rm_right::ri_pins.
+	 * Linkage into a list of all pins for a credit, hanging off
+	 *  m0_rm_credit::cr_pins.
 	 */
-	struct c2_tlink        rp_right_linkage;
+	struct m0_tlink        rp_credit_linkage;
 	/**
 	 * Linkage into a list of all pins, held to satisfy an incoming
-	 * request. This list hangs off c2_rm_incoming::rin_pins.
+	 * request. This list hangs off m0_rm_incoming::rin_pins.
 	 */
-	struct c2_tlink        rp_incoming_linkage;
+	struct m0_tlink        rp_incoming_linkage;
 	uint64_t               rp_magix;
 };
 
-C2_INTERNAL void c2_rm_domain_init(struct c2_rm_domain *dom);
-C2_INTERNAL void c2_rm_domain_fini(struct c2_rm_domain *dom);
+C2_INTERNAL void m0_rm_domain_init(struct m0_rm_domain *dom);
+C2_INTERNAL void m0_rm_domain_fini(struct m0_rm_domain *dom);
 
 /**
  * Registers a resource type with a domain.
@@ -1463,8 +1466,8 @@ C2_INTERNAL void c2_rm_domain_fini(struct c2_rm_domain *dom);
  *       rtype->rt_dom == NULL
  * @post IS_IN_ARRAY(rtype->rt_id, dom->rd_types) && rtype->rt_dom == dom
  */
-C2_INTERNAL void c2_rm_type_register(struct c2_rm_domain *dom,
-				     struct c2_rm_resource_type *rt);
+C2_INTERNAL void m0_rm_type_register(struct m0_rm_domain *dom,
+				     struct m0_rm_resource_type *rt);
 
 /**
  * Deregisters a resource type.
@@ -1473,216 +1476,216 @@ C2_INTERNAL void c2_rm_type_register(struct c2_rm_domain *dom,
  * @post rtype->rt_id == C2_RM_RESOURCE_TYPE_ID_INVALID &&
  *       rtype->rt_dom == NULL
  */
-C2_INTERNAL void c2_rm_type_deregister(struct c2_rm_resource_type *rtype);
+C2_INTERNAL void m0_rm_type_deregister(struct m0_rm_resource_type *rtype);
 
 /**
  * Adds a resource to the list of resources and increments resource type
  * reference count.
  *
- * @pre c2_tlist_is_empty(res->r_linkage) && res->r_ref == 0
+ * @pre m0_tlist_is_empty(res->r_linkage) && res->r_ref == 0
  * @pre rtype->rt_resources does not contain a resource equal (in the
- *      c2_rm_resource_type_ops::rto_eq() sense) to res
+ *      m0_rm_resource_type_ops::rto_eq() sense) to res
  *
  * @post res->r_ref > 0
  * @post res->r_type == rtype
- * @post c2_tlist_contains(&rtype->rt_resources, &res->r_linkage)
+ * @post m0_tlist_contains(&rtype->rt_resources, &res->r_linkage)
  */
-C2_INTERNAL void c2_rm_resource_add(struct c2_rm_resource_type *rtype,
-				    struct c2_rm_resource *res);
+C2_INTERNAL void m0_rm_resource_add(struct m0_rm_resource_type *rtype,
+				    struct m0_rm_resource *res);
 /**
- * Removes a resource from the list of resources. Dual to c2_rm_resource_add().
+ * Removes a resource from the list of resources. Dual to m0_rm_resource_add().
  *
  * @pre res->r_type->rt_nr_resources > 0
- * @pre c2_tlist_contains(&rtype->rt_resources, &res->r_linkage)
+ * @pre m0_tlist_contains(&rtype->rt_resources, &res->r_linkage)
  *
- * @post !c2_tlist_contains(&rtype->rt_resources, &res->r_linkage)
+ * @post !m0_tlist_contains(&rtype->rt_resources, &res->r_linkage)
  */
-C2_INTERNAL void c2_rm_resource_del(struct c2_rm_resource *res);
+C2_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res);
 
 /**
  * Initialises owner fields and increments resource reference counter.
  *
- * The owner's right lists are initially empty.
+ * The owner's credit lists are initially empty.
  *
  * @pre owner->ro_state == ROS_FINAL
  * @pre creditor->rem_state >= REM_SERVICE_LOCATED
  *
- * @post (owner->ro_state == ROS_INITIALISING || owner->ro_state == ROS_ACTIVE)&&
+ * @post C2_IN(owner->ro_state, (ROS_INITIALISING, ROS_ACTIVE)) &&
  *       owner->ro_resource == res)
  */
-C2_INTERNAL void c2_rm_owner_init(struct c2_rm_owner *owner,
-				  struct c2_rm_resource *res,
-				  struct c2_rm_remote *creditor);
+C2_INTERNAL void m0_rm_owner_init(struct m0_rm_owner *owner,
+				  struct m0_rm_resource *res,
+				  struct m0_rm_remote *creditor);
 
 /**
- * Loans a right to an owner from itself.
+ * Loans a credit to an owner from itself.
  *
  * This is used to initialise a "top-most" resource owner that has no upward
  * creditor.
  *
- * This call doesn't copy "r": user supplied right is linked into owner lists.
+ * This call doesn't copy "r": user supplied credit is linked into owner lists.
  *
- * @see c2_rm_owner_init()
+ * @see m0_rm_owner_init()
  *
  * @pre  owner->ro_state == ROS_INITIALISING
- * @post owner->ro_state == ROS_INITIALISING
- * @post c2_tlist_contains(&owner->ro_owned[OWOS_CACHED], &r->ri_linkage))
+ * @post owner->ro_state == ROS_ACTIVE
+ * @post m0_tlist_contains(&owner->ro_owned[OWOS_CACHED], &r->cr_linkage))
  */
-C2_INTERNAL int c2_rm_owner_selfadd(struct c2_rm_owner *owner,
-				    struct c2_rm_right *r);
+C2_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner *owner,
+				    struct m0_rm_credit *r);
 
 /**
  * Retire the owner before finalising it. This function will revoke sublets
  * and give up loans.
  *
  * @pre owner->ro_state == ROS_ACTIVE || ROS_QUIESCE
- * @see c2_rm_owner_fini
+ * @see m0_rm_owner_fini
  *
  */
-C2_INTERNAL void c2_rm_owner_retire(struct c2_rm_owner *owner);
+C2_INTERNAL void m0_rm_owner_retire(struct m0_rm_owner *owner);
 
 /**
- * Finalises the owner. Dual to c2_rm_owner_init().
+ * Finalises the owner. Dual to m0_rm_owner_init().
  *
  * @pre owner->ro_state == ROS_FINAL
- * @pre c2_tlist_is_empty(owner->ro_borrowed) &&
- * c2_tlist_is_empty(owner->ro_sublet) &&
- *                         c2_tlist_is_empty(owner->ro_owned[*]) &&
- *                         c2_tlist_is_empty(owner->ro_incoming[*][*]) &&
- *                         c2_tlist_is_empty(owner->ro_outgoing[*]) &&
+ * @pre m0_tlist_is_empty(owner->ro_borrowed) &&
+ * m0_tlist_is_empty(owner->ro_sublet) &&
+ *                         m0_tlist_is_empty(owner->ro_owned[*]) &&
+ *                         m0_tlist_is_empty(owner->ro_incoming[*][*]) &&
+ *                         m0_tlist_is_empty(owner->ro_outgoing[*]) &&
  *
  */
-C2_INTERNAL void c2_rm_owner_fini(struct c2_rm_owner *owner);
+C2_INTERNAL void m0_rm_owner_fini(struct m0_rm_owner *owner);
 
 /**
  * Locks state machine group of an owner
  */
-C2_INTERNAL void c2_rm_owner_lock(struct c2_rm_owner *owner);
+C2_INTERNAL void m0_rm_owner_lock(struct m0_rm_owner *owner);
 /**
  * Unlocks state machine group of an owner
  */
-C2_INTERNAL void c2_rm_owner_unlock(struct c2_rm_owner *owner);
+C2_INTERNAL void m0_rm_owner_unlock(struct m0_rm_owner *owner);
 
 /**
  * Locks state machine group of an owner
  */
-void c2_rm_owner_lock(struct c2_rm_owner *owner);
+void m0_rm_owner_lock(struct m0_rm_owner *owner);
 /**
  * Unlocks state machine group of an owner
  */
-void c2_rm_owner_unlock(struct c2_rm_owner *owner);
+void m0_rm_owner_unlock(struct m0_rm_owner *owner);
 
 /**
- * Initialises generic fields in struct c2_rm_right.
+ * Initialises generic fields in struct m0_rm_credit.
  *
- * This is called by generic RM code to initialise an empty right of any
+ * This is called by generic RM code to initialise an empty credit of any
  * resource type and by resource type specific code to initialise generic fields
- * of a struct c2_rm_right.
+ * of a struct m0_rm_credit.
  *
- * This function calls c2_rm_resource_ops::rop_right_init().
+ * This function calls m0_rm_resource_ops::rop_credit_init().
  */
-C2_INTERNAL void c2_rm_right_init(struct c2_rm_right *right,
-				  struct c2_rm_owner *owner);
+C2_INTERNAL void m0_rm_credit_init(struct m0_rm_credit *credit,
+				  struct m0_rm_owner *owner);
 
 /**
- * Finalised generic fields in struct c2_rm_right. Dual to c2_rm_right_init().
+ * Finalised generic fields in struct m0_rm_credit. Dual to m0_rm_credit_init().
  */
-C2_INTERNAL void c2_rm_right_fini(struct c2_rm_right *right);
+C2_INTERNAL void m0_rm_credit_fini(struct m0_rm_credit *credit);
 
 /**
- * @param src_right - A source right which is to be duplicated.
- * @param dest_right - A destination right. This right will be allocated,
- *                     initialised and then filled with src_right.
- * Allocates and duplicates a right.
+ * @param src_credit - A source credit which is to be duplicated.
+ * @param dest_credit - A destination credit. This credit will be allocated,
+ *                     initialised and then filled with src_credit.
+ * Allocates and duplicates a credit.
  */
-C2_INTERNAL int c2_rm_right_dup(const struct c2_rm_right *src_right,
-				struct c2_rm_right **dest_right);
+C2_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
+				struct m0_rm_credit **dest_credit);
 
 /**
- * @param src_right - A source right which is to be duplicated.
- * @param dest_right - A destination right. This right will be allocated,
- *                     initialised and then filled with src_right.
- * Allocates and duplicates a right.
+ * @param src_credit - A source credit which is to be duplicated.
+ * @param dest_credit - A destination credit. This credit will be allocated,
+ *                     initialised and then filled with src_credit.
+ * Allocates and duplicates a credit.
  */
-int c2_rm_right_dup(const struct c2_rm_right *src_right,
-		    struct c2_rm_right **dest_right);
+int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
+		    struct m0_rm_credit **dest_credit);
 
 /**
  * Initialises the fields of for incoming structure.
- * This creates an incoming request with an empty c2_rm_incoming::rin_want
- * right.
+ * This creates an incoming request with an empty m0_rm_incoming::rin_want
+ * credit.
  *
- * @param in - incoming right request structure
+ * @param in - incoming credit request structure
  * @param owner - for which incoming request is intended.
  * @param type - incoming request type
  * @param policy - applicable policy
  * @param flags - type of request (borrow, revoke, local)
- * @see c2_rm_incoming_fini
+ * @see m0_rm_incoming_fini
  */
-C2_INTERNAL void c2_rm_incoming_init(struct c2_rm_incoming *in,
-				     struct c2_rm_owner *owner,
-				     enum c2_rm_incoming_type type,
-				     enum c2_rm_incoming_policy policy,
+C2_INTERNAL void m0_rm_incoming_init(struct m0_rm_incoming *in,
+				     struct m0_rm_owner *owner,
+				     enum m0_rm_incoming_type type,
+				     enum m0_rm_incoming_policy policy,
 				     uint64_t flags);
 
 /**
  * Finalises the fields of
  * @param in
- * @see Dual to c2_rm_incoming_init().
+ * @see Dual to m0_rm_incoming_init().
  */
-C2_INTERNAL void c2_rm_incoming_fini(struct c2_rm_incoming *in);
+C2_INTERNAL void m0_rm_incoming_fini(struct m0_rm_incoming *in);
 
 /**
  * Initialises the fields of remote owner.
  * @param rem
  * @param res - Resource for which proxy is obtained.
- * @see c2_rm_remote_fini
+ * @see m0_rm_remote_fini
  */
-C2_INTERNAL void c2_rm_remote_init(struct c2_rm_remote *rem,
-				   struct c2_rm_resource *res);
+C2_INTERNAL void m0_rm_remote_init(struct m0_rm_remote *rem,
+				   struct m0_rm_resource *res);
 
 /**
  * Finalises the fields of remote owner.
  *
  * @param rem
- * @see c2_rm_remote_init
+ * @see m0_rm_remote_init
  * @pre rem->rem_state == REM_INITIALIZED ||
  *      rem->rem_state == REM_SERVICE_LOCATED ||
  *      rem->rem_state == REM_OWNER_LOCATED
  */
-C2_INTERNAL void c2_rm_remote_fini(struct c2_rm_remote *rem);
+C2_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem);
 
 /**
- * Starts a state machine for a resource usage right request. Adds pins for
- * this request. Asynchronous operation - the right will not generally be held
+ * Starts a state machine for a resource usage credit request. Adds pins for
+ * this request. Asynchronous operation - the credit will not generally be held
  * at exit.
  *
  * @pre IS_IN_ARRAY(in->rin_priority, owner->ro_incoming)
  * @pre in->rin_state == RI_INITIALISED
- * @pre c2_tlist_is_empty(&in->rin_want.ri_linkage)
+ * @pre m0_tlist_is_empty(&in->rin_want.cr_linkage)
  *
  */
-C2_INTERNAL void c2_rm_right_get(struct c2_rm_incoming *in);
+C2_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in);
 
 /**
  * Allocates suitably sized buffer and encode it into that buffer.
  */
-C2_INTERNAL int c2_rm_right_encode(const struct c2_rm_right *right,
-				   struct c2_buf *buf);
+C2_INTERNAL int m0_rm_credit_encode(const struct m0_rm_credit *credit,
+				   struct m0_buf *buf);
 
 /**
- * Decodes a right from its serialised presentation.
+ * Decodes a credit from its serialised presentation.
  */
-C2_INTERNAL int c2_rm_right_decode(struct c2_rm_right *right,
-				   struct c2_buf *buf);
+C2_INTERNAL int m0_rm_credit_decode(struct m0_rm_credit *credit,
+				   struct m0_buf *buf);
 
 /**
- * Releases the right pinned by struct c2_rm_incoming.
+ * Releases the credit pinned by struct m0_rm_incoming.
  *
  * @pre in->rin_state == RI_SUCCESS
- * @post c2_tlist_empty(&in->rin_pins)
+ * @post m0_tlist_empty(&in->rin_pins)
  */
-C2_INTERNAL void c2_rm_right_put(struct c2_rm_incoming *in);
+C2_INTERNAL void m0_rm_credit_put(struct m0_rm_incoming *in);
 
 /** @} */
 
@@ -1692,21 +1695,21 @@ C2_INTERNAL void c2_rm_right_put(struct c2_rm_incoming *in);
 /** @{ */
 
 /**
- * Constructs a remote owner associated with "right".
+ * Constructs a remote owner associated with "credit".
  *
  * After this function returns, "other" is in the process of locating the remote
- * service and remote owner, as described in the comment on c2_rm_remote.
+ * service and remote owner, as described in the comment on m0_rm_remote.
  */
-C2_INTERNAL int c2_rm_net_locate(struct c2_rm_right *right,
-				 struct c2_rm_remote *other);
+C2_INTERNAL int m0_rm_net_locate(struct m0_rm_credit *credit,
+				 struct m0_rm_remote *other);
 
 /**
    @todo Assigns a service to a given remote.
 
    @pre  rem->rem_state < REM_SERVICE_LOCATED
    @post rem->rem_state == REM_SERVICE_LOCATED
-void c2_rm_remote_service_set(struct c2_rm_remote *rem,
-			      struct c2_service_id *sid);
+void m0_rm_remote_service_set(struct m0_rm_remote *rem,
+			      struct m0_service_id *sid);
 */
 /**
  * Assigns an owner id to a given remote.
@@ -1714,7 +1717,7 @@ void c2_rm_remote_service_set(struct c2_rm_remote *rem,
  * @pre  rem->rem_state < REM_OWNER_LOCATED
  * @post rem->rem_state == REM_OWNER_LOCATED
  */
-C2_INTERNAL void c2_rm_remote_owner_set(struct c2_rm_remote *rem, uint64_t id);
+C2_INTERNAL void m0_rm_remote_owner_set(struct m0_rm_remote *rem, uint64_t id);
 
 /** @} end of Resource manager networking */
 

@@ -401,7 +401,7 @@ enum c2_magic_satchel {
 	C2_RM_OUTGOING_MAGIC = 0x33ca1c1f1cca1177,
 
 	/* pr_tl::td_head_magic (collide colsa) */
-	C2_RM_RIGHT_PIN_HEAD_MAGIC = 0x33c0111dec015a77,
+	C2_RM_CREDIT_PIN_HEAD_MAGIC = 0x33c0111dec015a77,
 
 	/* pi_tl::td_head_magic (diabolise del) */
 	C2_RM_INCOMING_PIN_HEAD_MAGIC = 0x33d1ab0115ede177,
@@ -413,10 +413,10 @@ enum c2_magic_satchel {
 	C2_RM_RESOURCE_HEAD_MAGIC = 0x33feeb1eea91e577,
 
 	/* c2_rm_right::ri_magix (fizzle fields) */
-	C2_RM_RIGHT_MAGIC = 0x33f1221ef1e1d577,
+	C2_RM_CREDIT_MAGIC = 0x33f1221ef1e1d577,
 
 	/* c2_rm_ur_tl::td_head_magic (idolise iliad) */
-	C2_RM_USAGE_RIGHT_HEAD_MAGIC = 0x331d0115e111ad77,
+	C2_RM_USAGE_CREDIT_HEAD_MAGIC = 0x331d0115e111ad77,
 
 	/* remotes_tl::td_head_magic (offal oldfool) */
 	C2_RM_REMOTE_OWNER_HEAD_MAGIC = 0x330ffa101df00177,

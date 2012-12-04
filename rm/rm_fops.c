@@ -41,58 +41,58 @@
  * Tracking structure for outgoing request.
  */
 struct rm_out {
-	struct c2_rm_outgoing  ou_req;
-	struct c2_fop	       ou_fop;
+	struct m0_rm_outgoing  ou_req;
+	struct m0_fop	       ou_fop;
 };
 
 /**
  * Forward declaration.
  */
-static void borrow_reply(struct c2_rpc_item *);
-static void outreq_free(struct c2_rpc_item *);
-static void revoke_reply(struct c2_rpc_item *);
+static void borrow_reply(struct m0_rpc_item *);
+static void outreq_free(struct m0_rpc_item *);
+static void revoke_reply(struct m0_rpc_item *);
 
-const struct c2_rpc_item_ops rm_borrow_rpc_ops = {
+const struct m0_rpc_item_ops rm_borrow_rpc_ops = {
 	.rio_replied = borrow_reply,
 	.rio_free = outreq_free,
 };
 
-const struct c2_rpc_item_ops rm_revoke_rpc_ops = {
+const struct m0_rpc_item_ops rm_revoke_rpc_ops = {
 	.rio_replied = revoke_reply,
 	.rio_free = outreq_free,
 };
 
 /**
- * FOP definitions for resource-right borrow request and reply.
+ * FOP definitions for resource-credit borrow request and reply.
  */
-struct c2_fop_type c2_fop_rm_borrow_fopt;
-struct c2_fop_type c2_fop_rm_borrow_rep_fopt;
-extern struct c2_sm_state_descr rm_req_phases[];
+struct m0_fop_type m0_fop_rm_borrow_fopt;
+struct m0_fop_type m0_fop_rm_borrow_rep_fopt;
+extern struct m0_sm_state_descr rm_req_phases[];
 
 /**
- * FOP definitions for resource-right revoke request and reply.
+ * FOP definitions for resource-credit revoke request and reply.
  */
-struct c2_fop_type c2_fop_rm_revoke_fopt;
-struct c2_fop_type c2_fom_error_rep_fopt;
+struct m0_fop_type m0_fop_rm_revoke_fopt;
+struct m0_fop_type m0_fom_error_rep_fopt;
 
 /*
  * Extern FOM params
  */
-extern const struct c2_fom_type_ops rm_borrow_fom_type_ops;
-extern const struct c2_sm_conf borrow_sm_conf;
+extern const struct m0_fom_type_ops rm_borrow_fom_type_ops;
+extern const struct m0_sm_conf borrow_sm_conf;
 
-extern const struct c2_fom_type_ops rm_revoke_fom_type_ops;
-extern const struct c2_sm_conf borrow_sm_conf;
+extern const struct m0_fom_type_ops rm_revoke_fom_type_ops;
+extern const struct m0_sm_conf borrow_sm_conf;
 
-extern const struct c2_fom_type_ops rm_revoke_fom_type_ops;
-extern const struct c2_sm_conf revoke_sm_conf;
+extern const struct m0_fom_type_ops rm_revoke_fom_type_ops;
+extern const struct m0_sm_conf revoke_sm_conf;
 
 /*
  * Allocate and initialise remote request tracking structure.
  */
 static int rm_out_create(struct rm_out **out,
-			 struct c2_rm_incoming *in,
-			 struct c2_rm_right *right)
+			 struct m0_rm_incoming *in,
+			 struct m0_rm_credit *credit)
 {
 	struct rm_out *outreq;
 	int	       rc;
@@ -105,14 +105,14 @@ static int rm_out_create(struct rm_out **out,
 		goto out;
 	}
 
-	rc = c2_rm_loan_init(&outreq->ou_req.rog_want, right,
-			     in->rin_want.ri_owner->ro_creditor);
+	rc = m0_rm_loan_init(&outreq->ou_req.rog_want, credit,
+			     in->rin_want.cr_owner->ro_creditor);
 	if (rc != 0) {
-		c2_free(outreq);
+		m0_free(outreq);
 		goto out;
 	}
 
-	c2_rm_outgoing_init(&outreq->ou_req, in->rin_type);
+	m0_rm_outgoing_init(&outreq->ou_req, in->rin_type);
 	*out = outreq;
 
 out:
@@ -120,64 +120,64 @@ out:
 }
 
 static int fop_common_fill(struct rm_out *outreq,
-			   struct c2_rm_incoming *in,
-			   struct c2_rm_right *right,
-			   struct c2_cookie *cookie,
-			   struct c2_fop_type *fopt,
+			   struct m0_rm_incoming *in,
+			   struct m0_rm_credit *credit,
+			   struct m0_cookie *cookie,
+			   struct m0_fop_type *fopt,
 			   size_t offset, void **data)
 {
-	struct c2_fop_rm_req *req;
-	struct c2_fop	     *fop;
+	struct m0_fop_rm_req *req;
+	struct m0_fop	     *fop;
 	int		      rc;
 
 	fop = &outreq->ou_fop;
-	c2_fop_init(fop, fopt, NULL);
-	rc = c2_fop_data_alloc(fop);
+	m0_fop_init(fop, fopt, NULL);
+	rc = m0_fop_data_alloc(fop);
 	if (rc == 0) {
-		*data  = c2_fop_data(fop);
-		req = (struct c2_fop_rm_req *) (char *)*data + offset;
+		*data  = m0_fop_data(fop);
+		req = (struct m0_fop_rm_req *) (char *)*data + offset;
 		req->rrq_policy = in->rin_policy;
 		req->rrq_flags = in->rin_flags;
 		req->rrq_owner.ow_cookie = *cookie;
-		rc = c2_rm_right_encode(right, &req->rrq_right.ri_opaque);
+		rc = m0_rm_credit_encode(credit, &req->rrq_credit.cr_opaque);
 		if (rc != 0)
-			c2_fop_fini(fop);
+			m0_fop_fini(fop);
 	}
 	return rc;
 }
 
 static int borrow_fop_fill(struct rm_out *outreq,
-			   struct c2_rm_incoming *in,
-			   struct c2_rm_right *right)
+			   struct m0_rm_incoming *in,
+			   struct m0_rm_credit *credit)
 {
-	struct c2_fop_rm_borrow *bfop;
-	struct c2_cookie	cookie;
+	struct m0_fop_rm_borrow *bfop;
+	struct m0_cookie	cookie;
 	int			 rc;
 
-	c2_cookie_init(&cookie, &in->rin_want.ri_owner->ro_id);
-	rc = fop_common_fill(outreq, in, right, &cookie, &c2_fop_rm_borrow_fopt,
-			     offsetof(struct c2_fop_rm_borrow, bo_base),
+	m0_cookie_init(&cookie, &in->rin_want.cr_owner->ro_id);
+	rc = fop_common_fill(outreq, in, credit, &cookie, &m0_fop_rm_borrow_fopt,
+			     offsetof(struct m0_fop_rm_borrow, bo_base),
 			     (void **)&bfop);
 
 	if (rc == 0) {
 		/* Copy creditor cookie */
 		bfop->bo_creditor.ow_cookie =
-			in->rin_want.ri_owner->ro_creditor->rem_cookie;
+			in->rin_want.cr_owner->ro_creditor->rem_cookie;
 	}
 	return rc;
 }
 
 static int revoke_fop_fill(struct rm_out *outreq,
-			   struct c2_rm_incoming *in,
-			   struct c2_rm_loan *loan,
-			   struct c2_rm_right *right)
+			   struct m0_rm_incoming *in,
+			   struct m0_rm_loan *loan,
+			   struct m0_rm_credit *credit)
 {
-	struct c2_fop_rm_revoke *rfop;
+	struct m0_fop_rm_revoke *rfop;
 	int			 rc;
 
-	rc = fop_common_fill(outreq, in, right, &loan->rl_other->rem_cookie,
-			     &c2_fop_rm_revoke_fopt,
-			     offsetof(struct c2_fop_rm_revoke, rr_base),
+	rc = fop_common_fill(outreq, in, credit, &loan->rl_other->rem_cookie,
+			     &m0_fop_rm_revoke_fopt,
+			     offsetof(struct m0_fop_rm_revoke, rr_base),
 			     (void **)&rfop);
 
 	if (rc == 0)
@@ -191,39 +191,39 @@ static int revoke_fop_fill(struct rm_out *outreq,
  */
 static void rm_out_fini(struct rm_out *out)
 {
-	c2_rm_outgoing_fini(&out->ou_req);
+	m0_rm_outgoing_fini(&out->ou_req);
 	/* @todo
  	 * Uncomment following line once RPC has mechniasm to free RPC-items.
-	c2_free(out);
+	m0_free(out);
 	 */
 }
 
-int c2_rm_request_out(enum c2_rm_outgoing_type otype,
-		      struct c2_rm_incoming *in,
-		      struct c2_rm_loan *loan,
-		      struct c2_rm_right *right)
+int m0_rm_request_out(enum m0_rm_outgoing_type otype,
+		      struct m0_rm_incoming *in,
+		      struct m0_rm_loan *loan,
+		      struct m0_rm_credit *credit)
 {
-	const struct c2_rpc_item_ops *ri_ops;
-	struct c2_rpc_session	     *session = NULL;
+	const struct m0_rpc_item_ops *ri_ops;
+	struct m0_rpc_session	     *session = NULL;
 	struct rm_out		     *outreq;
 	int			      rc;
 
 	C2_PRE(C2_IN(otype, (C2_ROT_BORROW, C2_ROT_REVOKE)));
 
-	rc = rm_out_create(&outreq, in, right);
+	rc = rm_out_create(&outreq, in, credit);
 	if (rc != 0)
 		goto out;
 
 	switch (otype) {
 	case C2_ROT_BORROW:
-		rc = borrow_fop_fill(outreq, in, right);
-		session = in->rin_want.ri_owner->ro_creditor->rem_session;
+		rc = borrow_fop_fill(outreq, in, credit);
+		session = in->rin_want.cr_owner->ro_creditor->rem_session;
 		ri_ops = &rm_borrow_rpc_ops;
 		break;
 	case C2_ROT_REVOKE:
 		C2_ASSERT(loan != NULL);
 		C2_ASSERT(loan->rl_other != NULL);
-		rc = revoke_fop_fill(outreq, in, loan, right);
+		rc = revoke_fop_fill(outreq, in, loan, credit);
 		session = loan->rl_other->rem_session;
 		ri_ops = &rm_revoke_rpc_ops;
 		break;
@@ -233,181 +233,181 @@ int c2_rm_request_out(enum c2_rm_outgoing_type otype,
 	}
 
 	if (rc != 0) {
-		c2_fop_fini(&outreq->ou_fop);
+		m0_fop_fini(&outreq->ou_fop);
 		rm_out_fini(outreq);
 		goto out;
 	}
 
-	pin_add(in, &outreq->ou_req.rog_want.rl_right, C2_RPF_TRACK);
-	c2_rm_ur_tlist_add(&in->rin_want.ri_owner->ro_outgoing[OQS_GROUND],
-			   &outreq->ou_req.rog_want.rl_right);
+	pin_add(in, &outreq->ou_req.rog_want.rl_credit, C2_RPF_TRACK);
+	m0_rm_ur_tlist_add(&in->rin_want.cr_owner->ro_outgoing[OQS_GROUND],
+			   &outreq->ou_req.rog_want.rl_credit);
 	if (C2_FI_ENABLED("no-rpc"))
 		goto out;
 
 	outreq->ou_fop.f_item.ri_session = session;
 	outreq->ou_fop.f_item.ri_ops = ri_ops;
-	c2_rpc_post(&outreq->ou_fop.f_item);
+	m0_rpc_post(&outreq->ou_fop.f_item);
 
 out:
 	return rc;
 }
-C2_EXPORTED(c2_rm_borrow_out);
+C2_EXPORTED(m0_rm_borrow_out);
 
-static void borrow_reply(struct c2_rpc_item *item)
+static void borrow_reply(struct m0_rpc_item *item)
 {
-	struct c2_fop_rm_borrow_rep *borrow_reply;
-	struct c2_rm_owner	    *owner;
-	struct c2_rm_loan	    *loan = NULL; /* for c2_free(loan) */
-	struct c2_rm_right	    *right;
-	struct c2_rm_right	    *bright;
+	struct m0_fop_rm_borrow_rep *borrow_reply;
+	struct m0_rm_owner	    *owner;
+	struct m0_rm_loan	    *loan = NULL; /* for m0_free(loan) */
+	struct m0_rm_credit	    *credit;
+	struct m0_rm_credit	    *bcredit;
 	struct rm_out		    *outreq;
-	struct c2_buf		     buf;
+	struct m0_buf		     buf;
 	int			     rc;
 
 	C2_PRE(item != NULL);
 	C2_PRE(item->ri_reply != NULL);
 
-	borrow_reply = c2_fop_data(c2_rpc_item_to_fop(item->ri_reply));
-	outreq = container_of(c2_rpc_item_to_fop(item), struct rm_out, ou_fop);
-	bright = &outreq->ou_req.rog_want.rl_right;
-	owner = bright->ri_owner;
+	borrow_reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
+	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
+	bcredit = &outreq->ou_req.rog_want.rl_credit;
+	owner = bcredit->cr_owner;
 	rc = item->ri_error ?: borrow_reply->br_rc.rerr_rc;
 
 	if (rc == 0) {
-		/* Get the data for a right from the FOP */
-		c2_buf_init(&buf, borrow_reply->br_right.ri_opaque.b_addr,
-				  borrow_reply->br_right.ri_opaque.b_nob);
-		rc = c2_rm_right_decode(bright, &buf);
+		/* Get the data for a credit from the FOP */
+		m0_buf_init(&buf, borrow_reply->br_credit.cr_opaque.b_addr,
+				  borrow_reply->br_credit.cr_opaque.b_nob);
+		rc = m0_rm_credit_decode(bcredit, &buf);
 		if (rc != 0)
 			goto out;
 
-		rc = c2_rm_right_dup(bright, &right) ?:
-			c2_rm_loan_alloc(&loan, bright, owner->ro_creditor);
+		rc = m0_rm_credit_dup(bcredit, &credit) ?:
+			m0_rm_loan_alloc(&loan, bcredit, owner->ro_creditor);
 		if (rc == 0) {
 			loan->rl_cookie = borrow_reply->br_loan.lo_cookie;
-			c2_rm_owner_lock(owner);
+			m0_rm_owner_lock(owner);
 			/* Add loan to the borrowed list. */
-			c2_rm_ur_tlist_add(&owner->ro_borrowed,
-					   &loan->rl_right);
+			m0_rm_ur_tlist_add(&owner->ro_borrowed,
+					   &loan->rl_credit);
 
-			/* Add right to the CACHED list. */
-			c2_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
-					   right);
-			c2_rm_owner_unlock(owner);
+			/* Add credit to the CACHED list. */
+			m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
+					   credit);
+			m0_rm_owner_unlock(owner);
 		} else {
-			c2_free(loan);
-			c2_free(right);
+			m0_free(loan);
+			m0_free(credit);
 		}
 	}
 out:
 	outreq->ou_req.rog_rc = rc;
-	c2_rm_owner_lock(owner);
-	c2_rm_outgoing_complete(&outreq->ou_req);
-	c2_rm_owner_unlock(owner);
+	m0_rm_owner_lock(owner);
+	m0_rm_outgoing_complete(&outreq->ou_req);
+	m0_rm_owner_unlock(owner);
 }
 
-static void revoke_reply(struct c2_rpc_item *item)
+static void revoke_reply(struct m0_rpc_item *item)
 {
-	struct c2_fom_error_rep *revoke_reply;
-	struct c2_rm_owner	*owner;
-	struct c2_rm_right	*right;
-	struct c2_rm_right	*out_right;
+	struct m0_fom_error_rep *revoke_reply;
+	struct m0_rm_owner	*owner;
+	struct m0_rm_credit	*credit;
+	struct m0_rm_credit	*out_credit;
 	struct rm_out		*outreq;
 	int			rc;
 
 	C2_PRE(item != NULL);
 	C2_PRE(item->ri_reply != NULL);
 
-	revoke_reply = c2_fop_data(c2_rpc_item_to_fop(item->ri_reply));
-	outreq = container_of(c2_rpc_item_to_fop(item), struct rm_out, ou_fop);
-	out_right = &outreq->ou_req.rog_want.rl_right;
-	owner = out_right->ri_owner;
+	revoke_reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
+	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
+	out_credit = &outreq->ou_req.rog_want.rl_credit;
+	owner = out_credit->cr_owner;
 	rc = item->ri_error ?: revoke_reply->rerr_rc;
 
-	rc = rc ?: c2_rm_right_dup(out_right, &right);
+	rc = rc ?: m0_rm_credit_dup(out_credit, &credit);
 	if (rc == 0) {
-		c2_rm_owner_lock(owner);
-		rc = c2_rm_sublet_remove(out_right);
+		m0_rm_owner_lock(owner);
+		rc = m0_rm_sublet_remove(out_credit);
 		if (rc == 0) {
-			c2_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
-					   right);
-			c2_rm_owner_unlock(owner);
+			m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
+					   credit);
+			m0_rm_owner_unlock(owner);
 		} else {
-			c2_rm_owner_unlock(owner);
-			c2_free(right);
+			m0_rm_owner_unlock(owner);
+			m0_free(credit);
 		}
 	}
 	outreq->ou_req.rog_rc = rc;
-	c2_rm_owner_lock(owner);
-	c2_rm_outgoing_complete(&outreq->ou_req);
-	c2_rm_owner_unlock(owner);
+	m0_rm_owner_lock(owner);
+	m0_rm_outgoing_complete(&outreq->ou_req);
+	m0_rm_owner_unlock(owner);
 }
 
-static void outreq_free(struct c2_rpc_item *item)
+static void outreq_free(struct m0_rpc_item *item)
 {
 	struct rm_out *out;
-	struct c2_fop *fop;
+	struct m0_fop *fop;
 
 	C2_PRE(item != NULL);
 
-	fop =  c2_rpc_item_to_fop(item);
+	fop =  m0_rpc_item_to_fop(item);
 	out = container_of(fop, struct rm_out, ou_fop);
 
-	c2_fop_fini(fop);
+	m0_fop_fini(fop);
 	rm_out_fini(out);
 }
 
-C2_INTERNAL void c2_rm_fop_fini(void)
+C2_INTERNAL void m0_rm_fop_fini(void)
 {
-	c2_fop_type_fini(&c2_fop_rm_revoke_fopt);
-	c2_fop_type_fini(&c2_fop_rm_borrow_rep_fopt);
-	c2_fop_type_fini(&c2_fop_rm_borrow_fopt);
-	c2_xc_rm_fini();
-	c2_xc_fom_generic_fini();
-	c2_xc_cookie_fini();
-	c2_xc_buf_fini();
+	m0_fop_type_fini(&m0_fop_rm_revoke_fopt);
+	m0_fop_type_fini(&m0_fop_rm_borrow_rep_fopt);
+	m0_fop_type_fini(&m0_fop_rm_borrow_fopt);
+	m0_xc_rm_fini();
+	m0_xc_fom_generic_fini();
+	m0_xc_cookie_fini();
+	m0_xc_buf_fini();
 }
-C2_EXPORTED(c2_rm_fop_fini);
+C2_EXPORTED(m0_rm_fop_fini);
 
 /**
  * Initialises RM fops.
  * @see rm_fop_fini()
  */
-C2_INTERNAL int c2_rm_fop_init(void)
+C2_INTERNAL int m0_rm_fop_init(void)
 {
-	c2_xc_buf_init();
-	c2_xc_cookie_init();
-	c2_xc_fom_generic_init();
-	c2_xc_rm_init();
+	m0_xc_buf_init();
+	m0_xc_cookie_init();
+	m0_xc_fom_generic_init();
+	m0_xc_rm_init();
 #ifndef __KERNEL__
-	c2_sm_conf_extend(c2_generic_conf.scf_state, rm_req_phases,
-			  c2_generic_conf.scf_nr_states);
+	m0_sm_conf_extend(m0_generic_conf.scf_state, rm_req_phases,
+			  m0_generic_conf.scf_nr_states);
 #endif
-	return  C2_FOP_TYPE_INIT(&c2_fop_rm_borrow_fopt,
-				 .name      = "Right Borrow",
+	return  C2_FOP_TYPE_INIT(&m0_fop_rm_borrow_fopt,
+				 .name      = "Credit Borrow",
 				 .opcode    = C2_RM_FOP_BORROW,
-				 .xt        = c2_fop_rm_borrow_xc,
+				 .xt        = m0_fop_rm_borrow_xc,
 #ifndef __KERNEL__
 				 .sm	    = &borrow_sm_conf,
 				 .fom_ops   = &rm_borrow_fom_type_ops,
 #endif
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST) ?:
-		C2_FOP_TYPE_INIT(&c2_fop_rm_borrow_rep_fopt,
-				 .name      = "Right Borrow Reply",
+		C2_FOP_TYPE_INIT(&m0_fop_rm_borrow_rep_fopt,
+				 .name      = "Credit Borrow Reply",
 				 .opcode    = C2_RM_FOP_BORROW_REPLY,
-				 .xt        = c2_fop_rm_borrow_rep_xc,
+				 .xt        = m0_fop_rm_borrow_rep_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
-		C2_FOP_TYPE_INIT(&c2_fop_rm_revoke_fopt,
-				 .name      = "Right Revoke",
+		C2_FOP_TYPE_INIT(&m0_fop_rm_revoke_fopt,
+				 .name      = "Credit Revoke",
 				 .opcode    = C2_RM_FOP_REVOKE,
-				 .xt        = c2_fop_rm_revoke_xc,
+				 .xt        = m0_fop_rm_revoke_xc,
 #ifndef __KERNEL__
 				 .sm	    = &revoke_sm_conf,
 				 .fom_ops   = &rm_revoke_fom_type_ops,
 #endif
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST);
 }
-C2_EXPORTED(c2_rm_fop_init);
+C2_EXPORTED(m0_rm_fop_init);
 
 /*
  *  Local variables:
