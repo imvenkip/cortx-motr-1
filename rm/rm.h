@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RM_RM_H__
-#define __COLIBRI_RM_RM_H__
+#ifndef __MERO_RM_RM_H__
+#define __MERO_RM_RM_H__
 
 #include "lib/tlist.h"
 #include "lib/cookie.h"
@@ -212,8 +212,8 @@ struct m0_rm_outgoing;
 struct m0_rm_lease;
 
 enum {
-	C2_RM_RESOURCE_TYPE_ID_MAX     = 64,
-	C2_RM_RESOURCE_TYPE_ID_INVALID = ~0
+	M0_RM_RESOURCE_TYPE_ID_MAX     = 64,
+	M0_RM_RESOURCE_TYPE_ID_INVALID = ~0
 };
 
 /**
@@ -234,7 +234,7 @@ struct m0_rm_domain {
 	 *
 	 * @see m0_rm_resource_type::rt_id
 	 */
-	struct m0_rm_resource_type *rd_types[C2_RM_RESOURCE_TYPE_ID_MAX];
+	struct m0_rm_resource_type *rd_types[M0_RM_RESOURCE_TYPE_ID_MAX];
 	struct m0_mutex             rd_lock;
 };
 
@@ -384,7 +384,7 @@ struct m0_rm_resource_type_ops {
  * with access masks.
  *
  * A credit is said to be "pinned" or "held" when it is necessary for some
- * ongoing operation. A pinned credit has C2_RPF_PROTECT pins (m0_rm_pin) on its
+ * ongoing operation. A pinned credit has M0_RPF_PROTECT pins (m0_rm_pin) on its
  * m0_rm_credit::cr_pins list. Otherwise a credit is simply "cached".
  *
  * Credits are typically linked into one of m0_rm_owner lists. Pinned credits
@@ -733,8 +733,8 @@ enum {
 	 * is higher). When multiple requests are ready to be fulfilled, higher
 	 * priority ones have a preference.
 	 */
-	C2_RM_REQUEST_PRIORITY_MAX = 3,
-	C2_RM_REQUEST_PRIORITY_NR
+	M0_RM_REQUEST_PRIORITY_MAX = 3,
+	M0_RM_REQUEST_PRIORITY_NR
 };
 
 /**
@@ -911,7 +911,7 @@ struct m0_rm_owner {
 	 *
 	 * @see m0_rm_incoming
 	 */
-	struct m0_tl           ro_incoming[C2_RM_REQUEST_PRIORITY_NR][OQS_NR];
+	struct m0_tl           ro_incoming[M0_RM_REQUEST_PRIORITY_NR][OQS_NR];
 	/**
 	 * An array of lists, of outgoing, not yet completed, requests.
 	 */
@@ -927,7 +927,7 @@ enum {
 	 * Value of m0_rm_loan::rl_id for a self-loan.
 	 * This value is invalid for any other type of loan.
 	 */
-	C2_RM_LOAN_SELF_ID = 1
+	M0_RM_LOAN_SELF_ID = 1
 };
 
 /**
@@ -1001,17 +1001,17 @@ enum m0_rm_incoming_type {
 	 * A request for a usage credit from a local user. When the request
 	 * succeeds, the credit is held by the owner.
 	 */
-	C2_RIT_LOCAL,
+	M0_RIT_LOCAL,
 	/**
 	 * A request to loan a usage (credit) to a remote owner. Fulfillment of
 	 * this request might cause further outgoing requests to be sent, e.g.,
 	 * to revoke credits sub-let to remote owner.
 	 */
-	C2_RIT_BORROW,
+	M0_RIT_BORROW,
 	/**
 	 * A request to return a usage credit previously sub-let to this owner.
 	 */
-	C2_RIT_REVOKE
+	M0_RIT_REVOKE
 };
 
 /**
@@ -1060,14 +1060,14 @@ enum m0_rm_incoming_flags {
 	 * the following:
 	 *
 	 *     - by default, locally possessed credits are ignored. This
-	 *       scenario is typical for a local request (C2_RIT_LOCAL),
+	 *       scenario is typical for a local request (M0_RIT_LOCAL),
 	 *       because local users resolve conflicts by some other means
 	 *       (usually some form of concurrency control, like locking);
 	 *
 	 *      - if RIF_LOCAL_WAIT is set, the request can be fulfilled only
 	 *        when there is no locally possessed credits conflicting with
 	 *	  the wanted credit. This is typical for a remote request
-	 *        (C2_RIT_BORROW or C2_RIT_REVOKE);
+	 *        (M0_RIT_BORROW or M0_RIT_REVOKE);
 	 *
 	 *      - if RIF_LOCAL_TRY is set, the request will be immediately
 	 *        denied, if there are conflicting local credits. This allows to
@@ -1156,7 +1156,7 @@ enum m0_rm_incoming_flags {
  * of a live-lock is low enough and the advantage of issuing concurrent
  * asynchronous outgoing requests is important.
  *
- * @todo Should live-locks prove to be a practical issue, C2_RPF_BARRIER pins
+ * @todo Should live-locks prove to be a practical issue, M0_RPF_BARRIER pins
  * can be used to reduce concurrency and assure state machine progress.
  *
  * It's a matter of policy - how many outgoing requests are sent out in ISSUE
@@ -1228,12 +1228,12 @@ enum m0_rm_incoming_flags {
  * m0_rm_owner::ro_incoming[] lists depending on its priority. It remains on
  * this list until request processing failure or m0_rm_credit_put() call.
  *
- * @todo a new type of incoming request C2_RIT_GRANT (C2_RIT_FOIEGRAS?) can be
+ * @todo a new type of incoming request M0_RIT_GRANT (M0_RIT_FOIEGRAS?) can be
  * added to forcibly grant new credits to the owner, for example, as part of a
  * coordinated global distributed resource usage balancing between
  * owners. Processing of requests of this type would be very simple, because
  * adding new credits never blocks. Similarly, a new outgoing request type
- * C2_ROT_TAKE could be added.
+ * M0_ROT_TAKE could be added.
  */
 struct m0_rm_incoming {
 	enum m0_rm_incoming_type	 rin_type;
@@ -1258,10 +1258,10 @@ struct m0_rm_incoming {
 	 *
 	 * @invariant meaning of this list depends on the request state:
 	 *
-	 *     - RI_CHECK, RI_SUCCESS: a list of C2_RPF_PROTECT pins on credits
+	 *     - RI_CHECK, RI_SUCCESS: a list of M0_RPF_PROTECT pins on credits
 	 *       in ->rin_want.cr_owner->ro_owned[];
 	 *
-	 *      - RI_WAIT: a list of C2_RPF_TRACK pins on outgoing requests
+	 *      - RI_WAIT: a list of M0_RPF_TRACK pins on outgoing requests
 	 *        (through m0_rm_outgoing::rog_want::rl_credit::cr_pins) and
 	 *        held credits in ->rin_want.cr_owner->ro_owned[OWOS_HELD];
 	 *
@@ -1269,7 +1269,7 @@ struct m0_rm_incoming {
 	 */
 	struct m0_tl			 rin_pins;
 	/**
-	 * Request priority from 0 to C2_RM_REQUEST_PRIORITY_MAX.
+	 * Request priority from 0 to M0_RM_REQUEST_PRIORITY_MAX.
 	 */
 	int				 rin_priority;
 	const struct m0_rm_incoming_ops *rin_ops;
@@ -1300,18 +1300,18 @@ struct m0_rm_incoming_ops {
 enum m0_rm_outgoing_type {
 	/**
 	 * A request to borrow a credit from an upward resource owner. This
-	 * translates into a C2_RIT_BORROW incoming request.
+	 * translates into a M0_RIT_BORROW incoming request.
 	 */
-	C2_ROT_BORROW = 1,
+	M0_ROT_BORROW = 1,
 	/**
 	 * A request returning a previously borrowed credit.
 	 */
-	C2_ROT_CANCEL,
+	M0_ROT_CANCEL,
 	/**
 	 * A request to return previously borrowed credit. This translates into
-	 * a C2_RIT_REVOKE incoming request on the remote owner.
+	 * a M0_RIT_REVOKE incoming request on the remote owner.
 	 */
-	C2_ROT_REVOKE
+	M0_ROT_REVOKE
 };
 
 /**
@@ -1347,19 +1347,19 @@ struct m0_rm_outgoing {
 };
 
 enum m0_rm_pin_flags {
-	C2_RPF_TRACK   = (1 << 0),
-	C2_RPF_PROTECT = (1 << 1),
-	C2_RPF_BARRIER = (1 << 2)
+	M0_RPF_TRACK   = (1 << 0),
+	M0_RPF_PROTECT = (1 << 1),
+	M0_RPF_BARRIER = (1 << 2)
 };
 
 /**
  * A pin is used to
  *
- *     - C2_RPF_TRACK: track when a credit changes its state;
+ *     - M0_RPF_TRACK: track when a credit changes its state;
  *
- *     - C2_RPF_PROTECT: to protect a credit from revocation;
+ *     - M0_RPF_PROTECT: to protect a credit from revocation;
  *
- *     - C2_RPF_BARRIER: to prohibit C2_RPF_PROTECT pins from being added to the
+ *     - M0_RPF_BARRIER: to prohibit M0_RPF_PROTECT pins from being added to the
  *       credit.
  *
  * Fields of this struct are protected by the owner's lock.
@@ -1374,7 +1374,7 @@ enum m0_rm_pin_flags {
  * file write is going on, the credit to write in the target file extent must be
  * held. A credit is held (or pinned) from the return from m0_rm_credit_get()
  * until the matching call to m0_rm_credit_put(). To mark the credit as pinned,
- * m0_rm_credit_get() adds a C2_RPF_PROTECT pin from the incoming request to the
+ * m0_rm_credit_get() adds a M0_RPF_PROTECT pin from the incoming request to the
  * returned credit (generally, more than one credit can be pinned as result on
  * m0_rm_credit_get()). This pin is removed by the call to
  * m0_rm_credit_put(). Multiple incoming requests can pin the same credit.
@@ -1382,16 +1382,16 @@ enum m0_rm_pin_flags {
  * @b Tracking.
  *
  * An incoming request with a RIF_LOCAL_WAIT flag might need to wait until a
- * conflicting pinned credit becomes unpinned. To this end, an C2_RPF_TRACK pin
+ * conflicting pinned credit becomes unpinned. To this end, an M0_RPF_TRACK pin
  * is added from the incoming request to the credit.
  *
- * When the last C2_RPF_PROTECT pin is removed from a credit, the credit becomes
- * "cached" and the list of pins to the credit is scanned. For each C2_RPF_TRACK
+ * When the last M0_RPF_PROTECT pin is removed from a credit, the credit becomes
+ * "cached" and the list of pins to the credit is scanned. For each M0_RPF_TRACK
  * pin on the list, its incoming request is checked to see whether this was the
  * last tracking pin the request is waiting for.
  *
  * An incoming request might also issue an outgoing request to borrow or revoke
- * some credits, necessary to fulfill the request. An C2_RPF_TRACK pin is added
+ * some credits, necessary to fulfill the request. An M0_RPF_TRACK pin is added
  * from the incoming request to the credit embedded in the outgoing request
  * (m0_rm_outgoing::rog_want::rl_credit). Multiple incoming requests can pin the
  * same outgoing request. When the outgoing request completes, the incoming
@@ -1400,7 +1400,7 @@ enum m0_rm_pin_flags {
  * @b Barrier.
  *
  * Not currently used. The idea is to avoid live-locks and guarantee progress of
- * incoming request processing by pinning the credits with a C2_RPF_BARRIER pin.
+ * incoming request processing by pinning the credits with a M0_RPF_BARRIER pin.
  *
  * @verbatim
  *
@@ -1424,7 +1424,7 @@ enum m0_rm_pin_flags {
  * @endverbatim
  *
  * On this diagram, INC[S] is an incoming request in a state S, R is a credit, T
- * is an C2_RPF_TRACK pin and P is an C2_RPF_PROTECT pin.
+ * is an M0_RPF_TRACK pin and P is an M0_RPF_PROTECT pin.
  *
  * The incoming request in the middle has been processed successfully and now
  * protects its credit.
@@ -1456,27 +1456,27 @@ struct m0_rm_pin {
 	uint64_t               rp_magix;
 };
 
-C2_INTERNAL void m0_rm_domain_init(struct m0_rm_domain *dom);
-C2_INTERNAL void m0_rm_domain_fini(struct m0_rm_domain *dom);
+M0_INTERNAL void m0_rm_domain_init(struct m0_rm_domain *dom);
+M0_INTERNAL void m0_rm_domain_fini(struct m0_rm_domain *dom);
 
 /**
  * Registers a resource type with a domain.
  *
- * @pre  rtype->rt_id == C2_RM_RESOURCE_TYPE_ID_INVALID &&
+ * @pre  rtype->rt_id == M0_RM_RESOURCE_TYPE_ID_INVALID &&
  *       rtype->rt_dom == NULL
  * @post IS_IN_ARRAY(rtype->rt_id, dom->rd_types) && rtype->rt_dom == dom
  */
-C2_INTERNAL void m0_rm_type_register(struct m0_rm_domain *dom,
+M0_INTERNAL void m0_rm_type_register(struct m0_rm_domain *dom,
 				     struct m0_rm_resource_type *rt);
 
 /**
  * Deregisters a resource type.
  *
  * @pre  IS_IN_ARRAY(rtype->rt_id, dom->rd_types) && rtype->rt_dom != NULL
- * @post rtype->rt_id == C2_RM_RESOURCE_TYPE_ID_INVALID &&
+ * @post rtype->rt_id == M0_RM_RESOURCE_TYPE_ID_INVALID &&
  *       rtype->rt_dom == NULL
  */
-C2_INTERNAL void m0_rm_type_deregister(struct m0_rm_resource_type *rtype);
+M0_INTERNAL void m0_rm_type_deregister(struct m0_rm_resource_type *rtype);
 
 /**
  * Adds a resource to the list of resources and increments resource type
@@ -1490,7 +1490,7 @@ C2_INTERNAL void m0_rm_type_deregister(struct m0_rm_resource_type *rtype);
  * @post res->r_type == rtype
  * @post m0_tlist_contains(&rtype->rt_resources, &res->r_linkage)
  */
-C2_INTERNAL void m0_rm_resource_add(struct m0_rm_resource_type *rtype,
+M0_INTERNAL void m0_rm_resource_add(struct m0_rm_resource_type *rtype,
 				    struct m0_rm_resource *res);
 /**
  * Removes a resource from the list of resources. Dual to m0_rm_resource_add().
@@ -1500,7 +1500,7 @@ C2_INTERNAL void m0_rm_resource_add(struct m0_rm_resource_type *rtype,
  *
  * @post !m0_tlist_contains(&rtype->rt_resources, &res->r_linkage)
  */
-C2_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res);
+M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res);
 
 /**
  * Initialises owner fields and increments resource reference counter.
@@ -1510,10 +1510,10 @@ C2_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res);
  * @pre owner->ro_state == ROS_FINAL
  * @pre creditor->rem_state >= REM_SERVICE_LOCATED
  *
- * @post C2_IN(owner->ro_state, (ROS_INITIALISING, ROS_ACTIVE)) &&
+ * @post M0_IN(owner->ro_state, (ROS_INITIALISING, ROS_ACTIVE)) &&
  *       owner->ro_resource == res)
  */
-C2_INTERNAL void m0_rm_owner_init(struct m0_rm_owner *owner,
+M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner *owner,
 				  struct m0_rm_resource *res,
 				  struct m0_rm_remote *creditor);
 
@@ -1531,7 +1531,7 @@ C2_INTERNAL void m0_rm_owner_init(struct m0_rm_owner *owner,
  * @post owner->ro_state == ROS_ACTIVE
  * @post m0_tlist_contains(&owner->ro_owned[OWOS_CACHED], &r->cr_linkage))
  */
-C2_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner *owner,
+M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner *owner,
 				    struct m0_rm_credit *r);
 
 /**
@@ -1542,7 +1542,7 @@ C2_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner *owner,
  * @see m0_rm_owner_fini
  *
  */
-C2_INTERNAL void m0_rm_owner_retire(struct m0_rm_owner *owner);
+M0_INTERNAL void m0_rm_owner_retire(struct m0_rm_owner *owner);
 
 /**
  * Finalises the owner. Dual to m0_rm_owner_init().
@@ -1555,16 +1555,16 @@ C2_INTERNAL void m0_rm_owner_retire(struct m0_rm_owner *owner);
  *                         m0_tlist_is_empty(owner->ro_outgoing[*]) &&
  *
  */
-C2_INTERNAL void m0_rm_owner_fini(struct m0_rm_owner *owner);
+M0_INTERNAL void m0_rm_owner_fini(struct m0_rm_owner *owner);
 
 /**
  * Locks state machine group of an owner
  */
-C2_INTERNAL void m0_rm_owner_lock(struct m0_rm_owner *owner);
+M0_INTERNAL void m0_rm_owner_lock(struct m0_rm_owner *owner);
 /**
  * Unlocks state machine group of an owner
  */
-C2_INTERNAL void m0_rm_owner_unlock(struct m0_rm_owner *owner);
+M0_INTERNAL void m0_rm_owner_unlock(struct m0_rm_owner *owner);
 
 /**
  * Locks state machine group of an owner
@@ -1584,13 +1584,13 @@ void m0_rm_owner_unlock(struct m0_rm_owner *owner);
  *
  * This function calls m0_rm_resource_ops::rop_credit_init().
  */
-C2_INTERNAL void m0_rm_credit_init(struct m0_rm_credit *credit,
+M0_INTERNAL void m0_rm_credit_init(struct m0_rm_credit *credit,
 				  struct m0_rm_owner *owner);
 
 /**
  * Finalised generic fields in struct m0_rm_credit. Dual to m0_rm_credit_init().
  */
-C2_INTERNAL void m0_rm_credit_fini(struct m0_rm_credit *credit);
+M0_INTERNAL void m0_rm_credit_fini(struct m0_rm_credit *credit);
 
 /**
  * @param src_credit - A source credit which is to be duplicated.
@@ -1598,7 +1598,7 @@ C2_INTERNAL void m0_rm_credit_fini(struct m0_rm_credit *credit);
  *                     initialised and then filled with src_credit.
  * Allocates and duplicates a credit.
  */
-C2_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
+M0_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
 				struct m0_rm_credit **dest_credit);
 
 /**
@@ -1622,7 +1622,7 @@ int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
  * @param flags - type of request (borrow, revoke, local)
  * @see m0_rm_incoming_fini
  */
-C2_INTERNAL void m0_rm_incoming_init(struct m0_rm_incoming *in,
+M0_INTERNAL void m0_rm_incoming_init(struct m0_rm_incoming *in,
 				     struct m0_rm_owner *owner,
 				     enum m0_rm_incoming_type type,
 				     enum m0_rm_incoming_policy policy,
@@ -1633,7 +1633,7 @@ C2_INTERNAL void m0_rm_incoming_init(struct m0_rm_incoming *in,
  * @param in
  * @see Dual to m0_rm_incoming_init().
  */
-C2_INTERNAL void m0_rm_incoming_fini(struct m0_rm_incoming *in);
+M0_INTERNAL void m0_rm_incoming_fini(struct m0_rm_incoming *in);
 
 /**
  * Initialises the fields of remote owner.
@@ -1641,7 +1641,7 @@ C2_INTERNAL void m0_rm_incoming_fini(struct m0_rm_incoming *in);
  * @param res - Resource for which proxy is obtained.
  * @see m0_rm_remote_fini
  */
-C2_INTERNAL void m0_rm_remote_init(struct m0_rm_remote *rem,
+M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote *rem,
 				   struct m0_rm_resource *res);
 
 /**
@@ -1653,7 +1653,7 @@ C2_INTERNAL void m0_rm_remote_init(struct m0_rm_remote *rem,
  *      rem->rem_state == REM_SERVICE_LOCATED ||
  *      rem->rem_state == REM_OWNER_LOCATED
  */
-C2_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem);
+M0_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem);
 
 /**
  * Starts a state machine for a resource usage credit request. Adds pins for
@@ -1665,18 +1665,18 @@ C2_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem);
  * @pre m0_tlist_is_empty(&in->rin_want.cr_linkage)
  *
  */
-C2_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in);
+M0_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in);
 
 /**
  * Allocates suitably sized buffer and encode it into that buffer.
  */
-C2_INTERNAL int m0_rm_credit_encode(const struct m0_rm_credit *credit,
+M0_INTERNAL int m0_rm_credit_encode(const struct m0_rm_credit *credit,
 				   struct m0_buf *buf);
 
 /**
  * Decodes a credit from its serialised presentation.
  */
-C2_INTERNAL int m0_rm_credit_decode(struct m0_rm_credit *credit,
+M0_INTERNAL int m0_rm_credit_decode(struct m0_rm_credit *credit,
 				   struct m0_buf *buf);
 
 /**
@@ -1685,7 +1685,7 @@ C2_INTERNAL int m0_rm_credit_decode(struct m0_rm_credit *credit,
  * @pre in->rin_state == RI_SUCCESS
  * @post m0_tlist_empty(&in->rin_pins)
  */
-C2_INTERNAL void m0_rm_credit_put(struct m0_rm_incoming *in);
+M0_INTERNAL void m0_rm_credit_put(struct m0_rm_incoming *in);
 
 /** @} */
 
@@ -1700,7 +1700,7 @@ C2_INTERNAL void m0_rm_credit_put(struct m0_rm_incoming *in);
  * After this function returns, "other" is in the process of locating the remote
  * service and remote owner, as described in the comment on m0_rm_remote.
  */
-C2_INTERNAL int m0_rm_net_locate(struct m0_rm_credit *credit,
+M0_INTERNAL int m0_rm_net_locate(struct m0_rm_credit *credit,
 				 struct m0_rm_remote *other);
 
 /**
@@ -1717,11 +1717,11 @@ void m0_rm_remote_service_set(struct m0_rm_remote *rem,
  * @pre  rem->rem_state < REM_OWNER_LOCATED
  * @post rem->rem_state == REM_OWNER_LOCATED
  */
-C2_INTERNAL void m0_rm_remote_owner_set(struct m0_rm_remote *rem, uint64_t id);
+M0_INTERNAL void m0_rm_remote_owner_set(struct m0_rm_remote *rem, uint64_t id);
 
 /** @} end of Resource manager networking */
 
-/* __COLIBRI_RM_RM_H__ */
+/* __MERO_RM_RM_H__ */
 #endif
 
 /*

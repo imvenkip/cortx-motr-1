@@ -22,17 +22,17 @@
 #include <stdlib.h> /* atoi */
 #include <math.h>   /* sqrt */
 
-#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/misc.h"   /* M0_SET0 */
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/arith.h"
-#include "colibri/init.h"
+#include "mero/init.h"
 
 #include "pool/pool.h"
 #include "layout/layout.h"
 #include "layout/layout_db.h"
 #include "layout/pdclust.h"
-#include "layout/linear_enum.h" /* c2_linear_enum_build() */
+#include "layout/linear_enum.h" /* m0_linear_enum_build() */
 
 #include "layout/ut/ldemo_internal.c"
 
@@ -47,33 +47,33 @@
  * These objects are called as dummy since they are not used by this ldemo
  * test.
  */
-static int dummy_create(struct c2_layout_domain *domain,
-			struct c2_dbenv *dbenv,
+static int dummy_create(struct m0_layout_domain *domain,
+			struct m0_dbenv *dbenv,
 			uint64_t lid,
-			struct c2_pdclust_attr *attr,
-			struct c2_pdclust_layout **pl)
+			struct m0_pdclust_attr *attr,
+			struct m0_pdclust_layout **pl)
 {
 	int                           rc;
-	struct c2_layout_linear_attr  lin_attr;
-	struct c2_layout_linear_enum *lin_enum;
+	struct m0_layout_linear_attr  lin_attr;
+	struct m0_layout_linear_enum *lin_enum;
 
-	rc = c2_dbenv_init(dbenv, "ldemo-db", 0);
-	C2_ASSERT(rc == 0);
+	rc = m0_dbenv_init(dbenv, "ldemo-db", 0);
+	M0_ASSERT(rc == 0);
 
-	rc = c2_layout_domain_init(domain, dbenv);
-	C2_ASSERT(rc == 0);
+	rc = m0_layout_domain_init(domain, dbenv);
+	M0_ASSERT(rc == 0);
 
-	rc = c2_layout_standard_types_register(domain);
-	C2_ASSERT(rc == 0);
+	rc = m0_layout_standard_types_register(domain);
+	M0_ASSERT(rc == 0);
 
 	lin_attr.lla_nr = attr->pa_P;
 	lin_attr.lla_A  = 100;
 	lin_attr.lla_B  = 200;
-	rc = c2_linear_enum_build(domain, &lin_attr, &lin_enum);
-	C2_ASSERT(rc == 0);
+	rc = m0_linear_enum_build(domain, &lin_attr, &lin_enum);
+	M0_ASSERT(rc == 0);
 
-	rc = c2_pdclust_build(domain, lid, attr, &lin_enum->lle_base, pl);
-	C2_ASSERT(rc == 0);
+	rc = m0_pdclust_build(domain, lid, attr, &lin_enum->lle_base, pl);
+	M0_ASSERT(rc == 0);
 	return rc;
 }
 
@@ -86,16 +86,16 @@ int main(int argc, char **argv)
 	int                         I;
 	int                         rc;
 	uint64_t                    unitsize = 4096;
-	struct c2_pdclust_layout   *play;
-	struct c2_pdclust_attr      attr;
-	struct c2_pool              pool;
+	struct m0_pdclust_layout   *play;
+	struct m0_pdclust_attr      attr;
+	struct m0_pool              pool;
 	uint64_t                    id;
-	struct c2_uint128           seed;
-	struct c2_layout_domain     domain;
-	struct c2_dbenv             dbenv;
-	struct c2_pdclust_instance *pi;
-	struct c2_fid               gfid;
-	struct c2_layout_instance  *li;
+	struct m0_uint128           seed;
+	struct m0_layout_domain     domain;
+	struct m0_dbenv             dbenv;
+	struct m0_pdclust_instance *pi;
+	struct m0_fid               gfid;
+	struct m0_layout_instance  *li;
 	if (argc != 6) {
 		printf(
 "\t\tldemo N K P R I\nwhere\n"
@@ -125,13 +125,13 @@ int main(int argc, char **argv)
 	I = atoi(argv[5]);
 
 	id = 0x4A494E4E49455349; /* "jinniesi" */
-	c2_uint128_init(&seed, "upjumpandpumpim,");
+	m0_uint128_init(&seed, "upjumpandpumpim,");
 
-	rc = c2_init();
+	rc = m0_init();
 	if (rc != 0)
 		return rc;
 
-	rc = c2_pool_init(&pool, P);
+	rc = m0_pool_init(&pool, P);
 	if (rc == 0) {
 		attr.pa_N = N;
 		attr.pa_K = K;
@@ -141,23 +141,23 @@ int main(int argc, char **argv)
 
 		rc = dummy_create(&domain, &dbenv, id, &attr, &play);
 		if (rc == 0) {
-			c2_fid_set(&gfid, 0, 999);
-			rc = c2_layout_instance_build(c2_pdl_to_layout(play),
+			m0_fid_set(&gfid, 0, 999);
+			rc = m0_layout_instance_build(m0_pdl_to_layout(play),
 						      &gfid, &li);
-			pi = c2_layout_instance_to_pdi(li);
+			pi = m0_layout_instance_to_pdi(li);
 			if (rc == 0) {
 				layout_demo(pi, play, R, I, true);
 				pi->pi_base.li_ops->lio_fini(&pi->pi_base);
 			}
-			c2_layout_put(c2_pdl_to_layout(play));
-			c2_layout_standard_types_unregister(&domain);
-			c2_layout_domain_fini(&domain);
-			c2_dbenv_fini(&dbenv);
+			m0_layout_put(m0_pdl_to_layout(play));
+			m0_layout_standard_types_unregister(&domain);
+			m0_layout_domain_fini(&domain);
+			m0_dbenv_fini(&dbenv);
 		}
-		c2_pool_fini(&pool);
+		m0_pool_fini(&pool);
 	}
 
-	c2_fini();
+	m0_fini();
 	return rc;
 }
 

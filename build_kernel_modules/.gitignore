@@ -1,8 +1,8 @@
 /Makefile
 addb/
-c2t1fs/
+m0t1fs/
 cob/
-colibri/
+mero/
 conf/
 db/
 dtm/
@@ -13,6 +13,7 @@ galois/
 ioservice/
 layout/
 lib/
+mdservice/
 net/
 pool/
 reqh/

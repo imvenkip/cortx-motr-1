@@ -23,7 +23,7 @@
 #include <stdio.h>   /* snprintf */
 #include <stdlib.h>  /* strtoull */
 #endif /* __KERNEL__ */
-#include "colibri/magic.h"
+#include "mero/magic.h"
 
 /**
    @addtogroup LNetCore
@@ -59,9 +59,9 @@ static void nlx_print_core_buffer_event(const char *pre,
 }
 
 static void nlx_print_net_buffer_event(const char *pre,
-				       const struct c2_net_buffer_event *nbev)
+				       const struct m0_net_buffer_event *nbev)
 {
-	NLXP("%s: %p c2_net_buffer_event\n", (char*) pre, nbev);
+	NLXP("%s: %p m0_net_buffer_event\n", (char*) pre, nbev);
 	NLXP("\t  nbe_time: %lx\n", (unsigned long) nbev->nbe_time);
 	NLXP("\tnbe_status: %d\n", nbev->nbe_status);
 	NLXP("\tnbe_length: %ld\n", (unsigned long) nbev->nbe_length);
@@ -72,7 +72,7 @@ static void nlx_print_net_buffer_event(const char *pre,
 		NLXP("\t    nbe_ep: %s\n", (char*) "NULL");
 	NLXP("\tnbe_buffer: %p\n", nbev->nbe_buffer);
 	if (nbev->nbe_buffer != NULL) {
-		struct c2_net_buffer *nb = nbev->nbe_buffer;
+		struct m0_net_buffer *nb = nbev->nbe_buffer;
 		NLXP("\t\t  nb_qtype: %d\n", nb->nb_qtype);
 		NLXP("\t\t  nb_flags: %lx\n", (unsigned long) nb->nb_flags);
 	}
@@ -110,15 +110,15 @@ static void nlx_print_core_buf_desc(const char *pre,
 }
 #endif
 
-static const struct c2_addb_ctx_type nlx_core_domain_addb_ctx = {
+static const struct m0_addb_ctx_type nlx_core_domain_addb_ctx = {
 	.act_name = "net-lnet-core-domain"
 };
 
-static const struct c2_addb_ctx_type nlx_core_buffer_addb_ctx = {
+static const struct m0_addb_ctx_type nlx_core_buffer_addb_ctx = {
 	.act_name = "net-lnet-core-buffer"
 };
 
-static const struct c2_addb_ctx_type nlx_core_tm_addb_ctx = {
+static const struct m0_addb_ctx_type nlx_core_tm_addb_ctx = {
 	.act_name = "net-lnet-core-tm"
 };
 
@@ -128,9 +128,9 @@ static const struct c2_addb_ctx_type nlx_core_tm_addb_ctx = {
  */
 static bool nlx_core_tm_invariant(const struct nlx_core_transfer_mc *lctm)
 {
-	return lctm != NULL && lctm->ctm_magic == C2_NET_LNET_CORE_TM_MAGIC &&
-	    lctm->ctm_mb_counter >= C2_NET_LNET_BUFFER_ID_MIN &&
-	    lctm->ctm_mb_counter <= C2_NET_LNET_BUFFER_ID_MAX;
+	return lctm != NULL && lctm->ctm_magic == M0_NET_LNET_CORE_TM_MAGIC &&
+	    lctm->ctm_mb_counter >= M0_NET_LNET_BUFFER_ID_MIN &&
+	    lctm->ctm_mb_counter <= M0_NET_LNET_BUFFER_ID_MAX;
 }
 
 /**
@@ -148,7 +148,7 @@ static bool nlx_core_tm_is_locked(const struct nlx_core_transfer_mc *lctm)
 		return false;
 	xtm = container_of(lctm, struct nlx_xo_transfer_mc, xtm_core);
 	return nlx_tm_invariant(xtm->xtm_tm) &&
-	    c2_mutex_is_locked(&xtm->xtm_tm->ntm_mutex);
+	    m0_mutex_is_locked(&xtm->xtm_tm->ntm_mutex);
 }
 
 /**
@@ -157,7 +157,7 @@ static bool nlx_core_tm_is_locked(const struct nlx_core_transfer_mc *lctm)
  */
 static bool nlx_core_buffer_invariant(const struct nlx_core_buffer *lcb)
 {
-	return lcb != NULL && lcb->cb_magic == C2_NET_LNET_CORE_BUF_MAGIC &&
+	return lcb != NULL && lcb->cb_magic == M0_NET_LNET_CORE_BUF_MAGIC &&
 		lcb->cb_buffer_id != 0;
 }
 
@@ -181,7 +181,7 @@ static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
 	}
 }
 
-C2_INTERNAL int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
+M0_INTERNAL int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
 					struct nlx_core_transfer_mc *lctm,
 					size_t need)
 {
@@ -189,11 +189,11 @@ C2_INTERNAL int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
 	int num_to_alloc;
 	int rc = 0;
 
-	C2_PRE(nlx_core_tm_is_locked(lctm));
-	C2_PRE(need > 0);
+	M0_PRE(nlx_core_tm_is_locked(lctm));
+	M0_PRE(need > 0);
 
-	have = bev_cqueue_size(&lctm->ctm_bevq) - C2_NET_LNET_BEVQ_NUM_RESERVED;
-	C2_ASSERT(have >= lctm->ctm_bev_needed);
+	have = bev_cqueue_size(&lctm->ctm_bevq) - M0_NET_LNET_BEVQ_NUM_RESERVED;
+	M0_ASSERT(have >= lctm->ctm_bev_needed);
 	num_to_alloc = lctm->ctm_bev_needed + need - have;
 	while (num_to_alloc > 0) {
 		struct nlx_core_buffer_event *bev;
@@ -205,37 +205,37 @@ C2_INTERNAL int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
 	}
 	if (rc == 0)
 		lctm->ctm_bev_needed += need;
-	have = bev_cqueue_size(&lctm->ctm_bevq) - C2_NET_LNET_BEVQ_NUM_RESERVED;
-	C2_POST(have >= lctm->ctm_bev_needed);
+	have = bev_cqueue_size(&lctm->ctm_bevq) - M0_NET_LNET_BEVQ_NUM_RESERVED;
+	M0_POST(have >= lctm->ctm_bev_needed);
 	return rc;
 }
 
-C2_INTERNAL void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
+M0_INTERNAL void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
 				       size_t release)
 {
-	C2_PRE(nlx_core_tm_is_locked(lctm));
-	C2_PRE(release > 0);
-	C2_PRE(lctm->ctm_bev_needed >= release);
+	M0_PRE(nlx_core_tm_is_locked(lctm));
+	M0_PRE(release > 0);
+	M0_PRE(lctm->ctm_bev_needed >= release);
 
 	lctm->ctm_bev_needed -= release;
 	return;
 }
 
-C2_INTERNAL bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
+M0_INTERNAL bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 					struct nlx_core_buffer_event *lcbe)
 {
 	struct nlx_core_bev_link *link;
 	struct nlx_core_buffer_event *bev;
 
-	C2_PRE(lcbe != NULL);
-	C2_PRE(nlx_core_tm_is_locked(lctm));
+	M0_PRE(lcbe != NULL);
+	M0_PRE(nlx_core_tm_is_locked(lctm));
 
 	link = bev_cqueue_get(&lctm->ctm_bevq);
 	if (link != NULL) {
 		bev = container_of(link, struct nlx_core_buffer_event,
 				   cbe_tm_link);
 		*lcbe = *bev;
-		C2_SET0(&lcbe->cbe_tm_link); /* copy is not in queue */
+		M0_SET0(&lcbe->cbe_tm_link); /* copy is not in queue */
 		/* Event structures released when network buffer unlinked */
 		return true;
 	}
@@ -252,8 +252,8 @@ C2_INTERNAL bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 static uint64_t nlx_core_match_bits_encode(uint32_t tmid, uint64_t counter)
 {
 	uint64_t mb;
-	mb = ((uint64_t) tmid << C2_NET_LNET_TMID_SHIFT) |
-		(counter & C2_NET_LNET_BUFFER_ID_MASK);
+	mb = ((uint64_t) tmid << M0_NET_LNET_TMID_SHIFT) |
+		(counter & M0_NET_LNET_BUFFER_ID_MASK);
 	return mb;
 }
 
@@ -268,8 +268,8 @@ static inline void nlx_core_match_bits_decode(uint64_t mb,
 					      uint32_t *tmid,
 					      uint64_t *counter)
 {
-	*tmid = (uint32_t) (mb >> C2_NET_LNET_TMID_SHIFT);
-	*counter = mb & C2_NET_LNET_BUFFER_ID_MASK;
+	*tmid = (uint32_t) (mb >> M0_NET_LNET_TMID_SHIFT);
+	*counter = mb & M0_NET_LNET_BUFFER_ID_MASK;
 	return;
 }
 
@@ -290,7 +290,7 @@ static inline uint64_t nlx_core_buf_desc_checksum(const struct nlx_core_buf_desc
 	uint64_t checksum;
 
 	/* ensure that the checksum computation covers all the payload */
-	C2_CASSERT(sizeof *cbd ==
+	M0_CASSERT(sizeof *cbd ==
 		   sizeof cbd->cbd_data + sizeof cbd->cbd_checksum);
 
 	for (i = 0, checksum = 0; i < ARRAY_SIZE(cbd->cbd_data); ++i)
@@ -298,25 +298,25 @@ static inline uint64_t nlx_core_buf_desc_checksum(const struct nlx_core_buf_desc
 	return __cpu_to_le64(checksum);
 }
 
-C2_INTERNAL void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
+M0_INTERNAL void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
 					  struct nlx_core_buffer *lcbuf,
 					  struct nlx_core_buf_desc *cbd)
 {
-	C2_PRE(nlx_core_tm_is_locked(lctm));
-	C2_PRE(nlx_core_tm_invariant(lctm));
-	C2_PRE(nlx_core_buffer_invariant(lcbuf));
-	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_SEND ||
-	       lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
+	M0_PRE(nlx_core_tm_is_locked(lctm));
+	M0_PRE(nlx_core_tm_invariant(lctm));
+	M0_PRE(nlx_core_buffer_invariant(lcbuf));
+	M0_PRE(lcbuf->cb_qtype == M0_NET_QT_PASSIVE_BULK_SEND ||
+	       lcbuf->cb_qtype == M0_NET_QT_PASSIVE_BULK_RECV);
 
 	/* generate match bits */
 	lcbuf->cb_match_bits =
 		nlx_core_match_bits_encode(lctm->ctm_addr.cepa_tmid,
 					   lctm->ctm_mb_counter);
-	if (++lctm->ctm_mb_counter > C2_NET_LNET_BUFFER_ID_MAX)
-		lctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
+	if (++lctm->ctm_mb_counter > M0_NET_LNET_BUFFER_ID_MAX)
+		lctm->ctm_mb_counter = M0_NET_LNET_BUFFER_ID_MIN;
 
 	/* create the descriptor */
-	C2_SET_ARR0(cbd->cbd_data);
+	M0_SET_ARR0(cbd->cbd_data);
 	cbd->cbd_match_bits = __cpu_to_le64(lcbuf->cb_match_bits);
 
 	CBD_EP(nid)         = __cpu_to_le64(TM_EP(nid));
@@ -331,12 +331,12 @@ C2_INTERNAL void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
 
 	NLXDBG(lctm, 2, nlx_print_core_buf_desc("encode", cbd));
 
-	C2_POST(nlx_core_tm_invariant(lctm));
-	C2_POST(nlx_core_buffer_invariant(lcbuf));
+	M0_POST(nlx_core_tm_invariant(lctm));
+	M0_POST(nlx_core_buffer_invariant(lcbuf));
 	return;
 }
 
-C2_INTERNAL int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
+M0_INTERNAL int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 					 struct nlx_core_buffer *lcbuf,
 					 struct nlx_core_buf_desc *cbd)
 {
@@ -345,11 +345,11 @@ C2_INTERNAL int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 
 	NLXDBG(lctm, 2, nlx_print_core_buf_desc("decode", cbd));
 
-	C2_PRE(nlx_core_tm_is_locked(lctm));
-	C2_PRE(nlx_core_tm_invariant(lctm));
-	C2_PRE(nlx_core_buffer_invariant(lcbuf));
-	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_SEND ||
-	       lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
+	M0_PRE(nlx_core_tm_is_locked(lctm));
+	M0_PRE(nlx_core_tm_invariant(lctm));
+	M0_PRE(nlx_core_buffer_invariant(lcbuf));
+	M0_PRE(lcbuf->cb_qtype == M0_NET_QT_ACTIVE_BULK_SEND ||
+	       lcbuf->cb_qtype == M0_NET_QT_ACTIVE_BULK_RECV);
 
 	i64 = nlx_core_buf_desc_checksum(cbd);
 	if (i64 != cbd->cbd_checksum)
@@ -358,14 +358,14 @@ C2_INTERNAL int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 	i64 = __le64_to_cpu(cbd->cbd_size);
 
 	i32 = __le32_to_cpu(cbd->cbd_qtype);
-	if (i32 == C2_NET_QT_PASSIVE_BULK_SEND) {
-		if (lcbuf->cb_qtype != C2_NET_QT_ACTIVE_BULK_RECV)
+	if (i32 == M0_NET_QT_PASSIVE_BULK_SEND) {
+		if (lcbuf->cb_qtype != M0_NET_QT_ACTIVE_BULK_RECV)
 			return -EPERM;
 		if (i64 > lcbuf->cb_length)
 			return -EFBIG;
 		lcbuf->cb_length = i64; /* passive send size used */
-	} else if (i32 == C2_NET_QT_PASSIVE_BULK_RECV) {
-		if (lcbuf->cb_qtype != C2_NET_QT_ACTIVE_BULK_SEND)
+	} else if (i32 == M0_NET_QT_PASSIVE_BULK_RECV) {
+		if (lcbuf->cb_qtype != M0_NET_QT_ACTIVE_BULK_SEND)
 			return -EPERM;
 		if (lcbuf->cb_length > i64)
 			return -EFBIG;
@@ -380,8 +380,8 @@ C2_INTERNAL int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 
 	lcbuf->cb_match_bits = __le64_to_cpu(cbd->cbd_match_bits);
 	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &i32, &i64);
-	if (i64 < C2_NET_LNET_BUFFER_ID_MIN ||
-	    i64 > C2_NET_LNET_BUFFER_ID_MAX ||
+	if (i64 < M0_NET_LNET_BUFFER_ID_MIN ||
+	    i64 > M0_NET_LNET_BUFFER_ID_MAX ||
 	    i32 != B_EP(tmid))
 		return -EINVAL;
 
@@ -400,7 +400,7 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 			    const char *ep_addr,
 			    struct nlx_core_ep_addr *cepa)
 {
-	char nidstr[C2_NET_LNET_NIDSTR_SIZE];
+	char nidstr[M0_NET_LNET_NIDSTR_SIZE];
 	char *cp = strchr(ep_addr, ':');
 	char *endp;
 	size_t n = cp - ep_addr;
@@ -423,10 +423,10 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 		return -EINVAL;
 	cp = endp + 1;
 	if (strcmp(cp, "*") == 0) {
-		cepa->cepa_tmid = C2_NET_LNET_TMID_INVALID;
+		cepa->cepa_tmid = M0_NET_LNET_TMID_INVALID;
 	} else {
 		cepa->cepa_tmid = strtoul(cp, &endp, 10);
-		if (*endp != 0 || cepa->cepa_tmid > C2_NET_LNET_TMID_MAX)
+		if (*endp != 0 || cepa->cepa_tmid > M0_NET_LNET_TMID_MAX)
 			return -EINVAL;
 	}
 	return 0;
@@ -438,31 +438,31 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 
 void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 			     const struct nlx_core_ep_addr *cepa,
-			     char buf[C2_NET_LNET_XEP_ADDR_LEN])
+			     char buf[M0_NET_LNET_XEP_ADDR_LEN])
 {
 	const char *fmt;
 	int rc;
 	int n;
 
 	rc = nlx_core_nidstr_encode(lcdom, cepa->cepa_nid, buf);
-	C2_ASSERT(rc == 0);
+	M0_ASSERT(rc == 0);
 	n = strlen(buf);
 
-	if (cepa->cepa_tmid != C2_NET_LNET_TMID_INVALID)
+	if (cepa->cepa_tmid != M0_NET_LNET_TMID_INVALID)
 		fmt = ":%u:%u:%u";
 	else
 		fmt = ":%u:%u:*";
-	snprintf(buf + n, C2_NET_LNET_XEP_ADDR_LEN - n, fmt,
+	snprintf(buf + n, M0_NET_LNET_XEP_ADDR_LEN - n, fmt,
 		 cepa->cepa_pid, cepa->cepa_portal, cepa->cepa_tmid);
 }
 
-C2_INTERNAL void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom,
+M0_INTERNAL void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom,
 					unsigned dbg)
 {
 	lcdom->_debug_ = dbg;
 }
 
-C2_INTERNAL void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
+M0_INTERNAL void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
 				       unsigned dbg)
 {
 	lctm->_debug_ = dbg;

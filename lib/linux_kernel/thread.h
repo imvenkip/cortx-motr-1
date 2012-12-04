@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_LINUX_KERNEL_THREAD_H__
-#define __COLIBRI_LIB_LINUX_KERNEL_THREAD_H__
+#ifndef __MERO_LIB_LINUX_KERNEL_THREAD_H__
+#define __MERO_LIB_LINUX_KERNEL_THREAD_H__
 
 #include <linux/kthread.h>
 #include <linux/hardirq.h>
@@ -29,26 +29,26 @@
 /**
    @addtogroup thread Thread
 
-   <b>Linux kernel c2_thread implementation</b>
+   <b>Linux kernel m0_thread implementation</b>
 
    Kernel space implementation is based <linux/kthread.h>
 
-   @see c2_thread
+   @see m0_thread
 
    @{
  */
 
-struct c2_thread_handle {
+struct m0_thread_handle {
 	struct task_struct *h_t;
 };
 
 enum {
-	C2_THREAD_NAME_LEN = TASK_COMM_LEN
+	M0_THREAD_NAME_LEN = TASK_COMM_LEN
 };
 
 /** @} end of thread group */
 
-/* __COLIBRI_LIB_LINUX_KERNEL_THREAD_H__ */
+/* __MERO_LIB_LINUX_KERNEL_THREAD_H__ */
 #endif
 
 /*

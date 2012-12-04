@@ -29,36 +29,34 @@
 #include "rpc/rpclib.h"
 
 
-static int init_cob(struct c2_rpc_client_ctx *cctx)
+static int init_cob(struct m0_rpc_client_ctx *cctx)
 {
 	int rc;
-	struct c2_cob_domain_id   cob_dom_id = { .id = cctx->rcx_cob_dom_id };
+	struct m0_cob_domain_id   cob_dom_id = { .id = cctx->rcx_cob_dom_id };
 
-	rc = c2_dbenv_init(cctx->rcx_dbenv, cctx->rcx_db_name, 0);
+	rc = m0_dbenv_init(cctx->rcx_dbenv, cctx->rcx_db_name, 0);
 	if (rc != 0)
 		return rc;
 
-	rc = c2_cob_domain_init(cctx->rcx_cob_dom, cctx->rcx_dbenv, &cob_dom_id);
+	rc = m0_cob_domain_init(cctx->rcx_cob_dom, cctx->rcx_dbenv, &cob_dom_id);
 	if (rc != 0)
 		goto dbenv_fini;
 
 	return rc;
 
 dbenv_fini:
-	c2_dbenv_fini(cctx->rcx_dbenv);
-	C2_ASSERT(rc != 0);
+	m0_dbenv_fini(cctx->rcx_dbenv);
+	M0_ASSERT(rc != 0);
 	return rc;
 }
 
-static void fini_cob(struct c2_rpc_client_ctx *cctx)
+static void fini_cob(struct m0_rpc_client_ctx *cctx)
 {
-	c2_cob_domain_fini(cctx->rcx_cob_dom);
-	c2_dbenv_fini(cctx->rcx_dbenv);
-
-	return;
+	m0_cob_domain_fini(cctx->rcx_cob_dom);
+	m0_dbenv_fini(cctx->rcx_dbenv);
 }
 
-int c2_rpc_client_init(struct c2_rpc_client_ctx *cctx)
+int m0_rpc_client_init(struct m0_rpc_client_ctx *cctx)
 {
 	int rc;
 
@@ -66,24 +64,18 @@ int c2_rpc_client_init(struct c2_rpc_client_ctx *cctx)
 	if (rc != 0)
 		return rc;
 
-	rc = c2_rpc_client_start(cctx);
+	rc = m0_rpc_client_start(cctx);
 	if (rc != 0)
-		goto fini_cob;
-
-	return rc;
-
-fini_cob:
-	fini_cob(cctx);
-	C2_ASSERT(rc != 0);
+		fini_cob(cctx);
 	return rc;
 }
-C2_EXPORTED(c2_rpc_client_init);
+M0_EXPORTED(m0_rpc_client_init);
 
-int c2_rpc_client_fini(struct c2_rpc_client_ctx *cctx)
+int m0_rpc_client_fini(struct m0_rpc_client_ctx *cctx)
 {
 	int rc;
 
-	rc = c2_rpc_client_stop(cctx);
+	rc = m0_rpc_client_stop(cctx);
 	if (rc != 0)
 		return rc;
 
@@ -91,7 +83,7 @@ int c2_rpc_client_fini(struct c2_rpc_client_ctx *cctx)
 
 	return rc;
 }
-C2_EXPORTED(c2_rpc_client_fini);
+M0_EXPORTED(m0_rpc_client_fini);
 
 /*
  *  Local variables:

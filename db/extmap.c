@@ -23,7 +23,7 @@
 
 #include "lib/vec.h"
 #include "lib/errno.h"
-#include "lib/arith.h"   /* C2_3WAY */
+#include "lib/arith.h"   /* M0_3WAY */
 #include "db/extmap.h"
 
 /**
@@ -35,8 +35,8 @@
 
    Few notes:
 
-   @li c2_emap_cursor::ec_seg is "external" representation of iteration
-   state. c2_emap_cursor::ec_key and c2_emap_cursor::ec_rec are "internal";
+   @li m0_emap_cursor::ec_seg is "external" representation of iteration
+   state. m0_emap_cursor::ec_key and m0_emap_cursor::ec_rec are "internal";
 
    @li after internal state has changed it is "opened" by it_open() which
    updates external stats to match changes;
@@ -44,9 +44,9 @@
    @li similarly when external state has changed, it is "packed" into internal
    one by it_pack().
 
-   @li c2_emap_cursor::ec_pair is descriptor of buffers for data-base
-   operations. Buffers are aliased to c2_emap_cursor::ec_key and
-   c2_emap_cursor::ec_rec by it_init().
+   @li m0_emap_cursor::ec_pair is descriptor of buffers for data-base
+   operations. Buffers are aliased to m0_emap_cursor::ec_key and
+   m0_emap_cursor::ec_rec by it_init().
 
    @li emap_invariant() checks implementation invariant: an extent map is an
    collection of segments with non-empty extents forming the partition of the
@@ -55,7 +55,7 @@
 
    @li A segment ([A, B), V) is stored as a record (A, V) with a key (prefix,
    B). Note, that the _high_ extent end is used as a key. This way, standard
-   c2_db_cursor_get() can be used to position a cursor on a segment containing a
+   m0_db_cursor_get() can be used to position a cursor on a segment containing a
    given offset. Also note, that there is some redundancy in the persistent
    state: two consecutive segments ([A, B), V) and ([B, C), U) are stored as
    records (A, V) and (B, U) with keys (prefix, B) and (prefix, C)
@@ -71,57 +71,57 @@
  */
 
 /*
-static void key_print(const struct c2_emap_key *k)
+static void key_print(const struct m0_emap_key *k)
 {
 	printf("%08lx.%08lx:%08lx", k->ek_prefix.u_hi, k->ek_prefix.u_lo,
 	       k->ek_offset);
 }
 */
 
-static int emap_cmp(struct c2_table *table,
+static int emap_cmp(struct m0_table *table,
 		    const void *key0, const void *key1)
 {
-	const struct c2_emap_key *a0 = key0;
-	const struct c2_emap_key *a1 = key1;
+	const struct m0_emap_key *a0 = key0;
+	const struct m0_emap_key *a1 = key1;
 
 /*	static const char compare[] = "<=>";
 
 	key_print(a0);
-	printf(" %c ", compare[(c2_uint128_cmp(&a0->ek_prefix,
+	printf(" %c ", compare[(m0_uint128_cmp(&a0->ek_prefix,
 						 &a1->ek_prefix) ?:
-				  C2_3WAY(a0->ek_offset,
+				  M0_3WAY(a0->ek_offset,
 					  a1->ek_offset)) + 1]);
 	key_print(a1);
 	printf("\n"); */
-	return c2_uint128_cmp(&a0->ek_prefix, &a1->ek_prefix) ?:
-		C2_3WAY(a0->ek_offset, a1->ek_offset);
+	return m0_uint128_cmp(&a0->ek_prefix, &a1->ek_prefix) ?:
+		M0_3WAY(a0->ek_offset, a1->ek_offset);
 }
 
-static const struct c2_table_ops emap_ops = {
+static const struct m0_table_ops emap_ops = {
 	.to = {
 		[TO_KEY] = {
-			.max_size = sizeof(struct c2_emap_key)
+			.max_size = sizeof(struct m0_emap_key)
 		},
 		[TO_REC] = {
-			.max_size = sizeof(struct c2_emap_rec)
+			.max_size = sizeof(struct m0_emap_rec)
 		},
 	},
 	.key_cmp = emap_cmp
 };
 
-C2_INTERNAL int c2_emap_init(struct c2_emap *emap, struct c2_dbenv *db,
+M0_INTERNAL int m0_emap_init(struct m0_emap *emap, struct m0_dbenv *db,
 			     const char *mapname)
 {
-	return c2_table_init(&emap->em_mapping, db, mapname, 0, &emap_ops);
+	return m0_table_init(&emap->em_mapping, db, mapname, 0, &emap_ops);
 }
 
-C2_INTERNAL void c2_emap_fini(struct c2_emap *emap)
+M0_INTERNAL void m0_emap_fini(struct m0_emap *emap)
 {
-	c2_table_fini(&emap->em_mapping);
+	m0_table_fini(&emap->em_mapping);
 }
 
-static void emap_pack(const struct c2_emap_seg *ext,
-		      struct c2_emap_key *key, struct c2_emap_rec *rec)
+static void emap_pack(const struct m0_emap_seg *ext,
+		      struct m0_emap_key *key, struct m0_emap_rec *rec)
 {
 	key->ek_prefix = ext->ee_pre;
 	key->ek_offset = ext->ee_ext.e_end;
@@ -129,8 +129,8 @@ static void emap_pack(const struct c2_emap_seg *ext,
 	rec->er_value  = ext->ee_val;
 }
 
-static void emap_open(const struct c2_emap_key *key,
-		      const struct c2_emap_rec *rec, struct c2_emap_seg *ext)
+static void emap_open(const struct m0_emap_key *key,
+		      const struct m0_emap_rec *rec, struct m0_emap_seg *ext)
 {
 	ext->ee_pre         = key->ek_prefix;
 	ext->ee_ext.e_start = rec->er_start;
@@ -138,40 +138,40 @@ static void emap_open(const struct c2_emap_key *key,
 	ext->ee_val         = rec->er_value;
 }
 
-C2_INTERNAL struct c2_emap_seg *c2_emap_seg_get(struct c2_emap_cursor *iterator)
+M0_INTERNAL struct m0_emap_seg *m0_emap_seg_get(struct m0_emap_cursor *iterator)
 {
 	return &iterator->ec_seg;
 }
 
-C2_INTERNAL bool c2_emap_ext_is_last(const struct c2_ext *ext)
+M0_INTERNAL bool m0_emap_ext_is_last(const struct m0_ext *ext)
 {
-	return ext->e_end == C2_BINDEX_MAX + 1;
+	return ext->e_end == M0_BINDEX_MAX + 1;
 }
 
-C2_INTERNAL bool c2_emap_ext_is_first(const struct c2_ext *ext)
+M0_INTERNAL bool m0_emap_ext_is_first(const struct m0_ext *ext)
 {
 	return ext->e_start == 0;
 }
 
-static void it_pack(struct c2_emap_cursor *it)
+static void it_pack(struct m0_emap_cursor *it)
 {
 	emap_pack(&it->ec_seg, &it->ec_key, &it->ec_rec);
 }
 
-static void it_open(struct c2_emap_cursor *it)
+static void it_open(struct m0_emap_cursor *it)
 {
 	emap_open(&it->ec_key, &it->ec_rec, &it->ec_seg);
 }
 
-static bool it_prefix_ok(const struct c2_emap_cursor *it)
+static bool it_prefix_ok(const struct m0_emap_cursor *it)
 {
-	return c2_uint128_eq(&it->ec_seg.ee_pre, &it->ec_prefix);
+	return m0_uint128_eq(&it->ec_seg.ee_pre, &it->ec_prefix);
 }
 
 #define IT_DO_OPEN(it, func)					\
 ({								\
 	int __result;						\
-	struct c2_emap_cursor *__it = (it);			\
+	struct m0_emap_cursor *__it = (it);			\
 								\
 	__result = (*(func))(&__it->ec_cursor, &__it->ec_pair);	\
 	if (__result == 0) {					\
@@ -184,62 +184,62 @@ static bool it_prefix_ok(const struct c2_emap_cursor *it)
 
 #define IT_DO_PACK(it, func)				\
 ({							\
-	struct c2_emap_cursor *__it = (it);		\
+	struct m0_emap_cursor *__it = (it);		\
 							\
 	it_pack(__it);					\
 	(*(func))(&__it->ec_cursor, &__it->ec_pair);	\
 })
 
-static int it_init(struct c2_emap *emap, struct c2_db_tx *tx,
-		   const struct c2_uint128 *prefix, c2_bindex_t offset,
-		   struct c2_emap_cursor *it, uint32_t flags)
+static int it_init(struct m0_emap *emap, struct m0_db_tx *tx,
+		   const struct m0_uint128 *prefix, m0_bindex_t offset,
+		   struct m0_emap_cursor *it, uint32_t flags)
 {
-	c2_db_pair_setup(&it->ec_pair, &emap->em_mapping,
+	m0_db_pair_setup(&it->ec_pair, &emap->em_mapping,
 			 &it->ec_key, sizeof it->ec_key,
 			 &it->ec_rec, sizeof it->ec_rec);
 	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
 	it->ec_key.ek_offset = offset + 1;
 	it->ec_map           = emap;
-	return c2_db_cursor_init(&it->ec_cursor, &emap->em_mapping, tx, flags);
+	return m0_db_cursor_init(&it->ec_cursor, &emap->em_mapping, tx, flags);
 }
 
-static void emap_close(struct c2_emap_cursor *it)
+static void emap_close(struct m0_emap_cursor *it)
 {
-	c2_db_cursor_fini(&it->ec_cursor);
-	c2_db_pair_fini(&it->ec_pair);
+	m0_db_cursor_fini(&it->ec_cursor);
+	m0_db_pair_fini(&it->ec_pair);
 }
 
-static int emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
-		       const struct c2_uint128 *prefix, c2_bindex_t offset,
-		       struct c2_emap_cursor *it)
+static int emap_lookup(struct m0_emap *emap, struct m0_db_tx *tx,
+		       const struct m0_uint128 *prefix, m0_bindex_t offset,
+		       struct m0_emap_cursor *it)
 {
 	int result;
 
 	result = it_init(emap, tx, prefix, offset, it, 0);
 	if (result == 0) {
-		result = IT_DO_OPEN(it, &c2_db_cursor_get);
+		result = IT_DO_OPEN(it, &m0_db_cursor_get);
 		if (result != 0)
 			emap_close(it);
 	}
-	C2_POST(ergo(result == 0, c2_ext_is_in(&it->ec_seg.ee_ext, offset)));
+	M0_POST(ergo(result == 0, m0_ext_is_in(&it->ec_seg.ee_ext, offset)));
 	return result;
 }
 
-static int emap_next(struct c2_emap_cursor *it)
+static int emap_next(struct m0_emap_cursor *it)
 {
-	return IT_DO_OPEN(it, &c2_db_cursor_next);
+	return IT_DO_OPEN(it, &m0_db_cursor_next);
 }
 
-#if 1
-static bool emap_invariant_check(struct c2_emap_cursor *it)
+#ifdef ENABLE_DEBUG
+static bool emap_invariant_check(struct m0_emap_cursor *it)
 {
 	int                   result;
-	c2_bindex_t           reached;
-	c2_bcount_t           total;
+	m0_bindex_t           reached;
+	m0_bcount_t           total;
 
 	reached = 0;
 	total   = 0;
-	if (!c2_emap_ext_is_first(&it->ec_seg.ee_ext))
+	if (!m0_emap_ext_is_first(&it->ec_seg.ee_ext))
 		return false;
 	while (1) {
 		if (it->ec_seg.ee_ext.e_start != reached)
@@ -247,23 +247,23 @@ static bool emap_invariant_check(struct c2_emap_cursor *it)
 		if (it->ec_seg.ee_ext.e_end <= reached)
 			return false;
 		reached = it->ec_seg.ee_ext.e_end;
-		total += c2_ext_length(&it->ec_seg.ee_ext);
-		if (c2_emap_ext_is_last(&it->ec_seg.ee_ext))
+		total += m0_ext_length(&it->ec_seg.ee_ext);
+		if (m0_emap_ext_is_last(&it->ec_seg.ee_ext))
 			break;
 		result = emap_next(it);
 		if (result != 0)
 			return true;
 	}
-	if (total != C2_BCOUNT_MAX)
+	if (total != M0_BCOUNT_MAX)
 		return false;
-	if (reached != C2_BINDEX_MAX + 1)
+	if (reached != M0_BINDEX_MAX + 1)
 		return false;
 	return true;
 }
 
-static bool emap_invariant(struct c2_emap_cursor *it)
+static bool emap_invariant(struct m0_emap_cursor *it)
 {
-	struct c2_emap_cursor scan;
+	struct m0_emap_cursor scan;
 	int                   result;
 	bool                  check;
 
@@ -277,57 +277,57 @@ static bool emap_invariant(struct c2_emap_cursor *it)
 	return check;
 }
 
-#else /* 0 */
+#else /* !ENABLE_DEBUG */
 
-static bool emap_invariant(struct c2_emap_cursor *it)
+static bool emap_invariant(struct m0_emap_cursor *it)
 {
 	return true;
 }
 #endif
 
-int c2_emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
-		   const struct c2_uint128 *prefix, c2_bindex_t offset,
-		   struct c2_emap_cursor *it)
+int m0_emap_lookup(struct m0_emap *emap, struct m0_db_tx *tx,
+		   const struct m0_uint128 *prefix, m0_bindex_t offset,
+		   struct m0_emap_cursor *it)
 {
 	int result;
 
-	C2_PRE(offset <= C2_BINDEX_MAX);
+	M0_PRE(offset <= M0_BINDEX_MAX);
 
 	result = emap_lookup(emap, tx, prefix, offset, it);
-	C2_ASSERT(ergo(result == 0, emap_invariant(it)));
+	M0_ASSERT(ergo(result == 0, emap_invariant(it)));
 	return result;
 }
 
-C2_INTERNAL int c2_emap_next(struct c2_emap_cursor *it)
+M0_INTERNAL int m0_emap_next(struct m0_emap_cursor *it)
 {
-	C2_PRE(!c2_emap_ext_is_last(&it->ec_seg.ee_ext));
-	C2_ASSERT(emap_invariant(it));
+	M0_PRE(!m0_emap_ext_is_last(&it->ec_seg.ee_ext));
+	M0_ASSERT(emap_invariant(it));
 
 	return emap_next(it);
 }
 
-C2_INTERNAL int c2_emap_prev(struct c2_emap_cursor *it)
+M0_INTERNAL int m0_emap_prev(struct m0_emap_cursor *it)
 {
-	C2_PRE(!c2_emap_ext_is_first(&it->ec_seg.ee_ext));
-	C2_ASSERT(emap_invariant(it));
+	M0_PRE(!m0_emap_ext_is_first(&it->ec_seg.ee_ext));
+	M0_ASSERT(emap_invariant(it));
 
-	return IT_DO_OPEN(it, &c2_db_cursor_prev);
+	return IT_DO_OPEN(it, &m0_db_cursor_prev);
 }
 
-C2_INTERNAL void c2_emap_close(struct c2_emap_cursor *it)
+M0_INTERNAL void m0_emap_close(struct m0_emap_cursor *it)
 {
-	C2_ASSERT(emap_invariant(it));
+	M0_ASSERT(emap_invariant(it));
 	emap_close(it);
 }
 
-C2_INTERNAL int emap_split_internal(struct c2_emap_cursor *it,
-				    struct c2_indexvec *vec, c2_bindex_t scan)
+M0_INTERNAL int emap_split_internal(struct m0_emap_cursor *it,
+				    struct m0_indexvec *vec, m0_bindex_t scan)
 {
 	uint32_t    i;
 	int         result;
-	c2_bcount_t count;
+	m0_bcount_t count;
 
-	result = c2_db_cursor_del(&it->ec_cursor);
+	result = m0_db_cursor_del(&it->ec_cursor);
 	if (result == 0) {
 		for (result = 0, i = 0; i < vec->iv_vec.v_nr; ++i) {
 			count = vec->iv_vec.v_count[i];
@@ -335,7 +335,7 @@ C2_INTERNAL int emap_split_internal(struct c2_emap_cursor *it,
 				it->ec_seg.ee_ext.e_start = scan;
 				it->ec_seg.ee_ext.e_end   = scan = scan + count;
 				it->ec_seg.ee_val         = vec->iv_index[i];
-				result = IT_DO_PACK(it, c2_db_cursor_add);
+				result = IT_DO_PACK(it, m0_db_cursor_add);
 				if (result != 0)
 					break;
 			}
@@ -344,34 +344,34 @@ C2_INTERNAL int emap_split_internal(struct c2_emap_cursor *it,
 	return result;
 }
 
-C2_INTERNAL int c2_emap_split(struct c2_emap_cursor *it,
-			      struct c2_indexvec *vec)
+M0_INTERNAL int m0_emap_split(struct m0_emap_cursor *it,
+			      struct m0_indexvec *vec)
 {
 	int result;
 
-	C2_PRE(c2_vec_count(&vec->iv_vec) == c2_ext_length(&it->ec_seg.ee_ext));
-	C2_ASSERT(emap_invariant(it));
+	M0_PRE(m0_vec_count(&vec->iv_vec) == m0_ext_length(&it->ec_seg.ee_ext));
+	M0_ASSERT(emap_invariant(it));
 
 	result = emap_split_internal(it, vec, it->ec_seg.ee_ext.e_start);
-	C2_ASSERT(ergo(result == 0, emap_invariant(it)));
+	M0_ASSERT(ergo(result == 0, emap_invariant(it)));
 	return result;
 }
 
-int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
-		  void (*del)(struct c2_emap_seg *),
-		  void (*cut_left)(struct c2_emap_seg *, struct c2_ext *,
+int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
+		  void (*del)(struct m0_emap_seg *),
+		  void (*cut_left)(struct m0_emap_seg *, struct m0_ext *,
 				   uint64_t),
-		  void (*cut_right)(struct c2_emap_seg *, struct c2_ext *,
+		  void (*cut_right)(struct m0_emap_seg *, struct m0_ext *,
 				    uint64_t))
 {
 	int                    result   = 0;
 	uint64_t               val_orig;
-	struct c2_emap_seg    *seg      = &it->ec_seg;
-	struct c2_ext         *chunk    = &seg->ee_ext;
-	const struct c2_ext    ext0     = *ext;
+	struct m0_emap_seg    *seg      = &it->ec_seg;
+	struct m0_ext         *chunk    = &seg->ee_ext;
+	const struct m0_ext    ext0     = *ext;
 
-	C2_PRE(c2_ext_is_in(chunk, ext->e_start));
-	C2_ASSERT(emap_invariant(it));
+	M0_PRE(m0_ext_is_in(chunk, ext->e_start));
+	M0_ASSERT(emap_invariant(it));
 
 	/*
 	 * Iterate over existing segments overlapping with the new one,
@@ -389,12 +389,12 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 	 * time).
 	 */
 
-	while (!c2_ext_is_empty(ext)) {
-		c2_bcount_t        length[3];
-		c2_bindex_t        bstart[3] = { 0 };
-		c2_bcount_t        consumed;
-		struct c2_ext      clip;
-		struct c2_indexvec vec = {
+	while (!m0_ext_is_empty(ext)) {
+		m0_bcount_t        length[3];
+		m0_bindex_t        bstart[3] = { 0 };
+		m0_bcount_t        consumed;
+		struct m0_ext      clip;
+		struct m0_indexvec vec = {
 			.iv_vec = {
 				.v_nr    = 3,
 				.v_count = length
@@ -402,13 +402,13 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 			.iv_index = bstart
 		};
 
-		c2_ext_intersection(ext, chunk, &clip);
-		C2_ASSERT(clip.e_start == ext->e_start);
-		consumed = c2_ext_length(&clip);
-		C2_ASSERT(consumed > 0);
+		m0_ext_intersection(ext, chunk, &clip);
+		M0_ASSERT(clip.e_start == ext->e_start);
+		consumed = m0_ext_length(&clip);
+		M0_ASSERT(consumed > 0);
 
 		length[0] = clip.e_start - chunk->e_start;
-		length[1] = clip.e_end == ext->e_end ? c2_ext_length(&ext0) : 0;
+		length[1] = clip.e_end == ext->e_end ? m0_ext_length(&ext0) : 0;
 		length[2] = chunk->e_end - clip.e_end;
 
 		bstart[1] = val;
@@ -430,16 +430,16 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 			break;
 
 		ext->e_start += consumed;
-		C2_ASSERT(ext->e_start <= ext->e_end);
+		M0_ASSERT(ext->e_start <= ext->e_end);
 
-		if (!c2_ext_is_empty(ext)) {
-			C2_ASSERT(!c2_emap_ext_is_last(&seg->ee_ext));
+		if (!m0_ext_is_empty(ext)) {
+			M0_ASSERT(!m0_emap_ext_is_last(&seg->ee_ext));
 			result = emap_next(it);
 			if (result != 0)
 				break;
 		}
 	}
-	C2_ASSERT(ergo(result == 0, emap_invariant(it)));
+	M0_ASSERT(ergo(result == 0, emap_invariant(it)));
 	return result;
 
 	/*
@@ -451,7 +451,7 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 	 * apparent reason. Eventually, after a lot of tracing (by Anatoliy),
 	 * the following sequence was tracked down:
 	 *
-	 * - on entry to c2_emap_paste():
+	 * - on entry to m0_emap_paste():
 	 *
 	 *   emap: *[0, 512) [512, 1024) [1024, 2048) [2048, ...)
 	 *   ext:   [0, 1024)
@@ -490,104 +490,104 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 	 */
 }
 
-C2_INTERNAL int c2_emap_merge(struct c2_emap_cursor *it, c2_bindex_t delta)
+M0_INTERNAL int m0_emap_merge(struct m0_emap_cursor *it, m0_bindex_t delta)
 {
 	int result;
 
-	C2_PRE(!c2_emap_ext_is_last(&it->ec_seg.ee_ext));
-	C2_PRE(delta <= c2_ext_length(&it->ec_seg.ee_ext));
-	C2_ASSERT(emap_invariant(it));
+	M0_PRE(!m0_emap_ext_is_last(&it->ec_seg.ee_ext));
+	M0_PRE(delta <= m0_ext_length(&it->ec_seg.ee_ext));
+	M0_ASSERT(emap_invariant(it));
 
 	if (it->ec_seg.ee_ext.e_end == delta) {
-		result = c2_db_cursor_del(&it->ec_cursor);
+		result = m0_db_cursor_del(&it->ec_cursor);
 	} else {
 		it->ec_seg.ee_ext.e_end -= delta;
-		result = IT_DO_PACK(it, &c2_db_cursor_set);
+		result = IT_DO_PACK(it, &m0_db_cursor_set);
 	}
 	if (result == 0) {
 		result = emap_next(it);
 		if (result == 0) {
 			it->ec_seg.ee_ext.e_start -= delta;
-			result = IT_DO_PACK(it, &c2_db_cursor_set);
+			result = IT_DO_PACK(it, &m0_db_cursor_set);
 		}
 	}
-	C2_ASSERT(ergo(result == 0, emap_invariant(it)));
+	M0_ASSERT(ergo(result == 0, emap_invariant(it)));
 	return result;
 }
 
-C2_INTERNAL int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx,
-				   const struct c2_uint128 *prefix,
+M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *emap, struct m0_db_tx *tx,
+				   const struct m0_uint128 *prefix,
 				   uint64_t val)
 {
-	struct c2_emap_cursor it;
+	struct m0_emap_cursor it;
 	int                   result;
 
-	result = it_init(emap, tx, prefix, 0, &it, C2_DB_CURSOR_RMW);
+	result = it_init(emap, tx, prefix, 0, &it, M0_DB_CURSOR_RMW);
 	if (result == 0) {
 		it.ec_seg.ee_pre         = *prefix;
 		it.ec_seg.ee_ext.e_start = 0;
-		it.ec_seg.ee_ext.e_end   = C2_BINDEX_MAX + 1;
+		it.ec_seg.ee_ext.e_end   = M0_BINDEX_MAX + 1;
 		it.ec_seg.ee_val         = val;
 		it_pack(&it);
-		result = c2_table_insert(tx, &it.ec_pair);
-		C2_ASSERT(ergo(result == 0, emap_invariant(&it)));
-		c2_emap_close(&it);
+		result = m0_table_insert(tx, &it.ec_pair);
+		M0_ASSERT(ergo(result == 0, emap_invariant(&it)));
+		m0_emap_close(&it);
 	}
 	return result;
 }
 
-C2_INTERNAL int c2_emap_obj_delete(struct c2_emap *emap, struct c2_db_tx *tx,
-				   const struct c2_uint128 *prefix)
+M0_INTERNAL int m0_emap_obj_delete(struct m0_emap *emap, struct m0_db_tx *tx,
+				   const struct m0_uint128 *prefix)
 {
-	struct c2_emap_cursor it;
+	struct m0_emap_cursor it;
 	int                   result;
 
-	result = c2_emap_lookup(emap, tx, prefix, 0, &it);
+	result = m0_emap_lookup(emap, tx, prefix, 0, &it);
 	if (result == 0) {
-		C2_ASSERT(c2_emap_ext_is_first(&it.ec_seg.ee_ext) &&
-			  c2_emap_ext_is_last(&it.ec_seg.ee_ext));
-		C2_ASSERT(emap_invariant(&it));
-		result = c2_db_cursor_del(&it.ec_cursor);
-		c2_emap_close(&it);
+		M0_ASSERT(m0_emap_ext_is_first(&it.ec_seg.ee_ext) &&
+			  m0_emap_ext_is_last(&it.ec_seg.ee_ext));
+		M0_ASSERT(emap_invariant(&it));
+		result = m0_db_cursor_del(&it.ec_cursor);
+		m0_emap_close(&it);
 	}
 	return result;
 }
 
-static bool c2_emap_caret_invariant(const struct c2_emap_caret *car)
+static bool m0_emap_caret_invariant(const struct m0_emap_caret *car)
 {
 	return
-		c2_ext_is_in(&car->ct_it->ec_seg.ee_ext, car->ct_index) ||
-		(c2_emap_ext_is_last(&car->ct_it->ec_seg.ee_ext) &&
-		 car->ct_index == C2_BINDEX_MAX + 1);
+		m0_ext_is_in(&car->ct_it->ec_seg.ee_ext, car->ct_index) ||
+		(m0_emap_ext_is_last(&car->ct_it->ec_seg.ee_ext) &&
+		 car->ct_index == M0_BINDEX_MAX + 1);
 }
 
-C2_INTERNAL void c2_emap_caret_init(struct c2_emap_caret *car,
-				    struct c2_emap_cursor *it,
-				    c2_bindex_t index)
+M0_INTERNAL void m0_emap_caret_init(struct m0_emap_caret *car,
+				    struct m0_emap_cursor *it,
+				    m0_bindex_t index)
 {
-	C2_PRE(index <= C2_BINDEX_MAX);
-	C2_PRE(c2_ext_is_in(&it->ec_seg.ee_ext, index));
+	M0_PRE(index <= M0_BINDEX_MAX);
+	M0_PRE(m0_ext_is_in(&it->ec_seg.ee_ext, index));
 	car->ct_it    = it;
 	car->ct_index = index;
-	C2_ASSERT(c2_emap_caret_invariant(car));
+	M0_ASSERT(m0_emap_caret_invariant(car));
 }
 
-C2_INTERNAL void c2_emap_caret_fini(struct c2_emap_caret *car)
+M0_INTERNAL void m0_emap_caret_fini(struct m0_emap_caret *car)
 {
-	C2_ASSERT(c2_emap_caret_invariant(car));
+	M0_ASSERT(m0_emap_caret_invariant(car));
 }
 
-C2_INTERNAL int c2_emap_caret_move(struct c2_emap_caret *car, c2_bcount_t count)
+M0_INTERNAL int m0_emap_caret_move(struct m0_emap_caret *car, m0_bcount_t count)
 {
 	int result;
 
-	C2_ASSERT(c2_emap_caret_invariant(car));
-	while (count > 0 && car->ct_index < C2_BINDEX_MAX + 1) {
-		c2_bcount_t step;
+	M0_ASSERT(m0_emap_caret_invariant(car));
+	while (count > 0 && car->ct_index < M0_BINDEX_MAX + 1) {
+		m0_bcount_t step;
 
-		step = c2_emap_caret_step(car);
+		step = m0_emap_caret_step(car);
 		if (count >= step) {
-			result = c2_emap_next(car->ct_it);
+			result = m0_emap_next(car->ct_it);
 			if (result < 0)
 				return result;
 		} else
@@ -595,13 +595,13 @@ C2_INTERNAL int c2_emap_caret_move(struct c2_emap_caret *car, c2_bcount_t count)
 		car->ct_index += step;
 		count -= step;
 	}
-	C2_ASSERT(c2_emap_caret_invariant(car));
-	return car->ct_index == C2_BINDEX_MAX + 1;
+	M0_ASSERT(m0_emap_caret_invariant(car));
+	return car->ct_index == M0_BINDEX_MAX + 1;
 }
 
-C2_INTERNAL c2_bcount_t c2_emap_caret_step(const struct c2_emap_caret *car)
+M0_INTERNAL m0_bcount_t m0_emap_caret_step(const struct m0_emap_caret *car)
 {
-	C2_ASSERT(c2_emap_caret_invariant(car));
+	M0_ASSERT(m0_emap_caret_invariant(car));
 	return car->ct_it->ec_seg.ee_ext.e_end - car->ct_index;
 }
 

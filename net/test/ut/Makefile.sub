@@ -1,4 +1,4 @@
-ut_libcolibri_ut_la_SOURCES += net/test/ut/client_server.c \
+ut_libmero_ut_la_SOURCES += net/test/ut/client_server.c \
                                net/test/ut/commands.c \
                                net/test/ut/main.c \
                                net/test/ut/network.c \

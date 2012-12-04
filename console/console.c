@@ -21,9 +21,9 @@
 #include <sysexits.h>
 
 #include "lib/errno.h"		  /* ETIMEDOUT */
-#include "lib/memory.h"		  /* c2_free */
-#include "lib/getopts.h"	  /* C2_GETOPTS */
-#include "colibri/init.h"	  /* c2_init */
+#include "lib/memory.h"		  /* m0_free */
+#include "lib/getopts.h"	  /* M0_GETOPTS */
+#include "mero/init.h"	  /* m0_init */
 #include "net/lnet/lnet.h"
 #include "fop/fop.h"
 #include "ut/rpc.h"
@@ -49,17 +49,17 @@ bool     verbose;
  */
 static int fop_info_show(uint32_t opcode)
 {
-	struct c2_fop_type *ftype;
+	struct m0_fop_type *ftype;
 
 	fprintf(stdout, "\n");
-	ftype = c2_cons_fop_type_find(opcode);
+	ftype = m0_cons_fop_type_find(opcode);
 	if (ftype == NULL) {
 		fprintf(stderr, "Invalid FOP opcode %.2d.\n", opcode);
 		return -EINVAL;
 	}
-	c2_cons_fop_name_print(ftype);
+	m0_cons_fop_name_print(ftype);
 	fprintf(stdout, "\n");
-	return c2_cons_fop_show(ftype);
+	return m0_cons_fop_show(ftype);
 }
 
 /**
@@ -68,28 +68,28 @@ static int fop_info_show(uint32_t opcode)
  * @param cctx RPC Client context
  * @param opcode RPC item opcode
  */
-static int fop_send_and_print(struct c2_rpc_client_ctx *cctx, uint32_t opcode)
+static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode)
 {
-	struct c2_fop_type *ftype;
-	struct c2_rpc_item *item;
-	struct c2_fop	   *fop;
-	struct c2_fop	   *rfop;
+	struct m0_fop_type *ftype;
+	struct m0_rpc_item *item;
+	struct m0_fop	   *fop;
+	struct m0_fop	   *rfop;
 	int		    rc;
 
-	ftype = c2_cons_fop_type_find(opcode);
+	ftype = m0_cons_fop_type_find(opcode);
 	if (ftype == NULL)
 		return -EINVAL;
 
 	/* Allocate fop */
-	fop = c2_fop_alloc(ftype, NULL);
+	fop = m0_fop_alloc(ftype, NULL);
 	if (fop == NULL)
 		return -EINVAL;
 
 	fprintf(stdout, "\nSending message for ");
-	c2_cons_fop_name_print(ftype);
-	c2_cons_fop_obj_input(fop);
-	rc = c2_rpc_client_call(fop, &cctx->rcx_session,
-				&c2_fop_default_item_ops, 0 /* deadline */,
+	m0_cons_fop_name_print(ftype);
+	m0_cons_fop_obj_input(fop);
+	rc = m0_rpc_client_call(fop, &cctx->rcx_session,
+				&m0_fop_default_item_ops, 0 /* deadline */,
 				timeout);
 	if (rc != 0) {
 		fprintf(stderr, "Sending message failed!\n");
@@ -103,7 +103,7 @@ static int fop_send_and_print(struct c2_rpc_client_ctx *cctx, uint32_t opcode)
 		return -EINVAL;
 	}
 
-	rfop = c2_rpc_item_to_fop(item->ri_reply);
+	rfop = m0_rpc_item_to_fop(item->ri_reply);
 	if(rfop == NULL) {
 		fprintf(stderr, "RPC item reply not received.\n");
 		return -EINVAL;
@@ -111,15 +111,15 @@ static int fop_send_and_print(struct c2_rpc_client_ctx *cctx, uint32_t opcode)
 
 	/* Print reply */
 	fprintf(stdout, "Print reply FOP: \n");
-	c2_cons_fop_obj_output(rfop);
+	m0_cons_fop_obj_output(rfop);
 
-	c2_xcode_free(&C2_FOP_XCODE_OBJ(fop));
-	c2_xcode_free(&C2_FOP_XCODE_OBJ(rfop));
+	m0_xcode_free(&M0_FOP_XCODE_OBJ(fop));
+	m0_xcode_free(&M0_FOP_XCODE_OBJ(rfop));
 
 	return 0;
 }
 
-const char *usage_msg =	"Usage: c2console "
+const char *usage_msg =	"Usage: m0console "
 			" { -l FOP list | -f FOP opcode }"
 			" [-s server (e.g. 172.18.50.40@o2ib1:12345:34:1) ]"
 			" [-c client (e.g. 172.18.50.40@o2ib1:12345:34:*) ]"
@@ -138,7 +138,7 @@ static void usage(void)
  *	  The fop type to be sent is specified at the command line.
  *
  *	  The values of fop fields are specified interactively. The program
- *	  locates the fop type format (c2_fop_type_format) corresponding to the
+ *	  locates the fop type format (m0_fop_type_format) corresponding to the
  *	  specified fop type and iterates over fop fields, prompting the user
  *	  for the field values.
  *
@@ -147,7 +147,7 @@ static void usage(void)
  *	  (U32, U64, BYTE and VOID).
  *
  *	  Usage:
- *	  c2console :	{ -l FOP list | -f FOP opcode }
+ *	  m0console :	{ -l FOP list | -f FOP opcode }
  *			[-s server (e.g. 172.18.50.40\@o2ib1:12345:34:1) ]
  *			[-c client (e.g. 172.18.50.40\@o2ib1:12345:34:*) ]
  *                      [-q TM recv queue min length] [-m max rpc msg size]
@@ -168,15 +168,15 @@ int main(int argc, char **argv)
 	const char           *client         = NULL;
 	const char           *server         = NULL;
 	const char           *yaml_path      = NULL;
-	struct c2_net_xprt   *xprt           = &c2_net_lnet_xprt;
-	struct c2_net_domain  client_net_dom = { };
-	struct c2_dbenv       client_dbenv;
-	struct c2_cob_domain  client_cob_dom;
-	uint32_t              tm_recv_queue_len = C2_NET_TM_RECV_QUEUE_DEF_LEN;
-	uint32_t              max_rpc_msg_size  = C2_RPC_DEF_MAX_RPC_MSG_SIZE;
+	struct m0_net_xprt   *xprt           = &m0_net_lnet_xprt;
+	struct m0_net_domain  client_net_dom = { };
+	struct m0_dbenv       client_dbenv;
+	struct m0_cob_domain  client_cob_dom;
+	uint32_t              tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
+	uint32_t              max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 
 
-	struct c2_rpc_client_ctx cctx = {
+	struct m0_rpc_client_ctx cctx = {
 		.rcx_net_dom               = &client_net_dom,
 		.rcx_local_addr            = "0@lo:12345:34:*",
 		.rcx_remote_addr           = "0@lo:12345:34:1",
@@ -196,27 +196,27 @@ int main(int argc, char **argv)
 	/*
 	 * Gets the info to connect to the service and type of fop to be send.
 	 */
-	result = C2_GETOPTS("c2console", argc, argv,
-			    C2_HELPARG('h'),
-			    C2_FLAGARG('l', "show list of fops", &show),
-			    C2_FORMATARG('f', "fop type", "%u", &opcode),
-			    C2_STRINGARG('s', "server",
+	result = M0_GETOPTS("m0console", argc, argv,
+			    M0_HELPARG('h'),
+			    M0_FLAGARG('l', "show list of fops", &show),
+			    M0_FORMATARG('f', "fop type", "%u", &opcode),
+			    M0_STRINGARG('s', "server",
 			    LAMBDA(void, (const char *name){server =  name; })),
-			    C2_STRINGARG('c', "client",
+			    M0_STRINGARG('c', "client",
 			    LAMBDA(void, (const char *name){client = name; })),
-			    C2_FORMATARG('t', "wait time(in seconds)",
+			    M0_FORMATARG('t', "wait time(in seconds)",
 					 "%u", &timeout),
-			    C2_FLAGARG('i', "yaml input", &input),
-			    C2_FORMATARG('q', "minimum TM receive queue length",
+			    M0_FLAGARG('i', "yaml input", &input),
+			    M0_FORMATARG('q', "minimum TM receive queue length",
 					 "%i", &tm_recv_queue_len),
-			    C2_FORMATARG('m', "max rpc msg size", "%i",
+			    M0_FORMATARG('m', "max rpc msg size", "%i",
 					 &max_rpc_msg_size),
-			    C2_STRINGARG('y', "yaml file path",
+			    M0_STRINGARG('y', "yaml file path",
 			    LAMBDA(void, (const char *name){ yaml_path = name; })),
-			    C2_FLAGARG('v', "verbose", &verbose));
+			    M0_FLAGARG('v', "verbose", &verbose));
 	if (result != 0)
 		/*
-		 * No need to print "usage" here, C2_GETOPTS will automatically
+		 * No need to print "usage" here, M0_GETOPTS will automatically
 		 * do it for us
 		 */
 		return EX_USAGE;
@@ -242,19 +242,19 @@ int main(int argc, char **argv)
 
 	/* Init YAML info */
 	if (input) {
-		result = c2_cons_yaml_init(yaml_path);
+		result = m0_cons_yaml_init(yaml_path);
 		if (result != 0) {
 			fprintf(stderr, "YAML Init failed\n");
 			return EX_NOINPUT;
 		}
 
-		server = c2_cons_yaml_get_value("server");
+		server = m0_cons_yaml_get_value("server");
 		if (server == NULL) {
 			fprintf(stderr, "Server assignment failed\n");
 			result = EX_DATAERR;
 			goto yaml;
 		}
-		client = c2_cons_yaml_get_value("client");
+		client = m0_cons_yaml_get_value("client");
 		if (client == NULL) {
 			fprintf(stderr, "Client assignment failed\n");
 			result = EX_DATAERR;
@@ -263,20 +263,20 @@ int main(int argc, char **argv)
 	}
 
 #ifndef CONSOLE_UT
-	result = c2_init();
+	result = m0_init();
 	if (result != 0) {
-		fprintf(stderr, "c2_init failed\n");
+		fprintf(stderr, "m0_init failed\n");
 		return EX_SOFTWARE;
 	}
 
-	result = c2_console_fop_init();
+	result = m0_console_fop_init();
 	if (result != 0) {
-		fprintf(stderr, "c2_console_fop_init failed\n");
+		fprintf(stderr, "m0_console_fop_init failed\n");
 		goto end0;
 	}
 #endif
 	if (show && opcode <= 0) {
-		c2_cons_fop_list_show();
+		m0_cons_fop_list_show();
 		usage();
 		result = EX_USAGE;
 		goto end1;
@@ -289,11 +289,11 @@ int main(int argc, char **argv)
 		goto end1;
 	}
 
-	result = c2_net_xprt_init(xprt);
-	C2_ASSERT(result == 0);
+	result = m0_net_xprt_init(xprt);
+	M0_ASSERT(result == 0);
 
-	result = c2_net_domain_init(&client_net_dom, xprt);
-	C2_ASSERT(result == 0);
+	result = m0_net_domain_init(&client_net_dom, xprt);
+	M0_ASSERT(result == 0);
 
 	/* Init the console members from CLI input */
 	if (server != NULL)
@@ -303,9 +303,9 @@ int main(int argc, char **argv)
 	cctx.rcx_recv_queue_min_length = tm_recv_queue_len;
 	cctx.rcx_max_rpc_msg_size      = max_rpc_msg_size;
 
-	result = c2_rpc_client_init(&cctx);
+	result = m0_rpc_client_init(&cctx);
 	if (result != 0) {
-		fprintf(stderr, "c2_rpc_client_init failed\n");
+		fprintf(stderr, "m0_rpc_client_init failed\n");
 		result = EX_SOFTWARE;
 		goto end1;
 	}
@@ -322,18 +322,18 @@ int main(int argc, char **argv)
 	}
 
 cleanup:
-	result = c2_rpc_client_fini(&cctx);
-	C2_ASSERT(result == 0);
+	result = m0_rpc_client_fini(&cctx);
+	M0_ASSERT(result == 0);
 end1:
 #ifndef CONSOLE_UT
-	c2_console_fop_fini();
+	m0_console_fop_fini();
 end0:
-	c2_fini();
+	m0_fini();
 #endif
 
 yaml:
 	if (input)
-		c2_cons_yaml_fini();
+		m0_cons_yaml_fini();
 
 	return result;
 }

@@ -19,7 +19,12 @@
  * Original creation date: 02/18/2011
  */
 
-#include "lib/misc.h"   /* C2_SET0 */
+#include <stdlib.h>     /* getenv */
+#include <unistd.h>     /* getpid */
+#include <errno.h>      /* program_invocation_name */
+#include <stdio.h>      /* snprinf */
+
+#include "lib/misc.h"   /* M0_SET0 */
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/thread.h"
@@ -30,12 +35,12 @@
 /**
    @addtogroup thread Thread
 
-   Implementation of c2_thread on top of pthread_t.
+   Implementation of m0_thread on top of pthread_t.
 
    <b>Implementation notes</b>
 
    Instead of creating a new POSIX thread executing user-supplied function, all
-   threads start executing the same trampoline function c2_thread_trampoline()
+   threads start executing the same trampoline function m0_thread_trampoline()
    that performs some generic book-keeping.
 
    Threads are created with a PTHREAD_CREATE_JOINABLE attribute.
@@ -57,11 +62,11 @@ static pthread_key_t pthread_data_key;
 /**
  * Initialize thread specific data.
  */
-C2_INTERNAL int uthread_specific_data_init(void)
+M0_INTERNAL int uthread_specific_data_init(void)
 {
 	struct uthread_specific_data *ptr;
 
-	C2_ALLOC_PTR(ptr);
+	M0_ALLOC_PTR(ptr);
 	if (ptr == NULL)
 		return -ENOMEM;
 
@@ -72,13 +77,13 @@ C2_INTERNAL int uthread_specific_data_init(void)
 /**
  * Finalise thread specific data.
  */
-C2_INTERNAL void uthread_specific_data_fini(void)
+M0_INTERNAL void uthread_specific_data_fini(void)
 {
 	struct uthread_specific_data *ptr;
 
 	ptr = pthread_getspecific(pthread_data_key);
 	pthread_setspecific(pthread_data_key, NULL);
-	c2_free(ptr);
+	m0_free(ptr);
 }
 
 /*
@@ -86,44 +91,44 @@ C2_INTERNAL void uthread_specific_data_fini(void)
  */
 static void *uthread_trampoline(void *arg)
 {
-	struct c2_thread	     *t = arg;
+	struct m0_thread	     *t = arg;
 
 	t->t_initrc = uthread_specific_data_init();
 	if (t->t_initrc == 0) {
-		c2_thread_trampoline(arg);
+		m0_thread_trampoline(arg);
 		uthread_specific_data_fini();
 	}
 
 	return NULL;
 }
 
-C2_INTERNAL int c2_thread_init_impl(struct c2_thread *q, const char *namebuf)
+M0_INTERNAL int m0_thread_init_impl(struct m0_thread *q, const char *namebuf)
 {
-	C2_PRE(q->t_state == TS_RUNNING);
+	M0_PRE(q->t_state == TS_RUNNING);
 
 	return -pthread_create(&q->t_h.h_id, &pthread_attr_default,
 			       uthread_trampoline, q);
 }
 
-int c2_thread_join(struct c2_thread *q)
+int m0_thread_join(struct m0_thread *q)
 {
 	int result;
 
-	C2_PRE(q->t_state == TS_RUNNING);
-	C2_PRE(!pthread_equal(q->t_h.h_id, pthread_self()));
+	M0_PRE(q->t_state == TS_RUNNING);
+	M0_PRE(!pthread_equal(q->t_h.h_id, pthread_self()));
 	result = -pthread_join(q->t_h.h_id, NULL);
 	if (result == 0)
 		q->t_state = TS_PARKED;
 	return result;
 }
 
-C2_INTERNAL int c2_thread_signal(struct c2_thread *q, int sig)
+M0_INTERNAL int m0_thread_signal(struct m0_thread *q, int sig)
 {
 	return -pthread_kill(q->t_h.h_id, sig);
 }
 
-C2_INTERNAL int c2_thread_confine(struct c2_thread *q,
-				  const struct c2_bitmap *processors)
+M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
+				  const struct m0_bitmap *processors)
 {
 	size_t    idx;
 	size_t    nr_bits = min64u(processors->b_nr, CPU_SETSIZE);
@@ -132,16 +137,32 @@ C2_INTERNAL int c2_thread_confine(struct c2_thread *q,
 	CPU_ZERO(&cpuset);
 
 	for (idx = 0; idx < nr_bits; ++idx) {
-		if (c2_bitmap_get(processors, idx))
+		if (m0_bitmap_get(processors, idx))
 			CPU_SET(idx, &cpuset);
 	}
 
 	return -pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
 }
 
-C2_INTERNAL int c2_threads_init(void)
+M0_INTERNAL char *m0_debugger_args[4] = {
+	NULL, /* debugger name */
+	NULL, /* our binary name */
+	NULL, /* our process id */
+	NULL
+};
+
+M0_INTERNAL int m0_threads_init(void)
 {
-	int result;
+	int    result;
+	static char pidbuf[20];
+
+	m0_debugger_args[0] = getenv("MERO_DEBUGGER");
+	/*
+	 * Note: program_invocation_name requires _GNU_SOURCE.
+	 */
+	m0_debugger_args[1] = program_invocation_name;
+	m0_debugger_args[2] = pidbuf;
+	snprintf(pidbuf, ARRAY_SIZE(pidbuf), "%i", getpid());
 
 	result = -pthread_attr_init(&pthread_attr_default);
 	if (result != 0)
@@ -162,50 +183,50 @@ C2_INTERNAL int c2_threads_init(void)
 	return uthread_specific_data_init();
 }
 
-C2_INTERNAL void c2_threads_fini(void)
+M0_INTERNAL void m0_threads_fini(void)
 {
 	pthread_attr_destroy(&pthread_attr_default);
 	uthread_specific_data_fini();
 	pthread_key_delete(pthread_data_key);
 }
 
-C2_INTERNAL void c2_thread_self(struct c2_thread_handle *id)
+M0_INTERNAL void m0_thread_self(struct m0_thread_handle *id)
 {
 	id->h_id = pthread_self();
 }
 
-C2_INTERNAL bool c2_thread_handle_eq(struct c2_thread_handle *h1,
-				     struct c2_thread_handle *h2)
+M0_INTERNAL bool m0_thread_handle_eq(struct m0_thread_handle *h1,
+				     struct m0_thread_handle *h2)
 {
 	return h1->h_id == h2->h_id;
 }
 
-C2_INTERNAL void c2_enter_awkward(void)
+M0_INTERNAL void m0_enter_awkward(void)
 {
 	struct uthread_specific_data *ptr;
 
 	ptr = pthread_getspecific(pthread_data_key);
-	C2_ASSERT(ptr != NULL);
+	M0_ASSERT(ptr != NULL);
 
 	ptr->tsd_is_awkward = true;
 }
 
-C2_INTERNAL void c2_exit_awkward(void)
+M0_INTERNAL void m0_exit_awkward(void)
 {
 	struct uthread_specific_data *ptr;
 
 	ptr = pthread_getspecific(pthread_data_key);
-	C2_ASSERT(ptr != NULL);
+	M0_ASSERT(ptr != NULL);
 
 	ptr->tsd_is_awkward = false;
 }
 
-C2_INTERNAL bool c2_is_awkward(void)
+M0_INTERNAL bool m0_is_awkward(void)
 {
 	struct uthread_specific_data *ptr;
 
 	ptr = pthread_getspecific(pthread_data_key);
-	C2_ASSERT(ptr != NULL);
+	M0_ASSERT(ptr != NULL);
 
 	return ptr->tsd_is_awkward;
 }

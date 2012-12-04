@@ -17,110 +17,77 @@
  * Original creation date: 05/05/2012
  */
 
-#include "lib/errno.h"
-#include "lib/memory.h"
-#include "fop/fom.h"
-#include "fop/fop.h"
-#include "fop/fop_format_def.h"
-#include "onwire.h"
-#include "fop/fop_iterator.h"
-#include "conf_fop.h"
-#include "conf_fom.h"
-#include "onwire.ff"
-#include "lib/errno.h"
-#include "rpc/rpc.h"
-#include "fop/fop_item_type.h"
-#include "xcode/bufvec_xcode.h"
+#include "conf/conf_fop.h"
+#include "conf/onwire_xc.h"
+#include "conf/confd_fom.h"   /* m0_confd_fom_create */
+#include "conf/confd.h"       /* m0_confd_stype */
+#include "rpc/rpc_opcodes.h"
+#include "fop/fom_generic.h"  /* m0_generic_conf */
 
-/* Ops vector for fetch request. */
-const struct c2_fop_type_ops c2_conf_fetch_ops = {
-	.fto_fop_replied = NULL,
-	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_io_coalesce = NULL,
-};
-
-/* Ops vector for fetch reply. */
-const struct c2_fop_type_ops c2_conf_fetch_resp_ops = {
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
-        .fto_io_coalesce = NULL,
-};
-
-/* Ops vector for update request. */
-const struct c2_fop_type_ops c2_conf_update_ops = {
-	.fto_fop_replied = NULL,
-	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_io_coalesce = NULL,
-};
-
-/* Ops vector for update reply. */
-const struct c2_fop_type_ops c2_conf_update_resp_ops = {
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
-        .fto_io_coalesce = NULL,
-};
-
-/* Declaration of fetch FOPs */
-C2_FOP_TYPE_DECLARE(c2_conf_fetch, "fetch fop", &c2_conf_fetch_ops,
-		    C2_RPC_FETCH_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
-
-C2_FOP_TYPE_DECLARE(c2_conf_fetch_resp, "fetch fop reply", &c2_conf_fetch_resp_ops,
-		    C2_RPC_FETCH_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
-
-/* Declaration of update FOPs */
-C2_FOP_TYPE_DECLARE(c2_conf_update, "update fop", &c2_conf_update_ops,
-		    C2_RPC_UPDATE_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
-
-C2_FOP_TYPE_DECLARE(c2_conf_update_resp, "update fop reply", &c2_conf_update_resp_ops,
-		    C2_RPC_UPDATE_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
-
-static struct c2_fop_type_format *fmts[] = {
-	&arr_u64_tfmt,
-	&arr_buf_tfmt,
-	&arr_pathcomp_tfmt,
-	&enconf_tfmt,
-	&c2_conf_pathcomp_tfmt,
-	&objval_tfmt
-};
-
-
-static struct c2_fop_type *fops[] = {
-        &c2_conf_fetch_fopt,
-        &c2_conf_fetch_resp_fopt,
-        &c2_conf_update_fopt,
-        &c2_conf_update_resp_fopt,
-};
-
-C2_INTERNAL void c2_conf_fop_fini(void)
-{
-        c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
-}
-
-extern struct c2_fom_type c2_fom_fetch_mopt;
-extern struct c2_fom_type c2_fom_update_mopt;
-
-
-C2_INTERNAL int c2_conf_fop_init(void)
-{
-        int result;
-	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
-        result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
-
-	c2_conf_fetch_fopt.ft_fom_type = c2_fom_fetch_mopt;
-	c2_conf_update_fopt.ft_fom_type = c2_fom_update_mopt;
-
-        return result;
-}
-
-
-/*
- *  Local variables:
- *  c-indentation-style: "K&R"
- *  c-basic-offset: 8
- *  tab-width: 8
- *  fill-column: 80
- *  scroll-step: 1
- *  End:
+/**
+ * @addtogroup conf_fop
+ *
+ * @{
  */
+
+struct m0_fop_type m0_conf_fetch_fopt;
+struct m0_fop_type m0_conf_fetch_resp_fopt;
+
+struct m0_fop_type m0_conf_update_fopt;
+struct m0_fop_type m0_conf_update_resp_fopt;
+
+#ifndef __KERNEL__
+static const struct m0_fom_type_ops confd_fom_ops = {
+	.fto_create = m0_confd_fom_create
+};
+#endif
+
+M0_INTERNAL int m0_conf_fops_init(void)
+{
+        return  M0_FOP_TYPE_INIT(&m0_conf_fetch_fopt,
+				 .name      = "Configuration fetch request",
+				 .opcode    = M0_CONF_FETCH_OPCODE,
+				 .xt        = m0_conf_fetch_xc,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+#ifndef __KERNEL__
+				 .fom_ops   = &confd_fom_ops,
+				 .svc_type  = &m0_confd_stype,
+#endif
+				 .sm        = &m0_generic_conf) ?:
+		M0_FOP_TYPE_INIT(&m0_conf_fetch_resp_fopt,
+				 .name      = "Configuration fetch response",
+				 .opcode    = M0_CONF_FETCH_RESP_OPCODE,
+				 .xt        = m0_conf_fetch_resp_xc,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
+		/*
+		 * XXX Argh! Why bother defining update _stubs_?
+		 * Do we win anything? Is it worth the cost of maintenance?
+		 */
+		M0_FOP_TYPE_INIT(&m0_conf_update_fopt,
+				 .name      = "Configuration update request",
+				 .opcode    = M0_CONF_UPDATE_OPCODE,
+				 .xt        = m0_conf_update_xc,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+					      M0_RPC_ITEM_TYPE_MUTABO,
+#ifndef __KERNEL__
+				 .fom_ops   = &confd_fom_ops,
+				 .svc_type  = &m0_confd_stype,
+#endif
+				 .sm        = &m0_generic_conf) ?:
+		M0_FOP_TYPE_INIT(&m0_conf_update_resp_fopt,
+				 .name      = "Configuration update response",
+				 .opcode    = M0_CONF_UPDATE_RESP_OPCODE,
+				 .xt        = m0_conf_update_resp_xc,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+}
+
+M0_INTERNAL void m0_conf_fops_fini(void)
+{
+	m0_fop_type_fini(&m0_conf_fetch_fopt);
+	m0_fop_type_fini(&m0_conf_fetch_resp_fopt);
+
+	m0_fop_type_fini(&m0_conf_update_fopt);
+	m0_fop_type_fini(&m0_conf_update_resp_fopt);
+}
+
+/** @} conf_fop */

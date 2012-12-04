@@ -18,7 +18,7 @@
  * Original creation date: 07/15/2010
  */
 
-#include "lib/misc.h"       /* C2_SET_ARR0 */
+#include "lib/misc.h"       /* M0_SET_ARR0 */
 #include "layout/pdclust.h"
 
 /**
@@ -26,23 +26,23 @@
    @{
 */
 
-enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play,
+enum m0_pdclust_unit_type classify(const struct m0_pdclust_layout *play,
 				   int unit)
 {
 	if (unit < play->pl_attr.pa_N)
-		return C2_PUT_DATA;
+		return M0_PUT_DATA;
 	else if (unit < play->pl_attr.pa_N + play->pl_attr.pa_K)
-		return C2_PUT_PARITY;
+		return M0_PUT_PARITY;
 	else
-		return C2_PUT_SPARE;
+		return M0_PUT_SPARE;
 }
 
 /**
  * @todo Allocate the arrays globally so that it does not result into
  * going beyond the stack limit in the kernel mode.
  */
-void layout_demo(struct c2_pdclust_instance *pi,
-		 struct c2_pdclust_layout *pl,
+void layout_demo(struct m0_pdclust_instance *pi,
+		 struct m0_pdclust_layout *pl,
 		 int R, int I, bool print)
 {
 	uint64_t                   group;
@@ -52,20 +52,20 @@ void layout_demo(struct c2_pdclust_instance *pi,
 	uint32_t                   P;
 	uint32_t                   W;
 	int                        i;
-	struct c2_pdclust_src_addr src;
-	struct c2_pdclust_tgt_addr tgt;
-	struct c2_pdclust_src_addr src1;
-	struct c2_pdclust_attr     attr = pl->pl_attr;
-	struct c2_pdclust_src_addr map[R][attr.pa_P];
+	struct m0_pdclust_src_addr src;
+	struct m0_pdclust_tgt_addr tgt;
+	struct m0_pdclust_src_addr src1;
+	struct m0_pdclust_attr     attr = pl->pl_attr;
+	struct m0_pdclust_src_addr map[R][attr.pa_P];
 	uint32_t                   incidence[attr.pa_P][attr.pa_P];
-	uint32_t                   usage[attr.pa_P][C2_PUT_NR + 1];
+	uint32_t                   usage[attr.pa_P][M0_PUT_NR + 1];
 	uint32_t                   where[attr.pa_N + 2*attr.pa_K];
 
 #ifndef __KERNEL__
 	uint64_t                   frame;
 	uint32_t                   obj;
-	const char                *brace[C2_PUT_NR] = { "[]", "<>", "{}" };
-	const char                *head[C2_PUT_NR+1] = { "D", "P", "S",
+	const char                *brace[M0_PUT_NR] = { "[]", "<>", "{}" };
+	const char                *head[M0_PUT_NR+1] = { "D", "P", "S",
 							 "total" };
 	uint32_t                   min;
 	uint32_t                   max;
@@ -75,8 +75,8 @@ void layout_demo(struct c2_pdclust_instance *pi,
 	double                     avg;
 #endif
 
-	C2_SET_ARR0(usage);
-	C2_SET_ARR0(incidence);
+	M0_SET_ARR0(usage);
+	M0_SET_ARR0(incidence);
 
 	N = attr.pa_N;
 	K = attr.pa_K;
@@ -94,13 +94,13 @@ void layout_demo(struct c2_pdclust_instance *pi,
 		src.sa_group = group;
 		for (unit = 0; unit < W; ++unit) {
 			src.sa_unit = unit;
-			c2_pdclust_instance_map(pi, &src, &tgt);
-			c2_pdclust_instance_inv(pi, &tgt, &src1);
-			C2_ASSERT(memcmp(&src, &src1, sizeof src) == 0);
+			m0_pdclust_instance_map(pi, &src, &tgt);
+			m0_pdclust_instance_inv(pi, &tgt, &src1);
+			M0_ASSERT(memcmp(&src, &src1, sizeof src) == 0);
 			if (tgt.ta_frame < R)
 				map[tgt.ta_frame][tgt.ta_obj] = src;
 			where[unit] = tgt.ta_obj;
-			usage[tgt.ta_obj][C2_PUT_NR]++;
+			usage[tgt.ta_obj][M0_PUT_NR]++;
 			usage[tgt.ta_obj][classify(pl, unit)]++;
 		}
 		for (unit = 0; unit < W; ++unit) {
@@ -128,7 +128,7 @@ void layout_demo(struct c2_pdclust_instance *pi,
 		printf("\n");
 	}
 	printf("usage : \n");
-	for (i = 0; i < C2_PUT_NR + 1; ++i) {
+	for (i = 0; i < M0_PUT_NR + 1; ++i) {
 		max = sum = sq = 0;
 		min = ~0;
 		printf("%5s : ", head[i]);

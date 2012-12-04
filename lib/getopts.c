@@ -30,7 +30,7 @@
 
 #include "lib/errno.h"		/* EINVAL */
 #include "lib/cdefs.h"		/* ARRAY_SIZE */
-#include "lib/assert.h"		/* C2_CASSSERT */
+#include "lib/assert.h"		/* M0_CASSSERT */
 #include "lib/types.h"		/* UINT64_MAX */
 
 #ifdef __KERNEL__
@@ -39,9 +39,9 @@
 #define STRTOULL	strtoull
 #endif
 
-const char C2_GETOPTS_DECIMAL_POINT = '.';
+const char M0_GETOPTS_DECIMAL_POINT = '.';
 
-C2_INTERNAL int c2_bcount_get(const char *arg, c2_bcount_t * out)
+M0_INTERNAL int m0_bcount_get(const char *arg, m0_bcount_t * out)
 {
 	char		 *end = NULL;
 	char		 *pos;
@@ -58,14 +58,14 @@ C2_INTERNAL int c2_bcount_get(const char *arg, c2_bcount_t * out)
 		1000 * 1000 * 1000
 	};
 
-	C2_CASSERT(ARRAY_SIZE(suffix) - 1 == ARRAY_SIZE(multiplier));
+	M0_CASSERT(ARRAY_SIZE(suffix) - 1 == ARRAY_SIZE(multiplier));
 
 	*out = STRTOULL(arg, &end, 0);
 
 	if (*end != 0 && rc == 0) {
 		pos = strchr(suffix, *end);
 		if (pos != NULL) {
-			if (*out <= C2_BCOUNT_MAX / multiplier[pos - suffix])
+			if (*out <= M0_BCOUNT_MAX / multiplier[pos - suffix])
 				*out *= multiplier[pos - suffix];
 			else
 				rc = -EOVERFLOW;
@@ -75,7 +75,7 @@ C2_INTERNAL int c2_bcount_get(const char *arg, c2_bcount_t * out)
 	return rc;
 }
 
-C2_INTERNAL int c2_time_get(const char *arg, c2_time_t * out)
+M0_INTERNAL int m0_time_get(const char *arg, m0_time_t * out)
 {
 	char	*end = NULL;
 	uint64_t before;	/* before decimal point */
@@ -99,10 +99,10 @@ C2_INTERNAL int c2_time_get(const char *arg, c2_time_t * out)
 		1,
 	};
 
-	C2_CASSERT(ARRAY_SIZE(unit) == ARRAY_SIZE(multiplier));
+	M0_CASSERT(ARRAY_SIZE(unit) == ARRAY_SIZE(multiplier));
 
 	before = STRTOULL(arg, &end, 10);
-	if (*end == C2_GETOPTS_DECIMAL_POINT) {
+	if (*end == M0_GETOPTS_DECIMAL_POINT) {
 		arg = ++end;
 		after = STRTOULL(arg, &end, 10);
 		for (i = 0; i < end - arg; ++i) {
@@ -126,8 +126,8 @@ C2_INTERNAL int c2_time_get(const char *arg, c2_time_t * out)
 	if (rc == 0) {
 		time_ns = before * unit_mul +
 			  (after * unit_mul / pow_of_10);
-		c2_time_set(out, time_ns / C2_TIME_ONE_BILLION,
-			    time_ns % C2_TIME_ONE_BILLION);
+		m0_time_set(out, time_ns / M0_TIME_ONE_BILLION,
+			    time_ns % M0_TIME_ONE_BILLION);
 	}
 	return rc;
 }

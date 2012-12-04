@@ -31,14 +31,14 @@
    @{
 */
 
-static struct c2_cons_yaml_info yaml_info;
+static struct m0_cons_yaml_info yaml_info;
 
-C2_INTERNAL int c2_cons_yaml_init(const char *file_path)
+M0_INTERNAL int m0_cons_yaml_init(const char *file_path)
 {
 	int          rc;
 	yaml_node_t *root_node;
 
-	C2_PRE(file_path != NULL);
+	M0_PRE(file_path != NULL);
 
 	yaml_info.cyi_file = fopen(file_path, "r");
 
@@ -81,11 +81,11 @@ C2_INTERNAL int c2_cons_yaml_init(const char *file_path)
 
 	return 0;
 error:
-	c2_yaml_parser_error_detect(&yaml_info.cyi_parser);
+	m0_yaml_parser_error_detect(&yaml_info.cyi_parser);
 	return -EINVAL;
 }
 
-C2_INTERNAL void c2_cons_yaml_fini(void)
+M0_INTERNAL void m0_cons_yaml_fini(void)
 {
 	yaml_support = false;
 	if (&yaml_info.cyi_document != NULL)
@@ -122,7 +122,7 @@ static yaml_node_t *search_node(const char *name)
 	return node;
 }
 
-C2_INTERNAL void *c2_cons_yaml_get_value(const char *name)
+M0_INTERNAL void *m0_cons_yaml_get_value(const char *name)
 {
 	yaml_node_t *node;
 
@@ -133,7 +133,7 @@ C2_INTERNAL void *c2_cons_yaml_get_value(const char *name)
 	return node->data.scalar.value;
 }
 
-C2_INTERNAL int c2_cons_yaml_set_value(const char *name, void *data)
+M0_INTERNAL int m0_cons_yaml_set_value(const char *name, void *data)
 {
 	int rc = -ENOTSUP;
 

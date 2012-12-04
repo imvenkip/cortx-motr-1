@@ -20,12 +20,12 @@
 
 #pragma once
 
-#ifndef __COLIBRI_DTM_VERNO_H__
-#define __COLIBRI_DTM_VERNO_H__
+#ifndef __MERO_DTM_VERNO_H__
+#define __MERO_DTM_VERNO_H__
 
 #include "lib/types.h"            /* uint64_t */
-#include "fol/lsn.h"              /* c2_lsn_t */
-#include "xcode/xcode_attr.h"     /* C2_XCA_RECORD */
+#include "fol/lsn.h"              /* m0_lsn_t */
+#include "xcode/xcode_attr.h"     /* M0_XCA_RECORD */
 
 /**
    @addtogroup dtm Distributed transaction manager
@@ -33,11 +33,11 @@
  */
 
 /* import */
-struct c2_fol_rec;
+struct m0_fol_rec;
 
 /* export */
-struct c2_verno;
-typedef uint64_t c2_vercount_t;
+struct m0_verno;
+typedef uint64_t m0_vercount_t;
 
 /**
    Version number.
@@ -60,13 +60,13 @@ typedef uint64_t c2_vercount_t;
 
    @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMGZoZm10NmRy
  */
-struct c2_verno {
+struct m0_verno {
 	/** a reference to a fol record that brought the unit into this
 	    version. */
-	c2_lsn_t      vn_lsn;
+	m0_lsn_t      vn_lsn;
 	/** an ordinal number of this version in the unit's serial history. */
-	c2_vercount_t vn_vc;
-} C2_XCA_RECORD;
+	m0_vercount_t vn_vc;
+} M0_XCA_RECORD;
 
 /**
    Version number comparison function.
@@ -77,8 +77,8 @@ struct c2_verno {
    @retval  0 when vn0 equals vn1
    @retval +1 when vn0 is later than vn1 in the unit's serial history
  */
-C2_INTERNAL int c2_verno_cmp(const struct c2_verno *vn0,
-			     const struct c2_verno *vn1);
+M0_INTERNAL int m0_verno_cmp(const struct m0_verno *vn0,
+			     const struct m0_verno *vn1);
 
 /**
    Checks whether a unit update with a before-version-number @before_update can
@@ -94,10 +94,10 @@ C2_INTERNAL int c2_verno_cmp(const struct c2_verno *vn0,
    @retval -EAGAIN the update can be applied, but not immediately: some
    intermediate updates are missing.
 
-   @see c2_verno_is_undoable()
+   @see m0_verno_is_undoable()
  */
-C2_INTERNAL int c2_verno_is_redoable(const struct c2_verno *unit,
-				     const struct c2_verno *before_update,
+M0_INTERNAL int m0_verno_is_redoable(const struct m0_verno *unit,
+				     const struct m0_verno *before_update,
 				     bool total);
 
 /**
@@ -115,17 +115,17 @@ C2_INTERNAL int c2_verno_is_redoable(const struct c2_verno *unit,
    @retval -EAGAIN the update can be undone, but not immediately: some
    intermediate updates have to be undone first.
 
-   @see c2_verno_is_redoable()
+   @see m0_verno_is_redoable()
  */
-C2_INTERNAL int c2_verno_is_undoable(const struct c2_verno *unit,
-				     const struct c2_verno *before_update,
+M0_INTERNAL int m0_verno_is_undoable(const struct m0_verno *unit,
+				     const struct m0_verno *before_update,
 				     bool total);
 
 /**
    Checks that version number comparison invariant, described in the HLD, holds.
  */
-C2_INTERNAL int c2_verno_cmp_invariant(const struct c2_verno *vn0,
-				       const struct c2_verno *vn1);
+M0_INTERNAL int m0_verno_cmp_invariant(const struct m0_verno *vn0,
+				       const struct m0_verno *vn1);
 
 /**
    Increments unit version number.
@@ -134,20 +134,20 @@ C2_INTERNAL int c2_verno_cmp_invariant(const struct c2_verno *vn0,
    describing unit serial history (see HLD).
 
    It assumes that the unit corresponds to the index-th slot in @rec's
-   c2_fol_rec_desc::rd_ref[] array.
+   m0_fol_rec_desc::rd_ref[] array.
 
    @pre index < rec->fr_desc.rd_header.rh_obj_nr
-   @pre c2_lsn_is_valid(rec->fr_desc.rd_lsn)
+   @pre m0_lsn_is_valid(rec->fr_desc.rd_lsn)
 
    @post unit->vn_lsn = rec->fr_desc.rd_lsn
-   @post c2_verno_cmp(&rec->fr_desc.rd_ref[index].or_before_ver, unit) == -1
+   @post m0_verno_cmp(&rec->fr_desc.rd_ref[index].or_before_ver, unit) == -1
  */
-C2_INTERNAL void c2_verno_inc(struct c2_verno *unit,
-			      struct c2_fol_rec *rec, uint32_t index);
+M0_INTERNAL void m0_verno_inc(struct m0_verno *unit,
+			      struct m0_fol_rec *rec, uint32_t index);
 
 /** @} end of dtm group */
 
-/* __COLIBRI_DTM_VERNO_H__ */
+/* __MERO_DTM_VERNO_H__ */
 #endif
 
 /*

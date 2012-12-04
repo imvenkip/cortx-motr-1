@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_FORMATION2_H__
-#define __COLIBRI_RPC_FORMATION2_H__
+#ifndef __MERO_RPC_FORMATION2_H__
+#define __MERO_RPC_FORMATION2_H__
 
 /**
  * @addtogroup rpc
@@ -30,7 +30,7 @@
  */
 
 /**
-   Formation component for Colibri RPC layer is what IO scheduler is for
+   Formation component for Mero RPC layer is what IO scheduler is for
    block device. Because of network layer overhead associated with each
    message (i.e. buffer), sending each individual RPC item directly to network
    layer can be inefficient. Instead, formation component tries to send
@@ -58,7 +58,7 @@
    - max_nr_bytes_accumulated:
    - max_nr_segments
    - max_nr_packets_enqed
-   @see c2_rpc_frm_constraints for more information.
+   @see m0_rpc_frm_constraints for more information.
 
    It is important to note that Formation has something to do only on
    "outgoing path".
@@ -73,7 +73,7 @@
    @todo XXX RPC item cancellation
    @todo XXX RPC item deadline timer based on generic state machine framework
    @todo XXX Better RPC level flow control than the one provided by
-             c2_rpc_frm_constraints::fc_max_nr_packets_enqed
+             m0_rpc_frm_constraints::fc_max_nr_packets_enqed
  */
 
 #include "lib/types.h"
@@ -81,17 +81,17 @@
 #include "addb/addb.h"
 
 /* Imports */
-struct c2_rpc_packet;
-struct c2_rpc_item;
-struct c2_rpc_session;
+struct m0_rpc_packet;
+struct m0_rpc_item;
+struct m0_rpc_session;
 
 /* Forward references */
-struct c2_rpc_frm_ops;
+struct m0_rpc_frm_ops;
 
 /**
    Constraints that should be taken into consideration while forming packets.
  */
-struct c2_rpc_frm_constraints {
+struct m0_rpc_frm_constraints {
 
 	/**
 	   Maximum number of packets such that they are submitted to network
@@ -103,9 +103,9 @@ struct c2_rpc_frm_constraints {
 	   On wire size of a packet should not cross this limit. This is
 	   usually set to maximum supported size of SEND network buffer.
 
-	   @see c2_rpc_machine::rm_min_recv_size
+	   @see m0_rpc_machine::rm_min_recv_size
 	 */
-	c2_bcount_t fc_max_packet_size;
+	m0_bcount_t fc_max_packet_size;
 
 	/**
 	   Maximum number of non-contiguous memory segments allowed by
@@ -118,13 +118,13 @@ struct c2_rpc_frm_constraints {
 	   than fc_max_nr_bytes_accumulated, then formation should try to
 	   form RPC packet out of them.
 	 */
-	c2_bcount_t fc_max_nr_bytes_accumulated;
+	m0_bcount_t fc_max_nr_bytes_accumulated;
 };
 
 /**
    Possible states of formation state machine.
 
-   @see c2_rpc_frm::f_state
+   @see m0_rpc_frm::f_state
  */
 enum frm_state {
 	FRM_UNINITIALISED,
@@ -153,11 +153,11 @@ enum frm_state {
    (URGENT|WAITING)_BOUND queues contain items for which slot is already
    assigned. These are "ready to go" items.
    (URGENT|WAITING)_UNBOUND queues contain items for which slot needs to
-   assigned first. @see c2_rpc_frm_ops::fo_item_bind()
+   assigned first. @see m0_rpc_frm_ops::fo_item_bind()
 
    A bound item cannot be merged with other bound RPC items.
  */
-enum c2_rpc_frm_itemq_type {
+enum m0_rpc_frm_itemq_type {
 	FRMQ_URGENT_BOUND,
 	FRMQ_URGENT_UNBOUND,
 	FRMQ_URGENT_ONEWAY,
@@ -170,7 +170,7 @@ enum c2_rpc_frm_itemq_type {
 /**
    Formation state machine.
 
-   There is one instance of c2_rpc_frm for each destination end-point.
+   There is one instance of m0_rpc_frm for each destination end-point.
 
    Events in which the formation state machine is interested are:
 
@@ -187,12 +187,12 @@ enum c2_rpc_frm_itemq_type {
 @verbatim
                 FRM_UNINITIALISED
                       |  ^
-     c2_rpc_frm_init()|  |
-                      |  | c2_rpc_frm_fini()
+     m0_rpc_frm_init()|  |
+                      |  | m0_rpc_frm_fini()
                       V  |
                     FRM_IDLE
                       |  ^
- c2_rpc_frm_enq_item()|  | frm_itemq_remove() or c2_rpc_frm_packet_done()
+ m0_rpc_frm_enq_item()|  | frm_itemq_remove() or m0_rpc_frm_packet_done()
    [frm_is_idle()]    |  | [!frm_is_idle()]
                       V  |
                     FRM_BUSY
@@ -200,15 +200,15 @@ enum c2_rpc_frm_itemq_type {
 
    <B>Concurrency and Existence: </B> @n
 
-   Access to c2_rpc_frm instance is synchronised by c2_rpc_machine::rm_mutex.
+   Access to m0_rpc_frm instance is synchronised by m0_rpc_machine::rm_mutex.
 
-   c2_rpc_frm is not reference counted. It is responsibility of user to
-   free c2_rpc_frm. Ensuring that c2_rpc_frm is in IDLE state, before
+   m0_rpc_frm is not reference counted. It is responsibility of user to
+   free m0_rpc_frm. Ensuring that m0_rpc_frm is in IDLE state, before
    finalising it, is left to user.
 
    @see frm_invariant()
  */
-struct c2_rpc_frm {
+struct m0_rpc_frm {
 	/**
 	   Current state.
 
@@ -221,32 +221,32 @@ struct c2_rpc_frm {
 
 	/**
 	   Lists of items enqueued to Formation that are not yet
-	   added to any Packet. @see c2_rpc_frm_itemq_type
-	   itemq are sorted by c2_rpc_item::ri_prio (highest priority first).
+	   added to any Packet. @see m0_rpc_frm_itemq_type
+	   itemq are sorted by m0_rpc_item::ri_prio (highest priority first).
 	   All items having equal priority are sorted by
-	   c2_rpc_item::ri_deadline (earlier first).
+	   m0_rpc_item::ri_deadline (earlier first).
 	   An item is removed from itemq immediately upon adding the item to
 	   any packet.
-	   link: c2_rpc_item::ri_iq_link
+	   link: m0_rpc_item::ri_iq_link
 	   descriptor: itemq
 	 */
-	struct c2_tl                   f_itemq[FRMQ_NR_QUEUES];
+	struct m0_tl                   f_itemq[FRMQ_NR_QUEUES];
 
 	/** Total number of items waiting in itemq */
 	uint64_t                       f_nr_items;
 
 	/** Sum of on-wire size of all the items in itemq */
-	c2_bcount_t                    f_nr_bytes_accumulated;
+	m0_bcount_t                    f_nr_bytes_accumulated;
 
 	/** Number of packets for which "Packet done" callback is pending */
 	uint64_t                       f_nr_packets_enqed;
 
 	/** Limits that formation should respect */
-	struct c2_rpc_frm_constraints  f_constraints;
+	struct m0_rpc_frm_constraints  f_constraints;
 
-	const struct c2_rpc_frm_ops   *f_ops;
+	const struct m0_rpc_frm_ops   *f_ops;
 
-	struct c2_addb_ctx             f_addb_ctx;
+	struct m0_addb_ctx             f_addb_ctx;
 
 	/** FRM_MAGIC */
 	uint64_t                       f_magic;
@@ -255,91 +255,90 @@ struct c2_rpc_frm {
 /**
    Events reported by formation to rest of RPC layer.
 
-   @see c2_rpc_frm_default_ops
+   @see m0_rpc_frm_default_ops
  */
-struct c2_rpc_frm_ops {
+struct m0_rpc_frm_ops {
 	/**
 	   A packet is ready to be sent over network.
-	   @return true iff packet has been submitted to network layer, false
-		   otherwise.
+	   @return true iff packet has been submitted to network layer.
 		   If result is false then all the items in packet
 		   p are moved to FAILED state and are removed from p.
-		   c2_rpc_packet instance pointed by p is freed.
+		   m0_rpc_packet instance pointed by p is freed.
 	 */
-	bool (*fo_packet_ready)(struct c2_rpc_packet *p);
+	bool (*fo_packet_ready)(struct m0_rpc_packet *p);
 
 	/**
 	   Bind a slot to the item.
 
-	   @pre c2_rpc_item_is_unbound(item) && item->ri_session != NULL
-	   @pre c2_rpc_machine_is_locked(item_machine(item))
-	   @post equi(result, c2_rpc_item_is_bound(item))
-	   @post c2_rpc_machine_is_locked(item_machine(item))
+	   @pre m0_rpc_item_is_unbound(item) && item->ri_session != NULL
+	   @pre m0_rpc_machine_is_locked(item_machine(item))
+	   @post equi(result, m0_rpc_item_is_bound(item))
+	   @post m0_rpc_machine_is_locked(item_machine(item))
 	 */
-	bool (*fo_item_bind)(struct c2_rpc_item *item);
+	bool (*fo_item_bind)(struct m0_rpc_item *item);
 };
 
 /**
-   Default implementation of c2_rpc_frm_ops
+   Default implementation of m0_rpc_frm_ops
  */
-extern const struct c2_rpc_frm_ops c2_rpc_frm_default_ops;
+extern const struct m0_rpc_frm_ops m0_rpc_frm_default_ops;
 
 /**
    Load default values for various constraints, that just works.
    Useful for unit tests.
  */
-C2_INTERNAL void
-c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *constraint);
+M0_INTERNAL void
+m0_rpc_frm_constraints_get_defaults(struct m0_rpc_frm_constraints *constraint);
 
 /**
    Initialises frm instance.
 
-   Object pointed by constraints is copied inside c2_rpc_frm.
+   Object pointed by constraints is copied inside m0_rpc_frm.
 
    @pre  frm->f_state == FRM_UNINITIALISED
    @post frm->f_state == FRM_IDLE
  */
-C2_INTERNAL void c2_rpc_frm_init(struct c2_rpc_frm *frm,
-				 struct c2_rpc_frm_constraints *constraints,
-				 const struct c2_rpc_frm_ops *ops);
+M0_INTERNAL void m0_rpc_frm_init(struct m0_rpc_frm *frm,
+				 struct m0_rpc_frm_constraints *constraints,
+				 const struct m0_rpc_frm_ops *ops);
 
 /**
-   Finalises c2_rpc_frm instance.
+   Finalises m0_rpc_frm instance.
 
    @pre  frm->f_state == FRM_IDLE
    @post frm->f_state == FRM_UNINITIALISED
  */
-C2_INTERNAL void c2_rpc_frm_fini(struct c2_rpc_frm *frm);
+M0_INTERNAL void m0_rpc_frm_fini(struct m0_rpc_frm *frm);
 
 /**
    Enqueue an item for sending.
  */
-C2_INTERNAL void c2_rpc_frm_enq_item(struct c2_rpc_frm *frm,
-				     struct c2_rpc_item *item);
+M0_INTERNAL void m0_rpc_frm_enq_item(struct m0_rpc_frm *frm,
+				     struct m0_rpc_item *item);
 
-C2_INTERNAL void c2_rpc_frm_item_deadline_passed(struct c2_rpc_frm *frm,
-						 struct c2_rpc_item *item);
+M0_INTERNAL void m0_rpc_frm_item_deadline_passed(struct m0_rpc_frm *frm,
+						 struct m0_rpc_item *item);
 
 /**
    Callback for a packet which was previously enqueued.
  */
-C2_INTERNAL void c2_rpc_frm_packet_done(struct c2_rpc_packet *packet);
+M0_INTERNAL void m0_rpc_frm_packet_done(struct m0_rpc_packet *packet);
 
 /**
    Runs formation algorithm.
  */
-C2_INTERNAL void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm);
+M0_INTERNAL void m0_rpc_frm_run_formation(struct m0_rpc_frm *frm);
 
-C2_INTERNAL struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s);
+M0_INTERNAL struct m0_rpc_frm *session_frm(const struct m0_rpc_session *s);
 
-C2_TL_DESCR_DECLARE(itemq, C2_EXTERN);
-C2_TL_DECLARE(itemq, C2_INTERNAL, struct c2_rpc_item);
+M0_TL_DESCR_DECLARE(itemq, M0_EXTERN);
+M0_TL_DECLARE(itemq, M0_INTERNAL, struct m0_rpc_item);
 
-C2_INTERNAL struct c2_rpc_chan *frm_rchan(const struct c2_rpc_frm *frm);
-C2_INTERNAL struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm);
+M0_INTERNAL struct m0_rpc_chan *frm_rchan(const struct m0_rpc_frm *frm);
+M0_INTERNAL struct m0_rpc_machine *frm_rmachine(const struct m0_rpc_frm *frm);
 
-C2_INTERNAL bool item_is_in_waiting_queue(const struct c2_rpc_item *item,
-					  const struct c2_rpc_frm *frm);
+M0_INTERNAL bool item_is_in_waiting_queue(const struct m0_rpc_item *item,
+					  const struct m0_rpc_frm *frm);
 
 /** @} */
-#endif /* __COLIBRI_RPC_FORMATION2_H__ */
+#endif /* __MERO_RPC_FORMATION2_H__ */

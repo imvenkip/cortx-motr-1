@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_INT_H__
-#define __COLIBRI_RPC_INT_H__
+#ifndef __MERO_RPC_INT_H__
+#define __MERO_RPC_INT_H__
 
 #include "rpc/conn_internal.h"
 #include "rpc/session_internal.h"
@@ -44,12 +44,12 @@
 /**
    Initialises all the session related fop types
  */
-C2_INTERNAL int c2_rpc_session_module_init(void);
+M0_INTERNAL int m0_rpc_session_module_init(void);
 
 /**
    Finalises all session realted fop types
  */
-C2_INTERNAL void c2_rpc_session_module_fini(void);
+M0_INTERNAL void m0_rpc_session_module_fini(void);
 
 /**
    Called for each received item.
@@ -58,8 +58,8 @@ C2_INTERNAL void c2_rpc_session_module_fini(void);
    else
 	report REPLY_RECEIVED to appropriate slot
  */
-C2_INTERNAL int c2_rpc_item_received(struct c2_rpc_item *item,
-				     struct c2_rpc_machine *machine);
+M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
+				     struct m0_rpc_machine *machine);
 
 /**
    Helper to create cob
@@ -73,53 +73,53 @@ C2_INTERNAL int c2_rpc_item_received(struct c2_rpc_item *item,
    @return 0 on success. *out != NULL
  */
 
-C2_INTERNAL int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
-					 struct c2_cob *pcob,
+M0_INTERNAL int m0_rpc_cob_create_helper(struct m0_cob_domain *dom,
+					 const struct m0_cob *pcob,
 					 const char *name,
-					 struct c2_cob **out,
-					 struct c2_db_tx *tx);
+					 struct m0_cob **out,
+					 struct m0_db_tx *tx);
 
 /**
    Lookup a cob named 'name' in parent cob @pcob. If found store reference
    in @out. If not found set *out to NULL. To lookup root cob, pcob can be
    set to NULL
  */
-C2_INTERNAL int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
-					 struct c2_cob *pcob,
+M0_INTERNAL int m0_rpc_cob_lookup_helper(struct m0_cob_domain *dom,
+					 struct m0_cob *pcob,
 					 const char *name,
-					 struct c2_cob **out,
-					 struct c2_db_tx *tx);
+					 struct m0_cob **out,
+					 struct m0_db_tx *tx);
 
 
 /**
   Lookup /SESSIONS entry in cob namespace
  */
-C2_INTERNAL int c2_rpc_root_session_cob_get(struct c2_cob_domain *dom,
-					    struct c2_cob **out,
-					    struct c2_db_tx *tx);
+M0_INTERNAL int m0_rpc_root_session_cob_get(struct m0_cob_domain *dom,
+					    struct m0_cob **out,
+					    struct m0_db_tx *tx);
 
 /**
   Creates /SESSIONS entry in cob namespace
  */
-C2_INTERNAL int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
-					       struct c2_db_tx *tx);
+M0_INTERNAL int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
+					       struct m0_db_tx *tx);
 
 /**
    Helper routine, internal to rpc module.
    Sets up and posts rpc-item representing @fop.
  */
-C2_INTERNAL int c2_rpc__fop_post(struct c2_fop *fop,
-				 struct c2_rpc_session *session,
-				 const struct c2_rpc_item_ops *ops);
+M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
+				 struct m0_rpc_session *session,
+				 const struct m0_rpc_item_ops *ops);
 
 /**
    Temporary routine to place fop in a global queue, from where it can be
    selected for execution.
  */
-C2_INTERNAL void c2_rpc_item_dispatch(struct c2_rpc_item *item);
+M0_INTERNAL void m0_rpc_item_dispatch(struct m0_rpc_item *item);
 
-C2_INTERNAL bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item);
+M0_INTERNAL bool m0_rpc_item_is_control_msg(const struct m0_rpc_item *item);
 
 /** @} */
 
-#endif /* __COLIBRI_RPC_INT_H__ */
+#endif /* __MERO_RPC_INT_H__ */

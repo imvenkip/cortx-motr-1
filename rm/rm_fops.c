@@ -97,9 +97,9 @@ static int rm_out_create(struct rm_out **out,
 	struct rm_out *outreq;
 	int	       rc;
 
-	C2_PRE (out != NULL);
+	M0_PRE (out != NULL);
 
-	C2_ALLOC_PTR(outreq);
+	M0_ALLOC_PTR(outreq);
 	if (outreq == NULL) {
 		rc = -ENOMEM;
 		goto out;
@@ -208,27 +208,27 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 	struct rm_out		     *outreq;
 	int			      rc;
 
-	C2_PRE(C2_IN(otype, (C2_ROT_BORROW, C2_ROT_REVOKE)));
+	M0_PRE(M0_IN(otype, (M0_ROT_BORROW, M0_ROT_REVOKE)));
 
 	rc = rm_out_create(&outreq, in, credit);
 	if (rc != 0)
 		goto out;
 
 	switch (otype) {
-	case C2_ROT_BORROW:
+	case M0_ROT_BORROW:
 		rc = borrow_fop_fill(outreq, in, credit);
 		session = in->rin_want.cr_owner->ro_creditor->rem_session;
 		ri_ops = &rm_borrow_rpc_ops;
 		break;
-	case C2_ROT_REVOKE:
-		C2_ASSERT(loan != NULL);
-		C2_ASSERT(loan->rl_other != NULL);
+	case M0_ROT_REVOKE:
+		M0_ASSERT(loan != NULL);
+		M0_ASSERT(loan->rl_other != NULL);
 		rc = revoke_fop_fill(outreq, in, loan, credit);
 		session = loan->rl_other->rem_session;
 		ri_ops = &rm_revoke_rpc_ops;
 		break;
 	default:
-		C2_IMPOSSIBLE("No such RM outgoing request type");
+		M0_IMPOSSIBLE("No such RM outgoing request type");
 		break;
 	}
 
@@ -238,10 +238,10 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 		goto out;
 	}
 
-	pin_add(in, &outreq->ou_req.rog_want.rl_credit, C2_RPF_TRACK);
+	pin_add(in, &outreq->ou_req.rog_want.rl_credit, M0_RPF_TRACK);
 	m0_rm_ur_tlist_add(&in->rin_want.cr_owner->ro_outgoing[OQS_GROUND],
 			   &outreq->ou_req.rog_want.rl_credit);
-	if (C2_FI_ENABLED("no-rpc"))
+	if (M0_FI_ENABLED("no-rpc"))
 		goto out;
 
 	outreq->ou_fop.f_item.ri_session = session;
@@ -251,7 +251,7 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 out:
 	return rc;
 }
-C2_EXPORTED(m0_rm_borrow_out);
+M0_EXPORTED(m0_rm_borrow_out);
 
 static void borrow_reply(struct m0_rpc_item *item)
 {
@@ -264,8 +264,8 @@ static void borrow_reply(struct m0_rpc_item *item)
 	struct m0_buf		     buf;
 	int			     rc;
 
-	C2_PRE(item != NULL);
-	C2_PRE(item->ri_reply != NULL);
+	M0_PRE(item != NULL);
+	M0_PRE(item->ri_reply != NULL);
 
 	borrow_reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
 	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
@@ -315,8 +315,8 @@ static void revoke_reply(struct m0_rpc_item *item)
 	struct rm_out		*outreq;
 	int			rc;
 
-	C2_PRE(item != NULL);
-	C2_PRE(item->ri_reply != NULL);
+	M0_PRE(item != NULL);
+	M0_PRE(item->ri_reply != NULL);
 
 	revoke_reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
 	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
@@ -348,7 +348,7 @@ static void outreq_free(struct m0_rpc_item *item)
 	struct rm_out *out;
 	struct m0_fop *fop;
 
-	C2_PRE(item != NULL);
+	M0_PRE(item != NULL);
 
 	fop =  m0_rpc_item_to_fop(item);
 	out = container_of(fop, struct rm_out, ou_fop);
@@ -357,7 +357,7 @@ static void outreq_free(struct m0_rpc_item *item)
 	rm_out_fini(out);
 }
 
-C2_INTERNAL void m0_rm_fop_fini(void)
+M0_INTERNAL void m0_rm_fop_fini(void)
 {
 	m0_fop_type_fini(&m0_fop_rm_revoke_fopt);
 	m0_fop_type_fini(&m0_fop_rm_borrow_rep_fopt);
@@ -367,13 +367,13 @@ C2_INTERNAL void m0_rm_fop_fini(void)
 	m0_xc_cookie_fini();
 	m0_xc_buf_fini();
 }
-C2_EXPORTED(m0_rm_fop_fini);
+M0_EXPORTED(m0_rm_fop_fini);
 
 /**
  * Initialises RM fops.
  * @see rm_fop_fini()
  */
-C2_INTERNAL int m0_rm_fop_init(void)
+M0_INTERNAL int m0_rm_fop_init(void)
 {
 	m0_xc_buf_init();
 	m0_xc_cookie_init();
@@ -383,31 +383,31 @@ C2_INTERNAL int m0_rm_fop_init(void)
 	m0_sm_conf_extend(m0_generic_conf.scf_state, rm_req_phases,
 			  m0_generic_conf.scf_nr_states);
 #endif
-	return  C2_FOP_TYPE_INIT(&m0_fop_rm_borrow_fopt,
+	return  M0_FOP_TYPE_INIT(&m0_fop_rm_borrow_fopt,
 				 .name      = "Credit Borrow",
-				 .opcode    = C2_RM_FOP_BORROW,
+				 .opcode    = M0_RM_FOP_BORROW,
 				 .xt        = m0_fop_rm_borrow_xc,
 #ifndef __KERNEL__
 				 .sm	    = &borrow_sm_conf,
 				 .fom_ops   = &rm_borrow_fom_type_ops,
 #endif
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST) ?:
-		C2_FOP_TYPE_INIT(&m0_fop_rm_borrow_rep_fopt,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST) ?:
+		M0_FOP_TYPE_INIT(&m0_fop_rm_borrow_rep_fopt,
 				 .name      = "Credit Borrow Reply",
-				 .opcode    = C2_RM_FOP_BORROW_REPLY,
+				 .opcode    = M0_RM_FOP_BORROW_REPLY,
 				 .xt        = m0_fop_rm_borrow_rep_xc,
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
-		C2_FOP_TYPE_INIT(&m0_fop_rm_revoke_fopt,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
+		M0_FOP_TYPE_INIT(&m0_fop_rm_revoke_fopt,
 				 .name      = "Credit Revoke",
-				 .opcode    = C2_RM_FOP_REVOKE,
+				 .opcode    = M0_RM_FOP_REVOKE,
 				 .xt        = m0_fop_rm_revoke_xc,
 #ifndef __KERNEL__
 				 .sm	    = &revoke_sm_conf,
 				 .fom_ops   = &rm_revoke_fom_type_ops,
 #endif
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST);
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
 }
-C2_EXPORTED(m0_rm_fop_init);
+M0_EXPORTED(m0_rm_fop_init);
 
 /*
  *  Local variables:

@@ -19,14 +19,14 @@
  */
 
 #include "conf/objs/common.h"
-#include "colibri/magic.h" /* C2_CONF_PROFILE_MAGIC */
+#include "mero/magic.h" /* M0_CONF_PROFILE_MAGIC */
 
 static bool profile_check(const void *bob)
 {
-	const struct c2_conf_profile *self = bob;
-	const struct c2_conf_obj     *self_obj = &self->cp_obj;
+	const struct m0_conf_profile *self = bob;
+	const struct m0_conf_obj     *self_obj = &self->cp_obj;
 
-	C2_PRE(self_obj->co_type == C2_CO_PROFILE);
+	M0_PRE(self_obj->co_type == M0_CO_PROFILE);
 
 	return
 #if 0 /*XXX*/
@@ -35,29 +35,29 @@ static bool profile_check(const void *bob)
 #else
 		true &&
 #endif
-		/* c2_conf_profile is the topmost object in the DAG */
+		/* m0_conf_profile is the topmost object in the DAG */
 		self_obj->co_parent == NULL &&
 		ergo(self_obj->co_mounted,
 		     child_check(self_obj,
 				 MEMBER_PTR(self->cp_filesystem, cf_obj),
-				 C2_CO_FILESYSTEM));
+				 M0_CO_FILESYSTEM));
 }
 
-C2_CONF__BOB_DEFINE(c2_conf_profile, C2_CONF_PROFILE_MAGIC, profile_check);
+M0_CONF__BOB_DEFINE(m0_conf_profile, M0_CONF_PROFILE_MAGIC, profile_check);
 
-C2_CONF__INVARIANT_DEFINE(profile_invariant, c2_conf_profile);
+M0_CONF__INVARIANT_DEFINE(profile_invariant, m0_conf_profile);
 
-static int profile_fill(struct c2_conf_obj *dest,
-			const struct confx_object *src, struct c2_conf_reg *reg)
+static int profile_fill(struct m0_conf_obj *dest,
+			const struct confx_object *src, struct m0_conf_reg *reg)
 {
 	int                     rc;
-	struct c2_conf_obj     *child;
-	struct c2_conf_profile *d = C2_CONF_CAST(dest, c2_conf_profile);
+	struct m0_conf_obj     *child;
+	struct m0_conf_profile *d = M0_CONF_CAST(dest, m0_conf_profile);
 
-	rc = c2_conf_obj_find(reg, C2_CO_FILESYSTEM,
+	rc = m0_conf_obj_find(reg, M0_CO_FILESYSTEM,
 			      &FLAT_OBJ(src, profile)->xp_filesystem, &child);
 	if (rc == 0) {
-		d->cp_filesystem = C2_CONF_CAST(child, c2_conf_filesystem);
+		d->cp_filesystem = M0_CONF_CAST(child, m0_conf_filesystem);
 		child_adopt(dest, child);
 		dest->co_mounted = true;
 	}
@@ -65,36 +65,36 @@ static int profile_fill(struct c2_conf_obj *dest,
 }
 
 static bool
-profile_match(const struct c2_conf_obj *cached, const struct confx_object *flat)
+profile_match(const struct m0_conf_obj *cached, const struct confx_object *flat)
 {
 	const struct confx_profile      *objx = &flat->o_conf.u.u_profile;
-	const struct c2_conf_filesystem *child =
-		C2_CONF_CAST(cached, c2_conf_profile)->cp_filesystem;
+	const struct m0_conf_filesystem *child =
+		M0_CONF_CAST(cached, m0_conf_profile)->cp_filesystem;
 
-	return c2_buf_eq(&child->cf_obj.co_id, &objx->xp_filesystem);
+	return m0_buf_eq(&child->cf_obj.co_id, &objx->xp_filesystem);
 }
 
-static int profile_lookup(struct c2_conf_obj *parent, const struct c2_buf *name,
-			  struct c2_conf_obj **out)
+static int profile_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
+			  struct m0_conf_obj **out)
 {
-	C2_PRE(parent->co_status == C2_CS_READY);
+	M0_PRE(parent->co_status == M0_CS_READY);
 
-	if (!c2_buf_streq(name, "filesystem"))
+	if (!m0_buf_streq(name, "filesystem"))
 		return -ENOENT;
 
-	*out = &C2_CONF_CAST(parent, c2_conf_profile)->cp_filesystem->cf_obj;
+	*out = &M0_CONF_CAST(parent, m0_conf_profile)->cp_filesystem->cf_obj;
 	return 0;
 }
 
-static void profile_delete(struct c2_conf_obj *obj)
+static void profile_delete(struct m0_conf_obj *obj)
 {
-	struct c2_conf_profile *x = C2_CONF_CAST(obj, c2_conf_profile);
+	struct m0_conf_profile *x = M0_CONF_CAST(obj, m0_conf_profile);
 
-	c2_conf_profile_bob_fini(x);
-	c2_free(x);
+	m0_conf_profile_bob_fini(x);
+	m0_free(x);
 }
 
-static const struct c2_conf_obj_ops profile_ops = {
+static const struct m0_conf_obj_ops profile_ops = {
 	.coo_invariant = profile_invariant,
 	.coo_fill      = profile_fill,
 	.coo_match     = profile_match,
@@ -103,15 +103,15 @@ static const struct c2_conf_obj_ops profile_ops = {
 	.coo_delete    = profile_delete
 };
 
-C2_INTERNAL struct c2_conf_obj *c2_conf__profile_create(void)
+M0_INTERNAL struct m0_conf_obj *m0_conf__profile_create(void)
 {
-	struct c2_conf_profile *x;
-	struct c2_conf_obj     *ret;
+	struct m0_conf_profile *x;
+	struct m0_conf_obj     *ret;
 
-	C2_ALLOC_PTR(x);
+	M0_ALLOC_PTR(x);
 	if (x == NULL)
 		return NULL;
-	c2_conf_profile_bob_init(x);
+	m0_conf_profile_bob_init(x);
 
 	ret = &x->cp_obj;
 	ret->co_ops = &profile_ops;

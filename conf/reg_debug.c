@@ -19,7 +19,7 @@
  */
 
 #include "conf/obj.h"
-#include "conf/obj_ops.h" /* c2_conf_dir_tl */
+#include "conf/obj_ops.h" /* m0_conf_dir_tl */
 #include "conf/reg.h"
 #include "lib/memory.h"
 #include "lib/arith.h"
@@ -37,53 +37,53 @@
 #  define PLU "%llu"
 #endif
 
-static void identity_print(struct c2_conf_obj *obj);
+static void identity_print(struct m0_conf_obj *obj);
 
-static void c2_buf_print(struct c2_buf *b)
+static void m0_buf_print(struct m0_buf *b)
 {
 	char	   *buf;       /* allocated, due to 4K kernel stack */
-	c2_bcount_t len = 1024;
+	m0_bcount_t len = 1024;
 
-	C2_ALLOC_ARR(buf, len);
-	C2_ASSERT(buf != NULL);	/* for debug purposes it's allowed */
+	M0_ALLOC_ARR(buf, len);
+	M0_ASSERT(buf != NULL);	/* for debug purposes it's allowed */
 
 	memcpy(buf, b->b_addr, min_check(len-1, b->b_nob));
 	buf[min_check(len-1, b->b_nob)] = '\0';
 
 	DBG("%s", buf);
 
-	c2_free(buf);
+	m0_free(buf);
 }
 
-static void identity_print_quoted(struct c2_conf_obj *obj)
+static void identity_print_quoted(struct m0_conf_obj *obj)
 {
 	DBG("\"");
 	identity_print(obj);
 	DBG("\"");
 }
 
-static void dir_print(struct c2_conf_obj *obj)
+static void dir_print(struct m0_conf_obj *obj)
 {
-	struct c2_conf_dir *o = C2_CONF_CAST(obj, c2_conf_dir);
-	struct c2_conf_obj *child;
+	struct m0_conf_dir *o = M0_CONF_CAST(obj, m0_conf_dir);
+	struct m0_conf_obj *child;
 
 	identity_print_quoted(obj);
 	DBG(" [label=\"");
 	identity_print(obj);
 	DBG("\"]");
 
-	c2_tl_for(c2_conf_dir, &o->cd_items, child) {
+	m0_tl_for(m0_conf_dir, &o->cd_items, child) {
 		DBG("\n");
 		identity_print_quoted(obj);
 		DBG(" -> ");
 		identity_print_quoted(child);
-	} c2_tl_endfor;
+	} m0_tl_endfor;
 }
 
-static void profile_print(struct c2_conf_obj *obj)
+static void profile_print(struct m0_conf_obj *obj)
 {
-	struct c2_conf_profile *o = C2_CONF_CAST(obj, c2_conf_profile);
-	struct c2_conf_obj     *child = &o->cp_filesystem->cf_obj;
+	struct m0_conf_profile *o = M0_CONF_CAST(obj, m0_conf_profile);
+	struct m0_conf_obj     *child = &o->cp_filesystem->cf_obj;
 
 	identity_print_quoted(obj);
 	DBG(" [label=\"");
@@ -94,10 +94,10 @@ static void profile_print(struct c2_conf_obj *obj)
 	identity_print_quoted(child);
 }
 
-static void filesystem_print(struct c2_conf_obj *obj)
+static void filesystem_print(struct m0_conf_obj *obj)
 {
-	struct c2_conf_filesystem *o = C2_CONF_CAST(obj, c2_conf_filesystem);
-	struct c2_conf_obj        *child = &o->cf_services->cd_obj;
+	struct m0_conf_filesystem *o = M0_CONF_CAST(obj, m0_conf_filesystem);
+	struct m0_conf_obj        *child = &o->cf_services->cd_obj;
 
 	identity_print_quoted(obj);
 	DBG(" [label=\"");
@@ -110,11 +110,11 @@ static void filesystem_print(struct c2_conf_obj *obj)
 	identity_print_quoted(child);
 }
 
-static void service_print(struct c2_conf_obj *obj)
+static void service_print(struct m0_conf_obj *obj)
 {
 	int                     i;
-	struct c2_conf_service *o = C2_CONF_CAST(obj, c2_conf_service);
-	struct c2_conf_obj     *child = &o->cs_node->cn_obj;
+	struct m0_conf_service *o = M0_CONF_CAST(obj, m0_conf_service);
+	struct m0_conf_obj     *child = &o->cs_node->cn_obj;
 
 	identity_print_quoted(obj);
 	DBG(" [label=\"");
@@ -128,11 +128,11 @@ static void service_print(struct c2_conf_obj *obj)
 	identity_print_quoted(child);
 }
 
-static void node_print(struct c2_conf_obj *obj)
+static void node_print(struct m0_conf_obj *obj)
 {
-	struct c2_conf_node *o = C2_CONF_CAST(obj, c2_conf_node);
-	struct c2_conf_obj  *child0 = &o->cn_nics->cd_obj;
-	struct c2_conf_obj  *child1 = &o->cn_sdevs->cd_obj;
+	struct m0_conf_node *o = M0_CONF_CAST(obj, m0_conf_node);
+	struct m0_conf_obj  *child0 = &o->cn_nics->cd_obj;
+	struct m0_conf_obj  *child1 = &o->cn_sdevs->cd_obj;
 
 	identity_print_quoted(obj);
 	DBG(" [label=\"");
@@ -152,9 +152,9 @@ static void node_print(struct c2_conf_obj *obj)
 	identity_print_quoted(child1);
 }
 
-static void nic_print(struct c2_conf_obj *obj)
+static void nic_print(struct m0_conf_obj *obj)
 {
-	struct c2_conf_nic *o = C2_CONF_CAST(obj, c2_conf_nic);
+	struct m0_conf_nic *o = M0_CONF_CAST(obj, m0_conf_nic);
 
 	identity_print_quoted(obj);
 	DBG(" [label=\"");
@@ -167,10 +167,10 @@ static void nic_print(struct c2_conf_obj *obj)
 	DBG("\"]");
 }
 
-static void sdev_print(struct c2_conf_obj *obj)
+static void sdev_print(struct m0_conf_obj *obj)
 {
-	struct c2_conf_sdev *o = C2_CONF_CAST(obj, c2_conf_sdev);
-	struct c2_conf_obj *child = &o->sd_partitions->cd_obj;
+	struct m0_conf_sdev *o = M0_CONF_CAST(obj, m0_conf_sdev);
+	struct m0_conf_obj *child = &o->sd_partitions->cd_obj;
 
 	identity_print_quoted(obj);
 	DBG(" [label=\"");
@@ -189,9 +189,9 @@ static void sdev_print(struct c2_conf_obj *obj)
 	identity_print_quoted(child);
 }
 
-static void partition_print(struct c2_conf_obj *obj)
+static void partition_print(struct m0_conf_obj *obj)
 {
-	struct c2_conf_partition *o = C2_CONF_CAST(obj, c2_conf_partition);
+	struct m0_conf_partition *o = M0_CONF_CAST(obj, m0_conf_partition);
 	identity_print_quoted(obj);
 	DBG(" [label=\"");
 	identity_print(obj); DBG("\\n");
@@ -205,36 +205,36 @@ static void partition_print(struct c2_conf_obj *obj)
 
 static const struct {
 	const char *name;
-	void      (*print)(struct c2_conf_obj *obj);
-} objtypes[C2_CO_NR] = {
-	[C2_CO_DIR]        = { "dir",        dir_print },
-	[C2_CO_PROFILE]    = { "profile",    profile_print },
-	[C2_CO_FILESYSTEM] = { "filesystem", filesystem_print },
-	[C2_CO_SERVICE]    = { "service",    service_print },
-	[C2_CO_NODE]       = { "node",       node_print },
-	[C2_CO_NIC]        = { "nic",        nic_print },
-	[C2_CO_SDEV]       = { "sdev",       sdev_print },
-	[C2_CO_PARTITION]  = { "partition",  partition_print },
+	void      (*print)(struct m0_conf_obj *obj);
+} objtypes[M0_CO_NR] = {
+	[M0_CO_DIR]        = { "dir",        dir_print },
+	[M0_CO_PROFILE]    = { "profile",    profile_print },
+	[M0_CO_FILESYSTEM] = { "filesystem", filesystem_print },
+	[M0_CO_SERVICE]    = { "service",    service_print },
+	[M0_CO_NODE]       = { "node",       node_print },
+	[M0_CO_NIC]        = { "nic",        nic_print },
+	[M0_CO_SDEV]       = { "sdev",       sdev_print },
+	[M0_CO_PARTITION]  = { "partition",  partition_print },
 };
 
-static void identity_print(struct c2_conf_obj *obj)
+static void identity_print(struct m0_conf_obj *obj)
 {
-	C2_ASSERT(IS_IN_ARRAY(obj->co_type, objtypes));
+	M0_ASSERT(IS_IN_ARRAY(obj->co_type, objtypes));
 	DBG("%s:", objtypes[obj->co_type].name);
-	c2_buf_print(&obj->co_id);
+	m0_buf_print(&obj->co_id);
 }
 
 /** Prints DAG of configuration objects in dot format. */
-C2_INTERNAL void c2_conf__reg2dot(const struct c2_conf_reg *reg)
+M0_INTERNAL void m0_conf__reg2dot(const struct m0_conf_reg *reg)
 {
-	struct c2_conf_obj *obj;
+	struct m0_conf_obj *obj;
 
 	DBGS("digraph d {\n");
 	DBG("node [shape = box]\n");
-	c2_tl_for(c2_conf_reg, &reg->r_objs, obj) {
-		C2_ASSERT(IS_IN_ARRAY(obj->co_type, objtypes));
+	m0_tl_for(m0_conf_reg, &reg->r_objs, obj) {
+		M0_ASSERT(IS_IN_ARRAY(obj->co_type, objtypes));
 		objtypes[obj->co_type].print(obj);
 		DBG("\n\n\n");
-	} c2_tl_endfor;
+	} m0_tl_endfor;
 	DBG("}\n");
 }

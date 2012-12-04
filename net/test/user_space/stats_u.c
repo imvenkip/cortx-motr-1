@@ -20,7 +20,7 @@
 
 #include <math.h>	/* sqrt */
 #include "lib/types.h"	/* UINT64_MAX */
-#include "lib/assert.h"	/* C2_PRE */
+#include "lib/assert.h"	/* M0_PRE */
 
 #include "net/test/stats.h"
 
@@ -33,41 +33,41 @@
    @{
  */
 
-static double double_get(const struct c2_uint128 *v128)
+static double double_get(const struct m0_uint128 *v128)
 {
 	return v128->u_lo * 1. + v128->u_hi * (UINT64_MAX + 1.);
 }
 
-double c2_net_test_stats_sum(const struct c2_net_test_stats *stats)
+double m0_net_test_stats_sum(const struct m0_net_test_stats *stats)
 {
-	C2_PRE(c2_net_test_stats_invariant(stats));
+	M0_PRE(m0_net_test_stats_invariant(stats));
 
 	return double_get(&stats->nts_sum);
 }
 
-double c2_net_test_stats_avg(const struct c2_net_test_stats *stats)
+double m0_net_test_stats_avg(const struct m0_net_test_stats *stats)
 {
 	double sum;
 
-	C2_PRE(c2_net_test_stats_invariant(stats));
+	M0_PRE(m0_net_test_stats_invariant(stats));
 
 	sum = double_get(&stats->nts_sum);
 	return stats->nts_count == 0 ? 0. : sum / stats->nts_count;
 }
 
-double c2_net_test_stats_stddev(const struct c2_net_test_stats *stats)
+double m0_net_test_stats_stddev(const struct m0_net_test_stats *stats)
 {
 	double mean;
 	double stddev;
 	double N;
 	double sum_sqr;
 
-	C2_PRE(c2_net_test_stats_invariant(stats));
+	M0_PRE(m0_net_test_stats_invariant(stats));
 
 	if (stats->nts_count == 0 || stats->nts_count == 1)
 		return 0.;
 
-	mean	= c2_net_test_stats_avg(stats);
+	mean	= m0_net_test_stats_avg(stats);
 	N	= stats->nts_count;
 	sum_sqr	= double_get(&stats->nts_sum_sqr);
 	stddev	= (sum_sqr - N * mean * mean) / (N - 1.);
@@ -76,29 +76,29 @@ double c2_net_test_stats_stddev(const struct c2_net_test_stats *stats)
 	return stddev;
 }
 
-static c2_time_t double2c2_time_t(double value)
+static m0_time_t double2m0_time_t(double value)
 {
 	uint64_t seconds;
 	uint64_t nanoseconds;
 
-	seconds	    = (uint64_t) floor(value / C2_TIME_ONE_BILLION);
-	nanoseconds = (uint64_t) (value - seconds * C2_TIME_ONE_BILLION);
-	return C2_MKTIME(seconds, nanoseconds);
+	seconds	    = (uint64_t) floor(value / M0_TIME_ONE_BILLION);
+	nanoseconds = (uint64_t) (value - seconds * M0_TIME_ONE_BILLION);
+	return M0_MKTIME(seconds, nanoseconds);
 }
 
-c2_time_t c2_net_test_stats_time_sum(struct c2_net_test_stats *stats)
+m0_time_t m0_net_test_stats_time_sum(struct m0_net_test_stats *stats)
 {
-	return double2c2_time_t(c2_net_test_stats_sum(stats));
+	return double2m0_time_t(m0_net_test_stats_sum(stats));
 }
 
-c2_time_t c2_net_test_stats_time_avg(struct c2_net_test_stats *stats)
+m0_time_t m0_net_test_stats_time_avg(struct m0_net_test_stats *stats)
 {
-	return double2c2_time_t(c2_net_test_stats_avg(stats));
+	return double2m0_time_t(m0_net_test_stats_avg(stats));
 }
 
-c2_time_t c2_net_test_stats_time_stddev(struct c2_net_test_stats *stats)
+m0_time_t m0_net_test_stats_time_stddev(struct m0_net_test_stats *stats)
 {
-	return double2c2_time_t(c2_net_test_stats_stddev(stats));
+	return double2m0_time_t(m0_net_test_stats_stddev(stats));
 }
 
 /**

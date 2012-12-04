@@ -24,15 +24,15 @@
 #include "lib/chan.h"
 #include "lib/assert.h"
 #include "lib/timer.h"
-#include "lib/cdefs.h"     /* C2_EXPORTED */
+#include "lib/cdefs.h"     /* M0_EXPORTED */
 
 enum {
 	NR = 16
 };
 
-static struct c2_thread t[NR];
-static struct c2_chan   c[NR];
-static struct c2_clink  l[NR];
+static struct m0_thread t[NR];
+static struct m0_chan   c[NR];
+static struct m0_clink  l[NR];
 
 static void t0(int self)
 {
@@ -42,36 +42,36 @@ static void t0(int self)
 	for (i = 0; i < NR; ++i) {
 		for (j = 0; j < NR; ++j) {
 			if (j != self)
-				c2_chan_signal(&c[j]);
+				m0_chan_signal(&c[j]);
 		}
 
 		for (j = 0; j < NR - 1; ++j)
-			c2_chan_wait(&l[self]);
+			m0_chan_wait(&l[self]);
 	}
 }
 
 static int flag;
 
-static bool cb1(struct c2_clink *clink)
+static bool cb1(struct m0_clink *clink)
 {
 	flag += 1;
 	return false;
 }
 
-static bool cb2(struct c2_clink *clink)
+static bool cb2(struct m0_clink *clink)
 {
 	flag += 2;
 	return false;
 }
 
-static bool cb_filter(struct c2_clink *clink)
+static bool cb_filter(struct m0_clink *clink)
 {
 	return flag == 1;
 }
 
-static bool mfilter(struct c2_clink *clink)
+static bool mfilter(struct m0_clink *clink)
 {
-	C2_UT_ASSERT(flag == 0);
+	M0_UT_ASSERT(flag == 0);
 
 	flag = 1;
 	return false;
@@ -79,152 +79,152 @@ static bool mfilter(struct c2_clink *clink)
 
 unsigned long signal_the_chan_in_timer(unsigned long data)
 {
-	struct c2_clink *clink = (struct c2_clink *)data;
-	c2_clink_signal(clink);
+	struct m0_clink *clink = (struct m0_clink *)data;
+	m0_clink_signal(clink);
 	return 0;
 }
 
 void test_chan(void)
 {
-	struct c2_chan  chan;
-	struct c2_clink clink1;
-	struct c2_clink clink2;
-	struct c2_clink clink3;
-	c2_time_t       delta;
-	c2_time_t       expire;
-	struct c2_timer timer;
+	struct m0_chan  chan;
+	struct m0_clink clink1;
+	struct m0_clink clink2;
+	struct m0_clink clink3;
+	m0_time_t       delta;
+	m0_time_t       expire;
+	struct m0_timer timer;
 	int i;
 	int j;
 	bool got;
 
-	c2_chan_init(&chan);
+	m0_chan_init(&chan);
 
 	/* test call-back notification */
 	flag = 0;
-	c2_clink_init(&clink1, &cb1);
-	c2_clink_add(&chan, &clink1);
-	c2_chan_signal(&chan);
-	C2_UT_ASSERT(flag == 1);
-	c2_chan_broadcast(&chan);
-	C2_UT_ASSERT(flag == 2);
+	m0_clink_init(&clink1, &cb1);
+	m0_clink_add(&chan, &clink1);
+	m0_chan_signal(&chan);
+	M0_UT_ASSERT(flag == 1);
+	m0_chan_broadcast(&chan);
+	M0_UT_ASSERT(flag == 2);
 
-	c2_clink_init(&clink2, &cb2);
-	c2_clink_add(&chan, &clink2);
-
-	flag = 0;
-	c2_chan_signal(&chan);
-	C2_UT_ASSERT(flag == 1 || flag == 2);
-	flag = 0;
-	c2_chan_broadcast(&chan);
-	C2_UT_ASSERT(flag == 3);
-
-	c2_clink_del(&clink1);
+	m0_clink_init(&clink2, &cb2);
+	m0_clink_add(&chan, &clink2);
 
 	flag = 0;
-	c2_chan_signal(&chan);
-	C2_UT_ASSERT(flag == 2);
+	m0_chan_signal(&chan);
+	M0_UT_ASSERT(flag == 1 || flag == 2);
 	flag = 0;
-	c2_chan_broadcast(&chan);
-	C2_UT_ASSERT(flag == 2);
+	m0_chan_broadcast(&chan);
+	M0_UT_ASSERT(flag == 3);
 
-	c2_clink_del(&clink2);
+	m0_clink_del(&clink1);
 
-	c2_clink_fini(&clink1);
-	c2_clink_fini(&clink2);
+	flag = 0;
+	m0_chan_signal(&chan);
+	M0_UT_ASSERT(flag == 2);
+	flag = 0;
+	m0_chan_broadcast(&chan);
+	M0_UT_ASSERT(flag == 2);
+
+	m0_clink_del(&clink2);
+
+	m0_clink_fini(&clink1);
+	m0_clink_fini(&clink2);
 
 	/* test synchronous notification */
 
-	c2_clink_init(&clink1, NULL);
-	c2_clink_add(&chan, &clink1);
+	m0_clink_init(&clink1, NULL);
+	m0_clink_add(&chan, &clink1);
 
-	got = c2_chan_trywait(&clink1);
-	C2_UT_ASSERT(!got);
+	got = m0_chan_trywait(&clink1);
+	M0_UT_ASSERT(!got);
 
-	c2_chan_signal(&chan);
-	got = c2_chan_trywait(&clink1);
-	C2_UT_ASSERT(got);
+	m0_chan_signal(&chan);
+	got = m0_chan_trywait(&clink1);
+	M0_UT_ASSERT(got);
 
-	c2_chan_signal(&chan);
-	c2_chan_wait(&clink1);
+	m0_chan_signal(&chan);
+	m0_chan_wait(&clink1);
 
 	/* wait will expire after 1/5 second */
-	c2_time_set(&delta, 0, C2_TIME_ONE_BILLION/5);
-	expire = c2_time_add(c2_time_now(), delta);
-	got = c2_chan_timedwait(&clink1, expire); /* wait 1/5 second */
-	C2_UT_ASSERT(!got);
+	m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/5);
+	expire = m0_time_add(m0_time_now(), delta);
+	got = m0_chan_timedwait(&clink1, expire); /* wait 1/5 second */
+	M0_UT_ASSERT(!got);
 
 	/* chan is signaled after 1/10 second. so the wait will return true */
-	c2_time_set(&delta, 0, C2_TIME_ONE_BILLION/10);
-	expire = c2_time_add(c2_time_now(), delta);
-	c2_timer_init(&timer, C2_TIMER_SOFT, expire,
+	m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/10);
+	expire = m0_time_add(m0_time_now(), delta);
+	m0_timer_init(&timer, M0_TIMER_SOFT, expire,
 		      &signal_the_chan_in_timer, (unsigned long)&clink1);
-	c2_timer_start(&timer);
-	c2_time_set(&delta, 0, C2_TIME_ONE_BILLION/5);
-	expire = c2_time_add(c2_time_now(), delta);
-	got = c2_chan_timedwait(&clink1, expire); /* wait 1/5 seconds */
-	C2_UT_ASSERT(got);
-	c2_timer_stop(&timer);
-	c2_timer_fini(&timer);
+	m0_timer_start(&timer);
+	m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/5);
+	expire = m0_time_add(m0_time_now(), delta);
+	got = m0_chan_timedwait(&clink1, expire); /* wait 1/5 seconds */
+	M0_UT_ASSERT(got);
+	m0_timer_stop(&timer);
+	m0_timer_fini(&timer);
 
 	/* chan is signaled after 1/3 seconds. so the wait will timeout and
 	   return false. Another wait should work.*/
-	c2_time_set(&delta, 0, C2_TIME_ONE_BILLION/3);
-	expire = c2_time_add(c2_time_now(), delta);
-	c2_timer_init(&timer, C2_TIMER_SOFT, expire,
+	m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/3);
+	expire = m0_time_add(m0_time_now(), delta);
+	m0_timer_init(&timer, M0_TIMER_SOFT, expire,
 		      &signal_the_chan_in_timer, (unsigned long)&clink1);
-	c2_timer_start(&timer);
-	c2_time_set(&delta, 0, C2_TIME_ONE_BILLION/5);
-	expire = c2_time_add(c2_time_now(), delta);
-	got = c2_chan_timedwait(&clink1, expire); /* wait 1/5 seconds */
-	C2_UT_ASSERT(!got);
-	c2_chan_wait(&clink1); /* another wait. Timer will signal in 1 second */
-	c2_timer_stop(&timer);
-	c2_timer_fini(&timer);
+	m0_timer_start(&timer);
+	m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/5);
+	expire = m0_time_add(m0_time_now(), delta);
+	got = m0_chan_timedwait(&clink1, expire); /* wait 1/5 seconds */
+	M0_UT_ASSERT(!got);
+	m0_chan_wait(&clink1); /* another wait. Timer will signal in 1 second */
+	m0_timer_stop(&timer);
+	m0_timer_fini(&timer);
 
-	c2_clink_del(&clink1);
-	c2_clink_fini(&clink1);
+	m0_clink_del(&clink1);
+	m0_clink_fini(&clink1);
 
 	/* test filtered events. */
-	c2_clink_init(&clink3, &cb_filter);
-	c2_clink_add(&chan, &clink3);
+	m0_clink_init(&clink3, &cb_filter);
+	m0_clink_add(&chan, &clink3);
 
 	flag = 1;
-	c2_chan_signal(&chan);
-	got = c2_chan_trywait(&clink3);
-	C2_UT_ASSERT(!got);
+	m0_chan_signal(&chan);
+	got = m0_chan_trywait(&clink3);
+	M0_UT_ASSERT(!got);
 
 	flag = 0;
-	c2_chan_signal(&chan);
-	got = c2_chan_trywait(&clink3);
-	C2_UT_ASSERT(got);
+	m0_chan_signal(&chan);
+	got = m0_chan_trywait(&clink3);
+	M0_UT_ASSERT(got);
 
-	c2_clink_del(&clink3);
-	c2_clink_fini(&clink3);
+	m0_clink_del(&clink3);
+	m0_clink_fini(&clink3);
 
-	c2_chan_fini(&chan);
+	m0_chan_fini(&chan);
 
 	/* multi-threaded test */
 
 	for (i = 0; i < ARRAY_SIZE(c); ++i) {
-		c2_chan_init(&c[i]);
-		c2_clink_init(&l[i], NULL);
-		c2_clink_add(&c[i], &l[i]);
+		m0_chan_init(&c[i]);
+		m0_clink_init(&l[i], NULL);
+		m0_clink_add(&c[i], &l[i]);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
-		got = C2_THREAD_INIT(&t[i], int, NULL, &t0, i, "t0");
-		C2_UT_ASSERT(got == 0);
+		got = M0_THREAD_INIT(&t[i], int, NULL, &t0, i, "t0");
+		M0_UT_ASSERT(got == 0);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
-		c2_thread_join(&t[i]);
-		c2_thread_fini(&t[i]);
+		m0_thread_join(&t[i]);
+		m0_thread_fini(&t[i]);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(c); ++i) {
-		c2_clink_del(&l[i]);
-		c2_clink_fini(&l[i]);
-		c2_chan_fini(&c[i]);
+		m0_clink_del(&l[i]);
+		m0_clink_fini(&l[i]);
+		m0_chan_fini(&c[i]);
 	}
 
 	/*
@@ -241,38 +241,38 @@ void test_chan(void)
 
 	for (j = 0; j < ARRAY_SIZE(c); ++j) {
 		for (i = 0; i < ARRAY_SIZE(c); ++i)
-			c2_chan_init(&c[i]);
+			m0_chan_init(&c[i]);
 
-		c2_clink_init(&l[0], j == 0 ? mfilter : NULL);
+		m0_clink_init(&l[0], j == 0 ? mfilter : NULL);
 		for (i = 1; i < ARRAY_SIZE(c); ++i)
-			c2_clink_attach(&l[i], &l[0], j == i ? mfilter : NULL);
+			m0_clink_attach(&l[i], &l[0], j == i ? mfilter : NULL);
 
 		for (i = 0; i < ARRAY_SIZE(c); ++i)
-			c2_clink_add(&c[i], &l[i]);
+			m0_clink_add(&c[i], &l[i]);
 
-		c2_time_set(&delta, 0, C2_TIME_ONE_BILLION/100);
-		expire = c2_time_add(c2_time_now(), delta);
+		m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/100);
+		expire = m0_time_add(m0_time_now(), delta);
 
 		flag = 0;
-		c2_timer_init(&timer, C2_TIMER_SOFT, expire,
+		m0_timer_init(&timer, M0_TIMER_SOFT, expire,
 			      &signal_the_chan_in_timer, (unsigned long)&l[j]);
-		c2_timer_start(&timer);
+		m0_timer_start(&timer);
 
-		c2_chan_wait(&l[(j + 1) % ARRAY_SIZE(c)]);
-		C2_UT_ASSERT(flag == 1);
+		m0_chan_wait(&l[(j + 1) % ARRAY_SIZE(c)]);
+		M0_UT_ASSERT(flag == 1);
 
-		c2_timer_stop(&timer);
-		c2_timer_fini(&timer);
+		m0_timer_stop(&timer);
+		m0_timer_fini(&timer);
 
 		for (i = ARRAY_SIZE(c) - 1; i >= 0; --i) {
-			c2_clink_del(&l[i]);
-			c2_clink_fini(&l[i]);
-			c2_chan_fini(&c[i]);
+			m0_clink_del(&l[i]);
+			m0_clink_fini(&l[i]);
+			m0_chan_fini(&c[i]);
 		}
 	}
 
 }
-C2_EXPORTED(test_chan);
+M0_EXPORTED(test_chan);
 
 /*
  *  Local variables:

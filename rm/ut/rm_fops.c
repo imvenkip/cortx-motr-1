@@ -66,7 +66,7 @@ static void rmfops_utfini(void)
  */
 static void request_param_init(enum m0_rm_incoming_type reqtype)
 {
-	C2_SET0(&test_data.rd_in);
+	M0_SET0(&test_data.rd_in);
 	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner, reqtype,
 			    RIP_NONE, RIF_LOCAL_WAIT);
 
@@ -74,19 +74,19 @@ static void request_param_init(enum m0_rm_incoming_type reqtype)
 	test_data.rd_in.rin_want.cr_datum = NENYA;
 	test_data.rd_in.rin_ops = &rings_incoming_ops;
 
-	C2_SET0(&test_data.rd_credit);
+	M0_SET0(&test_data.rd_credit);
 	m0_rm_credit_init(&test_data.rd_credit, &test_data.rd_owner);
 	test_data.rd_credit.cr_datum = NENYA;
 	test_data.rd_credit.cr_ops = &rings_credit_ops;
 
-	C2_ALLOC_PTR(test_data.rd_owner.ro_creditor);
-	C2_UT_ASSERT(test_data.rd_owner.ro_creditor != NULL);
+	M0_ALLOC_PTR(test_data.rd_owner.ro_creditor);
+	M0_UT_ASSERT(test_data.rd_owner.ro_creditor != NULL);
 	m0_rm_remote_init(test_data.rd_owner.ro_creditor,
 			  test_data.rd_owner.ro_resource);
 	m0_cookie_init(&test_data.rd_owner.ro_creditor->rem_cookie,
 		       &test_data.rd_owner.ro_id);
-	C2_ALLOC_PTR(test_loan);
-	C2_UT_ASSERT(test_loan != NULL);
+	M0_ALLOC_PTR(test_loan);
+	M0_UT_ASSERT(test_loan != NULL);
 	m0_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
 	remote.rem_state = REM_FREED;
 	m0_rm_remote_init(&remote, &test_data.rd_res.rs_resource);
@@ -121,7 +121,7 @@ static void rm_req_fop_validate(enum m0_rm_incoming_type reqtype)
 
 	m0_tl_for(pi, &test_data.rd_in.rin_pins, pin) {
 
-		C2_UT_ASSERT(pin->rp_flags == C2_RPF_TRACK);
+		M0_UT_ASSERT(pin->rp_flags == M0_RPF_TRACK);
 		/* It's time to introduce ladder_of() */
 		loan = bob_of(pin->rp_credit, struct m0_rm_loan,
 			      rl_credit, &loan_bob);
@@ -129,11 +129,11 @@ static void rm_req_fop_validate(enum m0_rm_incoming_type reqtype)
 		oreq = container_of(og, struct rm_out, ou_req);
 
 		switch (reqtype) {
-		case C2_RIT_BORROW:
+		case M0_RIT_BORROW:
 			bfop = m0_fop_data(&oreq->ou_fop);
 			borrow_fop_validate(bfop);
 			break;
-		case C2_RIT_REVOKE:
+		case M0_RIT_REVOKE:
 			rfop = m0_fop_data(&oreq->ou_fop);
 			revoke_fop_validate(rfop);
 			break;
@@ -151,7 +151,7 @@ static void rm_req_fop_validate(enum m0_rm_incoming_type reqtype)
 
 		++pins_nr;
 	} m0_tl_endfor;
-	C2_UT_ASSERT(pins_nr == 1);
+	M0_UT_ASSERT(pins_nr == 1);
 }
 
 /*
@@ -174,30 +174,30 @@ static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
 
 	m0_tl_for(pi, &test_data.rd_in.rin_pins, pin) {
 
-		C2_UT_ASSERT(pin->rp_flags == C2_RPF_TRACK);
+		M0_UT_ASSERT(pin->rp_flags == M0_RPF_TRACK);
 		/* It's time to introduce ladder_of() */
 		loan = bob_of(pin->rp_credit, struct m0_rm_loan,
 			      rl_credit, &loan_bob);
 		og = container_of(loan, struct m0_rm_outgoing, rog_want);
 		oreq = container_of(og, struct rm_out, ou_req);
 
-		C2_ALLOC_PTR(fop);
-		C2_UT_ASSERT(fop != NULL);
+		M0_ALLOC_PTR(fop);
+		M0_UT_ASSERT(fop != NULL);
 		switch (reqtype) {
-		case C2_RIT_BORROW:
+		case M0_RIT_BORROW:
 			item = &oreq->ou_fop.f_item;
 			/* Initialise Reply FOP */
 			m0_fop_init(fop, &m0_fop_rm_borrow_rep_fopt, NULL);
-			C2_UT_ASSERT(m0_fop_data_alloc(fop) == 0);
+			M0_UT_ASSERT(m0_fop_data_alloc(fop) == 0);
 			breply = m0_fop_data(fop);
 			borrow_reply_populate(breply, err);
 			item->ri_reply = &fop->f_item;
 			break;
-		case C2_RIT_REVOKE:
+		case M0_RIT_REVOKE:
 			item = &oreq->ou_fop.f_item;
 			/* Initialise Reply FOP */
 			m0_fop_init(fop, &m0_fom_error_rep_fopt, NULL);
-			C2_UT_ASSERT(m0_fop_data_alloc(fop) == 0);
+			M0_UT_ASSERT(m0_fop_data_alloc(fop) == 0);
 			rreply = m0_fop_data(fop);
 			revoke_reply_populate(rreply, err);
 			item->ri_reply = &fop->f_item;
@@ -214,7 +214,7 @@ static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
 		m0_free(pin);
 		++pins_nr;
 	} m0_tl_endfor;
-	C2_UT_ASSERT(pins_nr == 1);
+	M0_UT_ASSERT(pins_nr == 1);
 
 	return item;
 }
@@ -231,22 +231,22 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 
 	m0_fi_enable_once("m0_rm_request_out", "no-rpc");
 	switch (reqtype) {
-	case C2_RIT_BORROW:
+	case M0_RIT_BORROW:
 		test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
-		rc = m0_rm_request_out(C2_ROT_BORROW, &test_data.rd_in, NULL,
+		rc = m0_rm_request_out(M0_ROT_BORROW, &test_data.rd_in, NULL,
 				       &test_data.rd_credit);
-		C2_UT_ASSERT(rc == 0);
-		item = rm_reply_create(C2_RIT_BORROW, err);
+		M0_UT_ASSERT(rc == 0);
+		item = rm_reply_create(M0_RIT_BORROW, err);
 		borrow_reply(item);
 		post_borrow_validate(err);
 		post_borrow_cleanup(item, err);
 		outreq_free(item);
 		break;
-	case C2_RIT_REVOKE:
+	case M0_RIT_REVOKE:
 		test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
-		rc = m0_rm_request_out(C2_ROT_REVOKE, &test_data.rd_in,
+		rc = m0_rm_request_out(M0_ROT_REVOKE, &test_data.rd_in,
 				       test_loan, &test_loan->rl_credit);
-		item = rm_reply_create(C2_RIT_REVOKE, err);
+		item = rm_reply_create(M0_RIT_REVOKE, err);
 		m0_rm_owner_lock(&test_data.rd_owner);
 		m0_rm_ur_tlist_add(&test_data.rd_owner.ro_sublet, &test_loan->rl_credit);
 		m0_rm_owner_unlock(&test_data.rd_owner);
@@ -263,7 +263,7 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 		test_loan = NULL;
 		break;
 	default:
-		C2_IMPOSSIBLE("Invalid RM-FOM type");
+		M0_IMPOSSIBLE("Invalid RM-FOM type");
 	}
 
 	request_param_fini();
@@ -280,20 +280,20 @@ static void request_test(enum m0_rm_incoming_type reqtype)
 
 	m0_fi_enable_once("m0_rm_request_out", "no-rpc");
 	switch (reqtype) {
-	case C2_RIT_BORROW:
+	case M0_RIT_BORROW:
 		test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
-		rc = m0_rm_request_out(C2_ROT_BORROW, &test_data.rd_in, NULL,
+		rc = m0_rm_request_out(M0_ROT_BORROW, &test_data.rd_in, NULL,
 				       &test_data.rd_credit);
 		break;
-	case C2_RIT_REVOKE:
+	case M0_RIT_REVOKE:
 		test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
-		rc = m0_rm_request_out(C2_ROT_REVOKE, &test_data.rd_in,
+		rc = m0_rm_request_out(M0_ROT_REVOKE, &test_data.rd_in,
 				       test_loan, &test_loan->rl_credit);
 		break;
 	default:
-		C2_IMPOSSIBLE("Invalid RM-FOM type");
+		M0_IMPOSSIBLE("Invalid RM-FOM type");
 	}
-	C2_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 
 	rm_req_fop_validate(reqtype);
 	request_param_fini();
@@ -315,8 +315,8 @@ static void post_borrow_validate(int err)
 	got_credit = !m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_borrowed) &&
 		    !m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_owned[OWOS_CACHED]);
 	m0_rm_owner_unlock(&test_data.rd_owner);
-	C2_UT_ASSERT(ergo(err, !got_credit));
-	C2_UT_ASSERT(ergo(err == 0, got_credit));
+	M0_UT_ASSERT(ergo(err, !got_credit));
+	M0_UT_ASSERT(ergo(err == 0, got_credit));
 }
 
 static void borrow_reply_populate(struct m0_fop_rm_borrow_rep *breply,
@@ -329,7 +329,7 @@ static void borrow_reply_populate(struct m0_fop_rm_borrow_rep *breply,
 	if (err == 0) {
 		rc = m0_rm_credit_encode(&test_data.rd_credit,
 					&breply->br_credit.cr_opaque);
-		C2_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(rc == 0);
 	}
 }
 
@@ -389,18 +389,18 @@ static void borrow_fop_validate(struct m0_fop_rm_borrow *bfop)
 	owner = m0_cookie_of(&bfop->bo_base.rrq_owner.ow_cookie,
 			     struct m0_rm_owner, ro_id);
 
-	C2_UT_ASSERT(owner != NULL);
-	C2_UT_ASSERT(owner == &test_data.rd_owner);
+	M0_UT_ASSERT(owner != NULL);
+	M0_UT_ASSERT(owner == &test_data.rd_owner);
 
 	m0_rm_credit_init(&credit, &test_data.rd_owner);
 	credit.cr_ops = &rings_credit_ops;
 	rc = m0_rm_credit_decode(&credit, &bfop->bo_base.rrq_credit.cr_opaque);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(credit.cr_datum == test_data.rd_credit.cr_datum);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(credit.cr_datum == test_data.rd_credit.cr_datum);
 	m0_rm_credit_fini(&credit);
 
-	C2_UT_ASSERT(bfop->bo_base.rrq_policy == RIP_NONE);
-	C2_UT_ASSERT(bfop->bo_base.rrq_flags &
+	M0_UT_ASSERT(bfop->bo_base.rrq_policy == RIP_NONE);
+	M0_UT_ASSERT(bfop->bo_base.rrq_flags &
 			(RIF_LOCAL_WAIT | RIF_MAY_BORROW));
 	m0_buf_free(&bfop->bo_base.rrq_credit.cr_opaque);
 }
@@ -410,7 +410,7 @@ static void borrow_fop_validate(struct m0_fop_rm_borrow *bfop)
  */
 static void borrow_request_test()
 {
-	request_test(C2_RIT_BORROW);
+	request_test(M0_RIT_BORROW);
 }
 
 /*
@@ -419,10 +419,10 @@ static void borrow_request_test()
 static void borrow_reply_test()
 {
 	/* 1. Test borrow-success */
-	reply_test(C2_RIT_BORROW, 0);
+	reply_test(M0_RIT_BORROW, 0);
 
 	/* 2. Test borrow-failure */
-	reply_test(C2_RIT_BORROW, -ETIMEDOUT);
+	reply_test(M0_RIT_BORROW, -ETIMEDOUT);
 }
 
 /*
@@ -444,9 +444,9 @@ static void post_revoke_validate(int err)
 	m0_rm_owner_unlock(&test_data.rd_owner);
 
 	/* If revoke fails, credit remains in sublet list */
-	C2_UT_ASSERT(ergo(err, sublet && !owned));
+	M0_UT_ASSERT(ergo(err, sublet && !owned));
 	/* If revoke succeds, credit will be part of cached list*/
-	C2_UT_ASSERT(ergo(err == 0, owned && !sublet));
+	M0_UT_ASSERT(ergo(err == 0, owned && !sublet));
 }
 
 /*
@@ -462,22 +462,22 @@ static void revoke_fop_validate(struct m0_fop_rm_revoke *rfop)
 	owner = m0_cookie_of(&rfop->rr_base.rrq_owner.ow_cookie,
 			     struct m0_rm_owner, ro_id);
 
-	C2_UT_ASSERT(owner != NULL);
-	C2_UT_ASSERT(owner == &test_data.rd_owner);
+	M0_UT_ASSERT(owner != NULL);
+	M0_UT_ASSERT(owner == &test_data.rd_owner);
 
 	loan = m0_cookie_of(&rfop->rr_loan.lo_cookie, struct m0_rm_loan, rl_id);
-	C2_UT_ASSERT(loan != NULL);
-	C2_UT_ASSERT(loan == test_loan);
+	M0_UT_ASSERT(loan != NULL);
+	M0_UT_ASSERT(loan == test_loan);
 
 	m0_rm_credit_init(&credit, &test_data.rd_owner);
 	credit.cr_ops = &rings_credit_ops;
 	rc = m0_rm_credit_decode(&credit, &rfop->rr_base.rrq_credit.cr_opaque);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(credit.cr_datum == test_data.rd_credit.cr_datum);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(credit.cr_datum == test_data.rd_credit.cr_datum);
 	m0_rm_credit_fini(&credit);
 
-	C2_UT_ASSERT(rfop->rr_base.rrq_policy == RIP_NONE);
-	C2_UT_ASSERT(rfop->rr_base.rrq_flags &
+	M0_UT_ASSERT(rfop->rr_base.rrq_policy == RIP_NONE);
+	M0_UT_ASSERT(rfop->rr_base.rrq_flags &
 		     (RIF_LOCAL_WAIT | RIF_MAY_REVOKE));
 	m0_buf_free(&rfop->rr_base.rrq_credit.cr_opaque);
 }
@@ -537,7 +537,7 @@ static void revoke_reply_populate(struct m0_fom_error_rep *rreply,
  */
 static void revoke_request_test()
 {
-	request_test(C2_RIT_REVOKE);
+	request_test(M0_RIT_REVOKE);
 }
 
 /*
@@ -546,10 +546,10 @@ static void revoke_request_test()
 static void revoke_reply_test()
 {
 	/* 1. Test revoke-success */
-	reply_test(C2_RIT_REVOKE, 0);
+	reply_test(M0_RIT_REVOKE, 0);
 
 	/* 2. Test revoke-failure */
-	reply_test(C2_RIT_REVOKE, -ETIMEDOUT);
+	reply_test(M0_RIT_REVOKE, -ETIMEDOUT);
 }
 
 /*

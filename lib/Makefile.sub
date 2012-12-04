@@ -1,4 +1,4 @@
-nobase_colibri_include_HEADERS += lib/adt.h \
+nobase_mero_include_HEADERS += lib/adt.h \
                                   lib/arith.h \
                                   lib/assert.h \
                                   lib/atomic.h \
@@ -50,7 +50,7 @@ nobase_colibri_include_HEADERS += lib/adt.h \
                                   lib/user_space/timer.h \
                                   lib/user_space/semaphore.h
 
-colibri_libcolibri_la_SOURCES  += lib/assert.c \
+mero_libmero_la_SOURCES  += lib/assert.c \
                                   lib/bitmap.c \
                                   lib/bitstring.c \
                                   lib/bob.c \
@@ -77,7 +77,7 @@ colibri_libcolibri_la_SOURCES  += lib/assert.c \
                                   lib/trace_internal.h \
                                   lib/vec.c \
                                   lib/vec_xc.c \
-                                  lib/c2lib.c \
+                                  lib/m0lib.c \
                                   lib/ub.c \
                                   lib/ut.c \
                                   lib/user_space/finject_init.c \

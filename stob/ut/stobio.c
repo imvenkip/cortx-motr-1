@@ -23,7 +23,7 @@
 #include <sys/types.h> /* mkdir */
 #include <linux/limits.h>
 
-#include "lib/misc.h"    /* C2_SET0 */
+#include "lib/misc.h"    /* M0_SET0 */
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -36,13 +36,13 @@
 #include "stob/linux_internal.h"
 #include "stob/ad.h"
 #include "balloc/balloc.h"
-#include "colibri/init.h"
+#include "mero/init.h"
 
 #define WITH_LOCK(lock, action, args...) ({		\
-			struct c2_mutex *lk = lock;	\
-			c2_mutex_lock(lk);		\
+			struct m0_mutex *lk = lock;	\
+			m0_mutex_lock(lk);		\
 			action(args);			\
-			c2_mutex_unlock(lk);		\
+			m0_mutex_unlock(lk);		\
 		})
 
 enum {
@@ -54,13 +54,13 @@ enum {
 
 struct stobio_test {
 	/* ctrl part */
-	struct c2_stob	        *st_obj;
-	const struct c2_stob_id  st_id;
+	struct m0_stob	        *st_obj;
+	const struct m0_stob_id  st_id;
 	/* Real block device, if any */
 	char			*st_dev_path;
 
-	struct c2_stob_domain   *st_dom;
-	struct c2_stob_io	 st_io;
+	struct m0_stob_domain   *st_dom;
+	struct m0_stob_io	 st_io;
 
 	/* this flag controls whether to use direct IO */
 	bool st_directio;
@@ -77,16 +77,16 @@ struct stobio_test {
 	char *st_wrbuf_packed[RW_BUFF_NR];
 
 	/* read/write vectors */
-	c2_bcount_t st_rdvec[RW_BUFF_NR];
-	c2_bcount_t st_wrvec[RW_BUFF_NR];
+	m0_bcount_t st_rdvec[RW_BUFF_NR];
+	m0_bcount_t st_wrvec[RW_BUFF_NR];
 };
 
 /* Test block device */
 static const char test_blkdev[] = "/dev/loop0";
 
 /* sync object for init/fini */
-static struct c2_mutex lock;
-static struct c2_thread thread[TEST_NR];
+static struct m0_mutex lock;
+static struct m0_thread thread[TEST_NR];
 struct stobio_test test[TEST_NR] = {
 	/* buffered IO tests */
 	[0] = { .st_id = { .si_bits = { .u_hi = 1, .u_lo = 2 } },
@@ -121,12 +121,12 @@ static void stob_dev_init(const struct stobio_test *test)
 {
 	struct stat statbuf;
 	int	    result;
-	c2_bcount_t dev_sz;
+	m0_bcount_t dev_sz;
 	char	    sysbuf[PATH_MAX];
 	char	    backingfile[PATH_MAX];
 
 	result = stat(test->st_dev_path, &statbuf);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 
 	if(strcmp(test->st_dev_path, test_blkdev))
 		return;
@@ -143,11 +143,11 @@ static void stob_dev_init(const struct stobio_test *test)
 	sprintf(sysbuf, "dd if=/dev/zero of=%s bs=1M count=%lu",
 			backingfile, (unsigned long)dev_sz);
 	result = system(sysbuf);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 
 	sprintf(sysbuf, "losetup %s %s", test->st_dev_path, backingfile);
 	result = system(sysbuf);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 }
 
 static void stob_dev_fini(const struct stobio_test *test)
@@ -163,11 +163,11 @@ static void stob_dev_fini(const struct stobio_test *test)
 
 	sprintf(sysbuf, "losetup -d %s", test->st_dev_path);
 	result = system(sysbuf);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 }
 
 static void stobio_io_prepare(struct stobio_test *test,
-			      struct c2_stob_io *io)
+			      struct m0_stob_io *io)
 {
 	io->si_flags  = 0;
 	io->si_user.ov_vec.v_nr = RW_BUFF_NR;
@@ -179,7 +179,7 @@ static void stobio_io_prepare(struct stobio_test *test,
 }
 
 static void stobio_write_prepare(struct stobio_test *test,
-				 struct c2_stob_io *io)
+				 struct m0_stob_io *io)
 {
 	io->si_opcode = SIO_WRITE;
 	io->si_user.ov_buf = (void **) test->st_wrbuf_packed;
@@ -187,7 +187,7 @@ static void stobio_write_prepare(struct stobio_test *test,
 }
 
 static void stobio_read_prepare(struct stobio_test *test,
-				struct c2_stob_io *io)
+				struct m0_stob_io *io)
 {
 	io->si_opcode = SIO_READ;
 	io->si_user.ov_buf = (void **) test->st_rdbuf_packed;
@@ -197,54 +197,54 @@ static void stobio_read_prepare(struct stobio_test *test,
 static void stobio_write(struct stobio_test *test)
 {
 	int result;
-	struct c2_stob_io  io;
-	struct c2_clink    clink;
+	struct m0_stob_io  io;
+	struct m0_clink    clink;
 
-	c2_stob_io_init(&io);
+	m0_stob_io_init(&io);
 
 	stobio_write_prepare(test, &io);
 
-	c2_clink_init(&clink, NULL);
-	c2_clink_add(&io.si_wait, &clink);
+	m0_clink_init(&clink, NULL);
+	m0_clink_add(&io.si_wait, &clink);
 
-	result = c2_stob_io_launch(&io, test->st_obj, NULL, NULL);
-	C2_UT_ASSERT(result == 0);
+	result = m0_stob_io_launch(&io, test->st_obj, NULL, NULL);
+	M0_UT_ASSERT(result == 0);
 
-	c2_chan_wait(&clink);
+	m0_chan_wait(&clink);
 
-	C2_UT_ASSERT(io.si_rc == 0);
-	C2_UT_ASSERT(io.si_count == test->st_rw_buf_size_in_blocks * RW_BUFF_NR);
+	M0_UT_ASSERT(io.si_rc == 0);
+	M0_UT_ASSERT(io.si_count == test->st_rw_buf_size_in_blocks * RW_BUFF_NR);
 
-	c2_clink_del(&clink);
-	c2_clink_fini(&clink);
+	m0_clink_del(&clink);
+	m0_clink_fini(&clink);
 
-	c2_stob_io_fini(&io);
+	m0_stob_io_fini(&io);
 }
 
 static void stobio_read(struct stobio_test *test)
 {
 	int result;
-	struct c2_stob_io io;
-	struct c2_clink   clink;
-	c2_stob_io_init(&io);
+	struct m0_stob_io io;
+	struct m0_clink   clink;
+	m0_stob_io_init(&io);
 
 	stobio_read_prepare(test, &io);
 
-	c2_clink_init(&clink, NULL);
-	c2_clink_add(&io.si_wait, &clink);
+	m0_clink_init(&clink, NULL);
+	m0_clink_add(&io.si_wait, &clink);
 
-	result = c2_stob_io_launch(&io, test->st_obj, NULL, NULL);
-	C2_UT_ASSERT(result == 0);
+	result = m0_stob_io_launch(&io, test->st_obj, NULL, NULL);
+	M0_UT_ASSERT(result == 0);
 
-	c2_chan_wait(&clink);
+	m0_chan_wait(&clink);
 
-	C2_UT_ASSERT(io.si_rc == 0);
-	C2_UT_ASSERT(io.si_count == test->st_rw_buf_size_in_blocks * RW_BUFF_NR);
+	M0_UT_ASSERT(io.si_rc == 0);
+	M0_UT_ASSERT(io.si_count == test->st_rw_buf_size_in_blocks * RW_BUFF_NR);
 
-	c2_clink_del(&clink);
-	c2_clink_fini(&clink);
+	m0_clink_del(&clink);
+	m0_clink_fini(&clink);
 
-	c2_stob_io_fini(&io);
+	m0_stob_io_fini(&io);
 }
 
 static void stobio_rw_buffs_init(struct stobio_test *test)
@@ -252,19 +252,19 @@ static void stobio_rw_buffs_init(struct stobio_test *test)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(test->st_rdbuf); ++i) {
-		test->st_rdbuf[i] = c2_alloc_aligned(test->st_rw_buf_size,
+		test->st_rdbuf[i] = m0_alloc_aligned(test->st_rw_buf_size,
 					test->st_block_shift);
-		test->st_rdbuf_packed[i] = c2_stob_addr_pack(test->st_rdbuf[i]
+		test->st_rdbuf_packed[i] = m0_stob_addr_pack(test->st_rdbuf[i]
 					, test->st_block_shift);
-		C2_UT_ASSERT(test->st_rdbuf[i] != NULL);
+		M0_UT_ASSERT(test->st_rdbuf[i] != NULL);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(test->st_wrbuf); ++i) {
-		test->st_wrbuf[i] = c2_alloc_aligned(test->st_rw_buf_size,
+		test->st_wrbuf[i] = m0_alloc_aligned(test->st_rw_buf_size,
 					test->st_block_shift);
-		test->st_wrbuf_packed[i] = c2_stob_addr_pack(test->st_wrbuf[i],
+		test->st_wrbuf_packed[i] = m0_stob_addr_pack(test->st_wrbuf[i],
 					test->st_block_shift);
-		C2_UT_ASSERT(test->st_wrbuf[i] != NULL);
+		M0_UT_ASSERT(test->st_wrbuf[i] != NULL);
 	}
 }
 
@@ -273,12 +273,12 @@ static void stobio_rw_buffs_fini(struct stobio_test *test)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(test->st_rdbuf); ++i) {
-		c2_free(test->st_rdbuf[i]);
+		m0_free(test->st_rdbuf[i]);
 		test->st_rdbuf_packed[i] = 0;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(test->st_wrbuf); ++i) {
-		c2_free(test->st_wrbuf[i]);
+		m0_free(test->st_wrbuf[i]);
 		test->st_wrbuf_packed[i] = 0;
 	}
 }
@@ -288,13 +288,13 @@ static int stobio_storage_init(void)
 	int result;
 
 	result = system("rm -fr ./__s");
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 
 	result = mkdir("./__s", 0700);
-	C2_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
+	M0_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
 	result = mkdir("./__s/o", 0700);
-	C2_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
+	M0_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
 	return result;
 }
@@ -303,7 +303,7 @@ static void stobio_storage_fini(void)
 {
 	int result;
 	result = system("rm -fr ./__s");
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 }
 
 static int stobio_init(struct stobio_test *test)
@@ -311,30 +311,30 @@ static int stobio_init(struct stobio_test *test)
 	int result;
 	struct linux_stob *lstob;
 
-	result = c2_stob_domain_locate(&c2_linux_stob_type,
+	result = m0_stob_domain_locate(&m0_linux_stob_type,
 				       "./__s", &test->st_dom);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 
-	result = c2_linux_stob_setup(test->st_dom, test->st_directio);
-	C2_UT_ASSERT(result == 0);
+	result = m0_linux_stob_setup(test->st_dom, test->st_directio);
+	M0_UT_ASSERT(result == 0);
 
-	result = c2_stob_find(test->st_dom, &test->st_id, &test->st_obj);
-	C2_UT_ASSERT(result == 0);
-	C2_UT_ASSERT(test->st_obj->so_state == CSS_UNKNOWN);
+	result = m0_stob_find(test->st_dom, &test->st_id, &test->st_obj);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(test->st_obj->so_state == CSS_UNKNOWN);
 
 	if(test->st_dev_path != NULL) {
 		stob_dev_init(test);
-		result = c2_linux_stob_link(test->st_dom, test->st_obj,
+		result = m0_linux_stob_link(test->st_dom, test->st_obj,
 					    test->st_dev_path, NULL);
-		C2_UT_ASSERT(result == 0);
+		M0_UT_ASSERT(result == 0);
 
 	}
 
-	result = c2_stob_create(test->st_obj, NULL);
-	C2_UT_ASSERT(result == 0);
-	C2_UT_ASSERT(test->st_obj->so_state == CSS_EXISTS);
+	result = m0_stob_create(test->st_obj, NULL);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(test->st_obj->so_state == CSS_EXISTS);
 	lstob = stob2linux(test->st_obj);
-	C2_UT_ASSERT(S_ISREG(lstob->sl_mode) || S_ISBLK(lstob->sl_mode));
+	M0_UT_ASSERT(S_ISREG(lstob->sl_mode) || S_ISBLK(lstob->sl_mode));
 
 	test->st_block_shift = test->st_obj->so_op->sop_block_shift(test->st_obj);
 	test->st_block_size = 1 << test->st_block_shift;
@@ -351,7 +351,7 @@ static int stobio_init(struct stobio_test *test)
 
 static void stobio_fini(struct stobio_test *test)
 {
-	c2_stob_put(test->st_obj);
+	m0_stob_put(test->st_obj);
 	test->st_dom->sd_ops->sdo_fini(test->st_dom);
 	stobio_rw_buffs_fini(test);
 	stob_dev_fini(test);
@@ -401,12 +401,12 @@ void overlapped_rw_test(struct stobio_test *test, int starts_from)
 	/* check WR data */
 	for (i = 0; i < RW_BUFF_NR/2; ++i) {
 		for (j = 0; j < RW_BUFF_NR; ++j)
-			C2_UT_ASSERT(test->st_rdbuf[i][j] == (('A' + 2 * i) | 1));
+			M0_UT_ASSERT(test->st_rdbuf[i][j] == (('A' + 2 * i) | 1));
 	}
 
 	for (; i < RW_BUFF_NR; ++i) {
 		for (j = 0; j < RW_BUFF_NR; ++j)
-			C2_UT_ASSERT(test->st_rdbuf[i][j] == (('a' + i) | 1));
+			M0_UT_ASSERT(test->st_rdbuf[i][j] == (('a' + i) | 1));
 	}
 
 	WITH_LOCK(&lock, stobio_fini, test);
@@ -417,31 +417,31 @@ void test_stobio(void)
 	int i;
 	int result;
 
-	c2_mutex_init(&lock);
+	m0_mutex_init(&lock);
 
 	result = stobio_storage_init();
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 
 	for (i = 0; i < TEST_NR; ++i) {
-		result = C2_THREAD_INIT
+		result = M0_THREAD_INIT
 			(&thread[i], int, NULL,
 			 LAMBDA(void, (int x)
 				{ overlapped_rw_test(&test[x], x*100); } ), i,
 			 "overlap_test%d", i);
-		C2_UT_ASSERT(result == 0);
+		M0_UT_ASSERT(result == 0);
 	}
 
 	for (i = 0; i < TEST_NR; ++i) {
-		c2_thread_join(&thread[i]);
-		c2_thread_fini(&thread[i]);
+		m0_thread_join(&thread[i]);
+		m0_thread_fini(&thread[i]);
 	}
 
 	stobio_storage_fini();
 
-	c2_mutex_fini(&lock);
+	m0_mutex_fini(&lock);
 }
 
-const struct c2_test_suite stobio_ut = {
+const struct m0_test_suite stobio_ut = {
 	.ts_name = "stobio-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,

@@ -48,8 +48,8 @@ void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
 	m0_rm_credit_init(credit, owner);
 	credit->cr_datum = ALLRINGS;
 	m0_rm_owner_selfadd(owner, credit);
-	C2_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&owner->ro_borrowed));
-	C2_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&owner->ro_owned[OWOS_CACHED]));
+	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&owner->ro_borrowed));
+	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&owner->ro_owned[OWOS_CACHED]));
 }
 
 /*
@@ -57,7 +57,7 @@ void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
  */
 void rm_utdata_init(struct rm_ut_data *data, enum obj_type type)
 {
-	C2_UT_ASSERT(data != NULL);
+	M0_UT_ASSERT(data != NULL);
 
 	switch (type) {
 		case OBJ_DOMAIN:
@@ -72,7 +72,7 @@ void rm_utdata_init(struct rm_ut_data *data, enum obj_type type)
 			break;
 		case OBJ_RES:
 			rm_utdata_init(data, OBJ_RES_TYPE);
-			C2_SET0(&data->rd_res);
+			M0_SET0(&data->rd_res);
 			data->rd_res.rs_resource.r_ops = &rings_ops;
 			m0_rm_resource_add(&data->rd_rt,
 					   &data->rd_res.rs_resource);
@@ -95,7 +95,7 @@ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
 {
 	struct m0_rm_remote *other;
 
-	C2_UT_ASSERT(data != NULL);
+	M0_UT_ASSERT(data != NULL);
 
 	switch (type) {
 		case OBJ_DOMAIN:

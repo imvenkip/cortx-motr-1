@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_DB_EXTMAP_H__
-#define __COLIBRI_DB_EXTMAP_H__
+#ifndef __MERO_DB_EXTMAP_H__
+#define __MERO_DB_EXTMAP_H__
 
 /**
    @defgroup extmap Extent map abstraction
@@ -30,7 +30,7 @@
    numerical name-space with a numerical value associated to each extent.
 
    The name-space is a set of all 64-bit unsigned numbers from 0 to
-   C2_BINDEX_MAX. An extent of the name-space consisting of numbers from A
+   M0_BINDEX_MAX. An extent of the name-space consisting of numbers from A
    (inclusive) to B (exclusive) is denoted [A, B).
 
    A segment is an extent together with a 64-bit value associated with it,
@@ -43,10 +43,10 @@
 
    @f[
            ([0, e_0), v_0), ([e_0, e_1), v_1), \ldots,
-	   ([e_n, C2\_BINDEX\_MAX + 1), v_n)
+	   ([e_n, M0\_BINDEX\_MAX + 1), v_n)
    @f]
 
-   Note that extents cover the whole name-space from 0 to C2_BINDEX_MAX without
+   Note that extents cover the whole name-space from 0 to M0_BINDEX_MAX without
    holes.
 
    Possible applications of extent map include:
@@ -62,25 +62,25 @@
        container identifiers, layout identifiers, recording state of resource
        name-spaces: allocated to a certain node, free, etc.
 
-   Extent map interface is based on a notion of map cursor (c2_emap_cursor): an
+   Extent map interface is based on a notion of map cursor (m0_emap_cursor): an
    object recording a position within a map (i.e., a segment reached by the
    iteration).
 
    A cursor can be positioned at the segment including a given point in the
-   name-space (c2_emap_lookup()) and moved through the segments (c2_emap_next()
-   and c2_emap_prev()).
+   name-space (m0_emap_lookup()) and moved through the segments (m0_emap_next()
+   and m0_emap_prev()).
 
    An extent map can be modified by the following functions:
 
-     - c2_emap_split(): split a segment into a collection of segments with given
+     - m0_emap_split(): split a segment into a collection of segments with given
        lengths and values, provided that their total length is the same as the
        length of the original segment;
 
-     - c2_emap_merge(): merge part of a segment into the next segment. The
+     - m0_emap_merge(): merge part of a segment into the next segment. The
        current segment is shrunk (or deleted if it would become empty) and the
        next segment is expanded downward;
 
-     - c2_emap_paste() handles more complicated cases.
+     - m0_emap_paste() handles more complicated cases.
 
    It's easy to see that these operations preserve extent map invariant that
    extents are non-empty and form the name-space partition.
@@ -97,24 +97,24 @@
    implementation. Should the need arise, prefixes and values of arbitrary size
    and ordering could be easily implemented at the expense of dynamic memory
    allocation during cursor initialization. Prefix comparison function could be
-   supplied as c2_emap constructor parameter.
+   supplied as m0_emap constructor parameter.
 
    @{
  */
 
-#include "lib/ext.h"       /* c2_ext */
-#include "lib/types.h"     /* struct c2_uint128 */
+#include "lib/ext.h"       /* m0_ext */
+#include "lib/types.h"     /* struct m0_uint128 */
 #include "db/db.h"
 
 /* import */
-struct c2_emap;
-struct c2_dbenv;
-struct c2_db_tx;
-struct c2_indexvec;
+struct m0_emap;
+struct m0_dbenv;
+struct m0_db_tx;
+struct m0_indexvec;
 
 /* export */
-struct c2_emap_seg;
-struct c2_emap_cursor;
+struct m0_emap_seg;
+struct m0_emap_cursor;
 
 /**
     Create maps collection.
@@ -122,11 +122,11 @@ struct c2_emap_cursor;
     @param db - data-base environment used for persistency and transactional
     support.
  */
-C2_INTERNAL int c2_emap_init(struct c2_emap *emap,
-			     struct c2_dbenv *db, const char *mapname);
+M0_INTERNAL int m0_emap_init(struct m0_emap *emap,
+			     struct m0_dbenv *db, const char *mapname);
 
 /** Release the resources associated with the collection. */
-C2_INTERNAL void c2_emap_fini(struct c2_emap *emap);
+M0_INTERNAL void m0_emap_fini(struct m0_emap *emap);
 
 /**
    Insert a new map with the given prefix into the collection.
@@ -134,11 +134,11 @@ C2_INTERNAL void c2_emap_fini(struct c2_emap *emap);
    Initially new map consists of a single extent:
 
    @f[
-	   ([0, C2\_BINDEX\_MAX + 1), val)
+	   ([0, M0\_BINDEX\_MAX + 1), val)
    @f]
  */
-C2_INTERNAL int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx,
-				   const struct c2_uint128 *prefix,
+M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *emap, struct m0_db_tx *tx,
+				   const struct m0_uint128 *prefix,
 				   uint64_t val);
 
 /**
@@ -147,27 +147,27 @@ C2_INTERNAL int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx,
    @pre the map must be in initial state: consists of a single extent, covering
    the whole name-space.
  */
-C2_INTERNAL int c2_emap_obj_delete(struct c2_emap *emap, struct c2_db_tx *tx,
-				   const struct c2_uint128 *prefix);
+M0_INTERNAL int m0_emap_obj_delete(struct m0_emap *emap, struct m0_db_tx *tx,
+				   const struct m0_uint128 *prefix);
 
 /** Extent map segment. */
-struct c2_emap_seg {
+struct m0_emap_seg {
 	/** Map prefix, identifying the map in its collection. */
-	struct c2_uint128 ee_pre;
+	struct m0_uint128 ee_pre;
 	/** Name-space extent. */
-	struct c2_ext     ee_ext;
+	struct m0_ext     ee_ext;
 	/** Value associated with the extent. */
 	uint64_t          ee_val;
 };
 
 /** True iff the extent is the last one in a map. */
-C2_INTERNAL bool c2_emap_ext_is_last(const struct c2_ext *ext);
+M0_INTERNAL bool m0_emap_ext_is_last(const struct m0_ext *ext);
 
 /** True iff the extent is the first one in a map. */
-C2_INTERNAL bool c2_emap_ext_is_first(const struct c2_ext *ext);
+M0_INTERNAL bool m0_emap_ext_is_first(const struct m0_ext *ext);
 
 /** Returns an extent at the current cursor position. */
-C2_INTERNAL struct c2_emap_seg *c2_emap_seg_get(struct c2_emap_cursor
+M0_INTERNAL struct m0_emap_seg *m0_emap_seg_get(struct m0_emap_cursor
 						*iterator);
 
 /**
@@ -177,32 +177,32 @@ C2_INTERNAL struct c2_emap_seg *c2_emap_seg_get(struct c2_emap_cursor
     All operations done through this cursor are executed in the context of given
     transaction.
 
-    @pre offset <= C2_BINDEX_MAX
+    @pre offset <= M0_BINDEX_MAX
 
     @retval -ESRCH no matching segment is found. The cursor is non-functional,
-    but c2_emap_seg_get() contains information about the first segment of the
+    but m0_emap_seg_get() contains information about the first segment of the
     next map (in prefix lexicographical order);
 
     @retval -ENOENT no matching segment is found and there is no map following
     requested one.
  */
-C2_INTERNAL int c2_emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
-			       const struct c2_uint128 *prefix,
-			       c2_bindex_t offset, struct c2_emap_cursor *it);
+M0_INTERNAL int m0_emap_lookup(struct m0_emap *emap, struct m0_db_tx *tx,
+			       const struct m0_uint128 *prefix,
+			       m0_bindex_t offset, struct m0_emap_cursor *it);
 
 /**
    Move cursor to the next segment in its map.
 
-   @pre !c2_emap_ext_is_last(c2_emap_seg_get(iterator))
+   @pre !m0_emap_ext_is_last(m0_emap_seg_get(iterator))
  */
-C2_INTERNAL int c2_emap_next(struct c2_emap_cursor *iterator);
+M0_INTERNAL int m0_emap_next(struct m0_emap_cursor *iterator);
 
 /**
    Move cursor to the previous segment in its map.
 
-   @pre !c2_emap_ext_is_first(c2_emap_seg_get(iterator))
+   @pre !m0_emap_ext_is_first(m0_emap_seg_get(iterator))
  */
-C2_INTERNAL int c2_emap_prev(struct c2_emap_cursor *iterator);
+M0_INTERNAL int m0_emap_prev(struct m0_emap_cursor *iterator);
 
 /**
    Split the segment the cursor is current positioned at into a collection of
@@ -216,10 +216,10 @@ C2_INTERNAL int c2_emap_prev(struct c2_emap_cursor *iterator);
    Empty segments from vec are skipped.  On successful completion, the cursor is
    positioned on the last created segment.
 
-   @pre c2_vec_count(&vec->ov_vec) == c2_ext_length(c2_emap_seg_get(iterator))
+   @pre m0_vec_count(&vec->ov_vec) == m0_ext_length(m0_emap_seg_get(iterator))
  */
-C2_INTERNAL int c2_emap_split(struct c2_emap_cursor *iterator,
-			      struct c2_indexvec *vec);
+M0_INTERNAL int m0_emap_split(struct m0_emap_cursor *iterator,
+			      struct m0_indexvec *vec);
 
 /**
    Paste segment (ext, val) into the map, deleting or truncating overlapping
@@ -231,7 +231,7 @@ C2_INTERNAL int c2_emap_split(struct c2_emap_cursor *iterator,
 
    @param cut_left - this call-back is called when an existing segment has to be
    cut to give place to a new one and some non-empty left part of the existing
-   segment remains in the map. c2_ext call-back argument is the extent being cut
+   segment remains in the map. m0_ext call-back argument is the extent being cut
    from the existing segment. The last argument is the value associated with the
    existing segment. The call-back must set seg->ee_val to the new value
    associated with the remaining left part of the call-back;
@@ -250,11 +250,11 @@ C2_INTERNAL int c2_emap_split(struct c2_emap_cursor *iterator,
    @note Call-backs are called in the order of cursor iteration, but this is not
    a part of official function contract.
  */
-int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
-		  void (*del)(struct c2_emap_seg *),
-		  void (*cut_left)(struct c2_emap_seg *, struct c2_ext *,
+int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
+		  void (*del)(struct m0_emap_seg *),
+		  void (*cut_left)(struct m0_emap_seg *, struct m0_ext *,
 				   uint64_t),
-		  void (*cut_right)(struct c2_emap_seg *, struct c2_ext *,
+		  void (*cut_right)(struct m0_emap_seg *, struct m0_ext *,
 				    uint64_t));
 
 /**
@@ -264,16 +264,16 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
    Current segment's extent is shrunk by delta. If this would make it empty, the
    current segment is deleted. The next segment is expanded by delta downwards.
 
-   @pre !c2_emap_ext_is_last(c2_emap_seg_get(iterator))
-   @pre delta <= c2_ext_length(c2_emap_seg_get(iterator));
+   @pre !m0_emap_ext_is_last(m0_emap_seg_get(iterator))
+   @pre delta <= m0_ext_length(m0_emap_seg_get(iterator));
  */
-C2_INTERNAL int c2_emap_merge(struct c2_emap_cursor *iterator,
-			      c2_bindex_t delta);
+M0_INTERNAL int m0_emap_merge(struct m0_emap_cursor *iterator,
+			      m0_bindex_t delta);
 
 /**
    Release the resources associated with the cursor.
  */
-C2_INTERNAL void c2_emap_close(struct c2_emap_cursor *iterator);
+M0_INTERNAL void m0_emap_close(struct m0_emap_cursor *iterator);
 
 #include "db/extmap_internal.h"
 
@@ -283,29 +283,29 @@ C2_INTERNAL void c2_emap_close(struct c2_emap_cursor *iterator);
     A caret is an iterator with finer granularity than a cursor. A caret is a
     cursor plus an offset within the segment the cursor is currently over.
 
-    Caret interface is intentionally similar to c2_vec_cursor interface, which
+    Caret interface is intentionally similar to m0_vec_cursor interface, which
     see for further references.
 
     Caret implementation is simplified by segment non-emptiness (as guaranteed
     by extent map invariant).
  */
-struct c2_emap_caret {
-	struct c2_emap_cursor *ct_it;
-	c2_bindex_t            ct_index;
+struct m0_emap_caret {
+	struct m0_emap_cursor *ct_it;
+	m0_bindex_t            ct_index;
 };
 
-C2_INTERNAL void c2_emap_caret_init(struct c2_emap_caret *car,
-				    struct c2_emap_cursor *it,
-				    c2_bindex_t index);
-C2_INTERNAL void c2_emap_caret_fini(struct c2_emap_caret *car);
-C2_INTERNAL int c2_emap_caret_move(struct c2_emap_caret *car,
-				   c2_bcount_t count);
+M0_INTERNAL void m0_emap_caret_init(struct m0_emap_caret *car,
+				    struct m0_emap_cursor *it,
+				    m0_bindex_t index);
+M0_INTERNAL void m0_emap_caret_fini(struct m0_emap_caret *car);
+M0_INTERNAL int m0_emap_caret_move(struct m0_emap_caret *car,
+				   m0_bcount_t count);
 
-C2_INTERNAL c2_bcount_t c2_emap_caret_step(const struct c2_emap_caret *car);
+M0_INTERNAL m0_bcount_t m0_emap_caret_step(const struct m0_emap_caret *car);
 
 /** @} end group extmap */
 
-/* __COLIBRI_DB_EXTMAP_H__ */
+/* __MERO_DB_EXTMAP_H__ */
 #endif
 
 /*

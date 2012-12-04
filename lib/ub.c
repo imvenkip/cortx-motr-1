@@ -26,7 +26,7 @@
 #include <sys/time.h>  /* gettimeofday */
 #include <math.h>      /* sqrt */
 
-#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/misc.h"   /* M0_SET0 */
 #include "lib/assert.h"
 #include "lib/arith.h"
 #include "lib/ub.h"
@@ -36,11 +36,11 @@
    @{
  */
 
-static struct c2_ub_set *last = NULL;
+static struct m0_ub_set *last = NULL;
 
-C2_INTERNAL void c2_ub_set_add(struct c2_ub_set *set)
+M0_INTERNAL void m0_ub_set_add(struct m0_ub_set *set)
 {
-	C2_ASSERT(set->us_prev == NULL);
+	M0_ASSERT(set->us_prev == NULL);
 
 	set->us_prev = last;
 	last = set;
@@ -82,12 +82,12 @@ double delay(const struct timeval *start, const struct timeval *end)
 {
 	struct timeval diff;
 
-	C2_SET0(&diff);
+	M0_SET0(&diff);
 	timeval_diff(start, end, &diff);
 	return diff.tv_sec + ((double)diff.tv_usec)/1000000;
 }
 
-static void ub_run_one(const struct c2_ub_set *set, struct c2_ub_bench *bench)
+static void ub_run_one(const struct m0_ub_set *set, struct m0_ub_bench *bench)
 {
 	uint32_t       i;
 	struct timeval start;
@@ -110,11 +110,11 @@ static void ub_run_one(const struct c2_ub_set *set, struct c2_ub_bench *bench)
 	bench->ut_min = min_type(double, bench->ut_min, sec);
 }
 
-C2_INTERNAL void c2_ub_run(uint32_t rounds)
+M0_INTERNAL void m0_ub_run(uint32_t rounds)
 {
 	uint32_t            i;
-	struct c2_ub_set   *set;
-	struct c2_ub_bench *bench;
+	struct m0_ub_set   *set;
+	struct m0_ub_bench *bench;
 
 	for (set = last; set != NULL; set = set->us_prev) {
 		for (bench = &set->us_run[0]; bench->ut_name; bench++) {

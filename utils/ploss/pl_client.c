@@ -56,8 +56,8 @@ static int ping_delay    = 0;
 void plprog_ping_1(CLIENT *clnt)
 {
 	enum clnt_stat retval;
-	struct c2_pl_ping_res result;
-	struct c2_pl_ping ping;
+	struct m0_pl_ping_res result;
+	struct m0_pl_ping ping;
 
         while (1) {
                 ping.seqno = ++ping_seqno;
@@ -165,9 +165,9 @@ main (int argc, char *argv[])
 
         if (have_config) {      /* config mode */
                 enum clnt_stat retval;
-                struct c2_pl_config config;
-                struct c2_pl_config_res config_res;
-                c2_pl_config_reply *reply = &config_res.body;
+                struct m0_pl_config config;
+                struct m0_pl_config_res config_res;
+                m0_pl_config_reply *reply = &config_res.body;
 
                 if (have_interval)
                         fprintf(stderr, "in config mode, interval will be ignored\n");
@@ -189,7 +189,7 @@ main (int argc, char *argv[])
                                 fprintf(stderr, "Set prop error due to %s\n", strerror(reply->res));
                         else
                                 fprintf(stdout, "The original config value for propability is %lu\n",
-                                        (unsigned long)reply->c2_pl_config_reply_u.config_value);
+                                        (unsigned long)reply->m0_pl_config_reply_u.config_value);
                 }
 
                 if (have_delay) {
@@ -210,7 +210,7 @@ main (int argc, char *argv[])
                                 fprintf(stderr, "Set delay error due to %s\n", strerror(reply->res));
                         else
                                 fprintf(stdout, "The original config value for delay is %lu\n",
-                                        (unsigned long)reply->c2_pl_config_reply_u.config_value);
+                                        (unsigned long)reply->m0_pl_config_reply_u.config_value);
                 }
 
                 if (have_verbose) {
@@ -230,7 +230,7 @@ main (int argc, char *argv[])
                                 fprintf(stderr, "Set verbose error due to %s\n", strerror(reply->res));
                         else
                                 fprintf(stdout, "The original config value for verbose is %lu\n",
-                                        (unsigned long)reply->c2_pl_config_reply_u.config_value);
+                                        (unsigned long)reply->m0_pl_config_reply_u.config_value);
                 }
         } else {        /* ping mode */
                 if (have_verbose)

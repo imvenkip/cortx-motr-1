@@ -22,15 +22,15 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_ITEM_H__
-#define __COLIBRI_RPC_ITEM_H__
+#ifndef __MERO_RPC_ITEM_H__
+#define __MERO_RPC_ITEM_H__
 
-#include "lib/types.h"             /* c2_bcount_t */
+#include "lib/types.h"             /* m0_bcount_t */
 #include "lib/tlist.h"
 #include "lib/list.h"
 #include "lib/time.h"
-#include "sm/sm.h"                 /* c2_sm */
-#include "rpc/rpc_onwire.h"        /* c2_rpc_onwire_slot_ref */
+#include "sm/sm.h"                 /* m0_sm */
+#include "rpc/rpc_onwire.h"        /* m0_rpc_onwire_slot_ref */
 
 /**
    @addtogroup rpc
@@ -39,83 +39,83 @@
  */
 
 /* Imports */
-struct c2_rpc_slot;
-struct c2_rpc_session;
-struct c2_bufvec_cursor;
-struct c2_rpc_frm;
+struct m0_rpc_slot;
+struct m0_rpc_session;
+struct m0_bufvec_cursor;
+struct m0_rpc_frm;
 
 /* Forward declarations */
-struct c2_rpc_item_ops;
-struct c2_rpc_item_type;
+struct m0_rpc_item_ops;
+struct m0_rpc_item_type;
 
-enum c2_rpc_item_priority {
-	C2_RPC_ITEM_PRIO_MIN,
-	C2_RPC_ITEM_PRIO_MID,
-	C2_RPC_ITEM_PRIO_MAX,
-	C2_RPC_ITEM_PRIO_NR
+enum m0_rpc_item_priority {
+	M0_RPC_ITEM_PRIO_MIN,
+	M0_RPC_ITEM_PRIO_MID,
+	M0_RPC_ITEM_PRIO_MAX,
+	M0_RPC_ITEM_PRIO_NR
 };
 
-enum c2_rpc_item_state {
-	C2_RPC_ITEM_UNINITIALISED,
-	C2_RPC_ITEM_INITIALISED,
+enum m0_rpc_item_state {
+	M0_RPC_ITEM_UNINITIALISED,
+	M0_RPC_ITEM_INITIALISED,
 	/**
 	 * On sender side when a bound item is posted to RPC, the item
 	 * is kept in slot's item stream. The item remains in this state
 	 * until slot forwards this item to formation.
 	 * @see __slot_balance()
 	 */
-	C2_RPC_ITEM_WAITING_IN_STREAM,
+	M0_RPC_ITEM_WAITING_IN_STREAM,
 	/**
 	 * Item is in one of the WAITING_ queues maintained by formation.
 	 * The item is waiting to be selected by formation machine for sending
 	 * on the network.
 	 */
-	C2_RPC_ITEM_ENQUEUED,
+	M0_RPC_ITEM_ENQUEUED,
 	/*
 	 * Deadline of item is expired.
 	 * Item is in one of URGENT_* queues maintained by formation.
 	 * Formation should send the item as early as possible.
 	 */
-	C2_RPC_ITEM_URGENT,
+	M0_RPC_ITEM_URGENT,
 	/**
 	 * Item is serialised in a network buffer and the buffer is submitted
 	 * to network layer for sending.
 	 */
-	C2_RPC_ITEM_SENDING,
+	M0_RPC_ITEM_SENDING,
 	/**
 	 * The item is successfully placed on the network.
 	 * Note that it does not state anything about whether the item is
 	 * received or not.
 	 */
-	C2_RPC_ITEM_SENT,
+	M0_RPC_ITEM_SENT,
 	/**
 	 * Only request items which are successfully sent over the wire
 	 * can be in this state. Request item in this state is expecting a
 	 * reply.
 	 */
-	C2_RPC_ITEM_WAITING_FOR_REPLY,
+	M0_RPC_ITEM_WAITING_FOR_REPLY,
 	/**
 	 * When a reply is received for a request item, RPC moves the request
 	 * item to REPLIED state.
 	 */
-	C2_RPC_ITEM_REPLIED,
+	M0_RPC_ITEM_REPLIED,
 	/**
 	 * Received item is valid and is accepted.
 	 */
-	C2_RPC_ITEM_ACCEPTED,
+	M0_RPC_ITEM_ACCEPTED,
 	/**
 	 * Operation is timedout.
 	 */
-	C2_RPC_ITEM_TIMEDOUT,
+	M0_RPC_ITEM_TIMEDOUT,
 	/**
 	 * Item is failed.
 	 */
-	C2_RPC_ITEM_FAILED,
-	C2_RPC_ITEM_NR_STATES,
+	M0_RPC_ITEM_FAILED,
+	M0_RPC_ITEM_NR_STATES,
 };
 
 /** Stages of item in slot */
-enum c2_rpc_item_stage {
+enum m0_rpc_item_stage {
 	/** the reply for the item was received and the receiver confirmed
 	    that the item is persistent */
 	RPC_ITEM_STAGE_PAST_COMMITTED = 1,
@@ -139,32 +139,32 @@ enum {
 };
 
 /**
-   slot_ref object establishes association between c2_rpc_item and
-   c2_rpc_slot. Upto MAX_SLOT_REF number of c2_rpc_slot_ref objects are
-   embeded with c2_rpc_item.
+   slot_ref object establishes association between m0_rpc_item and
+   m0_rpc_slot. Upto MAX_SLOT_REF number of m0_rpc_slot_ref objects are
+   embeded with m0_rpc_item.
    At the time item is associated with a slot, values of few slot fields are
    copied into slot_ref.
  */
-struct c2_rpc_slot_ref {
+struct m0_rpc_slot_ref {
 	/** sr_slot and sr_item identify two ends of association */
-	struct c2_rpc_slot           *sr_slot;
+	struct m0_rpc_slot           *sr_slot;
 
-	struct c2_rpc_item           *sr_item;
+	struct m0_rpc_item           *sr_item;
 
-	struct c2_rpc_onwire_slot_ref sr_ow;
+	struct m0_rpc_onwire_slot_ref sr_ow;
 
-	/** Anchor to put item on c2_rpc_slot::sl_item_list
+	/** Anchor to put item on m0_rpc_slot::sl_item_list
 	    List descriptor: slot_item
 	 */
-	struct c2_tlink               sr_link;
+	struct m0_tlink               sr_link;
 };
 
 /**
    RPC item direction.
  */
-enum c2_rpc_item_dir {
-	C2_RPC_ITEM_INCOMING,
-	C2_RPC_ITEM_OUTGOING,
+enum m0_rpc_item_dir {
+	M0_RPC_ITEM_INCOMING,
+	M0_RPC_ITEM_OUTGOING,
 };
 
 /**
@@ -172,54 +172,54 @@ enum c2_rpc_item_dir {
    included in every item being sent via RPC layer core to emulate relationship
    similar to inheritance and to allow extening the set of rpc_items without
    modifying core rpc headers.
-   @see c2_fop.
+   @see m0_fop.
  */
-struct c2_rpc_item {
-	enum c2_rpc_item_priority	 ri_prio;
-	c2_time_t			 ri_deadline;
-	struct c2_sm_timeout             ri_deadline_to;
-	c2_time_t                        ri_op_timeout;
-	struct c2_sm_timeout             ri_timeout;
-	struct c2_sm                     ri_sm;
-	enum c2_rpc_item_stage		 ri_stage;
+struct m0_rpc_item {
+	enum m0_rpc_item_priority	 ri_prio;
+	m0_time_t			 ri_deadline;
+	struct m0_sm_timeout             ri_deadline_to;
+	m0_time_t                        ri_op_timeout;
+	struct m0_sm_timeout             ri_timeout;
+	struct m0_sm                     ri_sm;
+	enum m0_rpc_item_stage		 ri_stage;
 	uint64_t			 ri_flags;
-	struct c2_rpc_session		*ri_session;
-	struct c2_rpc_slot_ref		 ri_slot_refs[MAX_SLOT_REF];
-	/** Anchor to put item on c2_rpc_session::s_unbound_items list */
-	struct c2_list_link		 ri_unbound_link;
+	struct m0_rpc_session		*ri_session;
+	struct m0_rpc_slot_ref		 ri_slot_refs[MAX_SLOT_REF];
+	/** Anchor to put item on m0_rpc_session::s_unbound_items list */
+	struct m0_list_link		 ri_unbound_link;
 	int32_t				 ri_error;
 	/** Pointer to the type object for this item */
-	const struct c2_rpc_item_type	*ri_type;
+	const struct m0_rpc_item_type	*ri_type;
 	/** reply item */
-	struct c2_rpc_item		*ri_reply;
+	struct m0_rpc_item		*ri_reply;
 	/** item operations */
-	const struct c2_rpc_item_ops	*ri_ops;
+	const struct m0_rpc_item_ops	*ri_ops;
 	/** Time spent in rpc layer. */
-	c2_time_t			 ri_rpc_time;
+	m0_time_t			 ri_rpc_time;
 	/** List of compound items. */
-	struct c2_tl			 ri_compound_items;
+	struct m0_tl			 ri_compound_items;
 	/** Link through which items are anchored on list of
-	    c2_rpc_item:ri_compound_items. */
-	struct c2_tlink			 ri_field;
-	/** Link in one of c2_rpc_frm::f_itemq[] list.
+	    m0_rpc_item:ri_compound_items. */
+	struct m0_tlink			 ri_field;
+	/** Link in one of m0_rpc_frm::f_itemq[] list.
 	    List descriptor: itemq
 	 */
-	struct c2_tlink                  ri_iq_link;
-	/** Link in RPC packet. c2_rpc_packet::rp_items
+	struct m0_tlink                  ri_iq_link;
+	/** Link in RPC packet. m0_rpc_packet::rp_items
 	    List descriptor: packet_item.
 	    XXX An item cannot be in itemq and in packet at the same time.
 	    Hence iff needed ri_iq_link and ri_plink can be replaced with
 	    just one tlink.
 	 */
-	struct c2_tlink                  ri_plink;
-	/** One of c2_rpc_frm::f_itemq[], in which this item is placed. */
-	struct c2_tl                    *ri_itemq;
-	struct c2_rpc_frm               *ri_frm;
-	/** C2_RPC_ITEM_MAGIC */
+	struct m0_tlink                  ri_plink;
+	/** One of m0_rpc_frm::f_itemq[], in which this item is placed. */
+	struct m0_tl                    *ri_itemq;
+	struct m0_rpc_frm               *ri_frm;
+	/** M0_RPC_ITEM_MAGIC */
 	uint64_t			 ri_magic;
 };
 
-struct c2_rpc_item_ops {
+struct m0_rpc_item_ops {
 	/**
 	   RPC layer executes this callback when,
 	   - item is sent over the network;
@@ -230,7 +230,7 @@ struct c2_rpc_item_ops {
 
 	   IMP: Called with rpc-machine mutex held. Do not reenter in RPC.
 	 */
-	void (*rio_sent)(struct c2_rpc_item *item);
+	void (*rio_sent)(struct m0_rpc_item *item);
 	/**
 	   RPC layer executes this callback only for request items when,
 	   - a reply is received to the request item;
@@ -239,119 +239,125 @@ struct c2_rpc_item_ops {
 
 	   IMP: Called with rpc-machine mutex held. Do not reenter in RPC.
 	 */
-	void (*rio_replied)(struct c2_rpc_item *item);
+	void (*rio_replied)(struct m0_rpc_item *item);
 
 	/**
 	   RPC triggers this callback to free the item.
-	   Implementation should call c2_rpc_item_fini() on the item.
+	   Implementation should call m0_rpc_item_fini() on the item.
 	   Note: item->ri_sm is already finalised.
 
-	   @see c2_fop_default_item_ops
-	   @see c2_fop_item_free(), can be used with fops that are not embedded
+	   @see m0_fop_default_item_ops
+	   @see m0_fop_item_free(), can be used with fops that are not embedded
 	   in any other object.
 	 */
-	void (*rio_free)(struct c2_rpc_item *item);
+	void (*rio_free)(struct m0_rpc_item *item);
 };
 
-C2_INTERNAL void c2_rpc_item_init(struct c2_rpc_item *item,
-				  const struct c2_rpc_item_type *itype);
+M0_INTERNAL void m0_rpc_item_init(struct m0_rpc_item *item,
+				  const struct m0_rpc_item_type *itype);
 
-C2_INTERNAL void c2_rpc_item_fini(struct c2_rpc_item *item);
+M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item);
 
-C2_INTERNAL c2_bcount_t c2_rpc_item_onwire_header_size(void);
+/** Increments item's reference counter. */
+M0_INTERNAL void m0_rpc_item_get(struct m0_rpc_item *item);
 
-C2_INTERNAL c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item);
-C2_INTERNAL struct c2_rpc_machine *item_machine(const struct c2_rpc_item *item);
+/** Decrements item's reference counter. */
+M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item);
 
-C2_INTERNAL int c2_rpc_item_timedwait(struct c2_rpc_item *item,
-				      uint64_t states, c2_time_t timeout);
+M0_INTERNAL m0_bcount_t m0_rpc_item_onwire_header_size(void);
 
-C2_INTERNAL int c2_rpc_item_wait_for_reply(struct c2_rpc_item *item,
-					   c2_time_t timeout);
+M0_INTERNAL m0_bcount_t m0_rpc_item_size(const struct m0_rpc_item *item);
+M0_INTERNAL struct m0_rpc_machine *item_machine(const struct m0_rpc_item *item);
 
-C2_INTERNAL void c2_rpc_item_free(struct c2_rpc_item *item);
+M0_INTERNAL int m0_rpc_item_timedwait(struct m0_rpc_item *item,
+				      uint64_t states, m0_time_t timeout);
+
+M0_INTERNAL int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item,
+					   m0_time_t timeout);
+
+M0_INTERNAL void m0_rpc_item_free(struct m0_rpc_item *item);
 
 /** @todo: different callbacks called on events occured while processing
    in update stream */
-struct c2_rpc_item_type_ops {
+struct m0_rpc_item_type_ops {
 	/**
 	   Find out the size of rpc payload.
 	 */
-	c2_bcount_t (*rito_payload_size)(const struct c2_rpc_item *item);
+	m0_bcount_t (*rito_payload_size)(const struct m0_rpc_item *item);
 
 	/**
 	  Return true iff item1 and item2 are equal.
 	 */
-	bool (*rito_eq)(const struct c2_rpc_item *i1,
-			const struct c2_rpc_item *i2);
+	bool (*rito_eq)(const struct m0_rpc_item *i1,
+			const struct m0_rpc_item *i2);
 
 	/**
 	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
-	void (*rito_io_coalesce)(struct c2_rpc_item *head,
-				 struct c2_list *list, uint64_t size);
+	void (*rito_io_coalesce)(struct m0_rpc_item *head,
+				 struct m0_list *list, uint64_t size);
 
 	/**
 	   Serialise item at location given by cur.
 	 */
-	int (*rito_encode)(const struct c2_rpc_item_type *item_type,
-		           struct c2_rpc_item *item,
-	                   struct c2_bufvec_cursor *cur);
+	int (*rito_encode)(const struct m0_rpc_item_type *item_type,
+		           struct m0_rpc_item *item,
+	                   struct m0_bufvec_cursor *cur);
 	/**
 	   Create in memory item from serialised representation of item
 	 */
-	int (*rito_decode)(const struct c2_rpc_item_type *item_type,
-			   struct c2_rpc_item **item,
-			   struct c2_bufvec_cursor *cur);
+	int (*rito_decode)(const struct m0_rpc_item_type *item_type,
+			   struct m0_rpc_item **item,
+			   struct m0_bufvec_cursor *cur);
 
-	bool (*rito_try_merge)(struct c2_rpc_item *container,
-			       struct c2_rpc_item *component,
-			       c2_bcount_t         limit);
+	bool (*rito_try_merge)(struct m0_rpc_item *container,
+			       struct m0_rpc_item *component,
+			       m0_bcount_t         limit);
 };
 
 /**
-   Possible values for c2_rpc_item_type::rit_flags.
-   Flags C2_RPC_ITEM_TYPE_REQUEST, C2_RPC_ITEM_TYPE_REPLY and
-   C2_RPC_ITEM_TYPE_ONEWAY are mutually exclusive.
+   Possible values for m0_rpc_item_type::rit_flags.
+   Flags M0_RPC_ITEM_TYPE_REQUEST, M0_RPC_ITEM_TYPE_REPLY and
+   M0_RPC_ITEM_TYPE_ONEWAY are mutually exclusive.
  */
-enum c2_rpc_item_type_flags {
+enum m0_rpc_item_type_flags {
 	/** Receiver of item is expected to send reply to item of this type */
-	C2_RPC_ITEM_TYPE_REQUEST = 1,
+	M0_RPC_ITEM_TYPE_REQUEST = 1,
 	/**
-	  Item of this type is reply to some item of C2_RPC_ITEM_TYPE_REQUEST
+	  Item of this type is reply to some item of M0_RPC_ITEM_TYPE_REQUEST
 	  type.
 	*/
-	C2_RPC_ITEM_TYPE_REPLY = (1 << 1),
+	M0_RPC_ITEM_TYPE_REPLY = (1 << 1),
 	/**
 	  This is a one-way item. There is no reply for this type of
 	  item
 	*/
-	C2_RPC_ITEM_TYPE_ONEWAY = (1 << 2),
+	M0_RPC_ITEM_TYPE_ONEWAY = (1 << 2),
 	/**
 	  Item of this type can modify file-system state on receiver.
 	*/
-	C2_RPC_ITEM_TYPE_MUTABO = (1 << 3)
+	M0_RPC_ITEM_TYPE_MUTABO = (1 << 3)
 };
 
 /**
    Type of an RPC item.
-   There is an instance of c2_rpc_item_type for each value of rit_opcode.
+   There is an instance of m0_rpc_item_type for each value of rit_opcode.
  */
-struct c2_rpc_item_type {
+struct m0_rpc_item_type {
 	/** Unique operation code. */
 	uint32_t			   rit_opcode;
 	/** Operations that can be performed on the type */
-	const struct c2_rpc_item_type_ops *rit_ops;
-	/** @see c2_rpc_item_type_flags */
+	const struct m0_rpc_item_type_ops *rit_ops;
+	/** @see m0_rpc_item_type_flags */
 	uint64_t			   rit_flags;
-	/** Linkage into rpc item types list (c2_rpc_item_types_list) */
-	struct c2_tlink			   rit_linkage;
+	/** Linkage into rpc item types list (m0_rpc_item_types_list) */
+	struct m0_tlink			   rit_linkage;
 	/** Magic no for the item type struct */
 	uint64_t			   rit_magic;
 };
 
-#define C2_RPC_ITEM_TYPE_DEF(itype, opcode, flags, ops)  \
-struct c2_rpc_item_type (itype) = {                      \
+#define M0_RPC_ITEM_TYPE_DEF(itype, opcode, flags, ops)  \
+struct m0_rpc_item_type (itype) = {                      \
 	.rit_opcode = (opcode),                          \
 	.rit_flags = (flags),                            \
 	.rit_ops = (ops)                                 \
@@ -364,14 +370,14 @@ struct c2_rpc_item_type (itype) = {                      \
 
   @param item_type The rpc item type to be registered.
 */
-C2_INTERNAL int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type);
+M0_INTERNAL int m0_rpc_item_type_register(struct m0_rpc_item_type *item_type);
 
 /** De-registers an rpc item type by deleting the corresponding entry in the
     rpc item types list.
 
     @param item_type The rpc item type to be deregistered.
 */
-C2_INTERNAL void c2_rpc_item_type_deregister(struct c2_rpc_item_type
+M0_INTERNAL void m0_rpc_item_type_deregister(struct m0_rpc_item_type
 					     *item_type);
 
 /** Returns a pointer to rpc item type registered for an opcode
@@ -380,7 +386,7 @@ C2_INTERNAL void c2_rpc_item_type_deregister(struct c2_rpc_item_type
   @retval Pointer to the rpc item type for that opcode.
   @retval NULL if the item type is not registered.
 */
-C2_INTERNAL struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
+M0_INTERNAL struct m0_rpc_item_type *m0_rpc_item_type_lookup(uint32_t opcode);
 
 #endif
 

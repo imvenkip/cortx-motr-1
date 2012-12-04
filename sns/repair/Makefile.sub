@@ -1,9 +1,9 @@
-nobase_colibri_include_HEADERS += sns/repair/ag.h \
+nobase_mero_include_HEADERS += sns/repair/ag.h \
                                   sns/repair/cm.h \
                                   sns/repair/cp.h \
                                   sns/repair/iter.h
 
-colibri_libcolibri_la_SOURCES  += sns/repair/ag.c \
+mero_libmero_la_SOURCES  += sns/repair/ag.c \
                                   sns/repair/ag.h \
                                   sns/repair/cm.c \
                                   sns/repair/cm.h \

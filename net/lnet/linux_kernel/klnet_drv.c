@@ -53,8 +53,8 @@
    <hr>
    @section LNetDRVDLD-ovw Overview
 
-   The Colibri LNet Transport device provides user space access to the kernel
-   @ref LNetDLD "Colibri LNet Transport".  The
+   The Mero LNet Transport device provides user space access to the kernel
+   @ref LNetDLD "Mero LNet Transport".  The
    @ref ULNetCoreDLD "User Space Core" implementation uses the device to
    communicate with the @ref KLNetCoreDLD "Kernel Core".  The device
    provides a conduit through which information flows between the user space and
@@ -67,7 +67,7 @@
 
    Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
 1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD
-of Colibri LNet Transport</a>.
+of Mero LNet Transport</a>.
 
    - @b reference A reference to an object is stored in terms of a memory
      page and offset, rather than as a simple address pointer.
@@ -94,22 +94,22 @@ of Colibri LNet Transport</a>.
    <hr>
    @section LNetDRVDLD-req Requirements
 
-   - @b r.c2.net.xprt.lnet.user-space The implementation must
+   - @b r.m0.net.xprt.lnet.user-space The implementation must
      accommodate the needs of the user space LNet transport.
-   - @b r.c2.net.xprt.lnet.dev.pin-objects The implementation must pin
+   - @b r.m0.net.xprt.lnet.dev.pin-objects The implementation must pin
      shared objects in kernel memory to ensure they will not disappear while
      in use.
-   - @b r.c2.net.xprt.lnet.dev.resource-tracking The implementation must
+   - @b r.m0.net.xprt.lnet.dev.resource-tracking The implementation must
      track all shared resources and ensure they are released properly, even
      after a user space error.
-   - @b r.c2.net.xprt.lnet.dev.safe-sharing The implementation must ensure
+   - @b r.m0.net.xprt.lnet.dev.safe-sharing The implementation must ensure
      that references to shared object are valid.
-   - @b r.c2.net.xprt.lnet.dev.assert-free The implementation must ensure
+   - @b r.m0.net.xprt.lnet.dev.assert-free The implementation must ensure
      that the kernel module will not assert due to invalid shared state.
-   - @b r.c2.net.xprt.lnet.dev.minimal-mapping The implementation must avoid
+   - @b r.m0.net.xprt.lnet.dev.minimal-mapping The implementation must avoid
      mapping many kernel pages for long periods of time, avoiding excessive
      use of kernel high memory page map.
-   - @b r.c2.net.xprt.lnet.dev.addb The implementation must log significant
+   - @b r.m0.net.xprt.lnet.dev.addb The implementation must log significant
      events, such as device open, close and failures to ADDB.
 
    <hr>
@@ -121,7 +121,7 @@ of Colibri LNet Transport</a>.
        set to refer to the new @c nlx_kcore_buffer_event object.
      - The @c nlx_core_tm_start() function is changed to remove the @c cepa and
        @c epp parameters.  The @c cepa parameter is always the same as the
-       @c lctm->ctm_addr.  The Core API does not use a @c c2_net_end_point,
+       @c lctm->ctm_addr.  The Core API does not use a @c m0_net_end_point,
        so setting the @c epp at the core layer was inappropriate.  The LNet XO
        layer, which does use the end point, is modified to allocate this
        end point in the @c nlx_tm_ev_worker() logic itself.
@@ -132,7 +132,7 @@ of Colibri LNet Transport</a>.
        @c nlx_core_buffer_event), this requires that an allocation wrapper
        function, @c nlx_core_mem_alloc(), be added to the Core Interface,
        implemented separately in the kernel and user transports, because the
-       kernel transport has no such limitation and the @c c2_alloc_aligned()
+       kernel transport has no such limitation and the @c m0_alloc_aligned()
        API, which could be used to satisfy this requirement, requires page
        aligned data or greater in kernel space.  A corresponding
        @c nlx_core_mem_free() is required to free the allocated memory.
@@ -149,12 +149,12 @@ of Colibri LNet Transport</a>.
    - @ref KLNetCore "LNet Transport Core Kernel Private Interface" <!--
        ./lnet_core.h --> <br>
      Several modifications are required in this interface:
-     - The kernel core interfaces that initialize objects with @c c2_addb_ctx
+     - The kernel core interfaces that initialize objects with @c m0_addb_ctx
        members must be changed such that their parent is the
        @c nlx_kcore_domain::kd_addb ADDB context.  The initialization of the
        @c nlx_kcore_domain object must be changed such that its parent is the
-       @c ::c2_net_addb context.  The parent of an ADDB context must be in the
-       same address space, so kernel core objects cannot depend on c2_net layer
+       @c ::m0_net_addb context.  The parent of an ADDB context must be in the
+       same address space, so kernel core objects cannot depend on m0_net layer
        objects as parents, because such objects can be in user space.
      - The kernel core objects with back pointers to the corresponding
        core objects must be changed to remove these pointers and replace them
@@ -182,7 +182,7 @@ of Colibri LNet Transport</a>.
        @c nlx_kcore_umd_init() respectively.  This allows the lnet event
        callback to execute without using the @c nlx_core_buffer.
        All other uses of the MD @c user_ptr field must be changed accordingly.
-     - Various blocks of @c C2_PRE() assertions used to validate shared objects
+     - Various blocks of @c M0_PRE() assertions used to validate shared objects
        before they are referenced should be refactored into new invariant-style
        functions so the driver can perform the checks and return an error
        without causing an kernel assertion.
@@ -195,7 +195,7 @@ of Colibri LNet Transport</a>.
    - The device provides ioctl-based access to the Kernel LNet Core Interface.
    - Ioctl requests correspond roughly to the
      @ref LNetCore "LNet Transport Core APIs".
-   - Each user space @c c2_net_domain corresponds to opening a separate
+   - Each user space @c m0_net_domain corresponds to opening a separate
      file descriptor.
    - The device driver tracks all resources associated with the file descriptor.
    - Well-defined patterns are used for sharing new resources between user
@@ -234,7 +234,7 @@ of Colibri LNet Transport</a>.
 
    @see <a href="https://docs.google.com/a/xyratex.com/document/d/
 1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD
-of Colibri LNet Transport</a>,
+of Mero LNet Transport</a>,
    specifically the Design Highlights component diagram.
 
    For reference, the relationship between the various components of the LNet
@@ -248,17 +248,17 @@ of Colibri LNet Transport</a>,
    @subsection LNetDRVDLD-lspec-dev Device Setup and Shutdown
 
    The LNet device is registered with the kernel using the @c nlx_dev_init()
-   function when the Colibri Kernel module is loaded.  This function is
+   function when the Mero Kernel module is loaded.  This function is
    called by the existing @c nlx_core_init() function.  The function performs
    the following tasks.
    - It registers the device with the kernel.  The device is registered as
-     a miscellaneous device named "c2lnet".  As such, registration causes the
-     device to appear as "/dev/c2lnet" in the device file system.
+     a miscellaneous device named "m0lnet".  As such, registration causes the
+     device to appear as "/dev/m0lnet" in the device file system.
    - Sets a flag, @c ::nlx_dev_registered, denoting successful device
      registration.
 
    The LNet device is deregistered with the kernel using the @c nlx_dev_fini()
-   function when the Colibri Kernel module is unloaded.  This function is
+   function when the Mero Kernel module is unloaded.  This function is
    called by the existing @c nlx_core_fini() function.  The function performs
    the following task.
    - If device registration was performed successfully, deregisters the
@@ -319,7 +319,7 @@ of Colibri LNet Transport</a>,
    still contains the shared object.  Each shared core object is required to fit
    within a single page to simplify mapping and sharing.  The user space
    transport must ensure this requirement is met when it allocates core objects.
-   Note that the pages of the @c c2_bufvec segments are not part of the shared
+   Note that the pages of the @c m0_bufvec segments are not part of the shared
    @c nlx_core_buffer; they are referenced by the associated @c nlx_kcore_buffer
    object and are never mapped by the driver or kernel core layers.
 
@@ -354,7 +354,7 @@ of Colibri LNet Transport</a>,
 
    The LNet Transport Device Driver is first accessed during domain
    initialization.  The @ref ULNetCoreDLD-lspec-dominit "user space core"
-   opens the device and performs an initial @c #C2_LNET_DOM_INIT ioctl request.
+   opens the device and performs an initial @c #M0_LNET_DOM_INIT ioctl request.
 
    In the kernel, the @c open() and @c ioctl() system calls are handled by
    the @c nlx_dev_open() and @c nlx_dev_ioctl() subroutines, respectively.
@@ -379,7 +379,7 @@ of Colibri LNet Transport</a>,
      will occur.
    - The @c nlx_core_domain is initialized by @c nlx_kcore_ops::ko_dom_init().
    - The output parameters of the ioctl request, the three buffer size maximum
-     values, are set in the provided @c c2_lnet_dev_dom_init_params object.
+     values, are set in the provided @c m0_lnet_dev_dom_init_params object.
    - The @c nlx_core_domain is unmapped (it remains pinned).
    - The @c nlx_kcore_domain::kd_drv_mutex() is unlocked.
 
@@ -425,18 +425,18 @@ of Colibri LNet Transport</a>,
    @subsection LNetDRVDLD-lspec-reg Buffer Registration and Deregistration
 
    While registering a buffer, the user space core performs a
-   @c #C2_LNET_BUF_REGISTER ioctl request.
+   @c #M0_LNET_BUF_REGISTER ioctl request.
 
    The @c nlx_dev_ioctl() subroutine uses the helper function
    @c nlx_dev_ioctl_buf_register() to complete kernel buffer registration.
    The following tasks are performed.
    - The parameters are validated to ensure no assertions will occur.
-   - The @c c2_bufvec::ov_buf and @c c2_bufvec::ov_vec::v_count are copied in,
+   - The @c m0_bufvec::ov_buf and @c m0_bufvec::ov_vec::v_count are copied in,
      temporarily (to avoid issues of either list crossing page boundaries that
      might occur by mapping the pages directly), and the corresponding fields
-     of the @c c2_lnet_dev_buf_register_params::dbr_bvec is updated to refer
+     of the @c m0_lnet_dev_buf_register_params::dbr_bvec is updated to refer
      to the copies.
-   - The @c nlx_core_buffer, @c c2_lnet_dev_buf_register_params::dbr_lcbuf,
+   - The @c nlx_core_buffer, @c m0_lnet_dev_buf_register_params::dbr_lcbuf,
      is pinned in kernel memory.
    - Information required to map the @c nlx_core_buffer is saved in the
      @c nlx_kcore_buffer::kb_cb_loc.
@@ -452,10 +452,10 @@ of Colibri LNet Transport</a>,
    - The @c nlx_kcore_buffer is added to the @c nlx_kcore_domain::kd_drv_bufs
      list.
    - Memory allocated for the temporary copies in the
-     @c c2_lnet_dev_buf_register_params::dbr_bvec are freed.
+     @c m0_lnet_dev_buf_register_params::dbr_bvec are freed.
 
    While deregistering a buffer, the user space core performs a
-   @c #C2_LNET_BUF_DEREGISTER ioctl request.
+   @c #M0_LNET_BUF_DEREGISTER ioctl request.
 
    The @c nlx_dev_ioctl() subroutine uses the helper function
    @c nlx_dev_ioctl_buf_deregister() to complete kernel buffer deregistration.
@@ -474,7 +474,7 @@ of Colibri LNet Transport</a>,
 
    The @c nlx_core_new_blessed_bev() helper allocates and blesses buffer event
    objects.  In user space, blessing the object requires interacting with the
-   kernel by way of the @c #C2_LNET_BEV_BLESS ioctl request.
+   kernel by way of the @c #M0_LNET_BEV_BLESS ioctl request.
 
    The @c nlx_dev_ioctl() subroutine uses the helper function
    @c nlx_dev_ioctl_bev_bless() to complete blessing the buffer event object.
@@ -500,7 +500,7 @@ of Colibri LNet Transport</a>,
    @subsection LNetDRVDLD-lspec-tmstart Starting a Transfer Machine
 
    While starting a transfer machine, the user space core performs a
-   @c #C2_LNET_TM_START ioctl request.
+   @c #M0_LNET_TM_START ioctl request.
 
    The @c nlx_dev_ioctl() subroutine uses the helper function
    @c nlx_dev_ioctl_tm_start() to complete starting the transfer machine.
@@ -523,7 +523,7 @@ of Colibri LNet Transport</a>,
    @subsection LNetDRVDLD-lspec-tmstop Stopping a Transfer Machine
 
    While stopping a transfer machine, the user space core performs a
-   @c #C2_LNET_TM_STOP ioctl request.
+   @c #M0_LNET_TM_STOP ioctl request.
 
    The @c nlx_dev_ioctl() subroutine uses the helper function
    @c nlx_dev_ioctl_tm_stop() to complete stopping the transfer machine.
@@ -543,18 +543,18 @@ of Colibri LNet Transport</a>,
    Several LNet core interfaces operate on buffers and transfer machine queues.
    In all user transport cases, the shared objects, @c nlx_core_buffer and
    @c nlx_core_transfer_mc, must have been previously shared with the kernel,
-   through use of the @c #C2_LNET_BUF_REGISTER and @c #C2_LNET_TM_START ioctl
+   through use of the @c #M0_LNET_BUF_REGISTER and @c #M0_LNET_TM_START ioctl
    requests, respectively.
 
    The ioctl requests available to the user space core for managing
    buffers and transfer machine buffer queues are as follows.
-   - @c #C2_LNET_BUF_MSG_RECV
-   - @c #C2_LNET_BUF_MSG_SEND
-   - @c #C2_LNET_BUF_ACTIVE_RECV
-   - @c #C2_LNET_BUF_ACTIVE_SEND
-   - @c #C2_LNET_BUF_PASSIVE_RECV
-   - @c #C2_LNET_BUF_PASSIVE_SEND
-   - @c #C2_LNET_BUF_DEL
+   - @c #M0_LNET_BUF_MSG_RECV
+   - @c #M0_LNET_BUF_MSG_SEND
+   - @c #M0_LNET_BUF_ACTIVE_RECV
+   - @c #M0_LNET_BUF_ACTIVE_SEND
+   - @c #M0_LNET_BUF_PASSIVE_RECV
+   - @c #M0_LNET_BUF_PASSIVE_SEND
+   - @c #M0_LNET_BUF_DEL
 
    The ioctl requests are handled by the following helper functions,
    respectively.
@@ -583,7 +583,7 @@ of Colibri LNet Transport</a>,
    @subsection LNetDRVDLD-lspec-event Waiting for Buffer Events
 
    To wait for buffer events, the user space core performs a
-   @c #C2_LNET_BUF_EVENT_WAIT ioctl request.
+   @c #M0_LNET_BUF_EVENT_WAIT ioctl request.
 
    The @c nlx_dev_ioctl() subroutine uses the helper function
    @c nlx_dev_ioctl_buf_event_wait() to perform the wait operation.
@@ -594,8 +594,8 @@ of Colibri LNet Transport</a>,
 
    @subsection LNetDRVDLD-lspec-nids Node Identifier Support
 
-   The user space core uses the @c #C2_LNET_NIDSTR_DECODE and
-   @c #C2_LNET_NIDSTR_ENCODE requests to decode and encode NID strings,
+   The user space core uses the @c #M0_LNET_NIDSTR_DECODE and
+   @c #M0_LNET_NIDSTR_ENCODE requests to decode and encode NID strings,
    respectively.
 
    The @c nlx_dev_ioctl() subroutine uses the helper function
@@ -615,7 +615,7 @@ of Colibri LNet Transport</a>,
    - The @c libcfs_nid2str() function is called to convert the string to a NID.
    - The resulting string is copied to the @c dn_buf field.
 
-   The user space core uses the @c #C2_LNET_NIDSTRS_GET to obtain the
+   The user space core uses the @c #M0_LNET_NIDSTRS_GET to obtain the
    list of NID strings for the local LNet interfaces.
 
    The @c nlx_dev_ioctl() subroutine uses the helper function
@@ -640,7 +640,7 @@ of Colibri LNet Transport</a>,
    @subsection LNetDRVDLD-lspec-state State Specification
 
    The LNet device driver does not introduce its own state model but operates
-   within the frameworks defined by the Colibri Networking Module and the Kernel
+   within the frameworks defined by the Mero Networking Module and the Kernel
    device driver interface.  In general, resources are pinned and allocated when
    an object is first shared with the kernel by the user space process and
    are freed and unpinned when the user space requests.  To ensure there is no
@@ -656,8 +656,8 @@ of Colibri LNet Transport</a>,
    Each @c nlx_kcore_domain object has 2 valid states which can be determined
    by inspecting the @c nlx_kcore_domain::kd_cd_loc field:
    - @c nlx_core_kmem_loc_is_empty(&kd_cd_loc): The device is newly opened
-   and the @c #C2_LNET_DOM_INIT ioctl request has not yet been performed.
-   - @c nlx_core_kmem_loc_invariant(&kd_cd_loc): The @c #C2_LNET_DOM_INIT
+   and the @c #M0_LNET_DOM_INIT ioctl request has not yet been performed.
+   - @c nlx_core_kmem_loc_invariant(&kd_cd_loc): The @c #M0_LNET_DOM_INIT
    ioctl request has been performed, associating it with a @c nlx_core_domain
    object.  In this state, the @c nlx_kcore_domain is ready for use and remains
    in this state until finalized.
@@ -680,7 +680,7 @@ of Colibri LNet Transport</a>,
    @c nlx_kcore_domain::kd_drv_bufs and @c nlx_kcore_transfer_mc::ktm_drv_bevs.
 
    The mutex may also be used to serialize driver ioctl requests, such as in
-   the case of @c #C2_LNET_DOM_INIT.
+   the case of @c #M0_LNET_DOM_INIT.
 
    The driver mutex must be obtained before any other Net or Kernel Core mutex.
 
@@ -705,22 +705,22 @@ of Colibri LNet Transport</a>,
    <hr>
    @section LNetDRVDLD-conformance Conformance
 
-   - @b i.c2.net.xprt.lnet.user-space The @ref LNetDRVDLD-lspec covers how
+   - @b i.m0.net.xprt.lnet.user-space The @ref LNetDRVDLD-lspec covers how
      each LNet Core operation in user space can be implemented using the
      driver ioctl requests.
-   - @b i.c2.net.xprt.lnet.dev.pin-objects See @ref LNetDRVDLD-lspec-dominit,
+   - @b i.m0.net.xprt.lnet.dev.pin-objects See @ref LNetDRVDLD-lspec-dominit,
      @ref LNetDRVDLD-lspec-reg, @ref LNetDRVDLD-lspec-bev,
      @ref LNetDRVDLD-lspec-tmstart.
-   - @b i.c2.net.xprt.lnet.dev.resource-tracking
+   - @b i.m0.net.xprt.lnet.dev.resource-tracking
      See @ref LNetDRVDLD-lspec-domfini.
-   - @b i.c2.net.xprt.lnet.dev.safe-sharing See @ref LNetDRVDLD-lspec-ioctl,
+   - @b i.m0.net.xprt.lnet.dev.safe-sharing See @ref LNetDRVDLD-lspec-ioctl,
      specifically the paragraph covering the use of pinned pages.
-   - @b i.c2.net.xprt.lnet.dev.assert-free See @ref LNetDRVDLD-lspec-ioctl.
-   - @b i.c2.net.xprt.lnet.dev.minimal-mapping None of the work flows in the
+   - @b i.m0.net.xprt.lnet.dev.assert-free See @ref LNetDRVDLD-lspec-ioctl.
+   - @b i.m0.net.xprt.lnet.dev.minimal-mapping None of the work flows in the
      @ref LNetDRVDLD-lspec require that objects remain mapped across ioctl
      calls.  The @ref LNetDRVDLD-lspec-ioctl calls for use of @c kmap_atomic()
      when possible.
-   - @b i.c2.net.xprt.lnet.dev.addb See @ref LNetDRVDLD-lspec-dominit,
+   - @b i.m0.net.xprt.lnet.dev.addb See @ref LNetDRVDLD-lspec-dominit,
      @ref LNetDRVDLD-lspec-domfini, @ref LNetDRVDLD-lspec-ioctl.
 
    <hr>
@@ -732,27 +732,27 @@ of Colibri LNet Transport</a>,
    Even so, some tests are most easily performed by coordinating user space
    code with kernel unit tests.  The following strategy will be used:
    - When the LNet unit test suite is initialized in the kernel, it creates
-     a /proc/c2_lnet_ut file, registering read and write file operations.
+     a /proc/m0_lnet_ut file, registering read and write file operations.
    - The kernel UT waits (e.g. on a condition variable with a timeout) for
      the user space program to synchronize.  It may time out and fail the UT
      if the user space program does not synchronize quickly enough, e.g. after
      a few seconds.
    - A user space program is started concurrently with the kernel unit tests.
-   - The user space program waits for the /proc/c2_lnet_ut to appear.
-   - The user space program writes a message to the /proc/c2_lnet_ut to
+   - The user space program waits for the /proc/m0_lnet_ut to appear.
+   - The user space program writes a message to the /proc/m0_lnet_ut to
      synchronize with the kernel unit test.
-   - The write system call operation registered for /proc/c2_lnet_ut signals
+   - The write system call operation registered for /proc/m0_lnet_ut signals
      the condition variable that the kernel UT is waiting on.
    - The user space program loops.
-     - The user space program reads the /proc/c2_lnet_ut for instructions.
+     - The user space program reads the /proc/m0_lnet_ut for instructions.
      - Each instruction tells the user space program which test to perform;
        there is a special instruction to tell the user space program the
        unit test is complete.
      - The user space program writes the test result back.
    - When the LNet unit test suite is finalized in the kernel, the
-     /proc/c2_lnet_ut file is removed.
+     /proc/m0_lnet_ut file is removed.
 
-   While ioctl requests on the /dec/c2lnet device could be used for such
+   While ioctl requests on the /dec/m0lnet device could be used for such
    coordination, this would result in unit test code being mixed into the
    production code.  The use of a /proc file for coordinating unit tests
    ensures this is not the case.
@@ -822,26 +822,26 @@ Greg Kroah-Hartman, 2005</a>
 Jonathan Corbet, 2005</a>
    - <a href="https://docs.google.com/a/xyratex.com/document/d/
 1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD
-of Colibri LNet Transport</a>
+of Mero LNet Transport</a>
    - @ref LNetDLD "LNet Transport DLD"
    - @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
    - @ref KLNetCoreDLD "LNet Transport Kernel Space Core DLD"
  */
 
-C2_BASSERT(sizeof(struct nlx_xo_domain) < PAGE_SIZE);
-C2_BASSERT(sizeof(struct nlx_xo_transfer_mc) < PAGE_SIZE);
-C2_BASSERT(sizeof(struct nlx_xo_buffer) < PAGE_SIZE);
-C2_BASSERT(sizeof(struct nlx_core_buffer_event) < PAGE_SIZE);
+M0_BASSERT(sizeof(struct nlx_xo_domain) < PAGE_SIZE);
+M0_BASSERT(sizeof(struct nlx_xo_transfer_mc) < PAGE_SIZE);
+M0_BASSERT(sizeof(struct nlx_xo_buffer) < PAGE_SIZE);
+M0_BASSERT(sizeof(struct nlx_core_buffer_event) < PAGE_SIZE);
 
 /* LNET_NIDSTR_SIZE is only defined in the kernel */
-C2_BASSERT(C2_NET_LNET_NIDSTR_SIZE == LNET_NIDSTR_SIZE);
+M0_BASSERT(M0_NET_LNET_NIDSTR_SIZE == LNET_NIDSTR_SIZE);
 
-static C2_ADDB_EV_DEFINE(nlx_addb_dev_open,  "nlx_dev_open",
-			 C2_ADDB_EVENT_NET_LNET_OPEN,  C2_ADDB_STAMP);
-static C2_ADDB_EV_DEFINE(nlx_addb_dev_close, "nlx_dev_close",
-			 C2_ADDB_EVENT_NET_LNET_CLOSE, C2_ADDB_STAMP);
-static C2_ADDB_EV_DEFINE(nlx_addb_dev_cleanup, "nlx_dev_cleanup",
-			 C2_ADDB_EVENT_NET_LNET_CLEANUP, C2_ADDB_FLAG);
+static M0_ADDB_EV_DEFINE(nlx_addb_dev_open,  "nlx_dev_open",
+			 M0_ADDB_EVENT_NET_LNET_OPEN,  M0_ADDB_STAMP);
+static M0_ADDB_EV_DEFINE(nlx_addb_dev_close, "nlx_dev_close",
+			 M0_ADDB_EVENT_NET_LNET_CLOSE, M0_ADDB_STAMP);
+static M0_ADDB_EV_DEFINE(nlx_addb_dev_cleanup, "nlx_dev_cleanup",
+			 M0_ADDB_EVENT_NET_LNET_CLEANUP, M0_ADDB_FLAG);
 
 /**
    @defgroup LNetDevInternal LNet Transport Device Internals
@@ -863,7 +863,7 @@ static C2_ADDB_EV_DEFINE(nlx_addb_dev_cleanup, "nlx_dev_cleanup",
    set on success.
  */
 static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
-				  struct c2_lnet_dev_dom_init_params *p)
+				  struct m0_lnet_dev_dom_init_params *p)
 
 {
 	struct page *pg;
@@ -871,9 +871,9 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 	uint32_t off = NLX_PAGE_OFFSET((unsigned long) p->ddi_cd);
 	int rc;
 
-	c2_mutex_lock(&kd->kd_drv_mutex);
+	m0_mutex_lock(&kd->kd_drv_mutex);
 	if (!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc)) {
-		c2_mutex_unlock(&kd->kd_drv_mutex);
+		m0_mutex_unlock(&kd->kd_drv_mutex);
 		return -EBADR;
 	}
 	if (off + sizeof *cd > PAGE_SIZE)
@@ -885,7 +885,7 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 	up_read(&current->mm->mmap_sem);
 
 	if (rc >= 0) {
-		C2_ASSERT(rc == 1);
+		M0_ASSERT(rc == 1);
 		nlx_core_kmem_loc_set(&kd->kd_cd_loc, pg, off);
 		cd = nlx_kcore_core_domain_map(kd);
 		rc = kd->kd_drv_ops->ko_dom_init(kd, cd);
@@ -896,14 +896,14 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 			    nlx_core_get_max_buffer_segment_size(cd);
 			p->ddi_max_buffer_segments =
 			    nlx_core_get_max_buffer_segments(cd);
-			C2_ASSERT(nlx_kcore_domain_invariant(kd));
-			C2_ASSERT(!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc));
+			M0_ASSERT(nlx_kcore_domain_invariant(kd));
+			M0_ASSERT(!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc));
 		}
 		nlx_kcore_core_domain_unmap(kd);
 	}
 	if (rc < 0)
 		LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
-	c2_mutex_unlock(&kd->kd_drv_mutex);
+	m0_mutex_unlock(&kd->kd_drv_mutex);
 	return rc;
 }
 
@@ -913,15 +913,15 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
    @param p Ioctl request parameters.
  */
 static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
-				      struct c2_lnet_dev_buf_register_params *p)
+				      struct m0_lnet_dev_buf_register_params *p)
 {
 	struct page *pg;
 	struct nlx_core_buffer *cb;
 	struct nlx_kcore_buffer *kb;
 	uint32_t off = NLX_PAGE_OFFSET((unsigned long) p->dbr_lcbuf);
-	c2_bcount_t sz;
+	m0_bcount_t sz;
 	void **buf;
-	c2_bcount_t *count;
+	m0_bcount_t *count;
 	int n = p->dbr_bvec.ov_vec.v_nr;
 	int rc;
 
@@ -929,10 +929,10 @@ static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
 		return -EBADR;
 	if (p->dbr_buffer_id == 0)
 		return -EBADR;
-	C2_ALLOC_ARR_ADDB(buf, n, &kd->kd_addb, &nlx_addb_loc);
+	M0_ALLOC_ARR_ADDB(buf, n, &kd->kd_addb, &nlx_addb_loc);
 	if (buf == NULL)
 		return -ENOMEM;
-	C2_ALLOC_ARR_ADDB(count, n, &kd->kd_addb, &nlx_addb_loc);
+	M0_ALLOC_ARR_ADDB(count, n, &kd->kd_addb, &nlx_addb_loc);
 	if (count == NULL) {
 		rc = -ENOMEM;
 		goto fail_count;
@@ -950,12 +950,12 @@ static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
 		goto fail_copy;
 	}
 
-	C2_ALLOC_PTR_ADDB(kb, &kd->kd_addb, &nlx_addb_loc);
+	M0_ALLOC_PTR_ADDB(kb, &kd->kd_addb, &nlx_addb_loc);
 	if (kb == NULL) {
 		rc = -ENOMEM;
 		goto fail_copy;
 	}
-	kb->kb_magic = C2_NET_LNET_KCORE_BUF_MAGIC;
+	kb->kb_magic = M0_NET_LNET_KCORE_BUF_MAGIC;
 
 	down_read(&current->mm->mmap_sem);
 	rc = WRITABLE_USER_PAGE_GET(p->dbr_lcbuf, pg);
@@ -980,14 +980,14 @@ static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
 	if (rc != 0)
 		goto fail_kiov;
 
-	C2_ASSERT(kb->kb_kiov != NULL && kb->kb_kiov_len > 0);
-	C2_POST(nlx_kcore_buffer_invariant(cb->cb_kpvt));
+	M0_ASSERT(kb->kb_kiov != NULL && kb->kb_kiov_len > 0);
+	M0_POST(nlx_kcore_buffer_invariant(cb->cb_kpvt));
 	nlx_kcore_core_buffer_unmap(kb);
-	c2_mutex_lock(&kd->kd_drv_mutex);
+	m0_mutex_lock(&kd->kd_drv_mutex);
 	drv_bufs_tlist_add(&kd->kd_drv_bufs, kb);
-	c2_mutex_unlock(&kd->kd_drv_mutex);
-	c2_free(count);
-	c2_free(buf);
+	m0_mutex_unlock(&kd->kd_drv_mutex);
+	m0_free(count);
+	m0_free(buf);
 	return 0;
 
 fail_kiov:
@@ -997,12 +997,12 @@ fail_cb:
 	WRITABLE_USER_PAGE_PUT(kb->kb_cb_loc.kl_page);
 fail_page:
 	kb->kb_magic = 0;
-	c2_free(kb);
+	m0_free(kb);
 fail_copy:
-	c2_free(count);
+	m0_free(count);
 fail_count:
-	c2_free(buf);
-	C2_ASSERT(rc < 0);
+	m0_free(buf);
+	M0_ASSERT(rc < 0);
 	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
 	return rc;
 }
@@ -1031,15 +1031,15 @@ static int nlx_dev_buf_deregister(struct nlx_kcore_domain *kd,
 
 	if (!nlx_kcore_buffer_invariant(kb))
 		return -EBADR;
-	c2_mutex_lock(&kd->kd_drv_mutex);
+	m0_mutex_lock(&kd->kd_drv_mutex);
 	drv_bufs_tlist_del(kb);
-	c2_mutex_unlock(&kd->kd_drv_mutex);
+	m0_mutex_unlock(&kd->kd_drv_mutex);
 	nlx_dev_buf_pages_unpin(kb);
 	cb = nlx_kcore_core_buffer_map(kb);
 	kd->kd_drv_ops->ko_buf_deregister(cb, kb);
 	nlx_kcore_core_buffer_unmap(kb);
 	WRITABLE_USER_PAGE_PUT(kb->kb_cb_loc.kl_page);
-	c2_free(kb);
+	m0_free(kb);
 	return 0;
 }
 
@@ -1049,7 +1049,7 @@ static int nlx_dev_buf_deregister(struct nlx_kcore_domain *kd,
    @param p Ioctl request parameters.
  */
 static int nlx_dev_ioctl_buf_deregister(struct nlx_kcore_domain *kd,
-				   struct c2_lnet_dev_buf_deregister_params *p)
+				   struct m0_lnet_dev_buf_deregister_params *p)
 {
 	struct nlx_kcore_buffer *kb = p->dbd_kb;
 
@@ -1065,7 +1065,7 @@ static int nlx_dev_ioctl_buf_deregister(struct nlx_kcore_domain *kd,
    @param op Buffer queue operation to perform.
  */
 static int nlx_dev_ioctl_buf_queue_op(
-				  const struct c2_lnet_dev_buf_queue_params *p,
+				  const struct m0_lnet_dev_buf_queue_params *p,
 				  nlx_kcore_queue_op_t op)
 {
 	struct nlx_kcore_transfer_mc *ktm = p->dbq_ktm;
@@ -1073,7 +1073,7 @@ static int nlx_dev_ioctl_buf_queue_op(
 	struct nlx_core_buffer *cb;
 	int rc;
 
-	C2_PRE(op != NULL);
+	M0_PRE(op != NULL);
 	if (!virt_addr_valid(ktm) || !virt_addr_valid(kb))
 		return -EBADR;
 	if (!nlx_kcore_tm_invariant(ktm))
@@ -1096,7 +1096,7 @@ static int nlx_dev_ioctl_buf_queue_op(
    @param p Ioctl request parameters.
  */
 static int nlx_dev_ioctl_buf_del(const struct nlx_kcore_domain *kd,
-				 const struct c2_lnet_dev_buf_queue_params *p)
+				 const struct m0_lnet_dev_buf_queue_params *p)
 {
 	struct nlx_kcore_transfer_mc *ktm = p->dbq_ktm;
 	struct nlx_kcore_buffer *kb = p->dbq_kb;
@@ -1116,7 +1116,7 @@ static int nlx_dev_ioctl_buf_del(const struct nlx_kcore_domain *kd,
    @param p Ioctl request parameters.
  */
 static int nlx_dev_ioctl_buf_event_wait(const struct nlx_kcore_domain *kd,
-			     const struct c2_lnet_dev_buf_event_wait_params *p)
+			     const struct m0_lnet_dev_buf_event_wait_params *p)
 {
 	struct nlx_kcore_transfer_mc *ktm = p->dbw_ktm;
 	struct nlx_core_transfer_mc *ctm;
@@ -1139,20 +1139,20 @@ static int nlx_dev_ioctl_buf_event_wait(const struct nlx_kcore_domain *kd,
 
 /**
    Decodes a NID string into a NID.
-   @param p Ioctl request parameters. The c2_lnet_dev_nid_encdec_params::dn_nid
+   @param p Ioctl request parameters. The m0_lnet_dev_nid_encdec_params::dn_nid
    field is set on success.
  */
-static int nlx_dev_ioctl_nidstr_decode(struct c2_lnet_dev_nid_encdec_params *p)
+static int nlx_dev_ioctl_nidstr_decode(struct m0_lnet_dev_nid_encdec_params *p)
 {
 	return nlx_kcore_nidstr_decode(p->dn_buf, &p->dn_nid);
 }
 
 /**
    Encodes a NID into a NID string.
-   @param p Ioctl request parameters. The c2_lnet_dev_nid_encdec_params::dn_buf
+   @param p Ioctl request parameters. The m0_lnet_dev_nid_encdec_params::dn_buf
    field is set on success.
  */
-static int nlx_dev_ioctl_nidstr_encode(struct c2_lnet_dev_nid_encdec_params *p)
+static int nlx_dev_ioctl_nidstr_encode(struct m0_lnet_dev_nid_encdec_params *p)
 {
 	return nlx_kcore_nidstr_encode(p->dn_nid, p->dn_buf);
 }
@@ -1160,19 +1160,19 @@ static int nlx_dev_ioctl_nidstr_encode(struct c2_lnet_dev_nid_encdec_params *p)
 /**
    Gets the NID strings of all the local LNet interfaces.
    The NID strings are encoded consecutively in user space buffer denoted by
-   the c2_lnet_dev_nidstrs_get_params::dng_buf field as a sequence nul
+   the m0_lnet_dev_nidstrs_get_params::dng_buf field as a sequence nul
    terminated strings, with an final nul (string) terminating the list.
    @param kd The kernel domain object.
    @param p Ioctl request parameters.
    @retval -EFBIG if the strings do not fit in the provided buffer.
  */
 static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
-				     struct c2_lnet_dev_nidstrs_get_params *p)
+				     struct m0_lnet_dev_nidstrs_get_params *p)
 {
 	char * const *nidstrs;
 	int rc = nlx_kcore_nidstrs_get(&nidstrs);
 	char *buf;
-	c2_bcount_t sz;
+	m0_bcount_t sz;
 	int i;
 
 	if (rc != 0)
@@ -1183,7 +1183,7 @@ static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
 		nlx_kcore_nidstrs_put(&nidstrs);
 		return -EFBIG;
 	}
-	C2_ALLOC_ADDB(buf, sz, &kd->kd_addb, &nlx_addb_loc);
+	M0_ALLOC_ADDB(buf, sz, &kd->kd_addb, &nlx_addb_loc);
 	if (buf == NULL) {
 		nlx_kcore_nidstrs_put(&nidstrs);
 		return -ENOMEM;
@@ -1197,7 +1197,7 @@ static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
 		rc = -EFAULT;
 	else
 		rc = i;
-	c2_free(buf);
+	m0_free(buf);
 
 	return rc;
 }
@@ -1210,7 +1210,7 @@ static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
    @param p Ioctl request parameters.
  */
 static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
-				  struct c2_lnet_dev_tm_start_params *p)
+				  struct m0_lnet_dev_tm_start_params *p)
 {
 	struct page *pg;
 	struct nlx_core_transfer_mc *ctm;
@@ -1221,10 +1221,10 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 
 	if (off + sizeof *ctm > PAGE_SIZE)
 		return -EBADR;
-	C2_ALLOC_PTR_ADDB(ktm, &kd->kd_addb, &nlx_addb_loc);
+	M0_ALLOC_PTR_ADDB(ktm, &kd->kd_addb, &nlx_addb_loc);
 	if (ktm == NULL)
 		return -ENOMEM;
-	ktm->ktm_magic = C2_NET_LNET_KCORE_TM_MAGIC;
+	ktm->ktm_magic = M0_NET_LNET_KCORE_TM_MAGIC;
 
 	down_read(&current->mm->mmap_sem);
 	rc = WRITABLE_USER_PAGE_GET(utmp, pg);
@@ -1242,9 +1242,9 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 	if (rc != 0)
 		goto fail_ctm;
 	nlx_kcore_core_tm_unmap(ktm);
-	c2_mutex_lock(&kd->kd_drv_mutex);
+	m0_mutex_lock(&kd->kd_drv_mutex);
 	drv_tms_tlist_add(&kd->kd_drv_tms, ktm);
-	c2_mutex_unlock(&kd->kd_drv_mutex);
+	m0_mutex_unlock(&kd->kd_drv_mutex);
 	return 0;
 
 fail_ctm:
@@ -1252,8 +1252,8 @@ fail_ctm:
 	WRITABLE_USER_PAGE_PUT(ktm->ktm_ctm_loc.kl_page);
 fail_page:
 	ktm->ktm_magic = 0;
-	c2_free(ktm);
-	C2_ASSERT(rc != 0);
+	m0_free(ktm);
+	M0_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
 	return rc;
 }
@@ -1273,23 +1273,23 @@ static int nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
 
 	if (!nlx_kcore_tm_invariant(ktm))
 		return -EBADR;
-	c2_tl_for(drv_bevs, &ktm->ktm_drv_bevs, kbev) {
+	m0_tl_for(drv_bevs, &ktm->ktm_drv_bevs, kbev) {
 		WRITABLE_USER_PAGE_PUT(kbev->kbe_bev_loc.kl_page);
-		c2_mutex_lock(&kd->kd_drv_mutex);
+		m0_mutex_lock(&kd->kd_drv_mutex);
 		drv_bevs_tlist_del(kbev);
-		c2_mutex_unlock(&kd->kd_drv_mutex);
+		m0_mutex_unlock(&kd->kd_drv_mutex);
 		drv_bevs_tlink_fini(kbev);
-		c2_free(kbev);
-	} c2_tl_endfor;
-	c2_mutex_lock(&kd->kd_drv_mutex);
+		m0_free(kbev);
+	} m0_tl_endfor;
+	m0_mutex_lock(&kd->kd_drv_mutex);
 	drv_tms_tlist_del(ktm);
-	c2_mutex_unlock(&kd->kd_drv_mutex);
+	m0_mutex_unlock(&kd->kd_drv_mutex);
 
 	ctm = nlx_kcore_core_tm_map(ktm);
 	kd->kd_drv_ops->ko_tm_stop(ctm, ktm);
 	nlx_kcore_core_tm_unmap(ktm);
 	WRITABLE_USER_PAGE_PUT(ktm->ktm_ctm_loc.kl_page);
-	c2_free(ktm);
+	m0_free(ktm);
 	return 0;
 }
 
@@ -1299,7 +1299,7 @@ static int nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
    @param p Ioctl request parameters.
  */
 static int nlx_dev_ioctl_tm_stop(struct nlx_kcore_domain *kd,
-				 struct c2_lnet_dev_tm_stop_params *p)
+				 struct m0_lnet_dev_tm_stop_params *p)
 {
 	struct nlx_kcore_transfer_mc *ktm = p->dts_ktm;
 
@@ -1318,7 +1318,7 @@ static int nlx_dev_ioctl_tm_stop(struct nlx_kcore_domain *kd,
    @param p Ioctl request parameters.
  */
 static int nlx_dev_ioctl_bev_bless(struct nlx_kcore_domain *kd,
-				   struct c2_lnet_dev_bev_bless_params *p)
+				   struct m0_lnet_dev_bev_bless_params *p)
 {
 	struct page *pg;
 	struct nlx_kcore_transfer_mc *ktm = p->dbb_ktm;
@@ -1334,7 +1334,7 @@ static int nlx_dev_ioctl_bev_bless(struct nlx_kcore_domain *kd,
 	if (off + sizeof *cbe > PAGE_SIZE)
 		return -EBADR;
 
-	C2_ALLOC_PTR_ADDB(kbe, &kd->kd_addb, &nlx_addb_loc);
+	M0_ALLOC_PTR_ADDB(kbe, &kd->kd_addb, &nlx_addb_loc);
 	if (kbe == NULL)
 		return -ENOMEM;
 	drv_bevs_tlink_init(kbe);
@@ -1354,9 +1354,9 @@ static int nlx_dev_ioctl_bev_bless(struct nlx_kcore_domain *kd,
 	bev_link_bless(&cbe->cbe_tm_link, pg);
 	cbe->cbe_kpvt = kbe;
 	nlx_kcore_core_bev_unmap(kbe);
-	c2_mutex_lock(&kd->kd_drv_mutex);
+	m0_mutex_lock(&kd->kd_drv_mutex);
 	drv_bevs_tlist_add(&ktm->ktm_drv_bevs, kbe);
-	c2_mutex_unlock(&kd->kd_drv_mutex);
+	m0_mutex_unlock(&kd->kd_drv_mutex);
 	return 0;
 
 fail_cbe:
@@ -1365,14 +1365,14 @@ fail_cbe:
 fail_page:
 	drv_bevs_tlink_fini(kbe);
 	kbe->kbe_magic = 0;
-	c2_free(kbe);
-	C2_ASSERT(rc != 0);
+	m0_free(kbe);
+	M0_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
 	return rc;
 }
 
 /**
-   Performs an unlocked (BKL is not held) ioctl request on the c2lnet device.
+   Performs an unlocked (BKL is not held) ioctl request on the m0lnet device.
 
    @pre nlx_kcore_domain_invariant(file->private_data)
    @param file File instance, corresponding to the nlx_kcore_domain.
@@ -1386,25 +1386,25 @@ static long nlx_dev_ioctl(struct file *file,
 	struct nlx_kcore_domain *kd =
 	    (struct nlx_kcore_domain *) file->private_data;
 	union {
-		struct c2_lnet_dev_dom_init_params       dip;
-		struct c2_lnet_dev_tm_start_params       tsp;
-		struct c2_lnet_dev_tm_stop_params        tpp;
-		struct c2_lnet_dev_buf_register_params   brp;
-		struct c2_lnet_dev_buf_deregister_params bdp;
-		struct c2_lnet_dev_buf_queue_params      bqp;
-		struct c2_lnet_dev_buf_event_wait_params bep;
-		struct c2_lnet_dev_nid_encdec_params     nep;
-		struct c2_lnet_dev_nidstrs_get_params    ngp;
-		struct c2_lnet_dev_bev_bless_params      bbp;
+		struct m0_lnet_dev_dom_init_params       dip;
+		struct m0_lnet_dev_tm_start_params       tsp;
+		struct m0_lnet_dev_tm_stop_params        tpp;
+		struct m0_lnet_dev_buf_register_params   brp;
+		struct m0_lnet_dev_buf_deregister_params bdp;
+		struct m0_lnet_dev_buf_queue_params      bqp;
+		struct m0_lnet_dev_buf_event_wait_params bep;
+		struct m0_lnet_dev_nid_encdec_params     nep;
+		struct m0_lnet_dev_nidstrs_get_params    ngp;
+		struct m0_lnet_dev_bev_bless_params      bbp;
 	} p;
 	unsigned sz = _IOC_SIZE(cmd);
         int rc;
 
-	C2_PRE(nlx_kcore_domain_invariant(kd));
+	M0_PRE(nlx_kcore_domain_invariant(kd));
 
-        if (_IOC_TYPE(cmd) != C2_LNET_IOC_MAGIC ||
-            _IOC_NR(cmd) < C2_LNET_IOC_MIN_NR  ||
-            _IOC_NR(cmd) > C2_LNET_IOC_MAX_NR ||
+        if (_IOC_TYPE(cmd) != M0_LNET_IOC_MAGIC ||
+            _IOC_NR(cmd) < M0_LNET_IOC_MIN_NR  ||
+            _IOC_NR(cmd) > M0_LNET_IOC_MAX_NR ||
 	    sz > sizeof p) {
 		rc = -ENOTTY;
 		goto done;
@@ -1418,61 +1418,61 @@ static long nlx_dev_ioctl(struct file *file,
 	}
 
 	switch (cmd) {
-	case C2_LNET_DOM_INIT:
+	case M0_LNET_DOM_INIT:
 		rc = nlx_dev_ioctl_dom_init(kd, &p.dip);
 		break;
-	case C2_LNET_TM_START:
+	case M0_LNET_TM_START:
 		rc = nlx_dev_ioctl_tm_start(kd, &p.tsp);
 		break;
-	case C2_LNET_TM_STOP:
+	case M0_LNET_TM_STOP:
 		rc = nlx_dev_ioctl_tm_stop(kd, &p.tpp);
 		break;
-	case C2_LNET_BUF_REGISTER:
+	case M0_LNET_BUF_REGISTER:
 		rc = nlx_dev_ioctl_buf_register(kd, &p.brp);
 		break;
-	case C2_LNET_BUF_DEREGISTER:
+	case M0_LNET_BUF_DEREGISTER:
 		rc = nlx_dev_ioctl_buf_deregister(kd, &p.bdp);
 		break;
-	case C2_LNET_BUF_MSG_RECV:
+	case M0_LNET_BUF_MSG_RECV:
 		rc = nlx_dev_ioctl_buf_queue_op(&p.bqp,
 					      kd->kd_drv_ops->ko_buf_msg_recv);
 		break;
-	case C2_LNET_BUF_MSG_SEND:
+	case M0_LNET_BUF_MSG_SEND:
 		rc = nlx_dev_ioctl_buf_queue_op(&p.bqp,
 					      kd->kd_drv_ops->ko_buf_msg_send);
 		break;
-	case C2_LNET_BUF_ACTIVE_RECV:
+	case M0_LNET_BUF_ACTIVE_RECV:
 		rc = nlx_dev_ioctl_buf_queue_op(&p.bqp,
 					   kd->kd_drv_ops->ko_buf_active_recv);
 		break;
-	case C2_LNET_BUF_ACTIVE_SEND:
+	case M0_LNET_BUF_ACTIVE_SEND:
 		rc = nlx_dev_ioctl_buf_queue_op(&p.bqp,
 					   kd->kd_drv_ops->ko_buf_active_send);
 		break;
-	case C2_LNET_BUF_PASSIVE_RECV:
+	case M0_LNET_BUF_PASSIVE_RECV:
 		rc = nlx_dev_ioctl_buf_queue_op(&p.bqp,
 					  kd->kd_drv_ops->ko_buf_passive_recv);
 		break;
-	case C2_LNET_BUF_PASSIVE_SEND:
+	case M0_LNET_BUF_PASSIVE_SEND:
 		rc = nlx_dev_ioctl_buf_queue_op(&p.bqp,
 					  kd->kd_drv_ops->ko_buf_passive_send);
 		break;
-	case C2_LNET_BUF_DEL:
+	case M0_LNET_BUF_DEL:
 		rc = nlx_dev_ioctl_buf_del(kd, &p.bqp);
 		break;
-	case C2_LNET_BUF_EVENT_WAIT:
+	case M0_LNET_BUF_EVENT_WAIT:
 		rc = nlx_dev_ioctl_buf_event_wait(kd, &p.bep);
 		break;
-	case C2_LNET_BEV_BLESS:
+	case M0_LNET_BEV_BLESS:
 		rc = nlx_dev_ioctl_bev_bless(kd, &p.bbp);
 		break;
-	case C2_LNET_NIDSTR_DECODE:
+	case M0_LNET_NIDSTR_DECODE:
 		rc = nlx_dev_ioctl_nidstr_decode(&p.nep);
 		break;
-	case C2_LNET_NIDSTR_ENCODE:
+	case M0_LNET_NIDSTR_ENCODE:
 		rc = nlx_dev_ioctl_nidstr_encode(&p.nep);
 		break;
-	case C2_LNET_NIDSTRS_GET:
+	case M0_LNET_NIDSTRS_GET:
 		rc = nlx_dev_ioctl_nidstrs_get(kd, &p.ngp);
 		break;
 	default:
@@ -1492,11 +1492,11 @@ done:
 }
 
 /**
-   Open the /dev/c2lnet device.
+   Open the /dev/m0lnet device.
 
    There is a 1:1 correspondence between struct file objects and
-   nlx_kcore_domain objects.  Thus, user processes will open the c2lnet
-   device once for each c2_net_domain.
+   nlx_kcore_domain objects.  Thus, user processes will open the m0lnet
+   device once for each m0_net_domain.
    @param inode Inode object for the device.
    @param file File object for this instance.
  */
@@ -1510,13 +1510,13 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 	if ((file->f_flags & (O_RDWR|O_CLOEXEC)) != (O_RDWR|O_CLOEXEC))
 		return -EACCES;
 
-	C2_ALLOC_PTR_ADDB(kd, &c2_net_addb, &nlx_addb_loc);
+	M0_ALLOC_PTR_ADDB(kd, &m0_net_addb, &nlx_addb_loc);
 	if (kd == NULL)
 		return -ENOMEM;
 	rc = nlx_kcore_kcore_dom_init(kd);
 	if (rc != 0) {
-		c2_free(kd);
-		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, rc);
+		m0_free(kd);
+		LNET_ADDB_FUNCFAIL_ADD(m0_net_addb, rc);
 	} else {
 		file->private_data = kd;
 		NLX_ADDB_ADD(kd->kd_addb, nlx_addb_dev_open);
@@ -1537,7 +1537,7 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
    @param inode Device inode object.
    @param file File object being released.
  */
-C2_INTERNAL int nlx_dev_close(struct inode *inode, struct file *file)
+M0_INTERNAL int nlx_dev_close(struct inode *inode, struct file *file)
 {
 	struct nlx_kcore_domain *kd =
 	    (struct nlx_kcore_domain *) file->private_data;
@@ -1547,7 +1547,7 @@ C2_INTERNAL int nlx_dev_close(struct inode *inode, struct file *file)
 	bool cleanup = false;
 	int rc;
 
-	C2_PRE(nlx_kcore_domain_invariant(kd));
+	M0_PRE(nlx_kcore_domain_invariant(kd));
 	file->private_data = NULL;
 
 	/*
@@ -1556,7 +1556,7 @@ C2_INTERNAL int nlx_dev_close(struct inode *inode, struct file *file)
 	 * 2. Clean up (stop, et al) all running TMs, this can take a while.
 	 * 3. De-register all buffers.
 	 */
-	c2_tl_for(drv_bufs, &kd->kd_drv_bufs, kb) {
+	m0_tl_for(drv_bufs, &kd->kd_drv_bufs, kb) {
 		ktm = kb->kb_ktm;
 		if (ktm != NULL) {
 			/*
@@ -1567,8 +1567,8 @@ C2_INTERNAL int nlx_dev_close(struct inode *inode, struct file *file)
 			 */
 			nlx_kcore_LNetMDUnlink(ktm, kb);
 		}
-	} c2_tl_endfor;
-	c2_tl_for(drv_tms, &kd->kd_drv_tms, ktm) {
+	} m0_tl_endfor;
+	m0_tl_for(drv_tms, &kd->kd_drv_tms, ktm) {
 		/*
 		 * Wait until no more buffers are associated with this TM and
 		 * the event callback is no longer using the ktm.  Must be in
@@ -1584,30 +1584,30 @@ C2_INTERNAL int nlx_dev_close(struct inode *inode, struct file *file)
 		 *    unlock the spinlock, after up-ing ktm_sem.
 		 * 4. LNet events involving unlink are not dropped.
 		 */
-		c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
+		m0_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
 			spin_lock(&ktm->ktm_bevq_lock);
 			while (kb->kb_ktm == ktm) {
 				spin_unlock(&ktm->ktm_bevq_lock);
-				c2_semaphore_down(&ktm->ktm_sem);
+				m0_semaphore_down(&ktm->ktm_sem);
 				spin_lock(&ktm->ktm_bevq_lock);
 			}
 			spin_unlock(&ktm->ktm_bevq_lock);
-		} c2_tlist_endfor;
+		} m0_tlist_endfor;
 
 		rc = nlx_dev_tm_cleanup(kd, ktm);
-		C2_ASSERT(rc == 0);
+		M0_ASSERT(rc == 0);
 		cleanup = true;
-	} c2_tl_endfor;
-	c2_tl_for(drv_bufs, &kd->kd_drv_bufs, kb) {
+	} m0_tl_endfor;
+	m0_tl_for(drv_bufs, &kd->kd_drv_bufs, kb) {
 		rc = nlx_dev_buf_deregister(kd, kb);
-		C2_ASSERT(rc == 0);
+		M0_ASSERT(rc == 0);
 		cleanup = true;
-	} c2_tl_endfor;
+	} m0_tl_endfor;
 
 	if (cleanup)
 		NLX_ADDB_ADD(kd->kd_addb, nlx_addb_dev_cleanup, cleanup);
 
-	/* user program may not successfully perform C2_NET_DOM_INIT ioctl */
+	/* user program may not successfully perform M0_NET_DOM_INIT ioctl */
 	if (!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc)) {
 		cd = nlx_kcore_core_domain_map(kd);
 		kd->kd_drv_ops->ko_dom_fini(kd, cd);
@@ -1618,11 +1618,11 @@ C2_INTERNAL int nlx_dev_close(struct inode *inode, struct file *file)
 
 	NLX_ADDB_ADD(kd->kd_addb, nlx_addb_dev_close);
 	nlx_kcore_kcore_dom_fini(kd);
-	c2_free(kd);
+	m0_free(kd);
 	return 0;
 }
 
-/** File operations for the c2lnet device, UT can override. */
+/** File operations for the m0lnet device, UT can override. */
 static struct file_operations nlx_dev_file_ops = {
 	.owner          = THIS_MODULE,
         .unlocked_ioctl = nlx_dev_ioctl,
@@ -1632,13 +1632,13 @@ static struct file_operations nlx_dev_file_ops = {
 
 /**
    Device description.
-   The device is named /dev/c2lnet when nlx_dev_init() completes.
+   The device is named /dev/m0lnet when nlx_dev_init() completes.
    The major number is 10 (misc), and the minor number is assigned dynamically
    when misc_register() is called.
  */
 static struct miscdevice nlx_dev = {
         .minor   = MISC_DYNAMIC_MINOR,
-        .name    = C2_LNET_DEV,
+        .name    = M0_LNET_DEV,
         .fops    = &nlx_dev_file_ops
 };
 static bool nlx_dev_registered = false;
@@ -1650,31 +1650,31 @@ static bool nlx_dev_registered = false;
    @{
  */
 
-C2_INTERNAL int nlx_dev_init(void)
+M0_INTERNAL int nlx_dev_init(void)
 {
 	int rc;
 
 	rc = misc_register(&nlx_dev);
 	if (rc != 0) {
-		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, rc);
+		LNET_ADDB_FUNCFAIL_ADD(m0_net_addb, rc);
 		return rc;
 	}
 	nlx_dev_registered = true;
-	printk("Colibri %s registered with minor %d\n",
+	printk("Mero %s registered with minor %d\n",
 	       nlx_dev.name, nlx_dev.minor);
 	return rc;
 }
 
-C2_INTERNAL void nlx_dev_fini(void)
+M0_INTERNAL void nlx_dev_fini(void)
 {
 	int rc;
 
 	if (nlx_dev_registered) {
 		rc = misc_deregister(&nlx_dev);
 		if (rc != 0)
-			LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, rc);
+			LNET_ADDB_FUNCFAIL_ADD(m0_net_addb, rc);
 		nlx_dev_registered = false;
-		printk("Colibri %s deregistered\n", nlx_dev.name);
+		printk("Mero %s deregistered\n", nlx_dev.name);
 	}
 }
 

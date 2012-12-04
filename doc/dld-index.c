@@ -4,13 +4,13 @@
 
 Detailed designs, ordered alphabetically:
 
-- @subpage c2t1fs "C2T1FS detailed level design specification"
-           <!-- c2t1fs/main.c -->
+- @subpage m0t1fs "M0T1FS detailed level design specification"
+           <!-- m0t1fs/linux_kernel/m0t1fs.h -->
 - @subpage conf
            <!-- conf/obj.c -->
 - @subpage DLD_conf_schema "DLD for configuration schema"
            <!-- cfg/cfg.h -->
-- @subpage c2_long_lock-dld "FOM Long lock DLD"
+- @subpage m0_long_lock-dld "FOM Long lock DLD"
            <!-- fop/fom_long_lock.h -->
 - @subpage CMDLD "Copy Machine DLD"
            <!-- cm/cm.c -->
@@ -20,7 +20,7 @@ Detailed designs, ordered alphabetically:
            <!-- layout/layout_db.c -->
 - @subpage LNetDLD "LNet Transport DLD"
            <!-- net/lnet/lnet_main.c -->
-- @subpage net-test "Colibri Network Benchmark"
+- @subpage net-test "Mero Network Benchmark"
            <!-- net/test/main.c -->
 - @subpage rpc-layer-core-dld "RPC layer core DLD"
            <!-- rpc/rpc.h -->
@@ -34,13 +34,13 @@ Detailed designs, ordered alphabetically:
            <!-- ioservice/io_fops.c -->
 - @subpage DLD-bulk-server "DLD of Bulk Server"
            <!-- ioservice/io_foms.c -->
-- @subpage c2loop-dld "The new c2loop device driver DLD"
-           <!-- c2t1fs/linux_kernel/c2loop.c -->
+- @subpage m0loop-dld "The new m0loop device driver DLD"
+           <!-- m0t1fs/linux_kernel/m0loop.c -->
 - @subpage rmw_io_dld "DLD for read-modify-write IO requests"
-           <!-- c2t1fs/linux_kernel/file_internal.h -->
+           <!-- m0t1fs/linux_kernel/file_internal.h -->
 
-Detailed designs should use the <i>@subpage DLD "Colibri DLD Template"
+Detailed designs should use the <i>@subpage DLD "Mero DLD Template"
 <!-- doc/dld-template.c --> </i> as a style guide.
-Higher level designs can be found in the <a href="https://docs.google.com/a/xyratex.com/#folders/0B-6nd3Xo8hzBZGJlNjE2NTctZDA1OC00NTIyLWJhOGItM2U5MTc2MjJjODNm">Colibri Design Folder</a>.
+Higher level designs can be found in the <a href="https://docs.google.com/a/xyratex.com/#folders/0B-6nd3Xo8hzBZGJlNjE2NTctZDA1OC00NTIyLWJhOGItM2U5MTc2MjJjODNm">Mero Design Folder</a>.
 
  */

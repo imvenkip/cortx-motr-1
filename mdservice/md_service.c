@@ -24,61 +24,60 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-
-#include "colibri/magic.h"
+#include "mero/magic.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
 #include "mdservice/md_service.h"
 #include "mdservice/md_fops.h"
 
 /* ADDB context for mds. */
-static struct c2_addb_ctx mds_addb_ctx;
+static struct m0_addb_ctx mds_addb_ctx;
 
 /* ADDB location for mds. */
-static const struct c2_addb_loc mds_addb_loc = {
+static const struct m0_addb_loc mds_addb_loc = {
         .al_name = "md_service",
 };
 
 /* ADDB context type for mds. */
-static const struct c2_addb_ctx_type mds_addb_ctx_type = {
+static const struct m0_addb_ctx_type mds_addb_ctx_type = {
         .act_name = "md_service",
 };
 
-static int mds_allocate(struct c2_reqh_service_type *stype,
-                        struct c2_reqh_service **service);
-static void mds_fini(struct c2_reqh_service *service);
+static int mds_allocate(struct m0_reqh_service_type *stype,
+                        struct m0_reqh_service **service);
+static void mds_fini(struct m0_reqh_service *service);
 
-static int mds_start(struct c2_reqh_service *service);
-static void mds_stop(struct c2_reqh_service *service);
+static int mds_start(struct m0_reqh_service *service);
+static void mds_stop(struct m0_reqh_service *service);
 
 /**
  * MD Service type operations.
  */
-static const struct c2_reqh_service_type_ops mds_type_ops = {
+static const struct m0_reqh_service_type_ops mds_type_ops = {
         .rsto_service_allocate = mds_allocate
 };
 
 /**
  * MD Service operations.
  */
-static const struct c2_reqh_service_ops mds_ops = {
+static const struct m0_reqh_service_ops mds_ops = {
         .rso_start = mds_start,
         .rso_stop  = mds_stop,
         .rso_fini  = mds_fini
 };
 
-C2_REQH_SERVICE_TYPE_DECLARE(c2_mds_type, &mds_type_ops, "mdservice");
+M0_REQH_SERVICE_TYPE_DEFINE(m0_mds_type, &mds_type_ops, "mdservice");
 
-C2_INTERNAL int c2_mds_register(void)
+M0_INTERNAL int m0_mds_register(void)
 {
-        c2_reqh_service_type_register(&c2_mds_type);
-        return c2_mdservice_fop_init();
+        m0_reqh_service_type_register(&m0_mds_type);
+        return m0_mdservice_fop_init();
 }
 
-C2_INTERNAL void c2_mds_unregister(void)
+M0_INTERNAL void m0_mds_unregister(void)
 {
-        c2_reqh_service_type_unregister(&c2_mds_type);
-        c2_mdservice_fop_fini();
+        m0_reqh_service_type_unregister(&m0_mds_type);
+        m0_mdservice_fop_fini();
 }
 
 /**
@@ -91,27 +90,26 @@ C2_INTERNAL void c2_mds_unregister(void)
  *
  * @pre stype != NULL && service != NULL
  */
-static int mds_allocate(struct c2_reqh_service_type *stype,
-                        struct c2_reqh_service **service)
+static int mds_allocate(struct m0_reqh_service_type *stype,
+                        struct m0_reqh_service **service)
 {
-        struct c2_reqh_service    *serv;
-        struct c2_reqh_md_service *serv_obj;
+        struct m0_reqh_service    *serv;
+        struct m0_reqh_md_service *serv_obj;
 
-        C2_PRE(stype != NULL && service != NULL);
+        M0_PRE(stype != NULL && service != NULL);
 
-        c2_addb_ctx_init(&mds_addb_ctx, &mds_addb_ctx_type,
-                         &c2_addb_global_ctx);
+        m0_addb_ctx_init(&mds_addb_ctx, &mds_addb_ctx_type,
+                         &m0_addb_global_ctx);
 
-        C2_ALLOC_PTR_ADDB(serv_obj, &mds_addb_ctx, &mds_addb_loc);
+        M0_ALLOC_PTR_ADDB(serv_obj, &mds_addb_ctx, &mds_addb_loc);
         if (serv_obj == NULL)
                 return -ENOMEM;
 
-        serv_obj->rmds_magic = C2_MDS_REQH_SVC_MAGIC;
+        serv_obj->rmds_magic = M0_MDS_REQH_SVC_MAGIC;
         serv = &serv_obj->rmds_gen;
 
         serv->rs_type = stype;
         serv->rs_ops = &mds_ops;
-
         *service = serv;
 
         return 0;
@@ -125,50 +123,40 @@ static int mds_allocate(struct c2_reqh_service_type *stype,
  *
  * @pre service != NULL
  */
-static void mds_fini(struct c2_reqh_service *service)
+static void mds_fini(struct m0_reqh_service *service)
 {
-        struct c2_reqh_md_service *serv_obj;
+        struct m0_reqh_md_service *serv_obj;
 
-        C2_PRE(service != NULL);
+        M0_PRE(service != NULL);
 
-        c2_addb_ctx_fini(&mds_addb_ctx);
+        m0_addb_ctx_fini(&mds_addb_ctx);
 
-        serv_obj = container_of(service, struct c2_reqh_md_service, rmds_gen);
-        c2_free(serv_obj);
+        serv_obj = container_of(service, struct m0_reqh_md_service, rmds_gen);
+        m0_free(serv_obj);
 }
 
 /**
  * Start MD Service.
- * - Mount local storage
- *
  * @param service pointer to service instance.
  *
  * @pre service != NULL
  */
-static int mds_start(struct c2_reqh_service *service)
+static int mds_start(struct m0_reqh_service *service)
 {
         int rc = 0;
-
-        C2_PRE(service != NULL);
-
-        /** TODO: Mount local storage */
-
+        M0_PRE(service != NULL);
         return rc;
 }
 
 /**
  * Stops MD Service.
- * - Umount local storage
- *
  * @param service pointer to service instance.
  *
  * @pre service != NULL
  */
-static void mds_stop(struct c2_reqh_service *service)
+static void mds_stop(struct m0_reqh_service *service)
 {
-        C2_PRE(service != NULL);
-
-        /** TODO: Umount local storage */
+        M0_PRE(service != NULL);
 }
 
 /** @} endgroup mdservice */

@@ -47,16 +47,16 @@ struct m0_reqh		       reqh;
  */
 static void fom_phase_set(struct m0_fom *fom, int phase)
 {
-	if (m0_fom_phase(fom) == C2_FOPH_SUCCESS) {
-		m0_fom_phase_set(fom, C2_FOPH_FOL_REC_ADD);
-		m0_fom_phase_set(fom, C2_FOPH_TXN_COMMIT);
-	} else if (m0_fom_phase(fom) == C2_FOPH_FAILURE) {
-		m0_fom_phase_set(fom, C2_FOPH_TXN_ABORT);
+	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS) {
+		m0_fom_phase_set(fom, M0_FOPH_FOL_REC_ADD);
+		m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT);
+	} else if (m0_fom_phase(fom) == M0_FOPH_FAILURE) {
+		m0_fom_phase_set(fom, M0_FOPH_TXN_ABORT);
 	}
 
-	if (C2_IN(m0_fom_phase(fom), (C2_FOPH_TXN_COMMIT,
-				      C2_FOPH_TXN_ABORT)))
-		m0_fom_phase_set(fom, C2_FOPH_QUEUE_REPLY);
+	if (M0_IN(m0_fom_phase(fom), (M0_FOPH_TXN_COMMIT,
+				      M0_FOPH_TXN_ABORT)))
+		m0_fom_phase_set(fom, M0_FOPH_QUEUE_REPLY);
 	m0_fom_phase_set(fom, phase);
 }
 
@@ -67,7 +67,7 @@ static void rmfoms_utinit(void)
 	m0_rm_fop_init();
 	rc = m0_reqh_init(&reqh, (void *)1, (void *)1,
 			  (void *)1, (void *)1, NULL);
-	C2_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	dummy_loc.fl_dom = &reqh.rh_fom_dom;
         m0_sm_group_init(&dummy_loc.fl_group);
 }
@@ -89,23 +89,23 @@ static void fom_create(enum m0_rm_incoming_type fomtype,
 	struct m0_fom  *base_fom;
 
 	switch (fomtype) {
-	case C2_RIT_BORROW:
+	case M0_RIT_BORROW:
 		rc = borrow_fom_create(fop, fom);
 		break;
-	case C2_RIT_REVOKE:
+	case M0_RIT_REVOKE:
 		rc = revoke_fom_create(fop, fom);
 		break;
 	default:
-		C2_IMPOSSIBLE("Invalid RM-FOM type");
+		M0_IMPOSSIBLE("Invalid RM-FOM type");
 	}
-	C2_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 
 	base_fom = *fom;
 	base_fom->fo_fop = fop;
 
 	base_fom->fo_loc = &dummy_loc;
 	base_fom->fo_loc->fl_dom->fd_reqh = &reqh;
-	C2_CNT_INC(base_fom->fo_loc->fl_foms);
+	M0_CNT_INC(base_fom->fo_loc->fl_foms);
 	m0_fom_sm_init(base_fom);
 }
 
@@ -114,17 +114,17 @@ static void fom_fini(struct m0_fom *fom, enum m0_rm_incoming_type fomtype)
 	struct m0_fop  *reply_fop;
 
 	reply_fop = fom->fo_rep_fop;
-	fom_phase_set(fom, C2_FOPH_FINISH);
+	fom_phase_set(fom, M0_FOPH_FINISH);
 
 	switch (fomtype) {
-	case C2_RIT_BORROW:
+	case M0_RIT_BORROW:
 		borrow_fom_fini(fom);
 		break;
-	case C2_RIT_REVOKE:
+	case M0_RIT_REVOKE:
 		revoke_fom_fini(fom);
 		break;
 	default:
-		C2_IMPOSSIBLE("Invalid RM-FOM type");
+		M0_IMPOSSIBLE("Invalid RM-FOM type");
 	}
 }
 
@@ -136,16 +136,16 @@ static struct m0_fop *fop_alloc(enum m0_rm_incoming_type fomtype)
 	struct m0_fop *fop;
 
 	switch (fomtype) {
-	case C2_RIT_BORROW:
+	case M0_RIT_BORROW:
 		fop = m0_fop_alloc(&m0_fop_rm_borrow_fopt, NULL);
-		C2_UT_ASSERT(fop != NULL);
+		M0_UT_ASSERT(fop != NULL);
 		break;
-	case C2_RIT_REVOKE:
+	case M0_RIT_REVOKE:
 		fop = m0_fop_alloc(&m0_fop_rm_revoke_fopt, NULL);
-		C2_UT_ASSERT(fop != NULL);
+		M0_UT_ASSERT(fop != NULL);
 		break;
 	default:
-		C2_IMPOSSIBLE("Invalid RM-FOM type");
+		M0_IMPOSSIBLE("Invalid RM-FOM type");
 		break;
 	}
 	return fop;
@@ -186,7 +186,7 @@ static void fom_fini_test(enum m0_rm_incoming_type fomtype)
 	fom_fini(fom, fomtype);
 	fop_dealloc(fom);
 	tot_mem = m0_allocated();
-	C2_UT_ASSERT(tot_mem == base_mem);
+	M0_UT_ASSERT(tot_mem == base_mem);
 }
 #endif
 
@@ -198,9 +198,9 @@ static void fom_create_test(enum m0_rm_incoming_type fomtype)
 	fop = fop_alloc(fomtype);
 
 	fom_create(fomtype, fop, &fom);
-	C2_UT_ASSERT(fom != NULL);
+	M0_UT_ASSERT(fom != NULL);
 	fop_dealloc(fom);
-	fom_phase_set(fom, C2_FOPH_SUCCESS);
+	fom_phase_set(fom, M0_FOPH_SUCCESS);
 	fom_fini(fom, fomtype);
 }
 
@@ -218,7 +218,7 @@ static void brw_fop_populate(struct m0_fom *fom, enum credits_test_type test)
 	struct m0_rm_credit	 credit;
 
 	brw_fop = m0_fop_data(fom->fo_fop);
-	C2_UT_ASSERT(brw_fop != NULL);
+	M0_UT_ASSERT(brw_fop != NULL);
 
 	brw_fop->bo_base.rrq_policy = RIP_NONE;
 	brw_fop->bo_base.rrq_flags = RIF_LOCAL_WAIT;
@@ -267,31 +267,31 @@ static void brw_fom_state_validate(struct m0_fom *fom, int32_t rc,
 	m0_rm_owner_lock(&test_data.rd_owner);
 	switch (test) {
 	case RM_UT_FULL_RIGHTS_TEST:
-		C2_UT_ASSERT(m0_fom_phase(fom) == C2_FOPH_SUCCESS);
-		C2_UT_ASSERT(rc == C2_FSO_AGAIN);
-		C2_UT_ASSERT(
+		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
+		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+		M0_UT_ASSERT(
 		    !m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_sublet));
-		C2_UT_ASSERT(
+		M0_UT_ASSERT(
 			m0_rm_ur_tlist_is_empty(
 				&test_data.rd_owner.ro_owned[OWOS_CACHED]));
 		break;
 	case RM_UT_PARTIAL_RIGHTS_TEST:
-		C2_UT_ASSERT(m0_fom_phase(fom) == C2_FOPH_SUCCESS);
-		C2_UT_ASSERT(rc == C2_FSO_AGAIN);
-		C2_UT_ASSERT(
+		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
+		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+		M0_UT_ASSERT(
 		    !m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_sublet));
-		C2_UT_ASSERT(
+		M0_UT_ASSERT(
 			!m0_rm_ur_tlist_is_empty(
 				&test_data.rd_owner.ro_owned[OWOS_CACHED]));
 		break;
 	case RM_UT_INVALID_RIGHTS_TEST:
-		C2_UT_ASSERT(m0_fom_phase(fom) == C2_FOPH_FAILURE);
-		C2_UT_ASSERT(rc == C2_FSO_AGAIN);
+		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_FAILURE);
+		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 		break;
 	}
 	m0_rm_owner_unlock(&test_data.rd_owner);
 	brw_fop = m0_fop_data(fom->fo_fop);
-	C2_UT_ASSERT(brw_fop != NULL);
+	M0_UT_ASSERT(brw_fop != NULL);
 	m0_buf_free(&brw_fop->bo_base.rrq_credit.cr_opaque);
 }
 /*
@@ -310,10 +310,10 @@ static void brw_fom_state_test(enum credits_test_type test)
 	/* Add self-loan to the test owner object */
 	rm_test_owner_capital_raise(&test_data.rd_owner, &test_data.rd_credit);
 
-	fop = fop_alloc(C2_RIT_BORROW);
+	fop = fop_alloc(M0_RIT_BORROW);
 
-	fom_create(C2_RIT_BORROW, fop, &fom);
-	C2_UT_ASSERT(fom != NULL);
+	fom_create(M0_RIT_BORROW, fop, &fom);
+	M0_UT_ASSERT(fom != NULL);
 
 	brw_fop_populate(fom, test);
 
@@ -323,8 +323,8 @@ static void brw_fom_state_test(enum credits_test_type test)
 	 * Call the first phase of FOM.
 	 */
 	rc = borrow_fom_tick(fom);
-	C2_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_FINISH);
-	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
+	M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_FINISH);
+	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 
 	/*
 	 * Call the second phase of FOM.
@@ -333,7 +333,7 @@ static void brw_fom_state_test(enum credits_test_type test)
 	brw_fom_state_validate(fom, rc, test);
 
 	fop_dealloc(fom);
-	fom_fini(fom, C2_RIT_BORROW);
+	fom_fini(fom, M0_RIT_BORROW);
 	brw_test_cleanup();
 	rm_utdata_fini(&test_data, OBJ_OWNER);
 }
@@ -343,7 +343,7 @@ static void brw_fom_state_test(enum credits_test_type test)
  */
 static void brw_fom_create_test()
 {
-	fom_create_test(C2_RIT_BORROW);
+	fom_create_test(M0_RIT_BORROW);
 }
 
 #ifdef RPC_ITEM_FREE
@@ -352,7 +352,7 @@ static void brw_fom_create_test()
  */
 static void brw_fom_fini_test()
 {
-	fom_fini_test(C2_RIT_BORROW);
+	fom_fini_test(M0_RIT_BORROW);
 }
 #endif
 
@@ -368,8 +368,8 @@ static void rvk_data_setup(enum credits_test_type test)
 	/*
 	 * This credit will be finalised in m0_rm_revoke_commit().
 	 */
-	C2_ALLOC_PTR(credit);
-	C2_UT_ASSERT(credit != NULL);
+	M0_ALLOC_PTR(credit);
+	M0_UT_ASSERT(credit != NULL);
 	m0_rm_credit_init(credit, &test_data.rd_owner);
 	switch (test) {
 	case RM_UT_FULL_RIGHTS_TEST:
@@ -383,15 +383,15 @@ static void rvk_data_setup(enum credits_test_type test)
 		break;
 	}
 
-	C2_ALLOC_PTR(test_loan);
-	C2_UT_ASSERT(test_loan != NULL);
+	M0_ALLOC_PTR(test_loan);
+	M0_UT_ASSERT(test_loan != NULL);
 
 	m0_rm_loan_init(test_loan, credit, NULL);
 
-	test_loan->rl_id = C2_RM_LOAN_SELF_ID + test;
+	test_loan->rl_id = M0_RM_LOAN_SELF_ID + test;
 
-	C2_ALLOC_PTR(test_loan->rl_other);
-	C2_UT_ASSERT(test_loan->rl_other != NULL);
+	M0_ALLOC_PTR(test_loan->rl_other);
+	M0_UT_ASSERT(test_loan->rl_other != NULL);
 	m0_rm_remote_init(test_loan->rl_other, test_data.rd_owner.ro_resource);
 	test_loan->rl_other->rem_state = REM_OWNER_LOCATED;
 	m0_cookie_init(&test_loan->rl_other->rem_cookie,
@@ -402,8 +402,8 @@ static void rvk_data_setup(enum credits_test_type test)
 			   &test_loan->rl_credit);
 	m0_rm_ur_tlist_add(&test_data.rd_owner.ro_owned[OWOS_CACHED], credit);
 
-	C2_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_borrowed));
-	C2_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
+	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_borrowed));
+	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
 			     &test_data.rd_owner.ro_owned[OWOS_CACHED]));
 	m0_rm_owner_unlock(&test_data.rd_owner);
 }
@@ -417,7 +417,7 @@ static void rvk_fop_populate(struct m0_fom *fom)
 	struct m0_rm_credit	 credit;
 
 	rvk_fop = m0_fop_data(fom->fo_fop);
-	C2_UT_ASSERT(rvk_fop != NULL);
+	M0_UT_ASSERT(rvk_fop != NULL);
 
 	rvk_fop->rr_base.rrq_policy = RIP_NONE;
 	rvk_fop->rr_base.rrq_flags = RIF_LOCAL_WAIT;
@@ -462,32 +462,32 @@ static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
 	m0_rm_owner_lock(&test_data.rd_owner);
 	switch (test) {
 	case RM_UT_FULL_RIGHTS_TEST:
-		C2_UT_ASSERT(m0_fom_phase(fom) == C2_FOPH_SUCCESS);
-		C2_UT_ASSERT(rc == C2_FSO_AGAIN);
-		C2_UT_ASSERT(
+		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
+		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+		M0_UT_ASSERT(
 			m0_rm_ur_tlist_is_empty(
 				&test_data.rd_owner.ro_owned[OWOS_CACHED]));
-		C2_UT_ASSERT(
+		M0_UT_ASSERT(
 		    m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_borrowed));
 		break;
 	case RM_UT_PARTIAL_RIGHTS_TEST:
-		C2_UT_ASSERT(m0_fom_phase(fom) == C2_FOPH_SUCCESS);
-		C2_UT_ASSERT(rc == C2_FSO_AGAIN);
-		C2_UT_ASSERT(
+		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
+		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+		M0_UT_ASSERT(
 			!m0_rm_ur_tlist_is_empty(
 				&test_data.rd_owner.ro_owned[OWOS_CACHED]));
-		C2_UT_ASSERT(
+		M0_UT_ASSERT(
 			!m0_rm_ur_tlist_is_empty(
 				&test_data.rd_owner.ro_borrowed));
 		rvk_test_cleanup();
 		break;
 	case RM_UT_INVALID_RIGHTS_TEST:
-		C2_UT_ASSERT(m0_fom_phase(fom) == C2_FOPH_FAILURE);
-		C2_UT_ASSERT(rc == C2_FSO_AGAIN);
-		C2_UT_ASSERT(
+		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_FAILURE);
+		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+		M0_UT_ASSERT(
 			!m0_rm_ur_tlist_is_empty(
 				&test_data.rd_owner.ro_owned[OWOS_CACHED]));
-		C2_UT_ASSERT(
+		M0_UT_ASSERT(
 			!m0_rm_ur_tlist_is_empty(
 				&test_data.rd_owner.ro_borrowed));
 		rvk_test_cleanup();
@@ -495,7 +495,7 @@ static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
 	}
 	m0_rm_owner_unlock(&test_data.rd_owner);
 	rvk_fop = m0_fop_data(fom->fo_fop);
-	C2_UT_ASSERT(rvk_fop != NULL);
+	M0_UT_ASSERT(rvk_fop != NULL);
 	m0_buf_free(&rvk_fop->rr_base.rrq_credit.cr_opaque);
 }
 
@@ -514,10 +514,10 @@ static void rvk_fom_state_test(enum credits_test_type test)
 
 	rvk_data_setup(test);
 
-	fop = fop_alloc(C2_RIT_REVOKE);
+	fop = fop_alloc(M0_RIT_REVOKE);
 
-	fom_create(C2_RIT_REVOKE, fop, &fom);
-	C2_UT_ASSERT(fom != NULL);
+	fom_create(M0_RIT_REVOKE, fop, &fom);
+	M0_UT_ASSERT(fom != NULL);
 
 	rvk_fop_populate(fom);
 
@@ -527,8 +527,8 @@ static void rvk_fom_state_test(enum credits_test_type test)
 	 * Call the first FOM phase.
 	 */
 	rc = revoke_fom_tick(fom);
-	C2_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_FINISH);
-	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
+	M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_FINISH);
+	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 
 	/*
 	 * Call the second FOM phase.
@@ -537,7 +537,7 @@ static void rvk_fom_state_test(enum credits_test_type test)
 	rvk_fom_state_validate(fom, rc, test);
 
 	fop_dealloc(fom);
-	fom_fini(fom, C2_RIT_REVOKE);
+	fom_fini(fom, M0_RIT_REVOKE);
 	rm_utdata_fini(&test_data, OBJ_OWNER);
 }
 
@@ -546,7 +546,7 @@ static void rvk_fom_state_test(enum credits_test_type test)
  */
 static void rvk_fom_create_test()
 {
-	fom_create_test(C2_RIT_REVOKE);
+	fom_create_test(M0_RIT_REVOKE);
 }
 
 #ifdef RPC_ITEM_FREE
@@ -555,7 +555,7 @@ static void rvk_fom_create_test()
  */
 static void rvk_fom_fini_test()
 {
-	fom_fini_test(C2_RIT_REVOKE);
+	fom_fini_test(M0_RIT_REVOKE);
 }
 #endif
 

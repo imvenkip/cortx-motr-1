@@ -1,0 +1,32 @@
+#!/bin/sh
+
+#
+# Resulting ELF image sizes:
+# text     data    bss       total     filename
+# 3047409  192880  7907136   11147425  libmero.so
+# 2805724  171104  7899648   10876476  libmero-altogether.so
+# 1044956  73872   56678512  57797340  kmero.ko
+#
+awk '{ \
+        name = $5;                        \
+        if (name != "filename") {         \
+                if (total[name] == 0) {   \
+                        total[name] = $4; \
+                        bss[name]   = $3; \
+                        data[name]  = $2; \
+                        text[name]  = $1; \
+                } else {                  \
+                        total[name] -= $4;\
+                        bss[name]   -= $3;\
+                        data[name]  -= $2;\
+                        text[name]  -= $1;\
+                }                         \
+        }                                 \
+} \
+END { \
+        printf("    text     data      bss    total filename\n");             \
+        for (name in total) {                                                 \
+                printf("%8d %8d %8d %8d %s\n",                                \
+                       text[name], data[name], bss[name], total[name], name); \
+        }                                                                     \
+}'

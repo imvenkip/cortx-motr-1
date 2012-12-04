@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RM_RINGS_H__
-#define __COLIBRI_RM_RINGS_H__
+#ifndef __MERO_RM_RINGS_H__
+#define __MERO_RM_RINGS_H__
 
 #include "rm/rm.h"
 
@@ -85,7 +85,7 @@ extern const struct m0_rm_resource_type_ops rings_rtype_ops;
 extern const struct m0_rm_credit_ops rings_credit_ops;
 extern const struct m0_rm_incoming_ops rings_incoming_ops;
 
-/* __COLIBRI_RM_RINGS_H__ */
+/* __MERO_RM_RINGS_H__ */
 #endif
 
 /*

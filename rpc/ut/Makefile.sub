@@ -1,4 +1,4 @@
-ut_libcolibri_ut_la_SOURCES += rpc/ut/rpclib_ut.c \
+ut_libmero_ut_la_SOURCES += rpc/ut/rpclib_ut.c \
                                rpc/ut/service.c \
                                rpc/ut/formation2.c \
                                rpc/ut/conn.c \

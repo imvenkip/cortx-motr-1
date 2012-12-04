@@ -26,53 +26,47 @@
 #include "net/net.h"
 #include "addb/addb.h"
 #include "addb/addbff/addb_ff.h"
-#include "colibri/magic.h"
+#include "mero/magic.h"
 #include "rpc/rpc_opcodes.h"
 
-#ifdef __KERNEL__
-# define c2_addb_handler NULL
-#else
-int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
-#endif
-
-static struct c2_fop_type_ops addb_ops = {
+static struct m0_fop_type_ops addb_ops = {
 };
 
-struct c2_fop_type c2_addb_record_fopt;
-struct c2_fop_type c2_addb_reply_fopt;
+struct m0_fop_type m0_addb_record_fopt;
+struct m0_fop_type m0_addb_reply_fopt;
 
-C2_INTERNAL int c2_addb_fop_init(void)
+M0_INTERNAL int m0_addb_fop_init(void)
 {
-	c2_xc_addb_init();
+	m0_xc_addb_init();
 
-	return  C2_FOP_TYPE_INIT(&c2_addb_record_fopt,
+	return  M0_FOP_TYPE_INIT(&m0_addb_record_fopt,
 				 .name      = "addb record",
-				 .opcode    = C2_ADDB_RECORD_REQUEST_OPCODE,
-				 .xt        = c2_addb_record_xc,
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
+				 .opcode    = M0_ADDB_RECORD_REQUEST_OPCODE,
+				 .xt        = m0_addb_record_xc,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 				 .fop_ops   = &addb_ops) ?:
-		C2_FOP_TYPE_INIT(&c2_addb_reply_fopt,
+		M0_FOP_TYPE_INIT(&m0_addb_reply_fopt,
 				 .name      = "addb reply",
-				 .opcode    = C2_ADDB_REPLY_OPCODE,
-				 .xt        = c2_addb_reply_xc,
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
+				 .opcode    = M0_ADDB_REPLY_OPCODE,
+				 .xt        = m0_addb_reply_xc,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 }
-C2_EXPORTED(c2_addb_fop_init);
+M0_EXPORTED(m0_addb_fop_init);
 
-C2_INTERNAL void c2_addb_fop_fini(void)
+M0_INTERNAL void m0_addb_fop_fini(void)
 {
-	c2_fop_type_fini(&c2_addb_record_fopt);
-	c2_fop_type_fini(&c2_addb_reply_fopt);
-	c2_xc_addb_fini();
+	m0_fop_type_fini(&m0_addb_record_fopt);
+	m0_fop_type_fini(&m0_addb_reply_fopt);
+	m0_xc_addb_fini();
 }
-C2_EXPORTED(c2_addb_fop_fini);
+M0_EXPORTED(m0_addb_fop_fini);
 
 /**
    ADDB record body for function fail event.
 
    This event includes a message and a return value.
 */
-struct c2_addb_func_fail_body {
+struct m0_addb_func_fail_body {
 	uint32_t rc;
 	char     msg[0];
 };
@@ -82,7 +76,7 @@ struct c2_addb_func_fail_body {
 
    This event includes a return value.
 */
-struct c2_addb_call_body {
+struct m0_addb_call_body {
 	uint32_t rc;
 };
 
@@ -91,7 +85,7 @@ struct c2_addb_call_body {
 
    This event includes a return value.
 */
-struct c2_addb_flag_body {
+struct m0_addb_flag_body {
 	bool flag;
 };
 
@@ -100,7 +94,7 @@ struct c2_addb_flag_body {
 
    This event includes a errno number.
 */
-struct c2_addb_inval_body {
+struct m0_addb_inval_body {
 	uint64_t invalid;
 };
 
@@ -108,70 +102,70 @@ struct c2_addb_inval_body {
     ADDB record body for trace message.
 
 */
-struct c2_addb_trace_body {
+struct m0_addb_trace_body {
 	char     msg[0];
 };
 
-C2_INTERNAL int c2_addb_record_header_pack(struct c2_addb_dp *dp,
-					   struct c2_addb_record_header *header,
+M0_INTERNAL int m0_addb_record_header_pack(struct m0_addb_dp *dp,
+					   struct m0_addb_record_header *header,
 					   int size)
 {
-	header->arh_magic1    = C2_ADDB_REC_HEADER_MAGIC1;
+	header->arh_magic1    = M0_ADDB_REC_HEADER_MAGIC1;
 	header->arh_version   = ADDB_REC_HEADER_VERSION;
 	header->arh_len       = size;
 	header->arh_event_id  = dp->ad_ev->ae_id;
-	header->arh_timestamp = c2_time_now();
-	header->arh_magic2    = C2_ADDB_REC_HEADER_MAGIC2;
+	header->arh_timestamp = m0_time_now();
+	header->arh_magic2    = M0_ADDB_REC_HEADER_MAGIC2;
 
 	return 0;
 };
 
 /** get size for data point opaque data */
-C2_INTERNAL int c2_addb_func_fail_getsize(struct c2_addb_dp *dp)
+M0_INTERNAL int m0_addb_func_fail_getsize(struct m0_addb_dp *dp)
 {
-	return c2_align(sizeof(uint32_t) + strlen(dp->ad_name) + 1,
-			C2_ADDB_RECORD_LEN_ALIGN);
+	return m0_align(sizeof(uint32_t) + strlen(dp->ad_name) + 1,
+			M0_ADDB_RECORD_LEN_ALIGN);
 }
 
-C2_INTERNAL int c2_addb_call_getsize(struct c2_addb_dp *dp)
+M0_INTERNAL int m0_addb_call_getsize(struct m0_addb_dp *dp)
 {
-	return c2_align(sizeof(uint32_t), C2_ADDB_RECORD_LEN_ALIGN);
+	return m0_align(sizeof(uint32_t), M0_ADDB_RECORD_LEN_ALIGN);
 }
-C2_INTERNAL int c2_addb_flag_getsize(struct c2_addb_dp *dp)
+M0_INTERNAL int m0_addb_flag_getsize(struct m0_addb_dp *dp)
 {
-	return c2_align(sizeof(bool), C2_ADDB_RECORD_LEN_ALIGN);
-}
-
-C2_INTERNAL int c2_addb_inval_getsize(struct c2_addb_dp *dp)
-{
-	return c2_align(sizeof(uint64_t), C2_ADDB_RECORD_LEN_ALIGN);
+	return m0_align(sizeof(bool), M0_ADDB_RECORD_LEN_ALIGN);
 }
 
-C2_INTERNAL int c2_addb_empty_getsize(struct c2_addb_dp *dp)
+M0_INTERNAL int m0_addb_inval_getsize(struct m0_addb_dp *dp)
+{
+	return m0_align(sizeof(uint64_t), M0_ADDB_RECORD_LEN_ALIGN);
+}
+
+M0_INTERNAL int m0_addb_empty_getsize(struct m0_addb_dp *dp)
 {
 	return 0;
 }
 
-C2_INTERNAL int c2_addb_trace_getsize(struct c2_addb_dp *dp)
+M0_INTERNAL int m0_addb_trace_getsize(struct m0_addb_dp *dp)
 {
-	return c2_align(strlen(dp->ad_name) + 1, 8);
+	return m0_align(strlen(dp->ad_name) + 1, 8);
 }
 
 /** packing func fail addb record */
-C2_INTERNAL int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
-				       struct c2_addb_record *rec)
+M0_INTERNAL int m0_addb_func_fail_pack(struct m0_addb_dp *dp,
+				       struct m0_addb_record *rec)
 {
-	struct c2_addb_record_header  *header = &rec->ar_header;
-	struct c2_addb_func_fail_body *body;
+	struct m0_addb_record_header  *header = &rec->ar_header;
+	struct m0_addb_func_fail_body *body;
 	int rc;
 
-	C2_ASSERT(c2_addb_func_fail_getsize(dp) == rec->ar_data.cmb_count);
+	M0_ASSERT(m0_addb_func_fail_getsize(dp) == rec->ar_data.cmb_count);
 
-	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+	rc = m0_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
 	if (rc == 0 && rec->ar_data.cmb_count > 0) {
-		body = (struct c2_addb_func_fail_body *)rec->ar_data.cmb_value;
+		body = (struct m0_addb_func_fail_body *)rec->ar_data.cmb_value;
 
-		C2_ASSERT(body != NULL);
+		M0_ASSERT(body != NULL);
 		body->rc = (uint32_t)dp->ad_rc;
 
 		strncpy(body->msg, dp->ad_name,
@@ -180,88 +174,88 @@ C2_INTERNAL int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
 	return rc;
 }
 
-C2_INTERNAL int c2_addb_call_pack(struct c2_addb_dp *dp,
-				  struct c2_addb_record *rec)
+M0_INTERNAL int m0_addb_call_pack(struct m0_addb_dp *dp,
+				  struct m0_addb_record *rec)
 {
-	struct c2_addb_record_header *header = &rec->ar_header;
-	struct c2_addb_call_body     *body;
+	struct m0_addb_record_header *header = &rec->ar_header;
+	struct m0_addb_call_body     *body;
 	int rc;
 
-	C2_ASSERT(c2_addb_call_getsize(dp) == rec->ar_data.cmb_count);
+	M0_ASSERT(m0_addb_call_getsize(dp) == rec->ar_data.cmb_count);
 
-	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+	rc = m0_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
 	if (rc == 0 && rec->ar_data.cmb_count > 0) {
-		body = (struct c2_addb_call_body *)rec->ar_data.cmb_value;
+		body = (struct m0_addb_call_body *)rec->ar_data.cmb_value;
 
-		C2_ASSERT(body != NULL);
+		M0_ASSERT(body != NULL);
 		body->rc = (uint32_t)dp->ad_rc;
 	}
 	return rc;
 }
 
-C2_INTERNAL int c2_addb_flag_pack(struct c2_addb_dp *dp,
-				  struct c2_addb_record *rec)
+M0_INTERNAL int m0_addb_flag_pack(struct m0_addb_dp *dp,
+				  struct m0_addb_record *rec)
 {
-	struct c2_addb_record_header *header = &rec->ar_header;
-	struct c2_addb_flag_body     *body;
+	struct m0_addb_record_header *header = &rec->ar_header;
+	struct m0_addb_flag_body     *body;
 	int rc;
 
-	C2_ASSERT(c2_addb_flag_getsize(dp) == rec->ar_data.cmb_count);
+	M0_ASSERT(m0_addb_flag_getsize(dp) == rec->ar_data.cmb_count);
 
-	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+	rc = m0_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
 	if (rc == 0 && rec->ar_data.cmb_count > 0) {
-		body = (struct c2_addb_flag_body *)rec->ar_data.cmb_value;
+		body = (struct m0_addb_flag_body *)rec->ar_data.cmb_value;
 
-		C2_ASSERT(body != NULL);
+		M0_ASSERT(body != NULL);
 		body->flag = (bool)dp->ad_rc;
 	}
 	return rc;
 }
 
-C2_INTERNAL int c2_addb_inval_pack(struct c2_addb_dp *dp,
-				   struct c2_addb_record *rec)
+M0_INTERNAL int m0_addb_inval_pack(struct m0_addb_dp *dp,
+				   struct m0_addb_record *rec)
 {
-	struct c2_addb_record_header *header = &rec->ar_header;
-	struct c2_addb_inval_body    *body;
+	struct m0_addb_record_header *header = &rec->ar_header;
+	struct m0_addb_inval_body    *body;
 	int rc;
 
-	C2_ASSERT(c2_addb_flag_getsize(dp) == rec->ar_data.cmb_count);
+	M0_ASSERT(m0_addb_flag_getsize(dp) == rec->ar_data.cmb_count);
 
-	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+	rc = m0_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
 	if (rc == 0 && rec->ar_data.cmb_count > 0) {
-		body = (struct c2_addb_inval_body *)rec->ar_data.cmb_value;
+		body = (struct m0_addb_inval_body *)rec->ar_data.cmb_value;
 
-		C2_ASSERT(body != NULL);
+		M0_ASSERT(body != NULL);
 		body->invalid = (uint64_t)dp->ad_rc;
 	}
 	return rc;
 
 }
 
-C2_INTERNAL int c2_addb_empty_pack(struct c2_addb_dp *dp,
-				   struct c2_addb_record *rec)
+M0_INTERNAL int m0_addb_empty_pack(struct m0_addb_dp *dp,
+				   struct m0_addb_record *rec)
 {
-	struct c2_addb_record_header *header = &rec->ar_header;
+	struct m0_addb_record_header *header = &rec->ar_header;
 
-	C2_ASSERT(rec->ar_data.cmb_count = 0);
+	M0_ASSERT(rec->ar_data.cmb_count = 0);
 
-	return c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+	return m0_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
 }
 
-C2_INTERNAL int c2_addb_trace_pack(struct c2_addb_dp *dp,
-				   struct c2_addb_record *rec)
+M0_INTERNAL int m0_addb_trace_pack(struct m0_addb_dp *dp,
+				   struct m0_addb_record *rec)
 {
-	struct c2_addb_record_header	*header = &rec->ar_header;
-	struct c2_addb_trace_body	*body;
+	struct m0_addb_record_header	*header = &rec->ar_header;
+	struct m0_addb_trace_body	*body;
 	int				 rc;
 
-	C2_ASSERT(c2_addb_trace_getsize(dp) == rec->ar_data.cmb_count);
+	M0_ASSERT(m0_addb_trace_getsize(dp) == rec->ar_data.cmb_count);
 
-	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+	rc = m0_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
 	if (rc == 0 && rec->ar_data.cmb_count > 0) {
-		body = (struct c2_addb_trace_body *)rec->ar_data.cmb_value;
+		body = (struct m0_addb_trace_body *)rec->ar_data.cmb_value;
 
-		C2_ASSERT(body != NULL);
+		M0_ASSERT(body != NULL);
 		strncpy(body->msg, dp->ad_name, rec->ar_data.cmb_count);
 	}
 	return rc;

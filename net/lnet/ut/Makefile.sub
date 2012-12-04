@@ -1,4 +1,4 @@
-ut_libcolibri_ut_la_SOURCES    += net/lnet/ut/lnet_ut.c
+ut_libmero_ut_la_SOURCES    += net/lnet/ut/lnet_ut.c
 
 net_lnet_ut_lut_helper_SOURCES  = net/lnet/ut/lut_main.c \
                                   net/lnet/ut/lnet_drv_ut.h

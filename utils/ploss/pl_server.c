@@ -44,7 +44,7 @@ static int check_discard(int prop)
 }
 
 bool_t
-ping_1_svc(struct c2_pl_ping *argp, struct c2_pl_ping_res *result, struct svc_req *rqstp)
+ping_1_svc(struct m0_pl_ping *argp, struct m0_pl_ping_res *result, struct svc_req *rqstp)
 {
         show_msg(pl_verbose, "Received ping request with seqno %d\n", argp->seqno);
         if (check_discard(pl_prop)) {
@@ -63,11 +63,11 @@ ping_1_svc(struct c2_pl_ping *argp, struct c2_pl_ping_res *result, struct svc_re
 }
 
 bool_t
-setconfig_1_svc(struct c2_pl_config *argp, struct c2_pl_config_res *result, struct svc_req *rqstp)
+setconfig_1_svc(struct m0_pl_config *argp, struct m0_pl_config_res *result, struct svc_req *rqstp)
 {
         const char *msg = NULL;
         int *config_res = &result->body.res;
-        uint32_t *config_vp = &result->body.c2_pl_config_reply_u.config_value;
+        uint32_t *config_vp = &result->body.m0_pl_config_reply_u.config_value;
 
         *config_res = 0;
         result->op = argp->op;
@@ -110,7 +110,7 @@ setconfig_1_svc(struct c2_pl_config *argp, struct c2_pl_config_res *result, stru
 }
 
 bool_t
-getconfig_1_svc(struct c2_pl_config *argp, struct c2_pl_config_res *result, struct svc_req *rqstp)
+getconfig_1_svc(struct m0_pl_config *argp, struct m0_pl_config_res *result, struct svc_req *rqstp)
 {
 	bool_t retval = TRUE;
 

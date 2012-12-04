@@ -20,20 +20,20 @@
 
 #pragma once
 
-#ifndef __COLIBRI_UTILS_COMMON_H__
-#define __COLIBRI_UTILS_COMMON_H__
+#ifndef __MERO_UTILS_COMMON_H__
+#define __MERO_UTILS_COMMON_H__
 
 int  unit_start(const char *sandbox);
 void unit_end(const char *sandbox, bool keep_sandbox);
 
-struct c2_list;
+struct m0_list;
 
 /**
  * Splits input string, which should be in format of suite[:test][,suite[:test]],
- * into c2_test_suite_entry tokens and adds them into a linked list.
+ * into m0_test_suite_entry tokens and adds them into a linked list.
  */
-int  parse_test_list(char *str, struct c2_list *list);
-void free_test_list(struct c2_list *list);
+int  parse_test_list(char *str, struct m0_list *list);
+void free_test_list(struct m0_list *list);
 
 /**
  * Parses fault point definitions from command line argument and enables them.
@@ -78,7 +78,7 @@ int enable_fault_point(const char *str);
  */
 int enable_fault_points_from_file(const char *file_name);
 
-/* __COLIBRI_UTILS_COMMON_H__ */
+/* __MERO_UTILS_COMMON_H__ */
 #endif
 
 /*

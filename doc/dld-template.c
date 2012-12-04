@@ -19,7 +19,7 @@
  */
 
 /**
-   @page DLD Colibri DLD Template
+   @page DLD Mero DLD Template
 
    - @ref DLD-ovw
    - @ref DLD-def
@@ -88,7 +88,7 @@
    - To guide the coding phase
 
    <b>Location and layout of the DLD Specification</b> @n
-   The Colibri project requires Detailed Level Designs in the source
+   The Mero project requires Detailed Level Designs in the source
    code itself.  This greatly aids in keeping the design documentation
    up to date through the lifetime of the implementation code.
 
@@ -151,7 +151,7 @@
    The DLD shall provide definitions of the terms and concepts
    introduced by the design, as well as the relevant terms used by the
    specification but described elsewhere.  References to the
-   C2 Glossary and the component's HLD are permitted and encouraged.
+   M0 Glossary and the component's HLD are permitted and encouraged.
    Agreed upon terminology should be incorporated in the glossary.</i>
 
    Previously defined terms:
@@ -363,16 +363,16 @@
        S7 [label="Uninitialized"]
        S8 [label="Failed"]
        S0 -> S1 [label="allocate"]
-       S1 -> S2 [label="c2_rpc_conn_init()"]
-       S2 -> S3 [label="c2_rpc_conn_established()"]
-       S3 -> S4 [label="c2_rpc_conn_establish_reply_received()"]
-       S4 -> S5 [label="c2_rpc_conn_terminate()"]
-       S5 -> S6 [label="c2_rpc_conn_terminate_reply_received()"]
-       S6 -> S7 [label="c2_rpc_conn_fini()"]
+       S1 -> S2 [label="m0_rpc_conn_init()"]
+       S2 -> S3 [label="m0_rpc_conn_established()"]
+       S3 -> S4 [label="m0_rpc_conn_establish_reply_received()"]
+       S4 -> S5 [label="m0_rpc_conn_terminate()"]
+       S5 -> S6 [label="m0_rpc_conn_terminate_reply_received()"]
+       S6 -> S7 [label="m0_rpc_conn_fini()"]
        S2 -> S8 [label="failed"]
        S3 -> S8 [label="timeout or failed"]
        S5 -> S8 [label="timeout or failed"]
-       S8 -> S7 [label="c2_rpc_conn_fini()"]
+       S8 -> S7 [label="m0_rpc_conn_fini()"]
    }
    @enddot
    The @c dot program is part of the Scientific Linux DevVM.
@@ -397,7 +397,7 @@
          rank = same;
 	 n1_2 [label="dom_fini()"];  // procedure using mutex
 	 n1_1 [label="dom_init()"];
-         n1_0 [label="c2_net_mutex"];// mutex name
+         n1_0 [label="m0_net_mutex"];// mutex name
       }
       subgraph cluster_m2 {
          rank = same;
@@ -557,7 +557,7 @@ Detailed level design HOWTO</a>,
    source branches to handle this efficiently.
    Remember that you should only present modified code for inspection,
    and not the changes you picked up with periodic merges from another branch.
-   - The software development process used by Colibri provides sufficient
+   - The software development process used by Mero provides sufficient
    flexibility to decompose tasks, consolidate phases, etc.  For example,
    you may prefer to develop code and UT together, and present both for
    inspection at the same time.  This would require consolidation of the
@@ -575,7 +575,7 @@ Detailed level design HOWTO</a>,
 #include "doc/dld_template.h"
 
 /**
-   @defgroup DLDDFSInternal Colibri Sample Module Internals
+   @defgroup DLDDFSInternal Mero Sample Module Internals
    @brief Detailed functional specification of the internals of the
    sample module.
 

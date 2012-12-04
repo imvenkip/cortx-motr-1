@@ -1,6 +1,6 @@
-nobase_colibri_include_HEADERS += net/lnet/lnet.h
+nobase_mero_include_HEADERS += net/lnet/lnet.h
 
-colibri_libcolibri_la_SOURCES  += net/lnet/lnet_main.c \
+mero_libmero_la_SOURCES  += net/lnet/lnet_main.c \
                                   net/lnet/lnet_core.h \
                                   net/lnet/lnet_core_types.h \
                                   net/lnet/lnet_ioctl.h \

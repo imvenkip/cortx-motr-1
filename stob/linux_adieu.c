@@ -17,7 +17,7 @@
  * Original creation date: 05/21/2010
  */
 
-#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/misc.h"   /* M0_SET0 */
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/atomic.h"
@@ -25,7 +25,7 @@
 #include "lib/queue.h"
 #include "lib/arith.h"
 #include "lib/thread.h"
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_IOSERVICE
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
 #include "lib/trace.h"
 #include "addb/addb.h"
 
@@ -98,12 +98,12 @@ struct ioq_qev {
 	struct iocb           iq_iocb;
 	/** Linkage to a per-domain admission queue
 	    (linux_domain::ioq_queue). */
-	struct c2_queue_link  iq_linkage;
-	struct c2_stob_io    *iq_io;
+	struct m0_queue_link  iq_linkage;
+	struct m0_stob_io    *iq_io;
 };
 
 /**
-   Linux adieu specific part of generic c2_stob_io structure.
+   Linux adieu specific part of generic m0_stob_io structure.
  */
 struct linux_stob_io {
 	/** Number of fragments in this adieu request. */
@@ -113,7 +113,7 @@ struct linux_stob_io {
 	/** Array of fragments. */
 	struct ioq_qev    *si_qev;
 	/** Mutex serialising processing of completion events for this IO. */
-	struct c2_mutex    si_endlock;
+	struct m0_mutex    si_endlock;
 };
 
 static struct ioq_qev *ioq_queue_get   (struct linux_domain *ldom);
@@ -123,9 +123,9 @@ static void            ioq_queue_submit(struct linux_domain *ldom);
 static void            ioq_queue_lock  (struct linux_domain *ldom);
 static void            ioq_queue_unlock(struct linux_domain *ldom);
 
-static const struct c2_stob_io_op linux_stob_io_op;
+static const struct m0_stob_io_op linux_stob_io_op;
 
-static const struct c2_addb_loc adieu_addb_loc = {
+static const struct m0_addb_loc adieu_addb_loc = {
 	.al_name = "linux-adieu"
 };
 
@@ -161,29 +161,29 @@ enum {
 })
 
 #define ADDB_GLOBAL_ADD(name, rc)					\
-C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc, c2_addb_func_fail, (name), (rc))
+M0_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc, m0_addb_func_fail, (name), (rc))
 
 #define ADDB_ADD(obj, ev, ...)	\
-C2_ADDB_ADD(&(obj)->so_addb, &adieu_addb_loc, ev , ## __VA_ARGS__)
+M0_ADDB_ADD(&(obj)->so_addb, &adieu_addb_loc, ev , ## __VA_ARGS__)
 
 #define ADDB_CALL(obj, name, rc)	\
-C2_ADDB_ADD(&(obj)->so_addb, &adieu_addb_loc, c2_addb_func_fail, (name), (rc))
+M0_ADDB_ADD(&(obj)->so_addb, &adieu_addb_loc, m0_addb_func_fail, (name), (rc))
 
-C2_INTERNAL int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
+M0_INTERNAL int linux_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io)
 {
 	struct linux_stob_io *lio;
 	int                   result;
 
-	C2_PRE(io->si_state == SIS_IDLE);
+	M0_PRE(io->si_state == SIS_IDLE);
 
-	C2_ALLOC_PTR(lio);
+	M0_ALLOC_PTR(lio);
 	if (lio != NULL) {
 		io->si_stob_private = lio;
 		io->si_op = &linux_stob_io_op;
-		c2_mutex_init(&lio->si_endlock);
+		m0_mutex_init(&lio->si_endlock);
 		result = 0;
 	} else {
-		ADDB_ADD(stob, c2_addb_oom);
+		ADDB_ADD(stob, m0_addb_oom);
 		result = -ENOMEM;
 	}
 	return result;
@@ -191,17 +191,17 @@ C2_INTERNAL int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 
 static void linux_stob_io_release(struct linux_stob_io *lio)
 {
-	c2_free(lio->si_qev);
+	m0_free(lio->si_qev);
 	lio->si_qev = NULL;
 }
 
-static void linux_stob_io_fini(struct c2_stob_io *io)
+static void linux_stob_io_fini(struct m0_stob_io *io)
 {
 	struct linux_stob_io *lio = io->si_stob_private;
 
 	linux_stob_io_release(lio);
-	c2_mutex_fini(&lio->si_endlock);
-	c2_free(lio);
+	m0_mutex_fini(&lio->si_endlock);
+	m0_free(lio);
 }
 
 /**
@@ -213,55 +213,55 @@ static void linux_stob_io_fini(struct c2_stob_io *io)
 
    @li queue all fragments and submit as many as possible;
  */
-static int linux_stob_io_launch(struct c2_stob_io *io)
+static int linux_stob_io_launch(struct m0_stob_io *io)
 {
 	struct linux_stob    *lstob  = stob2linux(io->si_obj);
 	struct linux_domain  *ldom   = domain2linux(io->si_obj->so_domain);
 	struct linux_stob_io *lio    = io->si_stob_private;
-	struct c2_vec_cursor  src;
-	struct c2_vec_cursor  dst;
+	struct m0_vec_cursor  src;
+	struct m0_vec_cursor  dst;
 	uint32_t              frags;
-	c2_bcount_t           frag_size;
+	m0_bcount_t           frag_size;
 	int                   result = 0;
 	int                   i;
 	bool                  eosrc;
 	bool                  eodst;
 
-	C2_PRE(io->si_obj->so_domain->sd_type == &c2_linux_stob_type);
+	M0_PRE(io->si_obj->so_domain->sd_type == &m0_linux_stob_type);
 
 	/* prefix fragments execution mode is not yet supported */
-	C2_ASSERT((io->si_flags & SIF_PREFIX) == 0);
-	C2_PRE(c2_vec_count(&io->si_user.ov_vec) > 0);
+	M0_ASSERT((io->si_flags & SIF_PREFIX) == 0);
+	M0_PRE(m0_vec_count(&io->si_user.ov_vec) > 0);
 
-	c2_vec_cursor_init(&src, &io->si_user.ov_vec);
-	c2_vec_cursor_init(&dst, &io->si_stob.iv_vec);
+	m0_vec_cursor_init(&src, &io->si_user.ov_vec);
+	m0_vec_cursor_init(&dst, &io->si_stob.iv_vec);
 
 	frags = 0;
 	do {
-		frag_size = min_check(c2_vec_cursor_step(&src),
-				      c2_vec_cursor_step(&dst));
-		C2_ASSERT(frag_size > 0);
+		frag_size = min_check(m0_vec_cursor_step(&src),
+				      m0_vec_cursor_step(&dst));
+		M0_ASSERT(frag_size > 0);
 		frags++;
-		eosrc = c2_vec_cursor_move(&src, frag_size);
-		eodst = c2_vec_cursor_move(&dst, frag_size);
-		C2_ASSERT(eosrc == eodst);
+		eosrc = m0_vec_cursor_move(&src, frag_size);
+		eodst = m0_vec_cursor_move(&dst, frag_size);
+		M0_ASSERT(eosrc == eodst);
 	} while (!eosrc);
 
-	c2_vec_cursor_init(&src, &io->si_user.ov_vec);
-	c2_vec_cursor_init(&dst, &io->si_stob.iv_vec);
+	m0_vec_cursor_init(&src, &io->si_user.ov_vec);
+	m0_vec_cursor_init(&dst, &io->si_stob.iv_vec);
 
 	lio->si_nr   = frags;
 	lio->si_done = 0;
-	C2_ALLOC_ARR(lio->si_qev, frags);
+	M0_ALLOC_ARR(lio->si_qev, frags);
 
 	if (lio->si_qev != NULL) {
 		for (i = 0; i < frags; ++i) {
 			void        *buf;
-			c2_bindex_t  off;
+			m0_bindex_t  off;
 			struct iocb *iocb;
 
-			frag_size = min_check(c2_vec_cursor_step(&src),
-					      c2_vec_cursor_step(&dst));
+			frag_size = min_check(m0_vec_cursor_step(&src),
+					      m0_vec_cursor_step(&dst));
 			if (frag_size > (size_t)~0ULL) {
 				ADDB_CALL(io->si_obj, "frag_overflow",
 					  frag_size);
@@ -274,10 +274,10 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 			off = io->si_stob.iv_index[dst.vc_seg] + dst.vc_offset;
 
 			iocb = &lio->si_qev[i].iq_iocb;
-			C2_SET0(iocb);
+			M0_SET0(iocb);
 
 			iocb->aio_fildes = lstob->sl_fd;
-			iocb->u.c.buf    = c2_stob_addr_open(buf,
+			iocb->u.c.buf    = m0_stob_addr_open(buf,
 						LINUX_DOM_BSHIFT(ldom));
 			iocb->u.c.nbytes = frag_size << LINUX_DOM_BSHIFT(ldom);
 			iocb->u.c.offset = off       << LINUX_DOM_BSHIFT(ldom);
@@ -290,15 +290,15 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 				iocb->aio_lio_opcode = IO_CMD_PWRITE;
 				break;
 			default:
-				C2_ASSERT(0);
+				M0_ASSERT(0);
 			}
-			C2_LOG(C2_DEBUG, "frag=%d op=%d sz=%d, off=%d",
+			M0_LOG(M0_DEBUG, "frag=%d op=%d sz=%d, off=%d",
 				i, io->si_opcode, (int)frag_size, (int)off);
 
-			c2_vec_cursor_move(&src, frag_size);
-			c2_vec_cursor_move(&dst, frag_size);
+			m0_vec_cursor_move(&src, frag_size);
+			m0_vec_cursor_move(&dst, frag_size);
 			lio->si_qev[i].iq_io = io;
-			c2_queue_link_init(&lio->si_qev[i].iq_linkage);
+			m0_queue_link_init(&lio->si_qev[i].iq_linkage);
 		}
 		if (result == 0) {
 			ioq_queue_lock(ldom);
@@ -308,7 +308,7 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 			ioq_queue_submit(ldom);
 		}
 	} else {
-		ADDB_ADD(io->si_obj, c2_addb_oom);
+		ADDB_ADD(io->si_obj, m0_addb_oom);
 		result = -ENOMEM;
 	}
 
@@ -317,37 +317,37 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 	return result;
 }
 
-static const struct c2_stob_io_op linux_stob_io_op = {
+static const struct m0_stob_io_op linux_stob_io_op = {
 	.sio_launch  = linux_stob_io_launch,
 	.sio_fini    = linux_stob_io_fini
 };
 
 /**
-   An implementation of c2_stob_op::sop_lock() method.
+   An implementation of m0_stob_op::sop_lock() method.
  */
-C2_INTERNAL void linux_stob_io_lock(struct c2_stob *stob)
+M0_INTERNAL void linux_stob_io_lock(struct m0_stob *stob)
 {
 }
 
 /**
-   An implementation of c2_stob_op::sop_unlock() method.
+   An implementation of m0_stob_op::sop_unlock() method.
  */
-C2_INTERNAL void linux_stob_io_unlock(struct c2_stob *stob)
+M0_INTERNAL void linux_stob_io_unlock(struct m0_stob *stob)
 {
 }
 
 /**
-   An implementation of c2_stob_op::sop_is_locked() method.
+   An implementation of m0_stob_op::sop_is_locked() method.
  */
-C2_INTERNAL bool linux_stob_io_is_locked(const struct c2_stob *stob)
+M0_INTERNAL bool linux_stob_io_is_locked(const struct m0_stob *stob)
 {
 	return true;
 }
 
 /**
-   An implementation of c2_stob_op::sop_block_shift() method.
+   An implementation of m0_stob_op::sop_block_shift() method.
  */
-C2_INTERNAL uint32_t linux_stob_block_shift(const struct c2_stob *stob)
+M0_INTERNAL uint32_t linux_stob_block_shift(const struct m0_stob *stob)
 {
 	struct linux_domain *ldom;
 
@@ -356,9 +356,9 @@ C2_INTERNAL uint32_t linux_stob_block_shift(const struct c2_stob *stob)
 }
 
 /**
-   An implementation of c2_stob_domain_op::sdo_block_shift() method.
+   An implementation of m0_stob_domain_op::sdo_block_shift() method.
  */
-C2_INTERNAL uint32_t linux_stob_domain_block_shift(struct c2_stob_domain
+M0_INTERNAL uint32_t linux_stob_domain_block_shift(struct m0_stob_domain
 						   *sdomain)
 {
 	struct linux_domain *ldom;
@@ -372,14 +372,14 @@ C2_INTERNAL uint32_t linux_stob_domain_block_shift(struct c2_stob_domain
  */
 static struct ioq_qev *ioq_queue_get(struct linux_domain *ldom)
 {
-	struct c2_queue_link *head;
+	struct m0_queue_link *head;
 
-	C2_ASSERT(!c2_queue_is_empty(&ldom->ioq_queue));
-	C2_ASSERT(c2_mutex_is_locked(&ldom->ioq_lock));
+	M0_ASSERT(!m0_queue_is_empty(&ldom->ioq_queue));
+	M0_ASSERT(m0_mutex_is_locked(&ldom->ioq_lock));
 
-	head = c2_queue_get(&ldom->ioq_queue);
+	head = m0_queue_get(&ldom->ioq_queue);
 	ldom->ioq_queued--;
-	C2_ASSERT(ldom->ioq_queued == c2_queue_length(&ldom->ioq_queue));
+	M0_ASSERT(ldom->ioq_queued == m0_queue_length(&ldom->ioq_queue));
 	return container_of(head, struct ioq_qev, iq_linkage);
 }
 
@@ -389,23 +389,23 @@ static struct ioq_qev *ioq_queue_get(struct linux_domain *ldom)
 static void ioq_queue_put(struct linux_domain *ldom,
 			  struct ioq_qev *qev)
 {
-	C2_ASSERT(!c2_queue_link_is_in(&qev->iq_linkage));
-	C2_ASSERT(c2_mutex_is_locked(&ldom->ioq_lock));
-	C2_ASSERT(qev->iq_io->si_obj->so_domain == &ldom->sdl_base);
+	M0_ASSERT(!m0_queue_link_is_in(&qev->iq_linkage));
+	M0_ASSERT(m0_mutex_is_locked(&ldom->ioq_lock));
+	M0_ASSERT(qev->iq_io->si_obj->so_domain == &ldom->sdl_base);
 
-	c2_queue_put(&ldom->ioq_queue, &qev->iq_linkage);
+	m0_queue_put(&ldom->ioq_queue, &qev->iq_linkage);
 	ldom->ioq_queued++;
-	C2_ASSERT(ldom->ioq_queued == c2_queue_length(&ldom->ioq_queue));
+	M0_ASSERT(ldom->ioq_queued == m0_queue_length(&ldom->ioq_queue));
 }
 
 static void ioq_queue_lock(struct linux_domain *ldom)
 {
-	c2_mutex_lock(&ldom->ioq_lock);
+	m0_mutex_lock(&ldom->ioq_lock);
 }
 
 static void ioq_queue_unlock(struct linux_domain *ldom)
 {
-	c2_mutex_unlock(&ldom->ioq_lock);
+	m0_mutex_unlock(&ldom->ioq_lock);
 }
 
 /**
@@ -443,7 +443,7 @@ static void ioq_queue_submit(struct linux_domain *ldom)
 			for (i = put; i < got; ++i)
 				ioq_queue_put(ldom, qev[i]);
 			ldom->ioq_avail += got - put;
-			C2_ASSERT(ldom->ioq_avail <= IOQ_RING_SIZE);
+			M0_ASSERT(ldom->ioq_avail <= IOQ_RING_SIZE);
 			ioq_queue_unlock(ldom);
 		}
 	} while (got > 0);
@@ -453,25 +453,25 @@ static void ioq_queue_submit(struct linux_domain *ldom)
    Handles AIO completion event from the ring buffer.
 
    When all fragments of a certain adieu request have completed, signals
-   c2_stob_io::si_wait.
+   m0_stob_io::si_wait.
  */
 static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 			 long res, long res2)
 {
-	struct c2_stob_io    *io;
+	struct m0_stob_io    *io;
 	struct linux_stob_io *lio;
 	bool done;
 
-	C2_ASSERT(!c2_queue_link_is_in(&qev->iq_linkage));
-	C2_ASSERT(qev->iq_io->si_obj->so_domain == &ldom->sdl_base);
+	M0_ASSERT(!m0_queue_link_is_in(&qev->iq_linkage));
+	M0_ASSERT(qev->iq_io->si_obj->so_domain == &ldom->sdl_base);
 
 	io  = qev->iq_io;
 	lio = io->si_stob_private;
 
-	C2_ASSERT(io->si_state == SIS_BUSY);
+	M0_ASSERT(io->si_state == SIS_BUSY);
 
-	c2_mutex_lock(&lio->si_endlock);
-	C2_ASSERT(lio->si_done < lio->si_nr);
+	m0_mutex_lock(&lio->si_endlock);
+	M0_ASSERT(lio->si_done < lio->si_nr);
 	if (res > 0) {
 		if ((res & LINUX_DOM_BMASK(ldom)) != 0) {
 			ADDB_CALL(io->si_obj, "partial transfer", res);
@@ -483,17 +483,17 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 	if (res < 0 && qev->iq_io->si_rc == 0)
 		qev->iq_io->si_rc = res;
 	++lio->si_done;
-	C2_LOG(C2_DEBUG, "done=%d res=%d si_rc=%d", (int)lio->si_done, (int)res,
+	M0_LOG(M0_DEBUG, "done=%d res=%d si_rc=%d", (int)lio->si_done, (int)res,
 	       (int)qev->iq_io->si_rc);
 	done = lio->si_done == lio->si_nr;
-	c2_mutex_unlock(&lio->si_endlock);
+	m0_mutex_unlock(&lio->si_endlock);
 
 	if (done) {
-		C2_ASSERT(c2_forall(i, lio->si_nr,
-		          !c2_queue_link_is_in(&lio->si_qev[i].iq_linkage)));
+		M0_ASSERT(m0_forall(i, lio->si_nr,
+		          !m0_queue_link_is_in(&lio->si_qev[i].iq_linkage)));
 		linux_stob_io_release(lio);
 		io->si_state = SIS_IDLE;
-		c2_chan_broadcast(&io->si_wait);
+		m0_chan_broadcast(&io->si_wait);
 	}
 }
 
@@ -523,7 +523,7 @@ static void ioq_thread(struct linux_domain *ldom)
 		ioq_queue_lock(ldom);
 		if (got > 0)
 			ldom->ioq_avail += got;
-		C2_ASSERT(ldom->ioq_avail <= IOQ_RING_SIZE);
+		M0_ASSERT(ldom->ioq_avail <= IOQ_RING_SIZE);
 		ioq_queue_unlock(ldom);
 
 		for (i = 0; i < got; ++i) {
@@ -532,7 +532,7 @@ static void ioq_thread(struct linux_domain *ldom)
 
 			iev = &evout[i];
 			qev = container_of(iev->obj, struct ioq_qev, iq_iocb);
-			C2_ASSERT(!c2_queue_link_is_in(&qev->iq_linkage));
+			M0_ASSERT(!m0_queue_link_is_in(&qev->iq_linkage));
 			ioq_complete(ldom, qev, iev->res, iev->res2);
 		}
 		if (got < 0 && got != -EINTR)
@@ -542,7 +542,7 @@ static void ioq_thread(struct linux_domain *ldom)
 	}
 }
 
-C2_INTERNAL void linux_domain_io_fini(struct c2_stob_domain *dom)
+M0_INTERNAL void linux_domain_io_fini(struct m0_stob_domain *dom)
 {
 	int i;
 	struct linux_domain *ldom;
@@ -552,15 +552,15 @@ C2_INTERNAL void linux_domain_io_fini(struct c2_stob_domain *dom)
 	ldom->ioq_shutdown = true;
 	for (i = 0; i < ARRAY_SIZE(ldom->ioq); ++i) {
 		if (ldom->ioq[i].t_func != NULL)
-			c2_thread_join(&ldom->ioq[i]);
+			m0_thread_join(&ldom->ioq[i]);
 	}
 	if (ldom->ioq_ctx != NULL)
 		io_destroy(ldom->ioq_ctx);
-	c2_queue_fini(&ldom->ioq_queue);
-	c2_mutex_fini(&ldom->ioq_lock);
+	m0_queue_fini(&ldom->ioq_queue);
+	m0_mutex_fini(&ldom->ioq_lock);
 }
 
-C2_INTERNAL int linux_domain_io_init(struct c2_stob_domain *dom)
+M0_INTERNAL int linux_domain_io_init(struct m0_stob_domain *dom)
 {
 	int                          result;
 	int                          i;
@@ -573,13 +573,13 @@ C2_INTERNAL int linux_domain_io_init(struct c2_stob_domain *dom)
 	ldom->ioq_queued   = 0;
 
 	memset(ldom->ioq, 0, sizeof ldom->ioq);
-	c2_queue_init(&ldom->ioq_queue);
-	c2_mutex_init(&ldom->ioq_lock);
+	m0_queue_init(&ldom->ioq_queue);
+	m0_mutex_init(&ldom->ioq_lock);
 
 	result = io_setup(IOQ_RING_SIZE, &ldom->ioq_ctx);
 	if (result == 0) {
 		for (i = 0; i < ARRAY_SIZE(ldom->ioq); ++i) {
-			result = C2_THREAD_INIT(&ldom->ioq[i],
+			result = M0_THREAD_INIT(&ldom->ioq[i],
 						struct linux_domain *,
 						NULL, &ioq_thread, ldom,
 						"ioq_thread%d", i);
@@ -593,7 +593,7 @@ C2_INTERNAL int linux_domain_io_init(struct c2_stob_domain *dom)
 	return result;
 }
 
-#undef C2_TRACE_SUBSYSTEM
+#undef M0_TRACE_SUBSYSTEM
 #undef ADDB_GLOBAL_ADD
 #undef ADDB_ADD
 #undef ADDB_CALL

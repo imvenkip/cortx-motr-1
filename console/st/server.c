@@ -22,11 +22,11 @@
 #include <unistd.h>               /* sleep */
 
 #include "net/lnet/lnet.h"
-#include "colibri/init.h"         /* c2_init */
-#include "lib/getopts.h"	  /* C2_GETOPTS */
+#include "mero/init.h"         /* m0_init */
+#include "lib/getopts.h"	  /* M0_GETOPTS */
 
-#include "rpc/rpclib.h"           /* c2_rpc_server_start */
-#include "ut/rpc.h"               /* C2_RPC_SERVER_CTX_DECLARE */
+#include "rpc/rpclib.h"           /* m0_rpc_server_start */
+#include "ut/rpc.h"               /* M0_RPC_SERVER_CTX_DEFINE */
 
 #include "console/console.h"
 #include "console/console_fop.h"
@@ -50,62 +50,55 @@ static void sig_handler(int num)
 	signaled = 1;
 }
 
-/**
- * @brief Test server for c2console
- *
- *	  Usage: server options...
- *	  where valid options are
- *
- *		-v       : verbose
- */
+/** @brief Test server for m0console */
 int main(int argc, char **argv)
 {
 	int                 result;
-	uint32_t            tm_recv_queue_len = C2_NET_TM_RECV_QUEUE_DEF_LEN;
-	uint32_t            max_rpc_msg_size  = C2_RPC_DEF_MAX_RPC_MSG_SIZE;
+	uint32_t            tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
+	uint32_t            max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 	char                tm_len[CONSOLE_STR_LEN];
 	char                rpc_size[CONSOLE_STR_LEN];
-	struct c2_net_xprt *xprt              = &c2_net_lnet_xprt;
+	struct m0_net_xprt *xprt              = &m0_net_lnet_xprt;
 
 	char *default_server_argv[] = {
-		argv[0], "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+		argv[0], "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
 		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size
 	};
 
-	C2_RPC_SERVER_CTX_DECLARE_SIMPLE(sctx, xprt, default_server_argv,
-					 SERVER_LOG_FILE_NAME);
+	M0_RPC_SERVER_CTX_DEFINE_SIMPLE(sctx, xprt, default_server_argv,
+					SERVER_LOG_FILE_NAME);
 
 	verbose = false;
 
-	result = C2_GETOPTS("server", argc, argv,
-			    C2_FLAGARG('v', "verbose", &verbose),
-			    C2_FORMATARG('q', "minimum TM receive queue length",
+	result = M0_GETOPTS("server", argc, argv,
+			    M0_FLAGARG('v', "verbose", &verbose),
+			    M0_FORMATARG('q', "minimum TM receive queue length",
 					 "%i", &tm_recv_queue_len),
-			    C2_FORMATARG('m', "max rpc msg size", "%i",
+			    M0_FORMATARG('m', "max rpc msg size", "%i",
 					 &max_rpc_msg_size),);
 
 	if (result != 0) {
-		printf("c2_getopts failed\n");
+		printf("m0_getopts failed\n");
 		return result;
 	}
 
 	sprintf(tm_len, "%d" , tm_recv_queue_len);
 	sprintf(rpc_size, "%d" , max_rpc_msg_size);
 
-	result = c2_init();
+	result = m0_init();
 	if (result != 0) {
-		printf("c2_init failed\n");
+		printf("m0_init failed\n");
 		return result;
 	}
 
-	result = c2_console_fop_init();
+	result = m0_console_fop_init();
 	if (result != 0) {
-		printf("c2_console_fop_init failed\n");
-		goto c2_fini;
+		printf("m0_console_fop_init failed\n");
+		goto m0_fini;
 	}
 
-	result = c2_rpc_server_start(&sctx);
+	result = m0_rpc_server_start(&sctx);
 	if (result != 0) {
 		printf("failed to start rpc server\n");
 		goto fop_fini;
@@ -118,11 +111,11 @@ int main(int argc, char **argv)
 		sleep(1);
 	printf("\nExiting Server.\n");
 
-	c2_rpc_server_stop(&sctx);
+	m0_rpc_server_stop(&sctx);
 fop_fini:
-	c2_console_fop_fini();
-c2_fini:
-	c2_fini();
+	m0_console_fop_fini();
+m0_fini:
+	m0_fini();
 	return result;
 }
 

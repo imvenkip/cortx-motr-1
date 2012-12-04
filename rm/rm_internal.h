@@ -19,8 +19,8 @@
  */
 #pragma once
 
-#ifndef __COLIBRI_RM_RM_INTERNAL_H__
-#define __COLIBRI_RM_RM_INTERNAL_H__
+#ifndef __MERO_RM_RM_INTERNAL_H__
+#define __MERO_RM_RM_INTERNAL_H__
 
 #include "lib/bob.h"
 #include "lib/cookie.h"
@@ -79,7 +79,7 @@ int pin_add(struct m0_rm_incoming *in, struct m0_rm_credit *credit,
  *
  * where "owner", "loan" and "in" are respective attributes of "bor".
  */
-C2_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *bor);
+M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *bor);
 
 /**
  * Removes revoked credits from "owned" and borrowed lists.
@@ -90,7 +90,7 @@ C2_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *bor);
  * @pre in->rin_state == RI_SUCCESS
  * @pre in->rin_type == RIT_REVOKE
  */
-C2_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rvk);
+M0_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rvk);
 
 /**
  * Adds borrowed credit to the "borrowed" and "owned" lists.
@@ -100,7 +100,7 @@ C2_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rvk);
  * This function transfers ownership of the supplied "loan" structure to the
  * owner.
  */
-C2_INTERNAL int m0_rm_borrow_done(struct m0_rm_outgoing *out,
+M0_INTERNAL int m0_rm_borrow_done(struct m0_rm_outgoing *out,
 				  struct m0_rm_loan *loan);
 
 /**
@@ -128,7 +128,7 @@ int m0_rm_resource_owner_find(const struct m0_rm_resource *resource,
  * m0_rm_outgoing_complete() to be called on fop reply or timeout.
  *
  */
-C2_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
+M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 				  struct m0_rm_incoming *in,
 				  struct m0_rm_loan *loan,
 				  struct m0_rm_credit *credit);
@@ -142,7 +142,7 @@ C2_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
  * @param type - outgoing request type
  * @see m0_rm_outgoing_fini
  */
-C2_INTERNAL void m0_rm_outgoing_init(struct m0_rm_outgoing *out,
+M0_INTERNAL void m0_rm_outgoing_init(struct m0_rm_outgoing *out,
 				     enum m0_rm_outgoing_type req_type);
 
 /**
@@ -150,19 +150,19 @@ C2_INTERNAL void m0_rm_outgoing_init(struct m0_rm_outgoing *out,
  * @param out
  * @see m0_rm_outgoing_init
  */
-C2_INTERNAL void m0_rm_outgoing_fini(struct m0_rm_outgoing *out);
+M0_INTERNAL void m0_rm_outgoing_fini(struct m0_rm_outgoing *out);
 
 /**
  * Initialise the loan
  */
-C2_INTERNAL int m0_rm_loan_init(struct m0_rm_loan *loan,
+M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan *loan,
 				const struct m0_rm_credit *credit,
 				struct m0_rm_remote *creditor);
 
 /**
  * Finalise the lona. Release ref count of remote owner.
  */
-C2_INTERNAL void m0_rm_loan_fini(struct m0_rm_loan *loan);
+M0_INTERNAL void m0_rm_loan_fini(struct m0_rm_loan *loan);
 
 /**
  * Initialise the loan
@@ -171,7 +171,7 @@ C2_INTERNAL void m0_rm_loan_fini(struct m0_rm_loan *loan);
  *               loan strucutre
  * @param credit - the credits for which loan is being aloocated/created.
  */
-C2_INTERNAL int m0_rm_loan_alloc(struct m0_rm_loan **loan,
+M0_INTERNAL int m0_rm_loan_alloc(struct m0_rm_loan **loan,
 				 const struct m0_rm_credit *credit,
 				 struct m0_rm_remote *creditor);
 
@@ -179,13 +179,13 @@ C2_INTERNAL int m0_rm_loan_alloc(struct m0_rm_loan **loan,
  * Called when an outgoing request completes (possibly with an error, like a
  * timeout).
  */
-C2_INTERNAL void m0_rm_outgoing_complete(struct m0_rm_outgoing *og);
+M0_INTERNAL void m0_rm_outgoing_complete(struct m0_rm_outgoing *og);
 
 /**
  * Removes partial or full sublet matching the credit from the owner's sublet
  * list.
  */
-C2_INTERNAL int m0_rm_sublet_remove(struct m0_rm_credit *credit);
+M0_INTERNAL int m0_rm_sublet_remove(struct m0_rm_credit *credit);
 
 /** @} end of rm-fop interface. */
 
@@ -195,20 +195,20 @@ C2_INTERNAL int m0_rm_sublet_remove(struct m0_rm_credit *credit);
 
 /** @{ */
 
-C2_TL_DESCR_DECLARE(res, extern);
-C2_TL_DECLARE(res, C2_INTERNAL, struct m0_rm_resource);
+M0_TL_DESCR_DECLARE(res, extern);
+M0_TL_DECLARE(res, M0_INTERNAL, struct m0_rm_resource);
 
-C2_TL_DESCR_DECLARE(m0_rm_ur, extern);
-C2_TL_DECLARE(m0_rm_ur, C2_INTERNAL, struct m0_rm_credit);
+M0_TL_DESCR_DECLARE(m0_rm_ur, extern);
+M0_TL_DECLARE(m0_rm_ur, M0_INTERNAL, struct m0_rm_credit);
 
-C2_TL_DESCR_DECLARE(pr, extern);
-C2_TL_DECLARE(pr, C2_INTERNAL, struct m0_rm_pin);
+M0_TL_DESCR_DECLARE(pr, extern);
+M0_TL_DECLARE(pr, M0_INTERNAL, struct m0_rm_pin);
 
-C2_TL_DESCR_DECLARE(pi, extern);
-C2_TL_DECLARE(pi, C2_INTERNAL, struct m0_rm_pin);
+M0_TL_DESCR_DECLARE(pi, extern);
+M0_TL_DECLARE(pi, M0_INTERNAL, struct m0_rm_pin);
 
 const struct m0_bob_type loan_bob;
-C2_BOB_DECLARE(C2_INTERNAL, m0_rm_loan);
+M0_BOB_DECLARE(M0_INTERNAL, m0_rm_loan);
 
 /**
  * Execute "expr" against all credits lists in a given owner.
@@ -248,7 +248,7 @@ owner_state(const struct m0_rm_owner *owner)
 
 /** @} end of RM lists. */
 
-/* __COLIBRI_RM_RM_INTERNAL_H__ */
+/* __MERO_RM_RM_INTERNAL_H__ */
 #endif
 
 /*

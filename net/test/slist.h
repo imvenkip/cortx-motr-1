@@ -20,11 +20,11 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_TEST_SLIST_H__
-#define __COLIBRI_NET_TEST_SLIST_H__
+#ifndef __MERO_NET_TEST_SLIST_H__
+#define __MERO_NET_TEST_SLIST_H__
 
-#include "lib/vec.h"		/* c2_bufvec */
-#include "net/test/serialize.h"	/* c2_net_test_serialize_op */
+#include "lib/vec.h"		/* m0_bufvec */
+#include "net/test/serialize.h"	/* m0_net_test_serialize_op */
 
 /**
    @defgroup NetTestSListDFS String List
@@ -39,7 +39,7 @@
 /**
    String list.
  */
-struct c2_net_test_slist {
+struct m0_net_test_slist {
 	/**
 	   Number of strings in the list. If it is 0, other fields are
 	   not valid.
@@ -63,45 +63,45 @@ struct c2_net_test_slist {
    @pre slist != NULL
    @pre str != NULL
    @pre delim != NUL
-   @post (result == 0) && c2_net_test_slist_invariant(slist)
+   @post (result == 0) && m0_net_test_slist_invariant(slist)
  */
-int c2_net_test_slist_init(struct c2_net_test_slist *slist,
+int m0_net_test_slist_init(struct m0_net_test_slist *slist,
 			   const char *str,
 			   char delim);
 /**
    Finalize string list.
-   @pre c2_net_test_slist_invariant(slist);
+   @pre m0_net_test_slist_invariant(slist);
  */
-void c2_net_test_slist_fini(struct c2_net_test_slist *slist);
-bool c2_net_test_slist_invariant(const struct c2_net_test_slist *slist);
+void m0_net_test_slist_fini(struct m0_net_test_slist *slist);
+bool m0_net_test_slist_invariant(const struct m0_net_test_slist *slist);
 
 /**
    Is every string in list unique in this list.
    Time complexity - O(N*N), N - number of strings in the list.
    Two strings are equal if strcmp() returns 0.
    @return all strings in list are different.
-   @pre c2_net_test_slist_invariant(slist);
+   @pre m0_net_test_slist_invariant(slist);
  */
-bool c2_net_test_slist_unique(const struct c2_net_test_slist *slist);
+bool m0_net_test_slist_unique(const struct m0_net_test_slist *slist);
 
 /**
-   Serialize/deserialize string list to/from c2_bufvec.
-   c2_net_test_slist_init() shall not be called for slist before
-   c2_net_test_slist_serialize().
-   c2_net_test_slist_fini() must be called for slist to free memory,
-   allocated by c2_net_test_slist_serialize(C2_NET_TEST_DESERIALIZE, slist,...).
-   @see c2_net_test_serialize().
+   Serialize/deserialize string list to/from m0_bufvec.
+   m0_net_test_slist_init() shall not be called for slist before
+   m0_net_test_slist_serialize().
+   m0_net_test_slist_fini() must be called for slist to free memory,
+   allocated by m0_net_test_slist_serialize(M0_NET_TEST_DESERIALIZE, slist,...).
+   @see m0_net_test_serialize().
  */
-c2_bcount_t c2_net_test_slist_serialize(enum c2_net_test_serialize_op op,
-					struct c2_net_test_slist *slist,
-					struct c2_bufvec *bv,
-					c2_bcount_t offset);
+m0_bcount_t m0_net_test_slist_serialize(enum m0_net_test_serialize_op op,
+					struct m0_net_test_slist *slist,
+					struct m0_bufvec *bv,
+					m0_bcount_t offset);
 
 /**
    @} end of NetTestSListDFS group
  */
 
-#endif /*  __COLIBRI_NET_TEST_SLIST_H__ */
+#endif /*  __MERO_NET_TEST_SLIST_H__ */
 
 /*
  *  Local variables:

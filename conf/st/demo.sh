@@ -7,7 +7,7 @@ set -e
 
 CONF_DB=_db
 CONF_CFG=../ut/conf_xc.txt
-CONF_KDIR=../../c2t1fs/linux_kernel/st/
+CONF_KDIR=../../m0t1fs/linux_kernel/st/
 
 error() { echo "$@" >&2; exit 1; }
 
@@ -44,7 +44,7 @@ echo 'confc-kernel test ... '
 dmesg -c >/dev/null
 LOCAL_CONF=",local-conf=$(tr -d ' \n' < ${CONF_CFG} | tr , ^)"
 cd $CONF_KDIR
-./c2t1fs_conf.sh $LOCAL_CONF
+./m0t1fs_conf.sh $LOCAL_CONF
 cd -
 dmesg | grep @@@CONF@@@ >confc_k.dot
 echo done.

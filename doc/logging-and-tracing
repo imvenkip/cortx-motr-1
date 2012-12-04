@@ -1,6 +1,6 @@
 
 All quality assurance efforts notwithstanding, it has to be assumed
-that a software system of Colibri's scale and complexity would
+that a software system of Mero's scale and complexity would
 experience a range of deployment-time problems. Mechanisms must be put
 in place to expedite detection and analysis of such problems. This
 document describes mechanisms that in advance record information about
@@ -33,8 +33,8 @@ details and vice versa.
 It is important to realise that to be useful, logging and tracing must
 be active at all times rather than only during "debug runs".
 
-Logging in C2 is based on ADDB (Analysis and Diagnostics Data-Base),
-which is a central component of Colibri architecture. Details of ADDB
+Logging in M0 is based on ADDB (Analysis and Diagnostics Data-Base),
+which is a central component of Mero architecture. Details of ADDB
 design are described elsewhere. For the purpose of present discussion,
 ADDB consists of "records" containing "data-points" pertaining to
 execution of system actions. An action form a "context" for
@@ -68,7 +68,7 @@ failures, unexpected process termination, etc. In user space, this is
 achieved by placing trace records in a cyclic buffer memory mapped
 from a file (or allocated from SysV shared memory).
 
-More detailed information about colibri's tracing facilities
+More detailed information about mero's tracing facilities
 (configuration and usage) can be found in doc/trace.
 
 

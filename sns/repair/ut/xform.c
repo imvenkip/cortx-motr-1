@@ -34,96 +34,96 @@ enum {
 	SEG_SIZE = 256,
 };
 
-static struct c2_reqh      reqh;
-static struct c2_semaphore sem;
+static struct m0_reqh      reqh;
+static struct m0_semaphore sem;
 
 /* Global structures for single copy packet test. */
-static struct c2_sns_repair_ag s_sag;
-static struct c2_cm_cp         s_cp;
-static struct c2_bufvec        s_bv;
+static struct m0_sns_repair_ag s_sag;
+static struct m0_cm_cp         s_cp;
+static struct m0_bufvec        s_bv;
 
 /* Global structures for multiple copy packet test. */
-static struct c2_sns_repair_ag m_sag;
-static struct c2_cm_cp         m_cp[CP_MULTI];
-static struct c2_bufvec        m_bv[CP_MULTI];
+static struct m0_sns_repair_ag m_sag;
+static struct m0_cm_cp         m_cp[CP_MULTI];
+static struct m0_bufvec        m_bv[CP_MULTI];
 
 /* Global structures for testing bufvec xor correctness. */
-struct c2_bufvec src;
-struct c2_bufvec dst;
-struct c2_bufvec xor;
+struct m0_bufvec src;
+struct m0_bufvec dst;
+struct m0_bufvec xor;
 
-static uint64_t cp_single_get(const struct c2_cm_aggr_group *ag)
+static uint64_t cp_single_get(const struct m0_cm_aggr_group *ag)
 {
 	return CP_SINGLE;
 }
 
-static const struct c2_cm_aggr_group_ops group_single_ops = {
+static const struct m0_cm_aggr_group_ops group_single_ops = {
 	.cago_local_cp_nr = &cp_single_get,
 };
 
-static uint64_t cp_multi_get(const struct c2_cm_aggr_group *ag)
+static uint64_t cp_multi_get(const struct m0_cm_aggr_group *ag)
 {
 	return CP_MULTI;
 }
 
-static const struct c2_cm_aggr_group_ops group_multi_ops = {
+static const struct m0_cm_aggr_group_ops group_multi_ops = {
 	.cago_local_cp_nr = &cp_multi_get,
 };
 
-static size_t dummy_fom_locality(const struct c2_fom *fom)
+static size_t dummy_fom_locality(const struct m0_fom *fom)
 {
 	/* By default, use locality0. */
 	return 0;
 }
 
 /* Dummy fom state routine to emulate only selective copy packet states. */
-static int dummy_fom_tick(struct c2_fom *fom)
+static int dummy_fom_tick(struct m0_fom *fom)
 {
-	struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
+	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
 
-	switch (c2_fom_phase(fom)) {
-	case C2_FOM_PHASE_INIT:
-		c2_fom_phase_set(fom, C2_CCP_XFORM);
-		c2_semaphore_up(&sem);
-		return cp->c_ops->co_action[C2_CCP_XFORM](cp);
-	case C2_CCP_FINI:
-		return C2_FSO_WAIT;
-	case C2_CCP_WRITE:
-		c2_fom_phase_set(fom, C2_CCP_IO_WAIT);
-		return C2_FSO_AGAIN;
-	case C2_CCP_IO_WAIT:
-		c2_fom_phase_set(fom, C2_CCP_FINI);
-		return C2_FSO_WAIT;
+	switch (m0_fom_phase(fom)) {
+	case M0_FOM_PHASE_INIT:
+		m0_fom_phase_set(fom, M0_CCP_XFORM);
+		m0_semaphore_up(&sem);
+		return cp->c_ops->co_action[M0_CCP_XFORM](cp);
+	case M0_CCP_FINI:
+		return M0_FSO_WAIT;
+	case M0_CCP_WRITE:
+		m0_fom_phase_set(fom, M0_CCP_IO_WAIT);
+		return M0_FSO_AGAIN;
+	case M0_CCP_IO_WAIT:
+		m0_fom_phase_set(fom, M0_CCP_FINI);
+		return M0_FSO_WAIT;
 	default:
-		C2_IMPOSSIBLE("Bad State");
+		M0_IMPOSSIBLE("Bad State");
 	}
 }
 
-static void single_cp_fom_fini(struct c2_fom *fom)
+static void single_cp_fom_fini(struct m0_fom *fom)
 {
-	struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
+	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
 
 	bv_free(cp->c_data);
-	c2_cm_cp_fini(cp);
+	m0_cm_cp_fini(cp);
 }
 
-static void multiple_cp_fom_fini(struct c2_fom *fom)
+static void multiple_cp_fom_fini(struct m0_fom *fom)
 {
-	struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
+	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
 
 	bv_free(cp->c_data);
-	c2_cm_cp_fini(cp);
+	m0_cm_cp_fini(cp);
 }
 
 /* Over-ridden copy packet FOM ops. */
-static struct c2_fom_ops single_cp_fom_ops = {
+static struct m0_fom_ops single_cp_fom_ops = {
 	.fo_fini          = single_cp_fom_fini,
 	.fo_tick          = dummy_fom_tick,
 	.fo_home_locality = dummy_fom_locality
 };
 
 /* Over-ridden copy packet FOM ops. */
-static struct c2_fom_ops multiple_cp_fom_ops = {
+static struct m0_fom_ops multiple_cp_fom_ops = {
 	.fo_fini          = multiple_cp_fom_fini,
 	.fo_tick          = dummy_fom_tick,
 	.fo_home_locality = dummy_fom_locality
@@ -135,29 +135,30 @@ static struct c2_fom_ops multiple_cp_fom_ops = {
  */
 static void test_single_cp(void)
 {
-	c2_semaphore_init(&sem, 0);
-	c2_atomic64_set(&s_sag.sag_base.cag_transformed_cp_nr, 0);
+	m0_semaphore_init(&sem, 0);
+	m0_atomic64_set(&s_sag.sag_base.cag_transformed_cp_nr, 0);
 	cp_prepare(&s_cp, &s_bv, SEG_NR, SEG_SIZE, &s_sag, 'e',
 		   &single_cp_fom_ops);
 	s_cp.c_ag->cag_ops = &group_single_ops;
-	c2_fom_queue(&s_cp.c_fom, &reqh);
+	s_cp.c_ag->cag_cp_nr = s_cp.c_ag->cag_ops->cago_local_cp_nr(s_cp.c_ag);
+	m0_fom_queue(&s_cp.c_fom, &reqh);
 
 	/* Wait till ast gets posted. */
-	c2_semaphore_down(&sem);
+	m0_semaphore_down(&sem);
 	/*
 	 * Wait until all the foms in the request handler locality runq are
 	 * processed. This is required for further validity checks.
 	 */
-	c2_reqh_shutdown_wait(&reqh);
+	m0_reqh_shutdown_wait(&reqh);
 
 	/*
 	 * These asserts ensure that the single copy packet has been treated
 	 * as passthrough.
 	 */
-	C2_UT_ASSERT(c2_atomic64_get(&s_sag.sag_base.cag_transformed_cp_nr) ==
+	M0_UT_ASSERT(m0_atomic64_get(&s_sag.sag_base.cag_transformed_cp_nr) ==
 		     0);
-	C2_UT_ASSERT(s_sag.sag_base.cag_cp_nr == 1);
-	c2_semaphore_fini(&sem);
+	M0_UT_ASSERT(s_sag.sag_base.cag_cp_nr == 1);
+	m0_semaphore_fini(&sem);
 }
 
 /*
@@ -168,30 +169,32 @@ static void test_multiple_cp(void)
 {
 	int i;
 
-	c2_semaphore_init(&sem, 0);
-	c2_atomic64_set(&m_sag.sag_base.cag_transformed_cp_nr, 0);
+	m0_semaphore_init(&sem, 0);
+	m0_atomic64_set(&m_sag.sag_base.cag_transformed_cp_nr, 0);
 	for (i = 0; i < CP_MULTI; ++i) {
 		cp_prepare(&m_cp[i], &m_bv[i], SEG_NR, SEG_SIZE, &m_sag, 'r',
 			   &multiple_cp_fom_ops);
 		m_cp[i].c_ag->cag_ops = &group_multi_ops;
-		c2_fom_queue(&m_cp[i].c_fom, &reqh);
-		c2_semaphore_down(&sem);
+		m_cp[i].c_ag->cag_cp_nr =
+			m_cp[i].c_ag->cag_ops->cago_local_cp_nr(m_cp[i].c_ag);
+		m0_fom_queue(&m_cp[i].c_fom, &reqh);
+		m0_semaphore_down(&sem);
 	}
 
 	/*
 	 * Wait until the fom in the request handler locality runq is
 	 * processed. This is required for further validity checks.
 	 */
-	c2_reqh_shutdown_wait(&reqh);
+	m0_reqh_shutdown_wait(&reqh);
 
 	/*
 	 * These asserts ensure that all the copy packets have been collected
 	 * by the transformation function.
 	 */
-	C2_UT_ASSERT(c2_atomic64_get(&m_sag.sag_base.cag_transformed_cp_nr) ==
+	M0_UT_ASSERT(m0_atomic64_get(&m_sag.sag_base.cag_transformed_cp_nr) ==
 		     CP_MULTI);
-	C2_UT_ASSERT(m_sag.sag_base.cag_cp_nr == CP_MULTI);
-	c2_semaphore_fini(&sem);
+	M0_UT_ASSERT(m_sag.sag_base.cag_cp_nr == CP_MULTI);
+	m0_semaphore_fini(&sem);
 }
 
 /*
@@ -200,13 +203,13 @@ static void test_multiple_cp(void)
  */
 static int xform_init(void)
 {
-	c2_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1, (void*)1);
+	m0_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1, (void*)1);
 	return 0;
 }
 
 static int xform_fini(void)
 {
-	c2_reqh_fini(&reqh);
+	m0_reqh_fini(&reqh);
 
 	return 0;
 }
@@ -229,7 +232,7 @@ static void test_bufvec_xor()
 	bv_free(&xor);
 }
 
-const struct c2_test_suite snsrepair_xform_ut = {
+const struct m0_test_suite snsrepair_xform_ut = {
 	.ts_name = "snsrepair_xform-ut",
 	.ts_init = &xform_init,
 	.ts_fini = &xform_fini,

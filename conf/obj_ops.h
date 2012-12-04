@@ -18,11 +18,11 @@
  * Original creation date: 09-Mar-2012
  */
 #pragma once
-#ifndef __COLIBRI_CONF_OBJOPS_H__
-#define __COLIBRI_CONF_OBJOPS_H__
+#ifndef __MERO_CONF_OBJOPS_H__
+#define __MERO_CONF_OBJOPS_H__
 
-#include "conf/obj.h"  /* c2_conf_objtype */
-#include "lib/tlist.h" /* C2_TL_DESCR_DECLARE, C2_TL_DECLARE */
+#include "conf/obj.h"  /* m0_conf_objtype */
+#include "lib/tlist.h" /* M0_TL_DESCR_DECLARE, M0_TL_DECLARE */
 
 /**
  * @page conf-fspec-objops Configuration Object Operations
@@ -34,18 +34,18 @@
  *
  * @section conf-fspec-objops-data Data Structures
  *
- * - c2_conf_obj_ops --- configuration object operations vector.
+ * - m0_conf_obj_ops --- configuration object operations vector.
  *
  * @section conf-fspec-objops-sub Subroutines
  *
- * - c2_conf_obj_create() allocates and initialises configuration object.
- * - c2_conf_obj_find() finds registered object or creates and a stub.
- * - c2_conf_obj_delete() finalises and frees configuration object.
- * - c2_conf_obj_invariant() validates given configuration object.
- * - c2_conf_obj_get() increases and c2_conf_obj_put() decreases
+ * - m0_conf_obj_create() allocates and initialises configuration object.
+ * - m0_conf_obj_find() finds registered object or creates and a stub.
+ * - m0_conf_obj_delete() finalises and frees configuration object.
+ * - m0_conf_obj_invariant() validates given configuration object.
+ * - m0_conf_obj_get() increases and m0_conf_obj_put() decreases
  *   object's number of references.
- * - c2_conf_obj_fill() enriches a stub with configuration data.
- * - c2_conf_obj_match() compares cached configuration object with its
+ * - m0_conf_obj_fill() enriches a stub with configuration data.
+ * - m0_conf_obj_match() compares cached configuration object with its
  *   on-wire representation.
  *
  * @see @ref conf_dfspec_objops "Detailed Functional Specification"
@@ -61,33 +61,33 @@
  */
 
 /* export */
-C2_TL_DESCR_DECLARE(c2_conf_reg, C2_EXTERN);
-C2_TL_DECLARE(c2_conf_reg, C2_INTERNAL, struct c2_conf_obj);
+M0_TL_DESCR_DECLARE(m0_conf_reg, M0_EXTERN);
+M0_TL_DECLARE(m0_conf_reg, M0_INTERNAL, struct m0_conf_obj);
 
 /* import */
-struct c2_conf_reg;
+struct m0_conf_reg;
 struct confx_object;
 
-C2_TL_DESCR_DECLARE(c2_conf_dir, C2_EXTERN);
-C2_TL_DECLARE(c2_conf_dir, C2_INTERNAL, struct c2_conf_obj);
+M0_TL_DESCR_DECLARE(m0_conf_dir, M0_EXTERN);
+M0_TL_DECLARE(m0_conf_dir, M0_INTERNAL, struct m0_conf_obj);
 
-/** Symbolic names for c2_conf_obj_ops::coo_readdir() return values. */
-enum c2_conf_dirval {
+/** Symbolic names for m0_conf_obj_ops::coo_readdir() return values. */
+enum m0_conf_dirval {
 	/** End of directory is reached. */
-	C2_CONF_DIREND = 0,
+	M0_CONF_DIREND = 0,
 	/** The next directory entry is available immediately. */
-	C2_CONF_DIRNEXT,
+	M0_CONF_DIRNEXT,
 	/**
 	 * The next directory entry is missing from configuration
 	 * cache or is a stub.
 	 */
-	C2_CONF_DIRMISS
+	M0_CONF_DIRMISS
 };
 
 /** Configuration object operations. */
-struct c2_conf_obj_ops {
+struct m0_conf_obj_ops {
 	/** Validates concrete fields of given configuration object. */
-	bool (*coo_invariant)(const struct c2_conf_obj *obj);
+	bool (*coo_invariant)(const struct m0_conf_obj *obj);
 
 	/**
 	 * Populates concrete object with configuration data taken
@@ -95,19 +95,19 @@ struct c2_conf_obj_ops {
 	 *
 	 * Creates stubs of object's neighbours, if necessary.
 	 *
-	 * @pre   dest->co_nrefs == 0 && dest->co_status != C2_CS_READY
-	 * @post  dest->co_status == (retval == 0 ? C2_CS_READY : C2_CS_MISSING)
+	 * @pre   dest->co_nrefs == 0 && dest->co_status != M0_CS_READY
+	 * @post  dest->co_status == (retval == 0 ? M0_CS_READY : M0_CS_MISSING)
 	 * @post  ergo(retval == 0, dest->co_mounted)
 	 */
-	int (*coo_fill)(struct c2_conf_obj *dest,
+	int (*coo_fill)(struct m0_conf_obj *dest,
 			const struct confx_object *src,
-			struct c2_conf_reg *reg);
+			struct m0_conf_reg *reg);
 
 	/**
 	 * Returns false iff cached configuration object and "flat" object
 	 * have conflicting data.
 	 */
-	bool (*coo_match)(const struct c2_conf_obj *cached,
+	bool (*coo_match)(const struct m0_conf_obj *cached,
 			  const struct confx_object *flat);
 
 	/**
@@ -120,10 +120,10 @@ struct c2_conf_obj_ops {
 	 * @param out     If the function succeeds, *out will point to the
 	 *                sought-for object.
 	 *
-	 * @pre  parent->co_status == C2_CS_READY
+	 * @pre  parent->co_status == M0_CS_READY
 	 */
-	int (*coo_lookup)(struct c2_conf_obj *parent, const struct c2_buf *name,
-			  struct c2_conf_obj **out);
+	int (*coo_lookup)(struct m0_conf_obj *parent, const struct m0_buf *name,
+			  struct m0_conf_obj **out);
 
 	/**
 	 * Gets next directory entry.
@@ -132,27 +132,27 @@ struct c2_conf_obj_ops {
 	 * @param[in]  pptr  "Current" entry.
 	 * @param[out] pptr  "Next" entry.
 	 *
-	 * @retval C2_CONF_DIRMISS  The next directory entry is missing from
+	 * @retval M0_CONF_DIRMISS  The next directory entry is missing from
 	 *                          configuration cache or is a stub.
-	 * @retval C2_CONF_DIRNEXT  *pptr now points to the next entry.
-	 * @retval C2_CONF_DIREND   End of directory is reached.
+	 * @retval M0_CONF_DIRNEXT  *pptr now points to the next entry.
+	 * @retval M0_CONF_DIREND   End of directory is reached.
 	 * @retval -Exxx            Error.
 	 *
-	 * ->coo_readdir() puts (c2_conf_obj_put()) configuration object
+	 * ->coo_readdir() puts (m0_conf_obj_put()) configuration object
 	 * referred to via `pptr' input parameter.
 	 *
-	 * ->coo_readdir() pins (c2_conf_obj_get()) the resulting
-	 * object in case of C2_CONF_DIRNEXT.
+	 * ->coo_readdir() pins (m0_conf_obj_get()) the resulting
+	 * object in case of M0_CONF_DIRNEXT.
 	 */
-	int (*coo_readdir)(struct c2_conf_obj *dir, struct c2_conf_obj **pptr);
+	int (*coo_readdir)(struct m0_conf_obj *dir, struct m0_conf_obj **pptr);
 
 	/**
 	 * Finalises concrete fields of given configuration object and
 	 * frees it.
 	 *
-	 * @see c2_conf_obj_delete()
+	 * @see m0_conf_obj_delete()
 	 */
-	void (*coo_delete)(struct c2_conf_obj *obj);
+	void (*coo_delete)(struct m0_conf_obj *obj);
 };
 
 /**
@@ -160,41 +160,41 @@ struct c2_conf_obj_ops {
  *
  * Copies `id' into ->co_id of the resulting object.
  *
- * Note, that c2_conf_obj_create() does not add the resulting object
+ * Note, that m0_conf_obj_create() does not add the resulting object
  * into configuration cache.
  *
  * @post  ergo(retval != NULL,
- *             !retval->co_mounted && retval->co_status == C2_CS_MISSING)
+ *             !retval->co_mounted && retval->co_status == M0_CS_MISSING)
  */
-C2_INTERNAL struct c2_conf_obj *c2_conf_obj_create(enum c2_conf_objtype type,
-						   const struct c2_buf *id);
+M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(enum m0_conf_objtype type,
+						   const struct m0_buf *id);
 
 /**
  * Finds registered object with given identity or, if no object is
  * found, creates and registers a stub.
  */
-C2_INTERNAL int c2_conf_obj_find(struct c2_conf_reg *reg,
-				 enum c2_conf_objtype type,
-				 const struct c2_buf *id,
-				 struct c2_conf_obj **out);
+M0_INTERNAL int m0_conf_obj_find(struct m0_conf_reg *reg,
+				 enum m0_conf_objtype type,
+				 const struct m0_buf *id,
+				 struct m0_conf_obj **out);
 
 /**
  * Finalises and frees configuration object.
  *
- * @pre  obj->co_nrefs == 0 && obj->co_status != C2_CS_LOADING
+ * @pre  obj->co_nrefs == 0 && obj->co_status != M0_CS_LOADING
  */
-C2_INTERNAL void c2_conf_obj_delete(struct c2_conf_obj *obj);
+M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj);
 
 /** Validates given configuration object. */
-C2_INTERNAL bool c2_conf_obj_invariant(const struct c2_conf_obj *obj);
+M0_INTERNAL bool m0_conf_obj_invariant(const struct m0_conf_obj *obj);
 
 /**
  * Increments reference counter of given configuration object.
  *
- * @pre   obj->co_status == C2_CS_READY
+ * @pre   obj->co_status == M0_CS_READY
  * @post  obj->co_nrefs > 0
  */
-C2_INTERNAL void c2_conf_obj_get(struct c2_conf_obj *obj);
+M0_INTERNAL void m0_conf_obj_get(struct m0_conf_obj *obj);
 
 /**
  * Decrements reference counter of given configuration object.
@@ -202,9 +202,9 @@ C2_INTERNAL void c2_conf_obj_get(struct c2_conf_obj *obj);
  * Broadcasts obj->co_chan if the object becomes unpinned (i.e., if
  * the decremented counter reaches 0).
  *
- * @pre  obj->co_nrefs > 0 && obj->co_status == C2_CS_READY
+ * @pre  obj->co_nrefs > 0 && obj->co_status == M0_CS_READY
  */
-C2_INTERNAL void c2_conf_obj_put(struct c2_conf_obj *obj);
+M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj);
 
 /**
  * Enriches a stub with configuration data.
@@ -217,18 +217,18 @@ C2_INTERNAL void c2_conf_obj_put(struct c2_conf_obj *obj);
  * via `src' parameter.
  *
  * @pre   `src' is valid
- * @pre   c2_mutex_is_locked(&dest->co_confc->cc_lock)
- * @pre   dest->co_nrefs == 0 && dest->co_status != C2_CS_READY
+ * @pre   m0_mutex_is_locked(&dest->co_confc->cc_lock)
+ * @pre   dest->co_nrefs == 0 && dest->co_status != M0_CS_READY
  * @pre   dest->co_type == src->o_conf.u_type
- * @pre   c2_buf_eq(&dest->co_id, &src->o_id)
+ * @pre   m0_buf_eq(&dest->co_id, &src->o_id)
  *
- * @post  c2_conf_obj_invariant(dest)
- * @post  c2_mutex_is_locked(&dest->co_confc->cc_lock)
- * @post  ergo(retval == 0, dest->co_status == C2_CS_READY && dest->co_mounted)
+ * @post  m0_conf_obj_invariant(dest)
+ * @post  m0_mutex_is_locked(&dest->co_confc->cc_lock)
+ * @post  ergo(retval == 0, dest->co_status == M0_CS_READY && dest->co_mounted)
  */
-C2_INTERNAL int c2_conf_obj_fill(struct c2_conf_obj *dest,
+M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
 				 const struct confx_object *src,
-				 struct c2_conf_reg *reg);
+				 struct m0_conf_reg *reg);
 
 /**
  * Returns false iff cached configuration object and on-wire object
@@ -240,8 +240,8 @@ C2_INTERNAL int c2_conf_obj_fill(struct c2_conf_obj *dest,
  * @pre  cached->co_mounted
  * @pre  `flat' is valid
  */
-C2_INTERNAL bool c2_conf_obj_match(const struct c2_conf_obj *cached,
+M0_INTERNAL bool m0_conf_obj_match(const struct m0_conf_obj *cached,
 				   const struct confx_object *flat);
 
 /** @} conf_dfspec_objops */
-#endif /* __COLIBRI_CONF_OBJOPS_H__ */
+#endif /* __MERO_CONF_OBJOPS_H__ */

@@ -1,4 +1,4 @@
-nobase_colibri_include_HEADERS += fol/fol.h \
+nobase_mero_include_HEADERS += fol/fol.h \
                                   fol/lsn.h
 
-colibri_libcolibri_la_SOURCES  += fol/fol.c
+mero_libmero_la_SOURCES  += fol/fol.c

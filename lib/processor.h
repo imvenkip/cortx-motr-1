@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_PROCESSOR_H__
-#define __COLIBRI_LIB_PROCESSOR_H__
+#ifndef __MERO_LIB_PROCESSOR_H__
+#define __MERO_LIB_PROCESSOR_H__
 
 #include "lib/bitmap.h"
 #include "lib/types.h"
@@ -55,10 +55,10 @@
    @{
  */
 
-#define C2_PROCESSORS_INVALID_ID	((uint32_t)-1)
+#define M0_PROCESSORS_INVALID_ID	((uint32_t)-1)
 
 /** A processor number/identifier. */
-typedef uint32_t c2_processor_nr_t;
+typedef uint32_t m0_processor_nr_t;
 
 /**
    Initialize processors interface. This will allow the interface
@@ -71,16 +71,16 @@ typedef uint32_t c2_processor_nr_t;
    program will have to re-initalize the interface (at least in user-mode)
    after registering for platform specific CPU change notification.
 
-   To re-initalize the interface, c2_processors_fini() must be called first,
+   To re-initalize the interface, m0_processors_fini() must be called first,
    before initializing it again.
 
    @post Interface initialized.
 
    Concurrency: The interface should not be initialized twice or simultaneously.
                 It's not MT-safe and can be called only once. It can be
-                called again after calling c2_processors_fini().
+                called again after calling m0_processors_fini().
  */
-C2_INTERNAL int c2_processors_init(void);
+M0_INTERNAL int m0_processors_init(void);
 
 /**
    Close the processors interface. This function will destroy any cached data.
@@ -88,52 +88,52 @@ C2_INTERNAL int c2_processors_init(void);
 
    Concurrency: Not MT-safe. Assumes no threads are using processor interface.
  */
-C2_INTERNAL void c2_processors_fini(void);
+M0_INTERNAL void m0_processors_fini(void);
 
 /**
    Maximum processors this system can handle.
  */
-C2_INTERNAL c2_processor_nr_t c2_processor_nr_max(void);
+M0_INTERNAL m0_processor_nr_t m0_processor_nr_max(void);
 
 /**
    Return the bitmap of possible processors.
 
-   @pre map->b_nr >= c2_processor_nr_max()
-   @pre c2_processors_init() must be called before calling this function.
+   @pre map->b_nr >= m0_processor_nr_max()
+   @pre m0_processors_init() must be called before calling this function.
    @pre The calling function must allocate memory for 'map' and initialize it.
    @note This function does not take any locks.
  */
-C2_INTERNAL void c2_processors_possible(struct c2_bitmap *map);
+M0_INTERNAL void m0_processors_possible(struct m0_bitmap *map);
 
 /**
    Return the bitmap of available processors.
 
-   @pre map->b_nr >= c2_processor_nr_max()
-   @pre c2_processors_init() must be called before calling this function.
+   @pre map->b_nr >= m0_processor_nr_max()
+   @pre m0_processors_init() must be called before calling this function.
    @pre The calling function must allocate memory for 'map' and initialize it.
    @note This function does not take any locks.
  */
-C2_INTERNAL void c2_processors_available(struct c2_bitmap *map);
+M0_INTERNAL void m0_processors_available(struct m0_bitmap *map);
 
 /**
    Return the bitmap of online processors.
 
-   @pre map->b_nr >= c2_processor_nr_max()
-   @pre c2_processors_init() must be called before calling this function.
+   @pre map->b_nr >= m0_processor_nr_max()
+   @pre m0_processors_init() must be called before calling this function.
    @pre The calling function must allocate memory for 'map' and initialize it.
    @note This function does not take any locks.
  */
-C2_INTERNAL void c2_processors_online(struct c2_bitmap *map);
+M0_INTERNAL void m0_processors_online(struct m0_bitmap *map);
 
 /**
    Return the id of the processor on which the calling thread is running.
 
    @return logical processor id (as supplied by the system) on which the
            calling thread is running, if the call is unsupported.
-           It will return C2_PROCESSORS_INVALID_ID, if this call is not
+           It will return M0_PROCESSORS_INVALID_ID, if this call is not
            supported.
  */
-C2_INTERNAL c2_processor_nr_t c2_processor_id_get(void);
+M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void);
 
 /**
    Description of a processor in the system.
@@ -165,9 +165,9 @@ C2_INTERNAL c2_processor_nr_t c2_processor_id_get(void);
    +---------------+-----------------------------------------------------------+
    @endverbatim
  */
-struct c2_processor_descr {
+struct m0_processor_descr {
 	/** Processor identifier. */
-	c2_processor_nr_t pd_id;
+	m0_processor_nr_t pd_id;
 	/** All processors in the same numa node share this */
 	uint32_t          pd_numa_node;
 	/** Id for L1 cache. If multiple processors share L1 cache, all of them
@@ -197,19 +197,19 @@ struct c2_processor_descr {
                    memory pointer for 'pd' is passed.
 
    @pre  Memory must be allocated for pd. Interface donot allocated memory.
-   @pre c2_processors_init() must be called before calling this function.
+   @pre m0_processors_init() must be called before calling this function.
    @post d->pd_id == id or none
 
    Concurrency: This is read only data. Interface by itself does not do
                 any locking. When used in kernel-mode, the interface may
                 call some functions that may use some kind of locks.
  */
-C2_INTERNAL int c2_processor_describe(c2_processor_nr_t id,
-				      struct c2_processor_descr *pd);
+M0_INTERNAL int m0_processor_describe(m0_processor_nr_t id,
+				      struct m0_processor_descr *pd);
 
 /** @} end of processor group */
 
-/* __COLIBRI_LIB_PROCESSOR_H__ */
+/* __MERO_LIB_PROCESSOR_H__ */
 #endif
 
 /*

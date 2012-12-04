@@ -19,7 +19,7 @@
  */
 
 /*
-  Dummy fops to test colibri setup
+  Dummy fops to test mero setup
  */
 record {
 	u64 csr_value

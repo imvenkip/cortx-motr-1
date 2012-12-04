@@ -28,7 +28,7 @@
 sequence {
 	u32 nbd_len;
 	u8  nbd_data
-} c2_net_buf_desc;
+} m0_net_buf_desc;
 
 /** @} end of net group */
 

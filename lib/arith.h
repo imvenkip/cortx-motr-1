@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_ARITH_H__
-#define __COLIBRI_LIB_ARITH_H__
+#ifndef __MERO_LIB_ARITH_H__
+#define __MERO_LIB_ARITH_H__
 
 #include "lib/types.h"
 #include "lib/assert.h"
@@ -118,20 +118,20 @@ static inline uint64_t max64u(uint64_t a, uint64_t b)
 
    As a safety measure, function checks that values are close enough.
 
-   @see c2_mod_ge()
+   @see m0_mod_ge()
  */
-C2_INTERNAL bool c2_mod_gt(uint64_t x0, uint64_t x1);
+M0_INTERNAL bool m0_mod_gt(uint64_t x0, uint64_t x1);
 
 /**
    Compares two 64bit numbers "modulo overflow".
 
-   @see c2_mod_gt()
+   @see m0_mod_gt()
  */
-C2_INTERNAL bool c2_mod_ge(uint64_t x0, uint64_t x1);
+M0_INTERNAL bool m0_mod_ge(uint64_t x0, uint64_t x1);
 
 static inline uint64_t clip64u(uint64_t lo, uint64_t hi, uint64_t x)
 {
-	C2_PRE(lo < hi);
+	M0_PRE(lo < hi);
 	return min64u(max64u(lo, x), hi);
 }
 
@@ -143,30 +143,30 @@ static inline uint64_t clip64u(uint64_t lo, uint64_t hi, uint64_t x)
 
    @post result < max
  */
-C2_INTERNAL uint64_t c2_rnd(uint64_t max, uint64_t * seed);
+M0_INTERNAL uint64_t m0_rnd(uint64_t max, uint64_t * seed);
 
 /**
    Greatest common divisor.
  */
-C2_INTERNAL uint64_t c2_gcd64(uint64_t p, uint64_t q);
+M0_INTERNAL uint64_t m0_gcd64(uint64_t p, uint64_t q);
 
-static inline bool c2_is_po2(uint64_t val)
+static inline bool m0_is_po2(uint64_t val)
 {
 	return !(val & (val - 1));
 }
 
-static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
+static inline uint64_t m0_align(uint64_t val, uint64_t alignment)
 {
 	uint64_t mask;
 
-	C2_PRE(c2_is_po2(alignment));
+	M0_PRE(m0_is_po2(alignment));
 	mask = alignment - 1;
 	return (val + mask) & ~mask;
 }
 
 /** True iff @val is a multiple of 8. This macro can be used to check that a
     pointer is aligned at a 64-bit boundary. */
-#define C2_IS_8ALIGNED(val) ((((uint64_t)(val)) & 07) == 0)
+#define M0_IS_8ALIGNED(val) ((((uint64_t)(val)) & 07) == 0)
 
 /**
  * 3-way comparison.
@@ -175,7 +175,7 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
  *  0 when v0 == v2
  * -1 when v0 <  v2
  */
-#define C2_3WAY(v0, v1)				\
+#define M0_3WAY(v0, v1)				\
 ({						\
 	typeof(v0) __a0 = (v0);			\
 	typeof(v1) __a1 = (v1);			\
@@ -183,7 +183,7 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 	(__a0 < __a1) ? -1 : __a0 != __a1;	\
 })
 
-#define C2_SWAP(v0, v1)					\
+#define M0_SWAP(v0, v1)					\
 ({							\
 	typeof(v0) __a0 = (v0);				\
 	typeof(v1) __a1 = (v1);				\
@@ -195,22 +195,22 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 })
 
 /** Decrements a counter checking for underflow. */
-#define C2_CNT_DEC(cnt)					\
+#define M0_CNT_DEC(cnt)					\
 ({							\
-        C2_ASSERT((cnt) != 0);				\
+        M0_ASSERT((cnt) != 0);				\
         --cnt;						\
 })
 
 /** Increments a counter checking for overflow. */
-#define C2_CNT_INC(cnt)					\
+#define M0_CNT_INC(cnt)					\
 ({							\
         ++cnt;						\
-        C2_ASSERT((cnt) != 0);				\
+        M0_ASSERT((cnt) != 0);				\
 })
 
 /** @} end of arith group */
 
-/* __COLIBRI_LIB_ARITH_H__ */
+/* __MERO_LIB_ARITH_H__ */
 #endif
 
 /*

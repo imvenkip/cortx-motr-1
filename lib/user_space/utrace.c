@@ -33,12 +33,12 @@
 #include "lib/trace.h"
 #include "lib/trace_internal.h"
 
-#include "colibri/magic.h"
+#include "mero/magic.h"
 
 /**
    @addtogroup trace
 
-   <b>User-space c2_trace_parse() implementation.</b>
+   <b>User-space m0_trace_parse() implementation.</b>
 
    @{
  */
@@ -77,41 +77,41 @@ static int logbuf_map()
 {
 	char buf[80];
 
-	sprintf(buf, "c2.trace.%u", (unsigned)getpid());
+	sprintf(buf, "m0.trace.%u", (unsigned)getpid());
 	if ((logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC, 0700)) == -1)
 		warn("open(\"%s\")", buf);
-	else if ((errno = posix_fallocate(logfd, 0, c2_logbufsize)) != 0)
-		warn("fallocate(\"%s\", %u)", buf, c2_logbufsize);
-	else if ((c2_logbuf = mmap(NULL, c2_logbufsize, PROT_WRITE,
+	else if ((errno = posix_fallocate(logfd, 0, m0_logbufsize)) != 0)
+		warn("fallocate(\"%s\", %u)", buf, m0_logbufsize);
+	else if ((m0_logbuf = mmap(NULL, m0_logbufsize, PROT_WRITE,
                                    MAP_SHARED, logfd, 0)) == MAP_FAILED)
 		warn("mmap(\"%s\")", buf);
 	else
-		memset(c2_logbuf, 0, c2_logbufsize);
+		memset(m0_logbuf, 0, m0_logbufsize);
 
 	return -errno;
 }
 
-C2_INTERNAL int c2_trace_set_print_context(const char *ctx_name)
+M0_INTERNAL int m0_trace_set_print_context(const char *ctx_name)
 {
 	if (ctx_name != NULL) {
-		enum c2_trace_print_context ctx =
-			parse_trace_print_context(ctx_name);
+		enum m0_trace_print_context ctx =
+			m0_trace_parse_trace_print_context(ctx_name);
 
-		if (ctx == C2_TRACE_PCTX_INVALID)
+		if (ctx == M0_TRACE_PCTX_INVALID)
 			return -EINVAL;
 
-		c2_trace_print_context = ctx;
+		m0_trace_print_context = ctx;
 	}
 
 	return 0;
 }
 
-C2_INTERNAL int c2_trace_set_immediate_mask(const char *mask)
+M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask)
 {
 	if (mask != NULL) {
 		char *endp;
 
-		c2_trace_immediate_mask = strtoul(mask, &endp, 0);
+		m0_trace_immediate_mask = strtoul(mask, &endp, 0);
 
 		/*
 		 * if mask string fails to convert to a number cleanly, then
@@ -126,67 +126,69 @@ C2_INTERNAL int c2_trace_set_immediate_mask(const char *mask)
 			if (s == NULL)
 				return -ENOMEM;
 
-			rc = subsys_list_to_mask(s, &m);
+			rc = m0_trace_subsys_list_to_mask(s, &m);
 			free(s);
 
 			if (rc != 0)
 				return rc;
 
-			c2_trace_immediate_mask = m;
+			m0_trace_immediate_mask = m;
 		}
 	}
 
 	return 0;
 }
 
-C2_INTERNAL int c2_trace_set_level(const char *level)
+M0_INTERNAL int m0_trace_set_level(const char *level)
 {
 	if (level != NULL) {
 		char *s = strdup(level);
 		if (s == NULL)
 			return -ENOMEM;
-		c2_trace_level = parse_trace_level(s);
+		m0_trace_level = m0_trace_parse_trace_level(s);
 		free(s);
-		if (c2_trace_level == C2_NONE)
+		if (m0_trace_level == M0_NONE)
 			return -EINVAL;
 	}
 
 	return 0;
 }
 
-C2_INTERNAL int c2_arch_trace_init()
+M0_INTERNAL int m0_arch_trace_init()
 {
 	int         rc;
 	const char *var;
 
-	var = getenv("C2_TRACE_IMMEDIATE_MASK");
-	rc = c2_trace_set_immediate_mask(var);
+	var = getenv("M0_TRACE_IMMEDIATE_MASK");
+	rc = m0_trace_set_immediate_mask(var);
 	if (rc != 0)
 		return rc;
 
-	var = getenv("C2_TRACE_LEVEL");
-	rc = c2_trace_set_level(var);
+	var = getenv("M0_TRACE_LEVEL");
+	rc = m0_trace_set_level(var);
 	if (rc != 0)
 		return rc;
 
-	var = getenv("C2_TRACE_PRINT_CONTEXT");
-	rc = c2_trace_set_print_context(var);
+	var = getenv("M0_TRACE_PRINT_CONTEXT");
+	rc = m0_trace_set_print_context(var);
 	if (rc != 0)
 		return rc;
+
+	setlinebuf(stdout);
 
 	return randvspace_check() ?: logbuf_map();
 }
 
-C2_INTERNAL void c2_arch_trace_fini(void)
+M0_INTERNAL void m0_arch_trace_fini(void)
 {
-	munmap(c2_logbuf, c2_logbufsize);
+	munmap(m0_logbuf, m0_logbufsize);
 	close(logfd);
 }
 
 
 static unsigned align(unsigned align, unsigned pos)
 {
-	C2_ASSERT(c2_is_po2(align));
+	M0_ASSERT(m0_is_po2(align));
 	while (!feof(stdin) && (pos & (align - 1))) {
 		getchar();
 		pos++;
@@ -199,10 +201,10 @@ static unsigned align(unsigned align, unsigned pos)
  *
  * Returns sysexits.h error codes.
  */
-C2_INTERNAL int c2_trace_parse(void)
+M0_INTERNAL int m0_trace_parse(void)
 {
-	struct c2_trace_rec_header   trh;
-	const struct c2_trace_descr *td;
+	struct m0_trace_rec_header   trh;
+	const struct m0_trace_descr *td;
 	unsigned                     pos = 0;
 	unsigned                     nr;
 	unsigned                     n2r;
@@ -228,7 +230,7 @@ C2_INTERNAL int c2_trace_parse(void)
 				return EX_OK;
 			}
 			pos += nr;
-		} while (trh.trh_magic != C2_TRACE_MAGIC);
+		} while (trh.trh_magic != M0_TRACE_MAGIC);
 
 		/* Now we might have complete record */
 		n2r = sizeof trh - sizeof trh.trh_magic;
@@ -239,7 +241,7 @@ C2_INTERNAL int c2_trace_parse(void)
 		pos += nr;
 		td   = trh.trh_descr;
 		size = td->td_size;
-		buf  = c2_alloc(size);
+		buf  = m0_alloc(size);
 		if (buf == NULL)
 			err(EX_TEMPFAIL, "Cannot allocate %i bytes", size);
 		nr = fread(buf, 1, size, stdin);
@@ -247,13 +249,13 @@ C2_INTERNAL int c2_trace_parse(void)
 			errx(EX_DATAERR, "Got %u bytes of data (need %i)",
 			     nr, size);
 		pos += nr;
-		c2_trace_record_print(&trh, buf);
-		c2_free(buf);
+		m0_trace_record_print(&trh, buf);
+		m0_free(buf);
 	}
 	return EX_OK;
 }
 
-C2_INTERNAL void c2_console_vprintf(const char *fmt, va_list args)
+M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list args)
 {
 	vprintf(fmt, args);
 }

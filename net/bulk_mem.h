@@ -20,8 +20,8 @@
  */
 #pragma once
 
-#ifndef __COLIBRI_NET_BULK_MEM_H__
-#define __COLIBRI_NET_BULK_MEM_H__
+#ifndef __MERO_NET_BULK_MEM_H__
+#define __MERO_NET_BULK_MEM_H__
 
 #include "net/net.h"
 
@@ -43,22 +43,22 @@
 **/
 
 enum {
-	C2_NET_BULK_MEM_XEP_ADDR_LEN = 36 /**< Max addr length, 3-tuple */
+	M0_NET_BULK_MEM_XEP_ADDR_LEN = 36 /**< Max addr length, 3-tuple */
 };
 
 /**
-   The bulk in-memory transport pointer to be used in c2_net_domain_init().
+   The bulk in-memory transport pointer to be used in m0_net_domain_init().
  */
-extern struct c2_net_xprt c2_net_bulk_mem_xprt;
+extern struct m0_net_xprt m0_net_bulk_mem_xprt;
 
 /**
    Set the number of worker threads used by a bulk in-memory transfer machine.
    This can be changed before the the transfer machine has started.
    @param tm  Pointer to the transfer machine.
    @param num Number of threads.
-   @pre tm->ntm_state == C2_NET_TM_INITIALZIED
+   @pre tm->ntm_state == M0_NET_TM_INITIALZIED
  */
-C2_INTERNAL void c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc
+M0_INTERNAL void m0_net_bulk_mem_tm_set_num_threads(struct m0_net_transfer_mc
 						    *tm, size_t num);
 
 /**
@@ -66,15 +66,15 @@ C2_INTERNAL void c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc
    @param tm  Pointer to the transfer machine.
    @retval Number-of-threads
  */
-C2_INTERNAL size_t c2_net_bulk_mem_tm_get_num_threads(const struct
-						      c2_net_transfer_mc *tm);
+M0_INTERNAL size_t m0_net_bulk_mem_tm_get_num_threads(const struct
+						      m0_net_transfer_mc *tm);
 
 
 /**
    @}
 */
 
-#endif /* __COLIBRI_NET_BULK_MEM_H__ */
+#endif /* __MERO_NET_BULK_MEM_H__ */
 
 /*
  *  Local variables:

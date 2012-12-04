@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_FOP_FOP_KERNEL_H__
-#define __COLIBRI_FOP_FOP_KERNEL_H__
+#ifndef __MERO_FOP_FOP_KERNEL_H__
+#define __MERO_FOP_FOP_KERNEL_H__
 
 #include <linux/module.h>
 
@@ -32,7 +32,7 @@ typedef void *xdrproc_t;
 #define xdr_uint32_t NULL
 #define xdr_uint64_t NULL
 
-/* __COLIBRI_FOP_FOP_KERNEL_H__ */
+/* __MERO_FOP_FOP_KERNEL_H__ */
 #endif
 
 /*

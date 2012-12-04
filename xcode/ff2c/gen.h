@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_XCODE_FF2C_GEN_H__
-#define __COLIBRI_XCODE_FF2C_GEN_H__
+#ifndef __MERO_XCODE_FF2C_GEN_H__
+#define __MERO_XCODE_FF2C_GEN_H__
 
 /**
    @addtogroup xcode
@@ -44,7 +44,7 @@ int ff2c_c_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt);
 
 /** @} end of xcode group */
 
-/* __COLIBRI_XCODE_FF2C_GEN_H__ */
+/* __MERO_XCODE_FF2C_GEN_H__ */
 #endif
 
 /*

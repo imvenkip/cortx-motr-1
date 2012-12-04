@@ -87,11 +87,11 @@ void type_init(struct ff2c_ff *ff, struct ff2c_type *t,
 	       const struct ff2c_term *term);
 
 static const char *name[][3] = {
-	[FTT_VOID]   = { "void", "&C2_XT_VOID",   "c2_void_t" },
-	[FTT_U8]     = { "u8",   "&C2_XT_U8",     "uint8_t"   },
-	[FTT_U32]    = { "u32",  "&C2_XT_U32",    "uint32_t"  },
-	[FTT_U64]    = { "u64",  "&C2_XT_U64",    "uint64_t"  },
-	[FTT_OPAQUE] = { NULL,   "&C2_XT_OPAQUE", NULL        }
+	[FTT_VOID]   = { "void", "&M0_XT_VOID",   "m0_void_t" },
+	[FTT_U8]     = { "u8",   "&M0_XT_U8",     "uint8_t"   },
+	[FTT_U32]    = { "u32",  "&M0_XT_U32",    "uint32_t"  },
+	[FTT_U64]    = { "u64",  "&M0_XT_U64",    "uint64_t"  },
+	[FTT_OPAQUE] = { NULL,   "&M0_XT_OPAQUE", NULL        }
 };
 
 void field_init(struct ff2c_ff *ff,

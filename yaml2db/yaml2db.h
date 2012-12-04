@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_YAML2DB_H__
-#define __COLIBRI_YAML2DB_H__
+#ifndef __MERO_YAML2DB_H__
+#define __MERO_YAML2DB_H__
 
 #include "db/db.h"
 #include "yaml.h"
@@ -40,7 +40,7 @@
    A typical yaml conf file will look like the following.
    (The combinations of entries are only for illustration, covering all
     possible values. They may or may not be valid in reality.
-    @see c2_cfg_storage_device__val)
+    @see m0_cfg_storage_device__val)
    @verbatim
     devices:
       - label     : LABEL1
@@ -108,24 +108,24 @@
 /**
   Enumeration of yaml2db context type
  */
-enum c2_yaml2db_ctx_type {
+enum m0_yaml2db_ctx_type {
 	/** Parser */
-	C2_YAML2DB_CTX_PARSER = 0,
+	M0_YAML2DB_CTX_PARSER = 0,
 	/** Emitter */
-	C2_YAML2DB_CTX_EMITTER,
+	M0_YAML2DB_CTX_EMITTER,
 	/** Maximum number of context types */
-	C2_YAML2DB_CTX_NR
+	M0_YAML2DB_CTX_NR
 };
 
 /**
   yaml2db structure
  */
-struct c2_yaml2db_ctx {
+struct m0_yaml2db_ctx {
 	/** YAML parser struct */
 	yaml_parser_t			 yc_parser;
 	/** Enumeration to decide whether the context belongs
 	   to parser or emitter */
-	enum c2_yaml2db_ctx_type	 yc_type;
+	enum m0_yaml2db_ctx_type	 yc_type;
 	/** YAML document structure */
 	yaml_document_t			 yc_document;
 	/** Root node of the yaml_document */
@@ -135,11 +135,11 @@ struct c2_yaml2db_ctx {
 	/** Database path */
 	const char			*yc_dpath;
 	/** Database environment */
-	struct c2_dbenv			 yc_db;
+	struct m0_dbenv			 yc_db;
 	/** Flag indicating if the database environment has been established */
 	bool				 yc_db_init;
 	/** ADDB context for the context */
-	struct c2_addb_ctx		 yc_addb;
+	struct m0_addb_ctx		 yc_addb;
 	/** File pointer for YAML file */
 	FILE				*yc_fp;
 	/** Flag indicating whether to dump the key-value pair to a file */
@@ -153,19 +153,19 @@ struct c2_yaml2db_ctx {
 /**
   Enumeration of section types
  */
-enum c2_yaml2db_sec_type {
+enum m0_yaml2db_sec_type {
 	/** YAML sequence */
-	C2_YAML_TYPE_SEQUENCE = 0,
+	M0_YAML_TYPE_SEQUENCE = 0,
 	/** YAML mapping */
-	C2_YAML_TYPE_MAPPING,
+	M0_YAML_TYPE_MAPPING,
 	/** Max section types */
-	C2_YAML_TYPE_NR
+	M0_YAML_TYPE_NR
 };
 
 /**
   Key structure for determining valid keys in a yaml2db section
  */
-struct c2_yaml2db_section_key {
+struct m0_yaml2db_section_key {
 	/** Section key */
 	const char	*ysk_key;
 	/** Flag to determine if a key is mandatory or optional */
@@ -175,27 +175,27 @@ struct c2_yaml2db_section_key {
 /**
   yaml2db section
  */
-struct c2_yaml2db_section {
+struct m0_yaml2db_section {
 	/** Name of the table in which this section is supposed to be stored */
 	const char			 *ys_table_name;
 	/** Table ops */
-	const struct c2_table_ops	 *ys_table_ops;
+	const struct m0_table_ops	 *ys_table_ops;
 	/** Type of section */
-	enum c2_yaml2db_sec_type	  ys_section_type;
+	enum m0_yaml2db_sec_type	  ys_section_type;
 	/** Array of valid key structures */
-	struct c2_yaml2db_section_key	 *ys_valid_keys;
+	struct m0_yaml2db_section_key	 *ys_valid_keys;
 	/** Number of keys in the array */
 	size_t				  ys_num_keys;
 	/** String representing the key for the record in yaml file */
 	const char			 *ys_key_str;
 	/** section ops */
-	const struct c2_yaml2db_section_ops    *ys_ops;
+	const struct m0_yaml2db_section_ops    *ys_ops;
 };
 
 /**
   Section ops
  */
-struct c2_yaml2db_section_ops {
+struct m0_yaml2db_section_ops {
 	/**
 	  Populate the key for the section.
 	  @param key - pointer to the in memory record key. Section specific
@@ -214,7 +214,7 @@ struct c2_yaml2db_section_ops {
 	  to be used to populate the value structure entry
 	  @retval - 0 for success, -errno otherwise
 	 */
-	int (*so_val_populate) (struct c2_yaml2db_section *ysec, void *val,
+	int (*so_val_populate) (struct m0_yaml2db_section *ysec, void *val,
 				const char *key_str, const char *val_str);
 	/**
 	  Dump the key and value for a record to the file having file
@@ -228,7 +228,7 @@ struct c2_yaml2db_section_ops {
 	void (*so_key_val_dump) (FILE *fp, void *key, void *val);
 };
 
-extern const struct c2_yaml2db_section_ops c2_yaml2db_dev_section_ops;
+extern const struct m0_yaml2db_section_ops m0_yaml2db_dev_section_ops;
 
 /**
   Iterates over a yaml sequence
@@ -237,7 +237,7 @@ extern const struct c2_yaml2db_section_ops c2_yaml2db_dev_section_ops;
   @param item - yaml_node_item_t pointer
   @param s_node - sequence node at index pointed by item
  */
-#define c2_yaml2db_sequence_for_each(ctx, node, item, s_node) \
+#define m0_yaml2db_sequence_for_each(ctx, node, item, s_node) \
 	for (item = (node)->data.sequence.items.start; \
 	     item < (node)->data.sequence.items.top && \
 	     (s_node = yaml_document_get_node(&(ctx)->yc_document, *item)); \
@@ -251,7 +251,7 @@ extern const struct c2_yaml2db_section_ops c2_yaml2db_dev_section_ops;
   @param k_node - mapping node at index pointed by mapping pair key
   @param v_node - mapping node at index pointed by mapping pair value
  */
-#define c2_yaml2db_mapping_for_each(ctx, node, pair, k_node, v_node) \
+#define m0_yaml2db_mapping_for_each(ctx, node, pair, k_node, v_node) \
 	for (pair = (node)->data.mapping.pairs.start; \
 	     pair < (node)->data.mapping.pairs.top && \
 	     (k_node = yaml_document_get_node(&(ctx)->yc_document, \
@@ -265,20 +265,20 @@ extern const struct c2_yaml2db_section_ops c2_yaml2db_dev_section_ops;
   @param yctx - yaml2db context
   @retval 0 if success, -errno otherwise
  */
-C2_INTERNAL int c2_yaml2db_init(struct c2_yaml2db_ctx *yctx);
+M0_INTERNAL int m0_yaml2db_init(struct m0_yaml2db_ctx *yctx);
 
 /**
   Fini function, which finalizes the parser and finies the db
   @param yctx - yaml2db context
  */
-C2_INTERNAL void c2_yaml2db_fini(struct c2_yaml2db_ctx *yctx);
+M0_INTERNAL void m0_yaml2db_fini(struct m0_yaml2db_ctx *yctx);
 
 /**
   Function to load the yaml document
   @param yctx - yaml2db context
   @retval 0 if successful, -errno otherwise
  */
-C2_INTERNAL int c2_yaml2db_doc_load(struct c2_yaml2db_ctx *yctx);
+M0_INTERNAL int m0_yaml2db_doc_load(struct m0_yaml2db_ctx *yctx);
 
 /**
   Function to parse the yaml document and load its corresponding entries
@@ -288,8 +288,8 @@ C2_INTERNAL int c2_yaml2db_doc_load(struct c2_yaml2db_ctx *yctx);
   @param conf_param - parameter for which configuration has to be loaded
   @retval 0 if successful, -errno otherwise
  */
-C2_INTERNAL int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
-				     struct c2_yaml2db_section *ysec,
+M0_INTERNAL int m0_yaml2db_conf_load(struct m0_yaml2db_ctx *yctx,
+				     struct m0_yaml2db_section *ysec,
 				     const char *conf_param);
 
 /**
@@ -299,20 +299,20 @@ C2_INTERNAL int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
   @param conf_param - parameter for which configuration has to be emitted
   @retval 0 if successful, -errno otherwise
  */
-C2_INTERNAL int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
-				     const struct c2_yaml2db_section *ysec,
+M0_INTERNAL int m0_yaml2db_conf_emit(struct m0_yaml2db_ctx *yctx,
+				     const struct m0_yaml2db_section *ysec,
 				     const char *conf_param);
 
 /**
  * Function to detect and print parsing errors
  * @param parser - yaml_parser structure
  */
-C2_INTERNAL void c2_yaml_parser_error_detect(const yaml_parser_t * parser);
+M0_INTERNAL void m0_yaml_parser_error_detect(const yaml_parser_t * parser);
 
 
 /** @} end of yaml2db group */
 
-#endif /* __COLIBRI_YAML2DB_H__ */
+#endif /* __MERO_YAML2DB_H__ */
 
 /*
  *  Local variables:

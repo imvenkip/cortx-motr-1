@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RM_FOPS_H__
-#define __COLIBRI_RM_FOPS_H__
+#ifndef __MERO_RM_FOPS_H__
+#define __MERO_RM_FOPS_H__
 
 #include "fop/fop.h"
 #include "rm/rm_ff.h"
@@ -37,10 +37,10 @@ extern struct m0_fop_type m0_fom_error_rep_fopt;
 /**
  * FOP init() and fini() functions.
  */
-C2_INTERNAL int m0_rm_fop_init();
-C2_INTERNAL void m0_rm_fop_fini();
+M0_INTERNAL int m0_rm_fop_init();
+M0_INTERNAL void m0_rm_fop_fini();
 
-/* __COLIBRI_RM_FOPS_H__ */
+/* __MERO_RM_FOPS_H__ */
 #endif
 
 /**

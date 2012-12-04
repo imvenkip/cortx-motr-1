@@ -26,8 +26,9 @@ extern void test_obj_find(void);
 extern void test_obj_xtors(void);
 extern void test_reg(void);
 extern void test_confx_xcode(void);
+extern void test_conf_net(void);
 
-const struct c2_test_suite conf_ut = {
+const struct m0_test_suite conf_ut = {
 	.ts_name  = "conf-ut",
 	.ts_init  = NULL,
 	.ts_fini  = NULL,
@@ -37,6 +38,7 @@ const struct c2_test_suite conf_ut = {
 		{ "obj-find",   test_obj_find    },
 		{ "obj-fill",   test_obj_fill    },
 		{ "xobj-xcode", test_confx_xcode },
-		{ NULL        , NULL             }
+		{ "conf-net",   test_conf_net    },
+		{ NULL, NULL }
 	}
 };

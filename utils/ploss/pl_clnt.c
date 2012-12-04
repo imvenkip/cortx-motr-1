@@ -30,28 +30,28 @@
 static struct timeval TIMEOUT = { 25, 0 };
 
 enum clnt_stat
-ping_1(struct c2_pl_ping *argp, struct c2_pl_ping_res *clnt_res, CLIENT *clnt)
+ping_1(struct m0_pl_ping *argp, struct m0_pl_ping_res *clnt_res, CLIENT *clnt)
 {
 	return (clnt_call(clnt, PING,
-		(xdrproc_t) xdr_c2_pl_ping, (caddr_t) argp,
-		(xdrproc_t) xdr_c2_pl_ping_res, (caddr_t) clnt_res,
+		(xdrproc_t) xdr_m0_pl_ping, (caddr_t) argp,
+		(xdrproc_t) xdr_m0_pl_ping_res, (caddr_t) clnt_res,
 		TIMEOUT));
 }
 
 enum clnt_stat
-setconfig_1(struct c2_pl_config *argp, struct c2_pl_config_res *clnt_res, CLIENT *clnt)
+setconfig_1(struct m0_pl_config *argp, struct m0_pl_config_res *clnt_res, CLIENT *clnt)
 {
 	return (clnt_call(clnt, SETCONFIG,
-		(xdrproc_t) xdr_c2_pl_config, (caddr_t) argp,
-		(xdrproc_t) xdr_c2_pl_config_res, (caddr_t) clnt_res,
+		(xdrproc_t) xdr_m0_pl_config, (caddr_t) argp,
+		(xdrproc_t) xdr_m0_pl_config_res, (caddr_t) clnt_res,
 		TIMEOUT));
 }
 
 enum clnt_stat
-getconfig_1(struct c2_pl_config *argp, struct c2_pl_config_res *clnt_res, CLIENT *clnt)
+getconfig_1(struct m0_pl_config *argp, struct m0_pl_config_res *clnt_res, CLIENT *clnt)
 {
 	return (clnt_call(clnt, GETCONFIG,
-		(xdrproc_t) xdr_c2_pl_config, (caddr_t) argp,
-		(xdrproc_t) xdr_c2_pl_config_res, (caddr_t) clnt_res,
+		(xdrproc_t) xdr_m0_pl_config, (caddr_t) argp,
+		(xdrproc_t) xdr_m0_pl_config_res, (caddr_t) clnt_res,
 		TIMEOUT));
 }

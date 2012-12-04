@@ -24,9 +24,9 @@
 #include <sys/time.h>
 #include <err.h>
 
-#include "dtm/dtm.h"      /* c2_dtx */
-#include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
-#include "lib/misc.h"     /* C2_SET0 */
+#include "dtm/dtm.h"      /* m0_dtx */
+#include "lib/arith.h"    /* M0_3WAY, m0_uint128 */
+#include "lib/misc.h"     /* M0_SET0 */
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/thread.h"
@@ -51,15 +51,15 @@ unsigned long timesub(struct timeval *begin, struct timeval *end) {
 
 int main(int argc, char **argv)
 {
-	struct c2_balloc     *colibri_balloc;
+	struct m0_balloc     *mero_balloc;
 	const char           *db_name = NULL;
-	struct c2_dbenv       db;
-	struct c2_dtx         dtx;
+	struct m0_dbenv       db;
+	struct m0_dtx         dtx;
 	int                   result;
-	struct c2_ext         *ext;
-	struct c2_ext         tmp;
-	c2_bcount_t	      count = 0;
-	c2_bcount_t	      target;
+	struct m0_ext         *ext;
+	struct m0_ext         tmp;
+	m0_bcount_t	      count = 0;
+	m0_bcount_t	      target;
 	int		      loops = DEF;
 	bool		      g;
 	int		      r = 0;
@@ -72,16 +72,16 @@ int main(int argc, char **argv)
 	unsigned long	      free_usec = 0;
 
 
-        result = C2_GETOPTS("perf", argc, argv,
-                            C2_STRINGARG('d', "db-dir",
+        result = M0_GETOPTS("perf", argc, argv,
+                            M0_STRINGARG('d', "db-dir",
                                        LAMBDA(void, (const char *string) {
                                                db_name = string; })),
-                            C2_FORMATARG('l', "loops to run", "%i", &loops),
-                            C2_FORMATARG('r', "randomize the result", "%i", &r),
-                            C2_FORMATARG('c', "count to alloc", "%lu",
+                            M0_FORMATARG('l', "loops to run", "%i", &loops),
+                            M0_FORMATARG('r', "randomize the result", "%i", &r),
+                            M0_FORMATARG('c', "count to alloc", "%lu",
 					 &count),
-                            C2_FLAGARG('v', "verbose", &verbose),
-                            C2_FLAGARG('g', "use goal or not", &g));
+                            M0_FLAGARG('v', "verbose", &verbose),
+                            M0_FLAGARG('g', "use goal or not", &g));
         if (result != 0)
                 return result;
 
@@ -95,21 +95,21 @@ int main(int argc, char **argv)
 	printf("dbdir=%s, loops=%d, r=%d, count=%d, g=%d, verbose=%d\n",
 		db_name, loops, r, (int)count, g, verbose);
 
-	ext = malloc(loops * sizeof (struct c2_ext));
+	ext = malloc(loops * sizeof (struct m0_ext));
 	if (ext == NULL)
 		return -ENOMEM;
 
-	memset(ext, 0, loops * sizeof (struct c2_ext));
+	memset(ext, 0, loops * sizeof (struct m0_ext));
 
 	time(&now); srand(now);
 
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_ASSERT(result == 0);
+	result = m0_dbenv_init(&db, db_name, 0);
+	M0_ASSERT(result == 0);
 
-	c2_balloc_allocate(&colibri_balloc);
+	m0_balloc_allocate(0, &mero_balloc);
 
-	result = colibri_balloc->cb_ballroom.ab_ops->bo_init
-		(&colibri_balloc->cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
+	result = mero_balloc->cb_ballroom.ab_ops->bo_init
+		(&mero_balloc->cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
 		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
 		 BALLOC_DEF_RESERVED_GROUPS);
 
@@ -120,8 +120,8 @@ int main(int argc, char **argv)
 			target= rand() % 1500;
 		} while (target == 0);
 
-		result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
-		C2_ASSERT(result == 0);
+		result = m0_db_tx_init(&dtx.tx_dbtx, &db, 0);
+		M0_ASSERT(result == 0);
 
 		if (g)
 			tmp.e_start = tmp.e_end;
@@ -129,8 +129,8 @@ int main(int argc, char **argv)
 			tmp.e_start = 0;
 
 		gettimeofday(&alloc_begin, NULL);
-		result = colibri_balloc->cb_ballroom.ab_ops->bo_alloc(
-			    &colibri_balloc->cb_ballroom, &dtx, target, &tmp);
+		result = mero_balloc->cb_ballroom.ab_ops->bo_alloc(
+			    &mero_balloc->cb_ballroom, &dtx, target, &tmp);
 		gettimeofday(&alloc_end, NULL);
 		alloc_usec += timesub(&alloc_begin, &alloc_end);
 		ext[i] = tmp;
@@ -138,15 +138,15 @@ int main(int argc, char **argv)
 		printf("%d: rc = %d: requested count=%5d, result count=%5d:"
 		       " [%08llx,%08llx)=[%8llu,%8llu)\n",
 			i, result, (int)count,
-			(int)c2_ext_length(&ext[i]),
+			(int)m0_ext_length(&ext[i]),
 			(unsigned long long)ext[i].e_start,
 			(unsigned long long)ext[i].e_end,
 			(unsigned long long)ext[i].e_start,
 			(unsigned long long)ext[i].e_end);
 		if (result == 0 )
-			c2_db_tx_commit(&dtx.tx_dbtx);
+			m0_db_tx_commit(&dtx.tx_dbtx);
 		else
-			c2_db_tx_abort(&dtx.tx_dbtx);
+			m0_db_tx_abort(&dtx.tx_dbtx);
 		if (result == -ENOSPC) {
 			result = 0;
 			break;
@@ -161,38 +161,38 @@ int main(int argc, char **argv)
 			int a, b;
 			a = rand() % loops;
 			b = rand() % loops;
-			C2_SWAP(ext[a], ext[b]);
+			M0_SWAP(ext[a], ext[b]);
 		}
 	}
 
 	for (i = loops - 1; i >= 0 && result == 0; i-- ) {
-		result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
-		C2_ASSERT(result == 0);
+		result = m0_db_tx_init(&dtx.tx_dbtx, &db, 0);
+		M0_ASSERT(result == 0);
 
 		gettimeofday(&free_begin, NULL);
 		if (ext[i].e_start !=
-		    0) result = colibri_balloc->cb_ballroom.ab_ops->bo_free(
-				&colibri_balloc->cb_ballroom, &dtx, &ext[i]);
+		    0) result = mero_balloc->cb_ballroom.ab_ops->bo_free(
+				&mero_balloc->cb_ballroom, &dtx, &ext[i]);
 		gettimeofday(&free_end, NULL);
 		free_usec += timesub(&free_begin, &free_end);
 		if (verbose)
 		printf("%d: rc = %d: freed: len=%5d: [%08llx,%08llx)=[%8llu,"
 		       "%8llu)\n",
-			i, result, (int)c2_ext_length(&ext[i]),
+			i, result, (int)m0_ext_length(&ext[i]),
 			(unsigned long long)ext[i].e_start,
 			(unsigned long long)ext[i].e_end,
 			(unsigned long long)ext[i].e_start,
 			(unsigned long long)ext[i].e_end);
 
 		if (result == 0 )
-			c2_db_tx_commit(&dtx.tx_dbtx);
+			m0_db_tx_commit(&dtx.tx_dbtx);
 		else
-			c2_db_tx_abort(&dtx.tx_dbtx);
+			m0_db_tx_abort(&dtx.tx_dbtx);
 	}
 
 
-	colibri_balloc->cb_ballroom.ab_ops->bo_fini(&colibri_balloc->cb_ballroom);
-	c2_dbenv_fini(&db);
+	mero_balloc->cb_ballroom.ab_ops->bo_fini(&mero_balloc->cb_ballroom);
+	m0_dbenv_fini(&db);
 	printf("==================\nPerf: free/sec = %lu\n",
 	       (unsigned long)loops * 1000000 / free_usec);
 	printf("done\n");

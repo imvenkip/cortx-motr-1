@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_BITSTRING_H__
-#define __COLIBRI_LIB_BITSTRING_H__
+#ifndef __MERO_LIB_BITSTRING_H__
+#define __MERO_LIB_BITSTRING_H__
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
@@ -31,7 +31,7 @@
    @{
 */
 
-struct c2_bitstring {
+struct m0_bitstring {
 	uint32_t b_len;
 	char     b_data[0];
 };
@@ -42,44 +42,44 @@ struct c2_bitstring {
 
   User is responsible for allocating large enough contiguous memory.
  */
-C2_INTERNAL void *c2_bitstring_buf_get(struct c2_bitstring *c);
+M0_INTERNAL void *m0_bitstring_buf_get(struct m0_bitstring *c);
 /**
  Report the bitstring length
  */
-C2_INTERNAL uint32_t c2_bitstring_len_get(const struct c2_bitstring *c);
+M0_INTERNAL uint32_t m0_bitstring_len_get(const struct m0_bitstring *c);
 /**
  Set the bitstring valid length
  */
-C2_INTERNAL void c2_bitstring_len_set(struct c2_bitstring *c, uint32_t len);
+M0_INTERNAL void m0_bitstring_len_set(struct m0_bitstring *c, uint32_t len);
 /**
  String-like compare: alphanumeric for the length of the shortest string.
  Shorter strings are "less" than matching longer strings.
  Bitstrings may contain embedded NULLs.
  */
-C2_INTERNAL int c2_bitstring_cmp(const struct c2_bitstring *c1,
-				 const struct c2_bitstring *c2);
+M0_INTERNAL int m0_bitstring_cmp(const struct m0_bitstring *c1,
+				 const struct m0_bitstring *m0);
 
 /**
  Copy @src to @dst.
 */
-C2_INTERNAL void c2_bitstring_copy(struct c2_bitstring *dst,
+M0_INTERNAL void m0_bitstring_copy(struct m0_bitstring *dst,
 				   const char *src, size_t count);
 
 /**
  Alloc memory for a string of passed len and copy name to it.
 */
-C2_INTERNAL struct c2_bitstring *c2_bitstring_alloc(const char *name,
+M0_INTERNAL struct m0_bitstring *m0_bitstring_alloc(const char *name,
 						    size_t len);
 
 /**
  Free memory of passed @c.
 */
-C2_INTERNAL void c2_bitstring_free(struct c2_bitstring *c);
+M0_INTERNAL void m0_bitstring_free(struct m0_bitstring *c);
 
 /** @} end of adt group */
 
 
-/* __COLIBRI_LIB_BITSTRING_H__ */
+/* __MERO_LIB_BITSTRING_H__ */
 #endif
 
 /*

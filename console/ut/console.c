@@ -29,11 +29,11 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/errno.h"            /* ETIMEDOUT */
-#include "lib/thread.h"		  /* c2_thread */
+#include "lib/thread.h"		  /* m0_thread */
 #include "lib/trace.h"
-#include "lib/misc.h"		  /* C2_SET0 */
-#include "rpc/rpclib.h"           /* c2_rpc_server_start */
-#include "ut/rpc.h"               /* c2_rpc_client_init */
+#include "lib/misc.h"		  /* M0_SET0 */
+#include "rpc/rpclib.h"           /* m0_rpc_server_start */
+#include "ut/rpc.h"               /* m0_rpc_client_init */
 
 #include "console/console.h"
 #include "console/console_ff.h"
@@ -58,9 +58,9 @@ static const char *err_file = "/tmp/stderr";
 static const char *out_file = "/tmp/stdout";
 static const char *in_file = "/tmp/stdin";
 
-static struct c2_ut_redirect in_redir;
-static struct c2_ut_redirect out_redir;
-static struct c2_ut_redirect err_redir;
+static struct m0_ut_redirect in_redir;
+static struct m0_ut_redirect out_redir;
+static struct m0_ut_redirect err_redir;
 
 #define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:2"
 #define CLIENT_DB_NAME		"cons_client_db"
@@ -78,12 +78,12 @@ enum {
 	CONNECT_TIMEOUT		= 5,
 };
 
-static struct c2_net_xprt   *xprt = &c2_net_lnet_xprt;
-static struct c2_net_domain  client_net_dom = { };
-static struct c2_dbenv       client_dbenv;
-static struct c2_cob_domain  client_cob_dom;
+static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
+static struct m0_net_domain  client_net_dom = { };
+static struct m0_dbenv       client_dbenv;
+static struct m0_cob_domain  client_cob_dom;
 
-static struct c2_rpc_client_ctx cctx = {
+static struct m0_rpc_client_ctx cctx = {
 	.rcx_net_dom            = &client_net_dom,
 	.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
 	.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
@@ -97,19 +97,19 @@ static struct c2_rpc_client_ctx cctx = {
 };
 
 static char *server_argv[] = {
-	"console_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+	"console_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 	"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
 	"-s", "ds1", "-s", "ds2"
 };
 
-static struct c2_rpc_server_ctx sctx = {
+static struct m0_rpc_server_ctx sctx = {
 	.rsx_xprts            = &xprt,
 	.rsx_xprts_nr         = 1,
 	.rsx_argv             = server_argv,
 	.rsx_argc             = ARRAY_SIZE(server_argv),
-	.rsx_service_types    = c2_cs_default_stypes,
+	.rsx_service_types    = m0_cs_default_stypes,
 	/*
-	 * can't use c2_cs_default_stypes_nr to initialize rsx_service_types_nr,
+	 * can't use m0_cs_default_stypes_nr to initialize rsx_service_types_nr,
 	 * since it leads to compile-time error 'initializer element is not
 	 * constant', because sctx here is a global/static variable, which not
 	 * allowed to be initialized with non-constant values
@@ -124,56 +124,56 @@ static int cons_init(void)
 	int result;
 
 	timeout = 10;
-	result = c2_console_fop_init();
-        C2_ASSERT(result == 0);
+	result = m0_console_fop_init();
+        M0_ASSERT(result == 0);
 
 	/*
 	 * There is no need to initialize xprt explicitly if client and server
 	 * run within a single process, because in this case transport is
-	 * initialized by c2_rpc_server_start().
+	 * initialized by m0_rpc_server_start().
 	 */
 
-	result = c2_net_domain_init(&client_net_dom, xprt);
-	C2_ASSERT(result == 0);
+	result = m0_net_domain_init(&client_net_dom, xprt);
+	M0_ASSERT(result == 0);
 
 	return result;
 }
 
 static int cons_fini(void)
 {
-	c2_net_domain_fini(&client_net_dom);
-	c2_console_fop_fini();
+	m0_net_domain_fini(&client_net_dom);
+	m0_console_fop_fini();
 	return 0;
 }
 
 static void file_redirect_init(void)
 {
-	c2_stream_redirect(stdin, in_file, &in_redir);
-	c2_stream_redirect(stdout, out_file, &out_redir);
-	c2_stream_redirect(stderr, err_file, &err_redir);
+	m0_stream_redirect(stdin, in_file, &in_redir);
+	m0_stream_redirect(stdout, out_file, &out_redir);
+	m0_stream_redirect(stderr, err_file, &err_redir);
 }
 
 static void file_redirect_fini(void)
 {
 	int result;
 
-	c2_stream_restore(&in_redir);
-	c2_stream_restore(&out_redir);
-	c2_stream_restore(&err_redir);
+	m0_stream_restore(&in_redir);
+	m0_stream_restore(&out_redir);
+	m0_stream_restore(&err_redir);
 
 	result = remove(in_file);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	result = remove(out_file);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	result = remove(err_file);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 }
 
 static int generate_yaml_file(const char *name)
 {
 	FILE *fp;
 
-	C2_PRE(name != NULL);
+	M0_PRE(name != NULL);
 
         fp = fopen(name, "w");
         if (fp == NULL) {
@@ -197,7 +197,7 @@ static int generate_yaml_file(const char *name)
 	return 0;
 }
 
-static void init_test_fop(struct c2_cons_fop_test *fop)
+static void init_test_fop(struct m0_cons_fop_test *fop)
 {
 	fop->cons_id.cons_seq = 1;
         fop->cons_id.cons_oid = 2;
@@ -205,58 +205,58 @@ static void init_test_fop(struct c2_cons_fop_test *fop)
 	fop->cons_test_id = 64;
 }
 
-static void check_values(struct c2_fop *fop)
+static void check_values(struct m0_fop *fop)
 {
-	struct c2_fid          *fid;
+	struct m0_fid          *fid;
 	char                   *data;
 	uint64_t               *value;
 	int                     result;
-	struct c2_xcode_ctx     ctx;
-	struct c2_xcode_cursor *it;
+	struct m0_xcode_ctx     ctx;
+	struct m0_xcode_cursor *it;
 
-	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj) {
+	m0_xcode_ctx_init(&ctx, &(struct m0_xcode_obj) {
 			  fop->f_type->ft_xt,
-			  c2_fop_data(fop) });
+			  m0_fop_data(fop) });
 	it = &ctx.xcx_it;
-	while ((result = c2_xcode_next(it)) > 0) {
-		const struct c2_xcode_type   *xt;
-		struct c2_xcode_obj          *cur;
-		struct c2_xcode_cursor_frame *top;
+	while ((result = m0_xcode_next(it)) > 0) {
+		const struct m0_xcode_type   *xt;
+		struct m0_xcode_obj          *cur;
+		struct m0_xcode_cursor_frame *top;
 
-		top = c2_xcode_cursor_top(it);
-		if (top->s_flag != C2_XCODE_CURSOR_PRE)
+		top = m0_xcode_cursor_top(it);
+		if (top->s_flag != M0_XCODE_CURSOR_PRE)
 			continue;
 		cur = &top->s_obj;
 		xt  = cur->xo_type;
-		if (!strcmp(xt->xct_name, "c2_cons_fop_fid")) {
+		if (!strcmp(xt->xct_name, "m0_cons_fop_fid")) {
 			fid = cur->xo_ptr;
-			C2_UT_ASSERT(fid->f_container == 1);
-			C2_UT_ASSERT(fid->f_key == 2);
-			c2_xcode_skip(it);
+			M0_UT_ASSERT(fid->f_container == 1);
+			M0_UT_ASSERT(fid->f_key == 2);
+			m0_xcode_skip(it);
 		} else if (!strcmp(xt->xct_name, "u8")) {
 			data = (char *)cur->xo_ptr;
-			C2_UT_ASSERT(*data == 'd');
-			c2_xcode_skip(it);
+			M0_UT_ASSERT(*data == 'd');
+			m0_xcode_skip(it);
 		} else if (!strcmp(xt->xct_name, "u64")) {
 			value = (uint64_t *)cur->xo_ptr;
-			C2_UT_ASSERT(*value == 64);
-			c2_xcode_skip(it);
+			M0_UT_ASSERT(*value == 64);
+			m0_xcode_skip(it);
 		}
 	}
 }
 
 static void fop_iterator_test(void)
 {
-	struct c2_fop		*fop;
-        struct c2_cons_fop_test *f;
+	struct m0_fop		*fop;
+        struct m0_cons_fop_test *f;
 
-        fop = c2_fop_alloc(&c2_cons_fop_test_fopt, NULL);
-        C2_UT_ASSERT(fop != NULL);
-	f = c2_fop_data(fop);
-        C2_UT_ASSERT(f != NULL);
+        fop = m0_fop_alloc(&m0_cons_fop_test_fopt, NULL);
+        M0_UT_ASSERT(fop != NULL);
+	f = m0_fop_data(fop);
+        M0_UT_ASSERT(f != NULL);
 	init_test_fop(f);
 	check_values(fop);
-        c2_fop_free(fop);
+        m0_fop_free(fop);
 }
 
 static void yaml_basic_test(void)
@@ -264,40 +264,40 @@ static void yaml_basic_test(void)
 	int result;
 
 	result = generate_yaml_file(yaml_file);
-	C2_UT_ASSERT(result == 0);
-	result = c2_cons_yaml_init(yaml_file);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
+	result = m0_cons_yaml_init(yaml_file);
+	M0_UT_ASSERT(result == 0);
 
 	/* Init and Fini */
-	c2_cons_yaml_fini();
-	result = c2_cons_yaml_init(yaml_file);
-	C2_UT_ASSERT(result == 0);
-	c2_cons_yaml_fini();
+	m0_cons_yaml_fini();
+	result = m0_cons_yaml_init(yaml_file);
+	M0_UT_ASSERT(result == 0);
+	m0_cons_yaml_fini();
 
 	result = remove(yaml_file);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 }
 
 static void input_test(void)
 {
-        struct c2_fop *fop;
+        struct m0_fop *fop;
 	int	       result;
 
 	file_redirect_init();
 	result = generate_yaml_file(yaml_file);
-	C2_UT_ASSERT(result == 0);
-	result = c2_cons_yaml_init(yaml_file);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
+	result = m0_cons_yaml_init(yaml_file);
+	M0_UT_ASSERT(result == 0);
 
-        fop = c2_fop_alloc(&c2_cons_fop_test_fopt, NULL);
-        C2_UT_ASSERT(fop != NULL);
+        fop = m0_fop_alloc(&m0_cons_fop_test_fopt, NULL);
+        M0_UT_ASSERT(fop != NULL);
 
-        c2_cons_fop_obj_input(fop);
+        m0_cons_fop_obj_input(fop);
 	check_values(fop);
-        c2_fop_free(fop);
-	c2_cons_yaml_fini();
+        m0_fop_free(fop);
+	m0_cons_yaml_fini();
 	result = remove(yaml_file);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	file_redirect_fini();
 }
 
@@ -309,13 +309,13 @@ static void file_compare(const char *in, const char *out)
 	int   outc;
 
 	infp = fopen(in, "r");
-	C2_UT_ASSERT(infp != NULL);
+	M0_UT_ASSERT(infp != NULL);
 	outfp = fopen(out, "r");
-	C2_UT_ASSERT(outfp != NULL);
+	M0_UT_ASSERT(outfp != NULL);
 
 	while ((inc = fgetc(infp)) != EOF &&
 	       (outc = fgetc(outfp)) != EOF) {
-	       C2_UT_ASSERT(inc == outc);
+	       M0_UT_ASSERT(inc == outc);
 	}
 
 	fclose(infp);
@@ -324,31 +324,31 @@ static void file_compare(const char *in, const char *out)
 
 static void output_test(void)
 {
-        struct c2_fop *f;
+        struct m0_fop *f;
 	int	       result;
 
 	verbose = true;
 	result = generate_yaml_file(yaml_file);
-	C2_UT_ASSERT(result == 0);
-	result = c2_cons_yaml_init(yaml_file);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
+	result = m0_cons_yaml_init(yaml_file);
+	M0_UT_ASSERT(result == 0);
 
-        f = c2_fop_alloc(&c2_cons_fop_test_fopt, NULL);
-        C2_UT_ASSERT(f != NULL);
+        f = m0_fop_alloc(&m0_cons_fop_test_fopt, NULL);
+        M0_UT_ASSERT(f != NULL);
 
 	file_redirect_init();
 
-        c2_cons_fop_obj_input(f);
-	c2_cons_fop_obj_output(f);
+        m0_cons_fop_obj_input(f);
+	m0_cons_fop_obj_output(f);
 
 	file_compare(in_file, out_file);
 	file_redirect_fini();
 
 	verbose = false;
-        c2_fop_free(f);
-	c2_cons_yaml_fini();
+        m0_fop_free(f);
+	m0_cons_yaml_fini();
 	result = remove(yaml_file);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 }
 
 static void yaml_file_test(void)
@@ -356,8 +356,8 @@ static void yaml_file_test(void)
 	int result;
 
 	file_redirect_init();
-	result = c2_cons_yaml_init(yaml_file);
-	C2_UT_ASSERT(result != 0);
+	result = m0_cons_yaml_init(yaml_file);
+	M0_UT_ASSERT(result != 0);
 	file_redirect_fini();
 }
 
@@ -368,7 +368,7 @@ static void yaml_parser_test(void)
 
 	file_redirect_init();
         fp = fopen(yaml_file, "w");
-        C2_UT_ASSERT(fp != NULL);
+        M0_UT_ASSERT(fp != NULL);
 	fprintf(fp, "# Generated yaml file for console UT\n\n");
 	fprintf(fp, "server  : localhost\n");
 	fprintf(fp, "sport   : 23125\n");
@@ -383,10 +383,10 @@ static void yaml_parser_test(void)
 	fprintf(fp, "    cons_test_id : 64\n");
 	fclose(fp);
 
-	result = c2_cons_yaml_init(yaml_file);
-	C2_UT_ASSERT(result != 0);
+	result = m0_cons_yaml_init(yaml_file);
+	M0_UT_ASSERT(result != 0);
 	result = remove(yaml_file);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	file_redirect_fini();
 }
 
@@ -397,13 +397,13 @@ static void yaml_root_get_test(void)
 
 	file_redirect_init();
         fp = fopen(yaml_file, "w");
-        C2_UT_ASSERT(fp != NULL);
+        M0_UT_ASSERT(fp != NULL);
 	fclose(fp);
 
-	result = c2_cons_yaml_init(yaml_file);
-	C2_UT_ASSERT(result != 0);
+	result = m0_cons_yaml_init(yaml_file);
+	M0_UT_ASSERT(result != 0);
 	result = remove(yaml_file);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	file_redirect_fini();
 }
 
@@ -414,53 +414,53 @@ static void yaml_get_value_test(void)
 	char	 *value;
 
 	result = generate_yaml_file(yaml_file);
-	C2_UT_ASSERT(result == 0);
-	result = c2_cons_yaml_init(yaml_file);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
+	result = m0_cons_yaml_init(yaml_file);
+	M0_UT_ASSERT(result == 0);
 
-	value = c2_cons_yaml_get_value("server");
-	C2_UT_ASSERT(value != NULL);
-	C2_UT_ASSERT(strcmp("localhost", value) == 0);
+	value = m0_cons_yaml_get_value("server");
+	M0_UT_ASSERT(value != NULL);
+	M0_UT_ASSERT(strcmp("localhost", value) == 0);
 
-	value = c2_cons_yaml_get_value("sport");
-	C2_UT_ASSERT(value != NULL);
+	value = m0_cons_yaml_get_value("sport");
+	M0_UT_ASSERT(value != NULL);
 	number = strtoul(value, NULL, 10);
-	C2_UT_ASSERT(number == 23125);
+	M0_UT_ASSERT(number == 23125);
 
-	value = c2_cons_yaml_get_value("client");
-	C2_UT_ASSERT(value != NULL);
-	C2_UT_ASSERT(strcmp("localhost", value) == 0);
+	value = m0_cons_yaml_get_value("client");
+	M0_UT_ASSERT(value != NULL);
+	M0_UT_ASSERT(strcmp("localhost", value) == 0);
 
-	value = c2_cons_yaml_get_value("cport");
-	C2_UT_ASSERT(value != NULL);
+	value = m0_cons_yaml_get_value("cport");
+	M0_UT_ASSERT(value != NULL);
 	number = strtoul(value, NULL, 10);
-	C2_UT_ASSERT(number == 23126);
+	M0_UT_ASSERT(number == 23126);
 
-	value = c2_cons_yaml_get_value("cons_seq");
-	C2_UT_ASSERT(value != NULL);
+	value = m0_cons_yaml_get_value("cons_seq");
+	M0_UT_ASSERT(value != NULL);
 	number = strtoul(value, NULL, 10);
-	C2_UT_ASSERT(number == 1);
+	M0_UT_ASSERT(number == 1);
 
-	value = c2_cons_yaml_get_value("cons_oid");
-	C2_UT_ASSERT(value != NULL);
+	value = m0_cons_yaml_get_value("cons_oid");
+	M0_UT_ASSERT(value != NULL);
 	number = strtoul(value, NULL, 10);
-	C2_UT_ASSERT(number == 2);
+	M0_UT_ASSERT(number == 2);
 
-	value = c2_cons_yaml_get_value("cons_test_type");
-	C2_UT_ASSERT(value != NULL);
-	C2_UT_ASSERT(value[0] == 'd');
+	value = m0_cons_yaml_get_value("cons_test_type");
+	M0_UT_ASSERT(value != NULL);
+	M0_UT_ASSERT(value[0] == 'd');
 
-	value = c2_cons_yaml_get_value("cons_test_id");
-	C2_UT_ASSERT(value != NULL);
+	value = m0_cons_yaml_get_value("cons_test_id");
+	M0_UT_ASSERT(value != NULL);
 	number = strtoul(value, NULL, 10);
-	C2_UT_ASSERT(number == 64);
+	M0_UT_ASSERT(number == 64);
 
-	value = c2_cons_yaml_get_value("xxxx");
-	C2_UT_ASSERT(value == NULL);
+	value = m0_cons_yaml_get_value("xxxx");
+	M0_UT_ASSERT(value == NULL);
 
-	c2_cons_yaml_fini();
+	m0_cons_yaml_fini();
 	result = remove(yaml_file);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 }
 
 
@@ -468,7 +468,7 @@ static int device_yaml_file(const char *name)
 {
 	FILE *fp;
 
-	C2_PRE(name != NULL);
+	M0_PRE(name != NULL);
 
         fp = fopen(name, "w");
         if (fp == NULL) {
@@ -494,42 +494,42 @@ static int device_yaml_file(const char *name)
 	return 0;
 }
 
-static void cons_client_init(struct c2_rpc_client_ctx *cctx)
+static void cons_client_init(struct m0_rpc_client_ctx *cctx)
 {
 	int result;
 
 	/* Init Test */
 	result = device_yaml_file(yaml_file);
-	C2_UT_ASSERT(result == 0);
-	result = c2_cons_yaml_init(yaml_file);
-	C2_UT_ASSERT(result == 0);
-	result = c2_rpc_client_init(cctx);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
+	result = m0_cons_yaml_init(yaml_file);
+	M0_UT_ASSERT(result == 0);
+	result = m0_rpc_client_init(cctx);
+	M0_UT_ASSERT(result == 0);
 }
 
-static void cons_client_fini(struct c2_rpc_client_ctx *cctx)
+static void cons_client_fini(struct m0_rpc_client_ctx *cctx)
 {
 	int result;
 
 	/* Fini Test */
-	result = c2_rpc_client_fini(cctx);
-	C2_UT_ASSERT(result == 0);
-	c2_cons_yaml_fini();
+	result = m0_rpc_client_fini(cctx);
+	M0_UT_ASSERT(result == 0);
+	m0_cons_yaml_fini();
 	result = remove(yaml_file);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 }
 
-static void cons_server_init(struct c2_rpc_server_ctx *sctx)
+static void cons_server_init(struct m0_rpc_server_ctx *sctx)
 {
 	int result;
 
-	result = c2_rpc_server_start(sctx);
-	C2_UT_ASSERT(result == 0);
+	result = m0_rpc_server_start(sctx);
+	M0_UT_ASSERT(result == 0);
 }
 
-static void cons_server_fini(struct c2_rpc_server_ctx *sctx)
+static void cons_server_fini(struct m0_rpc_server_ctx *sctx)
 {
-	c2_rpc_server_stop(sctx);
+	m0_rpc_server_stop(sctx);
 }
 
 static void conn_basic_test(void)
@@ -548,55 +548,55 @@ static void success_client(int dummy)
 
 static void conn_success_test(void)
 {
-	struct c2_thread client_handle;
+	struct m0_thread client_handle;
 	int		 result;
 
 	cons_server_init(&sctx);
-	C2_SET0(&client_handle);
-	result = C2_THREAD_INIT(&client_handle, int, NULL, &success_client,
+	M0_SET0(&client_handle);
+	result = M0_THREAD_INIT(&client_handle, int, NULL, &success_client,
 				0, "console-client");
-	C2_UT_ASSERT(result == 0);
-	c2_thread_join(&client_handle);
-	c2_thread_fini(&client_handle);
+	M0_UT_ASSERT(result == 0);
+	m0_thread_join(&client_handle);
+	m0_thread_fini(&client_handle);
 	cons_server_fini(&sctx);
 }
 
 static void mesg_send_client(int dummy)
 {
-	struct c2_fop_type *ftype;
-	struct c2_fop	   *fop;
+	struct m0_fop_type *ftype;
+	struct m0_fop	   *fop;
 	int		    result;
 
 	cons_client_init(&cctx);
 
-	ftype = c2_cons_fop_type_find(C2_CONS_FOP_DEVICE_OPCODE);
-	C2_UT_ASSERT(ftype != NULL);
-	c2_cons_fop_name_print(ftype);
+	ftype = m0_cons_fop_type_find(M0_CONS_FOP_DEVICE_OPCODE);
+	M0_UT_ASSERT(ftype != NULL);
+	m0_cons_fop_name_print(ftype);
 	printf("\n");
-	fop = c2_fop_alloc(ftype, NULL);
-	C2_UT_ASSERT(fop != NULL);
-	c2_cons_fop_obj_input(fop);
-	result = c2_rpc_client_call(fop, &cctx.rcx_session,
-				    &c2_fop_default_item_ops, 0 /* deadline */,
+	fop = m0_fop_alloc(ftype, NULL);
+	M0_UT_ASSERT(fop != NULL);
+	m0_cons_fop_obj_input(fop);
+	result = m0_rpc_client_call(fop, &cctx.rcx_session,
+				    &m0_fop_default_item_ops, 0 /* deadline */,
 				    CONNECT_TIMEOUT);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 
 	cons_client_fini(&cctx);
 }
 
 static void mesg_send_test(void)
 {
-	struct c2_thread client_handle;
+	struct m0_thread client_handle;
 	int		 result;
 
 	file_redirect_init();
 	cons_server_init(&sctx);
-	C2_SET0(&client_handle);
-	result = C2_THREAD_INIT(&client_handle, int, NULL, &mesg_send_client,
+	M0_SET0(&client_handle);
+	result = M0_THREAD_INIT(&client_handle, int, NULL, &mesg_send_client,
 				0, "console-client");
-	C2_UT_ASSERT(result == 0);
-	c2_thread_join(&client_handle);
-	c2_thread_fini(&client_handle);
+	M0_UT_ASSERT(result == 0);
+	m0_thread_join(&client_handle);
+	m0_thread_fini(&client_handle);
 	cons_server_fini(&sctx);
 	file_redirect_fini();
 }
@@ -622,8 +622,8 @@ static int console_cmd(const char *name, ...)
         va_end(clist);
 
         /* Allocate memory for pointer array */
-        argp = argv = c2_alloc((argc + 1) * sizeof(const char *));
-        C2_UT_ASSERT(argv != NULL);
+        argp = argv = m0_alloc((argc + 1) * sizeof(const char *));
+        M0_UT_ASSERT(argv != NULL);
 	argv[argc] = NULL;
 
         /* Init list to array */
@@ -637,7 +637,7 @@ static int console_cmd(const char *name, ...)
         result = console_main(argc, (char **)argv);
 
 	/* free memory allocated for argv */
-	c2_free(argv);
+	m0_free(argv);
 	return result;
 }
 
@@ -649,77 +649,77 @@ static void console_input_test(void)
 	file_redirect_init();
 	/* starts UT test for console main */
 	result = console_cmd("no_input", NULL);
-	C2_UT_ASSERT(result == EX_USAGE);
-	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
+	M0_UT_ASSERT(result == EX_USAGE);
+	M0_UT_ASSERT(m0_error_mesg_match(stderr, usage_msg));
 	result = truncate(err_file, 0L);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	fseek(stderr, 0L, SEEK_SET);
 
 	result = console_cmd("no_input", "-v", NULL);
-	C2_UT_ASSERT(result == EX_USAGE);
-	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
+	M0_UT_ASSERT(result == EX_USAGE);
+	M0_UT_ASSERT(m0_error_mesg_match(stderr, usage_msg));
 	result = truncate(err_file, 0L);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	fseek(stderr, 0L, SEEK_SET);
 
 	fseek(stdout, 0L, SEEK_SET);
 	result = console_cmd("list_fops", "-l", NULL);
-	C2_UT_ASSERT(result == EX_USAGE);
-	C2_UT_ASSERT(c2_error_mesg_match(stdout, "List of FOP's:"));
+	M0_UT_ASSERT(result == EX_USAGE);
+	M0_UT_ASSERT(m0_error_mesg_match(stdout, "List of FOP's:"));
 	result = truncate(out_file, 0L);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	fseek(stdout, 0L, SEEK_SET);
 
-	sprintf(buf, "%d", C2_CONS_FOP_DEVICE_OPCODE);
+	sprintf(buf, "%d", M0_CONS_FOP_DEVICE_OPCODE);
 	result = console_cmd("show_fops", "-l", "-f", buf, NULL);
-	C2_UT_ASSERT(result == EX_OK);
+	M0_UT_ASSERT(result == EX_OK);
 	sprintf(buf, "%.2d, Device Failed",
-		     C2_CONS_FOP_DEVICE_OPCODE);
-	C2_UT_ASSERT(c2_error_mesg_match(stdout, buf));
+		     M0_CONS_FOP_DEVICE_OPCODE);
+	M0_UT_ASSERT(m0_error_mesg_match(stdout, buf));
 	result = truncate(out_file, 0L);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	fseek(stdout, 0L, SEEK_SET);
 
-	sprintf(buf, "%d", C2_CONS_FOP_REPLY_OPCODE);
+	sprintf(buf, "%d", M0_CONS_FOP_REPLY_OPCODE);
 	result = console_cmd("show_fops", "-l", "-f", buf, NULL);
-	C2_UT_ASSERT(result == EX_OK);
+	M0_UT_ASSERT(result == EX_OK);
 	sprintf(buf, "%.2d, Console Reply",
-		     C2_CONS_FOP_REPLY_OPCODE);
-	C2_UT_ASSERT(c2_error_mesg_match(stdout, buf));
+		     M0_CONS_FOP_REPLY_OPCODE);
+	M0_UT_ASSERT(m0_error_mesg_match(stdout, buf));
 	result = truncate(out_file, 0L);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	fseek(stdout, 0L, SEEK_SET);
 
 	result = console_cmd("show_fops", "-l", "-f", 0, NULL);
-	C2_UT_ASSERT(result == EX_USAGE);
-	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
+	M0_UT_ASSERT(result == EX_USAGE);
+	M0_UT_ASSERT(m0_error_mesg_match(stderr, usage_msg));
 	result = truncate(err_file, 0L);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	fseek(stderr, 0L, SEEK_SET);
 
 	result = console_cmd("yaml_input", "-i", NULL);
-	C2_UT_ASSERT(result == EX_USAGE);
-	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
+	M0_UT_ASSERT(result == EX_USAGE);
+	M0_UT_ASSERT(m0_error_mesg_match(stderr, usage_msg));
 	result = truncate(err_file, 0L);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	fseek(stderr, 0L, SEEK_SET);
 
 	result = console_cmd("yaml_input", "-y", yaml_file, NULL);
-	C2_UT_ASSERT(result == EX_USAGE);
-	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
+	M0_UT_ASSERT(result == EX_USAGE);
+	M0_UT_ASSERT(m0_error_mesg_match(stderr, usage_msg));
 	result = truncate(err_file, 0L);
-	C2_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	fseek(stderr, 0L, SEEK_SET);
 
 	/* last UT test for console main */
 	result = console_cmd("yaml_input", "-i", "-y", yaml_file, NULL);
-	C2_UT_ASSERT(result == EX_NOINPUT);
-	C2_UT_ASSERT(c2_error_mesg_match(stderr, "YAML Init failed"));
+	M0_UT_ASSERT(result == EX_NOINPUT);
+	M0_UT_ASSERT(m0_error_mesg_match(stderr, "YAML Init failed"));
 
 	file_redirect_fini();
 }
 
-const struct c2_test_suite console_ut = {
+const struct m0_test_suite console_ut = {
         .ts_name = "libconsole-ut",
         .ts_init = cons_init,
         .ts_fini = cons_fini,

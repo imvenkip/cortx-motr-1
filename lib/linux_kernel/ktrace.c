@@ -23,7 +23,7 @@
 
 #include "lib/errno.h"
 #include "lib/atomic.h"
-#include "lib/arith.h" /* c2_align */
+#include "lib/arith.h" /* m0_align */
 #include "lib/trace.h"
 #include "lib/trace_internal.h"
 
@@ -52,7 +52,7 @@ module_param(trace_print_context, charp, 0644);
 MODULE_PARM_DESC(trace_print_context,
 		 " controls whether to display additional trace point"
 		 " info, like subsystem, file, func, etc.; values:"
-		 " none, func, full");
+		 " none, func, short, full");
 
 static int set_trace_immediate_mask(void)
 {
@@ -67,7 +67,7 @@ static int set_trace_immediate_mask(void)
 	/* first, check if 'trace_immediate_mask' contains a numeric bitmask */
 	rc = strict_strtoul(trace_immediate_mask, 0, &mask);
 	if (rc == 0) {
-		c2_trace_immediate_mask = mask;
+		m0_trace_immediate_mask = mask;
 		goto out;
 	}
 
@@ -78,16 +78,16 @@ static int set_trace_immediate_mask(void)
 	mask_str = kstrdup(trace_immediate_mask, GFP_KERNEL);
 	if (mask_str == NULL)
 		return -ENOMEM;
-	rc = subsys_list_to_mask(mask_str, &mask);
+	rc = m0_trace_subsys_list_to_mask(mask_str, &mask);
 	kfree(mask_str);
 
 	if (rc != 0)
 		return rc;
 
-	c2_trace_immediate_mask = mask;
+	m0_trace_immediate_mask = mask;
 out:
-	pr_info("Colibri trace immediate mask: 0x%lx\n",
-			c2_trace_immediate_mask);
+	pr_info("Mero trace immediate mask: 0x%lx\n",
+			m0_trace_immediate_mask);
 
 	return 0;
 }
@@ -104,37 +104,37 @@ static int set_trace_level(void)
 	if (level_str == NULL)
 		return -ENOMEM;
 
-	c2_trace_level = parse_trace_level(level_str);
+	m0_trace_level = m0_trace_parse_trace_level(level_str);
 	kfree(level_str);
 
-	if (c2_trace_level == C2_NONE)
+	if (m0_trace_level == M0_NONE)
 		return -EINVAL;
 
-	pr_info("Colibri trace level: %s\n", trace_level);
+	pr_info("Mero trace level: %s\n", trace_level);
 
 	return 0;
 }
 
 static int set_trace_print_context(void)
 {
-	enum c2_trace_print_context ctx;
+	enum m0_trace_print_context ctx;
 
 	/* check if argument was specified for 'trace_print_context' param */
 	if (trace_print_context == NULL)
 		return 0;
 
-	ctx = parse_trace_print_context(trace_print_context);
-	if (ctx == C2_TRACE_PCTX_INVALID)
+	ctx = m0_trace_parse_trace_print_context(trace_print_context);
+	if (ctx == M0_TRACE_PCTX_INVALID)
 		return -EINVAL;
 
-	c2_trace_print_context = ctx;
+	m0_trace_print_context = ctx;
 
-	pr_info("Colibri trace print context: %s\n", trace_print_context);
+	pr_info("Mero trace print context: %s\n", trace_print_context);
 
 	return 0;
 }
 
-C2_INTERNAL int c2_arch_trace_init(void)
+M0_INTERNAL int m0_arch_trace_init(void)
 {
 	int rc;
 
@@ -150,21 +150,21 @@ C2_INTERNAL int c2_arch_trace_init(void)
 	if (rc != 0)
 		return rc;
 
-	c2_logbuf = vmalloc(c2_logbufsize);
-	if (c2_logbuf == NULL)
+	m0_logbuf = vmalloc(m0_logbufsize);
+	if (m0_logbuf == NULL)
 		return -ENOMEM;
 
-	pr_info("Colibri trace buffer address: 0x%p\n", c2_logbuf);
+	pr_info("Mero trace buffer address: 0x%p\n", m0_logbuf);
 
 	return 0;
 }
 
-C2_INTERNAL void c2_arch_trace_fini(void)
+M0_INTERNAL void m0_arch_trace_fini(void)
 {
-	vfree(c2_logbuf);
+	vfree(m0_logbuf);
 }
 
-C2_INTERNAL void c2_console_vprintf(const char *fmt, va_list args)
+M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list args)
 {
 	vprintk(fmt, args);
 }

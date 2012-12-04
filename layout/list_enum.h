@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LAYOUT_LIST_ENUM_H__
-#define __COLIBRI_LAYOUT_LIST_ENUM_H__
+#ifndef __MERO_LAYOUT_LIST_ENUM_H__
+#define __MERO_LAYOUT_LIST_ENUM_H__
 
 /**
  * @defgroup list_enum List Enumeration Type.
@@ -32,19 +32,19 @@
  */
 
 /* import */
-#include "lib/arith.h"     /* C2_IS_8ALIGNED */
-#include "db/db.h"         /* struct c2_table */
+#include "lib/arith.h"     /* M0_IS_8ALIGNED */
+#include "db/db.h"         /* struct m0_table */
 #include "layout/layout.h"
 
-struct c2_fid;
+struct m0_fid;
 
 /* export */
-struct c2_layout_list_enum;
+struct m0_layout_list_enum;
 
-/** Extension of the generic c2_layout_enum for the list enumeration type. */
-struct c2_layout_list_enum {
+/** Extension of the generic m0_layout_enum for the list enumeration type. */
+struct m0_layout_list_enum {
 	/** Super class. */
-	struct c2_layout_enum   lle_base;
+	struct m0_layout_enum   lle_base;
 
 	/** Number of elements present in the enumeration. */
 	uint32_t                lle_nr;
@@ -54,10 +54,10 @@ struct c2_layout_list_enum {
 	 * which are part of 'the layout this enum is assocaited with'.
 	 * @todo In kernel any allocation over 4KB is not safe. Thus, this
 	 * array can safely hold only upto 256 number of COB identifiers,
-	 * (c2_fid being 16 bytes in size).
+	 * (m0_fid being 16 bytes in size).
 	 * This issue is to be addressed later.
 	 */
-	struct c2_fid          *lle_list_of_cobs;
+	struct m0_fid          *lle_list_of_cobs;
 
 	uint64_t                lle_magic;
 };
@@ -73,13 +73,13 @@ struct c2_layout_list_enum {
  * @post ergo(rc == 0, list_invariant_internal(lin_enum))
  *
  * @note Enum object is not to be finalised explicitly by the user. It is
- * finalised internally through c2_layout__striped_fini().
+ * finalised internally through m0_layout__striped_fini().
  */
-C2_INTERNAL int c2_list_enum_build(struct c2_layout_domain *dom,
-				   struct c2_fid *cob_list, uint32_t nr,
-				   struct c2_layout_list_enum **out);
+M0_INTERNAL int m0_list_enum_build(struct m0_layout_domain *dom,
+				   struct m0_fid *cob_list, uint32_t nr,
+				   struct m0_layout_list_enum **out);
 
-extern struct c2_layout_enum_type c2_list_enum_type;
+extern struct m0_layout_enum_type m0_list_enum_type;
 
 /** @} end group list_enum */
 
@@ -100,14 +100,14 @@ struct cob_entries_header {
 	uint32_t  ces_pad;
 
 	/**
-	 * Payload storing list of cob ids (struct c2_fid), max upto
+	 * Payload storing list of cob ids (struct m0_fid), max upto
 	 * LDB_MAX_INLINE_COB_ENTRIES number of those.
 	 */
 	char      ces_cobs[0];
 };
-C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct cob_entries_header)));
+M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct cob_entries_header)));
 
-/* __COLIBRI_LAYOUT_LIST_ENUM_H__ */
+/* __MERO_LAYOUT_LIST_ENUM_H__ */
 #endif
 
 /*

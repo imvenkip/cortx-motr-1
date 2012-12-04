@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_DESIM_NET_H__
-#define __COLIBRI_DESIM_NET_H__
+#ifndef __MERO_DESIM_NET_H__
+#define __MERO_DESIM_NET_H__
 
 #include "lib/tlist.h"
 #include "stob/stob_id.h"
@@ -60,7 +60,7 @@ struct net_srv {
 	sim_time_t          ns_pre_bulk_min;
 	sim_time_t          ns_pre_bulk_max;
 	struct sim_chan     ns_incoming;
-	struct c2_tl        ns_queue;
+	struct m0_tl        ns_queue;
 	struct sim_thread  *ns_thread;
 	struct elevator    *ns_el;
 	unsigned long long  ns_file_size;
@@ -72,35 +72,35 @@ struct net_srv {
 struct net_rpc {
 	struct net_srv     *nr_srv;
 	struct net_conf    *nr_conf;
-	struct c2_stob_id   nr_id;
+	struct m0_stob_id   nr_id;
 	unsigned long long  nr_offset;
 	unsigned long       nr_todo;
-	struct c2_tlink     nr_inqueue;
+	struct m0_tlink     nr_inqueue;
 	struct sim_chan     nr_wait;
 	struct sim_chan     nr_bulk_wait;
 	struct sim_thread  *nr_srv_thread;
 	uint64_t            nr_magic;
 };
 
-C2_INTERNAL void net_srv_init(struct sim *s, struct net_srv *srv);
-C2_INTERNAL void net_srv_fini(struct net_srv *srv);
+M0_INTERNAL void net_srv_init(struct sim *s, struct net_srv *srv);
+M0_INTERNAL void net_srv_fini(struct net_srv *srv);
 
-C2_INTERNAL void net_init(struct net_conf *net);
-C2_INTERNAL void net_fini(struct net_conf *net);
+M0_INTERNAL void net_init(struct net_conf *net);
+M0_INTERNAL void net_fini(struct net_conf *net);
 
-C2_INTERNAL void net_rpc_init(struct net_rpc *rpc, struct net_conf *conf,
-			      struct net_srv *srv, struct c2_stob_id *id,
+M0_INTERNAL void net_rpc_init(struct net_rpc *rpc, struct net_conf *conf,
+			      struct net_srv *srv, struct m0_stob_id *id,
 			      unsigned long long offset, unsigned long nob);
-C2_INTERNAL void net_rpc_fini(struct net_rpc *rpc);
-C2_INTERNAL void net_rpc_send(struct sim_thread *t, struct net_rpc *rpc);
-C2_INTERNAL void net_rpc_bulk(struct sim_thread *t, struct net_rpc *rpc);
-C2_INTERNAL void net_rpc_process(struct sim_thread *t,
+M0_INTERNAL void net_rpc_fini(struct net_rpc *rpc);
+M0_INTERNAL void net_rpc_send(struct sim_thread *t, struct net_rpc *rpc);
+M0_INTERNAL void net_rpc_bulk(struct sim_thread *t, struct net_rpc *rpc);
+M0_INTERNAL void net_rpc_process(struct sim_thread *t,
 				 struct net_conf *net, struct net_srv *srv,
-				 struct c2_stob_id *id,
+				 struct m0_stob_id *id,
 				 unsigned long long offset,
 				 unsigned long count);
 
-#endif /* __COLIBRI_DESIM_NET_H__ */
+#endif /* __MERO_DESIM_NET_H__ */
 
 /** @} end of desim group */
 

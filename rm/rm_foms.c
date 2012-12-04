@@ -21,7 +21,7 @@
 #include "lib/errno.h"
 #include "lib/list.h"
 #include "lib/memory.h"
-#include "lib/misc.h"   /* C2_IN */
+#include "lib/misc.h"   /* M0_IN */
 #include "fop/fom_generic.h"
 #include "rm/rm_fops.h"
 #include "rm/rm_foms.h"
@@ -86,15 +86,15 @@ const struct m0_fom_type_ops rm_revoke_fom_type_ops = {
 struct m0_sm_state_descr rm_req_phases[] = {
 	[FOPH_RM_REQ_START] = {
 		.sd_name      = "RM Request Begin",
-		.sd_allowed   = C2_BITS(FOPH_RM_REQ_WAIT, FOPH_RM_REQ_FINISH, C2_FOPH_FAILURE)
+		.sd_allowed   = M0_BITS(FOPH_RM_REQ_WAIT, FOPH_RM_REQ_FINISH, M0_FOPH_FAILURE)
 	},
 	[FOPH_RM_REQ_WAIT] = {
 		.sd_name      = "RM Request Wait",
-		.sd_allowed   = C2_BITS(FOPH_RM_REQ_FINISH, C2_FOPH_SUCCESS, C2_FOPH_FAILURE)
+		.sd_allowed   = M0_BITS(FOPH_RM_REQ_FINISH, M0_FOPH_SUCCESS, M0_FOPH_FAILURE)
 	},
 	[FOPH_RM_REQ_FINISH] = {
 		.sd_name      = "RM Request Completion",
-		.sd_allowed   = C2_BITS(C2_FOPH_SUCCESS, C2_FOPH_FAILURE)
+		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE)
 	},
 };
 
@@ -119,17 +119,17 @@ static void remote_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 	rem_in = container_of(in, struct m0_rm_remote_incoming, ri_incoming);
 	rqfom = container_of(rem_in, struct rm_request_fom, rf_in);
 	phase = m0_fom_phase(&rqfom->rf_fom);
-	C2_ASSERT(C2_IN(phase, (FOPH_RM_REQ_START, FOPH_RM_REQ_WAIT)));
+	M0_ASSERT(M0_IN(phase, (FOPH_RM_REQ_START, FOPH_RM_REQ_WAIT)));
 
 	switch (in->rin_type) {
-	case C2_RIT_BORROW:
+	case M0_RIT_BORROW:
 		rc = rc ?: m0_rm_borrow_commit(rem_in);
 		break;
-	case C2_RIT_REVOKE:
+	case M0_RIT_REVOKE:
 		rc = rc ?: m0_rm_revoke_commit(rem_in);
 		break;
 	default:
-		C2_IMPOSSIBLE("Unrecognized RM request");
+		M0_IMPOSSIBLE("Unrecognized RM request");
 		break;
 	}
 
@@ -158,25 +158,25 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	struct m0_fom_ops     *fom_ops;
 	struct m0_fop	      *reply_fop;
 
-	C2_PRE(fop != NULL);
-	C2_PRE(fop->f_type != NULL);
-	C2_PRE(out != NULL);
+	M0_PRE(fop != NULL);
+	M0_PRE(fop->f_type != NULL);
+	M0_PRE(out != NULL);
 
-	C2_ALLOC_PTR(rqfom);
+	M0_ALLOC_PTR(rqfom);
 	if (rqfom == NULL)
 		return -ENOMEM;
 
 	switch (type) {
-	case C2_RIT_BORROW:
+	case M0_RIT_BORROW:
 		fopt = &m0_fop_rm_borrow_rep_fopt;
 		fom_ops = &rm_fom_borrow_ops;
 		break;
-	case C2_RIT_REVOKE:
+	case M0_RIT_REVOKE:
 		fopt = &m0_fom_error_rep_fopt;
 		fom_ops = &rm_fom_revoke_ops;
 		break;
 	default:
-		C2_IMPOSSIBLE("Unrecognised RM request");
+		M0_IMPOSSIBLE("Unrecognised RM request");
 		break;
 	}
 
@@ -199,7 +199,7 @@ static void request_fom_fini(struct m0_fom *fom)
 {
 	struct rm_request_fom *rfom;
 
-	C2_PRE(fom != NULL);
+	M0_PRE(fom != NULL);
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 	m0_fom_fini(fom);
@@ -231,7 +231,7 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 
 	switch (type) {
-	case C2_RIT_BORROW:
+	case M0_RIT_BORROW:
 		bfop = m0_fop_data(fom->fo_rep_fop);
 		bfop->br_loan.lo_cookie = rfom->rf_in.ri_loan_cookie;
 
@@ -243,7 +243,7 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
 		loan = m0_cookie_of(&rfom->rf_in.ri_loan_cookie,
 				    struct m0_rm_loan, rl_id);
 
-		C2_ASSERT(loan != NULL);
+		M0_ASSERT(loan != NULL);
 		/*
 		 * Memory for the buffer is allocated by the function.
 		 */
@@ -266,19 +266,19 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 	struct m0_fom_error_rep *rfop;
 
 	switch (type) {
-	case C2_RIT_BORROW:
+	case M0_RIT_BORROW:
 		bfop = m0_fop_data(fom->fo_rep_fop);
 		rfop = &bfop->br_rc;
 		break;
-	case C2_RIT_REVOKE:
+	case M0_RIT_REVOKE:
 		rfop = m0_fop_data(fom->fo_rep_fop);
 		break;
 	default:
-		C2_IMPOSSIBLE("Unrecognized RM request");
+		M0_IMPOSSIBLE("Unrecognized RM request");
 		break;
 	}
 	rfop->rerr_rc = rc;
-	m0_fom_phase_move(fom, rc, rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+	m0_fom_phase_move(fom, rc, rc ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
 }
 
 /*
@@ -299,7 +299,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 	switch (type) {
-	case C2_RIT_BORROW:
+	case M0_RIT_BORROW:
 		bfop = m0_fop_data(fom->fo_fop);
 		basefop = &bfop->bo_base;
 		rfom->rf_in.ri_rem_owner_cookie = basefop->rrq_owner.ow_cookie;
@@ -315,7 +315,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 		rfom->rf_in.ri_owner_cookie = bfop->bo_creditor.ow_cookie;
 		break;
 
-	case C2_RIT_REVOKE:
+	case M0_RIT_REVOKE:
 		rfop = m0_fop_data(fom->fo_fop);
 		basefop = &rfop->rr_base;
 		/*
@@ -332,7 +332,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 		break;
 
 	default:
-		C2_IMPOSSIBLE("Unrecognized RM request");
+		M0_IMPOSSIBLE("Unrecognized RM request");
 		break;
 	}
 	policy = basefop->rrq_policy;
@@ -369,7 +369,7 @@ static int request_pre_process(struct m0_fom *fom,
 	struct m0_rm_incoming *in;
 	int		       rc;
 
-	C2_PRE(fom != NULL);
+	M0_PRE(fom != NULL);
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 
@@ -380,7 +380,7 @@ static int request_pre_process(struct m0_fom *fom,
 		 * copying of credit data fails.
 		 */
 		reply_err_set(type, fom, rc);
-		return C2_FSO_AGAIN;
+		return M0_FSO_AGAIN;
 	}
 
 	in = &rfom->rf_in.ri_incoming;
@@ -392,7 +392,7 @@ static int request_pre_process(struct m0_fom *fom,
 	 */
 	m0_fom_phase_set(fom, incoming_state(in) == RI_WAIT ?
 			      FOPH_RM_REQ_WAIT : FOPH_RM_REQ_FINISH);
-	return incoming_state(in) == RI_WAIT ? C2_FSO_WAIT : C2_FSO_AGAIN;
+	return incoming_state(in) == RI_WAIT ? M0_FSO_WAIT : M0_FSO_AGAIN;
 }
 
 static int request_post_process(struct m0_fom *fom)
@@ -401,14 +401,14 @@ static int request_post_process(struct m0_fom *fom)
 	struct m0_rm_incoming *in;
 	int		       rc;
 
-	C2_PRE(fom != NULL);
+	M0_PRE(fom != NULL);
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 	in = &rfom->rf_in.ri_incoming;
 
 	rc = in->rin_rc;
 	if (incoming_state(in) == RI_SUCCESS) {
-		C2_ASSERT(rc == 0);
+		M0_ASSERT(rc == 0);
 		rc = reply_prepare(in->rin_type, fom);
 		m0_rm_credit_put(in);
 	}
@@ -416,7 +416,7 @@ static int request_post_process(struct m0_fom *fom)
 	reply_err_set(in->rin_type, fom, rc);
 	m0_rm_credit_fini(&in->rin_want);
 
-	return C2_FSO_AGAIN;
+	return M0_FSO_AGAIN;
 }
 
 static int request_fom_tick(struct m0_fom *fom,
@@ -424,7 +424,7 @@ static int request_fom_tick(struct m0_fom *fom,
 {
 	int rc;
 
-	if (m0_fom_phase(fom) < C2_FOPH_NR)
+	if (m0_fom_phase(fom) < M0_FOPH_NR)
 		rc = m0_fom_tick_generic(fom);
 	else {
 		switch (m0_fom_phase(fom)) {
@@ -433,13 +433,13 @@ static int request_fom_tick(struct m0_fom *fom,
 			break;
 		case FOPH_RM_REQ_WAIT:
 			m0_fom_phase_set(fom, FOPH_RM_REQ_FINISH);
-			rc = C2_FSO_AGAIN;
+			rc = M0_FSO_AGAIN;
 			break;
 		case FOPH_RM_REQ_FINISH:
 			rc = request_post_process(fom);
 			break;
 		default:
-			C2_IMPOSSIBLE("Unrecognized RM FOM phase");
+			M0_IMPOSSIBLE("Unrecognized RM FOM phase");
 			break;
 		}
 
@@ -456,12 +456,12 @@ static int request_fom_tick(struct m0_fom *fom,
  */
 static int borrow_fom_tick(struct m0_fom *fom)
 {
-	return request_fom_tick(fom, C2_RIT_BORROW);
+	return request_fom_tick(fom, M0_RIT_BORROW);
 }
 
 /**
  * This function handles the request to revoke a credit to a resource on
- * a server ("debtor"). REVOKE is typically issued to the client. In Colibri,
+ * a server ("debtor"). REVOKE is typically issued to the client. In Mero,
  * resources are arranged in hierarchy (chain). Hence a server can receive
  * REVOKE from another server.
  *
@@ -470,7 +470,7 @@ static int borrow_fom_tick(struct m0_fom *fom)
  */
 static int revoke_fom_tick(struct m0_fom *fom)
 {
-	return request_fom_tick(fom, C2_RIT_REVOKE);
+	return request_fom_tick(fom, M0_RIT_REVOKE);
 }
 
 /*
@@ -478,7 +478,7 @@ static int revoke_fom_tick(struct m0_fom *fom)
  */
 static int borrow_fom_create(struct m0_fop *fop, struct m0_fom **out)
 {
-	return request_fom_create(C2_RIT_BORROW, fop, out);
+	return request_fom_create(M0_RIT_BORROW, fop, out);
 }
 
 /*
@@ -494,7 +494,7 @@ static void borrow_fom_fini(struct m0_fom *fom)
  */
 static int revoke_fom_create(struct m0_fop *fop, struct m0_fom **out)
 {
-	return request_fom_create(C2_RIT_REVOKE, fop, out);
+	return request_fom_create(M0_RIT_REVOKE, fop, out);
 }
 
 /*

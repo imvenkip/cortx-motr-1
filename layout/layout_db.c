@@ -54,7 +54,7 @@
  *   - COB: COB is component object and is defined at
  *   <a href="https://docs.google.com/a/xyratex.com/spreadsheet/ccc?
  *    key=0Ajg1HFjUZcaZdEpJd0tmM3MzVy1lMG41WWxjb0t4QkE&hl=en_US#gid=0">
- *    C2 Glossary</a>
+ *    M0 Glossary</a>
  *
  * <HR>
  * @section Layout-DB-req Requirements
@@ -80,7 +80,7 @@
  * - Layout DB module depends upon the Layout module since the Layout module
  *   creates the layouts and uses/manages them.
  * - Layout DB module depends upon the DB5 interfaces exposed by
- *   Colibri since the layouts are stored using the DB5 data-base.
+ *   Mero since the layouts are stored using the DB5 data-base.
  *
  * <HR>
  * @section Layout-DB-highlights Design Highlights
@@ -121,12 +121,12 @@
  *   node [style=box];
  *   label = "Layout Components and Interactions";
  *
- *   subgraph colibri_client {
+ *   subgraph mero_client {
  *       label = "Client";
  *       cClient [label="Client"];
  *   }
  *
- *   subgraph colibri_layout {
+ *   subgraph mero_layout {
  *       label = "Layout";
  *
  *   cLDB [label="Layout DB", style="filled"];
@@ -137,7 +137,7 @@
  *       cFormula -> cLayout [label="build layout"];
  *    }
  *
- *   subgraph colibri_server {
+ *   subgraph mero_server {
  *       label = "Server";
  *       cServer [label="Server"];
  *    }
@@ -171,9 +171,9 @@
  * layout_type_specific_data field is used to store layout type or layout enum
  * type specific data. Structure of this field varies accordingly. For example:
  * - In case of a layout with PDCLUST layout type, the structure
- *   c2_layout_pdclust_rec is used to store attributes like enumeration type
+ *   m0_layout_pdclust_rec is used to store attributes like enumeration type
  *   id, N, K, P.
- * - In case of a layout with LIST enum type, an array of c2_fid
+ * - In case of a layout with LIST enum type, an array of m0_fid
  *   structure with size LDB_MAX_INLINE_COB_ENTRIES is used to store a few COB
  *   entries inline into the layouts table itself.
  * - It is possible that some layouts do not need to store any layout type or
@@ -197,7 +197,7 @@
  * layout_id is a foreign key referring record, in the layouts table.
  *
  * cob_index for the first entry in this table will be the continuation of the
- * index from the array of c2_fid structures stored inline in the layouts
+ * index from the array of m0_fid structures stored inline in the layouts
  * table.
  *
  * @subsection Layout-DB-lspec-schema-comp_layout_ext_map
@@ -219,11 +219,11 @@
  *
  * layout_id is a foreign key referring record, in the layouts table.
  *
- * Layout DB uses a single c2_emap instance to implement the composite layout
+ * Layout DB uses a single m0_emap instance to implement the composite layout
  * extent map viz. comp_layout_ext_map. This table stores the "layout segment
  * to sub-layout id mappings" for each compsite layout.
  *
- * Since prefix (an element of the key for c2_emap) is required to be 128 bit
+ * Since prefix (an element of the key for m0_emap) is required to be 128 bit
  * in size, layout id (unit64_t) of the composite layout is used as a part of
  * the prefix (struct layout_prefix) to identify an extent map belonging to one
  * specific composite layout. The lower 64 bits are currently unused (fillers).
@@ -344,22 +344,22 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"  /* memset() */
-#include "lib/vec.h"   /* C2_BUFVEC_INIT_BUF() */
+#include "lib/vec.h"   /* M0_BUFVEC_INIT_BUF() */
 #include "lib/finject.h"
 
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
 #include "layout/layout_internal.h"
 #include "layout/layout_db.h"
 
-extern const struct c2_addb_loc layout_addb_loc;
-extern struct c2_addb_ctx layout_global_ctx;
+extern const struct m0_addb_loc layout_addb_loc;
+extern struct m0_addb_ctx layout_global_ctx;
 
-extern const struct c2_addb_ev layout_lookup_fail;
-extern const struct c2_addb_ev layout_add_fail;
-extern const struct c2_addb_ev layout_update_fail;
-extern const struct c2_addb_ev layout_delete_fail;
+extern const struct m0_addb_ev layout_lookup_fail;
+extern const struct m0_addb_ev layout_add_fail;
+extern const struct m0_addb_ev layout_update_fail;
+extern const struct m0_addb_ev layout_delete_fail;
 
 /**
  * @defgroup LayoutDBDFSInternal Layout DB Internals
@@ -374,44 +374,44 @@ extern const struct c2_addb_ev layout_delete_fail;
  * @{
  */
 
-static int pair_init(struct c2_db_pair *pair,
-		     struct c2_layout *l,
-		     struct c2_db_tx *tx,
-		     enum c2_layout_xcode_op op,
-		     c2_bcount_t recsize)
+static int pair_init(struct m0_db_pair *pair,
+		     struct m0_layout *l,
+		     struct m0_db_tx *tx,
+		     enum m0_layout_xcode_op op,
+		     m0_bcount_t recsize)
 {
 	void                    *key_buf = pair->dp_key.db_buf.b_addr;
 	void                    *rec_buf = pair->dp_rec.db_buf.b_addr;
-	struct c2_bufvec         bv;
-	struct c2_bufvec_cursor  rec_cur;
+	struct m0_bufvec         bv;
+	struct m0_bufvec_cursor  rec_cur;
 	int                      rc;
 
-	C2_PRE(key_buf != NULL);
-	C2_PRE(rec_buf != NULL);
-	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
-	C2_PRE(pair->dp_rec.db_buf.b_nob >= recsize);
-	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_DB_ADD,
-			  C2_LXO_DB_UPDATE, C2_LXO_DB_DELETE)));
-	C2_PRE(recsize >= sizeof(struct c2_layout_rec));
+	M0_PRE(key_buf != NULL);
+	M0_PRE(rec_buf != NULL);
+	M0_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
+	M0_PRE(pair->dp_rec.db_buf.b_nob >= recsize);
+	M0_PRE(M0_IN(op, (M0_LXO_DB_LOOKUP, M0_LXO_DB_ADD,
+			  M0_LXO_DB_UPDATE, M0_LXO_DB_DELETE)));
+	M0_PRE(recsize >= sizeof(struct m0_layout_rec));
 
 	*(uint64_t *)key_buf = l->l_id;
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
-	c2_db_pair_setup(pair, &l->l_dom->ld_layouts,
+	m0_db_pair_setup(pair, &l->l_dom->ld_layouts,
 			 key_buf, sizeof l->l_id,
 			 rec_buf, recsize);
-	if (op == C2_LXO_DB_LOOKUP)
+	if (op == M0_LXO_DB_LOOKUP)
 		rc = 0;
 	else {
-		bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf,
+		bv = (struct m0_bufvec)M0_BUFVEC_INIT_BUF(&rec_buf,
 						  &pair->dp_rec.db_buf.b_nob);
-		c2_bufvec_cursor_init(&rec_cur, &bv);
+		m0_bufvec_cursor_init(&rec_cur, &bv);
 
-		rc = c2_layout_encode(l, op, tx, &rec_cur);
+		rc = m0_layout_encode(l, op, tx, &rec_cur);
 		if (rc != 0) {
-			c2_layout__log("pair_init", "c2_layout_encode() failed",
-				       &c2_addb_func_fail, &l->l_addb,
+			m0_layout__log("pair_init", "m0_layout_encode() failed",
+				       &m0_addb_func_fail, &l->l_addb,
 				       l->l_id, rc);
-			c2_db_pair_fini(pair);
+			m0_db_pair_fini(pair);
 		}
 	}
 	return rc;
@@ -424,232 +424,232 @@ static int pair_init(struct c2_db_pair *pair,
  * @{
  */
 
-C2_INTERNAL int c2_layout_lookup(struct c2_layout_domain *dom,
+M0_INTERNAL int m0_layout_lookup(struct m0_layout_domain *dom,
 				 uint64_t lid,
-				 struct c2_layout_type *lt,
-				 struct c2_db_tx *tx,
-				 struct c2_db_pair *pair,
-				 struct c2_layout **out)
+				 struct m0_layout_type *lt,
+				 struct m0_db_tx *tx,
+				 struct m0_db_pair *pair,
+				 struct m0_layout **out)
 {
 	int                      rc;
-	struct c2_bufvec         bv;
-	struct c2_bufvec_cursor  cur;
-	c2_bcount_t              max_recsize;
-	c2_bcount_t              recsize;
-	struct c2_layout        *l;
-	struct c2_layout        *ghost;
+	struct m0_bufvec         bv;
+	struct m0_bufvec_cursor  cur;
+	m0_bcount_t              max_recsize;
+	m0_bcount_t              recsize;
+	struct m0_layout        *l;
+	struct m0_layout        *ghost;
 
-	C2_PRE(c2_layout__domain_invariant(dom));
-	C2_PRE(lid > 0);
-	C2_PRE(lt != NULL);
-	C2_PRE(tx != NULL);
-	C2_PRE(pair != NULL);
-	C2_PRE(out != NULL);
+	M0_PRE(m0_layout__domain_invariant(dom));
+	M0_PRE(lid > 0);
+	M0_PRE(lt != NULL);
+	M0_PRE(tx != NULL);
+	M0_PRE(pair != NULL);
+	M0_PRE(out != NULL);
 
-	C2_ENTRY("lid %llu", (unsigned long long)lid);
+	M0_ENTRY("lid %llu", (unsigned long long)lid);
 	if (dom->ld_type[lt->lt_id] != lt) {
-		c2_layout__log("c2_layout_lookup", "Unregistered layout type",
+		m0_layout__log("m0_layout_lookup", "Unregistered layout type",
 			       &layout_lookup_fail, &layout_global_ctx,
 			       lid, -EPROTO);
 		return -EPROTO;
 	}
 
-	c2_mutex_lock(&dom->ld_lock);
-	l = c2_layout__list_lookup(dom, lid, true);
-	c2_mutex_unlock(&dom->ld_lock);
+	m0_mutex_lock(&dom->ld_lock);
+	l = m0_layout__list_lookup(dom, lid, true);
+	m0_mutex_unlock(&dom->ld_lock);
 	if (l != NULL) {
 		/*
-		 * Layout object exists in memory and c2_layout__list_lookup()
+		 * Layout object exists in memory and m0_layout__list_lookup()
 		 * has now acquired a reference on it.
 		 */
 		*out = l;
-		C2_POST(c2_layout__invariant(*out));
-		C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, 0);
+		M0_POST(m0_layout__invariant(*out));
+		M0_LEAVE("lid %llu, rc %d", (unsigned long long)lid, 0);
 		return 0;
 	}
 
 	/* Allocate outside of the domain lock to improve concurrency. */
 	rc = lt->lt_ops->lto_allocate(dom, lid, &l);
 	if (rc != 0) {
-		c2_layout__log("c2_layout_lookup", "lto_allocate() failed",
+		m0_layout__log("m0_layout_lookup", "lto_allocate() failed",
 			       &layout_lookup_fail, &layout_global_ctx,
 			       lid, rc);
 		return rc;
 	}
 	/* Here, lto_allocate() has locked l->l_lock. */
 
-	if (C2_FI_ENABLED("ghost_creation")) {}
+	if (M0_FI_ENABLED("ghost_creation")) {}
 
 	/* Re-check for possible concurrent layout creation. */
-	c2_mutex_lock(&dom->ld_lock);
-	ghost = c2_layout__list_lookup(dom, lid, true);
+	m0_mutex_lock(&dom->ld_lock);
+	ghost = m0_layout__list_lookup(dom, lid, true);
 	if (ghost != NULL) {
 		/*
 		 * Another instance of the layout with the same layout id
 		 * "ghost" was created while the domain lock was released.
-		 * Use it. c2_layout__list_lookup() has now acquired a
+		 * Use it. m0_layout__list_lookup() has now acquired a
 		 * reference on "ghost".
 		 */
-		c2_mutex_unlock(&dom->ld_lock);
+		m0_mutex_unlock(&dom->ld_lock);
 		l->l_ops->lo_delete(l);
 
 		/* Wait for possible decoding completion. */
-		c2_mutex_lock(&ghost->l_lock);
-		c2_mutex_unlock(&ghost->l_lock);
+		m0_mutex_lock(&ghost->l_lock);
+		m0_mutex_unlock(&ghost->l_lock);
 
 		*out = ghost;
-		C2_POST(c2_layout__invariant(*out));
-		C2_POST(c2_ref_read(&(*out)->l_ref) > 1);
-		C2_LEAVE("lid %llu, ghost found, rc %d",
+		M0_POST(m0_layout__invariant(*out));
+		M0_POST(m0_ref_read(&(*out)->l_ref) > 1);
+		M0_LEAVE("lid %llu, ghost found, rc %d",
 			 (unsigned long long)lid, 0);
 		return 0;
 	}
-	c2_mutex_unlock(&dom->ld_lock);
+	m0_mutex_unlock(&dom->ld_lock);
 
-	max_recsize = c2_layout_max_recsize(dom);
+	max_recsize = m0_layout_max_recsize(dom);
 	recsize = pair->dp_rec.db_buf.b_nob <= max_recsize ?
 		  pair->dp_rec.db_buf.b_nob : max_recsize;
-	rc = pair_init(pair, l, tx, C2_LXO_DB_LOOKUP, recsize);
-	C2_ASSERT(rc == 0);
-	rc = c2_table_lookup(tx, pair);
+	rc = pair_init(pair, l, tx, M0_LXO_DB_LOOKUP, recsize);
+	M0_ASSERT(rc == 0);
+	rc = m0_table_lookup(tx, pair);
 	if (rc != 0) {
 		/* Error covered in UT. */
 		l->l_ops->lo_delete(l);
-		c2_layout__log("c2_layout_lookup", "c2_table_lookup() failed",
+		m0_layout__log("m0_layout_lookup", "m0_table_lookup() failed",
 			       &layout_lookup_fail, &layout_global_ctx,
 			       lid, rc);
 		goto out;
 	}
 
-	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
+	bv = (struct m0_bufvec)M0_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 						  &recsize);
-	c2_bufvec_cursor_init(&cur, &bv);
-	rc = c2_layout_decode(l, &cur, C2_LXO_DB_LOOKUP, tx);
+	m0_bufvec_cursor_init(&cur, &bv);
+	rc = m0_layout_decode(l, &cur, M0_LXO_DB_LOOKUP, tx);
 	if (rc != 0) {
 		/* Error covered in UT. */
 		l->l_ops->lo_delete(l);
-		c2_layout__log("c2_layout_lookup", "c2_layout_decode() failed",
+		m0_layout__log("m0_layout_lookup", "m0_layout_decode() failed",
 			       &layout_lookup_fail, &layout_global_ctx,
 			       lid, rc);
 		goto out;
 	}
 	*out = l;
-	C2_POST(c2_layout__invariant(*out) && c2_ref_read(&l->l_ref) > 0);
-	c2_mutex_unlock(&l->l_lock);
+	M0_POST(m0_layout__invariant(*out) && m0_ref_read(&l->l_ref) > 0);
+	m0_mutex_unlock(&l->l_lock);
 out:
-	c2_db_pair_fini(pair);
-	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
+	m0_db_pair_fini(pair);
+	M0_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
 
-C2_INTERNAL int c2_layout_add(struct c2_layout *l,
-			      struct c2_db_tx *tx, struct c2_db_pair *pair)
+M0_INTERNAL int m0_layout_add(struct m0_layout *l,
+			      struct m0_db_tx *tx, struct m0_db_pair *pair)
 {
-	c2_bcount_t recsize;
+	m0_bcount_t recsize;
 	int         rc;
 
-	C2_PRE(c2_layout__invariant(l));
-	C2_PRE(tx != NULL);
-	C2_PRE(pair != NULL);
+	M0_PRE(m0_layout__invariant(l));
+	M0_PRE(tx != NULL);
+	M0_PRE(pair != NULL);
 
-	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	c2_mutex_lock(&l->l_lock);
+	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
+	m0_mutex_lock(&l->l_lock);
 	recsize = l->l_ops->lo_recsize(l);
-	rc = pair_init(pair, l, tx, C2_LXO_DB_ADD, recsize);
+	rc = pair_init(pair, l, tx, M0_LXO_DB_ADD, recsize);
 	if (rc == 0) {
-		rc = c2_table_insert(tx, pair);
+		rc = m0_table_insert(tx, pair);
 		if (rc != 0)
-			c2_layout__log("c2_layout_add",
-				       "c2_table_insert() failed",
+			m0_layout__log("m0_layout_add",
+				       "m0_table_insert() failed",
 				       &layout_add_fail, &l->l_addb,
 				       l->l_id, rc);
-		c2_db_pair_fini(pair);
+		m0_db_pair_fini(pair);
 	} else
-		c2_layout__log("c2_layout_add",
+		m0_layout__log("m0_layout_add",
 			       "pair_init() failed",
 			       &layout_add_fail, &l->l_addb,
 			       l->l_id, rc);
-	c2_mutex_unlock(&l->l_lock);
-	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+	m0_mutex_unlock(&l->l_lock);
+	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
 
-C2_INTERNAL int c2_layout_update(struct c2_layout *l,
-				 struct c2_db_tx *tx, struct c2_db_pair *pair)
+M0_INTERNAL int m0_layout_update(struct m0_layout *l,
+				 struct m0_db_tx *tx, struct m0_db_pair *pair)
 {
-	c2_bcount_t recsize;
+	m0_bcount_t recsize;
 	int         rc;
 
-	C2_PRE(c2_layout__invariant(l));
-	C2_PRE(tx != NULL);
-	C2_PRE(pair != NULL);
+	M0_PRE(m0_layout__invariant(l));
+	M0_PRE(tx != NULL);
+	M0_PRE(pair != NULL);
 
-	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	c2_mutex_lock(&l->l_lock);
+	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
+	m0_mutex_lock(&l->l_lock);
 	recsize = l->l_ops->lo_recsize(l);
-	rc = pair_init(pair, l, tx, C2_LXO_DB_UPDATE, recsize);
+	rc = pair_init(pair, l, tx, M0_LXO_DB_UPDATE, recsize);
 	if (rc == 0) {
-		if (C2_FI_ENABLED("table_update_err"))
+		if (M0_FI_ENABLED("table_update_err"))
 			{ rc = L_TABLE_UPDATE_ERR; goto err1_injected; }
-		rc = c2_table_update(tx, pair);
+		rc = m0_table_update(tx, pair);
 err1_injected:
 		if (rc != 0)
-			c2_layout__log("c2_layout_update",
-				       "c2_table_update() failed",
+			m0_layout__log("m0_layout_update",
+				       "m0_table_update() failed",
 				       &layout_update_fail, &l->l_addb,
 				       l->l_id, rc);
-		c2_db_pair_fini(pair);
+		m0_db_pair_fini(pair);
 	} else
-		c2_layout__log("c2_layout_update",
+		m0_layout__log("m0_layout_update",
 			       "pair_init() failed",
 			       &layout_update_fail, &l->l_addb,
 			       l->l_id, rc);
-	c2_mutex_unlock(&l->l_lock);
-	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+	m0_mutex_unlock(&l->l_lock);
+	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
 
-C2_INTERNAL int c2_layout_delete(struct c2_layout *l,
-				 struct c2_db_tx *tx, struct c2_db_pair *pair)
+M0_INTERNAL int m0_layout_delete(struct m0_layout *l,
+				 struct m0_db_tx *tx, struct m0_db_pair *pair)
 {
-	c2_bcount_t recsize;
+	m0_bcount_t recsize;
 	int         rc;
 
-	C2_PRE(c2_layout__invariant(l));
-	C2_PRE(tx != NULL);
-	C2_PRE(pair != NULL);
+	M0_PRE(m0_layout__invariant(l));
+	M0_PRE(tx != NULL);
+	M0_PRE(pair != NULL);
 
-	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	c2_mutex_lock(&l->l_lock);
+	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
+	m0_mutex_lock(&l->l_lock);
 	if (l->l_user_count > 0) {
-		C2_LOG(C2_ERROR, "lid %llu, user_count %lu, Invalid "
+		M0_LOG(M0_ERROR, "lid %llu, user_count %lu, Invalid "
 		       "user_count, rc %d", (unsigned long long)l->l_id,
 		       (unsigned long)l->l_user_count, -EPROTO);
-		c2_mutex_unlock(&l->l_lock);
+		m0_mutex_unlock(&l->l_lock);
 		return -EPROTO;
 	}
 
 	recsize = l->l_ops->lo_recsize(l);
-	rc = pair_init(pair, l, tx, C2_LXO_DB_DELETE, recsize);
+	rc = pair_init(pair, l, tx, M0_LXO_DB_DELETE, recsize);
 	if (rc == 0) {
-		rc = c2_table_delete(tx, pair);
+		rc = m0_table_delete(tx, pair);
 		if (rc != 0)
-			c2_layout__log("c2_layout_delete",
-				       "c2_table_delete() failed",
+			m0_layout__log("m0_layout_delete",
+				       "m0_table_delete() failed",
 				       &layout_delete_fail, &l->l_addb,
 				       l->l_id, rc);
-		c2_db_pair_fini(pair);
+		m0_db_pair_fini(pair);
 	} else
-		c2_layout__log("c2_layout_delete",
+		m0_layout__log("m0_layout_delete",
 			       "pair_init() failed",
 			       &layout_delete_fail, &l->l_addb,
 			       l->l_id, rc);
-	c2_mutex_unlock(&l->l_lock);
-	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+	m0_mutex_unlock(&l->l_lock);
+	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
 
-#undef C2_TRACE_SUBSYSTEM
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end group LayoutDBDFS */
 

@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_USER_SPACE_MUTEX_H__
-#define __COLIBRI_LIB_USER_SPACE_MUTEX_H__
+#ifndef __MERO_LIB_USER_SPACE_MUTEX_H__
+#define __MERO_LIB_USER_SPACE_MUTEX_H__
 
 #include <pthread.h>
 
@@ -34,7 +34,7 @@
    @{
 */
 
-struct c2_mutex {
+struct m0_mutex {
 	/* POSIX mutex. */
 	pthread_mutex_t m_impl;
 	pthread_t       m_owner;
@@ -42,7 +42,7 @@ struct c2_mutex {
 
 /** @} end of mutex group */
 
-/* __COLIBRI_LIB_USER_SPACE_MUTEX_H__ */
+/* __MERO_LIB_USER_SPACE_MUTEX_H__ */
 #endif
 
 /*

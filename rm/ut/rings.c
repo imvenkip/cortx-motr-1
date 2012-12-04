@@ -56,7 +56,7 @@ static bool resource_is(const struct m0_rm_resource *res, uint64_t res_id)
 	struct m0_rings *ring;
 
 	ring = container_of(res, struct m0_rings, rs_resource);
-	C2_ASSERT(ring != NULL);
+	M0_ASSERT(ring != NULL);
 	return res_id == ring->rs_id;
 }
 
@@ -162,7 +162,7 @@ const struct m0_rm_credit_ops rings_credit_ops = {
 
 static void incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 {
-	C2_PRE(in != NULL);
+	M0_PRE(in != NULL);
 }
 
 static void incoming_conflict(struct m0_rm_incoming *in)

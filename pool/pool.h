@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LAYOUT_POOL_H__
-#define __COLIBRI_LAYOUT_POOL_H__
+#ifndef __MERO_LAYOUT_POOL_H__
+#define __MERO_LAYOUT_POOL_H__
 
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
@@ -34,39 +34,39 @@
  */
 
 /* import */
-struct c2_stob_id;
-struct c2_dtm;
-struct c2_io_req;
-struct c2_dtx;
+struct m0_stob_id;
+struct m0_dtm;
+struct m0_io_req;
+struct m0_dtx;
 
 /* export */
-struct c2_pool;
-struct c2_poolmach;
+struct m0_pool;
+struct m0_poolmach;
 
-struct c2_pool {
+struct m0_pool {
 	uint32_t            po_width;
-	struct c2_poolmach *po_mach;
+	struct m0_poolmach *po_mach;
 };
 
-C2_INTERNAL int c2_pool_init(struct c2_pool *pool, uint32_t width);
-C2_INTERNAL void c2_pool_fini(struct c2_pool *pool);
+M0_INTERNAL int m0_pool_init(struct m0_pool *pool, uint32_t width);
+M0_INTERNAL void m0_pool_fini(struct m0_pool *pool);
 
 /**
    Allocates object id in the pool.
 
-   @post ergo(result == 0, c2_stob_id_is_set(id))
+   @post ergo(result == 0, m0_stob_id_is_set(id))
  */
-C2_INTERNAL int c2_pool_alloc(struct c2_pool *pool, struct c2_stob_id *id);
+M0_INTERNAL int m0_pool_alloc(struct m0_pool *pool, struct m0_stob_id *id);
 
 /**
    Releases object id back to the pool.
 
-   @pre c2_stob_id_is_set(id)
+   @pre m0_stob_id_is_set(id)
  */
-C2_INTERNAL void c2_pool_put(struct c2_pool *pool, struct c2_stob_id *id);
+M0_INTERNAL void m0_pool_put(struct m0_pool *pool, struct m0_stob_id *id);
 
-C2_INTERNAL int c2_pools_init(void);
-C2_INTERNAL void c2_pools_fini(void);
+M0_INTERNAL int m0_pools_init(void);
+M0_INTERNAL void m0_pools_fini(void);
 
 /** @} end group pool */
 
@@ -77,7 +77,7 @@ C2_INTERNAL void c2_pools_fini(void);
 */
 
 /** pool version numer type */
-enum c2_poolmach_version {
+enum m0_poolmach_version {
 	PVE_READ,
 	PVE_WRITE,
 	PVE_NR
@@ -86,21 +86,39 @@ enum c2_poolmach_version {
 /**
  * A state that a pool node/device can be in.
  */
-enum c2_pool_nd_state {
+enum m0_pool_nd_state {
 	/** a node/device is online and serving IO */
-	C2_PNDS_ONLINE,
+	M0_PNDS_ONLINE,
 
 	/** a node/device is considered failed */
-	C2_PNDS_FAILED,
+	M0_PNDS_FAILED,
 
 	/** a node/device turned off-line by an administrative request */
-	C2_PNDS_OFFLINE,
+	M0_PNDS_OFFLINE,
 
-	/** a node/device is active, but not yet serving IO */
-	C2_PNDS_RECOVERING,
+	/** a node/device is active in sns repair. */
+	M0_PNDS_SNS_REPAIRING,
+
+	/**
+	 * a node/device completed sns repair. Its data is re-constructed
+	 * on its corresponding spare space
+	 */
+	M0_PNDS_SNS_REPAIRED,
+
+	/** a node/device is active in sns re-balance. */
+	M0_PNDS_SNS_REBALANCING,
+
+	/**
+	 * a node/device completed sns re-rebalance. Its data is copyied
+	 * back to its original location. This usually happens when a
+	 * new device replaced a failed device and re-balance completed.
+	 * After this, the device can be set to ONLINE, and its corresponding
+	 * space space can be returned to pool.
+	 */
+	M0_PNDS_SNS_REBALANCED,
 
 	/** number of state */
-	C2_PNDS_NR
+	M0_PNDS_NR
 };
 
 /**
@@ -115,12 +133,12 @@ enum c2_pool_nd_state {
  *
  * @see pool server
  */
-struct c2_poolnode {
+struct m0_poolnode {
 	/** pool node state */
-	enum c2_pool_nd_state pn_state;
+	enum m0_pool_nd_state pn_state;
 
 	/** pool node identity */
-	struct c2_server     *pn_id;
+	struct m0_server     *pn_id;
 };
 
 /**
@@ -128,22 +146,22 @@ struct c2_poolnode {
  *
  * Data structure representing a storage device in a pool.
  */
-struct c2_pooldev {
+struct m0_pooldev {
 	/** device state (as part of pool machine state). This field is only
-	    meaningful when c2_pooldev::pd_node.pn_state is PNS_ONLINE */
-	enum c2_pool_nd_state pd_state;
+	    meaningful when m0_pooldev::pd_node.pn_state is PNS_ONLINE */
+	enum m0_pool_nd_state pd_state;
 
 	/** pool device identity */
-	struct c2_device     *pd_id;
+	struct m0_device     *pd_id;
 
 	/* a node this storage devie is attached to */
-	struct c2_poolnode   *pd_node;
+	struct m0_poolnode   *pd_node;
 };
 
 /** event owner type: node or device */
-enum c2_pool_event_owner_type {
-	C2_POOL_NODE,
-	C2_POOL_DEVICE
+enum m0_pool_event_owner_type {
+	M0_POOL_NODE,
+	M0_POOL_DEVICE
 };
 
 /**
@@ -155,37 +173,37 @@ enum c2_pool_event_owner_type {
  * failures effectively invalidating layouts affected by the failure.
  *
  */
-struct c2_pool_version_numbers {
+struct m0_pool_version_numbers {
 	uint64_t pvn_version[PVE_NR];
 };
 
 enum {
-	C2_POOL_EVENTS_LIST_MAGIC = 0x706f6f6c6c696e6bUL, /* poollink */
-	C2_POOL_EVENTS_HEAD_MAGIC = 0x706f6f6c68656164UL, /* poolhead */
+	M0_POOL_EVENTS_LIST_MAGIC = 0x706f6f6c6c696e6bUL, /* poollink */
+	M0_POOL_EVENTS_HEAD_MAGIC = 0x706f6f6c68656164UL, /* poolhead */
 };
 
 /**
  * Pool Event, which is used to change the state of a node or device.
  */
-struct c2_pool_event {
+struct m0_pool_event {
 	/** Event owner type */
-	enum c2_pool_event_owner_type  pe_type;
+	enum m0_pool_event_owner_type  pe_type;
 
 	/** Event owner index */
 	uint32_t                       pe_index;
 
 	/** new state for this node/device */
-	enum c2_pool_nd_state          pe_state;
+	enum m0_pool_nd_state          pe_state;
 
 };
 
 /**
  * This link is used by pool machine to records all state change history.
- * All events hang on the c2_poolmach::pm_events_list, ordered.
+ * All events hang on the m0_poolmach::pm_events_list, ordered.
  */
-struct c2_pool_event_link {
+struct m0_pool_event_link {
 	/** the event itself */
-	struct c2_pool_event          *pel_event;
+	struct m0_pool_event           pel_event;
 
 	/**
 	 * Pool machine's new version when this event handled
@@ -193,15 +211,27 @@ struct c2_pool_event_link {
 	 * other module and passed to pool machine operations,
 	 * it is not used and undefined at that moment.
 	 */
-	struct c2_pool_version_numbers pel_new_version;
+	struct m0_pool_version_numbers pel_new_version;
 
 	/**
-	 * link to c2_poolmach::pm_events_list.
+	 * link to m0_poolmach::pm_events_list.
 	 * Used internally in pool machine.
 	 */
-	struct c2_tlink                pel_linkage;
+	struct m0_tlink                pel_linkage;
 
 	uint64_t                       pel_magic;
+};
+
+/**
+ * Tracking spare slot usage.
+ * If spare slot is not used for repair/rebalance, its :psp_device_index is -1.
+ */
+struct m0_pool_spare_usage {
+	/** index of the device to use this spare slot */
+	uint32_t psp_device_index;
+
+	/** state of the device to use this spare slot */
+	enum m0_pool_nd_state psp_device_state;
 };
 
 /**
@@ -213,21 +243,21 @@ struct c2_pool_event_link {
  * Pool machine state history is recorded in the ::pst_events_list as
  * a ordered collection of events.
  */
-struct c2_poolmach_state {
+struct m0_poolmach_state {
 	/** pool machine version numbers */
-	struct c2_pool_version_numbers pst_version;
+	struct m0_pool_version_numbers pst_version;
 
 	/** number of nodes currently in the pool */
 	uint32_t                       pst_nr_nodes;
 
 	/** identities and states of every node in the pool */
-	struct c2_poolnode            *pst_nodes_array;
+	struct m0_poolnode            *pst_nodes_array;
 
 	/** number of devices currently in the pool */
 	uint32_t                       pst_nr_devices;
 
 	/** identities and states of every device in the pool */
-	struct c2_pooldev             *pst_devices_array;
+	struct m0_pooldev             *pst_devices_array;
 
 	/** maximal number of node failures the pool is configured to sustain */
 	uint32_t                       pst_max_node_failures;
@@ -239,9 +269,15 @@ struct c2_poolmach_state {
 	uint32_t                       pst_max_device_failures;
 
 	/**
+	 * Spare slot usage array.
+	 * The size of this array is pst_max_device_failures;
+	 */
+	struct m0_pool_spare_usage    *pst_spare_usage_array;
+
+	/**
 	 * All Events ever happened to this pool machine, ordered by time.
 	 */
-	struct c2_tl                   pst_events_list;
+	struct m0_tl                   pst_events_list;
 };
 
 /**
@@ -255,24 +291,29 @@ struct c2_poolmach_state {
  * device and administrative actions against the pool, all took the lock in a
  * write mode.
  */
-struct c2_poolmach {
-	/** struct c2_persistent_sm  pm_mach; */
-	struct c2_poolmach_state pm_state;
+struct m0_poolmach {
+	/** struct m0_persistent_sm  pm_mach; */
+	struct m0_poolmach_state pm_state;
 
 	/** this pool machine initialized or not */
 	bool                     pm_is_initialised;
 
 	/** read write lock to protect the whole pool machine */
-	struct c2_rwlock         pm_lock;
+	struct m0_rwlock         pm_lock;
 };
 
-C2_INTERNAL bool c2_poolmach_version_equal(const struct c2_pool_version_numbers
+M0_INTERNAL bool m0_poolmach_version_equal(const struct m0_pool_version_numbers
 					   *v1,
-					   const struct c2_pool_version_numbers
+					   const struct m0_pool_version_numbers
 					   *v2);
 
-C2_INTERNAL int c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm);
-C2_INTERNAL void c2_poolmach_fini(struct c2_poolmach *pm);
+M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
+				 struct m0_dtm *dtm,
+				 uint32_t nr_nodes,
+				 uint32_t nr_devices,
+				 uint32_t max_node_failures,
+				 uint32_t max_device_failures);
+M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm);
 
 /**
  * Change the pool machine state according to this event.
@@ -281,8 +322,8 @@ C2_INTERNAL void c2_poolmach_fini(struct c2_poolmach *pm);
  *        will be copied into pool machine state, and it can
  *        be used or released by caller after call.
  */
-C2_INTERNAL int c2_poolmach_state_transit(struct c2_poolmach *pm,
-					  struct c2_pool_event *event);
+M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach *pm,
+					  struct m0_pool_event *event);
 
 /**
  * Query the state changes between the "from" and "to" version.
@@ -294,20 +335,60 @@ C2_INTERNAL int c2_poolmach_state_transit(struct c2_poolmach *pm,
  * @param event_list_head the state changes in this region will be represented
  *        by events linked in this list.
  */
-C2_INTERNAL int c2_poolmach_state_query(struct c2_poolmach *pm,
-					const struct c2_pool_version_numbers
+M0_INTERNAL int m0_poolmach_state_query(struct m0_poolmach *pm,
+					const struct m0_pool_version_numbers
 					*from,
-					const struct c2_pool_version_numbers
-					*to, struct c2_tl *event_list_head);
+					const struct m0_pool_version_numbers
+					*to, struct m0_tl *event_list_head);
 
 /**
  * Query the current version of a pool state.
  *
  * @param curr the returned current version number stored here.
  */
-C2_INTERNAL int c2_poolmach_current_version_get(struct c2_poolmach *pm,
-						struct c2_pool_version_numbers
+M0_INTERNAL int m0_poolmach_current_version_get(struct m0_poolmach *pm,
+						struct m0_pool_version_numbers
 						*curr);
+
+/**
+ * Query the current state of a specified device.
+ * @param pm pool machine.
+ * @param device_index the index of the device to query.
+ * @param state_out the output state.
+ */
+M0_INTERNAL int m0_poolmach_device_state(struct m0_poolmach *pm,
+					 uint32_t device_index,
+					 enum m0_pool_nd_state *state_out);
+
+/**
+ * Query the current state of a specified device.
+ * @param pm pool machine.
+ * @param node_index the index of the node to query.
+ * @param state_out the output state.
+ */
+M0_INTERNAL int m0_poolmach_node_state(struct m0_poolmach *pm,
+				       uint32_t node_index,
+				       enum m0_pool_nd_state *state_out);
+
+/**
+ * Query the {sns repair, spare slot} pair of a specified device.
+ * @param pm pool machine.
+ * @param device_index the index of the device to query.
+ * @param spare_slot_out the output spair slot.
+ */
+M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
+						   uint32_t device_index,
+						   uint32_t *spare_slot_out);
+
+/**
+ * Query the {sns rebalance, spare slot} pair of a specified device.
+ * @param pm pool machine.
+ * @param device_index the index of the device to query.
+ * @param spare_slot_out the output spair slot.
+ */
+M0_INTERNAL int m0_poolmach_sns_rebalance_spare_query(struct m0_poolmach *pm,
+						      uint32_t device_index,
+						      uint32_t *spare_slot_out);
 
 /**
  * Return a copy of current pool machine state.
@@ -316,21 +397,21 @@ C2_INTERNAL int c2_poolmach_current_version_get(struct c2_poolmach *pm,
  * clients. The caller also can store the state in persistent storage.
  * The serialization and un-serialization is determined by caller.
  *
- * Note: The results must be freed by c2_poolmach_state_free().
+ * Note: The results must be freed by m0_poolmach_state_free().
  *
  * @param state_copy the returned state stored here.
  */
-C2_INTERNAL int c2_poolmach_current_state_get(struct c2_poolmach *pm,
-					      struct c2_poolmach_state
+M0_INTERNAL int m0_poolmach_current_state_get(struct m0_poolmach *pm,
+					      struct m0_poolmach_state
 					      **state_copy);
 /**
- * Frees the state copy returned from c2_poolmach_current_state_get().
+ * Frees the state copy returned from m0_poolmach_current_state_get().
  */
-C2_INTERNAL void c2_poolmach_state_free(struct c2_poolmach *pm,
-					struct c2_poolmach_state *state);
+M0_INTERNAL void m0_poolmach_state_free(struct m0_poolmach *pm,
+					struct m0_poolmach_state *state);
 
-C2_TL_DESCR_DECLARE(poolmach_events, C2_EXTERN);
-C2_TL_DECLARE(poolmach_events, C2_INTERNAL, struct c2_pool_event_link);
+M0_TL_DESCR_DECLARE(poolmach_events, M0_EXTERN);
+M0_TL_DECLARE(poolmach_events, M0_INTERNAL, struct m0_pool_event_link);
 /** @} end of poolmach group */
 
 /**
@@ -346,7 +427,7 @@ C2_TL_DECLARE(poolmach_events, C2_INTERNAL, struct c2_pool_event_link);
    100: resource can be used entirely without limitation.
    0 < value < 100: fraction of resources can be used.
 */
-struct c2_rlimit {
+struct m0_rlimit {
        int rl_processor_throughput;
        int rl_memory;
        int rl_storage_throughput;
@@ -361,28 +442,28 @@ struct c2_rlimit {
 
    @see pool node
 */
-struct c2_poolserver {
-	struct c2_poolnode      ps_node;
-	/* struct c2_persistent_sm ps_mach; */
-	struct c2_rlimit	ps_rl_usage; /**< the current resource usage */
+struct m0_poolserver {
+	struct m0_poolnode      ps_node;
+	/* struct m0_persistent_sm ps_mach; */
+	struct m0_rlimit	ps_rl_usage; /**< the current resource usage */
 };
 
-C2_INTERNAL int c2_poolserver_init(struct c2_poolserver *srv);
-C2_INTERNAL void c2_poolserver_fini(struct c2_poolserver *srv);
-C2_INTERNAL int c2_poolserver_reset(struct c2_poolserver *srv);
-C2_INTERNAL int c2_poolserver_on(struct c2_poolserver *srv);
-C2_INTERNAL int c2_poolserver_off(struct c2_poolserver *srv);
-C2_INTERNAL int c2_poolserver_io_req(struct c2_poolserver *srv,
-				     struct c2_io_req *req);
-C2_INTERNAL int c2_poolserver_device_join(struct c2_poolserver *srv,
-					  struct c2_pooldev *dev);
-C2_INTERNAL int c2_poolserver_device_leave(struct c2_poolserver *srv,
-					   struct c2_pooldev *dev);
+M0_INTERNAL int m0_poolserver_init(struct m0_poolserver *srv);
+M0_INTERNAL void m0_poolserver_fini(struct m0_poolserver *srv);
+M0_INTERNAL int m0_poolserver_reset(struct m0_poolserver *srv);
+M0_INTERNAL int m0_poolserver_on(struct m0_poolserver *srv);
+M0_INTERNAL int m0_poolserver_off(struct m0_poolserver *srv);
+M0_INTERNAL int m0_poolserver_io_req(struct m0_poolserver *srv,
+				     struct m0_io_req *req);
+M0_INTERNAL int m0_poolserver_device_join(struct m0_poolserver *srv,
+					  struct m0_pooldev *dev);
+M0_INTERNAL int m0_poolserver_device_leave(struct m0_poolserver *srv,
+					   struct m0_pooldev *dev);
 
 /** @} end of servermachine group */
 
 
-/* __COLIBRI_LAYOUT_POOL_H__ */
+/* __MERO_LAYOUT_POOL_H__ */
 #endif
 
 /*

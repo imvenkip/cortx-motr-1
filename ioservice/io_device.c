@@ -154,8 +154,8 @@
    version number. I/O replies will embed failure vector updates. Please refer
    to the io_fops.ff file for detailed design.
 
-   Failure vector will be stored in reqh as a shared key. c2_reqh_key_init(),
-   c2_reqh_key_find() and c2_reqh_key_fini() will be used. By this, latest
+   Failure vector will be stored in reqh as a shared key. m0_reqh_key_init(),
+   m0_reqh_key_find() and m0_reqh_key_fini() will be used. By this, latest
    failure vectors and its version number information can be shared between
    multiple modules in the same request handler.
 
@@ -195,7 +195,7 @@
    - client requests with valid failure version number are handles by ioservice
      correctly.
    - client requests are denied (returned special error code, that is
-     C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH) if their failure
+     M0_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH) if their failure
      vector version number are mismatch with the server known failure vector
      version number. Failure vector version number updates are serialized into
      replies.
@@ -243,74 +243,75 @@
 static bool poolmach_is_initialised = false;
 static unsigned poolmach_key = 0;
 
-C2_INTERNAL int c2_ios_poolmach_init(struct c2_reqh *reqh)
+M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh *reqh)
 {
 	int                 rc;
-	struct c2_poolmach *poolmach;
+	struct m0_poolmach *poolmach;
 
-	C2_PRE(reqh != NULL);
-	C2_PRE(!poolmach_is_initialised);
+	M0_PRE(reqh != NULL);
+	M0_PRE(!poolmach_is_initialised);
 
-	c2_rwlock_write_lock(&reqh->rh_rwlock);
-	poolmach_key = c2_reqh_key_init();
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	poolmach_key = m0_reqh_key_init();
 
-	poolmach = c2_reqh_key_find(reqh, poolmach_key, sizeof *poolmach);
+	poolmach = m0_reqh_key_find(reqh, poolmach_key, sizeof *poolmach);
 	if (poolmach == NULL) {
 		rc = -ENOMEM;
 		goto out;
 	}
 
-	rc = c2_poolmach_init(poolmach, reqh->rh_dtm);
+	/* TODO configuration information is needed here. */
+	rc = m0_poolmach_init(poolmach, reqh->rh_dtm, 1, 10, 1, 1);
 	if (rc != 0) {
-		c2_reqh_key_fini(reqh, poolmach_key);
+		m0_reqh_key_fini(reqh, poolmach_key);
 		goto out;
 	}
 	poolmach_is_initialised = true;
 
 out:
-	c2_rwlock_write_unlock(&reqh->rh_rwlock);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 	return rc;
 }
 
-C2_INTERNAL struct c2_poolmach *c2_ios_poolmach_get(struct c2_reqh *reqh)
+M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(struct m0_reqh *reqh)
 {
-	struct c2_poolmach *pm;
+	struct m0_poolmach *pm;
 
-	C2_PRE(reqh != NULL);
-	C2_PRE(poolmach_is_initialised);
-	C2_PRE(poolmach_key != 0);
+	M0_PRE(reqh != NULL);
+	M0_PRE(poolmach_is_initialised);
+	M0_PRE(poolmach_key != 0);
 
-	pm = c2_reqh_key_find(reqh, poolmach_key, sizeof *pm);
-	C2_POST(pm != NULL);
+	pm = m0_reqh_key_find(reqh, poolmach_key, sizeof *pm);
+	M0_POST(pm != NULL);
 	return pm;
 }
 
-C2_INTERNAL void c2_ios_poolmach_fini(struct c2_reqh *reqh)
+M0_INTERNAL void m0_ios_poolmach_fini(struct m0_reqh *reqh)
 {
-	struct c2_poolmach *pm;
-	C2_PRE(reqh != NULL);
+	struct m0_poolmach *pm;
+	M0_PRE(reqh != NULL);
 
-	c2_rwlock_write_lock(&reqh->rh_rwlock);
-	pm = c2_reqh_key_find(reqh, poolmach_key, sizeof *pm);
-	c2_poolmach_fini(pm);
-	c2_reqh_key_fini(reqh, poolmach_key);
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	pm = m0_reqh_key_find(reqh, poolmach_key, sizeof *pm);
+	m0_poolmach_fini(pm);
+	m0_reqh_key_fini(reqh, poolmach_key);
 	poolmach_is_initialised = false;
 	poolmach_key = 0;
-	c2_rwlock_write_unlock(&reqh->rh_rwlock);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
-C2_INTERNAL int c2_ios_poolmach_version_updates_pack(struct c2_poolmach *pm,
-						     const struct c2_fv_version
+M0_INTERNAL int m0_ios_poolmach_version_updates_pack(struct m0_poolmach *pm,
+						     const struct m0_fv_version
 						     *cli,
-						     struct c2_fv_version
+						     struct m0_fv_version
 						     *version,
-						     struct c2_fv_updates
+						     struct m0_fv_updates
 						     *updates)
 {
-	struct c2_pool_version_numbers  curr;
-	struct c2_pool_version_numbers *verp;
-	struct c2_tl			events_list;
-	struct c2_pool_event_link      *scan;
+	struct m0_pool_version_numbers  curr;
+	struct m0_pool_version_numbers *verp;
+	struct m0_tl			events_list;
+	struct m0_pool_event_link      *scan;
 	uint32_t			count;
 	uint32_t			index;
 	int				rc;
@@ -318,14 +319,14 @@ C2_INTERNAL int c2_ios_poolmach_version_updates_pack(struct c2_poolmach *pm,
 	updates->fvu_count  = 0;
 	updates->fvu_events = NULL;
 
-	c2_poolmach_current_version_get(pm, &curr);
-	verp = (struct c2_pool_version_numbers*)version;
+	m0_poolmach_current_version_get(pm, &curr);
+	verp = (struct m0_pool_version_numbers*)version;
 	*verp = curr;
 
 	poolmach_events_tlist_init(&events_list);
-	rc = c2_poolmach_state_query(pm,
-				  (const struct c2_pool_version_numbers *)cli,
-				  (const struct c2_pool_version_numbers *)&curr,
+	rc = m0_poolmach_state_query(pm,
+				  (const struct m0_pool_version_numbers *)cli,
+				  (const struct m0_pool_version_numbers *)&curr,
 				   &events_list);
 	if (rc != 0)
 		goto out;
@@ -335,27 +336,25 @@ C2_INTERNAL int c2_ios_poolmach_version_updates_pack(struct c2_poolmach *pm,
 	 * XXX When and where to free these memory?
 	 */
 	updates->fvu_count  = count;
-	updates->fvu_events = c2_alloc(count * sizeof(struct c2_fv_event));
+	updates->fvu_events = m0_alloc(count * sizeof(struct m0_fv_event));
 	if (updates->fvu_events == NULL) {
 		rc = -ENOMEM;
-		c2_tl_for(poolmach_events, &events_list, scan) {
+		m0_tl_for(poolmach_events, &events_list, scan) {
 			poolmach_events_tlink_del_fini(scan);
-			c2_free(scan->pel_event);
-			c2_free(scan);
-		} c2_tl_endfor;
+			m0_free(scan);
+		} m0_tl_endfor;
 		goto out;
 	}
 
 	index = 0;
-	c2_tl_for(poolmach_events, &events_list, scan) {
-		updates->fvu_events[index].fve_type  = scan->pel_event->pe_type;
-		updates->fvu_events[index].fve_index = scan->pel_event->pe_index;
-		updates->fvu_events[index].fve_state = scan->pel_event->pe_state;
+	m0_tl_for(poolmach_events, &events_list, scan) {
+		updates->fvu_events[index].fve_type  = scan->pel_event.pe_type;
+		updates->fvu_events[index].fve_index = scan->pel_event.pe_index;
+		updates->fvu_events[index].fve_state = scan->pel_event.pe_state;
 		index++;
 		poolmach_events_tlink_del_fini(scan);
-		c2_free(scan->pel_event);
-		c2_free(scan);
-	} c2_tl_endfor;
+		m0_free(scan);
+	} m0_tl_endfor;
 
 out:
 	poolmach_events_tlist_fini(&events_list);

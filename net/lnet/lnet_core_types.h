@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_LNET_TYPES_H__
-#define __COLIBRI_NET_LNET_CORE_TYPES_H__
+#ifndef __MERO_NET_LNET_TYPES_H__
+#define __MERO_NET_LNET_CORE_TYPES_H__
 
 /* forward references */
 struct nlx_core_bev_link;
@@ -44,7 +44,7 @@ struct page;
    Opaque type wide enough to represent an address in any address space.
  */
 typedef uint64_t nlx_core_opaque_ptr_t;
-C2_BASSERT(sizeof(nlx_core_opaque_ptr_t) >= sizeof(void *));
+M0_BASSERT(sizeof(nlx_core_opaque_ptr_t) >= sizeof(void *));
 
 /**
    This structure defines the fields in an LNet transport end point address.
@@ -60,23 +60,23 @@ struct nlx_core_ep_addr {
 /* Match bit related definitions */
 enum {
 	/** Number of bits used for TM identifier */
-	C2_NET_LNET_TMID_BITS      = 12,
+	M0_NET_LNET_TMID_BITS      = 12,
 	/** Shift to the TMID position (52) */
-	C2_NET_LNET_TMID_SHIFT     = 64 - C2_NET_LNET_TMID_BITS,
+	M0_NET_LNET_TMID_SHIFT     = 64 - M0_NET_LNET_TMID_BITS,
 	/** Max TM identifier is 2^12-1 (4095) */
-	C2_NET_LNET_TMID_MAX       = (1 << C2_NET_LNET_TMID_BITS) - 1,
+	M0_NET_LNET_TMID_MAX       = (1 << M0_NET_LNET_TMID_BITS) - 1,
 	/** Invalid value used for dynamic addressing */
-	C2_NET_LNET_TMID_INVALID   = C2_NET_LNET_TMID_MAX+1,
+	M0_NET_LNET_TMID_INVALID   = M0_NET_LNET_TMID_MAX+1,
 	/** Number of bits used for buffer identification (52) */
-	C2_NET_LNET_BUFFER_ID_BITS = 64 - C2_NET_LNET_TMID_BITS,
+	M0_NET_LNET_BUFFER_ID_BITS = 64 - M0_NET_LNET_TMID_BITS,
 	/** Minimum buffer match bit counter value */
-	C2_NET_LNET_BUFFER_ID_MIN  = 1,
+	M0_NET_LNET_BUFFER_ID_MIN  = 1,
 	/** Maximum buffer match bit counter value: 2^52-1 (0xfffffffffffff) */
-	C2_NET_LNET_BUFFER_ID_MAX  = (1ULL << C2_NET_LNET_BUFFER_ID_BITS) - 1,
+	M0_NET_LNET_BUFFER_ID_MAX  = (1ULL << M0_NET_LNET_BUFFER_ID_BITS) - 1,
 	/** Buffer match bit mask */
-	C2_NET_LNET_BUFFER_ID_MASK = C2_NET_LNET_BUFFER_ID_MAX,
+	M0_NET_LNET_BUFFER_ID_MASK = M0_NET_LNET_BUFFER_ID_MAX,
 };
-C2_BASSERT(C2_NET_LNET_TMID_BITS + C2_NET_LNET_BUFFER_ID_BITS <= 64);
+M0_BASSERT(M0_NET_LNET_TMID_BITS + M0_NET_LNET_BUFFER_ID_BITS <= 64);
 
 /**
  * A kernel memory location, in terms of page and offset.
@@ -94,13 +94,13 @@ struct nlx_core_kmem_loc {
 	/** A checksum of the page and offset, to detect corruption. */
 	uint32_t     kl_checksum;
 };
-C2_BASSERT(sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_page) +
+M0_BASSERT(sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_page) +
 	   sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_offset) ==
 	   sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_data));
 
 enum {
 	/** Maximum size of an LNET NID string, same as LNET_NIDSTR_SIZE */
-	C2_NET_LNET_NIDSTR_SIZE = 32,
+	M0_NET_LNET_NIDSTR_SIZE = 32,
 };
 
 /**
@@ -143,7 +143,7 @@ struct nlx_core_bev_cqueue {
 	size_t                 cbcq_nr;
 
 	/** Number of elements in the queue that can be consumed. */
-	struct c2_atomic64     cbcq_count;
+	struct m0_atomic64     cbcq_count;
 
 	/**
 	   The consumer removes elements from this anchor.
@@ -162,18 +162,18 @@ struct nlx_core_bev_cqueue {
 
 enum {
 	/** Minimum number of buffer event entries in the queue. */
-	C2_NET_LNET_BEVQ_MIN_SIZE  = 2,
+	M0_NET_LNET_BEVQ_MIN_SIZE  = 2,
 	/** Number of reserved buffer event entries in the queue.
 	    The entry pointed to by the consumer is owned by the consumer and
 	    thus cannot be used by the producer.
 	    It will eventually be used when the pointers advance.
 	 */
-	C2_NET_LNET_BEVQ_NUM_RESERVED = 1,
+	M0_NET_LNET_BEVQ_NUM_RESERVED = 1,
 };
 
 /**
    This structure describes a buffer event. It is very similar to
-   struct c2_net_buffer_event.
+   struct m0_net_buffer_event.
  */
 struct nlx_core_buffer_event {
 	/** Linkage in the TM buffer event queue */
@@ -182,22 +182,22 @@ struct nlx_core_buffer_event {
 	/**
 	    This value is set by the kernel Core module's LNet event handler,
 	    and is copied from the nlx_core_buffer::cb_buffer_id
-	    field. The value is a pointer to the c2_net_buffer structure in the
+	    field. The value is a pointer to the m0_net_buffer structure in the
 	    transport address space.
 	 */
 	nlx_core_opaque_ptr_t        cbe_buffer_id;
 
 	/** Event timestamp, relative to the buffer add time */
-	c2_time_t                    cbe_time;
+	m0_time_t                    cbe_time;
 
 	/** Status code (-errno). 0 is success */
 	int32_t                      cbe_status;
 
 	/** Length of data in the buffer */
-	c2_bcount_t                  cbe_length;
+	m0_bcount_t                  cbe_length;
 
 	/** Offset of start of the data in the buffer. (Receive only) */
-	c2_bindex_t                  cbe_offset;
+	m0_bindex_t                  cbe_offset;
 
 	/** Address of the other end point.  (unsolicited Receive only)  */
 	struct nlx_core_ep_addr      cbe_sender;
@@ -242,7 +242,7 @@ struct nlx_core_transfer_mc {
 	size_t                     ctm_bev_needed;
 
 	/** Match bit counter.
-	    Range [C2_NET_LNET_BUFFER_ID_MIN, C2_NET_LNET_BUFFER_ID_MAX].
+	    Range [M0_NET_LNET_BUFFER_ID_MIN, M0_NET_LNET_BUFFER_ID_MAX].
 	*/
 	uint64_t                   ctm_mb_counter;
 
@@ -259,28 +259,28 @@ struct nlx_core_buffer {
 	uint64_t                cb_magic;
 
 	/**
-	   The address of the c2_net_buffer structure in the transport address
+	   The address of the m0_net_buffer structure in the transport address
 	   space. The value is set by the nlx_core_buffer_register()
 	   subroutine.
 	 */
 	nlx_core_opaque_ptr_t   cb_buffer_id;
 
 	/**
-	   The buffer queue type - copied from c2_net_buffer::nb_qtype
+	   The buffer queue type - copied from m0_net_buffer::nb_qtype
 	   when the buffer operation is initiated.
 	 */
-        enum c2_net_queue_type  cb_qtype;
+        enum m0_net_queue_type  cb_qtype;
 
 	/**
 	   The length of data involved in the operation.
 	   Note this is less than or equal to the buffer length.
 	 */
-	c2_bcount_t             cb_length;
+	m0_bcount_t             cb_length;
 
 	/**
 	   Value from nb_min_receive_size for receive queue buffers only.
 	 */
-	c2_bcount_t             cb_min_receive_size;
+	m0_bcount_t             cb_min_receive_size;
 
 	/**
 	   Value from nb_max_receive_msgs for receive queue buffers.
@@ -306,11 +306,11 @@ struct nlx_core_buffer {
 
 	/**
 	   The address of the destination transfer machine is set in this field
-	   for buffers on the C2_NET_QT_MSG_SEND queue.
+	   for buffers on the M0_NET_QT_MSG_SEND queue.
 
 	   The address of the remote passive transfer machine is set in this
-	   field for buffers on the C2_NET_QT_ACTIVE_BULK_SEND or
-	   C2_NET_QT_ACTIVE_BULK_RECV queues.
+	   field for buffers on the M0_NET_QT_ACTIVE_BULK_SEND or
+	   M0_NET_QT_ACTIVE_BULK_RECV queues.
 	 */
 	struct nlx_core_ep_addr cb_addr;
 
@@ -320,7 +320,7 @@ struct nlx_core_buffer {
 
 /**
    The LNet transport's Network Buffer Descriptor format.
-   The external form is the opaque c2_net_buf_desc.
+   The external form is the opaque m0_net_buf_desc.
    All fields are stored in little-endian order, and the structure is
    copied as-is to the external opaque form.
  */
@@ -333,13 +333,13 @@ struct nlx_core_buf_desc {
 			/** Passive TM's end point */
 			struct nlx_core_ep_addr  cbd_passive_ep;
 
-			/** Passive buffer queue type (enum c2_net_queue_type)
+			/** Passive buffer queue type (enum m0_net_queue_type)
 			    expressed here explicitly as a 32 bit number.
 			*/
 			uint32_t                 cbd_qtype;
 
 			/** Passive buffer size */
-			c2_bcount_t              cbd_size;
+			m0_bcount_t              cbd_size;
 		};
 		uint64_t         cbd_data[5];
 	};
@@ -348,7 +348,7 @@ struct nlx_core_buf_desc {
 
 /** @} */ /* LNetCore */
 
-#endif /* __COLIBRI_NET_LNET_CORE_TYPES_H__ */
+#endif /* __MERO_NET_LNET_CORE_TYPES_H__ */
 
 /*
  *  Local variables:

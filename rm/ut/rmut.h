@@ -18,8 +18,8 @@
  * Original creation date: 07/20/2012
  */
 #pragma once
-#ifndef __COLIBRI_RM_UT_RMUT_H__
-#define __COLIBRI_RM_UT_RMUT_H__
+#ifndef __MERO_RM_UT_RMUT_H__
+#define __MERO_RM_UT_RMUT_H__
 
 #include "rings.h"
 
@@ -52,7 +52,7 @@ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type);
 void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
 				 struct m0_rm_credit *credit);
 
-/* __COLIBRI_RM_UT_RMUT_H__ */
+/* __MERO_RM_UT_RMUT_H__ */
 #endif
 
 /*

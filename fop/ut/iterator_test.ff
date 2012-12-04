@@ -19,45 +19,43 @@
  * Original creation date: 01/05/2011
  */
 
-record {
-	u64 ff_seq;
-	u64 ff_oid
-} c2_fop_fid;
+require "fid/fid_xc";
+require "fid/fid";
 
 record {
-	u64 fs_offset;
-	u64 fs_count
-} c2_fop_seg;
+	u64                fs_offset;
+	u64                fs_count
+} m0_fop_seg;
 
 sequence {
-	u32        fv_count;
-	c2_fop_seg fv_seg
-} c2_fop_vec;
+	u32                fv_count;
+	m0_fop_seg         fv_seg
+} m0_fop_vec;
 
 record {
-	c2_fop_fid fo_fid;
-	void       fo_none
-} c2_fop_optfid;
+	m0_fid             fo_fid;
+	void               fo_none
+} m0_fop_optfid;
 
 record {
-	c2_fop_fid    fr_fid;
-	c2_fop_vec    fr_seq;
-	c2_fop_optfid fr_unn
-} c2_fop_recursive1;
+	m0_fid             fr_fid;
+	m0_fop_vec         fr_seq;
+	m0_fop_optfid      fr_unn
+} m0_fop_recursive1;
 
 record {
-	c2_fop_fid        fr_fid;
-	c2_fop_recursive1 fr_seq
-} c2_fop_recursive2;
+	m0_fid             fr_fid;
+	m0_fop_recursive1  fr_seq
+} m0_fop_recursive2;
 
 record {
-	c2_fop_fid         fit_fid;
-	c2_fop_vec         fit_vec;
-	c2_fop_optfid      fit_opt0;
-	c2_fop_optfid      fit_opt1;
-	c2_fop_optfid      fit_topt;
-	c2_fop_recursive2  fit_rec
-} c2_fop_iterator_test;
+	m0_fid             fit_fid;
+	m0_fop_vec         fit_vec;
+	m0_fop_optfid      fit_opt0;
+	m0_fop_optfid      fit_opt1;
+	m0_fop_optfid      fit_topt;
+	m0_fop_recursive2  fit_rec
+} m0_fop_iterator_test;
 
 /*
  *  Local variables:

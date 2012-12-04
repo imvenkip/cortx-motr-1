@@ -9,7 +9,7 @@ utils_ub_SOURCES  = utils/ub_main.c \
 EXTRA_DIST += utils/ut.sh.in \
               utils/linux_kernel/ut.sh.in \
               utils/linux_kernel/main.c \
-              utils/linux_kernel/c2ctl.c \
+              utils/linux_kernel/m0ctl.c \
               utils/linux_kernel/finject_debugfs.c \
               utils/linux_kernel/finject_debugfs.h
 

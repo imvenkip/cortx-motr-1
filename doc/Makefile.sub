@@ -6,7 +6,7 @@ EXTRA_DIST += doc/Doxyfile \
               doc/dld-template.h \
               doc/fault-injection \
               doc/gccxml \
-              doc/gdb-commands-for-colibri \
+              doc/gdb-commands-for-mero \
               doc/git-policy \
               doc/logging-and-tracing \
               doc/profiling \

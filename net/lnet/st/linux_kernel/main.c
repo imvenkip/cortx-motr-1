@@ -25,7 +25,7 @@
 #include <linux/inet.h> /* in_aton */
 
 #include "lib/memory.h"
-#include "lib/misc.h" /* C2_SET0 */
+#include "lib/misc.h" /* M0_SET0 */
 #include "net/net.h"
 #include "net/lnet/lnet.h"
 #include "net/lnet/st/ping.h"
@@ -144,7 +144,7 @@ static int verbose_printk(const char *fmt, ...)
 	int rc;
 
 	va_start(varargs, fmt);
-	fmtbuf = c2_alloc(strlen(fmt) + sizeof KERN_INFO);
+	fmtbuf = m0_alloc(strlen(fmt) + sizeof KERN_INFO);
 	if (fmtbuf != NULL) {
 	    sprintf(fmtbuf, "%s%s", KERN_INFO, fmt);
 	    fmt = fmtbuf;
@@ -152,7 +152,7 @@ static int verbose_printk(const char *fmt, ...)
 	/* call vprintk(KERN_INFO ...) */
 	rc = vprintk(fmt, varargs);
 	va_end(varargs);
-	c2_free(fmtbuf);
+	m0_free(fmtbuf);
 	return rc;
 }
 
@@ -168,15 +168,15 @@ static struct nlx_ping_ops quiet_ops = {
 
 static struct nlx_ping_ctx sctx = {
 	.pc_tm = {
-		.ntm_state     = C2_NET_TM_UNDEFINED
+		.ntm_state     = M0_NET_TM_UNDEFINED
 	}
 };
 
-static struct c2_thread server_thread;
-static struct c2_thread *client_thread;
+static struct m0_thread server_thread;
+static struct m0_thread *client_thread;
 static struct nlx_ping_client_params *params;
 
-static int __init c2_netst_init_k(void)
+static int __init m0_netst_init_k(void)
 {
 	int rc;
 	uint64_t buffer_size;
@@ -224,14 +224,14 @@ static int __init c2_netst_init_k(void)
 	/* set up sys fs entries? */
 
 	/* init main context */
-	rc = c2_net_xprt_init(&c2_net_lnet_xprt);
-	C2_ASSERT(rc == 0);
+	rc = m0_net_xprt_init(&m0_net_lnet_xprt);
+	M0_ASSERT(rc == 0);
 	nlx_ping_init();
 
 	if (!client_only) {
 		/* set up server context */
-		c2_mutex_init(&sctx.pc_mutex);
-		c2_cond_init(&sctx.pc_cond);
+		m0_mutex_init(&sctx.pc_mutex);
+		m0_cond_init(&sctx.pc_cond);
 		if (!quiet)
 			sctx.pc_ops = &verbose_ops;
 		else
@@ -254,18 +254,18 @@ static int __init c2_netst_init_k(void)
 		sctx.pc_verbose = verbose;
 		nlx_ping_server_spawn(&server_thread, &sctx);
 
-		printk(KERN_INFO "Colibri LNet System Test"
+		printk(KERN_INFO "Mero LNet System Test"
 		       " Server Initialized\n");
 	}
 
 	if (!server_only) {
 		int	i;
 		int32_t client_base_tmid = client_tmid;
-		C2_ALLOC_ARR(client_thread, nr_clients);
-		C2_ALLOC_ARR(params, nr_clients);
+		M0_ALLOC_ARR(client_thread, nr_clients);
+		M0_ALLOC_ARR(params, nr_clients);
 
-		C2_ASSERT(client_thread != NULL);
-		C2_ASSERT(params != NULL);
+		M0_ASSERT(client_thread != NULL);
+		M0_ASSERT(params != NULL);
 
 		/* start all the client threads */
 		for (i = 0; i < nr_clients; ++i) {
@@ -287,33 +287,33 @@ static int __init c2_netst_init_k(void)
 #undef CPARAM_SET
 			params[i].bulk_size = buffer_size;
 			params[i].client_id = i + 1;
-			params[i].client_pid = C2_NET_LNET_PID;
-			params[i].server_pid = C2_NET_LNET_PID;
+			params[i].client_pid = M0_NET_LNET_PID;
+			params[i].server_pid = M0_NET_LNET_PID;
 			params[i].debug = client_debug;
 			if (!quiet)
 				params[i].ops = &verbose_ops;
 			else
 				params[i].ops = &quiet_ops;
 
-			rc = C2_THREAD_INIT(&client_thread[i],
+			rc = M0_THREAD_INIT(&client_thread[i],
 					    struct nlx_ping_client_params *,
 					    NULL, &nlx_ping_client, &params[i],
 					    "client_%d", params[i].client_id);
-			C2_ASSERT(rc == 0);
+			M0_ASSERT(rc == 0);
 		}
-		printk(KERN_INFO "Colibri LNet System Test"
+		printk(KERN_INFO "Mero LNet System Test"
 		       " %d Client(s) Initialized\n", nr_clients);
 	}
 
 	return 0;
 }
 
-static void __exit c2_netst_fini_k(void)
+static void __exit m0_netst_fini_k(void)
 {
 	if (!server_only) {
 		int i;
 		for (i = 0; i < nr_clients; ++i) {
-			c2_thread_join(&client_thread[i]);
+			m0_thread_join(&client_thread[i]);
 			if (!quiet && verbose > 0) {
 				printk(KERN_INFO "Client %d: joined\n",
 				       params[i].client_id);
@@ -322,8 +322,8 @@ static void __exit c2_netst_fini_k(void)
 		if (!quiet)
 			nlx_ping_print_qstats_total("Client total",
 						    &verbose_ops);
-		c2_free(client_thread);
-		c2_free(params);
+		m0_free(client_thread);
+		m0_free(params);
 	}
 
 	if (!client_only) {
@@ -331,20 +331,20 @@ static void __exit c2_netst_fini_k(void)
 			(*sctx.pc_ops->pqs)(&sctx, false);
 
 		nlx_ping_server_should_stop(&sctx);
-		c2_thread_join(&server_thread);
-		c2_cond_fini(&sctx.pc_cond);
-		c2_mutex_fini(&sctx.pc_mutex);
+		m0_thread_join(&server_thread);
+		m0_cond_fini(&sctx.pc_cond);
+		m0_mutex_fini(&sctx.pc_mutex);
 	}
 
 	nlx_ping_fini();
-	printk(KERN_INFO "Colibri Kernel Messaging System Test removed\n");
+	printk(KERN_INFO "Mero Kernel Messaging System Test removed\n");
 }
 
-module_init(c2_netst_init_k)
-module_exit(c2_netst_fini_k)
+module_init(m0_netst_init_k)
+module_exit(m0_netst_fini_k)
 
 MODULE_AUTHOR("Xyratex");
-MODULE_DESCRIPTION("Colibri Kernel Messaging System Test");
+MODULE_DESCRIPTION("Mero Kernel Messaging System Test");
 MODULE_LICENSE("proprietary");
 
 /** @} */ /* LNetDFS */

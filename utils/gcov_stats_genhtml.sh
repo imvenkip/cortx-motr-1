@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #
-# When colibri is configured with --enable-coverage option, it
-# builds colibri (both user and kernel space) with gcov profiling
+# When mero is configured with --enable-coverage option, it
+# builds mero (both user and kernel space) with gcov profiling
 # options enabled.
 #
 # When such binaries are executed or kernel modules are exercised,
@@ -16,7 +16,7 @@
 if [ $# -ne 3 ]
 then
 	echo "Usage: gcov_stats_genhtml.sh [user|kernel] <src_dir> <output_dir>"
-	echo "       <src_dir>:    path of colibri/core directory"
+	echo "       <src_dir>:    path of mero/core directory"
 	echo "       <output_dir>: path where output of lcov will be stored"
 	exit 1
 fi

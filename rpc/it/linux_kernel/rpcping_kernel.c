@@ -21,18 +21,18 @@
 
 #include "rpc_ping.h"
 
-C2_INTERNAL int init_module(void)
+M0_INTERNAL int init_module(void)
 {
-	return c2_rpc_ping_init();
+	return m0_rpc_ping_init();
 }
 
-C2_INTERNAL void cleanup_module(void)
+M0_INTERNAL void cleanup_module(void)
 {
-	c2_rpc_ping_fini();
+	m0_rpc_ping_fini();
 }
 
 MODULE_AUTHOR("Xyratex");
-MODULE_DESCRIPTION("Colibri Kernel rpc ping Module");
+MODULE_DESCRIPTION("Mero Kernel rpc ping Module");
 MODULE_LICENSE("proprietary");
 
 /*

@@ -19,54 +19,54 @@
  */
 
 #include "addb/addbff/addb_ff.h"
-#include "lib/arith.h" /* c2_align */
+#include "lib/arith.h" /* m0_align */
 
 /* forward references within this file */
-static int subst_name_uint64_t_qstats(struct c2_addb_dp *dp, const char *name,
-				      uint64_t qid, struct c2_net_qstats *qs);
-static int nlx_statistic_getsize(struct c2_addb_dp *dp);
-static int nlx_statistic_pack(struct c2_addb_dp *dp,
-			      struct c2_addb_record *rec);
+static int subst_name_uint64_t_qstats(struct m0_addb_dp *dp, const char *name,
+				      uint64_t qid, struct m0_net_qstats *qs);
+static int nlx_statistic_getsize(struct m0_addb_dp *dp);
+static int nlx_statistic_pack(struct m0_addb_dp *dp,
+			      struct m0_addb_record *rec);
 
 /**
    @addtogroup LNetDFS
    @{
  */
 
-static const struct c2_addb_loc nlx_addb_loc = {
+static const struct m0_addb_loc nlx_addb_loc = {
 	.al_name = "net-lnet"
 };
 
 /**
-   Extended form of struct c2_addb_dp that includes the additional
-   struct c2_net_qstats formal parameter.
+   Extended form of struct m0_addb_dp that includes the additional
+   struct m0_net_qstats formal parameter.
  */
 struct nlx_addb_dp {
-	struct c2_addb_dp     ad_dp;
-	struct c2_net_qstats *ad_qs;
+	struct m0_addb_dp     ad_dp;
+	struct m0_net_qstats *ad_qs;
 };
 
 /** A function failure event in net/lnet */
-static C2_ADDB_EV_DEFINE(nlx_func_fail, "nlx_func_fail",
-			 C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+static M0_ADDB_EV_DEFINE(nlx_func_fail, "nlx_func_fail",
+			 M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 
 /** A named run-time queue statistic. */
-static const struct c2_addb_ev_ops nlx_addb_qstats = {
-	.aeo_subst   = (c2_addb_ev_subst_t)subst_name_uint64_t_qstats,
+static const struct m0_addb_ev_ops nlx_addb_qstats = {
+	.aeo_subst   = (m0_addb_ev_subst_t)subst_name_uint64_t_qstats,
 	.aeo_pack    = nlx_statistic_pack,
 	.aeo_getsize = nlx_statistic_getsize,
-	.aeo_size    = sizeof(uint64_t) + sizeof(struct c2_net_qstats) +
+	.aeo_size    = sizeof(uint64_t) + sizeof(struct m0_net_qstats) +
 		       sizeof(char *),
 	.aeo_name    = "qstats",
 	.aeo_level   = AEL_INFO
 };
-typedef int __nlx_addb_qstats_typecheck_t(struct c2_addb_dp *dp,
+typedef int __nlx_addb_qstats_typecheck_t(struct m0_addb_dp *dp,
 					  const char *sname, uint64_t qid,
-					  struct c2_net_qstats *qs);
+					  struct m0_net_qstats *qs);
 
 /** A queue statistics event for net/lnet */
-static C2_ADDB_EV_DEFINE(nlx_qstat, "nlx_qstat",
-			 C2_ADDB_EVENT_NET_QSTATS, nlx_addb_qstats);
+static M0_ADDB_EV_DEFINE(nlx_qstat, "nlx_qstat",
+			 M0_ADDB_EVENT_NET_QSTATS, nlx_addb_qstats);
 
 /**
    ADDB record body for run-time statistics event.
@@ -74,34 +74,34 @@ static C2_ADDB_EV_DEFINE(nlx_qstat, "nlx_qstat",
  */
 struct nlx_qstat_body {
 	uint64_t             sb_qid;
-	struct c2_net_qstats sb_qstats;
+	struct m0_net_qstats sb_qstats;
 	char                 sb_name[0];
 };
 
-C2_INTERNAL int nlx_statistic_getsize(struct c2_addb_dp *dp)
+M0_INTERNAL int nlx_statistic_getsize(struct m0_addb_dp *dp)
 {
-	return c2_align(sizeof(uint64_t) + sizeof(struct c2_net_qstats) +
-			strlen(dp->ad_name) + 1, C2_ADDB_RECORD_LEN_ALIGN);
+	return m0_align(sizeof(uint64_t) + sizeof(struct m0_net_qstats) +
+			strlen(dp->ad_name) + 1, M0_ADDB_RECORD_LEN_ALIGN);
 }
 
 /** packing statistic addb record */
-C2_INTERNAL int nlx_statistic_pack(struct c2_addb_dp *dp,
-				   struct c2_addb_record *rec)
+M0_INTERNAL int nlx_statistic_pack(struct m0_addb_dp *dp,
+				   struct m0_addb_record *rec)
 {
-	struct c2_addb_record_header *header = &rec->ar_header;
+	struct m0_addb_record_header *header = &rec->ar_header;
 	struct nlx_addb_dp           *ndp;
 	struct nlx_qstat_body        *body;
 	int rc;
 
-	C2_ASSERT(dp != NULL);
-	C2_ASSERT(nlx_statistic_getsize(dp) == rec->ar_data.cmb_count);
+	M0_ASSERT(dp != NULL);
+	M0_ASSERT(nlx_statistic_getsize(dp) == rec->ar_data.cmb_count);
 
 	ndp = container_of(dp, struct nlx_addb_dp, ad_dp);
-	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+	rc = m0_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
 	if (rc == 0) {
 		body = (struct nlx_qstat_body *)rec->ar_data.cmb_value;
 
-		C2_ASSERT(body != NULL);
+		M0_ASSERT(body != NULL);
 		body->sb_qid = dp->ad_rc;
 		body->sb_qstats = *ndp->ad_qs;
 		strcpy(body->sb_name, dp->ad_name);
@@ -109,13 +109,13 @@ C2_INTERNAL int nlx_statistic_pack(struct c2_addb_dp *dp,
 	return rc;
 }
 
-C2_INTERNAL int subst_name_uint64_t_qstats(struct c2_addb_dp *dp,
+M0_INTERNAL int subst_name_uint64_t_qstats(struct m0_addb_dp *dp,
 					   const char *name, uint64_t qid,
-					   struct c2_net_qstats *qs)
+					   struct m0_net_qstats *qs)
 {
 	struct nlx_addb_dp *ndp;
 
-	C2_ASSERT(dp != NULL && name != NULL && qs != NULL);
+	M0_ASSERT(dp != NULL && name != NULL && qs != NULL);
 	ndp = container_of(dp, struct nlx_addb_dp, ad_dp);
 	dp->ad_name = name;
 	dp->ad_rc = qid;

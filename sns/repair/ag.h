@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_SNS_REPAIR_AG_H__
-#define __COLIBRI_SNS_REPAIR_AG_H__
+#ifndef __MERO_SNS_REPAIR_AG_H__
+#define __MERO_SNS_REPAIR_AG_H__
 
 
 #include "cm/ag.h"
@@ -34,20 +34,20 @@
    @{
  */
 
-struct c2_sns_repair_cm;
+struct m0_sns_repair_cm;
 
-struct c2_sns_repair_ag {
+struct m0_sns_repair_ag {
 	/** Base aggregation group. */
-	struct c2_cm_aggr_group      sag_base;
+	struct m0_cm_aggr_group      sag_base;
 
 	/** Transformed copy packet created by transformation function. */
-	struct c2_cm_cp             *sag_cp;
+	struct m0_cm_cp             *sag_cp;
 
 	/**
 	 * COB fid of the cob containing the spare unit for this aggregation
 	 * group.
 	 */
-	struct c2_fid                sag_spare_cobfid;
+	struct m0_fid                sag_spare_cobfid;
 
 	/** Spare unit index into the COB identified by sag_spare_cobfid. */
 	uint64_t                     sag_spare_cob_index;
@@ -55,28 +55,28 @@ struct c2_sns_repair_ag {
 
 
 /**
- * Finds aggregation group for the given c2_cm_ag_id in c2_cm::cm_aggr_grps
+ * Finds aggregation group for the given m0_cm_ag_id in m0_cm::cm_aggr_grps
  * list. If not found, a new aggregation group is allocated with the given id
  * and returned. Caller is responsible to lock the copy machine before calling
  * this function.
- * @pre c2_cm_is_locked(cm) == true
+ * @pre m0_cm_is_locked(cm) == true
  */
-C2_INTERNAL struct c2_sns_repair_ag *c2_sns_repair_ag_find(struct
-							   c2_sns_repair_cm
+M0_INTERNAL struct m0_sns_repair_ag *m0_sns_repair_ag_find(struct
+							   m0_sns_repair_cm
 							   *rcm,
 							   const struct
-							   c2_cm_ag_id *id);
+							   m0_cm_ag_id *id);
 
-C2_INTERNAL struct c2_sns_repair_ag *ag2snsag(const struct c2_cm_aggr_group
+M0_INTERNAL struct m0_sns_repair_ag *ag2snsag(const struct m0_cm_aggr_group
 					      *ag);
 
-C2_INTERNAL void agid2fid(const struct c2_cm_aggr_group *ag,
-			  struct c2_fid *fid);
-C2_INTERNAL uint64_t agid2group(const struct c2_cm_aggr_group *ag);
+M0_INTERNAL void agid2fid(const struct m0_cm_aggr_group *ag,
+			  struct m0_fid *fid);
+M0_INTERNAL uint64_t agid2group(const struct m0_cm_aggr_group *ag);
 
 /** @} SNSRepairAG */
 
-#endif /* __COLIBRI_SNS_REPAIR_AG_H__ */
+#endif /* __MERO_SNS_REPAIR_AG_H__ */
 
 /*
  *  Local variables:

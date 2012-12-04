@@ -31,88 +31,88 @@
 #define DUMMY_IMPLEMENTATION \
 	printk("dummy implementation of %s called\n", __FUNCTION__)
 
-C2_INTERNAL int c2_memory_init(void)
+M0_INTERNAL int m0_memory_init(void)
 {
 	DUMMY_IMPLEMENTATION;
 	return 0;
 }
 
-C2_INTERNAL void c2_memory_fini(void)
+M0_INTERNAL void m0_memory_fini(void)
 {
 
 }
 
-C2_INTERNAL int c2_threads_init(void)
-{
-	DUMMY_IMPLEMENTATION;
-	return 0;
-}
-
-C2_INTERNAL void c2_threads_fini(void)
-{
-
-}
-
-C2_INTERNAL int c2_db_init(void)
+M0_INTERNAL int m0_threads_init(void)
 {
 	DUMMY_IMPLEMENTATION;
 	return 0;
 }
 
-C2_INTERNAL void c2_db_fini(void)
+M0_INTERNAL void m0_threads_fini(void)
 {
 
 }
 
-C2_INTERNAL int c2_linux_stobs_init(void)
-{
-	DUMMY_IMPLEMENTATION;
-	return 0;
-}
-
-C2_INTERNAL void c2_linux_stobs_fini(void)
-{
-
-}
-
-C2_INTERNAL int c2_ad_stobs_init(void)
+M0_INTERNAL int m0_db_init(void)
 {
 	DUMMY_IMPLEMENTATION;
 	return 0;
 }
 
-C2_INTERNAL void c2_ad_stobs_fini(void)
+M0_INTERNAL void m0_db_fini(void)
 {
 
 }
 
-C2_INTERNAL int sim_global_init(void)
-{
-	DUMMY_IMPLEMENTATION;
-	return 0;
-}
-
-C2_INTERNAL void sim_global_fini(void)
-{
-
-}
-
-C2_INTERNAL int c2_timers_init(void)
+M0_INTERNAL int m0_linux_stobs_init(void)
 {
 	DUMMY_IMPLEMENTATION;
 	return 0;
 }
 
-C2_INTERNAL void c2_timers_fini(void)
+M0_INTERNAL void m0_linux_stobs_fini(void)
 {
 
 }
 
-struct c2_reqh_service;
-struct c2_reqh;
-C2_INTERNAL struct c2_reqh_service *c2_reqh_service_get(const char
+M0_INTERNAL int m0_ad_stobs_init(void)
+{
+	DUMMY_IMPLEMENTATION;
+	return 0;
+}
+
+M0_INTERNAL void m0_ad_stobs_fini(void)
+{
+
+}
+
+M0_INTERNAL int sim_global_init(void)
+{
+	DUMMY_IMPLEMENTATION;
+	return 0;
+}
+
+M0_INTERNAL void sim_global_fini(void)
+{
+
+}
+
+M0_INTERNAL int m0_timers_init(void)
+{
+	DUMMY_IMPLEMENTATION;
+	return 0;
+}
+
+M0_INTERNAL void m0_timers_fini(void)
+{
+
+}
+
+struct m0_reqh_service;
+struct m0_reqh;
+M0_INTERNAL struct m0_reqh_service *m0_reqh_service_get(const char
 							*service_name,
-							struct c2_reqh *reqh)
+							struct m0_reqh *reqh)
 {
 	return NULL;
 }

@@ -23,37 +23,37 @@
 #include <linux/init.h>
 
 #include "lib/ut.h"
-#include "lib/cdefs.h" /* for C2_EXPORTED */
+#include "lib/cdefs.h" /* for M0_EXPORTED */
 
 /* These unit tests are done in the kernel */
-C2_INTERNAL void test_bitmap(void);
-C2_INTERNAL void test_chan(void);
-C2_INTERNAL void test_cookie(void);
-C2_INTERNAL void test_finject(void);
-C2_INTERNAL void test_list(void);
-C2_INTERNAL void test_tlist(void);
-C2_INTERNAL void test_mutex(void);
-C2_INTERNAL void test_queue(void);
-C2_INTERNAL void test_refs(void);
-C2_INTERNAL void test_rw(void);
-C2_INTERNAL void test_thread(void);
-C2_INTERNAL void test_time(void);
-C2_INTERNAL void test_trace(void);
-C2_INTERNAL void test_vec(void);
-C2_INTERNAL void test_zerovec(void);
-C2_INTERNAL void test_memory(void);
-C2_INTERNAL void test_bob(void);
-C2_INTERNAL void c2_ut_lib_buf_test(void);
+M0_INTERNAL void test_bitmap(void);
+M0_INTERNAL void test_chan(void);
+M0_INTERNAL void test_cookie(void);
+M0_INTERNAL void test_finject(void);
+M0_INTERNAL void test_list(void);
+M0_INTERNAL void test_tlist(void);
+M0_INTERNAL void test_mutex(void);
+M0_INTERNAL void test_queue(void);
+M0_INTERNAL void test_refs(void);
+M0_INTERNAL void test_rw(void);
+M0_INTERNAL void test_thread(void);
+M0_INTERNAL void test_time(void);
+M0_INTERNAL void test_trace(void);
+M0_INTERNAL void test_vec(void);
+M0_INTERNAL void test_zerovec(void);
+M0_INTERNAL void test_memory(void);
+M0_INTERNAL void test_bob(void);
+M0_INTERNAL void m0_ut_lib_buf_test(void);
 
-const struct c2_test_suite c2_klibc2_ut = {
-	.ts_name = "klibc2-ut",
+const struct m0_test_suite m0_klibm0_ut = {
+	.ts_name = "klibm0-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
 		{ "bitmap",    test_bitmap        },
 		{ "memory",    test_memory        },
 		{ "bob",       test_bob           },
-		{ "buf",       c2_ut_lib_buf_test },
+		{ "buf",       m0_ut_lib_buf_test },
 		{ "chan",      test_chan          },
 		{ "cookie",    test_cookie        },
 #ifdef ENABLE_FAULT_INJECTION
@@ -73,7 +73,7 @@ const struct c2_test_suite c2_klibc2_ut = {
 		{ NULL,        NULL               }
 	}
 };
-C2_EXPORTED(c2_klibc2_ut);
+M0_EXPORTED(m0_klibm0_ut);
 
 /*
  *  Local variables:

@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_STOB_LINUX_INTERNAL_H__
-#define __COLIBRI_STOB_LINUX_INTERNAL_H__
+#ifndef __MERO_STOB_LINUX_INTERNAL_H__
+#define __MERO_STOB_LINUX_INTERNAL_H__
 
 /**
    @addtogroup stoblinux Storage object based on Linux specific file system
@@ -37,6 +37,7 @@
 #include "lib/tlist.h"
 #include "lib/thread.h"
 #include "stob/stob.h"
+#include "stob/cache.h"
 
 enum {
 	/** Default number of threads to create in a storage object domain. */
@@ -63,19 +64,18 @@ struct linux_domain {
 
 	/**
 	 *  Controls whether to use O_DIRECT flag for open(2).
-	 *  Can be set with c2_linux_stob_setup().
+	 *  Can be set with m0_linux_stob_setup().
 	 *  Initial value is set to 'false' in linux_stob_type_domain_locate().
 	 */
 	bool use_directio;
 
-	struct c2_stob_domain sdl_base;
+	struct m0_stob_domain sdl_base;
 	/**
 	   parent directory to hold the objects.
 	 */
 	char             sdl_path[MAXPATHLEN];
 
-	/** List of all existing c2_stob's. */
-	struct c2_tl     sdl_object;
+	struct m0_stob_cache sdl_cache;
 
 	/** @name ioq Linux adieu fields. @{ */
 
@@ -94,14 +94,14 @@ struct linux_domain {
 	/** Used slots in the ring buffer. */
 	int              ioq_queued;
 	/** Worker threads. */
-	struct c2_thread ioq[IOQ_NR_THREADS];
+	struct m0_thread ioq[IOQ_NR_THREADS];
 
 	/** Mutex protecting all ioq_ fields (except for the ring buffer that is
 	    updated by the kernel asynchronously). */
-	struct c2_mutex  ioq_lock;
+	struct m0_mutex  ioq_lock;
 	/** Admission queue where adieu request fragments are kept until there
 	    is free space in the ring buffer.  */
-	struct c2_queue  ioq_queue;
+	struct m0_queue  ioq_queue;
 
 	/** *} end of ioq name */
 };
@@ -110,42 +110,42 @@ struct linux_domain {
    stob based on Linux file system and block devices
  */
 struct linux_stob {
-	struct c2_stob		sl_stob;
+	struct m0_stob_cacheable sl_stob;
 
 	/** fd from returned open(2) */
-	int			sl_fd;
+	int			 sl_fd;
 	/** File mode as returned by stat(2) */
-	mode_t			sl_mode;
+	mode_t			 sl_mode;
 
-	struct c2_tlink		sl_linkage;
-	uint64_t		sl_magix;
+	struct m0_tlink		 sl_linkage;
+	uint64_t		 sl_magix;
 };
 
-static inline struct linux_stob *stob2linux(struct c2_stob *stob)
+static inline struct linux_stob *stob2linux(struct m0_stob *stob)
 {
-	return container_of(stob, struct linux_stob, sl_stob);
+	return container_of(stob, struct linux_stob, sl_stob.ca_stob);
 }
 
-static inline struct linux_domain *domain2linux(struct c2_stob_domain *dom)
+static inline struct linux_domain *domain2linux(struct m0_stob_domain *dom)
 {
 	return container_of(dom, struct linux_domain, sdl_base);
 }
 
-C2_INTERNAL int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io);
-C2_INTERNAL void linux_stob_io_lock(struct c2_stob *stob);
-C2_INTERNAL void linux_stob_io_unlock(struct c2_stob *stob);
-C2_INTERNAL bool linux_stob_io_is_locked(const struct c2_stob *stob);
-C2_INTERNAL uint32_t linux_stob_block_shift(const struct c2_stob *stob);
-C2_INTERNAL void linux_domain_io_fini(struct c2_stob_domain *dom);
-C2_INTERNAL int linux_domain_io_init(struct c2_stob_domain *dom);
+M0_INTERNAL int linux_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io);
+M0_INTERNAL void linux_stob_io_lock(struct m0_stob *stob);
+M0_INTERNAL void linux_stob_io_unlock(struct m0_stob *stob);
+M0_INTERNAL bool linux_stob_io_is_locked(const struct m0_stob *stob);
+M0_INTERNAL uint32_t linux_stob_block_shift(const struct m0_stob *stob);
+M0_INTERNAL void linux_domain_io_fini(struct m0_stob_domain *dom);
+M0_INTERNAL int linux_domain_io_init(struct m0_stob_domain *dom);
 
-C2_INTERNAL uint32_t linux_stob_domain_block_shift(struct c2_stob_domain
+M0_INTERNAL uint32_t linux_stob_domain_block_shift(struct m0_stob_domain
 						   *sdomain);
-extern struct c2_addb_ctx adieu_addb_ctx;
+extern struct m0_addb_ctx adieu_addb_ctx;
 
 /** @} end group stoblinux */
 
-/* __COLIBRI_STOB_LINUX_INTERNAL_H__ */
+/* __MERO_STOB_LINUX_INTERNAL_H__ */
 #endif
 
 /*

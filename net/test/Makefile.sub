@@ -1,4 +1,4 @@
-net_test_libcolibri_net_test_la_SOURCES += net/test/commands.c \
+net_test_libmero_net_test_la_SOURCES += net/test/commands.c \
                                            net/test/console.c \
                                            net/test/network.c \
                                            net/test/node_bulk.c \

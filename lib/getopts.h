@@ -20,11 +20,11 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_GETOPTS_H__
-#define __COLIBRI_LIB_GETOPTS_H__
+#ifndef __MERO_LIB_GETOPTS_H__
+#define __MERO_LIB_GETOPTS_H__
 
-#include "lib/types.h"	/* c2_bcount_t */
-#include "lib/time.h"	/* c2_time_t */
+#include "lib/types.h"	/* m0_bcount_t */
+#include "lib/time.h"	/* m0_time_t */
 
 #ifndef __KERNEL__
 #include "lib/user_space/getopts.h"
@@ -34,7 +34,7 @@
    @addtogroup getopts
    @{
  */
-extern const char C2_GETOPTS_DECIMAL_POINT;
+extern const char M0_GETOPTS_DECIMAL_POINT;
 
 /**
    Convert numerical argument, followed by a optional multiplier suffix, to an
@@ -52,11 +52,11 @@ extern const char C2_GETOPTS_DECIMAL_POINT;
    - @b M = 1000 * 1000
    - @b G = 1000 * 1000 * 1000
  */
-C2_INTERNAL int c2_bcount_get(const char *arg, c2_bcount_t * out);
+M0_INTERNAL int m0_bcount_get(const char *arg, m0_bcount_t * out);
 
 /**
    Convert numerical argument, followed by a optional multiplier suffix, to an
-   c2_time_t value.  The numerical argument is expected in the format
+   m0_time_t value.  The numerical argument is expected in the format
    "[integer].[integer]" or just "integer", where [integer] is optional integer
    value in format that strtoull(..., 10) can parse, and at least one integer
    should be present in the numerical argument. The multiplier suffix matches
@@ -69,14 +69,14 @@ C2_INTERNAL int c2_bcount_get(const char *arg, c2_bcount_t * out);
    - @b us = microsecond = 1/1000'000 of a second
    - @b ns = nanosecond  = 1/1000'000'000 of a second
 
-   @note C2_GETOPTS_DECIMAL_POINT is used as decimal point in numerical
+   @note M0_GETOPTS_DECIMAL_POINT is used as decimal point in numerical
    argument to this function.
  */
-C2_INTERNAL int c2_time_get(const char *arg, c2_time_t * out);
+M0_INTERNAL int m0_time_get(const char *arg, m0_time_t * out);
 
 /** @} end of getopts group */
 
-/* __COLIBRI_LIB_GETOPTS_H__ */
+/* __MERO_LIB_GETOPTS_H__ */
 #endif
 
 /*

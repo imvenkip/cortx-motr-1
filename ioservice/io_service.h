@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_IOSERVICE_IO_SERVICE_H__
-#define __COLIBRI_IOSERVICE_IO_SERVICE_H__
+#ifndef __MERO_IOSERVICE_IO_SERVICE_H__
+#define __MERO_IOSERVICE_IO_SERVICE_H__
 
 /**
  * @defgroup DLD_bulk_server_fspec_ioservice_operations I/O Service Operations
@@ -31,16 +31,16 @@
  * I/O Service initialization and operations controlled by request handler.
  *
  * I/O Service defines service type operation vector -
- * - I/O Service type operation @ref c2_ioservice_alloc_and_init()<br>
+ * - I/O Service type operation @ref m0_ioservice_alloc_and_init()<br>
  *   Request handler uses this service type operation to allocate and
  *   and initiate service instance.
  *
  * I/O Service defines service operation vector -
- * - I/O Service operation @ref c2_ioservice_start()<br>
+ * - I/O Service operation @ref m0_ioservice_start()<br>
  *   Initiate buffer_pool and register I/O FOP with service
- * - I/O Service operation @ref c2_ioservice_stop()<br>
+ * - I/O Service operation @ref m0_ioservice_stop()<br>
  *   Free buffer_pool and unregister I/O FOP with service
- * - I/O Service operation @ref c2_ioservice_fini)<br>
+ * - I/O Service operation @ref m0_ioservice_fini)<br>
  *   Free I/O Service instance.
  *
  * State transition diagram for I/O Service will be available at @ref reqh
@@ -52,21 +52,21 @@
 #include "lib/chan.h"
 #include "lib/tlist.h"
 
-C2_INTERNAL int c2_ios_register(void);
-C2_INTERNAL void c2_ios_unregister(void);
+M0_INTERNAL int m0_ios_register(void);
+M0_INTERNAL void m0_ios_unregister(void);
 
 /**
  * Data structure represents list of buffer pool per network domain.
  */
-struct c2_rios_buffer_pool {
+struct m0_rios_buffer_pool {
         /** Pointer to Network buffer pool. */
-        struct c2_net_buffer_pool    rios_bp;
+        struct m0_net_buffer_pool    rios_bp;
         /** Pointer to net domain owner of this buffer pool */
-        struct c2_net_domain        *rios_ndom;
+        struct m0_net_domain        *rios_ndom;
         /** Buffer pool wait channel. */
-        struct c2_chan               rios_bp_wait;
+        struct m0_chan               rios_bp_wait;
         /** Linkage into netowrk buffer pool list */
-        struct c2_tlink              rios_bp_linkage;
+        struct m0_tlink              rios_bp_linkage;
         /** Magic */
         uint64_t                     rios_bp_magic;
 };
@@ -75,18 +75,18 @@ struct c2_rios_buffer_pool {
  * Structure contains generic service structure and
  * service specific information.
  */
-struct c2_reqh_io_service {
+struct m0_reqh_io_service {
         /** Generic reqh service object */
-        struct c2_reqh_service       rios_gen;
+        struct m0_reqh_service       rios_gen;
         /** Buffer pools belongs to this services */
-        struct c2_tl                 rios_buffer_pools;
+        struct m0_tl                 rios_buffer_pools;
         /** magic to check io service object */
         uint64_t                     rios_magic;
 };
 
 /** @} end of io_service */
 
-#endif /* __COLIBRI_IOSERVICE_IO_SERVICE_H__ */
+#endif /* __MERO_IOSERVICE_IO_SERVICE_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

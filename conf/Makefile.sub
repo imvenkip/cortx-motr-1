@@ -1,4 +1,4 @@
-colibri_libcolibri_la_SOURCES += conf/onwire.h \
+mero_libmero_la_SOURCES += conf/onwire.h \
                                  conf/onwire_xc.c \
                                  conf/buf_ext.h \
                                  conf/buf_ext.c \
@@ -24,7 +24,13 @@ colibri_libcolibri_la_SOURCES += conf/onwire.h \
                                  conf/objs/node.c \
                                  conf/objs/nic.c \
                                  conf/objs/sdev.c \
-                                 conf/objs/partition.c
+                                 conf/objs/partition.c \
+                                 conf/conf_fop.c \
+                                 conf/conf_fop.h \
+                                 conf/confd_fom.c \
+                                 conf/confd_fom.h \
+                                 conf/confd.c \
+                                 conf/confd.h
 
 conf/onwire.h: lib/buf_xc.h
 

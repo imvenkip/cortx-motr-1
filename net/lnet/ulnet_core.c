@@ -65,22 +65,22 @@
 
    Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
 1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Colibri LNet Transport</a>.
+HLD of Mero LNet Transport</a>.
 
    <hr>
    @section ULNetCoreDLD-req Requirements
 
-   - @b r.c2.net.xprt.lnet.ioctl The user space core interacts with the kernel
+   - @b r.m0.net.xprt.lnet.ioctl The user space core interacts with the kernel
      core through ioctl requests.
-   - @b r.c2.net.xprt.lnet.aligned-objects The implementation must ensure
+   - @b r.m0.net.xprt.lnet.aligned-objects The implementation must ensure
      that shared objects do not cross page boundaries.
 
    <hr>
    @section ULNetCoreDLD-depends Dependencies
 
    - @ref LNetDFS <br>
-     The @c c2_net_lnet_ifaces_get() and @c c2_net_lnet_ifaces_put() APIs
-     must be changed to require a @c c2_net_domain parameter, because the
+     The @c m0_net_lnet_ifaces_get() and @c m0_net_lnet_ifaces_put() APIs
+     must be changed to require a @c m0_net_domain parameter, because the
      user space must interact with the kernel to get the interfaces, and
      a per-domain file descriptor is required for this interaction.
 
@@ -91,16 +91,16 @@ HLD of Colibri LNet Transport</a>.
 
    - @ref LNetDev <!-- ./lnet_ioctl.h --> <br>
      The Device driver provides access to the Kernel Core implementation
-     through ioctl requests on the "/dev/c2lnet" device.
+     through ioctl requests on the "/dev/m0lnet" device.
 
    <hr>
    @section ULNetCoreDLD-highlights Design Highlights
    - The Core API is an address space agnostic I/O interface intended for use
-     by the Colibri Networking LNet transport operation layer in either user
+     by the Mero Networking LNet transport operation layer in either user
      space or kernel space.
    - The user space implementation interacts with the kernel core
      implementation via a device driver.
-   - Each user space @c c2_net_domain corresponds to opening a separate
+   - Each user space @c m0_net_domain corresponds to opening a separate
      file descriptor.
    - Shared memory objects allow indirect interaction with the kernel and
      reduce the number of required context switches.
@@ -136,7 +136,7 @@ HLD of Colibri LNet Transport</a>.
 
    @see <a href="https://docs.google.com/a/xyratex.com/document/d/
 1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Colibri LNet Transport</a>,
+HLD of Mero LNet Transport</a>,
    specifically the Design Highlights component diagram.
    @see @ref KLNetCoreDLD-lspec-userspace
    "Kernel Support for User Space Transports".
@@ -153,7 +153,7 @@ HLD of Colibri LNet Transport</a>,
 
    ensure they are smaller than a page in size.  However, to guarantee that
    instances of these structures do not cross page boundaries, all allocations
-   of these structures must be performed using @c c2_alloc_aligned().  The
+   of these structures must be performed using @c m0_alloc_aligned().  The
    @c shift parameter for each allocation must be picked such that @c 1<<shift
    is at least the size of the structure.  Build-time assertions about
    these shifts can assure the correct shift is used.
@@ -161,11 +161,11 @@ HLD of Colibri LNet Transport</a>,
    @subsection ULNetCoreDLD-lspec-ioctl Strategy for Kernel Interaction
 
    The user space core interacts with the kernel through ioctl requests on a
-   file descriptor opened on the "/dev/c2lnet" device.  There is a 1:1
-   correspondence between @c c2_net_domain (@c nlx_core_domain) objects and file
+   file descriptor opened on the "/dev/m0lnet" device.  There is a 1:1
+   correspondence between @c m0_net_domain (@c nlx_core_domain) objects and file
    descriptors.  So, each time a domain is initialized, a new file descriptor is
    obtained.  After the file descriptor is obtained, further interaction is in
-   the form of ioctl requests.  When the @c c2_net_domain is finalized, the file
+   the form of ioctl requests.  When the @c m0_net_domain is finalized, the file
    descriptor is closed.  The specific interactions are detailed in the
    following sections.
 
@@ -182,16 +182,16 @@ HLD of Colibri LNet Transport</a>,
      the @c nlx_ucore_domain object and setting the @c nlx_core_domain::cd_upvt
      field.
    - It opens the device using the @c open() system call.  The device is named
-     @c "/dev/c2lnet" and the device is opened with @c O_RDWR|O_CLOEXEC flags.
+     @c "/dev/m0lnet" and the device is opened with @c O_RDWR|O_CLOEXEC flags.
      The file descriptor is saved in the @c nlx_ucore_domain::ud_fd field.
-   - It declares a @c c2_lnet_dev_dom_init_params object, setting
-     the @c c2_lnet_dev_dom_init_params::ddi_cd field.
-   - It shares the @c nlx_core_domain object via the @c #C2_LNET_DOM_INIT
+   - It declares a @c m0_lnet_dev_dom_init_params object, setting
+     the @c m0_lnet_dev_dom_init_params::ddi_cd field.
+   - It shares the @c nlx_core_domain object via the @c #M0_LNET_DOM_INIT
      ioctl request.  Note that a side effect of this request is that the
      @c nlx_core_domain::cd_kpvt is set.
    - It completes user space initialization of the @c nlx_core_domain object
      and the @c nlx_ucore_domain object, including caching the three buffer
-     maximum size values returned in the @c c2_lnet_dev_dom_init_params.
+     maximum size values returned in the @c m0_lnet_dev_dom_init_params.
 
    @see @ref LNetDRVDLD-lspec-dominit "Corresponding device layer behavior"
 
@@ -226,11 +226,11 @@ HLD of Colibri LNet Transport</a>,
    - It performs upper layer initialization of the @c nlx_core_buffer object.
      This includes allocating and initializing the @c nlx_ucore_buffer object
      and setting the @c nlx_core_buffer::cb_upvt field.
-   - It declares a @c c2_lnet_dev_buf_register_params object, setting
+   - It declares a @c m0_lnet_dev_buf_register_params object, setting
      the parameter fields from the @c nlx_core_buf_register() parameters.
    - It copies the data referenced by the bvec parameter to the dbr_bvec
      field.
-   - It performs a @c #C2_LNET_BUF_REGISTER ioctl request to share the buffer
+   - It performs a @c #M0_LNET_BUF_REGISTER ioctl request to share the buffer
      with the kernel and complete the kernel part of buffer registration.
    - It completes any initialization of the @c nlx_ucore_buffer object.
 
@@ -238,7 +238,7 @@ HLD of Colibri LNet Transport</a>,
    buffer de-registration.
 
    - It completes pre-checks of the @c nlx_core_buffer object.
-   - It performs a @c #C2_LNET_BUF_DEREGISTER ioctl request, causing
+   - It performs a @c #M0_LNET_BUF_DEREGISTER ioctl request, causing
      the kernel to complete the kernel part of buffer de-registration.
    - It completes any user space de-registration of the @c nlx_core_buffer and
      @c nlx_ucore_buffer objects.
@@ -256,8 +256,8 @@ HLD of Colibri LNet Transport</a>,
    interaction.  The following steps are taken by the user space core.
 
    - It allocates a new @c nlx_core_buffer_event object.
-   - It declares a @c c2_lnet_dev_bev_bless_params object and sets its fields.
-   - It performs a @c #C2_LNET_BEV_BLESS ioctl request to share the
+   - It declares a @c m0_lnet_dev_bev_bless_params object and sets its fields.
+   - It performs a @c #M0_LNET_BEV_BLESS ioctl request to share the
      @c nlx_core_buffer_event object with the kernel and complete the kernel
      part of blessing the object.
 
@@ -276,7 +276,7 @@ HLD of Colibri LNet Transport</a>,
      object.  This includes allocating and initializing the
      @c nlx_ucore_transfer_mc object and setting the
      @c nlx_core_transfer_mc::ctm_upvt field.
-   - It performs a @c #C2_LNET_TM_START ioctl request to share the
+   - It performs a @c #M0_LNET_TM_START ioctl request to share the
      @c nlx_core_transfer_mc object with the kernel and complete the kernel
      part of starting the transfer machine.
    - It allocates and initializes two @c nlx_core_buffer_event objects, using
@@ -294,7 +294,7 @@ HLD of Colibri LNet Transport</a>,
    corresponding to the @c nlx_xo_tm_fini() function.
 
    - It completes pre-checks of the @c nlx_core_transfer_mc object.
-   - It performs a @c #C2_LNET_TM_STOP ioctl request, causing
+   - It performs a @c #M0_LNET_TM_STOP ioctl request, causing
      the kernel to complete the kernel part of stopping the transfer machine.
    - It frees the buffer event queue using the @c bev_cqueue_fini() function.
    - It frees the @c nlx_ucore_transfer_mc object and resets the
@@ -317,21 +317,21 @@ HLD of Colibri LNet Transport</a>,
    operate on buffers and transfer machine queues.  In all user space core
    cases, the shared objects, @c nlx_core_buffer and @c nlx_core_transfer_mc,
    must have been previously shared with the kernel, through use of the @c
-   #C2_LNET_BUF_REGISTER and @c #C2_LNET_TM_START ioctl requests, respectively.
+   #M0_LNET_BUF_REGISTER and @c #M0_LNET_TM_START ioctl requests, respectively.
 
    The ioctl requests available to the user space core for managing
    buffers and transfer machine buffer queues are as follows.
-   - @c #C2_LNET_BUF_MSG_RECV
-   - @c #C2_LNET_BUF_MSG_SEND
-   - @c #C2_LNET_BUF_ACTIVE_RECV
-   - @c #C2_LNET_BUF_ACTIVE_SEND
-   - @c #C2_LNET_BUF_PASSIVE_RECV
-   - @c #C2_LNET_BUF_PASSIVE_SEND
-   - @c #C2_LNET_BUF_DEL
+   - @c #M0_LNET_BUF_MSG_RECV
+   - @c #M0_LNET_BUF_MSG_SEND
+   - @c #M0_LNET_BUF_ACTIVE_RECV
+   - @c #M0_LNET_BUF_ACTIVE_SEND
+   - @c #M0_LNET_BUF_PASSIVE_RECV
+   - @c #M0_LNET_BUF_PASSIVE_SEND
+   - @c #M0_LNET_BUF_DEL
 
    In each case, the user space core performs the following steps.
    - Validates the parameters.
-   - Declares a @c c2_lnet_dev_buf_queue_params object and sets the two fields.
+   - Declares a @c m0_lnet_dev_buf_queue_params object and sets the two fields.
      In this case, both fields are set to the kernel private pointers of
      the shared objects.
    - Performs the appropriate ioctl request from the list above.
@@ -343,8 +343,8 @@ HLD of Colibri LNet Transport</a>,
    The user space core nlx_core_buf_event_wait() subroutine completes the
    following tasks to wait for buffer events.
 
-   - It declares a @c c2_lnet_dev_buf_event_wait_params and sets the fields.
-   - It performs a @c #C2_LNET_BUF_EVENT_WAIT ioctl request to wait for
+   - It declares a @c m0_lnet_dev_buf_event_wait_params and sets the fields.
+   - It performs a @c #M0_LNET_BUF_EVENT_WAIT ioctl request to wait for
      the kernel to generate additional buffer events.
 
    @see @ref LNetDRVDLD-lspec-event "Corresponding device layer behavior"
@@ -363,32 +363,32 @@ HLD of Colibri LNet Transport</a>,
 
    To convert a NID string to a NID, the user space core performs the
    following tasks.
-   - It declares a @c c2_lnet_dev_nid_encdec_params and sets the @c dn_buf to
+   - It declares a @c m0_lnet_dev_nid_encdec_params and sets the @c dn_buf to
      the string to be decoded.
-   - It calls the @c #C2_LNET_NIDSTR_DECODE ioctl request to cause the kernel
+   - It calls the @c #M0_LNET_NIDSTR_DECODE ioctl request to cause the kernel
      to decode the string.  On successful return, the @c dn_nid field will be
      set to the corresponding NID.
 
    To convert a NID into a NID string, the user space core performs the
    following tasks.
-   - It declares a @c c2_lnet_dev_nid_encdec_params and sets the @c dn_nid to
+   - It declares a @c m0_lnet_dev_nid_encdec_params and sets the @c dn_nid to
      the value to be converted.
-   - It calls the @c #C2_LNET_NIDSTR_ENCODE ioctl request to cause the kernel
+   - It calls the @c #M0_LNET_NIDSTR_ENCODE ioctl request to cause the kernel
      to encode the string.  On successful return, the @c dn_buf field will be
      set to the corresponding NID string.
 
    The final operations involving NID strings are the @c nlx_core_nidstrs_get()
    and @c nlx_core_nidstrs_put() operations.  The user space core obtains
-   the strings from the kernel using the @c #C2_LNET_NIDSTRS_GET ioctl request.
+   the strings from the kernel using the @c #M0_LNET_NIDSTRS_GET ioctl request.
    This ioctl request returns a copy of the strings, rather than sharing a
    reference to them.  As such, there is no ioctl request to "put" the strings.
    To get the list of strings, the user space core performs the following
    tasks.
 
    - It allocates buffer where the NID strings are to be stored.
-   - It declares a @c c2_lnet_dev_nidstrs_get_params object and sets the fields
+   - It declares a @c m0_lnet_dev_nidstrs_get_params object and sets the fields
      based on the allocated buffer and its size.
-   - It performs a @c #C2_LNET_NIDSTRS_GET ioctl request to populate the buffer
+   - It performs a @c #M0_LNET_NIDSTRS_GET ioctl request to populate the buffer
      with the NID strings, which returns the number of NID strings (not 0) on
      success.
    - If the ioctl request returns -EFBIG, the buffer should be freed, a
@@ -408,7 +408,7 @@ HLD of Colibri LNet Transport</a>,
    @subsection ULNetCoreDLD-lspec-state State Specification
 
    The User Space Core implementation does not introduce its own state model,
-   but operates within the frameworks defined by the Colibri Networking Module
+   but operates within the frameworks defined by the Mero Networking Module
    and the Kernel device driver interface.
 
    Use of the driver requires a file descriptor.  This file descriptor is
@@ -429,15 +429,15 @@ HLD of Colibri LNet Transport</a>,
 
    The user space core does not allocate threads.  The user space application
    can control thread processor affiliation by confining the threads it uses
-   to via use of @c c2_thread_confine().
+   to via use of @c m0_thread_confine().
 
    <hr>
    @section ULNetCoreDLD-conformance Conformance
 
-   - @b i.c2.net.xprt.lnet.ioctl The @ref LNetDRVDLD-lspec covers how
+   - @b i.m0.net.xprt.lnet.ioctl The @ref LNetDRVDLD-lspec covers how
      each LNet Core operation in user space is implemented using the
      driver ioctl requests.
-   - @b i.c2.net.xprt.lnet.aligned-objects The @ref ULNetCoreDLD-lspec-malloc
+   - @b i.m0.net.xprt.lnet.aligned-objects The @ref ULNetCoreDLD-lspec-malloc
      section discusses how shared objects can be allocated as required.
 
    <hr>
@@ -478,7 +478,7 @@ HLD of Colibri LNet Transport</a>,
    @section ULNetCoreDLD-ref References
    - <a href="https://docs.google.com/a/xyratex.com/document/d/
 1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Colibri LNet Transport</a>
+HLD of Mero LNet Transport</a>
    - @ref KLNetCoreDLD "LNet Transport Kernel Core DLD" <!--
      ./linux_kernel/klnet_core.c -->
    - @ref LNetDRVDLD "LNet Transport Device DLD" <!--
@@ -498,14 +498,14 @@ HLD of Colibri LNet Transport</a>
 */
 
 /** The name of the core device */
-static const char *nlx_ucore_dev_name = "/dev/" C2_LNET_DEV;
+static const char *nlx_ucore_dev_name = "/dev/" M0_LNET_DEV;
 
 /**
    Invariant for the nlx_ucore_domain structure.
  */
 static bool nlx_ucore_domain_invariant(const struct nlx_ucore_domain *ud)
 {
-	return ud != NULL && ud->ud_magic == C2_NET_LNET_UCORE_DOM_MAGIC &&
+	return ud != NULL && ud->ud_magic == M0_NET_LNET_UCORE_DOM_MAGIC &&
 	    ud->ud_fd >= 0 &&
 	    ud->ud_max_buffer_size > 0 &&
 	    ud->ud_max_buffer_segment_size > 0 &&
@@ -518,7 +518,7 @@ static bool nlx_ucore_domain_invariant(const struct nlx_ucore_domain *ud)
  */
 static bool nlx_ucore_buffer_invariant(const struct nlx_ucore_buffer *ub)
 {
-	return ub != NULL && ub->ub_magic == C2_NET_LNET_UCORE_BUF_MAGIC;
+	return ub != NULL && ub->ub_magic == M0_NET_LNET_UCORE_BUF_MAGIC;
 }
 
 /**
@@ -526,17 +526,17 @@ static bool nlx_ucore_buffer_invariant(const struct nlx_ucore_buffer *ub)
  */
 static bool nlx_ucore_tm_invariant(const struct nlx_ucore_transfer_mc *utm)
 {
-	return utm != NULL && utm->utm_magic == C2_NET_LNET_UCORE_TM_MAGIC;
+	return utm != NULL && utm->utm_magic == M0_NET_LNET_UCORE_TM_MAGIC;
 }
 
-C2_INTERNAL void *nlx_core_mem_alloc(size_t size, unsigned shift)
+M0_INTERNAL void *nlx_core_mem_alloc(size_t size, unsigned shift)
 {
-	return c2_alloc_aligned(size, shift);
+	return m0_alloc_aligned(size, shift);
 }
 
-C2_INTERNAL void nlx_core_mem_free(void *data, size_t size, unsigned shift)
+M0_INTERNAL void nlx_core_mem_free(void *data, size_t size, unsigned shift)
 {
-	c2_free_aligned(data, size, shift);
+	m0_free_aligned(data, size, shift);
 }
 
 /**
@@ -549,16 +549,16 @@ static int nlx_ucore_ioctl(int fd, unsigned long cmd, void *arg)
 {
 	int rc;
 
-	C2_PRE(fd >= 0);
-	C2_PRE(_IOC_TYPE(cmd) == C2_LNET_IOC_MAGIC);
-	C2_PRE(_IOC_NR(cmd)   >= C2_LNET_IOC_MIN_NR);
-	C2_PRE(_IOC_NR(cmd)   <= C2_LNET_IOC_MAX_NR);
+	M0_PRE(fd >= 0);
+	M0_PRE(_IOC_TYPE(cmd) == M0_LNET_IOC_MAGIC);
+	M0_PRE(_IOC_NR(cmd)   >= M0_LNET_IOC_MIN_NR);
+	M0_PRE(_IOC_NR(cmd)   <= M0_LNET_IOC_MAX_NR);
 
 	rc = ioctl(fd, cmd, arg);
 	if (rc >= 0)
 		return rc;
-	C2_ASSERT(errno > 0);
-	C2_ASSERT(errno != EFAULT && errno != EBADR);
+	M0_ASSERT(errno > 0);
+	M0_ASSERT(errno != EFAULT && errno != EBADR);
 	return -errno;
 }
 
@@ -578,25 +578,25 @@ static unsigned nlx_ucore_nidstrs_thunk = 128;
  */
 static int nlx_ucore_nidstrs_get(struct nlx_ucore_domain *ud, char ***nidary)
 {
-	struct c2_lnet_dev_nidstrs_get_params dngp;
+	struct m0_lnet_dev_nidstrs_get_params dngp;
 	unsigned i;
 	char *p;
 	char **nidstrs;
 	unsigned nidstrs_nr;
 	int rc;
 
-	C2_PRE(ud != NULL && ud->ud_fd >= 0);
+	M0_PRE(ud != NULL && ud->ud_fd >= 0);
 
 	/* Repeat until the buffer is large enough to hold all the strings. */
 	for (i = 0, dngp.dng_buf = NULL; dngp.dng_buf == NULL; ++i) {
 		dngp.dng_size = ++i * nlx_ucore_nidstrs_thunk;
-		C2_ALLOC_ARR_ADDB(dngp.dng_buf, dngp.dng_size,
+		M0_ALLOC_ARR_ADDB(dngp.dng_buf, dngp.dng_size,
 				  &ud->ud_addb, &nlx_addb_loc);
 		if (dngp.dng_buf == NULL)
 			return -ENOMEM;
-		rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_NIDSTRS_GET, &dngp);
+		rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_NIDSTRS_GET, &dngp);
 		if (rc < 0) {
-			c2_free(dngp.dng_buf);
+			m0_free(dngp.dng_buf);
 			dngp.dng_buf = NULL;
 			if (rc != -EFBIG)
 				return rc;
@@ -605,9 +605,9 @@ static int nlx_ucore_nidstrs_get(struct nlx_ucore_domain *ud, char ***nidary)
 	nidstrs_nr = rc;
 
 	/* Create a string array. */
-	C2_ALLOC_ARR_ADDB(nidstrs, nidstrs_nr + 1, &ud->ud_addb, &nlx_addb_loc);
+	M0_ALLOC_ARR_ADDB(nidstrs, nidstrs_nr + 1, &ud->ud_addb, &nlx_addb_loc);
 	if (nidstrs == NULL) {
-		c2_free(dngp.dng_buf);
+		m0_free(dngp.dng_buf);
 		return -ENOMEM;
 	}
 	for (i = 0, p = dngp.dng_buf; i < nidstrs_nr; ++i, ++p) {
@@ -626,43 +626,43 @@ static int nlx_ucore_nidstrs_get(struct nlx_ucore_domain *ud, char ***nidary)
  */
 static void nlx_ucore_nidstrs_put(struct nlx_ucore_domain *ud, char ***nidary)
 {
-	C2_PRE(nidary != NULL);
-	c2_free((*nidary)[0]); /* string buffer */
-	c2_free(*nidary);      /* string array */
+	M0_PRE(nidary != NULL);
+	m0_free((*nidary)[0]); /* string buffer */
+	m0_free(*nidary);      /* string array */
 	*nidary = NULL;
 	return;
 }
 
 
-C2_INTERNAL int nlx_core_dom_init(struct c2_net_domain *dom,
+M0_INTERNAL int nlx_core_dom_init(struct m0_net_domain *dom,
 				  struct nlx_core_domain *cd)
 {
 	struct nlx_ucore_domain *ud;
-	struct c2_lnet_dev_dom_init_params ip = {
+	struct m0_lnet_dev_dom_init_params ip = {
 		.ddi_cd = cd,
 	};
 	int rc;
 
-	C2_PRE(dom != NULL && cd != NULL);
-	C2_PRE(cd->cd_kpvt == NULL && cd->cd_upvt == NULL);
-	C2_ALLOC_PTR_ADDB(ud, &dom->nd_addb, &nlx_addb_loc);
+	M0_PRE(dom != NULL && cd != NULL);
+	M0_PRE(cd->cd_kpvt == NULL && cd->cd_upvt == NULL);
+	M0_ALLOC_PTR_ADDB(ud, &dom->nd_addb, &nlx_addb_loc);
 	if (ud == NULL)
 		return -ENOMEM;
-	c2_addb_ctx_init(&ud->ud_addb, &nlx_core_domain_addb_ctx,
+	m0_addb_ctx_init(&ud->ud_addb, &nlx_core_domain_addb_ctx,
 			 &dom->nd_addb);
 
 	ud->ud_fd = open(nlx_ucore_dev_name, O_RDWR|O_CLOEXEC);
 	if (ud->ud_fd == -1) {
-		C2_ASSERT(errno != 0);
+		M0_ASSERT(errno != 0);
 		rc = -errno;
-		C2_ASSERT(rc < 0);
+		M0_ASSERT(rc < 0);
 		goto fail_open;
 	}
 
-	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_DOM_INIT, &ip);
+	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_DOM_INIT, &ip);
 	if (rc < 0)
 		goto fail_dom_init;
-	C2_ASSERT(cd->cd_kpvt != NULL);
+	M0_ASSERT(cd->cd_kpvt != NULL);
 
 	/* cache buffer size constants */
 #define NLX_IP_SET(f) ud->ud_##f = ip.ddi_##f
@@ -675,144 +675,144 @@ C2_INTERNAL int nlx_core_dom_init(struct c2_net_domain *dom,
 	rc = nlx_ucore_nidstrs_get(ud, &ud->ud_nidstrs);
 	if (rc != 0)
 		goto fail_dom_init;
-	c2_atomic64_set(&ud->ud_nidstrs_refcount, 0);
+	m0_atomic64_set(&ud->ud_nidstrs_refcount, 0);
 
-	ud->ud_magic = C2_NET_LNET_UCORE_DOM_MAGIC;
+	ud->ud_magic = M0_NET_LNET_UCORE_DOM_MAGIC;
 	cd->cd_upvt = ud;
 
-	C2_POST(nlx_ucore_domain_invariant(ud));
+	M0_POST(nlx_ucore_domain_invariant(ud));
 	return 0;
 
  fail_dom_init:
 	close(ud->ud_fd);
  fail_open:
-	c2_addb_ctx_fini(&ud->ud_addb);
-	c2_free(ud);
+	m0_addb_ctx_fini(&ud->ud_addb);
+	m0_free(ud);
 	LNET_ADDB_FUNCFAIL_ADD(dom->nd_addb, rc);
-	C2_POST(cd->cd_kpvt == NULL && cd->cd_upvt == NULL);
+	M0_POST(cd->cd_kpvt == NULL && cd->cd_upvt == NULL);
 	return rc;
 }
 
-C2_INTERNAL void nlx_core_dom_fini(struct nlx_core_domain *cd)
+M0_INTERNAL void nlx_core_dom_fini(struct nlx_core_domain *cd)
 {
 	struct nlx_ucore_domain *ud;
 
-	C2_PRE(cd != NULL);
+	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud));
+	M0_PRE(nlx_ucore_domain_invariant(ud));
 
-	C2_ASSERT(c2_atomic64_get(&ud->ud_nidstrs_refcount) == 0);
+	M0_ASSERT(m0_atomic64_get(&ud->ud_nidstrs_refcount) == 0);
 	nlx_ucore_nidstrs_put(ud, &ud->ud_nidstrs);
 
 	close(ud->ud_fd);
-	c2_addb_ctx_fini(&ud->ud_addb);
+	m0_addb_ctx_fini(&ud->ud_addb);
 	ud->ud_magic = 0;
-	c2_free(ud);
+	m0_free(ud);
 	cd->cd_upvt = NULL;
 	cd->cd_kpvt = NULL;
 	return;
 }
 
-C2_INTERNAL c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *cd)
+M0_INTERNAL m0_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *cd)
 {
 	struct nlx_ucore_domain *ud;
 
-	C2_PRE(cd != NULL);
+	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud));
+	M0_PRE(nlx_ucore_domain_invariant(ud));
 	return ud->ud_max_buffer_size;
 }
 
-C2_INTERNAL c2_bcount_t nlx_core_get_max_buffer_segment_size(struct
+M0_INTERNAL m0_bcount_t nlx_core_get_max_buffer_segment_size(struct
 							     nlx_core_domain
 							     *cd)
 {
 	struct nlx_ucore_domain *ud;
 
-	C2_PRE(cd != NULL);
+	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud));
+	M0_PRE(nlx_ucore_domain_invariant(ud));
 	return ud->ud_max_buffer_segment_size;
 }
 
-C2_INTERNAL int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *cd)
+M0_INTERNAL int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *cd)
 {
 	struct nlx_ucore_domain *ud;
 
-	C2_PRE(cd != NULL);
+	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud));
+	M0_PRE(nlx_ucore_domain_invariant(ud));
 	return ud->ud_max_buffer_segments;
 }
 
-C2_INTERNAL int nlx_core_buf_register(struct nlx_core_domain *cd,
+M0_INTERNAL int nlx_core_buf_register(struct nlx_core_domain *cd,
 				      nlx_core_opaque_ptr_t buffer_id,
-				      const struct c2_bufvec *bvec,
+				      const struct m0_bufvec *bvec,
 				      struct nlx_core_buffer *cb)
 {
 	int rc;
 	struct nlx_ucore_buffer *ub;
 	struct nlx_ucore_domain *ud;
-	struct c2_lnet_dev_buf_register_params rp = {
+	struct m0_lnet_dev_buf_register_params rp = {
 		.dbr_lcbuf     = cb,
 		.dbr_buffer_id = buffer_id,
 	};
 
-	C2_PRE(cd != NULL);
+	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud));
-	C2_PRE(buffer_id != 0);
-	C2_PRE(bvec != NULL);
-	C2_PRE(cb != NULL);
-	C2_PRE(cb->cb_kpvt == NULL && cb->cb_upvt == NULL);
+	M0_PRE(nlx_ucore_domain_invariant(ud));
+	M0_PRE(buffer_id != 0);
+	M0_PRE(bvec != NULL);
+	M0_PRE(cb != NULL);
+	M0_PRE(cb->cb_kpvt == NULL && cb->cb_upvt == NULL);
 
-	C2_ALLOC_PTR_ADDB(ub, &ud->ud_addb, &nlx_addb_loc);
+	M0_ALLOC_PTR_ADDB(ub, &ud->ud_addb, &nlx_addb_loc);
 	if (ub == NULL)
 		return -ENOMEM;
-	ub->ub_magic = C2_NET_LNET_UCORE_BUF_MAGIC;
-	C2_POST(nlx_ucore_buffer_invariant(ub));
+	ub->ub_magic = M0_NET_LNET_UCORE_BUF_MAGIC;
+	M0_POST(nlx_ucore_buffer_invariant(ub));
 	cb->cb_upvt = ub;
 
 	rp.dbr_bvec = *bvec;
-	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_BUF_REGISTER, &rp);
+	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_BUF_REGISTER, &rp);
 	if (rc < 0) {
 		cb->cb_upvt = NULL;
 		ub->ub_magic = 0;
-		c2_free(ub);
+		m0_free(ub);
 		LNET_ADDB_FUNCFAIL_ADD(ud->ud_addb, rc);
 		return rc;
 	}
-	c2_addb_ctx_init(&ub->ub_addb, &nlx_core_domain_addb_ctx, &ud->ud_addb);
-	C2_ASSERT(cb->cb_kpvt != NULL);
-	C2_ASSERT(cb->cb_upvt == ub);
+	m0_addb_ctx_init(&ub->ub_addb, &nlx_core_domain_addb_ctx, &ud->ud_addb);
+	M0_ASSERT(cb->cb_kpvt != NULL);
+	M0_ASSERT(cb->cb_upvt == ub);
 
-	C2_POST(nlx_core_buffer_invariant(cb));
+	M0_POST(nlx_core_buffer_invariant(cb));
 	return 0;
 }
 
-C2_INTERNAL void nlx_core_buf_deregister(struct nlx_core_domain *cd,
+M0_INTERNAL void nlx_core_buf_deregister(struct nlx_core_domain *cd,
 					 struct nlx_core_buffer *cb)
 {
 	struct nlx_ucore_buffer *ub;
 	struct nlx_ucore_domain *ud;
-	struct c2_lnet_dev_buf_deregister_params dp;
+	struct m0_lnet_dev_buf_deregister_params dp;
 	int rc;
 
-	C2_PRE(cd != NULL);
+	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud));
+	M0_PRE(nlx_ucore_domain_invariant(ud));
 
-	C2_PRE(nlx_core_buffer_invariant(cb));
+	M0_PRE(nlx_core_buffer_invariant(cb));
 	ub = cb->cb_upvt;
-	C2_PRE(nlx_ucore_buffer_invariant(ub));
-	C2_PRE(cb->cb_kpvt != NULL);
+	M0_PRE(nlx_ucore_buffer_invariant(ub));
+	M0_PRE(cb->cb_kpvt != NULL);
 	dp.dbd_kb = cb->cb_kpvt;
-	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_BUF_DEREGISTER, &dp);
-	C2_ASSERT(rc == 0);
+	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_BUF_DEREGISTER, &dp);
+	M0_ASSERT(rc == 0);
 
-	c2_addb_ctx_fini(&ub->ub_addb);
+	m0_addb_ctx_fini(&ub->ub_addb);
 	ub->ub_magic = 0;
-	c2_free(ub);
+	m0_free(ub);
 
 	cb->cb_kpvt = NULL;
 	cb->cb_upvt = NULL;
@@ -823,20 +823,20 @@ C2_INTERNAL void nlx_core_buf_deregister(struct nlx_core_domain *cd,
 	struct nlx_ucore_domain *ud;				\
 	struct nlx_ucore_transfer_mc *utm;			\
 	struct nlx_ucore_buffer *ub;				\
-	struct c2_lnet_dev_buf_queue_params dbqp;		\
+	struct m0_lnet_dev_buf_queue_params dbqp;		\
 	int rc = 0;						\
 								\
-	C2_PRE(cd != NULL);					\
+	M0_PRE(cd != NULL);					\
 	ud = cd->cd_upvt;					\
-	C2_PRE(nlx_ucore_domain_invariant(ud));			\
+	M0_PRE(nlx_ucore_domain_invariant(ud));			\
 								\
-	C2_PRE(nlx_core_tm_invariant(ctm));			\
+	M0_PRE(nlx_core_tm_invariant(ctm));			\
 	utm = ctm->ctm_upvt;					\
-	C2_PRE(nlx_ucore_tm_invariant(utm));			\
+	M0_PRE(nlx_ucore_tm_invariant(utm));			\
 								\
-	C2_PRE(nlx_core_buffer_invariant(cb));			\
+	M0_PRE(nlx_core_buffer_invariant(cb));			\
 	ub = cb->cb_upvt;					\
-	C2_PRE(nlx_ucore_buffer_invariant(ub));			\
+	M0_PRE(nlx_ucore_buffer_invariant(ub));			\
 								\
 	__VA_ARGS__;						\
 								\
@@ -846,116 +846,116 @@ C2_INTERNAL void nlx_core_buf_deregister(struct nlx_core_domain *cd,
 	if (rc < 0)						\
 		LNET_ADDB_FUNCFAIL_ADD(ub->ub_addb, rc)
 
-C2_INTERNAL int nlx_core_buf_msg_recv(struct nlx_core_domain *cd,
+M0_INTERNAL int nlx_core_buf_msg_recv(struct nlx_core_domain *cd,
 				      struct nlx_core_transfer_mc *ctm,
 				      struct nlx_core_buffer *cb)
 {
-	NLX_UCORE_BUF_OP(C2_LNET_BUF_MSG_RECV,
-			 C2_PRE(cb->cb_qtype == C2_NET_QT_MSG_RECV);
-			 C2_PRE(cb->cb_length > 0);
-			 C2_PRE(cb->cb_min_receive_size <= cb->cb_length);
-			 C2_PRE(cb->cb_max_operations > 0);
+	NLX_UCORE_BUF_OP(M0_LNET_BUF_MSG_RECV,
+			 M0_PRE(cb->cb_qtype == M0_NET_QT_MSG_RECV);
+			 M0_PRE(cb->cb_length > 0);
+			 M0_PRE(cb->cb_min_receive_size <= cb->cb_length);
+			 M0_PRE(cb->cb_max_operations > 0);
 			 );
 	return rc;
 }
 
-C2_INTERNAL int nlx_core_buf_msg_send(struct nlx_core_domain *cd,
+M0_INTERNAL int nlx_core_buf_msg_send(struct nlx_core_domain *cd,
 				      struct nlx_core_transfer_mc *ctm,
 				      struct nlx_core_buffer *cb)
 {
-	NLX_UCORE_BUF_OP(C2_LNET_BUF_MSG_SEND,
-			 C2_PRE(cb->cb_qtype == C2_NET_QT_MSG_SEND);
-			 C2_PRE(cb->cb_length > 0);
-			 C2_PRE(cb->cb_max_operations == 1);
+	NLX_UCORE_BUF_OP(M0_LNET_BUF_MSG_SEND,
+			 M0_PRE(cb->cb_qtype == M0_NET_QT_MSG_SEND);
+			 M0_PRE(cb->cb_length > 0);
+			 M0_PRE(cb->cb_max_operations == 1);
 			 );
 	return rc;
 }
 
-C2_INTERNAL int nlx_core_buf_active_recv(struct nlx_core_domain *cd,
+M0_INTERNAL int nlx_core_buf_active_recv(struct nlx_core_domain *cd,
 					 struct nlx_core_transfer_mc *ctm,
 					 struct nlx_core_buffer *cb)
 {
 	uint32_t tmid;
 	uint64_t counter;
-	NLX_UCORE_BUF_OP(C2_LNET_BUF_ACTIVE_RECV,
-			 C2_PRE(cb->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
-			 C2_PRE(cb->cb_length > 0);
-			 C2_PRE(cb->cb_max_operations == 1);
-			 C2_PRE(cb->cb_match_bits > 0);
+	NLX_UCORE_BUF_OP(M0_LNET_BUF_ACTIVE_RECV,
+			 M0_PRE(cb->cb_qtype == M0_NET_QT_ACTIVE_BULK_RECV);
+			 M0_PRE(cb->cb_length > 0);
+			 M0_PRE(cb->cb_max_operations == 1);
+			 M0_PRE(cb->cb_match_bits > 0);
 			 nlx_core_match_bits_decode(cb->cb_match_bits,
 						    &tmid, &counter);
-			 C2_PRE(tmid == cb->cb_addr.cepa_tmid);
-			 C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
-			 C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
+			 M0_PRE(tmid == cb->cb_addr.cepa_tmid);
+			 M0_PRE(counter >= M0_NET_LNET_BUFFER_ID_MIN);
+			 M0_PRE(counter <= M0_NET_LNET_BUFFER_ID_MAX);
 			 );
 	return rc;
 }
 
-C2_INTERNAL int nlx_core_buf_active_send(struct nlx_core_domain *cd,
+M0_INTERNAL int nlx_core_buf_active_send(struct nlx_core_domain *cd,
 					 struct nlx_core_transfer_mc *ctm,
 					 struct nlx_core_buffer *cb)
 {
 	uint32_t tmid;
 	uint64_t counter;
-	NLX_UCORE_BUF_OP(C2_LNET_BUF_ACTIVE_SEND,
-			 C2_PRE(cb->cb_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
-			 C2_PRE(cb->cb_length > 0);
-			 C2_PRE(cb->cb_max_operations == 1);
-			 C2_PRE(cb->cb_match_bits > 0);
+	NLX_UCORE_BUF_OP(M0_LNET_BUF_ACTIVE_SEND,
+			 M0_PRE(cb->cb_qtype == M0_NET_QT_ACTIVE_BULK_SEND);
+			 M0_PRE(cb->cb_length > 0);
+			 M0_PRE(cb->cb_max_operations == 1);
+			 M0_PRE(cb->cb_match_bits > 0);
 			 nlx_core_match_bits_decode(cb->cb_match_bits,
 						    &tmid, &counter);
-			 C2_PRE(tmid == cb->cb_addr.cepa_tmid);
-			 C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
-			 C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
+			 M0_PRE(tmid == cb->cb_addr.cepa_tmid);
+			 M0_PRE(counter >= M0_NET_LNET_BUFFER_ID_MIN);
+			 M0_PRE(counter <= M0_NET_LNET_BUFFER_ID_MAX);
 			 );
 	return rc;
 }
 
-C2_INTERNAL int nlx_core_buf_passive_recv(struct nlx_core_domain *cd,
+M0_INTERNAL int nlx_core_buf_passive_recv(struct nlx_core_domain *cd,
 					  struct nlx_core_transfer_mc *ctm,
 					  struct nlx_core_buffer *cb)
 {
 	uint32_t tmid;
 	uint64_t counter;
-	NLX_UCORE_BUF_OP(C2_LNET_BUF_PASSIVE_RECV,
-			 C2_PRE(cb->cb_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
-			 C2_PRE(cb->cb_length > 0);
-			 C2_PRE(cb->cb_max_operations == 1);
-			 C2_PRE(cb->cb_match_bits > 0);
+	NLX_UCORE_BUF_OP(M0_LNET_BUF_PASSIVE_RECV,
+			 M0_PRE(cb->cb_qtype == M0_NET_QT_PASSIVE_BULK_RECV);
+			 M0_PRE(cb->cb_length > 0);
+			 M0_PRE(cb->cb_max_operations == 1);
+			 M0_PRE(cb->cb_match_bits > 0);
 			 nlx_core_match_bits_decode(cb->cb_match_bits,
 						    &tmid, &counter);
-			 C2_PRE(tmid == ctm->ctm_addr.cepa_tmid);
-			 C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
-			 C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
+			 M0_PRE(tmid == ctm->ctm_addr.cepa_tmid);
+			 M0_PRE(counter >= M0_NET_LNET_BUFFER_ID_MIN);
+			 M0_PRE(counter <= M0_NET_LNET_BUFFER_ID_MAX);
 			 );
 	return rc;
 }
 
-C2_INTERNAL int nlx_core_buf_passive_send(struct nlx_core_domain *cd,
+M0_INTERNAL int nlx_core_buf_passive_send(struct nlx_core_domain *cd,
 					  struct nlx_core_transfer_mc *ctm,
 					  struct nlx_core_buffer *cb)
 {
 	uint32_t tmid;
 	uint64_t counter;
-	NLX_UCORE_BUF_OP(C2_LNET_BUF_PASSIVE_SEND,
-			 C2_PRE(cb->cb_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
-			 C2_PRE(cb->cb_length > 0);
-			 C2_PRE(cb->cb_max_operations == 1);
-			 C2_PRE(cb->cb_match_bits > 0);
+	NLX_UCORE_BUF_OP(M0_LNET_BUF_PASSIVE_SEND,
+			 M0_PRE(cb->cb_qtype == M0_NET_QT_PASSIVE_BULK_SEND);
+			 M0_PRE(cb->cb_length > 0);
+			 M0_PRE(cb->cb_max_operations == 1);
+			 M0_PRE(cb->cb_match_bits > 0);
 			 nlx_core_match_bits_decode(cb->cb_match_bits,
 						    &tmid, &counter);
-			 C2_PRE(tmid == ctm->ctm_addr.cepa_tmid);
-			 C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
-			 C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
+			 M0_PRE(tmid == ctm->ctm_addr.cepa_tmid);
+			 M0_PRE(counter >= M0_NET_LNET_BUFFER_ID_MIN);
+			 M0_PRE(counter <= M0_NET_LNET_BUFFER_ID_MAX);
 			 );
 	return rc;
 }
 
-C2_INTERNAL int nlx_core_buf_del(struct nlx_core_domain *cd,
+M0_INTERNAL int nlx_core_buf_del(struct nlx_core_domain *cd,
 				 struct nlx_core_transfer_mc *ctm,
 				 struct nlx_core_buffer *cb)
 {
-	NLX_UCORE_BUF_OP(C2_LNET_BUF_DEL, );
+	NLX_UCORE_BUF_OP(M0_LNET_BUF_DEL, );
 	return rc;
 }
 
@@ -963,25 +963,25 @@ C2_INTERNAL int nlx_core_buf_del(struct nlx_core_domain *cd,
 
 int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
 			    struct nlx_core_transfer_mc *ctm,
-			    c2_time_t timeout)
+			    m0_time_t timeout)
 {
 	struct nlx_ucore_domain *ud;
 	struct nlx_ucore_transfer_mc *utm;
-	struct c2_lnet_dev_buf_event_wait_params bewp;
+	struct m0_lnet_dev_buf_event_wait_params bewp;
 	int rc;
 
-	C2_PRE(cd != NULL);
+	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud));
+	M0_PRE(nlx_ucore_domain_invariant(ud));
 
-	C2_PRE(nlx_core_tm_invariant(ctm));
-	C2_PRE(ctm->ctm_kpvt != NULL);
+	M0_PRE(nlx_core_tm_invariant(ctm));
+	M0_PRE(ctm->ctm_kpvt != NULL);
 	utm = ctm->ctm_upvt;
-	C2_PRE(nlx_ucore_tm_invariant(utm));
+	M0_PRE(nlx_ucore_tm_invariant(utm));
 
 	bewp.dbw_ktm = ctm->ctm_kpvt;
 	bewp.dbw_timeout = timeout;
-	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_BUF_EVENT_WAIT, &bewp);
+	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_BUF_EVENT_WAIT, &bewp);
 	if (rc < 0) {
 		if (rc != -ETIMEDOUT) /* valid return value */
 			LNET_ADDB_FUNCFAIL_ADD(utm->utm_addb, rc);
@@ -990,22 +990,22 @@ int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
 	return 0;
 }
 
-C2_INTERNAL int nlx_core_nidstr_decode(struct nlx_core_domain *cd,
+M0_INTERNAL int nlx_core_nidstr_decode(struct nlx_core_domain *cd,
 				       const char *nidstr, uint64_t * nid)
 {
-	struct c2_lnet_dev_nid_encdec_params dnep;
+	struct m0_lnet_dev_nid_encdec_params dnep;
 	struct nlx_ucore_domain *ud;
 	int rc;
 
-	C2_PRE(cd != NULL);
+	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud));
+	M0_PRE(nlx_ucore_domain_invariant(ud));
 
 	strncpy(dnep.dn_buf, nidstr, ARRAY_SIZE(dnep.dn_buf) - 1);
 	dnep.dn_buf[ARRAY_SIZE(dnep.dn_buf) - 1] = '\0';
 	dnep.dn_nid = 0;
 
-	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_NIDSTR_DECODE, &dnep);
+	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_NIDSTR_DECODE, &dnep);
 	if (rc < 0) {
 		LNET_ADDB_FUNCFAIL_ADD(ud->ud_addb, rc);
 		return rc;
@@ -1015,30 +1015,30 @@ C2_INTERNAL int nlx_core_nidstr_decode(struct nlx_core_domain *cd,
 	return 0;
 }
 
-C2_INTERNAL int nlx_core_nidstr_encode(struct nlx_core_domain *cd,
+M0_INTERNAL int nlx_core_nidstr_encode(struct nlx_core_domain *cd,
 				       uint64_t nid,
-				       char nidstr[C2_NET_LNET_NIDSTR_SIZE])
+				       char nidstr[M0_NET_LNET_NIDSTR_SIZE])
 {
-	struct c2_lnet_dev_nid_encdec_params dnep;
+	struct m0_lnet_dev_nid_encdec_params dnep;
 	struct nlx_ucore_domain *ud;
 	int rc;
 
-	C2_PRE(cd != NULL);
+	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud));
+	M0_PRE(nlx_ucore_domain_invariant(ud));
 
 	dnep.dn_nid = nid;
-	C2_SET_ARR0(dnep.dn_buf);
+	M0_SET_ARR0(dnep.dn_buf);
 
-	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_NIDSTR_ENCODE, &dnep);
+	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_NIDSTR_ENCODE, &dnep);
 	if (rc < 0) {
 		LNET_ADDB_FUNCFAIL_ADD(ud->ud_addb, rc);
 		return rc;
 	}
-	C2_POST(dnep.dn_buf[0] != '\0');
+	M0_POST(dnep.dn_buf[0] != '\0');
 
-	strncpy(nidstr, dnep.dn_buf, C2_NET_LNET_NIDSTR_SIZE - 1);
-	nidstr[C2_NET_LNET_NIDSTR_SIZE - 1] = '\0';
+	strncpy(nidstr, dnep.dn_buf, M0_NET_LNET_NIDSTR_SIZE - 1);
+	nidstr[M0_NET_LNET_NIDSTR_SIZE - 1] = '\0';
 	return 0;
 }
 
@@ -1046,32 +1046,32 @@ C2_INTERNAL int nlx_core_nidstr_encode(struct nlx_core_domain *cd,
    This call is not protected by any mutex. It relies on the
    application to not invoke it during domain finalization.
  */
-C2_INTERNAL int nlx_core_nidstrs_get(struct nlx_core_domain *cd,
+M0_INTERNAL int nlx_core_nidstrs_get(struct nlx_core_domain *cd,
 				     char *const **nidary)
 {
 	struct nlx_ucore_domain *ud;
 
-	C2_PRE(cd != NULL);
+	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud));
+	M0_PRE(nlx_ucore_domain_invariant(ud));
 
-	c2_atomic64_inc(&ud->ud_nidstrs_refcount);
+	m0_atomic64_inc(&ud->ud_nidstrs_refcount);
 	*nidary = ud->ud_nidstrs;
 	return 0;
 }
 
-C2_INTERNAL void nlx_core_nidstrs_put(struct nlx_core_domain *cd,
+M0_INTERNAL void nlx_core_nidstrs_put(struct nlx_core_domain *cd,
 				      char *const **nidary)
 {
 	struct nlx_ucore_domain *ud;
 
-	C2_PRE(cd != NULL);
+	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud));
+	M0_PRE(nlx_ucore_domain_invariant(ud));
 
-	C2_ASSERT(ud->ud_nidstrs == *nidary);
-	C2_ASSERT(c2_atomic64_get(&ud->ud_nidstrs_refcount) > 0);
-	c2_atomic64_dec(&ud->ud_nidstrs_refcount);
+	M0_ASSERT(ud->ud_nidstrs == *nidary);
+	M0_ASSERT(m0_atomic64_get(&ud->ud_nidstrs_refcount) > 0);
+	m0_atomic64_dec(&ud->ud_nidstrs_refcount);
 	*nidary = NULL;
 	return;
 }
@@ -1083,127 +1083,127 @@ static void nlx_ucore_tm_stop(struct nlx_core_domain *cd,
 			      struct nlx_core_transfer_mc *ctm)
 {
 	struct nlx_ucore_domain *ud;
-	struct c2_lnet_dev_tm_stop_params tpp;
+	struct m0_lnet_dev_tm_stop_params tpp;
 	int rc;
 
-	C2_PRE(cd != NULL);
+	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud));
-	C2_PRE(nlx_core_tm_invariant(ctm));
-	C2_PRE(ctm->ctm_kpvt != NULL);
+	M0_PRE(nlx_ucore_domain_invariant(ud));
+	M0_PRE(nlx_core_tm_invariant(ctm));
+	M0_PRE(ctm->ctm_kpvt != NULL);
 	tpp.dts_ktm = ctm->ctm_kpvt;
 
-	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_TM_STOP, &tpp);
-	C2_ASSERT(rc == 0);
+	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_TM_STOP, &tpp);
+	M0_ASSERT(rc == 0);
 	return;
 }
 
-C2_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
-				  struct c2_net_transfer_mc *tm,
+M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
+				  struct m0_net_transfer_mc *tm,
 				  struct nlx_core_transfer_mc *ctm)
 {
 	struct nlx_ucore_domain *ud;
 	struct nlx_ucore_transfer_mc *utm;
 	struct nlx_core_buffer_event *e1 = NULL;
 	struct nlx_core_buffer_event *e2 = NULL;
-	struct c2_lnet_dev_tm_start_params tsp = {
+	struct m0_lnet_dev_tm_start_params tsp = {
 		.dts_ctm = ctm,
 	};
 	int rc;
 
-	C2_PRE(tm != NULL);
-	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
-	C2_PRE(nlx_tm_invariant(tm));
+	M0_PRE(tm != NULL);
+	M0_PRE(m0_mutex_is_locked(&tm->ntm_mutex));
+	M0_PRE(nlx_tm_invariant(tm));
 
-	C2_PRE(cd != NULL);
+	M0_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud));
+	M0_PRE(nlx_ucore_domain_invariant(ud));
 
-	C2_PRE(ctm != NULL);
-	C2_PRE(ctm->ctm_kpvt == NULL);
-	C2_PRE(ctm->ctm_magic == 0);
+	M0_PRE(ctm != NULL);
+	M0_PRE(ctm->ctm_kpvt == NULL);
+	M0_PRE(ctm->ctm_magic == 0);
 
-	C2_ALLOC_PTR_ADDB(utm, &ud->ud_addb, &nlx_addb_loc);
+	M0_ALLOC_PTR_ADDB(utm, &ud->ud_addb, &nlx_addb_loc);
 	if (utm == NULL) {
 		rc = -ENOMEM;
 		goto fail_utm;
 	}
-	c2_addb_ctx_init(&utm->utm_addb, &nlx_core_tm_addb_ctx, &ud->ud_addb);
-	utm->utm_magic = C2_NET_LNET_UCORE_TM_MAGIC;
-	C2_POST(nlx_ucore_tm_invariant(utm));
+	m0_addb_ctx_init(&utm->utm_addb, &nlx_core_tm_addb_ctx, &ud->ud_addb);
+	utm->utm_magic = M0_NET_LNET_UCORE_TM_MAGIC;
+	M0_POST(nlx_ucore_tm_invariant(utm));
 	ctm->ctm_upvt = utm;
 
-	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_TM_START, &tsp);
+	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_TM_START, &tsp);
 	if (rc < 0)
 		goto fail_start;
-	C2_ASSERT(ctm->ctm_kpvt != NULL);
-	C2_ASSERT(ctm->ctm_upvt == utm);
+	M0_ASSERT(ctm->ctm_kpvt != NULL);
+	M0_ASSERT(ctm->ctm_upvt == utm);
 
 	rc = nlx_core_new_blessed_bev(cd, ctm, &e1);
 	if (rc == 0)
 		rc = nlx_core_new_blessed_bev(cd, ctm, &e2);
 	if (rc != 0)
 		goto fail_blessed_bev;
-	C2_ASSERT(e1 != NULL && e2 != NULL);
+	M0_ASSERT(e1 != NULL && e2 != NULL);
 	bev_cqueue_init(&ctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
-	C2_ASSERT(bev_cqueue_is_empty(&ctm->ctm_bevq));
+	M0_ASSERT(bev_cqueue_is_empty(&ctm->ctm_bevq));
 
-	C2_POST(nlx_ucore_tm_invariant(utm));
-	C2_POST(ctm->ctm_kpvt != NULL);
-	C2_POST(ctm->ctm_upvt == utm);
-	C2_POST(nlx_core_tm_invariant(ctm));
+	M0_POST(nlx_ucore_tm_invariant(utm));
+	M0_POST(ctm->ctm_kpvt != NULL);
+	M0_POST(ctm->ctm_upvt == utm);
+	M0_POST(nlx_core_tm_invariant(ctm));
 	return 0;
 
  fail_blessed_bev:
-	C2_ASSERT(e2 == NULL);
+	M0_ASSERT(e2 == NULL);
 	if (e1 != NULL)
 		nlx_core_bev_free_cb(&e1->cbe_tm_link);
 	nlx_ucore_tm_stop(cd, ctm);
  fail_start:
 	ctm->ctm_upvt = NULL;
-	c2_addb_ctx_fini(&utm->utm_addb);
+	m0_addb_ctx_fini(&utm->utm_addb);
 	utm->utm_magic = 0;
-	c2_free(utm);
+	m0_free(utm);
  fail_utm:
 	LNET_ADDB_FUNCFAIL_ADD(ud->ud_addb, rc);
 	return rc;
 }
 
-C2_INTERNAL void nlx_core_tm_stop(struct nlx_core_domain *cd,
+M0_INTERNAL void nlx_core_tm_stop(struct nlx_core_domain *cd,
 				  struct nlx_core_transfer_mc *ctm)
 {
 	struct nlx_ucore_transfer_mc *utm;
 
 	utm = ctm->ctm_upvt;
-	C2_PRE(nlx_ucore_tm_invariant(utm));
+	M0_PRE(nlx_ucore_tm_invariant(utm));
 
 	nlx_ucore_tm_stop(cd, ctm); /* other invariants checked */
 	bev_cqueue_fini(&ctm->ctm_bevq, nlx_core_bev_free_cb);
-	c2_addb_ctx_fini(&utm->utm_addb);
+	m0_addb_ctx_fini(&utm->utm_addb);
 
 	ctm->ctm_upvt = NULL;
 	utm->utm_magic = 0;
-	c2_free(utm);
+	m0_free(utm);
 	return;
 }
 
-C2_INTERNAL int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
+M0_INTERNAL int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
 					 struct nlx_core_transfer_mc *ctm,
 					 struct nlx_core_buffer_event **bevp)
 {
 	struct nlx_core_buffer_event *bev;
-	struct c2_lnet_dev_bev_bless_params bp;
+	struct m0_lnet_dev_bev_bless_params bp;
 	struct nlx_ucore_domain *ud;
 	struct nlx_ucore_transfer_mc *utm;
 	int rc;
 
-	C2_PRE(cd != NULL);
-	C2_PRE(nlx_core_tm_invariant(ctm));
-	C2_PRE(ctm->ctm_kpvt != NULL);
+	M0_PRE(cd != NULL);
+	M0_PRE(nlx_core_tm_invariant(ctm));
+	M0_PRE(ctm->ctm_kpvt != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud));
+	M0_PRE(nlx_ucore_domain_invariant(ud));
 	utm = ctm->ctm_upvt;
-	C2_PRE(nlx_ucore_tm_invariant(utm));
+	M0_PRE(nlx_ucore_tm_invariant(utm));
 
 	NLX_ALLOC_PTR_ADDB(bev, &utm->utm_addb, &nlx_addb_loc);
 	if (bev == NULL) {
@@ -1213,13 +1213,13 @@ C2_INTERNAL int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
 
 	bp.dbb_ktm = ctm->ctm_kpvt;
 	bp.dbb_bev = bev;
-	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_BEV_BLESS, &bp);
+	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_BEV_BLESS, &bp);
 	if (rc < 0) {
 		NLX_FREE_PTR(bev);
 		LNET_ADDB_FUNCFAIL_ADD(utm->utm_addb, rc);
 		return rc;
 	}
-	C2_ASSERT(bev->cbe_kpvt != NULL);
+	M0_ASSERT(bev->cbe_kpvt != NULL);
 
 	*bevp = bev;
 	return 0;

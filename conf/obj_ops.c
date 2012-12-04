@@ -18,15 +18,18 @@
  * Original creation date: 09-Feb-2012
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
+
 #include "conf/obj_ops.h"
 #include "conf/onwire.h"    /* confx_object */
-#include "conf/confc.h"     /* c2_confc */
-#include "conf/buf_ext.h"   /* c2_buf_is_aimed */
+#include "conf/confc.h"     /* m0_confc */
+#include "conf/buf_ext.h"   /* m0_buf_is_aimed */
 #include "lib/cdefs.h"      /* IS_IN_ARRAY */
-#include "lib/misc.h"       /* C2_IN */
-#include "lib/arith.h"      /* C2_CNT_INC, C2_CNT_DEC */
+#include "lib/misc.h"       /* M0_IN */
+#include "lib/arith.h"      /* M0_CNT_INC, M0_CNT_DEC */
 #include "lib/errno.h"      /* ENOMEM */
-#include "colibri/magic.h"  /* C2_CONF_OBJ_MAGIC */
+#include "mero/magic.h"  /* M0_CONF_OBJ_MAGIC */
 
 /**
  * @defgroup conf_dlspec_objops Configuration Object Operations
@@ -37,63 +40,70 @@
  */
 
 static bool _generic_obj_invariant(const void *bob);
+static bool _concrete_obj_invariant(const struct m0_conf_obj *obj);
 
-static const struct c2_bob_type generic_obj_bob = {
-	.bt_name         = "c2_conf_obj",
-	.bt_magix_offset = C2_MAGIX_OFFSET(struct c2_conf_obj, co_gen_magic),
-	.bt_magix        = C2_CONF_OBJ_MAGIC,
+static const struct m0_bob_type generic_obj_bob = {
+	.bt_name         = "m0_conf_obj",
+	.bt_magix_offset = M0_MAGIX_OFFSET(struct m0_conf_obj, co_gen_magic),
+	.bt_magix        = M0_CONF_OBJ_MAGIC,
 	.bt_check        = _generic_obj_invariant
 };
-C2_BOB_DEFINE(static, &generic_obj_bob, c2_conf_obj);
+M0_BOB_DEFINE(static, &generic_obj_bob, m0_conf_obj);
 
-C2_INTERNAL bool c2_conf_obj_invariant(const struct c2_conf_obj *obj)
+M0_INTERNAL bool m0_conf_obj_invariant(const struct m0_conf_obj *obj)
 {
-	return c2_conf_obj_bob_check(obj) && obj->co_ops->coo_invariant(obj);
-}
-
-static bool __obj_is_stub(const struct c2_conf_obj *obj)
-{
-	return obj->co_status != C2_CS_READY;
+	return m0_conf_obj_bob_check(obj) && _concrete_obj_invariant(obj);
 }
 
 static bool _generic_obj_invariant(const void *bob)
 {
-	const struct c2_conf_obj *obj = bob;
+	const struct m0_conf_obj *obj = bob;
 
-	return 0 <= obj->co_type && obj->co_type < C2_CO_NR &&
-		c2_buf_is_aimed(&obj->co_id) && obj->co_ops != NULL &&
-		C2_IN(obj->co_status,
-		      (C2_CS_MISSING, C2_CS_LOADING, C2_CS_READY)) &&
-		ergo(__obj_is_stub(obj), obj->co_nrefs == 0);
+	return 0 <= obj->co_type && obj->co_type < M0_CO_NR &&
+		m0_buf_is_aimed(&obj->co_id) && obj->co_ops != NULL &&
+		M0_IN(obj->co_status,
+		      (M0_CS_MISSING, M0_CS_LOADING, M0_CS_READY)) &&
+		ergo(m0_conf_obj_is_stub(obj), obj->co_nrefs == 0);
 }
 
-C2_INTERNAL struct c2_conf_obj *c2_conf__dir_create(void);
-C2_INTERNAL struct c2_conf_obj *c2_conf__profile_create(void);
-C2_INTERNAL struct c2_conf_obj *c2_conf__filesystem_create(void);
-C2_INTERNAL struct c2_conf_obj *c2_conf__service_create(void);
-C2_INTERNAL struct c2_conf_obj *c2_conf__node_create(void);
-C2_INTERNAL struct c2_conf_obj *c2_conf__nic_create(void);
-C2_INTERNAL struct c2_conf_obj *c2_conf__sdev_create(void);
-C2_INTERNAL struct c2_conf_obj *c2_conf__partition_create(void);
+static bool _concrete_obj_invariant(const struct m0_conf_obj *obj)
+{
+	bool ret = obj->co_ops->coo_invariant(obj);
+	if (unlikely(!ret))
+		M0_LOG(M0_ERROR, "Configuration object invariant doesn't hold: "
+		       "type=%d, id={%lu, \"%s\"}", obj->co_type,
+		       (unsigned long)obj->co_id.b_nob,
+		       (const char *)obj->co_id.b_addr);
+	return ret;
+}
 
-static struct c2_conf_obj *(*concrete_ctors[C2_CO_NR])(void) = {
-	[C2_CO_DIR]        = c2_conf__dir_create,
-	[C2_CO_PROFILE]    = c2_conf__profile_create,
-	[C2_CO_FILESYSTEM] = c2_conf__filesystem_create,
-	[C2_CO_SERVICE]    = c2_conf__service_create,
-	[C2_CO_NODE]       = c2_conf__node_create,
-	[C2_CO_NIC]        = c2_conf__nic_create,
-	[C2_CO_SDEV]       = c2_conf__sdev_create,
-	[C2_CO_PARTITION]  = c2_conf__partition_create
+M0_INTERNAL struct m0_conf_obj *m0_conf__dir_create(void);
+M0_INTERNAL struct m0_conf_obj *m0_conf__profile_create(void);
+M0_INTERNAL struct m0_conf_obj *m0_conf__filesystem_create(void);
+M0_INTERNAL struct m0_conf_obj *m0_conf__service_create(void);
+M0_INTERNAL struct m0_conf_obj *m0_conf__node_create(void);
+M0_INTERNAL struct m0_conf_obj *m0_conf__nic_create(void);
+M0_INTERNAL struct m0_conf_obj *m0_conf__sdev_create(void);
+M0_INTERNAL struct m0_conf_obj *m0_conf__partition_create(void);
+
+static struct m0_conf_obj *(*concrete_ctors[M0_CO_NR])(void) = {
+	[M0_CO_DIR]        = m0_conf__dir_create,
+	[M0_CO_PROFILE]    = m0_conf__profile_create,
+	[M0_CO_FILESYSTEM] = m0_conf__filesystem_create,
+	[M0_CO_SERVICE]    = m0_conf__service_create,
+	[M0_CO_NODE]       = m0_conf__node_create,
+	[M0_CO_NIC]        = m0_conf__nic_create,
+	[M0_CO_SDEV]       = m0_conf__sdev_create,
+	[M0_CO_PARTITION]  = m0_conf__partition_create
 };
 
-C2_INTERNAL struct c2_conf_obj *c2_conf_obj_create(enum c2_conf_objtype type,
-						   const struct c2_buf *id)
+M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(enum m0_conf_objtype type,
+						   const struct m0_buf *id)
 {
-	struct c2_conf_obj *obj;
+	struct m0_conf_obj *obj;
 	int                 rc;
 
-	C2_PRE(IS_IN_ARRAY(type, concrete_ctors));
+	M0_PRE(IS_IN_ARRAY(type, concrete_ctors));
 
 	/* Allocate concrete object; initialise concrete fields. */
 	obj = concrete_ctors[type]();
@@ -101,127 +111,130 @@ C2_INTERNAL struct c2_conf_obj *c2_conf_obj_create(enum c2_conf_objtype type,
 		return NULL;
 
 	/* Initialise generic fields. */
-	rc = c2_buf_copy(&obj->co_id, id);
+	rc = m0_buf_copy(&obj->co_id, id);
 	if (rc != 0) {
 		obj->co_ops->coo_delete(obj);
 		return NULL;
 	}
 	obj->co_type = type;
-	obj->co_status = C2_CS_MISSING;
-	c2_chan_init(&obj->co_chan);
-	c2_conf_reg_tlink_init(obj);
-	c2_conf_dir_tlink_init(obj);
-	c2_conf_obj_bob_init(obj);
-	C2_ASSERT(obj->co_gen_magic == C2_CONF_OBJ_MAGIC);
-	C2_ASSERT(obj->co_con_magic != 0);
-	C2_ASSERT(!obj->co_mounted);
+	obj->co_status = M0_CS_MISSING;
+	m0_chan_init(&obj->co_chan);
+	m0_conf_reg_tlink_init(obj);
+	m0_conf_dir_tlink_init(obj);
+	m0_conf_obj_bob_init(obj);
+	M0_ASSERT(obj->co_gen_magic == M0_CONF_OBJ_MAGIC);
+	M0_ASSERT(obj->co_con_magic != 0);
+	M0_ASSERT(!obj->co_mounted);
 
-	C2_POST(c2_conf_obj_invariant(obj));
+	M0_POST(m0_conf_obj_invariant(obj));
 	return obj;
 }
 
-static int _stub_create(struct c2_conf_reg *reg, enum c2_conf_objtype type,
-			const struct c2_buf *id, struct c2_conf_obj **out)
+static int _stub_create(struct m0_conf_reg *reg, enum m0_conf_objtype type,
+			const struct m0_buf *id, struct m0_conf_obj **out)
 {
 	int rc;
 
-	*out = c2_conf_obj_create(type, id);
-	if (*out == NULL)
-		return -ENOMEM;
+	M0_ENTRY();
 
-	rc = c2_conf_reg_add(reg, *out);
+	*out = m0_conf_obj_create(type, id);
+	if (*out == NULL)
+		M0_RETURN(-ENOMEM);
+
+	rc = m0_conf_reg_add(reg, *out);
 	if (rc != 0) {
-		c2_conf_obj_delete(*out);
+		m0_conf_obj_delete(*out);
 		*out = NULL;
 	}
-	return rc;
+	M0_RETURN(rc);
 }
 
-C2_INTERNAL int c2_conf_obj_find(struct c2_conf_reg *reg,
-				 enum c2_conf_objtype type,
-				 const struct c2_buf *id,
-				 struct c2_conf_obj **out)
+M0_INTERNAL int m0_conf_obj_find(struct m0_conf_reg *reg,
+				 enum m0_conf_objtype type,
+				 const struct m0_buf *id,
+				 struct m0_conf_obj **out)
 {
-	*out = c2_conf_reg_lookup(reg, type, id);
-	return *out == NULL ? _stub_create(reg, type, id, out) : 0;
+	M0_ENTRY();
+	*out = m0_conf_reg_lookup(reg, type, id);
+	M0_RETURN(*out == NULL ? _stub_create(reg, type, id, out) : 0);
 }
 
-static bool confc_is_unset_or_locked(const struct c2_conf_obj *obj)
+static bool confc_is_unset_or_locked(const struct m0_conf_obj *obj)
 {
 	return obj->co_confc == NULL ||
-		c2_mutex_is_locked(&obj->co_confc->cc_lock);
+		m0_mutex_is_locked(&obj->co_confc->cc_lock);
 }
 
-C2_INTERNAL void c2_conf_obj_delete(struct c2_conf_obj *obj)
+M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
 {
-	C2_PRE(c2_conf_obj_invariant(obj));
-	C2_PRE(obj->co_nrefs == 0 && obj->co_status != C2_CS_LOADING);
-	C2_PRE(!obj->co_mounted || confc_is_unset_or_locked(obj));
+	M0_PRE(m0_conf_obj_invariant(obj));
+	M0_PRE(obj->co_nrefs == 0 && obj->co_status != M0_CS_LOADING);
+	M0_PRE(!obj->co_mounted || confc_is_unset_or_locked(obj));
 
 	/* Finalise generic fields. */
-	c2_conf_obj_bob_fini(obj);
-	c2_conf_dir_tlink_fini(obj);
-	c2_conf_reg_tlink_fini(obj);
-	c2_chan_fini(&obj->co_chan);
-	c2_buf_free(&obj->co_id);
+	m0_conf_obj_bob_fini(obj);
+	m0_conf_dir_tlink_fini(obj);
+	m0_conf_reg_tlink_fini(obj);
+	m0_chan_fini(&obj->co_chan);
+	m0_buf_free(&obj->co_id);
 
 	/* Finalise concrete fields; free the object. */
 	obj->co_ops->coo_delete(obj);
 }
 
-C2_INTERNAL void c2_conf_obj_get(struct c2_conf_obj *obj)
+M0_INTERNAL void m0_conf_obj_get(struct m0_conf_obj *obj)
 {
-	C2_PRE(c2_conf_obj_invariant(obj));
-	C2_PRE(obj->co_status == C2_CS_READY);
-	C2_PRE(confc_is_unset_or_locked(obj));
+	M0_PRE(m0_conf_obj_invariant(obj));
+	M0_PRE(obj->co_status == M0_CS_READY);
+	M0_PRE(confc_is_unset_or_locked(obj));
 
-	C2_CNT_INC(obj->co_nrefs);
+	M0_CNT_INC(obj->co_nrefs);
 }
 
-C2_INTERNAL void c2_conf_obj_put(struct c2_conf_obj *obj)
+M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj)
 {
-	C2_PRE(c2_conf_obj_invariant(obj));
-	C2_PRE(obj->co_status == C2_CS_READY);
-	C2_PRE(confc_is_unset_or_locked(obj));
+	M0_PRE(m0_conf_obj_invariant(obj));
+	M0_PRE(obj->co_status == M0_CS_READY);
+	M0_PRE(confc_is_unset_or_locked(obj));
 
-	C2_CNT_DEC(obj->co_nrefs);
+	M0_CNT_DEC(obj->co_nrefs);
 	if (obj->co_nrefs == 0)
-		c2_chan_broadcast(&obj->co_chan);
+		m0_chan_broadcast(&obj->co_chan);
 }
 
 static bool confx_object_is_valid(const struct confx_object *src);
 
-C2_INTERNAL int c2_conf_obj_fill(struct c2_conf_obj *dest,
+M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
 				 const struct confx_object *src,
-				 struct c2_conf_reg *reg)
+				 struct m0_conf_reg *reg)
 {
 	int rc;
 
-	C2_PRE(c2_conf_obj_invariant(dest));
-	C2_PRE(confc_is_unset_or_locked(dest));
-	C2_PRE(__obj_is_stub(dest) && dest->co_nrefs == 0);
-	C2_PRE(dest->co_type == src->o_conf.u_type);
-	C2_PRE(c2_buf_eq(&dest->co_id, &src->o_id));
-	C2_PRE(confx_object_is_valid(src));
+	M0_PRE(m0_conf_obj_invariant(dest));
+	M0_PRE(confc_is_unset_or_locked(dest));
+	M0_PRE(m0_conf_obj_is_stub(dest) && dest->co_nrefs == 0);
+	M0_PRE(dest->co_type == src->o_conf.u_type);
+	M0_PRE(m0_buf_eq(&dest->co_id, &src->o_id));
+	M0_PRE(confx_object_is_valid(src));
 
 	rc = dest->co_ops->coo_fill(dest, src, reg);
-	dest->co_status = rc == 0 ? C2_CS_READY : C2_CS_MISSING;
+	dest->co_status = rc == 0 ? M0_CS_READY : M0_CS_MISSING;
 
-	C2_POST(ergo(rc == 0, dest->co_mounted));
-	C2_POST(confc_is_unset_or_locked(dest));
-	C2_POST(c2_conf_obj_invariant(dest));
+	M0_POST(ergo(rc == 0, dest->co_mounted));
+	M0_POST(confc_is_unset_or_locked(dest));
+	M0_POST(m0_conf_obj_invariant(dest));
 	return rc;
 }
 
-C2_INTERNAL bool c2_conf_obj_match(const struct c2_conf_obj *cached,
+M0_INTERNAL bool m0_conf_obj_match(const struct m0_conf_obj *cached,
 				   const struct confx_object *flat)
 {
-	C2_PRE(c2_conf_obj_invariant(cached));
-	C2_PRE(confx_object_is_valid(flat));
+	M0_PRE(m0_conf_obj_invariant(cached));
+	M0_PRE(confx_object_is_valid(flat));
 
 	return cached->co_type == flat->o_conf.u_type &&
-		c2_buf_eq(&cached->co_id, &flat->o_id) &&
-		(__obj_is_stub(cached) ||
+		m0_buf_eq(&cached->co_id, &flat->o_id) &&
+		(m0_conf_obj_is_stub(cached) ||
 		 cached->co_ops->coo_match(cached, flat));
 }
 
@@ -229,12 +242,14 @@ C2_INTERNAL bool c2_conf_obj_match(const struct c2_conf_obj *cached,
 static bool confx_object_is_valid(const struct confx_object *flat)
 {
 	/* XXX
-	 * - All of c2_buf-s contained in `flat' are c2_buf_is_aimed();
-	 * - all of arr_buf-s are populated with valid c2_buf-s;
+	 * - All of m0_buf-s contained in `flat' are m0_buf_is_aimed();
+	 * - all of arr_buf-s are populated with valid m0_buf-s;
 	 * - etc.
 	 */
 	(void) flat; /* XXX */
 	return true;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} conf_dlspec_objops */

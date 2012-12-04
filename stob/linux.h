@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_STOB_LINUX_H__
-#define __COLIBRI_STOB_LINUX_H__
+#ifndef __MERO_STOB_LINUX_H__
+#define __MERO_STOB_LINUX_H__
 
 /**
    @defgroup stoblinux Storage object based on Linux specific file system
@@ -31,22 +31,22 @@
    @{
  */
 
-extern struct c2_stob_type c2_linux_stob_type;
+extern struct m0_stob_type m0_linux_stob_type;
 
-C2_INTERNAL int c2_linux_stobs_init(void);
-C2_INTERNAL void c2_linux_stobs_fini(void);
+M0_INTERNAL int m0_linux_stobs_init(void);
+M0_INTERNAL void m0_linux_stobs_fini(void);
 
-struct c2_stob_domain;
+struct m0_stob_domain;
 
-C2_INTERNAL int c2_linux_stob_setup(struct c2_stob_domain *dom,
+M0_INTERNAL int m0_linux_stob_setup(struct m0_stob_domain *dom,
 				    bool use_directio);
-C2_INTERNAL int c2_linux_stob_link(struct c2_stob_domain *dom,
-				   struct c2_stob *obj, const char *path,
-				   struct c2_dtx *tx);
+M0_INTERNAL int m0_linux_stob_link(struct m0_stob_domain *dom,
+				   struct m0_stob *obj, const char *path,
+				   struct m0_dtx *tx);
 
 /** @} end group stoblinux */
 
-/* __COLIBRI_STOB_LINUX_H__ */
+/* __MERO_STOB_LINUX_H__ */
 #endif
 
 /*

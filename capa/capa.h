@@ -20,16 +20,16 @@
 
 #pragma once
 
-#ifndef __COLIBRI_CAPA_CAPA_H__
-#define __COLIBRI_CAPA_CAPA_H__
+#ifndef __MERO_CAPA_CAPA_H__
+#define __MERO_CAPA_CAPA_H__
 
 #include "lib/atomic.h"
 #include "net/net.h"
 
 /**
-   @defgroup capa Colibri Capability
+   @defgroup capa Mero Capability
 
-Colibri Capabilities are an implementation of Capability-based security as
+Mero Capabilities are an implementation of Capability-based security as
 described here:
 http://en.wikipedia.org/wiki/Capability-based_security
 
@@ -52,22 +52,22 @@ https://docs.google.com/a/xyratex.com/Doc?docid=0AYiCgZNYbBLAZGhrZ3p2emRfMmhyZm4
 /**
    Capability Protected Entity Type
 */
-enum c2_capa_entity_type {
-	C2_CAPA_ENTITY_OBJECT,
-	C2_CAPA_ENTITY_LOCKS,
-	C2_CAPA_ENTITY_LAYOUT,
+enum m0_capa_entity_type {
+	M0_CAPA_ENTITY_OBJECT,
+	M0_CAPA_ENTITY_LOCKS,
+	M0_CAPA_ENTITY_LAYOUT,
 };
 
 /**
    Capability Operations
 */
-enum c2_capa_operation {
-	C2_CAPA_OP_DATA_READ,
-	C2_CAPA_OP_DATA_WRITE,
+enum m0_capa_operation {
+	M0_CAPA_OP_DATA_READ,
+	M0_CAPA_OP_DATA_WRITE,
 };
 
 enum {
-	C2_CAPA_HMAC_MAX_LEN = 64
+	M0_CAPA_HMAC_MAX_LEN = 64
 };
 
 /**
@@ -75,54 +75,54 @@ enum {
    @todo Use proper capability issuer
 */
 
-struct c2_capa_issuer {
+struct m0_capa_issuer {
 
 };
 
-struct c2_capa_ctxt;
+struct m0_capa_ctxt;
 /**
-   Colibri Object Capability
+   Mero Object Capability
 */
-struct c2_object_capa {
+struct m0_object_capa {
 	/** the context in which this capability is issued. */
-	struct c2_capa_ctxt     *oc_ctxt;
+	struct m0_capa_ctxt     *oc_ctxt;
 	/** an authority who issues the capability */
-	struct c2_capa_issuer   *oc_owner;
-	enum c2_capa_entity_type oc_type;
-	enum c2_capa_operation   oc_opcode;
-	struct c2_atomic64       oc_ref;
+	struct m0_capa_issuer   *oc_owner;
+	enum m0_capa_entity_type oc_type;
+	enum m0_capa_operation   oc_opcode;
+	struct m0_atomic64       oc_ref;
 
 	/** an entity protectd by this capability. Data type depends on the
 	    type and operation.
 	*/
 	void 		        *oc_data;
-	char			 oc_opaque[C2_CAPA_HMAC_MAX_LEN];
+	char			 oc_opaque[M0_CAPA_HMAC_MAX_LEN];
 };
 
 /**
-   Colibri Capability Context
+   Mero Capability Context
 
    This is the context in which the capability credentials are issued,
    authorized, checked, etc.
 */
-struct c2_capa_ctxt {
+struct m0_capa_ctxt {
 	/** more fields go here */
 };
 
 /**
-   Init a Colibri Capability Context
+   Init a Mero Capability Context
 
    @param ctxt the execution context
    @return 0 means success. Otherwise failure.
 */
-C2_INTERNAL int c2_capa_ctxt_init(struct c2_capa_ctxt *ctxt);
+M0_INTERNAL int m0_capa_ctxt_init(struct m0_capa_ctxt *ctxt);
 
 /**
-   Fini a Colibri Capability Context
+   Fini a Mero Capability Context
 
    @param ctxt the execution context
 */
-C2_INTERNAL void c2_capa_ctxt_fini(struct c2_capa_ctxt *ctxt);
+M0_INTERNAL void m0_capa_ctxt_fini(struct m0_capa_ctxt *ctxt);
 
 /**
    New Capability for an object for specified operation
@@ -135,9 +135,9 @@ C2_INTERNAL void c2_capa_ctxt_fini(struct c2_capa_ctxt *ctxt);
 
    Reference count will be initialzed to zero.
 */
-C2_INTERNAL int c2_capa_new(struct c2_object_capa *capa,
-			    enum c2_capa_entity_type type,
-			    enum c2_capa_operation opcode, void *data);
+M0_INTERNAL int m0_capa_new(struct m0_object_capa *capa,
+			    enum m0_capa_entity_type type,
+			    enum m0_capa_operation opcode, void *data);
 
 /**
    Get Capability for an object for specified operation
@@ -147,12 +147,12 @@ C2_INTERNAL int c2_capa_new(struct c2_object_capa *capa,
    @param capa [in][out]result will be stored here.
    @return 0 means success. Otherwise failure.
 
-   @pre c2_capa_new() should be called successfully.
+   @pre m0_capa_new() should be called successfully.
    Reference count will be bumped.
 */
-C2_INTERNAL int c2_capa_get(struct c2_capa_ctxt *ctxt,
-			    struct c2_capa_issuer *owner,
-			    struct c2_object_capa *capa);
+M0_INTERNAL int m0_capa_get(struct m0_capa_ctxt *ctxt,
+			    struct m0_capa_issuer *owner,
+			    struct m0_object_capa *capa);
 
 /*
    Put Capability for an object
@@ -163,8 +163,8 @@ C2_INTERNAL int c2_capa_get(struct c2_capa_ctxt *ctxt,
    Reference count will be decreased. When reference count drops to zero,
    it will be finalized and can not be used any more.
 */
-C2_INTERNAL void c2_capa_put(struct c2_capa_ctxt *ctxt,
-			     struct c2_object_capa *capa);
+M0_INTERNAL void m0_capa_put(struct m0_capa_ctxt *ctxt,
+			     struct m0_object_capa *capa);
 
 
 /**
@@ -176,14 +176,14 @@ C2_INTERNAL void c2_capa_put(struct c2_capa_ctxt *ctxt,
    @return 0 means permission is granted. -EPERM means access denied, and
            others mean error.
 */
-C2_INTERNAL int c2_capa_auth(struct c2_capa_ctxt *ctxt,
-			     struct c2_object_capa *capa,
-			     enum c2_capa_operation op);
+M0_INTERNAL int m0_capa_auth(struct m0_capa_ctxt *ctxt,
+			     struct m0_object_capa *capa,
+			     enum m0_capa_operation op);
 
 
 /** @} end group capa */
 
-/* __COLIBRI_CAPA_CAPA_H__ */
+/* __MERO_CAPA_CAPA_H__ */
 #endif
 
 /*

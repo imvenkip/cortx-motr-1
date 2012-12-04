@@ -21,7 +21,7 @@
 #include "lib/types.h"
 #include "lib/cdefs.h"
 #include "lib/assert.h"
-#include "lib/arith.h"      /* C2_3WAY */
+#include "lib/arith.h"      /* M0_3WAY */
 #include "lib/misc.h"
 
 #ifndef __KERNEL__
@@ -33,29 +33,29 @@ void __dummy_function(void)
 }
 
 /* No padding. */
-C2_BASSERT(sizeof(struct c2_uint128) == 16);
+M0_BASSERT(sizeof(struct m0_uint128) == 16);
 
-C2_INTERNAL bool c2_uint128_eq(const struct c2_uint128 *u0,
-			       const struct c2_uint128 *u1)
+M0_INTERNAL bool m0_uint128_eq(const struct m0_uint128 *u0,
+			       const struct m0_uint128 *u1)
 {
-	return c2_uint128_cmp(u0, u1) == 0;
+	return m0_uint128_cmp(u0, u1) == 0;
 }
 
-C2_INTERNAL int c2_uint128_cmp(const struct c2_uint128 *u0,
-			       const struct c2_uint128 *u1)
+M0_INTERNAL int m0_uint128_cmp(const struct m0_uint128 *u0,
+			       const struct m0_uint128 *u1)
 {
-	return C2_3WAY(u0->u_hi, u1->u_hi) ?: C2_3WAY(u0->u_lo, u1->u_lo);
+	return M0_3WAY(u0->u_hi, u1->u_hi) ?: M0_3WAY(u0->u_lo, u1->u_lo);
 }
 
-C2_INTERNAL void c2_uint128_add(struct c2_uint128 *res,
-				const struct c2_uint128 a,
-				const struct c2_uint128 b)
+M0_INTERNAL void m0_uint128_add(struct m0_uint128 *res,
+				const struct m0_uint128 a,
+				const struct m0_uint128 b)
 {
 	res->u_lo = a.u_lo + b.u_lo;
 	res->u_hi = a.u_hi + b.u_hi + (res->u_lo < a.u_lo);
 }
 
-C2_INTERNAL void c2_uint128_mul64(struct c2_uint128 *res, uint64_t a,
+M0_INTERNAL void m0_uint128_mul64(struct m0_uint128 *res, uint64_t a,
 				  uint64_t b)
 {
 	uint64_t a_lo = a & UINT32_MAX;
@@ -64,7 +64,7 @@ C2_INTERNAL void c2_uint128_mul64(struct c2_uint128 *res, uint64_t a,
 	uint64_t b_hi = b >> 32;
 	uint64_t c;
 
-	C2_CASSERT((sizeof a) * CHAR_BIT == 64);
+	M0_CASSERT((sizeof a) * CHAR_BIT == 64);
 
 	/*
 	 * a * b = a_hi * b_hi * (1 << 64) +
@@ -72,15 +72,15 @@ C2_INTERNAL void c2_uint128_mul64(struct c2_uint128 *res, uint64_t a,
 	 *	   a_lo * b_hi * (1 << 32) +
 	 *	   a_hi * b_lo * (1 << 32)
 	 */
-	*res = C2_UINT128(a_hi * b_hi, a_lo * b_lo);
+	*res = M0_UINT128(a_hi * b_hi, a_lo * b_lo);
 	c = a_lo * b_hi;
-	c2_uint128_add(res, *res, C2_UINT128(c >> 32, (c & UINT32_MAX) << 32));
+	m0_uint128_add(res, *res, M0_UINT128(c >> 32, (c & UINT32_MAX) << 32));
 	c = a_hi * b_lo;
-	c2_uint128_add(res, *res, C2_UINT128(c >> 32, (c & UINT32_MAX) << 32));
+	m0_uint128_add(res, *res, M0_UINT128(c >> 32, (c & UINT32_MAX) << 32));
 }
 
 #if 0
-uint64_t c2_rnd(uint64_t max, uint64_t *prev)
+uint64_t m0_rnd(uint64_t max, uint64_t *prev)
 {
 	/*
 	 * Linear congruential generator with constants from TAOCP MMIX.
@@ -96,20 +96,20 @@ uint64_t c2_rnd(uint64_t max, uint64_t *prev)
 }
 #endif
 
-uint64_t c2_rnd(uint64_t max, uint64_t *prev)
+uint64_t m0_rnd(uint64_t max, uint64_t *prev)
 {
         uint64_t result;
         /* Uses the same algorithm as GNU libc */
         result = *prev = *prev * 0x5DEECE66DULL + 0xB;
 
 	/* PRNG generates 48-bit values only */
-	C2_ASSERT((max >> 48) == 0);
+	M0_ASSERT((max >> 48) == 0);
         /*Take value from higher 48 bits */
         return (result >> 16) * max / ((~0UL) >> 16);
 }
-C2_EXPORTED(c2_rnd);
+M0_EXPORTED(m0_rnd);
 
-C2_INTERNAL uint64_t c2_gcd64(uint64_t p, uint64_t q)
+M0_INTERNAL uint64_t m0_gcd64(uint64_t p, uint64_t q)
 {
 	uint64_t t;
 
@@ -121,7 +121,7 @@ C2_INTERNAL uint64_t c2_gcd64(uint64_t p, uint64_t q)
 	return p;
 }
 
-static uint64_t c2u64(const unsigned char *s)
+static uint64_t m0u64(const unsigned char *s)
 {
 	uint64_t v;
 	int      i;
@@ -131,15 +131,15 @@ static uint64_t c2u64(const unsigned char *s)
 	return v;
 }
 
-C2_INTERNAL void c2_uint128_init(struct c2_uint128 *u128, const char *magic)
+M0_INTERNAL void m0_uint128_init(struct m0_uint128 *u128, const char *magic)
 {
-	C2_ASSERT(strlen(magic) == sizeof *u128);
-	u128->u_hi = c2u64((const unsigned char *)magic);
-	u128->u_lo = c2u64((const unsigned char *)magic + 8);
+	M0_ASSERT(strlen(magic) == sizeof *u128);
+	u128->u_hi = m0u64((const unsigned char *)magic);
+	u128->u_lo = m0u64((const unsigned char *)magic + 8);
 }
 
 enum {
-	C2_MOD_SAFE_LIMIT = UINT64_MAX/32
+	M0_MOD_SAFE_LIMIT = UINT64_MAX/32
 };
 
 static int64_t getdelta(uint64_t x0, uint64_t x1)
@@ -147,29 +147,29 @@ static int64_t getdelta(uint64_t x0, uint64_t x1)
 	int64_t delta;
 
 	delta = (int64_t)x0 - (int64_t)x1;
-	C2_ASSERT(delta < C2_MOD_SAFE_LIMIT && -delta < C2_MOD_SAFE_LIMIT);
+	M0_ASSERT(delta < M0_MOD_SAFE_LIMIT && -delta < M0_MOD_SAFE_LIMIT);
 	return delta;
 }
 
-C2_INTERNAL bool c2_mod_gt(uint64_t x0, uint64_t x1)
+M0_INTERNAL bool m0_mod_gt(uint64_t x0, uint64_t x1)
 {
 	return getdelta(x0, x1) > 0;
 }
 
-C2_INTERNAL bool c2_mod_ge(uint64_t x0, uint64_t x1)
+M0_INTERNAL bool m0_mod_ge(uint64_t x0, uint64_t x1)
 {
 	return getdelta(x0, x1) >= 0;
 }
 
-C2_INTERNAL uint64_t c2_round_up(uint64_t val, uint64_t size)
+M0_INTERNAL uint64_t m0_round_up(uint64_t val, uint64_t size)
 {
-	C2_PRE(c2_is_po2(size));
+	M0_PRE(m0_is_po2(size));
 	return (val + size - 1) & ~(size - 1) ;
 }
 
-C2_INTERNAL uint64_t c2_round_down(uint64_t val, uint64_t size)
+M0_INTERNAL uint64_t m0_round_down(uint64_t val, uint64_t size)
 {
-	C2_PRE(c2_is_po2(size));
+	M0_PRE(m0_is_po2(size));
 	return val & ~(size - 1);
 }
 
@@ -177,22 +177,22 @@ C2_INTERNAL uint64_t c2_round_down(uint64_t val, uint64_t size)
  * Check that ergo() and equi() macros are really what they pretend to be.
  */
 
-C2_BASSERT(ergo(false, false) == true);
-C2_BASSERT(ergo(false, true)  == true);
-C2_BASSERT(ergo(true,  false) == false);
-C2_BASSERT(ergo(true,  true)  == true);
+M0_BASSERT(ergo(false, false) == true);
+M0_BASSERT(ergo(false, true)  == true);
+M0_BASSERT(ergo(true,  false) == false);
+M0_BASSERT(ergo(true,  true)  == true);
 
-C2_BASSERT(equi(false, false) == true);
-C2_BASSERT(equi(false, true)  == false);
-C2_BASSERT(equi(true,  false) == false);
-C2_BASSERT(equi(true,  true)  == true);
+M0_BASSERT(equi(false, false) == true);
+M0_BASSERT(equi(false, true)  == false);
+M0_BASSERT(equi(true,  false) == false);
+M0_BASSERT(equi(true,  true)  == true);
 
-C2_INTERNAL const char *c2_bool_to_str(bool b)
+M0_INTERNAL const char *m0_bool_to_str(bool b)
 {
 	return b ? "true" : "false";
 }
 
-C2_INTERNAL const char *c2_short_file_name(const char *fname)
+M0_INTERNAL const char *m0_short_file_name(const char *fname)
 {
 	static const char  bkm[]  = "core/build_kernel_modules/";
 	static const char  core[] = "core/";

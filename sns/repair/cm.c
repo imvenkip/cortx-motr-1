@@ -22,7 +22,7 @@
 #include "config.h"
 #endif
 
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_SNSREPAIR
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSREPAIR
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -30,7 +30,7 @@
 #include "lib/misc.h"
 #include "lib/finject.h"
 
-#include "colibri/colibri_setup.h"
+#include "mero/mero_setup.h"
 #include "net/net.h"
 #include "reqh/reqh.h"
 #include "cm/ag.h"
@@ -61,7 +61,7 @@
   @section SNSRepairCMDLD-ovw Overview
   This module implements sns repair copy machine using generic copy machine
   infrastructure. SNS repair copy machine is built upon the request handler
-  service. SNS Repair copy machine is typically started during Colibri process
+  service. SNS Repair copy machine is typically started during Mero process
   startup, although it can also be started later.
 
   <hr>
@@ -127,30 +127,30 @@
   @see @ref SNSRepairSVC "SNS Repair service" for details.
   Once the copy machine is initialised, as part of copy machine setup, SNS
   Repair copy machine specific resources are initialised, viz. incoming and
-  outgoing buffer pools (c2_sns_repair_cm::rc_ibp and ::rc_obp).
+  outgoing buffer pools (m0_sns_repair_cm::rc_ibp and ::rc_obp).
   Both the buffer pools are initialised with colours equal to total number of
   localities in the request handler.
   After cm_setup() is successfully called, the copy machine transitions to
-  C2_CMS_IDLE state and waits until failure happens. As mentioned in the HLD,
+  M0_CMS_IDLE state and waits until failure happens. As mentioned in the HLD,
   failure information is a broadcast to all the replicas in the cluster using
   TRIGGER FOP. The FOM corresponding to the TRIGGER FOP activates the SNS Repair
-  copy machine by invoking c2_cm_start(), this invokes SNS Repair specific start
+  copy machine by invoking m0_cm_start(), this invokes SNS Repair specific start
   routine which initialises specific data structures.
 
   @subsection SNSRepairCMDLD-lspec-cm-start Copy machine startup
   The SNS Repair specific start routine provisions the buffer pools,
-  viz. c2_sns_repair_cm::rc_ibp c2_sns_repair_cm::rc_obp with
+  viz. m0_sns_repair_cm::rc_ibp m0_sns_repair_cm::rc_obp with
   SNS_INCOMING_BUF_NR and SNS_OUTGOING_BUF_NR number of buffers.
   @note Buffer provisioning operation can block.
 
   @subsubsection SNSRepairCMDLD-lspec-cm-start-cp-create Copy packet create
   Once the buffer pools are provisioned, if resources permit (e.g. if there
   exist a free buffer in the outgoing SNS Repair buffer pool), Copy machine
-  creates and initialises copy packets. Then by invoking c2_cm_data_next(),
+  creates and initialises copy packets. Then by invoking m0_cm_data_next(),
   a copy packet is assigned an aggregation group and stobid. Once the copy
   packet is ready, an empty buffer is fetched from the outgoing buffer pool
-  and attached to the copy packet (c2_cm_cp::c_data). Copy packet FOM
-  (c2_cm_cp::c_fom) is then submitted to the request handler for further
+  and attached to the copy packet (m0_cm_cp::c_data). Copy packet FOM
+  (m0_cm_cp::c_fom) is then submitted to the request handler for further
   processing. Copy packets are created during startup and during finalisation
   of another completed copy packet.
 
@@ -158,7 +158,7 @@
 
   @subsection SNSRepairCMDLD-lspec-cm-data-next Copy machine data iterator
   SNS Repair implements an iterator to efficiently select next data to process.
-  This is done by implementing the copy machine specific operation, c2_cm_ops::
+  This is done by implementing the copy machine specific operation, m0_cm_ops::
   cmo_data_next(). The following pseudo code illustrates the SNS Repair data
   iterator.
 
@@ -193,11 +193,11 @@
   handler threads.
 
   SNS Repair copy machine uses generic copy machine infrastructure, which
-  implements copy machine state machine using generic Colibri state machine
+  implements copy machine state machine using generic Mero state machine
   infrastructure. @ref State machine <!-- sm/sm.h -->
 
   Locking
-  All the updates to members of copy machine are done with c2_cm_lock() held.
+  All the updates to members of copy machine are done with m0_cm_lock() held.
 
   @subsection SNSRepairCMDLD-lspec-numa NUMA optimizations
   N/A
@@ -276,89 +276,89 @@ enum {
 	SNS_SEG_NR = 1,
 	SNS_SEG_SIZE = 4096,
 	/*
-	 * Minimum number of buffers to provision c2_sns_repair_cm::rc_ibp
-	 * and c2_sns_repair_cm::rc_obp buffer pools.
+	 * Minimum number of buffers to provision m0_sns_repair_cm::rc_ibp
+	 * and m0_sns_repair_cm::rc_obp buffer pools.
 	 */
 	SNS_INCOMING_BUF_NR = 1 << 6,
 	SNS_OUTGOING_BUF_NR = 1 << 6
 };
 
-extern struct c2_net_xprt c2_net_lnet_xprt;
-extern struct c2_cm_type  sns_repair_cmt;
+extern struct m0_net_xprt m0_net_lnet_xprt;
+extern struct m0_cm_type  sns_repair_cmt;
 
-C2_INTERNAL struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm)
+M0_INTERNAL struct m0_sns_repair_cm *cm2sns(struct m0_cm *cm)
 {
-	return container_of(cm, struct c2_sns_repair_cm, rc_base);
+	return container_of(cm, struct m0_sns_repair_cm, rc_base);
 }
 
-C2_INTERNAL int c2_sns_repair_cm_type_register(void)
+M0_INTERNAL int m0_sns_repair_cm_type_register(void)
 {
-	return c2_cm_type_register(&sns_repair_cmt);
+	return m0_cm_type_register(&sns_repair_cmt);
 }
 
-C2_INTERNAL void c2_sns_repair_cm_type_deregister(void)
+M0_INTERNAL void m0_sns_repair_cm_type_deregister(void)
 {
-	c2_cm_type_deregister(&sns_repair_cmt);
+	m0_cm_type_deregister(&sns_repair_cmt);
 }
 
-C2_INTERNAL struct c2_net_buffer *c2_sns_repair_buffer_get(struct
-							   c2_net_buffer_pool
+M0_INTERNAL struct m0_net_buffer *m0_sns_repair_buffer_get(struct
+							   m0_net_buffer_pool
 							   *bp, uint64_t colour)
 {
-	struct c2_net_buffer *buf;
+	struct m0_net_buffer *buf;
 	int                   i;
 
-	c2_net_buffer_pool_lock(bp);
-	C2_ASSERT(c2_net_buffer_pool_invariant(bp));
-	buf = c2_net_buffer_pool_get(bp, colour);
+	m0_net_buffer_pool_lock(bp);
+	M0_ASSERT(m0_net_buffer_pool_invariant(bp));
+	buf = m0_net_buffer_pool_get(bp, colour);
 	if (buf != NULL) {
 		for (i = 0; i < SNS_SEG_NR; ++i)
 			memset(buf->nb_buffer.ov_buf[i], 0, SNS_SEG_SIZE);
 	}
-	c2_net_buffer_pool_unlock(bp);
+	m0_net_buffer_pool_unlock(bp);
 
 	return buf;
 }
 
-C2_INTERNAL void c2_sns_repair_buffer_put(struct c2_net_buffer_pool *bp,
-					  struct c2_net_buffer *buf,
+M0_INTERNAL void m0_sns_repair_buffer_put(struct m0_net_buffer_pool *bp,
+					  struct m0_net_buffer *buf,
 					  uint64_t colour)
 {
-	c2_net_buffer_pool_lock(bp);
-	c2_net_buffer_pool_put(bp, buf, colour);
-	c2_net_buffer_pool_unlock(bp);
+	m0_net_buffer_pool_lock(bp);
+	m0_net_buffer_pool_put(bp, buf, colour);
+	m0_net_buffer_pool_unlock(bp);
 }
 
-static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
+static struct m0_cm_cp *cm_cp_alloc(struct m0_cm *cm)
 {
-	struct c2_sns_repair_cp *rcp;
+	struct m0_sns_repair_cp *rcp;
 
-	C2_ALLOC_PTR(rcp);
+	M0_ALLOC_PTR(rcp);
 	if (rcp == NULL)
 		return NULL;
-	rcp->rc_base.c_ops = &c2_sns_repair_cp_ops;
+	rcp->rc_base.c_ops = &m0_sns_repair_cp_ops;
 	return &rcp->rc_base;
 }
 
-static void bp_below_threshold(struct c2_net_buffer_pool *bp)
+static void bp_below_threshold(struct m0_net_buffer_pool *bp)
 {
 	/* Buffer pool is below threshold.  */
 }
 
-const struct c2_net_buffer_pool_ops bp_ops = {
-	.nbpo_not_empty       = c2_net_domain_buffer_pool_not_empty,
+const struct m0_net_buffer_pool_ops bp_ops = {
+	.nbpo_not_empty       = m0_net_domain_buffer_pool_not_empty,
 	.nbpo_below_threshold = bp_below_threshold
 };
 
-static int cm_setup(struct c2_cm *cm)
+static int cm_setup(struct m0_cm *cm)
 {
-	struct c2_reqh          *reqh;
-	struct c2_net_domain    *ndom;
-	struct c2_sns_repair_cm *rcm;
+	struct m0_reqh          *reqh;
+	struct m0_net_domain    *ndom;
+	struct m0_sns_repair_cm *rcm;
 	uint64_t                 colours;
 	int                      rc;
 
-	C2_ENTRY("cm: %p", cm);
+	M0_ENTRY("cm: %p", cm);
 
 	rcm = cm2sns(cm);
 	reqh = cm->cm_service.rs_reqh;
@@ -366,55 +366,55 @@ static int cm_setup(struct c2_cm *cm)
 	 * Total number of colours in incoming and outgoing buffer pools is
 	 * same as the total number of localities in the reqh fom domain.
 	 */
-	colours = c2_reqh_nr_localities(reqh);
-	ndom = c2_cs_net_domain_locate(c2_cs_ctx_get(reqh),
-				       c2_net_lnet_xprt.nx_name);
+	colours = m0_reqh_nr_localities(reqh);
+	ndom = m0_cs_net_domain_locate(m0_cs_ctx_get(reqh),
+				       m0_net_lnet_xprt.nx_name);
 	/*
 	 * XXX This should be fixed, buffer pool ops should be a parameter to
-	 * c2_net_buffer_pool_init() as it is NULL checked in
-	 * c2_net_buffer_pool_invariant().
+	 * m0_net_buffer_pool_init() as it is NULL checked in
+	 * m0_net_buffer_pool_invariant().
 	 */
 	rcm->rc_ibp.nbp_ops = &bp_ops;
 	rcm->rc_obp.nbp_ops = &bp_ops;
-	rc = c2_net_buffer_pool_init(&rcm->rc_ibp, ndom,
-				     C2_NET_BUFFER_POOL_THRESHOLD, SNS_SEG_NR,
-				     SNS_SEG_SIZE, colours, C2_0VEC_SHIFT);
+	rc = m0_net_buffer_pool_init(&rcm->rc_ibp, ndom,
+				     M0_NET_BUFFER_POOL_THRESHOLD, SNS_SEG_NR,
+				     SNS_SEG_SIZE, colours, M0_0VEC_SHIFT);
 	if (rc == 0) {
-		rc = c2_net_buffer_pool_init(&rcm->rc_obp, ndom,
-					     C2_NET_BUFFER_POOL_THRESHOLD,
+		rc = m0_net_buffer_pool_init(&rcm->rc_obp, ndom,
+					     M0_NET_BUFFER_POOL_THRESHOLD,
 					     SNS_SEG_NR, SNS_SEG_SIZE,
-					     colours, C2_0VEC_SHIFT);
+					     colours, M0_0VEC_SHIFT);
 		if (rc != 0)
-			c2_net_buffer_pool_fini(&rcm->rc_ibp);
+			m0_net_buffer_pool_fini(&rcm->rc_ibp);
 	}
 
 	if (rc == 0)
-		c2_chan_init(&rcm->rc_stop_wait);
+		m0_chan_init(&rcm->rc_stop_wait);
 
-	C2_LEAVE();
+	M0_LEAVE();
 	return rc;
 }
 
-static size_t cm_buffer_pool_provision(struct c2_net_buffer_pool *bp,
+static size_t cm_buffer_pool_provision(struct m0_net_buffer_pool *bp,
 				       size_t bufs_nr)
 {
 	size_t bnr;
 
-	c2_net_buffer_pool_lock(bp);
-	C2_ASSERT(c2_net_buffer_pool_invariant(bp));
-	bnr = c2_net_buffer_pool_provision(bp, bufs_nr);
-	c2_net_buffer_pool_unlock(bp);
+	m0_net_buffer_pool_lock(bp);
+	M0_ASSERT(m0_net_buffer_pool_invariant(bp));
+	bnr = m0_net_buffer_pool_provision(bp, bufs_nr);
+	m0_net_buffer_pool_unlock(bp);
 
 	return bnr;
 }
 
-static int cm_start(struct c2_cm *cm)
+static int cm_start(struct m0_cm *cm)
 {
-	struct c2_sns_repair_cm *rcm;
+	struct m0_sns_repair_cm *rcm;
 	int                      bufs_nr;
 	int                      rc;
 
-	C2_ENTRY("cm: %p", cm);
+	M0_ENTRY("cm: %p", cm);
 
 	rcm = cm2sns(cm);
 
@@ -429,53 +429,53 @@ static int cm_start(struct c2_cm *cm)
 	 */
 	if (bufs_nr == 0)
 		return -ENOMEM;
-	rc = c2_sns_repair_iter_init(rcm);
+	rc = m0_sns_repair_iter_init(rcm);
 	if (rc == 0)
-		c2_cm_sw_fill(cm);
+		m0_cm_sw_fill(cm);
 
-	C2_LEAVE();
+	M0_LEAVE();
 	return rc;
 }
 
-static int cm_stop(struct c2_cm *cm)
+static int cm_stop(struct m0_cm *cm)
 {
-	struct c2_sns_repair_cm *rcm;
+	struct m0_sns_repair_cm *rcm;
 
-	C2_PRE(cm != NULL);
+	M0_PRE(cm != NULL);
 
 	rcm = cm2sns(cm);
-	c2_sns_repair_iter_fini(rcm);
+	m0_sns_repair_iter_fini(rcm);
 
 	return 0;
 }
 
-static void cm_fini(struct c2_cm *cm)
+static void cm_fini(struct m0_cm *cm)
 {
-	struct c2_sns_repair_cm *rcm;
+	struct m0_sns_repair_cm *rcm;
 
-	C2_ENTRY("cm: %p", cm);
+	M0_ENTRY("cm: %p", cm);
 
 	rcm = cm2sns(cm);
-	c2_net_buffer_pool_fini(&rcm->rc_ibp);
-	c2_net_buffer_pool_fini(&rcm->rc_obp);
+	m0_net_buffer_pool_fini(&rcm->rc_ibp);
+	m0_net_buffer_pool_fini(&rcm->rc_obp);
 
-	C2_LEAVE();
+	M0_LEAVE();
 }
 
-static void cm_complete(struct c2_cm *cm)
+static void cm_complete(struct m0_cm *cm)
 {
-	struct c2_sns_repair_cm *rcm;
+	struct m0_sns_repair_cm *rcm;
 
 	rcm = cm2sns(cm);
-	c2_chan_signal(&rcm->rc_stop_wait);
+	m0_chan_signal(&rcm->rc_stop_wait);
 }
 
 /** Copy machine operations. */
-const struct c2_cm_ops cm_ops = {
+const struct m0_cm_ops cm_ops = {
 	.cmo_setup        = cm_setup,
 	.cmo_start        = cm_start,
 	.cmo_cp_alloc     = cm_cp_alloc,
-	.cmo_data_next    = c2_sns_repair_iter_next,
+	.cmo_data_next    = m0_sns_repair_iter_next,
 	.cmo_complete     = cm_complete,
 	.cmo_stop         = cm_stop,
 	.cmo_fini         = cm_fini

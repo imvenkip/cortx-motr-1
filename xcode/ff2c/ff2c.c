@@ -26,7 +26,7 @@
    ff2c is a simple translator, taking as an input a set of descriptions of
    desired serialized representations and producing a set of C declarations of
    types having given serialized representations. In addition, definitions of
-   xcode data (c2_xcode_type and c2_xcode_field) for generated types is
+   xcode data (m0_xcode_type and m0_xcode_field) for generated types is
    produced.
 
    Serialized representation descriptions are given in a language with the
@@ -138,7 +138,7 @@ int main(int argc, char **argv)
 	out_c = fmt("%s_ff.c", scratch);
 
 	bname = basename(scratch);
-	gname = fmt("__COLIBRI_%s_%s_FF_H__", basename(dirname(scratch)), bname);
+	gname = fmt("__MERO_%s_%s_FF_H__", basename(dirname(scratch)), bname);
 
 	for (ch = gname; *ch != 0; ch++) {
 		*ch = toupper(*ch);

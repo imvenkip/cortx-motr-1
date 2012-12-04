@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_FORMATION_H__
-#define __COLIBRI_RPC_FORMATION_H__
+#ifndef __MERO_RPC_FORMATION_H__
+#define __MERO_RPC_FORMATION_H__
 
 #include "lib/list.h"
 #include "lib/mutex.h"
@@ -31,7 +31,7 @@
 #include "net/net.h"
 #include "rpc/item.h"
 
-struct c2_fop;
+struct m0_fop;
 
 /**
    @defgroup rpc_formation Formation sub component from RPC layer.
@@ -61,7 +61,7 @@ struct c2_fop;
    - max_rpcs_in_flight (max number of RPCs that could be in flight)
    - max_message_fragments (max number of disjoint memory buffers)
 
-   The Formation component will use a data structure (c2_rpc_frm_sm) that gives
+   The Formation component will use a data structure (m0_rpc_frm_sm) that gives
    summary of data in the input list. This data structure will help in
    making quick decisions so as to select best candidates for rpc formation
    and can prevent multiple scans of the rpc items list.
@@ -77,7 +77,7 @@ struct c2_fop;
    - deadline expired of an rpc item.
    - slot becomes idle.
    - unbounded item is added to the sessions list.
-   - c2_net_buffer sent to destination, hence free it.
+   - m0_net_buffer sent to destination, hence free it.
 
    Also, there are a number of states through which the formation state
    machine transitions.
@@ -130,7 +130,7 @@ struct c2_fop;
 	- release the state lock.
 	- pass through the subsequent states as states succeed and exit
 
-   @todo A lot of data structures here, use a c2_list. Instead a
+   @todo A lot of data structures here, use a m0_list. Instead a
    hash function can be used wherever applicable to enhance the performance.
 
    There are no retries in the state machine. Any failure event will
@@ -140,32 +140,32 @@ struct c2_fop;
 /**
    Enumeration of all possible states.
  */
-enum c2_rpc_frm_state {
+enum m0_rpc_frm_state {
 	/** An uninitialized state to formation state machine. */
-	C2_RPC_FRM_STATE_UNINITIALIZED = 0,
+	M0_RPC_FRM_STATE_UNINITIALIZED = 0,
 	/** WAITING state for state machine, where it waits for
 	    any event to trigger. */
-	C2_RPC_FRM_STATE_WAITING,
+	M0_RPC_FRM_STATE_WAITING,
 	/** UPDATING state for state machine, where it updates
-	    internal data structure (struct c2_rpc_frm_sm) */
-	C2_RPC_FRM_STATE_UPDATING,
+	    internal data structure (struct m0_rpc_frm_sm) */
+	M0_RPC_FRM_STATE_UPDATING,
 	/** FORMING state for state machine, which employs formation
 	    algorithm. */
-	C2_RPC_FRM_STATE_FORMING,
+	M0_RPC_FRM_STATE_FORMING,
 	/** MAX States of state machine. */
-	C2_RPC_FRM_STATES_NR
+	M0_RPC_FRM_STATES_NR
 };
 
 /**
    Structure containing a priority and list of all items belonging to
    given priority.
  */
-struct c2_rpc_frm_prio_list {
+struct m0_rpc_frm_prio_list {
 	/** Priority band for this list. */
-	enum c2_rpc_item_priority pl_prio;
+	enum m0_rpc_item_priority pl_prio;
 	/** List of unformed items sharing the pl_prio priority linked
-	    through c2_rpc_item::ri_unformed_linkage. */
-	struct c2_list		  pl_unformed_items;
+	    through m0_rpc_item::ri_unformed_linkage. */
+	struct m0_list		  pl_unformed_items;
 };
 
 /**
@@ -179,22 +179,22 @@ struct c2_rpc_frm_prio_list {
    requests belonging to same network endpoint will contest for the
    same state machine.
  */
-struct c2_rpc_frm_sm {
+struct m0_rpc_frm_sm {
 	/** Flag denoting if current side is sender or receiver. */
 	bool				 fs_sender_side;
 	/** ADDB context for all formation state machines. */
-	struct c2_addb_ctx		 fs_rpc_form_addb;
+	struct m0_addb_ctx		 fs_rpc_form_addb;
 	/** Mutex protecting the state machine from concurrent access. */
-	enum c2_rpc_frm_state		 fs_state;
+	enum m0_rpc_frm_state		 fs_state;
 	/** List of structures containing data for each group linked
-	    through c2_rpc_frm_group::frg_linkage. */
-	struct c2_list			 fs_groups;
+	    through m0_rpc_frm_group::frg_linkage. */
+	struct m0_list			 fs_groups;
 	/** List of formed RPC objects kept with formation linked
-	    through c2_rpc::r_linkage. */
-	struct c2_list			 fs_rpcs;
+	    through m0_rpc::r_linkage. */
+	struct m0_list			 fs_rpcs;
 	/** Array of lists (one per priority band) containing unformed
 	    rpc items sorted according to increasing order of deadline. */
-	struct c2_rpc_frm_prio_list	 fs_unformed[C2_RPC_ITEM_PRIO_NR];
+	struct m0_rpc_frm_prio_list	 fs_unformed[M0_RPC_ITEM_PRIO_NR];
 	/** Network layer attributes for buffer transfer.
 	 *  Maximum RPC message size.
 	 */
@@ -225,33 +225,33 @@ struct c2_rpc_frm_sm {
 /**
    Formation attributes for an rpc.
  */
-struct c2_rpc_frm_buffer {
+struct m0_rpc_frm_buffer {
 	/** A magic constant to verify sanity of buffer. */
 	uint64_t		 fb_magic;
-	/** The c2_net_buffer on which callback will trigger. */
-	struct c2_net_buffer	 fb_buffer;
+	/** The m0_net_buffer on which callback will trigger. */
+	struct m0_net_buffer	 fb_buffer;
 	/** The associated fromation state machine. */
-	struct c2_rpc_frm_sm	*fb_frm_sm;
+	struct m0_rpc_frm_sm	*fb_frm_sm;
 };
 
 /**
-   c2_rpc is a container of c2_rpc_items.
+   m0_rpc is a container of m0_rpc_items.
  */
-struct c2_rpc {
+struct m0_rpc {
 	/** Linkage into list of rpc objects just formed or into the list
 	    of rpc objects which are ready to be sent on wire. */
-	struct c2_list_link		 r_linkage;
+	struct m0_list_link		 r_linkage;
 	/** List of member rpc items. */
-	struct c2_list			 r_items;
+	struct m0_list			 r_items;
 	/** Items in this rpc are sent via this session. */
-	struct c2_rpc_session		*r_session;
+	struct m0_rpc_session		*r_session;
 	/** Formation attributes (buffer, magic) for the rpc. */
-	struct c2_rpc_frm_buffer	 r_fbuf;
+	struct m0_rpc_frm_buffer	 r_fbuf;
 };
 
-C2_INTERNAL void c2_rpcobj_init(struct c2_rpc *rpc);
+M0_INTERNAL void m0_rpcobj_init(struct m0_rpc *rpc);
 
-C2_INTERNAL void c2_rpcobj_fini(struct c2_rpc *rpc);
+M0_INTERNAL void m0_rpcobj_fini(struct m0_rpc *rpc);
 
 /**
    This structure represents the summary data for a given rpc group
@@ -261,12 +261,12 @@ C2_INTERNAL void c2_rpcobj_fini(struct c2_rpc *rpc);
    to an rpc group arrives at formation, it is not immediately formed
    since more items from same group are expected to arrive shortly.
  */
-struct c2_rpc_frm_group {
+struct m0_rpc_frm_group {
 	/** Linkage into the list of groups belonging to same state machine
-	    anchored at c2_rpc_frm_sm::fs_groups. */
-	struct c2_list_link		 frg_linkage;
+	    anchored at m0_rpc_frm_sm::fs_groups. */
+	struct m0_list_link		 frg_linkage;
 	/** The rpc group, this data belongs to. */
-	struct c2_rpc_group		*frg_group;
+	struct m0_rpc_group		*frg_group;
 	/** Number of items from this group found so far. */
 	uint64_t			 frg_items_nr;
 	/** Number of expected items from this group. */
@@ -278,21 +278,21 @@ struct c2_rpc_frm_group {
    Call the default handler function passing the rpc item and
    the corresponding event enum.
  */
-C2_INTERNAL int c2_rpc_frm_item_delete(struct c2_rpc_item *item);
+M0_INTERNAL int m0_rpc_frm_item_delete(struct m0_rpc_item *item);
 
 /**
    Interfaces to change attributes of rpc items that have been already
    submitted to rpc layer.
  */
-C2_INTERNAL void c2_rpc_frm_item_priority_set(struct c2_rpc_item *item,
-					      enum c2_rpc_item_priority prio);
+M0_INTERNAL void m0_rpc_frm_item_priority_set(struct m0_rpc_item *item,
+					      enum m0_rpc_item_priority prio);
 
-C2_INTERNAL void c2_rpc_frm_item_deadline_set(struct c2_rpc_item *item,
-					      c2_time_t deadline);
+M0_INTERNAL void m0_rpc_frm_item_deadline_set(struct m0_rpc_item *item,
+					      m0_time_t deadline);
 
-C2_INTERNAL void c2_rpc_frm_item_group_set(struct c2_rpc_item *item,
-					   struct c2_rpc_group *group);
+M0_INTERNAL void m0_rpc_frm_item_group_set(struct m0_rpc_item *item,
+					   struct m0_rpc_group *group);
 
 /** @} endgroup of rpc_formation */
 
-#endif /* __COLIBRI_RPC_FORMATION_H__ */
+#endif /* __MERO_RPC_FORMATION_H__ */

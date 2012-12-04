@@ -25,19 +25,19 @@
 #include <stdlib.h> /* exit */
 #include <unistd.h> /* getuid, close, read, write, lseek */
 
-#include "colibri/init.h"
-#include "lib/arith.h" /* c2_is_po2 */
+#include "mero/init.h"
+#include "lib/arith.h" /* m0_is_po2 */
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/misc.h" /* C2_SET0 */
+#include "lib/misc.h" /* M0_SET0 */
 
 #include "net/net.h"
 #include "net/lnet/lnet_core_types.h"
 #include "net/lnet/lnet_ioctl.h"
 #include "net/lnet/ut/lnet_drv_ut.h"
 
-const char lnet_xprt_dev[] = "/dev/" C2_LNET_DEV;
+const char lnet_xprt_dev[] = "/dev/" M0_LNET_DEV;
 const char lnet_ut_proc[]  = "/proc/" UT_PROC_NAME;
 
 enum {
@@ -64,12 +64,12 @@ enum {
 
 static void *lut_mem_alloc(size_t size, unsigned shift)
 {
-	return c2_alloc_aligned(size, shift);
+	return m0_alloc_aligned(size, shift);
 }
 
 static void lut_mem_free(void *data, size_t size, unsigned shift)
 {
-	c2_free_aligned(data, size, shift);
+	m0_free_aligned(data, size, shift);
 }
 
 int test_dev_exists(void)
@@ -104,18 +104,18 @@ int test_open_close(void)
 
 	/* non-privileged user fails */
 	rc = setegid(FAIL_UID_GID);
-	C2_ASSERT(rc == 0);
+	M0_ASSERT(rc == 0);
 	rc = seteuid(FAIL_UID_GID);
-	C2_ASSERT(rc == 0);
+	M0_ASSERT(rc == 0);
 	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
 	if (f >= 0) {
 		close(f);
 		rc = -1;
 	}
 	uid = seteuid(uid);
-	C2_ASSERT(uid == 0);
+	M0_ASSERT(uid == 0);
 	gid = setegid(gid);
-	C2_ASSERT(gid == 0);
+	M0_ASSERT(gid == 0);
 	return rc;
 }
 
@@ -143,17 +143,17 @@ int test_read_write(void)
 }
 
 #define UT_LNET_INVALID \
-	_IOWR(C2_LNET_IOC_MAGIC, (C2_LNET_IOC_MAX_NR + 1), \
-	      struct c2_lnet_dev_dom_init_params)
+	_IOWR(M0_LNET_IOC_MAGIC, (M0_LNET_IOC_MAX_NR + 1), \
+	      struct m0_lnet_dev_dom_init_params)
 
 int test_invalid_ioctls(void)
 {
-	struct c2_lnet_dev_dom_init_params p;
+	struct m0_lnet_dev_dom_init_params p;
 	int f;
 	int rc;
 	bool failed = false;
 
-	C2_SET0(&p);
+	M0_SET0(&p);
 
 	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
 	if (f < 0) {
@@ -167,12 +167,12 @@ int test_invalid_ioctls(void)
 		failed = true;
 
 	/* dom_init, but NULL arg, detected and failed */
-	rc = ioctl(f, C2_LNET_DOM_INIT, NULL);
+	rc = ioctl(f, M0_LNET_DOM_INIT, NULL);
 	if (rc >= 0 || errno != EFAULT)
 		failed = true;
 
 	/* dom_init, but NULL payload, detected and failed */
-	rc = ioctl(f, C2_LNET_DOM_INIT, &p);
+	rc = ioctl(f, M0_LNET_DOM_INIT, &p);
 	if (rc >= 0 || errno != EFAULT)
 		failed = true;
 
@@ -182,14 +182,14 @@ int test_invalid_ioctls(void)
 
 int test_dom_init(void)
 {
-	struct c2_lnet_dev_dom_init_params p;
+	struct m0_lnet_dev_dom_init_params p;
 	struct nlx_core_domain *dom;
 	int f;
 	int rc;
 
-	C2_SET0(&p);
+	M0_SET0(&p);
 	LUT_ALLOC_PTR(dom);
-	C2_ASSERT(dom != NULL);
+	M0_ASSERT(dom != NULL);
 	p.ddi_cd = dom;
 
 	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
@@ -198,14 +198,14 @@ int test_dom_init(void)
 		return 1;
 	}
 
-	rc = ioctl(f, C2_LNET_DOM_INIT, &p);
+	rc = ioctl(f, M0_LNET_DOM_INIT, &p);
 	if (rc == 0) {
 		if (p.ddi_max_buffer_size < 2 ||
-		    !c2_is_po2(p.ddi_max_buffer_size) ||
+		    !m0_is_po2(p.ddi_max_buffer_size) ||
 		    p.ddi_max_buffer_segment_size < 2 ||
-		    !c2_is_po2(p.ddi_max_buffer_segment_size) ||
+		    !m0_is_po2(p.ddi_max_buffer_segment_size) ||
 		    p.ddi_max_buffer_segments < 2 ||
-		    !c2_is_po2(p.ddi_max_buffer_segments))
+		    !m0_is_po2(p.ddi_max_buffer_segments))
 			rc = 1;
 	}
 
@@ -216,23 +216,23 @@ int test_dom_init(void)
 
 int test_tms(bool force_cleanup)
 {
-	struct c2_lnet_dev_dom_init_params pd;
+	struct m0_lnet_dev_dom_init_params pd;
 	struct nlx_core_domain *dom;
 	struct nlx_core_transfer_mc *tm[MULTI_TM_NR];
-	struct c2_lnet_dev_tm_start_params tsp;
-	struct c2_lnet_dev_tm_stop_params tpp;
+	struct m0_lnet_dev_tm_start_params tsp;
+	struct m0_lnet_dev_tm_stop_params tpp;
 	int f;
 	int i;
 	int rc;
 
-	C2_SET0(&pd);
+	M0_SET0(&pd);
 	LUT_ALLOC_PTR(dom);
-	C2_ASSERT(dom != NULL);
+	M0_ASSERT(dom != NULL);
 	pd.ddi_cd = dom;
 
 	for (i = 0; i < MULTI_TM_NR; ++i) {
 		LUT_ALLOC_PTR(tm[i]);
-		C2_ASSERT(tm[i] != NULL);
+		M0_ASSERT(tm[i] != NULL);
 	}
 
 	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
@@ -241,7 +241,7 @@ int test_tms(bool force_cleanup)
 		goto out;
 	}
 
-	rc = ioctl(f, C2_LNET_DOM_INIT, &pd);
+	rc = ioctl(f, M0_LNET_DOM_INIT, &pd);
 	if (rc != 0)
 		goto out;
 
@@ -249,7 +249,7 @@ int test_tms(bool force_cleanup)
 		tm[i]->ctm_upvt = (void *) UT_TM_UPVT;
 
 		tsp.dts_ctm = tm[i];
-		rc = ioctl(f, C2_LNET_TM_START, &tsp);
+		rc = ioctl(f, M0_LNET_TM_START, &tsp);
 		if (rc != 0)
 			goto out;
 		if (tm[i]->ctm_upvt != (void *) UT_TM_UPVT) {
@@ -261,7 +261,7 @@ int test_tms(bool force_cleanup)
 	if (!force_cleanup)
 		for (i = 0; i < MULTI_TM_NR; ++i) {
 			tpp.dts_ktm = tm[i]->ctm_kpvt;
-			rc = ioctl(f, C2_LNET_TM_STOP, &tpp);
+			rc = ioctl(f, M0_LNET_TM_STOP, &tpp);
 			if (rc != 0)
 				break;
 		}
@@ -276,21 +276,21 @@ int test_tms(bool force_cleanup)
 
 int test_duptm(void)
 {
-	struct c2_lnet_dev_dom_init_params pd;
+	struct m0_lnet_dev_dom_init_params pd;
 	struct nlx_core_domain *dom;
 	struct nlx_core_transfer_mc *tm;
-	struct c2_lnet_dev_tm_start_params tsp;
-	struct c2_lnet_dev_tm_stop_params tpp;
+	struct m0_lnet_dev_tm_start_params tsp;
+	struct m0_lnet_dev_tm_stop_params tpp;
 	int f;
 	int rc;
 
-	C2_SET0(&pd);
+	M0_SET0(&pd);
 	LUT_ALLOC_PTR(dom);
-	C2_ASSERT(dom != NULL);
+	M0_ASSERT(dom != NULL);
 	pd.ddi_cd = dom;
 
 	LUT_ALLOC_PTR(tm);
-	C2_ASSERT(tm != NULL);
+	M0_ASSERT(tm != NULL);
 
 	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
 	if (f < 0) {
@@ -298,13 +298,13 @@ int test_duptm(void)
 		goto out;
 	}
 
-	rc = ioctl(f, C2_LNET_DOM_INIT, &pd);
+	rc = ioctl(f, M0_LNET_DOM_INIT, &pd);
 	if (rc != 0)
 		goto out;
 
 	tm->ctm_upvt = (void *) UT_TM_UPVT;
 	tsp.dts_ctm = tm;
-	rc = ioctl(f, C2_LNET_TM_START, &tsp);
+	rc = ioctl(f, M0_LNET_TM_START, &tsp);
 	if (rc != 0)
 		goto out;
 	if (tm->ctm_upvt != (void *) UT_TM_UPVT) {
@@ -313,14 +313,14 @@ int test_duptm(void)
 	}
 
 	/* duplicate tm */
-	rc = ioctl(f, C2_LNET_TM_START, &tsp);
+	rc = ioctl(f, M0_LNET_TM_START, &tsp);
 	if (rc == 0 || errno != EBADR) {
 		rc = 1;
 		goto out;
 	} else
 		rc = 0;
 	tpp.dts_ktm = tm->ctm_kpvt;
-	rc = ioctl(f, C2_LNET_TM_STOP, &tpp);
+	rc = ioctl(f, M0_LNET_TM_STOP, &tpp);
  out:
 	LUT_FREE_PTR(tm);
 	close(f);
@@ -335,31 +335,31 @@ int main(int argc, char *argv[])
 	int rc;
 	char cmd[1];
 	off_t off = 0;
-	c2_time_t delay;
+	m0_time_t delay;
 
-	rc = c2_init();
-	C2_ASSERT(rc == 0);
+	rc = m0_init();
+	M0_ASSERT(rc == 0);
 
-	c2_time_set(&delay, PROC_DELAY_SEC, 0);
+	m0_time_set(&delay, PROC_DELAY_SEC, 0);
 	for (i = 0; i < MAX_PROC_TRIES; ++i) {
 		procf = open(lnet_ut_proc, O_RDWR);
 		if (procf >= 0)
 			break;
-		C2_ASSERT(errno == ENOENT);
-		c2_nanosleep(delay, 0);
+		M0_ASSERT(errno == ENOENT);
+		m0_nanosleep(delay, 0);
 	}
 	if (procf < 0) {
 		fprintf(stderr,
 			"%s: kernel UT did not create %s after %d sec\n",
 			__FILE__, lnet_ut_proc,
 			MAX_PROC_TRIES * PROC_DELAY_SEC);
-		c2_fini();
+		m0_fini();
 		exit(1);
 	}
 
 	cmd[0] = UT_USER_READY;
 	rc = write(procf, cmd, 1);
-	C2_ASSERT(rc == 1);
+	M0_ASSERT(rc == 1);
 	while (1) {
 		off = lseek(procf, off, SEEK_SET);
 		if (off != 0)
@@ -400,11 +400,11 @@ int main(int argc, char *argv[])
 		}
 		cmd[0] = (rc == 0) ? UT_USER_SUCCESS : UT_USER_FAIL;
 		rc = write(procf, cmd, 1);
-		C2_ASSERT(rc == 1);
+		M0_ASSERT(rc == 1);
 	}
 done:
 	close(procf);
-	c2_fini();
+	m0_fini();
 	return 0;
 }
 

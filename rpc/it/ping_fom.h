@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RPC_IT_PING_FOM_H__
-#define __COLIBRI_RPC_IT_PING_FOM_H__
+#ifndef __MERO_RPC_IT_PING_FOM_H__
+#define __MERO_RPC_IT_PING_FOM_H__
 
 #include "rpc/it/ping_fop.h"
 
@@ -29,11 +29,11 @@
  * Object encompassing FOM for ping
  * operation and necessary context data
  */
-struct c2_fom_ping {
-	/** Generic c2_fom object. */
-        struct c2_fom                    fp_gen;
+struct m0_fom_ping {
+	/** Generic m0_fom object. */
+        struct m0_fom                    fp_gen;
 	/** FOP associated with this FOM. */
-        struct c2_fop			*fp_fop;
+        struct m0_fop			*fp_fop;
 };
 
 /**
@@ -41,11 +41,11 @@ struct c2_fom_ping {
  *     that executes on data server. </b>
  *  - Send reply FOP to client.
  */
-C2_INTERNAL int c2_fom_ping_state(struct c2_fom *fom);
-C2_INTERNAL size_t c2_fom_ping_home_locality(const struct c2_fom *fom);
-C2_INTERNAL void c2_fop_ping_fom_fini(struct c2_fom *fom);
+M0_INTERNAL int m0_fom_ping_state(struct m0_fom *fom);
+M0_INTERNAL size_t m0_fom_ping_home_locality(const struct m0_fom *fom);
+M0_INTERNAL void m0_fop_ping_fom_fini(struct m0_fom *fom);
 
-/* __COLIBRI_RPC_IT_PING_FOM_H__ */
+/* __MERO_RPC_IT_PING_FOM_H__ */
 #endif
 
 /*

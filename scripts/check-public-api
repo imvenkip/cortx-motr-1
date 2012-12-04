@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # This script reports any public funcnition, which is present in
-# libcolibri-altogether.so, but not listed in colibri-pub.api file. Only
-# functions, started which "c2_" prefix or which contain "tlist" in their names,
+# libmero-altogether.so, but not listed in mero-pub.api file. Only
+# functions, started which "m0_" prefix or which contain "tlist" in their names,
 # are reported.
 
 
@@ -12,8 +12,8 @@
 
 PROG_NAME=$(basename $0)
 
-pub_api='colibri/colibri-pub.api'
-libcolibri='colibri/.libs/libcolibri-altogether.so'
+pub_api='mero/mero-pub.api'
+libmero='mero/.libs/libmero-altogether.so'
 
 
 #
@@ -27,13 +27,13 @@ help() {
 
 usage() {
     cat <<EOF
-Usage: $PROG_NAME [-h|--help] [-a|--api colibri-pub.api] [-l|--libcolibri libcolibri.so]
+Usage: $PROG_NAME [-h|--help] [-a|--api mero-pub.api] [-l|--libmero libmero.so]
 
-    -a|--api            A text file with the list of names of public colibri
+    -a|--api            A text file with the list of names of public mero
                         functions. By default it's "$pub_api".
 
-    -l|--libcolibri     libcolibri.so library binary, by default it's
-                        "$libcolibri".
+    -l|--libmero     libmero.so library binary, by default it's
+                        "$libmero".
 
     -h|--help           Print this help screen.
 EOF
@@ -47,7 +47,7 @@ EOF
 # Note that we use `"$@"' to let each command-line parameter expand to a
 # separate word. The quotes around `$@' are essential!
 # We need TEMP as the `eval set --' would nuke the return value of getopt.
-TEMP=$(getopt -o ha:l: --long help,api:,libcolibri: -n "$PROG_NAME" -- "$@")
+TEMP=$(getopt -o ha:l: --long help,api:,libmero: -n "$PROG_NAME" -- "$@")
 
 if [ $? != 0 ] ; then exit 1 ; fi
 
@@ -58,7 +58,7 @@ while true ; do
     case "$1" in
         -h|--help) help 0 ;;
         -a|--api) pub_api=$2; shift 2 ;;
-        -l|--libcolibri) libcolibri=$2; shift 2 ;;
+        -l|--libmero) libmero=$2; shift 2 ;;
         --) shift ; break ;;
         *) echo "getopt: internal error..." ; exit 1 ;;
     esac
@@ -69,31 +69,37 @@ done
 # Main
 #
 
-if ! test -e "$libcolibri"; then
-    # do nothing if libcolibri-altogether.so doesn't exist
+if ! test -e "$libmero"; then
+    # do nothing if libmero-altogether.so doesn't exist
     exit 0
 fi
 
-echo -n "Checking colibri public API...   "
+echo -n "Checking mero public API...   "
 
 # exit immediately if one the commands exits with a non-zero status
 set -e
 
 func_list=$(mktemp)
 
-nm "$libcolibri" | awk '$2 == "T" && $3 ~ /^c2_.*|tlist/ {print $3}' | sort > $func_list
+# to have identical sorting order, we need to sort file's content using the same
+# locale
+
+nm "$libmero" | awk '$2 == "T" && $3 ~ /^m0_.*|tlist/ {print $3}' | LC_ALL=C sort > $func_list
+
+pub_api_sorted=$(mktemp)
+LC_ALL=C sort $pub_api > $pub_api_sorted
 
 # if files are not equal
-if ! diff -q $pub_api $func_list &> /dev/null; then
+if ! diff -q $pub_api_sorted $func_list &> /dev/null; then
     echo "FAIL"
     echo "WARNING: Did you forget to add the following public functions"
-    echo "         to the '$pub_api' list or to add C2_INTERNAL prefix to them?"
+    echo "         to the '$pub_api' list or to add M0_INTERNAL prefix to them?"
     echo ""
-    diff -u $pub_api $func_list | grep -E '^[-+]\w'
+    diff -u $pub_api_sorted $func_list | grep -E '^[-+]\w'
 else
     echo "OK"
 fi
 
-rm $func_list
+rm $func_list $pub_api_sorted
 
 exit 0

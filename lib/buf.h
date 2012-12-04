@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_BUF_H__
-#define __COLIBRI_LIB_BUF_H__
+#ifndef __MERO_LIB_BUF_H__
+#define __MERO_LIB_BUF_H__
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
@@ -32,56 +32,56 @@
    @{
 */
 
-struct c2_buf {
-	c2_bcount_t b_nob;
+struct m0_buf {
+	m0_bcount_t b_nob;
 	void       *b_addr;
-} C2_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE;
 
 /**
- * Initialisers for struct c2_buf.
+ * Initialisers for struct m0_buf.
  *
  * @note
  *
- *   1. #include "lib/misc.h" for C2_BUF_INITS().
+ *   1. #include "lib/misc.h" for M0_BUF_INITS().
  *
- *   2. C2_BUF_INITS() cannot be used with `static' variables.
+ *   2. M0_BUF_INITS() cannot be used with `static' variables.
  * @code
- *         // static const struct c2_buf bad = C2_BUF_INITS("foo");
+ *         // static const struct m0_buf bad = M0_BUF_INITS("foo");
  *         //  ==> warning: initializer element is not constant
  *
  *         static char str[] = "foo";
- *         static const struct c2_buf good = C2_BUF_INIT(sizeof str, str);
+ *         static const struct m0_buf good = M0_BUF_INIT(sizeof str, str);
  * @endcode
  */
-#define C2_BUF_INIT(size, data) { .b_nob = (size), .b_addr = (data) }
-#define C2_BUF_INITS(str)       C2_BUF_INIT(strlen(str), (str))
-#define C2_BUF_INIT0            C2_BUF_INIT(0, NULL)
+#define M0_BUF_INIT(size, data) { .b_nob = (size), .b_addr = (data) }
+#define M0_BUF_INITS(str)       M0_BUF_INIT(strlen(str), (str))
+#define M0_BUF_INIT0            M0_BUF_INIT(0, NULL)
 
 /** Returns true iff two buffers are equal. */
-C2_INTERNAL bool c2_buf_eq(const struct c2_buf *x, const struct c2_buf *y);
+M0_INTERNAL bool m0_buf_eq(const struct m0_buf *x, const struct m0_buf *y);
 
 /**
  * Copies a buffer.
  *
- * A user is responsible for c2_buf_free()ing `dest'.
+ * A user is responsible for m0_buf_free()ing `dest'.
  *
  * @pre   dest->cb_size == 0 && dest->cb_data == NULL
- * @post  ergo(result == 0, c2_buf_eq(dest, src))
+ * @post  ergo(result == 0, m0_buf_eq(dest, src))
  */
-C2_INTERNAL int c2_buf_copy(struct c2_buf *dest, const struct c2_buf *src);
+M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src);
 
-/** Initialises struct c2_buf */
-C2_INTERNAL void c2_buf_init(struct c2_buf *buf, void *data, uint32_t nob);
+/** Initialises struct m0_buf */
+M0_INTERNAL void m0_buf_init(struct m0_buf *buf, void *data, uint32_t nob);
 
 /**
  * Frees the contents of the buffer and zeroes its fields.
  */
-C2_INTERNAL void c2_buf_free(struct c2_buf *buf);
+M0_INTERNAL void m0_buf_free(struct m0_buf *buf);
 
 /** @} end of buf group */
 
 
-/* __COLIBRI_LIB_BUF_H__ */
+/* __MERO_LIB_BUF_H__ */
 #endif
 
 /*

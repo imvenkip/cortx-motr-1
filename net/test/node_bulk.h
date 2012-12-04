@@ -20,10 +20,10 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_TEST_NODE_BULK_H__
-#define __COLIBRI_NET_TEST_NODE_BULK_H__
+#ifndef __MERO_NET_TEST_NODE_BULK_H__
+#define __MERO_NET_TEST_NODE_BULK_H__
 
-#include "net/test/service.h"		/* c2_net_test_service_ops */
+#include "net/test/service.h"		/* m0_net_test_service_ops */
 
 /**
    @defgroup NetTestBulkNodeDFS Bulk Node
@@ -32,13 +32,13 @@
    @{
  */
 
-extern struct c2_net_test_service_ops c2_net_test_node_bulk_ops;
+extern struct m0_net_test_service_ops m0_net_test_node_bulk_ops;
 
 /**
    @} end of NetTestBulkNodeDFS group
  */
 
-#endif /*  __COLIBRI_NET_TEST_NODE_BULK_H__ */
+#endif /*  __MERO_NET_TEST_NODE_BULK_H__ */
 
 /*
  *  Local variables:

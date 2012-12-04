@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_RM_FOMS_H__
-#define __COLIBRI_RM_FOMS_H__
+#ifndef __MERO_RM_FOMS_H__
+#define __MERO_RM_FOMS_H__
 
 #include "fop/fop.h"
 #include "rm/rm.h"
@@ -36,9 +36,9 @@
  *
  */
 enum m0_rm_fom_phases {
-	FOPH_RM_REQ_START = C2_FOPH_NR + 1,
-	FOPH_RM_REQ_WAIT = C2_FOPH_NR + 2,
-	FOPH_RM_REQ_FINISH = C2_FOPH_NR + 3,
+	FOPH_RM_REQ_START = M0_FOPH_NR + 1,
+	FOPH_RM_REQ_WAIT = M0_FOPH_NR + 2,
+	FOPH_RM_REQ_FINISH = M0_FOPH_NR + 3,
 };
 
 struct rm_request_fom {
@@ -50,7 +50,7 @@ struct rm_request_fom {
 
 /** @} */
 
-/* __COLIBRI_RM_FOMS_H__ */
+/* __MERO_RM_FOMS_H__ */
 #endif
 
 /**

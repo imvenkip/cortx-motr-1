@@ -19,6 +19,9 @@
  * Original creation date: 29-Aug-2012
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
+
 #include "conf/preload.h"
 #include "conf/onwire.h"
 #include "conf/onwire_xc.h"
@@ -30,100 +33,120 @@
 #include "lib/errno.h"
 #include "lib/misc.h"
 
-
-#define XC_OBJ(xt, ptr) (&(struct c2_xcode_obj)	\
-		{ .xo_type = (xt), .xo_ptr = (ptr) })
-
-C2_INTERNAL int c2_conf_parse(const char *src, struct confx_object *dest,
-			      size_t n)
+static void enconf_fini(struct enconf *enc)
 {
-	struct enconf rd_enc_ext;
-	int           i;
-	int	      result;
+	M0_ENTRY();
 
-	C2_SET0(&rd_enc_ext);
-	result = c2_xcode_read(XC_OBJ(enconf_xc, &rd_enc_ext), src);
-	if (result != 0)
-		return result;
+	m0_confx_fini(enc->ec_objs, enc->ec_nr);
+	m0_free(enc->ec_objs);
 
-	if (rd_enc_ext.ec_nr > n) {
-		c2_confx_fini(rd_enc_ext.ec_objs, rd_enc_ext.ec_nr);
-		c2_free(rd_enc_ext.ec_objs);
-		return -ENOMEM;
-	}
-
-	for (i = 0; i < rd_enc_ext.ec_nr; ++i)
-		dest[i] = rd_enc_ext.ec_objs[i];
-
-	c2_free(rd_enc_ext.ec_objs);
-
-	return rd_enc_ext.ec_nr;
+	M0_LEAVE();
 }
 
-C2_INTERNAL size_t c2_confx_obj_nr(const char *src)
+M0_INTERNAL int
+m0_conf_parse(const char *src, struct confx_object *dest, size_t n)
 {
-	struct enconf rd_enc_ext;
-	int	      result;
+	struct enconf enc;
+	int i;
+	int rc;
 
-	C2_SET0(&rd_enc_ext);
-	result = c2_xcode_read(XC_OBJ(enconf_xc, &rd_enc_ext), src);
-	if (result != 0)
-		return 0;
+	M0_ENTRY();
 
-	c2_confx_fini(rd_enc_ext.ec_objs, rd_enc_ext.ec_nr);
-	c2_free(rd_enc_ext.ec_objs);
+	M0_SET0(&enc);
+	rc = m0_xcode_read(&M0_XCODE_OBJ(enconf_xc, &enc), src);
+	if (rc != 0) {
+		M0_ASSERT(rc < 0);
+		M0_RETURN(rc);
+	}
 
-	return rd_enc_ext.ec_nr;
+	if (enc.ec_nr > n) {
+		enconf_fini(&enc);
+		M0_RETURN(-ENOMEM);
+	}
+
+	for (i = 0; i < enc.ec_nr; ++i)
+		dest[i] = enc.ec_objs[i];
+
+	/* Note that we don't call enconf_fini(): the caller should
+	 * decide when to free confx objects. */
+	m0_free(enc.ec_objs);
+
+	M0_LEAVE();
+	return enc.ec_nr;
+}
+
+M0_INTERNAL size_t m0_confx_obj_nr(const char *src)
+{
+	struct enconf enc;
+	int rc;
+
+	M0_ENTRY();
+
+	M0_SET0(&enc);
+	rc = m0_xcode_read(&M0_XCODE_OBJ(enconf_xc, &enc), src);
+	if (rc != 0) {
+		M0_ASSERT(rc < 0);
+		M0_RETURN(rc);
+	}
+
+	enconf_fini(&enc);
+	M0_LEAVE();
+	return enc.ec_nr;
 }
 
 static void arr_buf_fini(struct arr_buf *a)
 {
 	int i;
+	M0_ENTRY();
 
 	for (i = 0; i < a->ab_count; ++i)
-		c2_buf_free(&a->ab_elems[i]);
+		m0_buf_free(&a->ab_elems[i]);
+	m0_free(a->ab_elems);
 
-	c2_free(a->ab_elems);
+	M0_LEAVE();
 }
 
-C2_INTERNAL void c2_confx_fini(struct confx_object *xobjs, size_t n)
+M0_INTERNAL void m0_confx_fini(struct confx_object *xobjs, size_t n)
 {
 	int             i;
 	struct confx_u *x;
+
+	M0_ENTRY();
 
 	for (i = 0; i < n; ++i) {
 		x = &xobjs[i].o_conf;
 
 		switch(x->u_type) {
-		case C2_CO_PROFILE:
-			c2_buf_free(&x->u.u_profile.xp_filesystem);
+		case M0_CO_PROFILE:
+			m0_buf_free(&x->u.u_profile.xp_filesystem);
 			break;
-		case C2_CO_FILESYSTEM:
+		case M0_CO_FILESYSTEM:
 			arr_buf_fini(&x->u.u_filesystem.xf_params);
 			arr_buf_fini(&x->u.u_filesystem.xf_services);
 			break;
-		case C2_CO_SERVICE:
+		case M0_CO_SERVICE:
 			arr_buf_fini(&x->u.u_service.xs_endpoints);
-			c2_buf_free(&x->u.u_service.xs_node);
+			m0_buf_free(&x->u.u_service.xs_node);
 			break;
-		case C2_CO_NODE:
+		case M0_CO_NODE:
 			arr_buf_fini(&x->u.u_node.xn_nics);
 			arr_buf_fini(&x->u.u_node.xn_sdevs);
 			break;
-		case C2_CO_NIC:
-			c2_buf_free(&x->u.u_nic.xi_filename);
+		case M0_CO_NIC:
+			m0_buf_free(&x->u.u_nic.xi_filename);
 			break;
-		case C2_CO_SDEV:
+		case M0_CO_SDEV:
 			arr_buf_fini(&x->u.u_sdev.xd_partitions);
-			c2_buf_free(&x->u.u_sdev.xd_filename);
+			m0_buf_free(&x->u.u_sdev.xd_filename);
 			break;
-		case C2_CO_PARTITION:
-			c2_buf_free(&x->u.u_partition.xa_file);
+		case M0_CO_PARTITION:
+			m0_buf_free(&x->u.u_partition.xa_file);
 			break;
 		default:
-			C2_IMPOSSIBLE("Unexpected value of confx_u::u_type");
+			M0_IMPOSSIBLE("Unexpected value of confx_u::u_type");
 		}
 
-		c2_buf_free(&xobjs[i].o_id);
+		m0_buf_free(&xobjs[i].o_id);
 	}
+	M0_LEAVE();
 }

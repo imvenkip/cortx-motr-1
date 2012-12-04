@@ -18,7 +18,7 @@
  * Original creation date: 12/09/2012
  */
 
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_SNSREPAIR
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSREPAIR
 
 #include "lib/trace.h"
 #include "lib/memory.h"
@@ -34,116 +34,115 @@
    @{
  */
 
-C2_INTERNAL struct c2_sns_repair_ag *ag2snsag(const struct c2_cm_aggr_group *ag)
+M0_INTERNAL struct m0_sns_repair_ag *ag2snsag(const struct m0_cm_aggr_group *ag)
 {
-	return container_of(ag, struct c2_sns_repair_ag, sag_base);
+	return container_of(ag, struct m0_sns_repair_ag, sag_base);
 }
 
-static int ag_fini(struct c2_cm_aggr_group *ag)
+static int ag_fini(struct m0_cm_aggr_group *ag)
 {
-	struct c2_sns_repair_ag *sag;
-	struct c2_sns_repair_cm *rcm;
-	struct c2_cm		*cm;
+	struct m0_sns_repair_ag *sag;
+	struct m0_sns_repair_cm *rcm;
+	struct m0_cm		*cm;
 
-	C2_ENTRY();
-	C2_PRE(ag != NULL);
+	M0_ENTRY();
+	M0_PRE(ag != NULL);
 
 	sag = ag2snsag(ag);
 	cm = ag->cag_cm;
-	c2_cm_aggr_group_fini(ag);
+	m0_cm_aggr_group_fini(ag);
 	rcm = cm2sns(cm);
-	c2_free(sag);
-	C2_LEAVE();
+	m0_free(sag);
+	M0_LEAVE();
 	return 0;
 }
 
-C2_INTERNAL void agid2fid(const struct c2_cm_aggr_group *ag, struct c2_fid *fid)
+M0_INTERNAL void agid2fid(const struct m0_cm_aggr_group *ag, struct m0_fid *fid)
 {
-	C2_PRE(ag != NULL);
-	C2_PRE(fid != NULL);
+	M0_PRE(ag != NULL);
+	M0_PRE(fid != NULL);
 
-	fid->f_container = ag->cag_id.ai_hi.u_hi;
-	fid->f_key       = ag->cag_id.ai_hi.u_lo;
+        m0_fid_set(fid, ag->cag_id.ai_hi.u_hi, ag->cag_id.ai_hi.u_lo);
 }
 
-C2_INTERNAL uint64_t agid2group(const struct c2_cm_aggr_group *ag)
+M0_INTERNAL uint64_t agid2group(const struct m0_cm_aggr_group *ag)
 {
-	C2_PRE(ag != NULL);
+	M0_PRE(ag != NULL);
 
 	return ag->cag_id.ai_lo.u_lo;
 }
 
-static uint64_t ag_local_cp_nr(const struct c2_cm_aggr_group *ag)
+static uint64_t ag_local_cp_nr(const struct m0_cm_aggr_group *ag)
 {
-	struct c2_fid            fid;
+	struct m0_fid            fid;
 	uint64_t                 group;
-	struct c2_cm            *cm;
-	struct c2_sns_repair_cm *rcm;
+	struct m0_cm            *cm;
+	struct m0_sns_repair_cm *rcm;
 
-	C2_ENTRY();
-	C2_PRE(ag != NULL);
+	M0_ENTRY();
+	M0_PRE(ag != NULL);
 
 	agid2fid(ag, &fid);
 	group = agid2group(ag);
 
 	cm = ag->cag_cm;
-	C2_ASSERT(cm != NULL);
+	M0_ASSERT(cm != NULL);
 	rcm = cm2sns(cm);
 
-	C2_LEAVE();
+	M0_LEAVE();
 	return nr_local_units(rcm, &fid, group);
 }
 
-static const struct c2_cm_aggr_group_ops repair_ag_ops = {
+static const struct m0_cm_aggr_group_ops repair_ag_ops = {
 	.cago_fini   = ag_fini,
 	.cago_local_cp_nr = ag_local_cp_nr
 };
 
-C2_INTERNAL struct c2_sns_repair_ag *c2_sns_repair_ag_find(struct
-							   c2_sns_repair_cm
+M0_INTERNAL struct m0_sns_repair_ag *m0_sns_repair_ag_find(struct
+							   m0_sns_repair_cm
 							   *rcm,
 							   const struct
-							   c2_cm_ag_id *id)
+							   m0_cm_ag_id *id)
 {
-	struct c2_cm            *cm;
-	struct c2_cm_aggr_group *ag;
-	struct c2_sns_repair_ag *sag;
+	struct m0_cm            *cm;
+	struct m0_cm_aggr_group *ag;
+	struct m0_sns_repair_ag *sag;
 
-	C2_ENTRY("rcm: %p, ag id:%p", rcm, id);
-	C2_PRE(rcm != NULL);
-	C2_PRE(id != NULL);
+	M0_ENTRY("rcm: %p, ag id:%p", rcm, id);
+	M0_PRE(rcm != NULL);
+	M0_PRE(id != NULL);
 
 	cm = &rcm->rc_base;
-	C2_PRE(cm != NULL);
-	C2_PRE(c2_cm_is_locked(cm));
+	M0_PRE(cm != NULL);
+	M0_PRE(m0_cm_is_locked(cm));
 
-	ag = c2_cm_aggr_group_find(cm, id);
+	ag = m0_cm_aggr_group_find(cm, id);
 	if (ag != NULL) {
 		/*
 		 * Aggregation group is already present in the sliding window's
 		 * list.
 		 */
 		sag = ag2snsag(ag);
-		C2_ASSERT(sag != NULL);
+		M0_ASSERT(sag != NULL);
 	} else {
 		/*
 		 * Allocate new aggregation group and add it to the
 		 * lexicographically sorted list of aggregation groups in the
 		 * sliding window.
 		 */
-		C2_ALLOC_PTR(sag);
+		M0_ALLOC_PTR(sag);
 		if (sag != NULL) {
-			c2_cm_aggr_group_init(&sag->sag_base, cm, id,
+			m0_cm_aggr_group_init(&sag->sag_base, cm, id,
 					      &repair_ag_ops);
 			spare_unit_to_cob(sag);
-			c2_cm_aggr_group_add(cm, &sag->sag_base);
+			m0_cm_aggr_group_add(cm, &sag->sag_base);
 		}
 	}
-	C2_LEAVE("ag: %p", sag);
+	M0_LEAVE("ag: %p", sag);
 	return sag;
 }
 
-#undef C2_TRACE_SUBSYSTEM
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} SNSRepairAG */
 /*

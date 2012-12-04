@@ -18,7 +18,7 @@
  * Original creation date: 09/28/2011
  */
 
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #ifndef __KERNEL__
 #include <errno.h> /* errno */
@@ -38,92 +38,87 @@
 #ifndef __KERNEL__
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
-#include "colibri/colibri_setup.h"
+#include "mero/mero_setup.h"
 #endif
 
 #ifndef __KERNEL__
-int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
+int m0_rpc_server_start(struct m0_rpc_server_ctx *sctx)
 {
 	int  rc;
 
-	C2_ENTRY("server_ctx: %p", sctx);
-	C2_PRE(sctx->rsx_argv != NULL && sctx->rsx_argc > 0);
+	M0_ENTRY("server_ctx: %p", sctx);
+	M0_PRE(sctx->rsx_argv != NULL && sctx->rsx_argc > 0);
 
 	/* Open error log file */
 	sctx->rsx_log_file = fopen(sctx->rsx_log_file_name, "w+");
 	if (sctx->rsx_log_file == NULL)
-		C2_RETERR(errno, "Open of error log file");
+		M0_RETERR(errno, "Open of error log file");
 
 	/*
 	 * Start rpc server.
 	 * Note: This only starts the services specified in the
-	 * struct c2_rpc_service_ctx, (i.e. c2_rpc_server_ctx::rsx_service_types
+	 * struct m0_rpc_service_ctx, (i.e. m0_rpc_server_ctx::rsx_service_types
 	 * ) and does not register the given service types. The user of
-	 * c2_rpc_server_start() must register the service stypes before.
+	 * m0_rpc_server_start() must register the service stypes before.
 	 */
-	rc = c2_cs_init(&sctx->rsx_colibri_ctx, sctx->rsx_xprts,
+	rc = m0_cs_init(&sctx->rsx_mero_ctx, sctx->rsx_xprts,
 			sctx->rsx_xprts_nr, sctx->rsx_log_file);
 	if (rc != 0)
 		goto fclose;
 
-	rc = c2_cs_setup_env(&sctx->rsx_colibri_ctx, sctx->rsx_argc,
+	rc = m0_cs_setup_env(&sctx->rsx_mero_ctx, sctx->rsx_argc,
 			     sctx->rsx_argv);
-	if (rc != 0)
-		goto cs_fini;
+	if (rc == 0)
+		M0_RETURN(m0_cs_start(&sctx->rsx_mero_ctx));
 
-	rc = c2_cs_start(&sctx->rsx_colibri_ctx);
-
-	C2_RETURN(rc);
-
-cs_fini:
-	c2_cs_fini(&sctx->rsx_colibri_ctx);
+	m0_cs_fini(&sctx->rsx_mero_ctx);
 fclose:
 	fclose(sctx->rsx_log_file);
-	C2_RETURN(rc);
+	M0_RETURN(rc);
 }
 
-void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
+void m0_rpc_server_stop(struct m0_rpc_server_ctx *sctx)
 {
-	C2_ENTRY("server_ctx: %p", sctx);
+	M0_ENTRY("server_ctx: %p", sctx);
 
-	c2_cs_fini(&sctx->rsx_colibri_ctx);
+	m0_cs_fini(&sctx->rsx_mero_ctx);
 	fclose(sctx->rsx_log_file);
 
-	C2_LEAVE();
+	M0_LEAVE();
 	return;
 }
 #endif
 
-int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
+int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 {
 	int rc;
-	struct c2_net_transfer_mc *tm;
-	struct c2_net_domain      *ndom;
-	struct c2_rpc_machine	  *rpc_mach;
-	struct c2_net_buffer_pool *buffer_pool;
+	struct m0_net_transfer_mc *tm;
+	struct m0_net_domain      *ndom;
+	struct m0_rpc_machine	  *rpc_mach;
+	struct m0_net_buffer_pool *buffer_pool;
 	uint32_t		   tms_nr;
 	uint32_t		   bufs_nr;
 
-	C2_ENTRY("client_ctx: %p", cctx);
+	M0_ENTRY("client_ctx: %p", cctx);
 
 	ndom	    = cctx->rcx_net_dom;
 	rpc_mach    = &cctx->rcx_rpc_machine;
 	buffer_pool = &cctx->rcx_buffer_pool;
 
 	if (cctx->rcx_recv_queue_min_length == 0)
-		cctx->rcx_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN;
+		cctx->rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 
 	tms_nr   = 1;
-	bufs_nr  = c2_rpc_bufs_nr(cctx->rcx_recv_queue_min_length, tms_nr);
+	bufs_nr  = m0_rpc_bufs_nr(cctx->rcx_recv_queue_min_length, tms_nr);
 
-	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
+	rc = m0_rpc_net_buffer_pool_setup(ndom, buffer_pool,
 					  bufs_nr, tms_nr);
 	if (rc != 0)
 		goto pool_fini;
 
-	rc = c2_rpc_machine_init(rpc_mach, cctx->rcx_cob_dom,
+	rc = m0_rpc_machine_init(rpc_mach, cctx->rcx_cob_dom,
 				 ndom, cctx->rcx_local_addr, NULL,
-				 buffer_pool, C2_BUFFER_ANY_COLOUR,
+				 buffer_pool, M0_BUFFER_ANY_COLOUR,
 				 cctx->rcx_max_rpc_msg_size,
 				 cctx->rcx_recv_queue_min_length);
 	if (rc != 0)
@@ -131,95 +126,91 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 
 	tm = &cctx->rcx_rpc_machine.rm_tm;
 
-	rc = c2_net_end_point_create(&cctx->rcx_remote_ep, tm,
+	rc = m0_net_end_point_create(&cctx->rcx_remote_ep, tm,
 				      cctx->rcx_remote_addr);
 	if (rc != 0)
 		goto rpcmach_fini;
 
-	rc = c2_rpc_conn_create(&cctx->rcx_connection, cctx->rcx_remote_ep,
+	rc = m0_rpc_conn_create(&cctx->rcx_connection, cctx->rcx_remote_ep,
 				rpc_mach, cctx->rcx_max_rpcs_in_flight,
-				(uint32_t)C2_TIME_NEVER);
+				(uint32_t)M0_TIME_NEVER);
 	if (rc != 0)
 		goto ep_put;
 
-	rc = c2_rpc_session_create(&cctx->rcx_session, &cctx->rcx_connection,
-				   cctx->rcx_nr_slots, (uint32_t)C2_TIME_NEVER);
-	if (rc != 0)
-		goto conn_destroy;
+	rc = m0_rpc_session_create(&cctx->rcx_session, &cctx->rcx_connection,
+				   cctx->rcx_nr_slots, (uint32_t)M0_TIME_NEVER);
+	if (rc == 0)
+		M0_RETURN(rc);
 
-	C2_RETURN(rc);
-
-conn_destroy:
-	c2_rpc_conn_destroy(&cctx->rcx_connection, (uint32_t)C2_TIME_NEVER);
+	m0_rpc_conn_destroy(&cctx->rcx_connection, (uint32_t)M0_TIME_NEVER);
 ep_put:
-	c2_net_end_point_put(cctx->rcx_remote_ep);
+	m0_net_end_point_put(cctx->rcx_remote_ep);
 rpcmach_fini:
-	c2_rpc_machine_fini(rpc_mach);
+	m0_rpc_machine_fini(rpc_mach);
 pool_fini:
-	c2_rpc_net_buffer_pool_cleanup(buffer_pool);
-	C2_ASSERT(rc != 0);
-	C2_RETURN(rc);
+	m0_rpc_net_buffer_pool_cleanup(buffer_pool);
+	M0_ASSERT(rc != 0);
+	M0_RETURN(rc);
 }
 
-int c2_rpc_client_call(struct c2_fop *fop,
-		       struct c2_rpc_session *session,
-		       const struct c2_rpc_item_ops *ri_ops,
-		       c2_time_t deadline, uint32_t timeout_s)
+int m0_rpc_client_call(struct m0_fop *fop,
+		       struct m0_rpc_session *session,
+		       const struct m0_rpc_item_ops *ri_ops,
+		       m0_time_t deadline, uint32_t timeout_s)
 {
-	struct c2_rpc_item *item;
+	struct m0_rpc_item *item;
 	int                 rc;
 
-	C2_ENTRY("fop: %p, session: %p", fop, session);
-	C2_PRE(fop != NULL);
-	C2_PRE(session != NULL);
+	M0_ENTRY("fop: %p, session: %p", fop, session);
+	M0_PRE(fop != NULL);
+	M0_PRE(session != NULL);
 	/*
 	 * It is mandatory to specify item_ops, because rpc layer needs
-	 * implementation of c2_rpc_item_ops::rio_free() in order to free the
-	 * item. Consumer can use c2_fop_default_item_ops if, it is not
+	 * implementation of m0_rpc_item_ops::rio_free() in order to free the
+	 * item. Consumer can use m0_fop_default_item_ops if, it is not
 	 * interested in implementing other (excluding ->rio_free())
-	 * interfaces of c2_rpc_item_ops. See also c2_fop_item_free().
+	 * interfaces of m0_rpc_item_ops. See also m0_fop_item_free().
 	 */
-	C2_PRE(ri_ops != NULL);
+	M0_PRE(ri_ops != NULL);
 
 	item                = &fop->f_item;
 	item->ri_ops        = ri_ops;
 	item->ri_session    = session;
-	item->ri_prio       = C2_RPC_ITEM_PRIO_MID;
+	item->ri_prio       = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline   = deadline;
-	item->ri_op_timeout = c2_time_from_now(timeout_s, 0);
+	item->ri_op_timeout = m0_time_from_now(timeout_s, 0);
 
-	rc = c2_rpc_post(item);
-	if (rc == 0 && timeout_s > 0) {
-		rc = c2_rpc_item_wait_for_reply(item, C2_TIME_NEVER);
-	}
-	C2_RETURN(rc);
+	rc = m0_rpc_post(item);
+	if (rc == 0 && timeout_s > 0)
+		rc = m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER);
+	M0_RETURN(rc);
 }
-C2_EXPORTED(c2_rpc_client_call);
+M0_EXPORTED(m0_rpc_client_call);
 
-int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
+int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 {
 	int rc;
 
-	C2_ENTRY("client_ctx: %p", cctx);
-	rc = c2_rpc_session_destroy(&cctx->rcx_session, (uint32_t)C2_TIME_NEVER);
+	M0_ENTRY("client_ctx: %p", cctx);
+	rc = m0_rpc_session_destroy(&cctx->rcx_session, (uint32_t)M0_TIME_NEVER);
 	if (rc != 0) {
-		C2_RETURN(rc);
+		M0_RETURN(rc);
 	}
 
-	rc = c2_rpc_conn_destroy(&cctx->rcx_connection, (uint32_t)C2_TIME_NEVER);
+	rc = m0_rpc_conn_destroy(&cctx->rcx_connection, (uint32_t)M0_TIME_NEVER);
 	if (rc != 0) {
-		C2_RETURN(rc);
+		M0_RETURN(rc);
 	}
 
-	c2_net_end_point_put(cctx->rcx_remote_ep);
-	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
+	m0_net_end_point_put(cctx->rcx_remote_ep);
+	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
 
-	c2_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
+	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
-	C2_RETURN(rc);
+	M0_RETURN(rc);
 }
 
-#undef C2_TRACE_SUBSYSTEM
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

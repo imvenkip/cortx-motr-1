@@ -20,12 +20,13 @@
 
 #include <stdio.h>  /* fprintf, fflush */
 #include <stdlib.h> /* abort */
+#include <unistd.h> /* fork, execvp */
 
 #ifdef HAVE_BACKTRACE
 #  include <execinfo.h>
 #endif
 
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LIB
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -34,13 +35,15 @@
 /**
    @addtogroup assert
 
-   User space c2_panic() implementation.
+   User space m0_panic() implementation.
    @{
 */
 
 enum {
 	BACKTRACE_DEPTH_MAX = 256
 };
+
+M0_EXTERN char *m0_debugger_args[4];
 
 /**
    Simple user space panic function: issue diagnostics to the stderr, flush the
@@ -50,7 +53,7 @@ enum {
    <execinfo.h> header (checked for by ./configure). Object files should be
    compiled with -rdynamic for this to work in the presence of dynamic linking.
  */
-void c2_panic(const char *expr, const char *func, const char *file, int lineno)
+void m0_panic(const char *expr, const char *func, const char *file, int lineno)
 {
 	fprintf(stderr, "Assertion failure: %s at %s() %s:%i (errno: %i)\n",
 		expr, func, file, lineno, errno);
@@ -64,11 +67,27 @@ void c2_panic(const char *expr, const char *func, const char *file, int lineno)
 		backtrace_symbols_fd(trace, nr, 2);
 	}
 #endif
-	C2_LOG(C2_FATAL, "panic: %s %s() (%s:%i)", expr, func, file, lineno);
+	M0_LOG(M0_FATAL, "panic: %s %s() (%s:%i)", expr, func, file, lineno);
+	if (m0_debugger_args[0] != NULL) {
+		int rc;
+
+		rc = fork();
+		if (rc > 0) {
+			/* parent */
+			volatile bool stop = true;
+
+			while (stop) {
+				;
+			}
+		} else if (rc == 0) {
+			/* child */
+			rc = execvp(m0_debugger_args[0], m0_debugger_args);
+		}
+	}
 	abort();
 }
 
-#undef C2_TRACE_SUBSYSTEM
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of assert group */
 

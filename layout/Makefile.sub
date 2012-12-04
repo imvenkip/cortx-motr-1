@@ -1,11 +1,11 @@
-nobase_colibri_include_HEADERS += layout/layout.h \
+nobase_mero_include_HEADERS += layout/layout.h \
                                   layout/pdclust.h \
                                   layout/composite.h \
                                   layout/list_enum.h \
                                   layout/linear_enum.h \
                                   layout/layout_db.h
 
-colibri_libcolibri_la_SOURCES  += layout/layout.c \
+mero_libmero_la_SOURCES  += layout/layout.c \
                                   layout/layout_internal.h \
                                   layout/pdclust.c \
                                   layout/composite.c \

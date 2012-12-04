@@ -1,6 +1,0 @@
-EXTRA_DIST += c2t1fs/linux_kernel/st/c2t1fs_client.sh \
-              c2t1fs/linux_kernel/st/c2t1fs_client_inc.sh \
-              c2t1fs/linux_kernel/st/c2t1fs_common_inc.sh \
-              c2t1fs/linux_kernel/st/c2t1fs_server.sh \
-              c2t1fs/linux_kernel/st/c2t1fs_server_inc.sh \
-              c2t1fs/linux_kernel/st/c2t1fs_test.sh

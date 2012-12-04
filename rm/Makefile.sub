@@ -1,16 +1,16 @@
-nobase_colibri_include_HEADERS   += rm/rm.h \
-				    rm/rm_fops.h \
-				    rm/rm_foms.h \
-				    rm/rm_ff.h
+nobase_mero_include_HEADERS += rm/rm.h \
+			       rm/rm_fops.h \
+			       rm/rm_foms.h \
+			       rm/rm_ff.h
                                   
-colibri_libcolibri_la_SOURCES    += rm/rm_fops.c \
-				    rm/rm.c \
-				    rm/rm_foms.c \
-				    rm/rm_ff.c
+mero_libmero_la_SOURCES     += rm/rm_fops.c \
+			       rm/rm.c \
+			       rm/rm_foms.c \
+			       rm/rm_ff.c
 
-FF_FILES                         += rm/rm_ff.h
+FF_FILES                    += rm/rm_ff.h
 
-EXTRA_DIST                       += rm.ff
+EXTRA_DIST                  += rm.ff
 
-CLEANFILES                       += rm/rm_ff.h \
-                                    rm/rm_ff.c
+CLEANFILES                  += rm/rm_ff.h \
+                               rm/rm_ff.c

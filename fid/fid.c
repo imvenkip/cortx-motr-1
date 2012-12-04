@@ -24,10 +24,10 @@
 #include <string.h>
 #endif
 
-#include "lib/cdefs.h"         /* C2_EXPORTED */
-#include "lib/assert.h"        /* C2_PRE() */
+#include "lib/cdefs.h"         /* M0_EXPORTED */
+#include "lib/assert.h"        /* M0_PRE() */
+#include "fid/fid_xc.h"
 #include "fid/fid.h"
-#include "fid/fid_ff.h"
 
 /**
    @addtogroup fid
@@ -35,57 +35,61 @@
    @{
  */
 
-C2_INTERNAL bool c2_fid_is_valid(const struct c2_fid *fid)
+M0_INTERNAL bool m0_fid_is_valid(const struct m0_fid *fid)
 {
         return true;
 }
 
-C2_INTERNAL bool c2_fid_is_set(const struct c2_fid *fid)
+M0_INTERNAL bool m0_fid_is_set(const struct m0_fid *fid)
 {
-        static const struct c2_fid zero = {
+        static const struct m0_fid zero = {
                 .f_container = 0,
                 .f_key = 0
         };
-        return !c2_fid_eq(fid, &zero);
+        return !m0_fid_eq(fid, &zero);
 }
 
-C2_INTERNAL void c2_fid_set(struct c2_fid *fid, uint64_t container,
+M0_INTERNAL void m0_fid_set(struct m0_fid *fid, uint64_t container,
 			    uint64_t key)
 {
-        C2_PRE(fid != NULL);
+        M0_PRE(fid != NULL);
 
         fid->f_container = container;
         fid->f_key = key;
 }
 
-C2_INTERNAL bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1)
+M0_INTERNAL bool m0_fid_eq(const struct m0_fid *fid0, const struct m0_fid *fid1)
 {
         return memcmp(fid0, fid1, sizeof *fid0) == 0;
 }
 
-C2_INTERNAL int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1)
+M0_INTERNAL int m0_fid_cmp(const struct m0_fid *fid0, const struct m0_fid *fid1)
 {
-        const struct c2_uint128 u0 = {
+        const struct m0_uint128 u0 = {
                 .u_hi = fid0->f_container,
                 .u_lo = fid0->f_key
         };
 
-        const struct c2_uint128 u1 = {
+        const struct m0_uint128 u1 = {
                 .u_hi = fid1->f_container,
                 .u_lo = fid1->f_key
         };
 
-        return c2_uint128_cmp(&u0, &u1);
+        return m0_uint128_cmp(&u0, &u1);
 }
 
-C2_INTERNAL void c2_fid_unregister(void)
+M0_INTERNAL int m0_fid_init(void)
 {
+	m0_xc_fid_init();
+	return 0;
 }
+M0_EXPORTED(m0_fid_init);
 
-C2_INTERNAL int c2_fid_register(void)
+M0_INTERNAL void m0_fid_fini(void)
 {
-        return 0;
+	m0_xc_fid_fini();
 }
+M0_EXPORTED(m0_fid_fini);
 
 /** @} end of fid group */
 

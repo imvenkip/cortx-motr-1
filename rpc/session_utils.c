@@ -23,14 +23,14 @@
 #include <sys/stat.h>    /* S_ISDIR */
 #endif
 
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/arith.h"
 #include "lib/bitstring.h"
-#include "lib/finject.h"       /* C2_FI_ENABLED */
+#include "lib/finject.h"       /* M0_FI_ENABLED */
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
@@ -45,127 +45,126 @@
    @{
  */
 
-C2_INTERNAL int c2_rpc_session_module_init(void)
+M0_INTERNAL int m0_rpc_session_module_init(void)
 {
-        return c2_rpc_session_fop_init();
+        return m0_rpc_session_fop_init();
 }
 
-C2_INTERNAL void c2_rpc_session_module_fini(void)
+M0_INTERNAL void m0_rpc_session_module_fini(void)
 {
-        c2_rpc_session_fop_fini();
+        m0_rpc_session_fop_fini();
 }
 
-C2_INTERNAL void c2_rpc_sender_uuid_get(struct c2_rpc_sender_uuid *u)
+M0_INTERNAL void m0_rpc_sender_uuid_get(struct m0_rpc_sender_uuid *u)
 {
 	u->su_uuid = uuid_generate();
 }
 
-C2_INTERNAL int c2_rpc_sender_uuid_cmp(const struct c2_rpc_sender_uuid *u1,
-				       const struct c2_rpc_sender_uuid *u2)
+M0_INTERNAL int m0_rpc_sender_uuid_cmp(const struct m0_rpc_sender_uuid *u1,
+				       const struct m0_rpc_sender_uuid *u2)
 {
-	return C2_3WAY(u1->su_uuid, u2->su_uuid);
+	return M0_3WAY(u1->su_uuid, u2->su_uuid);
 }
 
-C2_INTERNAL int c2_rpc__post_locked(struct c2_rpc_item *item);
+M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item);
 
 /**
    Initialises rpc item and posts it to rpc-layer
  */
-C2_INTERNAL int c2_rpc__fop_post(struct c2_fop *fop,
-				 struct c2_rpc_session *session,
-				 const struct c2_rpc_item_ops *ops)
+M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
+				 struct m0_rpc_session *session,
+				 const struct m0_rpc_item_ops *ops)
 {
-	struct c2_rpc_item *item;
+	struct m0_rpc_item *item;
 	int                 rc;
 
-	if (C2_FI_ENABLED("fake_error"))
+	if (M0_FI_ENABLED("fake_error"))
 		return -ETIMEDOUT;
 
-	if (C2_FI_ENABLED("do_nothing"))
+	if (M0_FI_ENABLED("do_nothing"))
 		return 0;
 
-	C2_ENTRY("fop: %p, session: %p", fop, session);
+	M0_ENTRY("fop: %p, session: %p", fop, session);
 
 	item                = &fop->f_item;
 	item->ri_session    = session;
-	item->ri_prio       = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_prio       = M0_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline   = 0;
 	item->ri_ops        = ops;
-	item->ri_op_timeout = c2_time_from_now(10, 0);
+	item->ri_op_timeout = m0_time_from_now(10, 0);
 
-	rc = c2_rpc__post_locked(item);
-	C2_RETURN(rc);
+	rc = m0_rpc__post_locked(item);
+	M0_RETURN(rc);
 }
 
-static struct c2_uint128 stob_id_alloc(void)
+static struct m0_uint128 stob_id_alloc(void)
 {
-        static struct c2_atomic64 cnt;
-	struct c2_uint128         id;
+        static struct m0_atomic64 cnt;
+	struct m0_uint128         id;
         uint64_t                  millisec;
 
 	/*
 	 * TEMPORARY implementation to allocate unique stob id
 	 */
-	millisec = c2_time_nanoseconds(c2_time_now()) * 1000000;
-	c2_atomic64_inc(&cnt);
+	millisec = m0_time_nanoseconds(m0_time_now()) * 1000000;
+	m0_atomic64_inc(&cnt);
 
 	id.u_hi = (0xFFFFULL << 48); /* MSB 16 bit set */
-	id.u_lo = (millisec << 20) | (c2_atomic64_get(&cnt) & 0xFFFFF);
+	id.u_lo = (millisec << 20) | (m0_atomic64_get(&cnt) & 0xFFFFF);
         return id;
 }
 
-C2_INTERNAL int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
-					 struct c2_cob *pcob,
+M0_INTERNAL int m0_rpc_cob_create_helper(struct m0_cob_domain *dom,
+					 const struct m0_cob *pcob,
 					 const char *name,
-					 struct c2_cob **out,
-					 struct c2_db_tx *tx)
+					 struct m0_cob **out,
+					 struct m0_db_tx *tx)
 {
-	struct c2_cob_nskey  *key;
-	struct c2_cob_nsrec   nsrec;
-	struct c2_cob_fabrec *fabrec;
-	struct c2_cob_omgrec  omgrec;
-	struct c2_cob        *cob;
-	struct c2_fid         pfid;
-	struct c2_uint128     stobid;
+	struct m0_cob_nskey  *key;
+	struct m0_cob_nsrec   nsrec;
+	struct m0_cob_fabrec *fabrec;
+	struct m0_cob_omgrec  omgrec;
+	struct m0_cob        *cob;
+	struct m0_fid         pfid;
+	struct m0_uint128     stobid;
 	int                   rc;
 
-	C2_ENTRY("cob_dom: %p, pcob: %p", dom, pcob);
-	C2_PRE(dom != NULL && name != NULL && out != NULL);
+	M0_ENTRY("cob_dom: %p, pcob: %p", dom, pcob);
+	M0_PRE(dom != NULL && name != NULL && out != NULL);
 
 	*out = NULL;
-	C2_SET0(&nsrec);
+	M0_SET0(&nsrec);
 
-	rc = c2_cob_alloc(dom, &cob);
+	rc = m0_cob_alloc(dom, &cob);
 	if (rc)
 	        return rc;
 
 	if (pcob == NULL) {
-	        pfid.f_container = pfid.f_key = 1;
+	        m0_fid_set(&pfid, 1, 1);
 	} else {
 	        pfid = pcob->co_nsrec.cnr_fid;
 	}
 
-	rc = c2_cob_nskey_make(&key, &pfid, name, strlen(name));
+	rc = m0_cob_nskey_make(&key, &pfid, name, strlen(name));
 	if (rc != 0) {
-	        c2_cob_put(cob);
-		C2_RETURN(rc);
+	        m0_cob_put(cob);
+		M0_RETURN(rc);
 	}
 
         stobid = stob_id_alloc();
-	nsrec.cnr_fid.f_container = stobid.u_hi;
-	nsrec.cnr_fid.f_key = stobid.u_lo;
+        m0_fid_set(&nsrec.cnr_fid, stobid.u_hi, stobid.u_lo);
 	nsrec.cnr_nlink = 1;
 
-        rc = c2_cob_fabrec_make(&fabrec, NULL, 0);
+        rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
         if (rc != 0) {
-	        c2_cob_put(cob);
-		C2_RETURN(rc);
+	        m0_cob_put(cob);
+		M0_RETURN(rc);
         }
 
 	/*
 	 * Temporary assignment for lsn
 	 */
-	fabrec->cfb_version.vn_lsn = C2_LSN_RESERVED_NR + 2;
+	fabrec->cfb_version.vn_lsn = M0_LSN_RESERVED_NR + 2;
 	fabrec->cfb_version.vn_vc = 0;
 
         omgrec.cor_uid = 0;
@@ -175,77 +174,77 @@ C2_INTERNAL int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
-	rc = c2_cob_create(cob, key, &nsrec, fabrec, &omgrec, tx);
+	rc = m0_cob_create(cob, key, &nsrec, fabrec, &omgrec, tx);
 	if (rc == 0) {
 		*out = cob;
 	} else {
-	        c2_cob_put(cob);
-                c2_free(key);
-                c2_free(fabrec);
+	        m0_cob_put(cob);
+                m0_free(key);
+                m0_free(fabrec);
 	}
 
-	C2_RETURN(rc);
+	M0_RETURN(rc);
 }
 
-C2_INTERNAL int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
-					 struct c2_cob *pcob,
+M0_INTERNAL int m0_rpc_cob_lookup_helper(struct m0_cob_domain *dom,
+					 struct m0_cob *pcob,
 					 const char *name,
-					 struct c2_cob **out,
-					 struct c2_db_tx *tx)
+					 struct m0_cob **out,
+					 struct m0_db_tx *tx)
 {
-	struct c2_cob_nskey *key = NULL;
-	struct c2_fid        pfid;
+	struct m0_cob_nskey *key = NULL;
+	struct m0_fid        pfid;
 	int                  rc;
 
-	C2_ENTRY("cob_dom: %p, pcob; %p, name: %s", dom, pcob,
+	M0_ENTRY("cob_dom: %p, pcob; %p, name: %s", dom, pcob,
 		 (char *)name);
-	C2_PRE(dom != NULL && name != NULL && out != NULL);
+	M0_PRE(dom != NULL && name != NULL && out != NULL);
 
 	*out = NULL;
 	if (pcob == NULL) {
-	        pfid.f_container = pfid.f_key = 1;
+	        m0_fid_set(&pfid, 1, 1);
 	} else {
 	        pfid = pcob->co_nsrec.cnr_fid;
 	}
 
-	rc = c2_cob_nskey_make(&key, &pfid, name, strlen(name));
+	rc = m0_cob_nskey_make(&key, &pfid, name, strlen(name));
 	if (rc != 0)
-	        C2_RETURN(rc);
+	        M0_RETURN(rc);
 	if (key == NULL)
-		C2_RETURN(-ENOMEM);
-	rc = c2_cob_lookup(dom, key, C2_CA_NSKEY_FREE | C2_CA_FABREC, out, tx);
+		M0_RETURN(-ENOMEM);
+	rc = m0_cob_lookup(dom, key, M0_CA_NSKEY_FREE | M0_CA_FABREC, out, tx);
 
-	C2_POST(ergo(rc == 0, *out != NULL));
-	C2_RETURN(rc);
+	M0_POST(ergo(rc == 0, *out != NULL));
+	M0_RETURN(rc);
 }
 
-C2_INTERNAL int c2_rpc_root_session_cob_get(struct c2_cob_domain *dom,
-					    struct c2_cob **out,
-					    struct c2_db_tx *tx)
+M0_INTERNAL int m0_rpc_root_session_cob_get(struct m0_cob_domain *dom,
+					    struct m0_cob **out,
+					    struct m0_db_tx *tx)
 {
-	return c2_rpc_cob_lookup_helper(dom, NULL, C2_COB_SESSIONS_NAME,
+	return m0_rpc_cob_lookup_helper(dom, NULL, M0_COB_SESSIONS_NAME,
 						out, tx);
 }
 
 #ifdef __KERNEL__
 
-int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
-				   struct c2_db_tx      *tx)
+int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
+				   struct m0_db_tx      *tx)
 {
 	return 0;
 }
 
 #else /* !__KERNEL__ */
 
-C2_INTERNAL int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
-					       struct c2_db_tx *tx)
+M0_INTERNAL int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
+					       struct m0_db_tx *tx)
 {
 	int rc;
 
-	if (C2_FI_ENABLED("fake_error"))
-		C2_RETURN(-EINVAL);
+	if (M0_FI_ENABLED("fake_error"))
+		M0_RETURN(-EINVAL);
 
-	rc = c2_cob_domain_mkfs(dom, &C2_COB_SLASH_FID, &C2_COB_SESSIONS_FID, tx);
+	rc = m0_cob_domain_mkfs(dom, &M0_COB_SLASH_FID, &M0_COB_SESSIONS_FID, tx);
 	if (rc == -EEXIST)
 		rc = 0;
 
@@ -256,34 +255,34 @@ C2_INTERNAL int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
 /**
   XXX temporary routine that submits the fop inside item for execution.
  */
-C2_INTERNAL void c2_rpc_item_dispatch(struct c2_rpc_item *item)
+M0_INTERNAL void m0_rpc_item_dispatch(struct m0_rpc_item *item)
 {
-	struct c2_fop                        *fop;
-	struct c2_reqh                       *reqh;
-        struct c2_rpc_fop_conn_establish_ctx *ctx;
-	struct c2_rpc_machine                *rpcmach;
+	struct m0_fop                        *fop;
+	struct m0_reqh                       *reqh;
+        struct m0_rpc_fop_conn_establish_ctx *ctx;
+	struct m0_rpc_machine                *rpcmach;
 
-	C2_ENTRY("item : %p", item);
+	M0_ENTRY("item : %p", item);
 
-	 if (c2_rpc_item_is_conn_establish(item)) {
+	 if (m0_rpc_item_is_conn_establish(item)) {
 
-		ctx = container_of(item, struct c2_rpc_fop_conn_establish_ctx,
+		ctx = container_of(item, struct m0_rpc_fop_conn_establish_ctx,
 					cec_fop.f_item);
-		C2_ASSERT(ctx != NULL);
+		M0_ASSERT(ctx != NULL);
 		rpcmach = ctx->cec_rpc_machine;
 	} else
 		rpcmach = item_machine(item);
 
-	C2_ASSERT(rpcmach != NULL);
+	M0_ASSERT(rpcmach != NULL);
 
 	reqh = rpcmach->rm_reqh;
-	C2_ASSERT(reqh != NULL);
+	M0_ASSERT(reqh != NULL);
 
-	fop = c2_rpc_item_to_fop(item);
+	fop = m0_rpc_item_to_fop(item);
 #ifndef __KERNEL__
-	c2_reqh_fop_handle(reqh, fop, NULL);
+	m0_reqh_fop_handle(reqh, fop);
 #endif
-	C2_LEAVE();
+	M0_LEAVE();
 }
 
 /** @} */

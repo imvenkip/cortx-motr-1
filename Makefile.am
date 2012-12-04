@@ -3,7 +3,7 @@
 ################################################################################
 
 #
-# This is a main colibri makefile. It's responsible for building all user-space
+# This is a main mero makefile. It's responsible for building all user-space
 # programs and libraries.
 #
 # It uses non-recursive make technique which is superior in many aspects to
@@ -28,7 +28,7 @@
 # *_LTLIBRARIES, *_CFLAGS, *_LDADD, _LIBADD and global targets should be defined
 # in this main makefile.
 #
-# Colibri's public headers should be listed in *_HEADERS variables, while
+# Mero's public headers should be listed in *_HEADERS variables, while
 # internal headers, which are not part of the public interface, should be listed
 # in *_SOURCES variables.
 #
@@ -70,9 +70,9 @@ ACLOCAL_AMFLAGS = -I m4
 #          automake's build rules, so there is no need to specify them directly
 #          in AM_XXXFLAGS or per-target XXXFLAGS variables.
 #
-AM_CPPFLAGS  = @C2_CPPFLAGS@
-AM_CFLAGS    = @C2_CFLAGS@
-AM_LDFLAGS   = @C2_LDFLAGS@
+AM_CPPFLAGS  = @M0_CPPFLAGS@
+AM_CFLAGS    = @M0_CFLAGS@
+AM_LDFLAGS   = @M0_LDFLAGS@
 
 
 ################################################################################
@@ -92,7 +92,7 @@ noinst_LTLIBRARIES =
 #ETAGS_ARGS = automake.in --lang=none \
 #             --regex=’/^@node[ \t]+\([^,]+\)/\1/’ automake.texi
 
-EXTRA_DIST = autogen.sh colibri.spec.in
+EXTRA_DIST = autogen.sh mero.spec.in
 CLEANFILES =
 
 # a list of auto-generated *_ff.[hc] files
@@ -113,10 +113,10 @@ XC_FILES =
 FF2C = $(top_builddir)/xcode/ff2c/ff2c
 
 noinst_PROGRAMS       += xcode/ff2c/ff2c
-xcode_ff2c_ff2c_LDADD  = xcode/ff2c/libcolibri-xcode-ff2c.la
+xcode_ff2c_ff2c_LDADD  = xcode/ff2c/libmero-xcode-ff2c.la
 
 # a separate ff2c library is required in order to test it in UT
-noinst_LTLIBRARIES    += xcode/ff2c/libcolibri-xcode-ff2c.la
+noinst_LTLIBRARIES    += xcode/ff2c/libmero-xcode-ff2c.la
 
 include $(top_srcdir)/xcode/ff2c/Makefile.sub
 
@@ -126,35 +126,35 @@ include $(top_srcdir)/xcode/ff2c/Makefile.sub
 ################################################################################
 
 #
-# libcolibri.so
+# libmero.so
 #
 
-lib_LTLIBRARIES                += colibri/libcolibri.la
-colibri_libcolibri_la_LDFLAGS   = -release @LT_RELEASE@ -pthread $(AM_LDFLAGS)
-colibri_libcolibri_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
+lib_LTLIBRARIES                += mero/libmero.la
+mero_libmero_la_LDFLAGS   = -release @LT_RELEASE@ -pthread $(AM_LDFLAGS)
+mero_libmero_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
                                   @DB_LIBS@ @GALOIS_LIBS@ @YAML_LIBS@ @CUNIT_LIBS@
 
-# TODO: remove CUnit dependency from libcolibri, move lib/ut.c to ut/ and
-# libcolibri-ut
+# TODO: remove CUnit dependency from libmero, move lib/ut.c to ut/ and
+# libmero-ut
 
-# install directory for public libcolibri headers
-colibri_includedir             = $(includedir)/colibri
+# install directory for public libmero headers
+mero_includedir             = $(includedir)/mero
 
-# these variables are populated in the Makefile.sub files of each colibri module,
+# these variables are populated in the Makefile.sub files of each mero module,
 # which are then included into this top-level makefile
-nobase_colibri_include_HEADERS =
-colibri_libcolibri_la_SOURCES  =
+nobase_mero_include_HEADERS =
+mero_libmero_la_SOURCES  =
 
 include $(top_srcdir)/addb/Makefile.sub
 include $(top_srcdir)/addb/addbff/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/build_kernel_modules/Makefile.sub
-include $(top_srcdir)/c2t1fs/Makefile.sub
+include $(top_srcdir)/m0t1fs/Makefile.sub
 include $(top_srcdir)/capa/Makefile.sub
 include $(top_srcdir)/cfg/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
 include $(top_srcdir)/cob/Makefile.sub
-include $(top_srcdir)/colibri/Makefile.sub
+include $(top_srcdir)/mero/Makefile.sub
 include $(top_srcdir)/conf/Makefile.sub
 include $(top_srcdir)/console/Makefile.sub
 include $(top_srcdir)/db/Makefile.sub
@@ -185,24 +185,24 @@ include $(top_srcdir)/xcode/Makefile.sub
 include $(top_srcdir)/yaml2db/Makefile.sub
 
 #
-# libcolibri-ut.so
+# libmero-ut.so
 #
 
-noinst_LTLIBRARIES          += ut/libcolibri-ut.la
-#ut_libcolibri_ut_la_LIBADD   = @CUNIT_LIBS@
+noinst_LTLIBRARIES          += ut/libmero-ut.la
+#ut_libmero_ut_la_LIBADD   = @CUNIT_LIBS@
 
 # conf/ut/Makefile.sub needs to use custom CPPFLAGS, so we need to initialize
-# custom libcolibri-ut CPPFLAGS here
-ut_libcolibri_ut_la_CPPFLAGS = $(AM_CPPFLAGS)
+# custom libmero-ut CPPFLAGS here
+ut_libmero_ut_la_CPPFLAGS = $(AM_CPPFLAGS)
 
-ut_libcolibri_ut_la_SOURCES  =
+ut_libmero_ut_la_SOURCES  =
 
 include $(top_srcdir)/addb/ut/Makefile.sub
 include $(top_srcdir)/balloc/ut/Makefile.sub
 include $(top_srcdir)/capa/ut/Makefile.sub
 include $(top_srcdir)/cm/ut/Makefile.sub
 include $(top_srcdir)/cob/ut/Makefile.sub
-include $(top_srcdir)/colibri/ut/Makefile.sub
+include $(top_srcdir)/mero/ut/Makefile.sub
 include $(top_srcdir)/conf/ut/Makefile.sub
 include $(top_srcdir)/console/ut/Makefile.sub
 include $(top_srcdir)/db/ut/Makefile.sub
@@ -230,47 +230,47 @@ include $(top_srcdir)/xcode/ut/Makefile.sub
 include $(top_srcdir)/yaml2db/ut/Makefile.sub
 
 #
-# libcolibri-net-test.so
+# libmero-net-test.so
 #
 
-noinst_LTLIBRARIES += net/test/libcolibri-net-test.la
+noinst_LTLIBRARIES += net/test/libmero-net-test.la
 
-net_test_libcolibri_net_test_la_SOURCES =
+net_test_libmero_net_test_la_SOURCES =
 
 include $(top_srcdir)/net/test/Makefile.sub
 
 #
-# libcolibri-altogether.so
+# libmero-altogether.so
 #
 
-COLIBRI_ALTOGETHER_USER_C   = colibri/colibri_altogether_user.c
-COLIBRI_ALTOGETHER_USER_SRC = $(filter %.c,$(colibri_libcolibri_la_SOURCES))
+MERO_ALTOGETHER_USER_C   = mero/mero_altogether_user.c
+MERO_ALTOGETHER_USER_SRC = $(filter %.c,$(mero_libmero_la_SOURCES))
 
-if ENABLE_COLIBRI_ALTOGETHER
-lib_LTLIBRARIES += colibri/libcolibri-altogether.la
+if ENABLE_MERO_ALTOGETHER
+lib_LTLIBRARIES += mero/libmero-altogether.la
 endif
 
-colibri_libcolibri_altogether_la_SOURCES  = $(COLIBRI_ALTOGETHER_USER_C)
+mero_libmero_altogether_la_SOURCES  = $(MERO_ALTOGETHER_USER_C)
 
-colibri_libcolibri_altogether_la_CPPFLAGS = $(AM_CPPFLAGS) \
-                                            -UC2_INTERNAL \
-                                            -DC2_INTERNAL=static \
-                                            -UC2_EXTERN \
-                                            -DC2_EXTERN=static
+mero_libmero_altogether_la_CPPFLAGS = $(AM_CPPFLAGS) \
+                                            -UM0_INTERNAL \
+                                            -DM0_INTERNAL=static \
+                                            -UM0_EXTERN \
+                                            -DM0_EXTERN=static
 
 if ENABLE_DEBUG
-colibri_libcolibri_altogether_la_CFLAGS   = $(AM_CFLAGS) \
+mero_libmero_altogether_la_CFLAGS   = $(AM_CFLAGS) \
                                             -Wno-unused-function
 else
-colibri_libcolibri_altogether_la_CFLAGS   = $(AM_CFLAGS) \
+mero_libmero_altogether_la_CFLAGS   = $(AM_CFLAGS) \
                                             -Wno-unused-function \
                                             -O3 -ffast-math
 endif
 
-colibri_libcolibri_altogether_la_LDFLAGS  = $(colibri_libcolibri_la_LDFLAGS)
-colibri_libcolibri_altogether_la_LIBADD   = $(colibri_libcolibri_la_LIBADD)
+mero_libmero_altogether_la_LDFLAGS  = $(mero_libmero_la_LDFLAGS)
+mero_libmero_altogether_la_LIBADD   = $(mero_libmero_la_LIBADD)
 
-CLEANFILES += $(COLIBRI_ALTOGETHER_USER_C)
+CLEANFILES += $(MERO_ALTOGETHER_USER_C)
 
 ################################################################################
 #                          Unit tests and benchmarks
@@ -281,92 +281,92 @@ CLEANFILES += $(COLIBRI_ALTOGETHER_USER_C)
 #
 
 noinst_PROGRAMS                  += balloc/ut/format
-balloc_ut_format_LDADD            = $(top_builddir)/colibri/libcolibri.la \
-                                    $(top_builddir)/ut/libcolibri-ut.la
+balloc_ut_format_LDADD            = $(top_builddir)/mero/libmero.la \
+                                    $(top_builddir)/ut/libmero-ut.la
 
 noinst_PROGRAMS                  += balloc/ut/free
-balloc_ut_free_LDADD              = $(top_builddir)/colibri/libcolibri.la \
-                                    $(top_builddir)/ut/libcolibri-ut.la
+balloc_ut_free_LDADD              = $(top_builddir)/mero/libmero.la \
+                                    $(top_builddir)/ut/libmero-ut.la
 
 noinst_PROGRAMS                  += balloc/ut/dump_free_extent
-balloc_ut_dump_free_extent_LDADD  = $(top_builddir)/colibri/libcolibri.la \
-                                    $(top_builddir)/ut/libcolibri-ut.la
+balloc_ut_dump_free_extent_LDADD  = $(top_builddir)/mero/libmero.la \
+                                    $(top_builddir)/ut/libmero-ut.la
 
 noinst_PROGRAMS                  += balloc/ut/dump_group_desc
-balloc_ut_dump_group_desc_LDADD   = $(top_builddir)/colibri/libcolibri.la \
-                                    $(top_builddir)/ut/libcolibri-ut.la
+balloc_ut_dump_group_desc_LDADD   = $(top_builddir)/mero/libmero.la \
+                                    $(top_builddir)/ut/libmero-ut.la
 
 noinst_PROGRAMS                  += balloc/ut/dump_super_block
-balloc_ut_dump_super_block_LDADD  = $(top_builddir)/colibri/libcolibri.la \
-                                    $(top_builddir)/ut/libcolibri-ut.la
+balloc_ut_dump_super_block_LDADD  = $(top_builddir)/mero/libmero.la \
+                                    $(top_builddir)/ut/libmero-ut.la
 
 noinst_PROGRAMS                  += balloc/ut/perf
-balloc_ut_perf_LDADD              = $(top_builddir)/colibri/libcolibri.la \
-                                    $(top_builddir)/ut/libcolibri-ut.la
+balloc_ut_perf_LDADD              = $(top_builddir)/mero/libmero.la \
+                                    $(top_builddir)/ut/libmero-ut.la
 
 noinst_PROGRAMS                  += balloc/ut/mperf
-balloc_ut_mperf_LDADD             = $(top_builddir)/colibri/libcolibri.la \
-                                    $(top_builddir)/ut/libcolibri-ut.la
+balloc_ut_mperf_LDADD             = $(top_builddir)/mero/libmero.la \
+                                    $(top_builddir)/ut/libmero-ut.la
 
 #
-# c2t1fs/linux_kernel/ut
+# m0t1fs/linux_kernel/ut
 #
 
-include $(top_srcdir)/c2t1fs/linux_kernel/ut/Makefile.sub
+include $(top_srcdir)/m0t1fs/linux_kernel/ut/Makefile.sub
 
 #
 # db/ut
 #
 
 noinst_PROGRAMS   += db/ut/elist
-db_ut_elist_LDADD  = $(top_builddir)/colibri/libcolibri.la \
-                     $(top_builddir)/ut/libcolibri-ut.la
+db_ut_elist_LDADD  = $(top_builddir)/mero/libmero.la \
+                     $(top_builddir)/ut/libmero-ut.la
 
 #
 # desim/ut
 #
 
 noinst_PROGRAMS            += desim/ut/net_test
-desim_ut_net_test_LDADD     = $(top_builddir)/colibri/libcolibri.la \
-                              $(top_builddir)/ut/libcolibri-ut.la
+desim_ut_net_test_LDADD     = $(top_builddir)/mero/libmero.la \
+                              $(top_builddir)/ut/libmero-ut.la
 
 noinst_PROGRAMS            += desim/ut/chs_test
-desim_ut_chs_test_LDADD     = $(top_builddir)/colibri/libcolibri.la \
-                              $(top_builddir)/ut/libcolibri-ut.la
+desim_ut_chs_test_LDADD     = $(top_builddir)/mero/libmero.la \
+                              $(top_builddir)/ut/libmero-ut.la
 
-noinst_PROGRAMS            += desim/ut/c2t1fs_test
-desim_ut_c2t1fs_test_LDADD  = $(top_builddir)/colibri/libcolibri.la \
-                              $(top_builddir)/ut/libcolibri-ut.la
+noinst_PROGRAMS            += desim/ut/m0t1fs_test
+desim_ut_m0t1fs_test_LDADD  = $(top_builddir)/mero/libmero.la \
+                              $(top_builddir)/ut/libmero-ut.la
 
 #
 # layout/ut
 #
 
 noinst_PROGRAMS       += layout/ut/ldemo
-layout_ut_ldemo_LDADD  = $(top_builddir)/colibri/libcolibri.la \
-                         $(top_builddir)/ut/libcolibri-ut.la
+layout_ut_ldemo_LDADD  = $(top_builddir)/mero/libmero.la \
+                         $(top_builddir)/ut/libmero-ut.la
 
 #
 # net/lnet/ut
 #
 
 noinst_PROGRAMS              += net/lnet/ut/lut_helper
-net_lnet_ut_lut_helper_LDADD  = $(top_builddir)/colibri/libcolibri.la \
-                                $(top_builddir)/ut/libcolibri-ut.la
+net_lnet_ut_lut_helper_LDADD  = $(top_builddir)/mero/libmero.la \
+                                $(top_builddir)/ut/libmero-ut.la
 
 #
 # utils/ut and utils/ub
 #
 
 noinst_PROGRAMS += utils/ut
-utils_ut_LDADD   = $(top_builddir)/ut/libcolibri-ut.la \
-                   $(top_builddir)/colibri/libcolibri.la \
-                   $(top_builddir)/net/test/libcolibri-net-test.la \
-                   $(top_builddir)/xcode/ff2c/libcolibri-xcode-ff2c.la
+utils_ut_LDADD   = $(top_builddir)/ut/libmero-ut.la \
+                   $(top_builddir)/mero/libmero.la \
+                   $(top_builddir)/net/test/libmero-net-test.la \
+                   $(top_builddir)/xcode/ff2c/libmero-xcode-ff2c.la
 
 noinst_PROGRAMS += utils/ub
-utils_ub_LDADD   = $(top_builddir)/colibri/libcolibri.la \
-                   $(top_builddir)/ut/libcolibri-ut.la
+utils_ub_LDADD   = $(top_builddir)/mero/libmero.la \
+                   $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/utils/Makefile.sub
 
@@ -380,20 +380,20 @@ include $(top_srcdir)/utils/Makefile.sub
 #
 
 noinst_PROGRAMS      += rpc/it/rpcping
-rpc_it_rpcping_LDADD  = $(top_builddir)/colibri/libcolibri.la  \
-                        $(top_builddir)/ut/libcolibri-ut.la
+rpc_it_rpcping_LDADD  = $(top_builddir)/mero/libmero.la  \
+                        $(top_builddir)/ut/libmero-ut.la
 
-if ENABLE_COLIBRI_ALTOGETHER
+if ENABLE_MERO_ALTOGETHER
 noinst_PROGRAMS                   += rpc/it/rpcping-altogether
 endif
 
 rpc_it_rpcping_altogether_SOURCES  = $(rpc_it_rpcping_SOURCES)
-rpc_it_rpcping_altogether_LDADD    = $(top_builddir)/colibri/libcolibri-altogether.la \
-                                     ut/ut_libcolibri_ut_la-cs_service.lo \
-                                     ut/ut_libcolibri_ut_la-cs_fop_foms.lo \
-                                     ut/ut_libcolibri_ut_la-cs_test_fops_ff.lo \
-                                     ut/ut_libcolibri_ut_la-rpc.lo \
-                                     ut/ut_libcolibri_ut_la-ut.lo
+rpc_it_rpcping_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la \
+                                     ut/ut_libmero_ut_la-cs_service.lo \
+                                     ut/ut_libmero_ut_la-cs_fop_foms.lo \
+                                     ut/ut_libmero_ut_la-cs_test_fops_ff.lo \
+                                     ut/ut_libmero_ut_la-rpc.lo \
+                                     ut/ut_libmero_ut_la-ut.lo
 
 include $(top_srcdir)/rpc/it/Makefile.sub
 
@@ -402,29 +402,29 @@ include $(top_srcdir)/rpc/it/Makefile.sub
 #
 
 noinst_PROGRAMS          += conf/st/objx2db
-conf_st_objx2db_LDADD     = $(top_builddir)/colibri/libcolibri.la
+conf_st_objx2db_LDADD     = $(top_builddir)/mero/libmero.la
 
 noinst_PROGRAMS          += conf/st/confd_test
-conf_st_confd_test_LDADD  = $(top_builddir)/colibri/libcolibri.la
+conf_st_confd_test_LDADD  = $(top_builddir)/mero/libmero.la
 
 noinst_PROGRAMS          += conf/st/confc_test
-conf_st_confc_test_LDADD  = $(top_builddir)/colibri/libcolibri.la
+conf_st_confc_test_LDADD  = $(top_builddir)/mero/libmero.la
 
 #
 # console/st
 #
 
 noinst_PROGRAMS         += console/st/server
-console_st_server_LDADD  = $(top_builddir)/colibri/libcolibri.la \
-                           $(top_builddir)/ut/libcolibri-ut.la
+console_st_server_LDADD  = $(top_builddir)/mero/libmero.la \
+                           $(top_builddir)/ut/libmero-ut.la
 
 #
 # net/bulk_emulation/st
 #
 
 noinst_PROGRAMS                      += net/bulk_emulation/st/bulkping
-net_bulk_emulation_st_bulkping_LDADD  = $(top_builddir)/colibri/libcolibri.la \
-                                        $(top_builddir)/ut/libcolibri-ut.la
+net_bulk_emulation_st_bulkping_LDADD  = $(top_builddir)/mero/libmero.la \
+                                        $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/net/bulk_emulation/st/Makefile.sub
 
@@ -433,8 +433,8 @@ include $(top_srcdir)/net/bulk_emulation/st/Makefile.sub
 #
 
 noinst_PROGRAMS            += net/lnet/st/lnetping
-net_lnet_st_lnetping_LDADD  = $(top_builddir)/colibri/libcolibri.la \
-                              $(top_builddir)/ut/libcolibri-ut.la
+net_lnet_st_lnetping_LDADD  = $(top_builddir)/mero/libmero.la \
+                              $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/net/lnet/st/Makefile.sub
 
@@ -443,12 +443,12 @@ include $(top_srcdir)/net/lnet/st/Makefile.sub
 #
 
 noinst_PROGRAMS                 += net/test/user_space/ntc
-net_test_user_space_ntc_LDADD    = $(top_builddir)/colibri/libcolibri.la \
-                                   $(top_builddir)/net/test/libcolibri-net-test.la
+net_test_user_space_ntc_LDADD    = $(top_builddir)/mero/libmero.la \
+                                   $(top_builddir)/net/test/libmero-net-test.la
 
 noinst_PROGRAMS                 += net/test/user_space/ntn
-net_test_user_space_ntn_LDADD    = $(top_builddir)/colibri/libcolibri.la \
-                                   $(top_builddir)/net/test/libcolibri-net-test.la
+net_test_user_space_ntn_LDADD    = $(top_builddir)/mero/libmero.la \
+                                   $(top_builddir)/net/test/libmero-net-test.la
 
 include $(top_srcdir)/net/test/user_space/Makefile.sub
 
@@ -457,8 +457,8 @@ include $(top_srcdir)/net/test/user_space/Makefile.sub
 #
 
 noinst_PROGRAMS            += sns/repair/st/repair
-sns_repair_st_repair_LDADD  = $(top_builddir)/colibri/libcolibri.la \
-                              $(top_builddir)/ut/libcolibri-ut.la
+sns_repair_st_repair_LDADD  = $(top_builddir)/mero/libmero.la \
+                              $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/sns/repair/st/Makefile.sub
 
@@ -467,8 +467,8 @@ include $(top_srcdir)/sns/repair/st/Makefile.sub
 #
 
 noinst_PROGRAMS          += yaml2db/st/yaml2db
-yaml2db_st_yaml2db_LDADD  = $(top_builddir)/colibri/libcolibri.la \
-                            $(top_builddir)/ut/libcolibri-ut.la
+yaml2db_st_yaml2db_LDADD  = $(top_builddir)/mero/libmero.la \
+                            $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/yaml2db/st/Makefile.sub
 
@@ -482,10 +482,10 @@ noinst_PROGRAMS += utils/ploss/ploss_client
 include $(top_srcdir)/utils/ploss/Makefile.sub
 
 #
-# c2t1fs/linux_kernel/st
+# m0t1fs/linux_kernel/st
 #
 
-include $(top_srcdir)/c2t1fs/linux_kernel/st/Makefile.sub
+include $(top_srcdir)/m0t1fs/linux_kernel/st/Makefile.sub
 
 
 ################################################################################
@@ -493,20 +493,20 @@ include $(top_srcdir)/c2t1fs/linux_kernel/st/Makefile.sub
 ################################################################################
 
 #
-# colibri/colibri_setup
+# mero/mero_setup
 #
 
-sbin_PROGRAMS               += colibri/colibri_setup
-colibri_colibri_setup_LDADD  = $(top_builddir)/colibri/libcolibri.la \
-                               $(top_builddir)/ut/libcolibri-ut.la
+sbin_PROGRAMS               += mero/mero_setup
+mero_mero_setup_LDADD  = $(top_builddir)/mero/libmero.la \
+                               $(top_builddir)/ut/libmero-ut.la
 
 #
-# console/bin/c2console
+# console/bin/m0console
 #
 
-bin_PROGRAMS                += console/bin/c2console
-console_bin_c2console_LDADD  = $(top_builddir)/colibri/libcolibri.la \
-                               $(top_builddir)/ut/libcolibri-ut.la
+bin_PROGRAMS                += console/bin/m0console
+console_bin_m0console_LDADD  = $(top_builddir)/mero/libmero.la \
+                               $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/console/bin/Makefile.sub
 
@@ -588,8 +588,10 @@ pre-all: check-sources-prebuild generate-files
 
 .PHONY: check-sources-prebuild
 check-sources-prebuild:
-	@#echo "Checking source files..."
+	@echo -n 'Checking source files... '
 	@$(top_srcdir)/scripts/check-include-guards --noisy $(top_srcdir)
+	@$(top_srcdir)/scripts/check-xlibri-traces $(top_srcdir)
+	@echo 'OK'
 
 .PHONY: generate-files
 generate-files: generate-xc-files generate-ff-files
@@ -607,6 +609,14 @@ generate-xc-files: $(XC_FILES)
 # this is executed just after 'all' target
 all-local: build-kernel-modules check-sources-postbuild
 	@$(top_srcdir)/scripts/check-public-api
+	@echo 'Resulting ELF image sizes:'
+	@size   mero/.libs/libmero{,-altogether}.so \
+		build_kernel_modules/kmero.ko \
+		2>/dev/null \
+	| sed -r -e 's/dec/total/' \
+		 -e 's#mero/.libs/|build_kernel_modules/##' \
+	| cut -f5 --complement \
+	| column -t
 
 .PHONY: check-sources-postbuild
 check-sources-postbuild:
@@ -639,45 +649,45 @@ __all-user: config.h Makefile $(LTLIBRARIES) $(PROGRAMS) $(HEADERS)
 all-kernel: pre-all
 	@$(MAKE) $(AM_MAKEFLAGS) build-kernel-modules
 
-# libcolibri
+# libmero
 
-.PHONY: libcolibri
-libcolibri: pre-all
-	@$(MAKE) $(AM_MAKEFLAGS) __libcolibri
+.PHONY: libmero
+libmero: pre-all
+	@$(MAKE) $(AM_MAKEFLAGS) __libmero
 
-.PHONY: __libcolibri
-__libcolibri: config.h Makefile colibri/libcolibri.la $(HEADERS)
+.PHONY: __libmero
+__libmero: config.h Makefile mero/libmero.la $(HEADERS)
 
-# libcolibri-altogether
+# libmero-altogether
 
-$(COLIBRI_ALTOGETHER_USER_C): $(COLIBRI_ALTOGETHER_USER_SRC)
-	@echo "/* This file is autogenerated, don't edit. */" > $(COLIBRI_ALTOGETHER_USER_C)
+$(MERO_ALTOGETHER_USER_C): $(MERO_ALTOGETHER_USER_SRC)
+	@echo "/* This file is autogenerated, don't edit. */" > $(MERO_ALTOGETHER_USER_C)
 	@for f in $^; do \
-		echo "#include \"$$f\"" >> $(COLIBRI_ALTOGETHER_USER_C); \
+		echo "#include \"$$f\"" >> $(MERO_ALTOGETHER_USER_C); \
 	done
 
-.PHONY: libcolibri-altogether
-libcolibri-altogether: pre-all
-	@$(MAKE) $(AM_MAKEFLAGS) __libcolibri-altogether
+.PHONY: libmero-altogether
+libmero-altogether: pre-all
+	@$(MAKE) $(AM_MAKEFLAGS) __libmero-altogether
 
-.PHONY: __libcolibri-altogether
-__libcolibri-altogether: config.h Makefile colibri/libcolibri-altogether.la $(HEADERS)
+.PHONY: __libmero-altogether
+__libmero-altogether: config.h Makefile mero/libmero-altogether.la $(HEADERS)
 
-# libcolibri-ut
+# libmero-ut
 
-.PHONY: libcolibri-ut
-libcolibri-ut: pre-all
-	@$(MAKE) $(AM_MAKEFLAGS) __libcolibri-ut
+.PHONY: libmero-ut
+libmero-ut: pre-all
+	@$(MAKE) $(AM_MAKEFLAGS) __libmero-ut
 
-.PHONY: __libcolibri-ut
-__libcolibri-ut: config.h Makefile ut/libcolibri-ut.la $(HEADERS)
+.PHONY: __libmero-ut
+__libmero-ut: config.h Makefile ut/libmero-ut.la $(HEADERS)
 
 #
 # Clean targets
 #
 
 clean-local: clean-kernel-modules
-	rm -f c2.trace.*
+	rm -f m0.trace.*
 	if test x@ENABLE_COVERAGE@ = xyes; then \
 		find . -name "*.gcno" | xargs rm -f; \
 	fi
@@ -729,10 +739,10 @@ help:
 	@echo '  all-user        - build only user-space libraries and programs'
 	@echo '  all-kernel      - build only kernel modules'
 	@echo ''
-	@echo '  libcolibri      - build only libcolibri library'
-	@echo '  libcolibri-ut   - build only libcolibri-ut library'
+	@echo '  libmero      - build only libmero library'
+	@echo '  libmero-ut   - build only libmero-ut library'
 	@echo ''
-	@echo '  libcolibri-altogether - build only libcolibri library'
+	@echo '  libmero-altogether - build only libmero library'
 	@echo ''
 	@echo '  dir/file[.o]    - build specified target only'
 	@echo ''
@@ -754,5 +764,5 @@ help:
 	@echo '  dist            - recreate package-version.tar.gz from all source files'
 	@echo ''
 	@echo 'Information:'
-	@echo '  list-programs   - list all executables built in colibri'
-	@echo '  list-libs       - list libraries built in colibri'
+	@echo '  list-programs   - list all executables built in mero'
+	@echo '  list-libs       - list libraries built in mero'
