@@ -32,7 +32,7 @@
 
 # Here is some configuration info (as for the time of writing this)
 # about Titan nodes in Fremont lab:
-# 
+#
 # +----------------------------------------------------------------+
 # | Hostname   |   IP-address   |    IB-address   |  IPMI-address  |
 # +------------+----------------+-----------------+----------------+
@@ -68,7 +68,6 @@
 #)
 # IMPORTANT! Keep nodes together in the list (the code depends on this).
 #
-#NR_DATA=2
 
 # This example puts ioservices on 3 nodes, and uses 4 data blocks
 SERVICES=(
@@ -78,6 +77,11 @@ SERVICES=(
 	sjt02-m0 172.18.50.45@o2ib:12345:41:102
 	sjt00-c1 172.18.50.161@o2ib:12345:41:101
 	sjt00-c1 172.18.50.161@o2ib:12345:41:102
+)
+
+LOCAL_EP=(
+	12345:33:101
+	12345:33:102
 )
 
 UNIT_SIZE=262144
@@ -430,6 +434,29 @@ EOF
 	teardown_hosts
 }
 
+update_params()
+{
+	modprobe lnet
+	lctl network up &>> /dev/null
+	NID=`lctl list_nids | head -1`
+
+	rm -rf $WORK_ARENA/*
+	unset SERVICES
+
+	# Update each field of SERVICES array with local node values
+	# Update hostname and end point addresses
+	LOCAL_SERVICES_NR=$(expr ${#LOCAL_EP[*]} \* 2)
+
+	for ((i = 0, j = 0; i < $LOCAL_SERVICES_NR; i += 2, ++j)); do
+		SERVICES[$i]=$THIS_HOST
+		SERVICES[((i+1))]="${NID}:${LOCAL_EP[$j]}"
+	done
+
+	SERVICES_NR=$(expr ${#LOCAL_EP[*]})
+	POOL_WIDTH=4
+	NR_DATA=2
+}
+
 ######
 # main
 
@@ -438,6 +465,10 @@ if [ ! -d build_kernel_modules -o ! $BROOT/core -ef $PWD ]; then
 	exit 1
 fi
 LSUM=$(sum $SUMFILE)
+
+if [ "x$1" = "xlocal" ]; then
+	update_params
+fi
 
 l_run layout/ut/ldemo $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
 if [ $? -ne 0 ]; then
@@ -461,12 +492,12 @@ done
 # mount the file system
 mkdir -p $MP
 
-CONF='conf=local-conf:[2: '\
+CONF='profile=prof,local_conf=[2: '\
 '("prof", {1| ("fs")}), '\
 '("fs", {2| ((11, 22),'\
 " [3: \"pool_width=$POOL_WIDTH\", \"nr_data_units=$NR_DATA\","\
 " \"unit_size=$UNIT_SIZE\"],"\
-' [1: "_"])})],profile=prof'
+' [1: "_"])})]'
 
 l_run mount -t m0t1fs -o "'$CONF,$IOS'" none $MP
 if [ $? -ne 0 ]; then
@@ -486,4 +517,3 @@ while read LINE; do
 	fi
 done
 echo
-

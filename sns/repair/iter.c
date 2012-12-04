@@ -800,7 +800,6 @@ M0_INTERNAL int m0_sns_repair_iter_init(struct m0_sns_repair_cm *rcm)
 	struct m0_cob_domain *cdom;
 	struct m0_fid         gfid = {1, 4};
 
-
 	M0_PRE(rcm != NULL);
 
 	cm = &rcm->rc_base;

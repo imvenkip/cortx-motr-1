@@ -1173,10 +1173,10 @@ out:
 }
 
 static int m0t1fs_ios_cob_fop_populate(struct m0t1fs_sb    *csb,
-				   struct m0_fop       *fop,
-				   const struct m0_fid *cob_fid,
-				   const struct m0_fid *gob_fid,
-				   uint32_t cob_idx)
+				       struct m0_fop       *fop,
+				       const struct m0_fid *cob_fid,
+				       const struct m0_fid *gob_fid,
+				       uint32_t cob_idx)
 {
 	struct m0_fop_cob_common       *common;
 	struct m0_pool_version_numbers *cli;
