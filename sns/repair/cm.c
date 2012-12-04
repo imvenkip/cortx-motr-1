@@ -30,7 +30,7 @@
 #include "lib/misc.h"
 #include "lib/finject.h"
 
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 #include "net/net.h"
 #include "reqh/reqh.h"
 #include "cm/ag.h"

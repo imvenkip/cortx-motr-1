@@ -491,11 +491,11 @@ include $(top_srcdir)/m0t1fs/linux_kernel/st/Makefile.sub
 ################################################################################
 
 #
-# mero/mero_setup
+# mero/m0d
 #
 
-sbin_PROGRAMS               += mero/mero_setup
-mero_mero_setup_LDADD  = $(top_builddir)/mero/libmero.la \
+sbin_PROGRAMS               += mero/m0d
+mero_m0d_LDADD  = $(top_builddir)/mero/libmero.la \
                                $(top_builddir)/ut/libmero-ut.la
 
 #

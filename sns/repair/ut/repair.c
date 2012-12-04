@@ -32,7 +32,7 @@
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 #include "lib/finject.h"
 #include "cob/cob.h"
 #include "mdstore/mdstore.h" /* m0_cob_alloc(), m0_cob_nskey_make(),
@@ -47,7 +47,7 @@
 
 #define LOG_FILE_NAME "sr_ut.errlog"
 
-static char *sns_repair_ut_svc[] = { "mero_setup", "-r", "-p", "-T", "linux",
+static char *sns_repair_ut_svc[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "sr_db", "-S", "sr_stob",
                                 "-e", "lnet:0@lo:12345:34:1" ,
                                 "-s", "sns_repair"};

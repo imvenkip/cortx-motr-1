@@ -73,21 +73,21 @@ m0_modules() {
 }
 
 ### Usage: m0_service {start|stop}
-### Starts/stops Mero service (mero_setup).
+### Starts/stops Mero service (m0d).
 m0_service() {
     case "$1" in
 	start)
-	    $M0_CORE_DIR/mero/mero_setup -r -p -D $SANDBOX_DIR/db \
+	    $M0_CORE_DIR/mero/m0d -r -p -D $SANDBOX_DIR/db \
 		-T linux -S $SANDBOX_DIR/stobs -e lnet:$IOSERVICE_ENDPOINT \
 		-s confd -s mdservice -s ioservice \
 		-m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
-		>$SANDBOX_DIR/mero_setup.log 2>&1 &
+		>$SANDBOX_DIR/m0d.log 2>&1 &
 	    sleep 1
-	    status $M0_CORE_DIR/mero/.libs/lt-mero_setup >/dev/null || \
+	    status $M0_CORE_DIR/mero/.libs/lt-m0d >/dev/null || \
 		return 1
 	    ;;
 	stop)
-	    killall -q lt-mero_setup
+	    killall -q lt-m0d
 	    sleep 3
 	    ;;
 	*) die 'm0_service: Invalid argument';;

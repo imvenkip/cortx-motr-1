@@ -110,7 +110,7 @@ WORK_ARENA=/usr/tmp/m0
 
 # transport related variables
 XPT=lnet
-# mero_setup flags
+# m0d flags
 XPT_SETUP="-m 163840 -q 16"
 # kmero module params
 XPT_PARAM_R="max_rpc_msg_size=163840 tm_recv_queue_min_len=1"	# remote host
@@ -128,7 +128,7 @@ declare -A SETUP
 declare -A STARTED
 
 # A file whose sum we can check
-SUMFILE=$BROOT/core/mero/.libs/mero_setup
+SUMFILE=$BROOT/core/mero/.libs/m0d
 LSUM=
 
 ###########
@@ -161,10 +161,10 @@ function setup_host () {
 		XPT_PARAM=$XPT_PARAM_L
 	fi
 	# check if a mero process is running
-	local SVRS=$($RUN pgrep -f mero_setup)
+	local SVRS=$($RUN pgrep -f m0d)
 	if [ -n "$SVRS" ]; then
 		echo $SVRS
-		echo ERROR: mero_setup process already running on $H
+		echo ERROR: m0d process already running on $H
 		return 1
 	fi
 	if [ $H != $THIS_HOST ]; then
@@ -240,7 +240,7 @@ function gen_disks_conf_files()
 
 #This script helps to create a disks configuration file on Titan controllers.
 #
-#The file uses yaml format, as desired by the mero_setup program.
+#The file uses yaml format, as desired by the m0d program.
 #The script uses the fdisk command and extracts only the unused disks
 #present on the system (i.e without valid partition table).
 #
@@ -308,7 +308,7 @@ function start_server () {
 	local DDIR=$SDIR
 	$RUN rm -rf $SDIR
 	$RUN mkdir -p $SDIR
-	local DF=$SDIR/mero_setup.sh
+	local DF=$SDIR/m0d.sh
 	local DISKS_SH_FILE=$WORK_ARENA/disks$dcf_id.conf
 	local STOB_PARAMS="-T linux"
 	if [ $STOB == "-ad" -o $STOB == "-td" ]; then
@@ -352,7 +352,7 @@ function start_server () {
 M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
-$BROOT/core/mero/mero_setup -r -p \
+$BROOT/core/mero/m0d -r -p \
 $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs \
 -e $XPT:$EP $SNAME $XPT_SETUP" > ${SLOG}$I.log &
 	if [ $? -ne 0 ]; then
@@ -407,7 +407,7 @@ function stop_server () {
 	else
 		RUN=l_run
 	fi
-	$RUN pkill -USR1 -f mero_setup
+	$RUN pkill -USR1 -f m0d
 }
 
 function stop_servers () {

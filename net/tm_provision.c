@@ -61,7 +61,7 @@
 
    - Locality support during provisioning depends on the application assigning
      a color to each transfer machine.  In user space Mero servers this is
-     done by the @ref mero_setup "Mero Setup" module.
+     done by the @ref m0d "Mero Setup" module.
 
    - The act of provisioning is similar to invoking m0_net_buffer_add() on the
      ::M0_NET_QT_MSG_RECV queue of the transfer machine.  Since the transfer

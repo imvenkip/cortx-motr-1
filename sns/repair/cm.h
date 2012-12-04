@@ -60,7 +60,7 @@
     @see m0_sns_fini()
 
   @subsection SNSRepairCMDLD-fspec-usecases Recipes
-  Test: Start sns repair copy machine service using mero_setup
+  Test: Start sns repair copy machine service using m0d
   Response: SNS repair copy machine service is started and copy machine is
             initialised.
  */

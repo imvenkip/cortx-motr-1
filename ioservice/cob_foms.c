@@ -35,7 +35,7 @@
 #include "ioservice/io_device.h"   /* m0_ios_poolmach_get() */
 #include "reqh/reqh_service.h"
 #include "pool/pool.h"
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 #include "ioservice/io_fops_ff.h"
 
 /* Forward Declarations. */

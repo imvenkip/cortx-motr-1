@@ -1,7 +1,7 @@
 mero_service()
 {
-        prog_start="$MERO_CORE_ROOT/mero/mero_setup"
-        prog_exec="$MERO_CORE_ROOT/mero/.libs/lt-mero_setup"
+        prog_start="$MERO_CORE_ROOT/mero/m0d"
+        prog_exec="$MERO_CORE_ROOT/mero/.libs/lt-m0d"
 
 	. /etc/rc.d/init.d/functions
 
