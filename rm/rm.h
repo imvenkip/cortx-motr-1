@@ -676,7 +676,7 @@ struct m0_rm_group {
 	ROS_ACTIVE -> ROS_QUIESCE
 	ROS_QUIESCE -> ROS_FINALISING
 	ROS_FINALISING -> ROS_FINAL
-	ROS_FINALISING -> ROS_DEFUNCT
+	ROS_FINALISING -> ROS_INSOLVENT
    }
    @enddot
  */
@@ -715,9 +715,9 @@ enum m0_rm_owner_state {
 	 *  Final state.
 	 *
 	 *  During finalisation, if owner fails to clear the loans, it
-	 * it enters DEFUNCT state.
+	 * it enters INSOLVENT state.
 	 */
-	ROS_DEFUNCT,
+	ROS_INSOLVENT,
 	/**
 	 *  Final state.
 	 *
@@ -844,7 +844,7 @@ enum m0_rm_owner_queue_state {
  *                                  QUIESCE         |
  *                                     |            |
  *                                     V            V
- *                     DEFUNCT<----FINALISING---->FINAL
+ *                   INSOLVENT<----FINALISING---->FINAL
  *
  * @endverbatim
  *
@@ -1538,11 +1538,11 @@ M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner *owner,
  * Retire the owner before finalising it. This function will revoke sublets
  * and give up loans.
  *
- * @pre owner->ro_state == ROS_ACTIVE || ROS_QUIESCE
+ * @pre M0_IN(owner->ro_state, (ROS_ACTIVE, ROS_QUIESCE))
  * @see m0_rm_owner_fini
  *
  */
-M0_INTERNAL void m0_rm_owner_retire(struct m0_rm_owner *owner);
+M0_INTERNAL void m0_rm_owner_windup(struct m0_rm_owner *owner);
 
 /**
  * Finalises the owner. Dual to m0_rm_owner_init().

@@ -48,6 +48,10 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "net/buffer_pool.h"
 #include "rpc/item.h"        /* m0_rpc_item_onwire_header_size() */
 
+/* imports */
+struct m0_db_tx;
+struct m0_cob_domain;
+
 /** @todo Add these declarations to some internal header */
 extern const struct m0_addb_ctx_type m0_rpc_addb_ctx_type;
 extern const struct m0_addb_loc      m0_rpc_addb_loc;
@@ -135,6 +139,8 @@ M0_INTERNAL int m0_rpc_net_buffer_pool_setup(struct m0_net_domain *ndom,
 
 void m0_rpc_net_buffer_pool_cleanup(struct m0_net_buffer_pool *app_pool);
 
+int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
+				   struct m0_db_tx *tx);
 /** @} end group rpc */
 
 #endif /* __MERO_RPC_RPCCORE_H__  */

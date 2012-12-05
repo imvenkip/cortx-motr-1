@@ -236,8 +236,8 @@ int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
 
 #else /* !__KERNEL__ */
 
-M0_INTERNAL int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
-					       struct m0_db_tx *tx)
+int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
+				   struct m0_db_tx *tx)
 {
 	int rc;
 

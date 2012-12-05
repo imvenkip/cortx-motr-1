@@ -78,19 +78,19 @@ static int  borrow_send            (struct m0_rm_incoming *in,
 				    struct m0_rm_credit *credit);
 
 static int credit_copy              (struct m0_rm_credit *dest,
-				    const struct m0_rm_credit *src);
+				     const struct m0_rm_credit *src);
 static bool credit_eq               (const struct m0_rm_credit *r0,
-				    const struct m0_rm_credit *r1);
+				     const struct m0_rm_credit *r1);
 static bool credit_is_empty         (const struct m0_rm_credit *credit);
 static bool credit_intersects       (const struct m0_rm_credit *A,
-				    const struct m0_rm_credit *B);
+				     const struct m0_rm_credit *B);
 static bool credit_conflicts        (const struct m0_rm_credit *A,
-				    const struct m0_rm_credit *B);
+				     const struct m0_rm_credit *B);
 static int  credit_diff             (struct m0_rm_credit *r0,
-				    const struct m0_rm_credit *r1);
-static void retire_incoming_complete(struct m0_rm_incoming *in,
+				     const struct m0_rm_credit *r1);
+static void windup_incoming_complete(struct m0_rm_incoming *in,
 				     int32_t rc);
-static void retire_incoming_conflict(struct m0_rm_incoming *in);
+static void windup_incoming_conflict(struct m0_rm_incoming *in);
 static int cached_credits_hold       (struct m0_rm_incoming *in);
 static void cached_credits_flush     (struct m0_rm_owner *owner);
 static bool owner_is_idle	    (struct m0_rm_owner *o);
@@ -103,7 +103,7 @@ static int remnant_loan_get	    (const struct m0_rm_loan *loan,
 				     struct m0_rm_loan **remnant_loan);
 static int loan_dup		    (const struct m0_rm_loan *src_loan,
 				     struct m0_rm_loan **dest_loan);
-static void loans_flush		    (struct m0_rm_owner *src_owner);
+static void liquidate		    (struct m0_rm_owner *src_owner);
 static struct m0_rm_resource *
 resource_find(const struct m0_rm_resource_type *rt,
 	      const struct m0_rm_resource *res);
@@ -176,6 +176,14 @@ static const struct m0_bob_type outgoing_bob = {
 };
 M0_BOB_DEFINE(M0_INTERNAL, &outgoing_bob, m0_rm_outgoing);
 
+static const struct m0_bob_type rem_bob = {
+	.bt_name         = "proxy for remote owner ",
+	.bt_magix_offset = offsetof(struct m0_rm_remote, rem_magix),
+	.bt_magix        = M0_RM_REMOTE_MAGIC,
+	.bt_check        = NULL
+};
+M0_BOB_DEFINE(M0_INTERNAL, &rem_bob, m0_rm_remote);
+
 M0_INTERNAL void m0_rm_domain_init(struct m0_rm_domain *dom)
 {
 	M0_PRE(dom != NULL);
@@ -194,9 +202,9 @@ M0_INTERNAL void m0_rm_domain_fini(struct m0_rm_domain *dom)
 }
 M0_EXPORTED(m0_rm_domain_fini);
 
-static const struct m0_rm_incoming_ops retire_incoming_ops = {
-	.rio_complete = retire_incoming_complete,
-	.rio_conflict = retire_incoming_conflict,
+static const struct m0_rm_incoming_ops windup_incoming_ops = {
+	.rio_complete = windup_incoming_complete,
+	.rio_conflict = windup_incoming_conflict,
 };
 
 /**
@@ -340,9 +348,9 @@ static const struct m0_sm_state_descr owner_states[] = {
 	},
 	[ROS_FINALISING] = {
 		.sd_name      = "Finalising",
-		.sd_allowed   = M0_BITS(ROS_DEFUNCT, ROS_FINAL)
+		.sd_allowed   = M0_BITS(ROS_INSOLVENT, ROS_FINAL)
 	},
-	[ROS_DEFUNCT] = {
+	[ROS_INSOLVENT] = {
 		.sd_flags     = M0_SDF_TERMINAL,
 		.sd_name      = "Defunct"
 	},
@@ -387,7 +395,7 @@ static void owner_finalisation_check(struct m0_rm_owner *owner)
 			if (owner_has_loans(owner)) {
 				owner_state_set(owner, ROS_FINALISING);
 				cached_credits_flush(owner);
-				loans_flush(owner);
+				liquidate(owner);
 			} else {
 				owner_state_set(owner, ROS_FINAL);
 				M0_POST(owner_invariant(owner));
@@ -396,17 +404,17 @@ static void owner_finalisation_check(struct m0_rm_owner *owner)
 		break;
 	case ROS_FINALISING:
 		/*
-		 * loans_flush() creates requests. Make sure that all those
+		 * liquidate() creates requests. Make sure that all those
 		 * requests are processed. Once the owner is idle, if there
 		 * are no pending loans, finalise owner. Otherwise put it
-		 * in DEFUNCT state. Currently there is no recovery from
-		 * DEFUNCT state.
+		 * in INSOLVENT state. Currently there is no recovery from
+		 * INSOLVENT state.
 		 */
 		if (owner_is_idle(owner))
 			owner_state_set(owner, owner_has_loans(owner) ?
-					       ROS_DEFUNCT : ROS_FINAL);
+					       ROS_INSOLVENT : ROS_FINAL);
 		break;
-	case ROS_DEFUNCT:
+	case ROS_INSOLVENT:
 	case ROS_FINAL:
 		break;
 	default:
@@ -514,12 +522,12 @@ M0_EXPORTED(m0_rm_owner_selfadd);
 /*
  * @todo Stub. Mainline code does not call this callback yet.
  */
-static void retire_incoming_conflict(struct m0_rm_incoming *in)
+static void windup_incoming_conflict(struct m0_rm_incoming *in)
 {
-	M0_IMPOSSIBLE("Conflict not possible during retirement");
+	M0_IMPOSSIBLE("Conflict not possible during windup");
 }
 
-static void retire_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
+static void windup_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	m0_free(in);
 }
@@ -531,7 +539,7 @@ static bool owner_is_idle (struct m0_rm_owner *o)
 			   m0_rm_ur_tlist_is_empty(&o->ro_incoming[i][j])));
 }
 
-static void loans_flush(struct m0_rm_owner *owner)
+static void liquidate(struct m0_rm_owner *owner)
 {
 	struct m0_rm_credit    *credit;
 	struct m0_rm_loan     *loan;
@@ -550,14 +558,14 @@ static void loans_flush(struct m0_rm_owner *owner)
 		m0_rm_incoming_init(in, owner, M0_RIT_REVOKE,
 				    RIP_NONE, RIF_MAY_REVOKE);
 		in->rin_priority = 0;
-		in->rin_ops = &retire_incoming_ops;
+		in->rin_ops = &windup_incoming_ops;
 		/**
 		 * This is convoluted. Now that user incoming requests have
 		 * drained, we add our incoming requests for REVOKE and CANCEL
 		 * processing to the incoming queue.
 		 *
 		 * If there are any errors then loans (sublets, borrows) will
-		 * remain in the list. Eventually owner will enter DEFUNCT
+		 * remain in the list. Eventually owner will enter INSOLVENT
 		 * state.
 		 */
 		M0_ASSERT(m0_rm_credit_bob_check(credit));
@@ -584,7 +592,7 @@ static void loans_flush(struct m0_rm_owner *owner)
 	owner_balance(owner);
 }
 
-M0_INTERNAL void m0_rm_owner_retire(struct m0_rm_owner *owner)
+M0_INTERNAL void m0_rm_owner_windup(struct m0_rm_owner *owner)
 {
 	/*
 	 * Put the owner in ROS_QUIESCE. This will prevent any new
@@ -848,7 +856,8 @@ static int remote_find(struct m0_rm_remote **rem,
 	M0_PRE(cookie != NULL);
 
 	m0_tl_for(remotes, &res->r_remote, other) {
-		M0_ASSERT(other->rem_resource == res);
+		M0_ASSERT(other->rem_resource == res &&
+			  m0_rm_remote_bob_check(other));
 		if (other->rem_cookie.co_addr == cookie->co_addr &&
 		    other->rem_cookie.co_generation == cookie->co_generation)
 			break;
@@ -880,6 +889,7 @@ M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote *rem,
 	rem->rem_resource = res;
 	m0_chan_init(&rem->rem_signal);
 	remotes_tlink_init(rem);
+	m0_rm_remote_bob_init(rem);
 	resource_get(res);
 }
 M0_EXPORTED(m0_rm_remote_init);
@@ -894,6 +904,7 @@ M0_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem)
 	m0_chan_fini(&rem->rem_signal);
 	remotes_tlink_fini(rem);
 	resource_put(rem->rem_resource);
+	m0_rm_remote_bob_fini(rem);
 }
 M0_EXPORTED(m0_rm_remote_fini);
 
@@ -1004,11 +1015,9 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
 		 */
 		m0_cookie_init(&loan->rl_cookie, &loan->rl_id);
 		rem_in->ri_loan_cookie = loan->rl_cookie;
-	} else {
-		if (loan != NULL) {
-			m0_rm_loan_fini(loan);
-			m0_free(loan);
-		}
+	} else if (loan != NULL) {
+		m0_rm_loan_fini(loan);
+		m0_free(loan);
 	}
 	M0_POST(owner_invariant(owner));
 	return rc;

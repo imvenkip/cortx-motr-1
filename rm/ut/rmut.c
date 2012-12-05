@@ -118,7 +118,7 @@ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
 			rm_utdata_fini(data, OBJ_RES_TYPE);
 			break;
 		case OBJ_OWNER:
-			m0_rm_owner_retire(&data->rd_owner);
+			m0_rm_owner_windup(&data->rd_owner);
 			m0_rm_owner_fini(&data->rd_owner);
 			rm_utdata_fini(data, OBJ_RES);
 			break;

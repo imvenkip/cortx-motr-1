@@ -101,8 +101,8 @@ static void owner_api_test ()
 	M0_UT_ASSERT(test_data.rd_owner.ro_creditor == NULL);
 	M0_UT_ASSERT(test_data.rd_owner.ro_resource == &test_data.rd_res.rs_resource);
 
-	/* 2. Test m0_rm_owner_retire - on newly initialised owner */
-	m0_rm_owner_retire(&test_data.rd_owner);
+	/* 2. Test m0_rm_owner_windup - on newly initialised owner */
+	m0_rm_owner_windup(&test_data.rd_owner);
 	M0_UT_ASSERT(test_data.rd_owner.ro_sm.sm_state == ROS_FINAL);
 	M0_UT_ASSERT(test_data.rd_owner.ro_resource == &test_data.rd_res.rs_resource);
 	M0_UT_ASSERT(test_data.rd_res.rs_resource.r_ref == 1);

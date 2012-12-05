@@ -170,7 +170,8 @@ static void buf_low(struct m0_net_buffer_pool *bp)
 
 static void rm_ctx_init(struct rm_context *rmctx)
 {
-	int rc;
+	int		rc;
+	struct m0_db_tx tx;
 
 	rmctx->rc_xprt = &m0_net_lnet_xprt;
 
@@ -196,6 +197,12 @@ static void rm_ctx_init(struct rm_context *rmctx)
 	rc = m0_mdstore_init(&rmctx->rc_mdstore, &rmctx->rc_cob_id,
 			     &rmctx->rc_dbenv, 0);
 	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_db_tx_init(&tx, &rmctx->rc_dbenv, 0);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_root_session_cob_create(&rmctx->rc_mdstore.md_dom, &tx);
+	M0_UT_ASSERT(rc == 0);
+	m0_db_tx_commit(&tx);
 
 	rc = m0_reqh_init(&rmctx->rc_reqh, (void *)1, &rmctx->rc_dbenv,
 			  &rmctx->rc_mdstore, &rmctx->rc_fol, NULL);
