@@ -269,7 +269,8 @@ static void cobs_create(uint64_t nr_cobs)
 {
 	int i;
 
-	for (i = 5; i <= 10; ++i)
+	for (i = ITER_DEFAULT_COB_FID_CONT;
+			i <= ITER_DEFAULT_COB_FID_CONT + nr_cobs; ++i)
 		cob_create(ITER_DEFAULT_COB_FID_CONT, i);
 
 }
@@ -278,7 +279,8 @@ static void cobs_delete(uint64_t nr_cobs)
 {
 	int i;
 
-	for (i = 5; i <= 10; ++i)
+	for (i = ITER_DEFAULT_COB_FID_CONT;
+			i <= ITER_DEFAULT_COB_FID_CONT + nr_cobs; ++i)
 		cob_delete(ITER_DEFAULT_COB_FID_CONT, i);
 }
 

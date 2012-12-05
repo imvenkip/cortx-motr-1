@@ -55,7 +55,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
         struct m0_db_pair    db_pair;
         struct m0_db_cursor  db_cursor;
 	struct m0_table     *db_table;
-	uint32_t             cob_idx = 1;
+	uint32_t             cob_idx = 0;
         char                 nskey_bs[UINT32_MAX_STR_LEN];
         uint32_t             nskey_bs_len;
 	struct m0_fid        key_fid;
@@ -73,7 +73,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 
 	M0_SET0(&nskey_bs);
         snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u", (uint32_t)cob_idx);
-        nskey_bs_len = UINT32_MAX_STR_LEN;
+        nskey_bs_len = strlen(nskey_bs);
 
 	key_fid.f_container = iter->cni_last_fid.f_container;
 	key_fid.f_key = iter->cni_last_fid.f_key;
@@ -98,7 +98,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 	/* Container (f_container) value remains same, typically 0. */
 	iter->cni_last_fid.f_container = key->cnk_pfid.f_container;
 	/* Increment the f_key by 1, to exploit m0_db_cursor_get() property. */
-	iter->cni_last_fid.f_key = key->cnk_pfid.f_key++;
+	iter->cni_last_fid.f_key = key->cnk_pfid.f_key + 1;
 
 cleanup:
         m0_db_pair_release(&db_pair);
