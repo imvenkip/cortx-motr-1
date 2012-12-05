@@ -630,9 +630,13 @@ int accumulate_bios(struct loop_device *lo, struct bio_list *bios,
 		bio_list_add(bios, bio);
 		next_pos = pos + bio->bi_size;
 		*psize += bio->bi_size;
-		/*printk("m0loop: accum: op=%d idx=%d bio=%p pos=%d size=%d\n",
+		/*printk(KERN_DEBUG "m0loop%d: accum: "
+		       "op=%d idx=%d bio=%p pos=%d size=%d\n", lo->lo_number,
 		       (int)op, iov_idx, bio, (int)pos, *psize);*/
 	}
+
+	printk(KERN_DEBUG "m0loop%d: accum: op=%u n=%d pos=%lu size=%d\n",
+	       lo->lo_number, (int)op, iov_idx, (unsigned long)*ppos, *psize);
 
 	return iov_idx;
 }
@@ -1276,6 +1280,8 @@ static int lo_ioctl(struct block_device *bdev, fmode_t mode,
 	mutex_unlock(&lo->lo_ctl_mutex);
 
 out_unlocked:
+	printk(KERN_INFO "m0loop%d: ioctl: cmd=0x%x res=%d\n",
+	       lo->lo_number, cmd, err);
 	return err;
 }
 
@@ -1438,6 +1444,8 @@ static int lo_open(struct block_device *bdev, fmode_t mode)
 {
 	struct loop_device *lo = bdev->bd_disk->private_data;
 
+	printk(KERN_INFO "m0loop%d: open\n", lo->lo_number);
+
 	mutex_lock(&lo->lo_ctl_mutex);
 	lo->lo_refcnt++;
 	mutex_unlock(&lo->lo_ctl_mutex);
@@ -1474,6 +1482,7 @@ static int lo_release(struct gendisk *disk, fmode_t mode)
 out:
 	mutex_unlock(&lo->lo_ctl_mutex);
 out_unlocked:
+	printk(KERN_INFO "m0loop%d: release\n", lo->lo_number);
 	return 0;
 }
 
@@ -1660,7 +1669,7 @@ static int __init loop_init(void)
 	return 0;
 
 Enomem:
-	printk(KERN_INFO "m0loop: out of memory\n");
+	printk(KERN_WARNING "m0loop: out of memory\n");
 
 	list_for_each_entry_safe(lo, next, &loop_devices, lo_list)
 		loop_free(lo);
