@@ -148,13 +148,6 @@ extern const struct m0_bob_type m0_confd_bob;
 /** Configuration server. */
 struct m0_confd {
 	struct m0_reqh_service d_reqh;
-	/**
-	 * Configuration string, used as a temporary substitution for
-	 * configuration cache.
-	 *
-	 * @todo XXX confd should cache configuration data properly.
-	 */
-	const char            *d_local_conf;
 	/* struct m0_confd_cache  d_cache; */
 	/* struct m0_confd_stat   d_stat; */
 	uint64_t               d_magic;

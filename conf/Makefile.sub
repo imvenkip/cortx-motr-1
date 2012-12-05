@@ -1,42 +1,46 @@
-mero_libmero_la_SOURCES += conf/onwire.h \
-                                 conf/onwire_xc.c \
-                                 conf/buf_ext.h \
-                                 conf/buf_ext.c \
-                                 conf/confc.h \
-                                 conf/confc.c \
-                                 conf/obj.h \
-                                 conf/obj.c \
-                                 conf/obj_ops.h \
-                                 conf/obj_ops.c \
-                                 conf/preload.h \
-                                 conf/preload.c \
-                                 conf/reg.h \
-                                 conf/reg.c \
-                                 conf/conf_xcode.c \
-                                 conf/conf_xcode.h \
-                                 conf/reg_debug.c \
-                                 conf/objs/common.h \
-                                 conf/objs/common.c \
-                                 conf/objs/dir.c \
-                                 conf/objs/profile.c \
-                                 conf/objs/filesystem.c \
-                                 conf/objs/service.c \
-                                 conf/objs/node.c \
-                                 conf/objs/nic.c \
-                                 conf/objs/sdev.c \
-                                 conf/objs/partition.c \
-                                 conf/conf_fop.c \
-                                 conf/conf_fop.h \
-                                 conf/confd_fom.c \
-                                 conf/confd_fom.h \
-                                 conf/confd.c \
-                                 conf/confd.h
+mero_libmero_la_SOURCES += \
+                           conf/buf_ext.c \
+                           conf/buf_ext.h \
+                           conf/conf_fop.c \
+                           conf/conf_fop.h \
+                           conf/conf_xcode.c \
+                           conf/conf_xcode.h \
+                           conf/confc.c \
+                           conf/confc.h \
+                           conf/confd.c \
+                           conf/confd.h \
+                           conf/confd_fom.c \
+                           conf/confd_fom.h \
+                           conf/confd_hack.c \
+                           conf/confd_hack.h \
+                           conf/obj.c \
+                           conf/obj.h \
+                           conf/obj_ops.c \
+                           conf/obj_ops.h \
+                           conf/objs/common.c \
+                           conf/objs/common.h \
+                           conf/objs/dir.c \
+                           conf/objs/filesystem.c \
+                           conf/objs/nic.c \
+                           conf/objs/node.c \
+                           conf/objs/partition.c \
+                           conf/objs/profile.c \
+                           conf/objs/sdev.c \
+                           conf/objs/service.c \
+                           conf/onwire.h \
+                           conf/onwire_xc.c \
+                           conf/preload.c \
+                           conf/preload.h \
+                           conf/reg.c \
+                           conf/reg.h \
+                           conf/reg_debug.c
 
-conf/onwire.h: lib/buf_xc.h \
-               fid/fid_xc.h
+EXTRA_DIST += conf/confd_hack.c.in
 
-XC_FILES   += conf/onwire_xc.h
+XC_FILES += conf/onwire_xc.h
 
 CLEANFILES += conf/onwire_xc.h \
               conf/onwire_xc.c \
               conf/onwire.gccxml
+
+conf/onwire.h: lib/buf_xc.h fid/fid_xc.h

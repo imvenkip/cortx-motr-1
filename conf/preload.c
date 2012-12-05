@@ -150,3 +150,5 @@ M0_INTERNAL void m0_confx_fini(struct confx_object *xobjs, size_t n)
 	}
 	M0_LEAVE();
 }
+
+#undef M0_TRACE_SUBSYSTEM

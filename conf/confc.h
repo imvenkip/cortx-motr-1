@@ -26,7 +26,6 @@
 #include "lib/buf.h"      /* m0_buf, M0_BUF_INIT0 */
 #include "lib/mutex.h"    /* m0_mutex */
 #include "sm/sm.h"        /* m0_sm, m0_sm_ast */
-#include "fop/fop.h"      /* m0_fop */
 #include "rpc/conn.h"     /* m0_rpc_conn */
 #include "rpc/session.h"  /* m0_rpc_session */
 
@@ -190,16 +189,14 @@ struct m0_conf_obj;
  *
  *         sm_waiter_init(&w, g_confc);
  *
- *         rc = m0_confc_open(&w.w_ctx, NULL, M0_BUF_INITS("filesystem"));
- *         if (rc == 0) {
- *                 while (!m0_confc_ctx_is_completed(&w.w_ctx))
- *                         m0_chan_wait(&w.w_clink);
+ *         m0_confc_open(&w.w_ctx, NULL, M0_BUF_INITS("filesystem"));
+ *         while (!m0_confc_ctx_is_completed(&w.w_ctx))
+ *                 m0_chan_wait(&w.w_clink);
  *
- *                 rc = m0_confc_ctx_error(&w.w_ctx);
- *                 if (rc == 0)
- *                         *fs = M0_CONF_CAST(m0_confc_ctx_result(&w.w_ctx),
- *                                            m0_conf_filesystem);
- *         }
+ *         rc = m0_confc_ctx_error(&w.w_ctx);
+ *         if (rc == 0)
+ *                 *fs = M0_CONF_CAST(m0_confc_ctx_result(&w.w_ctx),
+ *                                    m0_conf_filesystem);
  *
  *         sm_waiter_fini(&w);
  *         return rc;
@@ -399,7 +396,7 @@ struct m0_conf_obj;
  * static void sm_waiter_fini(struct sm_waiter *w);
  *
  * // Uses configuration data of every object in given directory.
- * static int dir_entries_use(struct m0_conf_dir *dir,
+ * static int dir_entries_use(struct m0_conf_obj *dir,
  *                            void (*use)(const struct m0_conf_obj *),
  *                            bool (*stop_at)(const struct m0_conf_obj *))
  * {
@@ -407,7 +404,7 @@ struct m0_conf_obj;
  *         int                 rc;
  *         struct m0_conf_obj *entry = NULL;
  *
- *         sm_waiter_init(&w, g_confc);
+ *         sm_waiter_init(&w, dir->co_confc);
  *
  *         while ((rc = m0_confc_readdir(&w.w_ctx, dir, &entry)) > 0) {
  *                 if (rc == M0_CONF_DIRNEXT) {
@@ -466,6 +463,7 @@ struct m0_conf_obj;
 struct m0_confc {
 	/** Registry of cached configuration objects. */
 	struct m0_conf_reg       cc_registry;
+
 	/**
 	 * Root of the DAG of configuration objects.
 	 *
@@ -474,6 +472,7 @@ struct m0_confc {
 	 * confc-fspec-sub-use.
 	 */
 	struct m0_conf_obj      *cc_root;
+
 	/**
 	 * Serialises configuration retrieval state machines
 	 * (m0_confc_ctx::fc_mach).
@@ -486,6 +485,7 @@ struct m0_confc {
 	 * state function is invoked.
 	 */
 	struct m0_sm_group      *cc_group;
+
 	/**
 	 * Confc lock (aka cache lock).
 	 *
@@ -503,10 +503,13 @@ struct m0_confc {
 	 * @see confc-lspec-thread
 	 */
 	struct m0_mutex          cc_lock;
+
 	/** Connection to confd. */
 	struct m0_rpc_conn       cc_rpc_conn;
+
 	/** RPC session with confd. */
 	struct m0_rpc_session    cc_rpc_session;
+
 	/**
 	 * The number of configuration retrieval contexts associated
 	 * with this m0_confc.
@@ -517,6 +520,7 @@ struct m0_confc {
 	 * @see m0_confc_ctx
 	 */
 	uint32_t                 cc_nr_ctx;
+
 	/** Magic number. */
 	uint64_t                 cc_magic;
 };
@@ -561,15 +565,19 @@ M0_INTERNAL void m0_confc_fini(struct m0_confc *confc);
 struct m0_confc_ctx {
 	/** The confc instance this context belongs to. */
 	struct m0_confc     *fc_confc;
+
 	/** Context state machine. */
 	struct m0_sm         fc_mach;
+
 	/**
 	 * Asynchronous system trap, used by the implementation to
 	 * schedule a transition of ->fc_mach state machine.
 	 */
 	struct m0_sm_ast     fc_ast;
+
 	/** Provides AST's callback with an integer value. */
 	int32_t              fc_ast_datum;
+
 	/**
 	 * Origin of the requested path.
 	 *
@@ -579,6 +587,7 @@ struct m0_confc_ctx {
 	 * traversal.  See the note in @ref confc-fspec-sub-use.
 	 */
 	struct m0_conf_obj  *fc_origin;
+
 	/**
 	 * Path to the object being requested by the application.
 	 *
@@ -586,15 +595,13 @@ struct m0_confc_ctx {
 	 * validity of the path until configuration request completes.
 	 */
 	const struct m0_buf *fc_path;
-	/** Configuration fetch request being sent to confd. */
-	struct m0_conf_fetch fc_req;
-	/** Request fop. */
-	struct m0_fop        fc_fop;
+
 	/**
 	 * Record of interest in `object loading completed' or
 	 * `object unpinned' events.
 	 */
 	struct m0_clink      fc_clink;
+
 	/**
 	 * Pointer to the requested configuration object.
 	 *
@@ -602,6 +609,10 @@ struct m0_confc_ctx {
 	 * accessing this field directly.
 	 */
 	struct m0_conf_obj  *fc_result;
+
+	/** RPC item to be delivered to confd. */
+	struct m0_rpc_item  *fc_rpc_item;
+
 	/** Magic number. */
 	uint64_t             fc_magic;
 };
@@ -690,9 +701,9 @@ M0_INTERNAL struct m0_conf_obj *m0_confc_ctx_result(struct m0_confc_ctx *ctx);
 #define m0_confc_open(ctx, origin, ...)                           \
 	m0_confc__open((ctx), (origin), (const struct m0_buf []){ \
 			__VA_ARGS__, M0_BUF_INIT0 })
-M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
-			       struct m0_conf_obj *origin,
-			       const struct m0_buf path[]);
+M0_INTERNAL void m0_confc__open(struct m0_confc_ctx *ctx,
+				struct m0_conf_obj *origin,
+				const struct m0_buf path[]);
 
 /**
  * Opens configuration object synchronously.
@@ -771,6 +782,7 @@ M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj);
  * @see confc-fspec-recipe4
  *
  * @pre   ctx->fc_mach.sm_state == S_INITIAL
+ * @pre   dir->co_type == M0_CO_DIR
  * @post  ergo(M0_IN(retval, (M0_CONF_DIRNEXT, M0_CONF_DIREND)),
  *             ctx->fc_mach.sm_state == S_INITIAL)
  */

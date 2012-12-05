@@ -20,12 +20,16 @@ mount_m0t1fs()
 		return 1
 	}
 
-	local CONF='profile=prof,local_conf=[2: '\
-'("prof", {1| ("fs")}), '\
-'("fs", {2| ((11, 22),'\
-" [3: \"pool_width=$POOL_WIDTH\", \"nr_data_units=$NR_DATA\","\
-" \"unit_size=$stride_size\"],"\
-' [1: "_"])})]'
+	local FS_PARAMS="`cat <<EOF
+[3: "pool_width=$POOL_WIDTH",
+    "nr_data_units=$NR_DATA",
+    "unit_size=$stride_size"]
+EOF`"
+	local CONF=profile=prof,local_conf="`cat <<EOF
+[2:
+  ("prof", {1| ("fs")}),
+  ("fs", {2| ((11, 22), $FS_PARAMS, [1: "_"])})]
+EOF`"
 
 	echo "Mounting file system..."
 	cmd="sudo mount -t m0t1fs -o '$CONF,$SERVICES' none $m0t1fs_mount_dir"

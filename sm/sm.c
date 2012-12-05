@@ -250,11 +250,11 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 	 */
 	do {
 		sd = sm_state(mach);
-		M0_PRE(sd->sd_allowed & M0_BITS(state));
+		M0_ASSERT(sd->sd_allowed & M0_BITS(state));
 		if (sd->sd_ex != NULL)
 			sd->sd_ex(mach);
 		mach->sm_state = state;
-		M0_PRE(m0_sm_invariant(mach));
+		M0_ASSERT(m0_sm_invariant(mach));
 		sd = sm_state(mach);
 		state = sd->sd_in != NULL ? sd->sd_in(mach) : -1;
 		m0_chan_broadcast(&mach->sm_chan);

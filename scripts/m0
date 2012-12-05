@@ -39,7 +39,7 @@ run_ut()  { _reset; $SUDO "$SRC/utils/ut.sh" "$@"; }
 
 run_kut() {
     _reset
-    echo 'Running kernel UT (may take a while) ...'
+    echo 'Running kernel UT (this may take a while) ...'
     $SUDO "$SRC/utils/linux_kernel/ut.sh"
 }
 

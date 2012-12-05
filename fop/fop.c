@@ -17,8 +17,10 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 05/19/2010
  */
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
 #include "lib/trace.h"
+
 #include "lib/cdefs.h" /* M0_EXPORTED */
 #include "lib/memory.h"
 #include "lib/misc.h" /* M0_SET0 */
@@ -95,24 +97,26 @@ struct m0_fop *m0_fop_alloc(struct m0_fop_type *fopt, void *data)
 	struct m0_fop *fop;
 
 	M0_ALLOC_PTR(fop);
-	if (fop != NULL) {
-		m0_fop_init(fop, fopt, data, m0_fop_release);
-		if (data == NULL) {
-			int rc = m0_fop_data_alloc(fop);
-			if (rc != 0) {
-				m0_fop_put(fop);
-				return NULL;
-			}
+	if (fop == NULL)
+		return NULL;
+
+	m0_fop_init(fop, fopt, data, m0_fop_release);
+	if (data == NULL) {
+		int rc = m0_fop_data_alloc(fop);
+		if (rc != 0) {
+			m0_fop_put(fop);
+			return NULL;
 		}
 	}
 
-	M0_POST(ergo(fop != NULL, m0_ref_read(&fop->f_ref) == 1));
+	M0_POST(m0_ref_read(&fop->f_ref) == 1);
 	return fop;
 }
 M0_EXPORTED(m0_fop_alloc);
 
 M0_INTERNAL void m0_fop_fini(struct m0_fop *fop)
 {
+	M0_ENTRY("fop: %p", fop);
 	M0_PRE(fop != NULL);
 	M0_ENTRY("fop: %p %s", fop, fop_name(fop));
 	M0_PRE(M0_IN(m0_ref_read(&fop->f_ref), (0, 1)));
@@ -128,26 +132,27 @@ M0_INTERNAL void m0_fop_release(struct m0_ref *ref)
 {
 	struct m0_fop *fop;
 
+	M0_ENTRY();
 	M0_PRE(ref != NULL);
 
 	fop = container_of(ref, struct m0_fop, f_ref);
 	m0_fop_fini(fop);
 	m0_free(fop);
+
+	M0_LEAVE();
 }
 
 struct m0_fop *m0_fop_get(struct m0_fop *fop)
 {
 	uint64_t count = m0_ref_read(&fop->f_ref);
 
-	M0_ENTRY("fop: %p %s [%llu -> %llu]", fop,
-	         fop_name(fop),
-	         (unsigned long long)count,
-	         (unsigned long long)count + 1);
+	M0_ENTRY("fop: %p %s [%llu -> %llu]", fop, fop_name(fop),
+	         (unsigned long long)count, (unsigned long long)count + 1);
 	M0_PRE(count > 0);
 
 	m0_ref_get(&fop->f_ref);
 
-	M0_LEAVE("fop: %p", fop);
+	M0_LEAVE();
 	return fop;
 }
 M0_EXPORTED(m0_fop_get);
@@ -206,18 +211,16 @@ int m0_fop_type_init(struct m0_fop_type *ft,
 	ft->ft_ops          = args->fop_ops;
 	fol_type->rt_name   = args->name;
 	fol_type->rt_opcode = args->opcode;
-	fol_type->rt_ops    = args->fol_ops ?:
-		&m0_fop_fol_default_ops;
+	fol_type->rt_ops    = args->fol_ops ?: &m0_fop_fol_default_ops;
 
-	rpc_type->rit_opcode   = args->opcode;
-	rpc_type->rit_flags    = args->rpc_flags;
-	rpc_type->rit_ops      = args->rpc_ops ?:
-		&m0_fop_default_item_type_ops;
+	rpc_type->rit_opcode = args->opcode;
+	rpc_type->rit_flags  = args->rpc_flags;
+	rpc_type->rit_ops    = args->rpc_ops ?: &m0_fop_default_item_type_ops;
 
 	m0_fom_type_init(&ft->ft_fom_type, args->fom_ops, args->svc_type,
 			 args->sm);
-	(void) m0_rpc_item_type_register(&ft->ft_rpc_item_type);
-	(void) m0_fol_rec_type_register(&ft->ft_rec_type);
+	(void)m0_rpc_item_type_register(&ft->ft_rpc_item_type);
+	(void)m0_fol_rec_type_register(&ft->ft_rec_type);
 	m0_addb_ctx_init(&ft->ft_addb, &m0_fop_type_addb_ctx,
 			 &m0_addb_global_ctx);
 	m0_mutex_lock(&fop_types_lock);
@@ -392,9 +395,9 @@ M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type
 	return container_of(item_type, struct m0_fop_type, ft_rpc_item_type);
 }
 
-#undef M0_TRACE_SUBSYSTEM
-
 /** @} end of fop group */
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:
