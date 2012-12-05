@@ -1813,7 +1813,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 		if (map->pi_ioreq->ir_type == IRT_READ &&
 		    seg_endpos(&map->pi_ivec, seg) > size)
 			COUNT(&map->pi_ivec, seg) = size -
-						INDEX(&map->pi_ivec, seg);
+				INDEX(&map->pi_ivec, seg);
 
 		/*
 		 * If current segment is _partially_ spanned by previous
@@ -2743,7 +2743,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 
 	toff	= target_offset(frame, play, gob_offset);
 	pgstart = toff;
-	goff    = unit_type == M0_PUT_DATA ? gob_offset : par_offset;
+	goff    = unit_type == M0_PUT_DATA ? gob_offset : 0;
 
 	M0_LOG(M0_DEBUG, "[gpos %llu, count %llu] [%llu,%llu]->[%llu,%llu] %c",
 			  gob_offset, count, src->sa_group, src->sa_unit,

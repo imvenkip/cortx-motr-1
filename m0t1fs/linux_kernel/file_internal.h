@@ -1290,7 +1290,6 @@ struct target_ioreq_ops {
          * target_ioreq structure.
 	 * @param frame      Frame number of target object.
 	 * @param gob_offset Offset in global file.
-	 * @param par_offset Offset in case of parity units.
 	 * @param count      Number of bytes in this segment.
 	 * @param unit       Unit id in parity group.
 	 * @pre   ti != NULL && count > 0.
