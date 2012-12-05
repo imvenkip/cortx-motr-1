@@ -512,7 +512,7 @@
    @section rmw-degraded-readIO
 
    This section describes the provision for read IO while SNS repair is going
-   on.  Colibri uses data redundancy patterns like pdclustered RAID to recover
+   on.  Mero uses data redundancy patterns like pdclustered RAID to recover
    in case of a failed device or node.
    Parity is calculated across a parity group and stored on persistent media
    so as to recover in case disaster strikes.
@@ -602,7 +602,7 @@
          data units and/or parity units for a simple read IO request.
 
    - struct dgmode_vector
-    - a new data structure to hold c2_indexvec and c2_bufvec for pages
+    - a new data structure to hold m0_indexvec and m0_bufvec for pages
       that needed to be read from server.
 
    - struct nw_xfer_request
