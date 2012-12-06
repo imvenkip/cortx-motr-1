@@ -84,7 +84,7 @@ then
 		exit 1
 	fi
 	echo "Collecting user mode stats"
-	lcov --directory $src --capture --output-file app.info
+	lcov --directory $src -b $src --capture --output-file app.info
 	if [ -e app.info ]
 	then
 		genhtml app.info
