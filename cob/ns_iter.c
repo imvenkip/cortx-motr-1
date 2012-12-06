@@ -22,6 +22,7 @@
 #include "config.h"
 #endif
 
+#include "lib/memory.h"
 #include "lib/misc.h"  /* SET0 */
 #include "cob/ns_iter.h"
 
@@ -109,6 +110,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 	iter->cni_last_fid.f_key = key->cnk_pfid.f_key + 1;
 
 cleanup:
+	m0_free(key);
         m0_db_pair_release(&db_pair);
         m0_db_pair_fini(&db_pair);
         m0_db_cursor_fini(&db_cursor);
