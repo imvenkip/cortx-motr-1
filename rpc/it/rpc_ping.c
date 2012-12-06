@@ -243,12 +243,13 @@ static void send_ping_fop(struct m0_rpc_session *session)
 	for (i = 0; i < nr_arr_member; i++)
 		ping_fop->fp_arr.f_data[i] = i + 100;
 
-	rc = m0_rpc_client_call(fop, session, &m0_fop_default_item_ops,
+	rc = m0_rpc_client_call(fop, session, NULL,
 				m0_time_from_now(1, 0) /* deadline */,
 				CONNECT_TIMEOUT);
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(fop->f_item.ri_error == 0);
 	M0_ASSERT(fop->f_item.ri_reply != 0);
+	m0_fop_put(fop);
 }
 
 /*
@@ -384,6 +385,9 @@ m0_fini:
 #ifndef __KERNEL__
 	m0_fini();
 #endif
+	printf("fop_counter: %d\n", (int)m0_atomic64_get(&fop_counter));
+	M0_ASSERT(m0_atomic64_get(&fop_counter) == 0);
+
 	return rc;
 }
 

@@ -44,7 +44,6 @@ static void cs_ut_rpc_item_reply_cb(struct m0_rpc_item *item);
  */
 const struct m0_rpc_item_ops cs_ds_req_fop_rpc_item_ops = {
         .rio_replied = cs_ut_rpc_item_reply_cb,
-	.rio_free    = m0_fop_item_free,
 };
 
 struct m0_fop_type cs_ds1_req_fop_fopt;

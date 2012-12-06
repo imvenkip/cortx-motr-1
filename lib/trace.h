@@ -207,7 +207,8 @@ M0_INTERNAL void m0_trace_fini(void);
   M0_TRACE_SUBSYS(SNSREPAIR, 15) \
   M0_TRACE_SUBSYS(CONF,      16) \
   M0_TRACE_SUBSYS(LIB,       17) \
-  M0_TRACE_SUBSYS(STOB,      18)
+  M0_TRACE_SUBSYS(STOB,      18) \
+  M0_TRACE_SUBSYS(FOP,       19)
 
 #define M0_TRACE_SUBSYS(name, value) M0_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */

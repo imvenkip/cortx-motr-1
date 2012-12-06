@@ -433,7 +433,16 @@ enum m0_sm_state_descr_flags {
 
 	   @see m0_sm_timedwait()
 	 */
-	M0_SDF_TERMINAL = 1 << 2
+	M0_SDF_TERMINAL = 1 << 2,
+	/**
+	   A state marked with this flag is a "final" state. State machine can
+	   be finalised iff it is in state marked as M0_SDF_FINAL or
+	   M0_SDF_TERMINAL. There can be multiple states marked as
+	   M0_SDF_FINAL. M0_SDF_FINAL differs from M0_SDF_TERMINAL in that,
+	   state machine can transition out of a final state.
+	*/
+	M0_SDF_FINAL    = 1 << 3
+
 };
 
 /**
@@ -475,7 +484,7 @@ M0_INTERNAL void m0_sm_init(struct m0_sm *mach, const struct m0_sm_conf *conf,
 /**
    Finalises a state machine.
 
-   @pre conf->scf_state[state].sd_flags & M0_SDF_TERMINAL
+   @pre conf->scf_state[state].sd_flags & (M0_SDF_TERMINAL | M0_SDF_FINAL)
  */
 M0_INTERNAL void m0_sm_fini(struct m0_sm *mach);
 

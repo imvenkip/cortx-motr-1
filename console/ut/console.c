@@ -256,7 +256,7 @@ static void fop_iterator_test(void)
         M0_UT_ASSERT(f != NULL);
 	init_test_fop(f);
 	check_values(fop);
-        m0_fop_free(fop);
+        m0_fop_put(fop);
 }
 
 static void yaml_basic_test(void)
@@ -294,7 +294,7 @@ static void input_test(void)
 
         m0_cons_fop_obj_input(fop);
 	check_values(fop);
-        m0_fop_free(fop);
+        m0_fop_put(fop);
 	m0_cons_yaml_fini();
 	result = remove(yaml_file);
 	M0_UT_ASSERT(result == 0);
@@ -345,7 +345,7 @@ static void output_test(void)
 	file_redirect_fini();
 
 	verbose = false;
-        m0_fop_free(f);
+        m0_fop_put(f);
 	m0_cons_yaml_fini();
 	result = remove(yaml_file);
 	M0_UT_ASSERT(result == 0);
@@ -577,10 +577,10 @@ static void mesg_send_client(int dummy)
 	M0_UT_ASSERT(fop != NULL);
 	m0_cons_fop_obj_input(fop);
 	result = m0_rpc_client_call(fop, &cctx.rcx_session,
-				    &m0_fop_default_item_ops, 0 /* deadline */,
+				    NULL, 0 /* deadline */,
 				    CONNECT_TIMEOUT);
 	M0_UT_ASSERT(result == 0);
-
+	m0_fop_put(fop);
 	cons_client_fini(&cctx);
 }
 

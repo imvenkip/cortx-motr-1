@@ -26,6 +26,7 @@
 #include "lib/types.h"
 #include "lib/cdefs.h"
 #include "lib/list.h"
+#include "lib/refs.h"
 #include "addb/addb.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
@@ -78,6 +79,8 @@ struct m0_fop_data {
 
 /** fop. */
 struct m0_fop {
+	struct m0_ref            f_ref;
+
 	struct m0_fop_type	*f_type;
 	/** Pointer to the data where fop is serialised or will be
 	    serialised. */
@@ -98,8 +101,11 @@ struct m0_fop {
    @see m0_fop_data_alloc()
  */
 M0_INTERNAL void m0_fop_init(struct m0_fop *fop, struct m0_fop_type *fopt,
-			     void *data);
+			     void *data, void (*fop_release)(struct m0_ref *));
 M0_INTERNAL void m0_fop_fini(struct m0_fop *fop);
+
+struct m0_fop *m0_fop_get(struct m0_fop *fop);
+void           m0_fop_put(struct m0_fop *fop);
 
 /**
    Allocate fop object
@@ -109,7 +115,7 @@ M0_INTERNAL void m0_fop_fini(struct m0_fop *fop);
    if data == NULL, data is allocated by this function
  */
 struct m0_fop *m0_fop_alloc(struct m0_fop_type *fopt, void *data);
-M0_INTERNAL void m0_fop_free(struct m0_fop *fop);
+M0_INTERNAL void m0_fop_release(struct m0_ref *ref);
 void *m0_fop_data(struct m0_fop *fop);
 
 /**
@@ -127,15 +133,6 @@ uint32_t m0_fop_opcode(const struct m0_fop *fop);
 /**  Returns a fop type associated with an rpc item type */
 M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type
     (const struct m0_rpc_item_type *rit);
-
-/**
-   Default implementation of m0_rpc_item_ops::rio_free() interface, for
-   fops. If fop is not embeded in any other object, then this routine
-   can be set to m0_rpc_item::ri_ops::rio_free().
- */
-void m0_fop_item_free(struct m0_rpc_item *item);
-
-extern const struct m0_rpc_item_ops m0_fop_default_item_ops;
 
 /**
    <b>Fop format</b>
@@ -288,6 +285,9 @@ M0_INTERNAL void m0_fops_fini(void);
 		.xo_type = f->f_type->ft_xt,		\
 		.xo_ptr  = m0_fop_data(f),		\
 }
+
+/* XXX Temporary */
+exter struct m0_atomic64 fop_counter;
 
 /** @} end of fop group */
 

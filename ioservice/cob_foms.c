@@ -128,6 +128,7 @@ static int cob_fom_create(struct m0_fop *fop, struct m0_fom **out)
 	}
 
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, rfop);
+	m0_fop_put(rfop);
 	cob_fom_populate(fom);
 	return rc;
 }

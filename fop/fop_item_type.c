@@ -78,13 +78,13 @@ M0_INTERNAL int m0_fop_item_type_default_decode(const struct m0_rpc_item_type
 	if (fop == NULL)
 		return -ENOMEM;
 
-	m0_fop_init(fop, ftype, NULL);
+	m0_fop_init(fop, ftype, NULL, m0_fop_release);
 	item = m0_fop_to_rpc_item(fop);
 	rc = m0_fop_item_encdec(item, cur, M0_BUFVEC_DECODE);
 	if (rc == 0)
 		*item_out = item;
 	else
-		m0_fop_free(fop);
+		m0_fop_put(fop);
 
 	return rc;
 }
@@ -128,11 +128,24 @@ M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
 	return rc;
 }
 
+void m2_fop_item_get(struct m2_rpc_item *item)
+{
+	m2_fop_get(m2_rpc_item_to_fop(item));
+}
+
+void m2_fop_item_put(struct m2_rpc_item *item)
+{
+	m2_fop_put(m2_rpc_item_to_fop(item));
+}
+
+
 /** Default rpc item type ops for fop item types */
 const struct m0_rpc_item_type_ops m0_rpc_fop_default_item_type_ops = {
 	.rito_encode       = m0_fop_item_type_default_encode,
 	.rito_decode       = m0_fop_item_type_default_decode,
 	.rito_payload_size = m0_fop_item_type_default_payload_size,
+	.rito_item_get     = m0_fop_item_get,
+	.rito_item_put     = m0_fop_item_put,
 };
 M0_EXPORTED(m0_rpc_fop_default_item_type_ops);
 

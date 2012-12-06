@@ -208,6 +208,7 @@ again:
 
                 M0_ASSERT(result == 0);
                 m0_reqh_fop_handle(&reqh, fop);
+		m0_fop_put(fop);
         }
         close(fd);
 

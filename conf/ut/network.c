@@ -119,8 +119,7 @@ static void conf_net_ping(void)
 		r->f_path.ab_count = 0;
 	}
 
-	rc = m0_rpc_client_call(req, &cctx.rcx_session,
-				&m0_fop_default_item_ops, 0, TIMEOUT);
+	rc = m0_rpc_client_call(req, &cctx.rcx_session, NULL, 0, TIMEOUT);
 	M0_UT_ASSERT(rc == 0);
 
 	item = &req->f_item;
@@ -129,6 +128,7 @@ static void conf_net_ping(void)
 
 	resp = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
 	M0_UT_ASSERT(resp != NULL);
+	m0_fop_put(req);
 }
 
 void test_conf_net(void)

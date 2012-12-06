@@ -154,7 +154,7 @@ static void bulkclient_test(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* Test : m0_io_fop_init() */
-	rc = m0_io_fop_init(&iofop, &m0_fop_cob_writev_fopt);
+	rc = m0_io_fop_init(&iofop, &m0_fop_cob_writev_fopt, NULL);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(iofop.if_magic == M0_IO_FOP_MAGIC);
 	M0_UT_ASSERT(iofop.if_fop.f_type != NULL);

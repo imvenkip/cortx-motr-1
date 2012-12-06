@@ -17,6 +17,8 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 05/19/2010
  */
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
+#include "lib/trace.h"
 #include "lib/cdefs.h" /* M0_EXPORTED */
 #include "lib/memory.h"
 #include "lib/misc.h" /* M0_SET0 */
@@ -29,6 +31,9 @@
    @addtogroup fop
    @{
  */
+
+/* XXX Temporary */
+struct m0_atomic64 fop_counter;
 
 static const struct m0_fol_rec_type_ops m0_fop_fol_default_ops;
 
@@ -53,6 +58,11 @@ M0_TL_DESCR_DEFINE(ft, "fop types", static, struct m0_fop_type,
 
 M0_TL_DEFINE(ft, static, struct m0_fop_type);
 
+static const char *fop_name(struct m0_fop *fop)
+{
+	return fop->f_type->ft_name;
+}
+
 static size_t fop_data_size(const struct m0_fop *fop)
 {
 	return fop->f_type->ft_xt->xct_sizeof;
@@ -69,14 +79,18 @@ M0_INTERNAL int m0_fop_data_alloc(struct m0_fop *fop)
 M0_INTERNAL void m0_fop_init(struct m0_fop *fop, struct m0_fop_type *fopt,
 			     void *data)
 {
-
+	M0_ENTRY();
 	M0_PRE(fop != NULL && fopt != NULL);
 
+	m0_ref_init(&fop->f_ref, 1, fop_release);
 	fop->f_type = fopt;
 	m0_addb_ctx_init(&fop->f_addb, &m0_fop_addb_ctx, &fopt->ft_addb);
 	m0_rpc_item_init(&fop->f_item, &fopt->ft_rpc_item_type);
-	fop->f_item.ri_ops = &m0_fop_default_item_ops;
 	fop->f_data.fd_data = data;
+	m0_atomic64_inc(&fop_counter);
+	M0_LOG(M0_DEBUG, "fop: %p %s %d", fop, fop_name(fop),
+	       (int)m0_atomic64_get(&fop_counter));
+	M0_LEAVE();
 }
 
 struct m0_fop *m0_fop_alloc(struct m0_fop_type *fopt, void *data)
@@ -85,11 +99,11 @@ struct m0_fop *m0_fop_alloc(struct m0_fop_type *fopt, void *data)
 
 	M0_ALLOC_PTR(fop);
 	if (fop != NULL) {
-		m0_fop_init(fop, fopt, data);
+		m0_fop_init(fop, fopt, data, m0_fop_release);
 		if (data == NULL) {
 			int rc = m0_fop_data_alloc(fop);
 			if (rc != 0) {
-				m0_free(fop);
+				m0_fop_put(fop);
 				return NULL;
 			}
 		}
@@ -102,19 +116,58 @@ M0_EXPORTED(m0_fop_alloc);
 M0_INTERNAL void m0_fop_fini(struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
+	M0_ENTRY("fop: %p %s", fop, fop_name(fop));
+	M0_PRE(M0_IN(m0_ref_read(&fop->f_ref), (0, 1)));
 
 	m0_rpc_item_fini(&fop->f_item);
 	m0_addb_ctx_fini(&fop->f_addb);
-	m0_xcode_free(&M0_FOP_XCODE_OBJ(fop));
+	if (fop->f_data != NULL)
+		m0_xcode_free(&M0_FOP_XCODE_OBJ(fop));
+	m0_atomic64_dec(&fop_counter);
+	M0_LEAVE("fop_counter %d", (int)m0_atomic64_get(&fop_counter));
 }
 
-M0_INTERNAL void m0_fop_free(struct m0_fop *fop)
+M0_INTERNAL void m0_fop_release(struct m0_ref *ref)
 {
-	if (fop != NULL) {
-		m0_fop_fini(fop);
-		m0_free(fop);
-	}
+	struct m0_fop *fop;
+
+	M0_PRE(ref != NULL);
+
+	fop = container_of(ref, struct m0_fop, f_ref);
+	m0_fop_fini(fop);
+	m0_free(fop);
 }
+
+struct m0_fop *m0_fop_get(struct m0_fop *fop)
+{
+	uint64_t count = m0_ref_read(&fop->f_ref);
+
+	M0_ENTRY("fop: %p %s [%llu -> %llu]", fop,
+	         fop_name(fop),
+	         (unsigned long long)count,
+	         (unsigned long long)count + 1);
+	M0_PRE(m0_ref_read(&fop->f_ref) > 0);
+
+	m0_ref_get(&fop->f_ref);
+
+	M0_LEAVE("fop: %p", fop);
+	return fop;
+}
+M0_EXPORTED(m0_fop_get);
+
+void m0_fop_put(struct m0_fop *fop)
+{
+	uint64_t count = m0_ref_read(&fop->f_ref);
+
+	M0_ENTRY("fop: %p %s [%llu -> %llu]", fop, fop_name(fop),
+		 (unsigned long long)count, (unsigned long long)count - 1);
+	M0_PRE(m0_ref_read(&fop->f_ref) > 0);
+
+	m0_ref_put(&fop->f_ref);
+
+	M0_LEAVE();
+}
+M0_EXPORTED(m0_fop_put);
 
 void *m0_fop_data(struct m0_fop *fop)
 {
@@ -342,23 +395,7 @@ M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type
 	return container_of(item_type, struct m0_fop_type, ft_rpc_item_type);
 }
 
-/*
-   See declaration for more information.
- */
-void m0_fop_item_free(struct m0_rpc_item *item)
-{
-	struct m0_fop *fop;
-
-	fop = m0_rpc_item_to_fop(item);
-	/* m0_fop_free() internally calls m0_fop_fini() on the fop, which
-	   calls m0_rpc_item_fini() on the rpc-item */
-	m0_fop_free(fop);
-}
-
-const struct m0_rpc_item_ops m0_fop_default_item_ops = {
-	.rio_free = m0_fop_item_free,
-};
-M0_EXPORTED(m0_fop_default_item_ops);
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of fop group */
 

@@ -106,16 +106,14 @@ struct fop_session_establish_ctx {
 	struct m0_rpc_session *sec_session;
 };
 
-static void fop_session_establish_item_free(struct m0_rpc_item *item);
+static void session_establish_fop_release(struct m0_ref *ref);
 
 static const struct m0_rpc_item_ops session_establish_item_ops = {
 	.rio_replied = m0_rpc_session_establish_reply_received,
-	.rio_free    = fop_session_establish_item_free,
 };
 
 static const struct m0_rpc_item_ops session_terminate_item_ops = {
 	.rio_replied = m0_rpc_session_terminate_reply_received,
-	.rio_free    = m0_fop_item_free,
 };
 
 M0_TL_DESCR_DEFINE(ready_slot, "ready-slots", M0_INTERNAL, struct m0_rpc_slot,
@@ -540,10 +538,11 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session)
 	} else {
 		ctx->sec_session = session;
 		m0_fop_init(&ctx->sec_fop,
-			    &m0_rpc_fop_session_establish_fopt, NULL);
+			    &m0_rpc_fop_session_establish_fopt, NULL,
+			    session_establish_fop_release);
 		rc = m0_fop_data_alloc(&ctx->sec_fop);
 		if (rc != 0)
-			m0_free(ctx);
+			m0_fop_put(&ctx->sec_fop);
 	}
 
 	machine = session_machine(session);
@@ -576,9 +575,8 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session)
 		session_state_set(session, M0_RPC_SESSION_ESTABLISHING);
 	} else {
 		session_failed(session, rc);
-		m0_fop_fini(fop);
-		m0_free(ctx);
 	}
+	m0_fop_put(fop);
 
 	M0_POST(ergo(rc != 0, session_state(session) == M0_RPC_SESSION_FAILED));
 	M0_POST(m0_rpc_session_invariant(session));
@@ -689,12 +687,12 @@ out:
 	M0_LEAVE();
 }
 
-static void fop_session_establish_item_free(struct m0_rpc_item *item)
+static void session_establish_fop_release(struct m0_ref *ref)
 {
 	struct fop_session_establish_ctx *ctx;
 	struct m0_fop                    *fop;
 
-	fop = m0_rpc_item_to_fop(item);
+	fop = container_of(ref, m0_fop, f_ref);
 	m0_fop_fini(fop);
 	ctx = container_of(fop, struct fop_session_establish_ctx, sec_fop);
 	m0_free(ctx);
@@ -782,13 +780,12 @@ M0_INTERNAL int m0_rpc_session_terminate(struct m0_rpc_session *session)
 	session_0 = m0_rpc_conn_session0(conn);
 
 	rc = m0_rpc__fop_post(fop, session_0, &session_terminate_item_ops);
-
 	if (rc == 0) {
 		session_state_set(session, M0_RPC_SESSION_TERMINATING);
 	} else {
 		session_failed(session, rc);
-		m0_fop_free(fop);
 	}
+	m0_fop_put(fop);
 
 out_unlock:
 	M0_ASSERT(m0_rpc_session_invariant(session));

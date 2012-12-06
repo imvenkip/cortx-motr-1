@@ -78,11 +78,12 @@ static const struct m0_rpc_item_type_ops trigger_item_type_ops = {
 	.rito_payload_size   = m0_fop_item_type_default_payload_size,
 	.rito_encode         = m0_fop_item_type_default_encode,
 	.rito_decode         = m0_fop_item_type_default_decode,
+	.rito_item_get       = m0_fop_item_get,
+	.rito_item_put       = m0_fop_item_put,
 };
 
 const struct m0_rpc_item_ops trigger_fop_rpc_item_ops = {
 	.rio_replied = trigger_rpc_item_reply_cb,
-	.rio_free    = m0_fop_item_free,
 };
 
 void m0_sns_repair_trigger_fop_fini(void)

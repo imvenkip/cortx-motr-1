@@ -578,6 +578,7 @@ static void stob_io_fom_fini(struct m0_fom *fom)
 	struct m0_stob_io_fom *fom_obj;
 
 	fom_obj = container_of(fom, struct m0_stob_io_fom, sif_fom);
+	m0_fop_put(fom_obj->sif_rep_fop);
 	m0_fom_fini(fom);
 	m0_free(fom_obj);
 }

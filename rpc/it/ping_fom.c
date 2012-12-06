@@ -63,6 +63,7 @@ M0_INTERNAL int m0_fom_ping_state(struct m0_fom *fom)
         ping_fop_rep->fpr_rc = true;
 	item = m0_fop_to_rpc_item(fop);
         m0_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
+	m0_fop_put(fop);
 	m0_fom_phase_set(fom, M0_FOPH_FINISH);
 	return M0_FSO_WAIT;
 }

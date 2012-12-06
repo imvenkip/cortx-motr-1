@@ -30,7 +30,10 @@
 #include "lib/assert.h"            /* M0_ASSERT */
 #include "lib/thread.h"            /* LAMBDA */
 #include "lib/memory.h"            /* m0_allocated */
+#include "lib/atomic.h"
 #include "lib/ut.h"
+
+extern struct m0_atomic64 fop_counter;
 
 /**
    @addtogroup ut
@@ -138,10 +141,12 @@ static void ut_run_basic_mode(struct m0_list *test_list,
 }
 
 static size_t used_mem_before_suite;
+static int    fop_counter_before_suite;
 
 static void ut_suite_start_cbk(const CU_pSuite pSuite)
 {
 	used_mem_before_suite = m0_allocated();
+	fop_counter_before_suite = m0_atomic64_get(&fop_counter);
 }
 
 static void ut_suite_stop_cbk(const CU_pSuite pSuite,
@@ -172,6 +177,9 @@ static void ut_suite_stop_cbk(const CU_pSuite pSuite,
 	}
 
 	printf("\n  Leaked: %.2f %s  %s", sign * leaked, units, notice);
+	printf("\n  fops leaked: %d\n",
+	       (int)m0_atomic64_get(&fop_counter) - fop_counter_before_suite);
+
 }
 
 static void ut_set_suite_start_stop_cbk(void)

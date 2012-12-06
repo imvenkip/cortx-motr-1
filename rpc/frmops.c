@@ -407,10 +407,10 @@ static void outgoing_buf_event_handler(const struct m0_net_buffer_event *ev)
 static void item_done(struct m0_rpc_item *item, unsigned long rc)
 {
 	M0_ENTRY("item: %p rc: %lu", item, rc);
-	M0_PRE(item != NULL && item->ri_ops != NULL);
+	M0_PRE(item != NULL);
 
 	item->ri_error = rc;
-	if (item->ri_ops->rio_sent != NULL)
+	if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
 		item->ri_ops->rio_sent(item);
 
 	if (rc == 0) {
