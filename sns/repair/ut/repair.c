@@ -269,8 +269,9 @@ static void cobs_create(uint64_t nr_cobs)
 {
 	int i;
 
-	for (i = ITER_DEFAULT_COB_FID_CONT;
-			i <= ITER_DEFAULT_COB_FID_CONT + nr_cobs; ++i)
+	/* Create cobs in reverse order. */
+	for (i = ITER_DEFAULT_COB_FID_CONT + nr_cobs;
+			i >= ITER_DEFAULT_COB_FID_CONT; --i)
 		cob_create(ITER_DEFAULT_COB_FID_CONT, i);
 
 }
@@ -279,29 +280,42 @@ static void cobs_delete(uint64_t nr_cobs)
 {
 	int i;
 
-	for (i = ITER_DEFAULT_COB_FID_CONT;
-			i <= ITER_DEFAULT_COB_FID_CONT + nr_cobs; ++i)
+	for (i = ITER_DEFAULT_COB_FID_CONT + nr_cobs;
+			i >= ITER_DEFAULT_COB_FID_CONT; --i)
 		cob_delete(ITER_DEFAULT_COB_FID_CONT, i);
 }
 
-static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata)
+static void nsit_verify(struct m0_fid *gfid, int cnt)
+{
+	M0_UT_ASSERT(gfid->f_container == ITER_DEFAULT_COB_FID_CONT);
+	/* Verify that gob-fid has been enumerated in lexicographical order. */
+	M0_UT_ASSERT(gfid->f_key - cnt == ITER_DEFAULT_COB_FID_CONT);
+}
+
+static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata,
+		    bool verify_ns_iter)
 {
 	struct m0_sns_repair_cp rcp;
 	int                     rc;
+	int                     cnt;
 
 	cobs_create(pool_width);
 	/* Set file size */
 	rcm->rc_file_size = fsize;
 	/* Set fail device. */
 	rcm->rc_fdata = fdata;
+	cnt = 0;
 	m0_cm_lock(cm);
 	do {
 		M0_SET0(&rcp);
 		rcm->rc_it.ri_cp = &rcp;
 		rc = m0_sns_repair_iter_next(cm, &rcp.rc_base);
 		if (rc == M0_FSO_AGAIN) {
+			if (verify_ns_iter)
+				nsit_verify(&rcm->rc_it.ri_pl.rpl_gob_fid, cnt);
 			M0_UT_ASSERT(cp_verify(&rcp));
 			buf_put(&rcp);
+			cnt++;
 		}
 	} while (rc == M0_FSO_AGAIN);
 	m0_cm_unlock(cm);
@@ -325,7 +339,7 @@ static void iter_success(void)
 	int      rc;
 
 	iter_setup(3, 1, 5);
-	rc = iter_run(5, 36864, 2);
+	rc = iter_run(5, 36864, 2, true);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(5);
 }
@@ -335,7 +349,7 @@ static void iter_pool_width_more_than_N_plus_2K(void)
 	int rc;
 
 	iter_setup(2, 1, 10);
-	rc = iter_run(10, 36864, 2);
+	rc = iter_run(10, 36864, 2, false);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(10);
 }
@@ -345,7 +359,7 @@ static void iter_invalid_nr_cobs(void)
 	int rc;
 
 	iter_setup(3, 1, 5);
-	rc = iter_run(3, 36864, 2);
+	rc = iter_run(3, 36864, 2, false);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(3);
 }
