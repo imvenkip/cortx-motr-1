@@ -913,14 +913,13 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
         if (rc != 0) {
                 M0_LOG(M0_ERROR,
                        "m0t1fs_mds_cob_fop_populate() failed with %d", rc);
-                m0_fop_free(fop);
                 goto out;
         }
 
         M0_LOG(M0_DEBUG, "Send md operation %x to session %lu\n",
                 m0_fop_opcode(fop), (unsigned long)session->s_session_id);
 
-        rc = m0_rpc_client_call(fop, session, &m0_fop_default_item_ops,
+        rc = m0_rpc_client_call(fop, session, NULL,
                                 0 /* deadline */, M0T1FS_RPC_TIMEOUT);
 
         if (rc != 0) {
@@ -991,11 +990,9 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
                 goto out;
         }
 
-        /*
-         * Fop is deallocated by rpc layer using
-         * cob_req_rpc_item_ops->rio_free() rpc item ops.
-         */
 out:
+	if (fop != NULL)
+		m0_fop_put(fop);
         M0_LEAVE("%d", rc);
         return rc;
 }
@@ -1111,7 +1108,7 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 		(unsigned long)cob_fid->f_key,
 		(unsigned long)session->s_session_id);
 
-	rc = m0_rpc_client_call(fop, session, &cob_req_rpc_item_ops,
+	rc = m0_rpc_client_call(fop, session, NULL,
 				0 /* deadline */, M0T1FS_RPC_TIMEOUT);
 
 	if (rc != 0)

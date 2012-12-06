@@ -382,18 +382,6 @@ M0_INTERNAL void m0_rpc_item_init(struct m0_rpc_item *item,
 }
 M0_EXPORTED(m0_rpc_item_init);
 
-M0_INTERNAL void m0_rpc_item_get(struct m0_rpc_item *item)
-{
-	/* XXX TODO */
-}
-M0_EXPORTED(m0_rpc_item_get);
-
-M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item)
-{
-	/* XXX TODO */
-}
-M0_EXPORTED(m0_rpc_item_put);
-
 M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item)
 {
 	struct m0_rpc_slot_ref *sref = &item->ri_slot_refs[0];
@@ -411,6 +399,24 @@ M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item)
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_rpc_item_fini);
+
+M0_INTERNAL void m0_rpc_item_get(struct m0_rpc_item *item)
+{
+	M0_PRE(item != NULL && item->ri_type != NULL &&
+	       item->ri_type->rit_ops != NULL &&
+	       item->ri_type->rit_ops->rito_item_get != NULL);
+
+	item->ri_type->rit_ops->rito_item_get(item);
+}
+
+M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item)
+{
+	M0_PRE(item != NULL && item->ri_type != NULL &&
+	       item->ri_type->rit_ops != NULL &&
+	       item->ri_type->rit_ops->rito_item_put != NULL);
+
+	item->ri_type->rit_ops->rito_item_put(item);
+}
 
 #define ITEM_XCODE_OBJ(ptr)     M0_XCODE_OBJ(m0_rpc_onwire_slot_ref_xc, ptr)
 #define SLOT_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_onwire_header_xc, ptr)

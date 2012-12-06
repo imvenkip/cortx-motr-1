@@ -692,7 +692,7 @@ static void session_establish_fop_release(struct m0_ref *ref)
 	struct fop_session_establish_ctx *ctx;
 	struct m0_fop                    *fop;
 
-	fop = container_of(ref, m0_fop, f_ref);
+	fop = container_of(ref, struct m0_fop, f_ref);
 	m0_fop_fini(fop);
 	ctx = container_of(fop, struct fop_session_establish_ctx, sec_fop);
 	m0_free(ctx);

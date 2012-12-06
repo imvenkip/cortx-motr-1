@@ -287,7 +287,7 @@ M0_INTERNAL void m0_fops_fini(void);
 }
 
 /* XXX Temporary */
-exter struct m0_atomic64 fop_counter;
+extern struct m0_atomic64 fop_counter;
 
 /** @} end of fop group */
 

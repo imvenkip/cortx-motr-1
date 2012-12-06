@@ -308,9 +308,6 @@ static void cmp_addb_record_buf(struct m0_mem_buf *buf1,
 
 static void packet_fini(struct m0_rpc_packet *packet)
 {
-	struct m0_rpc_item *item;
-	struct m0_fop      *fop;
-
 	M0_UT_ASSERT(packet != NULL);
 
 	/* items will be freed as soon as they're removed

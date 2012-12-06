@@ -351,7 +351,7 @@ int main(int argc, char *argv[])
 	m0_list_fini(&test_list);
 	m0_list_fini(&exclude_list);
 out:
-	printf("fop_counter: %d\n", (int)m0_atomic64_get(&fop_counter))
+	printf("fop_counter: %d\n", (int)m0_atomic64_get(&fop_counter));
 	unit_end(UT_SANDBOX, keep_sandbox);
 	return result;
 }

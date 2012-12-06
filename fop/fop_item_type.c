@@ -128,14 +128,14 @@ M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
 	return rc;
 }
 
-void m2_fop_item_get(struct m2_rpc_item *item)
+void m0_fop_item_get(struct m0_rpc_item *item)
 {
-	m2_fop_get(m2_rpc_item_to_fop(item));
+	m0_fop_get(m0_rpc_item_to_fop(item));
 }
 
-void m2_fop_item_put(struct m2_rpc_item *item)
+void m0_fop_item_put(struct m0_rpc_item *item)
 {
-	m2_fop_put(m2_rpc_item_to_fop(item));
+	m0_fop_put(m0_rpc_item_to_fop(item));
 }
 
 

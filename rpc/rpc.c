@@ -75,24 +75,6 @@ M0_INTERNAL void m0_rpc_fini(void)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_rpc_item_get(struct m0_rpc_item *item)
-{
-	M0_PRE(item != NULL && item->ri_type != NULL &&
-	       item->ri_type->rit_ops != NULL &&
-	       item->ri_type->rit_ops->rito_item_get != NULL);
-
-	item->ri_type->rit_ops->rito_item_get(item);
-}
-
-M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item)
-{
-	M0_PRE(item != NULL && item->ri_type != NULL &&
-	       item->ri_type->rit_ops != NULL &&
-	       item->ri_type->rit_ops->rito_item_put != NULL);
-
-	item->ri_type->rit_ops->rito_item_put(item);
-}
-
 M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item)
 {
 	int                    rc;

@@ -174,7 +174,7 @@ static m0_bcount_t oneway_item_size(const struct m0_rpc_item *item)
 }
 
 static struct m0_rpc_item_type_ops oneway_item_type_ops = {
-	.rito_payload_size = oneway_item_size
+	.rito_payload_size = oneway_item_size,
 	.rito_item_get     = item_get_noop,
 	.rito_item_put     = item_put_noop,
 };

@@ -46,7 +46,7 @@ static void conn_establish_fop_release(struct m0_ref *ref)
 	struct m0_rpc_fop_conn_establish_ctx *ctx;
 	struct m0_fop                        *fop;
 
-	fop = container_of(ref, m0_fop, f_ref);
+	fop = container_of(ref, struct m0_fop, f_ref);
 	ctx = container_of(fop, struct m0_rpc_fop_conn_establish_ctx, cec_fop);
 	m0_fop_fini(fop);
 	m0_free(ctx);

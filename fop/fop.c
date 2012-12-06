@@ -77,7 +77,7 @@ M0_INTERNAL int m0_fop_data_alloc(struct m0_fop *fop)
 }
 
 M0_INTERNAL void m0_fop_init(struct m0_fop *fop, struct m0_fop_type *fopt,
-			     void *data)
+			     void *data, void (*fop_release)(struct m0_ref *))
 {
 	M0_ENTRY();
 	M0_PRE(fop != NULL && fopt != NULL);
@@ -121,7 +121,7 @@ M0_INTERNAL void m0_fop_fini(struct m0_fop *fop)
 
 	m0_rpc_item_fini(&fop->f_item);
 	m0_addb_ctx_fini(&fop->f_addb);
-	if (fop->f_data != NULL)
+	if (fop->f_data.fd_data != NULL)
 		m0_xcode_free(&M0_FOP_XCODE_OBJ(fop));
 	m0_atomic64_dec(&fop_counter);
 	M0_LEAVE("fop_counter %d", (int)m0_atomic64_get(&fop_counter));
