@@ -61,7 +61,7 @@ struct m0_cob_fid_ns_iter {
 
 /**
  * Initialises the namespace iterator.
- * @param iter - Cob dif namespace ietrator that is to be initialised.
+ * @param iter - Cob fid namespace iterator that is to be initialised.
  * @param gfid - Initial gob-fid with which iterator is initialised.
  * @param dbenv - DB environment from which the records should be extracted.
  * @param cdom - Cob domain.
