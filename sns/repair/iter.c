@@ -798,6 +798,11 @@ M0_INTERNAL int m0_sns_repair_iter_init(struct m0_sns_repair_cm *rcm)
 	int                   rc;
 	struct m0_dbenv      *dbenv;
 	struct m0_cob_domain *cdom;
+	/*
+	 * gfids {1,1}, {1,2} and {1,3} are reserved for storage virtual
+	 * root, session root and metadata hierarchy root respectively. Hence
+	 * pick the next best possible fid to initialise the namespace iter.
+	 */
 	struct m0_fid         gfid = {1, 4};
 
 	M0_PRE(rcm != NULL);
