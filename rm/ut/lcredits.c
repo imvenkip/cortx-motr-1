@@ -75,7 +75,7 @@ static void cached_credits_test(enum m0_rm_incoming_flags flags)
 	 * 1. Test obtaining cached credit.
 	 */
 	m0_rm_credit_get(&test_data.rd_in);
-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_rc == 0);
+	M0_UT_ASSERT(test_data.rd_in.rin_rc == 0);
 	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
 
 	M0_SET0(&next_in);
@@ -88,7 +88,7 @@ static void cached_credits_test(enum m0_rm_incoming_flags flags)
 	 * 2. Test obtaining another cached credit.
 	 */
 	m0_rm_credit_get(&next_in);
-	M0_UT_ASSERT(next_in.rin_sm.sm_rc == 0);
+	M0_UT_ASSERT(next_in.rin_rc == 0);
 	M0_UT_ASSERT(next_in.rin_sm.sm_state == RI_SUCCESS);
 
 	m0_rm_credit_put(&test_data.rd_in);
@@ -112,7 +112,7 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
 	test_data.rd_in.rin_ops = &lcredits_incoming_ops;
 
 	m0_rm_credit_get(&test_data.rd_in);
-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_rc == 0);
+	M0_UT_ASSERT(test_data.rd_in.rin_rc == 0);
 	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
 
 	M0_SET0(&next_in);
@@ -144,7 +144,7 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
 	 */
 	if (flags == RIF_LOCAL_WAIT) {
 		M0_UT_ASSERT(m0_chan_timedwait(&clink, !0));
-		M0_UT_ASSERT(next_in.rin_sm.sm_rc == 0);
+		M0_UT_ASSERT(next_in.rin_rc == 0);
 		M0_UT_ASSERT(next_in.rin_sm.sm_state == RI_SUCCESS);
 		m0_rm_credit_put(&next_in);
 		m0_clink_del(&clink);
@@ -169,7 +169,7 @@ static void failures_test()
 	 */
 	m0_rm_credit_get(&test_data.rd_in);
 	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_rc == -ESRCH);
+	M0_UT_ASSERT(test_data.rd_in.rin_rc == -ESRCH);
 
 	/*
 	 * 2. Test - credit_get fails when owner in not in ROS_ACTIVE state.
@@ -181,7 +181,7 @@ static void failures_test()
 	test_data.rd_in.rin_want.cr_datum = INVALID_RING;
 	test_data.rd_owner.ro_sm.sm_state = ROS_FINALISING;
 	m0_rm_credit_get(&test_data.rd_in);
-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_rc == -ENODEV);
+	M0_UT_ASSERT(test_data.rd_in.rin_rc == -ENODEV);
 	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
 	test_data.rd_owner.ro_sm.sm_state = ROS_ACTIVE;
 }

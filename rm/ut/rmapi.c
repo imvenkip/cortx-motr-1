@@ -23,6 +23,7 @@
 #include "lib/misc.h"
 #include "lib/ut.h"
 #include "lib/ub.h"
+#include "lib/finject.h"
 
 #include "rm/rm.h"
 
@@ -42,10 +43,11 @@ extern bool m0_rm_ur_tlist_is_empty(const struct m0_tl *list);
  */
 static void credits_api_test ()
 {
+	int rc;
+
 	rm_utdata_init(&test_data, OBJ_OWNER);
 
 	/* 1. Test m0_rm_incoming_init() */
-	M0_SET0(&test_data.rd_in);
 	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
 			    M0_RIT_LOCAL, RIP_NONE, RIF_LOCAL_WAIT);
 	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_INITIALISED);
@@ -53,29 +55,50 @@ static void credits_api_test ()
 	M0_UT_ASSERT(test_data.rd_in.rin_policy == RIP_NONE);
 	M0_UT_ASSERT(test_data.rd_in.rin_flags == RIF_LOCAL_WAIT);
 	M0_UT_ASSERT(test_data.rd_in.rin_want.cr_datum == 0);
-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_rc == 0);
+	M0_UT_ASSERT(test_data.rd_in.rin_rc == 0);
 
 	/* 2. Test m0_rm_credit_init */
 	m0_rm_credit_init(&test_data.rd_credit, &test_data.rd_owner);
 	M0_UT_ASSERT(test_data.rd_credit.cr_datum == 0);
 	M0_UT_ASSERT(test_data.rd_credit.cr_owner == &test_data.rd_owner);
 
-	/* 3. Test m0_rm_owner_selfadd. Indirectly tests m0_rm_loan_init */
+	/* 3. Test m0_rm_owner_selfadd. Test memory failure */
 	test_data.rd_credit.cr_datum = ALLRINGS;
-	m0_rm_owner_selfadd(&test_data.rd_owner, &test_data.rd_credit);
+	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	rc = m0_rm_owner_selfadd(&test_data.rd_owner, &test_data.rd_credit);
+	M0_UT_ASSERT(rc == -ENOMEM);
+
+	/* 4. Test m0_rm_owner_selfadd. Indirectly tests m0_rm_loan_init */
+	rc = m0_rm_owner_selfadd(&test_data.rd_owner, &test_data.rd_credit);
+	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_borrowed));
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_owned[OWOS_CACHED]));
 
+	/*
+	 * 5. Test m0_rm_credit_get for memory failure.
+	 */
 	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
 	test_data.rd_in.rin_want.cr_datum = test_data.rd_credit.cr_datum;
 	test_data.rd_in.rin_ops = &rings_incoming_ops;
+	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	m0_rm_credit_get(&test_data.rd_in);
+	M0_UT_ASSERT(test_data.rd_in.rin_rc == -ENOMEM);
+	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
+	/* Test m0_rm_incoming_fini */
+	m0_rm_incoming_fini(&test_data.rd_in);
+
 	/*
-	 * 4. Test m0_rm_credit_get
+	 * 6. Test m0_rm_credit_get - Success case.
 	 * Indirectly tests owner_balance, incoming_check, incoming_check_with,
 	 * incoming_complete, pin_add.
 	 */
+	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
+			    M0_RIT_LOCAL, RIP_NONE, RIF_LOCAL_WAIT);
+	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
+	test_data.rd_in.rin_want.cr_datum = test_data.rd_credit.cr_datum;
+	test_data.rd_in.rin_ops = &rings_incoming_ops;
 	m0_rm_credit_get(&test_data.rd_in);
-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_rc == 0);
+	M0_UT_ASSERT(test_data.rd_in.rin_rc == 0);
 	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
 
 	/* Test m0_rm_credit_put. Indirectly tests incoming_release, pin_del */

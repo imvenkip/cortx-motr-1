@@ -317,43 +317,42 @@ static void server1_stop()
 {
 	struct m0_rm_remote *creditor;
 
-	rm_disconnect(&rm_ctx[SERVER_1], &rm_ctx[SERVER_2]);
-
 	creditor = rm_ctx[SERVER_1].rc_test_data.rd_owner.ro_creditor;
 	M0_UT_ASSERT(creditor != NULL);
 	m0_rm_remote_fini(creditor);
 	m0_free(creditor);
 	rm_ctx[SERVER_1].rc_test_data.rd_owner.ro_creditor = NULL;
+	rm_utdata_fini(&rm_ctx[SERVER_1].rc_test_data, OBJ_OWNER);
 
 	m0_clink_fini(&rm_ctx[SERVER_2].rc_clink);
 	m0_chan_fini(&rm_ctx[SERVER_1].rc_chan);
-	rm_utdata_fini(&rm_ctx[SERVER_1].rc_test_data, OBJ_OWNER);
+	rm_disconnect(&rm_ctx[SERVER_1], &rm_ctx[SERVER_2]);
 }
 
 static void server2_stop()
 {
 	struct m0_rm_remote *creditor;
 
-	rm_disconnect(&rm_ctx[SERVER_2], &rm_ctx[SERVER_3]);
-	rm_disconnect(&rm_ctx[SERVER_2], &rm_ctx[SERVER_1]);
-
 	creditor = rm_ctx[SERVER_2].rc_test_data.rd_owner.ro_creditor;
 	M0_UT_ASSERT(creditor != NULL);
 	m0_rm_remote_fini(creditor);
 	m0_free(creditor);
 	rm_ctx[SERVER_2].rc_test_data.rd_owner.ro_creditor = NULL;
+	rm_utdata_fini(&rm_ctx[SERVER_2].rc_test_data, OBJ_OWNER);
 
 	m0_clink_fini(&rm_ctx[SERVER_2].rc_clink);
 	m0_chan_fini(&rm_ctx[SERVER_2].rc_chan);
-	rm_utdata_fini(&rm_ctx[SERVER_2].rc_test_data, OBJ_OWNER);
+	rm_disconnect(&rm_ctx[SERVER_2], &rm_ctx[SERVER_3]);
+	rm_disconnect(&rm_ctx[SERVER_2], &rm_ctx[SERVER_1]);
+
 }
 
 static void server3_stop()
 {
-	rm_disconnect(&rm_ctx[SERVER_3], &rm_ctx[SERVER_2]);
+	rm_utdata_fini(&rm_ctx[SERVER_3].rc_test_data, OBJ_OWNER);
 	m0_clink_fini(&rm_ctx[SERVER_3].rc_clink);
 	m0_chan_fini(&rm_ctx[SERVER_3].rc_chan);
-	rm_utdata_fini(&rm_ctx[SERVER_3].rc_test_data, OBJ_OWNER);
+	rm_disconnect(&rm_ctx[SERVER_3], &rm_ctx[SERVER_2]);
 }
 
 static void creditor_cookie_setup(enum rm_server dsrv_id,
@@ -368,9 +367,9 @@ static void creditor_cookie_setup(enum rm_server dsrv_id,
 
 static void rm_servers_stop()
 {
+	server3_stop();
 	server1_stop();
 	server2_stop();
-	server3_stop();
 }
 
 static void credit_setup(enum rm_server srv_id,
@@ -539,7 +538,7 @@ static void test1_run()
 	m0_rm_incoming_fini(in);
 
 	/*
-	 * 3. Test-case - Setup creditor cookie. Right request should
+	 * 3. Test-case - Setup creditor cookie. Credit request should
 	 *                succeed.
 	 */
 	/* Server-3 is upward creditor for Server-2 */

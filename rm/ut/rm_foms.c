@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYCREDIT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -20,6 +20,7 @@
 
 #include "lib/memory.h"
 #include "lib/ut.h"
+#include "lib/finject.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpc.h"
 #include "ut/rpc.h"
@@ -30,10 +31,11 @@
 #include "rm/ut/rings.h"
 #include "rm/rm_foms.c"          /* To access static APIs. */
 
-enum credits_test_type {
-	RM_UT_FULL_RIGHTS_TEST=1,
-	RM_UT_PARTIAL_RIGHTS_TEST,
-	RM_UT_INVALID_RIGHTS_TEST,
+enum test_type {
+	RM_UT_FULL_CREDITS_TEST=1,
+	RM_UT_PARTIAL_CREDITS_TEST,
+	RM_UT_INVALID_CREDITS_TEST,
+	RM_UT_MEMFAIL_TEST,
 };
 
 static struct m0_fom_locality  dummy_loc;
@@ -83,10 +85,15 @@ static void rmfoms_utfini(void)
  * Create and initialise RM FOMs.
  */
 static void fom_create(enum m0_rm_incoming_type fomtype,
-		       struct m0_fop *fop, struct m0_fom **fom)
+		       bool err_test,
+		       struct m0_fop *fop,
+		       struct m0_fom **fom)
 {
 	int		rc;
 	struct m0_fom  *base_fom;
+
+	if (err_test)
+		m0_fi_enable_once("m0_alloc", "fail_allocation");
 
 	switch (fomtype) {
 	case M0_RIT_BORROW:
@@ -98,15 +105,18 @@ static void fom_create(enum m0_rm_incoming_type fomtype,
 	default:
 		M0_IMPOSSIBLE("Invalid RM-FOM type");
 	}
-	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(ergo(err_test, rc == -ENOMEM));
+	M0_UT_ASSERT(ergo(!err_test, rc == 0));
 
-	base_fom = *fom;
-	base_fom->fo_fop = fop;
+	if (!err_test) {
+		base_fom = *fom;
+		base_fom->fo_fop = fop;
 
-	base_fom->fo_loc = &dummy_loc;
-	base_fom->fo_loc->fl_dom->fd_reqh = &reqh;
-	M0_CNT_INC(base_fom->fo_loc->fl_foms);
-	m0_fom_sm_init(base_fom);
+		base_fom->fo_loc = &dummy_loc;
+		base_fom->fo_loc->fl_dom->fd_reqh = &reqh;
+		M0_CNT_INC(base_fom->fo_loc->fl_foms);
+		m0_fom_sm_init(base_fom);
+	}
 }
 
 static void fom_fini(struct m0_fom *fom, enum m0_rm_incoming_type fomtype)
@@ -178,7 +188,7 @@ static void fom_fini_test(enum m0_rm_incoming_type fomtype)
 	base_mem = m0_allocated();
 	fop = fop_alloc(fomtype);
 
-	fom_create(fomtype, fop, &fom);
+	fom_create(fomtype, false, fop, &fom);
 
 	/*
 	 * Ensure - after fom_fini() memory usage drops back to original value
@@ -190,18 +200,21 @@ static void fom_fini_test(enum m0_rm_incoming_type fomtype)
 }
 #endif
 
-static void fom_create_test(enum m0_rm_incoming_type fomtype)
+static void fom_create_test(enum m0_rm_incoming_type fomtype,
+			    bool err_test)
 {
-	struct m0_fom *fom;
+	struct m0_fom *fom = NULL;
 	struct m0_fop *fop;
 
 	fop = fop_alloc(fomtype);
 
-	fom_create(fomtype, fop, &fom);
-	M0_UT_ASSERT(fom != NULL);
-	fop_dealloc(fom);
-	fom_phase_set(fom, M0_FOPH_SUCCESS);
-	fom_fini(fom, fomtype);
+	fom_create(fomtype, err_test, fop, &fom);
+	if (!err_test) {
+		M0_UT_ASSERT(fom != NULL);
+		fop_dealloc(fom);
+		fom_phase_set(fom, M0_FOPH_SUCCESS);
+		fom_fini(fom, fomtype);
+	}
 }
 
 /*
@@ -212,7 +225,7 @@ static void fom_create_test(enum m0_rm_incoming_type fomtype)
 /*
  * Populate the fake (test) RM-BORROW FOP.
  */
-static void brw_fop_populate(struct m0_fom *fom, enum credits_test_type test)
+static void brw_fop_populate(struct m0_fom *fom, enum test_type test)
 {
 	struct m0_fop_rm_borrow *brw_fop;
 	struct m0_rm_credit	 credit;
@@ -229,13 +242,14 @@ static void brw_fop_populate(struct m0_fom *fom, enum credits_test_type test)
 		       &test_data.rd_owner.ro_id);
 	m0_rm_credit_init(&credit, &test_data.rd_owner);
 	switch (test) {
-	case RM_UT_FULL_RIGHTS_TEST:
+	case RM_UT_FULL_CREDITS_TEST:
+	case RM_UT_MEMFAIL_TEST:
 		credit.cr_datum = ALLRINGS;
 		break;
-	case RM_UT_PARTIAL_RIGHTS_TEST:
+	case RM_UT_PARTIAL_CREDITS_TEST:
 		credit.cr_datum = VILYA;
 		break;
-	case RM_UT_INVALID_RIGHTS_TEST:
+	case RM_UT_INVALID_CREDITS_TEST:
 		credit.cr_datum = INVALID_RING;
 		break;
 	}
@@ -260,13 +274,13 @@ static void brw_test_cleanup()
  * Validate the test results.
  */
 static void brw_fom_state_validate(struct m0_fom *fom, int32_t rc,
-				   enum credits_test_type test)
+				   enum test_type test)
 {
 	struct m0_fop_rm_borrow *brw_fop;
 
 	m0_rm_owner_lock(&test_data.rd_owner);
 	switch (test) {
-	case RM_UT_FULL_RIGHTS_TEST:
+	case RM_UT_FULL_CREDITS_TEST:
 		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 		M0_UT_ASSERT(
@@ -274,8 +288,11 @@ static void brw_fom_state_validate(struct m0_fom *fom, int32_t rc,
 		M0_UT_ASSERT(
 			m0_rm_ur_tlist_is_empty(
 				&test_data.rd_owner.ro_owned[OWOS_CACHED]));
+		M0_UT_ASSERT(
+			m0_rm_ur_tlist_is_empty(
+				&test_data.rd_owner.ro_owned[OWOS_HELD]));
 		break;
-	case RM_UT_PARTIAL_RIGHTS_TEST:
+	case RM_UT_PARTIAL_CREDITS_TEST:
 		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 		M0_UT_ASSERT(
@@ -283,8 +300,12 @@ static void brw_fom_state_validate(struct m0_fom *fom, int32_t rc,
 		M0_UT_ASSERT(
 			!m0_rm_ur_tlist_is_empty(
 				&test_data.rd_owner.ro_owned[OWOS_CACHED]));
+		M0_UT_ASSERT(
+			m0_rm_ur_tlist_is_empty(
+				&test_data.rd_owner.ro_owned[OWOS_HELD]));
 		break;
-	case RM_UT_INVALID_RIGHTS_TEST:
+	case RM_UT_INVALID_CREDITS_TEST:
+	case RM_UT_MEMFAIL_TEST:
 		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_FAILURE);
 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 		break;
@@ -297,7 +318,7 @@ static void brw_fom_state_validate(struct m0_fom *fom, int32_t rc,
 /*
  * Test function for testing BORROW FOM functions.
  */
-static void brw_fom_state_test(enum credits_test_type test)
+static void brw_fom_state_test(enum test_type test)
 {
 	struct m0_fom	      *fom;
 	struct m0_fop	      *fop;
@@ -312,16 +333,20 @@ static void brw_fom_state_test(enum credits_test_type test)
 
 	fop = fop_alloc(M0_RIT_BORROW);
 
-	fom_create(M0_RIT_BORROW, fop, &fom);
+	/*
+	 * Create FOM and set the FOM phase to start of the request.
+	 */
+	fom_create(M0_RIT_BORROW, false, fop, &fom);
 	M0_UT_ASSERT(fom != NULL);
-
 	brw_fop_populate(fom, test);
-
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 	fom_phase_set(fom, FOPH_RM_REQ_START);
+
 	/*
 	 * Call the first phase of FOM.
 	 */
+	if (test == RM_UT_MEMFAIL_TEST)
+		m0_fi_enable_once("m0_alloc", "fail_allocation");
 	rc = borrow_fom_tick(fom);
 	M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_FINISH);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
@@ -343,7 +368,11 @@ static void brw_fom_state_test(enum credits_test_type test)
  */
 static void brw_fom_create_test()
 {
-	fom_create_test(M0_RIT_BORROW);
+	/* 1. Test memory failure */
+	fom_create_test(M0_RIT_BORROW, true);
+
+	/* 2. Test success */
+	fom_create_test(M0_RIT_BORROW, false);
 }
 
 #ifdef RPC_ITEM_FREE
@@ -361,24 +390,22 @@ static void brw_fom_fini_test()
  * RM Revoke-FOM test functions
  ******************
  */
-static void rvk_data_setup(enum credits_test_type test)
+static void rvk_data_setup(enum test_type test)
 {
 	struct m0_rm_credit *credit;
 
-	/*
-	 * This credit will be finalised in m0_rm_revoke_commit().
-	 */
 	M0_ALLOC_PTR(credit);
 	M0_UT_ASSERT(credit != NULL);
 	m0_rm_credit_init(credit, &test_data.rd_owner);
 	switch (test) {
-	case RM_UT_FULL_RIGHTS_TEST:
+	case RM_UT_FULL_CREDITS_TEST:
+	case RM_UT_MEMFAIL_TEST:
 		credit->cr_datum = (uint64_t)VILYA;
 		break;
-	case RM_UT_PARTIAL_RIGHTS_TEST:
+	case RM_UT_PARTIAL_CREDITS_TEST:
 		credit->cr_datum = (uint64_t)ALLRINGS;
 		break;
-	case RM_UT_INVALID_RIGHTS_TEST:
+	case RM_UT_INVALID_CREDITS_TEST:
 		credit->cr_datum = (uint64_t)NENYA;
 		break;
 	}
@@ -455,13 +482,13 @@ static void rvk_test_cleanup()
  * Validate the test results.
  */
 static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
-				   enum credits_test_type test)
+				   enum test_type test)
 {
 	struct m0_fop_rm_revoke *rvk_fop;
 
 	m0_rm_owner_lock(&test_data.rd_owner);
 	switch (test) {
-	case RM_UT_FULL_RIGHTS_TEST:
+	case RM_UT_FULL_CREDITS_TEST:
 		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 		M0_UT_ASSERT(
@@ -470,7 +497,7 @@ static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
 		M0_UT_ASSERT(
 		    m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_borrowed));
 		break;
-	case RM_UT_PARTIAL_RIGHTS_TEST:
+	case RM_UT_PARTIAL_CREDITS_TEST:
 		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 		M0_UT_ASSERT(
@@ -481,7 +508,8 @@ static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
 				&test_data.rd_owner.ro_borrowed));
 		rvk_test_cleanup();
 		break;
-	case RM_UT_INVALID_RIGHTS_TEST:
+	case RM_UT_INVALID_CREDITS_TEST:
+	case RM_UT_MEMFAIL_TEST:
 		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_FAILURE);
 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 		M0_UT_ASSERT(
@@ -502,7 +530,7 @@ static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
 /*
  * Test function for to test REVOKE FOM states().
  */
-static void rvk_fom_state_test(enum credits_test_type test)
+static void rvk_fom_state_test(enum test_type test)
 {
 	struct m0_fom	      *fom;
 	struct m0_fop	      *fop;
@@ -516,7 +544,7 @@ static void rvk_fom_state_test(enum credits_test_type test)
 
 	fop = fop_alloc(M0_RIT_REVOKE);
 
-	fom_create(M0_RIT_REVOKE, fop, &fom);
+	fom_create(M0_RIT_REVOKE, false, fop, &fom);
 	M0_UT_ASSERT(fom != NULL);
 
 	rvk_fop_populate(fom);
@@ -526,6 +554,8 @@ static void rvk_fom_state_test(enum credits_test_type test)
 	/*
 	 * Call the first FOM phase.
 	 */
+	if (test == RM_UT_MEMFAIL_TEST)
+		m0_fi_enable_once("m0_alloc", "fail_allocation");
 	rc = revoke_fom_tick(fom);
 	M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_FINISH);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
@@ -546,7 +576,11 @@ static void rvk_fom_state_test(enum credits_test_type test)
  */
 static void rvk_fom_create_test()
 {
-	fom_create_test(M0_RIT_REVOKE);
+	/* 1. Test memory failure */
+	fom_create_test(M0_RIT_REVOKE, true);
+
+	/* 2. Test success */
+	fom_create_test(M0_RIT_REVOKE, false);
 }
 
 #ifdef RPC_ITEM_FREE
@@ -572,16 +606,22 @@ static void borrow_fom_funcs_test(void)
 #ifdef RPC_ITEM_FREE
 	/* Test for brw_fom_fini() */
 	brw_fom_fini_test();
-#endif
 
 	/* 1. Test borrowing part (partial) of the credits available */
-	brw_fom_state_test(RM_UT_PARTIAL_RIGHTS_TEST);
+	brw_fom_state_test(RM_UT_PARTIAL_CREDITS_TEST);
 
 	/* 2. Test borrowing full credits available */
-	brw_fom_state_test(RM_UT_FULL_RIGHTS_TEST);
+	brw_fom_state_test(RM_UT_FULL_CREDITS_TEST);
 
-	/* 3. Test borrowing an invalid credit (not available) */
-	brw_fom_state_test(RM_UT_INVALID_RIGHTS_TEST);
+	/*
+	 * 3. Test borrowing an invalid credit (not available)
+	 *    Tests failure in request pre-processing.
+	 */
+	brw_fom_state_test(RM_UT_INVALID_CREDITS_TEST);
+
+#endif
+	/* 4. Test failure in Borrow (post-processing) */
+	brw_fom_state_test(RM_UT_MEMFAIL_TEST);
 
 }
 
@@ -593,16 +633,20 @@ static void revoke_fom_funcs_test(void)
 #ifdef RPC_ITEM_FREE
 	/* Test for rvk_fom_fini() */
 	rvk_fom_fini_test();
-#endif
 
 	/* 1. Test revoke of entire credits that were borrowed */
-	rvk_fom_state_test(RM_UT_FULL_RIGHTS_TEST);
+	rvk_fom_state_test(RM_UT_FULL_CREDITS_TEST);
 
 	/* 2. Test revoke of part of credits that were borrowed */
-	rvk_fom_state_test(RM_UT_PARTIAL_RIGHTS_TEST);
+	rvk_fom_state_test(RM_UT_PARTIAL_CREDITS_TEST);
 
-	/* 3. Test revoke of an invalid credit */
-	rvk_fom_state_test(RM_UT_INVALID_RIGHTS_TEST);
+	/* 3. Test revoke of an invalid credit (failure in pre-processing) */
+	rvk_fom_state_test(RM_UT_INVALID_CREDITS_TEST);
+
+	/* 4. Test revoke post-processing failure */
+	rvk_fom_state_test(RM_UT_MEMFAIL_TEST);
+#endif
+	rvk_fom_state_test(RM_UT_PARTIAL_CREDITS_TEST);
 
 }
 

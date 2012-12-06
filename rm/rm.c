@@ -66,7 +66,6 @@ static int  service_locate         (struct m0_rm_resource_type *rtype,
 				    struct m0_rm_remote *rem);
 static int  resource_locate        (struct m0_rm_resource_type *rtype,
 				    struct m0_rm_remote *rem);
-
 static int  outgoing_check         (struct m0_rm_incoming *in,
 				    enum m0_rm_outgoing_type,
 				    struct m0_rm_credit *credit,
@@ -937,6 +936,9 @@ static int cached_credits_remove(struct m0_rm_incoming *in)
 	struct m0_tl	    remove_list;
 	int		    rc = 0;
 
+	/* Credits can be removed for remote requests */
+	M0_PRE(in->rin_type != M0_RIT_LOCAL);
+
 	m0_rm_ur_tlist_init(&diff_list);
 	m0_rm_ur_tlist_init(&remove_list);
 	m0_tl_for(pi, &in->rin_pins, pin) {
@@ -1169,8 +1171,10 @@ M0_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in)
 			&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
 			&in->rin_want);
 		owner_balance(owner);
-	} else
+	} else {
 		m0_sm_move(&in->rin_sm, -ENODEV, RI_FAILURE);
+		in->rin_rc = -ENODEV;
+	}
 
 	m0_rm_owner_unlock(owner);
 }
@@ -1207,6 +1211,9 @@ static int cached_credits_hold(struct m0_rm_incoming *in)
 	struct m0_rm_credit	      rest;
 	struct m0_tl		      transfers;
 	int			      rc;
+
+	/* Only local request can hold the credits */
+	M0_PRE(in->rin_type == M0_RIT_LOCAL);
 
 	m0_rm_credit_init(&rest, in->rin_want.cr_owner);
 	rc = credit_copy(&rest, &in->rin_want);
@@ -1395,9 +1402,12 @@ static void incoming_check(struct m0_rm_incoming *in)
 			/*
 			 * Transfer the CACHED credits to HELD list. Later
 			 * it may be subsumed by policy functions (or
-			 * vice versa).
+			 * vice versa). Credits are held only for local
+			 * request. For remote requests, they are removed
+			 * and converted into loans.
 			 */
-			rc = cached_credits_hold(in);
+			if (in->rin_type == M0_RIT_LOCAL)
+				rc = cached_credits_hold(in);
 		}
 		/*
 		 * Check if incoming request is complete. When there is
@@ -2197,6 +2207,46 @@ static bool credit_is_empty(const struct m0_rm_credit *credit)
 	return credit->cr_datum == 0;
 }
 
+M0_INTERNAL int m0_rm_credit_encode(const struct m0_rm_credit *credit,
+				   struct m0_buf *buf)
+{
+	struct m0_bufvec	datum_buf;
+	struct m0_bufvec_cursor cursor;
+
+	M0_PRE(buf != NULL);
+	M0_PRE(credit->cr_ops != NULL);
+	M0_PRE(credit->cr_ops->cro_len != NULL);
+	M0_PRE(credit->cr_ops->cro_encode != NULL);
+
+	buf->b_nob = credit->cr_ops->cro_len(credit);
+	buf->b_addr = m0_alloc(buf->b_nob);
+	if (buf->b_addr == NULL)
+		return -ENOMEM;
+
+	datum_buf.ov_buf = &buf->b_addr;
+	datum_buf.ov_vec.v_nr = 1;
+	datum_buf.ov_vec.v_count = &buf->b_nob;
+
+	m0_bufvec_cursor_init(&cursor, &datum_buf);
+	return credit->cr_ops->cro_encode(credit, &cursor);
+}
+M0_EXPORTED(m0_rm_credit_encode);
+
+M0_INTERNAL int m0_rm_credit_decode(struct m0_rm_credit *credit,
+				   struct m0_buf *buf)
+{
+	struct m0_bufvec	datum_buf = M0_BUFVEC_INIT_BUF(&buf->b_addr,
+							       &buf->b_nob);
+	struct m0_bufvec_cursor cursor;
+
+	M0_PRE(credit->cr_ops != NULL);
+	M0_PRE(credit->cr_ops->cro_decode != NULL);
+
+	m0_bufvec_cursor_init(&cursor, &datum_buf);
+	return credit->cr_ops->cro_decode(credit, &cursor);
+}
+M0_EXPORTED(m0_rm_credit_decode);
+
 /** @} end of credit group */
 
 /**
@@ -2204,7 +2254,6 @@ static bool credit_is_empty(const struct m0_rm_credit *credit)
  *
  * @{
  */
-
 M0_INTERNAL int m0_rm_db_service_query(const char *name,
 				       struct m0_rm_remote *rem)
 {
@@ -2327,46 +2376,6 @@ error:
 	return rc;
 }
 M0_EXPORTED(m0_rm_net_locate);
-
-M0_INTERNAL int m0_rm_credit_encode(const struct m0_rm_credit *credit,
-				   struct m0_buf *buf)
-{
-	struct m0_bufvec	datum_buf;
-	struct m0_bufvec_cursor cursor;
-
-	M0_PRE(buf != NULL);
-	M0_PRE(credit->cr_ops != NULL);
-	M0_PRE(credit->cr_ops->cro_len != NULL);
-	M0_PRE(credit->cr_ops->cro_encode != NULL);
-
-	buf->b_nob = credit->cr_ops->cro_len(credit);
-	buf->b_addr = m0_alloc(buf->b_nob);
-	if (buf->b_addr == NULL)
-		return -ENOMEM;
-
-	datum_buf.ov_buf = &buf->b_addr;
-	datum_buf.ov_vec.v_nr = 1;
-	datum_buf.ov_vec.v_count = &buf->b_nob;
-
-	m0_bufvec_cursor_init(&cursor, &datum_buf);
-	return credit->cr_ops->cro_encode(credit, &cursor);
-}
-M0_EXPORTED(m0_rm_credit_encode);
-
-M0_INTERNAL int m0_rm_credit_decode(struct m0_rm_credit *credit,
-				   struct m0_buf *buf)
-{
-	struct m0_bufvec	datum_buf = M0_BUFVEC_INIT_BUF(&buf->b_addr,
-							       &buf->b_nob);
-	struct m0_bufvec_cursor cursor;
-
-	M0_PRE(credit->cr_ops != NULL);
-	M0_PRE(credit->cr_ops->cro_decode != NULL);
-
-	m0_bufvec_cursor_init(&cursor, &datum_buf);
-	return credit->cr_ops->cro_decode(credit, &cursor);
-}
-M0_EXPORTED(m0_rm_credit_decode);
 
 /** @} end of remote group */
 
