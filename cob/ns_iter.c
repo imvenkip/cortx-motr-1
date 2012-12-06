@@ -29,6 +29,12 @@
  * @addtogroup cob_fid_ns_iter
  */
 
+static bool ns_iter_invariant(const struct m0_cob_fid_ns_iter *iter)
+{
+	return iter != NULL && iter->cni_dbenv != NULL &&
+	       iter->cni_cdom != NULL && m0_fid_is_set(&iter->cni_last_fid);
+}
+
 M0_INTERNAL int m0_cob_ns_iter_init(struct m0_cob_fid_ns_iter *iter,
 				    struct m0_fid *gfid,
 				    struct m0_dbenv *dbenv,
@@ -42,6 +48,8 @@ M0_INTERNAL int m0_cob_ns_iter_init(struct m0_cob_fid_ns_iter *iter,
 	iter->cni_cdom = cdom;
 	iter->cni_last_fid.f_container = gfid->f_container;
 	iter->cni_last_fid.f_key = gfid->f_key;
+
+	M0_POST(ns_iter_invariant(iter));
 
 	return 0;
 }
@@ -60,7 +68,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
         uint32_t             nskey_bs_len;
 	struct m0_fid        key_fid;
 
-	M0_PRE(iter != NULL);
+	M0_PRE(ns_iter_invariant(iter));
 	M0_PRE(gfid != NULL);
 	M0_PRE(tx != NULL);
 
@@ -110,7 +118,7 @@ cleanup:
 
 M0_INTERNAL void m0_cob_ns_iter_fini(struct m0_cob_fid_ns_iter *iter)
 {
-	M0_PRE(iter != NULL);
+	M0_PRE(ns_iter_invariant(iter));
 	M0_SET0(iter);
 }
 
