@@ -1,10 +1,16 @@
 mount_m0t1fs()
 {
+	if [ $# -ne 2 ]
+	then
+		echo "Usage: mount_m0t1fs <mount_dir> <unit_size (in Kbytes)>"
+		return 1
+	fi
+
 	local m0t1fs_mount_dir=$1
 	local stride_size=`expr $2 \* 1024`
 
 	# Create mount directory
-	mkdir $m0t1fs_mount_dir || {
+	sudo mkdir -p $m0t1fs_mount_dir || {
 		echo "Failed to create mount directory."
 		return 1
 	}
@@ -22,10 +28,10 @@ mount_m0t1fs()
 ' [1: "_"])})]'
 
 	echo "Mounting file system..."
-	cmd="mount -t m0t1fs -o '$CONF,$SERVICES' m0t1fs $m0t1fs_mount_dir"
+	cmd="sudo mount -t m0t1fs -o '$CONF,$SERVICES' none $m0t1fs_mount_dir"
 	echo $cmd
 	eval $cmd || {
-		echo "Failed to	mount m0t1fs file system."
+		echo "Failed to mount m0t1fs file system."
 		return 1
 	}
 }
