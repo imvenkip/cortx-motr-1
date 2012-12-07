@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
 	rc = m0_init();
 	M0_ASSERT(rc == 0);
 
-	rc = M0_GETOPTS("lnetping", argc, argv,
+	rc = M0_GETOPTS("m0lnetping", argc, argv,
 			M0_FLAGARG('s', "run server only", &server_only),
 			M0_FLAGARG('c', "run client only", &client_only),
 			M0_FORMATARG('b', "number of buffers", "%i", &nr_bufs),

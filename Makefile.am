@@ -430,8 +430,8 @@ include $(top_srcdir)/net/bulk_emulation/st/Makefile.sub
 # net/lnet/st
 #
 
-noinst_PROGRAMS            += net/lnet/st/lnetping
-net_lnet_st_lnetping_LDADD  = $(top_builddir)/mero/libmero.la \
+noinst_PROGRAMS              += net/lnet/st/m0lnetping
+net_lnet_st_m0lnetping_LDADD  = $(top_builddir)/mero/libmero.la \
                               $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/net/lnet/st/Makefile.sub
