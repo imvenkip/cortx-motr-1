@@ -82,7 +82,7 @@ for ((i=0; i < ${#EP[*]}; i++)) ; do
             -m 163840 -q 16 &>>$WORK_ARENA/servers_started )&
 done
 
-layout/ut/ldemo $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
+utils/m0layout $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
 
 # Due to device stob pre-creation (balloc format) it normally takes ~0m28.166s for
 # starting up a server, so wait till all m0d services are started.

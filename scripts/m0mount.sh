@@ -470,7 +470,7 @@ if [ "x$1" = "xlocal" ]; then
 	update_params
 fi
 
-l_run layout/ut/ldemo $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
+l_run utils/m0layout $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
 if [ $? -ne 0 ]; then
 	echo ERROR: Parity configuration is incorrect
 	exit 1

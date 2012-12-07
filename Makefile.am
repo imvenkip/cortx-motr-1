@@ -340,9 +340,9 @@ desim_ut_m0t1fs_test_LDADD  = $(top_builddir)/mero/libmero.la \
 # layout/ut
 #
 
-noinst_PROGRAMS       += layout/ut/ldemo
-layout_ut_ldemo_LDADD  = $(top_builddir)/mero/libmero.la \
-                         $(top_builddir)/ut/libmero-ut.la
+noinst_PROGRAMS          += layout/ut/m0layout
+layout_ut_m0layout_LDADD  = $(top_builddir)/mero/libmero.la \
+                            $(top_builddir)/ut/libmero-ut.la
 
 #
 # net/lnet/ut
