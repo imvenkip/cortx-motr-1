@@ -2091,10 +2091,10 @@ int pin_add(struct m0_rm_incoming *in,
 	struct m0_rm_pin *pin;
 
 	/*
- 	 * In some cases, an incoming may scan owner lists multiple times.
- 	 * It may end up adding mutiple pins for the same credit. Hence, check
- 	 * before adding the pin.
- 	 */
+	 * In some cases, an incoming may scan owner lists multiple times.
+	 * It may end up adding mutiple pins for the same credit. Hence, check
+	 * before adding the pin.
+	 */
 	m0_tl_for(pi, &in->rin_pins, pin) {
 		M0_ASSERT(pin->rp_incoming == in);
 		if (pin->rp_credit == credit)

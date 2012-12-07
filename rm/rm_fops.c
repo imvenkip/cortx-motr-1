@@ -193,7 +193,7 @@ static void rm_out_fini(struct rm_out *out)
 {
 	m0_rm_outgoing_fini(&out->ou_req);
 	/* @todo
- 	 * Uncomment following line once RPC has mechniasm to free RPC-items.
+	 * Uncomment following line once RPC has mechniasm to free RPC-items.
 	m0_free(out);
 	 */
 }
