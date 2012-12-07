@@ -43,6 +43,7 @@ struct m0_rpc_slot;
 struct m0_rpc_session;
 struct m0_bufvec_cursor;
 struct m0_rpc_frm;
+struct m0_rpc_machine;
 
 /* Forward declarations */
 struct m0_rpc_item_ops;
@@ -241,6 +242,16 @@ struct m0_rpc_item_ops {
 	 */
 	void (*rio_replied)(struct m0_rpc_item *item);
 
+	/**
+	   This method is called on receiver side when RPC layer processed the
+	   item and wants to deliver it to the upper layer. If this method is
+	   NULL, the default action is to call m0_reqh_fop_handle().
+
+	   @note rpcmach can be different from item_machine(item) for connection
+	   establishing items.
+	*/
+	void (*rio_deliver)(struct m0_rpc_machine *rpcmach,
+			    struct m0_rpc_item *item);
 	/**
 	   RPC triggers this callback to free the item.
 	   Implementation should call m0_rpc_item_fini() on the item.
