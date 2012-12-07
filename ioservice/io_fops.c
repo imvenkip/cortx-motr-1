@@ -98,7 +98,19 @@ static const struct m0_rpc_item_type_ops io_item_type_ops = {
         .rito_io_coalesce    = item_io_coalesce,
 };
 
+static const struct m0_fol_rec_type_ops m0_io_fop_fol_ops = {
+        .rto_commit     = NULL,
+        .rto_abort      = NULL,
+        .rto_persistent = NULL,
+        .rto_cull       = NULL,
+        .rto_open       = m0_io_fol_open,
+        .rto_fini       = NULL,
+        .rto_pack_size  = m0_io_fol_pack_size,
+        .rto_pack       = m0_io_fol_pack
+};
+
 const struct m0_fop_type_ops io_fop_rwv_ops = {
+        .fto_rec_ops     = &m0_io_fop_fol_ops,
 	.fto_fop_replied = io_fop_replied,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
@@ -179,6 +191,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .opcode    = M0_IOSERVICE_COB_CREATE_OPCODE,
 				 .xt        = m0_fop_cob_create_xc,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+				 .fop_ops   = &io_fop_cd_ops,
 #ifndef __KERNEL__
 				 .fom_ops   = &cob_fom_type_ops,
 				 .svc_type  = &m0_ios_type,
@@ -189,6 +202,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .opcode    = M0_IOSERVICE_COB_DELETE_OPCODE,
 				 .xt        = m0_fop_cob_delete_xc,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+				 .fop_ops   = &io_fop_cd_ops,
 #ifndef __KERNEL__
 				 .fom_ops   = &cob_fom_type_ops,
 				 .svc_type  = &m0_ios_type,
