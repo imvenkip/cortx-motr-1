@@ -1249,7 +1249,6 @@ static void req_fop_init(struct m0_confc_ctx *ctx)
 		struct m0_rpc_item *item = &ctx->fc_fop.f_item;
 
 		M0_SET0(&ctx->fc_req);
-		/* FIXME. Passing m0_fop_release() is incorrect. */
 		m0_fop_init(&ctx->fc_fop, &m0_conf_fetch_fopt, &ctx->fc_req,
 			    req_fop_release);
 		item->ri_ops = &req_item_ops;
