@@ -134,6 +134,15 @@ uint32_t m0_fop_opcode(const struct m0_fop *fop);
 M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type
     (const struct m0_rpc_item_type *rit);
 
+#define M0_FOP_DEFAULT_ITEM_TYPE_OPS \
+	.rito_encode       = m0_fop_item_type_default_encode,      \
+	.rito_decode       = m0_fop_item_type_default_decode,      \
+	.rito_payload_size = m0_fop_item_type_default_payload_size,\
+	.rito_item_get     = m0_fop_item_get,                      \
+	.rito_item_put     = m0_fop_item_put
+
+extern const struct m0_rpc_item_type_ops m0_fop_default_item_type_ops;
+
 /**
    <b>Fop format</b>
 
@@ -171,8 +180,6 @@ M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type
 
    @see xcode/ff2c/ff2c
 */
-
-extern const struct m0_rpc_item_type_ops m0_rpc_fop_default_item_type_ops;
 
 /**
    Type of a file system operation.

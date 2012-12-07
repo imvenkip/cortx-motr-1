@@ -215,7 +215,7 @@ int m0_fop_type_init(struct m0_fop_type *ft,
 	rpc_type->rit_opcode   = args->opcode;
 	rpc_type->rit_flags    = args->rpc_flags;
 	rpc_type->rit_ops      = args->rpc_ops ?:
-		&m0_rpc_fop_default_item_type_ops;
+		&m0_fop_default_item_type_ops;
 
 	m0_fom_type_init(&ft->ft_fom_type, args->fom_ops, args->svc_type,
 			 args->sm);

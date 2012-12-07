@@ -95,26 +95,14 @@ const struct m0_rpc_item_ops io_req_rpc_item_ops = {
 };
 
 static const struct m0_rpc_item_type_ops io_item_type_ops = {
-        .rito_payload_size   = m0_fop_item_type_default_payload_size,
+	M0_FOP_DEFAULT_ITEM_TYPE_OPS,
         .rito_io_coalesce    = item_io_coalesce,
-        .rito_encode	     = m0_fop_item_type_default_encode,
-        .rito_decode	     = m0_fop_item_type_default_decode,
-	.rito_item_get       = m0_fop_item_get,
-	.rito_item_put       = m0_fop_item_put,
 };
 
 const struct m0_fop_type_ops io_fop_rwv_ops = {
 	.fto_fop_replied = io_fop_replied,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
-};
-
-static const struct m0_rpc_item_type_ops cob_rpc_type_ops = {
-	.rito_payload_size   = m0_fop_item_type_default_payload_size,
-	.rito_encode         = m0_fop_item_type_default_encode,
-	.rito_decode	     = m0_fop_item_type_default_decode,
-	.rito_item_get       = m0_fop_item_get,
-	.rito_item_put       = m0_fop_item_put,
 };
 
 M0_INTERNAL void m0_ioservice_fop_fini(void)
@@ -195,8 +183,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .fom_ops   = &cob_fom_type_ops,
 				 .svc_type  = &m0_ios_type,
 #endif
-				 .sm        = &m0_generic_conf,
-				 .rpc_ops   = &cob_rpc_type_ops) ?:
+				 .sm        = &m0_generic_conf) ?:
 		M0_FOP_TYPE_INIT(&m0_fop_cob_delete_fopt,
 				 .name      = "Cob delete request",
 				 .opcode    = M0_IOSERVICE_COB_DELETE_OPCODE,
@@ -206,21 +193,18 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .fom_ops   = &cob_fom_type_ops,
 				 .svc_type  = &m0_ios_type,
 #endif
-				 .sm        = &m0_generic_conf,
-				 .rpc_ops   = &cob_rpc_type_ops) ?:
+				 .sm        = &m0_generic_conf) ?:
 		M0_FOP_TYPE_INIT(&m0_fop_cob_op_reply_fopt,
 				 .name      = "Cob create or delete reply",
 				 .opcode    =  M0_IOSERVICE_COB_OP_REPLY_OPCODE,
 				 .xt        = m0_fop_cob_op_reply_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
-				 .rpc_ops   = &cob_rpc_type_ops)?:
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
 		M0_FOP_TYPE_INIT(&m0_fop_fv_notification_fopt,
 				 .name      = "Failure vector update notification",
 				 .opcode    = M0_IOSERVICE_FV_NOTIFICATION_OPCODE,
 				 .xt        = m0_fop_fv_notification_xc,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-					      M0_RPC_ITEM_TYPE_ONEWAY,
-				 .rpc_ops   = &cob_rpc_type_ops);
+					      M0_RPC_ITEM_TYPE_ONEWAY);
 
 
 }

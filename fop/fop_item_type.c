@@ -140,14 +140,10 @@ void m0_fop_item_put(struct m0_rpc_item *item)
 
 
 /** Default rpc item type ops for fop item types */
-const struct m0_rpc_item_type_ops m0_rpc_fop_default_item_type_ops = {
-	.rito_encode       = m0_fop_item_type_default_encode,
-	.rito_decode       = m0_fop_item_type_default_decode,
-	.rito_payload_size = m0_fop_item_type_default_payload_size,
-	.rito_item_get     = m0_fop_item_get,
-	.rito_item_put     = m0_fop_item_put,
+const struct m0_rpc_item_type_ops m0_fop_default_item_type_ops = {
+	M0_FOP_DEFAULT_ITEM_TYPE_OPS,
 };
-M0_EXPORTED(m0_rpc_fop_default_item_type_ops);
+M0_EXPORTED(m0_fop_default_item_type_ops);
 
 /*
  *  Local variables:

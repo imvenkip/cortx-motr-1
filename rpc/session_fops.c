@@ -93,11 +93,8 @@ const struct m0_fop_type_ops m0_rpc_fop_noop_ops = {
 };
 
 static struct m0_rpc_item_type_ops conn_establish_item_type_ops = {
-	.rito_encode       = m0_fop_item_type_default_encode,
+	M0_FOP_DEFAULT_ITEM_TYPE_OPS,
 	.rito_decode       = conn_establish_item_decode,
-        .rito_payload_size = m0_fop_item_type_default_payload_size,
-	.rito_item_get     = m0_fop_item_get,
-	.rito_item_put     = m0_fop_item_put,
 };
 
 struct m0_fop_type m0_rpc_fop_conn_establish_fopt;

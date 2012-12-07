@@ -74,14 +74,6 @@ static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
 	}
 }
 
-static const struct m0_rpc_item_type_ops trigger_item_type_ops = {
-	.rito_payload_size   = m0_fop_item_type_default_payload_size,
-	.rito_encode         = m0_fop_item_type_default_encode,
-	.rito_decode         = m0_fop_item_type_default_decode,
-	.rito_item_get       = m0_fop_item_get,
-	.rito_item_put       = m0_fop_item_put,
-};
-
 const struct m0_rpc_item_ops trigger_fop_rpc_item_ops = {
 	.rio_replied = trigger_rpc_item_reply_cb,
 };
@@ -127,14 +119,12 @@ int m0_sns_repair_trigger_fop_init(void)
 			.rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
 			M0_RPC_ITEM_TYPE_MUTABO,
 			.fom_ops   = &trigger_fom_type_ops,
-			.sm        = &trigger_conf,
-			.rpc_ops   = &trigger_item_type_ops) ?:
+			.sm        = &trigger_conf) ?:
 		M0_FOP_TYPE_INIT(&trigger_rep_fop_fopt,
 				.name      = "sns repair trigger reply",
 				.opcode    = M0_SNS_REPAIR_TRIGGER_REP_OPCODE,
 				.xt        = trigger_rep_fop_xc,
-				.rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
-				.rpc_ops   = &trigger_item_type_ops);
+				.rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 
 }
 
