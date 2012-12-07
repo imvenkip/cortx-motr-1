@@ -286,16 +286,8 @@ noinst_PROGRAMS                  += balloc/ut/m0blkfree
 balloc_ut_m0blkfree_LDADD         = $(top_builddir)/mero/libmero.la \
                                     $(top_builddir)/ut/libmero-ut.la
 
-noinst_PROGRAMS                  += balloc/ut/dump_free_extent
-balloc_ut_dump_free_extent_LDADD  = $(top_builddir)/mero/libmero.la \
-                                    $(top_builddir)/ut/libmero-ut.la
-
-noinst_PROGRAMS                  += balloc/ut/dump_group_desc
-balloc_ut_dump_group_desc_LDADD   = $(top_builddir)/mero/libmero.la \
-                                    $(top_builddir)/ut/libmero-ut.la
-
-noinst_PROGRAMS                  += balloc/ut/dump_super_block
-balloc_ut_dump_super_block_LDADD  = $(top_builddir)/mero/libmero.la \
+noinst_PROGRAMS                  += balloc/ut/m0blkdump
+balloc_ut_m0blkdump_LDADD         = $(top_builddir)/mero/libmero.la \
                                     $(top_builddir)/ut/libmero-ut.la
 
 noinst_PROGRAMS                  += balloc/ut/perf

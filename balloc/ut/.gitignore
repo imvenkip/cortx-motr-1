@@ -1,6 +1,4 @@
-dump_free_extent
-dump_group_desc
-dump_super_block
+m0blkdump
 m0blkformat
 m0blkfree
 mperf

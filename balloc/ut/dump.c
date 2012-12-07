@@ -16,9 +16,14 @@
  *
  * Original author: Huang Hua <hua_huang@xyratex.com>
  * Original creation date: 09/02/2010
+ *
+ * Modified by: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
+ * Modification date: 12/07/2012
  */
+
 #include <stdio.h>        /* fprintf */
 #include <stdlib.h>       /* srand, rand */
+#include <string.h>       /* strcmp */
 #include <errno.h>
 #include <sys/time.h>
 #include <err.h>
@@ -34,19 +39,60 @@
 #include "lib/ut.h"
 #include "balloc/balloc.h"
 
+static int usage(const char *prog_name)
+{
+	fprintf(stderr, "Usage: %s -s <db-dir>\n"
+			"       %s -g <db-dir> groupno\n"
+			"       %s -f <db-dir> groupno\n"
+			"\n"
+			"  where:\n"
+			"    -s  dump superblock\n"
+			"    -g  dump group descriptor\n"
+			"    -f  dump free extents\n",
+			prog_name, prog_name, prog_name);
+
+	return EXIT_FAILURE;
+}
+
 int main(int argc, char **argv)
 {
 	struct m0_balloc     *mero_balloc;
-	const char           *db_name;
 	struct m0_dbenv       db;
 	struct m0_dtx         dtx;
+	const char           *db_name;
+	m0_bcount_t           gn = 0;
 	int                   result;
 
-	if (argc != 2) {
-		fprintf(stderr, "Usage: %s <db-dir>\n", argv[0]);
-		return 1;
+	enum action_type {
+		DUMP_SUPER,
+		DUMP_GROUP,
+		DUMP_FREE,
+	} action;
+
+	if (argc < 3)
+		return usage(argv[0]);
+
+	if (strcmp(argv[1], "-s") == 0)
+		action = DUMP_SUPER;
+	else if (strcmp(argv[1], "-g") == 0)
+		action = DUMP_GROUP;
+	else if (strcmp(argv[1], "-f") == 0)
+		action = DUMP_FREE;
+	else
+		return usage(argv[0]);
+
+	switch (action) {
+	case DUMP_GROUP:
+	case DUMP_FREE:
+		if (argc < 4)
+			return usage(argv[0]);
+		gn = atoll(argv[3]);
+	case DUMP_SUPER:
+		db_name = argv[2];
+		break;
+	default:
+		M0_IMPOSSIBLE("invalid action");
 	}
-	db_name = argv[1];
 
 	result = m0_dbenv_init(&db, db_name, 0);
 	M0_ASSERT(result == 0);
@@ -62,14 +108,41 @@ int main(int argc, char **argv)
 		 BALLOC_DEF_RESERVED_GROUPS);
 
 	if (result == 0) {
-		m0_balloc_debug_dump_sb(argv[0], &mero_balloc->cb_sb);
+		switch (action) {
+		case DUMP_SUPER:
+			m0_balloc_debug_dump_sb(argv[0], &mero_balloc->cb_sb);
+			break;
+		case DUMP_GROUP:
+		case DUMP_FREE:
+		{
+			struct m0_balloc_group_info *grp =
+				m0_balloc_gn2info(mero_balloc, gn);
+
+			if (grp && action == DUMP_GROUP) {
+				m0_balloc_debug_dump_group(argv[0], grp);
+			} else if (grp && action == DUMP_FREE) {
+				m0_balloc_lock_group(grp);
+				result = m0_balloc_load_extents(
+					    mero_balloc, grp, &dtx.tx_dbtx);
+				if (result == 0)
+					m0_balloc_debug_dump_group_extent(argv[0], grp);
+				m0_balloc_release_extents(grp);
+				m0_balloc_unlock_group(grp);
+			}
+			break;
+		}
+		default:
+			M0_IMPOSSIBLE("invalid action");
+		}
 	}
+
 	result = m0_db_tx_commit(&dtx.tx_dbtx);
 	M0_ASSERT(result == 0);
 	mero_balloc->cb_ballroom.ab_ops->bo_fini(&mero_balloc->cb_ballroom);
 
 	m0_dbenv_fini(&db);
 	printf("done\n");
+
 	return 0;
 }
 
