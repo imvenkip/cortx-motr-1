@@ -67,6 +67,8 @@ static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
 
 static size_t m0_io_fol_pack_size(struct m0_fol_rec_desc *desc);
 static void m0_io_fol_pack(struct m0_fol_rec_desc *desc, void *buf);
+static int m0_io_fol_open(const struct m0_fol_rec_type *type,
+                          struct m0_fol_rec_desc *desc);
 
 struct m0_fop_type m0_fop_cob_readv_fopt;
 struct m0_fop_type m0_fop_cob_writev_fopt;
@@ -106,7 +108,7 @@ static const struct m0_fol_rec_type_ops m0_io_fop_fol_ops = {
         .rto_abort      = NULL,
         .rto_persistent = NULL,
         .rto_cull       = NULL,
-        .rto_open       = NULL,
+        .rto_open       = m0_io_fol_open,
         .rto_fini       = NULL,
         .rto_pack_size  = m0_io_fol_pack_size,
         .rto_pack       = m0_io_fol_pack
@@ -260,192 +262,90 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    <hr>
    @section IOFOLDLD-ovw Overview
    This document describes the design of logging FOL records for create, delete
-   and write operations.
+   and read operations.
 
    <hr>
    @section IOFOLDLD-def Definitions
    FOL(File operation log) is a per-node collection of records, describing
    updates to file system state carried out on the node.
-   IO FOL is log of records for create, delete and write operations in ioservice
-   which are used to perform undo or as a reply cache.
-
-   Each File system object called unit has "verno of its latest state" as an
-   attribute. This attribute is modified with every update to unit state.
-
-   A verno consists of two components:
-	- LSN (lsn): A reference to a FOL record, points to the record with
-		    the last update for the unit.
-	- VC: A version counter
+   IO FOL is collection of these records in ioservice.
+   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1_5UGU0n7CATMiuG6V9eK3cMshiYFotPVnIy478MMnvM/edit"> HLD of FOL</a>,
+   @ref and @ref fol.
 
    <hr>
    @section IOFOLDLD-req Requirements
+   - @b r.m0.ioservice.support-for-io-fol
+     from <a href="https://docs.google.com/a/xyratex.com/document/d/1_N-YJZ4XcUkkhDG843lxS2TNF2YlmOjfZQelbD017jU/edit">HLD of data block allocator</a>.
 
    <hr>
    @section IOFOLDLD-depends Dependencies
 
-   For every new write data must be written to new block.
-   So that these older data blocks can be used to perform write undo.
    <hr>
    @section IOFOLDLD-highlights Design Highlights
 
    <hr>
    @section IOFOLDLD-fspec Functional Specification
    The following new APIs are introduced:
-
-   IO FOL operations are added.
-   m0_io_fol_pack_size() is used to get the record size.
-   m0_io_fol_pack() is used to encode the record.
    @code
-   static const struct m0_fol_rec_type_ops m0_io_fop_fol_ops = {
-	...
-	.rto_pack_size  = m0_io_fol_pack_size,
-        .rto_pack       = m0_io_fol_pack
-   };
-
-   const struct m0_fop_type_ops io_fop_rwv_ops = {
-        .fto_rec_ops     = &m0_io_fop_fol_ops,
-	...
-   };
-   @endcode
-
-   FOL type is initialized for create, delete and write updates in
-   m0_fop_type_init().
-   @code
-   int m0_fop_type_init(struct m0_fop_type *ft,
-		        const struct __m0_fop_type_init_args *args)
-   {
-	struct m0_fol_rec_type  *fol_type;
-	...
-	fol_type = &ft->ft_rec_type;
-	fol_type->rt_name   = args->name;
-	fol_type->rt_opcode = args->opcode;
-	fol_type->rt_ops    = args->fop_ops->fto_rec_ops;
-
-	(void) m0_fol_rec_type_register(&ft->ft_rec_type);
-	...
-   }
-   @endcode
-
-   Extent map segment vector is added to store data extents collected in
-   ad_write_map().
-   @code
-   struct m0_emap_seg_vec {
-	uint32_t            sv_nr;
-	struct m0_emap_seg *sv_es;
-   }
-   @endcode
-
-   It points to fol specific private data which is used to store AD extent
-   map segments.
-   @code
-   struct m0_stob_io {
-	...
-	void *si_fol_private;
-   }
-   @endcode
-
-   Data extents from different write operations are combined in fcrw_segs
-   and will be stored in FOL.
-   These stored extents are used during undo operation.
-   @code
-   struct m0_io_fom_cob_rw {
-	...
-	struct m0_emap_seg_vec fcrw_segs;
-   };
-   @endcode
-
-   In ad_write_launch() store AD allocated extents in m0_emap_seg_vec.
-   @code
-   static int ad_write_map(struct m0_stob_io *io, ...)
-   {
-	   ...
-	   struct m0_emap_seg_vec *esv = io->si_fol_private;
-	   ...
-	   do {
-		...
-		// Store extents in m0_emap_seg_vec
-		esv->sv_es[i].ee_ext.e_start = offset;
-		esv->sv_es[i].ee_ext.e_end   = offset + m0_ext_length(&todo);
-		esv->sv_es[i].ee_val         = todo.e_start;
-		esv->sv_es[i].ee_pre         = map->ct_it->ec_seg.ee_pre;
-		++i;
-		result = ad_write_map_ext(io, adom, offset, map->ct_it, &todo);
-		...
-	  } while (!eodst);
-   }
-   @endcode
-
-   m0_emap_seg_vec for each write operation are combined in
-   m0_io_fom_cob_rw:fcrw_segs using write_extents_merge() in io_finish().
-
-   m0_emap_extent_update() is used to update a segment read from FOL record.
-   @code
-   int m0_emap_extent_update(struct m0_emap_cursor *it, struct m0_emap_seg *es)
-   {
-	M0_PRE(es != NULL);
-
-	it->ec_seg.ee_ext.e_start = es->ee_ext.e_start;
-	it->ec_seg.ee_ext.e_end   = es->ee_ext.e_end;
-	it->ec_seg.ee_val         = es->ee_val;
-
-	return IT_DO_PACK(it, m0_db_cursor_set);
-   }
    @endcode
 
    <hr>
    @section IOFOLDLD-lspec Logical Specification
    A FOL record is uniquely identified and located by using an LSN
-   (Log Sequence Number).
+   ( Log Sequence Number).
 
    The FOL is organized as a single indexed table with lsn as the key
-   and record contains struct m0_fol_rec_desc *record.
+   and record contains struct c2_fol_rec_desc *record.
 
-   A FOL record contains:
+  A FOL record contains:
 	- identities (fids) of all files involved in the action;
 	- version numbers that files have after execution of the action;
 	- operation code;
 	- operation parameters (file names, permission modes, times, etc.);
-	- LSNs of records of previous operations on files involved in
-	  the action;
+	- LSNs of records of previous operations on files involved in the action;
 	- Pointers to old data blocks (for undo).
 
-   A record with a given LSN is added to the fol using m0_fol_add() in the
-   transaction context.
-   Fom transaction is used to add FOL records in fom_fol_rec_add() and is
-   commited in FOM generic phase fom_txn_commit().
+   int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
+	       struct c2_fol_rec_desc *drec);
 
-   A fol record with a given lsn is extracted using m0_fol_rec_lookup().
+   Adds a record to the fol, in the transaction context.
+   drec->rd_lsn contains the LSN.
 
-   Currently, for all FOP operations, m0_fop_fol_default_ops is used as
-   m0_fol_rec_type_ops which has most of it's function pointers set to NULL.
+   int c2_fol_rec_lookup(struct c2_fol *fol,
+			 struct c2_db_tx *tx,
+			 c2_lsn_t lsn,
+			 struct c2_fol_rec *out);
+    Finds and returns a fol record with a given lsn.
 
-   For each of create, delete and write IO operations m0_fol_rec_type is
-   initialised with their opcode and FOL operations.
+   Each File system object called unit has "verno of its latest state" as an
+   attribute. This attribute is modified with every update to unit state.
 
-   For create and delete operations fop data and reply fop data is stored
-   in FOL.
-	- fop data including fid.
-	- Reply fop data is added in FOL records so that it can be used
-	  as Reply Cache.
+   A verno consists of two components:
+	a.LSN (lsn): A reference to a FOL record, points to the record with
+		     the last update for the unit.
+	b. VC: A version counter
 
-   FOL record is generated in m0_io_fol_pack() by passing m0_fom::fo_fop and
-   m0_fom::fo_rep_fop to m0_fop_encdec(), which is then commited in
-   fom_txn_commit().
+   Currently, for all the kinds of FOP operations,
+   c2_fop_fol_default_ops is used as c2_fol_rec_type_ops which has most of
+   it's function pointers set to NULL.
 
-   To store FOL records for write updates we need to store current extents
-   or data pointers so that these extents can be used during undo.
-   Also this can be done for AD stob
-   type only, as it uses new block for every write.
+   For each of create, delete and write IO operations c2_fol_rec_type is
+   defined and is used to store required information in FOL.
 
-   ad_write_io_launch() needs to return these extents in m0_stob_io so that
-   they can be recorded.
+   For create and delete operations fid, lsn and fop will be recorded.
 
-   So for write updates in m0_io_fol_pack() fid, reply fop and fcrw_segs are
-   encoded in FOL record.
+  To store FOL records for write updates we need to store current extents
+  or data pointers so that undo can be done.
 
-   To encode or decode create, delete and write updates m0_io_fol_create,
-   m0_io_fol_delete and m0_io_fol_write fop type formats are defined
-   so that they can be used to encode and decode using m0_fop_encdec().
+  ad_write_io_launch() needs to return these extents in c2_stob_io so that
+  they can be recorded.
+
+  Also this can be done for AD stob type only, as it uses new block for every write.
+
+  Fom transaction is used to add FOL records in fom_fol_rec_add() and is
+  commited in FOM generic phase fom_txn_commit().
+
+  Reply fops are added in FOL records so that they can be used as Reply Cache.
 
    <hr>
    @section IOFOLDLD-conformance Conformance
@@ -453,44 +353,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    <hr>
    @section IOFOLDLD-ut Unit Tests
 
-   1) For create and delete updates,
-	An io fop with a given fid is send to the ioservice, where it creates
-	a cob with that fid and logs a FOL record.
-
-	Now retrieve that FOL record using the same LSN and assert for fid and
-	reply fop data.
-
-	Also using this data, execute the cob delete opeartion on server side
-	(undo operation).
-
-	Simlilarly, do the same things for delete operation.
-
-   2) For Write update,
-	Send the data having value "A" from client to ioservice which logs fid
-	and data extents in FOL record. Then send the data having value "B" to
-	the ioservice.
-
-	Now retrieve the data extents for first write operation from FOL and
-	update the AD table using these data extents.
-	Then read the data from ioservice and assert for data "A".
-
-   To update old data extents in AD use m0_file_write_undo().
-   @code
-   int m0_file_write_undo(struct mo_dom *adom, struct mo_stob_id *id,
-			  struct m0_dtx *dtx, struct mo_emap_seg_vec *fol_vec)
-   {
-	struct m0_emap_cursor *it;
-	...
-	for (i = 0; i < fol_vec->sv_nr; ++i) {
-		rc = m0_emap_lookup(&adom->ad_adata, dtx,
-				    &fol_vec->sv_es[i].ee_pre,
-				    fol_vec->sv_es[i].ee_start,
-				    &it);
-		m0_emap_extent_update(it, fol_vec->sv_es[i])
-	}
-	...
-   }
-   @endcode
    <hr>
    @section IOFOLDLD-st System Tests
 
@@ -500,64 +362,88 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    <hr>
    @section IOFOLDLD-ref References
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1aNYxF5UcGiRnT2Inrf2RP5xBK5frP9ZtIK21LE1sMxI/edit"> HLD of version numbers </a>
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1_5UGU0n7CATMiuG6V9eK3cMshiYFotPVnIy478MMnvM/edit"> HLD of FOL</a>,
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1_N-YJZ4XcUkkhDG843lxS2TNF2YlmOjfZQelbD017jU/edit">HLD of data block allocator</a>.
-   - @ref fol
-   - @ref stobad
-
  */
 
 static size_t m0_io_fol_pack_size(struct m0_fol_rec_desc *desc)
 {
-        struct m0_fom *fom = desc->rd_type_private;
-        size_t	       len = m0_fop_data_size(fom->fo_fop) +
-			     m0_fop_data_size(fom->fo_rep_fop);
+        struct m0_fop *fop = desc->rd_type_private;
+        size_t len = fop->f_type->ft_xt->xct_sizeof;
+        void *data = m0_fop_data(fop);
 
-        switch (m0_fop_opcode(fom->fo_fop)) {
+        switch (m0_fop_opcode(fop)) {
         case M0_IOSERVICE_COB_CREATE_OPCODE:
+                len += ((struct m0_fop_cob_create *)data)->cc_cobname.cn_count;
                 break;
         case M0_IOSERVICE_COB_DELETE_OPCODE:
                 break;
         case M0_IOSERVICE_WRITEV_OPCODE:
-		/** @todo Add the size of m0_io_fom_cob_rw:fcrw_segs to len. */
                 break;
         default:
                 break;
         }
-        return (len + 7) & ~7;  /* 8aligned */
+        return (len + 7) & ~7;
+}
+
+static void io_copy(char **buf, struct m0_fop_cob_name *str)
+{
+#ifndef __KERNEL__
+        if (str->cn_count > 0) {
+                memcpy(*buf, (char *)str->cn_name, str->cn_count);
+                *buf += str->cn_count;
+        }
+#endif
 }
 
 static void m0_io_fol_pack(struct m0_fol_rec_desc *desc, void *buf)
 {
-        struct m0_fom	       *fom = desc->rd_type_private;
-	static m0_bcount_t	count;
-	struct m0_bufvec	bvec = M0_BUFVEC_INIT_BUF(&buf, &count);
-	struct m0_bufvec_cursor buf_cur;
+        struct m0_fop *fop = desc->rd_type_private;
+        size_t size = fop->f_type->ft_xt->xct_sizeof;
+        char *data = m0_fop_data(fop);
+        char *ptr;
 
-	m0_bufvec_cursor_init(&buf_cur, &bvec);
+        memcpy(buf, data, size);
+        ptr = (char *)buf + size;
 
-	switch (m0_fop_opcode(fom->fo_fop)) {
+        switch (m0_fop_opcode(fop)) {
         case M0_IOSERVICE_COB_CREATE_OPCODE:
-		/**
-		 * @todo Encode fom->fo_fop and fom->fo_rep_fop in buf
-		 * usinf m0_fop_encdec().
-		 */
-        case M0_IOSERVICE_COB_DELETE_OPCODE:
-		/**
-		 * @todo Encode fom->fo_fop and fom->fo_rep_fop in buf
-		 * using m0_fop_encdec().
-		 */
+                io_copy(&ptr, &((struct m0_fop_cob_create *)data)->cc_cobname);
                 break;
-        case M0_IOSERVICE_WRITEV_OPCODE:
-		/**
-		 * @todo Encode m0_fop_cob_rw:crw_fid,
-		 * data segments in m0_io_fom_cob_rw:fcrw_segs and
-		 * m0_fop_cob_writev_rep in buf.
-		 */
+        case M0_IOSERVICE_COB_DELETE_OPCODE:
                 break;
         default:
                 break;
         }
+}
+
+static void io_map(char **buf, struct m0_fop_cob_name *str)
+{
+#ifndef __KERNEL__
+        if (str->cn_count > 0) {
+                str->cn_name = (uint8_t *)*buf;
+                *buf += str->cn_count;
+        }
+#endif
+}
+
+static int m0_io_fol_open(const struct m0_fol_rec_type *type,
+                          struct m0_fol_rec_desc *desc)
+{
+        struct m0_fop *fop = desc->rd_type_private;
+        void *data = desc->rd_data;
+        char *ptr;
+
+        switch (m0_fop_opcode(fop)) {
+        case M0_IOSERVICE_COB_CREATE_OPCODE:
+                ptr = (char *)((struct m0_fop_cob_create*)data + 1);
+                io_map(&ptr, &((struct m0_fop_cob_create *)data)->cc_cobname);
+                break;
+        case M0_IOSERVICE_COB_DELETE_OPCODE:
+                break;
+        default:
+                break;
+        }
+
+        return 0;
 }
 
 /**
