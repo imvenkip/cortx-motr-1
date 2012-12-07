@@ -331,7 +331,7 @@ static void creditor_cookie_setup(enum rm_server dsrv_id,
 	struct m0_rm_owner *owner = &rm_ctx[dsrv_id].rc_test_data.rd_owner;
 
 	m0_cookie_init(&owner->ro_creditor->rem_cookie, &creditor->ro_id);
-		
+
 }
 
 static void credit_setup(enum rm_server srv_id,
