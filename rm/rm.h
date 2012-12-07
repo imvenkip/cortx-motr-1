@@ -1535,7 +1535,7 @@ M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner *owner,
 				    struct m0_rm_credit *r);
 
 /**
- * Retire the owner before finalising it. This function will revoke sublets
+ * Wind up the owner before finalising it. This function will revoke sublets
  * and give up loans.
  *
  * @pre M0_IN(owner->ro_state, (ROS_ACTIVE, ROS_QUIESCE))
@@ -1545,10 +1545,22 @@ M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner *owner,
 M0_INTERNAL void m0_rm_owner_windup(struct m0_rm_owner *owner);
 
 /**
+ * Wait for owner to get to a particular state. Once the winding up process
+ * on owner has started, it can take while. The following function will
+ * typically used to check if the owner has reached ROS_FINAL state.
+ * The user can then safely call m0_rm_owner_fini().
+ * Calling m0_rm_owner_fini() immediately after m0_rm_owner_windup() may
+ * cause unexpected behaviour.
+ */
+M0_INTERNAL int m0_rm_owner_timedwait(struct m0_rm_owner *owner,
+				      uint64_t state,
+				      const m0_time_t abs_timeout);
+/**
  * Finalises the owner. Dual to m0_rm_owner_init().
  *
  * @pre owner->ro_state == ROS_FINAL
  * @pre m0_tlist_is_empty(owner->ro_borrowed) &&
+ * @see m0_rm_owner_timedwait()
  * m0_tlist_is_empty(owner->ro_sublet) &&
  *                         m0_tlist_is_empty(owner->ro_owned[*]) &&
  *                         m0_tlist_is_empty(owner->ro_incoming[*][*]) &&

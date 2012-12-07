@@ -606,6 +606,7 @@ static void borrow_fom_funcs_test(void)
 #ifdef RPC_ITEM_FREE
 	/* Test for brw_fom_fini() */
 	brw_fom_fini_test();
+#endif
 
 	/* 1. Test borrowing part (partial) of the credits available */
 	brw_fom_state_test(RM_UT_PARTIAL_CREDITS_TEST);
@@ -619,7 +620,6 @@ static void borrow_fom_funcs_test(void)
 	 */
 	brw_fom_state_test(RM_UT_INVALID_CREDITS_TEST);
 
-#endif
 	/* 4. Test failure in Borrow (post-processing) */
 	brw_fom_state_test(RM_UT_MEMFAIL_TEST);
 
@@ -633,6 +633,7 @@ static void revoke_fom_funcs_test(void)
 #ifdef RPC_ITEM_FREE
 	/* Test for rvk_fom_fini() */
 	rvk_fom_fini_test();
+#endif
 
 	/* 1. Test revoke of entire credits that were borrowed */
 	rvk_fom_state_test(RM_UT_FULL_CREDITS_TEST);
@@ -645,7 +646,6 @@ static void revoke_fom_funcs_test(void)
 
 	/* 4. Test revoke post-processing failure */
 	rvk_fom_state_test(RM_UT_MEMFAIL_TEST);
-#endif
 	rvk_fom_state_test(RM_UT_PARTIAL_CREDITS_TEST);
 
 }

@@ -102,7 +102,7 @@ static int remnant_loan_get	    (const struct m0_rm_loan *loan,
 				     struct m0_rm_loan **remnant_loan);
 static int loan_dup		    (const struct m0_rm_loan *src_loan,
 				     struct m0_rm_loan **dest_loan);
-static void liquidate		    (struct m0_rm_owner *src_owner);
+static void owner_liquidate	    (struct m0_rm_owner *src_owner);
 static struct m0_rm_resource *
 resource_find(const struct m0_rm_resource_type *rt,
 	      const struct m0_rm_resource *res);
@@ -351,7 +351,7 @@ static const struct m0_sm_state_descr owner_states[] = {
 	},
 	[ROS_INSOLVENT] = {
 		.sd_flags     = M0_SDF_TERMINAL,
-		.sd_name      = "Defunct"
+		.sd_name      = "Insolvent"
 	},
 	[ROS_FINAL] = {
 		.sd_flags     = M0_SDF_TERMINAL,
@@ -394,7 +394,7 @@ static void owner_finalisation_check(struct m0_rm_owner *owner)
 			if (owner_has_loans(owner)) {
 				owner_state_set(owner, ROS_FINALISING);
 				cached_credits_flush(owner);
-				liquidate(owner);
+				owner_liquidate(owner);
 			} else {
 				owner_state_set(owner, ROS_FINAL);
 				M0_POST(owner_invariant(owner));
@@ -403,15 +403,17 @@ static void owner_finalisation_check(struct m0_rm_owner *owner)
 		break;
 	case ROS_FINALISING:
 		/*
-		 * liquidate() creates requests. Make sure that all those
+		 * owner_liquidate() creates requests. Make sure that all those
 		 * requests are processed. Once the owner is idle, if there
 		 * are no pending loans, finalise owner. Otherwise put it
 		 * in INSOLVENT state. Currently there is no recovery from
 		 * INSOLVENT state.
 		 */
-		if (owner_is_idle(owner))
+		if (owner_is_idle(owner)) {
+			cached_credits_flush(owner);
 			owner_state_set(owner, owner_has_loans(owner) ?
 					       ROS_INSOLVENT : ROS_FINAL);
+		}
 		break;
 	case ROS_INSOLVENT:
 	case ROS_FINAL:
@@ -518,19 +520,6 @@ M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner *owner,
 }
 M0_EXPORTED(m0_rm_owner_selfadd);
 
-/*
- * @todo Stub. Mainline code does not call this callback yet.
- */
-static void windup_incoming_conflict(struct m0_rm_incoming *in)
-{
-	M0_IMPOSSIBLE("Conflict not possible during windup");
-}
-
-static void windup_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
-{
-	m0_free(in);
-}
-
 static bool owner_is_idle (struct m0_rm_owner *o)
 {
 	return m0_forall(i, ARRAY_SIZE(o->ro_incoming),
@@ -538,7 +527,7 @@ static bool owner_is_idle (struct m0_rm_owner *o)
 			   m0_rm_ur_tlist_is_empty(&o->ro_incoming[i][j])));
 }
 
-static void liquidate(struct m0_rm_owner *owner)
+static void owner_liquidate(struct m0_rm_owner *owner)
 {
 	struct m0_rm_credit    *credit;
 	struct m0_rm_loan     *loan;
@@ -554,7 +543,7 @@ static void liquidate(struct m0_rm_owner *owner)
 		M0_ALLOC_PTR(in);
 		if (in == NULL)
 			break;
-		m0_rm_incoming_init(in, owner, M0_RIT_REVOKE,
+		m0_rm_incoming_init(in, owner, M0_RIT_LOCAL,
 				    RIP_NONE, RIF_MAY_REVOKE);
 		in->rin_priority = 0;
 		in->rin_ops = &windup_incoming_ops;
@@ -591,6 +580,19 @@ static void liquidate(struct m0_rm_owner *owner)
 	owner_balance(owner);
 }
 
+M0_INTERNAL int m0_rm_owner_timedwait(struct m0_rm_owner *owner,
+				      uint64_t state,
+				      const m0_time_t abs_timeout)
+{
+	int rc;
+
+	m0_rm_owner_lock(owner);
+	rc = m0_sm_timedwait(&owner->ro_sm, state, abs_timeout);
+	m0_rm_owner_unlock(owner);
+
+	return rc ?: owner->ro_sm.sm_rc;
+}
+
 M0_INTERNAL void m0_rm_owner_windup(struct m0_rm_owner *owner)
 {
 	/*
@@ -611,6 +613,7 @@ M0_INTERNAL void m0_rm_owner_fini(struct m0_rm_owner *owner)
 
 	M0_PRE(owner_invariant(owner));
 	M0_PRE(owner->ro_creditor == NULL);
+	M0_PRE(M0_IN(owner_state(owner), (ROS_FINAL, ROS_INSOLVENT)));
 
 	RM_OWNER_LISTS_FOR(owner, m0_rm_ur_tlist_fini);
 
@@ -721,6 +724,21 @@ M0_INTERNAL void m0_rm_incoming_init(struct m0_rm_incoming *in,
 }
 M0_EXPORTED(m0_rm_incoming_init);
 
+M0_INTERNAL void incoming_surrender(struct m0_rm_incoming *in)
+{
+	incoming_state_set(in, RI_RELEASED);
+	m0_rm_ur_tlist_del(&in->rin_want);
+	M0_ASSERT(pi_tlist_is_empty(&in->rin_pins));
+}
+
+M0_INTERNAL void internal_incoming_fini(struct m0_rm_incoming *in)
+{
+	m0_sm_fini(&in->rin_sm);
+	m0_rm_incoming_bob_fini(in);
+	m0_rm_credit_fini(&in->rin_want);
+	pi_tlist_fini(&in->rin_pins);
+}
+
 M0_INTERNAL void m0_rm_incoming_fini(struct m0_rm_incoming *in)
 {
 	M0_PRE(incoming_invariant(in));
@@ -729,12 +747,30 @@ M0_INTERNAL void m0_rm_incoming_fini(struct m0_rm_incoming *in)
 	       (RI_INITIALISED, RI_FAILURE, RI_RELEASED)));
 	incoming_state_set(in, RI_FINAL);
 	m0_rm_owner_unlock(in->rin_want.cr_owner);
-	m0_sm_fini(&in->rin_sm);
-	m0_rm_incoming_bob_fini(in);
-	m0_rm_credit_fini(&in->rin_want);
-	pi_tlist_fini(&in->rin_pins);
+	internal_incoming_fini(in);
 }
 M0_EXPORTED(m0_rm_incoming_fini);
+
+/*
+ * Impossible condition.
+ */
+static void windup_incoming_conflict(struct m0_rm_incoming *in)
+{
+	M0_IMPOSSIBLE("Conflict not possible during windup");
+}
+
+static void windup_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
+{
+	incoming_release(in);
+	incoming_surrender(in);
+	M0_PRE(incoming_invariant(in));
+	M0_PRE(M0_IN(incoming_state(in),
+	       (RI_INITIALISED, RI_FAILURE, RI_RELEASED)));
+	incoming_state_set(in, RI_FINAL);
+	internal_incoming_fini(in);
+
+	m0_free(in);
+}
 
 M0_INTERNAL void m0_rm_outgoing_init(struct m0_rm_outgoing *out,
 				     enum m0_rm_outgoing_type req_type)
@@ -1185,10 +1221,7 @@ M0_INTERNAL void m0_rm_credit_put(struct m0_rm_incoming *in)
 
 	incoming_release(in);
 	m0_rm_owner_lock(owner);
-	incoming_state_set(in, RI_RELEASED);
-	m0_rm_ur_tlist_del(&in->rin_want);
-	M0_ASSERT(pi_tlist_is_empty(&in->rin_pins));
-
+	incoming_surrender(in);
 	/*
 	 * Release of this credit may excite other waiting incoming-requests.
 	 * Hence, call owner_balance() to process them.

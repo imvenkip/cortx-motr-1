@@ -21,6 +21,7 @@
 #include "lib/chan.h"
 #include "lib/misc.h"
 #include "lib/memory.h"
+#include "lib/time.h"
 #include "lib/ut.h"
 #include "db/db.h"
 #include "cob/cob.h"
@@ -367,9 +368,9 @@ static void creditor_cookie_setup(enum rm_server dsrv_id,
 
 static void rm_servers_stop()
 {
-	server3_stop();
 	server1_stop();
 	server2_stop();
+	server3_stop();
 }
 
 static void credit_setup(enum rm_server srv_id,
@@ -431,6 +432,10 @@ static void test2_run()
 
 	/* Server-2 is upward creditor for Server-1 */
 	creditor_cookie_setup(SERVER_1, SERVER_2);
+	/*
+	 * This request will get NENYA from Server-2 and DURIN from
+	 * Server-3 via Server-2.
+	 */
 	credit_setup(SERVER_1, RIF_MAY_BORROW, NENYA | DURIN);
 	m0_rm_credit_get(in);
 	M0_UT_ASSERT (incoming_state(in) == RI_WAIT);
@@ -572,30 +577,24 @@ static void server2_tests()
 	m0_chan_signal(&rr_tests_chan);
 }
 
-static void test4_verify()
-{
-	struct m0_rm_owner *so3 = &rm_ctx[SERVER_3].rc_test_data.rd_owner;
-	struct m0_rm_owner *so2 = &rm_ctx[SERVER_2].rc_test_data.rd_owner;
-
-	M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&so3->ro_sublet));
-	M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&so2->ro_sublet));
-	M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&so2->ro_borrowed));
-	M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&so2->ro_owned[OWOS_CACHED]));
-}
-
 static void test4_run()
 {
-	struct m0_rm_incoming *in = &rm_ctx[SERVER_3].rc_test_data.rd_in;
+	struct m0_rm_owner *so3 = &rm_ctx[SERVER_3].rc_test_data.rd_owner;
+	int		    rc;
 
-	credit_setup(SERVER_3, RIF_MAY_REVOKE, NENYA | VILYA | DURIN);
+	/*
+	 * Tests m0_rm_owner_windup(). This tests automatic revokes.
+	 */
 	loan_session_set(SERVER_3, SERVER_2);
-	m0_rm_credit_get(in);
-	M0_UT_ASSERT(incoming_state(in) == RI_WAIT);
-	m0_chan_wait(&rm_ctx[SERVER_3].rc_clink);
-	M0_UT_ASSERT(incoming_state(in) == RI_SUCCESS);
-	M0_UT_ASSERT(in->rin_rc == 0);
-	m0_rm_credit_put(in);
-	m0_rm_incoming_fini(in);
+	m0_rm_owner_windup(so3);
+	rc = m0_rm_owner_timedwait(so3, ROS_FINAL, M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == -ESRCH);
+	M0_UT_ASSERT(owner_state(so3) == ROS_FINAL);
+	m0_rm_owner_fini(so3);
+	M0_SET0(&rm_ctx[SERVER_3].rc_test_data.rd_owner);
+	m0_rm_owner_init(&rm_ctx[SERVER_3].rc_test_data.rd_owner,
+			 &rm_ctx[SERVER_3].rc_test_data.rd_res.rs_resource,
+			 NULL);
 }
 
 static void server3_tests()
@@ -603,7 +602,6 @@ static void server3_tests()
 	m0_chan_wait(&tests_clink[TEST4]);
 	m0_clink_add(&rm_ctx[SERVER_3].rc_chan, &rm_ctx[SERVER_3].rc_clink);
 	test4_run();
-	test4_verify();
 	m0_clink_del(&rm_ctx[SERVER_3].rc_clink);
 }
 
@@ -639,6 +637,7 @@ static void remote_credits_utinit()
 		rm_ctx_init(&rm_ctx[i]);
 	}
 	m0_chan_init(&rr_tests_chan);
+	/* Set up test sync points */
 	for (i = 0; i < TEST_NR; ++i) {
 		m0_clink_init(&tests_clink[i], NULL);
 		m0_clink_add(&rr_tests_chan, &tests_clink[i]);
