@@ -574,6 +574,7 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 	       iommstats.a_data_buf_nr, iommstats.d_data_buf_nr,
 	       iommstats.a_page_nr, iommstats.d_page_nr);
 
+	M0_LOG(M0_INFO, "fop_counter: %d", (int)m0_atomic64_get(&fop_counter));
 	M0_LEAVE();
 }
 
