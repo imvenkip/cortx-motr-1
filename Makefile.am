@@ -464,9 +464,9 @@ include $(top_srcdir)/sns/repair/st/Makefile.sub
 # yaml2db/st
 #
 
-noinst_PROGRAMS          += yaml2db/st/yaml2db
-yaml2db_st_yaml2db_LDADD  = $(top_builddir)/mero/libmero.la \
-                            $(top_builddir)/ut/libmero-ut.la
+noinst_PROGRAMS             += yaml2db/st/m0yamltodb
+yaml2db_st_m0yamltodb_LDADD  = $(top_builddir)/mero/libmero.la \
+                               $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/yaml2db/st/Makefile.sub
 
