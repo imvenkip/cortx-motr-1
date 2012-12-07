@@ -203,7 +203,10 @@ int m0_fop_type_init(struct m0_fop_type *ft,
 	ft->ft_ops          = args->fop_ops;
 	fol_type->rt_name   = args->name;
 	fol_type->rt_opcode = args->opcode;
-	fol_type->rt_ops    = args->fol_ops ?: &m0_fop_fol_default_ops;
+	fol_type->rt_ops    = (args->fop_ops != NULL &&
+			       args->fop_ops->fto_rec_ops != NULL) ?
+			       args->fop_ops->fto_rec_ops :
+			       &m0_fop_fol_default_ops;
 
 	rpc_type->rit_opcode = args->opcode;
 	rpc_type->rit_flags  = args->rpc_flags;

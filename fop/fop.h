@@ -276,7 +276,6 @@ struct __m0_fop_type_init_args {
 	uint64_t                           rpc_flags;
 	const struct m0_xcode_type        *xt;
 	const struct m0_fop_type_ops      *fop_ops;
-	const struct m0_fol_rec_type_ops  *fol_ops;
 	const struct m0_fom_type_ops      *fom_ops;
 	const struct m0_rpc_item_type_ops *rpc_ops;
 	const struct m0_sm_conf		  *sm;
