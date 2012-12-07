@@ -91,7 +91,7 @@ static void windup_incoming_complete(struct m0_rm_incoming *in,
 				     int32_t rc);
 static void windup_incoming_conflict(struct m0_rm_incoming *in);
 static int cached_credits_hold       (struct m0_rm_incoming *in);
-static void cached_credits_flush     (struct m0_rm_owner *owner);
+static void cached_credits_clear     (struct m0_rm_owner *owner);
 static bool owner_is_idle	    (struct m0_rm_owner *o);
 static bool incoming_is_complete    (struct m0_rm_incoming *in);
 static int remnant_credit_get	    (const struct m0_rm_credit *src,
@@ -393,7 +393,7 @@ static void owner_finalisation_check(struct m0_rm_owner *owner)
 			 */
 			if (owner_has_loans(owner)) {
 				owner_state_set(owner, ROS_FINALISING);
-				cached_credits_flush(owner);
+				cached_credits_clear(owner);
 				owner_liquidate(owner);
 			} else {
 				owner_state_set(owner, ROS_FINAL);
@@ -410,7 +410,7 @@ static void owner_finalisation_check(struct m0_rm_owner *owner)
 		 * INSOLVENT state.
 		 */
 		if (owner_is_idle(owner)) {
-			cached_credits_flush(owner);
+			cached_credits_clear(owner);
 			owner_state_set(owner, owner_has_loans(owner) ?
 					       ROS_INSOLVENT : ROS_FINAL);
 		}
@@ -943,7 +943,7 @@ M0_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem)
 }
 M0_EXPORTED(m0_rm_remote_fini);
 
-static void cached_credits_flush(struct m0_rm_owner *owner)
+static void cached_credits_clear(struct m0_rm_owner *owner)
 {
 	struct m0_rm_credit *credit;
 	int		    i;
