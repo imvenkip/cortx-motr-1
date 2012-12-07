@@ -2,6 +2,6 @@ dump_free_extent
 dump_group_desc
 dump_super_block
 m0blkformat
-free
+m0blkfree
 mperf
 perf

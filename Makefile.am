@@ -282,8 +282,8 @@ noinst_PROGRAMS                  += balloc/ut/m0blkformat
 balloc_ut_m0blkformat_LDADD       = $(top_builddir)/mero/libmero.la \
                                     $(top_builddir)/ut/libmero-ut.la
 
-noinst_PROGRAMS                  += balloc/ut/free
-balloc_ut_free_LDADD              = $(top_builddir)/mero/libmero.la \
+noinst_PROGRAMS                  += balloc/ut/m0blkfree
+balloc_ut_m0blkfree_LDADD         = $(top_builddir)/mero/libmero.la \
                                     $(top_builddir)/ut/libmero-ut.la
 
 noinst_PROGRAMS                  += balloc/ut/dump_free_extent
