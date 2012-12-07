@@ -278,8 +278,8 @@ CLEANFILES += $(MERO_ALTOGETHER_USER_C)
 # balloc/ut
 #
 
-noinst_PROGRAMS                  += balloc/ut/format
-balloc_ut_format_LDADD            = $(top_builddir)/mero/libmero.la \
+noinst_PROGRAMS                  += balloc/ut/m0blkformat
+balloc_ut_m0blkformat_LDADD       = $(top_builddir)/mero/libmero.la \
                                     $(top_builddir)/ut/libmero-ut.la
 
 noinst_PROGRAMS                  += balloc/ut/free
