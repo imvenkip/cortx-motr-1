@@ -19,4 +19,4 @@ modprobe_lnet
 modload_galois
 modload || exit $?
 
-@SRCDIR@/net/test/user_space/ntc "$@"
+@SRCDIR@/net/test/user_space/m0netperf "$@"

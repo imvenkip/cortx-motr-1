@@ -440,13 +440,13 @@ include $(top_srcdir)/net/lnet/st/Makefile.sub
 # net/test
 #
 
-noinst_PROGRAMS                 += net/test/user_space/ntc
-net_test_user_space_ntc_LDADD    = $(top_builddir)/mero/libmero.la \
-                                   $(top_builddir)/net/test/libmero-net-test.la
+noinst_PROGRAMS                     += net/test/user_space/m0netperf
+net_test_user_space_m0netperf_LDADD  = $(top_builddir)/mero/libmero.la \
+                                       $(top_builddir)/net/test/libmero-net-test.la
 
-noinst_PROGRAMS                 += net/test/user_space/ntn
-net_test_user_space_ntn_LDADD    = $(top_builddir)/mero/libmero.la \
-                                   $(top_builddir)/net/test/libmero-net-test.la
+noinst_PROGRAMS                      += net/test/user_space/m0netperfd
+net_test_user_space_m0netperfd_LDADD  = $(top_builddir)/mero/libmero.la \
+                                        $(top_builddir)/net/test/libmero-net-test.la
 
 include $(top_srcdir)/net/test/user_space/Makefile.sub
 
