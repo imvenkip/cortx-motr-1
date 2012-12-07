@@ -116,6 +116,22 @@ const struct m0_fop_type_ops io_fop_rwv_ops = {
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
+const struct m0_fop_type_ops io_fop_cd_ops = {
+        .fto_rec_ops    = &m0_io_fop_fol_ops
+};
+
+/* Used for cob_create and cob_delete fops on client side */
+const struct m0_rpc_item_ops cob_req_rpc_item_ops = {
+	.rio_free = cob_rpcitem_free,
+};
+
+static const struct m0_rpc_item_type_ops cob_rpc_type_ops = {
+	.rito_payload_size   = m0_fop_item_type_default_payload_size,
+	.rito_io_coalesce    = NULL,
+	.rito_encode         = m0_fop_item_type_default_encode,
+	.rito_decode	     = m0_fop_item_type_default_decode,
+};
+
 M0_INTERNAL void m0_ioservice_fop_fini(void)
 {
 	m0_fop_type_fini(&m0_fop_cob_op_reply_fopt);
