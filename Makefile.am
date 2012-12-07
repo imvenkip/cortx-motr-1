@@ -374,19 +374,19 @@ include $(top_srcdir)/utils/Makefile.sub
 ################################################################################
 
 #
-# rpc/it/rpcping
+# rpc/it/m0rpcping
 #
 
-noinst_PROGRAMS      += rpc/it/rpcping
-rpc_it_rpcping_LDADD  = $(top_builddir)/mero/libmero.la  \
+noinst_PROGRAMS      += rpc/it/m0rpcping
+rpc_it_m0rpcping_LDADD  = $(top_builddir)/mero/libmero.la  \
                         $(top_builddir)/ut/libmero-ut.la
 
 if ENABLE_MERO_ALTOGETHER
-noinst_PROGRAMS                   += rpc/it/rpcping-altogether
+noinst_PROGRAMS                   += rpc/it/m0rpcping-altogether
 endif
 
-rpc_it_rpcping_altogether_SOURCES  = $(rpc_it_rpcping_SOURCES)
-rpc_it_rpcping_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la \
+rpc_it_m0rpcping_altogether_SOURCES  = $(rpc_it_m0rpcping_SOURCES)
+rpc_it_m0rpcping_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la \
                                      ut/ut_libmero_ut_la-cs_service.lo \
                                      ut/ut_libmero_ut_la-cs_fop_foms.lo \
                                      ut/ut_libmero_ut_la-cs_test_fops_ff.lo \

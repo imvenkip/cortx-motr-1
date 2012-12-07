@@ -37,14 +37,14 @@ before exporting above environment variables.
 [root@guest0 sandbox1]# export LD_PROFILE=libmero-0.1.so
 
 4. Run the binary which uses $LD_PROFILE shared object.
-[root@guest0 sandbox]# $MERO_CORE/rpc/it/rpcping -s -q16 -v
-[root@guest0 sandbox1]# $MERO_CORE/rpc/it/rpcping -t1000 -l100 -q16 -v
+[root@guest0 sandbox]# $MERO_CORE/rpc/it/m0rpcping -s -q16 -v
+[root@guest0 sandbox1]# $MERO_CORE/rpc/it/m0rpcping -t1000 -l100 -q16 -v
 
-If we are profiling rpcping client then, in client terminal at $LD_PROFILE_OUTPUT
+If we are profiling m0rpcping client then, in client terminal at $LD_PROFILE_OUTPUT
 we will see a file named libmero-0.1.so.profile.
 
 [root@guest0 sandbox1]# ls
-m0.trace.29124  libmero-0.1.so.profile  rpcping_client.db  rpcping_client.db.errlog  rpcping_client.db.msglog
+m0.trace.29124  libmero-0.1.so.profile  m0rpcping_client.db  m0rpcping_client.db.errlog  m0rpcping_client.db.msglog
 
 5. Use sprof command to parse the libmero-0.1.so.profile and generete human readable profile.
 [root@guest0 sandbox1]# sprof $MERO_CORE/mero/.libs/libmero-0.1.so $LD_PROFILE_OUTPUT/libmero-0.1.so.profile | head

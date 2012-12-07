@@ -59,11 +59,11 @@
 #define TRANSPORT_NAME		"lnet"
 #define SERVER_ENDPOINT         TRANSPORT_NAME ":" "0@lo:12345:34:1"
 
-#define CLIENT_DB_FILE_NAME	"rpcping_client.db"
+#define CLIENT_DB_FILE_NAME	"m0rpcping_client.db"
 
-#define SERVER_DB_FILE_NAME	"rpcping_server.db"
-#define SERVER_STOB_FILE_NAME	"rpcping_server.stob"
-#define SERVER_LOG_FILE_NAME	"rpcping_server.log"
+#define SERVER_DB_FILE_NAME	"m0rpcping_server.db"
+#define SERVER_STOB_FILE_NAME	"m0rpcping_server.stob"
+#define SERVER_LOG_FILE_NAME	"m0rpcping_server.log"
 
 enum ep_type {
 	EP_SERVER,
@@ -335,7 +335,7 @@ static int run_client(void)
 	rc = m0_rpc_client_init(&cctx);
 	if (rc != 0) {
 #ifndef __KERNEL__
-		printf("rpcping: client init failed \"%s\"\n", strerror(-rc));
+		printf("m0rpcping: client init failed \"%s\"\n", strerror(-rc));
 #endif
 		goto net_dom_fini;
 	}
@@ -496,7 +496,7 @@ int main(int argc, char *argv[])
 	m0_addb_choose_default_level(AEL_WARN);
 
 #ifndef __KERNEL__
-	rc = M0_GETOPTS("rpcping", argc, argv,
+	rc = M0_GETOPTS("m0rpcping", argc, argv,
 		M0_FLAGARG('s', "run server", &server_mode),
 		M0_STRINGARG('C', "client nid",
 			LAMBDA(void, (const char *str) { client_nid =
