@@ -825,6 +825,7 @@ const struct m0_test_suite file_io_ut = {
                 {"parity_group_ops_test",      pargrp_iomap_test},
 		{"nw_xfer_ops_test",           nw_xfer_ops_test},
                 {"target_ioreq_ops_test",      target_ioreq_test},
+		{NULL,                         NULL},
         },
 };
 M0_EXPORTED(file_io_ut);
