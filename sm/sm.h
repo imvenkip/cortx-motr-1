@@ -565,15 +565,24 @@ struct m0_sm_timeout {
 	struct m0_sm_ast st_ast;
 	/** Target state. */
 	int              st_state;
-	/** True if this timeout neither expired nor cancelled. */
-	bool             st_active;
+	/**
+	 * Transitions to states in this bit-mask won't cancel the timeout.
+	 */
+	uint64_t         st_bitmask;
+	/**
+	 * Timer state from enum timer_state (sm.c).
+	 *
+	 * 64-bit because CAS it used on it to synchronize top-half with state
+	 * transitions.
+	 */
+	int64_t          st_timer_state;
 };
 
 /**
    Arms a timer to move a machine into a given state after a given timeout.
 
    If a state transition happens before the timeout expires, the timeout is
-   cancelled.
+   cancelled, unless the transition is to a state from "bitmask" parameter.
 
    It is possible to arms multiple timeouts against the same state machine. The
    first one to expire will cancel the rest.
@@ -584,13 +593,15 @@ struct m0_sm_timeout {
    @param timeout absolute time at which the state transition will take place
    @param state the state to which the state machine will transition after the
    timeout.
+   @param bitmask a mask of state machine states, transitions which won't cancel
+   the timeout.
 
    @pre m0_mutex_is_locked(&mach->sm_grp->s_lock)
    @pre state transition from current state to the target state is allowed.
    @post m0_mutex_is_locked(&mach->sm_grp->s_lock)
  */
 M0_INTERNAL int m0_sm_timeout(struct m0_sm *mach, struct m0_sm_timeout *to,
-			      m0_time_t timeout, int state);
+			      m0_time_t timeout, int state, uint64_t bitmask);
 /**
    Finaliser that must be called before @to can be freed.
  */

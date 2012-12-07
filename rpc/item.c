@@ -673,7 +673,8 @@ M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item)
 	if (item->ri_op_timeout != M0_TIME_NEVER) {
 		M0_LOG(M0_DEBUG, "%p Starting timer", item);
 		return m0_sm_timeout(&item->ri_sm, &item->ri_timeout,
-				     item->ri_op_timeout, M0_RPC_ITEM_TIMEDOUT);
+				     item->ri_op_timeout, M0_RPC_ITEM_TIMEDOUT,
+				     0);
 	}
 	return 0;
 }

@@ -66,6 +66,8 @@ static int fini(void) {
    @dot
    digraph M {
            S_INITIAL -> S_TERMINAL
+	   S_INITIAL -> S_FAILURE
+	   S_FAILURE -> S_TERMINAL
    }
    @enddot
  */
@@ -79,7 +81,7 @@ static void transition(void)
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = (1 << S_TERMINAL)|(1 << S_FAILURE)
+			.sd_allowed   = M0_BITS(S_TERMINAL, S_FAILURE)
 		},
 		[S_FAILURE] = {
 			.sd_flags     = M0_SDF_FAILURE,
@@ -185,7 +187,7 @@ static void timeout(void)
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = (1 << S_1)|(1 << S_2)
+			.sd_allowed   = M0_BITS(S_1, S_2)
 		},
 		[S_1] = {
 			.sd_flags     = 0,
@@ -193,7 +195,7 @@ static void timeout(void)
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = 1 << S_TERMINAL
+			.sd_allowed   = M0_BITS(S_2, S_TERMINAL)
 		},
 		[S_2] = {
 			.sd_flags     = 0,
@@ -201,7 +203,7 @@ static void timeout(void)
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = 1 << S_TERMINAL
+			.sd_allowed   = M0_BITS(S_0, S_TERMINAL)
 		},
 		[S_TERMINAL] = {
 			.sd_flags     = M0_SDF_TERMINAL,
@@ -219,42 +221,51 @@ static void timeout(void)
 	};
 	struct m0_sm_timeout t0;
 	struct m0_sm_timeout t1;
-	m0_time_t            delta;
+	const long           delta = M0_TIME_ONE_BILLION/100;
 	int                  result;
 
 	result = M0_THREAD_INIT(&ath, int, NULL, &ast_thread, 0, "ast_thread");
 	M0_UT_ASSERT(result == 0);
 
-	m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/100);
-
 	m0_sm_group_lock(&G);
 	m0_sm_init(&m, &conf, S_INITIAL, &G, &actx);
 
 	/* check that timeout works */
-	result = m0_sm_timeout(&m, &t0, m0_time_add(m0_time_now(), delta), S_0);
+	result = m0_sm_timeout(&m, &t0, m0_time_from_now(0, delta), S_0, 0);
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(t0.st_active);
 
 	result = m0_sm_timedwait(&m, ~(1 << S_INITIAL), M0_TIME_NEVER);
 	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(m.sm_state == S_0);
-	M0_UT_ASSERT(!t0.st_active);
 
 	m0_sm_timeout_fini(&t0);
 
 	/* check that state transition cancels the timeout */
-	result = m0_sm_timeout(&m, &t1, m0_time_add(m0_time_now(), delta), S_1);
+	result = m0_sm_timeout(&m, &t1, m0_time_from_now(0, delta), S_1, 0);
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(t1.st_active);
 
 	m0_sm_state_set(&m, S_2);
 	M0_UT_ASSERT(m.sm_state == S_2);
-	M0_UT_ASSERT(!t1.st_active);
 
-	result = m0_sm_timedwait(&m, ~(1 << S_2),
-				 m0_time_add(m0_time_now(),
-					     m0_time_add(delta, delta)));
+	result = m0_sm_timedwait(&m, ~(1 << S_2), m0_time_from_now(0,
+								   2 * delta));
 	M0_UT_ASSERT(result == -ETIMEDOUT);
+	M0_UT_ASSERT(m.sm_state == S_2);
+
+	m0_sm_timeout_fini(&t1);
+
+	/* check that timeout with a bitmask is not cancelled by a state
+	   transition */
+	m0_sm_state_set(&m, S_0);
+	result = m0_sm_timeout(&m, &t1, m0_time_from_now(0, delta), S_2,
+			       1ULL << S_1);
+	M0_UT_ASSERT(result == 0);
+
+	m0_sm_state_set(&m, S_1);
+	M0_UT_ASSERT(m.sm_state == S_1);
+
+	result = m0_sm_timedwait(&m, 1ULL << S_2, M0_TIME_NEVER);
+	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(m.sm_state == S_2);
 
 	m0_sm_timeout_fini(&t1);
@@ -304,7 +315,7 @@ static void group(void)
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = (1 << S_ITERATE)|(1 << S_FRATRICIDE)
+			.sd_allowed   = M0_BITS(S_ITERATE, S_FRATRICIDE)
 		},
 		[S_ITERATE] = {
 			.sd_flags     = 0,
@@ -312,7 +323,7 @@ static void group(void)
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = (1 << S_ITERATE)|(1 << S_TERMINAL)
+			.sd_allowed   = M0_BITS(S_ITERATE, S_TERMINAL)
 		},
 		[S_FRATRICIDE] = {
 			.sd_flags     = 0,
@@ -339,10 +350,7 @@ static void group(void)
 
 	struct story         s;
 	struct m0_sm_timeout to;
-	m0_time_t            delta;
 	int                  result;
-
-	m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/100);
 
 	m0_sm_group_lock(&G);
 	m0_sm_init(&s.cain, &conf, S_INITIAL, &G, &actx);
@@ -350,7 +358,8 @@ static void group(void)
 
 	/* check that timeout works */
 	result = m0_sm_timeout(&s.cain, &to,
-			       m0_time_add(m0_time_now(), delta), S_FRATRICIDE);
+			       m0_time_from_now(0, M0_TIME_ONE_BILLION/100),
+			       S_FRATRICIDE, 0);
 	M0_UT_ASSERT(result == 0);
 
 	while (s.abel.sm_rc == 0) {
@@ -445,7 +454,7 @@ static void chain(void)
 			.sd_in        = flip,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = (1 << C_HEAD)|(1 << C_TAIL)
+			.sd_allowed   = M0_BITS(C_HEAD, C_TAIL)
 		},
 		[C_HEAD] = {
 			.sd_flags     = 0,
@@ -469,7 +478,7 @@ static void chain(void)
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = (1 << C_OVER)|(1 << C_FLIP)
+			.sd_allowed   = M0_BITS(C_OVER, C_FLIP)
 		},
 		[C_OVER] = {
 			.sd_flags     = 0,
@@ -477,7 +486,7 @@ static void chain(void)
 			.sd_in        = over,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = (1 << C_WIN)|(1 << C_LOSE)|(1 << C_TIE)
+			.sd_allowed   = M0_BITS(C_WIN, C_LOSE, C_TIE)
 		},
 		[C_WIN] = {
 			.sd_flags     = M0_SDF_TERMINAL,

@@ -123,7 +123,7 @@ static bool state_is_valid(const struct m0_sm_conf *conf, uint32_t state)
 }
 
 static const struct m0_sm_state_descr *state_get(const struct m0_sm *mach,
-					   uint32_t state)
+						 uint32_t state)
 {
 	M0_PRE(state_is_valid(mach->sm_conf, state));
 	return &mach->sm_conf->scf_state[state];
@@ -284,6 +284,12 @@ M0_INTERNAL void m0_sm_move(struct m0_sm *mach, int32_t rc, int state)
 	rc == 0 ? m0_sm_state_set(mach, state) : m0_sm_fail(mach, state, rc);
 }
 
+enum timer_state {
+	ARMED,
+	TOP,
+	DONE
+};
+
 /**
     AST call-back for a timeout.
 
@@ -291,16 +297,16 @@ M0_INTERNAL void m0_sm_move(struct m0_sm *mach, int32_t rc, int state)
 */
 static void sm_timeout_bottom(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
+	struct m0_sm         *mach = ast->sa_mach;
 	struct m0_sm_timeout *to   = container_of(ast,
 						  struct m0_sm_timeout, st_ast);
-	struct m0_sm         *mach = ast->sa_mach;
 
 	M0_ASSERT(m0_sm_invariant(mach));
+	M0_ASSERT(to->st_timer_state == TOP);
 
-	if (to->st_active) {
-		to->st_active = false;
-		m0_sm_state_set(mach, to->st_state);
-	}
+	to->st_timer_state = DONE;
+	m0_timer_stop(&to->st_timer); /* timer must be explicitly stopped */
+	m0_sm_state_set(mach, to->st_state);
 }
 
 /**
@@ -312,7 +318,8 @@ static unsigned long sm_timeout_top(unsigned long data)
 {
 	struct m0_sm_timeout *to = (void *)data;
 
-	m0_sm_ast_post(to->st_ast.sa_mach->sm_grp, &to->st_ast);
+	if (m0_atomic64_cas(&to->st_timer_state, ARMED, TOP))
+		m0_sm_ast_post(to->st_ast.sa_mach->sm_grp, &to->st_ast);
 	return 0;
 }
 
@@ -325,18 +332,19 @@ static unsigned long sm_timeout_top(unsigned long data)
  */
 static bool sm_timeout_cancel(struct m0_clink *link)
 {
-	struct m0_sm_timeout *to = container_of(link, struct m0_sm_timeout,
-						st_clink);
+	struct m0_sm_timeout *to   = container_of(link, struct m0_sm_timeout,
+						  st_clink);
+	struct m0_sm         *mach = to->st_ast.sa_mach;
 
-	M0_ASSERT(m0_sm_invariant(to->st_ast.sa_mach));
-
-	to->st_active = false;
-	m0_timer_stop(&to->st_timer);
+	M0_ASSERT(m0_sm_invariant(mach));
+	if (!((1ULL << mach->sm_state) & to->st_bitmask) &&
+	    m0_atomic64_cas(&to->st_timer_state, ARMED, DONE))
+		m0_timer_stop(&to->st_timer);
 	return true;
 }
 
 M0_INTERNAL int m0_sm_timeout(struct m0_sm *mach, struct m0_sm_timeout *to,
-			      m0_time_t timeout, int state)
+			      m0_time_t timeout, int state, uint64_t bitmask)
 {
 	int              result;
 	struct m0_timer *tm = &to->st_timer;
@@ -347,38 +355,42 @@ M0_INTERNAL int m0_sm_timeout(struct m0_sm *mach, struct m0_sm_timeout *to,
 	M0_PRE(!(state_get(mach, state)->sd_flags & M0_SDF_TERMINAL));
 
 	/*
-	  This is how timeout is implemented:
-
-	      - a timer is armed (with sm_timeout_top() call-back);
-
-	      - when the timer fires off, an AST (with sm_timeout_bottom()
-                call-back) is posted from the timer call-back;
-
-	      - when the AST is executed, it performs the state transition.
+	 * This is how timeout is implemented:
+	 *
+	 *    - a timer is armed (with sm_timeout_top() call-back);
+	 *
+	 *    - when the timer fires off, an AST (with sm_timeout_bottom()
+	 *      call-back) is posted from the timer call-back;
+	 *
+	 *    - when the AST is executed, it performs the state transition.
 	 */
 
 	M0_SET0(to);
-	to->st_active      = true;
+	to->st_timer_state = ARMED;
 	to->st_state       = state;
+	to->st_bitmask     = bitmask;
 	to->st_ast.sa_cb   = sm_timeout_bottom;
 	to->st_ast.sa_mach = mach;
 	m0_clink_init(&to->st_clink, sm_timeout_cancel);
 	m0_clink_add(&mach->sm_chan, &to->st_clink);
-	m0_timer_init(tm, M0_TIMER_SOFT,
-		      timeout, sm_timeout_top,
+	m0_timer_init(tm, M0_TIMER_SOFT, timeout, sm_timeout_top,
 		      (unsigned long)to);
 	result = m0_timer_start(tm);
-	if (result != 0)
+	if (result != 0) {
+		to->st_timer_state = DONE;
 		m0_sm_timeout_fini(to);
+	}
+
 	return result;
 }
 
 M0_INTERNAL void m0_sm_timeout_fini(struct m0_sm_timeout *to)
 {
+	M0_PRE(to->st_timer_state == DONE);
 	M0_PRE(to->st_ast.sa_next == NULL);
 
-	if (m0_timer_is_started(&to->st_timer))
-		m0_timer_stop(&to->st_timer);
+	M0_ASSERT(!m0_timer_is_started(&to->st_timer));
+
 	m0_timer_fini(&to->st_timer);
 	if (m0_clink_is_armed(&to->st_clink))
 		m0_clink_del(&to->st_clink);
