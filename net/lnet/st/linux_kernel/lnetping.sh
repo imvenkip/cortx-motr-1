@@ -187,7 +187,7 @@ fi
 tailseek=$(( $(stat -c %s "$log") + 1 ))
 
 # insert ST module separately to pass parameters
-STMOD=klnetst
+STMOD=m0lnetping
 unload_all() {
     echo "Aborted! Unloading kernel modules..."
     rmmod $STMOD

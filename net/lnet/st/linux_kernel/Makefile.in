@@ -1,5 +1,5 @@
 LNETST_SRCDIR     = @top_srcdir@/net/lnet/st/linux_kernel
-LNETST_MOD       := klnetst
+LNETST_MOD       := m0lnetping
 
 local_src        := main.c
 st_src           := ping.c
