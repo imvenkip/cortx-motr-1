@@ -466,8 +466,8 @@ include $(top_srcdir)/yaml2db/st/Makefile.sub
 # utils/ploss
 #
 
-noinst_PROGRAMS += utils/ploss/ploss_server
-noinst_PROGRAMS += utils/ploss/ploss_client
+noinst_PROGRAMS += utils/ploss/m0plossd
+noinst_PROGRAMS += utils/ploss/m0ploss
 
 include $(top_srcdir)/utils/ploss/Makefile.sub
 
