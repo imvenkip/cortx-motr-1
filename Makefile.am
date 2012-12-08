@@ -412,9 +412,9 @@ console_st_server_LDADD  = $(top_builddir)/mero/libmero.la \
 # net/bulk_emulation/st
 #
 
-noinst_PROGRAMS                      += net/bulk_emulation/st/bulkping
-net_bulk_emulation_st_bulkping_LDADD  = $(top_builddir)/mero/libmero.la \
-                                        $(top_builddir)/ut/libmero-ut.la
+noinst_PROGRAMS                        += net/bulk_emulation/st/m0bulkping
+net_bulk_emulation_st_m0bulkping_LDADD  = $(top_builddir)/mero/libmero.la \
+                                          $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/net/bulk_emulation/st/Makefile.sub
 
