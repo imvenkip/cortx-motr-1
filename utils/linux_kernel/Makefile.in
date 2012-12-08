@@ -1,7 +1,7 @@
 KUTM0_SRCDIR = @top_srcdir@/utils/linux_kernel
 
-obj-m       := kutm0.o m0ctl.o
-kutm0-y     := main.o
+obj-m       := m0ut.o m0ctl.o
+m0ut-y      := main.o
 m0ctl-y     := ctl.o finject_debugfs.o
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @top_srcdir@ @M0_KCPPFLAGS@ @M0_KCFLAGS@ \

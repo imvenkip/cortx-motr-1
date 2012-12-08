@@ -24,7 +24,7 @@ if [ ! -e "$log" ]; then
 fi
 tailseek=$(( $(stat -c %s "$log") + 1 ))
 
-# currently, kernel UT runs as part of loading kutm0 module
+# currently, kernel UT runs as part of loading m0ut module
 modload_galois
 modload
 insmod $MODMAIN $*
