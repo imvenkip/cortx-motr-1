@@ -16,7 +16,7 @@ fi
 . m0t1fs/linux_kernel/st/common.sh
 
 MODLIST="build_kernel_modules/m0mero.ko"
-MODMAIN="net/test/linux_kernel/net_test_node.ko"
+MODMAIN="net/test/linux_kernel/m0netperfd.ko"
 
 log='/var/log/kern'
 if [ ! -e "$log" ]; then
