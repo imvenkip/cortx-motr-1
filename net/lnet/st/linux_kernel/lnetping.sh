@@ -178,7 +178,7 @@ fi
 
 . m0t1fs/linux_kernel/st/common.sh
 
-MODLIST="build_kernel_modules/kmero.ko"
+MODLIST="build_kernel_modules/m0mero.ko"
 
 log='/var/log/kern'
 if [ ! -e "$log" ]; then

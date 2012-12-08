@@ -2,7 +2,7 @@ PING_SRCDIR          = @top_srcdir@/rpc/it/linux_kernel
 PINGDIR              = @top_srcdir@/rpc/it
 XCODEDIR             = @top_srcdir@/xcode
 
-KBUILD_EXTRA_SYMBOLS = kmero.symvers
+KBUILD_EXTRA_SYMBOLS = m0mero.symvers
 
 obj-m               := krpcping.o
 shared_src          := rpc_ping.c ping_fop.c ping_fop_ff.c ping_fom.c
@@ -23,6 +23,6 @@ clean distclean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
-	cp $(PING_SRCDIR)/Makefile.in $(PING_SRCDIR)/kmero.symvers \
+	cp $(PING_SRCDIR)/Makefile.in $(PING_SRCDIR)/m0mero.symvers \
 	   $(PING_SRCDIR)/rpcping_kernel.c $(PING_SRCDIR)/rpc_ping.h  \
 	   @top_builddir@/@PACKAGE@-@PACKAGE_VERSION@/rpc/it/linux_kernel

@@ -19,7 +19,7 @@ EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) \
 #       It is assumed that user space build is done before starting to
 #       build kernel modules.
 
-#       Below is the directory listing from which we have to create kmero.ko
+#       Below is the directory listing from which we have to create m0mero.ko
 #       To add a new directory 'd' to this list, add directory name
 #       to $(dirs); then add the names of '.c' files to d_SOURCES and the
 #       headers to d_HEADERS.
@@ -204,22 +204,22 @@ conf_objs_SOURCES               := common.c dir.c profile.c filesystem.c \
 
 
 #       Following lines create the list of objects required for creating
-#       kmero by putting %.o for each %.c file listed for each target of
-#       $(dirs). The following definition of kmero_objects is functionally
+#       m0mero by putting %.o for each %.c file listed for each target of
+#       $(dirs). The following definition of m0mero_objects is functionally
 #       equivalent to following shell script code snippet
 #       for d in $(dirs); do
 #               var=`echo $d | sed 's/\//_/'`
 #               varsrc="${var}_SOURCES"
 #               for f in ${!varsrc}; do
 #                       objfname=`basename $f | sed 's/.c$/.o'`
-#                       kmero_objects = "$kmero_objects $d/$objfname"
+#                       m0mero_objects = "$m0mero_objects $d/$objfname"
 #               done
 #       done
 #       $(notdir names...)
 #               extracts all but the directory-part of each file name in names
 #       e.g. $(notdir src/foo.c hacks) Produces the result 'foo.c hacks'
 
-kmero_objects = $(foreach d, $(dirs), $(foreach f,                         \
+m0mero_objects = $(foreach d, $(dirs), $(foreach f,                         \
                         $($(subst /,_,$(d))_SOURCES), $(addprefix $(d)/,      \
                                 $(subst .c,.o, $(notdir $(f))))))
 
@@ -227,13 +227,13 @@ m0loop_objects = $(foreach d, $(dirs), $(foreach f,                         \
                     $($(subst /,_,$(d))_m0loop_SOURCES), $(addprefix $(d)/, \
                                 $(subst .c,.o, $(notdir $(f))))))
 
-obj-m += kmero.o m0loop.o
+obj-m += m0mero.o m0loop.o
 
-kmero-y += main.o dummy_init_fini.o $(kmero_objects)
+m0mero-y += main.o dummy_init_fini.o $(m0mero_objects)
 
 m0loop-y += $(m0loop_objects)
 
-#       Besides the kmero.ko, the UT's would be build separately by
+#       Besides the m0mero.ko, the UT's would be build separately by
 #       recursing into directories specified by $(testdirs)
 
 obj-y += $(testdirs)
@@ -242,7 +242,7 @@ create_links = $(shell ln -s $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f))     \
                 2> /dev/null)
 
 all:
-	@echo $(kmero-y)
+	@echo $(m0mero-y)
 	for s in $(testdirs); do $(MAKE) -C $$s prepare; done
 #	Following line is commented out until a lustre devel RPM is available
 #	ln -fs @LUSTRE@/config.h lustre_config.h

@@ -125,7 +125,7 @@ xdr/ut  47.8%   64 134  21.7%   5 23    20.6%   75 364
   Make sure that --with-linux= argument of ./configure script, points to
   linux kernel tree compiled with CONFIG_GCOV_KERNEL option set to y.
 
-Run core/utils/linux_kernel/ut.sh or execute code from kmero.ko by any
+Run core/utils/linux_kernel/ut.sh or execute code from m0mero.ko by any
 other means.
 
 [root@xyralab_02 linux_kernel]# pwd

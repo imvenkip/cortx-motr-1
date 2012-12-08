@@ -17,7 +17,7 @@ fi
 MERO_M0T1FS_MOUNT_DIR=/tmp/test_m0t1fs_`date +"%d-%m-%Y_%T"`
 MERO_M0T1FS_TEST_DIR=/tmp/test_m0t1fs_$$
 #MERO_M0T1FS_TEST_DIR=/tmp/test_m0t1fs
-MERO_MODULE=kmero
+MERO_MODULE=m0mero
 
 MERO_MODULE_TRACE_MASK='!all'
 MERO_TRACE_PRINT_CONTEXT=short
@@ -44,7 +44,7 @@ XPT=lnet
 lnet_nid=`sudo lctl list_nids | head -1`
 server_nid=${server_nid:-$lnet_nid}
 
-# Client end point (kmero module local_addr)
+# Client end point (m0mero module local_addr)
 LADDR="$lnet_nid:12345:33:1"
 
 # list of server end points
@@ -134,7 +134,7 @@ unprepare()
 		rm -rf $MERO_M0T1FS_MOUNT_DIR
 	fi
 
-	if lsmod | grep kmero > /dev/null; then
+	if lsmod | grep m0mero > /dev/null; then
 		unload_kernel_module
 	fi
 	modunload_galois

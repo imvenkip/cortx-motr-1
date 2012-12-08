@@ -4,7 +4,7 @@
 # If you are modifying this file, please make the relevant changes
 # in above mentioned files also.
 
-MODLIST="@ABS_SRCDIR@/build_kernel_modules/kmero.ko"
+MODLIST="@ABS_SRCDIR@/build_kernel_modules/m0mero.ko"
 
 abort()
 {

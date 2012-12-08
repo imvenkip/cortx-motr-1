@@ -49,20 +49,20 @@ set -x
 modprobe lnet
 lctl network up
 
-# reload the kmero module
-rmmod kmero.ko galois.ko
+# reload the m0mero module
+rmmod m0mero.ko galois.ko
 insmod ../galois/src/linux_kernel/galois.ko
 
 # Immediate trace is heavy, use sparingly
 # KTRACE_FLAGS='trace_print_context=func trace_level=call+ trace_immediate_mask=8'
-insmod build_kernel_modules/kmero.ko local_addr=$MEP max_rpc_msg_size=163840 tm_recv_queue_min_len=16 $KTRACE_FLAGS
+insmod build_kernel_modules/m0mero.ko local_addr=$MEP max_rpc_msg_size=163840 tm_recv_queue_min_len=16 $KTRACE_FLAGS
 
 IOS=
 HERE=$PWD
 
 #if [ `ls -l $HERE/devices?.conf | wc -l` -ne ${#EP[*]} ]  ; then
 #	echo "Please generate device configuration files"
-#	rmmod kmero galois
+#	rmmod m0mero galois
 #	exit 1
 #fi
 

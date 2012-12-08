@@ -35,7 +35,7 @@ lnet_up() {
 }
 
 ### Usage: m0_modules {insert|remove}
-### Inserts/removes Mero kernel modules (kmero.ko and galois.ko).
+### Inserts/removes Mero kernel modules (m0mero.ko and galois.ko).
 m0_modules() {
     case "$1" in
 	insert)
@@ -47,7 +47,7 @@ m0_modules() {
 	    ## Print kernel messages on the console. (See proc(5).)
 	    echo 8 >/proc/sys/kernel/printk
 
-	    insmod $M0_CORE_DIR/build_kernel_modules/kmero.ko \
+	    insmod $M0_CORE_DIR/build_kernel_modules/m0mero.ko \
 		local_addr=$M0T1FS_ENDPOINT \
 		max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
 		tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
@@ -55,13 +55,13 @@ m0_modules() {
 		${TRACE_LEVEL:+trace_level=$TRACE_LEVEL} \
 		${TRACE_CONTEXT:+trace_print_context=$TRACE_CONTEXT} \
 		|| {
-		echo 'Inserting kmero.ko failed' >&2
+		echo 'Inserting m0mero.ko failed' >&2
 		rmmod galois
 		return 1
 	    }
 	    ;;
 	remove)
-	    rmmod kmero
+	    rmmod m0mero
 
 	    ## Not interested in console output any more.
 	    echo 4 >/proc/sys/kernel/printk
@@ -156,7 +156,7 @@ usage() {
     echo
     echo 'Supported commands:'
     echo '  run      run system tests (default command)'
-    echo '  insmod   insert Mero kernel modules: kmero.ko, galois.ko'
+    echo '  insmod   insert Mero kernel modules: m0mero.ko, galois.ko'
     echo '  rmmod    remove Mero kernel modules'
     echo '  help     display this help and exit'
 }

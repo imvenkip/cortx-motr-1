@@ -15,7 +15,7 @@ fi
 
 . m0t1fs/linux_kernel/st/common.sh
 
-MODLIST="build_kernel_modules/kmero.ko"
+MODLIST="build_kernel_modules/m0mero.ko"
 MODMAIN="net/test/linux_kernel/net_test_node.ko"
 
 log='/var/log/kern'

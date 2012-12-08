@@ -112,7 +112,7 @@ WORK_ARENA=/usr/tmp/m0
 XPT=lnet
 # m0d flags
 XPT_SETUP="-m 163840 -q 16"
-# kmero module params
+# m0mero module params
 XPT_PARAM_R="max_rpc_msg_size=163840 tm_recv_queue_min_len=1"	# remote host
 XPT_PARAM_L="max_rpc_msg_size=163840 tm_recv_queue_min_len=48"	# local host
 
@@ -184,15 +184,15 @@ function setup_host () {
 		echo  ERROR: Unable to configure LNet
 		return 1
 	fi
-	$RUN rmmod kmero galois 2>/dev/null
+	$RUN rmmod m0mero galois 2>/dev/null
 	$RUN insmod $BROOT/galois/src/linux_kernel/galois.ko
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to load galois module on $H
 		return 1
 	fi
-	$RUN insmod $BROOT/core/build_kernel_modules/kmero.ko local_addr=$KEP $XPT_PARAM $KTRACE_FLAGS
+	$RUN insmod $BROOT/core/build_kernel_modules/m0mero.ko local_addr=$KEP $XPT_PARAM $KTRACE_FLAGS
 	if [ $? -ne 0 ]; then
-		echo ERROR: Failed to load kmero module on $H
+		echo ERROR: Failed to load m0mero module on $H
 		$RUN rmmod galois
 		return 1
 	fi
@@ -219,7 +219,7 @@ function teardown_host () {
 	else
 		RUN=l_run
 	fi
-	$RUN rmmod kmero galois
+	$RUN rmmod m0mero galois
 	return 0
 }
 

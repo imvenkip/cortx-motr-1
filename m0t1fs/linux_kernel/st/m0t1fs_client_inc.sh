@@ -15,8 +15,8 @@ mount_m0t1fs()
 		return 1
 	}
 
-	lsmod | grep -q kmero || {
-		echo "Failed to	mount m0t1fs file system. (kmero not loaded)"
+	lsmod | grep -q m0mero || {
+		echo "Failed to	mount m0t1fs file system. (m0mero not loaded)"
 		return 1
 	}
 

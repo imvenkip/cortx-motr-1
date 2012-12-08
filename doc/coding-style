@@ -333,7 +333,7 @@ try to adhere to some higher level idioms.
 
     * use M0_LOG() from lib/trace.h instead of printf(3)/printk() in
       all source files which are part of libmero.so library or
-      kmero.ko module (UT, ST and various helper utilities and
+      m0mero.ko module (UT, ST and various helper utilities and
       modules should use printf(3)/printk()).
 
     * consider using M0_LOG() with some meaningful information to

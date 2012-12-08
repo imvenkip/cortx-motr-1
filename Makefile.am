@@ -601,7 +601,7 @@ all-local: build-kernel-modules check-sources-postbuild
 	@$(top_srcdir)/scripts/check-public-api
 	@echo 'Resulting ELF image sizes:'
 	@size   mero/.libs/libmero{,-altogether}.so \
-		build_kernel_modules/kmero.ko \
+		build_kernel_modules/m0mero.ko \
 		2>/dev/null \
 	| sed -r -e 's/dec/total/' \
 		 -e 's#mero/.libs/|build_kernel_modules/##' \
