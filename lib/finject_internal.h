@@ -100,7 +100,7 @@ static inline bool fi_state_enabled(const struct m0_fi_fpoint_state *state)
  * The fi_states array is a private data of lib/finject.c and it should not be
  * modified by external code. This function deliberately returns a const pointer
  * to emphasize this. The main purpose of this function is to provide the
- * FP states information to km0ctl driver, which displays it via debugfs.
+ * FP states information to m0ctl driver, which displays it via debugfs.
  *
  * @return A constant pointer to global fi_states array.
  */
