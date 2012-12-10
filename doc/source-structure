@@ -314,12 +314,12 @@ How to add a new kernel module?
 -------------------------------
 
 A new module can be added to Mero in two ways,
-  1) functionality built into kmero.ko
+  1) functionality built into m0mero.ko
   2) Module for stand-alone UT's
 
 1) In mero all the functionality for kernel side is implemented into
-a single kernel module called kmero.ko
-So to add your new kernel source(s) for core/module to kmero,
+a single kernel module called m0mero.ko
+So to add your new kernel source(s) for core/module to m0mero,
 create core/module/ directory
 
 Add the following lines into build_kernel_modules/Makefile.in:

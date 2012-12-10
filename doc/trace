@@ -193,13 +193,13 @@ kernel module parameters.
 
 Subsystem filtering:
 
-    $ insmod kmero.ko trace_immediate_mask=all
+    $ insmod m0mero.ko trace_immediate_mask=all
 
 Trace levels:
 
-    $ insmod kmero.ko trace_level='debug+'
+    $ insmod m0mero.ko trace_level='debug+'
 
 Trace print context:
 
-    $ insmod kmero.ko trace_print_context='full'
+    $ insmod m0mero.ko trace_print_context='full'
 

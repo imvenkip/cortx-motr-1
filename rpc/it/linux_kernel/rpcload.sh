@@ -1,6 +1,6 @@
 #! /bin/sh
 
-MODLIST="build_kernel_modules/kmero.ko"
+MODLIST="build_kernel_modules/m0mero.ko"
 
 abort()
 {

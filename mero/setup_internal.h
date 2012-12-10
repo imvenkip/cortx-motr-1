@@ -23,13 +23,13 @@
 #ifndef __MERO_MERO_CS_INTERNAL_H__
 #define __MERO_MERO_CS_INTERNAL_H__
 
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 #include "cob/cob.h"
 #include "dtm/dtm.h"
 #include "yaml.h"
 
 /**
-   @addtogroup mero_setup
+   @addtogroup m0d
    @{
  */
 
@@ -230,7 +230,7 @@ struct cs_buffer_pool {
         uint64_t                     cs_bp_magic;
 };
 
-/** @} endgroup mero_setup */
+/** @} endgroup m0d */
 
 /* __MERO_MERO_MERO_SETUP_H__ */
 #endif

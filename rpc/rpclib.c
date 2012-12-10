@@ -38,7 +38,7 @@
 #ifndef __KERNEL__
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 #endif
 
 #ifndef __KERNEL__

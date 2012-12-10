@@ -196,7 +196,7 @@ static int configure(int argc, char *argv[],
 	bool list_if = false;
 	bool success = true;
 	/** @todo single-letter options is very bad */
-	M0_GETOPTS("ntc", argc, argv,
+	M0_GETOPTS("m0netperf", argc, argv,
 		M0_STRINGARG('t', "Test type, {ping|bulk}",
 		LAMBDA(void, (const char *type) {
 			if (strncmp(type, "ping", 5) == 0)

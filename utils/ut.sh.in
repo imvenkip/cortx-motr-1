@@ -1,6 +1,6 @@
 #! /bin/sh
 
-# Small wrapper to run user-space UT, which depends on kmero module
+# Small wrapper to run user-space UT, which depends on m0mero module
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Must be run as root"

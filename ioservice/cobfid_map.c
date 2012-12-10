@@ -25,7 +25,7 @@
 #include "lib/misc.h"  /* SET0 */
 #include "lib/arith.h" /* M0_3WAY */
 #include "ioservice/cobfid_map.h"
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 #include "lib/refs.h"
 #include "reqh/reqh.h"
 #include "mero/magic.h"

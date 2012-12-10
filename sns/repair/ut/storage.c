@@ -25,12 +25,12 @@
 #include "lib/misc.h"
 #include "reqh/reqh.h"
 #include "net/lnet/lnet.h"
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 #include "sns/repair/ut/cp_common.h"
 
 /* Global structures for setting up mero service. */
 static const char log_file_name[] = "sr_ut.errlog";
-static char *sns_repair_ut_svc[] = { "mero_setup", "-r", "-p", "-T", "LINUX",
+static char *sns_repair_ut_svc[] = { "m0d", "-r", "-p", "-T", "LINUX",
 				     "-D", "sr_db", "-S", "sr_stob",
 				     "-e", "lnet:0@lo:12345:34:1" ,
 				     "-s", "sns_repair"};

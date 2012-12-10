@@ -57,7 +57,7 @@ static int test_long_lock_init(void)
 	int i;
 
 	/*
-	 * Instead of using mero_setup and dealing with network, database and
+	 * Instead of using m0d and dealing with network, database and
 	 * other subsystems, request handler is initialised in a 'special way'.
 	 * This allows it to operate in a 'limited mode' which is enough for
 	 * this test.

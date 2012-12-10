@@ -37,7 +37,7 @@
 
 
 /**
- * @addtogroup km0ctl
+ * @addtogroup m0ctl
  *
  * @{
  *
@@ -387,7 +387,7 @@ void fi_dfs_cleanup(void)
 	fi_stat_file = 0;
 }
 
-/** @} end of km0ctl group */
+/** @} end of m0ctl group */
 
 #else
 

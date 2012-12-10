@@ -35,7 +35,7 @@ lnet_up() {
 }
 
 ### Usage: m0_modules {insert|remove}
-### Inserts/removes Mero kernel modules (kmero.ko and galois.ko).
+### Inserts/removes Mero kernel modules (m0mero.ko and galois.ko).
 m0_modules() {
     case "$1" in
 	insert)
@@ -47,7 +47,7 @@ m0_modules() {
 	    ## Print kernel messages on the console. (See proc(5).)
 	    echo 8 >/proc/sys/kernel/printk
 
-	    insmod $M0_CORE_DIR/build_kernel_modules/kmero.ko \
+	    insmod $M0_CORE_DIR/build_kernel_modules/m0mero.ko \
 		local_addr=$M0T1FS_ENDPOINT \
 		max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
 		tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
@@ -55,13 +55,13 @@ m0_modules() {
 		${TRACE_LEVEL:+trace_level=$TRACE_LEVEL} \
 		${TRACE_CONTEXT:+trace_print_context=$TRACE_CONTEXT} \
 		|| {
-		echo 'Inserting kmero.ko failed' >&2
+		echo 'Inserting m0mero.ko failed' >&2
 		rmmod galois
 		return 1
 	    }
 	    ;;
 	remove)
-	    rmmod kmero
+	    rmmod m0mero
 
 	    ## Not interested in console output any more.
 	    echo 4 >/proc/sys/kernel/printk
@@ -73,21 +73,21 @@ m0_modules() {
 }
 
 ### Usage: m0_service {start|stop}
-### Starts/stops Mero service (mero_setup).
+### Starts/stops Mero service (m0d).
 m0_service() {
     case "$1" in
 	start)
-	    $M0_CORE_DIR/mero/mero_setup -r -p -D $SANDBOX_DIR/db \
+	    $M0_CORE_DIR/mero/m0d -r -p -D $SANDBOX_DIR/db \
 		-T linux -S $SANDBOX_DIR/stobs -e lnet:$IOSERVICE_ENDPOINT \
 		-s confd -s mdservice -s ioservice \
 		-m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
-		>$SANDBOX_DIR/mero_setup.log 2>&1 &
+		>$SANDBOX_DIR/m0d.log 2>&1 &
 	    sleep 1
-	    status $M0_CORE_DIR/mero/.libs/lt-mero_setup >/dev/null || \
+	    status $M0_CORE_DIR/mero/.libs/lt-m0d >/dev/null || \
 		return 1
 	    ;;
 	stop)
-	    killall -q lt-mero_setup
+	    killall -q lt-m0d
 	    sleep 3
 	    ;;
 	*) die 'm0_service: Invalid argument';;
@@ -156,7 +156,7 @@ usage() {
     echo
     echo 'Supported commands:'
     echo '  run      run system tests (default command)'
-    echo '  insmod   insert Mero kernel modules: kmero.ko, galois.ko'
+    echo '  insmod   insert Mero kernel modules: m0mero.ko, galois.ko'
     echo '  rmmod    remove Mero kernel modules'
     echo '  help     display this help and exit'
 }

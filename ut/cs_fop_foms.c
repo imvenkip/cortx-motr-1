@@ -132,7 +132,7 @@ int m0_cs_ut_ds1_fop_init(void)
 {
         /*
            As we are finalising and initialising fop types multiple times
-           per service for various mero_setup commands, So reinitialise
+           per service for various m0d commands, So reinitialise
            fop_type_format for each corresponding service fop types.
          */
 	m0_xc_cs_test_fops_init();
@@ -164,7 +164,7 @@ int m0_cs_ut_ds2_fop_init(void)
 {
 	/*
 	   As we are finalising and initialising fop types multiple times
-	   per service for various mero_setup commands, So reinitialise
+	   per service for various m0d commands, So reinitialise
 	   fop_type_format for each corresponding service fop types.
 	 */
 	m0_xc_cs_test_fops_init();

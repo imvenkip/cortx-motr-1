@@ -29,7 +29,7 @@
 #include "reqh/reqh_service.h"
 #include "ioservice/io_service.h"
 
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 #include "ioservice/io_service.c"
 
 struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx,
@@ -39,21 +39,21 @@ extern const struct m0_tl_descr bufferpools_tl;
 extern const struct m0_tl_descr m0_rhctx_tl;
 
  /* Mero setup arguments. */
-static char *ios_ut_bp_singledom_cmd[] = { "mero_setup", "-r", "-p", "-T", "AD",
+static char *ios_ut_bp_singledom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ioservice"};
-static char *ios_ut_bp_multidom_cmd[] = { "mero_setup", "-r", "-p", "-T", "AD",
+static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s", "ioservice"};
-static char *ios_ut_bp_repeatdom_cmd[] = { "mero_setup", "-r", "-p", "-T", "AD",
+static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-e", "bulk-mem:127.0.0.1:35679",
                                 "-s", "ioservice"};
-static char *ios_ut_bp_onerepeatdom_cmd[] = { "mero_setup", "-r", "-p", "-T", "AD",
+static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:35:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",

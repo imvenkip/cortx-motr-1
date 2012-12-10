@@ -169,7 +169,7 @@ struct m0_xcode_enum {
 
     Use lists based on M0_TL_{DEFINE,DESCR}()
 
-2012-May-04 Use tailored type-safe lists in mero_setup.c
+2012-May-04 Use tailored type-safe lists in setup.c
 
     Use lists based on M0_TL_{DEFINE,DESCR}()
 

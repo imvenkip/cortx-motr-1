@@ -178,7 +178,7 @@ fi
 
 . m0t1fs/linux_kernel/st/common.sh
 
-MODLIST="build_kernel_modules/kmero.ko"
+MODLIST="build_kernel_modules/m0mero.ko"
 
 log='/var/log/kern'
 if [ ! -e "$log" ]; then
@@ -187,7 +187,7 @@ fi
 tailseek=$(( $(stat -c %s "$log") + 1 ))
 
 # insert ST module separately to pass parameters
-STMOD=klnetst
+STMOD=m0lnetping
 unload_all() {
     echo "Aborted! Unloading kernel modules..."
     rmmod $STMOD

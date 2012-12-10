@@ -117,7 +117,7 @@
  * @section confd-fspec-cli Command Usage
  *
  * To configure confd from console, standard options described in
- * @ref mero_setup in cs_help() function are used.
+ * @ref m0d in cs_help() function are used.
  *
  * <hr> <!------------------------------------------------------------->
  * @section confd-fspec-recipes  Recipes

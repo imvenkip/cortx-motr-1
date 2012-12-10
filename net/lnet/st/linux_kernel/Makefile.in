@@ -1,5 +1,5 @@
 LNETST_SRCDIR     = @top_srcdir@/net/lnet/st/linux_kernel
-LNETST_MOD       := klnetst
+LNETST_MOD       := m0lnetping
 
 local_src        := main.c
 st_src           := ping.c
@@ -10,7 +10,7 @@ all_obj          := $(all_src:.c=.o)
 obj-m            := $(LNETST_MOD).o
 $(LNETST_MOD)-y  := $(all_obj)
 
-dist_src         := Makefile.in lnetping.sh $(local_src)
+dist_src         := Makefile.in m0lnetping.sh $(local_src)
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @top_srcdir@ @M0_KCPPFLAGS@ @M0_KCFLAGS@ \
 	       @KCFLAGS@

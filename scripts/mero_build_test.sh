@@ -205,7 +205,7 @@ copy_core_dump()
 gather_coverage()
 {
     cur_branch_dir="$TESTROOT/$DIRTIME/$current_branch"
-    pushd  $MERO_CORE_PATH/utils > /dev/null
+    pushd  $MERO_CORE_PATH/scripts > /dev/null
 
     if [ -f gcov_stats_genhtml.sh ]; then
         print_msg "INFO:$current_branch:Coverage:Start"

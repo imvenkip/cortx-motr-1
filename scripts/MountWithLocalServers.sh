@@ -37,9 +37,9 @@ if [ -n "$MOUNTED" ] ; then
 	echo Error $MP is already mounted
 	exit 1
 fi
-SERVERS=$(pgrep -f mero_setup)
+SERVERS=$(pgrep -f m0d)
 if [ -n "$SERVERS" ] ; then
-	echo Error mero_setup processes already running
+	echo Error m0d processes already running
 	exit 1
 fi
 
@@ -49,20 +49,20 @@ set -x
 modprobe lnet
 lctl network up
 
-# reload the kmero module
-rmmod kmero.ko galois.ko
+# reload the m0mero module
+rmmod m0mero.ko galois.ko
 insmod ../galois/src/linux_kernel/galois.ko
 
 # Immediate trace is heavy, use sparingly
 # KTRACE_FLAGS='trace_print_context=func trace_level=call+ trace_immediate_mask=8'
-insmod build_kernel_modules/kmero.ko local_addr=$MEP max_rpc_msg_size=163840 tm_recv_queue_min_len=16 $KTRACE_FLAGS
+insmod build_kernel_modules/m0mero.ko local_addr=$MEP max_rpc_msg_size=163840 tm_recv_queue_min_len=16 $KTRACE_FLAGS
 
 IOS=
 HERE=$PWD
 
 #if [ `ls -l $HERE/devices?.conf | wc -l` -ne ${#EP[*]} ]  ; then
 #	echo "Please generate device configuration files"
-#	rmmod kmero galois
+#	rmmod m0mero galois
 #	exit 1
 #fi
 
@@ -77,15 +77,15 @@ for ((i=0; i < ${#EP[*]}; i++)) ; do
 	rm -rf $WORK_ARENA/d$i
 	mkdir $WORK_ARENA/d$i
 	(cd $WORK_ARENA/d$i
-	 $HERE/mero/mero_setup -r -T ${STOB_TYPE} -D $WORK_ARENA/d$i/db \
+	 $HERE/mero/m0d -r -T ${STOB_TYPE} -D $WORK_ARENA/d$i/db \
             -S $WORK_ARENA/d$i/stobs -e $XPT:${EP[$i]} -s ioservice -s sns_repair \
             -m 163840 -q 16 &>>$WORK_ARENA/servers_started )&
 done
 
-layout/ut/ldemo $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
+utils/m0layout $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
 
 # Due to device stob pre-creation (balloc format) it normally takes ~0m28.166s for
-# starting up a server, so wait till all mero_setup services are started.
+# starting up a server, so wait till all m0d services are started.
 #echo "Please wait while services are starting..."
 
 # Supress waiting being printed on screen
@@ -112,4 +112,4 @@ while read LINE; do
 done
 
 umount $MP
-pkill -USR1 -f mero_setup
+pkill -USR1 -f m0d

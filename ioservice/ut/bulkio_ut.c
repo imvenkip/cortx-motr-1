@@ -27,7 +27,7 @@
 #include "net/lnet/lnet.h"
 #include "ioservice/io_fops.c"	/* To access static APIs. */
 #include "ioservice/io_foms.c"	/* To access static APIs. */
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 #include "lib/finject.h"
 #include "fop/fom_generic.c"
 

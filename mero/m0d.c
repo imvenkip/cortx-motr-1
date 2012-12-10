@@ -26,13 +26,13 @@
 #include "lib/memory.h"
 #include "lib/misc.h"  /* M0_SET0 */
 
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 #include "mero/init.h"
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 
 /**
-   @addtogroup mero_setup
+   @addtogroup m0d
    @{
  */
 
@@ -110,7 +110,7 @@ out:
 	return errno;
 }
 
-/** @} endgroup mero_setup */
+/** @} endgroup m0d */
 
 /*
  *  Local variables:

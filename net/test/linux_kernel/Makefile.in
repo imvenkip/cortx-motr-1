@@ -1,5 +1,5 @@
 NET_TEST_SRCDIR	:= @SRCDIR@/net/test/linux_kernel
-NET_TEST	:= net_test_node
+NET_TEST	:= m0netperfd
 
 shared_src	:=
 kernel_src	:= node_k.c

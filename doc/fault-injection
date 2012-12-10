@@ -48,10 +48,10 @@ be enabled/disabled from external code with something like the following:
     m0_fi_enable_once("m0_alloc", "fake_error");
 
 
-km0ctl.ko driver
+m0ctl.ko driver
 ----------------
 
-km0ctl driver provides a debugfs interface to control kmero in runtime. All
+m0ctl driver provides a debugfs interface to control m0mero in runtime. All
 control files are placed under "mero/" directory in the root of debugfs file
 system. For more details about debugfs please see
 Documentation/filesystems/debugfs.txt in the linux kernel's source tree.

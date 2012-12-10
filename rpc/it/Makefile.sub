@@ -1,4 +1,4 @@
-rpc_it_rpcping_SOURCES  = rpc/it/ping_fop.c \
+rpc_it_m0rpcping_SOURCES  = rpc/it/ping_fop.c \
                           rpc/it/ping_fom.c \
                           rpc/it/rpc_ping.c \
                           rpc/it/ping_fop_ff.c \

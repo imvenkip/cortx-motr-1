@@ -298,7 +298,7 @@
  * Actual output is compared with expected at `Compare' step.
  *
  * @test
- * -# Generate configuration DB with yaml2db and given yaml file.
+ * -# Generate configuration DB with m0yamltodb and given yaml file.
  * -# Run confd, making it use newly generated DB.
  * -# Run multiple confcs on different threads, requesting the same
  *    set of configuration objects.
