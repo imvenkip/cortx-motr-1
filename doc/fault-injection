@@ -47,6 +47,24 @@ be enabled/disabled from external code with something like the following:
 
     m0_fi_enable_once("m0_alloc", "fake_error");
 
+Fault injection is used mainly in UT to test error handling code paths. Usually
+such checks are consolidated in a dedicated test of particular test suite. One
+thing should be taken into account while writing such tests. Many error
+conditions are logged using Mero tracing API (M0_LOG). And because fault
+injection is used to simulate errors, such errors are usually reported via
+M0_LOG(), creating some confusion with real error's logs. To help distinguish
+real errors from faked errors, a special markers need to be added to mark
+beginning and end of the test block, which uses fault injection. For example:
+
+    void test_module_failure()
+    {
+        M0_LOG(M0_INFO, "-----BEGIN FINJECT TEST-----");
+
+        ...use fault injection here...
+
+        M0_LOG(M0_INFO, "-----END FINJECT TEST-----");
+    }
+
 
 m0ctl.ko driver
 ----------------
