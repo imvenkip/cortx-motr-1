@@ -27,9 +27,6 @@ server_nid=$1
 
 main()
 {
-	modprobe lnet &>> /dev/null
-	lctl network up &>> /dev/null
-
 	prepare
 
 	echo "Prepare done, starting tests..."

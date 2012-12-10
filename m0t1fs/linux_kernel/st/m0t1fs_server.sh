@@ -26,21 +26,12 @@ fi
 
 main()
 {
-	if [ "x$1" = "xstart" ] || [ "x$1" = "xStart" ]; then
-		modprobe lnet &>> /dev/null
-		lctl network up &>> /dev/null
-		lnet_nid=`lctl list_nids | head -1`
-		echo $lnet_nid
-		LADDR="$lnet_nid:12345:33:1"
-	fi
-
 	mero_service $1
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to trigger Mero Service."
 		exit 1
 	fi
-
 }
 
 main $1 $2

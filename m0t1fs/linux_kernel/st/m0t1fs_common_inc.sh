@@ -41,11 +41,6 @@ TM_MIN_RECV_QUEUE_LEN=16
 # Maximum value needed to run current ST is 160k.
 MAX_RPC_MSG_SIZE=163840
 XPT=lnet
-lnet_nid=`sudo lctl list_nids | head -1`
-server_nid=${server_nid:-$lnet_nid}
-
-# Client end point (m0mero module local_addr)
-LADDR="$lnet_nid:12345:33:1"
 
 # list of server end points
 EP=(
@@ -54,11 +49,6 @@ EP=(
     12345:33:103
     12345:33:104
 )
-
-SERVICES="mds=${server_nid}:${EP[0]}"
-for ((i=0; i < ${#EP[*]}; i++)) ; do
-	SERVICES="${SERVICES},ios=${server_nid}:${EP[$i]}"
-done
 
 unload_kernel_module()
 {
@@ -73,7 +63,18 @@ unload_kernel_module()
 
 load_kernel_module()
 {
-	modprobe lnet
+	modprobe lnet &>> /dev/null
+	lctl network up &>> /dev/null
+	lnet_nid=`sudo lctl list_nids | head -1`
+	server_nid=${server_nid:-$lnet_nid}
+
+	# Client end point (m0mero module local_addr)
+	LADDR="$lnet_nid:12345:33:1"
+
+	SERVICES="mds=${server_nid}:${EP[0]}"
+	for ((i=0; i < ${#EP[*]}; i++)) ; do
+		SERVICES="${SERVICES},ios=${server_nid}:${EP[$i]}"
+	done
 
 	mero_module_path=$MERO_CORE_ROOT/build_kernel_modules
 	mero_module=$MERO_MODULE
