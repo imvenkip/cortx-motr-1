@@ -213,7 +213,10 @@ AC_DEFUN([MERO_BUILD_LIB],
        AS_IF([! test -e $cbl_libfile],
              [
                AC_MSG_RESULT([building $cbl_srcdir])
-               (cd $cbl_srcdir && $cbl_distdir/configure $cbl_buildopts && make)
+               (cd $cbl_srcdir \
+                && if [test -x autogen.sh]; then ./autogen.sh; fi \
+                && $cbl_distdir/configure $cbl_buildopts \
+                && make)
                AS_IF([test $? -ne 0],
                      AC_MSG_ERROR([An error occured while building lib$cbl_name!]))
                AS_IF([! test -e $cbl_libfile],
