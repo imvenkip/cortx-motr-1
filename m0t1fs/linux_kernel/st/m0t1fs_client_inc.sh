@@ -75,6 +75,7 @@ bulkio_test()
 	if ! $cmd
 	then
 		echo "Failed to create local input file."
+		unmount_and_clean
 		return 1
 	fi
 
@@ -84,6 +85,7 @@ bulkio_test()
 	if ! $cmd
 	then
 		echo "Failed to write data on m0t1fs file."
+		unmount_and_clean
 		return 1
 	fi
 
@@ -104,6 +106,7 @@ bulkio_test()
 	if ! $cmd
 	then
 		echo "Failed to read data from m0t1fs file."
+		unmount_and_clean
 		return 1
 	fi
 
@@ -112,6 +115,7 @@ bulkio_test()
 	then
 		echo -n "Failed: data written and data read from m0t1fs file "
 		echo    "are not same."
+		unmount_and_clean
 		return 1
 	fi
 
