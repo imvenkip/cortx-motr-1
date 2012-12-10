@@ -1,3 +1,7 @@
+*** NOTICE ***  There is no need to run gccxml or gccxml2xcode manually. It's
+                automatically done for you by the build system. Please, see
+                section "build system integration" for more details.
+
 gccxml
 ------
 
@@ -230,26 +234,35 @@ original ff2c syntax:
 
 Their up-to-date declaration can be found in xcode/xcode_attr.h file.
 
+
+build system integration
+------------------------
+
 The process of '*_xc.[hc]' files generation is automated. Let's say one needs to
 generate xocde for the 'xcode/ut/test_gccxml.h' header. For this, one just needs
-to add the following code into 'xcode/ut/Makefile.am':
+to add the following code into 'xcode/ut/Makefile.sub':
 
-    include $(top_srcdir)/Makefile.xc
+    ut_libmero_ut_la_SOURCES += xcode/ut/test_gccxml_xc.c
 
-    libxcode_ut_la_SOURCES  += test_gccxml_xc.c
+    XC_FILES += xcode/ut/test_gccxml_xc.h
 
-    clean-local: clean-xc
+    CLEAN_FILES += xcode/ut/test_gccxml_xc.h \
+                   xcode/ut/test_gccxml_xc.c
 
 What it does is:
 
-  * include Makefile.xc, which contains build and clean targets
-    for '*_xc.[hc]' files
-
   * add not(-yet) existing test_gccxml_xc.c file to the list
-    of sources, which will invoke xcode generation for test_gccxml.h
+    of sources, so it will be compiled into libmero-ut.la
 
-  * and add xc clean target as prerequisite for clean-local,
-    so '*_xc.[hco]' and '*.gccxml' files will be removed on `make clean`.
+  * add not(-yet) existing test_gccxml_xc.h to XC_FILES variable, which will
+    invoke xcode generation for test_gccxml.h
+
+  * and finally add generated xc files to clean list, so they will be cleaned on
+    `make clean`
+
+
+prerequisites
+-------------
 
 In order to successfully use automatic xcode generation in mero code, the
 following tools should be installed in the development environment:
