@@ -250,6 +250,7 @@ M0_INTERNAL int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
 
 	return rc;
 }
+
 #endif /* __KERNEL__ */
 
 /**
@@ -257,31 +258,25 @@ M0_INTERNAL int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
  */
 M0_INTERNAL void m0_rpc_item_dispatch(struct m0_rpc_item *item)
 {
-	struct m0_fop                        *fop;
-	struct m0_reqh                       *reqh;
         struct m0_rpc_fop_conn_establish_ctx *ctx;
 	struct m0_rpc_machine                *rpcmach;
 
 	M0_ENTRY("item : %p", item);
 
-	 if (m0_rpc_item_is_conn_establish(item)) {
-
+	if (m0_rpc_item_is_conn_establish(item)) {
 		ctx = container_of(item, struct m0_rpc_fop_conn_establish_ctx,
-					cec_fop.f_item);
-		M0_ASSERT(ctx != NULL);
+				   cec_fop.f_item);
 		rpcmach = ctx->cec_rpc_machine;
 	} else
 		rpcmach = item_machine(item);
 
-	M0_ASSERT(rpcmach != NULL);
-
-	reqh = rpcmach->rm_reqh;
-	M0_ASSERT(reqh != NULL);
-
-	fop = m0_rpc_item_to_fop(item);
-#ifndef __KERNEL__
-	m0_reqh_fop_handle(reqh, fop);
-#endif
+	if (item->ri_ops->rio_deliver != NULL)
+		item->ri_ops->rio_deliver(rpcmach, item);
+	else
+		/**
+		 * @todo this assumes that the item is a fop.
+		 */
+		m0_reqh_fop_handle(rpcmach->rm_reqh, m0_rpc_item_to_fop(item));
 	M0_LEAVE();
 }
 
