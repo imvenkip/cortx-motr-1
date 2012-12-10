@@ -310,7 +310,15 @@ struct m0_rpc_item_type_ops {
 			       struct m0_rpc_item *component,
 			       m0_bcount_t         limit);
 
+	/**
+	   RPC item type specific routine that will take reference on the item.
+           For fops, this routine is almost always set to m0_fop_item_get().
+	 */
 	void (*rito_item_get)(struct m0_rpc_item *item);
+	/**
+	   RPC item type specific routine that will drop reference on the item.
+           For fops, this routine is almost always set to m0_fop_item_put().
+	 */
 	void (*rito_item_put)(struct m0_rpc_item *item);
 
 };

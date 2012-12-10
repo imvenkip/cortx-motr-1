@@ -58,7 +58,7 @@ M0_TL_DESCR_DEFINE(ft, "fop types", static, struct m0_fop_type,
 
 M0_TL_DEFINE(ft, static, struct m0_fop_type);
 
-static const char *fop_name(struct m0_fop *fop)
+static const char *fop_name(const struct m0_fop *fop)
 {
 	return fop->f_type->ft_name;
 }
@@ -80,7 +80,7 @@ M0_INTERNAL void m0_fop_init(struct m0_fop *fop, struct m0_fop_type *fopt,
 			     void *data, void (*fop_release)(struct m0_ref *))
 {
 	M0_ENTRY();
-	M0_PRE(fop != NULL && fopt != NULL);
+	M0_PRE(fop != NULL && fopt != NULL && fop_release != NULL);
 
 	m0_ref_init(&fop->f_ref, 1, fop_release);
 	fop->f_type = fopt;
@@ -90,6 +90,8 @@ M0_INTERNAL void m0_fop_init(struct m0_fop *fop, struct m0_fop_type *fopt,
 	m0_atomic64_inc(&fop_counter);
 	M0_LOG(M0_DEBUG, "fop: %p %s %d", fop, fop_name(fop),
 	       (int)m0_atomic64_get(&fop_counter));
+
+	M0_POST(m0_ref_read(&fop->f_ref) == 1);
 	M0_LEAVE();
 }
 
@@ -109,6 +111,7 @@ struct m0_fop *m0_fop_alloc(struct m0_fop_type *fopt, void *data)
 		}
 	}
 
+	M0_POST(ergo(fop != NULL, m0_ref_read(&fop->f_ref) == 1));
 	return fop;
 }
 M0_EXPORTED(m0_fop_alloc);
@@ -146,7 +149,7 @@ struct m0_fop *m0_fop_get(struct m0_fop *fop)
 	         fop_name(fop),
 	         (unsigned long long)count,
 	         (unsigned long long)count + 1);
-	M0_PRE(m0_ref_read(&fop->f_ref) > 0);
+	M0_PRE(count > 0);
 
 	m0_ref_get(&fop->f_ref);
 
