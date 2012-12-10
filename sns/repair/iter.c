@@ -396,6 +396,9 @@ static int __fid_next(struct m0_sns_repair_cm *rcm, struct m0_fid *fid_next)
         else
                 m0_db_tx_abort(&tx);
 
+	if (fid_next->f_container > 0)
+		rc = -ENOENT;
+
 	return rc;
 }
 
@@ -406,8 +409,8 @@ static int __fid_next(struct m0_sns_repair_cm *rcm, struct m0_fid *fid_next)
  */
 static int iter_fid_next(struct m0_sns_repair_cm *rcm)
 {
-	struct m0_fid              fid_next;
-	int                        rc;
+	struct m0_fid fid_next = {0, 0};
+	int           rc;
 
 	/* Get current GOB fid saved in the iterator. */
 	rc = __fid_next(rcm, &fid_next);
@@ -799,11 +802,10 @@ M0_INTERNAL int m0_sns_repair_iter_init(struct m0_sns_repair_cm *rcm)
 	struct m0_dbenv      *dbenv;
 	struct m0_cob_domain *cdom;
 	/*
-	 * gfids {1,1}, {1,2} and {1,3} are reserved for storage virtual
-	 * root, session root and metadata hierarchy root respectively. Hence
-	 * pick the next best possible fid to initialise the namespace iter.
+	 * Pick the best possible fid to initialise the namespace iter.
+	 * m0t1fs starts its fid space from {0,4}.
 	 */
-	struct m0_fid         gfid = {1, 4};
+	struct m0_fid         gfid = {0, 4};
 
 	M0_PRE(rcm != NULL);
 

@@ -18,10 +18,6 @@
  * Original creation date: 11/21/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/memory.h"
 #include "lib/misc.h"  /* SET0 */
 #include "cob/ns_iter.h"
@@ -61,6 +57,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 {
 	int                  rc;
         struct m0_cob_nskey *key = NULL;
+	struct m0_cob_nsrec  rec;
         struct m0_db_pair    db_pair;
         struct m0_db_cursor  db_cursor;
 	struct m0_table     *db_table;
@@ -89,9 +86,14 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 
         rc = m0_cob_nskey_make(&key, &key_fid, (char *)nskey_bs,
 			       nskey_bs_len);
+        if (rc != 0) {
+                m0_db_tx_abort(tx);
+                return rc;
+        }
 
-        m0_db_pair_setup(&db_pair, db_table, key, m0_cob_nskey_size(key),
-			 NULL, 0);
+        m0_db_pair_setup(&db_pair, db_table, key,
+			 m0_cob_nskey_size(key) + UINT32_MAX_STR_LEN,
+			 &rec, sizeof rec);
 
         rc = m0_db_cursor_get(&db_cursor, &db_pair);
         if (rc != 0)

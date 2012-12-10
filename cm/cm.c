@@ -691,7 +691,7 @@ M0_INTERNAL bool m0_cm_has_more_data(const struct m0_cm *cm)
 {
 	M0_PRE(m0_cm_invariant(cm));
 
-	return m0_fom_rc(&cm->cm_cp_pump.p_fom) != -ENODATA;
+	return !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump);
 }
 
 #undef M0_TRACE_SUBSYSTEM

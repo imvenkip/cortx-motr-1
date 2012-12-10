@@ -302,10 +302,7 @@ static int cc_cob_nskey_make(struct m0_cob_nskey **nskey,
 	nskey_name_len = strlen(nskey_name);
 
 	rc = m0_cob_nskey_make(nskey, gfid, (char *)nskey_name, nskey_name_len);
-        if (rc == -ENOMEM || nskey == NULL)
-		return -ENOMEM;
-
-	return 0;
+	return rc;
 }
 
 static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
