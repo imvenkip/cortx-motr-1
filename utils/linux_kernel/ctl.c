@@ -29,7 +29,7 @@
 /**
  * @defgroup m0ctl Mero Kernel-space Control
  *
- * @brief m0ctl driver provides a debugfs interface to control kmero in
+ * @brief m0ctl driver provides a debugfs interface to control m0mero in
  * runtime. All control files are placed under "mero/" directory in the root
  * of debugfs file system. For more details about debugfs please @see
  * Documentation/filesystems/debugfs.txt in the linux kernel's source tree.
