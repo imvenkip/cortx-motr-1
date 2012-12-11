@@ -385,8 +385,6 @@ m0_fini:
 #ifndef __KERNEL__
 	m0_fini();
 #endif
-	printf("fop_counter: %d\n", (int)m0_atomic64_get(&fop_counter));
-	M0_ASSERT(m0_atomic64_get(&fop_counter) == 0);
 
 	return rc;
 }

@@ -336,9 +336,6 @@ M0_INTERNAL void m0_fops_fini(void);
 		.xo_ptr  = m0_fop_data(f),		\
 }
 
-/* XXX Temporary */
-extern struct m0_atomic64 fop_counter;
-
 /** @} end of fop group */
 
 /* __MERO_FOP_FOP_H__ */

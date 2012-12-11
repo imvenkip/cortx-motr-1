@@ -32,9 +32,6 @@
    @{
  */
 
-/* XXX Temporary */
-struct m0_atomic64 fop_counter;
-
 static const struct m0_fol_rec_type_ops m0_fop_fol_default_ops;
 
 const struct m0_addb_ctx_type m0_fop_addb_ctx = {
@@ -87,9 +84,7 @@ M0_INTERNAL void m0_fop_init(struct m0_fop *fop, struct m0_fop_type *fopt,
 	m0_addb_ctx_init(&fop->f_addb, &m0_fop_addb_ctx, &fopt->ft_addb);
 	m0_rpc_item_init(&fop->f_item, &fopt->ft_rpc_item_type);
 	fop->f_data.fd_data = data;
-	m0_atomic64_inc(&fop_counter);
-	M0_LOG(M0_DEBUG, "fop: %p %s %d", fop, fop_name(fop),
-	       (int)m0_atomic64_get(&fop_counter));
+	M0_LOG(M0_DEBUG, "fop: %p %s", fop, fop_name(fop));
 
 	M0_POST(m0_ref_read(&fop->f_ref) == 1);
 	M0_LEAVE();
@@ -126,8 +121,7 @@ M0_INTERNAL void m0_fop_fini(struct m0_fop *fop)
 	m0_addb_ctx_fini(&fop->f_addb);
 	if (fop->f_data.fd_data != NULL)
 		m0_xcode_free(&M0_FOP_XCODE_OBJ(fop));
-	m0_atomic64_dec(&fop_counter);
-	M0_LEAVE("fop_counter %d", (int)m0_atomic64_get(&fop_counter));
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_fop_release(struct m0_ref *ref)
