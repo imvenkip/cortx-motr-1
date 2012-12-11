@@ -3342,7 +3342,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 		delta  = 0;
 		bbsegs = 0;
-		if (!(ti->ti_pageattrs[buf] & filter)) {
+		if (!(ti->ti_pageattrs[buf] & filter) ||
+		    !(ti->ti_pageattrs[buf] & rw)) {
 			++buf;
 			continue;
 		}
