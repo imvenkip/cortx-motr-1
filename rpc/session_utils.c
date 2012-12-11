@@ -270,7 +270,7 @@ M0_INTERNAL void m0_rpc_item_dispatch(struct m0_rpc_item *item)
 	} else
 		rpcmach = item_machine(item);
 
-	if (item->ri_ops->rio_deliver != NULL)
+	if (item->ri_ops != NULL && item->ri_ops->rio_deliver != NULL)
 		item->ri_ops->rio_deliver(rpcmach, item);
 	else
 		/**
