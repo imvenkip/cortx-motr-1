@@ -133,6 +133,11 @@ static inline bool m0_atomic64_cas_ptr(void **loc, void *old, void *new)
 	m0_atomic64_cas_ptr((void **)(loc), old, new);			\
 })
 
+/**
+   Hardware memory barrier. Forces strict CPU ordering.
+ */
+static inline void m0_mb(void);
+
 /** @} end of atomic group */
 
 /* __MERO_LIB_ATOMIC_H__ */

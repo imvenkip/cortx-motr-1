@@ -153,6 +153,11 @@ static inline bool m0_atomic64_cas(int64_t * loc, int64_t old, int64_t new)
 	return __sync_bool_compare_and_swap(loc, old, new);
 }
 
+PREFIX void m0_mb(void)
+{
+	__synchronize_sync();
+}
+
 /** @} end of atomic group */
 
 #endif /* __MERO_LIB___SYNC_ATOMIC_H__ */
