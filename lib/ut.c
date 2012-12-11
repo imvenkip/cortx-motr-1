@@ -27,9 +27,9 @@
 #include <stdio.h>                 /* asprintf */
 #include <unistd.h>                /* dup, dup2 */
 
-#include "lib/assert.h"            /* C2_ASSERT */
+#include "lib/assert.h"            /* M0_ASSERT */
 #include "lib/thread.h"            /* LAMBDA */
-#include "lib/memory.h"            /* c2_allocated */
+#include "lib/memory.h"            /* m0_allocated */
 #include "lib/ut.h"
 
 /**
@@ -37,26 +37,26 @@
    @{
  */
 
-C2_INTERNAL int c2_uts_init(void)
+M0_INTERNAL int m0_uts_init(void)
 {
-	C2_CASSERT(CUE_SUCCESS == 0);
+	M0_CASSERT(CUE_SUCCESS == 0);
 	return -CU_initialize_registry();
 }
 
-C2_INTERNAL void c2_uts_fini(void)
+M0_INTERNAL void m0_uts_fini(void)
 {
 	CU_cleanup_registry();
-	C2_ASSERT(CU_get_error() == 0);
+	M0_ASSERT(CU_get_error() == 0);
 }
 
-C2_INTERNAL void c2_ut_add(const struct c2_test_suite *ts)
+M0_INTERNAL void m0_ut_add(const struct m0_test_suite *ts)
 {
 	CU_pSuite pSuite;
 	int i;
 
 	/* add a suite to the registry */
 	pSuite = CU_add_suite(ts->ts_name, ts->ts_init, ts->ts_fini);
-	C2_ASSERT(pSuite != NULL);
+	M0_ASSERT(pSuite != NULL);
 
 	for (i = 0; ts->ts_tests[i].t_name != NULL; i++) {
 		if (CU_add_test(pSuite, ts->ts_tests[i].t_name,
@@ -64,18 +64,18 @@ C2_INTERNAL void c2_ut_add(const struct c2_test_suite *ts)
 			break;
 	}
 
-	C2_ASSERT(ts->ts_tests[i].t_name == NULL);
+	M0_ASSERT(ts->ts_tests[i].t_name == NULL);
 }
 
 typedef void (*ut_suite_action_t)(CU_pSuite);
 typedef void (*ut_test_action_t)(CU_pSuite, CU_pTest);
 
-static void ut_traverse_test_list(struct c2_list *list, ut_suite_action_t sa,
+static void ut_traverse_test_list(struct m0_list *list, ut_suite_action_t sa,
 				  ut_test_action_t ta)
 {
-	struct c2_test_suite_entry *te;
+	struct m0_test_suite_entry *te;
 
-	c2_list_for_each_entry(list, te, struct c2_test_suite_entry, tse_linkage) {
+	m0_list_for_each_entry(list, te, struct m0_test_suite_entry, tse_linkage) {
 		CU_pTestRegistry r;
 		CU_pSuite s;
 		CU_pTest t;
@@ -104,12 +104,12 @@ static void ut_traverse_test_list(struct c2_list *list, ut_suite_action_t sa,
 	}
 }
 
-static void ut_run_basic_mode(struct c2_list *test_list,
-	       struct c2_list *exclude_list)
+static void ut_run_basic_mode(struct m0_list *test_list,
+	       struct m0_list *exclude_list)
 {
-	if (c2_list_is_empty(test_list)) {
+	if (m0_list_is_empty(test_list)) {
 		/* run all tests, except those, which present in exclude_list */
-		if (!c2_list_is_empty(exclude_list)) {
+		if (!m0_list_is_empty(exclude_list)) {
 			ut_suite_action_t sa = LAMBDA(void, (CU_pSuite s) {
 							s->fActive = CU_FALSE;
 						});
@@ -141,13 +141,13 @@ static size_t used_mem_before_suite;
 
 static void ut_suite_start_cbk(const CU_pSuite pSuite)
 {
-	used_mem_before_suite = c2_allocated();
+	used_mem_before_suite = m0_allocated();
 }
 
 static void ut_suite_stop_cbk(const CU_pSuite pSuite,
 			      const CU_pFailureRecord pFailure)
 {
-	size_t used_mem_after_suite = c2_allocated();
+	size_t used_mem_after_suite = m0_allocated();
 	int    leaked_bytes = used_mem_after_suite - used_mem_before_suite;
 	float  leaked;
 	char   *units;
@@ -180,7 +180,7 @@ static void ut_set_suite_start_stop_cbk(void)
 	CU_set_suite_complete_handler(ut_suite_stop_cbk);
 }
 
-C2_INTERNAL void c2_ut_run(struct c2_ut_run_cfg *c)
+M0_INTERNAL void m0_ut_run(struct m0_ut_run_cfg *c)
 {
 	ut_set_suite_start_stop_cbk();
 
@@ -192,7 +192,7 @@ C2_INTERNAL void c2_ut_run(struct c2_ut_run_cfg *c)
 	if (c->urc_abort_cu_assert)
 		CU_set_assert_mode(CUA_Abort);
 
-	if (c->urc_mode == C2_UT_AUTOMATED_MODE) {
+	if (c->urc_mode == M0_UT_AUTOMATED_MODE) {
 		/* run and save results to xml */
 
 		/*
@@ -204,28 +204,28 @@ C2_INTERNAL void c2_ut_run(struct c2_ut_run_cfg *c)
 		 * Because we run in the sandbox directory, which is removed by
 		 * default after test execution, we need to prepend '../' to the
 		 * filename, in order to store it outside of sandbox. */
-		CU_set_output_filename("../C2UT");
+		CU_set_output_filename("../M0UT");
 
 		CU_list_tests_to_file();
 		CU_automated_run_tests();
 	} else {
 		/* run and make console output */
-		if (c->urc_mode == C2_UT_BASIC_MODE) {
+		if (c->urc_mode == M0_UT_BASIC_MODE) {
 			ut_run_basic_mode(c->urc_test_list, c->urc_exclude_list);
-		} else if (c->urc_mode == C2_UT_ICONSOLE_MODE) {
+		} else if (c->urc_mode == M0_UT_ICONSOLE_MODE) {
 			CU_console_run_tests();
 		}
 	}
 }
 
-C2_INTERNAL void c2_ut_list(bool with_tests)
+M0_INTERNAL void m0_ut_list(bool with_tests)
 {
 	CU_pTestRegistry registry;
 	CU_pSuite        suite;
 	CU_pTest         test;
 
 	registry = CU_get_registry();
-	C2_ASSERT(registry != NULL);
+	M0_ASSERT(registry != NULL);
 
 	if (registry->uiNumberOfSuites == 0) {
 		fprintf(stderr, "\n%s\n", "No test suites are registered.");
@@ -245,7 +245,7 @@ C2_INTERNAL void c2_ut_list(bool with_tests)
 		}
 }
 
-C2_INTERNAL int c2_ut_db_reset(const char *db_name)
+M0_INTERNAL int m0_ut_db_reset(const char *db_name)
 {
         char *cmd;
 	int   rc;
@@ -258,8 +258,8 @@ C2_INTERNAL int c2_ut_db_reset(const char *db_name)
 	return rc;
 }
 
-C2_INTERNAL void c2_stream_redirect(FILE * stream, const char *path,
-				    struct c2_ut_redirect *redir)
+M0_INTERNAL void m0_stream_redirect(FILE * stream, const char *path,
+				    struct m0_ut_redirect *redir)
 {
 	FILE *result;
 
@@ -279,28 +279,28 @@ C2_INTERNAL void c2_stream_redirect(FILE * stream, const char *path,
 	fgetpos(stream, &redir->ur_pos);
 	redir->ur_oldfd = fileno(stream);
 	redir->ur_fd = dup(redir->ur_oldfd);
-	C2_ASSERT(redir->ur_fd != -1);
+	M0_ASSERT(redir->ur_fd != -1);
 	result = freopen(path, "a+", stream);
-	C2_ASSERT(result != NULL);
+	M0_ASSERT(result != NULL);
 }
 
-C2_INTERNAL void c2_stream_restore(const struct c2_ut_redirect *redir)
+M0_INTERNAL void m0_stream_restore(const struct m0_ut_redirect *redir)
 {
 	int result;
 
 	/*
-	 * see comment in c2_stream_redirect() for detailed information
+	 * see comment in m0_stream_redirect() for detailed information
 	 * about how to redirect and restore standard streams
 	 */
 	fflush(redir->ur_stream);
 	result = dup2(redir->ur_fd, redir->ur_oldfd);
-	C2_ASSERT(result != -1);
+	M0_ASSERT(result != -1);
 	close(redir->ur_fd);
 	clearerr(redir->ur_stream);
 	fsetpos(redir->ur_stream, &redir->ur_pos);
 }
 
-C2_INTERNAL bool c2_error_mesg_match(FILE * fp, const char *mesg)
+M0_INTERNAL bool m0_error_mesg_match(FILE * fp, const char *mesg)
 {
 	enum {
 		MAXLINE = 1025,
@@ -308,8 +308,8 @@ C2_INTERNAL bool c2_error_mesg_match(FILE * fp, const char *mesg)
 
 	char line[MAXLINE];
 
-	C2_PRE(fp != NULL);
-	C2_PRE(mesg != NULL);
+	M0_PRE(fp != NULL);
+	M0_PRE(mesg != NULL);
 
 	fseek(fp, 0L, SEEK_SET);
 	memset(line, '\0', MAXLINE);

@@ -18,8 +18,8 @@
  * Original creation date: 06/28/2012
  */
 
-#include "lib/misc.h"		/* C2_SET0 */
-#include "lib/memory.h"		/* C2_ALLOC_ARR */
+#include "lib/misc.h"		/* M0_SET0 */
+#include "lib/memory.h"		/* M0_ALLOC_ARR */
 #include "lib/errno.h"		/* ENOMEM */
 
 #include "net/test/slist.h"
@@ -36,26 +36,26 @@ enum {
 	SLIST_SERIALIZE_MAGIC =  0x5453494C535F544E,
 };
 
-static bool slist_alloc(struct c2_net_test_slist *slist,
+static bool slist_alloc(struct m0_net_test_slist *slist,
 		        size_t string_nr,
 		        size_t arr_len)
 {
-	C2_ALLOC_ARR(slist->ntsl_list, string_nr);
+	M0_ALLOC_ARR(slist->ntsl_list, string_nr);
 	if (slist->ntsl_list != NULL) {
-		C2_ALLOC_ARR(slist->ntsl_str, arr_len);
+		M0_ALLOC_ARR(slist->ntsl_str, arr_len);
 		if (slist->ntsl_str == NULL)
-			c2_free(slist->ntsl_list);
+			m0_free(slist->ntsl_list);
 	}
 	return slist->ntsl_list != NULL && slist->ntsl_str != NULL;
 }
 
-static void slist_free(struct c2_net_test_slist *slist)
+static void slist_free(struct m0_net_test_slist *slist)
 {
-	c2_free(slist->ntsl_list);
-	c2_free(slist->ntsl_str);
+	m0_free(slist->ntsl_list);
+	m0_free(slist->ntsl_str);
 }
 
-int c2_net_test_slist_init(struct c2_net_test_slist *slist,
+int m0_net_test_slist_init(struct m0_net_test_slist *slist,
 			   const char *str,
 			   char delim)
 {
@@ -64,11 +64,11 @@ int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 	size_t i = 0;
 	bool   allocated;
 
-	C2_PRE(slist != NULL);
-	C2_PRE(str   != NULL);
-	C2_PRE(delim != '\0');
+	M0_PRE(slist != NULL);
+	M0_PRE(str   != NULL);
+	M0_PRE(delim != '\0');
 
-	C2_SET0(slist);
+	M0_SET0(slist);
 
 	for (len = 0; str[len] != '\0'; ++len)
 		slist->ntsl_nr += str[len] == delim;
@@ -89,11 +89,11 @@ int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 				slist->ntsl_list[i++] = str1 + 1;
 			}
 	}
-	C2_POST(c2_net_test_slist_invariant(slist));
+	M0_POST(m0_net_test_slist_invariant(slist));
 	return 0;
 }
 
-bool c2_net_test_slist_invariant(const struct c2_net_test_slist *slist)
+bool m0_net_test_slist_invariant(const struct m0_net_test_slist *slist)
 {
 	size_t i;
 
@@ -116,21 +116,21 @@ bool c2_net_test_slist_invariant(const struct c2_net_test_slist *slist)
 	return true;
 }
 
-void c2_net_test_slist_fini(struct c2_net_test_slist *slist)
+void m0_net_test_slist_fini(struct m0_net_test_slist *slist)
 {
-	C2_PRE(c2_net_test_slist_invariant(slist));
+	M0_PRE(m0_net_test_slist_invariant(slist));
 
 	if (slist->ntsl_nr > 0)
 		slist_free(slist);
-	C2_SET0(slist);
+	M0_SET0(slist);
 }
 
-bool c2_net_test_slist_unique(const struct c2_net_test_slist *slist)
+bool m0_net_test_slist_unique(const struct m0_net_test_slist *slist)
 {
 	size_t i;
 	size_t j;
 
-	C2_PRE(c2_net_test_slist_invariant(slist));
+	M0_PRE(m0_net_test_slist_invariant(slist));
 
 	for (i = 0; i < slist->ntsl_nr; ++i)
 		for (j = i + 1; j < slist->ntsl_nr; ++j)
@@ -152,13 +152,13 @@ TYPE_DESCR(slist_params) = {
 	FIELD_DESCR(struct slist_params, sp_magic),
 };
 
-static c2_bcount_t slist_encode(struct c2_net_test_slist *slist,
-				struct c2_bufvec *bv,
-				c2_bcount_t offset)
+static m0_bcount_t slist_encode(struct m0_net_test_slist *slist,
+				struct m0_bufvec *bv,
+				m0_bcount_t offset)
 {
 	struct slist_params sp;
-	c2_bcount_t	    len;
-	c2_bcount_t	    len_total;
+	m0_bcount_t	    len;
+	m0_bcount_t	    len_total;
 
 	sp.sp_nr    = slist->ntsl_nr;
 	sp.sp_len   = slist->ntsl_nr == 0 ? 0 :
@@ -167,36 +167,36 @@ static c2_bcount_t slist_encode(struct c2_net_test_slist *slist,
 		      strlen(slist->ntsl_list[slist->ntsl_nr - 1]) + 1;
 	sp.sp_magic = SLIST_SERIALIZE_MAGIC;
 
-	len_total = c2_net_test_serialize(C2_NET_TEST_SERIALIZE, &sp,
+	len_total = m0_net_test_serialize(M0_NET_TEST_SERIALIZE, &sp,
 				          USE_TYPE_DESCR(slist_params),
 					  bv, offset);
 	if (len_total == 0 || slist->ntsl_nr == 0)
 		return len_total;
 
-	len = c2_net_test_serialize_data(C2_NET_TEST_SERIALIZE, slist->ntsl_str,
+	len = m0_net_test_serialize_data(M0_NET_TEST_SERIALIZE, slist->ntsl_str,
 					 sp.sp_len, true,
 					 bv, offset + len_total);
 	return len == 0 ? 0 : len_total + len;
 }
 
-static c2_bcount_t slist_decode(struct c2_net_test_slist *slist,
-				struct c2_bufvec *bv,
-				c2_bcount_t offset)
+static m0_bcount_t slist_decode(struct m0_net_test_slist *slist,
+				struct m0_bufvec *bv,
+				m0_bcount_t offset)
 {
 	struct slist_params sp;
-	c2_bcount_t	    len;
-	c2_bcount_t	    len_total;
+	m0_bcount_t	    len;
+	m0_bcount_t	    len_total;
 	size_t		    i;
 	bool		    allocated;
 
 
-	len_total = c2_net_test_serialize(C2_NET_TEST_DESERIALIZE, &sp,
+	len_total = m0_net_test_serialize(M0_NET_TEST_DESERIALIZE, &sp,
 					  USE_TYPE_DESCR(slist_params),
 					  bv, offset);
 	if (len_total == 0 || sp.sp_magic != SLIST_SERIALIZE_MAGIC)
 		return 0;
 
-	C2_SET0(slist);
+	M0_SET0(slist);
 	slist->ntsl_nr = sp.sp_nr;
 	/* zero-size string list */
 	if (slist->ntsl_nr == 0)
@@ -206,7 +206,7 @@ static c2_bcount_t slist_decode(struct c2_net_test_slist *slist,
 	if (!allocated)
 		return 0;
 
-	len = c2_net_test_serialize_data(C2_NET_TEST_DESERIALIZE, slist->ntsl_str,
+	len = m0_net_test_serialize_data(M0_NET_TEST_DESERIALIZE, slist->ntsl_str,
 				    sp.sp_len, true, bv, offset + len_total);
 	if (len == 0)
 		goto failed;
@@ -227,15 +227,15 @@ failed:
 	return 0;
 }
 
-c2_bcount_t c2_net_test_slist_serialize(enum c2_net_test_serialize_op op,
-					struct c2_net_test_slist *slist,
-					struct c2_bufvec *bv,
-					c2_bcount_t offset)
+m0_bcount_t m0_net_test_slist_serialize(enum m0_net_test_serialize_op op,
+					struct m0_net_test_slist *slist,
+					struct m0_bufvec *bv,
+					m0_bcount_t offset)
 {
-	C2_PRE(slist != NULL);
-	C2_PRE(op == C2_NET_TEST_SERIALIZE || op == C2_NET_TEST_DESERIALIZE);
+	M0_PRE(slist != NULL);
+	M0_PRE(op == M0_NET_TEST_SERIALIZE || op == M0_NET_TEST_DESERIALIZE);
 
-	return op == C2_NET_TEST_SERIALIZE ? slist_encode(slist, bv, offset) :
+	return op == M0_NET_TEST_SERIALIZE ? slist_encode(slist, bv, offset) :
 					     slist_decode(slist, bv, offset);
 }
 

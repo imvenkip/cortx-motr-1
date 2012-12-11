@@ -54,11 +54,11 @@
 
 #define C0_LVL_FILE		"cpu/cpu%u/cache/index0/level"
 #define C1_LVL_FILE		"cpu/cpu%u/cache/index1/level"
-#define C2_LVL_FILE		"cpu/cpu%u/cache/index2/level"
+#define M0_LVL_FILE		"cpu/cpu%u/cache/index2/level"
 
 #define C0_SHMAP_FILE		"cpu/cpu%u/cache/index0/shared_cpu_map"
 #define C1_SHMAP_FILE		"cpu/cpu%u/cache/index1/shared_cpu_map"
-#define C2_SHMAP_FILE		"cpu/cpu%u/cache/index2/shared_cpu_map"
+#define M0_SHMAP_FILE		"cpu/cpu%u/cache/index2/shared_cpu_map"
 
 #define	BUF_SZ	512
 #define	SMALL_STR_SZ	32
@@ -77,13 +77,13 @@ struct pinfo {
 	uint32_t coreid;
 	uint32_t c0lvl;
 	uint32_t c1lvl;
-	uint32_t c2lvl;
+	uint32_t m0lvl;
 	const char *c0szstr;
 	const char *c1szstr;
-	const char *c2szstr;
+	const char *m0szstr;
 	const char *c0sharedmapstr;
 	const char *c1sharedmapstr;
-	const char *c2sharedmapstr;
+	const char *m0sharedmapstr;
 };
 
 struct psummary test1_cpus_summary = {
@@ -100,13 +100,13 @@ struct pinfo test1_cpus[] = {
 		.coreid = 0,
 		.c0lvl = 1,
 		.c1lvl = 1,
-		.c2lvl = 2,
+		.m0lvl = 2,
 		.c0szstr = "64K\n",
 		.c1szstr = "64K\n",
-		.c2szstr = "540K\n",
+		.m0szstr = "540K\n",
 		.c0sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
 		.c1sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-		.c2sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000003\n"
+		.m0sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000003\n"
 	},
 	{
 		.numaid = 1,
@@ -114,32 +114,32 @@ struct pinfo test1_cpus[] = {
 		.coreid = 1,
 		.c0lvl = 1,
 		.c1lvl = 1,
-		.c2lvl = 2,
+		.m0lvl = 2,
 		.c0szstr = "64K\n",
 		.c1szstr = "64K\n",
-		.c2szstr = "540K\n",
+		.m0szstr = "540K\n",
 		.c0sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
 		.c1sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-		.c2sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000003\n"
+		.m0sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000003\n"
 	},
-	{ .numaid = C2_PROCESSORS_INVALID_ID },
-	{ .numaid = C2_PROCESSORS_INVALID_ID },
-	{ .numaid = C2_PROCESSORS_INVALID_ID },
-	{ .numaid = C2_PROCESSORS_INVALID_ID },
-	{ .numaid = C2_PROCESSORS_INVALID_ID },
+	{ .numaid = M0_PROCESSORS_INVALID_ID },
+	{ .numaid = M0_PROCESSORS_INVALID_ID },
+	{ .numaid = M0_PROCESSORS_INVALID_ID },
+	{ .numaid = M0_PROCESSORS_INVALID_ID },
+	{ .numaid = M0_PROCESSORS_INVALID_ID },
 	{
 		.numaid = 1,
 		.physid = 3,
 		.coreid = 0,
 		.c0lvl = 1,
 		.c1lvl = 1,
-		.c2lvl = 2,
+		.m0lvl = 2,
 		.c0szstr = "64K\n",
 		.c1szstr = "64K\n",
-		.c2szstr = "540K\n",
+		.m0szstr = "540K\n",
 		.c0sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
 		.c1sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-		.c2sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n"
+		.m0sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n"
 	}
 
 };
@@ -180,13 +180,13 @@ struct pinfo test7_cpus[] = {
 		.coreid = 0,
 		.c0lvl = 1,
 		.c1lvl = 1,
-		.c2lvl = 2,
+		.m0lvl = 2,
 		.c0szstr = "64K\n",
 		.c1szstr = "64K\n",
-		.c2szstr = "540K\n",
+		.m0szstr = "540K\n",
 		.c0sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
 		.c1sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-		.c2sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000003\n"
+		.m0sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000003\n"
 	},
 	{
 		.numaid = 1,
@@ -194,13 +194,13 @@ struct pinfo test7_cpus[] = {
 		.coreid = 1,
 		.c0lvl = 1,
 		.c1lvl = 1,
-		.c2lvl = 2,
+		.m0lvl = 2,
 		.c0szstr = "64K\n",
 		.c1szstr = "64K\n",
-		.c2szstr = "540K\n",
+		.m0szstr = "540K\n",
 		.c0sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
 		.c1sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-		.c2sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000003\n"
+		.m0sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000003\n"
 	},
 	{
 		.numaid = 1,
@@ -208,27 +208,27 @@ struct pinfo test7_cpus[] = {
 		.coreid = 0,
 		.c0lvl = 1,
 		.c1lvl = 1,
-		.c2lvl = 2,
+		.m0lvl = 2,
 		.c0szstr = "",
 	},
-	{ .numaid = C2_PROCESSORS_INVALID_ID },
-	{ .numaid = C2_PROCESSORS_INVALID_ID },
-	{ .numaid = C2_PROCESSORS_INVALID_ID },
-	{ .numaid = C2_PROCESSORS_INVALID_ID },
-	{ .numaid = C2_PROCESSORS_INVALID_ID },
+	{ .numaid = M0_PROCESSORS_INVALID_ID },
+	{ .numaid = M0_PROCESSORS_INVALID_ID },
+	{ .numaid = M0_PROCESSORS_INVALID_ID },
+	{ .numaid = M0_PROCESSORS_INVALID_ID },
+	{ .numaid = M0_PROCESSORS_INVALID_ID },
 	{
 		.numaid = 1,
 		.physid = 3,
 		.coreid = 0,
 		.c0lvl = 1,
 		.c1lvl = 1,
-		.c2lvl = 2,
+		.m0lvl = 2,
 		.c0szstr = "64K\n",
 		.c1szstr = "64K\n",
-		.c2szstr = "540K\n",
+		.m0szstr = "540K\n",
 		.c0sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
 		.c1sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-		.c2sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n"
+		.m0sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n"
 	}
 
 };
@@ -263,18 +263,18 @@ static void ub_init2(int i)
 {
 	int rc;
 
-	c2_processors_fini();
-	rc = c2_processors_init();
-	C2_UT_ASSERT(rc == 0);
+	m0_processors_fini();
+	rc = m0_processors_init();
+	M0_UT_ASSERT(rc == 0);
 }
 
 static void ub_init3(int i)
 {
 	int rc;
 
-	c2_processors_fini();
-	rc = c2_processors_init();
-	C2_UT_ASSERT(rc == 0);
+	m0_processors_fini();
+	rc = m0_processors_init();
+	M0_UT_ASSERT(rc == 0);
 }
 
 static uint32_t get_num_from_file(const char *file)
@@ -288,13 +288,13 @@ static uint32_t get_num_from_file(const char *file)
 		return num;
 	}
 	rc = fscanf(fp, "%u", &num);
-	C2_UT_ASSERT(rc != EOF);
+	M0_UT_ASSERT(rc != EOF);
 	fclose(fp);
 
 	return num;
 }
 
-static void maptostr(struct c2_bitmap *map, char **buf)
+static void maptostr(struct m0_bitmap *map, char **buf)
 {
 	uint32_t i,
 		 from_idx,
@@ -303,11 +303,11 @@ static void maptostr(struct c2_bitmap *map, char **buf)
 
 	char *str=*buf;
 
-	C2_UT_ASSERT(map != NULL && str != NULL);
+	M0_UT_ASSERT(map != NULL && str != NULL);
 	*str = '\0';
 
 	for (i=0; i < map->b_nr; i++) {
-		val = c2_bitmap_get(map, i);
+		val = m0_bitmap_get(map, i);
 		if (val == true) {
 			if (*str != '\0') {
 				strcat(str, ",");
@@ -315,7 +315,7 @@ static void maptostr(struct c2_bitmap *map, char **buf)
 			from_idx = to_idx = i;
 			while (val == true && i < map->b_nr) {
 				i++;
-				val = c2_bitmap_get(map, i);
+				val = m0_bitmap_get(map, i);
 			}
 			to_idx = i - 1;
 			if (from_idx == to_idx) {
@@ -332,26 +332,26 @@ static void verify_id_get(void)
 	int	id;
 	int	rc;
 
-	struct c2_bitmap	map;
-	c2_processor_nr_t	num;
+	struct m0_bitmap	map;
+	m0_processor_nr_t	num;
 
-	rc = c2_processors_init();
+	rc = m0_processors_init();
 	if (rc != 0) {
 		return;
 	}
 
-	num = c2_processor_nr_max();
-	c2_bitmap_init(&map, num);
+	num = m0_processor_nr_max();
+	m0_bitmap_init(&map, num);
 
-	c2_processors_online(&map);
+	m0_processors_online(&map);
 
-	id = c2_processor_id_get();
+	id = m0_processor_id_get();
 	if (id != -1) {
-		C2_UT_ASSERT(c2_bitmap_get(&map, id));
+		M0_UT_ASSERT(m0_bitmap_get(&map, id));
 	}
 
-	c2_bitmap_fini(&map);
-	c2_processors_fini();
+	m0_bitmap_fini(&map);
+	m0_processors_fini();
 }
 
 static void verify_map(int mapid)
@@ -364,32 +364,32 @@ static void verify_map(int mapid)
 	char                    *fgets_rc;
 	int			rc;
 	FILE 			*fp;
-	struct c2_bitmap	map;
-	c2_processor_nr_t	num;
+	struct m0_bitmap	map;
+	m0_processor_nr_t	num;
 
-	rc = c2_processors_init();
+	rc = m0_processors_init();
 	if (rc != 0) {
 		return;
 	}
 
-	num = c2_processor_nr_max();
-	c2_bitmap_init(&map, num);
+	num = m0_processor_nr_max();
+	m0_bitmap_init(&map, num);
 
 	switch (mapid) {
 		case POSS_MAP:
 			map_file = POSS_PROCESSOR_FILE;
-			c2_processors_possible(&map);
+			m0_processors_possible(&map);
 			break;
 		case AVAIL_MAP:
 			map_file = AVAIL_PROCESSOR_FILE;
-			c2_processors_available(&map);
+			m0_processors_available(&map);
 			break;
 		case ONLN_MAP:
 			map_file = ONLN_PROCESSOR_FILE;
-			c2_processors_online(&map);
+			m0_processors_online(&map);
 			break;
 		default:
-			C2_UT_ASSERT(0);
+			M0_UT_ASSERT(0);
 			break;
 	};
 
@@ -399,40 +399,40 @@ static void verify_map(int mapid)
 	sprintf(filename, "%s/%s", processor_info_dirp, map_file);
 	fp = fopen(filename, "r");
 	fgets_rc = fgets(result, BUF_SZ-1, fp);
-	C2_UT_ASSERT(fgets_rc != NULL);
+	M0_UT_ASSERT(fgets_rc != NULL);
 	fclose(fp);
 
 	rc = strncmp(result, expect, strlen(expect));
-	C2_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 
-	c2_bitmap_fini(&map);
-	c2_processors_fini();
+	m0_bitmap_fini(&map);
+	m0_processors_fini();
 }
 
 static void verify_max_processors()
 {
 	char			filename[PATH_MAX];
 	int			rc;
-	c2_processor_nr_t	num,
+	m0_processor_nr_t	num,
 				result;
 
-	rc = c2_processors_init();
+	rc = m0_processors_init();
 	if (rc != 0) {
 		return;
 	}
 
 	sprintf(filename, "%s/%s", processor_info_dirp, MAX_PROCESSOR_FILE);
-	result = (c2_processor_nr_t) get_num_from_file(filename);
+	result = (m0_processor_nr_t) get_num_from_file(filename);
 
-	num = c2_processor_nr_max();
-	C2_UT_ASSERT(num == result);
+	num = m0_processor_nr_max();
+	M0_UT_ASSERT(num == result);
 
-	c2_processors_fini();
+	m0_processors_fini();
 
 }
 
-static void verify_a_processor(c2_processor_nr_t id,
-			       struct c2_processor_descr *pd)
+static void verify_a_processor(m0_processor_nr_t id,
+			       struct m0_processor_descr *pd)
 {
 	int	rc1=0,
 		rc2=0;
@@ -446,8 +446,8 @@ static void verify_a_processor(c2_processor_nr_t id,
 			l2_sz;
 	struct stat	statbuf;
 
-	C2_UT_ASSERT(pd->pd_id == id);
-	C2_UT_ASSERT(pd->pd_pipeline == id);
+	M0_UT_ASSERT(pd->pd_id == id);
+	M0_UT_ASSERT(pd->pd_pipeline == id);
 
 	sprintf(filename, "%s/"NUMA_FILE1, processor_info_dirp,
 					   id, pd->pd_numa_node);
@@ -456,9 +456,9 @@ static void verify_a_processor(c2_processor_nr_t id,
 		sprintf(filename, "%s/"NUMA_FILE2, processor_info_dirp,
 						   pd->pd_numa_node, id);
 		rc2 = stat(filename, &statbuf);
-		C2_UT_ASSERT(rc2 == 0);
+		M0_UT_ASSERT(rc2 == 0);
 	}
-	C2_UT_ASSERT(rc1 == 0 || rc2 == 0 || pd->pd_numa_node == 0);
+	M0_UT_ASSERT(rc1 == 0 || rc2 == 0 || pd->pd_numa_node == 0);
 
 	sprintf(filename, "%s/"COREID_FILE, processor_info_dirp, id);
 	coreid = get_num_from_file(filename);
@@ -467,15 +467,15 @@ static void verify_a_processor(c2_processor_nr_t id,
 	physid = get_num_from_file(filename);
 
 	mixedid = physid << 16 | coreid;
-	C2_UT_ASSERT(pd->pd_l1 == id || pd->pd_l1 == mixedid);
-	C2_UT_ASSERT(pd->pd_l2 == id || pd->pd_l2 == mixedid ||
+	M0_UT_ASSERT(pd->pd_l1 == id || pd->pd_l1 == mixedid);
+	M0_UT_ASSERT(pd->pd_l2 == id || pd->pd_l2 == mixedid ||
 		     pd->pd_l2 == physid);
 
 	sprintf(filename, "%s/"L1SZ_FILE, processor_info_dirp, id);
 	l1_sz = get_num_from_file(filename);
 
 	l1_sz *= 1024;
-	C2_UT_ASSERT(pd->pd_l1_sz == l1_sz);
+	M0_UT_ASSERT(pd->pd_l1_sz == l1_sz);
 
 	sprintf(filename, "%s/"C1_LVL_FILE, processor_info_dirp, id);
 	lvl = get_num_from_file(filename);
@@ -488,40 +488,40 @@ static void verify_a_processor(c2_processor_nr_t id,
 	l2_sz = get_num_from_file(filename);
 
 	l2_sz *= 1024;
-	C2_UT_ASSERT(pd->pd_l2_sz == l2_sz);
+	M0_UT_ASSERT(pd->pd_l2_sz == l2_sz);
 }
 
 static void verify_processors()
 {
-	c2_processor_nr_t	i,
+	m0_processor_nr_t	i,
 				num;
 	bool			val;
 	int			rc;
 
-	struct c2_bitmap		onln_map;
-	struct c2_processor_descr	pd;
+	struct m0_bitmap		onln_map;
+	struct m0_processor_descr	pd;
 
-	rc = c2_processors_init();
+	rc = m0_processors_init();
 	if (rc != 0) {
 		return;
 	}
 
-	num = c2_processor_nr_max();
-	c2_bitmap_init(&onln_map, num);
-	c2_processors_online(&onln_map);
+	num = m0_processor_nr_max();
+	m0_bitmap_init(&onln_map, num);
+	m0_processors_online(&onln_map);
 
 	for (i=0; i < num; i++) {
-		val = c2_bitmap_get(&onln_map, i);
+		val = m0_bitmap_get(&onln_map, i);
 		if (val == true) {
-			rc = c2_processor_describe(i, &pd);
+			rc = m0_processor_describe(i, &pd);
 			if (rc == 0) {
 				verify_a_processor(i, &pd);
 			}
 		}
 	}
 
-	c2_bitmap_fini(&onln_map);
-	c2_processors_fini();
+	m0_bitmap_fini(&onln_map);
+	m0_processors_fini();
 }
 
 static void write_str_to_file(const char *file, const char *str)
@@ -556,7 +556,7 @@ static void populate_cpu_summary(struct psummary *sum)
 
 	sprintf(filename, "mkdir -p %s/cpu", processor_info_dirp);
 	rc = system(filename);
-	C2_UT_ASSERT(rc != -1);
+	M0_UT_ASSERT(rc != -1);
 
 	if (sum->kmaxstr) {
 		sprintf(filename, "%s/"MAX_PROCESSOR_FILE, processor_info_dirp);
@@ -590,25 +590,25 @@ static void populate_cpus(struct pinfo cpus[], uint32_t sz)
 	int      rc;
 
 	for (i=0; i < sz; i++) {
-		if (cpus[i].numaid == C2_PROCESSORS_INVALID_ID) {
+		if (cpus[i].numaid == M0_PROCESSORS_INVALID_ID) {
 			continue;
 		}
 		sprintf(filename, "mkdir -p %s/cpu/cpu%u/topology",
 				  processor_info_dirp, i);
 		rc = system(filename);
-		C2_UT_ASSERT(rc != -1);
+		M0_UT_ASSERT(rc != -1);
 		sprintf(filename, "mkdir -p %s/cpu/cpu%u/cache/index0",
 				  processor_info_dirp, i);
 		rc = system(filename);
-		C2_UT_ASSERT(rc != -1);
+		M0_UT_ASSERT(rc != -1);
 		sprintf(filename, "mkdir -p %s/cpu/cpu%u/cache/index1",
 				  processor_info_dirp, i);
 		rc = system(filename);
-		C2_UT_ASSERT(rc != -1);
+		M0_UT_ASSERT(rc != -1);
 		sprintf(filename, "mkdir -p %s/cpu/cpu%u/cache/index2",
 				  processor_info_dirp, i);
 		rc = system(filename);
-		C2_UT_ASSERT(rc != -1);
+		M0_UT_ASSERT(rc != -1);
 
 		sprintf(filename, "%s/"NUMA_FILE1, processor_info_dirp, i,
 						   cpus[i].numaid);
@@ -627,8 +627,8 @@ static void populate_cpus(struct pinfo cpus[], uint32_t sz)
 		sprintf(filename, "%s/"C1_LVL_FILE, processor_info_dirp, i);
 		write_num_to_file(filename, cpus[i].c1lvl);
 
-		sprintf(filename, "%s/"C2_LVL_FILE, processor_info_dirp, i);
-		write_num_to_file(filename, cpus[i].c2lvl);
+		sprintf(filename, "%s/"M0_LVL_FILE, processor_info_dirp, i);
+		write_num_to_file(filename, cpus[i].m0lvl);
 
 		if (cpus[i].c0szstr) {
 			sprintf(filename, "%s/"L1SZ_FILE,
@@ -642,10 +642,10 @@ static void populate_cpus(struct pinfo cpus[], uint32_t sz)
 			write_str_to_file(filename, cpus[i].c1szstr);
 		}
 
-		if (cpus[i].c2szstr) {
+		if (cpus[i].m0szstr) {
 			sprintf(filename, "%s/"L2SZ_FILE2,
 					  processor_info_dirp, i);
-			write_str_to_file(filename, cpus[i].c2szstr);
+			write_str_to_file(filename, cpus[i].m0szstr);
 		}
 
 		if (cpus[i].c0sharedmapstr) {
@@ -660,10 +660,10 @@ static void populate_cpus(struct pinfo cpus[], uint32_t sz)
 			write_str_to_file(filename, cpus[i].c1sharedmapstr);
 		}
 
-		if (cpus[i].c2sharedmapstr) {
-			sprintf(filename, "%s/"C2_SHMAP_FILE,
+		if (cpus[i].m0sharedmapstr) {
+			sprintf(filename, "%s/"M0_SHMAP_FILE,
 					  processor_info_dirp, i);
-			write_str_to_file(filename, cpus[i].c2sharedmapstr);
+			write_str_to_file(filename, cpus[i].m0sharedmapstr);
 		}
 
 	}/* for - populate test data for all CPUs */
@@ -689,7 +689,7 @@ static void clean_test_dataset(void)
 
 	sprintf(cmd, "rm -rf %s", processor_info_dirp);
 	rc = system(cmd);
-	C2_UT_ASSERT(rc != -1);
+	M0_UT_ASSERT(rc != -1);
 
 }
 
@@ -700,7 +700,7 @@ static void populate_test_dataset2(void)
 
 	sprintf(cmd, "mkdir -p %s/cpu", processor_info_dirp);
 	rc = system(cmd);
-	C2_UT_ASSERT(rc != -1);
+	M0_UT_ASSERT(rc != -1);
 
 }
 
@@ -746,8 +746,8 @@ static void verify_init(void)
 {
 	int rc;
 
-	rc = c2_processors_init();
-	C2_UT_ASSERT(rc != 0);
+	rc = m0_processors_init();
+	M0_UT_ASSERT(rc != 0);
 }
 
 static void verify_all_params()
@@ -765,58 +765,58 @@ void test_processor(void)
 	ub_init1(0);
 	ub_init2(0);
 	ub_init3(0);
-	c2_processors_fini(); /* clean normal data so we can load test data */
+	m0_processors_fini(); /* clean normal data so we can load test data */
 
 	processor_info_dirp = SYSFS_PATH;
 	verify_all_params();
 
 	processor_info_dirp = TEST1_SYSFS_PATH;
-	setenv("C2_PROCESSORS_INFO_DIR", TEST1_SYSFS_PATH, 1);
+	setenv("M0_PROCESSORS_INFO_DIR", TEST1_SYSFS_PATH, 1);
 	populate_test_dataset1();
 	verify_all_params();
 	clean_test_dataset();
 
 	processor_info_dirp = TEST2_SYSFS_PATH;
-	setenv("C2_PROCESSORS_INFO_DIR", TEST2_SYSFS_PATH, 1);
+	setenv("M0_PROCESSORS_INFO_DIR", TEST2_SYSFS_PATH, 1);
 	populate_test_dataset2();
 	verify_init();
 	clean_test_dataset();
 
 	processor_info_dirp = TEST3_SYSFS_PATH;
-	setenv("C2_PROCESSORS_INFO_DIR", TEST3_SYSFS_PATH, 1);
+	setenv("M0_PROCESSORS_INFO_DIR", TEST3_SYSFS_PATH, 1);
 	populate_test_dataset3();
 	verify_init();
 	clean_test_dataset();
 
 	processor_info_dirp = TEST4_SYSFS_PATH;
-	setenv("C2_PROCESSORS_INFO_DIR", TEST4_SYSFS_PATH, 1);
+	setenv("M0_PROCESSORS_INFO_DIR", TEST4_SYSFS_PATH, 1);
 	populate_test_dataset4();
 	verify_init();
 	clean_test_dataset();
 
 	processor_info_dirp = TEST5_SYSFS_PATH;
-	setenv("C2_PROCESSORS_INFO_DIR", TEST5_SYSFS_PATH, 1);
+	setenv("M0_PROCESSORS_INFO_DIR", TEST5_SYSFS_PATH, 1);
 	populate_test_dataset5();
 	verify_init();
 	clean_test_dataset();
 
 	processor_info_dirp = TEST6_SYSFS_PATH;
-	setenv("C2_PROCESSORS_INFO_DIR", TEST6_SYSFS_PATH, 1);
+	setenv("M0_PROCESSORS_INFO_DIR", TEST6_SYSFS_PATH, 1);
 	populate_test_dataset6();
 	verify_init();
 	clean_test_dataset();
 
 	processor_info_dirp = TEST7_SYSFS_PATH;
-	setenv("C2_PROCESSORS_INFO_DIR", TEST7_SYSFS_PATH, 1);
+	setenv("M0_PROCESSORS_INFO_DIR", TEST7_SYSFS_PATH, 1);
 	populate_test_dataset7();
 	verify_all_params();
 	clean_test_dataset();
 
-	unsetenv("C2_PROCESSORS_INFO_DIR");
-	C2_UT_ASSERT(c2_processors_init() == 0); /* restore normal data */
+	unsetenv("M0_PROCESSORS_INFO_DIR");
+	M0_UT_ASSERT(m0_processors_init() == 0); /* restore normal data */
 }
 
-struct c2_ub_set c2_processor_ub = {
+struct m0_ub_set m0_processor_ub = {
 	.us_name = "processor-ub",
 	.us_init = ub_init,
 	.us_fini = ub_fini,

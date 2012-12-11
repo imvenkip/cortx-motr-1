@@ -45,26 +45,26 @@
 
    <hr>
    @section NetRQProvDLD-def Definitions
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>,
+   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Mero LNet Transport</a>,
    @ref and @ref net_buffer_pool.
 
    <hr>
    @section NetRQProvDLD-req Requirements
-   - @b r.c2.net.xprt.support-for-auto-provisioned-receive-queue
-     from <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>.
+   - @b r.m0.net.xprt.support-for-auto-provisioned-receive-queue
+     from <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Mero LNet Transport</a>.
 
    <hr>
    @section NetRQProvDLD-depends Dependencies
    - Provisioning support primarily depends on the @ref net_buffer_pool.  The
-     c2_net_buffer_pool_get() subroutine must be modified to set the value of
-     the c2_net_buffer::nb_pool field.
+     m0_net_buffer_pool_get() subroutine must be modified to set the value of
+     the m0_net_buffer::nb_pool field.
 
    - Locality support during provisioning depends on the application assigning
-     a color to each transfer machine.  In user space Colibri servers this is
-     done by the @ref colibri_setup "Colibri Setup" module.
+     a color to each transfer machine.  In user space Mero servers this is
+     done by the @ref m0d "Mero Setup" module.
 
-   - The act of provisioning is similar to invoking c2_net_buffer_add() on the
-     ::C2_NET_QT_MSG_RECV queue of the transfer machine.  Since the transfer
+   - The act of provisioning is similar to invoking m0_net_buffer_add() on the
+     ::M0_NET_QT_MSG_RECV queue of the transfer machine.  Since the transfer
      machine mutex is usually held in most provisioning calls, an internal
      version of this subroutine which requires the mutex to be held should be
      made available if necessary.
@@ -72,53 +72,53 @@
    <hr>
    @section NetRQProvDLD-highlights Design Highlights
    - Automatic provisioning takes place from a network buffer pool specified by
-   the c2_net_tm_pool_attach() subroutine.
+   the m0_net_tm_pool_attach() subroutine.
    - Automatic provisioning takes place at the following times:
      - When the transfer machine is started.
      - When a buffer is dequeued from the receive queue.
      - When an exhausted pool is replenished (requires application support)
    - Locality support available if the transfer machine is assigned a color
-   with the c2_net_tm_colour_set() subroutine.
+   with the m0_net_tm_colour_set() subroutine.
 
    <hr>
    @section NetRQProvDLD-fspec Functional Specification
    The following new APIs are introduced:
    @code
-int      c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
-                               struct c2_net_buffer_pool *bufpool,
-                               const struct c2_net_buffer_callbacks *callbacks,
-			       c2_bcount_t min_recv_size,
+int      m0_net_tm_pool_attach(struct m0_net_transfer_mc *tm,
+                               struct m0_net_buffer_pool *bufpool,
+                               const struct m0_net_buffer_callbacks *callbacks,
+			       m0_bcount_t min_recv_size,
 			       uint32_t max_recv_msgs);
-int      c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len);
-void     c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool *pool);
-void     c2_net_tm_colour_set(struct c2_net_transfer_mc *tm, uint32_t colour);
-uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm);
+int      m0_net_tm_pool_length_set(struct m0_net_transfer_mc *tm, uint32_t len);
+void     m0_net_domain_buffer_pool_not_empty(struct m0_net_buffer_pool *pool);
+void     m0_net_tm_colour_set(struct m0_net_transfer_mc *tm, uint32_t colour);
+uint32_t m0_net_tm_colour_get(struct m0_net_transfer_mc *tm);
    @endcode
 
    The transfer machine data structure is extended as follows:
    @code
-struct c2_net_transfer_mc {
+struct m0_net_transfer_mc {
       ...
-      struct c2_net_buffer_pool            *ntm_recv_pool;
-      const struct c2_net_buffer_callbacks *ntm_recv_pool_callbacks;
+      struct m0_net_buffer_pool            *ntm_recv_pool;
+      const struct m0_net_buffer_callbacks *ntm_recv_pool_callbacks;
       uint32_t                              ntm_recv_queue_min_length;
-      struct c2_atomic64                    ntm_recv_queue_deficit;
+      struct m0_atomic64                    ntm_recv_queue_deficit;
       uint32_t                              ntm_pool_colour;
 };
    @endcode
 
    The network buffer data structure is extended as follows:
    @code
-struct c2_net_buffer {
+struct m0_net_buffer {
       ...
-      struct c2_net_buffer_pool            *nb_pool;
+      struct m0_net_buffer_pool            *nb_pool;
 };
    @endcode
 
    The following enumeration is defined:
    @code
 enum {
-     C2_NET_TM_RECV_QUEUE_DEF_LEN = 2
+     M0_NET_TM_RECV_QUEUE_DEF_LEN = 2
 };
    @endcode
 
@@ -128,13 +128,13 @@ enum {
    @subsection NetRQProvDLD-lspec-enable Enabling Automatic Provisioning
    Automatic provisioning of network buffers to the receive queue takes place
    only when a buffer pool is "attached" to a transfer machine using the
-   c2_net_tm_pool_attach() subroutine.  The subroutine can only be called prior
+   m0_net_tm_pool_attach() subroutine.  The subroutine can only be called prior
    to starting the transfer machine.
 
    The subroutine validates that the specified pool is in the same network
    domain. It then saves the pool pointer in the
-   c2_net_transfer_mc::ntm_recv_pool field, and the callback pointer in the
-   c2_net_transfer_mc::ntm_recv_pool_callbacks field.
+   m0_net_transfer_mc::ntm_recv_pool field, and the callback pointer in the
+   m0_net_transfer_mc::ntm_recv_pool_callbacks field.
 
    @subsection NetRQProvDLD-lspec-initial Initial Provisioning
 
@@ -144,7 +144,7 @@ enum {
    buffer completion callback notifying receipt first incoming unsolicited
    message.
 
-   The receive message queue is provisioned with ::C2_NET_TM_RECV_QUEUE_DEF_LEN
+   The receive message queue is provisioned with ::M0_NET_TM_RECV_QUEUE_DEF_LEN
    (nominally 2) network buffers if possible.
 
    @subsection NetRQProvDLD-lspec-normal Normal Provisioning
@@ -158,24 +158,24 @@ enum {
 
    When re-provisioning, as many buffers are fetched from the pool as needed to
    bring its length to the minimum desired value.  Changing the minimum receive
-   queue length with the c2_net_tm_pool_length_set() subroutine always triggers
+   queue length with the m0_net_tm_pool_length_set() subroutine always triggers
    an attempt to re-provision.  No attempt is ever made, however, to return
    buffers to the pool if the length of the queue is greater than the minimum.
 
-   New network buffers are obtained by invoking the c2_net_buffer_pool_get()
+   New network buffers are obtained by invoking the m0_net_buffer_pool_get()
    subroutine.  The buffer obtained from this subroutine is expected to have
-   its c2_net_buffer::nb_pool variable set to the pool pointer, to enable the
+   its m0_net_buffer::nb_pool variable set to the pool pointer, to enable the
    application to easily return it to the pool it came from, without having to
    explicitly track the pool.  This requires a modification to the
-   c2_net_buffer_pool_get() subroutine.
+   m0_net_buffer_pool_get() subroutine.
 
-   Actual provisioning is done by invoking c2_net_buffer_add() or its internal
+   Actual provisioning is done by invoking m0_net_buffer_add() or its internal
    equivalent, depending on the locking model used.
 
    It is possible that the buffer pool gets exhausted and re-provisioning
    fails, partially or entirely.  In such cases, the transfer machine maintains
    a count of the number of additional buffers it requires in the
-   c2_net_transfer_mc::ntm_recv_queue_deficit @b atomic variable.  This is to
+   m0_net_transfer_mc::ntm_recv_queue_deficit @b atomic variable.  This is to
    facilitate later re-provisioning without unnecessary locking and loss of
    locality.
 
@@ -185,13 +185,13 @@ enum {
    triggering event:
    - Another receive queue buffer gets de-queued.
    - The application changes the minimum receive queue length with the
-   c2_net_tm_pool_length_set() subroutine.
-   - The application invokes the c2_net_domain_buffer_pool_not_empty()
+   m0_net_tm_pool_length_set() subroutine.
+   - The application invokes the m0_net_domain_buffer_pool_not_empty()
      subroutine from the pool's @i not-empty callback.
 
    The first two cases result in the same behavior as normal provisioning.
 
-   The c2_net_domain_buffer_pool_not_empty() subroutine initiates the
+   The m0_net_domain_buffer_pool_not_empty() subroutine initiates the
    replenishment of @i all depleted transfer machines in the network domain
    that are provisioned from the specified buffer pool.  The order in which
    each transfer machine gets processed is arbitrary, but this poses no
@@ -200,21 +200,21 @@ enum {
 
    The following pseudo-code illustrates the subroutine algorithm:
    @code
-c2_net_domain_buffer_pool_not_empty(pool) {
-   C2_ASSERT(c2_net_buffer_pool_is_locked(pool));
+m0_net_domain_buffer_pool_not_empty(pool) {
+   M0_ASSERT(m0_net_buffer_pool_is_locked(pool));
    dom = pool->nbp_ndom;
-   c2_mutex_lock(&dom->nd_mutex);
+   m0_mutex_lock(&dom->nd_mutex);
    foreach tm in dom->nd_tms list {
-       if (c2_atomic64_get(&tm->ntm_recv_queue_deficit) == 0)
+       if (m0_atomic64_get(&tm->ntm_recv_queue_deficit) == 0)
           continue; // skip if no deficit
-       c2_mutex_lock(&tm->ntm_mutex);
-       if (tm->ntm_state == C2_NET_TM_STARTED && tm->ntm_recv_pool == pool &&
-           c2_atomic64_get(&tm->ntm_recv_queue_deficit) > 0) {
+       m0_mutex_lock(&tm->ntm_mutex);
+       if (tm->ntm_state == M0_NET_TM_STARTED && tm->ntm_recv_pool == pool &&
+           m0_atomic64_get(&tm->ntm_recv_queue_deficit) > 0) {
            // attempt to provision the TM
        }
-       c2_mutex_unlock(&tm->ntm_mutex);
+       m0_mutex_unlock(&tm->ntm_mutex);
    }
-   c2_mutex_unlock(&dom->nd_mutex);
+   m0_mutex_unlock(&dom->nd_mutex);
 }
    @endcode
    Note the following:
@@ -232,12 +232,12 @@ c2_net_domain_buffer_pool_not_empty(pool) {
 
    Note that the network layer has no control over the pool operations, so it
    is up to the application to supply a @i not-empty pool callback subroutine
-   and make the call to the c2_net_domain_buffer_pool_not_empty() subroutine
+   and make the call to the m0_net_domain_buffer_pool_not_empty() subroutine
    from there.
 
    @subsection NetRQProvDLD-lspec-state State Specification
    Automatic provisioning only takes place in an active transfer
-   machine (state is ::C2_NET_TM_STARTED).
+   machine (state is ::M0_NET_TM_STARTED).
 
    Automatic provisioning of a transfer machine exists in two (informal) states:
    - @b Provisioned
@@ -255,7 +255,7 @@ c2_net_domain_buffer_pool_not_empty(pool) {
    Provisioned state (prior to the buffer completion event callback), but there
    is a possibility that the pool gets exhausted before this is accomplished.
 
-   A non-zero value in c2_net_transfer_mc::ntm_recv_queue_deficit indicates
+   A non-zero value in m0_net_transfer_mc::ntm_recv_queue_deficit indicates
    that automatic provisioning is in the @b Depleted state. Otherwise, it is in
    the @b Provisioned state.
 
@@ -291,26 +291,26 @@ c2_net_domain_buffer_pool_not_empty(pool) {
    This is not a new situation; the transfer machine is already handling cases
    where it has to temporarily give up and re-obtain its own mutex.  To avoid
    getting destroyed while operating out of its mutex, the transfer machine
-   uses the c2_net_transfer_mc::ntm_callback_counter to indicate that it is
+   uses the m0_net_transfer_mc::ntm_callback_counter to indicate that it is
    operating in such a mode.  When it re-obtains the mutex and decrements the
-   counter, it signals on the c2_net_transfer_mc::ntm_chan channel.  This is
+   counter, it signals on the m0_net_transfer_mc::ntm_chan channel.  This is
    illustrated in the following pseudo-code:
 @code
    ...
-   C2_PRE(c2_in_mutex(&tm->ntm_mutex);
-   C2_PRE(tm->ntm_recv_pool != NULL);
+   M0_PRE(m0_in_mutex(&tm->ntm_mutex);
+   M0_PRE(tm->ntm_recv_pool != NULL);
    ++tm->ntm_callback_counter;
-   c2_mutex_unlock(&tm->ntm_mutex);
+   m0_mutex_unlock(&tm->ntm_mutex);
 
-   c2_net_buffer_pool_lock(tm->ntm_recv_pool);
-   c2_mutex_lock(&tm->ntm_mutex);
-   if (tm->ntm_state == C2_NET_TM_STARTED && ...) {
+   m0_net_buffer_pool_lock(tm->ntm_recv_pool);
+   m0_mutex_lock(&tm->ntm_mutex);
+   if (tm->ntm_state == M0_NET_TM_STARTED && ...) {
               // provision if needed
    }
-   c2_mutex_unlock(&tm->ntm_mutex);
-   c2_net_buffer_pool_unlock(tm->ntm_recv_pool)
+   m0_mutex_unlock(&tm->ntm_mutex);
+   m0_net_buffer_pool_unlock(tm->ntm_recv_pool)
 
-   c2_mutex_lock(&tm->ntm_mutex);
+   m0_mutex_lock(&tm->ntm_mutex);
    --tm->ntm_callback_counter;
    ...
 @endcode
@@ -329,11 +329,11 @@ c2_net_domain_buffer_pool_not_empty(pool) {
 
    The @ref net_buffer_pool module provides support for "colored" operations to
    maximize the locality of reference between a network buffer and a transfer
-   machine.  All c2_net_buffer_pool_get() calls will use the
-   c2_net_transfer_mc::ntm_pool_colour field value as the color.  This value is
-   initialized to @c ::C2_BUFFER_ANY_COLOR, and it is up to the higher
+   machine.  All m0_net_buffer_pool_get() calls will use the
+   m0_net_transfer_mc::ntm_pool_colour field value as the color.  This value is
+   initialized to @c ::M0_BUFFER_ANY_COLOR, and it is up to the higher
    level application to assign a color to the transfer machine with the
-   c2_net_tm_colour_set() subroutine.  The higher level application is also
+   m0_net_tm_colour_set() subroutine.  The higher level application is also
    responsible for creating the buffer pool with sufficient colors in the first
    place.
 
@@ -346,7 +346,7 @@ c2_net_domain_buffer_pool_not_empty(pool) {
    <hr>
    @section NetRQProvDLD-conformance Conformance
 
-   - @b i.c2.net.xprt.support-for-auto-provisioned-receive-queue The design
+   - @b i.m0.net.xprt.support-for-auto-provisioned-receive-queue The design
      provides a means to automatically provision network buffers to the receive
      queues of transfer machines, using a domain wide buffer pool that offers
      the potential of sharing network buffers across multiple transfer
@@ -364,7 +364,7 @@ c2_net_domain_buffer_pool_not_empty(pool) {
    - Test that provisioned buffer callbacks match those specified during
      pool attach.
    - Test that provisioned buffers identify the buffer pool in the
-     c2_net_buffer::nb_pool field.
+     m0_net_buffer::nb_pool field.
    - Test provisioning with multiple transfer machines, including domain wide
      re-provisioning when the pool is replenished.
 
@@ -376,7 +376,7 @@ c2_net_domain_buffer_pool_not_empty(pool) {
    <hr>
    @section NetRQProvDLD-O Analysis
 
-   - The buffer pool c2_net_buffer_pool_get() subroutine call is used to search
+   - The buffer pool m0_net_buffer_pool_get() subroutine call is used to search
      for appropriate buffers and represents a potentially non-constant time
      algorithm.
 
@@ -393,13 +393,13 @@ c2_net_domain_buffer_pool_not_empty(pool) {
 
    <hr>
    @section NetRQProvDLD-ref References
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Mero LNet Transport</a>
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>
    - @ref net_buffer_pool
 
  */
 
-#include "lib/arith.h" /* C2_CNT_INC */
+#include "lib/arith.h" /* M0_CNT_INC */
 #include "net/net_internal.h"
 #include "net/buffer_pool.h"
 
@@ -412,84 +412,84 @@ c2_net_domain_buffer_pool_not_empty(pool) {
          Length of receive queue + tm->ntm_recv_queue_deficit ==
                 tm->ntm_recv_queue_min_length
 */
-static void tm_provision_recv_q(struct c2_net_transfer_mc *tm)
+static void tm_provision_recv_q(struct m0_net_transfer_mc *tm)
 {
-	struct c2_net_buffer_pool *pool;
+	struct m0_net_buffer_pool *pool;
 	int64_t			   need;
-	struct c2_net_buffer	  *nb;
+	struct m0_net_buffer	  *nb;
 	int			   rc;
 	uint64_t		   recv_q_len;
 	uint64_t		   deficit;
 
-	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
-	C2_PRE(c2_net__tm_invariant(tm));
+	M0_PRE(m0_mutex_is_locked(&tm->ntm_mutex));
+	M0_PRE(m0_net__tm_invariant(tm));
 	pool = tm->ntm_recv_pool;
-	if (tm->ntm_state != C2_NET_TM_STARTED || pool == NULL)
+	if (tm->ntm_state != M0_NET_TM_STARTED || pool == NULL)
 		return; /* provisioning not required */
-	C2_PRE(c2_net_buffer_pool_is_locked(pool));
-	recv_q_len = c2_net_tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]);
+	M0_PRE(m0_net_buffer_pool_is_locked(pool));
+	recv_q_len = m0_net_tm_tlist_length(&tm->ntm_q[M0_NET_QT_MSG_RECV]);
 	need = tm->ntm_recv_queue_min_length - recv_q_len;
 	while (need > 0) {
-		nb = c2_net_buffer_pool_get(tm->ntm_recv_pool,
+		nb = m0_net_buffer_pool_get(tm->ntm_recv_pool,
 					    tm->ntm_pool_colour);
 		if (nb == NULL)
 			break;
-		nb->nb_qtype		= C2_NET_QT_MSG_RECV;
+		nb->nb_qtype		= M0_NET_QT_MSG_RECV;
 		nb->nb_callbacks	= tm->ntm_recv_pool_callbacks;
 		nb->nb_min_receive_size = tm->ntm_recv_queue_min_recv_size;
 		nb->nb_max_receive_msgs = tm->ntm_recv_queue_max_recv_msgs;
 		nb->nb_ep		= NULL;
 
-		C2_POST(nb->nb_pool == tm->ntm_recv_pool);
-		rc = c2_net__buffer_add(nb, tm);
+		M0_POST(nb->nb_pool == tm->ntm_recv_pool);
+		rc = m0_net__buffer_add(nb, tm);
 		if (rc != 0)
 			break;
-		C2_CNT_DEC(need);
-		C2_CNT_INC(recv_q_len);
+		M0_CNT_DEC(need);
+		M0_CNT_INC(recv_q_len);
 	}
 	deficit = need < 0 ? 0 : need;
-	c2_atomic64_set(&tm->ntm_recv_queue_deficit, deficit);
-	C2_POST((recv_q_len >= tm->ntm_recv_queue_min_length && deficit == 0) ||
+	m0_atomic64_set(&tm->ntm_recv_queue_deficit, deficit);
+	M0_POST((recv_q_len >= tm->ntm_recv_queue_min_length && deficit == 0) ||
 		 recv_q_len + deficit == tm->ntm_recv_queue_min_length);
 	return;
 }
 
-C2_INTERNAL void c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool
+M0_INTERNAL void m0_net_domain_buffer_pool_not_empty(struct m0_net_buffer_pool
 						     *pool)
 {
-	struct c2_net_domain	  *dom;
-	struct c2_net_transfer_mc *tm;
-	C2_ASSERT(c2_net_buffer_pool_is_locked(pool));
+	struct m0_net_domain	  *dom;
+	struct m0_net_transfer_mc *tm;
+	M0_ASSERT(m0_net_buffer_pool_is_locked(pool));
 	dom = pool->nbp_ndom;
-	c2_mutex_lock(&dom->nd_mutex);
-	c2_list_for_each_entry(&dom->nd_tms, tm,
-			struct c2_net_transfer_mc, ntm_dom_linkage) {
-		if (c2_atomic64_get(&tm->ntm_recv_queue_deficit) == 0)
+	m0_mutex_lock(&dom->nd_mutex);
+	m0_list_for_each_entry(&dom->nd_tms, tm,
+			struct m0_net_transfer_mc, ntm_dom_linkage) {
+		if (m0_atomic64_get(&tm->ntm_recv_queue_deficit) == 0)
 			continue; /* skip if no deficit */
-		c2_mutex_lock(&tm->ntm_mutex);
-		if (tm->ntm_state     == C2_NET_TM_STARTED &&
+		m0_mutex_lock(&tm->ntm_mutex);
+		if (tm->ntm_state     == M0_NET_TM_STARTED &&
 		    tm->ntm_recv_pool == pool &&
-		    c2_atomic64_get(&tm->ntm_recv_queue_deficit) > 0)
+		    m0_atomic64_get(&tm->ntm_recv_queue_deficit) > 0)
 			tm_provision_recv_q(tm);
-		c2_mutex_unlock(&tm->ntm_mutex);
+		m0_mutex_unlock(&tm->ntm_mutex);
 	}
-	c2_mutex_unlock(&dom->nd_mutex);
+	m0_mutex_unlock(&dom->nd_mutex);
 	return;
 }
-C2_EXPORTED(c2_net_domain_buffer_pool_not_empty);
+M0_EXPORTED(m0_net_domain_buffer_pool_not_empty);
 
-C2_INTERNAL void c2_net__tm_provision_recv_q(struct c2_net_transfer_mc *tm)
+M0_INTERNAL void m0_net__tm_provision_recv_q(struct m0_net_transfer_mc *tm)
 {
-	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
-	C2_PRE(tm->ntm_callback_counter > 0);
-	C2_PRE(tm->ntm_recv_pool != NULL);
-	C2_PRE(c2_net_buffer_pool_is_not_locked(tm->ntm_recv_pool));
+	M0_PRE(m0_mutex_is_not_locked(&tm->ntm_mutex));
+	M0_PRE(tm->ntm_callback_counter > 0);
+	M0_PRE(tm->ntm_recv_pool != NULL);
+	M0_PRE(m0_net_buffer_pool_is_not_locked(tm->ntm_recv_pool));
 
-	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
-	c2_mutex_lock(&tm->ntm_mutex);
+	m0_net_buffer_pool_lock(tm->ntm_recv_pool);
+	m0_mutex_lock(&tm->ntm_mutex);
 	tm_provision_recv_q(tm);
-	c2_mutex_unlock(&tm->ntm_mutex);
-	c2_net_buffer_pool_unlock(tm->ntm_recv_pool);
+	m0_mutex_unlock(&tm->ntm_mutex);
+	m0_net_buffer_pool_unlock(tm->ntm_recv_pool);
 	return;
 }
 

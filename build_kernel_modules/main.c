@@ -21,22 +21,22 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include "lib/list.h"
-#include "colibri/init.h"
+#include "mero/init.h"
 
 MODULE_AUTHOR("Xyratex International");
-MODULE_DESCRIPTION("Colibri Library");
+MODULE_DESCRIPTION("Mero Library");
 MODULE_LICENSE("GPL");
 
 
-C2_INTERNAL int init_module(void)
+M0_INTERNAL int init_module(void)
 {
-        printk("Colibri init\n");
-	return c2_init();
+        printk("Mero init\n");
+	return m0_init();
 }
 
-C2_INTERNAL void cleanup_module(void)
+M0_INTERNAL void cleanup_module(void)
 {
-        printk("Colibri cleanup\n");
-	c2_fini();
+        printk("Mero cleanup\n");
+	m0_fini();
 }
 

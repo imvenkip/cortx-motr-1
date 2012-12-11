@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_KLNET_CORE_H__
-#define __COLIBRI_NET_KLNET_CORE_H__
+#ifndef __MERO_NET_KLNET_CORE_H__
+#define __MERO_NET_KLNET_CORE_H__
 
 #include "lib/semaphore.h"
 #include "lib/tlist.h"
@@ -39,11 +39,11 @@
  */
 
 enum {
-	C2_NET_LNET_MAX_PORTALS     = 64, /**< Number of portals supported. */
-	C2_NET_LNET_EQ_SIZE         = 8,  /**< Size of LNet event queue. */
+	M0_NET_LNET_MAX_PORTALS     = 64, /**< Number of portals supported. */
+	M0_NET_LNET_EQ_SIZE         = 8,  /**< Size of LNet event queue. */
 
 	/** Portal mask when encoded in hdr_data */
-	C2_NET_LNET_PORTAL_MASK     = C2_NET_LNET_BUFFER_ID_MAX,
+	M0_NET_LNET_PORTAL_MASK     = M0_NET_LNET_BUFFER_ID_MAX,
 };
 
 struct nlx_kcore_ops;
@@ -59,7 +59,7 @@ struct nlx_kcore_domain {
 	struct nlx_core_kmem_loc      kd_cd_loc;
 
 	/** Synchronize access to driver resources for this domain. */
-	struct c2_mutex               kd_drv_mutex;
+	struct m0_mutex               kd_drv_mutex;
 
 	/** Operations object driver uses to call kernel core operations. */
 	struct nlx_kcore_ops         *kd_drv_ops;
@@ -68,16 +68,16 @@ struct nlx_kcore_domain {
 	   User space transfer machines in this domain tracked by the driver.
 	   This list links through nlx_kcore_transfer_mc::ktm_drv_linkage.
 	 */
-	struct c2_tl                  kd_drv_tms;
+	struct m0_tl                  kd_drv_tms;
 
 	/**
 	   User space buffers in this domain tracked by the driver.
 	   This list links through nlx_kcore_buffer::kb_drv_linkage.
 	 */
-	struct c2_tl                  kd_drv_bufs;
+	struct m0_tl                  kd_drv_bufs;
 
 	/** ADDB context for events related to this domain */
-	struct c2_addb_ctx            kd_addb;
+	struct m0_addb_ctx            kd_addb;
 };
 
 /**
@@ -91,16 +91,16 @@ struct nlx_kcore_transfer_mc {
 	struct nlx_core_kmem_loc      ktm_ctm_loc;
 
 	/** Transfer machine linkage of all TMs. */
-	struct c2_tlink               ktm_tm_linkage;
+	struct m0_tlink               ktm_tm_linkage;
 
 	/** Transfer machine linkage of TMs tracked by driver, per domain. */
-	struct c2_tlink               ktm_drv_linkage;
+	struct m0_tlink               ktm_drv_linkage;
 
 	/**
 	   User space buffer events in this transfer tracked by the driver.
 	   This list links through nlx_kcore_buffer_event::kbe_drv_linkage.
 	 */
-	struct c2_tl                  ktm_drv_bevs;
+	struct m0_tl                  ktm_drv_bevs;
 
 	/** The transfer machine address. */
 	struct nlx_core_ep_addr       ktm_addr;
@@ -112,13 +112,13 @@ struct nlx_kcore_transfer_mc {
 	spinlock_t                    ktm_bevq_lock;
 
 	/** This semaphore increments with each LNet event added. */
-	struct c2_semaphore           ktm_sem;
+	struct m0_semaphore           ktm_sem;
 
 	/** Handle of the LNet EQ associated with this transfer machine. */
 	lnet_handle_eq_t              ktm_eqh;
 
 	/** ADDB context for events related to this transfer machine. */
-	struct c2_addb_ctx            ktm_addb;
+	struct m0_addb_ctx            ktm_addb;
 
 	unsigned                      _debug_;
 };
@@ -137,10 +137,10 @@ struct nlx_kcore_buffer {
 	struct nlx_kcore_transfer_mc *kb_ktm;
 
 	/** Linkage of buffers tracked by driver, per domain. */
-	struct c2_tlink               kb_drv_linkage;
+	struct m0_tlink               kb_drv_linkage;
 
 	/**
-	   The address of the c2_net_buffer structure in the transport address
+	   The address of the m0_net_buffer structure in the transport address
 	   space. The value is set by the nlx_kcore_buffer_register()
 	   subroutine.
 	 */
@@ -150,10 +150,10 @@ struct nlx_kcore_buffer {
 	   The buffer queue type - copied from nlx_core_buffer::cb_qtype
 	   when a buffer operation is initiated.
 	 */
-        enum c2_net_queue_type        kb_qtype;
+        enum m0_net_queue_type        kb_qtype;
 
 	/** Time at which a buffer operation is initiated. */
-	c2_time_t                     kb_add_time;
+	m0_time_t                     kb_add_time;
 
 	/** The LNet I/O vector. */
 	lnet_kiov_t                  *kb_kiov;
@@ -195,7 +195,7 @@ struct nlx_kcore_buffer {
 	unsigned                      kb_ooo_offset;
 
 	/** ADDB context for events related to this buffer */
-	struct c2_addb_ctx            kb_addb;
+	struct m0_addb_ctx            kb_addb;
 };
 
 /**
@@ -210,7 +210,7 @@ struct nlx_kcore_buffer_event {
 	struct nlx_core_kmem_loc      kbe_bev_loc;
 
 	/** Linkage of buffer events tracked by driver, per TM. */
-	struct c2_tlink               kbe_drv_linkage;
+	struct m0_tlink               kbe_drv_linkage;
 };
 
 /**
@@ -277,7 +277,7 @@ struct nlx_kcore_ops {
 	   @param kd The kernel domain for this transfer machine.
 	   @param ctm The transfer machine private data to be initialized.
 	   The nlx_core_transfer_mc::ctm_addr must be set by the caller.  If the
-	   lcpea_tmid field value is C2_NET_LNET_TMID_INVALID then a transfer
+	   lcpea_tmid field value is M0_NET_LNET_TMID_INVALID then a transfer
 	   machine identifier is dynamically assigned to the transfer machine
 	   and the nlx_core_transfer_mc::ctm_addr is modified in place.
 	   @param ktm The kernel transfer machine private data to be
@@ -348,7 +348,7 @@ struct nlx_kcore_ops {
 	 */
 	int (*ko_buf_event_wait)(struct nlx_core_transfer_mc *ctm,
 				 struct nlx_kcore_transfer_mc *ktm,
-				 c2_time_t timeout);
+				 m0_time_t timeout);
 };
 
 static void nlx_core_kmem_loc_set(struct nlx_core_kmem_loc *loc,
@@ -362,16 +362,16 @@ static bool nlx_kcore_tm_invariant(const struct nlx_kcore_transfer_mc *kctm);
 static int nlx_kcore_kcore_dom_init(struct nlx_kcore_domain *kd);
 static void nlx_kcore_kcore_dom_fini(struct nlx_kcore_domain *kd);
 static int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
-					const struct c2_bufvec *bvec);
+					const struct m0_bufvec *bvec);
 static int nlx_kcore_buffer_uva_to_kiov(struct nlx_kcore_buffer *kb,
-					const struct c2_bufvec *bvec);
+					const struct m0_bufvec *bvec);
 static bool nlx_kcore_kiov_invariant(const lnet_kiov_t *k, size_t len);
 
 #define NLX_PAGE_OFFSET(addr) ((addr) & ~PAGE_MASK)
 
 /** @} */ /* KLNetCore */
 
-#endif /* __COLIBRI_NET_KLNET_CORE_H__ */
+#endif /* __MERO_NET_KLNET_CORE_H__ */
 
 /*
  *  Local variables:

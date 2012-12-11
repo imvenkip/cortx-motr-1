@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_CONSOLE_YAML_H__
-#define __COLIBRI_CONSOLE_YAML_H__
+#ifndef __MERO_CONSOLE_YAML_H__
+#define __MERO_CONSOLE_YAML_H__
 
 #ifdef HAVE_CONFIG_H
 #  include "config.h"
@@ -40,7 +40,7 @@ bool yaml_support;
 /**
  * @brief Keeps info for YAML parser.
  */
-struct c2_cons_yaml_info {
+struct m0_cons_yaml_info {
         /** YAML parser structure */
         yaml_parser_t    cyi_parser;
         /** YAML event structure */
@@ -61,7 +61,7 @@ struct c2_cons_yaml_info {
  *
  * @return 0 success and -errno failure.
  */
-C2_INTERNAL int c2_cons_yaml_init(const char *path);
+M0_INTERNAL int m0_cons_yaml_init(const char *path);
 
 /**
  * @brief  Search for specified string and get the respctive value
@@ -72,7 +72,7 @@ C2_INTERNAL int c2_cons_yaml_init(const char *path);
  *
  * @return 0 success and -errno failure.
  */
-C2_INTERNAL int c2_cons_yaml_set_value(const char *value, void *data);
+M0_INTERNAL int m0_cons_yaml_set_value(const char *value, void *data);
 
 /**
  * @brief  Search for specified string and set the respctive value
@@ -82,15 +82,15 @@ C2_INTERNAL int c2_cons_yaml_set_value(const char *value, void *data);
  *
  * @return 0 success and -errno failure.
  */
-C2_INTERNAL void *c2_cons_yaml_get_value(const char *value);
+M0_INTERNAL void *m0_cons_yaml_get_value(const char *value);
 
 /**
  * @brief Deletes the parser and closes the YAML file.
  */
-C2_INTERNAL void c2_cons_yaml_fini(void);
+M0_INTERNAL void m0_cons_yaml_fini(void);
 
 /** @} end of console_yaml group */
-/* __COLIBRI_CONSOLE_YAML_H__ */
+/* __MERO_CONSOLE_YAML_H__ */
 #endif
 /*
  *  Local variables:

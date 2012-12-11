@@ -20,52 +20,52 @@
 
 #pragma once
 
-#ifndef __COLIBRI_SNS_PARITY_OPS_H__
-#define __COLIBRI_SNS_PARITY_OPS_H__
+#ifndef __MERO_SNS_PARITY_OPS_H__
+#define __MERO_SNS_PARITY_OPS_H__
 
 #include "galois/galois.h"
 #include "lib/assert.h"
 
-#define C2_PARITY_ZERO (0)
-#define C2_PARITY_GALOIS_W (8)
-typedef int c2_parity_elem_t;
+#define M0_PARITY_ZERO (0)
+#define M0_PARITY_GALOIS_W (8)
+typedef int m0_parity_elem_t;
 
-C2_INTERNAL void c2_parity_fini(void);
-C2_INTERNAL void c2_parity_init(void);
+M0_INTERNAL void m0_parity_fini(void);
+M0_INTERNAL void m0_parity_init(void);
 
-static inline c2_parity_elem_t c2_parity_add(c2_parity_elem_t x, c2_parity_elem_t y)
+static inline m0_parity_elem_t m0_parity_add(m0_parity_elem_t x, m0_parity_elem_t y)
 {
 	return x ^ y;
 }
 
-static inline c2_parity_elem_t c2_parity_sub(c2_parity_elem_t x, c2_parity_elem_t y)
+static inline m0_parity_elem_t m0_parity_sub(m0_parity_elem_t x, m0_parity_elem_t y)
 {
 	return x ^ y;
 }
 
-static inline c2_parity_elem_t c2_parity_mul(c2_parity_elem_t x, c2_parity_elem_t y)
+static inline m0_parity_elem_t m0_parity_mul(m0_parity_elem_t x, m0_parity_elem_t y)
 {
-	/* return galois_single_multiply(x, y, C2_PARITY_GALOIS_W); */
-	return galois_multtable_multiply(x, y, C2_PARITY_GALOIS_W);
+	/* return galois_single_multiply(x, y, M0_PARITY_GALOIS_W); */
+	return galois_multtable_multiply(x, y, M0_PARITY_GALOIS_W);
 }
 
-static inline c2_parity_elem_t c2_parity_div(c2_parity_elem_t x, c2_parity_elem_t y)
+static inline m0_parity_elem_t m0_parity_div(m0_parity_elem_t x, m0_parity_elem_t y)
 {
-	/* return galois_single_divide(x, y, C2_PARITY_GALOIS_W); */
-	return galois_multtable_divide(x, y, C2_PARITY_GALOIS_W);
+	/* return galois_single_divide(x, y, M0_PARITY_GALOIS_W); */
+	return galois_multtable_divide(x, y, M0_PARITY_GALOIS_W);
 }
 
-static inline c2_parity_elem_t c2_parity_lt(c2_parity_elem_t x, c2_parity_elem_t y)
+static inline m0_parity_elem_t m0_parity_lt(m0_parity_elem_t x, m0_parity_elem_t y)
 {
 	return x < y;
 }
 
-static inline c2_parity_elem_t c2_parity_gt(c2_parity_elem_t x, c2_parity_elem_t y)
+static inline m0_parity_elem_t m0_parity_gt(m0_parity_elem_t x, m0_parity_elem_t y)
 {
 	return x > y;
 }
 
-/* __COLIBRI_SNS_PARITY_OPS_H__ */
+/* __MERO_SNS_PARITY_OPS_H__ */
 #endif
 
 /*

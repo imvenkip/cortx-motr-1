@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_QUEUE_H__
-#define __COLIBRI_LIB_QUEUE_H__
+#ifndef __MERO_LIB_QUEUE_H__
+#define __MERO_LIB_QUEUE_H__
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
@@ -34,54 +34,54 @@
    @{
  */
 
-struct c2_queue_link;
+struct m0_queue_link;
 
 /**
    A queue of elements.
  */
-struct c2_queue {
+struct m0_queue {
 	/** Oldest element in the queue (first to be returned). */
-	struct c2_queue_link *q_head;
+	struct m0_queue_link *q_head;
 	/** Youngest (last added) element in the queue. */
-	struct c2_queue_link *q_tail;
+	struct m0_queue_link *q_tail;
 };
 
 /**
    An element in a queue.
  */
-struct c2_queue_link {
-	struct c2_queue_link *ql_next;
+struct m0_queue_link {
+	struct m0_queue_link *ql_next;
 };
 
 /**
-   Static queue initializer. Assign this to a variable of type struct c2_queue
+   Static queue initializer. Assign this to a variable of type struct m0_queue
    to initialize empty queue.
  */
-extern const struct c2_queue C2_QUEUE_INIT;
+extern const struct m0_queue M0_QUEUE_INIT;
 
-C2_INTERNAL void c2_queue_init(struct c2_queue *q);
-C2_INTERNAL void c2_queue_fini(struct c2_queue *q);
-C2_INTERNAL bool c2_queue_is_empty(const struct c2_queue *q);
+M0_INTERNAL void m0_queue_init(struct m0_queue *q);
+M0_INTERNAL void m0_queue_fini(struct m0_queue *q);
+M0_INTERNAL bool m0_queue_is_empty(const struct m0_queue *q);
 
-C2_INTERNAL void c2_queue_link_init(struct c2_queue_link *ql);
-C2_INTERNAL void c2_queue_link_fini(struct c2_queue_link *ql);
-C2_INTERNAL bool c2_queue_link_is_in(const struct c2_queue_link *ql);
-C2_INTERNAL bool c2_queue_contains(const struct c2_queue *q,
-				   const struct c2_queue_link *ql);
-C2_INTERNAL size_t c2_queue_length(const struct c2_queue *q);
+M0_INTERNAL void m0_queue_link_init(struct m0_queue_link *ql);
+M0_INTERNAL void m0_queue_link_fini(struct m0_queue_link *ql);
+M0_INTERNAL bool m0_queue_link_is_in(const struct m0_queue_link *ql);
+M0_INTERNAL bool m0_queue_contains(const struct m0_queue *q,
+				   const struct m0_queue_link *ql);
+M0_INTERNAL size_t m0_queue_length(const struct m0_queue *q);
 
 /**
    Returns queue head or NULL if queue is empty.
  */
-C2_INTERNAL struct c2_queue_link *c2_queue_get(struct c2_queue *q);
-C2_INTERNAL void c2_queue_put(struct c2_queue *q, struct c2_queue_link *ql);
+M0_INTERNAL struct m0_queue_link *m0_queue_get(struct m0_queue *q);
+M0_INTERNAL void m0_queue_put(struct m0_queue *q, struct m0_queue_link *ql);
 
-C2_INTERNAL bool c2_queue_invariant(const struct c2_queue *q);
+M0_INTERNAL bool m0_queue_invariant(const struct m0_queue *q);
 
 /** @} end of queue group */
 
 
-/* __COLIBRI_LIB_QUEUE_H__ */
+/* __MERO_LIB_QUEUE_H__ */
 #endif
 
 /*

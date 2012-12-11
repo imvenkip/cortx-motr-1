@@ -83,15 +83,15 @@
    data across a number of short-lived objects (like RPCs). Histogram
    capabilities should be added.
 
-   @todo add c2_ prefixes to sim symbols.
+   @todo add m0_ prefixes to sim symbols.
 
    @{
  */
 
 #pragma once
 
-#ifndef __COLIBRI_DESIM_SIM_H__
-#define __COLIBRI_DESIM_SIM_H__
+#ifndef __MERO_DESIM_SIM_H__
+#define __MERO_DESIM_SIM_H__
 
 #include <stdarg.h>
 
@@ -138,7 +138,7 @@ struct sim_callout {
 	 * call-out. This field is for private use by call-back function */
 	void               *sc_datum;
 	/** linkage into a logical time list sim::ss_future */
-	struct c2_tlink     sc_linkage;
+	struct m0_tlink     sc_linkage;
 	/** simulation run this call-out is an event in */
 	struct sim         *sc_sim;
 	uint64_t            sc_magic;
@@ -163,7 +163,7 @@ struct sim {
 	 * sim_callout::sc_time field. This list represents of future events,
 	 * still to be executed by the simulation loop.
 	 */
-	struct c2_tl       ss_future;
+	struct m0_tl       ss_future;
 };
 
 /**
@@ -213,7 +213,7 @@ struct sim_thread {
 	ucontext_t          st_ctx;
 	/* channel waiting */
 	/** linkage into a sim_chan::ch_threads list */
-	struct c2_tlink     st_block;
+	struct m0_tlink     st_block;
 	/**
 	   time when a thread was parked onto a channel. See sim_chan_wait()
 	   comments. */
@@ -237,49 +237,49 @@ struct sim_thread {
  */
 struct sim_chan {
 	/** list of threads waiting on a channel */
-	struct c2_tl        ch_threads;
+	struct m0_tl        ch_threads;
 	/**
 	    statistical counter measuring for how long threads are sleeping on
 	    this channel */
 	struct cnt          ch_cnt_sleep;
 };
 
-C2_INTERNAL void sim_init(struct sim *state);
-C2_INTERNAL void sim_fini(struct sim *state);
-C2_INTERNAL void sim_run(struct sim *state);
+M0_INTERNAL void sim_init(struct sim *state);
+M0_INTERNAL void sim_fini(struct sim *state);
+M0_INTERNAL void sim_run(struct sim *state);
 
-C2_INTERNAL void sim_timer_add(struct sim *state, sim_time_t delta,
+M0_INTERNAL void sim_timer_add(struct sim *state, sim_time_t delta,
 			       sim_call_t * cfunc, void *datum);
-C2_INTERNAL void sim_timer_rearm(struct sim_callout *call, sim_time_t delta,
+M0_INTERNAL void sim_timer_rearm(struct sim_callout *call, sim_time_t delta,
 				 sim_call_t * cfunc, void *datum);
-C2_INTERNAL void *sim_alloc(size_t size);
-C2_INTERNAL void sim_free(void *ptr);
+M0_INTERNAL void *sim_alloc(size_t size);
+M0_INTERNAL void sim_free(void *ptr);
 
-C2_INTERNAL void sim_chan_init(struct sim_chan *chan, char *format, ...)
+M0_INTERNAL void sim_chan_init(struct sim_chan *chan, char *format, ...)
 	__attribute__((format(printf, 2, 3)));
-C2_INTERNAL void sim_chan_fini(struct sim_chan *chan);
-C2_INTERNAL void sim_chan_wait(struct sim_chan *chan,
+M0_INTERNAL void sim_chan_fini(struct sim_chan *chan);
+M0_INTERNAL void sim_chan_wait(struct sim_chan *chan,
 			       struct sim_thread *thread);
-C2_INTERNAL void sim_chan_signal(struct sim_chan *chan);
-C2_INTERNAL void sim_chan_broadcast(struct sim_chan *chan);
+M0_INTERNAL void sim_chan_signal(struct sim_chan *chan);
+M0_INTERNAL void sim_chan_broadcast(struct sim_chan *chan);
 
-C2_INTERNAL void sim_thread_init(struct sim *state, struct sim_thread *thread,
+M0_INTERNAL void sim_thread_init(struct sim *state, struct sim_thread *thread,
 				 unsigned stacksize, sim_func_t func,
 				 void *arg);
-C2_INTERNAL void sim_thread_fini(struct sim_thread *thread);
-C2_INTERNAL void sim_thread_exit(struct sim_thread *thread);
+M0_INTERNAL void sim_thread_fini(struct sim_thread *thread);
+M0_INTERNAL void sim_thread_exit(struct sim_thread *thread);
 
-C2_INTERNAL void sim_sleep(struct sim_thread *thread, sim_time_t nap);
-C2_INTERNAL struct sim_thread *sim_thread_current(void);
+M0_INTERNAL void sim_sleep(struct sim_thread *thread, sim_time_t nap);
+M0_INTERNAL struct sim_thread *sim_thread_current(void);
 
 /* get a pseudo-random number in the interval [a, b] */
-C2_INTERNAL unsigned long long sim_rnd(unsigned long long a,
+M0_INTERNAL unsigned long long sim_rnd(unsigned long long a,
 				       unsigned long long b);
 
-C2_INTERNAL void sim_name_set(char **name, const char *format, ...)
+M0_INTERNAL void sim_name_set(char **name, const char *format, ...)
 	__attribute__((format(printf, 2, 3)));
 
-C2_INTERNAL void sim_name_vaset(char **name, const char *format,
+M0_INTERNAL void sim_name_vaset(char **name, const char *format,
 				va_list valist);
 
 enum sim_log_level {
@@ -291,14 +291,14 @@ enum sim_log_level {
 
 extern enum sim_log_level sim_log_level;
 
-C2_INTERNAL void
+M0_INTERNAL void
 sim_log(struct sim *s, enum sim_log_level level, const char *format, ...)
 	__attribute__((format(printf, 3, 4)));
 
-C2_INTERNAL int sim_global_init(void);
-C2_INTERNAL void sim_global_fini(void);
+M0_INTERNAL int sim_global_init(void);
+M0_INTERNAL void sim_global_fini(void);
 
-#endif /* __COLIBRI_DESIM_SIM_H__ */
+#endif /* __MERO_DESIM_SIM_H__ */
 
 /** @} end of desim group */
 

@@ -1,4 +1,4 @@
-colibri_libcolibri_la_SOURCES  += addb/addbff/addb_ff.h \
+mero_libmero_la_SOURCES  += addb/addbff/addb_ff.h \
                                   addb/addbff/addb_ff.c
 
 FF_FILES   += addb/addbff/addb_ff.h

@@ -1,4 +1,4 @@
-nobase_colibri_include_HEADERS += desim/c2t1fs.h \
+nobase_mero_include_HEADERS += desim/m0t1fs.h \
                                   desim/chs.h \
                                   desim/client.h \
                                   desim/cnt.h \
@@ -7,7 +7,7 @@ nobase_colibri_include_HEADERS += desim/c2t1fs.h \
                                   desim/sim.h \
                                   desim/storage.h
 
-colibri_libcolibri_la_SOURCES  += desim/c2t1fs.c \
+mero_libmero_la_SOURCES  += desim/m0t1fs.c \
                                   desim/chs.c \
                                   desim/client.c \
                                   desim/cnt.c \

@@ -28,13 +28,13 @@
 
 #include "lib/errno.h"
 #include "lib/atomic.h"
-#include "lib/arith.h"  /* c2_align */
-#include "lib/misc.h"   /* c2_short_file_name */
-#include "lib/memory.h" /* c2_pagesize_get */
+#include "lib/arith.h"  /* m0_align */
+#include "lib/misc.h"   /* m0_short_file_name */
+#include "lib/memory.h" /* m0_pagesize_get */
 #include "lib/trace.h"
 #include "lib/trace_internal.h"
 
-#include "colibri/magic.h"
+#include "mero/magic.h"
 
 /**
  * @addtogroup trace
@@ -46,7 +46,7 @@
  * (cur).
  *
  * Trace entries contain pointers from the process address space. To interpret
- * them, c2_trace_parse() must be called in the same binary. See utils/ut_main.c
+ * them, m0_trace_parse() must be called in the same binary. See utils/ut_main.c
  * for example.
  *
  * @note things like address space layout randomization might break this
@@ -59,73 +59,74 @@
 
 /**
  * This buffer is used for early trace records issued before real buffer is
- * initialized by c2_trace_init().
+ * initialized by m0_trace_init().
  */
 static char bootbuf[4096];
-void      *c2_logbuf     = bootbuf;
-uint32_t   c2_logbufsize = sizeof bootbuf;
+void      *m0_logbuf     = bootbuf;
+uint32_t   m0_logbufsize = sizeof bootbuf;
 
-unsigned long c2_trace_immediate_mask = 0;
-C2_BASSERT(sizeof(c2_trace_immediate_mask) == 8);
+unsigned long m0_trace_immediate_mask = 0;
+M0_BASSERT(sizeof(m0_trace_immediate_mask) == 8);
 
-unsigned int c2_trace_print_context = C2_TRACE_PCTX_NONE;
-unsigned int c2_trace_level         = C2_WARN | C2_ERROR | C2_FATAL;
+unsigned int m0_trace_print_context = M0_TRACE_PCTX_SHORT;
+unsigned int m0_trace_level         = M0_WARN | M0_ERROR | M0_FATAL;
 
 static uint32_t           bufmask;
-static struct c2_atomic64 cur;
+static struct m0_atomic64 cur;
 
-#undef C2_TRACE_SUBSYS
-#define C2_TRACE_SUBSYS(name, value) [value] = #name,
+#undef M0_TRACE_SUBSYS
+#define M0_TRACE_SUBSYS(name, value) [value] = #name,
 /** The array of subsystem names */
 static const char *trace_subsys_str[] = {
-	C2_TRACE_SUBSYSTEMS
+	M0_TRACE_SUBSYSTEMS
 };
 
 /** The array of trace level names */
 static struct {
 	const char          *name;
-	enum c2_trace_level  level;
+	enum m0_trace_level  level;
 } trace_levels[] = {
-	[0] = { .name = "NONE",   .level = C2_NONE   },
-	[1] = { .name = "FATAL",  .level = C2_FATAL  },
-	[2] = { .name = "ERROR",  .level = C2_ERROR  },
-	[3] = { .name = "WARN",   .level = C2_WARN   },
-	[4] = { .name = "NOTICE", .level = C2_NOTICE },
-	[5] = { .name = "INFO",   .level = C2_INFO   },
-	[6] = { .name = "DEBUG",  .level = C2_DEBUG  },
-	[7] = { .name = "CALL",   .level = C2_CALL   },
+	[0] = { .name = "NONE",   .level = M0_NONE   },
+	[1] = { .name = "FATAL",  .level = M0_FATAL  },
+	[2] = { .name = "ERROR",  .level = M0_ERROR  },
+	[3] = { .name = "WARN",   .level = M0_WARN   },
+	[4] = { .name = "NOTICE", .level = M0_NOTICE },
+	[5] = { .name = "INFO",   .level = M0_INFO   },
+	[6] = { .name = "DEBUG",  .level = M0_DEBUG  },
+	[7] = { .name = "CALL",   .level = M0_CALL   },
 };
 
 /** Array of trace print context names */
 static const char *trace_print_ctx_str[] = {
-	[C2_TRACE_PCTX_NONE] = "none",
-	[C2_TRACE_PCTX_FUNC] = "func",
-	[C2_TRACE_PCTX_FULL] = "full",
+	[M0_TRACE_PCTX_NONE]  = "none",
+	[M0_TRACE_PCTX_FUNC]  = "func",
+	[M0_TRACE_PCTX_SHORT] = "short",
+	[M0_TRACE_PCTX_FULL]  = "full",
 };
 
-C2_INTERNAL int c2_arch_trace_init(void);
-C2_INTERNAL void c2_arch_trace_fini(void);
+M0_INTERNAL int m0_arch_trace_init(void);
+M0_INTERNAL void m0_arch_trace_fini(void);
 
-C2_INTERNAL int c2_trace_init(void)
+M0_INTERNAL int m0_trace_init(void)
 {
 	int psize;
 
-	c2_atomic64_set(&cur, 0);
+	m0_atomic64_set(&cur, 0);
 
-	C2_ASSERT(c2_is_po2(C2_TRACE_BUFSIZE));
-	c2_logbufsize = C2_TRACE_BUFSIZE;
-	bufmask = c2_logbufsize - 1;
+	M0_ASSERT(m0_is_po2(M0_TRACE_BUFSIZE));
+	m0_logbufsize = M0_TRACE_BUFSIZE;
+	bufmask = m0_logbufsize - 1;
 
-	psize = c2_pagesize_get();
-	C2_ASSERT((c2_logbufsize % psize) == 0);
+	psize = m0_pagesize_get();
+	M0_ASSERT((m0_logbufsize % psize) == 0);
 
-	return c2_arch_trace_init();
+	return m0_arch_trace_init();
 }
 
-C2_INTERNAL void c2_trace_fini(void)
+M0_INTERNAL void m0_trace_fini(void)
 {
-	c2_arch_trace_fini();
-	c2_logbuf = NULL;
+	m0_arch_trace_fini();
+	m0_logbuf = NULL;
 }
 
 
@@ -142,7 +143,7 @@ static inline uint64_t rdtsc(void)
 	return ((uint64_t)count_lo) | (((uint64_t)count_hi) << 32);
 }
 
-C2_INTERNAL void c2_trace_allot(const struct c2_trace_descr *td,
+M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 				const void *body)
 {
 	uint32_t header_len;
@@ -151,7 +152,7 @@ C2_INTERNAL void c2_trace_allot(const struct c2_trace_descr *td,
 	uint32_t endpos_in_buf;
 	uint64_t pos;
 	uint64_t endpos;
-	struct c2_trace_rec_header *header;
+	struct m0_trace_rec_header *header;
 	register unsigned long sp asm("sp"); /* stack pointer */
 
 	/*
@@ -165,11 +166,11 @@ C2_INTERNAL void c2_trace_allot(const struct c2_trace_descr *td,
 	 * would require additional synchronization between contending threads).
 	 */
 
-	header_len = c2_align(sizeof *header, 8);
-	record_len = header_len + c2_align(td->td_size, 8);
+	header_len = m0_align(sizeof *header, 8);
+	record_len = header_len + m0_align(td->td_size, 8);
 
 	while (1) {
-		endpos = c2_atomic64_add_return(&cur, record_len);
+		endpos = m0_atomic64_add_return(&cur, record_len);
 		pos    = endpos - record_len;
 		pos_in_buf = pos & bufmask;
 		endpos_in_buf = endpos & bufmask;
@@ -177,14 +178,14 @@ C2_INTERNAL void c2_trace_allot(const struct c2_trace_descr *td,
 		 * The record should not cross the buffer.
 		 */
 		if (pos_in_buf > endpos_in_buf && endpos_in_buf) {
-			memset(c2_logbuf + pos_in_buf, 0,
-			       c2_logbufsize - pos_in_buf);
-			memset(c2_logbuf, 0, endpos_in_buf);
+			memset(m0_logbuf + pos_in_buf, 0,
+			       m0_logbufsize - pos_in_buf);
+			memset(m0_logbuf, 0, endpos_in_buf);
 		} else
 			break;
 	}
 
-	header                = c2_logbuf + pos_in_buf;
+	header                = m0_logbuf + pos_in_buf;
 	header->trh_magic     = 0;
 	header->trh_no        = pos;
 	header->trh_sp        = sp;
@@ -192,14 +193,14 @@ C2_INTERNAL void c2_trace_allot(const struct c2_trace_descr *td,
 	header->trh_descr     = td;
 	memcpy((void*)header + header_len, body, td->td_size);
 	/** @todo put memory barrier here before writing the magic */
-	header->trh_magic = C2_TRACE_MAGIC;
-	if (C2_TRACE_IMMEDIATE_DEBUG &&
-	    (td->td_subsys & c2_trace_immediate_mask ||
-	     td->td_level & (C2_WARN|C2_ERROR|C2_FATAL)) &&
-	    td->td_level & c2_trace_level)
-		c2_trace_record_print(header, body);
+	header->trh_magic = M0_TRACE_MAGIC;
+	if (M0_TRACE_IMMEDIATE_DEBUG &&
+	    (td->td_subsys & m0_trace_immediate_mask ||
+	     td->td_level & (M0_WARN|M0_ERROR|M0_FATAL)) &&
+	    td->td_level & m0_trace_level)
+		m0_trace_record_print(header, body);
 }
-C2_EXPORTED(c2_trace_allot);
+M0_EXPORTED(m0_trace_allot);
 
 static char *subsys_str(uint64_t subsys, char *buf)
 {
@@ -266,7 +267,8 @@ static unsigned long subsys_name_to_mask(char *subsys_name)
  * @return 0 on success
  * @return -EINVAL on failure
  */
-C2_INTERNAL int subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask)
+M0_INTERNAL int
+m0_trace_subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask)
 {
 	char          *p;
 	char          *subsys = subsys_names;
@@ -297,7 +299,7 @@ C2_INTERNAL int subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask)
 			*p++ = '\0';
 		m = subsys_name_to_mask(subsys);
 		if (m == 0) {
-			c2_console_printf("colibri: failed to initialize trace"
+			m0_console_printf("mero: failed to initialize trace"
 					  " immediate mask: subsystem '%s' not"
 					  " found\n", lowercase(subsys));
 			return -EINVAL;
@@ -312,7 +314,7 @@ out:
 	return 0;
 }
 
-static const char *trace_level_name(enum c2_trace_level level)
+static const char *trace_level_name(enum m0_trace_level level)
 {
 	int i;
 
@@ -323,7 +325,7 @@ static const char *trace_level_name(enum c2_trace_level level)
 	return NULL;
 }
 
-static enum c2_trace_level trace_level_value(char *level_name)
+static enum m0_trace_level trace_level_value(char *level_name)
 {
 	int i;
 
@@ -336,12 +338,12 @@ static enum c2_trace_level trace_level_value(char *level_name)
 
 	}
 
-	return C2_NONE;
+	return M0_NONE;
 }
 
-static enum c2_trace_level trace_level_value_plus(char *level_name)
+static enum m0_trace_level trace_level_value_plus(char *level_name)
 {
-	enum c2_trace_level  level = C2_NONE;
+	enum m0_trace_level  level = M0_NONE;
 	size_t               n = strlen(level_name);
 	bool                 is_plus_level = false;
 
@@ -351,8 +353,8 @@ static enum c2_trace_level trace_level_value_plus(char *level_name)
 	}
 
 	level = trace_level_value(level_name);
-	if (level == C2_NONE)
-		return C2_NONE;
+	if (level == M0_NONE)
+		return M0_NONE;
 
 	/*
 	 * enable requested level and all other levels with higher precedance if
@@ -363,32 +365,32 @@ static enum c2_trace_level trace_level_value_plus(char *level_name)
 
 /**
  * Parses textual trace level specification and returns a corresponding
- * c2_trace_level enum value.
+ * m0_trace_level enum value.
  *
  * @param str textual trace level specification in form "level[+][,level[+]]",
  *            where level is one of "call|debug|info|warn|error|fatal",
  *            for example: 'warn+' or 'debug', 'trace,warn,error'
  *
- * @return c2_trace_level enum value, on success
- * @return C2_NONE on failure
+ * @return m0_trace_level enum value, on success
+ * @return M0_NONE on failure
  */
-C2_INTERNAL enum c2_trace_level parse_trace_level(char *str)
+M0_INTERNAL enum m0_trace_level m0_trace_parse_trace_level(char *str)
 {
 	char                *level_str = str;
 	char                *p = level_str;
-	enum c2_trace_level  level = C2_NONE;
-	enum c2_trace_level  l;
+	enum m0_trace_level  level = M0_NONE;
+	enum m0_trace_level  l;
 
 	while (p != NULL) {
 		p = strchr(level_str, ',');
 		if (p != NULL)
 			*p++ = '\0';
 		l = trace_level_value_plus(level_str);
-		if (l == C2_NONE) {
-			c2_console_printf("colibri: failed to initialize trace"
+		if (l == M0_NONE) {
+			m0_console_printf("mero: failed to initialize trace"
 					  " level: no such level '%s'\n",
 					  lowercase(level_str));
-			return C2_NONE;
+			return M0_NONE;
 		}
 		level |= l;
 		level_str = p;
@@ -397,8 +399,8 @@ C2_INTERNAL enum c2_trace_level parse_trace_level(char *str)
 	return level;
 }
 
-C2_INTERNAL enum c2_trace_print_context parse_trace_print_context(const char
-								  *ctx_name)
+M0_INTERNAL enum m0_trace_print_context
+m0_trace_parse_trace_print_context(const char *ctx_name)
 {
 	int i;
 
@@ -406,46 +408,46 @@ C2_INTERNAL enum c2_trace_print_context parse_trace_print_context(const char
 		if (strcmp(ctx_name, trace_print_ctx_str[i]) == 0)
 			return i;
 
-	c2_console_printf("colibri: failed to initialize trace print context:"
+	m0_console_printf("mero: failed to initialize trace print context:"
 			  " invalid value '%s'\n", ctx_name);
 
-	return C2_TRACE_PCTX_INVALID;
+	return M0_TRACE_PCTX_INVALID;
 }
 
-C2_INTERNAL void c2_trace_print_subsystems(void)
+M0_INTERNAL void m0_trace_print_subsystems(void)
 {
 	int i;
 
-	c2_console_printf("# YAML\n");
-	c2_console_printf("---\n");
-	c2_console_printf("trace_subsystems:\n");
+	m0_console_printf("# YAML\n");
+	m0_console_printf("---\n");
+	m0_console_printf("trace_subsystems:\n");
 
 	for (i = 0; i < ARRAY_SIZE(trace_subsys_str); i++)
-		c2_console_printf("    - %s\n", trace_subsys_str[i]);
+		m0_console_printf("    - %s\n", trace_subsys_str[i]);
 }
 
-C2_INTERNAL void
-c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
+M0_INTERNAL void
+m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
 {
 	int i;
-	const struct c2_trace_descr *td = trh->trh_descr;
+	const struct m0_trace_descr *td = trh->trh_descr;
 	union {
 		uint8_t  v8;
 		uint16_t v16;
 		uint32_t v32;
 		uint64_t v64;
-	} v[C2_TRACE_ARGC_MAX];
+	} v[M0_TRACE_ARGC_MAX];
 	char subsys_map_str[sizeof(uint64_t) * CHAR_BIT + 3];
 
-	if (c2_trace_print_context == C2_TRACE_PCTX_FULL) {
-		c2_console_printf("%8.8llu %15.15llu %5.5x %-18s %-7s %-20s "
+	if (m0_trace_print_context == M0_TRACE_PCTX_FULL) {
+		m0_console_printf("%8.8llu %15.15llu %5.5x %-18s %-7s %-20s "
 				  "%15s:%-3i\n\t",
 				  (unsigned long long)trh->trh_no,
 				  (unsigned long long)trh->trh_timestamp,
 				  (unsigned) (trh->trh_sp & 0xfffff),
 				  subsys_str(td->td_subsys, subsys_map_str),
 				  trace_level_name(td->td_level),
-				  td->td_func, c2_short_file_name(td->td_file),
+				  td->td_func, m0_short_file_name(td->td_file),
 				  td->td_line);
 	}
 
@@ -469,27 +471,34 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 			v[i].v64 = *(uint64_t *)addr;
 			break;
 		default:
-			C2_IMPOSSIBLE("sizeof");
+			M0_IMPOSSIBLE("sizeof");
 		}
 	}
 
-	if (c2_trace_print_context == C2_TRACE_PCTX_FUNC)
-		c2_console_printf("colibri: %s: ", td->td_func);
-	else
-		c2_console_printf("colibri: ");
+	if (m0_trace_print_context == M0_TRACE_PCTX_SHORT)
+		m0_console_printf("mero: %6s : [%s:%i:%s] ",
+				  trace_level_name(td->td_level),
+				  m0_short_file_name(td->td_file),
+				  td->td_line, td->td_func);
+	else if (m0_trace_print_context == M0_TRACE_PCTX_FUNC ||
+		 (m0_trace_print_context == M0_TRACE_PCTX_NONE &&
+		  (td->td_level == M0_CALL || td->td_level == M0_NOTICE)))
+		m0_console_printf("mero: %s: ", td->td_func);
+	else /* td->td_level == M0_TRACE_PCTX_NONE */
+		m0_console_printf("mero: ");
 
-	c2_console_printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
+	m0_console_printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
 			  v[7], v[8]);
-	c2_console_printf("\n");
+	m0_console_printf("\n");
 }
 
 
-C2_INTERNAL void c2_console_printf(const char *fmt, ...)
+M0_INTERNAL void m0_console_printf(const char *fmt, ...)
 {
 	va_list ap;
 
 	va_start(ap, fmt);
-	c2_console_vprintf(fmt, ap);
+	m0_console_vprintf(fmt, ap);
 	va_end(ap);
 }
 

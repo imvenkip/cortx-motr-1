@@ -26,50 +26,50 @@
    @{
  */
 
-C2_INTERNAL c2_bcount_t c2_ext_length(const struct c2_ext *ext)
+M0_INTERNAL m0_bcount_t m0_ext_length(const struct m0_ext *ext)
 {
 	return ext->e_end - ext->e_start;
 }
-C2_EXPORTED(c2_ext_length);
+M0_EXPORTED(m0_ext_length);
 
-C2_INTERNAL bool c2_ext_is_in(const struct c2_ext *ext, c2_bindex_t index)
+M0_INTERNAL bool m0_ext_is_in(const struct m0_ext *ext, m0_bindex_t index)
 {
 	return ext->e_start <= index && index < ext->e_end;
 }
 
-C2_INTERNAL bool c2_ext_is_partof(const struct c2_ext *super,
-				  const struct c2_ext *sub)
+M0_INTERNAL bool m0_ext_is_partof(const struct m0_ext *super,
+				  const struct m0_ext *sub)
 {
 	return
-		c2_ext_is_in(super, sub->e_start) &&
+		m0_ext_is_in(super, sub->e_start) &&
 		sub->e_end <= super->e_end;
 }
 
-C2_INTERNAL bool c2_ext_equal(const struct c2_ext *a, const struct c2_ext *b)
+M0_INTERNAL bool m0_ext_equal(const struct m0_ext *a, const struct m0_ext *b)
 {
 	return a->e_start == b->e_start && a->e_end == b->e_end;
 }
 
 
-C2_INTERNAL bool c2_ext_is_empty(const struct c2_ext *ext)
+M0_INTERNAL bool m0_ext_is_empty(const struct m0_ext *ext)
 {
 	return ext->e_end <= ext->e_start;
 }
 
-C2_INTERNAL void c2_ext_intersection(const struct c2_ext *e0,
-				     const struct c2_ext *e1,
-				     struct c2_ext *result)
+M0_INTERNAL void m0_ext_intersection(const struct m0_ext *e0,
+				     const struct m0_ext *e1,
+				     struct m0_ext *result)
 {
 	result->e_start = max_check(e0->e_start, e1->e_start);
 	result->e_end   = min_check(e0->e_end,   e1->e_end);
 }
-C2_EXPORTED(c2_ext_intersection);
+M0_EXPORTED(m0_ext_intersection);
 
-C2_INTERNAL bool c2_ext_is_valid(const struct c2_ext *ext)
+M0_INTERNAL bool m0_ext_is_valid(const struct m0_ext *ext)
 {
         return ext->e_end > ext->e_start;
 }
-C2_EXPORTED(c2_ext_is_valid);
+M0_EXPORTED(m0_ext_is_valid);
 
 /** @} end of ext group */
 

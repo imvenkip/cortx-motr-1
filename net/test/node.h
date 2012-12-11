@@ -20,11 +20,11 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_TEST_NODE_H__
-#define __COLIBRI_NET_TEST_NODE_H__
+#ifndef __MERO_NET_TEST_NODE_H__
+#define __MERO_NET_TEST_NODE_H__
 
-#include "net/test/commands.h"	/* c2_net_test_cmd_ctx */
-#include "net/test/network.h"	/* c2_net_test_network_ctx */
+#include "net/test/commands.h"	/* m0_net_test_cmd_ctx */
+#include "net/test/network.h"	/* m0_net_test_network_ctx */
 
 /**
    @page net-test-fspec Functional Specification
@@ -86,17 +86,17 @@
    Run ping test as test client with 10 test messages to servers s1, s2 and s3.
 
    @code
-   node_role=server test_type=bulk target=c1,c2 size=128k
+   node_role=server test_type=bulk target=c1,m0 size=128k
    @endcode
    Run bulk test as test server with 128kB (=131072 bytes) bulk message size and
-   test clients c1 and c2.
+   test clients c1 and m0.
 
    @see @ref net-test
  */
 
 /**
    @defgroup NetTestDFS Network Benchmark
-   @brief Detailed functional specification for Colibri Network Benchmark.
+   @brief Detailed functional specification for Mero Network Benchmark.
 
    @see @ref net-test
  */
@@ -111,33 +111,33 @@
  */
 
 /** Node state */
-enum c2_net_test_node_state {
-	C2_NET_TEST_NODE_UNINITIALIZED,
-	C2_NET_TEST_NODE_INITIALIZED,
-	C2_NET_TEST_NODE_RUNNING,
-	C2_NET_TEST_NODE_FAILED,
-	C2_NET_TEST_NODE_DONE,
-	C2_NET_TEST_NODE_STOPPED,
+enum m0_net_test_node_state {
+	M0_NET_TEST_NODE_UNINITIALIZED,
+	M0_NET_TEST_NODE_INITIALIZED,
+	M0_NET_TEST_NODE_RUNNING,
+	M0_NET_TEST_NODE_FAILED,
+	M0_NET_TEST_NODE_DONE,
+	M0_NET_TEST_NODE_STOPPED,
 };
 
 /** Node configuration */
-struct c2_net_test_node_cfg {
+struct m0_net_test_node_cfg {
 	/** Node endpoint address (for commands) */
 	char	 *ntnc_addr;
 	/** Console endpoint address (for commands) */
 	char	 *ntnc_addr_console;
-	/** Send commands timeout. @see c2_net_test_commands_init(). */
-	c2_time_t ntnc_send_timeout;
+	/** Send commands timeout. @see m0_net_test_commands_init(). */
+	m0_time_t ntnc_send_timeout;
 };
 
 /** Node context. */
-struct c2_net_test_node_ctx {
+struct m0_net_test_node_ctx {
 	/** Commands context. Connected to the test console. */
-	struct c2_net_test_cmd_ctx     ntnc_cmd;
+	struct m0_net_test_cmd_ctx     ntnc_cmd;
 	/** Test service */
-	struct c2_net_test_service    *ntnc_svc;
+	struct m0_net_test_service    *ntnc_svc;
 	/** Node thread */
-	struct c2_thread	       ntnc_thread;
+	struct m0_thread	       ntnc_thread;
 	/**
 	   Exit flag for the node thread.
 	   Node thread will check this flag and will terminate if it is set.
@@ -151,7 +151,7 @@ struct c2_net_test_node_ctx {
 	 * this semaphore to wait for the node thread.
 	 * up() at the end of the node thread.
 	 */
-	struct c2_semaphore	       ntnc_thread_finished_sem;
+	struct m0_semaphore	       ntnc_thread_finished_sem;
 };
 
 /**
@@ -160,39 +160,39 @@ struct c2_net_test_node_ctx {
    @param cfg node configuration.
    @see @ref net-test-lspec
    @note ctx->ntnc_cfg should be set and should not be changed after
-   c2_net_test_node_init().
+   m0_net_test_node_init().
  */
-int c2_net_test_node_init(struct c2_net_test_node_ctx *ctx,
-			  struct c2_net_test_node_cfg *cfg);
+int m0_net_test_node_init(struct m0_net_test_node_ctx *ctx,
+			  struct m0_net_test_node_cfg *cfg);
 
 /**
    Finalize node data structures.
    @see @ref net-test-lspec
  */
-void c2_net_test_node_fini(struct c2_net_test_node_ctx *ctx);
+void m0_net_test_node_fini(struct m0_net_test_node_ctx *ctx);
 
 /**
-   Invariant for c2_net_test_node_ctx.
+   Invariant for m0_net_test_node_ctx.
  */
-bool c2_net_test_node_invariant(struct c2_net_test_node_ctx *ctx);
+bool m0_net_test_node_invariant(struct m0_net_test_node_ctx *ctx);
 
 /**
    Start test node.
    @see @ref net-test-lspec
  */
-int c2_net_test_node_start(struct c2_net_test_node_ctx *ctx);
+int m0_net_test_node_start(struct m0_net_test_node_ctx *ctx);
 
 /**
    Stop test node.
    @see @ref net-test-lspec
  */
-void c2_net_test_node_stop(struct c2_net_test_node_ctx *ctx);
+void m0_net_test_node_stop(struct m0_net_test_node_ctx *ctx);
 
 /**
    @} end of NetTestNodeDFS group
  */
 
-#endif /*  __COLIBRI_NET_TEST_NODE_H__ */
+#endif /*  __MERO_NET_TEST_NODE_H__ */
 
 /*
  *  Local variables:

@@ -1,7 +1,7 @@
 #! /bin/sh
 # see original file at core/utils/linux_kernel/ut.sh
 
-# Small wrapper to run colibri network benchmark node module
+# Small wrapper to run mero network benchmark node module
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Must be run as root"
@@ -13,10 +13,10 @@ if [ -n "$d" ]; then
     cd "$d"
 fi
 
-. c2t1fs/linux_kernel/st/common.sh
+. m0t1fs/linux_kernel/st/common.sh
 
-MODLIST="build_kernel_modules/kcolibri.ko"
-MODMAIN="net/test/linux_kernel/net_test_node.ko"
+MODLIST="build_kernel_modules/m0mero.ko"
+MODMAIN="net/test/linux_kernel/m0netperfd.ko"
 
 log='/var/log/kern'
 if [ ! -e "$log" ]; then
@@ -24,7 +24,7 @@ if [ ! -e "$log" ]; then
 fi
 tailseek=$(( $(stat -c %s "$log") + 1 ))
 
-# currently, kernel UT runs as part of loading kutc2 module
+# currently, kernel UT runs as part of loading m0ut module
 modload_galois
 modload
 insmod $MODMAIN $*

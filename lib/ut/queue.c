@@ -23,7 +23,7 @@
 #include "lib/assert.h"
 
 struct qt {
-	struct c2_queue_link t_linkage;
+	struct m0_queue_link t_linkage;
 	int                  t_val;
 };
 
@@ -37,7 +37,7 @@ void test_queue(void)
 	int sum0;
 	int sum1;
 
-	struct c2_queue  q;
+	struct m0_queue  q;
 	static struct qt t[NR]; /* static to reduce kernel stack consumption. */
 
 	for (sum0 = i = 0; i < ARRAY_SIZE(t); ++i) {
@@ -45,41 +45,41 @@ void test_queue(void)
 		sum0 += i;
 	};
 
-	c2_queue_init(&q);
-	C2_UT_ASSERT(c2_queue_is_empty(&q));
-	C2_UT_ASSERT(c2_queue_get(&q) == NULL);
-	C2_UT_ASSERT(c2_queue_length(&q) == 0);
+	m0_queue_init(&q);
+	M0_UT_ASSERT(m0_queue_is_empty(&q));
+	M0_UT_ASSERT(m0_queue_get(&q) == NULL);
+	M0_UT_ASSERT(m0_queue_length(&q) == 0);
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
-		c2_queue_put(&q, &t[i].t_linkage);
-		C2_UT_ASSERT(!c2_queue_is_empty(&q));
-		C2_UT_ASSERT(c2_queue_link_is_in(&t[i].t_linkage));
-		C2_UT_ASSERT(c2_queue_length(&q) == i + 1);
+		m0_queue_put(&q, &t[i].t_linkage);
+		M0_UT_ASSERT(!m0_queue_is_empty(&q));
+		M0_UT_ASSERT(m0_queue_link_is_in(&t[i].t_linkage));
+		M0_UT_ASSERT(m0_queue_length(&q) == i + 1);
 	}
-	C2_UT_ASSERT(c2_queue_length(&q) == ARRAY_SIZE(t));
+	M0_UT_ASSERT(m0_queue_length(&q) == ARRAY_SIZE(t));
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i)
-		C2_UT_ASSERT(c2_queue_contains(&q, &t[i].t_linkage));
+		M0_UT_ASSERT(m0_queue_contains(&q, &t[i].t_linkage));
 
 	for (sum1 = i = 0; i < ARRAY_SIZE(t); ++i) {
-		struct c2_queue_link *ql;
+		struct m0_queue_link *ql;
 		struct qt            *qt;
 
-		ql = c2_queue_get(&q);
-		C2_UT_ASSERT(ql != NULL);
+		ql = m0_queue_get(&q);
+		M0_UT_ASSERT(ql != NULL);
 		qt = container_of(ql, struct qt, t_linkage);
-		C2_UT_ASSERT(&t[0] <= qt && qt < &t[NR]);
-		C2_UT_ASSERT(qt->t_val == i);
+		M0_UT_ASSERT(&t[0] <= qt && qt < &t[NR]);
+		M0_UT_ASSERT(qt->t_val == i);
 		sum1 += qt->t_val;
 	}
-	C2_UT_ASSERT(sum0 == sum1);
-	C2_UT_ASSERT(c2_queue_get(&q) == NULL);
-	C2_UT_ASSERT(c2_queue_is_empty(&q));
-	C2_UT_ASSERT(c2_queue_length(&q) == 0);
+	M0_UT_ASSERT(sum0 == sum1);
+	M0_UT_ASSERT(m0_queue_get(&q) == NULL);
+	M0_UT_ASSERT(m0_queue_is_empty(&q));
+	M0_UT_ASSERT(m0_queue_length(&q) == 0);
 	for (i = 0; i < ARRAY_SIZE(t); ++i)
-		C2_UT_ASSERT(!c2_queue_link_is_in(&t[i].t_linkage));
+		M0_UT_ASSERT(!m0_queue_link_is_in(&t[i].t_linkage));
 
-	c2_queue_fini(&q);
+	m0_queue_fini(&q);
 }
 
 

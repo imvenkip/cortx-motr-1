@@ -21,13 +21,13 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "lib/arith.h"   /* min_type, c2_is_po2 */
+#include "lib/arith.h"   /* min_type, m0_is_po2 */
 #include "lib/assert.h"
 #include "lib/atomic.h"
 #include "lib/memory.h"
 #include "lib/finject.h"
 
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_MEMORY
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MEMORY
 #include "lib/trace.h"
 
 /**
@@ -35,18 +35,18 @@
 
    <b>User level malloc(3) based implementation.</b>
 
-   The only interesting detail is implementation of c2_allocated(). No standard
+   The only interesting detail is implementation of m0_allocated(). No standard
    function returns the amount of memory allocated in the arena.
 
    GNU Libc defines mallinfo() function, returning the amount of allocated
    memory among other things. In OS X (of all places) there is malloc_size()
    function that, given a pointer to an allocated block of memory, returns its
-   size. On other platforms c2_allocates() is always 0.
+   size. On other platforms m0_allocates() is always 0.
 
    @{
 */
 
-static struct c2_atomic64 allocated;
+static struct m0_atomic64 allocated;
 
 #ifdef HAVE_MALLINFO
 
@@ -65,22 +65,22 @@ static size_t __allocated(void)
 
 static void __free(void *ptr)
 {
-	c2_atomic64_sub(&allocated, malloc_size(ptr));
+	m0_atomic64_sub(&allocated, malloc_size(ptr));
 	free(ptr);
 }
 
-C2_INTERNAL void *__malloc(size_t size)
+M0_INTERNAL void *__malloc(size_t size)
 {
 	void *area;
 
 	area = malloc(size);
-	c2_atomic64_add(&allocated, malloc_size(area));
+	m0_atomic64_add(&allocated, malloc_size(area));
 	return area;
 }
 
 static size_t __allocated(void)
 {
-	return c2_atomic64_get(&allocated);
+	return m0_atomic64_get(&allocated);
 }
 
 /* HAVE_MALLOC_SIZE */
@@ -96,37 +96,37 @@ static size_t __allocated(void)
 
 #endif
 
-void *c2_alloc(size_t size)
+void *m0_alloc(size_t size)
 {
 	void *ret;
 
-	if (C2_FI_ENABLED("fail_allocation"))
+	if (M0_FI_ENABLED("fail_allocation"))
 		return NULL;
 
-	C2_ENTRY("size=%lu", size);
+	M0_ENTRY("size=%lu", size);
 	ret = __malloc(size);
 	if (ret)
 		memset(ret, 0, size);
-	C2_LEAVE("ptr=%p size=%lu", ret, size);
+	M0_LEAVE("ptr=%p size=%lu", ret, size);
 	return ret;
 }
 
-void c2_free(void *data)
+void m0_free(void *data)
 {
-	C2_ENTRY("ptr=%p", data);
+	M0_ENTRY("ptr=%p", data);
 	__free(data);
-	C2_LEAVE();
+	M0_LEAVE();
 }
 
-C2_INTERNAL void c2_free_aligned(void *data, size_t size, unsigned shift)
+M0_INTERNAL void m0_free_aligned(void *data, size_t size, unsigned shift)
 {
-	C2_PRE(c2_addr_is_aligned(data, shift));
-	c2_free(data);
+	M0_PRE(m0_addr_is_aligned(data, shift));
+	m0_free(data);
 }
 
 static size_t used0;
 
-C2_INTERNAL size_t c2_allocated(void)
+M0_INTERNAL size_t m0_allocated(void)
 {
 	size_t used;
 
@@ -136,7 +136,7 @@ C2_INTERNAL size_t c2_allocated(void)
 	return used - used0;
 }
 
-C2_INTERNAL void *c2_alloc_aligned(size_t size, unsigned shift)
+M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
 {
 	void  *result;
 	int    rc;
@@ -150,7 +150,7 @@ C2_INTERNAL void *c2_alloc_aligned(size_t size, unsigned shift)
 	 */
 
 	alignment = max_type(size_t, 1 << shift, sizeof result);
-	C2_ASSERT(c2_is_po2(alignment));
+	M0_ASSERT(m0_is_po2(alignment));
 	rc = posix_memalign(&result, alignment, size);
 	if (rc == 0)
 		memset(result, 0, size);
@@ -159,23 +159,23 @@ C2_INTERNAL void *c2_alloc_aligned(size_t size, unsigned shift)
 	return result;
 }
 
-C2_INTERNAL int c2_memory_init()
+M0_INTERNAL int m0_memory_init()
 {
-	c2_atomic64_set(&allocated, 0);
+	m0_atomic64_set(&allocated, 0);
 	used0 = __allocated();
 	return 0;
 }
 
-C2_INTERNAL void c2_memory_fini()
+M0_INTERNAL void m0_memory_fini()
 {
 }
 
-C2_INTERNAL int c2_pagesize_get()
+M0_INTERNAL int m0_pagesize_get()
 {
 	return getpagesize();
 }
 
-#undef C2_TRACE_SUBSYSTEM
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of memory group */
 

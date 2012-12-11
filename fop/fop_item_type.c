@@ -24,67 +24,67 @@
 #include "fop/fop_item_type.h"
 #include "rpc/rpc_helpers.h"
 
-C2_INTERNAL c2_bcount_t c2_fop_item_type_default_payload_size(const struct
-							      c2_rpc_item *item)
+M0_INTERNAL m0_bcount_t m0_fop_item_type_default_payload_size(const struct
+							      m0_rpc_item *item)
 {
-	c2_bcount_t          len;
-	struct c2_fop       *fop;
-	struct c2_xcode_ctx  ctx;
+	m0_bcount_t          len;
+	struct m0_fop       *fop;
+	struct m0_xcode_ctx  ctx;
 
-	C2_PRE(item != NULL);
+	M0_PRE(item != NULL);
 
-	fop = c2_rpc_item_to_fop(item);
-	C2_ASSERT(fop != NULL);
-	C2_ASSERT(fop->f_type != NULL);
-	c2_xcode_ctx_init(&ctx, &C2_FOP_XCODE_OBJ(fop));
-	len = c2_xcode_length(&ctx);
+	fop = m0_rpc_item_to_fop(item);
+	M0_ASSERT(fop != NULL);
+	M0_ASSERT(fop->f_type != NULL);
+	m0_xcode_ctx_init(&ctx, &M0_FOP_XCODE_OBJ(fop));
+	len = m0_xcode_length(&ctx);
 	return len;
 }
 
-C2_INTERNAL int c2_fop_item_type_default_encode(const struct c2_rpc_item_type
+M0_INTERNAL int m0_fop_item_type_default_encode(const struct m0_rpc_item_type
 						*item_type,
-						struct c2_rpc_item *item,
-						struct c2_bufvec_cursor *cur)
+						struct m0_rpc_item *item,
+						struct m0_bufvec_cursor *cur)
 {
-	C2_PRE(item != NULL);
-	C2_PRE(cur != NULL);
+	M0_PRE(item != NULL);
+	M0_PRE(cur != NULL);
 
-	return c2_fop_item_encdec(item, cur, C2_BUFVEC_ENCODE);
+	return m0_fop_item_encdec(item, cur, M0_BUFVEC_ENCODE);
 }
 
-C2_INTERNAL int c2_fop_item_type_default_decode(const struct c2_rpc_item_type
+M0_INTERNAL int m0_fop_item_type_default_decode(const struct m0_rpc_item_type
 						*item_type,
-						struct c2_rpc_item **item_out,
-						struct c2_bufvec_cursor *cur)
+						struct m0_rpc_item **item_out,
+						struct m0_bufvec_cursor *cur)
 {
 	int			 rc;
-	struct c2_fop		*fop;
-	struct c2_fop_type	*ftype;
-	struct c2_rpc_item      *item;
+	struct m0_fop		*fop;
+	struct m0_fop_type	*ftype;
+	struct m0_rpc_item      *item;
 
-	C2_PRE(item_out != NULL);
-	C2_PRE(cur != NULL);
+	M0_PRE(item_out != NULL);
+	M0_PRE(cur != NULL);
 
 	*item_out = NULL;
-	ftype = c2_item_type_to_fop_type(item_type);
-	C2_ASSERT(ftype != NULL);
+	ftype = m0_item_type_to_fop_type(item_type);
+	M0_ASSERT(ftype != NULL);
 
 	/*
 	 * Decoding in xcode is different from sunrpc xdr where top object is
 	 * allocated by caller; in xcode, even the top object is allocated,
 	 * so we don't need to allocate the fop->f_data->fd_data.
 	 */
-	C2_ALLOC_PTR(fop);
+	M0_ALLOC_PTR(fop);
 	if (fop == NULL)
 		return -ENOMEM;
 
-	c2_fop_init(fop, ftype, NULL);
-	item = c2_fop_to_rpc_item(fop);
-	rc = c2_fop_item_encdec(item, cur, C2_BUFVEC_DECODE);
+	m0_fop_init(fop, ftype, NULL);
+	item = m0_fop_to_rpc_item(fop);
+	rc = m0_fop_item_encdec(item, cur, M0_BUFVEC_DECODE);
 	if (rc == 0)
 		*item_out = item;
 	else
-		c2_fop_free(fop);
+		m0_fop_free(fop);
 
 	return rc;
 }
@@ -93,35 +93,35 @@ C2_INTERNAL int c2_fop_item_type_default_decode(const struct c2_rpc_item_type
    Helper function used by encode/decode ops of each item type (rito_encode,
    rito_decode) for decoding an rpc item into/from a bufvec
 */
-C2_INTERNAL int c2_fop_item_encdec(struct c2_rpc_item *item,
-				   struct c2_bufvec_cursor *cur,
-				   enum c2_bufvec_what what)
+M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
+				   struct m0_bufvec_cursor *cur,
+				   enum m0_bufvec_what what)
 {
 	int                  rc;
-	struct c2_fop       *fop;
-	struct c2_xcode_ctx  xc_ctx;
+	struct m0_fop       *fop;
+	struct m0_xcode_ctx  xc_ctx;
 
-	C2_PRE(item != NULL);
-	C2_PRE(cur != NULL);
+	M0_PRE(item != NULL);
+	M0_PRE(cur != NULL);
 
-	fop = c2_rpc_item_to_fop(item);
+	fop = m0_rpc_item_to_fop(item);
 
 	/* Currently MAX slot references in sessions is 1. */
-	rc = c2_rpc_item_slot_ref_encdec(cur, item->ri_slot_refs, 1, what);
+	rc = m0_rpc_item_slot_ref_encdec(cur, item->ri_slot_refs, 1, what);
 	if (rc != 0)
 		return rc;
 
-	c2_xcode_ctx_init(&xc_ctx, &C2_FOP_XCODE_OBJ(fop));
+	m0_xcode_ctx_init(&xc_ctx, &M0_FOP_XCODE_OBJ(fop));
 	/* structure instance copy! */
 	xc_ctx.xcx_buf   = *cur;
-	xc_ctx.xcx_alloc = c2_xcode_alloc;
+	xc_ctx.xcx_alloc = m0_xcode_alloc;
 
-	rc = what == C2_BUFVEC_ENCODE ? c2_xcode_encode(&xc_ctx) :
-					c2_xcode_decode(&xc_ctx);
+	rc = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(&xc_ctx) :
+					m0_xcode_decode(&xc_ctx);
 	if (rc == 0) {
-		if (what == C2_BUFVEC_DECODE)
+		if (what == M0_BUFVEC_DECODE)
 			fop->f_data.fd_data =
-				c2_xcode_ctx_top(&xc_ctx);
+				m0_xcode_ctx_top(&xc_ctx);
 		*cur = xc_ctx.xcx_buf;
 	}
 
@@ -129,12 +129,12 @@ C2_INTERNAL int c2_fop_item_encdec(struct c2_rpc_item *item,
 }
 
 /** Default rpc item type ops for fop item types */
-const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops = {
-	.rito_encode       = c2_fop_item_type_default_encode,
-	.rito_decode       = c2_fop_item_type_default_decode,
-	.rito_payload_size = c2_fop_item_type_default_payload_size,
+const struct m0_rpc_item_type_ops m0_rpc_fop_default_item_type_ops = {
+	.rito_encode       = m0_fop_item_type_default_encode,
+	.rito_decode       = m0_fop_item_type_default_decode,
+	.rito_payload_size = m0_fop_item_type_default_payload_size,
 };
-C2_EXPORTED(c2_rpc_fop_default_item_type_ops);
+M0_EXPORTED(m0_rpc_fop_default_item_type_ops);
 
 /*
  *  Local variables:

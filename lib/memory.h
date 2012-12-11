@@ -19,11 +19,11 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_MEMORY_H__
-#define __COLIBRI_LIB_MEMORY_H__
+#ifndef __MERO_LIB_MEMORY_H__
+#define __MERO_LIB_MEMORY_H__
 
 #include "lib/types.h"
-#include "lib/assert.h" /* C2_CASSERT */
+#include "lib/assert.h" /* M0_CASSERT */
 #include "addb/addb.h"
 
 /**
@@ -40,23 +40,23 @@
  * @retval NULL - allocation failed
  * @retval !NULL - allocated memory block
  */
-void *c2_alloc(size_t size);
+void *m0_alloc(size_t size);
 
-#define C2_ALLOC_ARR(arr, nr)  ((arr) = c2_alloc((nr) * sizeof ((arr)[0])))
-#define C2_ALLOC_PTR(ptr)      C2_ALLOC_ARR(ptr, 1)
-#define C2_ALLOC_ADDB(ptr, size, ctx, loc)				\
+#define M0_ALLOC_ARR(arr, nr)  ((arr) = m0_alloc((nr) * sizeof ((arr)[0])))
+#define M0_ALLOC_PTR(ptr)      M0_ALLOC_ARR(ptr, 1)
+#define M0_ALLOC_ADDB(ptr, size, ctx, loc)				\
 do {									\
-	if ((ptr = c2_alloc(size)) == NULL) C2_ADDB_ADD(ctx, loc, c2_addb_oom);	\
+	if ((ptr = m0_alloc(size)) == NULL) M0_ADDB_ADD(ctx, loc, m0_addb_oom);	\
 } while (0)
 
-#define C2_ALLOC_PTR_ADDB(ptr, ctx, loc)				\
+#define M0_ALLOC_PTR_ADDB(ptr, ctx, loc)				\
 do {									\
-	if (C2_ALLOC_PTR(ptr) == NULL) C2_ADDB_ADD(ctx, loc, c2_addb_oom); \
+	if (M0_ALLOC_PTR(ptr) == NULL) M0_ADDB_ADD(ctx, loc, m0_addb_oom); \
 } while (0)
 
-#define C2_ALLOC_ARR_ADDB(arr, nr, ctx, loc)				\
+#define M0_ALLOC_ARR_ADDB(arr, nr, ctx, loc)				\
 do {									\
-	if (C2_ALLOC_ARR(arr, nr) == NULL) C2_ADDB_ADD(ctx, loc, c2_addb_oom); \
+	if (M0_ALLOC_ARR(arr, nr) == NULL) M0_ADDB_ADD(ctx, loc, m0_addb_oom); \
 } while (0)
 
 /**
@@ -64,12 +64,12 @@ do {									\
    In kernel mode due to the usage of __GFP_ZERO, it can't be used from hard or
    soft interrupt context.
  */
-C2_INTERNAL void *c2_alloc_aligned(size_t size, unsigned shift);
+M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift);
 
 /** It returns true when addr is aligned by value shift. */
-static inline bool c2_addr_is_aligned(void *addr, unsigned shift)
+static inline bool m0_addr_is_aligned(void *addr, unsigned shift)
 {
-	C2_CASSERT(sizeof(unsigned long) >= sizeof(void *));
+	M0_CASSERT(sizeof(unsigned long) >= sizeof(void *));
 	return ((((unsigned long)addr >> shift) << shift) ==
 		  (unsigned long)addr);
 }
@@ -83,7 +83,7 @@ static inline bool c2_addr_is_aligned(void *addr, unsigned shift)
  *
  * @return none
  */
-void c2_free(void *data);
+void m0_free(void *data);
 
 /**
  * Frees aligned memory block
@@ -91,18 +91,18 @@ void c2_free(void *data);
  * @param data pointer to allocated block
  *
  */
-C2_INTERNAL void c2_free_aligned(void *data, size_t size, unsigned shift);
+M0_INTERNAL void m0_free_aligned(void *data, size_t size, unsigned shift);
 
 /**
  * Return amount of memory currently allocated.
  */
-C2_INTERNAL size_t c2_allocated(void);
+M0_INTERNAL size_t m0_allocated(void);
 
 /**
  * Same as system getpagesize(3).
  * Used in the code shared between user and kernel.
  */
-C2_INTERNAL int c2_pagesize_get(void);
+M0_INTERNAL int m0_pagesize_get(void);
 
 /** @} end of memory group */
 

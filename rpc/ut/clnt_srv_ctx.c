@@ -34,12 +34,12 @@ enum {
 	CONNECT_TIMEOUT		= 5,
 };
 
-static struct c2_net_xprt    *xprt = &c2_net_lnet_xprt;
-static struct c2_net_domain   client_net_dom = { };
-static struct c2_dbenv        client_dbenv;
-static struct c2_cob_domain   client_cob_dom;
+static struct m0_net_xprt    *xprt = &m0_net_lnet_xprt;
+static struct m0_net_domain   client_net_dom = { };
+static struct m0_dbenv        client_dbenv;
+static struct m0_cob_domain   client_cob_dom;
 
-static struct c2_rpc_client_ctx cctx = {
+static struct m0_rpc_client_ctx cctx = {
 	.rcx_net_dom		   = &client_net_dom,
 	.rcx_local_addr            = CLIENT_ENDPOINT_ADDR,
 	.rcx_remote_addr           = SERVER_ENDPOINT_ADDR,
@@ -50,7 +50,7 @@ static struct c2_rpc_client_ctx cctx = {
 	.rcx_nr_slots		   = SESSION_SLOTS,
 	.rcx_timeout_s		   = CONNECT_TIMEOUT,
 	.rcx_max_rpcs_in_flight	   = MAX_RPCS_IN_FLIGHT,
-	.rcx_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN,
+	.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN,
 };
 
 static char *server_argv[] = {
@@ -59,12 +59,12 @@ static char *server_argv[] = {
 	"-s", "ds1", "-s", "ds2"
 };
 
-static struct c2_rpc_server_ctx sctx = {
+static struct m0_rpc_server_ctx sctx = {
 	.rsx_xprts            = &xprt,
 	.rsx_xprts_nr         = 1,
 	.rsx_argv             = server_argv,
 	.rsx_argc             = ARRAY_SIZE(server_argv),
-	.rsx_service_types    = c2_cs_default_stypes,
+	.rsx_service_types    = m0_cs_default_stypes,
 	.rsx_service_types_nr = 2,
 	.rsx_log_file_name    = SERVER_LOG_FILE_NAME,
 };

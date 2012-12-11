@@ -20,14 +20,14 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_USER_SPACE_TYPES_H__
-#define __COLIBRI_LIB_USER_SPACE_TYPES_H__
+#ifndef __MERO_LIB_USER_SPACE_TYPES_H__
+#define __MERO_LIB_USER_SPACE_TYPES_H__
 
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/types.h>
 
-/* __COLIBRI_LIB_USER_SPACE_TYPES_H__ */
+/* __MERO_LIB_USER_SPACE_TYPES_H__ */
 #endif
 /*
  *  Local variables:

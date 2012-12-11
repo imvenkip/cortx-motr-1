@@ -1,0 +1,9 @@
+EXTRA_DIST += m0t1fs/linux_kernel/m0loop.c \
+              m0t1fs/linux_kernel/m0loop_internal.h \
+              m0t1fs/linux_kernel/m0t1fs.c \
+              m0t1fs/linux_kernel/m0t1fs.h \
+              m0t1fs/linux_kernel/dir.c \
+              m0t1fs/linux_kernel/file.c \
+              m0t1fs/linux_kernel/inode.c \
+              m0t1fs/linux_kernel/super.c \
+	      m0t1fs/linux_kernel/file_internal.h

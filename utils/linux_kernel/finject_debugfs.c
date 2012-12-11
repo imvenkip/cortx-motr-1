@@ -29,24 +29,24 @@
 #include <linux/string.h>    /* strncmp */
 #include <linux/ctype.h>     /* isprint */
 
-#include "lib/mutex.h"       /* c2_mutex */
-#include "lib/time.h"        /* c2_time_now */
-#include "lib/misc.h"        /* C2_SET_ARR0 */
+#include "lib/mutex.h"       /* m0_mutex */
+#include "lib/time.h"        /* m0_time_now */
+#include "lib/misc.h"        /* M0_SET_ARR0 */
 #include "lib/finject.h"
 #include "lib/finject_internal.h"
 
 
 /**
- * @addtogroup kc2ctl
+ * @addtogroup m0ctl
  *
  * @{
  *
  * Fault injection control interface.
  *
- * @li colibri/finject_stat   Provides information about all registered fault
+ * @li mero/finject_stat   Provides information about all registered fault
  *                            points.
  *
- * @li colibri/finject_ctl    Allows to change state of existing fault points
+ * @li mero/finject_ctl    Allows to change state of existing fault points
  *                            (enable/disable).
  *
  * finject_ctl accepts commands in the following format:
@@ -69,13 +69,13 @@
  *
  * @verbatim
  *
- *     enable c2_alloc fake_failure oneshot
- *     enable c2_alloc fake_failure random 30
- *     enable c2_rpc_conn_start fake_success always
- *     enable c2_net_buffer_del need_fail off_n_on_m 2 5
+ *     enable m0_alloc fake_failure oneshot
+ *     enable m0_alloc fake_failure random 30
+ *     enable m0_rpc_conn_start fake_success always
+ *     enable m0_net_buffer_del need_fail off_n_on_m 2 5
  *
- *     disable c2_alloc fake_failure
- *     disable c2_net_buffer_del need_fail
+ *     disable m0_alloc fake_failure
+ *     disable m0_net_buffer_del need_fail
  *
  * @endverbatim
  *
@@ -83,7 +83,7 @@
  *
  * @verbatim
  *
- *     $ echo 'enable c2_init need_fail always' > /sys/kernel/debug/colibri/finject_ctl
+ *     $ echo 'enable m0_init need_fail always' > /sys/kernel/debug/mero/finject_ctl
  *
  * @endverbatim
  */
@@ -100,23 +100,23 @@ static void *fi_stat_start(struct seq_file *seq, loff_t *pos)
 {
 	if (*pos == 0)
 		return SEQ_START_TOKEN;
-	else if (*pos >= c2_fi_states_get_free_idx())
+	else if (*pos >= m0_fi_states_get_free_idx())
 		/* indicate beyond end of file position */
 		return NULL;
 
 
-	return (void*)(c2_fi_states_get() + *pos);
+	return (void*)(m0_fi_states_get() + *pos);
 }
 
 static void *fi_stat_next(struct seq_file *seq, void *v, loff_t *pos)
 {
 	loff_t cur_pos = (*pos)++;
 
-	if (cur_pos >= c2_fi_states_get_free_idx())
+	if (cur_pos >= m0_fi_states_get_free_idx())
 		/* indicate end of sequence */
 		return NULL;
 
-	return (void*)(c2_fi_states_get() + cur_pos);
+	return (void*)(m0_fi_states_get() + cur_pos);
 }
 
 static void fi_stat_stop(struct seq_file *seq, void *v)
@@ -125,13 +125,13 @@ static void fi_stat_stop(struct seq_file *seq, void *v)
 
 static int fi_stat_show(struct seq_file *seq, void *v)
 {
-	const struct c2_fi_fpoint_state *state = v;
-	struct c2_fi_fpoint_state_info   si;
+	const struct m0_fi_fpoint_state *state = v;
+	struct m0_fi_fpoint_state_info   si;
 
 	/* print header */
 	if (SEQ_START_TOKEN == v) {
-		seq_puts(seq, c2_fi_states_headline[0]);
-		seq_puts(seq, c2_fi_states_headline[1]);
+		seq_puts(seq, m0_fi_states_headline[0]);
+		seq_puts(seq, m0_fi_states_headline[1]);
 		return 0;
 	}
 
@@ -140,9 +140,9 @@ static int fi_stat_show(struct seq_file *seq, void *v)
 	/*if (!fi_state_enabled(state))
 		return SEQ_SKIP;*/
 
-	c2_fi_states_get_state_info(state, &si);
+	m0_fi_states_get_state_info(state, &si);
 
-	seq_printf(seq, c2_fi_states_print_format,
+	seq_printf(seq, m0_fi_states_print_format,
 			si.si_idx, si.si_enb, si.si_total_hit_cnt,
 			si.si_total_trigger_cnt, si.si_hit_cnt,
 			si.si_trigger_cnt, si.si_type, si.si_data,
@@ -221,7 +221,7 @@ static int fi_ctl_process_cmd(int argc, char *argv[])
 		if (func == NULL)
 			return -ENOMEM;
 
-		rc = c2_fi_add_dyn_id(func);
+		rc = m0_fi_add_dyn_id(func);
 		if (rc != 0) {
 			kfree(func);
 			return rc;
@@ -231,7 +231,7 @@ static int fi_ctl_process_cmd(int argc, char *argv[])
 		if (tag == NULL)
 			return -ENOMEM;
 
-		rc = c2_fi_add_dyn_id(tag);
+		rc = m0_fi_add_dyn_id(tag);
 		if (rc != 0) {
 			kfree(tag);
 			return rc;
@@ -243,14 +243,14 @@ static int fi_ctl_process_cmd(int argc, char *argv[])
 				       " arguments for command '%s'\n", argv[0]);
 				return -EINVAL;
 			}
-			c2_fi_enable(func, tag);
+			m0_fi_enable(func, tag);
 		} else if (strcmp(argv[3], "oneshot") == 0) {
 			if (argc > 4) {
 				pr_err(KBUILD_MODNAME ": finject_ctl too many"
 				       " arguments for command '%s'\n", argv[0]);
 				return -EINVAL;
 			}
-			c2_fi_enable_once(func, tag);
+			m0_fi_enable_once(func, tag);
 		} else if (strcmp(argv[3], "random") == 0) {
 			unsigned long p;
 			if (argc != 5) {
@@ -262,7 +262,7 @@ static int fi_ctl_process_cmd(int argc, char *argv[])
 			rc = strict_strtoul(argv[4], 0, &p);
 			if (rc < 0)
 				return rc;
-			c2_fi_enable_random(func, tag, p);
+			m0_fi_enable_random(func, tag, p);
 		} else if (strcmp(argv[3], "off_n_on_m") == 0) {
 			unsigned long n;
 			unsigned long m;
@@ -278,14 +278,14 @@ static int fi_ctl_process_cmd(int argc, char *argv[])
 			rc = strict_strtoul(argv[5], 0, &m);
 			if (rc < 0)
 				return rc;
-			c2_fi_enable_off_n_on_m(func, tag, n, m);
+			m0_fi_enable_off_n_on_m(func, tag, n, m);
 		} else {
 			pr_err(KBUILD_MODNAME ": finject_ctl: invalid or not"
 			       " allowed FP type '%s'\n", argv[3]);
 			return -EINVAL;
 		}
 	} else if (strcmp(argv[0], "disable") == 0) {
-		c2_fi_disable(argv[1], argv[2]);
+		m0_fi_disable(argv[1], argv[2]);
 	} else {
 		pr_err(KBUILD_MODNAME ": finject_ctl: invalid action '%s'\n",
 					argv[0]);
@@ -387,7 +387,7 @@ void fi_dfs_cleanup(void)
 	fi_stat_file = 0;
 }
 
-/** @} end of kc2ctl group */
+/** @} end of m0ctl group */
 
 #else
 

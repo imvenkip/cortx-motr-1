@@ -29,69 +29,69 @@ struct test_request;
  * operation and necessary context data
  */
 struct fom_rdwr {
-	/** Generic c2_fom object. */
-        struct c2_fom                    fr_gen;
-	struct c2_long_lock_link	 fr_link;
+	/** Generic m0_fom object. */
+        struct m0_fom                    fr_gen;
+	struct m0_long_lock_link	 fr_link;
 
 	/* Long lock UT test data */
 	struct test_request		*fr_req;
 	size_t				 fr_seqn;
 };
 
-static size_t fom_rdwr_home_locality(const struct c2_fom *fom);
-static void fop_rdwr_fom_fini(struct c2_fom *fom);
-static int fom_rdwr_tick(struct c2_fom *fom);
+static size_t fom_rdwr_home_locality(const struct m0_fom *fom);
+static void fop_rdwr_fom_fini(struct m0_fom *fom);
+static int fom_rdwr_tick(struct m0_fom *fom);
 
 /** Generic ops object for rdwr */
-static const struct c2_fom_ops fom_rdwr_ops = {
+static const struct m0_fom_ops fom_rdwr_ops = {
 	.fo_fini = fop_rdwr_fom_fini,
 	.fo_tick = fom_rdwr_tick,
 	.fo_home_locality = fom_rdwr_home_locality
 };
 
 /** FOM type specific functions for rdwr FOP. */
-const struct c2_fom_type_ops fom_rdwr_type_ops = {
+const struct m0_fom_type_ops fom_rdwr_type_ops = {
 	.fto_create = NULL
 };
 
 /** Rdwr specific FOM type operations vector. */
-struct c2_fom_type rdwr_fom_type;
+struct m0_fom_type rdwr_fom_type;
 
-static size_t fom_rdwr_home_locality(const struct c2_fom *fom)
+static size_t fom_rdwr_home_locality(const struct m0_fom *fom)
 {
 	static size_t locality = 0;
 
-	C2_PRE(fom != NULL);
+	M0_PRE(fom != NULL);
 	return locality++;
 }
 
-static int rdwr_fom_create(struct c2_fom **m)
+static int rdwr_fom_create(struct m0_fom **m)
 {
-        struct c2_fom                   *fom;
+        struct m0_fom                   *fom;
         struct fom_rdwr			*fom_obj;
 
-        C2_PRE(m != NULL);
+        M0_PRE(m != NULL);
 
-        C2_ALLOC_PTR(fom_obj);
-        C2_UT_ASSERT(fom_obj != NULL);
+        M0_ALLOC_PTR(fom_obj);
+        M0_UT_ASSERT(fom_obj != NULL);
 
 	fom = &fom_obj->fr_gen;
-	c2_fom_init(fom, &rdwr_fom_type, &fom_rdwr_ops,
-		    (struct c2_fop *) 1, NULL);
-	c2_long_lock_link_init(&fom_obj->fr_link, fom);
+	m0_fom_init(fom, &rdwr_fom_type, &fom_rdwr_ops,
+		    (struct m0_fop *) 1, NULL);
+	m0_long_lock_link_init(&fom_obj->fr_link, fom);
 
 	*m = fom;
 	return 0;
 }
 
-static void fop_rdwr_fom_fini(struct c2_fom *fom)
+static void fop_rdwr_fom_fini(struct m0_fom *fom)
 {
 	struct fom_rdwr *fom_obj;
 
 	fom_obj = container_of(fom, struct fom_rdwr, fr_gen);
-	c2_fom_fini(fom);
-	c2_long_lock_link_fini(&fom_obj->fr_link);
-	c2_free(fom_obj);
+	m0_fom_fini(fom);
+	m0_long_lock_link_fini(&fom_obj->fr_link);
+	m0_free(fom_obj);
 
 	return;
 }

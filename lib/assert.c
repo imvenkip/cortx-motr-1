@@ -26,7 +26,7 @@
 #  include <execinfo.h>
 #endif
 
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LIB
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -35,7 +35,7 @@
 /**
    @addtogroup assert
 
-   User space c2_panic() implementation.
+   User space m0_panic() implementation.
    @{
 */
 
@@ -43,7 +43,7 @@ enum {
 	BACKTRACE_DEPTH_MAX = 256
 };
 
-C2_EXTERN char *c2_debugger_args[4];
+M0_EXTERN char *m0_debugger_args[4];
 
 /**
    Simple user space panic function: issue diagnostics to the stderr, flush the
@@ -53,7 +53,7 @@ C2_EXTERN char *c2_debugger_args[4];
    <execinfo.h> header (checked for by ./configure). Object files should be
    compiled with -rdynamic for this to work in the presence of dynamic linking.
  */
-void c2_panic(const char *expr, const char *func, const char *file, int lineno)
+void m0_panic(const char *expr, const char *func, const char *file, int lineno)
 {
 	fprintf(stderr, "Assertion failure: %s at %s() %s:%i (errno: %i)\n",
 		expr, func, file, lineno, errno);
@@ -67,8 +67,8 @@ void c2_panic(const char *expr, const char *func, const char *file, int lineno)
 		backtrace_symbols_fd(trace, nr, 2);
 	}
 #endif
-	C2_LOG(C2_FATAL, "panic: %s %s() (%s:%i)", expr, func, file, lineno);
-	if (c2_debugger_args[0] != NULL) {
+	M0_LOG(M0_FATAL, "panic: %s %s() (%s:%i)", expr, func, file, lineno);
+	if (m0_debugger_args[0] != NULL) {
 		int rc;
 
 		rc = fork();
@@ -81,13 +81,13 @@ void c2_panic(const char *expr, const char *func, const char *file, int lineno)
 			}
 		} else if (rc == 0) {
 			/* child */
-			rc = execvp(c2_debugger_args[0], c2_debugger_args);
+			rc = execvp(m0_debugger_args[0], m0_debugger_args);
 		}
 	}
 	abort();
 }
 
-#undef C2_TRACE_SUBSYSTEM
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of assert group */
 

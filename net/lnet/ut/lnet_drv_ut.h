@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LNET_DRV_UT_H__
-#define __COLIBRI_LNET_DRV_UT_H__
+#ifndef __MERO_LNET_DRV_UT_H__
+#define __MERO_LNET_DRV_UT_H__
 
 enum {
 	UT_TEST_NONE       =   0, /**< no test requested, user program idles */
@@ -45,9 +45,9 @@ enum {
 };
 
 /** The /proc file used to coordinate driver unit test */
-#define UT_PROC_NAME "c2_lnet_ut"
+#define UT_PROC_NAME "m0_lnet_ut"
 
-#endif /* __COLIBRI_LNET_DRV_UT_H__ */
+#endif /* __MERO_LNET_DRV_UT_H__ */
 
 /*
  *  Local variables:

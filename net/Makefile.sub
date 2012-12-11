@@ -1,8 +1,8 @@
-nobase_colibri_include_HEADERS += net/net.h \
+nobase_mero_include_HEADERS += net/net.h \
                                   net/buffer_pool.h \
                                   net/bulk_mem.h
 
-colibri_libcolibri_la_SOURCES  += net/buf.c \
+mero_libmero_la_SOURCES  += net/buf.c \
                                   net/buffer_pool.c \
                                   net/domain.c \
                                   net/ep.c \

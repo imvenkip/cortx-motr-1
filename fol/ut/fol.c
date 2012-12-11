@@ -22,7 +22,7 @@
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "lib/memory.h"
-#include "lib/misc.h"              /* C2_SET0 */
+#include "lib/misc.h"              /* M0_SET0 */
 #include "fol/fol.h"
 #include "rpc/rpc_opcodes.h"
 
@@ -30,30 +30,30 @@ static const char db_name[] = "ut-fol";
 
 static int db_reset(void)
 {
-        return c2_ut_db_reset(db_name);
+        return m0_ut_db_reset(db_name);
 }
 
-static struct c2_dbenv       db;
-static struct c2_fol         fol;
-static struct c2_db_tx       tx;
+static struct m0_dbenv       db;
+static struct m0_fol         fol;
+static struct m0_db_tx       tx;
 
-static struct c2_fol_rec            r;
-static struct c2_fol_rec_desc      *d;
-static struct c2_fol_rec_header    *h;
-static struct c2_buf                buf;
+static struct m0_fol_rec            r;
+static struct m0_fol_rec_desc      *d;
+static struct m0_fol_rec_header    *h;
+static struct m0_buf                buf;
 
 static int result;
 
 static void test_init(void)
 {
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_ASSERT(result == 0);
+	result = m0_dbenv_init(&db, db_name, 0);
+	M0_ASSERT(result == 0);
 
-	result = c2_fol_init(&fol, &db);
-	C2_ASSERT(result == 0);
+	result = m0_fol_init(&fol, &db);
+	M0_ASSERT(result == 0);
 
-	result = c2_db_tx_init(&tx, &db, 0);
-	C2_ASSERT(result == 0);
+	result = m0_db_tx_init(&tx, &db, 0);
+	M0_ASSERT(result == 0);
 
 	d = &r.fr_desc;
 	h = &d->rd_header;
@@ -61,86 +61,86 @@ static void test_init(void)
 
 static void test_fini(void)
 {
-	result = c2_db_tx_commit(&tx);
-	C2_ASSERT(result == 0);
+	result = m0_db_tx_commit(&tx);
+	M0_ASSERT(result == 0);
 
-	c2_fol_fini(&fol);
-	c2_dbenv_fini(&db);
-	c2_free(buf.b_addr);
+	m0_fol_fini(&fol);
+	m0_dbenv_fini(&db);
+	m0_free(buf.b_addr);
 }
 
-static size_t ut_fol_size(struct c2_fol_rec_desc *desc)
+static size_t ut_fol_size(struct m0_fol_rec_desc *desc)
 {
 	return 160;
 }
 
-static void ut_fol_pack(struct c2_fol_rec_desc *desc, void *buf)
+static void ut_fol_pack(struct m0_fol_rec_desc *desc, void *buf)
 {
 	memset(buf, 'y', 160);
 }
 
-static const struct c2_fol_rec_type_ops ut_fol_ops = {
+static const struct m0_fol_rec_type_ops ut_fol_ops = {
 	.rto_pack_size = ut_fol_size,
 	.rto_pack      = ut_fol_pack
 };
 
-static const struct c2_fol_rec_type ut_fol_type = {
+static const struct m0_fol_rec_type ut_fol_type = {
 	.rt_name   = "ut-fol-rec",
-	.rt_opcode = C2_FOL_UT_OPCODE,
+	.rt_opcode = M0_FOL_UT_OPCODE,
 	.rt_ops    = &ut_fol_ops
 };
 
 static void test_type_reg(void)
 {
-	result = c2_fol_rec_type_register(&ut_fol_type);
-	C2_ASSERT(result == 0);
+	result = m0_fol_rec_type_register(&ut_fol_type);
+	M0_ASSERT(result == 0);
 }
 
 static void test_add(void)
 {
-	C2_SET0(h);
+	M0_SET0(h);
 
 	d->rd_type = &ut_fol_type;
 	h->rh_refcount = 1;
 
-	d->rd_lsn = c2_fol_lsn_allocate(&fol);
-	result = c2_fol_add(&fol, &tx, d);
-	C2_ASSERT(result == 0);
+	d->rd_lsn = m0_fol_lsn_allocate(&fol);
+	result = m0_fol_add(&fol, &tx, d);
+	M0_ASSERT(result == 0);
 
-	result = c2_fol_rec_pack(d, &buf);
-	C2_ASSERT(result == 0);
+	result = m0_fol_rec_pack(d, &buf);
+	M0_ASSERT(result == 0);
 }
 
-extern c2_lsn_t lsn_inc(c2_lsn_t lsn);
+extern m0_lsn_t lsn_inc(m0_lsn_t lsn);
 
 static void test_lookup(void)
 {
-	struct c2_fol_rec dup;
+	struct m0_fol_rec dup;
 
-	d->rd_lsn = c2_fol_lsn_allocate(&fol);
-	result = c2_fol_add(&fol, &tx, d);
-	C2_ASSERT(result == 0);
+	d->rd_lsn = m0_fol_lsn_allocate(&fol);
+	result = m0_fol_add(&fol, &tx, d);
+	M0_ASSERT(result == 0);
 
-	result = c2_fol_rec_lookup(&fol, &tx, d->rd_lsn, &dup);
-	C2_ASSERT(result == 0);
+	result = m0_fol_rec_lookup(&fol, &tx, d->rd_lsn, &dup);
+	M0_ASSERT(result == 0);
 
-	C2_ASSERT(dup.fr_desc.rd_lsn == d->rd_lsn);
-	C2_ASSERT(memcmp(&d->rd_header,
+	M0_ASSERT(dup.fr_desc.rd_lsn == d->rd_lsn);
+	M0_ASSERT(memcmp(&d->rd_header,
 			 &dup.fr_desc.rd_header, sizeof d->rd_header) == 0);
 
-	c2_fol_rec_fini(&dup);
+	m0_fol_rec_fini(&dup);
 
-	result = c2_fol_rec_lookup(&fol, &tx, lsn_inc(d->rd_lsn), &dup);
-	C2_ASSERT(result == -ENOENT);
+	result = m0_fol_rec_lookup(&fol, &tx, lsn_inc(d->rd_lsn), &dup);
+	M0_ASSERT(result == -ENOENT);
 }
 
 static void test_type_unreg(void)
 {
-	c2_fol_rec_type_unregister(&ut_fol_type);
+	m0_fol_rec_type_unregister(&ut_fol_type);
 }
 
 
-const struct c2_test_suite fol_ut = {
+const struct m0_test_suite fol_ut = {
 	.ts_name = "fol-ut",
 	.ts_init = db_reset,
 	/* .ts_fini = db_reset, */
@@ -169,7 +169,7 @@ static void ub_init(void)
 	test_init();
 	test_type_reg();
 
-	C2_SET0(h);
+	M0_SET0(h);
 
 	d->rd_type = &ut_fol_type;
 	h->rh_refcount = 1;
@@ -182,22 +182,22 @@ static void ub_fini(void)
 	db_reset();
 }
 
-static c2_lsn_t last;
+static m0_lsn_t last;
 
 static void checkpoint()
 {
-	result = c2_db_tx_commit(&tx);
-	C2_ASSERT(result == 0);
+	result = m0_db_tx_commit(&tx);
+	M0_ASSERT(result == 0);
 
-	result = c2_db_tx_init(&tx, &db, 0);
-	C2_ASSERT(result == 0);
+	result = m0_db_tx_init(&tx, &db, 0);
+	M0_ASSERT(result == 0);
 }
 
 static void ub_insert(int i)
 {
-	d->rd_lsn = c2_fol_lsn_allocate(&fol);
-	result = c2_fol_add(&fol, &tx, d);
-	C2_ASSERT(result == 0);
+	d->rd_lsn = m0_fol_lsn_allocate(&fol);
+	result = m0_fol_add(&fol, &tx, d);
+	M0_ASSERT(result == 0);
 	last = d->rd_lsn;
 	if (i%1000 == 0)
 		checkpoint();
@@ -205,28 +205,28 @@ static void ub_insert(int i)
 
 static void ub_lookup(int i)
 {
-	c2_lsn_t lsn;
-	struct c2_fol_rec rec;
+	m0_lsn_t lsn;
+	struct m0_fol_rec rec;
 
 	lsn = last - i;
 
-	result = c2_fol_rec_lookup(&fol, &tx, lsn, &rec);
-	C2_ASSERT(result == 0);
-	c2_fol_rec_fini(&rec);
+	result = m0_fol_rec_lookup(&fol, &tx, lsn, &rec);
+	M0_ASSERT(result == 0);
+	m0_fol_rec_fini(&rec);
 	if (i%1000 == 0)
 		checkpoint();
 }
 
 static void ub_insert_buf(int i)
 {
-	d->rd_lsn = c2_fol_lsn_allocate(&fol);
-	result = c2_fol_add_buf(&fol, &tx, d, &buf);
-	C2_ASSERT(result == 0);
+	d->rd_lsn = m0_fol_lsn_allocate(&fol);
+	result = m0_fol_add_buf(&fol, &tx, d, &buf);
+	M0_ASSERT(result == 0);
 	if (i%1000 == 0)
 		checkpoint();
 }
 
-struct c2_ub_set c2_fol_ub = {
+struct m0_ub_set m0_fol_ub = {
 	.us_name = "fol-ub",
 	.us_init = ub_init,
 	.us_fini = ub_fini,

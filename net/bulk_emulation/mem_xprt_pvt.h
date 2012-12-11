@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_BULK_MEM_XPRT_PVT_H__
-#define __COLIBRI_NET_BULK_MEM_XPRT_PVT_H__
+#ifndef __MERO_NET_BULK_MEM_XPRT_PVT_H__
+#define __MERO_NET_BULK_MEM_XPRT_PVT_H__
 
 #include "lib/errno.h"
 #include "net/net_internal.h"
@@ -35,9 +35,9 @@
 */
 
 enum {
-	C2_NET_BULK_MEM_MAX_BUFFER_SIZE     = (1 << 19),
-	C2_NET_BULK_MEM_MAX_SEGMENT_SIZE    = (1 << 18),
-	C2_NET_BULK_MEM_MAX_BUFFER_SEGMENTS = 256,
+	M0_NET_BULK_MEM_MAX_BUFFER_SIZE     = (1 << 19),
+	M0_NET_BULK_MEM_MAX_SEGMENT_SIZE    = (1 << 18),
+	M0_NET_BULK_MEM_MAX_BUFFER_SEGMENTS = 256,
 };
 
 /**
@@ -47,56 +47,56 @@ struct mem_desc {
 	/** Address of the passive end point */
 	struct sockaddr_in     md_passive;
 	/** Queue type */
-	enum c2_net_queue_type md_qt;
+	enum m0_net_queue_type md_qt;
 	/** Data length */
-	c2_bcount_t            md_len;
+	m0_bcount_t            md_len;
 	/** buffer id */
 	int64_t                md_buf_id;
 };
 
 /* forward references to other static functions */
-static bool mem_dom_invariant(const struct c2_net_domain *dom);
-static bool mem_ep_invariant(const struct c2_net_end_point *ep);
-static bool mem_buffer_invariant(const struct c2_net_buffer *nb);
-static bool mem_tm_invariant(const struct c2_net_transfer_mc *tm);
-static int mem_ep_create(struct c2_net_end_point  **epp,
-			 struct c2_net_transfer_mc *tm,
+static bool mem_dom_invariant(const struct m0_net_domain *dom);
+static bool mem_ep_invariant(const struct m0_net_end_point *ep);
+static bool mem_buffer_invariant(const struct m0_net_buffer *nb);
+static bool mem_tm_invariant(const struct m0_net_transfer_mc *tm);
+static int mem_ep_create(struct m0_net_end_point  **epp,
+			 struct m0_net_transfer_mc *tm,
 			 const struct sockaddr_in  *sa,
 			 uint32_t id);
-static bool mem_eps_are_equal(const struct c2_net_end_point *ep1,
-			      const struct c2_net_end_point *ep2);
-static bool mem_ep_equals_addr(const struct c2_net_end_point *ep,
+static bool mem_eps_are_equal(const struct m0_net_end_point *ep1,
+			      const struct m0_net_end_point *ep2);
+static bool mem_ep_equals_addr(const struct m0_net_end_point *ep,
 			       const struct sockaddr_in *sa);
-static int mem_desc_create(struct c2_net_buf_desc *desc,
-			   struct c2_net_transfer_mc *tm,
-			   enum c2_net_queue_type qt,
-			   c2_bcount_t buflen,
+static int mem_desc_create(struct m0_net_buf_desc *desc,
+			   struct m0_net_transfer_mc *tm,
+			   enum m0_net_queue_type qt,
+			   m0_bcount_t buflen,
 			   int64_t buf_id);
-static int mem_desc_decode(struct c2_net_buf_desc *desc,
+static int mem_desc_decode(struct m0_net_buf_desc *desc,
 			   struct mem_desc **p_md);
-static bool mem_desc_equal(struct c2_net_buf_desc *d1,
-			   struct c2_net_buf_desc *d2);
-static c2_bcount_t mem_buffer_length(const struct c2_net_buffer *nb);
-static bool mem_buffer_in_bounds(const struct c2_net_buffer *nb);
-static int mem_copy_buffer(struct c2_net_buffer *dest_nb,
-			   struct c2_net_buffer *src_nb,
-			   c2_bcount_t num_bytes);
-static void mem_wi_add(struct c2_net_bulk_mem_work_item *wi,
-		       struct c2_net_bulk_mem_tm_pvt *tp);
-static void mem_post_error(struct c2_net_transfer_mc *tm, int status);
-static void mem_wi_post_buffer_event(struct c2_net_bulk_mem_work_item *wi);
+static bool mem_desc_equal(struct m0_net_buf_desc *d1,
+			   struct m0_net_buf_desc *d2);
+static m0_bcount_t mem_buffer_length(const struct m0_net_buffer *nb);
+static bool mem_buffer_in_bounds(const struct m0_net_buffer *nb);
+static int mem_copy_buffer(struct m0_net_buffer *dest_nb,
+			   struct m0_net_buffer *src_nb,
+			   m0_bcount_t num_bytes);
+static void mem_wi_add(struct m0_net_bulk_mem_work_item *wi,
+		       struct m0_net_bulk_mem_tm_pvt *tp);
+static void mem_post_error(struct m0_net_transfer_mc *tm, int status);
+static void mem_wi_post_buffer_event(struct m0_net_bulk_mem_work_item *wi);
 
 /**
    Function to indirectly invoke the mem_ep_create subroutine via the domain
    function pointer, to support derived transports.
    @see mem_ep_create()
  */
-static inline int mem_bmo_ep_create(struct c2_net_end_point  **epp,
-				    struct c2_net_transfer_mc *tm,
+static inline int mem_bmo_ep_create(struct m0_net_end_point  **epp,
+				    struct m0_net_transfer_mc *tm,
 				    const struct sockaddr_in  *sa,
 				    uint32_t id)
 {
-	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
+	struct m0_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
 	return dp->xd_ops->bmo_ep_create(epp, tm, sa, id);
 }
 
@@ -105,9 +105,9 @@ static inline int mem_bmo_ep_create(struct c2_net_end_point  **epp,
    domain function pointer, to support derived transports.
    @see mem_buffer_in_bounds()
  */
-static inline bool mem_bmo_buffer_in_bounds(const struct c2_net_buffer *nb)
+static inline bool mem_bmo_buffer_in_bounds(const struct m0_net_buffer *nb)
 {
-	struct c2_net_bulk_mem_domain_pvt *dp = nb->nb_dom->nd_xprt_private;
+	struct m0_net_bulk_mem_domain_pvt *dp = nb->nb_dom->nd_xprt_private;
 	return dp->xd_ops->bmo_buffer_in_bounds(nb);
 }
 
@@ -116,13 +116,13 @@ static inline bool mem_bmo_buffer_in_bounds(const struct c2_net_buffer *nb)
    function pointer, to support derived transports.
    @see mem_desc_create()
  */
-static int mem_bmo_desc_create(struct c2_net_buf_desc *desc,
-			       struct c2_net_transfer_mc *tm,
-			       enum c2_net_queue_type qt,
-			       c2_bcount_t buflen,
+static int mem_bmo_desc_create(struct m0_net_buf_desc *desc,
+			       struct m0_net_transfer_mc *tm,
+			       enum m0_net_queue_type qt,
+			       m0_bcount_t buflen,
 			       int64_t buf_id)
 {
-	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
+	struct m0_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
 	return dp->xd_ops->bmo_desc_create(desc, tm, qt, buflen, buf_id);
 }
 
@@ -130,7 +130,7 @@ static int mem_bmo_desc_create(struct c2_net_buf_desc *desc,
    @}
 */
 
-#endif /* __COLIBRI_NET_BULK_MEM_XPRT_PVT_H__ */
+#endif /* __MERO_NET_BULK_MEM_XPRT_PVT_H__ */
 
 /*
  *  Local variables:

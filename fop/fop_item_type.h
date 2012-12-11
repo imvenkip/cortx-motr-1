@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_FOP_FOP_ONWIRE_H__
-#define __COLIBRI_FOP_FOP_ONWIRE_H__
+#ifndef __MERO_FOP_FOP_ONWIRE_H__
+#define __MERO_FOP_FOP_ONWIRE_H__
 
 #include "rpc/rpc_helpers.h"
 
@@ -41,10 +41,10 @@
    @retval 0 On success.
    @retval -errno On failure.
 */
-C2_INTERNAL int c2_fop_item_type_default_encode(const struct c2_rpc_item_type
+M0_INTERNAL int m0_fop_item_type_default_encode(const struct m0_rpc_item_type
 						*item_type,
-						struct c2_rpc_item *item,
-						struct c2_bufvec_cursor *cur);
+						struct m0_rpc_item *item,
+						struct m0_bufvec_cursor *cur);
 
 /**
    Generic deserialization routine for a fop rpc item type. Allocates a new rpc
@@ -56,10 +56,10 @@ C2_INTERNAL int c2_fop_item_type_default_encode(const struct c2_rpc_item_type
    @retval 0 On success.
    @retval -errno if failure.
 */
-C2_INTERNAL int c2_fop_item_type_default_decode(const struct c2_rpc_item_type
+M0_INTERNAL int m0_fop_item_type_default_decode(const struct m0_rpc_item_type
 						*item_type,
-						struct c2_rpc_item **item_out,
-						struct c2_bufvec_cursor *cur);
+						struct m0_rpc_item **item_out,
+						struct m0_bufvec_cursor *cur);
 
 /**
    Return the onwire size of the item type which is a fop in bytes.
@@ -67,16 +67,16 @@ C2_INTERNAL int c2_fop_item_type_default_decode(const struct c2_rpc_item_type
    @param item The rpc item for which the on wire size is to be calculated
    @retval Size of the item in bytes.
 */
-C2_INTERNAL c2_bcount_t
-c2_fop_item_type_default_payload_size(const struct c2_rpc_item *item);
+M0_INTERNAL m0_bcount_t
+m0_fop_item_type_default_payload_size(const struct m0_rpc_item *item);
 
-C2_INTERNAL int c2_fop_item_encdec(struct c2_rpc_item *item,
-				   struct c2_bufvec_cursor *cur,
-				   enum c2_bufvec_what what);
+M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
+				   struct m0_bufvec_cursor *cur,
+				   enum m0_bufvec_what what);
 
 /** @} end of fop group */
 
-/* __COLIBRI_FOP_FOP_ONWIRE_H__ */
+/* __MERO_FOP_FOP_ONWIRE_H__ */
 #endif
 
 /*

@@ -1,7 +1,7 @@
-nobase_colibri_include_HEADERS += xcode/xcode.h \
+nobase_mero_include_HEADERS += xcode/xcode.h \
                                   xcode/xcode_attr.h
 
-colibri_libcolibri_la_SOURCES  += xcode/string.c \
+mero_libmero_la_SOURCES  += xcode/string.c \
                                   xcode/xcode.c
 
 EXTRA_DIST += xcode/gccxml2xcode \

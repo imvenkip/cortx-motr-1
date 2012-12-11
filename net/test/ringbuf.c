@@ -19,8 +19,8 @@
  */
 
 #include "lib/errno.h"	/* ENOMEM */
-#include "lib/misc.h"	/* C2_SET0 */
-#include "lib/memory.h"	/* C2_ALLOC_ARR */
+#include "lib/misc.h"	/* M0_SET0 */
+#include "lib/memory.h"	/* M0_ALLOC_ARR */
 
 #include "net/test/ringbuf.h"
 
@@ -31,31 +31,31 @@
    @{
  */
 
-int c2_net_test_ringbuf_init(struct c2_net_test_ringbuf *rb, size_t size)
+int m0_net_test_ringbuf_init(struct m0_net_test_ringbuf *rb, size_t size)
 {
-	C2_PRE(rb != NULL);
-	C2_PRE(size != 0);
+	M0_PRE(rb != NULL);
+	M0_PRE(size != 0);
 
 	rb->ntr_size = size;
-	c2_atomic64_set(&rb->ntr_start, 0);
-	c2_atomic64_set(&rb->ntr_end, 0);
-	C2_ALLOC_ARR(rb->ntr_buf, rb->ntr_size);
+	m0_atomic64_set(&rb->ntr_start, 0);
+	m0_atomic64_set(&rb->ntr_end, 0);
+	M0_ALLOC_ARR(rb->ntr_buf, rb->ntr_size);
 
 	if (rb->ntr_buf != NULL)
-		C2_ASSERT(c2_net_test_ringbuf_invariant(rb));
+		M0_ASSERT(m0_net_test_ringbuf_invariant(rb));
 
 	return rb->ntr_buf == NULL ? -ENOMEM : 0;
 }
 
-void c2_net_test_ringbuf_fini(struct c2_net_test_ringbuf *rb)
+void m0_net_test_ringbuf_fini(struct m0_net_test_ringbuf *rb)
 {
-	C2_PRE(c2_net_test_ringbuf_invariant(rb));
+	M0_PRE(m0_net_test_ringbuf_invariant(rb));
 
-	c2_free(rb->ntr_buf);
-	C2_SET0(rb);
+	m0_free(rb->ntr_buf);
+	M0_SET0(rb);
 }
 
-bool c2_net_test_ringbuf_invariant(const struct c2_net_test_ringbuf *rb)
+bool m0_net_test_ringbuf_invariant(const struct m0_net_test_ringbuf *rb)
 {
 	int64_t start;
 	int64_t end;
@@ -63,8 +63,8 @@ bool c2_net_test_ringbuf_invariant(const struct c2_net_test_ringbuf *rb)
 	if (rb == NULL || rb->ntr_buf == NULL)
 		return false;
 
-	start = c2_atomic64_get(&rb->ntr_start);
-	end   = c2_atomic64_get(&rb->ntr_end);
+	start = m0_atomic64_get(&rb->ntr_start);
+	end   = m0_atomic64_get(&rb->ntr_end);
 	if (start > end)
 		return false;
 	if (end - start > rb->ntr_size)
@@ -72,33 +72,33 @@ bool c2_net_test_ringbuf_invariant(const struct c2_net_test_ringbuf *rb)
 	return true;
 }
 
-void c2_net_test_ringbuf_push(struct c2_net_test_ringbuf *rb, size_t value)
+void m0_net_test_ringbuf_push(struct m0_net_test_ringbuf *rb, size_t value)
 {
 	int64_t index;
 
-	C2_PRE(c2_net_test_ringbuf_invariant(rb));
-	index = c2_atomic64_add_return(&rb->ntr_end, 1) - 1;
-	C2_ASSERT(c2_net_test_ringbuf_invariant(rb));
+	M0_PRE(m0_net_test_ringbuf_invariant(rb));
+	index = m0_atomic64_add_return(&rb->ntr_end, 1) - 1;
+	M0_ASSERT(m0_net_test_ringbuf_invariant(rb));
 
 	rb->ntr_buf[index % rb->ntr_size] = value;
 }
 
-size_t c2_net_test_ringbuf_pop(struct c2_net_test_ringbuf *rb)
+size_t m0_net_test_ringbuf_pop(struct m0_net_test_ringbuf *rb)
 {
 	int64_t index;
 
-	C2_PRE(c2_net_test_ringbuf_invariant(rb));
-	index = c2_atomic64_add_return(&rb->ntr_start, 1) - 1;
-	C2_ASSERT(c2_net_test_ringbuf_invariant(rb));
+	M0_PRE(m0_net_test_ringbuf_invariant(rb));
+	index = m0_atomic64_add_return(&rb->ntr_start, 1) - 1;
+	M0_ASSERT(m0_net_test_ringbuf_invariant(rb));
 
 	return rb->ntr_buf[index % rb->ntr_size];
 }
 
-bool c2_net_test_ringbuf_is_empty(struct c2_net_test_ringbuf *rb)
+bool m0_net_test_ringbuf_is_empty(struct m0_net_test_ringbuf *rb)
 {
-	C2_PRE(c2_net_test_ringbuf_invariant(rb));
+	M0_PRE(m0_net_test_ringbuf_invariant(rb));
 
-	return c2_atomic64_get(&rb->ntr_end) == c2_atomic64_get(&rb->ntr_start);
+	return m0_atomic64_get(&rb->ntr_end) == m0_atomic64_get(&rb->ntr_start);
 }
 
 /**

@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LAYOUT_PDCLUST_H__
-#define __COLIBRI_LAYOUT_PDCLUST_H__
+#ifndef __MERO_LAYOUT_PDCLUST_H__
+#define __MERO_LAYOUT_PDCLUST_H__
 
 /**
  * @defgroup pdclust Parity de-clustering.
@@ -65,29 +65,29 @@
  */
 
 /* import */
-#include "lib/arith.h" /* C2_IS_8ALIGNED */
+#include "lib/arith.h" /* M0_IS_8ALIGNED */
 #include "sns/parity_math.h"
 #include "layout/layout.h"
 
-struct c2_pool;
-struct c2_stob_id;
+struct m0_pool;
+struct m0_stob_id;
 
 /* export */
-struct c2_pdclust_attr;
-struct c2_layout_pdclust_rec;
-struct c2_pdclust_layout;
-struct c2_pdclust_instance;
-enum c2_pdclust_unit_type;
-struct c2_pdclust_src_addr;
-struct c2_pdclust_tgt_addr;
+struct m0_pdclust_attr;
+struct m0_layout_pdclust_rec;
+struct m0_pdclust_layout;
+struct m0_pdclust_instance;
+enum m0_pdclust_unit_type;
+struct m0_pdclust_src_addr;
+struct m0_pdclust_tgt_addr;
 
 /**
  * Attributes specific to PDCLUST layout type.
- * These attributes are part of c2_pdclust_layout which is in-memory layout
+ * These attributes are part of m0_pdclust_layout which is in-memory layout
  * object and are stored in the Layout DB as well, through
- * c2_layout_pdclust_rec.
+ * m0_layout_pdclust_rec.
  */
-struct c2_pdclust_attr {
+struct m0_pdclust_attr {
 	/** Number of data units in a parity group. */
 	uint32_t           pa_N;
 
@@ -106,7 +106,7 @@ struct c2_pdclust_attr {
 	uint64_t           pa_unit_size;
 
 	/** A datum used to seed PRNG to generate tile column permutations. */
-	struct c2_uint128  pa_seed;
+	struct m0_uint128  pa_seed;
 };
 
 /**
@@ -114,16 +114,16 @@ struct c2_pdclust_attr {
  *
  * @note This structure needs to be maintained as 8 bytes aligned.
  */
-struct c2_layout_pdclust_rec {
+struct m0_layout_pdclust_rec {
 	/** Layout enumeration type id. */
 	uint32_t               pr_let_id;
 
-	struct c2_pdclust_attr pr_attr;
+	struct m0_pdclust_attr pr_attr;
 };
-C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_layout_pdclust_rec)));
+M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_layout_pdclust_rec)));
 
 /**
- * Extension of the generic c2_striped_layout for the parity de-clustered
+ * Extension of the generic m0_striped_layout for the parity de-clustered
  * layout type.
  *
  * @invariant pdl->pl_C * (pdl->pl_attr.pa_N + 2 * pdl->pl_attr.pa_K) ==
@@ -131,19 +131,19 @@ C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_layout_pdclust_rec)));
  * @invariant pdl->pl_base.sl_enum->le_ops->leo_nr(pdl->pl_base.sl_enum) ==
  *            pdl->pl_attr.pa_P
  */
-struct c2_pdclust_layout {
+struct m0_pdclust_layout {
 	/** Super class */
-	struct c2_striped_layout  pl_base;
+	struct m0_striped_layout  pl_base;
 	/** Parity de-clustering layout attributes. */
-	struct c2_pdclust_attr    pl_attr;
+	struct m0_pdclust_attr    pl_attr;
 	/**
 	 * Number of parity groups in a tile.
-	 * @see c2_pdclust_layout::pl_L
+	 * @see m0_pdclust_layout::pl_L
 	 */
 	uint32_t                  pl_C;
 	/**
 	 * Number of "frame rows" in a tile. L * P == C * (N + 2 * K).
-	 * @see c2_pdclust_layout::pl_C
+	 * @see m0_pdclust_layout::pl_C
 	 */
 	uint32_t                  pl_L;
 
@@ -156,9 +156,9 @@ struct c2_pdclust_layout {
  * This structure contains information necessary to execute IO against a
  * particular parity de-clustered file.
  */
-struct c2_pdclust_instance {
+struct m0_pdclust_instance {
 	/* Super class, storing pointer to the layout being used. */
-	struct c2_layout_instance    pi_base;
+	struct m0_layout_instance    pi_base;
 	/**
 	 * Caches information about the most recently used tile.
 	 *
@@ -175,8 +175,8 @@ struct c2_pdclust_instance {
 
 		/**
 		 * Column permutation for this tile.
-		 * This is an array of c2_pdclust_layout::pl_P elements, each
-		 * element less than c2_pdclust_layout::pl_P without
+		 * This is an array of m0_pdclust_layout::pl_P elements, each
+		 * element less than m0_pdclust_layout::pl_P without
 		 * duplicates.
 		 */
 		uint32_t *tc_permute;
@@ -191,7 +191,7 @@ struct c2_pdclust_instance {
 
 		/**
 		 * Lehmer code of permutation.
-		 * This array of c2_pdclust_layout::pl_P elements is used to
+		 * This array of m0_pdclust_layout::pl_P elements is used to
 		 * generate tc_permute[] and tc_inverse[] arrays. Strictly
 		 * speaking, it is not needed after above arrays are built, but
 		 * it is kept for completeness.
@@ -206,17 +206,17 @@ struct c2_pdclust_instance {
 	} pi_tile_cache;
 
 	/** Parity math information, initialised according to the layout. */
-	struct c2_parity_math        pi_math;
+	struct m0_parity_math        pi_math;
 
 	uint64_t                     pi_magic;
 };
 
 /** Classification of units in a parity group. */
-enum c2_pdclust_unit_type {
-	C2_PUT_DATA,
-	C2_PUT_PARITY,
-	C2_PUT_SPARE,
-	C2_PUT_NR
+enum m0_pdclust_unit_type {
+	M0_PUT_DATA,
+	M0_PUT_PARITY,
+	M0_PUT_SPARE,
+	M0_PUT_NR
 };
 
 /**
@@ -225,7 +225,7 @@ enum c2_pdclust_unit_type {
  * Source unit address uniquely identifies data, parity or spare unit in a
  * layout.
  */
-struct c2_pdclust_src_addr {
+struct m0_pdclust_src_addr {
 	/** Parity group number. */
 	uint64_t sa_group;
 	/** Unit number within its parity group. */
@@ -238,7 +238,7 @@ struct c2_pdclust_src_addr {
  * Target frame address uniquely identifies a frame in one of the layout target
  * objects.
  */
-struct c2_pdclust_tgt_addr {
+struct m0_pdclust_tgt_addr {
 	/** Number of the frame in its target object. */
 	uint64_t ta_frame;
 	/** Target object number within a layout. */
@@ -249,40 +249,40 @@ struct c2_pdclust_tgt_addr {
  * Allocates and builds a layout object with the pdclust layout type,
  * by setting its intial ref count to 1.
  * @post ergo(rc == 0, pdclust_invariant(*out))
- * @post ergo(rc == 0, c2_ref_read(l->l_ref) == 1)
+ * @post ergo(rc == 0, m0_ref_read(l->l_ref) == 1)
  *
  * @note The layout object built by this API is to be finalised by releasing
  * 'the reference on it that has been held during its creation'.
- * @see c2_layout_put()
+ * @see m0_layout_put()
  *
  * In short:
- * Dual to c2_layout_put() when it is the last reference being released.
+ * Dual to m0_layout_put() when it is the last reference being released.
  */
-C2_INTERNAL int c2_pdclust_build(struct c2_layout_domain *dom,
+M0_INTERNAL int m0_pdclust_build(struct m0_layout_domain *dom,
 				 uint64_t lid,
-				 const struct c2_pdclust_attr *attr,
-				 struct c2_layout_enum *le,
-				 struct c2_pdclust_layout **out);
+				 const struct m0_pdclust_attr *attr,
+				 struct m0_layout_enum *le,
+				 struct m0_pdclust_layout **out);
 
-C2_INTERNAL uint32_t c2_pdclust_N(const struct c2_pdclust_layout *pl);
-C2_INTERNAL uint32_t c2_pdclust_K(const struct c2_pdclust_layout *pl);
-C2_INTERNAL uint32_t c2_pdclust_P(const struct c2_pdclust_layout *pl);
-C2_INTERNAL uint64_t c2_pdclust_unit_size(const struct c2_pdclust_layout *pl);
+M0_INTERNAL uint32_t m0_pdclust_N(const struct m0_pdclust_layout *pl);
+M0_INTERNAL uint32_t m0_pdclust_K(const struct m0_pdclust_layout *pl);
+M0_INTERNAL uint32_t m0_pdclust_P(const struct m0_pdclust_layout *pl);
+M0_INTERNAL uint64_t m0_pdclust_unit_size(const struct m0_pdclust_layout *pl);
 
-/** Returns c2_pdclust_layout object given a c2_layout object. */
-C2_INTERNAL struct c2_pdclust_layout *c2_layout_to_pdl(const struct c2_layout
+/** Returns m0_pdclust_layout object given a m0_layout object. */
+M0_INTERNAL struct m0_pdclust_layout *m0_layout_to_pdl(const struct m0_layout
 						       *l);
 
-/** Returns c2_layout object given a c2_pdclust_layout object. */
-C2_INTERNAL struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl);
+/** Returns m0_layout object given a m0_pdclust_layout object. */
+M0_INTERNAL struct m0_layout *m0_pdl_to_layout(struct m0_pdclust_layout *pl);
 
 /** Returns type of the given unit according to layout information. */
-C2_INTERNAL enum c2_pdclust_unit_type
-c2_pdclust_unit_classify(const struct c2_pdclust_layout *play, int unit);
+M0_INTERNAL enum m0_pdclust_unit_type
+m0_pdclust_unit_classify(const struct m0_pdclust_layout *play, int unit);
 
-/** Returns c2_pdclust_instance object given a c2_layout_instance object. */
-C2_INTERNAL struct c2_pdclust_instance *c2_layout_instance_to_pdi(const struct
-								  c2_layout_instance
+/** Returns m0_pdclust_instance object given a m0_layout_instance object. */
+M0_INTERNAL struct m0_pdclust_instance *m0_layout_instance_to_pdi(const struct
+								  m0_layout_instance
 								  *li);
 
 /**
@@ -292,24 +292,24 @@ C2_INTERNAL struct c2_pdclust_instance *c2_layout_instance_to_pdi(const struct
  * to target frames. It is used by client IO code to build IO requests and to
  * direct them to the target objects.
  */
-C2_INTERNAL void c2_pdclust_instance_map(struct c2_pdclust_instance *pi,
-					 const struct c2_pdclust_src_addr *src,
-					 struct c2_pdclust_tgt_addr *tgt);
+M0_INTERNAL void m0_pdclust_instance_map(struct m0_pdclust_instance *pi,
+					 const struct m0_pdclust_src_addr *src,
+					 struct m0_pdclust_tgt_addr *tgt);
 /**
  * Reverse layout mapping function.
  *
  * This function is a right inverse of layout mapping function. It is used by
  * SNS repair and other server side mechanisms.
  */
-C2_INTERNAL void c2_pdclust_instance_inv(struct c2_pdclust_instance *pi,
-					 const struct c2_pdclust_tgt_addr *tgt,
-					 struct c2_pdclust_src_addr *src);
+M0_INTERNAL void m0_pdclust_instance_inv(struct m0_pdclust_instance *pi,
+					 const struct m0_pdclust_tgt_addr *tgt,
+					 struct m0_pdclust_src_addr *src);
 
-extern struct c2_layout_type c2_pdclust_layout_type;
+extern struct m0_layout_type m0_pdclust_layout_type;
 
 /** @} end group pdclust */
 
-/* __COLIBRI_LAYOUT_PDCLUST_H__ */
+/* __MERO_LAYOUT_PDCLUST_H__ */
 #endif
 
 /*

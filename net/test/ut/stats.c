@@ -26,8 +26,8 @@
 #endif
 
 #include "lib/cdefs.h"		/* ARRAY_SIZE */
-#include "lib/misc.h"		/* C2_SET0 */
-#include "lib/ut.h"		/* C2_UT_ASSERT */
+#include "lib/misc.h"		/* M0_SET0 */
+#include "lib/ut.h"		/* M0_UT_ASSERT */
 
 #include "net/test/stats.h"
 
@@ -63,7 +63,7 @@ static bool is_in_eps_neighborhood(double a, double b)
 }
 #endif
 
-static void sample_check(struct c2_net_test_stats *stats,
+static void sample_check(struct m0_net_test_stats *stats,
 			 struct stats_expected *expected)
 {
 	unsigned long ul;
@@ -71,70 +71,70 @@ static void sample_check(struct c2_net_test_stats *stats,
 	double	      d;
 #endif
 
-	C2_PRE(stats	!= NULL);
-	C2_PRE(expected != NULL);
+	M0_PRE(stats	!= NULL);
+	M0_PRE(expected != NULL);
 
-	C2_UT_ASSERT(stats->nts_count == expected->se_count);
+	M0_UT_ASSERT(stats->nts_count == expected->se_count);
 
-	ul = c2_net_test_stats_min(stats);
-	C2_UT_ASSERT(ul == expected->se_min);
+	ul = m0_net_test_stats_min(stats);
+	M0_UT_ASSERT(ul == expected->se_min);
 
-	ul = c2_net_test_stats_max(stats);
-	C2_UT_ASSERT(ul == expected->se_max);
+	ul = m0_net_test_stats_max(stats);
+	M0_UT_ASSERT(ul == expected->se_max);
 
 #ifndef __KERNEL__
-	d = c2_net_test_stats_sum(stats);
-	C2_UT_ASSERT(is_in_eps_neighborhood(expected->se_sum, d));
+	d = m0_net_test_stats_sum(stats);
+	M0_UT_ASSERT(is_in_eps_neighborhood(expected->se_sum, d));
 
-	d = c2_net_test_stats_avg(stats);
-	C2_UT_ASSERT(is_in_eps_neighborhood(expected->se_avg, d));
+	d = m0_net_test_stats_avg(stats);
+	M0_UT_ASSERT(is_in_eps_neighborhood(expected->se_avg, d));
 
-	d = c2_net_test_stats_stddev(stats);
-	C2_UT_ASSERT(is_in_eps_neighborhood(expected->se_stddev, d));
+	d = m0_net_test_stats_stddev(stats);
+	M0_UT_ASSERT(is_in_eps_neighborhood(expected->se_stddev, d));
 #endif
 }
 
-static void stats_serialize_ut(struct c2_net_test_stats *stats)
+static void stats_serialize_ut(struct m0_net_test_stats *stats)
 {
-	struct c2_net_test_stats stats2;
+	struct m0_net_test_stats stats2;
 	char			 bv_buf[STATS_BUF_LEN];
 	void			*bv_addr = bv_buf;
-	c2_bcount_t		 bv_len = STATS_BUF_LEN;
-	struct c2_bufvec	 bv = C2_BUFVEC_INIT_BUF(&bv_addr, &bv_len);
-	c2_bcount_t		 serialized_len;
-	c2_bcount_t		 len;
+	m0_bcount_t		 bv_len = STATS_BUF_LEN;
+	struct m0_bufvec	 bv = M0_BUFVEC_INIT_BUF(&bv_addr, &bv_len);
+	m0_bcount_t		 serialized_len;
+	m0_bcount_t		 len;
 	struct stats_expected	 expected;
 
-	serialized_len = c2_net_test_stats_serialize(C2_NET_TEST_SERIALIZE,
+	serialized_len = m0_net_test_stats_serialize(M0_NET_TEST_SERIALIZE,
 						     stats, &bv,
 						     STATS_BUF_OFFSET);
-	C2_UT_ASSERT(serialized_len > 0);
-	C2_SET0(&stats2);
+	M0_UT_ASSERT(serialized_len > 0);
+	M0_SET0(&stats2);
 
-	len = c2_net_test_stats_serialize(C2_NET_TEST_DESERIALIZE,
+	len = m0_net_test_stats_serialize(M0_NET_TEST_DESERIALIZE,
 					  &stats2, &bv, STATS_BUF_OFFSET);
-	C2_UT_ASSERT(len == serialized_len);
+	M0_UT_ASSERT(len == serialized_len);
 
 	expected.se_count  = stats->nts_count;
-	expected.se_min	   = c2_net_test_stats_min(stats);
-	expected.se_max	   = c2_net_test_stats_max(stats);
+	expected.se_min	   = m0_net_test_stats_min(stats);
+	expected.se_max	   = m0_net_test_stats_max(stats);
 #ifndef __KERNEL__
-	expected.se_sum	   = c2_net_test_stats_sum(stats);
-	expected.se_avg	   = c2_net_test_stats_avg(stats);
-	expected.se_stddev = c2_net_test_stats_stddev(stats);
+	expected.se_sum	   = m0_net_test_stats_sum(stats);
+	expected.se_avg	   = m0_net_test_stats_avg(stats);
+	expected.se_stddev = m0_net_test_stats_stddev(stats);
 #endif
 	sample_check(&stats2, &expected);
 }
 
-static void add_one_by_one(struct c2_net_test_stats *stats,
+static void add_one_by_one(struct m0_net_test_stats *stats,
 			   unsigned long *arr,
 			   unsigned long arr_len)
 {
 	unsigned long i;
 
-	C2_PRE(stats != NULL);
+	M0_PRE(stats != NULL);
 	for (i = 0; i < arr_len; ++i) {
-		c2_net_test_stats_add(stats, arr[i]);
+		m0_net_test_stats_add(stats, arr[i]);
 		stats_serialize_ut(stats);
 	}
 }
@@ -191,118 +191,118 @@ STATS_EXPECTED(one_plus_five_values, 6, 1, 5, 16., 16./6, 1.632993161);
 
 static void stats_time_ut(void)
 {
-	struct c2_net_test_stats stats;
-	c2_time_t		 time;
+	struct m0_net_test_stats stats;
+	m0_time_t		 time;
 	int			 i;
 
-	c2_net_test_stats_reset(&stats);
+	m0_net_test_stats_reset(&stats);
 	/* sample: .5s, 1.5s, 2.5s, 3.5s, 4.5s */
 	for (i = 0; i < 5; ++i) {
-		c2_net_test_stats_time_add(&stats, C2_MKTIME(i, 500000000));
+		m0_net_test_stats_time_add(&stats, M0_MKTIME(i, 500000000));
 		stats_serialize_ut(&stats);
 	}
 	/* check */
-	time = c2_net_test_stats_time_min(&stats);
-	C2_UT_ASSERT(c2_time_seconds(time) == 0);
-	C2_UT_ASSERT(c2_time_nanoseconds(time) == 500000000);
-	time = c2_net_test_stats_time_max(&stats);
-	C2_UT_ASSERT(c2_time_seconds(time) == 4);
-	C2_UT_ASSERT(c2_time_nanoseconds(time) == 500000000);
+	time = m0_net_test_stats_time_min(&stats);
+	M0_UT_ASSERT(m0_time_seconds(time) == 0);
+	M0_UT_ASSERT(m0_time_nanoseconds(time) == 500000000);
+	time = m0_net_test_stats_time_max(&stats);
+	M0_UT_ASSERT(m0_time_seconds(time) == 4);
+	M0_UT_ASSERT(m0_time_nanoseconds(time) == 500000000);
 #ifndef __KERNEL__
-	time = c2_net_test_stats_time_sum(&stats);
-	C2_UT_ASSERT(c2_time_seconds(time) == 12);
-	C2_UT_ASSERT(c2_time_nanoseconds(time) == 500000000);
-	time = c2_net_test_stats_time_avg(&stats);
-	C2_UT_ASSERT(c2_time_seconds(time) == 2);
-	C2_UT_ASSERT(c2_time_nanoseconds(time) == 500000000);
-	time = c2_net_test_stats_time_stddev(&stats);
-	C2_UT_ASSERT(c2_time_seconds(time) == 1);
-	C2_UT_ASSERT(581138830 <= c2_time_nanoseconds(time) &&
-		     581138840 >= c2_time_nanoseconds(time));
+	time = m0_net_test_stats_time_sum(&stats);
+	M0_UT_ASSERT(m0_time_seconds(time) == 12);
+	M0_UT_ASSERT(m0_time_nanoseconds(time) == 500000000);
+	time = m0_net_test_stats_time_avg(&stats);
+	M0_UT_ASSERT(m0_time_seconds(time) == 2);
+	M0_UT_ASSERT(m0_time_nanoseconds(time) == 500000000);
+	time = m0_net_test_stats_time_stddev(&stats);
+	M0_UT_ASSERT(m0_time_seconds(time) == 1);
+	M0_UT_ASSERT(581138830 <= m0_time_nanoseconds(time) &&
+		     581138840 >= m0_time_nanoseconds(time));
 #endif
 }
 
-void c2_net_test_stats_ut(void)
+void m0_net_test_stats_ut(void)
 {
-	struct c2_net_test_stats stats;
-	struct c2_net_test_stats stats2;
+	struct m0_net_test_stats stats;
+	struct m0_net_test_stats stats2;
 	int			 i;
 
 	/* test #0: no elements in sample */
-	c2_net_test_stats_reset(&stats);
+	m0_net_test_stats_reset(&stats);
 	STATS_CHECK(&stats, zero_values);
 	stats_serialize_ut(&stats);
 	/* test #1: one value in sample */
-	c2_net_test_stats_reset(&stats);
+	m0_net_test_stats_reset(&stats);
 	STATS_ADD_CHECK(&stats, one_value);
 	/* test #2: five values in sample */
-	c2_net_test_stats_reset(&stats);
+	m0_net_test_stats_reset(&stats);
 	STATS_ADD_CHECK(&stats, five_values);
 	/* test #3: one million identical values */
-	c2_net_test_stats_reset(&stats);
+	m0_net_test_stats_reset(&stats);
 	for (i = 0; i < STATS_ONE_MILLION; ++i)
-		c2_net_test_stats_add(&stats, ULONG_MAX);
+		m0_net_test_stats_add(&stats, ULONG_MAX);
 	STATS_CHECK(&stats, million_values);
 	/* test #4: six values */
-	c2_net_test_stats_reset(&stats);
+	m0_net_test_stats_reset(&stats);
 	STATS_SAMPLE_ADD(&stats, one_value);
 	STATS_SAMPLE_ADD(&stats, five_values);
 	STATS_CHECK(&stats, one_plus_five_values);
 	/* test #5: merge two stats */
-	c2_net_test_stats_reset(&stats);
+	m0_net_test_stats_reset(&stats);
 	STATS_SAMPLE_ADD(&stats, one_value);
-	c2_net_test_stats_reset(&stats2);
+	m0_net_test_stats_reset(&stats2);
 	STATS_SAMPLE_ADD(&stats2, five_values);
-	c2_net_test_stats_add_stats(&stats, &stats2);
+	m0_net_test_stats_add_stats(&stats, &stats2);
 	STATS_CHECK(&stats, one_plus_five_values);
 	/* test #6: merge two stats, second is empty */
-	c2_net_test_stats_reset(&stats);
+	m0_net_test_stats_reset(&stats);
 	STATS_SAMPLE_ADD(&stats, one_value);
-	c2_net_test_stats_reset(&stats2);
-	c2_net_test_stats_add_stats(&stats, &stats2);
+	m0_net_test_stats_reset(&stats2);
+	m0_net_test_stats_add_stats(&stats, &stats2);
 	STATS_CHECK(&stats, one_value);
 	/* test #7: merge two stats, first is empty */
-	c2_net_test_stats_reset(&stats);
-	c2_net_test_stats_reset(&stats2);
+	m0_net_test_stats_reset(&stats);
+	m0_net_test_stats_reset(&stats2);
 	STATS_SAMPLE_ADD(&stats2, five_values);
-	c2_net_test_stats_add_stats(&stats, &stats2);
+	m0_net_test_stats_add_stats(&stats, &stats2);
 	STATS_CHECK(&stats, five_values);
 	/* test #8: test stats_time functions */
 	stats_time_ut();
 }
 
-void c2_net_test_timestamp_ut(void)
+void m0_net_test_timestamp_ut(void)
 {
-	struct c2_net_test_timestamp ts;
-	struct c2_net_test_timestamp ts1;
-	c2_time_t		     before;
-	c2_time_t		     after;
-	c2_bcount_t		     serialized_len;
-	c2_bcount_t		     len;
+	struct m0_net_test_timestamp ts;
+	struct m0_net_test_timestamp ts1;
+	m0_time_t		     before;
+	m0_time_t		     after;
+	m0_bcount_t		     serialized_len;
+	m0_bcount_t		     len;
 	char			     bv_buf[TIMESTAMP_BUF_LEN];
 	void			    *bv_addr = bv_buf;
-	c2_bcount_t		     bv_len = TIMESTAMP_BUF_LEN;
-	struct c2_bufvec	     bv = C2_BUFVEC_INIT_BUF(&bv_addr, &bv_len);
+	m0_bcount_t		     bv_len = TIMESTAMP_BUF_LEN;
+	struct m0_bufvec	     bv = M0_BUFVEC_INIT_BUF(&bv_addr, &bv_len);
 
-	before = c2_time_now();
-	c2_net_test_timestamp_init(&ts, TIMESTAMP_SEQ);
-	after = c2_time_now();
+	before = m0_time_now();
+	m0_net_test_timestamp_init(&ts, TIMESTAMP_SEQ);
+	after = m0_time_now();
 
-	C2_UT_ASSERT(ts.ntt_time >= before);
-	C2_UT_ASSERT(after >= ts.ntt_time);
-	C2_UT_ASSERT(ts.ntt_magic == C2_NET_TEST_TIMESTAMP_MAGIC);
-	C2_UT_ASSERT(ts.ntt_seq == TIMESTAMP_SEQ);
+	M0_UT_ASSERT(ts.ntt_time >= before);
+	M0_UT_ASSERT(after >= ts.ntt_time);
+	M0_UT_ASSERT(ts.ntt_magic == M0_NET_TEST_TIMESTAMP_MAGIC);
+	M0_UT_ASSERT(ts.ntt_seq == TIMESTAMP_SEQ);
 
-	serialized_len = c2_net_test_timestamp_serialize(C2_NET_TEST_SERIALIZE,
+	serialized_len = m0_net_test_timestamp_serialize(M0_NET_TEST_SERIALIZE,
 							 &ts, &bv, 0);
-	C2_UT_ASSERT(serialized_len > 0);
-	C2_SET0(&ts1);
-	len = c2_net_test_timestamp_serialize(C2_NET_TEST_DESERIALIZE,
+	M0_UT_ASSERT(serialized_len > 0);
+	M0_SET0(&ts1);
+	len = m0_net_test_timestamp_serialize(M0_NET_TEST_DESERIALIZE,
 					      &ts1, &bv, 0);
-	C2_UT_ASSERT(serialized_len = len);
-	C2_UT_ASSERT(ts.ntt_time == ts1.ntt_time);
-	C2_UT_ASSERT(ts1.ntt_magic == ts.ntt_magic);
-	C2_UT_ASSERT(ts1.ntt_seq == ts.ntt_seq);
+	M0_UT_ASSERT(serialized_len = len);
+	M0_UT_ASSERT(ts.ntt_time == ts1.ntt_time);
+	M0_UT_ASSERT(ts1.ntt_magic == ts.ntt_magic);
+	M0_UT_ASSERT(ts1.ntt_seq == ts.ntt_seq);
 }
 
 /*

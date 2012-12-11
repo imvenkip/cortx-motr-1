@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_FOP_FOM_GENERIC_H__
-#define __COLIBRI_FOP_FOM_GENERIC_H__
+#ifndef __MERO_FOP_FOM_GENERIC_H__
+#define __MERO_FOP_FOM_GENERIC_H__
 
 #include "fop/fom.h"
 
@@ -36,54 +36,54 @@
  * fom type.
  *
  * @see https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjA2Zmc0N3I3Z2Y
- * @see c2_fom_tick_generic()
+ * @see m0_fom_tick_generic()
  */
-enum c2_fom_standard_phase {
-	C2_FOPH_INIT = C2_FOM_PHASE_INIT,  /*< fom has been initialised. */
-	C2_FOPH_FINISH = C2_FOM_PHASE_FINISH,  /*< terminal phase. */
-	C2_FOPH_AUTHENTICATE,        /*< authentication loop is in progress. */
-	C2_FOPH_AUTHENTICATE_WAIT,   /*< waiting for key cache miss. */
-	C2_FOPH_RESOURCE_LOCAL,      /*< local resource reservation loop is in
+enum m0_fom_standard_phase {
+	M0_FOPH_INIT = M0_FOM_PHASE_INIT,  /*< fom has been initialised. */
+	M0_FOPH_FINISH = M0_FOM_PHASE_FINISH,  /*< terminal phase. */
+	M0_FOPH_AUTHENTICATE,        /*< authentication loop is in progress. */
+	M0_FOPH_AUTHENTICATE_WAIT,   /*< waiting for key cache miss. */
+	M0_FOPH_RESOURCE_LOCAL,      /*< local resource reservation loop is in
 	                                 progress. */
-	C2_FOPH_RESOURCE_LOCAL_WAIT, /*< waiting for a local resource. */
-	C2_FOPH_RESOURCE_DISTRIBUTED,/*< distributed resource reservation loop
+	M0_FOPH_RESOURCE_LOCAL_WAIT, /*< waiting for a local resource. */
+	M0_FOPH_RESOURCE_DISTRIBUTED,/*< distributed resource reservation loop
 	                                 is in progress. */
-	C2_FOPH_RESOURCE_DISTRIBUTED_WAIT, /*< waiting for a distributed
+	M0_FOPH_RESOURCE_DISTRIBUTED_WAIT, /*< waiting for a distributed
 	                                       resource. */
-	C2_FOPH_OBJECT_CHECK,       /*< object checking loop is in progress. */
-	C2_FOPH_OBJECT_CHECK_WAIT,  /*< waiting for object cache miss. */
-	C2_FOPH_AUTHORISATION,      /*< authorisation loop is in progress. */
-	C2_FOPH_AUTHORISATION_WAIT, /*< waiting for userdb cache miss. */
-	C2_FOPH_TXN_CONTEXT,        /*< creating local transactional context. */
-	C2_FOPH_TXN_CONTEXT_WAIT,   /*< waiting for log space. */
-	C2_FOPH_SUCCESS,            /*< fom execution completed succesfully. */
-	C2_FOPH_FOL_REC_ADD,        /*< add a FOL transaction record. */
-	C2_FOPH_TXN_COMMIT,         /*< commit local transaction context. */
-	C2_FOPH_TXN_COMMIT_WAIT,    /*< waiting to commit local transaction
+	M0_FOPH_OBJECT_CHECK,       /*< object checking loop is in progress. */
+	M0_FOPH_OBJECT_CHECK_WAIT,  /*< waiting for object cache miss. */
+	M0_FOPH_AUTHORISATION,      /*< authorisation loop is in progress. */
+	M0_FOPH_AUTHORISATION_WAIT, /*< waiting for userdb cache miss. */
+	M0_FOPH_TXN_CONTEXT,        /*< creating local transactional context. */
+	M0_FOPH_TXN_CONTEXT_WAIT,   /*< waiting for log space. */
+	M0_FOPH_SUCCESS,            /*< fom execution completed succesfully. */
+	M0_FOPH_FOL_REC_ADD,        /*< add a FOL transaction record. */
+	M0_FOPH_TXN_COMMIT,         /*< commit local transaction context. */
+	M0_FOPH_TXN_COMMIT_WAIT,    /*< waiting to commit local transaction
 	                                context. */
-	C2_FOPH_TIMEOUT,            /*< fom timed out. */
-	C2_FOPH_FAILURE,            /*< fom execution failed. */
-	C2_FOPH_TXN_ABORT,          /*< abort local transaction context. */
-	C2_FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local transaction
+	M0_FOPH_TIMEOUT,            /*< fom timed out. */
+	M0_FOPH_FAILURE,            /*< fom execution failed. */
+	M0_FOPH_TXN_ABORT,          /*< abort local transaction context. */
+	M0_FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local transaction
 	                                context. */
-	C2_FOPH_QUEUE_REPLY,        /*< queuing fop reply.  */
-	C2_FOPH_QUEUE_REPLY_WAIT,   /*< waiting for fop cache space. */
-	C2_FOPH_NR,                  /*< number of standard phases. fom type
+	M0_FOPH_QUEUE_REPLY,        /*< queuing fop reply.  */
+	M0_FOPH_QUEUE_REPLY_WAIT,   /*< waiting for fop cache space. */
+	M0_FOPH_NR,                  /*< number of standard phases. fom type
 	                                specific phases have numbers larger than
 	                                this. */
-	C2_FOPH_TYPE_SPECIFIC        /*< used when only single specific phase
+	M0_FOPH_TYPE_SPECIFIC        /*< used when only single specific phase
 					 present in FOM. */
 };
 
 /**
    Standard fom phase transition function.
 
-   This function handles standard fom phases from enum c2_fom_standard_phase.
+   This function handles standard fom phases from enum m0_fom_standard_phase.
 
    First do "standard actions":
 
    - authenticity checks: reqh verifies that protected state in the fop is
-     authentic. Various bits of information in C2 are protected by cryptographic
+     authentic. Various bits of information in M0 are protected by cryptographic
      signatures made by a node that issued this information: object identifiers
      (including container identifiers and fids), capabilities, locks, layout
      identifiers, other resources identifiers, etc. reqh verifies authenticity
@@ -126,7 +126,7 @@ enum c2_fom_standard_phase {
 	fop
 	 |
 	 v                fom->fo_state = FOS_READY
-     c2_reqh_fop_handle()-------------->FOM
+     m0_reqh_fop_handle()-------------->FOM
 					 | fom->fo_state = FOS_RUNNING
 					 v
 				     FOPH_INIT
@@ -162,43 +162,43 @@ enum c2_fom_standard_phase {
 	  |	     +----------->FOPH_QUEUE_REPLY------------->+
           |	     ^			 |            FOPH_QUEUE_REPLY_WAIT
 	  v	     |			 v<---------------------+
-   FOPH_TXN_ABORT_WAIT		     FOPH_FINISH ---> c2_fom_fini()
+   FOPH_TXN_ABORT_WAIT		     FOPH_FINISH ---> m0_fom_fini()
 
    @endverbatim
 
    If a generic phase handler function fails while executing a fom, then
-   it just sets the c2_fom::fo_rc to the result of the operation and returns
-   C2_FSO_WAIT.  c2_fom_tick_generic() then sets the c2_fom::fo_phase to
-   C2_FOPH_FAILED, logs an ADDB event, and returns, later the fom execution
+   it just sets the m0_fom::fo_rc to the result of the operation and returns
+   M0_FSO_WAIT.  m0_fom_tick_generic() then sets the m0_fom::fo_phase to
+   M0_FOPH_FAILED, logs an ADDB event, and returns, later the fom execution
    proceeds as mentioned in above diagram.
 
-   If fom fails while executing fop specific operation, the c2_fom::fo_phase
-   is set to C2_FOPH_FAILED already by the fop specific operation handler, and
-   the c2_fom::fo_rc set to the result of the operation.
+   If fom fails while executing fop specific operation, the m0_fom::fo_phase
+   is set to M0_FOPH_FAILED already by the fop specific operation handler, and
+   the m0_fom::fo_rc set to the result of the operation.
 
-   @see c2_fom_phase
-   @see c2_fom_phase_outcome
+   @see m0_fom_phase
+   @see m0_fom_phase_outcome
 
    @param fom, fom under execution
 
-   @retval C2_FSO_AGAIN, if fom operation is successful, transition to next
-	   phase, C2_FSO_WAIT, if fom execution blocks and fom goes into
+   @retval M0_FSO_AGAIN, if fom operation is successful, transition to next
+	   phase, M0_FSO_WAIT, if fom execution blocks and fom goes into
 	   corresponding wait phase, or if fom execution is complete, i.e
 	   success or failure
 
    @todo standard fom phases implementation, depends on the support routines for
 	handling various standard operations on fop as mentioned above
  */
-int c2_fom_tick_generic(struct c2_fom *fom);
+int m0_fom_tick_generic(struct m0_fom *fom);
 
-C2_INTERNAL void c2_fom_generic_fini(void);
-C2_INTERNAL int c2_fom_generic_init(void);
+M0_INTERNAL void m0_fom_generic_fini(void);
+M0_INTERNAL int m0_fom_generic_init(void);
 
-extern const struct c2_sm_conf c2_generic_conf;
+extern const struct m0_sm_conf m0_generic_conf;
 
 /** @} end of fom group */
 
-/* __COLIBRI_FOP_FOM_GENERIC_H__ */
+/* __MERO_FOP_FOM_GENERIC_H__ */
 #endif
 
 /*

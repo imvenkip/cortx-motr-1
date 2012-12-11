@@ -18,7 +18,7 @@
  * Original creation date: 08/13/2011
  */
 
-#include "colibri/init.h"
+#include "mero/init.h"
 #include "lib/errno.h"
 #include "lib/getopts.h"
 #include "lib/misc.h"
@@ -30,7 +30,7 @@ static const char *D_PATH = "./__config_db";
 static const char *dev_str = "devices";
 
 /* Static declaration of device section keys array */
-static struct c2_yaml2db_section_key dev_section_keys[] = {
+static struct m0_yaml2db_section_key dev_section_keys[] = {
 	[0] = {"label", true},
 	[1] = {"interface", true},
 	[2] = {"media", true},
@@ -42,14 +42,14 @@ static struct c2_yaml2db_section_key dev_section_keys[] = {
 };
 
 /* Static declaration of device section table */
-static struct c2_yaml2db_section dev_section = {
+static struct m0_yaml2db_section dev_section = {
 	.ys_table_name = "dev_table",
-	.ys_table_ops = &c2_cfg_storage_device_table_ops,
-	.ys_section_type = C2_YAML_TYPE_MAPPING,
+	.ys_table_ops = &m0_cfg_storage_device_table_ops,
+	.ys_section_type = M0_YAML_TYPE_MAPPING,
 	.ys_num_keys = ARRAY_SIZE(dev_section_keys),
 	.ys_valid_keys = dev_section_keys,
 	.ys_key_str = "label",
-	.ys_ops = &c2_yaml2db_dev_section_ops,
+	.ys_ops = &m0_yaml2db_dev_section_ops,
 };
 
 static const char *interface_fields[] = {
@@ -87,7 +87,7 @@ static int generate_conf_file(const char *c_name, int rec_nr)
 	int	 index;
 	char	 str[STR_SIZE_NR];
 
-	C2_PRE(c_name != NULL);
+	M0_PRE(c_name != NULL);
 
 	fp = fopen(c_name, "a");
 	if (fp == NULL) {
@@ -142,7 +142,7 @@ static int generate_conf_file(const char *c_name, int rec_nr)
 }
 
 /**
-  Main function for yaml2db
+  Main function for m0yamltodb
 */
 int main(int argc, char *argv[])
 {
@@ -154,27 +154,27 @@ int main(int argc, char *argv[])
 	const char		*c_name = NULL;
 	const char		*dump_fname = NULL;
 	const char		*d_path = NULL;
-	struct c2_yaml2db_ctx	 yctx;
+	struct m0_yaml2db_ctx	 yctx;
 
-	/* Global c2_init */
-	rc = c2_init();
+	/* Global m0_init */
+	rc = m0_init();
 	if (rc != 0)
 		return rc;
 
-	C2_SET0(&yctx);
+	M0_SET0(&yctx);
 
 	/* Parse command line options */
-	rc = C2_GETOPTS("yaml2db", argc, argv,
-		C2_STRINGARG('b', "path of database directory",
+	rc = M0_GETOPTS("m0yamltodb", argc, argv,
+		M0_STRINGARG('b', "path of database directory",
 			LAMBDA(void, (const char *str) {d_path = str; })),
-		C2_STRINGARG('c', "config file in yaml format",
+		M0_STRINGARG('c', "config file in yaml format",
 			LAMBDA(void, (const char *str) {c_name = str; })),
-		C2_FLAGARG('d', "dump the key value contents", &dump),
-		C2_STRINGARG('f', "dump file name",
+		M0_FLAGARG('d', "dump the key value contents", &dump),
+		M0_STRINGARG('f', "dump file name",
 			LAMBDA(void, (const char *str) {dump_fname = str; })),
-		C2_FLAGARG('g', "generate yaml config file", &generate),
-		C2_FORMATARG('n', "no. of records to be create", "%i", &rec_nr),
-		C2_FLAGARG('e', "emitter mode", &emitter));
+		M0_FLAGARG('g', "generate yaml config file", &generate),
+		M0_FORMATARG('n', "no. of records to be create", "%i", &rec_nr),
+		M0_FLAGARG('e', "emitter mode", &emitter));
 
 	if (rc != 0)
 		goto cleanup;
@@ -203,9 +203,9 @@ int main(int argc, char *argv[])
 	/* Based on the emitter flag, enable the yaml2db context type
 	   default is parser type */
 	if (emitter)
-		yctx.yc_type = C2_YAML2DB_CTX_EMITTER;
+		yctx.yc_type = M0_YAML2DB_CTX_EMITTER;
 	else
-		yctx.yc_type = C2_YAML2DB_CTX_PARSER;
+		yctx.yc_type = M0_YAML2DB_CTX_PARSER;
 
 	if (dump) {
 		yctx.yc_dump_kv = true;
@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Initialize the parser and database environment */
-	rc = c2_yaml2db_init(&yctx);
+	rc = m0_yaml2db_init(&yctx);
 	if (rc != 0) {
 		fprintf(stderr, "Error: yaml2db initialization failed \n");
 		goto cleanup;
@@ -222,28 +222,28 @@ int main(int argc, char *argv[])
 	if (!emitter) {
 		/* Load the information from yaml file to yaml_document,
 		   and check for parsing errors internally */
-		rc = c2_yaml2db_doc_load(&yctx);
+		rc = m0_yaml2db_doc_load(&yctx);
 		if (rc != 0) {
 			fprintf(stderr, "Error: document loading failed \n");
 			goto cleanup_parser_db;
 		}
 
 		/* Parse the dev configuration that is loaded in the context */
-		rc = c2_yaml2db_conf_load(&yctx, &dev_section, dev_str);
+		rc = m0_yaml2db_conf_load(&yctx, &dev_section, dev_str);
 		if (rc != 0)
 			fprintf(stderr, "Error: config loading failed \n");
 
 	} else {
-		rc = c2_yaml2db_conf_emit(&yctx, &dev_section, dev_str);
+		rc = m0_yaml2db_conf_emit(&yctx, &dev_section, dev_str);
 		if (rc != 0)
 			fprintf(stderr, "Error: config emitting failed \n");
 	}
 
 cleanup_parser_db:
-	c2_yaml2db_fini(&yctx);
+	m0_yaml2db_fini(&yctx);
 
 cleanup:
-	c2_fini();
+	m0_fini();
 
 	return rc;
 }

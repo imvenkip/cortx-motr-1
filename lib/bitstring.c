@@ -25,44 +25,44 @@
 #endif
 
 #include "lib/bitstring.h"
-#include "lib/arith.h"      /* C2_3WAY */
-#include "lib/memory.h"     /* c2_alloc() */
+#include "lib/arith.h"      /* M0_3WAY */
+#include "lib/memory.h"     /* m0_alloc() */
 
-C2_INTERNAL void *c2_bitstring_buf_get(struct c2_bitstring *c)
+M0_INTERNAL void *m0_bitstring_buf_get(struct m0_bitstring *c)
 {
         return c->b_data;
 }
 
-C2_INTERNAL uint32_t c2_bitstring_len_get(const struct c2_bitstring *c)
+M0_INTERNAL uint32_t m0_bitstring_len_get(const struct m0_bitstring *c)
 {
         return c->b_len;
 }
 
-C2_INTERNAL void c2_bitstring_len_set(struct c2_bitstring *c, uint32_t len)
+M0_INTERNAL void m0_bitstring_len_set(struct m0_bitstring *c, uint32_t len)
 {
         c->b_len = len;
 }
 
-C2_INTERNAL struct c2_bitstring *c2_bitstring_alloc(const char *name,
+M0_INTERNAL struct m0_bitstring *m0_bitstring_alloc(const char *name,
 						    size_t len)
 {
-        struct c2_bitstring *c = c2_alloc(sizeof(*c) + len);
+        struct m0_bitstring *c = m0_alloc(sizeof(*c) + len);
         if (c == NULL)
                 return NULL;
-        c2_bitstring_copy(c, name, len);
+        m0_bitstring_copy(c, name, len);
         return c;
 }
 
-C2_INTERNAL void c2_bitstring_free(struct c2_bitstring *c)
+M0_INTERNAL void m0_bitstring_free(struct m0_bitstring *c)
 {
-        c2_free(c);
+        m0_free(c);
 }
 
-C2_INTERNAL void c2_bitstring_copy(struct c2_bitstring *dst, const char *src,
+M0_INTERNAL void m0_bitstring_copy(struct m0_bitstring *dst, const char *src,
 				   size_t count)
 {
-        memcpy(c2_bitstring_buf_get(dst), src, count);
-        c2_bitstring_len_set(dst, count);
+        memcpy(m0_bitstring_buf_get(dst), src, count);
+        m0_bitstring_len_set(dst, count);
 }
 
 /**
@@ -70,16 +70,16 @@ C2_INTERNAL void c2_bitstring_copy(struct c2_bitstring *dst, const char *src,
    Shorter strings precede longer strings.
    Strings may contain embedded NULLs.
  */
-C2_INTERNAL int c2_bitstring_cmp(const struct c2_bitstring *c1,
-				 const struct c2_bitstring *c2)
+M0_INTERNAL int m0_bitstring_cmp(const struct m0_bitstring *c1,
+				 const struct m0_bitstring *m0)
 {
         /* Compare the bytes as unsigned */
         const unsigned char *s1 = (const unsigned char *)c1->b_data;
-        const unsigned char *s2 = (const unsigned char *)c2->b_data;
+        const unsigned char *s2 = (const unsigned char *)m0->b_data;
         uint32_t pos = 1, min_len;
         int rc;
 
-        min_len = min_check(c1->b_len, c2->b_len);
+        min_len = min_check(c1->b_len, m0->b_len);
         if (min_len == 0)
                 return 0;
 
@@ -90,11 +90,11 @@ C2_INTERNAL int c2_bitstring_cmp(const struct c2_bitstring *c1,
                 pos++;
         }
 
-        if ((rc = C2_3WAY(*s1, *s2)))
+        if ((rc = M0_3WAY(*s1, *s2)))
                 return rc;
 
         /* Everything matches through the shortest string, so compare length */
-        return C2_3WAY(c1->b_len, c2->b_len);
+        return M0_3WAY(c1->b_len, m0->b_len);
 }
 
 /*

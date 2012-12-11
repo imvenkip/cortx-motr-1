@@ -18,6 +18,7 @@
  * Original creation date: 03-Feb-2012
  */
 
+#include "lib/misc.h"  /* M0_IN */
 #include "conf/obj.h"
 
 /**
@@ -41,7 +42,7 @@
  * <hr> <!------------------------------------------------------------>
  * @section conf-ovw Overview
  *
- * Configuration is part of Colibri cluster meta-data.  Configuration
+ * Configuration is part of Mero cluster meta-data.  Configuration
  * client library (confc) provides API for accessing configuration
  * data.  Confc obtains configuration data from the configuration
  * server (confd) and caches this data in local memory.
@@ -59,14 +60,14 @@
  *
  * - @b Confc (configuration client library, configuration client):
  *   a library that provides configuration consumers with API to query
- *   Colibri configuration.
+ *   Mero configuration.
  *
  * - @b Confd (configuration server): a management service that
  *   provides configuration clients with information obtained from
  *   configuration database.
  *
  * - Configuration @b consumer: any software that uses confc API to
- *   access Colibri configuration.  Alternative name: @b application.
+ *   access Mero configuration.  Alternative name: @b application.
  *
  * - Configuration @b cache: configuration data stored in node’s
  *   memory.  Confc library maintains such a cache and provides
@@ -82,7 +83,7 @@
  *   identifier.
  *
  * - Configuration object is a @b stub if its status is not equal to
- *   C2_CS_READY.  Stubs contain no meaningful configuration data.
+ *   M0_CS_READY.  Stubs contain no meaningful configuration data.
  *
  * - A configuration object is said to be @b pinned if its reference
  *   counter is nonzero; otherwise it is @b unpinned.
@@ -125,20 +126,20 @@
  *   assumption and load the entire contents of configuration database
  *   into the cache.
  *
- * - Colibri database library ("db/db.h") should provide a user-space
+ * - Mero database library ("db/db.h") should provide a user-space
  *   interface for creating in-memory databases. This interface will
  *   be used by confd and user-space confc; see @ref conf-fspec-reg.
  *
  *   See also `Writing In-Memory Berkeley DB Applications'
  *   [http://docs.oracle.com/cd/E17076_02/html/articles/inmemory/C/index.html].
  *
- * - c2_rpc_item_get() and c2_rpc_item_put() should be implemented.
+ * - m0_rpc_item_get() and m0_rpc_item_put() should be implemented.
  *
  *   Confc implementation schedules a state transition in
  *   ->rio_replied().  The data of ->ri_reply will be consumed only
  *   when the new state is being entered to.  The rpc item pointed to
  *   by ->ri_reply must not be freed (by rpc layer) until confc has
- *   consumed the data.  Thus the need for c2_rpc_item_get().
+ *   consumed the data.  Thus the need for m0_rpc_item_get().
  *
  * <hr> <!------------------------------------------------------------>
  * @section conf-highlights Design Highlights
@@ -153,7 +154,7 @@
  *
  *   @see @ref conf-fspec-obj-private
  *
- * - The registry of cached configuration objects (c2_conf_reg) is
+ * - The registry of cached configuration objects (m0_conf_reg) is
  *   queried infrequently; it makes sense to base its implementation
  *   on linked list data structure.
  *
@@ -217,46 +218,46 @@
  * @section conf-conformance Conformance
  *
  * - @b i.conf.confc.kernel
- *   The implementation of confc uses portable subset of Colibri core
+ *   The implementation of confc uses portable subset of Mero core
  *   API, which abstracts away the differences between kernel and
  *   user-space code.
  * - @b i.conf.confc.user
  *   Confc library is implemented for user space.
  * - @b i.conf.confc.async
- *   c2_confc_open() and c2_confc_readdir() are asynchronous calls.
+ *   m0_confc_open() and m0_confc_readdir() are asynchronous calls.
  * - @b i.conf.cache.data-model
  *   Configuration information is organized as outlined in section 4.1
  *   of the HLD. One-to-many relationships are represented by
- *   c2_conf_dir objects.  The same data structures are used for both
+ *   m0_conf_dir objects.  The same data structures are used for both
  *   confc and confd.  Configuration structures are kept in memory.
  * - @b i.conf.cache.pinning
  *   Confc "pins" configuration object by incrementing its reference
- *   counter.  c2_confc_fini() asserts (C2_PRE()) that no objects are
+ *   counter.  m0_confc_fini() asserts (M0_PRE()) that no objects are
  *   pinned when the cache is being destroyed.
  * - @b i.conf.cache.unique-objects
  *   Uniqueness of configuration object identities is achieved by
- *   using a registry of cached objects (c2_conf_reg).
+ *   using a registry of cached objects (m0_conf_reg).
  *
  * <hr> <!------------------------------------------------------------>
  * @section conf-ut Unit Tests
  *
  * Fault Injection mechanism (lib/finject.h) will be used to test
  * handling of "rare" errors (e.g., allocation errors) and to disable
- * some of external modules' functionality (e.g., to make c2_rpc_post()
+ * some of external modules' functionality (e.g., to make m0_rpc_post()
  * a noop).
  *
  * @subsection conf-ut-common Infrastructure Test Suite
  *
- *     @test c2_conf_reg operations will be tested.
+ *     @test m0_conf_reg operations will be tested.
  *
  *     @test Path operations will be tested. This includes checking
  *           validity of various paths, testing success and failure of
- *           c2_conf_downlink().
+ *           m0_conf_downlink().
  *
  *     @test Object operations will be tested. This includes allocation,
  *           comparison with on-wire representation, stub enrichment.
  *
- *     @test c2_conf_parse() will be tested.
+ *     @test m0_conf_parse() will be tested.
  *
  * @subsection conf-ut-confc confc Test Suite
  *
@@ -266,7 +267,7 @@
  *
  *     @test path_walk() will be tested.
  *
- *     @test c2_confc_open*() and c2_confc_close() will be tested.
+ *     @test m0_confc_open*() and m0_confc_close() will be tested.
  *
  *     @test Cache operations will be tested. This includes
  *           cache_add(), object_enrich(), cache_grow(), and
@@ -297,7 +298,7 @@
  * Actual output is compared with expected at `Compare' step.
  *
  * @test
- * -# Generate configuration DB with yaml2db and given yaml file.
+ * -# Generate configuration DB with m0yamltodb and given yaml file.
  * -# Run confd, making it use newly generated DB.
  * -# Run multiple confcs on different threads, requesting the same
  *    set of configuration objects.
@@ -355,8 +356,8 @@
  * keen to know every aspect of cluster configuration, confc cache may
  * eventually consume all available memory.  Confc will be unable to
  * allocate new objects, its state machines will end in S_FAILURE
- * state, and c2_confc_ctx_error() will return -ENOMEM.  The application
- * may opt to get rid of configuration cache by issuing c2_confc_fini().
+ * state, and m0_confc_ctx_error() will return -ENOMEM.  The application
+ * may opt to get rid of configuration cache by issuing m0_confc_fini().
  *
  * @todo Implement cache eviction.
  *
@@ -384,3 +385,10 @@
  * (@todo Delete this section from the DLD when the feature is landed
  * into master.)
  */
+
+M0_INTERNAL bool m0_conf_obj_is_stub(const struct m0_conf_obj *obj)
+{
+	M0_PRE(M0_IN(obj->co_status,
+		     (M0_CS_MISSING, M0_CS_LOADING, M0_CS_READY)));
+	return obj->co_status != M0_CS_READY;
+}

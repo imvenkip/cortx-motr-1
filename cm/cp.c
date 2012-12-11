@@ -20,10 +20,10 @@
  * Original creation date: 02/22/2012
  */
 
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_CM
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
 
-#include "lib/misc.h"   /* c2_forall */
-#include "colibri/magic.h"
+#include "lib/misc.h"   /* m0_forall */
+#include "mero/magic.h"
 #include "reqh/reqh.h"
 #include "cm/cp.h"
 #include "cm/ag.h"
@@ -72,7 +72,7 @@
  *
  *   - <b>Next phase function:</b> Given a copy packet, this identifies the
  *   phase that has to be assigned to this copy packet. The next phase function
- *   (c2_cm_cp_ops::co_phase_next()) determines the routing and execution of
+ *   (m0_cm_cp_ops::co_phase_next()) determines the routing and execution of
  *   copy packets through the copy machine.
  *
  *   <hr>
@@ -82,7 +82,7 @@
  *	  the data to be transferred within replica.
  *
  *   - @b r.cm.cp.async Every read-write (receive-send) by replica should follow
- *	  the non-blocking processing model of Colibri design.
+ *	  the non-blocking processing model of Mero design.
  *
  *   - @b r.cm.buffer_pool Copy machine should provide a buffer pool, which is
  *	  efficiently used for copy packet data.
@@ -121,7 +121,7 @@
  *   @section CPDLD-highlights Design Highlights
  *
  *   - Copy packet is implemented as FOM, which inherently has non-blocking
- *     model of colibri.
+ *     model of mero.
  *
  *   - Distributed sliding window algorithm is used to process copy packets
  *     within copy machine replica.
@@ -147,7 +147,7 @@
  *
  *   <b>Copy packet creation:</b>
  *   Given the size of the buffer pool, the replica calculates its initial
- *   sliding window (@see c2_cm_sw). Once the replica learns windows of every
+ *   sliding window (@see m0_cm_sw). Once the replica learns windows of every
  *   other replica, it can produce copy packets that replicas (including this
  *   one) are ready to process.
  *
@@ -159,7 +159,7 @@
  *        window is checked. If space exists, then copy packets will be created.
  *
  *   <b>Copy Packet destruction:</b>
- *   Copy packet is destroyed by setting its phase to C2_CCP_FINI.
+ *   Copy packet is destroyed by setting its phase to M0_CCP_FINI.
  *   Following are some cases where copy packet is finalised.
  *
  *	- On notification of copy packet data written to device/container.
@@ -199,7 +199,7 @@
  *   - @b INIT   Copy packet gets initialised with input data. e.g In SNS,
  *		 extent, COB, &c gets initialised. Usually this will be done
  *		 with some iterator over layout info.
- *		 (c2_cm_cp_phase::C2_CCP_INIT)
+ *		 (m0_cm_cp_phase::M0_CCP_INIT)
  *
  *   - @b READ   Reads data from its associated container or device according
  *		 to the input information, and places the data in a copy packet
@@ -207,12 +207,12 @@
  *		 resources: memory, locks, permissions, CPU/disk bandwidth,
  *		 etc. Data/parity is encapsulated in copy packet, and the copy
  *		 packets are transfered to next phase.
- *		 (c2_cm_cp_phase::C2_CCP_READ)
+ *		 (m0_cm_cp_phase::M0_CCP_READ)
  *
  *   - @b WRITE  Writes data from copy packet data buffer to the container or
  *		 device. Spare container and offset to write is identified from
  *		 layout information.
- *		 (c2_cm_cp_phase::C2_CCP_WRITE)
+ *		 (m0_cm_cp_phase::M0_CCP_WRITE)
  *
  *   - @b XFORM  Data restructuring is done in this phase. This phase would
  *		 typically process a lot of local copy packets. E.g., for SNS
@@ -221,19 +221,19 @@
  *		 (and should) calculate "partial parity" of all local units,
  *		 instead of sending each of them separately across the network
  *		 to a remote copy machine replica.
- *		 (c2_cm_cp_phase::C2_CCP_XFORM)
+ *		 (m0_cm_cp_phase::M0_CCP_XFORM)
  *
- *   - @b IOWAIT Waits for IO to complete. (c2_cm_cp_phase::C2_CCP_IO_WAIT)
+ *   - @b IOWAIT Waits for IO to complete. (m0_cm_cp_phase::M0_CCP_IO_WAIT)
  *
  *   - @b SEND   Send copy packet over network. Control FOP and bulk transfer
  *		 are used for sending copy packet.
- *		 (c2_cm_cp_phase::C2_CCP_SEND)
+ *		 (m0_cm_cp_phase::M0_CCP_SEND)
  *
  *   - @b RECV   Copy packet data is received from network. On receipt of
  *		 control FOP, copy packet is created and FOM is submitted for
  *		 execution and phase is set RECV, which will eventually receive
  *		 data using rpc bulk.
- *		 (c2_cm_cp_phase::C2_CCP_RECV)
+ *		 (m0_cm_cp_phase::M0_CCP_RECV)
  *
  *   - @b FINI   Finalises copy packet.
  *
@@ -272,8 +272,8 @@
  *
  *   Copy packet is implemented as a FOM and thus do not have its own thread.
  *   It runs in the context of reqh threads. So FOM locality group lock
- *   (i.e c2_cm_cp:c_fom:fo_loc:fl_group:s_lock) is used to serialise access
- *   to c2_cm_cp and its operation.
+ *   (i.e m0_cm_cp:c_fom:fo_loc:fl_group:s_lock) is used to serialise access
+ *   to m0_cm_cp and its operation.
  *
  *   <hr>
  *   @section CPDLD-conformance Conformance
@@ -290,7 +290,7 @@
  *	  that are sent over RPC, use bulk-interface for communication.
  *
  *   - @b i.cm.cp.fom.locality Copy machine implements its type specific
- *        c2_cm_cp_ops::co_home_loc_helper().
+ *        m0_cm_cp_ops::co_home_loc_helper().
  *
  *   - @b i.cm.cp.addb copy packet uses ADDB context of copy machine.
  *
@@ -321,68 +321,68 @@
  * @{
  */
 
-static const struct c2_bob_type cp_bob = {
+static const struct m0_bob_type cp_bob = {
 	.bt_name = "copy packet",
-	.bt_magix_offset = C2_MAGIX_OFFSET(struct c2_cm_cp, c_magix),
+	.bt_magix_offset = M0_MAGIX_OFFSET(struct m0_cm_cp, c_magix),
 	.bt_magix = CM_CP_MAGIX,
 	.bt_check = NULL
 };
 
-C2_BOB_DEFINE(static, &cp_bob, c2_cm_cp);
+M0_BOB_DEFINE(static, &cp_bob, m0_cm_cp);
 
-static const struct c2_fom_type_ops cp_fom_type_ops = {
+static const struct m0_fom_type_ops cp_fom_type_ops = {
         .fto_create = NULL
 };
 
-static struct c2_fom_type cp_fom_type;
+static struct m0_fom_type cp_fom_type;
 
-static void cp_fom_fini(struct c2_fom *fom)
+static void cp_fom_fini(struct m0_fom *fom)
 {
-        struct c2_cm_cp *cp = bob_of(fom, struct c2_cm_cp, c_fom, &cp_bob);
-	struct c2_cm_aggr_group *ag = cp->c_ag;
-	struct c2_cm            *cm = ag->cag_cm;
+        struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
+	struct m0_cm_aggr_group *ag = cp->c_ag;
+	struct m0_cm            *cm = ag->cag_cm;
 
-	c2_cm_cp_fini(cp);
+	m0_cm_cp_fini(cp);
 	cp->c_ops->co_free(cp);
-	c2_atomic64_inc(&ag->cag_freed_cp_nr);
+	m0_atomic64_inc(&ag->cag_freed_cp_nr);
 	/**
 	 * Try to create a new copy packet since this copy packet is
 	 * making way for new copy packets in sliding window.
 	 */
-	c2_cm_lock(cm);
-	if (c2_cm_has_more_data(cm))
-		c2_cm_sw_fill(cm);
+	m0_cm_lock(cm);
+	if (m0_cm_has_more_data(cm))
+		m0_cm_sw_fill(cm);
 	/**
 	 * Free the aggregation group if this is the last copy packet
 	 * being finalised for a given aggregation group.
 	 */
-	if(c2_atomic64_get(&ag->cag_freed_cp_nr) == ag->cag_cp_nr)
+	if(m0_atomic64_get(&ag->cag_freed_cp_nr) == ag->cag_cp_nr)
 		ag->cag_ops->cago_fini(ag);
-	c2_cm_unlock(cm);
+	m0_cm_unlock(cm);
 }
 
-static uint64_t cp_fom_locality(const struct c2_fom *fom)
+static uint64_t cp_fom_locality(const struct m0_fom *fom)
 {
-        struct c2_cm_cp *cp = bob_of(fom, struct c2_cm_cp, c_fom, &cp_bob);
+        struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
 
-        C2_PRE(c2_cm_cp_invariant(cp));
+        M0_PRE(m0_cm_cp_invariant(cp));
 
 	return cp->c_ops->co_home_loc_helper(cp);
 }
 
-static int cp_fom_tick(struct c2_fom *fom)
+static int cp_fom_tick(struct m0_fom *fom)
 {
-        struct c2_cm_cp *cp = bob_of(fom, struct c2_cm_cp, c_fom, &cp_bob);
-	int		 phase = c2_fom_phase(fom);
+        struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
+	int		 phase = m0_fom_phase(fom);
 
-	C2_PRE(phase < cp->c_ops->co_action_nr);
-        C2_PRE(c2_cm_cp_invariant(cp));
+	M0_PRE(phase < cp->c_ops->co_action_nr);
+        M0_PRE(m0_cm_cp_invariant(cp));
 
 	return cp->c_ops->co_action[phase](cp);
 }
 
 /** Copy packet FOM operations */
-static const struct c2_fom_ops cp_fom_ops = {
+static const struct m0_fom_ops cp_fom_ops = {
         .fo_fini          = cp_fom_fini,
         .fo_tick          = cp_fom_tick,
         .fo_home_locality = cp_fom_locality
@@ -395,105 +395,105 @@ static const struct c2_fom_ops cp_fom_ops = {
    @{
  */
 
-static const struct c2_sm_state_descr c2_cm_cp_state_descr[] = {
-        [C2_CCP_INIT] = {
-                .sd_flags       = C2_SDF_INITIAL,
+static const struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
+        [M0_CCP_INIT] = {
+                .sd_flags       = M0_SDF_INITIAL,
                 .sd_name        = "Init",
-                .sd_allowed     = C2_BITS(C2_CCP_READ, C2_CCP_RECV,
-				          C2_CCP_XFORM)
+                .sd_allowed     = M0_BITS(M0_CCP_READ, M0_CCP_RECV,
+				          M0_CCP_XFORM)
         },
-        [C2_CCP_READ] = {
+        [M0_CCP_READ] = {
                 .sd_flags       = 0,
                 .sd_name        = "Read",
-                .sd_allowed     = C2_BITS(C2_CCP_IO_WAIT, C2_CCP_FINI)
+                .sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FINI)
         },
-        [C2_CCP_WRITE] = {
+        [M0_CCP_WRITE] = {
                 .sd_flags       = 0,
                 .sd_name        = "Write",
-                .sd_allowed     = C2_BITS(C2_CCP_IO_WAIT, C2_CCP_FINI)
+                .sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FINI)
         },
-	[C2_CCP_IO_WAIT] = {
+	[M0_CCP_IO_WAIT] = {
 		.sd_flags       = 0,
 		.sd_name        = "IO Wait",
-		.sd_allowed     = C2_BITS(C2_CCP_XFORM, C2_CCP_SEND,
-					  C2_CCP_FINI)
+		.sd_allowed     = M0_BITS(M0_CCP_XFORM, M0_CCP_SEND,
+					  M0_CCP_FINI)
 	},
-        [C2_CCP_XFORM] = {
+        [M0_CCP_XFORM] = {
                 .sd_flags       = 0,
                 .sd_name        = "Xform",
-                .sd_allowed     = C2_BITS(C2_CCP_WRITE, C2_CCP_FINI,
-				          C2_CCP_SEND)
+                .sd_allowed     = M0_BITS(M0_CCP_WRITE, M0_CCP_FINI,
+				          M0_CCP_SEND)
         },
-        [C2_CCP_SEND] = {
+        [M0_CCP_SEND] = {
                 .sd_flags       = 0,
                 .sd_name        = "Send",
-                .sd_allowed     = C2_BITS(C2_CCP_FINI)
+                .sd_allowed     = M0_BITS(M0_CCP_FINI)
         },
-        [C2_CCP_RECV] = {
+        [M0_CCP_RECV] = {
                 .sd_flags       = 0,
                 .sd_name        = "Recv",
-                .sd_allowed     = C2_BITS(C2_CCP_WRITE, C2_CCP_XFORM)
+                .sd_allowed     = M0_BITS(M0_CCP_WRITE, M0_CCP_XFORM)
         },
-        [C2_CCP_FINI] = {
-                .sd_flags       = C2_SDF_TERMINAL,
+        [M0_CCP_FINI] = {
+                .sd_flags       = M0_SDF_TERMINAL,
                 .sd_name        = "Fini",
                 .sd_allowed     = 0
         },
 };
 
-static const struct c2_sm_conf c2_cm_cp_sm_conf = {
+static const struct m0_sm_conf m0_cm_cp_sm_conf = {
 	.scf_name = "sm:cp conf",
-	.scf_nr_states = ARRAY_SIZE(c2_cm_cp_state_descr),
-	.scf_state = c2_cm_cp_state_descr
+	.scf_nr_states = ARRAY_SIZE(m0_cm_cp_state_descr),
+	.scf_state = m0_cm_cp_state_descr
 };
 
-C2_INTERNAL void c2_cm_cp_module_init(void)
+M0_INTERNAL void m0_cm_cp_module_init(void)
 {
-	c2_fom_type_init(&cp_fom_type, &cp_fom_type_ops, NULL,
-			 &c2_cm_cp_sm_conf);
+	m0_fom_type_init(&cp_fom_type, &cp_fom_type_ops, NULL,
+			 &m0_cm_cp_sm_conf);
 }
 
-C2_INTERNAL bool c2_cm_cp_invariant(const struct c2_cm_cp *cp)
+M0_INTERNAL bool m0_cm_cp_invariant(const struct m0_cm_cp *cp)
 {
-	const struct c2_cm_cp_ops *ops = cp->c_ops;
+	const struct m0_cm_cp_ops *ops = cp->c_ops;
 
-	return c2_cm_cp_bob_check(cp) && ops != NULL && cp->c_data != NULL &&
+	return m0_cm_cp_bob_check(cp) && ops != NULL && cp->c_data != NULL &&
 	       cp->c_ag != NULL &&
-	       c2_fom_phase(&cp->c_fom) < ops->co_action_nr &&
+	       m0_fom_phase(&cp->c_fom) < ops->co_action_nr &&
 	       cp->c_ops->co_invariant(cp) &&
-	       c2_forall(i, ops->co_action_nr, ops->co_action[i] != NULL);
+	       m0_forall(i, ops->co_action_nr, ops->co_action[i] != NULL);
 }
 
-C2_INTERNAL void c2_cm_cp_init(struct c2_cm_cp *cp)
+M0_INTERNAL void m0_cm_cp_init(struct m0_cm_cp *cp)
 {
-	C2_PRE(cp != NULL);
+	M0_PRE(cp != NULL);
 
-	c2_cm_cp_bob_init(cp);
-	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
+	m0_cm_cp_bob_init(cp);
+	m0_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
 }
 
-C2_INTERNAL void c2_cm_cp_fini(struct c2_cm_cp *cp)
+M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp)
 {
-	c2_fom_fini(&cp->c_fom);
-	c2_cm_cp_bob_fini(cp);
+	m0_fom_fini(&cp->c_fom);
+	m0_cm_cp_bob_fini(cp);
 }
 
-C2_INTERNAL c2_bcount_t c2_cm_cp_data_size(struct c2_cm_cp *cp)
+M0_INTERNAL m0_bcount_t m0_cm_cp_data_size(struct m0_cm_cp *cp)
 {
-	return C2_CP_SIZE;
+	return M0_CP_SIZE;
 }
 
-C2_INTERNAL void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)
+M0_INTERNAL void m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp)
 {
-        struct c2_fom  *fom = &cp->c_fom;
-        struct c2_reqh *reqh = cm->cm_service.rs_reqh;
+        struct m0_fom  *fom = &cp->c_fom;
+        struct m0_reqh *reqh = cm->cm_service.rs_reqh;
 
-        C2_PRE(reqh != NULL);
-        C2_PRE(!reqh->rh_shutdown);
-        C2_PRE(c2_fom_phase(fom) == C2_CCP_INIT);
-        C2_PRE(c2_cm_cp_invariant(cp));
+        M0_PRE(reqh != NULL);
+        M0_PRE(!reqh->rh_shutdown);
+        M0_PRE(m0_fom_phase(fom) == M0_CCP_INIT);
+        M0_PRE(m0_cm_cp_invariant(cp));
 
-        c2_fom_queue(fom, reqh);
+        m0_fom_queue(fom, reqh);
 }
 
 /** @} end-of-CPDLD */

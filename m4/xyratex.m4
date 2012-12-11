@@ -1,5 +1,5 @@
 # Check linux kernel symbols file
-AC_DEFUN([COLIBRI_LINUX_CHECK_SYMBOL],[
+AC_DEFUN([MERO_LINUX_CHECK_SYMBOL],[
         AC_MSG_CHECKING([for symbols file])
         if test -f $LINUX_OBJ/Module.symvers; then
                 SYMVERFILE=$LINUX_OBJ/Module.symvers
@@ -23,14 +23,14 @@ AC_DEFUN([COLIBRI_LINUX_CHECK_SYMBOL],[
 ])
 
 
-AC_DEFUN([COLIBRI_LINUX_CONFTEST],
+AC_DEFUN([MERO_LINUX_CONFTEST],
 [cat >conftest.c <<_ACEOF
 $1
 _ACEOF
 ])
 
 
-AC_DEFUN([COLIBRI_LANG_PROGRAM],
+AC_DEFUN([MERO_LANG_PROGRAM],
 [$1
 int
 main (void)
@@ -43,8 +43,8 @@ $2
 }])
 
 
-AC_DEFUN([COLIBRI_LINUX_COMPILE_IFELSE],
-[m4_ifvaln([$1], [COLIBRI_LINUX_CONFTEST([$1])])
+AC_DEFUN([MERO_LINUX_COMPILE_IFELSE],
+[m4_ifvaln([$1], [MERO_LINUX_CONFTEST([$1])])
 rm -f config/conftest.o config/conftest.mod.c config/conftest.ko
 AS_IF([AC_TRY_COMMAND([cp conftest.c config && cd config && make -d $2 ${LD:+"LD=$LD"} CC="$CC" LINUX_OBJ=$LINUX_OBJ]) >/dev/null && AC_TRY_COMMAND([$3])],
 	[$4],
@@ -54,18 +54,18 @@ rm -f config/conftest.o config/conftest.mod.c config/conftest.mod.o config/conft
 ])
 
 
-AC_DEFUN([COLIBRI_LINUX_TRY_COMPILE],[
-        COLIBRI_LINUX_COMPILE_IFELSE(
-                [AC_LANG_SOURCE([COLIBRI_LANG_PROGRAM([[$1]], [[$2]])])],
+AC_DEFUN([MERO_LINUX_TRY_COMPILE],[
+        MERO_LINUX_COMPILE_IFELSE(
+                [AC_LANG_SOURCE([MERO_LANG_PROGRAM([[$1]], [[$2]])])],
                 [modules],
                 [test -s config/conftest.o],
                 [$3], [$4])
 ])
 
 
-AC_DEFUN([COLIBRI_LINUX_CONFIG],
+AC_DEFUN([MERO_LINUX_CONFIG],
 [AC_MSG_CHECKING([if Linux was built with CONFIG_$1])
-COLIBRI_LINUX_TRY_COMPILE([
+MERO_LINUX_TRY_COMPILE([
 #include <linux/autoconf.h>
 ],[
 #ifndef CONFIG_$1
@@ -81,9 +81,9 @@ COLIBRI_LINUX_TRY_COMPILE([
 ])
 
 
-AC_DEFUN([COLIBRI_LINUX_FILE_READV],
+AC_DEFUN([MERO_LINUX_FILE_READV],
 [AC_MSG_CHECKING([readv in fops])
-COLIBRI_LINUX_TRY_COMPILE([
+MERO_LINUX_TRY_COMPILE([
 #include <linux/fs.h>
 ],[
         struct file_operations *fops = NULL;
@@ -97,9 +97,9 @@ COLIBRI_LINUX_TRY_COMPILE([
 ])
 
 
-AC_DEFUN([COLIBRI_LINUX_FILE_AIO_READ],
+AC_DEFUN([MERO_LINUX_FILE_AIO_READ],
 [AC_MSG_CHECKING([->aio_read in fops])
-COLIBRI_LINUX_TRY_COMPILE([
+MERO_LINUX_TRY_COMPILE([
 #include <linux/fs.h>
 ],[
         struct file_operations *fops = NULL;
@@ -113,9 +113,9 @@ COLIBRI_LINUX_TRY_COMPILE([
 ])
 
 
-AC_DEFUN([COLIBRI_LINUX_INODE_BLKSIZE],
+AC_DEFUN([MERO_LINUX_INODE_BLKSIZE],
 [AC_MSG_CHECKING([inode has i_blksize field])
-COLIBRI_LINUX_TRY_COMPILE([
+MERO_LINUX_TRY_COMPILE([
 #include <linux/fs.h>
 ],[
 	struct inode i;
@@ -129,9 +129,9 @@ COLIBRI_LINUX_TRY_COMPILE([
 ])
 
 
-AC_DEFUN([COLIBRI_LINUX_WRITE_BEGIN_END],
+AC_DEFUN([MERO_LINUX_WRITE_BEGIN_END],
 [AC_MSG_CHECKING([if kernel has .write_begin/end])
-COLIBRI_LINUX_TRY_COMPILE([
+MERO_LINUX_TRY_COMPILE([
 #include <linux/fs.h>
 #ifdef HAVE_MMTYPES_H
 #include <linux/mm_types.h>
@@ -153,10 +153,10 @@ COLIBRI_LINUX_TRY_COMPILE([
 ])
 
 
-AC_DEFUN([COLIBRI_LINUX_SENDFILE],
+AC_DEFUN([MERO_LINUX_SENDFILE],
 [
 AC_MSG_CHECKING([if kernel has .sendfile])
-COLIBRI_LINUX_TRY_COMPILE([
+MERO_LINUX_TRY_COMPILE([
 #include <linux/fs.h>
 ],[
         struct file_operations file;
@@ -171,7 +171,7 @@ COLIBRI_LINUX_TRY_COMPILE([
 ])
 
 
-AC_DEFUN([COLIBRI_LINUX_INIT_CONFIG], [
+AC_DEFUN([MERO_LINUX_INIT_CONFIG], [
 rm -fr config > /dev/null 2>&1
 mkdir config
 cat >config/Makefile <<_ACEOF
@@ -183,13 +183,13 @@ _ACEOF
 ])
 
 # Check if gcc option is supported in current gcc version.
-# COLIBRI_COMPILER_OPTION_CHECK(OPTION, [ACTION-IF-SUPPORTED], [ACTION-IF-NOT])
+# MERO_COMPILER_OPTION_CHECK(OPTION, [ACTION-IF-SUPPORTED], [ACTION-IF-NOT])
 # --------------------------------------
-AC_DEFUN([COLIBRI_COMPILER_OPTION_CHECK],
+AC_DEFUN([MERO_COMPILER_OPTION_CHECK],
 [AC_MSG_CHECKING([whether compiler $CC supports $1 option])
 OLD_CFLAGS="$CFLAGS"
 CFLAGS="$OLD_CFLAGS $1"
-AC_COMPILE_IFELSE([COLIBRI_LANG_PROGRAM()],
+AC_COMPILE_IFELSE([MERO_LANG_PROGRAM()],
         [
          AC_MSG_RESULT([yes])
          $2
@@ -200,9 +200,9 @@ AC_COMPILE_IFELSE([COLIBRI_LANG_PROGRAM()],
 )]
 CFLAGS="$OLD_CFLAGS")
 
-# COLIBRI_BUILD_LIB(NAME, SRCDIR, LIBFILE, [DISTDIR], [BUILDOPTS])
+# MERO_BUILD_LIB(NAME, SRCDIR, LIBFILE, [DISTDIR], [BUILDOPTS])
 # --------------------------------------
-AC_DEFUN([COLIBRI_BUILD_LIB],
+AC_DEFUN([MERO_BUILD_LIB],
 [
        cbl_name=$1
        cbl_srcdir=$2
@@ -213,7 +213,10 @@ AC_DEFUN([COLIBRI_BUILD_LIB],
        AS_IF([! test -e $cbl_libfile],
              [
                AC_MSG_RESULT([building $cbl_srcdir])
-               (cd $cbl_srcdir && $cbl_distdir/configure $cbl_buildopts && make)
+               (cd $cbl_srcdir \
+                && if [test -x autogen.sh]; then ./autogen.sh; fi \
+                && $cbl_distdir/configure $cbl_buildopts \
+                && make)
                AS_IF([test $? -ne 0],
                      AC_MSG_ERROR([An error occured while building lib$cbl_name!]))
                AS_IF([! test -e $cbl_libfile],
@@ -224,9 +227,9 @@ AC_DEFUN([COLIBRI_BUILD_LIB],
         )
 ])
 
-# COLIBRI_SEARCH_LIBS(FUNC, LIBS, OUTPUT_VAR, ERROR_MSG)
+# MERO_SEARCH_LIBS(FUNC, LIBS, OUTPUT_VAR, ERROR_MSG)
 # --------------------------------------
-AC_DEFUN([COLIBRI_SEARCH_LIBS],
+AC_DEFUN([MERO_SEARCH_LIBS],
 [
         OLD_LIBS=$LIBS
         LIBS=

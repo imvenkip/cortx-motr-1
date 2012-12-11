@@ -28,8 +28,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_CONSOLE_FOP_H__
-#define __COLIBRI_CONSOLE_FOP_H__
+#ifndef __MERO_CONSOLE_FOP_H__
+#define __MERO_CONSOLE_FOP_H__
 
 #include "fop/fop.h"
 #include "rpc/rpc_opcodes.h"
@@ -37,18 +37,18 @@
 /**
  * Init console FOP
  */
-C2_INTERNAL int c2_console_fop_init(void);
+M0_INTERNAL int m0_console_fop_init(void);
 
 /**
  * Fini console FOP
  */
-C2_INTERNAL void c2_console_fop_fini(void);
+M0_INTERNAL void m0_console_fop_fini(void);
 
-extern struct c2_fop_type c2_cons_fop_device_fopt;
-extern struct c2_fop_type c2_cons_fop_reply_fopt;
-extern struct c2_fop_type c2_cons_fop_test_fopt;
+extern struct m0_fop_type m0_cons_fop_device_fopt;
+extern struct m0_fop_type m0_cons_fop_reply_fopt;
+extern struct m0_fop_type m0_cons_fop_test_fopt;
 
-/* __COLIBRI_CONSOLE_FOP_H__ */
+/* __MERO_CONSOLE_FOP_H__ */
 #endif
 
 /*

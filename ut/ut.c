@@ -22,13 +22,13 @@
 #include "ut/cs_service.h"
 #include "reqh/reqh_service.h"
 
-int c2_ut_init(void)
+int m0_ut_init(void)
 {
 	int i;
 	int rc = 0;
 
-	for (i = 0; i < c2_cs_default_stypes_nr; ++i) {
-		rc = c2_reqh_service_type_register(c2_cs_default_stypes[i]);
+	for (i = 0; i < m0_cs_default_stypes_nr; ++i) {
+		rc = m0_reqh_service_type_register(m0_cs_default_stypes[i]);
 		if (rc != 0)
 			break;
 	}
@@ -36,12 +36,12 @@ int c2_ut_init(void)
 	return rc;
 }
 
-void c2_ut_fini(void)
+void m0_ut_fini(void)
 {
 	int i;
 
-	for (i = 0; i < c2_cs_default_stypes_nr; ++i)
-		c2_reqh_service_type_unregister(c2_cs_default_stypes[i]);
+	for (i = 0; i < m0_cs_default_stypes_nr; ++i)
+		m0_reqh_service_type_unregister(m0_cs_default_stypes[i]);
 }
 
 /*

@@ -19,76 +19,75 @@
 
 #include "conf/conf_fop.h"
 #include "conf/onwire_xc.h"
-#include "fop/fop.h"
-#include "fop/fop_item_type.h"
-#include "fop/fom.h"
-#include "fop/fom_generic.h"
-#include "rpc/rpc.h"
+#include "conf/confd_fom.h"   /* m0_confd_fom_create */
+#include "conf/confd.h"       /* m0_confd_stype */
 #include "rpc/rpc_opcodes.h"
-#include "lib/errno.h"
-#include "lib/memory.h"
+#include "fop/fom_generic.h"  /* m0_generic_conf */
 
-struct c2_fop_type c2_conf_fetch_fopt;
-struct c2_fop_type c2_conf_fetch_resp_fopt;
-
-struct c2_fop_type c2_conf_update_fopt;
-struct c2_fop_type c2_conf_update_resp_fopt;
-
-extern const struct c2_fom_type_ops c2_fom_conf_fetch_type_ops;
-extern const struct c2_fom_type_ops c2_fom_conf_update_type_ops;
-
-C2_INTERNAL int c2_conf_fops_init(void)
-{
-        return
-		/* Fetch request/response */
-		C2_FOP_TYPE_INIT(&c2_conf_fetch_fopt,
-				 .name      = "c2_conf_fetch fop",
-				 .opcode    = C2_CONF_FETCH_OPCODE,
-				 .xt        = c2_conf_fetch_xc,
-				 /* XXX FIXME Why setting MUTABO flag?  This fop
-				  * does not change file system state.  (Search
-				  * for MUTABO in rpc/slot_internal.h
-				  * documentation.)  --vvv */
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
-					      C2_RPC_ITEM_TYPE_MUTABO,
-				 .fom_ops   = &c2_fom_conf_fetch_type_ops,
-				 .sm        = &c2_generic_conf) ?:
-		C2_FOP_TYPE_INIT(&c2_conf_fetch_resp_fopt,
-				 .name      = "c2_conf_fetch_resp fop",
-				 .opcode    = C2_CONF_FETCH_RESP_OPCODE,
-				 .xt        = c2_conf_fetch_resp_xc,
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
-		/* Update request/response */
-		C2_FOP_TYPE_INIT(&c2_conf_update_fopt,
-				 .name      = "c2_conf_update fop",
-				 .opcode    = C2_CONF_UPDATE_OPCODE,
-				 .xt        = c2_conf_update_xc,
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
-					      C2_RPC_ITEM_TYPE_MUTABO,
-				 .fom_ops   = &c2_fom_conf_update_type_ops,
-				 .sm        = &c2_generic_conf) ?:
-		C2_FOP_TYPE_INIT(&c2_conf_update_resp_fopt,
-				 .name      = "c2_conf_update_resp fop",
-				 .opcode    = C2_CONF_UPDATE_RESP_OPCODE,
-				 .xt        = c2_conf_update_resp_xc,
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
-}
-
-C2_INTERNAL void c2_conf_fops_fini(void)
-{
-	c2_fop_type_fini(&c2_conf_fetch_fopt);
-	c2_fop_type_fini(&c2_conf_fetch_resp_fopt);
-
-	c2_fop_type_fini(&c2_conf_update_fopt);
-	c2_fop_type_fini(&c2_conf_update_resp_fopt);
-}
-
-/*
- *  Local variables:
- *  c-indentation-style: "K&R"
- *  c-basic-offset: 8
- *  tab-width: 8
- *  fill-column: 80
- *  scroll-step: 1
- *  End:
+/**
+ * @addtogroup conf_fop
+ *
+ * @{
  */
+
+struct m0_fop_type m0_conf_fetch_fopt;
+struct m0_fop_type m0_conf_fetch_resp_fopt;
+
+struct m0_fop_type m0_conf_update_fopt;
+struct m0_fop_type m0_conf_update_resp_fopt;
+
+#ifndef __KERNEL__
+static const struct m0_fom_type_ops confd_fom_ops = {
+	.fto_create = m0_confd_fom_create
+};
+#endif
+
+M0_INTERNAL int m0_conf_fops_init(void)
+{
+        return  M0_FOP_TYPE_INIT(&m0_conf_fetch_fopt,
+				 .name      = "Configuration fetch request",
+				 .opcode    = M0_CONF_FETCH_OPCODE,
+				 .xt        = m0_conf_fetch_xc,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+#ifndef __KERNEL__
+				 .fom_ops   = &confd_fom_ops,
+				 .svc_type  = &m0_confd_stype,
+#endif
+				 .sm        = &m0_generic_conf) ?:
+		M0_FOP_TYPE_INIT(&m0_conf_fetch_resp_fopt,
+				 .name      = "Configuration fetch response",
+				 .opcode    = M0_CONF_FETCH_RESP_OPCODE,
+				 .xt        = m0_conf_fetch_resp_xc,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
+		/*
+		 * XXX Argh! Why bother defining update _stubs_?
+		 * Do we win anything? Is it worth the cost of maintenance?
+		 */
+		M0_FOP_TYPE_INIT(&m0_conf_update_fopt,
+				 .name      = "Configuration update request",
+				 .opcode    = M0_CONF_UPDATE_OPCODE,
+				 .xt        = m0_conf_update_xc,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+					      M0_RPC_ITEM_TYPE_MUTABO,
+#ifndef __KERNEL__
+				 .fom_ops   = &confd_fom_ops,
+				 .svc_type  = &m0_confd_stype,
+#endif
+				 .sm        = &m0_generic_conf) ?:
+		M0_FOP_TYPE_INIT(&m0_conf_update_resp_fopt,
+				 .name      = "Configuration update response",
+				 .opcode    = M0_CONF_UPDATE_RESP_OPCODE,
+				 .xt        = m0_conf_update_resp_xc,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+}
+
+M0_INTERNAL void m0_conf_fops_fini(void)
+{
+	m0_fop_type_fini(&m0_conf_fetch_fopt);
+	m0_fop_type_fini(&m0_conf_fetch_resp_fopt);
+
+	m0_fop_type_fini(&m0_conf_update_fopt);
+	m0_fop_type_fini(&m0_conf_update_resp_fopt);
+}
+
+/** @} conf_fop */

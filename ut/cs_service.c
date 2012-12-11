@@ -22,58 +22,58 @@
 #include "lib/memory.h"
 
 #include "reqh/reqh_service.h"
-#include "colibri/colibri_setup.h"
+#include "mero/setup.h"
 
 #include "ut/cs_fop_foms.h"
 
-static int ds1_service_start(struct c2_reqh_service *service);
-static int ds2_service_start(struct c2_reqh_service *service);
-static void ds1_service_stop(struct c2_reqh_service *service);
-static void ds2_service_stop(struct c2_reqh_service *service);
-static int ds1_service_allocate(struct c2_reqh_service_type *stype,
-                                     struct c2_reqh_service **service);
-static int ds2_service_allocate(struct c2_reqh_service_type *stype,
-                                     struct c2_reqh_service **service);
-static void ds_service_fini(struct c2_reqh_service *service);
+static int ds1_service_start(struct m0_reqh_service *service);
+static int ds2_service_start(struct m0_reqh_service *service);
+static void ds1_service_stop(struct m0_reqh_service *service);
+static void ds2_service_stop(struct m0_reqh_service *service);
+static int ds1_service_allocate(struct m0_reqh_service_type *stype,
+                                     struct m0_reqh_service **service);
+static int ds2_service_allocate(struct m0_reqh_service_type *stype,
+                                     struct m0_reqh_service **service);
+static void ds_service_fini(struct m0_reqh_service *service);
 
-static const struct c2_reqh_service_type_ops ds1_service_type_ops = {
+static const struct m0_reqh_service_type_ops ds1_service_type_ops = {
         .rsto_service_allocate = ds1_service_allocate
 };
 
-static const struct c2_reqh_service_type_ops ds2_service_type_ops = {
+static const struct m0_reqh_service_type_ops ds2_service_type_ops = {
         .rsto_service_allocate = ds2_service_allocate
 };
 
-static const struct c2_reqh_service_ops ds1_service_ops = {
+static const struct m0_reqh_service_ops ds1_service_ops = {
         .rso_start = ds1_service_start,
         .rso_stop = ds1_service_stop,
         .rso_fini = ds_service_fini
 };
 
-static const struct c2_reqh_service_ops ds2_service_ops = {
+static const struct m0_reqh_service_ops ds2_service_ops = {
         .rso_start = ds2_service_start,
         .rso_stop = ds2_service_stop,
         .rso_fini = ds_service_fini
 };
 
-C2_REQH_SERVICE_TYPE_DECLARE(ds1_service_type, &ds1_service_type_ops, "ds1");
-C2_REQH_SERVICE_TYPE_DECLARE(ds2_service_type, &ds2_service_type_ops, "ds2");
+M0_REQH_SERVICE_TYPE_DEFINE(ds1_service_type, &ds1_service_type_ops, "ds1");
+M0_REQH_SERVICE_TYPE_DEFINE(ds2_service_type, &ds2_service_type_ops, "ds2");
 
-struct c2_reqh_service_type *c2_cs_default_stypes[] = {
+struct m0_reqh_service_type *m0_cs_default_stypes[] = {
 	&ds1_service_type,
 	&ds2_service_type,
 };
 
-size_t c2_cs_default_stypes_nr = ARRAY_SIZE(c2_cs_default_stypes);
+size_t m0_cs_default_stypes_nr = ARRAY_SIZE(m0_cs_default_stypes);
 
-static int ds1_service_allocate(struct c2_reqh_service_type *stype,
-                                 struct c2_reqh_service **service)
+static int ds1_service_allocate(struct m0_reqh_service_type *stype,
+                                 struct m0_reqh_service **service)
 {
-        struct c2_reqh_service      *serv;
+        struct m0_reqh_service      *serv;
 
-        C2_PRE(stype != NULL && service != NULL);
+        M0_PRE(stype != NULL && service != NULL);
 
-        C2_ALLOC_PTR(serv);
+        M0_ALLOC_PTR(serv);
         if (serv == NULL)
                 return -ENOMEM;
 
@@ -84,14 +84,14 @@ static int ds1_service_allocate(struct c2_reqh_service_type *stype,
         return 0;
 }
 
-static int ds2_service_allocate(struct c2_reqh_service_type *stype,
-                                 struct c2_reqh_service **service)
+static int ds2_service_allocate(struct m0_reqh_service_type *stype,
+                                 struct m0_reqh_service **service)
 {
-        struct c2_reqh_service      *serv;
+        struct m0_reqh_service      *serv;
 
-        C2_PRE(stype != NULL && service != NULL);
+        M0_PRE(stype != NULL && service != NULL);
 
-        C2_ALLOC_PTR(serv);
+        M0_ALLOC_PTR(serv);
         if (serv == NULL)
                 return -ENOMEM;
 
@@ -102,55 +102,55 @@ static int ds2_service_allocate(struct c2_reqh_service_type *stype,
         return 0;
 }
 
-static int ds1_service_start(struct c2_reqh_service *service)
+static int ds1_service_start(struct m0_reqh_service *service)
 {
 	int rc;
 
-        C2_PRE(service != NULL);
+        M0_PRE(service != NULL);
 
         /*Initialise service fops.*/
-	rc = c2_cs_ut_ds1_fop_init();
-	C2_ASSERT(rc == 0);
+	rc = m0_cs_ut_ds1_fop_init();
+	M0_ASSERT(rc == 0);
 
         return rc;
 }
 
-static int ds2_service_start(struct c2_reqh_service *service)
+static int ds2_service_start(struct m0_reqh_service *service)
 {
         int rc;
 
-        C2_PRE(service != NULL);
+        M0_PRE(service != NULL);
 
         /*Initialise service fops.*/
-        rc = c2_cs_ut_ds2_fop_init();
-	C2_ASSERT(rc == 0);
+        rc = m0_cs_ut_ds2_fop_init();
+	M0_ASSERT(rc == 0);
 
         return rc;
 }
 
-static void ds1_service_stop(struct c2_reqh_service *service)
+static void ds1_service_stop(struct m0_reqh_service *service)
 {
 
-        C2_PRE(service != NULL);
+        M0_PRE(service != NULL);
 
 	/* Finalise service fops */
-	c2_cs_ut_ds1_fop_fini();
+	m0_cs_ut_ds1_fop_fini();
 }
 
-static void ds2_service_stop(struct c2_reqh_service *service)
+static void ds2_service_stop(struct m0_reqh_service *service)
 {
 
-        C2_PRE(service != NULL);
+        M0_PRE(service != NULL);
 
         /* Finalise service fops */
-        c2_cs_ut_ds2_fop_fini();
+        m0_cs_ut_ds2_fop_fini();
 }
 
-static void ds_service_fini(struct c2_reqh_service *service)
+static void ds_service_fini(struct m0_reqh_service *service)
 {
-	C2_PRE(service != NULL);
+	M0_PRE(service != NULL);
 
-        c2_free(service);
+        m0_free(service);
 }
 
 /*

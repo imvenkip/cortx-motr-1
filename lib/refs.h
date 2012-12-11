@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_REFS_H__
-#define __COLIBRI_LIB_REFS_H__
+#ifndef __MERO_LIB_REFS_H__
+#define __MERO_LIB_REFS_H__
 
 #include "cdefs.h"
 #include "atomic.h"
@@ -30,55 +30,55 @@
  routines for handling generic reference counted objects
 */
 
-struct c2_ref {
+struct m0_ref {
 	/**
 	 number references to object
 	 */
-	struct c2_atomic64	ref_cnt;
+	struct m0_atomic64	ref_cnt;
 	/**
 	  ponter to destructor
 	  @param ref pointer to reference object
 	*/
-	void (*release) (struct c2_ref *ref);
+	void (*release) (struct m0_ref *ref);
 };
 
 /**
  constructor for init reference counted protection
 
- @param ref pointer to c2_ref object
+ @param ref pointer to m0_ref object
  @param init_num initial references on object
  @param release destructor function for the object
 */
-void c2_ref_init(struct c2_ref *ref, int init_num,
-		void (*release) (struct c2_ref *ref));
+void m0_ref_init(struct m0_ref *ref, int init_num,
+		void (*release) (struct m0_ref *ref));
 
 /**
  take one reference to the object
 
- @param ref pointer to c2_ref object
+ @param ref pointer to m0_ref object
 
  @return none
  */
-C2_INTERNAL void c2_ref_get(struct c2_ref *ref);
+M0_INTERNAL void m0_ref_get(struct m0_ref *ref);
 
 /**
  release one reference from the object.
  if function will release last rererence, destructor will called.
 
- @param ref pointer to c2_ref object
+ @param ref pointer to m0_ref object
 
  @return none
 */
-C2_INTERNAL void c2_ref_put(struct c2_ref *ref);
+M0_INTERNAL void m0_ref_put(struct m0_ref *ref);
 
 /**
- Read the current value of the reference count from the c2_ref object
+ Read the current value of the reference count from the m0_ref object
 
- @param ref pointer to c2_ref object
+ @param ref pointer to m0_ref object
 
  @return current value of the reference count
  */
-C2_INTERNAL int64_t c2_ref_read(const struct c2_ref *ref);
+M0_INTERNAL int64_t m0_ref_read(const struct m0_ref *ref);
 #endif
 /*
  *  Local variables:

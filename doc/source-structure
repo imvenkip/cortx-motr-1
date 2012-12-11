@@ -1,16 +1,16 @@
-This document describes structure of the Colibri source code tree.
+This document describes structure of the Mero source code tree.
 
-Colibri sources are stored in multiple git repositories. The top one,
-at "gitosis@git.clusterstor.com/colibri.git" contains a "checkout"
+Mero sources are stored in multiple git repositories. The top one,
+at "gitosis@git.clusterstor.com/mero.git" contains a "checkout"
 script fetching all the others. Currently this script pulls Oracle
-Berkeley DB (ssh://gitosis@git.clusterstor.com/colibri-db4.git, a
+Berkeley DB (ssh://gitosis@git.clusterstor.com/mero-db4.git, a
 misnomer, because currently db5 is used) and a "core"
-(ssh://gitosis@git.clusterstor.com/colibri-core.git) repositories.
+(ssh://gitosis@git.clusterstor.com/mero-core.git) repositories.
 
 Structure
 =========
 
-Each major Colibri sub-system and component has a sub-directory in
+Each major Mero sub-system and component has a sub-directory in
 core/ directory. Such sub-directory might contain other
 sub-directories for sub-sub-systems. In addition, a sub-directory
 might contain the following standard sub-directories:
@@ -32,14 +32,14 @@ will work only for user-space part, i.e. `make all-user`, because our
 kerne-mode makefiles don't support this feature at the moment). This
 process builds all the libraries and executable specified in the
 current configuration (currently only one configuration is supported,
-2010.06.27), including Oracle Berkeley DB, internal Colibri libraries,
-unit and system tests, benchmarks and Colibri executables.
+2010.06.27), including Oracle Berkeley DB, internal Mero libraries,
+unit and system tests, benchmarks and Mero executables.
 
 All sources needed by the current configuration are linked
-together into core/colibri/libcolibri.la. Then binaries, including
-unit tests are built and linked against libcolibri.
+together into core/mero/libmero.la. Then binaries, including
+unit tests are built and linked against libmero.
 
-Kernel code is built by using Linux kernel build. The modules for colibri
+Kernel code is built by using Linux kernel build. The modules for mero
 components are generated in build_kernel_modules directory.
 
 Recipes (for user space code)
@@ -58,12 +58,12 @@ start with:
 
     #pragma once
 
-    #ifndef __COLIBRI_FOO_BAR_H__
-    #define __COLIBRI_FOO_BAR_H__
+    #ifndef __MERO_FOO_BAR_H__
+    #define __MERO_FOO_BAR_H__
 
 End the file bar.h with:
 
-    #endif /* __COLIBRI_FOO_BAR_H__ */
+    #endif /* __MERO_FOO_BAR_H__ */
 
     /*
      *  Local variables:
@@ -82,7 +82,7 @@ Include system headers as usual:
 
 #include <unistd.h>
 
-To include a Colibri header core/foo/foo_bar.h do
+To include a Mero header core/foo/foo_bar.h do
 
 #include "foo/foo_bar.h"
 
@@ -95,57 +95,57 @@ Oracle Berkeley data-base interfaces must be included as
 
 #include <db.h>
 
-How Colibri build system is organized?
+How Mero build system is organized?
 ------------------------------------------
 
 Please, read the "Quick start guide" section at the beginning of
 top-level core/Makefile.am makefile.
 
-How to add a new internal Colibri library?
+How to add a new internal Mero library?
 ------------------------------------------
 
 Create a new core/foo directory, if necessary. Add something like this
 to top-level core/Makefile.am:
 
-    noinst_LTLIBRARIES += foo/libcolibri-foo.la
+    noinst_LTLIBRARIES += foo/libmero-foo.la
 
     include $(top_srcdir)/foo/Makefile.sub
 
 In core/foo/Makefile.sub put:
 
-    foo_libcolibri_foo_la_HEADERS = foo/foo.h
+    foo_libmero_foo_la_HEADERS = foo/foo.h
 
-    foo_libcolibri_foo_la_SOURCES = foo/foo.c \
+    foo_libmero_foo_la_SOURCES = foo/foo.c \
                                     foo/foo_internal.h \
                                     foo/foo_bar.c
 
-NOTICE: public headers (which are used by other colibri modules) of
+NOTICE: public headers (which are used by other mero modules) of
 foo module should go into _HEADERS variable - this is what will be
 installed to /usr/include on `make install`. While internal headers of
 foo module should go into _SOURCES variable.
 
 If necessary, add sources under foo/{ut,st} to the
-ut_libcolibri_ut_la_SOURCES variable in core/foo/{ut,st}/Makefile.sub:
+ut_libmero_ut_la_SOURCES variable in core/foo/{ut,st}/Makefile.sub:
 
-    ut_libcolibri_ut_la_SOURCES += foo/ut/foo_test.c
+    ut_libmero_ut_la_SOURCES += foo/ut/foo_test.c
 
 And include this core/foo/{ut,st}/Makefile.sub makefile into
 core/Makefile.am in appropriate place (search where other ut/st
 makefiles are included, in alphabetic order).
 
-How to add a new Colibri module?
+How to add a new Mero module?
 --------------------------------
 
 It's almost the same as adding a new internal library (see previous
 section), but instead of using new _HEADERS and _SOURCES
 library variables, one need to use the existing
-colibri_libcolibri_la_{SOURCES,HEADERS} variables in foo/Makefile.sub:
+mero_libmero_la_{SOURCES,HEADERS} variables in foo/Makefile.sub:
 
-    colibri_libcolibri_la_SOURCES += foo/foo.c
+    mero_libmero_la_SOURCES += foo/foo.c
 
 And include this foo/Makefile.sub into the top-levevl core/Makefile.am
 in appropriate place in alphabetic order (search where other
-makefiles, which are part of libcolibri.la library, are included).
+makefiles, which are part of libmero.la library, are included).
 
 How to add a new executable?
 ----------------------------
@@ -154,7 +154,7 @@ To build a new executable core/foo/baz add to the
 core/foo/Makefile.sub:
 
     noinst_PROGRAMS += foo/baz
-    foo_baz_LDADD    = $(top_builddir)/colibri/libcolibri.la
+    foo_baz_LDADD    = $(top_builddir)/mero/libmero.la
 
     include $(top_srcdir)/foo/Makefile.sub
 
@@ -177,34 +177,34 @@ _SOURCES, FF_FILES, XC_FILES and CLEANFILES.
 System initialization and finalisation
 --------------------------------------
 
-core/colibri/init.h declares functions
+core/mero/init.h declares functions
 
-int  c2_init(void);
-void c2_fini(void);
+int  m0_init(void);
+void m0_fini(void);
 
 That must be called by an executable to respectively initialise and
-finalise Colibri internal libraries.
+finalise Mero internal libraries.
 
-If your library (say, core/foo/libcolibri-foo.la) requires some global
+If your library (say, core/foo/libmero-foo.la) requires some global
 (per address space) initialisation or finalisation actions (e.g.,
 starting service threads, opening files), declare
 
-int  c2_foo_init(void);
-void c2_foo_fini(void);
+int  m0_foo_init(void);
+void m0_foo_fini(void);
 
 in core/foo/foo.h, add
 
 #include "foo/foo.h"
 
-to core/colibri/init.c and add { &c2_foo_init, &c2_foo_fini } to the
-subsystem[] array, defined in core/colibri/init.c. foo_init() must
+to core/mero/init.c and add { &m0_foo_init, &m0_foo_fini } to the
+subsystem[] array, defined in core/mero/init.c. foo_init() must
 follow standard return conventions: 0 on success, negated errno value
 on failure.
 
 How to add a new unit test?
 ---------------------------
 
-C2 uses a unit test framework based on CUnit
+M0 uses a unit test framework based on CUnit
 (http://cunit.sourceforge.net/).
 
 To add a collection of unit tests ("test suite") for a module foo:
@@ -218,7 +218,7 @@ void test_foo0(void)
 	struct foo F;
 
 	foo_init(&F);
-	C2_UT_ASSERT(foo_bar(&F) == foo_baz(&F) + 1);
+	M0_UT_ASSERT(foo_bar(&F) == foo_baz(&F) + 1);
         ...
 }
 
@@ -241,7 +241,7 @@ int foo_it_fini(void)
         ...
 }
 
-const struct c2_test_suite foo_ut = {
+const struct m0_test_suite foo_ut = {
 	.ts_name = "foo-ut",
 	.ts_init = foo_ut_init, /* optional, may be NULL */
 	.ts_fini = foo_ut_fini, /* optional, may be NULL */
@@ -255,7 +255,7 @@ const struct c2_test_suite foo_ut = {
 
 In core/foo/ut/Makefile.sub do:
 
-    ut_libcolibri_ut_la_SOURCES += foo/ut/foo.c ...
+    ut_libmero_ut_la_SOURCES += foo/ut/foo.c ...
 
 In core/Makefile.am add the following include line in appropriate
 place, in alphabetic order (search where other ut makefiles are
@@ -265,11 +265,11 @@ included).
 
 In core/utils/ut_main.c add
 
-extern const struct c2_test_suite foo_ut;
+extern const struct m0_test_suite foo_ut;
 
 declaration and
 
-	c2_ut_add(&foo_ut);
+	m0_ut_add(&foo_ut);
 
 to add_uts().
 
@@ -277,7 +277,7 @@ All unit tests are executed by ./core/utils/ut.
 
 A few comments:
 
-    * unit testing functions should use C2_UT_ASSERT() or other CUnit
+    * unit testing functions should use M0_UT_ASSERT() or other CUnit
       macros (see <CUnit/CUnit.h>) for testing;
 
     * unit testing functions should produce no output;
@@ -286,7 +286,7 @@ A few comments:
       times. Avoid static initialisers or carefully re-set everything
       in foo_ut_fini();
 
-    * unit tests are ran in an address space where c2_init() was
+    * unit tests are ran in an address space where m0_init() was
       already executed.
 
 See core/lib/ut/*.c, core/stob/ut/adieu.c, core/fop/ut/fmt_test.c for
@@ -313,13 +313,13 @@ process directory (except for possibly in its sub-directories).
 How to add a new kernel module?
 -------------------------------
 
-A new module can be added to Colibri in two ways,
-  1) functionality built into kcolibri.ko
+A new module can be added to Mero in two ways,
+  1) functionality built into m0mero.ko
   2) Module for stand-alone UT's
 
-1) In colibri all the functionality for kernel side is implemented into
-a single kernel module called kcolibri.ko
-So to add your new kernel source(s) for core/module to kcolibri,
+1) In mero all the functionality for kernel side is implemented into
+a single kernel module called m0mero.ko
+So to add your new kernel source(s) for core/module to m0mero,
 create core/module/ directory
 
 Add the following lines into build_kernel_modules/Makefile.in:
@@ -344,7 +344,7 @@ kernel_src  := <kernel sources>
 ksns-y      := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@top_srcdir@ @C2_KCPPFLAGS@ @C2_KCFLAGS@ @KCFLAGS@
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@top_srcdir@ @M0_KCPPFLAGS@ @M0_KCFLAGS@ @KCFLAGS@
 
 prepare:
        ln -fs $(orig) .

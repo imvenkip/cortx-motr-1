@@ -1,2 +1,2 @@
-ut_libcolibri_ut_la_SOURCES += sns/ut/parity_math_ut.c \
+ut_libmero_ut_la_SOURCES += sns/ut/parity_math_ut.c \
                                sns/ut/parity_math_mt_ub.c

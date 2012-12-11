@@ -24,14 +24,14 @@
  */
 #include <linux/uaccess.h> /* probe_kernel_address */
 
-C2_INTERNAL bool c2_arch_addr_is_sane(const uint64_t * addr)
+M0_INTERNAL bool m0_arch_addr_is_sane(const uint64_t * addr)
 {
 	uint64_t dummy;
 
 	return probe_kernel_address(addr, dummy) == 0;
 }
 
-C2_INTERNAL int c2_arch_cookie_global_init(void)
+M0_INTERNAL int m0_arch_cookie_global_init(void)
 {
 	return 0;
 }
@@ -39,7 +39,7 @@ C2_INTERNAL int c2_arch_cookie_global_init(void)
 /**
  * This function is intentionally kept blank.
  */
-C2_INTERNAL void c2_arch_cookie_global_fini(void)
+M0_INTERNAL void m0_arch_cookie_global_fini(void)
 {
 }
 

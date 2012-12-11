@@ -109,7 +109,7 @@ sub build_include_guard_for
     my $guard = uc $file_name;
 
     $guard =~ tr#/.#__#;
-    $guard = "__COLIBRI_${guard}__";
+    $guard = "__MERO_${guard}__";
 
     return $guard;
 }
@@ -154,7 +154,7 @@ sub check_include_guards
 
         my ($include_guard_name)
             = $content =~ /
-                            ^ \s* \# \s* ifndef \s+ (__COLIBRI_ \w* _H__) \s* $
+                            ^ \s* \# \s* ifndef \s+ (__MERO_ \w* _H__) \s* $
                           /xms;
 
         my $missing_guard_msg

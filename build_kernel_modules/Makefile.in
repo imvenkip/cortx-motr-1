@@ -6,20 +6,20 @@ KBUILD_EXTRA_SYMBOLS = $(BUILD_DIR)/Lustre.symvers @GALOIS_SYMVERS@
 
 GCOV_PROFILE    = @K_ENABLE_COVERAGE@
 
-testdirs        = ../net/lnet/st/linux_kernel/                  \
-		  ../net/test/linux_kernel/			\
-                  ../rpc/it/linux_kernel/                       \
+testdirs        = ../net/lnet/st/linux_kernel/ \
+                  ../net/test/linux_kernel/    \
+                  ../rpc/it/linux_kernel/      \
                   ../utils/linux_kernel/
 
 EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) \
-		  @C2_KCPPFLAGS@ @C2_KCFLAGS@ @KCFLAGS@ \
-		  -I@LUSTRE@/lnet/include -I@LUSTRE@/libcfs/include
+                  @M0_KCPPFLAGS@ @M0_KCFLAGS@ @KCFLAGS@ \
+                  -I@LUSTRE@/lnet/include -I@LUSTRE@/libcfs/include
 
 #       NOTE:
 #       It is assumed that user space build is done before starting to
 #       build kernel modules.
 
-#       Below is the directory listing from which we have to create kcolibri.ko
+#       Below is the directory listing from which we have to create m0mero.ko
 #       To add a new directory 'd' to this list, add directory name
 #       to $(dirs); then add the names of '.c' files to d_SOURCES and the
 #       headers to d_HEADERS.
@@ -29,10 +29,10 @@ dirs  =                        \
         addb                   \
         addb/addbff            \
         addb/linux_kernel      \
-        c2t1fs/linux_kernel    \
-        c2t1fs/linux_kernel/ut \
+        m0t1fs/linux_kernel    \
+        m0t1fs/linux_kernel/ut \
         cob                    \
-        colibri                \
+        mero                \
         conf                   \
         conf/objs              \
         db                     \
@@ -67,9 +67,9 @@ dirs  =                        \
         xcode                  \
         xcode/ut
 
-#       Source Listing
+# Source Listing
 
-#       NOTE: Currently due to the way `.ff' files are processed, a `*_ff.c' file
+# NOTE: Currently due to the way `.ff' files are processed, a `*_ff.c' file
 #       searches for its corresponding `*_ff.h' in the same directory; So only
 #       headers that need to be included in following listing are those of
 #       type `*_ff.h'; rest of the headers will be assumed relative to `core/'
@@ -83,15 +83,15 @@ addb_linux_kernel_SOURCES       := addb_console.c
 #       If there's a directory 'd' in $(dirs) then the listing of files given
 #       for d_SOURCES is relative to $(CORE_SRCDIR)/d;
 
-c2t1fs_linux_kernel_SOURCES     := c2t1fs.c super.c inode.c dir.c
-c2t1fs_linux_kernel_ut_SOURCES  := file.c
+m0t1fs_linux_kernel_SOURCES     := m0t1fs.c super.c inode.c dir.c
+m0t1fs_linux_kernel_ut_SOURCES  := file.c
 
-c2t1fs_linux_kernel_c2loop_SOURCES     := c2loop.c
-c2t1fs_linux_kernel_ut_c2loop_SOURCES  := c2loop.c
+m0t1fs_linux_kernel_m0loop_SOURCES     := m0loop.c
+m0t1fs_linux_kernel_ut_m0loop_SOURCES  := m0loop.c
 
 cob_SOURCES                     := cob.c
 
-colibri_SOURCES                 := init.c
+mero_SOURCES                 := init.c
 
 db_SOURCES                      := db_common.c
 
@@ -106,7 +106,7 @@ fid_HEADERS                     := fid.h fid_xc.h
 fol_SOURCES                     := fol.c
 
 fop_SOURCES                     := fop.c fom.c fop_item_type.c fom_long_lock.c \
-				   fom_generic.c fom_generic_ff.c
+                                   fom_generic.c fom_generic_ff.c
 
 fop_HEADERS                     := fom_generic_ff.h
 
@@ -123,22 +123,22 @@ layout_SOURCES                  := layout.c layout_db.c pdclust.c composite.c \
 
 layout_ut_SOURCES               := layout.c
 
-lib_SOURCES                     := bitstring.c getopts.c vec.c list.c queue.c  \
-				   refs.c time.c bitmap.c chan.c misc.c buf.c  \
-				   cond.c thread.c tlist.c bob.c trace.c       \
-				   finject.c vec_xc.c vec.c buf_xc.c buf.c     \
-				   c2lib.c cookie.c ext.c
+lib_SOURCES                     := bitstring.c getopts.c vec.c list.c queue.c \
+                                   refs.c time.c bitmap.c chan.c misc.c buf.c \
+                                   cond.c thread.c tlist.c bob.c trace.c      \
+                                   finject.c vec_xc.c vec.c buf_xc.c buf.c    \
+                                   m0lib.c cookie.c ext.c
 
 lib_HEADERS                     := vec.h vec_xc.h buf.h buf_xc.h
 
-lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c   \
-                                   kthread.c semaphore.c processor.c kvec.c    \
-                                   ktrace.c finject_init.c ut.c main.c 	       \
-				   kcookie.c
+lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c \
+                                   kthread.c semaphore.c processor.c kvec.c  \
+                                   ktrace.c finject_init.c ut.c main.c       \
+                                   kcookie.c
 
-lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c     \
-                                   mutex.c queue.c refs.c tlist.c time.c       \
-                                   vec.c zerovec.c thread.c bob.c trace.c      \
+lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c  \
+                                   mutex.c queue.c refs.c tlist.c time.c    \
+                                   vec.c zerovec.c thread.c bob.c trace.c   \
                                    memory.c finject.c buf.c cookie.c misc.c
 
 net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c \
@@ -150,16 +150,16 @@ net_bulk_emulation_ut_SOURCES   := bulk_mem_ut.c
 
 net_lnet_ut_SOURCES             := lnet_ut.c
 
-net_test_SOURCES		:= commands.c console.c network.c node_bulk.c \
-				   node.c node_ping.c ringbuf.c serialize.c   \
-				   service.c slist.c stats.c str.c
-net_test_HEADERS		:= commands.h console.h network.h node_bulk.h \
-				   node.h node_ping.h ringbuf.h serialize.h   \
-				   service.h slist.h stats.h str.h
+net_test_SOURCES                := commands.c console.c network.c node_bulk.c \
+                                   node.c node_ping.c ringbuf.c serialize.c   \
+                                   service.c slist.c stats.c str.c
+net_test_HEADERS                := commands.h console.h network.h node_bulk.h \
+                                   node.h node_ping.h ringbuf.h serialize.h   \
+                                   service.h slist.h stats.h str.h
 
-net_test_ut_SOURCES		:= client_server.c commands.c main.c	      \
-				   network.c ringbuf.c serialize.c service.c  \
-				   slist.c stats.c str.c
+net_test_ut_SOURCES             := client_server.c commands.c main.c          \
+                                   network.c ringbuf.c serialize.c service.c  \
+                                   slist.c stats.c str.c
 
 net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
 net_ut_HEADERS                  := tm_provision_ut.c
@@ -178,7 +178,7 @@ rpc_SOURCES                     := rpc.c service.c \
 rpc_HEADERS                     := session_ff.h rpc_onwire.h rpc_onwire_xc.h
 
 rpc_ut_SOURCES                  := service.c formation2.c conn.c rpc_machine.c \
-				   session.c packet.c
+                                   session.c packet.c
 
 sm_SOURCES                      := sm.c
 sm_ut_SOURCES                   := sm.c
@@ -191,50 +191,49 @@ stob_SOURCES                    := stob.c stob_id.c
 ut_SOURCES                      := rpc.c
 
 xcode_SOURCES                   := xcode.c string.c
-
 xcode_ut_SOURCES                := xcode.c
-
-conf_objs_SOURCES               := common.c dir.c profile.c filesystem.c       \
-				   service.c node.c nic.c sdev.c partition.c
 
 conf_SOURCES                    := buf_ext.c confc.c obj.c obj_ops.c preload.c \
                                    reg.c onwire_xc.c reg_debug.c conf_xcode.c  \
-                                   conf_fop.c conf_fom.c
+                                   conf_fop.c
 
 conf_HEADERS                    := onwire.h onwire_xc.h
 
+conf_objs_SOURCES               := common.c dir.c profile.c filesystem.c \
+                                   service.c node.c nic.c sdev.c partition.c
+
 
 #       Following lines create the list of objects required for creating
-#       kcolibri by putting %.o for each %.c file listed for each target of
-#       $(dirs). The following definition of kcolibri_objects is functionally
+#       m0mero by putting %.o for each %.c file listed for each target of
+#       $(dirs). The following definition of m0mero_objects is functionally
 #       equivalent to following shell script code snippet
 #       for d in $(dirs); do
 #               var=`echo $d | sed 's/\//_/'`
 #               varsrc="${var}_SOURCES"
 #               for f in ${!varsrc}; do
 #                       objfname=`basename $f | sed 's/.c$/.o'`
-#                       kcolibri_objects = "$kcolibri_objects $d/$objfname"
+#                       m0mero_objects = "$m0mero_objects $d/$objfname"
 #               done
 #       done
 #       $(notdir names...)
 #               extracts all but the directory-part of each file name in names
 #       e.g. $(notdir src/foo.c hacks) Produces the result 'foo.c hacks'
 
-kcolibri_objects = $(foreach d, $(dirs), $(foreach f,                         \
+m0mero_objects = $(foreach d, $(dirs), $(foreach f,                         \
                         $($(subst /,_,$(d))_SOURCES), $(addprefix $(d)/,      \
                                 $(subst .c,.o, $(notdir $(f))))))
 
-c2loop_objects = $(foreach d, $(dirs), $(foreach f,                         \
-                    $($(subst /,_,$(d))_c2loop_SOURCES), $(addprefix $(d)/, \
+m0loop_objects = $(foreach d, $(dirs), $(foreach f,                         \
+                    $($(subst /,_,$(d))_m0loop_SOURCES), $(addprefix $(d)/, \
                                 $(subst .c,.o, $(notdir $(f))))))
 
-obj-m += kcolibri.o c2loop.o
+obj-m += m0mero.o m0loop.o
 
-kcolibri-y += main.o dummy_init_fini.o $(kcolibri_objects)
+m0mero-y += main.o dummy_init_fini.o $(m0mero_objects)
 
-c2loop-y += $(c2loop_objects)
+m0loop-y += $(m0loop_objects)
 
-#       Besides the kcolibri.ko, the UT's would be build separately by
+#       Besides the m0mero.ko, the UT's would be build separately by
 #       recursing into directories specified by $(testdirs)
 
 obj-y += $(testdirs)
@@ -243,7 +242,7 @@ create_links = $(shell ln -s $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f))     \
                 2> /dev/null)
 
 all:
-	@echo $(kcolibri-y)
+	@echo $(m0mero-y)
 	for s in $(testdirs); do $(MAKE) -C $$s prepare; done
 #	Following line is commented out until a lustre devel RPM is available
 #	ln -fs @LUSTRE@/config.h lustre_config.h
@@ -260,16 +259,16 @@ all:
 		$(create_links)))
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_HEADERS),      \
 		$(create_links)))
-	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_c2loop_SOURCES),\
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_m0loop_SOURCES),\
 		$(create_links)))
 #       DO NOT append 'modules' target to the following $(MAKE)
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
 
 install modules_install:
-	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C $(KERNEL_BUILDDIR) M=`pwd` modules_install
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/mero -C $(KERNEL_BUILDDIR) M=`pwd` modules_install
 
 uninstall:
-	su -c "$(RM) -r @LINUX_MOD@/kernel/fs/colibri && \
+	su -c "$(RM) -r @LINUX_MOD@/kernel/fs/mero && \
 	       $(RM) -r @LINUX_MOD@/kernel/fs/utils && \
 	       $(RM) -r @LINUX_MOD@/kernel/fs/rpc && \
 	       $(RM) -r @LINUX_MOD@/kernel/fs/net && /sbin/depmod -a"

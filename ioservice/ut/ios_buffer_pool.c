@@ -18,7 +18,7 @@
  * Original creation date: 01/06/2012
  */
 
-#include "lib/ut.h"    /* C2_UT_ASSERT */
+#include "lib/ut.h"    /* M0_UT_ASSERT */
 #include "lib/errno.h"
 #include "lib/tlist.h"
 
@@ -29,57 +29,57 @@
 #include "reqh/reqh_service.h"
 #include "ioservice/io_service.h"
 
-#include "colibri/colibri_setup.h"
+#include "mero/setup.h"
 #include "ioservice/io_service.c"
 
-struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
+struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx,
 			       const char *service_name);
 
-extern const struct c2_tl_descr bufferpools_tl;
-extern const struct c2_tl_descr c2_rhctx_tl;
+extern const struct m0_tl_descr bufferpools_tl;
+extern const struct m0_tl_descr m0_rhctx_tl;
 
- /* Colibri setup arguments. */
-static char *ios_ut_bp_singledom_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
+ /* Mero setup arguments. */
+static char *ios_ut_bp_singledom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ioservice"};
-static char *ios_ut_bp_multidom_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
+static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s", "ioservice"};
-static char *ios_ut_bp_repeatdom_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
+static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-e", "bulk-mem:127.0.0.1:35679",
                                 "-s", "ioservice"};
-static char *ios_ut_bp_onerepeatdom_cmd[] = { "colibri_setup", "-r", "-p", "-T", "AD",
+static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:35:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-e", "bulk-mem:127.0.0.1:35679",
                                 "-s", "ioservice"};
 /*
-  Transports used in colibri a context.
+  Transports used in mero a context.
  */
-static struct c2_net_xprt *cs_xprts[] = {
-	&c2_net_lnet_xprt,
-	&c2_net_bulk_mem_xprt
+static struct m0_net_xprt *cs_xprts[] = {
+	&m0_net_lnet_xprt,
+	&m0_net_bulk_mem_xprt
 };
 
 #define SERVER_LOG_FILE_NAME	"cs_ut.errlog"
 
-static int get_ioservice_buffer_pool_count(struct c2_rpc_server_ctx *sctx)
+static int get_ioservice_buffer_pool_count(struct m0_rpc_server_ctx *sctx)
 {
-	struct c2_reqh_io_service *serv_obj;
-	struct c2_reqh_service    *reqh_ios;
-	struct c2_reqh            *reqh;
+	struct m0_reqh_io_service *serv_obj;
+	struct m0_reqh_service    *reqh_ios;
+	struct m0_reqh            *reqh;
 
-	reqh     = c2_cs_reqh_get(&sctx->rsx_colibri_ctx, "ioservice");
-	reqh_ios = c2_reqh_service_find(&c2_ios_type, reqh);
-	serv_obj = container_of(reqh_ios, struct c2_reqh_io_service, rios_gen);
+	reqh     = m0_cs_reqh_get(&sctx->rsx_mero_ctx, "ioservice");
+	reqh_ios = m0_reqh_service_find(&m0_ios_type, reqh);
+	serv_obj = container_of(reqh_ios, struct m0_reqh_io_service, rios_gen);
 
-	C2_UT_ASSERT(serv_obj != NULL);
+	M0_UT_ASSERT(serv_obj != NULL);
 
 	return bufferpools_tlist_length(&serv_obj->rios_buffer_pools);
 }
@@ -89,18 +89,17 @@ static int check_buffer_pool_per_domain(char *cs_argv[], int cs_argc, int nbp)
 	int rc;
 	int bp_count;
 
-	C2_RPC_SERVER_CTX_DECLARE(sctx, cs_xprts, ARRAY_SIZE(cs_xprts),
-				  cs_argv, cs_argc, c2_cs_default_stypes,
-				  c2_cs_default_stypes_nr,
-				  SERVER_LOG_FILE_NAME);
+	M0_RPC_SERVER_CTX_DEFINE(sctx, cs_xprts, ARRAY_SIZE(cs_xprts),
+				 cs_argv, cs_argc, m0_cs_default_stypes,
+				 m0_cs_default_stypes_nr, SERVER_LOG_FILE_NAME);
 
-	rc = c2_rpc_server_start(&sctx);
-	C2_UT_ASSERT(rc == 0);
+	rc = m0_rpc_server_start(&sctx);
+	M0_UT_ASSERT(rc == 0);
 
 	bp_count = get_ioservice_buffer_pool_count(&sctx);
-	C2_UT_ASSERT(bp_count == nbp);
+	M0_UT_ASSERT(bp_count == nbp);
 
-	c2_rpc_server_stop(&sctx);
+	m0_rpc_server_stop(&sctx);
 
 	return rc;
 }
@@ -132,7 +131,7 @@ void test_ios_bp_onerepeat_dom()
 				     ARRAY_SIZE(ios_ut_bp_onerepeatdom_cmd), 2);
 }
 
-const struct c2_test_suite ios_bufferpool_ut = {
+const struct m0_test_suite ios_bufferpool_ut = {
         .ts_name = "ios-bufferpool-ut",
         .ts_init = NULL,
         .ts_fini = NULL,

@@ -36,18 +36,18 @@
 record {
 	u64 cons_seq;
 	u64 cons_oid
-} c2_cons_fop_fid;
+} m0_cons_fop_fid;
 
 sequence {
 	u32 cons_size;
 	u8  cons_buf
-} c2_cons_fop_buf;
+} m0_cons_fop_buf;
 
 record {
-       c2_cons_fop_fid cons_id;
+       m0_cons_fop_fid cons_id;
        u8              cons_test_type;
        u64             cons_test_id
-} c2_cons_fop_test;
+} m0_cons_fop_test;
 
 /**
  *  Device failure notification fop
@@ -57,11 +57,11 @@ record {
  *  - dev_name    : Device name (In case of disk it could be volume name).
  */
 record {
-       c2_cons_fop_fid cons_id;
+       m0_cons_fop_fid cons_id;
        u32             cons_notify_type;
        u64             cons_dev_id;
-       c2_cons_fop_buf cons_dev_name
-} c2_cons_fop_device;
+       m0_cons_fop_buf cons_dev_name
+} m0_cons_fop_device;
 
 /**
  *  Reply fop to the notification fop
@@ -71,7 +71,7 @@ record {
 record {
        u32 cons_notify_type;
        u32 cons_return
-} c2_cons_fop_reply;
+} m0_cons_fop_reply;
 
 /** @} end of console group */
 

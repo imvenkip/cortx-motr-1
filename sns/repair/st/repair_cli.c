@@ -29,10 +29,10 @@
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/getopts.h"
-#include "lib/misc.h"           /* C2_IN() */
+#include "lib/misc.h"           /* M0_IN() */
 #include "fop/fop.h"
 #include "net/lnet/lnet.h"
-#include "colibri/init.h"
+#include "mero/init.h"
 
 #include "ut/rpc.h"
 #include "rpc/rpc.h"
@@ -47,25 +47,25 @@ enum {
 	RPC_TIMEOUTS       = 5
 };
 
-struct c2_net_domain     cl_ndom;
-struct c2_dbenv          cl_dbenv;
-struct c2_cob_domain     cl_cdom;
-struct c2_rpc_client_ctx cl_ctx;
+struct m0_net_domain     cl_ndom;
+struct m0_dbenv          cl_dbenv;
+struct m0_cob_domain     cl_cdom;
+struct m0_rpc_client_ctx cl_ctx;
 
 const char *cl_ep_addr = "0@lo:12345:34:2";
 char *srv_ep_addr;
 const char *dbname = "sr_cdb";
 static int cl_cdom_id = 10001;
 
-const struct c2_rpc_item_ops trigger_fop_rpc_item_ops;
-extern struct c2_fop_type trigger_fop_fopt;
+const struct m0_rpc_item_ops trigger_fop_rpc_item_ops;
+extern struct m0_fop_type trigger_fop_fopt;
 
 static void client_init(void)
 {
 	int rc;
 
-	rc = c2_net_domain_init(&cl_ndom, &c2_net_lnet_xprt);
-	C2_ASSERT(rc == 0);
+	rc = m0_net_domain_init(&cl_ndom, &m0_net_lnet_xprt);
+	M0_ASSERT(rc == 0);
 
 	cl_ctx.rcx_net_dom            = &cl_ndom;
 	cl_ctx.rcx_local_addr         = cl_ep_addr;
@@ -78,23 +78,23 @@ static void client_init(void)
 	cl_ctx.rcx_timeout_s          = RPC_TIMEOUTS;
 	cl_ctx.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
 
-	rc = c2_rpc_client_init(&cl_ctx);
-	C2_ASSERT(rc == 0);
+	rc = m0_rpc_client_init(&cl_ctx);
+	M0_ASSERT(rc == 0);
 }
 
 static void client_fini(void)
 {
 	int rc;
 
-	rc = c2_rpc_client_fini(&cl_ctx);
-	C2_ASSERT(rc == 0);
+	rc = m0_rpc_client_fini(&cl_ctx);
+	M0_ASSERT(rc == 0);
 
-	c2_net_domain_fini(&cl_ndom);
+	m0_net_domain_fini(&cl_ndom);
 }
 
 int main(int argc, char *argv[])
 {
-	struct c2_fop      *fop;
+	struct m0_fop      *fop;
 	struct trigger_fop *treq;
 	uint64_t            fdata;
 	uint64_t            fsize;
@@ -103,13 +103,13 @@ int main(int argc, char *argv[])
 	uint64_t            P = 0;
 	int                 rc;
 
-	rc = C2_GETOPTS("repair", argc, argv,
-			C2_FORMATARG('F', "Failure device", "%lu", &fdata),
-			C2_FORMATARG('s', "File size", "%lu", &fsize),
-			C2_FORMATARG('N', "Number of data units", "%lu", &N),
-			C2_FORMATARG('K', "Number of parity units", "%lu", &K),
-			C2_FORMATARG('P', "Total pool width", "%lu", &P),
-			C2_STRINGARG('S', "Server endpoint",
+	rc = M0_GETOPTS("repair", argc, argv,
+			M0_FORMATARG('F', "Failure device", "%lu", &fdata),
+			M0_FORMATARG('s', "File size", "%lu", &fsize),
+			M0_FORMATARG('N', "Number of data units", "%lu", &N),
+			M0_FORMATARG('K', "Number of parity units", "%lu", &K),
+			M0_FORMATARG('P', "Total pool width", "%lu", &P),
+			M0_STRINGARG('S', "Server endpoint",
 				     LAMBDA(void, (const char *str){
 						srv_ep_addr = (char*)str;
 				     })),
@@ -117,29 +117,29 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		return rc;
 
-	C2_ASSERT(P >= N + 2 * K);
-	rc = c2_init();
-	C2_ASSERT(rc == 0);
-	rc = c2_sns_repair_trigger_fop_init();
-	C2_ASSERT(rc == 0);
+	M0_ASSERT(P >= N + 2 * K);
+	rc = m0_init();
+	M0_ASSERT(rc == 0);
+	rc = m0_sns_repair_trigger_fop_init();
+	M0_ASSERT(rc == 0);
 	client_init();
 
-	fop = c2_fop_alloc(&trigger_fop_fopt, NULL);
-	treq = c2_fop_data(fop);
+	fop = m0_fop_alloc(&trigger_fop_fopt, NULL);
+	treq = m0_fop_data(fop);
 	treq->fdata = fdata;
 	treq->fsize = fsize;
 	treq->N = N;
 	treq->K = K;
 	treq->P = P;
-	rc = c2_rpc_client_call(fop, &cl_ctx.rcx_session,
+	rc = m0_rpc_client_call(fop, &cl_ctx.rcx_session,
 				&trigger_fop_rpc_item_ops,
 				0 /* deadline */,
 				60 /* op timeout */);
-	C2_ASSERT(rc == 0);
+	M0_ASSERT(rc == 0);
 
 	client_fini();
-	c2_sns_repair_trigger_fop_fini();
-	c2_fini();
+	m0_sns_repair_trigger_fop_fini();
+	m0_fini();
 
 	return rc;
 }

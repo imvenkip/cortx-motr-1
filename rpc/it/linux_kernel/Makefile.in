@@ -2,16 +2,16 @@ PING_SRCDIR          = @top_srcdir@/rpc/it/linux_kernel
 PINGDIR              = @top_srcdir@/rpc/it
 XCODEDIR             = @top_srcdir@/xcode
 
-KBUILD_EXTRA_SYMBOLS = kcolibri.symvers
+KBUILD_EXTRA_SYMBOLS = m0mero.symvers
 
-obj-m               := krpcping.o
+obj-m               := m0rpcping.o
 shared_src          := rpc_ping.c ping_fop.c ping_fop_ff.c ping_fom.c
 kernel_src          := rpcping_kernel.c xcode.c
-krpcping-y          := $(shared_src:.c=.o) $(kernel_src:.c=.o)
+m0rpcping-y         := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 headers             := ping_fop_ff.h
 orig                := $(shared_src:%=../%) $(headers:%=../%) $(XCODEDIR)/xcode.c
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @top_srcdir@ @C2_KCPPFLAGS@ @C2_KCFLAGS@ \
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @top_srcdir@ @M0_KCPPFLAGS@ @M0_KCFLAGS@ \
 	       @KCFLAGS@
 
 prepare:
@@ -23,6 +23,6 @@ clean distclean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
-	cp $(PING_SRCDIR)/Makefile.in $(PING_SRCDIR)/kcolibri.symvers \
+	cp $(PING_SRCDIR)/Makefile.in $(PING_SRCDIR)/m0mero.symvers \
 	   $(PING_SRCDIR)/rpcping_kernel.c $(PING_SRCDIR)/rpc_ping.h  \
 	   @top_builddir@/@PACKAGE@-@PACKAGE_VERSION@/rpc/it/linux_kernel

@@ -23,20 +23,20 @@
 #include "lib/ub.h"
 #include "utils/common.h"
 
-extern struct c2_ub_set c2_atomic_ub;
-extern struct c2_ub_set c2_list_ub;
-extern struct c2_ub_set c2_tlist_ub;
-extern struct c2_ub_set c2_bitmap_ub;
-extern struct c2_ub_set c2_thread_ub;
-extern struct c2_ub_set c2_memory_ub;
-extern struct c2_ub_set c2_trace_ub;
-extern struct c2_ub_set c2_adieu_ub;
-extern struct c2_ub_set c2_ad_ub;
-extern struct c2_ub_set c2_cob_ub;
-extern struct c2_ub_set c2_db_ub;
-extern struct c2_ub_set c2_emap_ub;
-extern struct c2_ub_set c2_fol_ub;
-extern struct c2_ub_set c2_parity_math_ub;
+extern struct m0_ub_set m0_atomic_ub;
+extern struct m0_ub_set m0_list_ub;
+extern struct m0_ub_set m0_tlist_ub;
+extern struct m0_ub_set m0_bitmap_ub;
+extern struct m0_ub_set m0_thread_ub;
+extern struct m0_ub_set m0_memory_ub;
+extern struct m0_ub_set m0_trace_ub;
+extern struct m0_ub_set m0_adieu_ub;
+extern struct m0_ub_set m0_ad_ub;
+extern struct m0_ub_set m0_cob_ub;
+extern struct m0_ub_set m0_db_ub;
+extern struct m0_ub_set m0_emap_ub;
+extern struct m0_ub_set m0_fol_ub;
+extern struct m0_ub_set m0_parity_math_ub;
 
 #define UB_SANDBOX "./ub-sandbox"
 
@@ -52,21 +52,21 @@ int main(int argc, char *argv[])
 	if (unit_start(UB_SANDBOX) == 0) {
                 /* Note these tests are run in reverse order from the way
                    they are listed here */
-		c2_ub_set_add(&c2_memory_ub);
-                c2_ub_set_add(&c2_adieu_ub);
-                c2_ub_set_add(&c2_ad_ub);
-                c2_ub_set_add(&c2_db_ub);
-                c2_ub_set_add(&c2_cob_ub);
-                c2_ub_set_add(&c2_emap_ub);
-                c2_ub_set_add(&c2_fol_ub);
-                c2_ub_set_add(&c2_tlist_ub);
-                c2_ub_set_add(&c2_list_ub);
-                c2_ub_set_add(&c2_bitmap_ub);
-                c2_ub_set_add(&c2_parity_math_ub);
-		c2_ub_set_add(&c2_thread_ub);
-		c2_ub_set_add(&c2_trace_ub);
-		c2_ub_set_add(&c2_atomic_ub);
-		c2_ub_run(rounds);
+		m0_ub_set_add(&m0_memory_ub);
+                m0_ub_set_add(&m0_adieu_ub);
+                m0_ub_set_add(&m0_ad_ub);
+                m0_ub_set_add(&m0_db_ub);
+                m0_ub_set_add(&m0_cob_ub);
+                m0_ub_set_add(&m0_emap_ub);
+                m0_ub_set_add(&m0_fol_ub);
+                m0_ub_set_add(&m0_tlist_ub);
+                m0_ub_set_add(&m0_list_ub);
+                m0_ub_set_add(&m0_bitmap_ub);
+                m0_ub_set_add(&m0_parity_math_ub);
+		m0_ub_set_add(&m0_thread_ub);
+		m0_ub_set_add(&m0_trace_ub);
+		m0_ub_set_add(&m0_atomic_ub);
+		m0_ub_run(rounds);
 
 		unit_end(UB_SANDBOX, false);
 	}

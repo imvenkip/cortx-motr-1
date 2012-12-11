@@ -26,7 +26,7 @@
 #include "pl.h"
 
 bool_t
-xdr_C2_PL_CONFIG_TYPE (XDR *xdrs, C2_PL_CONFIG_TYPE *objp)
+xdr_M0_PL_CONFIG_TYPE (XDR *xdrs, M0_PL_CONFIG_TYPE *objp)
 {
 	 if (!xdr_enum (xdrs, (enum_t *) objp))
 		 return FALSE;
@@ -34,17 +34,17 @@ xdr_C2_PL_CONFIG_TYPE (XDR *xdrs, C2_PL_CONFIG_TYPE *objp)
 }
 
 bool_t
-xdr_c2_pl_config_type (XDR *xdrs, c2_pl_config_type *objp)
+xdr_m0_pl_config_type (XDR *xdrs, m0_pl_config_type *objp)
 {
-	 if (!xdr_C2_PL_CONFIG_TYPE (xdrs, objp))
+	 if (!xdr_M0_PL_CONFIG_TYPE (xdrs, objp))
 		 return FALSE;
 	return TRUE;
 }
 
 bool_t
-xdr_c2_pl_config (XDR *xdrs, c2_pl_config *objp)
+xdr_m0_pl_config (XDR *xdrs, m0_pl_config *objp)
 {
-	 if (!xdr_c2_pl_config_type (xdrs, &objp->op))
+	 if (!xdr_m0_pl_config_type (xdrs, &objp->op))
 		 return FALSE;
 	 if (!xdr_uint32_t(xdrs, &objp->value))
 		 return FALSE;
@@ -52,13 +52,13 @@ xdr_c2_pl_config (XDR *xdrs, c2_pl_config *objp)
 }
 
 bool_t
-xdr_c2_pl_config_reply (XDR *xdrs, c2_pl_config_reply *objp)
+xdr_m0_pl_config_reply (XDR *xdrs, m0_pl_config_reply *objp)
 {
 	 if (!xdr_int (xdrs, &objp->res))
 		 return FALSE;
 	switch (objp->res) {
 	case 0:
-		 if (!xdr_uint32_t(xdrs, &objp->c2_pl_config_reply_u.config_value))
+		 if (!xdr_uint32_t(xdrs, &objp->m0_pl_config_reply_u.config_value))
 			 return FALSE;
 		break;
 	default:
@@ -68,17 +68,17 @@ xdr_c2_pl_config_reply (XDR *xdrs, c2_pl_config_reply *objp)
 }
 
 bool_t
-xdr_c2_pl_config_res (XDR *xdrs, c2_pl_config_res *objp)
+xdr_m0_pl_config_res (XDR *xdrs, m0_pl_config_res *objp)
 {
-	 if (!xdr_c2_pl_config_type (xdrs, &objp->op))
+	 if (!xdr_m0_pl_config_type (xdrs, &objp->op))
 		 return FALSE;
-	 if (!xdr_c2_pl_config_reply (xdrs, &objp->body))
+	 if (!xdr_m0_pl_config_reply (xdrs, &objp->body))
 		 return FALSE;
 	return TRUE;
 }
 
 bool_t
-xdr_c2_pl_ping (XDR *xdrs, c2_pl_ping *objp)
+xdr_m0_pl_ping (XDR *xdrs, m0_pl_ping *objp)
 {
 	 if (!xdr_uint32_t(xdrs, &objp->seqno))
 		 return FALSE;
@@ -86,7 +86,7 @@ xdr_c2_pl_ping (XDR *xdrs, c2_pl_ping *objp)
 }
 
 bool_t
-xdr_c2_pl_ping_res (XDR *xdrs, c2_pl_ping_res *objp)
+xdr_m0_pl_ping_res (XDR *xdrs, m0_pl_ping_res *objp)
 {
 	 if (!xdr_uint32_t(xdrs, &objp->seqno))
 		 return FALSE;

@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_USER_SPACE_THREAD_H__
-#define __COLIBRI_LIB_USER_SPACE_THREAD_H__
+#ifndef __MERO_LIB_USER_SPACE_THREAD_H__
+#define __MERO_LIB_USER_SPACE_THREAD_H__
 
 #include <sys/types.h>
 #include <pthread.h>
@@ -30,26 +30,26 @@
 /**
    @addtogroup thread Thread
 
-   <b>User space c2_thread implementation</b>
+   <b>User space m0_thread implementation</b>
 
    User space implementation is straight-forwardly based on POSIX thread
    interface.
 
-   @see c2_thread
+   @see m0_thread
 
    @{
  */
 
-struct c2_thread_handle {
+struct m0_thread_handle {
 	pthread_t h_id;
 };
 
 enum {
-	C2_THREAD_NAME_LEN = 16
+	M0_THREAD_NAME_LEN = 16
 };
 
-C2_INTERNAL int c2_threads_init(void);
-C2_INTERNAL void c2_threads_fini(void);
+M0_INTERNAL int m0_threads_init(void);
+M0_INTERNAL void m0_threads_fini(void);
 
 /**
    Helper macro creating an anonymous function with a given body.
@@ -59,7 +59,7 @@ C2_INTERNAL void c2_threads_fini(void);
    @code
    int x;
 
-   result = C2_THREAD_INIT(&tcb, int, NULL,
+   result = M0_THREAD_INIT(&tcb, int, NULL,
                            LAMBDA(void, (int y) { printf("%i", x + y); } ), 1,
                            "add_%d", 1);
    @endcode
@@ -69,7 +69,7 @@ C2_INTERNAL void c2_threads_fini(void);
 
    @note resulting anonymous function can be called only while the block where
    LAMBDA macro was called is active. For example, in the code fragment above,
-   the tcb thread must finish before the block where C2_THREAD_INIT() was called
+   the tcb thread must finish before the block where M0_THREAD_INIT() was called
    is left.
 
    @note Be careful if using LAMBDA in kernel code, as the code could be
@@ -148,7 +148,7 @@ C2_INTERNAL void c2_threads_fini(void);
 
 /** @} end of thread group */
 
-/* __COLIBRI_LIB_USER_SPACE_THREAD_H__ */
+/* __MERO_LIB_USER_SPACE_THREAD_H__ */
 #endif
 
 /*

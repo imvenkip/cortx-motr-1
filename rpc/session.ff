@@ -26,10 +26,10 @@
  */
 record {
 	u64 rce_unused
-} c2_rpc_fop_conn_establish;
+} m0_rpc_fop_conn_establish;
 
 /**
-   FOP sent by receiver back to sender as a reply to c2_rpc_fop_conn_establish
+   FOP sent by receiver back to sender as a reply to m0_rpc_fop_conn_establish
    FOP.
  */
 record {
@@ -43,7 +43,7 @@ record {
 	   otherwise.
 	 */
 	u32 rcer_rc
-} c2_rpc_fop_conn_establish_rep;
+} m0_rpc_fop_conn_establish_rep;
 
 /**
    Request FOP to terminate rpc-connection. Sent from sender to receiver.
@@ -53,10 +53,10 @@ record {
 	   sender_id of rpc-connection being terminated.
 	 */
 	u64 ct_sender_id
-} c2_rpc_fop_conn_terminate;
+} m0_rpc_fop_conn_terminate;
 
 /**
-   Reply FOP to c2_rpc_conn_terminate. Sent from receiver to sender.
+   Reply FOP to m0_rpc_conn_terminate. Sent from receiver to sender.
  */
 record {
 	/**
@@ -68,7 +68,7 @@ record {
 	   otherwise.
 	 */
 	u32 ctr_rc
-} c2_rpc_fop_conn_terminate_rep;
+} m0_rpc_fop_conn_terminate_rep;
 
 /**
    Request FOP to establish a new session. Sent from sender to receiver.
@@ -82,10 +82,10 @@ record {
 	   Number of slots the new session should have.
 	 */
 	u32 rse_slot_cnt
-} c2_rpc_fop_session_establish;
+} m0_rpc_fop_session_establish;
 
 /**
-   Reply of c2_rpc_fop_session_establish. Sent from receiver to
+   Reply of m0_rpc_fop_session_establish. Sent from receiver to
    sender.
  */
 record {
@@ -95,7 +95,7 @@ record {
 	 */
 	u64 rser_session_id;
 	/**
-	   sender_id copied from c2_rpc_fop_session_establish.
+	   sender_id copied from m0_rpc_fop_session_establish.
 	 */
 	u64 rser_sender_id;
 	/**
@@ -103,7 +103,7 @@ record {
 	   otherwise.
 	 */
 	u32 rser_rc
-} c2_rpc_fop_session_establish_rep;
+} m0_rpc_fop_session_establish_rep;
 
 /**
    Request FOP to terminate a session. Sent from sender to receiver.
@@ -118,10 +118,10 @@ record {
 	   session_id of session being terminated.
 	 */
 	u64 rst_session_id
-} c2_rpc_fop_session_terminate;
+} m0_rpc_fop_session_terminate;
 
 /**
-   Reply FOP to c2_rpc_fop_session_terminate. Sent from receiver to sender.
+   Reply FOP to m0_rpc_fop_session_terminate. Sent from receiver to sender.
  */
 record {
 	/**
@@ -138,11 +138,11 @@ record {
 	   otherwise.
 	 */
 	u32 rstr_rc
-} c2_rpc_fop_session_terminate_rep;
+} m0_rpc_fop_session_terminate_rep;
 
 record {
 	u64 n_unused
-} c2_rpc_fop_noop;
+} m0_rpc_fop_noop;
 
 /** @} end of rpc_session group */
 

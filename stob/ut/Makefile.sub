@@ -1,3 +1,3 @@
-ut_libcolibri_ut_la_SOURCES += stob/ut/adieu.c \
+ut_libmero_ut_la_SOURCES += stob/ut/adieu.c \
                                stob/ut/ad.c \
                                stob/ut/stobio.c

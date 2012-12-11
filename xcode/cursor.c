@@ -28,82 +28,82 @@
    @{
  */
 
-C2_INTERNAL void c2_xcode_cursor_init(struct c2_xcode_cursor *it,
-				      const struct c2_xcode_obj *obj)
+M0_INTERNAL void m0_xcode_cursor_init(struct m0_xcode_cursor *it,
+				      const struct m0_xcode_obj *obj)
 {
-	C2_SET0(it);
-	c2_xcode_cursor_top(it)->s_obj = *obj;
+	M0_SET0(it);
+	m0_xcode_cursor_top(it)->s_obj = *obj;
 }
 
-C2_INTERNAL struct c2_xcode_cursor_frame *c2_xcode_cursor_top(struct
-							      c2_xcode_cursor
+M0_INTERNAL struct m0_xcode_cursor_frame *m0_xcode_cursor_top(struct
+							      m0_xcode_cursor
 							      *it)
 {
-	C2_PRE(IS_IN_ARRAY(it->xcu_depth, it->xcu_stack));
+	M0_PRE(IS_IN_ARRAY(it->xcu_depth, it->xcu_stack));
 	return &it->xcu_stack[it->xcu_depth];
 }
 
-C2_INTERNAL int c2_xcode_next(struct c2_xcode_cursor *it)
+M0_INTERNAL int m0_xcode_next(struct m0_xcode_cursor *it)
 {
-	struct c2_xcode_cursor_frame *top;
-	struct c2_xcode_cursor_frame *next;
-	const struct c2_xcode_type   *xt;
+	struct m0_xcode_cursor_frame *top;
+	struct m0_xcode_cursor_frame *next;
+	const struct m0_xcode_type   *xt;
 	int                           nr;
 
-	C2_PRE(it->xcu_depth >= 0);
+	M0_PRE(it->xcu_depth >= 0);
 
-	top = c2_xcode_cursor_top(it);
+	top = m0_xcode_cursor_top(it);
 	xt  = top->s_obj.xo_type;
 	nr  = xt->xct_nr;
 
-	C2_ASSERT(c2_xcode_type_invariant(xt));
+	M0_ASSERT(m0_xcode_type_invariant(xt));
 
 	switch (top->s_flag) {
-	case C2_XCODE_CURSOR_NONE:
-		top->s_flag = C2_XCODE_CURSOR_PRE;
+	case M0_XCODE_CURSOR_NONE:
+		top->s_flag = M0_XCODE_CURSOR_PRE;
 		break;
-	case C2_XCODE_CURSOR_IN:
+	case M0_XCODE_CURSOR_IN:
 		switch (xt->xct_aggr) {
-		case C2_XA_RECORD:
-		case C2_XA_TYPEDEF:
+		case M0_XA_RECORD:
+		case M0_XA_TYPEDEF:
 			++top->s_fieldno;
 			break;
-		case C2_XA_SEQUENCE:
+		case M0_XA_SEQUENCE:
 			if (top->s_fieldno == 0) {
 				top->s_elno = 0;
 				top->s_fieldno = 1;
 			} else
 				++top->s_elno;
-			if (top->s_elno >= c2_xcode_tag(&top->s_obj)) {
+			if (top->s_elno >= m0_xcode_tag(&top->s_obj)) {
 				top->s_elno = 0;
 				top->s_fieldno = 2;
 			}
 			break;
-		case C2_XA_UNION:
+		case M0_XA_UNION:
 			if (top->s_fieldno != 0) {
 				top->s_fieldno = nr;
 				break;
 			}
 			while (++top->s_fieldno < nr &&
-			       c2_xcode_tag(&top->s_obj) !=
+			       m0_xcode_tag(&top->s_obj) !=
 			       xt->xct_child[top->s_fieldno].xf_tag) {
 				;
 			}
 			break;
-		case C2_XA_OPAQUE:
+		case M0_XA_OPAQUE:
 		default:
-			C2_IMPOSSIBLE("wrong aggregation type");
+			M0_IMPOSSIBLE("wrong aggregation type");
 		}
 		/* fall through */
-	case C2_XCODE_CURSOR_PRE:
+	case M0_XCODE_CURSOR_PRE:
 		if (top->s_fieldno < nr) {
-			top->s_flag = C2_XCODE_CURSOR_IN;
-			if (xt->xct_aggr != C2_XA_ATOM) {
+			top->s_flag = M0_XCODE_CURSOR_IN;
+			if (xt->xct_aggr != M0_XA_ATOM) {
 				int result;
 
 				++it->xcu_depth;
-				next = c2_xcode_cursor_top(it);
-				result = c2_xcode_subobj(&next->s_obj,
+				next = m0_xcode_cursor_top(it);
+				result = m0_xcode_subobj(&next->s_obj,
 							 &top->s_obj,
 							 top->s_fieldno,
 							 top->s_elno);
@@ -111,28 +111,28 @@ C2_INTERNAL int c2_xcode_next(struct c2_xcode_cursor *it)
 					return result;
 				next->s_fieldno = 0;
 				next->s_elno    = 0;
-				next->s_flag    = C2_XCODE_CURSOR_PRE;
+				next->s_flag    = M0_XCODE_CURSOR_PRE;
 				next->s_datum   = 0;
 			}
 		} else
-			top->s_flag = C2_XCODE_CURSOR_POST;
+			top->s_flag = M0_XCODE_CURSOR_POST;
 		break;
-	case C2_XCODE_CURSOR_POST:
+	case M0_XCODE_CURSOR_POST:
 		if (--it->xcu_depth < 0)
 			return 0;
-		top = c2_xcode_cursor_top(it);
-		C2_ASSERT(top->s_flag < C2_XCODE_CURSOR_POST);
-		top->s_flag = C2_XCODE_CURSOR_IN;
+		top = m0_xcode_cursor_top(it);
+		M0_ASSERT(top->s_flag < M0_XCODE_CURSOR_POST);
+		top->s_flag = M0_XCODE_CURSOR_IN;
 		break;
 	default:
-		C2_IMPOSSIBLE("wrong order");
+		M0_IMPOSSIBLE("wrong order");
 	}
 	return +1;
 }
 
-C2_INTERNAL void c2_xcode_skip(struct c2_xcode_cursor *it)
+M0_INTERNAL void m0_xcode_skip(struct m0_xcode_cursor *it)
 {
-	c2_xcode_cursor_top(it)->s_flag = C2_XCODE_CURSOR_POST;
+	m0_xcode_cursor_top(it)->s_flag = M0_XCODE_CURSOR_POST;
 }
 
 /** @} end of xcode group */

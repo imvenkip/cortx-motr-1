@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_NET_INTERNAL_H__
-#define __COLIBRI_NET_NET_INTERNAL_H__
+#ifndef __MERO_NET_NET_INTERNAL_H__
+#define __MERO_NET_NET_INTERNAL_H__
 
 #include "net/net.h"
 
@@ -30,98 +30,98 @@
   Private symbols used within the Network module.
  */
 
-extern const struct c2_addb_loc c2_net_addb_loc;
-extern const struct c2_addb_ctx_type c2_net_addb_ctx;
-extern struct c2_addb_ctx c2_net_addb;
-extern const struct c2_addb_ctx_type c2_net_dom_addb_ctx;
-extern const struct c2_addb_ctx_type c2_net_buffer_addb_ctx;
-extern const struct c2_addb_ctx_type c2_net_tm_addb_ctx;
+extern const struct m0_addb_loc m0_net_addb_loc;
+extern const struct m0_addb_ctx_type m0_net_addb_ctx;
+extern struct m0_addb_ctx m0_net_addb;
+extern const struct m0_addb_ctx_type m0_net_dom_addb_ctx;
+extern const struct m0_addb_ctx_type m0_net_buffer_addb_ctx;
+extern const struct m0_addb_ctx_type m0_net_tm_addb_ctx;
 
 #define NET_ADDB_FUNCFAIL_ADD(ctx, rc) \
-	C2_ADDB_ADD(&(ctx), &c2_net_addb_loc, c2_addb_func_fail, __func__, (rc))
+	M0_ADDB_ADD(&(ctx), &m0_net_addb_loc, m0_addb_func_fail, __func__, (rc))
 
-extern struct c2_mutex c2_net_mutex;
-
-/**
-  Internal version of c2_net_domain_init() that is protected by the
-  c2_net_mutex.  Can be used by transports for derived domain situations.
- */
-C2_INTERNAL int c2_net__domain_init(struct c2_net_domain *dom,
-				    struct c2_net_xprt *xprt);
+extern struct m0_mutex m0_net_mutex;
 
 /**
-  Internal version of c2_net_domain_init() that is protected by the
-  c2_net_mutex.  Can be used by transports for derived domain situations.
+  Internal version of m0_net_domain_init() that is protected by the
+  m0_net_mutex.  Can be used by transports for derived domain situations.
  */
-C2_INTERNAL void c2_net__domain_fini(struct c2_net_domain *dom);
+M0_INTERNAL int m0_net__domain_init(struct m0_net_domain *dom,
+				    struct m0_net_xprt *xprt);
+
+/**
+  Internal version of m0_net_domain_init() that is protected by the
+  m0_net_mutex.  Can be used by transports for derived domain situations.
+ */
+M0_INTERNAL void m0_net__domain_fini(struct m0_net_domain *dom);
 
 /**
   Validates the value of buffer queue type.
  */
-C2_INTERNAL bool c2_net__qtype_is_valid(enum c2_net_queue_type qt);
+M0_INTERNAL bool m0_net__qtype_is_valid(enum m0_net_queue_type qt);
 
 /**
   Validate transfer machine state
  */
-C2_INTERNAL bool c2_net__tm_state_is_valid(enum c2_net_tm_state ts);
+M0_INTERNAL bool m0_net__tm_state_is_valid(enum m0_net_tm_state ts);
 
 /**
   TM event invariant
  */
-C2_INTERNAL bool c2_net__tm_event_invariant(const struct c2_net_tm_event *ev);
+M0_INTERNAL bool m0_net__tm_event_invariant(const struct m0_net_tm_event *ev);
 
 /**
   Validates the TM event type.
  */
-C2_INTERNAL bool c2_net__tm_ev_type_is_valid(enum c2_net_tm_ev_type et);
+M0_INTERNAL bool m0_net__tm_ev_type_is_valid(enum m0_net_tm_ev_type et);
 
 /**
   Buffer event invariant
  */
-C2_INTERNAL bool c2_net__buffer_event_invariant(const struct c2_net_buffer_event
+M0_INTERNAL bool m0_net__buffer_event_invariant(const struct m0_net_buffer_event
 						*ev);
 
 /**
   Buffer checks for a registered buffer.
   Must be called within the domain or transfer machine mutex.
  */
-C2_INTERNAL bool c2_net__buffer_invariant(const struct c2_net_buffer *buf);
+M0_INTERNAL bool m0_net__buffer_invariant(const struct m0_net_buffer *buf);
 
 /**
-  Internal version of c2_net_buffer_add() that must be invoked holding the
+  Internal version of m0_net_buffer_add() that must be invoked holding the
   TM mutex.
  */
-C2_INTERNAL int c2_net__buffer_add(struct c2_net_buffer *buf,
-				   struct c2_net_transfer_mc *tm);
+M0_INTERNAL int m0_net__buffer_add(struct m0_net_buffer *buf,
+				   struct m0_net_transfer_mc *tm);
 
 /**
   Invariant checks for an end point. No mutex necessary.
   Extra checks if under_tm_mutex set to true.
  */
-C2_INTERNAL bool c2_net__ep_invariant(struct c2_net_end_point *ep,
-				      struct c2_net_transfer_mc *tm,
+M0_INTERNAL bool m0_net__ep_invariant(struct m0_net_end_point *ep,
+				      struct m0_net_transfer_mc *tm,
 				      bool under_tm_mutex);
 
 /**
   Validates tm state.
   Must be called within the domain or transfer machine mutex.
  */
-C2_INTERNAL bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm);
+M0_INTERNAL bool m0_net__tm_invariant(const struct m0_net_transfer_mc *tm);
 
 /*
    Internal subroutine to provision the receive queue of a transfer machine
    from its associated buffer pool.
    @param tm  Transfer machine
-   @pre c2_mutex_is_not_locked(&tm->ntm_mutex) && tm->ntm_callback_counter > 0
-   @pre c2_net_buffer_pool_is_not_locked(&tm->ntm_recv_pool))
+   @pre m0_mutex_is_not_locked(&tm->ntm_mutex) && tm->ntm_callback_counter > 0
+   @pre m0_net_buffer_pool_is_not_locked(&tm->ntm_recv_pool))
    @post Length of receive queue >= tm->ntm_recv_queue_min_length &&
                 tm->ntm_recv_queue_deficit == 0 ||
          Length of receive queue + tm->ntm_recv_queue_deficit ==
                 tm->ntm_recv_queue_min_length
  */
-C2_INTERNAL void c2_net__tm_provision_recv_q(struct c2_net_transfer_mc *tm);
+M0_INTERNAL void m0_net__tm_provision_recv_q(struct m0_net_transfer_mc *tm);
 
-#endif /* __COLIBRI_NET_NET_INTERNAL_H__ */
+#endif /* __MERO_NET_NET_INTERNAL_H__ */
 
 /*
  *  Local variables:

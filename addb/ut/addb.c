@@ -25,13 +25,13 @@
 #include "addb/addb.h"
 #include "lib/ut.h"
 
-struct c2_addb_ctx addb_ut_ctx;
+struct m0_addb_ctx addb_ut_ctx;
 
-const struct c2_addb_ctx_type c2_addb_ut_ctx = {
+const struct m0_addb_ctx_type m0_addb_ut_ctx = {
 	.act_name = "ADDB-UT"
 };
 
-const struct c2_addb_loc c2_addb_ut_loc = {
+const struct m0_addb_loc m0_addb_ut_loc = {
 	.al_name = "ADDB-UT"
 };
 
@@ -39,36 +39,36 @@ static const char s_out_fname[] = "addb_ut_output_redirect";
 
 #define MESSAGE_LENGTH sizeof("addb: ctx: ADDB-UT/0x8ff4fa0, loc: ADDB-UT, ev: \
 			      trace/trace, rc: 0 name: A test ADDB message for \
-			      C2_ADDB_TRACE event")
+			      M0_ADDB_TRACE event")
 
 static void test_addb()
 {
 	char     buffer[MESSAGE_LENGTH];
-	struct c2_ut_redirect   addb_ut_redirect;
-	const char message[] = "A test ADDB message for C2_ADDB_TRACE event";
+	struct m0_ut_redirect   addb_ut_redirect;
+	const char message[] = "A test ADDB message for M0_ADDB_TRACE event";
 	char *fgets_rc;
 
-	c2_stream_redirect(stdout, s_out_fname, &addb_ut_redirect);
+	m0_stream_redirect(stdout, s_out_fname, &addb_ut_redirect);
 
-	c2_addb_ctx_init(&addb_ut_ctx, &c2_addb_ut_ctx, &c2_addb_global_ctx);
+	m0_addb_ctx_init(&addb_ut_ctx, &m0_addb_ut_ctx, &m0_addb_global_ctx);
 
-	c2_addb_choose_default_level_console(AEL_NONE);
+	m0_addb_choose_default_level_console(AEL_NONE);
 
-	C2_ADDB_ADD(&addb_ut_ctx, &c2_addb_ut_loc, c2_addb_trace, (message));
+	M0_ADDB_ADD(&addb_ut_ctx, &m0_addb_ut_loc, m0_addb_trace, (message));
 
 	rewind(stdout);
 
 	fgets_rc = fgets(buffer, MESSAGE_LENGTH, stdout);
-	C2_UT_ASSERT(fgets_rc != NULL);
+	M0_UT_ASSERT(fgets_rc != NULL);
 
-	C2_UT_ASSERT(strstr(buffer, message) != NULL);
+	M0_UT_ASSERT(strstr(buffer, message) != NULL);
 
-	c2_stream_restore(&addb_ut_redirect);
+	m0_stream_restore(&addb_ut_redirect);
 
-	c2_addb_choose_default_level_console(AEL_WARN);
+	m0_addb_choose_default_level_console(AEL_WARN);
 }
 
-const struct c2_test_suite addb_ut = {
+const struct m0_test_suite addb_ut = {
         .ts_name  = "addb-ut",
         .ts_init  = NULL,
         .ts_fini  = NULL,

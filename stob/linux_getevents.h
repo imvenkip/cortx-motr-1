@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_STOB_LINUX_GETEVENTS_H__
-#define __COLIBRI_STOB_LINUX_GETEVENTS_H__
+#ifndef __MERO_STOB_LINUX_GETEVENTS_H__
+#define __MERO_STOB_LINUX_GETEVENTS_H__
 
 /**
    @addtogroup stoblinux Storage object based on Linux specific file system
@@ -84,7 +84,7 @@ io_syscall5(int, raw_io_getevents, io_getevents, io_context_t, ctx, long, min_nr
 
 /** @} end group stoblinux */
 
-/* __COLIBRI_STOB_LINUX_GETEVENTS_H__ */
+/* __MERO_STOB_LINUX_GETEVENTS_H__ */
 #endif
 
 /*

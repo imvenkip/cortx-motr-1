@@ -1,4 +1,4 @@
-ut_libcolibri_ut_la_SOURCES += ioservice/ut/cobfid_map.c \
+ut_libmero_ut_la_SOURCES += ioservice/ut/cobfid_map.c \
                                ioservice/ut/bulkio_ut.c \
                                ioservice/ut/bulkio_client.c \
                                ioservice/ut/bulkio_common.c \

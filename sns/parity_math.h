@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_SNS_PARITY_MATH_H__
-#define __COLIBRI_SNS_PARITY_MATH_H__
+#ifndef __MERO_SNS_PARITY_MATH_H__
+#define __MERO_SNS_PARITY_MATH_H__
 
 #include "lib/adt.h"
 #include "matvec.h"
@@ -31,7 +31,7 @@
 /**
    @defgroup parity_math Parity Math Component
 
-   A parity math component is a part of Colibri core and serving
+   A parity math component is a part of Mero core and serving
    several purposes:
    @li Provide algorithms for calculation of SNS parity units (checksums)
        for given data units;
@@ -44,33 +44,33 @@
 /**
  * Parity calculation type indicating various algorithms of parity calculation.
  */
-enum c2_parity_cal_algo {
-        C2_PARITY_CAL_ALGO_XOR,
-        C2_PARITY_CAL_ALGO_REED_SOLOMON,
-	C2_PARITY_CAL_ALGO_NR
+enum m0_parity_cal_algo {
+        M0_PARITY_CAL_ALGO_XOR,
+        M0_PARITY_CAL_ALGO_REED_SOLOMON,
+	M0_PARITY_CAL_ALGO_NR
 };
 
 /**
    Holds information about system configuration i.e., data and parity units data
    blocks and failure flags.
  */
-struct c2_parity_math {
-	enum c2_parity_cal_algo pmi_parity_algo;
+struct m0_parity_math {
+	enum m0_parity_cal_algo pmi_parity_algo;
 
 	uint32_t                pmi_data_count;
 	uint32_t                pmi_parity_count;
 
 	/* structures used for parity calculation and recovery. */
-	struct c2_vector        pmi_data;
-	struct c2_vector        pmi_parity;
-	struct c2_matrix        pmi_vandmat;
-	struct c2_matrix        pmi_vandmat_parity_slice;
+	struct m0_vector        pmi_data;
+	struct m0_vector        pmi_parity;
+	struct m0_matrix        pmi_vandmat;
+	struct m0_matrix        pmi_vandmat_parity_slice;
 
 	/* structures used for recovery. */
-	struct c2_matrix        pmi_sys_mat;
-	struct c2_vector        pmi_sys_vec;
-	struct c2_vector        pmi_sys_res;
-	struct c2_linsys        pmi_sys;
+	struct m0_matrix        pmi_sys_mat;
+	struct m0_vector        pmi_sys_vec;
+	struct m0_vector        pmi_sys_res;
+	struct m0_linsys        pmi_sys;
 };
 
 /**
@@ -79,25 +79,25 @@ struct c2_parity_math {
    @param data_count - count of SNS data units used in system.
    @param parity_count - count of SNS parity units used in system.
  */
-C2_INTERNAL int c2_parity_math_init(struct c2_parity_math *math,
+M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 				    uint32_t data_count, uint32_t parity_count);
 
 /**
    Deinitializaton of parity math algorithms.
-   Frees all memory blocks allocated by c2_parity_math_init().
+   Frees all memory blocks allocated by m0_parity_math_init().
  */
-C2_INTERNAL void c2_parity_math_fini(struct c2_parity_math *math);
+M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math);
 
 /**
    Calculates parity block data.
    @param data[in] - data block, treated as uint8_t block with b_nob elements.
    @param parity[out] - parity block, treated as uint8_t block with
                         b_nob elements.
-   @pre c2_parity_math_init() succeeded.
+   @pre m0_parity_math_init() succeeded.
  */
-C2_INTERNAL void c2_parity_math_calculate(struct c2_parity_math *math,
-					  struct c2_buf *data,
-					  struct c2_buf *parity);
+M0_INTERNAL void m0_parity_math_calculate(struct m0_parity_math *math,
+					  struct m0_buf *data,
+					  struct m0_buf *parity);
 
 /**
  * Calculates parity in a differential manner.
@@ -109,10 +109,10 @@ C2_INTERNAL void c2_parity_math_calculate(struct c2_parity_math *math,
  * @param index  Index of data unit in parity group for which old and new
  * versions are sent.
  */
-C2_INTERNAL void c2_parity_math_diff(struct c2_parity_math *math,
-				     struct c2_buf *old,
-				     struct c2_buf *new,
-				     struct c2_buf *parity, uint32_t index);
+M0_INTERNAL void m0_parity_math_diff(struct m0_parity_math *math,
+				     struct m0_buf *old,
+				     struct m0_buf *new,
+				     struct m0_buf *parity, uint32_t index);
 
 /**
    Parity block refinement iff one data word of one data unit had changed.
@@ -120,11 +120,11 @@ C2_INTERNAL void c2_parity_math_diff(struct c2_parity_math *math,
    @param parity[out] - parity block, treated as uint8_t block with
                         b_nob elements.
    @param data_ind_changed[in] - index of data unit recently changed.
-   @pre c2_parity_math_init() succeeded.
+   @pre m0_parity_math_init() succeeded.
  */
-C2_INTERNAL void c2_parity_math_refine(struct c2_parity_math *math,
-				       struct c2_buf *data,
-				       struct c2_buf *parity,
+M0_INTERNAL void m0_parity_math_refine(struct m0_parity_math *math,
+				       struct m0_buf *data,
+				       struct m0_buf *parity,
 				       uint32_t data_ind_changed);
 
 /**
@@ -136,12 +136,12 @@ C2_INTERNAL void c2_parity_math_refine(struct c2_parity_math *math,
    @param fail[in] - block with flags, treated as uint8_t block with
                      b_nob elements, if element is '1' then data or parity
                      block with given index is treated as broken.
-   @pre c2_parity_math_init() succeded.
+   @pre m0_parity_math_init() succeded.
  */
-C2_INTERNAL void c2_parity_math_recover(struct c2_parity_math *math,
-					struct c2_buf *data,
-					struct c2_buf *parity,
-					struct c2_buf *fail);
+M0_INTERNAL void m0_parity_math_recover(struct m0_parity_math *math,
+					struct m0_buf *data,
+					struct m0_buf *parity,
+					struct m0_buf *fail);
 
 /**
  * Recovers data or parity units partially or fully depending on the parity
@@ -150,11 +150,11 @@ C2_INTERNAL void c2_parity_math_recover(struct c2_parity_math *math,
  * @param data - data block, treated as uint8_t block with b_nob elements.
  * @param parity - parity block, treated as uint8_t block with b_nob elements.
  * @param failure_index - Index of the failed block.
-   @pre c2_parity_math_init() succeded.
+   @pre m0_parity_math_init() succeded.
  */
-C2_INTERNAL void c2_parity_math_fail_index_recover(struct c2_parity_math *math,
-						   struct c2_buf *data,
-						   struct c2_buf *parity,
+M0_INTERNAL void m0_parity_math_fail_index_recover(struct m0_parity_math *math,
+						   struct m0_buf *data,
+						   struct m0_buf *parity,
 						   const uint32_t
 						   failure_index);
 
@@ -166,12 +166,12 @@ C2_INTERNAL void c2_parity_math_fail_index_recover(struct c2_parity_math *math,
  *               b_nob elements, containing the output of src XOR dest.
  * @param src - source buffer, treated as uint8_t block with b_nob elements.
  */
-C2_INTERNAL void c2_parity_math_buffer_xor(struct c2_buf *dest,
-					   const struct c2_buf *src);
+M0_INTERNAL void m0_parity_math_buffer_xor(struct m0_buf *dest,
+					   const struct m0_buf *src);
 
 /** @} end group parity_math */
 
-/* __COLIBRI_SNS_PARITY_MATH_H__  */
+/* __MERO_SNS_PARITY_MATH_H__  */
 #endif
 
 /*

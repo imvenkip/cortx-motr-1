@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_CONSOLE_MESG_H__
-#define __COLIBRI_CONSOLE_MESG_H__
+#ifndef __MERO_CONSOLE_MESG_H__
+#define __MERO_CONSOLE_MESG_H__
 
 #include "fop/fop.h"
 #include "rpc/rpc.h"
@@ -30,7 +30,7 @@
  *  Prints name and opcode of FOP.
  *  It can be used to print more info if required.
  */
-C2_INTERNAL void c2_cons_fop_name_print(const struct c2_fop_type *ftype);
+M0_INTERNAL void m0_cons_fop_name_print(const struct m0_fop_type *ftype);
 
 /**
  * @brief Builds and send FOP using rpc_post and waits for reply.
@@ -39,30 +39,30 @@ C2_INTERNAL void c2_cons_fop_name_print(const struct c2_fop_type *ftype);
  * @param session  RPC connection session.
  * @param deadline Time to to wait for RPC reply.
  */
-C2_INTERNAL int c2_cons_fop_send(struct c2_fop *fop,
-				 struct c2_rpc_session *session,
-				 c2_time_t deadline);
+M0_INTERNAL int m0_cons_fop_send(struct m0_fop *fop,
+				 struct m0_rpc_session *session,
+				 m0_time_t deadline);
 
 /**
  *  @brief Iterate over FOP fields and print names.
  */
-C2_INTERNAL int c2_cons_fop_show(struct c2_fop_type *fopt);
+M0_INTERNAL int m0_cons_fop_show(struct m0_fop_type *fopt);
 
 /**
  * @brief Helper function to print list of FOPs.
  */
-C2_INTERNAL void c2_cons_fop_list_show(void);
+M0_INTERNAL void m0_cons_fop_list_show(void);
 
 /**
  * @brief Find the fop type equals to opcode and returns.
  *
  * @param opcode FOP opcode.
  *
- * @return c2_fop_type ref. or NULL
+ * @return m0_fop_type ref. or NULL
  */
-C2_INTERNAL struct c2_fop_type *c2_cons_fop_type_find(uint32_t opcode);
+M0_INTERNAL struct m0_fop_type *m0_cons_fop_type_find(uint32_t opcode);
 
-/* __COLIBRI_CONSOLE_MESG_H__ */
+/* __MERO_CONSOLE_MESG_H__ */
 #endif
 
 /*

@@ -30,12 +30,12 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#include "colibri/init.h"
+#include "mero/init.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/getopts.h"
 #include "lib/memory.h"
-#include "lib/misc.h" /* C2_SET0 */
+#include "lib/misc.h" /* M0_SET0 */
 #include "lib/thread.h"
 #include "net/net.h"
 #include "net/bulk_mem.h"
@@ -61,7 +61,7 @@ enum {
 };
 
 struct ping_xprt {
-	struct c2_net_xprt *px_xprt;
+	struct m0_net_xprt *px_xprt;
 	bool                px_dual_only;
 	bool                px_3part_addr;
 	short               px_client_port;
@@ -69,7 +69,7 @@ struct ping_xprt {
 
 struct ping_xprt xprts[1] = {
 	{
-		.px_xprt = &c2_net_bulk_mem_xprt,
+		.px_xprt = &m0_net_bulk_mem_xprt,
 		.px_dual_only = true,
 		.px_3part_addr = false,
 		.px_client_port = MEM_CLIENT_BASE_PORT,
@@ -78,7 +78,7 @@ struct ping_xprt xprts[1] = {
 
 struct ping_ctx sctx = {
 	.pc_tm = {
-		.ntm_state     = C2_NET_TM_UNDEFINED
+		.ntm_state     = M0_NET_TM_UNDEFINED
 	}
 };
 
@@ -88,7 +88,7 @@ int canon_host(const char *hostname, char *buf, size_t bufsiz)
 	int		   rc = 0;
 	struct in_addr     ipaddr;
 
-	/* c2_net_end_point_create requires string IPv4 address, not name */
+	/* m0_net_end_point_create requires string IPv4 address, not name */
 	if (inet_aton(hostname, &ipaddr) == 0) {
 		struct hostent he;
 		char he_buf[4096];
@@ -151,7 +151,7 @@ void list_xprt_names(FILE *s, struct ping_xprt *def)
 			(&xprts[i] == def) ? " [default]" : "");
 }
 
-struct c2_mutex qstats_mutex;
+struct m0_mutex qstats_mutex;
 
 void print_qstats(struct ping_ctx *ctx, bool reset)
 {
@@ -161,9 +161,9 @@ void print_qstats(struct ping_ctx *ctx, bool reset)
 	uint64_t min;
 	uint64_t sec;
 	uint64_t msec;
-	struct c2_net_qstats qs[C2_NET_QT_NR];
-	struct c2_net_qstats *qp;
-	static const char *qnames[C2_NET_QT_NR] = {
+	struct m0_net_qstats qs[M0_NET_QT_NR];
+	struct m0_net_qstats *qp;
+	static const char *qnames[M0_NET_QT_NR] = {
 		"mRECV", "mSEND",
 		"pRECV", "pSEND",
 		"aRECV", "aSEND",
@@ -175,20 +175,20 @@ void print_qstats(struct ping_ctx *ctx, bool reset)
 "Queue   #Add   #Del  #Succ  #Fail Time in Queue   Total Bytes   Max Buffer Sz\n"
 "----- ------ ------ ------ ------ ------------- --------------- -------------\n";
 
-	if (ctx->pc_tm.ntm_state < C2_NET_TM_INITIALIZED)
+	if (ctx->pc_tm.ntm_state < M0_NET_TM_INITIALIZED)
 		return;
-	rc = c2_net_tm_stats_get(&ctx->pc_tm, C2_NET_QT_NR, qs, reset);
-	C2_ASSERT(rc == 0);
-	c2_mutex_lock(&qstats_mutex);
+	rc = m0_net_tm_stats_get(&ctx->pc_tm, M0_NET_QT_NR, qs, reset);
+	M0_ASSERT(rc == 0);
+	m0_mutex_lock(&qstats_mutex);
 	ctx->pc_ops->pf("%s statistics:\n", ctx->pc_ident);
 	ctx->pc_ops->pf("%s", hfmt);
 	for (i = 0; i < ARRAY_SIZE(qs); ++i) {
 		qp = &qs[i];
-		sec = c2_time_seconds(qp->nqs_time_in_queue);
+		sec = m0_time_seconds(qp->nqs_time_in_queue);
 		hr = sec / SEC_PER_HR;
 		min = sec % SEC_PER_HR / SEC_PER_MIN;
 		sec %= SEC_PER_MIN;
-		msec = (c2_time_nanoseconds(qp->nqs_time_in_queue) +
+		msec = (m0_time_nanoseconds(qp->nqs_time_in_queue) +
 			ONE_MILLION / 2) / ONE_MILLION;
 		sprintf(tbuf, "%02lu:%02lu:%02lu.%03lu",
 			hr, min, sec, msec);
@@ -198,7 +198,7 @@ void print_qstats(struct ping_ctx *ctx, bool reset)
 				qp->nqs_num_s_events, qp->nqs_num_f_events,
 				tbuf, qp->nqs_total_bytes, qp->nqs_max_bytes);
 	}
-	c2_mutex_unlock(&qstats_mutex);
+	m0_mutex_unlock(&qstats_mutex);
 }
 
 int quiet_printf(const char *fmt, ...)
@@ -233,7 +233,7 @@ void client(struct client_params *params)
 {
 	int			 i;
 	int			 rc;
-	struct c2_net_end_point *server_ep;
+	struct m0_net_end_point *server_ep;
 	char                     ident[24];
 	char			*bp = NULL;
 	struct ping_ctx		 cctx = {
@@ -247,7 +247,7 @@ void client(struct client_params *params)
 		.pc_passive_size = params->passive_size,
 		.pc_ident = ident,
 		.pc_tm = {
-			.ntm_state     = C2_NET_TM_UNDEFINED
+			.ntm_state     = M0_NET_TM_UNDEFINED
 		},
 		.pc_passive_bulk_timeout = params->passive_bulk_timeout,
 	};
@@ -267,15 +267,15 @@ void client(struct client_params *params)
 		cctx.pc_ops = &verbose_ops;
 	else
 		cctx.pc_ops = &quiet_ops;
-	c2_mutex_init(&cctx.pc_mutex);
-	c2_cond_init(&cctx.pc_cond);
+	m0_mutex_init(&cctx.pc_mutex);
+	m0_cond_init(&cctx.pc_cond);
 	rc = ping_client_init(&cctx, &server_ep);
 	if (rc != 0)
 		goto fail;
 
 	if (params->passive_size != 0) {
-		bp = c2_alloc(params->passive_size);
-		C2_ASSERT(bp != NULL);
+		bp = m0_alloc(params->passive_size);
+		M0_ASSERT(bp != NULL);
 		for (i = 0; i < params->passive_size - 1; ++i)
 			bp[i] = "abcdefghi"[i % 9];
 	}
@@ -283,21 +283,21 @@ void client(struct client_params *params)
 	for (i = 1; i <= params->loops; ++i) {
 		cctx.pc_ops->pf("%s: Loop %d\n", ident, i);
 		rc = ping_client_msg_send_recv(&cctx, server_ep, bp);
-		C2_ASSERT(rc == 0);
+		M0_ASSERT(rc == 0);
 		rc = ping_client_passive_recv(&cctx, server_ep);
-		C2_ASSERT(rc == 0);
+		M0_ASSERT(rc == 0);
 		rc = ping_client_passive_send(&cctx, server_ep, bp);
-		C2_ASSERT(rc == 0);
+		M0_ASSERT(rc == 0);
 	}
 
 	if (params->verbose)
 		print_qstats(&cctx, false);
 	rc = ping_client_fini(&cctx, server_ep);
-	c2_free(bp);
-	C2_ASSERT(rc == 0);
+	m0_free(bp);
+	M0_ASSERT(rc == 0);
 fail:
-	c2_cond_fini(&cctx.pc_cond);
-	c2_mutex_fini(&cctx.pc_mutex);
+	m0_cond_fini(&cctx.pc_cond);
+	m0_mutex_fini(&cctx.pc_mutex);
 }
 
 int main(int argc, char *argv[])
@@ -308,7 +308,7 @@ int main(int argc, char *argv[])
 	bool			 verbose = false;
 	const char              *local_name = "localhost";
 	const char              *remote_name = "localhost";
-	const char		*xprt_name = c2_net_bulk_mem_xprt.nx_name;
+	const char		*xprt_name = m0_net_bulk_mem_xprt.nx_name;
 	int			 loops = DEF_LOOPS;
 	int			 base_port = 0;
 	int			 nr_clients = DEF_CLIENT_THREADS;
@@ -318,37 +318,37 @@ int main(int argc, char *argv[])
 	int                      active_bulk_delay = 0;
 
 	struct ping_xprt	*xprt;
-	struct c2_thread	 server_thread;
+	struct m0_thread	 server_thread;
 	/* hostname buffers big enough for 255.255.255.255 */
 	char                     local_hostbuf[16];
 	char                     remote_hostbuf[16];
 
-	rc = c2_init();
-	C2_ASSERT(rc == 0);
+	rc = m0_init();
+	M0_ASSERT(rc == 0);
 
-	rc = C2_GETOPTS("bulkping", argc, argv,
-			C2_FLAGARG('s', "run server only", &server_only),
-			C2_FLAGARG('c', "run client only", &client_only),
-			C2_STRINGARG('h', "hostname to listen on",
+	rc = M0_GETOPTS("m0bulkping", argc, argv,
+			M0_FLAGARG('s', "run server only", &server_only),
+			M0_FLAGARG('c', "run client only", &client_only),
+			M0_STRINGARG('h', "hostname to listen on",
 				     LAMBDA(void, (const char *str) {
 						     local_name = str; })),
-			C2_STRINGARG('r', "name of remote server host",
+			M0_STRINGARG('r', "name of remote server host",
 				     LAMBDA(void, (const char *str) {
 						     remote_name = str; })),
-			C2_FORMATARG('p', "base client port", "%i", &base_port),
-			C2_FORMATARG('b', "number of buffers", "%i", &nr_bufs),
-			C2_FORMATARG('l', "loops to run", "%i", &loops),
-			C2_FORMATARG('d', "passive data size", "%i",
+			M0_FORMATARG('p', "base client port", "%i", &base_port),
+			M0_FORMATARG('b', "number of buffers", "%i", &nr_bufs),
+			M0_FORMATARG('l', "loops to run", "%i", &loops),
+			M0_FORMATARG('d', "passive data size", "%i",
 				     &passive_size),
-			C2_FORMATARG('n', "number of client threads", "%i",
+			M0_FORMATARG('n', "number of client threads", "%i",
 				     &nr_clients),
-			C2_STRINGARG('t', "transport-name or \"list\" to "
+			M0_STRINGARG('t', "transport-name or \"list\" to "
 				     "list supported transports.",
 				     LAMBDA(void, (const char *str) {
 						     xprt_name = str; })),
-			C2_FORMATARG('D', "server active bulk delay",
+			M0_FORMATARG('D', "server active bulk delay",
 				     "%i", &active_bulk_delay),
-			C2_FLAGARG('v', "verbose", &verbose));
+			M0_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
 
@@ -397,13 +397,13 @@ int main(int argc, char *argv[])
 	if (canon_host(remote_name, remote_hostbuf, sizeof(remote_hostbuf)) != 0)
 		return 1;
 
-	C2_ASSERT(c2_net_xprt_init(xprt->px_xprt) == 0);
-	c2_mutex_init(&qstats_mutex);
+	M0_ASSERT(m0_net_xprt_init(xprt->px_xprt) == 0);
+	m0_mutex_init(&qstats_mutex);
 
 	if (!client_only) {
 		/* start server in background thread */
-		c2_mutex_init(&sctx.pc_mutex);
-		c2_cond_init(&sctx.pc_cond);
+		m0_mutex_init(&sctx.pc_mutex);
+		m0_cond_init(&sctx.pc_cond);
 		if (verbose)
 			sctx.pc_ops = &verbose_ops;
 		else
@@ -420,10 +420,10 @@ int main(int argc, char *argv[])
 		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
 		sctx.pc_passive_size = passive_size;
 		sctx.pc_server_bulk_delay = active_bulk_delay;
-		C2_SET0(&server_thread);
-		rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
+		M0_SET0(&server_thread);
+		rc = M0_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
 				    &ping_server, &sctx, "ping_server");
-		C2_ASSERT(rc == 0);
+		M0_ASSERT(rc == 0);
 	}
 
 	if (server_only) {
@@ -440,10 +440,10 @@ int main(int argc, char *argv[])
 		}
 	} else {
 		int		      i;
-		struct c2_thread     *client_thread;
+		struct m0_thread     *client_thread;
 		struct client_params *params;
-		C2_ALLOC_ARR(client_thread, nr_clients);
-		C2_ALLOC_ARR(params, nr_clients);
+		M0_ALLOC_ARR(client_thread, nr_clients);
+		M0_ALLOC_ARR(params, nr_clients);
 
 		/* start all the client threads */
 		for (i = 0; i < nr_clients; ++i) {
@@ -458,16 +458,16 @@ int main(int argc, char *argv[])
 			params[i].remote_host = remote_hostbuf;
 			params[i].passive_bulk_timeout = passive_bulk_timeout;
 
-			rc = C2_THREAD_INIT(&client_thread[i],
+			rc = M0_THREAD_INIT(&client_thread[i],
 					    struct client_params *,
 					    NULL, &client, &params[i],
 					    "client_%d", params[i].client_id);
-			C2_ASSERT(rc == 0);
+			M0_ASSERT(rc == 0);
 		}
 
 		/* ...and wait for them */
 		for (i = 0; i < nr_clients; ++i) {
-			c2_thread_join(&client_thread[i]);
+			m0_thread_join(&client_thread[i]);
 			if (verbose) {
 				if (xprt->px_3part_addr)
 					printf("Client %d:%d: joined\n",
@@ -477,22 +477,22 @@ int main(int argc, char *argv[])
 					       base_port + params[i].client_id);
 			}
 		}
-		c2_free(client_thread);
-		c2_free(params);
+		m0_free(client_thread);
+		m0_free(params);
 	}
 
 	if (!client_only) {
 		if (verbose)
 			print_qstats(&sctx, false);
 		ping_server_should_stop(&sctx);
-		c2_thread_join(&server_thread);
-		c2_cond_fini(&sctx.pc_cond);
-		c2_mutex_fini(&sctx.pc_mutex);
+		m0_thread_join(&server_thread);
+		m0_cond_fini(&sctx.pc_cond);
+		m0_mutex_fini(&sctx.pc_mutex);
 	}
 
-	c2_net_xprt_fini(xprt->px_xprt);
-	c2_mutex_fini(&qstats_mutex);
-	c2_fini();
+	m0_net_xprt_fini(xprt->px_xprt);
+	m0_mutex_fini(&qstats_mutex);
+	m0_fini();
 
 	return 0;
 }

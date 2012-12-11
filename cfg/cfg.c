@@ -29,23 +29,23 @@
  */
 
 /* DB Table ops */
-static int dev_key_cmp(struct c2_table *table, const void *key0,
+static int dev_key_cmp(struct m0_table *table, const void *key0,
 			const void *key1)
 {
-	const struct c2_cfg_storage_device__key *dev_key0 = key0;
-	const struct c2_cfg_storage_device__key *dev_key1 = key1;
+	const struct m0_cfg_storage_device__key *dev_key0 = key0;
+	const struct m0_cfg_storage_device__key *dev_key1 = key1;
 
 	return memcmp(dev_key0, dev_key1, sizeof *dev_key0);
 }
 
 /* Table ops for disk table */
-const struct c2_table_ops c2_cfg_storage_device_table_ops = {
+const struct m0_table_ops m0_cfg_storage_device_table_ops = {
         .to = {
                 [TO_KEY] = {
-			.max_size = sizeof(struct c2_cfg_storage_device__key)
+			.max_size = sizeof(struct m0_cfg_storage_device__key)
 		},
                 [TO_REC] = {
-			.max_size = sizeof(struct c2_cfg_storage_device__val)
+			.max_size = sizeof(struct m0_cfg_storage_device__val)
 		}
         },
         .key_cmp = dev_key_cmp

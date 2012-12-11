@@ -1,5 +1,5 @@
 #!/bin/bash
-# This script creates number of colibri servers as per end points
+# This script creates number of mero servers as per end points
 # given in $EP array.
 # Stobs are created in $WORK_ARENA
 # Each server has its separate directory.
@@ -15,7 +15,7 @@ EP=(
 #    0@lo:12345:33:104
 )
 # mount data
-MP=/mnt/c2
+MP=/mnt/m0
 MEP=0@lo:12345:33:1
 NR_DATA=2
 POOL_WIDTH=4
@@ -28,7 +28,7 @@ WORK_ARENA=/usr/tmp
 # main
 
 if [ ! -d build_kernel_modules ] ; then
-	echo Invoke this script in the top of the Colibri source directory
+	echo Invoke this script in the top of the Mero source directory
 	exit 1
 fi
 
@@ -37,9 +37,9 @@ if [ -n "$MOUNTED" ] ; then
 	echo Error $MP is already mounted
 	exit 1
 fi
-SERVERS=$(pgrep -f colibri_setup)
+SERVERS=$(pgrep -f m0d)
 if [ -n "$SERVERS" ] ; then
-	echo Error colibri_setup processes already running
+	echo Error m0d processes already running
 	exit 1
 fi
 
@@ -49,20 +49,20 @@ set -x
 modprobe lnet
 lctl network up
 
-# reload the kcolibri module
-rmmod kcolibri.ko galois.ko
+# reload the m0mero module
+rmmod m0mero.ko galois.ko
 insmod ../galois/src/linux_kernel/galois.ko
 
 # Immediate trace is heavy, use sparingly
 # KTRACE_FLAGS='trace_print_context=func trace_level=call+ trace_immediate_mask=8'
-insmod build_kernel_modules/kcolibri.ko local_addr=$MEP max_rpc_msg_size=163840 tm_recv_queue_min_len=16 $KTRACE_FLAGS
+insmod build_kernel_modules/m0mero.ko local_addr=$MEP max_rpc_msg_size=163840 tm_recv_queue_min_len=16 $KTRACE_FLAGS
 
 IOS=
 HERE=$PWD
 
 #if [ `ls -l $HERE/devices?.conf | wc -l` -ne ${#EP[*]} ]  ; then
 #	echo "Please generate device configuration files"
-#	rmmod kcolibri galois
+#	rmmod m0mero galois
 #	exit 1
 #fi
 
@@ -77,15 +77,15 @@ for ((i=0; i < ${#EP[*]}; i++)) ; do
 	rm -rf $WORK_ARENA/d$i
 	mkdir $WORK_ARENA/d$i
 	(cd $WORK_ARENA/d$i
-	 $HERE/colibri/colibri_setup -r -T ${STOB_TYPE} -D $WORK_ARENA/d$i/db \
+	 $HERE/mero/m0d -r -T ${STOB_TYPE} -D $WORK_ARENA/d$i/db \
             -S $WORK_ARENA/d$i/stobs -e $XPT:${EP[$i]} -s ioservice -s sns_repair \
             -m 163840 -q 16 &>>$WORK_ARENA/servers_started )&
 done
 
-layout/ut/ldemo $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
+utils/m0layout $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
 
 # Due to device stob pre-creation (balloc format) it normally takes ~0m28.166s for
-# starting up a server, so wait till all colibri_setup services are started.
+# starting up a server, so wait till all m0d services are started.
 #echo "Please wait while services are starting..."
 
 # Supress waiting being printed on screen
@@ -100,8 +100,8 @@ sleep 2
 
 # mount the file system
 STRIPE=nr_data_units=$NR_DATA,pool_width=$POOL_WIDTH,unit_size=$UNIT_SIZE
-mount -t c2t1fs -o $IOS,$STRIPE none $MP
-mount | grep c2t1fs
+mount -t m0t1fs -o $IOS,$STRIPE none $MP
+mount | grep m0t1fs
 
 # wait to terminate
 echo Type quit or EOF to terminate
@@ -112,4 +112,4 @@ while read LINE; do
 done
 
 umount $MP
-pkill -USR1 -f colibri_setup
+pkill -USR1 -f m0d

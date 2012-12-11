@@ -21,21 +21,21 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_TIMER_H__
-#define __COLIBRI_LIB_TIMER_H__
+#ifndef __MERO_LIB_TIMER_H__
+#define __MERO_LIB_TIMER_H__
 
 #include "lib/types.h"
-#include "lib/tlist.h"	   /* c2_tl */
-#include "lib/mutex.h"	   /* c2_mutex */
+#include "lib/tlist.h"	   /* m0_tl */
+#include "lib/mutex.h"	   /* m0_mutex */
 
 /**
    @defgroup timer Generic timer manipulation
 
-   Any timer should call c2_timer_init() function before any function. That
+   Any timer should call m0_timer_init() function before any function. That
    init function does all initialization for this timer. After that, the
-   c2_timer_start() function is called to start the timer. The timer callback
+   m0_timer_start() function is called to start the timer. The timer callback
    function will be called repeatedly, if this is a repeatable timer. Function
-   c2_timer_stop() is used to stop the timer, and c2_timer_fini() to destroy
+   m0_timer_stop() is used to stop the timer, and m0_timer_fini() to destroy
    the timer after usage.
 
    User supplied callback function should be small, run and complete quickly.
@@ -53,19 +53,19 @@
      The user-defined callback execution may take longer time and it will
      not impact other timers.
 
-   @note c2_timer_* functions should not be used in the timer callbacks.
+   @note m0_timer_* functions should not be used in the timer callbacks.
    @{
  */
 
-typedef	unsigned long (*c2_timer_callback_t)(unsigned long data);
-struct c2_timer;
+typedef	unsigned long (*m0_timer_callback_t)(unsigned long data);
+struct m0_timer;
 
 /**
    Timer type.
  */
-enum c2_timer_type {
-	C2_TIMER_SOFT,
-	C2_TIMER_HARD
+enum m0_timer_type {
+	M0_TIMER_SOFT,
+	M0_TIMER_HARD
 };
 
 #ifndef __KERNEL__
@@ -78,9 +78,9 @@ enum c2_timer_type {
    Item of threads ID list in locality.
    Used in the implementation of userspace hard timer.
  */
-struct c2_timer_tid {
+struct m0_timer_tid {
 	pid_t		tt_tid;
-	struct c2_tlink tt_linkage;
+	struct m0_tlink tt_linkage;
 	uint64_t	tt_magic;
 };
 
@@ -88,101 +88,101 @@ struct c2_timer_tid {
    Timer locality.
    Used in userspace hard timers.
  */
-struct c2_timer_locality {
+struct m0_timer_locality {
 	/**
 	   Lock for tlo_tids
 	 */
-	struct c2_mutex tlo_lock;
+	struct m0_mutex tlo_lock;
 	/**
 	   List of thread ID's, associated with this locality
 	 */
-	struct c2_tl tlo_tids;
+	struct m0_tl tlo_tids;
 	/**
 	   ThreadID of next thread for round-robin timer thread selection
-	   in c2_timer_attach(). It is pointer to timer_tid structure.
+	   in m0_timer_attach(). It is pointer to timer_tid structure.
 	 */
-	struct c2_timer_tid *tlo_rrtid;
+	struct m0_timer_tid *tlo_rrtid;
 };
 
 /**
    Init the timer data structure.
 
-   @param timer c2_timer structure
-   @param type timer type (C2_TIMER_SOFT or C2_TIMER_HARD)
+   @param timer m0_timer structure
+   @param type timer type (M0_TIMER_SOFT or M0_TIMER_HARD)
    @param expire absolute expiration time for timer. If this time is already
 	  passed, then the timer callback will be executed immediatelly
-	  after c2_timer_start().
+	  after m0_timer_start().
    @param callback this callback will be triggered whem timer alarms.
    @param data data for the callback.
    @pre callback != NULL
    @post timer is not running
  */
-C2_INTERNAL int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
-			      c2_time_t expire,
-			      c2_timer_callback_t callback, unsigned long data);
+M0_INTERNAL int m0_timer_init(struct m0_timer *timer, enum m0_timer_type type,
+			      m0_time_t expire,
+			      m0_timer_callback_t callback, unsigned long data);
 
 /**
    Start a timer.
 
-   @pre c2_timer_init() successfully called.
+   @pre m0_timer_init() successfully called.
    @pre timer is not running
  */
-C2_INTERNAL int c2_timer_start(struct c2_timer *timer);
+M0_INTERNAL int m0_timer_start(struct m0_timer *timer);
 
 /**
    Stop a timer.
 
-   @pre c2_timer_init() successfully called.
+   @pre m0_timer_init() successfully called.
    @pre timer is running
    @post timer is not running
    @post callback isn't running
  */
-C2_INTERNAL int c2_timer_stop(struct c2_timer *timer);
+M0_INTERNAL int m0_timer_stop(struct m0_timer *timer);
 
 /**
    Returns true iff the timer is running.
  */
-C2_INTERNAL bool c2_timer_is_started(const struct c2_timer *timer);
+M0_INTERNAL bool m0_timer_is_started(const struct m0_timer *timer);
 
 /**
    Destroy the timer.
 
-   @pre c2_timer_init() for this timer was succesfully called.
+   @pre m0_timer_init() for this timer was succesfully called.
    @pre timer is not running.
  */
-C2_INTERNAL int c2_timer_fini(struct c2_timer *timer);
+M0_INTERNAL int m0_timer_fini(struct m0_timer *timer);
 
 /**
    Init timer locality.
  */
-C2_INTERNAL void c2_timer_locality_init(struct c2_timer_locality *loc);
+M0_INTERNAL void m0_timer_locality_init(struct m0_timer_locality *loc);
 
 /**
    Fini timer locality.
 
-   @pre c2_timer_locality_init() succesfully called.
+   @pre m0_timer_locality_init() succesfully called.
    @pre locality is empty
  */
-C2_INTERNAL void c2_timer_locality_fini(struct c2_timer_locality *loc);
+M0_INTERNAL void m0_timer_locality_fini(struct m0_timer_locality *loc);
 
 /**
    Add current thread to the list of threads in locality.
 
-   @pre c2_timer_locality_init() successfully called.
+   @pre m0_timer_locality_init() successfully called.
    @pre current thread is not attached to locality.
    @post current thread is attached to locality.
  */
-C2_INTERNAL int c2_timer_thread_attach(struct c2_timer_locality *loc);
+M0_INTERNAL int m0_timer_thread_attach(struct m0_timer_locality *loc);
 
 /**
    Remove current thread from the list of threads in locality.
    Current thread must be in this list.
 
-   @pre c2_timer_locality_init() successfully called.
+   @pre m0_timer_locality_init() successfully called.
    @pre current thread is attached to locality.
    @post current thread is not attached to locality.
  */
-C2_INTERNAL void c2_timer_thread_detach(struct c2_timer_locality *loc);
+M0_INTERNAL void m0_timer_thread_detach(struct m0_timer_locality *loc);
 
 /**
    Attach hard timer to the given locality.
@@ -191,17 +191,17 @@ C2_INTERNAL void c2_timer_thread_detach(struct c2_timer_locality *loc);
    from locality threads list in round-robin fashion.
    Therefore internal POSIX timer will be recreated.
 
-   @pre c2_timer_init() successfully called.
-   @pre c2_timer_locality_init() successfully called.
+   @pre m0_timer_init() successfully called.
+   @pre m0_timer_locality_init() successfully called.
    @pre locality has some threads attached.
-   @pre timer type is C2_TIMER_HARD
+   @pre timer type is M0_TIMER_HARD
    @pre timer is not running.
  */
-C2_INTERNAL int c2_timer_attach(struct c2_timer *timer,
-				struct c2_timer_locality *loc);
+M0_INTERNAL int m0_timer_attach(struct m0_timer *timer,
+				struct m0_timer_locality *loc);
 
 /** @} end of timer group */
-/* __COLIBRI_LIB_TIMER_H__ */
+/* __MERO_LIB_TIMER_H__ */
 #endif
 
 /*

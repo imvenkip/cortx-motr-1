@@ -26,80 +26,80 @@
 #include "lib/ut.h"
 
 MODULE_AUTHOR("Xyratex International");
-MODULE_DESCRIPTION("Colibri Unit Test Module");
+MODULE_DESCRIPTION("Mero Unit Test Module");
 MODULE_LICENSE("proprietary");
 
 /* sort test suites in alphabetic order */
-extern const struct c2_test_suite c2_klibc2_ut; /* test lib first */
-extern const struct c2_test_suite buffer_pool_ut;
-extern const struct c2_test_suite bulkio_client_ut;
-extern const struct c2_test_suite c2_loop_ut;
-extern const struct c2_test_suite c2_net_bulk_if_ut;
-extern const struct c2_test_suite c2_net_bulk_mem_ut;
-extern const struct c2_test_suite c2_net_lnet_ut;
-extern const struct c2_test_suite c2_net_tm_prov_ut;
-extern const struct c2_test_suite conn_ut;
-extern const struct c2_test_suite file_io_ut;
-extern const struct c2_test_suite frm_ut;
-extern const struct c2_test_suite layout_ut;
-extern const struct c2_test_suite packet_encdec_ut;
-extern const struct c2_test_suite rpc_mc_ut;
-extern const struct c2_test_suite rpc_service_ut;
-extern const struct c2_test_suite session_ut;
-extern const struct c2_test_suite sm_ut;
-extern const struct c2_test_suite xcode_ut;
+extern const struct m0_test_suite m0_klibm0_ut; /* test lib first */
+extern const struct m0_test_suite buffer_pool_ut;
+extern const struct m0_test_suite bulkio_client_ut;
+extern const struct m0_test_suite m0_loop_ut;
+extern const struct m0_test_suite m0_net_bulk_if_ut;
+extern const struct m0_test_suite m0_net_bulk_mem_ut;
+extern const struct m0_test_suite m0_net_lnet_ut;
+extern const struct m0_test_suite m0_net_tm_prov_ut;
+extern const struct m0_test_suite conn_ut;
+extern const struct m0_test_suite file_io_ut;
+extern const struct m0_test_suite frm_ut;
+extern const struct m0_test_suite layout_ut;
+extern const struct m0_test_suite packet_encdec_ut;
+extern const struct m0_test_suite rpc_mc_ut;
+extern const struct m0_test_suite rpc_service_ut;
+extern const struct m0_test_suite session_ut;
+extern const struct m0_test_suite sm_ut;
+extern const struct m0_test_suite xcode_ut;
 
-extern const struct c2_test_suite c2_loop_ut; /* c2loop driver */
+extern const struct m0_test_suite m0_loop_ut; /* m0loop driver */
 
-static struct c2_thread ut_thread;
+static struct m0_thread ut_thread;
 
 static void run_kernel_ut(int ignored)
 {
-        printk(KERN_INFO "Colibri Kernel Unit Test\n");
+        printk(KERN_INFO "Mero Kernel Unit Test\n");
 
-	c2_uts_init();
+	m0_uts_init();
 	/* sort test suites in alphabetic order */
-	c2_ut_add(&c2_klibc2_ut);  /* test lib first */
-	c2_ut_add(&file_io_ut);
-	c2_ut_add(&buffer_pool_ut);
-	c2_ut_add(&bulkio_client_ut);
-	c2_ut_add(&c2_loop_ut);
-	c2_ut_add(&c2_net_bulk_if_ut);
-	c2_ut_add(&c2_net_bulk_mem_ut);
-	c2_ut_add(&c2_net_lnet_ut);
-	c2_ut_add(&c2_net_tm_prov_ut);
-	c2_ut_add(&conn_ut);
-	c2_ut_add(&frm_ut);
-	c2_ut_add(&layout_ut);
-	c2_ut_add(&packet_encdec_ut);
-	c2_ut_add(&rpc_mc_ut);
-	c2_ut_add(&rpc_service_ut);
-	c2_ut_add(&session_ut);
-	c2_ut_add(&sm_ut);
-	c2_ut_add(&xcode_ut);
+	m0_ut_add(&m0_klibm0_ut);  /* test lib first */
+	m0_ut_add(&file_io_ut);
+	m0_ut_add(&buffer_pool_ut);
+	m0_ut_add(&bulkio_client_ut);
+	m0_ut_add(&m0_loop_ut);
+	m0_ut_add(&m0_net_bulk_if_ut);
+	m0_ut_add(&m0_net_bulk_mem_ut);
+	m0_ut_add(&m0_net_lnet_ut);
+	m0_ut_add(&m0_net_tm_prov_ut);
+	m0_ut_add(&conn_ut);
+	m0_ut_add(&frm_ut);
+	m0_ut_add(&layout_ut);
+	m0_ut_add(&packet_encdec_ut);
+	m0_ut_add(&rpc_mc_ut);
+	m0_ut_add(&rpc_service_ut);
+	m0_ut_add(&session_ut);
+	m0_ut_add(&sm_ut);
+	m0_ut_add(&xcode_ut);
 
-	c2_ut_run();
-	c2_uts_fini();
+	m0_ut_run();
+	m0_uts_fini();
 }
 
-static int __init c2_ut_module_init(void)
+static int __init m0_ut_module_init(void)
 {
 	int rc;
 
-	rc = C2_THREAD_INIT(&ut_thread, int, NULL,
+	rc = M0_THREAD_INIT(&ut_thread, int, NULL,
 		            &run_kernel_ut, 0, "run_kernel_ut");
-	C2_ASSERT(rc == 0);
+	M0_ASSERT(rc == 0);
 
 	return rc;
 }
 
-static void __exit c2_ut_module_fini(void)
+static void __exit m0_ut_module_fini(void)
 {
-	c2_thread_join(&ut_thread);
+	m0_thread_join(&ut_thread);
 }
 
-module_init(c2_ut_module_init)
-module_exit(c2_ut_module_fini)
+module_init(m0_ut_module_init)
+module_exit(m0_ut_module_fini)
 
 /*
  *  Local variables:

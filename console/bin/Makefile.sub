@@ -1,1 +1,1 @@
-console_bin_c2console_SOURCES  = console/console.c
+console_bin_m0console_SOURCES  = console/console.c

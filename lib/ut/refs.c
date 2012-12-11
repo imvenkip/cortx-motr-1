@@ -23,18 +23,18 @@
 #include "lib/refs.h"
 
 struct test_struct {
-	struct c2_ref	ref;
+	struct m0_ref	ref;
 };
 
 static int free_done;
 
-void test_destructor(struct c2_ref *r)
+void test_destructor(struct m0_ref *r)
 {
 	struct test_struct *t;
 
 	t = container_of(r, struct test_struct, ref);
 
-	c2_free(t);
+	m0_free(t);
 	free_done = 1;
 }
 
@@ -42,18 +42,18 @@ void test_refs(void)
 {
 	struct test_struct *t;
 
-	t = c2_alloc(sizeof(struct test_struct));
-	C2_UT_ASSERT(t != NULL);
+	t = m0_alloc(sizeof(struct test_struct));
+	M0_UT_ASSERT(t != NULL);
 
 	free_done = 0;
-	c2_ref_init(&t->ref, 1, test_destructor);
+	m0_ref_init(&t->ref, 1, test_destructor);
 
-	C2_UT_ASSERT(c2_ref_read(&t->ref) == 1);
-	c2_ref_get(&t->ref);
-	C2_UT_ASSERT(c2_ref_read(&t->ref) == 2);
-	c2_ref_put(&t->ref);
-	C2_UT_ASSERT(c2_ref_read(&t->ref) == 1);
-	c2_ref_put(&t->ref);
+	M0_UT_ASSERT(m0_ref_read(&t->ref) == 1);
+	m0_ref_get(&t->ref);
+	M0_UT_ASSERT(m0_ref_read(&t->ref) == 2);
+	m0_ref_put(&t->ref);
+	M0_UT_ASSERT(m0_ref_read(&t->ref) == 1);
+	m0_ref_put(&t->ref);
 
-	C2_UT_ASSERT(free_done);
+	M0_UT_ASSERT(free_done);
 }

@@ -20,8 +20,8 @@
  */
 
 #include "lib/time.h"
-#include "lib/assert.h"  /* C2_CASSERT */
-#include "lib/cdefs.h"   /* C2_EXPORTED */
+#include "lib/assert.h"  /* M0_CASSERT */
+#include "lib/cdefs.h"   /* M0_EXPORTED */
 #include <linux/module.h>
 #include <linux/time.h>
 #include <linux/jiffies.h>
@@ -30,31 +30,31 @@
 /**
    @addtogroup time
 
-   <b>Implementation of c2_time_t on top of kernel struct timespec
+   <b>Implementation of m0_time_t on top of kernel struct timespec
 
    @{
 */
 
-C2_INTERNAL c2_time_t c2_time_now(void)
+M0_INTERNAL m0_time_t m0_time_now(void)
 {
 	struct timespec ts;
-	c2_time_t	t;
+	m0_time_t	t;
 
 	ts = current_kernel_time();
-	c2_time_set(&t, ts.tv_sec,  ts.tv_nsec);
+	m0_time_set(&t, ts.tv_sec,  ts.tv_nsec);
 
 	return t;
 }
-C2_EXPORTED(c2_time_now);
+M0_EXPORTED(m0_time_now);
 
 /**
    Sleep for requested time
 */
-C2_INTERNAL int c2_nanosleep(const c2_time_t req, c2_time_t * rem)
+M0_INTERNAL int m0_nanosleep(const m0_time_t req, m0_time_t * rem)
 {
 	struct timespec ts = {
-			.tv_sec  = c2_time_seconds(req),
-			.tv_nsec = c2_time_nanoseconds(req)
+			.tv_sec  = m0_time_seconds(req),
+			.tv_nsec = m0_time_nanoseconds(req)
 		};
 	int rc = 0;
 	unsigned long tj = timespec_to_jiffies(&ts);
@@ -64,7 +64,7 @@ C2_INTERNAL int c2_nanosleep(const c2_time_t req, c2_time_t * rem)
         schedule_timeout(tj);
 	return rc;
 }
-C2_EXPORTED(c2_nanosleep);
+M0_EXPORTED(m0_nanosleep);
 
 /** @} end of time group */
 

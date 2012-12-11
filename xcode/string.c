@@ -33,10 +33,10 @@
  */
 
 /* xcode.c */
-extern ssize_t xcode_alloc(struct c2_xcode_cursor *it,
-			   void *(*alloc)(struct c2_xcode_cursor *, size_t));
+extern ssize_t xcode_alloc(struct m0_xcode_cursor *it,
+			   void *(*alloc)(struct m0_xcode_cursor *, size_t));
 
-C2_INTERNAL const const char *space_skip(const char *str)
+M0_INTERNAL const const char *space_skip(const char *str)
 {
 	static const char space[] = " \t\v\n\r";
 
@@ -45,37 +45,37 @@ C2_INTERNAL const const char *space_skip(const char *str)
 	return str;
 }
 
-static int string_literal(struct c2_xcode_obj *obj, const char *str)
+static int string_literal(struct m0_xcode_obj *obj, const char *str)
 {
 	uint64_t                    len;
 	const char                 *eol;
 	char                       *mem;
-	const struct c2_xcode_type *count_type;
+	const struct m0_xcode_type *count_type;
 
 	count_type = obj->xo_type->xct_child[0].xf_type;
-	if (count_type == &C2_XT_VOID) {
+	if (count_type == &M0_XT_VOID) {
 		/* fixed length string */
-		len = c2_xcode_tag(obj);
+		len = m0_xcode_tag(obj);
 	} else {
 		eol = strchr(str, '"');
 		if (eol == NULL)
 			return -EPROTO;
 		len = eol - str;
 		switch (count_type->xct_atype) {
-		case C2_XAT_U8:
-			*C2_XCODE_VAL(obj, 0, 0, uint8_t) = (uint8_t)len;
+		case M0_XAT_U8:
+			*M0_XCODE_VAL(obj, 0, 0, uint8_t) = (uint8_t)len;
 			break;
-		case C2_XAT_U32:
-			*C2_XCODE_VAL(obj, 0, 0, uint32_t) = (uint32_t)len;
+		case M0_XAT_U32:
+			*M0_XCODE_VAL(obj, 0, 0, uint32_t) = (uint32_t)len;
 			break;
-		case C2_XAT_U64:
-			*C2_XCODE_VAL(obj, 0, 0, uint64_t) = (uint64_t)len;
+		case M0_XAT_U64:
+			*M0_XCODE_VAL(obj, 0, 0, uint64_t) = (uint64_t)len;
 			break;
 		default:
-			C2_IMPOSSIBLE("Invalid counter type.");
+			M0_IMPOSSIBLE("Invalid counter type.");
 		}
 	}
-	*(void **)c2_xcode_addr(obj, 1, ~0ULL) = mem = c2_alloc(len);
+	*(void **)m0_xcode_addr(obj, 1, ~0ULL) = mem = m0_alloc(len);
 	if (mem != NULL) {
 		memcpy(mem, str, len);
 		return len;
@@ -97,59 +97,59 @@ static int char_check(const char **str, char ch)
 	return result;
 }
 
-C2_INTERNAL int c2_xcode_read(struct c2_xcode_obj *obj, const char *str)
+M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 {
-	struct c2_xcode_cursor it;
+	struct m0_xcode_cursor it;
 	int                    result;
 
-	static const char structure[C2_XA_NR][C2_XCODE_CURSOR_NR] = {
+	static const char structure[M0_XA_NR][M0_XCODE_CURSOR_NR] = {
 		               /* NONE  PRE   IN POST */
-		[C2_XA_RECORD]   = { 0, '(',   0, ')' },
-		[C2_XA_UNION]    = { 0, '{',   0, '}' },
-		[C2_XA_SEQUENCE] = { 0, '[',   0, ']' },
-		[C2_XA_TYPEDEF]  = { 0,   0,   0,   0 },
-		[C2_XA_OPAQUE]   = { 0,   0,   0,   0 },
-		[C2_XA_ATOM]     = { 0,   0,   0,   0 }
+		[M0_XA_RECORD]   = { 0, '(',   0, ')' },
+		[M0_XA_UNION]    = { 0, '{',   0, '}' },
+		[M0_XA_SEQUENCE] = { 0, '[',   0, ']' },
+		[M0_XA_TYPEDEF]  = { 0,   0,   0,   0 },
+		[M0_XA_OPAQUE]   = { 0,   0,   0,   0 },
+		[M0_XA_ATOM]     = { 0,   0,   0,   0 }
 	};
-	static const char punctuation[C2_XA_NR][3] = {
+	static const char punctuation[M0_XA_NR][3] = {
 		                /* 1st  2nd later */
-		[C2_XA_RECORD]   = { 0, ',', ',' },
-		[C2_XA_UNION]    = { 0, '|',  0  },
-		[C2_XA_SEQUENCE] = { 0, ':', ',' },
-		[C2_XA_TYPEDEF]  = { 0,  0,   0  },
-		[C2_XA_OPAQUE]   = { 0,  0,   0  },
-		[C2_XA_ATOM]     = { 0,  0,   0  }
+		[M0_XA_RECORD]   = { 0, ',', ',' },
+		[M0_XA_UNION]    = { 0, '|',  0  },
+		[M0_XA_SEQUENCE] = { 0, ':', ',' },
+		[M0_XA_TYPEDEF]  = { 0,  0,   0  },
+		[M0_XA_OPAQUE]   = { 0,  0,   0  },
+		[M0_XA_ATOM]     = { 0,  0,   0  }
 	};
-	static const char *fmt[C2_XAT_NR] = {
-		[C2_XAT_VOID] = " %0c %n",
-		[C2_XAT_U8]   = " %u %n",
-		[C2_XAT_U32]  = " %u %n",
-		[C2_XAT_U64]  = " %li %n"
+	static const char *fmt[M0_XAT_NR] = {
+		[M0_XAT_VOID] = " %0c %n",
+		[M0_XAT_U8]   = " %u %n",
+		[M0_XAT_U32]  = " %u %n",
+		[M0_XAT_U64]  = " %li %n"
 	};
 
 	/* check that formats above are valid. */
-	C2_CASSERT(sizeof(uint64_t) == sizeof(unsigned long));
-	C2_CASSERT(sizeof(uint32_t) == sizeof(unsigned));
+	M0_CASSERT(sizeof(uint64_t) == sizeof(unsigned long));
+	M0_CASSERT(sizeof(uint32_t) == sizeof(unsigned));
 
-	c2_xcode_cursor_init(&it, obj);
+	m0_xcode_cursor_init(&it, obj);
 
-	while ((result = c2_xcode_next(&it)) > 0) {
-		struct c2_xcode_cursor_frame *top  = c2_xcode_cursor_top(&it);
-		struct c2_xcode_obj          *cur  = &top->s_obj;
-		enum c2_xcode_cursor_flag     flag = top->s_flag;
-		const struct c2_xcode_type   *xt   = cur->xo_type;
-		enum c2_xcode_aggr            aggr = xt->xct_aggr;
+	while ((result = m0_xcode_next(&it)) > 0) {
+		struct m0_xcode_cursor_frame *top  = m0_xcode_cursor_top(&it);
+		struct m0_xcode_obj          *cur  = &top->s_obj;
+		enum m0_xcode_cursor_flag     flag = top->s_flag;
+		const struct m0_xcode_type   *xt   = cur->xo_type;
+		enum m0_xcode_aggr            aggr = xt->xct_aggr;
 		char                          ch;
 
 		str = space_skip(str);
-		if (flag == C2_XCODE_CURSOR_PRE) {
-			result = xcode_alloc(&it, c2_xcode_alloc);
+		if (flag == M0_XCODE_CURSOR_PRE) {
+			result = xcode_alloc(&it, m0_xcode_alloc);
 			if (result != 0)
 				return result;
 			if (it.xcu_depth > 0) {
 				int                           order;
-				enum c2_xcode_aggr            par;
-				struct c2_xcode_cursor_frame *pre = top - 1;
+				enum m0_xcode_aggr            par;
+				struct m0_xcode_cursor_frame *pre = top - 1;
 
 				order = min64(pre->s_datum++,
 					      ARRAY_SIZE(punctuation[0]) - 1);
@@ -159,15 +159,15 @@ C2_INTERNAL int c2_xcode_read(struct c2_xcode_obj *obj, const char *str)
 				if (result != 0)
 					return result;
 			}
-			if (xt->xct_aggr == C2_XA_SEQUENCE &&
-			    xt->xct_child[1].xf_type == &C2_XT_U8 &&
+			if (xt->xct_aggr == M0_XA_SEQUENCE &&
+			    xt->xct_child[1].xf_type == &M0_XT_U8 &&
 			    *str == '"') {
 				/* string literal */
 				result = string_literal(cur, ++str);
 				if (result < 0)
 					return result;
 				str += result + 1;
-				c2_xcode_skip(&it);
+				m0_xcode_skip(&it);
 				continue;
 			}
 		}
@@ -175,7 +175,7 @@ C2_INTERNAL int c2_xcode_read(struct c2_xcode_obj *obj, const char *str)
 		result = char_check(&str, structure[aggr][flag]);
 		if (result != 0)
 			return result;
-		if (flag == C2_XCODE_CURSOR_PRE && aggr == C2_XA_ATOM) {
+		if (flag == M0_XCODE_CURSOR_PRE && aggr == M0_XA_ATOM) {
 			int nob;
 			int nr;
 

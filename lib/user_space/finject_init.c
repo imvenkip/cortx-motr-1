@@ -26,23 +26,23 @@
 #include <stdlib.h>        /* random */
 #include <unistd.h>        /* getpid */
 
-#include "lib/mutex.h"     /* c2_mutex */
-#include "lib/time.h"      /* c2_time_now */
+#include "lib/mutex.h"     /* m0_mutex */
+#include "lib/time.h"      /* m0_time_now */
 #include "lib/finject.h"
 #include "lib/finject_internal.h"
 
 
-C2_INTERNAL int c2_fi_init(void)
+M0_INTERNAL int m0_fi_init(void)
 {
 	unsigned int random_seed;
 
-	c2_mutex_init(&fi_states_mutex);
+	m0_mutex_init(&fi_states_mutex);
 
 	/*
-	 * Initialize pseudo random generator, which is used in C2_FI_RANDOM
+	 * Initialize pseudo random generator, which is used in M0_FI_RANDOM
 	 * triggering algorithm
 	 */
-	random_seed = c2_time_now() ^ getpid();
+	random_seed = m0_time_now() ^ getpid();
 	srandom(random_seed);
 
 	fi_states_init();
@@ -50,12 +50,12 @@ C2_INTERNAL int c2_fi_init(void)
 	return 0;
 }
 
-C2_INTERNAL void fi_states_fini(void);
+M0_INTERNAL void fi_states_fini(void);
 
-C2_INTERNAL void c2_fi_fini(void)
+M0_INTERNAL void m0_fi_fini(void)
 {
 	fi_states_fini();
-	c2_mutex_fini(&fi_states_mutex);
+	m0_mutex_fini(&fi_states_mutex);
 }
 
 enum {
@@ -65,27 +65,27 @@ enum {
 /**
  * Returns random value in range [0..FI_RAND_PROB_SCALE]
  */
-C2_INTERNAL uint32_t fi_random(void)
+M0_INTERNAL uint32_t fi_random(void)
 {
 	return (double)random() / RAND_MAX * FI_RAND_PROB_SCALE;
 }
 
-C2_INTERNAL void c2_fi_print_info(void)
+M0_INTERNAL void m0_fi_print_info(void)
 {
 	int i;
 
-	const struct c2_fi_fpoint_state *state;
-	struct c2_fi_fpoint_state_info   si;
+	const struct m0_fi_fpoint_state *state;
+	struct m0_fi_fpoint_state_info   si;
 
-	printf("%s", c2_fi_states_headline[0]);
-	printf("%s", c2_fi_states_headline[1]);
+	printf("%s", m0_fi_states_headline[0]);
+	printf("%s", m0_fi_states_headline[1]);
 
-	for (i = 0; i < c2_fi_states_get_free_idx(); ++i) {
+	for (i = 0; i < m0_fi_states_get_free_idx(); ++i) {
 
-		state = &c2_fi_states_get()[i];
-		c2_fi_states_get_state_info(state, &si);
+		state = &m0_fi_states_get()[i];
+		m0_fi_states_get_state_info(state, &si);
 
-		printf(c2_fi_states_print_format,
+		printf(m0_fi_states_print_format,
 			si.si_idx, si.si_enb, si.si_total_hit_cnt,
 			si.si_total_trigger_cnt, si.si_hit_cnt,
 			si.si_trigger_cnt, si.si_type, si.si_data, si.si_module,
@@ -97,16 +97,16 @@ C2_INTERNAL void c2_fi_print_info(void)
 
 #else /* ENABLE_FAULT_INJECTION */
 
-C2_INTERNAL int c2_fi_init(void)
+M0_INTERNAL int m0_fi_init(void)
 {
 	return 0;
 }
 
-C2_INTERNAL void c2_fi_fini(void)
+M0_INTERNAL void m0_fi_fini(void)
 {
 }
 
-C2_INTERNAL void c2_fi_print_info(void)
+M0_INTERNAL void m0_fi_print_info(void)
 {
 	fprintf(stderr, "Fault injection is not available, because it was"
 			" disabled during build\n");

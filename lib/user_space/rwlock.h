@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_USER_SPACE_RWLOCK_H__
-#define __COLIBRI_LIB_USER_SPACE_RWLOCK_H__
+#ifndef __MERO_LIB_USER_SPACE_RWLOCK_H__
+#define __MERO_LIB_USER_SPACE_RWLOCK_H__
 
 
 /**
@@ -35,13 +35,13 @@
 /**
    Blocking read-write lock.
  */
-struct c2_rwlock {
+struct m0_rwlock {
         pthread_rwlock_t rw_lock;
 };
 
 /** @} end of rwlock group */
 
-/* __COLIBRI_LIB_USER_SPACE_RWLOCK_H__ */
+/* __MERO_LIB_USER_SPACE_RWLOCK_H__ */
 #endif
 
 /*

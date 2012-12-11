@@ -22,7 +22,7 @@
 #include <stdarg.h>
 
 #include "lib/arith.h"  /* max_check */
-#include "lib/memory.h" /*c2_alloc/c2_free */
+#include "lib/memory.h" /*m0_alloc/m0_free */
 #include "lib/errno.h"  /* errno */
 #include "lib/misc.h"
 #include "lib/rwlock.h"
@@ -42,8 +42,8 @@
 /*
  * This can be changed.
  */
-enum c2_addb_ev_level	c2_addb_level_default	      = AEL_NOTE;
-enum c2_addb_ev_level	c2_addb_level_default_console = AEL_WARN;
+enum m0_addb_ev_level	m0_addb_level_default	      = AEL_NOTE;
+enum m0_addb_ev_level	m0_addb_level_default_console = AEL_WARN;
 
 /**
    ADDB record store type.
@@ -52,293 +52,293 @@ enum c2_addb_ev_level	c2_addb_level_default_console = AEL_WARN;
    as network; while for servers, we may configure it to store record into stob.
    Along with this variable, corresponding parameter should be configured below.
 */
-static enum c2_addb_rec_store_type c2_addb_store_type  = C2_ADDB_REC_STORE_NONE;
-static struct c2_stob             *c2_addb_store_stob     = NULL;
-static struct c2_dtx              *c2_addb_store_stob_tx  = NULL;
-static struct c2_table            *c2_addb_store_table    = NULL;
-static struct c2_dbenv            *c2_addb_store_db_env   = NULL;
-static struct c2_net_conn         *c2_addb_store_net_conn = NULL;
+static enum m0_addb_rec_store_type m0_addb_store_type  = M0_ADDB_REC_STORE_NONE;
+static struct m0_stob             *m0_addb_store_stob     = NULL;
+static struct m0_dtx              *m0_addb_store_stob_tx  = NULL;
+static struct m0_table            *m0_addb_store_table    = NULL;
+static struct m0_dbenv            *m0_addb_store_db_env   = NULL;
+static struct m0_net_conn         *m0_addb_store_net_conn = NULL;
 
-static c2_addb_stob_add_t c2_addb_stob_add_p = NULL;
-static c2_addb_db_add_t   c2_addb_db_add_p   = NULL;
-static c2_addb_net_add_t  c2_addb_net_add_p  = NULL;
+static m0_addb_stob_add_t m0_addb_stob_add_p = NULL;
+static m0_addb_db_add_t   m0_addb_db_add_p   = NULL;
+static m0_addb_net_add_t  m0_addb_net_add_p  = NULL;
 
 enum {
 	ADDB_CUSTOM_MSG_SIZE = 256,
 };
 
-C2_INTERNAL int c2_addb_init(void)
+M0_INTERNAL int m0_addb_init(void)
 {
 	return 0;
 }
 
-C2_INTERNAL void c2_addb_fini(void)
+M0_INTERNAL void m0_addb_fini(void)
 {
 }
 
 /**
    Choose default addb event level, return the original level.
 */
-enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level)
+enum m0_addb_ev_level m0_addb_choose_default_level(enum m0_addb_ev_level level)
 {
-	enum c2_addb_ev_level orig = c2_addb_level_default;
+	enum m0_addb_ev_level orig = m0_addb_level_default;
 
-	C2_ASSERT(AEL_NONE <= level && level <= AEL_MAX);
+	M0_ASSERT(AEL_NONE <= level && level <= AEL_MAX);
 
-	c2_addb_level_default = level;
+	m0_addb_level_default = level;
 	return orig;
 }
-C2_EXPORTED(c2_addb_choose_default_level);
+M0_EXPORTED(m0_addb_choose_default_level);
 
 /**
    Choose default addb event level for displaying output on the console,
    return the original level.
 */
-C2_INTERNAL enum c2_addb_ev_level
-c2_addb_choose_default_level_console(enum c2_addb_ev_level level)
+M0_INTERNAL enum m0_addb_ev_level
+m0_addb_choose_default_level_console(enum m0_addb_ev_level level)
 {
-	enum c2_addb_ev_level orig = c2_addb_level_default_console;
+	enum m0_addb_ev_level orig = m0_addb_level_default_console;
 
-	C2_ASSERT(AEL_NONE <= level && level <= AEL_MAX);
+	M0_ASSERT(AEL_NONE <= level && level <= AEL_MAX);
 
-	c2_addb_level_default_console = level;
+	m0_addb_level_default_console = level;
 	return orig;
 }
 
-C2_INTERNAL void c2_addb_ctx_init(struct c2_addb_ctx *ctx,
-				  const struct c2_addb_ctx_type *t,
-				  struct c2_addb_ctx *parent)
+M0_INTERNAL void m0_addb_ctx_init(struct m0_addb_ctx *ctx,
+				  const struct m0_addb_ctx_type *t,
+				  struct m0_addb_ctx *parent)
 {
 	ctx->ac_type = t;
 	ctx->ac_parent = parent;
 }
 
-C2_INTERNAL void c2_addb_ctx_fini(struct c2_addb_ctx *ctx)
+M0_INTERNAL void m0_addb_ctx_fini(struct m0_addb_ctx *ctx)
 {
 }
 
 /* defined in {,linux_kernel/}addb_console.c */
-C2_INTERNAL void c2_addb_console(enum c2_addb_ev_level lev,
-				 struct c2_addb_dp *dp);
+M0_INTERNAL void m0_addb_console(enum m0_addb_ev_level lev,
+				 struct m0_addb_dp *dp);
 
-C2_INTERNAL void c2_addb_add(struct c2_addb_dp *dp)
+M0_INTERNAL void m0_addb_add(struct m0_addb_dp *dp)
 {
-	enum c2_addb_ev_level     lev;
-	const struct c2_addb_ev  *ev;
+	enum m0_addb_ev_level     lev;
+	const struct m0_addb_ev  *ev;
 
 	ev  = dp->ad_ev;
 	lev = max_check(dp->ad_level, max_check(ev->ae_level,
 						ev->ae_ops->aeo_level));
 	/* log high priority data points to the console */
-	if (lev > c2_addb_level_default_console)
-		c2_addb_console(lev, dp);
+	if (lev > m0_addb_level_default_console)
+		m0_addb_console(lev, dp);
 
-	switch (c2_addb_store_type) {
-	case C2_ADDB_REC_STORE_STOB:
-		C2_ASSERT(c2_addb_store_stob != NULL);
-		C2_ASSERT(c2_addb_stob_add_p != NULL);
-		c2_addb_stob_add_p(dp, c2_addb_store_stob_tx,
-				   c2_addb_store_stob);
+	switch (m0_addb_store_type) {
+	case M0_ADDB_REC_STORE_STOB:
+		M0_ASSERT(m0_addb_store_stob != NULL);
+		M0_ASSERT(m0_addb_stob_add_p != NULL);
+		m0_addb_stob_add_p(dp, m0_addb_store_stob_tx,
+				   m0_addb_store_stob);
 		break;
-	case C2_ADDB_REC_STORE_DB:
-		C2_ASSERT(c2_addb_store_table != NULL);
-		C2_ASSERT(c2_addb_db_add_p != NULL);
-		c2_addb_db_add_p(dp, c2_addb_store_db_env, c2_addb_store_table);
+	case M0_ADDB_REC_STORE_DB:
+		M0_ASSERT(m0_addb_store_table != NULL);
+		M0_ASSERT(m0_addb_db_add_p != NULL);
+		m0_addb_db_add_p(dp, m0_addb_store_db_env, m0_addb_store_table);
 		break;
-	case C2_ADDB_REC_STORE_NETWORK:
-		C2_ASSERT(c2_addb_store_net_conn != NULL);
-		C2_ASSERT(c2_addb_net_add_p != NULL);
-		c2_addb_net_add_p(dp, c2_addb_store_net_conn);
+	case M0_ADDB_REC_STORE_NETWORK:
+		M0_ASSERT(m0_addb_store_net_conn != NULL);
+		M0_ASSERT(m0_addb_net_add_p != NULL);
+		m0_addb_net_add_p(dp, m0_addb_store_net_conn);
 		break;
 	default:
-		C2_ASSERT(c2_addb_store_type == C2_ADDB_REC_STORE_NONE);
+		M0_ASSERT(m0_addb_store_type == M0_ADDB_REC_STORE_NONE);
 		break;
 	}
 }
 
-static int subst_name_int(struct c2_addb_dp *dp, const char *name, int rc)
+static int subst_name_int(struct m0_addb_dp *dp, const char *name, int rc)
 {
 	dp->ad_name = name;
 	dp->ad_rc = rc;
 	return 0;
 }
 
-static int subst_name(struct c2_addb_dp *dp, const char *name)
+static int subst_name(struct m0_addb_dp *dp, const char *name)
 {
 	dp->ad_name = name;
 	dp->ad_rc = 0;
 	return 0;
 }
 
-static int subst_int(struct c2_addb_dp *dp, int rc)
+static int subst_int(struct m0_addb_dp *dp, int rc)
 {
 	dp->ad_name = "";
 	dp->ad_rc = rc;
 	return 0;
 }
 
-static int subst_void(struct c2_addb_dp *dp)
+static int subst_void(struct m0_addb_dp *dp)
 {
 	dp->ad_name = "";
 	dp->ad_rc = 0;
 	return 0;
 }
 
-static int subst_uint64_t(struct c2_addb_dp *dp, uint64_t val)
+static int subst_uint64_t(struct m0_addb_dp *dp, uint64_t val)
 {
 	dp->ad_name = "";
 	dp->ad_rc = val;
 	return 0;
 }
 
-const struct c2_addb_ev_ops C2_ADDB_SYSCALL = {
-	.aeo_subst = (c2_addb_ev_subst_t)subst_int,
+const struct m0_addb_ev_ops M0_ADDB_SYSCALL = {
+	.aeo_subst = (m0_addb_ev_subst_t)subst_int,
 	.aeo_size  = sizeof(int32_t),
 	.aeo_name  = "syscall-failure",
 	.aeo_level = AEL_NOTE
 };
 
 /** get size for data point opaque data */
-C2_INTERNAL int c2_addb_func_fail_getsize(struct c2_addb_dp *dp);
+M0_INTERNAL int m0_addb_func_fail_getsize(struct m0_addb_dp *dp);
 
-C2_INTERNAL int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
-				       struct c2_addb_record *rec);
+M0_INTERNAL int m0_addb_func_fail_pack(struct m0_addb_dp *dp,
+				       struct m0_addb_record *rec);
 
-C2_INTERNAL int c2_addb_call_getsize(struct c2_addb_dp *dp);
-C2_INTERNAL int c2_addb_call_pack(struct c2_addb_dp *dp,
-				  struct c2_addb_record *rec);
+M0_INTERNAL int m0_addb_call_getsize(struct m0_addb_dp *dp);
+M0_INTERNAL int m0_addb_call_pack(struct m0_addb_dp *dp,
+				  struct m0_addb_record *rec);
 
-C2_INTERNAL int c2_addb_flag_getsize(struct c2_addb_dp *dp);
-C2_INTERNAL int c2_addb_flag_pack(struct c2_addb_dp *dp,
-				  struct c2_addb_record *rec);
+M0_INTERNAL int m0_addb_flag_getsize(struct m0_addb_dp *dp);
+M0_INTERNAL int m0_addb_flag_pack(struct m0_addb_dp *dp,
+				  struct m0_addb_record *rec);
 
-C2_INTERNAL int c2_addb_inval_getsize(struct c2_addb_dp *dp);
-C2_INTERNAL int c2_addb_inval_pack(struct c2_addb_dp *dp,
-				   struct c2_addb_record *rec);
+M0_INTERNAL int m0_addb_inval_getsize(struct m0_addb_dp *dp);
+M0_INTERNAL int m0_addb_inval_pack(struct m0_addb_dp *dp,
+				   struct m0_addb_record *rec);
 
-C2_INTERNAL int c2_addb_empty_getsize(struct c2_addb_dp *dp);
-C2_INTERNAL int c2_addb_empty_pack(struct c2_addb_dp *dp,
-				   struct c2_addb_record *rec);
+M0_INTERNAL int m0_addb_empty_getsize(struct m0_addb_dp *dp);
+M0_INTERNAL int m0_addb_empty_pack(struct m0_addb_dp *dp,
+				   struct m0_addb_record *rec);
 
-C2_INTERNAL int c2_addb_trace_getsize(struct c2_addb_dp *dp);
+M0_INTERNAL int m0_addb_trace_getsize(struct m0_addb_dp *dp);
 
-C2_INTERNAL int c2_addb_trace_pack(struct c2_addb_dp *dp,
-				   struct c2_addb_record *rec);
+M0_INTERNAL int m0_addb_trace_pack(struct m0_addb_dp *dp,
+				   struct m0_addb_record *rec);
 
-const struct c2_addb_ev_ops C2_ADDB_FUNC_CALL = {
-	.aeo_subst   = (c2_addb_ev_subst_t)subst_name_int,
-	.aeo_pack    = c2_addb_func_fail_pack,
-	.aeo_getsize = c2_addb_func_fail_getsize,
+const struct m0_addb_ev_ops M0_ADDB_FUNC_CALL = {
+	.aeo_subst   = (m0_addb_ev_subst_t)subst_name_int,
+	.aeo_pack    = m0_addb_func_fail_pack,
+	.aeo_getsize = m0_addb_func_fail_getsize,
 	.aeo_size    = sizeof(int32_t) + sizeof(char *),
 	.aeo_name    = "function-failure",
 	.aeo_level   = AEL_NOTE
 };
 
-const struct c2_addb_ev_ops C2_ADDB_CALL = {
-	.aeo_subst   = (c2_addb_ev_subst_t)subst_int,
-	.aeo_pack    = c2_addb_call_pack,
-	.aeo_getsize = c2_addb_call_getsize,
+const struct m0_addb_ev_ops M0_ADDB_CALL = {
+	.aeo_subst   = (m0_addb_ev_subst_t)subst_int,
+	.aeo_pack    = m0_addb_call_pack,
+	.aeo_getsize = m0_addb_call_getsize,
 	.aeo_size    = sizeof(int32_t),
 	.aeo_name    = "call-failure",
 	.aeo_level   = AEL_NOTE
 };
 
-const struct c2_addb_ev_ops C2_ADDB_STAMP = {
-	.aeo_subst   = (c2_addb_ev_subst_t)subst_void,
+const struct m0_addb_ev_ops M0_ADDB_STAMP = {
+	.aeo_subst   = (m0_addb_ev_subst_t)subst_void,
 /*
 	XXX disabled to avoid recursion. These ops are used by events which are
             defined and generated in network/rpc layer.
 */
-/*	.aeo_pack    = c2_addb_empty_pack,
-	.aeo_getsize = c2_addb_empty_getsize,
+/*	.aeo_pack    = m0_addb_empty_pack,
+	.aeo_getsize = m0_addb_empty_getsize,
 */
 	.aeo_size    = 0,
 	.aeo_name    = "."
 };
 
-const struct c2_addb_ev_ops C2_ADDB_FLAG = {
-	.aeo_subst   = (c2_addb_ev_subst_t)subst_void,
-	.aeo_pack    = c2_addb_flag_pack,
-	.aeo_getsize = c2_addb_flag_getsize,
+const struct m0_addb_ev_ops M0_ADDB_FLAG = {
+	.aeo_subst   = (m0_addb_ev_subst_t)subst_void,
+	.aeo_pack    = m0_addb_flag_pack,
+	.aeo_getsize = m0_addb_flag_getsize,
 	.aeo_size    = sizeof(bool),
 	.aeo_name    = "flag"
 };
 
-const struct c2_addb_ev_ops C2_ADDB_INVAL = {
-	.aeo_subst   = (c2_addb_ev_subst_t)subst_uint64_t,
-	.aeo_pack    = c2_addb_inval_pack,
-	.aeo_getsize = c2_addb_inval_getsize,
+const struct m0_addb_ev_ops M0_ADDB_INVAL = {
+	.aeo_subst   = (m0_addb_ev_subst_t)subst_uint64_t,
+	.aeo_pack    = m0_addb_inval_pack,
+	.aeo_getsize = m0_addb_inval_getsize,
 	.aeo_size    = sizeof(uint64_t),
 	.aeo_name    = "inval"
 };
 
-const struct c2_addb_ev_ops C2_ADDB_TRACE = {
-	.aeo_subst   = (c2_addb_ev_subst_t)subst_name,
-	.aeo_pack    = c2_addb_trace_pack,
-	.aeo_getsize = c2_addb_trace_getsize,
+const struct m0_addb_ev_ops M0_ADDB_TRACE = {
+	.aeo_subst   = (m0_addb_ev_subst_t)subst_name,
+	.aeo_pack    = m0_addb_trace_pack,
+	.aeo_getsize = m0_addb_trace_getsize,
 	.aeo_size    = sizeof(char *),
 	.aeo_name    = "trace",
 	.aeo_level   = AEL_TRACE
 };
 
-C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_oom, "oom", C2_ADDB_EVENT_OOM, C2_ADDB_STAMP);
+M0_ADDB_EV_DEFINE_PUBLIC(m0_addb_oom, "oom", M0_ADDB_EVENT_OOM, M0_ADDB_STAMP);
 
-C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_func_fail, "func-fail",		\
-			 C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+M0_ADDB_EV_DEFINE_PUBLIC(m0_addb_func_fail, "func-fail",		\
+			 M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 
-C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_trace, "trace", C2_ADDB_EVENT_TRACE,	\
-			 C2_ADDB_TRACE);
+M0_ADDB_EV_DEFINE_PUBLIC(m0_addb_trace, "trace", M0_ADDB_EVENT_TRACE,	\
+			 M0_ADDB_TRACE);
 
 
-static const struct c2_addb_ctx_type c2_addb_global_ctx_type = {
+static const struct m0_addb_ctx_type m0_addb_global_ctx_type = {
 	.act_name = "global"
 };
 
-struct c2_addb_ctx c2_addb_global_ctx = {
-	.ac_type   = &c2_addb_global_ctx_type,
+struct m0_addb_ctx m0_addb_global_ctx = {
+	.ac_type   = &m0_addb_global_ctx_type,
 	.ac_parent = NULL
 };
 
-C2_INTERNAL int c2_addb_choose_store_media(enum c2_addb_rec_store_type type,
+M0_INTERNAL int m0_addb_choose_store_media(enum m0_addb_rec_store_type type,
 					   ...)
 {
 	va_list varargs;
 
-	c2_addb_store_type     = C2_ADDB_REC_STORE_NONE;
-	c2_addb_store_stob     = NULL;
-	c2_addb_store_stob_tx  = NULL;
-	c2_addb_store_table    = NULL;
-	c2_addb_store_db_env   = NULL;
-	c2_addb_store_net_conn = NULL;
+	m0_addb_store_type     = M0_ADDB_REC_STORE_NONE;
+	m0_addb_store_stob     = NULL;
+	m0_addb_store_stob_tx  = NULL;
+	m0_addb_store_table    = NULL;
+	m0_addb_store_db_env   = NULL;
+	m0_addb_store_net_conn = NULL;
 
-	c2_addb_stob_add_p = NULL;
-	c2_addb_db_add_p   = NULL;
-	c2_addb_net_add_p  = NULL;
+	m0_addb_stob_add_p = NULL;
+	m0_addb_db_add_p   = NULL;
+	m0_addb_net_add_p  = NULL;
 
         va_start(varargs, type);
 
 	switch (type) {
-	case C2_ADDB_REC_STORE_STOB:
-		c2_addb_store_type    = C2_ADDB_REC_STORE_STOB;
-		c2_addb_stob_add_p    = va_arg(varargs, c2_addb_stob_add_t);
-		c2_addb_store_stob    = va_arg(varargs, struct c2_stob*);
-		c2_addb_store_stob_tx = va_arg(varargs, struct c2_dtx*);
+	case M0_ADDB_REC_STORE_STOB:
+		m0_addb_store_type    = M0_ADDB_REC_STORE_STOB;
+		m0_addb_stob_add_p    = va_arg(varargs, m0_addb_stob_add_t);
+		m0_addb_store_stob    = va_arg(varargs, struct m0_stob*);
+		m0_addb_store_stob_tx = va_arg(varargs, struct m0_dtx*);
 		break;
 
-	case C2_ADDB_REC_STORE_DB:
-		c2_addb_store_type   = C2_ADDB_REC_STORE_DB;
-		c2_addb_db_add_p     = va_arg(varargs, c2_addb_db_add_t);
-		c2_addb_store_table  = va_arg(varargs, struct c2_table*);
-		c2_addb_store_db_env = va_arg(varargs, struct c2_dbenv*);
+	case M0_ADDB_REC_STORE_DB:
+		m0_addb_store_type   = M0_ADDB_REC_STORE_DB;
+		m0_addb_db_add_p     = va_arg(varargs, m0_addb_db_add_t);
+		m0_addb_store_table  = va_arg(varargs, struct m0_table*);
+		m0_addb_store_db_env = va_arg(varargs, struct m0_dbenv*);
 		break;
 
-	case C2_ADDB_REC_STORE_NETWORK:
-		c2_addb_store_type     = C2_ADDB_REC_STORE_NETWORK;
-		c2_addb_net_add_p      = va_arg(varargs, c2_addb_net_add_t);
-		c2_addb_store_net_conn = va_arg(varargs, struct c2_net_conn*);
+	case M0_ADDB_REC_STORE_NETWORK:
+		m0_addb_store_type     = M0_ADDB_REC_STORE_NETWORK;
+		m0_addb_net_add_p      = va_arg(varargs, m0_addb_net_add_t);
+		m0_addb_store_net_conn = va_arg(varargs, struct m0_net_conn*);
 		break;
 	default:
-		C2_ASSERT(c2_addb_store_type == C2_ADDB_REC_STORE_NONE);
+		M0_ASSERT(m0_addb_store_type == M0_ADDB_REC_STORE_NONE);
 	}
 
         va_end(varargs);

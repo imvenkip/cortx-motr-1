@@ -1,2 +1,2 @@
-nobase_colibri_include_HEADERS += capa/capa.h
-colibri_libcolibri_la_SOURCES  += capa/capa.c
+nobase_mero_include_HEADERS += capa/capa.h
+mero_libmero_la_SOURCES  += capa/capa.c

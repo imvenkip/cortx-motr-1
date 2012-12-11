@@ -24,72 +24,72 @@
 #include <stdio.h>	/* vsnprintf */
 #endif
 
-#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/misc.h"   /* M0_SET0 */
 #include "lib/thread.h"
 
 /**
    @addtogroup thread Thread
 
-   Common c2_thread implementation.
+   Common m0_thread implementation.
 
    @{
  */
 
-int c2_thread_init(struct c2_thread *q, int (*init)(void *),
+int m0_thread_init(struct m0_thread *q, int (*init)(void *),
 		   void (*func)(void *), void *arg, const char *name, ...)
 {
 	int     result;
-	char    namebuf[C2_THREAD_NAME_LEN];
+	char    namebuf[M0_THREAD_NAME_LEN];
 	va_list varargs;
 
-	C2_PRE(q->t_func == NULL);
-	C2_PRE(q->t_state == TS_PARKED);
+	M0_PRE(q->t_func == NULL);
+	M0_PRE(q->t_state == TS_PARKED);
 
 	q->t_state = TS_RUNNING;
 	q->t_init  = init;
 	q->t_func  = func;
 	q->t_arg   = arg;
-	c2_semaphore_init(&q->t_wait, 0);
+	m0_semaphore_init(&q->t_wait, 0);
 	va_start(varargs, name);
 	vsnprintf(namebuf, sizeof namebuf, name, varargs);
 	va_end(varargs);
 
-	result = c2_thread_init_impl(q, namebuf);
+	result = m0_thread_init_impl(q, namebuf);
 	if (result == 0 && q->t_init != NULL) {
-		c2_semaphore_down(&q->t_wait);
+		m0_semaphore_down(&q->t_wait);
 		result = q->t_initrc;
 		if (result != 0)
-			c2_thread_join(q);
+			m0_thread_join(q);
 	}
 	if (result != 0)
 		q->t_state = TS_PARKED;
 	return result;
 }
-C2_EXPORTED(c2_thread_init);
+M0_EXPORTED(m0_thread_init);
 
-C2_INTERNAL void *c2_thread_trampoline(void *arg)
+M0_INTERNAL void *m0_thread_trampoline(void *arg)
 {
-	struct c2_thread *t = arg;
+	struct m0_thread *t = arg;
 
-	C2_ASSERT(t->t_state == TS_RUNNING);
-	C2_ASSERT(t->t_initrc == 0);
+	M0_ASSERT(t->t_state == TS_RUNNING);
+	M0_ASSERT(t->t_initrc == 0);
 
 	if (t->t_init != NULL) {
 		t->t_initrc = t->t_init(t->t_arg);
-		c2_semaphore_up(&t->t_wait);
+		m0_semaphore_up(&t->t_wait);
 	}
 	if (t->t_initrc == 0)
 		t->t_func(t->t_arg);
 	return NULL;
 }
 
-void c2_thread_fini(struct c2_thread *q)
+void m0_thread_fini(struct m0_thread *q)
 {
-	C2_PRE(q->t_state == TS_PARKED);
-	c2_semaphore_fini(&q->t_wait);
-	C2_SET0(q);
+	M0_PRE(q->t_state == TS_PARKED);
+	m0_semaphore_fini(&q->t_wait);
+	M0_SET0(q);
 }
-C2_EXPORTED(c2_thread_fini);
+M0_EXPORTED(m0_thread_fini);
 
 /** @} end of thread group */
 

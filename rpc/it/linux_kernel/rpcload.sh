@@ -1,6 +1,6 @@
 #! /bin/sh
 
-MODLIST="build_kernel_modules/kcolibri.ko"
+MODLIST="build_kernel_modules/m0mero.ko"
 
 abort()
 {

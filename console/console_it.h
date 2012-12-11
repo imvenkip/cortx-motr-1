@@ -20,14 +20,14 @@
 
 #pragma once
 
-#ifndef __COLIBRI_CONSOLE_IT_H__
-#define __COLIBRI_CONSOLE_IT_H__
+#ifndef __MERO_CONSOLE_IT_H__
+#define __MERO_CONSOLE_IT_H__
 
 #ifdef HAVE_CONFIG_H
 #  include "config.h"
 #endif
 
-#include "fop/fop.h" /* c2_fop_field_type */
+#include "fop/fop.h" /* m0_fop_field_type */
 #include "xcode/xcode.h"
 
 /**
@@ -35,23 +35,23 @@
    @{
  */
 
-enum c2_cons_data_process_type {
+enum m0_cons_data_process_type {
 	CONS_IT_INPUT,
 	CONS_IT_OUTPUT,
 	CONS_IT_SHOW
 };
 
 /**
- * @struct c2_cons_atom_ops
+ * @struct m0_cons_atom_ops
  *
  * @brief operation to get/set values of ATOM type (i.e. CHAR, U64 etc).
  */
-struct c2_cons_atom_ops {
-	void (*catom_val_get)(const struct c2_xcode_type *xct,
+struct m0_cons_atom_ops {
+	void (*catom_val_get)(const struct m0_xcode_type *xct,
 			      const char *name, void *data);
-	void (*catom_val_set)(const struct c2_xcode_type *xct,
+	void (*catom_val_set)(const struct m0_xcode_type *xct,
 			      const char *name, void *data);
-	void (*catom_val_show)(const struct c2_xcode_type *xct,
+	void (*catom_val_show)(const struct m0_xcode_type *xct,
 			       const char *name, void *data);
 };
 
@@ -60,7 +60,7 @@ struct c2_cons_atom_ops {
  *
  * @param fop fop object.
  */
-C2_INTERNAL void c2_cons_fop_fields_show(struct c2_fop *fop);
+M0_INTERNAL void m0_cons_fop_fields_show(struct m0_fop *fop);
 
 /**
  * @brief Iterate over FOP for Input and output.
@@ -68,8 +68,8 @@ C2_INTERNAL void c2_cons_fop_fields_show(struct c2_fop *fop);
  * @param fop Fop object
  * @param type Data processing operation type
  */
-C2_INTERNAL void c2_cons_fop_obj_input_output(struct c2_fop *fop,
-					      enum c2_cons_data_process_type
+M0_INTERNAL void m0_cons_fop_obj_input_output(struct m0_fop *fop,
+					      enum m0_cons_data_process_type
 					      type);
 
 /**
@@ -77,18 +77,18 @@ C2_INTERNAL void c2_cons_fop_obj_input_output(struct c2_fop *fop,
  *
  * @param fop fop object.
  */
-C2_INTERNAL void c2_cons_fop_obj_input(struct c2_fop *fop);
+M0_INTERNAL void m0_cons_fop_obj_input(struct m0_fop *fop);
 
 /**
  * @brief Helper function for FOP output.
  *
  * @param fop fop object.
  */
-C2_INTERNAL void c2_cons_fop_obj_output(struct c2_fop *fop);
+M0_INTERNAL void m0_cons_fop_obj_output(struct m0_fop *fop);
 
 /** @} end of console_it */
 
-/* __COLIBRI_CONSOLE_IT_H__ */
+/* __MERO_CONSOLE_IT_H__ */
 #endif
 
 /*

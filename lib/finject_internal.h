@@ -20,31 +20,31 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_FINJECT_INTERNAL_H__
-#define __COLIBRI_LIB_FINJECT_INTERNAL_H__
+#ifndef __MERO_LIB_FINJECT_INTERNAL_H__
+#define __MERO_LIB_FINJECT_INTERNAL_H__
 
-#include "lib/mutex.h"     /* c2_mutex */
+#include "lib/mutex.h"     /* m0_mutex */
 
 /**
  * Set of attributes, which uniquely identifies each fault point.
- * @see c2_fi_fault_point
+ * @see m0_fi_fault_point
  */
-struct c2_fi_fpoint_id {
+struct m0_fi_fpoint_id {
 	/** Name of a function, where FP is declared */
 	const char  *fpi_func;
 	/** Tag - short descriptive name of fault point */
 	const char  *fpi_tag;
 };
 
-struct c2_fi_fpoint_state;
-typedef bool (*fp_state_func_t)(struct c2_fi_fpoint_state *fps);
+struct m0_fi_fpoint_state;
+typedef bool (*fp_state_func_t)(struct m0_fi_fpoint_state *fps);
 
 /**
  * Holds information about state of a fault point.
  */
-struct c2_fi_fpoint_state {
+struct m0_fi_fpoint_state {
 	/** FP identifier */
-	struct c2_fi_fpoint_id    fps_id;
+	struct m0_fi_fpoint_id    fps_id;
 	/**
 	 * State function, which implements a particular "triggering algorithm"
 	 * for each FP type
@@ -54,18 +54,18 @@ struct c2_fi_fpoint_state {
 	 * Input parameters for "triggering algorithm", which control it's
 	 * behavior
 	 */
-	struct c2_fi_fpoint_data  fps_data;
-	/** Back reference to the corresponding c2_fi_fault_point structure */
-	struct c2_fi_fault_point *fps_fp;
+	struct m0_fi_fpoint_data  fps_data;
+	/** Back reference to the corresponding m0_fi_fault_point structure */
+	struct m0_fi_fault_point *fps_fp;
 	/* Mutex, used to keep "state" structure in consistent state */
-	struct c2_mutex           fps_mutex;
+	struct m0_mutex           fps_mutex;
 	/** Counter of how many times (in total) fault point was checked/hit */
 	uint32_t                  fps_total_hit_cnt;
 	/** Counter of how many times (in total) fault point was triggered */
 	uint32_t                  fps_total_trigger_cnt;
 };
 
-struct c2_fi_fpoint_state_info {
+struct m0_fi_fpoint_state_info {
 	uint32_t    si_idx;
 	char        si_enb;
 	uint32_t    si_total_hit_cnt;
@@ -83,9 +83,9 @@ struct c2_fi_fpoint_state_info {
 
 #ifdef ENABLE_FAULT_INJECTION
 
-extern struct c2_mutex  fi_states_mutex;
+extern struct m0_mutex  fi_states_mutex;
 
-static inline bool fi_state_enabled(const struct c2_fi_fpoint_state *state)
+static inline bool fi_state_enabled(const struct m0_fi_fpoint_state *state)
 {
 	/*
 	 * If fps_trigger_func is not set, then FP state is considered to be
@@ -100,52 +100,52 @@ static inline bool fi_state_enabled(const struct c2_fi_fpoint_state *state)
  * The fi_states array is a private data of lib/finject.c and it should not be
  * modified by external code. This function deliberately returns a const pointer
  * to emphasize this. The main purpose of this function is to provide the
- * FP states information to kc2ctl driver, which displays it via debugfs.
+ * FP states information to m0ctl driver, which displays it via debugfs.
  *
  * @return A constant pointer to global fi_states array.
  */
-C2_INTERNAL const struct c2_fi_fpoint_state *c2_fi_states_get(void);
+M0_INTERNAL const struct m0_fi_fpoint_state *m0_fi_states_get(void);
 
 /**
  * A read-only "getter" of global fi_states_free_idx index of fi_states array.
  *
  * @return Current value of fi_states_free_idx variable.
  */
-C2_INTERNAL uint32_t c2_fi_states_get_free_idx(void);
+M0_INTERNAL uint32_t m0_fi_states_get_free_idx(void);
 
 /**
- * Fills c2_fi_fpoint_state_info structure.
+ * Fills m0_fi_fpoint_state_info structure.
  */
-C2_INTERNAL void c2_fi_states_get_state_info(const struct c2_fi_fpoint_state *s,
-					     struct c2_fi_fpoint_state_info
+M0_INTERNAL void m0_fi_states_get_state_info(const struct m0_fi_fpoint_state *s,
+					     struct m0_fi_fpoint_state_info
 					     *si);
 
-extern const char  *c2_fi_states_headline[];
-extern const char   c2_fi_states_print_format[];
+extern const char  *m0_fi_states_headline[];
+extern const char   m0_fi_states_print_format[];
 
 /**
  * Add a dynamically allocated fault point ID string to persistent storage,
- * which will be cleaned during c2_fi_fini() execution.
+ * which will be cleaned during m0_fi_fini() execution.
  *
- * This function aimed to be used together with c2_fi_enable_xxx() functions.
+ * This function aimed to be used together with m0_fi_enable_xxx() functions.
  */
-C2_INTERNAL int c2_fi_add_dyn_id(char *str);
+M0_INTERNAL int m0_fi_add_dyn_id(char *str);
 
 /**
  * Returns the name of fault point type
  */
-C2_INTERNAL const char *c2_fi_fpoint_type_name(enum c2_fi_fpoint_type type);
+M0_INTERNAL const char *m0_fi_fpoint_type_name(enum m0_fi_fpoint_type type);
 
 /**
  * Converts a string into fault point type
  */
-C2_INTERNAL enum c2_fi_fpoint_type c2_fi_fpoint_type_from_str(const char
+M0_INTERNAL enum m0_fi_fpoint_type m0_fi_fpoint_type_from_str(const char
 							      *type_name);
 
-C2_INTERNAL void fi_states_init(void);
-C2_INTERNAL void fi_states_fini(void);
+M0_INTERNAL void fi_states_init(void);
+M0_INTERNAL void fi_states_fini(void);
 
 #endif /* ENABLE_FAULT_INJECTION */
 
-#endif /* __COLIBRI_LIB_FINJECT_INTERNAL_H__ */
+#endif /* __MERO_LIB_FINJECT_INTERNAL_H__ */
 

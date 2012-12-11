@@ -1,4 +1,4 @@
-nobase_colibri_include_HEADERS += stob/ad.h \
+nobase_mero_include_HEADERS += stob/ad.h \
                                   stob/cache.h \
                                   stob/linux_getevents.h \
                                   stob/linux.h \
@@ -6,7 +6,7 @@ nobase_colibri_include_HEADERS += stob/ad.h \
                                   stob/stob.h \
                                   stob/stob_id.h
 
-colibri_libcolibri_la_SOURCES  += \
+mero_libmero_la_SOURCES  += \
                                   stob/ad.c \
                                   stob/cache.c \
                                   stob/linux.c \

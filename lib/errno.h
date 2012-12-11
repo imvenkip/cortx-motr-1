@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_ERRNO_H__
-#define __COLIBRI_LIB_ERRNO_H__
+#ifndef __MERO_LIB_ERRNO_H__
+#define __MERO_LIB_ERRNO_H__
 
 #ifdef __KERNEL__
 #include <linux/errno.h>
@@ -29,7 +29,7 @@
 #include <errno.h>
 #endif
 
-/* __COLIBRI_LIB_ERRNO_H__ */
+/* __MERO_LIB_ERRNO_H__ */
 #endif
 
 /*

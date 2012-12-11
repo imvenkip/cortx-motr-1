@@ -20,17 +20,17 @@
 
 #pragma once
 
-#ifndef __COLIBRI_NET_TEST_STATS_H__
-#define __COLIBRI_NET_TEST_STATS_H__
+#ifndef __MERO_NET_TEST_STATS_H__
+#define __MERO_NET_TEST_STATS_H__
 
-#include "lib/time.h"		/* c2_time_t */
-#include "lib/atomic.h"		/* c2_atomic64 */
-#include "lib/misc.h"		/* C2_SET0 */
+#include "lib/time.h"		/* m0_time_t */
+#include "lib/atomic.h"		/* m0_atomic64 */
+#include "lib/misc.h"		/* M0_SET0 */
 
-#include "net/test/serialize.h"	/* c2_net_test_serialize */
+#include "net/test/serialize.h"	/* m0_net_test_serialize */
 
 #ifndef __KERNEL__
-#include "net/test/user_space/stats_u.h"	/* c2_net_test_stats_avg */
+#include "net/test/user_space/stats_u.h"	/* m0_net_test_stats_avg */
 #endif
 
 /**
@@ -78,17 +78,17 @@
 
 enum {
 	/** NT_TIMES @todo move to lib/magic.h */
-	C2_NET_TEST_TIMESTAMP_MAGIC = 0x53454d49545f544e,
+	M0_NET_TEST_TIMESTAMP_MAGIC = 0x53454d49545f544e,
 };
 
 /**
    This structure is used for statistics calculation and collecting.
    Min and max stored directly in this structure, average and
    standard deviation can be calculated using this structure.
-   When the new value is added to sample, c2_net_test_stats is
+   When the new value is added to sample, m0_net_test_stats is
    updating according to this.
  */
-struct c2_net_test_stats {
+struct m0_net_test_stats {
 	/** sample size */
 	unsigned long	  nts_count;
 	/** min value from sample */
@@ -96,16 +96,16 @@ struct c2_net_test_stats {
 	/** max value from sample */
 	unsigned long	  nts_max;
 	/** sum of all values from sample */
-	struct c2_uint128 nts_sum;
+	struct m0_uint128 nts_sum;
 	/** sum of squares of all values from sample */
-	struct c2_uint128 nts_sum_sqr;
+	struct m0_uint128 nts_sum_sqr;
 };
 
 /**
-   Static initializer for c2_net_test_stats
+   Static initializer for m0_net_test_stats
    @hideinitializer
  */
-#define C2_NET_TEST_STATS_DEFINE(min, max, sum, sum_sqr, count) { \
+#define M0_NET_TEST_STATS_DEFINE(min, max, sum, sum_sqr, count) { \
 	.min = (min), \
 	.max = (max), \
 	.sum = (sum), \
@@ -114,80 +114,80 @@ struct c2_net_test_stats {
 }
 
 /**
-   Reset c2_net_test_stats structure.
-   @post c2_net_test_stats_invariant(stats)
+   Reset m0_net_test_stats structure.
+   @post m0_net_test_stats_invariant(stats)
  */
-void c2_net_test_stats_reset(struct c2_net_test_stats *stats);
+void m0_net_test_stats_reset(struct m0_net_test_stats *stats);
 
 /**
-   Invariant for c2_net_test_stats.
+   Invariant for m0_net_test_stats.
  */
-bool c2_net_test_stats_invariant(const struct c2_net_test_stats *stats);
+bool m0_net_test_stats_invariant(const struct m0_net_test_stats *stats);
 
 /**
    Add value to sample.
-   @pre c2_net_test_stats_invariant(stats)
+   @pre m0_net_test_stats_invariant(stats)
  */
-void c2_net_test_stats_add(struct c2_net_test_stats *stats,
+void m0_net_test_stats_add(struct m0_net_test_stats *stats,
 			   unsigned long value);
 
 /**
    Merge two samples and write result to *stats.
-   Subsequents calls to c2_net_test_stats_FUNC will be the same as
+   Subsequents calls to m0_net_test_stats_FUNC will be the same as
    if all values, which was added to the second sample (stats2),
    would be added to the first sample (stats). Result is stored
    in the first sample structure.
-   @pre c2_net_test_stats_invariant(stats)
-   @pre c2_net_test_stats_invariant(stats2)
+   @pre m0_net_test_stats_invariant(stats)
+   @pre m0_net_test_stats_invariant(stats2)
  */
-void c2_net_test_stats_add_stats(struct c2_net_test_stats *stats,
-				 const struct c2_net_test_stats *stats2);
+void m0_net_test_stats_add_stats(struct m0_net_test_stats *stats,
+				 const struct m0_net_test_stats *stats2);
 
 /**
    Get the smallest value from a given sample.
-   @pre c2_net_test_stats_invariant(stats)
+   @pre m0_net_test_stats_invariant(stats)
  */
-unsigned long c2_net_test_stats_min(const struct c2_net_test_stats *stats);
+unsigned long m0_net_test_stats_min(const struct m0_net_test_stats *stats);
 
 /**
    Get the largest value from a given sample.
-   @pre c2_net_test_stats_invariant(stats)
+   @pre m0_net_test_stats_invariant(stats)
  */
-unsigned long c2_net_test_stats_max(const struct c2_net_test_stats *stats);
+unsigned long m0_net_test_stats_max(const struct m0_net_test_stats *stats);
 
 /**
-   Serialize/deserialize c2_net_test_stats.
-   @see c2_net_test_serialize().
+   Serialize/deserialize m0_net_test_stats.
+   @see m0_net_test_serialize().
  */
-c2_bcount_t c2_net_test_stats_serialize(enum c2_net_test_serialize_op op,
-					struct c2_net_test_stats *stats,
-					struct c2_bufvec *bv,
-					c2_bcount_t bv_offset);
+m0_bcount_t m0_net_test_stats_serialize(enum m0_net_test_serialize_op op,
+					struct m0_net_test_stats *stats,
+					struct m0_bufvec *bv,
+					m0_bcount_t bv_offset);
 
 /**
-   The same as c2_net_test_stats_add(), but using c2_time_t as
+   The same as m0_net_test_stats_add(), but using m0_time_t as
    sample element. Next function can be used after this function to
-   obtain c2_time_t results:
-   - c2_net_test_stats_time_min()
-   - c2_net_test_stats_time_max()
-   - c2_net_test_stats_time_sum()
-   - c2_net_test_stats_time_avg()
-   - c2_net_test_stats_time_stddev()
-   Mixing c2_net_test_stats_add() and c2_net_test_stats_time_add()
+   obtain m0_time_t results:
+   - m0_net_test_stats_time_min()
+   - m0_net_test_stats_time_max()
+   - m0_net_test_stats_time_sum()
+   - m0_net_test_stats_time_avg()
+   - m0_net_test_stats_time_stddev()
+   Mixing m0_net_test_stats_add() and m0_net_test_stats_time_add()
    will lead to undefined behavior.
  */
-void c2_net_test_stats_time_add(struct c2_net_test_stats *stats,
-				c2_time_t time);
+void m0_net_test_stats_time_add(struct m0_net_test_stats *stats,
+				m0_time_t time);
 
 /**
-   @see c2_net_test_stats_time_add()
+   @see m0_net_test_stats_time_add()
  */
-c2_time_t c2_net_test_stats_time_min(struct c2_net_test_stats *stats);
+m0_time_t m0_net_test_stats_time_min(struct m0_net_test_stats *stats);
 
 /**
-   @see c2_net_test_stats_time_add()
+   @see m0_net_test_stats_time_add()
  */
-c2_time_t c2_net_test_stats_time_max(struct c2_net_test_stats *stats);
+m0_time_t m0_net_test_stats_time_max(struct m0_net_test_stats *stats);
 
 /**
    @} end of NetTestStatsDFS group
@@ -197,12 +197,12 @@ c2_time_t c2_net_test_stats_time_max(struct c2_net_test_stats *stats);
    @defgroup NetTestTimestampDFS Timestamp
    @ingroup NetTestDFS
 
-   Used to transmit c2_time_t value in ping/bulk buffers.
-   @see c2_net_test_timestamp_init(), c2_net_test_timestamp_serialize().
+   Used to transmit m0_time_t value in ping/bulk buffers.
+   @see m0_net_test_timestamp_init(), m0_net_test_timestamp_serialize().
  */
-struct c2_net_test_timestamp {
-	/** Current time. Set in c2_net_test_timestamp_init() */
-	c2_time_t ntt_time;
+struct m0_net_test_timestamp {
+	/** Current time. Set in m0_net_test_timestamp_init() */
+	m0_time_t ntt_time;
 	/** Sequence number. */
 	uint64_t  ntt_seq;
 	/** Magic. Checked when deserializing. */
@@ -211,22 +211,22 @@ struct c2_net_test_timestamp {
 
 /**
    Initialize timestamp.
-   Set c2_net_test_timestamp.ntt_time to c2_time_now().
+   Set m0_net_test_timestamp.ntt_time to m0_time_now().
    @param t timestamp structure
    @param seq sequence number
    @pre t != NULL
  */
-void c2_net_test_timestamp_init(struct c2_net_test_timestamp *t, uint64_t seq);
+void m0_net_test_timestamp_init(struct m0_net_test_timestamp *t, uint64_t seq);
 
 /**
    Serialize/deserialize timestamp.
    Deserialize will fail if magic mismatch.
-   @see c2_net_test_serialize().
+   @see m0_net_test_serialize().
  */
-c2_bcount_t c2_net_test_timestamp_serialize(enum c2_net_test_serialize_op op,
-					    struct c2_net_test_timestamp *t,
-					    struct c2_bufvec *bv,
-					    c2_bcount_t bv_offset);
+m0_bcount_t m0_net_test_timestamp_serialize(enum m0_net_test_serialize_op op,
+					    struct m0_net_test_timestamp *t,
+					    struct m0_bufvec *bv,
+					    m0_bcount_t bv_offset);
 
 /**
    @} end of NetTestTimestampDFS group
@@ -243,33 +243,33 @@ c2_bcount_t c2_net_test_timestamp_serialize(enum c2_net_test_serialize_op op,
  */
 
 /** Messages Per Second statistics */
-struct c2_net_test_mps {
+struct m0_net_test_mps {
 	/** Statistics */
-	struct c2_net_test_stats ntmps_stats;
+	struct m0_net_test_stats ntmps_stats;
 	/** Last check number of messages */
 	unsigned long		 ntmps_last_nr;
 	/** Last check time */
-	c2_time_t		 ntmps_last_time;
+	m0_time_t		 ntmps_last_time;
 	/** Time interval to check */
-	c2_time_t		 ntmps_time_interval;
+	m0_time_t		 ntmps_time_interval;
 };
 
 /**
    Initialize MPS statistics.
    @param mps MPS statistics structure.
-   @param messages Next call to c2_net_test_mps_add() will use
+   @param messages Next call to m0_net_test_mps_add() will use
 		   this value as previous value to measure number of messages
 		   transferred in time interval.
    @param timestamp The same as messages, but for time difference.
    @param interval MPS measure interval.
-		   c2_net_test_mps_add() will not add sample
+		   m0_net_test_mps_add() will not add sample
 		   to stats if time from last addition to statistics
 		   is less than interval.
  */
-void c2_net_test_mps_init(struct c2_net_test_mps *mps,
+void m0_net_test_mps_init(struct m0_net_test_mps *mps,
 			  unsigned long messages,
-			  c2_time_t timestamp,
-			  c2_time_t interval);
+			  m0_time_t timestamp,
+			  m0_time_t interval);
 
 /**
    Add sample to the MPS statistics if time interval
@@ -282,9 +282,9 @@ void c2_net_test_mps_init(struct c2_net_test_mps *mps,
    @param timestamp Timestamp of messages value.
    @return Value will not be added to the sample before this time.
  */
-c2_time_t c2_net_test_mps_add(struct c2_net_test_mps *mps,
+m0_time_t m0_net_test_mps_add(struct m0_net_test_mps *mps,
 			      unsigned long messages,
-			      c2_time_t timestamp);
+			      m0_time_t timestamp);
 
 /**
    @} end of NetTestStatsMPSDFS group
@@ -298,7 +298,7 @@ c2_time_t c2_net_test_mps_add(struct c2_net_test_mps *mps,
  */
 
 /** Sent/received test messages number. */
-struct c2_net_test_msg_nr {
+struct m0_net_test_msg_nr {
 	/**
 	 * Total number of test messages.
 	 * Increased after callback executed for the message buffer.
@@ -306,9 +306,9 @@ struct c2_net_test_msg_nr {
 	size_t ntmn_total;
 	/**
 	 * Number of failed (network failures) test messages.
-	 * Increased if c2_net_buffer_add() failed or
-	 * (c2_net_buffer_event.nbe_status != 0 &&
-	 *  c2_net_buffer_event.nbe_status != -ECANCELED)
+	 * Increased if m0_net_buffer_add() failed or
+	 * (m0_net_buffer_event.nbe_status != 0 &&
+	 *  m0_net_buffer_event.nbe_status != -ECANCELED)
 	 * in buffer completion callback.
 	 */
 	size_t ntmn_failed;
@@ -323,22 +323,22 @@ struct c2_net_test_msg_nr {
 /**
    Reset all messages number statistics to 0.
  */
-static inline void c2_net_test_msg_nr_reset(struct c2_net_test_msg_nr *msg_nr)
+static inline void m0_net_test_msg_nr_reset(struct m0_net_test_msg_nr *msg_nr)
 {
-	C2_SET0(msg_nr);
+	M0_SET0(msg_nr);
 }
 
 /**
    Accumulate messages number.
  */
-void c2_net_test_msg_nr_add(struct c2_net_test_msg_nr *msg_nr,
-			    const struct c2_net_test_msg_nr *msg_nr2);
+void m0_net_test_msg_nr_add(struct m0_net_test_msg_nr *msg_nr,
+			    const struct m0_net_test_msg_nr *msg_nr2);
 
 /**
    @} end of NetTestMsgNRDFS group
  */
 
-#endif /*  __COLIBRI_NET_TEST_STATS_H__ */
+#endif /*  __MERO_NET_TEST_STATS_H__ */
 
 /*
  *  Local variables:

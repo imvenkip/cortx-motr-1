@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_USER_X86_64_ATOMIC_H__
-#define __COLIBRI_LIB_USER_X86_64_ATOMIC_H__
+#ifndef __MERO_LIB_USER_X86_64_ATOMIC_H__
+#define __MERO_LIB_USER_X86_64_ATOMIC_H__
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
@@ -35,13 +35,13 @@
    everywhere---no optimisation for non-SMP configurations in present.
  */
 
-struct c2_atomic64 {
+struct m0_atomic64 {
 	long a_value;
 };
 
-static inline void c2_atomic64_set(struct c2_atomic64 *a, int64_t num)
+static inline void m0_atomic64_set(struct m0_atomic64 *a, int64_t num)
 {
-	C2_CASSERT(sizeof a->a_value == sizeof num);
+	M0_CASSERT(sizeof a->a_value == sizeof num);
 
 	a->a_value = num;
 }
@@ -49,7 +49,7 @@ static inline void c2_atomic64_set(struct c2_atomic64 *a, int64_t num)
 /**
    Returns value of an atomic counter.
  */
-static inline int64_t c2_atomic64_get(const struct c2_atomic64 *a)
+static inline int64_t m0_atomic64_get(const struct m0_atomic64 *a)
 {
 	return a->a_value;
 }
@@ -61,7 +61,7 @@ static inline int64_t c2_atomic64_get(const struct c2_atomic64 *a)
 
  @return none
  */
-static inline void c2_atomic64_inc(struct c2_atomic64 *a)
+static inline void m0_atomic64_inc(struct m0_atomic64 *a)
 {
 	asm volatile("lock incq %0"
 		     : "=m" (a->a_value)
@@ -75,7 +75,7 @@ static inline void c2_atomic64_inc(struct c2_atomic64 *a)
 
  @return none
  */
-static inline void c2_atomic64_dec(struct c2_atomic64 *a)
+static inline void m0_atomic64_dec(struct m0_atomic64 *a)
 {
 	asm volatile("lock decq %0"
 		     : "=m" (a->a_value)
@@ -85,7 +85,7 @@ static inline void c2_atomic64_dec(struct c2_atomic64 *a)
 /**
    Atomically adds given amount to a counter
  */
-static inline void c2_atomic64_add(struct c2_atomic64 *a, int64_t num)
+static inline void m0_atomic64_add(struct m0_atomic64 *a, int64_t num)
 {
 	asm volatile("lock addq %1,%0"
 		     : "=m" (a->a_value)
@@ -95,7 +95,7 @@ static inline void c2_atomic64_add(struct c2_atomic64 *a, int64_t num)
 /**
    Atomically subtracts given amount from a counter
  */
-static inline void c2_atomic64_sub(struct c2_atomic64 *a, int64_t num)
+static inline void m0_atomic64_sub(struct m0_atomic64 *a, int64_t num)
 {
 	asm volatile("lock subq %1,%0"
 		     : "=m" (a->a_value)
@@ -110,7 +110,7 @@ static inline void c2_atomic64_sub(struct c2_atomic64 *a, int64_t num)
 
  @return new value of atomic counter
  */
-static inline int64_t c2_atomic64_add_return(struct c2_atomic64 *a,
+static inline int64_t m0_atomic64_add_return(struct m0_atomic64 *a,
 						  int64_t delta)
 {
 	long result;
@@ -129,13 +129,13 @@ static inline int64_t c2_atomic64_add_return(struct c2_atomic64 *a,
 
  @return new value of atomic counter
  */
-static inline int64_t c2_atomic64_sub_return(struct c2_atomic64 *a,
+static inline int64_t m0_atomic64_sub_return(struct m0_atomic64 *a,
 						  int64_t delta)
 {
-	return c2_atomic64_add_return(a, -delta);
+	return m0_atomic64_add_return(a, -delta);
 }
 
-static inline bool c2_atomic64_inc_and_test(struct c2_atomic64 *a)
+static inline bool m0_atomic64_inc_and_test(struct m0_atomic64 *a)
 {
 	unsigned char result;
 
@@ -145,7 +145,7 @@ static inline bool c2_atomic64_inc_and_test(struct c2_atomic64 *a)
 	return result != 0;
 }
 
-static inline bool c2_atomic64_dec_and_test(struct c2_atomic64 *a)
+static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a)
 {
 	unsigned char result;
 
@@ -155,11 +155,11 @@ static inline bool c2_atomic64_dec_and_test(struct c2_atomic64 *a)
 	return result != 0;
 }
 
-static inline bool c2_atomic64_cas(int64_t * loc, int64_t old, int64_t new)
+static inline bool m0_atomic64_cas(int64_t * loc, int64_t old, int64_t new)
 {
 	int64_t val;
 
-	C2_CASSERT(8 == sizeof old);
+	M0_CASSERT(8 == sizeof old);
 
 	asm volatile("lock cmpxchgq %2,%1"
 		     : "=a" (val), "+m" (*(volatile long *)(loc))
@@ -170,7 +170,7 @@ static inline bool c2_atomic64_cas(int64_t * loc, int64_t old, int64_t new)
 
 /** @} end of atomic group */
 
-/* __COLIBRI_LIB_USER_X86_64_ATOMIC_H__ */
+/* __MERO_LIB_USER_X86_64_ATOMIC_H__ */
 #endif
 
 /*

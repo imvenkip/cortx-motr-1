@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_DTM_DTM_H__
-#define __COLIBRI_DTM_DTM_H__
+#ifndef __MERO_DTM_DTM_H__
+#define __MERO_DTM_DTM_H__
 
 #include "db/db.h"
 
@@ -31,48 +31,48 @@
 */
 
 /* export */
-struct c2_dtm;
-struct c2_dtx;
-struct c2_epoch_id;
-struct c2_update_id;
+struct m0_dtm;
+struct m0_dtx;
+struct m0_epoch_id;
+struct m0_update_id;
 
-struct c2_dtm {};
+struct m0_dtm {};
 
-enum c2_dtx_state {
-	C2_DTX_INIT = 1,
-	C2_DTX_OPEN,
-	C2_DTX_DONE,
-	C2_DTX_COMMIT,
-	C2_DTX_STABLE
+enum m0_dtx_state {
+	M0_DTX_INIT = 1,
+	M0_DTX_OPEN,
+	M0_DTX_DONE,
+	M0_DTX_COMMIT,
+	M0_DTX_STABLE
 };
 
-struct c2_dtx {
+struct m0_dtx {
 	/**
 	   @todo placeholder for now.
 	 */
-	enum c2_dtx_state tx_state;
-	struct c2_db_tx   tx_dbtx;
+	enum m0_dtx_state tx_state;
+	struct m0_db_tx   tx_dbtx;
 };
 
-struct c2_update_id {
+struct m0_update_id {
 	uint32_t ui_node;
 	uint64_t ui_update;
 };
 
-enum c2_update_state {
-	C2_US_INVALID,
-	C2_US_VOLATILE,
-	C2_US_PERSISTENT,
-	C2_US_NR
+enum m0_update_state {
+	M0_US_INVALID,
+	M0_US_VOLATILE,
+	M0_US_PERSISTENT,
+	M0_US_NR
 };
 
-C2_INTERNAL void c2_dtx_init(struct c2_dtx *tx);
-C2_INTERNAL int c2_dtx_open(struct c2_dtx *tx, struct c2_dbenv *env);
-C2_INTERNAL void c2_dtx_done(struct c2_dtx *tx);
+M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx);
+M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env);
+M0_INTERNAL void m0_dtx_done(struct m0_dtx *tx);
 
 /** @} end of dtm group */
 
-/* __COLIBRI_DTM_DTM_H__ */
+/* __MERO_DTM_DTM_H__ */
 #endif
 
 /*
