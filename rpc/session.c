@@ -989,12 +989,12 @@ M0_INTERNAL uint64_t uuid_generate(void)
 {
 	static struct m0_atomic64 cnt;
 	uint64_t                  uuid;
-	uint64_t                  sec;
+	uint64_t                  millisec;
 
 	do {
 		m0_atomic64_inc(&cnt);
-		sec = m0_time_nanoseconds(m0_time_now()) * 1000000;
-		uuid = (sec << 10) | (m0_atomic64_get(&cnt) & 0x3FF);
+		millisec = m0_time_nanoseconds(m0_time_now()) * 1000000;
+		uuid = (millisec << 10) | (m0_atomic64_get(&cnt) & 0x3FF);
 	} while (uuid == 0 || uuid == SENDER_ID_INVALID);
 
 	return uuid;
