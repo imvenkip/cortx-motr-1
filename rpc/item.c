@@ -521,20 +521,16 @@ M0_INTERNAL void m0_rpc_item_sm_init(struct m0_rpc_item *item,
 	M0_LOG(M0_DEBUG, "%p UNINITIALISED -> INITIALISED", item);
 	m0_sm_init(&item->ri_sm, conf, M0_RPC_ITEM_INITIALISED,
 		   grp, NULL /* addb ctx */);
+	m0_sm_timeout_init(&item->ri_deadline_to);
+	m0_sm_timeout_init(&item->ri_timeout);
 }
 
 M0_INTERNAL void m0_rpc_item_sm_fini(struct m0_rpc_item *item)
 {
 	M0_PRE(item != NULL);
 
-	/* ri_timeout gets initialised only after item enters in
-	   WAITING_FOR_REPLY state. If item fails before that we shouldn't
-	   try to fini ri_timeout.
-	 */
-	if (item->ri_timeout.st_ast.sa_mach != NULL)
-		m0_sm_timeout_fini(&item->ri_timeout);
-	if (item->ri_deadline_to.st_ast.sa_mach != NULL)
-		m0_sm_timeout_fini(&item->ri_deadline_to);
+	m0_sm_timeout_fini(&item->ri_timeout);
+	m0_sm_timeout_fini(&item->ri_deadline_to);
 
 	m0_sm_fini(&item->ri_sm);
 }
@@ -672,9 +668,9 @@ M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item)
 {
 	if (item->ri_op_timeout != M0_TIME_NEVER) {
 		M0_LOG(M0_DEBUG, "%p Starting timer", item);
-		return m0_sm_timeout(&item->ri_sm, &item->ri_timeout,
-				     item->ri_op_timeout, M0_RPC_ITEM_TIMEDOUT,
-				     0);
+		return m0_sm_timeout_arm(&item->ri_sm, &item->ri_timeout,
+					 item->ri_op_timeout,
+					 M0_RPC_ITEM_TIMEDOUT, 0);
 	}
 	return 0;
 }

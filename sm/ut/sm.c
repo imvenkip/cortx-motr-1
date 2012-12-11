@@ -157,7 +157,7 @@ static void ast_test(void)
 }
 
 /**
-   Unit test for m0_sm_timeout().
+   Unit test for m0_sm_timeout_arm().
 
    @dot
    digraph M {
@@ -229,9 +229,10 @@ static void timeout(void)
 
 	m0_sm_group_lock(&G);
 	m0_sm_init(&m, &conf, S_INITIAL, &G, &actx);
+	m0_sm_timeout_init(&t0);
 
 	/* check that timeout works */
-	result = m0_sm_timeout(&m, &t0, m0_time_from_now(0, delta), S_0, 0);
+	result = m0_sm_timeout_arm(&m, &t0, m0_time_from_now(0, delta), S_0, 0);
 	M0_UT_ASSERT(result == 0);
 
 	result = m0_sm_timedwait(&m, ~(1 << S_INITIAL), M0_TIME_NEVER);
@@ -239,9 +240,10 @@ static void timeout(void)
 	M0_UT_ASSERT(m.sm_state == S_0);
 
 	m0_sm_timeout_fini(&t0);
+	m0_sm_timeout_init(&t1);
 
 	/* check that state transition cancels the timeout */
-	result = m0_sm_timeout(&m, &t1, m0_time_from_now(0, delta), S_1, 0);
+	result = m0_sm_timeout_arm(&m, &t1, m0_time_from_now(0, delta), S_1, 0);
 	M0_UT_ASSERT(result == 0);
 
 	m0_sm_state_set(&m, S_2);
@@ -253,12 +255,13 @@ static void timeout(void)
 	M0_UT_ASSERT(m.sm_state == S_2);
 
 	m0_sm_timeout_fini(&t1);
+	m0_sm_timeout_init(&t1);
 
 	/* check that timeout with a bitmask is not cancelled by a state
 	   transition */
 	m0_sm_state_set(&m, S_0);
-	result = m0_sm_timeout(&m, &t1, m0_time_from_now(0, delta), S_2,
-			       1ULL << S_1);
+	result = m0_sm_timeout_arm(&m, &t1, m0_time_from_now(0, delta), S_2,
+				   1ULL << S_1);
 	M0_UT_ASSERT(result == 0);
 
 	m0_sm_state_set(&m, S_1);
@@ -357,9 +360,10 @@ static void group(void)
 	m0_sm_init(&s.abel, &conf, S_INITIAL, &G, &actx);
 
 	/* check that timeout works */
-	result = m0_sm_timeout(&s.cain, &to,
-			       m0_time_from_now(0, M0_TIME_ONE_BILLION/100),
-			       S_FRATRICIDE, 0);
+	m0_sm_timeout_init(&to);
+	result = m0_sm_timeout_arm(&s.cain, &to,
+				   m0_time_from_now(0, M0_TIME_ONE_BILLION/100),
+				   S_FRATRICIDE, 0);
 	M0_UT_ASSERT(result == 0);
 
 	while (s.abel.sm_rc == 0) {

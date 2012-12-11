@@ -290,8 +290,8 @@ static void frm_insert(struct m0_rpc_frm *frm, struct m0_rpc_item *item)
 	if (item_is_in_waiting_queue(item, frm)) {
 		m0_rpc_item_change_state(item, M0_RPC_ITEM_ENQUEUED);
 		M0_LOG(M0_DEBUG, "%p Starting deadline timer", item);
-		rc = m0_sm_timeout(&item->ri_sm, &item->ri_deadline_to,
-				   item->ri_deadline, M0_RPC_ITEM_URGENT, 0);
+		rc = m0_sm_timeout_arm(&item->ri_sm, &item->ri_deadline_to,
+				       item->ri_deadline, M0_RPC_ITEM_URGENT, 0);
 		if (rc != 0)
 			M0_LOG(M0_NOTICE, "%p failed to start deadline timer",
 			       item);
