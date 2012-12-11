@@ -53,7 +53,7 @@ enum {
 	SNS_DEFAULT_POOL_WIDTH = SNS_DEFAULT_NR_DATA_UNITS +
 				 2 * SNS_DEFAULT_NR_PARITY_UNITS,
 	/*
-	 * TODO: SNS_FILE_SIZE is temporary hard coded file size used for
+	 * XXX SNS_FILE_SIZE is temporary hard coded file size used for
 	 * sns repair. Eventually this should be retrieved a part of file
 	 * attributes, once set_attr() and get_attr() interfaces are
 	 * implemented.
@@ -808,7 +808,7 @@ M0_INTERNAL int m0_sns_repair_iter_init(struct m0_sns_repair_cm *rcm)
 	/*
 	 * Pick the best possible fid to initialise the namespace iter.
 	 * m0t1fs starts its fid space from {0,4}.
-	 * TODO This should be changed to {0, 0} once multiple cob domains
+	 * XXX This should be changed to {0, 0} once multiple cob domains
 	 * are added per service.
 	 */
 	struct m0_fid         gfid = {0, 4};
