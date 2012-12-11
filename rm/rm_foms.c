@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYCREDIT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -86,11 +86,13 @@ const struct m0_fom_type_ops rm_revoke_fom_type_ops = {
 struct m0_sm_state_descr rm_req_phases[] = {
 	[FOPH_RM_REQ_START] = {
 		.sd_name      = "RM Request Begin",
-		.sd_allowed   = M0_BITS(FOPH_RM_REQ_WAIT, FOPH_RM_REQ_FINISH, M0_FOPH_FAILURE)
+		.sd_allowed   = M0_BITS(FOPH_RM_REQ_WAIT, FOPH_RM_REQ_FINISH,
+					M0_FOPH_FAILURE)
 	},
 	[FOPH_RM_REQ_WAIT] = {
 		.sd_name      = "RM Request Wait",
-		.sd_allowed   = M0_BITS(FOPH_RM_REQ_FINISH, M0_FOPH_SUCCESS, M0_FOPH_FAILURE)
+		.sd_allowed   = M0_BITS(FOPH_RM_REQ_FINISH, M0_FOPH_SUCCESS,
+					M0_FOPH_FAILURE)
 	},
 	[FOPH_RM_REQ_FINISH] = {
 		.sd_name      = "RM Request Completion",
@@ -236,9 +238,9 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
 		bfop->br_loan.lo_cookie = rfom->rf_in.ri_loan_cookie;
 
 		/*
-		 * Get the loan pointer for processing reply from the cookie.
+		 * Get the loan pointer, for processing reply, from the cookie.
 		 * It's safe to access loan as this get called when
-		 * m0_credit_get() succeeds. Hence loan cookie is valid.
+		 * m0_credit_get() succeeds. Hence the loan cookie is valid.
 		 */
 		loan = m0_cookie_of(&rfom->rf_in.ri_loan_cookie,
 				    struct m0_rm_loan, rl_id);

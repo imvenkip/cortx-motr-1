@@ -78,15 +78,15 @@ static int  borrow_send            (struct m0_rm_incoming *in,
 
 static int credit_copy              (struct m0_rm_credit *dest,
 				     const struct m0_rm_credit *src);
-static bool credit_eq               (const struct m0_rm_credit *r0,
-				     const struct m0_rm_credit *r1);
+static bool credit_eq               (const struct m0_rm_credit *c0,
+				     const struct m0_rm_credit *c1);
 static bool credit_is_empty         (const struct m0_rm_credit *credit);
 static bool credit_intersects       (const struct m0_rm_credit *A,
 				     const struct m0_rm_credit *B);
 static bool credit_conflicts        (const struct m0_rm_credit *A,
 				     const struct m0_rm_credit *B);
-static int  credit_diff             (struct m0_rm_credit *r0,
-				     const struct m0_rm_credit *r1);
+static int  credit_diff             (struct m0_rm_credit *c0,
+				     const struct m0_rm_credit *c1);
 static void windup_incoming_complete(struct m0_rm_incoming *in,
 				     int32_t rc);
 static void windup_incoming_conflict(struct m0_rm_incoming *in);
@@ -627,7 +627,7 @@ M0_INTERNAL void m0_rm_owner_fini(struct m0_rm_owner *owner)
 M0_EXPORTED(m0_rm_owner_fini);
 
 M0_INTERNAL void m0_rm_credit_init(struct m0_rm_credit *credit,
-				  struct m0_rm_owner *owner)
+				   struct m0_rm_owner *owner)
 {
 	M0_PRE(credit != NULL);
 	M0_PRE(owner->ro_resource->r_ops != NULL);
@@ -1034,9 +1034,8 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
 
 	/*
 	 * Allocate loan and copy the credit (to be borrowed).
-	 * Flush the credits cache and remove incoming credits from the cache.
+	 * Clear the credits cache and remove incoming credits from the cache.
 	 * If everything succeeds add loan to the sublet list.
-	 * @todo Find the remote object for this loan.
 	 */
 	rc = remote_find(&debtor, rem_in->ri_rem_session,
 			 owner->ro_resource, &rem_in->ri_rem_owner_cookie) ?:
@@ -1078,15 +1077,14 @@ M0_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rem_in)
 	M0_PRE(in->rin_type == M0_RIT_REVOKE);
 	cookie = &rem_in->ri_loan_cookie;
 	/*
-	 * Flush the credits cache and remove incoming credits from the cache.
+	 * Clear the credits cache and remove incoming credits from the cache.
 	 *
 	 * Check the difference between the borrowed credits and the revoke
-	 * credits. If the revoke fully intersects the previously borrowed credit,
-	 * remove it from the list.
+	 * credits. If the revoke fully intersects the previously borrowed
+	 * credit, remove it from the list.
 	 *
 	 * If it's a partial revoke, credit_diff() will retain the remnant
-	 * borrowed credit. In such case make, rem_in->ri_loan NULL so that
-	 * the loan memory is not released. cached_credits_remove() will leave
+	 * borrowed credit. cached_credits_remove() will leave
 	 * remnant credit in the CACHE.
 	 */
 	/*
@@ -1354,7 +1352,7 @@ static void owner_balance(struct m0_rm_owner *o)
 				     rog_want.rl_credit, &outgoing_bob);
 			/*
 			 * Outgoing request completes: remove all pins stuck in
-			 * and finalise it. Also pass the processing error, if
+			 * and finalise them. Also pass the processing error, if
 			 * any, to the corresponding incoming structure(s).
 			 *
 			 * Removing of pins might excite incoming requests
@@ -1367,7 +1365,7 @@ static void owner_balance(struct m0_rm_owner *o)
 				 * If one outgoing request has set an error,
 				 * then don't overwrite the error code. It's
 				 * possible that an error code could be
-				 * reset to 0 as other requests succeed.
+				 * reset to 0 if other requests succeed.
 				 */
 				pin->rp_incoming->rin_rc =
 					pin->rp_incoming->rin_rc ?: out->rog_rc;
@@ -1400,7 +1398,7 @@ static void owner_balance(struct m0_rm_owner *o)
 }
 
 /**
- * Takes an incoming request in RI_CHECK state and attempt to perform a
+ * Takes an incoming request in RI_CHECK state and attempts to perform a
  * non-blocking state transition.
  *
  * This function leaves the request either in RI_WAIT, RI_SUCCESS or RI_FAILURE
@@ -1473,12 +1471,12 @@ static bool incoming_is_complete(struct m0_rm_incoming *in)
  *     - A request with RIF_LOCAL_WAIT bit set can be fulfilled iff the credits
  *       on ->ro_owned[OWOS_CACHED] list together imply the wanted credit;
  *
- *     - a request without RIF_LOCAL_WAIT bit can be fulfilled iff the credits on
- *       all ->ro_owned[] lists together imply the wanted credit.
+ *     - a request without RIF_LOCAL_WAIT bit can be fulfilled iff the credits
+ *       on all ->ro_owned[] lists together imply the wanted credit.
  *
  * If there is not enough credits on ->ro_owned[] lists, an incoming request has
- * to wait until some additional credits are borrowed from the upward creditor or
- * revoked from downward debtors.
+ * to wait until some additional credits are borrowed from the upward creditor
+ * or revoked from downward debtors.
  *
  * A RIF_LOCAL_WAIT request, in addition, can wait until a credit moves from
  * ->ro_owned[OWOS_HELD] to ->ro_owned[OWOS_CACHED].
@@ -1922,10 +1920,6 @@ static bool owner_invariant_state(const struct m0_rm_owner *owner,
 		}
 	}
 
-	/*
-	 * @todo Revisit during inspection. It may not be possible to join
-	 *       all the credits. This will make this invariant very complicated.
-	 */
 	/* Calculate credit */
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
 		m0_tl_for(m0_rm_ur, &owner->ro_owned[i], credit) {
@@ -2143,25 +2137,26 @@ static bool credit_conflicts(const struct m0_rm_credit *A,
 }
 
 
-static int credit_diff(struct m0_rm_credit *r0, const struct m0_rm_credit *r1)
+static int credit_diff(struct m0_rm_credit *c0, const struct m0_rm_credit *c1)
 {
-	M0_PRE(r0->cr_ops != NULL);
-	M0_PRE(r0->cr_ops->cro_diff != NULL);
+	M0_PRE(c0->cr_ops != NULL);
+	M0_PRE(c0->cr_ops->cro_diff != NULL);
 
-	return r0->cr_ops->cro_diff(r0, r1);
+	return c0->cr_ops->cro_diff(c0, c1);
 }
 
-static bool credit_eq(const struct m0_rm_credit *r0, const struct m0_rm_credit *r1)
+static bool credit_eq(const struct m0_rm_credit *c0,
+		      const struct m0_rm_credit *c1)
 {
 	int  rc;
 	bool res;
 	struct m0_rm_credit credit;
 
 	/* no apples and oranges comparison. */
-	M0_PRE(r0->cr_owner == r1->cr_owner);
-	m0_rm_credit_init(&credit, r0->cr_owner);
-	rc = credit_copy(&credit, r0);
-	rc = rc ?: credit_diff(&credit, r1);
+	M0_PRE(c0->cr_owner == c1->cr_owner);
+	m0_rm_credit_init(&credit, c0->cr_owner);
+	rc = credit_copy(&credit, c0);
+	rc = rc ?: credit_diff(&credit, c1);
 
 	res = rc ? false : credit_is_empty(&credit);
 	m0_rm_credit_fini(&credit);
@@ -2184,7 +2179,8 @@ static int remnant_credit_get(const struct m0_rm_credit *src,
 	M0_PRE(src != NULL);
 	M0_PRE(diff != NULL);
 
-	rc = m0_rm_credit_dup(src, &new_credit) ?: credit_diff(new_credit, diff);
+	rc = m0_rm_credit_dup(src, &new_credit) ?:
+		credit_diff(new_credit, diff);
 	if (rc != 0 && new_credit != NULL) {
 		m0_rm_credit_fini(new_credit);
 		m0_free(new_credit);
@@ -2198,7 +2194,7 @@ static int remnant_credit_get(const struct m0_rm_credit *src,
  * Allocates memory and makes another copy of credit struct.
  */
 M0_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
-				struct m0_rm_credit **dest_credit)
+				 struct m0_rm_credit **dest_credit)
 {
 	struct m0_rm_credit *credit;
 	int		    rc = -ENOMEM;
@@ -2266,7 +2262,7 @@ M0_INTERNAL int m0_rm_credit_encode(const struct m0_rm_credit *credit,
 M0_EXPORTED(m0_rm_credit_encode);
 
 M0_INTERNAL int m0_rm_credit_decode(struct m0_rm_credit *credit,
-				   struct m0_buf *buf)
+				    struct m0_buf *buf)
 {
 	struct m0_bufvec	datum_buf = M0_BUFVEC_INIT_BUF(&buf->b_addr,
 							       &buf->b_nob);

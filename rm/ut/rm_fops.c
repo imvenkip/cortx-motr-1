@@ -122,7 +122,6 @@ static void rm_req_fop_validate(enum m0_rm_incoming_type reqtype)
 	m0_tl_for(pi, &test_data.rd_in.rin_pins, pin) {
 
 		M0_UT_ASSERT(pin->rp_flags == M0_RPF_TRACK);
-		/* It's time to introduce ladder_of() */
 		loan = bob_of(pin->rp_credit, struct m0_rm_loan,
 			      rl_credit, &loan_bob);
 		og = container_of(loan, struct m0_rm_outgoing, rog_want);
@@ -175,7 +174,6 @@ static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
 	m0_tl_for(pi, &test_data.rd_in.rin_pins, pin) {
 
 		M0_UT_ASSERT(pin->rp_flags == M0_RPF_TRACK);
-		/* It's time to introduce ladder_of() */
 		loan = bob_of(pin->rp_credit, struct m0_rm_loan,
 			      rl_credit, &loan_bob);
 		og = container_of(loan, struct m0_rm_outgoing, rog_want);
@@ -248,7 +246,8 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 				       test_loan, &test_loan->rl_credit);
 		item = rm_reply_create(M0_RIT_REVOKE, err);
 		m0_rm_owner_lock(&test_data.rd_owner);
-		m0_rm_ur_tlist_add(&test_data.rd_owner.ro_sublet, &test_loan->rl_credit);
+		m0_rm_ur_tlist_add(&test_data.rd_owner.ro_sublet,
+				   &test_loan->rl_credit);
 		m0_rm_owner_unlock(&test_data.rd_owner);
 		revoke_reply(item);
 		post_revoke_validate(err);
@@ -356,7 +355,7 @@ static void post_borrow_cleanup(struct m0_rpc_item *item, int err)
 	m0_buf_free(&bfop->bo_base.rrq_credit.cr_opaque);
 
 	/*
-	 * A borrow error leaves owner lists unaffected.
+	 * A borrow error leaves the owner lists unaffected.
 	 * If borrow succeeds, the owner lists are updated. Hence they
 	 * need to be cleaned-up.
 	 */
@@ -445,7 +444,7 @@ static void post_revoke_validate(int err)
 
 	/* If revoke fails, credit remains in sublet list */
 	M0_UT_ASSERT(ergo(err, sublet && !owned));
-	/* If revoke succeds, credit will be part of cached list*/
+	/* If revoke succeds, credit will be the part of cached list*/
 	M0_UT_ASSERT(ergo(err == 0, owned && !sublet));
 }
 

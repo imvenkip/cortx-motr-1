@@ -285,8 +285,8 @@ static void server_start(enum rm_server srv_id)
 	rm_utdata_init(&rm_ctx[srv_id].rc_test_data, OBJ_OWNER);
 	/*
 	 * If creditor id is valid, do creditor setup.
-	 * If there is no creditor, this erver is original owner.
-	 * For original owner raise capital.
+	 * If there is no creditor, this server is original owner.
+	 * For original owner, raise capital.
 	 */
 	if (cred_id != SERVER_INVALID) {
 		rm_connect(&rm_ctx[srv_id], &rm_ctx[cred_id]);
@@ -448,7 +448,7 @@ static void test3_run()
 
 	/*
 	 * 2. Test-case - NENYA is on SERVER_1. VILYA is on SERVER_3.
-	 *                Make sure both borrow and revoke succed in a
+	 *                Make sure both borrow and revoke succeed in a
 	 *                single request.
 	 */
 	loan_session_set(SERVER_2, SERVER_1);

@@ -172,7 +172,7 @@ static void failures_test()
 	M0_UT_ASSERT(test_data.rd_in.rin_rc == -ESRCH);
 
 	/*
-	 * 2. Test - credit_get fails when owner in not in ROS_ACTIVE state.
+	 * 2. Test - credit_get fails when owner is not in ROS_ACTIVE state.
 	 */
 	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
 			    M0_RIT_LOCAL, RIP_NONE, RIF_LOCAL_WAIT);

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYCREDIT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -334,7 +334,7 @@ static void brw_fom_state_test(enum test_type test)
 	fop = fop_alloc(M0_RIT_BORROW);
 
 	/*
-	 * Create FOM and set the FOM phase to start of the request.
+	 * Create FOM and set the FOM phase to start processing of the request.
 	 */
 	fom_create(M0_RIT_BORROW, false, fop, &fom);
 	M0_UT_ASSERT(fom != NULL);
