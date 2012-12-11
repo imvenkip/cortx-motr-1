@@ -399,7 +399,7 @@ static int __fid_next(struct m0_sns_repair_cm *rcm, struct m0_fid *fid_next)
 	/*
 	 * @todo remove this check once separate cob domains are implemented
 	 * for different services.
-	 */ 
+	 */
 	if (fid_next->f_container > 0)
 		rc = -ENOENT;
 
