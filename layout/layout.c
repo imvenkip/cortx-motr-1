@@ -1202,6 +1202,23 @@ M0_INTERNAL struct m0_layout_enum *m0_layout_instance_to_enum(const struct
 	return li->li_ops->lio_to_enum(li);
 }
 
+M0_INTERNAL uint32_t m0_layout_enum_find(const struct m0_layout_enum *e,
+					 const struct m0_fid *gfid,
+					 const struct m0_fid *target)
+{
+	uint32_t      i;
+	uint32_t      nr;
+	struct m0_fid cob;
+
+	nr = e->le_ops->leo_nr(e);
+	for (i = 0; i < nr; ++i) {
+		e->le_ops->leo_get(e, i, gfid, &cob);
+		if (m0_fid_eq(&cob, target))
+			return i;
+	}
+	return ~0;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end group layout */

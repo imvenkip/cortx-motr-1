@@ -900,6 +900,11 @@ M0_INTERNAL void m0_layout_enum_get(const struct m0_layout_enum *e,
 				    const struct m0_fid *gfid,
 				    struct m0_fid *out);
 
+/** Returns the target index, given target fid. */
+M0_INTERNAL uint32_t m0_layout_enum_find(const struct m0_layout_enum *e,
+					 const struct m0_fid *gfid,
+					 const struct m0_fid *target);
+
 /** @} end group layout */
 
 /* __MERO_LAYOUT_LAYOUT_H__ */

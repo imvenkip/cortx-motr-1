@@ -745,6 +745,19 @@ M0_INTERNAL struct m0_fid m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci,
 	return fid;
 }
 
+static uint32_t m0t1fs_ios_cob_idx(const struct m0t1fs_inode *ci,
+                                   const struct m0_fid *gfid,
+                                   const struct m0_fid *cfid)
+{
+        M0_PRE(ci->ci_layout_instance != NULL);
+        M0_PRE(gfid != NULL);
+        M0_PRE(cfid != NULL);
+
+        return m0_layout_enum_find(m0_layout_instance_to_enum(
+                                   ci->ci_layout_instance), gfid, cfid);
+
+}
+
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 				       int (*func)(struct m0t1fs_sb *csb,
 					           const struct m0_fid *cfid,
@@ -756,6 +769,7 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 	int               pool_width;
 	int               i;
 	int               rc;
+	uint32_t          cob_idx;
 
 	M0_PRE(ci != NULL);
 	M0_PRE(func != NULL);
@@ -773,7 +787,9 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 
 	for (i = 0; i < pool_width; ++i) {
 		cob_fid = m0t1fs_ios_cob_fid(ci, i);
-		rc      = func(csb, &cob_fid, &ci->ci_fid, i);
+		cob_idx = m0t1fs_ios_cob_idx(ci, &ci->ci_fid, &cob_fid);
+		M0_ASSERT(cob_idx != ~0);
+		rc      = func(csb, &cob_fid, &ci->ci_fid, cob_idx);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Cob %s [%lu:%lu] failed with %d",
 				func == m0t1fs_ios_cob_create ? "create" : "delete",
