@@ -58,7 +58,7 @@ static struct m0_net_xprt *sr_xprts[] = {
 
 enum {
 	ITER_UT_BUF_NR = 1 << 4,
-	ITER_DEFAULT_COB_FID_CONT = 4
+	ITER_DEFAULT_COB_FID_KEY = 4
 };
 
 
@@ -269,27 +269,23 @@ static void cobs_create(uint64_t nr_cobs)
 {
 	int i;
 
-	/* Create cobs in reverse order. */
-	for (i = ITER_DEFAULT_COB_FID_CONT + nr_cobs;
-			i >= ITER_DEFAULT_COB_FID_CONT; --i)
-		cob_create(ITER_DEFAULT_COB_FID_CONT, i);
-
+        for (i = 1; i <= nr_cobs; ++i)
+                cob_create(i, ITER_DEFAULT_COB_FID_KEY);
 }
 
 static void cobs_delete(uint64_t nr_cobs)
 {
 	int i;
 
-	for (i = ITER_DEFAULT_COB_FID_CONT + nr_cobs;
-			i >= ITER_DEFAULT_COB_FID_CONT; --i)
-		cob_delete(ITER_DEFAULT_COB_FID_CONT, i);
+        for (i = 1; i <= nr_cobs; ++i)
+		cob_delete(i, ITER_DEFAULT_COB_FID_KEY);
 }
 
 static void nsit_verify(struct m0_fid *gfid, int cnt)
 {
-	M0_UT_ASSERT(gfid->f_container == ITER_DEFAULT_COB_FID_CONT);
+	M0_UT_ASSERT(gfid->f_container == 0);
 	/* Verify that gob-fid has been enumerated in lexicographical order. */
-	M0_UT_ASSERT(gfid->f_key - cnt == ITER_DEFAULT_COB_FID_CONT);
+	M0_UT_ASSERT(gfid->f_key - cnt == ITER_DEFAULT_COB_FID_KEY);
 }
 
 static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata,

@@ -397,7 +397,7 @@ static int __fid_next(struct m0_sns_repair_cm *rcm, struct m0_fid *fid_next)
                 m0_db_tx_abort(&tx);
 
 	/*
-	 * @todo remove this check once separate cob domains are implemented
+	 * TODO remove this check once separate cob domains are implemented
 	 * for different services.
 	 */
 	if (fid_next->f_container > 0)
@@ -808,6 +808,8 @@ M0_INTERNAL int m0_sns_repair_iter_init(struct m0_sns_repair_cm *rcm)
 	/*
 	 * Pick the best possible fid to initialise the namespace iter.
 	 * m0t1fs starts its fid space from {0,4}.
+	 * TODO This should be changed to {0, 0} once multiple cob domains
+	 * are added per service.
 	 */
 	struct m0_fid         gfid = {0, 4};
 

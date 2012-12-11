@@ -188,12 +188,10 @@ static int cpp_nobufs(struct m0_cm_cp_pump *cp_pump)
 
 static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 {
-	int rc = M0_FSO_WAIT;
-
 	if (cp_pump->p_shutdown)
 		pump_move(cp_pump, 0, CPP_FINI);
 
-	return rc;
+	return M0_FSO_WAIT;
 }
 
 static int cpp_fail(struct m0_cm_cp_pump *cp_pump)
