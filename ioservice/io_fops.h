@@ -247,7 +247,7 @@ static inline struct m0_net_transfer_mc *io_fop_tm_get(const struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
 
-	return &(item_machine(&fop->f_item)->rm_tm);
+	return &fop->f_item.ri_rmachine->rm_tm;
 }
 
 M0_INTERNAL size_t m0_io_fop_size_get(struct m0_fop *fop);

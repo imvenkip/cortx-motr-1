@@ -610,6 +610,7 @@ static void packet_received(struct m0_rpc_packet    *p,
 	machine->rm_stats.rs_nr_rcvd_bytes += p->rp_size;
 	/* packet p can also be empty */
 	for_each_item_in_packet(item, p) {
+		item->ri_rmachine = machine;
 		m0_rpc_item_get(item);
 		m0_rpc_packet_remove_item(p, item);
 		item_received(item, machine, from_ep);

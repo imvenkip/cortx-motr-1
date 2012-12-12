@@ -216,6 +216,7 @@ struct m0_rpc_item {
 	/** One of m0_rpc_frm::f_itemq[], in which this item is placed. */
 	struct m0_tl                    *ri_itemq;
 	struct m0_rpc_frm               *ri_frm;
+	struct m0_rpc_machine           *ri_rmachine;
 	/** M0_RPC_ITEM_MAGIC */
 	uint64_t			 ri_magic;
 };
@@ -267,7 +268,6 @@ M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item);
 M0_INTERNAL m0_bcount_t m0_rpc_item_onwire_header_size(void);
 
 M0_INTERNAL m0_bcount_t m0_rpc_item_size(const struct m0_rpc_item *item);
-M0_INTERNAL struct m0_rpc_machine *item_machine(const struct m0_rpc_item *item);
 
 M0_INTERNAL int m0_rpc_item_timedwait(struct m0_rpc_item *item,
 				      uint64_t states, m0_time_t timeout);
