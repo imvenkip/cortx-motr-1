@@ -634,7 +634,7 @@ static void item_received(struct m0_rpc_item      *item,
 	item->ri_rpc_time = m0_time_now();
 
 	m0_rpc_machine_lock(machine);
-	m0_rpc_item_sm_init(item, &machine->rm_sm_grp, M0_RPC_ITEM_INCOMING);
+	m0_rpc_item_sm_init(item, M0_RPC_ITEM_INCOMING);
 	rc = m0_rpc_item_received(item, machine);
 	if (rc == 0) {
 		m0_rpc_item_change_state(item, M0_RPC_ITEM_ACCEPTED);

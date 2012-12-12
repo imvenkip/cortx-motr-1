@@ -503,19 +503,18 @@ M0_INTERNAL void m0_rpc_item_set_stage(struct m0_rpc_item *item,
 }
 
 M0_INTERNAL void m0_rpc_item_sm_init(struct m0_rpc_item *item,
-				     struct m0_sm_group *grp,
 				     enum m0_rpc_item_dir dir)
 {
 	const struct m0_sm_conf *conf;
 
-	M0_PRE(item != NULL);
+	M0_PRE(item != NULL && item->ri_rmachine != NULL);
 
 	conf = dir == M0_RPC_ITEM_OUTGOING ? &outgoing_item_sm_conf :
 					     &incoming_item_sm_conf;
 
 	M0_LOG(M0_DEBUG, "%p UNINITIALISED -> INITIALISED", item);
 	m0_sm_init(&item->ri_sm, conf, M0_RPC_ITEM_INITIALISED,
-		   grp, NULL /* addb ctx */);
+		   &item->ri_rmachine->rm_sm_grp, NULL /* addb ctx */);
 	m0_sm_timeout_init(&item->ri_deadline_to);
 	m0_sm_timeout_init(&item->ri_timeout);
 }

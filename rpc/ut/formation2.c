@@ -209,7 +209,8 @@ static struct m0_rpc_item *new_item(int deadline, int kind)
 	M0_ALLOC_PTR(item);
 	M0_UT_ASSERT(item != NULL);
 
-	m0_rpc_item_sm_init(item, &rmachine.rm_sm_grp, M0_RPC_ITEM_OUTGOING);
+	item->ri_rmachine = &rmachine;
+	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
 	switch (deadline) {
 	case TIMEDOUT:
 		item->ri_deadline = 0;
