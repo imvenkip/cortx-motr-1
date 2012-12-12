@@ -100,7 +100,10 @@ M0_INTERNAL uint64_t m0_round_down(uint64_t val, uint64_t size);
 
    Parentheses around "set" members are mandatory.
  */
-#define M0_IN(x, set) M0_IN0(x, M0_UNPACK set)
+#define M0_IN(x, set)						\
+	({ typeof (x) __x = (x);				\
+		M0_IN0(__x, M0_UNPACK set); })
+
 #define M0_UNPACK(...) __VA_ARGS__
 
 #define M0_IN0(...) \
