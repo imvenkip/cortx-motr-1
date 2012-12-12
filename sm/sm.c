@@ -404,9 +404,11 @@ M0_INTERNAL void m0_sm_timeout_fini(struct m0_sm_timeout *to)
 	M0_PRE(M0_IN(to->st_timer_state, (DONE, INIT)));
 	M0_PRE(to->st_ast.sa_next == NULL);
 
-	M0_ASSERT(!m0_timer_is_started(&to->st_timer));
 
-	m0_timer_fini(&to->st_timer);
+	if (to->st_timer_state != INIT) {
+		M0_ASSERT(!m0_timer_is_started(&to->st_timer));
+		m0_timer_fini(&to->st_timer);
+	}
 	if (m0_clink_is_armed(&to->st_clink))
 		m0_clink_del(&to->st_clink);
 	m0_clink_fini(&to->st_clink);

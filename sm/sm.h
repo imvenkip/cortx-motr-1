@@ -594,8 +594,7 @@ M0_INTERNAL void m0_sm_timeout_init(struct m0_sm_timeout *to);
    If a state transition happens before the timeout expires, the timeout is
    cancelled, unless the transition is to a state from "bitmask" parameter.
 
-   It is possible to arm multiple timeouts against the same state machine. The
-   first one to expire will cancel the rest.
+   It is possible to arm multiple timeouts against the same state machine.
 
    The m0_sm_timeout instance, supplied to this call can be freed after timeout
    expires or is cancelled.
@@ -608,6 +607,9 @@ M0_INTERNAL void m0_sm_timeout_init(struct m0_sm_timeout *to);
 
    @pre m0_mutex_is_locked(&mach->sm_grp->s_lock)
    @pre sm_state(mach)->sd_allowed & M0_BITS(state)
+   @pre m0_forall(i, mach->sm_conf->scf_nr_states,
+		  ergo(M0_BITS(i) & bitmask,
+		       state_get(mach, i)->sd_allowed & M0_BITS(state)))
    @pre m0_forall(i, mach->sm_conf.scf_nr_states,
 		  state_get(mach, i)->sd_allowed & M0_BITS(state))
    @post m0_mutex_is_locked(&mach->sm_grp->s_lock)

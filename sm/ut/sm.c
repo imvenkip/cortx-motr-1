@@ -89,7 +89,7 @@ static void transition(void)
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = (1 << S_TERMINAL)
+			.sd_allowed   = M0_BITS(S_TERMINAL)
 		},
 		[S_TERMINAL] = {
 			.sd_flags     = M0_SDF_TERMINAL,
@@ -179,7 +179,7 @@ static void timeout(void)
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = (1 << S_0)
+			.sd_allowed   = M0_BITS(S_0)
 		},
 		[S_0] = {
 			.sd_flags     = 0,
@@ -229,13 +229,18 @@ static void timeout(void)
 
 	m0_sm_group_lock(&G);
 	m0_sm_init(&m, &conf, S_INITIAL, &G, &actx);
+
+	/* check that timeout initialisation and finalisation work. */
+	m0_sm_timeout_init(&t1);
+	m0_sm_timeout_fini(&t1);
+
 	m0_sm_timeout_init(&t0);
 
 	/* check that timeout works */
 	result = m0_sm_timeout_arm(&m, &t0, m0_time_from_now(0, delta), S_0, 0);
 	M0_UT_ASSERT(result == 0);
 
-	result = m0_sm_timedwait(&m, ~(1 << S_INITIAL), M0_TIME_NEVER);
+	result = m0_sm_timedwait(&m, ~M0_BITS(S_INITIAL), M0_TIME_NEVER);
 	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(m.sm_state == S_0);
 
@@ -249,7 +254,7 @@ static void timeout(void)
 	m0_sm_state_set(&m, S_2);
 	M0_UT_ASSERT(m.sm_state == S_2);
 
-	result = m0_sm_timedwait(&m, ~(1 << S_2), m0_time_from_now(0,
+	result = m0_sm_timedwait(&m, ~M0_BITS(S_2), m0_time_from_now(0,
 								   2 * delta));
 	M0_UT_ASSERT(result == -ETIMEDOUT);
 	M0_UT_ASSERT(m.sm_state == S_2);
@@ -261,13 +266,13 @@ static void timeout(void)
 	   transition */
 	m0_sm_state_set(&m, S_0);
 	result = m0_sm_timeout_arm(&m, &t1, m0_time_from_now(0, delta), S_2,
-				   1ULL << S_1);
+				   M0_BITS(S_1));
 	M0_UT_ASSERT(result == 0);
 
 	m0_sm_state_set(&m, S_1);
 	M0_UT_ASSERT(m.sm_state == S_1);
 
-	result = m0_sm_timedwait(&m, 1ULL << S_2, M0_TIME_NEVER);
+	result = m0_sm_timedwait(&m, M0_BITS(S_2), M0_TIME_NEVER);
 	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(m.sm_state == S_2);
 
@@ -334,7 +339,7 @@ static void group(void)
 			.sd_in        = &genesis_4_8,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = 1 << S_TERMINAL
+			.sd_allowed   = M0_BITS(S_TERMINAL)
 		},
 		[S_TERMINAL] = {
 			.sd_flags     = M0_SDF_TERMINAL|M0_SDF_FAILURE,
@@ -450,7 +455,7 @@ static void chain(void)
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = 1 << C_FLIP
+			.sd_allowed   = M0_BITS(C_FLIP)
 		},
 		[C_FLIP] = {
 			.sd_flags     = 0,
@@ -466,7 +471,7 @@ static void chain(void)
 			.sd_in        = head,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = 1 << C_DONE
+			.sd_allowed   = M0_BITS(C_DONE)
 		},
 		[C_TAIL] = {
 			.sd_flags     = 0,
@@ -474,7 +479,7 @@ static void chain(void)
 			.sd_in        = tail,
 			.sd_ex        = NULL,
 			.sd_invariant = NULL,
-			.sd_allowed   = 1 << C_DONE
+			.sd_allowed   = M0_BITS(C_DONE)
 		},
 		[C_DONE] = {
 			.sd_flags     = 0,
