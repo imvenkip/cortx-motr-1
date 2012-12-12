@@ -78,9 +78,9 @@ struct m0_db_tx;
 
    Then namespace will have the following records:
 
-   (a.fid, "f0")->(F stat data, 0)
-   (b.fid, "f1")->(F, 1)
-   (c.fid, "f2")->(F, 2)
+   (a.fid, "f0") -> (F stat data, 0)
+   (b.fid, "f1") -> (F, 1)
+   (c.fid, "f2") -> (F, 2)
 
    where, in first record, we have "DB key" constructed of f0's parent fid (the
    directory fid) and "f0", the filename itself. The namespace record contains
@@ -102,9 +102,9 @@ struct m0_db_tx;
 
    The object index contains records:
 
-   (F, 0)->(a.fid, "f0")
-   (F, 1)->(b.fid, "f1")
-   (F, 2)->(c.fid, "f2")
+   (F, 0) -> (a.fid, "f0")
+   (F, 1) -> (b.fid, "f1")
+   (F, 2) -> (c.fid, "f2")
 
    where the key is constructed of file fid and its link number. The record
    contains the parent fid plus the file name. That is, the object index
@@ -114,34 +114,34 @@ struct m0_db_tx;
 
    When doing "rm a/f0" we need to kill 1 namespace and 1 object index record.
    That is, we need a key containing (a.fid, "f0"). Using this key we can
-   find its position in namespace table and delete the record. Before killing it,
-   we need to check if this record stores stat data. This is easy to do
-   as ->m0_cob_nsrec::cnr_linkno field is zero for stat data records. Stat data
-   should be moved to next name and we need to find it somehow. To do this quickly
-   we do lookup in object index for second file name, i.e. - (a.fid, 1).
+   find its position in namespace table and delete the record.
+   But before killing it, we need to check if this record stores the stat data
+   and whether we should move it to another hardlink filename.
+   If ->m0_cob_nsrec::cnr_nlink > 0 this means that it is stat data record
+   and there are other hardlinks for the file, so stat data should be moved.
+   To find out were to move stat data quickly, we just do lookup in the
+   object index for the next linkno of the file:
 
-   To do this quickly, we do lookup in the object index for the name of second
-   file:
+   (F, 0 + 1) -> (b.fid, "f1")
 
-   (F, 1)->(b.fid, "f1")
+   Now we can use its record as a key for namespace table and move stat data
+   to its record.
 
-   It describes second name of the file. Now we can use its record as a key for
-   namespace and find second name record in namespace table. Having the name,
-   we can move stat data of F to it.
+   Now kill the record in the object index.
 
-   Now kill the record in the object index. We have already found that we need
-   key constructed of F and link number, that is, zero. Having this key we can
-   kill object index entry describing "f0" name. Now stat data can be located
-   in namespace table using the very first record (with least value of link
-   count) in object index table.
+   Stat data could be located in namespace table by using the very first record
+   in object index table, which will be (F, 1) now. We still can initialize
+   object index key with linkno=0 to find it and rely on database cursor which
+   returns the first record in the table with the least linkno available.
 
    We are done with unlink operation. Of course for cases when killing name that
    does not hold stat data, algorithm is much simpler. We just need to kill
-   one record in name, update stat data record in namespace (decremented nlink
-   should be updated in the store) and kill one record in object index.
+   one record in name, find and update stat data record in namespace table
+   (decremented nlink should be updated in the store), and kill one record in
+   object index.
 
-   File attributes that are stored in separate tables may also be easily accessed
-   using key constructed of F, where F is file fid.
+   File attributes that are stored in separate tables may also be easily
+   accessed using key constructed of F, where F is file fid.
 
    Rationale:
 
@@ -150,8 +150,7 @@ struct m0_db_tx;
 
    Corner cases:
 
-   Rename and unlink. They need to move file attributes from zero name when
-   moving it.
+   Rename and unlink need to move file attributes from zero name.
 
    Special case:
 
@@ -173,7 +172,7 @@ struct m0_db_tx;
    method over namespace table until end of table is reached or a record with
    another parent fid is found.
 
-   Once iterator is not needed, it is fininalized by m0_cob_iterator_fini().
+   Once iterator is not needed, it is finalized by m0_cob_iterator_fini().
 
    @see m0_mdstore_readdir() for example of using iterator.
 
@@ -421,8 +420,8 @@ struct m0_cob_omgrec {
  * m0_cob is an in-memory structure, populated from database tables
  * on demand. m0_cob is not cached for long time (except for root)
  * and is only used as a temporary handle of database structures for the
- * sake of handyness. This means, we don't need to bother with locking
- * as everytime we pass cob to some function this is new instance of it.
+ * sake of handiness. This means, we don't need to bother with locking
+ * as every time we pass cob to some function this is new instance of it.
  * All the concurrency for providing data correctness is done by underlying
  * database (db[45] or rvm).
  *
