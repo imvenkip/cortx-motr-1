@@ -68,7 +68,7 @@ static int addb_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 	int rc = 0;
 
 	if (use_default_node_uuid) {
-		memcpy(buf, default_node_uuid, M0_UUID_STRLEN);
+		strncpy(buf, default_node_uuid, M0_UUID_STRLEN);
 		buf[M0_UUID_STRLEN] = '\0';
 	} else {
 		fd = open(kmod_uuid_file, O_RDONLY);

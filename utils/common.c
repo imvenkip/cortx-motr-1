@@ -26,8 +26,8 @@
 #include <err.h>      /* warn */
 #include <stdbool.h>  /* bool */
 #include <string.h>   /* strdup */
+#include <yaml.h>
 
-#include "yaml.h"
 #include "mero/init.h"
 #include "lib/assert.h"
 #include "lib/memory.h"

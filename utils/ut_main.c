@@ -301,7 +301,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (parse_trace) {
-		result = m0_trace_parse();
+		result = m0_trace_parse(stdin, stdout, false);
 		goto out;
 	}
 

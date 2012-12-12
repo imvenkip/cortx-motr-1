@@ -29,7 +29,7 @@
 #include "lib/errno.h"
 #include "lib/atomic.h"
 #include "lib/arith.h"  /* m0_align */
-#include "lib/misc.h"   /* m0_short_file_name */
+#include "lib/misc.h"   /* m0_short_file_name, string.h */
 #include "lib/memory.h" /* m0_pagesize_get */
 #include "lib/trace.h"
 #include "lib/trace_internal.h"
@@ -145,15 +145,50 @@ static inline uint64_t rdtsc(void)
 	return ((uint64_t)count_lo) | (((uint64_t)count_hi) << 32);
 }
 
+#define NULL_STRING_STUB  "(null)"
+
+static uint32_t calc_string_data_size(const struct m0_trace_descr *td,
+				      const void *body)
+{
+	int       i;
+	uint32_t  total_size = 0;
+
+	for (i = 0; i < td->td_nr; ++i)
+		if (td->td_isstr[i]) {
+			char *s = *(char**)((char*)body + td->td_offset[i]) ?:
+				  NULL_STRING_STUB;
+			total_size += strlen(s) + 1;
+		}
+
+	return total_size;
+}
+
+static void copy_string_data(char *body, const struct m0_trace_descr *td)
+{
+	int   i;
+	char *dst_str = body + m0_align(td->td_size, M0_TRACE_REC_ALIGN);
+
+	for (i = 0; i < td->td_nr; ++i)
+		if (td->td_isstr[i]) {
+			char *src_str = *(char**)(body + td->td_offset[i]) ?:
+					NULL_STRING_STUB;
+			size_t str_len = strlen(src_str);
+			memcpy(dst_str, src_str, str_len + 1);
+			dst_str += str_len + 1;
+		}
+}
+
 M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 				const void *body)
 {
-	uint32_t header_len;
-	uint32_t record_len;
-	uint32_t pos_in_buf;
-	uint32_t endpos_in_buf;
-	uint64_t pos;
-	uint64_t endpos;
+	uint32_t  header_len;
+	uint32_t  record_len;
+	uint32_t  pos_in_buf;
+	uint32_t  endpos_in_buf;
+	uint64_t  pos;
+	uint64_t  endpos;
+	uint32_t  str_data_size;
+	void     *body_in_buf;
 	struct m0_trace_rec_header *header;
 	register unsigned long sp asm("sp"); /* stack pointer */
 
@@ -161,15 +196,25 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 	 * Allocate space in trace buffer to store trace record header
 	 * (header_len bytes) and record payload (record_len bytes).
 	 *
-	 * Record and payload always start at 8-byte aligned address.
+	 * Record and payload always start at 8-byte (M0_TRACE_REC_ALIGN)
+	 * aligned address.
+	 *
+	 * Record payload consists of a body (printf arguments) and optional
+	 * string data section, which starts immediately after body at the
+	 * nearest 8-byte (M0_TRACE_REC_ALIGN) aligned address.
+	 *
+	 * String data section contains copies of data, pointed by any char*
+	 * arguments, present in body.
 	 *
 	 * First free byte in the trace buffer is at "cur" offset. Note, that
 	 * cur is not wrapped to 0 when the end of the buffer is reached (that
 	 * would require additional synchronization between contending threads).
 	 */
 
-	header_len = m0_align(sizeof *header, 8);
-	record_len = header_len + m0_align(td->td_size, 8);
+	header_len    = m0_align(sizeof *header, M0_TRACE_REC_ALIGN);
+	str_data_size = calc_string_data_size(td, body);
+	record_len    = header_len + m0_align(td->td_size, M0_TRACE_REC_ALIGN) +
+			m0_align(str_data_size, M0_TRACE_REC_ALIGN);
 
 	while (1) {
 		endpos = m0_atomic64_add_return(&cur, record_len);
@@ -193,16 +238,35 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 	header->trh_sp        = sp;
 	header->trh_timestamp = rdtsc();
 	header->trh_descr     = td;
-	memcpy((void*)header + header_len, body, td->td_size);
+	header->trh_string_data_size = str_data_size;
+	body_in_buf           = (char*)header + header_len;
+
+	memcpy(body_in_buf, body, td->td_size);
+
+	if (str_data_size > 0)
+		copy_string_data(body_in_buf, td);
+
 	/** @todo put memory barrier here before writing the magic */
 	header->trh_magic = M0_TRACE_MAGIC;
+
 	if (M0_TRACE_IMMEDIATE_DEBUG &&
 	    (td->td_subsys & m0_trace_immediate_mask ||
 	     td->td_level & (M0_WARN|M0_ERROR|M0_FATAL)) &&
 	    td->td_level & m0_trace_level)
-		m0_trace_record_print(header, body);
+		m0_trace_record_print(header, body_in_buf);
 }
 M0_EXPORTED(m0_trace_allot);
+
+M0_INTERNAL const char *m0_trace_subsys_name(uint64_t subsys)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(trace_subsys_str); i++, subsys >>= 1)
+		if (subsys & 1)
+			return trace_subsys_str[i];
+
+	return "UNKNOWN";
+}
 
 static char *subsys_str(uint64_t subsys, char *buf)
 {
@@ -316,7 +380,7 @@ out:
 	return 0;
 }
 
-static const char *trace_level_name(enum m0_trace_level level)
+M0_INTERNAL const char *m0_trace_level_name(enum m0_trace_level level)
 {
 	int i;
 
@@ -428,30 +492,17 @@ M0_INTERNAL void m0_trace_print_subsystems(void)
 		m0_console_printf("    - %s\n", trace_subsys_str[i]);
 }
 
-M0_INTERNAL void
-m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
+M0_INTERNAL void m0_trace_unpack_args(const struct m0_trace_rec_header *trh,
+				      m0_trace_rec_args_t args,
+				      const void *buf)
 {
-	int i;
+	int         i;
+	size_t      total_str_len = 0;
+	const char *str_data = NULL;
 	const struct m0_trace_descr *td = trh->trh_descr;
-	union {
-		uint8_t  v8;
-		uint16_t v16;
-		uint32_t v32;
-		uint64_t v64;
-	} v[M0_TRACE_ARGC_MAX];
-	char subsys_map_str[sizeof(uint64_t) * CHAR_BIT + 3];
 
-	if (m0_trace_print_context == M0_TRACE_PCTX_FULL) {
-		m0_console_printf("%8.8llu %15.15llu %5.5x %-18s %-7s %-20s "
-				  "%15s:%-3i\n\t",
-				  (unsigned long long)trh->trh_no,
-				  (unsigned long long)trh->trh_timestamp,
-				  (unsigned) (trh->trh_sp & 0xfffff),
-				  subsys_str(td->td_subsys, subsys_map_str),
-				  trace_level_name(td->td_level),
-				  td->td_func, m0_short_file_name(td->td_file),
-				  td->td_line);
-	}
+	if (trh->trh_string_data_size != 0)
+		str_data = (char*)buf + m0_align(td->td_size, M0_TRACE_REC_ALIGN);
 
 	for (i = 0; i < td->td_nr; ++i) {
 		const char *addr;
@@ -461,25 +512,63 @@ m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
 		case 0:
 			break;
 		case 1:
-			v[i].v8 = *(uint8_t *)addr;
+			args[i].v8 = *(uint8_t *)addr;
 			break;
 		case 2:
-			v[i].v16 = *(uint16_t *)addr;
+			args[i].v16 = *(uint16_t *)addr;
 			break;
 		case 4:
-			v[i].v32 = *(uint32_t *)addr;
+			args[i].v32 = *(uint32_t *)addr;
 			break;
 		case 8:
-			v[i].v64 = *(uint64_t *)addr;
+			args[i].v64 = *(uint64_t *)addr;
 			break;
 		default:
 			M0_IMPOSSIBLE("sizeof");
 		}
+
+		if (td->td_isstr[i]) {
+			size_t str_len = strlen(str_data);
+			total_str_len += str_len + 1;
+
+			if (total_str_len > trh->trh_string_data_size)
+				m0_arch_panic("trace record string data is invalid",
+					      __func__, __FILE__, __LINE__);
+
+			args[i].v64 = (uint64_t)str_data;
+			str_data += str_len + 1;
+		}
+	}
+}
+
+M0_INTERNAL void
+m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
+{
+	const struct m0_trace_descr *td = trh->trh_descr;
+	m0_trace_rec_args_t          args;
+
+	/* there are 64 possible subsystems, so we need one byte for each
+	 * subsystem name plus two bytes for '<' and '>' symbols around them and
+	 * one byte for '\0' and the end */
+	char subsys_map_str[sizeof(uint64_t) * CHAR_BIT + 3];
+
+	m0_trace_unpack_args(trh, args, buf);
+
+	if (m0_trace_print_context == M0_TRACE_PCTX_FULL) {
+		m0_console_printf("%8.8llu %15.15llu %5.5x %-18s %-7s %-20s "
+				  "%15s:%-3i\n\t",
+				  (unsigned long long)trh->trh_no,
+				  (unsigned long long)trh->trh_timestamp,
+				  (unsigned) (trh->trh_sp & 0xfffff),
+				  subsys_str(td->td_subsys, subsys_map_str),
+				  m0_trace_level_name(td->td_level),
+				  td->td_func, m0_short_file_name(td->td_file),
+				  td->td_line);
 	}
 
 	if (m0_trace_print_context == M0_TRACE_PCTX_SHORT)
 		m0_console_printf("mero: %6s : [%s:%i:%s] ",
-				  trace_level_name(td->td_level),
+				  m0_trace_level_name(td->td_level),
 				  m0_short_file_name(td->td_file),
 				  td->td_line, td->td_func);
 	else if (m0_trace_print_context == M0_TRACE_PCTX_FUNC ||
@@ -489,11 +578,13 @@ m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
 	else /* td->td_level == M0_TRACE_PCTX_NONE */
 		m0_console_printf("mero: ");
 
-	m0_console_printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
-			  v[7], v[8]);
-	m0_console_printf("\n");
-}
+	m0_console_printf(td->td_fmt, args[0], args[1], args[2], args[3],
+				      args[4], args[5], args[6], args[7],
+				      args[8]);
 
+	if (td->td_fmt[strlen(td->td_fmt) - 1] != '\n')
+		m0_console_printf("\n");
+}
 
 M0_INTERNAL void m0_console_printf(const char *fmt, ...)
 {

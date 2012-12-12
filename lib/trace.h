@@ -27,6 +27,8 @@
 
 #include "lib/types.h"
 #include "lib/arith.h"
+#include "lib/cdefs.h"   /* M0_HAS_TYPE */
+#include "mero/magic.h"  /* M0_TRACE_DESCR_MAGIC */
 
 #ifndef __KERNEL__
 #include "lib/user_space/trace.h"
@@ -260,9 +262,11 @@ extern unsigned int m0_trace_level;
 #  define M0_TRACE_IMMEDIATE_DEBUG (0)
 #endif
 
-/** Default buffer size, the real buffer size is at m0_logbufsize */
 enum {
-	M0_TRACE_BUFSIZE  = 1 << (10 + 12) /* 4MB */
+	/** Default buffer size, the real buffer size is at m0_logbufsize */
+	M0_TRACE_BUFSIZE   = 1 << (10 + 12), /* 4MB */
+	/** Alignment for trace records in trace buffer */
+	M0_TRACE_REC_ALIGN = 8, /* word size on x86_64 */
 };
 
 extern void      *m0_logbuf;      /**< Trace buffer pointer */
@@ -284,6 +288,7 @@ struct m0_trace_rec_header {
 	uint64_t                     trh_no; /**< record # */
 	uint64_t                     trh_timestamp;
 	const struct m0_trace_descr *trh_descr;
+	uint32_t                     trh_string_data_size;
 };
 
 /**
@@ -335,6 +340,7 @@ enum m0_trace_print_context {
 };
 
 struct m0_trace_descr {
+	uint64_t             td_magic;
 	const char          *td_fmt;
 	const char          *td_func;
 	const char          *td_file;
@@ -344,6 +350,7 @@ struct m0_trace_descr {
 	int                  td_nr;
 	const int           *td_offset;
 	const int           *td_sizeof;
+	const bool          *td_isstr;
 	enum m0_trace_level  td_level;
 };
 
@@ -379,14 +386,16 @@ M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list ap);
  * @note The variadic arguments must match the number
  *       and types of fields in the format.
  */
-#define M0_TRACE_POINT(LEVEL, NR, DECL, OFFSET, SIZEOF, FMT, ...)	\
+#define M0_TRACE_POINT(LEVEL, NR, DECL, OFFSET, SIZEOF, ISSTR, FMT, ...)\
 ({									\
 	struct t_body DECL;						\
-	static const int _offset[NR] = OFFSET;				\
-	static const int _sizeof[NR] = SIZEOF;				\
+	static const int  _offset[NR] = OFFSET;				\
+	static const int  _sizeof[NR] = SIZEOF;				\
+	static const bool _isstr[NR]  = ISSTR;				\
 	static const struct m0_trace_descr __trace_descr = {		\
+		.td_magic  = M0_TRACE_DESCR_MAGIC,			\
 		.td_level  = (LEVEL),					\
-                .td_fmt    = (FMT),					\
+		.td_fmt    = (FMT),					\
 		.td_func   = __func__,					\
 		.td_file   = __FILE__,					\
 		.td_line   = __LINE__,					\
@@ -394,7 +403,8 @@ M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list ap);
 		.td_size   = sizeof(struct t_body),			\
 		.td_nr     = (NR),					\
 		.td_offset = _offset,					\
-		.td_sizeof = _sizeof					\
+		.td_sizeof = _sizeof,					\
+		.td_isstr  = _isstr,					\
 	};								\
 	printf_check(FMT , ## __VA_ARGS__);				\
 	m0_trace_allot(&__trace_descr, &(const struct t_body){ __VA_ARGS__ });\
@@ -414,6 +424,12 @@ enum {
 #define LOG_TYPEOF(a, v) typeof(a) v
 #define LOG_OFFSETOF(v) offsetof(struct t_body, v)
 #define LOG_SIZEOF(a) sizeof(a)
+#define LOG_IS_STR_ARG(a)			    \
+		M0_HAS_TYPE((a), char*)        ?:   \
+		M0_HAS_TYPE((a), const char*)  ?:   \
+		M0_HAS_TYPE((a), char[])       ?:   \
+		M0_HAS_TYPE((a), const char[]) ?: false
+
 
 #define LOG_CHECK(a)							\
 M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
@@ -426,13 +442,14 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
  */
 #define LOG_GROUP(...) __VA_ARGS__
 
-#define M0_LOG0(level, fmt)     M0_TRACE_POINT(level, 0, { ; }, {}, {}, fmt)
+#define M0_LOG0(level, fmt)     M0_TRACE_POINT(level, 0, { ; }, {}, {}, {}, fmt)
 
 #define M0_LOG1(level, fmt, a0)						\
 ({ M0_TRACE_POINT(level, 1,						\
    { LOG_TYPEOF(a0, v0); },						\
    { LOG_OFFSETOF(v0) },						\
    { LOG_SIZEOF(a0) },							\
+   { LOG_IS_STR_ARG(a0) },						\
    fmt, a0);								\
    LOG_CHECK(a0); })
 
@@ -441,6 +458,7 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); },				\
    LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1) }),			\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1) }),			\
+   LOG_GROUP({ LOG_IS_STR_ARG(a0), LOG_IS_STR_ARG(a1) }),		\
    fmt, a0, a1);							\
    LOG_CHECK(a0); LOG_CHECK(a1); })
 
@@ -449,6 +467,8 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2); },	\
    LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2) }),	\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2) }),	\
+   LOG_GROUP({ LOG_IS_STR_ARG(a0), LOG_IS_STR_ARG(a1),			\
+               LOG_IS_STR_ARG(a2) }),					\
    fmt, a0, a1, a2);							\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); })
 
@@ -460,6 +480,8 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
                LOG_OFFSETOF(v3) }),					\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2),		\
                LOG_SIZEOF(a3) }),					\
+   LOG_GROUP({ LOG_IS_STR_ARG(a0), LOG_IS_STR_ARG(a1),			\
+               LOG_IS_STR_ARG(a2), LOG_IS_STR_ARG(a3)  }),		\
    fmt, a0, a1, a2, a3);						\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3); })
 
@@ -471,6 +493,9 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
                LOG_OFFSETOF(v3), LOG_OFFSETOF(v4) }),			\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2),		\
                LOG_SIZEOF(a3), LOG_SIZEOF(a4) }),			\
+   LOG_GROUP({ LOG_IS_STR_ARG(a0), LOG_IS_STR_ARG(a1),			\
+               LOG_IS_STR_ARG(a2), LOG_IS_STR_ARG(a3),			\
+               LOG_IS_STR_ARG(a4) }),					\
    fmt, a0, a1, a2, a3, a4);						\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
    LOG_CHECK(a4); })
@@ -483,6 +508,9 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
                LOG_OFFSETOF(v3), LOG_OFFSETOF(v4), LOG_OFFSETOF(v5) }),	\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2),		\
                LOG_SIZEOF(a3), LOG_SIZEOF(a4), LOG_SIZEOF(a5) }),	\
+   LOG_GROUP({ LOG_IS_STR_ARG(a0), LOG_IS_STR_ARG(a1),			\
+               LOG_IS_STR_ARG(a2), LOG_IS_STR_ARG(a3),			\
+               LOG_IS_STR_ARG(a4), LOG_IS_STR_ARG(a5) }),		\
    fmt, a0, a1, a2, a3, a4, a5);					\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
    LOG_CHECK(a4); LOG_CHECK(a5); })
@@ -498,6 +526,10 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2),		\
                LOG_SIZEOF(a3), LOG_SIZEOF(a4),				\
                LOG_SIZEOF(a5), LOG_SIZEOF(a6) }),			\
+   LOG_GROUP({ LOG_IS_STR_ARG(a0), LOG_IS_STR_ARG(a1),			\
+               LOG_IS_STR_ARG(a2), LOG_IS_STR_ARG(a3),			\
+               LOG_IS_STR_ARG(a4), LOG_IS_STR_ARG(a5),			\
+               LOG_IS_STR_ARG(a6) }),					\
    fmt, a0, a1, a2, a3, a4, a5, a6);					\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
    LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); })
@@ -513,6 +545,10 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2),		\
                LOG_SIZEOF(a3), LOG_SIZEOF(a4), LOG_SIZEOF(a5),		\
                LOG_SIZEOF(a6), LOG_SIZEOF(a7) }),			\
+   LOG_GROUP({ LOG_IS_STR_ARG(a0), LOG_IS_STR_ARG(a1),			\
+               LOG_IS_STR_ARG(a2), LOG_IS_STR_ARG(a3),			\
+               LOG_IS_STR_ARG(a4), LOG_IS_STR_ARG(a5),			\
+               LOG_IS_STR_ARG(a6), LOG_IS_STR_ARG(a7) }),		\
    fmt, a0, a1, a2, a3, a4, a5, a6, a7);				\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
    LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); LOG_CHECK(a7); })
@@ -528,6 +564,11 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2),		\
                LOG_SIZEOF(a3), LOG_SIZEOF(a4), LOG_SIZEOF(a5),		\
                LOG_SIZEOF(a6), LOG_SIZEOF(a7), LOG_SIZEOF(a8) }),	\
+   LOG_GROUP({ LOG_IS_STR_ARG(a0), LOG_IS_STR_ARG(a1),			\
+               LOG_IS_STR_ARG(a2), LOG_IS_STR_ARG(a3),			\
+               LOG_IS_STR_ARG(a4), LOG_IS_STR_ARG(a5),			\
+               LOG_IS_STR_ARG(a6), LOG_IS_STR_ARG(a7),			\
+               LOG_IS_STR_ARG(a8) }),					\
    fmt, a0, a1, a2, a3, a4, a5, a6, a7, a8);				\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
    LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); LOG_CHECK(a7); LOG_CHECK(a8); })
