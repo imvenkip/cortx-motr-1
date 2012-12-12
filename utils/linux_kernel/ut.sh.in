@@ -9,9 +9,9 @@ fi
 
 . @abs_top_srcdir@/m0t1fs/linux_kernel/st/common.sh
 
-MODLIST="@abs_top_srcdir@/build_kernel_modules/kmero.ko \
+MODLIST="@abs_top_srcdir@/build_kernel_modules/m0mero.ko \
          @abs_top_srcdir@/build_kernel_modules/m0loop.ko   \
-         @abs_top_srcdir@/utils/linux_kernel/kutm0.ko"
+         @abs_top_srcdir@/utils/linux_kernel/m0ut.ko"
 
 log='/var/log/kern'
 if [ ! -e "$log" ]; then
@@ -21,7 +21,7 @@ tailseek=$(( $(stat -c %s "$log") + 1 ))
 
 modprobe_lnet
 modload_galois
-# currently, kernel UT runs as part of loading kutm0 module
+# currently, kernel UT runs as part of loading m0ut module
 modload
 # LNet driver UT requires a user space helper
 @abs_top_srcdir@/net/lnet/ut/lut_helper

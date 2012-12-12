@@ -103,14 +103,6 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 	M0_PRE(item != NULL && item->ri_type != NULL);
 	/* XXX Temporary assertion, until bound item posting is supported */
 	M0_PRE(m0_rpc_item_is_request(item) && !m0_rpc_item_is_bound(item));
-	/*
-	 * It is mandatory to specify item_ops, because rpc layer needs
-	 * implementation of m0_rpc_item_ops::rio_free() in order to free the
-	 * item. Consumer can use m0_fop_default_item_ops if, it is not
-	 * interested in implementing other (excluding ->rio_free())
-	 * interfaces of m0_rpc_item_ops. See also m0_fop_item_free().
-	 */
-	M0_ASSERT(item->ri_ops != NULL && item->ri_ops->rio_free != NULL);
 
 	session = item->ri_session;
 	M0_ASSERT(m0_rpc_session_invariant(session));
@@ -144,7 +136,6 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 	M0_PRE(request->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
 	M0_PRE(request->ri_session != NULL);
 	M0_PRE(reply->ri_type != NULL);
-	M0_PRE(reply->ri_ops != NULL && reply->ri_ops->rio_free != NULL);
 	M0_PRE(m0_rpc_item_size(reply) <=
 			m0_rpc_session_get_max_item_size(request->ri_session));
 

@@ -169,7 +169,7 @@ static bool conf_invariant(const struct m0_sm_conf *conf)
 			const struct m0_sm_state_descr *sd;
 
 			sd = &conf->scf_state[i];
-			if (sd->sd_flags & ~(M0_SDF_INITIAL|
+			if (sd->sd_flags & ~(M0_SDF_INITIAL|M0_SDF_FINAL|
 					     M0_SDF_FAILURE|M0_SDF_TERMINAL))
 				return false;
 			if ((sd->sd_flags & M0_SDF_TERMINAL) &&
@@ -201,7 +201,7 @@ M0_INTERNAL void m0_sm_init(struct m0_sm *mach, const struct m0_sm_conf *conf,
 M0_INTERNAL void m0_sm_fini(struct m0_sm *mach)
 {
 	M0_ASSERT(sm_invariant0(mach));
-	M0_PRE(sm_state(mach)->sd_flags & M0_SDF_TERMINAL);
+	M0_PRE(sm_state(mach)->sd_flags & (M0_SDF_TERMINAL | M0_SDF_FINAL));
 	m0_chan_fini(&mach->sm_chan);
 }
 

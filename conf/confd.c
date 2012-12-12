@@ -49,7 +49,7 @@
  * - @ref fom <!-- fop/fom.h -->
  * - @ref fop <!-- fop/fop.h -->
  * - @ref reqh <!-- reqh/reqh.h -->
- * - @ref mero_setup <!-- mero/mero_setup.h -->
+ * - @ref m0d <!-- mero/setup.h -->
  * - m0_reqh_service_type_register()  <!--reqh/reqh_service.h -->
  * - m0_reqh_service_type_unregister() <!--reqh/reqh_service.h -->
  * - m0_addb_ctx_init() <!-- addb/addb.h -->

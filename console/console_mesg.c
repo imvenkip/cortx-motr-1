@@ -64,19 +64,21 @@ M0_INTERNAL int m0_cons_fop_show(struct m0_fop_type *fopt)
 	void	      *fdata;
 
 	fop = m0_fop_alloc(fopt, NULL);
-	if (fop != NULL) {
-		fdata = m0_fop_data(fop);
-		if (fdata != NULL) {
-			m0_cons_fop_fields_show(fop);
-			m0_fop_free(fop);
-		} else {
-			fprintf(stderr, "FOP data does not exist\n");
-			return -EINVAL;
-		}
-	} else {
+	if (fop == NULL) {
 		fprintf(stderr, "FOP allocation failed\n");
+		return -ENOMEM;
+	}
+
+	fdata = m0_fop_data(fop);
+	if (fdata == NULL) {
+		fprintf(stderr, "FOP data does not exist\n");
+		m0_fop_put(fop);
 		return -EINVAL;
 	}
+
+	m0_cons_fop_fields_show(fop);
+
+	m0_fop_put(fop);
 	return 0;
 }
 

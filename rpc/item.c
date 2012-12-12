@@ -159,7 +159,7 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 		.sd_allowed = 0,
 	},
 	[M0_RPC_ITEM_INITIALISED] = {
-		.sd_flags   = M0_SDF_INITIAL,
+		.sd_flags   = M0_SDF_INITIAL | M0_SDF_FINAL,
 		.sd_name    = "INITIALISED",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_WAITING_IN_STREAM,
 				      M0_RPC_ITEM_ENQUEUED,
@@ -185,6 +185,7 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_SENT, M0_RPC_ITEM_FAILED),
 	},
 	[M0_RPC_ITEM_SENT] = {
+		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "SENT",
 		.sd_in      = item_entered_in_sent_state,
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_WAITING_FOR_REPLY,
@@ -196,6 +197,7 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 				      M0_RPC_ITEM_TIMEDOUT),
 	},
 	[M0_RPC_ITEM_REPLIED] = {
+		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "REPLIED",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_UNINITIALISED),
 	},
@@ -205,6 +207,7 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_FAILED),
 	},
 	[M0_RPC_ITEM_FAILED] = {
+		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "FAILED",
 		.sd_in      = item_entered_in_failed_state,
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_UNINITIALISED),
@@ -224,17 +227,19 @@ static const struct m0_sm_state_descr incoming_item_states[] = {
 		.sd_allowed = 0,
 	},
 	[M0_RPC_ITEM_INITIALISED] = {
-		.sd_flags   = M0_SDF_INITIAL,
+		.sd_flags   = M0_SDF_INITIAL | M0_SDF_FINAL,
 		.sd_name    = "INITIALISED",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_ACCEPTED,
 				      M0_RPC_ITEM_UNINITIALISED),
 	},
 	[M0_RPC_ITEM_ACCEPTED] = {
+		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "ACCEPTED",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_REPLIED,
 				      M0_RPC_ITEM_UNINITIALISED),
 	},
 	[M0_RPC_ITEM_REPLIED] = {
+		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "REPLIED",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_UNINITIALISED),
 	},
@@ -270,8 +275,6 @@ M0_INTERNAL bool m0_rpc_item_invariant(const struct m0_rpc_item *item)
 		item->ri_stage <= RPC_ITEM_STAGE_FUTURE &&
 		(req + rply + oneway == 1) && /* only one of three is true */
 		equi(req || rply, item->ri_session != NULL) &&
-		item->ri_ops != NULL &&
-		item->ri_ops->rio_free != NULL &&
 
 		equi(state == M0_RPC_ITEM_FAILED, item->ri_error != 0) &&
 		equi(state == M0_RPC_ITEM_FAILED,
@@ -379,35 +382,14 @@ M0_INTERNAL void m0_rpc_item_init(struct m0_rpc_item *item,
 }
 M0_EXPORTED(m0_rpc_item_init);
 
-M0_INTERNAL void m0_rpc_item_get(struct m0_rpc_item *item)
-{
-	/* XXX TODO */
-}
-M0_EXPORTED(m0_rpc_item_get);
-
-M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item)
-{
-	/* XXX TODO */
-}
-M0_EXPORTED(m0_rpc_item_put);
-
-static bool item_is_dummy(struct m0_rpc_item *item)
-{
-	struct m0_verno *v = item_verno(item, 0);
-	return v->vn_lsn == M0_LSN_DUMMY_ITEM && v->vn_vc == 0;
-}
-
 M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item)
 {
 	struct m0_rpc_slot_ref *sref = &item->ri_slot_refs[0];
 
 	M0_ENTRY("item: %p", item);
-	/*
-	 * m0_rpc_item_free() must have already finalised item->ri_sm
-	 * using m0_rpc_item_sm_fini().
-	 */
-	M0_PRE(item->ri_sm.sm_state == M0_RPC_ITEM_UNINITIALISED);
 
+	if (item->ri_sm.sm_state > M0_RPC_ITEM_UNINITIALISED)
+		m0_rpc_item_sm_fini(item);
 	sref->sr_ow = invalid_slot_ref;
 	slot_item_tlink_fini(item);
         m0_list_link_fini(&item->ri_unbound_link);
@@ -417,6 +399,24 @@ M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item)
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_rpc_item_fini);
+
+M0_INTERNAL void m0_rpc_item_get(struct m0_rpc_item *item)
+{
+	M0_PRE(item != NULL && item->ri_type != NULL &&
+	       item->ri_type->rit_ops != NULL &&
+	       item->ri_type->rit_ops->rito_item_get != NULL);
+
+	item->ri_type->rit_ops->rito_item_get(item);
+}
+
+M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item)
+{
+	M0_PRE(item != NULL && item->ri_type != NULL &&
+	       item->ri_type->rit_ops != NULL &&
+	       item->ri_type->rit_ops->rito_item_put != NULL);
+
+	item->ri_type->rit_ops->rito_item_put(item);
+}
 
 #define ITEM_XCODE_OBJ(ptr)     M0_XCODE_OBJ(m0_rpc_onwire_slot_ref_xc, ptr)
 #define SLOT_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_onwire_header_xc, ptr)
@@ -447,14 +447,6 @@ M0_INTERNAL m0_bcount_t m0_rpc_item_size(const struct m0_rpc_item *item)
 
 	return m0_rpc_item_onwire_header_size() +
 		item->ri_type->rit_ops->rito_payload_size(item);
-}
-
-M0_INTERNAL void m0_rpc_item_free(struct m0_rpc_item *item)
-{
-	M0_ASSERT(item->ri_ops != NULL &&
-		  item->ri_ops->rio_free != NULL);
-	m0_rpc_item_sm_fini(item);
-	item->ri_ops->rio_free(item);
 }
 
 M0_INTERNAL bool m0_rpc_item_is_update(const struct m0_rpc_item *item)
@@ -535,8 +527,6 @@ M0_INTERNAL void m0_rpc_item_sm_fini(struct m0_rpc_item *item)
 {
 	M0_PRE(item != NULL);
 
-	if (!item_is_dummy(item))
-		m0_rpc_item_change_state(item, M0_RPC_ITEM_UNINITIALISED);
 	/* ri_timeout gets initialised only after item enters in
 	   WAITING_FOR_REPLY state. If item fails before that we shouldn't
 	   try to fini ri_timeout.
@@ -666,8 +656,8 @@ static int item_entered_in_failed_state(struct m0_sm *mach)
 	M0_PRE(item->ri_error != 0);
 	item->ri_reply = NULL;
 
-	M0_ASSERT(item->ri_ops != NULL);
 	if (m0_rpc_item_is_request(item) &&
+	    item->ri_ops != NULL &&
 	    item->ri_ops->rio_replied != NULL)
 		item->ri_ops->rio_replied(item);
 

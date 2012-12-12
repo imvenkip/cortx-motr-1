@@ -28,7 +28,6 @@
 
 extern struct m0_fop_type m0_fop_cob_create_fopt;
 extern struct m0_fop_type m0_fop_cob_delete_fopt;
-extern const struct m0_rpc_item_ops cob_req_rpc_item_ops;
 extern struct m0_reqh_service_type m0_ios_type;
 
 /* Static instance of struct cobfoms_ut used by all test cases. */
@@ -249,13 +248,13 @@ static void cobfops_destroy(struct m0_fop_type *ftype1,
 	M0_UT_ASSERT(ftype1 == NULL || ftype1 == &m0_fop_cob_create_fopt);
 	M0_UT_ASSERT(ftype2 == NULL || ftype2 == &m0_fop_cob_delete_fopt);
 
-	if (ftype1 == NULL)
+	if (ftype1 != NULL)
 		for (i = 0; i < cut->cu_cobfop_nr; ++i)
-			m0_fop_free(cut->cu_createfops[i]);
+			m0_fop_put(cut->cu_createfops[i]);
 
-	if (ftype2 == NULL)
+	if (ftype2 != NULL)
 		for (i = 0; i < cut->cu_cobfop_nr; ++i)
-			m0_fop_free(cut->cu_deletefops[i]);
+			m0_fop_put(cut->cu_deletefops[i]);
 
 	m0_free(cut->cu_createfops);
 	m0_free(cut->cu_deletefops);
@@ -308,7 +307,7 @@ static void cobfops_send_wait(struct cobthread_arg *arg)
 		cut->cu_deletefops[i];;
 
 	rc = m0_rpc_client_call(fop, &cut->cu_cctx.rcx_session,
-				&cob_req_rpc_item_ops, 0 /* deadline */,
+				NULL, 0 /* deadline */,
 				CLIENT_RPC_CONN_TIMEOUT);
 	M0_UT_ASSERT(rc == 0);
 	rfop = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));

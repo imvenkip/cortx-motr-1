@@ -57,6 +57,75 @@ M0_INTERNAL int m0_rpc_init(void);
 M0_INTERNAL void m0_rpc_fini(void);
 
 /**
+  Posts an unbound item to the rpc layer.
+
+  The item will be sent through one of item->ri_session slots.
+
+  The rpc layer will try to send the item out not later than
+  item->ri_deadline and with priority of item->ri_priority.
+
+  Request will be considered as timed-out after item->ri_op_timeout is passed.
+  item->ri_op_timeout can be set to M0_TIME_NEVER, if you want the operation
+  to never timeout.
+
+  After successful call to m0_rpc_post(), user should not attempt to directly
+  free the item. Instead reference on the item should be dropped.
+  @see m0_fop_put()
+  @see m0_rpc_item_type_ops::rito_item_put
+
+  Callbacks:
+
+  @see m0_rpc_item_ops::rio_sent
+  @see m0_rpc_item_ops::rio_replied
+
+  If item is successfully placed on network, then rio_sent() is called.
+  If RPC layer failed to place item on network, then rio_sent() is called with
+     item->ri_error set to non-zero error code.
+  When reply to item is received, rio_replied() callback is called with
+     item->ri_reply pointing to reply item and item->ri_error == 0.
+  If request's operation timeout is passed or receiver reported failure, then
+     rio_replied() is called with item->ri_error set to non-zero error code and
+     item->ri_reply == NULL.
+
+  To wait until either reply is received or request is failed use
+  m0_rpc_item_wait_for_reply().
+
+  @pre item->ri_session != NULL
+  @pre M0_IN(session_state(item->ri_session), (M0_RPC_SESSION_IDLE,
+					       M0_RPC_SESSION_BUSY))
+  @pre m0_rpc_item_is_request(item) && !m0_rpc_item_is_bound(item)
+  @pre m0_rpc_item_size(item) <=
+          m0_rpc_session_get_max_item_size(item->ri_session)
+*/
+M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item);
+
+/**
+  Posts reply item on the same session on which the request item is received.
+
+  RPC items are reference counted, so do not directly free request or reply
+  items.
+
+  @see m0_fop_put()
+  @see m0_rpc_item_type_ops::rito_item_put
+ */
+int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply);
+
+M0_INTERNAL int m0_rpc_oneway_item_post(const struct m0_rpc_conn *conn,
+					struct m0_rpc_item *item);
+
+/**
+   Create a buffer pool per net domain which to be shared by TM's in it.
+   @pre ndom != NULL && app_pool != NULL
+   @pre bufs_nr != 0
+ */
+M0_INTERNAL int m0_rpc_net_buffer_pool_setup(struct m0_net_domain *ndom,
+					     struct m0_net_buffer_pool
+					     *app_pool, uint32_t bufs_nr,
+					     uint32_t tm_nr);
+
+void m0_rpc_net_buffer_pool_cleanup(struct m0_net_buffer_pool *app_pool);
+
+/**
  * Calculates the total number of buffers needed in network domain for
  * receive buffer pool.
  * @param len total Length of the TM's in a network domain
@@ -80,60 +149,6 @@ M0_INTERNAL m0_bcount_t m0_rpc_max_msg_size(struct m0_net_domain *ndom,
  */
 M0_INTERNAL uint32_t m0_rpc_max_recv_msgs(struct m0_net_domain *ndom,
 					  m0_bcount_t rpc_size);
-
-/**
-  Posts an unbound item to the rpc layer.
-
-  The item will be sent through one of item->ri_session slots.
-
-  The rpc layer will try to send the item out not later than
-  item->ri_deadline and with priority of item->ri_priority.
-
-  If this call returns without errors, the item's reply call-back is
-  guaranteed to be called eventually.
-
-  After successful call to m0_rpc_post(), user should not free the item.
-  Rpc-layer will internally free the item when rpc-layer is sure that the item
-  will not take part in recovery.
-
-  Rpc layer does not provide any API, to "wait until reply is received".
-  Upon receiving reply to item, item->ri_chan is signaled.
-  If item->ri_ops->rio_replied() callback is set, then it will be called.
-  Pointer to reply item can be retrieved from item->ri_reply.
-  If any error occured, item->ri_error is set to non-zero value.
-
-  Note: setting item->ri_ops and adding clink to item->ri_chan MUST be done
-  before calling m0_rpc_post(), because reply to the item can arrive even
-  before m0_rpc_post() returns.
-
-  @pre item->ri_session != NULL
-  @pre item->ri_priority is sane.
-*/
-M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item);
-
-/**
-  Posts reply item on the same session on which the request item is received.
-
-  After successful call to m0_rpc_reply_post(), user should not free the reply
-  item. Rpc-layer will internally free the item when rpc-layer is sure that
-  the corresponding request item will not take part in recovery.
- */
-int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply);
-
-M0_INTERNAL int m0_rpc_oneway_item_post(const struct m0_rpc_conn *conn,
-					struct m0_rpc_item *item);
-
-/**
-   Create a buffer pool per net domain which to be shared by TM's in it.
-   @pre ndom != NULL && app_pool != NULL
-   @pre bufs_nr != 0
- */
-M0_INTERNAL int m0_rpc_net_buffer_pool_setup(struct m0_net_domain *ndom,
-					     struct m0_net_buffer_pool
-					     *app_pool, uint32_t bufs_nr,
-					     uint32_t tm_nr);
-
-void m0_rpc_net_buffer_pool_cleanup(struct m0_net_buffer_pool *app_pool);
 
 /** @} end group rpc */
 

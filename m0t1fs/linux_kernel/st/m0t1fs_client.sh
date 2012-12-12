@@ -19,23 +19,14 @@ then
 	exit 0
 fi
 
+server_nid=$1
+
 . `dirname $0`/common.sh
 . `dirname $0`/m0t1fs_common_inc.sh
 . `dirname $0`/m0t1fs_client_inc.sh
 
 main()
 {
-	modprobe lnet &>> /dev/null
-	lctl network up &>> /dev/null
-	server_nid=$1
-	lnet_nid=`lctl list_nids | head -1`
-	LADDR="$lnet_nid:12345:33:1"
-
-	SERVICES="mds=${server_nid}:${EP[0]}"
-	for ((i=0; i < ${#EP[*]}; i++)) ; do
-                SERVICES="${SERVICES},ios=${server_nid}:${EP[$i]}"
-	done
-
 	prepare
 
 	echo "Prepare done, starting tests..."

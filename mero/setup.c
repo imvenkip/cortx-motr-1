@@ -39,13 +39,13 @@
 #include "reqh/reqh.h"
 #include "cob/cob.h"
 #include "mdstore/mdstore.h"
-#include "mero/mero_setup.h"
-#include "mero/cs_internal.h"
+#include "mero/setup.h"
+#include "mero/setup_internal.h"
 #include "mero/magic.h"
 #include "rpc/rpclib.h"
 #include "rpc/rpc_internal.h"
 /**
-   @addtogroup mero_setup
+   @addtogroup m0d
    @{
  */
 
@@ -1495,7 +1495,7 @@ static void cs_mero_fini(struct m0_mero *cctx)
 }
 
 /**
-   Displays usage of mero_setup program.
+   Displays usage of m0d program.
 
    @param out File to which the output is written
  */
@@ -1503,8 +1503,8 @@ static void cs_usage(FILE *out)
 {
 	M0_PRE(out != NULL);
 
-	fprintf(out, "Usage: mero_setup [-h] [-x] [-l]\n"
-		   "    or mero_setup GlobalFlags ReqHSpec+\n"
+	fprintf(out, "Usage: m0d [-h] [-x] [-l]\n"
+		   "    or m0d GlobalFlags ReqHSpec+\n"
 		   "       where\n"
 		   "         GlobalFlags := [-M RPCMaxMessageSize]"
 		   " [-Q MinReceiveQueueLength]\n"
@@ -1515,7 +1515,7 @@ static void cs_usage(FILE *out)
 }
 
 /**
-   Displays help for mero_setup program.
+   Displays help for m0d program.
 
    @param out File to which the output is written
  */
@@ -1532,11 +1532,11 @@ static void cs_help(FILE *out)
 		   "Endpoints and services can be specified multiple times "
 		   "using -e and -s options\nin a request handler set.\n"
 		   "-h Prints mero usage help.\n"
-		   "   e.g. mero_setup -h\n"
+		   "   e.g. m0d -h\n"
 		   "-x Lists supported network transports.\n"
-		   "   e.g. mero_setup -x\n"
+		   "   e.g. m0d -x\n"
 		   "-l Lists supported services on this node.\n"
-		   "   e.g. mero_setup -l\n"
+		   "   e.g. m0d -l\n"
 		   "-Q Minimum TM Receive queue length.\n"
 		   "   It is a global and optional flag.\n"
 		   "-M Maximum RPC message size.\n"
@@ -1562,7 +1562,7 @@ static void cs_help(FILE *out)
 		   "-e Network layer endpoint to which clients connect. "
 		   "Network layer endpoint\n   consists of 2 parts "
 		   "network transport:endpoint address.\n"
-/* Currently cs_main.c does not pick up the in-mem transport. There is no
+/* Currently m0d.c does not pick up the in-mem transport. There is no
  * external use case for memxprt.
  * This does not prevent its usage in UT. So UT uses memxprt but the help
  * should not be given unless there is an external use case.
@@ -1605,7 +1605,7 @@ static void cs_help(FILE *out)
 		   "   If not set overrided by global value.\n"
 		   "   Should not be greater than XprtMaxBufferSize\n"
 		   "\n"
-		   "   e.g. ./mero_setup -Q 4 -M 4096 -r -T linux\n"
+		   "   e.g. ./m0d -Q 4 -M 4096 -r -T linux\n"
 		   "        -D dbpath -S stobfile -e lnet:172.18.50.40@o2ib1:12345:34:1 \n"
 		   "	    -s mds -q 8 -m 65536 \n");
 }
@@ -1723,7 +1723,7 @@ static int cs_parse_args(struct m0_mero *cctx, int argc, char **argv)
 		return -EINVAL;;
 
 	ofd = cctx->cc_outfile;
-	result = M0_GETOPTS("mero_setup", argc, argv,
+	result = M0_GETOPTS("m0d", argc, argv,
 			M0_VOIDARG('h', "Mero_setup usage help",
 				LAMBDA(void, (void)
 				{
@@ -1926,7 +1926,7 @@ M0_INTERNAL void m0_cs_fini(struct m0_mero *cctx)
         cs_mero_fini(cctx);
 }
 
-/** @} endgroup mero_setup */
+/** @} endgroup m0d */
 
 /*
  *  Local variables:

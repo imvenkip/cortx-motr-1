@@ -31,7 +31,6 @@
 #include "mero/magic.h"
 #include "m0t1fs/linux_kernel/m0t1fs.h"
 
-extern const struct m0_rpc_item_ops cob_req_rpc_item_ops;
 M0_INTERNAL void m0t1fs_inode_bob_init(struct m0t1fs_inode *bob);
 M0_INTERNAL bool m0t1fs_inode_bob_check(struct m0t1fs_inode *bob);
 
@@ -936,14 +935,13 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
         if (rc != 0) {
                 M0_LOG(M0_ERROR,
                        "m0t1fs_mds_cob_fop_populate() failed with %d", rc);
-                m0_fop_free(fop);
                 goto out;
         }
 
         M0_LOG(M0_DEBUG, "Send md operation %x to session %lu\n",
                 m0_fop_opcode(fop), (unsigned long)session->s_session_id);
 
-        rc = m0_rpc_client_call(fop, session, &m0_fop_default_item_ops,
+        rc = m0_rpc_client_call(fop, session, NULL,
                                 0 /* deadline */, M0T1FS_RPC_TIMEOUT);
 
         if (rc != 0) {
@@ -1014,11 +1012,9 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
                 goto out;
         }
 
-        /*
-         * Fop is deallocated by rpc layer using
-         * cob_req_rpc_item_ops->rio_free() rpc item ops.
-         */
 out:
+	if (fop != NULL)
+		m0_fop_put(fop);
         M0_LEAVE("%d", rc);
         return rc;
 }
@@ -1130,10 +1126,8 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 	cobcreate = m0_is_cob_create_fop(fop);
 
 	rc = m0t1fs_ios_cob_fop_populate(csb, fop, cob_fid, gob_fid, cob_idx);
-	if (rc != 0) {
-		m0_fop_free(fop);
-		goto out;
-	}
+	if (rc != 0)
+		goto fop_put;
 
 	M0_LOG(M0_DEBUG, "Send %s [%lu:%lu] to session %lu\n",
 		cobcreate ? "cob_create" : "cob_delete",
@@ -1141,11 +1135,11 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 		(unsigned long)cob_fid->f_key,
 		(unsigned long)session->s_session_id);
 
-	rc = m0_rpc_client_call(fop, session, &cob_req_rpc_item_ops,
+	rc = m0_rpc_client_call(fop, session, NULL,
 				0 /* deadline */, M0T1FS_RPC_TIMEOUT);
 
 	if (rc != 0)
-		goto out;
+		goto fop_put;
 
 	/*
 	 * The reply fop received event is a generic event which does not
@@ -1178,11 +1172,9 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 		rc = reply->cor_rc;
 
         M0_LOG(M0_DEBUG, "Finished ioservice op with %d", rc);
-	/*
-	 * Fop is deallocated by rpc layer using
-	 * cob_req_rpc_item_ops->rio_free() rpc item ops.
-	 */
 
+fop_put:
+	m0_fop_put(fop);
 out:
 	M0_LEAVE("%d", rc);
 	return rc;

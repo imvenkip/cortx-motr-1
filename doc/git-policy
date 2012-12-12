@@ -374,7 +374,7 @@ In Mero project we define the following tags:
       </size>
 
         Provides an information about how the image size of main binary files,
-        like libmero.so or kmero.ko, is affected by the current patch.
+        like libmero.so or m0mero.ko, is affected by the current patch.
         The idea, is to be able to track down how much each particular feature
         contributes to the whole image size and to find the "culprit" if image
         size goes out of control.
@@ -390,7 +390,7 @@ In Mero project we define the following tags:
           <size>
               text     data      bss    total filename
               -312        0        0     -312 libmero-altogether.so
-              -288        0        0     -288 kmero.ko
+              -288        0        0     -288 m0mero.ko
               -288        0        0     -288 libmero.so
           </size>
 

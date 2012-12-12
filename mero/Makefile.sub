@@ -1,11 +1,11 @@
 nobase_mero_include_HEADERS += mero/init.h \
-                                  mero/mero_setup.h \
+                                  mero/setup.h \
                                   mero/magic.h
 
 mero_libmero_la_SOURCES  += mero/init.c \
-                                  mero/mero_setup.c
+                                  mero/setup.c
 
-mero_mero_setup_SOURCES   = mero/cs_main.c \
+mero_m0d_SOURCES   = mero/m0d.c \
                                   mero/cs_internal.h
 
 EXTRA_DIST += mero/devices.sh \

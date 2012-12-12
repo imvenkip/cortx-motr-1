@@ -4,7 +4,7 @@ mero_libmero_la_SOURCES  += sns/repair/st/trigger_fop.h \
                                   sns/repair/st/trigger_fom.c \
                                   sns/repair/st/trigger_fop_ff.c
 
-sns_repair_st_repair_SOURCES = sns/repair/st/repair_cli.c
+sns_repair_st_m0repair_SOURCES = sns/repair/st/repair_cli.c
 
 EXTRA_DIST += sns/repair/st/trigger_fop.ff
 

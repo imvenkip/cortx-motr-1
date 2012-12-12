@@ -1,14 +1,23 @@
-# MERO_CORE_ROOT should be absolute path
-if [ ${0:0:1} = "/" ]; then
-	MERO_CORE_ROOT=`dirname $0`
+if [ -z "$PS1" ]; then
+	# non-interactive shell
+	# MERO_CORE_ROOT should be absolute path
+	if [ ${0:0:1} = "/" ]; then
+		MERO_CORE_ROOT=`dirname $0`
+	else
+		MERO_CORE_ROOT=$PWD/`dirname $0`
+	fi
+	MERO_CORE_ROOT=${MERO_CORE_ROOT%/m0t1fs*}
 else
-	MERO_CORE_ROOT=$PWD/`dirname $0`
+	# interactive shell
+	if [ -z "$MERO_CORE_ROOT" ]; then
+		MERO_CORE_ROOT=$PWD
+		echo "MERO_CORE_ROOT variable is set to $MERO_CORE_ROOT"
+	fi
 fi
-MERO_CORE_ROOT=${MERO_CORE_ROOT%/m0t1fs*}
 MERO_M0T1FS_MOUNT_DIR=/tmp/test_m0t1fs_`date +"%d-%m-%Y_%T"`
 MERO_M0T1FS_TEST_DIR=/tmp/test_m0t1fs_$$
 #MERO_M0T1FS_TEST_DIR=/tmp/test_m0t1fs
-MERO_MODULE=kmero
+MERO_MODULE=m0mero
 
 MERO_MODULE_TRACE_MASK='!all'
 MERO_TRACE_PRINT_CONTEXT=short
@@ -32,10 +41,6 @@ TM_MIN_RECV_QUEUE_LEN=16
 # Maximum value needed to run current ST is 160k.
 MAX_RPC_MSG_SIZE=163840
 XPT=lnet
-lnet_nid=0@lo
-
-# Client end point (kmero module local_addr)
-LADDR="$lnet_nid:12345:33:1"
 
 # list of server end points
 EP=(
@@ -44,8 +49,6 @@ EP=(
     12345:33:103
     12345:33:104
 )
-
-SERVICES="mds=${lnet_nid}:${EP[0]}"
 
 unload_kernel_module()
 {
@@ -60,7 +63,18 @@ unload_kernel_module()
 
 load_kernel_module()
 {
-	modprobe lnet
+	modprobe lnet &>> /dev/null
+	lctl network up &>> /dev/null
+	lnet_nid=`sudo lctl list_nids | head -1`
+	server_nid=${server_nid:-$lnet_nid}
+
+	# Client end point (m0mero module local_addr)
+	LADDR="$lnet_nid:12345:33:1"
+
+	SERVICES="mds=${server_nid}:${EP[0]}"
+	for ((i=0; i < ${#EP[*]}; i++)) ; do
+		SERVICES="${SERVICES},ios=${server_nid}:${EP[$i]}"
+	done
 
 	mero_module_path=$MERO_CORE_ROOT/build_kernel_modules
 	mero_module=$MERO_MODULE
@@ -107,7 +121,7 @@ prepare_testdir()
 prepare()
 {
 	prepare_testdir || return $?
-	modload_galois
+	modload_galois >& /dev/null
 	echo 8 > /proc/sys/kernel/printk
 	load_kernel_module || return $?
 }
@@ -121,7 +135,7 @@ unprepare()
 		rm -rf $MERO_M0T1FS_MOUNT_DIR
 	fi
 
-	if lsmod | grep kmero > /dev/null; then
+	if lsmod | grep m0mero > /dev/null; then
 		unload_kernel_module
 	fi
 	modunload_galois

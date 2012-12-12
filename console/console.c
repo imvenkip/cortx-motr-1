@@ -89,9 +89,10 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode)
 	m0_cons_fop_name_print(ftype);
 	m0_cons_fop_obj_input(fop);
 	rc = m0_rpc_client_call(fop, &cctx->rcx_session,
-				&m0_fop_default_item_ops, 0 /* deadline */,
+				NULL, 0 /* deadline */,
 				timeout);
 	if (rc != 0) {
+		m0_fop_put(fop);
 		fprintf(stderr, "Sending message failed!\n");
 		return -EINVAL;
 	}
@@ -99,12 +100,14 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode)
 	/* Fetch the FOP reply */
 	item = &fop->f_item;
         if (item->ri_error != 0) {
+		m0_fop_put(fop);
 		fprintf(stderr, "rpc item receive failed.\n");
 		return -EINVAL;
 	}
 
 	rfop = m0_rpc_item_to_fop(item->ri_reply);
 	if(rfop == NULL) {
+		m0_fop_put(fop);
 		fprintf(stderr, "RPC item reply not received.\n");
 		return -EINVAL;
 	}
@@ -113,9 +116,7 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode)
 	fprintf(stdout, "Print reply FOP: \n");
 	m0_cons_fop_obj_output(rfop);
 
-	m0_xcode_free(&M0_FOP_XCODE_OBJ(fop));
-	m0_xcode_free(&M0_FOP_XCODE_OBJ(rfop));
-
+	m0_fop_put(fop);
 	return 0;
 }
 

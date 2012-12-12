@@ -142,7 +142,7 @@ static int generate_conf_file(const char *c_name, int rec_nr)
 }
 
 /**
-  Main function for yaml2db
+  Main function for m0yamltodb
 */
 int main(int argc, char *argv[])
 {
@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
 	M0_SET0(&yctx);
 
 	/* Parse command line options */
-	rc = M0_GETOPTS("yaml2db", argc, argv,
+	rc = M0_GETOPTS("m0yamltodb", argc, argv,
 		M0_STRINGARG('b', "path of database directory",
 			LAMBDA(void, (const char *str) {d_path = str; })),
 		M0_STRINGARG('c', "config file in yaml format",

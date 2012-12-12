@@ -61,7 +61,7 @@
   e.g. to make m0t1fs use 172.18.50.40@o2ib1:12345:34:1 as its end-point address
   load module with command:
 
-  sudo insmod kmero.ko local_addr="172.18.50.40@o2ib1:12345:34:1"
+  sudo insmod m0mero.ko local_addr="172.18.50.40@o2ib1:12345:34:1"
 
   m0t1fs can be mounted with mount command:
 

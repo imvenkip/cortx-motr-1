@@ -285,7 +285,7 @@ static void conf_ping(struct m0_rpc_session *session)
 		goto out;
 	}
 
-	rc = m0_rpc_client_call(fop, session, &m0_fop_default_item_ops, 0,
+	rc = m0_rpc_client_call(fop, session, NULL, 0,
 				M0T1FS_RPC_TIMEOUT);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "m0_rpc_client_call() error: %d", rc);

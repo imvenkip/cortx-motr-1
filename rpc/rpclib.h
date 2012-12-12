@@ -34,7 +34,7 @@
 #include "net/buffer_pool.h"
 
 #ifndef __KERNEL__
-#include "mero/mero_setup.h" /* struct m0_mero */
+#include "mero/setup.h" /* struct m0_mero */
 #endif
 
 struct m0_fop;

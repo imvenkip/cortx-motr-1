@@ -825,18 +825,6 @@ struct io_request_ops {
                                    enum page_attr      filter);
 
         /**
-         * Locates the pargrp_iomap structure corresponding to given
-         * parity group id from io_request::ir_iomaps.
-         * For a valid parity group id, a pargrp_iomap structure must
-         * be present.
-	 * @param grpid Parity group id.
-	 * @param map   Out paramter to return pargrp_iomap.
-         */
-        void (*iro_iomap_locate)  (struct io_request    *req,
-                                   uint64_t              grpid,
-                                   struct pargrp_iomap **map);
-
-        /**
          * Recalculates parity for all pargrp_iomap structures in
          * given io_request.
          * Basically, invokes parity_recalc() routine for every
@@ -1105,6 +1093,7 @@ struct target_ioreq_ops {
 	 * @param par_offset Offset in case of parity units.
 	 * @param count      Number of bytes in this segment.
 	 * @param unit       Unit id in parity group.
+	 * @param map        Parent pargrp_iomap structure.
 	 * @pre   ti != NULL && count > 0.
 	 * @post  m0_vec_count(&ti->ti_ivec.iv_vec) > 0.
          */
@@ -1113,7 +1102,8 @@ struct target_ioreq_ops {
                                     m0_bindex_t          gob_offset,
                                     m0_bindex_t          par_offset,
                                     m0_bcount_t          count,
-                                    uint64_t             unit);
+                                    uint64_t             unit,
+				    struct pargrp_iomap *map);
 
         /**
 	 * Prepares io fops from index vector and buffer vector.

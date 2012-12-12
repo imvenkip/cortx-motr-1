@@ -41,20 +41,16 @@
    belonging to rpc-session module
  */
 
-static void conn_establish_item_free(struct m0_rpc_item *item)
+static void conn_establish_fop_release(struct m0_ref *ref)
 {
 	struct m0_rpc_fop_conn_establish_ctx *ctx;
 	struct m0_fop                        *fop;
 
-	fop = m0_rpc_item_to_fop(item);
-	m0_fop_fini(fop);
+	fop = container_of(ref, struct m0_fop, f_ref);
 	ctx = container_of(fop, struct m0_rpc_fop_conn_establish_ctx, cec_fop);
+	m0_fop_fini(fop);
 	m0_free(ctx);
 }
-
-static const struct m0_rpc_item_ops rcv_conn_establish_item_ops = {
-	.rio_free = conn_establish_item_free,
-};
 
 static int conn_establish_item_decode(const struct m0_rpc_item_type *item_type,
 				      struct m0_rpc_item           **item,
@@ -75,24 +71,21 @@ static int conn_establish_item_decode(const struct m0_rpc_item_type *item_type,
 		M0_RETURN(-ENOMEM);
 
 	ctx->cec_sender_ep = NULL;
-	fop         = &ctx->cec_fop;
+	fop = &ctx->cec_fop;
 
 	/**
 	   No need to allocate fop->f_data.fd_data since xcode allocates
 	   top level object also.
 	 */
-	m0_fop_init(fop, &m0_rpc_fop_conn_establish_fopt, NULL);
+	m0_fop_init(fop, &m0_rpc_fop_conn_establish_fopt, NULL,
+		    conn_establish_fop_release);
 
 	rc = m0_fop_item_encdec(&fop->f_item, cur, M0_BUFVEC_DECODE);
-	if (rc != 0)
-		goto out;
+	if (rc == 0)
+		*item = &fop->f_item;
+	else
+		m0_fop_put(fop);
 
-	*item           = &fop->f_item;
-	(*item)->ri_ops = &rcv_conn_establish_item_ops;
-
-	M0_RETURN(0);
-out:
-	m0_free(ctx);
 	M0_RETURN(rc);
 }
 
@@ -100,9 +93,8 @@ const struct m0_fop_type_ops m0_rpc_fop_noop_ops = {
 };
 
 static struct m0_rpc_item_type_ops conn_establish_item_type_ops = {
-	.rito_encode       = m0_fop_item_type_default_encode,
+	M0_FOP_DEFAULT_ITEM_TYPE_OPS,
 	.rito_decode       = conn_establish_item_decode,
-        .rito_payload_size = m0_fop_item_type_default_payload_size,
 };
 
 struct m0_fop_type m0_rpc_fop_conn_establish_fopt;

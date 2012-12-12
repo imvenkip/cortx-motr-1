@@ -22,7 +22,7 @@
 #include "lib/memory.h"
 
 #include "reqh/reqh_service.h"
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 
 #include "ut/cs_fop_foms.h"
 

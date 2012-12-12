@@ -16,10 +16,6 @@ main()
 		return 1
 	fi
 
-	for ((i=0; i < ${#EP[*]}; i++)) ; do
-                SERVICES="${SERVICES},ios=${lnet_nid}:${EP[$i]}"
-	done
-
 	m0t1fs_system_tests
 
 	mero_service stop

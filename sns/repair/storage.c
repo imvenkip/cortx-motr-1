@@ -24,7 +24,7 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 
 #include "sns/repair/ag.h"
 #include "sns/repair/cp.h"

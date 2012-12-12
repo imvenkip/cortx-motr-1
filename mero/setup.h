@@ -31,7 +31,7 @@
 #include "net/buffer_pool.h"
 
 /**
-   @defgroup mero_setup Mero Setup
+   @defgroup m0d Mero Setup
 
    Mero setup program configures a user space mero context
    on a node in a cluster.
@@ -54,7 +54,7 @@
    services run under request handler context.
 
    Mero setup can be done internally through mero code or externally
-   through cli using mero_setup program. As mero setup configures
+   through cli using m0d program. As mero setup configures
    the server it should be used in server side initialisation. if done
    through code, Following has to be done to configure a mero context:
 
@@ -78,7 +78,7 @@
    Define parameters for mero setup and setup environment as below,
 
    @code
-   static char *cmd[] = { "mero_setup", "-r", "-T", "AD",
+   static char *cmd[] = { "m0d", "-r", "-T", "AD",
                    "-D", "cs_db", "-S", "cs_stob",
                    "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
                    "-s", "dummy"};
@@ -95,15 +95,15 @@
     @note The specified services to be started should be registered before
           startup.
 
-    Failure handling for mero_setup is done as follows,
+    Failure handling for m0d is done as follows,
     - As mentioned above, user must follow the sequence of m0_cs_init(),
       m0_cs_setup_env(), and m0_cs_start() in-order to setup m0_mero instance
       programmatically. If m0_cs_init() fails, user need not invoke m0_cs_fini(),
-      although if m0_cs_init() succeeds and if further calls to mero_setup
+      although if m0_cs_init() succeeds and if further calls to m0d
       routines fail i.e m0_cs_setup_env() or cs_cs_start(), then user must invoke
       m0_cs_fini() corresponding to m0_cs_init().
 
-    Similarly, to setup mero externally, using mero_setup program along
+    Similarly, to setup mero externally, using m0d program along
     with parameters specified as above.
     e.g. ./mero -r -T linux -D dbpath -S stobfile \
            -e xport:172.18.50.40@o2ib1:12345:34:1 -s service
@@ -250,7 +250,7 @@ M0_INTERNAL struct m0_net_domain *m0_cs_net_domain_locate(struct m0_mero
 							  const char
 							  *xprt_name);
 
-/** @} endgroup mero_setup */
+/** @} endgroup m0d */
 
 /* __MERO_MERO_MERO_SETUP_H__ */
 #endif

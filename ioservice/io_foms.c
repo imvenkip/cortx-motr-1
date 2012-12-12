@@ -20,13 +20,13 @@
  * Revision date  : 09/14/2011
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/tlist.h"
 #include "lib/assert.h"
 #include "lib/misc.h"    /* M0_BITS */
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
-#include "lib/trace.h"
 #include "lib/finject.h"
 #include "addb/addb.h"
 #include "net/net_internal.h"
@@ -42,7 +42,7 @@
 #include "ioservice/io_device.h"
 #include "ioservice/io_fops_ff.h"
 #include "mero/magic.h"
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 #include "pool/pool.h"
 
 /**
@@ -1016,6 +1016,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out)
 	*out = fom;
 	m0_fom_init(fom, &fop->f_type->ft_fom_type,
 		    &ops, fop, rep_fop);
+	m0_fop_put(rep_fop);
 
 	fom_obj->fcrw_fom_start_time = m0_time_now();
 	fom_obj->fcrw_stob = NULL;
@@ -1033,7 +1034,6 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out)
 
 	netbufs_tlist_init(&fom_obj->fcrw_netbuf_list);
 	stobio_tlist_init(&fom_obj->fcrw_stio_list);
-	m0_rpc_bulk_init(&fom_obj->fcrw_bulk);
 
 	M0_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, m0_addb_trace,
 		    "FOM created : type=rw.");
@@ -1261,7 +1261,7 @@ static int zero_copy_initiate(struct m0_fom *fom)
 
 	rwfop = io_rw_get(fop);
 	rbulk = &fom_obj->fcrw_bulk;
-
+	m0_rpc_bulk_init(rbulk);
 
 	M0_ASSERT(m0_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
 	dom      = io_fop_tm_get(fop)->ntm_dom;
@@ -1773,10 +1773,13 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
  */
 static size_t m0_io_fom_cob_rw_locality_get(const struct m0_fom *fom)
 {
+	struct m0_fop_cob_rw *rw;
+
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_fop != NULL);
 
-	return m0_fop_opcode(fom->fo_fop);
+	rw = io_rw_get(fom->fo_fop);
+	return rw->crw_fid.f_container;
 }
 
 /**

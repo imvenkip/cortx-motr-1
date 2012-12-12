@@ -44,7 +44,6 @@ static void cs_ut_rpc_item_reply_cb(struct m0_rpc_item *item);
  */
 const struct m0_rpc_item_ops cs_ds_req_fop_rpc_item_ops = {
         .rio_replied = cs_ut_rpc_item_reply_cb,
-	.rio_free    = m0_fop_item_free,
 };
 
 struct m0_fop_type cs_ds1_req_fop_fopt;
@@ -132,7 +131,7 @@ int m0_cs_ut_ds1_fop_init(void)
 {
         /*
            As we are finalising and initialising fop types multiple times
-           per service for various mero_setup commands, So reinitialise
+           per service for various m0d commands, So reinitialise
            fop_type_format for each corresponding service fop types.
          */
 	m0_xc_cs_test_fops_init();
@@ -164,7 +163,7 @@ int m0_cs_ut_ds2_fop_init(void)
 {
 	/*
 	   As we are finalising and initialising fop types multiple times
-	   per service for various mero_setup commands, So reinitialise
+	   per service for various m0d commands, So reinitialise
 	   fop_type_format for each corresponding service fop types.
 	 */
 	m0_xc_cs_test_fops_init();

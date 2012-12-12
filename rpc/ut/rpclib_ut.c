@@ -110,6 +110,7 @@ static int send_fop(struct m0_rpc_session *session)
 	M0_UT_ASSERT(fop->f_item.ri_error == 0);
 	M0_UT_ASSERT(fop->f_item.ri_reply != 0);
 
+	m0_fop_put(fop);
 out:
 	return rc;
 }

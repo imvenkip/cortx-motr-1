@@ -23,7 +23,7 @@
 #include "lib/memory.h"
 
 #include "fop/fop.h"
-#include "iterator_test_ff.h"
+#include "fop/ut/iterator_test_ff.h"
 #include "rpc/rpc_opcodes.h"
 #include "xcode/xcode.h"
 
@@ -135,7 +135,7 @@ static void fit_test(void)
 	}
 	M0_UT_ASSERT(i == ARRAY_SIZE(expected));
 
-	m0_fop_free(f);
+	m0_fop_put(f);
 	fop_fini();
 }
 

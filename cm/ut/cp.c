@@ -130,8 +130,6 @@ static void cp_post(struct m0_sns_repair_cp *sns_cp,
 	cp = &sns_cp->rc_base;
 	m0_cm_cp_init(cp);
         cp->c_ag = ag;
-        /* Required to pass the fom invariant. */
-        cp->c_fom.fo_fop = (void *)1;
 	cp->c_data = bv;
 	sns_cp->rc_sid = sid;
 	cp->c_ops = &m0_sns_repair_cp_dummy_ops;

@@ -271,7 +271,7 @@ void io_fops_create(struct bulkio_params *bp, enum M0_RPC_OPCODES op,
 	for (i = 0; i < fops_nr; ++i) {
 		M0_ALLOC_PTR(io_fops[i]);
 		M0_ASSERT(io_fops[i] != NULL);
-		rc = m0_io_fop_init(io_fops[i], fopt);
+		rc = m0_io_fop_init(io_fops[i], fopt, NULL);
 		M0_ASSERT(rc == 0);
 	}
 
@@ -335,6 +335,7 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 		M0_ASSERT(rbulk->rb_rc == 0);
 		m0_mutex_unlock(&rbulk->rb_mutex);
 	}
+	m0_fop_put(&io_fops[i]->if_fop);
 }
 
 void bulkio_params_init(struct bulkio_params *bp)

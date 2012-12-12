@@ -1084,11 +1084,21 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_db_tx *tx)
 {
         struct m0_cob_fabkey fabkey;
         struct m0_cob_omgkey omgkey;
+        struct m0_cob_oikey  oikey;
+        bool                 sdname;
         struct m0_db_pair    pair;
+        struct m0_cob       *sdcob;
         int                  rc;
 
         M0_PRE(m0_cob_is_valid(cob));
         M0_PRE(cob->co_flags & M0_CA_NSKEY);
+
+        m0_cob_oikey_make(&oikey, cob->co_fid, 0);
+        rc = m0_cob_locate(cob->co_dom, &oikey, 0, &sdcob, tx);
+        if (rc != 0)
+                goto out;
+        sdname = (m0_cob_nskey_cmp(cob->co_nskey, sdcob->co_nskey) == 0);
+        m0_cob_put(sdcob);
 
         /*
          * Delete last name from namespace and object index.
@@ -1097,7 +1107,10 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_db_tx *tx)
         if (rc != 0)
                 goto out;
 
-        if (cob->co_nsrec.cnr_linkno == 0) {
+        /*
+         * Is this a statdata name?
+         */
+        if (sdname) {
                 /*
                  * Remove from the fileattr_basic table.
                  */

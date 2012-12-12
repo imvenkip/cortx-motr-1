@@ -122,6 +122,7 @@ M0_INTERNAL void m0_rpc_packet_add_item(struct m0_rpc_packet *p,
 	M0_PRE(m0_rpc_packet_invariant(p) && item != NULL);
 	M0_PRE(!packet_item_tlink_is_in(item));
 
+	m0_rpc_item_get(item);
 	packet_item_tlink_init_at_tail(item, &p->rp_items);
 	++p->rp_ow.poh_nr_items;
 	p->rp_size += m0_rpc_item_size(item);
@@ -148,8 +149,9 @@ M0_INTERNAL void m0_rpc_packet_remove_item(struct m0_rpc_packet *p,
 	M0_LOG(M0_DEBUG, "nr_items: %llu packet size: %llu",
 			(unsigned long long)p->rp_ow.poh_nr_items,
 			(unsigned long long)p->rp_size);
-	M0_ASSERT(m0_rpc_packet_invariant(p));
 	M0_POST(!packet_item_tlink_is_in(item));
+	m0_rpc_item_put(item);
+	M0_ASSERT(m0_rpc_packet_invariant(p));
 	M0_LEAVE();
 }
 
@@ -347,6 +349,7 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 		if (rc != 0)
 			M0_RETURN(rc);
 		m0_rpc_packet_add_item(p, item);
+		m0_rpc_item_put(item);
 		item = NULL;
 	}
 	m0_bufvec_cursor_align(cursor, 8);

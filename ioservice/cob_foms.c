@@ -35,7 +35,7 @@
 #include "ioservice/io_device.h"   /* m0_ios_poolmach_get() */
 #include "reqh/reqh_service.h"
 #include "pool/pool.h"
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 #include "ioservice/io_fops_ff.h"
 
 /* Forward Declarations. */
@@ -126,6 +126,7 @@ static int cob_fom_create(struct m0_fop *fop, struct m0_fom **out)
 	}
 
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, rfop);
+	m0_fop_put(rfop);
 	cob_fom_populate(fom);
 	return rc;
 }

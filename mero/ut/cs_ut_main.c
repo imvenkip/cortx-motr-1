@@ -31,10 +31,10 @@
 #include "net/bulk_mem.h"
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 #include "rpc/rpc_opcodes.h"
 
-#include "mero/mero_setup.c"
+#include "mero/setup.c"
 
 extern const struct m0_tl_descr ndoms_descr;
 
@@ -51,18 +51,18 @@ struct cl_ctx {
 };
 
 /* Configures mero environment with given parameters. */
-static char *cs_ut_service_one_cmd[] = { "mero_setup", "-r", "-p", "-T", "linux",
+static char *cs_ut_service_one_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
 				"-e", "lnet:0@lo:12345:34:1" ,
                                 "-s", "ds1"};
 
-static char *cs_ut_services_many_cmd[] = { "mero_setup", "-r", "-p", "-T", "AD",
+static char *cs_ut_services_many_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s", "ds1", "-s" "ds2"};
 
-static char *cs_ut_reqhs_many_cmd[] = { "mero_setup", "-r", "-p", "-T", "linux",
+static char *cs_ut_reqhs_many_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "cs_r1sdb", "-S", "cs_r1stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1",
@@ -71,63 +71,63 @@ static char *cs_ut_reqhs_many_cmd[] = { "mero_setup", "-r", "-p", "-T", "linux",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s" "ds2"};
 
-static char *cs_ut_opts_jumbled_cmd[] = { "mero_setup", "-r", "-p", "-D",
+static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-r", "-p", "-D",
                                 "cs_sdb", "-T", "AD", "-s", "ds1",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-S", "cs_stob"};
 
-static char *cs_ut_dev_stob_cmd[] = { "mero_setup", "-r", "-p", "-T", "AD",
+static char *cs_ut_dev_stob_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-d", "devices.conf",
 				"-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
-static char *cs_ut_reqh_none_cmd[] = { "mero_setup", "-T", "AD",
+static char *cs_ut_reqh_none_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
-static char *cs_ut_stype_bad_cmd[] = { "mero_setup", "-r", "-p", "-T", "asdadd",
+static char *cs_ut_stype_bad_cmd[] = { "m0d", "-r", "-p", "-T", "asdadd",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
-static char *cs_ut_xprt_bad_cmd[] = { "mero_setup", "-r", "-p","-T", "AD",
+static char *cs_ut_xprt_bad_cmd[] = { "m0d", "-r", "-p","-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "asdasdada:172.18.50.40@o2ib1:34567:2",
                                 "-s", "ds1"};
 
-static char *cs_ut_ep_bad_cmd[] = { "mero_setup", "-r", "-p", "-T", "AD",
+static char *cs_ut_ep_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:asdad:asdsd:sadasd",
                                 "-s", "ds1"};
 
-static char *cs_ut_service_bad_cmd[] = { "mero_setup", "-r", "-p", "-T", "AD",
+static char *cs_ut_service_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
                                 "-s", "dasdadasd"};
 
-static char *cs_ut_args_bad_cmd[] = { "mero_setup", "-r", "-p", "-D", "cs_sdb",
+static char *cs_ut_args_bad_cmd[] = { "m0d", "-r", "-p", "-D", "cs_sdb",
                                 "-S", "cs_stob", "-e",
                                 "lnet:172.18.50.40@o2ib1:12345:34:1"};
 
-static char *cs_ut_buffer_pool_cmd[] = { "mero_setup", "-r", "-p", "-T", "linux",
+static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1", "-q", "4", "-m", "4096"};
 
-static char *cs_ut_lnet_cmd[] = { "mero_setup", "-r", "-p", "-T", "linux",
+static char *cs_ut_lnet_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
-static char *cs_ut_lnet_mult_if_cmd[] = { "mero_setup", "-r", "-p", "-T", "linux",
+static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
                                 "-s", "ioservice"};
 
-static char *cs_ut_lnet_ep_dup_cmd[] = { "mero_setup", "-r", "-p", "-T", "AD",
+static char *cs_ut_lnet_ep_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-s", "ds1", "-r", "-p", "-T", "AD",
@@ -135,7 +135,7 @@ static char *cs_ut_lnet_ep_dup_cmd[] = { "mero_setup", "-r", "-p", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-s", "ds1"};
 
-static char *cs_ut_ep_mixed_dup_cmd[] = { "mero_setup", "-r", "-p", "-T", "AD",
+static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
@@ -143,13 +143,13 @@ static char *cs_ut_ep_mixed_dup_cmd[] = { "mero_setup", "-r", "-p", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-s", "ioservice"};
 
-static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "mero_setup", "-r", "-p", "-T", "AD",
+static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@tcp:12345:32:105",
                                 "-s", "ds1"};
 
-static char *cs_ut_lnet_ep_bad_cmd[] = { "mero_setup", "-r", "-p", "-T", "AD",
+static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:asdad:asdsd:sadasd",
                                 "-s", "ds1"};
@@ -252,6 +252,7 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 						0 /* deadline */,
 						60 /* op timeout */);
 			M0_UT_ASSERT(rc == 0);
+			m0_fop_put(fop[i]);
 		}
 		break;
 	case CS_UT_SERVICE2:
@@ -264,6 +265,7 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 						0 /* deadline */,
 						60 /* op timeout */);
 			M0_UT_ASSERT(rc == 0);
+			m0_fop_put(fop[i]);
 		}
 		break;
 	default:
@@ -386,7 +388,7 @@ static void test_cs_ut_opts_jumbled(void)
 }
 
 /*
- * Tests mero_setup failure paths using fault injection.
+ * Tests m0d failure paths using fault injection.
  */
 static void test_cs_ut_linux_stob_cleanup(void)
 {
@@ -518,8 +520,8 @@ static void test_cs_ut_lnet(void)
 				  ARRAY_SIZE(cs_ut_lnet_cmd));
 }
 
-const struct m0_test_suite mero_setup_ut = {
-        .ts_name = "mero_setup-ut",
+const struct m0_test_suite m0d_ut = {
+        .ts_name = "m0d-ut",
         .ts_init = NULL,
         .ts_fini = NULL,
         .ts_tests = {

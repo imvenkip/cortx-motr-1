@@ -1,16 +1,22 @@
 mount_m0t1fs()
 {
+	if [ $# -ne 2 ]
+	then
+		echo "Usage: mount_m0t1fs <mount_dir> <unit_size (in Kbytes)>"
+		return 1
+	fi
+
 	local m0t1fs_mount_dir=$1
 	local stride_size=`expr $2 \* 1024`
 
 	# Create mount directory
-	mkdir $m0t1fs_mount_dir || {
+	sudo mkdir -p $m0t1fs_mount_dir || {
 		echo "Failed to create mount directory."
 		return 1
 	}
 
-	lsmod | grep -q kmero || {
-		echo "Failed to	mount m0t1fs file system. (kmero not loaded)"
+	lsmod | grep -q m0mero || {
+		echo "Failed to	mount m0t1fs file system. (m0mero not loaded)"
 		return 1
 	}
 
@@ -22,10 +28,10 @@ mount_m0t1fs()
 ' [1: "_"])})]'
 
 	echo "Mounting file system..."
-	cmd="mount -t m0t1fs -o '$CONF,$SERVICES' m0t1fs $m0t1fs_mount_dir"
+	cmd="sudo mount -t m0t1fs -o '$CONF,$SERVICES' none $m0t1fs_mount_dir"
 	echo $cmd
 	eval $cmd || {
-		echo "Failed to	mount m0t1fs file system."
+		echo "Failed to mount m0t1fs file system."
 		return 1
 	}
 }
@@ -69,6 +75,7 @@ bulkio_test()
 	if ! $cmd
 	then
 		echo "Failed to create local input file."
+		unmount_and_clean
 		return 1
 	fi
 
@@ -78,6 +85,7 @@ bulkio_test()
 	if ! $cmd
 	then
 		echo "Failed to write data on m0t1fs file."
+		unmount_and_clean
 		return 1
 	fi
 
@@ -98,6 +106,7 @@ bulkio_test()
 	if ! $cmd
 	then
 		echo "Failed to read data from m0t1fs file."
+		unmount_and_clean
 		return 1
 	fi
 
@@ -106,6 +115,7 @@ bulkio_test()
 	then
 		echo -n "Failed: data written and data read from m0t1fs file "
 		echo    "are not same."
+		unmount_and_clean
 		return 1
 	fi
 
@@ -378,9 +388,26 @@ rmw_test()
 			io_size=1M
 			echo -n "IORMW Large Count Test: I/O for stride ="\
 			     "${stride_size}K, bs = $io_size, count = $i... "
-			bulkio_test $stride_size $i &>> $MERO_TEST_LOGFILE ||				return 1
+			bulkio_test $stride_size $i &>> \
+				$MERO_TEST_LOGFILE || return 1
 			show_write_speed
 		done
+
+		for ((stride_size=4; stride_size<=$max_stride_size; stride_size*=2))
+		do
+			# I/O With large Block
+			for i in 16M 32M 64M 100M
+			do
+				io_size=$i
+				echo -n "IORMW Large Block Test: I/O for stride ="\
+				"${stride_size}K, bs = $io_size, count = 1... "
+				bulkio_test $stride_size 1 &>> \
+				$MERO_TEST_LOGFILE || return 1
+				show_write_speed
+			done
+
+		done
+
 	done
 
 	echo "Test: IORMW: Success." | tee $MERO_TEST_LOGFILE

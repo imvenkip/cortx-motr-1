@@ -572,7 +572,7 @@ M0_ADDB_EV_DEFINE(io_request_failed, "IO request failed.",
 		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 
 static void io_rpc_item_cb (struct m0_rpc_item *item);
-static void io_req_fop_free(struct m0_rpc_item *item);
+static void io_req_fop_release(struct m0_ref *ref);
 
 /*
  * io_rpc_item_cb can not be directly invoked from io fops code since it
@@ -581,9 +581,7 @@ static void io_req_fop_free(struct m0_rpc_item *item);
  * by m0t1fs io requests.
  */
 static const struct m0_rpc_item_ops m0t1fs_item_ops = {
-	.rio_sent    = NULL,
 	.rio_replied = io_rpc_item_cb,
-	.rio_free    = io_req_fop_free,
 };
 
 static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer);
@@ -658,7 +656,8 @@ static void target_ioreq_seg_add      (struct target_ioreq *ti,
 				       m0_bindex_t	    gob_offset,
 				       m0_bindex_t	    par_offset,
 				       m0_bcount_t	    count,
-				       uint64_t		    unit);
+				       uint64_t		    unit,
+				       struct pargrp_iomap *map);
 
 static const struct target_ioreq_ops tioreq_ops = {
 	.tio_seg_add	    = target_ioreq_seg_add,
@@ -675,10 +674,6 @@ static int  ioreq_iomaps_prepare(struct io_request *req);
 
 static void ioreq_iomaps_destroy(struct io_request *req);
 
-static void ioreq_iomap_locate	(struct io_request    *req,
-				 uint64_t	       grpid,
-				 struct pargrp_iomap **map);
-
 static int ioreq_user_data_copy (struct io_request   *req,
 				 enum copy_direction  dir,
 				 enum page_attr	      filter);
@@ -691,7 +686,6 @@ static const struct io_request_ops ioreq_ops = {
 	.iro_iomaps_prepare = ioreq_iomaps_prepare,
 	.iro_iomaps_destroy = ioreq_iomaps_destroy,
 	.iro_user_data_copy = ioreq_user_data_copy,
-	.iro_iomap_locate   = ioreq_iomap_locate,
 	.iro_parity_recalc  = ioreq_parity_recalc,
 	.iro_iosm_handle    = ioreq_iosm_handle,
 };
@@ -917,25 +911,6 @@ static void nw_xfer_request_fini(struct nw_xfer_request *xfer)
 	nw_xfer_request_bob_fini(xfer);
 	tioreqs_tlist_fini(&xfer->nxr_tioreqs);
 	M0_LEAVE();
-}
-
-static void ioreq_iomap_locate(struct io_request *req, uint64_t grpid,
-			       struct pargrp_iomap **iomap)
-{
-	uint64_t map;
-
-	M0_ENTRY("Locate map with grpid = %llu", grpid);
-	M0_PRE(io_request_invariant(req));
-	M0_PRE(iomap != NULL);
-
-	for (map = 0; map < req->ir_iomap_nr; ++map) {
-		if (req->ir_iomaps[map]->pi_grpid == grpid) {
-			*iomap = req->ir_iomaps[map];
-			break;
-		}
-	}
-	M0_POST(map < req->ir_iomap_nr);
-	M0_LEAVE("Map = %p", *iomap);
 }
 
 /* Typically used while copying data to/from user space. */
@@ -2110,7 +2085,8 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 
 			ti->ti_ops->tio_seg_add(ti, tgt.ta_frame, r_ext.e_start,
 						0, m0_ext_length(&r_ext),
-						src.sa_unit);
+						src.sa_unit,
+						req->ir_iomaps[map]);
 		}
 
 		/* Maps parity units only in case of write IO. */
@@ -2137,7 +2113,8 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 							tgt.ta_frame, pgstart,
 							0,
 							layout_unit_size(play),
-							src.sa_unit);
+							src.sa_unit,
+							req->ir_iomaps[map]);
 				par_offset += layout_unit_size(play);
 			}
 		}
@@ -2653,7 +2630,8 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
 				 m0_bindex_t	      gob_offset,
 				 m0_bindex_t	      par_offset,
 				 m0_bcount_t	      count,
-				 uint64_t	      unit)
+				 uint64_t	      unit,
+				 struct pargrp_iomap *map)
 {
 	uint32_t		   seg;
 	m0_bindex_t		   toff;
@@ -2662,13 +2640,13 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
 	m0_bindex_t		   pgend;
 	struct data_buf		  *buf;
 	struct io_request	  *req;
-	struct pargrp_iomap	  *map;
 	struct m0_pdclust_layout  *play;
 	enum m0_pdclust_unit_type  unit_type;
 
 	M0_ENTRY("target_ioreq %p, gob_offset %llu, count %llu",
 		 ti, gob_offset, count);
 	M0_PRE(target_ioreq_invariant(ti));
+	M0_PRE(map != NULL);
 
 	req	= bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
 			 &ioreq_bobtype);
@@ -2678,9 +2656,6 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
 	M0_ASSERT(M0_IN(unit_type, (M0_PUT_DATA, M0_PUT_PARITY)));
 
 	toff	= target_offset(frame, play, gob_offset);
-	req->ir_ops->iro_iomap_locate(req, group_id(gob_offset,
-				      data_size(play)), &map);
-	M0_ASSERT(map != NULL);
 	pgstart = toff;
 	goff    = unit_type == M0_PUT_DATA ? gob_offset : par_offset;
 
@@ -2748,7 +2723,7 @@ static int io_req_fop_init(struct io_req_fop   *fop,
 
 	rc  = m0_io_fop_init(&fop->irf_iofop, ioreq_sm_state(req) ==
 			     IRS_READING ? &m0_fop_cob_readv_fopt :
-			     &m0_fop_cob_writev_fopt);
+			     &m0_fop_cob_writev_fopt, io_req_fop_release);
 	/*
 	 * Changes ri_ops of rpc item so as to execute m0t1fs's own
 	 * callback on receiving a reply.
@@ -2945,6 +2920,7 @@ static ssize_t file_aio_write(struct kiocb	 *kcb,
 	/* Updates file position. */
 	kcb->ki_pos = pos + count;
 
+	m0_indexvec_free(ivec);
 	m0_free(ivec);
 	M0_LEAVE();
 	return count;
@@ -3007,6 +2983,7 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	}
 
 	if (m0_vec_count(&ivec->iv_vec) == 0) {
+		m0_indexvec_free(ivec);
 		m0_free(ivec);
 		return 0;
 	}
@@ -3017,6 +2994,7 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	/* Updates file position. */
 	kcb->ki_pos = pos + count;
 
+	m0_indexvec_free(ivec);
 	m0_free(ivec);
 	M0_LEAVE();
 	return count;
@@ -3056,29 +3034,22 @@ out:
 	M0_RETURN(rc);
 }
 
-/*
- * There is no periodical rpc item pruning mechanism in rpc sessions.
- * The only time rpc items are pruned is when the rpc session is finalized.
- *
- * Hence such fops will keep occupying memory until rpc session is finalized,
- * which is done only when m0t1fs instance is unmounted.
- */
-static void io_req_fop_free(struct m0_rpc_item *item)
+static void io_req_fop_release(struct m0_ref *ref)
 {
 	struct m0_fop	  *fop;
 	struct m0_io_fop  *iofop;
 	struct io_req_fop *reqfop;
 
-	M0_ENTRY("rpc_item %p", item);
-	M0_PRE(item != NULL);
+	M0_ENTRY("ref %p", ref);
+	M0_PRE(ref != NULL);
 
-	fop    = container_of(item, struct m0_fop, f_item);
+	fop    = container_of(ref, struct m0_fop, f_ref);
 	iofop  = container_of(fop, struct m0_io_fop, if_fop);
 	reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
 	/* see io_req_fop_fini(). */
 	io_req_fop_bob_fini(reqfop);
 
-	m0_io_item_free(item);
+	m0_io_fop_fini(iofop);
 	m0_free(reqfop);
 	++iommstats.d_io_req_fop_nr;
 }
@@ -3260,11 +3231,8 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 		m0_tl_for(iofops, &ti->ti_iofops, irfop) {
 			iofops_tlist_del(irfop);
 			io_req_fop_fini(irfop);
-			/*
-			 * io_req_fop structures are deallocated using a
-			 * rpc session method - rio_free().
-			 * see io_req_fop_free().
-			 */
+			/* see io_req_fop_release() */
+			m0_fop_put(&irfop->irf_iofop.if_fop);
 		} m0_tl_endfor;
 	} m0_tl_endfor;
 
@@ -3374,7 +3342,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 		delta  = 0;
 		bbsegs = 0;
-		if (!(ti->ti_pageattrs[buf] & filter)) {
+		if (!(ti->ti_pageattrs[buf] & filter) ||
+		    !(ti->ti_pageattrs[buf] & rw)) {
 			++buf;
 			continue;
 		}

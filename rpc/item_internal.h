@@ -61,6 +61,10 @@ M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item);
 M0_INTERNAL void m0_rpc_item_set_stage(struct m0_rpc_item *item,
 				       enum m0_rpc_item_stage s);
 
+M0_INTERNAL void m0_rpc_item_get(struct m0_rpc_item *item);
+M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item);
+
+
 /**
    Returns true if item modifies file system state, false otherwise
  */

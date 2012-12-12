@@ -110,6 +110,7 @@ static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m)
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop);
 	*m = fom;
 	rc = 0;
+	m0_fop_put(reply_fop);
 
 out:
 	if (rc != 0) {
@@ -233,8 +234,6 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 		M0_ASSERT(conn != NULL);
 		m0_free(conn);
 		/* No reply is sent if conn establish failed. See [4] */
-		m0_fop_fini(&ctx->cec_fop); /* CONN_ESTABLISH fop */
-		m0_free(ctx);
 		M0_LOG(M0_ERROR, "Conn establish failed: rc [%d]\n", rc);
 	}
 

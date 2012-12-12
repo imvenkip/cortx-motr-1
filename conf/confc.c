@@ -1233,13 +1233,15 @@ request_fill(struct m0_confc_ctx *ctx, const struct m0_conf_obj *org, size_t ri)
 	M0_POST(request_is_valid(req));
 }
 
-static void item_nop(struct m0_rpc_item *item) {}
-
 static const struct m0_rpc_item_ops req_item_ops = {
-	.rio_sent    = NULL,
 	.rio_replied = on_replied,
-	.rio_free    = item_nop
 };
+
+static void req_fop_release(struct m0_ref *ref)
+{
+	/* Do nothing */
+	M0_ASSERT(false); /* XXX Discuss with vvv */
+}
 
 static void req_fop_init(struct m0_confc_ctx *ctx)
 {
@@ -1247,7 +1249,8 @@ static void req_fop_init(struct m0_confc_ctx *ctx)
 		struct m0_rpc_item *item = &ctx->fc_fop.f_item;
 
 		M0_SET0(&ctx->fc_req);
-		m0_fop_init(&ctx->fc_fop, &m0_conf_fetch_fopt, &ctx->fc_req);
+		m0_fop_init(&ctx->fc_fop, &m0_conf_fetch_fopt, &ctx->fc_req,
+			    req_fop_release);
 		item->ri_ops = &req_item_ops;
 		item->ri_session = &ctx->fc_confc->cc_rpc_session;
 	}

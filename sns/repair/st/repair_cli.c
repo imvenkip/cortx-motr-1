@@ -137,6 +137,7 @@ int main(int argc, char *argv[])
 				60 /* op timeout */);
 	M0_ASSERT(rc == 0);
 
+	m0_fop_put(fop);
 	client_fini();
 	m0_sns_repair_trigger_fop_fini();
 	m0_fini();

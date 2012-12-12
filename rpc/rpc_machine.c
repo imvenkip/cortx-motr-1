@@ -261,7 +261,8 @@ M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine)
 		}
 		m0_sm_asts_run(&machine->rm_sm_grp);
 		m0_rpc_machine_unlock(machine);
-		m0_chan_wait(&machine->rm_sm_grp.s_clink);
+		m0_chan_timedwait(&machine->rm_sm_grp.s_clink,
+				  m0_time_from_now(60, 0));
 	}
 }
 
@@ -609,8 +610,10 @@ static void packet_received(struct m0_rpc_packet    *p,
 	machine->rm_stats.rs_nr_rcvd_bytes += p->rp_size;
 	/* packet p can also be empty */
 	for_each_item_in_packet(item, p) {
+		m0_rpc_item_get(item);
 		m0_rpc_packet_remove_item(p, item);
 		item_received(item, machine, from_ep);
+		m0_rpc_item_put(item);
 	} end_for_each_item_in_packet;
 
 	M0_LEAVE();
@@ -638,7 +641,6 @@ static void item_received(struct m0_rpc_item      *item,
 	} else {
 		M0_LOG(M0_DEBUG, "%p [%s/%d] dropped", item, item_kind(item),
 		       item->ri_type->rit_opcode);
-		m0_rpc_item_free(item);
 		machine->rm_stats.rs_nr_dropped_items++;
 	}
 	m0_rpc_machine_unlock(machine);

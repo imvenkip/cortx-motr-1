@@ -15,8 +15,8 @@ fi
 
 . m0t1fs/linux_kernel/st/common.sh
 
-MODLIST="build_kernel_modules/kmero.ko"
-MODMAIN="net/test/linux_kernel/net_test_node.ko"
+MODLIST="build_kernel_modules/m0mero.ko"
+MODMAIN="net/test/linux_kernel/m0netperfd.ko"
 
 log='/var/log/kern'
 if [ ! -e "$log" ]; then
@@ -24,7 +24,7 @@ if [ ! -e "$log" ]; then
 fi
 tailseek=$(( $(stat -c %s "$log") + 1 ))
 
-# currently, kernel UT runs as part of loading kutm0 module
+# currently, kernel UT runs as part of loading m0ut module
 modload_galois
 modload
 insmod $MODMAIN $*

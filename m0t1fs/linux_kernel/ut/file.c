@@ -777,7 +777,7 @@ static void target_ioreq_test(void)
 	for (cnt = 0; cnt < IOVEC_NR; ++cnt)
 		ti.ti_pageattrs[cnt] &= ~(PA_DATA | PA_PARITY);
 
-	target_ioreq_seg_add(&ti, 0, 0, 0, PAGE_CACHE_SIZE, 0);
+	target_ioreq_seg_add(&ti, 0, 0, 0, PAGE_CACHE_SIZE, 0, map);
 	M0_UT_ASSERT(1 == SEG_NR(&ti.ti_ivec));
 	M0_UT_ASSERT(ti.ti_bufvec.ov_buf[0] == buf->db_buf.b_addr);
 	M0_UT_ASSERT(ti.ti_pageattrs[0] & PA_DATA);
@@ -787,7 +787,7 @@ static void target_ioreq_test(void)
 	buf = map->pi_databufs[row][col];
 
 	target_ioreq_seg_add(&ti, 0, COUNT(&ti.ti_ivec, 0), 0,
-			     PAGE_CACHE_SIZE, 0);
+			     PAGE_CACHE_SIZE, 0, map);
 	M0_UT_ASSERT(2 == SEG_NR(&ti.ti_ivec));
 	M0_UT_ASSERT(ti.ti_bufvec.ov_buf[1] == buf->db_buf.b_addr);
 	M0_UT_ASSERT(ti.ti_pageattrs[1] & PA_DATA);
@@ -795,7 +795,7 @@ static void target_ioreq_test(void)
 	/* Addition of parity buffer */
 	buf = map->pi_paritybufs[page_id(0)]
 		[LAY_N % data_col_nr(pdlay)];
-	target_ioreq_seg_add(&ti, 0, 0, 0, PAGE_CACHE_SIZE, LAY_N);
+	target_ioreq_seg_add(&ti, 0, 0, 0, PAGE_CACHE_SIZE, LAY_N, map);
 	M0_UT_ASSERT(3 == SEG_NR(&ti.ti_ivec));
 	M0_UT_ASSERT(ti.ti_bufvec.ov_buf[2] == buf->db_buf.b_addr);
 	M0_UT_ASSERT(ti.ti_pageattrs[2] & PA_PARITY);
@@ -825,6 +825,7 @@ const struct m0_test_suite file_io_ut = {
                 {"parity_group_ops_test",      pargrp_iomap_test},
 		{"nw_xfer_ops_test",           nw_xfer_ops_test},
                 {"target_ioreq_ops_test",      target_ioreq_test},
+		{NULL,                         NULL},
         },
 };
 M0_EXPORTED(file_io_ut);

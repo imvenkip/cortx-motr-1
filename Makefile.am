@@ -278,24 +278,16 @@ CLEANFILES += $(MERO_ALTOGETHER_USER_C)
 # balloc/ut
 #
 
-noinst_PROGRAMS                  += balloc/ut/format
-balloc_ut_format_LDADD            = $(top_builddir)/mero/libmero.la \
+noinst_PROGRAMS                  += balloc/ut/m0blkformat
+balloc_ut_m0blkformat_LDADD       = $(top_builddir)/mero/libmero.la \
                                     $(top_builddir)/ut/libmero-ut.la
 
-noinst_PROGRAMS                  += balloc/ut/free
-balloc_ut_free_LDADD              = $(top_builddir)/mero/libmero.la \
+noinst_PROGRAMS                  += balloc/ut/m0blkfree
+balloc_ut_m0blkfree_LDADD         = $(top_builddir)/mero/libmero.la \
                                     $(top_builddir)/ut/libmero-ut.la
 
-noinst_PROGRAMS                  += balloc/ut/dump_free_extent
-balloc_ut_dump_free_extent_LDADD  = $(top_builddir)/mero/libmero.la \
-                                    $(top_builddir)/ut/libmero-ut.la
-
-noinst_PROGRAMS                  += balloc/ut/dump_group_desc
-balloc_ut_dump_group_desc_LDADD   = $(top_builddir)/mero/libmero.la \
-                                    $(top_builddir)/ut/libmero-ut.la
-
-noinst_PROGRAMS                  += balloc/ut/dump_super_block
-balloc_ut_dump_super_block_LDADD  = $(top_builddir)/mero/libmero.la \
+noinst_PROGRAMS                  += balloc/ut/m0blkdump
+balloc_ut_m0blkdump_LDADD         = $(top_builddir)/mero/libmero.la \
                                     $(top_builddir)/ut/libmero-ut.la
 
 noinst_PROGRAMS                  += balloc/ut/perf
@@ -340,9 +332,9 @@ desim_ut_m0t1fs_test_LDADD  = $(top_builddir)/mero/libmero.la \
 # layout/ut
 #
 
-noinst_PROGRAMS       += layout/ut/ldemo
-layout_ut_ldemo_LDADD  = $(top_builddir)/mero/libmero.la \
-                         $(top_builddir)/ut/libmero-ut.la
+noinst_PROGRAMS          += layout/ut/m0layout
+layout_ut_m0layout_LDADD  = $(top_builddir)/mero/libmero.la \
+                            $(top_builddir)/ut/libmero-ut.la
 
 #
 # net/lnet/ut
@@ -374,19 +366,19 @@ include $(top_srcdir)/utils/Makefile.sub
 ################################################################################
 
 #
-# rpc/it/rpcping
+# rpc/it/m0rpcping
 #
 
-noinst_PROGRAMS      += rpc/it/rpcping
-rpc_it_rpcping_LDADD  = $(top_builddir)/mero/libmero.la  \
+noinst_PROGRAMS      += rpc/it/m0rpcping
+rpc_it_m0rpcping_LDADD  = $(top_builddir)/mero/libmero.la  \
                         $(top_builddir)/ut/libmero-ut.la
 
 if ENABLE_MERO_ALTOGETHER
-noinst_PROGRAMS                   += rpc/it/rpcping-altogether
+noinst_PROGRAMS                   += rpc/it/m0rpcping-altogether
 endif
 
-rpc_it_rpcping_altogether_SOURCES  = $(rpc_it_rpcping_SOURCES)
-rpc_it_rpcping_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la \
+rpc_it_m0rpcping_altogether_SOURCES  = $(rpc_it_m0rpcping_SOURCES)
+rpc_it_m0rpcping_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la \
                                      ut/ut_libmero_ut_la-cs_service.lo \
                                      ut/ut_libmero_ut_la-cs_fop_foms.lo \
                                      ut/ut_libmero_ut_la-cs_test_fops_ff.lo \
@@ -420,9 +412,9 @@ console_st_server_LDADD  = $(top_builddir)/mero/libmero.la \
 # net/bulk_emulation/st
 #
 
-noinst_PROGRAMS                      += net/bulk_emulation/st/bulkping
-net_bulk_emulation_st_bulkping_LDADD  = $(top_builddir)/mero/libmero.la \
-                                        $(top_builddir)/ut/libmero-ut.la
+noinst_PROGRAMS                        += net/bulk_emulation/st/m0bulkping
+net_bulk_emulation_st_m0bulkping_LDADD  = $(top_builddir)/mero/libmero.la \
+                                          $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/net/bulk_emulation/st/Makefile.sub
 
@@ -430,8 +422,8 @@ include $(top_srcdir)/net/bulk_emulation/st/Makefile.sub
 # net/lnet/st
 #
 
-noinst_PROGRAMS            += net/lnet/st/lnetping
-net_lnet_st_lnetping_LDADD  = $(top_builddir)/mero/libmero.la \
+noinst_PROGRAMS              += net/lnet/st/m0lnetping
+net_lnet_st_m0lnetping_LDADD  = $(top_builddir)/mero/libmero.la \
                               $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/net/lnet/st/Makefile.sub
@@ -440,13 +432,13 @@ include $(top_srcdir)/net/lnet/st/Makefile.sub
 # net/test
 #
 
-noinst_PROGRAMS                 += net/test/user_space/ntc
-net_test_user_space_ntc_LDADD    = $(top_builddir)/mero/libmero.la \
-                                   $(top_builddir)/net/test/libmero-net-test.la
+noinst_PROGRAMS                     += net/test/user_space/m0netperf
+net_test_user_space_m0netperf_LDADD  = $(top_builddir)/mero/libmero.la \
+                                       $(top_builddir)/net/test/libmero-net-test.la
 
-noinst_PROGRAMS                 += net/test/user_space/ntn
-net_test_user_space_ntn_LDADD    = $(top_builddir)/mero/libmero.la \
-                                   $(top_builddir)/net/test/libmero-net-test.la
+noinst_PROGRAMS                      += net/test/user_space/m0netperfd
+net_test_user_space_m0netperfd_LDADD  = $(top_builddir)/mero/libmero.la \
+                                        $(top_builddir)/net/test/libmero-net-test.la
 
 include $(top_srcdir)/net/test/user_space/Makefile.sub
 
@@ -454,9 +446,9 @@ include $(top_srcdir)/net/test/user_space/Makefile.sub
 # sns/repair/st
 #
 
-noinst_PROGRAMS            += sns/repair/st/repair
-sns_repair_st_repair_LDADD  = $(top_builddir)/mero/libmero.la \
-                              $(top_builddir)/ut/libmero-ut.la
+noinst_PROGRAMS              += sns/repair/st/m0repair
+sns_repair_st_m0repair_LDADD  = $(top_builddir)/mero/libmero.la \
+                                $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/sns/repair/st/Makefile.sub
 
@@ -464,9 +456,9 @@ include $(top_srcdir)/sns/repair/st/Makefile.sub
 # yaml2db/st
 #
 
-noinst_PROGRAMS          += yaml2db/st/yaml2db
-yaml2db_st_yaml2db_LDADD  = $(top_builddir)/mero/libmero.la \
-                            $(top_builddir)/ut/libmero-ut.la
+noinst_PROGRAMS             += yaml2db/st/m0yamltodb
+yaml2db_st_m0yamltodb_LDADD  = $(top_builddir)/mero/libmero.la \
+                               $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/yaml2db/st/Makefile.sub
 
@@ -474,8 +466,8 @@ include $(top_srcdir)/yaml2db/st/Makefile.sub
 # utils/ploss
 #
 
-noinst_PROGRAMS += utils/ploss/ploss_server
-noinst_PROGRAMS += utils/ploss/ploss_client
+noinst_PROGRAMS += utils/ploss/m0plossd
+noinst_PROGRAMS += utils/ploss/m0ploss
 
 include $(top_srcdir)/utils/ploss/Makefile.sub
 
@@ -491,11 +483,11 @@ include $(top_srcdir)/m0t1fs/linux_kernel/st/Makefile.sub
 ################################################################################
 
 #
-# mero/mero_setup
+# mero/m0d
 #
 
-sbin_PROGRAMS               += mero/mero_setup
-mero_mero_setup_LDADD  = $(top_builddir)/mero/libmero.la \
+sbin_PROGRAMS               += mero/m0d
+mero_m0d_LDADD  = $(top_builddir)/mero/libmero.la \
                                $(top_builddir)/ut/libmero-ut.la
 
 #
@@ -609,7 +601,7 @@ all-local: build-kernel-modules check-sources-postbuild
 	@$(top_srcdir)/scripts/check-public-api
 	@echo 'Resulting ELF image sizes:'
 	@size   mero/.libs/libmero{,-altogether}.so \
-		build_kernel_modules/kmero.ko \
+		build_kernel_modules/m0mero.ko \
 		2>/dev/null \
 	| sed -r -e 's/dec/total/' \
 		 -e 's#mero/.libs/|build_kernel_modules/##' \

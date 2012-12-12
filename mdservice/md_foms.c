@@ -1212,6 +1212,7 @@ M0_INTERNAL int m0_md_rep_fom_create(struct m0_fop *fop, struct m0_fom **m)
 
 M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m)
 {
+	struct m0_fop           *rep_fop;
         struct m0_fom           *fom;
         struct m0_fom_md        *fom_obj;
         struct m0_fop_type      *rep_fopt;
@@ -1274,17 +1275,17 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m)
                 return -EOPNOTSUPP;
         }
 
-        fom = &fom_obj->fm_fom;
-        m0_fom_init(fom, &fop->f_type->ft_fom_type,
-                    ops, fop, m0_fop_alloc(rep_fopt, NULL));
-
-        if (fom->fo_rep_fop == NULL) {
-                m0_fom_fini(fom);
+	rep_fop = m0_fop_alloc(rep_fopt, NULL);
+        if (rep_fop == NULL) {
                 m0_free(fom_obj);
                 return -ENOMEM;
         }
-        *m = fom;
+        fom = &fom_obj->fm_fom;
+        m0_fom_init(fom, &fop->f_type->ft_fom_type,
+                    ops, fop, rep_fop);
 
+	m0_fop_put(rep_fop);
+        *m = fom;
         return 0;
 }
 #undef M0_TRACE_SUBSYSTEM

@@ -7,7 +7,6 @@ sub-team leads, contact them to add more things here.
 
                           ***** TODO *****
 
-2012-May-10 Embed m0_sm in m0_rpc_{session,conn,item}
 
 2012-May-15 Add mnemonic tags to doc/todo items for ease of reference.
 
@@ -59,7 +58,7 @@ struct m0_xcode_enum m0_foo_names[] = {
         { 0, 0, NULL }
 };
 
-    where 
+    where
 
 struct m0_xcode_enum {
         uint64_t    xe_tag;
@@ -69,8 +68,6 @@ struct m0_xcode_enum {
 
     This array can be used by generic error-reporting functions and by
     m0_xcode_read() to accept symbolic constants.
-
-2012-Nov-29 M0_IN(): evaluate x only once
 
 2012-Nov-29 check that M0_ASSERT() parameter has no side-effects
 
@@ -85,7 +82,7 @@ struct m0_xcode_enum {
 
 2012-Nov-29 use the same fid and the same fid xc structure everywhere.
 
-    Multiple definitions of fid are used by vairous sub-systems. Unify.
+    Multiple definitions of fid are used by various sub-systems. Unify.
 
 2012-Nov-29 Convert .ff files to gccxml annotations where possible.
 
@@ -109,9 +106,13 @@ struct m0_xcode_enum {
 
 2012-Nov-29 cleanup mero/mero-pub.api
 
-    Meaingful interfaces should be exported, not partial unusable ones.
+    Meaningful interfaces should be exported, not partial unusable ones.
 
+2012-Dec-10 Use m0_time_from_now() wherever possible.
 
+   There are many places that compute `now + delta` as
+   m0_time_add(m0_time_now(), delta);
+   Replace all such occurrences with simpler m0_time_from_now().
 
                           ***** IN-PROGRESS *****
 
@@ -145,7 +146,7 @@ struct m0_xcode_enum {
             pthread_getspecific(). Timer and chan call-backs should be handled.
 
 	    Timer & chan call-backs handled.
-	   
+
 
 2012-May-09 [Dima] Replace all debugging printf-s and printk-s with M0_LOG()-s
 
@@ -169,7 +170,7 @@ struct m0_xcode_enum {
 
     Use lists based on M0_TL_{DEFINE,DESCR}()
 
-2012-May-04 Use tailored type-safe lists in mero_setup.c
+2012-May-04 Use tailored type-safe lists in setup.c
 
     Use lists based on M0_TL_{DEFINE,DESCR}()
 
@@ -217,3 +218,6 @@ struct m0_xcode_enum {
             m0_fom_domain_is_idle() function that iterates over all localities
             and checks that queues are empty.
 
+2012-Dec-10 Embed m0_sm in m0_rpc_{session,conn,item}
+
+2012-Nov-29 M0_IN(): evaluate x only once
