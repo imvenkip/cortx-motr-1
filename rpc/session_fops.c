@@ -210,23 +210,17 @@ M0_INTERNAL int m0_rpc_session_fop_init(void)
 }
 
 M0_INTERNAL void m0_rpc_fop_conn_establish_ctx_init(struct m0_rpc_item *item,
-						    struct m0_net_end_point *ep,
-						    struct m0_rpc_machine
-						    *machine)
+						    struct m0_net_end_point *ep)
 {
 	struct m0_rpc_fop_conn_establish_ctx *ctx;
 
-	M0_ENTRY("item: %p, ep_addr: %s, machine: %p", item,
-		 (char *)ep->nep_addr, machine);
-	M0_PRE(item != NULL && ep != NULL && machine != NULL);
+	M0_ENTRY("item: %p, ep_addr: %s", item, (char *)ep->nep_addr);
+	M0_PRE(item != NULL && ep != NULL);
 
 	ctx = container_of(item, struct m0_rpc_fop_conn_establish_ctx,
 				cec_fop.f_item);
-	M0_ASSERT(ctx != NULL);
-
 	m0_net_end_point_get(ep);
 	ctx->cec_sender_ep = ep;
-	ctx->cec_rpc_machine = machine;
 	M0_LEAVE();
 }
 

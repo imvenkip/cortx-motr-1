@@ -181,9 +181,7 @@ M0_INTERNAL bool m0_rpc_item_is_conn_terminate(const struct m0_rpc_item *item);
    @see m0_rpc_fop_conn_establish_ctx for more information.
  */
 M0_INTERNAL void m0_rpc_fop_conn_establish_ctx_init(struct m0_rpc_item *item,
-						    struct m0_net_end_point *ep,
-						    struct m0_rpc_machine
-						    *machine);
+						  struct m0_net_end_point *ep);
 
 /**
    Return true iff @conn is sender side object of rpc-connection.

@@ -72,7 +72,6 @@ static void packet_received(struct m0_rpc_packet    *p,
 			    struct m0_rpc_machine   *machine,
 			    struct m0_net_end_point *from_ep);
 static void item_received(struct m0_rpc_item      *item,
-			  struct m0_rpc_machine   *machine,
 			  struct m0_net_end_point *from_ep);
 static void net_buf_err(struct m0_net_buffer *nb, int32_t status);
 
@@ -613,7 +612,7 @@ static void packet_received(struct m0_rpc_packet    *p,
 		item->ri_rmachine = machine;
 		m0_rpc_item_get(item);
 		m0_rpc_packet_remove_item(p, item);
-		item_received(item, machine, from_ep);
+		item_received(item, from_ep);
 		m0_rpc_item_put(item);
 	} end_for_each_item_in_packet;
 
@@ -621,16 +620,16 @@ static void packet_received(struct m0_rpc_packet    *p,
 }
 
 static void item_received(struct m0_rpc_item      *item,
-			  struct m0_rpc_machine   *machine,
 			  struct m0_net_end_point *from_ep)
 {
-	int rc;
+	struct m0_rpc_machine *machine = item->ri_rmachine;
+	int                    rc;
 
 	M0_ENTRY("machine: %p, item: %p, ep_addr: %s", machine,
 		 item, (char *)from_ep->nep_addr);
 
 	if (m0_rpc_item_is_conn_establish(item))
-		m0_rpc_fop_conn_establish_ctx_init(item, from_ep, machine);
+		m0_rpc_fop_conn_establish_ctx_init(item, from_ep);
 
 	item->ri_rpc_time = m0_time_now();
 
