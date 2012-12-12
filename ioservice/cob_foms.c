@@ -291,7 +291,6 @@ static int cc_cob_nskey_make(struct m0_cob_nskey **nskey,
 {
 	char     nskey_name[UINT32_MAX_STR_LEN];
 	uint32_t nskey_name_len;
-	int      rc;
 
 	M0_PRE(m0_fid_is_set(gfid));
 
@@ -301,8 +300,8 @@ static int cc_cob_nskey_make(struct m0_cob_nskey **nskey,
 
 	nskey_name_len = strlen(nskey_name);
 
-	rc = m0_cob_nskey_make(nskey, gfid, (char *)nskey_name, nskey_name_len);
-	return rc;
+	return m0_cob_nskey_make(nskey, gfid, (char *)nskey_name,
+				 nskey_name_len);
 }
 
 static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
