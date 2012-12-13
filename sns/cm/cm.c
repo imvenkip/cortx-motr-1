@@ -149,7 +149,7 @@
   @see @ref SNSRepairSVC "SNS Repair service" for details.
   Once the copy machine is initialised, as part of copy machine setup, SNS
   copy machine specific resources are initialised, viz. incoming and outgoing
-  buffer pools (m0_sns_cm::rc_ibp and ::rc_obp).
+  buffer pools (m0_sns_cm::sc_ibp and ::sc_obp).
   Both the buffer pools are initialised with colours equal to total number of
   localities in the request handler.
   After cm_setup() is successfully called, the copy machine transitions to
@@ -166,7 +166,7 @@
 
   @subsection SNSCMDLD-lspec-cm-start Copy machine startup
   The SNS specific start routine provisions the buffer pools, viz. m0_sns_cm::
-  rc_ibp m0_sns_cm::rc_obp with SNS_INCOMING_BUF_NR and SNS_OUTGOING_BUF_NR
+  sc_ibp m0_sns_cm::sc_obp with SNS_INCOMING_BUF_NR and SNS_OUTGOING_BUF_NR
   number of buffers.
   @note Buffer provisioning operation can block.
 
@@ -316,8 +316,8 @@ enum {
 	SNS_SEG_NR = 1,
 	SNS_SEG_SIZE = 4096,
 	/*
-	 * Minimum number of buffers to provision m0_sns_cm::rc_ibp
-	 * and m0_sns_cm::rc_obp buffer pools.
+	 * Minimum number of buffers to provision m0_sns_cm::sc_ibp
+	 * and m0_sns_cm::sc_obp buffer pools.
 	 */
 	SNS_INCOMING_BUF_NR = 1 << 6,
 	SNS_OUTGOING_BUF_NR = 1 << 6
@@ -375,8 +375,8 @@ static struct m0_cm_cp *cm_cp_alloc(struct m0_cm *cm)
 	M0_ALLOC_PTR(rcp);
 	if (rcp == NULL)
 		return NULL;
-	rcp->rc_base.c_ops = &m0_sns_cm_cp_ops;
-	return &rcp->rc_base;
+	rcp->sc_base.c_ops = &m0_sns_cm_cp_ops;
+	return &rcp->sc_base;
 }
 
 static void bp_below_threshold(struct m0_net_buffer_pool *bp)
@@ -413,22 +413,22 @@ static int cm_setup(struct m0_cm *cm)
 	 * m0_net_buffer_pool_init() as it is NULL checked in
 	 * m0_net_buffer_pool_invariant().
 	 */
-	scm->rc_ibp.nbp_ops = &bp_ops;
-	scm->rc_obp.nbp_ops = &bp_ops;
-	rc = m0_net_buffer_pool_init(&scm->rc_ibp, ndom,
+	scm->sc_ibp.nbp_ops = &bp_ops;
+	scm->sc_obp.nbp_ops = &bp_ops;
+	rc = m0_net_buffer_pool_init(&scm->sc_ibp, ndom,
 				     M0_NET_BUFFER_POOL_THRESHOLD, SNS_SEG_NR,
 				     SNS_SEG_SIZE, colours, M0_0VEC_SHIFT);
 	if (rc == 0) {
-		rc = m0_net_buffer_pool_init(&scm->rc_obp, ndom,
+		rc = m0_net_buffer_pool_init(&scm->sc_obp, ndom,
 					     M0_NET_BUFFER_POOL_THRESHOLD,
 					     SNS_SEG_NR, SNS_SEG_SIZE,
 					     colours, M0_0VEC_SHIFT);
 		if (rc != 0)
-			m0_net_buffer_pool_fini(&scm->rc_ibp);
+			m0_net_buffer_pool_fini(&scm->sc_ibp);
 	}
 
 	if (rc == 0)
-		m0_chan_init(&scm->rc_stop_wait);
+		m0_chan_init(&scm->sc_stop_wait);
 
 	M0_LEAVE();
 	return rc;
@@ -457,10 +457,10 @@ static int cm_start(struct m0_cm *cm)
 
 	scm = cm2sns(cm);
 
-	bufs_nr = cm_buffer_pool_provision(&scm->rc_ibp, SNS_INCOMING_BUF_NR);
+	bufs_nr = cm_buffer_pool_provision(&scm->sc_ibp, SNS_INCOMING_BUF_NR);
 	if (bufs_nr == 0)
 		return -ENOMEM;
-	bufs_nr = cm_buffer_pool_provision(&scm->rc_obp, SNS_OUTGOING_BUF_NR);
+	bufs_nr = cm_buffer_pool_provision(&scm->sc_obp, SNS_OUTGOING_BUF_NR);
 	/*
 	 * If bufs_nr is 0, then just return -ENOMEM, as cm_setup() was
 	 * successful, both the buffer pools (incoming and outgoing) will be
@@ -468,7 +468,7 @@ static int cm_start(struct m0_cm *cm)
 	 */
 	if (bufs_nr == 0)
 		return -ENOMEM;
-	rc = m0_sns_cm_iter_init(scm);
+	rc = m0_sns_cm_iter_init(&scm->sc_it);
 	if (rc == 0)
 		m0_cm_sw_fill(cm);
 
@@ -483,7 +483,7 @@ static int cm_stop(struct m0_cm *cm)
 	M0_PRE(cm != NULL);
 
 	scm = cm2sns(cm);
-	m0_sns_cm_iter_fini(scm);
+	m0_sns_cm_iter_fini(&scm->sc_it);
 
 	return 0;
 }
@@ -495,8 +495,8 @@ static void cm_fini(struct m0_cm *cm)
 	M0_ENTRY("cm: %p", cm);
 
 	scm = cm2sns(cm);
-	m0_net_buffer_pool_fini(&scm->rc_ibp);
-	m0_net_buffer_pool_fini(&scm->rc_obp);
+	m0_net_buffer_pool_fini(&scm->sc_ibp);
+	m0_net_buffer_pool_fini(&scm->sc_obp);
 
 	M0_LEAVE();
 }
@@ -506,7 +506,7 @@ static void cm_complete(struct m0_cm *cm)
 	struct m0_sns_cm *scm;
 
 	scm = cm2sns(cm);
-	m0_chan_signal(&scm->rc_stop_wait);
+	m0_chan_signal(&scm->sc_stop_wait);
 }
 
 /** Copy machine operations. */

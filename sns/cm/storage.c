@@ -112,8 +112,8 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	sns_cp = cp2snscp(cp);
 	cp_fom = &cp->c_fom;
 	reqh = m0_fom_reqh(cp_fom);
-	stobid = &sns_cp->rc_sid;
-	stio = &sns_cp->rc_stio;
+	stobid = &sns_cp->sc_sid;
+	stio = &sns_cp->sc_stio;
 	dom = m0_cs_stob_domain_find(reqh, stobid);
 
 	if (dom == NULL) {
@@ -121,11 +121,11 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 		goto out;
 	}
 
-	rc = m0_stob_find(dom, stobid, &sns_cp->rc_stob);
+	rc = m0_stob_find(dom, stobid, &sns_cp->sc_stob);
 	if (rc != 0)
 		goto out;
 
-	stob = sns_cp->rc_stob;
+	stob = sns_cp->sc_stob;
 	m0_dtx_init(&cp_fom->fo_tx);
 	rc = dom->sd_ops->sdo_tx_make(dom, &cp_fom->fo_tx);
 	if (rc != 0)
@@ -143,7 +143,7 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 
 	bshift = stob->so_op->sop_block_shift(stob);
 
-	rc = indexvec_prepare(&stio->si_stob, sns_cp->rc_index, bshift);
+	rc = indexvec_prepare(&stio->si_stob, sns_cp->sc_index, bshift);
 	if (rc != 0)
 		goto err_stio;
 
@@ -189,9 +189,9 @@ static void spare_stobid_fill(struct m0_cm_cp *cp)
 	struct m0_sns_cm_ag *sns_ag = ag2snsag(cp->c_ag);
 	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
 
-	sns_cp->rc_sid.si_bits.u_hi = sns_ag->sag_spare_cobfid.f_container;
-	sns_cp->rc_sid.si_bits.u_lo = sns_ag->sag_spare_cobfid.f_key;
-	sns_cp->rc_index            = sns_ag->sag_spare_cob_index;
+	sns_cp->sc_sid.si_bits.u_hi = sns_ag->sag_tgt_cobfid.f_container;
+	sns_cp->sc_sid.si_bits.u_lo = sns_ag->sag_tgt_cobfid.f_key;
+	sns_cp->sc_index            = sns_ag->sag_tgt_cob_index;
 }
 
 M0_INTERNAL int m0_sns_cm_cp_write(struct m0_cm_cp *cp)
@@ -205,16 +205,16 @@ M0_INTERNAL int m0_sns_cm_cp_write(struct m0_cm_cp *cp)
 M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
-	int                      rc = sns_cp->rc_stio.si_rc;
+	int                      rc = sns_cp->sc_stio.si_rc;
 
-	if (sns_cp->rc_stio.si_opcode == SIO_WRITE)
+	if (sns_cp->sc_stio.si_opcode == SIO_WRITE)
 		cp->c_ops->co_complete(cp);
 
 	/* Cleanup before proceeding to next phase. */
-	indexvec_free(&sns_cp->rc_stio.si_stob);
-	bufvec_free(&sns_cp->rc_stio.si_user);
-	m0_stob_io_fini(&sns_cp->rc_stio);
-	m0_stob_put(sns_cp->rc_stob);
+	indexvec_free(&sns_cp->sc_stio.si_stob);
+	bufvec_free(&sns_cp->sc_stio.si_user);
+	m0_stob_io_fini(&sns_cp->sc_stio);
+	m0_stob_put(sns_cp->sc_stob);
 
 	if (rc != 0) {
 		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);

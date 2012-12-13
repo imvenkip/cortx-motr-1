@@ -75,18 +75,18 @@ static int svc_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
 			const char *arg __attribute__((unused)))
 {
-	struct m0_sns_cm *rmach;
+	struct m0_sns_cm *sns_cm;
 	struct m0_cm     *cm;
 	int               rc;
 
 	M0_ENTRY("stype: %p", stype);
 	M0_PRE(service != NULL && stype != NULL);
 
-	M0_ALLOC_PTR(rmach);
-	if (rmach == NULL)
+	M0_ALLOC_PTR(sns_cm);
+	if (sns_cm == NULL)
 		M0_RETURN(-ENOMEM);
 
-	cm = &rmach->rc_base;
+	cm = &sns_cm->sc_base;
 
 	*service = &cm->cm_service;
 	(*service)->rs_ops = &service_ops;
@@ -96,7 +96,7 @@ static int svc_allocate(struct m0_reqh_service **service,
 	if (rc != 0)
 		m0_free(rmach);
 
-	M0_LOG(M0_DEBUG, "rmach: %p service: %p", rmach, *service);
+	M0_LOG(M0_DEBUG, "sns_cm: %p service: %p", sns_cm, *service);
 	M0_RETURN(rc);
 }
 

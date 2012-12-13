@@ -189,11 +189,11 @@ static void cp_post(struct m0_sns_cm_cp *sns_cp,
 			}
 		};
 
-	cp = &sns_cp->rc_base;
+	cp = &sns_cp->sc_base;
 	cp->c_ag = ag;
 	m0_cm_cp_init(cp);
 	cp->c_data = bv;
-	sns_cp->rc_sid = sid;
+	sns_cp->sc_sid = sid;
 	cp->c_ops = &m0_sns_cm_cp_dummy_ops;
 	/* Over-ride the fom ops. */
 	cp->c_fom.fo_ops = &dummy_cp_fom_ops;

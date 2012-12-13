@@ -42,7 +42,7 @@ M0_INTERNAL struct m0_sns_cm_ag *ag2snsag(const struct m0_cm_aggr_group *ag)
 static int ag_fini(struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_ag *sag;
-	struct m0_sns_cm *rcm;
+	struct m0_sns_cm *scm;
 	struct m0_cm        *cm;
 
 	M0_ENTRY();
@@ -51,7 +51,7 @@ static int ag_fini(struct m0_cm_aggr_group *ag)
 	sag = ag2snsag(ag);
 	cm = ag->cag_cm;
 	m0_cm_aggr_group_fini(ag);
-	rcm = cm2sns(cm);
+	scm = cm2sns(cm);
 	m0_free(sag);
 	M0_LEAVE();
 	return 0;
@@ -77,7 +77,7 @@ static uint64_t ag_local_cp_nr(const struct m0_cm_aggr_group *ag)
 	struct m0_fid      fid;
 	uint64_t           group;
 	struct m0_cm      *cm;
-	struct m0_sns_cm  *rcm;
+	struct m0_sns_cm  *scm;
 
 	M0_ENTRY();
 	M0_PRE(ag != NULL);
@@ -87,10 +87,10 @@ static uint64_t ag_local_cp_nr(const struct m0_cm_aggr_group *ag)
 
 	cm = ag->cag_cm;
 	M0_ASSERT(cm != NULL);
-	rcm = cm2sns(cm);
+	scm = cm2sns(cm);
 
 	M0_LEAVE();
-	return nr_local_units(rcm, &fid, group);
+	return nr_local_units(scm, &fid, group);
 }
 
 static const struct m0_cm_aggr_group_ops repair_ag_ops = {
@@ -98,18 +98,18 @@ static const struct m0_cm_aggr_group_ops repair_ag_ops = {
 	.cago_local_cp_nr = ag_local_cp_nr
 };
 
-M0_INTERNAL struct m0_sns_cm_ag *m0_sns_cm_ag_find(struct m0_sns_cm *rcm,
+M0_INTERNAL struct m0_sns_cm_ag *m0_sns_cm_ag_find(struct m0_sns_cm *scm,
 						   const struct m0_cm_ag_id *id)
 {
 	struct m0_cm            *cm;
 	struct m0_cm_aggr_group *ag;
 	struct m0_sns_cm_ag     *sag;
 
-	M0_ENTRY("rcm: %p, ag id:%p", rcm, id);
-	M0_PRE(rcm != NULL);
+	M0_ENTRY("scm: %p, ag id:%p", scm, id);
+	M0_PRE(scm != NULL);
 	M0_PRE(id != NULL);
 
-	cm = &rcm->rc_base;
+	cm = &scm->sc_base;
 	M0_PRE(cm != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
@@ -131,7 +131,7 @@ M0_INTERNAL struct m0_sns_cm_ag *m0_sns_cm_ag_find(struct m0_sns_cm *rcm,
 		if (sag != NULL) {
 			m0_cm_aggr_group_init(&sag->sag_base, cm, id,
 					      &repair_ag_ops);
-			spare_unit_to_cob(sag);
+			target_unit_to_cob(sag);
 			m0_cm_aggr_group_add(cm, &sag->sag_base);
 		}
 	}

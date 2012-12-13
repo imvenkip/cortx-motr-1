@@ -189,12 +189,12 @@ void write_post(void)
 	struct m0_stob_domain *sdom;
 
 	m0_semaphore_init(&sem, 0);
-	cp_prepare(&w_sns_cp.rc_base, &w_bv, SEG_NR, SEG_SIZE, &w_sag, 'e',
+	cp_prepare(&w_sns_cp.sc_base, &w_bv, SEG_NR, SEG_SIZE, &w_sag, 'e',
 		   &dummy_cp_fom_ops, reqh);
-	w_sns_cp.rc_sid = sid;
-	m0_fid_set(&w_sag.sag_spare_cobfid, sid.si_bits.u_hi, sid.si_bits.u_lo);
-	w_sag.sag_spare_cob_index = 0;
-	w_sns_cp.rc_base.c_ops = &write_cp_dummy_ops;
+	w_sns_cp.sc_sid = sid;
+	m0_fid_set(&w_sag.sag_tgt_cobfid, sid.si_bits.u_hi, sid.si_bits.u_lo);
+	w_sag.sag_tgt_cob_index = 0;
+	w_sns_cp.sc_base.c_ops = &write_cp_dummy_ops;
 
 	sdom = m0_cs_stob_domain_find(reqh, &sid);
 	M0_UT_ASSERT(sdom != NULL);
@@ -213,7 +213,7 @@ void write_post(void)
 	m0_stob_put(stob);
 	m0_dtx_done(&tx);
 
-	m0_fom_queue(&w_sns_cp.rc_base.c_fom, reqh);
+	m0_fom_queue(&w_sns_cp.sc_base.c_fom, reqh);
 
 	/* Wait till ast gets posted. */
 	m0_semaphore_down(&sem);
@@ -248,12 +248,12 @@ static void read_post(void)
 	 * replaced by 'e', when the data is read. This is due to the fact
 	 * that write operation is writing 'e' to the bv.
 	 */
-	cp_prepare(&r_sns_cp.rc_base, &r_bv, SEG_NR, SEG_SIZE, &r_sag, ' ',
+	cp_prepare(&r_sns_cp.sc_base, &r_bv, SEG_NR, SEG_SIZE, &r_sag, ' ',
 		   &dummy_cp_fom_ops, reqh);
-	r_sns_cp.rc_sid = sid;
-	r_sns_cp.rc_base.c_ops = &read_cp_dummy_ops;
+	r_sns_cp.sc_sid = sid;
+	r_sns_cp.sc_base.c_ops = &read_cp_dummy_ops;
 
-	m0_fom_queue(&r_sns_cp.rc_base.c_fom, reqh);
+	m0_fom_queue(&r_sns_cp.sc_base.c_fom, reqh);
 
         /* Wait till ast gets posted. */
 	m0_semaphore_down(&sem);

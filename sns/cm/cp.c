@@ -39,7 +39,7 @@
 
 M0_INTERNAL struct m0_sns_cm_cp *cp2snscp(const struct m0_cm_cp *cp)
 {
-	return container_of(cp, struct m0_sns_cm_cp, rc_base);
+	return container_of(cp, struct m0_sns_cm_cp, sc_base);
 }
 
 static bool cp_invariant(const struct m0_cm_cp *cp)
@@ -48,7 +48,7 @@ static bool cp_invariant(const struct m0_cm_cp *cp)
 
 	return m0_fom_phase(&cp->c_fom) < M0_CCP_NR &&
 	       ergo(m0_fom_phase(&cp->c_fom) > M0_CCP_INIT,
-		    m0_stob_id_is_set(&sns_cp->rc_sid));
+		    m0_stob_id_is_set(&sns_cp->sc_sid));
 }
 
 /*

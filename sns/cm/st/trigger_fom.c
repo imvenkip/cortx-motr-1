@@ -205,7 +205,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 	int                          rc;
 	struct m0_reqh              *reqh;
 	struct m0_cm                *cm;
-	struct m0_sns_cm            *rcm;
+	struct m0_sns_cm            *scm;
 	struct m0_reqh_service      *service;
 	struct m0_reqh_service_type *stype;
 	struct m0_fop               *rfop;
@@ -220,19 +220,18 @@ static int trigger_fom_tick(struct m0_fom *fom)
 		service = m0_reqh_service_find(stype, reqh);
 		M0_ASSERT(service != NULL);
 		cm = container_of(service, struct m0_cm, cm_service);
-		rcm = cm2sns(cm);
+		scm = cm2sns(cm);
 		switch(m0_fom_phase(fom)) {
 			case TPH_START:
 				treq = m0_fop_data(fom->fo_fop);
-				rcm->rc_fdata = treq->fdata;
+				scm->sc_it.si_fdata = treq->fdata;
 				file_sizes_save(treq);
-				rcm->rc_it.ri_pl.rpl_N = treq->N;
-				rcm->rc_it.ri_pl.rpl_K = treq->K;
-				rcm->rc_it.ri_pl.rpl_P = treq->P;
+				scm->sc_it.si_pl.spl_N = treq->N;
+				scm->sc_it.si_pl.spl_K = treq->K;
+				scm->sc_it.si_pl.spl_P = treq->P;
 				rc = m0_cm_start(cm);
 				M0_ASSERT(rc == 0);
-				m0_fom_wait_on(fom, &rcm->rc_stop_wait,
-					       &fom->fo_cb);
+				m0_fom_wait_on(fom, &scm->sc_stop_wait, &fom->fo_cb);
 				m0_fom_phase_set(fom, TPH_WAIT);
 				rc = M0_FSO_WAIT;
 				break;
@@ -246,7 +245,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				trep = m0_fop_data(rfop);
 				trep->rc = m0_fom_rc(fom);
 				fom->fo_rep_fop = rfop;
-				m0_cm_stop(&rcm->rc_base);
+				m0_cm_stop(&scm->sc_base);
 				m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 				rc = M0_FSO_AGAIN;
 				break;

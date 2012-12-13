@@ -119,10 +119,10 @@ static void iter_setup(uint32_t N, uint32_t K, uint32_t P)
 	M0_UT_ASSERT(bufs_nr != 0);
 	bufs_nr = cm_buffer_pool_provision(&scm->sc_obp, ITER_UT_BUF_NR);
 	M0_UT_ASSERT(bufs_nr != 0);
-        scm->sc_it.ri_pl.rpl_N = N;
-        scm->sc_it.ri_pl.rpl_K = K;
-        scm->sc_it.ri_pl.rpl_P = P;
-	rc = m0_sns_cm_iter_init(scm);
+        scm->sc_it.si_pl.spl_N = N;
+        scm->sc_it.si_pl.spl_K = K;
+        scm->sc_it.si_pl.spl_P = P;
+	rc = m0_sns_cm_iter_init(&scm->sc_it);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -292,7 +292,7 @@ static void iter_stop(uint64_t pool_width)
 {
 	cobs_delete(pool_width);
 	m0_cm_lock(cm);
-	m0_sns_cm_iter_fini(scm);
+	m0_sns_cm_iter_fini(&scm->sc_it);
 	/* Destroy previously created aggregation groups manually. */
 	ag_destroy();
 	m0_cm_unlock(cm);

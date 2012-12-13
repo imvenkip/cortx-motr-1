@@ -114,7 +114,7 @@ struct m0_sns_cm_iter {
          */
         uint64_t                         si_fdata;
 
-	struct c2_dbenv                 *si_dbenv;
+	struct m0_dbenv                 *si_dbenv;
 
 	struct m0_cob_domain            *si_cob_dom;
 
@@ -136,8 +136,8 @@ struct m0_sns_cm_iter {
 	uint64_t                         si_magix;
 };
 
-M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm *scm);
-M0_INTERNAL void m0_sns_cm_iter_fini(struct m0_sns_cm *scm);
+M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it);
+M0_INTERNAL void m0_sns_cm_iter_fini(struct m0_sns_cm_iter *it);
 
 /**
  * Iterates over parity groups in global fid order, calculates next data or

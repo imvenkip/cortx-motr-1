@@ -88,6 +88,9 @@
   @{
 */
 
+/**
+ * Operation that sns copy machine is carrying out.
+ */
 enum m0_sns_cm_op {
 	SNS_REPAIR = 1 << 1,
 	SNS_REBALANCE = 1 << 2
@@ -97,7 +100,7 @@ struct m0_sns_cm {
 	struct m0_cm		   sc_base;
 
 	/** Operation that sns copy machine is going to execute. */
-	m0_sns_cm_op               sc_op;
+	enum m0_sns_cm_op          sc_op;
 
 	/** SNS copy machine data iterator. */
 	struct m0_sns_cm_iter      sc_it;
