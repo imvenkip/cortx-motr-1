@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
 				     {
 					fsize[file_cnt] = fsz;
 					file_cnt++;
-				     })), 
+				     })),
 			M0_FORMATARG('N', "Number of data units", "%lu", &N),
 			M0_FORMATARG('K', "Number of parity units", "%lu", &K),
 			M0_FORMATARG('P', "Total pool width", "%lu", &P),
