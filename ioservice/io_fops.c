@@ -264,7 +264,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    <hr>
    @section IOFOLDLD-ovw Overview
    This document describes the design of logging FOL records for create, delete
-   and read operations.
+   and write operations.
 
    <hr>
    @section IOFOLDLD-def Definitions
@@ -379,8 +379,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    }
    @endcode
 
-   m0_emap_seg_vec for each write operation are combined in m0_io_fom_cob_rw:fcrw_segs
-   using write_extents_merge() in io_finish().
+   m0_emap_seg_vec for each write operation are combined in
+   m0_io_fom_cob_rw:fcrw_segs using write_extents_merge() in io_finish().
 
    m0_emap_extent_update() is used to update a segment read from FOL record.
    @code
@@ -409,7 +409,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	- version numbers that files have after execution of the action;
 	- operation code;
 	- operation parameters (file names, permission modes, times, etc.);
-	- LSNs of records of previous operations on files involved in the action;
+	- LSNs of records of previous operations on files involved in
+	  the action;
 	- Pointers to old data blocks (for undo).
 
    A record with a given LSN is added to the fol using m0_fol_add() in the
@@ -428,7 +429,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
    For create and delete operations fop data and reply fop data is stored
    in FOL.
-	- fop data containd fid.
+	- fop data including fid.
 	- Reply fop data is added in FOL records so that it can be used
 	  as Reply Cache.
 
@@ -465,16 +466,17 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
 	Also using this data do the cob delete(undo operation).
 
-	Simlialrly do the same things for delete fop.
+	Simlilarly do the same things for delete operation.
   2) For Write update,
-	send the data having value "A" from client to ioservice which logs fid and
-	data extents in FOL record. then send data having value "B" to the ioservice.
+	send the data having value "A" from client to ioservice which logs fid
+	and data extents in FOL record. Then send the data having value "B" to
+	the ioservice.
 
-	Now retrieve data extents for first write operation from FOL and update
-	AD table using data extents.
+	Now retrieve the data extents for first write operation from FOL and
+	update the AD table using these data extents.
 	Then read the data from ioservice and assert for data "A".
 
-   To restore data pointer in AD use m0_file_write_undo().
+   To restore old data extents in AD use m0_file_write_undo().
    @code
    int m0_file_write_undo(struct mo_dom *adom, struct mo_stob_id *id,
 			  struct m0_dtx *dtx, struct mo_emap_seg_vec *fol_vec)
@@ -505,8 +507,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 static size_t m0_io_fol_pack_size(struct m0_fol_rec_desc *desc)
 {
         struct m0_fom *fom = desc->rd_type_private;
-        size_t len = m0_fop_data_size(fom->fo_fop) +
-		     m0_fop_data_size(fom->fo_rep_fop);
+        size_t	       len = m0_fop_data_size(fom->fo_fop) +
+			     m0_fop_data_size(fom->fo_rep_fop);
 
         switch (m0_fop_opcode(fom->fo_fop)) {
         case M0_IOSERVICE_COB_CREATE_OPCODE:
