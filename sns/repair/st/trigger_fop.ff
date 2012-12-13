@@ -18,16 +18,22 @@
  * Original creation date: 09/11/2012
  */
 
-/*
+/** Sequence of file sizes to be repaired. */
+sequence {
+    u32 f_nr;
+    u64 f_size
+} file_sizes; 
+
+/**
  * Simplistic implementation of sns repair trigger fop for testing purposes
  * only.
  */
 record {
-	u64 fdata;
-	u64 N;
-	u64 K;
-	u64 P;
-	u64 fsize
+	u64        fdata;
+	u64        N;
+	u64        K;
+	u64        P;
+	file_sizes fsize
 } trigger_fop;
 
 record {

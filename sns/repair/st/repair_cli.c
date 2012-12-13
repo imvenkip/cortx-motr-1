@@ -30,6 +30,7 @@
 #include "lib/assert.h"
 #include "lib/getopts.h"
 #include "lib/misc.h"           /* M0_IN() */
+#include "lib/memory.h"
 #include "fop/fop.h"
 #include "net/lnet/lnet.h"
 #include "mero/init.h"
@@ -44,7 +45,8 @@
 enum {
 	MAX_RPCS_IN_FLIGHT = 10,
 	MAX_RPC_SLOTS_NR   = 2,
-	RPC_TIMEOUTS       = 5
+	RPC_TIMEOUTS       = 5,
+	MAX_FILES_NR       = 10
 };
 
 struct m0_net_domain     cl_ndom;
@@ -97,15 +99,24 @@ int main(int argc, char *argv[])
 	struct m0_fop      *fop;
 	struct trigger_fop *treq;
 	uint64_t            fdata;
-	uint64_t            fsize;
+	int32_t             n = 0;
+	uint64_t            fsize[MAX_FILES_NR];
 	uint64_t            N = 0;
 	uint64_t            K = 0;
 	uint64_t            P = 0;
+	int                 file_cnt = 0;
 	int                 rc;
+	int                 i;
 
 	rc = M0_GETOPTS("repair", argc, argv,
 			M0_FORMATARG('F', "Failure device", "%lu", &fdata),
-			M0_FORMATARG('s', "File size", "%lu", &fsize),
+			M0_FORMATARG('n', "Number of files", "%lu", &n),
+			M0_NUMBERARG('s', "File size",
+				     LAMBDA(void, (int64_t fsz)
+				     {
+					fsize[file_cnt] = fsz;
+					file_cnt++;
+				     })), 
 			M0_FORMATARG('N', "Number of data units", "%lu", &N),
 			M0_FORMATARG('K', "Number of parity units", "%lu", &K),
 			M0_FORMATARG('P', "Total pool width", "%lu", &P),
@@ -127,7 +138,13 @@ int main(int argc, char *argv[])
 	fop = m0_fop_alloc(&trigger_fop_fopt, NULL);
 	treq = m0_fop_data(fop);
 	treq->fdata = fdata;
-	treq->fsize = fsize;
+	M0_ASSERT(n == file_cnt);
+	M0_ALLOC_ARR(treq->fsize.f_size, file_cnt);
+	M0_ASSERT(treq->fsize.f_size != NULL);
+	for (i = 0; i < file_cnt; ++i)
+		treq->fsize.f_size[i] = fsize[i];
+	treq->fsize.f_nr = file_cnt;
+
 	treq->N = N;
 	treq->K = K;
 	treq->P = P;
