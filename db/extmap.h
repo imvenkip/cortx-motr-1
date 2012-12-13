@@ -102,8 +102,6 @@
    @{
  */
 
-#include "lib/ext.h"       /* m0_ext */
-#include "lib/types.h"     /* struct m0_uint128 */
 #include "db/db.h"
 #include "lib/ext_xc.h"
 #include "lib/types_xc.h"
@@ -115,7 +113,6 @@ struct m0_db_tx;
 struct m0_indexvec;
 
 /* export */
-struct m0_emap_seg;
 struct m0_emap_cursor;
 
 /**

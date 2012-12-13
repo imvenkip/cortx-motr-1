@@ -103,7 +103,7 @@ static const struct m0_fol_rec_type_ops m0_io_fop_fol_ops = {
         .rto_abort      = NULL,
         .rto_persistent = NULL,
         .rto_cull       = NULL,
-        .rto_open       = m0_io_fol_open,
+        .rto_open       = NULL,
         .rto_fini       = NULL,
         .rto_pack_size  = m0_io_fol_pack_size,
         .rto_pack       = m0_io_fol_pack
@@ -249,6 +249,14 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    updates to file system state carried out on the node.
    IO FOL is log of records for create, delete and write operations in ioservice
    which are used to perform undo or as a reply cache.
+
+   Each File system object called unit has "verno of its latest state" as an
+   attribute. This attribute is modified with every update to unit state.
+
+   A verno consists of two components:
+	-LSN (lsn): A reference to a FOL record, points to the record with
+		    the last update for the unit.
+	-VC: A version counter
 
    <hr>
    @section IOFOLDLD-req Requirements

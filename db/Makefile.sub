@@ -1,5 +1,7 @@
 nobase_mero_include_HEADERS += db/db.h \
                                   db/extmap.h \
+                                  db/extmap_seg.h \
+                                  db/extmap_seg_xc.h \
                                   db/extmap_internal.h \
 				  db/extmap_xc.h \
                                   db/db_impl.h \
