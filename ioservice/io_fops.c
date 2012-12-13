@@ -274,6 +274,14 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 		    the last update for the unit.
 	-VC: A version counter
 
+   Each File system object called unit has "verno of its latest state" as an
+   attribute. This attribute is modified with every update to unit state.
+
+   A verno consists of two components:
+	-LSN (lsn): A reference to a FOL record, points to the record with
+		    the last update for the unit.
+	-VC: A version counter
+
    <hr>
    @section IOFOLDLD-req Requirements
 
