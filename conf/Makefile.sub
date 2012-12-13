@@ -32,7 +32,8 @@ mero_libmero_la_SOURCES += conf/onwire.h \
                                  conf/confd.c \
                                  conf/confd.h
 
-conf/onwire.h: lib/buf_xc.h
+conf/onwire.h: lib/buf_xc.h \
+               fid/fid_xc.h
 
 XC_FILES   += conf/onwire_xc.h
 

@@ -155,13 +155,12 @@ include $(top_srcdir)/cfg/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
 include $(top_srcdir)/cob/Makefile.sub
 include $(top_srcdir)/mero/Makefile.sub
-# conf requires fid/fid_xc.h
-include $(top_srcdir)/fid/Makefile.sub
 include $(top_srcdir)/conf/Makefile.sub
 include $(top_srcdir)/console/Makefile.sub
 include $(top_srcdir)/db/Makefile.sub
 include $(top_srcdir)/desim/Makefile.sub
 include $(top_srcdir)/dtm/Makefile.sub
+include $(top_srcdir)/fid/Makefile.sub
 include $(top_srcdir)/fol/Makefile.sub
 include $(top_srcdir)/fop/Makefile.sub
 include $(top_srcdir)/ioservice/Makefile.sub
