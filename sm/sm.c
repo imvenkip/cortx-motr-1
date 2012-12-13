@@ -387,6 +387,7 @@ M0_INTERNAL int m0_sm_timer_start(struct m0_sm_timer *timer,
 	int result;
 
 	M0_PRE(timer->tr_state == INIT);
+	M0_PRE(cb != NULL);
 
 	/*
 	 * This is how timer is implemented:
