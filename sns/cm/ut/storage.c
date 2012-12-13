@@ -25,26 +25,23 @@
 #include "lib/misc.h"
 #include "reqh/reqh.h"
 #include "mero/setup.h"
-#include "sns/repair/ut/cp_common.h"
+#include "sns/cm/ut/cp_common.h"
 
-/* Global structures for setting up mero service. */
-static const char log_file_name[] = "sr_ut.errlog";
-
-struct m0_reqh_service         *service;
-static struct m0_reqh          *reqh;
-static struct m0_semaphore      sem;
-static struct m0_stob          *stob;
-static struct m0_dtx            tx;
+struct m0_reqh_service       *service;
+static struct m0_reqh        *reqh;
+static struct m0_semaphore    sem;
+static struct m0_stob        *stob;
+static struct m0_dtx          tx;
 
 /* Global structures for write copy packet. */
-static struct m0_sns_repair_ag w_sag;
-static struct m0_sns_repair_cp w_sns_cp;
-static struct m0_bufvec        w_bv;
+static struct m0_sns_cm_ag w_sag;
+static struct m0_sns_cm_cp w_sns_cp;
+static struct m0_bufvec    w_bv;
 
 /* Global structures for read copy packet. */
-static struct m0_sns_repair_ag r_sag;
-static struct m0_sns_repair_cp r_sns_cp;
-static struct m0_bufvec        r_bv;
+static struct m0_sns_cm_ag r_sag;
+static struct m0_sns_cm_cp r_sns_cp;
+static struct m0_bufvec    r_bv;
 
 static struct m0_stob_id sid = {
 	.si_bits = {
@@ -157,7 +154,7 @@ static int dummy_cp_read_io_wait(struct m0_cm_cp *cp)
 {
 	return cp->c_io_op == M0_CM_CP_READ ?
 	       cp->c_ops->co_phase_next(cp) :
-	       m0_sns_repair_cp_io_wait(cp);
+	       m0_sns_cm_cp_io_wait(cp);
 }
 
 /*
@@ -169,20 +166,20 @@ static int dummy_cp_write_io_wait(struct m0_cm_cp *cp)
 {
 	return cp->c_io_op == M0_CM_CP_WRITE ?
 	       cp->c_ops->co_phase_next(cp) :
-	       m0_sns_repair_cp_io_wait(cp);
+	       m0_sns_cm_cp_io_wait(cp);
 }
 
 const struct m0_cm_cp_ops write_cp_dummy_ops = {
 	.co_action = {
 		[M0_CCP_INIT]    = &dummy_cp_init,
 		[M0_CCP_READ]    = &dummy_cp_read,
-		[M0_CCP_WRITE]   = &m0_sns_repair_cp_write,
+		[M0_CCP_WRITE]   = &m0_sns_cm_cp_write,
 		[M0_CCP_IO_WAIT] = &dummy_cp_read_io_wait,
 		[M0_CCP_XFORM]   = &dummy_cp_xform,
 		[M0_CCP_FINI]    = &dummy_cp_fini,
 	},
 	.co_action_nr            = M0_CCP_NR,
-	.co_phase_next           = &m0_sns_repair_cp_phase_next,
+	.co_phase_next           = &m0_sns_cm_cp_phase_next,
 	.co_complete             = &dummy_cp_complete,
 };
 
@@ -231,14 +228,14 @@ void write_post(void)
 const struct m0_cm_cp_ops read_cp_dummy_ops = {
 	.co_action = {
 		[M0_CCP_INIT]    = &dummy_cp_init,
-		[M0_CCP_READ]    = &m0_sns_repair_cp_read,
+		[M0_CCP_READ]    = &m0_sns_cm_cp_read,
 		[M0_CCP_WRITE]   = &dummy_cp_write,
 		[M0_CCP_IO_WAIT] = &dummy_cp_write_io_wait,
 		[M0_CCP_XFORM]   = &dummy_cp_xform,
 		[M0_CCP_FINI]    = &dummy_cp_fini,
 	},
 	.co_action_nr            = M0_CCP_NR,
-	.co_phase_next           = &m0_sns_repair_cp_phase_next,
+	.co_phase_next           = &m0_sns_cm_cp_phase_next,
 	.co_complete             = &dummy_cp_complete,
 };
 
@@ -275,8 +272,8 @@ static void test_cp_write_read(void)
 	rc = sns_repair_ut_server_start();
 	M0_ASSERT(rc == 0);
 
-	reqh = m0_cs_reqh_get(&sctx, "sns_repair");
-	M0_ASSERT(reqh != NULL);
+	reqh = m0_cs_reqh_get(&sctx, "sns_cm");
+	M0_UT_ASSERT(reqh != NULL);
 
 	/*
 	 * Write using a dummy copy packet. This data which is written, will
@@ -298,8 +295,8 @@ static void test_cp_write_read(void)
 	sns_repair_ut_server_stop();
 }
 
-const struct m0_test_suite snsrepair_storage_ut = {
-	.ts_name = "snsrepair_storage-ut",
+const struct m0_test_suite snscm_storage_ut = {
+	.ts_name = "snscm_storage-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {

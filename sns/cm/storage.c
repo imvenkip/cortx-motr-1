@@ -26,11 +26,11 @@
 #include "lib/memory.h"
 #include "mero/setup.h"
 
-#include "sns/repair/ag.h"
-#include "sns/repair/cp.h"
+#include "sns/cm/ag.h"
+#include "sns/cm/cp.h"
 
 /**
- * @addtogroup SNSRepairCP
+ * @addtogroup SNSCMCP
  * @{
  */
 
@@ -102,7 +102,7 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	struct m0_fom           *cp_fom;
 	struct m0_reqh          *reqh;
 	struct m0_stob_domain   *dom;
-	struct m0_sns_repair_cp *sns_cp;
+	struct m0_sns_cm_cp     *sns_cp;
 	struct m0_stob          *stob;
 	struct m0_stob_id       *stobid;
 	struct m0_stob_io       *stio;
@@ -178,7 +178,7 @@ out:
 	}
 }
 
-M0_INTERNAL int m0_sns_repair_cp_read(struct m0_cm_cp *cp)
+M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp)
 {
 	cp->c_io_op = M0_CM_CP_READ;
 	return cp_io(cp, SIO_READ);
@@ -186,15 +186,15 @@ M0_INTERNAL int m0_sns_repair_cp_read(struct m0_cm_cp *cp)
 
 static void spare_stobid_fill(struct m0_cm_cp *cp)
 {
-	struct m0_sns_repair_ag *sns_ag = ag2snsag(cp->c_ag);
-	struct m0_sns_repair_cp *sns_cp = cp2snscp(cp);
+	struct m0_sns_cm_ag *sns_ag = ag2snsag(cp->c_ag);
+	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
 
 	sns_cp->rc_sid.si_bits.u_hi = sns_ag->sag_spare_cobfid.f_container;
 	sns_cp->rc_sid.si_bits.u_lo = sns_ag->sag_spare_cobfid.f_key;
 	sns_cp->rc_index            = sns_ag->sag_spare_cob_index;
 }
 
-M0_INTERNAL int m0_sns_repair_cp_write(struct m0_cm_cp *cp)
+M0_INTERNAL int m0_sns_cm_cp_write(struct m0_cm_cp *cp)
 {
 	cp->c_io_op = M0_CM_CP_WRITE;
 	spare_stobid_fill(cp);
@@ -202,9 +202,9 @@ M0_INTERNAL int m0_sns_repair_cp_write(struct m0_cm_cp *cp)
 	return cp_io(cp, SIO_WRITE);
 }
 
-M0_INTERNAL int m0_sns_repair_cp_io_wait(struct m0_cm_cp *cp)
+M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 {
-	struct m0_sns_repair_cp *sns_cp = cp2snscp(cp);
+	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
 	int                      rc = sns_cp->rc_stio.si_rc;
 
 	if (sns_cp->rc_stio.si_opcode == SIO_WRITE)
@@ -226,7 +226,7 @@ M0_INTERNAL int m0_sns_repair_cp_io_wait(struct m0_cm_cp *cp)
 	return cp->c_ops->co_phase_next(cp);
 }
 
-/** @} SNSRepairCP */
+/** @} SNSCMCP */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

@@ -20,12 +20,12 @@
 
 #pragma once
 
-#ifndef __MERO_SNS_REPAIR_UT_CP_COMMON_H__
-#define __MERO_SNS_REPAIR_UT_CP_COMMON_H__
+#ifndef __MERO_SNS_CM_UT_CP_COMMON_H__
+#define __MERO_SNS_CM_UT_CP_COMMON_H__
 
 #include "lib/ut.h"
-#include "sns/repair/cp.h"
-#include "sns/repair/ag.h"
+#include "sns/cm/cp.h"
+#include "sns/cm/ag.h"
 
 extern struct m0_reqh cm_cp_ut_reqh;
 extern struct m0_mero sctx;
@@ -41,17 +41,17 @@ inline void bv_free(struct m0_bufvec *b);
 
 void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
 		uint32_t bv_seg_nr, uint32_t bv_seg_size,
-                struct m0_sns_repair_ag *sns_ag,
+                struct m0_sns_cm_ag *sns_ag,
                 char data, struct m0_fom_ops *cp_fom_ops,
 		struct m0_reqh *reqh);
 
 int cs_init(struct m0_mero *sctx);
 void cs_fini(struct m0_mero *sctx);
 
-int sns_repair_ut_server_start(void);
-void sns_repair_ut_server_stop(void);
+int sns_cm_ut_server_start(void);
+void sns_cm_ut_server_stop(void);
 
-#endif /* __MERO_SNS_REPAIR_UT_CP_COMMON_H__ */
+#endif /* __MERO_SNS_CM_UT_CP_COMMON_H__ */
 
 /*
  *  Local variables:

@@ -23,9 +23,8 @@
 #endif
 
 #include "reqh/reqh.h"
-#include "mero/setup.h"
-#include "sns/repair/xform.c"
-#include "sns/repair/ut/cp_common.h"
+#include "sns/cm/xform.c"
+#include "sns/cm/ut/cp_common.h"
 
 enum {
 	CP_SINGLE = 1,
@@ -38,14 +37,14 @@ static struct m0_reqh     *reqh;
 static struct m0_semaphore sem;
 
 /* Global structures for single copy packet test. */
-static struct m0_sns_repair_ag s_sag;
-static struct m0_cm_cp         s_cp;
-static struct m0_bufvec        s_bv;
+static struct m0_sns_cm_ag s_sag;
+static struct m0_cm_cp     s_cp;
+static struct m0_bufvec    s_bv;
 
 /* Global structures for multiple copy packet test. */
-static struct m0_sns_repair_ag m_sag;
-static struct m0_cm_cp         m_cp[CP_MULTI];
-static struct m0_bufvec        m_bv[CP_MULTI];
+static struct m0_sns_cm_ag m_sag;
+static struct m0_cm_cp     m_cp[CP_MULTI];
+static struct m0_bufvec    m_bv[CP_MULTI];
 
 /* Global structures for testing bufvec xor correctness. */
 struct m0_bufvec src;
@@ -249,7 +248,7 @@ static void test_bufvec_xor()
 	bv_free(&xor);
 }
 
-const struct m0_test_suite snsrepair_xform_ut = {
+const struct m0_test_suite snscm_xform_ut = {
 	.ts_name = "snsrepair_xform-ut",
 	.ts_init = &xform_init,
 	.ts_fini = &xform_fini,

@@ -25,15 +25,15 @@
 #include "ioservice/io_device.h"
 #include "cm/cp.h"
 #include "cm/cp.c"
-#include "sns/repair/cp.h"
-#include "sns/repair/cp.c"
+#include "sns/cm/cp.h"
+#include "sns/cm/cp.c"
 #include "cm/ag.h"
 #include "cm/ut/common_service.h"
 
 static struct m0_semaphore     sem;
 
 /* Single thread test vars. */
-static struct m0_sns_repair_cp s_sns_cp;
+static struct m0_sns_cm_cp s_sns_cp;
 static struct m0_cm_aggr_group s_ag;
 static struct m0_bufvec s_bv;
 
@@ -91,7 +91,7 @@ M0_REQH_SERVICE_TYPE_DEFINE(ut_cp_service_type,
                             &m0_addb_ct_ut_service);
 
 /* Multithreaded test vars. */
-static struct m0_sns_repair_cp m_sns_cp[THREADS_NR];
+static struct m0_sns_cm_cp m_sns_cp[THREADS_NR];
 static struct m0_cm_aggr_group m_ag[THREADS_NR];
 static struct m0_bufvec m_bv[THREADS_NR];
 
@@ -124,19 +124,19 @@ static int dummy_cp_init(struct m0_cm_cp *cp)
 	return rc;
 }
 
-const struct m0_cm_cp_ops m0_sns_repair_cp_dummy_ops = {
+const struct m0_cm_cp_ops m0_sns_cm_cp_dummy_ops = {
         .co_action = {
                 [M0_CCP_INIT]  = &dummy_cp_init,
                 [M0_CCP_READ]  = &dummy_cp_read,
                 [M0_CCP_WRITE] = &dummy_cp_write,
                 [M0_CCP_IO_WAIT] = &dummy_cp_io_wait,
                 [M0_CCP_XFORM] = &dummy_cp_xform,
-                [M0_CCP_SEND]  = &m0_sns_repair_cp_send,
-                [M0_CCP_RECV]  = &m0_sns_repair_cp_recv,
-                [M0_CCP_FINI]  = &sns_repair_dummy_cp_fini,
+                [M0_CCP_SEND]  = &m0_sns_cm_cp_send,
+                [M0_CCP_RECV]  = &m0_sns_cm_cp_recv,
+                [M0_CCP_FINI]  = &sns_cm_dummy_cp_fini,
         },
         .co_action_nr          = M0_CCP_NR,
-        .co_phase_next         = &m0_sns_repair_cp_phase_next,
+        .co_phase_next         = &m0_sns_cm_cp_phase_next,
         .co_invariant          = &cp_invariant,
         .co_home_loc_helper    = &cp_home_loc_helper,
         .co_complete           = &cp_complete,
@@ -178,7 +178,7 @@ static struct m0_fom_ops dummy_cp_fom_ops = {
  * Populates the copy packet and queues it to the request handler
  * for processing.
  */
-static void cp_post(struct m0_sns_repair_cp *sns_cp,
+static void cp_post(struct m0_sns_cm_cp *sns_cp,
 		    struct m0_cm_aggr_group *ag, struct m0_bufvec *bv)
 {
 	struct m0_cm_cp *cp;
@@ -194,7 +194,7 @@ static void cp_post(struct m0_sns_repair_cp *sns_cp,
 	m0_cm_cp_init(cp);
 	cp->c_data = bv;
 	sns_cp->rc_sid = sid;
-	cp->c_ops = &m0_sns_repair_cp_dummy_ops;
+	cp->c_ops = &m0_sns_cm_cp_dummy_ops;
 	/* Over-ride the fom ops. */
 	cp->c_fom.fo_ops = &dummy_cp_fom_ops;
 	m0_fom_queue(&cp->c_fom, &cm_ut_reqh);

@@ -214,7 +214,7 @@ M0_INTERNAL void m0_trace_fini(void);
   M0_TRACE_SUBSYS(RM,        18) \
   M0_TRACE_SUBSYS(RPC,       19) \
   M0_TRACE_SUBSYS(SNS,       20) \
-  M0_TRACE_SUBSYS(SNSREPAIR, 21) \
+  M0_TRACE_SUBSYS(SNSCM,     21) \
   M0_TRACE_SUBSYS(STOB,      22)
 
 #define M0_TRACE_SUBSYS(name, value) M0_TRACE_SUBSYS_ ## name = (1 << value),

@@ -178,7 +178,7 @@ include $(top_srcdir)/rm/Makefile.sub
 include $(top_srcdir)/rpc/Makefile.sub
 include $(top_srcdir)/sm/Makefile.sub
 include $(top_srcdir)/sns/Makefile.sub
-include $(top_srcdir)/sns/repair/Makefile.sub
+include $(top_srcdir)/sns/cm/Makefile.sub
 include $(top_srcdir)/stob/Makefile.sub
 include $(top_srcdir)/udb/Makefile.sub
 include $(top_srcdir)/xcode/Makefile.sub
@@ -222,7 +222,7 @@ include $(top_srcdir)/rm/ut/Makefile.sub
 include $(top_srcdir)/rpc/ut/Makefile.sub
 include $(top_srcdir)/sm/ut/Makefile.sub
 include $(top_srcdir)/sns/ut/Makefile.sub
-include $(top_srcdir)/sns/repair/ut/Makefile.sub
+include $(top_srcdir)/sns/cm/ut/Makefile.sub
 include $(top_srcdir)/stob/ut/Makefile.sub
 include $(top_srcdir)/udb/ut/Makefile.sub
 include $(top_srcdir)/ut/Makefile.sub
@@ -434,14 +434,14 @@ net_test_user_space_m0netperfd_LDADD  = $(top_builddir)/mero/libmero.la \
 include $(top_srcdir)/net/test/user_space/Makefile.sub
 
 #
-# sns/repair/st
+# sns/cm/st
 #
 
-noinst_PROGRAMS              += sns/repair/st/m0repair
-sns_repair_st_m0repair_LDADD  = $(top_builddir)/mero/libmero.la \
-                                $(top_builddir)/ut/libmero-ut.la
+noinst_PROGRAMS        += sns/cm/st/repair
+sns_cm_st_repair_LDADD  = $(top_builddir)/mero/libmero.la \
+                          $(top_builddir)/ut/libmero-ut.la
 
-include $(top_srcdir)/sns/repair/st/Makefile.sub
+include $(top_srcdir)/sns/cm/st/Makefile.sub
 
 #
 # yaml2db/st

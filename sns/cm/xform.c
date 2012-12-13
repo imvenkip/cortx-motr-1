@@ -24,11 +24,11 @@
 
 #include "lib/bob.h"
 #include "cm/cp.h"
-#include "sns/repair/ag.h"
+#include "sns/cm/ag.h"
 #include "sns/parity_math.h"
 
 /**
- * @addtogroup SNSRepairCP
+ * @addtogroup SNSCMCP
  * @{
  */
 
@@ -79,9 +79,9 @@ static void bufvec_xor(struct m0_bufvec *dst, struct m0_bufvec *src,
  * @pre cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_XFORM
  * @param cp Copy packet that has to be transformed.
  */
-M0_INTERNAL int m0_sns_repair_cp_xform(struct m0_cm_cp *cp)
+M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 {
-        struct m0_sns_repair_ag *sns_ag;
+        struct m0_sns_cm_ag     *sns_ag;
         struct m0_cm_aggr_group *ag;
 	struct m0_cm_cp         *res_cp;
 	m0_bcount_t              cp_bufvec_size;
@@ -103,7 +103,7 @@ M0_INTERNAL int m0_sns_repair_cp_xform(struct m0_cm_cp *cp)
                  * If this is the first copy packet for this aggregation group,
                  * (with more copy packets from same aggregation group to be
                  * yet transformed), store it's pointer in
-                 * m0_sns_repair_ag::sag_cp. This copy packet will be used as
+                 * m0_sns_cm_ag::sag_cp. This copy packet will be used as
                  * a resultant copy packet for transformation.
                  */
 		sns_ag->sag_cp = cp;
@@ -151,7 +151,7 @@ M0_INTERNAL int m0_sns_repair_cp_xform(struct m0_cm_cp *cp)
         }
 }
 
-/** @} SNSRepairCP */
+/** @} SNSCMCP */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

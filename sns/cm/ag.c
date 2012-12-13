@@ -18,32 +18,32 @@
  * Original creation date: 12/09/2012
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSREPAIR
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 
 #include "lib/trace.h"
 #include "lib/memory.h"
 
 #include "fid/fid.h"
 
-#include "sns/repair/ag.h"
-#include "sns/repair/cm.h"
+#include "sns/cm/ag.h"
+#include "sns/cm/cm.h"
 
 /**
-   @addtogroup SNSRepairAG
+   @addtogroup SNSCMAG
 
    @{
  */
 
-M0_INTERNAL struct m0_sns_repair_ag *ag2snsag(const struct m0_cm_aggr_group *ag)
+M0_INTERNAL struct m0_sns_cm_ag *ag2snsag(const struct m0_cm_aggr_group *ag)
 {
-	return container_of(ag, struct m0_sns_repair_ag, sag_base);
+	return container_of(ag, struct m0_sns_cm_ag, sag_base);
 }
 
 static int ag_fini(struct m0_cm_aggr_group *ag)
 {
-	struct m0_sns_repair_ag *sag;
-	struct m0_sns_repair_cm *rcm;
-	struct m0_cm		*cm;
+	struct m0_sns_cm_ag *sag;
+	struct m0_sns_cm *rcm;
+	struct m0_cm        *cm;
 
 	M0_ENTRY();
 	M0_PRE(ag != NULL);
@@ -74,10 +74,10 @@ M0_INTERNAL uint64_t agid2group(const struct m0_cm_aggr_group *ag)
 
 static uint64_t ag_local_cp_nr(const struct m0_cm_aggr_group *ag)
 {
-	struct m0_fid            fid;
-	uint64_t                 group;
-	struct m0_cm            *cm;
-	struct m0_sns_repair_cm *rcm;
+	struct m0_fid      fid;
+	uint64_t           group;
+	struct m0_cm      *cm;
+	struct m0_sns_cm  *rcm;
 
 	M0_ENTRY();
 	M0_PRE(ag != NULL);
@@ -94,19 +94,16 @@ static uint64_t ag_local_cp_nr(const struct m0_cm_aggr_group *ag)
 }
 
 static const struct m0_cm_aggr_group_ops repair_ag_ops = {
-	.cago_fini   = ag_fini,
+	.cago_fini        = ag_fini,
 	.cago_local_cp_nr = ag_local_cp_nr
 };
 
-M0_INTERNAL struct m0_sns_repair_ag *m0_sns_repair_ag_find(struct
-							   m0_sns_repair_cm
-							   *rcm,
-							   const struct
-							   m0_cm_ag_id *id)
+M0_INTERNAL struct m0_sns_cm_ag *m0_sns_cm_ag_find(struct m0_sns_cm *rcm,
+						   const struct m0_cm_ag_id *id)
 {
 	struct m0_cm            *cm;
 	struct m0_cm_aggr_group *ag;
-	struct m0_sns_repair_ag *sag;
+	struct m0_sns_cm_ag     *sag;
 
 	M0_ENTRY("rcm: %p, ag id:%p", rcm, id);
 	M0_PRE(rcm != NULL);
@@ -144,7 +141,7 @@ M0_INTERNAL struct m0_sns_repair_ag *m0_sns_repair_ag_find(struct
 
 #undef M0_TRACE_SUBSYSTEM
 
-/** @} SNSRepairAG */
+/** @} SNSCMAG */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

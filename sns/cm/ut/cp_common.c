@@ -24,24 +24,24 @@
 
 #include "net/lnet/lnet.h"
 #include "mero/setup.h"
-#include "sns/repair/ut/cp_common.h"
-#include "sns/repair/service.c"
+#include "sns/cm/ut/cp_common.h"
+#include "sns/cm/service.c"
 
 /* Global structures for setting up mero service. */
 const char log_file_name[] = "sr_ut.errlog";
-char      *sns_repair_ut_svc[] = { "m0d", "-r", "-p", "-T", "LINUX",
-				     "-D", "sr_db", "-S", "sr_stob",
-				     "-A", "sr_addb_stob",
-				     "-e", "lnet:0@lo:12345:34:1",
-				     "-s", "sns_repair",
-				     "-s", "ioservice"};
+char      *sns_cm_ut_svc[] = { "m0d", "-r", "-p", "-T", "LINUX",
+			       "-D", "sr_db", "-S", "sr_stob",
+			       "-A", "sr_addb_stob",
+			       "-e", "lnet:0@lo:12345:34:1",
+			       "-s", "sns_repair",
+			       "-s", "ioservice"};
 
 struct m0_net_xprt *sr_xprts[] = {
 	&m0_net_lnet_xprt,
 };
 
-FILE             *lfile;
-struct m0_mero sctx;
+FILE           *lfile;
+struct m0_mero  sctx;
 
 /* Populates the bufvec with a character value. */
 void bv_populate(struct m0_bufvec *b, char data, uint32_t seg_nr,
@@ -87,7 +87,7 @@ inline void bv_free(struct m0_bufvec *b)
 
 void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
 		uint32_t bv_seg_nr, uint32_t bv_seg_size,
-		struct m0_sns_repair_ag *sns_ag,
+		struct m0_sns_cm_ag *sns_ag,
 		char data, struct m0_fom_ops *cp_fom_ops,
 		struct m0_reqh *reqh)
 {
@@ -100,7 +100,7 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
 
         bv_populate(bv, data, bv_seg_nr, bv_seg_size);
         cp->c_ag = &sns_ag->sag_base;
-	service = m0_reqh_service_find(&sns_repair_cmt.ct_stype, reqh);
+	service = m0_reqh_service_find(&sns_cmt.ct_stype, reqh);
 	M0_UT_ASSERT(service != NULL);
 	cm = container_of(service, struct m0_cm, cm_service);
 	M0_UT_ASSERT(cm != NULL);
@@ -108,7 +108,9 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
         m0_cm_cp_init(cp);
         cp->c_data = bv;
         cp->c_fom.fo_ops = cp_fom_ops;
-        cp->c_ops = &m0_sns_repair_cp_ops;
+        cp->c_ops = &m0_sns_cm_cp_ops;
+        /* Required to pass the fom invariant */
+        cp->c_fom.fo_fop = (void *)1;
 }
 
 /*
@@ -144,13 +146,13 @@ void cs_fini(struct m0_mero *sctx)
 	fclose(lfile);
 }
 
-void sns_repair_ut_server_stop(void)
+void sns_cm_ut_server_stop(void)
 {
 	m0_cs_fini(&sctx);
 	fclose(lfile);
 }
 
-int sns_repair_ut_server_start(void)
+int sns_cm_ut_server_start(void)
 {
 	int rc;
 
@@ -162,12 +164,12 @@ int sns_repair_ut_server_start(void)
         if (rc != 0)
 		return rc;
 
-        rc = m0_cs_setup_env(&sctx, ARRAY_SIZE(sns_repair_ut_svc),
-                             sns_repair_ut_svc);
+        rc = m0_cs_setup_env(&sctx, ARRAY_SIZE(sns_cm_ut_svc),
+                             sns_cm_ut_svc);
 	if (rc == 0)
 		rc = m0_cs_start(&sctx);
         if (rc != 0)
-		sns_repair_ut_server_stop();
+		sns_cm_ut_server_stop();
 
 	return rc;
 }

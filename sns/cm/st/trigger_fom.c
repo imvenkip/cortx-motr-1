@@ -33,7 +33,7 @@
 #include "sns/repair/st/trigger_fop_xc.h"
 #include "rpc/rpc_opcodes.h"
 
-#include "sns/repair/cm.h"
+#include "sns/cm/cm.h"
 
 /*
  * Implements a simplistic sns repair trigger FOM for corresponding trigger FOP.
@@ -202,10 +202,10 @@ static void file_sizes_save(struct trigger_fop *treq)
 
 static int trigger_fom_tick(struct m0_fom *fom)
 {
-	int                      rc;
-	struct m0_reqh          *reqh;
-	struct m0_cm            *cm;
-	struct m0_sns_repair_cm     *rcm;
+	int                          rc;
+	struct m0_reqh              *reqh;
+	struct m0_cm                *cm;
+	struct m0_sns_cm            *rcm;
 	struct m0_reqh_service      *service;
 	struct m0_reqh_service_type *stype;
 	struct m0_fop               *rfop;
@@ -216,7 +216,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 		rc = m0_fom_tick_generic(fom);
 	} else {
 		reqh = fom->fo_loc->fl_dom->fd_reqh;
-		stype = m0_reqh_service_type_find("sns_repair");
+		stype = m0_reqh_service_type_find("sns_cm");
 		service = m0_reqh_service_find(stype, reqh);
 		M0_ASSERT(service != NULL);
 		cm = container_of(service, struct m0_cm, cm_service);

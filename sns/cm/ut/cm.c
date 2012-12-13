@@ -40,25 +40,12 @@
 
 #include "fop/fom.h" /* M0_FSO_AGAIN, M0_FSO_WAIT */
 
-#include "sns/repair/cm.h"
-#include "sns/repair/cp.h"
-#include "sns/repair/ag.h"
 #include "ioservice/io_service.h"
-#include "sns/repair/ut/cp_common.h"
+#include "sns/cm/ut/cp_common.h"
+#include "sns/cm/cm.h"
+#include "sns/cm/cp.h"
+#include "sns/cm/ag.h"
 
-#if 0
-#define LOG_FILE_NAME "sr_ut.errlog"
-
-static char *sns_repair_ut_svc[] = { "m0d", "-r", "-p", "-T", "linux",
-                                "-D", "sr_db", "-S", "sr_stob",
-				"-A", "sr_addb_stob",
-                                "-e", "lnet:0@lo:12345:34:1",
-                                "-s", "sns_repair"};
-
-static struct m0_net_xprt *sr_xprts[] = {
-        &m0_net_lnet_xprt,
-};
-#endif
 enum {
 	ITER_UT_BUF_NR = 1 << 4,
 	ITER_GOB_KEY_START = 4,
@@ -66,19 +53,18 @@ enum {
 };
 
 
-static struct m0_reqh          *reqh;
-struct m0_reqh_service         *service;
-static struct m0_cm            *cm;
-static struct m0_sns_repair_cm *rcm;
-
+static struct m0_reqh    *reqh;
+struct m0_reqh_service   *service;
+static struct m0_cm      *cm;
+static struct m0_sns_cm  *scm;
 
 static void service_start_success(void)
 {
 	int rc;
 
-        rc = sns_repair_ut_server_start();
+        rc = sns_cm_ut_server_start();
         M0_UT_ASSERT(rc == 0);
-	sns_repair_ut_server_stop();
+	sns_cm_ut_server_stop();
 }
 
 static void service_init_failure(void)
@@ -86,7 +72,7 @@ static void service_init_failure(void)
 	int rc;
 
 	m0_fi_enable_once("m0_cm_init", "init_failure");
-	rc = sns_repair_ut_server_start();
+	rc = sns_cm_ut_server_start();
 	M0_UT_ASSERT(rc != 0);
 }
 
@@ -95,7 +81,7 @@ static void service_start_failure(void)
 	int rc;
 
 	m0_fi_enable_once("m0_cm_setup", "setup_failure");
-	rc = sns_repair_ut_server_start();
+	rc = sns_cm_ut_server_start();
 	M0_UT_ASSERT(rc != 0);
 }
 
@@ -117,34 +103,34 @@ static void iter_setup(uint32_t N, uint32_t K, uint32_t P)
 	size_t bufs_nr;
 	int    rc;
 
-	rc = sns_repair_ut_server_start();
+	rc = sns_cm_ut_server_start();
 	M0_UT_ASSERT(rc == 0);
 
-	reqh = m0_cs_reqh_get(&sctx, "sns_repair");
+	reqh = m0_cs_reqh_get(&sctx, "sns_cm");
 	M0_UT_ASSERT(reqh != NULL);
-	service = m0_reqh_service_find(m0_reqh_service_type_find("sns_repair"),
+	service = m0_reqh_service_find(m0_reqh_service_type_find("sns_cm"),
 				       reqh);
 	M0_UT_ASSERT(service != NULL);
 
 	cm = container_of(service, struct m0_cm, cm_service);
-	rcm = cm2sns(cm);
+	scm = cm2sns(cm);
 
-	bufs_nr = cm_buffer_pool_provision(&rcm->rc_ibp, ITER_UT_BUF_NR);
+	bufs_nr = cm_buffer_pool_provision(&scm->sc_ibp, ITER_UT_BUF_NR);
 	M0_UT_ASSERT(bufs_nr != 0);
-	bufs_nr = cm_buffer_pool_provision(&rcm->rc_obp, ITER_UT_BUF_NR);
+	bufs_nr = cm_buffer_pool_provision(&scm->sc_obp, ITER_UT_BUF_NR);
 	M0_UT_ASSERT(bufs_nr != 0);
-        rcm->rc_it.ri_pl.rpl_N = N;
-        rcm->rc_it.ri_pl.rpl_K = K;
-        rcm->rc_it.ri_pl.rpl_P = P;
-	rc = m0_sns_repair_iter_init(rcm);
+        scm->sc_it.ri_pl.rpl_N = N;
+        scm->sc_it.ri_pl.rpl_K = K;
+        scm->sc_it.ri_pl.rpl_P = P;
+	rc = m0_sns_cm_iter_init(scm);
 	M0_UT_ASSERT(rc == 0);
 }
 
 
-static bool cp_verify(struct m0_sns_repair_cp *rcp)
+static bool cp_verify(struct m0_sns_cm_cp *scp)
 {
-	return m0_stob_id_is_set(&rcp->rc_sid) && rcp->rc_base.c_ag != NULL &&
-	       rcp->rc_base.c_data != NULL;
+	return m0_stob_id_is_set(&scp->sc_sid) && scp->sc_base.c_ag != NULL &&
+	       scp->sc_base.c_data != NULL;
 }
 
 static void dbenv_cob_domain_get(struct m0_dbenv **dbenv,
@@ -219,12 +205,12 @@ static void cob_delete(uint64_t cont, uint64_t key)
 	m0_db_tx_commit(&tx.tx_dbtx);
 }
 
-static void buf_put(struct m0_sns_repair_cp *rcp)
+static void buf_put(struct m0_sns_cm_cp *scp)
 {
-	m0_sns_repair_buffer_put(&rcm->rc_obp, container_of(rcp->rc_base.c_data,
-							    struct m0_net_buffer,
-							    nb_buffer),
-				 0);
+	m0_sns_cm_buffer_put(&scm->sc_obp, container_of(scp->sc_base.c_data,
+							struct m0_net_buffer,
+							nb_buffer),
+			     0);
 }
 
 static void ag_destroy(void)
@@ -274,27 +260,27 @@ static void nsit_verify(struct m0_fid *gfid, int cnt)
 static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata,
 		    bool verify_ns_iter)
 {
-	struct m0_sns_repair_cp rcp;
-	int                     rc;
-	int                     cnt;
+	struct m0_sns_cm_cp scp;
+	int                 rc;
+	int                 cnt
 
 	cobs_create(pool_width);
 	/* Set file size */
-	rcm->rc_file_size = fsize;
+	scm->sc_it.si_pl.spl_fsize = fsize;
 	/* Set fail device. */
-	rcm->rc_fdata = fdata;
+	scm->sc_it.si_fdata = fdata;
 	cnt = 0;
 	m0_cm_lock(cm);
 	do {
-		M0_SET0(&rcp);
-		rcm->rc_it.ri_cp = &rcp;
-		rc = m0_sns_repair_iter_next(cm, &rcp.rc_base);
+		M0_SET0(&scp);
+		scm->sc_it.si_cp = &scp;
+		rc = m0_sns_cm_iter_next(cm, &scp.sc_base);
 		if (rc == M0_FSO_AGAIN) {
 			if (verify_ns_iter)
 				nsit_verify(&rcm->rc_it.ri_pl.rpl_gob_fid, cnt);
-			M0_UT_ASSERT(cp_verify(&rcp));
-			buf_put(&rcp);
-			cnt++;
+			M0_UT_ASSERT(cp_verify(&scp));
+			buf_put(&scp);
+			++cnt;
 		}
 	} while (rc == M0_FSO_AGAIN);
 	m0_cm_unlock(cm);
@@ -306,11 +292,11 @@ static void iter_stop(uint64_t pool_width)
 {
 	cobs_delete(pool_width);
 	m0_cm_lock(cm);
-	m0_sns_repair_iter_fini(rcm);
+	m0_sns_cm_iter_fini(scm);
 	/* Destroy previously created aggregation groups manually. */
 	ag_destroy();
 	m0_cm_unlock(cm);
-	sns_repair_ut_server_stop();
+	sns_cm_ut_server_stop();
 }
 
 static void iter_success(void)
@@ -343,8 +329,8 @@ static void iter_invalid_nr_cobs(void)
 	iter_stop(3);
 }
 
-const struct m0_test_suite sns_repair_ut = {
-	.ts_name = "sns-repair-ut",
+const struct m0_test_suite sns_cm_ut = {
+	.ts_name = "sns-cm-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {

@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __MERO_SNS_REPAIR_CP_H__
-#define __MERO_SNS_REPAIR_CP_H__
+#ifndef __MERO_SNS_CM_CP_H__
+#define __MERO_SNS_CM_CP_H__
 
 #include "lib/ext.h"
 
@@ -30,28 +30,28 @@
 #include "cm/cp.h"
 
 /**
-   @defgroup SNSRepairCP SNS Repair Copy packet
-   @ingroup SNSRepairCM
+   @defgroup SNSCMCP SNS copy machine Copy packet
+   @ingroup SNSCM
 
  */
 
-struct m0_sns_repair_cp {
-	struct m0_cm_cp    rc_base;
+struct m0_sns_cm_cp {
+	struct m0_cm_cp    sc_base;
 
 	/** Read/write stob id. */
-	struct m0_stob_id  rc_sid;
+	struct m0_stob_id  sc_sid;
 
 	/** Offset within the stob. */
-	m0_bindex_t        rc_index;
+	m0_bindex_t        sc_index;
 
 	/** Stob IO context. */
-	struct m0_stob_io  rc_stio;
+	struct m0_stob_io  sc_stio;
 
 	/** Stob context. */
-	struct m0_stob    *rc_stob;
+	struct m0_stob    *sc_stob;
 };
 
-M0_INTERNAL struct m0_sns_repair_cp *cp2snscp(const struct m0_cm_cp *cp);
+M0_INTERNAL struct m0_sns_cm_cp *cp2snscp(const struct m0_cm_cp *cp);
 
 /**
  * Uses GOB fid key and parity group number to generate a scalar to
@@ -59,28 +59,28 @@ M0_INTERNAL struct m0_sns_repair_cp *cp2snscp(const struct m0_cm_cp *cp);
  */
 M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp);
 
-extern const struct m0_cm_cp_ops m0_sns_repair_cp_ops;
+extern const struct m0_cm_cp_ops m0_sns_cm_cp_ops;
 
 /** Transformation phase function for copy packet. */
-M0_INTERNAL int m0_sns_repair_cp_xform(struct m0_cm_cp *cp);
+M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp);
 
 /** Copy packet read phase function. */
-M0_INTERNAL int m0_sns_repair_cp_read(struct m0_cm_cp *cp);
+M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp);
 
 /** Copy packet write phase function. */
-M0_INTERNAL int m0_sns_repair_cp_write(struct m0_cm_cp *cp);
+M0_INTERNAL int m0_sns_cm_cp_write(struct m0_cm_cp *cp);
 
 /** Copy packet IO wait phase function. */
-M0_INTERNAL int m0_sns_repair_cp_io_wait(struct m0_cm_cp *cp);
+M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp);
 
-M0_INTERNAL int m0_sns_repair_cp_send(struct m0_cm_cp *cp);
+M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp);
 
-M0_INTERNAL int m0_sns_repair_cp_recv(struct m0_cm_cp *cp);
+M0_INTERNAL int m0_sns_cm_cp_recv(struct m0_cm_cp *cp);
 
-M0_INTERNAL int m0_sns_repair_cp_phase_next(struct m0_cm_cp *cp);
+M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp);
 
-/** @} SNSRepairCP */
-#endif /* __MERO_SNS_REPAIR_CP_H__ */
+/** @} SNSCMCP */
+#endif /* __MERO_SNS_CM_CP_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
