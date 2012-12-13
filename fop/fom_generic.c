@@ -286,7 +286,7 @@ static int fom_fol_rec_add(struct m0_fom *fom)
 {
 	int rc;
 	m0_fom_block_enter(fom);
-	rc = m0_fop_fol_rec_add(fom->fo_fop, m0_fom_reqh(fom)->rh_fol,
+	rc = m0_fom_fol_rec_add(fom, m0_fom_reqh(fom)->rh_fol,
 	                        &fom->fo_tx.tx_dbtx);
 	m0_fom_block_leave(fom);
 	if (rc < 0)

@@ -102,9 +102,8 @@
    @{
  */
 
-#include "lib/ext.h"       /* m0_ext */
-#include "lib/types.h"     /* struct m0_uint128 */
 #include "db/db.h"
+#include "db/extmap_seg.h"
 
 /* import */
 struct m0_emap;
@@ -113,7 +112,6 @@ struct m0_db_tx;
 struct m0_indexvec;
 
 /* export */
-struct m0_emap_seg;
 struct m0_emap_cursor;
 
 /**
@@ -149,16 +147,6 @@ M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *emap, struct m0_db_tx *tx,
  */
 M0_INTERNAL int m0_emap_obj_delete(struct m0_emap *emap, struct m0_db_tx *tx,
 				   const struct m0_uint128 *prefix);
-
-/** Extent map segment. */
-struct m0_emap_seg {
-	/** Map prefix, identifying the map in its collection. */
-	struct m0_uint128 ee_pre;
-	/** Name-space extent. */
-	struct m0_ext     ee_ext;
-	/** Value associated with the extent. */
-	uint64_t          ee_val;
-};
 
 /** True iff the extent is the last one in a map. */
 M0_INTERNAL bool m0_emap_ext_is_last(const struct m0_ext *ext);

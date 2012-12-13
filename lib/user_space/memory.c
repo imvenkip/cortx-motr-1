@@ -159,14 +159,14 @@ M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
 	return result;
 }
 
-M0_INTERNAL int m0_memory_init()
+M0_INTERNAL int m0_memory_init(void)
 {
 	m0_atomic64_set(&allocated, 0);
 	used0 = __allocated();
 	return 0;
 }
 
-M0_INTERNAL void m0_memory_fini()
+M0_INTERNAL void m0_memory_fini(void)
 {
 }
 

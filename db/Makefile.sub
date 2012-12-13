@@ -1,5 +1,7 @@
 nobase_mero_include_HEADERS += db/db.h \
                                   db/extmap.h \
+                                  db/extmap_seg.h \
+                                  db/extmap_seg_xc.h \
                                   db/extmap_internal.h \
                                   db/db_impl.h \
                                   db/db_common.h \
@@ -7,7 +9,14 @@ nobase_mero_include_HEADERS += db/db.h \
 
 mero_libmero_la_SOURCES  += db/db.c \
                                   db/extmap.c \
+                                  db/extmap_seg_xc.c \
                                   db/db_common.c
+
+XC_FILES   += db/extmap_seg_xc.h
 
 EXTRA_DIST += db/linux_kernel/db.c \
               db/linux_kernel/db_impl.h
+
+CLEANFILES += db/extmap_xc.h \
+              db/extmap_xc.c \
+	      db/extmap.gccxml

@@ -27,18 +27,20 @@
 M0_INTERNAL m0_bcount_t m0_fop_item_type_default_payload_size(const struct
 							      m0_rpc_item *item)
 {
-	m0_bcount_t          len;
-	struct m0_fop       *fop;
-	struct m0_xcode_ctx  ctx;
-
 	M0_PRE(item != NULL);
 
-	fop = m0_rpc_item_to_fop(item);
-	M0_ASSERT(fop != NULL);
-	M0_ASSERT(fop->f_type != NULL);
+	return m0_fop_data_size(m0_rpc_item_to_fop(item));
+}
+
+M0_INTERNAL m0_bcount_t m0_fop_data_size(struct m0_fop *fop)
+{
+	struct m0_xcode_ctx ctx;
+
+	M0_PRE(fop != NULL);
+	M0_PRE(fop->f_type != NULL);
+
 	m0_xcode_ctx_init(&ctx, &M0_FOP_XCODE_OBJ(fop));
-	len = m0_xcode_length(&ctx);
-	return len;
+	return m0_xcode_length(&ctx);
 }
 
 M0_INTERNAL int m0_fop_item_type_default_encode(const struct m0_rpc_item_type
@@ -89,27 +91,12 @@ M0_INTERNAL int m0_fop_item_type_default_decode(const struct m0_rpc_item_type
 	return rc;
 }
 
-/**
-   Helper function used by encode/decode ops of each item type (rito_encode,
-   rito_decode) for decoding an rpc item into/from a bufvec
-*/
-M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
-				   struct m0_bufvec_cursor *cur,
-				   enum m0_bufvec_what what)
+M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
+			      struct m0_bufvec_cursor *cur,
+			      enum m0_bufvec_what      what)
 {
-	int                  rc;
-	struct m0_fop       *fop;
+	int		     rc;
 	struct m0_xcode_ctx  xc_ctx;
-
-	M0_PRE(item != NULL);
-	M0_PRE(cur != NULL);
-
-	fop = m0_rpc_item_to_fop(item);
-
-	/* Currently MAX slot references in sessions is 1. */
-	rc = m0_rpc_item_slot_ref_encdec(cur, item->ri_slot_refs, 1, what);
-	if (rc != 0)
-		return rc;
 
 	m0_xcode_ctx_init(&xc_ctx, &M0_FOP_XCODE_OBJ(fop));
 	/* structure instance copy! */
@@ -124,7 +111,6 @@ M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
 				m0_xcode_ctx_top(&xc_ctx);
 		*cur = xc_ctx.xcx_buf;
 	}
-
 	return rc;
 }
 
@@ -138,6 +124,21 @@ void m0_fop_item_put(struct m0_rpc_item *item)
 	m0_fop_put(m0_rpc_item_to_fop(item));
 }
 
+/**
+   Helper function used by encode/decode ops of each item type (rito_encode,
+   rito_decode) for decoding an rpc item into/from a bufvec
+*/
+M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
+				   struct m0_bufvec_cursor *cur,
+				   enum m0_bufvec_what what)
+{
+	M0_PRE(item != NULL);
+	M0_PRE(cur != NULL);
+
+	/* Currently MAX slot references in sessions is 1. */
+	return m0_rpc_item_slot_ref_encdec(cur, item->ri_slot_refs, 1, what) ?:
+		m0_fop_encdec(m0_rpc_item_to_fop(item), cur, what);
+}
 
 /** Default rpc item type ops for fop item types */
 const struct m0_rpc_item_type_ops m0_fop_default_item_type_ops = {

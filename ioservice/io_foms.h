@@ -137,6 +137,7 @@
 #include "fop/fop.h"
 #include "ioservice/io_fops.h"
 #include "stob/stob.h"
+#include "db/extmap_seg.h"
 #include "net/net.h"
 #include "fop/fom.h"
 
@@ -199,6 +200,10 @@ struct m0_io_fom_cob_rw {
 	 *  are returned successfully).
 	 */
 	int				 fcrw_rc;
+	/** Data extents from different write operations are combined in it
+	 * and will be stored in FOL.
+	 */
+	struct m0_emap_seg_vec		 fcrw_segs;
 };
 
 /**

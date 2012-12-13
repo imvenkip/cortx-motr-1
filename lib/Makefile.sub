@@ -16,6 +16,7 @@ nobase_mero_include_HEADERS += lib/adt.h \
                                lib/cookie_xc.h \
                                lib/errno.h \
                                lib/ext.h \
+			       lib/ext_xc.h \
                                lib/finject.h \
                                lib/getopts.h \
                                lib/list.h \
@@ -66,6 +67,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/cookie.c \
                            lib/cookie_xc.c \
                            lib/ext.c \
+                           lib/ext_xc.c \
                            lib/finject.c \
                            lib/finject_internal.h \
                            lib/getopts.c \
@@ -105,7 +107,8 @@ XC_FILES += lib/buf_xc.h \
             lib/cookie_xc.h \
             lib/vec_xc.h \
 	    lib/bitmap_xc.h \
-	    lib/types_xc.h
+	    lib/types_xc.h \
+	    lib/ext_xc.h
 
 EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/cdefs.h \
@@ -148,4 +151,7 @@ CLEANFILES += lib/buf.gccxml \
 	      lib/bitmap_xc.h \
 	      lib/types.gccxml \
 	      lib/types_xc.c \
-	      lib/types_xc.h
+	      lib/types_xc.h \
+              lib/ext_xc.h \
+              lib/ext_xc.c \
+              lib/ext.gccxml \

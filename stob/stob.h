@@ -652,6 +652,8 @@ struct m0_stob_io {
 	   @see m0_stob_io::si_stob_magic
 	 */
 	void                       *si_stob_private;
+	/** Pointer to fol specific private data used to store AD segments. */
+	void			   *si_fol_private;
 	/**
 	   Stob type magic used to detect when m0_stob_io::si_stob_private can
 	   be re-used.

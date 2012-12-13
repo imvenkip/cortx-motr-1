@@ -30,6 +30,8 @@
 #endif
 #include "xcode/xcode_attr.h"
 
+#include "xcode/xcode_attr.h"
+
 struct m0_uint128 {
 	uint64_t u_hi;
 	uint64_t u_lo;

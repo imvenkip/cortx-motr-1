@@ -35,7 +35,7 @@
 struct m0_ext {
 	m0_bindex_t e_start;
 	m0_bindex_t e_end;
-};
+} M0_XCA_RECORD;
 
 M0_INTERNAL m0_bcount_t m0_ext_length(const struct m0_ext *ext);
 M0_INTERNAL bool m0_ext_is_in(const struct m0_ext *ext, m0_bindex_t index);
