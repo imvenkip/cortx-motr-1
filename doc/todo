@@ -71,19 +71,6 @@ struct m0_xcode_enum {
 
 2012-Nov-29 check that M0_ASSERT() parameter has no side-effects
 
-2012-Nov-29 get rid of m0_stob_io_*lock()
-
-    remove unused m0_stob_io_*lock() functions and corresponding methods in
-    m0_stob_op.
-
-2012-Nov-29 Kill unused ->sdo_block_shift()
-
-2012-Nov-29 use "sdl_" prefix for ->use_directio and ->linux_setup
-
-2012-Nov-29 use the same fid and the same fid xc structure everywhere.
-
-    Multiple definitions of fid are used by various sub-systems. Unify.
-
 2012-Nov-29 Convert .ff files to gccxml annotations where possible.
 
 2012-Nov-29 Alignment checks in xcode.
@@ -107,12 +94,6 @@ struct m0_xcode_enum {
 2012-Nov-29 cleanup mero/mero-pub.api
 
     Meaningful interfaces should be exported, not partial unusable ones.
-
-2012-Dec-10 Use m0_time_from_now() wherever possible.
-
-   There are many places that compute `now + delta` as
-   m0_time_add(m0_time_now(), delta);
-   Replace all such occurrences with simpler m0_time_from_now().
 
                           ***** IN-PROGRESS *****
 
@@ -221,3 +202,22 @@ struct m0_xcode_enum {
 2012-Dec-10 Embed m0_sm in m0_rpc_{session,conn,item}
 
 2012-Nov-29 M0_IN(): evaluate x only once
+
+2012-Nov-29 Kill unused ->sdo_block_shift()
+
+2012-Nov-29 get rid of m0_stob_io_*lock()
+
+    remove unused m0_stob_io_*lock() functions and corresponding methods in
+    m0_stob_op.
+
+2012-Nov-29 use "sdl_" prefix for ->use_directio and ->linux_setup
+
+2012-Nov-29 use the same fid and the same fid xc structure everywhere.
+
+    Multiple definitions of fid are used by various sub-systems. Unify.
+
+2012-Dec-10 Use m0_time_from_now() wherever possible.
+
+   There are many places that compute `now + delta` as
+   m0_time_add(m0_time_now(), delta);
+   Replace all such occurrences with simpler m0_time_from_now().

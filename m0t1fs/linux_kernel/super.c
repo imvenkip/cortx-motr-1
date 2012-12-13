@@ -135,11 +135,9 @@ enum { AST_THREAD_TIMEOUT = 10 };
 
 static void ast_thread(struct m0t1fs_sb *csb)
 {
-	m0_time_t delta = m0_time_set(&delta, AST_THREAD_TIMEOUT, 0);
-
 	while (1) {
 		m0_chan_timedwait(&csb->csb_iogroup.s_clink,
-				  m0_time_add(m0_time_now(), delta));
+				  m0_time_from_now(AST_THREAD_TIMEOUT, 0));
 		m0_sm_group_lock(&csb->csb_iogroup);
 		m0_sm_asts_run(&csb->csb_iogroup);
 		m0_sm_group_unlock(&csb->csb_iogroup);

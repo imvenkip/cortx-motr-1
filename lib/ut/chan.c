@@ -90,12 +90,10 @@ void test_chan(void)
 	struct m0_clink clink1;
 	struct m0_clink clink2;
 	struct m0_clink clink3;
-	m0_time_t       delta;
-	m0_time_t       expire;
 	struct m0_timer timer;
-	int i;
-	int j;
-	bool got;
+	int             i;
+	int             j;
+	bool            got;
 
 	m0_chan_init(&chan);
 
@@ -148,34 +146,29 @@ void test_chan(void)
 	m0_chan_wait(&clink1);
 
 	/* wait will expire after 1/5 second */
-	m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/5);
-	expire = m0_time_add(m0_time_now(), delta);
-	got = m0_chan_timedwait(&clink1, expire); /* wait 1/5 second */
+	got = m0_chan_timedwait(&clink1,
+				m0_time_from_now(0, M0_TIME_ONE_BILLION/5));
 	M0_UT_ASSERT(!got);
 
 	/* chan is signaled after 1/10 second. so the wait will return true */
-	m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/10);
-	expire = m0_time_add(m0_time_now(), delta);
-	m0_timer_init(&timer, M0_TIMER_SOFT, expire,
+	m0_timer_init(&timer, M0_TIMER_SOFT,
+		      m0_time_from_now(0, M0_TIME_ONE_BILLION/10),
 		      &signal_the_chan_in_timer, (unsigned long)&clink1);
 	m0_timer_start(&timer);
-	m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/5);
-	expire = m0_time_add(m0_time_now(), delta);
-	got = m0_chan_timedwait(&clink1, expire); /* wait 1/5 seconds */
+	got = m0_chan_timedwait(&clink1,
+				m0_time_from_now(0, M0_TIME_ONE_BILLION/5));
 	M0_UT_ASSERT(got);
 	m0_timer_stop(&timer);
 	m0_timer_fini(&timer);
 
 	/* chan is signaled after 1/3 seconds. so the wait will timeout and
 	   return false. Another wait should work.*/
-	m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/3);
-	expire = m0_time_add(m0_time_now(), delta);
-	m0_timer_init(&timer, M0_TIMER_SOFT, expire,
+	m0_timer_init(&timer, M0_TIMER_SOFT,
+		      m0_time_from_now(0, M0_TIME_ONE_BILLION/3),
 		      &signal_the_chan_in_timer, (unsigned long)&clink1);
 	m0_timer_start(&timer);
-	m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/5);
-	expire = m0_time_add(m0_time_now(), delta);
-	got = m0_chan_timedwait(&clink1, expire); /* wait 1/5 seconds */
+	got = m0_chan_timedwait(&clink1,
+				m0_time_from_now(0, M0_TIME_ONE_BILLION/5));
 	M0_UT_ASSERT(!got);
 	m0_chan_wait(&clink1); /* another wait. Timer will signal in 1 second */
 	m0_timer_stop(&timer);
@@ -250,11 +243,9 @@ void test_chan(void)
 		for (i = 0; i < ARRAY_SIZE(c); ++i)
 			m0_clink_add(&c[i], &l[i]);
 
-		m0_time_set(&delta, 0, M0_TIME_ONE_BILLION/100);
-		expire = m0_time_add(m0_time_now(), delta);
-
 		flag = 0;
-		m0_timer_init(&timer, M0_TIMER_SOFT, expire,
+		m0_timer_init(&timer, M0_TIMER_SOFT,
+			      m0_time_from_now(0, M0_TIME_ONE_BILLION/100),
 			      &signal_the_chan_in_timer, (unsigned long)&l[j]);
 		m0_timer_start(&timer);
 
