@@ -23,7 +23,7 @@
 #ifndef __MERO_SNS_REPAIR_ST_TRIGGER_FOM_H__
 #define __MERO_SNS_REPAIR_ST_TRIGGER_FOM_H__
 
-uint64_t m0_trigger_file_size_get(struct m0_fid *gfid);
+M0_INTERNAL uint64_t m0_trigger_file_size_get(struct m0_fid *gfid);
 
 #endif
 /*

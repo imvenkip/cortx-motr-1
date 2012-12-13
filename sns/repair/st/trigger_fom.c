@@ -162,7 +162,7 @@ static size_t trigger_fom_home_locality(const struct m0_fom *fom)
 	return m0_fop_opcode(fom->fo_fop);
 }
 
-uint64_t m0_trigger_file_size_get(struct m0_fid *gfid)
+M0_INTERNAL uint64_t m0_trigger_file_size_get(struct m0_fid *gfid)
 {
 	/* m0tifs currently starts its key for gfid from 4. */
 	return fs.f_size[gfid->f_key - 4];
