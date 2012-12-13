@@ -83,6 +83,10 @@ M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
 			      struct m0_bufvec_cursor *cur,
 			      enum m0_bufvec_what      what);
 
+M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
+			      struct m0_bufvec_cursor *cur,
+			      enum m0_bufvec_what      what);
+
 /** @} end of fop group */
 
 /* __MERO_FOP_FOP_ONWIRE_H__ */

@@ -164,6 +164,8 @@ M0_INTERNAL int m0_fop_data_alloc(struct m0_fop *fop);
 
 M0_INTERNAL int m0_fop_fol_rec_add(struct m0_fop *fop, struct m0_fol *fol,
 				   struct m0_db_tx *tx);
+M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom, struct m0_fol *fol,
+				   struct m0_db_tx *tx);
 
 struct m0_rpc_item *m0_fop_to_rpc_item(struct m0_fop *fop);
 struct m0_fop *m0_rpc_item_to_fop(const struct m0_rpc_item *item);
