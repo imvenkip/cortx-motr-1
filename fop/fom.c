@@ -481,13 +481,16 @@ static void fom_wait(struct m0_fom *fom)
  */
 static void cb_run(struct m0_fom_callback *cb)
 {
+	struct m0_clink *clink = &cb->fc_clink;
+
 	M0_PRE(cb->fc_state == M0_FCS_TOP_DONE);
 	M0_PRE(m0_fom_invariant(cb->fc_fom));
 
 	cb->fc_state = M0_FCS_DONE;
 	cb->fc_bottom(cb);
-	m0_clink_del(&cb->fc_clink);
-	m0_clink_fini(&cb->fc_clink);
+	if (m0_clink_is_armed(clink))
+		m0_clink_del(clink);
+	m0_clink_fini(clink);
 }
 
 /**
@@ -561,7 +564,7 @@ static void fom_exec(struct m0_fom *fom)
  */
 static struct m0_fom *fom_dequeue(struct m0_fom_locality *loc)
 {
-	struct m0_fom		*fom = NULL;
+	struct m0_fom *fom;
 
 	fom = runq_tlist_head(&loc->fl_runq);
 	if (fom != NULL) {
@@ -1006,6 +1009,39 @@ M0_INTERNAL bool m0_fom_callback_cancel(struct m0_fom_callback *cb)
 	}
 
 	return result;
+}
+
+M0_INTERNAL void m0_fom_timeout_init(struct m0_fom_timeout *to)
+{
+	M0_SET0(to);
+	m0_sm_timer_init(&to->to_timer);
+	m0_fom_callback_init(&to->to_cb);
+}
+
+M0_INTERNAL void m0_fom_timeout_fini(struct m0_fom_timeout *to)
+{
+	m0_fom_callback_fini(&to->to_cb);
+	m0_sm_timer_fini(&to->to_timer);
+}
+
+static void fom_timeout_cb(struct m0_sm_timer *timer)
+{
+	struct m0_fom_timeout *to = container_of(timer, struct m0_fom_timeout,
+						 to_timer);
+	struct m0_fom_callback *cb = &to->to_cb;
+
+	cb->fc_state = M0_FCS_TOP_DONE;
+	fom_ast_cb(to->to_timer.tr_grp, &cb->fc_ast);
+}
+
+M0_INTERNAL int m0_fom_timeout_wait_on(struct m0_fom_timeout *to,
+				       struct m0_fom *fom,
+				       m0_time_t deadline)
+{
+	to->to_cb.fc_fom    = fom;
+	to->to_cb.fc_bottom = fom_ready_cb;
+	return m0_sm_timer_start(&to->to_timer, fom->fo_sm_state.sm_grp,
+				 fom_timeout_cb, deadline);
 }
 
 M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type,

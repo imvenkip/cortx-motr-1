@@ -548,6 +548,40 @@ M0_INTERNAL void m0_sm_move(struct m0_sm *mach, int32_t rc, int state);
 void m0_sm_state_set(struct m0_sm *mach, int state);
 
 /**
+ * State machine timer.
+ *
+ * A state machine timer is associated with a state machine group and executes
+ * a specified call-back after a specified deadline and under the group lock.
+ */
+struct m0_sm_timer {
+	struct m0_sm_group *tr_grp;
+	struct m0_timer     tr_timer;
+	struct m0_sm_ast    tr_ast;
+	/** Call-back to be executed after timer expiration. */
+	void              (*tr_cb)(struct m0_sm_timer *);
+	/**
+	 * Timer state from enum timer_state (sm.c).
+	 *
+	 * 64-bit because CAS it used on it to synchronize top-half with state
+	 * transitions. Specifically, CAS prevents a race condition, where timer
+	 * call-back advances the timer state from ARMED to TOP (sm_timer_top())
+	 * concurrently with a timer cancellation changing the state from ARMED
+	 * to DONE (sm_timeout_cancel()). Only one of these actions should
+	 * succeed.
+	 */
+	int64_t             tr_state;
+};
+
+M0_INTERNAL void m0_sm_timer_init(struct m0_sm_timer *timer);
+M0_INTERNAL void m0_sm_timer_fini(struct m0_sm_timer *timer);
+M0_INTERNAL int  m0_sm_timer_start(struct m0_sm_timer *timer,
+				   struct m0_sm_group *group,
+				   void (*cb)(struct m0_sm_timer *),
+				   m0_time_t deadline);
+M0_INTERNAL bool m0_sm_timer_cancel(struct m0_sm_timer *timer);
+
+
+/**
    Structure used by m0_sm_timeout_arm() to record timeout state.
 
    This structure is owned by the sm code, user should not access it. The user
@@ -558,29 +592,16 @@ void m0_sm_state_set(struct m0_sm *mach, int state);
  */
 struct m0_sm_timeout {
 	/** Timer used to implement delayed state transition. */
-	struct m0_timer  st_timer;
+	struct m0_sm_timer st_timer;
 	/** Clink to watch for state transitions that might cancel the
 	    timeout. */
-	struct m0_clink  st_clink;
-	/** AST invoked when timer fires off. */
-	struct m0_sm_ast st_ast;
+	struct m0_clink    st_clink;
 	/** Target state. */
-	int              st_state;
+	int                st_state;
 	/**
 	 * Transitions to states in this bit-mask won't cancel the timeout.
 	 */
-	uint64_t         st_bitmask;
-	/**
-	 * Timer state from enum timer_state (sm.c).
-	 *
-	 * 64-bit because CAS it used on it to synchronize top-half with state
-	 * transitions. Specifically, CAS prevents a race condition, where timer
-	 * call-back advances the timer state from ARMED to TOP
-	 * (sm_timeout_top()) concurrently with a state transition attempting to
-	 * cancel the timer by changing the state from ARMED to DONE
-	 * (sm_timeout_cancel()). Only one of these actions should succeed.
-	 */
-	int64_t          st_timer_state;
+	uint64_t           st_bitmask;
 };
 
 /**

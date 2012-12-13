@@ -694,6 +694,16 @@ M0_INTERNAL void m0_fom_callback_fini(struct m0_fom_callback *cb);
  */
 M0_INTERNAL bool m0_fom_callback_cancel(struct m0_fom_callback *cb);
 
+struct m0_fom_timeout {
+	struct m0_sm_timer     to_timer;
+	struct m0_fom_callback to_cb;
+};
+
+M0_INTERNAL void m0_fom_timeout_init(struct m0_fom_timeout *to);
+M0_INTERNAL void m0_fom_timeout_fini(struct m0_fom_timeout *to);
+M0_INTERNAL int  m0_fom_timeout_wait_on(struct m0_fom_timeout *to,
+					struct m0_fom *fom, m0_time_t deadline);
+
 /**
  * Returns the state of SM group for AST call-backs of locality, given fom is
  * associated with.
