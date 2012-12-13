@@ -184,16 +184,6 @@ static void m0_stob_io_private_fini(struct m0_stob_io *io)
 	}
 }
 
-static void m0_stob_io_lock(struct m0_stob *obj)
-{
-	obj->so_op->sop_io_lock(obj);
-}
-
-static void m0_stob_io_unlock(struct m0_stob *obj)
-{
-	obj->so_op->sop_io_unlock(obj);
-}
-
 M0_INTERNAL void m0_stob_io_init(struct m0_stob_io *io)
 {
 	M0_SET0(io);
@@ -241,11 +231,9 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 		io->si_state = SIS_BUSY;
 		io->si_rc    = 0;
 		io->si_count = 0;
-		m0_stob_io_lock(obj);
 		result = io->si_op->sio_launch(io);
 		if (result != 0) {
 			io->si_state = SIS_IDLE;
-			m0_stob_io_unlock(obj);
 		}
 	}
 	M0_POST(ergo(result != 0, io->si_state == SIS_IDLE));

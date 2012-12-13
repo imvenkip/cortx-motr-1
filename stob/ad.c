@@ -1258,28 +1258,6 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 }
 
 /**
-   An implementation of m0_stob_op::sop_lock() method.
- */
-static void ad_stob_io_lock(struct m0_stob *stob)
-{
-}
-
-/**
-   An implementation of m0_stob_op::sop_unlock() method.
- */
-static void ad_stob_io_unlock(struct m0_stob *stob)
-{
-}
-
-/**
-   An implementation of m0_stob_op::sop_is_locked() method.
- */
-static bool ad_stob_io_is_locked(const struct m0_stob *stob)
-{
-	return true;
-}
-
-/**
    An implementation of m0_stob_op::sop_block_shift() method.
 
    AD uses the same block size as its backing store object.
@@ -1287,14 +1265,6 @@ static bool ad_stob_io_is_locked(const struct m0_stob *stob)
 static uint32_t ad_stob_block_shift(const struct m0_stob *stob)
 {
 	return ad_bshift(domain2ad(stob->so_domain));
-}
-
-/**
-   An implementation of m0_stob_domain_op::sdo_block_shift() method.
- */
-static uint32_t ad_stob_domain_block_shift(struct m0_stob_domain *sd)
-{
-	return ad_bshift(domain2ad(sd));
 }
 
 static bool ad_endio(struct m0_clink *link)
@@ -1331,7 +1301,6 @@ static const struct m0_stob_domain_op ad_stob_domain_op = {
 	.sdo_fini        = ad_domain_fini,
 	.sdo_stob_find   = ad_domain_stob_find,
 	.sdo_tx_make     = ad_domain_tx_make,
-	.sdo_block_shift = ad_stob_domain_block_shift
 };
 
 static const struct m0_stob_op ad_stob_op = {
@@ -1339,9 +1308,6 @@ static const struct m0_stob_op ad_stob_op = {
 	.sop_create       = ad_stob_create,
 	.sop_locate       = ad_stob_locate,
 	.sop_io_init      = ad_stob_io_init,
-	.sop_io_lock      = ad_stob_io_lock,
-	.sop_io_unlock    = ad_stob_io_unlock,
-	.sop_io_is_locked = ad_stob_io_is_locked,
 	.sop_block_shift  = ad_stob_block_shift
 };
 
