@@ -7,18 +7,14 @@
 #include <stdint.h>
 
 #include "xcode/xcode.h"
-
-
-struct fid {
-	uint64_t f_container;
-	uint64_t f_offset;
-} M0_XCA_RECORD;
+#include "fid/fid.h"
+#include "fid/fid_xc.h"
 
 struct optfid {
 	uint8_t o_flag;
 	union {
-		struct fid o_fid M0_XCA_TAG("1");
-		uint32_t o_short M0_XCA_TAG("3");
+		struct m0_fid o_fid   M0_XCA_TAG("1");
+		uint32_t      o_short M0_XCA_TAG("3");
 	} u;
 } M0_XCA_UNION;
 
@@ -47,4 +43,3 @@ struct testtypes {
 } M0_XCA_RECORD;
 
 #endif /* __MERO_XCODE_UT_TEST_GCCXML_SIMPLE_H__ */
-
