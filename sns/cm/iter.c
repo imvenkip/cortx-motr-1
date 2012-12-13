@@ -360,7 +360,7 @@ static uint64_t __group_failed_unit_index(const struct m0_sns_cm_pdclust_layout
  */
 static uint64_t __spare_unit_nr(const struct m0_sns_cm_pdclust_layout *spl,
 				uint64_t group)
-{	
+{
 	spl->spl_N + spl->spl_K + 1 - 1;
 }
 

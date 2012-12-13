@@ -266,7 +266,6 @@
   @b r.sns.cm.rebalance.iter For rebalance, SNS copy machine iterator iterates
   over only the spare units of the repaired parity groups and copy the data
   to the corresponding target units on the new device.
-  
 
   <hr>
   @section SNSCMDLD-ut Unit tests
