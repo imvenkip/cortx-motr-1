@@ -288,17 +288,17 @@ M0_INTERNAL void m0_sm_move(struct m0_sm *mach, int32_t rc, int state)
  * m0_sm_timer state machine
  *
  * @verbatim
- *                             INIT
- *			       	 |
- *			 +-----+ | m0_sm_timer_start()
- *	  sm_timer_top() |     | |
- *			 |     V V
- *			 +----ARMED
- *			       | |
- *	  m0_sm_timer_cancel() | | sm_timer_bottom()
- *			       | |
- *			       V V
- *     	       	       	       DONE
+ *                              INIT
+ *                                 |
+ *                         +-----+ | m0_sm_timer_start()
+ *          sm_timer_top() |     | |
+ *                         |     V V
+ *                         +----ARMED
+ *                               | |
+ *          m0_sm_timer_cancel() | | sm_timer_bottom()
+ *                               | |
+ *                               V V
+ *                               DONE
  * @endverbatim
  *
  */
@@ -386,6 +386,7 @@ M0_INTERNAL int m0_sm_timer_start(struct m0_sm_timer *timer,
 {
 	int result;
 
+	M0_PRE(grp_is_locked(group));
 	M0_PRE(timer->tr_state == INIT);
 	M0_PRE(cb != NULL);
 

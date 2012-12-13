@@ -561,19 +561,22 @@ struct m0_sm_timer {
 	void              (*tr_cb)(struct m0_sm_timer *);
 	/**
 	 * Timer state from enum timer_state (sm.c).
-	 *
-	 * 64-bit because CAS it used on it to synchronize top-half with state
-	 * transitions. Specifically, CAS prevents a race condition, where timer
-	 * call-back advances the timer state from ARMED to TOP (sm_timer_top())
-	 * concurrently with a timer cancellation changing the state from ARMED
-	 * to DONE (sm_timeout_cancel()). Only one of these actions should
-	 * succeed.
 	 */
-	int64_t             tr_state;
+	int                 tr_state;
 };
 
 M0_INTERNAL void m0_sm_timer_init(struct m0_sm_timer *timer);
 M0_INTERNAL void m0_sm_timer_fini(struct m0_sm_timer *timer);
+/**
+ * Starts the timer.
+ *
+ * When the specified (absolute) deadline expires, an AST is posted in the
+ * specified state machine group. When this AST is executed, it calls the
+ * user-supplied call-back.
+ *
+ * If the deadline is already in the past by the time this is called, the AST is
+ * posted immediately.
+ */
 M0_INTERNAL int  m0_sm_timer_start(struct m0_sm_timer *timer,
 				   struct m0_sm_group *group,
 				   void (*cb)(struct m0_sm_timer *),

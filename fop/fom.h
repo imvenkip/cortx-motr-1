@@ -388,7 +388,6 @@ M0_INTERNAL bool m0_fom_domain_invariant(const struct m0_fom_domain *dom);
  */
 enum m0_fc_state {
 	M0_FCS_ARMED = 1,       /**< Armed */
-	M0_FCS_TOP_DONE,	/**< Top-half done */
 	M0_FCS_DONE,		/**< Bottom-half done */
 };
 
@@ -495,7 +494,7 @@ struct m0_fom {
  * @param fom, A fom to be submitted for execution
  * @param reqh, request handler processing the fom
  *
- * @pre is_locked(fom)
+ * @pre m0_fom_group_is_locked(fom)
  * @pre m0_fom_phase(fom) == M0_FOM_PHASE_INIT
  */
 M0_INTERNAL void m0_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh);
@@ -625,7 +624,7 @@ M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom);
  * locality runq list changing the state to M0_FOS_READY.
  *
  * @pre fom->fo_state == M0_FOS_WAITING
- * @pre is_locked(fom)
+ * @pre m0_fom_group_is_locked(fom)
  * @param fom Ready to be executed fom, is put on locality runq
  */
 M0_INTERNAL void m0_fom_ready(struct m0_fom *fom);
@@ -694,15 +693,60 @@ M0_INTERNAL void m0_fom_callback_fini(struct m0_fom_callback *cb);
  */
 M0_INTERNAL bool m0_fom_callback_cancel(struct m0_fom_callback *cb);
 
+/**
+ * Fom timeout allows a user-supplied call-back to be executed under the fom's
+ * locality's lock after a specified timeout.
+ *
+ * As a special case m0_fom_timeout_wait_on() wakes the fom after a specified
+ * time-out. Compare with m0_fom_callback.
+ */
 struct m0_fom_timeout {
+	/**
+	 * State machine timer used to implement the timeout.
+	 */
 	struct m0_sm_timer     to_timer;
+	/**
+	 * Call-back structure used to deliver the call-back.
+	 */
 	struct m0_fom_callback to_cb;
 };
 
 M0_INTERNAL void m0_fom_timeout_init(struct m0_fom_timeout *to);
 M0_INTERNAL void m0_fom_timeout_fini(struct m0_fom_timeout *to);
-M0_INTERNAL int  m0_fom_timeout_wait_on(struct m0_fom_timeout *to,
-					struct m0_fom *fom, m0_time_t deadline);
+
+/**
+ * Arranges for the fom to be woken up after a specified (absolute) timeout.
+ *
+ * This must be called under the locality lock. If called from a tick function,
+ * the function should return M0_FSO_WAIT.
+ *
+ * @pre m0_fom_group_is_locked(fom)
+ */
+M0_INTERNAL int m0_fom_timeout_wait_on(struct m0_fom_timeout *to,
+				       struct m0_fom *fom, m0_time_t deadline);
+/**
+ * Arranges for the given call-back "cb" to be called after the specified
+ * (absolute) deadline.
+ *
+ * "cb" will be called with m0_fom_callback structure, containing pointer to the
+ * fom in ->fc_fom field.
+ *
+ * @pre m0_fom_group_is_locked(fom)
+ */
+M0_INTERNAL int m0_fom_timeout_arm(struct m0_fom_timeout *to,
+				   struct m0_fom *fom,
+				   void (*cb)(struct m0_fom_callback *),
+				   m0_time_t deadline);
+/**
+ * Attempts to cancel the fom timeout.
+ *
+ * Returns true, if the timer was cancelled. Returns false if the timer already
+ * fired. In any case, the timer call-back won't be executing by the time this
+ * function returns.
+ *
+ * @pre m0_fom_group_is_locked(fom)
+ */
+M0_INTERNAL bool m0_fom_timeout_cancel(struct m0_fom_timeout *to);
 
 /**
  * Returns the state of SM group for AST call-backs of locality, given fom is
