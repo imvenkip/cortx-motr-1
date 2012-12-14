@@ -500,7 +500,6 @@ static void confc_lock(struct m0_confc *confc);
 static void confc_unlock(struct m0_confc *confc);
 static bool on_object_updated(struct m0_clink *link);
 static bool request_check(const struct m0_confc_ctx *ctx);
-/* static void confc_fop_payload_set0(struct m0_rpc_item *item); */
 
 M0_INTERNAL void
 m0_confc_ctx_init(struct m0_confc_ctx *ctx, struct m0_confc *confc)
@@ -550,19 +549,8 @@ M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx)
 	m0_sm_fini(&ctx->fc_mach);
 	conf_group_unlock(confc);
 
-	if (ctx->fc_rpc_item != NULL) {
-#if 0 /* XXX
-       * Rebasing conf-net.demo_dynamic branch (t1.4-s20-822-g7a41bdc)
-       * on top of origin/master (t1.4-s20-903-gd17e3a6) has obsoleted
-       * confc_fop_payload_set0() hack, but introduced memory leakage
-       * in confc-ut:confc-net unit test.  I'll investigate this issue
-       * after landing.
-       *  --vvv, 2012-12-14 */
-		confc_fop_payload_set0(ctx->fc_rpc_item);
-#endif
-		/* confc_fop will be freed by rpc layer. */
-		ctx->fc_rpc_item = NULL;
-	}
+	if (ctx->fc_rpc_item != NULL)
+		m0_rpc_item_put(ctx->fc_rpc_item);
 	ctx->fc_confc = NULL;
 
 	M0_LEAVE();
@@ -1290,33 +1278,29 @@ static struct m0_confc_ctx *item_to_ctx(const struct m0_rpc_item *item)
 			    cf_fop)->cf_ctx;
 }
 
-/* /\** */
-/*  * Zeroes the payload of confc_fop. */
-/*  * */
-/*  * The memory, pointed to by ->f_path.ab_elems of m0_conf_fetch, has */
-/*  * never been allocated by xcode.  Nevertheless, m0_xcode_free() will */
-/*  * try to free this memory[*].  confc_fop_payload_set0() zeroes */
-/*  * m0_conf_fetch object, so that m0_xcode_free() does not segfault. */
-/*  * */
-/*  * Note [*]: arr_buf structure is recognized by xcode's allocp() as */
-/*  *           one of the cases requiring dynamic memory allocation. */
-/*  * */
-/*  * For the reference, here is the chain of calls leading to m0_xcode_free(): */
-/*  * */
-/*  *     m0_confc_fini --> disconnect_from_confd --> */
-/*  *     m0_rpc_session_destroy --> ... --> m0_rpc_item_put --> */
-/*  *     m0_rpc_item_type_ops::rito_item_put = m0_fop_item_put --> m0_fop_put --> */
-/*  *     ... --> m0_fop_release --> m0_fop_fini --> m0_xcode_free. */
-/*  *\/ */
-/* static void confc_fop_payload_set0(struct m0_rpc_item *item) */
-/* { */
-/* 	M0_ENTRY("item=%p", item); */
-/* 	M0_PRE(item != NULL); */
+static void confc_fop_release(struct m0_ref *ref)
+{
+	M0_ENTRY();
+	M0_PRE(ref != NULL);
 
-/* 	M0_SET0((struct m0_conf_fetch *)m0_fop_data(m0_rpc_item_to_fop(item))); */
+	/*
+	 * The memory, pointed to by ->f_path.ab_elems of
+	 * m0_conf_fetch, has never been allocated by xcode.
+	 * Nevertheless, m0_xcode_free() will try to free this memory,
+	 * because `arr_buf' structure is recognized by xcode's
+	 * allocp() as one of the cases requiring dynamic memory
+	 * allocation.
+	 *
+	 * We zero m0_conf_fetch object so that m0_xcode_free() does
+	 * not segfault.
+	 */
+	M0_SET0((struct m0_conf_fetch *)m0_fop_data(
+			container_of(ref, struct m0_fop, f_ref)));
 
-/* 	M0_LEAVE(); */
-/* } */
+	m0_fop_release(ref);
+
+	M0_LEAVE();
+}
 
 static struct confc_fop *confc_fop_alloc(struct m0_confc_ctx *ctx)
 {
@@ -1327,7 +1311,7 @@ static struct confc_fop *confc_fop_alloc(struct m0_confc_ctx *ctx)
 	if (p == NULL)
 		return NULL;
 
-	m0_fop_init(&p->cf_fop, &m0_conf_fetch_fopt, NULL, m0_fop_release);
+	m0_fop_init(&p->cf_fop, &m0_conf_fetch_fopt, NULL, confc_fop_release);
 	rc = m0_fop_data_alloc(&p->cf_fop);
 	if (rc != 0) {
 		m0_free(p);
