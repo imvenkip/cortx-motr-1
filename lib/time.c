@@ -45,7 +45,7 @@ m0_time_t m0_time_set(m0_time_t * time, uint64_t secs, long ns)
 }
 M0_EXPORTED(m0_time_set);
 
-M0_INTERNAL m0_time_t m0_time_add(const m0_time_t t1, const m0_time_t t2)
+m0_time_t m0_time_add(const m0_time_t t1, const m0_time_t t2)
 {
 	m0_time_t res;
 
@@ -63,7 +63,7 @@ M0_INTERNAL m0_time_t m0_time_add(const m0_time_t t1, const m0_time_t t2)
 }
 M0_EXPORTED(m0_time_add);
 
-M0_INTERNAL m0_time_t m0_time_sub(const m0_time_t t1, const m0_time_t t2)
+m0_time_t m0_time_sub(const m0_time_t t1, const m0_time_t t2)
 {
 	m0_time_t res;
 	M0_PRE(M0_TIME_NEVER >= t1);
@@ -79,13 +79,13 @@ M0_INTERNAL m0_time_t m0_time_sub(const m0_time_t t1, const m0_time_t t2)
 	return res;
 }
 
-M0_INTERNAL uint64_t m0_time_seconds(const m0_time_t time)
+uint64_t m0_time_seconds(const m0_time_t time)
 {
 	return time / M0_TIME_ONE_BILLION;
 }
 M0_EXPORTED(m0_time_seconds);
 
-M0_INTERNAL uint64_t m0_time_nanoseconds(const m0_time_t time)
+uint64_t m0_time_nanoseconds(const m0_time_t time)
 {
 
         return time % M0_TIME_ONE_BILLION;
@@ -98,7 +98,7 @@ m0_time_t m0_time_from_now(uint64_t secs, long ns)
 }
 M0_EXPORTED(m0_time_from_now);
 
-M0_INTERNAL bool m0_time_is_in_past(m0_time_t t)
+bool m0_time_is_in_past(m0_time_t t)
 {
 	return t < m0_time_now();
 }
