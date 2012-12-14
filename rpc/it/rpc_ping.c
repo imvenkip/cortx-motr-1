@@ -142,19 +142,16 @@ static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size
 	char *nid;
 	int   tmid;
 
-	switch (type) {
-	case EP_SERVER:
+	M0_PRE(M0_IN(type, (EP_SERVER, EP_CLIENT)));
+
+	if (type == EP_SERVER) {
 		nid = server_nid;
 		ep_name = "server";
 		tmid = server_tmid;
-		break;
-	case EP_CLIENT:
+	} else {
 		nid = client_nid;
 		ep_name = "client";
 		tmid = client_tmid;
-		break;
-	default:
-		return -1;
 	}
 
 	if (buf_size > M0_NET_LNET_XEP_ADDR_LEN)
@@ -220,16 +217,13 @@ static void print_stats(struct m0_reqh *reqh)
 /* Create a ping fop and post it to rpc layer */
 static void send_ping_fop(struct m0_rpc_session *session)
 {
-	int                 i;
 	int                 rc;
 	struct m0_fop      *fop;
 	struct m0_fop_ping *ping_fop;
 	uint32_t            nr_arr_member;
+	const size_t        sz = sizeof ping_fop->fp_arr.f_data[0];
 
-	if (nr_ping_bytes % 8 == 0)
-		nr_arr_member = nr_ping_bytes / 8;
-	else
-		nr_arr_member = nr_ping_bytes / 8 + 1;
+	nr_arr_member = nr_ping_bytes / sz + !(nr_ping_bytes % sz);
 
 	fop = m0_fop_alloc(&m0_fop_ping_fopt, NULL);
 	M0_ASSERT(fop != NULL);
@@ -240,16 +234,20 @@ static void send_ping_fop(struct m0_rpc_session *session)
 	M0_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
 	M0_ASSERT(ping_fop->fp_arr.f_data != NULL);
 
-	for (i = 0; i < nr_arr_member; i++)
-		ping_fop->fp_arr.f_data[i] = i + 100;
-
-	rc = m0_rpc_client_call(fop, session, NULL,
-				m0_time_from_now(1, 0) /* deadline */,
+	rc = m0_rpc_client_call(fop, session, NULL, m0_time_now(),
 				CONNECT_TIMEOUT);
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(fop->f_item.ri_error == 0);
 	M0_ASSERT(fop->f_item.ri_reply != 0);
 	m0_fop_put(fop);
+}
+
+static void rpcping_thread(struct m0_rpc_session *session)
+{
+	int i;
+
+	for (i = 0; i < nr_ping_item; ++i)
+		send_ping_fop(session);
 }
 
 /*
@@ -261,10 +259,11 @@ static void send_ping_fop(struct m0_rpc_session *session)
  */
 static int client_fini(struct m0_rpc_client_ctx *cctx)
 {
-	int rc;
+	int rc0;
+	int rc1;
 
-	rc = m0_rpc_session_destroy(&cctx->rcx_session, M0_TIME_NEVER);
-	rc = m0_rpc_conn_destroy(&cctx->rcx_connection, M0_TIME_NEVER);
+	rc0 = m0_rpc_session_destroy(&cctx->rcx_session, M0_TIME_NEVER);
+	rc1 = m0_rpc_conn_destroy(&cctx->rcx_connection, M0_TIME_NEVER);
 	m0_net_end_point_put(cctx->rcx_remote_ep);
 	if (verbose)
 		__print_stats(&cctx->rcx_rpc_machine);
@@ -273,7 +272,7 @@ static int client_fini(struct m0_rpc_client_ctx *cctx)
 	m0_dbenv_fini(cctx->rcx_dbenv);
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
-	return rc;
+	return rc0 ?: rc1;
 }
 
 static int run_client(void)
@@ -292,6 +291,9 @@ static int run_client(void)
 	static struct m0_dbenv          client_dbenv;
 	static struct m0_cob_domain     client_cob_dom;
 	static struct m0_rpc_client_ctx cctx;
+
+	m0_time_t start;
+	m0_time_t delta;
 
 	cctx.rcx_net_dom               = &client_net_dom;
 	cctx.rcx_local_addr            = client_endpoint;
@@ -335,46 +337,38 @@ static int run_client(void)
 
 	rc = m0_rpc_client_init(&cctx);
 	if (rc != 0) {
-#ifndef __KERNEL__
-		printf("m0rpcping: client init failed \"%s\"\n", strerror(-rc));
-#endif
+		printf("m0rpcping: client init failed \"%i\"\n", -rc);
 		goto net_dom_fini;
 	}
 	M0_ALLOC_ARR(client_thread, nr_client_threads);
 
+	start = m0_time_now();
 	for (i = 0; i < nr_client_threads; i++) {
 		M0_SET0(&client_thread[i]);
 
-		while (1) {
-			m0_time_t t;
-
-			rc = M0_THREAD_INIT(&client_thread[i],
-					    struct m0_rpc_session*,
-					    NULL, &send_ping_fop,
-					    &cctx.rcx_session, "client_%d", i);
-			if (rc == 0) {
-				break;
-			} else if (rc == EAGAIN) {
-#ifndef __KERNEL__
-				printf("Retrying thread init\n");
-#endif
-				m0_thread_fini(&client_thread[i]);
-				m0_nanosleep(m0_time_set(&t, 1, 0), NULL);
-			} else {
-				M0_ASSERT("THREAD_INIT_FAILED" == NULL);
-			}
-		}
+		rc = M0_THREAD_INIT(&client_thread[i], struct m0_rpc_session *,
+				    NULL, &rpcping_thread,
+				    &cctx.rcx_session, "client_%d", i);
+		M0_ASSERT(rc == 0);
 	}
 
 	for (i = 0; i < nr_client_threads; i++) {
 		m0_thread_join(&client_thread[i]);
+		m0_thread_fini(&client_thread[i]);
 	}
+
+	delta = m0_time_sub(m0_time_now(), start);
+
 	/*
 	 * NOTE: don't use m0_rpc_client_fini() here, see the comment above
 	 * client_fini() for explanation.
 	 */
 	rc = client_fini(&cctx);
-
+	if (verbose)
+		printf("Time: %lu.%2.2lu\n",
+		       (unsigned long)m0_time_seconds(delta),
+		       (unsigned long)m0_time_nanoseconds(delta) *
+		       100 / M0_TIME_ONE_BILLION);
 net_dom_fini:
 	m0_net_domain_fini(&client_net_dom);
 xprt_fini:
@@ -392,20 +386,12 @@ m0_fini:
 #ifndef __KERNEL__
 static void quit_dialog(void)
 {
-	char cli_buf[BUF_LEN];
+	char ch;
 
 	printf("\n########################################\n");
-	printf("\n\nType \"quit\" or ^D to terminate\n\n");
+	printf("\n\nType ^D to terminate\n\n");
 	printf("\n########################################\n");
-	while (fgets(cli_buf, BUF_LEN, stdin)) {
-		if (strcmp(cli_buf, "quit\n") == 0)
-			break;
-		else {
-			printf("\n########################################\n");
-			printf("\n\nType \"quit\" or ^D to terminate\n\n");
-			printf("\n########################################\n");
-		}
-	}
+	read(0, &ch, sizeof ch);
 }
 
 static int run_server(void)
