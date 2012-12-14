@@ -266,36 +266,35 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    @section IOFOLDLD-def Definitions
    FOL(File operation log) is a per-node collection of records, describing
    updates to file system state carried out on the node.
-   IO FOL is collection of these records in ioservice.
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1_5UGU0n7CATMiuG6V9eK3cMshiYFotPVnIy478MMnvM/edit"> HLD of FOL</a>,
-   @ref and @ref fol.
+   IO FOL is log of records for create, delete and write operations in ioservice
+   which are used to perform undo or as a reply cache.
 
    Each File system object called unit has "verno of its latest state" as an
    attribute. This attribute is modified with every update to unit state.
 
    A verno consists of two components:
-	-LSN (lsn): A reference to a FOL record, points to the record with
+	- LSN (lsn): A reference to a FOL record, points to the record with
 		    the last update for the unit.
-	-VC: A version counter
+	- VC: A version counter
 
    <hr>
    @section IOFOLDLD-req Requirements
-   - @b r.m0.ioservice.support-for-io-fol
-     from <a href="https://docs.google.com/a/xyratex.com/document/d/1_N-YJZ4XcUkkhDG843lxS2TNF2YlmOjfZQelbD017jU/edit">HLD of data block allocator</a>.
 
    <hr>
    @section IOFOLDLD-depends Dependencies
 
+   For every new write data must be written to new block.
+   So that these older data blocks can be used to perform write undo.
    <hr>
    @section IOFOLDLD-highlights Design Highlights
 
    <hr>
    @section IOFOLDLD-fspec Functional Specification
    The following new APIs are introduced:
-   @code
-   @endcode
 
-   IO FOL ops are added and assigned to fop type ops io_fop_rwv_ops.
+   IO FOL operations are added.
+   m0_io_fol_pack_size() is used to get the record size.
+   m0_io_fol_pack() is used to encode the record.
    @code
    static const struct m0_fol_rec_type_ops m0_io_fop_fol_ops = {
 	...
@@ -336,7 +335,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    }
    @endcode
 
-   It points to fol specific private data used to store AD segments.
+   It points to fol specific private data which is used to store AD extent
+   map segments.
    @code
    struct m0_stob_io {
 	...
@@ -346,7 +346,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
    Data extents from different write operations are combined in fcrw_segs
    and will be stored in FOL.
-   These older extents are used during undo operation.
+   These stored extents are used during undo operation.
    @code
    struct m0_io_fom_cob_rw {
 	...
@@ -416,12 +416,11 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
    A fol record with a given lsn is extracted using m0_fol_rec_lookup().
 
-   Currently, for all the kinds of FOP operations,
-   m0_fop_fol_default_ops is used as m0_fol_rec_type_ops which has most of
-   it's function pointers set to NULL.
+   Currently, for all FOP operations, m0_fop_fol_default_ops is used as
+   m0_fol_rec_type_ops which has most of it's function pointers set to NULL.
 
    For each of create, delete and write IO operations m0_fol_rec_type is
-   initialized with their opcode and FOL ops.
+   initialised with their opcode and FOL operations.
 
    For create and delete operations fop data and reply fop data is stored
    in FOL.
@@ -430,11 +429,12 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	  as Reply Cache.
 
    FOL record is generated in m0_io_fol_pack() by passing m0_fom::fo_fop and
-   m0_fom::fo_rep_fop to m0_fop_encdec(), which then commited.
-   in fom_txn_commit().
+   m0_fom::fo_rep_fop to m0_fop_encdec(), which is then commited in
+   fom_txn_commit().
 
    To store FOL records for write updates we need to store current extents
-   or data pointers so that undo can be done. Also this can be done for AD stob
+   or data pointers so that these extents can be used during undo.
+   Also this can be done for AD stob
    type only, as it uses new block for every write.
 
    ad_write_io_launch() needs to return these extents in m0_stob_io so that
@@ -443,9 +443,9 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    So for write updates in m0_io_fol_pack() fid, reply fop and fcrw_segs are
    encoded in FOL record.
 
-   To encode and decode create, delete and write updates m0_io_fol_create,
-   m0_io_fol_delete and m0_io_fol_write fop formats are defined so that they
-   can be used to encode and decode using m0_fop_encdec().
+   To encode or decode create, delete and write updates m0_io_fol_create,
+   m0_io_fol_delete and m0_io_fol_write fop type formats are defined
+   so that they can be used to encode and decode using m0_fop_encdec().
 
    <hr>
    @section IOFOLDLD-conformance Conformance
@@ -454,17 +454,19 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    @section IOFOLDLD-ut Unit Tests
 
    1) For create and delete updates,
-	A io fop with a given fid is send to the ioservice, where it creates
+	An io fop with a given fid is send to the ioservice, where it creates
 	a cob with that fid and logs a FOL record.
 
 	Now retrieve that FOL record using the same LSN and assert for fid and
 	reply fop data.
 
-	Also using this data do the cob delete(undo operation).
+	Also using this data, execute the cob delete opeartion on server side
+	(undo operation).
 
-	Simlilarly do the same things for delete operation.
-  2) For Write update,
-	send the data having value "A" from client to ioservice which logs fid
+	Simlilarly, do the same things for delete operation.
+
+   2) For Write update,
+	Send the data having value "A" from client to ioservice which logs fid
 	and data extents in FOL record. Then send the data having value "B" to
 	the ioservice.
 
@@ -472,7 +474,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	update the AD table using these data extents.
 	Then read the data from ioservice and assert for data "A".
 
-   To restore old data extents in AD use m0_file_write_undo().
+   To update old data extents in AD use m0_file_write_undo().
    @code
    int m0_file_write_undo(struct mo_dom *adom, struct mo_stob_id *id,
 			  struct m0_dtx *dtx, struct mo_emap_seg_vec *fol_vec)
@@ -498,6 +500,11 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    <hr>
    @section IOFOLDLD-ref References
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1aNYxF5UcGiRnT2Inrf2RP5xBK5frP9ZtIK21LE1sMxI/edit"> HLD of version numbers </a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/1_5UGU0n7CATMiuG6V9eK3cMshiYFotPVnIy478MMnvM/edit"> HLD of FOL</a>,
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/1_N-YJZ4XcUkkhDG843lxS2TNF2YlmOjfZQelbD017jU/edit">HLD of data block allocator</a>.
+   - @ref fol
+   - @ref stobad
+
  */
 
 static size_t m0_io_fol_pack_size(struct m0_fol_rec_desc *desc)
