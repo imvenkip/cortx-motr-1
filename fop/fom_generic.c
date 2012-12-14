@@ -286,8 +286,7 @@ static int fom_fol_rec_add(struct m0_fom *fom)
 {
 	int rc;
 	m0_fom_block_enter(fom);
-	rc = m0_fom_fol_rec_add(fom, m0_fom_reqh(fom)->rh_fol,
-	                        &fom->fo_tx.tx_dbtx);
+	rc = m0_fom_fol_rec_add(fom);
 	m0_fom_block_leave(fom);
 	if (rc < 0)
 		return rc;
@@ -648,6 +647,34 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 		rc = M0_FSO_WAIT;
 
 	return rc;
+}
+
+M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
+{
+	struct m0_fop_type    *fopt;
+	struct m0_fol_rec_desc desc;
+	struct m0_fol	      *fol;
+	struct m0_db_tx	      *tx;
+
+	M0_PRE(fom != NULL);
+
+	fopt = fom->fo_fop->f_type;
+	fol  = m0_fom_reqh(fom)->rh_fol;
+	tx   = &fom->fo_tx.tx_dbtx;
+
+	M0_CASSERT(sizeof desc.rd_header.rh_opcode ==
+		   sizeof fopt->ft_rpc_item_type.rit_opcode);
+
+	M0_SET0(&desc);
+	desc.rd_type               = &fopt->ft_rec_type;
+	desc.rd_type_private       = fom;
+	desc.rd_lsn                = m0_fol_lsn_allocate(fol);
+	/* XXX an arbitrary number for now */
+	desc.rd_header.rh_refcount = 1;
+	/*
+	 * @todo fill the rest by iterating through fop fields.
+	 */
+	return m0_fol_add(fol, tx, &desc);
 }
 
 /** @} end of fom group */

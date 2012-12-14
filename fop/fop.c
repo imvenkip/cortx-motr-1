@@ -349,28 +349,6 @@ M0_INTERNAL int m0_fop_fol_rec_add(struct m0_fop *fop, struct m0_fol *fol,
 	return m0_fol_add(fol, tx, &desc);
 }
 
-M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom, struct m0_fol *fol,
-				   struct m0_db_tx *tx)
-{
-	struct m0_fop_type    *fopt;
-	struct m0_fol_rec_desc desc;
-
-	fopt = fom->fo_fop->f_type;
-	M0_CASSERT(sizeof desc.rd_header.rh_opcode ==
-		   sizeof fopt->ft_rpc_item_type.rit_opcode);
-
-	M0_SET0(&desc);
-	desc.rd_type               = &fom->fo_fop->f_type->ft_rec_type;
-	desc.rd_type_private       = fom;
-	desc.rd_lsn                = m0_fol_lsn_allocate(fol);
-	/* XXX an arbitrary number for now */
-	desc.rd_header.rh_refcount = 1;
-	/*
-	 * @todo fill the rest by iterating through fop fields.
-	 */
-	return m0_fol_add(fol, tx, &desc);
-}
-
 static size_t fol_pack_size(struct m0_fol_rec_desc *desc)
 {
 	struct m0_fop *fop = desc->rd_type_private;

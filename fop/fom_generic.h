@@ -199,12 +199,19 @@ M0_INTERNAL int m0_fom_generic_init(void);
 extern const struct m0_sm_conf m0_generic_conf;
 
 /**
+<<<<<<< HEAD
  * <b>Fom generic error reply</b>
  */
 
 struct m0_fom_error_rep {
 	uint32_t rerr_rc;
 } M0_XCA_RECORD;
+
+/**
+ * Adds the record prepared by rto_pack() in m0_fom_reqh(fom)->rh_fol.
+ * Record can contain fop data from fom->fo_fop and other data in the fom.
+ */
+M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
 
 /** @} end of fom group */
 
