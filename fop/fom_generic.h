@@ -196,7 +196,6 @@ M0_INTERNAL int m0_fom_generic_init(void);
 extern const struct m0_sm_conf m0_generic_conf;
 
 /**
-<<<<<<< HEAD
  * <b>Fom generic error reply</b>
  */
 
