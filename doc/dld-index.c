@@ -40,6 +40,8 @@ Detailed designs, ordered alphabetically:
            <!-- m0t1fs/linux_kernel/m0loop.c -->
 - @subpage rmw_io_dld "DLD for read-modify-write IO requests"
            <!-- m0t1fs/linux_kernel/file_internal.h -->
+- @subpage IOFOLDLD "IO FOL DLD"
+           <!-- ioservice/io_fops.c -->
 
 Detailed designs should use the <i>@subpage DLD "Mero DLD Template"
 <!-- doc/dld-template.c --> </i> as a style guide.
