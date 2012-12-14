@@ -33,9 +33,20 @@
    @{
 */
 
+/**
+ * An end-of-queue marker.
+ *
+ * All fork queues end with this pointer. This marker is used instead of NULL to
+ * make (ast->sa_next == NULL) equivalent to "the ast is not in a fork queue".
+ *
+ * Compare with lib/queue.c:EOQ.
+ */
+static struct m0_sm_ast eoq;
+
 M0_INTERNAL void m0_sm_group_init(struct m0_sm_group *grp)
 {
 	M0_SET0(grp);
+	grp->s_forkq = &eoq;
 	m0_mutex_init(&grp->s_lock);
 	/* add grp->s_clink to otherwise unused grp->s_chan, because m0_chan
 	   code assumes that a clink is always associated with a channel. */
@@ -89,15 +100,53 @@ M0_INTERNAL void m0_sm_asts_run(struct m0_sm_group *grp)
 	while (1) {
 		do
 			ast = grp->s_forkq;
-		while (ast != NULL &&
+		while (ast != &eoq &&
 		       !M0_ATOMIC64_CAS(&grp->s_forkq, ast, ast->sa_next));
 
-		if (ast == NULL)
+		if (ast == &eoq)
 			break;
 
 		ast->sa_next = NULL;
 		ast->sa_cb(grp, ast);
 	}
+}
+
+M0_INTERNAL void m0_sm_ast_cancel(struct m0_sm_group *grp,
+				  struct m0_sm_ast *ast)
+{
+	M0_PRE(grp_is_locked(grp));
+	/*
+	 * Concurrency: this function runs under the group lock and the only
+	 * other possible concurrent fork queue activity is addition of the new
+	 * asts at the head of the queue (m0_sm_ast_post()).
+	 *
+	 * Hence, the queue head is handled specially, with CAS. The rest of the
+	 * queue is scanned normally.
+	 */
+	if (ast->sa_next == NULL)
+		; /* not in the queue. */
+	else if (grp->s_forkq == ast &&
+	    M0_ATOMIC64_CAS(&grp->s_forkq, ast, ast->sa_next))
+		; /* deleted the head. */
+	else {
+		struct m0_sm_ast *prev;
+		/*
+		 * This loop is safe.
+		 *
+		 * On the first iteration, grp->s_forkq can be changed
+		 * concurrently by m0_sm_ast_post(), but "prev" is still a valid
+		 * queue element, because removal from the queue is under the
+		 * lock. Newly inserted head elements are not scanned.
+		 *
+		 * On the iterations after the first, immutable portion of the
+		 * queue is scanned.
+		 */
+		prev = grp->s_forkq;
+		while (prev->sa_next != ast)
+			prev = prev->sa_next;
+		prev->sa_next = ast->sa_next;
+	}
+	ast->sa_next = NULL;
 }
 
 static void sm_lock(struct m0_sm *mach)
@@ -329,23 +378,12 @@ static unsigned long sm_timer_top(unsigned long data)
 	return 0;
 }
 
-/**
- * Helper function used by sm_timer_bottom() and m0_sm_timer_cancel().
- *
- * Attempts to move the timer from ARMED to DONE state.
- */
-static bool timer_trydone(struct m0_sm_timer *timer)
+static void timer_done(struct m0_sm_timer *timer)
 {
-	bool armed = timer->tr_state == ARMED;
+	M0_ASSERT(timer->tr_state == ARMED);
 
-	M0_PRE(grp_is_locked(timer->tr_grp));
-	M0_PRE(M0_IN(timer->tr_state, (ARMED, DONE)));
-
-	if (armed) {
-		timer->tr_state = DONE;
-		m0_timer_stop(&timer->tr_timer);
-	}
-	return armed;
+	timer->tr_state = DONE;
+	m0_timer_stop(&timer->tr_timer);
 }
 
 /**
@@ -357,8 +395,11 @@ static void sm_timer_bottom(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_sm_timer *tr = container_of(ast, struct m0_sm_timer, tr_ast);
 
-	if (timer_trydone(tr))
-		tr->tr_cb(tr);
+	M0_PRE(grp_is_locked(tr->tr_grp));
+	M0_ASSERT(tr->tr_state == ARMED);
+
+	timer_done(tr);
+	tr->tr_cb(tr);
 }
 
 M0_INTERNAL void m0_sm_timer_init(struct m0_sm_timer *timer)
@@ -414,9 +455,22 @@ M0_INTERNAL int m0_sm_timer_start(struct m0_sm_timer *timer,
 	return result;
 }
 
-M0_INTERNAL bool m0_sm_timer_cancel(struct m0_sm_timer *timer)
+M0_INTERNAL void m0_sm_timer_cancel(struct m0_sm_timer *timer)
 {
-	return timer_trydone(timer);
+	M0_PRE(grp_is_locked(timer->tr_grp));
+	M0_PRE(M0_IN(timer->tr_state, (ARMED, DONE)));
+
+	if (timer->tr_state == ARMED) {
+		timer_done(timer);
+		/*
+		 * Once timer_done() returned, the timer call-back
+		 * (sm_timer_top()) is guaranteed to be never executed, so the
+		 * ast won't be posted. Hence, it is safe to remove it, if it
+		 * is here.
+		 */
+		m0_sm_ast_cancel(timer->tr_grp, &timer->tr_ast);
+	}
+	M0_POST(timer->tr_ast.sa_next == NULL);
 }
 
 /**
@@ -474,14 +528,11 @@ M0_INTERNAL int m0_sm_timeout_arm(struct m0_sm *mach, struct m0_sm_timeout *to,
 	M0_PRE(m0_forall(i, mach->sm_conf->scf_nr_states,
 			 ergo(M0_BITS(i) & bitmask,
 			      state_get(mach, i)->sd_allowed & M0_BITS(state))));
-	M0_PRE(!(state_get(mach, state)->sd_flags & M0_SDF_TERMINAL));
-
 	/*
 	 * @todo to->st_clink remains registered with mach->sm_chan even after
 	 * the timer expires or is cancelled. This does no harm, but should be
 	 * fixed when the support for channels with external locks lands.
 	 */
-
 	to->st_state       = state;
 	to->st_bitmask     = bitmask;
 	tr->tr_ast.sa_mach = mach;

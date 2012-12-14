@@ -154,6 +154,34 @@ static void ast_test(void)
 	m0_sm_group_lock(&G);
 	M0_UT_ASSERT(x);
 	m0_sm_group_unlock(&G);
+
+	/* test ast cancellation. */
+	/* cancel before execution. */
+	x = false;
+	m0_sm_ast_post(&G, &ast);
+	M0_UT_ASSERT(!x);
+	M0_UT_ASSERT(ast.sa_next != NULL);
+	m0_sm_ast_cancel(&G, &ast);
+	M0_UT_ASSERT(ast.sa_next == NULL);
+	m0_sm_group_lock(&G);
+	M0_UT_ASSERT(!x);
+	m0_sm_group_unlock(&G);
+
+	/* cancel after execution. */
+	x = false;
+	m0_sm_ast_post(&G, &ast);
+	M0_UT_ASSERT(!x);
+	M0_UT_ASSERT(ast.sa_next != NULL);
+	m0_sm_group_lock(&G);
+	M0_UT_ASSERT(x);
+	m0_sm_group_unlock(&G);
+	M0_UT_ASSERT(ast.sa_next == NULL);
+	m0_sm_ast_cancel(&G, &ast);
+	M0_UT_ASSERT(ast.sa_next == NULL);
+	x = false;
+	m0_sm_group_lock(&G);
+	M0_UT_ASSERT(!x);
+	m0_sm_group_unlock(&G);
 }
 
 /**

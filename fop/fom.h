@@ -405,11 +405,7 @@ struct m0_fom_callback {
 	 * AST to execute the call-back.
 	 */
 	struct m0_sm_ast  fc_ast;
-	/**
-	 * State, from enum m0_fc_state. int64_t is needed for
-	 * m0_atomic64_cas().
-	 */
-	int64_t           fc_state;
+	enum m0_fc_state  fc_state;
 	struct m0_fom    *fc_fom;
 	/**
 	 * Optional filter function executed from the clink call-back
@@ -684,14 +680,13 @@ M0_INTERNAL void m0_fom_wait_on(struct m0_fom *fom, struct m0_chan *chan,
 M0_INTERNAL void m0_fom_callback_fini(struct m0_fom_callback *cb);
 
 /**
- * Attempts to cancel a pending call-back.
+ * Cancels a pending call-back.
  *
- * @return true iff the call-back was successfully cancelled. It is guaranteed
- * that no call-back halves will be called after this point.
- *
- * @return false if it is too late to cancel a call-back.
+ * It is guaranteed that call-back function won't be executing after this
+ * function returns (either because it already completed, or because the
+ * call-back was cancelled).
  */
-M0_INTERNAL bool m0_fom_callback_cancel(struct m0_fom_callback *cb);
+M0_INTERNAL void m0_fom_callback_cancel(struct m0_fom_callback *cb);
 
 /**
  * Fom timeout allows a user-supplied call-back to be executed under the fom's
@@ -740,13 +735,11 @@ M0_INTERNAL int m0_fom_timeout_arm(struct m0_fom_timeout *to,
 /**
  * Attempts to cancel the fom timeout.
  *
- * Returns true, if the timer was cancelled. Returns false if the timer already
- * fired. In any case, the timer call-back won't be executing by the time this
- * function returns.
+ * The timer call-back won't be executing by the time this function returns.
  *
  * @pre m0_fom_group_is_locked(fom)
  */
-M0_INTERNAL bool m0_fom_timeout_cancel(struct m0_fom_timeout *to);
+M0_INTERNAL void m0_fom_timeout_cancel(struct m0_fom_timeout *to);
 
 /**
  * Returns the state of SM group for AST call-backs of locality, given fom is

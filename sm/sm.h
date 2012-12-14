@@ -581,7 +581,7 @@ M0_INTERNAL int  m0_sm_timer_start(struct m0_sm_timer *timer,
 				   struct m0_sm_group *group,
 				   void (*cb)(struct m0_sm_timer *),
 				   m0_time_t deadline);
-M0_INTERNAL bool m0_sm_timer_cancel(struct m0_sm_timer *timer);
+M0_INTERNAL void m0_sm_timer_cancel(struct m0_sm_timer *timer);
 
 
 /**
@@ -634,8 +634,6 @@ M0_INTERNAL void m0_sm_timeout_init(struct m0_sm_timeout *to);
    @pre m0_forall(i, mach->sm_conf->scf_nr_states,
 		  ergo(M0_BITS(i) & bitmask,
 		       state_get(mach, i)->sd_allowed & M0_BITS(state)))
-   @pre m0_forall(i, mach->sm_conf.scf_nr_states,
-		  state_get(mach, i)->sd_allowed & M0_BITS(state))
    @post m0_mutex_is_locked(&mach->sm_grp->s_lock)
  */
 M0_INTERNAL int m0_sm_timeout_arm(struct m0_sm *mach, struct m0_sm_timeout *to,
@@ -650,6 +648,15 @@ M0_INTERNAL void m0_sm_timeout_fini(struct m0_sm_timeout *to);
    Posts an AST to a group.
  */
 M0_INTERNAL void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast);
+
+/**
+ * Cancels a posted AST.
+ *
+ * If the AST has already been executed, nothing is done.
+ *
+ * @post ast->sa_next == NULL
+ */
+M0_INTERNAL void m0_sm_ast_cancel(struct m0_sm_group *grp, struct m0_sm_ast *ast);
 
 /**
    Runs posted, but not yet executed ASTs.

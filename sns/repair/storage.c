@@ -108,7 +108,6 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	struct m0_stob_io       *stio;
 	uint32_t                 bshift;
 	int                      rc;
-	bool                     result;
 
 	sns_cp = cp2snscp(cp);
 	cp_fom = &cp->c_fom;
@@ -158,8 +157,7 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 
 	rc = m0_stob_io_launch(stio, stob, &cp_fom->fo_tx, NULL);
 	if (rc != 0) {
-		result = m0_fom_callback_cancel(&cp_fom->fo_cb);
-		M0_ASSERT(result);
+		m0_fom_callback_cancel(&cp_fom->fo_cb);
 		indexvec_free(&stio->si_stob);
 		bufvec_free(&stio->si_user);
 		goto err_stio;
