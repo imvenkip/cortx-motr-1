@@ -673,7 +673,11 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci);
 
 M0_INTERNAL struct m0_fid m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci,
 					     int index);
-
+/**
+ * I/O mem stats.
+ * Prefix "a_" stands for "allocate".
+ * Prefix "d_" stands for "de-allocate".
+ */
 struct io_mem_stats {
 	uint64_t a_ioreq_nr;
 	uint64_t d_ioreq_nr;

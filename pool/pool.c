@@ -104,7 +104,8 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 	pm->pm_state.pst_version.pvn_version[PVE_READ]  = 0;
 	pm->pm_state.pst_version.pvn_version[PVE_WRITE] = 0;
 	pm->pm_state.pst_nr_nodes = nr_nodes;
-	pm->pm_state.pst_nr_devices = nr_devices;
+	/* nr_devices io devices and 1 md device. md uses container 0 */
+	pm->pm_state.pst_nr_devices = nr_devices + 1;
 	pm->pm_state.pst_max_node_failures = max_node_failures;
 	pm->pm_state.pst_max_device_failures = max_device_failures;
 	pm->pm_state.pst_nodes_array = m0_alloc(pm->pm_state.pst_nr_nodes *
