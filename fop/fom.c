@@ -577,11 +577,8 @@ static struct m0_fom *fom_dequeue(struct m0_fom_locality *loc)
  */
 static void loc_handler_thread(struct m0_loc_thread *th)
 {
-	m0_time_t		delta;
 	struct m0_clink	       *clink = &th->lt_clink;
 	struct m0_fom_locality *loc   = th->lt_loc;
-
-	m0_time_set(&delta, LOC_HT_WAIT, 0);
 
 	while (1) {
 		/*
@@ -641,9 +638,8 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 				 * &loc->fl_runrun or &loc->fl_group.s_clink to
 				 * wake.
 				 */
-				m0_chan_timedwait(clink,
-						  m0_time_add(m0_time_now(),
-							      delta));
+				m0_chan_timedwait(clink, m0_time_from_now(
+							  LOC_HT_WAIT, 0));
 		}
 		loc->fl_handler = NULL;
 		th->lt_state = IDLE;

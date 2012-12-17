@@ -285,12 +285,9 @@ static void m0_timer_working_thread(struct m0_timer *timer)
 static bool timer_invariant(const struct m0_timer *timer)
 {
 	return timer != NULL &&
-		(timer->t_type == M0_TIMER_HARD ||
-		 timer->t_type == M0_TIMER_SOFT) &&
-		(timer->t_state == TIMER_INITED ||
-		 timer->t_state == TIMER_RUNNING ||
-		 timer->t_state == TIMER_STOPPED ||
-		 timer->t_state == TIMER_UNINIT);
+		M0_IN(timer->t_type, (M0_TIMER_HARD, M0_TIMER_SOFT)) &&
+		M0_IN(timer->t_state, (TIMER_INITED, TIMER_RUNNING,
+				       TIMER_STOPPED, TIMER_UNINIT));
 }
 
 /*

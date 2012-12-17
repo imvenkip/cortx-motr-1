@@ -47,7 +47,6 @@ M0_INTERNAL bool m0_rpc_item_is_unbound(const struct m0_rpc_item *item);
 M0_INTERNAL bool m0_rpc_item_is_oneway(const struct m0_rpc_item *item);
 
 M0_INTERNAL void m0_rpc_item_sm_init(struct m0_rpc_item *item,
-				     struct m0_sm_group *grp,
 				     enum m0_rpc_item_dir dir);
 M0_INTERNAL void m0_rpc_item_sm_fini(struct m0_rpc_item *item);
 

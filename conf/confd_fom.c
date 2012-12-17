@@ -25,6 +25,7 @@
 #include "conf/onwire.h"      /* m0_conf_fetch_resp */
 #include "conf/preload.h"     /* m0_conf_parse */
 #include "conf/confd.h"       /* m0_confd, m0_confd_bob */
+#include "conf/confd_hack.h"  /* XXX m0_confd_hack_mode, m0_conf_str */
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "rpc/rpc_opcodes.h"
@@ -125,28 +126,30 @@ conf_fetch_resp_fill(struct m0_conf_fetch_resp *r, const char *local_conf)
 	M0_RETURN(0);
 }
 
-/** Accesses m0_confd::d_local_conf. */
-static const char *local_conf(const struct m0_fom *fom)
-{
-	M0_PRE(fom->fo_service != NULL);
-
-	return bob_of(fom->fo_service, struct m0_confd, d_reqh,
-		      &m0_confd_bob)->d_local_conf;
-}
-
 static int conf_fetch_tick(struct m0_fom *fom)
 {
-	struct m0_fop *p;
+	const char *local_conf;
 	int rc;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR)
 		return m0_fom_tick_generic(fom);
 
 	M0_ASSERT(fom->fo_rep_fop == NULL);
-	fom->fo_rep_fop = p = m0_fop_alloc(&m0_conf_fetch_resp_fopt, NULL);
-	rc = p == NULL ? -ENOMEM : conf_fetch_resp_fill(m0_fop_data(p),
-							local_conf(fom));
+	fom->fo_rep_fop = m0_fop_alloc(&m0_conf_fetch_resp_fopt, NULL);
+	if (fom->fo_rep_fop == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
 
+	rc = m0_conf_str(m0_confd_hack_mode, &local_conf); /*XXX*/
+	if (rc == 0) {
+		rc = conf_fetch_resp_fill(m0_fop_data(fom->fo_rep_fop),
+					  local_conf);
+	} else {
+		m0_fop_put(fom->fo_rep_fop);
+		fom->fo_rep_fop = NULL;
+	}
+out:
         m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	return M0_FSO_AGAIN;
 }

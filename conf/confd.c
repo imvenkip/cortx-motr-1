@@ -15,16 +15,16 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+ *                  Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
  * Original creation date: 19-Mar-2012
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
 
-#include "lib/memory.h"    /* M0_ALLOC_PTR_ADDB */
-#include "lib/errno.h"     /* ENOMEM */
-#include "lib/misc.h"      /* strdup */
-#include "mero/magic.h" /* M0_CONFD_MAGIC */
+#include "lib/errno.h"   /* ENOMEM */
+#include "lib/memory.h"  /* M0_ALLOC_PTR_ADDB */
+#include "mero/magic.h"  /* M0_CONFD_MAGIC */
 #include "conf/confd.h"
 
 /**
@@ -485,27 +485,11 @@ static int confd_allocate(struct m0_reqh_service_type *stype,
 			 &m0_addb_global_ctx);
 
 	M0_ALLOC_PTR_ADDB(confd, &confd_addb_ctx, &confd_addb_loc);
-	if (confd == NULL)
-		M0_RETURN(-ENOMEM);
-
-#if 1 /* XXX FIXME */
-	/* XXX Temporary kludge for "conf-net" demo.
-	 * This configuration string is equal to the one in conf/ut/confc.c. */
-	confd->d_local_conf = strdup(
-"[6: (\"prof\", {1| (\"fs\")}),\n"
-"    (\"fs\", {2| ((11, 22),\n"
-"                [3: \"par1\", \"par2\", \"par3\"],\n"
-"                [3: \"svc-0\", \"svc-1\", \"svc-2\"])}),\n"
-"    (\"svc-0\", {3| (1, [1: \"addr0\"], \"node-0\")}),\n"
-"    (\"svc-1\", {3| (3, [3: \"addr1\", \"addr2\", \"addr3\"], \"node-1\")}),\n"
-"    (\"svc-2\", {3| (2, [0], \"node-1\")}),\n"
-"    (\"node-0\", {4| (8000, 2, 3, 2, 0, [2: \"nic-0\", \"nic-1\"],\n"
-"                    [1: \"sdev-0\"])})]\n");
-#endif
-	if (confd->d_local_conf == NULL) {
-		m0_free(confd);
+	if (confd == NULL) {
+		m0_addb_ctx_fini(&confd_addb_ctx);
 		M0_RETURN(-ENOMEM);
 	}
+
 	m0_bob_init(&m0_confd_bob, confd);
 
 	*service = &confd->d_reqh;
@@ -526,7 +510,6 @@ static void confd_fini(struct m0_reqh_service *service)
 	confd = bob_of(service, struct m0_confd, d_reqh, &m0_confd_bob);
 
 	m0_bob_fini(&m0_confd_bob, confd);
-	m0_free((void *)confd->d_local_conf);
 	m0_free(confd);
 	m0_addb_ctx_fini(&confd_addb_ctx);
 

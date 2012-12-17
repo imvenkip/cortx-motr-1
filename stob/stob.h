@@ -148,8 +148,6 @@ struct m0_stob_domain_op {
 	   place.
 	 */
 	int (*sdo_tx_make)(struct m0_stob_domain *dom, struct m0_dtx *tx);
-
-	uint32_t (*sdo_block_shift)(struct m0_stob_domain *stob_domain);
 };
 
 M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
@@ -253,31 +251,6 @@ struct m0_stob_op {
 	 */
 	int  (*sop_io_init)(struct m0_stob *stob, struct m0_stob_io *io);
 
-	/**
-	   Takes an implementation specific lock serialising state transitions
-	   for all operations (at least) against the given object.
-
-	   This lock is used internally by the generic adieu code.
-
-	   @pre !stob->so_op.sop_io_is_locked(stob)
-	   @post stob->so_op.sop_io_is_locked(stob)
-	 */
-	void (*sop_io_lock)(struct m0_stob *stob);
-	/**
-	   Releases an implementation specific lock taken by
-	   m0_stob_op::sop_io_lock().
-
-	   @pre   stob->so_op.sop_io_is_locked(stob)
-	   @post !stob->so_op.sop_io_is_locked(stob)
-	 */
-	void (*sop_io_unlock)(struct m0_stob *stob);
-	/**
-	   Returns true iff the caller hold the lock taken by
-	   m0_stob_op::sop_io_lock().
-
-	   This call is used only by assertions.
-	 */
-	bool (*sop_io_is_locked)(const struct m0_stob *stob);
 	/**
 	   IO alignment and granularity.
 
@@ -499,8 +472,7 @@ M0_INTERNAL int m0_stob_create_helper(struct m0_stob_domain *dom,
    control.
 
    Implementation guarantees that synchronous channel notification (through
-   clink call-back) happens in the context not holding IO lock (see
-   m0_stob_op::sop_io_lock()).
+   clink call-back) happens in the context not holding IO lock.
 
    At the moment there are two types of storage object supporting adieu:
 

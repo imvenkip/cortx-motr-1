@@ -35,6 +35,7 @@
 #include "sns/repair/cm.h"
 #include "sns/repair/cp.h"
 #include "sns/repair/ag.h"
+#include "sns/repair/st/trigger_fom.h"
 
 /**
   @addtogroup SNSRepairCM
@@ -192,7 +193,9 @@ static ssize_t file_size(struct m0_sns_repair_cm *rcm)
 {
 	M0_PRE(rcm != NULL);
 
-	rcm->rc_it.ri_pl.rpl_fsize = rcm->rc_file_size;
+	rcm->rc_it.ri_pl.rpl_fsize = m0_trigger_file_size_get(&rcm->rc_it.
+							      ri_pl.
+							      rpl_gob_fid);
 	return 0;
 }
 

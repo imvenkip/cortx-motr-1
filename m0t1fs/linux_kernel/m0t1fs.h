@@ -15,7 +15,7 @@
  *
  * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
  *                  Huang Hua <hua_huang@xyratex.com>
- *                  Anatoliy Bilenko
+ *                  Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
  * Original creation date: 05/04/2010
  */
 
@@ -29,18 +29,17 @@
 
 #include "lib/tlist.h"
 #include "lib/mutex.h"
-#include "net/net.h"    /* m0_net_domain */
+#include "net/net.h"              /* m0_net_domain */
 #include "rpc/rpc.h"
-#include "pool/pool.h"  /* m0_pool */
+#include "pool/pool.h"            /* m0_pool */
 #include "net/buffer_pool.h"
 #include "fid/fid.h"
-#include "cob/cob.h"    /* m0_cob_domain_id */
-#include "layout/layout.h" /* m0_layout_domain, m0_layout, m0_layout_instance */
-#include "ioservice/io_fops.h"   /* m0_fop_cob_create_fopt */
+#include "cob/cob.h"              /* m0_cob_domain_id */
+#include "layout/layout.h"
+#include "ioservice/io_fops.h"    /* m0_fop_cob_create_fopt */
 #include "ioservice/io_fops_ff.h" /* m0_fop_cob_create */
-#include "mdservice/md_fops.h"   /* m0_fop_create_fopt */
+#include "mdservice/md_fops.h"    /* m0_fop_create_fopt */
 #include "mdservice/md_fops_ff.h" /* m0_fop_create */
-#include "conf/confc.h" /* m0_confc */
 
 /**
   @defgroup m0t1fs m0t1fs
@@ -257,14 +256,14 @@
   m0t1fs_fini() - m0_mdservice_fop_fini() is added to finalize md
   operations fops.
 
-  m0t1fs_fill_super() -> m0t1fs_connect_to_all_services() - will
-  have also to connect the mdservice.
+  m0t1fs_fill_super() -> m0t1fs_connect_to_services() - will have also
+  to connect the mdservice.
 
   It also may have some fields from space csb->csb_* initialized
   not from mount options but rather from connect reply information.
 
-  m0t1fs_kill_sb() -> m0t1fs_disconnect_from_all_services() - will
-  have also to disconnect from mdservice.
+  m0t1fs_kill_sb() -> m0t1fs_disconnect_from_services() - will have
+  also to disconnect from mdservice.
 
   @section Inode operations
 
@@ -582,8 +581,6 @@ struct m0t1fs_sb {
         struct m0_fid                 csb_root_fid;
         /** Maximal allowed namelen (retrived from mdservice) */
         int                           csb_namelen;
-	/** Configuration client. */
-	struct m0_confc               csb_confc;
 };
 
 struct m0t1fs_filedata {

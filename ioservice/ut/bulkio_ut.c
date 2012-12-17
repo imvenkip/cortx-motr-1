@@ -84,7 +84,7 @@ static inline struct m0_net_transfer_mc *fop_tm_get(
 {
 	M0_PRE(fop != NULL);
 
-	return &(item_machine(&fop->f_item)->rm_tm);
+	return &fop->f_item.ri_rmachine->rm_tm;
 }
 
 static void bulkio_stob_fom_fini(struct m0_fom *fom)

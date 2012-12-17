@@ -597,16 +597,10 @@ generate-xc-files: $(XC_FILES)
 #
 
 # this is executed just after 'all' target
-all-local: build-kernel-modules check-sources-postbuild
+all-local: build-kernel-modules $(LTLIBRARIES) $(PROGRAMS)
+	@$(top_srcdir)/scripts/check-include-guards $(top_srcdir)
 	@$(top_srcdir)/scripts/check-public-api
-	@echo 'Resulting ELF image sizes:'
-	@size   mero/.libs/libmero{,-altogether}.so \
-		build_kernel_modules/m0mero.ko \
-		2>/dev/null \
-	| sed -r -e 's/dec/total/' \
-		 -e 's#mero/.libs/|build_kernel_modules/##' \
-	| cut -f5 --complement \
-	| column -t
+	@$(top_srcdir)/scripts/print-elf-sizes
 
 .PHONY: check-sources-postbuild
 check-sources-postbuild:
@@ -615,6 +609,10 @@ check-sources-postbuild:
 .PHONY: check-public-api
 check-public-api:
 	@$(top_srcdir)/scripts/check-public-api
+
+.PHONY: print-elf-sizes
+print-elf-sizes:
+	@$(top_srcdir)/scripts/print-elf-sizes
 
 .PHONY: build-kernel-modules
 build-kernel-modules:
@@ -756,3 +754,4 @@ help:
 	@echo 'Information:'
 	@echo '  list-programs   - list all executables built in mero'
 	@echo '  list-libs       - list libraries built in mero'
+	@echo '  print-elf-sizes - show ELF sizes of the main binaries'

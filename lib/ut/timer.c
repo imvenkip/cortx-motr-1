@@ -357,9 +357,9 @@ static void test_timer_master_mt(struct thread_group *tg)
 		tgt = &tg->tg_timers[i];
 		tgt->tgt_group = tg;
 		/* expiration time is in [now + 1, now + 100] ms range */
-		m0_time_set(&tgt->tgt_expire, 0,
-				(1 + rand_r(&tg->tg_seed) % 100) * 1000000);
-		tgt->tgt_expire = m0_time_add(m0_time_now(), tgt->tgt_expire);
+		tgt->tgt_expire = m0_time_from_now(0,
+					(1 + rand_r(&tg->tg_seed) % 100) *
+					 1000000);
 		/* init timer semaphore */
 		sem_init_zero(&tgt->tgt_done);
 		/* `unsigned long' must have enough space to contain `void*' */

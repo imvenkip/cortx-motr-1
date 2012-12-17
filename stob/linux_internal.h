@@ -60,22 +60,22 @@ struct linux_domain {
 	   Set to true in linux_setup(). May be used in pre-conditions to
 	   guarantee that the domain is fully initialized.
 	 */
-	bool linux_setup;
+	bool                  sdl_linux_setup;
 
 	/**
 	 *  Controls whether to use O_DIRECT flag for open(2).
 	 *  Can be set with m0_linux_stob_setup().
 	 *  Initial value is set to 'false' in linux_stob_type_domain_locate().
 	 */
-	bool use_directio;
+	bool                  sdl_use_directio;
 
 	struct m0_stob_domain sdl_base;
 	/**
 	   parent directory to hold the objects.
 	 */
-	char             sdl_path[MAXPATHLEN];
+	char                  sdl_path[MAXPATHLEN];
 
-	struct m0_stob_cache sdl_cache;
+	struct m0_stob_cache  sdl_cache;
 
 	/** @name ioq Linux adieu fields. @{ */
 
@@ -132,15 +132,10 @@ static inline struct linux_domain *domain2linux(struct m0_stob_domain *dom)
 }
 
 M0_INTERNAL int linux_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io);
-M0_INTERNAL void linux_stob_io_lock(struct m0_stob *stob);
-M0_INTERNAL void linux_stob_io_unlock(struct m0_stob *stob);
-M0_INTERNAL bool linux_stob_io_is_locked(const struct m0_stob *stob);
 M0_INTERNAL uint32_t linux_stob_block_shift(const struct m0_stob *stob);
 M0_INTERNAL void linux_domain_io_fini(struct m0_stob_domain *dom);
 M0_INTERNAL int linux_domain_io_init(struct m0_stob_domain *dom);
 
-M0_INTERNAL uint32_t linux_stob_domain_block_shift(struct m0_stob_domain
-						   *sdomain);
 extern struct m0_addb_ctx adieu_addb_ctx;
 
 /** @} end group stoblinux */

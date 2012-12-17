@@ -35,9 +35,8 @@ M0_INTERNAL void m0_ref_get(struct m0_ref *ref)
 
 M0_INTERNAL void m0_ref_put(struct m0_ref *ref)
 {
-	if (m0_atomic64_dec_and_test(&ref->ref_cnt)) {
+	if (m0_atomic64_dec_and_test(&ref->ref_cnt))
 		ref->release(ref);
-	}
 }
 
 M0_INTERNAL int64_t m0_ref_read(const struct m0_ref *ref)

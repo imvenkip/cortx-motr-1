@@ -14,32 +14,18 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
- * Original creation date: 09/11/2012
+ * Original author: Anup Barve <anup_barve@xyratex.com>
+ * Original creation date: 12/12/2012
  */
 
-/** Sequence of file sizes to be repaired. */
-sequence {
-    u32 f_nr;
-    u64 f_size
-} file_sizes; 
+#pragma once
 
-/**
- * Simplistic implementation of sns repair trigger fop for testing purposes
- * only.
- */
-record {
-	u64        fdata;
-	u64        N;
-	u64        K;
-	u64        P;
-	file_sizes fsize
-} trigger_fop;
+#ifndef __MERO_SNS_REPAIR_ST_TRIGGER_FOM_H__
+#define __MERO_SNS_REPAIR_ST_TRIGGER_FOM_H__
 
-record {
-	u32 rc
-} trigger_rep_fop;
+M0_INTERNAL uint64_t m0_trigger_file_size_get(struct m0_fid *gfid);
 
+#endif
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

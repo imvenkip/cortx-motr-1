@@ -141,15 +141,15 @@ M0_INTERNAL uint64_t m0_round_down(uint64_t val, uint64_t size);
 #define M0_BITS(...) \
 	M0_CAT(__M0_BITS_, M0_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
 
-#define __M0_BITS_0(i)       (1 << (i))
-#define __M0_BITS_1(i, ...)  ((1 << (i)) | __M0_BITS_0(__VA_ARGS__))
-#define __M0_BITS_2(i, ...)  ((1 << (i)) | __M0_BITS_1(__VA_ARGS__))
-#define __M0_BITS_3(i, ...)  ((1 << (i)) | __M0_BITS_2(__VA_ARGS__))
-#define __M0_BITS_4(i, ...)  ((1 << (i)) | __M0_BITS_3(__VA_ARGS__))
-#define __M0_BITS_5(i, ...)  ((1 << (i)) | __M0_BITS_4(__VA_ARGS__))
-#define __M0_BITS_6(i, ...)  ((1 << (i)) | __M0_BITS_5(__VA_ARGS__))
-#define __M0_BITS_7(i, ...)  ((1 << (i)) | __M0_BITS_6(__VA_ARGS__))
-#define __M0_BITS_8(i, ...)  ((1 << (i)) | __M0_BITS_7(__VA_ARGS__))
+#define __M0_BITS_0(i)        (1ULL << (i))
+#define __M0_BITS_1(i, ...)  ((1ULL << (i)) | __M0_BITS_0(__VA_ARGS__))
+#define __M0_BITS_2(i, ...)  ((1ULL << (i)) | __M0_BITS_1(__VA_ARGS__))
+#define __M0_BITS_3(i, ...)  ((1ULL << (i)) | __M0_BITS_2(__VA_ARGS__))
+#define __M0_BITS_4(i, ...)  ((1ULL << (i)) | __M0_BITS_3(__VA_ARGS__))
+#define __M0_BITS_5(i, ...)  ((1ULL << (i)) | __M0_BITS_4(__VA_ARGS__))
+#define __M0_BITS_6(i, ...)  ((1ULL << (i)) | __M0_BITS_5(__VA_ARGS__))
+#define __M0_BITS_7(i, ...)  ((1ULL << (i)) | __M0_BITS_6(__VA_ARGS__))
+#define __M0_BITS_8(i, ...)  ((1ULL << (i)) | __M0_BITS_7(__VA_ARGS__))
 
 M0_INTERNAL const char *m0_bool_to_str(bool b);
 

@@ -36,7 +36,7 @@
 extern ssize_t xcode_alloc(struct m0_xcode_cursor *it,
 			   void *(*alloc)(struct m0_xcode_cursor *, size_t));
 
-M0_INTERNAL const const char *space_skip(const char *str)
+M0_INTERNAL const char *space_skip(const char *str)
 {
 	static const char space[] = " \t\v\n\r";
 

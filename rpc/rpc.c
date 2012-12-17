@@ -79,10 +79,12 @@ M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item)
 {
 	int                    rc;
 	uint64_t               size;
-	struct m0_rpc_machine *machine = item_machine(item);
+	struct m0_rpc_machine *machine;
 
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item->ri_session != NULL);
+
+	machine = session_machine(item->ri_session);
 
 	size = m0_rpc_item_size(item);
 	M0_ASSERT(size <= machine->rm_min_recv_size);
@@ -117,10 +119,10 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 	 */
 	m0_rpc_session_hold_busy(session);
 
+	item->ri_rmachine = session_machine(session);
 	item->ri_rpc_time = m0_time_now();
 	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
-	m0_rpc_item_sm_init(item, &session_machine(session)->rm_sm_grp,
-			    M0_RPC_ITEM_OUTGOING);
+	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
 	m0_rpc_frm_enq_item(session_frm(session), item);
 	M0_RETURN(0);
 }
@@ -141,7 +143,7 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 
 	reply->ri_rpc_time = m0_time_now();
 	reply->ri_session  = request->ri_session;
-
+	machine = reply->ri_rmachine = request->ri_rmachine;
 	/* BEWARE: structure instance copy ahead */
 	reply->ri_slot_refs[0] = request->ri_slot_refs[0];
 	sref = &reply->ri_slot_refs[0];
@@ -155,10 +157,8 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 	reply->ri_error    = 0;
 
 	slot = sref->sr_slot;
-	machine = session_machine(slot->sl_session);
-
 	m0_rpc_machine_lock(machine);
-	m0_rpc_item_sm_init(reply, &machine->rm_sm_grp, M0_RPC_ITEM_OUTGOING);
+	m0_rpc_item_sm_init(reply, M0_RPC_ITEM_OUTGOING);
 	/*
 	 * This hold will be released when the item is SENT or FAILED.
 	 * See rpc/frmops.c:item_done()
@@ -181,9 +181,9 @@ M0_INTERNAL int m0_rpc_oneway_item_post(const struct m0_rpc_conn *conn,
 
 	item->ri_rpc_time = m0_time_now();
 
-	machine = conn->c_rpc_machine;
+	machine = item->ri_rmachine = conn->c_rpc_machine;
 	m0_rpc_machine_lock(machine);
-	m0_rpc_item_sm_init(item, &machine->rm_sm_grp, M0_RPC_ITEM_OUTGOING);
+	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
 	m0_rpc_frm_enq_item(&conn->c_rpcchan->rc_frm, item);
 	m0_rpc_machine_unlock(machine);
 	M0_RETURN(0);

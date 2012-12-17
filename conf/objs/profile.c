@@ -19,28 +19,26 @@
  */
 
 #include "conf/objs/common.h"
-#include "mero/magic.h" /* M0_CONF_PROFILE_MAGIC */
+#include "conf/confc.h"  /* m0_confc */
+#include "mero/magic.h"  /* M0_CONF_PROFILE_MAGIC */
 
 static bool profile_check(const void *bob)
 {
 	const struct m0_conf_profile *self = bob;
 	const struct m0_conf_obj     *self_obj = &self->cp_obj;
+	const struct m0_conf_obj     *root =
+		self_obj->co_confc == NULL ? NULL : self_obj->co_confc->cc_root;
 
 	M0_PRE(self_obj->co_type == M0_CO_PROFILE);
 
-	return
-#if 0 /*XXX*/
-		ergo(self_obj->co_confc != NULL,
-		     self_obj->co_confc->cc_root == self_obj) &&
-#else
-		true &&
-#endif
-		/* m0_conf_profile is the topmost object in the DAG */
+	return  /* profile is the topmost object of a DAG */
 		self_obj->co_parent == NULL &&
 		ergo(self_obj->co_mounted,
 		     child_check(self_obj,
 				 MEMBER_PTR(self->cp_filesystem, cf_obj),
-				 M0_CO_FILESYSTEM));
+				 M0_CO_FILESYSTEM) &&
+		     ergo(root != NULL && root->co_status == M0_CS_READY,
+			  root == self_obj));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_profile, M0_CONF_PROFILE_MAGIC, profile_check);

@@ -138,7 +138,7 @@ enum {
 	 *
 	 * Don't use these constants directly, use LINUX_DOM_XXX macros
 	 * instead (see below), because they take into account
-	 * linux_domain.use_directio flag which is set in runtime.
+	 * linux_domain.sdl_use_directio flag which is set in runtime.
 	 */
 	LINUX_BSHIFT = 12, /* pow(2, 12) == 4096 */
 	LINUX_BSIZE  = 1 << LINUX_BSHIFT,
@@ -147,17 +147,17 @@ enum {
 
 #define LINUX_DOM_BSHIFT(ldom) ({				\
 	struct linux_domain *_ldom = (ldom);			\
-	_ldom->use_directio ? LINUX_BSHIFT : 0 ;		\
+	_ldom->sdl_use_directio ? LINUX_BSHIFT : 0 ;		\
 })
 
 #define LINUX_DOM_BSIZE(ldom) ({				\
 	struct linux_domain *_ldom = (ldom);			\
-	_ldom->use_directio ? LINUX_BSIZE : 0 ;			\
+	_ldom->sdl_use_directio ? LINUX_BSIZE : 0 ;		\
 })
 
 #define LINUX_DOM_BMASK(ldom) ({				\
 	struct linux_domain *_ldom = (ldom);			\
-	_ldom->use_directio ? LINUX_BMASK : 0 ;		\
+	_ldom->sdl_use_directio ? LINUX_BMASK : 0 ;		\
 })
 
 #define ADDB_GLOBAL_ADD(name, rc)					\
@@ -323,28 +323,6 @@ static const struct m0_stob_io_op linux_stob_io_op = {
 };
 
 /**
-   An implementation of m0_stob_op::sop_lock() method.
- */
-M0_INTERNAL void linux_stob_io_lock(struct m0_stob *stob)
-{
-}
-
-/**
-   An implementation of m0_stob_op::sop_unlock() method.
- */
-M0_INTERNAL void linux_stob_io_unlock(struct m0_stob *stob)
-{
-}
-
-/**
-   An implementation of m0_stob_op::sop_is_locked() method.
- */
-M0_INTERNAL bool linux_stob_io_is_locked(const struct m0_stob *stob)
-{
-	return true;
-}
-
-/**
    An implementation of m0_stob_op::sop_block_shift() method.
  */
 M0_INTERNAL uint32_t linux_stob_block_shift(const struct m0_stob *stob)
@@ -352,18 +330,6 @@ M0_INTERNAL uint32_t linux_stob_block_shift(const struct m0_stob *stob)
 	struct linux_domain *ldom;
 
 	ldom  = domain2linux(stob->so_domain);
-	return LINUX_DOM_BSHIFT(ldom);
-}
-
-/**
-   An implementation of m0_stob_domain_op::sdo_block_shift() method.
- */
-M0_INTERNAL uint32_t linux_stob_domain_block_shift(struct m0_stob_domain
-						   *sdomain)
-{
-	struct linux_domain *ldom;
-
-	ldom  = domain2linux(sdomain);
 	return LINUX_DOM_BSHIFT(ldom);
 }
 
