@@ -531,6 +531,8 @@ AC_CONFIG_FILES([net/test/test-user.sh], [chmod + net/test/test-user.sh])
 AC_CONFIG_FILES([utils/ut.sh], [chmod +x utils/ut.sh])
 AC_CONFIG_FILES([utils/linux_kernel/ut.sh], [chmod +x utils/linux_kernel/ut.sh])
 
+AC_CONFIG_FILES([conf/confd_hack.c])  # XXX DELETEME
+
 AC_OUTPUT
 
 #

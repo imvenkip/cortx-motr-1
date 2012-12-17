@@ -25,13 +25,13 @@
 #include "lib/misc.h"               /* M0_SET0() */
 #include "lib/trace.h"
 #include "fid/fid.h"                /* m0_fid */
+#include "cob/ns_iter.h"
 #include "fop/fom_generic.h"        /* m0_fom_tick_generic() */
 #include "ioservice/io_foms.h"      /* io_fom_cob_rw_fid2stob_map */
 #include "ioservice/io_fops.h"      /* m0_cobfop_common_get */
 #include "ioservice/cob_foms.h"     /* m0_fom_cob_create, m0_fom_cob_delete */
 #include "ioservice/io_fops.h"      /* m0_is_cob_create_fop() */
 #include "mdstore/mdstore.h"
-#include "ioservice/cobfid_map.h"   /* m0_cobfid_map_get() m0_cobfid_map_put()*/
 #include "ioservice/io_device.h"   /* m0_ios_poolmach_get() */
 #include "reqh/reqh_service.h"
 #include "pool/pool.h"
@@ -44,13 +44,11 @@ static void cc_fom_fini(struct m0_fom *fom);
 static int  cc_fom_tick(struct m0_fom *fom);
 static int  cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc);
 static int  cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc);
-static int  cc_cobfid_map_add(struct m0_fom *fom, struct m0_fom_cob_op *cc);
 
 static void cd_fom_fini(struct m0_fom *fom);
 static int  cd_fom_tick(struct m0_fom *fom);
 static int  cd_cob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd);
 static int  cd_stob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd);
-static int  cd_cobfid_map_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd);
 
 static void   cob_fom_populate(struct m0_fom *fom);
 static int    cob_op_fom_create(struct m0_fom **out);
@@ -128,6 +126,7 @@ static int cob_fom_create(struct m0_fop *fop, struct m0_fom **out)
 	}
 
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, rfop);
+	m0_fop_put(rfop);
 	cob_fom_populate(fom);
 	return rc;
 }
@@ -186,6 +185,7 @@ static void cob_fom_populate(struct m0_fom *fom)
 	cfom->fco_gfid = common->c_gobfid;
 	cfom->fco_cfid = common->c_cobfid;
 	io_fom_cob_rw_fid2stob_map(&cfom->fco_cfid, &cfom->fco_stobid);
+	cfom->fco_cob_idx = common->c_cob_idx;
 }
 
 static int cc_fom_tick(struct m0_fom *fom)
@@ -232,12 +232,6 @@ static int cc_fom_tick(struct m0_fom *fom)
 		}
 
 		rc = cc_cob_create(fom, cc);
-		if (rc != 0) {
-                        M0_LOG(M0_DEBUG, "Cob create failed with %d", rc);
-			goto out;
-	        }
-
-		rc = cc_cobfid_map_add(fom, cc);
 	} else
 		M0_IMPOSSIBLE("Invalid phase for cob create fom.");
 
@@ -292,6 +286,25 @@ static int cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 	return rc;
 }
 
+static int cc_cob_nskey_make(struct m0_cob_nskey **nskey,
+			     const struct m0_fid *gfid,
+			     uint32_t cob_idx)
+{
+	char     nskey_name[UINT32_MAX_STR_LEN];
+	uint32_t nskey_name_len;
+
+	M0_PRE(m0_fid_is_set(gfid));
+
+	M0_SET_ARR0(nskey_name);
+	snprintf((char*)nskey_name, UINT32_MAX_STR_LEN, "%u",
+		 (uint32_t)cob_idx);
+
+	nskey_name_len = strlen(nskey_name);
+
+	return m0_cob_nskey_make(nskey, gfid, (char *)nskey_name,
+				 nskey_name_len);
+}
+
 static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 {
 	int			  rc;
@@ -314,17 +327,13 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
         rc = m0_cob_alloc(cdom, &cob);
         if (rc)
                 return rc;
-        M0_LOG(M0_DEBUG, "Creating cob [%lx:%lx]/%*s",
-               cc->fco_cfid.f_container, cc->fco_cfid.f_key,
-               fop->cc_cobname.cn_count, (char *)fop->cc_cobname.cn_name);
-	rc = m0_cob_nskey_make(&nskey, &cc->fco_cfid,
-			       (char *)fop->cc_cobname.cn_name,
-			       fop->cc_cobname.cn_count);
-	if (rc == -ENOMEM || nskey == NULL) {
+
+	rc = cc_cob_nskey_make(&nskey, &cc->fco_gfid, cc->fco_cob_idx);
+	if (rc != 0) {
 		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    m0_addb_oom);
 	        m0_cob_put(cob);
-		return -ENOMEM;
+		return rc;
 	}
 
         io_fom_cob_rw_stob2fid_map(&cc->fco_stobid, &nsrec.cnr_fid);
@@ -364,39 +373,6 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 			    m0_addb_trace, "Cob created successfully.");
         }
 	m0_cob_put(cob);
-
-	return rc;
-}
-
-static int cc_cobfid_map_add(struct m0_fom *fom, struct m0_fom_cob_op *cc)
-{
-	int			    rc;
-	struct m0_uint128	    cob_fid;
-	struct m0_reqh             *reqh;
-	struct m0_cobfid_map       *cfm;
-
-	M0_PRE(fom != NULL);
-	M0_PRE(cc != NULL);
-
-	reqh = fom->fo_service->rs_reqh;
-	rc = m0_cobfid_map_get(reqh, &cfm);
-	if (rc != 0)
-		return rc;
-
-	cob_fid.u_hi = cc->fco_cfid.f_container;
-	cob_fid.u_lo = cc->fco_cfid.f_key;
-
-	m0_mutex_lock(&cfm->cfm_mutex);
-	rc = m0_cobfid_map_add(cfm, cob_fid.u_hi, cc->fco_gfid, cob_fid);
-	m0_mutex_unlock(&cfm->cfm_mutex);
-	if (rc != 0)
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    cc_fom_func_fail, "cobfid_map_add() failed.", rc);
-	else
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    m0_addb_trace, "Record added to cobfid_map.");
-
-	m0_cobfid_map_put(reqh);
 
 	return rc;
 }
@@ -455,10 +431,6 @@ static int cd_fom_tick(struct m0_fom *fom)
 			goto out;
 
 		rc = cd_stob_delete(fom, cd);
-		if (rc != 0)
-			goto out;
-
-		rc = cd_cobfid_map_delete(fom, cd);
 	} else
 		M0_IMPOSSIBLE("Invalid phase for cob delete fom.");
 
@@ -548,41 +520,6 @@ static int cd_stob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 	return rc;
 }
 
-static int cd_cobfid_map_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
-{
-	int                         rc;
-	struct m0_uint128           cob_fid;
-	struct m0_reqh             *reqh;
-	struct m0_cobfid_map       *cfm;
-
-	M0_PRE(fom != NULL);
-	M0_PRE(cd != NULL);
-
-	reqh = fom->fo_service->rs_reqh;
-	rc = m0_cobfid_map_get(reqh, &cfm);
-	if (rc != 0)
-		return rc;
-
-	cob_fid.u_hi = cd->fco_cfid.f_container;
-	cob_fid.u_lo = cd->fco_cfid.f_key;
-
-	m0_mutex_lock(&cfm->cfm_mutex);
-	rc = m0_cobfid_map_del(cfm, cob_fid.u_hi, cd->fco_gfid);
-	m0_mutex_unlock(&cfm->cfm_mutex);
-
-	if (rc != 0)
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
-			    cd_fom_func_fail,
-			    "m0_cobfid_map_setup_delrec() failed.", rc);
-	else
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    m0_addb_trace,
-			    "Record removed from cobfid_map.");
-
-	m0_cobfid_map_put(reqh);
-
-	return rc;
-}
 #undef M0_TRACE_SUBSYSTEM
 
 /*

@@ -255,12 +255,6 @@ enum m0_magic_satchel {
 	M0_FOM_LL_MAGIC = 0x330b1e55edb05577,
 
 /* ioservice */
-	/* m0_cobfid_map::cfm_magic (zozofied ziff) */
-	M0_CFM_MAP_MAGIC = 0x332020f1ed21ff77,
-
-	/* m0_cobfid_map_iter::cfmi_magic (clab cocobogo) */
-	M0_CFM_ITER_MAGIC = 0x33c1abc0c0b09077,
-
 	/* m0_stob_io_descr::siod_linkage (zealos obsses) */
 	M0_STOB_IO_DESC_LINK_MAGIC = 0x332ea1050b55e577,
 

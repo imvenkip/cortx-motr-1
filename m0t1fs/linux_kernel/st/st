@@ -10,7 +10,7 @@ set -u
 SANDBOX_DIR=~devvm/_m0-sandbox
 
 # TRACE_MASK=all
-TRACE_MASK='!rpc,formation' # `rpc' and `formation' subsystems are too noisy
+TRACE_MASK='!rpc,formation'
 TRACE_LEVEL='debug+'
 # TRACE_CONTEXT=full
 
@@ -23,15 +23,24 @@ M0_CORE_DIR=`readlink -f $0`
 M0_CORE_DIR=${M0_CORE_DIR%/*/*/*/*}
 [ "${M0_CORE_DIR##*/}" = core ] || die 'Unable to determine M0_CORE_DIR'
 
+## Path to the file with configuration string for confd.
+##
+## XXX For "confd hack" to work, this path should correspond to
+## `[M0_CM_ST]' entry in confd_hack.c.in.
+CONF_FILE="$M0_CORE_DIR/m0t1fs/linux_kernel/st/_conf_str.txt"
+trap "rm -f '$CONF_FILE'" 0
+
 ### Starts LNET. (Note that the script never stops LNET.)
 lnet_up() {
     modprobe lnet
     lctl network up >/dev/null
     local LNET_NID=`lctl list_nids | head -1`
 
-    export    M0T1FS_ENDPOINT="$LNET_NID:12345:34:6"
-    export MDSERVICE_ENDPOINT="$LNET_NID:12345:34:1"
-    export IOSERVICE_ENDPOINT="$LNET_NID:12345:34:1"
+    export M0T1FS_ENDPOINT="$LNET_NID:12345:34:6"
+    export IOS_ENDPOINT="$LNET_NID:12345:34:1"
+    export MDS_ENDPOINT="$IOS_ENDPOINT"
+    export CONFD_ENDPOINT="$IOS_ENDPOINT"
+    # export CONFD_ENDPOINT="$LNET_NID:12345:34:100"
 }
 
 ### Usage: m0_modules {insert|remove}
@@ -72,25 +81,27 @@ m0_modules() {
     esac
 }
 
-### Usage: m0_service {start|stop}
-### Starts/stops Mero service (m0d).
-m0_service() {
+### Usage: m0_services {start|stop}
+### Starts/stops Mero services.
+m0_services() {
     case "$1" in
 	start)
-	    $M0_CORE_DIR/mero/m0d -r -p -D $SANDBOX_DIR/db \
-		-T linux -S $SANDBOX_DIR/stobs -e lnet:$IOSERVICE_ENDPOINT \
-		-s confd -s mdservice -s ioservice \
+	    env ${TRACE_MASK:+M0_TRACE_IMMEDIATE_MASK=$TRACE_MASK} \
+		${TRACE_LEVEL:+M0_TRACE_LEVEL=$TRACE_LEVEL} \
+		${TRACE_CONTEXT:+M0_TRACE_PRINT_CONTEXT=$TRACE_CONTEXT} \
+	    $M0_CORE_DIR/mero/m0d \
+		-r -p -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs \
+		-e lnet:$IOS_ENDPOINT -s confd -s mdservice -s ioservice \
 		-m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
 		>$SANDBOX_DIR/m0d.log 2>&1 &
 	    sleep 1
-	    status $M0_CORE_DIR/mero/.libs/lt-m0d >/dev/null || \
-		return 1
+	    status $M0_CORE_DIR/mero/.libs/lt-m0d >/dev/null || return 1
 	    ;;
 	stop)
 	    killall -q lt-m0d
 	    sleep 3
 	    ;;
-	*) die 'm0_service: Invalid argument';;
+	*) die 'm0_services: Invalid argument';;
     esac
 }
 
@@ -111,18 +122,21 @@ _init() {
     m0_modules insert
 
     sandbox_init
-    m0_service start || {
-	echo 'Failed to start Mero service' >&2
+    m0_services start || {
+	echo 'Failed to start Mero services' >&2
 	sandbox_fini
 	m0_modules remove
 	die
     }
+    mkdir $SANDBOX_DIR/mnt
 }
 
 _fini() {
-    m0_service stop
+    rmdir $SANDBOX_DIR/mnt
+    m0_services stop
     sandbox_fini
     m0_modules remove
+    exit ${1:-$?}
 }
 
 _mount() {
@@ -135,20 +149,21 @@ _mount() {
 	bad_fs_param) FS_PARAMS='[1: "bad_param"]';;
     esac
 
-    if [ -z "$LOCAL_CONF" ]; then
-	LOCAL_CONF='[3: '\
-'("prof", {1| ("fs")}), '\
-'("fs", {2| ((11, 22),'\
-" $FS_PARAMS,"\
-' [1: "ios"])}), '\
-'("ios", {3| (2,'\
-" [1: \"$IOSERVICE_ENDPOINT\"],"\
-' "node-0")})]'
-    fi
+    [ -z "$LOCAL_CONF" ] && LOCAL_CONF="`cat <<EOF
+[3:
+  ("prof", {1| ("fs")}),
+  ("fs", {2| ((11, 22), $FS_PARAMS, [1: "ios"])}),
+  ("ios", {3| (2, [1: "$IOS_ENDPOINT"], "node-0")})]
+EOF`"
 
-    mount -t m0t1fs -o profile=prof,"local_conf=$LOCAL_CONF",\
-mds=$MDSERVICE_ENDPOINT,ios=$IOSERVICE_ENDPOINT none \
-	$SANDBOX_DIR/mnt || return $?
+    if [ "${1:-}" = 'net' ]; then
+	echo "$LOCAL_CONF" >"$CONF_FILE"
+	mount -t m0t1fs -o profile=prof,confd=$CONFD_ENDPOINT,\
+mds=$MDS_ENDPOINT,ios=$IOS_ENDPOINT none $SANDBOX_DIR/mnt || return $?
+    else
+	mount -t m0t1fs -o profile=prof,local_conf="$LOCAL_CONF",\
+mds=$MDS_ENDPOINT,ios=$IOS_ENDPOINT none $SANDBOX_DIR/mnt || return $?
+    fi
 }
 
 usage() {
@@ -176,23 +191,27 @@ case "${1:-}" in
 esac
 
 _init
-mkdir $SANDBOX_DIR/mnt
 
-## Test failures.
+## -------------------------------------------------------------------
+## Failures
+## XXX TODO: failures of confd should also be tested.
+
 echo 4 >/proc/sys/kernel/printk  # Not interested in console output.
 for c in bad_conf bad_fs_param; do
-    _mount $c 2>/dev/null && die 'Failed to fail'
+    _mount $c 2>/dev/null && {
+	echo 'Failed to fail' >&2
+	_fini 1
+    }
 done
 
-## Success.
+## -------------------------------------------------------------------
+## Successes
+
 echo 8 >/proc/sys/kernel/printk  # Print kernel messages to the console.
-if _mount; then
-    umount $SANDBOX_DIR/mnt
-else
-    _RC=$?
-fi
+_mount || _fini $?
+umount $SANDBOX_DIR/mnt
 
-rmdir $SANDBOX_DIR/mnt
+_mount net || _fini $?
+umount $SANDBOX_DIR/mnt
+
 _fini
-
-exit ${_RC:-$?}

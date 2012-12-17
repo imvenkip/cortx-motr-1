@@ -81,8 +81,6 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
         cp->c_data = bv;
         cp->c_fom.fo_ops = cp_fom_ops;
         cp->c_ops = &m0_sns_repair_cp_ops;
-        /* Required to pass the fom invariant */
-        cp->c_fom.fo_fop = (void *)1;
 }
 
 /*

@@ -193,7 +193,9 @@ static void cob_create(uint64_t cont, uint64_t key)
 	struct m0_cob_nsrec   nsrec;
 	struct m0_cob_fabrec *fabrec;
 	struct m0_cob_omgrec  omgrec;
-	char                  cname[] = "iter_ut_cob";
+        char                  nskey_bs[UINT32_MAX_STR_LEN];
+        uint32_t              nskey_bs_len;
+        uint32_t              cob_idx = 1;
 	int                   rc;
 
 	M0_SET0(&nsrec);
@@ -202,7 +204,14 @@ static void cob_create(uint64_t cont, uint64_t key)
 	rc = m0_cob_alloc(cdom, &cob);
 	M0_UT_ASSERT(rc == 0 && cob != NULL);
 	m0_fid_set(&cob_fid, cont, key);
-	rc = m0_cob_nskey_make(&nskey, &cob_fid, cname, ARRAY_SIZE(cname));
+
+	M0_SET_ARR0(nskey_bs);
+        snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u",
+                 (uint32_t)cob_idx);
+        nskey_bs_len = strlen(nskey_bs);
+
+	rc = m0_cob_nskey_make(&nskey, &cob_fid, (char *)nskey_bs,
+			       nskey_bs_len);
 	M0_UT_ASSERT(rc == 0 && nskey != NULL);
 	nsrec.cnr_fid = cob_fid;
 	nsrec.cnr_nlink = 1;
@@ -260,37 +269,49 @@ static void cobs_create(uint64_t nr_cobs)
 {
 	int i;
 
-	for (i = 1; i <= nr_cobs; ++i)
-		cob_create(i, ITER_DEFAULT_COB_FID_KEY);
-
+        for (i = 1; i <= nr_cobs; ++i)
+                cob_create(i, ITER_DEFAULT_COB_FID_KEY);
 }
 
 static void cobs_delete(uint64_t nr_cobs)
 {
 	int i;
 
-	for (i = 1; i <= nr_cobs; ++i)
+        for (i = 1; i <= nr_cobs; ++i)
 		cob_delete(i, ITER_DEFAULT_COB_FID_KEY);
 }
 
-static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata)
+static void nsit_verify(struct m0_fid *gfid, int cnt)
+{
+	M0_UT_ASSERT(gfid->f_container == 0);
+	/* Verify that gob-fid has been enumerated in lexicographical order. */
+	M0_UT_ASSERT(gfid->f_key - cnt == ITER_DEFAULT_COB_FID_KEY);
+}
+
+static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata,
+		    bool verify_ns_iter)
 {
 	struct m0_sns_repair_cp rcp;
 	int                     rc;
+	int                     cnt;
 
 	cobs_create(pool_width);
 	/* Set file size */
 	rcm->rc_file_size = fsize;
 	/* Set fail device. */
 	rcm->rc_fdata = fdata;
+	cnt = 0;
 	m0_cm_lock(cm);
 	do {
 		M0_SET0(&rcp);
 		rcm->rc_it.ri_cp = &rcp;
 		rc = m0_sns_repair_iter_next(cm, &rcp.rc_base);
 		if (rc == M0_FSO_AGAIN) {
+			if (verify_ns_iter)
+				nsit_verify(&rcm->rc_it.ri_pl.rpl_gob_fid, cnt);
 			M0_UT_ASSERT(cp_verify(&rcp));
 			buf_put(&rcp);
+			cnt++;
 		}
 	} while (rc == M0_FSO_AGAIN);
 	m0_cm_unlock(cm);
@@ -314,7 +335,7 @@ static void iter_success(void)
 	int      rc;
 
 	iter_setup(3, 1, 5);
-	rc = iter_run(5, 36864, 2);
+	rc = iter_run(5, 36864, 2, true);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(5);
 }
@@ -324,7 +345,7 @@ static void iter_pool_width_more_than_N_plus_2K(void)
 	int rc;
 
 	iter_setup(2, 1, 10);
-	rc = iter_run(10, 36864, 2);
+	rc = iter_run(10, 36864, 2, false);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(10);
 }
@@ -334,7 +355,7 @@ static void iter_invalid_nr_cobs(void)
 	int rc;
 
 	iter_setup(3, 1, 5);
-	rc = iter_run(3, 36864, 2);
+	rc = iter_run(3, 36864, 2, false);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(3);
 }

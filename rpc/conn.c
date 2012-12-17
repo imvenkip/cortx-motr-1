@@ -97,12 +97,10 @@ static void conn_failed(struct m0_rpc_conn *conn, int32_t error);
  */
 static const struct m0_rpc_item_ops conn_establish_item_ops = {
 	.rio_replied = m0_rpc_conn_establish_reply_received,
-	.rio_free    = m0_fop_item_free,
 };
 
 static const struct m0_rpc_item_ops conn_terminate_item_ops = {
 	.rio_replied = m0_rpc_conn_terminate_reply_received,
-	.rio_free    = m0_fop_item_free,
 };
 
 static const struct m0_sm_state_descr conn_states[] = {
@@ -634,8 +632,8 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn)
 		conn_state_set(conn, M0_RPC_CONN_CONNECTING);
 	} else {
 		conn_failed(conn, rc);
-		m0_fop_free(fop);
 	}
+	m0_fop_put(fop);
 
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	M0_POST(ergo(rc != 0, conn_state(conn) == M0_RPC_CONN_FAILED));
@@ -776,7 +774,7 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn)
 		M0_RETERR(rc, "conn_terminate_fop: Memory Allocation");
 	}
 	if (conn_state(conn) == M0_RPC_CONN_TERMINATING) {
-		m0_fop_free(fop);
+		m0_fop_put(fop);
 		m0_rpc_machine_unlock(machine);
 		M0_RETURN(0);
 	}
@@ -789,8 +787,8 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn)
 		conn_state_set(conn, M0_RPC_CONN_TERMINATING);
 	} else {
 		conn_failed(conn, rc);
-		m0_fop_free(fop);
 	}
+	m0_fop_put(fop);
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	M0_POST(ergo(rc != 0, conn_state(conn) == M0_RPC_CONN_FAILED));
 	/*

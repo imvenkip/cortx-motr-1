@@ -216,6 +216,7 @@ struct m0_rpc_item {
 	/** One of m0_rpc_frm::f_itemq[], in which this item is placed. */
 	struct m0_tl                    *ri_itemq;
 	struct m0_rpc_frm               *ri_frm;
+	struct m0_rpc_machine           *ri_rmachine;
 	/** M0_RPC_ITEM_MAGIC */
 	uint64_t			 ri_magic;
 };
@@ -241,7 +242,6 @@ struct m0_rpc_item_ops {
 	   IMP: Called with rpc-machine mutex held. Do not reenter in RPC.
 	 */
 	void (*rio_replied)(struct m0_rpc_item *item);
-
 	/**
 	   This method is called on receiver side when RPC layer processed the
 	   item and wants to deliver it to the upper layer. If this method is
@@ -252,16 +252,6 @@ struct m0_rpc_item_ops {
 	*/
 	void (*rio_deliver)(struct m0_rpc_machine *rpcmach,
 			    struct m0_rpc_item *item);
-	/**
-	   RPC triggers this callback to free the item.
-	   Implementation should call m0_rpc_item_fini() on the item.
-	   Note: item->ri_sm is already finalised.
-
-	   @see m0_fop_default_item_ops
-	   @see m0_fop_item_free(), can be used with fops that are not embedded
-	   in any other object.
-	 */
-	void (*rio_free)(struct m0_rpc_item *item);
 };
 
 M0_INTERNAL void m0_rpc_item_init(struct m0_rpc_item *item,
@@ -278,7 +268,6 @@ M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item);
 M0_INTERNAL m0_bcount_t m0_rpc_item_onwire_header_size(void);
 
 M0_INTERNAL m0_bcount_t m0_rpc_item_size(const struct m0_rpc_item *item);
-M0_INTERNAL struct m0_rpc_machine *item_machine(const struct m0_rpc_item *item);
 
 M0_INTERNAL int m0_rpc_item_timedwait(struct m0_rpc_item *item,
 				      uint64_t states, m0_time_t timeout);
@@ -286,10 +275,6 @@ M0_INTERNAL int m0_rpc_item_timedwait(struct m0_rpc_item *item,
 M0_INTERNAL int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item,
 					   m0_time_t timeout);
 
-M0_INTERNAL void m0_rpc_item_free(struct m0_rpc_item *item);
-
-/** @todo: different callbacks called on events occured while processing
-   in update stream */
 struct m0_rpc_item_type_ops {
 	/**
 	   Find out the size of rpc payload.
@@ -324,6 +309,18 @@ struct m0_rpc_item_type_ops {
 	bool (*rito_try_merge)(struct m0_rpc_item *container,
 			       struct m0_rpc_item *component,
 			       m0_bcount_t         limit);
+
+	/**
+	   RPC item type specific routine that will take reference on the item.
+           For fops, this routine is almost always set to m0_fop_item_get().
+	 */
+	void (*rito_item_get)(struct m0_rpc_item *item);
+	/**
+	   RPC item type specific routine that will drop reference on the item.
+           For fops, this routine is almost always set to m0_fop_item_put().
+	 */
+	void (*rito_item_put)(struct m0_rpc_item *item);
+
 };
 
 /**

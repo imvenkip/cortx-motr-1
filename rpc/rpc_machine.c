@@ -72,7 +72,6 @@ static void packet_received(struct m0_rpc_packet    *p,
 			    struct m0_rpc_machine   *machine,
 			    struct m0_net_end_point *from_ep);
 static void item_received(struct m0_rpc_item      *item,
-			  struct m0_rpc_machine   *machine,
 			  struct m0_net_end_point *from_ep);
 static void net_buf_err(struct m0_net_buffer *nb, int32_t status);
 
@@ -261,7 +260,8 @@ M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine)
 		}
 		m0_sm_asts_run(&machine->rm_sm_grp);
 		m0_rpc_machine_unlock(machine);
-		m0_chan_wait(&machine->rm_sm_grp.s_clink);
+		m0_chan_timedwait(&machine->rm_sm_grp.s_clink,
+				  m0_time_from_now(60, 0));
 	}
 }
 
@@ -609,36 +609,38 @@ static void packet_received(struct m0_rpc_packet    *p,
 	machine->rm_stats.rs_nr_rcvd_bytes += p->rp_size;
 	/* packet p can also be empty */
 	for_each_item_in_packet(item, p) {
+		item->ri_rmachine = machine;
+		m0_rpc_item_get(item);
 		m0_rpc_packet_remove_item(p, item);
-		item_received(item, machine, from_ep);
+		item_received(item, from_ep);
+		m0_rpc_item_put(item);
 	} end_for_each_item_in_packet;
 
 	M0_LEAVE();
 }
 
 static void item_received(struct m0_rpc_item      *item,
-			  struct m0_rpc_machine   *machine,
 			  struct m0_net_end_point *from_ep)
 {
-	int rc;
+	struct m0_rpc_machine *machine = item->ri_rmachine;
+	int                    rc;
 
 	M0_ENTRY("machine: %p, item: %p, ep_addr: %s", machine,
 		 item, (char *)from_ep->nep_addr);
 
 	if (m0_rpc_item_is_conn_establish(item))
-		m0_rpc_fop_conn_establish_ctx_init(item, from_ep, machine);
+		m0_rpc_fop_conn_establish_ctx_init(item, from_ep);
 
 	item->ri_rpc_time = m0_time_now();
 
 	m0_rpc_machine_lock(machine);
-	m0_rpc_item_sm_init(item, &machine->rm_sm_grp, M0_RPC_ITEM_INCOMING);
+	m0_rpc_item_sm_init(item, M0_RPC_ITEM_INCOMING);
 	rc = m0_rpc_item_received(item, machine);
 	if (rc == 0) {
 		m0_rpc_item_change_state(item, M0_RPC_ITEM_ACCEPTED);
 	} else {
 		M0_LOG(M0_DEBUG, "%p [%s/%d] dropped", item, item_kind(item),
 		       item->ri_type->rit_opcode);
-		m0_rpc_item_free(item);
 		machine->rm_stats.rs_nr_dropped_items++;
 	}
 	m0_rpc_machine_unlock(machine);

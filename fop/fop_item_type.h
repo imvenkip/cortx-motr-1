@@ -74,6 +74,9 @@ M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
 				   struct m0_bufvec_cursor *cur,
 				   enum m0_bufvec_what what);
 
+void m0_fop_item_get(struct m0_rpc_item *item);
+void m0_fop_item_put(struct m0_rpc_item *item);
+
 /** @} end of fop group */
 
 /* __MERO_FOP_FOP_ONWIRE_H__ */

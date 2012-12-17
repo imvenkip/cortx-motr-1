@@ -31,7 +31,6 @@
 #include "mero/magic.h"
 #include "m0t1fs/linux_kernel/m0t1fs.h"
 
-extern const struct m0_rpc_item_ops cob_req_rpc_item_ops;
 M0_INTERNAL void m0t1fs_inode_bob_init(struct m0t1fs_inode *bob);
 M0_INTERNAL bool m0t1fs_inode_bob_check(struct m0t1fs_inode *bob);
 
@@ -58,25 +57,30 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 				       int (*func)(struct m0t1fs_sb *csb,
 					           const struct m0_fid *cfid,
-						   const struct m0_fid *gfid));
+						   const struct m0_fid *gfid,
+						   uint32_t cob_idx));
 
 static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 			     const struct m0_fid *cob_fid,
 			     const struct m0_fid *gob_fid,
+			     uint32_t cob_idx,
 			     struct m0_fop_type  *ftype);
 
 static int m0t1fs_ios_cob_create(struct m0t1fs_sb    *csb,
-			         const struct m0_fid *cob_fid,
-			         const struct m0_fid *gob_fid);
+				 const struct m0_fid *cob_fid,
+				 const struct m0_fid *gob_fid,
+				 uint32_t cob_idx);
 
 static int m0t1fs_ios_cob_delete(struct m0t1fs_sb    *csb,
-			         const struct m0_fid *cob_fid,
-			         const struct m0_fid *gob_fid);
+				 const struct m0_fid *cob_fid,
+				 const struct m0_fid *gob_fid,
+				 uint32_t cob_idx);
 
 static int m0t1fs_ios_cob_fop_populate(struct m0t1fs_sb    *csb,
 				       struct m0_fop       *fop,
 				       const struct m0_fid *cob_fid,
-				       const struct m0_fid *gob_fid);
+				       const struct m0_fid *gob_fid,
+				       uint32_t cob_idx);
 
 const struct file_operations m0t1fs_dir_file_operations = {
 	.read    = generic_read_dir,    /* provided by linux kernel */
@@ -740,16 +744,31 @@ M0_INTERNAL struct m0_fid m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci,
 	return fid;
 }
 
+static uint32_t m0t1fs_ios_cob_idx(const struct m0t1fs_inode *ci,
+                                   const struct m0_fid *gfid,
+                                   const struct m0_fid *cfid)
+{
+        M0_PRE(ci->ci_layout_instance != NULL);
+        M0_PRE(gfid != NULL);
+        M0_PRE(cfid != NULL);
+
+        return m0_layout_enum_find(m0_layout_instance_to_enum(
+                                   ci->ci_layout_instance), gfid, cfid);
+
+}
+
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 				       int (*func)(struct m0t1fs_sb *csb,
-			               const struct m0_fid *cfid,
-				       const struct m0_fid *gfid))
+					           const struct m0_fid *cfid,
+						   const struct m0_fid *gfid,
+						   uint32_t cob_idx))
 {
 	struct m0t1fs_sb *csb;
 	struct m0_fid     cob_fid;
 	int               pool_width;
 	int               i;
 	int               rc;
+	uint32_t          cob_idx;
 
 	M0_PRE(ci != NULL);
 	M0_PRE(func != NULL);
@@ -767,7 +786,9 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 
 	for (i = 0; i < pool_width; ++i) {
 		cob_fid = m0t1fs_ios_cob_fid(ci, i);
-		rc      = func(csb, &cob_fid, &ci->ci_fid);
+		cob_idx = m0t1fs_ios_cob_idx(ci, &ci->ci_fid, &cob_fid);
+		M0_ASSERT(cob_idx != ~0);
+		rc      = func(csb, &cob_fid, &ci->ci_fid, cob_idx);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Cob %s [%lu:%lu] failed with %d",
 				func == m0t1fs_ios_cob_create ? "create" : "delete",
@@ -914,14 +935,13 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
         if (rc != 0) {
                 M0_LOG(M0_ERROR,
                        "m0t1fs_mds_cob_fop_populate() failed with %d", rc);
-                m0_fop_free(fop);
                 goto out;
         }
 
         M0_LOG(M0_DEBUG, "Send md operation %x to session %lu\n",
                 m0_fop_opcode(fop), (unsigned long)session->s_session_id);
 
-        rc = m0_rpc_client_call(fop, session, &m0_fop_default_item_ops,
+        rc = m0_rpc_client_call(fop, session, NULL,
                                 0 /* deadline */, M0T1FS_RPC_TIMEOUT);
 
         if (rc != 0) {
@@ -992,11 +1012,9 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
                 goto out;
         }
 
-        /*
-         * Fop is deallocated by rpc layer using
-         * cob_req_rpc_item_ops->rio_free() rpc item ops.
-         */
 out:
+	if (fop != NULL)
+		m0_fop_put(fop);
         M0_LEAVE("%d", rc);
         return rc;
 }
@@ -1058,21 +1076,26 @@ int m0t1fs_mds_cob_readdir(struct m0t1fs_sb           *csb,
 
 static int m0t1fs_ios_cob_create(struct m0t1fs_sb    *csb,
 			         const struct m0_fid *cob_fid,
-			         const struct m0_fid *gob_fid)
+			         const struct m0_fid *gob_fid,
+				 uint32_t cob_idx)
 {
-	return m0t1fs_ios_cob_op(csb, cob_fid, gob_fid, &m0_fop_cob_create_fopt);
+	return m0t1fs_ios_cob_op(csb, cob_fid, gob_fid, cob_idx,
+				 &m0_fop_cob_create_fopt);
 }
 
 static int m0t1fs_ios_cob_delete(struct m0t1fs_sb *csb,
 			         const struct m0_fid *cob_fid,
-			         const struct m0_fid *gob_fid)
+			         const struct m0_fid *gob_fid,
+				 uint32_t cob_idx)
 {
-	return m0t1fs_ios_cob_op(csb, cob_fid, gob_fid, &m0_fop_cob_delete_fopt);
+	return m0t1fs_ios_cob_op(csb, cob_fid, gob_fid, cob_idx,
+				 &m0_fop_cob_delete_fopt);
 }
 
 static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 			     const struct m0_fid *cob_fid,
 			     const struct m0_fid *gob_fid,
+			     uint32_t cob_idx,
 			     struct m0_fop_type  *ftype)
 {
 	int                         rc;
@@ -1102,11 +1125,9 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 	M0_ASSERT(m0_is_cob_create_delete_fop(fop));
 	cobcreate = m0_is_cob_create_fop(fop);
 
-	rc = m0t1fs_ios_cob_fop_populate(csb, fop, cob_fid, gob_fid);
-	if (rc != 0) {
-		m0_fop_free(fop);
-		goto out;
-	}
+	rc = m0t1fs_ios_cob_fop_populate(csb, fop, cob_fid, gob_fid, cob_idx);
+	if (rc != 0)
+		goto fop_put;
 
 	M0_LOG(M0_DEBUG, "Send %s [%lu:%lu] to session %lu\n",
 		cobcreate ? "cob_create" : "cob_delete",
@@ -1114,11 +1135,11 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 		(unsigned long)cob_fid->f_key,
 		(unsigned long)session->s_session_id);
 
-	rc = m0_rpc_client_call(fop, session, &cob_req_rpc_item_ops,
+	rc = m0_rpc_client_call(fop, session, NULL,
 				0 /* deadline */, M0T1FS_RPC_TIMEOUT);
 
 	if (rc != 0)
-		goto out;
+		goto fop_put;
 
 	/*
 	 * The reply fop received event is a generic event which does not
@@ -1151,11 +1172,9 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 		rc = reply->cor_rc;
 
         M0_LOG(M0_DEBUG, "Finished ioservice op with %d", rc);
-	/*
-	 * Fop is deallocated by rpc layer using
-	 * cob_req_rpc_item_ops->rio_free() rpc item ops.
-	 */
 
+fop_put:
+	m0_fop_put(fop);
 out:
 	M0_LEAVE("%d", rc);
 	return rc;
@@ -1164,9 +1183,9 @@ out:
 static int m0t1fs_ios_cob_fop_populate(struct m0t1fs_sb    *csb,
 				       struct m0_fop       *fop,
 				       const struct m0_fid *cob_fid,
-				       const struct m0_fid *gob_fid)
+				       const struct m0_fid *gob_fid,
+				       uint32_t cob_idx)
 {
-	struct m0_fop_cob_create       *cc;
 	struct m0_fop_cob_common       *common;
 	struct m0_pool_version_numbers *cli;
 	struct m0_pool_version_numbers  curr;
@@ -1188,23 +1207,7 @@ static int m0t1fs_ios_cob_fop_populate(struct m0t1fs_sb    *csb,
 
         common->c_gobfid = *gob_fid;
         common->c_cobfid = *cob_fid;
-
-	if (m0_is_cob_create_fop(fop)) {
-		cc = m0_fop_data(fop);
-		M0_ALLOC_ARR(cc->cc_cobname.cn_name, M0T1FS_COB_ID_STRLEN);
-		if (cc->cc_cobname.cn_name == NULL) {
-			M0_LOG(M0_ERROR, "Memory allocation failed for"
-					 " cob_name.");
-			M0_LEAVE("%d", -ENOMEM);
-			return -ENOMEM;
-		}
-
-		snprintf((char*)cc->cc_cobname.cn_name, M0T1FS_COB_ID_STRLEN,
-			 "%16lx:%16lx",
-			 (unsigned long)cob_fid->f_container,
-			 (unsigned long)cob_fid->f_key);
-		cc->cc_cobname.cn_count = strlen((char *)cc->cc_cobname.cn_name);
-	}
+	common->c_cob_idx = cob_idx;
 
 	M0_LEAVE("%d", 0);
 	return 0;

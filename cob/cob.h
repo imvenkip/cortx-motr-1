@@ -43,34 +43,39 @@ struct m0_db_tx;
 /**
    @defgroup cob Component objects
 
-   A Component object is a metadata layer that holds metadata information.
-   It references a single storage object and contains metadata describing
-   the object. The metadata is stored in database tables. A M0 Global
-   Object (i.e. file) is made up of a collection of Component Objects
-   (stripes).
+   A Component object is a metadata layer that holds metadata
+   information.  It references a single storage object and contains
+   metadata describing the object. The metadata is stored in database
+   tables. A M0 Global Object (i.e. file) is made up of a collection
+   of Component Objects (stripes).
 
    Component object metadata includes:
-   - namespace information: parent object id, name, links
-   - file attributes: owner/mode/group, size, m/a/ctime, acls
-   - fol reference information:  log sequence number (lsn), version counter
+
+   - namespace information: parent object id, name, links;
+   - file attributes: owner/mode/group, size, m/a/ctime, acls;
+   - fol reference information: log sequence number (lsn), version counter.
 
    Metadata organization:
 
-   COB uses four db tables for storing the following pieces of information:
-   - Namespace - stores file names and file attributes for readdir speedup.
-     In case of "ls -al" request some metadata needed to complete it and it
-     is why minimum necessary attributes are stored in namespace table;
+   COB uses four db tables for storing the following pieces of
+   information:
+
+   - Namespace - stores file names and file attributes for readdir
+   speedup.  In case of "ls -al" request some metadata needed to
+   complete it and it is why minimum necessary attributes are stored
+   in namespace table;
 
    - Object Index - stores links of file (all names of the file);
 
-   - File attributes - stores file version, some replicator fields, basically
-   anything that is not needed during stat and readdir operations;
+   - File attributes - stores file version, some replicator fields,
+   basically anything that is not needed during stat and readdir
+   operations;
 
-   - One more table is needed for so called "omg" records (owner/mode/group).
-   They store mode/uid/gid file attributes.
+   - One more table is needed for so called "omg" records
+   (owner/mode/group). They store mode/uid/gid file attributes.
 
-   For traditional file systems' namespace we need two tables: name space and
-   object index. These tables are used as following:
+   For traditional file systems' namespace we need two tables: name
+   space and object index. These tables are used as following:
 
    Suppose that there is a file F that has got three names:
 
@@ -78,127 +83,134 @@ struct m0_db_tx;
 
    Then namespace will have the following records:
 
-   (a.fid, "f0")->(F stat data, 0)
-   (b.fid, "f1")->(F, 1)
-   (c.fid, "f2")->(F, 2)
+   (a.fid, "f0") -> (F stat data, 0)
+   (b.fid, "f1") -> (F, 1)
+   (c.fid, "f2") -> (F, 2)
 
-   where, in first record, we have "DB key" constructed of f0's parent fid (the
-   directory fid) and "f0", the filename itself. The namespace record contains
-   the fid of file "f0" together with with its stat data, plus the link number
-   for this name.
+   where, in first record, we have "DB key" constructed of f0's
+   parent fid (the directory fid) and "f0", the filename itself.
+   The namespace record contains the fid of file "f0" together with
+   with its stat data, plus the link number for this name.
 
-   Here "stat data" means that this record contains file attributes that usually
-   extracted by stat utility or ls -la.
+   Here "stat data" means that this record contains file attributes
+   that usually extracted by stat utility or ls -la.
 
-   First name stores the stat data (basic file system attributes) and has link
-   number zero.
+   First name stores the stat data (basic file system attributes)
+   and has link number zero.
 
-   All the other records have keys constructed from their parent fid and child
-   name ("f1", "f2"), and the record contains only file fid and link number
-   that this record describes.
+   All the other records have keys constructed from their parent
+   fid and child name ("f1", "f2"), and the record contains only
+   file fid and link number that this record describes.
 
-   When the first file name is deleted, the stat data is migrated to another
-   name record of the file (if any). This will be shown below.
+   When the first file name is deleted, the stat data is migrated
+   to another name record of the file (if any). This will be shown
+   below.
 
    The object index contains records:
 
-   (F, 0)->(a.fid, "f0")
-   (F, 1)->(b.fid, "f1")
-   (F, 2)->(c.fid, "f2")
+   (F, 0) -> (a.fid, "f0")
+   (F, 1) -> (b.fid, "f1")
+   (F, 2) -> (c.fid, "f2")
 
-   where the key is constructed of file fid and its link number. The record
-   contains the parent fid plus the file name. That is, the object index
-   enumerates all the names that a file has. As we have already noted, the object
-   index table values have the same format as namespace keys and may be used
-   for getting namespace data and cob object itself using object's fid.
+   where the key is constructed of file fid and its link number.
+   The record contains the parent fid plus the file name. That is,
+   the object index enumerates all the names that a file has. As
+   we have already noted, the object index table values have the
+   same format as namespace keys and may be used for getting namespace
+   data and cob object itself using object's fid.
 
-   When doing "rm a/f0" we need to kill 1 namespace and 1 object index record.
-   That is, we need a key containing (a.fid, "f0"). Using this key we can
-   find its position in namespace table and delete the record. Before killing it,
-   we need to check if this record stores stat data. This is easy to do
-   as ->m0_cob_nsrec::cnr_linkno field is zero for stat data records. Stat data
-   should be moved to next name and we need to find it somehow. To do this quickly
-   we do lookup in object index for second file name, i.e. - (a.fid, 1).
+   When doing "rm a/f0" we need to kill 1 namespace and 1 object
+   index record.  That is, we need a key containing (a.fid, "f0").
+   Using this key we can find its position in namespace table and
+   delete the record.  But before killing it, we need to check if
+   this record stores the stat data and whether we should move it
+   to another hardlink filename.  If ->m0_cob_nsrec::cnr_nlink > 0
+   this means that it is stat data record and there are other
+   hardlinks for the file, so stat data should be moved.  To find
+   out were to move stat data quickly, we just do lookup in the
+   object index for the next linkno of the file:
 
-   To do this quickly, we do lookup in the object index for the name of second
-   file:
+   (F, 0 + 1) -> (b.fid, "f1")
 
-   (F, 1)->(b.fid, "f1")
+   Now we can use its record as a key for namespace table and move
+   stat data to its record.
 
-   It describes second name of the file. Now we can use its record as a key for
-   namespace and find second name record in namespace table. Having the name,
-   we can move stat data of F to it.
+   Now kill the record in the object index.
 
-   Now kill the record in the object index. We have already found that we need
-   key constructed of F and link number, that is, zero. Having this key we can
-   kill object index entry describing "f0" name. Now stat data can be located
-   in namespace table using the very first record (with least value of link
-   count) in object index table.
+   Stat data could be located in namespace table by using the very
+   first record in object index table, which will be (F, 1) now.
+   We still can initialize object index key with linkno=0 to find
+   it and rely on database cursor which returns the first record
+   in the table with the least linkno available.
 
-   We are done with unlink operation. Of course for cases when killing name that
-   does not hold stat data, algorithm is much simpler. We just need to kill
-   one record in name, update stat data record in namespace (decremented nlink
-   should be updated in the store) and kill one record in object index.
+   We are done with unlink operation. Of course for cases when
+   killing name that does not hold stat data, algorithm is much
+   simpler. We just need to kill one record in name, find and update
+   stat data record in namespace table (decremented nlink should
+   be updated in the store), and kill one record in object index.
 
-   File attributes that are stored in separate tables may also be easily accessed
-   using key constructed of F, where F is file fid.
+   File attributes that are stored in separate tables may also be
+   easily accessed using key constructed of F, where F is file fid.
 
    Rationale:
 
-   Hard-links are rare, make common case fast by placing attributes in the file's
-   directory entry, make readdir fast by moving other attributes out.
+   Hard-links are rare, make common case fast by placing attributes
+   in the file's directory entry, make readdir fast by moving other
+   attributes out.
 
    Corner cases:
 
-   Rename and unlink. They need to move file attributes from zero name when
-   moving it.
+   Rename and unlink need to move file attributes from zero name.
 
    Special case:
 
-   Using cob api for ioservice to create data objects is special case. The main
-   difference is that, parent fid (in nskey) and child fid (in nsrec) are the
-   same.
+   Using cob api for ioservice to create data objects is special
+   case. The main difference is that, parent fid (in nskey) and
+   child fid (in nsrec) are the same.
 
    Cob iterator.
 
-   In order to iterate over all names that "dir" cob contains, cob iterator
-   is used. It is simple cursor based API, that contains four methods:
+   In order to iterate over all names that "dir" cob contains, cob
+   iterator is used. It is simple cursor based API, that contains
+   four methods:
+
    - m0_cob_iterator_init() - init iterator with cob fid and file name;
    - m0_cob_iterator_get()  - position iterator according with its properies;
    - m0_cob_iterator_next() - move to next position;
    - m0_cob_iterator_fini() - fini iterator.
 
-   `cob' and `name' parameters, passed to m0_cob_iterator_init(), specify initial
-   position of the iterator. Then iterator moves with m0_cob_iterator_next()
-   method over namespace table until end of table is reached or a record with
-   another parent fid is found.
+   `cob' and `name' parameters, passed to m0_cob_iterator_init(),
+   specify initial position of the iterator. Then iterator moves
+   with m0_cob_iterator_next() method over namespace table until
+   end of table is reached or a record with another parent fid is
+   found.
 
-   Once iterator is not needed, it is fininalized by m0_cob_iterator_fini().
+   Once iterator is not needed, it is finalized by m0_cob_iterator_fini().
 
    @see m0_mdstore_readdir() for example of using iterator.
 
    Mkfs.
 
-   Cob cannot be used before m0_cob_domain_mkfs() is called. For details consult
-   with m0_cob_domain_mkfs()
+   Cob cannot be used before m0_cob_domain_mkfs() is called. For
+   details consult with m0_cob_domain_mkfs()
 
-   This function creates the following structures [records? objects?] in cob
-   tables:
+   This function creates the following structures [records? objects?]
+   in cob tables:
 
    - the main root cob with fid M0_COB_ROOT_FID;
 
-   - metadata hierarchy root cob (what potentially metadata client can see)
-   with fid M0_COB_ROOT_FID and name M0_COB_ROOT_NAME;
+   - metadata hierarchy root cob (what potentially metadata client
+   can see) with fid M0_COB_ROOT_FID and name M0_COB_ROOT_NAME;
 
    - sessions root cob (all sessions are created below it) with fid
    M0_COB_SESSIONS_FID and name M0_COB_SESSIONS_NAME;
 
-   - omgid terminator record with id = ~0ULL. This is used for omgid allocation
-   during m0_cob_create();
+   - omgid terminator record with id = ~0ULL. This is used for omgid
+   allocation during m0_cob_create();
 
-   Mdstore based cobs cannot be used properly without mkfs done. All unit tests
-   that access cob and also all modules using cobs should do m0_cob_domain_mkfs()
-   on startup.
+   Mdstore based cobs cannot be used properly without mkfs done.
+   All unit tests that access cob and also all modules using cobs
+   should do m0_cob_domain_mkfs() on startup.
 
    @{
  */
@@ -237,18 +249,19 @@ struct m0_cob_domain_id {
 /**
    cob domain
 
-   Component object metadata is stored in database tables.  The database
-   in turn is stored in a metadata container.  A cob_domain is a grouping
-   of cob's described by a namespace or object index.  The objects referenced
-   by the tables will reside in other, filedata containers.
+   Component object metadata is stored in database tables. The
+   database in turn is stored in a metadata container. A cob_domain
+   is a grouping of cob's described by a namespace or object index.
+   The objects referenced by the tables will reside in other,
+   filedata containers.
 
-   A m0_cob_domain is an in-memory structure that identifies these tables.
-   The list of domains will be created at metadata container ingest (when
-   a container is first "started/read/initialized/opened".)
+   A m0_cob_domain is an in-memory structure that identifies these
+   tables.  The list of domains will be created at metadata container
+   ingest (when a container is first "started/read/initialized/opened".)
 
-   A m0_cob_domain cannot span multiple containers.  Eventually, there should
-   be methods for combining/splitting containers and therefore cob
-   domains and databases.
+   A m0_cob_domain cannot span multiple containers.  Eventually,
+   there should be methods for combining/splitting containers and
+   therefore cob domains and databases.
 */
 struct m0_cob_domain {
         struct m0_cob_domain_id cd_id;
@@ -270,8 +283,8 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_dbenv *env,
 void m0_cob_domain_fini(struct m0_cob_domain *dom);
 
 /**
- * Prepare storage before using. Create root cob for session objects and
- * root for files hierarchy.
+ * Prepare storage before using. Create root cob for session objects
+ * and root for files hierarchy.
  */
 M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 				   const struct m0_fid *rootfid,
@@ -421,8 +434,8 @@ struct m0_cob_omgrec {
  * m0_cob is an in-memory structure, populated from database tables
  * on demand. m0_cob is not cached for long time (except for root)
  * and is only used as a temporary handle of database structures for the
- * sake of handyness. This means, we don't need to bother with locking
- * as everytime we pass cob to some function this is new instance of it.
+ * sake of handiness. This means, we don't need to bother with locking
+ * as every time we pass cob to some function this is new instance of it.
  * All the concurrency for providing data correctness is done by underlying
  * database (db[45] or rvm).
  *
@@ -463,8 +476,8 @@ struct m0_cob_omgrec {
  * is specified in its allocation time.
  *
  * <b>Caching and concurrency</b>
- * Cobs are not cached by cob domain, neither by cob API users. Rationale is the
- * following:
+ * Cobs are not cached by cob domain, neither by cob API users.
+ * Rationale is the following:
  *
  * - we use db[45] for storing metadata and it already has cache that may work
  * in a way that satisfies our needs;

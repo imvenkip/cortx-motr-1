@@ -265,7 +265,7 @@ int m0_md_lustre_fop_alloc(struct m0_fop **fop, void *data)
         M0_ASSERT(translate != NULL);
         rc1 = translate(*fop, rec);
         if (rc1 != 0) {
-                m0_fop_free(*fop);
+                m0_fop_put(*fop);
                 *fop = NULL;
                 rc = rc1;
         }

@@ -198,13 +198,6 @@ static void ping_sleep_secs(int secs)
 	m0_nanosleep(req, &rem);
 }
 
-static m0_time_t ping_m0_time_after_secs(int secs)
-{
-	m0_time_t dur;
-	m0_time_set(&dur, secs, 0);
-	return m0_time_add(m0_time_now(), dur);
-}
-
 static int alloc_buffers(int num, uint32_t segs, m0_bcount_t segsize,
 			 unsigned shift, struct m0_net_buffer **out)
 {
@@ -1269,8 +1262,7 @@ static void set_msg_timeout(struct nlx_ping_ctx *ctx,
 	if (ctx->pc_msg_timeout > 0) {
 		PING_OUT(ctx, 1, "%s: setting msg nb_timeout to %ds\n",
 			 ctx->pc_ident, ctx->pc_msg_timeout);
-		nb->nb_timeout =
-			ping_m0_time_after_secs(ctx->pc_msg_timeout);
+		nb->nb_timeout = m0_time_from_now(ctx->pc_msg_timeout, 0);
 	} else {
 		nb->nb_timeout = M0_TIME_NEVER;
 	}
@@ -1282,8 +1274,7 @@ static void set_bulk_timeout(struct nlx_ping_ctx *ctx,
 	if (ctx->pc_bulk_timeout > 0) {
 		PING_OUT(ctx, 1, "%s: setting bulk nb_timeout to %ds\n",
 			 ctx->pc_ident, ctx->pc_bulk_timeout);
-		nb->nb_timeout =
-			ping_m0_time_after_secs(ctx->pc_bulk_timeout);
+		nb->nb_timeout = m0_time_from_now(ctx->pc_bulk_timeout, 0);
 	} else {
 		nb->nb_timeout = M0_TIME_NEVER;
 	}
@@ -1601,8 +1592,8 @@ static int nlx_ping_client_msg_send_recv(struct nlx_ping_ctx *ctx,
 				recv_done++;
 				if (ctx->pc_msg_timeout > 0)
 					session_timeout =
-						ping_m0_time_after_secs(
-							   ctx->pc_msg_timeout);
+						m0_time_from_now(
+							ctx->pc_msg_timeout, 0);
 			}
 			m0_free(wi);
 		}

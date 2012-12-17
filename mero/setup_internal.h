@@ -157,15 +157,13 @@ struct cs_reqh_context {
 	/** Services running in request handler context. */
 	const char                 **rc_services;
 
-        /** Wheather to prepare storage (mkfs) attached to this context. */
-        int                          rc_prepare_storage;
+	/** Whether to prepare storage (mkfs) attached to this context. */
+	int                          rc_prepare_storage;
 
 	/** Number of services configured in request handler context. */
 	int                          rc_snr;
 
-	/**
-	    Maximum number of services allowed per request handler context.
-	 */
+	/** Maximum number of services allowed per request handler context. */
 	int                          rc_max_services;
 
 	/** Endpoints and xprts per request handler context. */
@@ -201,13 +199,13 @@ struct cs_reqh_context {
 	struct m0_tlink              rc_linkage;
 
 	/** Backlink to struct m0_mero. */
-	struct m0_mero	    *rc_mero;
+	struct m0_mero              *rc_mero;
 
 	/**
 	 * Minimum number of buffers in TM receive queue.
 	 * Default is set to m0_mero::cc_recv_queue_min_length
 	 */
-	uint32_t		     rc_recv_queue_min_length;
+	uint32_t                     rc_recv_queue_min_length;
 
 	/**
 	 * Maximum RPC message size.
@@ -215,7 +213,7 @@ struct cs_reqh_context {
 	 * If value of cc_max_rpc_msg_size is zero then value from
 	 * m0_net_domain_get_max_buffer_size() is used.
 	 */
-	uint32_t		     rc_max_rpc_msg_size;
+	uint32_t                     rc_max_rpc_msg_size;
 };
 
 /**

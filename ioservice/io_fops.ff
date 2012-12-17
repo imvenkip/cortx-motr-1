@@ -235,16 +235,11 @@ record {
 	/**
 	 * Fid of component object.
 	 */
-	m0_fid c_cobfid
-} m0_fop_cob_common;
+	m0_fid c_cobfid;
 
-/**
- * Represents name of a cob being created.
- */
-sequence {
-	u32 cn_count;
-	u8  cn_name
-} m0_fop_cob_name;
+	/** Unique cob index in pool. */
+	u32             c_cob_idx
+} m0_fop_cob_common;
 
 /**
  * On-wire representation of "cob create" request.
@@ -252,9 +247,7 @@ sequence {
  * is created.
  */
 record {
-	m0_fop_cob_common cc_common;
-	/** Name of global file. */
-	m0_fop_cob_name   cc_cobname
+	m0_fop_cob_common cc_common
 } m0_fop_cob_create;
 
 /**

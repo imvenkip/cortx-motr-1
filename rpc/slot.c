@@ -246,10 +246,10 @@ static void slot_item_list_prune(struct m0_rpc_slot *slot)
 		}
 		reply = item->ri_reply;
 		if (reply != NULL)
-			m0_rpc_item_free(reply);
+			m0_rpc_item_put(reply);
 		item->ri_reply = NULL;
 		slot_item_tlist_del(item);
-		m0_rpc_item_free(item);
+		m0_rpc_item_put(item);
 		count++;
 	} end_for_each_item_in_slot;
         M0_ASSERT(slot_item_tlist_length(&slot->sl_item_list) == 1);
@@ -284,7 +284,7 @@ M0_INTERNAL void m0_rpc_slot_fini(struct m0_rpc_slot *slot)
 	M0_ASSERT(item_xid(dummy_item, 0) == 0);
 
 	fop = m0_rpc_item_to_fop(dummy_item);
-	m0_fop_free(fop);
+	m0_fop_put(fop);
 
 	slot_item_tlist_fini(&slot->sl_item_list);
 	if (slot->sl_cob != NULL)
@@ -433,6 +433,7 @@ static void __slot_item_add(struct m0_rpc_slot *slot,
 		slot->sl_verno.vn_vc++;
 	}
 
+	m0_rpc_item_get(item);
 	slot_item_tlink_init_at_tail(item, &slot->sl_item_list);
 	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
 	if (session != NULL)
@@ -476,6 +477,7 @@ M0_INTERNAL void m0_rpc_slot_misordered_item_received(struct m0_rpc_slot *slot,
 
 		slot->sl_ops->so_reply_consume(item, reply);
 	}
+	m0_fop_put(fop);
 }
 
 M0_INTERNAL int m0_rpc_slot_item_apply(struct m0_rpc_slot *slot,
@@ -645,6 +647,7 @@ M0_INTERNAL int __slot_reply_received(struct m0_rpc_slot *slot,
 		M0_ASSERT(slot->sl_in_flight > 0);
 
 		req_state = req->ri_sm.sm_state;
+		m0_rpc_item_get(reply);
 		req->ri_reply = reply;
 		if (M0_IN(req_state,(M0_RPC_ITEM_ACCEPTED,
 				     M0_RPC_ITEM_WAITING_FOR_REPLY))) {
@@ -875,15 +878,13 @@ M0_INTERNAL int m0_rpc_slot_item_received(struct m0_rpc_item *item)
 M0_INTERNAL void rpc_item_replied(struct m0_rpc_item *item,
 				  struct m0_rpc_item *reply, uint32_t rc)
 {
-	M0_ASSERT(item->ri_ops != NULL);
-
 	M0_ENTRY("req_item: %p, rep_item: %p", item, reply);
 
 	item->ri_error = rc;
 	item->ri_reply = reply;
 
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_REPLIED);
-	if (item->ri_ops->rio_replied != NULL)
+	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
 		item->ri_ops->rio_replied(item);
 }
 

@@ -23,18 +23,17 @@
 #include "lib/trace.h"
 
 #include <linux/mount.h>
-#include <linux/parser.h>     /* substring_t                    */
-#include <linux/slab.h>       /* kmalloc(), kfree()             */
-#include <linux/statfs.h>     /* kstatfs */
+#include <linux/parser.h>  /* substring_t */
+#include <linux/slab.h>    /* kmalloc(), kfree() */
+#include <linux/statfs.h>  /* kstatfs */
 
-#include "lib/misc.h"         /* M0_SET0()                      */
-#include "lib/memory.h"       /* M0_ALLOC_PTR(), m0_free()      */
 #include "m0t1fs/linux_kernel/m0t1fs.h"
+#include "mero/magic.h"    /* M0_T1FS_SVC_CTX_MAGIC */
+#include "lib/misc.h"      /* M0_SET0() */
+#include "lib/memory.h"    /* M0_ALLOC_PTR(), m0_free() */
 #include "layout/linear_enum.h"
 #include "layout/pdclust.h"
-#include "mero/magic.h"
-#include "conf/conf_fop.h"
-#include "rpc/rpclib.h"       /* m0_rpc_client_call */
+#include "conf/confc.h"    /* m0_confc */
 
 static int m0t1fs_sb_layout_init(struct m0t1fs_sb *csb);
 
@@ -81,8 +80,8 @@ static void m0t1fs_service_context_fini(struct m0t1fs_service_context *ctx);
 static int  m0t1fs_service_contexts_populate(struct m0t1fs_sb *csb);
 static void m0t1fs_service_contexts_delete(struct m0t1fs_sb *csb);
 
-static int  m0t1fs_connect_to_all_services(struct m0t1fs_sb *csb);
-static void m0t1fs_disconnect_from_all_services(struct m0t1fs_sb *csb);
+static int  m0t1fs_connect_to_services(struct m0t1fs_sb *csb);
+static void m0t1fs_disconnect_from_services(struct m0t1fs_sb *csb);
 
 static int  m0t1fs_connect_to_service(struct m0t1fs_service_context *ctx);
 static void m0t1fs_disconnect_from_service(struct m0t1fs_service_context *ctx);
@@ -135,11 +134,9 @@ enum { AST_THREAD_TIMEOUT = 10 };
 
 static void ast_thread(struct m0t1fs_sb *csb)
 {
-	m0_time_t delta = m0_time_set(&delta, AST_THREAD_TIMEOUT, 0);
-
 	while (1) {
 		m0_chan_timedwait(&csb->csb_iogroup.s_clink,
-				  m0_time_add(m0_time_now(), delta));
+				  m0_time_from_now(AST_THREAD_TIMEOUT, 0));
 		m0_sm_group_lock(&csb->csb_iogroup);
 		m0_sm_asts_run(&csb->csb_iogroup);
 		m0_sm_group_unlock(&csb->csb_iogroup);
@@ -195,7 +192,7 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 
 static int fs_params_parse(struct m0t1fs_mnt_opts *dest, const char **src);
 
-static int root_alloc(struct super_block *sb)
+static int m0t1fs_root_alloc(struct super_block *sb)
 {
 	struct m0_fop_statfs_rep *rep = NULL;
 	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
@@ -229,93 +226,67 @@ static int root_alloc(struct super_block *sb)
 	return 0;
 }
 
-static int conf_read(struct m0t1fs_mnt_opts *mops, const struct m0t1fs_sb *csb)
+/** Obtains filesystem parameters using confc API. */
+static int fs_params_read(struct m0t1fs_mnt_opts *dest,
+			  struct m0_sm_group     *sm_group,
+			  const struct m0_buf    *profile,
+			  const char             *confd_addr,
+			  struct m0_rpc_machine  *rpc_mach,
+			  const char             *local_conf)
 {
-	int rc;
-	struct m0_conf_obj *obj = NULL;
+	struct m0_confc     confc;
+	struct m0_conf_obj *obj;
+	int                 rc;
 
 	M0_ENTRY();
-	M0_PRE(csb->csb_astthread.t_state == TS_RUNNING);
 
-	rc = m0_confc_open_sync(&obj, csb->csb_confc.cc_root,
-				M0_BUF_INITS("filesystem")) ?:
-		fs_params_parse(mops, M0_CONF_CAST(obj, m0_conf_filesystem)->
-				cf_params);
-	m0_confc_close(obj);
+	rc = m0_confc_init(&confc, sm_group, profile, confd_addr, rpc_mach,
+			   local_conf);
+	if (rc != 0)
+		M0_RETURN(rc);
 
+	rc = m0_confc_open_sync(&obj, confc.cc_root,
+				M0_BUF_INITS("filesystem"));
+	if (rc == 0) {
+		rc = fs_params_parse(
+			dest, M0_CONF_CAST(obj, m0_conf_filesystem)->cf_params);
+		m0_confc_close(obj);
+	}
+
+	m0_confc_fini(&confc);
 	M0_RETURN(rc);
 }
 
-#if 0 /* XXX conf-ut:conf-net <<<<<<< */
-/* XXX This function is temporary. It is part of conf-net demonstration. */
-static struct m0_fop *conf_fop_alloc(void)
+static int m0t1fs_poolmach_create(struct m0_poolmach **out, uint32_t pool_width,
+				  uint32_t nr_parity_units)
 {
-	struct m0_fop *fop;
+	struct m0_poolmach *m;
+	int                 rc;
 
-	M0_ENTRY();
+	M0_ALLOC_PTR(m);
+	if (m == NULL)
+		return -ENOMEM;
 
-	fop = m0_fop_alloc(&m0_conf_fetch_fopt, NULL);
-	if (unlikely(fop == NULL)) {
-		M0_LOG(M0_ERROR, "fop allocation failed");
-	} else {
-		struct m0_conf_fetch *req = m0_fop_data(fop);
-
-		req->f_origin.oi_type = 999; /* XXX */
-		req->f_origin.oi_id = (const struct m0_buf)M0_BUF_INIT0;
-		req->f_path.ab_count = 0;
-	}
-
-	M0_LEAVE();
-	return fop;
+	rc = m0_poolmach_init(m, NULL, 1, pool_width, 1, nr_parity_units);
+	if (rc == 0)
+		*out = m;
+	else
+		m0_free(m);
+	return rc;
 }
 
-/* XXX This function is temporary. It is part of conf-net demonstration. */
-static void conf_ping(struct m0_rpc_session *session)
+static void m0t1fs_poolmach_destroy(struct m0_poolmach *mach)
 {
-	struct m0_fop             *fop;
-	struct m0_rpc_item        *item;
-	struct m0_conf_fetch_resp *resp;
-	int                        rc;
-
-	M0_ENTRY();
-
-	fop = conf_fop_alloc();
-	if (fop == NULL) {
-		M0_LOG(M0_ERROR, "conf_fop_alloc() failed");
-		goto out;
-	}
-
-	rc = m0_rpc_client_call(fop, session, &m0_fop_default_item_ops, 0,
-				M0T1FS_RPC_TIMEOUT);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "m0_rpc_client_call() error: %d", rc);
-		goto out;
-	}
-
-	item = &fop->f_item;
-	M0_ASSERT((item->ri_error == 0) == (item->ri_reply != NULL));
-
-	if (item->ri_reply != NULL) {
-		resp = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
-		M0_ASSERT(resp != NULL && resp->fr_rc == 0);
-#if 1 /*XXX*/
-		M0_LOG(M0_FATAL, "XXX [%s:%d (%s)] resp: nr_objs=%u,"
-		       " id[0]=`%s'", (char *)__FILE__, __LINE__,
-		       (char *)__func__, resp->fr_data.ec_nr,
-		       (char *)resp->fr_data.ec_objs[0].o_id.b_addr);
-#endif
-	}
-out:
-	M0_LEAVE();
+	m0_poolmach_fini(mach);
+	m0_free(mach);
 }
-#endif /* XXX >>>>>>> */
 
 static int m0t1fs_fill_super(struct super_block *sb, void *data,
 			     int silent __attribute__((unused)))
 {
-	struct m0t1fs_mnt_opts   *mops;
-	struct m0t1fs_sb         *csb;
-	int                       rc;
+	struct m0t1fs_mnt_opts *mops;
+	struct m0t1fs_sb       *csb;
+	int                     rc;
 
 	M0_ENTRY();
 
@@ -334,20 +305,18 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 	if (rc != 0)
 		goto sb_fini;
 
-	rc = m0_confc_init(&csb->csb_confc, &csb->csb_iogroup,
-			   &(const struct m0_buf)M0_BUF_INITS(mops->mo_profile),
-			   mops->mo_confd, NULL, mops->mo_local_conf);
-	if (rc != 0)
-		goto sb_fini;
-
 	rc = M0_THREAD_INIT(&csb->csb_astthread, struct m0t1fs_sb *, NULL,
 			    &ast_thread, csb, "ast_thread");
 	M0_ASSERT(rc == 0);
-	rc = conf_read(mops, csb);
+
+	rc = fs_params_read(mops, &csb->csb_iogroup,
+			    &(const struct m0_buf)M0_BUF_INITS(
+				    mops->mo_profile), mops->mo_confd,
+			    &m0t1fs_globals.g_rpc_machine, mops->mo_local_conf);
 	if (rc != 0)
 		goto thread_fini;
 
-	rc = m0t1fs_connect_to_all_services(csb);
+	rc = m0t1fs_connect_to_services(csb);
 	if (rc != 0)
 		goto thread_fini;
 
@@ -355,23 +324,14 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 	if (rc != 0)
 		goto ioserver_fini;
 
-	csb->csb_pool.po_mach = m0_alloc(sizeof (struct m0_poolmach));
-	if (csb->csb_pool.po_mach == NULL) {
-		rc = -ENOMEM;
+	rc = m0t1fs_poolmach_create(&csb->csb_pool.po_mach, mops->mo_pool_width,
+				    mops->mo_nr_parity_units);
+	if (rc != 0)
 		goto pool_fini;
-	}
-
-	rc = m0_poolmach_init(csb->csb_pool.po_mach, NULL,
-			      1, mops->mo_pool_width,
-			      1, mops->mo_nr_parity_units);
-	if (rc != 0) {
-		m0_free(csb->csb_pool.po_mach);
-		goto pool_fini;
-	}
 
 	rc = m0t1fs_sb_layout_init(csb);
 	if (rc != 0)
-		goto poolmach_fini;
+		goto poolmach_destroy;
 
 	rc = m0t1fs_container_location_map_init(&csb->csb_cl_map,
 						csb->csb_nr_containers);
@@ -388,14 +348,12 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 	sb->s_maxbytes       = MAX_LFS_FILESIZE;
 	sb->s_op             = &m0t1fs_super_operations;
 
-	rc = root_alloc(sb);
+	rc = m0t1fs_root_alloc(sb);
 	if (rc != 0)
 		goto map_fini;
 
 	io_bob_tlists_init();
 	M0_SET0(&iommstats);
-
-	/* conf_ping(m0t1fs_container_id_to_session(csb, 1)); /\* XXX *\/ */
 
 	M0_RETURN(0);
 
@@ -403,17 +361,15 @@ map_fini:
 	m0t1fs_container_location_map_fini(&csb->csb_cl_map);
 layout_fini:
 	m0t1fs_sb_layout_fini(csb);
-poolmach_fini:
-	m0_poolmach_fini(csb->csb_pool.po_mach);
-	m0_free(csb->csb_pool.po_mach);
+poolmach_destroy:
+	m0t1fs_poolmach_destroy(csb->csb_pool.po_mach);
 pool_fini:
 	m0_pool_fini(&csb->csb_pool);
 ioserver_fini:
-	m0t1fs_disconnect_from_all_services(csb);
+	m0t1fs_disconnect_from_services(csb);
 	m0t1fs_service_contexts_delete(csb);
 thread_fini:
 	ast_thread_stop(csb);
-	m0_confc_fini(&csb->csb_confc);
 sb_fini:
 	m0t1fs_sb_fini(csb);
 sb_free:
@@ -549,12 +505,11 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 	if (csb != NULL) {
 		m0t1fs_container_location_map_fini(&csb->csb_cl_map);
 		m0t1fs_sb_layout_fini(csb);
-		m0_poolmach_fini(csb->csb_pool.po_mach);
+		m0t1fs_poolmach_destroy(csb->csb_pool.po_mach);
 		m0_pool_fini(&csb->csb_pool);
-		m0t1fs_disconnect_from_all_services(csb);
+		m0t1fs_disconnect_from_services(csb);
 		m0t1fs_service_contexts_delete(csb);
 		ast_thread_stop(csb);
-		m0_confc_fini(&csb->csb_confc);
 		m0t1fs_sb_fini(csb);
 		m0_free(csb);
 	}
@@ -1003,7 +958,7 @@ static void m0t1fs_service_context_fini(struct m0t1fs_service_context *ctx)
 	M0_LEAVE();
 }
 
-static int m0t1fs_connect_to_all_services(struct m0t1fs_sb *csb)
+static int m0t1fs_connect_to_services(struct m0t1fs_sb *csb)
 {
 	struct m0t1fs_service_context *ctx;
 	int                            rc;
@@ -1013,15 +968,16 @@ static int m0t1fs_connect_to_all_services(struct m0t1fs_sb *csb)
 	M0_PRE(svc_ctx_tlist_is_empty(&csb->csb_service_contexts));
 
 	rc = m0t1fs_service_contexts_populate(csb);
-	if (rc == 0) {
-		m0_tl_for(svc_ctx, &csb->csb_service_contexts, ctx) {
-			rc = m0t1fs_connect_to_service(ctx);
-			if (rc != 0) {
-				m0t1fs_disconnect_from_all_services(csb);
-				break;
-			}
-		} m0_tl_endfor;
-	}
+	if (rc != 0)
+		M0_RETURN(rc);
+
+	m0_tl_for(svc_ctx, &csb->csb_service_contexts, ctx) {
+		rc = m0t1fs_connect_to_service(ctx);
+		if (rc != 0) {
+			m0t1fs_disconnect_from_services(csb);
+			break;
+		}
+	} m0_tl_endfor;
 
 	if (rc != 0)
 		m0t1fs_service_contexts_delete(csb);
@@ -1050,7 +1006,7 @@ static int m0t1fs_service_contexts_populate(struct m0t1fs_sb *csb)
 		svc_ctx_tlist_add_tail(&csb->csb_service_contexts, ctx);
 	}
 
-	for (i = 0; i < mops->mo_mds_ep_nr; i++) {
+	for (i = 0; rc == 0 && i < mops->mo_mds_ep_nr; i++) {
 		M0_ALLOC_PTR(ctx);
 		if (ctx == NULL) {
 			rc = -ENOMEM;
@@ -1085,11 +1041,10 @@ static void m0t1fs_service_contexts_delete(struct m0t1fs_sb *csb)
 
 static int m0t1fs_connect_to_service(struct m0t1fs_service_context *ctx)
 {
-	struct m0_rpc_machine     *rpc_mach;
-	struct m0_net_end_point   *ep;
-	struct m0_rpc_conn        *conn;
-	struct m0_rpc_session     *session;
-	int                        rc;
+	struct m0_rpc_machine   *rpc_mach;
+	struct m0_net_end_point *ep;
+	struct m0_rpc_conn      *conn;
+	int                      rc;
 
 	M0_ENTRY();
 
@@ -1098,30 +1053,25 @@ static int m0t1fs_connect_to_service(struct m0t1fs_service_context *ctx)
 	/* Create target end-point */
 	rc = m0_net_end_point_create(&ep, &rpc_mach->rm_tm, ctx->sc_addr);
 	if (rc != 0)
-		goto out;
+		M0_RETURN(rc);
 
 	conn = &ctx->sc_conn;
 	rc = m0_rpc_conn_create(conn, ep, rpc_mach, M0T1FS_MAX_NR_RPC_IN_FLIGHT,
 				M0_TIME_NEVER);
 	m0_net_end_point_put(ep);
 	if (rc != 0)
-		goto out;
+		M0_RETURN(rc);
 
-	session = &ctx->sc_session;
-	rc = m0_rpc_session_create(session, conn, M0T1FS_NR_SLOTS_PER_SESSION,
-				   M0_TIME_NEVER);
-	if (rc != 0)
-		goto conn_term;
-
-	++ctx->sc_csb->csb_nr_active_contexts;
-	M0_LOG(M0_INFO, "Connected to service [%s]. Active contexts: %d",
-	       ctx->sc_addr, ctx->sc_csb->csb_nr_active_contexts);
-	M0_RETURN(rc);
-
-conn_term:
-	(void)m0_rpc_conn_destroy(conn, M0_TIME_NEVER);
-out:
-	M0_ASSERT(rc != 0);
+	rc = m0_rpc_session_create(&ctx->sc_session, conn,
+				   M0T1FS_NR_SLOTS_PER_SESSION, M0_TIME_NEVER);
+	if (rc == 0) {
+		++ctx->sc_csb->csb_nr_active_contexts;
+		M0_LOG(M0_INFO, "Connected to service [%s]. Active contexts:"
+		       " %d", ctx->sc_addr,
+		       ctx->sc_csb->csb_nr_active_contexts);
+	} else {
+		(void)m0_rpc_conn_destroy(conn, M0_TIME_NEVER);
+	}
 	M0_RETURN(rc);
 }
 
@@ -1138,7 +1088,7 @@ static void m0t1fs_disconnect_from_service(struct m0t1fs_service_context *ctx)
 	M0_LEAVE();
 }
 
-static void m0t1fs_disconnect_from_all_services(struct m0t1fs_sb *csb)
+static void m0t1fs_disconnect_from_services(struct m0t1fs_sb *csb)
 {
 	struct m0t1fs_service_context *ctx;
 	M0_ENTRY();

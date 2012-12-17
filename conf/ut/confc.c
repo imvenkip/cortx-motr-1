@@ -28,6 +28,7 @@
 #include "conf/buf_ext.h"   /* m0_buf_streq */
 #include "conf/ut/rpc_helpers.h"
 #include "lib/ut.h"
+#include "conf/confd_hack.h" /* XXX m0_conf_str, m0_confd_hack_mode, M0_CM_UT */
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
 #define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
@@ -50,33 +51,14 @@ static void service_stop(struct m0_rpc_server_ctx *sctx)
 	m0_net_xprt_fini(g_xprt);
 }
 
-/** tr/'/"/ */
-static void requote(char *s)
-{
-	for (; *s != '\0'; ++s) {
-		if (*s == '\'')
-			*s = '"';
-	}
-}
-
 static void test_confc_local(void)
 {
 	struct m0_confc confc;
-	int rc;
-	/* WARNING: This is not a valid format of configuration string!
-	 * Here we use single quotes for the sake of readability. */
-	char local_conf[] =
-"[6: ('prof', {1| ('fs')}),\n"
-"    ('fs', {2| ((11, 22),\n"
-"                [3: 'par1', 'par2', 'par3'],\n"
-"                [3: 'svc-0', 'svc-1', 'svc-2'])}),\n"
-"    ('svc-0', {3| (1, [1: 'addr0'], 'node-0')}),\n"
-"    ('svc-1', {3| (3, [3: 'addr1', 'addr2', 'addr3'], 'node-1')}),\n"
-"    ('svc-2', {3| (2, [0], 'node-1')}),\n"
-"    ('node-0', {4| (8000, 2, 3, 2, 0, [2: 'nic-0', 'nic-1'],\n"
-"                    [1: 'sdev-0'])})]\n";
+	const char     *local_conf;
+	int             rc;
 
-	requote(local_conf); /* fix configuration string */
+	rc = m0_conf_str(M0_CM_UT, &local_conf);
+	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_confc_init(&confc, &g_grp,
 			   &(const struct m0_buf)M0_BUF_INITS("prof"),
@@ -106,6 +88,7 @@ static void test_confc_net(void)
 
 	rc = service_start(&confd);
 	M0_UT_ASSERT(rc == 0);
+	m0_confd_hack_mode = M0_CM_UT; /* XXX DELETEME */
 
 	rc = m0_ut_rpc_machine_start(&mach, g_xprt, CLIENT_ENDPOINT_ADDR,
 				     "ut_confc.db");
@@ -132,24 +115,15 @@ static bool streq(const char *s1, const char *s2)
 	return strcmp(s1, s2) == 0;
 }
 
-static void _confc_test(const char *confd_addr, struct m0_rpc_machine *rpc_mach,
-			const char *local_conf)
+static void services_open(struct m0_conf_obj **result, struct m0_confc *confc)
 {
-	struct m0_confc         confc;
-	struct waiter           w;
-	struct m0_conf_service *svc;
-	int                     rc;
+	struct waiter w;
+	int           rc;
 
-	rc = m0_confc_init(&confc, &g_grp,
-			   &(const struct m0_buf)M0_BUF_INITS("prof"),
-			   confd_addr, rpc_mach, local_conf);
-	M0_UT_ASSERT(rc == 0);
+	waiter_init(&w, confc);
 
-	waiter_init(&w, &confc);
-
-	rc = m0_confc_open(&w.w_ctx, NULL, M0_BUF_INITS("filesystem"),
-			   M0_BUF_INITS("services"), M0_BUF_INITS("svc-0"));
-	M0_UT_ASSERT(rc == 0);
+	m0_confc_open(&w.w_ctx, NULL, M0_BUF_INITS("filesystem"),
+		      M0_BUF_INITS("services"));
 
 	while (!m0_confc_ctx_is_completed(&w.w_ctx))
 		m0_chan_wait(&w.w_clink);
@@ -157,39 +131,145 @@ static void _confc_test(const char *confd_addr, struct m0_rpc_machine *rpc_mach,
 	rc = m0_confc_ctx_error(&w.w_ctx);
 	M0_UT_ASSERT(rc == 0);
 
-	svc = M0_CONF_CAST(m0_confc_ctx_result(&w.w_ctx), m0_conf_service);
+	*result = m0_confc_ctx_result(&w.w_ctx);
+	M0_UT_ASSERT((*result)->co_status == M0_CS_READY);
+	M0_UT_ASSERT((*result)->co_confc == confc);
+
+	waiter_fini(&w);
+}
+
+static void synchronous_api_test(struct m0_conf_obj *dir)
+{
+	struct m0_conf_obj     *obj;
+	struct m0_conf_service *svc;
+	int                     rc;
+
+	M0_PRE(dir->co_type == M0_CO_DIR);
+
+	rc = m0_confc_open_sync(&obj, dir, M0_BUF_INITS("svc-0"));
+	M0_UT_ASSERT(rc == 0);
+
+	svc = M0_CONF_CAST(obj, m0_conf_service);
 	M0_UT_ASSERT(svc->cs_obj.co_status == M0_CS_READY);
-	M0_UT_ASSERT(svc->cs_obj.co_confc == &confc);
+	M0_UT_ASSERT(svc->cs_obj.co_confc == dir->co_confc);
 	M0_UT_ASSERT(m0_buf_streq(&svc->cs_obj.co_id, "svc-0"));
 	M0_UT_ASSERT(svc->cs_type == 1);
 	M0_UT_ASSERT(streq(svc->cs_endpoints[0], "addr0"));
 	M0_UT_ASSERT(svc->cs_endpoints[1] == NULL);
 	M0_UT_ASSERT(m0_buf_streq(&svc->cs_node->cn_obj.co_id, "node-0"));
 
-	waiter_fini(&w);
-
-	{ /* Synchronous calls. */
-		struct m0_conf_obj *obj;
-		struct m0_conf_obj *node_obj;
-
-		rc = m0_confc_open_sync(&obj, confc.cc_root,
-					M0_BUF_INITS("filesystem"),
-					M0_BUF_INITS("services"),
-					M0_BUF_INITS("svc-0"));
-		M0_UT_ASSERT(rc == 0);
-		M0_UT_ASSERT(obj == &svc->cs_obj);
-
-		rc = m0_confc_open_sync(&node_obj, obj, M0_BUF_INITS("node"));
-		M0_UT_ASSERT(rc == 0);
-		M0_UT_ASSERT(node_obj == &svc->cs_node->cn_obj);
-
-		m0_confc_close(obj);
-		m0_confc_close(node_obj);
-	}
+	M0_UT_ASSERT(obj == &svc->cs_obj);
+	rc = m0_confc_open_sync(&obj, obj, M0_BUF_INITS("node"));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(obj != &svc->cs_obj);
+	M0_UT_ASSERT(obj == &svc->cs_node->cn_obj);
 
 	m0_confc_close(&svc->cs_obj);
+	m0_confc_close(obj);
+}
+
+static void _confc_test(const char *confd_addr, struct m0_rpc_machine *rpc_mach,
+			const char *local_conf)
+{
+	struct m0_confc     confc;
+	struct m0_conf_obj *svc_dir;
+	int                 rc;
+
+	rc = m0_confc_init(&confc, &g_grp,
+			   &(const struct m0_buf)M0_BUF_INITS("prof"),
+			   confd_addr, rpc_mach, local_conf);
+	M0_UT_ASSERT(rc == 0);
+
+	services_open(&svc_dir, &confc); /* tests asynchronous interface */
+	synchronous_api_test(svc_dir);
+
+#if 0 /* XXX <<<<<<< */
+	{ /* Directories */
+		struct m0_conf_obj *dir;
+
+		rc = m0_confc_open_sync(&dir, confc.cc_root,
+					M0_BUF_INITS("filesystem"),
+					M0_BUF_INITS("services"));
+		M0_UT_ASSERT(rc == 0);
+
+		g_counter = 0;
+		rc = dir_entries_use(dir, svc_type_add, NULL);
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(g_counter = 6);
+
+		g_counter = 0;
+		rc = dir_entries_use(dir, svc_type_add, is_mgmt);
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(g_counter = 4);
+
+		m0_confc_close(dir);
+	}
+#endif /* XXX >>>>>>> */
+	m0_confc_close(svc_dir);
 	m0_confc_fini(&confc);
 }
+
+#if 0 /* XXX <<<<<<< */
+static uint8_t g_counter;
+
+static void svc_type_add(const struct m0_conf_obj *obj)
+{
+	g_counter += M0_CONF_CAST(obj, m0_conf_service)->cs_type;
+}
+
+static bool is_mgmt(const struct m0_conf_obj *obj)
+{
+	return M0_CONF_CAST(obj, m0_conf_service)->cs_type ==
+		M0_CFG_SERVICE_MGMT;
+}
+
+M0_BASSERT(M0_CONF_DIREND == 0);
+static int dir_entries_use(struct m0_conf_obj *dir,
+			   void (*use)(const struct m0_conf_obj *),
+			   bool (*stop_at)(const struct m0_conf_obj *))
+{
+	struct sm_waiter    w;
+	int                 rc;
+	struct m0_conf_obj *entry = NULL;
+
+	sm_waiter_init(&w, dir->co_confc);
+
+	while ((rc = m0_confc_readdir(&w.w_ctx, dir, &entry)) > 0) {
+		if (rc == M0_CONF_DIRNEXT) {
+			/* The entry is available immediately. */
+			M0_ASSERT(entry != NULL);
+			use(entry);
+			continue; /* Note, that `entry' will be closed
+				   * by m0_confc_readdir(). */
+		}
+
+		/* Cache miss. */
+		M0_ASSERT(rc == M0_CONF_DIRMISS);
+		while (!m0_confc_ctx_is_completed(&w.w_ctx))
+			m0_chan_wait(&w.w_clink);
+
+		rc = m0_confc_ctx_error(&w.w_ctx);
+		if (rc != 0)
+			break; /* error */
+
+		entry = m0_confc_ctx_result(&w.w_ctx);
+		if (entry == NULL)
+			break; /* end of directory */
+
+		use(entry);
+		if (stop_at != NULL && stop_at(entry))
+			break;
+
+		/* Re-initialise m0_confc_ctx. */
+		sm_waiter_fini(&w);
+		sm_waiter_init(&w);
+	}
+
+	m0_confc_close(entry);
+	sm_waiter_fini(&w);
+	return rc;
+}
+#endif /* XXX >>>>>>> */
 
 static struct {
 	bool             run;

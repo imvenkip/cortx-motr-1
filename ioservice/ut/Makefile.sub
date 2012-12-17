@@ -1,7 +1,6 @@
-ut_libmero_ut_la_SOURCES += ioservice/ut/cobfid_map.c \
-                               ioservice/ut/bulkio_ut.c \
-                               ioservice/ut/bulkio_client.c \
-                               ioservice/ut/bulkio_common.c \
-                               ioservice/ut/bulkio_common.h \
-                               ioservice/ut/cob_foms.c \
-                               ioservice/ut/ios_buffer_pool.c
+ut_libmero_ut_la_SOURCES += ioservice/ut/bulkio_ut.c \
+			    ioservice/ut/bulkio_client.c \
+			    ioservice/ut/bulkio_common.c \
+			    ioservice/ut/bulkio_common.h \
+			    ioservice/ut/cob_foms.c \
+			    ioservice/ut/ios_buffer_pool.c

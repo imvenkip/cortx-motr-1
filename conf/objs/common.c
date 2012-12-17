@@ -80,7 +80,7 @@ M0_INTERNAL bool child_check(const struct m0_conf_obj *obj,
 M0_INTERNAL void child_adopt(struct m0_conf_obj *parent,
 			     struct m0_conf_obj *child)
 {
-	/* Profile cannot be a child, because it is a topmost object. */
+	/* Profile cannot be a child, because it is the topmost object. */
 	M0_PRE(child->co_type != M0_CO_PROFILE);
 
 	M0_ASSERT(equi(child->co_parent == NULL,
@@ -92,6 +92,10 @@ M0_INTERNAL void child_adopt(struct m0_conf_obj *parent,
 		M0_ASSERT(child->co_parent == NULL);
 	else
 		child->co_parent = parent;
+
+	/* confc is unable to set ->co_confc of directory objects. */
+	if (child->co_type == M0_CO_DIR)
+		child->co_confc = parent->co_confc;
 
 	child->co_mounted = true;
 }

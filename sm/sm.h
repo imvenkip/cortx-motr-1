@@ -433,7 +433,16 @@ enum m0_sm_state_descr_flags {
 
 	   @see m0_sm_timedwait()
 	 */
-	M0_SDF_TERMINAL = 1 << 2
+	M0_SDF_TERMINAL = 1 << 2,
+	/**
+	   A state marked with this flag is a "final" state. State machine can
+	   be finalised iff it is in state marked as M0_SDF_FINAL or
+	   M0_SDF_TERMINAL. There can be multiple states marked as
+	   M0_SDF_FINAL. M0_SDF_FINAL differs from M0_SDF_TERMINAL in that,
+	   state machine can transition out of a final state.
+	*/
+	M0_SDF_FINAL    = 1 << 3
+
 };
 
 /**
@@ -475,7 +484,7 @@ M0_INTERNAL void m0_sm_init(struct m0_sm *mach, const struct m0_sm_conf *conf,
 /**
    Finalises a state machine.
 
-   @pre conf->scf_state[state].sd_flags & M0_SDF_TERMINAL
+   @pre conf->scf_state[state].sd_flags & (M0_SDF_TERMINAL | M0_SDF_FINAL)
  */
 M0_INTERNAL void m0_sm_fini(struct m0_sm *mach);
 
@@ -539,12 +548,13 @@ M0_INTERNAL void m0_sm_move(struct m0_sm *mach, int32_t rc, int state);
 void m0_sm_state_set(struct m0_sm *mach, int state);
 
 /**
-   Structure used by m0_sm_timeout() to record timeout state.
+   Structure used by m0_sm_timeout_arm() to record timeout state.
 
    This structure is owned by the sm code, user should not access it. The user
-   provides uninitialised instance m0_sm_timeout to m0_sm_timeout(). The
-   instance can be freed after the next state transition for the state machine
-   completes, see m0_sm_timeout() for details.
+   provides initialised (by m0_sm_timeout_init()) instance of m0_sm_timeout to
+   m0_sm_timeout_arm(). After the timer expiration, the instance must be
+   finalised (with m0_sm_timeout_fini()) and re-initialised before it can be
+   used again.
  */
 struct m0_sm_timeout {
 	/** Timer used to implement delayed state transition. */
@@ -556,18 +566,35 @@ struct m0_sm_timeout {
 	struct m0_sm_ast st_ast;
 	/** Target state. */
 	int              st_state;
-	/** True if this timeout neither expired nor cancelled. */
-	bool             st_active;
+	/**
+	 * Transitions to states in this bit-mask won't cancel the timeout.
+	 */
+	uint64_t         st_bitmask;
+	/**
+	 * Timer state from enum timer_state (sm.c).
+	 *
+	 * 64-bit because CAS it used on it to synchronize top-half with state
+	 * transitions. Specifically, CAS prevents a race condition, where timer
+	 * call-back advances the timer state from ARMED to TOP
+	 * (sm_timeout_top()) concurrently with a state transition attempting to
+	 * cancel the timer by changing the state from ARMED to DONE
+	 * (sm_timeout_cancel()). Only one of these actions should succeed.
+	 */
+	int64_t          st_timer_state;
 };
+
+/**
+   Initialises a timer structure with a given timeout.
+ */
+M0_INTERNAL void m0_sm_timeout_init(struct m0_sm_timeout *to);
 
 /**
    Arms a timer to move a machine into a given state after a given timeout.
 
    If a state transition happens before the timeout expires, the timeout is
-   cancelled.
+   cancelled, unless the transition is to a state from "bitmask" parameter.
 
-   It is possible to arms multiple timeouts against the same state machine. The
-   first one to expire will cancel the rest.
+   It is possible to arm multiple timeouts against the same state machine.
 
    The m0_sm_timeout instance, supplied to this call can be freed after timeout
    expires or is cancelled.
@@ -575,13 +602,21 @@ struct m0_sm_timeout {
    @param timeout absolute time at which the state transition will take place
    @param state the state to which the state machine will transition after the
    timeout.
+   @param bitmask a mask of state machine states, transitions which won't cancel
+   the timeout.
 
    @pre m0_mutex_is_locked(&mach->sm_grp->s_lock)
-   @pre state transition from current state to the target state is allowed.
+   @pre sm_state(mach)->sd_allowed & M0_BITS(state)
+   @pre m0_forall(i, mach->sm_conf->scf_nr_states,
+		  ergo(M0_BITS(i) & bitmask,
+		       state_get(mach, i)->sd_allowed & M0_BITS(state)))
+   @pre m0_forall(i, mach->sm_conf.scf_nr_states,
+		  state_get(mach, i)->sd_allowed & M0_BITS(state))
    @post m0_mutex_is_locked(&mach->sm_grp->s_lock)
  */
-M0_INTERNAL int m0_sm_timeout(struct m0_sm *mach, struct m0_sm_timeout *to,
-			      m0_time_t timeout, int state);
+M0_INTERNAL int m0_sm_timeout_arm(struct m0_sm *mach, struct m0_sm_timeout *to,
+				  m0_time_t timeout, int state,
+				  uint64_t bitmask);
 /**
    Finaliser that must be called before @to can be freed.
  */

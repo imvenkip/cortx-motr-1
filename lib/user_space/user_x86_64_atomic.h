@@ -168,6 +168,12 @@ static inline bool m0_atomic64_cas(int64_t * loc, int64_t old, int64_t new)
 	return val == old;
 }
 
+static inline void m0_mb(void)
+{
+	asm volatile("mfence":::"memory");
+}
+
+
 /** @} end of atomic group */
 
 /* __MERO_LIB_USER_X86_64_ATOMIC_H__ */

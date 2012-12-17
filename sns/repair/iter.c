@@ -35,6 +35,7 @@
 #include "sns/repair/cm.h"
 #include "sns/repair/cp.h"
 #include "sns/repair/ag.h"
+#include "sns/repair/st/trigger_fom.h"
 
 /**
   @addtogroup SNSRepairCM
@@ -53,7 +54,7 @@ enum {
 	SNS_DEFAULT_POOL_WIDTH = SNS_DEFAULT_NR_DATA_UNITS +
 				 2 * SNS_DEFAULT_NR_PARITY_UNITS,
 	/*
-	 * TODO: SNS_FILE_SIZE is temporary hard coded file size used for
+	 * XXX SNS_FILE_SIZE is temporary hard coded file size used for
 	 * sns repair. Eventually this should be retrieved a part of file
 	 * attributes, once set_attr() and get_attr() interfaces are
 	 * implemented.
@@ -192,7 +193,9 @@ static ssize_t file_size(struct m0_sns_repair_cm *rcm)
 {
 	M0_PRE(rcm != NULL);
 
-	rcm->rc_it.ri_pl.rpl_fsize = rcm->rc_file_size;
+	rcm->rc_it.ri_pl.rpl_fsize = m0_trigger_file_size_get(&rcm->rc_it.
+							      ri_pl.
+							      rpl_gob_fid);
 	return 0;
 }
 
@@ -380,19 +383,30 @@ static int iter_fid_next_wait(struct m0_sns_repair_cm *rcm)
 	return fid_layout_build(rcm);
 }
 
-/*
- * Temporary variable to end the iterator after processing single file.
- * @todo Use name space iterator.
- */
-static bool iter_stop;
-static int __fid_next(const struct m0_fid *fid_curr, struct m0_fid *fid_next)
+/* Uses name space iterator. */
+static int __fid_next(struct m0_sns_repair_cm *rcm, struct m0_fid *fid_next)
 {
-	if (iter_stop)
-		return -ENOENT;
-	*fid_next = default_single_file_fid;
-	iter_stop = true;
+	int             rc;
+	struct m0_db_tx tx;
 
-	return 0;
+	rc = m0_db_tx_init(&tx, rcm->rc_base.cm_service.rs_reqh->rh_dbenv, 0);
+	if (rc != 0)
+		return rc;
+
+	rc = m0_cob_ns_iter_next(&rcm->rc_it.ri_cns_it, &tx, fid_next);
+        if (rc == 0)
+                m0_db_tx_commit(&tx);
+        else
+                m0_db_tx_abort(&tx);
+
+	/*
+	 * TODO remove this check once separate cob domains are implemented
+	 * for different services.
+	 */
+	if (fid_next->f_container > 0)
+		rc = -ENOENT;
+
+	return rc;
 }
 
 /**
@@ -402,18 +416,16 @@ static int __fid_next(const struct m0_fid *fid_curr, struct m0_fid *fid_next)
  */
 static int iter_fid_next(struct m0_sns_repair_cm *rcm)
 {
-	struct m0_fid             *fid_curr;
-	struct m0_fid              fid_next;
-	int                        rc;
+	struct m0_fid fid_next = {0, 0};
+	int           rc;
 
 	/* Get current GOB fid saved in the iterator. */
-	fid_curr = &rcm->rc_it.ri_pl.rpl_gob_fid;
-	rc = __fid_next(fid_curr, &fid_next);
+	rc = __fid_next(rcm, &fid_next);
 	if (rc == -ENOENT)
 		return -ENODATA;
 	if (rc == 0) {
 		/* Save next GOB fid in the iterator. */
-		*fid_curr = fid_next;
+		rcm->rc_it.ri_pl.rpl_gob_fid = fid_next;
 		rc = cm_layout_fetch(rcm);
 		if (rc == IT_WAIT) {
 			iter_phase_set(&rcm->rc_it, ITPH_FID_NEXT_WAIT);
@@ -627,7 +639,6 @@ static int iter_cob_next(struct m0_sns_repair_cm *rcm)
 M0_INTERNAL int iter_init(struct m0_sns_repair_cm *rcm)
 {
 	iter_phase_set(&rcm->rc_it, ITPH_FID_NEXT);
-	iter_stop = false;
 	return 0;
 }
 
@@ -793,8 +804,17 @@ static void layout_fini(struct m0_sns_repair_cm *rcm)
 
 M0_INTERNAL int m0_sns_repair_iter_init(struct m0_sns_repair_cm *rcm)
 {
-	struct m0_cm               *cm;
-	int                         rc;
+	struct m0_cm         *cm;
+	int                   rc;
+	struct m0_dbenv      *dbenv;
+	struct m0_cob_domain *cdom;
+	/*
+	 * Pick the best possible fid to initialise the namespace iter.
+	 * m0t1fs starts its fid space from {0,4}.
+	 * XXX This should be changed to {0, 0} once multiple cob domains
+	 * are added per service.
+	 */
+	struct m0_fid         gfid = {0, 4};
 
 	M0_PRE(rcm != NULL);
 
@@ -810,6 +830,10 @@ M0_INTERNAL int m0_sns_repair_iter_init(struct m0_sns_repair_cm *rcm)
 	if (rcm->rc_file_size == 0)
 		rcm->rc_file_size = SNS_FILE_SIZE_DEFAULT;
 
+        dbenv = rcm->rc_base.cm_service.rs_reqh->rh_dbenv;
+        cdom = &rcm->rc_base.cm_service.rs_reqh->rh_mdstore->md_dom;
+	rc = m0_cob_ns_iter_init(&rcm->rc_it.ri_cns_it, &gfid, dbenv, cdom);
+
 	return rc;
 }
 
@@ -817,6 +841,7 @@ M0_INTERNAL void m0_sns_repair_iter_fini(struct m0_sns_repair_cm *rcm)
 {
 	M0_PRE(rcm != NULL);
 
+	m0_cob_ns_iter_fini(&rcm->rc_it.ri_cns_it);
 	layout_fini(rcm);
 	iter_phase_set(&rcm->rc_it, ITPH_FINI);
 	m0_sm_fini(&rcm->rc_it.ri_sm);

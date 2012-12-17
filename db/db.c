@@ -827,8 +827,6 @@ static void dbenv_thread(struct m0_dbenv *env)
 		int                     rc;
 		int                     nr_pages;
 		struct m0_db_tx_waiter *w;
-		m0_time_t               deadline;
-		m0_time_t               delay;
 
 		DBENV_CALL(env, memp_trickle, 10, &nr_pages);
 		rc = DBENV_CALL(env, log_stat, &st, 0);
@@ -849,10 +847,8 @@ static void dbenv_thread(struct m0_dbenv *env)
 				}
 			} m0_tl_endfor;
 		}
-		deadline = m0_time_now();
-		m0_time_set(&delay, 1, 0);
-		deadline = m0_time_add(deadline, delay);
-		m0_cond_timedwait(&di->d_shutdown_cond, &di->d_lock, deadline);
+		m0_cond_timedwait(&di->d_shutdown_cond, &di->d_lock,
+				  m0_time_from_now(1, 0));
 		m0_mutex_unlock(&di->d_lock);
 	} while (!last);
 	M0_ASSERT(enw_tlist_is_empty(&env->d_i.d_waiters));

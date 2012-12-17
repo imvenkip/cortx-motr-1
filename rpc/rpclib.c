@@ -164,14 +164,6 @@ int m0_rpc_client_call(struct m0_fop *fop,
 	M0_ENTRY("fop: %p, session: %p", fop, session);
 	M0_PRE(fop != NULL);
 	M0_PRE(session != NULL);
-	/*
-	 * It is mandatory to specify item_ops, because rpc layer needs
-	 * implementation of m0_rpc_item_ops::rio_free() in order to free the
-	 * item. Consumer can use m0_fop_default_item_ops if, it is not
-	 * interested in implementing other (excluding ->rio_free())
-	 * interfaces of m0_rpc_item_ops. See also m0_fop_item_free().
-	 */
-	M0_PRE(ri_ops != NULL);
 
 	item                = &fop->f_item;
 	item->ri_ops        = ri_ops;

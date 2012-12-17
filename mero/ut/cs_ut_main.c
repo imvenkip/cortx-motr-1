@@ -252,6 +252,7 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 						0 /* deadline */,
 						60 /* op timeout */);
 			M0_UT_ASSERT(rc == 0);
+			m0_fop_put(fop[i]);
 		}
 		break;
 	case CS_UT_SERVICE2:
@@ -264,6 +265,7 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 						0 /* deadline */,
 						60 /* op timeout */);
 			M0_UT_ASSERT(rc == 0);
+			m0_fop_put(fop[i]);
 		}
 		break;
 	default:

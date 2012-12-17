@@ -235,8 +235,8 @@ M0_INTERNAL int m0_addb_net_add(struct m0_addb_dp *dp, struct m0_net_conn *conn)
 	}
 	m0_free(addb_record->ar_data.cmb_value);
 out:
-	m0_fop_free(request);
-	m0_fop_free(reply);
+	m0_fop_put(request);
+	m0_fop_put(reply);
 
 	return result;
 }

@@ -99,6 +99,12 @@ static inline bool m0_atomic64_cas(int64_t * loc, int64_t old, int64_t new)
 	return cmpxchg64(loc, old, new) == old;
 }
 
+static inline void m0_mb(void)
+{
+	mb();
+}
+
+
 /** @} end of atomic group */
 
 /* __MERO_LIB_LINUX_KERNEL_ATOMIC64_H__ */

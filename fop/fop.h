@@ -26,6 +26,7 @@
 #include "lib/types.h"
 #include "lib/cdefs.h"
 #include "lib/list.h"
+#include "lib/refs.h"
 #include "addb/addb.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
@@ -78,6 +79,8 @@ struct m0_fop_data {
 
 /** fop. */
 struct m0_fop {
+	struct m0_ref            f_ref;
+
 	struct m0_fop_type	*f_type;
 	/** Pointer to the data where fop is serialised or will be
 	    serialised. */
@@ -93,23 +96,69 @@ struct m0_fop {
 };
 
 /**
-   m0_fop_init() does not allocate top level fop data object.
+   Initialises fop.
+
+   'data' argument if non-null specifies address of top level data object.
+   'fop_release' is a pointer to function that will be called when last
+   reference on the fop is dropped. fop_release is expected to finalise and
+   free the fop. @see m0_fop_release.
+
+   m0_fop_init sets fop reference count to 1. The caller is expected to
+   drop the reference using m0_fop_put().
+
+   @pre fop != NULL && fopt != NULL && fop_release != NULL
+   @post m0_ref_read(&fop->f_ref) == 1
 
    @see m0_fop_data_alloc()
  */
 M0_INTERNAL void m0_fop_init(struct m0_fop *fop, struct m0_fop_type *fopt,
-			     void *data);
+			     void *data, void (*fop_release)(struct m0_ref *));
+
+/**
+ * Finalises fop.
+ *
+ * Very likely you want to use m0_fop_put().
+ *
+ * Use this only when you're sure that there are no other references on the fop
+ * other than the one you're holding. e.g. the fop is embedded in some other
+ * object and because of some error there is a need to finalise fop even before
+ * it is posted to RPC.
+ *
+ * @pre M0_IN(m0_ref_read(&fop->f_ref), (0, 1))
+ * @see m0_fop_put
+ */
 M0_INTERNAL void m0_fop_fini(struct m0_fop *fop);
 
 /**
-   Allocate fop object
+ * Takes a reference on the fop.
+ * @pre m0_ref_read(&fop->f_ref) > 0
+ */
+struct m0_fop *m0_fop_get(struct m0_fop *fop);
+
+/**
+ * Drops reference on the fop.
+ * If it was last reference the fop will be finalised and freed.
+ * Do not touch fop after call the this function.
+ * @pre m0_ref_read(&fop->f_ref) > 0
+ */
+void m0_fop_put(struct m0_fop *fop);
+
+/**
+   Allocates and initialises fop object
 
    @param fopt fop type to assign to this fop object
    @param data top level data object
    if data == NULL, data is allocated by this function
+
+   @post ergo(result != NULL, m0_ref_read(&result->f_ref) == 1)
  */
 struct m0_fop *m0_fop_alloc(struct m0_fop_type *fopt, void *data);
-M0_INTERNAL void m0_fop_free(struct m0_fop *fop);
+
+/**
+ * Default implementation of fop_release that can be passed to
+ * m0_fop_init() when fop is not embedded in any other object.
+ */
+M0_INTERNAL void m0_fop_release(struct m0_ref *ref);
 void *m0_fop_data(struct m0_fop *fop);
 
 /**
@@ -128,14 +177,14 @@ uint32_t m0_fop_opcode(const struct m0_fop *fop);
 M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type
     (const struct m0_rpc_item_type *rit);
 
-/**
-   Default implementation of m0_rpc_item_ops::rio_free() interface, for
-   fops. If fop is not embeded in any other object, then this routine
-   can be set to m0_rpc_item::ri_ops::rio_free().
- */
-void m0_fop_item_free(struct m0_rpc_item *item);
+#define M0_FOP_DEFAULT_ITEM_TYPE_OPS \
+	.rito_encode       = m0_fop_item_type_default_encode,      \
+	.rito_decode       = m0_fop_item_type_default_decode,      \
+	.rito_payload_size = m0_fop_item_type_default_payload_size,\
+	.rito_item_get     = m0_fop_item_get,                      \
+	.rito_item_put     = m0_fop_item_put
 
-extern const struct m0_rpc_item_ops m0_fop_default_item_ops;
+extern const struct m0_rpc_item_type_ops m0_fop_default_item_type_ops;
 
 /**
    <b>Fop format</b>
@@ -174,8 +223,6 @@ extern const struct m0_rpc_item_ops m0_fop_default_item_ops;
 
    @see xcode/ff2c/ff2c
 */
-
-extern const struct m0_rpc_item_type_ops m0_rpc_fop_default_item_type_ops;
 
 /**
    Type of a file system operation.

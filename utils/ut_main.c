@@ -27,6 +27,7 @@
 #include "lib/thread.h"    /* LAMBDA */
 #include "lib/getopts.h"
 #include "lib/finject.h"   /* m0_fi_print_info */
+#include "lib/atomic.h"
 #include "utils/common.h"
 
 /* sort test suites in alphabetic order */
@@ -45,7 +46,6 @@ extern const struct m0_test_suite m0_net_lnet_ut;
 extern const struct m0_test_suite m0_net_test_ut;
 extern const struct m0_test_suite m0_net_tm_prov_ut;
 extern const struct m0_test_suite capa_ut;
-extern const struct m0_test_suite cfm_ut;
 extern const struct m0_test_suite cm_cp_ut;
 extern const struct m0_test_suite cm_generic_ut;
 extern const struct m0_test_suite cob_ut;
@@ -103,7 +103,6 @@ void add_uts(void)
 	m0_ut_add(&m0_net_test_ut);
 	m0_ut_add(&m0_net_tm_prov_ut);
 	m0_ut_add(&capa_ut);
-	m0_ut_add(&cfm_ut);
 	m0_ut_add(&cm_cp_ut);
 	m0_ut_add(&cm_generic_ut);
 	m0_ut_add(&cob_ut);

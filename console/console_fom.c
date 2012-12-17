@@ -77,7 +77,7 @@ static int cons_fop_fom_create(struct m0_fop *fop, struct m0_fom **m)
 
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &m0_cons_fom_device_ops,
 		    fop, rep_fop);
-
+	m0_fop_put(rep_fop);
         *m = fom;
         return 0;
 }

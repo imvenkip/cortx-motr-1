@@ -78,8 +78,6 @@ static void fom_fini(struct m0_local_service *service, struct m0_fom *fom)
 {
         if (error == 0)
                 error = m0_fom_rc(fom);
-        m0_fop_free(fom->fo_fop);
-        m0_fop_free(fom->fo_rep_fop);
         signal_locked();
 }
 
@@ -208,6 +206,7 @@ again:
 
                 M0_ASSERT(result == 0);
                 m0_reqh_fop_handle(&reqh, fop);
+		m0_fop_put(fop);
         }
         close(fd);
 

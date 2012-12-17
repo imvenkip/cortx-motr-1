@@ -1,7 +1,13 @@
-EXTRA_DIST += scripts/MountWithLocalServers.sh \
+EXTRA_DIST += scripts/bloatmeter \
+              scripts/branchmeter.sh \
               scripts/check-include-guards \
               scripts/check-public-api \
               scripts/check-xlibri-traces \
+              scripts/gcov_stats_genhtml.sh \
+              scripts/gen-src-skel \
               scripts/m0 \
               scripts/m0mount.sh \
-              scripts/modload
+              scripts/mero_build_test.sh \
+              scripts/modload \
+              scripts/print-elf-sizes \
+              scripts/process_lcov.sh

@@ -40,8 +40,6 @@ M0_TL_DESCR_DECLARE(rpcitem, M0_EXTERN);
 M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
 M0_TL_DECLARE(rpcitem, M0_INTERNAL, struct m0_rpc_item);
 
-M0_INTERNAL void m0_io_item_free(struct m0_rpc_item *item);
-
 static struct m0_fid *io_fop_fid_get(struct m0_fop *fop);
 
 static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
@@ -52,7 +50,6 @@ static void io_fop_desc_get (struct m0_fop *fop, struct m0_net_buf_desc **desc);
 static int  io_fop_coalesce (struct m0_fop *res_fop, uint64_t size);
 static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
 			     uint64_t size);
-static void cob_rpcitem_free(struct m0_rpc_item *item);
 
 /* ADDB context for ioservice. */
 static struct m0_addb_ctx bulkclient_addb;
@@ -95,32 +92,17 @@ static struct m0_fop_type *ioservice_fops[] = {
 /* Used for IO REQUEST items only. */
 const struct m0_rpc_item_ops io_req_rpc_item_ops = {
 	.rio_replied	= io_item_replied,
-	.rio_free	= m0_io_item_free,
 };
 
 static const struct m0_rpc_item_type_ops io_item_type_ops = {
-        .rito_payload_size   = m0_fop_item_type_default_payload_size,
+	M0_FOP_DEFAULT_ITEM_TYPE_OPS,
         .rito_io_coalesce    = item_io_coalesce,
-        .rito_encode	     = m0_fop_item_type_default_encode,
-        .rito_decode	     = m0_fop_item_type_default_decode,
 };
 
 const struct m0_fop_type_ops io_fop_rwv_ops = {
 	.fto_fop_replied = io_fop_replied,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
-};
-
-/* Used for cob_create and cob_delete fops on client side */
-const struct m0_rpc_item_ops cob_req_rpc_item_ops = {
-	.rio_free = cob_rpcitem_free,
-};
-
-static const struct m0_rpc_item_type_ops cob_rpc_type_ops = {
-	.rito_payload_size   = m0_fop_item_type_default_payload_size,
-	.rito_io_coalesce    = NULL,
-	.rito_encode         = m0_fop_item_type_default_encode,
-	.rito_decode	     = m0_fop_item_type_default_decode,
 };
 
 M0_INTERNAL void m0_ioservice_fop_fini(void)
@@ -201,8 +183,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .fom_ops   = &cob_fom_type_ops,
 				 .svc_type  = &m0_ios_type,
 #endif
-				 .sm        = &m0_generic_conf,
-				 .rpc_ops   = &cob_rpc_type_ops) ?:
+				 .sm        = &m0_generic_conf) ?:
 		M0_FOP_TYPE_INIT(&m0_fop_cob_delete_fopt,
 				 .name      = "Cob delete request",
 				 .opcode    = M0_IOSERVICE_COB_DELETE_OPCODE,
@@ -212,21 +193,18 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .fom_ops   = &cob_fom_type_ops,
 				 .svc_type  = &m0_ios_type,
 #endif
-				 .sm        = &m0_generic_conf,
-				 .rpc_ops   = &cob_rpc_type_ops) ?:
+				 .sm        = &m0_generic_conf) ?:
 		M0_FOP_TYPE_INIT(&m0_fop_cob_op_reply_fopt,
 				 .name      = "Cob create or delete reply",
 				 .opcode    =  M0_IOSERVICE_COB_OP_REPLY_OPCODE,
 				 .xt        = m0_fop_cob_op_reply_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
-				 .rpc_ops   = &cob_rpc_type_ops)?:
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
 		M0_FOP_TYPE_INIT(&m0_fop_fv_notification_fopt,
 				 .name      = "Failure vector update notification",
 				 .opcode    = M0_IOSERVICE_FV_NOTIFICATION_OPCODE,
 				 .xt        = m0_fop_fv_notification_xc,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-					      M0_RPC_ITEM_TYPE_ONEWAY,
-				 .rpc_ops   = &cob_rpc_type_ops);
+					      M0_RPC_ITEM_TYPE_ONEWAY);
 
 
 }
@@ -565,14 +543,16 @@ static bool io_fop_invariant(struct m0_io_fop *iofop)
 }
 
 M0_INTERNAL int m0_io_fop_init(struct m0_io_fop *iofop,
-			       struct m0_fop_type *ftype)
+			       struct m0_fop_type *ftype,
+			       void (*fop_release)(struct m0_ref *))
 {
 	int rc;
 
 	M0_PRE(iofop != NULL);
 	M0_PRE(ftype != NULL);
 
-	m0_fop_init(&iofop->if_fop, ftype, NULL);
+	m0_fop_init(&iofop->if_fop, ftype, NULL,
+		    fop_release ?: m0_io_fop_release);
 	rc = m0_fop_data_alloc(&iofop->if_fop);
 	if (rc == 0) {
 		iofop->if_fop.f_item.ri_ops = &io_req_rpc_item_ops;
@@ -1198,7 +1178,7 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 	if (cfop == NULL)
 		return -ENOMEM;
 
-	rc = m0_io_fop_init(cfop, res_fop->f_type);
+	rc = m0_io_fop_init(cfop, res_fop->f_type, NULL);
 	if (rc != 0) {
 		m0_free(cfop);
 		return rc;
@@ -1378,18 +1358,6 @@ static void io_fop_desc_get(struct m0_fop *fop, struct m0_net_buf_desc **desc)
 	*desc = rw->crw_desc.id_descs;
 }
 
-static void cob_rpcitem_free(struct m0_rpc_item *item)
-{
-	struct m0_fop              *fop;
-
-	M0_PRE(item != NULL);
-
-	fop = m0_rpc_item_to_fop(item);
-	M0_ASSERT(m0_is_cob_create_delete_fop(fop));
-
-	m0_fop_free(fop);
-}
-
 /* Rpc item ops for IO operations. */
 static void io_item_replied(struct m0_rpc_item *item)
 {
@@ -1546,34 +1514,15 @@ M0_INTERNAL m0_bcount_t m0_io_fop_byte_count(struct m0_io_fop *iofop)
 	return count;
 }
 
-static void io_fop_free_internal(struct m0_rpc_item *item)
+M0_INTERNAL void m0_io_fop_release(struct m0_ref *ref)
 {
-	struct m0_fop    *fop;
-	struct m0_io_fop *iofop;
+        struct m0_io_fop *iofop;
+        struct m0_fop    *fop;
 
-	M0_PRE(item != NULL);
-
-	fop = m0_rpc_item_to_fop(item);
-	iofop = container_of(fop, struct m0_io_fop, if_fop);
-	m0_io_fop_fini(iofop);
-}
-
-/*
- * From bulk client side, IO REQUEST fops are typically bundled in
- * struct m0_io_fop. So m0_io_fop is deallocated from here.
- */
-M0_INTERNAL void m0_io_item_free(struct m0_rpc_item *item)
-{
-	struct m0_rpc_item *ri;
-
-	M0_PRE(item != NULL);
-
-	m0_tl_for (rpcitem, &item->ri_compound_items, ri) {
-		rpcitem_tlist_del(ri);
-		io_fop_free_internal(ri);
-	} m0_tl_endfor;
-
-	io_fop_free_internal(item);
+        fop   = container_of(ref, struct m0_fop, f_ref);
+        iofop = container_of(fop, struct m0_io_fop, if_fop);
+        m0_io_fop_fini(iofop);
+        m0_free(iofop);
 }
 
 /*

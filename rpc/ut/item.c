@@ -114,6 +114,7 @@ static void test_simple_transitions(void)
 	m0_rpc_machine_get_stats(machine, &stats, true);
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_sent_items) &&
 		     IS_INCR_BY_1(nr_rcvd_items));
+	m0_fop_put(fop);
 	M0_LOG(M0_DEBUG, "TEST:1:END");
 }
 
@@ -142,6 +143,7 @@ static void test_timeout(void)
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_dropped_items) &&
 		     IS_INCR_BY_1(nr_timedout_items) &&
 		     IS_INCR_BY_1(nr_failed_items));
+	m0_fop_put(fop);
 	M0_LOG(M0_DEBUG, "TEST:2:END");
 }
 
@@ -205,6 +207,7 @@ static int __test(void)
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
 	m0_rpc_machine_get_stats(machine, &stats, false);
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_failed_items));
+	m0_fop_put(fop);
 	return rc;
 }
 

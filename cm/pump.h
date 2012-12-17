@@ -92,6 +92,7 @@ M0_INTERNAL void m0_cm_cp_pump_stop(struct m0_cm *cm);
  */
 M0_INTERNAL void m0_cm_cp_pump_wakeup(struct m0_cm *cm);
 
+M0_INTERNAL bool m0_cm_cp_pump_is_complete(const struct m0_cm_cp_pump *cp_pump);
 /** @} endgroup CM */
 
 /* __MERO_CM_PUMP_H__ */

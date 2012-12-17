@@ -119,7 +119,7 @@ static void linux_domain_fini(struct m0_stob_domain *self)
 
    @note the domain returned is ready for use, but m0_linux_stob_setup() can be
    called against it in order to customize some configuration options (currently
-   there is only one such option: "use_directio" flag).
+   there is only one such option: "sdl_use_directio" flag).
  */
 static int linux_stob_type_domain_locate(struct m0_stob_type *type,
 					 const char *domain_name,
@@ -144,7 +144,7 @@ static int linux_stob_type_domain_locate(struct m0_stob_type *type,
 			*out = dom;
 		else
 			linux_domain_fini(dom);
-		ldom->use_directio = false;
+		ldom->sdl_use_directio = false;
 		dom->sd_name = ldom->sdl_path;
 	} else {
 		M0_ADDB_ADD(&type->st_addb,
@@ -161,8 +161,8 @@ M0_INTERNAL int m0_linux_stob_setup(struct m0_stob_domain *dom,
 
 	ldom = domain2linux(dom);
 
-	ldom->linux_setup = true;
-	ldom->use_directio = use_directio;
+	ldom->sdl_linux_setup  = true;
+	ldom->sdl_use_directio = use_directio;
 
 	return 0;
 }
@@ -305,7 +305,7 @@ static int linux_stob_create(struct m0_stob *obj, struct m0_dtx *tx)
 	struct linux_domain *ldom;
 
 	ldom  = domain2linux(obj->so_domain);
-	if (ldom->use_directio)
+	if (ldom->sdl_use_directio)
 		oflags |= O_DIRECT;
 
 	return linux_stob_open(stob2linux(obj), oflags);
@@ -320,7 +320,7 @@ static int linux_stob_locate(struct m0_stob *obj, struct m0_dtx *tx)
 	struct linux_domain *ldom;
 
 	ldom  = domain2linux(obj->so_domain);
-	if (ldom->use_directio)
+	if (ldom->sdl_use_directio)
 		oflags |= O_DIRECT;
 
 	return linux_stob_open(stob2linux(obj), oflags);
@@ -336,7 +336,6 @@ static const struct m0_stob_domain_op linux_stob_domain_op = {
 	.sdo_fini        = linux_domain_fini,
 	.sdo_stob_find   = linux_domain_stob_find,
 	.sdo_tx_make     = linux_domain_tx_make,
-	.sdo_block_shift = linux_stob_domain_block_shift
 };
 
 static const struct m0_stob_op linux_stob_op = {
@@ -344,9 +343,6 @@ static const struct m0_stob_op linux_stob_op = {
 	.sop_create       = linux_stob_create,
 	.sop_locate       = linux_stob_locate,
 	.sop_io_init      = linux_stob_io_init,
-	.sop_io_lock      = linux_stob_io_lock,
-	.sop_io_unlock    = linux_stob_io_unlock,
-	.sop_io_is_locked = linux_stob_io_is_locked,
 	.sop_block_shift  = linux_stob_block_shift
 };
 

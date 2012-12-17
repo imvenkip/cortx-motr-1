@@ -63,20 +63,15 @@ M0_INTERNAL void m0_rpc_session_fop_fini(void);
    m0_rpc_fom_conn_establish_state() can find out sender's endpoint, while
    initialising receiver side m0_rpc_conn object.
 
-   Just before calling m0_rpc_item_received(), rpc_net_buf_received(), sets
-   cec_sender_ep, by using m0_net_buffer::nb_ep attribute.
+   item_received() calls m0_rpc_fop_conn_establish_ctx_init() to
+   initialise cec_fop and cec_sender_ep.
  */
-struct m0_rpc_fop_conn_establish_ctx
-{
+struct m0_rpc_fop_conn_establish_ctx {
 	/** fop instance of type m0_rpc_fop_conn_establish_fopt */
 	struct m0_fop            cec_fop;
 
 	/** end point of sender, who has sent the conn_establish request fop */
 	struct m0_net_end_point *cec_sender_ep;
-
-	/** New rpc connection needs to be established in context of this
-	    rpc_machine */
-	struct m0_rpc_machine   *cec_rpc_machine;
 };
 
 /* __MERO_RPC_SESSION_FOPS_H__ */

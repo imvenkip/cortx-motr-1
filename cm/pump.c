@@ -188,17 +188,10 @@ static int cpp_nobufs(struct m0_cm_cp_pump *cp_pump)
 
 static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 {
-	int rc;
-
-	if (cp_pump->p_shutdown) {
+	if (cp_pump->p_shutdown)
 		pump_move(cp_pump, 0, CPP_FINI);
-		rc = M0_FSO_WAIT;
-	} else {
-		pump_move(cp_pump, 0, CPP_ALLOC);
-		rc = M0_FSO_AGAIN;
-	}
 
-	return rc;
+	return M0_FSO_WAIT;
 }
 
 static int cpp_fail(struct m0_cm_cp_pump *cp_pump)
@@ -295,6 +288,10 @@ static const struct m0_fom_ops cm_cp_pump_fom_ops = {
 	.fo_home_locality = cm_cp_pump_fom_locality
 };
 
+bool m0_cm_cp_pump_is_complete(const struct m0_cm_cp_pump *cp_pump)
+{
+	return m0_fom_phase(&cp_pump->p_fom) == CPP_COMPLETE;
+}
 
 static bool pump_is_idle(const struct m0_cm_cp_pump *cp_pump)
 {

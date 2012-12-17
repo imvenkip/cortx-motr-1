@@ -30,6 +30,7 @@
 #include "lib/assert.h"            /* M0_ASSERT */
 #include "lib/thread.h"            /* LAMBDA */
 #include "lib/memory.h"            /* m0_allocated */
+#include "lib/atomic.h"
 #include "lib/ut.h"
 
 /**
@@ -172,6 +173,7 @@ static void ut_suite_stop_cbk(const CU_pSuite pSuite,
 	}
 
 	printf("\n  Leaked: %.2f %s  %s", sign * leaked, units, notice);
+
 }
 
 static void ut_set_suite_start_stop_cbk(void)

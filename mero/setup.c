@@ -23,6 +23,9 @@
 #include <sys/types.h> /* mkdir */
 #include <string.h>    /* strtok_r, strcmp */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_OTHER
+#include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -50,27 +53,27 @@
  */
 
 static const struct m0_addb_loc cs_addb_loc = {
-        .al_name = "Mero setup"
+	.al_name = "Mero setup"
 };
 
 static const struct m0_addb_ctx_type cs_addb_ctx_type = {
-        .act_name = "Mero setup"
+	.act_name = "Mero setup"
 };
 
 M0_ADDB_EV_DEFINE(arg_fail, "argument_failure",
-                  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
+		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 M0_ADDB_EV_DEFINE(setup_fail, "setup_failure",
-                  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
+		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 M0_ADDB_EV_DEFINE(storage_init_fail, "storage_init_failure",
-                  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
+		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 M0_ADDB_EV_DEFINE(endpoint_init_fail, "endpoint_init_failure",
-                  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
+		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 M0_ADDB_EV_DEFINE(service_init_fail, "service_init_failure",
-                  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
+		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 M0_ADDB_EV_DEFINE(rpc_init_fail, "rpc_init_failure",
-                  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
+		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 M0_ADDB_EV_DEFINE(reqh_init_fail, "reqh_int_failure",
-                  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
+		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 
 /**
    Represents cob domain id, it is incremented for every new cob domain.
@@ -163,14 +166,14 @@ static struct m0_net_xprt *cs_xprt_lookup(const char *xprt_name,
 					  struct m0_net_xprt **xprts,
 					  size_t xprts_nr)
 {
-        size_t i;
+	size_t i;
 
 	M0_PRE(xprt_name != NULL && xprts != NULL && xprts_nr > 0);
 
-        for (i = 0; i < xprts_nr; ++i)
-                if (strcmp(xprt_name, xprts[i]->nx_name) == 0)
-                        return xprts[i];
-        return NULL;
+	for (i = 0; i < xprts_nr; ++i)
+		if (strcmp(xprt_name, xprts[i]->nx_name) == 0)
+			return xprts[i];
+	return NULL;
 }
 
 /**
@@ -178,13 +181,13 @@ static struct m0_net_xprt *cs_xprt_lookup(const char *xprt_name,
  */
 static void cs_xprts_list(FILE *out, struct m0_net_xprt **xprts, size_t xprts_nr)
 {
-        int i;
+	int i;
 
 	M0_PRE(out != NULL && xprts != NULL);
 
-        fprintf(out, "\nSupported transports:\n");
-        for (i = 0; i < xprts_nr; ++i)
-                fprintf(out, " %s\n", xprts[i]->nx_name);
+	fprintf(out, "\nSupported transports:\n");
+	for (i = 0; i < xprts_nr; ++i)
+		fprintf(out, " %s\n", xprts[i]->nx_name);
 }
 
 /**
@@ -242,7 +245,7 @@ static bool cs_endpoint_is_duplicate(struct m0_mero *cctx,
 		m0_tl_for(cs_eps, &rctx->rc_eps, ep_xprt) {
 			M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep_xprt));
 			if (strcmp(xprt->nx_name, "lnet") == 0) {
-				if(m0_net_lnet_ep_addr_net_cmp(
+				if (m0_net_lnet_ep_addr_net_cmp(
 					ep_xprt->ex_endpoint, ep) == 0 &&
 				   strcmp(ep_xprt->ex_xprt, xprt->nx_name) == 0)
 					++cnt;
@@ -277,20 +280,16 @@ static bool cs_endpoint_is_duplicate(struct m0_mero *cctx,
 static int cs_endpoint_validate(struct m0_mero *cctx, const char *ep,
 				const char *xprt_name)
 {
-	int                 rc;
 	struct m0_net_xprt *xprt;
 
+	M0_ENTRY();
 	M0_PRE(cctx != NULL && ep != NULL && xprt_name != NULL);
 
-	rc = 0;
 	xprt = cs_xprt_lookup(xprt_name, cctx->cc_xprts, cctx->cc_xprts_nr);
 	if (xprt == NULL)
-		rc = -EINVAL;
+		M0_RETURN(-EINVAL);
 
-	if (rc == 0 && cs_endpoint_is_duplicate(cctx, xprt, ep))
-		rc = -EADDRINUSE;
-
-	return rc;
+	M0_RETURN(cs_endpoint_is_duplicate(cctx, xprt, ep) ? -EADDRINUSE : 0);
 }
 
 /**
@@ -298,16 +297,13 @@ static int cs_endpoint_validate(struct m0_mero *cctx, const char *ep,
    mero endpoint.
    Mero endpoint is of 2 parts network xprt:network endpoint.
  */
-static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
-			   struct cs_endpoint_and_xprt **ep_xprt)
+static int ep_and_xprt_append(struct cs_reqh_context *rctx, const char *ep)
 {
-	int                          rc = 0;
-	int                          ep_len = min32u(strlen(ep) + 1,
-						     CS_MAX_EP_ADDR_LEN);
 	char                        *sptr;
 	struct cs_endpoint_and_xprt *epx;
 	char                        *endpoint;
 	struct m0_addb_ctx          *addb;
+	int ep_len = min32u(strlen(ep) + 1, CS_MAX_EP_ADDR_LEN);
 
 	M0_PRE(ep != NULL);
 
@@ -316,34 +312,30 @@ static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
 	if (epx == NULL)
 		return -ENOMEM;
 	epx->ex_cep = ep;
+
 	M0_ALLOC_ARR_ADDB(epx->ex_scrbuf, ep_len, addb, &cs_addb_loc);
 	if (epx->ex_scrbuf == NULL) {
 		m0_free(epx);
 		return -ENOMEM;
 	}
+
 	strncpy(epx->ex_scrbuf, ep, ep_len);
 	epx->ex_xprt = strtok_r(epx->ex_scrbuf, ":", &sptr);
 	if (epx->ex_xprt == NULL)
-		rc = -EINVAL;
-	else {
-		endpoint = strtok_r(NULL , "\0", &sptr);
-		if (endpoint == NULL)
-			rc = -EINVAL;
-		else {
-			epx->ex_endpoint = endpoint;
-			cs_endpoint_and_xprt_bob_init(epx);
-			cs_eps_tlink_init_at_tail(epx, &rctx->rc_eps);
-			*ep_xprt = epx;
-		}
-	}
+		goto err;
 
-	if (rc != 0) {
-		m0_free(epx->ex_scrbuf);
-		m0_free(epx);
-		*ep_xprt = NULL;
-	}
+	endpoint = strtok_r(NULL, "\0", &sptr);
+	if (endpoint == NULL)
+		goto err;
 
-	return rc;
+	epx->ex_endpoint = endpoint;
+	cs_endpoint_and_xprt_bob_init(epx);
+	cs_eps_tlink_init_at_tail(epx, &rctx->rc_eps);
+	return 0;
+err:
+	m0_free(epx->ex_scrbuf);
+	m0_free(epx);
+	return -EINVAL;
 }
 
 /**
@@ -385,32 +377,29 @@ static struct cs_reqh_context *cs_reqh_ctx_alloc(struct m0_mero *cctx)
 
 	M0_ALLOC_PTR_ADDB(rctx, &cctx->cc_addb, &cs_addb_loc);
 	if (rctx == NULL)
-		goto out;
+		return NULL;
 
 	rctx->rc_max_services = m0_reqh_service_types_length();
 	if (rctx->rc_max_services == 0) {
 		M0_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc, service_init_fail,
 			    "No services available", -ENOENT);
-		goto cleanup_rctx;
+		goto err;
 	}
 
 	M0_ALLOC_ARR_ADDB(rctx->rc_services, rctx->rc_max_services,
-					&cctx->cc_addb, &cs_addb_loc);
+			  &cctx->cc_addb, &cs_addb_loc);
 	if (rctx->rc_services == NULL)
-		goto cleanup_rctx;
+		goto err;
 
 	cs_reqh_context_bob_init(rctx);
 	cs_eps_tlist_init(&rctx->rc_eps);
 	rhctx_tlink_init_at_tail(rctx, &cctx->cc_reqh_ctxs);
 	rctx->rc_mero = cctx;
 
-	goto out;
-
-cleanup_rctx:
-	m0_free(rctx);
-	rctx = NULL;
-out:
 	return rctx;
+err:
+	m0_free(rctx);
+	return NULL;
 }
 
 static void cs_reqh_ctx_free(struct cs_reqh_context *rctx)
@@ -548,7 +537,7 @@ static int cs_rpc_machines_init(struct m0_mero *cctx)
 	M0_PRE(cctx != NULL);
 
 	ofd = cctx->cc_outfile;
-        m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
 		M0_ASSERT(cs_reqh_context_invariant(rctx));
 		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
 			M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
@@ -597,19 +586,18 @@ static uint32_t cs_domain_tms_nr(struct m0_mero *cctx,
 {
 	struct cs_reqh_context      *rctx;
 	struct cs_endpoint_and_xprt *ep;
-        uint32_t		     cnt = 0;
+	uint32_t                     cnt = 0;
 
 	M0_PRE(cctx != NULL);
 
 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
 		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
-			if(strcmp(ep->ex_xprt, dom->nd_xprt->nx_name) == 0)
+			if (strcmp(ep->ex_xprt, dom->nd_xprt->nx_name) == 0)
 				ep->ex_tm_colour = cnt++;
 		} m0_tl_endfor;
 	} m0_tl_endfor;
 
 	M0_POST(cnt > 0);
-
 	return cnt;
 }
 
@@ -620,16 +608,16 @@ static uint32_t cs_domain_tms_nr(struct m0_mero *cctx,
 static uint32_t cs_dom_tm_min_recv_queue_total(struct m0_mero *cctx,
 					       struct m0_net_domain *dom)
 {
-	struct cs_reqh_context	    *rctx;
+	struct cs_reqh_context      *rctx;
 	struct cs_endpoint_and_xprt *ep;
-	uint32_t		     min_queue_len_total = 0;
+	uint32_t                     min_queue_len_total = 0;
 
 	M0_PRE(cctx != NULL);
 
 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
 		M0_ASSERT(cs_reqh_context_bob_check(rctx));
 		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
-			if(strcmp(ep->ex_xprt, dom->nd_xprt->nx_name) == 0)
+			if (strcmp(ep->ex_xprt, dom->nd_xprt->nx_name) == 0)
 				min_queue_len_total +=
 					rctx->rc_recv_queue_min_length;
 		} m0_tl_endfor;
@@ -644,7 +632,7 @@ static void cs_buffer_pool_fini(struct m0_mero *cctx)
 	M0_PRE(cctx != NULL);
 
 	m0_tl_for(cs_buffer_pools, &cctx->cc_buffer_pools, cs_bp) {
-                cs_buffer_pools_tlink_del_fini(cs_bp);
+		cs_buffer_pools_tlink_del_fini(cs_bp);
 		m0_net_buffer_pool_fini(&cs_bp->cs_buffer_pool);
 		m0_free(cs_bp);
 	} m0_tl_endfor;
@@ -652,12 +640,12 @@ static void cs_buffer_pool_fini(struct m0_mero *cctx)
 
 static int cs_buffer_pool_setup(struct m0_mero *cctx)
 {
-	int		          rc = 0;
-	struct m0_net_domain     *dom;
-	struct cs_buffer_pool    *cs_bp;
-	uint32_t		  tms_nr;
-	uint32_t		  bufs_nr;
-	uint32_t                  max_recv_queue_len;
+	int                    rc = 0;
+	struct m0_net_domain  *dom;
+	struct cs_buffer_pool *cs_bp;
+	uint32_t               tms_nr;
+	uint32_t               bufs_nr;
+	uint32_t               max_recv_queue_len;
 
 	M0_PRE(cctx != NULL);
 
@@ -730,30 +718,30 @@ static const char *stob_file_path_get(yaml_document_t *doc, yaml_node_t *node)
 static int cs_stob_file_load(const char *dfile, struct cs_stobs *stob,
 			     struct m0_addb_ctx *addb)
 {
-        int               rc;
-        FILE             *f;
+	int               rc;
+	FILE             *f;
 	yaml_parser_t     parser;
 	yaml_document_t  *document;
 
-        f = fopen(dfile, "r");
-        if (f == NULL)
-                return -EINVAL;
-
-	document = &stob->s_sfile.sf_document;
-        rc = yaml_parser_initialize(&parser);
-        if (rc != 1)
+	f = fopen(dfile, "r");
+	if (f == NULL)
 		return -EINVAL;
 
-        yaml_parser_set_input_file(&parser, f);
-        rc = yaml_parser_load(&parser, document);
-        if (rc != 1)
-                return -EINVAL;
+	document = &stob->s_sfile.sf_document;
+	rc = yaml_parser_initialize(&parser);
+	if (rc != 1)
+		return -EINVAL;
+
+	yaml_parser_set_input_file(&parser, f);
+	rc = yaml_parser_load(&parser, document);
+	if (rc != 1)
+		return -EINVAL;
 
 	stob->s_sfile.sf_is_initialised = true;
 	yaml_parser_delete(&parser);
 
 	fclose(f);
-        return 0;
+	return 0;
 }
 
 static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
@@ -772,7 +760,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	if (adstob == NULL)
 		return -ENOMEM;
 
-        tx = &stob->s_tx;
+	tx = &stob->s_tx;
 	bstob = &adstob->as_stob_back;
 	bstob_id = &adstob->as_id_back;
 	bstob_id->si_bits.u_hi = cid;
@@ -831,8 +819,8 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_dbenv *db,
 			   struct m0_addb_ctx *addb)
 {
-        int                rc;
-        int                result;
+	int                rc;
+	int                result;
 	uint64_t           cid;
 	const char        *f_path;
 	yaml_document_t   *doc;
@@ -840,7 +828,7 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_dbenv *db,
 	yaml_node_t       *s_node;
 	yaml_node_item_t  *item;
 
-        M0_PRE(stob != NULL);
+	M0_PRE(stob != NULL);
 
 	astob_tlist_init(&stob->s_adoms);
 	if (stob->s_sfile.sf_is_initialised) {
@@ -912,7 +900,7 @@ static void cs_linux_stob_fini(struct cs_stobs *stob)
 	M0_PRE(stob != NULL);
 
 	if (stob->s_ldom != NULL)
-                stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom);
+		stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom);
 }
 
 M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
@@ -971,11 +959,11 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 	sprintf(objpath, "%s%s", stob_path, objdir);
 
 	rc = mkdir(stob_path, 0700);
-        if (rc != 0 && errno != EEXIST)
+	if (rc != 0 && errno != EEXIST)
 		goto out;
 
-        rc = mkdir(objpath, 0700);
-        if (rc != 0 && errno != EEXIST)
+	rc = mkdir(objpath, 0700);
+	if (rc != 0 && errno != EEXIST)
 		goto out;
 
 	tx = &stob->s_tx;
@@ -1008,7 +996,7 @@ static void cs_storage_fini(struct cs_stobs *stob)
 	m0_dtx_done(&stob->s_tx);
 	if (strcasecmp(stob->s_stype, cs_stypes[AD_STOB]) == 0)
 		cs_ad_stob_fini(stob);
-        cs_linux_stob_fini(stob);
+	cs_linux_stob_fini(stob);
 	if (stob->s_sfile.sf_is_initialised)
 		yaml_document_delete(&stob->s_sfile.sf_document);
 }
@@ -1033,9 +1021,9 @@ static int cs_service_init(const char *service_name, struct m0_reqh *reqh)
 
 	M0_PRE(service_name != NULL && reqh != NULL);
 
-        stype = m0_reqh_service_type_find(service_name);
-        if (stype == NULL)
-                return -EINVAL;
+	stype = m0_reqh_service_type_find(service_name);
+	if (stype == NULL)
+		return -EINVAL;
 
 	rc = m0_reqh_service_allocate(stype, &service);
 	if (rc == 0) {
@@ -1063,7 +1051,7 @@ static int cs_services_init(struct m0_mero *cctx)
 
 	M0_PRE(cctx != NULL);
 
-        m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
 		M0_ASSERT(cs_reqh_context_invariant(rctx));
 		for (idx = 0; idx < rctx->rc_snr; ++idx) {
 			rc = cs_service_init(rctx->rc_services[idx],
@@ -1113,7 +1101,7 @@ static void cs_services_fini(struct m0_reqh *reqh)
 	M0_PRE(reqh != NULL);
 
 	services = &reqh->rh_services;
-        m0_tl_for(m0_reqh_svc, services, service) {
+	m0_tl_for(m0_reqh_svc, services, service) {
 		M0_ASSERT(m0_reqh_service_invariant(service));
 		cs_service_fini(service);
 	} m0_tl_endfor;
@@ -1142,7 +1130,7 @@ static int cs_net_domains_init(struct m0_mero *cctx)
 	xprts_nr = cctx->cc_xprts_nr;
 
 	ofd = cctx->cc_outfile;
-        m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
 		M0_ASSERT(cs_reqh_context_invariant(rctx));
 		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
 			M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
@@ -1272,28 +1260,29 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 	rctx->rc_cdom_id.id = ++cdom_id;
 
 	/** Mkfs cob domain before using it. */
-        if (rctx->rc_prepare_storage) {
-                /**
-                   Init mdstore without root cob init first. Now we can use its
-                   cob domain for mkfs.
-                 */
-	        rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
-	                             &rctx->rc_db, false);
-	        if (rc != 0) {
-		        M0_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
-			            "m0_mdstore_init", rc);
-		        goto cleanup_stob;
-	        }
-	        rc = cs_storage_prepare(rctx);
-	        if (rc != 0) {
-		        M0_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
-			            "cs_storage_prepare", rc);
-		        goto cleanup_mdstore;
+	if (rctx->rc_prepare_storage) {
+		/*
+		 * Init mdstore without root cob init first. Now we can use its
+		 * cob domain for mkfs.
+		 */
+		rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
+				     &rctx->rc_db, false);
+		if (rc != 0) {
+			M0_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
+				    "m0_mdstore_init", rc);
+			goto cleanup_stob;
 		}
-	        m0_mdstore_fini(&rctx->rc_mdstore);
-        }
+		rc = cs_storage_prepare(rctx);
+		if (rc != 0) {
+			M0_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
+				    "cs_storage_prepare", rc);
+			goto cleanup_mdstore;
+		}
+		m0_mdstore_fini(&rctx->rc_mdstore);
+	}
 
-	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db, true);
+	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db,
+			     true);
 	if (rc != 0) {
 		M0_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "m0_cob_domain_init", rc);
@@ -1335,7 +1324,7 @@ static int cs_request_handlers_start(struct m0_mero *cctx)
 	M0_PRE(cctx != NULL);
 
 	ofd = cctx->cc_outfile;
-        m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
 		M0_ASSERT(cs_reqh_context_invariant(rctx));
 		rc = cs_request_handler_start(rctx);
 		if (rc != 0)
@@ -1413,7 +1402,7 @@ struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx,
 	M0_PRE(service_name != NULL);
 
 	m0_rwlock_read_lock(&cctx->cc_rwlock);
-        m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
 		M0_ASSERT(cs_reqh_context_invariant(rctx));
 
 		for (idx = 0; idx < rctx->rc_snr; ++idx) {
@@ -1465,7 +1454,7 @@ static void cs_mero_init(struct m0_mero *cctx)
 
 	ndom_tlist_init(&cctx->cc_ndoms);
 	m0_bob_type_tlist_init(&ndom_bob, &ndom_tl);
-        cs_buffer_pools_tlist_init(&cctx->cc_buffer_pools);
+	cs_buffer_pools_tlist_init(&cctx->cc_buffer_pools);
 
 	m0_bob_type_tlist_init(&cs_eps_bob, &cs_eps_tl);
 
@@ -1619,19 +1608,18 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 	struct cs_endpoint_and_xprt *ep;
 	const char                  *sname;
 
+	M0_ENTRY();
 	M0_PRE(cctx != NULL);
 
 	if (cctx->cc_recv_queue_min_length < M0_NET_TM_RECV_QUEUE_DEF_LEN)
 		cctx->cc_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 
 	ofd = cctx->cc_outfile;
-        m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-                if (!reqh_ctx_args_are_valid(rctx)){
-			M0_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
-				    arg_fail,
-				    "Missing or Invalid parameters",
-				    -EINVAL);
-                        return -EINVAL;
+	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+		if (!reqh_ctx_args_are_valid(rctx)){
+			M0_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc, arg_fail,
+				    "Missing or Invalid parameters", -EINVAL);
+			M0_RETURN(-EINVAL);
 		}
 
 		if (rctx->rc_recv_queue_min_length <
@@ -1648,17 +1636,16 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 				    storage_init_fail,
 				    rctx->rc_stype, -EINVAL);
 			cs_stob_types_list(ofd);
-                        return -EINVAL;
-                }
+			M0_RETURN(-EINVAL);
+		}
 		/*
 		   Check if all the given end points in a reqh context are
 		   valid.
 		 */
 		if (cs_eps_tlist_is_empty(&rctx->rc_eps)) {
-			M0_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
-				    arg_fail,
-				    "Endpoint missing", -EINVAL);
-			return -EINVAL;
+			M0_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc, arg_fail,
+				    "Endpoint is missing", -EINVAL);
+			M0_RETURN(-EINVAL);
 		}
 
 		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
@@ -1669,7 +1656,7 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 				M0_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
 					    endpoint_init_fail,
 					    ep->ex_cep, rc);
-				return rc;
+				M0_RETURN(rc);
 			}
 		} m0_tl_endfor;
 
@@ -1681,7 +1668,7 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 			M0_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
 				    service_init_fail,
 				    "No Service specified", -EINVAL);
-			return -EINVAL;
+			M0_RETURN(-EINVAL);
 		}
 
 		for (idx = 0; idx < rctx->rc_snr; ++idx) {
@@ -1690,18 +1677,18 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 				M0_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
 					    service_init_fail,
 					    sname, -ENOENT);
-				return -ENOENT;
+				M0_RETURN(-ENOENT);
 			}
 			if (service_is_duplicate(rctx, sname)) {
 				M0_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
 					    service_init_fail,
 					    sname, -EEXIST);
-				return -EEXIST;
+				M0_RETURN(-EEXIST);
 			}
 		}
 	} m0_tl_endfor;
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 /**
@@ -1712,28 +1699,38 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
  */
 static int cs_parse_args(struct m0_mero *cctx, int argc, char **argv)
 {
-	int                     rc = 0;
 	int                     result;
 	struct cs_reqh_context *rctx = NULL;
-	FILE                   *ofd;
+	int                     rc = 0;
 
 	M0_PRE(cctx != NULL);
 
 	if (argc <= 1)
-		return -EINVAL;;
+		return -EINVAL;
 
-	ofd = cctx->cc_outfile;
+#define _RETURN_EINVAL_UNLESS(rctx)  \
+	do {                          \
+		if (rctx == NULL) {   \
+			rc = -EINVAL; \
+			return;       \
+		}                     \
+	} while (0)
+
 	result = M0_GETOPTS("m0d", argc, argv,
-			M0_VOIDARG('h', "Mero_setup usage help",
+			/* -------------------------------------------
+			 * Global options
+			 */
+			M0_VOIDARG('h', "m0d usage help",
 				LAMBDA(void, (void)
 				{
-					cs_help(ofd);
+					cs_help(cctx->cc_outfile);
 					rc = 1;
 				})),
 			M0_VOIDARG('x', "List Supported transports",
 				LAMBDA(void, (void)
 				{
-					cs_xprts_list(ofd, cctx->cc_xprts,
+					cs_xprts_list(cctx->cc_outfile,
+						      cctx->cc_xprts,
 						      cctx->cc_xprts_nr);
 					rc = 1;
 				})),
@@ -1748,15 +1745,10 @@ static int cs_parse_args(struct m0_mero *cctx, int argc, char **argv)
 				     "%i", &cctx->cc_recv_queue_min_length),
 			M0_FORMATARG('M', "Maximum RPC message size", "%i",
 				     &cctx->cc_max_rpc_msg_size),
-			M0_VOIDARG('p', "Prepare storage (root session, hierarchy root, etc)",
-				LAMBDA(void, (void)
-				{
-					if (rctx == NULL) {
-					        rc = -EINVAL;
-					        return;
-					}
-					rctx->rc_prepare_storage = 1;
-				})),
+
+			/* -------------------------------------------
+			 * Request handler options
+			 */
 			M0_VOIDARG('r', "Start request handler",
 				LAMBDA(void, (void)
 				{
@@ -1768,81 +1760,62 @@ static int cs_parse_args(struct m0_mero *cctx, int argc, char **argv)
 					}
 					rctx->rc_snr = 0;
 				})),
-			M0_STRINGARG('T', "Storage domain type",
-				LAMBDA(void, (const char *str)
+			M0_VOIDARG('p', "Prepare storage (root session,"
+				   " hierarchy root, etc)",
+				LAMBDA(void, (void)
 				{
-					if (rctx == NULL) {
-						rc = -EINVAL;
-						return;
-					}
-					rctx->rc_stype = str;
+					_RETURN_EINVAL_UNLESS(rctx);
+					rctx->rc_prepare_storage = 1;
 				})),
 			M0_STRINGARG('D', "Database environment path",
 				LAMBDA(void, (const char *str)
 				{
-					if (rctx == NULL) {
-						rc = -EINVAL;
-						return;
-					}
+					_RETURN_EINVAL_UNLESS(rctx);
 					rctx->rc_dbpath = str;
+				})),
+			M0_STRINGARG('T', "Storage domain type",
+				LAMBDA(void, (const char *str)
+				{
+					_RETURN_EINVAL_UNLESS(rctx);
+					rctx->rc_stype = str;
 				})),
 			M0_STRINGARG('S', "Storage domain name",
 				LAMBDA(void, (const char *str)
 				{
-					if (rctx == NULL) {
-						rc = -EINVAL;
-						return;
-					}
+					_RETURN_EINVAL_UNLESS(rctx);
 					rctx->rc_stpath = str;
 				})),
 			M0_STRINGARG('d', "device configuration file",
 				LAMBDA(void, (const char *str)
 				{
-					if (rctx == NULL) {
-						rc = -EINVAL;
-						return;
-					}
+					_RETURN_EINVAL_UNLESS(rctx);
 					rctx->rc_dfilepath = str;
 				})),
-			M0_STRINGARG('e',
-				     "Network endpoint, eg:- transport:address",
-			LAMBDA(void, (const char *str)
+			M0_STRINGARG('e', "Network endpoint,"
+				     " e.g. transport:address",
+				LAMBDA(void, (const char *str)
 				{
-					struct cs_endpoint_and_xprt *ep_xprt;
-					if (rctx == NULL) {
-						rc = -EINVAL;
-						return;
-					}
-					rc = ep_and_xprt_get(rctx, str,
-							     &ep_xprt);
+					_RETURN_EINVAL_UNLESS(rctx);
+					rc = ep_and_xprt_append(rctx, str);
 				})),
 			M0_NUMBERARG('q', "Minimum TM recv queue length",
 				LAMBDA(void, (int64_t length)
 				{
-					if (rctx == NULL) {
-						rc = -EINVAL;
-						return;
-					}
+					_RETURN_EINVAL_UNLESS(rctx);
 					rctx->rc_recv_queue_min_length = length;
 				})),
 			M0_NUMBERARG('m', "Maximum RPC message size",
 				LAMBDA(void, (int64_t size)
 				{
-					if (rctx == NULL) {
-						rc = -EINVAL;
-						return;
-					}
+					_RETURN_EINVAL_UNLESS(rctx);
 					rctx->rc_max_rpc_msg_size = size;
 				})),
 			M0_STRINGARG('s', "Services to be configured",
 				LAMBDA(void, (const char *str)
 				{
-					if (rctx == NULL) {
-						rc = -EINVAL;
-						return;
-					}
+					_RETURN_EINVAL_UNLESS(rctx);
 					if (rctx->rc_snr >=
-						rctx->rc_max_services) {
+					    rctx->rc_max_services) {
 						rc = -E2BIG;
 						M0_ADDB_ADD(&cctx->cc_addb,
 							    &cs_addb_loc,
@@ -1854,8 +1827,8 @@ static int cs_parse_args(struct m0_mero *cctx, int argc, char **argv)
 					rctx->rc_services[rctx->rc_snr] = str;
 					M0_CNT_INC(rctx->rc_snr);
 				})));
-
-        return result ?: rc;
+#undef _RETURN_EINVAL_UNLESS
+	return result ?: rc;
 }
 
 M0_INTERNAL int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
@@ -1877,8 +1850,7 @@ M0_INTERNAL int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
 
 	if (rc < 0) {
-		M0_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
-			    setup_fail,
+		M0_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc, setup_fail,
 			    "m0_cs_setup_env", rc);
 		cs_usage(cctx->cc_outfile);
 	}
@@ -1903,12 +1875,12 @@ M0_INTERNAL int m0_cs_start(struct m0_mero *cctx)
 M0_INTERNAL int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
 			   size_t xprts_nr, FILE * out)
 {
-        M0_PRE(cctx != NULL && xprts != NULL && xprts_nr > 0 && out != NULL);
+	M0_PRE(cctx != NULL && xprts != NULL && xprts_nr > 0 && out != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
 		return -EINVAL;
 
-        cctx->cc_xprts = xprts;
+	cctx->cc_xprts = xprts;
 	cctx->cc_xprts_nr = xprts_nr;
 	cctx->cc_outfile = out;
 	cs_mero_init(cctx);
@@ -1920,13 +1892,15 @@ M0_INTERNAL void m0_cs_fini(struct m0_mero *cctx)
 {
 	M0_PRE(cctx != NULL);
 
-        cs_request_handlers_stop(cctx);
+	cs_request_handlers_stop(cctx);
 	cs_buffer_pool_fini(cctx);
 	cs_net_domains_fini(cctx);
-        cs_mero_fini(cctx);
+	cs_mero_fini(cctx);
 }
 
 /** @} endgroup m0d */
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

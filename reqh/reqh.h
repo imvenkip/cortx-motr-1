@@ -280,8 +280,6 @@ M0_TL_DECLARE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
      }
      @endcode
 
-     For more details please refer to @ref m0_cobfid_map_get() and
-     @ref m0_cobfid_map_put() interfaces in ioservice/cobfid_map.c.
  */
 /** @{ reqhkey */
 

@@ -278,6 +278,7 @@ static void frm_insert(struct m0_rpc_frm *frm, struct m0_rpc_item *item)
 	qtype = frm_which_qtype(frm, item);
 	q     = &frm->f_itemq[qtype];
 
+	m0_rpc_item_get(item);
 	__itemq_insert(q, item);
 
 	M0_CNT_INC(frm->f_nr_items);
@@ -289,8 +290,8 @@ static void frm_insert(struct m0_rpc_frm *frm, struct m0_rpc_item *item)
 	if (item_is_in_waiting_queue(item, frm)) {
 		m0_rpc_item_change_state(item, M0_RPC_ITEM_ENQUEUED);
 		M0_LOG(M0_DEBUG, "%p Starting deadline timer", item);
-		rc = m0_sm_timeout(&item->ri_sm, &item->ri_deadline_to,
-				   item->ri_deadline, M0_RPC_ITEM_URGENT);
+		rc = m0_sm_timeout_arm(&item->ri_sm, &item->ri_deadline_to,
+				       item->ri_deadline, M0_RPC_ITEM_URGENT, 0);
 		if (rc != 0)
 			M0_LOG(M0_NOTICE, "%p failed to start deadline timer",
 			       item);
@@ -510,6 +511,7 @@ static void frm_fill_packet(struct m0_rpc_frm *frm, struct m0_rpc_packet *p)
 			}
 			M0_ASSERT(m0_rpc_item_is_oneway(item) ||
 				  m0_rpc_item_is_bound(item));
+			m0_rpc_item_get(item);
 			frm_remove(frm, item);
 			if (item_supports_merging(item)) {
 				limit = available_space_in_packet(p, frm);
@@ -518,6 +520,7 @@ static void frm_fill_packet(struct m0_rpc_frm *frm, struct m0_rpc_packet *p)
 			M0_ASSERT(!item_will_exceed_packet_size(item, p, frm));
 			m0_rpc_packet_add_item(p, item);
 			m0_rpc_item_change_state(item, M0_RPC_ITEM_SENDING);
+			m0_rpc_item_put(item);
 		} m0_tl_endfor;
 	}
 out:
@@ -592,7 +595,7 @@ static void frm_remove(struct m0_rpc_frm *frm, struct m0_rpc_item *item)
 
 	if (frm_is_idle(frm))
 		frm->f_state = FRM_IDLE;
-
+	m0_rpc_item_put(item);
 	M0_LEAVE();
 }
 

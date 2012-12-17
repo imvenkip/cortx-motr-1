@@ -577,11 +577,8 @@ static struct m0_fom *fom_dequeue(struct m0_fom_locality *loc)
  */
 static void loc_handler_thread(struct m0_loc_thread *th)
 {
-	m0_time_t		delta;
 	struct m0_clink	       *clink = &th->lt_clink;
 	struct m0_fom_locality *loc   = th->lt_loc;
-
-	m0_time_set(&delta, LOC_HT_WAIT, 0);
 
 	while (1) {
 		/*
@@ -641,9 +638,8 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 				 * &loc->fl_runrun or &loc->fl_group.s_clink to
 				 * wake.
 				 */
-				m0_chan_timedwait(clink,
-						  m0_time_add(m0_time_now(),
-							      delta));
+				m0_chan_timedwait(clink, m0_time_from_now(
+							  LOC_HT_WAIT, 0));
 		}
 		loc->fl_handler = NULL;
 		th->lt_state = IDLE;
@@ -879,6 +875,12 @@ void m0_fom_fini(struct m0_fom *fom)
 	m0_sm_fini(&fom->fo_sm_state);
 	runq_tlink_fini(fom);
 	m0_fom_callback_init(&fom->fo_cb);
+
+	if (fom->fo_fop != NULL)
+		m0_fop_put(fom->fo_fop);
+	if (fom->fo_rep_fop != NULL)
+		m0_fop_put(fom->fo_rep_fop);
+
 	M0_CNT_DEC(loc->fl_foms);
 	if (loc->fl_foms == 0)
 		m0_chan_signal(&reqh->rh_sd_signal);
@@ -891,14 +893,19 @@ void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
 {
 	M0_PRE(fom != NULL);
 
-	fom->fo_type	= fom_type;
-	fom->fo_ops	= ops;
-	fom->fo_fop	= fop;
-	fom->fo_rep_fop = reply;
+	fom->fo_type	    = fom_type;
+	fom->fo_ops	    = ops;
+	fom->fo_transitions = 0;
 	m0_fom_callback_init(&fom->fo_cb);
 	runq_tlink_init(fom);
 
-	fom->fo_transitions = 0;
+	if (fop != NULL)
+		m0_fop_get(fop);
+	fom->fo_fop = fop;
+
+	if (reply != NULL)
+		m0_fop_get(reply);
+	fom->fo_rep_fop = reply;
 }
 M0_EXPORTED(m0_fom_init);
 

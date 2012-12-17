@@ -28,11 +28,12 @@ static bool sdev_check(const void *bob)
 
 	M0_PRE(self_obj->co_type == M0_CO_SDEV);
 
-	return m0_conf_obj_is_stub(self_obj) == (self->sd_filename == NULL) &&
+	return  m0_conf_obj_is_stub(self_obj) == (self->sd_filename == NULL) &&
 		ergo(self_obj->co_mounted, /* check relations */
 		     parent_check(self_obj) &&
-		     child_check(self_obj, MEMBER_PTR(self->sd_partitions,
-						      cd_obj), M0_CO_DIR));
+		     child_check(self_obj,
+				 MEMBER_PTR(self->sd_partitions, cd_obj),
+				 M0_CO_DIR));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_sdev, M0_CONF_SDEV_MAGIC, sdev_check);

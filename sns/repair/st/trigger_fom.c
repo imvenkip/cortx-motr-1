@@ -42,6 +42,7 @@
 
 struct m0_fop_type trigger_fop_fopt;
 struct m0_fop_type trigger_rep_fop_fopt;
+static struct file_sizes fs;
 
 static int trigger_fom_tick(struct m0_fom *fom);
 static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out);
@@ -74,15 +75,8 @@ static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
 	}
 }
 
-static const struct m0_rpc_item_type_ops trigger_item_type_ops = {
-	.rito_payload_size   = m0_fop_item_type_default_payload_size,
-	.rito_encode         = m0_fop_item_type_default_encode,
-	.rito_decode         = m0_fop_item_type_default_decode,
-};
-
 const struct m0_rpc_item_ops trigger_fop_rpc_item_ops = {
 	.rio_replied = trigger_rpc_item_reply_cb,
-	.rio_free    = m0_fop_item_free,
 };
 
 void m0_sns_repair_trigger_fop_fini(void)
@@ -124,16 +118,14 @@ int m0_sns_repair_trigger_fop_init(void)
 			.opcode    = M0_SNS_REPAIR_TRIGGER_OPCODE,
 			.xt        = trigger_fop_xc,
 			.rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			M0_RPC_ITEM_TYPE_MUTABO,
+				     M0_RPC_ITEM_TYPE_MUTABO,
 			.fom_ops   = &trigger_fom_type_ops,
-			.sm        = &trigger_conf,
-			.rpc_ops   = &trigger_item_type_ops) ?:
+			.sm        = &trigger_conf) ?:
 		M0_FOP_TYPE_INIT(&trigger_rep_fop_fopt,
 				.name      = "sns repair trigger reply",
 				.opcode    = M0_SNS_REPAIR_TRIGGER_REP_OPCODE,
 				.xt        = trigger_rep_fop_xc,
-				.rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
-				.rpc_ops   = &trigger_item_type_ops);
+				.rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 
 }
 
@@ -170,6 +162,25 @@ static size_t trigger_fom_home_locality(const struct m0_fom *fom)
 	return m0_fop_opcode(fom->fo_fop);
 }
 
+M0_INTERNAL uint64_t m0_trigger_file_size_get(struct m0_fid *gfid)
+{
+	/* m0tifs currently starts its key for gfid from 4. */
+	return fs.f_size[gfid->f_key - 4];
+}
+
+static void file_sizes_save(struct trigger_fop *treq)
+{
+	int i;
+	M0_PRE(treq != NULL);
+
+	fs.f_nr = treq->fsize.f_nr;
+	M0_ALLOC_ARR(fs.f_size, fs.f_nr);
+	M0_ASSERT(fs.f_size != NULL);
+
+	for(i = 0; i < fs.f_nr; ++i)
+		fs.f_size[i] = treq->fsize.f_size[i];
+}
+
 static int trigger_fom_tick(struct m0_fom *fom)
 {
 	int                      rc;
@@ -195,18 +206,20 @@ static int trigger_fom_tick(struct m0_fom *fom)
 			case TPH_START:
 				treq = m0_fop_data(fom->fo_fop);
 				rcm->rc_fdata = treq->fdata;
-				rcm->rc_file_size = treq->fsize;
+				file_sizes_save(treq);
 				rcm->rc_it.ri_pl.rpl_N = treq->N;
 				rcm->rc_it.ri_pl.rpl_K = treq->K;
 				rcm->rc_it.ri_pl.rpl_P = treq->P;
 				rc = m0_cm_start(cm);
 				M0_ASSERT(rc == 0);
-				m0_fom_wait_on(fom, &rcm->rc_stop_wait, &fom->fo_cb);
+				m0_fom_wait_on(fom, &rcm->rc_stop_wait,
+					       &fom->fo_cb);
 				m0_fom_phase_set(fom, TPH_WAIT);
 				rc = M0_FSO_WAIT;
 				break;
 			case TPH_WAIT:
-				rfop = m0_fop_alloc(&trigger_rep_fop_fopt, NULL);
+				rfop = m0_fop_alloc(&trigger_rep_fop_fopt,
+						    NULL);
 				if (rfop == NULL) {
 					m0_fom_phase_set(fom, M0_FOPH_FINISH);
 					return M0_FSO_WAIT;

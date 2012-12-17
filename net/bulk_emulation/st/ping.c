@@ -51,13 +51,6 @@ static void ping_sleep_secs(int secs)
 	m0_nanosleep(req, &rem);
 }
 
-static m0_time_t ping_m0_time_after_secs(int secs)
-{
-	m0_time_t dur;
-	m0_time_set(&dur, secs, 0);
-	return m0_time_add(m0_time_now(), dur);
-}
-
 int alloc_buffers(int num, uint32_t segs, m0_bcount_t segsize,
 		  struct m0_net_buffer **out)
 {
@@ -1108,7 +1101,7 @@ int ping_client_passive_recv(struct ping_ctx *ctx,
 		ctx->pc_ops->pf("%s: setting nb_timeout to %ds\n",
 				ctx->pc_ident, ctx->pc_passive_bulk_timeout);
 		nb->nb_timeout =
-			ping_m0_time_after_secs(ctx->pc_passive_bulk_timeout);
+			m0_time_from_now(ctx->pc_passive_bulk_timeout, 0);
 	} else {
 		nb->nb_timeout = M0_TIME_NEVER;
 	}
@@ -1198,7 +1191,7 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 		ctx->pc_ops->pf("%s: setting nb_timeout to %ds\n",
 				ctx->pc_ident, ctx->pc_passive_bulk_timeout);
 		nb->nb_timeout =
-			ping_m0_time_after_secs(ctx->pc_passive_bulk_timeout);
+			m0_time_from_now(ctx->pc_passive_bulk_timeout, 0);
 	} else {
 		nb->nb_timeout = M0_TIME_NEVER;
 	}

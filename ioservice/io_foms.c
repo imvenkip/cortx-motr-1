@@ -20,13 +20,13 @@
  * Revision date  : 09/14/2011
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/tlist.h"
 #include "lib/assert.h"
 #include "lib/misc.h"    /* M0_BITS */
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
-#include "lib/trace.h"
 #include "lib/finject.h"
 #include "addb/addb.h"
 #include "net/net_internal.h"
@@ -1016,6 +1016,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out)
 	*out = fom;
 	m0_fom_init(fom, &fop->f_type->ft_fom_type,
 		    &ops, fop, rep_fop);
+	m0_fop_put(rep_fop);
 
 	fom_obj->fcrw_fom_start_time = m0_time_now();
 	fom_obj->fcrw_stob = NULL;

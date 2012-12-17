@@ -175,7 +175,8 @@ struct m0_io_fop {
    @post io_fop_invariant(iofop)
  */
 M0_INTERNAL int m0_io_fop_init(struct m0_io_fop *iofop,
-			       struct m0_fop_type *ftype);
+			       struct m0_fop_type *ftype,
+			       void (*fop_release)(struct m0_ref *));
 
 /**
    Finalizes a m0_io_fop structure.
@@ -246,12 +247,12 @@ static inline struct m0_net_transfer_mc *io_fop_tm_get(const struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
 
-	return &(item_machine(&fop->f_item)->rm_tm);
+	return &fop->f_item.ri_rmachine->rm_tm;
 }
 
 M0_INTERNAL size_t m0_io_fop_size_get(struct m0_fop *fop);
 
-M0_INTERNAL void m0_io_item_free(struct m0_rpc_item *item);
+M0_INTERNAL void m0_io_fop_release(struct m0_ref *ref);
 
 /* Returns the number of bytes to be read/written. */
 M0_INTERNAL m0_bcount_t m0_io_fop_byte_count(struct m0_io_fop *iofop);

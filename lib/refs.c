@@ -24,18 +24,19 @@ void m0_ref_init(struct m0_ref *ref, int init_num,
 {
 	m0_atomic64_set(&ref->ref_cnt, init_num);
 	ref->release = release;
+	m0_mb();
 }
 
 M0_INTERNAL void m0_ref_get(struct m0_ref *ref)
 {
 	m0_atomic64_inc(&ref->ref_cnt);
+	m0_mb();
 }
 
 M0_INTERNAL void m0_ref_put(struct m0_ref *ref)
 {
-	if (m0_atomic64_dec_and_test(&ref->ref_cnt)) {
+	if (m0_atomic64_dec_and_test(&ref->ref_cnt))
 		ref->release(ref);
-	}
 }
 
 M0_INTERNAL int64_t m0_ref_read(const struct m0_ref *ref)

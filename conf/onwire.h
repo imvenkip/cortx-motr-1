@@ -24,6 +24,8 @@
 
 #include "xcode/xcode.h"
 #include "lib/buf_xc.h"
+#include "fid/fid.h"
+#include "fid/fid_xc.h"
 
 /* export */
 struct m0_conf_fetch;
@@ -42,11 +44,6 @@ struct objid {
 	struct m0_buf oi_id;
 } M0_XCA_RECORD;
 
-/** XXX @todo Use m0_fid? */
-struct fid {
-	uint64_t f_container;
-	uint64_t f_key;
-} M0_XCA_RECORD;
 
 /* ------------------------------------------------------------------
  * Configuration objects
@@ -58,7 +55,7 @@ struct confx_profile {
 
 struct confx_filesystem {
 	/* Rood fid. */
-	struct fid     xf_rootfid;
+	struct m0_fid  xf_rootfid;
 	/* Filesystem parameters. */
 	struct arr_buf xf_params;
 	/* Services of this filesystem. */

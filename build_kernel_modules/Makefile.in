@@ -197,7 +197,7 @@ conf_SOURCES                    := buf_ext.c confc.c obj.c obj_ops.c preload.c \
                                    reg.c onwire_xc.c reg_debug.c conf_xcode.c  \
                                    conf_fop.c
 
-conf_HEADERS                    := onwire.h onwire_xc.h
+conf_HEADERS                    := onwire.h onwire_xc.h confc.h
 
 conf_objs_SOURCES               := common.c dir.c profile.c filesystem.c \
                                    service.c node.c nic.c sdev.c partition.c

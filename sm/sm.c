@@ -123,7 +123,7 @@ static bool state_is_valid(const struct m0_sm_conf *conf, uint32_t state)
 }
 
 static const struct m0_sm_state_descr *state_get(const struct m0_sm *mach,
-					   uint32_t state)
+						 uint32_t state)
 {
 	M0_PRE(state_is_valid(mach->sm_conf, state));
 	return &mach->sm_conf->scf_state[state];
@@ -161,15 +161,15 @@ static bool conf_invariant(const struct m0_sm_conf *conf)
 
 	for (i = 0, mask = 0; i < conf->scf_nr_states; ++i) {
 		if (state_is_valid(conf, i))
-			mask |= (1 << i);
+			mask |= M0_BITS(i);
 	}
 
 	for (i = 0; i < conf->scf_nr_states; ++i) {
-		if (mask & (1 << i)) {
+		if (mask & M0_BITS(i)) {
 			const struct m0_sm_state_descr *sd;
 
 			sd = &conf->scf_state[i];
-			if (sd->sd_flags & ~(M0_SDF_INITIAL|
+			if (sd->sd_flags & ~(M0_SDF_INITIAL|M0_SDF_FINAL|
 					     M0_SDF_FAILURE|M0_SDF_TERMINAL))
 				return false;
 			if ((sd->sd_flags & M0_SDF_TERMINAL) &&
@@ -201,7 +201,7 @@ M0_INTERNAL void m0_sm_init(struct m0_sm *mach, const struct m0_sm_conf *conf,
 M0_INTERNAL void m0_sm_fini(struct m0_sm *mach)
 {
 	M0_ASSERT(sm_invariant0(mach));
-	M0_PRE(sm_state(mach)->sd_flags & M0_SDF_TERMINAL);
+	M0_PRE(sm_state(mach)->sd_flags & (M0_SDF_TERMINAL | M0_SDF_FINAL));
 	m0_chan_fini(&mach->sm_chan);
 }
 
@@ -217,7 +217,7 @@ M0_INTERNAL int m0_sm_timedwait(struct m0_sm *mach, uint64_t states,
 	m0_clink_init(&waiter, NULL);
 
 	m0_clink_add(&mach->sm_chan, &waiter);
-	while (result == 0 && ((1 << mach->sm_state) & states) == 0) {
+	while (result == 0 && (M0_BITS(mach->sm_state) & states) == 0) {
 		M0_ASSERT(m0_sm_invariant(mach));
 		if (sm_state(mach)->sd_flags & M0_SDF_TERMINAL)
 			result = -ESRCH;
@@ -250,11 +250,11 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 	 */
 	do {
 		sd = sm_state(mach);
-		M0_PRE(sd->sd_allowed & (1ULL << state));
+		M0_ASSERT(sd->sd_allowed & M0_BITS(state));
 		if (sd->sd_ex != NULL)
 			sd->sd_ex(mach);
 		mach->sm_state = state;
-		M0_PRE(m0_sm_invariant(mach));
+		M0_ASSERT(m0_sm_invariant(mach));
 		sd = sm_state(mach);
 		state = sd->sd_in != NULL ? sd->sd_in(mach) : -1;
 		m0_chan_broadcast(&mach->sm_chan);
@@ -284,35 +284,43 @@ M0_INTERNAL void m0_sm_move(struct m0_sm *mach, int32_t rc, int state)
 	rc == 0 ? m0_sm_state_set(mach, state) : m0_sm_fail(mach, state, rc);
 }
 
+enum timer_state {
+	INIT,
+	ARMED,
+	TOP,
+	DONE
+};
+
 /**
     AST call-back for a timeout.
 
-    @see m0_sm_timeout().
+    @see m0_sm_timeout_arm().
 */
 static void sm_timeout_bottom(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
+	struct m0_sm         *mach = ast->sa_mach;
 	struct m0_sm_timeout *to   = container_of(ast,
 						  struct m0_sm_timeout, st_ast);
-	struct m0_sm         *mach = ast->sa_mach;
 
 	M0_ASSERT(m0_sm_invariant(mach));
+	M0_ASSERT(to->st_timer_state == TOP);
 
-	if (to->st_active) {
-		to->st_active = false;
-		m0_sm_state_set(mach, to->st_state);
-	}
+	to->st_timer_state = DONE;
+	m0_timer_stop(&to->st_timer); /* timer must be explicitly stopped */
+	m0_sm_state_set(mach, to->st_state);
 }
 
 /**
     Timer call-back for a timeout.
 
-    @see m0_sm_timeout().
+    @see m0_sm_timeout_arm().
 */
 static unsigned long sm_timeout_top(unsigned long data)
 {
 	struct m0_sm_timeout *to = (void *)data;
 
-	m0_sm_ast_post(to->st_ast.sa_mach->sm_grp, &to->st_ast);
+	if (m0_atomic64_cas(&to->st_timer_state, ARMED, TOP))
+		m0_sm_ast_post(to->st_ast.sa_mach->sm_grp, &to->st_ast);
 	return 0;
 }
 
@@ -321,65 +329,86 @@ static unsigned long sm_timeout_top(unsigned long data)
 
    This is called if a state transition happened before the timeout expired.
 
-   @see m0_sm_timeout().
+   @see m0_sm_timeout_arm().
  */
 static bool sm_timeout_cancel(struct m0_clink *link)
 {
-	struct m0_sm_timeout *to = container_of(link, struct m0_sm_timeout,
-						st_clink);
+	struct m0_sm_timeout *to   = container_of(link, struct m0_sm_timeout,
+						  st_clink);
+	struct m0_sm         *mach = to->st_ast.sa_mach;
 
-	M0_ASSERT(m0_sm_invariant(to->st_ast.sa_mach));
-
-	to->st_active = false;
-	m0_timer_stop(&to->st_timer);
+	M0_ASSERT(m0_sm_invariant(mach));
+	if (!(M0_BITS(mach->sm_state) & to->st_bitmask) &&
+	    m0_atomic64_cas(&to->st_timer_state, ARMED, DONE))
+		m0_timer_stop(&to->st_timer);
 	return true;
 }
 
-M0_INTERNAL int m0_sm_timeout(struct m0_sm *mach, struct m0_sm_timeout *to,
-			      m0_time_t timeout, int state)
+M0_INTERNAL void m0_sm_timeout_init(struct m0_sm_timeout *to)
+{
+	M0_SET0(to);
+	to->st_timer_state = INIT;
+	to->st_ast.sa_cb   = sm_timeout_bottom;
+	m0_clink_init(&to->st_clink, sm_timeout_cancel);
+}
+
+M0_INTERNAL int m0_sm_timeout_arm(struct m0_sm *mach, struct m0_sm_timeout *to,
+				  m0_time_t timeout, int state,
+				  uint64_t bitmask)
 {
 	int              result;
 	struct m0_timer *tm = &to->st_timer;
 
 	M0_PRE(m0_sm_invariant(mach));
+	M0_PRE(to->st_timer_state == INIT);
 	M0_PRE(!(sm_state(mach)->sd_flags & M0_SDF_TERMINAL));
-	M0_PRE(sm_state(mach)->sd_allowed & (1 << state));
+	M0_PRE(sm_state(mach)->sd_allowed & M0_BITS(state));
+	M0_PRE(m0_forall(i, mach->sm_conf->scf_nr_states,
+			 ergo(M0_BITS(i) & bitmask,
+			      state_get(mach, i)->sd_allowed & M0_BITS(state))));
 	M0_PRE(!(state_get(mach, state)->sd_flags & M0_SDF_TERMINAL));
 
 	/*
-	  This is how timeout is implemented:
-
-	      - a timer is armed (with sm_timeout_top() call-back);
-
-	      - when the timer fires off, an AST (with sm_timeout_bottom()
-                call-back) is posted from the timer call-back;
-
-	      - when the AST is executed, it performs the state transition.
+	 * This is how timeout is implemented:
+	 *
+	 *    - a timer is armed (with sm_timeout_top() call-back);
+	 *
+	 *    - when the timer fires off, an AST (with sm_timeout_bottom()
+	 *      call-back) is posted from the timer call-back;
+	 *
+	 *    - when the AST is executed, it performs the state transition.
+	 *
+	 * @todo to->st_clink remains registered with mach->sm_chan even after
+	 * the timer expires or is cancelled. This does no harm, but should be
+	 * fixed when the support for channels with external locks lands.
 	 */
 
-	M0_SET0(to);
-	to->st_active      = true;
+	to->st_timer_state = ARMED;
 	to->st_state       = state;
-	to->st_ast.sa_cb   = sm_timeout_bottom;
+	to->st_bitmask     = bitmask;
 	to->st_ast.sa_mach = mach;
-	m0_clink_init(&to->st_clink, sm_timeout_cancel);
 	m0_clink_add(&mach->sm_chan, &to->st_clink);
-	m0_timer_init(tm, M0_TIMER_SOFT,
-		      timeout, sm_timeout_top,
+	m0_timer_init(tm, M0_TIMER_SOFT, timeout, sm_timeout_top,
 		      (unsigned long)to);
 	result = m0_timer_start(tm);
-	if (result != 0)
+	if (result != 0) {
+		to->st_timer_state = DONE;
 		m0_sm_timeout_fini(to);
+	}
+
 	return result;
 }
 
 M0_INTERNAL void m0_sm_timeout_fini(struct m0_sm_timeout *to)
 {
+	M0_PRE(M0_IN(to->st_timer_state, (DONE, INIT)));
 	M0_PRE(to->st_ast.sa_next == NULL);
 
-	if (m0_timer_is_started(&to->st_timer))
-		m0_timer_stop(&to->st_timer);
-	m0_timer_fini(&to->st_timer);
+
+	if (to->st_timer_state != INIT) {
+		M0_ASSERT(!m0_timer_is_started(&to->st_timer));
+		m0_timer_fini(&to->st_timer);
+	}
 	if (m0_clink_is_armed(&to->st_clink))
 		m0_clink_del(&to->st_clink);
 	m0_clink_fini(&to->st_clink);

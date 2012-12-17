@@ -274,7 +274,7 @@ static void test_fop_encdec(void)
 	 */
 	M0_ALLOC_PTR(fd1);
 	M0_UT_ASSERT(fd1 != NULL);
-	m0_fop_init(fd1, &m0_fop_test_fopt, NULL);
+	m0_fop_init(fd1, &m0_fop_test_fopt, NULL, m0_fop_release);
 	m0_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	cur_addr = m0_bufvec_cursor_addr(&cur);
 	M0_UT_ASSERT(M0_IS_8ALIGNED(cur_addr));

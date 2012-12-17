@@ -120,7 +120,8 @@ struct m0_conf_obj_ops {
 	 * @param out     If the function succeeds, *out will point to the
 	 *                sought-for object.
 	 *
-	 * @pre  parent->co_status == M0_CS_READY
+	 * @pre   parent->co_status == M0_CS_READY
+	 * @post  M0_IN(retval, (0, -ENOENT))
 	 */
 	int (*coo_lookup)(struct m0_conf_obj *parent, const struct m0_buf *name,
 			  struct m0_conf_obj **out);
