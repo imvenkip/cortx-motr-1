@@ -412,7 +412,11 @@ static void pm_test_spare_slot(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(state_out == target_state);
 
-	rc = m0_poolmach_device_state(&pm, 10, &state_out);
+	rc = m0_poolmach_device_state(&pm, PM_TEST_DEFAULT_DEVICE_NUMBER,
+					&state_out);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_poolmach_device_state(&pm, PM_TEST_DEFAULT_DEVICE_NUMBER + 1,
+					&state_out);
 	M0_UT_ASSERT(rc == -EINVAL);
 	rc = m0_poolmach_device_state(&pm, 100, &state_out);
 	M0_UT_ASSERT(rc == -EINVAL);

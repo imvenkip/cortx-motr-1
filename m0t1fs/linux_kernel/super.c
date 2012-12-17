@@ -172,6 +172,7 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	struct super_block *sb = dentry->d_sb;
 	struct m0t1fs_sb   *csb = M0T1FS_SB(sb);
 	int                 rc;
+	M0_ENTRY();
 
 	m0t1fs_fs_lock(csb);
 	rc = m0t1fs_mds_statfs(csb, &rep);
@@ -187,7 +188,7 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	buf->f_ffree = rep->f_ffree;
 	buf->f_namelen = rep->f_namelen;
 	m0t1fs_fs_unlock(csb);
-	return 0;
+	M0_RETURN(0);
 }
 
 static int fs_params_parse(struct m0t1fs_mnt_opts *dest, const char **src);
@@ -1187,7 +1188,7 @@ m0t1fs_container_id_to_session(const struct m0t1fs_sb *csb,
 	ctx = csb->csb_cl_map.clm_map[container_id];
 	M0_ASSERT(ctx != NULL);
 
-	M0_LEAVE("session: %p", &ctx->sc_session);
+	M0_LEAVE("id %llu -> session: %p", container_id, &ctx->sc_session);
 	return &ctx->sc_session;
 }
 

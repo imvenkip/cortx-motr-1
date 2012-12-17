@@ -734,10 +734,10 @@ struct nw_xfer_ops {
 	 * @param out  Out parameter containing target_ioreq object.
 	 * @pre   nw_xfer_request_invariant(xfer).
          */
-        int  (*nxo_tioreq_map) (struct nw_xfer_request      *xfer,
-                                struct m0_pdclust_src_addr  *src,
-                                struct m0_pdclust_tgt_addr  *tgt,
-                                struct target_ioreq        **out);
+        int  (*nxo_tioreq_map) (struct nw_xfer_request           *xfer,
+                                const struct m0_pdclust_src_addr *src,
+                                struct m0_pdclust_tgt_addr       *tgt,
+                                struct target_ioreq             **out);
 };
 
 /**
@@ -886,7 +886,7 @@ struct io_request {
          * It is used as is since using a new structure would require
          * conversion.
          */
-        struct iovec                *ir_iovec;
+        const struct iovec          *ir_iovec;
 
         /** Async state machine to handle state transitions and callbacks. */
         struct m0_sm                 ir_sm;
@@ -1097,13 +1097,14 @@ struct target_ioreq_ops {
 	 * @pre   ti != NULL && count > 0.
 	 * @post  m0_vec_count(&ti->ti_ivec.iv_vec) > 0.
          */
-        void (*tio_seg_add)        (struct target_ioreq *ti,
-                                    uint64_t             frame,
-                                    m0_bindex_t          gob_offset,
-                                    m0_bindex_t          par_offset,
-                                    m0_bcount_t          count,
-                                    uint64_t             unit,
-				    struct pargrp_iomap *map);
+	void (*tio_seg_add)     (struct target_ioreq              *ti,
+				 const struct m0_pdclust_src_addr *src,
+				 const struct m0_pdclust_tgt_addr *tgt,
+				 m0_bindex_t	                   gob_offset,
+				 m0_bindex_t	                   par_offset,
+				 m0_bcount_t	                   count,
+				 struct pargrp_iomap              *map);
+
 
         /**
 	 * Prepares io fops from index vector and buffer vector.
