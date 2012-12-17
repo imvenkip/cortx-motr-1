@@ -151,6 +151,9 @@ struct m0_cm_type {
 struct m0_cm {
 	struct m0_sm			 cm_mach;
 
+        /** Pool machine for this node. */
+        struct m0_poolmach              *cm_pm;
+
 	/**
 	 * Copy machine id. Copy machines are identified by this id.
 	 * Copy machines can be located with this id by querying some

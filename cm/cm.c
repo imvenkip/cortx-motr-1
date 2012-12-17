@@ -28,6 +28,7 @@
 #include "lib/errno.h"
 #include "lib/finject.h"
 #include "mero/magic.h"
+#include "ioservice/io_device.h"
 
 #include "cm/cm.h"
 #include "cm/ag.h"
@@ -493,6 +494,10 @@ M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 	m0_cm_lock(cm);
 	M0_PRE(m0_cm_state_get(cm) == M0_CMS_IDLE);
 	M0_PRE(m0_cm_invariant(cm));
+
+        cm->cm_pm = m0_ios_poolmach_get(cm->cm_service.rs_reqh);
+        if (cm->cm_pm == NULL)
+                return -EINVAL;
 
 	rc = cm->cm_ops->cmo_start(cm);
 	cm_move(cm, rc, M0_CMS_ACTIVE, M0_CM_ERR_START);
