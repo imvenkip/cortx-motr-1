@@ -236,6 +236,7 @@ io_combinations()
 
 m0loop_st_run()
 {
+#set -x
 	echo "Load m0loop module... "
 	cmd="insmod `dirname $0`/../../../build_kernel_modules/m0loop.ko"
 	echo $cmd && $cmd || return 1
@@ -292,7 +293,10 @@ m0loop_st()
 	m0loop_st_run &>> $MERO_TEST_LOGFILE
 	status=$?
 	exec 2> /dev/null; kill $pid; sleep 0.2; exec 2>&1
-	[ $status -eq 0 ] || return 1
+	[ $status -eq 0 ] || {
+		unmount_and_clean
+		return 1
+	}
 	echo " Done: PASSED."
 }
 
@@ -436,7 +440,7 @@ rmw_test()
 
 m0t1fs_system_tests()
 {
-	file_creation_test $MAX_NR_FILES || {
+file_creation_test $MAX_NR_FILES || {
                 echo "Failed: File creation test failed."
 		return 1
 	}

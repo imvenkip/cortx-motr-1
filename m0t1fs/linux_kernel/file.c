@@ -959,6 +959,10 @@ static int user_data_copy(struct pargrp_iomap *map,
 				       map->pi_databufs[row][col]->db_flags &
 				       filter));
 
+			if (map->pi_databufs[row][col]->db_flags &
+			    PA_COPY_FRMUSR_DONE)
+				M0_RETURN(0);
+
 			/*
 			 * Copies page to auxiliary buffer before it gets
 			 * overwritten by user data. This is needed in order
@@ -966,11 +970,16 @@ static int user_data_copy(struct pargrp_iomap *map,
 			 * approach.
 			 */
 			if (map->pi_databufs[row][col]->db_auxbuf.b_addr !=
-			    NULL && map->pi_rtype == PIR_READOLD)
-				memcpy(map->pi_databufs[row][col]->db_auxbuf.
-				       b_addr,
-				       map->pi_databufs[row][col]->db_buf.
-				       b_addr, PAGE_CACHE_SIZE);
+			    NULL && map->pi_rtype == PIR_READOLD) {
+				if (filter == 0)
+					memcpy(map->pi_databufs[row][col]->
+					       db_auxbuf.b_addr,
+					       map->pi_databufs[row][col]->
+					       db_buf.b_addr,
+					       PAGE_CACHE_SIZE);
+				else
+					M0_RETURN(0);
+			}
 
 			pagefault_disable();
 			/* Copies to appropriate offset within page. */
@@ -983,6 +992,8 @@ static int user_data_copy(struct pargrp_iomap *map,
 					"from offset %llu", bytes, start);
 
 			map->pi_ioreq->ir_copied_nr += bytes;
+			map->pi_databufs[row][col]->db_flags |=
+				PA_COPY_FRMUSR_DONE;
 
 			if (bytes != end - start)
 				M0_RETERR(-EFAULT, "Failed to copy_from_user");
@@ -1480,6 +1491,7 @@ static uint64_t pargrp_iomap_auxbuf_alloc(struct pargrp_iomap *map,
 					  uint32_t	       row,
 					  uint32_t	       col)
 {
+	M0_ENTRY();
 	M0_PRE(pargrp_iomap_invariant(map));
 	M0_PRE(map->pi_rtype == PIR_READOLD);
 
@@ -1491,7 +1503,7 @@ static uint64_t pargrp_iomap_auxbuf_alloc(struct pargrp_iomap *map,
 	++iommstats.a_page_nr;
 	map->pi_databufs[row][col]->db_auxbuf.b_nob = PAGE_CACHE_SIZE;
 
-	return 0;
+	M0_RETURN(0);
 }
 
 /*
@@ -1506,6 +1518,7 @@ static int pargrp_iomap_readold_auxbuf_alloc(struct pargrp_iomap *map)
 	uint64_t		  count = 0;
 	uint32_t		  row;
 	uint32_t		  col;
+	struct inode             *inode;
 	struct m0_ivec_cursor	  cur;
 	struct m0_pdclust_layout *play;
 
@@ -1513,6 +1526,7 @@ static int pargrp_iomap_readold_auxbuf_alloc(struct pargrp_iomap *map)
 	M0_PRE(pargrp_iomap_invariant(map));
 	M0_PRE(map->pi_rtype == PIR_READOLD);
 
+	inode = map->pi_ioreq->ir_file->f_dentry->d_inode;
 	play  = pdlayout_get(map->pi_ioreq);
 	m0_ivec_cursor_init(&cur, &map->pi_ivec);
 
@@ -1524,6 +1538,21 @@ static int pargrp_iomap_readold_auxbuf_alloc(struct pargrp_iomap *map)
 		page_pos_get(map, start, &row, &col);
 
 		if (map->pi_databufs[row][col] != NULL) {
+			/*
+			 * In Readold approach, all valid pages have to
+			 * be read regardless of whether they are fully
+			 * occupied or partially occupied.
+			 * This is needed in order to calculate correct
+			 * parity in differential manner.
+			 * Also, read flag should be set only for pages
+			 * which lie within end-of-file boundary.
+			 */
+			if (end < inode->i_size ||
+			    (inode->i_size > 0 &&
+			     page_id(end - 1) == page_id(inode->i_size - 1)))
+				map->pi_databufs[row][col]->db_flags |=
+					PA_READ;
+
 			rc = pargrp_iomap_auxbuf_alloc(map, row, col);
 			if (rc != 0)
 				M0_RETERR(rc, "auxbuf_alloc failed");
@@ -2248,6 +2277,13 @@ static int ioreq_iosm_handle(struct io_request *req)
 		 * If fops dispatch fails, we need to wait till all io fop
 		 * callbacks are acked since IO fops have already been
 		 * dispatched.
+		 *
+		 * Only fully modified pages from parity groups which have
+		 * chosen read-rest approach or aligned parity groups,
+		 * are copied since read-old approach needs reading of
+		 * all spanned pages.
+		 * (no matter fully modified or paritially modified)
+		 * in order to calculate parity correctly.
 		 */
 		res = req->ir_ops->iro_user_data_copy(req, CD_COPY_FROM_USER,
 						      PA_FULLPAGE_MODIFY);
@@ -2262,8 +2298,12 @@ static int ioreq_iosm_handle(struct io_request *req)
 			}
 		}
 
-		rc = req->ir_ops->iro_user_data_copy(req, CD_COPY_FROM_USER,
-						     PA_PARTPAGE_MODIFY);
+		/* Copies
+		 * - fully modified pages from parity groups which have
+		 *   chosen read_old approach and
+		 * - partially modified pages from all parity groups.
+		 */
+		rc = req->ir_ops->iro_user_data_copy(req, CD_COPY_FROM_USER, 0);
 		if (rc != 0)
 			goto fail;
 

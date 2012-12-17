@@ -829,10 +829,10 @@ enum   pargrp_iomap_rmwtype;
  */
 enum page_attr {
         /** Page not spanned by io vector. */
-        PA_NONE            = 0,
+        PA_NONE                = 0,
 
         /** Page needs to be read. */
-        PA_READ            = (1 << 0),
+        PA_READ                = (1 << 0),
 
         /**
          * Page is completely spanned by incoming io vector, which is why
@@ -840,7 +840,7 @@ enum page_attr {
          * Such pages need not be read from server.
          * Mutually exclusive with PA_READ and PA_PARTPAGE_MODIFY.
          */
-        PA_FULLPAGE_MODIFY = (1 << 1),
+        PA_FULLPAGE_MODIFY     = (1 << 1),
 
         /**
          * Page is partially spanned by incoming io vector, which is why
@@ -849,29 +849,30 @@ enum page_attr {
          * Used only in case of read-modify-write.
          * Mutually exclusive with PA_FULLPAGE_MODIFY.
          */
-        PA_PARTPAGE_MODIFY = (1 << 2),
+        PA_PARTPAGE_MODIFY     = (1 << 2),
 
         /** Page needs to be written. */
-        PA_WRITE           = (1 << 3),
+        PA_WRITE               = (1 << 3),
 
 	/** Page contains file data. */
-	PA_DATA		   = (1 << 4),
+	PA_DATA		       = (1 << 4),
 
 	/** Page contains parity. */
-	PA_PARITY	   = (1 << 5),
+	PA_PARITY	       = (1 << 5),
 
-        /**
-         * pargrp_iomap::pi_ivec is shared for read and write state for an
-         * rmw IO request. Read IO can not go past EOF but write IO can.
-         * In such case, changing pargrp_iomap::pi_ivec is costly because
-         * it has to be reassessed and changed after read IO is complete.
-         * Instead, we use a flag to notify last valid page of a read
-         * request and store the count of bytes in last page in
-	 * data_buf::db_buf::b_nob.
-         */
-        PA_READ_EOF        = (1 << 6),
+	/**
+	 * Data has been copied from user-space into page.
+	 * Flag used only when copy_direction == CD_COPY_FROM_USER.
+	 * This flag is needed since in case of read-old approach,
+	 * even if page/s are fully modified, they have to be read
+	 * in order to generate correct parity.
+	 * Hence for read-modify-write requests, fully modified pages
+	 * from parity groups which have adopted read-old approach
+	 * can not be copied before read state finishes.
+	 */
+        PA_COPY_FRMUSR_DONE    = (1 << 6),
 
-        PA_NR              = 7,
+        PA_NR                  = 7,
 };
 
 /** Enum representing direction of data copy in IO. */
