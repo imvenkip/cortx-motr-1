@@ -1063,7 +1063,7 @@ cached_obj_update(struct m0_conf_reg *reg, const struct confx_object *flat)
 	struct m0_confc    *confc = registry_to_confc(reg);
 
 	M0_ENTRY("reg=%p", reg);
-	M0_PRE(confc);
+	M0_PRE(confc_is_locked(confc));
 
 	rc = m0_conf_obj_find(reg, flat->o_conf.u_type, &flat->o_id, &obj);
 	if (rc != 0)
