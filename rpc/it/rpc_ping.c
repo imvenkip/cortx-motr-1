@@ -365,7 +365,7 @@ static int run_client(void)
 	 */
 	rc = client_fini(&cctx);
 	if (verbose)
-		printf("Time: %lu.%2.2lu\n",
+		printf("Time: %lu.%2.2lu sec\n",
 		       (unsigned long)m0_time_seconds(delta),
 		       (unsigned long)m0_time_nanoseconds(delta) *
 		       100 / M0_TIME_ONE_BILLION);
@@ -499,8 +499,13 @@ int main(int argc, char *argv[])
 						&nr_client_threads),
 		M0_FORMATARG('l', "number of slots", "%i", &nr_slots),
 		M0_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
-		M0_FORMATARG('q', "minimum TM receive queue length", "%i",
-						&tm_recv_queue_len),
+		M0_FORMATARG('q', "minimum TM receive queue length \n"
+				   "Note: It's default value is 2. \n"
+				   "If a large number of ping items having"
+				   " bigger sizes are sent \nthen there may be"
+				   " insufficient receive buffers.\nIn such"
+				   "cases it should have higher values (~16).",
+				   "%i", &tm_recv_queue_len),
 		M0_FORMATARG('m', "maximum RPC msg size", "%i",
 						&max_rpc_msg_size),
 		M0_FLAGARG('v', "verbose", &verbose)

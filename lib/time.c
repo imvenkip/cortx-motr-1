@@ -78,6 +78,7 @@ m0_time_t m0_time_sub(const m0_time_t t1, const m0_time_t t2)
 	M0_POST(t1 >= res);
 	return res;
 }
+M0_EXPORTED(m0_time_sub);
 
 uint64_t m0_time_seconds(const m0_time_t time)
 {
