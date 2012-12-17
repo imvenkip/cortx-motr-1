@@ -284,44 +284,154 @@ M0_INTERNAL void m0_sm_move(struct m0_sm *mach, int32_t rc, int state)
 	rc == 0 ? m0_sm_state_set(mach, state) : m0_sm_fail(mach, state, rc);
 }
 
+/**
+ * m0_sm_timer state machine
+ *
+ * @verbatim
+ *                              INIT
+ *                                 |
+ *                         +-----+ | m0_sm_timer_start()
+ *          sm_timer_top() |     | |
+ *                         |     V V
+ *                         +----ARMED
+ *                               | |
+ *          m0_sm_timer_cancel() | | sm_timer_bottom()
+ *                               | |
+ *                               V V
+ *                               DONE
+ * @endverbatim
+ *
+ */
 enum timer_state {
 	INIT,
 	ARMED,
-	TOP,
 	DONE
 };
+
+/**
+    Timer call-back for a state machine timer.
+
+    @see m0_sm_timer_start().
+*/
+static unsigned long sm_timer_top(unsigned long data)
+{
+	struct m0_sm_timer *timer = (void *)data;
+
+	M0_PRE(M0_IN(timer->tr_state, (ARMED, DONE)));
+	/*
+	 * no synchronisation or memory barriers are needed here: it's OK to
+	 * occasionally post the AST when the timer is already cancelled,
+	 * because the ast call-back, synchronised with the cancellation by
+	 * the group lock, will sort this out.
+	 */
+	if (timer->tr_state == ARMED)
+		m0_sm_ast_post(timer->tr_grp, &timer->tr_ast);
+	return 0;
+}
+
+/**
+ * Helper function used by sm_timer_bottom() and m0_sm_timer_cancel().
+ *
+ * Attempts to move the timer from ARMED to DONE state.
+ */
+static bool timer_trydone(struct m0_sm_timer *timer)
+{
+	bool armed = timer->tr_state == ARMED;
+
+	M0_PRE(grp_is_locked(timer->tr_grp));
+	M0_PRE(M0_IN(timer->tr_state, (ARMED, DONE)));
+
+	if (armed) {
+		timer->tr_state = DONE;
+		m0_timer_stop(&timer->tr_timer);
+	}
+	return armed;
+}
+
+/**
+    AST call-back for a timer.
+
+    @see m0_sm_timer_start().
+*/
+static void sm_timer_bottom(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_sm_timer *tr = container_of(ast, struct m0_sm_timer, tr_ast);
+
+	if (timer_trydone(tr))
+		tr->tr_cb(tr);
+}
+
+M0_INTERNAL void m0_sm_timer_init(struct m0_sm_timer *timer)
+{
+	M0_SET0(timer);
+	timer->tr_state     = INIT;
+	timer->tr_ast.sa_cb = sm_timer_bottom;
+}
+
+M0_INTERNAL void m0_sm_timer_fini(struct m0_sm_timer *timer)
+{
+	M0_PRE(M0_IN(timer->tr_state, (INIT, DONE)));
+	M0_PRE(timer->tr_ast.sa_next == NULL);
+
+	if (timer->tr_state == DONE) {
+		M0_ASSERT(!m0_timer_is_started(&timer->tr_timer));
+		m0_timer_fini(&timer->tr_timer);
+	}
+}
+
+M0_INTERNAL int m0_sm_timer_start(struct m0_sm_timer *timer,
+				  struct m0_sm_group *group,
+				  void (*cb)(struct m0_sm_timer *),
+				  m0_time_t deadline)
+{
+	int result;
+
+	M0_PRE(grp_is_locked(group));
+	M0_PRE(timer->tr_state == INIT);
+	M0_PRE(cb != NULL);
+
+	/*
+	 * This is how timer is implemented:
+	 *
+	 *    - a timer is armed (with sm_timer_top() call-back;
+	 *
+	 *    - when the timer fires off, an AST to the state machine group is
+	 *      posted from the timer call-back;
+	 *
+	 *    - the AST invokes user-supplied call-back.
+	 */
+
+	timer->tr_state = ARMED;
+	timer->tr_grp   = group;
+	timer->tr_cb    = cb;
+	m0_timer_init(&timer->tr_timer, M0_TIMER_SOFT, deadline, sm_timer_top,
+		      (unsigned long)timer);
+	result = m0_timer_start(&timer->tr_timer);
+	if (result != 0) {
+		timer->tr_state = DONE;
+		m0_sm_timer_fini(timer);
+	}
+	return result;
+}
+
+M0_INTERNAL bool m0_sm_timer_cancel(struct m0_sm_timer *timer)
+{
+	return timer_trydone(timer);
+}
 
 /**
     AST call-back for a timeout.
 
     @see m0_sm_timeout_arm().
 */
-static void sm_timeout_bottom(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+static void timeout_ast(struct m0_sm_timer *timer)
 {
-	struct m0_sm         *mach = ast->sa_mach;
-	struct m0_sm_timeout *to   = container_of(ast,
-						  struct m0_sm_timeout, st_ast);
-
+	struct m0_sm         *mach = timer->tr_ast.sa_mach;
+	struct m0_sm_timeout *to   = container_of(timer,
+						  struct m0_sm_timeout,
+						  st_timer);
 	M0_ASSERT(m0_sm_invariant(mach));
-	M0_ASSERT(to->st_timer_state == TOP);
-
-	to->st_timer_state = DONE;
-	m0_timer_stop(&to->st_timer); /* timer must be explicitly stopped */
 	m0_sm_state_set(mach, to->st_state);
-}
-
-/**
-    Timer call-back for a timeout.
-
-    @see m0_sm_timeout_arm().
-*/
-static unsigned long sm_timeout_top(unsigned long data)
-{
-	struct m0_sm_timeout *to = (void *)data;
-
-	if (m0_atomic64_cas(&to->st_timer_state, ARMED, TOP))
-		m0_sm_ast_post(to->st_ast.sa_mach->sm_grp, &to->st_ast);
-	return 0;
 }
 
 /**
@@ -335,20 +445,18 @@ static bool sm_timeout_cancel(struct m0_clink *link)
 {
 	struct m0_sm_timeout *to   = container_of(link, struct m0_sm_timeout,
 						  st_clink);
-	struct m0_sm         *mach = to->st_ast.sa_mach;
+	struct m0_sm         *mach = to->st_timer.tr_ast.sa_mach;
 
 	M0_ASSERT(m0_sm_invariant(mach));
-	if (!(M0_BITS(mach->sm_state) & to->st_bitmask) &&
-	    m0_atomic64_cas(&to->st_timer_state, ARMED, DONE))
-		m0_timer_stop(&to->st_timer);
+	if (!(M0_BITS(mach->sm_state) & to->st_bitmask))
+		m0_sm_timer_cancel(&to->st_timer);
 	return true;
 }
 
 M0_INTERNAL void m0_sm_timeout_init(struct m0_sm_timeout *to)
 {
 	M0_SET0(to);
-	to->st_timer_state = INIT;
-	to->st_ast.sa_cb   = sm_timeout_bottom;
+	m0_sm_timer_init(&to->st_timer);
 	m0_clink_init(&to->st_clink, sm_timeout_cancel);
 }
 
@@ -356,11 +464,11 @@ M0_INTERNAL int m0_sm_timeout_arm(struct m0_sm *mach, struct m0_sm_timeout *to,
 				  m0_time_t timeout, int state,
 				  uint64_t bitmask)
 {
-	int              result;
-	struct m0_timer *tm = &to->st_timer;
+	int                 result;
+	struct m0_sm_timer *tr = &to->st_timer;
 
 	M0_PRE(m0_sm_invariant(mach));
-	M0_PRE(to->st_timer_state == INIT);
+	M0_PRE(tr->tr_state == INIT);
 	M0_PRE(!(sm_state(mach)->sd_flags & M0_SDF_TERMINAL));
 	M0_PRE(sm_state(mach)->sd_allowed & M0_BITS(state));
 	M0_PRE(m0_forall(i, mach->sm_conf->scf_nr_states,
@@ -369,46 +477,23 @@ M0_INTERNAL int m0_sm_timeout_arm(struct m0_sm *mach, struct m0_sm_timeout *to,
 	M0_PRE(!(state_get(mach, state)->sd_flags & M0_SDF_TERMINAL));
 
 	/*
-	 * This is how timeout is implemented:
-	 *
-	 *    - a timer is armed (with sm_timeout_top() call-back);
-	 *
-	 *    - when the timer fires off, an AST (with sm_timeout_bottom()
-	 *      call-back) is posted from the timer call-back;
-	 *
-	 *    - when the AST is executed, it performs the state transition.
-	 *
 	 * @todo to->st_clink remains registered with mach->sm_chan even after
 	 * the timer expires or is cancelled. This does no harm, but should be
 	 * fixed when the support for channels with external locks lands.
 	 */
 
-	to->st_timer_state = ARMED;
 	to->st_state       = state;
 	to->st_bitmask     = bitmask;
-	to->st_ast.sa_mach = mach;
-	m0_clink_add(&mach->sm_chan, &to->st_clink);
-	m0_timer_init(tm, M0_TIMER_SOFT, timeout, sm_timeout_top,
-		      (unsigned long)to);
-	result = m0_timer_start(tm);
-	if (result != 0) {
-		to->st_timer_state = DONE;
-		m0_sm_timeout_fini(to);
-	}
-
+	tr->tr_ast.sa_mach = mach;
+	result = m0_sm_timer_start(tr, mach->sm_grp, timeout_ast, timeout);
+	if (result == 0)
+		m0_clink_add(&mach->sm_chan, &to->st_clink);
 	return result;
 }
 
 M0_INTERNAL void m0_sm_timeout_fini(struct m0_sm_timeout *to)
 {
-	M0_PRE(M0_IN(to->st_timer_state, (DONE, INIT)));
-	M0_PRE(to->st_ast.sa_next == NULL);
-
-
-	if (to->st_timer_state != INIT) {
-		M0_ASSERT(!m0_timer_is_started(&to->st_timer));
-		m0_timer_fini(&to->st_timer);
-	}
+	m0_sm_timer_fini(&to->st_timer);
 	if (m0_clink_is_armed(&to->st_clink))
 		m0_clink_del(&to->st_clink);
 	m0_clink_fini(&to->st_clink);

@@ -72,7 +72,7 @@ struct m0_rpc_server_ctx {
 	const char                   *rsx_log_file_name;
 
 	/** an embedded mero context structure */
-	struct m0_mero             rsx_mero_ctx;
+	struct m0_mero                rsx_mero_ctx;
 
 	/**
 	 * this is an internal variable, which is used by m0_rpc_server_stop()
@@ -170,10 +170,7 @@ struct m0_rpc_client_ctx {
 	/** Buffer pool used to provision TM receive queue. */
 	struct m0_net_buffer_pool  rcx_buffer_pool;
 
-	/**
-	 * List of buffer pools in mero context.
-	 * @see m0_cs_buffer_pool::cs_bp_linkage
-	 */
+	/** Minimum number of buffers in TM receive queue. */
         uint32_t		   rcx_recv_queue_min_length;
 
 	/** Maximum RPC recive buffer size. */

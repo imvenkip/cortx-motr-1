@@ -35,7 +35,7 @@
    @{
 */
 
-M0_INTERNAL m0_time_t m0_time_now(void)
+m0_time_t m0_time_now(void)
 {
 	struct timespec ts;
 	m0_time_t	t;

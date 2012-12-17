@@ -171,6 +171,7 @@ static int m0t1fs_create(struct inode     *dir,
 	int                       rc;
 
 	M0_ENTRY();
+	M0_LOG(M0_INFO, "Creating \"%s\"", dentry->d_name.name);
 
 	/* Flat file system. create allowed only on root directory */
 	M0_ASSERT(m0t1fs_inode_is_root(dir));
@@ -304,6 +305,7 @@ struct m0_dirent *dirent_first(struct m0_fop_readdir_rep *rep)
 static int m0t1fs_opendir(struct inode *inode, struct file *file)
 {
         struct m0t1fs_filedata *fd;
+	M0_ENTRY();
 
         M0_ALLOC_PTR(fd);
         if (fd == NULL)
@@ -321,8 +323,11 @@ static int m0t1fs_opendir(struct inode *inode, struct file *file)
         return 0;
 }
 
-static int m0t1fs_releasedir(struct inode *inode, struct file *file) {
+static int m0t1fs_releasedir(struct inode *inode, struct file *file)
+{
         struct m0t1fs_filedata *fd = file->private_data;
+	M0_ENTRY();
+
         m0_free(fd->fd_dirpos);
         m0_free(file->private_data);
         file->private_data = NULL;
@@ -471,7 +476,7 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 
         rc = m0t1fs_mds_cob_link(csb, &mo, &link_rep);
         if (rc != 0) {
-                M0_LOG(M0_ERROR, "mdservive link fop failed: %d\n", rc);
+                M0_LOG(M0_ERROR, "mdservive link fop failed: %d", rc);
                 goto out;
         }
 
@@ -525,7 +530,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 
         rc = m0t1fs_mds_cob_unlink(csb, &mo, &unlink_rep);
         if (rc != 0) {
-                M0_LOG(M0_ERROR, "mdservive unlink fop failed: %d\n", rc);
+                M0_LOG(M0_ERROR, "mdservive unlink fop failed: %d", rc);
                 goto out;
         }
 
@@ -739,8 +744,10 @@ M0_INTERNAL struct m0_fid m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci,
 
 	m0_layout_enum_get(le, index, &ci->ci_fid, &fid);
 
-	M0_LEAVE("fid: [%lu:%lu]", (unsigned long)fid.f_container,
-				   (unsigned long)fid.f_key);
+	M0_LOG(M0_DEBUG, "gob fid [%llu:%llu] @%d = cob fid [%llu:%llu]",
+			ci->ci_fid.f_container, ci->ci_fid.f_key, index,
+			fid.f_container, fid.f_key);
+
 	return fid;
 }
 
@@ -938,7 +945,7 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
                 goto out;
         }
 
-        M0_LOG(M0_DEBUG, "Send md operation %x to session %lu\n",
+        M0_LOG(M0_DEBUG, "Send md operation %u to session %lu",
                 m0_fop_opcode(fop), (unsigned long)session->s_session_id);
 
         rc = m0_rpc_client_call(fop, session, NULL,
@@ -1129,7 +1136,7 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 	if (rc != 0)
 		goto fop_put;
 
-	M0_LOG(M0_DEBUG, "Send %s [%lu:%lu] to session %lu\n",
+	M0_LOG(M0_DEBUG, "Send %s [%lu:%lu] to session %lu",
 		cobcreate ? "cob_create" : "cob_delete",
 		(unsigned long)cob_fid->f_container,
 		(unsigned long)cob_fid->f_key,
