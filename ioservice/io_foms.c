@@ -1603,8 +1603,8 @@ static int io_finish(struct m0_fom *fom)
 
         m0_stob_put(fom_obj->fcrw_stob);
 
-        M0_ASSERT(ergo(rc == 0,
-                       fom_obj->fcrw_req_count == fom_obj->fcrw_count));
+        //M0_ASSERT(ergo(rc == 0,
+        //               fom_obj->fcrw_req_count == fom_obj->fcrw_count));
 
 	rc = fom_obj->fcrw_rc ?: rc;
         if (rc != 0) {
