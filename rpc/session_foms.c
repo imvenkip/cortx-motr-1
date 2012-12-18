@@ -476,6 +476,37 @@ struct m0_fom_type m0_rpc_fom_conn_terminate_type = {
 	.ft_ops = &m0_rpc_fom_conn_terminate_type_ops
 };
 
+static void conn_cleanup_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_rpc_conn *conn;
+
+	conn = container_of(ast, struct m0_rpc_conn, c_ast);
+	m0_rpc_conn_terminate_reply_sent(conn);
+}
+
+static void conn_terminate_reply_sent_cb(struct m0_rpc_item *item)
+{
+	struct m0_rpc_conn *conn;
+
+	M0_ENTRY("item: %p", item);
+
+	M0_PRE(item != NULL &&
+	       item->ri_session != NULL &&
+	       item->ri_session->s_session_id == SESSION_ID_0 &&
+	       item->ri_session->s_conn != NULL);
+
+	conn = item->ri_session->s_conn;
+	M0_PRE(conn_state(conn) == M0_RPC_CONN_TERMINATING);
+	M0_LOG(M0_DEBUG, "conn: %p\n", conn);
+	conn->c_ast.sa_cb = conn_cleanup_ast;
+	m0_sm_ast_post(&conn->c_rpc_machine->rm_sm_grp, &conn->c_ast);
+	M0_LEAVE();
+}
+
+static struct m0_rpc_item_ops conn_terminate_reply_item_ops = {
+	.rio_sent = conn_terminate_reply_sent_cb,
+};
+
 M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 {
 	struct m0_rpc_fop_conn_terminate_rep *reply;
@@ -534,13 +565,15 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 				(M0_RPC_CONN_ACTIVE, M0_RPC_CONN_TERMINATING)));
 
 		m0_rpc_machine_unlock(machine);
-
 		/*
 		 * In memory state of conn is not cleaned up, at this point.
 		 * conn will be finalised and freed in the ->rio_sent()
 		 * callback of &fop_rep->f_item item.
+		 * see: conn_terminate_reply_sent_cb, conn_cleanup_ast()
 		 */
 		reply->ctr_rc = rc; /* rc can be -EBUSY */
+		if (rc == 0) /* connection is successfully terminated */
+			fop_rep->f_item.ri_ops = &conn_terminate_reply_item_ops;
 		m0_fom_phase_set(fom, M0_FOPH_FINISH);
 		M0_LOG(M0_INFO, "Conn terminate successful: conn [%p]\n", conn);
 		m0_rpc_reply_post(&fop->f_item, &fop_rep->f_item);

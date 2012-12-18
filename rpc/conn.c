@@ -1091,7 +1091,6 @@ M0_INTERNAL int m0_rpc_rcv_conn_terminate(struct m0_rpc_conn *conn)
 
 	if (rc != 0)
 		conn_failed(conn, rc);
-
 	/*
 	 * Note: conn is not moved to TERMINATED state even if operation is
 	 * successful. This is required to be able to send successful conn

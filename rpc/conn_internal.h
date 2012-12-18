@@ -147,10 +147,6 @@ M0_INTERNAL void m0_rpc_conn_establish_reply_received(struct m0_rpc_item *req);
 /**
    Cleans up in memory state of rpc connection.
 
-   XXX Right now this function is not called from anywhere. There
-   should be ->item_sent() callback in item->ri_ops, where this
-   function can be hooked.
-
    The conn_terminate FOM cannot free in-memory state of rpc connection.
    Because it needs to send conn_terminate_reply fop, by using session-0 and
    slot-0 of the rpc connection being terminated. Hence we cleanup in memory

@@ -295,6 +295,14 @@ struct m0_rpc_conn {
 	 */
 	struct m0_sm		  c_sm;
 
+	/**
+	   Finalises and frees m0_rpc_conn when conn terminate
+	   reply is sent over network.
+	   Posted in: conn_terminate_reply_sent_cb()
+	   Invokes: conn_cleanup_ast() callback
+	 */
+	struct m0_sm_ast          c_ast;
+
 	/** M0_RPC_CONN_MAGIC */
 	uint64_t		  c_magic;
 };

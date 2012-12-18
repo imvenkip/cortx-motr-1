@@ -53,7 +53,6 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 			uint32_t                   qlen);
 static void __rpc_machine_init(struct m0_rpc_machine *machine);
 static void __rpc_machine_fini(struct m0_rpc_machine *machine);
-static void conn_list_fini(struct m0_tl *list);
 M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine);
 static struct m0_rpc_chan *rpc_chan_locate(struct m0_rpc_machine *machine,
 					   struct m0_net_end_point *dest_ep);
@@ -236,7 +235,8 @@ void m0_rpc_machine_fini(struct m0_rpc_machine *machine)
 
 	m0_rpc_machine_lock(machine);
 	M0_PRE(rpc_conn_tlist_is_empty(&machine->rm_outgoing_conns));
-	conn_list_fini(&machine->rm_incoming_conns);
+	/* RPC does not yet support finalising active connections */
+	M0_PRE(rpc_conn_tlist_is_empty(&machine->rm_incoming_conns));
 	m0_rpc_machine_unlock(machine);
 
 	rpc_tm_cleanup(machine);
@@ -357,28 +357,6 @@ static void rpc_tm_cleanup(struct m0_rpc_machine *machine)
 
 	/* Fini the transfer machine here and deallocate the chan. */
 	m0_net_tm_fini(tm);
-	M0_LEAVE();
-}
-
-/**
-   XXX Temporary. This routine will be discarded, once rpc-core starts
-   providing m0_rpc_item::ri_ops::rio_sent() callback.
-
-   In-memory state of conn should be cleaned up when reply to CONN_TERMINATE
-   has been sent. As of now, rpc-core does not provide this callback. So this
-   is a temporary routine, that cleans up all terminated connections from
-   rpc connection list maintained in rpc_machine.
- */
-static void conn_list_fini(struct m0_tl *list)
-{
-        struct m0_rpc_conn *conn;
-
-	M0_ENTRY();
-        M0_PRE(list != NULL);
-
-	m0_tl_for(rpc_conn, list, conn) {
-                m0_rpc_conn_terminate_reply_sent(conn);
-        } m0_tl_endfor;
 	M0_LEAVE();
 }
 
