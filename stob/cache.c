@@ -100,13 +100,13 @@ M0_INTERNAL int m0_stob_cache_find(struct m0_stob_cache *cache,
 			M0_ASSERT(obj != NULL);
 			m0_rwlock_write_lock(&dom->sd_guard);
 			ghost = m0_stob_cacheable_lookup(cache, id);
-			if (ghost == NULL)
+			if (ghost == NULL) {
 				cache_tlist_add(&cache->ch_head, obj);
-			else {
+				m0_stob_get(&obj->ca_stob);
+			} else {
 				obj->ca_stob.so_op->sop_fini(&obj->ca_stob);
 				obj = ghost;
 			}
-			m0_stob_get(&obj->ca_stob);
 			m0_rwlock_write_unlock(&dom->sd_guard);
 		}
 	}
