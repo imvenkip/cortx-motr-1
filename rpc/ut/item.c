@@ -22,6 +22,7 @@
 #include "lib/trace.h"
 #include "lib/ut.h"
 #include "lib/finject.h"
+#include "lib/misc.h"              /* M0_BITS */
 #include "fop/fop.h"               /* m0_fop_alloc */
 #include "rpc/rpclib.h"
 #include "net/lnet/lnet.h"         /* m0_net_lnet_xprt */
@@ -29,6 +30,7 @@
 #include "ut/cs_fop_foms.h"        /* cs_ds2_req_fop_fopt */
 #include "ut/cs_fop_foms_xc.h"     /* cs_ds2_req_fop */
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
+#include "rpc/ut/rpc_test_fops.h"
 
 static int __test(void);
 
@@ -58,6 +60,8 @@ static int ts_item_init(void)   /* ts_ for "test suite" */
 {
 	int rc;
 
+	m0_rpc_test_fops_init();
+
 	rc = m0_net_xprt_init(xprt);
 	M0_ASSERT(rc == 0);
 
@@ -84,6 +88,7 @@ static int ts_item_fini(void)
 	m0_rpc_server_stop(&sctx);
 	m0_net_domain_fini(&client_net_dom);
 	m0_net_xprt_fini(xprt);
+	m0_rpc_test_fops_fini();
 	return rc;
 }
 
@@ -211,6 +216,30 @@ static int __test(void)
 	return rc;
 }
 
+static void test_oneway_item(void)
+{
+	struct m0_rpc_item *item;
+	struct m0_fop      *fop;
+	int                rc;
+
+	fop = m0_fop_alloc(&m0_rpc_arrow_fopt, NULL);
+	M0_ASSERT(fop != NULL);
+
+	item = &fop->f_item;
+	item->ri_prio = M0_RPC_ITEM_PRIO_MID;
+	item->ri_deadline = 0;
+	rc = m0_rpc_oneway_item_post(&cctx.rcx_connection, item);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_rpc_item_timedwait(&fop->f_item,
+				   M0_BITS(M0_RPC_ITEM_SENT,
+					   M0_RPC_ITEM_FAILED),
+				   M0_TIME_NEVER);
+	M0_ASSERT(rc == 0);
+	M0_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_SENT);
+	m0_fop_put(fop);
+}
+
 /*
 static void rply_before_sentcb(void)
 {
@@ -238,6 +267,7 @@ const struct m0_test_suite item_ut = {
 		{ "simple-transitions",     test_simple_transitions     },
 		{ "timeout-transitions",    test_timeout                },
 		{ "failure-before-sending", test_failure_before_sending },
+		{ "oneway-item",            test_oneway_item            },
 		{ NULL, NULL },
 	}
 };

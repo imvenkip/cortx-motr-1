@@ -246,8 +246,8 @@ to add the following code into 'xcode/ut/Makefile.sub':
 
     XC_FILES += xcode/ut/test_gccxml_xc.h
 
-    CLEAN_FILES += xcode/ut/test_gccxml_xc.h \
-                   xcode/ut/test_gccxml_xc.c
+    CLEANFILES += xcode/ut/test_gccxml_xc.h \
+                  xcode/ut/test_gccxml_xc.c
 
 What it does is:
 

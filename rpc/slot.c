@@ -838,22 +838,29 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 	M0_PRE(m0_rpc_machine_is_locked(machine));
 
 	machine->rm_stats.rs_nr_rcvd_items++;
-	/** @todo XXX This code path assumes item is of kind request or reply.
-		      Add handling for one-way items.
-	 */
-	rc = associate_session_and_slot(item, machine);
-	if (rc == 0) {
-		rc = m0_rpc_slot_item_received(item);
-	} else if (m0_rpc_item_is_conn_establish(item)) {
+	if (m0_rpc_item_is_oneway(item)) {
 		m0_rpc_item_dispatch(item);
 		rc = 0;
 	} else {
-		/*
-		 * If we cannot associate the item with its slot
-		 * then there is nothing that we can do with this
-		 * item except to discard it.
-		 * XXX generate ADDB record
-		 */
+		M0_ASSERT(m0_rpc_item_is_request(item) ||
+			  m0_rpc_item_is_reply(item));
+		rc = associate_session_and_slot(item, machine);
+		if (rc == 0) {
+			rc = m0_rpc_slot_item_received(item);
+		} else if (m0_rpc_item_is_conn_establish(item)) {
+			m0_rpc_item_dispatch(item);
+			rc = 0;
+		} else {
+			/*
+			 * If we cannot associate the item with its slot
+			 * then there is nothing that we can do with this
+			 * item except to discard it.
+			 * XXX generate ADDB record
+			 * At this point item has only 1 reference on it
+			 * which will be dropped in packet_received()
+			 * resulting in item getting deallocated.
+			 */
+		}
 	}
 	return rc;
 }

@@ -5,6 +5,14 @@ ut_libmero_ut_la_SOURCES += rpc/ut/rpclib_ut.c \
                                rpc/ut/rpc_machine.c \
                                rpc/ut/session.c \
                                rpc/ut/item.c \
-			       rpc/ut/packet.c
+			       rpc/ut/packet.c \
+			       rpc/ut/rpc_test_fops_xc.c \
+			       rpc/ut/rpc_test_fops.c
 
-EXTRA_DIST                  += rpc/ut/clnt_srv_ctx.c
+XC_FILES += rpc/ut/rpc_test_fops_xc.h
+
+EXTRA_DIST += rpc/ut/clnt_srv_ctx.c \
+              rpc/ut/rpc_test_fops.h
+
+CLEANFILES += rpc/ut/rpc_test_fops_xc.h \
+              rpc/ut/rpc_test_fops_xc.c
