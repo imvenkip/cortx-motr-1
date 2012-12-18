@@ -18,9 +18,6 @@
  * Original creation date: 18-Dec-2012
  */
 
-#ifndef __KERNEL__
-#include <stdio.h>
-#endif
 #include "lib/memory.h"
 #include "fop/fop.h"
 #include "fop/fom.h"
@@ -35,6 +32,9 @@ static int arrow_fom_tick(struct m0_fom *fom);
 static size_t arrow_fom_home_locality(const struct m0_fom *fom);
 
 struct m0_fop_type m0_rpc_arrow_fopt;
+
+struct m0_semaphore arrow_hit;
+struct m0_semaphore arrow_destroyed;
 
 static struct m0_fom_type_ops arrow_fom_type_ops = {
 	.fto_create = arrow_fom_create,
@@ -59,10 +59,14 @@ M0_INTERNAL void m0_rpc_test_fops_init(void)
 		.fom_ops   = &arrow_fom_type_ops,
 		.sm        = &m0_generic_conf);
 	M0_ASSERT(rc == 0);
+	m0_semaphore_init(&arrow_hit, 0);
+	m0_semaphore_init(&arrow_destroyed, 0);
 }
 
 M0_INTERNAL void m0_rpc_test_fops_fini(void)
 {
+	m0_semaphore_fini(&arrow_destroyed);
+	m0_semaphore_fini(&arrow_hit);
 	m0_fop_type_fini(&m0_rpc_arrow_fopt);
 	m0_xc_rpc_test_fops_fini();
 }
@@ -85,13 +89,12 @@ static void arrow_fom_fini(struct m0_fom *fom)
 {
 	m0_fom_fini(fom);
 	m0_free(fom);
+	m0_semaphore_up(&arrow_destroyed);
 }
 
 static int arrow_fom_tick(struct m0_fom *fom)
 {
-#ifndef __KERNEL__
-	printf("\n\nBull's eye!!!\n\n");
-#endif
+	m0_semaphore_up(&arrow_hit);
 	m0_fom_phase_set(fom, M0_FOPH_FINISH);
 	return M0_FSO_WAIT;
 }

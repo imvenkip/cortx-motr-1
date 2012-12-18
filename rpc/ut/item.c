@@ -23,6 +23,7 @@
 #include "lib/ut.h"
 #include "lib/finject.h"
 #include "lib/misc.h"              /* M0_BITS */
+#include "lib/semaphore.h"
 #include "fop/fop.h"               /* m0_fop_alloc */
 #include "rpc/rpclib.h"
 #include "net/lnet/lnet.h"         /* m0_net_lnet_xprt */
@@ -216,27 +217,47 @@ static int __test(void)
 	return rc;
 }
 
+static bool arrow_sent_cb_called = false;
+static void arrow_sent_cb(struct m0_rpc_item *item)
+{
+	arrow_sent_cb_called = true;
+}
+static struct m0_rpc_item_ops arrow_item_ops = {
+	.rio_sent = arrow_sent_cb,
+};
+
 static void test_oneway_item(void)
 {
 	struct m0_rpc_item *item;
 	struct m0_fop      *fop;
-	int                rc;
+	bool                ok;
+	int                 rc;
 
 	fop = m0_fop_alloc(&m0_rpc_arrow_fopt, NULL);
-	M0_ASSERT(fop != NULL);
+	M0_UT_ASSERT(fop != NULL);
 
-	item = &fop->f_item;
-	item->ri_prio = M0_RPC_ITEM_PRIO_MID;
+	item              = &fop->f_item;
+	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline = 0;
+	item->ri_ops      = &arrow_item_ops;
+	M0_UT_ASSERT(!arrow_sent_cb_called);
 	rc = m0_rpc_oneway_item_post(&cctx.rcx_connection, item);
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_rpc_item_timedwait(&fop->f_item,
 				   M0_BITS(M0_RPC_ITEM_SENT,
 					   M0_RPC_ITEM_FAILED),
 				   M0_TIME_NEVER);
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	M0_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_SENT);
+	M0_UT_ASSERT(arrow_sent_cb_called);
+
+	ok = m0_semaphore_timeddown(&arrow_hit, m0_time_from_now(5, 0));
+	M0_UT_ASSERT(ok);
+
+	ok = m0_semaphore_timeddown(&arrow_destroyed, m0_time_from_now(5, 0));
+	M0_UT_ASSERT(ok);
+
 	m0_fop_put(fop);
 }
 

@@ -38,6 +38,9 @@ M0_INTERNAL void m0_rpc_test_fops_fini(void);
 
 extern struct m0_fop_type m0_rpc_arrow_fopt;
 
+extern struct m0_semaphore arrow_hit;
+extern struct m0_semaphore arrow_destroyed;
+
 #endif /* __MERO_RPC_UT_RPC_TEST_FOPS_H__ */
 
 
