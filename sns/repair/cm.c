@@ -411,22 +411,23 @@ static size_t cm_buffer_pool_provision(struct m0_net_buffer_pool *bp,
 }
 
 static int pm_event_setup_and_post(struct m0_poolmach *pm,
-				   struct m0_pool_event *pme,
 				   enum m0_pool_event_owner_type et,
 				   uint32_t oid,
 				   enum m0_pool_nd_state state)
 {
-        pme->pe_type  = et;
-        pme->pe_index = oid;
-        pme->pe_state = state;
+	struct m0_pool_event pme;
 
-	return m0_poolmach_state_transit(pm, pme);
+	M0_SET0(&pme);
+        pme.pe_type  = et;
+        pme.pe_index = oid;
+        pme.pe_state = state;
+
+	return m0_poolmach_state_transit(pm, &pme);
 }
 
 static int cm_start(struct m0_cm *cm)
 {
 	struct m0_sns_repair_cm *rcm;
-	struct m0_pool_event     pm_event;
 	int                      bufs_nr;
 	int                      rc;
 
@@ -447,8 +448,8 @@ static int cm_start(struct m0_cm *cm)
 	rc = m0_sns_repair_iter_init(rcm);
 	if (rc == 0) {
 		m0_cm_sw_fill(cm);
-		rc = pm_event_setup_and_post(cm->cm_pm, &pm_event,
-					     M0_POOL_DEVICE, rcm->rc_fdata,
+		rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
+					     rcm->rc_fdata,
 					     M0_PNDS_SNS_REPAIRING);
 	}
 
@@ -459,15 +460,14 @@ static int cm_start(struct m0_cm *cm)
 static int cm_stop(struct m0_cm *cm)
 {
 	struct m0_sns_repair_cm *rcm;
-	struct m0_pool_event     pm_event;
 
 	M0_PRE(cm != NULL);
 
 	rcm = cm2sns(cm);
 	m0_sns_repair_iter_fini(rcm);
 
-	pm_event_setup_and_post(cm->cm_pm, &pm_event, M0_POOL_DEVICE,
-				rcm->rc_fdata, M0_PNDS_SNS_REPAIRED);
+	pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE, rcm->rc_fdata,
+				M0_PNDS_SNS_REPAIRED);
 	return 0;
 }
 

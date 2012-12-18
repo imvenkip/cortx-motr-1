@@ -81,7 +81,7 @@ SERVICES=(
 
 LOCAL_EP=(
 	12345:33:101
-	12345:33:102
+#	12345:33:102
 )
 
 UNIT_SIZE=262144
@@ -343,7 +343,7 @@ function start_server () {
 		fi
 	fi
 
-	local SNAME="-s ioservice"
+	local SNAME="-s ioservice -s sns_repair"
 	if [ $I -eq 0 ]; then
 		SNAME="-s confd -s mdservice $SNAME"
 	fi
