@@ -36,11 +36,11 @@ struct m0_fop_type m0_rpc_arrow_fopt;
 struct m0_semaphore arrow_hit;
 struct m0_semaphore arrow_destroyed;
 
-static struct m0_fom_type_ops arrow_fom_type_ops = {
+static const struct m0_fom_type_ops arrow_fom_type_ops = {
 	.fto_create = arrow_fom_create,
 };
 
-static struct m0_fom_ops arrow_fom_ops = {
+static const struct m0_fom_ops arrow_fom_ops = {
 	.fo_fini          = arrow_fom_fini,
 	.fo_tick          = arrow_fom_tick,
 	.fo_home_locality = arrow_fom_home_locality,

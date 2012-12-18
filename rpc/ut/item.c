@@ -222,7 +222,7 @@ static void arrow_sent_cb(struct m0_rpc_item *item)
 {
 	arrow_sent_cb_called = true;
 }
-static struct m0_rpc_item_ops arrow_item_ops = {
+static const struct m0_rpc_item_ops arrow_item_ops = {
 	.rio_sent = arrow_sent_cb,
 };
 

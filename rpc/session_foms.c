@@ -503,7 +503,7 @@ static void conn_terminate_reply_sent_cb(struct m0_rpc_item *item)
 	M0_LEAVE();
 }
 
-static struct m0_rpc_item_ops conn_terminate_reply_item_ops = {
+static const struct m0_rpc_item_ops conn_terminate_reply_item_ops = {
 	.rio_sent = conn_terminate_reply_sent_cb,
 };
 
