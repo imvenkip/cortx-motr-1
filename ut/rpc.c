@@ -76,11 +76,7 @@ int m0_rpc_client_fini(struct m0_rpc_client_ctx *cctx)
 	int rc;
 
 	rc = m0_rpc_client_stop(cctx);
-	if (rc != 0)
-		return rc;
-
 	fini_cob(cctx);
-
 	return rc;
 }
 M0_EXPORTED(m0_rpc_client_fini);

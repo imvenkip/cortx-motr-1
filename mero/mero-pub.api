@@ -88,8 +88,14 @@ m0_thread_fini
 m0_thread_init
 m0_thread_join
 m0_time
+m0_time_add
 m0_time_from_now
+m0_time_is_in_past
+m0_time_nanoseconds
+m0_time_now
+m0_time_seconds
 m0_time_set
+m0_time_sub
 m0_tlist_head
 m0_tlist_next
 m0_vector_elem_get

@@ -434,14 +434,17 @@ M0_INTERNAL m0_bcount_t m0_rpc_item_onwire_header_size(void)
 	return size;
 }
 
-M0_INTERNAL m0_bcount_t m0_rpc_item_size(const struct m0_rpc_item *item)
+M0_INTERNAL m0_bcount_t m0_rpc_item_size(struct m0_rpc_item *item)
 {
 	M0_PRE(item->ri_type != NULL &&
 	       item->ri_type->rit_ops != NULL &&
 	       item->ri_type->rit_ops->rito_payload_size != NULL);
 
-	return m0_rpc_item_onwire_header_size() +
-		item->ri_type->rit_ops->rito_payload_size(item);
+	if (item->ri_size == 0)
+		item->ri_size = m0_rpc_item_onwire_header_size() +
+			item->ri_type->rit_ops->rito_payload_size(item);
+	M0_ASSERT(item->ri_size != 0);
+	return item->ri_size;
 }
 
 M0_INTERNAL bool m0_rpc_item_is_update(const struct m0_rpc_item *item)

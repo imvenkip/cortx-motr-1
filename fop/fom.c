@@ -175,7 +175,6 @@ M0_TL_DEFINE(wail, static, struct m0_fom);
 static bool fom_wait_time_is_out(const struct m0_fom_domain *dom,
                                  const struct m0_fom *fom);
 static int loc_thr_create(struct m0_fom_locality *loc);
-static void fom_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast);
 
 /**
  * Fom domain operations.
@@ -477,17 +476,35 @@ static void fom_wait(struct m0_fom *fom)
 }
 
 /**
+ * Helper function advancing a fom call-back from ARMED to DONE state.
+ */
+static void cb_done(struct m0_fom_callback *cb)
+{
+	struct m0_clink *clink = &cb->fc_clink;
+
+	M0_PRE(m0_fom_invariant(cb->fc_fom));
+	M0_PRE(cb->fc_state == M0_FCS_ARMED);
+
+	cb->fc_state = M0_FCS_DONE;
+	if (m0_clink_is_armed(clink))
+		m0_clink_del(clink);
+	m0_clink_fini(clink);
+}
+
+/**
  * Helper to execute the bottom half of a fom call-back.
  */
 static void cb_run(struct m0_fom_callback *cb)
 {
-	M0_PRE(cb->fc_state == M0_FCS_TOP_DONE);
 	M0_PRE(m0_fom_invariant(cb->fc_fom));
 
-	cb->fc_state = M0_FCS_DONE;
+	cb_done(cb);
 	cb->fc_bottom(cb);
-	m0_clink_del(&cb->fc_clink);
-	m0_clink_fini(&cb->fc_clink);
+}
+
+static void *cb_next(struct m0_fom_callback *cb)
+{
+	return cb->fc_ast.sa_next;
 }
 
 /**
@@ -541,7 +558,7 @@ static void fom_exec(struct m0_fom *fom)
 		 * Note: call-backs are executed in LIFO order.
 		 */
 		while ((cb = fom->fo_pending) != NULL) {
-			fom->fo_pending = (void *)cb->fc_ast.sa_next;
+			fom->fo_pending = cb_next(cb);
 			cb_run(cb);
 			/*
 			 * call-back is not allowed to destroy a fom.
@@ -561,7 +578,7 @@ static void fom_exec(struct m0_fom *fom)
  */
 static struct m0_fom *fom_dequeue(struct m0_fom_locality *loc)
 {
-	struct m0_fom		*fom = NULL;
+	struct m0_fom *fom;
 
 	fom = runq_tlist_head(&loc->fl_runq);
 	if (fom != NULL) {
@@ -915,7 +932,7 @@ static bool fom_clink_cb(struct m0_clink *link)
 	                                          fc_clink);
 	M0_PRE(cb->fc_state >= M0_FCS_ARMED);
 
-	if (m0_atomic64_cas(&cb->fc_state, M0_FCS_ARMED, M0_FCS_TOP_DONE) &&
+	if (cb->fc_state == M0_FCS_ARMED &&
 	    (cb->fc_top == NULL || !cb->fc_top(cb)))
 		m0_sm_ast_post(&cb->fc_fom->fo_loc->fl_group, &cb->fc_ast);
 
@@ -929,12 +946,7 @@ static void fom_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_fom          *fom = cb->fc_fom;
 
 	M0_PRE(m0_fom_invariant(fom));
-	/*
-	 * there is no need to use CAS here, because this place is only reached
-	 * if CAS in fom_clink_cb() was successful and, hence, races with
-	 * m0_fom_callback_cancel() are no longer possible.
-	 */
-	M0_PRE(cb->fc_state == M0_FCS_TOP_DONE);
+	M0_PRE(cb->fc_state == M0_FCS_ARMED);
 
 	if (fom_state(fom) == M0_FOS_WAITING)
 		cb_run(cb);
@@ -993,19 +1005,89 @@ M0_INTERNAL void m0_fom_callback_fini(struct m0_fom_callback *cb)
 	/* m0_clink_fini() is called in cb_run() */
 }
 
-M0_INTERNAL bool m0_fom_callback_cancel(struct m0_fom_callback *cb)
+static void cb_cancel(struct m0_fom_callback *cb)
 {
-	bool result;
+	struct m0_fom_callback *prev;
+
+	prev = cb->fc_fom->fo_pending;
+	while (prev != NULL && cb_next(prev) != cb)
+		prev = cb_next(prev);
+	if (prev != NULL)
+		prev->fc_ast.sa_next = cb_next(cb);
+}
+
+M0_INTERNAL void m0_fom_callback_cancel(struct m0_fom_callback *cb)
+{
 	M0_PRE(cb->fc_state >= M0_FCS_ARMED);
 
-	result = m0_atomic64_cas(&cb->fc_state, M0_FCS_ARMED, M0_FCS_DONE);
-
-	if (result) {
-		m0_clink_del(&cb->fc_clink);
-		m0_clink_fini(&cb->fc_clink);
+	if (cb->fc_state == M0_FCS_ARMED) {
+		cb_done(cb);
+		/* Once the clink is finalised, the AST cannot be posted, cancel
+		   the AST. */
+		m0_sm_ast_cancel(cb->fc_ast.sa_mach->sm_grp, &cb->fc_ast);
+		/* Once the AST is cancelled, cb cannot be added to the pending
+		   list, cancel cb. */
+		cb_cancel(cb);
 	}
+}
 
-	return result;
+M0_INTERNAL void m0_fom_timeout_init(struct m0_fom_timeout *to)
+{
+	M0_SET0(to);
+	m0_sm_timer_init(&to->to_timer);
+	m0_fom_callback_init(&to->to_cb);
+}
+
+M0_INTERNAL void m0_fom_timeout_fini(struct m0_fom_timeout *to)
+{
+	m0_fom_callback_fini(&to->to_cb);
+	m0_sm_timer_fini(&to->to_timer);
+}
+
+static void fom_timeout_cb(struct m0_sm_timer *timer)
+{
+	struct m0_fom_timeout  *to = container_of(timer, struct m0_fom_timeout,
+						  to_timer);
+	struct m0_fom_callback *cb = &to->to_cb;
+
+	cb->fc_state = M0_FCS_ARMED;
+	fom_ast_cb(to->to_timer.tr_grp, &cb->fc_ast);
+}
+
+static int fom_timeout_start(struct m0_fom_timeout *to,
+			     struct m0_fom *fom,
+			     void (*cb)(struct m0_fom_callback *),
+			     m0_time_t deadline)
+{
+	to->to_cb.fc_fom    = fom;
+	to->to_cb.fc_bottom = cb;
+	return m0_sm_timer_start(&to->to_timer, fom->fo_sm_state.sm_grp,
+				 fom_timeout_cb, deadline);
+}
+
+M0_INTERNAL int m0_fom_timeout_wait_on(struct m0_fom_timeout *to,
+				       struct m0_fom *fom,
+				       m0_time_t deadline)
+{
+	return fom_timeout_start(to, fom, fom_ready_cb, deadline);
+}
+
+M0_INTERNAL int m0_fom_timeout_arm(struct m0_fom_timeout *to,
+				   struct m0_fom *fom,
+				   void (*cb)(struct m0_fom_callback *),
+				   m0_time_t deadline)
+{
+	return fom_timeout_start(to, fom, cb, deadline);
+}
+
+M0_INTERNAL void m0_fom_timeout_cancel(struct m0_fom_timeout *to)
+{
+	struct m0_fom_callback *cb = &to->to_cb;
+
+	M0_PRE(m0_fom_invariant(cb->fc_fom));
+
+	m0_sm_timer_cancel(&to->to_timer);
+	m0_fom_callback_cancel(cb);
 }
 
 M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type,

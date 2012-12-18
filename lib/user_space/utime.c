@@ -34,7 +34,7 @@ int nanosleep(const struct timespec *req, struct timespec *rem);
    @{
 */
 
-M0_INTERNAL m0_time_t m0_time_now(void)
+m0_time_t m0_time_now(void)
 {
         struct timeval tv;
 	m0_time_t      t;

@@ -41,9 +41,11 @@ const struct m0_fom_type_ops m0_fom_ping_type_ops = {
 
 M0_INTERNAL size_t m0_fom_ping_home_locality(const struct m0_fom *fom)
 {
+	static unsigned loc = 0;
+
 	M0_PRE(fom != NULL);
 
-	return m0_fop_opcode(fom->fo_fop);
+	return loc++;
 }
 
 /**

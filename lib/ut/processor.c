@@ -341,8 +341,7 @@ static void verify_id_get(void)
 	int               rc;
 
 	rc = m0_processors_init();
-	if (rc != 0)
-		return;
+	M0_UT_ASSERT(rc == 0);
 
 	num = m0_processor_nr_max();
 	m0_bitmap_init(&map, num);
@@ -371,8 +370,7 @@ static void verify_map(int mapid)
 	m0_processor_nr_t  num;
 
 	rc = m0_processors_init();
-	if (rc != 0)
-		return;
+	M0_UT_ASSERT(rc == 0);
 
 	num = m0_processor_nr_max();
 	m0_bitmap_init(&map, num);
@@ -419,8 +417,8 @@ static void verify_max_processors()
 	m0_processor_nr_t result;
 
 	rc = m0_processors_init();
-	if (rc != 0)
-		return;
+	M0_UT_ASSERT(rc == 0);
+
 	sprintf(filename, "%s/%s", processor_info_dirp, MAX_PROCESSOR_FILE);
 	result = (m0_processor_nr_t) get_num_from_file(filename);
 
@@ -499,8 +497,7 @@ static void verify_processors()
 	int                       rc;
 
 	rc = m0_processors_init();
-	if (rc != 0)
-		return;
+	M0_UT_ASSERT(rc == 0);
 
 	num = m0_processor_nr_max();
 	m0_bitmap_init(&onln_map, num);

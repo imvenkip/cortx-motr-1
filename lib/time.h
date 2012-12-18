@@ -60,7 +60,7 @@ enum {
 
    @return The current time.
  */
-M0_INTERNAL m0_time_t m0_time_now(void);
+m0_time_t m0_time_now(void);
 
 /**
    Create a m0_time_t initialized with seconds + nanosecond in the future.
@@ -93,7 +93,7 @@ m0_time_t m0_time_set(m0_time_t * time, uint64_t secs, long ns);
    @return The result time. If either t1 or t2 is M0_TIME_NEVER, the result
    is M0_TIME_NEVER.
  */
-M0_INTERNAL m0_time_t m0_time_add(const m0_time_t t1, const m0_time_t t2);
+m0_time_t m0_time_add(const m0_time_t t1, const m0_time_t t2);
 
 /**
    Subtract t2 from t1 and return that result.
@@ -101,7 +101,7 @@ M0_INTERNAL m0_time_t m0_time_add(const m0_time_t t1, const m0_time_t t2);
    @return The result time. If t1 == M0_TIME_NEVER, M0_TIME_NEVER is returned.
    @pre t2 < M0_TIME_NEVER && t1 >= t2
  */
-M0_INTERNAL m0_time_t m0_time_sub(const m0_time_t t1, const m0_time_t t2);
+m0_time_t m0_time_sub(const m0_time_t t1, const m0_time_t t2);
 
 /**
    Sleep for requested time. If interrupted, remaining time returned.
@@ -115,14 +115,14 @@ int m0_nanosleep(const m0_time_t req, m0_time_t * rem);
 /**
    Get "second" part from the time.
  */
-M0_INTERNAL uint64_t m0_time_seconds(const m0_time_t time);
+uint64_t m0_time_seconds(const m0_time_t time);
 
 /**
    Get "nanosecond" part from the time.
  */
-M0_INTERNAL uint64_t m0_time_nanoseconds(const m0_time_t time);
+uint64_t m0_time_nanoseconds(const m0_time_t time);
 
-M0_INTERNAL bool m0_time_is_in_past(m0_time_t time);
+bool m0_time_is_in_past(m0_time_t time);
 
 /**
    The largest time that is never reached in system life.
