@@ -27,10 +27,7 @@ dirs  =                        \
         addb                   \
         addb/linux_kernel      \
         addb/ut                \
-        m0t1fs/linux_kernel    \
-        m0t1fs/linux_kernel/ut \
         cob                    \
-        mero                   \
         conf                   \
         conf/objs              \
         db                     \
@@ -40,13 +37,16 @@ dirs  =                        \
         fol                    \
         fop                    \
         ioservice              \
-        mdservice              \
         ioservice/ut           \
         layout                 \
         layout/ut              \
         lib                    \
         lib/linux_kernel       \
         lib/ut                 \
+	m0t1fs/linux_kernel    \
+        m0t1fs/linux_kernel/ut \
+	mero                   \
+        mdservice              \
         net                    \
         net/bulk_emulation/ut  \
         net/lnet               \
@@ -93,7 +93,8 @@ cob_SOURCES                     := cob.c
 
 mero_SOURCES                    := init.c
 
-db_SOURCES                      := db_common.c
+db_SOURCES                      := db_common.c extmap_seg_xc.c
+db_HEADERS                      := extmap_seg_xc.h extmap_seg.h
 
 db_linux_kernel_SOURCES         := db.c
 
@@ -128,10 +129,11 @@ lib_SOURCES                     := bitstring.c getopts.c vec.c list.c queue.c \
                                    cond.c thread.c tlist.c bob.c trace.c      \
                                    finject.c vec_xc.c vec.c buf_xc.c buf.c    \
                                    m0lib.c cookie.c ext.c uuid.c lockers.c    \
-                                   assert.c bitmap_xc.c types_xc.c
+                                   assert.c bitmap_xc.c types_xc.c ext_xc.c
 
 lib_HEADERS                     := vec.h vec_xc.h buf.h buf_xc.h \
-				   bitmap.h bitmap_xc.h types_xc.h types.h
+				   bitmap.h bitmap_xc.h types_xc.h types.h \
+				   ext.h ext_xc.h
 
 lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c \
                                    kthread.c semaphore.c processor.c kvec.c  \

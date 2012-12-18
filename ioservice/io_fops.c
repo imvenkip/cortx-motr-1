@@ -133,7 +133,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	/*
 	 * Provided by gccxml2xcode after parsing io_fops.h
 	 */
-	m0_xc_io_fops_init();
+	m0_xc_io_fops_descr_init();
+	m0_xc_io_fol_init();
 
 #ifndef __KERNEL__
 	m0_sm_conf_extend(m0_generic_conf.scf_state, io_phases,
