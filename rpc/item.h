@@ -189,6 +189,7 @@ struct m0_rpc_item {
 	/** Anchor to put item on m0_rpc_session::s_unbound_items list */
 	struct m0_list_link		 ri_unbound_link;
 	int32_t				 ri_error;
+	size_t                           ri_size;
 	/** Pointer to the type object for this item */
 	const struct m0_rpc_item_type	*ri_type;
 	/** reply item */
@@ -267,7 +268,7 @@ M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item);
 
 M0_INTERNAL m0_bcount_t m0_rpc_item_onwire_header_size(void);
 
-M0_INTERNAL m0_bcount_t m0_rpc_item_size(const struct m0_rpc_item *item);
+M0_INTERNAL m0_bcount_t m0_rpc_item_size(struct m0_rpc_item *item);
 
 M0_INTERNAL int m0_rpc_item_timedwait(struct m0_rpc_item *item,
 				      uint64_t states, m0_time_t timeout);

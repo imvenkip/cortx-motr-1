@@ -181,25 +181,26 @@ M0_EXPORTED(m0_rpc_client_call);
 
 int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 {
-	int rc;
+	int rc0;
+	int rc1;
 
 	M0_ENTRY("client_ctx: %p", cctx);
-	rc = m0_rpc_session_destroy(&cctx->rcx_session, (uint32_t)M0_TIME_NEVER);
-	if (rc != 0) {
-		M0_RETURN(rc);
-	}
+	rc0 = m0_rpc_session_destroy(&cctx->rcx_session,
+				    (uint32_t)M0_TIME_NEVER);
+	if (rc0 != 0)
+		M0_LOG(M0_ERROR, "Failed to terminate session %d", rc0);
 
-	rc = m0_rpc_conn_destroy(&cctx->rcx_connection, (uint32_t)M0_TIME_NEVER);
-	if (rc != 0) {
-		M0_RETURN(rc);
-	}
+	rc1 = m0_rpc_conn_destroy(&cctx->rcx_connection,
+				 (uint32_t)M0_TIME_NEVER);
+	if (rc1 != 0)
+		M0_LOG(M0_ERROR, "Failed to terminate connection %d", rc1);
 
 	m0_net_end_point_put(cctx->rcx_remote_ep);
 	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
 
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
-	M0_RETURN(rc);
+	M0_RETURN(rc0 ?: rc1);
 }
 
 #undef M0_TRACE_SUBSYSTEM

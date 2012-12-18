@@ -59,7 +59,7 @@ static bool item_less_or_equal(const struct m0_rpc_item *i0,
 
 static m0_bcount_t available_space_in_packet(const struct m0_rpc_packet *p,
 					     const struct m0_rpc_frm    *frm);
-static bool item_will_exceed_packet_size(const struct m0_rpc_item   *item,
+static bool item_will_exceed_packet_size(struct m0_rpc_item         *item,
 					 const struct m0_rpc_packet *p,
 					 const struct m0_rpc_frm    *frm);
 
@@ -541,7 +541,7 @@ static m0_bcount_t available_space_in_packet(const struct m0_rpc_packet *p,
 	return frm->f_constraints.fc_max_packet_size - p->rp_size;
 }
 
-static bool item_will_exceed_packet_size(const struct m0_rpc_item   *item,
+static bool item_will_exceed_packet_size(struct m0_rpc_item         *item,
 					 const struct m0_rpc_packet *p,
 					 const struct m0_rpc_frm    *frm)
 {
