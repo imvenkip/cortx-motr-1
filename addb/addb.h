@@ -29,12 +29,42 @@
 #include "lib/assert.h"
 #include "lib/adt.h"
 #include "lib/list.h"
+#include "lib/types.h"
+#include "xcode/xcode_attr.h"
 
 /**
    @defgroup addb Analysis and Diagnostics Data-Base
 
    @{
 */
+
+/* buf in memory */
+struct m0_mem_buf {
+	uint32_t  cmb_count;
+	uint8_t  *cmb_value;
+} M0_XCA_SEQUENCE;
+
+/* on-wire and on-disk addb record header */
+struct m0_addb_record_header {
+	uint64_t arh_magic1;
+	uint32_t arh_version;
+	uint32_t arh_len;
+	uint64_t arh_event_id;
+	uint64_t arh_timestamp;
+	uint64_t arh_magic2;
+} M0_XCA_RECORD;
+
+/* on wire addb record */
+struct m0_addb_record {
+	struct m0_addb_record_header ar_header;
+	struct m0_mem_buf            ar_data;
+} M0_XCA_RECORD;
+
+/* on wire addb record reply */
+struct m0_addb_reply {
+	uint32_t ar_rc;
+} M0_XCA_RECORD;
+
 
 struct m0_addb_ctx_type;
 struct m0_addb_ctx;

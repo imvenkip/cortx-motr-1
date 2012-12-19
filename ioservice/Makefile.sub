@@ -11,7 +11,7 @@ mero_libmero_la_SOURCES  += ioservice/io_foms.c \
                             ioservice/cob_foms.c \
                             ioservice/io_device.c
 
-ioservice/io_fops_xc.h : addb/addbff/addb_xc.h \
+ioservice/io_fops_xc.h : addb/addb_xc.h \
                          net/net_otw_types_xc.h
 
 XC_FILES   += ioservice/io_fops_xc.h

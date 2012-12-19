@@ -30,8 +30,8 @@
 #include "xcode/xcode_attr.h"
 #include "net/net_otw_types.h"
 #include "net/net_otw_types_xc.h"
-#include "addb/addbff/addb.h"
-#include "addb/addbff/addb_xc.h"
+#include "addb/addb.h"
+#include "addb/addb_xc.h"
 #include "fid/fid.h"
 #include "fid/fid_xc.h"
 

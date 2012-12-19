@@ -27,7 +27,6 @@ EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) \
 # Please maintain the lexicographical order.
 dirs  =                        \
         addb                   \
-        addb/addbff            \
         addb/linux_kernel      \
         m0t1fs/linux_kernel    \
         m0t1fs/linux_kernel/ut \
@@ -74,10 +73,8 @@ dirs  =                        \
 #       headers that need to be included in following listing are those of
 #       type `*_ff.h'; rest of the headers will be assumed relative to `core/'
 
-addb_SOURCES                    := addb.c addb_fop.c
-
-addb_addbff_SOURCES             := addb_xc.c
-addb_addbff_HEADERS             := addb_xc.h addb.h
+addb_SOURCES                    := addb.c addb_fop.c addb_xc.c
+addb_HEADERS                    := addb_xc.h addb.h
 
 addb_linux_kernel_SOURCES       := addb_console.c
 

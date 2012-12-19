@@ -146,7 +146,6 @@ nobase_mero_include_HEADERS =
 mero_libmero_la_SOURCES  =
 
 include $(top_srcdir)/addb/Makefile.sub
-include $(top_srcdir)/addb/addbff/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/build_kernel_modules/Makefile.sub
 include $(top_srcdir)/m0t1fs/Makefile.sub
