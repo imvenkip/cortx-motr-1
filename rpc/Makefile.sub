@@ -47,7 +47,7 @@ XC_FILES   += rpc/rpc_onwire_xc.h \
               rpc/session_fops_xc.h
 
 CLEANFILES += rpc/session_fops_xc.h \
-              rpc/session_fops_xc.h \
+              rpc/session_fops_xc.c \
               rpc/session_fops.gccxml \
               rpc/rpc_onwire_xc.h \
               rpc/rpc_onwire_xc.c \
