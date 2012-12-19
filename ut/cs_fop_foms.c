@@ -287,7 +287,9 @@ static int cs_req_fop_fom_tick(struct m0_fom *fom)
 			rc = M0_FSO_AGAIN;
 			break;
 		default:
-			 M0_ASSERT("Invalid fop" == 0);
+			M0_ASSERT("Invalid fop" == 0);
+			rc = 0;
+			break;
 		}
 	}
 	if (M0_FI_ENABLED("inject_delay")) {

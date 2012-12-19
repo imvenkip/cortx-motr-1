@@ -117,6 +117,7 @@ M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx)
 M0_INTERNAL int m0_db_tx_abort(struct m0_db_tx *tx)
 {
 	M0_IMPOSSIBLE("Aborting transaction in kernel space.");
+	return -ENOSYS;
 }
 
 M0_INTERNAL void m0_db_tx_waiter_add(struct m0_db_tx *tx,

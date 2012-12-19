@@ -1304,6 +1304,8 @@ static void nlx_ping_server_work(struct nlx_ping_ctx *ctx)
 			break;
 		default:
 			M0_IMPOSSIBLE("unexpected wi->pwi_type");
+			rc = -EINVAL;
+			break;
 		}
 		if (rc != 0) {
 			m0_atomic64_inc(&ctx->pc_errors);

@@ -208,7 +208,7 @@ int decode_msg(struct m0_net_buffer *nb, struct ping_msg *msg)
 		step = m0_bufvec_cursor_copy(&outcur, &cur, len);
 		M0_ASSERT(step == len);
 	} else {
-		int len;
+		int len = 0;
 		msg->pm_type = (*bp == 's') ? PM_SEND_DESC : PM_RECV_DESC;
 		bp = m0_bufvec_cursor_addr(&cur);
 		step = m0_bufvec_cursor_step(&cur);

@@ -345,7 +345,7 @@ static int rpc_bulk_op(struct m0_rpc_bulk *rbulk,
 		       struct m0_net_buf_desc *descs,
 		       enum m0_rpc_bulk_op_type op)
 {
-	int				 rc;
+	int				 rc = 0;
 	int				 cnt = 0;
 	struct m0_rpc_bulk_buf		*rbuf;
 	struct m0_net_transfer_mc	*tm;

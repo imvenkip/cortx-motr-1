@@ -233,7 +233,9 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				rc = M0_FSO_AGAIN;
 				break;
 			default:
-				M0_ASSERT("Invalid fop" == 0);
+				M0_IMPOSSIBLE("Invalid fop");
+				rc = -EINVAL;
+				break;
 		}
 	}
 

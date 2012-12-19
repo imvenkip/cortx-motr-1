@@ -306,6 +306,8 @@ static int ctx_walk(struct m0_xcode_ctx *ctx, enum xcode_op op)
 					break;
 				default:
 					M0_IMPOSSIBLE("op");
+					src = dst = 0;
+					break;
 				}
 				if (m0_bufvec_cursor_copy(dst,
 							  src, size) != size)
@@ -471,6 +473,8 @@ M0_INTERNAL uint64_t m0_xcode_tag(const struct m0_xcode_obj *obj)
 		break;
 	default:
 		M0_IMPOSSIBLE("atype");
+		tag = 0;
+		break;
 	}
 	return tag;
 }

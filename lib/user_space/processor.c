@@ -238,6 +238,10 @@ static int processor_map_type_set(enum map map_type)
 	case PROCESSORS_ONLN_MAP :
 		pbitmap = &sys_cpus.pss_onln_map;
 		break;
+	default:
+		M0_IMPOSSIBLE("Incorrect map_type value");
+		pbitmap = NULL;
+		break;
 	}
 
 	rc = m0_bitmap_init(pbitmap, sys_cpus.pss_max);
