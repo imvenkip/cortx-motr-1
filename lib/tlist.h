@@ -306,20 +306,20 @@ M0_INTERNAL void m0_tlist_add_tail(const struct m0_tl_descr *d,
 /**
    Adds an element after another element of the list.
 
-   @pre !m0_tlink_is_in(d, new)
-   @post m0_tlink_is_in(d, new)
+   @pre !m0_tlink_is_in(d, next)
+   @post m0_tlink_is_in(d, next)
  */
 M0_INTERNAL void m0_tlist_add_after(const struct m0_tl_descr *d, void *obj,
-				    void *new);
+				    void *next);
 
 /**
    Adds an element before another element of the list.
 
-   @pre !m0_tlink_is_in(d, new)
-   @post m0_tlink_is_in(d, new)
+   @pre !m0_tlink_is_in(d, next)
+   @post m0_tlink_is_in(d, next)
  */
 M0_INTERNAL void m0_tlist_add_before(const struct m0_tl_descr *d, void *obj,
-				     void *new);
+				     void *next);
 
 /**
    Deletes an element from the list.
@@ -500,8 +500,8 @@ scope bool   name ## _tlist_contains(const struct m0_tl *list,		\
 scope size_t name ## _tlist_length(const struct m0_tl *list);		\
 scope void   name ## _tlist_add(struct m0_tl *list, amb_type *amb);	\
 scope void   name ## _tlist_add_tail(struct m0_tl *list, amb_type *amb); \
-scope void   name ## _tlist_add_after(amb_type *amb, amb_type *new);	\
-scope void   name ## _tlist_add_before(amb_type *amb, amb_type *new);	\
+scope void   name ## _tlist_add_after(amb_type *amb, amb_type *next);	\
+scope void   name ## _tlist_add_before(amb_type *amb, amb_type *next);	\
 scope void   name ## _tlist_del(amb_type *amb);				\
 scope void   name ## _tlist_move(struct m0_tl *list, amb_type *amb);	\
 scope void   name ## _tlist_move_tail(struct m0_tl *list, amb_type *amb); \
@@ -600,14 +600,14 @@ scope __AUN void   name ## _tlist_add_tail(struct m0_tl *list, amb_type *amb) \
 	m0_tlist_add_tail(&name ## _tl, list, amb);			\
 }									\
 									\
-scope __AUN void   name ## _tlist_add_after(amb_type *amb, amb_type *new) \
+scope __AUN void   name ## _tlist_add_after(amb_type *amb, amb_type *next) \
 {									\
-	m0_tlist_add_after(&name ## _tl, amb, new);			\
+	m0_tlist_add_after(&name ## _tl, amb, next);			\
 }									\
 									\
-scope __AUN void   name ## _tlist_add_before(amb_type *amb, amb_type *new) \
+scope __AUN void   name ## _tlist_add_before(amb_type *amb, amb_type *next) \
 {									\
-	m0_tlist_add_before(&name ## _tl, amb, new);			\
+	m0_tlist_add_before(&name ## _tl, amb, next);			\
 }									\
 									\
 scope __AUN void   name ## _tlist_del(amb_type *amb)			\
@@ -627,24 +627,24 @@ scope __AUN void   name ## _tlist_move_tail(struct m0_tl *list, amb_type *amb) \
 									\
 scope __AUN amb_type *name ## _tlist_head(const struct m0_tl *list)	\
 {									\
-	return m0_tlist_head(&name ## _tl, list);			\
+	return (amb_type *)m0_tlist_head(&name ## _tl, list);		\
 }									\
 									\
 scope __AUN amb_type *name ## _tlist_tail(const struct m0_tl *list)	\
 {									\
-	return m0_tlist_tail(&name ## _tl, list);			\
+	return (amb_type *)m0_tlist_tail(&name ## _tl, list);		\
 }									\
 									\
 scope __AUN amb_type *name ## _tlist_next(const struct m0_tl *list,     \
-				     const amb_type *amb)			\
+					  const amb_type *amb)		\
 {									\
-	return m0_tlist_next(&name ## _tl, list, amb);			\
+	return (amb_type *)m0_tlist_next(&name ## _tl, list, amb);	\
 }									\
 									\
 scope __AUN amb_type *name ## _tlist_prev(const struct m0_tl *list,     \
 				     const amb_type *amb)               \
 {									\
-	return m0_tlist_prev(&name ## _tl, list, amb);			\
+	return (amb_type *)m0_tlist_prev(&name ## _tl, list, amb);	\
 }									\
 									\
 struct __ ## name ## _terminate_me_with_a_semicolon { ; }

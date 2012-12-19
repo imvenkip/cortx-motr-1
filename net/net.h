@@ -40,7 +40,8 @@
 #include "lib/thread.h"
 #include "lib/vec.h"
 #include "addb/addb.h"
-#include "net/net_otw_types_ff.h"
+#include "net/net_otw_types.h"
+#include "net/net_otw_types_xc.h"
 
 /**
    @defgroup net Networking

@@ -1,20 +1,21 @@
 nobase_mero_include_HEADERS += ioservice/io_foms.h \
-                                  ioservice/io_fops.h \
-                                  ioservice/io_fops_ff.h \
-                                  ioservice/io_service.h \
-                                  ioservice/cob_foms.h \
-                                  ioservice/io_device.h
+                               ioservice/io_fops.h \
+                               ioservice/io_service.h \
+                               ioservice/cob_foms.h \
+                               ioservice/io_device.h
 
 mero_libmero_la_SOURCES  += ioservice/io_foms.c \
-                                  ioservice/io_fops.c \
-                                  ioservice/io_service.c \
-                                  ioservice/io_fops_ff.c \
-                                  ioservice/cob_foms.c \
-                                  ioservice/io_device.c
+                            ioservice/io_fops.c \
+                            ioservice/io_service.c \
+                            ioservice/io_fops_xc.c \
+                            ioservice/cob_foms.c \
+                            ioservice/io_device.c
 
-FF_FILES   += ioservice/io_fops_ff.h
+ioservice/io_fops_xc.h : addb/addbff/addb_xc.h \
+                         net/net_otw_types_xc.h
 
-EXTRA_DIST += ioservice/io_fops.ff
+XC_FILES   += ioservice/io_fops_xc.h
 
-CLEANFILES += ioservice/io_fops_ff.h \
-              ioservice/io_fops_ff.c
+CLEANFILES += ioservice/io_fops_xc.h \
+              ioservice/io_fops_xc.c \
+              ioservice/io_fops.gccxml

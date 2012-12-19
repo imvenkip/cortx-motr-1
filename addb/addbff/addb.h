@@ -15,23 +15,45 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@xyratex.com>,
- * Original creation date: 03/23/2011
+ * Original author: Huang Hua <hua_huang@xyratex.com>
+ * Original creation date: 03/17/2011
  */
+#pragma once
 
+#ifndef __MERO_ADDB_ADDBFF_ADDB_H__
+#define __MERO_ADDB_ADDBFF_ADDB_H__
 
-/**
- @addtogroup net
- @{
- */
+#include "lib/types.h"
+#include "xcode/xcode_attr.h"
 
-sequence {
-	u32 nbd_len;
-	u8  nbd_data
-} m0_net_buf_desc;
+/* buf in memory */
+struct m0_mem_buf {
+	uint32_t  cmb_count;
+	uint8_t  *cmb_value;
+} M0_XCA_SEQUENCE;
 
-/** @} end of net group */
+/* on-wire and on-disk addb record header */
+struct m0_addb_record_header {
+	uint64_t arh_magic1;
+	uint32_t arh_version;
+	uint32_t arh_len;
+	uint64_t arh_event_id;
+	uint64_t arh_timestamp;
+	uint64_t arh_magic2;
+} M0_XCA_RECORD;
 
+/* on wire addb record */
+struct m0_addb_record {
+	struct m0_addb_record_header ar_header;
+	struct m0_mem_buf            ar_data;
+} M0_XCA_RECORD;
+
+/* on wire addb record reply */
+struct m0_addb_reply {
+	uint32_t ar_rc;
+} M0_XCA_RECORD;
+
+#endif /* __MERO_ADDB_ADDBFF_ADDB_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

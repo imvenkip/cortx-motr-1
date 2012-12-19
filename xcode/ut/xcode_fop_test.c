@@ -26,7 +26,8 @@
 #include "lib/ut.h"
 #include "mero/init.h"
 #include "fop/fop.h"
-#include "xcode/ut/xcode_fops_ff.h"
+#include "xcode/ut/xcode_fop_test.h"
+#include "xcode/ut/xcode_fop_test_xc.h"
 
 #include "rpc/rpc_opcodes.h"
 #include "net/net.h"
@@ -305,13 +306,13 @@ static void test_fop_encdec(void)
 
 static int xcode_bufvec_fop_init(void)
 {
-	m0_xc_xcode_fops_init();
+	m0_xc_xcode_fop_test_init();
 	return 0;
 }
 
 static int xcode_bufvec_fop_fini(void)
 {
-	m0_xc_xcode_fops_fini();
+	m0_xc_xcode_fop_test_fini();
 	return 0;
 }
 

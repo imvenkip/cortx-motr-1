@@ -31,7 +31,6 @@
 #include "reqh/reqh.h"
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
-#include "ioservice/io_fops_ff.h"
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
 

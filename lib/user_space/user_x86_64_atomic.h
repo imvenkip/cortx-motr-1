@@ -155,17 +155,17 @@ static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a)
 	return result != 0;
 }
 
-static inline bool m0_atomic64_cas(int64_t * loc, int64_t old, int64_t new)
+static inline bool m0_atomic64_cas(int64_t * loc, int64_t oldval, int64_t newval)
 {
 	int64_t val;
 
-	M0_CASSERT(8 == sizeof old);
+	M0_CASSERT(8 == sizeof oldval);
 
 	asm volatile("lock cmpxchgq %2,%1"
 		     : "=a" (val), "+m" (*(volatile long *)(loc))
-		     : "r" (new), "0" (old)
+		     : "r" (newval), "0" (oldval)
 		     : "memory");
-	return val == old;
+	return val == oldval;
 }
 
 static inline void m0_mb(void)

@@ -26,7 +26,7 @@
 #include "console/console.h"	  /* verbose */
 #include "console/console_it.h"	  /* m0_fit */
 #include "console/console_yaml.h" /* m0_cons_yaml_get_value */
-#include "console/console_ff.h"
+#include "console/console_xc.h"
 
 /**
    @addtogroup console_it

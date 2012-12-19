@@ -26,6 +26,7 @@
 
 #include "cdefs.h"
 #include "assert.h"
+#include "types.h"
 
 #ifndef __KERNEL__
 # ifdef ENABLE_SYNC_ATOMIC
@@ -105,32 +106,32 @@ static inline bool m0_atomic64_inc_and_test(struct m0_atomic64 *a);
 static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a);
 
 /**
-   Atomic compare-and-swap: compares value stored in @loc with @old and, if
-   equal, replaces it with @new, all atomic w.r.t. concurrent accesses to @loc.
+   Atomic compare-and-swap: compares value stored in @loc with @oldval and, if
+   equal, replaces it with @newval, all atomic w.r.t. concurrent accesses to @loc.
 
    Returns true iff new value was installed.
  */
-static inline bool m0_atomic64_cas(int64_t * loc, int64_t old,
-					int64_t new);
+static inline bool m0_atomic64_cas(int64_t * loc, int64_t oldval,
+					int64_t newval);
 
 /**
    Atomic compare-and-swap for pointers.
 
    @see m0_atomic64_cas().
  */
-static inline bool m0_atomic64_cas_ptr(void **loc, void *old, void *new)
+static inline bool m0_atomic64_cas_ptr(void **loc, void *oldval, void *newval)
 {
 	M0_CASSERT(sizeof loc == sizeof(int64_t *));
-	M0_CASSERT(sizeof old == sizeof(int64_t));
+	M0_CASSERT(sizeof oldval == sizeof(int64_t));
 
-	return m0_atomic64_cas((int64_t *)loc, (int64_t)old, (int64_t)new);
+	return m0_atomic64_cas((int64_t *)loc, (int64_t)oldval, (int64_t)newval);
 }
 
-#define M0_ATOMIC64_CAS(loc, old, new)					\
+#define M0_ATOMIC64_CAS(loc, oldval, newval)				\
 ({									\
-	M0_CASSERT(__builtin_types_compatible_p(typeof(*(loc)), typeof(old))); \
-	M0_CASSERT(__builtin_types_compatible_p(typeof(old), typeof(new))); \
-	m0_atomic64_cas_ptr((void **)(loc), old, new);			\
+	M0_CASSERT(__builtin_types_compatible_p(typeof(*(loc)), typeof(oldval))); \
+	M0_CASSERT(__builtin_types_compatible_p(typeof(oldval), typeof(newval))); \
+	m0_atomic64_cas_ptr((void **)(loc), oldval, newval);		\
 })
 
 /**

@@ -1,9 +1,10 @@
-mero_libmero_la_SOURCES  += addb/addbff/addb_ff.h \
-                                  addb/addbff/addb_ff.c
+mero_libmero_la_SOURCES  += addb/addbff/addb_xc.h \
+                            addb/addbff/addb_xc.c
 
-FF_FILES   += addb/addbff/addb_ff.h
+XC_FILES   += addb/addbff/addb_xc.h
 
-EXTRA_DIST += addb/addbff/addb.ff
+EXTRA_DIST += addb/addbff/addb.h
 
-CLEANFILES += addb/addbff/addb_ff.h \
-              addb/addbff/addb_ff.c
+CLEANFILES += addb/addbff/addb_xc.h \
+              addb/addbff/addb_xc.c \
+	      addb/addbff/addb.gccxml

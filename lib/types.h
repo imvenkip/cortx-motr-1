@@ -24,9 +24,9 @@
 #define __MERO_LIB_TYPES_H__
 
 #ifdef __KERNEL__
-#include "linux_kernel/types.h"
+#include "lib/linux_kernel/types.h"
 #else
-#include "user_space/types.h"
+#include "lib/user_space/types.h"
 #endif
 
 struct m0_uint128 {

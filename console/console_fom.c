@@ -23,10 +23,11 @@
 #include "lib/errno.h"		/* EINVAL */
 #include "lib/memory.h"		/* M0_ALLOC_PTR */
 #include "fop/fom_generic.h"    /* M0_FOPH_FAILURE */
+#include "console/console.h"
 #include "console/console_fom.h"
 #include "console/console_fop.h"
 #include "console/console_mesg.h"
-#include "console/console_ff.h"
+#include "console/console_xc.h"
 
 /**
    @addtogroup console
@@ -102,7 +103,7 @@ static int cons_fom_tick(struct m0_fom *fom)
 	/* Request item */
         req_item = &fop->f_item;
 
-	/* Set repy FOP */
+	/* Set reply FOP */
 	reply_fop->cons_notify_type = req_item->ri_type->rit_opcode;
         reply_fop->cons_return = 0;
 

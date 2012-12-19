@@ -26,7 +26,7 @@
 
 #include "ut/rpc.h"             /* M0_RPC_SERVER_CTX_DEFINE */
 #include "ut/cs_fop_foms.h"
-#include "ut/cs_test_fops_ff.h" /* cs_ds1_{req,rep}_fop, cs_ds2_{req,rep}_fop */
+#include "ut/cs_fop_foms_xc.h" /* cs_ds1_{req,rep}_fop, cs_ds2_{req,rep}_fop */
 #include "fop/fop.h"
 #include "net/bulk_mem.h"
 #include "net/lnet/lnet.h"

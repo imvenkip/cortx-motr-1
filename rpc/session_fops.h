@@ -25,8 +25,9 @@
 #define __MERO_RPC_SESSION_FOPS_H__
 
 #include "fop/fop.h"
-#include "fop/fom.h"
 #include "rpc/rpc_opcodes.h"
+#include "lib/types.h"
+#include "xcode/xcode_attr.h"
 
 /**
    @addtogroup rpc_session
@@ -74,6 +75,127 @@ struct m0_rpc_fop_conn_establish_ctx {
 	struct m0_net_end_point *cec_sender_ep;
 };
 
+struct m0_rpc_fop_conn_establish {
+	uint64_t rce_unused;
+} M0_XCA_RECORD;
+
+/**
+   FOP sent by receiver back to sender as a reply to m0_rpc_fop_conn_establish
+   FOP.
+ */
+struct m0_rpc_fop_conn_establish_rep {
+	/**
+	   sender_id assigned by receiver to the established rpc-connection.
+	   Has value SENDER_ID_INVALID if CONN_ESTABLISH operation fails.
+	 */
+	uint64_t rcer_sender_id;
+	/**
+	   Contains 0 if CONN_ESTABLISH operation is successful, error code
+	   otherwise.
+	 */
+	uint32_t rcer_rc;
+} M0_XCA_RECORD;
+
+/**
+   Request FOP to terminate rpc-connection. Sent from sender to receiver.
+ */
+struct m0_rpc_fop_conn_terminate {
+	/**
+	   sender_id of rpc-connection being terminated.
+	 */
+	uint64_t ct_sender_id;
+} M0_XCA_RECORD;
+
+/**
+   Reply FOP to m0_rpc_conn_terminate. Sent from receiver to sender.
+ */
+struct  m0_rpc_fop_conn_terminate_rep {
+	/**
+	   sender_id of rpc-connection being terminated.
+	 */
+	uint64_t ctr_sender_id;
+	/**
+	   Contains 0 if CONN_TERMINATE operation is successful, error code
+	   otherwise.
+	 */
+	uint32_t ctr_rc;
+} M0_XCA_RECORD;
+
+
+/**
+   Request FOP to establish a new session. Sent from sender to receiver.
+ */
+struct m0_rpc_fop_session_establish {
+	/**
+	   sender_id of rpc-connection in which a new session is to be created.
+	 */
+	uint64_t rse_sender_id;
+	/**
+	   Number of slots the new session should have.
+	 */
+	uint32_t rse_slot_cnt;
+} M0_XCA_RECORD;
+
+/**
+   Reply of m0_rpc_fop_session_establish. Sent from receiver to
+   sender.
+ */
+struct m0_rpc_fop_session_establish_rep {
+	/**
+	   session_id assigned by receiver to the newly created session.
+	   Has value SESSION_ID_INVALID if SESSION_ESTABLISH operation fails.
+	 */
+	uint64_t rser_session_id;
+	/**
+	   sender_id copied from m0_rpc_fop_session_establish.
+	 */
+	uint64_t rser_sender_id;
+	/**
+	   Contains 0 if SESSION_ESTABLISH operation is successful, error code
+	   otherwise.
+	 */
+	uint32_t rser_rc;
+} M0_XCA_RECORD;
+
+/**
+   Request FOP to terminate a session. Sent from sender to receiver.
+ */
+struct m0_rpc_fop_session_terminate {
+	/**
+	   sender_id of rpc-connection to which the session being terminated
+	   belongs.
+	 */
+	uint64_t rst_sender_id;
+	/**
+	   session_id of session being terminated.
+	 */
+	uint64_t rst_session_id;
+} M0_XCA_RECORD;
+
+/**
+   Reply FOP to m0_rpc_fop_session_terminate. Sent from receiver to sender.
+ */
+struct m0_rpc_fop_session_terminate_rep {
+	/**
+	   session_id of the session being terminated.
+	 */
+	uint64_t rstr_session_id;
+	/**
+	   sender_id of rpc-connection to which the session being terminated
+	   belongs.
+	 */
+	uint64_t rstr_sender_id;
+	/**
+	   Contains 0 if SESSION_TERMINATE operation is successful, error code
+	   otherwise.
+	 */
+	uint32_t rstr_rc;
+} M0_XCA_RECORD;
+
+struct m0_rpc_fop_noop {
+	uint64_t n_unused;
+} M0_XCA_RECORD;
+
 /* __MERO_RPC_SESSION_FOPS_H__ */
 
 /** @}  End of rpc_session group */
@@ -87,4 +209,3 @@ struct m0_rpc_fop_conn_establish_ctx {
  *  scroll-step: 1
  *  End:
  */
-

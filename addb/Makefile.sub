@@ -1,8 +1,8 @@
 nobase_mero_include_HEADERS += addb/addb.h
 
 mero_libmero_la_SOURCES  += addb/addb.c \
-                                  addb/addb_console.c \
-                                  addb/addb_fop.c \
-                                  addb/addb_store.c
+                            addb/addb_console.c \
+                            addb/addb_fop.c \
+                            addb/addb_store.c
 
 EXTRA_DIST += addb/linux_kernel/addb_console.c

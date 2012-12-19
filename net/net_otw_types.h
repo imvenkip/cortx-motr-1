@@ -1,4 +1,5 @@
 /* -*- C -*- */
+
 /*
  * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
@@ -14,28 +15,31 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
- * Original creation date: 13/10/2011
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>,
+ * Original creation date: 03/23/2011
  */
 
-/*
-  Dummy fops to test mero setup
+#pragma once
+
+#ifndef __MERO_NET_NET_OTW_TYPES_H__
+#define __MERO_NET_NET_OTW_TYPES_H__
+
+#include "lib/types.h"
+#include "xcode/xcode_attr.h"
+
+/**
+ @addtogroup net
+ @{
  */
-record {
-	u64 csr_value
-} cs_ds1_req_fop;
 
-record {
-	u32 csr_rc
-} cs_ds1_rep_fop;
+struct m0_net_buf_desc {
+	uint32_t  nbd_len;
+	uint8_t  *nbd_data;
+} M0_XCA_SEQUENCE;
 
-record {
-	u64 csr_value
-} cs_ds2_req_fop;
+#endif /* __MERO_NET_NET_OTW_TYPES_H__ */
 
-record {
-	u32 csr_rc
-} cs_ds2_rep_fop;
+/** @} end of net group */
 
 /*
  *  Local variables:

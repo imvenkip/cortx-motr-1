@@ -27,11 +27,11 @@
 #include "net/net.h"
 #include "fop/fop.h"
 #include "dtm/dtm.h"
-#include "fop/fom_generic_ff.h"
 #include "rpc/rpc.h"
 #include "rpc/rpc_opcodes.h"    /* M0_REQH_ERROR_REPLY_OPCODE */
 #include "reqh/reqh.h"
 #include "fop/fom_generic.h"
+#include "fop/fom_generic_xc.h"
 
 /**
    @addtogroup fom
@@ -53,10 +53,12 @@ struct m0_fop_type m0_fom_error_rep_fopt;
 M0_INTERNAL void m0_fom_generic_fini(void)
 {
 	m0_fop_type_fini(&m0_fom_error_rep_fopt);
+	m0_xc_fom_generic_fini();
 }
 
 M0_INTERNAL int m0_fom_generic_init(void)
 {
+	m0_xc_fom_generic_init();
 	return M0_FOP_TYPE_INIT(&m0_fom_error_rep_fopt,
 				.name      = "fom error reply",
 				.opcode    = M0_REQH_ERROR_REPLY_OPCODE,

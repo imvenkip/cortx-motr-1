@@ -33,8 +33,8 @@
 #include "rpc/rpclib.h"
 #include "fop/fop_item_type.h"
 
-#include "cs_fop_foms.h"
-#include "cs_test_fops_ff.h"
+#include "ut/cs_fop_foms.h"
+#include "ut/cs_fop_foms_xc.h"
 #include "rpc/rpc_opcodes.h"
 
 static void cs_ut_rpc_item_reply_cb(struct m0_rpc_item *item);
@@ -124,7 +124,7 @@ void m0_cs_ut_ds1_fop_fini(void)
 {
 	m0_fop_type_fini(&cs_ds1_req_fop_fopt);
 	m0_fop_type_fini(&cs_ds1_rep_fop_fopt);
-	m0_xc_cs_test_fops_fini();
+	m0_xc_cs_fop_foms_fini();
 }
 
 int m0_cs_ut_ds1_fop_init(void)
@@ -134,7 +134,7 @@ int m0_cs_ut_ds1_fop_init(void)
            per service for various m0d commands, So reinitialise
            fop_type_format for each corresponding service fop types.
          */
-	m0_xc_cs_test_fops_init();
+	m0_xc_cs_fop_foms_init();
         return  M0_FOP_TYPE_INIT(&cs_ds1_req_fop_fopt,
 				 .name      = "ds1 request",
 				 .opcode    = M0_CS_DS1_REQ_OPCODE,
@@ -156,7 +156,7 @@ void m0_cs_ut_ds2_fop_fini(void)
 {
 	m0_fop_type_fini(&cs_ds2_rep_fop_fopt);
 	m0_fop_type_fini(&cs_ds2_req_fop_fopt);
-	m0_xc_cs_test_fops_fini();
+	m0_xc_cs_fop_foms_fini();
 }
 
 int m0_cs_ut_ds2_fop_init(void)
@@ -166,7 +166,7 @@ int m0_cs_ut_ds2_fop_init(void)
 	   per service for various m0d commands, So reinitialise
 	   fop_type_format for each corresponding service fop types.
 	 */
-	m0_xc_cs_test_fops_init();
+	m0_xc_cs_fop_foms_init();
 	return  M0_FOP_TYPE_INIT(&cs_ds2_req_fop_fopt,
 				 .name      = "ds2 request",
 				 .opcode    = M0_CS_DS2_REQ_OPCODE,

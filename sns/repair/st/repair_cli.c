@@ -40,7 +40,7 @@
 #include "rpc/rpclib.h"
 
 #include "trigger_fop.h"
-#include "trigger_fop_ff.h"
+#include "trigger_fop_xc.h"
 
 enum {
 	MAX_RPCS_IN_FLIGHT = 10,

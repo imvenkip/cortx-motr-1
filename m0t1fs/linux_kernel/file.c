@@ -33,7 +33,6 @@
 #include "lib/bob.h"        /* m0_bob_type */
 #include "ioservice/io_fops.h"    /* m0_io_fop */
 #include "ioservice/io_device.h"
-#include "ioservice/io_fops_ff.h" /* m0_fop_cob_rw */
 #include "mero/magic.h"  /* M0_T1FS_IOREQ_MAGIC */
 #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */
 
@@ -1708,7 +1707,7 @@ static m0_bcount_t seg_collate(struct pargrp_iomap   *map,
 
 	cnt    = 0;
 	play   = pdlayout_get(map->pi_ioreq);
-	grpend = map->pi_grpid * data_size(play) + data_size(play); 
+	grpend = map->pi_grpid * data_size(play) + data_size(play);
 	start  = m0_ivec_cursor_index(cursor);
 
 	for (seg = cursor->ic_cur.vc_seg; start < grpend &&
@@ -1825,7 +1824,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 
 			newindex = m0_round_up(INDEX(&map->pi_ivec, seg) + 1,
 					       PAGE_CACHE_SIZE);
-			       
+
 			COUNT(&map->pi_ivec, seg) -= (newindex -
 					INDEX(&map->pi_ivec, seg));
 

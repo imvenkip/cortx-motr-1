@@ -71,8 +71,6 @@ struct m0_xcode_enum {
 
 2012-Nov-29 check that M0_ASSERT() parameter has no side-effects
 
-2012-Nov-29 Convert .ff files to gccxml annotations where possible.
-
 2012-Nov-29 Alignment checks in xcode.
 
     On-wire data-types must be portable across platforms:
@@ -127,7 +125,6 @@ struct m0_xcode_enum {
             pthread_getspecific(). Timer and chan call-backs should be handled.
 
 	    Timer & chan call-backs handled.
-
 
 2012-May-09 [Dima] Replace all debugging printf-s and printk-s with M0_LOG()-s
 
@@ -221,3 +218,5 @@ struct m0_xcode_enum {
    There are many places that compute `now + delta` as
    m0_time_add(m0_time_now(), delta);
    Replace all such occurrences with simpler m0_time_from_now().
+
+2012-Nov-29 Convert .ff files to gccxml annotations where possible.

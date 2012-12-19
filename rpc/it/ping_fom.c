@@ -17,9 +17,9 @@
  * Original creation date: 07/07/2011
  */
 
-#include "fop/fop.h"
 #include "rpc/it/ping_fom.h"
-#include "rpc/it/ping_fop_ff.h"
+#include "rpc/it/ping_fop.h"
+#include "rpc/it/ping_fop_xc.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "rpc/rpc.h"
@@ -112,4 +112,3 @@ M0_INTERNAL void m0_fop_ping_fom_fini(struct m0_fom *fom)
  *  scroll-step: 1
  *  End:
  */
-

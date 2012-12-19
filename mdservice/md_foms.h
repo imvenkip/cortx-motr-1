@@ -23,7 +23,7 @@
 #ifndef __MERO_MDSERVICE_MD_FOMS_H__
 #define __MERO_MDSERVICE_MD_FOMS_H__
 
-#include "mdservice/md_fops_ff.h"
+#include "mdservice/md_fops_xc.h"
 
 struct m0_fom;
 struct m0_fop;

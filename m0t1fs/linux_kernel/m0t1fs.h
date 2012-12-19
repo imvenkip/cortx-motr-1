@@ -37,9 +37,8 @@
 #include "cob/cob.h"              /* m0_cob_domain_id */
 #include "layout/layout.h"
 #include "ioservice/io_fops.h"    /* m0_fop_cob_create_fopt */
-#include "ioservice/io_fops_ff.h" /* m0_fop_cob_create */
 #include "mdservice/md_fops.h"    /* m0_fop_create_fopt */
-#include "mdservice/md_fops_ff.h" /* m0_fop_create */
+#include "mdservice/md_fops_xc.h" /* m0_fop_create */
 
 /**
   @defgroup m0t1fs m0t1fs

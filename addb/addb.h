@@ -42,7 +42,6 @@ struct m0_addb_loc;
 struct m0_addb_ev;
 struct m0_addb_dp;
 struct m0_addb_rec;
-enum m0_addb_ev_level;
 struct m0_dbenv;
 struct m0_dtx;
 

@@ -36,7 +36,6 @@
 #include "reqh/reqh_service.h"
 #include "pool/pool.h"
 #include "mero/setup.h"
-#include "ioservice/io_fops_ff.h"
 
 /* Forward Declarations. */
 static int  cob_fom_create(struct m0_fop *fop, struct m0_fom **out);

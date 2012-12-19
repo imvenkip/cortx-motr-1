@@ -28,7 +28,6 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "ioservice/io_fops.h"	/* m0_io_fop */
-#include "ioservice/io_fops_ff.h"
 #include "rpc/rpc.h"		/* m0_rpc_bulk, m0_rpc_bulk_buf */
 #include "rpc/rpc_opcodes.h"	/* enum M0_RPC_OPCODES */
 #include "rpc/rpclib.h"		/* m0_rpc_ctx */

@@ -25,7 +25,8 @@
 #include "fop/fop.h"
 #include "net/net.h"
 #include "addb/addb.h"
-#include "addb/addbff/addb_ff.h"
+#include "addb/addbff/addb.h"
+#include "addb/addbff/addb_xc.h"
 #include "mero/magic.h"
 #include "rpc/rpc_opcodes.h"
 

@@ -246,7 +246,7 @@ back to sender.
 #include "lib/list.h"
 #include "lib/tlist.h"
 #include "lib/time.h"
-#include "sm/sm.h"       /* m0_sm */
+#include "sm/sm.h" /* m0_sm */
 #include "rpc/rpc_onwire.h"
 
 /* Imports */
@@ -256,16 +256,6 @@ struct m0_rpc_slot;
 
 /* Exports */
 struct m0_rpc_session;
-
-enum {
-	/** [conn|session]_[create|terminate] items go on session 0 */
-	SESSION_ID_0       = 0,
-	SESSION_ID_INVALID = UINT64_MAX,
-	/** Range of valid session ids */
-	SESSION_ID_MIN     = SESSION_ID_0 + 1,
-	SESSION_ID_MAX     = SESSION_ID_INVALID - 1,
-	SLOT_ID_INVALID    = UINT32_MAX,
-};
 
 /**
    Possible states of a session object

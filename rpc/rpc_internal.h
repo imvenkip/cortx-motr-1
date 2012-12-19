@@ -30,7 +30,7 @@
 #include "rpc/rpc_machine_internal.h"
 #include "rpc/formation2_internal.h"
 #include "rpc/packet_internal.h"
-#include "rpc/session_ff.h"
+#include "rpc/session_fops_xc.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_foms.h"
 #include "rpc/rpc_onwire.h"
