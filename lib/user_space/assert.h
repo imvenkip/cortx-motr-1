@@ -40,8 +40,8 @@ void m0_panic(const char *expr, const char *func, const char *file, int lineno)
    system. The message and the termination method are platform dependent.
  */
 #define M0_ASSERT(cond) \
-        ((cond) ? (void)0 : m0_panic(#cond, __func__, __FILE__, __LINE__))
-
+        (M0_ASSERT_OFF || (cond) ? (void)0 : \
+				   m0_panic(#cond, __func__, __FILE__, __LINE__))
 
 /** @} end of assert group */
 

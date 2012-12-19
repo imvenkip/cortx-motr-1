@@ -29,6 +29,13 @@
    @{
 */
 
+/* this should be defined before target-specific assert.h is included */
+#ifdef M0_NDEBUG
+#define M0_ASSERT_OFF (1)
+#else
+#define M0_ASSERT_OFF (0)
+#endif
+
 #ifndef __KERNEL__
 #include "user_space/assert.h"
 #else
