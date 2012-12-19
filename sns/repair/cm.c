@@ -445,6 +445,11 @@ static int cm_start(struct m0_cm *cm)
 	 */
 	if (bufs_nr == 0)
 		return -ENOMEM;
+	rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
+				     rcm->rc_fdata,
+				     M0_PNDS_FAILED);
+	if (rc != 0)
+		return rc;
 	rc = m0_sns_repair_iter_init(rcm);
 	if (rc == 0) {
 		m0_cm_sw_fill(cm);
