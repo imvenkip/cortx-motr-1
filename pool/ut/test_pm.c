@@ -24,7 +24,6 @@
 #include "lib/misc.h"
 #include "pool/pool.h"
 
-static int verbose = 0;
 enum {
 	PM_TEST_DEFAULT_DEVICE_NUMBER      = 10,
 	PM_TEST_DEFAULT_NODE_NUMBER        = 1,
@@ -44,39 +43,6 @@ static void pm_test_init_fini(void)
 					 PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
 	M0_UT_ASSERT(rc == 0);
 	m0_poolmach_fini(&pm);
-}
-
-static void dump_version(struct m0_pool_version_numbers *v)
-{
-	if (verbose)
-		printf("readv = %llx writev = %llx\n",
-			(unsigned long long)v->pvn_version[PVE_READ],
-			(unsigned long long)v->pvn_version[PVE_WRITE]);
-}
-
-static void dump_event(struct m0_pool_event *e)
-{
-	if (verbose)
-		printf("pe_type  = %10s pe_index = %2x pe_state=%10s\n",
-			e->pe_type == M0_POOL_DEVICE ? "device":"node",
-			e->pe_index,
-			e->pe_state == M0_PNDS_ONLINE? "ONLINE" :
-			    e->pe_state == M0_PNDS_FAILED? "FAILED" :
-				e->pe_state == M0_PNDS_OFFLINE? "OFFLINE" :
-					"RECOVERING"
-		);
-}
-
-static void dump_event_list(struct m0_tl *head)
-{
-	struct m0_pool_event_link *scan;
-
-	m0_tl_for(poolmach_events, head, scan) {
-		dump_event(&scan->pel_event);
-		dump_version(&scan->pel_new_version);
-	} m0_tl_endfor;
-	if (verbose)
-		printf("=====\n");
 }
 
 static void pm_test_transit(void)
@@ -150,10 +116,10 @@ static void pm_test_transit(void)
 	M0_UT_ASSERT(!equal);
 	equal = m0_poolmach_version_equal(&v1, &v2);
 	M0_UT_ASSERT(!equal);
-	dump_event_list(&pm.pm_state.pst_events_list);
-	dump_version(&v0);
-	dump_version(&v1);
-	dump_version(&v2);
+	m0_poolmach_event_list_dump(&pm.pm_state.pst_events_list);
+	m0_poolmach_version_dump(&v0);
+	m0_poolmach_version_dump(&v1);
+	m0_poolmach_version_dump(&v2);
 
 	/* case 1: from v0 to v1 */
 	poolmach_events_tlist_init(&events_list);

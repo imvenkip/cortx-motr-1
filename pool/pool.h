@@ -460,6 +460,10 @@ M0_INTERNAL int m0_poolserver_device_join(struct m0_poolserver *srv,
 M0_INTERNAL int m0_poolserver_device_leave(struct m0_poolserver *srv,
 					   struct m0_pooldev *dev);
 
+M0_INTERNAL void m0_poolmach_version_dump(struct m0_pool_version_numbers *v);
+M0_INTERNAL void m0_poolmach_event_dump(struct m0_pool_event *e);
+M0_INTERNAL void m0_poolmach_event_list_dump(struct m0_tl *head);
+
 /** @} end of servermachine group */
 
 

@@ -17,6 +17,9 @@
  * Original creation date: 07/15/2010
  */
 
+#undef M0_TRACE_SUBSYSTEM
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
+#include "lib/trace.h"      /* M0_LOG */
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "stob/stob.h"
@@ -556,6 +559,44 @@ M0_INTERNAL void m0_poolmach_state_free(struct m0_poolmach *pm,
 {
 }
 
+static int lno = 0;
+
+/* Change this value to make it more verbose, e.g. to M0_ERROR */
+#define dump_level M0_DEBUG
+
+M0_INTERNAL void m0_poolmach_version_dump(struct m0_pool_version_numbers *v)
+{
+	M0_LOG(dump_level, "%4d:readv = %llx writev = %llx\n", lno++,
+		(unsigned long long)v->pvn_version[PVE_READ],
+		(unsigned long long)v->pvn_version[PVE_WRITE]);
+}
+
+M0_INTERNAL void m0_poolmach_event_dump(struct m0_pool_event *e)
+{
+	M0_LOG(dump_level, "%4d:pe_type  = %10s pe_index = %2x pe_state=%10s\n",
+		lno++,
+		e->pe_type == M0_POOL_DEVICE ? "device":"node",
+		e->pe_index,
+		e->pe_state == M0_PNDS_ONLINE? "ONLINE" :
+		    e->pe_state == M0_PNDS_FAILED? "FAILED" :
+			e->pe_state == M0_PNDS_OFFLINE? "OFFLINE" :
+				"RECOVERING"
+	);
+}
+
+M0_INTERNAL void m0_poolmach_event_list_dump(struct m0_tl *head)
+{
+	struct m0_pool_event_link *scan;
+
+	m0_tl_for(poolmach_events, head, scan) {
+		m0_poolmach_event_dump(&scan->pel_event);
+		m0_poolmach_version_dump(&scan->pel_new_version);
+	} m0_tl_endfor;
+	M0_LOG(dump_level, "=====\n");
+}
+#undef dump_level
+
+#undef M0_TRACE_SUBSYSTEM
 /** @} end group pool */
 
 /*

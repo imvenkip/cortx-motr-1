@@ -55,7 +55,7 @@ struct m0_cob_domain     cl_cdom;
 struct m0_rpc_client_ctx cl_ctx;
 
 //const char *cl_ep_addr = "0@lo:12345:34:2";
-const char *cl_ep_addr = "192.168.147.128@tcp:12345:33:102";
+const char *cl_ep_addr = "172.16.0.128@tcp:12345:33:102";
 char *srv_ep_addr;
 const char *dbname = "sr_cdb";
 static int cl_cdom_id = 10001;

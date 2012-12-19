@@ -2207,6 +2207,10 @@ static int ioreq_iosm_handle(struct io_request *req)
 
 		M0_ASSERT(ioreq_sm_state(req) == state);
 
+		if (req->ir_rc != 0) {
+			rc = req->ir_rc;
+			goto fail;
+		}
 		if (state == IRS_READ_COMPLETE) {
 			rc = req->ir_ops->iro_user_data_copy(req,
 					CD_COPY_TO_USER, 0);
@@ -2861,6 +2865,7 @@ M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb *kcb,
 	M0_PRE(ivec != NULL);
 	M0_PRE(M0_IN(rw, (IRT_READ, IRT_WRITE)));
 
+again:
 	M0_ALLOC_PTR_ADDB(req, &m0t1fs_addb, &io_addb_loc);
 	if (req == NULL)
 		M0_RETERR(-ENOMEM, "Failed to allocate memory for io_request");
@@ -2888,7 +2893,9 @@ M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb *kcb,
 		goto last;
 	}
 
-	rc    = req->ir_ops->iro_iosm_handle(req);
+	rc = req->ir_ops->iro_iosm_handle(req);
+	if (rc == 0)
+		rc = req->ir_rc;
 	M0_LOG(M0_INFO, "nxr_bytes = %llu, copied_nr = %llu",
 		req->ir_nwxfer.nxr_bytes, req->ir_copied_nr);
 	count = min64u(req->ir_nwxfer.nxr_bytes, req->ir_copied_nr);
@@ -2898,9 +2905,12 @@ M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb *kcb,
 last:
 	m0_free(req);
 	++iommstats.d_ioreq_nr;
-	M0_LOG(M0_INFO, "io request returned %lu bytes", count);
-	M0_LEAVE();
 
+	M0_LOG(M0_DEBUG, "rc = %d, io request returned %lu bytes", rc, count);
+	if (rc == -EAGAIN)
+		goto again;
+
+	M0_LEAVE();
 	return count;
 }
 
@@ -3177,7 +3187,9 @@ static int failure_vector_mismatch(struct io_req_fop *irfop)
 	reply_updates = &rw_reply->rwr_fv_updates;
 	srv = (struct m0_pool_version_numbers *)reply_version;
 	cli = &csb->csb_pool.po_mach->pm_state.pst_version;
-
+	m0_poolmach_version_dump(cli);
+	m0_poolmach_version_dump(srv);
+	M0_LOG(M0_DEBUG, "VERSION MISMATCH!");
 	/*
 	 * Retrieve the latest server version and
 	 * updates and apply to the client's copy.
@@ -3186,6 +3198,8 @@ static int failure_vector_mismatch(struct io_req_fop *irfop)
 	 */
 	rc = -EAGAIN;
 	*cli = *srv;
+
+	/* TODO XXX FIXME Anand: Please release bulk for this request */
 
 	while (i < reply_updates->fvu_count) {
 		event = &reply_updates->fvu_events[i];
@@ -3198,10 +3212,13 @@ static int failure_vector_mismatch(struct io_req_fop *irfop)
 
 static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	int                  rc;
-	struct io_req_fop   *irfop;
-	struct io_request   *req;
-	struct target_ioreq *tioreq;
+	int                         rc;
+	struct io_req_fop          *irfop;
+	struct io_request          *req;
+	struct target_ioreq        *tioreq;
+	struct m0_fop              *reply;
+	struct m0_rpc_item         *reply_item;
+	struct m0_fop_cob_rw_reply *rw_reply;
 
 	M0_ENTRY("sm_group %p sm_ast %p", grp, ast);
 	M0_PRE(grp != NULL);
@@ -3215,8 +3232,11 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ASSERT(M0_IN(irfop->irf_pattr, (PA_DATA, PA_PARITY)));
 	M0_ASSERT(M0_IN(ioreq_sm_state(req), (IRS_READING, IRS_WRITING)));
 
-	if (irfop->irf_iofop.if_rbulk.rb_rc ==
-	    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
+	reply_item = irfop->irf_iofop.if_fop.f_item.ri_reply;
+	reply      = m0_rpc_item_to_fop(reply_item);
+	rw_reply   = io_rw_rep_get(reply);
+
+	if (rw_reply->rwr_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 		rc = failure_vector_mismatch(irfop);
 		if (rc != 0)
 			tioreq->ti_rc = rc;
