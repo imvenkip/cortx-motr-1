@@ -39,7 +39,6 @@
 
 static int item_entered_in_urgent_state(struct m0_sm *mach);
 static int item_entered_in_sent_state(struct m0_sm *mach);
-static int item_entered_in_timedout_state(struct m0_sm *mach);
 static int item_entered_in_failed_state(struct m0_sm *mach);
 static void item_timedout_cb(struct m0_sm_timer *timer);
 
@@ -197,18 +196,12 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 	[M0_RPC_ITEM_WAITING_FOR_REPLY] = {
 		.sd_name    = "WAITING_FOR_REPLY",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_REPLIED,
-				      M0_RPC_ITEM_TIMEDOUT,
 				      M0_RPC_ITEM_FAILED),
 	},
 	[M0_RPC_ITEM_REPLIED] = {
 		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "REPLIED",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_UNINITIALISED),
-	},
-	[M0_RPC_ITEM_TIMEDOUT] = {
-		.sd_name    = "TIMEDOUT",
-		.sd_in      = item_entered_in_timedout_state,
-		.sd_allowed = M0_BITS(M0_RPC_ITEM_FAILED),
 	},
 	[M0_RPC_ITEM_FAILED] = {
 		.sd_flags   = M0_SDF_FINAL,
@@ -377,7 +370,6 @@ M0_INTERNAL void m0_rpc_item_init(struct m0_rpc_item *item,
         rpcitem_tlink_init(item);
 	rpcitem_tlist_init(&item->ri_compound_items);
 	m0_sm_timeout_init(&item->ri_deadline_to);
-	m0_sm_timeout_init(&item->ri_timeout);
 	m0_sm_timer_init(&item->ri_timer);
 	/* item->ri_sm will be initialised when the item is posted */
 	M0_LEAVE();
@@ -391,7 +383,6 @@ M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item)
 	M0_ENTRY("item: %p", item);
 
 	m0_sm_timer_fini(&item->ri_timer);
-	m0_sm_timeout_fini(&item->ri_timeout);
 	m0_sm_timeout_fini(&item->ri_deadline_to);
 
 	if (item->ri_sm.sm_state > M0_RPC_ITEM_UNINITIALISED)
@@ -630,19 +621,6 @@ static int item_entered_in_sent_state(struct m0_sm *mach)
 	}
 }
 
-static int item_entered_in_timedout_state(struct m0_sm *mach)
-{
-	struct m0_rpc_item *item;
-
-	item = sm_to_item(mach);
-	M0_LOG(M0_DEBUG, "%p [%s/%u] -> TIMEDOUT", item, item_kind(item),
-	       item->ri_type->rit_opcode);
-	item->ri_error = -ETIMEDOUT;
-	item->ri_rmachine->rm_stats.rs_nr_timedout_items++;
-
-	return M0_RPC_ITEM_FAILED;
-}
-
 static int item_entered_in_failed_state(struct m0_sm *mach)
 {
 	struct m0_rpc_item *item;
@@ -669,13 +647,10 @@ static int item_entered_in_failed_state(struct m0_sm *mach)
 
 M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item)
 {
+	M0_PRE(m0_rpc_item_is_request(item));
+
 	if (item->ri_op_timeout != M0_TIME_NEVER) {
 		M0_LOG(M0_FATAL, "%p Starting timer", item);
-/*
-		return m0_sm_timeout_arm(&item->ri_sm, &item->ri_timeout,
-					 item->ri_op_timeout,
-					 M0_RPC_ITEM_TIMEDOUT, 0);
-*/
 		return m0_sm_timer_start(&item->ri_timer,
 					 &item->ri_rmachine->rm_sm_grp,
 					 item_timedout_cb,
@@ -686,6 +661,8 @@ M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item)
 
 M0_INTERNAL void m0_rpc_item_stop_timer(struct m0_rpc_item *item)
 {
+	M0_PRE(m0_rpc_item_is_request(item));
+
 	if (m0_sm_timer_is_armed(&item->ri_timer)) {
 		M0_LOG(M0_FATAL, "%p Stopping timer", item);
 		m0_sm_timer_cancel(&item->ri_timer);
@@ -703,6 +680,7 @@ static void item_timedout_cb(struct m0_sm_timer *timer)
 
 	item = container_of(timer, struct m0_rpc_item, ri_timer);
 	M0_ASSERT(item->ri_magic == M0_RPC_ITEM_MAGIC);
+	M0_ASSERT(m0_rpc_machine_is_locked(item->ri_rmachine));
 
 	M0_LOG(M0_FATAL, "%p [%s/%u] %s -> TIMEDOUT", item, item_kind(item),
 	       item->ri_type->rit_opcode, item_state_name(item));

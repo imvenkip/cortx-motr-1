@@ -105,10 +105,6 @@ enum m0_rpc_item_state {
 	 */
 	M0_RPC_ITEM_ACCEPTED,
 	/**
-	 * Operation is timedout.
-	 */
-	M0_RPC_ITEM_TIMEDOUT,
-	/**
 	 * Item is failed.
 	 */
 	M0_RPC_ITEM_FAILED,
@@ -180,7 +176,6 @@ struct m0_rpc_item {
 	m0_time_t			 ri_deadline;
 	struct m0_sm_timeout             ri_deadline_to;
 	m0_time_t                        ri_op_timeout;
-	struct m0_sm_timeout             ri_timeout;
 	struct m0_sm_timer               ri_timer;
 	struct m0_sm                     ri_sm;
 	enum m0_rpc_item_stage		 ri_stage;
