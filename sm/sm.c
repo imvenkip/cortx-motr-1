@@ -473,6 +473,11 @@ M0_INTERNAL void m0_sm_timer_cancel(struct m0_sm_timer *timer)
 	M0_POST(timer->tr_ast.sa_next == NULL);
 }
 
+M0_INTERNAL bool m0_sm_timer_is_armed(const struct m0_sm_timer *timer)
+{
+	return timer->tr_state == ARMED;
+}
+
 /**
     AST call-back for a timeout.
 

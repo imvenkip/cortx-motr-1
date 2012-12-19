@@ -41,8 +41,8 @@ static enum m0_rpc_frm_itemq_type
 frm_which_qtype(struct m0_rpc_frm *frm, const struct m0_rpc_item *item);
 static bool frm_is_idle(const struct m0_rpc_frm *frm);
 static void frm_insert(struct m0_rpc_frm *frm, struct m0_rpc_item *item);
-static void __itemq_insert(struct m0_tl *q, struct m0_rpc_item *new_item);
 static void frm_remove(struct m0_rpc_frm *frm, struct m0_rpc_item *item);
+static void __itemq_insert(struct m0_tl *q, struct m0_rpc_item *new_item);
 static void __itemq_remove(struct m0_rpc_item *item);
 static void frm_balance(struct m0_rpc_frm *frm);
 static bool frm_is_ready(const struct m0_rpc_frm *frm);
@@ -579,6 +579,12 @@ frm_try_to_bind_item(struct m0_rpc_frm *frm, struct m0_rpc_item *item)
 
 	M0_LEAVE("result: %s", (char *)m0_bool_to_str(result));
 	return result;
+}
+
+M0_INTERNAL void m0_rpc_frm_remove_item(struct m0_rpc_frm  *frm,
+					struct m0_rpc_item *item)
+{
+	frm_remove(frm, item);
 }
 
 static void frm_remove(struct m0_rpc_frm *frm, struct m0_rpc_item *item)

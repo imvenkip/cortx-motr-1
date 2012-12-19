@@ -123,6 +123,7 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 	item->ri_rpc_time = m0_time_now();
 	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
+	m0_rpc_item_start_timer(item);
 	m0_rpc_frm_enq_item(session_frm(session), item);
 	M0_RETURN(0);
 }

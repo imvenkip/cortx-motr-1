@@ -890,6 +890,7 @@ M0_INTERNAL void rpc_item_replied(struct m0_rpc_item *item,
 	item->ri_error = rc;
 	item->ri_reply = reply;
 
+	m0_rpc_item_stop_timer(item);
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_REPLIED);
 	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
 		item->ri_ops->rio_replied(item);

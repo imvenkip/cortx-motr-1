@@ -582,6 +582,7 @@ M0_INTERNAL int  m0_sm_timer_start(struct m0_sm_timer *timer,
 				   void (*cb)(struct m0_sm_timer *),
 				   m0_time_t deadline);
 M0_INTERNAL void m0_sm_timer_cancel(struct m0_sm_timer *timer);
+M0_INTERNAL bool m0_sm_timer_is_armed(const struct m0_sm_timer *timer);
 
 
 /**

@@ -181,6 +181,7 @@ struct m0_rpc_item {
 	struct m0_sm_timeout             ri_deadline_to;
 	m0_time_t                        ri_op_timeout;
 	struct m0_sm_timeout             ri_timeout;
+	struct m0_sm_timer               ri_timer;
 	struct m0_sm                     ri_sm;
 	enum m0_rpc_item_stage		 ri_stage;
 	uint64_t			 ri_flags;

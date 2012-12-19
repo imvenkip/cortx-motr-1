@@ -406,30 +406,32 @@ static void outgoing_buf_event_handler(const struct m0_net_buffer_event *ev)
 
 static void item_done(struct m0_rpc_item *item, unsigned long rc)
 {
+	int32_t saved_error;
+
 	M0_ENTRY("item: %p rc: %lu", item, rc);
 	M0_PRE(item != NULL);
+	M0_PRE(M0_IN(item->ri_error, (0, -ETIMEDOUT)));
 
+	saved_error    = item->ri_error;
 	item->ri_error = rc;
 	if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
 		item->ri_ops->rio_sent(item);
 
-	if (rc == 0) {
+	item->ri_error = rc ?: saved_error;
+	if (item->ri_error == 0) {
 		m0_rpc_item_change_state(item, M0_RPC_ITEM_SENT);
 		/*
 		 * request items will automatically move to
 		 * WAITING_FOR_REPLY state.
 		 */
-		if (m0_rpc_item_is_request(item)) {
-			if (item->ri_reply == NULL) {
-				m0_rpc_item_start_timer(item);
-			} else {
-				/* Reply has already been received when we
-				   were waiting for buffer callback */
-				m0_rpc_slot_process_reply(item);
-			}
+		if (m0_rpc_item_is_request(item) &&
+		    item->ri_reply != NULL) {
+			/* Reply has already been received when we
+			   were waiting for buffer callback */
+			m0_rpc_slot_process_reply(item);
 		}
 	} else {
-		m0_rpc_item_failed(item, (int32_t)rc);
+		m0_rpc_item_failed(item, item->ri_error);
 	}
 	/*
 	 * Request and Reply items take hold on session until

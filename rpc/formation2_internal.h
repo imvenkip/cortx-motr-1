@@ -315,6 +315,8 @@ M0_INTERNAL void m0_rpc_frm_fini(struct m0_rpc_frm *frm);
  */
 M0_INTERNAL void m0_rpc_frm_enq_item(struct m0_rpc_frm *frm,
 				     struct m0_rpc_item *item);
+M0_INTERNAL void m0_rpc_frm_remove_item(struct m0_rpc_frm *frm,
+					struct m0_rpc_item *item);
 
 M0_INTERNAL void m0_rpc_frm_item_deadline_passed(struct m0_rpc_frm *frm,
 						 struct m0_rpc_item *item);
