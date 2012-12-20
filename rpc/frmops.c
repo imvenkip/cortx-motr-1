@@ -377,6 +377,9 @@ static void outgoing_buf_event_handler(const struct m0_net_buffer_event *ev)
 
 	machine = rpc_buffer__rmachine(rpcbuf);
 
+	if (M0_FI_ENABLED("delay_callback"))
+		m0_nanosleep(m0_time(0, 300000000), NULL); /* 300 msec */
+
 	m0_rpc_machine_lock(machine);
 
 	stats = &machine->rm_stats;

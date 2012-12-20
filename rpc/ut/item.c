@@ -34,7 +34,7 @@
 #include "rpc/ut/rpc_test_fops.h"
 
 static int __test(void);
-static void test_timeout_before_formation(m0_time_t deadline,
+static void __test_timeout(m0_time_t deadline,
 					  m0_time_t timeout);
 
 static struct m0_fop *fop_alloc(void)
@@ -158,35 +158,44 @@ static void test_timeout(void)
 
 	/* Test [ENQUEUED] ---timeout----> [FAILED] */
 	M0_LOG(M0_DEBUG, "TEST:2.2:START");
-	test_timeout_before_formation(m0_time_from_now(1, 0),
-				      m0_time_from_now(0, 100 * MILLISEC));
+	__test_timeout(m0_time_from_now(1, 0),
+		       m0_time_from_now(0, 100 * MILLISEC));
 	M0_LOG(M0_DEBUG, "TEST:2.2:END");
 
 	/* Test: timeout is in past AND [ENQUEUED] ---timeout----> [FAILED] */
 	M0_LOG(M0_DEBUG, "TEST:2.3:START");
-	test_timeout_before_formation(m0_time_from_now(1, 0),
-				      m0_time_from_now(-1, 0));
+	__test_timeout(m0_time_from_now(1, 0),
+		       m0_time_from_now(-1, 0));
 	M0_LOG(M0_DEBUG, "TEST:2.3:END");
 
 	m0_fi_enable("frm_balance", "do_nothing");
 
 	/* Test [URGENT] ---timeout----> [FAILED] */
 	M0_LOG(M0_DEBUG, "TEST:2.4:START");
-	test_timeout_before_formation(m0_time_from_now(-1, 0),
-				      m0_time_from_now(0, 100 * MILLISEC));
+	__test_timeout(m0_time_from_now(-1, 0),
+		       m0_time_from_now(0, 100 * MILLISEC));
 	M0_LOG(M0_DEBUG, "TEST:2.4:END");
 
 	/* Test: timeout is in past AND [URGENT] ---timeout----> [FAILED] */
 	M0_LOG(M0_DEBUG, "TEST:2.5:START");
-	test_timeout_before_formation(m0_time_from_now(-1, 0),
-				      m0_time_from_now(-1, 0));
+	__test_timeout(m0_time_from_now(-1, 0),
+		       m0_time_from_now(-1, 0));
 	M0_LOG(M0_DEBUG, "TEST:2.5:END");
 
 	m0_fi_disable("frm_balance", "do_nothing");
+
+	m0_fi_enable("outgoing_buf_event_handler", "delay_callback");
+	M0_LOG(M0_DEBUG, "TEST:2.6:START");
+	__test_timeout(m0_time_from_now(-1, 0),
+		       m0_time_from_now(0, 100 * MILLISEC));
+	/* wait until reply is processed */
+	m0_nanosleep(m0_time(0, 500 * MILLISEC), NULL);
+	M0_LOG(M0_DEBUG, "TEST:2.6:END");
+	m0_fi_disable("outgoing_buf_event_handler", "delay_callback");
 }
 
-static void test_timeout_before_formation(m0_time_t deadline,
-					  m0_time_t timeout)
+static void __test_timeout(m0_time_t deadline,
+			   m0_time_t timeout)
 {
 	int rc;
 
