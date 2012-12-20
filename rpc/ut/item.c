@@ -101,7 +101,6 @@ static bool chk_state(const struct m0_rpc_item *item,
 	return item->ri_sm.sm_state == state;
 }
 
-__attribute__((unused))
 static void test_simple_transitions(void)
 {
 	int rc;
@@ -184,6 +183,7 @@ static void test_timeout(void)
 
 	m0_fi_disable("frm_balance", "do_nothing");
 
+	/* Test: [SENDING] ---timeout----> [FAILED] */
 	m0_fi_enable("outgoing_buf_event_handler", "delay_callback");
 	M0_LOG(M0_DEBUG, "TEST:2.6:START");
 	__test_timeout(m0_time_from_now(-1, 0),
@@ -213,7 +213,6 @@ static void __test_timeout(m0_time_t deadline,
 	m0_fop_put(fop);
 }
 
-__attribute__((unused))
 static void test_failure_before_sending(void)
 {
 	int rc;
@@ -287,7 +286,6 @@ static const struct m0_rpc_item_ops arrow_item_ops = {
 	.rio_sent = arrow_sent_cb,
 };
 
-__attribute__((unused))
 static void test_oneway_item(void)
 {
 	struct m0_rpc_item *item;
@@ -347,10 +345,10 @@ const struct m0_test_suite item_ut = {
 	.ts_init = ts_item_init,
 	.ts_fini = ts_item_fini,
 	.ts_tests = {
-//		{ "simple-transitions",     test_simple_transitions     },
+		{ "simple-transitions",     test_simple_transitions     },
 		{ "timeout-transitions",    test_timeout                },
-//		{ "failure-before-sending", test_failure_before_sending },
-//		{ "oneway-item",            test_oneway_item            },
+		{ "failure-before-sending", test_failure_before_sending },
+		{ "oneway-item",            test_oneway_item            },
 		{ NULL, NULL },
 	}
 };

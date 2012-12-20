@@ -652,7 +652,7 @@ M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item)
 	if (item->ri_op_timeout != M0_TIME_NEVER) {
 		if (m0_time_is_in_past(item->ri_op_timeout))
 			M0_LOG(M0_WARN, "item: %p timeout in past", item);
-		M0_LOG(M0_FATAL, "item %p Starting timer", item);
+		M0_LOG(M0_DEBUG, "item %p Starting timer", item);
 		return m0_sm_timer_start(&item->ri_timer,
 					 &item->ri_rmachine->rm_sm_grp,
 					 item_timedout_cb,
@@ -663,10 +663,9 @@ M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item)
 
 M0_INTERNAL void m0_rpc_item_stop_timer(struct m0_rpc_item *item)
 {
-	M0_PRE(m0_rpc_item_is_request(item));
-
 	if (m0_sm_timer_is_armed(&item->ri_timer)) {
-		M0_LOG(M0_FATAL, "%p Stopping timer", item);
+		M0_ASSERT(m0_rpc_item_is_request(item));
+		M0_LOG(M0_DEBUG, "%p Stopping timer", item);
 		m0_sm_timer_cancel(&item->ri_timer);
 	}
 }
@@ -684,7 +683,7 @@ static void item_timedout_cb(struct m0_sm_timer *timer)
 	M0_ASSERT(item->ri_magic == M0_RPC_ITEM_MAGIC);
 	M0_ASSERT(m0_rpc_machine_is_locked(item->ri_rmachine));
 
-	M0_LOG(M0_FATAL, "%p [%s/%u] %s -> TIMEDOUT", item, item_kind(item),
+	M0_LOG(M0_DEBUG, "%p [%s/%u] %s -> TIMEDOUT", item, item_kind(item),
 	       item->ri_type->rit_opcode, item_state_name(item));
 
 	item->ri_rmachine->rm_stats.rs_nr_timedout_items++;

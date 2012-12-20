@@ -202,13 +202,17 @@ static void set_timeout(uint64_t milli)
 
 static struct m0_rpc_item *new_item(int deadline, int kind)
 {
-	struct m0_rpc_item *item;
+	struct m0_rpc_item_type *itype;
+	struct m0_rpc_item      *item;
+
 	M0_UT_ASSERT(M0_IN(deadline, (TIMEDOUT, WAITING, NEVER)));
 	M0_UT_ASSERT(M0_IN(kind,     (BOUND, UNBOUND, ONEWAY)));
 
 	M0_ALLOC_PTR(item);
 	M0_UT_ASSERT(item != NULL);
 
+	itype = kind == ONEWAY ? &oneway_item_type : &twoway_item_type;
+	m0_rpc_item_init(item, itype);
 	item->ri_rmachine = &rmachine;
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
 	switch (deadline) {
@@ -223,11 +227,8 @@ static struct m0_rpc_item *new_item(int deadline, int kind)
 		break;
 	}
 	item->ri_prio = M0_RPC_ITEM_PRIO_MAX;
-	item->ri_type = kind == ONEWAY ? &oneway_item_type :
-					  &twoway_item_type;
 	item->ri_slot_refs[0].sr_slot = kind == BOUND ? &slot : NULL;
 	item->ri_session = &session;
-	packet_item_tlink_init(item);
 
 	return item;
 }
