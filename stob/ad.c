@@ -611,13 +611,18 @@ static void ad_stob_io_release(struct ad_stob_io *aio)
  */
 static void ad_stob_io_fini(struct m0_stob_io *io)
 {
-	struct ad_stob_io *aio = io->si_stob_private;
+	struct ad_stob_io      *aio = io->si_stob_private;
+	struct m0_emap_seg_vec *esv = io->si_fol_private;
 
 	ad_stob_io_release(aio);
 	m0_clink_del_lock(&aio->ai_clink);
 	m0_clink_fini(&aio->ai_clink);
 	m0_stob_io_fini(&aio->ai_back);
 	m0_free(aio);
+	if (esv != NULL) {
+		m0_free(esv->sv_es);
+		m0_free(esv);
+	}
 }
 
 /**
@@ -1083,6 +1088,8 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 	bool          eodst;
 	bool          eoext;
 	struct m0_ext todo;
+	struct m0_emap_seg_vec *esv = io->si_fol_private;
+	int			i = 0;
 
 	result = 0;
 	do {
@@ -1095,6 +1102,11 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
 		todo.e_end   = todo.e_start + frag_size;
 
+		esv->sv_es[i].ee_ext.e_start = offset;
+		esv->sv_es[i].ee_ext.e_end   = offset + m0_ext_length(&todo);
+		esv->sv_es[i].ee_val         = todo.e_start;
+		esv->sv_es[i].ee_pre         = map->ct_it->ec_seg.ee_pre;
+		++i;
 		result = ad_write_map_ext(io, adom, offset, map->ct_it, &todo);
 
 		if (result != 0)
@@ -1119,6 +1131,26 @@ static void ad_wext_fini(struct ad_write_ext *wext)
 		next = wext->we_next;
 		m0_free(wext);
 	}
+}
+
+static int ad_emap_seg_vec_alloc(struct m0_stob_io *io, uint32_t frags)
+{
+	struct m0_emap_seg_vec *esv;
+
+	M0_PRE(frags > 0);
+
+	M0_ALLOC_PTR(esv);
+	if (esv == NULL)
+		return -ENOMEM;
+
+	esv->sv_nr = frags;
+	M0_ALLOC_ARR(esv->sv_es, frags);
+	if (esv->sv_es == NULL) {
+		m0_free(esv);
+		return -ENOMEM;
+	}
+	io->si_fol_private = esv;
+	return 0;
 }
 
 /**
@@ -1181,20 +1213,22 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 	if (result == 0) {
 		ad_wext_cursor_init(&wc, &head);
 		frags = ad_write_count(io, src, &wc);
-
-		result = ad_vec_alloc(io->si_obj, back, frags);
+		result = ad_emap_seg_vec_alloc(io, frags);
 		if (result == 0) {
-			m0_vec_cursor_init(src, &io->si_user.ov_vec);
-			m0_vec_cursor_init(dst, &io->si_stob.iv_vec);
-			ad_wext_cursor_init(&wc, &head);
+			result = ad_vec_alloc(io->si_obj, back, frags);
+			if (result == 0) {
+				m0_vec_cursor_init(src, &io->si_user.ov_vec);
+				m0_vec_cursor_init(dst, &io->si_stob.iv_vec);
+				ad_wext_cursor_init(&wc, &head);
 
-			ad_write_back_fill(io, back, src, &wc);
+				ad_write_back_fill(io, back, src, &wc);
 
-			m0_vec_cursor_init(src, &io->si_user.ov_vec);
-			m0_vec_cursor_init(dst, &io->si_stob.iv_vec);
-			ad_wext_cursor_init(&wc, &head);
+				m0_vec_cursor_init(src, &io->si_user.ov_vec);
+				m0_vec_cursor_init(dst, &io->si_stob.iv_vec);
+				ad_wext_cursor_init(&wc, &head);
 
-			result = ad_write_map(io, adom, dst, map, &wc);
+				result = ad_write_map(io, adom, dst, map, &wc);
+			}
 		}
 	}
 	ad_wext_fini(&head);
