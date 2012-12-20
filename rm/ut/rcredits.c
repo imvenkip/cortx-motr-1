@@ -375,7 +375,7 @@ static void loan_session_set(enum rm_server csrv_id,
 	} m0_tl_endfor;
 }
 
-static void test2_verify()
+static void test2_verify(void)
 {
 	struct m0_rm_owner *so2 = &rm_ctx[SERVER_2].rc_test_data.rd_owner;
 	struct m0_rm_owner *so1 = &rm_ctx[SERVER_1].rc_test_data.rd_owner;
@@ -387,7 +387,7 @@ static void test2_verify()
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so1->ro_owned[OWOS_CACHED]));
 }
 
-static void test2_run()
+static void test2_run(void)
 {
 	struct m0_rm_incoming *in = &rm_ctx[SERVER_1].rc_test_data.rd_in;
 
@@ -407,7 +407,7 @@ static void test2_run()
 	m0_rm_incoming_fini(in);
 }
 
-static void server1_tests()
+static void server1_tests(void)
 {
 	m0_chan_wait(&tests_clink[TEST2]);
 	m0_clink_add(&rm_ctx[SERVER_1].rc_chan, &rm_ctx[SERVER_1].rc_clink);
@@ -418,7 +418,7 @@ static void server1_tests()
 	m0_chan_signal(&rr_tests_chan);
 }
 
-static void test3_verify()
+static void test3_verify(void)
 {
 	struct m0_rm_owner *so3 = &rm_ctx[SERVER_3].rc_test_data.rd_owner;
 	struct m0_rm_owner *so2 = &rm_ctx[SERVER_2].rc_test_data.rd_owner;
@@ -431,7 +431,7 @@ static void test3_verify()
 	M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&so1->ro_owned[OWOS_CACHED]));
 }
 
-static void test3_run()
+static void test3_run(void)
 {
 	struct m0_rm_incoming *in = &rm_ctx[SERVER_2].rc_test_data.rd_in;
 
@@ -463,7 +463,7 @@ static void test3_run()
 	m0_rm_incoming_fini(in);
 }
 
-static void test1_verify()
+static void test1_verify(void)
 {
 	struct m0_rm_owner *so3 = &rm_ctx[SERVER_3].rc_test_data.rd_owner;
 	struct m0_rm_owner *so2 = &rm_ctx[SERVER_2].rc_test_data.rd_owner;
@@ -476,7 +476,7 @@ static void test1_verify()
 /*
  * Test borrow
  */
-static void test1_run()
+static void test1_run(void)
 {
 	struct m0_rm_incoming *in = &rm_ctx[SERVER_2].rc_test_data.rd_in;
 
@@ -519,7 +519,7 @@ static void test1_run()
 	m0_rm_incoming_fini(in);
 }
 
-static void server2_tests()
+static void server2_tests(void)
 {
 	m0_chan_wait(&tests_clink[TEST1]);
 	m0_clink_add(&rm_ctx[SERVER_2].rc_chan, &rm_ctx[SERVER_2].rc_clink);
@@ -538,7 +538,7 @@ static void server2_tests()
 	m0_chan_signal(&rr_tests_chan);
 }
 
-static void test4_run()
+static void test4_run(void)
 {
 	struct m0_rm_owner *so3 = &rm_ctx[SERVER_3].rc_test_data.rd_owner;
 	int		    rc;
@@ -558,7 +558,7 @@ static void test4_run()
 			 NULL);
 }
 
-static void server3_tests()
+static void server3_tests(void)
 {
 	m0_chan_wait(&tests_clink[TEST4]);
 	m0_clink_add(&rm_ctx[SERVER_3].rc_chan, &rm_ctx[SERVER_3].rc_clink);
@@ -589,7 +589,7 @@ static void rm_server_start(const int tid)
 /*
  * Configure server hierarchy.
  */
-static void server_hier_config()
+static void server_hier_config(void)
 {
 	rm_ctx[SERVER_1].creditor_id = SERVER_2;
 	rm_ctx[SERVER_1].debtor_id = SERVER_INVALID;
@@ -601,7 +601,7 @@ static void server_hier_config()
 	rm_ctx[SERVER_3].debtor_id = SERVER_2;
 }
 
-static void remote_credits_utinit()
+static void remote_credits_utinit(void)
 {
 	uint32_t i;
 
@@ -622,7 +622,7 @@ static void remote_credits_utinit()
 	m0_rm_fop_init();
 }
 
-static void remote_credits_utfini()
+static void remote_credits_utfini(void)
 {
 	uint32_t i;
 
@@ -640,7 +640,7 @@ static void remote_credits_utfini()
 	m0_chan_fini(&rr_tests_chan);
 }
 
-void remote_credits_test()
+void remote_credits_test(void)
 {
 	int rc;
 	int i;

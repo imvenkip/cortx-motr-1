@@ -257,7 +257,7 @@ static void brw_fop_populate(struct m0_fom *fom, enum test_type test)
 	m0_rm_credit_fini(&credit);
 }
 
-static void brw_test_cleanup()
+static void brw_test_cleanup(void)
 {
 	struct m0_rm_credit *credit;
 	struct m0_rm_loan  *loan;
@@ -366,7 +366,7 @@ static void brw_fom_state_test(enum test_type test)
 /*
  * Test function for brw_fom_create().
  */
-static void brw_fom_create_test()
+static void brw_fom_create_test(void)
 {
 	/* 1. Test memory failure */
 	fom_create_test(M0_RIT_BORROW, true);
@@ -379,7 +379,7 @@ static void brw_fom_create_test()
 /*
  * Test function for brw_fom_fini().
  */
-static void brw_fom_fini_test()
+static void brw_fom_fini_test(void)
 {
 	fom_fini_test(M0_RIT_BORROW);
 }
@@ -459,7 +459,7 @@ static void rvk_fop_populate(struct m0_fom *fom)
 	m0_rm_credit_fini(&credit);
 }
 
-static void rvk_test_cleanup()
+static void rvk_test_cleanup(void)
 {
 	struct m0_rm_credit *credit;
 	struct m0_rm_loan  *loan;
@@ -574,7 +574,7 @@ static void rvk_fom_state_test(enum test_type test)
 /*
  * Test function for rvk_fom_create().
  */
-static void rvk_fom_create_test()
+static void rvk_fom_create_test(void)
 {
 	/* 1. Test memory failure */
 	fom_create_test(M0_RIT_REVOKE, true);
@@ -587,7 +587,7 @@ static void rvk_fom_create_test()
 /*
  * Test function for rvk_fom_fini().
  */
-static void rvk_fom_fini_test()
+static void rvk_fom_fini_test(void)
 {
 	fom_fini_test(M0_RIT_REVOKE);
 }
@@ -650,7 +650,7 @@ static void revoke_fom_funcs_test(void)
 
 }
 
-void rm_fom_funcs_test()
+void rm_fom_funcs_test(void)
 {
 	rmfoms_utinit();
 	m0_sm_group_lock(&dummy_loc.fl_group);

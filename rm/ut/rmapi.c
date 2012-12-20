@@ -41,7 +41,7 @@ extern bool m0_rm_ur_tlist_is_empty(const struct m0_tl *list);
  * Please note that this is basic API testing.
  * Detailed scenario testing is in another file.
  */
-static void credits_api_test ()
+static void credits_api_test (void)
 {
 	int rc;
 
@@ -110,7 +110,7 @@ static void credits_api_test ()
 	rm_utdata_fini(&test_data, OBJ_OWNER);
 }
 
-static void owner_api_test ()
+static void owner_api_test (void)
 {
 	rm_utdata_init(&test_data, OBJ_RES);
 
@@ -143,7 +143,7 @@ static void owner_api_test ()
 	rm_utdata_fini(&test_data, OBJ_RES);
 }
 
-static void res_api_test()
+static void res_api_test(void)
 {
 	rm_utdata_init(&test_data, OBJ_RES_TYPE);
 
@@ -170,7 +170,7 @@ static void res_api_test()
 	rm_utdata_fini(&test_data, OBJ_RES_TYPE);
 }
 
-static void rt_api_test()
+static void rt_api_test(void)
 {
 	rm_utdata_init(&test_data, OBJ_RES_TYPE);
 
@@ -186,7 +186,7 @@ static void rt_api_test()
 	m0_rm_domain_fini(&test_data.rd_dom);
 }
 
-static void dom_api_test()
+static void dom_api_test(void)
 {
 	/* Initialise test_data.rd_domain */
 	m0_rm_domain_init(&test_data.rd_dom);
@@ -200,7 +200,7 @@ static void dom_api_test()
 	m0_rm_domain_fini(&test_data.rd_dom);
 }
 
-void rm_api_test()
+void rm_api_test(void)
 {
 	/* Test domain APIs */
 	dom_api_test();

@@ -47,7 +47,7 @@ const struct m0_rm_incoming_ops lcredits_incoming_ops = {
         .rio_conflict = lcredits_in_conflict
 };
 
-static void local_credits_init()
+static void local_credits_init(void)
 {
 	rm_utdata_init(&test_data, OBJ_OWNER);
 	rm_test_owner_capital_raise(&test_data.rd_owner, &test_data.rd_credit);
@@ -55,7 +55,7 @@ static void local_credits_init()
 	m0_chan_init(&lcredits_chan);
 }
 
-static void local_credits_fini()
+static void local_credits_fini(void)
 {
 	m0_chan_fini(&lcredits_chan);
 	rm_utdata_fini(&test_data, OBJ_OWNER);
@@ -155,7 +155,7 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
 	m0_rm_incoming_fini(&next_in);
 }
 
-static void failures_test()
+static void failures_test(void)
 {
 	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
 			    M0_RIT_LOCAL, RIP_NONE, RIF_LOCAL_WAIT);
@@ -186,7 +186,7 @@ static void failures_test()
 	test_data.rd_owner.ro_sm.sm_state = ROS_ACTIVE;
 }
 
-void local_credits_test()
+void local_credits_test(void)
 {
 	/*
 	 * 1. Get cached credit - successful - WAIT, TRY

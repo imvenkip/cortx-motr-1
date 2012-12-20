@@ -24,6 +24,7 @@
 #include "lib/errno.h"
 #include "lib/misc.h"
 #include "lib/chan.h"
+#include "lib/vec.h"
 
 #include "rm/rm.h"
 #include "rm/ut/rings.h"
@@ -90,28 +91,24 @@ static void rings_credit_free(struct m0_rm_credit *credit)
 }
 
 static int rings_credit_encode(const struct m0_rm_credit *credit,
-			      struct m0_bufvec_cursor *cur)
+			       struct m0_bufvec_cursor *cur)
 {
-	void *buf;
-
-	buf = m0_bufvec_cursor_addr(cur);
-	memcpy(buf, &credit->cr_datum, sizeof credit->cr_datum);
+	m0_bufvec_cursor_copyto(cur, (void *)&credit->cr_datum,
+				sizeof credit->cr_datum);
 
 	return 0;
 }
 
 static int rings_credit_decode(struct m0_rm_credit *credit,
-			      struct m0_bufvec_cursor *cur)
+			       struct m0_bufvec_cursor *cur)
 {
-	void *buf;
-
-	buf = m0_bufvec_cursor_addr(cur);
-	memcpy(&credit->cr_datum, buf, sizeof credit->cr_datum);
+	m0_bufvec_cursor_copyfrom(cur, &credit->cr_datum,
+				  sizeof credit->cr_datum);
 	return 0;
 }
 
 static int rings_credit_copy(struct m0_rm_credit *dest,
-			    const struct m0_rm_credit *src)
+			     const struct m0_rm_credit *src)
 {
 	dest->cr_datum = src->cr_datum;
 	dest->cr_owner = src->cr_owner;
@@ -127,8 +124,7 @@ static m0_bcount_t rings_credit_len(const struct m0_rm_credit *credit)
 static bool rings_is_subset(const struct m0_rm_credit *src,
 			    const struct m0_rm_credit *dest)
 {
-	return (dest->cr_datum == src->cr_datum) ||
-	       (dest->cr_datum & ~src->cr_datum);
+	return (dest->cr_datum & src->cr_datum) == src->cr_datum;
 }
 
 static int rings_disjoin(struct m0_rm_credit *src,

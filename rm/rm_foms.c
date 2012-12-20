@@ -265,7 +265,7 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 			 struct m0_fom *fom, int rc)
 {
 	struct m0_fop_rm_borrow_rep *bfop;
-	struct m0_fom_error_rep *rfop;
+	struct m0_fom_error_rep     *rfop;
 
 	switch (type) {
 	case M0_RIT_BORROW:

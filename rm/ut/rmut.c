@@ -26,19 +26,13 @@
 #include "rm/ut/rings.h"
 #include "rm/ut/rmut.h"
 
-struct m0_rm_resource_type test_rt = {
-	.rt_ops  = &rings_rtype_ops,
-	.rt_name = "rm ut resource type",
-	.rt_id   = 1
-};
-
 extern const struct m0_tl_descr remotes_tl;
 
-extern void rm_api_test();
-extern void local_credits_test();
-extern void remote_credits_test();
-extern void rm_fom_funcs_test();
-extern void rm_fop_funcs_test();
+extern void rm_api_test(void);
+extern void local_credits_test(void);
+extern void remote_credits_test(void);
+extern void rm_fom_funcs_test(void);
+extern void rm_fop_funcs_test(void);
 extern bool m0_rm_ur_tlist_is_empty(const struct m0_tl *list);
 extern void remotes_tlist_del(struct m0_rm_remote *other);
 
@@ -134,7 +128,7 @@ const struct m0_test_suite rm_ut = {
 		{ "lcredits", local_credits_test },
 		{ "fom-funcs", rm_fom_funcs_test },
 		{ "fop-funcs", rm_fop_funcs_test },
-		{ "remote-credits", remote_credits_test },
+		{ "rcredits", remote_credits_test },
 		{ NULL, NULL }
 	}
 };

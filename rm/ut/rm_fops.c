@@ -99,7 +99,7 @@ static void request_param_init(enum m0_rm_incoming_type reqtype)
 /*
  * Finalise parameters (request) parameters for testing RM-FOP-send functions.
  */
-static void request_param_fini()
+static void request_param_fini(void)
 {
 	m0_free(test_loan);
 	m0_free(test_data.rd_owner.ro_creditor);
@@ -381,9 +381,9 @@ static void post_borrow_cleanup(struct m0_rpc_item *item, int err)
  */
 static void borrow_fop_validate(struct m0_fop_rm_borrow *bfop)
 {
-	struct m0_rm_owner *owner;
+	struct m0_rm_owner  *owner;
 	struct m0_rm_credit  credit;
-	int		    rc;
+	int		     rc;
 
 	owner = m0_cookie_of(&bfop->bo_base.rrq_owner.ow_cookie,
 			     struct m0_rm_owner, ro_id);
@@ -407,7 +407,7 @@ static void borrow_fop_validate(struct m0_fop_rm_borrow *bfop)
 /*
  * Test function for m0_rm_request_out() for BORROW FOP.
  */
-static void borrow_request_test()
+static void borrow_request_test(void)
 {
 	request_test(M0_RIT_BORROW);
 }
@@ -415,7 +415,7 @@ static void borrow_request_test()
 /*
  * Test function for borrow_reply().
  */
-static void borrow_reply_test()
+static void borrow_reply_test(void)
 {
 	/* 1. Test borrow-success */
 	reply_test(M0_RIT_BORROW, 0);
@@ -534,7 +534,7 @@ static void revoke_reply_populate(struct m0_fom_error_rep *rreply,
 /*
  * Test function for m0_rm_request_out() for REVOKE FOP.
  */
-static void revoke_request_test()
+static void revoke_request_test(void)
 {
 	request_test(M0_RIT_REVOKE);
 }
@@ -542,7 +542,7 @@ static void revoke_request_test()
 /*
  * Test function for revoke_reply().
  */
-static void revoke_reply_test()
+static void revoke_reply_test(void)
 {
 	/* 1. Test revoke-success */
 	reply_test(M0_RIT_REVOKE, 0);
@@ -584,7 +584,7 @@ static void revoke_fop_funcs_test(void)
 	rm_utdata_fini(&test_data, OBJ_OWNER);
 }
 
-void rm_fop_funcs_test()
+void rm_fop_funcs_test(void)
 {
 	rmfops_utinit();
 	borrow_fop_funcs_test();

@@ -151,7 +151,7 @@ static int borrow_fop_fill(struct rm_out *outreq,
 			   struct m0_rm_credit *credit)
 {
 	struct m0_fop_rm_borrow *bfop;
-	struct m0_cookie	cookie;
+	struct m0_cookie	 cookie;
 	int			 rc;
 
 	m0_cookie_init(&cookie, &in->rin_want.cr_owner->ro_id);
@@ -313,7 +313,7 @@ static void revoke_reply(struct m0_rpc_item *item)
 	struct m0_rm_credit	*credit;
 	struct m0_rm_credit	*out_credit;
 	struct rm_out		*outreq;
-	int			rc;
+	int			 rc;
 
 	M0_PRE(item != NULL);
 	M0_PRE(item->ri_reply != NULL);

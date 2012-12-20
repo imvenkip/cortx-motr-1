@@ -477,8 +477,8 @@ M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner *owner,
 				    struct m0_rm_credit *r)
 {
 	struct m0_rm_credit *credit_transfer;
-	struct m0_rm_loan  *nominal_capital;
-	int                 rc;
+	struct m0_rm_loan   *nominal_capital;
+	int                  rc;
 
 	M0_PRE(r != NULL);
 	M0_PRE(r->cr_owner == owner);
@@ -529,7 +529,7 @@ static bool owner_is_idle (struct m0_rm_owner *o)
 
 static void owner_liquidate(struct m0_rm_owner *owner)
 {
-	struct m0_rm_credit    *credit;
+	struct m0_rm_credit   *credit;
 	struct m0_rm_loan     *loan;
 	struct m0_rm_incoming *in;
 	int		       rc = 0;
@@ -946,7 +946,7 @@ M0_EXPORTED(m0_rm_remote_fini);
 static void cached_credits_clear(struct m0_rm_owner *owner)
 {
 	struct m0_rm_credit *credit;
-	int		    i;
+	int		     i;
 
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
 		m0_tl_for(m0_rm_ur, &owner->ro_owned[i], credit) {
@@ -964,13 +964,13 @@ static void cached_credits_clear(struct m0_rm_owner *owner)
  */
 static int cached_credits_remove(struct m0_rm_incoming *in)
 {
-	struct m0_rm_pin   *pin;
+	struct m0_rm_pin    *pin;
 	struct m0_rm_credit *credit;
 	struct m0_rm_credit *remnant_credit;
-	struct m0_rm_owner *owner = in->rin_want.cr_owner;
-	struct m0_tl	    diff_list;
-	struct m0_tl	    remove_list;
-	int		    rc = 0;
+	struct m0_rm_owner  *owner = in->rin_want.cr_owner;
+	struct m0_tl	     diff_list;
+	struct m0_tl	     remove_list;
+	int		     rc = 0;
 
 	/* Credits can be removed for remote requests */
 	M0_PRE(in->rin_type != M0_RIT_LOCAL);
@@ -1063,18 +1063,20 @@ M0_EXPORTED(m0_rm_borrow_commit);
 
 M0_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rem_in)
 {
-	struct m0_rm_incoming *in    = &rem_in->ri_incoming;
-	struct m0_rm_owner    *owner = in->rin_want.cr_owner;
-	struct m0_rm_loan     *rvk_loan;
+	struct m0_rm_incoming *in       = &rem_in->ri_incoming;
+	struct m0_rm_owner    *owner    = in->rin_want.cr_owner;
+	struct m0_rm_loan     *rvk_loan = NULL;
 	struct m0_rm_loan     *remnant_loan;
 	struct m0_rm_loan     *add_loan;
 	struct m0_rm_loan     *remove_loan;
-	struct m0_rm_credit    *credit;
+	struct m0_rm_credit   *credit;
 	struct m0_cookie      *cookie;
-	int                    rc = 0;
+	int                    rc         = 0;
 	bool		       is_remnant = false;
 
 	M0_PRE(in->rin_type == M0_RIT_REVOKE);
+	M0_PRE(!m0_rm_ur_tlist_is_empty(&owner->ro_borrowed));
+
 	cookie = &rem_in->ri_loan_cookie;
 	/*
 	 * Clear the credits cache and remove incoming credits from the cache.
@@ -1100,6 +1102,8 @@ M0_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rem_in)
 			break;
 		}
 	} m0_tl_endfor;
+
+	M0_ASSERT(rvk_loan != NULL);
 
 	/*
 	 * Check if there is partial revoke.
@@ -1337,7 +1341,7 @@ out:
 static void owner_balance(struct m0_rm_owner *o)
 {
 	struct m0_rm_pin      *pin;
-	struct m0_rm_credit    *credit;
+	struct m0_rm_credit   *credit;
 	struct m0_rm_outgoing *out;
 	struct m0_rm_incoming *in;
 	bool                   todo;
@@ -1407,7 +1411,7 @@ static void owner_balance(struct m0_rm_owner *o)
 static void incoming_check(struct m0_rm_incoming *in)
 {
 	struct m0_rm_credit rest;
-	int		   rc;
+	int		    rc;
 
 	M0_PRE(m0_rm_incoming_bob_check(in));
 	/*
@@ -1492,12 +1496,12 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 			       struct m0_rm_credit *rest)
 {
 	struct m0_rm_credit *want = &in->rin_want;
-	struct m0_rm_owner *o    = want->cr_owner;
+	struct m0_rm_owner  *o    = want->cr_owner;
 	struct m0_rm_credit *r;
-	struct m0_rm_loan  *loan;
-	int                 i;
-	int                 wait = 0;
-	int		    rc = 0;
+	struct m0_rm_loan   *loan;
+	int                  i;
+	int                  wait = 0;
+	int		     rc   = 0;
 
 	M0_PRE(m0_rm_ur_tlist_contains(
 		       &o->ro_incoming[in->rin_priority][OQS_GROUND], want));
@@ -1656,7 +1660,7 @@ static int outgoing_check(struct m0_rm_incoming *in,
 	int		       i;
 	int		       rc = 0;
 	struct m0_rm_owner    *owner = in->rin_want.cr_owner;
-	struct m0_rm_credit    *scan;
+	struct m0_rm_credit   *scan;
 	struct m0_rm_outgoing *out;
 
 	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); ++i) {
@@ -1719,13 +1723,13 @@ static int borrow_send(struct m0_rm_incoming *in, struct m0_rm_credit *credit)
 
 M0_INTERNAL int m0_rm_sublet_remove(struct m0_rm_credit *credit)
 {
-	struct m0_rm_owner *owner = credit->cr_owner;
+	struct m0_rm_owner  *owner = credit->cr_owner;
 	struct m0_rm_credit *sublet;
-	struct m0_rm_loan  *loan;
-	struct m0_rm_loan  *remnant_loan;
-	struct m0_tl	    diff_list;
-	struct m0_tl	    remove_list;
-	int		    rc = 0;
+	struct m0_rm_loan   *loan;
+	struct m0_rm_loan   *remnant_loan;
+	struct m0_tl	     diff_list;
+	struct m0_tl	     remove_list;
+	int		     rc = 0;
 
 	M0_PRE(credit != NULL);
 
@@ -1790,8 +1794,8 @@ static bool resource_list_check(const struct m0_rm_resource *res, void *datum)
 
 static bool resource_type_invariant(const struct m0_rm_resource_type *rt)
 {
-	struct m0_rm_domain   *dom   = rt->rt_dom;
-	const struct m0_tl    *rlist = &rt->rt_resources;
+	struct m0_rm_domain *dom   = rt->rt_dom;
+	const struct m0_tl  *rlist = &rt->rt_resources;
 
 	return
 		res_tlist_invariant_ext(rlist, resource_list_check,
@@ -1845,10 +1849,10 @@ enum credit_queue {
 
 struct owner_invariant_state {
 	enum credit_queue    is_phase;
-	int                 is_owned_idx;
+	int                  is_owned_idx;
 	struct m0_rm_credit  is_debit;
 	struct m0_rm_credit  is_credit;
-	struct m0_rm_owner *is_owner;
+	struct m0_rm_owner  *is_owner;
 };
 
 static bool credit_invariant(const struct m0_rm_credit *credit, void *data)
@@ -1873,8 +1877,8 @@ static bool owner_invariant_state(const struct m0_rm_owner *owner,
 				  struct owner_invariant_state *is)
 {
 	struct m0_rm_credit *credit;
-	int		    i;
-	int		    j;
+	int		     i;
+	int		     j;
 
 	/*
 	 * Iterate over all credits lists:
@@ -1992,7 +1996,7 @@ static int credit_pin_nr(const struct m0_rm_credit *credit, uint32_t flags)
  */
 static int incoming_pin_nr(const struct m0_rm_incoming *in, uint32_t flags)
 {
-	int nr;
+	int               nr;
 	struct m0_rm_pin *pin;
 
 	nr = 0;
@@ -2010,10 +2014,10 @@ static int incoming_pin_nr(const struct m0_rm_incoming *in, uint32_t flags)
  */
 static void incoming_release(struct m0_rm_incoming *in)
 {
-	struct m0_rm_pin   *kingpin;
-	struct m0_rm_pin   *pin;
+	struct m0_rm_pin    *kingpin;
+	struct m0_rm_pin    *pin;
 	struct m0_rm_credit *credit;
-	struct m0_rm_owner *o = in->rin_want.cr_owner;
+	struct m0_rm_owner  *o = in->rin_want.cr_owner;
 
 	m0_tl_for(pi, &in->rin_pins, kingpin) {
 		M0_ASSERT(m0_rm_pin_bob_check(kingpin));
@@ -2148,8 +2152,8 @@ static int credit_diff(struct m0_rm_credit *c0, const struct m0_rm_credit *c1)
 static bool credit_eq(const struct m0_rm_credit *c0,
 		      const struct m0_rm_credit *c1)
 {
-	int  rc;
-	bool res;
+	int                 rc;
+	bool                res;
 	struct m0_rm_credit credit;
 
 	/* no apples and oranges comparison. */
@@ -2173,7 +2177,7 @@ static int remnant_credit_get(const struct m0_rm_credit *src,
 			     struct m0_rm_credit **remnant_credit)
 {
 	struct m0_rm_credit *new_credit;
-	int		    rc;
+	int		     rc;
 
 	M0_PRE(remnant_credit != NULL);
 	M0_PRE(src != NULL);
@@ -2197,7 +2201,7 @@ M0_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
 				 struct m0_rm_credit **dest_credit)
 {
 	struct m0_rm_credit *credit;
-	int		    rc = -ENOMEM;
+	int		     rc = -ENOMEM;
 
 	M0_PRE(src_credit != NULL);
 
