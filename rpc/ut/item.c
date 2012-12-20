@@ -34,6 +34,8 @@
 #include "rpc/ut/rpc_test_fops.h"
 
 static int __test(void);
+static void test_timeout_before_formation(m0_time_t deadline,
+					  m0_time_t timeout);
 
 static struct m0_fop *fop_alloc(void)
 {
@@ -128,6 +130,7 @@ static void test_simple_transitions(void)
 static void test_timeout(void)
 {
 	int rc;
+	enum { MILLISEC = 1000 * 1000 };
 
 	/* Test2.1: Request item times out before reply reaches to sender.
 		    Delayed reply is then dropped.
@@ -155,16 +158,50 @@ static void test_timeout(void)
 
 	/* Test [ENQUEUED] ---timeout----> [FAILED] */
 	M0_LOG(M0_DEBUG, "TEST:2.2:START");
+	test_timeout_before_formation(m0_time_from_now(1, 0),
+				      m0_time_from_now(0, 100 * MILLISEC));
+	M0_LOG(M0_DEBUG, "TEST:2.2:END");
+
+	/* Test: timeout is in past AND [ENQUEUED] ---timeout----> [FAILED] */
+	M0_LOG(M0_DEBUG, "TEST:2.3:START");
+	test_timeout_before_formation(m0_time_from_now(1, 0),
+				      m0_time_from_now(-1, 0));
+	M0_LOG(M0_DEBUG, "TEST:2.3:END");
+
+	m0_fi_enable("frm_balance", "do_nothing");
+
+	/* Test [URGENT] ---timeout----> [FAILED] */
+	M0_LOG(M0_DEBUG, "TEST:2.4:START");
+	test_timeout_before_formation(m0_time_from_now(-1, 0),
+				      m0_time_from_now(0, 100 * MILLISEC));
+	M0_LOG(M0_DEBUG, "TEST:2.4:END");
+
+	/* Test: timeout is in past AND [URGENT] ---timeout----> [FAILED] */
+	M0_LOG(M0_DEBUG, "TEST:2.5:START");
+	test_timeout_before_formation(m0_time_from_now(-1, 0),
+				      m0_time_from_now(-1, 0));
+	M0_LOG(M0_DEBUG, "TEST:2.5:END");
+
+	m0_fi_disable("frm_balance", "do_nothing");
+}
+
+static void test_timeout_before_formation(m0_time_t deadline,
+					  m0_time_t timeout)
+{
+	int rc;
+
 	fop = fop_alloc();
 	item = &fop->f_item;
+	m0_rpc_machine_get_stats(machine, &saved, false);
 	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
-				m0_time_from_now(2, 0),
-				m0_time_from_now(1, 0));
+				deadline, timeout);
 	M0_UT_ASSERT(item->ri_error == -ETIMEDOUT);
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
+	m0_rpc_machine_get_stats(machine, &stats, true);
+	M0_UT_ASSERT(IS_INCR_BY_1(nr_timedout_items) &&
+		     IS_INCR_BY_1(nr_failed_items));
 	m0_fop_put(fop);
-	M0_LOG(M0_DEBUG, "TEST:2.2:END");
 }
 
 __attribute__((unused))

@@ -416,6 +416,9 @@ static void frm_balance(struct m0_rpc_frm *frm)
 	       (char *)m0_bool_to_str(frm_is_ready(frm)));
 	packet_count = item_count = 0;
 
+	if (M0_FI_ENABLED("do_nothing"))
+		return;
+
 	while (frm_is_ready(frm)) {
 		M0_ALLOC_PTR_ADDB(p, &frm->f_addb_ctx, &frm_addb_loc);
 		if (p == NULL) {

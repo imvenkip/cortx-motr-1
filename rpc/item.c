@@ -650,7 +650,9 @@ M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item)
 	M0_PRE(m0_rpc_item_is_request(item));
 
 	if (item->ri_op_timeout != M0_TIME_NEVER) {
-		M0_LOG(M0_FATAL, "%p Starting timer", item);
+		if (m0_time_is_in_past(item->ri_op_timeout))
+			M0_LOG(M0_WARN, "item: %p timeout in past", item);
+		M0_LOG(M0_FATAL, "item %p Starting timer", item);
 		return m0_sm_timer_start(&item->ri_timer,
 					 &item->ri_rmachine->rm_sm_grp,
 					 item_timedout_cb,
