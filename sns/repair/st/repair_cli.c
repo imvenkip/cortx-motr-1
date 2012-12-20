@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
 	rc = m0_rpc_client_call(fop, &cl_ctx.rcx_session,
 				&trigger_fop_rpc_item_ops,
 				0 /* deadline */,
-				60 /* op timeout */);
+				m0_time_from_now(60, 0));
 	M0_ASSERT(rc == 0);
 
 	m0_fop_put(fop);

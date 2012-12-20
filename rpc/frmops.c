@@ -438,7 +438,8 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 	 * they are SENT/FAILED.
 	 * See: m0_rpc__post_locked(), m0_rpc_reply_post()
 	 */
-	if (m0_rpc_item_is_bound(item))
+	if (m0_rpc_item_is_request(item) ||
+	    m0_rpc_item_is_reply(item))
 		m0_rpc_session_release(item->ri_session);
 
 	M0_LEAVE();

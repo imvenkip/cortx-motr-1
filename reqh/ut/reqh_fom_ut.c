@@ -296,7 +296,8 @@ static void create_send(struct m0_rpc_session *session)
 		rh_io_fop->fic_object.f_oid = i;
 
 		rc = m0_rpc_client_call(fop, session, NULL,
-					0 /* deadline */, CONNECT_TIMEOUT);
+					0 /* deadline */,
+					m0_time_from_now(CONNECT_TIMEOUT, 0));
 		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(fop->f_item.ri_error == 0);
 		M0_UT_ASSERT(fop->f_item.ri_reply != 0);
@@ -321,7 +322,8 @@ static void read_send(struct m0_rpc_session *session)
 		rh_io_fop->fir_object.f_oid = i;
 
 		rc = m0_rpc_client_call(fop, session, NULL,
-					0 /* deadline */, CONNECT_TIMEOUT);
+					0 /* deadline */,
+					m0_time_from_now(CONNECT_TIMEOUT, 0));
 		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(fop->f_item.ri_error == 0);
 		M0_UT_ASSERT(fop->f_item.ri_reply != 0);
@@ -352,7 +354,8 @@ static void write_send(struct m0_rpc_session *session)
 		rh_io_fop->fiw_value.fi_count = 1 << BALLOC_DEF_BLOCK_SHIFT;
 
 		rc = m0_rpc_client_call(fop, session, NULL,
-					0 /* deadline */, CONNECT_TIMEOUT);
+					0 /* deadline */,
+					m0_time_from_now(CONNECT_TIMEOUT, 0));
 		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(fop->f_item.ri_error == 0);
 		M0_UT_ASSERT(fop->f_item.ri_reply != 0);

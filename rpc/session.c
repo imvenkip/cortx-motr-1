@@ -1252,7 +1252,8 @@ M0_INTERNAL void m0_rpc_session_item_failed(struct m0_rpc_item *item)
 	M0_PRE(item != NULL && item->ri_error != 0);
 	M0_PRE(item->ri_sm.sm_state == M0_RPC_ITEM_FAILED);
 
-	if (m0_rpc_item_is_request(item)) {
+	if (m0_rpc_item_is_request(item) &&
+	    m0_rpc_item_is_bound(item)) {
 		if (item->ri_error == -ETIMEDOUT)
 			m0_rpc_item_set_stage(item, RPC_ITEM_STAGE_TIMEDOUT);
 		else

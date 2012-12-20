@@ -90,7 +90,7 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode)
 	m0_cons_fop_obj_input(fop);
 	rc = m0_rpc_client_call(fop, &cctx->rcx_session,
 				NULL, 0 /* deadline */,
-				timeout);
+				m0_time_from_now(timeout, 0));
 	if (rc != 0) {
 		m0_fop_put(fop);
 		fprintf(stderr, "Sending message failed!\n");

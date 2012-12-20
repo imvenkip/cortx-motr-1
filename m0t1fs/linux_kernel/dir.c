@@ -949,7 +949,8 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
                 m0_fop_opcode(fop), (unsigned long)session->s_session_id);
 
         rc = m0_rpc_client_call(fop, session, NULL,
-                                0 /* deadline */, M0T1FS_RPC_TIMEOUT);
+                                0 /* deadline */,
+				m0_time_from_now(M0T1FS_RPC_TIMEOUT, 0));
 
         if (rc != 0) {
                 M0_LOG(M0_ERROR,
@@ -1143,7 +1144,8 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 		(unsigned long)session->s_session_id);
 
 	rc = m0_rpc_client_call(fop, session, NULL,
-				0 /* deadline */, M0T1FS_RPC_TIMEOUT);
+				0 /* deadline */,
+				m0_time_from_now(M0T1FS_RPC_TIMEOUT, 0));
 
 	if (rc != 0)
 		goto fop_put;

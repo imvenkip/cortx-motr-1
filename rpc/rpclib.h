@@ -198,12 +198,12 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx);
   @param deadline    Absolute time after which formation should send the fop
 		     as soon as possible. deadline should be 0 if fop shouldn't
 		     wait in formation queue and should be sent immediately.
-  @param timeout_s   Timeout in seconds.  0 implies don't wait for a reply.
+  @param timeout   Absolute operation timeout.
 */
 int m0_rpc_client_call(struct m0_fop *fop,
 		       struct m0_rpc_session *session,
 		       const struct m0_rpc_item_ops *ri_ops,
-		       m0_time_t deadline, uint32_t timeout_s);
+		       m0_time_t deadline, m0_time_t timeout);
 
 /**
   Terminates RPC session and connection with server and finalize client's RPC

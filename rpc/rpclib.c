@@ -156,7 +156,7 @@ pool_fini:
 int m0_rpc_client_call(struct m0_fop *fop,
 		       struct m0_rpc_session *session,
 		       const struct m0_rpc_item_ops *ri_ops,
-		       m0_time_t deadline, uint32_t timeout_s)
+		       m0_time_t deadline, m0_time_t timeout)
 {
 	struct m0_rpc_item *item;
 	int                 rc;
@@ -170,10 +170,10 @@ int m0_rpc_client_call(struct m0_fop *fop,
 	item->ri_session    = session;
 	item->ri_prio       = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline   = deadline;
-	item->ri_op_timeout = m0_time_from_now(timeout_s, 0);
+	item->ri_op_timeout = timeout;
 
 	rc = m0_rpc_post(item);
-	if (rc == 0 && timeout_s > 0)
+	if (rc == 0)
 		rc = m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER);
 	M0_RETURN(rc);
 }

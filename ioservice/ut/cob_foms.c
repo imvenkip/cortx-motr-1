@@ -308,7 +308,7 @@ static void cobfops_send_wait(struct cobthread_arg *arg)
 
 	rc = m0_rpc_client_call(fop, &cut->cu_cctx.rcx_session,
 				NULL, 0 /* deadline */,
-				CLIENT_RPC_CONN_TIMEOUT);
+				m0_time_from_now(CLIENT_RPC_CONN_TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0);
 	rfop = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
 	M0_UT_ASSERT(rfop->cor_rc == arg->ca_rc);

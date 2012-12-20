@@ -692,11 +692,20 @@ static void item_timedout_cb(struct m0_sm_timer *timer)
 		m0_rpc_item_get(item);
 		m0_rpc_frm_remove_item(item->ri_frm, item);
 		m0_rpc_item_failed(item, -ETIMEDOUT);
+		/*
+		 * Request and Reply items take hold on session until
+		 * they are SENT/FAILED.
+		 * See: m0_rpc__post_locked(), m0_rpc_reply_post()
+		 */
+		if (m0_rpc_item_is_request(item) ||
+		    m0_rpc_item_is_reply(item))
+			m0_rpc_session_release(item->ri_session);
 		m0_rpc_item_put(item);
 	} else if (state == M0_RPC_ITEM_WAITING_FOR_REPLY) {
 		m0_rpc_item_failed(item, -ETIMEDOUT);
 	} else if (state == M0_RPC_ITEM_SENDING) {
 		item->ri_error = -ETIMEDOUT;
+		/* item will be moved to FAILED state in item_done() */
 	} else {
 		M0_ASSERT(false);
 	}
