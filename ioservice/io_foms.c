@@ -1738,7 +1738,8 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	colour = m0_net_tm_colour_get(tm);
 
 	if (fom_obj->fcrw_bp != NULL) {
-	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
+	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
+			&fom_obj->fcrw_netbuf_list));
 	m0_net_buffer_pool_lock(fom_obj->fcrw_bp);
 	m0_tl_for (netbufs, &fom_obj->fcrw_netbuf_list, nb) {
 		m0_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
