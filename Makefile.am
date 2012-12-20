@@ -485,9 +485,20 @@ include $(top_srcdir)/m0t1fs/linux_kernel/st/Makefile.sub
 # mero/m0d
 #
 
-sbin_PROGRAMS               += mero/m0d
+sbin_PROGRAMS  += mero/m0d
 mero_m0d_LDADD  = $(top_builddir)/mero/libmero.la \
-                               $(top_builddir)/ut/libmero-ut.la
+                  $(top_builddir)/ut/libmero-ut.la
+
+#
+# mero/m0d-altogether
+#
+
+if ENABLE_MERO_ALTOGETHER
+sbin_PROGRAMS  += mero/m0d-altogether
+endif
+
+mero_m0d_altogether_SOURCES = $(mero_m0d_SOURCES)
+mero_m0d_altogether_LDADD   = $(top_builddir)/mero/libmero-altogether.la
 
 #
 # console/bin/m0console

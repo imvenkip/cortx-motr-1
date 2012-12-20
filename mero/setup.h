@@ -189,14 +189,12 @@ struct m0_mero {
    @param xprts_nr Size of xprts array
    @param out File descriptor to which output is written
  */
-M0_INTERNAL int m0_cs_init(struct m0_mero *cs_mero,
-			   struct m0_net_xprt **xprts, size_t xprts_nr,
-			   FILE * out);
-
+int m0_cs_init(struct m0_mero *cs_mero,
+	       struct m0_net_xprt **xprts, size_t xprts_nr, FILE * out);
 /**
    Finalises mero context.
  */
-M0_INTERNAL void m0_cs_fini(struct m0_mero *cs_mero);
+void m0_cs_fini(struct m0_mero *cs_mero);
 
 /**
    Configures mero context before starting the services.
@@ -209,8 +207,7 @@ M0_INTERNAL void m0_cs_fini(struct m0_mero *cs_mero);
 
    @param cs_mero Mero context to be initialised
  */
-M0_INTERNAL int m0_cs_setup_env(struct m0_mero *cs_mero, int argc,
-				char **argv);
+int m0_cs_setup_env(struct m0_mero *cs_mero, int argc, char **argv);
 
 /**
    Starts all the specified services in the mero context.
@@ -219,7 +216,7 @@ M0_INTERNAL int m0_cs_setup_env(struct m0_mero *cs_mero, int argc,
 
    @param cs_mero Mero context in which services are started
  */
-M0_INTERNAL int m0_cs_start(struct m0_mero *cs_mero);
+int m0_cs_start(struct m0_mero *cs_mero);
 
 M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
 							  const struct

@@ -1831,7 +1831,7 @@ static int cs_parse_args(struct m0_mero *cctx, int argc, char **argv)
 	return result ?: rc;
 }
 
-M0_INTERNAL int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
+int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 {
 	int rc;
 
@@ -1858,7 +1858,7 @@ M0_INTERNAL int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 	return rc;
 }
 
-M0_INTERNAL int m0_cs_start(struct m0_mero *cctx)
+int m0_cs_start(struct m0_mero *cctx)
 {
 	int rc;
 
@@ -1872,8 +1872,8 @@ M0_INTERNAL int m0_cs_start(struct m0_mero *cctx)
 	return rc;
 }
 
-M0_INTERNAL int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
-			   size_t xprts_nr, FILE * out)
+int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
+	       size_t xprts_nr, FILE * out)
 {
 	M0_PRE(cctx != NULL && xprts != NULL && xprts_nr > 0 && out != NULL);
 
@@ -1888,7 +1888,7 @@ M0_INTERNAL int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
 	return 0;
 }
 
-M0_INTERNAL void m0_cs_fini(struct m0_mero *cctx)
+void m0_cs_fini(struct m0_mero *cctx)
 {
 	M0_PRE(cctx != NULL);
 

@@ -3,6 +3,11 @@ mero_service()
         prog_start="$MERO_CORE_ROOT/mero/m0d"
         prog_exec="$MERO_CORE_ROOT/mero/.libs/lt-m0d"
 
+	if echo $(basename $0) | grep -q 'altogether'; then
+		prog_start="${prog_start}-altogether"
+		prog_exec="${prog_exec}-altogether"
+	fi
+
 	. /etc/rc.d/init.d/functions
 
 	start() {

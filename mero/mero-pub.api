@@ -3,7 +3,11 @@ m0_alloc
 m0_chan_has_waiters
 m0_cob_domain_fini
 m0_cob_domain_init
+m0_cs_fini
+m0_cs_init
 m0_cs_reqh_get
+m0_cs_setup_env
+m0_cs_start
 m0_dbenv_fini
 m0_dbenv_init
 m0_emap_paste
