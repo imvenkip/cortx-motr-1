@@ -207,7 +207,7 @@ M0_BOB_DECLARE(M0_EXTERN, m0_reqh_service);
 
 /** Descriptor for tlist of rpc machines. */
 M0_TL_DESCR_DECLARE(m0_reqh_rpc_mach, extern);
-M0_TL_DECLARE(m0_reqh_rpc_mach, M0_INTERNAL, struct m0_rpc_machine);
+M0_TL_DECLARE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
 
 /**
    @name reqhkey
