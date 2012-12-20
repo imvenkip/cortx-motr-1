@@ -24,6 +24,8 @@
 #define __MERO_FOP_FOM_GENERIC_H__
 
 #include "fop/fom.h"
+#include "lib/types.h"
+#include "xcode/xcode_attr.h"
 
 /**
  * @addtogroup fom
@@ -195,6 +197,14 @@ M0_INTERNAL void m0_fom_generic_fini(void);
 M0_INTERNAL int m0_fom_generic_init(void);
 
 extern const struct m0_sm_conf m0_generic_conf;
+
+/**
+ * <b>Fom generic error reply</b>
+ */
+
+struct m0_fom_error_rep {
+	uint32_t rerr_rc;
+} M0_XCA_RECORD;
 
 /** @} end of fom group */
 

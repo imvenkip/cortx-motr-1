@@ -19,16 +19,25 @@
  * Original creation date: 03/23/2011
  */
 
+#pragma once
+
+#ifndef __MERO_NET_NET_OTW_TYPES_H__
+#define __MERO_NET_NET_OTW_TYPES_H__
+
+#include "lib/types.h"
+#include "xcode/xcode_attr.h"
 
 /**
  @addtogroup net
  @{
  */
 
-sequence {
-	u32 nbd_len;
-	u8  nbd_data
-} m0_net_buf_desc;
+struct m0_net_buf_desc {
+	uint32_t  nbd_len;
+	uint8_t  *nbd_data;
+} M0_XCA_SEQUENCE;
+
+#endif /* __MERO_NET_NET_OTW_TYPES_H__ */
 
 /** @} end of net group */
 

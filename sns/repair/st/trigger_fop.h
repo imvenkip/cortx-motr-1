@@ -23,6 +23,31 @@
 #ifndef __MERO_SNS_REPAIR_ST_TRIGGER_FOP_H__
 #define __MERO_SNS_REPAIR_ST_TRIGGER_FOP_H__
 
+#include "lib/types.h"
+#include "xcode/xcode_attr.h"
+
+/** Sequence of file sizes to be repaired. */
+struct file_sizes {
+	uint32_t  f_nr;
+	uint64_t *f_size;
+} M0_XCA_SEQUENCE;
+
+/**
+ * Simplistic implementation of sns repair trigger fop for testing purposes
+ * only.
+ */
+struct trigger_fop {
+	uint64_t          fdata;
+	uint64_t          N;
+	uint64_t          K;
+	uint64_t          P;
+	struct file_sizes fsize;
+} M0_XCA_RECORD;
+
+struct trigger_rep_fop {
+	uint32_t rc;
+} M0_XCA_RECORD;
+
 int m0_sns_repair_trigger_fop_init(void);
 void m0_sns_repair_trigger_fop_fini(void);
 

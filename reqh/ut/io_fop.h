@@ -23,7 +23,46 @@
 #ifndef __MERO_STOB_IO_FOP_H__
 #define __MERO_STOB_IO_FOP_H__
 
-#include "fop/fop.h"
+#include "lib/types.h"
+#include "xcode/xcode_attr.h"
+
+struct stob_io_fop_fid {
+	uint64_t f_seq;
+	uint64_t f_oid;
+} M0_XCA_RECORD;
+
+struct m0_fi_value {
+	uint32_t fi_count;
+	uint8_t *fi_buf;
+} M0_XCA_SEQUENCE;
+
+struct m0_stob_io_write {
+	struct stob_io_fop_fid fiw_object;
+	struct m0_fi_value     fiw_value;
+} M0_XCA_RECORD;
+
+struct m0_stob_io_write_rep {
+	uint32_t fiwr_rc;
+	uint32_t fiwr_count;
+} M0_XCA_RECORD;
+
+struct m0_stob_io_read {
+	struct stob_io_fop_fid fir_object;
+} M0_XCA_RECORD;
+
+struct m0_stob_io_read_rep {
+	uint32_t           firr_rc;
+	uint32_t           firr_count;
+	struct m0_fi_value firr_value;
+} M0_XCA_RECORD;
+
+struct m0_stob_io_create {
+	struct stob_io_fop_fid fic_object;
+} M0_XCA_RECORD;
+
+struct m0_stob_io_create_rep {
+	uint32_t ficr_rc;
+} M0_XCA_RECORD;
 
 extern struct m0_fop_type m0_stob_io_create_fopt;
 extern struct m0_fop_type m0_stob_io_read_fopt;

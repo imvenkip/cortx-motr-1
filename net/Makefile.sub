@@ -1,21 +1,20 @@
 nobase_mero_include_HEADERS += net/net.h \
-                                  net/buffer_pool.h \
-                                  net/bulk_mem.h
+			       net/net_otw_types.h \
+                               net/buffer_pool.h \
+                               net/bulk_mem.h
 
 mero_libmero_la_SOURCES  += net/buf.c \
-                                  net/buffer_pool.c \
-                                  net/domain.c \
-                                  net/ep.c \
-                                  net/net.c \
-                                  net/net_internal.h \
-                                  net/net_otw_types_ff.h \
-                                  net/net_otw_types_ff.c \
-                                  net/tm.c \
-                                  net/tm_provision.c
+                            net/buffer_pool.c \
+                            net/domain.c \
+                            net/ep.c \
+                            net/net.c \
+                            net/net_internal.h \
+                            net/net_otw_types_xc.c \
+                            net/tm.c \
+                            net/tm_provision.c
 
-FF_FILES   += net/net_otw_types_ff.h
+XC_FILES   += net/net_otw_types_xc.h
 
-EXTRA_DIST += net/net_otw_types.ff
-
-CLEANFILES += net/net_otw_types_ff.h \
-              net/net_otw_types_ff.c
+CLEANFILES += net/net_otw_types_xc.h \
+              net/net_otw_types_xc.c \
+              net/net_otw_types.gccxml

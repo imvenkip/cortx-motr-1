@@ -24,7 +24,7 @@
 #define __MERO_LIB_USER_SPACE_CDEFS_H__
 
 #ifndef offsetof
-#define offsetof(typ,memb) ((unsigned long)((char *)&(((typ *)0)->memb)))
+#define offsetof(typ,memb) __builtin_offsetof (typ, memb)
 #endif
 
 #ifndef container_of

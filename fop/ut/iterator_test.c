@@ -23,7 +23,8 @@
 #include "lib/memory.h"
 
 #include "fop/fop.h"
-#include "fop/ut/iterator_test_ff.h"
+#include "fop/ut/iterator_test.h"
+#include "fop/ut/iterator_test_xc.h"
 #include "rpc/rpc_opcodes.h"
 #include "xcode/xcode.h"
 

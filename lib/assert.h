@@ -67,8 +67,9 @@
 
    @see M0_CASSERT()
  */
-#define M0_BASSERT(cond) extern int __dummy_[sizeof(struct { \
-	int __build_time_assertion_failure:!!(cond); })]
+
+#define M0_BASSERT(cond)			\
+	extern char __static_assertion[(cond) ? 1 : -1]
 
 /**
    A macro indicating that computation reached an invalid state.

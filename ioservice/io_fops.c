@@ -31,8 +31,8 @@
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc.h"
 #include "ioservice/io_fops.h"
+#include "ioservice/io_fops_xc.h"
 #include "fop/fom_generic.h"
-#include "ioservice/io_fops_ff.h"
 
 /* tlists and tlist APIs referred from rpc layer. */
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);

@@ -130,7 +130,7 @@ M0_INTERNAL void m0_rpc_session_fop_fini(void)
 	m0_fop_type_fini(&m0_rpc_fop_session_establish_fopt);
 	m0_fop_type_fini(&m0_rpc_fop_conn_terminate_fopt);
 	m0_fop_type_fini(&m0_rpc_fop_conn_establish_fopt);
-	m0_xc_session_fini();
+	m0_xc_session_fops_fini();
 	m0_xc_rpc_onwire_fini();
 	m0_xc_verno_fini();
 }
@@ -147,7 +147,7 @@ M0_INTERNAL int m0_rpc_session_fop_init(void)
 	 */
 	m0_xc_verno_init();
 	m0_xc_rpc_onwire_init();
-	m0_xc_session_init();
+	m0_xc_session_fops_init();
 	return  M0_FOP_TYPE_INIT(&m0_rpc_fop_conn_establish_fopt,
 			 .name      = "Rpc conn establish",
 			 .opcode    = M0_RPC_CONN_ESTABLISH_OPCODE,

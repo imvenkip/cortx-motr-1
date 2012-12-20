@@ -36,7 +36,7 @@
 #include "ut/ut.h"
 #include "fop/fop.h"    /* m0_fop_default_item_ops */
 #include "reqh/reqh.h"  /* m0_reqh_rpc_mach_tl */
-#include "rpc/it/ping_fop_ff.h"
+#include "rpc/it/ping_fop_xc.h"
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>

@@ -23,6 +23,9 @@
 #ifndef __MERO_MERO_UT_CS_UT_FOP_FOMS_H__
 #define __MERO_MERO_UT_CS_UT_FOP_FOMS_H__
 
+#include "lib/types.h"
+#include "xcode/xcode_attr.h"
+
 extern struct m0_fop_type cs_ds1_req_fop_fopt;
 extern struct m0_fop_type cs_ds1_rep_fop_fopt;
 extern struct m0_fop_type cs_ds2_req_fop_fopt;
@@ -61,6 +64,25 @@ int m0_cs_ut_ds2_fop_init(void);
   Invoked from service specific startup function.
  */
 void m0_cs_ut_ds2_fop_fini(void);
+
+/*
+  Dummy fops to test mero setup
+ */
+struct cs_ds1_req_fop {
+	uint64_t csr_value;
+} M0_XCA_RECORD;
+
+struct cs_ds1_rep_fop {
+	uint32_t csr_rc;
+} M0_XCA_RECORD;
+
+struct cs_ds2_req_fop {
+	uint64_t csr_value;
+} M0_XCA_RECORD;
+
+struct cs_ds2_rep_fop {
+	uint32_t csr_rc;
+} M0_XCA_RECORD;
 
 /* __MERO_MERO_UT_CS_UT_FOP_FOMS_H__ */
 #endif

@@ -14,50 +14,53 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anup Barve <Anup_Barve@xyratex.com>
- * Original creation date: 07/07/2011
+ * Original author: Manish Honap <manish_honap@xyratex.com>
+ * Original creation date: 19-Dec-2012
  */
 
 #pragma once
 
-#ifndef __MERO_RPC_IT_PING_FOP_H__
-#define __MERO_RPC_IT_PING_FOP_H__
+#ifndef __MERO_XCODE_FOP_TEST_H__
+#define __MERO_XCODE_FOP_TEST_H__
 
-#include "fop/fop.h"
-#include "rpc/rpc_opcodes.h"
 #include "lib/types.h"
 #include "xcode/xcode_attr.h"
 
-M0_INTERNAL int m0_ping_fop_init(void);
-M0_INTERNAL void m0_ping_fop_fini(void);
-
-/**
- * FOP definitions and corresponding fop type formats
- */
-extern struct m0_fop_type m0_fop_ping_fopt;
-extern struct m0_fop_type m0_fop_ping_rep_fopt;
-
-extern const struct m0_fop_type_ops m0_fop_ping_ops;
-extern const struct m0_fop_type_ops m0_fop_ping_rep_ops;
-
-extern const struct m0_rpc_item_type m0_rpc_item_type_ping;
-extern const struct m0_rpc_item_type m0_rpc_item_type_ping_rep;
-
-struct m0_fop_ping_arr {
-	uint32_t  f_count;
-	uint64_t *f_data;
+struct m0_test_buf {
+	uint32_t tb_cnt;
+	uint8_t *tb_buf;
 } M0_XCA_SEQUENCE;
 
-struct m0_fop_ping {
-	struct m0_fop_ping_arr fp_arr;
+struct m0_test_key {
+	uint32_t tk_index;
+	uint64_t tk_val;
+	uint8_t  tk_flag;
 } M0_XCA_RECORD;
 
-struct m0_fop_ping_rep {
-	uint32_t fpr_rc;
+struct m0_pair {
+	uint64_t           p_offset;
+	uint32_t           p_cnt;
+	struct m0_test_key p_key;
+	struct m0_test_buf p_buf;
 } M0_XCA_RECORD;
 
-/* __MERO_RPC_IT_PING_FOP_H__ */
-#endif
+struct m0_desc_arr {
+	uint32_t        da_cnt;
+	struct m0_pair *da_pair;
+} M0_XCA_SEQUENCE;
+
+struct m0_fop_test_arr {
+	uint32_t            fta_cnt;
+	struct m0_desc_arr *fta_data;
+} M0_XCA_SEQUENCE;
+
+struct m0_fop_test {
+	uint32_t               ft_cnt;
+	uint64_t               ft_offset;
+	struct m0_fop_test_arr ft_arr;
+} M0_XCA_RECORD;
+
+#endif /* __MERO_XCODE_FOP_TEST_H__ */
 
 /*
  *  Local variables:
@@ -67,4 +70,7 @@ struct m0_fop_ping_rep {
  *  fill-column: 80
  *  scroll-step: 1
  *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
  */

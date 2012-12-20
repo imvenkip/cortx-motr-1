@@ -19,7 +19,8 @@ nobase_mero_include_HEADERS += rpc/session.h \
                                   rpc/conn.h \
                                   rpc/conn_internal.h \
                                   rpc/slot_internal.h \
-                                  rpc/rpc_internal.h
+                                  rpc/rpc_internal.h \
+                                  rpc/session_fops_xc.h
 
 mero_libmero_la_SOURCES  += rpc/session.c \
                                   rpc/slot.c \
@@ -38,18 +39,16 @@ mero_libmero_la_SOURCES  += rpc/session.c \
                                   rpc/rpclib.c \
                                   rpc/service.c \
                                   rpc/rpc_onwire_xc.c \
-                                  rpc/session_ff.c
+                                  rpc/session_fops_xc.c
 
-rpc/rpc_onwire.h: dtm/verno_xc.h
+rpc/rpc_onwire_xc.h : dtm/verno_xc.h
 
-FF_FILES   += rpc/session_ff.h
+XC_FILES   += rpc/rpc_onwire_xc.h \
+              rpc/session_fops_xc.h
 
-XC_FILES   += rpc/rpc_onwire_xc.h
-
-EXTRA_DIST += rpc/session.ff
-
-CLEANFILES += rpc/session_ff.h \
-              rpc/session_ff.c \
+CLEANFILES += rpc/session_fops_xc.h \
+              rpc/session_fops_xc.c \
+              rpc/session_fops.gccxml \
               rpc/rpc_onwire_xc.h \
               rpc/rpc_onwire_xc.c \
               rpc/rpc_onwire.gccxml

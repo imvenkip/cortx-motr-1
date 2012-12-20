@@ -25,13 +25,14 @@
 #include "mero/init.h"
 #include "mero/magic.h"
 #include "fop/fop.h"
-#include "addb/addbff/addb_ff.h"
+#include "addb/addb.h"
+#include "addb/addb_xc.h"
 #include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/it/ping_fop.h"
-#include "rpc/it/ping_fop_ff.h"
-#include "rpc/it/ping_fop_ff.c"
+#include "rpc/it/ping_fop_xc.h"
+#include "rpc/it/ping_fop_xc.c"
 #include "rpc/it/ping_fom.c"
 #include "rpc/it/ping_fop.c"    /* m0_fop_ping_fopt */
 

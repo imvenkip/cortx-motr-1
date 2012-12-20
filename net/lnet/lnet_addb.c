@@ -18,7 +18,8 @@
  * Original creation date: 2/01/2012
  */
 
-#include "addb/addbff/addb_ff.h"
+#include "addb/addb_xc.h"
+#include "addb/addb.h"
 #include "lib/arith.h" /* m0_align */
 
 /* forward references within this file */

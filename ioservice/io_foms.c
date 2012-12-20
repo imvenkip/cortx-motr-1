@@ -40,7 +40,6 @@
 #include "ioservice/io_foms.h"
 #include "ioservice/io_service.h"
 #include "ioservice/io_device.h"
-#include "ioservice/io_fops_ff.h"
 #include "mero/magic.h"
 #include "mero/setup.h"
 #include "pool/pool.h"

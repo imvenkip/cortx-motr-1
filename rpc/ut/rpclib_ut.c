@@ -29,14 +29,14 @@
 
 #include "rpc/session.h"
 #include "rpc/it/ping_fop.h"
-#include "rpc/it/ping_fop_ff.h"
+#include "rpc/it/ping_fop_xc.h"
 #include "rpc/rpclib.h"
 #include "net/lnet/lnet.h"
 
 #include "ut/rpc.h"
 #include "ut/cs_service.h"
 #include "ut/cs_fop_foms.h"
-#include "ut/cs_test_fops_ff.h"
+#include "ut/cs_fop_foms_xc.h"
 
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx */
 

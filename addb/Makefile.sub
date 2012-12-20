@@ -1,8 +1,17 @@
-nobase_mero_include_HEADERS += addb/addb.h
+nobase_mero_include_HEADERS += addb/addb.h \
+                               addb/addb_xc.h
+
 
 mero_libmero_la_SOURCES  += addb/addb.c \
-                                  addb/addb_console.c \
-                                  addb/addb_fop.c \
-                                  addb/addb_store.c
+                            addb/addb_console.c \
+                            addb/addb_fop.c \
+                            addb/addb_store.c \
+                            addb/addb_xc.c
 
 EXTRA_DIST += addb/linux_kernel/addb_console.c
+
+XC_FILES   += addb/addb_xc.h
+
+CLEANFILES += addb/addb_xc.h \
+              addb/addb_xc.c \
+	      addb/addb.gccxml

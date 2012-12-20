@@ -26,7 +26,7 @@
 #include "rpc/rpc_opcodes.h"
 #include "mdservice/md_foms.h"
 #include "mdservice/md_fops.h"
-#include "mdservice/md_fops_ff.h"
+#include "mdservice/md_fops_xc.h"
 
 static size_t m0_md_fol_pack_size(struct m0_fol_rec_desc *desc)
 {

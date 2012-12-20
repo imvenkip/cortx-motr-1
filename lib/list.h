@@ -127,44 +127,44 @@ M0_INTERNAL size_t m0_list_length(const struct m0_list *list);
 /**
  add list to top on the list
 
- This function can be called on an uninitialised @new link. All @new fields are
+ This function can be called on an uninitialised @next link. All @next fields are
  overwritten.
 
  @param head pointer to list head
- @param new  pointer to list entry
+ @param next  pointer to list entry
 
  */
-M0_INTERNAL void m0_list_add(struct m0_list *head, struct m0_list_link *new);
+M0_INTERNAL void m0_list_add(struct m0_list *head, struct m0_list_link *next);
 
 /**
  add list to tail on the list
 
- This function can be called on an uninitialised @new link. All @new fields are
+ This function can be called on an uninitialised @next link. All @next fields are
  overwritten.
 
  @param head pointer to list head
- @param new  pointer to list entry
+ @param next  pointer to list entry
  */
 M0_INTERNAL void m0_list_add_tail(struct m0_list *head,
-				  struct m0_list_link *new);
+				  struct m0_list_link *next);
 
 /**
    Adds an element to the list right after the specified element.
 
-   This function can be called on an uninitialised @new link. All @new fields
+   This function can be called on an uninitialised @next link. All @next fields
    are overwritten.
  */
 M0_INTERNAL void m0_list_add_after(struct m0_list_link *anchor,
-				   struct m0_list_link *new);
+				   struct m0_list_link *next);
 
 /**
    Adds an element to the list right before the specified element.
 
-   This function can be called on an uninitialised @new link. All @new fields
+   This function can be called on an uninitialised @next link. All @next fields
    are overwritten.
  */
 M0_INTERNAL void m0_list_add_before(struct m0_list_link *anchor,
-				    struct m0_list_link *new);
+				    struct m0_list_link *next);
 
 /**
    Deletes an entry from the list and re-initializes the entry.
@@ -174,13 +174,13 @@ M0_INTERNAL void m0_list_del(struct m0_list_link *old);
 /**
    Moves an entry to head of the list.
  */
-M0_INTERNAL void m0_list_move(struct m0_list *head, struct m0_list_link *new);
+M0_INTERNAL void m0_list_move(struct m0_list *head, struct m0_list_link *next);
 
 /**
    Moves an entry to tail of the list.
  */
 M0_INTERNAL void m0_list_move_tail(struct m0_list *head,
-				   struct m0_list_link *new);
+				   struct m0_list_link *next);
 
 /**
  * return first entry from the list
@@ -191,7 +191,9 @@ M0_INTERNAL void m0_list_move_tail(struct m0_list *head,
  */
 static inline struct m0_list_link *m0_list_first(const struct m0_list *head)
 {
-	return head->l_head != (void *)head ? head->l_head : NULL ;
+	return head->l_head !=
+		(struct m0_list_link *)head ?
+		head->l_head : (struct m0_list_link *)NULL;
 }
 
 

@@ -146,7 +146,6 @@ nobase_mero_include_HEADERS =
 mero_libmero_la_SOURCES  =
 
 include $(top_srcdir)/addb/Makefile.sub
-include $(top_srcdir)/addb/addbff/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/build_kernel_modules/Makefile.sub
 include $(top_srcdir)/m0t1fs/Makefile.sub
@@ -381,7 +380,7 @@ rpc_it_m0rpcping_altogether_SOURCES  = $(rpc_it_m0rpcping_SOURCES)
 rpc_it_m0rpcping_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la \
                                      ut/ut_libmero_ut_la-cs_service.lo \
                                      ut/ut_libmero_ut_la-cs_fop_foms.lo \
-                                     ut/ut_libmero_ut_la-cs_test_fops_ff.lo \
+                                     ut/ut_libmero_ut_la-cs_fop_foms_xc.lo \
                                      ut/ut_libmero_ut_la-rpc.lo \
                                      ut/ut_libmero_ut_la-ut.lo
 

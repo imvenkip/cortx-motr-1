@@ -36,7 +36,7 @@
 #include "ut/rpc.h"               /* m0_rpc_client_init */
 
 #include "console/console.h"
-#include "console/console_ff.h"
+#include "console/console_xc.h"
 #include "console/console_fop.h"
 #include "console/console_it.h"
 #include "console/console_yaml.h"

@@ -38,7 +38,8 @@
 #include "rpc/rpc.h"
 #include "rpc/rpc_opcodes.h"
 #include "fop/fop_item_type.h"
-#include "reqh/ut/io_fop_ff.h"
+#include "reqh/ut/io_fop.h"
+#include "reqh/ut/io_fop_xc.h"
 
 /**
    @defgroup stobio
@@ -187,7 +188,7 @@ static const struct m0_fom_type_ops stob_write_fom_type_ops = {
  * Function to locate a storage object.
  */
 static struct m0_stob *stob_object_find(const struct stob_io_fop_fid *fid,
-                                   struct m0_dtx *tx, struct m0_fom *fom)
+					struct m0_dtx *tx, struct m0_fom *fom)
 {
 	struct m0_stob_id	 id;
 	struct m0_stob		*obj;

@@ -38,7 +38,7 @@
 #include "rpc/rpc_opcodes.h"
 #include "fop/fom_generic.h"
 #include "mdservice/md_fops.h"
-#include "mdservice/md_fops_ff.h"
+#include "mdservice/md_fops_xc.h"
 #include "mdservice/md_foms.h"
 
 #include "mdstore/mdstore.h"

@@ -36,7 +36,14 @@ struct m0_db_tx;
 struct m0_rpc_item;
 
 enum {
-	SESSION_COB_MAX_NAME_LEN = 40
+	/** [conn|session]_[create|terminate] items go on session 0 */
+	SESSION_ID_0             = 0,
+	SESSION_ID_INVALID       = UINT64_MAX,
+	/** Range of valid session ids */
+	SESSION_ID_MIN           = SESSION_ID_0 + 1,
+	SESSION_ID_MAX           = SESSION_ID_INVALID - 1,
+	SLOT_ID_INVALID          = UINT32_MAX,
+	SESSION_COB_MAX_NAME_LEN = 40,
 };
 
 /**

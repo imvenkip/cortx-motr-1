@@ -28,7 +28,7 @@
 
 #include "console/console_fop.h" /* FOPs defs */
 #include "console/console_fom.h" /* FOMs defs */
-#include "console/console_ff.h"	 /* FOP memory layout */
+#include "console/console_xc.h"	 /* FOP memory layout */
 
 /**
    @addtogroup console
