@@ -486,8 +486,7 @@ include $(top_srcdir)/m0t1fs/linux_kernel/st/Makefile.sub
 #
 
 sbin_PROGRAMS  += mero/m0d
-mero_m0d_LDADD  = $(top_builddir)/mero/libmero.la \
-                  $(top_builddir)/ut/libmero-ut.la
+mero_m0d_LDADD  = $(top_builddir)/mero/libmero.la
 
 #
 # mero/m0d-altogether
