@@ -23,6 +23,8 @@
 #include "lib/buf_xc.h"
 #include "lib/types_xc.h"
 #include "lib/vec_xc.h"
+#include "lib/types_xc.h"
+#include "lib/ext_xc.h"
 
 static void xc_types_init(void)
 {
@@ -30,6 +32,8 @@ static void xc_types_init(void)
 	m0_xc_buf_init();
 	m0_xc_types_init();
 	m0_xc_vec_init();
+	m0_xc_types_init();
+	m0_xc_ext_init();
 }
 
 static void xc_types_fini(void)
@@ -38,6 +42,8 @@ static void xc_types_fini(void)
 	m0_xc_buf_fini();
 	m0_xc_types_fini();
 	m0_xc_vec_fini();
+	m0_xc_types_fini();
+	m0_xc_ext_fini();
 }
 
 M0_INTERNAL int libm0_init(void)
