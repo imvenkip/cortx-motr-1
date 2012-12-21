@@ -35,7 +35,7 @@
 
 static int __test(void);
 static void __test_timeout(m0_time_t deadline,
-					  m0_time_t timeout);
+			   m0_time_t timeout);
 
 static struct m0_fop *fop_alloc(void)
 {
