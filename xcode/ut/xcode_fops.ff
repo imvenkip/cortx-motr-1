@@ -18,49 +18,39 @@
  * Original creation date: 19-Dec-2012
  */
 
-#pragma once
+sequence {
+	u32 tb_cnt;
+	u8  tb_buf
+} m0_test_buf;
 
-#ifndef __MERO_XCODE_FOP_TEST_H__
-#define __MERO_XCODE_FOP_TEST_H__
+record {
+	u32 tk_index;
+	u64 tk_val;
+	u8  tk_flag
+} m0_test_key;
 
-#include "lib/types.h"
-#include "xcode/xcode_attr.h"
+record {
+	u64         p_offset;
+	u32         p_cnt;
+	m0_test_key p_key;
+	m0_test_buf p_buf
+} m0_pair;
 
-struct m0_test_buf {
-	uint32_t tb_cnt;
-	uint8_t *tb_buf;
-} M0_XCA_SEQUENCE;
+sequence {
+	u32     da_cnt;
+	m0_pair da_pair
+} m0_desc_arr;
 
-struct m0_test_key {
-	uint32_t tk_index;
-	uint64_t tk_val;
-	uint8_t  tk_flag;
-} M0_XCA_RECORD;
+sequence {
+	u32         fta_cnt;
+	m0_desc_arr fta_data
+} m0_fop_test_arr;
 
-struct m0_pair {
-	uint64_t           p_offset;
-	uint32_t           p_cnt;
-	struct m0_test_key p_key;
-	struct m0_test_buf p_buf;
-} M0_XCA_RECORD;
-
-struct m0_desc_arr {
-	uint32_t        da_cnt;
-	struct m0_pair *da_pair;
-} M0_XCA_SEQUENCE;
-
-struct m0_fop_test_arr {
-	uint32_t            fta_cnt;
-	struct m0_desc_arr *fta_data;
-} M0_XCA_SEQUENCE;
-
-struct m0_fop_test {
-	uint32_t               ft_cnt;
-	uint64_t               ft_offset;
-	struct m0_fop_test_arr ft_arr;
-} M0_XCA_RECORD;
-
-#endif /* __MERO_XCODE_FOP_TEST_H__ */
+record {
+	u32             ft_cnt;
+	u64             ft_offset;
+	m0_fop_test_arr ft_arr
+} m0_fop_test;
 
 /*
  *  Local variables:
