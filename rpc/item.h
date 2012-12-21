@@ -172,26 +172,42 @@ enum m0_rpc_item_dir {
    @see m0_fop.
  */
 struct m0_rpc_item {
+/* Public fields: write-once/read */
+
 	enum m0_rpc_item_priority	 ri_prio;
+	/** Absolute time after which formation should not delay sending
+	    the item.
+	 */
 	m0_time_t			 ri_deadline;
-	struct m0_sm_timeout             ri_deadline_to;
+	/** Absolute time after which the RPC call is considered as failed */
 	m0_time_t                        ri_op_timeout;
+	struct m0_rpc_session		*ri_session;
+	/** item operations */
+	const struct m0_rpc_item_ops	*ri_ops;
+	struct m0_rpc_machine           *ri_rmachine;
+
+/* Public fields: read only */
+
+	int32_t				 ri_error;
+	/** reply item */
+	struct m0_rpc_item		*ri_reply;
+
+/* Private fields: */
+	/** If ri_deadline is not in past the ri_deadline_to is used to
+	    move item from ENQUEUD to URGENT state.
+	 */
+	struct m0_sm_timeout             ri_deadline_to;
+	/** Invokes item_timedout_cb() after ri_op_timeout is passed */
 	struct m0_sm_timer               ri_timer;
 	struct m0_sm                     ri_sm;
 	enum m0_rpc_item_stage		 ri_stage;
 	uint64_t			 ri_flags;
-	struct m0_rpc_session		*ri_session;
 	struct m0_rpc_slot_ref		 ri_slot_refs[MAX_SLOT_REF];
 	/** Anchor to put item on m0_rpc_session::s_unbound_items list */
 	struct m0_list_link		 ri_unbound_link;
-	int32_t				 ri_error;
 	size_t                           ri_size;
 	/** Pointer to the type object for this item */
 	const struct m0_rpc_item_type	*ri_type;
-	/** reply item */
-	struct m0_rpc_item		*ri_reply;
-	/** item operations */
-	const struct m0_rpc_item_ops	*ri_ops;
 	/** Time spent in rpc layer. */
 	m0_time_t			 ri_rpc_time;
 	/** List of compound items. */
@@ -213,7 +229,6 @@ struct m0_rpc_item {
 	/** One of m0_rpc_frm::f_itemq[], in which this item is placed. */
 	struct m0_tl                    *ri_itemq;
 	struct m0_rpc_frm               *ri_frm;
-	struct m0_rpc_machine           *ri_rmachine;
 	/** M0_RPC_ITEM_MAGIC */
 	uint64_t			 ri_magic;
 };
