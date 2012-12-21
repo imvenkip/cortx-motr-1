@@ -38,7 +38,6 @@
  */
 
 static int item_entered_in_urgent_state(struct m0_sm *mach);
-static int item_entered_in_failed_state(struct m0_sm *mach);
 static void item_timedout_cb(struct m0_sm_timer *timer);
 
 M0_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", M0_INTERNAL,
@@ -204,7 +203,6 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 	[M0_RPC_ITEM_FAILED] = {
 		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "FAILED",
-		.sd_in      = item_entered_in_failed_state,
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_UNINITIALISED),
 	},
 };
@@ -546,6 +544,9 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 {
 	M0_PRE(item != NULL && rc != 0);
 
+	M0_ENTRY("FAILED: item: %p error %d", item, rc);
+
+	item->ri_rmachine->rm_stats.rs_nr_failed_items++;
 	/*
 	 * Request and Reply items take hold on session until
 	 * they are SENT/FAILED.
@@ -559,6 +560,15 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 
 	item->ri_error = rc;
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_FAILED);
+	m0_rpc_item_stop_timer(item);
+	m0_rpc_session_item_failed(item);
+
+	if (m0_rpc_item_is_request(item) &&
+	    item->ri_ops != NULL &&
+	    item->ri_ops->rio_replied != NULL)
+		item->ri_ops->rio_replied(item);
+
+	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_rpc_item_timedwait(struct m0_rpc_item *item,
@@ -612,30 +622,6 @@ static int item_entered_in_urgent_state(struct m0_sm *mach)
 		 * So at this point the item may or may not be in URGENT state.
 		 */
 	}
-	return -1;
-}
-
-static int item_entered_in_failed_state(struct m0_sm *mach)
-{
-	struct m0_rpc_item *item;
-
-	item = sm_to_item(mach);
-	M0_LOG(M0_DEBUG, "%p [%s/%u] FAILED rc: %d\n", item, item_kind(item),
-	       item->ri_type->rit_opcode,
-	       item->ri_error);
-
-	M0_PRE(item->ri_error != 0);
-	item->ri_reply = NULL;
-
-	m0_rpc_item_stop_timer(item);
-	m0_rpc_session_item_failed(item);
-	item->ri_rmachine->rm_stats.rs_nr_failed_items++;
-
-	if (m0_rpc_item_is_request(item) &&
-	    item->ri_ops != NULL &&
-	    item->ri_ops->rio_replied != NULL)
-		item->ri_ops->rio_replied(item);
-
 	return -1;
 }
 

@@ -417,6 +417,8 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 	M0_PRE(M0_IN(item->ri_error, (0, -ETIMEDOUT)));
 
 	timeout_is_pending = item->ri_error == -ETIMEDOUT;
+	if (timeout_is_pending)
+		M0_LOG(M0_DEBUG, "item %p has pending timeout", item);
 	/* If item->ri_error == -ETIMEDOUT and rc == 0 then,
 		item _is_ placed on the network, do not lie in the
 		->sent() callback, by keeping ri_error as -ETIMEDOUT.
