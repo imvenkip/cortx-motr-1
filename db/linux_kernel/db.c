@@ -564,7 +564,7 @@ static bool ktable_invariant_locked(struct m0_table *t,
 	struct m0_tl *tkp = &t->t_i.tk_pair;
 
 	return
-		m0_tlist_invariant(&pair_tl, tkp) &&
+		M0_CHECK_EX(m0_tlist_invariant(&pair_tl, tkp)) &&
 		m0_tl_forall(pair, scan, tkp,
 			     scan->dk_key.b_addr == scan + 1 &&
 			     scan->dk_rec.b_addr ==

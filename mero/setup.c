@@ -146,7 +146,7 @@ static bool cs_reqh_context_invariant(const struct cs_reqh_context *rctx)
 	return cs_reqh_context_bob_check(rctx) &&
 	       M0_IN(rctx->rc_state, (RC_UNINITIALISED, RC_INITIALISED)) &&
 	       rctx->rc_max_services == m0_reqh_service_types_length() &&
-	       m0_tlist_invariant(&cs_eps_tl, &rctx->rc_eps) &&
+	       M0_CHECK_EX(m0_tlist_invariant(&cs_eps_tl, &rctx->rc_eps)) &&
 	       reqh_ctx_args_are_valid(rctx) && rctx->rc_mero != NULL &&
 	       ergo(rctx->rc_state == RC_INITIALISED,
 	       m0_reqh_invariant(&rctx->rc_reqh));

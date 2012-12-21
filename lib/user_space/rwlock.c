@@ -19,8 +19,8 @@
  */
 
 #include "lib/cdefs.h"     /* NULL */
-#include "assert.h"
-#include "rwlock.h"
+#include "lib/assert.h"
+#include "lib/rwlock.h"
 
 /**
    @addtogroup rwlock Read-write lock

@@ -230,7 +230,6 @@ static int emap_next(struct m0_emap_cursor *it)
 	return IT_DO_OPEN(it, &m0_db_cursor_next);
 }
 
-#ifdef ENABLE_DEBUG
 static bool emap_invariant_check(struct m0_emap_cursor *it)
 {
 	int                   result;
@@ -277,14 +276,6 @@ static bool emap_invariant(struct m0_emap_cursor *it)
 	return check;
 }
 
-#else /* !ENABLE_DEBUG */
-
-static bool emap_invariant(struct m0_emap_cursor *it)
-{
-	return true;
-}
-#endif
-
 int m0_emap_lookup(struct m0_emap *emap, struct m0_db_tx *tx,
 		   const struct m0_uint128 *prefix, m0_bindex_t offset,
 		   struct m0_emap_cursor *it)
@@ -294,14 +285,14 @@ int m0_emap_lookup(struct m0_emap *emap, struct m0_db_tx *tx,
 	M0_PRE(offset <= M0_BINDEX_MAX);
 
 	result = emap_lookup(emap, tx, prefix, offset, it);
-	M0_ASSERT(ergo(result == 0, emap_invariant(it)));
+	M0_ASSERT_EX(ergo(result == 0, emap_invariant(it)));
 	return result;
 }
 
 M0_INTERNAL int m0_emap_next(struct m0_emap_cursor *it)
 {
 	M0_PRE(!m0_emap_ext_is_last(&it->ec_seg.ee_ext));
-	M0_ASSERT(emap_invariant(it));
+	M0_INVARIANT_EX(emap_invariant(it));
 
 	return emap_next(it);
 }
@@ -309,14 +300,14 @@ M0_INTERNAL int m0_emap_next(struct m0_emap_cursor *it)
 M0_INTERNAL int m0_emap_prev(struct m0_emap_cursor *it)
 {
 	M0_PRE(!m0_emap_ext_is_first(&it->ec_seg.ee_ext));
-	M0_ASSERT(emap_invariant(it));
+	M0_INVARIANT_EX(emap_invariant(it));
 
 	return IT_DO_OPEN(it, &m0_db_cursor_prev);
 }
 
 M0_INTERNAL void m0_emap_close(struct m0_emap_cursor *it)
 {
-	M0_ASSERT(emap_invariant(it));
+	M0_INVARIANT_EX(emap_invariant(it));
 	emap_close(it);
 }
 
@@ -350,10 +341,10 @@ M0_INTERNAL int m0_emap_split(struct m0_emap_cursor *it,
 	int result;
 
 	M0_PRE(m0_vec_count(&vec->iv_vec) == m0_ext_length(&it->ec_seg.ee_ext));
-	M0_ASSERT(emap_invariant(it));
+	M0_INVARIANT_EX(emap_invariant(it));
 
 	result = emap_split_internal(it, vec, it->ec_seg.ee_ext.e_start);
-	M0_ASSERT(ergo(result == 0, emap_invariant(it)));
+	M0_ASSERT_EX(ergo(result == 0, emap_invariant(it)));
 	return result;
 }
 
@@ -371,7 +362,7 @@ int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
 	const struct m0_ext    ext0     = *ext;
 
 	M0_PRE(m0_ext_is_in(chunk, ext->e_start));
-	M0_ASSERT(emap_invariant(it));
+	M0_INVARIANT_EX(emap_invariant(it));
 
 	/*
 	 * Iterate over existing segments overlapping with the new one,
@@ -439,7 +430,7 @@ int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
 				break;
 		}
 	}
-	M0_ASSERT(ergo(result == 0, emap_invariant(it)));
+	M0_ASSERT_EX(ergo(result == 0, emap_invariant(it)));
 	return result;
 
 	/*
@@ -496,7 +487,7 @@ M0_INTERNAL int m0_emap_merge(struct m0_emap_cursor *it, m0_bindex_t delta)
 
 	M0_PRE(!m0_emap_ext_is_last(&it->ec_seg.ee_ext));
 	M0_PRE(delta <= m0_ext_length(&it->ec_seg.ee_ext));
-	M0_ASSERT(emap_invariant(it));
+	M0_INVARIANT_EX(emap_invariant(it));
 
 	if (it->ec_seg.ee_ext.e_end == delta) {
 		result = m0_db_cursor_del(&it->ec_cursor);
@@ -511,7 +502,7 @@ M0_INTERNAL int m0_emap_merge(struct m0_emap_cursor *it, m0_bindex_t delta)
 			result = IT_DO_PACK(it, &m0_db_cursor_set);
 		}
 	}
-	M0_ASSERT(ergo(result == 0, emap_invariant(it)));
+	M0_ASSERT_EX(ergo(result == 0, emap_invariant(it)));
 	return result;
 }
 
@@ -530,7 +521,7 @@ M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *emap, struct m0_db_tx *tx,
 		it.ec_seg.ee_val         = val;
 		it_pack(&it);
 		result = m0_table_insert(tx, &it.ec_pair);
-		M0_ASSERT(ergo(result == 0, emap_invariant(&it)));
+		M0_ASSERT_EX(ergo(result == 0, emap_invariant(&it)));
 		m0_emap_close(&it);
 	}
 	return result;
@@ -546,7 +537,7 @@ M0_INTERNAL int m0_emap_obj_delete(struct m0_emap *emap, struct m0_db_tx *tx,
 	if (result == 0) {
 		M0_ASSERT(m0_emap_ext_is_first(&it.ec_seg.ee_ext) &&
 			  m0_emap_ext_is_last(&it.ec_seg.ee_ext));
-		M0_ASSERT(emap_invariant(&it));
+		M0_INVARIANT_EX(emap_invariant(&it));
 		result = m0_db_cursor_del(&it.ec_cursor);
 		m0_emap_close(&it);
 	}

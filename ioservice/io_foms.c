@@ -759,7 +759,7 @@ static bool m0_io_fom_cob_rw_invariant(const struct m0_io_fom_cob_rw *io)
 	    io->fcrw_curr_ivec_index > rwfop->crw_ivecs.cis_nr)
 		return false;
 
-	if (!m0_tlist_invariant(&netbufs_tl, &io->fcrw_netbuf_list))
+	if (!M0_CHECK_EX(m0_tlist_invariant(&netbufs_tl, &io->fcrw_netbuf_list)))
 		return false;
 
 	acquired_net_buffs = netbufs_tlist_length(&io->fcrw_netbuf_list);
@@ -1147,7 +1147,7 @@ static int net_buffer_acquire(struct m0_fom *fom)
             else
                    nb->nb_qtype = M0_NET_QT_ACTIVE_BULK_RECV;
 
-            M0_ASSERT(m0_tlist_invariant(&netbufs_tl,
+            M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
                                          &fom_obj->fcrw_netbuf_list));
 
             netbufs_tlink_init(nb);
@@ -1201,7 +1201,7 @@ static int net_buffer_release(struct m0_fom *fom)
 	tm     = io_fop_tm_get(fop);
 	colour = m0_net_tm_colour_get(tm);
 
-	M0_ASSERT(m0_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
+	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
 	acquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
 	required_net_bufs = fom_obj->fcrw_ndesc - fom_obj->fcrw_curr_desc_index;
 
@@ -1262,7 +1262,7 @@ static int zero_copy_initiate(struct m0_fom *fom)
 	rbulk = &fom_obj->fcrw_bulk;
 	m0_rpc_bulk_init(rbulk);
 
-	M0_ASSERT(m0_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
+	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
 	dom      = io_fop_tm_get(fop)->ntm_dom;
         net_desc = &rwfop->crw_desc.id_descs[fom_obj->fcrw_curr_desc_index];
         rpc_item = (const struct m0_rpc_item *)&(fop->f_item);
@@ -1430,8 +1430,8 @@ static int io_launch(struct m0_fom *fom)
 	 */
 	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 
-	M0_ASSERT(m0_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
-	M0_ASSERT(m0_tlist_invariant(&stobio_tl, &fom_obj->fcrw_stio_list));
+	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
+	M0_INVARIANT_EX(m0_tlist_invariant(&stobio_tl, &fom_obj->fcrw_stio_list));
 
 	m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
 		struct m0_indexvec     *mem_ivec;
@@ -1571,7 +1571,7 @@ static int io_finish(struct m0_fom *fom)
         fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
         M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
         M0_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
-        M0_ASSERT(m0_tlist_invariant(&stobio_tl, &fom_obj->fcrw_stio_list));
+        M0_INVARIANT_EX(m0_tlist_invariant(&stobio_tl, &fom_obj->fcrw_stio_list));
         /*
          * Empty the list as all STOB I/O completed here.
          */
@@ -1722,7 +1722,7 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	colour = m0_net_tm_colour_get(tm);
 
 	if (fom_obj->fcrw_bp != NULL) {
-	M0_ASSERT(m0_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
+	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
 	m0_net_buffer_pool_lock(fom_obj->fcrw_bp);
 	m0_tl_for (netbufs, &fom_obj->fcrw_netbuf_list, nb) {
 		m0_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
@@ -1732,7 +1732,7 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	netbufs_tlist_fini(&fom_obj->fcrw_netbuf_list);
 	}
 
-	M0_ASSERT(m0_tlist_invariant(&stobio_tl, &fom_obj->fcrw_stio_list));
+	M0_INVARIANT_EX(m0_tlist_invariant(&stobio_tl, &fom_obj->fcrw_stio_list));
 	m0_tl_for (stobio, &fom_obj->fcrw_stio_list, stio_desc) {
 		struct m0_stob_io *stio;
 
