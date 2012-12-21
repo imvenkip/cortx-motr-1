@@ -411,6 +411,7 @@ static void outgoing_buf_event_handler(const struct m0_net_buffer_event *ev)
 static void item_done(struct m0_rpc_item *item, unsigned long rc)
 {
 	bool timeout_is_pending;
+	bool reply_is_pending;
 
 	M0_ENTRY("item: %p rc: %lu", item, rc);
 	M0_PRE(item != NULL);
@@ -419,7 +420,15 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 	timeout_is_pending = item->ri_error == -ETIMEDOUT;
 	if (timeout_is_pending)
 		M0_LOG(M0_DEBUG, "item %p has pending timeout", item);
-	/* If item->ri_error == -ETIMEDOUT and rc == 0 then,
+
+	reply_is_pending = item->ri_reply != NULL;
+	if (reply_is_pending)
+		M0_LOG(M0_DEBUG, "item %p has pending reply %p",
+		       item, item->ri_reply);
+
+	/* Any or both of timeout_is_pending and reply_is_pending can be true */
+
+	/* If timeout_is_pending AND rc == 0 then,
 		item _is_ placed on the network, do not lie in the
 		->sent() callback, by keeping ri_error as -ETIMEDOUT.
 		So set ri_error to rc; just for the duration of ->sent()
@@ -429,9 +438,16 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 	if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
 		item->ri_ops->rio_sent(item);
 
-	if (item->ri_error == 0 && timeout_is_pending)
-		item->ri_error = -ETIMEDOUT;
-
+	M0_ASSERT(ergo(rc != 0, !reply_is_pending)); /* if sending is failed
+							then how can reply be
+							pending */
+	if (timeout_is_pending) {
+		if (rc != 0 || reply_is_pending) {
+			/* ignore timeout */;
+			M0_ASSERT(item->ri_error == rc);
+		} else
+			item->ri_error = -ETIMEDOUT;
+	}
 	if (item->ri_error == 0)
 		item_sent(item);
 	else
