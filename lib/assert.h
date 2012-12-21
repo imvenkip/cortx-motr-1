@@ -35,6 +35,23 @@
 #include "linux_kernel/assert.h"
 #endif
 
+#ifdef ENABLE_EXPENSIVE_CHECKS
+#define M0_ASSERT_EX_ON (1)
+#else
+#define M0_ASSERT_EX_ON (0)
+#endif
+
+/**
+ * The same as M0_ASSERT macro, but this version is disabled (optimized out) if
+ * ENABLE_EXPENSIVE_CHECKS macro is defined, which is controlled by configure
+ * option --disable-expensive-checks.
+ */
+#define M0_ASSERT_EX(cond)		\
+({					\
+	if (M0_ASSERT_EX_ON)		\
+		M0_ASSERT(cond);	\
+})
+
 /**
    A macro to check that a function pre-condition holds. M0_PRE() is
    functionally equivalent to M0_ASSERT().
@@ -43,6 +60,8 @@
  */
 #define M0_PRE(cond) M0_ASSERT(cond)
 
+#define M0_PRE_EX(cond) M0_ASSERT_EX(cond)
+
 /**
    A macro to check that a function post-condition holds. M0_POST() is
    functionally equivalent to M0_ASSERT().
@@ -50,6 +69,21 @@
    @see M0_PRE()
  */
 #define M0_POST(cond) M0_ASSERT(cond)
+
+#define M0_POST_EX(cond) M0_ASSERT_EX(cond)
+
+/**
+ * A macro to check that invariant is held.
+ */
+#define M0_INVARIANT_EX(cond) M0_ASSERT_EX(cond)
+
+/**
+ * A macro, which intended to wrap some expensive checks, like invariant calls
+ * in expressions. It statically expands to true if ENABLE_EXPENSIVE_CHECKS is
+ * not defined, which allows compiler to optimize out evaluation of the argument
+ * of this macro.
+ */
+#define M0_CHECK_EX(cond) (!M0_ASSERT_EX_ON || (cond))
 
 /**
    A macro to assert that compile-time condition is true. Condition must be a
