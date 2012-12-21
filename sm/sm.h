@@ -575,7 +575,7 @@ M0_INTERNAL void m0_sm_timer_fini(struct m0_sm_timer *timer);
  * user-supplied call-back.
  *
  * If the deadline is already in the past by the time this is called, the AST is
- * posted immediately.
+ * posted as soon as possible.
  */
 M0_INTERNAL int  m0_sm_timer_start(struct m0_sm_timer *timer,
 				   struct m0_sm_group *group,
