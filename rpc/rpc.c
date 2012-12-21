@@ -115,7 +115,7 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 	M0_ASSERT(m0_rpc_machine_is_locked(session_machine(session)));
 	/*
 	 * This hold will be released when the item is SENT or FAILED.
-	 * See rpc/frmops.c:item_done()
+	 * See rpc/frmops.c:item_sent() and m0_rpc_item_failed()
 	 */
 	m0_rpc_session_hold_busy(session);
 
@@ -162,7 +162,7 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 	m0_rpc_item_sm_init(reply, M0_RPC_ITEM_OUTGOING);
 	/*
 	 * This hold will be released when the item is SENT or FAILED.
-	 * See rpc/frmops.c:item_done()
+	 * See rpc/frmops.c:item_done() and m0_rpc_item_failed()
 	 */
 	m0_rpc_session_hold_busy(reply->ri_session);
 	__slot_reply_received(slot, request, reply);

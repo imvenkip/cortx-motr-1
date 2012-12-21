@@ -38,7 +38,6 @@
  */
 
 static int item_entered_in_urgent_state(struct m0_sm *mach);
-static int item_entered_in_sent_state(struct m0_sm *mach);
 static int item_entered_in_failed_state(struct m0_sm *mach);
 static void item_timedout_cb(struct m0_sm_timer *timer);
 
@@ -189,7 +188,6 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 	[M0_RPC_ITEM_SENT] = {
 		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "SENT",
-		.sd_in      = item_entered_in_sent_state,
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_WAITING_FOR_REPLY,
 				      M0_RPC_ITEM_UNINITIALISED),
 	},
@@ -548,6 +546,17 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 {
 	M0_PRE(item != NULL && rc != 0);
 
+	/*
+	 * Request and Reply items take hold on session until
+	 * they are SENT/FAILED.
+	 * See: m0_rpc__post_locked(), m0_rpc_reply_post()
+	 */
+	if (M0_IN(item->ri_sm.sm_state, (M0_RPC_ITEM_ENQUEUED,
+					 M0_RPC_ITEM_URGENT,
+					 M0_RPC_ITEM_SENDING)) &&
+	   (m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item)))
+		m0_rpc_session_release(item->ri_session);
+
 	item->ri_error = rc;
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_FAILED);
 }
@@ -604,21 +613,6 @@ static int item_entered_in_urgent_state(struct m0_sm *mach)
 		 */
 	}
 	return -1;
-}
-static int item_entered_in_sent_state(struct m0_sm *mach)
-{
-	struct m0_rpc_item *item;
-
-	item = sm_to_item(mach);
-	item->ri_rmachine->rm_stats.rs_nr_sent_items++;
-	if (m0_rpc_item_is_request(item)) {
-		M0_LOG(M0_DEBUG,
-		       "%p [REQUEST/%u] SENT -> WAITING_FOR_REPLY",
-		       item, item->ri_type->rit_opcode);
-		return M0_RPC_ITEM_WAITING_FOR_REPLY;
-	} else {
-		return -1;
-	}
 }
 
 static int item_entered_in_failed_state(struct m0_sm *mach)
@@ -693,14 +687,6 @@ static void item_timedout_cb(struct m0_sm_timer *timer)
 		m0_rpc_item_get(item);
 		m0_rpc_frm_remove_item(item->ri_frm, item);
 		m0_rpc_item_failed(item, -ETIMEDOUT);
-		/*
-		 * Request and Reply items take hold on session until
-		 * they are SENT/FAILED.
-		 * See: m0_rpc__post_locked(), m0_rpc_reply_post()
-		 */
-		if (m0_rpc_item_is_request(item) ||
-		    m0_rpc_item_is_reply(item))
-			m0_rpc_session_release(item->ri_session);
 		m0_rpc_item_put(item);
 	} else if (state == M0_RPC_ITEM_WAITING_FOR_REPLY) {
 		m0_rpc_item_failed(item, -ETIMEDOUT);

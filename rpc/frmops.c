@@ -54,6 +54,7 @@ static void bufvec_geometry(struct m0_net_domain *ndom,
 			    m0_bcount_t          *out_segment_size);
 
 static void item_done(struct m0_rpc_item *item, unsigned long rc);
+static void item_sent(struct m0_rpc_item *item);
 
 /*
  * This is the only symbol exported from this file.
@@ -416,7 +417,12 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 	M0_PRE(M0_IN(item->ri_error, (0, -ETIMEDOUT)));
 
 	timeout_is_pending = item->ri_error == -ETIMEDOUT;
-
+	/* If item->ri_error == -ETIMEDOUT and rc == 0 then,
+		item _is_ placed on the network, do not lie in the
+		->sent() callback, by keeping ri_error as -ETIMEDOUT.
+		So set ri_error to rc; just for the duration of ->sent()
+		callback. And then restore it back to -ETIMEDOUT.
+	 */
 	item->ri_error = rc;
 	if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
 		item->ri_ops->rio_sent(item);
@@ -424,30 +430,40 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 	if (item->ri_error == 0 && timeout_is_pending)
 		item->ri_error = -ETIMEDOUT;
 
-	if (item->ri_error == 0) {
-		m0_rpc_item_change_state(item, M0_RPC_ITEM_SENT);
-		/*
-		 * request items will automatically move to
-		 * WAITING_FOR_REPLY state.
-		 */
-		if (m0_rpc_item_is_request(item) &&
-		    item->ri_reply != NULL) {
-			/* Reply has already been received when we
-			   were waiting for buffer callback */
-			m0_rpc_slot_process_reply(item);
-		}
-	} else {
+	if (item->ri_error == 0)
+		item_sent(item);
+	else
 		m0_rpc_item_failed(item, item->ri_error);
-	}
+
+	M0_LEAVE();
+}
+
+static void item_sent(struct m0_rpc_item *item)
+{
+	M0_ENTRY("item: %p", item);
+
+	M0_PRE(item->ri_error == 0 &&
+	       item->ri_sm.sm_state == M0_RPC_ITEM_SENDING);
+
+	item->ri_rmachine->rm_stats.rs_nr_sent_items++;
+	m0_rpc_item_change_state(item, M0_RPC_ITEM_SENT);
 	/*
 	 * Request and Reply items take hold on session until
 	 * they are SENT/FAILED.
 	 * See: m0_rpc__post_locked(), m0_rpc_reply_post()
 	 */
-	if (m0_rpc_item_is_request(item) ||
-	    m0_rpc_item_is_reply(item))
+	if (m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item))
 		m0_rpc_session_release(item->ri_session);
 
+	if (m0_rpc_item_is_request(item)) {
+		m0_rpc_item_change_state(item, M0_RPC_ITEM_WAITING_FOR_REPLY);
+		if (item->ri_reply != NULL) {
+			/* Reply has already been received when we
+			   were waiting for buffer callback */
+			m0_rpc_slot_process_reply(item);
+			M0_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_REPLIED);
+		}
+	}
 	M0_LEAVE();
 }
 
