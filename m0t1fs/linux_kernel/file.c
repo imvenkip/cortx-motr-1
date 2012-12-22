@@ -2911,7 +2911,7 @@ last:
 		goto again;
 
 	M0_LEAVE();
-	return count;
+	return rc != 0 ? rc : count;
 }
 
 static struct m0_indexvec *indexvec_create(unsigned long       seg_nr,
