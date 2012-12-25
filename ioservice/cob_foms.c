@@ -231,8 +231,10 @@ static int cc_fom_tick(struct m0_fom *fom)
 		}
 
 		rc = cc_cob_create(fom, cc);
-	} else
+	} else {
+		rc = -EINVAL;
 		M0_IMPOSSIBLE("Invalid phase for cob create fom.");
+	}
 
 out:
         M0_LOG(M0_DEBUG, "Cob operation finished with %d", rc);
@@ -430,8 +432,10 @@ static int cd_fom_tick(struct m0_fom *fom)
 			goto out;
 
 		rc = cd_stob_delete(fom, cd);
-	} else
+	} else {
+		rc = -EINVAL;
 		M0_IMPOSSIBLE("Invalid phase for cob delete fom.");
+	}
 
 out:
 	reply = m0_fop_data(fom->fo_rep_fop);

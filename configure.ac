@@ -50,6 +50,8 @@ AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in automic functions])
 AH_TEMPLATE([ENABLE_DEBUG],           [Enable debug info.])
 AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
 AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
+AH_TEMPLATE([ENABLE_EXPENSIVE_CHECKS],[Enable expensive checks.])
+AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT],     [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV],        [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ],     [Have fops->aio_read function])
@@ -100,6 +102,20 @@ AC_ARG_ENABLE([mcheck],
         [AS_HELP_STRING([--enable-mcheck],[enable glibc malloc check])], [],
         [enable_mcheck=no]
 )
+
+AC_ARG_ENABLE([m0_asserts],
+        AS_HELP_STRING([--disable-m0-asserts],[disable M0_ASSERT]),
+        [], [enable_m0_asserts=yes]
+)
+AS_IF([test x$enable_m0_asserts = xno],
+      AC_DEFINE([M0_NDEBUG]))
+
+AC_ARG_ENABLE([expensive_checks],
+        AS_HELP_STRING([--disable-expensive-checks],[disable expensive checks]),
+        [], [enable_expensive_checks=yes]
+)
+AS_IF([test x$enable_expensive_checks = xyes],
+      AC_DEFINE([ENABLE_EXPENSIVE_CHECKS]))
 
 AC_ARG_ENABLE([altogether-mode],
         [AS_HELP_STRING([--disable-altogether-mode],[disable altogether build mode])],

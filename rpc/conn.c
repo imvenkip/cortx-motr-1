@@ -186,7 +186,8 @@ M0_INTERNAL bool m0_rpc_conn_invariant(const struct m0_rpc_conn *conn)
 	/* conditions that should be true irrespective of conn state */
 	ok = sender_end != recv_end &&
 	     rpc_conn_tlist_contains(conn_list, conn) &&
-	     m0_tlist_invariant(&rpc_session_tl, &conn->c_sessions) &&
+	     M0_CHECK_EX(m0_tlist_invariant(&rpc_session_tl,
+					    &conn->c_sessions)) &&
 	     rpc_session_tlist_length(&conn->c_sessions) ==
 		conn->c_nr_sessions &&
 	     conn_state(conn) <= M0_RPC_CONN_TERMINATED &&

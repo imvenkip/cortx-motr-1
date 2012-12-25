@@ -96,6 +96,7 @@ static int dummy_fom_tick(struct m0_fom *fom)
 		return M0_FSO_WAIT;
 	default:
 		M0_IMPOSSIBLE("Bad State");
+		return 0;
 	}
 }
 

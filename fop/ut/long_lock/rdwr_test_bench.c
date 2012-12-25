@@ -207,8 +207,10 @@ static int fom_rdwr_tick(struct m0_fom *fom)
 		m0_chan_signal(&chan[rq_seqn]);
 		m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
 		result = M0_FSO_WAIT;
-        } else
+        } else {
 		M0_IMPOSSIBLE("");
+		result = 0;
+	}
 
 	return result;
 }
