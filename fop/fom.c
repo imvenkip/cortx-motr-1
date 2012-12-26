@@ -230,8 +230,8 @@ M0_INTERNAL bool m0_locality_invariant(const struct m0_fom_locality *loc)
 {
 	return	loc != NULL && loc->fl_dom != NULL &&
 		m0_mutex_is_locked(&loc->fl_group.s_lock) &&
-		m0_tlist_invariant(&runq_tl, &loc->fl_runq) &&
-		m0_tlist_invariant(&wail_tl, &loc->fl_wail) &&
+		M0_CHECK_EX(m0_tlist_invariant(&runq_tl, &loc->fl_runq)) &&
+		M0_CHECK_EX(m0_tlist_invariant(&wail_tl, &loc->fl_wail)) &&
 		m0_tl_forall(thr, t, &loc->fl_threads,
 			     t->lt_loc == loc && thread_invariant(t)) &&
 		ergo(loc->fl_handler != NULL,
@@ -278,7 +278,7 @@ M0_INTERNAL bool m0_fom_invariant(const struct m0_fom *fom)
 		/* fom magic is the same in runq and wail tlists,
 		 * so we can use either one here.
 		 * @todo replace this with bob_check() */
-		m0_tlink_invariant(&runq_tl, fom) &&
+		M0_CHECK_EX(m0_tlink_invariant(&runq_tl, fom)) &&
 
 		M0_IN(fom_state(fom), (M0_FOS_READY, M0_FOS_WAITING,
 				       M0_FOS_RUNNING, M0_FOS_INIT)) &&

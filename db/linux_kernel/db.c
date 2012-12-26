@@ -117,6 +117,7 @@ M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx)
 M0_INTERNAL int m0_db_tx_abort(struct m0_db_tx *tx)
 {
 	M0_IMPOSSIBLE("Aborting transaction in kernel space.");
+	return -ENOSYS;
 }
 
 M0_INTERNAL void m0_db_tx_waiter_add(struct m0_db_tx *tx,
@@ -564,7 +565,7 @@ static bool ktable_invariant_locked(struct m0_table *t,
 	struct m0_tl *tkp = &t->t_i.tk_pair;
 
 	return
-		m0_tlist_invariant(&pair_tl, tkp) &&
+		M0_CHECK_EX(m0_tlist_invariant(&pair_tl, tkp)) &&
 		m0_tl_forall(pair, scan, tkp,
 			     scan->dk_key.b_addr == scan + 1 &&
 			     scan->dk_rec.b_addr ==

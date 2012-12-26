@@ -774,7 +774,7 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 	struct m0_fid     cob_fid;
 	int               pool_width;
 	int               i;
-	int               rc;
+	int               rc = 0;
 	uint32_t          cob_idx;
 
 	M0_PRE(ci != NULL);

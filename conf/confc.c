@@ -698,6 +698,7 @@ M0_INTERNAL int m0_confc_readdir_sync(struct m0_conf_obj *dir,
 	(void)dir;
 	(void)pptr;
 	M0_IMPOSSIBLE("XXX not implemented");
+	return 0;
 }
 
 /* ------------------------------------------------------------------

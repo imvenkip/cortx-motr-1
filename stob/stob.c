@@ -133,6 +133,8 @@ M0_INTERNAL int m0_stob_locate(struct m0_stob *obj, struct m0_dtx *tx)
 		break;
 	default:
 		M0_IMPOSSIBLE("invalid object state");
+		result = -EINVAL;
+		break;
 	}
 	M0_POST(ergo(result == 0, obj->so_state == CSS_EXISTS));
 	M0_POST(ergo(result == -ENOENT, obj->so_state == CSS_NOENT));
@@ -155,6 +157,8 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *obj, struct m0_dtx *tx)
 		break;
 	default:
 		M0_IMPOSSIBLE("invalid object state");
+		result = -EINVAL;
+		break;
 	}
 	M0_POST(ergo(result == 0, obj->so_state == CSS_EXISTS));
 	return result;

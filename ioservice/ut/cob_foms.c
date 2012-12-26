@@ -496,6 +496,7 @@ static void fop_alloc(struct m0_fom *fom, enum cob_fom_type fomtype)
 		break;
 	default:
 		M0_IMPOSSIBLE("Invalid COB-FOM type");
+		base_fop = NULL;
 		break;
 	}
 	c = m0_cobfop_common_get(base_fop);

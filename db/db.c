@@ -237,6 +237,7 @@ static int dbenv_tol_txn_checkpoint[] = { 0 };
 static void *never(void *ptr, size_t size)
 {
 	M0_IMPOSSIBLE("realloc called.");
+	return 0;
 }
 
 /**

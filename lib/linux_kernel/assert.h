@@ -33,7 +33,7 @@
    @{
 */
 
-#define M0_ASSERT(cond) do { if (!(cond)) { printk("Assertion failed %s\n", #cond); dump_stack(); while(1){}; } } while (0)
+#define M0_ASSERT(cond) BUG_ON(!(M0_ASSERT_OFF || (cond)))
 
 /** @} end of assert group */
 

@@ -237,6 +237,9 @@ The git 'rerere' tool can be useful in such situations; it remembers how
 merge conflicts were resolved so that you don't have to do the same work
 twice.
 
+Also, please refer to the explanation of rebase and merge rules, by Linus
+Torvalds, see section RECOMMENDED RESOURCES ON GIT, item [4].
+
 
 FORMAT OF COMMIT MESSAGE
 ------------------------
@@ -488,3 +491,6 @@ RECOMMENDED RESOURCES ON GIT
 
  [3] http://gitcasts.com       -- A series of screencasts to help learn Git
 
+ [4] http://lwn.net/Articles/328438/  -- Very good explanation by Linus Torvalds
+                                         of rebase and merge rules, this is a
+                                         "must read"

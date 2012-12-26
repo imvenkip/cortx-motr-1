@@ -91,7 +91,7 @@ M0_INTERNAL bool m0_rpc_slot_invariant(const struct m0_rpc_slot *slot)
 
 	ok = slot != NULL &&
 	     slot->sl_in_flight <= slot->sl_max_in_flight &&
-	     m0_tlist_invariant(&slot_item_tl, &slot->sl_item_list);
+	     M0_CHECK_EX(m0_tlist_invariant(&slot_item_tl, &slot->sl_item_list));
 
 	if (!ok)
 		return false;

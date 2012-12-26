@@ -270,6 +270,8 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 		break;
 	default:
 		M0_ASSERT("Invalid service type" == 0);
+		rc = -EINVAL;
+		break;
 	}
 
 	return rc;

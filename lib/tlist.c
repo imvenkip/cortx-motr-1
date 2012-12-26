@@ -44,12 +44,12 @@ M0_INTERNAL void m0_tlist_init(const struct m0_tl_descr *d, struct m0_tl *list)
 {
 	list->t_magic = d->td_head_magic;
 	m0_list_init(&list->t_head);
-	M0_POST(m0_tlist_invariant(d, list));
+	M0_INVARIANT_EX(m0_tlist_invariant(d, list));
 }
 
 M0_INTERNAL void m0_tlist_fini(const struct m0_tl_descr *d, struct m0_tl *list)
 {
-	M0_PRE(m0_tlist_invariant(d, list));
+	M0_INVARIANT_EX(m0_tlist_invariant(d, list));
 	m0_list_fini(&list->t_head);
 	/*
 	 * We don't unset the magic field (list->t_magic), because it can be
@@ -62,7 +62,7 @@ M0_INTERNAL void m0_tlink_init(const struct m0_tl_descr *d, void *obj)
 	m0_list_link_init(__link(d, obj));
 	if (d->td_link_magic != 0)
 		*(uint64_t *)(obj + d->td_link_magic_offset) = d->td_link_magic;
-	M0_POST(m0_tlink_invariant(d, obj));
+	M0_INVARIANT_EX(m0_tlink_invariant(d, obj));
 }
 
 M0_INTERNAL void m0_tlink_init_at(const struct m0_tl_descr *d, void *obj,
@@ -93,28 +93,28 @@ M0_INTERNAL void m0_tlink_del_fini(const struct m0_tl_descr *d, void *obj)
 M0_INTERNAL bool m0_tlist_is_empty(const struct m0_tl_descr *d,
 				   const struct m0_tl *list)
 {
-	M0_PRE(m0_tlist_invariant(d, list));
+	M0_INVARIANT_EX(m0_tlist_invariant(d, list));
 	return m0_list_is_empty(&list->t_head);
 }
 
 M0_INTERNAL bool m0_tlink_is_in(const struct m0_tl_descr *d, const void *obj)
 {
-	M0_PRE(m0_tlink_invariant(d, obj));
+	M0_INVARIANT_EX(m0_tlink_invariant(d, obj));
 	return m0_list_link_is_in(__link(d, obj));
 }
 
 M0_INTERNAL bool m0_tlist_contains(const struct m0_tl_descr *d,
 				   const struct m0_tl *list, const void *obj)
 {
-	M0_PRE(m0_tlist_invariant(d, list));
-	M0_PRE(m0_tlink_invariant(d, obj));
+	M0_INVARIANT_EX(m0_tlist_invariant(d, list));
+	M0_INVARIANT_EX(m0_tlink_invariant(d, obj));
 	return m0_list_contains(&list->t_head, __link(d, obj));
 }
 
 M0_INTERNAL size_t m0_tlist_length(const struct m0_tl_descr *d,
 				   const struct m0_tl *list)
 {
-	M0_PRE(m0_tlist_invariant(d, list));
+	M0_INVARIANT_EX(m0_tlist_invariant(d, list));
 	return m0_list_length(&list->t_head);
 }
 M0_EXPORTED(m0_tlist_length);
@@ -122,7 +122,7 @@ M0_EXPORTED(m0_tlist_length);
 M0_INTERNAL void m0_tlist_add(const struct m0_tl_descr *d, struct m0_tl *list,
 			      void *obj)
 {
-	M0_PRE(m0_tlist_invariant(d, list));
+	M0_INVARIANT_EX(m0_tlist_invariant(d, list));
 	M0_PRE(!m0_tlink_is_in(d, obj));
 	m0_list_add(&list->t_head, __link(d, obj));
 }
@@ -130,7 +130,7 @@ M0_INTERNAL void m0_tlist_add(const struct m0_tl_descr *d, struct m0_tl *list,
 M0_INTERNAL void m0_tlist_add_tail(const struct m0_tl_descr *d,
 				   struct m0_tl *list, void *obj)
 {
-	M0_PRE(m0_tlist_invariant(d, list));
+	M0_INVARIANT_EX(m0_tlist_invariant(d, list));
 	M0_PRE(!m0_tlink_is_in(d, obj));
 	m0_list_add_tail(&list->t_head, __link(d, obj));
 }
@@ -153,7 +153,7 @@ M0_INTERNAL void m0_tlist_add_before(const struct m0_tl_descr *d, void *obj,
 
 M0_INTERNAL void m0_tlist_del(const struct m0_tl_descr *d, void *obj)
 {
-	M0_PRE(m0_tlink_invariant(d, obj));
+	M0_INVARIANT_EX(m0_tlink_invariant(d, obj));
 	M0_PRE(m0_tlink_is_in(d, obj));
 	m0_list_del(__link(d, obj));
 	M0_PRE(!m0_tlink_is_in(d, obj));
@@ -162,7 +162,7 @@ M0_INTERNAL void m0_tlist_del(const struct m0_tl_descr *d, void *obj)
 M0_INTERNAL void m0_tlist_move(const struct m0_tl_descr *d, struct m0_tl *list,
 			       void *obj)
 {
-	M0_PRE(m0_tlist_invariant(d, list));
+	M0_INVARIANT_EX(m0_tlist_invariant(d, list));
 	M0_PRE(m0_tlink_is_in(d, obj));
 
 	m0_list_move(&list->t_head, __link(d, obj));
@@ -171,7 +171,7 @@ M0_INTERNAL void m0_tlist_move(const struct m0_tl_descr *d, struct m0_tl *list,
 M0_INTERNAL void m0_tlist_move_tail(const struct m0_tl_descr *d,
 				    struct m0_tl *list, void *obj)
 {
-	M0_PRE(m0_tlist_invariant(d, list));
+	M0_INVARIANT_EX(m0_tlist_invariant(d, list));
 
 	m0_list_move_tail(&list->t_head, __link(d, obj));
 }
@@ -180,7 +180,7 @@ void *m0_tlist_head(const struct m0_tl_descr *d, const struct m0_tl *list)
 {
 	const struct m0_list *head;
 
-	M0_PRE(m0_tlist_invariant(d, list));
+	M0_INVARIANT_EX(m0_tlist_invariant(d, list));
 
 	head = &list->t_head;
 	return head->l_head != (void *)head ? amb(d, head->l_head) : NULL;
@@ -191,7 +191,7 @@ M0_INTERNAL void *m0_tlist_tail(const struct m0_tl_descr *d,
 {
 	const struct m0_list *head;
 
-	M0_PRE(m0_tlist_invariant(d, list));
+	M0_INVARIANT_EX(m0_tlist_invariant(d, list));
 
 	head = &list->t_head;
 	return head->l_tail != (void *)head ? amb(d, head->l_tail) : NULL;
@@ -232,7 +232,7 @@ M0_INTERNAL bool m0_tlist_invariant(const struct m0_tl_descr *d,
 		if (scan->ll_next->ll_prev != scan ||
 		    scan->ll_prev->ll_next != scan)
 			return false;
-		if (!m0_tlink_invariant(d, amb(d, scan)))
+		if (!M0_CHECK_EX(m0_tlink_invariant(d, amb(d, scan))))
 			return false;
 	}
 	return true;

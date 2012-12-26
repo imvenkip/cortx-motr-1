@@ -719,7 +719,7 @@ static bool io_fop_type_equal(const struct m0_fop *fop1,
 
 static int io_fop_seg_init(struct ioseg **ns, const struct ioseg *cseg)
 {
-	struct ioseg *new_seg;
+	struct ioseg *new_seg = 0;
 
 	M0_PRE(ns != NULL);
 	M0_PRE(cseg != NULL);
@@ -786,7 +786,7 @@ static void io_fop_segments_coalesce(const struct m0_0vec *iovec,
 				     struct io_seg_set *aggr_set)
 {
 	uint32_t     i;
-	struct ioseg seg;
+	struct ioseg seg = { 0 };
 
 	M0_PRE(iovec != NULL);
 	M0_PRE(aggr_set != NULL);
