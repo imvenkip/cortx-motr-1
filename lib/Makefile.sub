@@ -93,7 +93,8 @@ mero_libmero_la_SOURCES  += lib/assert.c \
                                   lib/user_space/utime.c
 
 XC_FILES   += lib/buf_xc.h \
-              lib/vec_xc.h
+              lib/vec_xc.h \
+              lib/cookie_xc.h
 
 EXTRA_DIST += lib/linux_kernel/assert.h \
               lib/linux_kernel/atomic64.h \
@@ -127,4 +128,7 @@ CLEANFILES += lib/buf_xc.h \
               lib/buf.gccxml \
               lib/vec_xc.h \
               lib/vec_xc.c \
-              lib/vec.gccxml
+              lib/vec.gccxml \
+              lib/cookie_xc.h \
+              lib/cookie_xc.c \
+              lib/cookie.gccxml
