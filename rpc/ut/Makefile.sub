@@ -16,4 +16,4 @@ EXTRA_DIST += rpc/ut/clnt_srv_ctx.c \
 
 CLEANFILES += rpc/ut/rpc_test_fops_xc.h \
               rpc/ut/rpc_test_fops_xc.c \
-              rpc/ut/rpc_test_fops_xc.gccxml
+              rpc/ut/rpc_test_fops.gccxml
