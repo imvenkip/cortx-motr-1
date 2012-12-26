@@ -12,6 +12,7 @@ nobase_mero_include_HEADERS += lib/adt.h \
                                   lib/chan.h \
                                   lib/cond.h \
                                   lib/cookie.h \
+                                  lib/cookie_xc.h \
                                   lib/errno.h \
                                   lib/ext.h \
                                   lib/finject.h \
@@ -58,6 +59,7 @@ mero_libmero_la_SOURCES  += lib/assert.c \
                                   lib/chan.c \
                                   lib/cond.c \
                                   lib/cookie.c \
+                                  lib/cookie_xc.c \
                                   lib/ext.c \
                                   lib/finject.c \
                                   lib/finject_internal.h \

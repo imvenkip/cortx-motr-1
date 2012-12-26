@@ -238,6 +238,22 @@ M0_INTERNAL bool m0_tlist_invariant(const struct m0_tl_descr *d,
 	return true;
 }
 
+M0_INTERNAL bool m0_tlist_invariant_ext(const struct m0_tl_descr *d,
+					const struct m0_tl *list,
+					bool (*check)(const void *, void *),
+					void *datum)
+{
+	if (m0_tlist_invariant(d, list)) {
+		void *obj;
+
+		m0_tlist_for(d, (struct m0_tl *)list, obj) {
+			if (!check(obj, datum))
+				return false;
+		} m0_tlist_endfor;
+	}
+	return true;
+}
+
 M0_INTERNAL bool m0_tlink_invariant(const struct m0_tl_descr *d,
 				    const void *obj)
 {

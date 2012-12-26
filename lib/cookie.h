@@ -23,6 +23,9 @@
 #ifndef __MERO_LIB_COOKIE_H__
 #define __MERO_LIB_COOKIE_H__
 
+#include "lib/types.h"
+#include "xcode/xcode.h"
+
 /**
  * @defgroup cookie Cookie
  *
@@ -52,7 +55,7 @@
 struct m0_cookie {
 	uint64_t co_addr;
 	uint64_t co_generation;
-};
+} M0_XCA_RECORD;
 
 /**
  * Initializes the gencount. Gets called during mero initialization.

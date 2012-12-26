@@ -47,7 +47,8 @@ static void sigsegv(int sig)
 
 /**
  * Checks the validity of an address by dereferencing the same. Occurrence of
- * an error in case of an invalid address gets handled by the function sigsegv().
+ * an error in case of an invalid address gets handled by the
+ * function sigsegv().
  */
 M0_INTERNAL bool m0_arch_addr_is_sane(const void *addr)
 {

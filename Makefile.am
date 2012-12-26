@@ -173,6 +173,7 @@ include $(top_srcdir)/net/bulk_emulation/Makefile.sub
 include $(top_srcdir)/net/lnet/Makefile.sub
 include $(top_srcdir)/pool/Makefile.sub
 include $(top_srcdir)/reqh/Makefile.sub
+include $(top_srcdir)/rm/Makefile.sub
 include $(top_srcdir)/rpc/Makefile.sub
 include $(top_srcdir)/sm/Makefile.sub
 include $(top_srcdir)/sns/Makefile.sub
@@ -216,6 +217,7 @@ include $(top_srcdir)/net/test/ut/Makefile.sub
 include $(top_srcdir)/net/ut/Makefile.sub
 include $(top_srcdir)/pool/ut/Makefile.sub
 include $(top_srcdir)/reqh/ut/Makefile.sub
+include $(top_srcdir)/rm/ut/Makefile.sub
 include $(top_srcdir)/rpc/ut/Makefile.sub
 include $(top_srcdir)/sm/ut/Makefile.sub
 include $(top_srcdir)/sns/ut/Makefile.sub

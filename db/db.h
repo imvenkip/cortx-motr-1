@@ -332,6 +332,7 @@ struct m0_db_tx_waiter {
 M0_TL_DESCR_DECLARE(txw, M0_EXTERN);
 M0_TL_DEFINE(txw, static inline, struct m0_db_tx_waiter);
 
+
 /**
    Adds a waiter for a transaction.
 

@@ -515,9 +515,9 @@ AC_SUBST([M0_LDFLAGS])
 AC_CONFIG_FILES([
                  Makefile
                  build_kernel_modules/Makefile
-                 net/lnet/st/linux_kernel/Makefile
-                 net/test/linux_kernel/Makefile
-                 rpc/it/linux_kernel/Makefile
+		 net/lnet/st/linux_kernel/Makefile
+		 net/test/linux_kernel/Makefile
+		 rpc/it/linux_kernel/Makefile
                  ut/linux_kernel/Makefile
                  utils/linux_kernel/Makefile
                 ])

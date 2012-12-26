@@ -144,7 +144,15 @@ enum M0_RPC_OPCODES {
 	M0_SNS_REPAIR_TRIGGER_REP_OPCODE    = 78,
 
 	/* RPC UT */
-	M0_RPC_ARROW_OPCODE = 79,
+	M0_RPC_ARROW_OPCODE                 = 79,
+
+	/** Resource manager opcodes */
+	M0_RM_FOP_BORROW                    = 84,
+	M0_RM_FOP_BORROW_REPLY              = 85,
+	M0_RM_FOP_REVOKE                    = 86,
+	M0_RM_FOP_REVOKE_REPLY              = 87,
+	M0_RM_FOP_CANCEL                    = 88,
+
 };
 /** @} endgroup rpc_layer_core */
 

@@ -589,7 +589,6 @@ struct m0_fom_ops {
 	 *  Returns value of enum m0_fom_phase_outcome.
 	 */
 	int  (*fo_tick)(struct m0_fom *fom);
-
 	/**
 	 *  Finds home locality for this fom.
 	 *

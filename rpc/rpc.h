@@ -48,6 +48,10 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "net/buffer_pool.h"
 #include "rpc/item.h"        /* m0_rpc_item_onwire_header_size() */
 
+/* imports */
+struct m0_db_tx;
+struct m0_cob_domain;
+
 /** @todo Add these declarations to some internal header */
 extern const struct m0_addb_ctx_type m0_rpc_addb_ctx_type;
 extern const struct m0_addb_loc      m0_rpc_addb_loc;

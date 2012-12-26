@@ -384,6 +384,43 @@ enum m0_magic_satchel {
 	/* m0_reqh_rpc_mach_tl::td_head_magic (laissez eifel) */
 	M0_REQH_RPC_MACH_HEAD_MAGIC = 0x331a155e2e1fe177,
 
+/* Resource Manager */
+	/* m0_rm_pin::rp_magix (bellicose bel) */
+	M0_RM_PIN_MAGIC = 0x33be111c05ebe177,
+
+	/* m0_rm_loan::rl_magix (biblical bill) */
+	M0_RM_LOAN_MAGIC = 0x33b1b11ca1b11177,
+
+	/* m0_rm_incoming::rin_magix (cacalia boole) */
+	M0_RM_INCOMING_MAGIC = 0x33caca11ab001e77,
+
+	/* m0_rm_outgoing::rog_magix (calcific call) */
+	M0_RM_OUTGOING_MAGIC = 0x33ca1c1f1cca1177,
+
+	/* pr_tl::td_head_magic (collide colsa) */
+	M0_RM_CREDIT_PIN_HEAD_MAGIC = 0x33c0111dec015a77,
+
+	/* pi_tl::td_head_magic (diabolise del) */
+	M0_RM_INCOMING_PIN_HEAD_MAGIC = 0x33d1ab0115ede177,
+
+	/* m0_rm_resource::r_magix (di doliolidae) */
+	M0_RM_RESOURCE_MAGIC = 0x33d1d011011dae77,
+
+	/* res_tl::td_head_magic (feeble eagles) */
+	M0_RM_RESOURCE_HEAD_MAGIC = 0x33feeb1eea91e577,
+
+	/* m0_rm_right::ri_magix (fizzle fields) */
+	M0_RM_CREDIT_MAGIC = 0x33f1221ef1e1d577,
+
+	/* m0_rm_ur_tl::td_head_magic (idolise iliad) */
+	M0_RM_USAGE_CREDIT_HEAD_MAGIC = 0x331d0115e111ad77,
+
+	/* remotes_tl::td_head_magic (offal oldfool) */
+	M0_RM_REMOTE_OWNER_HEAD_MAGIC = 0x330ffa101df00177,
+
+	/* m0_rm_remote::rem_magix (hobo hillbill) */
+	M0_RM_REMOTE_MAGIC = 0x090477147719,
+
 /* RPC */
 	/* m0_rpc_service_type::svt_magix (seedless seel) */
 	M0_RPC_SERVICE_TYPE_MAGIC = 0x335eed1e555ee177,

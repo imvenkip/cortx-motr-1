@@ -90,7 +90,6 @@ M0_INTERNAL int m0_rpc_cob_lookup_helper(struct m0_cob_domain *dom,
 					 struct m0_cob **out,
 					 struct m0_db_tx *tx);
 
-
 /**
   Lookup /SESSIONS entry in cob namespace
  */
@@ -101,8 +100,8 @@ M0_INTERNAL int m0_rpc_root_session_cob_get(struct m0_cob_domain *dom,
 /**
   Creates /SESSIONS entry in cob namespace
  */
-M0_INTERNAL int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
-					       struct m0_db_tx *tx);
+int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
+				   struct m0_db_tx *tx);
 
 /**
    Helper routine, internal to rpc module.

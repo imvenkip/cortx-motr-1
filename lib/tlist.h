@@ -273,6 +273,10 @@ M0_INTERNAL void m0_tlink_del_fini(const struct m0_tl_descr *d, void *obj);
 
 M0_INTERNAL bool m0_tlist_invariant(const struct m0_tl_descr *d,
 				    const struct m0_tl *list);
+M0_INTERNAL bool m0_tlist_invariant_ext(const struct m0_tl_descr *d,
+					const struct m0_tl *list,
+					bool (*check)(const void *, void *),
+					void *datum);
 M0_INTERNAL bool m0_tlink_invariant(const struct m0_tl_descr *d,
 				    const void *obj);
 
@@ -489,6 +493,10 @@ scope const struct m0_tl_descr name ## _tl
 scope void name ## _tlist_init(struct m0_tl *head);			\
 scope void name ## _tlist_fini(struct m0_tl *head);			\
 scope void name ## _tlink_init(amb_type *amb);				\
+scope bool name ## _tlist_invariant_ext(const struct m0_tl *head,       \
+                                        bool (*check)(const amb_type *, \
+                                        void *), void *);		\
+scope bool   name ## _tlist_is_empty(const struct m0_tl *list);		\
  scope void name ## _tlink_init_at(amb_type *amb, struct m0_tl *head);	\
  scope void name ## _tlink_init_at_tail(amb_type *amb, struct m0_tl *head);\
 scope void name ## _tlink_fini(amb_type *amb);				\
@@ -567,6 +575,19 @@ scope __AUN void name ## _tlink_fini(amb_type *amb)			\
 scope __AUN void name ## _tlink_del_fini(amb_type *amb)			\
 {									\
 	m0_tlink_del_fini(&name ## _tl, amb);				\
+}									\
+									\
+scope __AUN bool name ## _tlist_invariant(const struct m0_tl *list)	\
+{									\
+	return m0_tlist_invariant(&name ## _tl, list);			\
+}									\
+									\
+scope __AUN bool name ## _tlist_invariant_ext(const struct m0_tl *list, \
+					      bool (*check)(const amb_type *,\
+					      void *), void *datum)		\
+{									\
+	return m0_tlist_invariant_ext(&name ## _tl, list,               \
+			 (bool (*)(const void *, void *))check, datum);	\
 }									\
 									\
 scope __AUN bool   name ## _tlist_is_empty(const struct m0_tl *list)	\

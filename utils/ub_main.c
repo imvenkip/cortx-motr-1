@@ -37,6 +37,7 @@ extern struct m0_ub_set m0_db_ub;
 extern struct m0_ub_set m0_emap_ub;
 extern struct m0_ub_set m0_fol_ub;
 extern struct m0_ub_set m0_parity_math_ub;
+extern struct m0_ub_set m0_rm_ub;
 
 #define UB_SANDBOX "./ub-sandbox"
 
@@ -63,6 +64,7 @@ int main(int argc, char *argv[])
                 m0_ub_set_add(&m0_list_ub);
                 m0_ub_set_add(&m0_bitmap_ub);
                 m0_ub_set_add(&m0_parity_math_ub);
+                m0_ub_set_add(&m0_rm_ub);
 		m0_ub_set_add(&m0_thread_ub);
 		m0_ub_set_add(&m0_trace_ub);
 		m0_ub_set_add(&m0_atomic_ub);
