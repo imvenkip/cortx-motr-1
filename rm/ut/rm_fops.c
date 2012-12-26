@@ -160,7 +160,7 @@ static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
 {
 	struct m0_fop_rm_borrow_rep *breply;
 	struct m0_fom_error_rep     *rreply;
-	struct m0_fop_type          *fopt;
+	struct m0_fop_type          *fopt = NULL;
 
 	struct m0_fop		    *fop;
 	struct m0_rm_pin	    *pin;

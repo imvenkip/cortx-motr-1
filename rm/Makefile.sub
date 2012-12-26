@@ -1,16 +1,17 @@
 nobase_mero_include_HEADERS += rm/rm.h \
 			       rm/rm_fops.h \
 			       rm/rm_foms.h \
-			       rm/rm_ff.h
-                                  
+			       rm/rm_xc.h
+
 mero_libmero_la_SOURCES     += rm/rm_fops.c \
 			       rm/rm.c \
 			       rm/rm_foms.c \
-			       rm/rm_ff.c
+			       rm/rm_xc.c
 
-FF_FILES                    += rm/rm_ff.h
+XC_FILES                    += rm/rm_xc.h
 
 EXTRA_DIST                  += rm.ff
 
-CLEANFILES                  += rm/rm_ff.h \
-                               rm/rm_ff.c
+CLEANFILES                  += rm/rm_xc.h \
+                               rm/rm_xc.c \
+			       rm/rm.gccxml
