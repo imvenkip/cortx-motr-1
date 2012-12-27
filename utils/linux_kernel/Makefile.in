@@ -10,8 +10,8 @@ EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @top_srcdir@ @M0_KCPPFLAGS@ @M0_KCFLAGS@ 
 prepare:
 
 distclean clean:
-	$(RM) $(shared_ut) Module.markers Module.symvers modules.order
-	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
+	$(RM) $(shared_ut)
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
 	cp $(KUTM0_SRCDIR)/Makefile.in $(KUTM0_SRCDIR)/main.c \

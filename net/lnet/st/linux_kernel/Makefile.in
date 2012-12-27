@@ -20,7 +20,6 @@ prepare:
 
 clean distclean:
 	$(RM) $(st_src)
-	$(RM) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:

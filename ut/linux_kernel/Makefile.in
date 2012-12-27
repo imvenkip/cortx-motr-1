@@ -15,7 +15,7 @@ prepare:
 	ln -fs $(orig) .
 
 clean distclean:
-	$(RM) $(shared_src) Module.markers Module.symvers modules.order
+	$(RM) $(shared_src)
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
