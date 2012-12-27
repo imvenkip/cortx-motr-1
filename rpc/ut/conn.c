@@ -54,6 +54,7 @@ static int conn_ut_init(void)
 
 	rpc_conn_ut_tlist_init(&machine.rm_incoming_conns);
 	rpc_conn_ut_tlist_init(&machine.rm_outgoing_conns);
+	rmach_watch_tlist_init(&machine.rm_watch);
 	m0_sm_group_init(&machine.rm_sm_grp);
 
 	m0_fi_enable("rpc_chan_get", "do_nothing");
@@ -65,6 +66,7 @@ static int conn_ut_init(void)
 
 static int conn_ut_fini(void)
 {
+	rmach_watch_tlist_fini(&machine.rm_watch);
 	rpc_conn_ut_tlist_fini(&machine.rm_incoming_conns);
 	rpc_conn_ut_tlist_fini(&machine.rm_outgoing_conns);
 	m0_sm_group_fini(&machine.rm_sm_grp);

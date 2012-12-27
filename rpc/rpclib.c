@@ -89,6 +89,12 @@ void m0_rpc_server_stop(struct m0_rpc_server_ctx *sctx)
 	M0_LEAVE();
 	return;
 }
+
+M0_INTERNAL struct m0_rpc_machine *
+m0_rpc_server_ctx_get_rmachine(struct m0_rpc_server_ctx *sctx)
+{
+	return m0_mero_to_rmach(&sctx->rsx_mero_ctx);
+}
 #endif
 
 M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,

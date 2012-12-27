@@ -542,6 +542,12 @@ enum m0_magic_satchel {
 	/* rpc_chans_tl::td_head_magic (idesia fossil) */
 	M0_RPC_CHAN_HEAD_MAGIC = 0x331de51af0551177,
 
+	/* m0_rpc_chan_watch::mw_magic "accessboiled*/
+	M0_RPC_MACHINE_WATCH_MAGIC = 0x33ACCE55B011ED77,
+
+	/* rmach_watch_tl::td_head_magic "COCOAA CALLED" */
+	M0_RPC_MACHINE_WATCH_HEAD_MAGIC = 0x33C0C0AACA11ED77,
+
 /* stob */
 	/* m0_stob_cacheable::ca_magix (bilobed flood) */
 	M0_STOB_CACHEABLE_MAGIX = 0x33b110bedf100d77,

@@ -30,6 +30,8 @@
 /* Imports */
 struct m0_net_end_point;
 struct m0_rpc_machine;
+struct m0_rpc_machine_watch;
+
 
 /**
    @addtogroup rpc
@@ -69,10 +71,19 @@ struct m0_rpc_chan {
 
 M0_INTERNAL void m0_rpc_machine_lock(struct m0_rpc_machine *machine);
 M0_INTERNAL void m0_rpc_machine_unlock(struct m0_rpc_machine *machine);
-M0_INTERNAL bool m0_rpc_machine_is_locked(const struct m0_rpc_machine *machine);
+M0_INTERNAL bool
+m0_rpc_machine_is_locked(const struct m0_rpc_machine *machine);
+M0_INTERNAL bool
+m0_rpc_machine_is_not_locked(const struct m0_rpc_machine *machine);
+
+M0_INTERNAL void m0_rpc_machine_add_conn(struct m0_rpc_machine *rmach,
+					 struct m0_rpc_conn    *conn);
 
 M0_TL_DESCR_DECLARE(rpc_conn, M0_EXTERN);
 M0_TL_DECLARE(rpc_conn, M0_INTERNAL, struct m0_rpc_conn);
+
+M0_TL_DESCR_DECLARE(rmach_watch, M0_EXTERN);
+M0_TL_DECLARE(rmach_watch, M0_INTERNAL, struct m0_rpc_machine_watch);
 
 /** @} */
 #endif /* __MERO_RPC_MACHINE_INT_H__ */

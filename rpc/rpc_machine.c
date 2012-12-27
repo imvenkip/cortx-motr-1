@@ -101,6 +101,12 @@ M0_TL_DESCR_DEFINE(rpc_chan, "rpc_channels", static, struct m0_rpc_chan,
 		   M0_RPC_CHAN_HEAD_MAGIC);
 M0_TL_DEFINE(rpc_chan, static, struct m0_rpc_chan);
 
+M0_TL_DESCR_DEFINE(rmach_watch, "rpc_machine_watch", M0_INTERNAL,
+		   struct m0_rpc_machine_watch, mw_linkage, mw_magic,
+		   M0_RPC_MACHINE_WATCH_MAGIC,
+		   M0_RPC_MACHINE_WATCH_HEAD_MAGIC);
+M0_TL_DEFINE(rmach_watch, M0_INTERNAL, struct m0_rpc_machine_watch);
+
 M0_TL_DESCR_DEFINE(rpc_conn, "rpc-conn", M0_INTERNAL, struct m0_rpc_conn,
 		   c_link, c_magic, M0_RPC_CONN_MAGIC, M0_RPC_CONN_HEAD_MAGIC);
 M0_TL_DEFINE(rpc_conn, M0_INTERNAL, struct m0_rpc_conn);
@@ -185,6 +191,7 @@ static int __rpc_machine_init(struct m0_rpc_machine *machine)
 	rpc_chan_tlist_init(&machine->rm_chans);
 	rpc_conn_tlist_init(&machine->rm_incoming_conns);
 	rpc_conn_tlist_init(&machine->rm_outgoing_conns);
+	rmach_watch_tlist_init(&machine->rm_watch);
 	m0_rpc_services_tlist_init(&machine->rm_services);
 
 	addb_mc = REQH_ADDB_MC_CONFIGURED(machine->rm_reqh) ?
@@ -229,6 +236,8 @@ static void __rpc_machine_fini(struct m0_rpc_machine *machine)
 	m0_addb_counter_fini(&machine->rm_cntr_sent_item_sizes);
 	m0_addb_counter_fini(&machine->rm_cntr_rcvd_item_sizes);
 	m0_addb_ctx_fini(&machine->rm_addb_ctx);
+
+	rmach_watch_tlist_fini(&machine->rm_watch);
 	m0_rpc_services_tlist_fini(&machine->rm_services);
 	rpc_conn_tlist_fini(&machine->rm_outgoing_conns);
 	rpc_conn_tlist_fini(&machine->rm_incoming_conns);
@@ -240,6 +249,8 @@ static void __rpc_machine_fini(struct m0_rpc_machine *machine)
 
 void m0_rpc_machine_fini(struct m0_rpc_machine *machine)
 {
+	struct m0_rpc_machine_watch *watch;
+
 	M0_ENTRY("machine: %p", machine);
 	M0_PRE(machine != NULL);
 
@@ -256,6 +267,13 @@ void m0_rpc_machine_fini(struct m0_rpc_machine *machine)
 	/* RPC does not yet support finalising active connections */
 	M0_PRE(rpc_conn_tlist_is_empty(&machine->rm_incoming_conns));
 	m0_rpc_machine_unlock(machine);
+
+	/* Detach watchers if any */
+	m0_tl_for(rmach_watch, &machine->rm_watch, watch) {
+		rmach_watch_tlink_del_fini(watch);
+		if (watch->mw_mach_terminated != NULL)
+			watch->mw_mach_terminated(watch);
+	} m0_tl_endfor;
 
 	rpc_tm_cleanup(machine);
 	__rpc_machine_fini(machine);
@@ -413,15 +431,23 @@ M0_INTERNAL bool m0_rpc_machine_is_locked(const struct m0_rpc_machine *machine)
 }
 M0_EXPORTED(m0_rpc_machine_is_locked);
 
-void __rpc_machine_get_stats(struct m0_rpc_machine *machine,
-			     struct m0_rpc_stats *stats, bool reset)
+M0_INTERNAL bool
+m0_rpc_machine_is_not_locked(const struct m0_rpc_machine *machine)
+{
+	M0_PRE(machine != NULL);
+	return m0_mutex_is_not_locked(&machine->rm_sm_grp.s_lock);
+}
+M0_EXPORTED(m0_rpc_machine_is_not_locked);
+
+static void __rpc_machine_get_stats(struct m0_rpc_machine *machine,
+				    struct m0_rpc_stats *stats, bool reset)
 {
 	M0_PRE(machine != NULL);
 	M0_PRE(m0_rpc_machine_is_locked(machine));
 	M0_PRE(stats != NULL);
 
 	*stats = machine->rm_stats;
-	if(reset)
+	if (reset)
 		M0_SET0(&machine->rm_stats);
 }
 
@@ -495,6 +521,33 @@ M0_INTERNAL void m0_rpc_machine_stats_post_addb(struct m0_rpc_machine *machine)
 	m0_rpc_machine_unlock(machine);
 }
 M0_EXPORTED(m0_rpc_machine_stats_post_addb);
+
+M0_INTERNAL void m0_rpc_machine_add_conn(struct m0_rpc_machine *rmach,
+					 struct m0_rpc_conn    *conn)
+{
+	struct m0_rpc_machine_watch *watch;
+	struct m0_tl                *tlist;
+
+	M0_ENTRY("rmach: %p conn: %p", rmach, conn);
+
+	M0_PRE(m0_rpc_machine_is_locked(rmach));
+	M0_PRE(conn != NULL && !rpc_conn_tlink_is_in(conn));
+	M0_PRE(equi(conn->c_flags & RCF_SENDER_END,
+		    !(conn->c_flags & RCF_RECV_END)));
+
+	tlist = (conn->c_flags & RCF_SENDER_END) ? &rmach->rm_outgoing_conns :
+						   &rmach->rm_incoming_conns;
+	rpc_conn_tlist_add(tlist, conn);
+	M0_LOG(M0_DEBUG, "rmach %p conn %p added to %s list", rmach, conn,
+		(conn->c_flags & RCF_SENDER_END) ? "outgoing" : "incoming");
+	m0_tl_for(rmach_watch, &rmach->rm_watch, watch) {
+		if (watch->mw_conn_added != NULL)
+			watch->mw_conn_added(watch, conn);
+	} m0_tl_endfor;
+
+	M0_POST(rpc_conn_tlink_is_in(conn));
+	M0_LEAVE();
+}
 
 M0_INTERNAL struct m0_rpc_chan *rpc_chan_get(struct m0_rpc_machine *machine,
 					     struct m0_net_end_point *dest_ep,
@@ -763,6 +816,47 @@ static void rpc_recv_pool_buffer_put(struct m0_net_buffer *nb)
 	m0_net_buffer_pool_put(tm->ntm_recv_pool, nb,
 			       tm->ntm_pool_colour);
 	m0_net_buffer_pool_unlock(tm->ntm_recv_pool);
+
+	M0_LEAVE();
+}
+
+/*
+ * RPC machine watch.
+ */
+
+void m0_rpc_machine_watch_attach(struct m0_rpc_machine_watch *watch)
+{
+	struct m0_rpc_machine *rmach;
+
+	M0_ENTRY("watch: %p", watch);
+	M0_PRE(watch != NULL);
+
+	rmach = watch->mw_mach;
+	M0_PRE(rmach != NULL);
+	M0_PRE(m0_rpc_machine_is_not_locked(rmach));
+
+	m0_rpc_machine_lock(rmach);
+	rmach_watch_tlink_init_at_tail(watch, &rmach->rm_watch);
+	m0_rpc_machine_unlock(rmach);
+
+	M0_LEAVE();
+}
+
+void m0_rpc_machine_watch_detach(struct m0_rpc_machine_watch *watch)
+{
+	struct m0_rpc_machine *rmach;
+
+	M0_ENTRY("watch: %p", watch);
+	M0_PRE(watch != NULL);
+
+	rmach = watch->mw_mach;
+	M0_PRE(rmach != NULL);
+	M0_PRE(m0_rpc_machine_is_not_locked(rmach));
+
+	m0_rpc_machine_lock(rmach);
+	if (rmach_watch_tlink_is_in(watch))
+		rmach_watch_tlink_del_fini(watch);
+	m0_rpc_machine_unlock(rmach);
 
 	M0_LEAVE();
 }

@@ -18,6 +18,11 @@
  * Original creation date: 09/28/2011
  */
 
+#include "ut/rpc.h"
+#include "rpc/rpclib.h"
+
+#ifndef __KERNEL__
+
 #define CLIENT_ENDPOINT_ADDR       "0@lo:12345:34:*"
 #define CLIENT_DB_NAME		   "rpclib_ut_client.db"
 
@@ -69,6 +74,8 @@ static struct m0_rpc_server_ctx sctx = {
 	.rsx_service_types_nr = 2,
 	.rsx_log_file_name    = SERVER_LOG_FILE_NAME,
 };
+
+#endif /* __KERNEL__ */
 
 /*
  *  Local variables:

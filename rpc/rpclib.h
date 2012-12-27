@@ -96,6 +96,10 @@ int m0_rpc_server_start(struct m0_rpc_server_ctx *sctx);
   @param sctx  Initialized rpc context structure.
 */
 void m0_rpc_server_stop(struct m0_rpc_server_ctx *sctx);
+
+M0_INTERNAL struct m0_rpc_machine *
+m0_rpc_server_ctx_get_rmachine(struct m0_rpc_server_ctx *sctx);
+
 #endif
 
 struct m0_net_xprt;

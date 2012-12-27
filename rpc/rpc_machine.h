@@ -40,6 +40,8 @@
 
 /* Imports */
 struct m0_cob_domain;
+struct m0_rpc_conn;
+struct m0_rpc_session;
 struct m0_reqh;
 
 enum {
@@ -116,6 +118,13 @@ struct m0_rpc_machine {
 	struct m0_tl                      rm_services;
 
 	/**
+	   List of m0_rpc_machine_watch instances.
+	   tlink: m0_rpc_machine_watch::mw_linkage
+	   tlist descr: rmach_watch
+	 */
+	struct m0_tl                      rm_watch;
+
+	/**
 	   Executes ASTs in rm_sm_grp.
 	 */
 	struct m0_thread                  rm_worker;
@@ -182,6 +191,70 @@ void m0_rpc_machine_get_stats(struct m0_rpc_machine *machine,
 M0_INTERNAL void m0_rpc_machine_stats_post_addb(struct m0_rpc_machine *machine);
 
 M0_BOB_DECLARE(extern, m0_rpc_machine);
+
+/**
+ * RPC machine watch is a suite of call-backs invoked by the rpc code when new
+ * connection or session is created within the rpc machine the watch is
+ * attached to.
+ *
+ * Call-backs are invoked under the rpc machine lock.
+ */
+struct m0_rpc_machine_watch {
+	/**
+	 * Datum that can be used to associate additional state to the watcher.
+	 */
+	void                  *mw_datum;
+	/**
+	 * RPC machine this watcher is attached to. This field must be set
+	 * before calling m0_rpc_machine_watch_attach().
+	 */
+	struct m0_rpc_machine *mw_mach;
+	/**
+	 * Linkage into m0_rpc_machine::rm_watch list of all watches for this
+	 * machine.
+	 */
+	struct m0_tlink       mw_linkage;
+	/**
+	 * This is invoked when a connection is added to one of the rpc machine
+	 * connection lists. The connection is in M0_RPC_CONN_INITIALISED state.
+	 */
+	void (*mw_conn_added)(struct m0_rpc_machine_watch *w,
+			      struct m0_rpc_conn *conn);
+	/**
+	 * This is called when a session is added to the connection list of
+	 * sessions (m0_rpc_conn::c_sessions). The session is in
+	 * M0_RPC_SESSION_INITIALISED state.
+	 */
+	void (*mw_session_added)(struct m0_rpc_machine_watch *w,
+				 struct m0_rpc_session *session);
+	/**
+	 * This call-back is called when the rpc machine is terminated, while
+	 * still having attached watches. The watch is removed from the watch
+	 * list before this call-back is invoked. There is neither need nor harm
+	 * in calling m0_rpc_machine_watch_detach() once this call-back was
+	 * invoked.
+	 */
+	void (*mw_mach_terminated)(struct m0_rpc_machine_watch *w);
+
+	/** @see M0_RPC_MACHINE_WATCH_MAGIC */
+	uint64_t mw_magic;
+};
+
+/**
+ * Attaches a watch to its rpc machine.
+ *
+ * @pre watch->mw_mach != NULL
+ * @pre m0_rpc_machine_is_not_locked(watch->mw_mach)
+ */
+void m0_rpc_machine_watch_attach(struct m0_rpc_machine_watch *watch);
+
+/**
+ * Detaches a watch from its rpc machine, if still attached.
+ *
+ * @pre watch->mw_mach != NULL
+ * @pre m0_rpc_machine_is_not_locked(watch->mw_mach)
+ */
+void m0_rpc_machine_watch_detach(struct m0_rpc_machine_watch *watch);
 
 /** @} end of rpc group */
 #endif /* __MERO_RPC_MACHINE_H__ */

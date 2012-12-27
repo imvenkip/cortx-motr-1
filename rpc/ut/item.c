@@ -27,7 +27,6 @@
 #include "fop/fop.h"               /* m0_fop_alloc */
 #include "rpc/rpclib.h"
 #include "net/lnet/lnet.h"         /* m0_net_lnet_xprt */
-#include "ut/rpc.h"                /* m0_rpc_client_[init|fini] */
 #include "ut/cs_fop_foms.h"        /* cs_ds2_req_fop_fopt */
 #include "ut/cs_fop_foms_xc.h"     /* cs_ds2_req_fop */
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */

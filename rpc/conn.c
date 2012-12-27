@@ -277,9 +277,9 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
 
 	rc = __conn_init(conn, ep, machine, max_rpcs_in_flight);
 	if (rc == 0) {
-		rpc_conn_tlist_add(&machine->rm_outgoing_conns, conn);
 		m0_sm_init(&conn->c_sm, &conn_conf, M0_RPC_CONN_INITIALISED,
 			   &machine->rm_sm_grp, NULL /* addb context */);
+		m0_rpc_machine_add_conn(machine, conn);
 		M0_LOG(M0_INFO, "%p INITIALISED \n", conn);
 	}
 
@@ -399,9 +399,9 @@ M0_INTERNAL int m0_rpc_rcv_conn_init(struct m0_rpc_conn *conn,
 
 	rc = __conn_init(conn, ep, machine, 8 /* max packets in flight */);
 	if (rc == 0) {
-		rpc_conn_tlist_add(&machine->rm_incoming_conns, conn);
 		m0_sm_init(&conn->c_sm, &conn_conf, M0_RPC_CONN_INITIALISED,
 			   &machine->rm_sm_grp, NULL /* addb context */);
+		m0_rpc_machine_add_conn(machine, conn);
 		M0_LOG(M0_INFO, "%p INITIALISED \n", conn);
 	}
 
@@ -502,8 +502,15 @@ M0_EXPORTED(m0_rpc_conn_timedwait);
 M0_INTERNAL void m0_rpc_conn_add_session(struct m0_rpc_conn *conn,
 					 struct m0_rpc_session *session)
 {
+	struct m0_rpc_machine_watch *watch;
+
 	rpc_session_tlist_add(&conn->c_sessions, session);
 	conn->c_nr_sessions++;
+
+	m0_tl_for(rmach_watch, &conn->c_rpc_machine->rm_watch, watch) {
+		if (watch->mw_session_added != NULL)
+			watch->mw_session_added(watch, session);
+	} m0_tl_endfor;
 }
 
 M0_INTERNAL void m0_rpc_conn_remove_session(struct m0_rpc_session *session)

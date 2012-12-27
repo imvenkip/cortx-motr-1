@@ -20,13 +20,15 @@
 
 #include "lib/ut.h"
 #include "lib/finject.h"
-#include "rpc/rpc_machine.h"
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 #include "net/net.h"
 #include "db/db.h"
 #include "cob/cob.h"
 #include "rpc/rpc.h"
 #include "net/buffer_pool.h"
 #include "net/lnet/lnet.h"
+#include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
 
 struct m0_rpc_machine            machine;
 static uint32_t                  max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
@@ -154,13 +156,91 @@ static void rpc_mc_init_fail_test(void)
 #endif*/
 }
 
+#ifndef __KERNEL__
+
+static bool conn_added_called;
+static bool session_added_called;
+static bool mach_terminated_called;
+
+static void conn_added(struct m0_rpc_machine_watch *watch,
+		       struct m0_rpc_conn *conn)
+{
+	M0_UT_ASSERT(conn->c_sm.sm_state == M0_RPC_CONN_INITIALISED);
+	M0_UT_ASSERT(rpc_conn_tlink_is_in(conn));
+	M0_UT_ASSERT(m0_rpc_machine_is_locked(watch->mw_mach));
+	conn_added_called = true;
+}
+
+static void session_added(struct m0_rpc_machine_watch *watch,
+			  struct m0_rpc_session *session)
+{
+	M0_UT_ASSERT(session->s_sm.sm_state == M0_RPC_SESSION_INITIALISED);
+	M0_UT_ASSERT(rpc_session_tlink_is_in(session));
+	M0_UT_ASSERT(m0_rpc_machine_is_locked(watch->mw_mach));
+	session_added_called = true;
+}
+
+static void mach_terminated(struct m0_rpc_machine_watch *watch)
+{
+	M0_UT_ASSERT(!rmach_watch_tlink_is_in(watch));
+	mach_terminated_called = true;
+}
+
+static void rpc_machine_watch_test(void)
+{
+	struct m0_rpc_machine_watch  watch;
+	struct m0_rpc_machine       *rmach;
+	int                          rc;
+
+	rc = m0_net_xprt_init(xprt);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_net_domain_init(&client_net_dom, xprt);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_server_start(&sctx);
+	M0_UT_ASSERT(rc == 0);
+
+	rmach = m0_rpc_server_ctx_get_rmachine(&sctx);
+	M0_UT_ASSERT(rmach != NULL);
+
+	watch.mw_mach          = rmach;
+	watch.mw_conn_added    = conn_added;
+	watch.mw_session_added = session_added;
+
+	m0_rpc_machine_watch_attach(&watch);
+
+	rc = m0_rpc_client_init(&cctx);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(conn_added_called && session_added_called);
+
+	m0_rpc_machine_watch_detach(&watch);
+	/* It is safe to call detach if watch is already detached */
+	m0_rpc_machine_watch_detach(&watch);
+
+	/* If rpc machine is being terminated, while still having attached
+	   watchers, then they are detached and mw_mach_terminated() callback
+	   is called.
+	 */
+	watch.mw_mach_terminated = mach_terminated;
+	m0_rpc_machine_watch_attach(&watch);
+	rc = m0_rpc_client_fini(&cctx);
+	M0_UT_ASSERT(rc == 0);
+	m0_rpc_server_stop(&sctx);
+	M0_UT_ASSERT(mach_terminated_called);
+	m0_net_domain_fini(&client_net_dom);
+	m0_net_xprt_fini(xprt);
+}
+#endif /* __KERNEL__ */
+
 const struct m0_test_suite rpc_mc_ut = {
 	.ts_name = "rpc_mc_ut",
 	.ts_init = rpc_mc_ut_init,
 	.ts_fini = rpc_mc_ut_fini,
 	.ts_tests = {
-		{ "rpc_mc_init_fini", rpc_mc_init_fini_test},
-		{ "rpc_mc_init_fail", rpc_mc_init_fail_test},
+		{ "rpc_mc_init_fini", rpc_mc_init_fini_test },
+		{ "rpc_mc_init_fail", rpc_mc_init_fail_test },
+#ifndef __KERNEL__
+		{ "rpc_mc_watch",     rpc_machine_watch_test},
+#endif
 		{ NULL, NULL}
 	}
 };

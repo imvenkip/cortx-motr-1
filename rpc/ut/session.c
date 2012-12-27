@@ -64,6 +64,7 @@ static int session_ut_init(void)
 	conn.c_rpc_machine = &machine;
 	conn.c_sender_id   = SENDER_ID;
 	rpc_session_tlist_init(&conn.c_sessions);
+	rmach_watch_tlist_init(&machine.rm_watch);
 
 	m0_sm_group_init(&machine.rm_sm_grp);
 	rc = m0_rpc_session_init(&session0, &conn, SLOTS_NR);
@@ -86,6 +87,7 @@ static int session_ut_fini(void)
 {
 	session0.s_session_id = SESSION_ID_INVALID;
 	m0_rpc_session_fini(&session0);
+	rmach_watch_tlist_fini(&machine.rm_watch);
 	rpc_session_tlist_fini(&conn.c_sessions);
 	m0_sm_group_fini(&machine.rm_sm_grp);
 	m0_fi_disable("m0_rpc__fop_post", "do_nothing");
