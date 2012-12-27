@@ -546,7 +546,8 @@ struct m0_rm_credit_ops {
 	 *
 	 *  This function destructively updates "c0" in place.
          */
-        int  (*cro_diff)(struct m0_rm_credit *c0, const struct m0_rm_credit *c1);
+        int  (*cro_diff)(struct m0_rm_credit *c0,
+			 const struct m0_rm_credit *c1);
 	/** Creates a copy of "src" in "dst".
 	 *
 	 *  @pre dst is empty.
@@ -1123,8 +1124,8 @@ enum m0_rm_incoming_flags {
  *                 not conflict with locally held credits.
  *
  *     - [POLICY]  If the request can be fulfilled immediately, the "policy" is
- *                 invoked which decides which credit should be actually granted,
- *                 sublet or revoked. That credit can be larger than
+ *                 invoked which decides which credit should be actually
+ *                 granted, sublet or revoked. That credit can be larger than
  *                 requested. A policy is, generally, resource type dependent,
  *                 with a few universal policies defined by enum
  *                 m0_rm_incoming_policy.
@@ -1749,8 +1750,8 @@ M0_INTERNAL void m0_rm_remote_owner_set(struct m0_rm_remote *rem, uint64_t id);
  *
  * This file defines RM-fops needed for RM-generic layer. All the layers using
  * RM will have to define their own FOPs to fetch resource data. RM-generic FOPs
- * provide a facility for resource credits management and to fetch small resource
- * data.
+ * provide a facility for resource credits management and to fetch small
+ * resource data.
  *
  * <b>RM fop formats</b>
  *
@@ -1783,7 +1784,6 @@ struct m0_fop_rm_owner {
 	struct m0_buf    ow_resource;
 } M0_XCA_RECORD;
 
-
 struct m0_fop_rm_loan {
 	struct m0_cookie lo_cookie;
 } M0_XCA_RECORD;
@@ -1793,10 +1793,11 @@ struct m0_fop_rm_credit {
 } M0_XCA_RECORD;
 
 struct m0_fop_rm_req {
-	struct m0_fop_rm_owner  rrq_owner; /* Could either be debtor or creditor */
+	/* Could either be debtor or creditor */
+	struct m0_fop_rm_owner  rrq_owner;
 	struct m0_fop_rm_credit rrq_credit;
 	uint64_t                rrq_policy;
-	uint64_t                     rrq_flags;
+	uint64_t                rrq_flags;
 } M0_XCA_RECORD;
 
 struct m0_fop_rm_borrow {
