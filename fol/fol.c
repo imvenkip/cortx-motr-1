@@ -500,8 +500,8 @@ static int fol_record_decode(struct m0_fol_rec *rec)
 }
 
 static inline int fol_rec_part_encdec(struct m0_fol_rec_part  *part,
-			       struct m0_bufvec_cursor *cur,
-			       enum m0_bufvec_what      what)
+			              struct m0_bufvec_cursor *cur,
+			              enum m0_bufvec_what      what)
 {
 	int		     rc;
 	struct m0_xcode_ctx  xc_ctx;
