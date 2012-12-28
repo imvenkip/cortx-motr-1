@@ -244,14 +244,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 		    the last update for the unit.
 	-VC: A version counter
 
-   Each File system object called unit has "verno of its latest state" as an
-   attribute. This attribute is modified with every update to unit state.
-
-   A verno consists of two components:
-	-LSN (lsn): A reference to a FOL record, points to the record with
-		    the last update for the unit.
-	-VC: A version counter
-
    <hr>
    @section IOFOLDLD-req Requirements
 
@@ -362,10 +354,10 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    }
    @endcode
 
-   <hr>
-   @section IOFOLDLD-lspec Logical Specification
-   A FOL record is uniquely identified and located by using an LSN
-   (Log Sequence Number).
+   m0_fol_rec_part_type_init() and m0_fol_rec_part_type_fini() are added
+   to initialize and finalize FOL part types.
+   FOL recors part types are registered in a global array of FOL record
+   parts using m0_fol_rec_part_type::rpt_index.
 
    For each of create, delete and write IO operations FOL record parts are
    initialised with their xcode type and FOL operations.

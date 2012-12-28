@@ -499,16 +499,9 @@ static int fol_record_decode(struct m0_fol_rec *rec)
 	return 0;
 }
 
-#include "xcode/xcode.h"
-
-M0_TL_DESCR_DEFINE(m0_rec_part, "fol record part", M0_INTERNAL,
-		   struct m0_fol_rec_part, rp_link, rp_magic,
-		   M0_FOL_REC_PART_LINK_MAGIC, M0_FOL_REC_PART_HEAD_MAGIC);
-M0_TL_DEFINE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
-
-M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
-				       struct m0_bufvec_cursor *cur,
-				       enum m0_bufvec_what      what)
+static inline int fol_rec_part_encdec(struct m0_fol_rec_part  *part,
+			       struct m0_bufvec_cursor *cur,
+			       enum m0_bufvec_what      what)
 {
 	int		     rc;
 	struct m0_xcode_ctx  xc_ctx;
@@ -528,35 +521,39 @@ M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
 	return rc;
 }
 
-int m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
+static int fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
 {
+	/**
+	 * @todo Global list of FOL record part type are mainitained to
+	 * register them.
+	 */
 	return 0;
 }
 
-void m0_fol_rec_part_type_deregister(struct m0_fol_rec_part_type *type)
+static void fol_rec_part_type_deregister(struct m0_fol_rec_part_type *type)
 {
 
 }
 
-int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
-			      const char		  *name,
-			      const struct m0_xcode_type  *xt)
+M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
+					  const char *name,
+					  const struct m0_xcode_type *xt)
 {
 	type->rpt_xt   = xt;
 	type->rpt_name = name;
-	return m0_fol_rec_part_type_register(type);
+	return fol_rec_part_type_register(type);
 }
 
-void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type)
+M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type)
 {
-	m0_fol_rec_part_type_deregister(type);
+	fol_rec_part_type_deregister(type);
 	type->rpt_xt   = NULL;
 	type->rpt_name = NULL;
 }
 
-void m0_fol_rec_part_init(struct m0_fol_rec_part *part,
-			  const struct m0_fol_rec_part_ops *ops,
-			  void *data)
+M0_INTERNAL void m0_fol_rec_part_init(struct m0_fol_rec_part *part,
+				      const struct m0_fol_rec_part_ops *ops,
+				      void *data)
 {
 	part->rp_ops  = ops;
 	part->rp_data = data;
@@ -564,7 +561,7 @@ void m0_fol_rec_part_init(struct m0_fol_rec_part *part,
 	m0_rec_part_tlink_init(part);
 }
 
-void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
+M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 {
 	m0_rec_part_tlink_fini(part);
 }
@@ -581,12 +578,14 @@ static void fol_rec_parts_pack(struct m0_dtx *dtx, void *buf)
 {
 	/**
 	 * @todo Traverse dtx->tx_fol_rec_parts and encode FOL record
-	 *  parts in the buffer. Also encode m0_fol_rec_part_type::rpt_index
-	 *  for each FOl record type which will be used to decode this.
+	 *  parts in the buffer using fol_rec_part_encdec().
+	 *  Also encode m0_fol_rec_part_type::rpt_index
+	 *  for each FOl record type which will be used to decode this
+	 *  from FOL record. Then remove FOL record parts from list.
 	 */
 }
 
-M0_INTERNAL int m0_fol_rec_parts_encode(struct m0_fol_rec_desc *desc,
+static int fol_rec_parts_encode(struct m0_fol_rec_desc *desc,
 				struct m0_dtx *dtx,
 				struct m0_buf *out)
 {
@@ -624,7 +623,7 @@ M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_dtx *dtx,
 
 	M0_PRE(m0_lsn_is_valid(rec->rd_lsn));
 
-	result = m0_fol_rec_parts_encode(rec, dtx, &buf);
+	result = fol_rec_parts_encode(rec, dtx, &buf);
 	if (result == 0) {
 		result = m0_fol_add_buf(fol, &dtx->tx_dbtx, rec, &buf);
 		m0_free(buf.b_addr);

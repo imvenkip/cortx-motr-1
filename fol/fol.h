@@ -418,8 +418,13 @@ M0_INTERNAL void m0_fol_rec_part_list_add(struct m0_fol_rec *rec,
 		.xo_ptr  = r->rp_data,		                \
 }
 
+/**  Adds the FOL record iterating through FOL parts from the list in dtx
+ *   added during updates on server.
+ */
 M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_dtx *dtx,
-			   struct m0_fol_rec_desc *rec);
+			       struct m0_fol_rec_desc *rec);
+
+/** It represents updates made as part of executing FOM on server. */
 struct m0_fol_rec_part {
 	const struct m0_fol_rec_part_ops  *rp_ops;
 	void				  *rp_data;
@@ -432,7 +437,7 @@ struct m0_fol_rec_part {
 struct m0_fol_rec_part_type {
 	uint32_t                               rpt_index;
 	const char                            *rpt_name;
-	/** Xcode type representing record part type. */
+	/** Xcode type representing FOL record part type. */
 	const struct m0_xcode_type	      *rpt_xt;
 };
 
@@ -442,10 +447,17 @@ struct m0_fol_rec_part_ops {
 	int (*rpo_redo)(struct m0_fol_rec_part *part);
 };
 
-int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
-			      const char		  *name,
-			      const struct m0_xcode_type  *xt);
-void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type);
+M0_INTERNAL void m0_fol_rec_part_init(struct m0_fol_rec_part *part,
+				      const struct m0_fol_rec_part_ops *ops,
+				      void *data);
+
+M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part);
+
+M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
+					  const char *name,
+					  const struct m0_xcode_type  *xt);
+
+M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type);
 
 /** Descriptor for the tlist of fol record parts. */
 M0_TL_DESCR_DECLARE(m0_rec_part, M0_EXTERN);
