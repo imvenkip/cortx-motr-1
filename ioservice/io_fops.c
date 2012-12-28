@@ -231,7 +231,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
    <hr>
    @section IOFOLDLD-def Definitions
-   FOL(File operation log) is a per-node collection of records, describing
+   FOL (File operation log) is a per-node collection of records, describing
    updates to file system state carried out on the node.
    IO FOL is log of records for create, delete and write operations in ioservice
    which are used to perform undo or as a reply cache.
@@ -251,113 +251,65 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    @section IOFOLDLD-fspec Functional Specification
    The following new APIs are introduced:
 
-   struct m0_io_fol_write {
-        struct m0_fid                fw_fid;
-        struct m0_fop_cob_writev_rep fw_fop_rep;
-   } M0_XCA_RECORD;
+   Add FOL record parts for updates made on server for each sub system and
+   combine them in FOM generic phase to add the FOL record.
 
-   struct m0_io_fol_create {
-	struct m0_fop_cob_create   fc_fop;
-	struct m0_fop_cob_op_reply fc_fop_rep;
-   } M0_XCA_RECORD;
+   m0_fol_rec_part and m0_fol_rec_part_type are defined which
+   will be used to add FOL part records.
 
-   struct m0_io_fol_delete {
-	struct m0_fop_cob_delete   fd_fop;
-        struct m0_fop_cob_op_reply fd_fop_rep;
-   } M0_XCA_RECORD;
+   m0_fol_rec_part_ops contains operations for undo and redo of
+   FOL record parts.
+   m0_fol_rec_part_init() and m0_fol_rec_part_fini() are used to
+   initialize m0_fol_rec_part with m0_fol_rec_part_ops and for finalizing it.
 
-   In ad_write_launch() store AD allocated extents in m0_emap_seg_vec.
-   @code
-   static int ad_write_map(struct m0_stob_io *io, ...)
-   {
-	   ...
-	   struct m0_emap_seg_vec *esv = io->si_fol_private;
-	   ...
-	   do {
-		...
-		// Store extents in m0_emap_seg_vec
-		esv->sv_es[i].ee_ext.e_start = offset;
-		esv->sv_es[i].ee_ext.e_end   = offset + m0_ext_length(&todo);
-		esv->sv_es[i].ee_val         = todo.e_start;
-		esv->sv_es[i].ee_pre         = map->ct_it->ec_seg.ee_pre;
-		++i;
-		result = ad_write_map_ext(io, adom, offset, map->ct_it, &todo);
-		...
-	  } while (!eodst);
-   }
-   @endcode
+   To encode or decode FOL parts using xcode operations m0_xcode_type
+   pointer is added in m0_fol_rec_part_type:rpt_xt.
 
-   m0_emap_seg_vec for each write operation are combined in
-   m0_io_fom_cob_rw:fcrw_segs using write_extents_merge() in io_finish().
+   m0_fol_rec_part_type_init() and m0_fol_rec_part_type_fini() are added
+   to initialize and finalize FOL part types.
+   FOL recors part types are registered in a global array of FOL record
+   parts using m0_fol_rec_part_type::rpt_index.
 
-   m0_emap_extent_update() is used to update a segment read from FOL record.
-   @code
-   int m0_emap_extent_update(struct m0_emap_cursor *it, struct m0_emap_seg *es)
-   {
-	M0_PRE(es != NULL);
+   io_write_rec_part, io_create_rec_part and io_delete_rec_part FOL parts
+   are added in ioservice for write, create and delete updates.
+   ad_rec_part is added for AD write operation.
 
-	it->ec_seg.ee_ext.e_start = es->ee_ext.e_start;
-	it->ec_seg.ee_ext.e_end   = es->ee_ext.e_end;
-	it->ec_seg.ee_val         = es->ee_val;
+   FOL record part list is maintained in m0_dtx which is initialized in
+   FOM generic phase in m0_fom::fo_tx and list head is in
+   m0_dtx::tx_fol_rec_parts.
+   m0_dtx::tx_fol_rec_parts_len have the total length of FOL record parts.
+   It is updated whenever FOL record part is added.
 
-	return IT_DO_PACK(it, m0_db_cursor_set);
-   }
-   @endcode
+   m0_fol_rec_add() is used to compose FOL record from FOL record parts.
+   fol_rec_parts_pack() encodes the FOL part records from the list in dtx
+   using fol_rec_part_encdec() in a buffer and then remove them from the list.
+
+   m0_fol_rec_part_type::rpt_index should also be encoded for each FOL record
+   type so that decoding of FOL record parts from FOL record can be done using
+   this.
 
    <hr>
    @section IOFOLDLD-lspec Logical Specification
    A FOL record is uniquely identified and located by using an LSN
    (Log Sequence Number).
 
-   The FOL is organized as a single indexed table with lsn as the key
-   and record contains struct m0_fol_rec_desc *record.
-
-   A FOL record contains:
-	- identities (fids) of all files involved in the action;
-	- version numbers that files have after execution of the action;
-	- operation code;
-	- operation parameters (file names, permission modes, times, etc.);
-	- LSNs of records of previous operations on files involved in
-	  the action;
-	- Pointers to old data blocks (for undo).
-
-   A record with a given LSN is added to the fol using m0_fol_add() in the
-   transaction context.
-   Fom transaction is used to add FOL records in fom_fol_rec_add() and is
-   commited in FOM generic phase fom_txn_commit().
-
-   A fol record with a given lsn is extracted using m0_fol_rec_lookup().
-
-   Currently, for all FOP operations, m0_fop_fol_default_ops is used as
-   m0_fol_rec_type_ops which has most of it's function pointers set to NULL.
-
    For each of create, delete and write IO operations m0_fol_rec_type is
    initialised with their opcode and FOL operations.
 
    For create and delete operations fop data and reply fop data is stored
-   in FOL.
+   in FOL record parts.
 	- fop data including fid.
 	- Reply fop data is added in FOL records so that it can be used
 	  as Reply Cache.
 
-   FOL record is generated in m0_io_fol_pack() by passing m0_fom::fo_fop and
-   m0_fom::fo_rep_fop to m0_fop_encdec(), which is then commited in
-   fom_txn_commit().
+   In ad_write_launch() store AD allocated extents in struct ad_rec_part
+   and add them to the FOL record part list in m0_dtx.
+   Use the FOL record parts to do the undo operation.
 
-   To store FOL records for write updates we need to store current extents
-   or data pointers so that these extents can be used during undo.
-   Also this can be done for AD stob
-   type only, as it uses new block for every write.
-
-   ad_write_io_launch() needs to return these extents in m0_stob_io so that
-   they can be recorded.
-
-   So for write updates in m0_io_fol_pack() fid, reply fop and fcrw_segs are
-   encoded in FOL record.
-
-   To encode or decode create, delete and write updates m0_io_fol_create,
-   m0_io_fol_delete and m0_io_fol_write fop type formats are defined
-   so that they can be used to encode and decode using m0_fop_encdec().
+   After successful execution of updates on server side, in FOM generic phase
+   using m0_fom_fol_rec_add() FOL part records in the list are combined in a
+   FOL record and is made persistent. Before this phase all FOL record parts
+   needs to be added in the list after completing their updates.
 
    <hr>
    @section IOFOLDLD-conformance Conformance
@@ -382,26 +334,10 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	and data extents in FOL record. Then send the data having value "B" to
 	the ioservice.
 
-	Now retrieve the data extents for first write operation from FOL and
-	update the AD table using these data extents.
+	Now retrieve the data extents of the first write operation from FOL record
+	and update the AD table by decoding ad_rec_part from FOL record.
 	Then read the data from ioservice and assert for data "A".
 
-   To update old data extents in AD use m0_file_write_undo().
-   @code
-   int m0_file_write_undo(struct mo_dom *adom, struct mo_stob_id *id,
-			  struct m0_dtx *dtx, struct mo_emap_seg_vec *fol_vec)
-   {
-	struct m0_emap_cursor *it;
-	...
-	for (i = 0; i < fol_vec->sv_nr; ++i) {
-		rc = m0_emap_lookup(&adom->ad_adata, dtx,
-				    &fol_vec->sv_es[i].ee_pre,
-				    fol_vec->sv_es[i].ee_start,
-				    &it);
-		m0_emap_extent_update(it, fol_vec->sv_es[i])
-	}
-	...
-   }
    @endcode
    <hr>
    @section IOFOLDLD-st System Tests

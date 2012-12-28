@@ -32,17 +32,6 @@ M0_INTERNAL m0_bcount_t m0_fop_item_type_default_payload_size(const struct
 	return m0_fop_data_size(m0_rpc_item_to_fop(item));
 }
 
-M0_INTERNAL m0_bcount_t m0_fop_data_size(struct m0_fop *fop)
-{
-	struct m0_xcode_ctx ctx;
-
-	M0_PRE(fop != NULL);
-	M0_PRE(fop->f_type != NULL);
-
-	m0_xcode_ctx_init(&ctx, &M0_FOP_XCODE_OBJ(fop));
-	return m0_xcode_length(&ctx);
-}
-
 M0_INTERNAL int m0_fop_item_type_default_encode(const struct m0_rpc_item_type
 						*item_type,
 						struct m0_rpc_item *item,
@@ -88,29 +77,6 @@ M0_INTERNAL int m0_fop_item_type_default_decode(const struct m0_rpc_item_type
 	else
 		m0_fop_put(fop);
 
-	return rc;
-}
-
-M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
-			      struct m0_bufvec_cursor *cur,
-			      enum m0_bufvec_what      what)
-{
-	int		     rc;
-	struct m0_xcode_ctx  xc_ctx;
-
-	m0_xcode_ctx_init(&xc_ctx, &M0_FOP_XCODE_OBJ(fop));
-	/* structure instance copy! */
-	xc_ctx.xcx_buf   = *cur;
-	xc_ctx.xcx_alloc = m0_xcode_alloc;
-
-	rc = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(&xc_ctx) :
-					m0_xcode_decode(&xc_ctx);
-	if (rc == 0) {
-		if (what == M0_BUFVEC_DECODE)
-			fop->f_data.fd_data =
-				m0_xcode_ctx_top(&xc_ctx);
-		*cur = xc_ctx.xcx_buf;
-	}
 	return rc;
 }
 

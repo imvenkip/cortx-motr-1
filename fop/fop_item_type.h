@@ -24,7 +24,6 @@
 #define __MERO_FOP_FOP_ONWIRE_H__
 
 #include "rpc/rpc_helpers.h"
-#include "fop/fop.h"
 
 /**
    @addtogroup fop
@@ -71,18 +70,12 @@ M0_INTERNAL int m0_fop_item_type_default_decode(const struct m0_rpc_item_type
 M0_INTERNAL m0_bcount_t
 m0_fop_item_type_default_payload_size(const struct m0_rpc_item *item);
 
-M0_INTERNAL m0_bcount_t m0_fop_data_size(struct m0_fop *fop);
-
 M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
 				   struct m0_bufvec_cursor *cur,
 				   enum m0_bufvec_what what);
 
 void m0_fop_item_get(struct m0_rpc_item *item);
 void m0_fop_item_put(struct m0_rpc_item *item);
-M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
-			      struct m0_bufvec_cursor *cur,
-			      enum m0_bufvec_what      what);
-
 M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
 			      struct m0_bufvec_cursor *cur,
 			      enum m0_bufvec_what      what);

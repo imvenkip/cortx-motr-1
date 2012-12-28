@@ -317,6 +317,12 @@ M0_INTERNAL void m0_fops_fini(void);
 		.xo_ptr  = m0_fop_data(f),		\
 }
 
+M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
+			      struct m0_bufvec_cursor *cur,
+			      enum m0_bufvec_what      what);
+
+M0_INTERNAL m0_bcount_t m0_fop_data_size(struct m0_fop *fop);
+
 /** @} end of fop group */
 
 /* __MERO_FOP_FOP_H__ */

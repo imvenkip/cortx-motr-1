@@ -297,6 +297,12 @@ M0_INTERNAL int m0_fop_fol_rec_add(struct m0_fop *fop, struct m0_fol *fol,
 	return 0;
 }
 
+M0_INTERNAL void m0_fop_fol_rec_desc_init(struct m0_fol_rec_desc *desc,
+					  const struct m0_fop_type *fopt,
+					  struct m0_fol *fol)
+{
+}
+
 #else /* !__KERNEL__ */
 
 static const struct m0_fol_rec_type_ops m0_fop_fol_default_ops;
@@ -397,6 +403,40 @@ M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type
 	M0_PRE(item_type != NULL);
 
 	return container_of(item_type, struct m0_fop_type, ft_rpc_item_type);
+}
+
+M0_INTERNAL m0_bcount_t m0_fop_data_size(struct m0_fop *fop)
+{
+	struct m0_xcode_ctx ctx;
+
+	M0_PRE(fop != NULL);
+	M0_PRE(fop->f_type != NULL);
+
+	m0_xcode_ctx_init(&ctx, &M0_FOP_XCODE_OBJ(fop));
+	return m0_xcode_length(&ctx);
+}
+
+M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
+			      struct m0_bufvec_cursor *cur,
+			      enum m0_bufvec_what      what)
+{
+	int		     rc;
+	struct m0_xcode_ctx  xc_ctx;
+
+	m0_xcode_ctx_init(&xc_ctx, &M0_FOP_XCODE_OBJ(fop));
+	/* structure instance copy! */
+	xc_ctx.xcx_buf   = *cur;
+	xc_ctx.xcx_alloc = m0_xcode_alloc;
+
+	rc = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(&xc_ctx) :
+					m0_xcode_decode(&xc_ctx);
+	if (rc == 0) {
+		if (what == M0_BUFVEC_DECODE)
+			fop->f_data.fd_data =
+				m0_xcode_ctx_top(&xc_ctx);
+		*cur = xc_ctx.xcx_buf;
+	}
+	return rc;
 }
 
 /** @} end of fop group */
