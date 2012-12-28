@@ -12,7 +12,7 @@ Source:         %{name}-%{version}.tar.gz
 BuildArch:      x86_64
 ExcludeArch:    i686
 # TODO: specify exact lustre-modules version for which we build
-Requires:       lustre-modules db4 libyaml genders sysvinit-tools
+Requires:       lustre-modules db4 libyaml genders sysvinit-tools perl perl-YAML-LibYAML perl-DateTime perl-File-Which perl-List-MoreUtils
 BuildRequires:  automake autoconf libtool make gcc gcc-c++ gccxml glibc-headers kernel-devel asciidoc db4-devel libyaml-devel libaio-devel perl perl-XML-LibXML perl-List-MoreUtils perl-File-Find-Rule perl-IO-All lustre-source
 
 %description

@@ -1,1 +1,3 @@
 utils_trace_m0tracedump_SOURCES  = utils/trace/trace_dump.c
+
+EXTRA_DIST += utils/trace/m0trace
