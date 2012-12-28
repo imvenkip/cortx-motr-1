@@ -351,7 +351,7 @@ M0_INTERNAL int m0_rpc_bulk_load(struct m0_rpc_bulk *rbulk,
  * Now the already stored net buffers need to be
  * deleted from m0_net_transfer_mc so that m0_rpc_bulk object can be
  * finalised.
- * Invocation of this API should be followed by wait on m0_rpc_bulk::rb_chan. 
+ * Invocation of this API should be followed by wait on m0_rpc_bulk::rb_chan.
  * @pre  rbulk != NULL && rbulk->rb_rc == 0 && rpc_bulk_invariant(rbulk).
  * @post rpcbulk_tlist_is_empty(&rbulk->rb_buflist).
  */

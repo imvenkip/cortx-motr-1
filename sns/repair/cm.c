@@ -418,9 +418,9 @@ static int pm_event_setup_and_post(struct m0_poolmach *pm,
 	struct m0_pool_event pme;
 
 	M0_SET0(&pme);
-        pme.pe_type  = et;
-        pme.pe_index = oid;
-        pme.pe_state = state;
+	pme.pe_type  = et;
+	pme.pe_index = oid;
+	pme.pe_state = state;
 
 	return m0_poolmach_state_transit(pm, &pme);
 }
