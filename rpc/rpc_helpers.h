@@ -30,10 +30,6 @@
  * @addtogroup rpc
  * @{
  */
-enum m0_bufvec_what {
-	M0_BUFVEC_ENCODE = 0,
-	M0_BUFVEC_DECODE = 1,
-};
 
 M0_INTERNAL int m0_rpc_item_slot_ref_encdec(struct m0_bufvec_cursor *cur,
 					    struct m0_rpc_slot_ref *slot_ref,

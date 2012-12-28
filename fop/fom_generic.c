@@ -218,7 +218,8 @@ static int create_loc_ctx(struct m0_fom *fom)
 
         M0_PRE(!is_tx_initialized(&fom->fo_tx.tx_dbtx));
 	reqh = m0_fom_reqh(fom);
-	rc = m0_db_tx_init(&fom->fo_tx.tx_dbtx, reqh->rh_dbenv, 0);
+	m0_dtx_init(&fom->fo_tx);
+	rc = m0_dtx_open(&fom->fo_tx, reqh->rh_dbenv);
 	if (rc < 0)
 		return rc;
 
@@ -302,7 +303,7 @@ static int fom_txn_commit(struct m0_fom *fom)
 {
 	int rc;
 
-	rc = m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
+	rc = m0_dtx_commit(&fom->fo_tx);
 	if (rc < 0) {
 		set_gen_err_reply(fom);
 		return rc;
@@ -330,7 +331,7 @@ static int fom_txn_abort(struct m0_fom *fom)
 	int rc;
 
 	if (is_tx_initialized(&fom->fo_tx.tx_dbtx)) {
-		rc = m0_db_tx_abort(&fom->fo_tx.tx_dbtx);
+		rc = m0_dtx_abort(&fom->fo_tx);
 		if (rc < 0)
 			return rc;
 	}
@@ -651,30 +652,17 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 
 M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 {
-	struct m0_fop_type    *fopt;
 	struct m0_fol_rec_desc desc;
 	struct m0_fol	      *fol;
-	struct m0_db_tx	      *tx;
 
 	M0_PRE(fom != NULL);
 
-	fopt = fom->fo_fop->f_type;
 	fol  = m0_fom_reqh(fom)->rh_fol;
-	tx   = &fom->fo_tx.tx_dbtx;
 
-	M0_CASSERT(sizeof desc.rd_header.rh_opcode ==
-		   sizeof fopt->ft_rpc_item_type.rit_opcode);
+	m0_fop_fol_rec_desc_init(&desc, fom->fo_fop->f_type, fol);
+	desc.rd_type_private = fom;
 
-	M0_SET0(&desc);
-	desc.rd_type               = &fopt->ft_rec_type;
-	desc.rd_type_private       = fom;
-	desc.rd_lsn                = m0_fol_lsn_allocate(fol);
-	/* XXX an arbitrary number for now */
-	desc.rd_header.rh_refcount = 1;
-	/*
-	 * @todo fill the rest by iterating through fop fields.
-	 */
-	return m0_fol_add(fol, tx, &desc);
+	return m0_fol_rec_add(fol, &fom->fo_tx, &desc);
 }
 
 /** @} end of fom group */

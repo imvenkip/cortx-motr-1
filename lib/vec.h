@@ -312,6 +312,11 @@ M0_INTERNAL m0_bcount_t m0_bufvec_cursor_copyfrom(struct m0_bufvec_cursor *scur,
 						  void *ddata,
 						  m0_bcount_t num_bytes);
 
+enum m0_bufvec_what {
+	M0_BUFVEC_ENCODE = 0,
+	M0_BUFVEC_DECODE = 1,
+};
+
 /**
    Mechanism to traverse given index vector (m0_indexvec)
    keeping track of segment counts and vector boundary.

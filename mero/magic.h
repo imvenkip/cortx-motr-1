@@ -306,6 +306,12 @@ enum m0_magic_satchel {
 	/* m0_long_lock::l_magix (blessed boss) */
 	M0_FOM_LL_MAGIC = 0x330b1e55edb05577,
 
+/* FOL */
+	/* m0_fol_rec_part:rp_link (ceaseless deb) */
+	M0_FOL_REC_PART_LINK_MAGIC = 0x33cea5e1e55deb77,
+	/* m0_fol_rec_part:rp_magic (bloodied bozo) */
+	M0_FOL_REC_PART_HEAD_MAGIC = 0x33b100d1edb02077,
+
 /* ioservice */
 	/* m0_stob_io_descr::siod_linkage (zealos obsses) */
 	M0_STOB_IO_DESC_LINK_MAGIC = 0x332ea1050b55e577,

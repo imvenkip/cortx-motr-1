@@ -65,9 +65,6 @@ static int  io_fop_coalesce (struct m0_fop *res_fop, uint64_t size);
 static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
 			     uint64_t size);
 
-static size_t m0_io_fol_pack_size(struct m0_fol_rec_desc *desc);
-static void m0_io_fol_pack(struct m0_fol_rec_desc *desc, void *buf);
-
 struct m0_fop_type m0_fop_cob_readv_fopt;
 struct m0_fop_type m0_fop_cob_writev_fopt;
 struct m0_fop_type m0_fop_cob_readv_rep_fopt;
@@ -101,38 +98,10 @@ static const struct m0_rpc_item_type_ops io_item_type_ops = {
         .rito_io_coalesce    = item_io_coalesce,
 };
 
-static const struct m0_fol_rec_type_ops m0_io_fop_fol_ops = {
-        .rto_commit     = NULL,
-        .rto_abort      = NULL,
-        .rto_persistent = NULL,
-        .rto_cull       = NULL,
-        .rto_open       = NULL,
-        .rto_fini       = NULL,
-        .rto_pack_size  = m0_io_fol_pack_size,
-        .rto_pack       = m0_io_fol_pack
-};
-
 const struct m0_fop_type_ops io_fop_rwv_ops = {
-        .fto_rec_ops     = &m0_io_fop_fol_ops,
 	.fto_fop_replied = io_fop_replied,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
-};
-
-const struct m0_fop_type_ops io_fop_cd_ops = {
-        .fto_rec_ops    = &m0_io_fop_fol_ops
-};
-
-/* Used for cob_create and cob_delete fops on client side */
-const struct m0_rpc_item_ops cob_req_rpc_item_ops = {
-	.rio_free = cob_rpcitem_free,
-};
-
-static const struct m0_rpc_item_type_ops cob_rpc_type_ops = {
-	.rito_payload_size   = m0_fop_item_type_default_payload_size,
-	.rito_io_coalesce    = NULL,
-	.rito_encode         = m0_fop_item_type_default_encode,
-	.rito_decode	     = m0_fop_item_type_default_decode,
 };
 
 M0_INTERNAL void m0_ioservice_fop_fini(void)
@@ -210,7 +179,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .opcode    = M0_IOSERVICE_COB_CREATE_OPCODE,
 				 .xt        = m0_fop_cob_create_xc,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-				 .fop_ops   = &io_fop_cd_ops,
 #ifndef __KERNEL__
 				 .fom_ops   = &cob_fom_type_ops,
 				 .svc_type  = &m0_ios_type,
@@ -221,7 +189,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .opcode    = M0_IOSERVICE_COB_DELETE_OPCODE,
 				 .xt        = m0_fop_cob_delete_xc,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-				 .fop_ops   = &io_fop_cd_ops,
 #ifndef __KERNEL__
 				 .fom_ops   = &cob_fom_type_ops,
 				 .svc_type  = &m0_ios_type,
@@ -269,14 +236,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    IO FOL is log of records for create, delete and write operations in ioservice
    which are used to perform undo or as a reply cache.
 
-   Each File system object called unit has "verno of its latest state" as an
-   attribute. This attribute is modified with every update to unit state.
-
-   A verno consists of two components:
-	- LSN (lsn): A reference to a FOL record, points to the record with
-		    the last update for the unit.
-	- VC: A version counter
-
    <hr>
    @section IOFOLDLD-req Requirements
 
@@ -292,67 +251,20 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    @section IOFOLDLD-fspec Functional Specification
    The following new APIs are introduced:
 
-   IO FOL operations are added.
-   m0_io_fol_pack_size() is used to get the record size.
-   m0_io_fol_pack() is used to encode the record.
-   @code
-   static const struct m0_fol_rec_type_ops m0_io_fop_fol_ops = {
-	...
-	.rto_pack_size  = m0_io_fol_pack_size,
-        .rto_pack       = m0_io_fol_pack
-   };
+   struct m0_io_fol_write {
+        struct m0_fid                fw_fid;
+        struct m0_fop_cob_writev_rep fw_fop_rep;
+   } M0_XCA_RECORD;
 
-   const struct m0_fop_type_ops io_fop_rwv_ops = {
-        .fto_rec_ops     = &m0_io_fop_fol_ops,
-	...
-   };
-   @endcode
+   struct m0_io_fol_create {
+	struct m0_fop_cob_create   fc_fop;
+	struct m0_fop_cob_op_reply fc_fop_rep;
+   } M0_XCA_RECORD;
 
-   FOL type is initialized for create, delete and write updates in
-   m0_fop_type_init().
-   @code
-   int m0_fop_type_init(struct m0_fop_type *ft,
-		        const struct __m0_fop_type_init_args *args)
-   {
-	struct m0_fol_rec_type  *fol_type;
-	...
-	fol_type = &ft->ft_rec_type;
-	fol_type->rt_name   = args->name;
-	fol_type->rt_opcode = args->opcode;
-	fol_type->rt_ops    = args->fop_ops->fto_rec_ops;
-
-	(void) m0_fol_rec_type_register(&ft->ft_rec_type);
-	...
-   }
-   @endcode
-
-   Extent map segment vector is added to store data extents collected in
-   ad_write_map().
-   @code
-   struct m0_emap_seg_vec {
-	uint32_t            sv_nr;
-	struct m0_emap_seg *sv_es;
-   }
-   @endcode
-
-   It points to fol specific private data which is used to store AD extent
-   map segments.
-   @code
-   struct m0_stob_io {
-	...
-	void *si_fol_private;
-   }
-   @endcode
-
-   Data extents from different write operations are combined in fcrw_segs
-   and will be stored in FOL.
-   These stored extents are used during undo operation.
-   @code
-   struct m0_io_fom_cob_rw {
-	...
-	struct m0_emap_seg_vec fcrw_segs;
-   };
-   @endcode
+   struct m0_io_fol_delete {
+	struct m0_fop_cob_delete   fd_fop;
+        struct m0_fop_cob_op_reply fd_fop_rep;
+   } M0_XCA_RECORD;
 
    In ad_write_launch() store AD allocated extents in m0_emap_seg_vec.
    @code
@@ -506,59 +418,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    - @ref stobad
 
  */
-
-static size_t m0_io_fol_pack_size(struct m0_fol_rec_desc *desc)
-{
-        struct m0_fom *fom = desc->rd_type_private;
-        size_t	       len = m0_fop_data_size(fom->fo_fop) +
-			     m0_fop_data_size(fom->fo_rep_fop);
-
-        switch (m0_fop_opcode(fom->fo_fop)) {
-        case M0_IOSERVICE_COB_CREATE_OPCODE:
-                break;
-        case M0_IOSERVICE_COB_DELETE_OPCODE:
-                break;
-        case M0_IOSERVICE_WRITEV_OPCODE:
-		/** @todo Add the size of m0_io_fom_cob_rw:fcrw_segs to len. */
-                break;
-        default:
-                break;
-        }
-        return (len + 7) & ~7;  /* 8aligned */
-}
-
-static void m0_io_fol_pack(struct m0_fol_rec_desc *desc, void *buf)
-{
-        struct m0_fom	       *fom = desc->rd_type_private;
-	static m0_bcount_t	count;
-	struct m0_bufvec	bvec = M0_BUFVEC_INIT_BUF(&buf, &count);
-	struct m0_bufvec_cursor buf_cur;
-
-	m0_bufvec_cursor_init(&buf_cur, &bvec);
-
-	switch (m0_fop_opcode(fom->fo_fop)) {
-        case M0_IOSERVICE_COB_CREATE_OPCODE:
-		/**
-		 * @todo Encode fom->fo_fop and fom->fo_rep_fop in buf
-		 * usinf m0_fop_encdec().
-		 */
-        case M0_IOSERVICE_COB_DELETE_OPCODE:
-		/**
-		 * @todo Encode fom->fo_fop and fom->fo_rep_fop in buf
-		 * using m0_fop_encdec().
-		 */
-                break;
-        case M0_IOSERVICE_WRITEV_OPCODE:
-		/**
-		 * @todo Encode m0_fop_cob_rw:crw_fid,
-		 * data segments in m0_io_fom_cob_rw:fcrw_segs and
-		 * m0_fop_cob_writev_rep in buf.
-		 */
-                break;
-        default:
-                break;
-        }
-}
 
 /**
    @page io_bulk_client IO bulk transfer Detailed Level Design.

@@ -25,11 +25,13 @@
 
 #include "lib/misc.h"              /* M0_SET0 */
 #include "dtm/dtm.h"
+#include "fol/fol.h"
 
 M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx)
 {
 	M0_SET0(tx);
 	tx->tx_state = M0_DTX_INIT;
+	m0_rec_part_tlist_init(&tx->tx_fol_rec_parts);
 }
 
 M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env)
@@ -44,13 +46,36 @@ M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env)
 	return result;
 }
 
-M0_INTERNAL void m0_dtx_done(struct m0_dtx *tx)
+static int dtx_done(struct m0_dtx *tx, bool abort)
 {
+	int rc = 0;
+
 	M0_PRE(tx->tx_state == M0_DTX_INIT || tx->tx_state == M0_DTX_OPEN);
 
 	if (tx->tx_state == M0_DTX_OPEN)
-		m0_db_tx_commit(&tx->tx_dbtx);
+		rc = !abort ? m0_db_tx_commit(&tx->tx_dbtx):
+			      m0_db_tx_abort(&tx->tx_dbtx);
 	tx->tx_state = M0_DTX_DONE;
+
+	m0_dtx_fini(tx);
+	return rc;
+}
+
+M0_INTERNAL int m0_dtx_commit(struct m0_dtx *tx)
+{
+	return dtx_done(tx, false);
+}
+
+M0_INTERNAL int m0_dtx_abort(struct m0_dtx *tx)
+{
+	return dtx_done(tx, true);
+}
+
+M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)
+{
+	M0_PRE(tx->tx_state == M0_DTX_INIT || tx->tx_state == M0_DTX_DONE);
+
+	m0_rec_part_tlist_fini(&tx->tx_fol_rec_parts);
 }
 
 /** @} end of dtm group */

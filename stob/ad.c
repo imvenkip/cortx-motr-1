@@ -22,6 +22,7 @@
 
 #include "db/extmap.h"
 #include "dtm/dtm.h"                /* m0_dtx */
+#include "fol/fol.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
 #include "lib/trace.h"
 #include "lib/thread.h"             /* LAMBDA */
@@ -33,6 +34,7 @@
 #include "stob/cache.h"
 #include "stob/ad.h"
 #include "stob/stob_addb.h"
+#include "stob/ad_xc.h"
 
 /**
    @addtogroup stobad
@@ -149,13 +151,23 @@ enum ad_stob_allocation_extent_type {
 	AET_HOLE
 };
 
+struct m0_fol_rec_part_type ad_part_type;
+
+const struct m0_fol_rec_part_ops ad_part_ops = {
+	.rpo_type = &ad_part_type,
+	.rpo_undo = NULL,
+	.rpo_redo = NULL,
+};
+
 /**
    Implementation of m0_stob_type_op::sto_init().
  */
 static int ad_stob_type_init(struct m0_stob_type *stype)
 {
 	m0_stob_type_init(stype);
-	return 0;
+	m0_xc_ad_init();
+	return m0_fol_rec_part_type_init(&ad_part_type, "AD record part",
+					 ad_rec_part_xc);
 }
 
 /**
@@ -163,6 +175,7 @@ static int ad_stob_type_init(struct m0_stob_type *stype)
  */
 static void ad_stob_type_fini(struct m0_stob_type *stype)
 {
+	m0_xc_ad_fini();
 	m0_stob_type_fini(stype);
 }
 

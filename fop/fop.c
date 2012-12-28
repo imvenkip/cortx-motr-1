@@ -41,6 +41,8 @@
  */
 
 static const struct m0_fol_rec_type_ops m0_fop_fol_default_ops;
+static int fop_fol_type_init(struct m0_fop_type *fopt);
+static void fop_fol_type_fini(struct m0_fop_type *fopt);
 
 /** FOP module global ctx */
 struct m0_addb_ctx     m0_fop_addb_ctx;
@@ -178,7 +180,7 @@ M0_EXPORTED(m0_fop_opcode);
 
 void m0_fop_type_fini(struct m0_fop_type *fopt)
 {
-	m0_fol_rec_type_unregister(&fopt->ft_rec_type);
+	fop_fol_type_fini(fopt);
 	m0_mutex_lock(&fop_types_lock);
 	m0_rpc_item_type_deregister(&fopt->ft_rpc_item_type);
 	ft_tlink_del_fini(fopt);
@@ -190,23 +192,16 @@ M0_EXPORTED(m0_fop_type_fini);
 int m0_fop_type_init(struct m0_fop_type *ft,
 		     const struct __m0_fop_type_init_args *args)
 {
-	struct m0_fol_rec_type  *fol_type;
+	int			 rc;
 	struct m0_rpc_item_type *rpc_type;
 
 	M0_PRE(ft->ft_magix == 0);
 
-	fol_type = &ft->ft_rec_type;
 	rpc_type = &ft->ft_rpc_item_type;
 
 	ft->ft_name         = args->name;
 	ft->ft_xt           = args->xt;
 	ft->ft_ops          = args->fop_ops;
-	fol_type->rt_name   = args->name;
-	fol_type->rt_opcode = args->opcode;
-	fol_type->rt_ops    = (args->fop_ops != NULL &&
-			       args->fop_ops->fto_rec_ops != NULL) ?
-			       args->fop_ops->fto_rec_ops :
-			       &m0_fop_fol_default_ops;
 
 	rpc_type->rit_opcode = args->opcode;
 	rpc_type->rit_flags  = args->rpc_flags;
@@ -214,12 +209,13 @@ int m0_fop_type_init(struct m0_fop_type *ft,
 
 	m0_fom_type_init(&ft->ft_fom_type, args->fom_ops, args->svc_type,
 			 args->sm);
-	(void)m0_rpc_item_type_register(&ft->ft_rpc_item_type);
-	(void)m0_fol_rec_type_register(&ft->ft_rec_type);
+	rc = m0_rpc_item_type_register(&ft->ft_rpc_item_type) ?:
+		fop_fol_type_init(ft);
+	M0_ASSERT(rc == 0);
 	m0_mutex_lock(&fop_types_lock);
 	ft_tlink_init_at(ft, &fop_types_list);
 	m0_mutex_unlock(&fop_types_lock);
-	return 0;
+	return rc;
 }
 M0_EXPORTED(m0_fop_type_init);
 
@@ -286,12 +282,12 @@ M0_INTERNAL void m0_fops_fini(void)
 
 /* XXX for now */
 
-M0_INTERNAL int fop_fol_type_init(struct m0_fop_type *fopt)
+static int fop_fol_type_init(struct m0_fop_type *fopt)
 {
 	return 0;
 }
 
-M0_INTERNAL void fop_fol_type_fini(struct m0_fop_type *fopt)
+static void fop_fol_type_fini(struct m0_fop_type *fopt)
 {
 }
 
@@ -305,7 +301,7 @@ M0_INTERNAL int m0_fop_fol_rec_add(struct m0_fop *fop, struct m0_fol *fol,
 
 static const struct m0_fol_rec_type_ops m0_fop_fol_default_ops;
 
-M0_INTERNAL int fop_fol_type_init(struct m0_fop_type *fopt)
+static int fop_fol_type_init(struct m0_fop_type *fopt)
 {
 	struct m0_fol_rec_type *rtype;
 
@@ -322,27 +318,36 @@ M0_INTERNAL int fop_fol_type_init(struct m0_fop_type *fopt)
 	return m0_fol_rec_type_register(rtype);
 }
 
-M0_INTERNAL void fop_fol_type_fini(struct m0_fop_type *fopt)
+static void fop_fol_type_fini(struct m0_fop_type *fopt)
 {
 	m0_fol_rec_type_unregister(&fopt->ft_rec_type);
+}
+
+M0_INTERNAL void m0_fop_fol_rec_desc_init(struct m0_fol_rec_desc *desc,
+					  const struct m0_fop_type *fopt,
+					  struct m0_fol *fol)
+{
+	M0_PRE(desc != NULL);
+
+	M0_CASSERT(sizeof desc->rd_header.rh_opcode ==
+		   sizeof fopt->ft_rpc_item_type.rit_opcode);
+
+	M0_SET0(desc);
+	desc->rd_type               = &fopt->ft_rec_type;
+	desc->rd_lsn                = m0_fol_lsn_allocate(fol);
+	/* XXX an arbitrary number for now */
+	desc->rd_header.rh_refcount = 1;
+	desc->rd_header.rh_opcode   = fopt->ft_rpc_item_type.rit_opcode;
 }
 
 M0_INTERNAL int m0_fop_fol_rec_add(struct m0_fop *fop, struct m0_fol *fol,
 				   struct m0_db_tx *tx)
 {
-	struct m0_fop_type    *fopt;
 	struct m0_fol_rec_desc desc;
 
-	fopt = fop->f_type;
-	M0_CASSERT(sizeof desc.rd_header.rh_opcode ==
-		   sizeof fopt->ft_rpc_item_type.rit_opcode);
+	m0_fop_fol_rec_desc_init(&desc, fop->f_type, fol);
+	desc.rd_type_private = fop;
 
-	M0_SET0(&desc);
-	desc.rd_type               = &fop->f_type->ft_rec_type;
-	desc.rd_type_private       = fop;
-	desc.rd_lsn                = m0_fol_lsn_allocate(fol);
-	/* XXX an arbitrary number for now */
-	desc.rd_header.rh_refcount = 1;
 	/*
 	 * @todo fill the rest by iterating through fop fields.
 	 */
