@@ -524,8 +524,8 @@ M0_INTERNAL const struct m0_fol_rec_type *m0_fol_rec_type_lookup(uint32_t
 }
 
 static inline int fol_rec_part_encdec(struct m0_fol_rec_part  *part,
-			       struct m0_bufvec_cursor *cur,
-			       enum m0_bufvec_what      what)
+			              struct m0_bufvec_cursor *cur,
+			              enum m0_bufvec_what      what)
 {
 	int		     rc;
 	struct m0_xcode_ctx  xc_ctx;

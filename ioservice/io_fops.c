@@ -259,8 +259,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
    m0_fol_rec_part_ops contains operations for undo and redo of
    FOL record parts.
-   m0_fol_rec_part_init() and m0_fol_rec_part_fini() are used to
-   initialize m0_fol_rec_part with m0_fol_rec_part_ops and for finalizing it.
+   m0_fol_rec_part_init() () is added to initialize m0_fol_rec_part with
+   m0_fol_rec_part_ops and m0_fol_rec_part_fini is added to finalize it.
 
    To encode or decode FOL parts using xcode operations m0_xcode_type
    pointer is added in m0_fol_rec_part_type:rpt_xt.
@@ -274,11 +274,11 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    are added in ioservice for write, create and delete updates.
    ad_rec_part is added for AD write operation.
 
-   FOL record part list is maintained in m0_dtx which is initialized in
+   FOL record part list is kept in m0_dtx which is initialized in
    FOM generic phase in m0_fom::fo_tx and list head is in
    m0_dtx::tx_fol_rec_parts.
    m0_dtx::tx_fol_rec_parts_len have the total length of FOL record parts.
-   It is updated whenever FOL record part is added.
+   It is updated whenever FOL record part is added to the list.
 
    m0_fol_rec_add() is used to compose FOL record from FOL record parts.
    fol_rec_parts_pack() encodes the FOL part records from the list in dtx

@@ -439,7 +439,7 @@ struct m0_fol_rec_type_ops {
 M0_INTERNAL int m0_fols_init(void);
 M0_INTERNAL void m0_fols_fini(void);
 
-/**  Adds the FOL record iterating through FOL parts from the list in dtx
+/**  Adds the FOL record by iterating through FOL parts from the list in m0_dtx
  *   added during updates on server.
  */
 M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_dtx *dtx,
@@ -448,6 +448,9 @@ M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_dtx *dtx,
 /** It represents updates made as part of executing FOM on server. */
 struct m0_fol_rec_part {
 	const struct m0_fol_rec_part_ops  *rp_ops;
+	/** Pointer to the data where FOL record part is serialised or
+	    will be de-serialised.
+	 */
 	void				  *rp_data;
 	/** Linkage into a fol record parts. */
 	struct m0_tlink			   rp_link;
@@ -468,6 +471,7 @@ struct m0_fol_rec_part_ops {
 	int (*rpo_redo)(struct m0_fol_rec_part *part);
 };
 
+/** 'data' argument if used to serialize or deserialize FOL record part. */
 M0_INTERNAL void m0_fol_rec_part_init(struct m0_fol_rec_part *part,
 				      const struct m0_fol_rec_part_ops *ops,
 				      void *data);

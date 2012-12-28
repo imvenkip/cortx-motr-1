@@ -53,7 +53,7 @@ static int dtx_done(struct m0_dtx *tx, bool abort)
 	M0_PRE(tx->tx_state == M0_DTX_INIT || tx->tx_state == M0_DTX_OPEN);
 
 	if (tx->tx_state == M0_DTX_OPEN)
-		rc = !abort ? m0_db_tx_commit(&tx->tx_dbtx):
+		rc = !abort ? m0_db_tx_commit(&tx->tx_dbtx) :
 			      m0_db_tx_abort(&tx->tx_dbtx);
 	tx->tx_state = M0_DTX_DONE;
 

@@ -317,14 +317,6 @@ static void fop_fol_type_fini(struct m0_fop_type *fopt)
 	m0_fol_rec_type_unregister(&fopt->ft_rec_type);
 }
 
-M0_INTERNAL void m0_fop_fol_rec_desc_init(struct m0_fol_rec_desc *desc,
-					  const struct m0_fop_type *fopt,
-					  struct m0_fol *fol)
-{
-	M0_PRE(desc != NULL);
-
-}
-
 static size_t fol_pack_size(struct m0_fol_rec_desc *desc)
 {
 	struct m0_fop *fop = desc->rd_type_private;

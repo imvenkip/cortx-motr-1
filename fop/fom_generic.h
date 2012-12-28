@@ -208,8 +208,9 @@ struct m0_fom_error_rep {
 } M0_XCA_RECORD;
 
 /**
- * Adds the record prepared by rto_pack() in m0_fom_reqh(fom)->rh_fol.
- * Record can contain fop data from fom->fo_fop and other data in the fom.
+ * Adds the FOL record prepared from list of FOL record parts in m0_dtx.
+ * Record can contain fop data from fom->fo_fop, fom->fo_rep_fop and other data
+ * added in FOL record part.
  */
 M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
 
