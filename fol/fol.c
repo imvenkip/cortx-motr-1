@@ -499,6 +499,139 @@ static int fol_record_decode(struct m0_fol_rec *rec)
 	return 0;
 }
 
+#include "xcode/xcode.h"
+
+M0_TL_DESCR_DEFINE(m0_rec_part, "fol record part", M0_INTERNAL,
+		   struct m0_fol_rec_part, rp_link, rp_magic,
+		   M0_FOL_REC_PART_LINK_MAGIC, M0_FOL_REC_PART_HEAD_MAGIC);
+M0_TL_DEFINE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
+
+M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
+				       struct m0_bufvec_cursor *cur,
+				       enum m0_bufvec_what      what)
+{
+	int		     rc;
+	struct m0_xcode_ctx  xc_ctx;
+
+	m0_xcode_ctx_init(&xc_ctx, &M0_FOL_REC_PART_XCODE_OBJ(part));
+	/* structure instance copy! */
+	xc_ctx.xcx_buf   = *cur;
+	xc_ctx.xcx_alloc = m0_xcode_alloc;
+
+	rc = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(&xc_ctx) :
+					m0_xcode_decode(&xc_ctx);
+	if (rc == 0) {
+		if (what == M0_BUFVEC_DECODE)
+			part->rp_data = m0_xcode_ctx_top(&xc_ctx);
+		*cur = xc_ctx.xcx_buf;
+	}
+	return rc;
+}
+
+int m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
+{
+	return 0;
+}
+
+void m0_fol_rec_part_type_deregister(struct m0_fol_rec_part_type *type)
+{
+
+}
+
+int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
+			      const char		  *name,
+			      const struct m0_xcode_type  *xt)
+{
+	type->rpt_xt   = xt;
+	type->rpt_name = name;
+	return m0_fol_rec_part_type_register(type);
+}
+
+void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type)
+{
+	m0_fol_rec_part_type_deregister(type);
+	type->rpt_xt   = NULL;
+	type->rpt_name = NULL;
+}
+
+void m0_fol_rec_part_init(struct m0_fol_rec_part *part,
+			  const struct m0_fol_rec_part_ops *ops,
+			  void *data)
+{
+	part->rp_ops  = ops;
+	part->rp_data = data;
+
+	m0_rec_part_tlink_init(part);
+}
+
+void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
+{
+	m0_rec_part_tlink_fini(part);
+}
+
+static size_t fol_rec_parts_pack_size(struct m0_dtx *dtx)
+{
+	m0_bcount_t len;
+
+	len = dtx->tx_fol_rec_parts_len;
+	return m0_align(len, 8);
+}
+
+static void fol_rec_parts_pack(struct m0_dtx *dtx, void *buf)
+{
+	/**
+	 * @todo Traverse dtx->tx_fol_rec_parts and encode FOL record
+	 *  parts in the buffer. Also encode m0_fol_rec_part_type::rpt_index
+	 *  for each FOl record type which will be used to decode this.
+	 */
+}
+
+M0_INTERNAL int m0_fol_rec_parts_encode(struct m0_fol_rec_desc *desc,
+				struct m0_dtx *dtx,
+				struct m0_buf *out)
+{
+	struct m0_fol_rec_header     *h;
+	void                         *buf;
+	size_t                        size;
+	int                           result;
+	uint32_t                      data_len;
+
+	data_len = desc->rd_header.rh_data_len =
+		fol_rec_parts_pack_size(dtx);
+	size = sizeof *h +
+		desc->rd_header.rh_obj_nr * sizeof desc->rd_ref[0] +
+		desc->rd_header.rh_sibling_nr * sizeof desc->rd_sibling[0] +
+		data_len;
+	M0_ASSERT(M0_IS_8ALIGNED(size));
+
+	buf = m0_alloc(size);
+	if (buf != NULL) {
+		h = out->b_addr = buf;
+		out->b_nob  = size;
+		*h = desc->rd_header;
+		fol_rec_parts_pack(dtx, h + 1);
+		result = 0;
+	} else
+		result = -ENOMEM;
+	return result;
+}
+
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_dtx *dtx,
+			   struct m0_fol_rec_desc *rec)
+{
+	int           result;
+	struct m0_buf buf;
+
+	M0_PRE(m0_lsn_is_valid(rec->rd_lsn));
+
+	result = m0_fol_rec_parts_encode(rec, dtx, &buf);
+	if (result == 0) {
+		result = m0_fol_add_buf(fol, &dtx->tx_dbtx, rec, &buf);
+		m0_free(buf.b_addr);
+	}
+	return result;
+}
+
 /** @} end of fol group */
 
 /*

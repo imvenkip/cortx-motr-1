@@ -1064,7 +1064,7 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
         M0_UT_ASSERT(fom_obj->fcrw_stob != NULL);
         M0_UT_ASSERT(fom_obj->fcrw_stob->so_state == CSS_EXISTS);
 
-	m0_dtx_done(&fom->fo_tx);
+	m0_dtx_commit(&fom->fo_tx);
 
 	wrep = m0_fop_data(fom->fo_rep_fop);
 	wrep->c_rep.rwr_rc = 0;

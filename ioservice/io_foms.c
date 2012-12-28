@@ -1373,27 +1373,6 @@ static int zero_copy_finish(struct m0_fom *fom)
 }
 
 /**
- * Combines struct m0_emap_seg_vec segments stored in
- * stio->si_fol_private in fcrw_segs.
- */
-static void write_extents_merge(struct m0_io_fom_cob_rw *fom_obj,
-				struct m0_stob_io *stio)
-{
-	struct m0_emap_seg_vec *sv;
-	int			i;
-	int			j;
-
-	M0_PRE(fom_obj != NULL);
-	M0_PRE(stio != NULL);
-
-	sv = stio->si_fol_private;
-	for (j = 0, i = fom_obj->fcrw_segs.sv_nr;
-	     i < (fom_obj->fcrw_segs.sv_nr + sv->sv_nr) ; ++i, ++j)
-		fom_obj->fcrw_segs.sv_es[i] = sv->sv_es[j];
-	fom_obj->fcrw_segs.sv_nr += sv->sv_nr;
-}
-
-/**
  * Launch STOB I/O
  * Helper function to launch STOB I/O.
  * This function initiates STOB I/O for all index vecs.
@@ -1613,8 +1592,6 @@ static int io_finish(struct m0_fom *fom)
                         fom_obj->fcrw_count += stio->si_count;
                         M0_LOG(M0_DEBUG, "rw_count %d, si_count %d",
                                (int)fom_obj->fcrw_count, (int)stio->si_count);
-
-			write_extents_merge(fom_obj, stio);
                 }
 
                 m0_free(stio->si_user.ov_vec.v_count);
