@@ -23,6 +23,8 @@
 #include "lib/ut.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
+#include "ioservice/io_device.h"
+#include "pool/pool.h"
 #include "cm/cm.h"
 #include "cm/cp.h"
 #include "cm/ag.h"
@@ -202,6 +204,8 @@ static void cm_setup_ut(void)
 	/* Internally calls m0_cm_setup(). */
 	rc = m0_reqh_service_start(service);
 	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_ios_poolmach_init(service->rs_reqh);
 
 	/* Checks if the restructuring process is started successfully. */
 	rc = m0_cm_start(&cm_ut);

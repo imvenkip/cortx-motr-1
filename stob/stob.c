@@ -95,7 +95,7 @@ M0_INTERNAL int m0_stob_find(struct m0_stob_domain *dom,
 M0_INTERNAL void m0_stob_init(struct m0_stob *obj, const struct m0_stob_id *id,
 			      struct m0_stob_domain *dom)
 {
-	m0_atomic64_set(&obj->so_ref, 0);
+	m0_atomic64_set(&obj->so_ref, 1);
 	obj->so_state = CSS_UNKNOWN;
 	obj->so_id = *id;
 	obj->so_domain = dom;
