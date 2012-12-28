@@ -361,9 +361,7 @@ static int stob_create_fom_tick(struct m0_fom *fom)
 		m0_fom_phase_moveif(fom, result, M0_FOPH_SUCCESS,
 				    M0_FOPH_FAILURE);
 
-		result = m0_fop_fol_rec_add(fom->fo_fop,
-		                            m0_fom_reqh(fom)->rh_fol,
-					    &fom->fo_tx.tx_dbtx);
+		result = m0_fom_fol_rec_add(fom);
 		M0_ASSERT(result == 0);
 		result = M0_FSO_AGAIN;
 	}
@@ -475,9 +473,7 @@ static int stob_read_fom_tick(struct m0_fom *fom)
 			item = m0_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
                         fom->fo_rep_fop = fom_obj->sif_rep_fop;
-			result = m0_fop_fol_rec_add(fom->fo_fop,
-			                            m0_fom_reqh(fom)->rh_fol,
-			                            &fom->fo_tx.tx_dbtx);
+			result = m0_fom_fol_rec_add(fom);
                         M0_ASSERT(result == 0);
                         result = M0_FSO_AGAIN;
                 }
@@ -594,9 +590,7 @@ static int stob_write_fom_tick(struct m0_fom *fom)
 			item = m0_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
                         fom->fo_rep_fop = fom_obj->sif_rep_fop;
-			result = m0_fop_fol_rec_add(fom->fo_fop,
-			                            m0_fom_reqh(fom)->rh_fol,
-			                            &fom->fo_tx.tx_dbtx);
+			result = m0_fom_fol_rec_add(fom);
                         M0_ASSERT(result == 0);
                         result = M0_FSO_AGAIN;
                 }
