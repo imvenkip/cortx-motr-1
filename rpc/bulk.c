@@ -142,7 +142,6 @@ static void rpc_bulk_buf_cb(const struct m0_net_buffer_event *evt)
 	struct m0_rpc_bulk	*rbulk;
 	struct m0_rpc_bulk_buf	*buf;
 	struct m0_net_buffer	*nb;
-	bool			 receiver;
 
 	M0_ENTRY("net_buf_evt: %p", evt);
 	M0_PRE(evt != NULL);
@@ -159,9 +158,6 @@ static void rpc_bulk_buf_cb(const struct m0_net_buffer_event *evt)
 				 M0_NET_QT_ACTIVE_BULK_RECV)))
 		nb->nb_length = evt->nbe_length;
 
-	receiver = M0_IN(nb->nb_qtype, (M0_NET_QT_ACTIVE_BULK_RECV,
-					M0_NET_QT_ACTIVE_BULK_SEND));
-
 	m0_mutex_lock(&rbulk->rb_mutex);
 	M0_ASSERT(rpc_bulk_invariant(rbulk));
 	/*
@@ -176,16 +172,32 @@ static void rpc_bulk_buf_cb(const struct m0_net_buffer_event *evt)
 		rbulk->rb_rc = evt->nbe_status;
 
 	rpcbulk_tlist_del(buf);
-	if (receiver) {
-		M0_ASSERT(m0_chan_has_waiters(&rbulk->rb_chan));
-		if (rpcbulk_tlist_is_empty(&rbulk->rb_buflist))
-			m0_chan_signal(&rbulk->rb_chan);
-	}
 	rpc_bulk_buf_deregister(buf);
 
 	rpc_bulk_buf_fini(buf);
 	m0_mutex_unlock(&rbulk->rb_mutex);
+	if (m0_chan_has_waiters(&rbulk->rb_chan) &&
+	    rpcbulk_tlist_is_empty(&rbulk->rb_buflist))
+		m0_chan_signal(&rbulk->rb_chan);
 	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk)
+{
+	struct m0_rpc_bulk_buf *rbuf;
+
+	M0_ENTRY();
+	M0_PRE(rbulk != NULL);
+
+	m0_mutex_lock(&rbulk->rb_mutex);
+	M0_PRE(rbulk->rb_rc == 0);
+	M0_PRE(rpc_bulk_invariant(rbulk));
+	M0_PRE(m0_chan_has_waiters(&rbulk->rb_chan));
+	m0_mutex_unlock(&rbulk->rb_mutex);
+
+	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
+		m0_net_buffer_del(rbuf->bb_nbuf, rbuf->bb_nbuf->nb_tm);
+	} m0_tl_endfor;
 }
 
 const struct m0_net_buffer_callbacks rpc_bulk_cb  = {

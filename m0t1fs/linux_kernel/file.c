@@ -304,6 +304,8 @@ M0_INTERNAL void iov_iter_advance(struct iov_iter *i, size_t bytes);
 /* Imports */
 struct m0_net_domain;
 M0_INTERNAL bool m0t1fs_inode_bob_check(struct m0t1fs_inode *bob);
+M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
+M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 
 M0_TL_DESCR_DEFINE(tioreqs, "List of target_ioreq objects", static,
 		   struct target_ioreq, ti_link, ti_magic,
@@ -3132,6 +3134,24 @@ static void io_req_fop_release(struct m0_ref *ref)
 	/* see io_req_fop_fini(). */
 	io_req_fop_bob_fini(reqfop);
 
+	/*
+	 * Release the net buffers if rpc bulk object is still dirty.
+	 * And wait on channel till all net buffers are deleted from
+	 * transfer machine.
+	 */
+	if (!m0_tlist_is_empty(&rpcbulk_tl,
+			       &reqfop->irf_iofop.if_rbulk.rb_buflist)) {
+		struct m0_clink clink;
+
+		m0_clink_init(&clink, NULL);
+		m0_clink_add(&reqfop->irf_iofop.if_rbulk.rb_chan, &clink);
+		m0_rpc_bulk_store_del(&reqfop->irf_iofop.if_rbulk);
+
+		m0_chan_wait(&clink);
+		m0_clink_del(&clink);
+		m0_clink_fini(&clink);
+	}
+
 	m0_io_fop_fini(iofop);
 	m0_free(reqfop);
 	++iommstats.d_io_req_fop_nr;
@@ -3198,8 +3218,6 @@ static int failure_vector_mismatch(struct io_req_fop *irfop)
 	 */
 	rc = -EAGAIN;
 	*cli = *srv;
-
-	/* TODO XXX FIXME Anand: Please release bulk for this request */
 
 	while (i < reply_updates->fvu_count) {
 		event = &reply_updates->fvu_events[i];

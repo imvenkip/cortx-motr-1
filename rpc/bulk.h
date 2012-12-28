@@ -343,6 +343,20 @@ M0_INTERNAL int m0_rpc_bulk_load(struct m0_rpc_bulk *rbulk,
 				 const struct m0_rpc_conn *conn,
 				 struct m0_net_buf_desc *from_desc);
 
+/*
+ * Does exactly opposite of what m0_rpc_bulk_store() does.
+ * Should be called only when m0_rpc_bulk_store() had succeeded
+ * earlier and later due to some other condition, bulk transfer
+ * did not happen.
+ * Now the already stored net buffers need to be
+ * deleted from m0_net_transfer_mc so that m0_rpc_bulk object can be
+ * finalised.
+ * Invocation of this API should be followed by wait on m0_rpc_bulk::rb_chan. 
+ * @pre  rbulk != NULL && rbulk->rb_rc == 0 && rpc_bulk_invariant(rbulk).
+ * @post rpcbulk_tlist_is_empty(&rbulk->rb_buflist).
+ */
+M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk);
+
 /** @} bulkclientDFS end group */
 
 /** @} end of rpc group */
