@@ -68,8 +68,6 @@ struct m0_xcode_enum {
     This array can be used by generic error-reporting functions and by
     m0_xcode_read() to accept symbolic constants.
 
-2012-Nov-29 check that M0_ASSERT() parameter has no side-effects
-
 2012-Nov-29 Alignment checks in xcode.
 
     On-wire data-types must be portable across platforms:
@@ -92,14 +90,6 @@ struct m0_xcode_enum {
 
     Meaningful interfaces should be exported, not partial unusable ones.
 
-2012-Dec-26 enforce M0_ASSERT() and M0_CNT_{INC,DEC}()
-
-    Add the following to lib/misc.h:
-#define M0_HAS_SIDE_EFFECTS(expr) \
-({ char _d[1]; __builtin_object_size(((void)(expr), _d), 0) == (size_t)-1; })
-
-    Then with M0_CASSERT() check that arguments of M0_CNT_{INC,DEC}()
-    and M0_ASSERT() have no side effects.
 
                           ***** IN-PROGRESS *****
 
@@ -228,3 +218,15 @@ struct m0_xcode_enum {
    Replace all such occurrences with simpler m0_time_from_now().
 
 2012-Nov-29 Convert .ff files to gccxml annotations where possible.
+
+2012-Dec-26 enforce M0_ASSERT() and M0_CNT_{INC,DEC}()
+
+    Add the following to lib/misc.h:
+#define M0_HAS_SIDE_EFFECTS(expr) \
+({ char _d[1]; __builtin_object_size(((void)(expr), _d), 0) == (size_t)-1; })
+
+    Then with M0_CASSERT() check that arguments of M0_CNT_{INC,DEC}()
+    and M0_ASSERT() have no side effects.
+
+Outcome: not possible, because proposed M0_HAS_SIDE_EFFECTS() is conservative
+and returns true for a function from another compilation unit.
