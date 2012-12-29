@@ -227,6 +227,8 @@
 #include "config.h"
 #endif
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "ioservice/io_device.h"
@@ -248,6 +250,7 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh *reqh)
 	int                 rc;
 	struct m0_poolmach *poolmach;
 
+	M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d\n", reqh, poolmach_key);
 	M0_PRE(reqh != NULL);
 	M0_PRE(!poolmach_is_initialised);
 
@@ -267,7 +270,7 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh *reqh)
 		goto out;
 	}
 	poolmach_is_initialised = true;
-
+	M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d", reqh, poolmach_key);
 out:
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 	return rc;
@@ -277,6 +280,7 @@ M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(struct m0_reqh *reqh)
 {
 	struct m0_poolmach *pm;
 
+	M0_LOG(M0_DEBUG, "key get for reqh=%p, key=%d", reqh, poolmach_key);
 	M0_PRE(reqh != NULL);
 	M0_PRE(poolmach_is_initialised);
 	M0_PRE(poolmach_key != 0);
@@ -291,6 +295,7 @@ M0_INTERNAL void m0_ios_poolmach_fini(struct m0_reqh *reqh)
 	struct m0_poolmach *pm;
 	M0_PRE(reqh != NULL);
 
+	M0_LOG(M0_DEBUG, "key fini for reqh=%p, key=%d", reqh, poolmach_key);
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	pm = m0_reqh_key_find(reqh, poolmach_key, sizeof *pm);
 	m0_poolmach_fini(pm);
@@ -360,6 +365,7 @@ out:
 
 }
 
+#undef M0_TRACE_SUBSYSTEM
 /** @} */ /* end of io_calls_params_dldDFS */
 
 /*

@@ -206,6 +206,7 @@ static void cm_setup_ut(void)
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_ios_poolmach_init(service->rs_reqh);
+	M0_UT_ASSERT(rc == 0);
 
 	/* Checks if the restructuring process is started successfully. */
 	rc = m0_cm_start(&cm_ut);
@@ -215,6 +216,7 @@ static void cm_setup_ut(void)
 	rc = m0_cm_stop(&cm_ut);
 	M0_UT_ASSERT(rc == 0);
 	cm_ut_service_cleanup();
+	m0_ios_poolmach_fini(service->rs_reqh);
 }
 
 static void cm_init_failure_ut(void)

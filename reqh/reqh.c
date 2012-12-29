@@ -208,6 +208,7 @@ M0_INTERNAL void *m0_reqh_key_find(struct m0_reqh *reqh, unsigned key,
 	void **data;
 
 	M0_PRE(IS_IN_ARRAY(key, reqh->rh_key) && reqh != NULL && size > 0);
+	M0_PRE(key <= keymax);
 
 	data = &reqh->rh_key[key];
 	if (*data == NULL)
