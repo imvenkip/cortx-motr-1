@@ -24,7 +24,7 @@
 #define __MERO_RPC_RPCLIB_H__
 
 #ifndef __KERNEL__
-#include <stdio.h> /* FILE */
+#  include <stdio.h> /* FILE */
 #endif
 
 #include "rpc/rpc.h"
@@ -34,7 +34,7 @@
 #include "net/buffer_pool.h"
 
 #ifndef __KERNEL__
-#include "mero/setup.h" /* struct m0_mero */
+#  include "mero/setup.h" /* struct m0_mero */
 #endif
 
 struct m0_fop;
@@ -163,7 +163,6 @@ struct m0_rpc_client_ctx {
 	 */
 
 	struct m0_rpc_machine	   rcx_rpc_machine;
-	struct m0_net_end_point	  *rcx_remote_ep;
 	struct m0_rpc_conn	   rcx_connection;
 	struct m0_rpc_session	   rcx_session;
 
@@ -176,6 +175,23 @@ struct m0_rpc_client_ctx {
 	/** Maximum RPC recive buffer size. */
         uint32_t		   rcx_max_rpc_msg_size;
 };
+
+/**
+ * Establishes RPC connection and creates a session.
+ *
+ * @param[out] conn
+ * @param[out] session
+ * @param[in]  rpc_mach
+ * @param[in]  remote_addr
+ * @param[in]  max_rpcs_in_flight
+ * @param[in]  nr_slots
+ */
+M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
+				      struct m0_rpc_session *session,
+				      struct m0_rpc_machine *rpc_mach,
+				      const char            *remote_addr,
+				      uint64_t               max_rpcs_in_flight,
+				      uint32_t               nr_slots);
 
 /**
   Starts client's rpc machine. Creates a connection to a server and establishes

@@ -30,10 +30,12 @@ static int ds1_service_start(struct m0_reqh_service *service);
 static int ds2_service_start(struct m0_reqh_service *service);
 static void ds1_service_stop(struct m0_reqh_service *service);
 static void ds2_service_stop(struct m0_reqh_service *service);
-static int ds1_service_allocate(struct m0_reqh_service_type *stype,
-                                     struct m0_reqh_service **service);
-static int ds2_service_allocate(struct m0_reqh_service_type *stype,
-                                     struct m0_reqh_service **service);
+static int ds1_service_allocate(struct m0_reqh_service **service,
+				struct m0_reqh_service_type *stype,
+				const char *arg);
+static int ds2_service_allocate(struct m0_reqh_service **service,
+				struct m0_reqh_service_type *stype,
+				const char *arg);
 static void ds_service_fini(struct m0_reqh_service *service);
 
 static const struct m0_reqh_service_type_ops ds1_service_type_ops = {
@@ -66,40 +68,37 @@ struct m0_reqh_service_type *m0_cs_default_stypes[] = {
 
 size_t m0_cs_default_stypes_nr = ARRAY_SIZE(m0_cs_default_stypes);
 
-static int ds1_service_allocate(struct m0_reqh_service_type *stype,
-                                 struct m0_reqh_service **service)
+static int _ds_alloc(struct m0_reqh_service **service,
+		     struct m0_reqh_service_type *stype,
+		     const struct m0_reqh_service_ops *ops)
 {
-        struct m0_reqh_service      *serv;
+	struct m0_reqh_service *s;
 
-        M0_PRE(stype != NULL && service != NULL);
+	M0_PRE(stype != NULL && service != NULL && ops != NULL);
 
-        M0_ALLOC_PTR(serv);
-        if (serv == NULL)
-                return -ENOMEM;
+	M0_ALLOC_PTR(s);
+	if (s == NULL)
+		return -ENOMEM;
 
-        serv->rs_type = stype;
-        serv->rs_ops = &ds1_service_ops;
-	*service = serv;
+	s->rs_type = stype;
+	s->rs_ops = ops;
+	*service = s;
 
-        return 0;
+	return 0;
 }
 
-static int ds2_service_allocate(struct m0_reqh_service_type *stype,
-                                 struct m0_reqh_service **service)
+static int ds1_service_allocate(struct m0_reqh_service **service,
+				struct m0_reqh_service_type *stype,
+				const char *arg __attribute__((unused)))
 {
-        struct m0_reqh_service      *serv;
+	return _ds_alloc(service, stype, &ds1_service_ops);
+}
 
-        M0_PRE(stype != NULL && service != NULL);
-
-        M0_ALLOC_PTR(serv);
-        if (serv == NULL)
-                return -ENOMEM;
-
-        serv->rs_type = stype;
-        serv->rs_ops = &ds2_service_ops;
-        *service = serv;
-
-        return 0;
+static int ds2_service_allocate(struct m0_reqh_service **service,
+				struct m0_reqh_service_type *stype,
+				const char *arg __attribute__((unused)))
+{
+	return _ds_alloc(service, stype, &ds2_service_ops);
 }
 
 static int ds1_service_start(struct m0_reqh_service *service)

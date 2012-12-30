@@ -53,6 +53,13 @@ static int partition_fill(struct m0_conf_obj *dest,
 	return d->pa_filename == NULL ? -ENOMEM : 0;
 }
 
+static int
+partition_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
+{
+	M0_IMPOSSIBLE("XXX not implemented");
+	return -1;
+}
+
 static bool partition_match(const struct m0_conf_obj *cached,
 			    const struct confx_object *flat)
 {
@@ -85,6 +92,7 @@ static void partition_delete(struct m0_conf_obj *obj)
 static const struct m0_conf_obj_ops partition_ops = {
 	.coo_invariant = partition_invariant,
 	.coo_fill      = partition_fill,
+	.coo_xfill     = partition_xfill,
 	.coo_match     = partition_match,
 	.coo_lookup    = partition_lookup,
 	.coo_readdir   = NULL,

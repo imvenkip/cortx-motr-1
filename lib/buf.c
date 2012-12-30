@@ -51,6 +51,7 @@ M0_INTERNAL bool m0_buf_eq(const struct m0_buf *x, const struct m0_buf *y)
 M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src)
 {
 	M0_PRE(dest->b_nob == 0 && dest->b_addr == NULL);
+	M0_PRE(src->b_nob > 0 && src->b_addr != NULL);
 
 	M0_ALLOC_ARR(dest->b_addr, src->b_nob);
 	if (dest->b_addr == NULL)
@@ -61,7 +62,6 @@ M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src)
 	M0_POST(m0_buf_eq(dest, src));
 	return 0;
 }
-
 
 /** @} end of buf group */
 

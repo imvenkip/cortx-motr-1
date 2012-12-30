@@ -183,7 +183,7 @@ void *m0_tlist_head(const struct m0_tl_descr *d, const struct m0_tl *list)
 	M0_INVARIANT_EX(m0_tlist_invariant(d, list));
 
 	head = &list->t_head;
-	return head->l_head != (void *)head ? amb(d, head->l_head) : NULL;
+	return m0_list_is_empty(head) ? NULL : amb(d, head->l_head);
 }
 
 M0_INTERNAL void *m0_tlist_tail(const struct m0_tl_descr *d,

@@ -23,6 +23,7 @@
 
 #include "conf/onwire.h" /* m0_conf_fetch, m0_conf_fetch_resp */
 #include "conf/conf_fop.h"
+#include "conf/reg.h"
 #include "reqh/reqh_service.h"
 #include "db/db.h"
 
@@ -147,9 +148,16 @@ extern const struct m0_bob_type m0_confd_bob;
 
 /** Configuration server. */
 struct m0_confd {
+	/** Generic service. */
 	struct m0_reqh_service d_reqh;
+
+	/** Registry of cached configuration objects. */
+	struct m0_conf_reg     d_reg;
+
 	/* struct m0_confd_cache  d_cache; */
 	/* struct m0_confd_stat   d_stat; */
+
+	/** Magic value == M0_CONFD_MAGIC. */
 	uint64_t               d_magic;
 };
 

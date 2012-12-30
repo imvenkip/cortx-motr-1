@@ -1,0 +1,12 @@
+nobase_mero_include_HEADERS += conf/objs/common.h
+
+mero_libmero_la_SOURCES += \
+                           conf/objs/common.c \
+                           conf/objs/dir.c \
+                           conf/objs/profile.c \
+                           conf/objs/filesystem.c \
+                           conf/objs/service.c \
+                           conf/objs/node.c \
+                           conf/objs/nic.c \
+                           conf/objs/sdev.c \
+                           conf/objs/partition.c

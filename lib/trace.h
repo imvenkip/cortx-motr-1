@@ -185,30 +185,35 @@ M0_INTERNAL void m0_trace_fini(void);
 
 /**
  * The subsystems definitions.
+ *
  * @note: Such kind of definition (via defines) allow to keep enum
  *        and string array in sync.
+ *
+ * Please keep the lower list sorted.
  */
 #define M0_TRACE_SUBSYSTEMS      \
   M0_TRACE_SUBSYS(OTHER,     0)  \
-  M0_TRACE_SUBSYS(UT,        1)  \
-  M0_TRACE_SUBSYS(MEMORY,    2)  \
-  M0_TRACE_SUBSYS(M0T1FS,    3)  \
-  M0_TRACE_SUBSYS(RPC,       4)  \
-  M0_TRACE_SUBSYS(FORMATION, 5)  \
-  M0_TRACE_SUBSYS(ADDB,      6)  \
-  M0_TRACE_SUBSYS(LNET,      7)  \
-  M0_TRACE_SUBSYS(SNS,       8)  \
-  M0_TRACE_SUBSYS(NET,       9)  \
-  M0_TRACE_SUBSYS(COB,       10) \
-  M0_TRACE_SUBSYS(BALLOC,    11) \
-  M0_TRACE_SUBSYS(LAYOUT,    12) \
-  M0_TRACE_SUBSYS(IOSERVICE, 13) \
-  M0_TRACE_SUBSYS(CM,        14) \
-  M0_TRACE_SUBSYS(SNSREPAIR, 15) \
-  M0_TRACE_SUBSYS(CONF,      16) \
-  M0_TRACE_SUBSYS(LIB,       17) \
-  M0_TRACE_SUBSYS(STOB,      18) \
-  M0_TRACE_SUBSYS(FOP,       19)
+  M0_TRACE_SUBSYS(LIB,       1)  \
+  M0_TRACE_SUBSYS(UT,        2)  \
+                                 \
+  M0_TRACE_SUBSYS(ADDB,      3)  \
+  M0_TRACE_SUBSYS(BALLOC,    4)  \
+  M0_TRACE_SUBSYS(CM,        5)  \
+  M0_TRACE_SUBSYS(COB,       6)  \
+  M0_TRACE_SUBSYS(CONF,      7)  \
+  M0_TRACE_SUBSYS(FOP,       8)  \
+  M0_TRACE_SUBSYS(FORMATION, 9)  \
+  M0_TRACE_SUBSYS(IOSERVICE, 10) \
+  M0_TRACE_SUBSYS(LAYOUT,    11) \
+  M0_TRACE_SUBSYS(LNET,      12) \
+  M0_TRACE_SUBSYS(M0D,       13) \
+  M0_TRACE_SUBSYS(M0T1FS,    14) \
+  M0_TRACE_SUBSYS(MEMORY,    15) \
+  M0_TRACE_SUBSYS(NET,       16) \
+  M0_TRACE_SUBSYS(RPC,       17) \
+  M0_TRACE_SUBSYS(SNS,       18) \
+  M0_TRACE_SUBSYS(SNSREPAIR, 19) \
+  M0_TRACE_SUBSYS(STOB,      20)
 
 #define M0_TRACE_SUBSYS(name, value) M0_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */

@@ -26,11 +26,13 @@
 #include "conf/obj.h" /* m0_conf_objtype (TODO: relocate the definition) */
 
 #include "conf/conf_xcode.h"
+#include "conf/preload.h"
 #include "conf/obj.h"
 
 #include "lib/buf_xc.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
+#include "lib/string.h"
 #include "lib/errno.h"
 #include "lib/arith.h"
 #include "lib/misc.h"
@@ -371,7 +373,6 @@ confx_db_table_err:
 confx_db_env_err:
 	M0_RETURN(rc);
 }
-
 
 /* ------------------------------------------------------------------
  * confdb: reader
@@ -506,6 +507,42 @@ m0_confx_db_read_env:
 	m0_free(val);
 	M0_RETURN(rc == 0 ? obj_count : rc);
 }
+
+#ifndef __KERNEL__
+M0_INTERNAL int
+m0_confx_str_read(const char *filename, struct confx_object **xobjs)
+{
+	static char buf[4096];
+	FILE       *f;
+	size_t      n;
+	int         rc = 0;
+
+	M0_ENTRY("filename=`%s'", filename);
+
+	f = fopen(filename, "r");
+	if (f == NULL)
+		M0_RETURN(-errno);
+
+	n = fread(buf, 1, sizeof buf - 1, f);
+	if (ferror(f))
+		rc = -errno;
+	else if (!feof(f))
+		rc = -EFBIG;
+	else
+		buf[n] = '\0';
+
+	fclose(f);
+	if (rc != 0)
+		M0_RETURN(rc);
+
+	n = m0_confx_obj_nr(buf);
+	if (n == 0)
+		M0_RETURN(rc);
+
+	M0_ALLOC_ARR(*xobjs, n);
+	M0_RETURN(*xobjs == NULL ? -ENOMEM : m0_conf_parse(buf, *xobjs, n));
+}
+#endif
 
 /*
  *  Local variables:

@@ -20,19 +20,22 @@ mount_m0t1fs()
 		return 1
 	}
 
-	local FS_PARAMS="`cat <<EOF
-[3: "pool_width=$POOL_WIDTH",
-    "nr_data_units=$NR_DATA",
-    "unit_size=$stride_size"]
-EOF`"
-	local CONF=profile=prof,local_conf="`cat <<EOF
-[2:
+	local CONF="`cat <<EOF
+[4:
   ("prof", {1| ("fs")}),
-  ("fs", {2| ((11, 22), $FS_PARAMS, [1: "_"])})]
+  ("fs", {2| ((11, 22),
+              [3: "pool_width=$POOL_WIDTH",
+                  "nr_data_units=$NR_DATA",
+                  "unit_size=$stride_size"],
+              [2: "mds", "ios"])}),
+  ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
+  ("ios", {3| (2, [$(echo $IOS_ENDPOINTS | wc -w): $IOS_ENDPOINTS], "_")})]
 EOF`"
 
 	echo "Mounting file system..."
-	cmd="sudo mount -t m0t1fs -o '$CONF,$SERVICES' none $m0t1fs_mount_dir"
+
+	cmd="sudo mount -t m0t1fs -o profile=prof,local_conf='$CONF' \
+	    none $m0t1fs_mount_dir"
 	echo $cmd
 	eval $cmd || {
 		echo "Failed to mount m0t1fs file system."

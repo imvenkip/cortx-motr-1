@@ -66,6 +66,13 @@ static int sdev_fill(struct m0_conf_obj *dest, const struct confx_object *src,
 	return rc;
 }
 
+static int
+sdev_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
+{
+	M0_IMPOSSIBLE("XXX not implemented");
+	return -1;
+}
+
 static bool
 sdev_match(const struct m0_conf_obj *cached, const struct confx_object *flat)
 {
@@ -100,6 +107,7 @@ static void sdev_delete(struct m0_conf_obj *obj)
 static const struct m0_conf_obj_ops sdev_ops = {
 	.coo_invariant = sdev_invariant,
 	.coo_fill      = sdev_fill,
+	.coo_xfill     = sdev_xfill,
 	.coo_match     = sdev_match,
 	.coo_lookup    = sdev_lookup,
 	.coo_readdir   = NULL,

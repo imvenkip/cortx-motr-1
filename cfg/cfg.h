@@ -384,23 +384,6 @@ struct m0_cfg_filesystem__val {
 };
 
 /**
-   Mero service type.
-*/
-/*enum m0_cfg_service_type {
-	|+* metadata service       +|
-	M0_CFG_SERVICE_METADATA = 1,
-
-	|+* io/data service        +|
-	M0_CFG_SERVICE_IO,
-
-	|+* management service     +|
-	M0_CFG_SERVICE_MGMT,
-
-	|+* DLM service            +|
-	M0_CFG_SERVICE_DLM,
-};*/
-
-/**
    Mero service configuration key.
    Keyed by service uuid.
 */
@@ -417,7 +400,7 @@ enum {
    Mero service configuration val.
 */
 struct m0_cfg_service__val {
-	/** service type. @see m0_cfg_service_type */
+	/** service type. @see m0_conf__service_type */
 	uint32_t cs_type;
 
 	/** unused. 64-bit alligned. */

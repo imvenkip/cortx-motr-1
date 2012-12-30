@@ -31,7 +31,7 @@ export M0_TRACE_IMMEDIATE_MASK='!all' # put your subsystem here
 #export M0_TRACE_LEVEL=debug+
 export M0_TRACE_PRINT_CONTEXT=short
 
-MERO_TEST_LOGFILE=`pwd`/bulkio_`date +"%Y-%m-%d_%T"`.log
+MERO_TEST_LOGFILE=`pwd`/mero_`date +"%Y-%m-%d_%T"`.log
 
 MERO_IOSERVICE_NAME=ioservice
 MERO_MDSERVICE_NAME=mdservice
@@ -76,9 +76,11 @@ load_kernel_module()
 	# Client end point (m0mero module local_addr)
 	LADDR="$lnet_nid:12345:33:1"
 
-	SERVICES="mds=${server_nid}:${EP[0]}"
-	for ((i=0; i < ${#EP[*]}; i++)) ; do
-		SERVICES="${SERVICES},ios=${server_nid}:${EP[$i]}"
+	CONFD_ENDPOINT="${server_nid}:${EP[0]}"
+	MDS_ENDPOINT="\"$CONFD_ENDPOINT\""
+	IOS_ENDPOINTS="$MDS_ENDPOINT"
+	for ((i=1; i < ${#EP[*]}; i++)); do
+		IOS_ENDPOINTS="$IOS_ENDPOINTS, \"${server_nid}:${EP[$i]}\""
 	done
 
 	mero_module_path=$MERO_CORE_ROOT/build_kernel_modules

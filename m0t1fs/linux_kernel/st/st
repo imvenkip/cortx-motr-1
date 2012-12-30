@@ -1,8 +1,4 @@
 #!/bin/bash
-
-## This line should precede `set -e'.
-. /etc/rc.d/init.d/functions  # status
-
 set -e
 set -u
 
@@ -10,8 +6,8 @@ set -u
 SANDBOX_DIR=~devvm/_m0-sandbox
 
 # TRACE_MASK=all
-TRACE_MASK='!rpc,formation'
-TRACE_LEVEL='debug+'
+TRACE_MASK='!rpc,formation,fop,memory'
+TRACE_LEVEL='info+'
 # TRACE_CONTEXT=full
 
 MAX_RPC_MSG_SIZE=163840
@@ -24,11 +20,7 @@ M0_CORE_DIR=${M0_CORE_DIR%/*/*/*/*}
 [ "${M0_CORE_DIR##*/}" = core ] || die 'Unable to determine M0_CORE_DIR'
 
 ## Path to the file with configuration string for confd.
-##
-## XXX For "confd hack" to work, this path should correspond to
-## `[M0_CM_ST]' entry in confd_hack.c.in.
-CONF_FILE="$M0_CORE_DIR/m0t1fs/linux_kernel/st/_conf_str.txt"
-trap "rm -f '$CONF_FILE'" 0
+CONF_FILE=$SANDBOX_DIR/conf.txt
 
 ### Starts LNET. (Note that the script never stops LNET.)
 lnet_up() {
@@ -37,133 +29,172 @@ lnet_up() {
     local LNET_NID=`lctl list_nids | head -1`
 
     export M0T1FS_ENDPOINT="$LNET_NID:12345:34:6"
-    export IOS_ENDPOINT="$LNET_NID:12345:34:1"
-    export MDS_ENDPOINT="$IOS_ENDPOINT"
-    export CONFD_ENDPOINT="$IOS_ENDPOINT"
-    # export CONFD_ENDPOINT="$LNET_NID:12345:34:100"
-}
-
-### Usage: m0_modules {insert|remove}
-### Inserts/removes Mero kernel modules (m0mero.ko and galois.ko).
-m0_modules() {
-    case "$1" in
-	insert)
-	    insmod $M0_CORE_DIR/../galois/src/linux_kernel/galois.ko || {
-		echo 'Inserting galois.ko failed' >&2
-		return 1
-	    }
-
-	    ## Print kernel messages on the console. (See proc(5).)
-	    echo 8 >/proc/sys/kernel/printk
-
-	    insmod $M0_CORE_DIR/build_kernel_modules/m0mero.ko \
-		local_addr=$M0T1FS_ENDPOINT \
-		max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
-		tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
-		${TRACE_MASK:+trace_immediate_mask=$TRACE_MASK} \
-		${TRACE_LEVEL:+trace_level=$TRACE_LEVEL} \
-		${TRACE_CONTEXT:+trace_print_context=$TRACE_CONTEXT} \
-		|| {
-		echo 'Inserting m0mero.ko failed' >&2
-		rmmod galois
-		return 1
-	    }
-	    ;;
-	remove)
-	    rmmod m0mero
-
-	    ## Not interested in console output any more.
-	    echo 4 >/proc/sys/kernel/printk
-
-	    rmmod galois
-	    ;;
-	*) die 'm0_modules: Invalid argument';;
-    esac
-}
-
-### Usage: m0_services {start|stop}
-### Starts/stops Mero services.
-m0_services() {
-    case "$1" in
-	start)
-	    env ${TRACE_MASK:+M0_TRACE_IMMEDIATE_MASK=$TRACE_MASK} \
-		${TRACE_LEVEL:+M0_TRACE_LEVEL=$TRACE_LEVEL} \
-		${TRACE_CONTEXT:+M0_TRACE_PRINT_CONTEXT=$TRACE_CONTEXT} \
-	    $M0_CORE_DIR/mero/m0d \
-		-r -p -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs \
-		-e lnet:$IOS_ENDPOINT -s confd -s mdservice -s ioservice \
-		-m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
-		>$SANDBOX_DIR/m0d.log 2>&1 &
-	    sleep 1
-	    status $M0_CORE_DIR/mero/.libs/lt-m0d >/dev/null || return 1
-	    ;;
-	stop)
-	    killall -q lt-m0d
-	    sleep 3
-	    ;;
-	*) die 'm0_services: Invalid argument';;
-    esac
+    export IOS0_ENDPOINT="$LNET_NID:12345:34:1"
+    export IOS1_ENDPOINT="$LNET_NID:12345:34:2"
+    export MDS_ENDPOINT="$IOS0_ENDPOINT"
+    export CONFD_ENDPOINT="$IOS0_ENDPOINT"
 }
 
 sandbox_init() {
     rm -rf $SANDBOX_DIR
-    mkdir $SANDBOX_DIR
-    cd $SANDBOX_DIR
+    mkdir -p $SANDBOX_DIR/mnt
 }
 
 sandbox_fini() {
-    ## Note that the script does not delete $SANDBOX_DIR: developers
-    ## may want to analyze the logs contained there.
-    cd - >/dev/null
-}
-
-_init() {
-    lnet_up
-    m0_modules insert
-
-    sandbox_init
-    m0_services start || {
-	echo 'Failed to start Mero services' >&2
-	sandbox_fini
-	m0_modules remove
-	die
-    }
-    mkdir $SANDBOX_DIR/mnt
-}
-
-_fini() {
     rmdir $SANDBOX_DIR/mnt
-    m0_services stop
-    sandbox_fini
-    m0_modules remove
-    exit ${1:-$?}
+    ## Note that the script does not delete $SANDBOX_DIR itself:
+    ## developers may want to analyze the logs contained there.
+}
+
+modules_insert() {
+    insmod $M0_CORE_DIR/../galois/src/linux_kernel/galois.ko || {
+	echo 'Inserting galois.ko failed' >&2
+	return 1
+    }
+
+    ## Print kernel messages on the console. (See proc(5).)
+    echo 8 >/proc/sys/kernel/printk
+
+    insmod $M0_CORE_DIR/build_kernel_modules/m0mero.ko \
+	local_addr=$M0T1FS_ENDPOINT \
+	max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
+	tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
+	${TRACE_MASK:+trace_immediate_mask=$TRACE_MASK} \
+	${TRACE_LEVEL:+trace_level=$TRACE_LEVEL} \
+	${TRACE_CONTEXT:+trace_print_context=$TRACE_CONTEXT} \
+	|| {
+	echo 'Inserting m0mero.ko failed' >&2
+	rmmod galois
+	return 1
+    }
+}
+
+modules_remove() {
+    rmmod m0mero
+    ## Not interested in console output any more.
+    echo 4 >/proc/sys/kernel/printk
+
+    rmmod galois
+}
+
+###
+### Starts Mero services.
+###
+### There are three modes of operation:
+###
+###   services_start
+###       m0d starts "confd", "mdservice", and "ioservice".
+###
+###   services_start noconfd
+###       m0d does not start "confd" service. This mode is used for
+###       failure testing.
+###
+###   services_start autoconf
+###       m0d is started with minimum of options and configures itself.
+###
+services_start() {
+    [ $# -eq 0 -o "${1:-}" = noconfd -o "${1:-}" = autoconf ] || \
+	error 'Invalid argument'
+    local MODE="${1:-}"
+
+    local CONF="`cat <<EOF
+[8:
+  ("prof", {1| ("fs")}),
+  ("fs", {2| ((11, 22),
+              [4: "pool_width=3", "nr_data_units=1", "nr_parity_units=1",
+                  "unit_size=4096"],
+              [2: "mds", "ios"])}),
+  ("mds", {3| (1, [1: "$MDS_ENDPOINT"], "node-0")}),
+  ("ios", {3| (2, [1: "$IOS0_ENDPOINT"], "node-0")}),
+
+  ("prof-1", {1| ("fs-1")}),
+  ("fs-1", {2| ((11, 22),
+                [8: "-r", "-p", "-T", "linux", "-D", "db", "-S", "stobs"],
+                [1: "ios-1"])}),
+  ("ios-1", {3| (2, [1: "lnet:$IOS1_ENDPOINT"], "node-1")}),
+  ("node-1", {4| (163840, 0, 0, 16, 0, [0], [0])})]
+EOF`"
+
+    local CONFD_SPEC=
+    [ "$MODE" = noconfd ] || {
+	CONFD_SPEC="-s confd -c $CONF_FILE"
+	echo "$CONF" >"$CONF_FILE"
+    }
+
+    local OPTIONS="`cat <<EOF
+-r -p -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
+-e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s ioservice
+ -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN
+EOF`"
+    [ "$MODE" = autoconf ] && OPTIONS="-C $CONFD_ENDPOINT -P prof-1"
+
+    echo "--- `date` ---" >>$SANDBOX_DIR/m0d.log
+    cd $SANDBOX_DIR
+    env ${TRACE_MASK:+M0_TRACE_IMMEDIATE_MASK=$TRACE_MASK} \
+	${TRACE_LEVEL:+M0_TRACE_LEVEL=$TRACE_LEVEL} \
+	${TRACE_CONTEXT:+M0_TRACE_PRINT_CONTEXT=$TRACE_CONTEXT} \
+	$M0_CORE_DIR/mero/m0d $OPTIONS >>$SANDBOX_DIR/m0d.log 2>&1 &
+
+    sleep 1
+    killall -q -0 lt-m0d || {
+	sandbox_fini
+	modules_remove
+	die 'Failed to start Mero services'
+    }
+}
+
+services_stop() {
+    killall -q lt-m0d
+    sleep 3
 }
 
 _mount() {
-    local LOCAL_CONF=
+    local CONF=
     local FS_PARAMS=\
 '[4: "pool_width=3","nr_data_units=1","nr_parity_units=1","unit_size=4096"]'
 
     case "${1:-}" in
-	bad_conf) LOCAL_CONF='garbage';;
-	bad_fs_param) FS_PARAMS='[1: "bad_param"]';;
+	garbage) CONF='garbage';;
+	bad_fs_params) FS_PARAMS='[1: "bad_param"]';;
+	no_fs_data) CONF='[1: ("prof", {1| ("fs")})]';;
     esac
 
-    [ -z "$LOCAL_CONF" ] && LOCAL_CONF="`cat <<EOF
-[3:
+    [ -z "$CONF" ] && CONF="`cat <<EOF
+[4:
   ("prof", {1| ("fs")}),
-  ("fs", {2| ((11, 22), $FS_PARAMS, [1: "ios"])}),
-  ("ios", {3| (2, [1: "$IOS_ENDPOINT"], "node-0")})]
+  ("fs", {2| ((11, 22), $FS_PARAMS, [2: "mds", "ios"])}),
+  ("mds", {3| (1, [1: "$MDS_ENDPOINT"], "node-0")}),
+  ("ios", {3| (2, [1: "$IOS0_ENDPOINT"], "node-0")})]
 EOF`"
 
-    if [ "${1:-}" = 'net' ]; then
-	echo "$LOCAL_CONF" >"$CONF_FILE"
-	mount -t m0t1fs -o profile=prof,confd=$CONFD_ENDPOINT,\
-mds=$MDS_ENDPOINT,ios=$IOS_ENDPOINT none $SANDBOX_DIR/mnt || return $?
+    if [ $# -eq 0 ]; then
+	# XXX TODO: Feed bad configuration strings to confd as well.
+	mount -t m0t1fs -o profile=prof,confd=$CONFD_ENDPOINT \
+	    none $SANDBOX_DIR/mnt || return $?
     else
-	mount -t m0t1fs -o profile=prof,local_conf="$LOCAL_CONF",\
-mds=$MDS_ENDPOINT,ios=$IOS_ENDPOINT none $SANDBOX_DIR/mnt || return $?
+	mount -t m0t1fs -o profile=prof,local_conf="$CONF" \
+	    none $SANDBOX_DIR/mnt || return $?
     fi
+}
+
+_init() {
+    lnet_up
+    modules_insert
+
+    sandbox_init
+    services_start
+}
+
+_fini() {
+    services_stop || true
+    sandbox_fini
+    modules_remove
+    exit ${1:-$?}
+}
+
+error() {
+    echo "$@" >&2
+    _fini 1
 }
 
 usage() {
@@ -173,8 +204,14 @@ usage() {
     echo '  run      run system tests (default command)'
     echo '  insmod   insert Mero kernel modules: m0mero.ko, galois.ko'
     echo '  rmmod    remove Mero kernel modules'
+    echo '  sstart   start Mero user-space services'
+    echo '  sstop    stop Mero user-space services'
     echo '  help     display this help and exit'
 }
+
+## Keep the audience engaged.
+## XXX TODO: Measure and report elapsed time a la CUnit.
+say() { echo "$@"; }
 
 ## -------------------------------------------------------------------
 ## main()
@@ -184,34 +221,63 @@ usage() {
 
 case "${1:-}" in
     run|'') ;;
-    insmod) lnet_up; m0_modules insert; exit;;
-    rmmod)           m0_modules remove; exit;;
+    insmod) lnet_up; modules_insert; exit;;
+    rmmod) modules_remove; exit;;
+    sstart) _init; exit;;
+    sstop) _fini; exit;;
     help) usage; exit;;
-    *)    usage >&2; die;;
+    *) usage >&2; die;;
 esac
 
 _init
 
 ## -------------------------------------------------------------------
-## Failures
-## XXX TODO: failures of confd should also be tested.
+say 'Suite: failures'
 
 echo 4 >/proc/sys/kernel/printk  # Not interested in console output.
-for c in bad_conf bad_fs_param; do
-    _mount $c 2>/dev/null && {
-	echo 'Failed to fail' >&2
-	_fini 1
-    }
+
+## 1), 2), 3)
+for c in garbage bad_fs_params no_fs_data; do
+    say "  Test: $(echo $c | tr _ ' ')"
+    _mount $c 2>/dev/null && error 'Failed to fail'
 done
 
+## 4) No network connection.
+say "  Test: no network"
+services_stop
+_mount 2>/dev/null && error 'Failed to fail'
+
+## 5) m0d is started without confd service.
+say "  Test: no confd"
+services_start noconfd
+_mount 2>/dev/null && error 'Failed to fail'
+##
+## m0d has aborted at this point, because the confc of m0t1fs has sent
+## unsupported request to m0d's endpoint.  As there is no confd service
+## registered at reqh to handle this request, reqh fails. So does m0d.
+##
+killall -q -0 lt-m0d && error 'm0d was expected to be dead'
+
+services_start
+
 ## -------------------------------------------------------------------
-## Successes
+say Suite: successes
 
 echo 8 >/proc/sys/kernel/printk  # Print kernel messages to the console.
+
+## 1) local_conf
+say "  Test: m0t1fs local_conf"
+_mount local || _fini $?
+umount $SANDBOX_DIR/mnt
+
+## 2) confd
+say "  Test: m0t1fs confd"
 _mount || _fini $?
 umount $SANDBOX_DIR/mnt
 
-_mount net || _fini $?
-umount $SANDBOX_DIR/mnt
+## 3) "conf-reqh" demo: m0d configures itself, retrieving data from confd.
+say "  Test: reqh"
+services_start autoconf
+sleep 3
 
 _fini

@@ -106,6 +106,35 @@ static int node_fill(struct m0_conf_obj *dest, const struct confx_object *src,
 	return 0;
 }
 
+static int
+node_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
+{
+	int                  rc;
+	struct m0_conf_node *s = M0_CONF_CAST(src, m0_conf_node);
+	struct confx_node   *d = &dest->o_conf.u.u_node;
+
+	rc = m0_buf_copy(&dest->o_id, &src->co_id);
+	if (rc != 0)
+		return -ENOMEM;
+
+	dest->o_conf.u_type = src->co_type;
+	d->xn_memsize    = s->cn_memsize;
+	d->xn_nr_cpu     = s->cn_nr_cpu;
+	d->xn_last_state = s->cn_last_state;
+	d->xn_flags      = s->cn_flags;
+	d->xn_pool_id    = s->cn_pool_id;
+
+	rc = arrbuf_from_dir(&d->xn_nics, s->cn_nics);
+	if (rc != 0)
+		return rc;
+
+	rc = arrbuf_from_dir(&d->xn_sdevs, s->cn_sdevs);
+	if (rc != 0)
+		arrbuf_free(&d->xn_nics);
+
+	return rc;
+}
+
 static bool
 node_match(const struct m0_conf_obj *cached, const struct confx_object *flat)
 {
@@ -118,14 +147,22 @@ node_match(const struct m0_conf_obj *cached, const struct confx_object *flat)
 		obj->cn_last_state == objx->xn_last_state &&
 		obj->cn_flags      == objx->xn_flags      &&
 		obj->cn_pool_id    == objx->xn_pool_id;
-
 }
 
 static int node_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
 		       struct m0_conf_obj **out)
 {
-	M0_IMPOSSIBLE("XXX not implemented");
-	return -1;
+	M0_PRE(parent->co_status == M0_CS_READY);
+
+	if (m0_buf_streq(name, "nics"))
+		*out = &M0_CONF_CAST(parent, m0_conf_node)->cn_nics->cd_obj;
+	else if (m0_buf_streq(name, "sdevs"))
+		*out = &M0_CONF_CAST(parent, m0_conf_node)->cn_sdevs->cd_obj;
+	else
+		return -ENOENT;
+
+	M0_POST(m0_conf_obj_invariant(*out));
+	return 0;
 }
 
 static void node_delete(struct m0_conf_obj *obj)
@@ -139,6 +176,7 @@ static void node_delete(struct m0_conf_obj *obj)
 static const struct m0_conf_obj_ops node_ops = {
 	.coo_invariant = node_invariant,
 	.coo_fill      = node_fill,
+	.coo_xfill     = node_xfill,
 	.coo_match     = node_match,
 	.coo_lookup    = node_lookup,
 	.coo_readdir   = NULL,

@@ -16,9 +16,8 @@ mero_service()
 		# spawn servers
 		for ((i=0; i < ${#EP[*]}; i++)) ; do
 			SNAME="-s $MERO_IOSERVICE_NAME"
-			if ((i == 0)) ; then
-				SNAME=\
-"-s confd -s $MERO_MDSERVICE_NAME $SNAME"
+			if ((i == 0)); then
+				SNAME="-s $MERO_MDSERVICE_NAME $SNAME"
 			fi
 
 			rm -rf $MERO_M0T1FS_TEST_DIR/d$i
@@ -37,7 +36,7 @@ mero_service()
 			sleep 1
 			status $prog_exec
 			if [ $? -eq 0 ]; then
-			        SNAME=$(echo $SNAME | sed 's/-s //g')
+				SNAME=$(echo $SNAME | sed 's/-s //g')
 				echo "Mero services ($SNAME) started."
 			else
 				echo "Mero service failed to start."

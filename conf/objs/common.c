@@ -68,7 +68,7 @@ M0_INTERNAL bool child_check(const struct m0_conf_obj *obj,
 {
 	M0_PRE(obj->co_mounted);
 
-	/* Profile is a topmost object. It cannot be a child. */
+	/* Profile is a topmost object, it cannot be a child. */
 	M0_ASSERT(child == NULL || child->co_type != M0_CO_PROFILE);
 
 	return ergo(obj->co_status == M0_CS_READY,
@@ -127,7 +127,7 @@ M0_INTERNAL int dir_new(const struct m0_buf *dir_id,
 
 		/* Link the directory and its element together. */
 		child_adopt(dir, child);
-		m0_conf_dir_tlist_add(&(*out)->cd_items, child);
+		m0_conf_dir_tlist_add_tail(&(*out)->cd_items, child);
 	}
 
 	rc = rc ?: m0_conf_reg_add(reg, dir);
@@ -160,7 +160,8 @@ M0_INTERNAL bool arrays_eq(const char **cached, const struct arr_buf *flat)
 	return i == flat->ab_count;
 }
 
-int strings_copy(const char ***dest, const struct arr_buf *src)
+M0_INTERNAL int
+strings_from_arrbuf(const char ***dest, const struct arr_buf *src)
 {
 	uint32_t i;
 
@@ -189,7 +190,7 @@ fail:
 	return -ENOMEM;
 }
 
-void strings_free(const char **arr)
+M0_INTERNAL void strings_free(const char **arr)
 {
 	if (arr != NULL) {
 		const char **p;
@@ -197,4 +198,78 @@ void strings_free(const char **arr)
 			m0_free((void *)*p);
 		m0_free(arr);
 	}
+}
+
+M0_INTERNAL int arrbuf_from_strings(struct arr_buf *dest, const char **src)
+{
+	size_t i;
+	int    rc;
+
+	M0_SET0(dest);
+
+	if (src == NULL)
+		return 0;
+
+	for (; src[dest->ab_count] != NULL; ++dest->ab_count)
+		; /* measuring */
+
+	if (dest->ab_count == 0)
+		return 0;
+
+	M0_ALLOC_ARR(dest->ab_elems, dest->ab_count);
+	if (dest->ab_elems == NULL)
+		return -ENOMEM;
+
+	for (i = 0; i < dest->ab_count; ++i) {
+		rc = m0_buf_copy(&dest->ab_elems[i],
+				 &(struct m0_buf)M0_BUF_INITS((char *)src[i]));
+		if (rc != 0) {
+			arrbuf_free(dest);
+			return -ENOMEM;
+		}
+	}
+
+	return 0;
+}
+
+M0_INTERNAL int arrbuf_from_dir(struct arr_buf *dest,
+				const struct m0_conf_dir *dir)
+{
+	struct m0_conf_obj *obj;
+	size_t              i;
+	int                 rc;
+
+	dest->ab_elems = NULL;
+	dest->ab_count = m0_conf_dir_tlist_length(&dir->cd_items);
+
+	if (dest->ab_count == 0)
+		return 0;
+
+	M0_ALLOC_ARR(dest->ab_elems, dest->ab_count);
+	if (dest->ab_elems == NULL)
+		return -ENOMEM;
+
+	i = 0;
+	m0_tl_for(m0_conf_dir, &dir->cd_items, obj) {
+		rc = m0_buf_copy(&dest->ab_elems[i], &obj->co_id);
+		if (rc != 0)
+			goto err;
+		++i;
+	} m0_tl_endfor;
+
+	return 0;
+err:
+	M0_ASSERT(i < dest->ab_count);
+	dest->ab_count = i;
+	arrbuf_free(dest);
+	return rc;
+}
+
+M0_INTERNAL void arrbuf_free(struct arr_buf *arr)
+{
+	while (arr->ab_count > 0)
+		m0_buf_free(&arr->ab_elems[--arr->ab_count]);
+	m0_free(arr->ab_elems);
+	arr->ab_elems = NULL;
+	M0_POST(arr->ab_count == 0);
 }

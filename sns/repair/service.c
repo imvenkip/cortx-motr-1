@@ -57,10 +57,11 @@ M0_ADDB_EV_DEFINE(config_fetch_fail, "config_fetch_fail",
                   M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 
 
-/** Copy machine service type operations.*/
-static int service_allocate(struct m0_reqh_service_type *stype,
-			    struct m0_reqh_service **service);
+static int service_allocate(struct m0_reqh_service **service,
+			    struct m0_reqh_service_type *stype,
+			    const char *arg);
 
+/** Copy machine service type operations.*/
 static const struct m0_reqh_service_type_ops service_type_ops = {
 	.rsto_service_allocate = service_allocate,
 };
@@ -85,39 +86,40 @@ extern const struct m0_cm_ops cm_ops;
  * This allocates struct m0_sns_repair_cm and invokes m0_cm_init() to initialise
  * m0_sns_repair_cm::rc_base.
  */
-static int service_allocate(struct m0_reqh_service_type *stype,
-			    struct m0_reqh_service **service)
+static int service_allocate(struct m0_reqh_service **service,
+			    struct m0_reqh_service_type *stype,
+			    const char *arg __attribute__((unused)))
 {
-	struct m0_sns_repair_cm   *rmach;
-	struct m0_cm              *cm;
-	struct m0_cm_type         *cm_type;
-	int                        rc;
+	struct m0_sns_repair_cm *rmach;
+	struct m0_cm            *cm;
+	int                      rc;
 
 	M0_ENTRY("stype: %p", stype);
-	M0_PRE(stype != NULL && service != NULL);
+	M0_PRE(service != NULL && stype != NULL);
 
 	M0_ALLOC_PTR(rmach);
-	if (rmach != NULL) {
-		cm = &rmach->rc_base;
-		cm_type = container_of(stype, struct m0_cm_type, ct_stype);
-		*service = &cm->cm_service;
-		(*service)->rs_type = stype;
-		(*service)->rs_ops = &service_ops;
-		m0_addb_ctx_init(&cm->cm_addb, &sns_repair_addb_ctx_type,
-		                 &m0_addb_global_ctx);
-		rc = m0_cm_init(cm, cm_type, &cm_ops);
-		if (rc != 0) {
-			M0_ADDB_ADD(&cm->cm_addb, &sns_repair_addb_loc,
-			            svc_init_fail,
-				    "m0_cm_init", rc);
-			m0_addb_ctx_fini(&cm->cm_addb);
-			m0_free(rmach);
-		}
-	} else
-		rc = -ENOMEM;
+	if (rmach == NULL)
+		M0_RETURN(-ENOMEM);
 
-	M0_LEAVE("rmach: %p service: %p", rmach, *service);
-	return rc;
+	cm = &rmach->rc_base;
+
+	*service = &cm->cm_service;
+	(*service)->rs_ops = &service_ops;
+
+	m0_addb_ctx_init(&cm->cm_addb, &sns_repair_addb_ctx_type,
+			 &m0_addb_global_ctx);
+
+	rc = m0_cm_init(cm, container_of(stype, struct m0_cm_type, ct_stype),
+			&cm_ops);
+	if (rc != 0) {
+		M0_ADDB_ADD(&cm->cm_addb, &sns_repair_addb_loc, svc_init_fail,
+			    "m0_cm_init", rc);
+		m0_addb_ctx_fini(&cm->cm_addb);
+		m0_free(rmach);
+	}
+
+	M0_LOG(M0_DEBUG, "rmach: %p service: %p", rmach, *service);
+	M0_RETURN(rc);
 }
 
 /**

@@ -301,16 +301,19 @@ struct m0_reqh_service_type_ops {
 	/**
 	   Allocates and initialises a service for the given service type.
 	   This also initialises the corresponding service operations vector.
-           This is typically invoked  during mero setup, but also can be
-           invoked later, in-order to configure a particular service. Once the
-           service specific initialisation is done, generic m0_reqh_service_init()
-           routine is invoked.
+	   This is typically invoked during mero setup, but also can be
+	   invoked later, in order to configure a particular service.
+	   Once the service specific initialisation is done, generic
+	   m0_reqh_service_init() routine is invoked.
 
-	   @param stype Type of service to be located
-	   @param service successfully located service
+	   @param service  Resulted service.
+	   @param stype    Type of service being allocated.
+	   @param arg      Optional parameter that is passed to service's
+	                   constructor.
 	 */
-	int (*rsto_service_allocate)(struct m0_reqh_service_type *stype,
-				     struct m0_reqh_service **service);
+	int (*rsto_service_allocate)(struct m0_reqh_service **service,
+				     struct m0_reqh_service_type *stype,
+				     const char *arg);
 };
 
 /**
@@ -342,19 +345,20 @@ struct m0_reqh_service_type {
 };
 
 /**
-   Locates a particular type of service.
-   Invokes service type specific locate routine.
+   Allocates and initialises service of given type.
 
-   @param stype Type of service to be located
-   @param service out parameter containing located service
+   @param service  Resulted service.
+   @param stype    Type of service being allocated.
+   @param arg      Optional parameter that is passed to service's constructor.
 
-   @pre service != NULL
-   @post m0_reqh_service_invariant(service)
+   @pre  service != NULL && stype != NULL
+   @post ergo(retval == 0, m0_reqh_service_invariant(service))
 
    @see struct m0_reqh_service_type_ops
  */
-M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service_type *stype,
-					 struct m0_reqh_service **service);
+M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **service,
+					 struct m0_reqh_service_type *stype,
+					 const char *arg);
 
 /**
    Searches a particular type of service by traversing global list of service

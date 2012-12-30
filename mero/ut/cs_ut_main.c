@@ -462,34 +462,41 @@ static void test_cs_ut_lnet_ep_duplicate(void)
 
 static void test_cs_ut_lnet_multiple_if(void)
 {
-	int		  rc;
 	struct m0_mero mero_ctx;
+	int            rc;
 
 	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = cs_parse_args(&mero_ctx, ARRAY_SIZE(cs_ut_lnet_mult_if_cmd),
-			    cs_ut_lnet_mult_if_cmd);
+	rc = cs_args_parse(&mero_ctx, ARRAY_SIZE(cs_ut_lnet_mult_if_cmd),
+			   cs_ut_lnet_mult_if_cmd);
 	M0_UT_ASSERT(rc == 0);
+
 	rc = reqh_ctxs_are_valid(&mero_ctx);
 	M0_UT_ASSERT(rc == 0);
+
+	m0_cs_fini(&mero_ctx);
 }
 
 static void test_cs_ut_lnet_ep_mixed_dup(void)
 {
-	int		  rc;
 	struct m0_mero mero_ctx;
-	FILE		 *out;
+	FILE          *out;
+	int            rc;
 
 	out = fopen("temp", "w");
+
 	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), out);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = cs_parse_args(&mero_ctx, ARRAY_SIZE(cs_ut_ep_mixed_dup_cmd),
-			    cs_ut_ep_mixed_dup_cmd);
+	rc = cs_args_parse(&mero_ctx, ARRAY_SIZE(cs_ut_ep_mixed_dup_cmd),
+			   cs_ut_ep_mixed_dup_cmd);
 	M0_UT_ASSERT(rc == 0);
+
 	rc = reqh_ctxs_are_valid(&mero_ctx);
 	M0_UT_ASSERT(rc != 0);
+
+	m0_cs_fini(&mero_ctx);
 	fclose(out);
 }
 

@@ -15,28 +15,31 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
- * Original creation date: 30-Aug-2012
+ * Original creation date: 28-Dec-2012
  */
 
-#include "lib/ut.h"
-#include "conf/conf_xcode.h"
+#include "conf/ut/file_helpers.h"
+#include "lib/string.h"  /* FILE, fread */
+#include "lib/errno.h"   /* EFBIG, errno */
 
-extern void test_obj_fill(void);
-extern void test_obj_find(void);
-extern void test_obj_xtors(void);
-extern void test_reg(void);
-extern void test_confx_xcode(void);
+M0_INTERNAL int m0_ut_file_read(const char *path, char *dest, size_t sz)
+{
+	FILE  *f;
+	size_t n;
+	int    rc = 0;
 
-const struct m0_test_suite conf_ut = {
-	.ts_name  = "conf-ut",
-	.ts_init  = NULL,
-	.ts_fini  = NULL,
-	.ts_tests = {
-		{ "reg",       test_reg         },
-		{ "obj-xtors", test_obj_xtors   },
-		{ "obj-find",  test_obj_find    },
-		{ "obj-fill",  test_obj_fill    },
-		{ "xcode",     test_confx_xcode },
-		{ NULL, NULL }
-	}
-};
+	f = fopen(path, "r");
+	if (f == NULL)
+		return -errno;
+
+	n = fread(dest, 1, sz - 1, f);
+	if (ferror(f))
+		rc = -errno;
+	else if (!feof(f))
+		rc = -EFBIG;
+	else
+		dest[n] = '\0';
+
+	fclose(f);
+	return rc;
+}

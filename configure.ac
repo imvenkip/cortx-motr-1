@@ -390,7 +390,7 @@ AC_CHECK_HEADERS([CUnit/Basic.h], [],
 from $SRCDIR/../cunit or CUnit-devel rpm package])
 )
 
-# Check for berkley db
+# Check for berkeley db
 
 MERO_SEARCH_LIBS([db_env_create], [db], [DB_LIBS],
         [db_env_create cannot be found! Try install db4-devel package]
@@ -546,8 +546,6 @@ AC_CONFIG_FILES([net/test/m0netperfd.sh], [chmod + net/test/m0netperfd.sh])
 AC_CONFIG_FILES([net/test/test-user.sh], [chmod + net/test/test-user.sh])
 AC_CONFIG_FILES([utils/ut.sh], [chmod +x utils/ut.sh])
 AC_CONFIG_FILES([utils/linux_kernel/ut.sh], [chmod +x utils/linux_kernel/ut.sh])
-
-AC_CONFIG_FILES([conf/confd_hack.c])  # XXX DELETEME
 
 AC_OUTPUT
 

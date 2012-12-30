@@ -62,6 +62,24 @@ static int profile_fill(struct m0_conf_obj *dest,
 	return rc;
 }
 
+static int
+profile_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
+{
+	int rc;
+	struct m0_conf_profile *s = M0_CONF_CAST(src, m0_conf_profile);
+
+	dest->o_conf.u_type = src->co_type;
+	rc = m0_buf_copy(&dest->o_id, &src->co_id);
+	if (rc != 0)
+		return rc;
+
+	rc = m0_buf_copy(&dest->o_conf.u.u_profile.xp_filesystem,
+			 &s->cp_filesystem->cf_obj.co_id);
+	if (rc != 0)
+		m0_buf_free(&dest->o_id);
+	return rc;
+}
+
 static bool
 profile_match(const struct m0_conf_obj *cached, const struct confx_object *flat)
 {
@@ -81,6 +99,7 @@ static int profile_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
 		return -ENOENT;
 
 	*out = &M0_CONF_CAST(parent, m0_conf_profile)->cp_filesystem->cf_obj;
+	M0_POST(m0_conf_obj_invariant(*out));
 	return 0;
 }
 
@@ -95,6 +114,7 @@ static void profile_delete(struct m0_conf_obj *obj)
 static const struct m0_conf_obj_ops profile_ops = {
 	.coo_invariant = profile_invariant,
 	.coo_fill      = profile_fill,
+	.coo_xfill     = profile_xfill,
 	.coo_match     = profile_match,
 	.coo_lookup    = profile_lookup,
 	.coo_readdir   = NULL,

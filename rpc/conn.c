@@ -580,17 +580,17 @@ M0_INTERNAL int m0_rpc_conn_establish_sync(struct m0_rpc_conn *conn,
 	int rc;
 
 	M0_ENTRY();
+
 	rc = m0_rpc_conn_establish(conn);
-	if (rc != 0) {
+	if (rc != 0)
 		M0_RETURN(rc);
-	}
 
 	rc = m0_rpc_conn_timedwait(conn, M0_BITS(M0_RPC_CONN_ACTIVE,
 						 M0_RPC_CONN_FAILED),
 				   m0_time_from_now(timeout_sec, 0));
 
-	M0_ASSERT(M0_IN(conn_state(conn), (M0_RPC_CONN_ACTIVE,
-					   M0_RPC_CONN_FAILED)));
+	M0_POST(M0_IN(conn_state(conn),
+		      (M0_RPC_CONN_ACTIVE, M0_RPC_CONN_FAILED)));
 	M0_RETURN(rc);
 }
 M0_EXPORTED(m0_rpc_conn_establish_sync);
@@ -629,11 +629,10 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn)
 	session_0 = m0_rpc_conn_session0(conn);
 
 	rc = m0_rpc__fop_post(fop, session_0, &conn_establish_item_ops);
-	if (rc == 0) {
+	if (rc == 0)
 		conn_state_set(conn, M0_RPC_CONN_CONNECTING);
-	} else {
+	else
 		conn_failed(conn, rc);
-	}
 	m0_fop_put(fop);
 
 	M0_ASSERT(m0_rpc_conn_invariant(conn));

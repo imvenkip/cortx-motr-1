@@ -112,7 +112,6 @@ static void cm_ut_fini(struct m0_cm *cm)
 
 static void cm_ut_complete(struct m0_cm *cm)
 {
-
 }
 
 static const struct m0_cm_ops cm_ut_ops = {
@@ -140,21 +139,18 @@ static const struct m0_cm_aggr_group_ops cm_ag_ut_ops = {
 	.cago_local_cp_nr = cm_ag_ut_local_cp_nr,
 };
 
-static int cm_ut_service_allocate(struct m0_reqh_service_type *stype,
-				  struct m0_reqh_service **service)
+static int cm_ut_service_allocate(struct m0_reqh_service **service,
+				  struct m0_reqh_service_type *stype,
+				  const char *arg __attribute__((unused)))
 {
-	struct m0_cm_type	*cm_type;
-	struct m0_cm		*cm;
-	int			 rc;
+	struct m0_cm *cm = &cm_ut;
 
-	cm = &cm_ut;
-	cm_type = container_of(stype, struct m0_cm_type, ct_stype);
 	*service = &cm->cm_service;
-	(*service)->rs_type = stype;
 	(*service)->rs_ops = &cm_ut_service_ops;
 	(*service)->rs_state = M0_RST_INITIALISING;
-	rc = m0_cm_init(cm, cm_type, &cm_ut_ops);
-	return rc;
+
+	return m0_cm_init(cm, container_of(stype, struct m0_cm_type, ct_stype),
+			  &cm_ut_ops);
 }
 
 static const struct m0_reqh_service_type_ops cm_ut_service_type_ops = {
@@ -183,9 +179,9 @@ static int ut_fini(void)
 
 static void cm_ut_service_alloc_init()
 {
-	int	rc;
+	int rc;
 	/* Internally calls m0_cm_init(). */
-	rc = m0_reqh_service_allocate(&cm_ut_cmt.ct_stype, &service);
+	rc = m0_reqh_service_allocate(&service, &cm_ut_cmt.ct_stype, NULL);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_reqh_service_init(service, &reqh);
@@ -199,7 +195,7 @@ static void cm_ut_service_cleanup()
 
 static void cm_setup_ut(void)
 {
-	int			rc;
+	int rc;
 
 	cm_ut_service_alloc_init();
 
@@ -219,16 +215,16 @@ static void cm_setup_ut(void)
 
 static void cm_init_failure_ut(void)
 {
-	int			rc;
+	int rc;
 
 	m0_fi_enable_once("m0_cm_init", "init_failure");
-	rc = m0_reqh_service_allocate(&cm_ut_cmt.ct_stype, &service);
+	rc = m0_reqh_service_allocate(&service, &cm_ut_cmt.ct_stype, NULL);
 	M0_UT_ASSERT(rc != 0);
 }
 
 static void cm_setup_failure_ut(void)
 {
-	int			rc;
+	int rc;
 
 	cm_ut_service_alloc_init();
 	m0_fi_enable_once("m0_cm_setup", "setup_failure_2");

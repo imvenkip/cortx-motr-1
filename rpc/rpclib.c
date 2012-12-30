@@ -89,67 +89,73 @@ void m0_rpc_server_stop(struct m0_rpc_server_ctx *sctx)
 }
 #endif
 
+M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
+				      struct m0_rpc_session *session,
+				      struct m0_rpc_machine *rpc_mach,
+				      const char            *remote_addr,
+				      uint64_t               max_rpcs_in_flight,
+				      uint32_t               nr_slots)
+{
+	struct m0_net_end_point *ep;
+	int                      rc;
+
+	M0_ENTRY();
+
+	rc = m0_net_end_point_create(&ep, &rpc_mach->rm_tm, remote_addr);
+	if (rc != 0)
+		M0_RETURN(rc);
+
+	rc = m0_rpc_conn_create(conn, ep, rpc_mach, max_rpcs_in_flight,
+				(uint32_t)M0_TIME_NEVER);
+	m0_net_end_point_put(ep);
+	if (rc != 0)
+		M0_RETURN(rc);
+
+	rc = m0_rpc_session_create(session, conn, nr_slots,
+				   (uint32_t)M0_TIME_NEVER);
+	if (rc != 0)
+		(void)m0_rpc_conn_destroy(conn, (uint32_t)M0_TIME_NEVER);
+
+	M0_RETURN(rc);
+}
+M0_EXPORTED(m0_rpc_client_connect);
+
 int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 {
+	enum { NR_TM = 1 }; /* Number of TMs. */
 	int rc;
-	struct m0_net_transfer_mc *tm;
-	struct m0_net_domain      *ndom;
-	struct m0_rpc_machine	  *rpc_mach;
-	struct m0_net_buffer_pool *buffer_pool;
-	uint32_t		   tms_nr;
-	uint32_t		   bufs_nr;
 
 	M0_ENTRY("client_ctx: %p", cctx);
-
-	ndom	    = cctx->rcx_net_dom;
-	rpc_mach    = &cctx->rcx_rpc_machine;
-	buffer_pool = &cctx->rcx_buffer_pool;
 
 	if (cctx->rcx_recv_queue_min_length == 0)
 		cctx->rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 
-	tms_nr   = 1;
-	bufs_nr  = m0_rpc_bufs_nr(cctx->rcx_recv_queue_min_length, tms_nr);
-
-	rc = m0_rpc_net_buffer_pool_setup(ndom, buffer_pool,
-					  bufs_nr, tms_nr);
+	rc = m0_rpc_net_buffer_pool_setup(
+		cctx->rcx_net_dom, &cctx->rcx_buffer_pool,
+		m0_rpc_bufs_nr(cctx->rcx_recv_queue_min_length, NR_TM),
+		NR_TM);
 	if (rc != 0)
-		goto pool_fini;
+		goto err;
 
-	rc = m0_rpc_machine_init(rpc_mach, cctx->rcx_cob_dom,
-				 ndom, cctx->rcx_local_addr, NULL,
-				 buffer_pool, M0_BUFFER_ANY_COLOUR,
+	rc = m0_rpc_machine_init(&cctx->rcx_rpc_machine, cctx->rcx_cob_dom,
+				 cctx->rcx_net_dom, cctx->rcx_local_addr, NULL,
+				 &cctx->rcx_buffer_pool, M0_BUFFER_ANY_COLOUR,
 				 cctx->rcx_max_rpc_msg_size,
 				 cctx->rcx_recv_queue_min_length);
 	if (rc != 0)
-		goto pool_fini;
+		goto err;
 
-	tm = &cctx->rcx_rpc_machine.rm_tm;
-
-	rc = m0_net_end_point_create(&cctx->rcx_remote_ep, tm,
-				      cctx->rcx_remote_addr);
-	if (rc != 0)
-		goto rpcmach_fini;
-
-	rc = m0_rpc_conn_create(&cctx->rcx_connection, cctx->rcx_remote_ep,
-				rpc_mach, cctx->rcx_max_rpcs_in_flight,
-				(uint32_t)M0_TIME_NEVER);
-	if (rc != 0)
-		goto ep_put;
-
-	rc = m0_rpc_session_create(&cctx->rcx_session, &cctx->rcx_connection,
-				   cctx->rcx_nr_slots, (uint32_t)M0_TIME_NEVER);
+	rc = m0_rpc_client_connect(&cctx->rcx_connection, &cctx->rcx_session,
+				   &cctx->rcx_rpc_machine,
+				   cctx->rcx_remote_addr,
+				   cctx->rcx_max_rpcs_in_flight,
+				   cctx->rcx_nr_slots);
 	if (rc == 0)
 		M0_RETURN(rc);
 
-	m0_rpc_conn_destroy(&cctx->rcx_connection, (uint32_t)M0_TIME_NEVER);
-ep_put:
-	m0_net_end_point_put(cctx->rcx_remote_ep);
-rpcmach_fini:
-	m0_rpc_machine_fini(rpc_mach);
-pool_fini:
-	m0_rpc_net_buffer_pool_cleanup(buffer_pool);
-	M0_ASSERT(rc != 0);
+	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
+err:
+	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 	M0_RETURN(rc);
 }
 
@@ -185,6 +191,7 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 	int rc1;
 
 	M0_ENTRY("client_ctx: %p", cctx);
+
 	rc0 = m0_rpc_session_destroy(&cctx->rcx_session,
 				    (uint32_t)M0_TIME_NEVER);
 	if (rc0 != 0)
@@ -195,9 +202,7 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 	if (rc1 != 0)
 		M0_LOG(M0_ERROR, "Failed to terminate connection %d", rc1);
 
-	m0_net_end_point_put(cctx->rcx_remote_ep);
 	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
-
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
 	M0_RETURN(rc0 ?: rc1);

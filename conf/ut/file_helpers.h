@@ -15,28 +15,30 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
- * Original creation date: 30-Aug-2012
+ * Original creation date: 28-Dec-2012
  */
+#pragma once
+#ifndef __MERO_CONF_UT_FILE_HELPERS_H__
+#define __MERO_CONF_UT_FILE_HELPERS_H__
 
-#include "lib/ut.h"
-#include "conf/conf_xcode.h"
+#include <stddef.h>  /* size_t */
 
-extern void test_obj_fill(void);
-extern void test_obj_find(void);
-extern void test_obj_xtors(void);
-extern void test_reg(void);
-extern void test_confx_xcode(void);
+#define _QUOTE(s) #s
+#define QUOTE(s) _QUOTE(s)
 
-const struct m0_test_suite conf_ut = {
-	.ts_name  = "conf-ut",
-	.ts_init  = NULL,
-	.ts_fini  = NULL,
-	.ts_tests = {
-		{ "reg",       test_reg         },
-		{ "obj-xtors", test_obj_xtors   },
-		{ "obj-find",  test_obj_find    },
-		{ "obj-fill",  test_obj_fill    },
-		{ "xcode",     test_confx_xcode },
-		{ NULL, NULL }
-	}
-};
+/**
+ * Returns absolute path to given file in conf/ut directory.
+ * M0_CONF_UT_DIR is defined in conf/ut/Makefile.am.
+ */
+#define M0_CONF_UT_PATH(name) QUOTE(M0_CONF_UT_DIR) "/" name
+
+/**
+ * Reads contents of file into a buffer.
+ *
+ * @param path  Name of file to read.
+ * @param dest  Buffer to read into.
+ * @param sz    Size of `dest'.
+ */
+M0_INTERNAL int m0_ut_file_read(const char *path, char *dest, size_t sz);
+
+#endif /* __MERO_CONF_UT_FILE_HELPERS_H__ */

@@ -18,40 +18,21 @@
  * Original creation date: 26-Jul-2012
  */
 
-#include "conf/obj_ops.h"
+#include "conf/obj_ops.h"  /* m0_conf_obj_create */
+#include "lib/string.h"    /* strlen */
 #include "conf/reg.h"
-#include "conf/preload.h"
-#include "conf/onwire.h"  /* confx_object */
+#include "conf/onwire.h"   /* confx_object */
+#include "conf/preload.h"  /* m0_confx_fini */
+#include "lib/memory.h"    /* m0_free */
+#include "conf/ut/file_helpers.h"
 #include "lib/ut.h"
-#include <stdio.h>
-
-#define QUOTE(s) QUOTE_(s)
-#define QUOTE_(s) #s
-
-/* MERO_CONFX_OBJ_CFG comes from CFLAGS; see conf/ut/Makefile.am */
-#define CONFX_CFG QUOTE(MERO_CONFX_OBJ_CFG)
-
-static void confx_read(char *buf, size_t buf_size)
-{
-	FILE *f;
-	int   n;
-
-	f = fopen(CONFX_CFG, "r");
-	M0_UT_ASSERT(f != NULL);
-
-	n = fread(buf, 1, buf_size, f);
-	M0_UT_ASSERT(n > 0);
-	buf[n] = '\0';
-
-	fclose(f);
-}
 
 void test_obj_xtors(void)
 {
 	struct m0_conf_obj  *obj;
 	enum m0_conf_objtype t;
 
-	M0_UT_ASSERT(M0_CO_DIR == 0);
+	M0_CASSERT(M0_CO_DIR == 0);
 	for (t = 0; t < M0_CO_NR; ++t) {
 		obj = m0_conf_obj_create(t, &(const struct m0_buf)
 					 M0_BUF_INITS("test"));
@@ -98,12 +79,13 @@ void test_obj_fill(void)
 
 	m0_conf_reg_init(&reg);
 
-	confx_read(buf, sizeof buf);
+	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf_xc.txt"), buf, sizeof buf);
+	M0_UT_ASSERT(rc == 0);
 
 	nr_objs = m0_conf_parse(buf, xobjs, ARRAY_SIZE(xobjs));
 	/* Note, that nr_objs is the number of parsed object
 	 * descriptors, which only accidentally equals M0_CO_NR. */
-	M0_UT_ASSERT(nr_objs == 8);
+	/* M0_UT_ASSERT(nr_objs == 32); */
 
 	for (i = 0; i < nr_objs; ++i) {
 		rc = m0_conf_obj_find(&reg, xobjs[i].o_conf.u_type,
@@ -113,10 +95,7 @@ void test_obj_fill(void)
 		rc = m0_conf_obj_fill(obj, &xobjs[i], &reg);
 		M0_UT_ASSERT(rc == 0);
 	}
-#if 0 /*XXX*/
-	extern void m0_conf__reg2dot(const struct m0_conf_reg *reg);
-	m0_conf__reg2dot(&reg);
-#endif
+
 	m0_confx_fini(xobjs, nr_objs);
 	m0_conf_reg_fini(&reg);
 }

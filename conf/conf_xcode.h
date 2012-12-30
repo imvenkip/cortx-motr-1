@@ -78,6 +78,29 @@ M0_INTERNAL int m0_confx_db_create(const char *db_name,
 M0_INTERNAL int m0_confx_db_read(const char *db_name,
 				 struct confx_object **obj);
 
+#ifndef __KERNEL__
+/**
+ * Reads configuration string from file into array of configuration
+ * objects.
+ *
+ * @param filename  Path to a file with configuration string.
+ * @param obj       Resulting array of configuration object descriptors.
+ *
+ * @retval => 0  The number of read object descriptors.
+ * @retval < 0   Error code.
+ *
+ * @note  User is responsible for freeing the allocated memory:
+ * @code
+ *         m0_confx_fini(obj);
+ *         m0_free(obj);
+ * @endcode
+ *
+ * @todo XXX Relocate m0_confx_str_read() to conf/preload.c.
+ */
+M0_INTERNAL int m0_confx_str_read(const char *filename,
+				  struct confx_object **xobjs);
+#endif
+
 /** xcode type initializer defined in onwire.h */
 M0_INTERNAL int m0_confx_types_init(void);
 

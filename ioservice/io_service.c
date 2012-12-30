@@ -62,8 +62,9 @@ enum {
 	M0_NET_BUFFER_POOL_SIZE = 32,
 };
 
-static int ios_allocate(struct m0_reqh_service_type *stype,
-			 struct m0_reqh_service **service);
+static int ios_allocate(struct m0_reqh_service **service,
+			struct m0_reqh_service_type *stype,
+			const char *arg);
 static void ios_fini(struct m0_reqh_service *service);
 
 static int ios_start(struct m0_reqh_service *service);
@@ -305,29 +306,28 @@ static void ios_delete_buffer_pool(struct m0_reqh_service *service)
  *
  * @pre stype != NULL && service != NULL
  */
-static int ios_allocate(struct m0_reqh_service_type *stype,
-			struct m0_reqh_service **service)
+static int ios_allocate(struct m0_reqh_service **service,
+			struct m0_reqh_service_type *stype,
+			const char *arg __attribute__((unused)))
 {
-	struct m0_reqh_service    *serv;
-	struct m0_reqh_io_service *serv_obj;
+	struct m0_reqh_io_service *ios;
 
-	M0_PRE(stype != NULL && service != NULL);
+	M0_PRE(service != NULL && stype != NULL);
 
 	m0_addb_ctx_init(&ios_addb_ctx, &ios_addb_ctx_type,
 			 &m0_addb_global_ctx);
 
-	M0_ALLOC_PTR_ADDB(serv_obj, &ios_addb_ctx, &ios_addb_loc);
-	if (serv_obj == NULL)
+	M0_ALLOC_PTR_ADDB(ios, &ios_addb_ctx, &ios_addb_loc);
+	if (ios == NULL) {
+		m0_addb_ctx_fini(&ios_addb_ctx);
 		return -ENOMEM;
+	}
 
-        bufferpools_tlist_init(&serv_obj->rios_buffer_pools);
-        serv_obj->rios_magic = M0_IOS_REQH_SVC_MAGIC;
-        serv = &serv_obj->rios_gen;
+        bufferpools_tlist_init(&ios->rios_buffer_pools);
+        ios->rios_magic = M0_IOS_REQH_SVC_MAGIC;
 
-	serv->rs_type = stype;
-	serv->rs_ops = &ios_ops;
-
-	*service = serv;
+        *service = &ios->rios_gen;
+	(*service)->rs_ops = &ios_ops;
 
 	return 0;
 }

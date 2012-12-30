@@ -43,8 +43,9 @@ static const struct m0_addb_ctx_type mds_addb_ctx_type = {
         .act_name = "md_service",
 };
 
-static int mds_allocate(struct m0_reqh_service_type *stype,
-                        struct m0_reqh_service **service);
+static int mds_allocate(struct m0_reqh_service **service,
+			struct m0_reqh_service_type *stype,
+                        const char *arg);
 static void mds_fini(struct m0_reqh_service *service);
 
 static int mds_start(struct m0_reqh_service *service);
@@ -84,33 +85,26 @@ M0_INTERNAL void m0_mds_unregister(void)
  * Allocates and initiates MD Service instance.
  * This operation allocates & initiates service instance with its operation
  * vector.
- *
- * @param stype service type
- * @param service pointer to service instance.
- *
- * @pre stype != NULL && service != NULL
  */
-static int mds_allocate(struct m0_reqh_service_type *stype,
-                        struct m0_reqh_service **service)
+static int mds_allocate(struct m0_reqh_service **service,
+			struct m0_reqh_service_type *stype,
+                        const char *arg __attribute__((unused)))
 {
-        struct m0_reqh_service    *serv;
-        struct m0_reqh_md_service *serv_obj;
+        struct m0_reqh_md_service *mds;
 
-        M0_PRE(stype != NULL && service != NULL);
+        M0_PRE(service != NULL && stype != NULL);
 
         m0_addb_ctx_init(&mds_addb_ctx, &mds_addb_ctx_type,
                          &m0_addb_global_ctx);
 
-        M0_ALLOC_PTR_ADDB(serv_obj, &mds_addb_ctx, &mds_addb_loc);
-        if (serv_obj == NULL)
+        M0_ALLOC_PTR_ADDB(mds, &mds_addb_ctx, &mds_addb_loc);
+        if (mds == NULL)
                 return -ENOMEM;
 
-        serv_obj->rmds_magic = M0_MDS_REQH_SVC_MAGIC;
-        serv = &serv_obj->rmds_gen;
+        mds->rmds_magic = M0_MDS_REQH_SVC_MAGIC;
 
-        serv->rs_type = stype;
-        serv->rs_ops = &mds_ops;
-        *service = serv;
+        *service = &mds->rmds_gen;
+        (*service)->rs_ops = &mds_ops;
 
         return 0;
 }

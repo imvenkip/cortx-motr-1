@@ -242,15 +242,14 @@ M0_INTERNAL int m0_rpc_net_buffer_pool_setup(struct m0_net_domain *ndom,
 	m0_net_buffer_pool_lock(app_pool);
 	rc = m0_net_buffer_pool_provision(app_pool, bufs_nr);
 	m0_net_buffer_pool_unlock(app_pool);
-	rc = rc != bufs_nr ? -ENOMEM : 0;
-	M0_RETURN(rc);
+
+	M0_RETURN(rc == bufs_nr ? 0 : -ENOMEM);
 }
 M0_EXPORTED(m0_rpc_net_buffer_pool_setup);
 
 void m0_rpc_net_buffer_pool_cleanup(struct m0_net_buffer_pool *app_pool)
 {
 	M0_PRE(app_pool != NULL);
-
 	m0_net_buffer_pool_fini(app_pool);
 }
 M0_EXPORTED(m0_rpc_net_buffer_pool_cleanup);

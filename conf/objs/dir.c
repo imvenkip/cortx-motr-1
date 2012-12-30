@@ -18,6 +18,9 @@
  * Original creation date: 30-Aug-2012
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
+
 #include "conf/objs/common.h"
 #include "mero/magic.h" /* M0_CONF_OBJ_MAGIC, M0_CONF_DIR_MAGIC */
 
@@ -59,6 +62,13 @@ static int dir_fill(struct m0_conf_obj *dest __attribute__((unused)),
 	return -1;
 }
 
+static int dir_xfill(struct confx_object *dest __attribute__((unused)),
+		     const struct m0_conf_obj *src __attribute__((unused)))
+{
+	M0_IMPOSSIBLE("m0_conf_dir should not be xfilled from");
+	return -1;
+}
+
 static bool dir_match(const struct m0_conf_obj *cached __attribute__((unused)),
 		      const struct confx_object *flat __attribute__((unused)))
 {
@@ -66,86 +76,84 @@ static bool dir_match(const struct m0_conf_obj *cached __attribute__((unused)),
 	return false;
 }
 
-/* static bool */
-/* belongs(const struct m0_conf_obj *entry, const struct m0_conf_obj *dir) */
-/* { */
-/* 	const struct m0_conf_dir *d = bob_of(dir, const struct m0_conf_dir, */
-/* 					     m0_conf_dir_cast_field, */
-/* 					     &m0_conf_dir_bob); */
-/* 	return d->cd_item_type == entry->co_type && entry->co_parent == dir; */
-/* } */
+static bool
+belongs(const struct m0_conf_obj *entry, const struct m0_conf_dir *dir)
+{
+	return  entry->co_type == dir->cd_item_type &&
+		entry->co_parent == &dir->cd_obj;
+}
 
-/* /\** */
-/*  * Precondition for m0_conf_obj_ops::coo_readdir(). */
-/*  * */
-/*  * @param dir     The 1st argument of ->coo_readdir(). */
-/*  * @param entry   The 2nd argument of ->coo_readdir(), dereferenced */
-/*  *                before the function is called (*pptr). */
-/*  * */
-/*  * @see m0_conf_obj_ops::coo_readdir() */
-/*  *\/ */
-/* static bool */
-/* readdir_pre(const struct m0_conf_obj *dir, const struct m0_conf_obj *entry) */
-/* { */
-/* 	return obj_invariant(dir) && obj_invariant(entry) && */
-/* 		dir->co_type == M0_CO_DIR && dir->co_nrefs > 0 && */
-/* 		ergo(entry != NULL, belongs(entry, dir) && entry->co_nrefs > 0); */
-/* } */
+/**
+ * Precondition for m0_conf_obj_ops::coo_readdir().
+ *
+ * @param dir     The 1st argument of ->coo_readdir(), typecasted.
+ * @param entry   The 2nd argument of ->coo_readdir(), dereferenced
+ *                before the function is called (*pptr).
+ *
+ * @see m0_conf_obj_ops::coo_readdir()
+ */
+static bool
+readdir_pre(const struct m0_conf_dir *dir, const struct m0_conf_obj *entry)
+{
+	return  dir->cd_obj.co_status == M0_CS_READY &&
+		dir->cd_obj.co_nrefs > 0 &&
+		ergo(entry != NULL, m0_conf_obj_invariant(entry) &&
+		     belongs(entry, dir) && entry->co_nrefs > 0);
+}
 
-/* /\** */
-/*  * Postcondition for m0_conf_obj_ops::coo_readdir(). */
-/*  * */
-/*  * @param retval  The value returned by ->coo_readdir(). */
-/*  * @param dir     The 1st argument of ->coo_readdir(). */
-/*  * @param entry   The 2nd argument of ->coo_readdir(), dereferenced */
-/*  *                after the function is called (*pptr). */
-/*  * */
-/*  * @see m0_conf_obj_ops::coo_readdir() */
-/*  *\/ */
-/* static bool readdir_post(int retval, const struct m0_conf_obj *dir, */
-/* 			 const struct m0_conf_obj *entry) */
-/* { */
-/* 	return obj_invariant(dir) && obj_invariant(entry) && */
-/* 		M0_IN(retval, */
-/* 		     (M0_CONF_DIREND, M0_CONF_DIRNEXT, M0_CONF_DIRMISS)) && */
-/* 		(retval == M0_CONF_DIRNEXT ? */
-/* 		 (entry != NULL && belongs(entry, dir) && entry->co_nrefs > 0) : */
-/* 		 entry == NULL); */
-/* } */
+/**
+ * Postcondition for m0_conf_obj_ops::coo_readdir().
+ *
+ * @param retval  The value returned by ->coo_readdir().
+ * @param dir     The 1st argument of ->coo_readdir(), typecasted.
+ * @param entry   The 2nd argument of ->coo_readdir(), dereferenced
+ *                after the function is called (*pptr).
+ *
+ * @see m0_conf_obj_ops::coo_readdir()
+ */
+static bool readdir_post(int retval, const struct m0_conf_dir *dir,
+			 const struct m0_conf_obj *entry)
+{
+	return  M0_IN(retval,
+		      (M0_CONF_DIREND, M0_CONF_DIRNEXT, M0_CONF_DIRMISS)) &&
+		(retval == M0_CONF_DIREND) == (entry == NULL) &&
+		ergo(entry != NULL,
+		     m0_conf_obj_invariant(entry) && belongs(entry, dir) &&
+		     (retval == M0_CONF_DIRNEXT) == (entry->co_nrefs > 0));
+}
 
 static int dir_readdir(struct m0_conf_obj *dir, struct m0_conf_obj **pptr)
 {
-	/*
-	 * struct m0_conf_obj *next;
-	 * int                 ret;
-	 * struct m0_conf_obj *prev = *pptr;
-	 *
-	 * M0_PRE(readdir_pre(dir, prev));
-	 *
-	 * if (prev == NULL) {
-	 *     next = m0_tlist_head();
-	 * } else {
-	 *     next = m0_tlist_next(..., prev);
-	 *     m0_conf_obj_put(prev);
-	 *     *pptr = NULL;
-	 * }
-	 *
-	 * if (next == NULL) {
-	 *     ret = M0_CONF_DIREND;
-	 * } else if (next->co_status != M0_CS_READY) {
-	 *     ret = M0_CONF_DIRMISS;
-	 * } else {
-	 *     m0_conf_obj_get(next);
-	 *     *pptr = next;
-	 *     ret = M0_CONF_DIRNEXT;
-	 * }
-	 *
-	 * M0_POST(readdir_post(ret, dir, *pptr));
-	 * return ret;
-	 */
+	struct m0_conf_obj *next;
+	int                 ret;
+	struct m0_conf_dir *d = M0_CONF_CAST(dir, m0_conf_dir);
+	struct m0_conf_obj *prev = *pptr;
 
-	M0_IMPOSSIBLE("XXX not implemented");
-	return M0_CONF_DIRMISS;
+	M0_ENTRY();
+	M0_PRE(readdir_pre(d, prev));
+
+	if (prev == NULL) {
+		next = m0_conf_dir_tlist_head(&d->cd_items);
+	} else {
+		next = m0_conf_dir_tlist_next(&d->cd_items, prev);
+		m0_conf_obj_put(prev);
+		*pptr = NULL;
+	}
+
+	if (next == NULL) {
+		ret = M0_CONF_DIREND;
+	} else if (next->co_status == M0_CS_READY) {
+		m0_conf_obj_get(next);
+		*pptr = next;
+		ret = M0_CONF_DIRNEXT;
+	} else {
+		*pptr = next; /* let the caller know which object is missing */
+		ret = M0_CONF_DIRMISS;
+	}
+
+	M0_POST(readdir_post(ret, d, *pptr));
+	M0_LEAVE("retval=%d", ret);
+	return ret;
 }
 
 static int dir_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
@@ -159,6 +167,7 @@ static int dir_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
 	m0_tl_for(m0_conf_dir, &x->cd_items, item) {
 		if (m0_buf_eq(&item->co_id, name)) {
 			*out = item;
+			M0_POST(m0_conf_obj_invariant(*out));
 			return 0;
 		}
 	} m0_tl_endfor;
@@ -183,6 +192,7 @@ static void dir_delete(struct m0_conf_obj *obj)
 static const struct m0_conf_obj_ops dir_ops = {
 	.coo_invariant = dir_invariant,
 	.coo_fill      = dir_fill,
+	.coo_xfill     = dir_xfill,
 	.coo_match     = dir_match,
 	.coo_lookup    = dir_lookup,
 	.coo_readdir   = dir_readdir,
@@ -206,3 +216,5 @@ M0_INTERNAL struct m0_conf_obj *m0_conf__dir_create(void)
 	ret->co_ops = &dir_ops;
 	return ret;
 }
+
+#undef M0_TRACE_SUBSYSTEM

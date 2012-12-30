@@ -98,10 +98,21 @@ struct m0_conf_obj_ops {
 	 * @pre   dest->co_nrefs == 0 && dest->co_status != M0_CS_READY
 	 * @post  dest->co_status == (retval == 0 ? M0_CS_READY : M0_CS_MISSING)
 	 * @post  ergo(retval == 0, dest->co_mounted)
+	 *
+	 * @todo XXX s/coo_fill/coo_decode/
 	 */
 	int (*coo_fill)(struct m0_conf_obj *dest,
 			const struct confx_object *src,
 			struct m0_conf_reg *reg);
+
+	/**
+	 * Encodes concrete configuration object into its network
+	 * representation.
+	 *
+	 * @todo XXX s/coo_xfill/coo_encode/
+	 */
+	int (*coo_xfill)(struct confx_object *dest,
+			 const struct m0_conf_obj *src);
 
 	/**
 	 * Returns false iff cached configuration object and "flat" object
@@ -122,6 +133,7 @@ struct m0_conf_obj_ops {
 	 *
 	 * @pre   parent->co_status == M0_CS_READY
 	 * @post  M0_IN(retval, (0, -ENOENT))
+	 * @post  ergo(retval == 0, m0_conf_obj_invariant(*out))
 	 */
 	int (*coo_lookup)(struct m0_conf_obj *parent, const struct m0_buf *name,
 			  struct m0_conf_obj **out);
@@ -139,8 +151,8 @@ struct m0_conf_obj_ops {
 	 * @retval M0_CONF_DIREND   End of directory is reached.
 	 * @retval -Exxx            Error.
 	 *
-	 * ->coo_readdir() puts (m0_conf_obj_put()) configuration object
-	 * referred to via `pptr' input parameter.
+	 * ->coo_readdir() puts (m0_conf_obj_put()) the configuration
+	 * object referred to via `pptr' input parameter.
 	 *
 	 * ->coo_readdir() pins (m0_conf_obj_get()) the resulting
 	 * object in case of M0_CONF_DIRNEXT.
@@ -173,6 +185,8 @@ M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(enum m0_conf_objtype type,
 /**
  * Finds registered object with given identity or, if no object is
  * found, creates and registers a stub.
+ *
+ * @pre  ergo(retval == 0, m0_conf_obj_invariant(*out))
  */
 M0_INTERNAL int m0_conf_obj_find(struct m0_conf_reg *reg,
 				 enum m0_conf_objtype type,

@@ -88,19 +88,20 @@ m0_reqh_service_type_find(const char *sname)
         return t;
 }
 
-M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service_type *stype,
-					 struct m0_reqh_service **service)
+M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **service,
+					 struct m0_reqh_service_type *stype,
+					 const char *arg)
 {
 	int rc;
 
-	M0_PRE(stype != NULL && service != NULL);
+	M0_PRE(service != NULL && stype != NULL);
 
-        rc = stype->rst_ops->rsto_service_allocate(stype, service);
+        rc = stype->rst_ops->rsto_service_allocate(service, stype, arg);
         if (rc == 0) {
+		(*service)->rs_type = stype;
 		m0_reqh_service_bob_init(*service);
-		M0_ASSERT(m0_reqh_service_invariant(*service));
+		M0_POST(m0_reqh_service_invariant(*service));
 	}
-
 	return rc;
 }
 

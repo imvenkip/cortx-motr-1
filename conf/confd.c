@@ -22,10 +22,14 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
 
-#include "lib/errno.h"   /* ENOMEM */
-#include "lib/memory.h"  /* M0_ALLOC_PTR_ADDB */
-#include "mero/magic.h"  /* M0_CONFD_MAGIC */
 #include "conf/confd.h"
+#include "lib/errno.h"     /* ENOMEM */
+#include "lib/memory.h"    /* M0_ALLOC_PTR_ADDB */
+#include "lib/misc.h"      /* strdup */
+#include "mero/magic.h"    /* M0_CONFD_MAGIC */
+#include "conf/conf_xcode.h" /* XXX m0_confx_str_read */
+#include "conf/obj_ops.h"  /* m0_conf_obj_find */
+#include "conf/preload.h"  /* m0_confx_fini */
 
 /**
  * @page confd-lspec-page confd Internals
@@ -118,7 +122,7 @@
  *
  *    for table in "file_systems", "services",
  *              "nodes", "nics", "storage_devices",
- *	        in the order specified, do
+ *              in the order specified, do
  *       for each record in the table, do
  *         ... allocate and fill struct m0_conf_obj ...
  *         ... create DAG struct m0_conf_relation to appropriate conf object ...
@@ -150,8 +154,8 @@
  *       if (fom->fo_phase < FOPH_NR) {
  *               result = m0_fom_state_generic(fom);
  *       } else {
- *		... process m0_conf_fetch_resp phase transitions ...
- *	 }
+ *              ... process m0_conf_fetch_resp phase transitions ...
+ *       }
  *  }
  * @endcode
  *
@@ -336,14 +340,14 @@
  * {
  *      //...
  *      struct m0_long_lock_link *link;
- * 	if (fom->fo_phase == F_INITIAL) {
- * 		// Initialise things.
- *		// ...
- *		// Retreive long lock link from derived FOM object: link = ...;
- *		// and acquire the lock
- *		return M0_FOM_LONG_LOCK_RETURN(m0_long_read_lock(lock,
- *								 link,
- *								 F_SERIALISE));
+ *      if (fom->fo_phase == F_INITIAL) {
+ *              // Initialise things.
+ *              // ...
+ *              // Retreive long lock link from derived FOM object: link = ...;
+ *              // and acquire the lock
+ *              return M0_FOM_LONG_LOCK_RETURN(m0_long_read_lock(lock,
+ *                                                               link,
+ *                                                               F_SERIALISE));
  *	}
  *	//...
  * }
@@ -444,8 +448,9 @@ static const struct m0_addb_ctx_type confd_addb_ctx_type = {
 };
 static struct m0_addb_ctx confd_addb_ctx;
 
-static int confd_allocate(struct m0_reqh_service_type *stype,
-			  struct m0_reqh_service **service);
+static int confd_allocate(struct m0_reqh_service **out,
+			  struct m0_reqh_service_type *stype,
+			  const char *arg);
 
 static const struct m0_reqh_service_type_ops confd_stype_ops = {
 	.rsto_service_allocate = confd_allocate
@@ -473,44 +478,90 @@ static const struct m0_reqh_service_ops confd_ops = {
 	.rso_fini  = confd_fini
 };
 
-/** Allocates and initialises confd service. */
-static int confd_allocate(struct m0_reqh_service_type *stype,
-			  struct m0_reqh_service **service)
+/*
+ * XXX TODO: Reuse the code.  This function shares too much logic with
+ * cache_preload_locked() of conf/confc.c.
+ */
+static int cache_load(struct m0_conf_reg *reg, const char *dbpath)
 {
-	struct m0_confd *confd;
+	struct m0_conf_obj  *obj;
+	int                  n;
+	int                  i;
+	int                  rc;
+	struct confx_object *xobjs = NULL; /* make compiler happy */
 
 	M0_ENTRY();
+
+	n = m0_confx_str_read(dbpath, &xobjs);
+	if (n <= 0)
+		M0_RETURN(n);
+
+	for (i = 0, rc = 0; i < n && rc == 0; ++i) {
+		rc = m0_conf_obj_find(reg, xobjs[i].o_conf.u_type,
+				      &xobjs[i].o_id, &obj) ?:
+			m0_conf_obj_fill(obj, &xobjs[i], reg);
+	}
+
+	m0_confx_fini(xobjs, n);
+	m0_free(xobjs);
+
+	M0_RETURN(rc);
+}
+
+/** Allocates and initialises confd service. */
+static int confd_allocate(struct m0_reqh_service **service,
+			  struct m0_reqh_service_type *stype,
+			  const char *arg)
+{
+	struct m0_confd *confd;
+	int              rc;
+
+	M0_ENTRY();
+
+	if (arg == NULL || *arg == '\0')
+		M0_RETERR(-EPROTO,
+			  "Path to the configuration database is not provided");
 
 	m0_addb_ctx_init(&confd_addb_ctx, &confd_addb_ctx_type,
 			 &m0_addb_global_ctx);
 
 	M0_ALLOC_PTR_ADDB(confd, &confd_addb_ctx, &confd_addb_loc);
 	if (confd == NULL) {
-		m0_addb_ctx_fini(&confd_addb_ctx);
-		M0_RETURN(-ENOMEM);
+		rc = -ENOMEM;
+		goto addb_ctx_fini;
 	}
+
+	m0_conf_reg_init(&confd->d_reg);
+
+	rc = cache_load(&confd->d_reg, arg);
+	if (rc != 0)
+		goto reg_fini;
 
 	m0_bob_init(&m0_confd_bob, confd);
 
 	*service = &confd->d_reqh;
-	(*service)->rs_type = stype;
 	(*service)->rs_ops = &confd_ops;
 
 	M0_RETURN(0);
+reg_fini:
+	m0_conf_reg_fini(&confd->d_reg);
+	m0_free(confd);
+addb_ctx_fini:
+	m0_addb_ctx_fini(&confd_addb_ctx);
+	M0_RETURN(rc);
 }
 
 /** Finalises and deallocates confd service. */
 static void confd_fini(struct m0_reqh_service *service)
 {
-	struct m0_confd *confd;
-
+	struct m0_confd *confd = bob_of(service, struct m0_confd, d_reqh,
+					&m0_confd_bob);
 	M0_ENTRY();
-	M0_PRE(service != NULL);
-
-	confd = bob_of(service, struct m0_confd, d_reqh, &m0_confd_bob);
 
 	m0_bob_fini(&m0_confd_bob, confd);
+	m0_conf_reg_fini(&confd->d_reg);
 	m0_free(confd);
+
 	m0_addb_ctx_fini(&confd_addb_ctx);
 
 	M0_LEAVE();
@@ -550,7 +601,7 @@ static void confd_stop(struct m0_reqh_service *service)
 /* 	F_SERIALISE, */
 /* 	F_TERMINATE, */
 /* 	F_FAILURE */
-/* }; */
+/* /\* }; *\/ */
 
 /* /\** */
 /*  * m0_conf_update FOM pahses. */

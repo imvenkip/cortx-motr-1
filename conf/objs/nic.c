@@ -51,6 +51,13 @@ static int nic_fill(struct m0_conf_obj *dest, const struct confx_object *src,
 	return d->ni_filename == NULL ? -ENOMEM : 0;
 }
 
+static int
+nic_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
+{
+	M0_IMPOSSIBLE("XXX not implemented");
+	return -1;
+}
+
 static bool
 nic_match(const struct m0_conf_obj *cached, const struct confx_object *flat)
 {
@@ -83,6 +90,7 @@ static void nic_delete(struct m0_conf_obj *obj)
 static const struct m0_conf_obj_ops nic_ops = {
 	.coo_invariant = nic_invariant,
 	.coo_fill      = nic_fill,
+	.coo_xfill     = nic_xfill,
 	.coo_match     = nic_match,
 	.coo_lookup    = nic_lookup,
 	.coo_readdir   = NULL,

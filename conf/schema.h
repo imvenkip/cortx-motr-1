@@ -15,28 +15,23 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
- * Original creation date: 30-Aug-2012
+ * Original creation date: 19-Dec-2012
+ */
+#pragma once
+#ifndef __MERO_CONF_SCHEMA_H__
+#define __MERO_CONF_SCHEMA_H__
+
+/*
+ * XXX TODO: Delete `cfg/cfg.h' after moving necessary definitions here,
+ * to conf/schema.h.
  */
 
-#include "lib/ut.h"
-#include "conf/conf_xcode.h"
-
-extern void test_obj_fill(void);
-extern void test_obj_find(void);
-extern void test_obj_xtors(void);
-extern void test_reg(void);
-extern void test_confx_xcode(void);
-
-const struct m0_test_suite conf_ut = {
-	.ts_name  = "conf-ut",
-	.ts_init  = NULL,
-	.ts_fini  = NULL,
-	.ts_tests = {
-		{ "reg",       test_reg         },
-		{ "obj-xtors", test_obj_xtors   },
-		{ "obj-find",  test_obj_find    },
-		{ "obj-fill",  test_obj_fill    },
-		{ "xcode",     test_confx_xcode },
-		{ NULL, NULL }
-	}
+/** Type of Mero service. */
+enum m0_conf_service_type {
+	M0_CST_MDS = 1, /*< Meta-data service. */
+	M0_CST_IOS,     /*< IO/data service. */
+	M0_CST_MGS,     /*< Management service (confd?). */
+	M0_CST_DLM,     /*< DLM service. */
 };
+
+#endif /* __MERO_CONF_SCHEMA_H__ */

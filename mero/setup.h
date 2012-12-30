@@ -118,6 +118,14 @@
  */
 
 /**
+ * Auxiliary structure used to pass command line arguments to cs_parse_args().
+ */
+struct cs_args {
+	int   ca_argc;
+	char *ca_argv[64];
+};
+
+/**
    Defines a mero context containing a set of network transports,
    network domains and request handler contexts.
 
@@ -179,6 +187,9 @@ struct m0_mero {
 	size_t                   cc_max_rpc_msg_size;
 
 	struct m0_addb_ctx       cc_addb;
+
+	/** command line arguments */
+	struct cs_args		 cc_args;
 };
 
 /**

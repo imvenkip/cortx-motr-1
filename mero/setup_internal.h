@@ -15,18 +15,20 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
- * Original creation date: 06/28/2012
+ * Original creation date: 28-Jun-2012
  */
 
 #pragma once
 
-#ifndef __MERO_MERO_CS_INTERNAL_H__
-#define __MERO_MERO_CS_INTERNAL_H__
+#ifndef __MERO_SETUP_INTERNAL_H__
+#define __MERO_SETUP_INTERNAL_H__
 
 #include "mero/setup.h"
-#include "cob/cob.h"
-#include "dtm/dtm.h"
-#include "yaml.h"
+#include "mdstore/mdstore.h"  /* m0_mdstore */
+#include "fol/fol.h"          /* m0_fol */
+#include "net/lnet/lnet.h"    /* M0_NET_LNET_XEP_ADDR_LEN */
+#include "reqh/reqh.h"        /* m0_reqh */
+#include "yaml.h"             /* yaml_document_t */
 
 /**
    @addtogroup m0d
@@ -117,7 +119,7 @@ struct cs_stobs {
    Represents state of a request handler context.
  */
 enum cs_reqh_ctx_states {
-        /**
+	/**
 	   A request handler context is in RC_UNINTIALISED state when it is
 	   allocated and added to the list of the same in struct m0_mero.
 
@@ -154,14 +156,14 @@ struct cs_reqh_context {
 	/** Database environment path for request handler context. */
 	const char                  *rc_dbpath;
 
-	/** Services running in request handler context. */
-	const char                 **rc_services;
-
 	/** Whether to prepare storage (mkfs) attached to this context. */
 	int                          rc_prepare_storage;
 
+	/** Services running in request handler context. */
+	const char                 **rc_services;
+
 	/** Number of services configured in request handler context. */
-	int                          rc_snr;
+	uint32_t                     rc_nr_services;
 
 	/** Maximum number of services allowed per request handler context. */
 	int                          rc_max_services;
@@ -180,6 +182,9 @@ struct cs_reqh_context {
 
 	/** Database used by the request handler */
 	struct m0_dbenv              rc_db;
+
+	/** Path to the configuration database to be used by confd service. */
+	const char                  *rc_confdb;
 
 	/** Cob domain to be used by the request handler */
 	struct m0_mdstore            rc_mdstore;
@@ -220,18 +225,27 @@ struct cs_reqh_context {
  * Represents list of buffer pools in the mero context.
  */
 struct cs_buffer_pool {
-        /** Network buffer pool object. */
-        struct m0_net_buffer_pool    cs_buffer_pool;
-        /** Linkage into network buffer pool list */
-        struct m0_tlink              cs_bp_linkage;
-        /** Magic */
-        uint64_t                     cs_bp_magic;
+	/** Network buffer pool object. */
+	struct m0_net_buffer_pool cs_buffer_pool;
+	/** Linkage into network buffer pool list */
+	struct m0_tlink           cs_bp_linkage;
+	/** Magic */
+	uint64_t                  cs_bp_magic;
 };
 
-/** @} endgroup m0d */
+/**
+ * Obtains configuration data from confd and converts it into options,
+ * understood by _args_parse().
+ *
+ * @param[out] args   Arguments to be filled.
+ * @param confd_addr  Endpoint address of confd service.
+ * @param profile     The name of configuration profile.
+ */
+M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
+				const char *profile);
 
-/* __MERO_MERO_MERO_SETUP_H__ */
-#endif
+/** @} endgroup m0d */
+#endif /* __MERO_SETUP_INTERNAL_H__ */
 
 /*
  *  Local variables:

@@ -92,7 +92,14 @@ M0_INTERNAL int dir_new(const struct m0_buf *dir_id,
 			struct m0_conf_dir **out);
 
 M0_INTERNAL bool arrays_eq(const char **cached, const struct arr_buf *flat);
-M0_INTERNAL int strings_copy(const char ***dest, const struct arr_buf *src);
+
+M0_INTERNAL int strings_from_arrbuf(const char ***dest,
+				    const struct arr_buf *src);
 M0_INTERNAL void strings_free(const char **arr);
+
+M0_INTERNAL int arrbuf_from_strings(struct arr_buf *dest, const char **src);
+M0_INTERNAL int arrbuf_from_dir(struct arr_buf *dest,
+				const struct m0_conf_dir *dir);
+M0_INTERNAL void arrbuf_free(struct arr_buf *arr);
 
 #endif /* __MERO_CONF_OBJS_COMMON_H__ */

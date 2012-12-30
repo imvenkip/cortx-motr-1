@@ -21,28 +21,16 @@
 #ifndef __MERO_CONF_OBJ_H__
 #define __MERO_CONF_OBJ_H__
 
-#include "lib/buf.h"   /* m0_buf */
-#include "lib/chan.h"  /* m0_chan */
-#include "fid/fid.h"   /* m0_fid */
-#include "lib/tlist.h" /* m0_tl, m0_tlink */
-#include "lib/bob.h"   /* m0_bob_type */
+#include "lib/buf.h"      /* m0_buf */
+#include "lib/chan.h"     /* m0_chan */
+#include "lib/tlist.h"    /* m0_tl, m0_tlink */
+#include "lib/bob.h"      /* m0_bob_type */
 #include "lib/types.h"
+#include "fid/fid.h"      /* m0_fid */
+#include "conf/schema.h"  /* m0_conf_service_type */
 
 struct m0_conf_obj_ops;
 struct m0_confc;
-
-/* XXX @todo Move definitions from cfg/cfg.h to conf/schema.ff */
-/* #include "cfg/cfg.h"   /\* m0_cfg_service_type *\/ */
-enum m0_cfg_service_type {
-	/** metadata service       */
-	M0_CFG_SERVICE_METADATA = 1,
-	/** io/data service        */
-	M0_CFG_SERVICE_IO,
-	/** management service     */
-	M0_CFG_SERVICE_MGMT,
-	/** DLM service            */
-	M0_CFG_SERVICE_DLM,
-};
 
 /**
  * @page conf-fspec-obj Configuration Objects
@@ -300,16 +288,16 @@ struct m0_conf_filesystem {
 };
 
 struct m0_conf_service {
-	struct m0_conf_obj       cs_obj;
+	struct m0_conf_obj        cs_obj;
 	/** The node this service is hosted at. */
-	struct m0_conf_node     *cs_node;
+	struct m0_conf_node      *cs_node;
 /* configuration data (for the application) */
-	enum m0_cfg_service_type cs_type;
+	enum m0_conf_service_type cs_type;
 	/**
 	 * Service end points.
 	 * NULL terminated array of C strings.
 	 */
-	const char             **cs_endpoints;
+	const char              **cs_endpoints;
 };
 
 struct m0_conf_node {

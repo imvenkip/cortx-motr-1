@@ -1,41 +1,30 @@
+nobase_mero_include_HEADERS += \
+                               conf/buf_ext.h \
+                               conf/conf_fop.h \
+                               conf/conf_xcode.h \
+                               conf/confc.h \
+                               conf/confd.h \
+                               conf/confd_fom.h \
+                               conf/obj.h \
+                               conf/obj_ops.h \
+                               conf/onwire.h \
+                               conf/preload.h \
+                               conf/reg.h \
+                               conf/schema.h
+
 mero_libmero_la_SOURCES += \
                            conf/buf_ext.c \
-                           conf/buf_ext.h \
                            conf/conf_fop.c \
-                           conf/conf_fop.h \
                            conf/conf_xcode.c \
-                           conf/conf_xcode.h \
                            conf/confc.c \
-                           conf/confc.h \
                            conf/confd.c \
-                           conf/confd.h \
                            conf/confd_fom.c \
-                           conf/confd_fom.h \
-                           conf/confd_hack.c \
-                           conf/confd_hack.h \
                            conf/obj.c \
-                           conf/obj.h \
                            conf/obj_ops.c \
-                           conf/obj_ops.h \
-                           conf/objs/common.c \
-                           conf/objs/common.h \
-                           conf/objs/dir.c \
-                           conf/objs/filesystem.c \
-                           conf/objs/nic.c \
-                           conf/objs/node.c \
-                           conf/objs/partition.c \
-                           conf/objs/profile.c \
-                           conf/objs/sdev.c \
-                           conf/objs/service.c \
-                           conf/onwire.h \
                            conf/onwire_xc.c \
                            conf/preload.c \
-                           conf/preload.h \
                            conf/reg.c \
-                           conf/reg.h \
                            conf/reg_debug.c
-
-EXTRA_DIST += conf/confd_hack.c.in
 
 XC_FILES += conf/onwire_xc.h
 

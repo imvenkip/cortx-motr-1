@@ -4,6 +4,32 @@
 # Stobs are created in $WORK_ARENA
 # Each server has its separate directory.
 
+{
+    cat <<EOF
++------------------------+
+| THE SCRIPT IS DISABLED |
++------------------------+
+
+${0##*/} script doesn't work with the version of m0t1fs client,
+released as part of "conf-reqh" milestone. The script uses 'mds=' and 'ios='
+options of m0t1fs, which don't exist any more.
+
+Updating ${0##*/} would take some efforts, and these efforts
+would be wasted if the script is never used.  I suspect the script to be
+obsolete, because grepping its name in origin/master branch of our git
+repository returns nothing.
+
+Please let me know if you need this script, and I'll put it back into
+action ASAP.
+
+--
+All the best,
+vvv
+<valery_vorotyntsev@xyratex.com>
+EOF
+} >&2
+exit 1
+
 # transport
 XPT=lnet
 

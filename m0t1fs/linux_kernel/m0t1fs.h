@@ -39,6 +39,7 @@
 #include "ioservice/io_fops.h"    /* m0_fop_cob_create_fopt */
 #include "mdservice/md_fops.h"    /* m0_fop_create_fopt */
 #include "mdservice/md_fops_xc.h" /* m0_fop_create */
+#include "conf/schema.h"          /* m0_conf_service_type */
 
 /**
   @defgroup m0t1fs m0t1fs
@@ -407,7 +408,6 @@ M0_INTERNAL int m0t1fs_init(void);
 M0_INTERNAL void m0t1fs_fini(void);
 
 enum {
-	MAX_NR_EP_PER_SERVICE_TYPE      = 10,
 	M0T1FS_RPC_TIMEOUT              = 10, /* seconds */
 	M0T1FS_NR_SLOTS_PER_SESSION     = 10,
 	M0T1FS_MAX_NR_RPC_IN_FLIGHT     = 100,
@@ -436,36 +436,6 @@ struct m0t1fs_globals {
 
 extern struct m0t1fs_globals m0t1fs_globals;
 
-/** Parsed mount options */
-struct m0t1fs_mnt_opts {
-	char    *mo_confd;
-	char    *mo_profile;
-	char    *mo_local_conf;
-
-	char    *mo_mds_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
-	uint32_t mo_mds_ep_nr;
-
-	char    *mo_ios_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
-	uint32_t mo_ios_ep_nr;
-
-	uint32_t mo_pool_width;      /* P */
-	uint32_t mo_nr_data_units;   /* N */
-	uint32_t mo_nr_parity_units; /* K */
-
-	uint32_t mo_unit_size;
-};
-
-enum m0t1fs_service_type {
-	/** management service (confd) */
-	M0T1FS_ST_MGS = 1,
-
-	/** meta-data service */
-	M0T1FS_ST_MDS,
-
-	/** io service */
-	M0T1FS_ST_IOS
-};
-
 /**
    For each <mounted_fs, target_service> pair, there is one instance of
    m0t1fs_service_context.
@@ -480,18 +450,15 @@ struct m0t1fs_service_context {
 	struct m0t1fs_sb         *sc_csb;
 
 	/** Service type */
-	enum m0t1fs_service_type  sc_type;
-
-	/** end-point address of service */
-	char                     *sc_addr;
+	enum m0_conf_service_type sc_type;
 
 	struct m0_rpc_conn        sc_conn;
 	struct m0_rpc_session     sc_session;
 
-	/** link in m0t1fs_sb::csb_service_contexts list */
+	/** Link in m0t1fs_sb::csb_service_contexts list */
 	struct m0_tlink           sc_link;
 
-	/** magic = M0_T1FS_SVC_CTX_MAGIC */
+	/** Magic = M0_T1FS_SVC_CTX_MAGIC */
 	uint64_t                  sc_magic;
 };
 
@@ -513,9 +480,6 @@ struct m0t1fs_container_location_map {
    super_block::s_fs_info points to instance of this type.
  */
 struct m0t1fs_sb {
-	/** Parsed mount options */
-	struct m0t1fs_mnt_opts        csb_mnt_opts;
-
 	/** service context of MGS. Not a member of csb_service_contexts */
 	struct m0t1fs_service_context csb_mgs;
 

@@ -410,7 +410,12 @@ struct m0_conf_obj;
  *                 if (rc == M0_CONF_DIRNEXT) {
  *                         // The entry is available immediately.
  *                         M0_ASSERT(entry != NULL);
+ *
  *                         use(entry);
+ *                         if (stop_at != NULL && stop_at(entry)) {
+ *                                 rc = 0;
+ *                                 break;
+ *                         }
  *                         continue; // Note, that `entry' will be
  *                                   // closed by m0_confc_readdir().
  *                 }
@@ -434,7 +439,7 @@ struct m0_conf_obj;
  *
  *                 // Re-initialise m0_confc_ctx.
  *                 sm_waiter_fini(&w);
- *                 sm_waiter_init(&w);
+ *                 sm_waiter_init(&w, dir->co_confc);
  *         }
  *
  *         m0_confc_close(entry);
@@ -561,6 +566,9 @@ M0_INTERNAL void m0_confc_fini(struct m0_confc *confc);
  * context
  * ------------------------------------------------------------------ */
 
+/** Maximum number of path components. */
+enum { M0_CONF_PATH_MAX = 15 };
+
 /** Configuration retrieval context. */
 struct m0_confc_ctx {
 	/** The confc instance this context belongs to. */
@@ -588,13 +596,8 @@ struct m0_confc_ctx {
 	 */
 	struct m0_conf_obj  *fc_origin;
 
-	/**
-	 * Path to the object being requested by the application.
-	 *
-	 * It is responsibility of application's programmer to ensure
-	 * validity of the path until configuration request completes.
-	 */
-	const struct m0_buf *fc_path;
+	/** Path to the object being requested by the application. */
+	struct m0_buf        fc_path[M0_CONF_PATH_MAX + 1];
 
 	/**
 	 * Record of interest in `object loading completed' or
@@ -674,36 +677,22 @@ M0_INTERNAL struct m0_conf_obj *m0_confc_ctx_result(struct m0_confc_ctx *ctx);
  *
  * @param ctx     Fetch context.
  * @param origin  Path origin (NULL = root configuration object).
- * @param ...     Path to the requested object. The variable arguments
- *                are m0_buf initialisers (M0_BUF_INIT(), M0_BUF_INITS());
- *                use M0_BUF_INIT0 for empty path.
+ * @param ...     Path to the requested object. Variable arguments --
+ *                path components -- are m0_buf initialisers
+ *                (M0_BUF_INIT(), M0_BUF_INITS()); use M0_BUF_INIT0
+ *                for empty path.  The number of path components
+ *                should not exceed M0_CONF_PATH_MAX.
  *
- * @note  The application must keep the data, pointed to by path
- *        arguments, intact, until configuration retrieval operation
- *        completes.
- *
- * XXX FIXME:
- *     m0_confc_open() constructs an array of m0_bufs, which is
- *     created on stack. If a calling thread leaves the block with
- *     m0_confc_open(), the array will be destructed, invalidating
- *     m0_confc_ctx::fc_path.  This will result in segmentation fault,
- *     if a configuration retrieving operation is still in progress.
- *     .
- *     One possible solution is to make m0_confc_ctx::fc_path an
- *     array of N m0_bufs, where N is maximal possible number of
- *     path components.
- *     .
- *     See https://reviewboard.clusterstor.com/r/1067/diff/1/?file=31415#file31415line683 .
- *
+ * @pre  ctx->fc_origin == NULL && ctx->fc_path is empty
+ * @pre  ctx->fc_mach.sm_state == S_INITIAL
  * @pre  ergo(origin != NULL, origin->co_confc == ctx->fc_confc)
- * @pre  ctx->fc_origin == NULL && ctx->fc_path == NULL
  */
 #define m0_confc_open(ctx, origin, ...)                           \
 	m0_confc__open((ctx), (origin), (const struct m0_buf []){ \
 			__VA_ARGS__, M0_BUF_INIT0 })
-M0_INTERNAL void m0_confc__open(struct m0_confc_ctx *ctx,
-				struct m0_conf_obj *origin,
-				const struct m0_buf path[]);
+M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
+			       struct m0_conf_obj *origin,
+			       const struct m0_buf *path);
 
 /**
  * Opens configuration object synchronously.
@@ -712,9 +701,7 @@ M0_INTERNAL void m0_confc__open(struct m0_confc_ctx *ctx,
  *
  * @param result  struct m0_conf_obj **
  * @param origin  Path origin (not NULL).
- * @param ...     Path to the requested object. The variable arguments
- *                are m0_buf initialisers (M0_BUF_INIT(), M0_BUF_INITS());
- *                use M0_BUF_INIT0 for empty path.
+ * @param ...     Path to the requested object. See m0_confc_open().
  *
  * @pre   origin != NULL
  * @post  ergo(retval == 0, (*result)->co_status == M0_CS_READY)
@@ -732,7 +719,7 @@ M0_INTERNAL void m0_confc__open(struct m0_confc_ctx *ctx,
 			__VA_ARGS__, M0_BUF_INIT0 })
 M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
 				    struct m0_conf_obj *origin,
-				    const struct m0_buf path[]);
+				    const struct m0_buf *path);
 
 /**
  * Closes configuration object opened with m0_confc_open() or
@@ -759,8 +746,8 @@ M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj);
  * Entries of a directory are usually present in the configuration
  * cache.  In this common case m0_confc_readdir() can fulfil the
  * request immediately. Return value M0_CONF_DIREND or M0_CONF_DIRNEXT
- * let the caller know that it can proceed without waiting for
- * ctx->fc_mach.sm_chan channel to be signaled.
+ * informs the caller of the possibility to proceed without waiting
+ * for ctx->fc_mach.sm_chan channel to be signaled.
  *
  * @retval M0_CONF_DIRMISS  Asynchronous retrieval of configuration has been
  *                          initiated. The caller should wait.
@@ -769,25 +756,25 @@ M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj);
  * @retval M0_CONF_DIREND   End of directory is reached. No waiting is needed.
  * @retval -Exxx            Error.
  *
- * m0_confc_readdir() closes configuration object referred to via
- * `pptr' input parameter.
+ * m0_confc_readdir() puts (m0_conf_obj_put()) the configuration
+ * object referred to via `pptr' input parameter.
  *
- * m0_confc_readdir() pins the resulting object in case of
- * M0_CONF_DIRNEXT.
+ * m0_confc_readdir() pins (m0_conf_obj_get()) the resulting object
+ * in case of M0_CONF_DIRNEXT.
  *
- * m0_confc_readdir() does not touch `ctx' argument, if the returned
+ * m0_confc_readdir() does not touch `ctx' argument if the returned
  * value is M0_CONF_DIRNEXT or M0_CONF_DIREND. `ctx' can be re-used
  * in this case.
  *
  * @see confc-fspec-recipe4
  *
  * @pre   ctx->fc_mach.sm_state == S_INITIAL
- * @pre   dir->co_type == M0_CO_DIR
+ * @pre   dir->co_type == M0_CO_DIR && dir->co_confc == ctx->fc_confc
  * @post  ergo(M0_IN(retval, (M0_CONF_DIRNEXT, M0_CONF_DIREND)),
  *             ctx->fc_mach.sm_state == S_INITIAL)
  */
 M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
-				 struct m0_conf_obj *dir,
+				 struct m0_conf_obj  *dir,
 				 struct m0_conf_obj **pptr);
 
 /**
@@ -801,11 +788,10 @@ M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
  * @retval M0_CONF_DIREND   End of directory is reached.
  * @retval -Exxx            Error.
  *
- * m0_confc_readdir_sync() closes configuration object referred to via
- * `pptr' input parameter.
+ * m0_confc_readdir_sync() puts and pins configuration objects
+ * similarly to m0_confc_readdir().
  *
- * m0_confc_readdir_sync() pins the resulting object in case of
- * M0_CONF_DIRNEXT.
+ * @see m0_confc_readdir()
  *
  * Example:
  * @code

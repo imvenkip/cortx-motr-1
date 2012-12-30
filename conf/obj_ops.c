@@ -154,9 +154,16 @@ M0_INTERNAL int m0_conf_obj_find(struct m0_conf_reg *reg,
 				 const struct m0_buf *id,
 				 struct m0_conf_obj **out)
 {
+	int rc = 0;
+
 	M0_ENTRY();
+
 	*out = m0_conf_reg_lookup(reg, type, id);
-	M0_RETURN(*out == NULL ? _stub_create(reg, type, id, out) : 0);
+	if (*out == NULL)
+		rc = _stub_create(reg, type, id, out);
+
+	M0_POST(ergo(rc == 0, m0_conf_obj_invariant(*out)));
+	M0_RETURN(rc);
 }
 
 static bool confc_is_unset_or_locked(const struct m0_conf_obj *obj)
@@ -168,7 +175,8 @@ static bool confc_is_unset_or_locked(const struct m0_conf_obj *obj)
 M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
 {
 	M0_PRE(m0_conf_obj_invariant(obj));
-	M0_PRE(obj->co_nrefs == 0 && obj->co_status != M0_CS_LOADING);
+	M0_PRE(obj->co_nrefs == 0);
+	M0_PRE(obj->co_status != M0_CS_LOADING);
 	M0_PRE(!obj->co_mounted || confc_is_unset_or_locked(obj));
 
 	/* Finalise generic fields. */

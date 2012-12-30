@@ -56,6 +56,7 @@ m0_conf_parse(const char *src, struct confx_object *dest, size_t n)
 	rc = m0_xcode_read(&M0_XCODE_OBJ(enconf_xc, &enc), src);
 	if (rc != 0) {
 		M0_ASSERT(rc < 0);
+		M0_LOG(M0_NOTICE, "conf string: %s", src);
 		M0_RETURN(rc);
 	}
 
@@ -94,26 +95,29 @@ M0_INTERNAL size_t m0_confx_obj_nr(const char *src)
 	return enc.ec_nr;
 }
 
-static void arr_buf_fini(struct arr_buf *a)
+/* XXX Code duplication! See arrbuf_free() in conf/objs/common.[hc]. */
+static void arr_buf_free(struct arr_buf *arr)
 {
-	int i;
 	M0_ENTRY();
 
-	for (i = 0; i < a->ab_count; ++i)
-		m0_buf_free(&a->ab_elems[i]);
-	m0_free(a->ab_elems);
+	while (arr->ab_count > 0)
+		m0_buf_free(&arr->ab_elems[--arr->ab_count]);
+	m0_free(arr->ab_elems);
+	arr->ab_elems = NULL;
 
+	M0_POST(arr->ab_count == 0);
 	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_confx_fini(struct confx_object *xobjs, size_t n)
 {
-	int             i;
 	struct confx_u *x;
+	int             i;
 
 	M0_ENTRY();
 
 	for (i = 0; i < n; ++i) {
+		m0_buf_free(&xobjs[i].o_id);
 		x = &xobjs[i].o_conf;
 
 		switch(x->u_type) {
@@ -121,22 +125,22 @@ M0_INTERNAL void m0_confx_fini(struct confx_object *xobjs, size_t n)
 			m0_buf_free(&x->u.u_profile.xp_filesystem);
 			break;
 		case M0_CO_FILESYSTEM:
-			arr_buf_fini(&x->u.u_filesystem.xf_params);
-			arr_buf_fini(&x->u.u_filesystem.xf_services);
+			arr_buf_free(&x->u.u_filesystem.xf_params);
+			arr_buf_free(&x->u.u_filesystem.xf_services);
 			break;
 		case M0_CO_SERVICE:
-			arr_buf_fini(&x->u.u_service.xs_endpoints);
+			arr_buf_free(&x->u.u_service.xs_endpoints);
 			m0_buf_free(&x->u.u_service.xs_node);
 			break;
 		case M0_CO_NODE:
-			arr_buf_fini(&x->u.u_node.xn_nics);
-			arr_buf_fini(&x->u.u_node.xn_sdevs);
+			arr_buf_free(&x->u.u_node.xn_nics);
+			arr_buf_free(&x->u.u_node.xn_sdevs);
 			break;
 		case M0_CO_NIC:
 			m0_buf_free(&x->u.u_nic.xi_filename);
 			break;
 		case M0_CO_SDEV:
-			arr_buf_fini(&x->u.u_sdev.xd_partitions);
+			arr_buf_free(&x->u.u_sdev.xd_partitions);
 			m0_buf_free(&x->u.u_sdev.xd_filename);
 			break;
 		case M0_CO_PARTITION:
@@ -145,8 +149,6 @@ M0_INTERNAL void m0_confx_fini(struct confx_object *xobjs, size_t n)
 		default:
 			M0_IMPOSSIBLE("Unexpected value of confx_u::u_type");
 		}
-
-		m0_buf_free(&xobjs[i].o_id);
 	}
 	M0_LEAVE();
 }

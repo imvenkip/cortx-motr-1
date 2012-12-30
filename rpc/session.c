@@ -1085,8 +1085,7 @@ static void rcv_item_consume(struct m0_rpc_item *item)
 static void rcv_reply_consume(struct m0_rpc_item *req,
 			      struct m0_rpc_item *reply)
 {
-	m0_rpc_frm_enq_item(session_frm(req->ri_session),
-			    reply);
+	m0_rpc_frm_enq_item(session_frm(req->ri_session), reply);
 }
 
 M0_INTERNAL int m0_rpc_rcv_session_establish(struct m0_rpc_session *session)

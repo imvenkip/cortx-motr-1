@@ -58,7 +58,7 @@ static int filesystem_fill(struct m0_conf_obj *dest,
 	d->cf_rootfid.f_container = s->xf_rootfid.f_container;
 	d->cf_rootfid.f_key = s->xf_rootfid.f_key;
 #endif
-	rc = strings_copy(&d->cf_params, &s->xf_params);
+	rc = strings_from_arrbuf(&d->cf_params, &s->xf_params);
 	if (rc != 0)
 		return rc;
 
@@ -68,6 +68,33 @@ static int filesystem_fill(struct m0_conf_obj *dest,
 		child_adopt(dest, &d->cf_services->cd_obj);
 		dest->co_mounted = true;
 	}
+	return rc;
+}
+
+static int
+filesystem_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
+{
+	int                        rc;
+	struct m0_conf_filesystem *s = M0_CONF_CAST(src, m0_conf_filesystem);
+	struct confx_filesystem   *d = &dest->o_conf.u.u_filesystem;
+
+	if (m0_buf_copy(&dest->o_id, &src->co_id))
+		return -ENOMEM;
+
+	dest->o_conf.u_type = src->co_type;
+	d->xf_rootfid = s->cf_rootfid;
+
+	rc = arrbuf_from_strings(&d->xf_params, s->cf_params);
+	if (rc != 0)
+		goto err;
+
+	rc = arrbuf_from_dir(&d->xf_services, s->cf_services);
+	if (rc == 0)
+		return 0;
+
+	arrbuf_free(&d->xf_params);
+err:
+	m0_buf_free(&dest->o_id);
 	return rc;
 }
 
@@ -93,6 +120,7 @@ static int filesystem_lookup(struct m0_conf_obj *parent,
 		return -ENOENT;
 
 	*out = &M0_CONF_CAST(parent, m0_conf_filesystem)->cf_services->cd_obj;
+	M0_POST(m0_conf_obj_invariant(*out));
 	return 0;
 }
 
@@ -108,6 +136,7 @@ static void filesystem_delete(struct m0_conf_obj *obj)
 static const struct m0_conf_obj_ops filesystem_ops = {
 	.coo_invariant = filesystem_invariant,
 	.coo_fill      = filesystem_fill,
+	.coo_xfill     = filesystem_xfill,
 	.coo_match     = filesystem_match,
 	.coo_lookup    = filesystem_lookup,
 	.coo_readdir   = NULL,

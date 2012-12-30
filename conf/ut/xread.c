@@ -18,25 +18,18 @@
  * Original creation date: 26-Sep-2012
  */
 
-#include "conf/onwire.h"
-#include "conf/onwire_xc.h"
-#include "conf/preload.h"
-#include "conf/conf_xcode.h"
-#include "conf/obj.h"
-#include "lib/memory.h"
-#include "lib/arith.h"
-#include "lib/misc.h"  /* M0_SET0 */
-#include "lib/buf.h"
+#include <stdlib.h>           /* system */
+#include "conf/obj.h"         /* m0_conf_objtype */
+#include "conf/onwire.h"      /* confx_object */
+#include "conf/conf_xcode.h"  /* m0_conf_xcode_pair */
+#include "conf/preload.h"     /* m0_conf_parse */
+#include "conf/ut/file_helpers.h"
+#include "lib/string.h"       /* strlen */
+#include "lib/memory.h"       /* m0_free */
+#include "lib/arith.h"        /* M0_SWAP */
 #include "lib/ut.h"
-#include <stdlib.h>
 
 #define DBPATH "./__confdb"
-
-#define QUOTE(s) QUOTE_(s)
-#define QUOTE_(s) #s
-
-/* MERO_CONFX_OBJ_CFG_XC comes from CFLAGS; see conf/ut/Makefile.am */
-#define CONFX_CFG QUOTE(MERO_CONFX_OBJ_CFG_XC)
 
 struct xcode_test_rec {
 	enum m0_conf_objtype type;
@@ -245,30 +238,14 @@ static void partition_check(const struct confx_object *conf)
 	M0_UT_ASSERT(m0_buf_eq(&conf->o_conf.u.u_partition.xa_file, &fn));
 }
 
-static void conf_xc_read(char *buf, size_t buf_size)
-{
-	FILE *f;
-	int   n;
-
-	f = fopen(CONFX_CFG, "r");
-	M0_UT_ASSERT(f != NULL);
-
-	n = fread(buf, 1, buf_size, f);
-	M0_UT_ASSERT(n > 0);
-	buf[n] = '\0';
-
-	fclose(f);
-}
-
 static void cleanup(void)
 {
-	char command[256];
+	char cmd[256];
 	int  rc;
 
-	snprintf(command, ARRAY_SIZE(command),
-		 "rm -rf %s; rm -f %s.errlog; rm -f %s.msglog",
+	snprintf(cmd, sizeof cmd, "rm -rf %s; rm -f %s.errlog; rm -f %s.msglog",
 		 DBPATH, DBPATH, DBPATH);
-	rc = system(command);
+	rc = system(cmd);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -295,7 +272,9 @@ void test_confx_xcode(void)
 	};
 
 	cleanup();
-	conf_xc_read(buf, ARRAY_SIZE(buf));
+
+	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf_xc.txt"), buf, sizeof buf);
+	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_conf_parse("[0]", objx, ARRAY_SIZE(objx));
 	M0_UT_ASSERT(rc == 0);

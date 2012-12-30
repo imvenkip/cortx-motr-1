@@ -345,7 +345,7 @@ function start_server () {
 
 	local SNAME="-s ioservice"
 	if [ $I -eq 0 ]; then
-		SNAME="-s mdservice $SNAME"
+		SNAME="-s confd -s mdservice $SNAME"
 	fi
 
 	$RUN "cd $DDIR && \
@@ -483,27 +483,31 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
-# compute mount paramters
-IOS="mds=${SERVICES[1]},ios=${SERVICES[1]}"
+# prepare configuration data
+MDS_ENDPOINT="\"${SERVICES[1]}\""
+IOS_ENDPOINTS="\"${SERVICES[1]}\""
 for i in `seq 3 2 ${#SERVICES[*]}`; do
-	IOS="${IOS},ios=${SERVICES[$i]}"
+    IOS_ENDPOINTS="$IOS_ENDPOINTS, \"${SERVICES[$i]}\""
 done
+
+CONF="`cat <<EOF
+[4:
+  ("prof", {1| ("fs")}),
+  ("fs", {2| ((11, 22),
+              [3: "pool_width=$POOL_WIDTH",
+                  "nr_data_units=$NR_DATA",
+                  "unit_size=$UNIT_SIZE"],
+              [2: "mds", "ios"])}),
+  ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
+  ("ios", {3| (2, [$(echo $IOS_ENDPOINTS | wc -w): $IOS_ENDPOINTS], "_")})]
+EOF`"
 
 # mount the file system
 mkdir -p $MP
-
-CONF='profile=prof,local_conf=[2: '\
-'("prof", {1| ("fs")}), '\
-'("fs", {2| ((11, 22),'\
-" [3: \"pool_width=$POOL_WIDTH\", \"nr_data_units=$NR_DATA\","\
-" \"unit_size=$UNIT_SIZE\"],"\
-' [1: "_"])})]'
-
-l_run mount -t m0t1fs -o "'$CONF,$IOS'" none $MP
-if [ $? -ne 0 ]; then
+l_run mount -t m0t1fs -o profile=prof,local_conf="$CONF" none $MP || {
 	echo ERROR: Unable to mount the file system
 	exit 1
-fi
+}
 mount | grep m0t1fs
 IS_MOUNTED=yes
 

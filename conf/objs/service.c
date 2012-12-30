@@ -29,10 +29,8 @@ static bool service_check(const void *bob)
 	M0_PRE(self_obj->co_type == M0_CO_SERVICE);
 
 	return ergo(self_obj->co_status == M0_CS_READY,
-		    M0_IN(self->cs_type, (M0_CFG_SERVICE_METADATA,
-					  M0_CFG_SERVICE_IO,
-					  M0_CFG_SERVICE_MGMT,
-					  M0_CFG_SERVICE_DLM))) &&
+		    M0_IN(self->cs_type,
+			  (M0_CST_MDS, M0_CST_IOS, M0_CST_MGS, M0_CST_DLM))) &&
 		ergo(self_obj->co_mounted, /* check relations */
 		     parent_check(self_obj) &&
 		     child_check(self_obj, MEMBER_PTR(self->cs_node, cn_obj),
@@ -61,7 +59,35 @@ static int service_fill(struct m0_conf_obj *dest,
 	child_adopt(dest, child);
 	dest->co_mounted = true;
 
-	return strings_copy(&d->cs_endpoints, &s->xs_endpoints);
+	return strings_from_arrbuf(&d->cs_endpoints, &s->xs_endpoints);
+}
+
+static int
+service_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
+{
+	int                     rc;
+	struct m0_conf_service *s = M0_CONF_CAST(src, m0_conf_service);
+	struct confx_service   *d = &dest->o_conf.u.u_service;
+
+	rc = m0_buf_copy(&dest->o_id, &src->co_id);
+	if (rc != 0)
+		return -ENOMEM;
+
+	dest->o_conf.u_type = src->co_type;
+	d->xs_type = s->cs_type;
+
+	rc = arrbuf_from_strings(&d->xs_endpoints, s->cs_endpoints);
+	if (rc != 0)
+		goto err;
+
+	rc = m0_buf_copy(&d->xs_node, &s->cs_node->cn_obj.co_id);
+	if (rc == 0)
+		return 0;
+
+	arrbuf_free(&d->xs_endpoints);
+err:
+	m0_buf_free(&dest->o_id);
+	return -ENOMEM;
 }
 
 static bool
@@ -86,6 +112,7 @@ static int service_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
 		return -ENOENT;
 
 	*out = &M0_CONF_CAST(parent, m0_conf_service)->cs_node->cn_obj;
+	M0_POST(m0_conf_obj_invariant(*out));
 	return 0;
 }
 
@@ -101,6 +128,7 @@ static void service_delete(struct m0_conf_obj *obj)
 static const struct m0_conf_obj_ops conf_service_ops = {
 	.coo_invariant = service_invariant,
 	.coo_fill      = service_fill,
+	.coo_xfill     = service_xfill,
 	.coo_match     = service_match,
 	.coo_lookup    = service_lookup,
 	.coo_readdir   = NULL,

@@ -265,7 +265,6 @@ static int client_fini(struct m0_rpc_client_ctx *cctx)
 
 	rc0 = m0_rpc_session_destroy(&cctx->rcx_session, M0_TIME_NEVER);
 	rc1 = m0_rpc_conn_destroy(&cctx->rcx_connection, M0_TIME_NEVER);
-	m0_net_end_point_put(cctx->rcx_remote_ep);
 	if (verbose)
 		__print_stats(&cctx->rcx_rpc_machine);
 	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);

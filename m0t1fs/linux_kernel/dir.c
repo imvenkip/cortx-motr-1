@@ -1027,8 +1027,7 @@ out:
         return rc;
 }
 
-int m0t1fs_mds_statfs(struct m0t1fs_sb              *csb,
-                      struct m0_fop_statfs_rep     **rep)
+int m0t1fs_mds_statfs(struct m0t1fs_sb *csb, struct m0_fop_statfs_rep **rep)
 {
         return m0t1fs_mds_cob_op(csb, NULL, &m0_fop_statfs_fopt, (void **)rep);
 }

@@ -26,6 +26,7 @@
 #   include "desim/sim.h"
 #endif
 
+#include "lib/trace.h"  /* m0_trace_init, m0_trace_fini */
 #include "stob/stob.h"
 #include "net/net.h"
 #include "net/bulk_emulation/mem_xprt.h"
@@ -37,7 +38,6 @@
 #include "layout/layout.h"
 #include "pool/pool.h"
 #include "lib/processor.h"
-#include "lib/trace.h"
 #include "db/db.h"
 #include "stob/linux.h"
 #include "stob/ad.h"

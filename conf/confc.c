@@ -26,7 +26,7 @@
 #include "conf/preload.h"   /* m0_conf_parse */
 #include "conf/buf_ext.h"   /* m0_buf_is_aimed */
 #include "conf/conf_fop.h"  /* m0_conf_fetch_fopt */
-#include "mero/magic.h"  /* M0_CONFC_MAGIC, M0_CONFC_CTX_MAGIC */
+#include "mero/magic.h"     /* M0_CONFC_MAGIC, M0_CONFC_CTX_MAGIC */
 #include "rpc/rpc.h"        /* m0_rpc_post */
 #include "rpc/rpclib.h"     /* m0_rpc_client_call */
 #include "lib/cdefs.h"      /* M0_HAS_TYPE */
@@ -91,7 +91,7 @@
  *
  * Summary: m0_confc_ctx has just been initialised.
  *
- * m0_confc_open() populates m0_confc_ctx::fc_path array (path_store())
+ * m0_confc_open() populates m0_confc_ctx::fc_path array (path_copy())
  * and posts an AST to m0_confc::cc_group.
  *
  * @note  m0_sm_ast_post() signals group's clink. Current design of
@@ -133,7 +133,7 @@
  * configuration request (m0_confc_ctx::fc_rpc_item) to the confd,
  * using m0_rpc_post().
  *
- * A state machine remains in S_WAIT_REPLY state until a reply from
+ * The state machine remains in S_WAIT_REPLY state until a reply from
  * confd arrives. This event triggers on_replied() callback.  If
  * m0_rpc_item::ri_error is non-zero, on_replied() posts an AST that
  * will eventually move the state machine to S_FAILURE state.  If
@@ -200,9 +200,9 @@
  * reached.
  *
  * path_walk_complete() applies the results of path walking:
- * increments reference counter of M0_CS_READY object, fills
- * m0_conf_fetch request for M0_CS_MISSING object, or registers clink
- * with the channel of M0_CS_LOADING object.
+ * increments reference counter of M0_CS_READY object, allocates and
+ * fills m0_conf_fetch request for M0_CS_MISSING object, or registers
+ * clink with the channel of M0_CS_LOADING object.
  *
  * <hr> <!------------------------------------------------------------>
  * @section confc-lspec-grow Growing the cache
@@ -278,6 +278,7 @@
 static int check_st_in(struct m0_sm *mach);      /* S_CHECK */
 static int wait_reply_st_in(struct m0_sm *mach); /* S_WAIT_REPLY */
 static int grow_cache_st_in(struct m0_sm *mach); /* S_GROW_CACHE */
+static int failure_st_in(struct m0_sm *mach);    /* S_FAILURE */
 
 static bool check_st_invariant(const struct m0_sm *mach);    /* S_CHECK */
 static bool failure_st_invariant(const struct m0_sm *mach);  /* S_FAILURE */
@@ -289,7 +290,7 @@ enum confc_ctx_state { S_INITIAL, S_CHECK, S_WAIT_REPLY, S_WAIT_STATUS,
 
 static const struct m0_sm_state_descr confc_ctx_states[S_NR] = {
 	[S_INITIAL] = {
-		.sd_flags     = M0_SDF_INITIAL,
+		.sd_flags     = M0_SDF_INITIAL | M0_SDF_FINAL,
 		.sd_name      = "S_INITIAL",
 		.sd_in        = NULL,
 		.sd_ex        = NULL,
@@ -330,9 +331,9 @@ static const struct m0_sm_state_descr confc_ctx_states[S_NR] = {
 		.sd_allowed   = 1 << S_CHECK | 1 << S_FAILURE
 	},
 	[S_FAILURE] = {
-		.sd_flags     = M0_SDF_FAILURE,
+		.sd_flags     = M0_SDF_FAILURE | M0_SDF_FINAL,
 		.sd_name      = "S_FAILURE",
-		.sd_in        = NULL,
+		.sd_in        = failure_st_in,
 		.sd_ex        = NULL,
 		.sd_invariant = failure_st_invariant,
 		.sd_allowed   = 0
@@ -458,8 +459,6 @@ M0_INTERNAL void m0_confc_fini(struct m0_confc *confc)
 		disconnect_from_confd(confc);
 
 	m0_mutex_fini(&confc->cc_lock);
-	/* confc->cc_group = NULL; */
-	/* confc->cc_root = NULL; */
 	m0_conf_reg_fini(&confc->cc_registry);
 	M0_LEAVE();
 }
@@ -500,11 +499,12 @@ static void confc_lock(struct m0_confc *confc);
 static void confc_unlock(struct m0_confc *confc);
 static bool on_object_updated(struct m0_clink *link);
 static bool request_check(const struct m0_confc_ctx *ctx);
+static bool eop(const struct m0_buf *buf);
 
 M0_INTERNAL void
 m0_confc_ctx_init(struct m0_confc_ctx *ctx, struct m0_confc *confc)
 {
-	M0_ENTRY("ctx=%p, confc=%p", ctx, confc);
+	M0_ENTRY("ctx=%p confc=%p", ctx, confc);
 	M0_PRE(confc_invariant(confc));
 
 	M0_SET0(ctx);
@@ -530,13 +530,17 @@ m0_confc_ctx_init(struct m0_confc_ctx *ctx, struct m0_confc *confc)
 
 M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx)
 {
+	struct m0_buf   *pc;
 	struct m0_confc *confc = ctx->fc_confc;
 
 	M0_ENTRY("ctx=%p", ctx);
 	M0_PRE(ctx_invariant(ctx));
 
-	m0_confc_ctx_bob_fini(ctx);
 	m0_clink_fini(&ctx->fc_clink);
+
+	for (pc = ctx->fc_path; !eop(pc); ++pc)
+		m0_buf_free(pc);
+	ctx->fc_origin = NULL;
 
 	conf_group_lock(confc); /* needed for m0_sm_fini() */
 
@@ -549,8 +553,12 @@ M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx)
 	m0_sm_fini(&ctx->fc_mach);
 	conf_group_unlock(confc);
 
-	if (ctx->fc_rpc_item != NULL)
+	if (ctx->fc_rpc_item != NULL) {
 		m0_rpc_item_put(ctx->fc_rpc_item);
+		ctx->fc_rpc_item = NULL;
+	}
+
+	m0_confc_ctx_bob_fini(ctx);
 	ctx->fc_confc = NULL;
 
 	M0_LEAVE();
@@ -592,30 +600,13 @@ M0_INTERNAL struct m0_conf_obj *m0_confc_ctx_result(struct m0_confc_ctx *ctx)
 
 	ctx->fc_result = NULL;
 
-	M0_LEAVE("ret=%p", res);
+	M0_LEAVE("retval=%p", res);
 	return res;
 }
 
-/* ------------------------------------------------------------------
- * open/close
- * ------------------------------------------------------------------ */
-
-static void ast_state_set(struct m0_sm_ast *ast, enum confc_ctx_state state);
-
-M0_INTERNAL void m0_confc__open(struct m0_confc_ctx *ctx,
-				struct m0_conf_obj *origin,
-				const struct m0_buf path[])
-{
-	M0_ENTRY("ctx=%p", ctx);
-	M0_PRE(ctx_invariant(ctx));
-	M0_PRE(ergo(origin != NULL, origin->co_confc == ctx->fc_confc));
-	M0_PRE(ctx->fc_origin == NULL && ctx->fc_path == NULL);
-
-	ctx->fc_origin = origin == NULL ? ctx->fc_confc->cc_root : origin;
-	ctx->fc_path = path;
-	ast_state_set(&ctx->fc_ast, S_CHECK);
-	M0_LEAVE();
-}
+/* ----------------------------------------------------------------
+ * sm_waiter
+ * ---------------------------------------------------------------- */
 
 struct sm_waiter {
 	struct m0_confc_ctx w_ctx;
@@ -623,10 +614,68 @@ struct sm_waiter {
 };
 
 /** Filters out intermediate state transitions of m0_confc_ctx::fc_mach. */
-static bool sm_filter(struct m0_clink *link)
+static bool sm__filter(struct m0_clink *link)
 {
 	return !m0_confc_ctx_is_completed(&container_of(link, struct sm_waiter,
 							w_clink)->w_ctx);
+}
+
+static void sm_waiter_init(struct sm_waiter *w, struct m0_confc *confc)
+{
+	m0_confc_ctx_init(&w->w_ctx, confc);
+	m0_clink_init(&w->w_clink, sm__filter);
+	m0_clink_add(&w->w_ctx.fc_mach.sm_chan, &w->w_clink);
+}
+
+static void sm_waiter_fini(struct sm_waiter *w)
+{
+	m0_clink_del(&w->w_clink);
+	m0_clink_fini(&w->w_clink);
+	m0_confc_ctx_fini(&w->w_ctx);
+}
+
+static int sm_waiter_wait(struct sm_waiter *w, struct m0_conf_obj **result)
+{
+	int rc;
+
+	M0_ENTRY();
+
+	while (!m0_confc_ctx_is_completed(&w->w_ctx))
+		m0_chan_wait(&w->w_clink);
+
+	rc = m0_confc_ctx_error(&w->w_ctx);
+	if (rc == 0)
+		*result = m0_confc_ctx_result(&w->w_ctx);
+
+	M0_RETURN(rc);
+}
+
+/* ------------------------------------------------------------------
+ * open/close
+ * ------------------------------------------------------------------ */
+
+static void ast_state_set(struct m0_sm_ast *ast, enum confc_ctx_state state);
+static int path_copy(const struct m0_buf *src, struct m0_buf *dest,
+		     size_t dest_sz);
+
+M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
+			       struct m0_conf_obj *origin,
+			       const struct m0_buf *path)
+{
+	int rc;
+
+	M0_ENTRY("ctx=%p", ctx);
+	M0_PRE(ctx_invariant(ctx) && ctx->fc_mach.sm_state == S_INITIAL);
+	M0_PRE(ctx->fc_origin == NULL && eop(ctx->fc_path));
+	M0_PRE(ergo(origin != NULL, origin->co_confc == ctx->fc_confc));
+
+	rc = path_copy(path, ctx->fc_path, ARRAY_SIZE(ctx->fc_path));
+	if (rc != 0)
+		M0_RETURN(rc);
+	ctx->fc_origin = origin == NULL ? ctx->fc_confc->cc_root : origin;
+
+	ast_state_set(&ctx->fc_ast, S_CHECK);
+	M0_RETURN(0);
 }
 
 M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
@@ -639,21 +688,10 @@ M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
 	M0_ENTRY();
 	M0_PRE(origin != NULL);
 
-	m0_confc_ctx_init(&w.w_ctx, origin->co_confc);
-	m0_clink_init(&w.w_clink, sm_filter);
-	m0_clink_add(&w.w_ctx.fc_mach.sm_chan, &w.w_clink);
-
-	m0_confc__open(&w.w_ctx, origin, path);
-	while (!m0_confc_ctx_is_completed(&w.w_ctx))
-		m0_chan_wait(&w.w_clink);
-
-	rc = m0_confc_ctx_error(&w.w_ctx);
-	if (rc == 0)
-		*result = m0_confc_ctx_result(&w.w_ctx);
-
-	m0_clink_del(&w.w_clink);
-	m0_clink_fini(&w.w_clink);
-	m0_confc_ctx_fini(&w.w_ctx);
+	sm_waiter_init(&w, origin->co_confc);
+	rc = m0_confc__open(&w.w_ctx, origin, path) ?:
+		sm_waiter_wait(&w, result);
+	sm_waiter_fini(&w);
 
 	M0_POST(ergo(rc == 0, (*result)->co_status == M0_CS_READY));
 	M0_RETURN(rc);
@@ -669,36 +707,119 @@ M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj)
 	}
 	M0_LEAVE();
 }
+
+/**
+ * Copies path from `src' to `dest'.
+ *
+ * @retval 0        Success.
+ * @retval -E2BIG   `src' path is too long.
+ * @retval -ENOMEM  Memory allocation failure.
+ */
+static int
+path_copy(const struct m0_buf *src, struct m0_buf *dest, size_t dest_sz)
+{
+	size_t i;
+	int    rc;
+
+	M0_ENTRY();
+
+	for (rc = 0, i = 0; i < dest_sz && !eop(&src[i]); ++i) {
+		rc = m0_buf_copy(&dest[i], &src[i]);
+		if (rc != 0)
+			goto err;
+	}
+
+	if (i == dest_sz) {
+		rc = -E2BIG;
+		goto err;
+	}
+	dest[i] = (struct m0_buf)M0_BUF_INIT0; /* terminate the path */
+
+	M0_RETURN(0);
+err:
+	for (; i > 0; --i)
+		m0_buf_free(&dest[i - 1]);
+	M0_RETURN(rc);
+}
 
 /* ------------------------------------------------------------------
  * readdir
  * ------------------------------------------------------------------ */
 
+static void dir_relation(enum m0_conf_objtype item_type, struct m0_buf *dest);
+
 M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
-				 struct m0_conf_obj *dir,
+				 struct m0_conf_obj  *dir,
 				 struct m0_conf_obj **pptr)
 {
 	int rc;
 
-	confc_lock(ctx->fc_confc);
+	M0_ENTRY("ctx=%p dir=%p *pptr=%p", ctx, dir, *pptr);
+	M0_PRE(dir->co_type == M0_CO_DIR && dir->co_confc == ctx->fc_confc);
+
+	confc_lock(dir->co_confc);
 	rc = dir->co_ops->coo_readdir(dir, pptr);
-	confc_unlock(ctx->fc_confc);
-
 	if (rc == M0_CONF_DIRMISS) {
-		M0_IMPOSSIBLE("XXX not implemented");
-		/* rc = XXX_initiate_asynchronous_retrieval_of_configuration(); */
-	}
+		/*
+		 * Request {origin, [relation, entry]} from confd, where
+		 *   origin is dir's parent,
+		 *   relation is how dir is referred to by the origin,
+		 *   entry is the first missing entry in the dir.
+		 */
+		struct m0_buf path[3] = {
+			[ARRAY_SIZE(path) - 1] = M0_BUF_INIT0 /* eop */
+		};
 
+		dir_relation(M0_CONF_CAST(dir, m0_conf_dir)->cd_item_type,
+			     &path[0]);
+		path[1] = (*pptr)->co_id;
+
+		rc = m0_confc__open(ctx, dir->co_parent, path) ?:
+			M0_CONF_DIRMISS;
+	}
+	confc_unlock(dir->co_confc);
+
+	M0_LEAVE("retval=%d", rc);
 	return rc;
 }
 
 M0_INTERNAL int m0_confc_readdir_sync(struct m0_conf_obj *dir,
 				      struct m0_conf_obj **pptr)
 {
-	(void)dir;
-	(void)pptr;
-	M0_IMPOSSIBLE("XXX not implemented");
-	return 0;
+	struct sm_waiter w;
+	int              rc;
+
+	M0_ENTRY("dir=%p *pptr=%p", dir, *pptr);
+
+	sm_waiter_init(&w, dir->co_confc);
+
+	rc = m0_confc_readdir(&w.w_ctx, dir, pptr);
+	if (rc == M0_CONF_DIRMISS)
+		rc = sm_waiter_wait(&w, pptr) ?:
+			(*pptr == NULL ? M0_CONF_DIREND : M0_CONF_DIRNEXT);
+	else
+		M0_ASSERT(M0_IN(rc, (M0_CONF_DIRNEXT, M0_CONF_DIREND)));
+
+	sm_waiter_fini(&w);
+	M0_LEAVE("retval=%d", rc);
+	return rc;
+}
+
+static void dir_relation(enum m0_conf_objtype item_type, struct m0_buf *dest)
+{
+	switch (item_type) {
+#define _CASE(type, name)                                        \
+	case type:                                               \
+		*dest = (const struct m0_buf)M0_BUF_INITS(name); \
+		break
+
+	_CASE(M0_CO_SERVICE,   "services");
+	_CASE(M0_CO_NIC,       "nics");
+	_CASE(M0_CO_SDEV,      "sdevs");
+	_CASE(M0_CO_PARTITION, "partitions");
+	default:
+		M0_IMPOSSIBLE("Invalid value of m0_conf_dir::cd_item_type");
+	}
 }
 
 /* ------------------------------------------------------------------
@@ -753,17 +874,17 @@ static int check_st_in(struct m0_sm *mach)
 	int rc;
 	struct m0_confc_ctx *ctx = mach_to_ctx(mach);
 
-	M0_ENTRY("mach=%p, ctx=%p", mach, ctx);
+	M0_ENTRY("mach=%p ctx=%p", mach, ctx);
 
 	rc = path_walk(ctx);
 	if (rc < 0) {
 		mach->sm_rc = rc;
-		M0_LEAVE("ret=S_FAILURE");
+		M0_LEAVE("retval=S_FAILURE");
 		return S_FAILURE;
 	}
 
 	M0_ASSERT(IS_IN_ARRAY(rc, next_state));
-	M0_LEAVE("ret=%d", next_state[rc]);
+	M0_LEAVE("retval=%d", next_state[rc]);
 	return next_state[rc];
 }
 
@@ -774,18 +895,18 @@ static int wait_reply_st_in(struct m0_sm *mach)
 	int                  rc;
 	struct m0_confc_ctx *ctx = mach_to_ctx(mach);
 
-	M0_ENTRY("mach=%p, ctx=%p", mach, ctx);
+	M0_ENTRY("mach=%p ctx=%p", mach, ctx);
 	M0_PRE(ctx->fc_rpc_item != NULL);
 
 	ctx->fc_rpc_item->ri_op_timeout = m0_time_from_now(TIME_TO_WAIT, 0);
 	rc = m0_rpc_post(ctx->fc_rpc_item);
 	if (rc == 0) {
-		M0_LEAVE("ret=-1");
+		M0_LEAVE("retval=-1");
 		return -1;
 	}
 
 	mach->sm_rc = rc;
-	M0_LEAVE("ret=S_FAILURE");
+	M0_LEAVE("retval=S_FAILURE");
 	return S_FAILURE;
 }
 
@@ -797,8 +918,8 @@ static int grow_cache_st_in(struct m0_sm *mach)
 	struct m0_confc_ctx       *ctx  = mach_to_ctx(mach);
 	struct m0_rpc_item        *item = ctx->fc_rpc_item;
 
-	M0_ENTRY("mach=%p, ctx=%p", mach, ctx);
-	M0_PRE(item->ri_error == 0 && item->ri_reply != NULL);
+	M0_ENTRY("mach=%p ctx=%p", mach, ctx);
+	M0_PRE(item != NULL && item->ri_error == 0 && item->ri_reply != NULL);
 
 	resp = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
 	rc = resp->fr_rc ?: cache_grow(&ctx->fc_confc->cc_registry, resp);
@@ -806,14 +927,37 @@ static int grow_cache_st_in(struct m0_sm *mach)
 	/* Let the rpc layer free memory allocated for response. */
 	m0_rpc_item_put(item->ri_reply);
 
+	/* The item has been consumed and is not needed any more. */
+	m0_rpc_item_put(item);
+	ctx->fc_rpc_item = NULL;
+
 	if (rc == 0) {
-		M0_LEAVE("ret=S_CHECK");
+		M0_LEAVE("retval=S_CHECK");
 	        return S_CHECK;
 	}
 	mach->sm_rc = rc;
-	M0_LEAVE("ret=S_FAILURE");
+	M0_LEAVE("retval=S_FAILURE");
 	return S_FAILURE;
 
+}
+
+/** Actions to perform on entering S_FAILURE state. */
+static int failure_st_in(struct m0_sm *mach)
+{
+	M0_ENTRY("mach=%p", mach);
+
+	/*
+	 * Unset M0_CS_LOADING object with path_walk() in order for
+	 * m0_confc_fini() not to fail:
+	 *    m0_confc_fini
+	 *     \_ m0_conf_reg_fini
+	 *         \_ m0_conf_obj_delete
+	 *             \_ M0_PRE(obj->co_status != M0_CS_LOADING)
+	 */
+	(void)path_walk(mach_to_ctx(mach));
+
+	M0_LEAVE("retval=-1");
+	return -1;
 }
 
 /** Handles `RPC replied' event (i.e. response arrival or an error). */
@@ -821,7 +965,7 @@ static void on_replied(struct m0_rpc_item *item)
 {
 	struct m0_confc_ctx *ctx = item_to_ctx(item);
 
-	M0_ENTRY("item=%p, ctx=%p", item, ctx);
+	M0_ENTRY("item=%p ctx=%p", item, ctx);
 	M0_PRE(ctx_invariant(ctx));
 
 	if (item->ri_error == 0) {
@@ -895,15 +1039,17 @@ static bool eop(const struct m0_buf *buf)
  * @retval M0_CS_MISSING  One of the intermediate objects or the target
  *                        itself is M0_CS_MISSING.
  *                        path_walk_complete(), which is called from
- *                        path_walk(), changes statuses of such
- *                        objects to M0_CS_LOADING and fills
- *                        ctx->fc_req.
+ *                        path_walk(), changes status of this object
+ *                        to M0_CS_LOADING and fills ctx->fc_req.
  *
  * @retval M0_CS_LOADING  Neither path target nor missing objects can
  *                        be reached because of M0_CS_LOADING object
- *                        blocking the path.  path_walk_complete()
- *                        registers ctx->fc_clink with the channel of
- *                        loading object.
+ *                        blocking the path.  If ctx->fc_mach is in
+ *                        S_FAILURE state, path_walk_complete() reverts
+ *                        status of this object to M0_CS_MISSING and
+ *                        signals object's channel.  Otherwise
+ *                        path_walk_complete() registers ctx->fc_clink
+ *                        with the channel of loading object.
  *
  * @retval -ENOENT        ctx->fc_path refers to a nonexistent object.
  * @retval -ENOMEM        Request allocation failed.
@@ -914,32 +1060,31 @@ static int path_walk(struct m0_confc_ctx *ctx)
 {
 	struct m0_conf_obj *obj;
 	size_t              ri;
-	int                 ret;
+	int                 rc;
 
 	M0_ENTRY("ctx=%p", ctx);
 	M0_PRE(conf_group_is_locked(ctx->fc_confc));
 	M0_PRE(m0_conf_obj_invariant(ctx->fc_origin));
+	M0_PRE(M0_IN(ctx->fc_mach.sm_state, (S_CHECK, S_FAILURE)));
 
 	confc_lock(ctx->fc_confc);
 
-	for (ret = 0, obj = ctx->fc_origin, ri = 0;
-	     ret == 0 && obj->co_status == M0_CS_READY &&
+	for (rc = 0, obj = ctx->fc_origin, ri = 0;
+	     rc == 0 && obj->co_status == M0_CS_READY &&
 		     !eop(&ctx->fc_path[ri]);
-	     ++ri) {
-		ret = obj->co_ops->coo_lookup(obj, &ctx->fc_path[ri], &obj);
-		M0_ASSERT(m0_conf_obj_invariant(obj));
-	}
+	     ++ri)
+		rc = obj->co_ops->coo_lookup(obj, &ctx->fc_path[ri], &obj);
 
-	if (ret == 0)
-		ret = path_walk_complete(ctx, obj, ri);
+	if (rc == 0)
+		rc = path_walk_complete(ctx, obj, ri);
 	else
-		M0_ASSERT(ret == -ENOENT);
+		M0_ASSERT(rc == -ENOENT);
 
 	confc_unlock(ctx->fc_confc);
 
 	M0_POST(conf_group_is_locked(ctx->fc_confc));
-	M0_LEAVE("ret=%d", ret);
-	return ret;
+	M0_LEAVE("retval=%d", rc);
+	return rc;
 }
 
 /**
@@ -957,7 +1102,7 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 {
 	int rc;
 
-	M0_ENTRY("ctx=%p, obj=%p, ri=%lu", ctx, obj, (unsigned long)ri);
+	M0_ENTRY("ctx=%p obj=%p ri=%zu", ctx, obj, ri);
 	M0_PRE(conf_group_is_locked(ctx->fc_confc));
 	M0_PRE(confc_is_locked(ctx->fc_confc));
 
@@ -969,11 +1114,14 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 		ctx->fc_result = obj;
 
 		M0_POST(m0_conf_obj_invariant(ctx->fc_result));
-		M0_LEAVE("M0_CS_READY");
+		M0_LEAVE("retval=M0_CS_READY");
 		return M0_CS_READY;
 
 	case M0_CS_MISSING:
+		if (!confc_is_online(ctx->fc_confc))
+			M0_RETURN(-ENOENT);
 		obj->co_status = M0_CS_LOADING;
+
 		if (obj->co_type == M0_CO_DIR) {
 			/*
 			 * Directory objects don't travel over the
@@ -983,22 +1131,30 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 			obj = obj->co_parent;
 			M0_CNT_DEC(ri);
 		}
+
 		rc = request_create(ctx, obj, ri);
 		if (rc == 0) {
-			M0_LEAVE("M0_CS_MISSING");
+			M0_LEAVE("retval=M0_CS_MISSING");
 			return M0_CS_MISSING;
 		}
 		M0_RETURN(rc);
 
 	case M0_CS_LOADING:
+		if (ctx->fc_mach.sm_state == S_FAILURE) {
+			obj->co_status = M0_CS_MISSING;
+			m0_chan_broadcast(&obj->co_chan);
+			break;
+		}
 		m0_clink_add(&obj->co_chan, &ctx->fc_clink);
-		M0_LEAVE("M0_CS_LOADING");
+		M0_LEAVE("retval=M0_CS_LOADING");
 		return M0_CS_LOADING;
 
 	default:
 		M0_IMPOSSIBLE("Invalid object status");
 	}
-	M0_RETURN(-1); /* never reached */
+
+	M0_LEAVE("retval=-1");
+	return -1;
 }
 
 /* ------------------------------------------------------------------
@@ -1202,34 +1358,21 @@ static bool confc_is_online(const struct m0_confc *confc)
 static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 			    struct m0_rpc_machine *rpc_mach)
 {
-	struct m0_net_end_point *ep;
-	int rc;
 	enum {
 		NR_SLOTS = 5, /* That many m0_confc_ctx's will be able
 			       * to talk to confd simultaneously. */
 		MAX_RPCS_IN_FLIGHT = 2 * NR_SLOTS /* XXX Or should it
 						   * be == NR_SLOTS? */
 	};
+	int rc;
 
 	M0_ENTRY();
 	M0_PRE(not_empty(confd_addr) && rpc_mach != NULL);
 
-	rc = m0_net_end_point_create(&ep, &rpc_mach->rm_tm, confd_addr);
-	if (rc != 0)
-		M0_RETURN(rc);
-
-	rc = m0_rpc_conn_create(&confc->cc_rpc_conn, ep, rpc_mach,
-				MAX_RPCS_IN_FLIGHT, M0_TIME_NEVER);
-	m0_net_end_point_put(ep);
-	if (rc != 0)
-		M0_RETURN(rc);
-
-	rc = m0_rpc_session_create(&confc->cc_rpc_session, &confc->cc_rpc_conn,
-				   NR_SLOTS, M0_TIME_NEVER);
-	if (rc != 0)
-		(void)m0_rpc_conn_destroy(&confc->cc_rpc_conn, M0_TIME_NEVER);
-
-	M0_POST(confc_is_online(confc));
+	rc = m0_rpc_client_connect(&confc->cc_rpc_conn, &confc->cc_rpc_session,
+				   rpc_mach, confd_addr, MAX_RPCS_IN_FLIGHT,
+				   NR_SLOTS);
+	M0_POST((rc == 0) == confc_is_online(confc));
 	M0_RETURN(rc);
 }
 
@@ -1337,6 +1480,8 @@ static const struct m0_rpc_item_ops confc_item_ops = {
  * @param orig  Origin of the path being sent to confd.
  * @param ri    Starting position (in ctx->fc_path[]) of the path to be
  *              sent to confd.
+ *
+ * @pre  confc_is_online(ctx->fc_confc)
  */
 static int request_create(struct m0_confc_ctx *ctx,
 			  const struct m0_conf_obj *orig, size_t ri)
@@ -1346,7 +1491,7 @@ static int request_create(struct m0_confc_ctx *ctx,
 	struct m0_conf_fetch *req;
 	uint32_t              len;
 
-	M0_ENTRY("ctx=%p, orig=%p, ri=%lu", ctx, orig, (unsigned long)ri);
+	M0_ENTRY("ctx=%p orig=%p ri=%zu", ctx, orig, ri);
 	M0_PRE(ctx_invariant(ctx) && confc_is_online(ctx->fc_confc) &&
 	       ctx->fc_rpc_item == NULL);
 

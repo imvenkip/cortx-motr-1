@@ -33,6 +33,7 @@ struct m0_conf_fetch_resp;
 struct m0_conf_update;
 struct m0_conf_update_resp;
 
+/* XXX TODO: rename to `arrbuf' */
 struct arr_buf {
 	uint32_t       ab_count;
 	struct m0_buf *ab_elems;
@@ -43,7 +44,6 @@ struct objid {
 	uint32_t      oi_type; /* see m0_conf_objtype for values */
 	struct m0_buf oi_id;
 } M0_XCA_RECORD;
-
 
 /* ------------------------------------------------------------------
  * Configuration objects
@@ -63,7 +63,7 @@ struct confx_filesystem {
 } M0_XCA_RECORD;
 
 struct confx_service {
-	/* Service type.  See m0_cfg_service_type. */
+	/* Service type.  See m0_conf_service_type. */
 	uint32_t       xs_type;
 	/* End-points from which this service is reachable. */
 	struct arr_buf xs_endpoints;

@@ -32,6 +32,7 @@
    @{
 */
 
+/** Memory buffer. */
 struct m0_buf {
 	m0_bcount_t b_nob;
 	void       *b_addr;
@@ -57,32 +58,27 @@ struct m0_buf {
 #define M0_BUF_INITS(str)       M0_BUF_INIT(strlen(str), (str))
 #define M0_BUF_INIT0            M0_BUF_INIT(0, NULL)
 
+/** Initialises struct m0_buf. */
+M0_INTERNAL void m0_buf_init(struct m0_buf *buf, void *data, uint32_t nob);
+
+/** Frees memory pointed to by buf->b_addr and zeroes buffer's fields. */
+M0_INTERNAL void m0_buf_free(struct m0_buf *buf);
+
 /** Returns true iff two buffers are equal. */
 M0_INTERNAL bool m0_buf_eq(const struct m0_buf *x, const struct m0_buf *y);
 
 /**
  * Copies a buffer.
  *
- * A user is responsible for m0_buf_free()ing `dest'.
+ * User is responsible for m0_buf_free()ing `dest'.
  *
  * @pre   dest->cb_size == 0 && dest->cb_data == NULL
  * @post  ergo(result == 0, m0_buf_eq(dest, src))
  */
 M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src);
 
-/** Initialises struct m0_buf */
-M0_INTERNAL void m0_buf_init(struct m0_buf *buf, void *data, uint32_t nob);
-
-/**
- * Frees the contents of the buffer and zeroes its fields.
- */
-M0_INTERNAL void m0_buf_free(struct m0_buf *buf);
-
 /** @} end of buf group */
-
-
-/* __MERO_LIB_BUF_H__ */
-#endif
+#endif /* __MERO_LIB_BUF_H__ */
 
 /*
  *  Local variables:
