@@ -10,6 +10,8 @@ mero_libmero_la_SOURCES     += rm/rm_fops.c \
 
 XC_FILES                    += rm/rm_xc.h
 
+EXTRA_DIST		    += rm/rm_internal.h
+
 rm/rm_xc.h: fop/fom_generic_xc.h \
             lib/buf_xc.h \
             lib/cookie_xc.h
