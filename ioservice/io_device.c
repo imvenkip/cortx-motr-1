@@ -300,13 +300,11 @@ M0_INTERNAL void m0_ios_poolmach_fini(struct m0_reqh *reqh)
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
-M0_INTERNAL int m0_ios_poolmach_version_updates_pack(struct m0_poolmach *pm,
-						     const struct m0_fv_version
-						     *cli,
-						     struct m0_fv_version
-						     *version,
-						     struct m0_fv_updates
-						     *updates)
+M0_INTERNAL int
+m0_ios_poolmach_version_updates_pack(struct m0_poolmach         *pm,
+				     const struct m0_fv_version *cli,
+				     struct m0_fv_version       *version,
+				     struct m0_fv_updates       *updates)
 {
 	struct m0_pool_version_numbers  curr;
 	struct m0_pool_version_numbers *verp;

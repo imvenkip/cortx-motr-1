@@ -117,13 +117,11 @@ M0_INTERNAL void m0_ios_poolmach_fini(struct m0_reqh *reqh);
  * @param version [out] pack the server known version into this.
  * @param updates [out] pack events from @cli to @version into this buffer.
  */
-M0_INTERNAL int m0_ios_poolmach_version_updates_pack(struct m0_poolmach *pm,
-						     const struct m0_fv_version
-						     *cli,
-						     struct m0_fv_version
-						     *version,
-						     struct m0_fv_updates
-						     *updates);
+M0_INTERNAL int
+m0_ios_poolmach_version_updates_pack(struct m0_poolmach         *pm,
+				     const struct m0_fv_version *cli,
+				     struct m0_fv_version       *version,
+				     struct m0_fv_updates       *updates);
 
 /** @} */ /* io_calls_params_dldDFS end group */
 

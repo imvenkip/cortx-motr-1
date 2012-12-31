@@ -281,6 +281,8 @@ static void net_test_client_server(const char *nid,
 				     M0_NET_TEST_CMD_STOP);
 	M0_UT_ASSERT(rc == servers_nr);
 	/* finalize console */
+	m0_net_test_slist_fini(&console_cfg.ntcc_data_servers);
+	m0_net_test_slist_fini(&console_cfg.ntcc_data_clients);
 	m0_net_test_slist_fini(&console_cfg.ntcc_servers);
 	m0_net_test_slist_fini(&console_cfg.ntcc_clients);
 	m0_net_test_console_fini(&console);

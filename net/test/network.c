@@ -408,6 +408,8 @@ void m0_net_test_network_ctx_fini(struct m0_net_test_network_ctx *ctx)
 	net_test_tm_stop(ctx->ntc_tm);
 	m0_net_tm_fini(ctx->ntc_tm);
 	m0_net_domain_fini(ctx->ntc_dom);
+	m0_free(ctx->ntc_tm);
+	m0_free(ctx->ntc_dom);
 }
 
 int m0_net_test_network_ep_add(struct m0_net_test_network_ctx *ctx,
