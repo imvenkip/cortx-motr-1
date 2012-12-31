@@ -41,7 +41,6 @@
 #include "mero/magic.h"
 #include "db/db.h"
 #include "db/db_common.h"
-#include "db/extmap_seg_xc.h"
 
 /**
    @addtogroup db

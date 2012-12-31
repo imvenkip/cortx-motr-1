@@ -93,8 +93,7 @@ cob_SOURCES                     := cob.c
 
 mero_SOURCES                    := init.c
 
-db_SOURCES                      := db_common.c extmap_seg_xc.c
-db_HEADERS                      := extmap_seg_xc.h extmap_seg.h
+db_SOURCES                      := db_common.c
 
 db_linux_kernel_SOURCES         := db.c
 

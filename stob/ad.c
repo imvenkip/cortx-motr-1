@@ -611,17 +611,16 @@ static void ad_stob_io_release(struct ad_stob_io *aio)
  */
 static void ad_stob_io_fini(struct m0_stob_io *io)
 {
-	struct ad_stob_io      *aio = io->si_stob_private;
-	struct m0_emap_seg_vec *esv = io->si_fol_private;
+	struct ad_stob_io *aio = io->si_stob_private;
 
 	ad_stob_io_release(aio);
 	m0_clink_del_lock(&aio->ai_clink);
 	m0_clink_fini(&aio->ai_clink);
 	m0_stob_io_fini(&aio->ai_back);
 	m0_free(aio);
-	if (esv != NULL) {
-		m0_free(esv->sv_es);
-		m0_free(esv);
+	if (arp != NULL) {
+		m0_free(arp->arp_old_data);
+		m0_free(arp);
 	}
 }
 
@@ -1088,7 +1087,6 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 	bool          eodst;
 	bool          eoext;
 	struct m0_ext todo;
-	struct m0_emap_seg_vec *esv = io->si_fol_private;
 	int			i = 0;
 
 	result = 0;
@@ -1102,10 +1100,10 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
 		todo.e_end   = todo.e_start + frag_size;
 
-		esv->sv_es[i].ee_ext.e_start = offset;
-		esv->sv_es[i].ee_ext.e_end   = offset + m0_ext_length(&todo);
-		esv->sv_es[i].ee_val         = todo.e_start;
-		esv->sv_es[i].ee_pre         = map->ct_it->ec_seg.ee_pre;
+		arp->arp_old_data[i].ee_ext.e_start = offset;
+		arp->arp_old_data[i].ee_ext.e_end   = offset + m0_ext_length(&todo);
+		arp->arp_old_data[i].ee_val         = todo.e_start;
+		arp->arp_old_data[i].ee_pre         = map->ct_it->ec_seg.ee_pre;
 		++i;
 		result = ad_write_map_ext(io, adom, offset, map->ct_it, &todo);
 
@@ -1133,23 +1131,18 @@ static void ad_wext_fini(struct ad_write_ext *wext)
 	}
 }
 
-static int ad_emap_seg_vec_alloc(struct m0_stob_io *io, uint32_t frags)
+static int ad_fol_part_alloc(uint32_t frags)
 {
-	struct m0_emap_seg_vec *esv;
 
-	M0_PRE(frags > 0);
-
-	M0_ALLOC_PTR(esv);
-	if (esv == NULL)
+	M0_ALLOC_PTR(arp);
+	if (arp == NULL)
 		return -ENOMEM;
-
-	esv->sv_nr = frags;
-	M0_ALLOC_ARR(esv->sv_es, frags);
-	if (esv->sv_es == NULL) {
-		m0_free(esv);
+	arp->arp_segments = frags;
+	M0_ALLOC_ARR(arp->arp_old_data, frags);
+	if (arp->arp_old_data == NULL) {
+		m0_free(arp);
 		return -ENOMEM;
 	}
-	io->si_fol_private = esv;
 	return 0;
 }
 
@@ -1213,7 +1206,7 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 	if (result == 0) {
 		ad_wext_cursor_init(&wc, &head);
 		frags = ad_write_count(io, src, &wc);
-		result = ad_emap_seg_vec_alloc(io, frags);
+	        result = ad_fol_part_alloc(frags);
 		if (result == 0) {
 			result = ad_vec_alloc(io->si_obj, back, frags);
 			if (result == 0) {
