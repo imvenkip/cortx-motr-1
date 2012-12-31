@@ -482,6 +482,60 @@ M0_TL_DECLARE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
 		.xo_ptr  = r->rp_data,		                \
 }
 
+/**  Adds the FOL record by iterating through FOL parts from the list in m0_dtx
+ *   added during updates on server.
+ */
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_dtx *dtx,
+			       struct m0_fol_rec_desc *rec);
+
+/** It represents updates made as part of executing FOM on server. */
+struct m0_fol_rec_part {
+	const struct m0_fol_rec_part_ops  *rp_ops;
+	/** Pointer to the data where FOL record part is serialised or
+	    will be de-serialised.
+	 */
+	void				  *rp_data;
+	/** Linkage into a fol record parts. */
+	struct m0_tlink			   rp_link;
+	/** Magic for fol record part list. */
+	uint64_t			   rp_magic;
+};
+
+struct m0_fol_rec_part_type {
+	uint32_t                               rpt_index;
+	const char                            *rpt_name;
+	/** Xcode type representing FOL record part type. */
+	const struct m0_xcode_type	      *rpt_xt;
+};
+
+struct m0_fol_rec_part_ops {
+	const struct m0_fol_rec_part_type *rpo_type;
+	int (*rpo_undo)(struct m0_fol_rec_part *part);
+	int (*rpo_redo)(struct m0_fol_rec_part *part);
+};
+
+/** 'data' argument if used to serialize or deserialize FOL record part. */
+M0_INTERNAL void m0_fol_rec_part_init(struct m0_fol_rec_part *part,
+				      const struct m0_fol_rec_part_ops *ops,
+				      void *data);
+
+M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part);
+
+M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
+					  const char *name,
+					  const struct m0_xcode_type  *xt);
+
+M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type);
+
+/** Descriptor for the tlist of fol record parts. */
+M0_TL_DESCR_DECLARE(m0_rec_part, M0_EXTERN);
+M0_TL_DECLARE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
+
+#define M0_FOL_REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) {	\
+		.xo_type = r->rp_ops->rpo_type->rpt_xt,		\
+		.xo_ptr  = r->rp_data,		                \
+}
+
 /** @} end of fol group */
 
 /* __MERO_FOL_FOL_H__ */

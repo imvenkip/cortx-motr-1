@@ -236,7 +236,6 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
 		return M0_FSO_WAIT;
 	}
-
 	return cp->c_ops->co_phase_next(cp);
 }
 

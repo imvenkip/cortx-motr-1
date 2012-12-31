@@ -209,7 +209,7 @@ int m0_fop_type_init(struct m0_fop_type *ft,
 	m0_mutex_lock(&fop_types_lock);
 	ft_tlink_init_at(ft, &fop_types_list);
 	m0_mutex_unlock(&fop_types_lock);
-	return 0;
+	return rc;
 }
 M0_EXPORTED(m0_fop_type_init);
 
