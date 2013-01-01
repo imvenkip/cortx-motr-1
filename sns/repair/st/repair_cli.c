@@ -54,9 +54,8 @@ struct m0_dbenv          cl_dbenv;
 struct m0_cob_domain     cl_cdom;
 struct m0_rpc_client_ctx cl_ctx;
 
-//const char *cl_ep_addr = "0@lo:12345:34:2";
-const char *cl_ep_addr = "172.16.0.128@tcp:12345:33:102";
-char *srv_ep_addr;
+const char *cl_ep_addr;
+const char *srv_ep_addr;
 const char *dbname = "sr_cdb";
 static int cl_cdom_id = 10001;
 
@@ -121,9 +120,13 @@ int main(int argc, char *argv[])
 			M0_FORMATARG('N', "Number of data units", "%lu", &N),
 			M0_FORMATARG('K', "Number of parity units", "%lu", &K),
 			M0_FORMATARG('P', "Total pool width", "%lu", &P),
+			M0_STRINGARG('C', "Client endpoint",
+				     LAMBDA(void, (const char *str){
+						cl_ep_addr = str;
+				     })),
 			M0_STRINGARG('S', "Server endpoint",
 				     LAMBDA(void, (const char *str){
-						srv_ep_addr = (char*)str;
+						srv_ep_addr = str;
 				     })),
 		       );
 	if (rc != 0)
