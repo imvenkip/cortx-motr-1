@@ -18,7 +18,7 @@
  */
 
 #undef M0_TRACE_SUBSYSTEM
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_POOL
 #include "lib/trace.h"      /* M0_LOG */
 #include "lib/errno.h"
 #include "lib/memory.h"

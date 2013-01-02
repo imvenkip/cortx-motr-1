@@ -19,6 +19,9 @@
  * Original author: Rajesh Bhalerao <rajesh_bhalerao@xyratex.com>
  * Original creation date: 04/28/2011
  */
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
+
 #include "lib/memory.h" /* M0_ALLOC_PTR */
 #include "lib/misc.h"   /* M0_SET_ARR0 */
 #include "lib/errno.h"  /* ETIMEDOUT */
@@ -2409,6 +2412,8 @@ error:
 	return rc;
 }
 M0_EXPORTED(m0_rm_net_locate);
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of remote group */
 

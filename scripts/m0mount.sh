@@ -81,10 +81,10 @@ SERVICES=(
 
 LOCAL_EP=(
 	12345:33:101
-#	12345:33:102
+	12345:33:102
 )
 
-UNIT_SIZE=4096
+UNIT_SIZE=262144
 SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
 POOL_WIDTH=$(expr $SERVICES_NR \* 1)
 NR_DATA=$(expr $POOL_WIDTH - 2)
@@ -453,8 +453,8 @@ update_params()
 	done
 
 	SERVICES_NR=$(expr ${#LOCAL_EP[*]})
-	POOL_WIDTH=5
-	NR_DATA=3
+	POOL_WIDTH=4
+	NR_DATA=2
 }
 
 ######
