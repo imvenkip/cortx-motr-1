@@ -18,13 +18,12 @@
  * Original creation date: 07/18/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
+#undef M0_TRACE_SUBSYSTEM
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
+#include "lib/trace.h"
 #include "lib/finject.h"
 #include "fop/fom_generic.h"
 #include "fop/fom_generic_xc.h"
@@ -95,6 +94,7 @@ static int rm_out_create(struct rm_out **out,
 	struct rm_out *outreq;
 	int	       rc;
 
+	M0_ENTRY();
 	M0_PRE (out != NULL);
 
 	M0_ALLOC_PTR(outreq);
@@ -114,7 +114,7 @@ static int rm_out_create(struct rm_out **out,
 	*out = outreq;
 
 out:
-	return rc;
+	M0_RETURN(rc);
 }
 
 /*
@@ -131,12 +131,14 @@ static void rm_fop_release(struct m0_ref *ref)
 	struct m0_fop *fop;
 	struct rm_out *out;
 
+	M0_ENTRY();
 	M0_PRE(ref != NULL);
 	fop = container_of(ref, struct m0_fop, f_ref);
 	out = container_of(fop, struct rm_out, ou_fop);
 
 	m0_fop_fini(fop);
 	rm_out_release(out);
+	M0_LEAVE();
 }
 
 static int fop_common_fill(struct rm_out *outreq,
@@ -172,6 +174,8 @@ static int borrow_fop_fill(struct rm_out *outreq,
 	struct m0_cookie	 cookie;
 	int			 rc;
 
+	M0_ENTRY("creating borrow fop for incoming: %p credit value: %lu",
+		 in, credit->cr_datum);
 	m0_cookie_init(&cookie, &in->rin_want.cr_owner->ro_id);
 	rc = fop_common_fill(outreq, in, credit, &cookie,
 			     &m0_fop_rm_borrow_fopt,
@@ -183,7 +187,7 @@ static int borrow_fop_fill(struct rm_out *outreq,
 		bfop->bo_creditor.ow_cookie =
 			in->rin_want.cr_owner->ro_creditor->rem_cookie;
 	}
-	return rc;
+	M0_RETURN(rc);
 }
 
 static int revoke_fop_fill(struct rm_out *outreq,
@@ -194,6 +198,8 @@ static int revoke_fop_fill(struct rm_out *outreq,
 	struct m0_fop_rm_revoke *rfop;
 	int			 rc;
 
+	M0_ENTRY("creating revoke fop for incoming: %p credit value: %lu",
+		 in, credit->cr_datum);
 	rc = fop_common_fill(outreq, in, credit, &loan->rl_other->rem_cookie,
 			     &m0_fop_rm_revoke_fopt,
 			     offsetof(struct m0_fop_rm_revoke, rr_base),
@@ -202,7 +208,7 @@ static int revoke_fop_fill(struct rm_out *outreq,
 	if (rc == 0)
 		rfop->rr_loan.lo_cookie = loan->rl_cookie;
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 int m0_rm_request_out(enum m0_rm_outgoing_type otype,
@@ -215,6 +221,8 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 	struct rm_out		     *outreq;
 	int			      rc;
 
+	M0_ENTRY("sending request type: %d for incoming: %p credit value: %lu",
+		 otype, in, credit->cr_datum);
 	M0_PRE(M0_IN(otype, (M0_ROT_BORROW, M0_ROT_REVOKE)));
 
 	rc = rm_out_create(&outreq, in, credit);
@@ -240,6 +248,7 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 	}
 
 	if (rc != 0) {
+		M0_LOG(M0_ERROR, "filling fop failed: rc [%d]\n", rc);
 		m0_fop_put(&outreq->ou_fop);
 		goto out;
 	}
@@ -250,12 +259,14 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 	if (M0_FI_ENABLED("no-rpc"))
 		goto out;
 
+	M0_LOG(M0_DEBUG, "sending request:%p over session: %p",
+			 outreq, session);
 	outreq->ou_fop.f_item.ri_session = session;
 	outreq->ou_fop.f_item.ri_ops = ri_ops;
 	m0_rpc_post(&outreq->ou_fop.f_item);
 
 out:
-	return rc;
+	M0_RETURN(rc);
 }
 M0_EXPORTED(m0_rm_borrow_out);
 
@@ -270,6 +281,7 @@ static void borrow_reply(struct m0_rpc_item *item)
 	struct m0_buf		     buf;
 	int			     rc;
 
+	M0_ENTRY();
 	M0_PRE(item != NULL);
 	M0_PRE(item->ri_reply != NULL);
 
@@ -284,8 +296,11 @@ static void borrow_reply(struct m0_rpc_item *item)
 		m0_buf_init(&buf, borrow_reply->br_credit.cr_opaque.b_addr,
 				  borrow_reply->br_credit.cr_opaque.b_nob);
 		rc = m0_rm_credit_decode(bcredit, &buf);
-		if (rc != 0)
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "credit decode for request: %p"
+					 " failed: rc [%d]\n", outreq, rc);
 			goto out;
+		}
 
 		rc = m0_rm_credit_dup(bcredit, &credit) ?:
 			m0_rm_loan_alloc(&loan, bcredit, owner->ro_creditor);
@@ -300,17 +315,26 @@ static void borrow_reply(struct m0_rpc_item *item)
 			m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
 					   credit);
 			m0_rm_owner_unlock(owner);
+			M0_LOG(M0_INFO, "borrow request:%p successful "
+					"credit value: %lu",
+					outreq, credit->cr_datum);
 		} else {
+			M0_LOG(M0_ERROR, "borrowed loan/credit allocation"
+					 " request: %p failed: rc [%d]\n",
+					 outreq, rc);
 			m0_free(loan);
 			m0_free(credit);
 		}
-	}
+	} else
+		M0_LOG(M0_ERROR, "Borrow request:%p failed: rc [%d]\n",
+				 outreq, rc);
 out:
 	outreq->ou_req.rog_rc = rc;
 	m0_rm_owner_lock(owner);
 	m0_rm_outgoing_complete(&outreq->ou_req);
 	m0_rm_owner_unlock(owner);
 	m0_fop_put(m0_rpc_item_to_fop(item));
+	M0_LEAVE();
 }
 
 static void revoke_reply(struct m0_rpc_item *item)
@@ -322,6 +346,7 @@ static void revoke_reply(struct m0_rpc_item *item)
 	struct rm_out		*outreq;
 	int			 rc;
 
+	M0_ENTRY();
 	M0_PRE(item != NULL);
 	M0_PRE(item->ri_reply != NULL);
 
@@ -331,6 +356,10 @@ static void revoke_reply(struct m0_rpc_item *item)
 	owner = out_credit->cr_owner;
 	rc = item->ri_error ?: revoke_reply->rerr_rc;
 
+	if (rc != 0)
+		M0_LOG(M0_ERROR, "revoke request:%p failed: rc [%d]\n",
+				 outreq, rc);
+
 	rc = rc ?: m0_rm_credit_dup(out_credit, &credit);
 	if (rc == 0) {
 		m0_rm_owner_lock(owner);
@@ -339,16 +368,24 @@ static void revoke_reply(struct m0_rpc_item *item)
 			m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
 					   credit);
 			m0_rm_owner_unlock(owner);
+			M0_LOG(M0_INFO, "revoke request:%p sublet removed "
+					"- credit cached\n", outreq);
 		} else {
 			m0_rm_owner_unlock(owner);
 			m0_free(credit);
+			M0_LOG(M0_ERROR, "revoke request:%p sublet removal "
+					 "failed: rc [%d]\n", outreq, rc);
 		}
-	}
+	} else
+		M0_LOG(M0_ERROR, "revoke request:%p credit allocation "
+				 "failed: rc [%d]\n", outreq, rc);
+
 	outreq->ou_req.rog_rc = rc;
 	m0_rm_owner_lock(owner);
 	m0_rm_outgoing_complete(&outreq->ou_req);
 	m0_rm_owner_unlock(owner);
 	m0_fop_put(m0_rpc_item_to_fop(item));
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_rm_fop_fini(void)

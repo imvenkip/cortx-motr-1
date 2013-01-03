@@ -18,10 +18,13 @@
  * Original creation date: 07/18/2011
  */
 
+#undef M0_TRACE_SUBSYSTEM
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
 #include "lib/errno.h"
 #include "lib/list.h"
 #include "lib/memory.h"
 #include "lib/misc.h"   /* M0_IN */
+#include "lib/trace.h"
 #include "fop/fom_generic.h"
 #include "rm/rm_fops.h"
 #include "rm/rm_foms.h"
@@ -160,13 +163,15 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	struct m0_fom_ops     *fom_ops;
 	struct m0_fop	      *reply_fop;
 
+	M0_ENTRY("creating FOM for request: %d", type);
+
 	M0_PRE(fop != NULL);
 	M0_PRE(fop->f_type != NULL);
 	M0_PRE(out != NULL);
 
 	M0_ALLOC_PTR(rqfom);
 	if (rqfom == NULL)
-		return -ENOMEM;
+		M0_RETURN(-ENOMEM);
 
 	switch (type) {
 	case M0_RIT_BORROW:
@@ -185,7 +190,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	reply_fop = m0_fop_alloc(fopt, NULL);
 	if (reply_fop == NULL) {
 		m0_free(rqfom);
-		return -ENOMEM;
+		M0_RETURN(-ENOMEM);
 	}
 
 	m0_fom_init(&rqfom->rf_fom, &fop->f_type->ft_fom_type,
@@ -197,7 +202,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	 */
 	m0_fop_put(reply_fop);
 	*out = &rqfom->rf_fom;
-	return 0;
+	M0_RETURN(0);
 }
 
 /*
@@ -236,6 +241,7 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
 	struct m0_rm_loan	    *loan;
 	int			     rc = 0;
 
+	M0_ENTRY("reply for fom: %p", fom);
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 
 	switch (type) {
@@ -261,7 +267,7 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
 	default:
 		break;
 	}
-	return rc;
+	M0_RETURN(rc);
 }
 
 /*
@@ -272,6 +278,8 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 {
 	struct m0_fop_rm_borrow_rep *bfop;
 	struct m0_fom_error_rep     *rfop;
+
+	M0_ENTRY("reply for fom: %p type: %d error: %d", fom, type, rc);
 
 	switch (type) {
 	case M0_RIT_BORROW:
@@ -287,6 +295,7 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 	}
 	rfop->rerr_rc = rc;
 	m0_fom_phase_move(fom, rc, rc ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
+	M0_LEAVE();
 }
 
 /*
@@ -304,6 +313,9 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 	enum m0_rm_incoming_policy   policy;
 	uint64_t		     flags;
 	int			     rc;
+
+	M0_ENTRY("prepare remote incoming request for fom: %p request: %d",
+		 fom, type);
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 	switch (type) {
@@ -358,7 +370,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 		if (rc != 0)
 			m0_rm_incoming_fini(in);
 	}
-	return rc;
+	M0_RETURN(rc);
 }
 
 /*
@@ -371,8 +383,9 @@ static int request_pre_process(struct m0_fom *fom,
 	struct m0_rm_incoming *in;
 	int		       rc;
 
-	M0_PRE(fom != NULL);
+	M0_ENTRY("pre-processing fom: %p request : %d", fom, type);
 
+	M0_PRE(fom != NULL);
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 
 	rc = incoming_prepare(type, fom);
@@ -382,6 +395,7 @@ static int request_pre_process(struct m0_fom *fom,
 		 * copying of credit data fails.
 		 */
 		reply_err_set(type, fom, rc);
+		M0_LEAVE();
 		return M0_FSO_AGAIN;
 	}
 
@@ -394,6 +408,7 @@ static int request_pre_process(struct m0_fom *fom,
 	 */
 	m0_fom_phase_set(fom, incoming_state(in) == RI_WAIT ?
 			      FOPH_RM_REQ_WAIT : FOPH_RM_REQ_FINISH);
+	M0_LEAVE();
 	return incoming_state(in) == RI_WAIT ? M0_FSO_WAIT : M0_FSO_AGAIN;
 }
 
@@ -403,6 +418,7 @@ static int request_post_process(struct m0_fom *fom)
 	struct m0_rm_incoming *in;
 	int		       rc;
 
+	M0_ENTRY("post-processing fom: %p", fom);
 	M0_PRE(fom != NULL);
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
@@ -418,6 +434,7 @@ static int request_post_process(struct m0_fom *fom)
 	reply_err_set(in->rin_type, fom, rc);
 	m0_rm_incoming_fini(in);
 
+	M0_LEAVE();
 	return M0_FSO_AGAIN;
 }
 
@@ -425,6 +442,8 @@ static int request_fom_tick(struct m0_fom *fom,
 			    enum m0_rm_incoming_type type)
 {
 	int rc;
+
+	M0_ENTRY("running fom: %p for request: %d", fom, type);
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR)
 		rc = m0_fom_tick_generic(fom);
@@ -446,7 +465,7 @@ static int request_fom_tick(struct m0_fom *fom,
 		}
 
 	}/* else - process RM phases */
-	return rc;
+	M0_RETURN(rc);
 }
 
 /**
