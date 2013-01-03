@@ -345,7 +345,7 @@ function start_server () {
 
 	local SNAME="-s ioservice -s sns_repair"
 	if [ $I -eq 0 ]; then
-		SNAME="-s confd -s mdservice $SNAME"
+		SNAME="-s mdservice $SNAME"
 	fi
 
 	$RUN "cd $DDIR && \
@@ -504,7 +504,7 @@ EOF`"
 
 # mount the file system
 mkdir -p $MP
-l_run mount -t m0t1fs -o profile=prof,local_conf="$CONF" none $MP || {
+l_run "mount -t m0t1fs -o profile=prof,local_conf='$CONF' none $MP" || {
 	echo ERROR: Unable to mount the file system
 	exit 1
 }
