@@ -78,6 +78,8 @@ m0_rpc_machine_bob_fini
 m0_rpc_machine_bob_init
 m0_rpc_machine_fini
 m0_rpc_machine_get_stats
+m0_rpc_machine_watch_attach
+m0_rpc_machine_watch_detach
 m0_rpc_net_buffer_pool_cleanup
 m0_rpc_reply_post
 m0_rpc_root_session_cob_create
