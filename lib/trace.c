@@ -61,9 +61,10 @@
  * This buffer is used for early trace records issued before real buffer is
  * initialized by m0_trace_init().
  */
-static char bootbuf[4096];
-void      *m0_logbuf     = bootbuf;
-uint32_t   m0_logbufsize = sizeof bootbuf;
+static char      bootbuf[4096];
+void            *m0_logbuf     = bootbuf;
+uint32_t         m0_logbufsize = sizeof bootbuf;
+static uint32_t  bufmask       = sizeof bootbuf - 1;
 
 unsigned long m0_trace_immediate_mask = 0;
 M0_BASSERT(sizeof(m0_trace_immediate_mask) == 8);
@@ -71,7 +72,6 @@ M0_BASSERT(sizeof(m0_trace_immediate_mask) == 8);
 unsigned int m0_trace_print_context = M0_TRACE_PCTX_SHORT;
 unsigned int m0_trace_level         = M0_WARN | M0_ERROR | M0_FATAL;
 
-static uint32_t           bufmask;
 static struct m0_atomic64 cur;
 
 #undef M0_TRACE_SUBSYS
@@ -104,23 +104,25 @@ static const char *trace_print_ctx_str[] = {
 	[M0_TRACE_PCTX_FULL]  = "full",
 };
 
-M0_INTERNAL int m0_arch_trace_init(void);
+M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size);
 M0_INTERNAL void m0_arch_trace_fini(void);
 
 M0_INTERNAL int m0_trace_init(void)
 {
-	int psize;
+	int rc;
+
+	M0_PRE((m0_logbufsize % m0_pagesize_get()) == 0);
+	M0_PRE(m0_is_po2(M0_TRACE_BUFSIZE));
 
 	m0_atomic64_set(&cur, 0);
 
-	M0_ASSERT(m0_is_po2(M0_TRACE_BUFSIZE));
-	m0_logbufsize = M0_TRACE_BUFSIZE;
-	bufmask = m0_logbufsize - 1;
+	rc = m0_arch_trace_init(M0_TRACE_BUFSIZE);
+	if (rc == 0)
+		bufmask = m0_logbufsize - 1;
 
-	psize = m0_pagesize_get();
-	M0_ASSERT((m0_logbufsize % psize) == 0);
+	M0_POST((m0_logbufsize % m0_pagesize_get()) == 0);
 
-	return m0_arch_trace_init();
+	return rc;
 }
 
 M0_INTERNAL void m0_trace_fini(void)

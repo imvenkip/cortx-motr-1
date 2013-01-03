@@ -38,6 +38,7 @@ M0_INTERNAL int m0_trace_set_print_context(const char *ctx_name);
 
 M0_INTERNAL int m0_trace_set_level(const char *level);
 
+M0_INTERNAL void m0_trace_set_mmapped_buffer(bool val);
 /** @} end of trace group */
 
 /* __MERO_LIB_USERSP_TRACE_H__ */

@@ -48,6 +48,8 @@ static int logfd;
 static const char sys_kern_randvspace_fname[] =
 	"/proc/sys/kernel/randomize_va_space";
 
+static bool use_mmaped_buffer = true;
+
 static int randvspace_check()
 {
 	int   val;
@@ -73,20 +75,22 @@ static int randvspace_check()
 	return result;
 }
 
-static int logbuf_map()
+static int logbuf_map(uint32_t logbuf_size)
 {
 	char buf[80];
 
 	sprintf(buf, "m0.trace.%u", (unsigned)getpid());
 	if ((logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC, 0700)) == -1)
 		warn("open(\"%s\")", buf);
-	else if ((errno = posix_fallocate(logfd, 0, m0_logbufsize)) != 0)
-		warn("fallocate(\"%s\", %u)", buf, m0_logbufsize);
-	else if ((m0_logbuf = mmap(NULL, m0_logbufsize, PROT_WRITE,
+	else if ((errno = posix_fallocate(logfd, 0, logbuf_size)) != 0)
+		warn("fallocate(\"%s\", %u)", buf, logbuf_size);
+	else if ((m0_logbuf = mmap(NULL, logbuf_size, PROT_WRITE,
                                    MAP_SHARED, logfd, 0)) == MAP_FAILED)
 		warn("mmap(\"%s\")", buf);
-	else
+	else {
+		m0_logbufsize = logbuf_size;
 		memset(m0_logbuf, 0, m0_logbufsize);
+	}
 
 	return -errno;
 }
@@ -154,7 +158,17 @@ M0_INTERNAL int m0_trace_set_level(const char *level)
 	return 0;
 }
 
-M0_INTERNAL int m0_arch_trace_init()
+M0_INTERNAL void m0_trace_set_mmapped_buffer(bool val)
+{
+	use_mmaped_buffer = val;
+}
+
+M0_INTERNAL bool m0_trace_use_mmapped_buffer(void)
+{
+	return use_mmaped_buffer;
+}
+
+M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size)
 {
 	int         rc;
 	const char *var;
@@ -176,7 +190,11 @@ M0_INTERNAL int m0_arch_trace_init()
 
 	setlinebuf(stdout);
 
-	return randvspace_check() ?: logbuf_map();
+	rc = randvspace_check();
+	if (rc != 0)
+		return rc;
+
+	return m0_trace_use_mmapped_buffer() ? logbuf_map(logbuf_size) : 0;
 }
 
 M0_INTERNAL void m0_arch_trace_fini(void)
