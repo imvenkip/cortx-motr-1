@@ -403,7 +403,7 @@ rmw_test()
 		for ((stride_size=4; stride_size<=$max_stride_size; stride_size*=2))
 		do
 			# I/O With large Block
-			for i in 16M 32M 64M 100M
+			for i in 16M
 			do
 				io_size=$i
 				echo -n "IORMW Large Block Test: I/O for stride ="\
