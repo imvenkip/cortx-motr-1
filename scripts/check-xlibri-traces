@@ -8,7 +8,13 @@ build_grep_pattern()
 {
     local pattern1=$(echo 'c o l i b r i' | sed -e 's/ //g')
     local pat2=$(echo 'c 2' | sed -e 's/ //g')
-    local pattern2="((\b|_)${pat2}(\b|_))|(-(D|U)${pat2})|\b${pat2}([[:alpha:]]+)|([[:alpha:]]+)${pat2}_|_${pat2}([[:alpha:]]+)"
+    local pattern2="\
+(([^[:alnum:]-]|^|_)${pat2}\b)|\
+((\b|_)${pat2}_)|\
+(-(D|U)${pat2})|\
+\b${pat2}([[:alpha:]]+)|\
+([[:alpha:]]+)${pat2}_|\
+_${pat2}([[:alpha:]]+)"
 
     echo "${pattern1}|${pattern2}"
 }

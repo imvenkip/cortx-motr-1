@@ -37,9 +37,9 @@
 # | Hostname   |   IP-address   |    IB-address   |  IPMI-address  |
 # +------------+----------------+-----------------+----------------+
 # | sjt00-c1   |  10.76.50.161  |  172.18.50.161  |  10.76.50.162  |
-# | sjt00-m0   |  10.76.50.163  |  172.18.50.163  |  10.76.50.164  |
+# | sjt00-c2   |  10.76.50.163  |  172.18.50.163  |  10.76.50.164  |
 # | sjt02-c1   |  10.76.50.40   |  172.18.50.40   |  10.76.50.42   |
-# | sjt02-m0   |  10.76.50.45   |  172.18.50.45   |  10.76.50.47   |
+# | sjt02-c2   |  10.76.50.45   |  172.18.50.45   |  10.76.50.47   |
 # +----------------------------------------------------------------+
 #
 # Use root/Xyratex to login to any node.
@@ -54,17 +54,17 @@
 # Provide a list of servers, represented by the 2-tuple of node IP and end
 # point, in the SERVICES array.
 #
-#   e.g. 	sjt02-m0 172.18.50.45@o2ib:12345:33:101
+#   e.g. 	sjt02-c2 172.18.50.45@o2ib:12345:33:101
 #
 # - There are an even number of records in the list.
 # - The number of server records is the POOL_WIDTH.
 
 # This example uses co-located remote ioservices.
 #SERVICES=(
-#	sjt02-m0 172.18.50.45@o2ib:12345:41:101
-#	sjt02-m0 172.18.50.45@o2ib:12345:41:102
-#	sjt02-m0 172.18.50.45@o2ib:12345:41:103
-#	sjt02-m0 172.18.50.45@o2ib:12345:41:104
+#	sjt02-c2 172.18.50.45@o2ib:12345:41:101
+#	sjt02-c2 172.18.50.45@o2ib:12345:41:102
+#	sjt02-c2 172.18.50.45@o2ib:12345:41:103
+#	sjt02-c2 172.18.50.45@o2ib:12345:41:104
 #)
 # IMPORTANT! Keep nodes together in the list (the code depends on this).
 #
@@ -73,8 +73,8 @@
 SERVICES=(
 	sjt02-c1 172.18.50.40@o2ib:12345:41:101
 	sjt02-c1 172.18.50.40@o2ib:12345:41:102
-	sjt02-m0 172.18.50.45@o2ib:12345:41:101
-	sjt02-m0 172.18.50.45@o2ib:12345:41:102
+	sjt02-c2 172.18.50.45@o2ib:12345:41:101
+	sjt02-c2 172.18.50.45@o2ib:12345:41:102
 	sjt00-c1 172.18.50.161@o2ib:12345:41:101
 	sjt00-c1 172.18.50.161@o2ib:12345:41:102
 )
