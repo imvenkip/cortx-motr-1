@@ -9,25 +9,39 @@
 #   their .ssh/authorized_keys file.  If services are defined on the local
 #   host then it should be possible to ssh into the local host.
 
-# Usage:
-#
-# The script should be run from mero/core directory:
-#
-# $ cd ~/path/to/mero/core
-# $ sudo ~/path/to/m0mount.sh [-ad] # this script
-#
-# -ad option configure the services to run on ad stobs.
-#     it automatically detects and make configuration files
-#     for the Titan discs (by default - 10 discs per service,
-#     see DISKS_SH_NR below).
-#
-#     Before using -ad option make sure the discs are online:
-#     $ sudo ~root/gem.sh dumpdrives
-#
-#     Turn them on if needed:
-#     $ sudo ~root/gem.sh powerondrive all
-#
-# But before running the script, make sure you configured
+LOCAL_SERVICES_NR=4
+
+if [ "x$1" == "x-h" ]; then
+	cat <<.
+Usage:
+
+The script should be run from mero/core directory:
+
+$ cd ~/path/to/mero/core
+$ sudo ~/path/to/m0mount.sh [local] [-ad] # this script
+
+local: start the services on the local host only,
+    it is convenient for debugging on a local devvm.
+    The number of services is controlled by LOCAL_SERVICES_NR
+    variable. The default number is $LOCAL_SERVICES_NR.
+
+-ad: configure the services to run on ad stobs.
+    it automatically detects and make configuration files
+    for the Titan discs.
+
+    Before using -ad option make sure the discs are online:
+    $ sudo ~root/gem.sh dumpdrives
+
+    Turn them on if needed:
+    $ sudo ~root/gem.sh powerondrive all
+
+    If 'local' option is set also - /dev/loopX discs
+    should be prepeared for ad stobs beforehand.
+.
+	exit
+fi
+
+# Before running the script, make sure you configured
 # the IP/IB addresses of your setup correctly here (see below).
 
 # Here is some configuration info (as for the time of writing this)
@@ -66,7 +80,8 @@
 #	sjt02-c2 172.18.50.45@o2ib:12345:41:103
 #	sjt02-c2 172.18.50.45@o2ib:12345:41:104
 #)
-# IMPORTANT! Keep nodes together in the list (the code depends on this).
+# IMPORTANT! Keep the same nodes together in the list
+# (the code depends on this).
 #
 
 # This example puts ioservices on 3 nodes, and uses 4 data blocks
@@ -79,10 +94,33 @@ SERVICES=(
 	sjt00-c1 172.18.50.161@o2ib:12345:41:102
 )
 
-LOCAL_EP=(
-	12345:33:101
-	12345:33:102
-)
+THIS_HOST=$(hostname)
+DISKS_PATTERN="/dev/disk/by-id/scsi-35*"
+
+if [ "x$1" = "xlocal" ]; then
+	modprobe lnet
+	lctl network up &>> /dev/null
+	LOCAL_NID=`lctl list_nids | head -1`
+	LOCAL_EP_PREFIX=12345:33:10
+
+	unset SERVICES
+	# Update each field of SERVICES array with local node values
+	# Update hostname and end point addresses
+	for ((i = 0; i < $LOCAL_SERVICES_NR; i++)); do
+		SERVICES[((i*2))]=$THIS_HOST
+		SERVICES[((i*2 +1))]="${LOCAL_NID}:${LOCAL_EP_PREFIX}"$((i+1))
+	done
+
+	DISKS_PATTERN="/dev/loop[0-$((LOCAL_SERVICES_NR -1))]"
+
+	shift
+fi
+
+STOB=linux
+if [ "x$1" == "x-ad" ]; then
+	STOB=$1
+	shift
+fi
 
 UNIT_SIZE=262144
 SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
@@ -92,8 +130,6 @@ NR_DATA=$(expr $POOL_WIDTH - 2)
 M0_TRACE_IMMEDIATE_MASK=0
 M0_TRACE_LEVEL=debug+
 M0_TRACE_PRINT_CONTEXT=full
-
-STOB=${1:-linux}
 
 # number of disks to split by for each service
 # in ad-stob mode
@@ -119,7 +155,6 @@ XPT_PARAM_L="max_rpc_msg_size=163840 tm_recv_queue_min_len=48"	# local host
 #KTRACE_FLAGS=m0_trace_immediate_mask=8
 
 BROOT=${PWD%/*}   # globally visible build root
-THIS_HOST=$(hostname)
 
 # track hosts that have been initialized in an associative array
 declare -A SETUP
@@ -256,7 +291,7 @@ i=$dev_id; j=0; f=0;
 
 echo "Device:" > disks.conf
 
-devs=\`ls /dev/disk/by-id/scsi-35* | grep -v part\`
+devs=\`ls $DISKS_PATTERN | grep -v part\`
 
 fdisk -l \$devs 2>&1 1>/dev/null | \
 sed -n 's;^Disk \\(/dev/.*\\) doesn.*;\1;p' | \
@@ -434,29 +469,6 @@ EOF
 	teardown_hosts
 }
 
-update_params()
-{
-	modprobe lnet
-	lctl network up &>> /dev/null
-	NID=`lctl list_nids | head -1`
-
-	rm -rf $WORK_ARENA/*
-	unset SERVICES
-
-	# Update each field of SERVICES array with local node values
-	# Update hostname and end point addresses
-	LOCAL_SERVICES_NR=$(expr ${#LOCAL_EP[*]} \* 2)
-
-	for ((i = 0, j = 0; i < $LOCAL_SERVICES_NR; i += 2, ++j)); do
-		SERVICES[$i]=$THIS_HOST
-		SERVICES[((i+1))]="${NID}:${LOCAL_EP[$j]}"
-	done
-
-	SERVICES_NR=$(expr ${#LOCAL_EP[*]})
-	POOL_WIDTH=4
-	NR_DATA=2
-}
-
 ######
 # main
 
@@ -465,10 +477,6 @@ if [ ! -d build_kernel_modules -o ! $BROOT/core -ef $PWD ]; then
 	exit 1
 fi
 LSUM=$(sum $SUMFILE)
-
-if [ "x$1" = "xlocal" ]; then
-	update_params
-fi
 
 l_run utils/m0layout $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
 if [ $? -ne 0 ]; then
