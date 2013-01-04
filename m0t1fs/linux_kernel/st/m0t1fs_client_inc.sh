@@ -20,16 +20,28 @@ mount_m0t1fs()
 		return 1
 	}
 
+	# prepare configuration data
+	MDS_ENDPOINT="\"${server_nid}:${EP[0]}\""
+	IOS_NAMES='"ios1"'
+	IOS_OBJS="($IOS_NAMES, {3| (2, [1: $MDS_ENDPOINT], \"_\")})"
+	for ((i=1; i < ${#EP[*]}; i++)); do
+	    IOS_NAME="\"ios$((i+1))\""
+	    IOS_NAMES="$IOS_NAMES, $IOS_NAME"
+	    local ep=\"${server_nid}:${EP[$i]}\"
+	    IOS_OBJ="($IOS_NAME, {3| (2, [1: $ep], \"_\")})"
+	    IOS_OBJS="$IOS_OBJS, $IOS_OBJ"
+	done
+
 	local CONF="`cat <<EOF
-[4:
+[$((${#EP[*]} + 3)):
   ("prof", {1| ("fs")}),
   ("fs", {2| ((11, 22),
-              [3: "pool_width=$POOL_WIDTH",
-                  "nr_data_units=$NR_DATA",
-                  "unit_size=$stride_size"],
-              [2: "mds", "ios"])}),
+	      [3: "pool_width=$POOL_WIDTH",
+		  "nr_data_units=$NR_DATA",
+		  "unit_size=$stride_size"],
+	      [$((${#EP[*]} + 1)): "mds", $IOS_NAMES])}),
   ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
-  ("ios", {3| (2, [$(echo $IOS_ENDPOINTS | wc -w): $IOS_ENDPOINTS], "_")})]
+  $IOS_OBJS]
 EOF`"
 
 	echo "Mounting file system..."

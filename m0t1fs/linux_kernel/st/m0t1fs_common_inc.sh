@@ -76,13 +76,6 @@ load_kernel_module()
 	# Client end point (m0mero module local_addr)
 	LADDR="$lnet_nid:12345:33:1"
 
-	CONFD_ENDPOINT="${server_nid}:${EP[0]}"
-	MDS_ENDPOINT="\"$CONFD_ENDPOINT\""
-	IOS_ENDPOINTS="$MDS_ENDPOINT"
-	for ((i=1; i < ${#EP[*]}; i++)); do
-		IOS_ENDPOINTS="$IOS_ENDPOINTS, \"${server_nid}:${EP[$i]}\""
-	done
-
 	mero_module_path=$MERO_CORE_ROOT/build_kernel_modules
 	mero_module=$MERO_MODULE
 	lsmod | grep $mero_module &> /dev/null
