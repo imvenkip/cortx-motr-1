@@ -320,6 +320,8 @@ M0_TL_DESCR_DEFINE(iofops, "List of IO fops", static,
 
 M0_TL_DEFINE(tioreqs, static, struct target_ioreq);
 M0_TL_DEFINE(iofops,  static, struct io_req_fop);
+M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
+M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
 
 static struct m0_bob_type tioreq_bobtype;
 static struct m0_bob_type iofop_bobtype;
@@ -474,6 +476,32 @@ static inline uint64_t target_offset(uint64_t		       frame,
 	       (gob_offset % layout_unit_size(play));
 }
 
+/* Finds out pargrp_iomap::pi_grpid from target index. */
+static inline uint64_t pargrp_id_find(m0_bindex_t index,
+		                      uint64_t    unit_size)
+{
+	M0_PRE(unit_size > 0);
+
+	return index / unit_size;
+}
+
+static inline m0_bindex_t gfile_offset(m0_bindex_t               toff,
+		                       struct pargrp_iomap      *map,
+				       struct m0_pdclust_layout *play)
+{
+	m0_bindex_t goff;
+
+	M0_ENTRY("grpid = %llu, target_off = %llu", map->pi_grpid, toff);
+	M0_PRE(map  != NULL);
+	M0_PRE(play != NULL);
+
+	goff = map->pi_grpid * data_size(play) +
+	       toff % layout_unit_size(play);
+	M0_LEAVE("global file offset = %llu", goff);
+
+	return goff;
+}
+
 static inline struct m0_fid target_fid(struct io_request	  *req,
 				       struct m0_pdclust_tgt_addr *tgt)
 {
@@ -537,8 +565,10 @@ static inline uint64_t round_up(uint64_t val, uint64_t size)
 }
 
 /* Returns the position of page in matrix of data buffers. */
-static void page_pos_get(struct pargrp_iomap *map, m0_bindex_t index,
-			 uint32_t *row, uint32_t *col)
+static void page_pos_get(struct pargrp_iomap *map,
+		         m0_bindex_t          index,
+			 uint32_t            *row,
+			 uint32_t            *col)
 {
 	uint64_t		  pg_id;
 	struct m0_pdclust_layout *play;
@@ -552,6 +582,54 @@ static void page_pos_get(struct pargrp_iomap *map, m0_bindex_t index,
 	pg_id = page_id(index - data_size(play) * map->pi_grpid);
 	*row  = pg_id % data_row_nr(play);
 	*col  = pg_id / data_row_nr(play);
+}
+
+/*
+ * Returns the starting offset of page given its position in data matrix.
+ * Acts as oposite of page_pos_get() API.
+ */
+static void data_page_offset_get(struct pargrp_iomap *map,
+		                uint32_t              row,
+			        uint32_t              col,
+		                m0_bindex_t          *out)
+{
+	struct m0_pdclust_layout *play;
+
+	M0_ENTRY("row = %u, col = %u", row, col);
+	M0_PRE(map != NULL);
+	M0_PRE(out != NULL);
+
+	play = pdlayout_get(map->pi_ioreq);
+
+	M0_ASSERT(row < data_row_nr(play));
+	M0_ASSERT(col < data_col_nr(play));
+
+	*out = data_size(play) * map->pi_grpid +
+	       col * layout_unit_size(play) + row * PAGE_CACHE_SIZE;
+}
+
+/**
+ * Returns the starting offset of page given its position in parity matrix
+ * in a parity group.
+ */
+static void parity_page_offset_get(struct pargrp_iomap *map,
+		                  uint32_t             row,
+				  uint32_t             col,
+				  m0_bindex_t         *out)
+{
+	struct m0_pdclust_layout *play;
+
+	M0_ENTRY("row = %u, col = %u", row, col);
+	M0_PRE(map != NULL);
+	M0_PRE(out != NULL);
+
+	play = pdlayout_get(map->pi_ioreq);
+
+	M0_ASSERT(row < parity_row_nr(play));
+	M0_ASSERT(col < parity_col_nr(play));
+
+	*out = data_size(play) * map->pi_grpid +
+	       col * layout_unit_size(play) + row * PAGE_CACHE_SIZE;
 }
 
 /* Invoked during m0t1fs mount. */
@@ -624,6 +702,15 @@ static int pargrp_iomap_readold_auxbuf_alloc(struct pargrp_iomap *map);
 
 static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map);
 
+static void pargrp_iomap_dgmode_process (struct pargrp_iomap *map,
+		                         struct target_ioreq *tio,
+		                         m0_bindex_t         *index,
+					 uint32_t             count);
+
+static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map);
+
+static int pargrp_iomap_dgmode_recover  (struct pargrp_iomap *map);
+
 static const struct pargrp_iomap_ops iomap_ops = {
 	.pi_populate		 = pargrp_iomap_populate,
 	.pi_spans_seg		 = pargrp_iomap_spans_seg,
@@ -633,6 +720,9 @@ static const struct pargrp_iomap_ops iomap_ops = {
 	.pi_readold_auxbuf_alloc = pargrp_iomap_readold_auxbuf_alloc,
 	.pi_parity_recalc	 = pargrp_iomap_parity_recalc,
 	.pi_paritybufs_alloc	 = pargrp_iomap_paritybufs_alloc,
+	.pi_dgmode_process       = pargrp_iomap_dgmode_process,
+	.pi_dgmode_postprocess   = pargrp_iomap_dgmode_postprocess,
+	.pi_dgmode_recover       = pargrp_iomap_dgmode_recover,
 };
 
 static bool pargrp_iomap_invariant_nr (const struct io_request *req);
@@ -656,6 +746,12 @@ static const struct target_ioreq_ops tioreq_ops = {
 	.tio_iofops_prepare = target_ioreq_iofops_prepare,
 };
 
+static void io_req_fop_dgmode_read(struct io_req_fop *irfop);
+
+static const struct io_req_fop_ops irfop_ops = {
+	.irfo_dgmode_read   = io_req_fop_dgmode_read,
+};
+
 static struct data_buf *data_buf_alloc_init(enum page_attr pattr);
 
 static void data_buf_dealloc_fini(struct data_buf *buf);
@@ -674,12 +770,17 @@ static int ioreq_parity_recalc	(struct io_request *req);
 
 static int ioreq_iosm_handle	(struct io_request *req);
 
+static int ioreq_dgmode_read    (struct io_request *req);
+static int ioreq_dgmode_recover (struct io_request *req);
+
 static const struct io_request_ops ioreq_ops = {
 	.iro_iomaps_prepare = ioreq_iomaps_prepare,
 	.iro_iomaps_destroy = ioreq_iomaps_destroy,
 	.iro_user_data_copy = ioreq_user_data_copy,
 	.iro_parity_recalc  = ioreq_parity_recalc,
 	.iro_iosm_handle    = ioreq_iosm_handle,
+	.iro_dgmode_read    = ioreq_dgmode_read,
+	.iro_dgmode_recover = ioreq_dgmode_recover,
 };
 
 static inline uint32_t ioreq_sm_state(const struct io_request *req)
@@ -1129,6 +1230,32 @@ static int ioreq_parity_recalc(struct io_request *req)
 	M0_RETURN(0);
 }
 
+/* Finds out pargrp_iomap from array of such structures in io_request. */
+static void ioreq_pgiomap_find(struct io_request    *req,
+		               uint64_t              grpid,
+			       uint64_t             *cursor,
+			       struct pargrp_iomap **out)
+{
+	uint64_t id;
+
+	M0_ENTRY("group_id = %llu, cursor = %llu", grpid, *cursor);
+	M0_PRE(req    != NULL);
+	M0_PRE(out    != NULL);
+	M0_PRE(*out   != NULL);
+	M0_PRE(cursor != NULL);
+	M0_PRE(*cursor < req->ir_iomap_nr);
+
+	for (id = *cursor; id < req->ir_iomap_nr; ++id)
+		if (req->ir_iomaps[id]->pi_grpid == grpid) {
+			*out = req->ir_iomaps[id];
+			*cursor = id;
+			break;
+		}
+
+	M0_POST(id < req->ir_iomap_nr);
+	M0_LEAVE();
+}
+
 static int ioreq_user_data_copy(struct io_request   *req,
 				enum copy_direction  dir,
 				enum page_attr	     filter)
@@ -1234,6 +1361,7 @@ static int pargrp_iomap_init(struct pargrp_iomap *map,
 	map->pi_rtype	   = PIR_NONE;
 	map->pi_grpid	   = grpid;
 	map->pi_ioreq	   = req;
+	map->pi_state      = PI_HEALTHY;
 	map->pi_paritybufs = NULL;
 
 	rc = m0_indexvec_alloc(&map->pi_ivec, page_nr(data_size(play)),
@@ -1316,6 +1444,7 @@ static void pargrp_iomap_fini(struct pargrp_iomap *map)
 	play	     = pdlayout_get(map->pi_ioreq);
 	map->pi_ops  = NULL;
 	map->pi_rtype = PIR_NONE;
+	map->pi_state = PI_NONE;
 
 	pargrp_iomap_bob_fini(map);
 	m0_indexvec_free(&map->pi_ivec);
@@ -1930,6 +2059,296 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 	M0_RETURN(rc);
 }
 
+static void pargrp_iomap_pages_mark(struct pargrp_iomap       *map,
+		                    enum m0_pdclust_unit_type  type)
+{
+	uint32_t                    row;
+	uint32_t                    row_nr;
+	uint32_t                    col;
+	uint32_t                    col_nr;
+	struct data_buf          ***bufs;
+	struct m0_pdclust_layout   *play;
+
+	M0_ENTRY();
+	M0_PRE(map != NULL);
+	M0_PRE(M0_IN(type, (M0_PUT_DATA, M0_PUT_SPARE)));
+
+	play   = pdlayout_get(map->pi_ioreq);
+	row_nr = type == M0_PUT_DATA ? data_row_nr(play) :
+		 parity_row_nr(play);
+	col_nr = type == M0_PUT_DATA ? data_col_nr(play) :
+		 parity_col_nr(play);
+
+	if (type == M0_PUT_DATA) {
+		row_nr = data_row_nr(play);
+		col_nr = data_col_nr(play);
+		bufs   = map->pi_databufs;
+	} else {
+		row_nr = parity_row_nr(play);
+		col_nr = parity_col_nr(play);
+		bufs   = map->pi_paritybufs;
+	}
+
+	for (col = 0; col < col_nr; ++col) {
+		for (row = 0; row < row_nr; ++row) {
+			if (bufs[row][col] != NULL &&
+			    bufs[row][col]->db_flags & PA_READ_FAILED)
+				break;
+		}
+
+		if (row == row_nr)
+			continue;
+
+		for (row = 0; row < row_nr; ++row)
+			if (bufs[row][col] != NULL)
+				bufs[row][col]->db_flags |= PA_READ_FAILED;
+	}
+}
+
+static void pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
+		                        struct target_ioreq *tio,
+		                        m0_bindex_t         *index,
+			                uint32_t             count)
+{
+	uint32_t                   seg;
+	uint32_t                   row;
+	uint32_t                   col;
+	uint32_t                   tgt_id;
+	m0_bindex_t                goff;
+	struct m0_layout_enum     *le;
+	struct m0_pdclust_layout  *play;
+	struct m0_pdclust_src_addr src;
+	struct m0_pdclust_tgt_addr tgt;
+
+	M0_ENTRY("count = %u\n", count);
+	M0_PRE(pargrp_iomap_invariant(map));
+	M0_PRE(tio   != NULL);
+	M0_PRE(index != NULL);
+	M0_PRE(count >  0);
+	M0_PRE(ioreq_sm_state(map->pi_ioreq) == IRS_DEGRADED_READING);
+
+	le     = m0_layout_instance_to_enum(file_to_m0inode(map->pi_ioreq->
+				ir_file)->ci_layout_instance);
+	tgt_id = m0_layout_enum_find(le, file_to_fid(map->pi_ioreq->ir_file),
+			             &tio->ti_fid);
+	play   = pdlayout_get(map->pi_ioreq);
+	map->pi_state = PI_DEGRADED;
+
+	for (seg = 0; seg < count; ++seg) {
+
+		tgt.ta_frame = index[seg] / layout_unit_size(play);
+		tgt.ta_obj   = tgt_id;
+
+		m0_pdclust_instance_inv(pdlayout_instance(
+					layout_instance(map->pi_ioreq)),
+				        &tgt, &src);
+		M0_ASSERT(src.sa_group == map->pi_grpid);
+		M0_ASSERT(src.sa_unit  <  layout_n(play) + layout_k(play));
+
+		if (src.sa_unit < layout_n(play)) {
+			goff = gfile_offset(index[seg], map, play);
+			page_pos_get(map, goff, &row, &col);
+			M0_ASSERT(map->pi_databufs[row][col] != NULL);
+			map->pi_databufs[row][col]->db_flags |= PA_READ_FAILED;
+		} else {
+			M0_ASSERT(map->pi_paritybufs[src.sa_unit -
+				  layout_n(play)]
+				  [index[seg] % layout_unit_size(play)] != NULL);
+			map->pi_paritybufs[src.sa_unit - layout_n(play)]
+				[index[seg] % layout_unit_size(play)]->
+				db_flags |= PA_READ_FAILED;
+		}
+	}
+
+	/*
+	 * Since m0_parity_math_recover() API will recover one or more
+	 * whole units, all pages from a failed unit can be marked as
+	 * PA_READ_FAILED. These pages need not be read again.
+	 * The following loops proceeds by unit size.
+	 */
+	pargrp_iomap_pages_mark(map, M0_PUT_DATA);
+	pargrp_iomap_pages_mark(map, M0_PUT_SPARE);
+}
+
+static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
+{
+	int                       rc = 0;
+	uint32_t                  row;
+	uint32_t                  col;
+	m0_bindex_t               start;
+	struct inode             *inode;
+	struct data_buf          *dbuf;
+	struct m0_pdclust_layout *play;
+
+	/*
+	 * read_old: Reads unavailable data subject to condition that
+	 * data lies within file size. Parity is already read.
+	 * read_rest: Reads parity units. Data for parity group is already
+	 * read.
+	 * simple_read: Reads unavailable data subject to condition that
+	 * data lies within file size. Parity also has to be read.
+	 */
+	M0_ENTRY("parity group id %llu", map->pi_grpid);
+	M0_PRE(pargrp_iomap_invariant(map));
+	M0_PRE(map->pi_state == PI_DEGRADED);
+
+	inode = map->pi_ioreq->ir_file->f_dentry->d_inode;
+	play  = pdlayout_get(map->pi_ioreq);
+
+	/* data matrix from parity group. */
+	for (row = 0; row < data_row_nr(play); ++row) {
+		for (col = 0; col < data_col_nr(play); ++col) {
+
+			dbuf  = map->pi_databufs[row][col];
+			data_page_offset_get(map, row, col, &start);
+
+			/* Skips the page if it is marked as PA_READ_FAILED. */
+			if (map->pi_databufs[row][col]->db_flags &
+			    PA_READ_FAILED)
+				continue;
+
+			if (M0_IN(map->pi_rtype, (PIR_READOLD, PIR_NONE))) {
+
+				if (dbuf == NULL) {
+					rc = pargrp_iomap_databuf_alloc(map,
+							row, col);
+					if (rc != 0)
+						break;
+				}
+				if (start + PAGE_CACHE_SIZE <
+				    inode->i_size ||
+				    (inode->i_size > 0 &&
+				     page_id(start + PAGE_CACHE_SIZE - 1) ==
+				     page_id(inode->i_size - 1)))
+					dbuf->db_flags |= PA_DGMODE_READ;
+			} else
+				M0_ASSERT(dbuf != NULL);
+		}
+	}
+
+	if (rc != 0)
+		M0_RETERR(rc, "Failed to allocate data buffer");
+
+	/* parity matrix from parity group. */
+	for (row = 0; row < parity_row_nr(play); ++row) {
+		for (col = 0; col < parity_col_nr(play); ++col) {
+
+			dbuf = map->pi_paritybufs[row][col];
+			parity_page_offset_get(map, row, col, &start);
+
+			/* Skips the page if it is marked as PA_READ_FAILED. */
+			if (map->pi_paritybufs[row][col]->db_flags &
+			    PA_READ_FAILED)
+				continue;
+
+			if (M0_IN(map->pi_rtype, (PIR_READREST, PIR_NONE))) {
+
+				if (dbuf == NULL) {
+					dbuf = data_buf_alloc_init(0);
+					if (dbuf == NULL) {
+						rc = -ENOMEM;
+						break;
+					}
+				}
+				dbuf->db_flags |= PA_DGMODE_READ;
+			} else
+				M0_ASSERT(dbuf != NULL);
+		}
+	}
+
+	M0_RETURN(rc);
+}
+
+static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
+{
+	int                       rc = 0;
+	uint32_t                  row;
+	uint32_t                  col;
+	unsigned long             zpage;
+	struct m0_buf            *data;
+	struct m0_buf            *parity;
+	struct m0_buf             failed;
+	struct m0_pdclust_layout *play;
+
+	M0_ENTRY();
+	M0_PRE(pargrp_iomap_invariant(map));
+	M0_PRE(map->pi_state == PI_DEGRADED);
+
+	play = pdlayout_get(map->pi_ioreq);
+
+	M0_ALLOC_ARR_ADDB(data, layout_n(play), &m0t1fs_addb, &io_addb_loc);
+	if (data == NULL)
+		M0_RETERR(-ENOMEM, "Failed to allocate memory for data buf");
+
+	M0_ALLOC_ARR_ADDB(parity, layout_k(play), &m0t1fs_addb, &io_addb_loc);
+	if (parity == NULL) {
+		m0_free(data);
+		M0_RETERR(-ENOMEM, "Failed to allocate memory for parity buf");
+	}
+
+	zpage = get_zeroed_page(GFP_KERNEL);
+	if (zpage == 0) {
+		m0_free(data);
+		m0_free(parity);
+		M0_RETERR(-ENOMEM, "Failed to allocate page.");
+	}
+
+	failed.b_nob = layout_n(play) + layout_k(play);
+	M0_ALLOC_ARR_ADDB(failed.b_addr, failed.b_nob, &m0t1fs_addb,
+			  &io_addb_loc);
+	if (failed.b_addr == NULL) {
+		m0_free(data);
+		m0_free(parity);
+		free_page(zpage);
+		M0_RETERR(-ENOMEM, "Failed to allocate memory for m0_buf");
+	}
+
+	/* Populates data and failed buffers. */
+	for (row = 0; row < data_row_nr(play); ++row) {
+		for (col = 0; col < data_col_nr(play); ++col) {
+
+			data[col].b_nob = PAGE_CACHE_SIZE;
+
+			if (map->pi_databufs[row][col] == NULL) {
+				data[col].b_addr = (void *)zpage;
+				*(((uint8_t *)failed.b_addr) + col) = 0;
+				continue;
+			}
+
+			/* Here, unit number is same as column number. */
+			*(((uint8_t *)failed.b_addr) + col) =
+				(map->pi_databufs[row][col]->db_flags &
+				 PA_READ_FAILED) ? 1 : 0;
+			data[col].b_addr = map->pi_databufs[row][col]->
+				           db_buf.b_addr;
+		}
+	}
+
+	/* Populates parity and failed buffers. */
+	for (row = 0; row < parity_row_nr(play); ++row) {
+		for (col = 0; col < parity_col_nr(play); ++col) {
+
+			M0_ASSERT(map->pi_paritybufs[row][col] != NULL);
+			parity[col].b_addr = map->pi_paritybufs[row][col]->
+				             db_buf.b_addr;
+			parity[col].b_nob  = PAGE_CACHE_SIZE;
+
+			*(((uint8_t *)failed.b_addr) + col) =
+				(map->pi_paritybufs[row][col]->db_flags &
+				 PA_READ_FAILED) ? 1 : 0;
+		}
+	}
+
+	m0_parity_math_recover(parity_math(map->pi_ioreq), data, parity,
+			       &failed);
+	m0_free(data);
+	m0_free(parity);
+	m0_free(failed.b_addr);
+	free_page(zpage);
+
+	M0_RETURN(rc);
+}
+
 static int ioreq_iomaps_prepare(struct io_request *req)
 {
 	int			  rc;
@@ -2056,6 +2475,93 @@ static void ioreq_iomaps_destroy(struct io_request *req)
 	req->ir_iomaps	 = NULL;
 }
 
+static int dgmode_readvec_alloc_init(struct dgmode_readvec **dgvec,
+		                     struct target_ioreq    *ti)
+{
+	int                       rc;
+	uint64_t                  cnt;
+	uint64_t                  grp_nr = 0;
+	struct io_request        *req;
+	struct dgmode_readvec    *dg;
+	struct m0_pdclust_layout *play;
+
+	M0_ENTRY();
+	M0_PRE(ti     != NULL);
+	M0_PRE(dgvec  != NULL);
+	M0_PRE(*dgvec != NULL);
+
+	M0_ALLOC_PTR_ADDB(dg, &m0t1fs_addb, &io_addb_loc);
+	if (dg == NULL) {
+		rc = -ENOMEM;
+		goto failed;
+	}
+
+	req = bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
+		     &ioreq_bobtype);
+	play = pdlayout_get(req);
+	dg->dr_tioreq = ti;
+
+	for (cnt = 0; cnt < req->ir_iomap_nr; ++cnt)
+		if (req->ir_iomaps[cnt]->pi_state == PI_DEGRADED)
+			++grp_nr;
+
+	cnt = page_nr(grp_nr * layout_unit_size(play));
+	rc  = m0_indexvec_alloc(&dg->dr_ivec, cnt, &m0t1fs_addb,
+			        &io_addb_loc);
+	if (rc != 0)
+		goto failed;
+
+	M0_ALLOC_ARR_ADDB(dg->dr_bufvec.ov_buf, cnt, &m0t1fs_addb,
+			  &io_addb_loc);
+	if (dg->dr_bufvec.ov_buf == NULL) {
+		rc = -ENOMEM;
+		goto failed;
+	}
+
+	M0_ALLOC_ARR_ADDB(dg->dr_bufvec.ov_vec.v_count, cnt, &m0t1fs_addb,
+			  &io_addb_loc);
+	if (dg->dr_bufvec.ov_vec.v_count == NULL) {
+		rc = -ENOMEM;
+		goto failed;
+	}
+
+	M0_ALLOC_ARR_ADDB(dg->dr_pageattrs, cnt, &m0t1fs_addb, &io_addb_loc);
+	if (dg->dr_pageattrs == NULL) {
+		rc = -ENOMEM;
+		goto failed;
+	}
+
+	/*
+	 * This value is incremented every time a new segment is added
+	 * to this index vector.
+	 */
+	dg->dr_ivec.iv_vec.v_nr = 0;
+
+	*dgvec = dg;
+	M0_RETURN(0);
+failed:
+	*dgvec = NULL;
+	if (dg->dr_bufvec.ov_buf != NULL)
+		m0_free(dg->dr_bufvec.ov_buf);
+	if (dg->dr_bufvec.ov_vec.v_count != NULL)
+		m0_free(dg->dr_bufvec.ov_vec.v_count);
+	m0_free(dg);
+	M0_RETERR(rc, "Dgmode read vector allocation failed");
+}
+
+static void dgmode_readvec_dealloc_fini(struct dgmode_readvec *dg)
+{
+	M0_ENTRY();
+
+	M0_PRE(dg != NULL);
+
+	dg->dr_tioreq = NULL;
+	m0_indexvec_free(&dg->dr_ivec);
+	m0_free(dg->dr_bufvec.ov_buf);
+	m0_free(dg->dr_bufvec.ov_vec.v_count);
+	m0_free(dg->dr_pageattrs);
+}
+
 /*
  * Creates target_ioreq objects as required and populates
  * target_ioreq::ti_ivec and target_ioreq::ti_bufvec.
@@ -2091,6 +2597,10 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 	unit_size = layout_unit_size(play);
 
 	for (map = 0; map < req->ir_iomap_nr; ++map) {
+
+		if (ioreq_sm_state(req) == IRS_DEGRADED_READING &&
+		    req->ir_iomaps[map]->pi_state != PI_DEGRADED)
+			continue;
 
 		count        = 0;
 		pgstart	     = data_size(play) *
@@ -2129,6 +2639,14 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 			if (rc != 0)
 				goto err;
 
+			if (ioreq_sm_state(req) == IRS_DEGRADED_READING &&
+			    ti->ti_dgvec == NULL) {
+				rc = dgmode_readvec_alloc_init(&ti->ti_dgvec,
+						               ti);
+				if (rc != 0)
+					goto err;
+			}
+
 			ti->ti_ops->tio_seg_add(ti, &src, &tgt, r_ext.e_start,
 						0, m0_ext_length(&r_ext),
 						req->ir_iomaps[map]);
@@ -2152,12 +2670,22 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 					goto err;
 
 				if (m0_pdclust_unit_classify(play,
-				    src.sa_unit) == M0_PUT_PARITY)
-					ti->ti_ops->tio_seg_add(ti,
-							&src, &tgt, pgstart,
-							0,
+				    src.sa_unit) == M0_PUT_PARITY) {
+
+					if (ioreq_sm_state(req) ==
+					    IRS_DEGRADED_READING &&
+					    ti->ti_dgvec == NULL) {
+						rc = dgmode_readvec_alloc_init(
+							&ti->ti_dgvec, ti);
+						if (rc != 0)
+							goto err;
+					}
+
+					ti->ti_ops->tio_seg_add(ti, &src, &tgt,
+							pgstart, 0,
 							layout_unit_size(play),
 							req->ir_iomaps[map]);
+				}
 			}
 		}
 	}
@@ -2187,6 +2715,99 @@ static inline int ioreq_sm_timedwait(struct io_request *req,
 	m0_mutex_lock(&req->ir_sm.sm_grp->s_lock);
 	rc = m0_sm_timedwait(&req->ir_sm, (1 << state), M0_TIME_NEVER);
 	m0_mutex_unlock(&req->ir_sm.sm_grp->s_lock);
+
+	M0_RETURN(rc);
+}
+
+static int ioreq_dgmode_recover(struct io_request *req)
+{
+	int      rc = 0;
+	uint64_t cnt;
+
+	M0_ENTRY();
+	M0_PRE(io_request_invariant(req));
+	M0_PRE(ioreq_sm_state(req) == IRS_READ_COMPLETE);
+
+	for (cnt = 0; cnt < req->ir_iomap_nr; ++cnt) {
+		if (req->ir_iomaps[cnt]->pi_state == PI_DEGRADED) {
+			rc = req->ir_iomaps[cnt]->pi_ops->
+				pi_dgmode_recover(req->ir_iomaps[cnt]);
+			if (rc != 0)
+				M0_RETERR(rc, "Failed to recover data");
+		}
+	}
+
+	M0_RETURN(rc);
+}
+
+static int ioreq_dgmode_read(struct io_request *req)
+{
+	int                         rc = 0;
+	uint32_t                    cnt = 0;
+	uint64_t                    id;
+	struct io_req_fop          *irfop;
+	struct target_ioreq        *ti;
+	struct m0_pdclust_layout   *play;
+
+	M0_ENTRY();
+	M0_PRE(io_request_invariant(req));
+
+	ioreq_sm_state_set(req, IRS_DEGRADED_READING);
+	/*
+	 * Looks up failed target_ioreq structure/s and failed
+	 * IO fop/s in failed target_ioreq structure/s.
+	 */
+	m0_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
+		if (ti->ti_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
+			++cnt;
+	} m0_tl_endfor;
+
+	/*
+	 * Since m0t1fs IO only supports XOR at the moment, max number of
+	 * failed units could be 1.
+	 */
+	play = pdlayout_get(req);
+	if (cnt > layout_k(play)) {
+		M0_ADDB_ADD(&m0t1fs_addb, &io_addb_loc, io_request_failed,
+			    "Number of failed data units exceed"
+			    "number of parity units in parity group.", -EIO);
+		return -EIO;
+	}
+
+	m0_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
+
+		if (ti->ti_rc != M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
+			continue;
+		m0_tl_for (iofops, &ti->ti_iofops, irfop) {
+			irfop->irf_ops->irfo_dgmode_read(irfop);
+		} m0_tl_endfor;
+
+	} m0_tl_endfor;
+
+	for (id = 0; id < req->ir_iomap_nr; ++id) {
+		if (req->ir_iomaps[id]->pi_state != PI_DEGRADED)
+			continue;
+
+		rc = req->ir_iomaps[id]->pi_ops->pi_dgmode_postprocess(req->
+				ir_iomaps[id]);
+		if (rc != 0)
+			break;
+	}
+
+	rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->ir_nwxfer);
+	if (rc != 0)
+		M0_RETERR(rc, "Failed to dispatch degraded mode IO.");
+
+	rc = ioreq_sm_timedwait(req, IRS_READ_COMPLETE);
+	if (rc != 0)
+		M0_RETERR(rc, "Degraded mode read IO failed.");
+
+	if (req->ir_nwxfer.nxr_rc != 0)
+		M0_RETERR(rc, "Degraded mode read IO failed.");
+
+	rc = req->ir_ops->iro_dgmode_recover(req);
+	if (rc != 0)
+		M0_RETERR(rc, "Failed to recover lost data.");
 
 	M0_RETURN(rc);
 }
@@ -2239,7 +2860,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 						   IRS_WRITE_COMPLETE;
 		rc    = ioreq_sm_timedwait(req, state);
 		if (rc != 0)
-			ioreq_sm_failed(req, rc);
+			goto fail;
 
 		M0_ASSERT(ioreq_sm_state(req) == state);
 
@@ -2248,10 +2869,23 @@ static int ioreq_iosm_handle(struct io_request *req)
 			goto fail;
 		}
 		if (state == IRS_READ_COMPLETE) {
+			/*
+			 * Degraded mode read IO kicks in when existing read IO
+			 * request fails with error code
+			 * M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH.
+			 */
+			if (req->ir_nwxfer.nxr_rc ==
+			    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
+
+				rc = req->ir_ops->iro_dgmode_read(req);
+				if (rc != 0)
+					goto fail;
+			}
+
 			rc = req->ir_ops->iro_user_data_copy(req,
 					CD_COPY_TO_USER, 0);
 			if (rc != 0)
-				ioreq_sm_failed(req, rc);
+				goto fail;
 		}
 	} else {
 		uint32_t    seg;
@@ -2295,6 +2929,18 @@ static int ioreq_iosm_handle(struct io_request *req)
 			if (res != 0 || rc != 0) {
 				rc = res != 0 ? res : rc;
 				goto fail;
+			}
+			/*
+			 * Degraded mode read IO kicks in when existing read IO
+			 * request fails with error code
+			 * M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH.
+			 */
+			if (req->ir_nwxfer.nxr_rc ==
+			    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
+
+				rc = req->ir_ops->iro_dgmode_read(req);
+				if (rc != 0)
+					goto fail;
 			}
 		}
 
@@ -2552,13 +3198,14 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	M0_PRE(session != NULL);
 	M0_PRE(size    >  0);
 
-	ti->ti_rc        = 0;
-	ti->ti_ops       = &tioreq_ops;
-	ti->ti_fid       = *cobfid;
-	ti->ti_nwxfer    = xfer;
-	ti->ti_session   = session;
-	ti->ti_parbytes  = 0;
-	ti->ti_databytes = 0;
+	ti->ti_rc          = 0;
+	ti->ti_ops         = &tioreq_ops;
+	ti->ti_fid         = *cobfid;
+	ti->ti_nwxfer      = xfer;
+	ti->ti_dgvec       = NULL;
+	ti->ti_session     = session;
+	ti->ti_parbytes    = 0;
+	ti->ti_databytes   = 0;
 
 	iofops_tlist_init(&ti->ti_iofops);
 	tioreqs_tlink_init(ti);
@@ -2628,6 +3275,8 @@ static void target_ioreq_fini(struct target_ioreq *ti)
 	m0_free(ti->ti_bufvec.ov_buf);
 	m0_free(ti->ti_bufvec.ov_vec.v_count);
 	m0_free(ti->ti_pageattrs);
+	if (ti->ti_dgvec != NULL)
+		dgmode_readvec_dealloc_fini(ti->ti_dgvec);
 
 	ti->ti_bufvec.ov_buf	     = NULL;
 	ti->ti_bufvec.ov_vec.v_count = NULL;
@@ -2767,7 +3416,10 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	struct m0_pdclust_layout  *play;
 	uint64_t	           frame = tgt->ta_frame;
 	uint64_t	           unit  = src->sa_unit;
+	struct m0_indexvec        *ivec;
+	struct m0_bufvec          *bvec;
 	enum m0_pdclust_unit_type  unit_type;
+	enum page_attr            *pattr;
 
 	M0_ENTRY("tio req %p, gob_offset %llu, count %llu frame %llu unit %llu",
 		 ti, gob_offset, count, frame, unit);
@@ -2786,19 +3438,33 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	goff    = unit_type == M0_PUT_DATA ? gob_offset : 0;
 
 	M0_LOG(M0_DEBUG, "[gpos %llu, count %llu] [%llu,%llu]->[%llu,%llu] %c",
-			  gob_offset, count, src->sa_group, src->sa_unit,
-			  tgt->ta_frame, tgt->ta_obj,
-			  unit_type == M0_PUT_DATA ? 'D' :
-				unit_type == M0_PUT_PARITY ? 'P': 'S' );
+	       gob_offset, count, src->sa_group, src->sa_unit,
+	       tgt->ta_frame, tgt->ta_obj,
+	       unit_type == M0_PUT_DATA ? 'D' : 'P');
+
+	if (ioreq_sm_state(req) == IRS_DEGRADED_READING) {
+		M0_ASSERT(ti->ti_dgvec != NULL);
+		ivec  = &ti->ti_dgvec->dr_ivec;
+		bvec  = &ti->ti_dgvec->dr_bufvec;
+		pattr = ti->ti_dgvec->dr_pageattrs;
+	} else {
+		ivec  = &ti->ti_ivec;
+		bvec  = &ti->ti_bufvec;
+		pattr = ti->ti_pageattrs;
+	}
 
 	while (pgstart < toff + count) {
 		pgend = min64u(pgstart + PAGE_CACHE_SIZE, toff + count);
-		seg   = SEG_NR(&ti->ti_ivec);
+		//seg   = SEG_NR(&ti->ti_ivec);
+		seg   = SEG_NR(ivec);
 
-		INDEX(&ti->ti_ivec, seg) = pgstart;
-		COUNT(&ti->ti_ivec, seg) = pgend - pgstart;
+		//INDEX(&ti->ti_ivec, seg) = pgstart;
+		INDEX(ivec, seg) = pgstart;
+		//COUNT(&ti->ti_ivec, seg) = pgend - pgstart;
+		COUNT(ivec, seg) = pgend - pgstart;
 
-		ti->ti_bufvec.ov_vec.v_count[seg] = pgend - pgstart;
+		//ti->ti_bufvec.ov_vec.v_count[seg] = pgend - pgstart;
+		bvec->ov_vec.v_count[seg] = pgend - pgstart;
 
 		if (unit_type == M0_PUT_DATA) {
 			uint32_t row;
@@ -2807,26 +3473,33 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			page_pos_get(map, goff, &row, &col);
 			buf = map->pi_databufs[row][col];
 
-			ti->ti_pageattrs[seg] |= PA_DATA;
+			//ti->ti_pageattrs[seg] |= PA_DATA;
+			pattr[seg] |= PA_DATA;
 			M0_LOG(M0_INFO, "Data seg added");
 		} else {
+			/*
+			 * XXX Need to change this to make it work
+			 * irrespective of parity algorithm used.
+			 */
 			buf = map->pi_paritybufs[page_id(goff)]
 						[unit % data_col_nr(play)];
-			ti->ti_pageattrs[seg] |= PA_PARITY;
+			//ti->ti_pageattrs[seg] |= PA_PARITY;
+			pattr[seg] |= PA_PARITY;
 			M0_LOG(M0_INFO, "Parity seg added");
 		}
 
-		ti->ti_bufvec.ov_buf[seg]  = buf->db_buf.b_addr;
-		ti->ti_pageattrs[seg] |= buf->db_flags;
+		bvec->ov_buf[seg]  = buf->db_buf.b_addr;
+		//ti->ti_pageattrs[seg] |= buf->db_flags;
+		pattr[seg] |= buf->db_flags;
 
 		M0_LOG(M0_DEBUG, "Seg id %d [%llu, %llu] added to target_ioreq "
 		       "with fid [%llu:%llu] with flags 0x%x: ", seg,
-		       INDEX(&ti->ti_ivec, seg), COUNT(&ti->ti_ivec, seg),
+		       INDEX(ivec, seg), COUNT(ivec, seg),
 		       ti->ti_fid.f_container, ti->ti_fid.f_key,
-		       ti->ti_pageattrs[seg]);
+		       pattr[seg]);
 
-		goff += COUNT(&ti->ti_ivec, seg);
-		++ti->ti_ivec.iv_vec.v_nr;
+		goff += COUNT(ivec, seg);
+		++ivec->iv_vec.v_nr;
 		pgstart = pgend;
 	}
 	M0_LEAVE();
@@ -2848,6 +3521,7 @@ static int io_req_fop_init(struct io_req_fop   *fop,
 	iofops_tlink_init(fop);
 	fop->irf_pattr     = pattr;
 	fop->irf_tioreq	   = ti;
+	fop->irf_ops       = &irfop_ops;
 	fop->irf_ast.sa_cb = io_bottom_half;
 
 	req = bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
@@ -2879,6 +3553,7 @@ static void io_req_fop_fini(struct io_req_fop *fop)
 	 */
 
 	iofops_tlink_fini(fop);
+	fop->irf_ops = NULL;
 
 	/*
 	 * io_req_bob_fini() is not done here so that struct io_req_fop
@@ -3322,7 +3997,8 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 			&ioreq_bobtype);
 
 	M0_ASSERT(M0_IN(irfop->irf_pattr, (PA_DATA, PA_PARITY)));
-	M0_ASSERT(M0_IN(ioreq_sm_state(req), (IRS_READING, IRS_WRITING)));
+	M0_ASSERT(M0_IN(ioreq_sm_state(req), (IRS_READING, IRS_WRITING,
+					      IRS_DEGRADED_READING)));
 
 	reply_item = irfop->irf_iofop.if_fop.f_item.ri_reply;
 	reply      = m0_rpc_item_to_fop(reply_item);
@@ -3332,10 +4008,18 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		rc = failure_vector_mismatch(irfop);
 		if (rc != 0)
 			tioreq->ti_rc = rc;
+		/*
+		 * Refcount is incremented here so that this fop can be
+		 * reused in degraded mode read IO processing.
+		 */
+		if (ioreq_sm_state(req) == IRS_READING)
+			reply = m0_fop_get(reply);
 	}
 
-	if (tioreq->ti_rc == 0)
-		tioreq->ti_rc = irfop->irf_iofop.if_rbulk.rb_rc;
+	if (tioreq->ti_rc == 0) {
+		tioreq->ti_rc             = rw_reply->rwr_rc;
+		tioreq->ti_nwxfer->nxr_rc = rw_reply->rwr_rc;
+	}
 
 	if (irfop->irf_pattr == PA_DATA)
 		tioreq->ti_databytes += irfop->irf_iofop.if_rbulk.rb_bytes;
@@ -3348,7 +4032,8 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	if (tioreq->ti_nwxfer->nxr_iofop_nr == 0)
 		m0_sm_state_set(&req->ir_sm,
-				ioreq_sm_state(req) == IRS_READING ?
+				(ioreq_sm_state(req) &
+				(IRS_READING | IRS_DEGRADED_READING)) != 0 ?
 				IRS_READ_COMPLETE : IRS_WRITE_COMPLETE);
 
 	M0_LEAVE();
@@ -3454,6 +4139,79 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	M0_LEAVE();
 }
 
+static void io_req_fop_dgmode_read(struct io_req_fop *irfop)
+{
+	int                         rc = 0;
+	uint32_t                    cnt;
+	uint32_t                    seg;
+	uint64_t                    grpid;
+	uint64_t                    unit_size;
+	uint64_t                    pgcur = 0;
+	m0_bindex_t                *index;
+	struct io_request          *req;
+	struct m0_fop              *reply;
+	struct m0_rpc_item         *rep_item;
+	struct m0_rpc_bulk         *rbulk;
+	struct pargrp_iomap        *map = NULL;
+	struct m0_rpc_bulk_buf     *rbuf;
+	struct m0_pdclust_layout   *play;
+	struct m0_fop_cob_rw_reply *rw_rep;
+
+	M0_ENTRY();
+	M0_PRE(irfop != NULL);
+
+	req       = bob_of(irfop->irf_tioreq->ti_nwxfer, struct io_request,
+		           ir_nwxfer, &ioreq_bobtype);
+	play      = pdlayout_get(req);
+	rep_item  = irfop->irf_iofop.if_fop.f_item.ri_reply;
+	reply     = m0_rpc_item_to_fop(rep_item);
+	rw_rep    = io_rw_rep_get(reply);
+	unit_size = layout_unit_size(play);
+
+	rc = rw_rep->rwr_rc;
+	/*
+	 * A reference was held in io_bottom_half() over the reply item,
+	 * releasing it here.
+	 */
+	m0_fop_put(reply);
+
+	if (rc != M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
+		return;
+
+	rbulk = &irfop->irf_iofop.if_rbulk;
+
+	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
+
+		index = rbuf->bb_zerovec.z_index;
+		for (seg = 0; seg < rbuf->bb_zerovec.z_bvec.ov_vec.v_nr;
+		     ++seg) {
+
+			grpid = pargrp_id_find(*(index + seg), unit_size);
+			for (cnt = 0; seg < rbuf->bb_zerovec.z_bvec.ov_vec.v_nr;
+			     ++cnt, ++seg) {
+				M0_ASSERT(ergo(seg > 0, index[seg] >
+					       index[seg - 1]));
+				M0_ASSERT((index[seg] & (PAGE_CACHE_SHIFT - 1))
+						== 0);
+				grpid = pargrp_id_find(*(index + seg),
+						       unit_size);
+
+				if (seg + 1 < rbuf->bb_zerovec.z_bvec.
+				    ov_vec.v_nr &&
+				    pargrp_id_find(*(index + seg + 1),
+				    unit_size) != grpid)
+					break;
+			}
+			ioreq_pgiomap_find(req, grpid, &pgcur, &map);
+			M0_ASSERT(map != NULL);
+			map->pi_ops->pi_dgmode_process(map, irfop->irf_tioreq,
+					               index + seg - cnt,
+						       cnt + 1);
+		}
+	} m0_tl_endfor;
+	M0_LEAVE("irfop = %p", irfop);
+}
+
 /*
  * Used in precomputing io fop size while adding rpc bulk buffer and
  * data buffers.
@@ -3524,7 +4282,10 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	uint32_t		        maxsize;
 	uint32_t		        delta;
 	enum page_attr		        rw;
+	enum page_attr                 *pattr;
+	struct m0_bufvec               *bvec;
 	struct io_request              *req;
+	struct m0_indexvec             *ivec;
 	struct io_req_fop              *irfop;
 	struct m0_net_domain           *ndom;
 	struct m0_rpc_bulk_buf         *rbuf;
@@ -3537,13 +4298,27 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 	req	= bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
 			 &ioreq_bobtype);
-	M0_ASSERT(M0_IN(ioreq_sm_state(req), (IRS_READING, IRS_WRITING)));
+	M0_ASSERT(M0_IN(ioreq_sm_state(req),
+		  (IRS_READING, IRS_WRITING, IRS_DEGRADED_READING)));
+
+	if (ioreq_sm_state(req) == IRS_READING ||
+	    ioreq_sm_state(req) == IRS_WRITING) {
+		ivec  = &ti->ti_ivec;
+		bvec  = &ti->ti_bufvec;
+		pattr = ti->ti_pageattrs;
+	} else {
+		M0_ASSERT(ti->ti_dgvec != NULL);
+		ivec  = &ti->ti_dgvec->dr_ivec;
+		bvec  = &ti->ti_dgvec->dr_bufvec;
+		pattr = ti->ti_dgvec->dr_pageattrs;
+	}
 
 	ndom	= ti->ti_session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
-	rw      = ioreq_sm_state(req) == IRS_READING ? PA_READ : PA_WRITE;
+	rw      = ioreq_sm_state(req) == IRS_WRITING ? PA_WRITE : PA_READ;
 	maxsize = m0_rpc_session_get_max_item_payload_size(ti->ti_session);
 
-	while (buf < SEG_NR(&ti->ti_ivec)) {
+	//while (buf < SEG_NR(&ti->ti_ivec)) {
+	while (buf < SEG_NR(ivec)) {
 
 		delta  = 0;
 		bbsegs = 0;
@@ -3584,7 +4359,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		 * Adds io segments and io descriptor only if it fits within
 		 * permitted size.
 		 */
-		while (buf < SEG_NR(&ti->ti_ivec) &&
+		//while (buf < SEG_NR(&ti->ti_ivec) &&
+		while (buf < SEG_NR(ivec) &&
 		       m0_io_fop_size_get(&irfop->irf_iofop.if_fop) + delta <
 		       maxsize) {
 
@@ -3597,9 +4373,12 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				delta += io_seg_size();
 
 				rc = m0_rpc_bulk_buf_databuf_add(rbuf,
-						ti->ti_bufvec.ov_buf[buf],
-						COUNT(&ti->ti_ivec, buf),
-						INDEX(&ti->ti_ivec, buf), ndom);
+						//ti->ti_bufvec.ov_buf[buf],
+						bvec->ov_buf[buf],
+						//COUNT(&ti->ti_ivec, buf),
+						COUNT(ivec, buf),
+						//INDEX(&ti->ti_ivec, buf), ndom);
+						INDEX(ivec, buf), ndom);
 
 				if (rc == -EMSGSIZE) {
 

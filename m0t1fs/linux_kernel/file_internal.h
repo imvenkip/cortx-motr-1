@@ -586,8 +586,8 @@
       mode read IO state.
 
    - struct pargrp_iomap
-    - a boolean flag will be added indicating if given parity group is affected
-      by failed read IO fop.
+    - a state enumeration will be added indicating the state of parity group is 
+      either HEALTHY or DEGRADED.
     - Pages from the data units and/or parity units that need to be read in
       order to retrieve lost data unit will be marked with a special page flag
       to distinguish between normal IO and degraded mode IO.
@@ -601,7 +601,7 @@
        - simple_read A routine will be written in order to do read for rest of
          data units and/or parity units for a simple read IO request.
 
-   - struct dgmode_vector
+   - struct dgmode_readvec
     - a new data structure to hold m0_indexvec and m0_bufvec for pages
       that needed to be read from server.
 
@@ -610,7 +610,7 @@
       amongst target objects for degraded mode read IO.
 
    - struct target_ioreq
-    - a new data structure (struct dgmode_vector) will be introduced to
+    - a new data structure (struct dgmode_readvec) will be introduced to
       hold pages from degraded mode read IO.
       This serves 2 purposes.
        - Segregate degraded mode read IO from normal IO and
@@ -621,7 +621,7 @@
       as well as degraded mode IO.
 
    - enum page_attr
-    - a new flag (PA_DG_READIO) will be added to identify pages issued for
+    - a new flag (PA_DGMODE_READ) will be added to identify pages issued for
       degraded mode read IO.
 
    - io_bottom_half
@@ -872,7 +872,13 @@ enum page_attr {
 	 */
         PA_COPY_FRMUSR_DONE    = (1 << 6),
 
-        PA_NR                  = 7,
+	/** Read IO failed for given page. */
+	PA_READ_FAILED         = (1 << 7),
+
+	/** Page needs to be read in degraded mode read IO state. */
+	PA_DGMODE_READ         = (1 << 8),
+
+        PA_NR                  = 9,
 };
 
 /** Enum representing direction of data copy in IO. */
@@ -983,6 +989,7 @@ enum io_req_state {
         IRS_WRITING,
         IRS_READ_COMPLETE,
         IRS_WRITE_COMPLETE,
+	IRS_DEGRADED_READING,
         IRS_REQ_COMPLETE,
 	IRS_FAILED,
 };
@@ -1038,6 +1045,25 @@ struct io_request_ops {
 	 * @pre io_request_invariant(req).
          */
         int (*iro_iosm_handle)    (struct io_request  *req);
+
+	/**
+	 * Handles degraded mode read IO. Issues read IO for pages
+	 * in all parity groups which need to be read in order to
+	 * recover lost data.
+	 * @pre  req->ir_state == IRS_READ_COMPLETE.
+	 * @pre  io_request_invariant(req).
+	 * @post req->ir_state == IRS_DEGRADED_READING.
+	 */
+	int (*iro_dgmode_read)    (struct io_request *req);
+
+	/**
+	 * Recovers lost unit/s by calculating parity over remaining
+	 * units.
+	 * @pre  req->ir_state == IRS_READ_COMPLETE &&
+	 *       io_request_invariant(req).
+	 * @post io_request_invariant(req).
+	 */
+	int (*iro_dgmode_recover) (struct io_request *req);
 };
 
 /**
@@ -1135,6 +1161,14 @@ enum pargrp_iomap_rmwtype {
         PIR_NR,
 };
 
+/** State of parity group during IO life-cycle. */
+enum pargrp_iomap_state {
+	PI_NONE,
+	PI_HEALTHY,
+	PI_DEGRADED,
+	PI_NR,
+};
+
 /**
  * Represents a map of io extents in a given parity group. Struct io_request
  * contains as many pargrp_iomap structures as the number of parity groups
@@ -1149,6 +1183,9 @@ struct pargrp_iomap {
 
         /** Parity group id. */
         uint64_t                        pi_grpid;
+
+	/** State of parity group during IO life-cycle. */
+	enum pargrp_iomap_state         pi_state;
 
         /**
          * Part of io_request::ir_ivec which falls in ::pi_grpid
@@ -1282,6 +1319,36 @@ struct pargrp_iomap_ops {
 	 * @post  map->pi_paritybufs != NULL && pargrp_iomap_invariant(map).
          */
         int (*pi_paritybufs_alloc)(struct pargrp_iomap *map);
+
+	/**
+	 * Does necessary processing for degraded mode read IO.
+	 * Marks all pages except for the failed one with flag
+	 * PA_DGMODE_READ.
+	 * @param index Array of target indices that fall in given parity
+	 *              group. These are converted to global file offsets.
+	 * @param count Number of segments provided.
+	 * @pre   map->pi_state == PI_HEALTHY.
+	 * @post  map->pi_state == PI_DEGRADED.
+	 */
+	void (*pi_dgmode_process) (struct pargrp_iomap *map,
+			           struct target_ioreq *tio,
+			           m0_bindex_t         *index,
+				   uint32_t             count);
+
+	/**
+	 * Marks all but the failed pages with flag PA_DGMODE_READ in
+	 * data matrix and parity matrix.
+	 * @pre map->pi_state == PI_DEGRADED.
+	 */
+	int (*pi_dgmode_postprocess)(struct pargrp_iomap *map);
+
+	/**
+	 * Recovers lost unit/s by using data recover APIs from
+	 * underlying parity algorithm.
+	 * @pre  map->pi_state == PI_DEGRADED.
+	 * @post map->pi_state == PI_HEALTHY.
+	 */
+	int (*pi_dgmode_recover)  (struct pargrp_iomap *map);
 };
 
 /** Operations vector for struct target_ioreq. */
@@ -1313,6 +1380,30 @@ struct target_ioreq_ops {
 	 */
         int  (*tio_iofops_prepare) (struct target_ioreq *ti,
 				    enum page_attr       filter);
+};
+
+/**
+ * IO vector for degraded mode read.
+ * This is not used when pool state is healthy.
+ */
+struct dgmode_readvec {
+	/**
+	 * Index vector to hold page indices during degraded mode
+	 * read IO.
+	 */
+	struct m0_indexvec   dr_ivec;
+
+	/**
+	 * Buffer vector to hold page addresses during degraded mode
+	 * read IO.
+	 */
+	struct m0_bufvec     dr_bufvec;
+
+	/** Represents attributes for pages from ::ti_dgvec. */
+	enum page_attr      *dr_pageattrs;
+
+	/** Backlink to parent target_ioreq structure. */
+	struct target_ioreq *dr_tioreq;
 };
 
 /**
@@ -1360,7 +1451,17 @@ struct target_ioreq {
 	 */
         struct m0_bufvec               ti_bufvec;
 
-        /** Array of page attributes. */
+	/**
+	 * Degraded mode read IO vector.
+	 * This is intentionally kept as a pointer so that it
+	 * won't consume memory when pool state is healthy.
+	 */
+	struct dgmode_readvec         *ti_dgvec;
+
+        /**
+	 * Array of page attributes.
+	 * Represents attributes for pages from ::ti_ivec and ::ti_bufvec.
+	 */
         enum page_attr                *ti_pageattrs;
 
         /** target_ioreq operation vector. */
@@ -1368,6 +1469,16 @@ struct target_ioreq {
 
         /* Backlink to parent structure nw_xfer_request. */
         struct nw_xfer_request        *ti_nwxfer;
+};
+
+/** Operations vector for struct io_req_fop. */
+struct io_req_fop_ops {
+	/**
+	 * Degraded mode read support for IO request fop.
+	 * Invokes degraded mode read support routines for upper
+	 * data structures like pargrp_iomap.
+	 */
+	void (*irfo_dgmode_read) (struct io_req_fop *irfop);
 };
 
 /**
@@ -1382,25 +1493,28 @@ struct target_ioreq {
  */
 struct io_req_fop {
         /** Holds M0_T1FS_IOFOP_MAGIC */
-        uint64_t                irf_magic;
+        uint64_t                    irf_magic;
 
         /** In-memory handle for IO fop. */
-        struct m0_io_fop        irf_iofop;
+        struct m0_io_fop            irf_iofop;
 
 	/** Type of pages {PA_DATA, PA_PARITY} carried by io fop. */
-	enum page_attr		irf_pattr;
+	enum page_attr		    irf_pattr;
 
         /** Callback per IO fop. */
-        struct m0_sm_ast        irf_ast;
+        struct m0_sm_ast            irf_ast;
 
         /** Linkage to link in to target_ioreq::ti_iofops list. */
-        struct m0_tlink         irf_link;
+        struct m0_tlink             irf_link;
 
         /**
          * Backlink to target_ioreq object where rc and number of bytes
          * are updated.
          */
-        struct target_ioreq    *irf_tioreq;
+        struct target_ioreq         *irf_tioreq;
+
+	/** Operations vector. */
+	const struct io_req_fop_ops *irf_ops;
 };
 
 #endif /* __MERO_M0T1FS_FILE_INTERNAL_H__ */
