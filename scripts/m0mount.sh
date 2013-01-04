@@ -142,7 +142,7 @@ MP=/mnt/m0
 FSTMID=1
 
 # Remote work arena
-WORK_ARENA=/usr/tmp/m0
+WORK_ARENA=/var/tmp/m0
 
 # transport related variables
 XPT=lnet
