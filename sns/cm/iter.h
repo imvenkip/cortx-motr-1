@@ -25,7 +25,7 @@
 
 #include "sm/sm.h"
 
-#include "ioservice/cobfid_map.h"
+#include "cob/ns_iter.h"
 #include "layout/linear_enum.h"
 
 /**
@@ -132,6 +132,9 @@ struct m0_sns_cm_iter {
 	 * This is allocated by the copy machine pump FOM.
 	 */
 	struct m0_sns_cm_cp             *si_cp;
+
+	/** Cob fid namespace iterator. */
+	struct m0_cob_fid_ns_iter        si_cns_it;
 
 	uint64_t                         si_magix;
 };

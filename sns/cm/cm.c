@@ -30,7 +30,7 @@
 #include "lib/misc.h"
 #include "lib/finject.h"
 
-#include "mero/mero_setup.h"
+#include "mero/setup.h"
 #include "net/net.h"
 #include "reqh/reqh.h"
 #include "cm/ag.h"
@@ -123,12 +123,13 @@
     there exist a new device corresponding to the lost device. Thus the same
     copy machine is configured to perform re-balance operation.
   - For rebalance, Each used spare unit corresponds to exactly one (data or
-    parity) unit on the lost device SNS copy machine uses the same layout as
+    parity) unit on the lost device. SNS copy machine uses the same layout as
     used during sns repair to map a spare unit to the target unit on new device.
-    Here it is assumed that layout will map the lost device COB ID to the newly
-    added device COB ID, thus for re-balance, the index of the lost data/parity
-    units on the lost device is used to write on to the newly added device.
-
+    The newly added device may have a new UUID, but will have the same index in
+    the pool and the COB identifiers of the failed device and the replacement
+    device will also be the same. Thus for re-balance, the same indices of the
+    lost data/parity units on the lost device are used to write on to the newly
+    added device with the same COB identifier as the failed device.
 
   <hr>
   @section SNSCMDLD-lspec Logical specification

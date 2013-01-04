@@ -262,7 +262,7 @@ static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata,
 {
 	struct m0_sns_cm_cp scp;
 	int                 rc;
-	int                 cnt
+	int                 cnt;
 
 	cobs_create(pool_width);
 	/* Set file size */
@@ -277,7 +277,7 @@ static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata,
 		rc = m0_sns_cm_iter_next(cm, &scp.sc_base);
 		if (rc == M0_FSO_AGAIN) {
 			if (verify_ns_iter)
-				nsit_verify(&rcm->rc_it.ri_pl.rpl_gob_fid, cnt);
+				nsit_verify(&scm->sc_it.si_pl.spl_gob_fid, cnt);
 			M0_UT_ASSERT(cp_verify(&scp));
 			buf_put(&scp);
 			++cnt;

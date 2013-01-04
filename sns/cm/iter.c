@@ -231,9 +231,7 @@ static ssize_t file_size(struct m0_sns_cm_iter *it)
 {
 	M0_PRE(it != NULL);
 
-	rcm->rc_it.ri_pl.rpl_fsize = m0_trigger_file_size_get(&rcm->rc_it.
-							      ri_pl.
-							      rpl_gob_fid);
+	it->si_pl.spl_fsize = m0_trigger_file_size_get(&it->si_pl.spl_gob_fid);
 	return 0;
 }
 
@@ -469,16 +467,16 @@ static int iter_fid_next_wait(struct m0_sns_cm_iter *it)
 }
 
 /* Uses name space iterator. */
-static int __fid_next(struct m0_sns_repair_cm *rcm, struct m0_fid *fid_next)
+static int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
 {
 	int             rc;
 	struct m0_db_tx tx;
 
-	rc = m0_db_tx_init(&tx, rcm->rc_base.cm_service.rs_reqh->rh_dbenv, 0);
+	rc = m0_db_tx_init(&tx, it->si_dbenv, 0);
 	if (rc != 0)
 		return rc;
 
-	rc = m0_cob_ns_iter_next(&rcm->rc_it.ri_cns_it, &tx, fid_next);
+	rc = m0_cob_ns_iter_next(&it->si_cns_it, &tx, fid_next);
         if (rc == 0)
                 m0_db_tx_commit(&tx);
         else
@@ -498,12 +496,12 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 	int           rc;
 
 	/* Get current GOB fid saved in the iterator. */
-	rc = __fid_next(rcm, &fid_next);
+	rc = __fid_next(it, &fid_next);
 	if (rc == -ENOENT)
 		return -ENODATA;
 	if (rc == 0) {
 		/* Save next GOB fid in the iterator. */
-		rcm->rc_it.ri_pl.rpl_gob_fid = fid_next;
+		it->si_pl.spl_gob_fid = fid_next;
 		rc = cm_layout_fetch(it);
 		if (rc == IT_WAIT) {
 			iter_phase_set(it, ITPH_FID_NEXT_WAIT);
@@ -882,8 +880,6 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm     *scm = it2sns(it);
 	struct m0_cm         *cm;
 	int                   rc;
-	struct m0_dbenv      *dbenv;
-	struct m0_cob_domain *cdom;
 	/*
 	 * Pick the best possible fid to initialise the namespace iter.
 	 * m0t1fs starts its fid space from {0,4}.
@@ -906,7 +902,7 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 	m0_sm_init(&it->si_sm, &cm_iter_sm_conf, ITPH_INIT,
 		   &cm->cm_sm_group, &cm->cm_service.rs_addb_ctx);
 	m0_sns_cm_iter_bob_init(it);
-	rc = m0_cob_ns_iter_init(&it->ri_cns_it, &gfid, it->si_dbenv, it->si_cob_dom);
+	rc = m0_cob_ns_iter_init(&it->si_cns_it, &gfid, it->si_dbenv, it->si_cob_dom);
 
 	return rc;
 }
@@ -915,7 +911,7 @@ M0_INTERNAL void m0_sns_cm_iter_fini(struct m0_sns_cm_iter *it)
 {
 	M0_PRE(it != NULL);
 
-	m0_cob_ns_iter_fini(it->si_cns_it);
+	m0_cob_ns_iter_fini(&it->si_cns_it);
 	layout_fini(it);
 	iter_phase_set(it, ITPH_FINI);
 	m0_sm_fini(&it->si_sm);

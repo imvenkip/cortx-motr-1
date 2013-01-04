@@ -45,7 +45,7 @@
 /** Copy machine service type operations.*/
 static int svc_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
-			const char *arg);
+			const char *arg __attribute__((unused)));
 
 static const struct m0_reqh_service_type_ops svc_type_ops = {
 	.rsto_service_allocate = svc_allocate,
@@ -89,7 +89,7 @@ static int svc_allocate(struct m0_reqh_service **service,
 	cm = &sns_cm->sc_base;
 
 	*service = &cm->cm_service;
-	(*service)->rs_ops = &service_ops;
+	(*service)->rs_ops = &svc_ops;
 
 	rc = m0_cm_init(cm, container_of(stype, struct m0_cm_type, ct_stype),
 			&cm_ops);

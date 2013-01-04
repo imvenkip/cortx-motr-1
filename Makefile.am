@@ -437,9 +437,9 @@ include $(top_srcdir)/net/test/user_space/Makefile.sub
 # sns/cm/st
 #
 
-noinst_PROGRAMS        += sns/cm/st/repair
-sns_cm_st_repair_LDADD  = $(top_builddir)/mero/libmero.la \
-                          $(top_builddir)/ut/libmero-ut.la
+noinst_PROGRAMS          += sns/cm/st/m0repair
+sns_cm_st_m0repair_LDADD  = $(top_builddir)/mero/libmero.la \
+                            $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/sns/cm/st/Makefile.sub
 

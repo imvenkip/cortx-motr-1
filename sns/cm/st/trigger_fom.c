@@ -29,8 +29,8 @@
 #include "rpc/rpc.h"
 #include "fop/fop_item_type.h"
 
-#include "sns/repair/st/trigger_fop.h"
-#include "sns/repair/st/trigger_fop_xc.h"
+#include "sns/cm/st/trigger_fop.h"
+#include "sns/cm/st/trigger_fop_xc.h"
 #include "rpc/rpc_opcodes.h"
 
 #include "sns/cm/cm.h"
