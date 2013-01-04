@@ -41,7 +41,9 @@ sandbox_init() {
 }
 
 sandbox_fini() {
-    rmdir $SANDBOX_DIR/mnt
+    if [ -d $SANDBOX_DIR/mnt ]; then
+	rmdir $SANDBOX_DIR/mnt
+    fi
     ## Note that the script does not delete $SANDBOX_DIR itself:
     ## developers may want to analyze the logs contained there.
 }

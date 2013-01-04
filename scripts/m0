@@ -62,11 +62,11 @@ dist_check() {
     cd ..
     ## Don't let NFS preserve files' ownership.
     tar --no-same-owner -xzf "$SRC/$DIST.tar.gz"
+    trap "rm -r '$SRC/../$DIST'" 0
 
     cd $DIST
     build
-    cd ..
-    rm -r $DIST
+    cd -
 
     [ "$1" = '-a' ] || rm "$SRC/$DIST.tar.gz"
 }
