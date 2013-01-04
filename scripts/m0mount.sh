@@ -493,21 +493,25 @@ fi
 
 # prepare configuration data
 MDS_ENDPOINT="\"${SERVICES[1]}\""
-IOS_ENDPOINTS="\"${SERVICES[1]}\""
+IOS_NAMES='"ios1"'
+IOS_OBJS="(${IOS_NAMES}, {3| (2, [1: \"${SERVICES[1]}\"], \"_\")})"
 for i in `seq 3 2 ${#SERVICES[*]}`; do
-    IOS_ENDPOINTS="$IOS_ENDPOINTS, \"${SERVICES[$i]}\""
+    IOS_NAME="\"ios$(((i+1) / 2))\""
+    IOS_NAMES="${IOS_NAMES}, ${IOS_NAME}"
+    IOS_OBJ="(${IOS_NAME}, {3| (2, [1: \"${SERVICES[$i]}\"], \"_\")})"
+    IOS_OBJS="${IOS_OBJS}, ${IOS_OBJ}"
 done
 
 CONF="`cat <<EOF
-[4:
+[$((SERVICES_NR + 3)):
   ("prof", {1| ("fs")}),
   ("fs", {2| ((11, 22),
               [3: "pool_width=$POOL_WIDTH",
                   "nr_data_units=$NR_DATA",
                   "unit_size=$UNIT_SIZE"],
-              [2: "mds", "ios"])}),
+              [$((SERVICES_NR + 1)): "mds", $IOS_NAMES])}),
   ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
-  ("ios", {3| (2, [$(echo $IOS_ENDPOINTS | wc -w): $IOS_ENDPOINTS], "_")})]
+  ${IOS_OBJS}]
 EOF`"
 
 # mount the file system
