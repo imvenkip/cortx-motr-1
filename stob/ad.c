@@ -151,11 +151,8 @@ enum ad_stob_allocation_extent_type {
 	AET_HOLE
 };
 
-static void ad_rec_part_init(struct m0_fol_rec_part *part);
 
-static const struct m0_fol_rec_part_type_ops ad_part_type_ops = {
-	.rpto_rec_part_init = ad_rec_part_init,
-};
+struct m0_fol_rec_part ad_part;
 
 struct m0_fol_rec_part_type m0_ad_part_type;
 
@@ -178,13 +175,8 @@ static int ad_stob_type_init(struct m0_stob_type *stype)
 	m0_stob_type_init(stype);
 	m0_xc_ad_init();
 
-	m0_ad_part_type = (struct m0_fol_rec_part_type) {
-		.rpt_name = "AD record part",
-		.rpt_xt   = m0_ad_rec_part_xc,
-		.rpt_ops  = &ad_part_type_ops
-	};
-
-	return m0_fol_rec_part_type_register(&m0_ad_part_type);
+	return m0_fol_rec_part_type_init(&ad_part_type, "AD record part",
+					 ad_rec_part_xc, &ad_part_type_ops);
 }
 
 /**
@@ -192,6 +184,9 @@ static int ad_stob_type_init(struct m0_stob_type *stype)
  */
 static void ad_stob_type_fini(struct m0_stob_type *stype)
 {
+	m0_fol_rec_part_type_fini(&ad_part_type);
+	m0_fol_rec_part_fini(&ad_part);
+
 	m0_xc_ad_fini();
 	m0_stob_type_fini(stype);
 	m0_fol_rec_part_type_deregister(&m0_ad_part_type);
@@ -611,17 +606,16 @@ static void ad_stob_io_release(struct ad_stob_io *aio)
  */
 static void ad_stob_io_fini(struct m0_stob_io *io)
 {
-	struct ad_stob_io *aio = io->si_stob_private;
+	struct ad_stob_io  *aio = io->si_stob_private;
+	struct ad_rec_part *arp = ad_part.rp_data;
 
 	ad_stob_io_release(aio);
 	m0_clink_del_lock(&aio->ai_clink);
 	m0_clink_fini(&aio->ai_clink);
 	m0_stob_io_fini(&aio->ai_back);
 	m0_free(aio);
-	if (arp != NULL) {
+	if (arp != NULL)
 		m0_free(arp->arp_old_data);
-		m0_free(arp);
-	}
 }
 
 /**
@@ -1087,7 +1081,8 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 	bool          eodst;
 	bool          eoext;
 	struct m0_ext todo;
-	int			i = 0;
+	struct ad_rec_part *arp = ad_part.rp_data;
+	int		    i = 0;
 
 	result = 0;
 	do {
@@ -1133,16 +1128,13 @@ static void ad_wext_fini(struct ad_write_ext *wext)
 
 static int ad_fol_part_alloc(uint32_t frags)
 {
-
-	M0_ALLOC_PTR(arp);
-	if (arp == NULL)
-		return -ENOMEM;
-	arp->arp_segments = frags;
+	struct ad_rec_part *arp = ad_part.rp_data;
 	M0_ALLOC_ARR(arp->arp_old_data, frags);
 	if (arp->arp_old_data == NULL) {
 		m0_free(arp);
 		return -ENOMEM;
 	}
+	arp->arp_segments = frags;
 	return 0;
 }
 
@@ -1221,6 +1213,15 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 				ad_wext_cursor_init(&wc, &head);
 
 				result = ad_write_map(io, adom, dst, map, &wc);
+				if (result == 0) {
+					m0_rec_part_tlist_add_tail(
+						&io->si_tx->tx_fol_rec_parts,
+						&ad_part);
+
+					io->si_tx->tx_fol_rec_parts_len +=
+						m0_fol_rec_part_data_size(
+							&ad_part);
+				}
 			}
 		}
 	}

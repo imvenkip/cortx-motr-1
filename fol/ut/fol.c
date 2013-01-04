@@ -25,6 +25,7 @@
 #include "lib/misc.h"              /* M0_SET0 */
 #include "fol/fol.h"
 #include "rpc/rpc_opcodes.h"
+#include "fid/fid_xc.h"
 
 static const char db_name[] = "ut-fol";
 
@@ -33,13 +34,14 @@ static int db_reset(void)
         return m0_ut_db_reset(db_name);
 }
 
-static struct m0_dbenv           db;
-static struct m0_fol             fol;
-static struct m0_db_tx           tx;
-static struct m0_fol_rec         r;
-static struct m0_fol_rec_desc   *d;
-static struct m0_fol_rec_header *h;
-static struct m0_buf             buf;
+static struct m0_dbenv       db;
+static struct m0_fol         fol;
+static struct m0_dtx         dtx;
+
+static struct m0_fol_rec            r;
+static struct m0_fol_rec_desc      *d;
+static struct m0_fol_rec_header    *h;
+static struct m0_buf                buf;
 
 static int result;
 
@@ -51,7 +53,8 @@ static void test_init(void)
 	result = m0_fol_init(&fol, &db);
 	M0_ASSERT(result == 0);
 
-	result = m0_db_tx_init(&tx, &db, 0);
+	m0_dtx_init(&dtx);
+	result = m0_dtx_open(&dtx, &db);
 	M0_ASSERT(result == 0);
 
 	d = &r.fr_desc;
@@ -60,7 +63,7 @@ static void test_init(void)
 
 static void test_fini(void)
 {
-	result = m0_db_tx_commit(&tx);
+	result = m0_dtx_commit(&dtx);
 	M0_ASSERT(result == 0);
 
 	m0_fol_fini(&fol);
@@ -110,7 +113,7 @@ static void test_lookup(void)
 	result = m0_fol_rec_add(&fol, &tx, &r);
 	M0_ASSERT(result == 0);
 
-	result = m0_fol_rec_lookup(&fol, &tx, d->rd_lsn, &dup);
+	result = m0_fol_rec_lookup(&fol, &dtx.tx_dbtx, d->rd_lsn, &dup);
 	M0_ASSERT(result == 0);
 
 	M0_ASSERT(dup.fr_desc.rd_lsn == d->rd_lsn);
@@ -119,8 +122,80 @@ static void test_lookup(void)
 
 	m0_fol_rec_fini(&dup);
 
-	result = m0_fol_rec_lookup(&fol, &tx, lsn_inc(d->rd_lsn), &dup);
+	result = m0_fol_rec_lookup(&fol, &dtx.tx_dbtx, lsn_inc(d->rd_lsn), &dup);
 	M0_ASSERT(result == -ENOENT);
+}
+
+static void test_type_unreg(void)
+{
+	m0_fol_rec_type_unregister(&ut_fol_type);
+}
+
+struct m0_fol_rec_part ut_rec_part;
+
+struct m0_fol_rec_part_type ut_part_type;
+
+const struct m0_fol_rec_part_ops ut_part_ops = {
+	.rpo_type = &ut_part_type,
+	.rpo_undo = NULL,
+	.rpo_redo = NULL,
+};
+
+static void test_fol_rec_part_encdec(void)
+{
+	struct m0_fid	      *rec;
+	struct m0_fol_rec      dup;
+	struct m0_fol_rec_part part;
+
+	result =  m0_fol_rec_part_type_init(&ut_part_type, "UT FOL record part",
+					    m0_fid_xc) ?:
+		  m0_fol_rec_part_init(&ut_rec_part, &ut_part_ops, NULL);
+	M0_ASSERT(result == 0);
+
+	rec = ut_rec_part.rp_data;
+	rec->f_container = 22;
+	rec->f_key	 = 33;
+
+	m0_rec_part_tlist_add_tail(&dtx.tx_fol_rec_parts, &ut_rec_part);
+	dtx.tx_fol_rec_parts_len += m0_fol_rec_part_data_size(&ut_rec_part);
+
+	d->rd_type = &ut_fol_type;
+	h->rh_refcount = 1;
+	d->rd_lsn = m0_fol_lsn_allocate(&fol);
+
+	result = m0_fol_rec_add(&fol, &dtx, d);
+	M0_ASSERT(result == 0);
+
+	result = m0_dtx_commit(&dtx);
+	M0_ASSERT(result == 0);
+
+	m0_dtx_init(&dtx);
+	result = m0_dtx_open(&dtx, &db);
+	M0_ASSERT(result == 0);
+
+	result = m0_fol_rec_lookup(&fol, &dtx.tx_dbtx, d->rd_lsn, &dup);
+	M0_ASSERT(result == 0);
+
+	if (result == 0) {
+		struct m0_bufvec_cursor cur;
+		m0_bcount_t	        len;
+		void		       *buf = &dup.fr_desc.rd_data;
+		struct m0_bufvec	bvec = M0_BUFVEC_INIT_BUF(buf, &len);
+
+		len = dup.fr_desc.rd_header.rh_data_len;
+
+		m0_bufvec_cursor_init(&cur, &bvec);
+
+		result = m0_fol_rec_part_init(&part, &ut_part_ops, NULL);
+		M0_ASSERT(result == 0);
+
+		result = m0_fol_rec_part_encdec(&part, &cur, M0_BUFVEC_DECODE);
+		M0_ASSERT(result == 0);
+	}
+
+	m0_fol_rec_fini(&dup);
+	m0_fol_rec_part_type_fini(&ut_part_type);
+	m0_fol_rec_part_fini(&ut_rec_part);
 }
 
 const struct m0_test_suite fol_ut = {
@@ -132,7 +207,8 @@ const struct m0_test_suite fol_ut = {
 		{ "fol-rec-part-type-reg", test_rec_part_type_reg },
 		{ "fol-add", test_add },
 		{ "fol-lookup", test_lookup },
-		{ "fol-rec-part-type-unreg", test_rec_part_type_unreg },
+		{ "fol-part-rec-test", test_fol_rec_part_encdec},
+		{ "fol-type-unreg", test_type_unreg },
 		{ "fol-fini", test_fini },
 		{ NULL, NULL }
 	}
@@ -166,10 +242,11 @@ static m0_lsn_t last;
 
 static void checkpoint()
 {
-	result = m0_db_tx_commit(&tx);
+	result = m0_dtx_commit(&dtx);
 	M0_ASSERT(result == 0);
 
-	result = m0_db_tx_init(&tx, &db, 0);
+	m0_dtx_init(&dtx);
+	result = m0_dtx_open(&dtx, &db);
 	M0_ASSERT(result == 0);
 }
 
@@ -190,7 +267,7 @@ static void ub_lookup(int i)
 
 	lsn = last - i;
 
-	result = m0_fol_rec_lookup(&fol, &tx, lsn, &rec);
+	result = m0_fol_rec_lookup(&fol, &dtx.tx_dbtx, lsn, &rec);
 	M0_ASSERT(result == 0);
 	m0_fol_rec_fini(&rec);
 	if (i%1000 == 0)
@@ -200,7 +277,7 @@ static void ub_lookup(int i)
 static void ub_insert_buf(int i)
 {
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
-	result = m0_fol_add_buf(&fol, &tx, d, &buf);
+	result = m0_fol_add_buf(&fol, &dtx.tx_dbtx, d, &buf);
 	M0_ASSERT(result == 0);
 	if (i%1000 == 0)
 		checkpoint();

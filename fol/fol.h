@@ -515,7 +515,7 @@ struct m0_fol_rec_part_ops {
 };
 
 /** 'data' argument if used to serialize or deserialize FOL record part. */
-M0_INTERNAL void m0_fol_rec_part_init(struct m0_fol_rec_part *part,
+M0_INTERNAL int m0_fol_rec_part_init(struct m0_fol_rec_part *part,
 				      const struct m0_fol_rec_part_ops *ops,
 				      void *data);
 
@@ -530,6 +530,12 @@ M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type);
 /** Descriptor for the tlist of fol record parts. */
 M0_TL_DESCR_DECLARE(m0_rec_part, M0_EXTERN);
 M0_TL_DECLARE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
+
+M0_INTERNAL m0_bcount_t m0_fol_rec_part_data_size(struct m0_fol_rec_part *part);
+
+M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
+			               struct m0_bufvec_cursor *cur,
+			               enum m0_bufvec_what      what);
 
 #define M0_FOL_REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) {	\
 		.xo_type = r->rp_ops->rpo_type->rpt_xt,		\
