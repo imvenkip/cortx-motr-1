@@ -247,19 +247,22 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    <hr>
    @section IOFOLDLD-highlights Design Highlights
 
+   For each update made on server corresponding FOL record part is
+   populated and added in the FOM transaction list.
+   These FOL record parts are encoded in a single FOL record in a
+   FOM generic phase after updates are done.
+
    <hr>
    @section IOFOLDLD-fspec Functional Specification
    The following new APIs are introduced:
 
-   Add FOL record parts for updates made on server for each sub system and
-   combine them in FOM generic phase to add the FOL record.
-
-   m0_fol_rec_part and m0_fol_rec_part_type are defined which
-   will be used to add FOL part records.
+   m0_fol_rec_part and m0_fol_rec_part_type are added to represent
+   FOL record part and it's type.
 
    m0_fol_rec_part_ops contains operations for undo and redo of
    FOL record parts.
-   m0_fol_rec_part_init() () is added to initialize m0_fol_rec_part with
+
+   m0_fol_rec_part_init() is added to initialize m0_fol_rec_part with
    m0_fol_rec_part_ops and m0_fol_rec_part_fini is added to finalize it.
 
    To encode or decode FOL parts using xcode operations m0_xcode_type
@@ -267,34 +270,76 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
    m0_fol_rec_part_type_init() and m0_fol_rec_part_type_fini() are added
    to initialize and finalize FOL part types.
-   FOL recors part types are registered in a global array of FOL record
+
+   FOL record part types are registered in a global array of FOL record
    parts using m0_fol_rec_part_type::rpt_index.
 
    io_write_rec_part, io_create_rec_part and io_delete_rec_part FOL parts
    are added in ioservice for write, create and delete updates.
    ad_rec_part is added for AD write operation.
 
-   FOL record part list is kept in m0_dtx which is initialized in
-   FOM generic phase in m0_fom::fo_tx and list head is in
-   m0_dtx::tx_fol_rec_parts.
-   m0_dtx::tx_fol_rec_parts_len have the total length of FOL record parts.
+   FOL record parts list is kept in m0_dtx::tx_fol_rec_parts which is
+   initialized in FOM generic phase m0_fom::fo_tx.
+   m0_dtx::tx_fol_rec_parts_len contains the total length of FOL record parts.
    It is updated whenever FOL record part is added to the list.
 
    m0_fol_rec_add() is used to compose FOL record from FOL record parts.
    fol_rec_parts_pack() encodes the FOL part records from the list in dtx
-   using fol_rec_part_encdec() in a buffer and then remove them from the list.
+   using m0_fol_rec_part_encdec() in a buffer and then removes them from the list.
 
-   m0_fol_rec_part_type::rpt_index should also be encoded for each FOL record
-   type so that decoding of FOL record parts from FOL record can be done using
-   this.
+   m0_fol_rec_part_type::rpt_index should also be encoded for each FOL record part,
+   so that decoding of FOL record parts from FOL record can be done using
+   it.
+
+   Usage:
+   @code
+   struct m0_foo {
+	int f_key;
+	int f_val;
+   } M0_XCA_RECORD;
+   struct m0_fol_rec_part_type foo_part_type;
+
+   const struct m0_fol_rec_part_ops foo_part_ops = {
+	.rpo_type = &foo_part_type,
+	.rpo_undo = NULL,
+	.rpo_redo = NULL,
+   };
+
+   void foo_fol_rec_part_encdec(void)
+   {
+	int			result;
+   	struct m0_fol_rec_part *foo_rec_part;
+	struct m0_foo	       *rec;
+
+	result =  m0_fol_rec_part_type_init(&foo_part_type, "foo FOL record part",
+					    m0_foo_xc);
+        M0_ASSERT(result == 0);
+
+	foo_rec_part = m0_fol_rec_part_init(&foo_part_ops);
+        M0_ASSERT(foo_rec_part != NULL);
+
+	// Add Fol record part data
+	rec = foo_rec_part->rp_data;
+	rec->f_key = 22;
+        rec->f_val = 33;
+
+	m0_rec_part_tlist_add_tail(&dtx.tx_fol_rec_parts, foo_rec_part);
+	dtx.tx_fol_rec_parts_len += m0_fol_rec_part_data_size(foo_rec_part);
+
+	// Add FOL record parts in the list using m0_fol_rec_add()
+
+	m0_fol_rec_part_fini(foo_rec_part);
+	m0_fol_rec_part_type_fini(&foo_part_type);
+   }
+   @endcode
 
    <hr>
    @section IOFOLDLD-lspec Logical Specification
    A FOL record is uniquely identified and located by using an LSN
    (Log Sequence Number).
 
-   For each of create, delete and write IO operations m0_fol_rec_type is
-   initialised with their opcode and FOL operations.
+   For each of create, delete and write IO operations FOL record parts are
+   initialised with their xcode type and FOL operations.
 
    For create and delete operations fop data and reply fop data is stored
    in FOL record parts.
@@ -302,15 +347,18 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	- Reply fop data is added in FOL records so that it can be used
 	  as Reply Cache.
 
-   In ad_write_launch() store AD allocated extents in struct ad_rec_part
-   and add them to the FOL record part list in m0_dtx.
-   Use the FOL record parts to do the undo operation.
+   For write operation, in ad_write_launch() store AD allocated extents in
+   FOL record part struct ad_rec_part.
+
+   Add these FOL record parts in the list.
 
    After successful execution of updates on server side, in FOM generic phase
-   using m0_fom_fol_rec_add() FOL part records in the list are combined in a
+   using m0_fom_fol_rec_add() FOL record parts in the list are combined in a
    FOL record and is made persistent. Before this phase all FOL record parts
    needs to be added in the list after completing their updates.
 
+   After retrieving FOL record from data base, FOL record parts are decoded
+   based on part type using index and are used in undo or redo operations.
    <hr>
    @section IOFOLDLD-conformance Conformance
 

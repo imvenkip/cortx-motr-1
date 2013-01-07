@@ -472,11 +472,17 @@ struct m0_fol_rec_part_ops {
 	int (*rpo_redo)(struct m0_fol_rec_part *part);
 };
 
+/**
+ * FOL record part is allocated and ops is assigned to it.
+ * FOL record part data rp_data is allocated based on part type.
+ * @pre ops->rpo_type != NULL
+ */
 M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(
 	const struct m0_fol_rec_part_ops *ops);
 
 M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part);
 
+/** FOL record part type is initialized with the given xcode type xt. */
 M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
 					  const char *name,
 					  const struct m0_xcode_type  *xt);
@@ -485,6 +491,7 @@ M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type);
 
 M0_INTERNAL m0_bcount_t m0_fol_rec_part_data_size(struct m0_fol_rec_part *part);
 
+/** Based on xcode type of the FOL record part, encoding or decoding is done. */
 M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
 			               struct m0_bufvec_cursor *cur,
 			               enum m0_bufvec_what      what);
