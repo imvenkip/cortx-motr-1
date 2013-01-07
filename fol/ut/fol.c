@@ -131,8 +131,6 @@ static void test_type_unreg(void)
 	m0_fol_rec_type_unregister(&ut_fol_type);
 }
 
-struct m0_fol_rec_part ut_rec_part;
-
 struct m0_fol_rec_part_type ut_part_type;
 
 const struct m0_fol_rec_part_ops ut_part_ops = {
@@ -143,21 +141,25 @@ const struct m0_fol_rec_part_ops ut_part_ops = {
 
 static void test_fol_rec_part_encdec(void)
 {
-	struct m0_fid	      *rec;
-	struct m0_fol_rec      dup;
-	struct m0_fol_rec_part part;
+	struct m0_fid	       *rec;
+	struct m0_fol_rec       dup;
+	struct m0_fol_rec_part *ut_rec_part;
+
+	M0_ALLOC_PTR(ut_rec_part);
 
 	result =  m0_fol_rec_part_type_init(&ut_part_type, "UT FOL record part",
-					    m0_fid_xc) ?:
-		  m0_fol_rec_part_init(&ut_rec_part, &ut_part_ops, NULL);
+					    m0_fid_xc);
 	M0_ASSERT(result == 0);
 
-	rec = ut_rec_part.rp_data;
+	ut_rec_part = m0_fol_rec_part_init(&ut_part_ops);
+	M0_ASSERT(ut_rec_part != NULL);
+
+	rec = ut_rec_part->rp_data;
 	rec->f_container = 22;
 	rec->f_key	 = 33;
 
-	m0_rec_part_tlist_add_tail(&dtx.tx_fol_rec_parts, &ut_rec_part);
-	dtx.tx_fol_rec_parts_len += m0_fol_rec_part_data_size(&ut_rec_part);
+	m0_rec_part_tlist_add_tail(&dtx.tx_fol_rec_parts, ut_rec_part);
+	dtx.tx_fol_rec_parts_len += m0_fol_rec_part_data_size(ut_rec_part);
 
 	d->rd_type = &ut_fol_type;
 	h->rh_refcount = 1;
@@ -181,21 +183,31 @@ static void test_fol_rec_part_encdec(void)
 		m0_bcount_t	        len;
 		void		       *buf = &dup.fr_desc.rd_data;
 		struct m0_bufvec	bvec = M0_BUFVEC_INIT_BUF(buf, &len);
+		struct m0_fol_rec_part *part;
+		struct m0_fid	       *dec_rec;
 
 		len = dup.fr_desc.rd_header.rh_data_len;
 
 		m0_bufvec_cursor_init(&cur, &bvec);
 
-		result = m0_fol_rec_part_init(&part, &ut_part_ops, NULL);
+		part = m0_fol_rec_part_init(&ut_part_ops);
+		M0_ASSERT(part != NULL);
+
+		result = m0_fol_rec_part_encdec(part, &cur, M0_BUFVEC_DECODE);
 		M0_ASSERT(result == 0);
 
-		result = m0_fol_rec_part_encdec(&part, &cur, M0_BUFVEC_DECODE);
-		M0_ASSERT(result == 0);
+		dec_rec = part->rp_data;
+		M0_UT_ASSERT(dec_rec->f_container == rec->f_container);
+		M0_UT_ASSERT(dec_rec->f_key == rec->f_key);
+
+		if (part->rp_data != NULL)
+			m0_xcode_free(&M0_FOL_REC_PART_XCODE_OBJ(part));
+		m0_rec_part_tlink_fini(part);
+		m0_free(part);
 	}
 
 	m0_fol_rec_fini(&dup);
 	m0_fol_rec_part_type_fini(&ut_part_type);
-	m0_fol_rec_part_fini(&ut_rec_part);
 }
 
 const struct m0_test_suite fol_ut = {

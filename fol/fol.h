@@ -514,10 +514,8 @@ struct m0_fol_rec_part_ops {
 	int (*rpo_redo)(struct m0_fol_rec_part *part);
 };
 
-/** 'data' argument if used to serialize or deserialize FOL record part. */
-M0_INTERNAL int m0_fol_rec_part_init(struct m0_fol_rec_part *part,
-				      const struct m0_fol_rec_part_ops *ops,
-				      void *data);
+M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(
+		const struct m0_fol_rec_part_ops *ops);
 
 M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part);
 

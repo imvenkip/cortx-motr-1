@@ -185,7 +185,6 @@ static int ad_stob_type_init(struct m0_stob_type *stype)
 static void ad_stob_type_fini(struct m0_stob_type *stype)
 {
 	m0_fol_rec_part_type_fini(&ad_part_type);
-	m0_fol_rec_part_fini(&ad_part);
 
 	m0_xc_ad_fini();
 	m0_stob_type_fini(stype);
@@ -607,15 +606,12 @@ static void ad_stob_io_release(struct ad_stob_io *aio)
 static void ad_stob_io_fini(struct m0_stob_io *io)
 {
 	struct ad_stob_io  *aio = io->si_stob_private;
-	struct ad_rec_part *arp = ad_part.rp_data;
 
 	ad_stob_io_release(aio);
 	m0_clink_del_lock(&aio->ai_clink);
 	m0_clink_fini(&aio->ai_clink);
 	m0_stob_io_fini(&aio->ai_back);
 	m0_free(aio);
-	if (arp != NULL)
-		m0_free(arp->arp_old_data);
 }
 
 /**
@@ -1060,6 +1056,25 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 	return result ?: rc;
 }
 
+static struct m0_fol_rec_part *ad_fol_part_alloc(uint32_t frags)
+{
+	struct m0_fol_rec_part *part;
+
+	part = m0_fol_rec_part_init(&ad_part_ops);
+	if (part != NULL) {
+		struct ad_rec_part *arp = part->rp_data;
+
+		arp->arp_segments = frags;
+
+		M0_ALLOC_ARR(arp->arp_old_data, frags);
+		if (arp->arp_old_data == NULL) {
+			m0_fol_rec_part_fini(part);
+			return NULL;
+		}
+	}
+	return part;
+}
+
 /**
    Updates extent map, inserting newly allocated extents into it.
 
@@ -1074,16 +1089,23 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
  */
 static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 			struct m0_vec_cursor *dst,
-			struct m0_emap_caret *map, struct ad_wext_cursor *wc)
+			struct m0_emap_caret *map, struct ad_wext_cursor *wc,
+			uint32_t frags)
 {
 	int           result;
 	m0_bcount_t   frag_size;
 	bool          eodst;
 	bool          eoext;
 	struct m0_ext todo;
-	struct ad_rec_part *arp = ad_part.rp_data;
-	int		    i = 0;
+	struct m0_fol_rec_part *part;
+	struct ad_rec_part     *arp;
+	uint32_t		i = 0;
 
+	part = ad_fol_part_alloc(frags);
+	if (part == NULL)
+		return -ENOMEM;
+
+	arp = part->rp_data;
 	result = 0;
 	do {
 		m0_bindex_t offset;
@@ -1110,6 +1132,13 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 
 		M0_ASSERT(eodst == eoext);
 	} while (!eodst);
+
+	if (result == 0) {
+		m0_rec_part_tlist_add_tail(&io->si_tx->tx_fol_rec_parts, part);
+
+		io->si_tx->tx_fol_rec_parts_len += m0_fol_rec_part_data_size(
+							part);
+	}
 	return result;
 }
 
@@ -1124,18 +1153,6 @@ static void ad_wext_fini(struct ad_write_ext *wext)
 		next = wext->we_next;
 		m0_free(wext);
 	}
-}
-
-static int ad_fol_part_alloc(uint32_t frags)
-{
-	struct ad_rec_part *arp = ad_part.rp_data;
-	M0_ALLOC_ARR(arp->arp_old_data, frags);
-	if (arp->arp_old_data == NULL) {
-		m0_free(arp);
-		return -ENOMEM;
-	}
-	arp->arp_segments = frags;
-	return 0;
 }
 
 /**
@@ -1198,35 +1215,22 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 	if (result == 0) {
 		ad_wext_cursor_init(&wc, &head);
 		frags = ad_write_count(io, src, &wc);
-	        result = ad_fol_part_alloc(frags);
+		result = ad_vec_alloc(io->si_obj, back, frags);
 		if (result == 0) {
-			result = ad_vec_alloc(io->si_obj, back, frags);
-			if (result == 0) {
-				m0_vec_cursor_init(src, &io->si_user.ov_vec);
-				m0_vec_cursor_init(dst, &io->si_stob.iv_vec);
-				ad_wext_cursor_init(&wc, &head);
+			m0_vec_cursor_init(src, &io->si_user.ov_vec);
+			m0_vec_cursor_init(dst, &io->si_stob.iv_vec);
+			ad_wext_cursor_init(&wc, &head);
 
-				ad_write_back_fill(io, back, src, &wc);
+			ad_write_back_fill(io, back, src, &wc);
 
-				m0_vec_cursor_init(src, &io->si_user.ov_vec);
-				m0_vec_cursor_init(dst, &io->si_stob.iv_vec);
-				ad_wext_cursor_init(&wc, &head);
+			m0_vec_cursor_init(src, &io->si_user.ov_vec);
+			m0_vec_cursor_init(dst, &io->si_stob.iv_vec);
+			ad_wext_cursor_init(&wc, &head);
 
-				result = ad_write_map(io, adom, dst, map, &wc);
-				if (result == 0) {
-					m0_rec_part_tlist_add_tail(
-						&io->si_tx->tx_fol_rec_parts,
-						&ad_part);
-
-					io->si_tx->tx_fol_rec_parts_len +=
-						m0_fol_rec_part_data_size(
-							&ad_part);
-				}
-			}
+			result = ad_write_map(io, adom, dst, map, &wc, frags);
 		}
 	}
 	ad_wext_fini(&head);
-
 	return result;
 }
 
