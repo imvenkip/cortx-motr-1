@@ -523,9 +523,17 @@ M0_INTERNAL const struct m0_fol_rec_type *m0_fol_rec_type_lookup(uint32_t
 	return rtypes[opcode];
 }
 
-static inline int fol_rec_part_encdec(struct m0_fol_rec_part  *part,
-			              struct m0_bufvec_cursor *cur,
-			              enum m0_bufvec_what      what)
+M0_INTERNAL m0_bcount_t m0_fol_rec_part_data_size(struct m0_fol_rec_part *part)
+{
+	struct m0_xcode_ctx  xc_ctx;
+
+	m0_xcode_ctx_init(&xc_ctx, &M0_FOL_REC_PART_XCODE_OBJ(part));
+	return m0_xcode_length(&xc_ctx);
+}
+
+M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
+			               struct m0_bufvec_cursor *cur,
+			               enum m0_bufvec_what      what)
 {
 	int		     rc;
 	struct m0_xcode_ctx  xc_ctx;
@@ -575,19 +583,43 @@ M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type)
 	type->rpt_name = NULL;
 }
 
-M0_INTERNAL void m0_fol_rec_part_init(struct m0_fol_rec_part *part,
-				      const struct m0_fol_rec_part_ops *ops,
-				      void *data)
+static int fol_rec_part_data_alloc(struct m0_fol_rec_part *part)
 {
-	part->rp_ops  = ops;
-	part->rp_data = data;
+	size_t fol_rec_part_size;
+	M0_PRE(part->rp_ops != NULL && part->rp_ops->rpo_type != NULL);
 
-	m0_rec_part_tlink_init(part);
+	fol_rec_part_size = part->rp_ops->rpo_type->rpt_xt->xct_sizeof;
+
+	part->rp_data = m0_alloc(fol_rec_part_size);
+	return part->rp_data == NULL ? -ENOMEM : 0;
+}
+
+M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(
+	const struct m0_fol_rec_part_ops *ops)
+{
+	struct m0_fol_rec_part *part;
+
+	M0_ALLOC_PTR(part);
+	if (part != NULL) {
+		int rc;
+		part->rp_ops  = ops;
+		rc = fol_rec_part_data_alloc(part);
+		if (rc != 0) {
+			m0_free(part);
+			return NULL;
+		}
+		m0_rec_part_tlink_init(part);
+	}
+	return part;
 }
 
 M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 {
-	m0_rec_part_tlink_fini(part);
+	if (part->rp_data != NULL)
+		m0_xcode_free(&M0_FOL_REC_PART_XCODE_OBJ(part));
+
+	m0_rec_part_tlink_del_fini(part);
+	m0_free(part);
 }
 
 static size_t fol_rec_parts_pack_size(struct m0_dtx *dtx)
@@ -613,11 +645,11 @@ static int fol_rec_parts_encode(struct m0_fol_rec_desc *desc,
 				struct m0_dtx *dtx,
 				struct m0_buf *out)
 {
-	struct m0_fol_rec_header     *h;
-	void                         *buf;
-	size_t                        size;
-	int                           result;
-	uint32_t                      data_len;
+	struct m0_fol_rec_header *h;
+	void                     *buf;
+	size_t                    size;
+	int                       result;
+	uint32_t                  data_len;
 
 	data_len = desc->rd_header.rh_data_len =
 		fol_rec_parts_pack_size(dtx);
@@ -626,6 +658,8 @@ static int fol_rec_parts_encode(struct m0_fol_rec_desc *desc,
 		desc->rd_header.rh_sibling_nr * sizeof desc->rd_sibling[0] +
 		data_len;
 	M0_ASSERT(M0_IS_8ALIGNED(size));
+
+	desc->rd_header.rh_opcode = desc->rd_type->rt_opcode;
 
 	buf = m0_alloc(size);
 	if (buf != NULL) {

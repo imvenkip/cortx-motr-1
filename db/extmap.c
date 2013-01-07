@@ -25,6 +25,7 @@
 #include "lib/errno.h"
 #include "lib/arith.h"   /* M0_3WAY */
 #include "db/extmap.h"
+#include "db/extmap_xc.h"
 
 /**
    @addtogroup extmap
@@ -112,11 +113,13 @@ static const struct m0_table_ops emap_ops = {
 M0_INTERNAL int m0_emap_init(struct m0_emap *emap, struct m0_dbenv *db,
 			     const char *mapname)
 {
+	m0_xc_extmap_init();
 	return m0_table_init(&emap->em_mapping, db, mapname, 0, &emap_ops);
 }
 
 M0_INTERNAL void m0_emap_fini(struct m0_emap *emap)
 {
+	m0_xc_extmap_fini();
 	m0_table_fini(&emap->em_mapping);
 }
 

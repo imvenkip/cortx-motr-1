@@ -59,6 +59,7 @@ struct m0_fol_rec_type;
 #include "lib/types.h"    /* uint64_t */
 #include "lib/arith.h"    /* M0_IS_8ALIGNED */
 #include "lib/mutex.h"
+#include "lib/vec.h"
 #include "fid/fid.h"
 #include "dtm/dtm.h"      /* m0_update_id, m0_update_state */
 #include "dtm/verno.h"    /* m0_verno */
@@ -471,10 +472,8 @@ struct m0_fol_rec_part_ops {
 	int (*rpo_redo)(struct m0_fol_rec_part *part);
 };
 
-/** 'data' argument if used to serialize or deserialize FOL record part. */
-M0_INTERNAL void m0_fol_rec_part_init(struct m0_fol_rec_part *part,
-				      const struct m0_fol_rec_part_ops *ops,
-				      void *data);
+M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(
+	const struct m0_fol_rec_part_ops *ops);
 
 M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part);
 
@@ -483,6 +482,12 @@ M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
 					  const struct m0_xcode_type  *xt);
 
 M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type);
+
+M0_INTERNAL m0_bcount_t m0_fol_rec_part_data_size(struct m0_fol_rec_part *part);
+
+M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
+			               struct m0_bufvec_cursor *cur,
+			               enum m0_bufvec_what      what);
 
 /** Descriptor for the tlist of fol record parts. */
 M0_TL_DESCR_DECLARE(m0_rec_part, M0_EXTERN);
