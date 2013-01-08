@@ -88,8 +88,11 @@ struct m0_rpc_machine {
 	struct m0_tl			  rm_incoming_conns;
 	struct m0_tl			  rm_outgoing_conns;
 	/** ADDB context for this rpc_machine */
-	struct m0_addb_ctx		  rm_addb;
+	struct m0_addb_ctx		  rm_addb_ctx;
 	struct m0_rpc_stats		  rm_stats;
+	/* RPC Counters */
+	struct m0_addb_counter		  rm_cntr_sent_item_sizes;
+	struct m0_addb_counter		  rm_cntr_rcvd_item_sizes;
 	/**
 	    Request handler this rpc_machine belongs to.
 	    @todo There needs to be  generic mechanism to register a
@@ -131,10 +134,6 @@ struct m0_rpc_machine {
 	uint32_t			  rm_min_recv_size;
 };
 
-
-extern const struct m0_addb_loc m0_rpc_machine_addb_loc;
-M0_ADDB_EV_DECLARE(m0_rpc_machine_func_fail, M0_ADDB_FUNC_CALL);
-
 /**
    Rpc machine is a running instance of rpc layer. A number of rpc machine
    structures can co-exist in rpc layer. With every rpc machine, a sessions
@@ -174,6 +173,13 @@ void m0_rpc_machine_fini(struct m0_rpc_machine *machine);
 
 void m0_rpc_machine_get_stats(struct m0_rpc_machine *machine,
 			      struct m0_rpc_stats *stats, bool reset);
+
+/**
+   Subroutine to post ADDB statistics on the RPC machine.
+   Nothing should be posted if there was no activity since the last invocation
+   of this subroutine.
+ */
+M0_INTERNAL void m0_rpc_machine_stats_post_addb(struct m0_rpc_machine *machine);
 
 M0_BOB_DECLARE(extern, m0_rpc_machine);
 

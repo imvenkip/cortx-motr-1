@@ -276,6 +276,16 @@ out:
         return M0_FSO_AGAIN;
 }
 
+static void m0_md_fom_addb_init(struct m0_fom *fom,
+				     struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 static int m0_md_tick_unlink(struct m0_fom *fom)
 {
         struct m0_cob_attr        attr;
@@ -1142,75 +1152,88 @@ static size_t m0_md_req_fom_locality_get(const struct m0_fom *fom)
 static const struct m0_fom_ops m0_md_fom_create_ops = {
         .fo_home_locality = m0_md_req_fom_locality_get,
         .fo_tick   = m0_md_tick_create,
-        .fo_fini   = m0_md_req_fom_fini
+        .fo_fini   = m0_md_req_fom_fini,
+	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_link_ops = {
         .fo_home_locality = m0_md_req_fom_locality_get,
         .fo_tick   = m0_md_tick_link,
-        .fo_fini   = m0_md_req_fom_fini
+        .fo_fini   = m0_md_req_fom_fini,
+	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_unlink_ops = {
         .fo_home_locality = m0_md_req_fom_locality_get,
         .fo_tick   = m0_md_tick_unlink,
-        .fo_fini   = m0_md_req_fom_fini
+        .fo_fini   = m0_md_req_fom_fini,
+	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_rename_ops = {
         .fo_home_locality = m0_md_req_fom_locality_get,
         .fo_tick   = m0_md_tick_rename,
-        .fo_fini   = m0_md_req_fom_fini
+        .fo_fini   = m0_md_req_fom_fini,
+	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_open_ops = {
         .fo_home_locality = m0_md_req_fom_locality_get,
         .fo_tick   = m0_md_tick_open,
-        .fo_fini   = m0_md_req_fom_fini
+        .fo_fini   = m0_md_req_fom_fini,
+	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_close_ops = {
         .fo_home_locality = m0_md_req_fom_locality_get,
         .fo_tick  = m0_md_tick_close,
-        .fo_fini  = m0_md_req_fom_fini
+        .fo_fini  = m0_md_req_fom_fini,
+	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_setattr_ops = {
         .fo_home_locality = m0_md_req_fom_locality_get,
         .fo_tick   = m0_md_tick_setattr,
-        .fo_fini   = m0_md_req_fom_fini
+        .fo_fini   = m0_md_req_fom_fini,
+	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_getattr_ops = {
         .fo_home_locality = m0_md_req_fom_locality_get,
         .fo_tick   = m0_md_tick_getattr,
-        .fo_fini   = m0_md_req_fom_fini
+        .fo_fini   = m0_md_req_fom_fini,
+	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_lookup_ops = {
         .fo_home_locality = m0_md_req_fom_locality_get,
         .fo_tick   = m0_md_tick_lookup,
-        .fo_fini   = m0_md_req_fom_fini
+        .fo_fini   = m0_md_req_fom_fini,
+	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_statfs_ops = {
         .fo_home_locality = m0_md_req_fom_locality_get,
         .fo_tick   = m0_md_tick_statfs,
-        .fo_fini   = m0_md_req_fom_fini
+        .fo_fini   = m0_md_req_fom_fini,
+	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_readdir_ops = {
         .fo_home_locality = m0_md_req_fom_locality_get,
         .fo_tick   = m0_md_tick_readdir,
-        .fo_fini   = m0_md_req_fom_fini
+        .fo_fini   = m0_md_req_fom_fini,
+	.fo_addb_init = m0_md_fom_addb_init
 };
 
-M0_INTERNAL int m0_md_rep_fom_create(struct m0_fop *fop, struct m0_fom **m)
+M0_INTERNAL int m0_md_rep_fom_create(struct m0_fop *fop, struct m0_fom **m,
+				     struct m0_reqh *reqh)
 {
         return 0;
 }
 
-M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m)
+M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
+				     struct m0_reqh *reqh)
 {
 	struct m0_fop           *rep_fop;
         struct m0_fom           *fom;
@@ -1282,7 +1305,8 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m)
         }
         fom = &fom_obj->fm_fom;
         m0_fom_init(fom, &fop->f_type->ft_fom_type,
-                    ops, fop, rep_fop);
+                    ops, fop, rep_fop, reqh,
+                    fop->f_type->ft_fom_type.ft_rstype);
 
 	m0_fop_put(rep_fop);
         *m = fom;

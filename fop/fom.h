@@ -187,7 +187,8 @@
  * fom is assigned its "home" locality when it is created
  * (m0_fom_ops::fo_home_locality()).
  *
- * @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg
+ * @see https://docs.google.com/a/xyratex.com/
+Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg
  *
  * @todo describe intended fom and reqh usage on client.
  *
@@ -450,6 +451,8 @@ struct m0_fom {
 	struct m0_dtx		  fo_tx;
 	/** Pointer to service instance. */
 	struct m0_reqh_service   *fo_service;
+	/** ADDB context for this fom */
+	struct m0_addb_ctx        fo_addb_ctx;
 	/**
 	 *  FOM linkage in the locality runq list or wait list
 	 *  Every access to the FOM via this linkage is
@@ -514,11 +517,16 @@ M0_INTERNAL struct m0_reqh *m0_fom_reqh(const struct m0_fom *fom);
  * @param ops Fom operations structure
  * @param fop Request fop object
  * @param reply Reply fop object
+ * @param reqh Request handler that will execute this fom
+ * @param stype Service type that is used to get the service,
+ *        which is required to set parent addb ctx for this fom
  * @pre fom != NULL
+ * @pre reqh != NULL
  */
 void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
 		 const struct m0_fom_ops *ops, struct m0_fop *fop,
-		 struct m0_fop *reply);
+		 struct m0_fop *reply, struct m0_reqh *reqh,
+		 const struct m0_reqh_service_type *stype);
 /**
  * Finalises a fom after it completes its execution,
  * i.e success or failure.
@@ -576,7 +584,8 @@ enum m0_fom_phase_outcome {
 /** Fom type operation vector. */
 struct m0_fom_type_ops {
 	/** Create a new fom for the given fop. */
-	int (*fto_create)(struct m0_fop *fop, struct m0_fom **out);
+	int (*fto_create)(struct m0_fop *fop, struct m0_fom **out,
+			  struct m0_reqh *reqh);
 };
 
 /** Fom operations vector. */
@@ -597,6 +606,8 @@ struct m0_fom_ops {
 	 *  array.
 	 */
 	size_t  (*fo_home_locality) (const struct m0_fom *fom);
+	/** Initializes ADDB context of this fom, invoked by m0_fom_init() */
+	void (*fo_addb_init)(struct m0_fom *fom, struct m0_addb_mc *mc);
 };
 
 /**

@@ -21,27 +21,19 @@
    @addtogroup mdservice
    @{
  */
+#undef M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_CT_CREATE_DEFINITION
+#include "mdservice/mdservice_addb.h"
 
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "mero/magic.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
-#include "mdservice/md_service.h"
 #include "mdservice/md_fops.h"
+#include "mdservice/md_service.h"
 
-/* ADDB context for mds. */
-static struct m0_addb_ctx mds_addb_ctx;
-
-/* ADDB location for mds. */
-static const struct m0_addb_loc mds_addb_loc = {
-        .al_name = "md_service",
-};
-
-/* ADDB context type for mds. */
-static const struct m0_addb_ctx_type mds_addb_ctx_type = {
-        .act_name = "md_service",
-};
+static struct m0_addb_ctx m0_mds_mod_ctx;
 
 static int mds_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
@@ -67,10 +59,15 @@ static const struct m0_reqh_service_ops mds_ops = {
         .rso_fini  = mds_fini
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(m0_mds_type, &mds_type_ops, "mdservice");
+M0_REQH_SERVICE_TYPE_DEFINE(m0_mds_type, &mds_type_ops, "mdservice",
+			     &m0_addb_ct_mds_serv);
 
 M0_INTERNAL int m0_mds_register(void)
 {
+	m0_addb_ctx_type_register(&m0_addb_ct_mds_mod);
+	m0_addb_ctx_type_register(&m0_addb_ct_mds_serv);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_mds_mod_ctx,
+			 &m0_addb_ct_mds_mod, &m0_addb_proc_ctx);
         m0_reqh_service_type_register(&m0_mds_type);
         return m0_mdservice_fop_init();
 }
@@ -79,6 +76,7 @@ M0_INTERNAL void m0_mds_unregister(void)
 {
         m0_reqh_service_type_unregister(&m0_mds_type);
         m0_mdservice_fop_fini();
+	m0_addb_ctx_fini(&m0_mds_mod_ctx);
 }
 
 /**
@@ -94,10 +92,8 @@ static int mds_allocate(struct m0_reqh_service **service,
 
         M0_PRE(service != NULL && stype != NULL);
 
-        m0_addb_ctx_init(&mds_addb_ctx, &mds_addb_ctx_type,
-                         &m0_addb_global_ctx);
-
-        M0_ALLOC_PTR_ADDB(mds, &mds_addb_ctx, &mds_addb_loc);
+        M0_ALLOC_PTR_ADDB(mds, &m0_addb_gmc, M0_MDS_ADDB_LOC_ALLOCATE,
+			  &m0_mds_mod_ctx);
         if (mds == NULL)
                 return -ENOMEM;
 
@@ -122,8 +118,6 @@ static void mds_fini(struct m0_reqh_service *service)
         struct m0_reqh_md_service *serv_obj;
 
         M0_PRE(service != NULL);
-
-        m0_addb_ctx_fini(&mds_addb_ctx);
 
         serv_obj = container_of(service, struct m0_reqh_md_service, rmds_gen);
         m0_free(serv_obj);

@@ -89,6 +89,9 @@ struct m0_dbenv {
                stored. This directory is created if absent.
    @param flags environment flags. Currently db5 flags are used.
 
+   @todo Pass in a parent ADDB context.  In servers, ideally the context is
+   related to that of the associated request handler.
+
    @see http://www.oracle.com/technology/documentation/berkeley-db/db/api_reference/C/envopen.html
  */
 int m0_dbenv_init(struct m0_dbenv *env, const char *name, uint64_t flags);

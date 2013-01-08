@@ -96,7 +96,6 @@ static int file_io_ut_init(void)
         M0_SET0(&sb);
         M0_SET0(&csb);
 	sb.s_fs_info = &csb;
-        m0_addb_ctx_init(&m0t1fs_addb, &m0t1fs_addb_type, &m0_addb_global_ctx);
         m0_sm_group_init(&csb.csb_iogroup);
         csb.csb_active = true;
 	csb.csb_nr_containers = LAY_P + 1;
@@ -177,7 +176,7 @@ static void ds_test(void)
 	struct m0_rpc_session session;
 
 	M0_SET0(&req);
-	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), NULL, NULL);
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), &m0t1fs_addb_ctx, 0);
         M0_UT_ASSERT(rc == 0);
 
         for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
@@ -371,7 +370,7 @@ static void pargrp_iomap_test(void)
 	struct pargrp_iomap     map;
 	struct pargrp_iomap_ops piops;
 
-	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), NULL, NULL);
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), &m0t1fs_addb_ctx, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	for (cnt = 0; cnt < ARRAY_SIZE(iovec_arr); ++cnt) {
@@ -463,7 +462,7 @@ static void pargrp_iomap_test(void)
 	req.ir_nwxfer.nxr_bytes = 1;
 	io_request_fini(&req);
 
-	rc = m0_indexvec_alloc(&ivec, IOVEC_NR, NULL, NULL);
+	rc = m0_indexvec_alloc(&ivec, IOVEC_NR, &m0t1fs_addb_ctx, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	index = INDEXPG;
@@ -590,7 +589,7 @@ static void nw_xfer_ops_test(void)
 	M0_SET0(&req);
 	M0_SET0(&src);
 	M0_SET0(&tgt);
-	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), NULL, NULL);
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), &m0t1fs_addb_ctx, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	index = 0;
@@ -660,7 +659,7 @@ static int file_io_ut_fini(void)
 	m0_free(lfile.f_dentry);
 	m0_layout_instance_fini(ci.ci_layout_instance);
 
-	m0_addb_ctx_fini(&m0t1fs_addb);
+	m0_addb_ctx_fini(&m0t1fs_addb_ctx);
 	m0_sm_group_fini(&csb.csb_iogroup);
 	m0_chan_fini(&csb.csb_iowait);
 

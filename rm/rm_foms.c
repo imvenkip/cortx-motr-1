@@ -40,9 +40,11 @@
 /**
  * Forward declaration
  */
-static int borrow_fom_create(struct m0_fop *fop, struct m0_fom **out);
+static int borrow_fom_create(struct m0_fop *fop, struct m0_fom **out,
+			     struct m0_reqh *reqh);
 static void borrow_fom_fini(struct m0_fom *fom);
-static int revoke_fom_create(struct m0_fop *fop, struct m0_fom **out);
+static int revoke_fom_create(struct m0_fop *fop, struct m0_fom **out,
+			     struct m0_reqh *reqh);
 static void revoke_fom_fini(struct m0_fom *fom);
 static int borrow_fom_tick(struct m0_fom *);
 static int revoke_fom_tick(struct m0_fom *);
@@ -60,10 +62,20 @@ static struct m0_rm_incoming_ops remote_incoming_ops = {
 	.rio_conflict = remote_incoming_conflict,
 };
 
+static void rm_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 /*
  * Borrow FOM ops.
  */
 static struct m0_fom_ops rm_fom_borrow_ops = {
+	.fo_addb_init     = rm_fom_addb_init,
 	.fo_fini          = borrow_fom_fini,
 	.fo_tick          = borrow_fom_tick,
 	.fo_home_locality = locality,
@@ -77,6 +89,7 @@ const struct m0_fom_type_ops rm_borrow_fom_type_ops = {
  * Revoke FOM ops.
  */
 static struct m0_fom_ops rm_fom_revoke_ops = {
+	.fo_addb_init     = rm_fom_addb_init,
 	.fo_fini          = revoke_fom_fini,
 	.fo_tick          = revoke_fom_tick,
 	.fo_home_locality = locality,
@@ -156,7 +169,8 @@ static void remote_incoming_conflict(struct m0_rm_incoming *in)
  * Generic RM request-FOM constructor.
  */
 static int request_fom_create(enum m0_rm_incoming_type type,
-			      struct m0_fop *fop, struct m0_fom **out)
+			      struct m0_fop *fop, struct m0_fom **out,
+			      struct m0_reqh *reqh)
 {
 	struct rm_request_fom *rqfom;
 	struct m0_fop_type    *fopt    = NULL;
@@ -194,7 +208,8 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	}
 
 	m0_fom_init(&rqfom->rf_fom, &fop->f_type->ft_fom_type,
-		    fom_ops, fop, reply_fop);
+		    fom_ops, fop, reply_fop, reqh,
+		    fop->f_type->ft_fom_type.ft_rstype);
 	/*
 	 * m0_fop_alloc() holds a reference. m0_fom_init() holds additional
 	 * reference to reply_fop. Hence use m0_fop_put() to release extra
@@ -497,9 +512,10 @@ static int revoke_fom_tick(struct m0_fom *fom)
 /*
  * A borrow FOM constructor.
  */
-static int borrow_fom_create(struct m0_fop *fop, struct m0_fom **out)
+static int borrow_fom_create(struct m0_fop *fop, struct m0_fom **out,
+			     struct m0_reqh *reqh)
 {
-	return request_fom_create(M0_RIT_BORROW, fop, out);
+	return request_fom_create(M0_RIT_BORROW, fop, out, reqh);
 }
 
 /*
@@ -513,9 +529,10 @@ static void borrow_fom_fini(struct m0_fom *fom)
 /*
  * A revoke FOM constructor.
  */
-static int revoke_fom_create(struct m0_fop *fop, struct m0_fom **out)
+static int revoke_fom_create(struct m0_fop *fop, struct m0_fom **out,
+			     struct m0_reqh *reqh)
 {
-	return request_fom_create(M0_RIT_REVOKE, fop, out);
+	return request_fom_create(M0_RIT_REVOKE, fop, out, reqh);
 }
 
 /*

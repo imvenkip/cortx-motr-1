@@ -46,7 +46,9 @@
    operation by the user, &tc. Once all the standard phases are completed, the
    fop specific operation is executed.
 
-   @see https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjA2Zmc0N3I3Z2Y&hl=en_US
+   @see <a href="https://docs.google.com/a/xyratex.com
+/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjA2Zmc0N3I3Z2Y&hl=en_US">
+High level design of M0 request handler</a>
    @{
  */
 
@@ -114,7 +116,17 @@ struct m0_reqh {
 	 */
 	bool                     rh_shutdown;
 
+	/**
+	   Private, fully configured, ADDB machine for the request handler.
+	   The first such machine created is used to configure the global
+	   machine, ::m0_addb_gmc.
+	 */
+	struct m0_addb_mc        rh_addb_mc;
+
+	/** @deprecated */
 	struct m0_addb_ctx       rh_addb;
+
+	struct m0_addb_ctx       rh_addb_ctx;
 
 	/**
 	    Channel to wait on for reqh shutdown.
@@ -135,23 +147,42 @@ struct m0_reqh {
 };
 
 /**
+   reqh init args
+  */
+struct m0_reqh_init_args {
+	struct m0_dtm           *rhia_dtm;
+	/** Database environment for this request handler */
+	struct m0_dbenv         *rhia_db;
+	struct m0_mdstore       *rhia_mdstore;
+	/** fol File operation log to record fop execution */
+	struct m0_fol           *rhia_fol;
+	struct m0_local_service *rhia_svc;
+	/** Hard-coded stob to store ADDB records
+	    @see cs_addb_storage_init()
+	  */
+	struct m0_stob          *rhia_addb_stob;
+};
+
+/**
    Initialises request handler instance provided by the caller.
 
    @param reqh Request handler instance to be initialised
-   @param db Database environment for this request handler
-   @param cdom Cob domain for this request handler
-   @param fol File operation log to record fop execution
 
    @todo use iostores instead of m0_cob_domain
 
    @see m0_reqh
    @post m0_reqh_invariant()
  */
-M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh, struct m0_dtm *dtm,
-			     struct m0_dbenv *db, struct m0_mdstore *mdstore,
-			     struct m0_fol *fol, struct m0_local_service *svc);
+M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
+			     const struct m0_reqh_init_args *args);
 
 M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh);
+
+/**
+  */
+#define M0_REQH_INIT(reqh, ...)                                 \
+	m0_reqh_init((reqh), &(const struct m0_reqh_init_args) { \
+		     __VA_ARGS__ })
 
 /**
    Destructor for request handler, no fop will be further executed
@@ -177,6 +208,14 @@ M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh);
    @pre fop != null
  */
 M0_INTERNAL void m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop);
+
+/**
+   Subroutine to generate ADDB statistics on resources consumed and managed
+   by a resource handler.
+   The subroutine is intended to be called from a FOM within the resource
+   handler.
+ */
+M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh);
 
 /**
    Waits on m0_reqh::rh_sd_signal using the given clink until
@@ -229,10 +268,11 @@ M0_TL_DECLARE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
      @see m0_reqh::rh_key
      @see ::keymax
 
-   - m0_reqh_key_find()
-     Locates and returns the data corresponding to the key in the request handler.
-     The key is used to locate the data in m0_reqh::rh_key[]. If the data
-     is NULL, then size amount of memory is allocated for the data and returned.
+   - m0_cs_reqh_key_find()
+     Locates and returns the data corresponding to the key in the request
+     handler.  The key is used to locate the data in
+     cs_reqh_context::rc_key[]. If the data is NULL, then size amount of memory
+     is allocated for the data and returned.
      @note As request handler itself does not have any knowledge about the
      purpose and usage of the allocated data, it is the responsibility of the
      caller to initialise the allocated data and verify the consistency of the

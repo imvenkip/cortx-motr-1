@@ -231,7 +231,7 @@ static void test_req_handle(struct m0_reqh *reqh,
 	struct fom_rdwr *obj;
 	int rc;
 
-	rc = rdwr_fom_create(&fom);
+	rc = rdwr_fom_create(&fom, reqh);
 	M0_UT_ASSERT(rc == 0);
 
 	obj = container_of(fom, struct fom_rdwr, fr_gen);

@@ -37,8 +37,6 @@
 #include "rpc/rpclib.h"    /* m0_rcp_client_connect */
 
 extern struct io_mem_stats iommstats;
-extern const struct m0_addb_ctx_type m0t1fs_addb_type;
-extern struct m0_addb_ctx m0t1fs_addb;
 
 M0_INTERNAL void io_bob_tlists_init(void);
 
@@ -232,8 +230,6 @@ static bool is_empty(const char *s)
 
 static int mount_opts_validate(const struct mount_opts *mops)
 {
-	M0_ENTRY();
-
 	if (is_empty(mops->mo_confd) && is_empty(mops->mo_local_conf))
 		M0_RETERR(-EINVAL, "Configuration source is not specified");
 
@@ -576,14 +572,13 @@ static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios);
 
 static void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 {
-	M0_ENTRY();
+	M0_ENTRY("csb = %p", csb);
 	M0_PRE(csb != NULL);
 
 	M0_SET0(csb);
 	m0_mutex_init(&csb->csb_mutex);
 	svc_ctx_tlist_init(&csb->csb_service_contexts);
 	m0_sm_group_init(&csb->csb_iogroup);
-	m0_addb_ctx_init(&m0t1fs_addb, &m0t1fs_addb_type, &m0_addb_global_ctx);
 	csb->csb_active = true;
 	m0_chan_init(&csb->csb_iowait);
 	m0_atomic64_set(&csb->csb_pending_io_nr, 0);
@@ -601,7 +596,6 @@ static void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
 	svc_ctx_tlist_fini(&csb->csb_service_contexts);
 	m0_mutex_fini(&csb->csb_mutex);
 	csb->csb_next_key = 0;
-	m0_addb_ctx_fini(&m0t1fs_addb);
 
 	M0_LEAVE();
 }

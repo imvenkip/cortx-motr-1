@@ -22,6 +22,10 @@
    @{
  */
 
+#undef M0_ADDB_RT_CREATE_DEFINITION
+#define M0_ADDB_RT_CREATE_DEFINITION
+#include "ioservice/io_service_addb.h"
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/tlist.h"
@@ -34,23 +38,11 @@
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
 
-M0_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", M0_INTERNAL,
+M0_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh",
+		   M0_INTERNAL,
                    struct m0_rios_buffer_pool, rios_bp_linkage, rios_bp_magic,
                    M0_IOS_BUFFER_POOL_MAGIC, M0_IOS_BUFFER_POOL_HEAD_MAGIC);
 M0_TL_DEFINE(bufferpools, M0_INTERNAL, struct m0_rios_buffer_pool);
-
-/* ADDB context for ios. */
-static struct m0_addb_ctx ios_addb_ctx;
-
-/* ADDB location for ios. */
-static const struct m0_addb_loc ios_addb_loc = {
-	.al_name = "io_service",
-};
-
-/* ADDB context type for ios. */
-static const struct m0_addb_ctx_type ios_addb_ctx_type = {
-	.act_name = "io_service",
-};
 
 
 /**
@@ -69,6 +61,7 @@ static void ios_fini(struct m0_reqh_service *service);
 
 static int ios_start(struct m0_reqh_service *service);
 static void ios_stop(struct m0_reqh_service *service);
+static void ios_stats_post_addb(struct m0_reqh_service *service);
 
 static void buffer_pool_not_empty(struct m0_net_buffer_pool *bp);
 static void buffer_pool_low(struct m0_net_buffer_pool *bp);
@@ -84,9 +77,10 @@ static const struct m0_reqh_service_type_ops ios_type_ops = {
  * I/O Service operations.
  */
 static const struct m0_reqh_service_ops ios_ops = {
-	.rso_start = ios_start,
-	.rso_stop  = ios_stop,
-	.rso_fini  = ios_fini
+	.rso_start           = ios_start,
+	.rso_stop            = ios_stop,
+	.rso_fini            = ios_fini,
+	.rso_stats_post_addb = ios_stats_post_addb
 };
 
 /**
@@ -97,7 +91,8 @@ struct m0_net_buffer_pool_ops buffer_pool_ops = {
 	.nbpo_below_threshold = buffer_pool_low,
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(m0_ios_type, &ios_type_ops, "ioservice");
+M0_REQH_SERVICE_TYPE_DEFINE(m0_ios_type, &ios_type_ops, "ioservice",
+			     &m0_addb_ct_ios_serv);
 
 /**
  * Buffer pool operation function. This function gets called when buffer pool
@@ -136,11 +131,29 @@ static void buffer_pool_low(struct m0_net_buffer_pool *bp)
 }
 
 /**
+   Array of ADDB record types corresponding to the fields of
+   struct m0_ios_rwfom_stats, times the number of elements in
+   the struct m0_reqh_io_service::rios_rwfom_stats array.
+
+   Must match the traversal order in ios_allocate().
+ */
+static struct m0_addb_rec_type *ios_rwfom_cntr_rts[] = {
+	/* read[0] */
+	&m0_addb_rt_ios_rfom_sizes,
+	&m0_addb_rt_ios_rfom_times,
+	/* write[1] */
+	&m0_addb_rt_ios_wfom_sizes,
+	&m0_addb_rt_ios_wfom_times,
+};
+
+/**
  * Registers I/O service with mero node.
  * Mero setup calls this function.
  */
 M0_INTERNAL int m0_ios_register(void)
 {
+	int i;
+
 	/* The onwire version-number structure is declared as a struct,
 	 * not a sequence (which is more like an array.
 	 * This avoid dynamic memory for every request and reply fop.
@@ -148,6 +161,19 @@ M0_INTERNAL int m0_ios_register(void)
 	M0_CASSERT(sizeof (struct m0_pool_version_numbers) ==
 		   sizeof (struct m0_fv_version));
 
+	m0_addb_ctx_type_register(&m0_addb_ct_ios_serv);
+	for (i = 0; i < ARRAY_SIZE(ios_rwfom_cntr_rts); ++i)
+		m0_addb_rec_type_register(ios_rwfom_cntr_rts[i]);
+#undef RT_REG
+#define RT_REG(n) m0_addb_rec_type_register(&m0_addb_rt_ios_##n)
+	RT_REG(rwfom_finish);
+	RT_REG(ccfom_finish);
+	RT_REG(cdfom_finish);
+#undef RT_REG
+
+	m0_addb_ctx_type_register(&m0_addb_ct_cob_create_fom);
+	m0_addb_ctx_type_register(&m0_addb_ct_cob_delete_fom);
+	m0_addb_ctx_type_register(&m0_addb_ct_cob_io_rw_fom);
 	m0_reqh_service_type_register(&m0_ios_type);
 	return m0_ioservice_fop_init();
 }
@@ -159,6 +185,12 @@ M0_INTERNAL void m0_ios_unregister(void)
 {
 	m0_reqh_service_type_unregister(&m0_ios_type);
 	m0_ioservice_fop_fini();
+}
+
+M0_INTERNAL bool m0_reqh_io_service_invariant(const struct m0_reqh_io_service
+					      *rios)
+{
+        return rios->rios_magic == M0_IOS_REQH_SVC_MAGIC;
 }
 
 /**
@@ -187,6 +219,7 @@ static int ios_create_buffer_pool(struct m0_reqh_service *service)
 	struct m0_reqh             *reqh;
 
 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
+	M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
 
 	reqh = service->rs_reqh;
 	m0_rwlock_read_lock(&reqh->rh_rwlock);
@@ -214,7 +247,7 @@ static int ios_create_buffer_pool(struct m0_reqh_service *service)
 			continue;
 
 		/* Buffer pool for network domain not found, create one */
-		M0_ALLOC_PTR_ADDB(newbp, &ios_addb_ctx, &ios_addb_loc);
+		IOS_ALLOC_PTR(newbp, &service->rs_addb_ctx, CREATE_BUF_POOL);
 		if (newbp == NULL)
 			return -ENOMEM;
 
@@ -281,6 +314,7 @@ static void ios_delete_buffer_pool(struct m0_reqh_service *service)
 	M0_PRE(service != NULL);
 
 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
+	M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
 
 	m0_tl_for(bufferpools, &serv_obj->rios_buffer_pools, bp) {
 
@@ -310,18 +344,27 @@ static int ios_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
 			const char *arg __attribute__((unused)))
 {
+	int                        i;
+	int                        j;
 	struct m0_reqh_io_service *ios;
 
 	M0_PRE(service != NULL && stype != NULL);
 
-	m0_addb_ctx_init(&ios_addb_ctx, &ios_addb_ctx_type,
-			 &m0_addb_global_ctx);
-
-	M0_ALLOC_PTR_ADDB(ios, &ios_addb_ctx, &ios_addb_loc);
+	IOS_ALLOC_PTR(ios, &m0_ios_addb_ctx, SERVICE_ALLOC);
 	if (ios == NULL) {
-		m0_addb_ctx_fini(&ios_addb_ctx);
 		return -ENOMEM;
 	}
+
+	for (i = 0, j = 0; i < ARRAY_SIZE(ios->rios_rwfom_stats); ++i) {
+#undef CNTR_INIT
+#define CNTR_INIT(_n)							\
+		m0_addb_counter_init(&ios->rios_rwfom_stats[i]	\
+				     .ifs_##_n##_cntr, ios_rwfom_cntr_rts[j++])
+		CNTR_INIT(sizes);
+		CNTR_INIT(times);
+#undef CNTR_INIT
+	}
+	M0_ASSERT(j == ARRAY_SIZE(ios_rwfom_cntr_rts));
 
         bufferpools_tlist_init(&ios->rios_buffer_pools);
         ios->rios_magic = M0_IOS_REQH_SVC_MAGIC;
@@ -343,12 +386,22 @@ static int ios_allocate(struct m0_reqh_service **service,
 static void ios_fini(struct m0_reqh_service *service)
 {
 	struct m0_reqh_io_service *serv_obj;
+	int                        i;
 
 	M0_PRE(service != NULL);
 
-	m0_addb_ctx_fini(&ios_addb_ctx);
-
 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
+	M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
+
+	for (i = 0; i < ARRAY_SIZE(&serv_obj->rios_rwfom_stats); ++i) {
+#undef CNTR_FINI
+#define CNTR_FINI(n)							\
+		m0_addb_counter_fini(&serv_obj->rios_rwfom_stats[i]	\
+				     .ifs_##n##_cntr)
+		CNTR_FINI(sizes);
+		CNTR_FINI(times);
+#undef CNTR_FINI
+	}
 	m0_free(serv_obj);
 }
 
@@ -394,6 +447,30 @@ static void ios_stop(struct m0_reqh_service *service)
 	M0_PRE(service != NULL);
 	m0_ios_poolmach_fini(service->rs_reqh);
 	ios_delete_buffer_pool(service);
+}
+
+/**
+   Posts ADDB statistics from an I/O service instance.
+ */
+static void ios_stats_post_addb(struct m0_reqh_service *service)
+{
+	struct m0_reqh_io_service *serv_obj;
+	struct m0_reqh            *reqh = service->rs_reqh;
+	struct m0_addb_ctx        *cv[] = { &service->rs_addb_ctx, NULL };
+	int                        i;
+
+	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
+	M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
+
+	for (i = 0; i < ARRAY_SIZE(&serv_obj->rios_rwfom_stats); ++i) {
+#undef CNTR_POST
+#define CNTR_POST(n)							\
+		M0_ADDB_POST_CNTR(&reqh->rh_addb_mc, cv, &serv_obj->	\
+				  rios_rwfom_stats[i].ifs_##n##_cntr)
+		CNTR_POST(sizes);
+		CNTR_POST(times);
+#undef CNTR_POST
+	}
 }
 
 /** @} endgroup io_service */

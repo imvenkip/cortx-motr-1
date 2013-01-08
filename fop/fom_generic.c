@@ -38,16 +38,6 @@
    @{
  */
 
-/**
- * Reqh addb event location identifier object.
- */
-static const struct m0_addb_loc reqh_gen_addb_loc = {
-        .al_name = "reqh generic"
-};
-
-#define FOM_GEN_ADDB_ADD(addb_ctx, name, rc)  \
-M0_ADDB_ADD((addb_ctx), &reqh_gen_addb_loc, m0_addb_func_fail, (name), (rc))
-
 struct m0_fop_type m0_fom_error_rep_fopt;
 
 M0_INTERNAL void m0_fom_generic_fini(void)
@@ -649,7 +639,6 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 	rc = fpd_phase->fpd_action(fom);
 	if (rc < 0) {
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-		FOM_GEN_ADDB_ADD(&reqh->rh_addb, fpd_phase->fpd_name, rc);
 		rc = M0_FSO_AGAIN;
 	} else if (rc == M0_FSO_AGAIN) {
 		m0_fom_phase_set(fom, fpd_phase->fpd_nextphase);

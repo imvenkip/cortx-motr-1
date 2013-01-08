@@ -17,11 +17,16 @@
  * Original creation date: 03/30/2010
  */
 
+#undef M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_CT_CREATE_DEFINITION
+#include "sns/sns_addb.h"
 #include "sns/sns.h"
 #include "sns/repair/cm.h"
 
 M0_INTERNAL int m0_sns_init()
 {
+	m0_addb_ctx_type_register(&m0_addb_ct_sns_mod);
+	m0_addb_ctx_type_register(&m0_addb_ct_sns_repair_serv);
 	return m0_sns_repair_cm_type_register();
 }
 

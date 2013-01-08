@@ -229,7 +229,7 @@ struct m0_layout {
 	/** Layout operations vector. */
 	const struct m0_layout_ops  *l_ops;
 
-	struct m0_addb_ctx           l_addb;
+	struct m0_addb_ctx           l_addb_ctx;
 
 	/** Magic number set while m0_layout object is initialised. */
 	uint64_t                     l_magic;

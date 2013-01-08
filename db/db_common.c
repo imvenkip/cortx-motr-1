@@ -35,22 +35,6 @@
    @{
  */
 
-const struct m0_addb_loc db_loc = {
-	.al_name = "db"
-};
-
-const struct m0_addb_ctx_type db_env_ctx_type = {
-	.act_name = "db-env"
-};
-
-const struct m0_addb_ctx_type db_table_ctx_type = {
-	.act_name = "db-table"
-};
-
-const struct m0_addb_ctx_type db_tx_ctx_type = {
-	.act_name = "db-tx"
-};
-
 M0_TL_DESCR_DEFINE(txw, "tx waiters", M0_INTERNAL, struct m0_db_tx_waiter,
 		   tw_tx, tw_magix, M0_DB_TX_WAITER_MAGIC,
 		   0xd1550c1ab1ea11ce /* dissociable alice  */);
@@ -63,12 +47,14 @@ M0_INTERNAL bool m0_db_buf_impl_invariant(const struct m0_db_buf *buf);
 M0_INTERNAL void m0_dbenv_common_init(struct m0_dbenv *env)
 {
 	M0_SET0(env);
-	m0_addb_ctx_init(&env->d_addb, &db_env_ctx_type, &m0_addb_global_ctx);
+	/** @todo m0_addb_ctx_init(&env->d_addb, &db_env_ctx_type,
+	    &m0_addb_global_ctx);
+	 */
 }
 
 M0_INTERNAL void m0_dbenv_common_fini(struct m0_dbenv *env)
 {
-	m0_addb_ctx_fini(&env->d_addb);
+	/** @todo m0_addb_ctx_fini(&env->d_addb); */
 }
 
 M0_INTERNAL void m0_table_common_init(struct m0_table *table,
@@ -77,12 +63,14 @@ M0_INTERNAL void m0_table_common_init(struct m0_table *table,
 {
 	table->t_env = env;
 	table->t_ops = ops;
-	m0_addb_ctx_init(&table->t_addb, &db_table_ctx_type, &env->d_addb);
+	/** @todo m0_addb_ctx_init(&table->t_addb, &db_table_ctx_type,
+	    &env->d_addb);
+	 */
 }
 
 M0_INTERNAL void m0_table_common_fini(struct m0_table *table)
 {
-	m0_addb_ctx_fini(&table->t_addb);
+	/** @todo m0_addb_ctx_fini(&table->t_addb); */
 }
 
 M0_INTERNAL bool m0_db_buf_invariant(const struct m0_db_buf *buf)
@@ -178,12 +166,14 @@ M0_INTERNAL void m0_db_common_tx_init(struct m0_db_tx *tx, struct m0_dbenv *env)
 {
 	tx->dt_env = env;
 	txw_tlist_init(&tx->dt_waiters);
-	m0_addb_ctx_init(&tx->dt_addb, &db_tx_ctx_type, &env->d_addb);
+	/** @todo m0_addb_ctx_init(&tx->dt_addb, &db_tx_ctx_type,
+	    &env->d_addb);
+	 */
 }
 
 M0_INTERNAL void m0_db_common_tx_fini(struct m0_db_tx *tx)
 {
-	m0_addb_ctx_fini(&tx->dt_addb);
+	/** @todo m0_addb_ctx_fini(&tx->dt_addb); */
 	txw_tlist_fini(&tx->dt_waiters);
 	tx->dt_env = NULL;
 }

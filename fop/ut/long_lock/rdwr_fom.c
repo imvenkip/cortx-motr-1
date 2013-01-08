@@ -41,12 +41,15 @@ struct fom_rdwr {
 static size_t fom_rdwr_home_locality(const struct m0_fom *fom);
 static void fop_rdwr_fom_fini(struct m0_fom *fom);
 static int fom_rdwr_tick(struct m0_fom *fom);
+static void fom_rdwr_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 
+extern struct m0_reqh_service_type ut_long_lock_service_type;
 /** Generic ops object for rdwr */
 static const struct m0_fom_ops fom_rdwr_ops = {
 	.fo_fini = fop_rdwr_fom_fini,
 	.fo_tick = fom_rdwr_tick,
-	.fo_home_locality = fom_rdwr_home_locality
+	.fo_home_locality = fom_rdwr_home_locality,
+	.fo_addb_init     = fom_rdwr_addb_init
 };
 
 /** FOM type specific functions for rdwr FOP. */
@@ -65,7 +68,17 @@ static size_t fom_rdwr_home_locality(const struct m0_fom *fom)
 	return locality++;
 }
 
-static int rdwr_fom_create(struct m0_fom **m)
+static void fom_rdwr_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+
+}
+
+static int rdwr_fom_create(struct m0_fom **m, struct m0_reqh *reqh)
 {
         struct m0_fom                   *fom;
         struct fom_rdwr			*fom_obj;
@@ -76,7 +89,8 @@ static int rdwr_fom_create(struct m0_fom **m)
         M0_UT_ASSERT(fom_obj != NULL);
 
 	fom = &fom_obj->fr_gen;
-	m0_fom_init(fom, &rdwr_fom_type, &fom_rdwr_ops, NULL, NULL);
+	m0_fom_init(fom, &rdwr_fom_type, &fom_rdwr_ops, NULL, NULL,
+	            reqh, &ut_long_lock_service_type);
 	m0_long_lock_link_init(&fom_obj->fr_link, fom);
 
 	*m = fom;

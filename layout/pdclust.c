@@ -97,9 +97,6 @@
 #include "layout/layout_internal.h"
 #include "layout/pdclust.h"
 
-extern const struct m0_addb_loc layout_addb_loc;
-extern struct m0_addb_ctx layout_global_ctx;
-
 static const struct m0_bob_type pdclust_bob = {
 	.bt_name         = "pdclust",
 	.bt_magix_offset = offsetof(struct m0_pdclust_layout, pl_magic),
@@ -117,9 +114,6 @@ static const struct m0_bob_type pdclust_instance_bob = {
 };
 
 M0_BOB_DEFINE(static, &pdclust_instance_bob, m0_pdclust_instance);
-
-M0_ADDB_EV_DEFINE(pdclust_tile_cache_hit, "pdclust_tile_cache_hit",
-		  M0_ADDB_EVENT_LAYOUT_TILE_CACHE_HIT, M0_ADDB_FLAG);
 
 static bool pdclust_allocated_invariant(const struct m0_pdclust_layout *pl)
 {
@@ -220,7 +214,8 @@ static int pdclust_allocate(struct m0_layout_domain *dom,
 err1_injected:
 	if (pl == NULL) {
 		m0_layout__log("pdclust_allocate", "M0_ALLOC_PTR() failed",
-			       &m0_addb_oom, &layout_global_ctx, lid, -ENOMEM);
+			       M0_LAYOUT_ADDB_LOC_PDCLUST_ALLOC,
+			       NULL, lid, -ENOMEM);
 		return -ENOMEM;
 	}
 
@@ -369,8 +364,7 @@ M0_INTERNAL struct m0_layout *m0_pdl_to_layout(struct m0_pdclust_layout *pl)
 }
 
 M0_INTERNAL struct m0_pdclust_instance *m0_layout_instance_to_pdi(const struct
-								  m0_layout_instance
-								  *li)
+							 m0_layout_instance *li)
 {
 	struct m0_pdclust_instance *pi;
 	pi = bob_of(li, struct m0_pdclust_instance, pi_base,
@@ -681,8 +675,12 @@ static uint64_t permute_column(struct m0_pdclust_instance *pi,
 		tc->tc_tile_no = omega;
 	}
 
-	M0_ADDB_ADD(&pl->pl_base.sl_base.l_addb, &layout_addb_loc,
-		    pdclust_tile_cache_hit, tc->tc_tile_no == omega);
+	/**
+	 * @todo Not sure if this should be replaced by an ADDB DP or a M0_LOG.
+	 *
+	 * M0_ADDB_ADD(&pl->pl_base.sl_base.l_addb_ctx, &layout_addb_loc,
+	 *	    pdclust_tile_cache_hit, tc->tc_tile_no == omega);
+	 */
 
 	M0_POST(tc->tc_permute[t] < attr.pa_P);
 	M0_POST(tc->tc_inverse[tc->tc_permute[t]] == t);
@@ -851,7 +849,8 @@ err3_injected:
 		if (rc == -ENOMEM)
 			m0_layout__log("pdclust_instance_build",
 				       "M0_ALLOC() failed",
-				       &m0_addb_oom, &l->l_addb, l->l_id, rc);
+				       M0_LAYOUT_ADDB_LOC_PDCLUST_INST_BUILD,
+				       &l->l_addb_ctx, l->l_id, rc);
 		if (pi != NULL) {
 			m0_free(tc->tc_inverse);
 			m0_free(tc->tc_permute);

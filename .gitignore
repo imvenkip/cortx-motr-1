@@ -104,6 +104,7 @@ gmon.out
 /ut-sandbox/
 /ub-sandbox/
 /m0.trace.*
+*.log
 
 #
 # Generated documentation

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,38 +14,23 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 08/09/2010
+ * Original author: Rajanikant Chirmade <Rajanikant_Chirmade@xyratex.com>
+ * Original creation date: 12/05/2012
  */
+#undef M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_CT_CREATE_DEFINITION
+#undef M0_ADDB_RT_CREATE_DEFINITION
+#define M0_ADDB_RT_CREATE_DEFINITION
+#include "rpc/rpc_addb.h"
 
-#include <linux/kernel.h> /* printk */
-
-#include "addb/addb.h"
-
-/**
-   @addtogroup addb
-
-   <b>Kernel space console log of addb messages.</b>
-
-   @{
- */
-
-M0_INTERNAL void m0_addb_console(enum m0_addb_ev_level lev,
-				 struct m0_addb_dp *dp)
-{
-	struct m0_addb_ctx       *ctx;
-	const struct m0_addb_ev  *ev;
-
-	ctx = dp->ad_ctx;
-	ev  = dp->ad_ev;
-	/* XXX select KERN_ based on lev */
-	printk(KERN_ERR "addb: ctx: %s/%p, loc: %s, ev: %s/%s, "
-	       "rc: %i name: %s\n",
-	       ctx->ac_type->act_name, ctx, dp->ad_loc->al_name,
-	       ev->ae_ops->aeo_name, ev->ae_name, (int)dp->ad_rc, dp->ad_name);
-}
-
-/** @} end of addb group */
+M0_EXPORTED(m0_addb_ct_rpc_mod);
+M0_EXPORTED(m0_addb_ct_rpc_machine);
+M0_EXPORTED(m0_addb_ct_rpc_frm);
+M0_EXPORTED(m0_addb_rt_rpc_stats_items);
+M0_EXPORTED(m0_addb_rt_rpc_stats_packets);
+M0_EXPORTED(m0_addb_rt_rpc_stats_bytes);
+M0_EXPORTED(m0_addb_rt_rpc_sent_item_sizes);
+M0_EXPORTED(m0_addb_rt_rpc_rcvd_item_sizes);
 
 /*
  *  Local variables:

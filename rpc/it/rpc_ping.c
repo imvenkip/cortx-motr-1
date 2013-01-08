@@ -136,7 +136,9 @@ module_param(max_rpc_msg_size, int, S_IRUGO);
 MODULE_PARM_DESC(max_rpc_msg_size, "maximum RPC message size");
 #endif
 
-static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size)
+static int build_endpoint_addr(enum ep_type type,
+			       char *out_buf,
+			       size_t buf_size)
 {
 	char *ep_name;
 	char *nid;
@@ -331,7 +333,8 @@ static int run_client(void)
 	if (rc != 0)
 		goto fop_fini;
 
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	/** @todo replace &m0_addb_proc_ctx */
+	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	if (rc != 0)
 		goto xprt_fini;
 
@@ -480,8 +483,6 @@ int main(int argc, char *argv[])
 #endif
 {
 	int rc;
-
-	m0_addb_choose_default_level(AEL_WARN);
 
 #ifndef __KERNEL__
 	rc = M0_GETOPTS("m0rpcping", argc, argv,

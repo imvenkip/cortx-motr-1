@@ -33,6 +33,11 @@ struct m0_fid;
 struct m0_fop;
 struct m0_cob;
 
+/**
+   @defgroup mdstore Meta-data Store
+   @{
+ */
+
 /** Maximal name len during readdir */
 #define M0_MD_MAX_NAME_LEN    256
 
@@ -224,6 +229,18 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 M0_INTERNAL int m0_mdstore_path(struct m0_mdstore       *md,
 				struct m0_fid           *fid,
 				char                   **path);
+
+/**
+   Module initializer.
+ */
+M0_INTERNAL int m0_mdstore_mod_init(void);
+
+/**
+   Module finalizer.
+ */
+M0_INTERNAL void m0_mdstore_mod_fini(void);
+
+/** @} */ /* end of mdstore group */
 
 /* __MERO_MDSTORE_MDSTORE_H__ */
 #endif

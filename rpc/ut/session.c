@@ -22,8 +22,6 @@
 #include "lib/mutex.h"
 #include "lib/finject.h"
 #include "fop/fop.h"
-
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 enum {

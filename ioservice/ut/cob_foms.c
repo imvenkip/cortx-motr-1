@@ -74,8 +74,6 @@ enum {
 	COB_TEST_ID               = 1,
 	TEST_ENV_COB              = 1,
 	TEST_ENV_STOB             = 2,
-	COBFID_SETUP_REFCOUNT     = 1,
-	COBFID_SETUP_REFCOUNT_NR  = 10,
 };
 
 #define SERVER_EP_ADDR              "0@lo:12345:34:123"
@@ -110,7 +108,8 @@ struct cobthread_arg {
 
 static char *server_args[] = {
 	"cobfoms_ut", "-r", "-p", "-T", "Linux", "-D", "cobfoms_ut.db", "-S",
-	"cobfoms_ut_stob", "-e", SERVER_ENDP, "-s", "ioservice",
+	"cobfoms_ut_stob", "-A", "cobfoms_ut_addb_stob", "-e", SERVER_ENDP,
+	"-s", "ioservice"
 };
 
 static void cobfoms_utinit(void)
@@ -126,7 +125,7 @@ static void cobfoms_utinit(void)
 	rc = m0_net_xprt_init(cut->cu_xprt);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_net_domain_init(&cut->cu_nd, cut->cu_xprt);
+	rc = m0_net_domain_init(&cut->cu_nd, cut->cu_xprt, &m0_addb_proc_ctx);
 	M0_UT_ASSERT(rc == 0);
 
 	M0_ALLOC_ARR(cut->cu_stypes, 1);
@@ -440,12 +439,12 @@ static void fom_create(struct m0_fom **fom, enum cob_fom_type fomtype)
 
 	base_fom = *fom;
 	m0_fom_type_init(&ft, NULL, &m0_ios_type, &m0_generic_conf);
-	m0_fom_init(base_fom, &ft,
-		    fomtype == COB_CREATE ? &cc_fom_ops : &cd_fom_ops,
-		    NULL, NULL);
 
 	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx, "ioservice");
 	M0_UT_ASSERT(reqh != NULL);
+	m0_fom_init(base_fom, &ft,
+		    fomtype == COB_CREATE ? &cc_fom_ops : &cd_fom_ops,
+		    NULL, NULL, reqh, &m0_ios_type);
 
 	base_fom->fo_service = m0_reqh_service_find(ft.ft_rstype, reqh);
 	M0_UT_ASSERT(base_fom->fo_service != NULL);

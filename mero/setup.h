@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -117,6 +117,25 @@
    @{
  */
 
+enum {
+	M0_AD_STOB_ID_DEFAULT = 0x0,
+	M0_AD_STOB_ID_LO      = 0xadf11e, /* AD file */
+	M0_ADDB_STOB_ID_HI    = M0_AD_STOB_ID_DEFAULT,
+	M0_ADDB_STOB_ID_LI    = 1,
+};
+
+enum {
+	M0_LINUX_STOB = 0,
+	M0_AD_STOB,
+	M0_STOB_TYPE_NR,
+};
+
+/** String representations corresponding to the stob types. */
+const char *m0_cs_stypes[M0_STOB_TYPE_NR];
+
+/** Well-known stob ID for an addb stob. */
+const struct m0_stob_id m0_addb_stob_id;
+
 /**
  * Auxiliary structure used to pass command line arguments to cs_parse_args().
  */
@@ -186,7 +205,8 @@ struct m0_mero {
 	/** Maximum RPC message size. */
 	size_t                   cc_max_rpc_msg_size;
 
-	struct m0_addb_ctx       cc_addb;
+	/** Segment size for any ADDB stob. */
+	size_t                   cc_addb_stob_segment_size;
 
 	/** command line arguments */
 	struct cs_args		 cc_args;
@@ -201,7 +221,7 @@ struct m0_mero {
    @param out File descriptor to which output is written
  */
 int m0_cs_init(struct m0_mero *cs_mero,
-	       struct m0_net_xprt **xprts, size_t xprts_nr, FILE * out);
+	       struct m0_net_xprt **xprts, size_t xprts_nr, FILE *out);
 /**
    Finalises mero context.
  */
@@ -230,8 +250,7 @@ int m0_cs_setup_env(struct m0_mero *cs_mero, int argc, char **argv);
 int m0_cs_start(struct m0_mero *cs_mero);
 
 M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
-							  const struct
-							  m0_stob_id *stob_id);
+					      const struct m0_stob_id *stob_id);
 
 /**
    Find a request handler service within a given Mero instance.
@@ -243,8 +262,7 @@ M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
 
    @retval  NULL of reqh instnace.
  */
-struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx,
-			       const char *service_name);
+struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx, const char *service_name);
 
 /**
  * Returns instance of struct m0_mero given a
@@ -253,15 +271,12 @@ struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx,
  */
 M0_INTERNAL struct m0_mero *m0_cs_ctx_get(struct m0_reqh *reqh);
 
-M0_INTERNAL struct m0_net_domain *m0_cs_net_domain_locate(struct m0_mero
-							  *cctx,
-							  const char
-							  *xprt_name);
+M0_INTERNAL struct m0_net_domain *m0_cs_net_domain_locate(struct m0_mero *cctx,
+							  const char *xprtname);
 
 /** @} endgroup m0d */
 
-/* __MERO_MERO_MERO_SETUP_H__ */
-#endif
+#endif /* __MERO_MERO_MERO_SETUP_H__ */
 
 /*
  *  Local variables:
@@ -272,4 +287,3 @@ M0_INTERNAL struct m0_net_domain *m0_cs_net_domain_locate(struct m0_mero
  *  scroll-step: 1
  *  End:
  */
-

@@ -40,9 +40,6 @@
 #include "layout/layout_internal.h"
 #include "layout/linear_enum.h"
 
-extern const struct m0_addb_loc layout_addb_loc;
-extern struct m0_addb_ctx layout_global_ctx;
-
 static const struct m0_bob_type linear_bob = {
 	.bt_name         = "linear_enum",
 	.bt_magix_offset = offsetof(struct m0_layout_linear_enum, lla_magic),
@@ -91,8 +88,8 @@ static int linear_allocate(struct m0_layout_domain *dom,
 err1_injected:
 	if (lin_enum == NULL) {
 		m0_layout__log("linear_allocate", "M0_ALLOC_PTR() failed",
-			       &m0_addb_oom, &layout_global_ctx, LID_NONE,
-			       -ENOMEM);
+			       M0_LAYOUT_ADDB_LOC_LIN_ALLOC, NULL,
+			       LID_NONE, -ENOMEM);
 		return -ENOMEM;
 	}
 	m0_layout__enum_init(dom, &lin_enum->lle_base,

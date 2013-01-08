@@ -75,7 +75,7 @@ struct m0_stob_type {
 	const char                   *st_name;
 	const uint32_t                st_magic;
 	struct m0_tl		      st_domains; /**< list of domains */
-	struct m0_addb_ctx            st_addb;
+	/** @todo struct m0_addb_ctx            st_addb; */
 };
 
 struct m0_stob_type_op {
@@ -118,7 +118,7 @@ struct m0_stob_domain {
 	struct m0_stob_type            *sd_type;
 	struct m0_tlink                 sd_domain_linkage;
 	struct m0_rwlock                sd_guard;
-	struct m0_addb_ctx              sd_addb;
+	/** @todo struct m0_addb_ctx              sd_addb; */
 	uint64_t                        sd_magic;
 };
 
@@ -201,8 +201,8 @@ struct m0_stob {
 	enum m0_stob_state       so_state;
 	const struct m0_stob_op *so_op;
 	struct m0_stob_id	 so_id;      /**< unique id of this object */
-	struct m0_stob_domain 	*so_domain;  /**< its domain */
-	struct m0_addb_ctx       so_addb;
+	struct m0_stob_domain   *so_domain;  /**< its domain */
+	/** @todo struct m0_addb_ctx       so_addb; */
 };
 
 struct m0_stob_op {
@@ -378,7 +378,7 @@ M0_INTERNAL int m0_stob_create_helper(struct m0_stob_domain *dom,
 
    Externally, adieu usage has the following phases:
 
-       @li diovec registration. Some types of storage objects require that
+       @li m0_bufvec registration. Some types of storage objects require that
        buffers from which IO is done are registered with its IO sub-system
        (examples: RDMA). This step is optional, IO from unregistered buffers
        should also be possible (albeit might incur additional data-copy).
@@ -478,7 +478,7 @@ M0_INTERNAL int m0_stob_create_helper(struct m0_stob_domain *dom,
 
    @li Linux file system based one, using Linux libaio interfaces;
 
-   @li AD stob type implements adiue on top of underlying backing store storage
+   @li AD stob type implements adieu on top of underlying backing store storage
    object.
 
    <b>State.</b>
@@ -754,6 +754,17 @@ M0_INTERNAL void *m0_stob_addr_open(const void *buf, uint32_t shift);
 M0_INTERNAL void m0_stob_iovec_sort(struct m0_stob_io *stob);
 
 /** @} end member group adieu */
+
+/**
+   Module initializer.
+ */
+M0_INTERNAL int m0_stob_mod_init(void);
+
+/**
+   Module finalizer.
+ */
+M0_INTERNAL void m0_stob_mod_fini(void);
+
 
 /** @} end group stob */
 

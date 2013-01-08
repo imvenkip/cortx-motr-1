@@ -46,14 +46,17 @@ struct m0_fop_type trigger_rep_fop_fopt;
 static struct file_sizes fs;
 
 static int trigger_fom_tick(struct m0_fom *fom);
-static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out);
+static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
+			      struct m0_reqh *reqh);
 static void trigger_fom_fini(struct m0_fom *fom);
 static size_t trigger_fom_home_locality(const struct m0_fom *fom);
+static void trigger_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 
 static const struct m0_fom_ops trigger_fom_ops = {
 	.fo_fini          = trigger_fom_fini,
 	.fo_tick          = trigger_fom_tick,
 	.fo_home_locality = trigger_fom_home_locality,
+	.fo_addb_init     = trigger_fom_addb_init
 };
 
 static const struct m0_fom_type_ops trigger_fom_type_ops = {
@@ -131,7 +134,8 @@ int m0_sns_repair_trigger_fop_init(void)
 }
 
 
-static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out)
+static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
+			      struct m0_reqh *reqh)
 {
 	struct m0_fom *fom;
 
@@ -142,7 +146,8 @@ static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out)
 	if (fom == NULL)
 		return -ENOMEM;
 
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, &trigger_fom_ops, fop, NULL);
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, &trigger_fom_ops, fop, NULL,
+		    reqh, fop->f_type->ft_fom_type.ft_rstype);
 
 	*out = fom;
 	return 0;
@@ -240,6 +245,15 @@ static int trigger_fom_tick(struct m0_fom *fom)
 	}
 
 	return rc;
+}
+
+static void trigger_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 /*

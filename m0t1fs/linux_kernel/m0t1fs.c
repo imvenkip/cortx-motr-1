@@ -32,6 +32,10 @@
 #include "mdservice/md_fops.h"
 #include "rpc/rpclib.h"
 
+static char *node_uuid = "00000000-0000-0000-0000-000000000000"; /* nil UUID */
+module_param(node_uuid, charp, S_IRUGO);
+MODULE_PARM_DESC(node_uuid, "UUID of Mero node");
+
 static char *local_addr = "0@lo:12345:45:6";
 
 module_param(local_addr, charp, S_IRUGO);
@@ -55,6 +59,8 @@ static void m0t1fs_rpc_fini(void);
 static int  m0t1fs_layout_init(void);
 static void m0t1fs_layout_fini(void);
 
+struct m0_addb_ctx m0t1fs_addb_ctx;
+
 static struct file_system_type m0t1fs_fs_type = {
 	.owner        = THIS_MODULE,
 	.name         = "m0t1fs",
@@ -74,11 +80,20 @@ struct m0t1fs_globals m0t1fs_globals = {
 	.g_db_name    = M0T1FS_DB_NAME,
 };
 
+M0_INTERNAL const char *m0t1fs_param_node_uuid_get(void)
+{
+	return node_uuid;
+}
+
 M0_INTERNAL int m0t1fs_init(void)
 {
 	int rc;
 
 	M0_ENTRY();
+
+	m0_addb_ctx_type_register(&m0_addb_ct_m0t1fs_mod);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0t1fs_addb_ctx, &m0_addb_ct_m0t1fs_mod,
+	                 &m0_addb_proc_ctx);
 
 	m0t1fs_globals.g_laddr = local_addr;
 
@@ -133,6 +148,8 @@ ioservice_fini:
 fid_fini:
         m0_fid_fini();
 out:
+	m0_addb_ctx_fini(&m0t1fs_addb_ctx);
+
 	M0_LEAVE("rc: %d", rc);
 	M0_ASSERT(rc != 0);
 	return rc;
@@ -152,6 +169,8 @@ M0_INTERNAL void m0t1fs_fini(void)
 	m0_ioservice_fop_fini();
 	m0_fid_fini();
 
+	m0_addb_ctx_fini(&m0t1fs_addb_ctx);
+
 	M0_LEAVE();
 }
 
@@ -170,7 +189,8 @@ static int m0t1fs_net_init(void)
 	if (rc != 0)
 		goto out;
 
-	rc = m0_net_domain_init(ndom, xprt);
+	/** @todo replace &m0_addb_proc_ctx */
+	rc = m0_net_domain_init(ndom, xprt, &m0_addb_proc_ctx);
 	if (rc != 0)
 		m0_net_xprt_fini(xprt);
 out:
@@ -196,7 +216,7 @@ static int m0t1fs_rpc_init(void)
 	struct m0_rpc_machine     *rpc_machine;
 	struct m0_net_domain      *ndom;
 	struct m0_net_transfer_mc *tm;
-	char                      *laddr;
+	const char                *laddr;
 	char                      *db_name;
 	int                        rc;
 	struct m0_net_buffer_pool *buffer_pool;

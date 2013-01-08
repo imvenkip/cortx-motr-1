@@ -24,6 +24,7 @@
 #include "lib/arith.h" /* M0_CNT_INC, M0_CNT_DEC */
 #include "mero/magic.h"
 #include "net/buffer_pool.h"
+#include "net/net_internal.h"
 
 /**
    @addtogroup net_buffer_pool Network Buffer Pool
@@ -36,9 +37,6 @@ M0_TL_DESCR_DEFINE(m0_net_pool, "net_buffer_pool", M0_INTERNAL,
 		   M0_NET_BUFFER_LINK_MAGIC, M0_NET_BUFFER_HEAD_MAGIC);
 M0_TL_DEFINE(m0_net_pool, M0_INTERNAL, struct m0_net_buffer);
 
-static const struct m0_addb_loc m0_pool_addb_loc = {
-	.al_name = "buffer pool"
-};
 static bool pool_colour_check(const struct m0_net_buffer_pool *pool);
 static bool pool_lru_buffer_check(const struct m0_net_buffer_pool *pool);
 
@@ -97,14 +95,17 @@ M0_INTERNAL int m0_net_buffer_pool_init(struct m0_net_buffer_pool *pool,
 	if (colours == 0)
 		pool->nbp_colours = NULL;
 	else {
-		M0_ALLOC_ARR_ADDB(pool->nbp_colours, colours, &ndom->nd_addb,
-				 &m0_pool_addb_loc);
-		if(pool->nbp_colours == NULL)
+		M0_ALLOC_ARR_ADDB(pool->nbp_colours, colours,
+				  &m0_addb_gmc, M0_NET_ADDB_LOC_BP_INIT,
+				  &m0_net_addb_ctx, &ndom->nd_addb_ctx);
+		if (pool->nbp_colours == NULL)
 			return -ENOMEM;
 	}
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &pool->nbp_addb_ctx,
+			 &m0_addb_ct_net_bp, &ndom->nd_addb_ctx);
 	m0_mutex_init(&pool->nbp_mutex);
 	m0_net_pool_tlist_init(&pool->nbp_lru);
-	for (i = 0; i < colours; i++)
+	for (i = 0; i < colours; ++i)
 		m0_net_tm_tlist_init(&pool->nbp_colours[i]);
 	return 0;
 }
@@ -176,6 +177,7 @@ M0_INTERNAL void m0_net_buffer_pool_fini(struct m0_net_buffer_pool *pool)
 	if (pool->nbp_colours != NULL)
 		m0_free(pool->nbp_colours);
 	m0_mutex_fini(&pool->nbp_mutex);
+	m0_addb_ctx_fini(&pool->nbp_addb_ctx);
 }
 
 M0_INTERNAL void m0_net_buffer_pool_lock(struct m0_net_buffer_pool *pool)

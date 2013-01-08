@@ -19,6 +19,15 @@
  * Original creation date: 30/11/2011
  */
 
+/*
+ * Define the ADDB types in this file.
+ */
+#undef M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_CT_CREATE_DEFINITION
+#undef M0_ADDB_RT_CREATE_DEFINITION
+#define M0_ADDB_RT_CREATE_DEFINITION
+#include "cm/cm_addb.h"
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
 
 #include "lib/trace.h"   /* M0_LOG */
@@ -278,23 +287,7 @@ M0_TL_DEFINE(cmtypes, static, struct m0_cm_type);
 static struct m0_bob_type cmtypes_bob;
 M0_BOB_DEFINE(static, &cmtypes_bob, m0_cm_type);
 
-
-M0_ADDB_EV_DEFINE(cm_setup_fail, "cm_setup_fail",
-		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
-
-M0_ADDB_EV_DEFINE(cm_start_fail, "cm_start_fail",
-		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
-
-M0_ADDB_EV_DEFINE(cm_stop_fail, "cm_stop_fail",
-		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
-
-const struct m0_addb_loc m0_cm_addb_loc = {
-	.al_name = "copy machine"
-};
-
-const struct m0_addb_ctx_type m0_cm_addb_ctx = {
-	.act_name = "copy machine"
-};
+struct m0_addb_ctx m0_cm_mod_ctx;
 
 static void cm_move(struct m0_cm *cm, int rc, enum m0_cm_state state,
 		    enum m0_cm_failure failure);
@@ -351,10 +344,15 @@ static const struct m0_sm_conf cm_sm_conf = {
 M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, enum m0_cm_failure failure,
 			    int rc)
 {
+	struct m0_addb_mc *addb_mc;
+
 	M0_ENTRY("cm: %p fc: %u rc: %d", cm, failure, rc);
 
 	M0_PRE(cm != NULL);
 	M0_PRE(rc < 0);
+	M0_PRE(cm->cm_service.rs_reqh != NULL);
+
+	addb_mc = &cm->cm_service.rs_reqh->rh_addb_mc;
 
 	/*
 	 * Set the corresponding error code in sm and move the copy machine
@@ -367,7 +365,7 @@ M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, enum m0_cm_failure failure,
 	 * @todo A better implementation would have been creating a failure
 	 * descriptor table which would contain a ADDB event and a
 	 * "failure_action" op for each failure. This would also involve
-	 * modifying the M0_ADDB_ADD macro.
+	 * modifying the addb call.
 	 */
 	switch (failure) {
 	case M0_CM_ERR_SETUP:
@@ -377,23 +375,23 @@ M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, enum m0_cm_failure failure,
 		 * ensure that the copy machine is finalised by calling
 		 * m0_cm_fini().
 		 */
-		M0_ADDB_ADD(&cm->cm_addb , &m0_cm_addb_loc, cm_setup_fail,
-			    "cm_setup_fail", rc);
+		M0_ADDB_FUNC_FAIL(addb_mc, M0_CM_ADDB_LOC_SETUP_FAIL, rc,
+				  &m0_cm_mod_ctx, &cm->cm_service.rs_addb_ctx);
 		break;
 
 	case M0_CM_ERR_START:
 		/*
 		 * Reset the rc and move the copy machine to IDLE state.
 		 */
-		M0_ADDB_ADD(&cm->cm_addb , &m0_cm_addb_loc, cm_start_fail,
-			    "cm_start_fail", rc);
+		M0_ADDB_FUNC_FAIL(addb_mc, M0_CM_ADDB_LOC_START_FAIL, rc,
+				  &m0_cm_mod_ctx, &cm->cm_service.rs_addb_ctx);
 		cm->cm_mach.sm_rc = 0;
 		m0_cm_state_set(cm, M0_CMS_IDLE);
 		break;
 
 	case M0_CM_ERR_STOP:
-		M0_ADDB_ADD(&cm->cm_addb , &m0_cm_addb_loc, cm_stop_fail,
-			    "cm_stop_fail", rc);
+		M0_ADDB_FUNC_FAIL(addb_mc, M0_CM_ADDB_LOC_STOP_FAIL, rc,
+				  &m0_cm_mod_ctx, &cm->cm_service.rs_addb_ctx);
 		cm->cm_mach.sm_rc = 0;
 		m0_cm_state_set(cm, M0_CMS_IDLE);
 		break;
@@ -544,6 +542,9 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 M0_INTERNAL int m0_cm_module_init(void)
 {
 	M0_ENTRY();
+	m0_addb_ctx_type_register(&m0_addb_ct_cm_mod);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_cm_mod_ctx,
+			 &m0_addb_ct_cm_mod, &m0_addb_proc_ctx);
 	cmtypes_tlist_init(&cmtypes);
 	m0_bob_type_tlist_init(&cmtypes_bob, &cmtypes_tl);
 	m0_mutex_init(&cmtypes_mutex);
@@ -558,6 +559,7 @@ M0_INTERNAL void m0_cm_module_fini(void)
 	M0_ENTRY();
 	cmtypes_tlist_fini(&cmtypes);
 	m0_mutex_fini(&cmtypes_mutex);
+        m0_addb_ctx_fini(&m0_cm_mod_ctx);
 	M0_LEAVE();
 }
 
@@ -584,11 +586,10 @@ M0_INTERNAL int m0_cm_init(struct m0_cm *cm, struct m0_cm_type *cm_type,
 	cm->cm_type = cm_type;
 	cm->cm_ops = cm_ops;
 	cm->cm_id = cm_id_generate();
-	m0_addb_ctx_init(&cm->cm_addb, &m0_cm_addb_ctx,
-			 &m0_addb_global_ctx);
 	m0_sm_group_init(&cm->cm_sm_group);
+	/* Note: ADDB context not initialized until m0_reqh_service_start() */
 	m0_sm_init(&cm->cm_mach, &cm_sm_conf, M0_CMS_INIT,
-		   &cm->cm_sm_group, &cm->cm_addb);
+		   &cm->cm_sm_group, &cm->cm_service.rs_addb_ctx);
 	/*
 	 * We lock the copy machine here just to satisfy the
 	 * pre-condition of m0_cm_state_get and not to control
@@ -624,7 +625,6 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm)
 
 	m0_sm_fini(&cm->cm_mach);
 	m0_sm_group_fini(&cm->cm_sm_group);
-	m0_addb_ctx_fini(&cm->cm_addb);
 
 	M0_LEAVE();
 }

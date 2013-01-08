@@ -17,6 +17,7 @@ fi
 MERO_M0T1FS_MOUNT_DIR=/tmp/test_m0t1fs_`date +"%d-%m-%Y_%T"`
 MERO_M0T1FS_TEST_DIR=/tmp/test_m0t1fs_$$
 #MERO_M0T1FS_TEST_DIR=/tmp/test_m0t1fs
+
 MERO_MODULE=m0mero
 
 
@@ -33,6 +34,7 @@ export M0_TRACE_PRINT_CONTEXT=short
 
 MERO_TEST_LOGFILE=`pwd`/mero_`date +"%Y-%m-%d_%T"`.log
 
+MERO_ADDBSERVICE_NAME=addb
 MERO_IOSERVICE_NAME=ioservice
 MERO_MDSERVICE_NAME=mdservice
 MERO_STOB_DOMAIN=linux

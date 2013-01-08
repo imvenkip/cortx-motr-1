@@ -39,6 +39,7 @@ extern const struct m0_test_suite balloc_ut;
 extern const struct m0_test_suite buffer_pool_ut;
 extern const struct m0_test_suite bulkio_client_ut;
 extern const struct m0_test_suite bulkio_server_ut;
+extern const struct m0_test_suite m0_addb_ut;
 extern const struct m0_test_suite m0_fop_lock_ut;
 extern const struct m0_test_suite m0_net_bulk_if_ut;
 extern const struct m0_test_suite m0_net_bulk_mem_ut;
@@ -97,6 +98,7 @@ void add_uts(void)
 	m0_ut_add(&buffer_pool_ut);
 	m0_ut_add(&bulkio_client_ut);
 	m0_ut_add(&bulkio_server_ut);
+	m0_ut_add(&m0_addb_ut);
 	m0_ut_add(&m0_fop_lock_ut);
 	m0_ut_add(&m0_net_bulk_if_ut);
 	m0_ut_add(&m0_net_bulk_mem_ut);
@@ -141,7 +143,6 @@ void add_uts(void)
 	m0_ut_add(&xcode_ff2c_ut);
 	m0_ut_add(&xcode_ut);
 	/* These tests have redirection of messages. */
-	m0_ut_add(&addb_ut);
 	m0_ut_add(&console_ut);
 	m0_ut_add(&yaml2db_ut);
 }

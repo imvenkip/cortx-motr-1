@@ -27,8 +27,6 @@
 #include "lib/trace.h"
 #include "stob/stob.h"
 #include "net/net.h"
-
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 /**
@@ -57,17 +55,23 @@ static void session_gen_fom_fini(struct m0_fom *fom)
    conn establish, conn terminate, session establish,
    session terminate fop types.
  */
-static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m)
+static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m,
+				  struct m0_reqh *reqh)
 {
-	const struct m0_fom_ops *fom_ops;
-	struct m0_fom           *fom;
-	struct m0_fop_type      *reply_fopt;
-	struct m0_fop           *reply_fop;
-	int                      rc;
+	const struct m0_fom_ops		     *fom_ops;
+	struct m0_fom			     *fom;
+	struct m0_fop_type		     *reply_fopt;
+	struct m0_fop			     *reply_fop;
+	int				      rc;
+	struct m0_rpc_fop_conn_establish_ctx *ctx;
 
 	M0_ENTRY("fop: %p", fop);
 
-	M0_ALLOC_PTR(fom);
+	ctx = container_of(fop, struct m0_rpc_fop_conn_establish_ctx, cec_fop);
+	M0_ASSERT(ctx != NULL);
+
+	RPC_ALLOC_PTR(fom, SESSION_GEN_FOM_CREATE,
+		      &m0_rpc_addb_ctx);
 	if (fom == NULL)
 		M0_RETURN(-ENOMEM);
 
@@ -107,7 +111,8 @@ static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m)
 		goto out;
 	}
 
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop);
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop,
+		    reqh, fop->f_type->ft_fom_type.ft_rstype);
 	*m = fom;
 	rc = 0;
 	m0_fop_put(reply_fop);
@@ -124,7 +129,8 @@ out:
 const struct m0_fom_ops m0_rpc_fom_conn_establish_ops = {
 	.fo_fini = session_gen_fom_fini,
 	.fo_tick = m0_rpc_fom_conn_establish_tick,
-	.fo_home_locality = m0_rpc_session_default_home_locality
+	.fo_home_locality = m0_rpc_session_default_home_locality,
+	.fo_addb_init = m0_rpc_fom_conn_establish_addb_init
 };
 
 struct m0_fom_type_ops m0_rpc_fom_conn_establish_type_ops = {
@@ -180,7 +186,8 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	M0_ASSERT(ctx != NULL &&
 		  ctx->cec_sender_ep != NULL);
 
-	M0_ALLOC_PTR(conn);
+	RPC_ALLOC_PTR(conn, SESSION_FOM_CONN_ESTABLISH_TICK,
+		      &m0_rpc_addb_ctx);
 	if (conn == NULL){
 		M0_RETURN(-ENOMEM);
 		/* no reply if conn establish failed.
@@ -237,6 +244,17 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	M0_LEAVE();
 	return M0_FSO_WAIT;
 }
+
+M0_INTERNAL void m0_rpc_fom_conn_establish_addb_init(struct m0_fom *fom,
+						struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 /*
  * [1]
  * As CONN_ESTABLISH request is directly submitted for execution.
@@ -283,7 +301,8 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 const struct m0_fom_ops m0_rpc_fom_session_establish_ops = {
 	.fo_fini = session_gen_fom_fini,
 	.fo_tick = m0_rpc_fom_session_establish_tick,
-	.fo_home_locality = m0_rpc_session_default_home_locality
+	.fo_home_locality = m0_rpc_session_default_home_locality,
+	.fo_addb_init = m0_rpc_fom_session_establish_addb_init
 };
 
 struct m0_fom_type_ops m0_rpc_fom_session_establish_type_ops = {
@@ -327,12 +346,6 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 		goto out;
 	}
 
-	M0_ALLOC_PTR(session);
-	if (session == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
-
 	item = &fop->f_item;
 	M0_ASSERT(item->ri_session != NULL);
 
@@ -340,6 +353,13 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 	M0_ASSERT(conn != NULL);
 
 	machine = conn->c_rpc_machine;
+
+	RPC_ALLOC_PTR(session, SESSION_FOM_SESSION_ESTABLISH_TICK,
+		      &m0_rpc_addb_ctx);
+	if (session == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
 
 	m0_rpc_machine_lock(machine);
 
@@ -370,6 +390,16 @@ out:
 	return M0_FSO_WAIT;
 }
 
+M0_INTERNAL void m0_rpc_fom_session_establish_addb_init(struct m0_fom *fom,
+							struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 /*
  * FOM session terminate
  */
@@ -377,7 +407,8 @@ out:
 const struct m0_fom_ops m0_rpc_fom_session_terminate_ops = {
 	.fo_fini = session_gen_fom_fini,
 	.fo_tick = m0_rpc_fom_session_terminate_tick,
-	.fo_home_locality = m0_rpc_session_default_home_locality
+	.fo_home_locality = m0_rpc_session_default_home_locality,
+	.fo_addb_init = m0_rpc_fom_session_terminate_addb_init
 };
 
 struct m0_fom_type_ops m0_rpc_fom_session_terminate_type_ops = {
@@ -459,13 +490,24 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 	return M0_FSO_WAIT;
 }
 
+M0_INTERNAL void m0_rpc_fom_session_terminate_addb_init(struct m0_fom *fom,
+							struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 /*
  * FOM RPC connection terminate
  */
 const struct m0_fom_ops m0_rpc_fom_conn_terminate_ops = {
 	.fo_fini = session_gen_fom_fini,
 	.fo_tick = m0_rpc_fom_conn_terminate_tick,
-	.fo_home_locality = m0_rpc_session_default_home_locality
+	.fo_home_locality = m0_rpc_session_default_home_locality,
+	.fo_addb_init = m0_rpc_fom_conn_terminate_addb_init
 };
 
 struct m0_fom_type_ops m0_rpc_fom_conn_terminate_type_ops = {
@@ -580,6 +622,16 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 		M0_LEAVE();
 		return M0_FSO_WAIT;
 	}
+}
+
+M0_INTERNAL void m0_rpc_fom_conn_terminate_addb_init(struct m0_fom *fom,
+						     struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 /** @} End of rpc_session group */

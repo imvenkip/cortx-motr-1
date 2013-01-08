@@ -157,7 +157,7 @@ static int test_rpclib_init(void)
 	rc = m0_net_xprt_init(xprt);
 	M0_ASSERT(rc == 0);
 
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
 
 	return rc;

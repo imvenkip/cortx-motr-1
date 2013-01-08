@@ -24,6 +24,7 @@
 #include "net/lnet/lnet.h"
 #include "ut/rpc.h"
 #include "fop/fom_generic.h"        /* m0_generic_conf */
+#include "addb/addb.h"
 
 enum {
 	RDWR_REQUEST_MAX = 48,
@@ -36,6 +37,7 @@ enum {
 extern struct m0_fom_type rdwr_fom_type;
 extern const struct m0_fom_type_ops fom_rdwr_type_ops;
 static struct m0_reqh reqh[REQH_IN_UT_MAX];
+static struct m0_reqh_service *service[REQH_IN_UT_MAX];
 
 static void test_long_lock_n(void)
 {
@@ -51,11 +53,66 @@ static void test_long_lock_1(void)
 	rdwr_send_fop(r, 1);
 }
 
+static int ut_long_lock_service_start(struct m0_reqh_service *service)
+{
+	M0_ASSERT(service != NULL);
+	return 0;
+}
+
+static void ut_long_lock_service_stop(struct m0_reqh_service *service)
+{
+	M0_ASSERT(service != NULL);
+}
+
+static void ut_long_lock_service_fini(struct m0_reqh_service *service)
+{
+	M0_ASSERT(service != NULL);
+	m0_free(service);
+}
+
+static const struct m0_reqh_service_ops ut_long_lock_service_ops = {
+	.rso_start = ut_long_lock_service_start,
+	.rso_stop = ut_long_lock_service_stop,
+	.rso_fini = ut_long_lock_service_fini
+};
+
+static int ut_long_lock_service_allocate(struct m0_reqh_service **service,
+					 struct m0_reqh_service_type *stype,
+					const char *arg __attribute__((unused)))
+{
+	struct m0_reqh_service *serv;
+
+	M0_PRE(stype != NULL && service != NULL);
+
+	M0_ALLOC_PTR(serv);
+	M0_ASSERT(serv != NULL);
+
+	serv->rs_type = stype;
+	serv->rs_ops = &ut_long_lock_service_ops;
+	*service = serv;
+	return 0;
+}
+
+static const struct m0_reqh_service_type_ops ut_long_lock_service_type_ops = {
+        .rsto_service_allocate = ut_long_lock_service_allocate
+};
+
+M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
+M0_REQH_SERVICE_TYPE_DEFINE(ut_long_lock_service_type,
+			    &ut_long_lock_service_type_ops,
+			    "ut-long-lock-service",
+                            &m0_addb_ct_ut_service);
+
 static int test_long_lock_init(void)
 {
 	int rc;
 	int i;
 
+	rc = m0_reqh_service_type_register(&ut_long_lock_service_type);
+	M0_ASSERT(rc == 0);
+	m0_fom_type_init(&rdwr_fom_type, &fom_rdwr_type_ops,
+			 &ut_long_lock_service_type,
+			 &m0_generic_conf);
 	/*
 	 * Instead of using m0d and dealing with network, database and
 	 * other subsystems, request handler is initialised in a 'special way'.
@@ -63,12 +120,23 @@ static int test_long_lock_init(void)
 	 * this test.
 	 */
 	for (i = 0; i < REQH_IN_UT_MAX; ++i) {
-		rc = m0_reqh_init(&reqh[i], (void *)1, (void *)1,
-				  (void *)1, (void *)1, (void *)1);
+		rc = M0_REQH_INIT(&reqh[i],
+				  .rhia_dtm       = (void *)1,
+				  .rhia_db        = (void *)1,
+				  .rhia_mdstore   = (void *)1,
+				  .rhia_fol       = (void *)1,
+				  .rhia_svc       = NULL,
+				  .rhia_addb_stob = NULL);
 		M0_ASSERT(rc == 0);
 	}
-	m0_fom_type_init(&rdwr_fom_type, &fom_rdwr_type_ops, NULL,
-			 &m0_generic_conf);
+	for (i = 0; i < REQH_IN_UT_MAX; ++i) {
+		rc = m0_reqh_service_allocate(&service[i],
+					      &ut_long_lock_service_type, NULL);
+		M0_ASSERT(rc == 0);
+		m0_reqh_service_init(service[i], &reqh[i]);
+		rc = m0_reqh_service_start(service[i]);
+		M0_ASSERT(rc == 0);
+	}
 	return rc;
 }
 
@@ -76,8 +144,12 @@ static int test_long_lock_fini(void)
 {
 	int i;
 
-	for (i = 0; i < REQH_IN_UT_MAX; ++i)
+	for (i = 0; i < REQH_IN_UT_MAX; ++i) {
+		m0_reqh_service_stop(service[i]);
+		m0_reqh_service_fini(service[i]);
 		m0_reqh_fini(&reqh[i]);
+	}
+	m0_reqh_service_type_unregister(&ut_long_lock_service_type);
 
 	return 0;
 }

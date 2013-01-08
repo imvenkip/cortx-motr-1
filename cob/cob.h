@@ -270,11 +270,6 @@ struct m0_cob_domain {
         struct m0_table         cd_namespace;
         struct m0_table         cd_fileattr_basic;
         struct m0_table         cd_fileattr_omg;
-
-        /**
-         * An ADDB context for events related to this domain.
-         */
-        struct m0_addb_ctx      cd_addb;
 };
 
 int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_dbenv *env,
@@ -748,6 +743,16 @@ M0_INTERNAL int m0_cob_fabrec_make(struct m0_cob_fabrec **rech,
  */
 M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom,
 				   struct m0_db_tx *tx, uint64_t * omgid);
+
+/**
+   Module initializer.
+ */
+M0_INTERNAL int m0_cob_mod_init(void);
+
+/**
+   Module finalizer.
+ */
+M0_INTERNAL void m0_cob_mod_fini(void);
 
 /** @} end group cob */
 

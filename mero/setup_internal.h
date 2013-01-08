@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -35,17 +35,8 @@
    @{
  */
 
-/** Declarations private to mero setup */
-
-enum {
-	LINUX_STOB,
-	AD_STOB,
-	STOBS_NR
-};
-
 enum {
 	CS_MAX_EP_ADDR_LEN = 86, /* "lnet:" + M0_NET_LNET_XEP_ADDR_LEN */
-	AD_BACK_STOB_ID_DEFAULT = 0x0
 };
 M0_BASSERT(CS_MAX_EP_ADDR_LEN >= M0_NET_LNET_XEP_ADDR_LEN);
 
@@ -112,7 +103,6 @@ struct cs_stobs {
 	struct cs_stob_file    s_sfile;
 	/** List of AD stobs */
 	struct m0_tl           s_adoms;
-	struct m0_dtx          s_tx;
 };
 
 /**
@@ -137,6 +127,17 @@ enum cs_reqh_ctx_states {
 };
 
 /**
+   Tracks ADDB stob per reqh
+   cas_stob is the hard-coded stob, that is created during
+   @see cs_addb_storage_init(), on which actual ADDB records go.
+ */
+struct cs_addb_stob {
+	/** ADDB Storage domain for a request handler ADDB machine */
+	struct cs_stobs  cas_stobs;
+	struct m0_stob  *cas_stob;
+};
+
+/**
    Represents a request handler environment.
    It contains configuration information about the various global entities
    to be configured and their corresponding instances that are needed to be
@@ -146,6 +147,9 @@ enum cs_reqh_ctx_states {
 struct cs_reqh_context {
 	/** Storage path for request handler context. */
 	const char                  *rc_stpath;
+
+	/** ADDB Storage path for request handler ADDB machine */
+	const char                  *rc_addb_stpath;
 
 	/** Path to device configuration file. */
 	const char                  *rc_dfilepath;
@@ -180,6 +184,8 @@ struct cs_reqh_context {
 	/** Storage domain for a request handler */
 	struct cs_stobs              rc_stob;
 
+	/** ADDB specific stob information */
+	struct cs_addb_stob          rc_addb_stob;
 	/** Database used by the request handler */
 	struct m0_dbenv              rc_db;
 
@@ -243,8 +249,8 @@ struct cs_buffer_pool {
  */
 M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 				const char *profile);
-
 /** @} endgroup m0d */
+
 #endif /* __MERO_SETUP_INTERNAL_H__ */
 
 /*

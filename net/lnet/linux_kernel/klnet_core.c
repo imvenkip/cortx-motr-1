@@ -1191,10 +1191,10 @@ M0_INTERNAL int nlx_core_dom_init(struct m0_net_domain *dom,
 	int rc;
 
 	M0_PRE(dom != NULL && cd != NULL);
-	M0_ALLOC_PTR_ADDB(kd, &dom->nd_addb, &nlx_addb_loc);
+	NLX_ALLOC_PTR(kd, &dom->nd_addb_ctx, K_DOM_INIT);
 	if (kd == NULL)
 		return -ENOMEM;
-	rc = nlx_kcore_kcore_dom_init(kd);
+	rc = nlx_kcore_kcore_dom_init(kd, &dom->nd_addb_ctx);
 	if (rc != 0)
 		goto fail_free_kd;
 	nlx_core_kmem_loc_set(&kd->kd_cd_loc, virt_to_page(cd),
@@ -1208,7 +1208,7 @@ M0_INTERNAL int nlx_core_dom_init(struct m0_net_domain *dom,
 fail_free_kd:
 	m0_free(kd);
 	M0_ASSERT(rc != 0);
-	LNET_ADDB_FUNCFAIL_ADD(dom->nd_addb, rc);
+	LNET_ADDB_FUNCFAIL(rc, K_DOM_INIT, &dom->nd_addb_ctx);
 	return rc;
 }
 
@@ -1286,7 +1286,7 @@ static int nlx_kcore_buf_register(struct nlx_kcore_domain *kd,
 	kb->kb_ooo_mlength   = 0;
 	kb->kb_ooo_status    = 0;
 	kb->kb_ooo_offset    = 0;
-	m0_addb_ctx_init(&kb->kb_addb, &nlx_core_buffer_addb_ctx, &kd->kd_addb);
+	kb->kb_addb_ctxp     = &kd->kd_addb_ctx;
 
 	cb->cb_kpvt          = kb;
 	cb->cb_buffer_id     = buffer_id;
@@ -1308,7 +1308,6 @@ static void nlx_kcore_buf_deregister(struct nlx_core_buffer *cb,
 	M0_PRE(LNetHandleIsInvalid(kb->kb_mdh));
 	drv_bufs_tlink_fini(kb);
 	kb->kb_magic = 0;
-	m0_addb_ctx_fini(&kb->kb_addb);
 	m0_free(kb->kb_kiov);
 	cb->cb_buffer_id = 0;
 	cb->cb_kpvt = NULL;
@@ -1327,7 +1326,7 @@ M0_INTERNAL int nlx_core_buf_register(struct nlx_core_domain *cd,
 	M0_PRE(cb != NULL && cb->cb_kpvt == NULL);
 	M0_PRE(cd != NULL);
 	kd = cd->cd_kpvt;
-	M0_ALLOC_PTR_ADDB(kb, &kd->kd_addb, &nlx_addb_loc);
+	NLX_ALLOC_PTR(kb, &kd->kd_addb_ctx, K_BUF_REG);
 	if (kb == NULL)
 		return -ENOMEM;
 	nlx_core_kmem_loc_set(&kb->kb_cb_loc, virt_to_page(cb),
@@ -1347,7 +1346,7 @@ fail_buf_registered:
 fail_free_kb:
 	m0_free(kb);
 	M0_ASSERT(rc != 0);
-	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
+	LNET_ADDB_FUNCFAIL(rc, K_BUF_REG, &kd->kd_addb_ctx);
 	return rc;
 }
 
@@ -1392,7 +1391,7 @@ static int nlx_kcore_buf_msg_recv(struct nlx_kcore_transfer_mc *ktm,
 	cb->cb_addr = ktm->ktm_addr;
 	rc = NLX_kcore_LNetMDAttach(ktm, cb, kb, &umd);
 	if (rc != 0)
-		LNET_ADDB_FUNCFAIL_ADD(ktm->ktm_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, KC_BUF_MRECV, &ktm->ktm_addb_ctx);
 	return rc;
 }
 
@@ -1437,7 +1436,7 @@ static int nlx_kcore_buf_msg_send(struct nlx_kcore_transfer_mc *ktm,
 		nlx_core_match_bits_encode(cb->cb_addr.cepa_tmid, 0);
 	rc = NLX_kcore_LNetPut(ktm, cb, kb, &umd);
 	if (rc != 0)
-		LNET_ADDB_FUNCFAIL_ADD(ktm->ktm_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, KC_BUF_MSEND, &ktm->ktm_addb_ctx);
 	nlx_kcore_kiov_restore_length(kb);
 	return rc;
 }
@@ -1489,7 +1488,7 @@ static int nlx_kcore_buf_active_recv(struct nlx_kcore_transfer_mc *ktm,
 	nlx_kcore_kiov_adjust_length(ktm, kb, &umd, cb->cb_length);
 	rc = NLX_kcore_LNetGet(ktm, cb, kb, &umd);
 	if (rc != 0)
-		LNET_ADDB_FUNCFAIL_ADD(ktm->ktm_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, KC_BUF_ARECV, &ktm->ktm_addb_ctx);
 	nlx_kcore_kiov_restore_length(kb);
 	return rc;
 }
@@ -1541,7 +1540,7 @@ static int nlx_kcore_buf_active_send(struct nlx_kcore_transfer_mc *ktm,
 	nlx_kcore_kiov_adjust_length(ktm, kb, &umd, cb->cb_length);
 	rc = NLX_kcore_LNetPut(ktm, cb, kb, &umd);
 	if (rc != 0)
-		LNET_ADDB_FUNCFAIL_ADD(ktm->ktm_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, KC_BUF_ASEND, &ktm->ktm_addb_ctx);
 	nlx_kcore_kiov_restore_length(kb);
 	return rc;
 }
@@ -1593,7 +1592,7 @@ static int nlx_kcore_buf_passive_recv(struct nlx_kcore_transfer_mc *ktm,
 	cb->cb_addr = ktm->ktm_addr;
 	rc = NLX_kcore_LNetMDAttach(ktm, cb, kb, &umd);
 	if (rc != 0)
-		LNET_ADDB_FUNCFAIL_ADD(ktm->ktm_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, KC_BUF_PRECV, &ktm->ktm_addb_ctx);
 	return rc;
 }
 
@@ -1645,7 +1644,7 @@ static int nlx_kcore_buf_passive_send(struct nlx_kcore_transfer_mc *ktm,
 	cb->cb_addr = ktm->ktm_addr;
 	rc = NLX_kcore_LNetMDAttach(ktm, cb, kb, &umd);
 	if (rc != 0)
-		LNET_ADDB_FUNCFAIL_ADD(ktm->ktm_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, KC_BUF_PSEND, &ktm->ktm_addb_ctx);
 	nlx_kcore_kiov_restore_length(kb);
 	return rc;
 }
@@ -1816,7 +1815,7 @@ M0_INTERNAL int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
 	ktm = ctm->ctm_kpvt;
 	M0_ASSERT(nlx_kcore_tm_invariant(ktm));
 
-	NLX_ALLOC_PTR_ADDB(bev, &ktm->ktm_addb, &nlx_addb_loc);
+	NLX_ALLOC_ALIGNED_PTR_ADDB(bev, &ktm->ktm_addb_ctx, K_BEV_BLESS);
 	if (bev == NULL) {
 		*bevp = NULL;
 		return -ENOMEM;
@@ -1847,7 +1846,7 @@ static void nlx_kcore_tm_stop(struct nlx_core_transfer_mc *ctm,
 	m0_mutex_lock(&nlx_kcore_mutex);
 	tms_tlist_del(ktm);
 	m0_mutex_unlock(&nlx_kcore_mutex);
-	m0_addb_ctx_fini(&ktm->ktm_addb);
+	m0_addb_ctx_fini(&ktm->ktm_addb_ctx);
 	drv_bevs_tlist_fini(&ktm->ktm_drv_bevs);
 	drv_tms_tlink_fini(ktm);
 	tms_tlink_fini(ktm);
@@ -1879,10 +1878,15 @@ M0_INTERNAL void nlx_core_tm_stop(struct nlx_core_domain *cd,
    lcpea_tmid field value is M0_NET_LNET_TMID_INVALID then a transfer
    machine identifier is dynamically assigned to the transfer machine
    and the nlx_core_transfer_mc::ctm_addr is modified in place.
+   @param addb_mc The ADDB machine to use for non-exception posts
+   from this transfer machine.
+   @param ctx The ADDB parent context.
    @param ktm The kernel transfer machine private data to be initialized.
  */
-static int nlx_kcore_tm_start(struct nlx_kcore_domain *kd,
-			      struct nlx_core_transfer_mc *ctm,
+static int nlx_kcore_tm_start(struct nlx_kcore_domain      *kd,
+			      struct nlx_core_transfer_mc  *ctm,
+			      struct m0_addb_mc            *addb_mc,
+			      struct m0_addb_ctx           *ctx,
 			      struct nlx_kcore_transfer_mc *ktm)
 {
 	struct nlx_core_ep_addr *cepa;
@@ -1944,7 +1948,9 @@ static int nlx_kcore_tm_start(struct nlx_kcore_domain *kd,
 	ctm->ctm_mb_counter = M0_NET_LNET_BUFFER_ID_MIN;
 	spin_lock_init(&ktm->ktm_bevq_lock);
 	m0_semaphore_init(&ktm->ktm_sem, 0);
-	m0_addb_ctx_init(&ktm->ktm_addb, &nlx_core_tm_addb_ctx, &kd->kd_addb);
+	ktm->ktm_addb_mc = addb_mc;
+	M0_ADDB_CTX_INIT(ktm->ktm_addb_mc, &ktm->ktm_addb_ctx,
+			 &m0_addb_ct_net_lnet_tm, ctx);
 	ktm->_debug_ = ctm->_debug_;
 	ctm->ctm_kpvt = ktm;
 	ctm->ctm_magic = M0_NET_LNET_CORE_TM_MAGIC;
@@ -1956,7 +1962,7 @@ fail_with_eq:
 	M0_ASSERT(i == 0);
 fail:
 	M0_ASSERT(rc != 0);
-	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
+	LNET_ADDB_FUNCFAIL(rc, KC_TM_START, &kd->kd_addb_ctx);
 	return rc;
 }
 
@@ -1976,7 +1982,7 @@ M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
 	kd = cd->cd_kpvt;
 	M0_PRE(nlx_kcore_domain_invariant(kd));
 
-	M0_ALLOC_PTR_ADDB(ktm, &tm->ntm_addb, &nlx_addb_loc);
+	NLX_ALLOC_PTR(ktm, &tm->ntm_addb_ctx, K_TM_START);
 	if (ktm == NULL) {
 		rc = -ENOMEM;
 		goto fail_ktm;
@@ -1984,7 +1990,8 @@ M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
 
 	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, virt_to_page(ctm),
 			      NLX_PAGE_OFFSET((unsigned long) ctm));
-	rc = nlx_kcore_tm_start(kd, ctm, ktm);
+	rc = nlx_kcore_tm_start(kd, ctm, tm->ntm_addb_mc, &tm->ntm_addb_ctx,
+				ktm);
 	if (rc != 0)
 		goto fail_ktm;
 
@@ -2006,7 +2013,7 @@ M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
  fail_ktm:
 	m0_free(ktm);
 	M0_ASSERT(rc != 0);
-	LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
+	LNET_ADDB_FUNCFAIL(rc, K_TM_START, &tm->ntm_addb_ctx);
 	return rc;
 }
 
@@ -2046,8 +2053,8 @@ static int nlx_core_init(void)
 	m0_atomic64_set(&nlx_kcore_lni_refcount, 0);
 	for (i = 0, rc = 0; rc != -ENOENT; ++i)
 		rc = LNetGetId(i, &id);
-	M0_ALLOC_ARR_ADDB(nlx_kcore_lni_nidstrs, i,
-			  &m0_net_addb, &nlx_addb_loc);
+	M0_ALLOC_ARR_ADDB(nlx_kcore_lni_nidstrs, i, &m0_addb_gmc,
+			  M0_NET_LNET_ADDB_LOC_K_INIT_1, &m0_net_lnet_addb_ctx);
 	if (nlx_kcore_lni_nidstrs == NULL) {
 		nlx_core_fini();
 		return -ENOMEM;
@@ -2060,7 +2067,8 @@ static int nlx_core_init(void)
 		M0_ASSERT(nidstr != NULL);
 		nlx_kcore_lni_nidstrs[i] = m0_alloc(strlen(nidstr) + 1);
 		if (nlx_kcore_lni_nidstrs[i] == NULL) {
-			M0_ADDB_ADD(&m0_net_addb, &nlx_addb_loc, m0_addb_oom);
+			M0_ADDB_OOM(&m0_addb_gmc, M0_NET_LNET_ADDB_LOC_K_INIT_2,
+				    &m0_net_lnet_addb_ctx);
 			nlx_core_fini();
 			return -ENOMEM;
 		}
@@ -2100,7 +2108,8 @@ static struct nlx_kcore_ops nlx_kcore_def_ops = {
    @post nlx_kcore_domain_invariant(kd)
    @param kd kernel core private data pointer for the domain to be initialized.
  */
-static int nlx_kcore_kcore_dom_init(struct nlx_kcore_domain *kd)
+static int nlx_kcore_kcore_dom_init(struct nlx_kcore_domain *kd,
+				    struct m0_addb_ctx      *ctx)
 {
 	M0_PRE(kd != NULL);
 	kd->kd_magic = M0_NET_LNET_KCORE_DOM_MAGIC;
@@ -2109,7 +2118,8 @@ static int nlx_kcore_kcore_dom_init(struct nlx_kcore_domain *kd)
 	kd->kd_drv_ops = &nlx_kcore_def_ops;
 	drv_tms_tlist_init(&kd->kd_drv_tms);
 	drv_bufs_tlist_init(&kd->kd_drv_bufs);
-	m0_addb_ctx_init(&kd->kd_addb, &nlx_core_domain_addb_ctx, &m0_net_addb);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &kd->kd_addb_ctx,
+			 &m0_addb_ct_net_lnet_dom, ctx);
 	M0_POST(nlx_kcore_domain_invariant(kd));
 	return 0;
 }
@@ -2123,7 +2133,7 @@ static void nlx_kcore_kcore_dom_fini(struct nlx_kcore_domain *kd)
 	M0_PRE(nlx_kcore_domain_invariant(kd));
 	M0_PRE(nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc));
 
-	m0_addb_ctx_fini(&kd->kd_addb);
+	m0_addb_ctx_fini(&kd->kd_addb_ctx);
 	drv_bufs_tlist_fini(&kd->kd_drv_bufs);
 	drv_tms_tlist_fini(&kd->kd_drv_tms);
 	kd->kd_drv_ops = NULL;

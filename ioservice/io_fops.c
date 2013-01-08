@@ -19,10 +19,16 @@
  * Original creation date: 03/21/2011
  */
 
+#undef M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_CT_CREATE_DEFINITION
+#include "ioservice/io_service_addb.h"
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/vec.h"	/* m0_0vec */
 #include "lib/memory.h"
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
+#include "lib/trace.h"
 #include "lib/tlist.h"
 #include "addb/addb.h"
 #include "mero/magic.h"
@@ -33,6 +39,14 @@
 #include "ioservice/io_fops.h"
 #include "ioservice/io_fops_xc.h"
 #include "fop/fom_generic.h"
+
+/**
+ * This addb ctx would be used only to post for exception records
+ * where io/cob foms ctx would not be available.
+ * This happens mainly in case of service_allocation()'s memory allocation
+ * & other memory allocation failures.
+ */
+struct m0_addb_ctx m0_ios_addb_ctx;
 
 /* tlists and tlist APIs referred from rpc layer. */
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
@@ -50,21 +64,6 @@ static void io_fop_desc_get (struct m0_fop *fop, struct m0_net_buf_desc **desc);
 static int  io_fop_coalesce (struct m0_fop *res_fop, uint64_t size);
 static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
 			     uint64_t size);
-
-/* ADDB context for ioservice. */
-static struct m0_addb_ctx bulkclient_addb;
-
-/* ADDB instrumentation for bulk client. */
-static const struct m0_addb_loc bulkclient_addb_loc = {
-	.al_name = "bulkclient",
-};
-
-static const struct m0_addb_ctx_type bulkclient_addb_ctx_type = {
-	.act_name = "bulkclient",
-};
-
-M0_ADDB_EV_DEFINE(bulkclient_func_fail, "bulkclient func failed.",
-		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 
 struct m0_fop_type m0_fop_cob_readv_fopt;
 struct m0_fop_type m0_fop_cob_writev_fopt;
@@ -116,7 +115,7 @@ M0_INTERNAL void m0_ioservice_fop_fini(void)
 	m0_fop_type_fini(&m0_fop_cob_writev_fopt);
 	m0_fop_type_fini(&m0_fop_cob_readv_fopt);
 	m0_xc_io_fops_fini();
-	m0_addb_ctx_fini(&bulkclient_addb);
+	m0_addb_ctx_fini(&m0_ios_addb_ctx);
 }
 
 extern struct m0_reqh_service_type m0_ios_type;
@@ -128,8 +127,9 @@ extern struct m0_sm_state_descr io_phases[];
 
 M0_INTERNAL int m0_ioservice_fop_init(void)
 {
-	m0_addb_ctx_init(&bulkclient_addb, &bulkclient_addb_ctx_type,
-			 &m0_addb_global_ctx);
+	m0_addb_ctx_type_register(&m0_addb_ct_ios_mod);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_ios_addb_ctx, &m0_addb_ct_ios_mod,
+			 &m0_addb_proc_ctx);
 	/*
 	 * Provided by ff2c compiler after parsing io_fops_xc.ff
 	 */
@@ -200,8 +200,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .xt        = m0_fop_cob_op_reply_xc,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
 		M0_FOP_TYPE_INIT(&m0_fop_fv_notification_fopt,
-				 .name      = "Failure vector update notification",
-				 .opcode    = M0_IOSERVICE_FV_NOTIFICATION_OPCODE,
+				 .name   = "Failure vector update notification",
+				 .opcode = M0_IOSERVICE_FV_NOTIFICATION_OPCODE,
 				 .xt        = m0_fop_fv_notification_xc,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
 					      M0_RPC_ITEM_TYPE_ONEWAY);
@@ -468,8 +468,12 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    <hr>
    @section bulkclient-ref References
 
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en_US">RPC Bulk Transfer Task Plan</a>
-   - <a href="https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US">Detailed level design HOWTO</a>,
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/
+1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en_US">
+RPC Bulk Transfer Task Plan</a>
+   - <a href="https://docs.google.com/a/xyratex.com/
+Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US">
+Detailed level design HOWTO</a>,
    an older document on which this style guide is partially based.
 
  */
@@ -561,8 +565,7 @@ M0_INTERNAL int m0_io_fop_init(struct m0_io_fop *iofop,
 		m0_rpc_bulk_init(&iofop->if_rbulk);
 		M0_POST(io_fop_invariant(iofop));
 	} else {
-		M0_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
-			    bulkclient_func_fail, "io fop data alloc failed.", rc);
+		IOS_ADDB_FUNCFAIL(rc, IO_FOP_INIT, &m0_ios_addb_ctx);
 	}
 	return rc;
 }
@@ -724,11 +727,12 @@ static int io_fop_seg_init(struct ioseg **ns, const struct ioseg *cseg)
 	M0_PRE(ns != NULL);
 	M0_PRE(cseg != NULL);
 
-	M0_ALLOC_PTR_ADDB(new_seg, &bulkclient_addb, &bulkclient_addb_loc);
+	IOS_ALLOC_PTR(new_seg, &m0_ios_addb_ctx, IO_FOP_SEG_INIT);
 	if (new_seg == NULL)
 		return -ENOMEM;
 
 	*ns = new_seg;
+	M0_ASSERT(new_seg != NULL); /* suppress compiler warning on next stmt */
 	*new_seg = *cseg;
 	iosegset_tlink_init(new_seg);
 	return 0;
@@ -925,16 +929,16 @@ static int io_fop_ivec_alloc(struct m0_fop *fop, struct m0_rpc_bulk *rbulk)
 	rbulk = m0_fop_to_rpcbulk(fop);
 	rw = io_rw_get(fop);
 	rw->crw_ivecs.cis_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
-	M0_ALLOC_ARR_ADDB(rw->crw_ivecs.cis_ivecs, rw->crw_ivecs.cis_nr,
-			  &bulkclient_addb, &bulkclient_addb_loc);
+	IOS_ALLOC_ARR(rw->crw_ivecs.cis_ivecs, rw->crw_ivecs.cis_nr,
+			  &m0_ios_addb_ctx, IO_FOP_IVEC_ALLOC_1);
 	if (rw->crw_ivecs.cis_ivecs == NULL)
 		return -ENOMEM;
 
 	ivec = rw->crw_ivecs.cis_ivecs;
 	m0_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
-		M0_ALLOC_ARR_ADDB(ivec[cnt].ci_iosegs,
+		IOS_ALLOC_ARR(ivec[cnt].ci_iosegs,
 				  rbuf->bb_zerovec.z_bvec.ov_vec.v_nr,
-				  &bulkclient_addb, &bulkclient_addb_loc);
+				  &m0_ios_addb_ctx, IO_FOP_IVEC_ALLOC_2);
 		if (ivec[cnt].ci_iosegs == NULL)
 			goto cleanup;
 		ivec[cnt].ci_nr = rbuf->bb_zerovec.z_bvec.ov_vec.v_nr;
@@ -1018,8 +1022,8 @@ static int io_fop_desc_alloc(struct m0_fop *fop, struct m0_rpc_bulk *rbulk)
 	rbulk = m0_fop_to_rpcbulk(fop);
 	rw = io_rw_get(fop);
 	rw->crw_desc.id_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
-	M0_ALLOC_ARR_ADDB(rw->crw_desc.id_descs, rw->crw_desc.id_nr,
-			  &bulkclient_addb, &bulkclient_addb_loc);
+	IOS_ALLOC_ARR(rw->crw_desc.id_descs, rw->crw_desc.id_nr,
+			  &m0_ios_addb_ctx, IO_FOP_DESC_ALLOC);
 
 	return rw->crw_desc.id_descs == NULL ? -ENOMEM : 0;
 }
@@ -1104,9 +1108,7 @@ static int io_fop_desc_ivec_prepare(struct m0_fop *fop,
 
 	rc = io_netbufs_prepare(fop, aggr_set);
 	if (rc != 0) {
-		M0_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
-			    bulkclient_func_fail,
-			    "io_fop_desc_ivec_prepare failed.", rc);
+		IOS_ADDB_FUNCFAIL(rc, IO_FOP_DESC_IVEC_PREP, &m0_ios_addb_ctx);
 		return rc;
 	}
 
@@ -1174,7 +1176,7 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 	M0_PRE(res_fop != NULL);
 	M0_PRE(m0_is_io_fop(res_fop));
 
-	M0_ALLOC_PTR_ADDB(cfop, &bulkclient_addb, &bulkclient_addb_loc);
+	IOS_ALLOC_PTR(cfop, &m0_ios_addb_ctx, IO_FOP_COALESCE_1);
 	if (cfop == NULL)
 		return -ENOMEM;
 
@@ -1232,10 +1234,7 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 	rc = m0_rpc_bulk_store(rbulk, res_fop->f_item.ri_session->s_conn,
 			       rw->crw_desc.id_descs);
 	if (rc != 0) {
-		M0_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
-			    bulkclient_func_fail,
-			    "m0_rpc_bulk_store() failed for coalesced io fop.",
-			    rc);
+		IOS_ADDB_FUNCFAIL(rc, IO_FOP_COALESCE_2, &m0_ios_addb_ctx);
 		m0_io_fop_destroy(res_fop);
 		goto cleanup;
 	}
@@ -1245,10 +1244,8 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 	 * provided as input.
 	 */
 	if (m0_io_fop_size_get(res_fop) > size) {
-		M0_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
-			    bulkclient_func_fail, "Size of coalesced fop"
-			    "exceeded remaining space in send net buffer.",
-			    -EMSGSIZE);
+		IOS_ADDB_FUNCFAIL(-EMSGSIZE, IO_FOP_COALESCE_3,
+				  &m0_ios_addb_ctx);
 		m0_mutex_lock(&rbulk->rb_mutex);
 		m0_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
 			m0_net_buffer_del(rbuf->bb_nbuf, tm);
@@ -1295,8 +1292,7 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 	m0_mutex_unlock(&bbulk->rb_mutex);
 
 	M0_POST(rw->crw_desc.id_nr == rw->crw_ivecs.cis_nr);
-	M0_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc, m0_addb_trace,
-		    "io fops coalesced successfully.");
+	M0_LOG(M0_DEBUG, "io fops coalesced successfully.");
 	rpcitem_tlist_add(items_list, &bkp_fop->f_item);
 	return rc;
 cleanup:
@@ -1371,9 +1367,8 @@ static void io_item_replied(struct m0_rpc_item *item)
 	M0_PRE(item != NULL);
 
 	if (item->ri_error != 0) {
-		M0_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
-			    bulkclient_func_fail, "io fop failed.",
-			    item->ri_error);
+		IOS_ADDB_FUNCFAIL(item->ri_error, IO_ITEM_REPLIED,
+				  &m0_ios_addb_ctx);
 		return;
 	}
 	fop = m0_rpc_item_to_fop(item);
@@ -1394,9 +1389,7 @@ static void io_item_replied(struct m0_rpc_item *item)
 	 * is inserted by io coalescing code.
 	 */
 	if (!rpcitem_tlist_is_empty(&item->ri_compound_items)) {
-		M0_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
-			    m0_addb_trace,
-			    "Reply received for coalesced io fops.");
+		M0_LOG(M0_DEBUG, "Reply received for coalesced io fops.");
 		ritem = rpcitem_tlist_head(&item->ri_compound_items);
 		rpcitem_tlist_del(ritem);
 		bkpfop = m0_rpc_item_to_fop(ritem);
@@ -1481,9 +1474,8 @@ static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
 	rc = bfop->f_type->ft_ops->fto_io_coalesce(bfop, size);
 	if (rc != 0) {
 		m0_tl_for(rpcitem, &head->ri_compound_items, item) {
-			M0_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
-				    bulkclient_func_fail,
-				    "io_fop_coalesce failed.", rc);
+			IOS_ADDB_FUNCFAIL(rc, ITEM_IO_COALESCE,
+					  &m0_ios_addb_ctx);
 			rpcitem_tlist_del(item);
 		} m0_tl_endfor;
 	} else {
@@ -1524,6 +1516,8 @@ M0_INTERNAL void m0_io_fop_release(struct m0_ref *ref)
         m0_io_fop_fini(iofop);
         m0_free(iofop);
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

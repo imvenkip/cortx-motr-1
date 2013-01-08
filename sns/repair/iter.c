@@ -824,7 +824,7 @@ M0_INTERNAL int m0_sns_repair_iter_init(struct m0_sns_repair_cm *rcm)
 		return rc;
 
 	m0_sm_init(&rcm->rc_it.ri_sm, &cm_iter_sm_conf,	ITPH_INIT,
-		   &cm->cm_sm_group, &cm->cm_addb);
+		   &cm->cm_sm_group, &cm->cm_service.rs_addb_ctx);
 	m0_sns_repair_iter_bob_init(&rcm->rc_it);
 
 	if (rcm->rc_file_size == 0)

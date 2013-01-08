@@ -65,6 +65,7 @@ const struct m0_rpc_item_ops rm_revoke_rpc_ops = {
 struct m0_fop_type m0_fop_rm_borrow_fopt;
 struct m0_fop_type m0_fop_rm_borrow_rep_fopt;
 extern struct m0_sm_state_descr rm_req_phases[];
+extern struct m0_reqh_service_type m0_rpc_service_type;
 
 /**
  * FOP definitions for resource-credit revoke request and reply.
@@ -422,11 +423,13 @@ M0_INTERNAL int m0_rm_fop_init(void)
 				 .sm	    = &borrow_sm_conf,
 				 .fom_ops   = &rm_borrow_fom_type_ops,
 #endif
+				 .svc_type  = &m0_rpc_service_type,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST) ?:
 		M0_FOP_TYPE_INIT(&m0_fop_rm_borrow_rep_fopt,
 				 .name      = "Credit Borrow Reply",
 				 .opcode    = M0_RM_FOP_BORROW_REPLY,
 				 .xt        = m0_fop_rm_borrow_rep_xc,
+				 .svc_type  = &m0_rpc_service_type,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
 		M0_FOP_TYPE_INIT(&m0_fop_rm_revoke_fopt,
 				 .name      = "Credit Revoke",
@@ -436,6 +439,7 @@ M0_INTERNAL int m0_rm_fop_init(void)
 				 .sm	    = &revoke_sm_conf,
 				 .fom_ops   = &rm_revoke_fom_type_ops,
 #endif
+				 .svc_type  = &m0_rpc_service_type,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
 }
 M0_EXPORTED(m0_rm_fop_init);

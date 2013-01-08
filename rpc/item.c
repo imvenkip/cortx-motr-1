@@ -27,8 +27,6 @@
 #include "lib/misc.h"
 #include "lib/errno.h"
 #include "mero/magic.h"
-
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 /**

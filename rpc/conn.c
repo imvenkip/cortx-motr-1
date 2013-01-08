@@ -30,8 +30,6 @@
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "db/db.h"
-
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 /**
@@ -339,7 +337,7 @@ static int session_zero_attach(struct m0_rpc_conn *conn)
 	M0_ENTRY("conn: %p", conn);
 	M0_PRE(conn != NULL && m0_rpc_machine_is_locked(conn->c_rpc_machine));
 
-	M0_ALLOC_PTR(session);
+	RPC_ALLOC_PTR(session, CONN_SESSION_ZERO_ATTACH, &m0_rpc_addb_ctx);
 	if (session == NULL)
 		M0_RETURN(-ENOMEM);
 

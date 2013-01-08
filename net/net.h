@@ -60,12 +60,16 @@
    @li Network transfer machine event (m0_net_tm_event);
    @li Network transport (m0_net_xprt);
 
-   See <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en#">RPC Bulk Transfer Task Plan</a>
+   See <a href="https://docs.google.com/a/xyratex.com/document/d/
+1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en#">
+RPC Bulk Transfer Task Plan</a>
    for details on the design and use of this API.  If you are writing a
    transport, then the document is the reference for the internal threading and
    serialization model.
 
-   See <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Mero LNet Transport</a>
+   See <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Mero LNet Transport</a>
    for additional details on the design and use of this API.
 
    @{
@@ -90,24 +94,27 @@ struct m0_net_buffer_callbacks;
 struct m0_net_qstats;
 
 /**
- constructor for the network library
+   Constructor for the network library
  */
 M0_INTERNAL int m0_net_init(void);
 
 /**
- destructor for the network library.
- release all allocated resources
+   Destructor for the network library.
+   Releases all allocated resources.
  */
 M0_INTERNAL void m0_net_fini(void);
 
 enum {
-	/** Default minimum number of receive queue buffers for automatic
-	    provisioning.
+	/**
+	   Default minimum number of receive queue buffers for automatic
+	   provisioning.
 	 */
 	M0_NET_TM_RECV_QUEUE_DEF_LEN = 2,
 };
 
-/** Network transport (e.g. lnet) */
+/**
+   Network transport (e.g. lnet).
+ */
 struct m0_net_xprt {
 	const char                   *nx_name;
 	const struct m0_net_xprt_ops *nx_ops;
@@ -341,8 +348,11 @@ struct m0_net_xprt_ops {
 	 */
 	int32_t (*xo_get_max_buffer_segments)(const struct m0_net_domain *dom);
 
-	/** Retrieves the buffer descriptor size. */
-	m0_bcount_t (*xo_get_max_buffer_desc_size)(const struct m0_net_domain *dom);
+	/**
+	   Retrieves the buffer descriptor size.
+	 */
+	m0_bcount_t (*xo_get_max_buffer_desc_size)(const struct m0_net_domain
+						   *dom);
 };
 
 /**
@@ -361,11 +371,6 @@ int m0_net_xprt_init(struct m0_net_xprt *xprt);
  @param xprt Tranport pointer.
  */
 void m0_net_xprt_fini(struct m0_net_xprt *xprt);
-
-/** @}
- @addtogroup net
- @{
- */
 
 /**
    A collection of network resources.
@@ -387,31 +392,45 @@ struct m0_net_domain {
 	 */
 	struct m0_list      nd_tms;
 
-	/** Transport private domain data. */
+	/**
+	   Transport private domain data.
+	 */
 	void               *nd_xprt_private;
 
-	/** Pointer to transport */
+	/**
+	   Pointer to transport.
+	 */
 	struct m0_net_xprt *nd_xprt;
 
-	/** ADDB context for events related to this domain */
-	struct m0_addb_ctx  nd_addb;
+	/**
+	   ADDB context for events related to this domain.
+	 */
+	struct m0_addb_ctx  nd_addb_ctx;
 
-        /** Linkage for invoking application */
+        /**
+	   Linkage for invoking application.
+	 */
         struct m0_tlink     nd_app_linkage;
 
-	/** Network magic */
+	/**
+	   Network magic.
+	 */
 	uint64_t            nd_magix;
 };
 
 /**
    Initializes a domain.
- @param dom Domain pointer.
- @param xprt Tranport pointer.
- @pre dom->nd_xprt == NULL
- @retval 0 (success)
- @retval -errno (failure)
+   @param dom  Domain pointer.
+   @param xprt Transport pointer.
+   @param ctx  Parent ADDB context.  The software container context,
+   ::m0_addb_proc_ctx, can be used here if desired.
+   @pre dom->nd_xprt == NULL
+   @retval 0 (success)
+   @retval -errno (failure)
  */
-int m0_net_domain_init(struct m0_net_domain *dom, struct m0_net_xprt *xprt);
+int m0_net_domain_init(struct m0_net_domain *dom,
+		       struct m0_net_xprt   *xprt,
+		       struct m0_addb_ctx   *ctx);
 
 /**
    Releases resources related to a domain.
@@ -434,7 +453,8 @@ M0_INTERNAL m0_bcount_t m0_net_domain_get_max_buffer_size(struct m0_net_domain
    @param dom     Pointer to the domain.
    @retval size    Returns the maximum buffer segment size.
  */
-M0_INTERNAL m0_bcount_t m0_net_domain_get_max_buffer_segment_size(struct m0_net_domain
+M0_INTERNAL m0_bcount_t m0_net_domain_get_max_buffer_segment_size(struct
+								  m0_net_domain
 								  *dom);
 
 /**
@@ -473,14 +493,21 @@ M0_INTERNAL int32_t m0_net_domain_get_max_buffer_segments(struct m0_net_domain
    ntm_end_points list.
  */
 struct m0_net_end_point {
-	/** Keeps track of usage */
+	/**
+	   Keeps track of usage.
+	 */
 	struct m0_ref              nep_ref;
-	/** Pointer to transfer machine */
+	/**
+	   Pointer to transfer machine.
+	 */
 	struct m0_net_transfer_mc *nep_tm;
-	/** Linkage in the transfer machine list */
+	/**
+	   Linkage in the transfer machine list.
+	 */
 	struct m0_list_link        nep_tm_linkage;
-	/** Transport specific printable representation of the
-	    end point address.
+	/**
+	   Transport specific printable representation of the
+	   end point address.
 	 */
 	const char                *nep_addr;
 };
@@ -739,20 +766,28 @@ struct m0_net_tm_callbacks {
    reset the statistical counters.
  */
 struct m0_net_qstats {
-	/** The number of add operations performed */
+	/**
+	   The number of add operations performed.
+	 */
 	uint64_t        nqs_num_adds;
 
-	/** The number of del operations performed */
+	/**
+	   The number of del operations performed.
+	 */
 	uint64_t        nqs_num_dels;
 
-	/** The number of successful events posted on buffers in the queue */
+	/**
+	   The number of successful events posted on buffers in the queue.
+	 */
 	uint64_t        nqs_num_s_events;
 
-	/** The number of failure events posted on buffers in the queue.
+	/**
+	   The number of failure events posted on buffers in the queue.
 
-	    In the case of the M0_NET_QT_MSG_RECV queue, the failure
-	    counter is also incremented when the queue is empty when a
-	    message arrives.
+	    In the case of the M0_NET_QT_MSG_RECV queue the failure
+	    counter is also incremented when auto-provisioning fails, with an
+	    increment equal to the number of buffers required to fill the
+	    queue to its minimal level.
 	 */
 	uint64_t        nqs_num_f_events;
 
@@ -782,12 +817,15 @@ struct m0_net_qstats {
    the application of changes in state associated with these buffers.
  */
 struct m0_net_transfer_mc {
-	/** Pointer to application callbacks. Should be set before
-	    initialization.
+	/**
+	   Pointer to application callbacks. Should be set before
+	   initialization.
 	 */
 	const struct m0_net_tm_callbacks *ntm_callbacks;
 
-	/** Specifies the transfer machine state */
+	/**
+	   Specifies the transfer machine state.
+	 */
 	enum m0_net_tm_state        ntm_state;
 
 	/**
@@ -848,30 +886,61 @@ struct m0_net_transfer_mc {
 	 */
 	struct m0_tl		    ntm_q[M0_NET_QT_NR];
 
-	/** Statistics maintained per logical queue */
+	/**
+	   Statistics maintained per logical queue.
+	 */
 	struct m0_net_qstats        ntm_qstats[M0_NET_QT_NR];
 
-	/** ADDB context for events related to this transfer machine */
-	struct m0_addb_ctx          ntm_addb;
+	/**
+	   ADDB machine used for non-exception posts.
+	 */
+	struct m0_addb_mc          *ntm_addb_mc;
 
-	/** Domain linkage */
+	/**
+	   ADDB context for events related to this transfer machine.
+	 */
+	struct m0_addb_ctx          ntm_addb_ctx;
+
+	/**
+	   Aggregate message size statistics (messages sent or received).
+	 */
+	struct m0_addb_counter      ntm_cntr_msg;
+
+	/**
+	   Aggregate data size statistics (bulk I/O, active or passive,
+	   sent or received).
+	 */
+	struct m0_addb_counter      ntm_cntr_data;
+
+	/**
+	   Counts the number of messages received in receive buffers.
+	 */
+	struct m0_addb_counter      ntm_cntr_rb;
+
+	/**
+	   Domain linkage.
+	 */
 	struct m0_list_link         ntm_dom_linkage;
 
-	/** Transport private data */
+	/**
+	   Transport private data.
+	 */
         void                       *ntm_xprt_private;
 
-	/** Indicates if automatic delivery of buffer events will take place. */
+	/**
+	   Indicates if automatic delivery of buffer events will take place.
+	 */
 	bool                        ntm_bev_auto_deliver;
 
 	/**
 	   The buffer pool to use for automatic receive queue provisioning.
-	*/
+	 */
 	struct m0_net_buffer_pool  *ntm_recv_pool;
 
 	/**
 	   Callbacks structure for automatically allocate receive queue
 	   buffers.
-	*/
+	 */
 	const struct m0_net_buffer_callbacks *ntm_recv_pool_callbacks;
 
 	/**
@@ -919,7 +988,12 @@ struct m0_net_transfer_mc {
    All fields in the structure other then the above will be set to their
    appropriate initial values.
    @note An initialized TM cannot be fini'd without first starting it.
-   @param dom Network domain pointer.
+   @param dom     Network domain pointer.
+   @param addb_mc Pointer to the ADDB machine to use with this transfer machine
+   for non-exception related posts.  The global ADDB machine, ::m0_addb_gmc,
+   can be used here if desired.
+   @param ctx     Parent ADDB context.
+   A suitable default is ::m0_addb_proc_ctx.
    @post tm->ntm_bev_auto_deliver is set.
    @post (tm->ntm_pool_colour == M0_NET_BUFFER_POOL_ANY_COLOR &&
           tm->ntm_recv_pool_queue_min_length == M0_NET_TM_RECV_QUEUE_DEF_LEN)
@@ -927,7 +1001,9 @@ struct m0_net_transfer_mc {
    @retval -errno (failure)
  */
 M0_INTERNAL int m0_net_tm_init(struct m0_net_transfer_mc *tm,
-			       struct m0_net_domain *dom);
+			       struct m0_net_domain      *dom,
+			       struct m0_addb_mc         *addb_mc,
+			       struct m0_addb_ctx        *ctx);
 
 /**
    Finalizes a transfer machine, releasing any associated
@@ -1039,6 +1115,18 @@ M0_INTERNAL int m0_net_tm_stop(struct m0_net_transfer_mc *tm, bool abort);
 M0_INTERNAL int m0_net_tm_stats_get(struct m0_net_transfer_mc *tm,
 				    enum m0_net_queue_type qtype,
 				    struct m0_net_qstats *qs, bool reset);
+
+/**
+   Method to post ADDB records on transfer machine statistics.  The
+   statistical counters are reset during this operation.
+
+   Posts are made only if the relevant source information is non-zero.
+   Thus, this call will result in no posts if there has been no network
+   activity since the previous invocation.
+   @param tm Transfer machine pointer.
+   @pre tm->ntm_state >= M0_NET_TM_INITIALIZED
+ */
+M0_INTERNAL void m0_net_tm_stats_post_addb(struct m0_net_transfer_mc *tm);
 
 /**
    A transfer machine is notified of non-buffer related events of interest
@@ -1247,18 +1335,29 @@ struct m0_net_buffer_callbacks {
    Buffer state is tracked using these bitmap flags.
  */
 enum m0_net_buf_flags {
-	/** Set when the buffer is registered with the domain */
+	/**
+	   Set when the buffer is registered with the domain.
+	 */
 	M0_NET_BUF_REGISTERED  = 1<<0,
-	/** Set when the buffer is added to a transfer machine logical queue */
+	/**
+	   Set when the buffer is added to a transfer machine logical queue.
+	 */
 	M0_NET_BUF_QUEUED      = 1<<1,
-	/** Set when the transport starts using the buffer */
+	/**
+	   Set when the transport starts using the buffer.
+	 */
 	M0_NET_BUF_IN_USE      = 1<<2,
-	/** Indicates that the buffer operation has been cancelled */
+	/**
+	   Indicates that the buffer operation has been cancelled.
+	 */
 	M0_NET_BUF_CANCELLED   = 1<<3,
-	/** Indicates that the buffer operation has timed out */
+	/**
+	   Indicates that the buffer operation has timed out.
+	 */
 	M0_NET_BUF_TIMED_OUT   = 1<<4,
-	/** Set by the transport to indicate that a buffer should not be
-	    dequeued in a m0_net_buffer_event_post() call.
+	/**
+	   Set by the transport to indicate that a buffer should not be
+	   dequeued in a m0_net_buffer_event_post() call.
 	 */
 	M0_NET_BUF_RETAIN      = 1<<5,
 };
@@ -1410,13 +1509,19 @@ struct m0_net_buffer {
 	 */
 	struct m0_tlink		   nb_tm_linkage;
 
-	/** Linkage into a network buffer pool. */
+	/**
+	   Linkage into a network buffer pool.
+	 */
 	struct m0_tlink		   nb_lru;
 
-        /* This link is used by I/O service */
+        /**
+	   This link is used by I/O service.
+	 */
         struct m0_tlink            nb_ioservice_linkage;
 
-	/** Magic for network buffer list. */
+	/**
+	   Magic for network buffer list.
+	 */
 	uint64_t		   nb_magic;
 
 	/**
@@ -1475,8 +1580,11 @@ struct m0_net_buffer {
 	   m0_net_buffer_pool_get() subroutine call.
 	 */
 	struct m0_net_buffer_pool *nb_pool;
-	/** ADDB context for events related to this buffer */
-	struct m0_addb_ctx         nb_addb;
+
+	/**
+	   Counts the number of messages received when on the receive queue.
+	 */
+	uint32_t                   nb_msgs_received;
 };
 
 /**
@@ -1722,7 +1830,7 @@ M0_INTERNAL int m0_net_desc_copy(const struct m0_net_buf_desc *from_desc,
  */
 M0_INTERNAL void m0_net_desc_free(struct m0_net_buf_desc *desc);
 
-/** Descriptor for the tlist of buffers. */
+/* Descriptor for the tlist of buffers. */
 M0_TL_DESCR_DECLARE(m0_net_pool, M0_EXTERN);
 M0_TL_DESCR_DECLARE(m0_net_tm, M0_EXTERN);
 M0_TL_DECLARE(m0_net_pool, M0_INTERNAL, struct m0_net_buffer);

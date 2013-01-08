@@ -67,7 +67,7 @@ static int rpc_mc_ut_init(void)
 	uint32_t tms_nr;
 
 	tms_nr = 1;
-	rc = m0_net_domain_init(&ndom, net_xprt);
+	rc = m0_net_domain_init(&ndom, net_xprt, &m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
 
 	cob_domain_init();

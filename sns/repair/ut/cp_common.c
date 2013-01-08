@@ -22,7 +22,25 @@
 #include "config.h"
 #endif
 
+#include "net/lnet/lnet.h"
+#include "mero/setup.h"
 #include "sns/repair/ut/cp_common.h"
+#include "sns/repair/service.c"
+
+/* Global structures for setting up mero service. */
+const char log_file_name[] = "sr_ut.errlog";
+char      *sns_repair_ut_svc[] = { "m0d", "-r", "-p", "-T", "LINUX",
+				     "-D", "sr_db", "-S", "sr_stob",
+				     "-A", "sr_addb_stob",
+				     "-e", "lnet:0@lo:12345:34:1",
+				     "-s", "sns_repair"};
+
+struct m0_net_xprt *sr_xprts[] = {
+	&m0_net_lnet_xprt,
+};
+
+FILE             *lfile;
+struct m0_mero sctx;
 
 /* Populates the bufvec with a character value. */
 void bv_populate(struct m0_bufvec *b, char data, uint32_t seg_nr,
@@ -69,18 +87,88 @@ inline void bv_free(struct m0_bufvec *b)
 void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
 		uint32_t bv_seg_nr, uint32_t bv_seg_size,
 		struct m0_sns_repair_ag *sns_ag,
-		char data, struct m0_fom_ops *cp_fom_ops)
+		char data, struct m0_fom_ops *cp_fom_ops,
+		struct m0_reqh *reqh)
 {
+	struct m0_reqh_service *service;
+	struct m0_cm           *cm;
+
         M0_UT_ASSERT(cp != NULL);
         M0_UT_ASSERT(bv != NULL);
         M0_UT_ASSERT(sns_ag != NULL);
 
         bv_populate(bv, data, bv_seg_nr, bv_seg_size);
         cp->c_ag = &sns_ag->sag_base;
+	service = m0_reqh_service_find(&sns_repair_cmt.ct_stype, reqh);
+	M0_UT_ASSERT(service != NULL);
+	cm = container_of(service, struct m0_cm, cm_service);
+	M0_UT_ASSERT(cm != NULL);
+	cp->c_ag->cag_cm = cm;
         m0_cm_cp_init(cp);
         cp->c_data = bv;
         cp->c_fom.fo_ops = cp_fom_ops;
         cp->c_ops = &m0_sns_repair_cp_ops;
+}
+
+/*
+ * Starts mero service, which internally creates and sets up stob domain.
+ * This stob domain is used in read and write phases of the copy packet.
+ */
+int cs_init(struct m0_mero *sctx)
+{
+	int rc;
+
+	M0_SET0(sctx);
+
+	lfile = fopen(log_file_name, "w+");
+	M0_ASSERT(lfile != NULL);
+
+	rc = m0_cs_init(sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_cs_setup_env(sctx, ARRAY_SIZE(sns_repair_ut_svc),
+			     sns_repair_ut_svc);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_cs_start(sctx);
+	M0_ASSERT(rc == 0);
+
+	return rc;
+}
+
+/* Finalises the mero service. */
+void cs_fini(struct m0_mero *sctx)
+{
+	m0_cs_fini(sctx);
+	fclose(lfile);
+}
+
+void sns_repair_ut_server_stop(void)
+{
+	m0_cs_fini(&sctx);
+	fclose(lfile);
+}
+
+int sns_repair_ut_server_start(void)
+{
+	int rc;
+
+	M0_SET0(&sctx);
+	lfile = fopen(log_file_name, "w+");
+	M0_UT_ASSERT(lfile != NULL);
+
+        rc = m0_cs_init(&sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile);
+        if (rc != 0)
+		return rc;
+
+        rc = m0_cs_setup_env(&sctx, ARRAY_SIZE(sns_repair_ut_svc),
+                             sns_repair_ut_svc);
+	if (rc == 0)
+		rc = m0_cs_start(&sctx);
+        if (rc != 0)
+		sns_repair_ut_server_stop();
+
+	return rc;
 }
 
 /*

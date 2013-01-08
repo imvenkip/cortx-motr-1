@@ -25,8 +25,6 @@
 #include "mero/init.h"
 #include "mero/magic.h"
 #include "fop/fop.h"
-#include "addb/addb.h"
-#include "addb/addb_xc.h"
 #include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 #include "rpc/rpc_opcodes.h"
@@ -40,31 +38,24 @@
 
 static struct m0_rpc_item *prepare_ping_fop_item(void);
 static struct m0_rpc_item *prepare_ping_rep_fop_item(void);
-static struct m0_rpc_item *prepare_addb_fop_item(void);
 static void fill_ping_fop_data(struct m0_fop_ping_arr *fp_arr);
-static void fill_addb_header(struct m0_addb_record_header *header);
-static void fill_addb_data(struct m0_mem_buf *addb_data);
 static void populate_item(struct m0_rpc_item *item);
 static void packet_compare(struct m0_rpc_packet *p1, struct m0_rpc_packet *p2);
 static void item_compare(struct m0_rpc_item *item1, struct m0_rpc_item *item2);
 static void fop_data_compare(struct m0_fop *fop1, struct m0_fop *fop2);
 static void cmp_ping_fop_data(struct m0_fop_ping_arr *fp_arr1,
 			      struct m0_fop_ping_arr *fp_arr2);
-static void cmp_addb_record_buf(struct m0_mem_buf *buf1,
-				struct m0_mem_buf *buf2);
 static void packet_fini(struct m0_rpc_packet *packet);
 
 static int packet_encdec_ut_init(void)
 {
 	m0_ping_fop_init();
-	m0_addb_fop_init();
 	return 0;
 }
 
 static int packet_encdec_ut_fini(void)
 {
 	m0_ping_fop_fini();
-	m0_addb_fop_fini();
 	return 0;
 }
 
@@ -83,9 +74,6 @@ static void test_packet_encode_decode(void)
 	m0_rpc_packet_add_item(&packet, item);
 	m0_rpc_item_put(item);
 	item = prepare_ping_rep_fop_item();
-	m0_rpc_packet_add_item(&packet, item);
-	m0_rpc_item_put(item);
-	item = prepare_addb_fop_item();
 	m0_rpc_packet_add_item(&packet, item);
 	m0_rpc_item_put(item);
 	bufvec_size = m0_align(packet.rp_size, 8);
@@ -139,26 +127,6 @@ static struct m0_rpc_item* prepare_ping_rep_fop_item(void)
 	return item;
 }
 
-static struct m0_rpc_item* prepare_addb_fop_item(void)
-{
-	struct m0_fop         *addb_fop;
-	struct m0_addb_record *addb_fop_data;
-	struct m0_rpc_item    *item;
-
-	addb_fop = m0_fop_alloc(&m0_addb_record_fopt, NULL);
-	M0_UT_ASSERT(addb_fop != NULL);
-
-	addb_fop_data = m0_fop_data(addb_fop);
-	addb_fop_data->ar_data.cmb_count = 10;
-	M0_ALLOC_ARR(addb_fop_data->ar_data.cmb_value,
-		     addb_fop_data->ar_data.cmb_count);
-	fill_addb_header(&addb_fop_data->ar_header);
-	fill_addb_data(&addb_fop_data->ar_data);
-	item = &addb_fop->f_item;
-	populate_item(item);
-	return item;
-}
-
 static void fill_ping_fop_data(struct m0_fop_ping_arr *fp_arr)
 {
 	int i;
@@ -168,30 +136,6 @@ static void fill_ping_fop_data(struct m0_fop_ping_arr *fp_arr)
 
 	for (i = 0; i < fp_arr->f_count; ++i) {
 		fp_arr->f_data[i] = i % UINT64_MAX;
-	}
-}
-
-static void fill_addb_header(struct m0_addb_record_header *header)
-{
-	*header = (struct m0_addb_record_header) {
-		 .arh_magic1    = M0_ADDB_REC_HEADER_MAGIC1,
-		 .arh_version   = ADDB_REC_HEADER_VERSION,
-		 .arh_len       = 0,
-		 .arh_event_id  = 1234,
-		 .arh_timestamp = m0_time_now(),
-		 .arh_magic2    = M0_ADDB_REC_HEADER_MAGIC2,
-	};
-}
-
-static void fill_addb_data(struct m0_mem_buf *addb_data)
-{
-	int i;
-
-	M0_UT_ASSERT(addb_data->cmb_count != 0);
-	M0_UT_ASSERT(addb_data->cmb_value != NULL);
-
-	for (i = 0; i < addb_data->cmb_count; ++i) {
-		addb_data->cmb_value[i] = i % UINT8_MAX;
 	}
 }
 
@@ -257,8 +201,6 @@ static void fop_data_compare(struct m0_fop *fop1, struct m0_fop *fop2)
 	struct m0_fop_ping     *ping_data2;
 	struct m0_fop_ping_rep *ping_rep_data1;
 	struct m0_fop_ping_rep *ping_rep_data2;
-	struct m0_addb_record  *addb_data1;
-	struct m0_addb_record  *addb_data2;
 
 	M0_UT_ASSERT(m0_fop_opcode(fop1) == m0_fop_opcode(fop2));
 
@@ -277,13 +219,6 @@ static void fop_data_compare(struct m0_fop *fop1, struct m0_fop *fop2)
 		M0_UT_ASSERT(ping_rep_data1->fpr_rc == ping_rep_data2->fpr_rc);
 		break;
 
-	case M0_ADDB_RECORD_REQUEST_OPCODE:
-		addb_data1 = m0_fop_data(fop1);
-		addb_data2 = m0_fop_data(fop2);
-		M0_UT_ASSERT(memcmp(&addb_data1->ar_header,
-			     &addb_data2->ar_header,
-			     sizeof addb_data2->ar_header) == 0);
-		cmp_addb_record_buf(&addb_data1->ar_data, &addb_data2->ar_data);
 	}
 }
 
@@ -295,16 +230,6 @@ static void cmp_ping_fop_data(struct m0_fop_ping_arr *fp_arr1,
 	M0_UT_ASSERT(fp_arr2->f_data != NULL);
 	M0_UT_ASSERT(m0_forall(i, fp_arr1->f_count,
 		               fp_arr1->f_data[i] == fp_arr2->f_data[i]));
-}
-
-static void cmp_addb_record_buf(struct m0_mem_buf *buf1,
-				struct m0_mem_buf *buf2)
-{
-	M0_UT_ASSERT(buf1->cmb_count == buf2->cmb_count);
-	M0_UT_ASSERT(buf1->cmb_value != NULL);
-	M0_UT_ASSERT(buf2->cmb_value != NULL);
-	M0_UT_ASSERT(m0_forall(i, buf1->cmb_count,
-		               buf1->cmb_value[i] == buf2->cmb_value[i]));
 }
 
 static void packet_fini(struct m0_rpc_packet *packet)

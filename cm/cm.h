@@ -142,6 +142,8 @@ enum m0_cm_failure {
 struct m0_cm_type {
 	/** Service type corresponding to this copy machine type. */
 	struct m0_reqh_service_type   ct_stype;
+	/** ADDB ct for this cm type */
+	struct m0_addb_ctx_type      *ct_addb_ct;
 	/** Linkage into the list of copy machine types (struct m0_tl cmtypes)*/
 	struct m0_tlink               ct_linkage;
 	uint64_t                      ct_magix;
@@ -177,9 +179,6 @@ struct m0_cm {
 
 	/** Copy machine type, this copy machine is an instance of. */
 	const struct m0_cm_type         *cm_type;
-
-	/** ADDB context to log important events and failures. */
-	struct m0_addb_ctx               cm_addb;
 
 	/**
 	 * List of aggregation groups in process.
@@ -365,13 +364,14 @@ M0_INTERNAL int m0_cm_configure(struct m0_cm *cm, struct m0_fop *fop);
 M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, enum m0_cm_failure failure,
 			    int rc);
 
-#define M0_CM_TYPE_DECLARE(cmtype, ops, name)     \
-struct m0_cm_type cmtype ## _cmt = {              \
-	.ct_stype = {                             \
-		.rst_name  = (name),              \
-		.rst_ops   = (ops),               \
-	}				          \
-}					          \
+#define M0_CM_TYPE_DECLARE(cmtype, ops, name, ct)     \
+struct m0_cm_type cmtype ## _cmt = {                  \
+	.ct_stype = {                                 \
+		.rst_name    = (name),                \
+		.rst_ops     = (ops),                 \
+		.rst_addb_ct = (ct),                  \
+	}				              \
+}					              \
 
 /** Checks consistency of copy machine. */
 M0_INTERNAL bool m0_cm_invariant(const struct m0_cm *cm);

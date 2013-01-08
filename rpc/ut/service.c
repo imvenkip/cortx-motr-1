@@ -21,7 +21,6 @@
 #include "lib/ut.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 enum {
@@ -60,6 +59,11 @@ static const struct m0_rpc_service_ops foo_service_ops = {
 };
 
 static bool foo_alloc_and_init_called;
+
+static struct m0_rpc_machine     mock_rpc_machine;
+static struct m0_rpc_chan        mock_rpc_chan;
+static struct m0_rpc_conn        mock_conn;
+static struct m0_net_end_point   mock_destep; /* Destination end-point */
 
 static int
 foo_service_alloc_and_init(struct m0_rpc_service_type *service_type,
@@ -198,11 +202,7 @@ static void alloc_test(void)
 
 static void conn_attach_detach_test(void)
 {
-	struct m0_rpc_machine     mock_rpc_machine;
-	struct m0_rpc_chan        mock_rpc_chan;
-	struct m0_rpc_conn        mock_conn;
-	struct m0_net_end_point   mock_destep; /* Destination end-point */
-	char                     *copy_of_foo_ep_addr;
+	char *copy_of_foo_ep_addr;
 
 	M0_SET0(&mock_rpc_machine);
 	M0_SET0(&mock_conn);

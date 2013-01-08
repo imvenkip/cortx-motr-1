@@ -25,8 +25,6 @@
 #include "lib/bob.h"
 #include "lib/rwlock.h"
 #include "lib/memory.h"   /* m0_alloc() */
-
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 /**

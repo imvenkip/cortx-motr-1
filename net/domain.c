@@ -30,11 +30,13 @@ const struct m0_addb_ctx_type m0_net_dom_addb_ctx = {
 	.act_name = "net-dom"
 };
 
-int m0_net_domain_init(struct m0_net_domain *dom, struct m0_net_xprt *xprt)
+int m0_net_domain_init(struct m0_net_domain *dom,
+		       struct m0_net_xprt   *xprt,
+		       struct m0_addb_ctx   *ctx)
 {
 	int rc;
 	m0_mutex_lock(&m0_net_mutex);
-	rc = m0_net__domain_init(dom, xprt);
+	rc = m0_net__domain_init(dom, xprt, ctx);
 	m0_mutex_unlock(&m0_net_mutex);
 	return rc;
 }
@@ -49,7 +51,8 @@ void m0_net_domain_fini(struct m0_net_domain *dom)
 M0_EXPORTED(m0_net_domain_fini);
 
 M0_INTERNAL int m0_net__domain_init(struct m0_net_domain *dom,
-				    struct m0_net_xprt *xprt)
+				    struct m0_net_xprt   *xprt,
+				    struct m0_addb_ctx   *ctx)
 {
 	int rc;
 
@@ -62,13 +65,14 @@ M0_INTERNAL int m0_net__domain_init(struct m0_net_domain *dom,
 
 	dom->nd_xprt_private = NULL;
 	dom->nd_xprt = xprt;
-	m0_addb_ctx_init(&dom->nd_addb, &m0_net_dom_addb_ctx, &m0_net_addb);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &dom->nd_addb_ctx,
+			 &m0_addb_ct_net_dom, ctx);
 
 	rc = xprt->nx_ops->xo_dom_init(xprt, dom);
 	if (rc != 0) {
 		dom->nd_xprt = NULL; /* prevent call to xo_dom_fini */
 		m0_net__domain_fini(dom);
-		NET_ADDB_FUNCFAIL_ADD(m0_net_addb, rc);
+		NET_ADDB_FUNCFAIL(rc, DOM_INIT, ctx);
 	}
 	return rc;
 }
@@ -83,7 +87,7 @@ M0_INTERNAL void m0_net__domain_fini(struct m0_net_domain *dom)
 		dom->nd_xprt->nx_ops->xo_dom_fini(dom);
 		dom->nd_xprt = NULL;
 	}
-	m0_addb_ctx_fini(&dom->nd_addb);
+	m0_addb_ctx_fini(&dom->nd_addb_ctx);
 	dom->nd_xprt_private = NULL;
 
 	m0_list_fini(&dom->nd_tms);

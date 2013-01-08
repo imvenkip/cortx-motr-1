@@ -77,7 +77,7 @@ struct nlx_kcore_domain {
 	struct m0_tl                  kd_drv_bufs;
 
 	/** ADDB context for events related to this domain */
-	struct m0_addb_ctx            kd_addb;
+	struct m0_addb_ctx            kd_addb_ctx;
 };
 
 /**
@@ -117,8 +117,11 @@ struct nlx_kcore_transfer_mc {
 	/** Handle of the LNet EQ associated with this transfer machine. */
 	lnet_handle_eq_t              ktm_eqh;
 
+	/** ADDB machine for non-exception posts from this transfer machine */
+	struct m0_addb_mc            *ktm_addb_mc;
+
 	/** ADDB context for events related to this transfer machine. */
-	struct m0_addb_ctx            ktm_addb;
+	struct m0_addb_ctx            ktm_addb_ctx;
 
 	unsigned                      _debug_;
 };
@@ -194,8 +197,12 @@ struct nlx_kcore_buffer {
 	 */
 	unsigned                      kb_ooo_offset;
 
-	/** ADDB context for events related to this buffer */
-	struct m0_addb_ctx            kb_addb;
+	/**
+	   ADDB context for events related to this buffer
+	   are directed to the domain context.  The pointer is saved
+	   here for convenience.
+	 */
+	struct m0_addb_ctx           *kb_addb_ctxp;
 };
 
 /**
@@ -283,8 +290,10 @@ struct nlx_kcore_ops {
 	   @param ktm The kernel transfer machine private data to be
 	   initialized.
 	 */
-	int (*ko_tm_start)(struct nlx_kcore_domain *kd,
-			   struct nlx_core_transfer_mc *ctm,
+	int (*ko_tm_start)(struct nlx_kcore_domain      *kd,
+			   struct nlx_core_transfer_mc  *ctm,
+			   struct m0_addb_mc            *addb_mc,
+			   struct m0_addb_ctx           *ctx,
 			   struct nlx_kcore_transfer_mc *ktm);
 
 	/**
@@ -359,7 +368,8 @@ static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb);
 static bool nlx_kcore_buffer_event_invariant(
 				     const struct nlx_kcore_buffer_event *kbe);
 static bool nlx_kcore_tm_invariant(const struct nlx_kcore_transfer_mc *kctm);
-static int nlx_kcore_kcore_dom_init(struct nlx_kcore_domain *kd);
+static int nlx_kcore_kcore_dom_init(struct nlx_kcore_domain *kd,
+				    struct m0_addb_ctx *ctx);
 static void nlx_kcore_kcore_dom_fini(struct nlx_kcore_domain *kd);
 static int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 					const struct m0_bufvec *bvec);

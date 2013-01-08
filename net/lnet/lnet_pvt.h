@@ -29,26 +29,19 @@
    @{
  */
 
-#define LNET_ADDB_FUNCFAIL_ADD(ctx, rc)					\
-	M0_ADDB_ADD(&(ctx), &nlx_addb_loc, nlx_func_fail, __func__, (rc))
+extern struct m0_addb_ctx m0_net_lnet_addb_ctx;
 
-#define NLX_ADDB_ADD(ctx, ev, ...)					\
-	M0_ADDB_ADD(&(ctx), &nlx_addb_loc, ev , ## __VA_ARGS__)
-
-#define LNET_ADDB_STAT_ADD(ctx, ...)					\
-({									\
-	struct nlx_addb_dp __dp = {					\
-		.ad_dp.ad_ctx   = &(ctx),				\
-		.ad_dp.ad_loc   = &nlx_addb_loc,			\
-		.ad_dp.ad_ev    = &nlx_qstat,				\
-		.ad_dp.ad_level = m0_addb_level_default,		\
-	};								\
-									\
-	(void) sizeof(((__nlx_qstat_typecheck_t *)NULL)			\
-		      (&__dp.ad_dp , ## __VA_ARGS__));			\
-	if (nlx_qstat.ae_ops->aeo_subst(&__dp.ad_dp , ## __VA_ARGS__) == 0) \
-		m0_addb_add(&__dp.ad_dp);				\
-})
+/**
+   LNet function failure macro using the global ADDB machine to post.
+   @param rc Return code
+   @param loc Location code - one of the M0_NET_LNET_ADDB_LOC_ enumeration
+   constants suffixes from net/lnet/lnet_addb.h.
+   @param ctx Runtime context pointer
+   @pre rc < 0
+ */
+#define LNET_ADDB_FUNCFAIL(rc, loc, ctx)				\
+	M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_NET_LNET_ADDB_LOC_##loc, rc,	\
+			  &m0_net_lnet_addb_ctx, ctx)
 
 /* forward references to other static functions */
 static bool nlx_tm_invariant(const struct m0_net_transfer_mc *tm);

@@ -201,16 +201,16 @@ M0_EXPORTED(m0_bufvec_free_aligned);
 M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec,
 				  uint32_t len,
 				  struct m0_addb_ctx *ctx,
-				  const struct m0_addb_loc *loc)
+				  const unsigned loc)
 {
 	M0_PRE(ivec != NULL);
 	M0_PRE(len   > 0);
 
-	M0_ALLOC_ARR_ADDB(ivec->iv_index, len, ctx, loc);
+	M0_ALLOC_ARR_ADDB(ivec->iv_index, len, &m0_addb_gmc, loc, ctx);
 	if (ivec->iv_index == NULL)
 		return -ENOMEM;
 
-	M0_ALLOC_ARR_ADDB(ivec->iv_vec.v_count, len, ctx, loc);
+	M0_ALLOC_ARR_ADDB(ivec->iv_vec.v_count, len, &m0_addb_gmc, loc, ctx);
 	if (ivec->iv_vec.v_count == NULL) {
 		m0_free(ivec->iv_index);
 		return -ENOMEM;

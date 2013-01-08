@@ -27,8 +27,6 @@
 #include "lib/finject.h"
 #include "mero/magic.h"
 #include "xcode/xcode.h"
-
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 /**

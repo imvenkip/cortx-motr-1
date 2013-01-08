@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,15 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 08/13/2010
  */
+
+/*
+ * Define the ADDB types in this file.
+ */
+#undef M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_CT_CREATE_DEFINITION
+#undef M0_ADDB_RT_CREATE_DEFINITION
+#define M0_ADDB_RT_CREATE_DEFINITION
+#include "db/db_addb.h"
 
 #include <stdarg.h>
 #include <stdlib.h>    /* free */
@@ -58,10 +67,13 @@
 
    Alternatively, commit call-back can be added to db5.
 
-   @see http://www.oracle.com/technology/documentation/berkeley-db/db/api_reference/C/index.html
+   @see http://www.oracle.com/technology/documentation/berkeley-db/db/
+api_reference/C/index.html
 
    @{
  */
+
+struct m0_addb_ctx m0_db_mod_ctx;
 
 static int key_compare(DB *db, const DBT *dbt1, const DBT *dbt2);
 static int get_lsn(struct m0_dbenv *env, DB_LSN *lsn);
@@ -79,7 +91,8 @@ M0_TL_DEFINE(enw, static, struct m0_db_tx_waiter);
    This function is idempotent: dberr_conv(dberr_conv(x)) == dberr_conv(x) for
    all x.
 
-   @see http://www.oracle.com/technology/documentation/berkeley-db/db/programmer_reference/program_errorret.html
+   @see http://www.oracle.com/technology/documentation/berkeley-db/db/
+programmer_reference/program_errorret.html
  */
 static int dberr_conv(int db_error)
 {
@@ -100,6 +113,8 @@ static int dberr_conv(int db_error)
 		return -ENOLCK;
 	case DB_BUFFER_SMALL:
 		return -ENOBUFS;
+	case DB_RUNRECOVERY:
+		return -EUCLEAN;
 	default:
 		/* As per <db.h>:
 		 *
@@ -130,8 +145,15 @@ static int db_call_tail(struct m0_addb_ctx *ctx, int rc, const char *name,
 		rc = dberr_conv(rc);
 		for (; *tolerate != 0 && *tolerate != rc; tolerate++)
 			;
+		/** @todo:  Use the ctx field in db_call_tail. Will require a
+		    context chain to be established through transactions and
+		    table objects from the dbenv object.
+		    Dbenv creation will have to pass in an external context.
+		 */
 		if (*tolerate == 0)
-			M0_ADDB_ADD(ctx, &db_loc, m0_addb_func_fail, name, rc);
+			M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
+					  M0_DB_ADDB_LOC_CALL_TAIL, rc,
+					  &m0_db_mod_ctx);
 	}
 	return rc;
 }
@@ -262,7 +284,7 @@ static int dbenv_setup(struct m0_dbenv *env, const char *name, uint64_t flags)
 	 */
 	if (flags == 0)
 		flags = DB_CREATE|DB_THREAD|DB_INIT_LOG|DB_INIT_MPOOL|
-			DB_INIT_TXN|DB_RECOVER;
+			DB_INIT_TXN|DB_RECOVER|DB_REGISTER;
 
 	if (flags & DB_CREATE)
 		/* try to create home directory, don't bother to check the
@@ -765,11 +787,15 @@ M0_INTERNAL int m0_db_cursor_del(struct m0_db_cursor *cursor)
 
 M0_INTERNAL int m0_db_init(void)
 {
+	m0_addb_ctx_type_register(&m0_addb_ct_db_mod);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_db_mod_ctx,
+			 &m0_addb_ct_db_mod, &m0_addb_proc_ctx);
 	return 0;
 }
 
 M0_INTERNAL void m0_db_fini(void)
 {
+        m0_addb_ctx_fini(&m0_db_mod_ctx);
 }
 
 static int key_compare(DB *db, const DBT *dbt0, const DBT *dbt1)

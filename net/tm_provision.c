@@ -45,13 +45,17 @@
 
    <hr>
    @section NetRQProvDLD-def Definitions
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Mero LNet Transport</a>,
+   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Mero LNet Transport</a>,
    @ref and @ref net_buffer_pool.
 
    <hr>
    @section NetRQProvDLD-req Requirements
    - @b r.m0.net.xprt.support-for-auto-provisioned-receive-queue
-     from <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Mero LNet Transport</a>.
+     from <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Mero LNet Transport</a>.
 
    <hr>
    @section NetRQProvDLD-depends Dependencies
@@ -393,8 +397,12 @@ m0_net_domain_buffer_pool_not_empty(pool) {
 
    <hr>
    @section NetRQProvDLD-ref References
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Mero LNet Transport</a>
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Mero LNet Transport</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/
+1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">
+RPC Bulk Transfer Task Plan</a>
    - @ref net_buffer_pool
 
  */
@@ -420,6 +428,7 @@ static void tm_provision_recv_q(struct m0_net_transfer_mc *tm)
 	int			   rc;
 	uint64_t		   recv_q_len;
 	uint64_t		   deficit;
+	uint64_t		   prev_deficit;
 
 	M0_PRE(m0_mutex_is_locked(&tm->ntm_mutex));
 	M0_PRE(m0_net__tm_invariant(tm));
@@ -427,6 +436,7 @@ static void tm_provision_recv_q(struct m0_net_transfer_mc *tm)
 	if (tm->ntm_state != M0_NET_TM_STARTED || pool == NULL)
 		return; /* provisioning not required */
 	M0_PRE(m0_net_buffer_pool_is_locked(pool));
+	prev_deficit = m0_atomic64_get(&tm->ntm_recv_queue_deficit);
 	recv_q_len = m0_net_tm_tlist_length(&tm->ntm_q[M0_NET_QT_MSG_RECV]);
 	need = tm->ntm_recv_queue_min_length - recv_q_len;
 	while (need > 0) {
@@ -448,6 +458,9 @@ static void tm_provision_recv_q(struct m0_net_transfer_mc *tm)
 		M0_CNT_INC(recv_q_len);
 	}
 	deficit = need < 0 ? 0 : need;
+	if (deficit > prev_deficit)
+		tm->ntm_qstats[M0_NET_QT_MSG_RECV].nqs_num_f_events +=
+			deficit - prev_deficit;
 	m0_atomic64_set(&tm->ntm_recv_queue_deficit, deficit);
 	M0_POST((recv_q_len >= tm->ntm_recv_queue_min_length && deficit == 0) ||
 		 recv_q_len + deficit == tm->ntm_recv_queue_min_length);

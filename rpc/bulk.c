@@ -29,8 +29,6 @@
 #include "mero/magic.h"
 #include "net/net.h"
 #include "rpc/bulk.h"
-
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 /**
@@ -38,7 +36,6 @@
 
    @{
  */
-
 M0_TL_DESCR_DEFINE(rpcbulk, "rpc bulk buffer list", M0_INTERNAL,
 		   struct m0_rpc_bulk_buf, bb_link, bb_magic,
 		   M0_RPC_BULK_BUF_MAGIC, M0_RPC_BULK_MAGIC);
@@ -107,7 +104,7 @@ static int rpc_bulk_buf_init(struct m0_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 
 	rbuf->bb_flags = 0;
 	if (nb == NULL) {
-		M0_ALLOC_PTR(rbuf->bb_nbuf);
+		RPC_ALLOC_PTR(rbuf->bb_nbuf, BULK_BUF_INIT, &m0_rpc_addb_ctx);
 		if (rbuf->bb_nbuf == NULL) {
 			m0_0vec_fini(&rbuf->bb_zerovec);
 			M0_RETURN(-ENOMEM);
@@ -271,7 +268,7 @@ M0_INTERNAL int m0_rpc_bulk_buf_add(struct m0_rpc_bulk *rbulk,
 	if (segs_nr > m0_net_domain_get_max_buffer_segments(netdom))
 		M0_RETERR(-EMSGSIZE, "Cannot exceed net_max_buf_seg");
 
-	M0_ALLOC_PTR(buf);
+	RPC_ALLOC_PTR(buf, BULK_BUF_ADD, &m0_rpc_addb_ctx);
 	if (buf == NULL)
 		M0_RETURN(-ENOMEM);
 
@@ -395,46 +392,25 @@ static int rpc_bulk_op(struct m0_rpc_bulk *rbulk,
 		 */
 		if (!(nb->nb_flags & M0_NET_BUF_REGISTERED)) {
 			rc = m0_net_buffer_register(nb, netdom);
-			if (rc != 0) {
-				M0_ADDB_ADD(&rpcmach->rm_addb,
-					    &m0_rpc_machine_addb_loc,
-					    m0_rpc_machine_func_fail,
-					    "Net buf registration failed.", rc);
+			if (rc != 0)
 				goto cleanup;
-			}
 			rbuf->bb_flags |= M0_RPC_BULK_NETBUF_REGISTERED;
 		}
 
 		if (op == M0_RPC_BULK_LOAD) {
 			rc = m0_net_desc_copy(&descs[cnt], &nb->nb_desc);
-			if (rc != 0) {
-				M0_ADDB_ADD(&rpcmach->rm_addb,
-					    &m0_rpc_machine_addb_loc,
-					    m0_rpc_machine_func_fail,
-					    "Load: Net buf desc copy failed.",
-					    rc);
+			if (rc != 0)
 				goto cleanup;
-			}
 		}
 
 		nb->nb_app_private = rbuf;
 		rc = m0_net_buffer_add(nb, tm);
-		if (rc != 0) {
-			M0_ADDB_ADD(&rpcmach->rm_addb,
-				    &m0_rpc_machine_addb_loc,
-				    m0_rpc_machine_func_fail,
-				    "Buffer addition to TM failed.", rc);
+		if (rc != 0)
 			goto cleanup;
-		}
 
 		if (op == M0_RPC_BULK_STORE) {
 			rc = m0_net_desc_copy(&nb->nb_desc, &descs[cnt]);
                         if (rc != 0) {
-                                M0_ADDB_ADD(&rpcmach->rm_addb,
-                                            &m0_rpc_machine_addb_loc,
-                                            m0_rpc_machine_func_fail,
-                                            "Store: Net buf desc copy failed.",
-                                            rc);
                                 m0_net_buffer_del(nb, tm);
                                 goto cleanup;
                         }
@@ -448,6 +424,7 @@ static int rpc_bulk_op(struct m0_rpc_bulk *rbulk,
 
 	M0_RETURN(rc);
 cleanup:
+	RPC_ADDB_FUNCFAIL(rc, BULK_RPC_BULK_OP, &m0_rpc_addb_ctx);
 	M0_ASSERT(rc != 0);
 	rpcbulk_tlist_del(rbuf);
 	m0_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {

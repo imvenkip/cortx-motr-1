@@ -31,6 +31,7 @@
 
 #include "stob/linux.h"
 #include "stob/linux_internal.h"
+#include "stob/stob_addb.h"
 
 /**
    @addtogroup stoblinux
@@ -75,9 +76,6 @@ static const struct m0_stob_domain_op linux_stob_domain_op;
 
 static void linux_stob_fini(struct m0_stob *stob);
 
-static const struct m0_addb_loc m0_linux_stob_addb_loc = {
-	.al_name = "linux-stob"
-};
 
 /**
    Implementation of m0_stob_type_op::sto_init().
@@ -147,8 +145,7 @@ static int linux_stob_type_domain_locate(struct m0_stob_type *type,
 		ldom->sdl_use_directio = false;
 		dom->sd_name = ldom->sdl_path;
 	} else {
-		M0_ADDB_ADD(&type->st_addb,
-			    &m0_linux_stob_addb_loc, m0_addb_oom);
+		M0_STOB_OOM(LS_DOM_LOCATE);
 		result = -ENOMEM;
 	}
 	return result;
@@ -192,8 +189,7 @@ static int linux_incache_init(struct m0_stob_domain *dom,
 		lstob->sl_fd = -1;
 		return 0;
 	} else {
-		M0_ADDB_ADD(&dom->sd_addb,
-			    &m0_linux_stob_addb_loc, m0_addb_oom);
+		M0_STOB_OOM(LS_STOB_FIND);
 		return -ENOMEM;
 	}
 }
@@ -352,12 +348,6 @@ struct m0_stob_type m0_linux_stob_type = {
 	.st_magic = 0xACC01ADE
 };
 
-const struct m0_addb_ctx_type adieu_addb_ctx_type = {
-	.act_name = "adieu"
-};
-
-struct m0_addb_ctx adieu_addb_ctx;
-
 /**
    This function is called to link a path of an existing file to a stob id,
    for a given Linux stob. This path will be typically a block device path.
@@ -395,15 +385,12 @@ M0_INTERNAL int m0_linux_stob_link(struct m0_stob_domain *dom,
 
 M0_INTERNAL int m0_linux_stobs_init(void)
 {
-	m0_addb_ctx_init(&adieu_addb_ctx, &adieu_addb_ctx_type,
-			 &m0_addb_global_ctx);
 	return M0_STOB_TYPE_OP(&m0_linux_stob_type, sto_init);
 }
 
 M0_INTERNAL void m0_linux_stobs_fini(void)
 {
 	M0_STOB_TYPE_OP(&m0_linux_stob_type, sto_fini);
-	m0_addb_ctx_fini(&adieu_addb_ctx);
 }
 
 /** @} end group stoblinux */

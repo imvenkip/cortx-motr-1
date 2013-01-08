@@ -73,6 +73,15 @@
  *     m0_layout_encode().
  */
 
+/*
+ * Define the ADDB types in this file.
+ */
+#undef M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_CT_CREATE_DEFINITION
+#undef M0_ADDB_RT_CREATE_DEFINITION
+#define M0_ADDB_RT_CREATE_DEFINITION
+#include "layout/layout_addb.h"
+
 #include "lib/errno.h"
 #include "lib/memory.h" /* M0_ALLOC_PTR() */
 #include "lib/misc.h"   /* strlen(), M0_IN() */
@@ -91,6 +100,8 @@
 extern struct m0_layout_type m0_pdclust_layout_type;
 extern struct m0_layout_enum_type m0_list_enum_type;
 extern struct m0_layout_enum_type m0_linear_enum_type;
+
+struct m0_addb_ctx m0_layout_mod_ctx;
 
 static const struct m0_bob_type layout_bob = {
 	.bt_name         = "layout",
@@ -115,34 +126,6 @@ static const struct m0_bob_type layout_instance_bob = {
 	.bt_check        = NULL
 };
 M0_BOB_DEFINE(static, &layout_instance_bob, m0_layout_instance);
-
-/** ADDB instrumentation for layout. */
-static const struct m0_addb_ctx_type layout_addb_ctx_type = {
-	.act_name = "layout"
-};
-
-const struct m0_addb_loc layout_addb_loc = {
-	.al_name = "layout"
-};
-
-struct m0_addb_ctx layout_global_ctx = {
-	.ac_type   = &layout_addb_ctx_type,
-	.ac_parent = &m0_addb_global_ctx
-};
-
-M0_ADDB_EV_DEFINE(layout_decode_fail, "layout_decode_fail",
-		  M0_ADDB_EVENT_LAYOUT_DECODE_FAIL, M0_ADDB_CALL);
-M0_ADDB_EV_DEFINE(layout_encode_fail, "layout_encode_fail",
-		  M0_ADDB_EVENT_LAYOUT_ENCODE_FAIL, M0_ADDB_CALL);
-
-M0_ADDB_EV_DEFINE(layout_lookup_fail, "layout_lookup_fail",
-		  M0_ADDB_EVENT_LAYOUT_LOOKUP_FAIL, M0_ADDB_CALL);
-M0_ADDB_EV_DEFINE(layout_add_fail, "layout_add_fail",
-		  M0_ADDB_EVENT_LAYOUT_ADD_FAIL, M0_ADDB_CALL);
-M0_ADDB_EV_DEFINE(layout_update_fail, "layout_update_fail",
-		  M0_ADDB_EVENT_LAYOUT_UPDATE_FAIL, M0_ADDB_CALL);
-M0_ADDB_EV_DEFINE(layout_delete_fail, "layout_delete_fail",
-		  M0_ADDB_EVENT_LAYOUT_DELETE_FAIL, M0_ADDB_CALL);
 
 M0_TL_DESCR_DEFINE(layout, "layout-list", static,
 		   struct m0_layout, l_list_linkage, l_magic,
@@ -364,7 +347,8 @@ M0_INTERNAL void m0_layout__init(struct m0_layout *l,
 	m0_ref_init(&l->l_ref, 1, l->l_ops->lo_fini);
 	layout_type_get(lt);
 	m0_mutex_init(&l->l_lock);
-	m0_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type, &layout_global_ctx);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &l->l_addb_ctx, &m0_addb_ct_layout_obj,
+			 &m0_addb_proc_ctx, lid, lt->lt_id);
 	m0_layout_bob_init(l);
 
 	M0_POST(m0_layout__allocated_invariant(l));
@@ -389,7 +373,7 @@ M0_INTERNAL void m0_layout__populate(struct m0_layout *l, uint32_t user_count)
 M0_INTERNAL void m0_layout__fini_internal(struct m0_layout *l)
 {
 	M0_PRE(m0_mutex_is_not_locked(&l->l_lock));
-	m0_addb_ctx_fini(&l->l_addb);
+	m0_addb_ctx_fini(&l->l_addb_ctx);
 	m0_mutex_fini(&l->l_lock);
 	layout_type_put(l->l_type);
 	l->l_type = NULL;
@@ -625,55 +609,6 @@ static void max_recsize_update(struct m0_layout_domain *dom)
 }
 
 /**
- * This method adds an ADDB record indicating failure along with a short
- * error message string and the error code.
- */
-static void addb_add(struct m0_addb_ctx *ctx,
-		     const struct m0_addb_ev *ev,
-		     const char *err_msg,
-		     int rc)
-{
-
-	M0_PRE(M0_IN(ev->ae_id, (layout_decode_fail.ae_id,
-				 layout_encode_fail.ae_id,
-				 layout_lookup_fail.ae_id,
-				 layout_add_fail.ae_id,
-				 layout_update_fail.ae_id,
-				 layout_delete_fail.ae_id,
-				 m0_addb_func_fail.ae_id,
-				 m0_addb_oom.ae_id)));
-
-	switch (ev->ae_id) {
-	case M0_ADDB_EVENT_FUNC_FAIL:
-		M0_ADDB_ADD(ctx, &layout_addb_loc, m0_addb_func_fail,
-			    err_msg, rc);
-		break;
-	case M0_ADDB_EVENT_OOM:
-		M0_ADDB_ADD(ctx, &layout_addb_loc, m0_addb_oom);
-		break;
-	case M0_ADDB_EVENT_LAYOUT_DECODE_FAIL:
-		M0_ADDB_ADD(ctx, &layout_addb_loc, layout_decode_fail, rc);
-		break;
-	case M0_ADDB_EVENT_LAYOUT_ENCODE_FAIL:
-		M0_ADDB_ADD(ctx, &layout_addb_loc, layout_encode_fail, rc);
-		break;
-	case M0_ADDB_EVENT_LAYOUT_LOOKUP_FAIL:
-		M0_ADDB_ADD(ctx, &layout_addb_loc, layout_lookup_fail, rc);
-		break;
-	case M0_ADDB_EVENT_LAYOUT_ADD_FAIL:
-		M0_ADDB_ADD(ctx, &layout_addb_loc, layout_add_fail, rc);
-		break;
-	case M0_ADDB_EVENT_LAYOUT_UPDATE_FAIL:
-		M0_ADDB_ADD(ctx, &layout_addb_loc, layout_update_fail, rc);
-		break;
-	case M0_ADDB_EVENT_LAYOUT_DELETE_FAIL:
-		M0_ADDB_ADD(ctx, &layout_addb_loc, layout_delete_fail, rc);
-		break;
-	/* default: M0_ASSERT(0); This is covered by the M0_PRE() above. */
-	}
-}
-
-/**
  * This method performs the following operations:
  * 1) It invokes addb_add() to add an ADDB record.
  * 2) It adds a M0_LOG record (trace record), indicating failure, along with
@@ -683,20 +618,35 @@ static void addb_add(struct m0_addb_ctx *ctx,
  *    (i) ADDB records are not expected to be added in success cases.
  *    (ii) M0_LEAVE() or M0_LOG() are used directly to log the trace records,
  *         avoiding the function call overhead.
+ * @param fn_name  Function name for the trace record.
+ * @param err_msg  Message for the trace record.
+ * @param addb_loc ADDB location number.
+ * @param addb_ctx Optional ADDB context (typically that of the layout object).
+ *                 The module context is always used.
+ * @param lid      Layout id for the trace record.
+ * @param rc       Return code for the ADDB and trace records.
+ *                 A value of -ENOMEM will be result in an ADDB OOM exception;
+ *                 all others will be function failure posts.
  */
-M0_INTERNAL void m0_layout__log(const char *fn_name,
-				const char *err_msg,
-				const struct m0_addb_ev *ev,
-				struct m0_addb_ctx *ctx, uint64_t lid, int rc)
+M0_INTERNAL void m0_layout__log(const char         *fn_name,
+				const char         *err_msg,
+				uint64_t            addb_loc,
+				struct m0_addb_ctx *addb_ctx,
+				uint64_t            lid,
+				int                 rc)
 {
 	M0_PRE(fn_name != NULL);
 	M0_PRE(err_msg != NULL);
-	M0_PRE(ev != NULL);
-	M0_PRE(ctx != NULL);
-	M0_PRE(rc != 0);
+	M0_PRE(addb_loc > M0_LAYOUT_ADDB_LOC_0 &&
+	       addb_loc < M0_LAYOUT_ADDB_LOC_NR);
+	M0_PRE(rc < 0);
 
-	/* ADDB record logging. */
-	addb_add(ctx, ev, err_msg, rc);
+	if (rc == -ENOMEM)
+		M0_ADDB_OOM(&m0_addb_gmc, addb_loc,
+			    &m0_layout_mod_ctx, addb_ctx);
+	else
+		M0_ADDB_FUNC_FAIL(&m0_addb_gmc, addb_loc, rc,
+				  &m0_layout_mod_ctx, addb_ctx);
 
 	/* Trace record logging. */
 	M0_LOG(M0_ERROR, "%s(): lid %llu, %s, rc %d",
@@ -706,11 +656,16 @@ M0_INTERNAL void m0_layout__log(const char *fn_name,
 
 M0_INTERNAL int m0_layouts_init(void)
 {
+	m0_addb_ctx_type_register(&m0_addb_ct_layout_mod);
+	m0_addb_ctx_type_register(&m0_addb_ct_layout_obj);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_layout_mod_ctx,
+			 &m0_addb_ct_layout_mod, &m0_addb_proc_ctx);
 	return 0;
 }
 
 M0_INTERNAL void m0_layouts_fini(void)
 {
+        m0_addb_ctx_fini(&m0_layout_mod_ctx);
 }
 
 M0_INTERNAL int m0_layout_domain_init(struct m0_layout_domain *dom,
@@ -731,7 +686,7 @@ err1_injected:
 	if (rc != 0) {
 		m0_layout__log("m0_layout_domain_init",
 			       "m0_table_init() failed",
-			       &m0_addb_func_fail, &layout_global_ctx,
+			       M0_LAYOUT_ADDB_LOC_DOM_INIT, NULL,
 			       LID_NONE, rc);
 		return rc;
 	}
@@ -831,7 +786,7 @@ err1_injected:
 	} else {
 		m0_layout__log("m0_layout_type_register",
 			       "lto_register() failed",
-			       &m0_addb_func_fail, &layout_global_ctx,
+			       M0_LAYOUT_ADDB_LOC_LT_REG, NULL,
 			       LID_NONE, rc);
 		dom->ld_type[lt->lt_id] = NULL;
 	}
@@ -890,7 +845,7 @@ err1_injected:
 	} else {
 		m0_layout__log("m0_layout_enum_type_register",
 			       "leto_register() failed",
-			       &m0_addb_func_fail, &layout_global_ctx,
+			       M0_LAYOUT_ADDB_LOC_ET_REG, NULL,
 			       LID_NONE, rc);
 		dom->ld_enum[let->let_id] = NULL;
 	}
@@ -1037,8 +992,8 @@ M0_INTERNAL int m0_layout_decode(struct m0_layout *l,
 		{ rec->lr_lt_id = M0_LAYOUT_TYPE_MAX + 1; }
 	if (!IS_IN_ARRAY(rec->lr_lt_id, l->l_dom->ld_type)) {
 		m0_layout__log("m0_layout_decode", "Invalid layout type",
-			       &layout_decode_fail, &l->l_addb,
-			       l->l_id, -EPROTO);
+			       M0_LAYOUT_ADDB_LOC_DECODE_1,
+			       &l->l_addb_ctx, l->l_id, -EPROTO);
 		return -EPROTO;
 	}
 	M0_ASSERT(rec->lr_lt_id == l->l_type->lt_id);
@@ -1049,7 +1004,7 @@ M0_INTERNAL int m0_layout_decode(struct m0_layout *l,
 err1_injected:
 	if (rc != 0)
 		m0_layout__log("m0_layout_decode", "lo_decode() failed",
-			       &layout_decode_fail, &l->l_addb,
+			       M0_LAYOUT_ADDB_LOC_DECODE_2, &l->l_addb_ctx,
 			       l->l_id, rc);
 
 	M0_POST(ergo(rc == 0, m0_layout__invariant(l) &&
@@ -1090,7 +1045,8 @@ M0_INTERNAL int m0_layout_encode(struct m0_layout *l,
 err1_injected:
 	if (rc != 0)
 		m0_layout__log("m0_layout_encode", "lo_encode() failed",
-			       &layout_encode_fail, &l->l_addb, l->l_id, rc);
+			       M0_LAYOUT_ADDB_LOC_ENCODE, &l->l_addb_ctx,
+			       l->l_id, rc);
 
 	M0_POST(m0_mutex_is_locked(&l->l_lock));
 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);

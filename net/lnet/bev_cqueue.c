@@ -59,7 +59,9 @@
    <hr>
    @section cqueueDLD-def Definitions
 
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Mero LNet Transport</a>
+   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Mero LNet Transport</a>
 
    <hr>
    @section cqueueDLD-req Requirements
@@ -467,8 +469,12 @@
    <hr>
    @section cqueueDLD-ref References
 
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Mero LNet Transport</a>
-   - <a href="http://drdobbs.com/high-performance-computing/210604448">Writing Lock-Free Code: A Corrected Queue, Herb Sutter, in Dr Dobbs Journal, 2008</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Mero LNet Transport</a>
+   - <a href="http://drdobbs.com/high-performance-computing/210604448">
+Writing Lock-Free Code: A Corrected Queue, Herb Sutter, in Dr Dobbs Journal,
+2008</a>
 
  */
 
@@ -512,8 +518,8 @@
    struct nlx_core_buffer_event *e2;
    struct nlx_core_bev_cqueue myqueue;
 
-   M0_ALLOC_PTR_ADDB(e1, ...);
-   M0_ALLOC_PTR_ADDB(e2, ...);
+   NLX_ALLOC_PTR(e1, ...);
+   NLX_ALLOC_PTR(e2, ...);
    bev_cqueue_init(&myqueue, &e1->cbe_tm_link, &e2->cbe_tm_link);
    @endcode
 
@@ -530,7 +536,7 @@
 
    ... ; // acquire the lock shared with the consumer
    while (needed > bev_cqueue_size(&myqueue)) {
-       M0_ALLOC_PTR_ADDB(el, ...);
+       NLX_ALLOC_PTR(el, ...);
        ... ; // initialize the new element for both address spaces
        bev_cqueue_add(&myqueue, el);
    }

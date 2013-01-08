@@ -39,18 +39,16 @@ static inline bool all_tm_queues_are_empty(struct m0_net_transfer_mc *tm)
  */
 static void nlx_tm_stats_report(struct m0_net_transfer_mc *tm)
 {
-	struct m0_net_qstats *qs;
-	char name[128];
-	int i;
-
+#if 0
+	/* Disabled hacky posting of network statistics from
+	 * within the transport.
+	 * On server side replaced by higher level scheduling
+	 * of ADDB statistical posting.
+	 * Code retained here for reference.
+	 */
 	M0_PRE(tm != NULL && nlx_tm_invariant(tm));
-	snprintf(name, sizeof name, "nlx_tm_stats:%s", tm->ntm_ep->nep_addr);
-	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
-		qs = &tm->ntm_qstats[i];
-		if (qs->nqs_num_adds == 0)
-			continue;
-		LNET_ADDB_STAT_ADD(tm->ntm_addb, name, i, qs);
-	}
+	m0_net__tm_stats_post_addb(tm);
+#endif
 }
 
 /**
@@ -159,7 +157,7 @@ static void nlx_tm_ev_worker(struct m0_net_transfer_mc *tm)
 	} else {
 		tmev.nte_next_state = M0_NET_TM_FAILED;
 		tmev.nte_status = rc;
-		LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, C_EV_WORKER, &tm->ntm_addb_ctx);
 	}
 	tmev.nte_time = m0_time_now();
 	tm->ntm_ep = NULL;

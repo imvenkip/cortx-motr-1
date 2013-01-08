@@ -29,6 +29,7 @@
 #include "lib/trace.h"
 #include "addb/addb.h"
 
+#include "stob/stob_addb.h"
 #include "linux.h"
 #include "linux_internal.h"
 #include "linux_getevents.h"
@@ -125,10 +126,6 @@ static void            ioq_queue_unlock(struct linux_domain *ldom);
 
 static const struct m0_stob_io_op linux_stob_io_op;
 
-static const struct m0_addb_loc adieu_addb_loc = {
-	.al_name = "linux-adieu"
-};
-
 enum {
 	/*
 	 * Alignment for direct-IO.
@@ -160,15 +157,6 @@ enum {
 	_ldom->sdl_use_directio ? LINUX_BMASK : 0 ;		\
 })
 
-#define ADDB_GLOBAL_ADD(name, rc)					\
-M0_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc, m0_addb_func_fail, (name), (rc))
-
-#define ADDB_ADD(obj, ev, ...)	\
-M0_ADDB_ADD(&(obj)->so_addb, &adieu_addb_loc, ev , ## __VA_ARGS__)
-
-#define ADDB_CALL(obj, name, rc)	\
-M0_ADDB_ADD(&(obj)->so_addb, &adieu_addb_loc, m0_addb_func_fail, (name), (rc))
-
 M0_INTERNAL int linux_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io)
 {
 	struct linux_stob_io *lio;
@@ -183,7 +171,7 @@ M0_INTERNAL int linux_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io)
 		m0_mutex_init(&lio->si_endlock);
 		result = 0;
 	} else {
-		ADDB_ADD(stob, m0_addb_oom);
+		M0_STOB_OOM(LAD_STOB_IO_INIT);
 		result = -ENOMEM;
 	}
 	return result;
@@ -263,8 +251,8 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 			frag_size = min_check(m0_vec_cursor_step(&src),
 					      m0_vec_cursor_step(&dst));
 			if (frag_size > (size_t)~0ULL) {
-				ADDB_CALL(io->si_obj, "frag_overflow",
-					  frag_size);
+				M0_STOB_FUNC_FAIL(LAD_STOB_IO_LAUNCH_1,
+						  -EOVERFLOW);
 				result = -EOVERFLOW;
 				break;
 			}
@@ -308,7 +296,7 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 			ioq_queue_submit(ldom);
 		}
 	} else {
-		ADDB_ADD(io->si_obj, m0_addb_oom);
+		M0_STOB_OOM(LAD_STOB_IO_LAUNCH_2);
 		result = -ENOMEM;
 	}
 
@@ -403,7 +391,7 @@ static void ioq_queue_submit(struct linux_domain *ldom)
 
 			ioq_queue_lock(ldom);
 			if (put < 0) {
-				ADDB_GLOBAL_ADD("io_submit", put);
+				M0_STOB_FUNC_FAIL(LAD_IOQ_SUBMIT, put);
 				put = 0;
 			}
 			for (i = put; i < got; ++i)
@@ -440,7 +428,7 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 	M0_ASSERT(lio->si_done < lio->si_nr);
 	if (res > 0) {
 		if ((res & LINUX_DOM_BMASK(ldom)) != 0) {
-			ADDB_CALL(io->si_obj, "partial transfer", res);
+			M0_STOB_FUNC_FAIL(LAD_IOQ_COMPLETE, -EIO);
 			res = -EIO;
 		} else
 			qev->iq_io->si_count += res >> LINUX_DOM_BSHIFT(ldom);
@@ -502,7 +490,7 @@ static void ioq_thread(struct linux_domain *ldom)
 			ioq_complete(ldom, qev, iev->res, iev->res2);
 		}
 		if (got < 0 && got != -EINTR)
-			ADDB_GLOBAL_ADD("io_getevents", got);
+			M0_STOB_FUNC_FAIL(LAD_IOQ_THREAD, got);
 
 		ioq_queue_submit(ldom);
 	}
@@ -553,16 +541,13 @@ M0_INTERNAL int linux_domain_io_init(struct m0_stob_domain *dom)
 				break;
 		}
 	} else
-		ADDB_GLOBAL_ADD("io_setup", result);
+		M0_STOB_FUNC_FAIL(LAD_DOM_IO_INIT, result);
 	if (result != 0)
 		linux_domain_io_fini(dom);
 	return result;
 }
 
 #undef M0_TRACE_SUBSYSTEM
-#undef ADDB_GLOBAL_ADD
-#undef ADDB_ADD
-#undef ADDB_CALL
 
 /** @} end group stoblinux */
 

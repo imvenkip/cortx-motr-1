@@ -180,7 +180,8 @@ static void rm_ctx_init(struct rm_context *rmctx)
 
 	rmctx->rc_xprt = &m0_net_lnet_xprt;
 
-	rc = m0_net_domain_init(&rmctx->rc_net_dom, rmctx->rc_xprt);
+	rc = m0_net_domain_init(&rmctx->rc_net_dom, rmctx->rc_xprt,
+	                        &m0_addb_proc_ctx);
 	M0_UT_ASSERT(rc == 0);
 
 	rmctx->rc_bufpool.nbp_ops = &buf_ops;
@@ -209,8 +210,13 @@ static void rm_ctx_init(struct rm_context *rmctx)
 	M0_UT_ASSERT(rc == 0);
 	m0_db_tx_commit(&tx);
 
-	rc = m0_reqh_init(&rmctx->rc_reqh, (void *)1, &rmctx->rc_dbenv,
-			  &rmctx->rc_mdstore, &rmctx->rc_fol, NULL);
+	rc = M0_REQH_INIT(&rmctx->rc_reqh,
+			.rhia_dtm       = (void*)1,
+			.rhia_db        = &rmctx->rc_dbenv,
+			.rhia_mdstore   = &rmctx->rc_mdstore,
+			.rhia_fol       = &rmctx->rc_fol,
+			.rhia_svc       = (void*)1,
+			.rhia_addb_stob = NULL);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_rpc_machine_init(&rmctx->rc_rpc, &rmctx->rc_cob_dom,

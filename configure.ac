@@ -539,6 +539,7 @@ AC_CONFIG_FILES([
                 ])
 AC_CONFIG_FILES([mdservice/ut/mdstore.h])
 AC_CONFIG_FILES([mero.spec])
+AC_CONFIG_FILES([addb/dump/m0addbdump.sh], [chmod +x addb/dump/m0addbdump.sh])
 AC_CONFIG_FILES([m0t1fs/linux_kernel/st/common.sh],
                 [chmod +x m0t1fs/linux_kernel/st/common.sh])
 AC_CONFIG_FILES([net/test/m0netperf.sh], [chmod + net/test/m0netperf.sh])

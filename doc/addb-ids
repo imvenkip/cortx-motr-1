@@ -1,0 +1,114 @@
+Please maintain these tables in ascending order of identifier.
+
+******************************************************************************
+List of Context Type Identifiers
+******************************************************************************
+See the actual definitions for a description of the context types and for
+details on their fields.
+
+          context identifier           context type
+value          enum                    variable  name              file
+------ ---------------------------     -----------------------     -----------------
+1-19							           addb/addb.h
+     1 M0_ADDB_CTXID_NODE_HI           m0_addb_ct_node_hi
+     2 M0_ADDB_CTXID_NODE_LO           m0_addb_ct_node_lo
+     3 M0_ADDB_CTXID_KMOD              m0_addb_ct_kmod
+     4 M0_ADDB_CTXID_PROCESS           m0_addb_ct_process
+     5 M0_ADDB_CTXID_UT_SERVICE        m0_addb_ct_ut_service
+     6 M0_ADDB_CTXID_ADDB_SERVICE      m0_addb_ct_addb_service
+     7 M0_ADDB_CTXID_ADDB_PFOM         m0_addb_ct_addb_pfom
+20-39							           net/net_addb.h
+    20 M0_ADDB_CTXID_NET_MOD	       m0_addb_ct_net_mod
+    21 M0_ADDB_CTXID_NET_DOM	       m0_addb_ct_net_dom
+    22 M0_ADDB_CTXID_NET_TM	       m0_addb_ct_net_tm
+    23 M0_ADDB_CTXID_NET_BP	       m0_addb_ct_net_bp
+40-49							           net/lnet/lnet_addb.h
+    40 M0_ADDB_CTXID_NET_LNET_MOD      m0_addb_ct_net_lnet_mod
+    41 M0_ADDB_CTXID_NET_LNET_DOM      m0_addb_ct_net_lnet_dom
+    42 M0_ADDB_CTXID_NET_LNET_TM       m0_addb_ct_net_lnet_tm
+50-59                                                              reqh/reqh_addb.h
+    50 M0_ADDB_CTXID_REQH_MOD          m0_addb_ct_reqh_mod
+100-199                                                            ioservice/io_service_addb.h
+   100 M0_ADDB_CTXID_IOS_MOD           m0_addb_ct_ios_mod
+   101 M0_ADDB_CTXID_IOS_SERV          m0_addb_ct_ios_serv
+200-299                                                            mdservice/mdservice_addb.h
+   200 M0_ADDB_CTXID_MDS_MOD           m0_addb_ct_mds_mod
+   201 M0_ADDB_CTXID_MDS_SERV          m0_addb_ct_mds_serv
+300-399                                                            conf/conf_addb.h
+   300 M0_ADDB_CTXID_CONF_MOD          m0_addb_ct_conf_mod
+   301 M0_ADDB_CTXID_CONF_SERV         m0_addb_ct_conf_serv
+400-499                                                            sns/repair/addb.h
+   400 M0_ADDB_CTXID_SNS_MOD           m0_addb_ct_sns_mod
+   401 M0_ADDB_CTXID_SNS_REPAIR_SERV   m0_addb_ct_sns_repair_serv
+500-599							           m0t1fs/linux_kernel/m0t1fs.h
+   500 M0_ADDB_CTXID_M0T1FS_MOD	       m0_addb_ct_m0t1fs_mod
+600-699                                                            layout/layout_addb.h
+   600 M0_ADDB_CTXID_LAYOUT_MOD	       m0_addb_ct_layout_mod
+   601 M0_ADDB_CTXID_LAYOUT_OBJ	       m0_addb_ct_layout_obj
+700-799                                                            yaml2db/yaml2db_addb.h
+   700 M0_ADDB_CTXID_YAML2DB_MOD       m0_addb_ct_yaml2db_mod
+800-899                                                            mdstore/mdstore_addb.h
+   800 M0_ADDB_CTXID_MDSTORE_MOD       m0_addb_ct_mdstore_mod
+900-999                                                            cm/cm_addb.h
+   900 M0_ADDB_CTXID_CM_MOD            m0_addb_ct_cm_mod
+1000-1099							   rpc/rpc_addb.h
+  1000 M0_ADDB_CTXID_RPC_MOD	       m0_addb_ct_rpc_mod
+  1001 M0_ADDB_CTXID_RPC_MACHINE       m0_addb_ct_rpc_machine
+  1002 M0_ADDB_CTXID_RPC_FRM	       m0_addb_ct_rpc_frm
+1100-1199							   cob/cob_addb.h
+  1100 M0_ADDB_CTXID_COB_MOD	       m0_addb_ct_cob_mod
+1200-1299							   db/db_addb.h
+  1200 M0_ADDB_CTXID_DB_MOD	       m0_addb_ct_db_mod
+1300-1399							   stob/stob_addb.h
+  1300 M0_ADDB_CTXID_STOB_MOD	       m0_addb_ct_stob_mod
+1400-1499
+  1400 M0_ADDB_CTXID_FOP_MOD           m0_addb_ct_fop_mod          fop/fop_addb.h
+
+******************************************************************************
+Record Type Identifiers
+******************************************************************************
+
+        record type identifier         record type
+value            enum                 variable name         file
+------ --------------------------- ----------------------- -------------------
+1-19                                                               addb/addb.h
+     1 M0_ADDB_RECID_CTXDEF         -- private --
+     2 M0_ADDB_RECID_FUNC_FAIL	    m0_addb_rt_func_fail
+     3 M0_ADDB_RECID_OOM	    m0_addb_rt_oom
+20-39							           net/net_addb.h
+    20 M0_ADDB_RECID_NET_AGGR_MSG   m0_addb_rt_net_aggr_msg
+    21 M0_ADDB_RECID_NET_AGGR_DATA  m0_addb_rt_net_aggr_data
+    22 M0_ADDB_RECID_NET_RECV_BUF   m0_addb_rt_net_recv_buf
+    23 M0_ADDB_RECID_NET_MQ_R       m0_addb_rt_net_mq_r
+    24 M0_ADDB_RECID_NET_MQ_S       m0_addb_rt_net_mq_s
+    25 M0_ADDB_RECID_NET_PQ_R       m0_addb_rt_net_pq_r
+    26 M0_ADDB_RECID_NET_PQ_S       m0_addb_rt_net_pq_s
+    27 M0_ADDB_RECID_NET_AQ_R       m0_addb_rt_net_aq_r
+    28 M0_ADDB_RECID_NET_AQ_S       m0_addb_rt_net_aq_s
+40-49							           net/lnet/lnet_addb.h
+50-59                                                              reqh/reqh_addb.h
+100-199                                                            ioservice/io_service_addb.h
+   100 M0_ADDB_RECID_IOS_RFOM_SIZES	m0_addb_rt_ios_rfom_sizes
+   101 M0_ADDB_RECID_IOS_WFOM_SIZES	m0_addb_rt_ios_wfom_sizes
+   102 M0_ADDB_RECID_IOS_RFOM_TIMES	m0_addb_rt_ios_rfom_times
+   103 M0_ADDB_RECID_IOS_WFOM_TIMES	m0_addb_rt_ios_wfom_times
+   104 M0_ADDB_RECID_IOS_RWFOM_FINISH	m0_addb_rt_ios_rwfom_finsh
+   105 M0_ADDB_RECID_IOS_CCFOM_FINISH	m0_addb_rt_ios_ccfom_finish
+   106 M0_ADDB_RECID_IOS_CDFOM_FINISH	m0_addb_rt_ios_cdfom_finish
+200-299                                                            mdservice/mdservice_addb.h
+300-399                                                            conf/conf_addb.h
+400-499                                                            sns/repair/addb.h
+500-599							           m0t1fs/linux_kernel/m0t1fs.h
+600-699                                                            layout/layout_addb.h
+700-799                                                            yaml2db/yaml2db_addb.h
+800-899                                                            mdstore/mdstore_addb.h
+900-999                                                            cm/cm_addb.h
+1000-1099							   rpc/rpc_addb.h
+  1000 M0_ADDB_RECID_RPC_STATS_ITEMS	 m0_addb_rt_rpc_stats_items
+  1001 M0_ADDB_RECID_RPC_STATS_PACKETS	 m0_addb_rt_rpc_stats_packets
+  1002 M0_ADDB_RECID_RPC_STATS_BYTES	 m0_addb_rt_rpc_stats_bytes
+  1003 M0_ADDB_RECID_RPC_SENT_ITEM_SIZES m0_addb_rt_rpc_sent_item_sizes
+  1004 M0_ADDB_RECID_RPC_RCVD_ITEM_SIZES m0_addb_rt_rpc_rcvd_item_sizes
+1100-1199							   cob/cob_addb.h
+1200-1299							   db/db_addb.h
+1300-1399							   stob/stob_addb.h

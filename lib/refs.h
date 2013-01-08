@@ -62,8 +62,8 @@ void m0_ref_init(struct m0_ref *ref, int init_num,
 M0_INTERNAL void m0_ref_get(struct m0_ref *ref);
 
 /**
- release one reference from the object.
- if function will release last rererence, destructor will called.
+ Release one reference from the object.
+ If function will release last reference, destructor will called.
 
  @param ref pointer to m0_ref object
 

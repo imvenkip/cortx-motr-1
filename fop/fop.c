@@ -18,6 +18,10 @@
  * Original creation date: 05/19/2010
  */
 
+#undef M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_CT_CREATE_DEFINITION
+#include "fop/fop_addb.h"
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
 #include "lib/trace.h"
 
@@ -36,18 +40,8 @@
 
 static const struct m0_fol_rec_type_ops m0_fop_fol_default_ops;
 
-const struct m0_addb_ctx_type m0_fop_addb_ctx = {
-	.act_name = "fop"
-};
-
-static const struct m0_addb_ctx_type m0_fop_type_addb_ctx = {
-	.act_name = "fop-type"
-};
-
-static const struct m0_addb_loc m0_fop_addb_loc = {
-	.al_name = "fop"
-};
-
+/** FOP module global ctx */
+struct m0_addb_ctx     m0_fop_addb_ctx;
 static struct m0_mutex fop_types_lock;
 static struct m0_tl    fop_types_list;
 
@@ -83,7 +77,6 @@ M0_INTERNAL void m0_fop_init(struct m0_fop *fop, struct m0_fop_type *fopt,
 
 	m0_ref_init(&fop->f_ref, 1, fop_release);
 	fop->f_type = fopt;
-	m0_addb_ctx_init(&fop->f_addb, &m0_fop_addb_ctx, &fopt->ft_addb);
 	m0_rpc_item_init(&fop->f_item, &fopt->ft_rpc_item_type);
 	fop->f_data.fd_data = data;
 	M0_LOG(M0_DEBUG, "fop: %p %s", fop, fop_name(fop));
@@ -122,7 +115,6 @@ M0_INTERNAL void m0_fop_fini(struct m0_fop *fop)
 	M0_PRE(M0_IN(m0_ref_read(&fop->f_ref), (0, 1)));
 
 	m0_rpc_item_fini(&fop->f_item);
-	m0_addb_ctx_fini(&fop->f_addb);
 	if (fop->f_data.fd_data != NULL)
 		m0_xcode_free(&M0_FOP_XCODE_OBJ(fop));
 	M0_LEAVE();
@@ -191,7 +183,6 @@ void m0_fop_type_fini(struct m0_fop_type *fopt)
 	ft_tlink_del_fini(fopt);
 	fopt->ft_magix = 0;
 	m0_mutex_unlock(&fop_types_lock);
-	m0_addb_ctx_fini(&fopt->ft_addb);
 }
 M0_EXPORTED(m0_fop_type_fini);
 
@@ -221,8 +212,6 @@ int m0_fop_type_init(struct m0_fop_type *ft,
 			 args->sm);
 	(void)m0_rpc_item_type_register(&ft->ft_rpc_item_type);
 	(void)m0_fol_rec_type_register(&ft->ft_rec_type);
-	m0_addb_ctx_init(&ft->ft_addb, &m0_fop_type_addb_ctx,
-			 &m0_addb_global_ctx);
 	m0_mutex_lock(&fop_types_lock);
 	ft_tlink_init_at(ft, &fop_types_list);
 	m0_mutex_unlock(&fop_types_lock);
@@ -267,6 +256,9 @@ M0_INTERNAL struct m0_fop_type *m0_fop_type_next(struct m0_fop_type *ftype)
 
 M0_INTERNAL int m0_fops_init(void)
 {
+	m0_addb_ctx_type_register(&m0_addb_ct_fop_mod);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_fop_addb_ctx, &m0_addb_ct_fop_mod,
+			 &m0_addb_proc_ctx);
 	ft_tlist_init(&fop_types_list);
 	m0_mutex_init(&fop_types_lock);
 	m0_fom_ll_global_init();
@@ -275,6 +267,7 @@ M0_INTERNAL int m0_fops_init(void)
 
 M0_INTERNAL void m0_fops_fini(void)
 {
+	m0_addb_ctx_fini(&m0_fop_addb_ctx);
 	m0_mutex_fini(&fop_types_lock);
 	ft_tlist_fini(&fop_types_list);
 }

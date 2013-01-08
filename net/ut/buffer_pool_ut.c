@@ -25,6 +25,7 @@
 #include "lib/time.h"  /* m0_nanosleep */
 #include "net/lnet/lnet.h"
 #include "net/buffer_pool.h"
+#include "net/net_internal.h"
 
 static void notempty(struct m0_net_buffer_pool *bp);
 static void low(struct m0_net_buffer_pool *bp);
@@ -55,13 +56,15 @@ static void test_init(void)
 	m0_net_xprt_init(xprt);
 	M0_ALLOC_PTR(bp.nbp_ndom);
 	M0_UT_ASSERT(bp.nbp_ndom != NULL);
-	rc = m0_net_domain_init(bp.nbp_ndom, xprt);
+	rc = m0_net_domain_init(bp.nbp_ndom, xprt, &m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
 	bp.nbp_ops = &b_ops;
 	rc = m0_net_buffer_pool_init(&bp, bp.nbp_ndom,
 				      M0_NET_BUFFER_POOL_THRESHOLD, seg_nr,
 				      seg_size, colours, shift);
 	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(bp.nbp_addb_ctx.ac_type == &m0_addb_ct_net_bp);
+	M0_UT_ASSERT(bp.nbp_addb_ctx.ac_parent == &bp.nbp_ndom->nd_addb_ctx);
 	m0_net_buffer_pool_lock(&bp);
 	rc = m0_net_buffer_pool_provision(&bp, buf_nr);
 	m0_net_buffer_pool_unlock(&bp);

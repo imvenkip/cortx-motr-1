@@ -47,10 +47,13 @@
  *
  *  @{
  */
+#include "addb/addb.h"
 #include "net/buffer_pool.h"
 #include "reqh/reqh_service.h"
 #include "lib/chan.h"
 #include "lib/tlist.h"
+
+#include "ioservice/io_service_addb.h"
 
 M0_INTERNAL int m0_ios_register(void);
 M0_INTERNAL void m0_ios_unregister(void);
@@ -72,17 +75,31 @@ struct m0_rios_buffer_pool {
 };
 
 /**
+ */
+struct m0_ios_rwfom_stats {
+	/** counter to track fom I/O sizes */
+	struct m0_addb_counter ifs_sizes_cntr;
+	/** counter to track fom duration */
+	struct m0_addb_counter ifs_times_cntr;
+};
+
+/**
  * Structure contains generic service structure and
  * service specific information.
  */
 struct m0_reqh_io_service {
         /** Generic reqh service object */
-        struct m0_reqh_service       rios_gen;
+        struct m0_reqh_service    rios_gen;
         /** Buffer pools belongs to this services */
-        struct m0_tl                 rios_buffer_pools;
+        struct m0_tl              rios_buffer_pools;
+	/** Read[0] and write[1] I/O FOM statistics */
+	struct m0_ios_rwfom_stats rios_rwfom_stats[2];
         /** magic to check io service object */
-        uint64_t                     rios_magic;
+        uint64_t                  rios_magic;
 };
+
+M0_INTERNAL bool m0_reqh_io_service_invariant(const struct m0_reqh_io_service
+					      *rios);
 
 /** @} end of io_service */
 

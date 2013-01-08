@@ -46,6 +46,7 @@
    @{
  */
 
+extern struct m0_reqh_service_type m0_rpc_service_type;
 /**
  * Create, Write and Read fop specific fom execution phases
  */
@@ -137,9 +138,12 @@ struct m0_stob_io_fom {
 };
 
 extern struct m0_stob_domain *reqh_ut_stob_domain_find(void);
-static int stob_create_fom_create(struct m0_fop *fop, struct m0_fom **out);
-static int stob_read_fom_create(struct m0_fop *fop, struct m0_fom **out);
-static int stob_write_fom_create(struct m0_fop *fop, struct m0_fom **out);
+static int stob_create_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				  struct m0_reqh *reqh);
+static int stob_read_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				struct m0_reqh *reqh);
+static int stob_write_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				 struct m0_reqh *reqh);
 
 static int stob_create_fom_tick(struct m0_fom *fom);
 static int stob_read_fom_tick(struct m0_fom *fom);
@@ -148,6 +152,13 @@ static int stob_write_fom_tick(struct m0_fom *fom);
 static void stob_io_fom_fini(struct m0_fom *fom);
 static size_t stob_find_fom_home_locality(const struct m0_fom *fom);
 
+static void stob_create_fom_addb_init(struct m0_fom *fom,
+					struct m0_addb_mc *mc);
+static void stob_write_fom_addb_init(struct m0_fom *fom,
+					struct m0_addb_mc *mc);
+static void stob_read_fom_addb_init(struct m0_fom *fom,
+					struct m0_addb_mc *mc);
+
 /**
  * Operation structures for respective foms
  */
@@ -155,18 +166,21 @@ static struct m0_fom_ops stob_create_fom_ops = {
 	.fo_fini = stob_io_fom_fini,
 	.fo_tick = stob_create_fom_tick,
 	.fo_home_locality = stob_find_fom_home_locality,
+	.fo_addb_init = stob_create_fom_addb_init
 };
 
 static struct m0_fom_ops stob_write_fom_ops = {
 	.fo_fini = stob_io_fom_fini,
 	.fo_tick = stob_write_fom_tick,
 	.fo_home_locality = stob_find_fom_home_locality,
+	.fo_addb_init = stob_write_fom_addb_init
 };
 
 static struct m0_fom_ops stob_read_fom_ops = {
 	.fo_fini = stob_io_fom_fini,
 	.fo_tick = stob_read_fom_tick,
 	.fo_home_locality = stob_find_fom_home_locality,
+	.fo_addb_init = stob_read_fom_addb_init
 };
 
 /**
@@ -211,7 +225,7 @@ static struct m0_stob *stob_object_find(const struct stob_io_fop_fid *fid,
  */
 static int stob_io_fop_fom_create_helper(struct m0_fop *fop,
 		struct m0_fom_ops *fom_ops, struct m0_fop_type *fop_type,
-		struct m0_fom **out)
+		struct m0_fom **out, struct m0_reqh *reqh)
 {
 	struct m0_stob_io_fom *fom_obj;
 
@@ -231,7 +245,8 @@ static int stob_io_fop_fom_create_helper(struct m0_fop *fop,
 	fom_obj->sif_stobj = NULL;
 
 	m0_fom_init(&fom_obj->sif_fom, &fop->f_type->ft_fom_type, fom_ops, fop,
-		    fom_obj->sif_rep_fop);
+		    fom_obj->sif_rep_fop, reqh,
+		    fop->f_type->ft_fom_type.ft_rstype);
 
 	*out = &fom_obj->sif_fom;
 	return 0;
@@ -240,28 +255,31 @@ static int stob_io_fop_fom_create_helper(struct m0_fop *fop,
 /**
  * Creates a fom for create fop.
  */
-static int stob_create_fom_create(struct m0_fop *fop, struct m0_fom **out)
+static int stob_create_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				  struct m0_reqh *reqh)
 {
 	return stob_io_fop_fom_create_helper(fop, &stob_create_fom_ops,
-				      &m0_stob_io_create_rep_fopt, out);
+				      &m0_stob_io_create_rep_fopt, out, reqh);
 }
 
 /**
  * Creates a fom for write fop.
  */
-static int stob_write_fom_create(struct m0_fop *fop, struct m0_fom **out)
+static int stob_write_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				 struct m0_reqh *reqh)
 {
 	return stob_io_fop_fom_create_helper(fop, &stob_write_fom_ops,
-				      &m0_stob_io_write_rep_fopt, out);
+				      &m0_stob_io_write_rep_fopt, out, reqh);
 }
 
 /**
  * Creates a fom for read fop.
  */
-static int stob_read_fom_create(struct m0_fop *fop, struct m0_fom **out)
+static int stob_read_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				struct m0_reqh *reqh)
 {
 	return stob_io_fop_fom_create_helper(fop, &stob_read_fom_ops,
-				      &m0_stob_io_read_rep_fopt, out);
+				      &m0_stob_io_read_rep_fopt, out, reqh);
 }
 
 /**
@@ -354,6 +372,15 @@ static int stob_create_fom_tick(struct m0_fom *fom)
 		m0_stob_put(fom_obj->sif_stobj);
 
 	return result;
+}
+
+static void stob_create_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 /**
@@ -467,6 +494,15 @@ static int stob_read_fom_tick(struct m0_fom *fom)
         return result;
 }
 
+static void  stob_read_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 /**
  * A simple non blocking write fop specific fom
  * state method implemention.
@@ -571,6 +607,15 @@ static int stob_write_fom_tick(struct m0_fom *fom)
         return result;
 }
 
+static void stob_write_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 /**
  * Fom specific clean up function, invokes m0_fom_fini()
  */
@@ -608,7 +653,8 @@ int m0_stob_io_fop_init(void)
 				  .fom_ops   = &stob_create_fom_type_ops,
 				  .sm        = &m0_generic_conf,
 				  .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-					       M0_RPC_ITEM_TYPE_MUTABO) ?:
+					       M0_RPC_ITEM_TYPE_MUTABO,
+				  .svc_type  = &m0_rpc_service_type) ?:
 		M0_FOP_TYPE_INIT(&m0_stob_io_read_fopt,
 				 .name      = "Stob read",
 				 .opcode    = M0_STOB_IO_READ_REQ_OPCODE,
@@ -616,7 +662,8 @@ int m0_stob_io_fop_init(void)
 				 .fom_ops   = &stob_read_fom_type_ops,
 				 .sm        = &read_conf,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-					      M0_RPC_ITEM_TYPE_MUTABO) ?:
+					      M0_RPC_ITEM_TYPE_MUTABO,
+				 .svc_type  = &m0_rpc_service_type) ?:
 		M0_FOP_TYPE_INIT(&m0_stob_io_write_fopt,
 				 .name      = "Stob write",
 				 .opcode    = M0_STOB_IO_WRITE_REQ_OPCODE,
@@ -624,22 +671,26 @@ int m0_stob_io_fop_init(void)
 				 .fom_ops   = &stob_write_fom_type_ops,
 				 .sm        = &write_conf,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-					      M0_RPC_ITEM_TYPE_MUTABO) ?:
+					      M0_RPC_ITEM_TYPE_MUTABO,
+				 .svc_type  = &m0_rpc_service_type) ?:
 		M0_FOP_TYPE_INIT(&m0_stob_io_create_rep_fopt,
 				 .name      = "Stob create reply",
 				 .opcode    = M0_STOB_IO_CREATE_REPLY_OPCODE,
 				 .xt        = m0_stob_io_create_rep_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
+				 .svc_type  = &m0_rpc_service_type) ?:
 		M0_FOP_TYPE_INIT(&m0_stob_io_read_rep_fopt,
 				 .name      = "Stob read reply",
 				 .opcode    = M0_STOB_IO_READ_REPLY_OPCODE,
 				 .xt        = m0_stob_io_read_rep_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
+				 .svc_type  = &m0_rpc_service_type) ?:
 		M0_FOP_TYPE_INIT(&m0_stob_io_write_rep_fopt,
 				 .name      = "Stob write reply",
 				 .opcode    = M0_STOB_IO_WRITE_REPLY_OPCODE,
 				 .xt        = m0_stob_io_write_rep_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
+				 .svc_type  = &m0_rpc_service_type);
 	if (result == 0) {
 		for (i = 0; i < ARRAY_SIZE(stob_fops); ++i) {
 			fop_type = stob_fops[i];

@@ -125,7 +125,8 @@ EOF`"
 
     local OPTIONS="`cat <<EOF
 -r -p -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
--e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s ioservice
+-A $SANDBOX_DIR/addb-stobs
+-e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s addb -s ioservice
  -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN
 EOF`"
     [ "$MODE" = autoconf ] && OPTIONS="-C $CONFD_ENDPOINT -P prof-1"
@@ -147,7 +148,7 @@ EOF`"
 
 services_stop() {
     killall -q lt-m0d
-    sleep 3
+    sleep 5
 }
 
 _mount() {

@@ -29,8 +29,6 @@
 
 #include "mero/magic.h"
 #include "net/net.h"
-
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 /**
@@ -136,7 +134,7 @@ static bool packet_ready(struct m0_rpc_packet *p)
 	M0_ENTRY("packet: %p", p);
 	M0_PRE(m0_rpc_packet_invariant(p));
 
-	M0_ALLOC_PTR_ADDB(rpcbuf, &m0_rpc_addb_ctx, &m0_rpc_addb_loc);
+	RPC_ALLOC_PTR(rpcbuf, FRMOPS_PACKET_READY, &m0_rpc_addb_ctx);
 	if (rpcbuf == NULL) {
 		rc = -ENOMEM;
 		M0_LOG(M0_ERROR, "Failed to allocate rpcbuf");
@@ -232,9 +230,8 @@ static int net_buffer_allocate(struct m0_net_buffer *netbuf,
 	rc = m0_bufvec_alloc_aligned(&netbuf->nb_buffer, nr_segments,
 				     segment_size, M0_SEG_SHIFT);
 	if (rc != 0) {
-		if (rc == -ENOMEM)
-			M0_ADDB_ADD(&m0_rpc_addb_ctx, &m0_rpc_addb_loc,
-				    m0_addb_oom);
+		RPC_ADDB_FUNCFAIL(rc, FRMOPS_NET_BUFFER_ALLOCATE,
+				  &m0_rpc_addb_ctx);
 		M0_LOG(M0_ERROR, "buffer allocation failed");
 		goto out;
 	}

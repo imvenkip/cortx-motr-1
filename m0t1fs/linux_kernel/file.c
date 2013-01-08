@@ -196,9 +196,10 @@
    (1) Calculate its parity group, find out related data units and parity units.
        This needs help from the file's layout.
    (2) Send read requests to necessary data units and/or parity units
-       asynchronously. The read request itself is blocked and waiting for those
-       replies. For a N+K+K (N data units, K parity units, K spare units) layout,
-       N units of data or parity units are needed to re-compute the lost data.
+       asynchronously. The read request itself is blocked and waiting
+       for those replies. For a N+K+K (N data units, K parity units, K
+       spare units) layout, N units of data or parity units are needed
+       to re-compute the lost data.
    (3) When those read replies come, ASTs will be called to re-compute the data
        iteratively. Temporary result is stored in the buffer of the original
        read request. This async read request and its reply can be released (no
@@ -283,7 +284,8 @@
    <hr>
    @section iosnsrepair-ref References
 
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1vgs3jeskGKApvE016XxwXAxGyUoNxbKudTTNRSoL-Vg/edit">
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/
+1vgs3jeskGKApvE016XxwXAxGyUoNxbKudTTNRSoL-Vg/edit">
 HLD of SNS repair</a>,
    - @ref rmw_io_dld m0t1fs client read-modify-write DLD
    - @ref layout Layout
@@ -559,19 +561,6 @@ M0_INTERNAL void io_bob_tlists_init(void)
 	m0_bob_type_tlist_init(&iofop_bobtype, &iofops_tl);
 	M0_ASSERT(iofop_bobtype.bt_magix == M0_T1FS_IOFOP_MAGIC);
 }
-
-static const struct m0_addb_loc io_addb_loc = {
-	.al_name = "m0t1fs_io_path",
-};
-
-struct m0_addb_ctx m0t1fs_addb;
-
-const struct m0_addb_ctx_type m0t1fs_addb_type = {
-	.act_name = "m0t1fs",
-};
-
-M0_ADDB_EV_DEFINE(io_request_failed, "IO request failed.",
-		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 
 static void io_rpc_item_cb (struct m0_rpc_item *item);
 static void io_req_fop_release(struct m0_ref *ref);
@@ -1029,10 +1018,12 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 	M0_PRE(pargrp_iomap_invariant(map));
 
 	play = pdlayout_get(map->pi_ioreq);
-	M0_ALLOC_ARR_ADDB(dbufs, layout_n(play), &m0t1fs_addb,
-			  &io_addb_loc);
-	M0_ALLOC_ARR_ADDB(pbufs, layout_k(play), &m0t1fs_addb,
-			  &io_addb_loc);
+	M0_ALLOC_ARR_ADDB(dbufs, layout_n(play), &m0_addb_gmc,
+	                  M0T1FS_ADDB_LOC_PARITY_RECALC_DBUFS,
+	                  &m0t1fs_addb_ctx);
+	M0_ALLOC_ARR_ADDB(pbufs, layout_k(play), &m0_addb_gmc,
+	                  M0T1FS_ADDB_LOC_PARITY_RECALC_PBUFS,
+	                  &m0t1fs_addb_ctx);
 
 	if (dbufs == NULL || pbufs == NULL) {
 		rc = -ENOMEM;
@@ -1076,8 +1067,9 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 	} else {
 		struct m0_buf *old;
 
-		M0_ALLOC_ARR_ADDB(old, layout_n(play), &m0t1fs_addb,
-				  &io_addb_loc);
+		M0_ALLOC_ARR_ADDB(old, layout_n(play), &m0_addb_gmc,
+		                  M0T1FS_ADDB_LOC_PARITY_RECALC_OLD_BUFS,
+		                  &m0t1fs_addb_ctx);
 
 		if (old == NULL) {
 			rc = -ENOMEM;
@@ -1233,7 +1225,8 @@ static int pargrp_iomap_init(struct pargrp_iomap *map,
 	map->pi_paritybufs = NULL;
 
 	rc = m0_indexvec_alloc(&map->pi_ivec, page_nr(data_size(play)),
-			       &m0t1fs_addb, &io_addb_loc);
+	                       &m0t1fs_addb_ctx,
+	                       M0T1FS_ADDB_LOC_IOMAP_INIT_IV);
 	if (rc != 0)
 		goto fail;
 
@@ -1243,28 +1236,34 @@ static int pargrp_iomap_init(struct pargrp_iomap *map,
 	 */
 	map->pi_ivec.iv_vec.v_nr = 0;
 
-	M0_ALLOC_ARR_ADDB(map->pi_databufs, data_row_nr(play),
-			  &m0t1fs_addb, &io_addb_loc);
+	M0_ALLOC_ARR_ADDB(map->pi_databufs, data_row_nr(play), &m0_addb_gmc,
+	                  M0T1FS_ADDB_LOC_IOMAP_INIT_DBUFS_ROW,
+	                  &m0t1fs_addb_ctx);
 	if (map->pi_databufs == NULL)
 		goto fail;
 
 	for (pg = 0; pg < data_row_nr(play); ++pg) {
 		M0_ALLOC_ARR_ADDB(map->pi_databufs[pg], layout_n(play),
-				  &m0t1fs_addb, &io_addb_loc);
+		                  &m0_addb_gmc,
+		                  M0T1FS_ADDB_LOC_IOMAP_INIT_DBUFS_COL,
+		                  &m0t1fs_addb_ctx);
 		if (map->pi_databufs[pg] == NULL)
 			goto fail;
 	}
 
 	if (req->ir_type == IRT_WRITE) {
 		M0_ALLOC_ARR_ADDB(map->pi_paritybufs, parity_row_nr(play),
-				  &m0t1fs_addb, &io_addb_loc);
+                                  &m0_addb_gmc,
+		                  M0T1FS_ADDB_LOC_IOMAP_INIT_PBUFS_ROW,
+		                  &m0t1fs_addb_ctx);
 		if (map->pi_paritybufs == NULL)
 			goto fail;
 
 		for (pg = 0; pg < parity_row_nr(play); ++pg) {
 			M0_ALLOC_ARR_ADDB(map->pi_paritybufs[pg],
-					  parity_col_nr(play),
-					  &m0t1fs_addb, &io_addb_loc);
+			                  parity_col_nr(play), &m0_addb_gmc,
+			                  M0T1FS_ADDB_LOC_IOMAP_INIT_PBUFS_COL,
+			                  &m0t1fs_addb_ctx);
 			if (map->pi_paritybufs[pg] == NULL)
 				goto fail;
 		}
@@ -1326,7 +1325,7 @@ static void pargrp_iomap_fini(struct pargrp_iomap *map)
 			for (col = 0; col < parity_col_nr(play); ++col) {
 				if (map->pi_paritybufs[row][col] != NULL) {
 					data_buf_dealloc_fini(map->
-							pi_paritybufs[row][col]);
+						pi_paritybufs[row][col]);
 					map->pi_paritybufs[row][col] = NULL;
 				}
 			}
@@ -1918,9 +1917,12 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 
 	play = pdlayout_get(req);
 
-	M0_ALLOC_ARR_ADDB(grparray, max64u(m0_vec_count(&req->ir_ivec.iv_vec) /
-			  data_size(play) + 1, SEG_NR(&req->ir_ivec)),
-			  &m0t1fs_addb, &io_addb_loc);
+	M0_ALLOC_ARR_ADDB(grparray,
+	       max64u(m0_vec_count(&req->ir_ivec.iv_vec) / data_size(play) + 1,
+	              SEG_NR(&req->ir_ivec)),
+	                  &m0_addb_gmc,
+	                  M0T1FS_ADDB_LOC_IOMAPS_PREP_GRPARR,
+	                  &m0t1fs_addb_ctx);
 	if (grparray == NULL)
 		M0_RETERR(-ENOMEM, "Failed to allocate memory for int array");
 
@@ -1954,8 +1956,9 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 	       req->ir_iomap_nr);
 
 	/* req->ir_iomaps is zeroed out on allocation. */
-	M0_ALLOC_ARR_ADDB(req->ir_iomaps, req->ir_iomap_nr, &m0t1fs_addb,
-			  &io_addb_loc);
+	M0_ALLOC_ARR_ADDB(req->ir_iomaps, req->ir_iomap_nr, &m0_addb_gmc,
+	                  M0T1FS_ADDB_LOC_IOMAPS_PREP_MAPS,
+	                  &m0t1fs_addb_ctx);
 	if (req->ir_iomaps == NULL) {
 		rc = -ENOMEM;
 		goto failed;
@@ -1972,8 +1975,9 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 
 		M0_ASSERT(id < req->ir_iomap_nr);
 		M0_ASSERT(req->ir_iomaps[id] == NULL);
-		M0_ALLOC_PTR_ADDB(req->ir_iomaps[id], &m0t1fs_addb,
-				  &io_addb_loc);
+		M0_ALLOC_PTR_ADDB(req->ir_iomaps[id], &m0_addb_gmc,
+		                  M0T1FS_ADDB_LOC_IOMAPS_PREP_MAP,
+		                  &m0t1fs_addb_ctx);
 		if (req->ir_iomaps[id] == NULL) {
 			rc = -ENOMEM;
 			goto failed;
@@ -2338,10 +2342,11 @@ static int io_request_init(struct io_request  *req,
 	nw_xfer_request_init(&req->ir_nwxfer);
 
 	m0_sm_init(&req->ir_sm, &io_sm_conf, IRS_INITIALIZED,
-		   file_to_smgroup(req->ir_file), &m0t1fs_addb);
+		   file_to_smgroup(req->ir_file), &m0t1fs_addb_ctx);
 
 	rc = m0_indexvec_alloc(&req->ir_ivec, ivec->iv_vec.v_nr,
-			       &m0t1fs_addb, &io_addb_loc);
+	                       &m0t1fs_addb_ctx,
+	                       M0T1FS_ADDB_LOC_IOREQ_INIT_IV);
 
 	if (rc != 0)
 		M0_RETERR(-ENOMEM, "Allocation failed for m0_indexvec");
@@ -2444,9 +2449,9 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
 				      tfid.f_container, &device_state);
 	if (rc != 0) {
-		M0_ADDB_ADD(&m0t1fs_addb, &io_addb_loc,
-			    io_request_failed, "Query device state fail",
-			    rc);
+		M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
+		                  M0T1FS_ADDB_LOC_TIOREQ_MAP_QDEVST, rc,
+				  &m0t1fs_addb_ctx);
 		M0_RETURN(rc);
 	}
 
@@ -2467,9 +2472,9 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 		}
 
 		if (rc != 0) {
-			M0_ADDB_ADD(&m0t1fs_addb, &io_addb_loc,
-				    io_request_failed, "Query spare slot fail",
-				    rc);
+			M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
+					  M0T1FS_ADDB_LOC_TIOREQ_MAP_QSPSLOT,
+					  rc, &m0t1fs_addb_ctx);
 			M0_RETURN(rc);
 		}
 		spare.sa_unit = layout_n(play) + layout_k(play) + spare_slot;
@@ -2519,24 +2524,30 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	target_ioreq_bob_init(ti);
 
 	rc = m0_indexvec_alloc(&ti->ti_ivec, page_nr(size),
-			       &m0t1fs_addb, &io_addb_loc);
+	                       &m0t1fs_addb_ctx,
+	                       M0T1FS_ADDB_LOC_TI_REQ_INIT_IV);
 	if (rc != 0)
 		goto out;
 
 	ti->ti_bufvec.ov_vec.v_nr = page_nr(size);
 	M0_ALLOC_ARR_ADDB(ti->ti_bufvec.ov_vec.v_count,
-			  ti->ti_bufvec.ov_vec.v_nr, &m0t1fs_addb,
-			  &io_addb_loc);
+	                  ti->ti_bufvec.ov_vec.v_nr, &m0_addb_gmc,
+			  M0T1FS_ADDB_LOC_IOREQ_INIT_BVECC,
+	                  &m0t1fs_addb_ctx);
 	if (ti->ti_bufvec.ov_vec.v_count == NULL)
 		goto fail;
 
 	M0_ALLOC_ARR_ADDB(ti->ti_bufvec.ov_buf, ti->ti_bufvec.ov_vec.v_nr,
-			  &m0t1fs_addb, &io_addb_loc);
+	                  &m0_addb_gmc,
+	                  M0T1FS_ADDB_LOC_IOREQ_INIT_BVECB,
+	                  &m0t1fs_addb_ctx);
 	if (ti->ti_bufvec.ov_buf == NULL)
 		goto fail;
 
 	M0_ALLOC_ARR_ADDB(ti->ti_pageattrs, ti->ti_bufvec.ov_vec.v_nr,
-			  &m0t1fs_addb, &io_addb_loc);
+	                  &m0_addb_gmc,
+			  M0T1FS_ADDB_LOC_IOREQ_INIT_PGATTRS,
+	                  &m0t1fs_addb_ctx);
 	if (ti->ti_pageattrs == NULL)
 		goto fail;
 
@@ -2619,7 +2630,9 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 
 	ti = target_ioreq_locate(xfer, fid);
 	if (ti == NULL) {
-		M0_ALLOC_PTR_ADDB(ti, &m0t1fs_addb, &io_addb_loc);
+		M0_ALLOC_PTR_ADDB(ti, &m0_addb_gmc,
+		                  M0T1FS_ADDB_LOC_TIOREQ_GET_TI,
+		                  &m0t1fs_addb_ctx);
 		if (ti == NULL)
 			M0_RETERR(-ENOMEM, "Failed to allocate memory"
 				  "for target_ioreq");
@@ -2652,7 +2665,9 @@ static struct data_buf *data_buf_alloc_init(enum page_attr pattr)
 	}
 
 	++iommstats.a_page_nr;
-	M0_ALLOC_PTR_ADDB(buf, &m0t1fs_addb, &io_addb_loc);
+	M0_ALLOC_PTR_ADDB(buf, &m0_addb_gmc,
+	                  M0T1FS_ADDB_LOC_DBUF_ALLOI_BUF,
+	                  &m0t1fs_addb_ctx);
 	if (buf == NULL) {
 		free_page(addr);
 		M0_LOG(M0_ERROR, "Failed to allocate data_buf");
@@ -2868,7 +2883,9 @@ M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb *kcb,
 	M0_PRE(M0_IN(rw, (IRT_READ, IRT_WRITE)));
 
 again:
-	M0_ALLOC_PTR_ADDB(req, &m0t1fs_addb, &io_addb_loc);
+	M0_ALLOC_PTR_ADDB(req, &m0_addb_gmc,
+	                  M0T1FS_ADDB_LOC_AIO_REQ,
+	                  &m0t1fs_addb_ctx);
 	if (req == NULL)
 		M0_RETERR(-ENOMEM, "Failed to allocate memory for io_request");
 	++iommstats.a_ioreq_nr;
@@ -2918,7 +2935,8 @@ last:
 
 static struct m0_indexvec *indexvec_create(unsigned long       seg_nr,
 					   const struct iovec *iov,
-					   loff_t	       pos)
+					   loff_t	       pos,
+					   const unsigned      loc)
 {
 	int		    rc;
 	uint32_t	    i;
@@ -2933,13 +2951,15 @@ static struct m0_indexvec *indexvec_create(unsigned long       seg_nr,
 	 * to this function.
 	 */
 	M0_ENTRY("seg_nr %lu position %llu", seg_nr, pos);
-	M0_ALLOC_PTR_ADDB(ivec, &m0t1fs_addb, &io_addb_loc);
+	M0_ALLOC_PTR_ADDB(ivec, &m0_addb_gmc,
+	                  M0T1FS_ADDB_LOC_IVEC_CREAT_IV,
+	                  &m0t1fs_addb_ctx);
 	if (ivec == NULL) {
 		M0_LEAVE();
 		return NULL;
 	}
 
-	rc = m0_indexvec_alloc(ivec, seg_nr, &m0t1fs_addb, &io_addb_loc);
+	rc = m0_indexvec_alloc(ivec, seg_nr, &m0t1fs_addb_ctx, loc);
 	if (rc != 0) {
 		m0_free(ivec);
 		return NULL;
@@ -2992,7 +3012,8 @@ static ssize_t file_aio_write(struct kiocb	 *kcb,
 	if (count != saved_count)
 		seg_nr = iov_shorten((struct iovec *)iov, seg_nr, count);
 
-	ivec = indexvec_create(seg_nr, iov, pos);
+	ivec = indexvec_create(seg_nr, iov, pos,
+	                       M0T1FS_ADDB_LOC_AIO_WRITE);
 	if (ivec == NULL) {
 		M0_LEAVE();
 		return 0;
@@ -3044,7 +3065,8 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	}
 
 	/* Index vector has to be created before io_request is created. */
-	ivec = indexvec_create(seg_nr, iov, pos);
+	ivec = indexvec_create(seg_nr, iov, pos,
+	                       M0T1FS_ADDB_LOC_AIO_READ);
 	if (ivec == NULL) {
 		M0_LEAVE();
 		return 0;
@@ -3462,7 +3484,9 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			continue;
 		}
 
-		M0_ALLOC_PTR_ADDB(irfop, &m0t1fs_addb, &io_addb_loc);
+		M0_ALLOC_PTR_ADDB(irfop, &m0_addb_gmc,
+		                  M0T1FS_ADDB_LOC_TI_FOP_PREP,
+		                  &m0t1fs_addb_ctx);
 		if (irfop == NULL)
 			goto err;
 

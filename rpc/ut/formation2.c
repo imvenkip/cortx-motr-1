@@ -27,11 +27,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 #include "sm/sm.h"
-
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
-
-void rpc_worker_thread_fn(struct m0_rpc_machine *machine);
 
 static struct m0_rpc_frm             *frm;
 static struct m0_rpc_frm_constraints  constraints;

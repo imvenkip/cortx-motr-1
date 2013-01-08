@@ -23,6 +23,8 @@
 #ifndef __MERO_LAYOUT_LAYOUT_INTERNAL_H__
 #define __MERO_LAYOUT_LAYOUT_INTERNAL_H__
 
+#include "layout/layout_addb.h"
+
 /**
  * @addtogroup layout
  * @{
@@ -40,9 +42,6 @@ struct m0_striped_layout;
 struct m0_layout_instance;
 struct m0_layout_instance_ops;
 enum m0_addb_event_id;
-struct m0_addb_ev;
-struct m0_addb_ctx;
-struct m0_addb_loc;
 struct m0_fid;
 
 enum {
@@ -96,6 +95,11 @@ enum {
 	L_TABLE_UPDATE_ERR         = -506
 };
 
+/**
+   ADDB context for the layout module.
+ */
+extern struct m0_addb_ctx m0_layout_mod_ctx;
+
 M0_INTERNAL bool m0_layout__domain_invariant(const struct m0_layout_domain
 					     *dom);
 M0_INTERNAL bool m0_layout__allocated_invariant(const struct m0_layout *l);
@@ -137,10 +141,12 @@ M0_INTERNAL void m0_layout__enum_init(struct m0_layout_domain *dom,
 				      const struct m0_layout_enum_ops *ops);
 M0_INTERNAL void m0_layout__enum_fini(struct m0_layout_enum *le);
 
-M0_INTERNAL void m0_layout__log(const char *fn_name,
-				const char *err_msg,
-				const struct m0_addb_ev *ev,
-				struct m0_addb_ctx *ctx, uint64_t lid, int rc);
+M0_INTERNAL void m0_layout__log(const char         *fn_name,
+				const char         *err_msg,
+				uint64_t            addb_loc,
+				struct m0_addb_ctx *addb_ctx,
+				uint64_t            lid,
+				int                 rc);
 
 M0_INTERNAL m0_bcount_t m0_layout__enum_max_recsize(struct m0_layout_domain
 						    *dom);

@@ -381,11 +381,21 @@ static int cp_fom_tick(struct m0_fom *fom)
 	return cp->c_ops->co_action[phase](cp);
 }
 
+static void cp_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 /** Copy packet FOM operations */
 static const struct m0_fom_ops cp_fom_ops = {
         .fo_fini          = cp_fom_fini,
         .fo_tick          = cp_fom_tick,
-        .fo_home_locality = cp_fom_locality
+        .fo_home_locality = cp_fom_locality,
+	.fo_addb_init     = cp_fom_addb_init
 };
 
 /** @} end internal */
@@ -466,10 +476,16 @@ M0_INTERNAL bool m0_cm_cp_invariant(const struct m0_cm_cp *cp)
 
 M0_INTERNAL void m0_cm_cp_init(struct m0_cm_cp *cp)
 {
+	struct m0_reqh_service *service;
 	M0_PRE(cp != NULL);
 
+	M0_PRE(cp->c_ag != NULL);
+	M0_PRE(cp->c_ag->cag_cm != NULL);
+
+	service = &cp->c_ag->cag_cm->cm_service;
 	m0_cm_cp_bob_init(cp);
-	m0_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
+	m0_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL,
+		    service->rs_reqh, service->rs_type);
 }
 
 M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp)

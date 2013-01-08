@@ -56,11 +56,6 @@ M0_INTERNAL void m0_db_common_tx_fini(struct m0_db_tx *tx);
 
 M0_INTERNAL int m0_db_tx_is_active(const struct m0_db_tx *tx);
 
-extern const struct m0_addb_loc      db_loc;
-extern const struct m0_addb_ctx_type db_env_ctx_type;
-extern const struct m0_addb_ctx_type db_table_ctx_type;
-extern const struct m0_addb_ctx_type db_tx_ctx_type;
-
 /** @} end of db group */
 
 /* __MERO_DB_REC_H__ */

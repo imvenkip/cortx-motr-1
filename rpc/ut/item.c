@@ -68,7 +68,7 @@ static int ts_item_init(void)   /* ts_ for "test suite" */
 	rc = m0_net_xprt_init(xprt);
 	M0_ASSERT(rc == 0);
 
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
 
 	rc = m0_rpc_server_start(&sctx);

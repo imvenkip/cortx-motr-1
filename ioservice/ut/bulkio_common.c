@@ -28,6 +28,7 @@
 
 #define S_DBFILE		  "bulkio_st.db"
 #define S_STOBFILE		  "bulkio_st_stob"
+#define S_ADDB_STOBFILE		  "bulkio_st_addb_stob"
 
 /**
    @todo This value can be reduced after multiple message delivery in a
@@ -92,15 +93,17 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 	strcpy(server_args[6], S_DBFILE);
 	strcpy(server_args[7], "-S");
 	strcpy(server_args[8], S_STOBFILE);
-	strcpy(server_args[9], "-e");
-	strcat(server_args[10], xprt);
-	strcat(server_args[10], saddr);
-	strcpy(server_args[11], "-s");
-	strcpy(server_args[12], "ioservice");
-	strcpy(server_args[13], "-q");
-	strcpy(server_args[14], tm_len);
-	strcpy(server_args[15], "-m");
-	strcpy(server_args[16], rpc_size);
+	strcpy(server_args[9], "-A");
+	strcpy(server_args[10], S_ADDB_STOBFILE);
+	strcpy(server_args[11], "-e");
+	strcat(server_args[12], xprt);
+	strcat(server_args[12], saddr);
+	strcpy(server_args[13], "-s");
+	strcpy(server_args[14], "ioservice");
+	strcpy(server_args[15], "-q");
+	strcpy(server_args[16], tm_len);
+	strcpy(server_args[17], "-m");
+	strcpy(server_args[18], rpc_size);
 	M0_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
 	M0_ASSERT(stypes != NULL);
 	stypes[0] = &ds1_service_type;
@@ -373,7 +376,8 @@ void bulkio_params_init(struct bulkio_params *bp)
 	io_buffers_allocate(bp);
 
 	bp->bp_xprt = &m0_net_lnet_xprt;
-	rc = m0_net_domain_init(&bp->bp_cnetdom, bp->bp_xprt);
+	rc = m0_net_domain_init(&bp->bp_cnetdom, bp->bp_xprt,
+				&m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
 
 	for (i = 0; i < IO_FIDS_NR; ++i)

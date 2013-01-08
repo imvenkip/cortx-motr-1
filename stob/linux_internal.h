@@ -136,8 +136,6 @@ M0_INTERNAL uint32_t linux_stob_block_shift(const struct m0_stob *stob);
 M0_INTERNAL void linux_domain_io_fini(struct m0_stob_domain *dom);
 M0_INTERNAL int linux_domain_io_init(struct m0_stob_domain *dom);
 
-extern struct m0_addb_ctx adieu_addb_ctx;
-
 /** @} end group stoblinux */
 
 /* __MERO_STOB_LINUX_INTERNAL_H__ */

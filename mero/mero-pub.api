@@ -1,4 +1,3 @@
-m0_addb_choose_default_level
 m0_alloc
 m0_chan_has_waiters
 m0_cob_domain_fini

@@ -31,11 +31,59 @@
 
 enum m0_magic_satchel {
 /* ADDB */
+	/* m0_addb_counter::acn_magic (addb add beads) */
+	M0_ADDB_CNTR_MAGIC = 0x33addbaddbead577,
+
+	/* m0_addb_ctx::ac_magic (addb addb cooo) */
+	M0_ADDB_CTX_MAGIC = 0x33addbaddbc00077,
+
+	/* m0_addb_ctx_type::act_magic (addb addb cabe) */
+	M0_ADDB_CT_MAGIC = 0x33addbaddbcabe77,
+
+	/* CT list head magic (addb addb casa) */
+	M0_ADDB_CT_HEAD_MAGIC = 0x33addbaddbca5a77,
+
+	/* caching m0_addb_mc_evmgr::evm_magic (addb coccidae) */
+	M0_ADDB_CACHE_EVMGR_MAGIC = 0x33addbc0cc1dae77,
+
+	/* passthrough m0_addb_mc_evmgr::evm_magic (addb escalade) */
+	M0_ADDB_PT_EVMGR_MAGIC = 0x33addbe5ca1ade77,
+
+	/* m0_addb_rec_type::art_magic (addb addb aiee) */
+	M0_ADDB_RT_MAGIC = 0x33addbaddba1ee77,
+
+	/* RT list head magic (addb addb dada) */
+	M0_ADDB_RT_HEAD_MAGIC = 0x33addbaddbdada77,
+
 	/* m0_addb_record_header::arh_magic1 (abbadabbadoo) */
 	M0_ADDB_REC_HEADER_MAGIC1 = 0x33abbadabbad0077,
 
+	/* m0_addb_mc::am_magic (add boo facade) */
+	M0_ADDB_MC_MAGIC = 0x33addb00facade77,
+
 	/* m0_addb_record_header::arh_magic2 (bifacial beef) */
 	M0_ADDB_REC_HEADER_MAGIC2 = 0x33b1fac1a1beef77,
+
+	/* addb_ctx_def_cache::acdc_magic (addb cdc field) */
+	M0_ADDB_CDC_MAGIC = 0x33addbcdcf1e1d77,
+
+	/* addb_cdc list head magic (addb cdc 0 base) */
+	M0_ADDB_CDC_HEAD_MAGIC = 0x33addbcdc0ba5e77,
+
+	/* addb_post_fom magic (saddle sleaze)  */
+	M0_ADDB_PFOM_MAGIC = 0x335add1e51ea2e77,
+
+	/* addb_svc magic (0 sozzled slob)  */
+	M0_ADDB_SVC_MAGIC = 0x33050221ed510b77,
+
+	/* stobsink_ops::rs_magic (addable addle) */
+	M0_ADDB_STOBSINK_MAGIC = 0x33addab1eadd1e77,
+
+	/* stobsink_poolbuf::spb_magic (addable babel) */
+	M0_ADDB_STOBSINK_BUF_MAGIC = 0x33addab1ebabe177,
+
+	/* stob_retrieval_iter magic (addb seize elf) */
+	M0_ADDB_STOBRET_MAGIC = 0x33addb5e12ee1f77,
 
 /* balloc */
 	/* m0_balloc_super_block::bsb_magic (blessed baloc) */

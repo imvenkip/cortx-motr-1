@@ -26,6 +26,7 @@
    @{
  */
 
+#include "rpc/rpc_addb.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #include "lib/misc.h"
@@ -38,9 +39,12 @@
 #include "cob/cob.h"
 #include "net/net.h"
 #include "net/buffer_pool.h"   /* m0_net_buffer_pool_[lock|unlock] */
-
-#include "rpc/rpc.h"          /* m0_rpc_max_msg_size, m0_rpc_max_recv_msgs */
+#include "reqh/reqh.h"
 #include "rpc/rpc_internal.h"
+
+#define RPCMC_ADDB_FUNCFAIL(rc, mc, loc, parentctx, ctx)		\
+	M0_ADDB_FUNC_FAIL(mc, M0_RPC_ADDB_LOC_##loc, rc,		\
+			  parentctx, ctx)
 
 /* Forward declarations. */
 static void rpc_tm_cleanup(struct m0_rpc_machine *machine);
@@ -51,7 +55,7 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 			uint32_t                   colour,
 			m0_bcount_t                msg_size,
 			uint32_t                   qlen);
-static void __rpc_machine_init(struct m0_rpc_machine *machine);
+static int __rpc_machine_init(struct m0_rpc_machine *machine);
 static void __rpc_machine_fini(struct m0_rpc_machine *machine);
 M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine);
 static struct m0_rpc_chan *rpc_chan_locate(struct m0_rpc_machine *machine,
@@ -73,19 +77,6 @@ static void packet_received(struct m0_rpc_packet    *p,
 static void item_received(struct m0_rpc_item      *item,
 			  struct m0_net_end_point *from_ep);
 static void net_buf_err(struct m0_net_buffer *nb, int32_t status);
-
-
-/* ADDB Instrumentation for rpccore. */
-static const struct m0_addb_ctx_type rpc_machine_addb_ctx_type = {
-        .act_name = "rpc-machine"
-};
-
-const struct m0_addb_loc m0_rpc_machine_addb_loc = {
-        .al_name = "rpc-machine"
-};
-
-M0_ADDB_EV_DEFINE_PUBLIC(m0_rpc_machine_func_fail, "rpc_machine_func_fail",
-			 M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
 
 static const struct m0_bob_type rpc_machine_bob_type = {
 	.bt_name         = "rpc_machine",
@@ -127,14 +118,6 @@ static struct m0_net_tm_callbacks m0_rpc_tm_callbacks = {
 	.ntc_event_cb = rpc_tm_event_cb
 };
 
-static void rmachine_addb_failure(struct m0_rpc_machine *machine,
-				  const char            *msg,
-				  int                    rc)
-{
-	M0_ADDB_ADD(&machine->rm_addb, &m0_rpc_machine_addb_loc,
-		    m0_rpc_machine_func_fail, msg, rc);
-}
-
 M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 				    struct m0_cob_domain *dom,
 				    struct m0_net_domain *net_dom,
@@ -144,7 +127,7 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 				    uint32_t colour,
 				    m0_bcount_t msg_size, uint32_t queue_len)
 {
-	int		rc;
+	int rc;
 
 	M0_ENTRY("machine: %p, com_dom: %p, net_dom: %p, ep_addr: %s"
 		 "reqh:%p", machine, dom, net_dom, (char *)ep_addr, reqh);
@@ -162,7 +145,9 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 	machine->rm_reqh	  = reqh;
 	machine->rm_min_recv_size = m0_rpc_max_msg_size(net_dom, msg_size);
 
-	__rpc_machine_init(machine);
+	rc = __rpc_machine_init(machine);
+	if (rc != 0)
+		M0_RETURN(rc);
 
 	machine->rm_stopping = false;
 	rc = M0_THREAD_INIT(&machine->rm_worker, struct m0_rpc_machine *,
@@ -190,19 +175,49 @@ out_fini:
 }
 M0_EXPORTED(m0_rpc_machine_init);
 
-static void __rpc_machine_init(struct m0_rpc_machine *machine)
+static int __rpc_machine_init(struct m0_rpc_machine *machine)
 {
+	int		    rc;
+	struct m0_addb_mc  *addb_mc;
+	struct m0_addb_ctx *ctx;
+
 	M0_ENTRY("machine: %p", machine);
 	rpc_chan_tlist_init(&machine->rm_chans);
 	rpc_conn_tlist_init(&machine->rm_incoming_conns);
 	rpc_conn_tlist_init(&machine->rm_outgoing_conns);
 	m0_rpc_services_tlist_init(&machine->rm_services);
-	m0_addb_ctx_init(&machine->rm_addb, &rpc_machine_addb_ctx_type,
-			 &m0_addb_global_ctx);
+
+	addb_mc = REQH_ADDB_MC_CONFIGURED(machine->rm_reqh) ?
+		  &machine->rm_reqh->rh_addb_mc : &m0_addb_gmc;
+	ctx     = machine->rm_reqh != NULL ?
+		  &machine->rm_reqh->rh_addb_ctx : &m0_addb_proc_ctx;
+
+	M0_ADDB_CTX_INIT(addb_mc, &machine->rm_addb_ctx,
+			 &m0_addb_ct_rpc_machine, ctx);
+
+	M0_SET0(&machine->rm_cntr_sent_item_sizes);
+	M0_SET0(&machine->rm_cntr_rcvd_item_sizes);
+	rc = m0_addb_counter_init(&machine->rm_cntr_sent_item_sizes,
+				  &m0_addb_rt_rpc_sent_item_sizes);
+	if (rc != 0)
+		goto out_fini;
+
+	rc = m0_addb_counter_init(&machine->rm_cntr_rcvd_item_sizes,
+				  &m0_addb_rt_rpc_rcvd_item_sizes);
+	if (rc != 0)
+		goto cntr_fini;
+
 	m0_sm_group_init(&machine->rm_sm_grp);
 	m0_rpc_machine_bob_init(machine);
 	m0_sm_group_init(&machine->rm_sm_grp);
 	M0_LEAVE();
+	M0_RETURN(0);
+
+cntr_fini:
+	m0_addb_counter_fini(&machine->rm_cntr_sent_item_sizes);
+out_fini:
+	m0_addb_ctx_fini(&machine->rm_addb_ctx);
+	M0_RETURN(rc);
 }
 
 static void __rpc_machine_fini(struct m0_rpc_machine *machine)
@@ -210,7 +225,10 @@ static void __rpc_machine_fini(struct m0_rpc_machine *machine)
 	M0_ENTRY("machine %p", machine);
 
 	m0_sm_group_fini(&machine->rm_sm_grp);
-	m0_addb_ctx_fini(&machine->rm_addb);
+
+	m0_addb_counter_fini(&machine->rm_cntr_sent_item_sizes);
+	m0_addb_counter_fini(&machine->rm_cntr_rcvd_item_sizes);
+	m0_addb_ctx_fini(&machine->rm_addb_ctx);
 	m0_rpc_services_tlist_fini(&machine->rm_services);
 	rpc_conn_tlist_fini(&machine->rm_outgoing_conns);
 	rpc_conn_tlist_fini(&machine->rm_incoming_conns);
@@ -265,6 +283,12 @@ M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine)
 	}
 }
 
+static struct m0_rpc_machine *
+tm_to_rpc_machine(const struct m0_net_transfer_mc *tm)
+{
+	return container_of(tm, struct m0_rpc_machine, rm_tm);
+}
+
 static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 			struct m0_net_domain      *net_dom,
 			const char                *ep_addr,
@@ -273,8 +297,10 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 			m0_bcount_t                msg_size,
 			uint32_t                   qlen)
 {
-	struct m0_clink tmwait;
-	int             rc;
+	struct m0_rpc_machine *machine;
+	struct m0_clink	       tmwait;
+	int		       rc;
+	struct m0_addb_mc     *addb_mc;
 
 	M0_ENTRY("tm: %p, net_dom: %p, ep_addr: %s", tm, net_dom,
 		 (char *)ep_addr);
@@ -284,7 +310,11 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 	tm->ntm_state     = M0_NET_TM_UNDEFINED;
 	tm->ntm_callbacks = &m0_rpc_tm_callbacks;
 
-	rc = m0_net_tm_init(tm, net_dom);
+	machine = tm_to_rpc_machine(tm);
+	addb_mc = REQH_ADDB_MC_CONFIGURED(machine->rm_reqh) ?
+		  &machine->rm_reqh->rh_addb_mc : &m0_addb_gmc;
+
+	rc = m0_net_tm_init(tm, net_dom, addb_mc, &machine->rm_addb_ctx);
 	if (rc < 0)
 		M0_RETERR(rc, "TM initialization");
 
@@ -342,8 +372,12 @@ static void rpc_tm_cleanup(struct m0_rpc_machine *machine)
 	if (rc < 0) {
 		m0_clink_del(&tmwait);
 		m0_clink_fini(&tmwait);
-		M0_ADDB_ADD(&machine->rm_addb, &m0_rpc_machine_addb_loc,
-			    m0_rpc_machine_func_fail, "m0_net_tm_stop", rc);
+		RPCMC_ADDB_FUNCFAIL(rc, machine->rm_reqh != NULL ?
+				    &machine->rm_reqh->rh_addb_mc :
+				    &m0_addb_gmc, MACHINE_RPC_TM_CLEANUP,
+				    machine->rm_reqh != NULL ?
+				    &machine->rm_reqh->rh_addb_ctx :
+				    &m0_addb_proc_ctx, &machine->rm_addb_ctx);
 		M0_LOG(M0_ERROR, "TM stopping: FAILED with err: %d", rc);
 		M0_LEAVE();
 		return;
@@ -379,19 +413,88 @@ M0_INTERNAL bool m0_rpc_machine_is_locked(const struct m0_rpc_machine *machine)
 }
 M0_EXPORTED(m0_rpc_machine_is_locked);
 
+void __rpc_machine_get_stats(struct m0_rpc_machine *machine,
+			     struct m0_rpc_stats *stats, bool reset)
+{
+	M0_PRE(machine != NULL);
+	M0_PRE(m0_rpc_machine_is_locked(machine));
+	M0_PRE(stats != NULL);
+
+	*stats = machine->rm_stats;
+	if(reset)
+		M0_SET0(&machine->rm_stats);
+}
+
 void m0_rpc_machine_get_stats(struct m0_rpc_machine *machine,
 			      struct m0_rpc_stats *stats, bool reset)
 {
 	M0_PRE(machine != NULL);
-	M0_PRE(stats != NULL);
 
 	m0_rpc_machine_lock(machine);
-	*stats = machine->rm_stats;
-	if(reset)
-		M0_SET0(&machine->rm_stats);
+	__rpc_machine_get_stats(machine, stats, reset);
 	m0_rpc_machine_unlock(machine);
 }
 M0_EXPORTED(m0_rpc_machine_get_stats);
+
+static void __rpc_machine_stats_post_addb(struct m0_rpc_machine *machine)
+{
+	struct m0_addb_ctx  *cv[2];
+	struct m0_rpc_stats  rm_stats;
+	struct m0_addb_mc   *addb_mc;
+
+	M0_PRE(m0_rpc_machine_is_locked(machine));
+
+	cv[0] = &machine->rm_addb_ctx;
+	cv[1] = NULL;
+
+	addb_mc = machine->rm_reqh != NULL ?
+		  &machine->rm_reqh->rh_addb_mc :
+		  &m0_addb_gmc;
+	if (m0_addb_counter_nr(&machine->rm_cntr_sent_item_sizes) > 0)
+		M0_ADDB_POST_CNTR(addb_mc, cv,
+				  &machine->rm_cntr_sent_item_sizes);
+
+	if (m0_addb_counter_nr(&machine->rm_cntr_rcvd_item_sizes) > 0)
+		M0_ADDB_POST_CNTR(addb_mc, cv,
+				  &machine->rm_cntr_rcvd_item_sizes);
+
+	__rpc_machine_get_stats(machine, &rm_stats, true);
+	if (rm_stats.rs_nr_rcvd_items +
+	    rm_stats.rs_nr_sent_items +
+	    rm_stats.rs_nr_failed_items +
+	    rm_stats.rs_nr_dropped_items +
+	    rm_stats.rs_nr_timedout_items != 0)
+		M0_ADDB_POST(addb_mc, &m0_addb_rt_rpc_stats_items, cv,
+			     rm_stats.rs_nr_rcvd_items,
+			     rm_stats.rs_nr_sent_items,
+			     rm_stats.rs_nr_failed_items,
+			     rm_stats.rs_nr_dropped_items,
+			     rm_stats.rs_nr_timedout_items);
+
+	if (rm_stats.rs_nr_rcvd_packets +
+	    rm_stats.rs_nr_sent_packets +
+	    rm_stats.rs_nr_failed_packets != 0)
+		M0_ADDB_POST(addb_mc, &m0_addb_rt_rpc_stats_packets, cv,
+			     rm_stats.rs_nr_rcvd_packets,
+			     rm_stats.rs_nr_sent_packets,
+			     rm_stats.rs_nr_failed_packets);
+
+	if (rm_stats.rs_nr_sent_bytes +
+	    rm_stats.rs_nr_rcvd_bytes != 0)
+		M0_ADDB_POST(addb_mc, &m0_addb_rt_rpc_stats_bytes, cv,
+			     rm_stats.rs_nr_sent_bytes,
+			     rm_stats.rs_nr_rcvd_bytes);
+}
+
+M0_INTERNAL void m0_rpc_machine_stats_post_addb(struct m0_rpc_machine *machine)
+{
+	M0_PRE(machine != NULL);
+
+	m0_rpc_machine_lock(machine);
+	__rpc_machine_stats_post_addb(machine);
+	m0_rpc_machine_unlock(machine);
+}
+M0_EXPORTED(m0_rpc_machine_stats_post_addb);
 
 M0_INTERNAL struct m0_rpc_chan *rpc_chan_get(struct m0_rpc_machine *machine,
 					     struct m0_net_end_point *dest_ep,
@@ -461,7 +564,10 @@ static int rpc_chan_create(struct m0_rpc_chan **chan,
 
 	M0_PRE(m0_rpc_machine_is_locked(machine));
 
-	M0_ALLOC_PTR_ADDB(ch, &machine->rm_addb, &m0_rpc_machine_addb_loc);
+	M0_ALLOC_PTR_ADDB(ch, machine->rm_reqh != NULL ?
+			  &machine->rm_reqh->rh_addb_mc : &m0_addb_gmc,
+			  M0_RPC_ADDB_LOC_MACHINE_RPC_CHAN_CREATE,
+			  &m0_addb_proc_ctx, &machine->rm_addb_ctx);
 	if (ch == NULL) {
 		*chan = NULL;
 		M0_RETURN(-ENOMEM);
@@ -544,12 +650,6 @@ static void net_buf_event_handler(const struct m0_net_buffer_event *ev)
 	M0_LEAVE();
 }
 
-static struct m0_rpc_machine *
-tm_to_rpc_machine(const struct m0_net_transfer_mc *tm)
-{
-	return container_of(tm, struct m0_rpc_machine, rm_tm);
-}
-
 static void net_buf_received(struct m0_net_buffer    *nb,
 			     m0_bindex_t              offset,
 			     m0_bcount_t              length,
@@ -567,7 +667,13 @@ static void net_buf_received(struct m0_net_buffer    *nb,
 	m0_rpc_packet_init(&p);
 	rc = m0_rpc_packet_decode(&p, &nb->nb_buffer, offset, length);
 	if (rc != 0)
-		rmachine_addb_failure(machine, "Buffer decode failed", rc);
+		RPCMC_ADDB_FUNCFAIL(rc, machine->rm_reqh != NULL ?
+				    &machine->rm_reqh->rh_addb_mc :
+				    &m0_addb_gmc, MACHINE_NET_BUF_RECEIVED,
+				    machine->rm_reqh != NULL ?
+				    &machine->rm_reqh->rh_addb_ctx :
+				    &m0_addb_proc_ctx, &machine->rm_addb_ctx);
+
 	/* There might be items in packet p, which were successfully decoded
 	   before an error occured. */
 	packet_received(&p, machine, from_ep);
@@ -631,7 +737,12 @@ static void net_buf_err(struct m0_net_buffer *nb, int32_t status)
 	struct m0_rpc_machine *machine;
 
 	machine = tm_to_rpc_machine(nb->nb_tm);
-	rmachine_addb_failure(machine, "Buffer event reported failure", status);
+	RPCMC_ADDB_FUNCFAIL(status, machine->rm_reqh != NULL ?
+			   &machine->rm_reqh->rh_addb_mc : &m0_addb_gmc,
+			   MACHINE_NET_BUF_ERR,
+			   machine->rm_reqh != NULL ?
+			   &machine->rm_reqh->rh_addb_ctx : &m0_addb_proc_ctx,
+			   &machine->rm_addb_ctx);
 }
 
 /* Put buffer back into the pool */

@@ -62,14 +62,15 @@ static struct m0_ut_redirect in_redir;
 static struct m0_ut_redirect out_redir;
 static struct m0_ut_redirect err_redir;
 
-#define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:2"
-#define CLIENT_DB_NAME		"cons_client_db"
+#define CLIENT_ENDPOINT_ADDR       "0@lo:12345:34:2"
+#define CLIENT_DB_NAME		   "cons_client_db"
 
-#define SERVER_ENDPOINT_ADDR	"0@lo:12345:34:1"
-#define SERVER_ENDPOINT		"lnet:" SERVER_ENDPOINT_ADDR
-#define SERVER_DB_FILE_NAME	"cons_server_db"
-#define SERVER_STOB_FILE_NAME	"cons_server_stob"
-#define SERVER_LOG_FILE_NAME	"cons_server.log"
+#define SERVER_ENDPOINT_ADDR	   "0@lo:12345:34:1"
+#define SERVER_ENDPOINT		   "lnet:" SERVER_ENDPOINT_ADDR
+#define SERVER_DB_FILE_NAME	   "cons_server_db"
+#define SERVER_STOB_FILE_NAME	   "cons_server_stob"
+#define SERVER_ADDB_STOB_FILE_NAME "cons_server_addb_stob"
+#define SERVER_LOG_FILE_NAME	   "cons_server.log"
 
 enum {
 	CLIENT_COB_DOM_ID	= 14,
@@ -98,8 +99,8 @@ static struct m0_rpc_client_ctx cctx = {
 
 static char *server_argv[] = {
 	"console_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
-	"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
-	"-s", "ds1", "-s", "ds2"
+	"-S", SERVER_STOB_FILE_NAME, "-A", SERVER_ADDB_STOB_FILE_NAME,
+	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2"
 };
 
 static struct m0_rpc_server_ctx sctx = {
@@ -133,7 +134,7 @@ static int cons_init(void)
 	 * initialized by m0_rpc_server_start().
 	 */
 
-	result = m0_net_domain_init(&client_net_dom, xprt);
+	result = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	M0_ASSERT(result == 0);
 
 	return result;
@@ -571,6 +572,14 @@ static void mesg_send_client(int dummy)
 
 	ftype = m0_cons_fop_type_find(M0_CONS_FOP_DEVICE_OPCODE);
 	M0_UT_ASSERT(ftype != NULL);
+
+	/**
+	 * This is a hack, need to set the svc type of the fop type
+	 * of this fop. So that the m0_fom_init() assertion passes
+	 * in @see cons_fop_fom_create()
+	 */
+	M0_UT_ASSERT(ftype->ft_fom_type.ft_rstype == NULL);
+	ftype->ft_fom_type.ft_rstype = &ds1_service_type;
 	m0_cons_fop_name_print(ftype);
 	printf("\n");
 	fop = m0_fop_alloc(ftype, NULL);

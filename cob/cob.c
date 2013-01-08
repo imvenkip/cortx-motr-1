@@ -19,6 +19,15 @@
  * Mdstore changes: Yuriy Umanets <yuriy_umanets@xyratex.com>
  */
 
+/*
+ * Define the ADDB types in this file.
+ */
+#undef M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_CT_CREATE_DEFINITION
+#undef M0_ADDB_RT_CREATE_DEFINITION
+#define M0_ADDB_RT_CREATE_DEFINITION
+#include "cob/cob_addb.h"
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
 #include "lib/trace.h"        /* M0_LOG and M0_ENTRY */
 
@@ -68,17 +77,27 @@ const struct m0_fid M0_COB_SLASH_FID = {
 const char M0_COB_ROOT_NAME[] = "ROOT";
 const char M0_COB_SESSIONS_NAME[] = "SESSIONS";
 
-static const struct m0_addb_ctx_type m0_cob_domain_addb = {
-        .act_name = "cob-domain"
-};
+struct m0_addb_ctx m0_cob_mod_ctx;
 
-static const struct m0_addb_ctx_type m0_cob_addb = {
-        .act_name = "cob"
-};
+#define COB_FUNC_FAIL(loc, rc)						\
+do {									\
+	if (rc < 0)							\
+		M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_COB_ADDB_LOC_##loc,	\
+				  rc, &m0_cob_mod_ctx);			\
+} while (0)
 
-static const struct m0_addb_loc cob_addb_loc = {
-        .al_name = "cob"
-};
+M0_INTERNAL int m0_cob_mod_init(void)
+{
+	m0_addb_ctx_type_register(&m0_addb_ct_cob_mod);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_cob_mod_ctx,
+			 &m0_addb_ct_cob_mod, &m0_addb_proc_ctx);
+	return 0;
+}
+
+M0_INTERNAL void m0_cob_mod_fini(void)
+{
+        m0_addb_ctx_fini(&m0_cob_mod_ctx);
+}
 
 M0_INTERNAL void m0_cob_oikey_make(struct m0_cob_oikey *oikey,
 				   const struct m0_fid *fid, int linkno)
@@ -346,8 +365,6 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_dbenv *env,
                 return rc;
         }
 
-        m0_addb_ctx_init(&dom->cd_addb, &m0_cob_domain_addb, &env->d_addb);
-
         return 0;
 }
 
@@ -357,7 +374,6 @@ void m0_cob_domain_fini(struct m0_cob_domain *dom)
         m0_table_fini(&dom->cd_fileattr_basic);
         m0_table_fini(&dom->cd_object_index);
         m0_table_fini(&dom->cd_namespace);
-        m0_addb_ctx_fini(&dom->cd_addb);
 }
 M0_EXPORTED(m0_cob_domain_fini);
 
@@ -512,7 +528,6 @@ static void cob_free_cb(struct m0_ref *ref);
 
 static void cob_init(struct m0_cob_domain *dom, struct m0_cob *cob)
 {
-        m0_addb_ctx_init(&cob->co_addb, &m0_cob_addb, &dom->cd_addb);
         m0_ref_init(&cob->co_ref, 1, cob_free_cb);
         cob->co_fid = &cob->co_nsrec.cnr_fid;
         cob->co_nskey = NULL;
@@ -555,7 +570,8 @@ M0_INTERNAL int m0_cob_alloc(struct m0_cob_domain *dom, struct m0_cob **out)
 {
         struct m0_cob *cob;
 
-        M0_ALLOC_PTR_ADDB(cob, &dom->cd_addb, &cob_addb_loc);
+        M0_ALLOC_PTR_ADDB(cob, &m0_addb_gmc, M0_COB_ADDB_LOC_ALLOC,
+			  &m0_cob_mod_ctx);
         if (cob == NULL)
                 return -ENOMEM;
 
@@ -582,7 +598,8 @@ static int cob_ns_lookup(struct m0_cob *cob, struct m0_db_tx *tx)
         struct m0_db_pair     pair;
         int                   rc;
 
-        M0_PRE(cob->co_nskey != NULL && m0_fid_is_set(&cob->co_nskey->cnk_pfid));
+        M0_PRE(cob->co_nskey != NULL &&
+	       m0_fid_is_set(&cob->co_nskey->cnk_pfid));
         m0_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
                          cob->co_nskey, m0_cob_nskey_size(cob->co_nskey),
                          &cob->co_nsrec, sizeof cob->co_nsrec);
@@ -1075,8 +1092,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
         if (rc == 0)
                 cob->co_flags |= M0_CA_NSKEY_FREE | M0_CA_FABREC;
 out:
-        M0_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
-                    m0_addb_func_fail, "cob_create", rc);
+	COB_FUNC_FAIL(CREATE, rc);
         return rc;
 }
 
@@ -1145,8 +1161,7 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_db_tx *tx)
                 m0_db_pair_fini(&pair);
         }
 out:
-        M0_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
-                    m0_addb_func_fail, "cob_delete", rc);
+	COB_FUNC_FAIL(DELETE, rc);
         return rc;
 }
 
@@ -1178,7 +1193,8 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
                 cob->co_flags |= M0_CA_NSREC;
 
                 m0_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
-                                 cob->co_nskey, m0_cob_nskey_size(cob->co_nskey),
+                                 cob->co_nskey,
+				 m0_cob_nskey_size(cob->co_nskey),
                                  &cob->co_nsrec, sizeof cob->co_nsrec);
                 rc = m0_table_update(tx, &pair);
                 m0_db_pair_release(&pair);
@@ -1222,8 +1238,7 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
                 m0_db_pair_fini(&pair);
         }
 out:
-        M0_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
-                    m0_addb_func_fail, "cob_update", rc);
+	COB_FUNC_FAIL(UPDATE, rc);
         return rc;
 }
 
@@ -1265,8 +1280,7 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
         m0_db_pair_release(&pair);
         m0_db_pair_fini(&pair);
 out:
-        M0_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
-                    m0_addb_func_fail, "cob_name_add", rc);
+	COB_FUNC_FAIL(NAME_ADD, rc);
         return rc;
 }
 
@@ -1309,8 +1323,7 @@ M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
         m0_db_pair_fini(&pair);
 
 out:
-        M0_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
-                    m0_addb_func_fail, "cob_del_name", rc);
+	COB_FUNC_FAIL(NAME_DEL, rc);
         return rc;
 }
 
@@ -1382,8 +1395,7 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
                           m0_bitstring_len_get(&tgtkey->cnk_name));
         cob->co_flags |= M0_CA_NSKEY_FREE;
 out:
-        M0_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
-                    m0_addb_func_fail, "cob_update_name", rc);
+	COB_FUNC_FAIL(NAME_UPDATE, rc);
         return rc;
 }
 

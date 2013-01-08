@@ -21,6 +21,7 @@
 #include "lib/ut.h"
 
 /* sort test suites in alphabetic order */
+extern void m0_test_lib_uuid(void);
 extern void m0_ut_lib_buf_test(void);
 extern void test_atomic(void);
 extern void test_bitmap(void);
@@ -73,6 +74,7 @@ const struct m0_test_suite libm0_ut = {
 		{ "timer",     test_timer         },
 		{ "tlist",     test_tlist         },
 		{ "trace",     test_trace         },
+		{ "uuid",      m0_test_lib_uuid   },
 		{ "vec",       test_vec           },
 		{ "zerovec",   test_zerovec       },
 		{ NULL,        NULL               }

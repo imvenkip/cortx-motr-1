@@ -20,15 +20,17 @@
 
 #include "lib/ut.h"
 #include "lib/memory.h"
+#include "lib/misc.h"
 #include "reqh/reqh.h"
+#include "ioservice/io_device.h"
 #include "cm/cp.h"
 #include "cm/cp.c"
 #include "sns/repair/cp.h"
 #include "sns/repair/cp.c"
 #include "cm/ag.h"
+#include "cm/ut/common_service.h"
 
-static struct m0_reqh      reqh;
-static struct m0_semaphore sem;
+static struct m0_semaphore     sem;
 
 /* Single thread test vars. */
 static struct m0_sns_repair_cp s_sns_cp;
@@ -38,6 +40,55 @@ static struct m0_bufvec s_bv;
 enum {
 	THREADS_NR = 17,
 };
+
+static int ut_cp_service_start(struct m0_reqh_service *service)
+{
+	M0_ASSERT(service != NULL);
+	return 0;
+}
+
+static void ut_cp_service_stop(struct m0_reqh_service *service)
+{
+	M0_ASSERT(service != NULL);
+}
+
+static void ut_cp_service_fini(struct m0_reqh_service *service)
+{
+	M0_ASSERT(service != NULL);
+	m0_free(service);
+}
+
+static const struct m0_reqh_service_ops ut_cp_service_ops = {
+	.rso_start = ut_cp_service_start,
+	.rso_stop = ut_cp_service_stop,
+	.rso_fini = ut_cp_service_fini
+};
+
+static int ut_cp_service_allocate(struct m0_reqh_service **service,
+				  struct m0_reqh_service_type *stype,
+				  const char *arg __attribute__((unused)))
+{
+	struct m0_reqh_service *serv;
+
+	M0_PRE(stype != NULL && service != NULL);
+
+	M0_ALLOC_PTR(serv);
+	M0_ASSERT(serv != NULL);
+
+	serv->rs_type = stype;
+	serv->rs_ops = &ut_cp_service_ops;
+	*service = serv;
+	return 0;
+}
+
+static const struct m0_reqh_service_type_ops ut_cp_service_type_ops = {
+        .rsto_service_allocate = ut_cp_service_allocate
+};
+
+M0_REQH_SERVICE_TYPE_DEFINE(ut_cp_service_type,
+			    &ut_cp_service_type_ops,
+			    "ut-cp",
+                            &m0_addb_ct_ut_service);
 
 /* Multithreaded test vars. */
 static struct m0_sns_repair_cp m_sns_cp[THREADS_NR];
@@ -101,6 +152,16 @@ void dummy_cp_fom_fini(struct m0_fom *fom)
 	m0_cm_cp_fini(bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob));
 }
 
+void dummy_cp_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+
+}
+
 /*
  * Over-ridden copy packet FOM ops.
  * This is done to bypass the sw_ag_fill call, which is to be tested
@@ -109,7 +170,8 @@ void dummy_cp_fom_fini(struct m0_fom *fom)
 static struct m0_fom_ops dummy_cp_fom_ops = {
         .fo_fini          = dummy_cp_fom_fini,
         .fo_tick          = cp_fom_tick,
-        .fo_home_locality = cp_fom_locality
+        .fo_home_locality = cp_fom_locality,
+	.fo_addb_init     = dummy_cp_fom_addb_init
 };
 
 /*
@@ -128,14 +190,14 @@ static void cp_post(struct m0_sns_repair_cp *sns_cp,
 		};
 
 	cp = &sns_cp->rc_base;
+	cp->c_ag = ag;
 	m0_cm_cp_init(cp);
-        cp->c_ag = ag;
 	cp->c_data = bv;
 	sns_cp->rc_sid = sid;
 	cp->c_ops = &m0_sns_repair_cp_dummy_ops;
 	/* Over-ride the fom ops. */
 	cp->c_fom.fo_ops = &dummy_cp_fom_ops;
-	m0_fom_queue(&cp->c_fom, &reqh);
+	m0_fom_queue(&cp->c_fom, &cm_ut_reqh);
 	m0_semaphore_down(&sem);
 }
 
@@ -145,18 +207,33 @@ static void cp_post(struct m0_sns_repair_cp *sns_cp,
  */
 static void test_cp_single_thread(void)
 {
+	int rc;
+
+	rc = m0_cm_start(&cm_ut);
+	M0_ASSERT(rc == 0);
 	m0_semaphore_init(&sem, 0);
+
+	s_ag.cag_cm = &cm_ut;
 	cp_post(&s_sns_cp, &s_ag, &s_bv);
+
+	while (m0_fom_domain_is_idle(&cm_ut_reqh.rh_fom_dom) ||
+	       !m0_cm_cp_pump_is_complete(&cm_ut.cm_cp_pump))
+		usleep(200);
+
+	rc = m0_cm_stop(&cm_ut);
+	M0_ASSERT(rc == 0);
+
         /*
          * Wait until all the foms in the request handler locality runq are
          * processed.
          */
-        m0_reqh_shutdown_wait(&reqh);
+        m0_reqh_shutdown_wait(&cm_ut_reqh);
 	m0_semaphore_fini(&sem);
 }
 
 static void cp_op(const int tid)
 {
+	m_ag[tid].cag_cm = &cm_ut;
 	cp_post(&m_sns_cp[tid], &m_ag[tid], &m_bv[tid]);
 }
 
@@ -167,7 +244,11 @@ static void cp_op(const int tid)
 static void test_cp_multi_thread(void)
 {
 	int               i;
+	int               rc;
 	struct m0_thread *cp_thread;
+
+	rc = m0_cm_start(&cm_ut);
+	M0_ASSERT(rc == 0);
 
 	m0_semaphore_init(&sem, 0);
 
@@ -182,15 +263,20 @@ static void test_cp_multi_thread(void)
 	for (i = 0; i < THREADS_NR; ++i)
 		m0_thread_join(&cp_thread[i]);
 
+	while (m0_fom_domain_is_idle(&cm_ut_reqh.rh_fom_dom) ||
+	       !m0_cm_cp_pump_is_complete(&cm_ut.cm_cp_pump))
+		usleep(200);
+
+	rc = m0_cm_stop(&cm_ut);
+	M0_ASSERT(rc == 0);
         /*
          * Wait until all the foms in the request handler locality runq are
          * processed.
          */
-        m0_reqh_shutdown_wait(&reqh);
+        m0_reqh_shutdown_wait(&cm_ut_reqh);
         m0_free(cp_thread);
 	m0_semaphore_fini(&sem);
 }
-
 /*
  * Initialises the request handler since copy packet fom has to be tested using
  * request handler infrastructure.
@@ -199,17 +285,33 @@ static int cm_cp_init(void)
 {
 	int rc;
 
-        rc = m0_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1, (void*)1);
+	rc = M0_REQH_INIT(&cm_ut_reqh,
+			  .rhia_dtm       = NULL,
+			  .rhia_db        = (void *)1,
+			  .rhia_mdstore   = (void *)1,
+			  .rhia_fol       = (void *)1,
+			  .rhia_svc       = (void *)1,
+			  .rhia_addb_stob = NULL);
+	M0_ASSERT(rc == 0);
+	rc = m0_cm_type_register(&cm_ut_cmt);
+	M0_ASSERT(rc == 0);
+	cm_ut_service_alloc_init();
+	rc = m0_reqh_service_start(cm_ut_service);
+	M0_ASSERT(rc == 0);
+	rc = m0_ios_poolmach_init(cm_ut_service->rs_reqh);
 	M0_ASSERT(rc == 0);
 
-	m0_cm_cp_module_init();
         return 0;
 }
 
 /* Finalises the request handler. */
 static int cm_cp_fini(void)
 {
-        m0_reqh_fini(&reqh);
+	m0_ios_poolmach_fini(cm_ut_service->rs_reqh);
+	cm_ut_service_cleanup();
+	m0_cm_type_deregister(&cm_ut_cmt);
+        m0_reqh_fini(&cm_ut_reqh);
+	M0_SET0(&cm_ut_reqh);
         return 0;
 }
 

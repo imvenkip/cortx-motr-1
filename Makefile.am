@@ -256,7 +256,9 @@ mero_libmero_altogether_la_CPPFLAGS = $(AM_CPPFLAGS) \
                                             -UM0_INTERNAL \
                                             -DM0_INTERNAL=static \
                                             -UM0_EXTERN \
-                                            -DM0_EXTERN=static
+                                            -DM0_EXTERN=static \
+					    -DM0_ADDB_CT_CREATE_DEFINITION \
+					    -DM0_ADDB_RT_CREATE_DEFINITION
 
 if ENABLE_DEBUG
 mero_libmero_altogether_la_CFLAGS   = $(AM_CFLAGS) \
@@ -511,6 +513,15 @@ console_bin_m0console_LDADD  = $(top_builddir)/mero/libmero.la \
                                $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/console/bin/Makefile.sub
+
+#
+# addb/dump
+#
+
+bin_PROGRAMS               += addb/dump/m0addbdump
+addb_dump_m0addbdump_LDADD  = $(top_builddir)/mero/libmero.la
+
+include $(top_srcdir)/addb/dump/Makefile.sub
 
 
 ################################################################################

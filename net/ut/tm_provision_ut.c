@@ -234,7 +234,7 @@ static void test_net_tm_prov(void)
 
 	/* initialize the domain */
 	ut_dom_init_called = false;
-	rc = m0_net_domain_init(dom, &ut_xprt);
+	rc = m0_net_domain_init(dom, &ut_xprt, &m0_addb_proc_ctx);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(ut_dom_init_called);
 	M0_UT_ASSERT(dom->nd_xprt == &ut_xprt);
@@ -267,7 +267,7 @@ static void test_net_tm_prov(void)
 	M0_UT_ASSERT(rc == POOL_BUF_NR);
 
 	/* TM init with callbacks */
-	rc = m0_net_tm_init(tm1, dom);
+	rc = m0_net_tm_init(tm1, dom, &m0_addb_gmc, &m0_addb_proc_ctx);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(ut_tm_init_called);
 	M0_UT_ASSERT(tm1->ntm_state == M0_NET_TM_INITIALIZED);
@@ -354,7 +354,7 @@ static void test_net_tm_prov(void)
 		     tm1->ntm_recv_queue_min_length);
 
 	/* Initialize another TM with different colour. */
-	rc = m0_net_tm_init(tm2, dom);
+	rc = m0_net_tm_init(tm2, dom, &m0_addb_gmc, &m0_addb_proc_ctx);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_net_tm_colour_set(tm2, ++tm_colours);

@@ -20,14 +20,14 @@
  * Original creation date: 04/28/2011
  */
 
+#include "rpc/rpc_addb.h"
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"     /* M0_IN */
 #include "lib/types.h"
-
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 /**
@@ -37,16 +37,70 @@
 
 M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item);
 
-const struct m0_addb_ctx_type m0_rpc_addb_ctx_type = {
-	.act_name = "rpc"
-};
-
-const struct m0_addb_loc m0_rpc_addb_loc = {
-	.al_name = "rpc"
-};
-
 struct m0_addb_ctx m0_rpc_addb_ctx;
 
+static int rpc_service_start(struct m0_reqh_service *service)
+{
+	M0_PRE(service != NULL);
+	return 0;
+}
+
+static void rpc_service_stop(struct m0_reqh_service *service)
+{
+	M0_PRE(service != NULL);
+}
+
+static void rpc_service_fini(struct m0_reqh_service *service)
+{
+	M0_PRE(service != NULL);
+	m0_free(service);
+}
+
+static const struct m0_reqh_service_ops rpc_ops = {
+	.rso_start = rpc_service_start,
+	.rso_stop = rpc_service_stop,
+	.rso_fini = rpc_service_fini
+};
+
+static int rpc_service_allocate(struct m0_reqh_service **service,
+				struct m0_reqh_service_type *stype,
+				const char *arg __attribute__((unused)))
+{
+	struct m0_reqh_service *serv;
+
+	M0_PRE(stype != NULL && service != NULL);
+
+	RPC_ALLOC_PTR(serv, SERVICE_ALLOC, NULL);
+	if (serv == NULL)
+		return -ENOMEM;
+
+	serv->rs_type = stype;
+	serv->rs_ops = &rpc_ops;
+
+	*service = serv;
+
+	return 0;
+}
+
+static const struct m0_reqh_service_type_ops rpc_service_type_ops = {
+	.rsto_service_allocate = rpc_service_allocate
+};
+
+M0_REQH_SERVICE_TYPE_DEFINE(m0_rpc_service_type, &rpc_service_type_ops,
+			    "rpcservice", &m0_addb_ct_rpc_serv);
+
+M0_INTERNAL int m0_rpc_service_register(void)
+{
+	int rc;
+	m0_addb_ctx_type_register(&m0_addb_ct_rpc_serv);
+	rc = m0_reqh_service_type_register(&m0_rpc_service_type);
+	return rc;
+}
+
+M0_INTERNAL void m0_rpc_service_unregister(void)
+{
+	m0_reqh_service_type_unregister(&m0_rpc_service_type);
+}
 
 M0_INTERNAL int m0_rpc_init(void)
 {
@@ -54,10 +108,25 @@ M0_INTERNAL int m0_rpc_init(void)
 
 	M0_ENTRY();
 
-	m0_addb_ctx_init(&m0_rpc_addb_ctx, &m0_rpc_addb_ctx_type,
-			 &m0_addb_global_ctx);
+#undef CT_REG
+#define CT_REG(n) m0_addb_ctx_type_register(&m0_addb_ct_rpc_##n)
+        CT_REG(mod);
+        CT_REG(machine);
+        CT_REG(frm);
+#undef CT_REG
+#undef RT_REG
+#define RT_REG(n) m0_addb_rec_type_register(&m0_addb_rt_rpc_##n)
+        RT_REG(stats_items);
+        RT_REG(stats_packets);
+        RT_REG(stats_bytes);
+        RT_REG(sent_item_sizes);
+        RT_REG(rcvd_item_sizes);
+#undef RT_REG
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_rpc_addb_ctx,
+			 &m0_addb_ct_rpc_mod, &m0_addb_proc_ctx);
 	rc = m0_rpc_item_type_list_init() ?:
 	     m0_rpc_service_module_init() ?:
+	     m0_rpc_service_register() ?:
 	     m0_rpc_session_module_init();
 
 	M0_RETURN(rc);
@@ -68,6 +137,7 @@ M0_INTERNAL void m0_rpc_fini(void)
 	M0_ENTRY();
 
 	m0_rpc_session_module_fini();
+	m0_rpc_service_unregister();
 	m0_rpc_service_module_fini();
 	m0_rpc_item_type_list_fini();
 	m0_addb_ctx_fini(&m0_rpc_addb_ctx);
@@ -99,7 +169,8 @@ M0_EXPORTED(m0_rpc_post);
 
 M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 {
-	struct m0_rpc_session *session;
+	struct m0_rpc_session  *session;
+	struct m0_addb_counter *counter;
 
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && item->ri_type != NULL);
@@ -125,6 +196,10 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
 	m0_rpc_item_start_timer(item);
 	m0_rpc_frm_enq_item(session_frm(session), item);
+
+	counter = &session_machine(session)->rm_cntr_sent_item_sizes;
+	m0_addb_counter_update(counter, (uint64_t)m0_rpc_item_size(item));
+
 	M0_RETURN(0);
 }
 

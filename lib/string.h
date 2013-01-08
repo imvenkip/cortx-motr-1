@@ -26,12 +26,16 @@
 /*
  * Define standard string manipulation functions (strcat, strlen, strcmp, &c.)
  * together with sprintf(3) and snprintf(3).
+ * Also pick up support for strtoul(3) and variants, and ctype macros.
  */
 
 #ifndef __KERNEL__
+# include <ctype.h>
 # include <stdio.h>
+# include <stdlib.h>
 # include <string.h>
 #else
+# include <linux/ctype.h>
 # include <linux/kernel.h>
 # include <linux/string.h>
 #endif

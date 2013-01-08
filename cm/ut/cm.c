@@ -21,6 +21,7 @@
 #include "lib/finject.h"
 #include "lib/memory.h"
 #include "lib/ut.h"
+#include "lib/misc.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "ioservice/io_device.h"
@@ -28,171 +29,30 @@
 #include "cm/cm.h"
 #include "cm/cp.h"
 #include "cm/ag.h"
+#include "addb/addb.h"
+#include "cm/ut/common_service.h"
 
-static struct m0_reqh   reqh;
-static struct m0_cm_cp  cp;
-static struct m0_cm     cm_ut;
-struct m0_reqh_service *service;
-
-enum {
-	AG_ID_NR = 4096,
-	CM_UT_LOCAL_CP_NR = 4
-};
-
-static int cm_ut_service_start(struct m0_reqh_service *service)
-{
-	struct  m0_cm *cm;
-	int	       rc;
-
-	cm = container_of(service, struct m0_cm, cm_service);
-	rc = m0_cm_setup(cm);
-	return rc;
-}
-
-static void cm_ut_service_stop(struct m0_reqh_service *service)
-{
-	struct m0_cm *cm = container_of(service, struct m0_cm, cm_service);
-	m0_cm_fini(cm);
-}
-
-static void cm_ut_service_fini(struct m0_reqh_service *service)
-{
-
-}
-
-static const struct m0_reqh_service_ops cm_ut_service_ops = {
-	.rso_start = cm_ut_service_start,
-	.rso_stop  = cm_ut_service_stop,
-	.rso_fini  = cm_ut_service_fini
-};
-
-static void cm_cp_ut_free(struct m0_cm_cp *cp)
-{
-
-}
-
-static bool cm_cp_ut_invariant(const struct m0_cm_cp *cp)
-{
-	return true;
-}
-
-static const struct m0_cm_cp_ops cm_cp_ut_ops = {
-	.co_invariant = cm_cp_ut_invariant,
-	.co_free = cm_cp_ut_free
-};
-
-static struct m0_cm_cp* cm_ut_cp_alloc(struct m0_cm *cm)
-{
-	cp.c_ops = &cm_cp_ut_ops;
-	return &cp;
-}
-
-static int cm_ut_setup(struct m0_cm *cm)
-{
-	return 0;
-}
-
-static int cm_ut_start(struct m0_cm *cm)
-{
-	return 0;
-}
-
-static int cm_ut_stop(struct m0_cm *cm)
-{
-	return 0;
-}
-
-static int cm_ut_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)
-{
-	return -ENODATA;
-}
-
-static void cm_ut_fini(struct m0_cm *cm)
-{
-
-}
-
-static void cm_ut_complete(struct m0_cm *cm)
-{
-}
-
-static const struct m0_cm_ops cm_ut_ops = {
-	.cmo_setup     = cm_ut_setup,
-	.cmo_start     = cm_ut_start,
-	.cmo_stop      = cm_ut_stop,
-	.cmo_cp_alloc  = cm_ut_cp_alloc,
-	.cmo_data_next = cm_ut_data_next,
-	.cmo_complete  = cm_ut_complete,
-	.cmo_fini      = cm_ut_fini
-};
-
-static int cm_ag_ut_fini(struct m0_cm_aggr_group *ag)
-{
-	return 0;
-}
-
-static uint64_t cm_ag_ut_local_cp_nr(const struct m0_cm_aggr_group *ag)
-{
-	return CM_UT_LOCAL_CP_NR;
-}
-
-static const struct m0_cm_aggr_group_ops cm_ag_ut_ops = {
-	.cago_fini = cm_ag_ut_fini,
-	.cago_local_cp_nr = cm_ag_ut_local_cp_nr,
-};
-
-static int cm_ut_service_allocate(struct m0_reqh_service **service,
-				  struct m0_reqh_service_type *stype,
-				  const char *arg __attribute__((unused)))
-{
-	struct m0_cm *cm = &cm_ut;
-
-	*service = &cm->cm_service;
-	(*service)->rs_ops = &cm_ut_service_ops;
-	(*service)->rs_state = M0_RST_INITIALISING;
-
-	return m0_cm_init(cm, container_of(stype, struct m0_cm_type, ct_stype),
-			  &cm_ut_ops);
-}
-
-static const struct m0_reqh_service_type_ops cm_ut_service_type_ops = {
-	.rsto_service_allocate = cm_ut_service_allocate,
-};
-
-M0_CM_TYPE_DECLARE(cm_ut, &cm_ut_service_type_ops, "cm_ut");
-
-static int ut_init(void)
+static int cm_ut_init(void)
 {
 	int	rc;
-	m0_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1, (void*)1);
+	M0_REQH_INIT(&cm_ut_reqh,
+		     .rhia_dtm       = NULL,
+		     .rhia_db        = (void *)1,
+		     .rhia_mdstore   = (void *)1,
+		     .rhia_fol       = (void *)1,
+		     .rhia_svc       = (void *)1,
+		     .rhia_addb_stob = NULL);
 	rc = m0_cm_type_register(&cm_ut_cmt);
 	M0_ASSERT(rc == 0);
 
 	return 0;
 }
 
-static int ut_fini(void)
+static int cm_ut_fini(void)
 {
 	m0_cm_type_deregister(&cm_ut_cmt);
-        m0_reqh_fini(&reqh);
-
+        m0_reqh_fini(&cm_ut_reqh);
         return 0;
-}
-
-static void cm_ut_service_alloc_init()
-{
-	int rc;
-	/* Internally calls m0_cm_init(). */
-	rc = m0_reqh_service_allocate(&service, &cm_ut_cmt.ct_stype, NULL);
-	M0_UT_ASSERT(rc == 0);
-
-	m0_reqh_service_init(service, &reqh);
-}
-
-static void cm_ut_service_cleanup()
-{
-	m0_reqh_service_stop(service);
-	m0_reqh_service_fini(service);
 }
 
 static void cm_setup_ut(void)
@@ -202,29 +62,36 @@ static void cm_setup_ut(void)
 	cm_ut_service_alloc_init();
 
 	/* Internally calls m0_cm_setup(). */
-	rc = m0_reqh_service_start(service);
+	rc = m0_reqh_service_start(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_ios_poolmach_init(service->rs_reqh);
+	rc = m0_ios_poolmach_init(cm_ut_service->rs_reqh);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Checks if the restructuring process is started successfully. */
 	rc = m0_cm_start(&cm_ut);
 	M0_UT_ASSERT(rc == 0);
-	sleep(1);
+
+	while (m0_fom_domain_is_idle(&cm_ut_reqh.rh_fom_dom) ||
+	       !m0_cm_cp_pump_is_complete(&cm_ut.cm_cp_pump))
+		usleep(200);
 
 	rc = m0_cm_stop(&cm_ut);
 	M0_UT_ASSERT(rc == 0);
+	m0_reqh_shutdown_wait(&cm_ut_reqh);
 	cm_ut_service_cleanup();
-	m0_ios_poolmach_fini(service->rs_reqh);
+	m0_ios_poolmach_fini(&cm_ut_reqh);
 }
-
 static void cm_init_failure_ut(void)
 {
 	int rc;
 
 	m0_fi_enable_once("m0_cm_init", "init_failure");
-	rc = m0_reqh_service_allocate(&service, &cm_ut_cmt.ct_stype, NULL);
+	rc = m0_reqh_service_allocate(&cm_ut_service, &cm_ut_cmt.ct_stype,
+				      NULL);
+	/* Set the global cm_ut_service pointer to NULL */
+	cm_ut_service = NULL;
+	M0_SET0(&cm_ut);
 	M0_UT_ASSERT(rc != 0);
 }
 
@@ -234,10 +101,10 @@ static void cm_setup_failure_ut(void)
 
 	cm_ut_service_alloc_init();
 	m0_fi_enable_once("m0_cm_setup", "setup_failure_2");
-	rc = m0_reqh_service_start(service);
+	rc = m0_reqh_service_start(cm_ut_service);
 	M0_UT_ASSERT(rc != 0);
 
-	m0_reqh_service_fini(service);
+	m0_reqh_service_fini(cm_ut_service);
 }
 
 static void ag_id_assign(struct m0_cm_ag_id *id, uint64_t hi_hi, uint64_t hi_lo,
@@ -308,7 +175,7 @@ static void cm_ag_ut(void)
 
 
 	cm_ut_service_alloc_init();
-	rc = m0_reqh_service_start(service);
+	rc = m0_reqh_service_start(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_cm_lock(&cm_ut);
@@ -339,8 +206,8 @@ static void cm_ag_ut(void)
 
 const struct m0_test_suite cm_generic_ut = {
         .ts_name = "cm-ut",
-        .ts_init = &ut_init,
-        .ts_fini = &ut_fini,
+        .ts_init = &cm_ut_init,
+        .ts_fini = &cm_ut_fini,
         .ts_tests = {
                 { "cm_setup_ut", cm_setup_ut },
 		{ "cm_setup_failure_ut", cm_setup_failure_ut },

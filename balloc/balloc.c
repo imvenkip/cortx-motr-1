@@ -91,15 +91,14 @@ M0_INTERNAL void m0_balloc_debug_dump_group_extent(const char *tag,
 	if (grp == NULL || grp->bgi_extents == NULL)
 		return;
 
-	M0_LOG(M0_DEBUG, "dumping free extents@%p:%s for %08llx\n",
+	M0_LOG(M0_DEBUG, "dumping free extents@%p:%s for %08llx",
 		grp, (char*) tag, (unsigned long long) grp->bgi_groupno);
 	for (i = 0; i < grp->bgi_fragments; i++) {
 		ex = &grp->bgi_extents[i];
-		M0_LOG(M0_DEBUG, "[0x%08llx, 0x%08llx) ",
+		M0_LOG(M0_DEBUG, "[0x%08llx, 0x%08llx)",
 			(unsigned long long) ex->e_start,
 			(unsigned long long) ex->e_end);
 	}
-	M0_LOG(M0_DEBUG, "\n");
 #endif
 }
 

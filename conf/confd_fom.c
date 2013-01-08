@@ -21,7 +21,7 @@
 #include "lib/trace.h"
 
 #include "conf/confd_fom.h"
-#include "conf_fop.h"         /* m0_conf_fetch_resp_fopt */
+#include "conf/conf_fop.h"    /* m0_conf_fetch_resp_fopt */
 #include "conf/onwire.h"      /* m0_conf_fetch_resp */
 #include "conf/preload.h"     /* m0_conf_parse */
 #include "conf/confd.h"       /* m0_confd, m0_confd_bob */
@@ -40,6 +40,15 @@
  * @{
  */
 
+static void conf_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 static int conf_fetch_tick(struct m0_fom *fom);
 static int conf_update_tick(struct m0_fom *fom);
 static int enconf_fill(struct enconf *dest, const struct objid *origin,
@@ -57,18 +66,21 @@ static void confd_fom_fini(struct m0_fom *fom)
 }
 
 static const struct m0_fom_ops conf_fetch_fom_ops = {
+	.fo_addb_init     = conf_addb_init,
 	.fo_home_locality = confd_fom_locality,
 	.fo_tick = conf_fetch_tick,
 	.fo_fini = confd_fom_fini
 };
 
 static const struct m0_fom_ops conf_update_fom_ops = {
+	.fo_addb_init     = conf_addb_init,
 	.fo_home_locality = confd_fom_locality,
 	.fo_tick = conf_update_tick,
 	.fo_fini = confd_fom_fini
 };
 
-M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out)
+M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				    struct m0_reqh *reqh)
 {
 	struct m0_confd_fom     *m;
 	const struct m0_fom_ops *ops;
@@ -91,7 +103,8 @@ M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out)
 		M0_RETURN(-EOPNOTSUPP);
 	}
 
-	m0_fom_init(&m->dm_fom, &fop->f_type->ft_fom_type, ops, fop, NULL);
+	m0_fom_init(&m->dm_fom, &fop->f_type->ft_fom_type, ops, fop, NULL,
+	            reqh, fop->f_type->ft_fom_type.ft_rstype);
 	*out = &m->dm_fom;
 	M0_RETURN(0);
 }

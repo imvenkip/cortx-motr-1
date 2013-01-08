@@ -44,6 +44,7 @@ M0_INTERNAL void test_zerovec(void);
 M0_INTERNAL void test_memory(void);
 M0_INTERNAL void test_bob(void);
 M0_INTERNAL void m0_ut_lib_buf_test(void);
+M0_INTERNAL void m0_test_lib_uuid(void);
 
 const struct m0_test_suite m0_klibm0_ut = {
 	.ts_name = "klibm0-ut",
@@ -68,6 +69,7 @@ const struct m0_test_suite m0_klibm0_ut = {
 		{ "thread",    test_thread        },
 		{ "time",      test_time          },
 		{ "trace",     test_trace         },
+		{ "uuid",      m0_test_lib_uuid   },
 		{ "vec",       test_vec           },
 		{ "zerovec",   test_zerovec       },
 		{ NULL,        NULL               }

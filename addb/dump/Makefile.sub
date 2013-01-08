@@ -1,0 +1,3 @@
+addb_dump_m0addbdump_SOURCES  = addb/dump/addbdump.c
+
+EXTRA_DIST += addb/dump/m0addbdump.sh.in

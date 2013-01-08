@@ -151,7 +151,7 @@ M0_INTERNAL int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 	}
 
 	/* allocate and fill in the kiov */
-	M0_ALLOC_ARR_ADDB(kb->kb_kiov, num_pages, &kb->kb_addb, &nlx_addb_loc);
+	NLX_ALLOC_ARR(kb->kb_kiov, num_pages, kb->kb_addb_ctxp, K_BUF_KLA2KIOV);
 	if (kb->kb_kiov == NULL) {
 		rc = -ENOMEM;
 		goto fail;
@@ -166,7 +166,7 @@ M0_INTERNAL int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 	return 0;
 fail:
 	M0_ASSERT(rc != 0);
-	LNET_ADDB_FUNCFAIL_ADD(kb->kb_addb, rc);
+	LNET_ADDB_FUNCFAIL(rc, K_BUF_KLA2KIOV, kb->kb_addb_ctxp);
 	return rc;
 }
 
@@ -220,7 +220,7 @@ fail_page:
 	while (pnum > 0)
 		WRITABLE_USER_PAGE_PUT(kiov[--pnum].kiov_page);
 	M0_ASSERT(rc < 0);
-	LNET_ADDB_FUNCFAIL_ADD(kb->kb_addb, rc);
+	LNET_ADDB_FUNCFAIL(rc, K_SEG_UVA2KIOV, kb->kb_addb_ctxp);
 	return rc;
 }
 
@@ -259,7 +259,7 @@ M0_INTERNAL int nlx_kcore_buffer_uva_to_kiov(struct nlx_kcore_buffer *kb,
 	}
 
 	/* allocate and fill in the kiov */
-	M0_ALLOC_ARR_ADDB(kb->kb_kiov, num_pages, &kb->kb_addb, &nlx_addb_loc);
+	NLX_ALLOC_ARR(kb->kb_kiov, num_pages, kb->kb_addb_ctxp, K_BUF_UVA2KIOV);
 	if (kb->kb_kiov == NULL) {
 		rc = -ENOMEM;
 		goto fail;
@@ -287,7 +287,7 @@ fail_pages:
 	kb->kb_kiov_len = 0;
 fail:
 	M0_ASSERT(rc < 0);
-	LNET_ADDB_FUNCFAIL_ADD(kb->kb_addb, rc);
+	LNET_ADDB_FUNCFAIL(rc, K_BUF_UVA2KIOV, kb->kb_addb_ctxp);
 	return rc;
 }
 

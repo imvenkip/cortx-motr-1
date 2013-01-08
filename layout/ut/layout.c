@@ -48,7 +48,6 @@ static struct m0_dbenv         dbenv;
 static const char              db_name[] = "ut-layout";
 static struct m0_layout_domain domain;
 static struct m0_pool          pool;
-enum m0_addb_ev_level          orig_addb_level;
 static int                     rc;
 
 enum {
@@ -78,16 +77,6 @@ static int test_init(void)
 	 * Note: In test_init() and test_fini(), need to use M0_ASSERT()
 	 * as against M0_UT_ASSERT().
 	 */
-
-	/*
-	 * Store the original addb level before changing it and change it to
-	 * AEL_WARN.
-	 * Note: This is a provision to avoid recompiling the whole ADDB module,
-	 * when interested in ADDB messages only for the LAYOUT module.
-	 * Just changing the level to AEL_NONE here and recompiling the LAYOUT
-	 * module serves the purpose in that case.
-	 */
-	orig_addb_level = m0_addb_choose_default_level_console(AEL_WARN);
 
 #ifndef __KERNEL__
 	m0_ut_db_reset(db_name);
@@ -134,9 +123,6 @@ static int test_fini(void)
 
 	m0_layout_domain_fini(&domain);
 	m0_dbenv_fini(&dbenv);
-
-	/* Restore the original addb level. */
-	m0_addb_choose_default_level_console(orig_addb_level);
 
 	return 0;
 }

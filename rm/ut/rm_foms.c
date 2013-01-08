@@ -71,8 +71,13 @@ static void rmfoms_utinit(void)
 	int rc;
 
 	m0_rm_fop_init();
-	rc = m0_reqh_init(&reqh, (void *)1, (void *)1,
-			  (void *)1, (void *)1, NULL);
+	rc = M0_REQH_INIT(&reqh,
+			.rhia_dtm       = (void*)1,
+			.rhia_db        = (void*)1,
+			.rhia_mdstore   = (void*)1,
+			.rhia_fol       = (void*)1,
+			.rhia_svc       = (void*)1,
+			.rhia_addb_stob = NULL);
 	M0_UT_ASSERT(rc == 0);
 	dummy_loc.fl_dom = &reqh.rh_fom_dom;
         m0_sm_group_init(&dummy_loc.fl_group);
@@ -134,10 +139,10 @@ static void fom_create(enum m0_rm_incoming_type fomtype,
 
 	switch (fomtype) {
 	case M0_RIT_BORROW:
-		rc = borrow_fom_create(fop, fom);
+		rc = borrow_fom_create(fop, fom, &reqh);
 		break;
 	case M0_RIT_REVOKE:
-		rc = revoke_fom_create(fop, fom);
+		rc = revoke_fom_create(fop, fom, &reqh);
 		break;
 	default:
 		M0_IMPOSSIBLE("Invalid RM-FOM type");

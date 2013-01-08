@@ -168,7 +168,8 @@ static void ktest_buf_shape(void)
 	unsigned num_pages;
 
 	M0_SET0(&dom1);
-	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_lnet_xprt));
+	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_lnet_xprt,
+					 &m0_addb_proc_ctx));
 
 	/* buffer shape APIs */
 	M0_UT_ASSERT(m0_net_domain_get_max_buffer_size(&dom1)
@@ -220,12 +221,16 @@ static void ktest_buf_reg(void)
 	struct m0_bufvec *v1;
 	struct m0_bufvec *v3;
 	m0_bcount_t thunk;
+	struct nlx_core_domain *cd;
+	struct nlx_xo_domain *dp;
+	struct nlx_kcore_domain *kd;
 
 	M0_SET0(&dom1);
 	M0_SET0(&nb1);
 	M0_SET0(&nb3);
 
-	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_lnet_xprt));
+	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_lnet_xprt,
+					 &m0_addb_proc_ctx));
 
 	/* TEST
 	   Register a network buffer of maximal size and perfectly aligned on
@@ -259,6 +264,11 @@ static void ktest_buf_reg(void)
 		addr = page_address(kcb1->kb_kiov[i].kiov_page);
 		M0_UT_ASSERT(addr == nb1.nb_buffer.ov_buf[i]);
 	}
+	dp = dom1.nd_xprt_private;
+	cd = &dp->xd_core;
+	kd = cd->cd_kpvt;
+	M0_ASSERT(nlx_kcore_domain_invariant(kd));
+	M0_UT_ASSERT(kcb1->kb_addb_ctxp == &kd->kd_addb_ctx);
 
 	v1 = &nb1.nb_buffer;
 
@@ -1961,8 +1971,10 @@ static void ut_kcore_core_dom_fini(struct nlx_kcore_domain *kd,
 	ut_dev_dom_finis++;
 }
 
-static int ut_kcore_tm_start(struct nlx_kcore_domain *kd,
-			     struct nlx_core_transfer_mc *ctm,
+static int ut_kcore_tm_start(struct nlx_kcore_domain      *kd,
+			     struct nlx_core_transfer_mc  *ctm,
+			     struct m0_addb_mc            *addb_mc,
+			     struct m0_addb_ctx           *ctx,
 			     struct nlx_kcore_transfer_mc *ktm)
 {
 	if (kd == NULL || ctm == NULL || ktm == NULL)
@@ -1976,7 +1988,9 @@ static int ut_kcore_tm_start(struct nlx_kcore_domain *kd,
 	ctm->ctm_mb_counter = M0_NET_LNET_BUFFER_ID_MIN;
 	spin_lock_init(&ktm->ktm_bevq_lock);
 	m0_semaphore_init(&ktm->ktm_sem, 0);
-	m0_addb_ctx_init(&ktm->ktm_addb, &nlx_core_tm_addb_ctx, &kd->kd_addb);
+	ktm->ktm_addb_mc = addb_mc;
+	M0_ADDB_CTX_INIT(ktm->ktm_addb_mc, &ktm->ktm_addb_ctx,
+			 &m0_addb_ct_net_lnet_tm, ctx);
 	ctm->ctm_kpvt = ktm;
 	ctm->ctm_magic = M0_NET_LNET_CORE_TM_MAGIC;
 	M0_UT_ASSERT(nlx_kcore_tm_invariant(ktm));
@@ -1992,7 +2006,7 @@ static void ut_kcore_tm_stop(struct nlx_core_transfer_mc *ctm,
 	M0_UT_ASSERT(drv_bevs_tlist_is_empty(&ktm->ktm_drv_bevs));
 
 	m0_semaphore_fini(&ktm->ktm_sem);
-	m0_addb_ctx_fini(&ktm->ktm_addb);
+	m0_addb_ctx_fini(&ktm->ktm_addb_ctx);
 	drv_bevs_tlist_fini(&ktm->ktm_drv_bevs);
 	drv_tms_tlink_fini(ktm);
 	ktm->ktm_magic = 0;

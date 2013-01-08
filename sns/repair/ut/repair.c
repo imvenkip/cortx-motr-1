@@ -43,67 +43,40 @@
 #include "sns/repair/cm.h"
 #include "sns/repair/cp.h"
 #include "sns/repair/ag.h"
+#include "sns/repair/ut/cp_common.h"
 
-
+#if 0
 #define LOG_FILE_NAME "sr_ut.errlog"
 
 static char *sns_repair_ut_svc[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "sr_db", "-S", "sr_stob",
-                                "-e", "lnet:0@lo:12345:34:1" ,
+				"-A", "sr_addb_stob",
+                                "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "sns_repair"};
 
 static struct m0_net_xprt *sr_xprts[] = {
         &m0_net_lnet_xprt,
 };
-
+#endif
 enum {
 	ITER_UT_BUF_NR = 1 << 4,
 	ITER_DEFAULT_COB_FID_KEY = 4
 };
 
 
-static struct m0_mero        sctx;
 static struct m0_reqh          *reqh;
 struct m0_reqh_service         *service;
 static struct m0_cm            *cm;
 static struct m0_sns_repair_cm *rcm;
-static FILE                    *lfile;
 
-static void server_stop(void)
-{
-	m0_cs_fini(&sctx);
-	fclose(lfile);
-}
-
-static int server_start(void)
-{
-	int rc;
-
-	M0_SET0(&sctx);
-	lfile = fopen(LOG_FILE_NAME, "w+");
-	M0_UT_ASSERT(lfile != NULL);
-
-        rc = m0_cs_init(&sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile);
-        if (rc != 0)
-		return rc;
-
-        rc = m0_cs_setup_env(&sctx, ARRAY_SIZE(sns_repair_ut_svc),
-                             sns_repair_ut_svc);
-	if (rc == 0)
-		rc = m0_cs_start(&sctx);
-        if (rc != 0)
-		server_stop();
-
-	return rc;
-}
 
 static void service_start_success(void)
 {
 	int rc;
 
-        rc = server_start();
+        rc = sns_repair_ut_server_start();
         M0_UT_ASSERT(rc == 0);
-	server_stop();
+	sns_repair_ut_server_stop();
 }
 
 static void service_init_failure(void)
@@ -111,7 +84,7 @@ static void service_init_failure(void)
 	int rc;
 
 	m0_fi_enable_once("m0_cm_init", "init_failure");
-	rc = server_start();
+	rc = sns_repair_ut_server_start();
 	M0_UT_ASSERT(rc != 0);
 }
 
@@ -120,7 +93,7 @@ static void service_start_failure(void)
 	int rc;
 
 	m0_fi_enable_once("m0_cm_setup", "setup_failure");
-	rc = server_start();
+	rc = sns_repair_ut_server_start();
 	M0_UT_ASSERT(rc != 0);
 }
 
@@ -142,7 +115,7 @@ static void iter_setup(uint32_t N, uint32_t K, uint32_t P)
 	size_t bufs_nr;
 	int    rc;
 
-	rc = server_start();
+	rc = sns_repair_ut_server_start();
 	M0_UT_ASSERT(rc == 0);
 
 	reqh = m0_cs_reqh_get(&sctx, "sns_repair");
@@ -327,7 +300,7 @@ static void iter_stop(uint64_t pool_width)
 	/* Destroy previously created aggregation groups manually. */
 	ag_destroy();
 	m0_cm_unlock(cm);
-	server_stop();
+	sns_repair_ut_server_stop();
 }
 
 static void iter_success(void)

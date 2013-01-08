@@ -48,6 +48,7 @@
 #include "fop/fom_generic.h"
 #include "mero/init.h"
 #include "lib/cookie.h"
+#include "conf/conf_addb.h" /* m0_conf_addb_init, m0_conf_addb_fini */
 #include "conf/conf_xcode.h" /* m0_confx_types_init, m0_confx_types_fini */
 #include "conf/conf_fop.h"   /* m0_conf_fops_init, m0_conf_fops_fini */
 #ifdef __KERNEL__
@@ -55,6 +56,8 @@
 #  include "build_kernel_modules/dummy_init_fini.h"
 #else
 #  include "conf/confd.h"    /* m0_confd_register, m0_confd_unregister */
+#  include "mdstore/mdstore.h"
+#  include "yaml2db/yaml2db.h"
 #endif
 #include "cob/cob.h"
 #include "ioservice/io_fops.h"
@@ -107,16 +110,21 @@ struct init_fini_call subsystem[] = {
 	   type for network descriptors. */
 	{ &m0_fops_init,        &m0_fops_fini,        "fop" },
 	{ &m0_net_init,         &m0_net_fini,         "net" },
+	{ &m0_reqhs_init,       &m0_reqhs_fini,       "reqhs" },
 	{ &m0_rpc_init,         &m0_rpc_fini,         "rpc" },
 	/* fom generic must be after rpc, because it initialises rpc item
 	   type for generic error reply. */
 	{ &m0_fom_generic_init, &m0_fom_generic_fini, "fom-generic" },
 	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
 	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
+	{ &m0_cob_mod_init,     &m0_cob_mod_fini,     "cob" },
+	{ &m0_stob_mod_init,    &m0_stob_mod_fini,    "stob" },
 	{ &m0_linux_stobs_init, &m0_linux_stobs_fini, "linux-stob" },
 	{ &m0_ad_stobs_init,    &m0_ad_stobs_fini,    "ad-stob" },
 	{ &sim_global_init,     &sim_global_fini,     "desim" },
-	{ &m0_reqhs_init,       &m0_reqhs_fini,       "reqh" },
+#ifndef __KERNEL__
+	{ &m0_addb_svc_mod_init, &m0_addb_svc_mod_fini, "addbsvc" },
+#endif
 	{ &m0_confx_types_init, &m0_confx_types_fini, "conf-xtypes" },
 	{ &m0_conf_fops_init,   &m0_conf_fops_fini,   "conf-fops" },
 #ifdef __KERNEL__
@@ -127,7 +135,10 @@ struct init_fini_call subsystem[] = {
 	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
 	{ &m0_cm_module_init,   &m0_cm_module_fini,   "copy machine" },
 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },
-#endif
+	{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },
+	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
+	{ &m0_yaml2db_mod_init, &m0_yaml2db_mod_fini, "yaml2db" },
+#endif /* __KERNEL__ */
 };
 
 static void fini_nr(int i)

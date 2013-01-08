@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,36 +14,37 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 06/19/2010
+ * Original author: Carl Braganza <carl_braganza@xyratex.com>
+ * Original creation date: 10/04/2012
  */
 
-#include <stdio.h> /* printf */
+#pragma once
 
-#include "addb/addb.h"
+#ifndef __MERO_LIB_UUID_H__
+#define __MERO_LIB_UUID_H__
+
+#include "lib/types.h" /* struct m0_uint128 */
 
 /**
-   @addtogroup addb
-
-   <b>User space console log of addb messages.</b>
-
+   @defgroup uuid UUID support
    @{
  */
 
-M0_INTERNAL void m0_addb_console(enum m0_addb_ev_level lev,
-				 struct m0_addb_dp *dp)
-{
-	struct m0_addb_ctx       *ctx;
-	const struct m0_addb_ev  *ev;
+enum {
+	M0_UUID_STRLEN = 36
+};
 
-	ctx = dp->ad_ctx;
-	ev  = dp->ad_ev;
-	printf("addb: ctx: %s/%p, loc: %s, ev: %s/%s, rc: %i name: %s\n",
-	       ctx->ac_type->act_name, ctx, dp->ad_loc->al_name,
-	       ev->ae_ops->aeo_name, ev->ae_name, (int)dp->ad_rc, dp->ad_name);
-}
+/**
+   Parse the 8-4-4-4-12 hexadecimal string representation of a UUID
+   and convert to numerical form.
+   See <a href="http://en.wikipedia.org/wiki/Universally_unique_identifier">
+   Universally unique identifier</a> for more details.
+ */
+M0_INTERNAL int m0_uuid_parse(const char *str, struct m0_uint128 *val);
 
-/** @} end of addb group */
+/** @} end uuid group */
+
+#endif /* __MERO_LIB_UUID_H__ */
 
 /*
  *  Local variables:
@@ -54,3 +55,4 @@ M0_INTERNAL void m0_addb_console(enum m0_addb_ev_level lev,
  *  scroll-step: 1
  *  End:
  */
+

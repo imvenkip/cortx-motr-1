@@ -31,8 +31,6 @@
 #include "db/db.h"
 #include "dtm/verno.h"
 #include "mero/magic.h"
-
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 /**
@@ -837,6 +835,8 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 	M0_ASSERT(item != NULL);
 	M0_PRE(m0_rpc_machine_is_locked(machine));
 
+	m0_addb_counter_update(&machine->rm_cntr_rcvd_item_sizes,
+			       (uint64_t)m0_rpc_item_size(item));
 	machine->rm_stats.rs_nr_rcvd_items++;
 	if (m0_rpc_item_is_oneway(item)) {
 		m0_rpc_item_dispatch(item);

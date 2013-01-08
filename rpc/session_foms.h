@@ -54,6 +54,16 @@ M0_INTERNAL size_t m0_rpc_session_default_home_locality(const struct m0_fom
 							*fom);
 M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom);
 M0_INTERNAL void m0_rpc_fom_conn_establish_fini(struct m0_fom *fom);
+M0_INTERNAL void m0_rpc_fom_conn_establish_addb_init(struct m0_fom *fom,
+                                                struct m0_addb_mc *mc);
+M0_INTERNAL void m0_rpc_fom_session_establish_addb_init(struct m0_fom *fom,
+                                                        struct m0_addb_mc *mc);
+M0_INTERNAL void m0_rpc_fom_conn_establish_addb_init(struct m0_fom *fom,
+                                                struct m0_addb_mc *mc);
+M0_INTERNAL void m0_rpc_fom_session_terminate_addb_init(struct m0_fom *fom,
+                                                        struct m0_addb_mc *mc);
+M0_INTERNAL void m0_rpc_fom_conn_terminate_addb_init(struct m0_fom *fom,
+                                                     struct m0_addb_mc *mc);
 
 /*
  * FOM to execute "Session Create" request

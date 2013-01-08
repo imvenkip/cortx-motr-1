@@ -41,13 +41,23 @@ static size_t home_locality(const struct m0_fom *fom)
         return m0_fop_opcode(fom->fo_fop);
 }
 
+static void cons_fom_addb_init(struct m0_fom * fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 static void default_fom_fini(struct m0_fom *fom)
 {
 	m0_fom_fini(fom);
 	m0_free(fom);
 }
 
-static int cons_fop_fom_create(struct m0_fop *fop, struct m0_fom **m)
+static int cons_fop_fom_create(struct m0_fop *fop, struct m0_fom **m,
+			       struct m0_reqh *reqh)
 {
         struct m0_fom *fom;
 	struct m0_fop *rep_fop;
@@ -76,8 +86,14 @@ static int cons_fop_fom_create(struct m0_fop *fop, struct m0_fom **m)
 		return -ENOMEM;
 	}
 
+	/**
+	 * NOTE: Though service type is NOT set in the FOP_TYPE_INIT
+	 * for console fops, we are setting it in the console UT,
+	 * where the client thread creates the fop. So the assertion in
+	 * m0_fom_init should pass
+	 */
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &m0_cons_fom_device_ops,
-		    fop, rep_fop);
+		    fop, rep_fop, reqh, fop->f_type->ft_fom_type.ft_rstype);
 	m0_fop_put(rep_fop);
         *m = fom;
         return 0;
@@ -118,6 +134,7 @@ const struct m0_fom_ops m0_cons_fom_device_ops = {
         .fo_tick	  = cons_fom_tick,
 	.fo_fini	  = default_fom_fini,
 	.fo_home_locality = home_locality,
+	.fo_addb_init     = cons_fom_addb_init
 };
 
 const struct m0_fom_type_ops m0_cons_fom_device_type_ops = {

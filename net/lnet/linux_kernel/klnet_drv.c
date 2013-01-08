@@ -836,13 +836,6 @@ M0_BASSERT(sizeof(struct nlx_core_buffer_event) < PAGE_SIZE);
 /* LNET_NIDSTR_SIZE is only defined in the kernel */
 M0_BASSERT(M0_NET_LNET_NIDSTR_SIZE == LNET_NIDSTR_SIZE);
 
-static M0_ADDB_EV_DEFINE(nlx_addb_dev_open,  "nlx_dev_open",
-			 M0_ADDB_EVENT_NET_LNET_OPEN,  M0_ADDB_STAMP);
-static M0_ADDB_EV_DEFINE(nlx_addb_dev_close, "nlx_dev_close",
-			 M0_ADDB_EVENT_NET_LNET_CLOSE, M0_ADDB_STAMP);
-static M0_ADDB_EV_DEFINE(nlx_addb_dev_cleanup, "nlx_dev_cleanup",
-			 M0_ADDB_EVENT_NET_LNET_CLEANUP, M0_ADDB_FLAG);
-
 /**
    @defgroup LNetDevInternal LNet Transport Device Internals
    @ingroup LNetDev
@@ -902,7 +895,7 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 		nlx_kcore_core_domain_unmap(kd);
 	}
 	if (rc < 0)
-		LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, KD_DOM_INIT, &kd->kd_addb_ctx);
 	m0_mutex_unlock(&kd->kd_drv_mutex);
 	return rc;
 }
@@ -929,10 +922,10 @@ static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
 		return -EBADR;
 	if (p->dbr_buffer_id == 0)
 		return -EBADR;
-	M0_ALLOC_ARR_ADDB(buf, n, &kd->kd_addb, &nlx_addb_loc);
+	NLX_ALLOC_ARR(buf, n, &kd->kd_addb_ctx, KD_BUF_REG1);
 	if (buf == NULL)
 		return -ENOMEM;
-	M0_ALLOC_ARR_ADDB(count, n, &kd->kd_addb, &nlx_addb_loc);
+	NLX_ALLOC_ARR(count, n, &kd->kd_addb_ctx, KD_BUF_REG2);
 	if (count == NULL) {
 		rc = -ENOMEM;
 		goto fail_count;
@@ -950,7 +943,7 @@ static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
 		goto fail_copy;
 	}
 
-	M0_ALLOC_PTR_ADDB(kb, &kd->kd_addb, &nlx_addb_loc);
+	NLX_ALLOC_PTR(kb, &kd->kd_addb_ctx, KD_BUF_REG3);
 	if (kb == NULL) {
 		rc = -ENOMEM;
 		goto fail_copy;
@@ -1003,7 +996,7 @@ fail_copy:
 fail_count:
 	m0_free(buf);
 	M0_ASSERT(rc < 0);
-	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
+	LNET_ADDB_FUNCFAIL(rc, KD_BUF_REG, &kd->kd_addb_ctx);
 	return rc;
 }
 
@@ -1183,7 +1176,7 @@ static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
 		nlx_kcore_nidstrs_put(&nidstrs);
 		return -EFBIG;
 	}
-	M0_ALLOC_ADDB(buf, sz, &kd->kd_addb, &nlx_addb_loc);
+	NLX_ALLOC(buf, sz, &kd->kd_addb_ctx, KD_NID_GET);
 	if (buf == NULL) {
 		nlx_kcore_nidstrs_put(&nidstrs);
 		return -ENOMEM;
@@ -1221,7 +1214,7 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 
 	if (off + sizeof *ctm > PAGE_SIZE)
 		return -EBADR;
-	M0_ALLOC_PTR_ADDB(ktm, &kd->kd_addb, &nlx_addb_loc);
+	NLX_ALLOC_PTR(ktm, &kd->kd_addb_ctx, KD_TM_START);
 	if (ktm == NULL)
 		return -ENOMEM;
 	ktm->ktm_magic = M0_NET_LNET_KCORE_TM_MAGIC;
@@ -1238,7 +1231,9 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 		rc = -EBADR;
 		goto fail_ctm;
 	}
-	rc = kd->kd_drv_ops->ko_tm_start(kd, ctm, ktm);
+	/** @todo Determine an appropriate parent ADDB context */
+	rc = kd->kd_drv_ops->ko_tm_start(kd, ctm, &m0_addb_gmc,
+					 &m0_net_lnet_addb_ctx, ktm);
 	if (rc != 0)
 		goto fail_ctm;
 	nlx_kcore_core_tm_unmap(ktm);
@@ -1254,7 +1249,7 @@ fail_page:
 	ktm->ktm_magic = 0;
 	m0_free(ktm);
 	M0_ASSERT(rc != 0);
-	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
+	LNET_ADDB_FUNCFAIL(rc, KD_TM_START, &kd->kd_addb_ctx);
 	return rc;
 }
 
@@ -1334,7 +1329,7 @@ static int nlx_dev_ioctl_bev_bless(struct nlx_kcore_domain *kd,
 	if (off + sizeof *cbe > PAGE_SIZE)
 		return -EBADR;
 
-	M0_ALLOC_PTR_ADDB(kbe, &kd->kd_addb, &nlx_addb_loc);
+	NLX_ALLOC_PTR(kbe, &kd->kd_addb_ctx, KD_BEV_BLESS);
 	if (kbe == NULL)
 		return -ENOMEM;
 	drv_bevs_tlink_init(kbe);
@@ -1367,7 +1362,7 @@ fail_page:
 	kbe->kbe_magic = 0;
 	m0_free(kbe);
 	M0_ASSERT(rc != 0);
-	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
+	LNET_ADDB_FUNCFAIL(rc, KD_BEV_BLESS, &kd->kd_addb_ctx);
 	return rc;
 }
 
@@ -1487,7 +1482,7 @@ static long nlx_dev_ioctl(struct file *file,
 
 done:
 	if (rc < 0)
-		LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, KD_IOCTL, &kd->kd_addb_ctx);
 	return rc;
 }
 
@@ -1510,17 +1505,18 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 	if ((file->f_flags & (O_RDWR|O_CLOEXEC)) != (O_RDWR|O_CLOEXEC))
 		return -EACCES;
 
-	M0_ALLOC_PTR_ADDB(kd, &m0_net_addb, &nlx_addb_loc);
+	NLX_ALLOC_PTR(kd, &m0_net_lnet_addb_ctx, KD_OPEN);
 	if (kd == NULL)
 		return -ENOMEM;
-	rc = nlx_kcore_kcore_dom_init(kd);
+	/** @todo Determine an appropriate ADDB parent ctx */
+	rc = nlx_kcore_kcore_dom_init(kd, &m0_net_lnet_addb_ctx);
 	if (rc != 0) {
 		m0_free(kd);
-		LNET_ADDB_FUNCFAIL_ADD(m0_net_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, KD_OPEN, &m0_net_lnet_addb_ctx);
 	} else {
 		file->private_data = kd;
-		NLX_ADDB_ADD(kd->kd_addb, nlx_addb_dev_open);
 	}
+	M0_LOG(M0_INFO, "open rc=%d", rc);
         return rc;
 }
 
@@ -1605,7 +1601,7 @@ M0_INTERNAL int nlx_dev_close(struct inode *inode, struct file *file)
 	} m0_tl_endfor;
 
 	if (cleanup)
-		NLX_ADDB_ADD(kd->kd_addb, nlx_addb_dev_cleanup, cleanup);
+		M0_LOG(M0_NOTICE, "close cleanup");
 
 	/* user program may not successfully perform M0_NET_DOM_INIT ioctl */
 	if (!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc)) {
@@ -1616,7 +1612,7 @@ M0_INTERNAL int nlx_dev_close(struct inode *inode, struct file *file)
 		nlx_core_kmem_loc_set(&kd->kd_cd_loc, NULL, 0);
 	}
 
-	NLX_ADDB_ADD(kd->kd_addb, nlx_addb_dev_close);
+	M0_LOG(M0_INFO, "close");
 	nlx_kcore_kcore_dom_fini(kd);
 	m0_free(kd);
 	return 0;
@@ -1656,7 +1652,7 @@ M0_INTERNAL int nlx_dev_init(void)
 
 	rc = misc_register(&nlx_dev);
 	if (rc != 0) {
-		LNET_ADDB_FUNCFAIL_ADD(m0_net_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, KD_INIT, &m0_net_lnet_addb_ctx);
 		return rc;
 	}
 	nlx_dev_registered = true;
@@ -1672,7 +1668,7 @@ M0_INTERNAL void nlx_dev_fini(void)
 	if (nlx_dev_registered) {
 		rc = misc_deregister(&nlx_dev);
 		if (rc != 0)
-			LNET_ADDB_FUNCFAIL_ADD(m0_net_addb, rc);
+			LNET_ADDB_FUNCFAIL(rc, KD_FINI, &m0_net_lnet_addb_ctx);
 		nlx_dev_registered = false;
 		printk("Mero %s deregistered\n", nlx_dev.name);
 	}

@@ -18,14 +18,15 @@
  * Original creation date: 09/28/2011
  */
 
-#define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
-#define CLIENT_DB_NAME		"rpclib_ut_client.db"
+#define CLIENT_ENDPOINT_ADDR       "0@lo:12345:34:*"
+#define CLIENT_DB_NAME		   "rpclib_ut_client.db"
 
-#define SERVER_ENDPOINT_ADDR	"0@lo:12345:34:1"
-#define SERVER_ENDPOINT		"lnet:" SERVER_ENDPOINT_ADDR
-#define SERVER_DB_FILE_NAME	"rpc_ut_server.db"
-#define SERVER_STOB_FILE_NAME	"rpc_ut_server.stob"
-#define SERVER_LOG_FILE_NAME	"rpc_ut_server.log"
+#define SERVER_ENDPOINT_ADDR	   "0@lo:12345:34:1"
+#define SERVER_ENDPOINT		   "lnet:" SERVER_ENDPOINT_ADDR
+#define SERVER_DB_FILE_NAME	   "rpc_ut_server.db"
+#define SERVER_STOB_FILE_NAME	   "rpc_ut_server.stob"
+#define SERVER_ADDB_STOB_FILE_NAME "rpc_ut_server.addb_stob"
+#define SERVER_LOG_FILE_NAME	   "rpc_ut_server.log"
 
 enum {
 	CLIENT_COB_DOM_ID	= 16,
@@ -55,8 +56,8 @@ static struct m0_rpc_client_ctx cctx = {
 
 static char *server_argv[] = {
 	"rpclib_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
-	"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
-	"-s", "ds1", "-s", "ds2"
+	"-S", SERVER_STOB_FILE_NAME, "-A", SERVER_ADDB_STOB_FILE_NAME,
+	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2"
 };
 
 static struct m0_rpc_server_ctx sctx = {

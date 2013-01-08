@@ -1,1 +1,10 @@
-ut_libmero_ut_la_SOURCES += addb/ut/addb.c
+ut_libmero_ut_la_SOURCES += addb/ut/addb_ut.c
+
+EXTRA_DIST += \
+	   addb/ut/addb_ut_cntr.c \
+	   addb/ut/addb_ut_ctx.c \
+	   addb/ut/addb_ut_evmgr_pt.c \
+	   addb/ut/addb_ut_mc.c \
+	   addb/ut/addb_ut_md.c \
+	   addb/ut/addb_ut_stobsink.c \
+	   addb/ut/addb_ut_svc.c

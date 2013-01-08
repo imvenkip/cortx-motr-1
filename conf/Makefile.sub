@@ -14,6 +14,7 @@ nobase_mero_include_HEADERS += \
 
 mero_libmero_la_SOURCES += \
                            conf/buf_ext.c \
+                           conf/conf_addb.c \
                            conf/conf_fop.c \
                            conf/conf_xcode.c \
                            conf/confc.c \

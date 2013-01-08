@@ -30,7 +30,8 @@ static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
 {
 	char buf[32];
 	LNetSnprintHandle(buf, sizeof buf, h);
-	M0_LOG(M0_DEBUG, "%s: %s (lnet_handle_any_t)\n", (char*)pre, (char*)buf);
+	M0_LOG(M0_DEBUG, "%s: %s (lnet_handle_any_t)\n", (char *)pre,
+	       (char *)buf);
 }
 
 static void nlx_kprint_lnet_process_id(const char *pre, lnet_process_id_t p)
@@ -122,7 +123,7 @@ static void nlx_kprint_kcore_tm(const char *pre,
 	M0_LOG(M0_DEBUG, "%s: %p (nlx_kcore_transfer_mc)\n", (char*) pre, ktm);
 	if (ktm == NULL)
 		return;
-	M0_LOG(M0_DEBUG, "\t      magic: %lu\n", (unsigned long) ktm->ktm_magic);
+	M0_LOG(M0_DEBUG, "\t      magic: %lu\n", (unsigned long)ktm->ktm_magic);
 	nlx_kprint_lnet_handle("\t        eqh", ktm->ktm_eqh);
 }
 #endif
@@ -382,7 +383,7 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_kcore_transfer_mc *kctm,
 	rc = LNetMDUnlink(kcb->kb_mdh);
 	NLXDBG(kctm, 1, NLXP("LNetMDUnlink: %d\n", rc));
 	if (rc != 0)
-		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, K_MD_UNLINK, &kctm->ktm_addb_ctx);
 	return rc;
 }
 

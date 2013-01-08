@@ -55,10 +55,13 @@ struct m0_fop_type cs_ds2_rep_fop_fopt;
   Fom specific routines for corresponding fops.
  */
 static int cs_req_fop_fom_tick(struct m0_fom *fom);
-static int cs_ds1_req_fop_fom_create(struct m0_fop *fop, struct m0_fom **out);
-static int cs_ds2_req_fop_fom_create(struct m0_fop *fop, struct m0_fom **out);
+static int cs_ds1_req_fop_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				     struct m0_reqh *reqh);
+static int cs_ds2_req_fop_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				     struct m0_reqh *reqh);
 static void cs_ut_fom_fini(struct m0_fom *fom);
 static size_t cs_ut_find_fom_home_locality(const struct m0_fom *fom);
+static void cs_req_fop_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 
 /*
   Operation structures for ds1 service foms.
@@ -67,6 +70,7 @@ static const struct m0_fom_ops cs_ds1_req_fop_fom_ops = {
         .fo_fini = cs_ut_fom_fini,
         .fo_tick = cs_req_fop_fom_tick,
         .fo_home_locality = cs_ut_find_fom_home_locality,
+	.fo_addb_init = cs_req_fop_fom_addb_init
 };
 
 /*
@@ -76,6 +80,7 @@ static const struct m0_fom_ops cs_ds2_req_fop_fom_ops = {
         .fo_fini = cs_ut_fom_fini,
         .fo_tick = cs_req_fop_fom_tick,
         .fo_home_locality = cs_ut_find_fom_home_locality,
+	.fo_addb_init = cs_req_fop_fom_addb_init
 };
 
 extern struct m0_reqh_service_type ds1_service_type;
@@ -189,7 +194,7 @@ int m0_cs_ut_ds2_fop_init(void)
  */
 static int cs_ds_req_fop_fom_create(struct m0_fop *fop,
 				    const struct m0_fom_ops *ops,
-				    struct m0_fom **out)
+				    struct m0_fom **out, struct m0_reqh *reqh)
 {
         struct m0_fom *fom;
 
@@ -201,20 +206,25 @@ static int cs_ds_req_fop_fom_create(struct m0_fop *fop,
         if (fom == NULL)
                 return -ENOMEM;
 
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, ops, fop, NULL);
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, ops, fop, NULL, reqh,
+		    fop->f_type->ft_fom_type.ft_rstype);
 
         *out = fom;
         return 0;
 }
 
-static int cs_ds1_req_fop_fom_create(struct m0_fop *fop, struct m0_fom **out)
+static int cs_ds1_req_fop_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				     struct m0_reqh *reqh)
 {
-	return cs_ds_req_fop_fom_create(fop, &cs_ds1_req_fop_fom_ops, out);
+	return cs_ds_req_fop_fom_create(fop, &cs_ds1_req_fop_fom_ops, out,
+					reqh);
 }
 
-static int cs_ds2_req_fop_fom_create(struct m0_fop *fop, struct m0_fom **out)
+static int cs_ds2_req_fop_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				     struct m0_reqh *reqh)
 {
-	return cs_ds_req_fop_fom_create(fop, &cs_ds2_req_fop_fom_ops, out);
+	return cs_ds_req_fop_fom_create(fop, &cs_ds2_req_fop_fom_ops, out,
+					reqh);
 }
 
 /*
@@ -296,6 +306,15 @@ static int cs_req_fop_fom_tick(struct m0_fom *fom)
 		m0_nanosleep(m0_time(2, 0), NULL);
 	}
 	return rc;
+}
+
+static void cs_req_fop_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 /*

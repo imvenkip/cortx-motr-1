@@ -1,6 +1,8 @@
-nobase_mero_include_HEADERS += net/lnet/lnet.h
+nobase_mero_include_HEADERS += net/lnet/lnet.h \
+			          net/lnet/lnet_addb.h
 
 mero_libmero_la_SOURCES  += net/lnet/lnet_main.c \
+                                  net/lnet/lnet_addb.c \
                                   net/lnet/lnet_core.h \
                                   net/lnet/lnet_core_types.h \
                                   net/lnet/lnet_ioctl.h \
@@ -8,9 +10,8 @@ mero_libmero_la_SOURCES  += net/lnet/lnet_main.c \
                                   net/lnet/lnet_xo.h \
                                   net/lnet/ulnet_core.h
 
-# the .c files are included in lnet_main.c (do not add to _SOURCES)
+# most of the .c files are included in lnet_main.c (do not add to _SOURCES)
 EXTRA_DIST += net/lnet/bev_cqueue.c \
-              net/lnet/lnet_addb.c \
               net/lnet/lnet_core.c \
               net/lnet/lnet_ep.c \
               net/lnet/lnet_tm.c \

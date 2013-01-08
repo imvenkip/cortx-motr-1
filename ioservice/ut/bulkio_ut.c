@@ -31,17 +31,18 @@
 #include "lib/finject.h"
 #include "fop/fom_generic.c"
 
-static void bulkio_init();
-static void bulkio_fini();
-
 struct bulkio_params *bp;
 
 extern void bulkioapi_test(void);
-static int io_fop_server_write_fom_create(struct m0_fop *fop,
-					  struct m0_fom **m);
-static int ut_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **m);
-static int io_fop_server_read_fom_create(struct m0_fop *fop, struct m0_fom **m);
-static int io_fop_stob_create_fom_create(struct m0_fop *fop, struct m0_fom **m);
+static int io_fop_server_write_fom_create(struct m0_fop  *fop,
+					  struct m0_fom **m,
+					  struct m0_reqh *reqh);
+static int ut_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **m,
+				   struct m0_reqh *reqh);
+static int io_fop_server_read_fom_create(struct m0_fop *fop, struct m0_fom **m,
+					 struct m0_reqh *reqh);
+static int io_fop_stob_create_fom_create(struct m0_fop *fop, struct m0_fom **m,
+					 struct m0_reqh *reqh);
 static int check_write_fom_tick(struct m0_fom *fom);
 static int check_read_fom_tick(struct m0_fom *fom);
 
@@ -161,6 +162,16 @@ static int bulkio_server_write_fom_tick(struct m0_fom *fom)
 	return rc;
 }
 
+static void bulkio_server_write_fom_addb_init(struct m0_fom *fom,
+					      struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 /*
  * - This is positive test case to test m0_io_fom_cob_rw_tick(fom).
  * - This function test next phase after every defined phase for Read FOM.
@@ -202,6 +213,16 @@ static int bulkio_server_read_fom_tick(struct m0_fom *fom)
 	return rc;
 }
 
+static void bulkio_server_read_fom_addb_init(struct m0_fom *fom,
+					     struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 /*
  * This function intercepts actual I/O FOM state,
  * for state transition testing.
@@ -222,6 +243,16 @@ static int ut_io_fom_cob_rw_state(struct m0_fom *fom)
 {
         return m0_is_read_fop(fom->fo_fop) ?
 		check_read_fom_tick(fom) : check_write_fom_tick(fom);
+}
+
+static void ut_io_fom_cob_rw_addb_init(struct m0_fom *fom,
+				       struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 enum fom_state_transition_tests {
@@ -1044,35 +1075,51 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 	return M0_FSO_WAIT;
 }
 
+static void bulkio_stob_create_fom_addb_init(struct m0_fom *fom,
+					 struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 static struct m0_fom_ops bulkio_stob_create_fom_ops = {
 	.fo_fini = bulkio_stob_fom_fini,
 	.fo_tick = bulkio_stob_create_fom_tick,
 	.fo_home_locality = m0_io_fom_cob_rw_locality_get,
+	.fo_addb_init = bulkio_stob_create_fom_addb_init
 };
 
 static struct m0_fom_ops bulkio_server_write_fom_ops = {
 	.fo_fini = m0_io_fom_cob_rw_fini,
 	.fo_tick = bulkio_server_write_fom_tick,
 	.fo_home_locality = m0_io_fom_cob_rw_locality_get,
+	.fo_addb_init = bulkio_server_write_fom_addb_init
 };
 
 static struct m0_fom_ops ut_io_fom_cob_rw_ops = {
 	.fo_fini = m0_io_fom_cob_rw_fini,
 	.fo_tick = ut_io_fom_cob_rw_state,
 	.fo_home_locality = m0_io_fom_cob_rw_locality_get,
+	.fo_addb_init = ut_io_fom_cob_rw_addb_init
 };
 
 static struct m0_fom_ops bulkio_server_read_fom_ops = {
 	.fo_fini = m0_io_fom_cob_rw_fini,
 	.fo_tick = bulkio_server_read_fom_tick,
 	.fo_home_locality = m0_io_fom_cob_rw_locality_get,
+	.fo_addb_init = bulkio_server_read_fom_addb_init
 };
 
-static int io_fop_stob_create_fom_create(struct m0_fop *fop, struct m0_fom **m)
+static int io_fop_stob_create_fom_create(struct m0_fop  *fop,
+					 struct m0_fom **m,
+					 struct m0_reqh *reqh)
 {
 	int rc;
 	struct m0_fom *fom;
-	rc = m0_io_fom_cob_rw_create(fop, &fom);
+	rc = m0_io_fom_cob_rw_create(fop, &fom, reqh);
         M0_UT_ASSERT(rc == 0);
 	fom->fo_ops = &bulkio_stob_create_fom_ops;
 	*m = fom;
@@ -1080,11 +1127,13 @@ static int io_fop_stob_create_fom_create(struct m0_fop *fop, struct m0_fom **m)
 	return rc;
 }
 
-static int io_fop_server_write_fom_create(struct m0_fop *fop, struct m0_fom **m)
+static int io_fop_server_write_fom_create(struct m0_fop  *fop,
+					  struct m0_fom **m,
+					  struct m0_reqh *reqh)
 {
 	int rc;
 	struct m0_fom *fom;
-	 rc = m0_io_fom_cob_rw_create(fop, &fom);
+	 rc = m0_io_fom_cob_rw_create(fop, &fom, reqh);
         M0_UT_ASSERT(rc == 0);
 	fom->fo_ops = &bulkio_server_write_fom_ops;
 	*m = fom;
@@ -1095,7 +1144,8 @@ static int io_fop_server_write_fom_create(struct m0_fop *fop, struct m0_fom **m)
 /*
  * This creates FOM for ut.
  */
-static int ut_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **m)
+static int ut_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **m,
+				   struct m0_reqh *reqh)
 {
 	int rc;
 	struct m0_fom *fom;
@@ -1103,7 +1153,7 @@ static int ut_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **m)
          * Case : This tests the I/O FOM create api.
          *        It use real I/O FOP
          */
-	rc = m0_io_fom_cob_rw_create(fop, &fom);
+	rc = m0_io_fom_cob_rw_create(fop, &fom, reqh);
         M0_UT_ASSERT(rc == 0 &&
                      fom != NULL &&
                      fom->fo_rep_fop != NULL &&
@@ -1117,11 +1167,13 @@ static int ut_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **m)
 	return rc;
 }
 
-static int io_fop_server_read_fom_create(struct m0_fop *fop, struct m0_fom **m)
+static int io_fop_server_read_fom_create(struct m0_fop  *fop,
+					 struct m0_fom **m,
+					 struct m0_reqh *reqh)
 {
 	int rc;
 	struct m0_fom *fom;
-	rc = m0_io_fom_cob_rw_create(fop, &fom);
+	rc = m0_io_fom_cob_rw_create(fop, &fom, reqh);
         M0_UT_ASSERT(rc == 0);
 	fom->fo_ops = &bulkio_server_read_fom_ops;
 	*m = fom;
@@ -1545,6 +1597,8 @@ static void bulkio_fini(void)
 	bulkio_client_stop(bp->bp_cctx);
 
 	bulkio_server_stop(bp->bp_sctx);
+	m0_addb_mc_fini(&m0_addb_gmc);
+	m0_addb_mc_init(&m0_addb_gmc);
 	bulkio_params_fini(bp);
 	m0_free(bp);
 }

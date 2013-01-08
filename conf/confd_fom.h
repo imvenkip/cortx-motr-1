@@ -33,7 +33,8 @@ struct m0_confd_fom {
 	struct m0_fom dm_fom;
 };
 
-M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out);
+M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				    struct m0_reqh *reqh);
 
 /** @} confd_dfspec */
 #endif /* __MERO_CONFD_FOM_H__ */

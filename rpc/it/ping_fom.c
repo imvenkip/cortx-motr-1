@@ -25,13 +25,15 @@
 #include "rpc/rpc.h"
 #include "fop/fom_generic.h"
 
-static int ping_fop_fom_create(struct m0_fop *fop, struct m0_fom **m);
+static int ping_fop_fom_create(struct m0_fop *fop, struct m0_fom **m,
+			       struct m0_reqh *reqh);
 
 /** Generic ops object for ping */
 struct m0_fom_ops m0_fom_ping_ops = {
 	.fo_fini          = m0_fop_ping_fom_fini,
 	.fo_tick          = m0_fom_ping_state,
-	.fo_home_locality = m0_fom_ping_home_locality
+	.fo_home_locality = m0_fom_ping_home_locality,
+	.fo_addb_init     = m0_fom_ping_addb_init
 };
 
 /** FOM type specific functions for ping FOP. */
@@ -46,6 +48,16 @@ M0_INTERNAL size_t m0_fom_ping_home_locality(const struct m0_fom *fom)
 	M0_PRE(fom != NULL);
 
 	return loc++;
+}
+
+M0_INTERNAL void m0_fom_ping_addb_init(struct m0_fom *fom,
+				       struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 /**
@@ -71,7 +83,8 @@ M0_INTERNAL int m0_fom_ping_state(struct m0_fom *fom)
 }
 
 /* Init for ping */
-static int ping_fop_fom_create(struct m0_fop *fop, struct m0_fom **m)
+static int ping_fop_fom_create(struct m0_fop *fop, struct m0_fom **m,
+			       struct m0_reqh *reqh)
 {
         struct m0_fom                   *fom;
         struct m0_fom_ping		*fom_obj;
@@ -84,7 +97,7 @@ static int ping_fop_fom_create(struct m0_fop *fop, struct m0_fom **m)
                 return -ENOMEM;
 	fom = &fom_obj->fp_gen;
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &m0_fom_ping_ops, fop,
-		    NULL);
+		    NULL, reqh, fop->f_type->ft_fom_type.ft_rstype);
 	fom_obj->fp_fop = fop;
 	*m = fom;
 	return 0;

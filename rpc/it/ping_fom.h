@@ -44,6 +44,8 @@ struct m0_fom_ping {
 M0_INTERNAL int m0_fom_ping_state(struct m0_fom *fom);
 M0_INTERNAL size_t m0_fom_ping_home_locality(const struct m0_fom *fom);
 M0_INTERNAL void m0_fop_ping_fom_fini(struct m0_fom *fom);
+M0_INTERNAL void m0_fom_ping_addb_init(struct m0_fom *fom,
+                                       struct m0_addb_mc *mc);
 
 /* __MERO_RPC_IT_PING_FOM_H__ */
 #endif

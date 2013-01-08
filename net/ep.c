@@ -77,7 +77,7 @@ M0_INTERNAL int m0_net_end_point_create(struct m0_net_end_point **epp,
 	M0_POST(ergo(rc == 0, m0_net__ep_invariant(*epp, tm, true)));
 
 	if (rc != 0)
-		NET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
+		NET_ADDB_FUNCFAIL(rc, EP_CREATE, &tm->ntm_addb_ctx);
 	m0_mutex_unlock(&tm->ntm_mutex);
 	return rc;
 }

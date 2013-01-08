@@ -18,6 +18,15 @@
  * Original creation date: 08/13/2011
  */
 
+/*
+ * Define the ADDB types in this file.
+ */
+#undef M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_CT_CREATE_DEFINITION
+#undef M0_ADDB_RT_CREATE_DEFINITION
+#define M0_ADDB_RT_CREATE_DEFINITION
+#include "yaml2db/yaml2db_addb.h"
+
 #include <sys/stat.h>
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -30,20 +39,27 @@
   @{
  */
 
-/* ADDB Instrumentation yaml2db */
-static const struct m0_addb_ctx_type yaml2db_ctx_type = {
-        .act_name = "yaml2db"
-};
+struct m0_addb_ctx m0_yaml2db_mod_ctx;
 
-static const struct m0_addb_loc yaml2db_addb_loc = {
-        .al_name = "yaml2db"
-};
-
-M0_ADDB_EV_DEFINE(yaml2db_func_fail, "yaml2db_func_fail",
-		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
+#define YAML2DB_FUNC_FAIL(loc, rc)				\
+M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_YAML2DB_ADDB_LOC_##loc,	\
+		  rc, &m0_yaml2db_mod_ctx)
 
 /* Forward declaration */
 static bool yaml2db_context_invariant(const struct m0_yaml2db_ctx *yctx);
+
+M0_INTERNAL int m0_yaml2db_mod_init(void)
+{
+	m0_addb_ctx_type_register(&m0_addb_ct_yaml2db_mod);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_yaml2db_mod_ctx,
+			 &m0_addb_ct_yaml2db_mod, &m0_addb_proc_ctx);
+	return 0;
+}
+
+M0_INTERNAL void m0_yaml2db_mod_fini(void)
+{
+        m0_addb_ctx_fini(&m0_yaml2db_mod_ctx);
+}
 
 /**
   Init function, which initializes the parser and sets input file
@@ -58,10 +74,6 @@ M0_INTERNAL int m0_yaml2db_init(struct m0_yaml2db_ctx *yctx)
 	M0_PRE(yctx->yc_type != M0_YAML2DB_CTX_PARSER ||
 	       yctx->yc_type != M0_YAML2DB_CTX_EMITTER);
 
-	/* Initialize the ADDB context */
-        m0_addb_ctx_init(&yctx->yc_addb, &yaml2db_ctx_type,
-			 &m0_addb_global_ctx);
-
 	yctx->yc_db_init = false;
 
 	if (yctx->yc_type == M0_YAML2DB_CTX_PARSER) {
@@ -70,20 +82,17 @@ M0_INTERNAL int m0_yaml2db_init(struct m0_yaml2db_ctx *yctx)
 		   parser_initialize command returns 1 in case of success */
 		rc = yaml_parser_initialize(&yctx->yc_parser);
 		if(rc != 1) {
-			M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				    yaml2db_func_fail,
-				    "yaml_parser_initialize", 0);
 			rc = -EINVAL;
+			YAML2DB_FUNC_FAIL(INIT_1, rc);
 			goto cleanup;
 		}
 
 		/* Open the config file in read mode */
 		yctx->yc_fp = fopen(yctx->yc_cname, "r");
 		if (yctx->yc_fp == NULL) {
-			M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-					yaml2db_func_fail, "fopen", 0);
 			yaml_parser_delete(&yctx->yc_parser);
 			rc = -errno;
+			YAML2DB_FUNC_FAIL(INIT_2, rc);
 			goto cleanup;
 		}
 
@@ -97,8 +106,7 @@ M0_INTERNAL int m0_yaml2db_init(struct m0_yaml2db_ctx *yctx)
 	rc = m0_dbenv_init(&yctx->yc_db, yctx->yc_dpath, 0);
 
 	if (rc != 0) {
-                M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-			    yaml2db_func_fail, "m0_dbenv_init", 0);
+		YAML2DB_FUNC_FAIL(INIT_3, rc);
 		goto cleanup;
 	}
 
@@ -115,7 +123,6 @@ M0_INTERNAL int m0_yaml2db_init(struct m0_yaml2db_ctx *yctx)
 	return 0;
 
 cleanup:
-        m0_addb_ctx_fini(&yctx->yc_addb);
 	if (yctx->yc_fp != NULL)
 		fclose(yctx->yc_fp);
 	yaml_document_delete(&yctx->yc_document);
@@ -142,7 +149,6 @@ M0_INTERNAL void m0_yaml2db_fini(struct m0_yaml2db_ctx *yctx)
 		fclose(yctx->yc_dp);
 	if (yctx->yc_db_init)
 		m0_dbenv_fini(&yctx->yc_db);
-        m0_addb_ctx_fini(&yctx->yc_addb);
 }
 
 /**
@@ -216,16 +222,13 @@ M0_INTERNAL int m0_yaml2db_doc_load(struct m0_yaml2db_ctx *yctx)
 
 	rc = yaml_parser_load(&yctx->yc_parser, &yctx->yc_document);
 	if (rc != 1) {
-                M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-			    yaml2db_func_fail, "yaml_parser_load", 0);
+		YAML2DB_FUNC_FAIL(DOC_LOAD_1, -EINVAL);
 		goto parser_error;
 	}
 
 	root_node = yaml_document_get_root_node(&yctx->yc_document);
 	if (root_node == NULL) {
-                M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-			    yaml2db_func_fail,
-			    "yaml2db_document_get_root_node", 0);
+		YAML2DB_FUNC_FAIL(DOC_LOAD_2, -EINVAL);
                 yaml_document_delete(&yctx->yc_document);
 		return -EINVAL;
 	}
@@ -323,9 +326,6 @@ static bool yaml2db_context_invariant(const struct m0_yaml2db_ctx *yctx)
 		return false;
 
 	if (&yctx->yc_db == NULL)
-		return false;
-
-	if (&yctx->yc_addb == NULL)
 		return false;
 
 	return true;
@@ -450,24 +450,21 @@ M0_INTERNAL int m0_yaml2db_conf_load(struct m0_yaml2db_ctx *yctx,
         rc = m0_table_init(&table, &yctx->yc_db, ysec->ys_table_name,
 			   0, ysec->ys_table_ops);
         if (rc != 0) {
-                M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-			    yaml2db_func_fail, "m0_table_init", 0);
+		YAML2DB_FUNC_FAIL(CONF_LOAD_1, rc);
                 return rc;
 	}
 
         /* Initialize the database transaction */
         rc = m0_db_tx_init(&tx, &yctx->yc_db, 0);
         if (rc != 0) {
-                M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-			    yaml2db_func_fail, "m0_db_tx_init", 0);
+		YAML2DB_FUNC_FAIL(CONF_LOAD_2, rc);
                 m0_table_fini(&table);
                 return rc;
         }
 
 	node = yaml2db_scalar_locate(yctx, conf_param);
 	if (node == NULL) {
-                M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-			    yaml2db_func_fail, "yaml2db_scalar_locate", 0);
+		YAML2DB_FUNC_FAIL(CONF_LOAD_3, -EINVAL);
                 m0_table_fini(&table);
 		m0_db_tx_abort(&tx);
 		return -EINVAL;
@@ -500,9 +497,7 @@ M0_INTERNAL int m0_yaml2db_conf_load(struct m0_yaml2db_ctx *yctx,
 					(char *)k_node->data.scalar.value,
 					(char *)v_node->data.scalar.value);
 			if (rc != 0) {
-				M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-						yaml2db_func_fail,
-						"section_value_populate", 0);
+				YAML2DB_FUNC_FAIL(CONF_LOAD_4, rc);
 				m0_table_fini(&table);
 				m0_db_tx_abort(&tx);
 				return rc;
@@ -513,9 +508,7 @@ M0_INTERNAL int m0_yaml2db_conf_load(struct m0_yaml2db_ctx *yctx,
 
 		rc = m0_table_update(&tx, &db_pair);
 		if (rc != 0) {
-			M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-					yaml2db_func_fail,
-					"m0_table_insert", 0);
+			YAML2DB_FUNC_FAIL(CONF_LOAD_5, rc);
 			m0_db_pair_release(&db_pair);
 			m0_db_pair_fini(&db_pair);
 			m0_table_fini(&table);
@@ -533,9 +526,7 @@ M0_INTERNAL int m0_yaml2db_conf_load(struct m0_yaml2db_ctx *yctx,
 		mandatory_keys_present = validate_mandatory_keys(ysec,
 							valid_key_status);
 		if (!mandatory_keys_present) {
-			M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-					yaml2db_func_fail,
-					"validate_mandatory_keys", 0);
+			YAML2DB_FUNC_FAIL(CONF_LOAD_6, -EINVAL);
 			m0_table_fini(&table);
 			m0_db_tx_abort(&tx);
 			return -EINVAL;
@@ -573,24 +564,21 @@ M0_INTERNAL int m0_yaml2db_conf_emit(struct m0_yaml2db_ctx *yctx,
         rc = m0_table_init(&table, &yctx->yc_db, ysec->ys_table_name,
 			   0, ysec->ys_table_ops);
         if (rc != 0) {
-                M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-			    yaml2db_func_fail, "m0_table_init", rc);
+		YAML2DB_FUNC_FAIL(CONF_EMIT_1, rc);
                 return rc;
         }
 
        /* Initialize the database transaction */
         rc = m0_db_tx_init(&tx, &yctx->yc_db, 0);
         if (rc != 0) {
-                M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-                                yaml2db_func_fail, "m0_db_tx_init", rc);
+		YAML2DB_FUNC_FAIL(CONF_EMIT_2, rc);
                 m0_table_fini(&table);
                 return rc;
         }
 
 	rc = m0_db_cursor_init(&db_cursor, &table, &tx, 0);
         if (rc != 0) {
-                M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-                                yaml2db_func_fail, "m0_db_cursor_init", rc);
+		YAML2DB_FUNC_FAIL(CONF_EMIT_3, rc);
                 m0_table_fini(&table);
 		m0_db_tx_abort(&tx);
                 return rc;
@@ -602,8 +590,7 @@ M0_INTERNAL int m0_yaml2db_conf_emit(struct m0_yaml2db_ctx *yctx,
 	   the last key is found */
 	rc = m0_db_cursor_last(&db_cursor, &db_pair);
         if (rc != 0) {
-                M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-                                yaml2db_func_fail, "m0_db_cursor_last", rc);
+		YAML2DB_FUNC_FAIL(CONF_EMIT_4, rc);
 		goto cleanup;
         }
 
@@ -611,8 +598,7 @@ M0_INTERNAL int m0_yaml2db_conf_emit(struct m0_yaml2db_ctx *yctx,
 	m0_db_pair_setup(&db_pair, &table, &key, sizeof key, &val, sizeof val);
 	rc = m0_db_cursor_first(&db_cursor, &db_pair);
         if (rc != 0) {
-                M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-                                yaml2db_func_fail, "m0_db_cursor_first", rc);
+		YAML2DB_FUNC_FAIL(CONF_EMIT_5, rc);
 		goto cleanup;
         }
 
@@ -628,9 +614,7 @@ M0_INTERNAL int m0_yaml2db_conf_emit(struct m0_yaml2db_ctx *yctx,
 
 		rc = m0_db_cursor_next(&db_cursor, &db_pair);
 		if (rc != 0) {
-			M0_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				    yaml2db_func_fail,
-				    "m0_db_cursor_next", rc);
+			YAML2DB_FUNC_FAIL(CONF_EMIT_6, rc);
 			goto cleanup;
 		}
 	}

@@ -27,7 +27,6 @@
 #include "lib/timer.h"
 #include "lib/arith.h"
 #include "lib/cdefs.h" /* ergo */
-
 #include "db/db_common.h"
 #include "addb/addb.h"
 #include "mero/magic.h"
@@ -35,6 +34,7 @@
 #include "fop/fom_long_lock.h"
 #include "reqh/reqh.h"
 #include "sm/sm.h"
+#include "fop/fop_addb.h"
 
 /**
  * @addtogroup fom
@@ -119,14 +119,6 @@
 enum {
 	LOC_HT_WAIT = 1,
 	LOC_IDLE_NR = 1
-};
-
-const struct m0_addb_loc m0_fom_addb_loc = {
-	.al_name = "fom"
-};
-
-const struct m0_addb_ctx_type m0_fom_addb_ctx_type = {
-	.act_name = "fom"
 };
 
 /**
@@ -429,17 +421,12 @@ M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom)
 M0_INTERNAL void m0_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh)
 {
 	struct m0_fom_domain		  *dom;
-	const struct m0_reqh_service_type *stype;
 	size_t				   loc_idx;
 
 	M0_PRE(reqh != NULL);
 	M0_PRE(fom != NULL);
 
-	stype = fom->fo_type->ft_rstype;
-	if (stype != NULL) {
-		fom->fo_service = m0_reqh_service_find(stype, reqh);
-		M0_ASSERT(reqh->rh_svc != NULL || fom->fo_service != NULL);
-	}
+	M0_ASSERT(reqh->rh_svc != NULL || fom->fo_service != NULL);
 
 	dom = &reqh->rh_fom_dom;
 	loc_idx = fom->fo_ops->fo_home_locality(fom) %
@@ -697,7 +684,7 @@ static int loc_thr_create(struct m0_fom_locality *loc)
 
 	M0_PRE(m0_mutex_is_locked(&loc->fl_group.s_lock));
 
-	M0_ALLOC_PTR_ADDB(thr, &loc->fl_dom->fd_addb_ctx, &m0_fom_addb_loc);
+	FOP_ALLOC_PTR(thr, LOC_THR_CREATE, &m0_fop_addb_ctx);
 	if (thr == NULL)
 		return -ENOMEM;
 	thr->lt_state = IDLE;
@@ -824,12 +811,9 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 		return result;
 
 	m0_processors_online(&onln_cpu_map);
-        m0_addb_ctx_init(&dom->fd_addb_ctx, &m0_fom_addb_ctx_type,
-			 &m0_addb_global_ctx);
-	M0_ALLOC_ARR_ADDB(dom->fd_localities, cpu_max, &dom->fd_addb_ctx,
-			  &m0_fom_addb_loc);
+	FOP_ALLOC_ARR(dom->fd_localities, cpu_max, FOM_DOMAIN_INIT,
+			&m0_fop_addb_ctx);
 	if (dom->fd_localities == NULL) {
-		m0_addb_ctx_fini(&dom->fd_addb_ctx);
 		m0_bitmap_fini(&onln_cpu_map);
 		return -ENOMEM;
 	}
@@ -864,7 +848,6 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 		--fd_loc_nr;
 	}
 
-	m0_addb_ctx_fini(&dom->fd_addb_ctx);
 	m0_free(dom->fd_localities);
 }
 
@@ -887,6 +870,7 @@ void m0_fom_fini(struct m0_fom *fom)
 	fdom = loc->fl_dom;
 	reqh = fdom->fd_reqh;
 	fom_state_set(fom, M0_FOS_FINISH);
+	m0_addb_ctx_fini(&fom->fo_addb_ctx);
 	m0_sm_fini(&fom->fo_sm_phase);
 	m0_sm_fini(&fom->fo_sm_state);
 	runq_tlink_fini(fom);
@@ -905,9 +889,13 @@ M0_EXPORTED(m0_fom_fini);
 
 void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
 		 const struct m0_fom_ops *ops, struct m0_fop *fop,
-		 struct m0_fop *reply)
+		 struct m0_fop *reply, struct m0_reqh *reqh,
+		 const struct m0_reqh_service_type *stype)
 {
+	M0_PRE(stype != NULL);
 	M0_PRE(fom != NULL);
+	M0_PRE(reqh != NULL);
+	M0_PRE(ops->fo_addb_init != NULL);
 
 	fom->fo_type	    = fom_type;
 	fom->fo_ops	    = ops;
@@ -922,6 +910,30 @@ void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
 	if (reply != NULL)
 		m0_fop_get(reply);
 	fom->fo_rep_fop = reply;
+
+	/**
+	 * NOTE: The service may be in M0_RST_STARTING state
+	 * if the fom was launched on startup
+	 */
+	fom->fo_service = m0_reqh_service_find(stype, reqh);
+	M0_ASSERT(reqh->rh_svc != NULL || fom->fo_service != NULL);
+	/**
+	 * @todo This is conditional locking is required, since
+	 * mdservice does not have reqh service, but has local
+	 * service. Need to discuss about this
+	 */
+	if (reqh->rh_svc == NULL) {
+	/** @todo locking may not be necessary with sync nb events */
+		m0_mutex_lock(&fom->fo_service->rs_mutex);
+		M0_ASSERT(fom->fo_addb_ctx.ac_magic == 0);
+		(*fom->fo_ops->fo_addb_init)(fom, &reqh->rh_addb_mc);
+		M0_ASSERT(fom->fo_addb_ctx.ac_magic != 0);
+		m0_mutex_unlock(&fom->fo_service->rs_mutex);
+	} else {
+		M0_ASSERT(fom->fo_addb_ctx.ac_magic == 0);
+		(*fom->fo_ops->fo_addb_init)(fom, &reqh->rh_addb_mc);
+		M0_ASSERT(fom->fo_addb_ctx.ac_magic != 0);
+	}
 }
 M0_EXPORTED(m0_fom_init);
 
@@ -1133,7 +1145,7 @@ static const struct m0_sm_conf	fom_conf = {
 M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 {
 	struct m0_sm_group	*fom_group;
-	struct m0_addb_ctx	*fom_addb_ctx;
+	struct m0_addb_ctx	*fom_addb_ctx = NULL;
 	const struct m0_sm_conf	*conf;
 
 	M0_PRE(fom != NULL);
@@ -1143,7 +1155,13 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 	M0_ASSERT(conf->scf_nr_states != 0);
 
 	fom_group    = &fom->fo_loc->fl_group;
-	fom_addb_ctx = &fom->fo_loc->fl_dom->fd_addb_ctx;
+
+	/**
+	 * @todo: replace this with assertion, after reqh service
+	 * is associated with mdservice's ut
+	 */
+	if (fom->fo_service != NULL && fom->fo_service->rs_reqh != NULL)
+		fom_addb_ctx = &fom->fo_service->rs_reqh->rh_addb_ctx;
 
 	m0_sm_init(&fom->fo_sm_phase, conf, M0_FOM_PHASE_INIT, fom_group,
 		    fom_addb_ctx);

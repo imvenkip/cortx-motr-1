@@ -31,6 +31,7 @@ MODULE_LICENSE("proprietary");
 
 /* sort test suites in alphabetic order */
 extern const struct m0_test_suite m0_klibm0_ut; /* test lib first */
+extern const struct m0_test_suite m0_addb_ut;
 extern const struct m0_test_suite buffer_pool_ut;
 extern const struct m0_test_suite bulkio_client_ut;
 extern const struct m0_test_suite m0_loop_ut;
@@ -60,6 +61,7 @@ static void run_kernel_ut(int ignored)
 	m0_uts_init();
 	/* sort test suites in alphabetic order */
 	m0_ut_add(&m0_klibm0_ut);  /* test lib first */
+	m0_ut_add(&m0_addb_ut);
 	m0_ut_add(&file_io_ut);
 	m0_ut_add(&buffer_pool_ut);
 	m0_ut_add(&bulkio_client_ut);

@@ -34,7 +34,9 @@
    - storing the parsed information in database
 
 
-   See <a href="https://docs.google.com/a/xyratex.com/document/d/1Y2FccWZFA9yWXJiC-kld0XUrexoindOpMiHEGkqc3Rc/edit?hl=en_US">DLD of Configuration (dev_enum) </a>
+   See <a href="https://docs.google.com/a/xyratex.com/document/d/
+1Y2FccWZFA9yWXJiC-kld0XUrexoindOpMiHEGkqc3Rc/edit?hl=en_US">
+DLD of Configuration (dev_enum) </a>
    for details on the design.
 
    A typical yaml conf file will look like the following.
@@ -138,8 +140,6 @@ struct m0_yaml2db_ctx {
 	struct m0_dbenv			 yc_db;
 	/** Flag indicating if the database environment has been established */
 	bool				 yc_db_init;
-	/** ADDB context for the context */
-	struct m0_addb_ctx		 yc_addb;
 	/** File pointer for YAML file */
 	FILE				*yc_fp;
 	/** Flag indicating whether to dump the key-value pair to a file */
@@ -309,6 +309,15 @@ M0_INTERNAL int m0_yaml2db_conf_emit(struct m0_yaml2db_ctx *yctx,
  */
 M0_INTERNAL void m0_yaml_parser_error_detect(const yaml_parser_t * parser);
 
+/**
+   Module initializer.
+ */
+M0_INTERNAL int m0_yaml2db_mod_init(void);
+
+/**
+   Module finalizer.
+ */
+M0_INTERNAL void m0_yaml2db_mod_fini(void);
 
 /** @} end of yaml2db group */
 

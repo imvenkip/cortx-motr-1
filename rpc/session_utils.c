@@ -35,8 +35,6 @@
 #include "fop/fop.h"
 #include "reqh/reqh.h"
 #include "db/db.h"
-
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 /**

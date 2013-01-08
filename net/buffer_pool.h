@@ -281,6 +281,8 @@ struct m0_net_buffer_pool {
 	   Buffers are linked through m0_net_buffer::nb_lru to this list.
 	 */
 	struct m0_tl			     nbp_lru;
+	/** ADDB context is created as a child of the network domain context */
+	struct m0_addb_ctx                   nbp_addb_ctx;
 };
 
 /** @} */ /* end of net_buffer_pool */

@@ -277,15 +277,25 @@ static void cm_cp_pump_fom_fini(struct m0_fom *fom)
 {
 	struct m0_cm_cp_pump *cp_pump;
 
-	m0_fom_fini(fom);
 	cp_pump = bob_of(fom, struct m0_cm_cp_pump, p_fom, &pump_bob);
 	m0_cm_cp_pump_bob_fini(cp_pump);
+	m0_fom_fini(fom);
+}
+
+static void cm_cp_pump_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 static const struct m0_fom_ops cm_cp_pump_fom_ops = {
 	.fo_fini          = cm_cp_pump_fom_fini,
 	.fo_tick          = cm_cp_pump_fom_tick,
-	.fo_home_locality = cm_cp_pump_fom_locality
+	.fo_home_locality = cm_cp_pump_fom_locality,
+	.fo_addb_init     = cm_cp_pump_fom_addb_init
 };
 
 bool m0_cm_cp_pump_is_complete(const struct m0_cm_cp_pump *cp_pump)
@@ -319,7 +329,8 @@ M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
 	cp_pump = &cm->cm_cp_pump;
 	m0_cm_cp_pump_bob_init(cp_pump);
 	m0_fom_init(&cp_pump->p_fom, &cm_cp_pump_fom_type,
-		    &cm_cp_pump_fom_ops, NULL, NULL);
+		    &cm_cp_pump_fom_ops, NULL, NULL, cm->cm_service.rs_reqh,
+		    cm->cm_service.rs_type);
 	m0_fom_queue(&cp_pump->p_fom, cm->cm_service.rs_reqh);
 }
 

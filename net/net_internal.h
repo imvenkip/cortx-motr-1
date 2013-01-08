@@ -25,29 +25,39 @@
 #define __MERO_NET_NET_INTERNAL_H__
 
 #include "net/net.h"
+#include "net/net_addb.h"
 
-/*
-  Private symbols used within the Network module.
+/**
+   @defgroup net_pvt Network Module Internals
+   @ingroup net
+   Private interfaces used within the Network module.
+   @{
  */
 
-extern const struct m0_addb_loc m0_net_addb_loc;
-extern const struct m0_addb_ctx_type m0_net_addb_ctx;
-extern struct m0_addb_ctx m0_net_addb;
-extern const struct m0_addb_ctx_type m0_net_dom_addb_ctx;
-extern const struct m0_addb_ctx_type m0_net_buffer_addb_ctx;
-extern const struct m0_addb_ctx_type m0_net_tm_addb_ctx;
+extern struct m0_addb_ctx m0_net_addb_ctx;
 
-#define NET_ADDB_FUNCFAIL_ADD(ctx, rc) \
-	M0_ADDB_ADD(&(ctx), &m0_net_addb_loc, m0_addb_func_fail, __func__, (rc))
+/**
+   Network function failure macro using the global ADDB machine to post.
+   @param rc Return code
+   @param loc Location code - one of the NET_ADDB_LOC_ enumeration constants
+   suffixes from net/net_addb.h.
+   @param ctx Runtime context pointer
+   @pre rc < 0
+ */
+#define NET_ADDB_FUNCFAIL(rc, loc, ctx)				\
+M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_NET_ADDB_LOC_##loc, rc,	\
+		  &m0_net_addb_ctx, ctx)
 
 extern struct m0_mutex m0_net_mutex;
+extern struct m0_addb_rec_type *m0_net__qstat_rts[M0_NET_QT_NR];
 
 /**
   Internal version of m0_net_domain_init() that is protected by the
   m0_net_mutex.  Can be used by transports for derived domain situations.
  */
 M0_INTERNAL int m0_net__domain_init(struct m0_net_domain *dom,
-				    struct m0_net_xprt *xprt);
+				    struct m0_net_xprt   *xprt,
+				    struct m0_addb_ctx   *ctx);
 
 /**
   Internal version of m0_net_domain_init() that is protected by the
@@ -108,7 +118,7 @@ M0_INTERNAL bool m0_net__ep_invariant(struct m0_net_end_point *ep,
  */
 M0_INTERNAL bool m0_net__tm_invariant(const struct m0_net_transfer_mc *tm);
 
-/*
+/**
    Internal subroutine to provision the receive queue of a transfer machine
    from its associated buffer pool.
    @param tm  Transfer machine
@@ -120,6 +130,27 @@ M0_INTERNAL bool m0_net__tm_invariant(const struct m0_net_transfer_mc *tm);
                 tm->ntm_recv_queue_min_length
  */
 M0_INTERNAL void m0_net__tm_provision_recv_q(struct m0_net_transfer_mc *tm);
+
+/**
+   Internal sub variant to get TM statistics from within the TM mutex.
+   @param tm Transfer machine
+   @pre m0_mutex_is_locked(&tm->ntm_mutex)
+ */
+M0_INTERNAL int m0_net__tm_stats_get(struct m0_net_transfer_mc *tm,
+				     enum m0_net_queue_type qtype,
+				     struct m0_net_qstats *qs, bool reset);
+
+/**
+   Internal sub variant to post TM statistical ADDB records from within the
+   TM mutex.
+   @param tm  Transfer machine
+   @pre m0_mutex_is_locked(&tm->ntm_mutex)
+ */
+M0_INTERNAL void m0_net__tm_stats_post_addb(struct m0_net_transfer_mc *tm);
+
+/**
+   @} net-int
+ */
 
 #endif /* __MERO_NET_NET_INTERNAL_H__ */
 

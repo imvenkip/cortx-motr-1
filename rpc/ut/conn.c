@@ -23,8 +23,6 @@
 #include "lib/finject.h"
 #include "fop/fop.h"
 #include "mero/magic.h"
-
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 enum {

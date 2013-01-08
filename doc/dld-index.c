@@ -4,6 +4,8 @@
 
 Detailed designs, ordered alphabetically:
 
+- @subpage ADDB-DLD "ADDB detailed design specification"
+           <!-- addb/addb.c -->
 - @subpage m0t1fs "M0T1FS detailed level design specification"
            <!-- m0t1fs/linux_kernel/m0t1fs.h -->
 - @subpage conf

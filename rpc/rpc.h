@@ -52,11 +52,6 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 struct m0_db_tx;
 struct m0_cob_domain;
 
-/** @todo Add these declarations to some internal header */
-extern const struct m0_addb_ctx_type m0_rpc_addb_ctx_type;
-extern const struct m0_addb_loc      m0_rpc_addb_loc;
-extern       struct m0_addb_ctx      m0_rpc_addb_ctx;
-
 M0_INTERNAL int m0_rpc_init(void);
 M0_INTERNAL void m0_rpc_fini(void);
 

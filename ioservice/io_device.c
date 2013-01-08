@@ -152,7 +152,7 @@
 
    I/O request fop will be extended to embed the its known failure vector
    version number. I/O replies will embed failure vector updates. Please refer
-   to the io_fops.ff file for detailed design.
+   to the io_fops.h file for detailed design.
 
    Failure vector will be stored in reqh as a shared key. m0_reqh_key_init(),
    m0_reqh_key_find() and m0_reqh_key_fini() will be used. By this, latest

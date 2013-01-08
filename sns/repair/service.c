@@ -33,6 +33,7 @@
 #include "reqh/reqh_service.h"
 #include "sns/repair/st/trigger_fop.h"
 #include "sns/repair/cm.h"
+#include "sns/sns_addb.h"
 
 /**
   @defgroup SNSRepairSVC SNS Repair service
@@ -40,22 +41,6 @@
 
   @{
 */
-
-const struct m0_addb_loc sns_repair_addb_loc = {
-        .al_name = "sns repair"
-};
-
-const struct m0_addb_ctx_type sns_repair_addb_ctx_type = {
-        .act_name = "sns repair"
-};
-
-M0_ADDB_EV_DEFINE(svc_init_fail, "svc_init_fail",
-                  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
-M0_ADDB_EV_DEFINE(service_start_fail, "service_start_fail",
-                  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
-M0_ADDB_EV_DEFINE(config_fetch_fail, "config_fetch_fail",
-                  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
-
 
 static int service_allocate(struct m0_reqh_service **service,
 			    struct m0_reqh_service_type *stype,
@@ -77,7 +62,8 @@ static const struct m0_reqh_service_ops service_ops = {
 	.rso_fini  = service_fini
 };
 
-M0_CM_TYPE_DECLARE(sns_repair, &service_type_ops, "sns_repair");
+M0_CM_TYPE_DECLARE(sns_repair, &service_type_ops, "sns_repair",
+		   &m0_addb_ct_sns_repair_serv);
 
 extern const struct m0_cm_ops cm_ops;
 
@@ -106,17 +92,10 @@ static int service_allocate(struct m0_reqh_service **service,
 	*service = &cm->cm_service;
 	(*service)->rs_ops = &service_ops;
 
-	m0_addb_ctx_init(&cm->cm_addb, &sns_repair_addb_ctx_type,
-			 &m0_addb_global_ctx);
-
 	rc = m0_cm_init(cm, container_of(stype, struct m0_cm_type, ct_stype),
 			&cm_ops);
-	if (rc != 0) {
-		M0_ADDB_ADD(&cm->cm_addb, &sns_repair_addb_loc, svc_init_fail,
-			    "m0_cm_init", rc);
-		m0_addb_ctx_fini(&cm->cm_addb);
+	if (rc != 0)
 		m0_free(rmach);
-	}
 
 	M0_LOG(M0_DEBUG, "rmach: %p service: %p", rmach, *service);
 	M0_RETURN(rc);
@@ -135,15 +114,7 @@ static int service_start(struct m0_reqh_service *service)
 
         /* XXX Register SNS Repair FOP types */
 	cm = container_of(service, struct m0_cm, cm_service);
-	rc = m0_cm_setup(cm);
-	if (rc != 0)
-		M0_ADDB_ADD(&cm->cm_addb, &sns_repair_addb_loc,
-			    service_start_fail,
-			    "m0_cm_start", rc);
-
-	/* Build sns repair trigger fop. */
-	if (rc == 0)
-		rc = m0_sns_repair_trigger_fop_init();
+	rc = m0_cm_setup(cm) ?: m0_sns_repair_trigger_fop_init();
 
 	M0_LEAVE();
 	return rc;

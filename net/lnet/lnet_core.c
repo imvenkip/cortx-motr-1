@@ -110,18 +110,6 @@ static void nlx_print_core_buf_desc(const char *pre,
 }
 #endif
 
-static const struct m0_addb_ctx_type nlx_core_domain_addb_ctx = {
-	.act_name = "net-lnet-core-domain"
-};
-
-static const struct m0_addb_ctx_type nlx_core_buffer_addb_ctx = {
-	.act_name = "net-lnet-core-buffer"
-};
-
-static const struct m0_addb_ctx_type nlx_core_tm_addb_ctx = {
-	.act_name = "net-lnet-core-tm"
-};
-
 /**
    Core TM invariant.
    @note Shouldn't require the mutex as it is called from nlx_kcore_eq_cb.
@@ -177,7 +165,7 @@ static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
 	if (ql != NULL) {
 		bev = container_of(ql, struct nlx_core_buffer_event,
 				   cbe_tm_link);
-		NLX_FREE_PTR(bev);
+		NLX_FREE_ALIGNED_PTR(bev);
 	}
 }
 

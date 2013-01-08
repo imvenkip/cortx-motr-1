@@ -150,7 +150,13 @@ static void test_init(void)
         M0_SET0(&svc);
         svc.s_ops = &svc_ops;
 
-        rc = m0_reqh_init(&reqh, NULL, &db, &md, &fol, &svc);
+	rc = M0_REQH_INIT(&reqh,
+		          .rhia_dtm       = NULL,
+		          .rhia_db        = &db,
+		          .rhia_mdstore   = &md,
+		          .rhia_fol       = &fol,
+		          .rhia_svc       = &svc,
+		          .rhia_addb_stob = NULL);
         M0_ASSERT(rc == 0);
 }
 

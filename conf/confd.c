@@ -22,14 +22,15 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
 
-#include "conf/confd.h"
 #include "lib/errno.h"     /* ENOMEM */
 #include "lib/memory.h"    /* M0_ALLOC_PTR_ADDB */
 #include "lib/misc.h"      /* strdup */
 #include "mero/magic.h"    /* M0_CONFD_MAGIC */
+#include "conf/conf_addb.h"
 #include "conf/conf_xcode.h" /* XXX m0_confx_str_read */
 #include "conf/obj_ops.h"  /* m0_conf_obj_find */
 #include "conf/preload.h"  /* m0_confx_fini */
+#include "conf/confd.h"
 
 /**
  * @page confd-lspec-page confd Internals
@@ -440,14 +441,6 @@ const struct m0_bob_type m0_confd_bob = {
 	.bt_magix        = M0_CONFD_MAGIC
 };
 
-static const struct m0_addb_loc confd_addb_loc = {
-	.al_name = "confd"
-};
-static const struct m0_addb_ctx_type confd_addb_ctx_type = {
-	.act_name = "confd"
-};
-static struct m0_addb_ctx confd_addb_ctx;
-
 static int confd_allocate(struct m0_reqh_service **out,
 			  struct m0_reqh_service_type *stype,
 			  const char *arg);
@@ -456,7 +449,8 @@ static const struct m0_reqh_service_type_ops confd_stype_ops = {
 	.rsto_service_allocate = confd_allocate
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(m0_confd_stype, &confd_stype_ops, "confd");
+M0_REQH_SERVICE_TYPE_DEFINE(m0_confd_stype, &confd_stype_ops, "confd",
+                            &m0_addb_ct_conf_serv);
 
 M0_INTERNAL int m0_confd_register(void)
 {
@@ -522,14 +516,10 @@ static int confd_allocate(struct m0_reqh_service **service,
 		M0_RETERR(-EPROTO,
 			  "Path to the configuration database is not provided");
 
-	m0_addb_ctx_init(&confd_addb_ctx, &confd_addb_ctx_type,
-			 &m0_addb_global_ctx);
-
-	M0_ALLOC_PTR_ADDB(confd, &confd_addb_ctx, &confd_addb_loc);
-	if (confd == NULL) {
-		rc = -ENOMEM;
-		goto addb_ctx_fini;
-	}
+	M0_ALLOC_PTR_ADDB(confd, &m0_addb_gmc, M0_CONF_ADDB_LOC_CONFD_ALLOCATE,
+	                  &m0_conf_mod_ctx);
+	if (confd == NULL)
+		M0_RETURN(-ENOMEM);
 
 	m0_conf_reg_init(&confd->d_reg);
 
@@ -546,8 +536,6 @@ static int confd_allocate(struct m0_reqh_service **service,
 reg_fini:
 	m0_conf_reg_fini(&confd->d_reg);
 	m0_free(confd);
-addb_ctx_fini:
-	m0_addb_ctx_fini(&confd_addb_ctx);
 	M0_RETURN(rc);
 }
 
@@ -561,8 +549,6 @@ static void confd_fini(struct m0_reqh_service *service)
 	m0_bob_fini(&m0_confd_bob, confd);
 	m0_conf_reg_fini(&confd->d_reg);
 	m0_free(confd);
-
-	m0_addb_ctx_fini(&confd_addb_ctx);
 
 	M0_LEAVE();
 }

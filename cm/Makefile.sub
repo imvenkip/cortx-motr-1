@@ -1,7 +1,8 @@
 nobase_mero_include_HEADERS += cm/cm.h \
                                   cm/cp.h \
                                   cm/ag.h \
-                                  cm/pump.h
+                                  cm/pump.h \
+				  cm/cm_addb.h
 
 mero_libmero_la_SOURCES  += cm/cm.c \
                                   cm/cp.c \

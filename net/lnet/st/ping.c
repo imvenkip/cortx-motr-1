@@ -1058,7 +1058,8 @@ static int ping_init(struct nlx_ping_ctx *ctx)
 		m0_clink_add(&ctx->pc_net_chan, &ctx->pc_net_clink);
 	}
 
-	rc = m0_net_domain_init(&ctx->pc_dom, ctx->pc_xprt);
+	/** @todo replace proc ctx */
+	rc = m0_net_domain_init(&ctx->pc_dom, ctx->pc_xprt, &m0_addb_proc_ctx);
 	if (rc != 0) {
 		PING_ERR("domain init failed: %d\n", rc);
 		goto fail;
@@ -1127,7 +1128,9 @@ static int ping_init(struct nlx_ping_ctx *ctx)
 		snprintf(addr, ARRAY_SIZE(addr), "%s:%u:%u:*", ctx->pc_network,
 			 ctx->pc_pid, ctx->pc_portal);
 
-	rc = m0_net_tm_init(&ctx->pc_tm, &ctx->pc_dom);
+	/** @todo replace gmc and ctx */
+	rc = m0_net_tm_init(&ctx->pc_tm, &ctx->pc_dom, &m0_addb_gmc,
+			    &m0_addb_proc_ctx);
 	if (rc != 0) {
 		PING_ERR("transfer machine init failed: %d\n", rc);
 		goto fail;

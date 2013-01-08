@@ -47,8 +47,10 @@ M0_INTERNAL int m0_md_fop_init(struct m0_fop *fop, struct m0_fom *fom);
 /**
    Init request fom for all types of requests.
 */
-M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m);
-M0_INTERNAL int m0_md_rep_fom_create(struct m0_fop *fop, struct m0_fom **m);
+M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
+				     struct m0_reqh *reqh);
+M0_INTERNAL int m0_md_rep_fom_create(struct m0_fop *fop, struct m0_fom **m,
+				     struct m0_reqh *reqh);
 
 #endif /* __MERO_MDSERVICE_MD_FOMS_H__ */
 

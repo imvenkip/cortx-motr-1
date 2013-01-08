@@ -265,7 +265,7 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 	if (rc != 0)
 		M0_RETURN(rc);
 
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	if (rc != 0)
 		goto xprt;
 

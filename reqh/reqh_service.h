@@ -26,7 +26,7 @@
 #include "lib/tlist.h"
 #include "lib/bob.h"
 #include "lib/mutex.h"
-
+#include "addb/addb.h"
 
 /**
    @defgroup reqhservice Request handler service
@@ -64,10 +64,11 @@
 
    - then define service operations,
    @code
-   const struct m0_reqh_service_ops dummy_service_ops = {
-        .rso_start = dummy_service_start,
-        .rso_stop = dummy_service_stop,
-        .rso_fini = dummy_service_fini
+   const struct m0_reqh_service_ops service_ops = {
+        .rso_start = service_start,
+        .rso_stop = service_stop,
+        .rso_fini = service_fini,
+	.rso_stats_post_addb = optional_service_stats,
    };
    @endcode
 
@@ -90,7 +91,8 @@
 
    - define service type using M0_REQH_SERVICE_TYPE_DEFINE macro,
    @code
-   M0_REQH_SERVICE_TYPE_DEFINE(dummy_stype, &dummy_stype_ops, "dummy");
+   M0_REQH_SERVICE_TYPE_DEFINE(m0_ios_type, &ios_type_ops, "ioservice",
+                                &m0_addb_ct_ios_serv);
    @endcode
 
    - now, the above service type can be registered as below,
@@ -165,12 +167,13 @@ enum m0_reqh_service_state {
 	M0_RST_STARTING,
 	/**
 	   A service transitions to M0_RST_STARTED state after completing
-	   generic part of service start up operations by m0_reqh_service_start().
+	   generic part of service start up operations by
+	   m0_reqh_service_start().
 	 */
 	M0_RST_STARTED,
 	/**
-	   A service transitions to M0_RST_STOPPING state before service specific
-           stop routine is invoked.
+	   A service transitions to M0_RST_STOPPING state before service
+           specific stop routine is invoked.
 
 	   @see m0_reqh_service_stop()
 	 */
@@ -240,6 +243,11 @@ struct m0_reqh_service {
 	struct m0_tlink                   rs_linkage;
 
 	/**
+	   ADDB context for this service
+	 */
+	struct m0_addb_ctx                rs_addb_ctx;
+
+	/**
 	   Service magic to check consistency of service instance.
 	 */
 	uint64_t                          rs_magix;
@@ -292,6 +300,15 @@ struct m0_reqh_service_ops {
 	   @see m0_reqh_service_fini()
 	 */
 	void (*rso_fini)(struct m0_reqh_service *service);
+
+	/**
+	   Method to periodically record ADDB statistics on the operation
+	   of the service.
+	   No statistics should be posted if there was no activity in the
+	   service since the last invocation of the method.
+	   The method is optional and need not be specified.
+	 */
+	void (*rso_stats_post_addb)(struct m0_reqh_service *service);
 };
 
 /**
@@ -334,6 +351,11 @@ struct m0_reqh_service_type {
 	 * @see m0_reqh::rh_key
 	 */
 	unsigned                               rst_key;
+
+	/**
+	   Pointer to ADDB context type for this service type
+	 */
+	struct m0_addb_ctx_type               *rst_addb_ct;
 
 	/**
 	    Linkage into global service types list.
@@ -411,7 +433,8 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service);
 
    @param service service to be initialised
 
-   @pre service != NULL && reqh != NULL && service->rs_state == M0_RST_INITIALISING
+   @pre service != NULL && reqh != NULL &&
+        service->rs_state == M0_RST_INITIALISING
 
    @see struct m0_reqh_service_type_ops
    @see cs_service_init()
@@ -432,11 +455,17 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
  */
 M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service);
 
-#define M0_REQH_SERVICE_TYPE_DEFINE(stype, ops, name) \
-struct m0_reqh_service_type stype = {                 \
-	.rst_name = (name),                           \
-	.rst_ops  = (ops)                             \
-}
+/** @todo Add NULL check for 'ct' the below comment
+    when each service type has addb_ctx_type defined
+    ADDB context type has to be registered before
+    invoking m0_reqh_service_type_register()
+*/
+#define M0_REQH_SERVICE_TYPE_DEFINE(stype, ops, name, ct)  \
+struct m0_reqh_service_type stype = {                      \
+	.rst_name    = (name),	                           \
+	.rst_ops     = (ops),                              \
+	.rst_addb_ct = (ct),                               \
+}                                                          \
 
 /**
    Registers a service type in a global service types list,

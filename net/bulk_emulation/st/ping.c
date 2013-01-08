@@ -790,7 +790,8 @@ int ping_init(struct ping_ctx *ctx)
 
 	m0_list_init(&ctx->pc_work_queue);
 
-	rc = m0_net_domain_init(&ctx->pc_dom, ctx->pc_xprt);
+	/** @todo replace m0_addb_proc_ctx */
+	rc = m0_net_domain_init(&ctx->pc_dom, ctx->pc_xprt, &m0_addb_proc_ctx);
 	if (rc != 0) {
 		PING_ERR("domain init failed: %d\n", rc);
 		goto fail;
@@ -823,7 +824,8 @@ int ping_init(struct ping_ctx *ctx)
 	else
 		sprintf(addr, "%s:%u", ctx->pc_hostname, ctx->pc_port);
 
-	rc = m0_net_tm_init(&ctx->pc_tm, &ctx->pc_dom);
+	rc = m0_net_tm_init(&ctx->pc_tm, &ctx->pc_dom, &m0_addb_gmc,
+			    &m0_addb_proc_ctx);
 	if (rc != 0) {
 		PING_ERR("transfer machine init failed: %d\n", rc);
 		goto fail;

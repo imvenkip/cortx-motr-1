@@ -208,6 +208,14 @@ static inline uint64_t m0_align(uint64_t val, uint64_t alignment)
         M0_ASSERT((cnt) != 0);				\
 })
 
+/** Check to determine if the sum of two 64 bit unsigned numbers
+ *  will overflow
+ */
+static bool inline m0_addu64_will_overflow(uint64_t a, uint64_t b)
+{
+	return a + b < a;
+}
+
 /** @} end of arith group */
 
 /* __MERO_LIB_ARITH_H__ */

@@ -24,24 +24,12 @@
 
 #include "lib/misc.h"
 #include "reqh/reqh.h"
-#include "net/lnet/lnet.h"
 #include "mero/setup.h"
 #include "sns/repair/ut/cp_common.h"
 
 /* Global structures for setting up mero service. */
 static const char log_file_name[] = "sr_ut.errlog";
-static char *sns_repair_ut_svc[] = { "m0d", "-r", "-p", "-T", "LINUX",
-				     "-D", "sr_db", "-S", "sr_stob",
-				     "-e", "lnet:0@lo:12345:34:1" ,
-				     "-s", "sns_repair"};
 
-static struct m0_net_xprt *sr_xprts[] = {
-	&m0_net_lnet_xprt,
-};
-
-static struct m0_mero        sctx;
-struct m0_reqh_service         *service;
-static FILE                    *lfile;
 struct m0_reqh_service         *service;
 static struct m0_reqh          *reqh;
 static struct m0_semaphore      sem;
@@ -74,39 +62,6 @@ enum {
 	SEG_SIZE = M0_CP_SIZE,
 };
 
-/*
- * Starts mero service, which internally creates and sets up stob domain.
- * This stob domain is used in read and write phases of the copy packet.
- */
-static int cs_init(void)
-{
-	int rc;
-
-	M0_SET0(&sctx);
-
-	lfile = fopen(log_file_name, "w+");
-	M0_UT_ASSERT(lfile != NULL);
-
-	rc = m0_cs_init(&sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_cs_setup_env(&sctx, ARRAY_SIZE(sns_repair_ut_svc),
-			     sns_repair_ut_svc);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_cs_start(&sctx);
-	M0_UT_ASSERT(rc == 0);
-
-	return rc;
-}
-
-/* Finalises the mero service. */
-static void cs_fini(void)
-{
-	m0_cs_fini(&sctx);
-	fclose(lfile);
-}
-
 /* Over-ridden copy packet FOM fini. */
 static void dummy_fom_fini(struct m0_fom *fom)
 {
@@ -129,11 +84,21 @@ static int dummy_fom_tick(struct m0_fom *fom)
 	return cp->c_ops->co_action[m0_fom_phase(fom)](cp);
 }
 
+static void dummy_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 /* Over-ridden copy packet FOM ops. */
 static struct m0_fom_ops dummy_cp_fom_ops = {
 	.fo_fini          = dummy_fom_fini,
 	.fo_tick          = dummy_fom_tick,
-	.fo_home_locality = dummy_fom_locality
+	.fo_home_locality = dummy_fom_locality,
+	.fo_addb_init     = dummy_addb_init
 };
 
 /* Over-ridden copy packet init phase. */
@@ -228,7 +193,7 @@ void write_post(void)
 
 	m0_semaphore_init(&sem, 0);
 	cp_prepare(&w_sns_cp.rc_base, &w_bv, SEG_NR, SEG_SIZE, &w_sag, 'e',
-		   &dummy_cp_fom_ops);
+		   &dummy_cp_fom_ops, reqh);
 	w_sns_cp.rc_sid = sid;
 	m0_fid_set(&w_sag.sag_spare_cobfid, sid.si_bits.u_hi, sid.si_bits.u_lo);
 	w_sag.sag_spare_cob_index = 0;
@@ -287,7 +252,7 @@ static void read_post(void)
 	 * that write operation is writing 'e' to the bv.
 	 */
 	cp_prepare(&r_sns_cp.rc_base, &r_bv, SEG_NR, SEG_SIZE, &r_sag, ' ',
-		   &dummy_cp_fom_ops);
+		   &dummy_cp_fom_ops, reqh);
 	r_sns_cp.rc_sid = sid;
 	r_sns_cp.rc_base.c_ops = &read_cp_dummy_ops;
 
@@ -307,11 +272,11 @@ static void test_cp_write_read(void)
 {
 	int rc;
 
-	rc = cs_init();
+	rc = sns_repair_ut_server_start();
 	M0_ASSERT(rc == 0);
 
 	reqh = m0_cs_reqh_get(&sctx, "sns_repair");
-	M0_UT_ASSERT(reqh != NULL);
+	M0_ASSERT(reqh != NULL);
 
 	/*
 	 * Write using a dummy copy packet. This data which is written, will
@@ -330,7 +295,7 @@ static void test_cp_write_read(void)
 
 	bv_free(&r_bv);
 	bv_free(&w_bv);
-	cs_fini();
+	sns_repair_ut_server_stop();
 }
 
 const struct m0_test_suite snsrepair_storage_ut = {

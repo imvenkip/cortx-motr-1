@@ -106,7 +106,7 @@ static int nlx_xo_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 
 	M0_PRE(dom->nd_xprt_private == NULL);
 	M0_PRE(xprt == &m0_net_lnet_xprt);
-	NLX_ALLOC_PTR_ADDB(dp, &dom->nd_addb, &nlx_addb_loc);
+	NLX_ALLOC_ALIGNED_PTR_ADDB(dp, &dom->nd_addb_ctx, C_DOM_INIT);
 	if (dp == NULL)
 		return -ENOMEM;
 	dom->nd_xprt_private = dp;
@@ -114,7 +114,7 @@ static int nlx_xo_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 
 	rc = nlx_core_dom_init(dom, &dp->xd_core);
 	if (rc != 0) {
-		NLX_FREE_PTR(dp);
+		NLX_FREE_ALIGNED_PTR(dp);
 		dom->nd_xprt_private = NULL;
 	}
 	nlx_core_dom_set_debug(&dp->xd_core, dp->_debug_);
@@ -128,7 +128,7 @@ static void nlx_xo_dom_fini(struct m0_net_domain *dom)
 
 	M0_PRE(nlx_dom_invariant(dom));
 	nlx_core_dom_fini(&dp->xd_core);
-	NLX_FREE_PTR(dp);
+	NLX_FREE_ALIGNED_PTR(dp);
 	dom->nd_xprt_private = NULL;
 }
 
@@ -171,7 +171,7 @@ static int nlx_xo_end_point_create(struct m0_net_end_point **epp,
 	if (rc == 0 && cepa.cepa_tmid == M0_NET_LNET_TMID_INVALID)
 		rc = -EINVAL;
 	if (rc != 0) {
-		LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, X_EP_CREATE, &tm->ntm_addb_ctx);
 		return rc;
 	}
 
@@ -207,7 +207,7 @@ static int nlx_xo_buf_register(struct m0_net_buffer *nb)
 	M0_PRE(nlx_xo_buffer_bufvec_invariant(nb));
 
 	dp = nb->nb_dom->nd_xprt_private;
-	NLX_ALLOC_PTR_ADDB(bp, &nb->nb_addb, &nlx_addb_loc);
+	NLX_ALLOC_ALIGNED_PTR_ADDB(bp, &nb->nb_dom->nd_addb_ctx, C_BUF_REG);
 	if (bp == NULL)
 		return -ENOMEM;
 	nb->nb_xprt_private = bp;
@@ -216,7 +216,7 @@ static int nlx_xo_buf_register(struct m0_net_buffer *nb)
 	rc = nlx_core_buf_register(&dp->xd_core, (nlx_core_opaque_ptr_t)nb,
 				   &nb->nb_buffer, &bp->xb_core);
 	if (rc != 0) {
-		NLX_FREE_PTR(bp);
+		NLX_FREE_ALIGNED_PTR(bp);
 		nb->nb_xprt_private = NULL;
 	}
 	M0_POST(ergo(rc == 0, nlx_buffer_invariant(nb)));
@@ -233,7 +233,7 @@ static void nlx_xo_buf_deregister(struct m0_net_buffer *nb)
 	dp = nb->nb_dom->nd_xprt_private;
 
 	nlx_core_buf_deregister(&dp->xd_core, &bp->xb_core);
-	NLX_FREE_PTR(bp);
+	NLX_FREE_ALIGNED_PTR(bp);
 	nb->nb_xprt_private = NULL;
 	return;
 }
@@ -248,8 +248,7 @@ static int nlx_xo__nbd_allocate(struct m0_net_transfer_mc *tm,
 				struct m0_net_buf_desc *nbd)
 {
 	nbd->nbd_len = sizeof *cbd;
-	M0_ALLOC_ADDB(nbd->nbd_data, nbd->nbd_len,
-		      &tm->ntm_addb, &nlx_addb_loc);
+	NLX_ALLOC(nbd->nbd_data, nbd->nbd_len, &tm->ntm_addb_ctx, X_NBD_ALLOC);
 	if (nbd->nbd_data == NULL) {
 		nbd->nbd_len = 0; /* for m0_net_desc_free() safety */
 		return -ENOMEM;
@@ -268,7 +267,7 @@ static int nlx_xo__nbd_recover(struct m0_net_transfer_mc *tm,
 {
 	if (nbd->nbd_len != sizeof *cbd) {
 		int rc = -EINVAL;
-		LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, X_NBD_RECOVER, &tm->ntm_addb_ctx);
 		return rc;
 	}
 	memcpy(cbd, nbd->nbd_data, nbd->nbd_len);
@@ -308,7 +307,7 @@ static int nlx_xo_buf_add(struct m0_net_buffer *nb)
 	need = nb->nb_qtype == M0_NET_QT_MSG_RECV ? nb->nb_max_receive_msgs : 1;
 	rc = nlx_core_bevq_provision(cd, ctp, need);
 	if (rc != 0) {
-		LNET_ADDB_FUNCFAIL_ADD(nb->nb_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, X_BUF_ADD1, &nb->nb_tm->ntm_addb_ctx);
 		return rc;
 	}
 	cbp->cb_max_operations = need;
@@ -375,7 +374,7 @@ static int nlx_xo_buf_add(struct m0_net_buffer *nb)
 
 	if (rc != 0) {
 		nlx_core_bevq_release(ctp, need);
-		LNET_ADDB_FUNCFAIL_ADD(nb->nb_tm->ntm_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, X_BUF_ADD2, &nb->nb_tm->ntm_addb_ctx);
 	}
 
 	return rc;
@@ -404,7 +403,7 @@ static int nlx_xo_tm_init(struct m0_net_transfer_mc *tm)
 	M0_PRE(tm->ntm_xprt_private == NULL);
 
 	dp = tm->ntm_dom->nd_xprt_private;
-	NLX_ALLOC_PTR_ADDB(tp, &tm->ntm_addb, &nlx_addb_loc);
+	NLX_ALLOC_ALIGNED_PTR_ADDB(tp, &tm->ntm_addb_ctx, C_TM_INIT);
 	if (tp == NULL)
 		return -ENOMEM;
 	tm->ntm_xprt_private = tp;
@@ -434,7 +433,7 @@ static void nlx_xo_tm_fini(struct m0_net_transfer_mc *tm)
 		m0_bitmap_fini(&tp->xtm_processors);
 	m0_cond_fini(&tp->xtm_ev_cond);
 	tm->ntm_xprt_private = NULL;
-	NLX_FREE_PTR(tp);
+	NLX_FREE_ALIGNED_PTR(tp);
 }
 
 static int nlx_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
@@ -456,7 +455,7 @@ static int nlx_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 				    &nlx_tm_ev_worker, tm,
 				    "nlx_tm_ev_worker");
 	if (rc != 0)
-		LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, X_TM_START, &tm->ntm_addb_ctx);
 	return rc;
 }
 
@@ -497,7 +496,7 @@ static int nlx_xo_tm_confine(struct m0_net_transfer_mc *tm,
 	if (rc == 0)
 		m0_bitmap_copy(&tp->xtm_processors, processors);
 	else
-		LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, X_TM_CONFINE, &tm->ntm_addb_ctx);
 	return rc;
 }
 
@@ -536,7 +535,8 @@ static void nlx_xo_bev_deliver_all(struct m0_net_transfer_mc *tm)
 				struct m0_net_qstats *q;
 				q = &tm->ntm_qstats[nbev.nbe_buffer->nb_qtype];
 				q->nqs_num_f_events++;
-				LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
+				LNET_ADDB_FUNCFAIL(rc, X_BEV_DELIVER,
+						   &tm->ntm_addb_ctx);
 				NLXDBGP(tp, 1, "%p: skipping event\n", tp);
 				continue;
 			}

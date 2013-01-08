@@ -33,7 +33,6 @@
 
 /* import */
 struct m0_addb_ctx;
-struct m0_addb_loc;
 
 /**
    @defgroup vec Vectors
@@ -44,7 +43,7 @@ struct m0_addb_loc;
    A vector of "segments" where each segment is something having a "count".
 
    m0_vec is used to implement functionality common to various "scatter-gather"
-   data-structures, like m0_indexvec, m0_bufvec, m0_diovec.
+   data-structures, like m0_indexvec, m0_bufvec.
  */
 struct m0_vec {
 	/** number of segments in the vector */
@@ -205,14 +204,14 @@ M0_INTERNAL void m0_bufvec_free_aligned(struct m0_bufvec *bufvec,
  * Allocate memory for index array and counts array in index vector.
  * @param len Number of elements to allocate memory for.
  * @param ctx Addb context to log addb messages in case of failure.
- * @param loc Addb location to log addb messages in.
+ * @param loc Context relative addb location.
  * @pre   ivec != NULL && len > 0.
  * @post  ivec->iv_index != NULL && ivec->iv_vec.v_count != NULL &&
  *        ivec->iv_vec.v_nr == len.
  */
 M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec, uint32_t len,
 				  struct m0_addb_ctx *ctx,
-				  const struct m0_addb_loc *loc);
+				  const unsigned loc);
 
 /**
  * Deallocates the memory buffers pointed to by index array and counts array.
@@ -307,7 +306,7 @@ M0_INTERNAL m0_bcount_t m0_bufvec_cursor_copyto(struct m0_bufvec_cursor *dcur,
    Copy data with specified size from a cursor.
    @param scur Pointer to the source buffer cursor positioned appropriately.
    @param ddata Pointer to area where the data is to be copied to.
-   @num_bytes The number of bytes to copy.
+   @param num_bytes The number of bytes to copy.
  */
 M0_INTERNAL m0_bcount_t m0_bufvec_cursor_copyfrom(struct m0_bufvec_cursor *scur,
 						  void *ddata,

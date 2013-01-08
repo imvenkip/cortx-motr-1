@@ -6,6 +6,12 @@
 
 MODLIST="@ABS_SRCDIR@/build_kernel_modules/m0mero.ko"
 
+# The following associative array carries the list of module parameters for
+# modules in MODLIST.
+typeset -A MODPARAMS
+NULL_UUID="00000000-0000-0000-0000-000000000000"
+MODPARAMS[m0mero.ko]="node_uuid=${NODE_UUID:-$NULL_UID}"
+
 abort()
 {
 	msg="$1"
@@ -37,7 +43,12 @@ modunload_galois()
 modload()
 {
 	for m in $MODLIST ;do
-		insmod $m || abort "Error loading $m."
+                BN=$(basename $m)
+                PARAMS=
+                if [[ ! -z "${MODPARAMS[$BN]}" ]] ; then
+		    PARAMS=${MODPARAMS[$BN]}
+		fi
+		insmod $m $PARAMS || abort "Error loading $m $PARAMS"
 	done
 }
 

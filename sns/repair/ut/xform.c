@@ -22,8 +22,8 @@
 #include "config.h"
 #endif
 
-#include "lib/misc.h"
 #include "reqh/reqh.h"
+#include "mero/setup.h"
 #include "sns/repair/xform.c"
 #include "sns/repair/ut/cp_common.h"
 
@@ -34,7 +34,7 @@ enum {
 	SEG_SIZE = 256,
 };
 
-static struct m0_reqh      reqh;
+static struct m0_reqh     *reqh;
 static struct m0_semaphore sem;
 
 /* Global structures for single copy packet test. */
@@ -100,6 +100,15 @@ static int dummy_fom_tick(struct m0_fom *fom)
 	}
 }
 
+static void dummy_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 static void single_cp_fom_fini(struct m0_fom *fom)
 {
 	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
@@ -120,14 +129,16 @@ static void multiple_cp_fom_fini(struct m0_fom *fom)
 static struct m0_fom_ops single_cp_fom_ops = {
 	.fo_fini          = single_cp_fom_fini,
 	.fo_tick          = dummy_fom_tick,
-	.fo_home_locality = dummy_fom_locality
+	.fo_home_locality = dummy_fom_locality,
+	.fo_addb_init     = dummy_fom_addb_init
 };
 
 /* Over-ridden copy packet FOM ops. */
 static struct m0_fom_ops multiple_cp_fom_ops = {
 	.fo_fini          = multiple_cp_fom_fini,
 	.fo_tick          = dummy_fom_tick,
-	.fo_home_locality = dummy_fom_locality
+	.fo_home_locality = dummy_fom_locality,
+	.fo_addb_init     = dummy_fom_addb_init
 };
 
 /*
@@ -139,10 +150,10 @@ static void test_single_cp(void)
 	m0_semaphore_init(&sem, 0);
 	m0_atomic64_set(&s_sag.sag_base.cag_transformed_cp_nr, 0);
 	cp_prepare(&s_cp, &s_bv, SEG_NR, SEG_SIZE, &s_sag, 'e',
-		   &single_cp_fom_ops);
+		   &single_cp_fom_ops, reqh);
 	s_cp.c_ag->cag_ops = &group_single_ops;
 	s_cp.c_ag->cag_cp_nr = s_cp.c_ag->cag_ops->cago_local_cp_nr(s_cp.c_ag);
-	m0_fom_queue(&s_cp.c_fom, &reqh);
+	m0_fom_queue(&s_cp.c_fom, reqh);
 
 	/* Wait till ast gets posted. */
 	m0_semaphore_down(&sem);
@@ -150,7 +161,7 @@ static void test_single_cp(void)
 	 * Wait until all the foms in the request handler locality runq are
 	 * processed. This is required for further validity checks.
 	 */
-	m0_reqh_shutdown_wait(&reqh);
+	m0_reqh_shutdown_wait(reqh);
 
 	/*
 	 * These asserts ensure that the single copy packet has been treated
@@ -174,11 +185,11 @@ static void test_multiple_cp(void)
 	m0_atomic64_set(&m_sag.sag_base.cag_transformed_cp_nr, 0);
 	for (i = 0; i < CP_MULTI; ++i) {
 		cp_prepare(&m_cp[i], &m_bv[i], SEG_NR, SEG_SIZE, &m_sag, 'r',
-			   &multiple_cp_fom_ops);
+			   &multiple_cp_fom_ops, reqh);
 		m_cp[i].c_ag->cag_ops = &group_multi_ops;
 		m_cp[i].c_ag->cag_cp_nr =
 			m_cp[i].c_ag->cag_ops->cago_local_cp_nr(m_cp[i].c_ag);
-		m0_fom_queue(&m_cp[i].c_fom, &reqh);
+		m0_fom_queue(&m_cp[i].c_fom, reqh);
 		m0_semaphore_down(&sem);
 	}
 
@@ -186,7 +197,7 @@ static void test_multiple_cp(void)
 	 * Wait until the fom in the request handler locality runq is
 	 * processed. This is required for further validity checks.
 	 */
-	m0_reqh_shutdown_wait(&reqh);
+	m0_reqh_shutdown_wait(reqh);
 
 	/*
 	 * These asserts ensure that all the copy packets have been collected
@@ -204,14 +215,19 @@ static void test_multiple_cp(void)
  */
 static int xform_init(void)
 {
-	m0_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1, (void*)1);
+	int rc;
+
+	rc = cs_init(&sctx);
+	M0_ASSERT(rc == 0);
+
+	reqh = m0_cs_reqh_get(&sctx, "sns_repair");
+	M0_ASSERT(reqh != NULL);
 	return 0;
 }
 
 static int xform_fini(void)
 {
-	m0_reqh_fini(&reqh);
-
+	cs_fini(&sctx);
 	return 0;
 }
 

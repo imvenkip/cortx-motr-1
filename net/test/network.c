@@ -304,7 +304,9 @@ int m0_net_test_network_ctx_init(struct m0_net_test_network_ctx *ctx,
 	if (ctx->ntc_dom == NULL)
 		return -ENOMEM;
 
-	rc = m0_net_domain_init(ctx->ntc_dom, &m0_net_lnet_xprt);
+	/** @todo replace proc ctx */
+	rc = m0_net_domain_init(ctx->ntc_dom, &m0_net_lnet_xprt,
+				&m0_addb_proc_ctx);
 	if (rc != 0)
 		goto free_dom;
 
@@ -325,8 +327,9 @@ int m0_net_test_network_ctx_init(struct m0_net_test_network_ctx *ctx,
 	ctx->ntc_tm->ntm_state     = M0_NET_TM_UNDEFINED;
 	ctx->ntc_tm->ntm_callbacks = &ctx->ntc_tm_cb;
 
-
-	rc = m0_net_tm_init(ctx->ntc_tm, ctx->ntc_dom);
+	/** @todo replace gmc and ctx */
+	rc = m0_net_tm_init(ctx->ntc_tm, ctx->ntc_dom, &m0_addb_gmc,
+			    &m0_addb_proc_ctx);
 	if (rc != 0)
 		goto free_tm;
 

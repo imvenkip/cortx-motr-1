@@ -69,11 +69,12 @@ enum {
 };
 
 static struct m0_stob_domain   *sdom;
-static struct m0_mdstore       srv_mdstore;
-static struct m0_cob_domain_id srv_cob_dom_id;
-static struct m0_rpc_machine   srv_rpc_mach;
-static struct m0_dbenv         srv_db;
-static struct m0_fol           srv_fol;
+static struct m0_mdstore        srv_mdstore;
+static struct m0_cob_domain_id  srv_cob_dom_id;
+static struct m0_rpc_machine    srv_rpc_mach;
+static struct m0_dbenv          srv_db;
+static struct m0_fol            srv_fol;
+static struct m0_reqh_service  *reqh_ut_service;
 
 /**
  * Global reqh object
@@ -95,9 +96,12 @@ static struct reqh_ut_balloc *getballoc(struct m0_ad_balloc *ballroom)
 	return container_of(ballroom, struct reqh_ut_balloc, rb_ballroom);
 }
 
-static int reqh_ut_balloc_init(struct m0_ad_balloc *ballroom, struct m0_dbenv *db,
-			       uint32_t bshift, m0_bindex_t container_size,
-			       m0_bcount_t groupsize, m0_bcount_t res_groups)
+static int reqh_ut_balloc_init(struct m0_ad_balloc *ballroom,
+			       struct m0_dbenv *db,
+			       uint32_t bshift,
+			       m0_bindex_t container_size,
+			       m0_bcount_t groupsize,
+			       m0_bcount_t res_groups)
 {
 	struct reqh_ut_balloc *rb = getballoc(ballroom);
 
@@ -112,8 +116,10 @@ static void reqh_ut_balloc_fini(struct m0_ad_balloc *ballroom)
 	m0_mutex_fini(&rb->rb_lock);
 }
 
-static int reqh_ut_balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
-                             m0_bcount_t count, struct m0_ext *out)
+static int reqh_ut_balloc_alloc(struct m0_ad_balloc *ballroom,
+				struct m0_dtx *tx,
+				m0_bcount_t count,
+				struct m0_ext *out)
 {
 	struct reqh_ut_balloc	*rb = getballoc(ballroom);
 
@@ -153,18 +159,21 @@ struct m0_stob_domain *reqh_ut_stob_domain_find(void)
 	return sdom;
 }
 
-static int server_init(const char *stob_path, const char *srv_db_name,
-			struct m0_net_domain *net_dom, struct m0_stob_id *backid,
-			struct m0_stob_domain **bdom, struct m0_stob **bstore,
-			struct m0_stob **reqh_addb_stob,
-			struct m0_stob_id *rh_addb_stob_id)
+static int server_init(const char *stob_path,
+		       const char *srv_db_name,
+		       struct m0_net_domain *net_dom,
+		       struct m0_stob_id *backid,
+		       struct m0_stob_domain **bdom,
+		       struct m0_stob **bstore,
+		       struct m0_stob **reqh_addb_stob,
+		       struct m0_stob_id *rh_addb_stob_id)
 {
-        struct m0_db_tx            tx;
-        int                        rc;
-	struct m0_rpc_machine     *rpc_machine = &srv_rpc_mach;
-	uint32_t		   bufs_nr;
-	uint32_t		   tms_nr;
-
+        struct m0_db_tx              tx;
+        int                          rc;
+	struct m0_rpc_machine       *rpc_machine = &srv_rpc_mach;
+	uint32_t		     bufs_nr;
+	uint32_t		     tms_nr;
+	struct m0_reqh_service_type *stype;
 
         srv_cob_dom_id.id = 102;
 
@@ -213,10 +222,6 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT((*reqh_addb_stob)->so_state == CSS_EXISTS);
 
-	/* Write addb record into stob */
-	m0_addb_choose_store_media(M0_ADDB_REC_STORE_STOB, m0_addb_stob_add,
-					  *reqh_addb_stob, NULL);
-
         /* Init mdstore without reading root cob. */
         rc = m0_mdstore_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 0);
         M0_UT_ASSERT(rc == 0);
@@ -237,7 +242,13 @@ static int server_init(const char *stob_path, const char *srv_db_name,
         M0_UT_ASSERT(rc == 0);
 
 	/* Initialising request handler */
-	rc =  m0_reqh_init(&reqh, NULL, &srv_db, &srv_mdstore, &srv_fol, NULL);
+	rc = M0_REQH_INIT(&reqh,
+			  .rhia_dtm       = NULL,
+			  .rhia_db        = &srv_db,
+			  .rhia_mdstore   = &srv_mdstore,
+			  .rhia_fol       = &srv_fol,
+			  .rhia_svc       = NULL,
+			  .rhia_addb_stob = NULL);
 	M0_UT_ASSERT(rc == 0);
 
 	tms_nr   = 1;
@@ -253,6 +264,15 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 				 M0_BUFFER_ANY_COLOUR, 0,
 				 M0_NET_TM_RECV_QUEUE_DEF_LEN);
         M0_UT_ASSERT(rc == 0);
+	/* Start the rpcservice */
+	stype = m0_reqh_service_type_find("rpcservice");
+	M0_UT_ASSERT(stype != NULL);
+
+	rc = m0_reqh_service_allocate(&reqh_ut_service, stype, NULL);
+	M0_UT_ASSERT(rc == 0);
+	m0_reqh_service_init(reqh_ut_service, &reqh);
+	rc = m0_reqh_service_start(reqh_ut_service);
+	M0_UT_ASSERT(rc == 0);
 	return rc;
 }
 
@@ -268,9 +288,10 @@ static void server_fini(struct m0_stob_domain *bdom,
         /* Fini the mdstore */
         m0_mdstore_fini(&srv_mdstore);
 
-	m0_addb_choose_store_media(M0_ADDB_REC_STORE_NONE);
 	m0_stob_put(reqh_addb_stob);
 
+	m0_reqh_service_stop(reqh_ut_service);
+	m0_reqh_service_fini(reqh_ut_service);
 	m0_reqh_fini(&reqh);
 	M0_UT_ASSERT(sdom != NULL);
 	sdom->sd_ops->sdo_fini(sdom);
@@ -424,9 +445,9 @@ void test_reqh(void)
 	result = m0_net_xprt_init(xprt);
 	M0_UT_ASSERT(result == 0);
 
-	result = m0_net_domain_init(&net_dom, xprt);
+	result = m0_net_domain_init(&net_dom, xprt, &m0_addb_proc_ctx);
 	M0_UT_ASSERT(result == 0);
-	result = m0_net_domain_init(&srv_net_dom, xprt);
+	result = m0_net_domain_init(&srv_net_dom, xprt, &m0_addb_proc_ctx);
 	M0_UT_ASSERT(result == 0);
 
 	server_init(path, SERVER_DB_NAME, &srv_net_dom, &backid, &bdom, &bstore,

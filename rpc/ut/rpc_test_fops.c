@@ -26,7 +26,10 @@
 
 #include "rpc/ut/rpc_test_fops_xc.h"
 
-static int arrow_fom_create(struct m0_fop *fop, struct m0_fom **m);
+extern struct m0_reqh_service_type m0_rpc_service_type;
+
+static int arrow_fom_create(struct m0_fop *fop, struct m0_fom **m,
+			    struct m0_reqh *reqh);
 static void arrow_fom_fini(struct m0_fom *fom);
 static int arrow_fom_tick(struct m0_fom *fom);
 static size_t arrow_fom_home_locality(const struct m0_fom *fom);
@@ -40,7 +43,17 @@ static const struct m0_fom_type_ops arrow_fom_type_ops = {
 	.fto_create = arrow_fom_create,
 };
 
+static void arrow_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
 static const struct m0_fom_ops arrow_fom_ops = {
+	.fo_addb_init     = arrow_fom_addb_init,
 	.fo_fini          = arrow_fom_fini,
 	.fo_tick          = arrow_fom_tick,
 	.fo_home_locality = arrow_fom_home_locality,
@@ -57,7 +70,8 @@ M0_INTERNAL void m0_rpc_test_fops_init(void)
 		.xt        = arrow_xc,
 		.rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
 		.fom_ops   = &arrow_fom_type_ops,
-		.sm        = &m0_generic_conf);
+		.sm        = &m0_generic_conf,
+		.svc_type  = &m0_rpc_service_type);
 	M0_ASSERT(rc == 0);
 	m0_semaphore_init(&arrow_hit, 0);
 	m0_semaphore_init(&arrow_destroyed, 0);
@@ -72,7 +86,8 @@ M0_INTERNAL void m0_rpc_test_fops_fini(void)
 }
 
 
-static int arrow_fom_create(struct m0_fop *fop, struct m0_fom **m)
+static int arrow_fom_create(struct m0_fop *fop, struct m0_fom **m,
+			    struct m0_reqh *reqh)
 {
 	struct m0_fom *fom;
 
@@ -80,7 +95,7 @@ static int arrow_fom_create(struct m0_fop *fop, struct m0_fom **m)
 	M0_ASSERT(fom != NULL);
 
 	m0_fom_init(fom, &m0_rpc_arrow_fopt.ft_fom_type, &arrow_fom_ops,
-		    fop, NULL);
+		    fop, NULL, reqh, fop->f_type->ft_fom_type.ft_rstype);
 	*m = fom;
 	return 0;
 }

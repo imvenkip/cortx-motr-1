@@ -32,6 +32,7 @@
 #include "stob/stob.h"
 #include "stob/cache.h"
 #include "stob/ad.h"
+#include "stob/stob_addb.h"
 
 /**
    @addtogroup stobad
@@ -41,8 +42,8 @@
    An object created by ad_domain_stob_find() is kept in a per-domain in-memory
    list, until last reference to it is released and ad_stob_fini() is called.
 
-   @todo this code is identical to one in m0_linux_stob_type and must be factored
-   out.
+   @todo this code is identical to one in m0_linux_stob_type and must be
+   factored out.
 
    <b>AD extent map.</b>
 
@@ -77,21 +78,6 @@ static const struct m0_stob_type_op ad_stob_type_op;
 static const struct m0_stob_op ad_stob_op;
 static const struct m0_stob_domain_op ad_stob_domain_op;
 static const struct m0_stob_io_op ad_stob_io_op;
-
-static const struct m0_addb_loc ad_stob_addb_loc = {
-	.al_name = "ad-stob"
-};
-
-static struct m0_addb_ctx ad_stob_ctx;
-
-#define ADDB_GLOBAL_ADD(name, rc)					\
-M0_ADDB_ADD(&ad_stob_ctx, &ad_stob_addb_loc, m0_addb_func_fail, (name), (rc))
-
-#define ADDB_ADD(obj, ev, ...)	\
-M0_ADDB_ADD(&(obj)->so_addb, &ad_stob_addb_loc, ev , ## __VA_ARGS__)
-
-#define ADDB_CALL(obj, name, rc)	\
-M0_ADDB_ADD(&(obj)->so_addb, &ad_stob_addb_loc, m0_addb_func_fail, (name), (rc))
 
 struct ad_domain {
 	struct m0_stob_domain      ad_base;
@@ -232,7 +218,7 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
 		*out = dom;
 		result = 0;
 	} else {
-		M0_ADDB_ADD(&type->st_addb, &ad_stob_addb_loc, m0_addb_oom);
+		M0_STOB_OOM(AD_DOM_LOCATE);
 		result = -ENOMEM;
 	}
 	return result;
@@ -302,7 +288,7 @@ static int ad_incache_init(struct m0_stob_domain *dom,
 		m0_stob_cacheable_init(incache, id, dom);
 		return 0;
 	} else {
-		M0_ADDB_ADD(&dom->sd_addb, &ad_stob_addb_loc, m0_addb_oom);
+		M0_STOB_OOM(AD_INCACHE_INIT);
 		return -ENOMEM;
 	}
 }
@@ -373,7 +359,7 @@ static int ad_cursor(struct ad_domain *adom, struct m0_stob *obj,
 	result = m0_emap_lookup(&adom->ad_adata, &tx->tx_dbtx,
 				&obj->so_id.si_bits, offset, it);
 	if (result != 0 && result != -ENOENT && result != -ESRCH)
-		ADDB_CALL(obj, "m0_emap_lookup", result);
+		M0_STOB_FUNC_FAIL(AD_CURSOR, result);
 	return result;
 }
 
@@ -555,7 +541,7 @@ M0_INTERNAL int ad_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io)
 		m0_clink_add(&aio->ai_back.si_wait, &aio->ai_clink);
 		result = 0;
 	} else {
-		ADDB_ADD(stob, m0_addb_oom);
+		M0_STOB_OOM(AD_IO_INIT);
 		result = -ENOMEM;
 	}
 	return result;
@@ -661,7 +647,7 @@ static int ad_vec_alloc(struct m0_stob *obj,
 
 		if (counts == NULL || back->si_user.ov_buf == NULL ||
 		    back->si_stob.iv_index == NULL) {
-			ADDB_ADD(obj, m0_addb_oom);
+			M0_STOB_OOM(AD_VEC_ALLOC);
 			result = -ENOMEM;
 		}
 	}
@@ -742,7 +728,7 @@ static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
 		M0_ASSERT(off >= map->ct_index);
 		eomap = m0_emap_caret_move(map, off - map->ct_index);
 		if (eomap < 0) {
-			ADDB_CALL(io->si_obj, "caret_move:shift", eomap);
+			M0_STOB_FUNC_FAIL(AD_READ_LAUNCH_1, eomap);
 			return eomap;
 		}
 		M0_ASSERT(!eomap);
@@ -753,7 +739,7 @@ static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
 				 m0_emap_caret_step(map));
 		M0_ASSERT(frag_size > 0);
 		if (frag_size > (size_t)~0ULL) {
-			ADDB_CALL(io->si_obj, "frag_overflow", frag_size);
+			M0_STOB_FUNC_FAIL(AD_READ_LAUNCH_2, -EOVERFLOW);
 			return -EOVERFLOW;
 		}
 
@@ -765,7 +751,7 @@ static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
 		eodst = m0_vec_cursor_move(dst, frag_size);
 		eomap = m0_emap_caret_move(map, frag_size);
 		if (eomap < 0) {
-			ADDB_CALL(io->si_obj, "caret_move:frag", eomap);
+			M0_STOB_FUNC_FAIL(AD_READ_LAUNCH_3, eomap);
 			return eomap;
 		}
 
@@ -793,7 +779,7 @@ static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
 		M0_ASSERT(off >= map->ct_index);
 		eomap = m0_emap_caret_move(map, off - map->ct_index);
 		if (eomap < 0) {
-			ADDB_CALL(io->si_obj, "caret_move:shift", eomap);
+			M0_STOB_FUNC_FAIL(AD_READ_LAUNCH_4, eomap);
 			return eomap;
 		}
 		M0_ASSERT(!eomap);
@@ -825,7 +811,7 @@ static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
 		m0_vec_cursor_move(dst, frag_size);
 		result = m0_emap_caret_move(map, frag_size);
 		if (result < 0) {
-			ADDB_CALL(io->si_obj, "caret_move:io", eomap);
+			M0_STOB_FUNC_FAIL(AD_READ_LAUNCH_5, eomap);
 			break;
 		}
 		M0_ASSERT(result == 0);
@@ -1153,7 +1139,7 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 				wext->we_next = next;
 				wext = next;
 			} else {
-				ADDB_ADD(io->si_obj, m0_addb_oom);
+				M0_STOB_OOM(AD_WRITE_LAUNCH);
 				result = -ENOMEM;
 				break;
 			}
@@ -1317,26 +1303,15 @@ struct m0_stob_type m0_ad_stob_type = {
 	.st_magic = 0x3129A830
 };
 
-const struct m0_addb_ctx_type ad_stob_ctx_type = {
-	.act_name = "adstob"
-};
-
 M0_INTERNAL int m0_ad_stobs_init(void)
 {
-	m0_addb_ctx_init(&ad_stob_ctx, &ad_stob_ctx_type,
-			 &m0_addb_global_ctx);
 	return M0_STOB_TYPE_OP(&m0_ad_stob_type, sto_init);
 }
 
 M0_INTERNAL void m0_ad_stobs_fini(void)
 {
 	M0_STOB_TYPE_OP(&m0_ad_stob_type, sto_fini);
-	m0_addb_ctx_fini(&ad_stob_ctx);
 }
-
-#undef ADDB_GLOBAL_ADD
-#undef ADDB_ADD
-#undef ADDB_CALL
 
 /** @} end group stobad */
 

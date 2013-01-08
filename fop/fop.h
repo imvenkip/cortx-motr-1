@@ -86,10 +86,6 @@ struct m0_fop {
 	    serialised. */
 	struct m0_fop_data	 f_data;
 	/**
-	   ADDB context for events related to this fop.
-	 */
-	struct m0_addb_ctx	 f_addb;
-	/**
 	   RPC item for this FOP
 	 */
 	struct m0_rpc_item	 f_item;
@@ -244,10 +240,6 @@ struct m0_fop_type {
 	/** The rpc_item_type associated with rpc_item
 	    embedded with this fop. */
 	struct m0_rpc_item_type		  ft_rpc_item_type;
-	/**
-	   ADDB context for events related to this fop type.
-	 */
-	struct m0_addb_ctx                ft_addb;
 	uint64_t                          ft_magix;
 };
 

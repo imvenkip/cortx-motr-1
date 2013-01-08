@@ -53,7 +53,7 @@ struct nlx_ucore_domain {
 	/** File descriptor to the kernel device. */
 	int                             ud_fd;
 	/** ADDB context for events related to this domain. */
-	struct m0_addb_ctx              ud_addb;
+	struct m0_addb_ctx              ud_addb_ctx;
 };
 
 /**
@@ -62,8 +62,10 @@ struct nlx_ucore_domain {
  */
 struct nlx_ucore_transfer_mc {
 	uint64_t                        utm_magic;
+	/** ADDB machine for non-exception posts from this transfer machine. */
+	struct m0_addb_mc              *utm_addb_mc;
 	/** ADDB context for events related to this transfer machine. */
-	struct m0_addb_ctx              utm_addb;
+	struct m0_addb_ctx              utm_addb_ctx;
 };
 
 /**
@@ -72,8 +74,6 @@ struct nlx_ucore_transfer_mc {
  */
 struct nlx_ucore_buffer {
 	uint64_t                        ub_magic;
-	/** ADDB context for events related to this buffer. */
-	struct m0_addb_ctx              ub_addb;
 };
 
 /** @} */ /* ULNetCore */

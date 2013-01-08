@@ -27,6 +27,7 @@
 #include "addb/addb.h"
 #include "mero/magic.h"
 #include "lib/finject.h"       /* M0_FI_ENABLED */
+#include "reqh/reqh.h"
 
 #include "rpc/rpc_internal.h"
 
@@ -78,14 +79,6 @@ static const char *str_qtype[] = {
 };
 
 M0_BASSERT(ARRAY_SIZE(str_qtype) == FRMQ_NR_QUEUES);
-
-static const struct m0_addb_ctx_type frm_addb_ctx_type = {
-        .act_name = "rpc-formation-ctx"
-};
-
-static const struct m0_addb_loc frm_addb_loc = {
-        .al_name = "rpc-formation-loc"
-};
 
 #define frm_first_itemq(frm) (&(frm)->f_itemq[0])
 #define frm_end_itemq(frm) (&(frm)->f_itemq[ARRAY_SIZE((frm)->f_itemq)])
@@ -208,7 +201,10 @@ M0_INTERNAL void m0_rpc_frm_init(struct m0_rpc_frm *frm,
 				 struct m0_rpc_frm_constraints *constraints,
 				 const struct m0_rpc_frm_ops *ops)
 {
-	struct m0_tl *q;
+	struct m0_rpc_chan *chan;
+	struct m0_tl       *q;
+	struct m0_addb_mc  *addb_mc;
+	struct m0_addb_ctx *pctx;
 
 	M0_ENTRY("frm: %p", frm);
 	M0_PRE(frm != NULL &&
@@ -224,8 +220,14 @@ M0_INTERNAL void m0_rpc_frm_init(struct m0_rpc_frm *frm,
 		itemq_tlist_init(q);
 	}
 
-	m0_addb_ctx_init(&frm->f_addb_ctx, &frm_addb_ctx_type,
-			 &m0_addb_global_ctx);
+	chan    = frm_rchan(frm);
+	addb_mc = REQH_ADDB_MC_CONFIGURED(chan->rc_rpc_machine->rm_reqh) ?
+		  &chan->rc_rpc_machine->rm_reqh->rh_addb_mc : &m0_addb_gmc;
+	pctx    = chan->rc_rpc_machine->rm_reqh != NULL ?
+		  &chan->rc_rpc_machine->rm_addb_ctx : &m0_rpc_addb_ctx;
+
+	M0_ADDB_CTX_INIT(addb_mc, &frm->f_addb_ctx, &m0_addb_ct_rpc_frm, pctx);
+
 	frm->f_state = FRM_IDLE;
 
 	M0_POST(frm_invariant(frm) && frm->f_state == FRM_IDLE);
@@ -420,7 +422,7 @@ static void frm_balance(struct m0_rpc_frm *frm)
 		return;
 
 	while (frm_is_ready(frm)) {
-		M0_ALLOC_PTR_ADDB(p, &frm->f_addb_ctx, &frm_addb_loc);
+		RPC_ALLOC_PTR(p, FORMATION_FRM_BALANCE, &m0_rpc_addb_ctx);
 		if (p == NULL) {
 			M0_LOG(M0_ERROR, "Error: packet allocation failed");
 			break;

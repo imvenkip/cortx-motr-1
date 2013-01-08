@@ -115,18 +115,33 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 
 	reqh = service->rs_reqh;
 	service->rs_state = M0_RST_STARTING;
+
+	/**
+	 * NOTE: The key is required to be set before 'rso_start'
+	 * as some services can call m0_fom_init() directly in
+	 * their service start, m0_fom_init() finds the service
+	 * given reqh, using this key
+	 */
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	key = service->rs_type->rst_key;
+	M0_ASSERT(reqh->rh_key[key] == NULL);
+	reqh->rh_key[key] = service;
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
 	rc = service->rs_ops->rso_start(service);
 	if (rc == 0) {
 		m0_rwlock_write_lock(&reqh->rh_rwlock);
 		m0_reqh_svc_tlist_add_tail(&reqh->rh_services, service);
 		service->rs_state = M0_RST_STARTED;
 		M0_ASSERT(m0_reqh_service_invariant(service));
-		key = service->rs_type->rst_key;
-		M0_ASSERT(reqh->rh_key[key] == NULL);
-		reqh->rh_key[key] = service;
 		m0_rwlock_write_unlock(&reqh->rh_rwlock);
-        } else
+        } else {
+		m0_rwlock_write_lock(&reqh->rh_rwlock);
+		M0_ASSERT(reqh->rh_key[key] == service);
+		reqh->rh_key[key] = NULL;
+		m0_rwlock_write_unlock(&reqh->rh_rwlock);
 		service->rs_state = M0_RST_FAILED;
+	}
 
 	return rc;
 }
@@ -153,10 +168,20 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 				      struct m0_reqh *reqh)
 {
-	const char *sname;
+	struct m0_addb_ctx_type *serv_addb_ct;
+	const char              *sname;
 
 	M0_PRE(service != NULL && reqh != NULL &&
 		service->rs_state == M0_RST_INITIALISING);
+
+	serv_addb_ct = service->rs_type->rst_addb_ct;
+	M0_ASSERT(m0_addb_ctx_type_lookup(serv_addb_ct->act_id) != NULL);
+
+	/**
+	    act_cf_nr is 2 for all service ctx types,
+	    1 for "hi" & 2 for "low"
+	 */
+	M0_ASSERT(serv_addb_ct->act_cf_nr == 2);
 
 	/*
 	   Generating service uuid with service name and timestamp.
@@ -169,6 +194,21 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 	service->rs_reqh  = reqh;
 	m0_reqh_svc_tlink_init(service);
 	m0_mutex_init(&service->rs_mutex);
+
+	/** @todo: Need to pass the service uuid "hi" & "low"
+	   once available
+	*/
+	if (m0_addb_mc_is_fully_configured(&reqh->rh_addb_mc))
+		M0_ADDB_CTX_INIT(&reqh->rh_addb_mc, &service->rs_addb_ctx,
+				 serv_addb_ct,
+				 &reqh->rh_addb_ctx,
+				 0, 0);
+	else /** This happens in UT, where no ADDB stob is specified */
+		M0_ADDB_CTX_INIT(&m0_addb_gmc, &service->rs_addb_ctx,
+				 serv_addb_ct,
+				 &reqh->rh_addb_ctx,
+				 0, 0);
+
 	M0_POST(m0_reqh_service_invariant(service));
 }
 
@@ -178,8 +218,10 @@ M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service)
 		service->rs_state == M0_RST_FAILED) &&
 		m0_reqh_service_bob_check(service));
 
+	m0_addb_ctx_fini(&service->rs_addb_ctx);
 	m0_reqh_service_bob_fini(service);
 	m0_reqh_svc_tlink_fini(service);
+	m0_mutex_fini(&service->rs_mutex);
 	service->rs_ops->rso_fini(service);
 }
 
@@ -187,6 +229,7 @@ int m0_reqh_service_type_register(struct m0_reqh_service_type *rstype)
 {
         M0_PRE(rstype != NULL);
 	M0_PRE(!m0_reqh_service_is_registered(rstype->rst_name));
+	M0_PRE(rstype->rst_addb_ct != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
 		return -EINVAL;

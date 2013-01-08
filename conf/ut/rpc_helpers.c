@@ -58,7 +58,7 @@ static int net_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	if (rc != 0)
 		return rc;
 
-	rc = m0_net_domain_init(dom, xprt);
+	rc = m0_net_domain_init(dom, xprt, &m0_addb_proc_ctx);
 	if (rc != 0)
 		m0_net_xprt_fini(xprt);
 	return rc;

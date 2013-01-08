@@ -17,12 +17,23 @@
  * Original creation date: 04/28/2010
  */
 
+/*
+ * Define the ADDB types in this file.
+ */
+#undef M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_CT_CREATE_DEFINITION
+#undef M0_ADDB_RT_CREATE_DEFINITION
+#define M0_ADDB_RT_CREATE_DEFINITION
+#include "stob/stob_addb.h"
+
 #include "lib/misc.h"   /* M0_SET0 */
 #include "lib/cdefs.h"
 #include "lib/arith.h"   /* M0_3WAY */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
+#include "lib/trace.h"
 
 #include "stob/stob.h"
 
@@ -31,34 +42,38 @@
    @{
  */
 
-static const struct m0_addb_ctx_type m0_stob_type_addb = {
-	.act_name = "stob-type"
-};
-
-static const struct m0_addb_ctx_type m0_stob_domain_addb = {
-	.act_name = "stob-domain"
-};
-
-static const struct m0_addb_ctx_type m0_stob_addb = {
-	.act_name = "stob-domain"
-};
-
 M0_TL_DESCR_DEFINE(dom, "stob domains", static, struct m0_stob_domain,
 		   sd_domain_linkage, sd_magic, 0xABD1CAB1EAB5CE55,
 		   0xACCE551B1EEFFACE);
 M0_TL_DEFINE(dom, static, struct m0_stob_domain);
 
+struct m0_addb_ctx m0_stob_mod_ctx;
+
+M0_INTERNAL int m0_stob_mod_init(void)
+{
+	m0_addb_ctx_type_register(&m0_addb_ct_stob_mod);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_stob_mod_ctx,
+			 &m0_addb_ct_stob_mod, &m0_addb_proc_ctx);
+	return 0;
+}
+
+M0_INTERNAL void m0_stob_mod_fini(void)
+{
+        m0_addb_ctx_fini(&m0_stob_mod_ctx);
+}
+
 M0_INTERNAL int m0_stob_type_init(struct m0_stob_type *kind)
 {
 	dom_tlist_init(&kind->st_domains);
-	m0_addb_ctx_init(&kind->st_addb, &m0_stob_type_addb,
+	/** @todo m0_addb_ctx_init(&kind->st_addb, &m0_stob_type_addb,
 			 &m0_addb_global_ctx);
+	 */
 	return 0;
 }
 
 M0_INTERNAL void m0_stob_type_fini(struct m0_stob_type *kind)
 {
-	m0_addb_ctx_fini(&kind->st_addb);
+	/** @todo m0_addb_ctx_fini(&kind->st_addb); */
 	dom_tlist_fini(&kind->st_domains);
 }
 
@@ -75,12 +90,14 @@ M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
 	m0_rwlock_init(&dom->sd_guard);
 	dom->sd_type = t;
 	dom_tlink_init_at_tail(dom, &t->st_domains);
-	m0_addb_ctx_init(&dom->sd_addb, &m0_stob_domain_addb, &t->st_addb);
+	/** @todo m0_addb_ctx_init(&dom->sd_addb, &m0_stob_domain_addb,
+	    &t->st_addb);
+	 */
 }
 
 M0_INTERNAL void m0_stob_domain_fini(struct m0_stob_domain *dom)
 {
-	m0_addb_ctx_fini(&dom->sd_addb);
+	/** @todo m0_addb_ctx_fini(&dom->sd_addb); */
 	m0_rwlock_fini(&dom->sd_guard);
 	dom_tlink_del_fini(dom);
 	dom->sd_magic = 0;
@@ -99,12 +116,14 @@ M0_INTERNAL void m0_stob_init(struct m0_stob *obj, const struct m0_stob_id *id,
 	obj->so_state = CSS_UNKNOWN;
 	obj->so_id = *id;
 	obj->so_domain = dom;
-	m0_addb_ctx_init(&obj->so_addb, &m0_stob_addb, &dom->sd_addb);
+	/** @todo m0_addb_ctx_init(&obj->so_addb, &m0_stob_addb,
+	    &dom->sd_addb);
+	 */
 }
 
 M0_INTERNAL void m0_stob_fini(struct m0_stob *obj)
 {
-	m0_addb_ctx_fini(&obj->so_addb);
+	/** @todo m0_addb_ctx_fini(&obj->so_addb); */
 }
 
 M0_BASSERT(sizeof(struct m0_uint128) == sizeof(struct m0_stob_id));
@@ -167,11 +186,14 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *obj, struct m0_dtx *tx)
 M0_INTERNAL void m0_stob_get(struct m0_stob *obj)
 {
 	m0_atomic64_inc(&obj->so_ref);
+	M0_LEAVE("ref: %lu", (unsigned long)m0_atomic64_get(&obj->so_ref));
 }
 
 M0_INTERNAL void m0_stob_put(struct m0_stob *obj)
 {
 	struct m0_stob_domain *dom;
+
+	M0_ENTRY("ref: %lu", (unsigned long)m0_atomic64_get(&obj->so_ref));
 
 	dom = obj->so_domain;
 	m0_rwlock_write_lock(&dom->sd_guard);
@@ -349,6 +371,8 @@ M0_INTERNAL void m0_stob_iovec_sort(struct m0_stob_io *stob)
 }
 
 /** @} end group stob */
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

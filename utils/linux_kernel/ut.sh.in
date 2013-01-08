@@ -7,6 +7,11 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
+echo 8 > /proc/sys/kernel/printk
+
+# Assign a node uuid for the kernel space UT (addb/ut/addb_ut.c)
+NODE_UUID="12345678-90ab-cdef-fedc-ba0987654321"
+
 . @abs_top_srcdir@/m0t1fs/linux_kernel/st/common.sh
 
 MODLIST="@abs_top_srcdir@/build_kernel_modules/m0mero.ko \

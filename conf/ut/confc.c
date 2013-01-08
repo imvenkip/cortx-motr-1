@@ -353,7 +353,8 @@ static void test_confc_net(void)
 #define NAME(ext) "ut_confd" ext
 	char *argv[] = {
 		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
-		"-S", NAME(".stob"), "-e", SERVER_ENDPOINT, "-s", "confd",
+		"-S", NAME(".stob"), "-A", NAME("-addb.stob"),
+		"-e", SERVER_ENDPOINT, "-s", "confd",
 		"-c", M0_CONF_UT_PATH("conf_str_prof.txt")
 	};
 	M0_RPC_SERVER_CTX_DEFINE(confd, &g_xprt, 1, argv, ARRAY_SIZE(argv),

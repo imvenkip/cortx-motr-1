@@ -1,17 +1,33 @@
 nobase_mero_include_HEADERS += addb/addb.h \
-                               addb/addb_xc.h
-
+                               addb/addb_macros.h \
+                               addb/addb_pvt.h \
+                               addb/addb_wire.h \
+                               addb/addb_wire_xc.h \
+                               addb/user_space/addb_svc.h
 
 mero_libmero_la_SOURCES  += addb/addb.c \
-                            addb/addb_console.c \
-                            addb/addb_fop.c \
-                            addb/addb_store.c \
-                            addb/addb_xc.c
+                            addb/addb_wire_xc.c
 
-EXTRA_DIST += addb/linux_kernel/addb_console.c
+XC_FILES   += addb/addb_wire_xc.h
 
-XC_FILES   += addb/addb_xc.h
+EXTRA_DIST += addb/addb_counter.c \
+              addb/addb_ct.c \
+              addb/addb_ctxobj.c \
+              addb/addb_evmgr.c \
+              addb/addb_mc.c \
+              addb/addbmc.dia \
+              addb/addbmc.png \
+              addb/addb_rec.c \
+              addb/addb_rpcsink.c \
+              addb/addb_rt.c \
+              addb/linux_kernel/kctx.c \
+              addb/user_space/addb_pfom.c \
+              addb/user_space/addb_retrieval.c \
+              addb/user_space/addb_stobsink.c \
+              addb/user_space/addb_svc.c \
+              addb/user_space/uctx.c
 
-CLEANFILES += addb/addb_xc.h \
-              addb/addb_xc.c \
-	      addb/addb.gccxml
+CLEANFILES += addb/addb_wire_xc.c \
+              addb/addb_wire_xc.h
+
+addb/addb.c: addb/addb_wire_xc.h

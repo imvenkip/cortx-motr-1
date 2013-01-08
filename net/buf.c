@@ -22,6 +22,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/time.h"
+#include "lib/misc.h"
 #include "lib/finject.h"
 #include "mero/magic.h"
 #include "net/net_internal.h"
@@ -111,7 +112,6 @@ M0_INTERNAL int m0_net_buffer_register(struct m0_net_buffer *buf,
 	buf->nb_xprt_private = NULL;
 	buf->nb_timeout = M0_TIME_NEVER;
 	buf->nb_magic = M0_NET_BUFFER_LINK_MAGIC;
-	m0_addb_ctx_init(&buf->nb_addb, &m0_net_buffer_addb_ctx, &dom->nd_addb);
 
 	/* The transport will validate buffer size and number of
 	   segments, and optimize it for future use.
@@ -121,8 +121,7 @@ M0_INTERNAL int m0_net_buffer_register(struct m0_net_buffer *buf,
 		buf->nb_flags |= M0_NET_BUF_REGISTERED;
 		m0_list_add_tail(&dom->nd_registered_bufs,&buf->nb_dom_linkage);
 	} else {
-		NET_ADDB_FUNCFAIL_ADD(dom->nd_addb, rc);
-		m0_addb_ctx_fini(&buf->nb_addb);
+		NET_ADDB_FUNCFAIL(rc, BUF_REG, &dom->nd_addb_ctx);
 	}
 
 	M0_POST(ergo(rc == 0, m0_net__buffer_invariant(buf)));
@@ -149,7 +148,6 @@ M0_INTERNAL void m0_net_buffer_deregister(struct m0_net_buffer *buf,
 	m0_list_del(&buf->nb_dom_linkage);
 	buf->nb_xprt_private = NULL;
 	buf->nb_magic = 0;
-	m0_addb_ctx_fini(&buf->nb_addb);
         buf->nb_dom = NULL;
 
 	m0_mutex_unlock(&dom->nd_mutex);
@@ -241,6 +239,7 @@ M0_INTERNAL int m0_net__buffer_add(struct m0_net_buffer *buf,
 	m0_net_tm_tlink_init_at_tail(buf, ql);
 	buf->nb_flags |= M0_NET_BUF_QUEUED;
 	buf->nb_add_time = m0_time_now(); /* record time added */
+	buf->nb_msgs_received = 0;
 
 	/* call the transport */
 	buf->nb_tm = tm;
@@ -282,7 +281,7 @@ M0_INTERNAL int m0_net_buffer_add(struct m0_net_buffer *buf,
 	rc = m0_net__buffer_add(buf, tm);
 	m0_mutex_unlock(&tm->ntm_mutex);
 	if (rc != 0)
-		NET_ADDB_FUNCFAIL_ADD(buf->nb_addb, rc);
+		NET_ADDB_FUNCFAIL(rc, BUF_ADD, &tm->ntm_addb_ctx);
 	return rc;
 }
 M0_EXPORTED(m0_net_buffer_add);
@@ -392,12 +391,16 @@ M0_INTERNAL void m0_net_buffer_event_post(const struct m0_net_buffer_event *ev)
 		len = 0; /* length not counted on failure */
 	} else {
 		q->nqs_num_s_events++;
-		if (qtype == M0_NET_QT_MSG_RECV ||
-		    qtype == M0_NET_QT_PASSIVE_BULK_RECV ||
-		    qtype == M0_NET_QT_ACTIVE_BULK_RECV)
+		if (M0_IN(qtype, (M0_NET_QT_MSG_RECV,
+				  M0_NET_QT_PASSIVE_BULK_RECV,
+				  M0_NET_QT_ACTIVE_BULK_RECV)))
 			len = ev->nbe_length;
 		else
 			len = buf->nb_length;
+		if (M0_IN(qtype, (M0_NET_QT_MSG_RECV, M0_NET_QT_MSG_SEND)))
+			m0_addb_counter_update(&tm->ntm_cntr_msg, len);
+		else
+			m0_addb_counter_update(&tm->ntm_cntr_data, len);
 	}
 	if (!(buf->nb_flags & M0_NET_BUF_QUEUED)) {
 		tdiff = m0_time_sub(ev->nbe_time, buf->nb_add_time);
@@ -413,6 +416,10 @@ M0_INTERNAL void m0_net_buffer_event_post(const struct m0_net_buffer_event *ev)
 		if (ev->nbe_status == 0) {
 			check_ep = true;
 			ep = ev->nbe_ep; /* from event */
+			++buf->nb_msgs_received;
+			if (!(buf->nb_flags & M0_NET_BUF_QUEUED))
+				m0_addb_counter_update(&tm->ntm_cntr_rb,
+						       buf->nb_msgs_received);
 		}
 		if (!(buf->nb_flags & M0_NET_BUF_QUEUED) &&
 		    tm->ntm_state == M0_NET_TM_STARTED &&

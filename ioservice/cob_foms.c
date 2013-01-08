@@ -36,16 +36,20 @@
 #include "reqh/reqh_service.h"
 #include "pool/pool.h"
 #include "mero/setup.h"
+#include "ioservice/io_service_addb.h"
 
 /* Forward Declarations. */
-static int  cob_fom_create(struct m0_fop *fop, struct m0_fom **out);
+static int  cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
+			   struct m0_reqh *reqh);
 static void cc_fom_fini(struct m0_fom *fom);
 static int  cc_fom_tick(struct m0_fom *fom);
+static void cc_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 static int  cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc);
 static int  cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc);
 
 static void cd_fom_fini(struct m0_fom *fom);
 static int  cd_fom_tick(struct m0_fom *fom);
+static void cd_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 static int  cd_cob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd);
 static int  cd_stob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd);
 
@@ -60,18 +64,12 @@ enum {
 	CD_FOM_STOBIO_LAST_REFS = 1,
 };
 
-static const struct m0_addb_loc cc_fom_addb_loc = {
-	.al_name = "create_cob_fom",
-};
-
-M0_ADDB_EV_DEFINE(cc_fom_func_fail, "create cob func failed.",
-		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
-
 /** Cob create fom ops. */
 static const struct m0_fom_ops cc_fom_ops = {
 	.fo_fini	  = cc_fom_fini,
 	.fo_tick	  = cc_fom_tick,
 	.fo_home_locality = cob_fom_locality_get,
+	.fo_addb_init     = cc_fom_addb_init
 };
 
 /** Common fom_type_ops for m0_fop_cob_create and m0_fop_cob_delete fops. */
@@ -79,21 +77,28 @@ const struct m0_fom_type_ops cob_fom_type_ops = {
 	.fto_create = cob_fom_create,
 };
 
-static const struct m0_addb_loc cd_fom_addb_loc = {
-	.al_name = "cob_delete_fom",
-};
-
-M0_ADDB_EV_DEFINE(cd_fom_func_fail, "cob delete fom func failed.",
-		  M0_ADDB_EVENT_FUNC_FAIL, M0_ADDB_FUNC_CALL);
-
 /** Cob delete fom ops. */
 static const struct m0_fom_ops cd_fom_ops = {
 	.fo_fini	  = cd_fom_fini,
 	.fo_tick	  = cd_fom_tick,
 	.fo_home_locality = cob_fom_locality_get,
+	.fo_addb_init     = cd_fom_addb_init
 };
 
-static int cob_fom_create(struct m0_fop *fop, struct m0_fom **out)
+#undef COBFOM_ADDB_POST
+#define COBFOM_ADDB_POST(fom, recid, ...)				\
+do {									\
+	struct m0_addb_mc  *addb_mc;					\
+	struct m0_addb_ctx *cv[2];					\
+									\
+        addb_mc = &fom->fo_service->rs_reqh->rh_addb_mc;		\
+        cv[0]   = &fom->fo_addb_ctx;					\
+        cv[1]   = NULL;							\
+        M0_ADDB_POST(addb_mc, recid, cv, ## __VA_ARGS__);		\
+} while(0)
+
+static int cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
+			  struct m0_reqh *reqh)
 {
 	int			  rc;
 	struct m0_fop            *rfop;
@@ -109,8 +114,8 @@ static int cob_fom_create(struct m0_fop *fop, struct m0_fom **out)
 	rc = cob_op_fom_create(out);
 	cfom = cob_fom_get(*out);
 	if (rc != 0) {
-		M0_ADDB_ADD(&fop->f_addb, &cc_fom_addb_loc, cc_fom_func_fail,
-			    "Failed to create cob_create fom.", rc);
+		IOS_ADDB_FUNCFAIL(rc, COB_FOM_CREATE_1, &m0_ios_addb_ctx);
+
 		return rc;
 	}
 	fom = *out;
@@ -119,14 +124,16 @@ static int cob_fom_create(struct m0_fop *fop, struct m0_fom **out)
 	fom_ops = m0_is_cob_create_fop(fop) ? &cc_fom_ops : &cd_fom_ops;
 	rfop = m0_fop_alloc(&m0_fop_cob_op_reply_fopt, NULL);
 	if (rfop == NULL) {
-		M0_ADDB_ADD(&fop->f_addb, &cc_fom_addb_loc, m0_addb_oom);
+		IOS_ADDB_FUNCFAIL(rc, COB_FOM_CREATE_2, &m0_ios_addb_ctx);
 		m0_free(cfom);
 		return -ENOMEM;
 	}
 
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, rfop);
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, rfop, reqh,
+		    fop->f_type->ft_fom_type.ft_rstype);
 	m0_fop_put(rfop);
 	cob_fom_populate(fom);
+
 	return rc;
 }
 
@@ -159,6 +166,11 @@ static void cc_fom_fini(struct m0_fom *fom)
 
 	cfom = cob_fom_get(fom);
 
+	COBFOM_ADDB_POST(fom, &m0_addb_rt_ios_ccfom_finish,
+			 cfom->fco_stobid.si_bits.u_hi,
+			 cfom->fco_stobid.si_bits.u_lo,
+			 (uint64_t) m0_fom_rc(fom));
+
 	m0_fom_fini(fom);
 	m0_free(cfom);
 }
@@ -168,6 +180,18 @@ static size_t cob_fom_locality_get(const struct m0_fom *fom)
 	M0_PRE(fom != NULL);
 
 	return m0_fop_opcode(fom->fo_fop);
+}
+
+static void cc_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	struct m0_fom_cob_op *cfom;
+
+	cfom = cob_fom_get(fom);
+
+	M0_ADDB_CTX_INIT(mc, &fom->fo_addb_ctx, &m0_addb_ct_cob_create_fom,
+			 &fom->fo_service->rs_addb_ctx,
+			 cfom->fco_gfid.f_container, cfom->fco_gfid.f_key,
+			 cfom->fco_cfid.f_container, cfom->fco_gfid.f_key);
 }
 
 static void cob_fom_populate(struct m0_fom *fom)
@@ -268,22 +292,16 @@ static int cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 	if (sdom == NULL) {
 		M0_LOG(M0_DEBUG, "can't find domain for stob_id=%lu",
 		                 (unsigned long)cc->fco_stobid.si_bits.u_hi);
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    cc_fom_func_fail,
-			    "Stob creation failed in cc_stob_create().",
-			    -EINVAL);
+		IOS_ADDB_FUNCFAIL(-EINVAL, CC_STOB_CREATE_1, &m0_ios_addb_ctx);
 		return -EINVAL;
 	}
 
 	rc = m0_stob_create_helper(sdom, &fom->fo_tx, &cc->fco_stobid, &stob);
 	if (rc != 0) {
 	        M0_LOG(M0_DEBUG, "m0_stob_create_helper() failed with %d", rc);
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    cc_fom_func_fail,
-			    "Stob creation failed in cc_stob_create().", rc);
+		IOS_ADDB_FUNCFAIL(-EINVAL, CC_STOB_CREATE_2, &m0_ios_addb_ctx);
 	} else {
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    m0_addb_trace, "Stob created successfully.");
+		M0_LOG(M0_DEBUG, "Stob created successfully.");
 		m0_stob_put(stob);
 	}
 
@@ -332,10 +350,12 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
         if (rc)
                 return rc;
 
+        M0_LOG(M0_DEBUG, "Creating cob [%lx:%lx]/%x",
+               cc->fco_cfid.f_container, cc->fco_cfid.f_key, cc->fco_cob_idx);
+
 	rc = cc_cob_nskey_make(&nskey, &cc->fco_gfid, cc->fco_cob_idx);
 	if (rc != 0) {
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    m0_addb_oom);
+		IOS_ADDB_FUNCFAIL(rc, CC_COB_CREATE_1, &m0_ios_addb_ctx);
 	        m0_cob_put(cob);
 		return rc;
 	}
@@ -361,21 +381,18 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
-	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, &fom->fo_tx.tx_dbtx);
+	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec,
+			   &fom->fo_tx.tx_dbtx);
 	if (rc) {
 	        /*
-	         * Cob does not free nskey and fab rec on errors. We need to do so
-	         * ourself. In case cob created successfully, it frees things on
-	         * last put.
+	         * Cob does not free nskey and fab rec on errors. We need to do
+		 * so ourself. In case cob created successfully, it frees things
+		 * on last put.
 	         */
 		m0_free(nskey);
 		m0_free(fabrec);
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    cc_fom_func_fail, "Cob creation failed", rc);
-	} else {
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    m0_addb_trace, "Cob created successfully.");
-        }
+		IOS_ADDB_FUNCFAIL(rc, CC_COB_CREATE_2, &m0_ios_addb_ctx);
+	}
 	m0_cob_put(cob);
 
 	return rc;
@@ -388,6 +405,11 @@ static void cd_fom_fini(struct m0_fom *fom)
 	M0_PRE(fom != NULL);
 
 	cfom = cob_fom_get(fom);
+
+	COBFOM_ADDB_POST(fom, &m0_addb_rt_ios_cdfom_finish,
+			 cfom->fco_stobid.si_bits.u_hi,
+			 cfom->fco_stobid.si_bits.u_lo,
+			 (uint64_t) m0_fom_rc(fom));
 
 	m0_fom_fini(fom);
 	m0_free(cfom);
@@ -456,6 +478,18 @@ out:
 	return M0_FSO_AGAIN;
 }
 
+static void cd_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+{
+	struct m0_fom_cob_op *cfom;
+
+	cfom = cob_fom_get(fom);
+
+	M0_ADDB_CTX_INIT(mc, &fom->fo_addb_ctx, &m0_addb_ct_cob_delete_fom,
+			 &fom->fo_service->rs_addb_ctx,
+			 cfom->fco_gfid.f_container, cfom->fco_gfid.f_key,
+			 cfom->fco_cfid.f_container, cfom->fco_gfid.f_key);
+}
+
 static int cd_cob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 {
 	int                   rc;
@@ -474,20 +508,17 @@ static int cd_cob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
         m0_cob_oikey_make(&oikey, &fid, 0);
 	rc = m0_cob_locate(cdom, &oikey, 0, &cob, &fom->fo_tx.tx_dbtx);
 	if (rc != 0) {
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
-			    cd_fom_func_fail,
-			    "m0_cob_locate() failed.", rc);
+		IOS_ADDB_FUNCFAIL(rc, CD_COB_DELETE_1, &m0_ios_addb_ctx);
 		return rc;
 	}
 
 	M0_ASSERT(cob != NULL);
-	rc = m0_cob_delete_put(cob, &fom->fo_tx.tx_dbtx);
-	if (rc == 0)
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    m0_addb_trace, "Cob deleted successfully.");
+	rc = m0_cob_delete(cob, &fom->fo_tx.tx_dbtx);
+	if (rc != 0)
+		IOS_ADDB_FUNCFAIL(rc, CD_COB_DELETE_2, &m0_ios_addb_ctx);
 	else
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
-			    cd_fom_func_fail, "Cob deletion failed.", rc);
+		M0_LOG(M0_DEBUG, "Cob deleted successfully.");
+
 	return rc;
 }
 
@@ -504,17 +535,12 @@ static int cd_stob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 	reqh = m0_fom_reqh(fom);
 	sdom = m0_cs_stob_domain_find(reqh, &cd->fco_stobid);
 	if (sdom == NULL) {
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    cc_fom_func_fail,
-			    "Stob deletion failed",
-			    -EINVAL);
+		IOS_ADDB_FUNCFAIL(-EINVAL, CD_STOB_DELETE_1, &m0_ios_addb_ctx);
 		return -EINVAL;
 	}
 	rc = m0_stob_find(sdom, &cd->fco_stobid, &stob);
 	if (rc != 0) {
-		M0_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
-			    cd_fom_func_fail,
-			    "m0_stob_find() failed.", rc);
+		IOS_ADDB_FUNCFAIL(rc, CD_STOB_DELETE_2, &m0_ios_addb_ctx);
 		return rc;
 	}
 	M0_ASSERT(stob != NULL);
@@ -523,8 +549,7 @@ static int cd_stob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 
 	M0_ASSERT(stob->so_ref.a_value  >= CD_FOM_STOBIO_LAST_REFS);
 	m0_stob_put(stob);
-	M0_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-		    m0_addb_trace, "Stob deleted successfully.");
+	M0_LOG(M0_DEBUG, "Stob deleted successfully.");
 
 	return rc;
 }

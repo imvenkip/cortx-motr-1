@@ -402,10 +402,57 @@
 
  */
 
+/*
+ ******************************************************************************
+ * Kernel client ADDB context types.
+ * Do not change the numbering.
+ ******************************************************************************
+ */
+enum {
+	M0_ADDB_CTXID_M0T1FS_MOD = 500,
+};
+
+M0_ADDB_CT(m0_addb_ct_m0t1fs_mod, M0_ADDB_CTXID_M0T1FS_MOD);
+
+extern struct m0_addb_ctx m0t1fs_addb_ctx;
+
+enum {
+	M0T1FS_ADDB_LOC_AIO_READ		= 10,
+	M0T1FS_ADDB_LOC_AIO_WRITE		= 20,
+	M0T1FS_ADDB_LOC_AIO_REQ			= 30,
+	M0T1FS_ADDB_LOC_DBUF_ALLOI_BUF		= 40,
+	M0T1FS_ADDB_LOC_IOMAPS_PREP_GRPARR	= 50,
+	M0T1FS_ADDB_LOC_IOMAPS_PREP_MAP		= 60,
+	M0T1FS_ADDB_LOC_IOMAPS_PREP_MAPS	= 70,
+	M0T1FS_ADDB_LOC_IOMAP_INIT_DBUFS_COL	= 80,
+	M0T1FS_ADDB_LOC_IOMAP_INIT_DBUFS_ROW	= 90,
+	M0T1FS_ADDB_LOC_IOMAP_INIT_IV		= 100,
+	M0T1FS_ADDB_LOC_IOMAP_INIT_PBUFS_COL	= 110,
+	M0T1FS_ADDB_LOC_IOMAP_INIT_PBUFS_ROW	= 120,
+	M0T1FS_ADDB_LOC_IOREQ_INIT_BVECB	= 130,
+	M0T1FS_ADDB_LOC_IOREQ_INIT_BVECC	= 140,
+	M0T1FS_ADDB_LOC_IOREQ_INIT_IV		= 150,
+	M0T1FS_ADDB_LOC_IOREQ_INIT_PGATTRS	= 160,
+	M0T1FS_ADDB_LOC_IVEC_CREAT_IV		= 170,
+	M0T1FS_ADDB_LOC_PARITY_RECALC_DBUFS	= 180,
+	M0T1FS_ADDB_LOC_PARITY_RECALC_PBUFS	= 190,
+	M0T1FS_ADDB_LOC_PARITY_RECALC_OLD_BUFS	= 200,
+	M0T1FS_ADDB_LOC_TIOREQ_GET_TI		= 210,
+	M0T1FS_ADDB_LOC_TIOREQ_MAP_QDEVST	= 215,
+	M0T1FS_ADDB_LOC_TIOREQ_MAP_QSPSLOT	= 217,
+	M0T1FS_ADDB_LOC_TI_FOP_PREP		= 220,
+	M0T1FS_ADDB_LOC_TI_REQ_INIT_IV		= 230,
+};
+
 struct m0_pdclust_layout;
 
 M0_INTERNAL int m0t1fs_init(void);
 M0_INTERNAL void m0t1fs_fini(void);
+
+/**
+   Return the value of the kernel node_uuid parameter.
+ */
+const char *m0t1fs_param_node_uuid_get(void);
 
 enum {
 	M0T1FS_RPC_TIMEOUT              = 10, /* seconds */
@@ -422,8 +469,8 @@ enum {
     There is only one, global, instance of this type. */
 struct m0t1fs_globals {
 	struct m0_net_xprt       *g_xprt;
-	/** local endpoint address */
-	char                     *g_laddr;
+	/** local endpoint address module parameter */
+	const char               *g_laddr;
 	char                     *g_db_name;
 	struct m0_cob_domain_id   g_cob_dom_id;
 	struct m0_net_domain      g_ndom;
@@ -691,3 +738,13 @@ M0_INTERNAL int m0t1fs_size_update(struct inode *inode,
                                    uint64_t newsize);
 
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

@@ -590,8 +590,8 @@ static int nlx_ucore_nidstrs_get(struct nlx_ucore_domain *ud, char ***nidary)
 	/* Repeat until the buffer is large enough to hold all the strings. */
 	for (i = 0, dngp.dng_buf = NULL; dngp.dng_buf == NULL; ++i) {
 		dngp.dng_size = ++i * nlx_ucore_nidstrs_thunk;
-		M0_ALLOC_ARR_ADDB(dngp.dng_buf, dngp.dng_size,
-				  &ud->ud_addb, &nlx_addb_loc);
+		NLX_ALLOC_ARR(dngp.dng_buf, dngp.dng_size,
+			      &ud->ud_addb_ctx, U_NID_GET1);
 		if (dngp.dng_buf == NULL)
 			return -ENOMEM;
 		rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_NIDSTRS_GET, &dngp);
@@ -605,7 +605,7 @@ static int nlx_ucore_nidstrs_get(struct nlx_ucore_domain *ud, char ***nidary)
 	nidstrs_nr = rc;
 
 	/* Create a string array. */
-	M0_ALLOC_ARR_ADDB(nidstrs, nidstrs_nr + 1, &ud->ud_addb, &nlx_addb_loc);
+	NLX_ALLOC_ARR(nidstrs, nidstrs_nr + 1, &ud->ud_addb_ctx, U_NID_GET2);
 	if (nidstrs == NULL) {
 		m0_free(dngp.dng_buf);
 		return -ENOMEM;
@@ -645,11 +645,11 @@ M0_INTERNAL int nlx_core_dom_init(struct m0_net_domain *dom,
 
 	M0_PRE(dom != NULL && cd != NULL);
 	M0_PRE(cd->cd_kpvt == NULL && cd->cd_upvt == NULL);
-	M0_ALLOC_PTR_ADDB(ud, &dom->nd_addb, &nlx_addb_loc);
+	NLX_ALLOC_PTR(ud, &dom->nd_addb_ctx, U_DOM_INIT);
 	if (ud == NULL)
 		return -ENOMEM;
-	m0_addb_ctx_init(&ud->ud_addb, &nlx_core_domain_addb_ctx,
-			 &dom->nd_addb);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &ud->ud_addb_ctx,
+			 &m0_addb_ct_net_lnet_dom, &dom->nd_addb_ctx);
 
 	ud->ud_fd = open(nlx_ucore_dev_name, O_RDWR|O_CLOEXEC);
 	if (ud->ud_fd == -1) {
@@ -686,9 +686,9 @@ M0_INTERNAL int nlx_core_dom_init(struct m0_net_domain *dom,
  fail_dom_init:
 	close(ud->ud_fd);
  fail_open:
-	m0_addb_ctx_fini(&ud->ud_addb);
+	m0_addb_ctx_fini(&ud->ud_addb_ctx);
 	m0_free(ud);
-	LNET_ADDB_FUNCFAIL_ADD(dom->nd_addb, rc);
+	LNET_ADDB_FUNCFAIL(rc, U_DOM_INIT, &dom->nd_addb_ctx);
 	M0_POST(cd->cd_kpvt == NULL && cd->cd_upvt == NULL);
 	return rc;
 }
@@ -705,7 +705,7 @@ M0_INTERNAL void nlx_core_dom_fini(struct nlx_core_domain *cd)
 	nlx_ucore_nidstrs_put(ud, &ud->ud_nidstrs);
 
 	close(ud->ud_fd);
-	m0_addb_ctx_fini(&ud->ud_addb);
+	m0_addb_ctx_fini(&ud->ud_addb_ctx);
 	ud->ud_magic = 0;
 	m0_free(ud);
 	cd->cd_upvt = NULL;
@@ -766,7 +766,7 @@ M0_INTERNAL int nlx_core_buf_register(struct nlx_core_domain *cd,
 	M0_PRE(cb != NULL);
 	M0_PRE(cb->cb_kpvt == NULL && cb->cb_upvt == NULL);
 
-	M0_ALLOC_PTR_ADDB(ub, &ud->ud_addb, &nlx_addb_loc);
+	NLX_ALLOC_PTR(ub, &ud->ud_addb_ctx, U_BUF_REG);
 	if (ub == NULL)
 		return -ENOMEM;
 	ub->ub_magic = M0_NET_LNET_UCORE_BUF_MAGIC;
@@ -779,10 +779,9 @@ M0_INTERNAL int nlx_core_buf_register(struct nlx_core_domain *cd,
 		cb->cb_upvt = NULL;
 		ub->ub_magic = 0;
 		m0_free(ub);
-		LNET_ADDB_FUNCFAIL_ADD(ud->ud_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, U_BUF_REG, &ud->ud_addb_ctx);
 		return rc;
 	}
-	m0_addb_ctx_init(&ub->ub_addb, &nlx_core_domain_addb_ctx, &ud->ud_addb);
 	M0_ASSERT(cb->cb_kpvt != NULL);
 	M0_ASSERT(cb->cb_upvt == ub);
 
@@ -810,7 +809,6 @@ M0_INTERNAL void nlx_core_buf_deregister(struct nlx_core_domain *cd,
 	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_BUF_DEREGISTER, &dp);
 	M0_ASSERT(rc == 0);
 
-	m0_addb_ctx_fini(&ub->ub_addb);
 	ub->ub_magic = 0;
 	m0_free(ub);
 
@@ -819,7 +817,7 @@ M0_INTERNAL void nlx_core_buf_deregister(struct nlx_core_domain *cd,
 	return;
 }
 
-#define NLX_UCORE_BUF_OP(op, ...)				\
+#define NLX_UCORE_BUF_OP(op, loc, ...)				\
 	struct nlx_ucore_domain *ud;				\
 	struct nlx_ucore_transfer_mc *utm;			\
 	struct nlx_ucore_buffer *ub;				\
@@ -844,13 +842,13 @@ M0_INTERNAL void nlx_core_buf_deregister(struct nlx_core_domain *cd,
 	dbqp.dbq_kb  = cb->cb_kpvt;				\
 	rc = nlx_ucore_ioctl(ud->ud_fd, op, &dbqp);		\
 	if (rc < 0)						\
-		LNET_ADDB_FUNCFAIL_ADD(ub->ub_addb, rc)
+		LNET_ADDB_FUNCFAIL(rc, loc, &ud->ud_addb_ctx)
 
 M0_INTERNAL int nlx_core_buf_msg_recv(struct nlx_core_domain *cd,
 				      struct nlx_core_transfer_mc *ctm,
 				      struct nlx_core_buffer *cb)
 {
-	NLX_UCORE_BUF_OP(M0_LNET_BUF_MSG_RECV,
+	NLX_UCORE_BUF_OP(M0_LNET_BUF_MSG_RECV, U_BUF_MRECV,
 			 M0_PRE(cb->cb_qtype == M0_NET_QT_MSG_RECV);
 			 M0_PRE(cb->cb_length > 0);
 			 M0_PRE(cb->cb_min_receive_size <= cb->cb_length);
@@ -863,7 +861,7 @@ M0_INTERNAL int nlx_core_buf_msg_send(struct nlx_core_domain *cd,
 				      struct nlx_core_transfer_mc *ctm,
 				      struct nlx_core_buffer *cb)
 {
-	NLX_UCORE_BUF_OP(M0_LNET_BUF_MSG_SEND,
+	NLX_UCORE_BUF_OP(M0_LNET_BUF_MSG_SEND, U_BUF_MSEND,
 			 M0_PRE(cb->cb_qtype == M0_NET_QT_MSG_SEND);
 			 M0_PRE(cb->cb_length > 0);
 			 M0_PRE(cb->cb_max_operations == 1);
@@ -877,7 +875,7 @@ M0_INTERNAL int nlx_core_buf_active_recv(struct nlx_core_domain *cd,
 {
 	uint32_t tmid;
 	uint64_t counter;
-	NLX_UCORE_BUF_OP(M0_LNET_BUF_ACTIVE_RECV,
+	NLX_UCORE_BUF_OP(M0_LNET_BUF_ACTIVE_RECV, U_BUF_ARECV,
 			 M0_PRE(cb->cb_qtype == M0_NET_QT_ACTIVE_BULK_RECV);
 			 M0_PRE(cb->cb_length > 0);
 			 M0_PRE(cb->cb_max_operations == 1);
@@ -897,7 +895,7 @@ M0_INTERNAL int nlx_core_buf_active_send(struct nlx_core_domain *cd,
 {
 	uint32_t tmid;
 	uint64_t counter;
-	NLX_UCORE_BUF_OP(M0_LNET_BUF_ACTIVE_SEND,
+	NLX_UCORE_BUF_OP(M0_LNET_BUF_ACTIVE_SEND, U_BUF_ASEND,
 			 M0_PRE(cb->cb_qtype == M0_NET_QT_ACTIVE_BULK_SEND);
 			 M0_PRE(cb->cb_length > 0);
 			 M0_PRE(cb->cb_max_operations == 1);
@@ -917,7 +915,7 @@ M0_INTERNAL int nlx_core_buf_passive_recv(struct nlx_core_domain *cd,
 {
 	uint32_t tmid;
 	uint64_t counter;
-	NLX_UCORE_BUF_OP(M0_LNET_BUF_PASSIVE_RECV,
+	NLX_UCORE_BUF_OP(M0_LNET_BUF_PASSIVE_RECV, U_BUF_PRECV,
 			 M0_PRE(cb->cb_qtype == M0_NET_QT_PASSIVE_BULK_RECV);
 			 M0_PRE(cb->cb_length > 0);
 			 M0_PRE(cb->cb_max_operations == 1);
@@ -937,7 +935,7 @@ M0_INTERNAL int nlx_core_buf_passive_send(struct nlx_core_domain *cd,
 {
 	uint32_t tmid;
 	uint64_t counter;
-	NLX_UCORE_BUF_OP(M0_LNET_BUF_PASSIVE_SEND,
+	NLX_UCORE_BUF_OP(M0_LNET_BUF_PASSIVE_SEND, U_BUF_PSEND,
 			 M0_PRE(cb->cb_qtype == M0_NET_QT_PASSIVE_BULK_SEND);
 			 M0_PRE(cb->cb_length > 0);
 			 M0_PRE(cb->cb_max_operations == 1);
@@ -955,7 +953,7 @@ M0_INTERNAL int nlx_core_buf_del(struct nlx_core_domain *cd,
 				 struct nlx_core_transfer_mc *ctm,
 				 struct nlx_core_buffer *cb)
 {
-	NLX_UCORE_BUF_OP(M0_LNET_BUF_DEL, );
+	NLX_UCORE_BUF_OP(M0_LNET_BUF_DEL, U_BUF_DEL, );
 	return rc;
 }
 
@@ -984,7 +982,8 @@ int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
 	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_BUF_EVENT_WAIT, &bewp);
 	if (rc < 0) {
 		if (rc != -ETIMEDOUT) /* valid return value */
-			LNET_ADDB_FUNCFAIL_ADD(utm->utm_addb, rc);
+			LNET_ADDB_FUNCFAIL(rc, U_BUF_EV_WAIT,
+					   &utm->utm_addb_ctx);
 		return rc;
 	}
 	return 0;
@@ -1007,7 +1006,7 @@ M0_INTERNAL int nlx_core_nidstr_decode(struct nlx_core_domain *cd,
 
 	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_NIDSTR_DECODE, &dnep);
 	if (rc < 0) {
-		LNET_ADDB_FUNCFAIL_ADD(ud->ud_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, U_NID_DECODE, &ud->ud_addb_ctx);
 		return rc;
 	}
 
@@ -1032,7 +1031,7 @@ M0_INTERNAL int nlx_core_nidstr_encode(struct nlx_core_domain *cd,
 
 	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_NIDSTR_ENCODE, &dnep);
 	if (rc < 0) {
-		LNET_ADDB_FUNCFAIL_ADD(ud->ud_addb, rc);
+		LNET_ADDB_FUNCFAIL(rc, U_NID_ENCODE, &ud->ud_addb_ctx);
 		return rc;
 	}
 	M0_POST(dnep.dn_buf[0] != '\0');
@@ -1123,12 +1122,14 @@ M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
 	M0_PRE(ctm->ctm_kpvt == NULL);
 	M0_PRE(ctm->ctm_magic == 0);
 
-	M0_ALLOC_PTR_ADDB(utm, &ud->ud_addb, &nlx_addb_loc);
+	NLX_ALLOC_PTR(utm, &ud->ud_addb_ctx, U_TM_START);
 	if (utm == NULL) {
 		rc = -ENOMEM;
 		goto fail_utm;
 	}
-	m0_addb_ctx_init(&utm->utm_addb, &nlx_core_tm_addb_ctx, &ud->ud_addb);
+	utm->utm_addb_mc = tm->ntm_addb_mc;
+	M0_ADDB_CTX_INIT(utm->utm_addb_mc, &utm->utm_addb_ctx,
+			 &m0_addb_ct_net_lnet_tm, &tm->ntm_addb_ctx);
 	utm->utm_magic = M0_NET_LNET_UCORE_TM_MAGIC;
 	M0_POST(nlx_ucore_tm_invariant(utm));
 	ctm->ctm_upvt = utm;
@@ -1161,11 +1162,11 @@ M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
 	nlx_ucore_tm_stop(cd, ctm);
  fail_start:
 	ctm->ctm_upvt = NULL;
-	m0_addb_ctx_fini(&utm->utm_addb);
+	m0_addb_ctx_fini(&utm->utm_addb_ctx);
 	utm->utm_magic = 0;
 	m0_free(utm);
  fail_utm:
-	LNET_ADDB_FUNCFAIL_ADD(ud->ud_addb, rc);
+	LNET_ADDB_FUNCFAIL(rc, U_TM_START, &ud->ud_addb_ctx);
 	return rc;
 }
 
@@ -1179,7 +1180,7 @@ M0_INTERNAL void nlx_core_tm_stop(struct nlx_core_domain *cd,
 
 	nlx_ucore_tm_stop(cd, ctm); /* other invariants checked */
 	bev_cqueue_fini(&ctm->ctm_bevq, nlx_core_bev_free_cb);
-	m0_addb_ctx_fini(&utm->utm_addb);
+	m0_addb_ctx_fini(&utm->utm_addb_ctx);
 
 	ctm->ctm_upvt = NULL;
 	utm->utm_magic = 0;
@@ -1205,7 +1206,7 @@ M0_INTERNAL int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
 	utm = ctm->ctm_upvt;
 	M0_PRE(nlx_ucore_tm_invariant(utm));
 
-	NLX_ALLOC_PTR_ADDB(bev, &utm->utm_addb, &nlx_addb_loc);
+	NLX_ALLOC_ALIGNED_PTR_ADDB(bev, &utm->utm_addb_ctx, U_BEV_BLESS);
 	if (bev == NULL) {
 		*bevp = NULL;
 		return -ENOMEM;
@@ -1215,8 +1216,8 @@ M0_INTERNAL int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
 	bp.dbb_bev = bev;
 	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_BEV_BLESS, &bp);
 	if (rc < 0) {
-		NLX_FREE_PTR(bev);
-		LNET_ADDB_FUNCFAIL_ADD(utm->utm_addb, rc);
+		NLX_FREE_ALIGNED_PTR(bev);
+		LNET_ADDB_FUNCFAIL(rc, U_BEV_BLESS, &utm->utm_addb_ctx);
 		return rc;
 	}
 	M0_ASSERT(bev->cbe_kpvt != NULL);

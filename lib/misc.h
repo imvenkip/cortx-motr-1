@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -33,7 +33,6 @@
 #include "lib/types.h"
 #include "lib/assert.h"           /* M0_CASSERT */
 #include "lib/cdefs.h"            /* m0_is_array */
-#include "lib/types.h"
 
 /**
  * Returns rounded up value of @val in chunks of @size.

@@ -31,7 +31,6 @@
 #include "net/net_otw_types.h"
 #include "net/net_otw_types_xc.h"
 #include "addb/addb.h"
-#include "addb/addb_xc.h"
 #include "fid/fid.h"
 #include "fid/fid_xc.h"
 
@@ -451,10 +450,12 @@ struct m0_test_ios_fop {
 	struct m0_net_buf_desc if_nbd;
 } M0_XCA_RECORD;
 
-struct m0_test_io_addb {
-	uint64_t              if_st;
-	struct m0_addb_record if_addb;
-} M0_XCA_RECORD;
+/* @todo : new ADDB interfaces implementation will replace this requirment.
+ *struct m0_test_io_addb {
+ *	uint64_t              if_st;
+ *	struct m0_addb_record if_addb;
+ *} M0_XCA_RECORD;
+ */
 
 struct m0_fop_cob_common {
 	/** Client known failure vector version number */

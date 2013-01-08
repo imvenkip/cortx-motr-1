@@ -28,6 +28,7 @@ EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) \
 dirs  =                        \
         addb                   \
         addb/linux_kernel      \
+        addb/ut                \
         m0t1fs/linux_kernel    \
         m0t1fs/linux_kernel/ut \
         cob                    \
@@ -50,6 +51,7 @@ dirs  =                        \
         lib/ut                 \
         net                    \
         net/bulk_emulation/ut  \
+        net/lnet               \
         net/lnet/ut            \
         net/test               \
         net/test/ut            \
@@ -73,10 +75,10 @@ dirs  =                        \
 #       headers that need to be included in following listing are those of
 #       type `*_ff.h'; rest of the headers will be assumed relative to `core/'
 
-addb_SOURCES                    := addb.c addb_fop.c addb_xc.c
-addb_HEADERS                    := addb_xc.h addb.h
+addb_SOURCES                    := addb_wire_xc.c
+addb_HEADERS                    := addb_wire.h addb_wire_xc.h
 
-addb_linux_kernel_SOURCES       := addb_console.c
+addb_ut_SOURCES                 := addb_ut.c
 
 #       If there's a directory 'd' in $(dirs) then the listing of files given
 #       for d_SOURCES is relative to $(CORE_SRCDIR)/d;
@@ -125,7 +127,7 @@ lib_SOURCES                     := bitstring.c getopts.c vec.c list.c queue.c \
                                    refs.c time.c bitmap.c chan.c misc.c buf.c \
                                    cond.c thread.c tlist.c bob.c trace.c      \
                                    finject.c vec_xc.c vec.c buf_xc.c buf.c    \
-                                   m0lib.c cookie.c ext.c
+                                   m0lib.c cookie.c ext.c uuid.c
 
 lib_HEADERS                     := vec.h vec_xc.h buf.h buf_xc.h
 
@@ -137,7 +139,8 @@ lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c \
 lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c  \
                                    mutex.c queue.c refs.c tlist.c time.c    \
                                    vec.c zerovec.c thread.c bob.c trace.c   \
-                                   memory.c finject.c buf.c cookie.c misc.c
+                                   memory.c finject.c buf.c cookie.c misc.c \
+                                   uuid.c
 
 net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c \
                                    tm.c net_otw_types_xc.c tm_provision.c
@@ -145,6 +148,8 @@ net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c \
 net_HEADERS                     := net_otw_types.h net_otw_types_xc.h
 
 net_bulk_emulation_ut_SOURCES   := bulk_mem_ut.c
+
+net_lnet_SOURCES                := lnet_addb.c
 
 net_lnet_ut_SOURCES             := lnet_ut.c
 
@@ -168,7 +173,7 @@ reqh_SOURCES                    := reqh.c reqh_service.c
 
 rpc_SOURCES                     := rpc.c service.c \
                                    session.c session_foms.c conn.c slot.c \
-                                   session_utils.c session_fops.c \
+                                   session_utils.c session_fops.c rpc_addb.c \
                                    rpc_onwire.c session_fops_xc.c rpclib.c \
                                    formation2.c frmops.c packet.c item.c \
                                    bulk.c rpc_machine.c rpc_onwire_xc.c

@@ -33,8 +33,6 @@
 #include "lib/finject.h"
 #include "db/db.h"
 #include "dtm/verno.h"
-
-#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 /**
@@ -338,7 +336,7 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 		m0_sm_init(&session->s_sm, &session_conf,
 			   M0_RPC_SESSION_INITIALISED,
 			   &conn->c_rpc_machine->rm_sm_grp,
-			   NULL /* addb context */);
+			   &conn->c_rpc_machine->rm_addb_ctx);
 		M0_LOG(M0_INFO, "Session %p INITIALISED \n", session);
 		m0_rpc_conn_add_session(conn, session);
 		M0_ASSERT(m0_rpc_session_invariant(session));
@@ -358,16 +356,17 @@ static int slot_table_alloc_and_init(struct m0_rpc_session *session)
 
 	M0_ENTRY("session: %p", session);
 
-	M0_ALLOC_ARR(session->s_slot_table, session->s_nr_slots);
+	RPC_ALLOC_ARR(session->s_slot_table, session->s_nr_slots,
+		      SESSION_SLOT_TABLE_ALLOC_AND_INIT, &m0_rpc_addb_ctx);
 	if (session->s_slot_table == NULL)
 		M0_RETURN(-ENOMEM);
 
 	slot_ops = m0_rpc_conn_is_snd(session->s_conn) ? &snd_slot_ops
 					               : &rcv_slot_ops;
-
 	for (i = 0; i < session->s_nr_slots; i++) {
 
-		M0_ALLOC_PTR(slot);
+		RPC_ALLOC_PTR(slot, SESSION_SLOT_TABLE_ALLOC_AND_INIT,
+			      &m0_rpc_addb_ctx);
 		if (slot == NULL) {
 			M0_RETURN(-ENOMEM);
 			/* __session_fini() will do the cleanup */
@@ -532,7 +531,9 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session)
 	if (M0_FI_ENABLED("fake_error"))
 		M0_RETURN(-EINVAL);
 
-	M0_ALLOC_PTR(ctx);
+	machine = session_machine(session);
+
+	RPC_ALLOC_PTR(ctx, SESSION_ESTABLISH, &m0_rpc_addb_ctx);
 	if (ctx == NULL) {
 		rc = -ENOMEM;
 	} else {
@@ -544,8 +545,6 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session)
 		if (rc != 0)
 			m0_fop_put(&ctx->sec_fop);
 	}
-
-	machine = session_machine(session);
 
 	m0_rpc_machine_lock(machine);
 

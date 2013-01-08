@@ -17,6 +17,15 @@
  * Original creation date: 01/17/2011
  */
 
+/*
+ * Define the ADDB types in this file.
+ */
+#undef M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_CT_CREATE_DEFINITION
+#undef M0_ADDB_RT_CREATE_DEFINITION
+#define M0_ADDB_RT_CREATE_DEFINITION
+#include "mdstore/mdstore_addb.h"
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
 #include <sys/stat.h>    /* S_ISDIR */
 
@@ -38,13 +47,28 @@
 #include "mdstore/mdstore.h"
 #include "mero/magic.h"
 
-static const struct m0_addb_ctx_type mdstore_addb_ctx = {
-        .act_name = "mdstore"
-};
+struct m0_addb_ctx m0_mdstore_mod_ctx;
 
-static const struct m0_addb_loc mdstore_addb_loc = {
-        .al_name = "mdstore"
-};
+#define MDSTORE_FUNC_FAIL(loc, rc)					\
+do {									\
+	if (rc < 0)							\
+		M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_MDSTORE_ADDB_LOC_##loc, \
+				  rc, &m0_mdstore_mod_ctx);		\
+} while (0)
+
+M0_INTERNAL int m0_mdstore_mod_init(void)
+{
+	m0_addb_ctx_type_register(&m0_addb_ct_mdstore_mod);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_mdstore_mod_ctx,
+			 &m0_addb_ct_mdstore_mod, &m0_addb_proc_ctx);
+	return 0;
+}
+
+M0_INTERNAL void m0_mdstore_mod_fini(void)
+{
+        m0_addb_ctx_fini(&m0_mdstore_mod_ctx);
+}
+
 
 /** Let's show client that we have 1G storage. */
 #define M0_MD_FAKE_BLOCKSIZE 4096
@@ -88,8 +112,6 @@ M0_INTERNAL int m0_mdstore_init(struct m0_mdstore          *md,
         rc = m0_cob_domain_init(&md->md_dom, db, id);
         if (rc != 0)
                 return rc;
-        m0_addb_ctx_init(&md->md_addb, &mdstore_addb_ctx,
-                         &md->md_dom.cd_dbenv->d_addb);
         if (init_root) {
                 struct m0_buf name;
 
@@ -98,8 +120,7 @@ M0_INTERNAL int m0_mdstore_init(struct m0_mdstore          *md,
                         goto out;
                 m0_buf_init(&name, (char *)M0_COB_ROOT_NAME, strlen(M0_COB_ROOT_NAME));
                 rc = m0_mdstore_lookup(md, NULL, &name, &md->md_root, &tx);
-                M0_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
-                            m0_addb_func_fail, "md_root_lookup", rc);
+		MDSTORE_FUNC_FAIL(INIT_1, rc);
                 if (rc != 0) {
                         m0_db_tx_abort(&tx);
                 } else {
@@ -114,8 +135,7 @@ M0_INTERNAL int m0_mdstore_init(struct m0_mdstore          *md,
                 }
         }
 out:
-        M0_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
-                    m0_addb_func_fail, "md_store_init", rc);
+	MDSTORE_FUNC_FAIL(INIT_2, rc);
         if (rc != 0)
                 m0_mdstore_fini(md);
         return rc;
@@ -191,8 +211,7 @@ M0_INTERNAL int m0_mdstore_create(struct m0_mdstore     *md,
         }
 
 out:
-        M0_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
-                    m0_addb_func_fail, "md_create", rc);
+	MDSTORE_FUNC_FAIL(CREATE, rc);
         return rc;
 }
 
@@ -238,8 +257,7 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 
         rc = m0_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
 out:
-        M0_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
-                    m0_addb_func_fail, "md_link", rc);
+	MDSTORE_FUNC_FAIL(LINK, rc);
         return rc;
 }
 
@@ -354,8 +372,7 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
         }
 
 out:
-        M0_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
-                    m0_addb_func_fail, "md_unlink", rc);
+	MDSTORE_FUNC_FAIL(UNLINK, rc);
         return rc;
 }
 
@@ -372,8 +389,7 @@ M0_INTERNAL int m0_mdstore_open(struct m0_mdstore       *md,
          * @todo: Place cob to open files table.
          */
 
-        M0_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
-                    m0_addb_func_fail, "md_open", rc);
+	MDSTORE_FUNC_FAIL(OPEN, rc);
         return rc;
 }
 
@@ -391,8 +407,7 @@ M0_INTERNAL int m0_mdstore_close(struct m0_mdstore      *md,
          *   - quota handling?
          */
 
-        M0_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
-                    m0_addb_func_fail, "md_close", rc);
+	MDSTORE_FUNC_FAIL(CLOSE, rc);
         return rc;
 }
 
@@ -445,8 +460,7 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
         m0_free(srckey);
         m0_free(tgtkey);
 out:
-        M0_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
-                    m0_addb_func_fail, "md_rename", rc);
+	MDSTORE_FUNC_FAIL(RENAME, rc);
         return rc;
 }
 
@@ -509,8 +523,7 @@ M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
 
         rc = m0_cob_update(cob, nsrec, fabrec, omgrec, tx);
 
-        M0_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
-                    m0_addb_func_fail, "md_setattr", rc);
+	MDSTORE_FUNC_FAIL(SETATTR, rc);
         return rc;
 }
 
@@ -559,8 +572,7 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
         /*
          * @todo: Copy fab fields.
          */
-        M0_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
-                    m0_addb_func_fail, "md_getattr", rc);
+	MDSTORE_FUNC_FAIL(GETATTR, rc);
         return rc;
 }
 
@@ -680,8 +692,7 @@ out_end:
         }
 out:
         M0_LOG(M0_DEBUG, "Readdir finished with %d", rc);
-        M0_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
-                    m0_addb_func_fail, "md_readdir", rc);
+	MDSTORE_FUNC_FAIL(READDIR, rc);
         return rc;
 }
 
@@ -790,3 +801,13 @@ out:
         return rc;
 }
 #undef M0_TRACE_SUBSYSTEM
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

@@ -16,6 +16,7 @@ mero_service()
 		# spawn servers
 		for ((i=0; i < ${#EP[*]}; i++)) ; do
 			SNAME="-s $MERO_IOSERVICE_NAME"
+			SNAME="-s $MERO_ADDBSERVICE_NAME $SNAME"
 			if ((i == 0)); then
 				SNAME="-s $MERO_MDSERVICE_NAME $SNAME"
 			fi
@@ -26,7 +27,7 @@ mero_service()
 			cmd="cd $MERO_M0T1FS_TEST_DIR/d$i; \
 			$prog_start -r $PREPARE_STORAGE \
 			 -T $MERO_STOB_DOMAIN \
-			 -D db -S stobs \
+			 -D db -S stobs -A addb-stobs \
 			 -e $XPT:${lnet_nid}:${EP[$i]} \
 			 $SNAME -m $MAX_RPC_MSG_SIZE \
 			 -q $TM_MIN_RECV_QUEUE_LEN"

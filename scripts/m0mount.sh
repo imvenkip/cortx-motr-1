@@ -94,6 +94,11 @@ SERVICES=(
 	sjt00-c1 172.18.50.161@o2ib:12345:41:102
 )
 
+declare -A NODE_UUID
+NODE_UUID[sjt02-c1]=30ab1a00-8085-40d1-a557-8996e2369a7a
+NODE_UUID[sjt02-c2]=6485c5f9-fbde-4e39-8c6a-bb9d46b3bf8a
+NODE_UUID[sjt00-c1]=54b0a56a-56ba-41a8-9caf-3f3981cfdf69
+
 THIS_HOST=$(hostname)
 DISKS_PATTERN="/dev/disk/by-id/scsi-35*"
 
@@ -102,6 +107,7 @@ if [ "x$1" = "xlocal" ]; then
 	lctl network up &>> /dev/null
 	LOCAL_NID=`lctl list_nids | head -1`
 	LOCAL_EP_PREFIX=12345:33:10
+	NODE_UUID[$THIS_HOST]=02e94b88-19ab-4166-b26b-91b51f22ad91
 
 	unset SERVICES
 	# Update each field of SERVICES array with local node values
@@ -111,7 +117,7 @@ if [ "x$1" = "xlocal" ]; then
 		SERVICES[((i*2 +1))]="${LOCAL_NID}:${LOCAL_EP_PREFIX}"$((i+1))
 	done
 
-	DISKS_PATTERN="/dev/loop[0-$((LOCAL_SERVICES_NR -1))]"
+	DISKS_PATTERN="/dev/loop[0-$((LOCAL_SERVICES_NR*2 -1))]"
 
 	shift
 fi
@@ -133,7 +139,8 @@ M0_TRACE_PRINT_CONTEXT=full
 
 # number of disks to split by for each service
 # in ad-stob mode
-DISKS_SH_NR=`expr $POOL_WIDTH / $SERVICES_NR`
+DISKS_SH_NR=`expr $POOL_WIDTH / $SERVICES_NR + 1`
+# +1 for ADDB stob
 
 # Local mount data
 MP=/mnt/m0
@@ -184,6 +191,10 @@ function r_run () {
 function setup_host () {
 	H=$1
 	EP=$2  # template for kernel end point address
+	if [ "x${NODE_UUID[$H]}" == "x" ]; then
+		echo ERROR: unknown uuid of the node $H
+		return 1
+	fi
 	echo Setting up host $H
 	# check for local host
 	local RUN
@@ -225,7 +236,7 @@ function setup_host () {
 		echo ERROR: Failed to load galois module on $H
 		return 1
 	fi
-	$RUN insmod $BROOT/core/build_kernel_modules/m0mero.ko local_addr=$KEP $XPT_PARAM $KTRACE_FLAGS
+	$RUN insmod $BROOT/core/build_kernel_modules/m0mero.ko local_addr=$KEP $XPT_PARAM $KTRACE_FLAGS node_uuid=${NODE_UUID[$H]}
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to load m0mero module on $H
 		$RUN rmmod galois
@@ -280,9 +291,17 @@ function gen_disks_conf_files()
 #present on the system (i.e without valid partition table).
 #
 #Below illustration describes a typical disks.conf entry,
+#
+#===========================================================
 #Device:
-#       - id: 1
+#       - id: 0
 #	  filename: /dev/sda
+#       - id: 1
+#	  filename: /dev/sdb
+#===========================================================
+#
+# Disk id=0 is used for ADDB stob.
+#
 
 # number of disks to split by
 DISKS_SH_NR=$DISKS_SH_NR
@@ -296,12 +315,15 @@ devs=\`ls $DISKS_PATTERN | grep -v part\`
 fdisk -l \$devs 2>&1 1>/dev/null | \
 sed -n 's;^Disk \\(/dev/.*\\) doesn.*;\1;p' | \
 while read dev; do
-	[ \$j -eq 0 ] && echo "Device:" > disks\$f.conf
-	echo "       - id: \$i" >> disks.conf
-	echo "       - id: \$i" >> disks\$f.conf
-	echo "         filename: \$dev" >> disks.conf
-	echo "         filename: \$dev" >> disks\$f.conf
-	i=\`expr \$i + 1\`
+	if [ \$j -eq 0 ]; then
+		echo "Device:" > disks\$f.conf
+		echo "   - id: 0" >> disks\$f.conf
+		echo "     filename: \$dev" >> disks\$f.conf
+	else
+		echo "   - id: \$i" | tee -a disks.conf >> disks\$f.conf
+		echo "     filename: \$dev" | tee -a disks.conf >> disks\$f.conf
+		i=\`expr \$i + 1\`
+	fi
 	j=\`expr \$j + 1\`
 	[ \$j -eq \$DISKS_SH_NR ] && j=0 && f=\`expr \$f + 1\`
 done
@@ -351,7 +373,8 @@ function start_server () {
 		if ! $RUN [ -f $DISKS_SH_FILE ]; then
 			local dev_id=1
 			if [ $dcf_id -eq 0 ]; then
-				dev_id=`expr $I \* $DISKS_SH_NR + 1`
+				# -1 to exclude addb-stob from numbering
+				dev_id=$(($I * ($DISKS_SH_NR -1) +1))
 			fi
 			gen_disks_conf_files $dev_id || return 1
 		fi
@@ -378,7 +401,7 @@ function start_server () {
 		fi
 	fi
 
-	local SNAME="-s ioservice -s sns_repair"
+	local SNAME="-s addb -s ioservice -s sns_repair"
 	if [ $I -eq 0 ]; then
 		SNAME="-s mdservice $SNAME"
 	fi
@@ -388,7 +411,7 @@ M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
 $BROOT/core/mero/m0d -r -p \
-$STOB_PARAMS -D $DDIR/db -S $DDIR/stobs \
+$STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A $DDIR/stobs \
 -e $XPT:$EP $SNAME $XPT_SETUP" > ${SLOG}$I.log &
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to start remote server on $H
@@ -425,7 +448,7 @@ function start_servers () {
 	echo "Wait for the services to start up..."
 	while true; do
 		local STARTED_NR=`cat ${SLOG}*.log | grep CTRL | wc -l`
-		echo "Started $STARTED_NR services..."
+		echo "Started $STARTED_NR (of $SERVICES_NR) services..."
 		[ $STARTED_NR -ge $SERVICES_NR ] && break
 		l_run sleep 5
 	done
@@ -442,12 +465,29 @@ function stop_server () {
 	else
 		RUN=l_run
 	fi
-	$RUN pkill -USR1 -f m0d
+	$RUN pkill -INT -f m0d
+}
+
+function wait4server () {
+	H=$1
+	echo Wait for servers to finish on host $H
+	local RUN
+	if [ $H != $THIS_HOST ]; then
+		RUN="r_run $H"
+	else
+		RUN=l_run
+	fi
+	$RUN 'while [ "`ps ax | grep -v grep | grep m0d`" ];
+	      do echo -n .; sleep 2; done'
+	echo
 }
 
 function stop_servers () {
 	for H in ${STARTED[*]}; do
 		stop_server $H
+	done
+	for H in ${STARTED[*]}; do
+		wait4server $H
 	done
 }
 
@@ -465,7 +505,6 @@ EOF
 		fi
 	fi
 	stop_servers || return 1
-	sleep 5
 	teardown_hosts
 }
 
@@ -477,6 +516,20 @@ if [ ! -d build_kernel_modules -o ! $BROOT/core -ef $PWD ]; then
 	exit 1
 fi
 LSUM=$(sum $SUMFILE)
+
+rmmod m0loop m0mero galois &> /dev/null
+
+# ldemo now needs kernel module loaded for some reason...
+l_run insmod $BROOT/galois/src/linux_kernel/galois.ko || {
+	echo ERROR: Failed to load galois module
+	exit 1
+}
+l_run modprobe lnet
+l_run insmod $BROOT/core/build_kernel_modules/m0mero.ko || {
+	echo ERROR: Failed to load m0mero module
+	rmmod galois
+	exit 1
+}
 
 l_run utils/m0layout $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
 if [ $? -ne 0 ]; then

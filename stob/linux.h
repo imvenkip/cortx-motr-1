@@ -37,6 +37,7 @@ M0_INTERNAL int m0_linux_stobs_init(void);
 M0_INTERNAL void m0_linux_stobs_fini(void);
 
 struct m0_stob_domain;
+struct m0_dtx;
 
 M0_INTERNAL int m0_linux_stob_setup(struct m0_stob_domain *dom,
 				    bool use_directio);
