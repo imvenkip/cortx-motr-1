@@ -108,18 +108,6 @@ struct m0_fol_rec_part_type m0_io_write_part_type;
 struct m0_fol_rec_part_type m0_io_create_part_type;
 struct m0_fol_rec_part_type m0_io_delete_part_type;
 
-const struct m0_fol_rec_part_ops io_create_part_ops = {
-	.rpo_type = &m0_io_create_part_type,
-	.rpo_undo = NULL,
-	.rpo_redo = NULL,
-};
-
-const struct m0_fol_rec_part_ops io_delete_part_ops = {
-	.rpo_type = &m0_io_delete_part_type,
-	.rpo_undo = NULL,
-	.rpo_redo = NULL,
-};
-
 M0_INTERNAL void m0_ioservice_fop_fini(void)
 {
 	m0_fop_type_fini(&m0_fop_cob_op_reply_fopt);

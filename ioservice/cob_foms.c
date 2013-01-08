@@ -201,6 +201,55 @@ static void cob_fom_populate(struct m0_fom *fom)
 	cfom->fco_cob_idx = common->c_cob_idx;
 }
 
+const struct m0_fol_rec_part_ops io_create_part_ops = {
+	.rpo_type = &m0_io_create_part_type,
+	.rpo_undo = NULL,
+	.rpo_redo = NULL,
+};
+
+const struct m0_fol_rec_part_ops io_delete_part_ops = {
+	.rpo_type = &m0_io_delete_part_type,
+	.rpo_undo = NULL,
+	.rpo_redo = NULL,
+};
+
+static void cob_fol_rec_part_add(struct m0_fom *fom)
+{
+	struct m0_fol_rec_part *fol_rec_part = NULL;
+
+	M0_PRE(fom != NULL);
+
+	if (m0_is_cob_create_fop(fom->fo_fop)) {
+		struct m0_io_create_rec_part *crp;
+
+		fol_rec_part = m0_fol_rec_part_init(&io_create_part_ops);
+		M0_ASSERT(fol_rec_part != NULL);
+		crp = fol_rec_part->rp_data;
+
+		crp->crp_fop = *(struct m0_fop_cob_create *)
+					m0_fop_data(fom->fo_fop);
+		crp->crp_fop_rep = *(struct m0_fop_cob_op_reply *)
+					m0_fop_data(fom->fo_rep_fop);
+	} else if (m0_is_cob_delete_fop(fom->fo_fop)) {
+		struct m0_io_delete_rec_part *drp;
+
+		fol_rec_part = m0_fol_rec_part_init(&io_delete_part_ops);
+		M0_ASSERT(fol_rec_part != NULL);
+		drp = fol_rec_part->rp_data;
+
+		drp->drp_fop = *(struct m0_fop_cob_delete *)
+					m0_fop_data(fom->fo_fop);
+		drp->drp_fop_rep = *(struct m0_fop_cob_op_reply *)
+					m0_fop_data(fom->fo_rep_fop);
+	}
+
+	if (fol_rec_part != NULL) {
+		m0_rec_part_tlist_add_tail(&fom->fo_tx.tx_fol_rec_parts, fol_rec_part);
+		fom->fo_tx.tx_fol_rec_parts_len +=
+			m0_fol_rec_part_data_size(fol_rec_part);
+	}
+}
+
 static int cc_fom_tick(struct m0_fom *fom)
 {
 	int                             rc;
@@ -264,6 +313,10 @@ out:
 					     &reply->cor_fv_updates);
 
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+
+	if (rc == 0)
+		cob_fol_rec_part_add(fom);
+
 	return M0_FSO_AGAIN;
 }
 
@@ -476,6 +529,10 @@ out:
 					     &reply->cor_fv_updates);
 
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+
+	if (rc == 0)
+		cob_fol_rec_part_add(fom);
+
 	return M0_FSO_AGAIN;
 }
 
