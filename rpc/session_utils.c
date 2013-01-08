@@ -72,13 +72,14 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item);
  */
 M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 				 struct m0_rpc_session *session,
-				 const struct m0_rpc_item_ops *ops)
+				 const struct m0_rpc_item_ops *ops,
+				 m0_time_t abs_timeout)
 {
 	struct m0_rpc_item *item;
 	int                 rc;
 
 	if (M0_FI_ENABLED("fake_error"))
-		return -ETIMEDOUT;
+		return -EINVAL;
 
 	if (M0_FI_ENABLED("do_nothing"))
 		return 0;
@@ -90,7 +91,7 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 	item->ri_prio       = M0_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline   = 0;
 	item->ri_ops        = ops;
-	item->ri_op_timeout = m0_time_from_now(10, 0);
+	item->ri_op_timeout = abs_timeout;
 
 	rc = m0_rpc__post_locked(item);
 	M0_RETURN(rc);

@@ -125,7 +125,7 @@ static void conn_init_and_establish(void)
 	/* Checks for Conn M0_RPC_CONN_INITIALISED => M0_RPC_CONN_CONNECTING */
 	conn_init();
 
-	rc = m0_rpc_conn_establish(&conn);
+	rc = m0_rpc_conn_establish(&conn, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(conn_state(&conn) == M0_RPC_CONN_CONNECTING);
 
@@ -152,7 +152,7 @@ static void conn_terminate(void)
 {
 	int rc;
 	/* Checks for Conn M0_RPC_CONN_ACTIVE => M0_RPC_CONN_TERMINATING */
-	rc = m0_rpc_conn_terminate(&conn);
+	rc = m0_rpc_conn_terminate(&conn, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(conn_state(&conn) == M0_RPC_CONN_TERMINATING);
 
@@ -213,8 +213,8 @@ static void conn_establish_fail_test(void)
 	conn_init();
 
 	m0_fi_enable_once("m0_rpc__fop_post", "fake_error");
-	rc = m0_rpc_conn_establish(&conn);
-	M0_UT_ASSERT(rc == -ETIMEDOUT);
+	rc = m0_rpc_conn_establish(&conn, m0_time_from_now(2, 0));
+	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(conn_state(&conn) == M0_RPC_CONN_FAILED);
 
 	m0_rpc_conn_fini(&conn);
@@ -223,7 +223,7 @@ static void conn_establish_fail_test(void)
 	conn_init();
 
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
-	rc = m0_rpc_conn_establish(&conn);
+	rc = m0_rpc_conn_establish(&conn, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == -ENOMEM);
 	M0_UT_ASSERT(conn_state(&conn) == M0_RPC_CONN_FAILED);
 
@@ -268,7 +268,7 @@ static void conn_terminate_fail_test(void)
 	conn_establish_reply();
 
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
-	rc = m0_rpc_conn_terminate(&conn);
+	rc = m0_rpc_conn_terminate(&conn, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == -ENOMEM);
 	M0_UT_ASSERT(conn_state(&conn) == M0_RPC_CONN_FAILED);
 
@@ -279,8 +279,8 @@ static void conn_terminate_fail_test(void)
 	conn_establish_reply();
 
 	m0_fi_enable_once("m0_rpc__fop_post", "fake_error");
-	rc = m0_rpc_conn_terminate(&conn);
-	M0_UT_ASSERT(rc == -ETIMEDOUT);
+	rc = m0_rpc_conn_terminate(&conn, m0_time_from_now(2, 0));
+	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(conn_state(&conn) == M0_RPC_CONN_FAILED);
 
 	m0_rpc_conn_fini(&conn);

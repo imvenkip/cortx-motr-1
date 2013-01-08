@@ -587,13 +587,13 @@ M0_INTERNAL int m0_rpc_conn_establish_sync(struct m0_rpc_conn *conn,
 
 	M0_ENTRY();
 
-	rc = m0_rpc_conn_establish(conn);
+	rc = m0_rpc_conn_establish(conn, m0_time_from_now(timeout_sec, 0));
 	if (rc != 0)
 		M0_RETURN(rc);
 
 	rc = m0_rpc_conn_timedwait(conn, M0_BITS(M0_RPC_CONN_ACTIVE,
 						 M0_RPC_CONN_FAILED),
-				   m0_time_from_now(timeout_sec, 0));
+				   M0_TIME_NEVER);
 
 	M0_POST(M0_IN(conn_state(conn),
 		      (M0_RPC_CONN_ACTIVE, M0_RPC_CONN_FAILED)));
@@ -601,7 +601,8 @@ M0_INTERNAL int m0_rpc_conn_establish_sync(struct m0_rpc_conn *conn,
 }
 M0_EXPORTED(m0_rpc_conn_establish_sync);
 
-M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn)
+M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
+				      m0_time_t abs_timeout)
 {
 	struct m0_fop         *fop;
 	struct m0_rpc_session *session_0;
@@ -634,7 +635,8 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn)
 
 	session_0 = m0_rpc_conn_session0(conn);
 
-	rc = m0_rpc__fop_post(fop, session_0, &conn_establish_item_ops);
+	rc = m0_rpc__fop_post(fop, session_0, &conn_establish_item_ops,
+			      abs_timeout);
 	if (rc == 0)
 		conn_state_set(conn, M0_RPC_CONN_CONNECTING);
 	else
@@ -737,14 +739,14 @@ M0_INTERNAL int m0_rpc_conn_terminate_sync(struct m0_rpc_conn *conn,
 
 	M0_ENTRY();
 
-	rc = m0_rpc_conn_terminate(conn);
+	rc = m0_rpc_conn_terminate(conn, m0_time_from_now(timeout_sec, 0));
 	if (rc != 0) {
 		M0_RETURN(rc);
 	}
 
 	rc = m0_rpc_conn_timedwait(conn, M0_BITS(M0_RPC_CONN_TERMINATED,
 						 M0_RPC_CONN_FAILED),
-				   m0_time_from_now(timeout_sec, 0));
+				   M0_TIME_NEVER);
 
 	M0_ASSERT(M0_IN(conn_state(conn), (M0_RPC_CONN_TERMINATED,
 					   M0_RPC_CONN_FAILED)));
@@ -752,7 +754,8 @@ M0_INTERNAL int m0_rpc_conn_terminate_sync(struct m0_rpc_conn *conn,
 }
 M0_EXPORTED(m0_rpc_conn_terminate_sync);
 
-M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn)
+M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
+				      m0_time_t abs_timeout)
 {
 	struct m0_fop                    *fop;
 	struct m0_rpc_fop_conn_terminate *args;
@@ -788,7 +791,8 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn)
 	args->ct_sender_id = conn->c_sender_id;
 
 	session_0 = m0_rpc_conn_session0(conn);
-	rc = m0_rpc__fop_post(fop, session_0, &conn_terminate_item_ops);
+	rc = m0_rpc__fop_post(fop, session_0, &conn_terminate_item_ops,
+			      abs_timeout);
 	if (rc == 0) {
 		conn_state_set(conn, M0_RPC_CONN_TERMINATING);
 	} else {

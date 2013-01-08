@@ -109,7 +109,6 @@ M0_EXPORTED(m0_fop_alloc);
 
 M0_INTERNAL void m0_fop_fini(struct m0_fop *fop)
 {
-	M0_ENTRY("fop: %p", fop);
 	M0_PRE(fop != NULL);
 	M0_ENTRY("fop: %p %s", fop, fop_name(fop));
 	M0_PRE(M0_IN(m0_ref_read(&fop->f_ref), (0, 1)));

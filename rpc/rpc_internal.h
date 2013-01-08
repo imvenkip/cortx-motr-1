@@ -138,7 +138,8 @@ M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine);
  */
 M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 				 struct m0_rpc_session *session,
-				 const struct m0_rpc_item_ops *ops);
+				 const struct m0_rpc_item_ops *ops,
+				 m0_time_t abs_timeout);
 
 /**
    Temporary routine to place fop in a global queue, from where it can be

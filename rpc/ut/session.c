@@ -133,7 +133,7 @@ static void session_init_and_establish(void)
 	session_init();
 
 	conn.c_sm.sm_state = M0_RPC_CONN_ACTIVE;
-	rc = m0_rpc_session_establish(&session);
+	rc = m0_rpc_session_establish(&session, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(session_state(&session) == M0_RPC_SESSION_ESTABLISHING);
 
@@ -168,11 +168,11 @@ static void session_terminate(void)
 	int rc;
 
 	/* Session transition from IDLE => TERMINATING */
-	rc = m0_rpc_session_terminate(&session);
+	rc = m0_rpc_session_terminate(&session, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(session_state(&session) == M0_RPC_SESSION_TERMINATING);
 
-	rc = m0_rpc_session_terminate(&session);
+	rc = m0_rpc_session_terminate(&session, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(session_state(&session) == M0_RPC_SESSION_TERMINATING);
 
@@ -244,8 +244,8 @@ static void session_establish_fail_test(void)
 	session_init();
 
 	m0_fi_enable_once("m0_rpc__fop_post", "fake_error");
-	rc = m0_rpc_session_establish(&session);
-	M0_UT_ASSERT(rc == -ETIMEDOUT);
+	rc = m0_rpc_session_establish(&session, m0_time_from_now(2, 0));
+	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(session_state(&session) == M0_RPC_SESSION_FAILED);
 
 	m0_rpc_session_fini(&session);
@@ -254,7 +254,7 @@ static void session_establish_fail_test(void)
 	session_init();
 
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
-	rc = m0_rpc_session_establish(&session);
+	rc = m0_rpc_session_establish(&session, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == -ENOMEM);
 	M0_UT_ASSERT(session_state(&session) == M0_RPC_SESSION_FAILED);
 
@@ -304,7 +304,7 @@ static void session_terminate_fail_test(void)
 	session_establish_reply(0);
 
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
-	rc = m0_rpc_session_terminate(&session);
+	rc = m0_rpc_session_terminate(&session, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == -ENOMEM);
 	M0_UT_ASSERT(session_state(&session) == M0_RPC_SESSION_FAILED);
 
@@ -315,8 +315,8 @@ static void session_terminate_fail_test(void)
 	session_establish_reply(0);
 
 	m0_fi_enable_once("m0_rpc__fop_post", "fake_error");
-	rc = m0_rpc_session_terminate(&session);
-	M0_UT_ASSERT(rc == -ETIMEDOUT);
+	rc = m0_rpc_session_terminate(&session, m0_time_from_now(2, 0));
+	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(session_state(&session) == M0_RPC_SESSION_FAILED);
 
 	m0_rpc_session_fini(&session);

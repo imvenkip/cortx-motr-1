@@ -556,7 +556,8 @@ M0_INTERNAL int m0_rpc_session_init(struct m0_rpc_session *session,
     @pre conn_state(session->s_conn) == M0_RPC_CONN_ACTIVE
     @post ergo(result != 0, session_state(session) == M0_RPC_SESSION_FAILED)
  */
-M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session);
+M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
+					 m0_time_t abs_timeout);
 
 /**
  * Same as m0_rpc_session_establish(), but in addition uses
@@ -594,7 +595,8 @@ M0_INTERNAL int m0_rpc_session_create(struct m0_rpc_session *session,
 				       M0_RPC_SESSION_TERMINATING))
    @post ergo(rc != 0, session_state(session) == M0_RPC_SESSION_FAILED)
  */
-M0_INTERNAL int m0_rpc_session_terminate(struct m0_rpc_session *session);
+M0_INTERNAL int m0_rpc_session_terminate(struct m0_rpc_session *session,
+					 m0_time_t abs_timeout);
 
 /**
  * Same as m0_rpc_session_terminate(), but in addition uses

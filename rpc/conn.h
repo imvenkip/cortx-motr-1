@@ -333,7 +333,8 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
     @pre conn_state(conn) == M0_RPC_CONN_INITIALISED
     @post ergo(result != 0, conn_state(conn) == M0_RPC_CONN_FAILED)
  */
-M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn);
+M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
+				      m0_time_t abs_timeout);
 
 /**
  * Same as m0_rpc_conn_establish(), but in addition uses m0_rpc_conn_timedwait()
@@ -373,7 +374,8 @@ M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
 	 conn_state(conn) == M0_RPC_CONN_TERMINATING
    @post ergo(rc != 0, conn_state(conn) == M0_RPC_CONN_FAILED)
  */
-M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn);
+M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
+				      m0_time_t abs_timeout);
 
 /**
  * Same as m0_rpc_conn_terminate(), but in addition uses m0_rpc_conn_timedwait()
