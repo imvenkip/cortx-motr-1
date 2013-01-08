@@ -159,8 +159,8 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 			      struct m0_fop *fop, struct m0_fom **out)
 {
 	struct rm_request_fom *rqfom;
-	struct m0_fop_type    *fopt;
-	struct m0_fom_ops     *fom_ops;
+	struct m0_fop_type    *fopt    = NULL;
+	struct m0_fom_ops     *fom_ops = NULL;
 	struct m0_fop	      *reply_fop;
 
 	M0_ENTRY("creating FOM for request: %d", type);
@@ -277,7 +277,7 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 			 struct m0_fom *fom, int rc)
 {
 	struct m0_fop_rm_borrow_rep *bfop;
-	struct m0_fom_error_rep     *rfop;
+	struct m0_fom_error_rep     *rfop = NULL;
 
 	M0_ENTRY("reply for fom: %p type: %d error: %d", fom, type, rc);
 
@@ -441,7 +441,7 @@ static int request_post_process(struct m0_fom *fom)
 static int request_fom_tick(struct m0_fom *fom,
 			    enum m0_rm_incoming_type type)
 {
-	int rc;
+	int rc = 0;
 
 	M0_ENTRY("running fom: %p for request: %d", fom, type);
 

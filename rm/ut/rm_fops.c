@@ -274,7 +274,7 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
  */
 static void request_test(enum m0_rm_incoming_type reqtype)
 {
-	int rc;
+	int rc = 0;
 
 	request_param_init(reqtype);
 

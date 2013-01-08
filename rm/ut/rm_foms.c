@@ -90,7 +90,7 @@ static void rmfoms_utfini(void)
  */
 static struct m0_fop *fop_alloc(enum m0_rm_incoming_type fomtype)
 {
-	struct m0_fop *fop;
+	struct m0_fop *fop = NULL;
 
 	switch (fomtype) {
 	case M0_RIT_BORROW:
@@ -126,7 +126,7 @@ static void fom_create(enum m0_rm_incoming_type fomtype,
 		       struct m0_fop *fop,
 		       struct m0_fom **fom)
 {
-	int            rc;
+	int            rc = 0;
 	struct m0_fom *base_fom;
 
 	if (err_test)

@@ -216,7 +216,7 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 		      struct m0_rm_loan *loan,
 		      struct m0_rm_credit *credit)
 {
-	const struct m0_rpc_item_ops *ri_ops;
+	const struct m0_rpc_item_ops *ri_ops  = NULL;
 	struct m0_rpc_session	     *session = NULL;
 	struct rm_out		     *outreq;
 	int			      rc;
