@@ -440,8 +440,8 @@ struct m0_fol_rec_type_ops {
 M0_INTERNAL int m0_fols_init(void);
 M0_INTERNAL void m0_fols_fini(void);
 
-/**  Adds the FOL record by iterating through FOL parts from the list in m0_dtx
- *   added during updates on server.
+/**  Composes the FOL record by iterating through FOL parts from the list in m0_dtx
+ *   added during updates on server and adds it in the database.
  */
 M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_dtx *dtx,
 			       struct m0_fol_rec_desc *rec);
@@ -471,14 +471,14 @@ struct m0_fol_rec_part_type {
 	uint32_t                               rpt_index;
 	const char                            *rpt_name;
 	/** Xcode type representing the FOL record part.
-	    Used to encode, decode or calculate length of
+	    Used to encode, decode or calculate the length of
 	    FOL record parts using xcode operations.
 	 */
 	const struct m0_xcode_type	      *rpt_xt;
 };
 
 /** FOL part records are decoded from FOL record and undo or
-    redo opeartions are done.
+    redo operations are done using them.
  */
 struct m0_fol_rec_part_ops {
 	const struct m0_fol_rec_part_type *rpo_type;

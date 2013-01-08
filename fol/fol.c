@@ -556,8 +556,8 @@ M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
 static int fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
 {
 	/**
-	 * @todo Global list of FOL record part type are mainitained to
-	 * register them.
+	 * @todo Maintain a global array of FOL record part types using
+	 * rpt_index.
 	 */
 	return 0;
 }
@@ -571,6 +571,8 @@ M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
 					  const char *name,
 					  const struct m0_xcode_type *xt)
 {
+	M0_PRE(type != NULL);
+
 	type->rpt_xt   = xt;
 	type->rpt_name = name;
 	return fol_rec_part_type_register(type);
@@ -578,6 +580,8 @@ M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
 
 M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type)
 {
+	M0_PRE(type != NULL);
+
 	fol_rec_part_type_deregister(type);
 	type->rpt_xt   = NULL;
 	type->rpt_name = NULL;
@@ -586,7 +590,9 @@ M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type)
 static int fol_rec_part_data_alloc(struct m0_fol_rec_part *part)
 {
 	size_t fol_rec_part_size;
-	M0_PRE(part->rp_ops != NULL && part->rp_ops->rpo_type != NULL);
+
+	M0_PRE(part != NULL && part->rp_ops != NULL &&
+	       part->rp_ops->rpo_type != NULL);
 
 	fol_rec_part_size = part->rp_ops->rpo_type->rpt_xt->xct_sizeof;
 

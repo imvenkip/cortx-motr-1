@@ -53,7 +53,7 @@ struct m0_dtx {
 	enum m0_dtx_state tx_state;
 	struct m0_db_tx   tx_dbtx;
 	/**
-	   A list of all FOL record parts in a record.
+	   A list of FOL record parts to be added in a record.
 	   Record parts are linked through m0_fol_rec_part:rp_link to this list.
 	 */
 	struct m0_tl	  tx_fol_rec_parts;
