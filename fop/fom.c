@@ -488,7 +488,6 @@ static void cb_done(struct m0_fom_callback *cb)
 	cb->fc_state = M0_FCS_DONE;
 	if (m0_clink_is_armed(clink))
 		m0_clink_del(clink);
-	m0_clink_fini(clink);
 }
 
 /**
@@ -969,6 +968,7 @@ static void fom_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 M0_INTERNAL void m0_fom_callback_init(struct m0_fom_callback *cb)
 {
 	cb->fc_state = M0_FCS_DONE;
+	m0_clink_init(&cb->fc_clink, &fom_clink_cb);
 }
 
 M0_INTERNAL void m0_fom_callback_arm(struct m0_fom *fom, struct m0_chan *chan,
@@ -979,7 +979,6 @@ M0_INTERNAL void m0_fom_callback_arm(struct m0_fom *fom, struct m0_chan *chan,
 
 	cb->fc_fom = fom;
 
-	m0_clink_init(&cb->fc_clink, &fom_clink_cb);
 	cb->fc_ast.sa_cb = &fom_ast_cb;
 	cb->fc_state = M0_FCS_ARMED;
 	/* XXX a memory barrier is required
@@ -1002,7 +1001,7 @@ M0_INTERNAL void m0_fom_wait_on(struct m0_fom *fom, struct m0_chan *chan,
 M0_INTERNAL void m0_fom_callback_fini(struct m0_fom_callback *cb)
 {
 	M0_PRE(cb->fc_state == M0_FCS_DONE);
-	/* m0_clink_fini() is called in cb_run() */
+	m0_clink_fini(&cb->fc_clink);
 }
 
 static void cb_cancel(struct m0_fom_callback *cb)
