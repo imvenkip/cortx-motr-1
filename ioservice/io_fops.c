@@ -226,8 +226,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
    <hr>
    @section IOFOLDLD-ovw Overview
-   This document describes the design of logging FOL records for create, delete
-   and write operations.
+   This document describes the design of logging of FOL records for create, delete
+   and write operations in ioservice.
 
    <hr>
    @section IOFOLDLD-def Definitions
@@ -248,48 +248,44 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    @section IOFOLDLD-highlights Design Highlights
 
    For each update made on server corresponding FOL record part is
-   populated and added in the FOM transaction list.
+   populated and added in the FOM transaction FOL record parts list.
+
    These FOL record parts are encoded in a single FOL record in a
-   FOM generic phase after updates are done.
+   FOM generic phase after updates are executed.
 
    <hr>
    @section IOFOLDLD-fspec Functional Specification
    The following new APIs are introduced:
 
-   m0_fol_rec_part and m0_fol_rec_part_type are added to represent
-   FOL record part and it's type.
+   @see m0_fol_rec_part : FOL record part.
+   @see m0_fol_rec_part_type : FOL record part type.
 
    m0_fol_rec_part_ops contains operations for undo and redo of
    FOL record parts.
 
-   m0_fol_rec_part_init() is added to initialize m0_fol_rec_part with
-   m0_fol_rec_part_ops and m0_fol_rec_part_fini is added to finalize it.
+   @see m0_fol_rec_part_init() : Initialize m0_fol_rec_part with
+				 m0_fol_rec_part_ops.
+   @see m0_fol_rec_part_fini   : Finalize it.
 
-   To encode or decode FOL parts using xcode operations m0_xcode_type
-   pointer is added in m0_fol_rec_part_type:rpt_xt.
+   @see m0_fol_rec_part_type_init() : registers FOL record part type and
+				      initializes with xcode FOL record part.
+   @see m0_fol_rec_part_type_fini() : Finalizes FOL record part type.
 
-   m0_fol_rec_part_type_init() and m0_fol_rec_part_type_fini() are added
-   to initialize and finalize FOL part types.
+   FOL Record parts in ioservice,
+   @see io_write_rec_part  : write updates
+   @see io_create_rec_part : create updates
+   @see io_delete_rec_part : delete updates
 
-   FOL record part types are registered in a global array of FOL record
-   parts using m0_fol_rec_part_type::rpt_index.
-
-   io_write_rec_part, io_create_rec_part and io_delete_rec_part FOL parts
-   are added in ioservice for write, create and delete updates.
-   ad_rec_part is added for AD write operation.
+   @see ad_rec_part is added for AD write operation.
 
    FOL record parts list is kept in m0_dtx::tx_fol_rec_parts which is
-   initialized in FOM generic phase m0_fom::fo_tx.
-   m0_dtx::tx_fol_rec_parts_len contains the total length of FOL record parts.
-   It is updated whenever FOL record part is added to the list.
+   initialized in FOM generic phase create_loc_ctx() -> m0_dtx_init().
+   m0_dtx::tx_fol_rec_parts_len contains the total length of FOL record parts,
+   which is updated whenever FOL record part is added to the list.
 
    m0_fol_rec_add() is used to compose FOL record from FOL record parts.
-   fol_rec_parts_pack() encodes the FOL part records from the list in dtx
+   fol_rec_parts_pack() encodes the FOL part records from the list in m0_dtx
    using m0_fol_rec_part_encdec() in a buffer and then removes them from the list.
-
-   m0_fol_rec_part_type::rpt_index should also be encoded for each FOL record part,
-   so that decoding of FOL record parts from FOL record can be done using
-   it.
 
    Usage:
    @code
@@ -297,6 +293,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	int f_key;
 	int f_val;
    } M0_XCA_RECORD;
+
    struct m0_fol_rec_part_type foo_part_type;
 
    const struct m0_fol_rec_part_ops foo_part_ops = {
@@ -305,10 +302,12 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	.rpo_redo = NULL,
    };
 
-   void foo_fol_rec_part_encdec(void)
+   struct mo_dtx dtx;
+
+   void foo_fol_rec_part_add(void)
    {
 	int			result;
-   	struct m0_fol_rec_part *foo_rec_part;
+	struct m0_fol_rec_part *foo_rec_part;
 	struct m0_foo	       *rec;
 
 	result =  m0_fol_rec_part_type_init(&foo_part_type, "foo FOL record part",
@@ -318,7 +317,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	foo_rec_part = m0_fol_rec_part_init(&foo_part_ops);
         M0_ASSERT(foo_rec_part != NULL);
 
-	// Add Fol record part data
 	rec = foo_rec_part->rp_data;
 	rec->f_key = 22;
         rec->f_val = 33;

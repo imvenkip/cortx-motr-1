@@ -459,13 +459,27 @@ struct m0_fol_rec_part {
 	uint64_t			   rp_magic;
 };
 
+/** FOL record part types are registered in a global array of FOL record
+    part types using m0_fol_rec_part_type::rpt_index.
+
+   m0_fol_rec_part_type::rpt_index should also be encoded for each FOL
+   record part, so that decoding of FOL record parts from FOL record
+   can be done using it.
+ */
+
 struct m0_fol_rec_part_type {
 	uint32_t                               rpt_index;
 	const char                            *rpt_name;
-	/** Xcode type representing FOL record part type. */
+	/** Xcode type representing the FOL record part.
+	    Used to encode, decode or calculate length of
+	    FOL record parts using xcode operations.
+	 */
 	const struct m0_xcode_type	      *rpt_xt;
 };
 
+/** FOL part records are decoded from FOL record and undo or
+    redo opeartions are done.
+ */
 struct m0_fol_rec_part_ops {
 	const struct m0_fol_rec_part_type *rpo_type;
 	int (*rpo_undo)(struct m0_fol_rec_part *part);
