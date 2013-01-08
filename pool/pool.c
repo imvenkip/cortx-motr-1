@@ -205,7 +205,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach *pm,
 	struct m0_poolmach_state   *pm_state;
 	struct m0_pool_spare_usage *spare_array;
 	struct m0_pool_event_link  *event_link;
-	enum m0_pool_nd_state       old_state;
+	enum m0_pool_nd_state       old_state = M0_PNDS_FAILED;
 	int                         rc = 0;
 	int                         i;
 
