@@ -1624,6 +1624,31 @@ static int io_finish(struct m0_fom *fom)
         return M0_FSO_AGAIN;
 }
 
+const struct m0_fol_rec_part_ops io_write_part_ops = {
+	.rpo_type = &m0_io_write_part_type,
+	.rpo_undo = NULL,
+	.rpo_redo = NULL,
+};
+
+static void write_fol_rec_part_add(struct m0_fom *fom)
+{
+	struct m0_fol_rec_part	    *fol_rec_part;
+	struct m0_io_write_rec_part *wrp;
+
+	fol_rec_part = m0_fol_rec_part_init(&io_write_part_ops);
+	M0_ASSERT(fol_rec_part != NULL);
+	wrp = fol_rec_part->rp_data;
+
+	wrp->wrp_fop = *(struct m0_fop_cob_writev *)m0_fop_data(fom->fo_fop);
+	wrp->wrp_fid = wrp->wrp_fop.c_rwv.crw_fid;
+	wrp->wrp_fop_rep = *(struct m0_fop_cob_writev_rep *)
+				m0_fop_data(fom->fo_rep_fop);
+
+	m0_rec_part_tlist_add_tail(&fom->fo_tx.tx_fol_rec_parts, fol_rec_part);
+	fom->fo_tx.tx_fol_rec_parts_len +=
+		m0_fol_rec_part_data_size(fol_rec_part);
+}
+
 /**
  * State Transition function for I/O operation that executes
  * on data server.
@@ -1692,6 +1717,11 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 						     &rwfop->crw_version,
 						     &rwrep->rwr_fv_version,
 						     &rwrep->rwr_fv_updates);
+
+		if (m0_fom_phase(fom) == M0_FOPH_SUCCESS &&
+		    m0_is_write_fop(fom->fo_fop))
+			write_fol_rec_part_add(fom);
+
 		return rc;
 	}
 

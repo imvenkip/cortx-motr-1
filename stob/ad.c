@@ -184,7 +184,7 @@ static int ad_stob_type_init(struct m0_stob_type *stype)
  */
 static void ad_stob_type_fini(struct m0_stob_type *stype)
 {
-	m0_fol_rec_part_type_fini(&ad_part_type);
+	m0_fol_rec_part_type_fini(&m0_ad_part_type);
 
 	m0_xc_ad_fini();
 	m0_stob_type_fini(stype);
@@ -1062,7 +1062,7 @@ static struct m0_fol_rec_part *ad_fol_part_alloc(uint32_t frags)
 
 	part = m0_fol_rec_part_init(&ad_part_ops);
 	if (part != NULL) {
-		struct ad_rec_part *arp = part->rp_data;
+		struct m0_ad_rec_part *arp = part->rp_data;
 
 		arp->arp_segments = frags;
 
@@ -1098,7 +1098,7 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 	bool          eoext;
 	struct m0_ext todo;
 	struct m0_fol_rec_part *part;
-	struct ad_rec_part     *arp;
+	struct m0_ad_rec_part  *arp;
 	uint32_t		i = 0;
 
 	part = ad_fol_part_alloc(frags);
