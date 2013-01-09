@@ -373,6 +373,8 @@ M0_INTERNAL int m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
 M0_INTERNAL void
 m0_fol_rec_part_type_deregister(struct m0_fol_rec_part_type *type)
 {
+	M0_PRE(type != NULL);
+
 	m0_mutex_lock(&rptypes_lock);
 	M0_PRE(IS_IN_ARRAY(type->rpt_index, rptypes));
 	M0_PRE(rptypes[type->rpt_index] == type ||
