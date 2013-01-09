@@ -58,6 +58,9 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc);
 M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item);
 M0_INTERNAL void m0_rpc_item_stop_timer(struct m0_rpc_item *item);
 
+M0_INTERNAL int m0_rpc_item_start_resend_timer(struct m0_rpc_item *item);
+M0_INTERNAL void m0_rpc_item_stop_resend_timer(struct m0_rpc_item *item);
+
 M0_INTERNAL void m0_rpc_item_set_stage(struct m0_rpc_item *item,
 				       enum m0_rpc_item_stage s);
 
@@ -81,6 +84,7 @@ M0_INTERNAL bool item_is_active(const struct m0_rpc_item *item);
 M0_INTERNAL struct m0_verno *item_verno(struct m0_rpc_item *item, int idx);
 M0_INTERNAL uint64_t item_xid(struct m0_rpc_item *item, int idx);
 M0_INTERNAL const char *item_kind(const struct m0_rpc_item *item);
+M0_INTERNAL const char *item_state_name(const struct m0_rpc_item *item);
 
 M0_TL_DESCR_DECLARE(slot_item, M0_EXTERN);
 M0_TL_DECLARE(slot_item, M0_INTERNAL, struct m0_rpc_item);

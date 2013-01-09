@@ -184,10 +184,11 @@ struct m0_rpc_item {
 	struct m0_rpc_session		*ri_session;
 	/** item operations */
 	const struct m0_rpc_item_ops	*ri_ops;
-	struct m0_rpc_machine           *ri_rmachine;
-
+	bool                             ri_resend_is_allowed;
+	m0_time_t                        ri_resend_interval;
 /* Public fields: read only */
 
+	struct m0_rpc_machine           *ri_rmachine;
 	int32_t				 ri_error;
 	/** reply item */
 	struct m0_rpc_item		*ri_reply;
@@ -199,9 +200,11 @@ struct m0_rpc_item {
 	struct m0_sm_timeout             ri_deadline_to;
 	/** Invokes item_timedout_cb() after ri_op_timeout is passed */
 	struct m0_sm_timer               ri_timer;
+	struct m0_sm_timer               ri_resend_timer;
 	struct m0_sm                     ri_sm;
 	enum m0_rpc_item_stage		 ri_stage;
 	uint64_t			 ri_flags;
+	uint32_t                         ri_nr_resend_attempts;
 	struct m0_rpc_slot_ref		 ri_slot_refs[MAX_SLOT_REF];
 	/** Anchor to put item on m0_rpc_session::s_unbound_items list */
 	struct m0_list_link		 ri_unbound_link;

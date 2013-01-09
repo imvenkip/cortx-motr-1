@@ -429,7 +429,9 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 		item _is_ placed on the network, do not lie in the
 		->sent() callback, by keeping ri_error as -ETIMEDOUT.
 		So set ri_error to rc; just for the duration of ->sent()
-		callback. And then restore it back to -ETIMEDOUT.
+		callback. And then restore it back to -ETIMEDOUT unless
+	        the reply has already been received, in which case
+	        ignore the timeout.
 	 */
 	item->ri_error = rc;
 	if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
@@ -477,6 +479,8 @@ static void item_sent(struct m0_rpc_item *item)
 			   were waiting for buffer callback */
 			m0_rpc_slot_process_reply(item);
 			M0_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_REPLIED);
+		} else if (item->ri_resend_is_allowed) {
+			(void)m0_rpc_item_start_resend_timer(item);
 		}
 	}
 	M0_LEAVE();

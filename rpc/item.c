@@ -37,6 +37,7 @@
 
 static int item_entered_in_urgent_state(struct m0_sm *mach);
 static void item_timedout_cb(struct m0_sm_timer *timer);
+static void item_resend_timer_cb(struct m0_sm_timer *timer);
 
 M0_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", M0_INTERNAL,
 		   struct m0_rpc_item, ri_field,
@@ -312,7 +313,7 @@ M0_INTERNAL bool m0_rpc_item_invariant(const struct m0_rpc_item *item)
 			item->ri_stage <= RPC_ITEM_STAGE_PAST_VOLATILE);
 }
 
-static const char *item_state_name(const struct m0_rpc_item *item)
+M0_INTERNAL const char *item_state_name(const struct m0_rpc_item *item)
 {
 	return item->ri_sm.sm_conf->scf_state[item->ri_sm.sm_state].sd_name;
 }
@@ -355,6 +356,10 @@ M0_INTERNAL void m0_rpc_item_init(struct m0_rpc_item *item,
 	item->ri_op_timeout = M0_TIME_NEVER;
 	item->ri_magic      = M0_RPC_ITEM_MAGIC;
 
+	item->ri_resend_is_allowed = true;
+	item->ri_resend_interval = m0_time(0, 500 * 1000 * 1000);
+	m0_sm_timer_init(&item->ri_resend_timer);
+
 	sref = &item->ri_slot_refs[0];
 	sref->sr_ow = invalid_slot_ref;
 
@@ -376,6 +381,7 @@ M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item)
 
 	M0_ENTRY("item: %p", item);
 
+	m0_sm_timer_fini(&item->ri_resend_timer);
 	m0_sm_timer_fini(&item->ri_timer);
 	m0_sm_timeout_fini(&item->ri_deadline_to);
 
@@ -666,6 +672,8 @@ static void item_timedout_cb(struct m0_sm_timer *timer)
 
 	item->ri_rmachine->rm_stats.rs_nr_timedout_items++;
 
+	m0_rpc_item_stop_resend_timer(item);
+
 	state = item->ri_sm.sm_state;
 	if (M0_IN(state, (M0_RPC_ITEM_ENQUEUED, M0_RPC_ITEM_URGENT))) {
 		m0_rpc_item_get(item);
@@ -681,6 +689,52 @@ static void item_timedout_cb(struct m0_sm_timer *timer)
 		M0_ASSERT(false);
 	}
 	M0_LEAVE();
+}
+
+M0_INTERNAL int m0_rpc_item_start_resend_timer(struct m0_rpc_item *item)
+{
+	int rc;
+
+	M0_ENTRY();
+	M0_PRE(item != NULL && m0_rpc_item_is_request(item));
+	rc = m0_sm_timer_start(&item->ri_resend_timer,
+				&item->ri_rmachine->rm_sm_grp,
+				item_resend_timer_cb,
+				m0_time_add(m0_time_now(),
+					    item->ri_resend_interval));
+
+	if (rc == 0)
+		M0_LOG(M0_FATAL, "item %p [%s/%u] started resend timer",
+			item, item_kind(item), item->ri_type->rit_opcode);
+	else
+		M0_LOG(M0_FATAL,
+			"item %p [%s/%u] failed to start resend timer %d",
+			item, item_kind(item), item->ri_type->rit_opcode, rc);
+	M0_RETURN(rc);
+}
+
+M0_INTERNAL void m0_rpc_item_stop_resend_timer(struct m0_rpc_item *item)
+{
+	if (m0_sm_timer_is_armed(&item->ri_resend_timer)) {
+		M0_ASSERT(m0_rpc_item_is_request(item));
+		M0_LOG(M0_FATAL, "%p Stopping resend timer", item);
+		m0_sm_timer_cancel(&item->ri_resend_timer);
+	}
+}
+
+static void item_resend_timer_cb(struct m0_sm_timer *timer)
+{
+	struct m0_rpc_item *item;
+
+	item = container_of(timer, struct m0_rpc_item, ri_resend_timer);
+	M0_ASSERT(item->ri_magic == M0_RPC_ITEM_MAGIC);
+	M0_ASSERT(m0_rpc_machine_is_locked(item->ri_rmachine));
+	M0_ASSERT(m0_rpc_item_is_request(item) &&
+		  item->ri_sm.sm_state == M0_RPC_ITEM_WAITING_FOR_REPLY);
+	M0_LOG(M0_FATAL, "%p [%s/%u] %s resend timer expired",
+		item, item_kind(item), item->ri_type->rit_opcode,
+		item_state_name(item));
+
 }
 
 #undef SLOT_REF_XCODE_OBJ
