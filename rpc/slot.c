@@ -615,7 +615,7 @@ M0_INTERNAL int __slot_reply_received(struct m0_rpc_slot *slot,
 		 *
 		 * Such reply must be ignored
 		 */
-		;
+		/* Do nothing. */;
 	} else if (M0_IN(req->ri_stage, (RPC_ITEM_STAGE_PAST_COMMITTED,
 					 RPC_ITEM_STAGE_PAST_VOLATILE))) {
 		/*
@@ -657,6 +657,12 @@ M0_INTERNAL int __slot_reply_received(struct m0_rpc_slot *slot,
 			 */
 			M0_LOG(M0_DEBUG, "req: %p rply: %p rply postponed",
 			       req, reply);
+		} else if (M0_IN(req_state, (M0_RPC_ITEM_ENQUEUED,
+					     M0_RPC_ITEM_URGENT))) {
+			m0_rpc_frm_remove_item(
+				&req->ri_session->s_conn->c_rpcchan->rc_frm,
+				req);
+			m0_rpc_slot_process_reply(req);
 		} else {
 			M0_ASSERT(false);
 		}
@@ -674,7 +680,9 @@ M0_INTERNAL void m0_rpc_slot_process_reply(struct m0_rpc_item *req)
 	M0_PRE(req != NULL && req->ri_reply != NULL);
 	M0_PRE(m0_rpc_item_is_request(req));
 	M0_PRE(M0_IN(req->ri_sm.sm_state, (M0_RPC_ITEM_WAITING_FOR_REPLY,
-					   M0_RPC_ITEM_ACCEPTED)));
+					   M0_RPC_ITEM_ACCEPTED,
+					   M0_RPC_ITEM_ENQUEUED,
+					   M0_RPC_ITEM_URGENT)));
 
 	m0_rpc_item_set_stage(req, RPC_ITEM_STAGE_PAST_VOLATILE);
 	slot = req->ri_slot_refs[0].sr_slot;

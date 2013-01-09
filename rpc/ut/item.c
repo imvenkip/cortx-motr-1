@@ -218,6 +218,7 @@ static void test_resend(void)
 	struct m0_rpc_item *item;
 	int                 rc;
 
+	M0_LOG(M0_FATAL, "TEST1:START");
 	fop = fop_alloc();
 	item = &fop->f_item;
 	m0_fi_enable_once("item_received", "drop_item");
@@ -229,6 +230,23 @@ static void test_resend(void)
 	M0_UT_ASSERT(item->ri_reply != NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
 	m0_fop_put(fop);
+	M0_LOG(M0_FATAL, "TEST1:END");
+
+	/* Check ENQUEUED -> REPLIED transition */
+	M0_LOG(M0_FATAL, "TEST2:START");
+	fop = fop_alloc();
+	item = &fop->f_item;
+	m0_fi_enable_once("m0_rpc_reply_post", "delay_reply");
+	m0_fi_enable_once("m0_rpc_item_resend", "advance_deadline");
+	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
+				0 /* urgent */, m0_time_from_now(2, 0));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_error == 0);
+	M0_UT_ASSERT(item->ri_nr_resend_attempts == 1);
+	M0_UT_ASSERT(item->ri_reply != NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
+	m0_fop_put(fop);
+	M0_LOG(M0_FATAL, "TEST2:END");
 }
 
 static void test_failure_before_sending(void)

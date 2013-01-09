@@ -26,6 +26,7 @@
 #include "lib/rwlock.h"
 #include "lib/misc.h"
 #include "lib/errno.h"
+#include "lib/finject.h"
 #include "mero/magic.h"
 #include "rpc/rpc_internal.h"
 
@@ -171,13 +172,15 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 		.sd_name    = "ENQUEUED",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_SENDING,
 				      M0_RPC_ITEM_URGENT,
-				      M0_RPC_ITEM_FAILED),
+				      M0_RPC_ITEM_FAILED,
+				      M0_RPC_ITEM_REPLIED),
 	},
 	[M0_RPC_ITEM_URGENT] = {
 		.sd_name    = "URGENT",
 		.sd_in      = item_entered_in_urgent_state,
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_SENDING,
-				      M0_RPC_ITEM_FAILED),
+				      M0_RPC_ITEM_FAILED,
+				      M0_RPC_ITEM_REPLIED),
 	},
 	[M0_RPC_ITEM_SENDING] = {
 		.sd_name    = "SENDING",
@@ -537,7 +540,7 @@ M0_INTERNAL void m0_rpc_item_change_state(struct m0_rpc_item *item,
 {
 	M0_PRE(item != NULL);
 
-	M0_LOG(M0_DEBUG, "%p[%s/%u] %s -> %s", item,
+	M0_LOG(M0_FATAL, "%p[%s/%u] %s -> %s", item,
 	       item_kind(item),
 	       item->ri_type->rit_opcode,
 	       item_state_name(item),
@@ -746,6 +749,11 @@ M0_INTERNAL void m0_rpc_item_resend(struct m0_rpc_item *item)
 	M0_PRE(item != NULL && m0_rpc_machine_is_locked(item->ri_rmachine));
 	M0_PRE(m0_rpc_item_is_request(item) &&
 	       item->ri_sm.sm_state == M0_RPC_ITEM_WAITING_FOR_REPLY);
+
+	if (M0_FI_ENABLED("advance_deadline")) {
+		M0_LOG(M0_FATAL,"%p deadline advanced", item);
+		item->ri_deadline = m0_time_from_now(0, 500 * 1000 * 1000);
+	}
 
 	item->ri_nr_resend_attempts++;
 	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm,

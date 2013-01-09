@@ -28,6 +28,9 @@
 #include "lib/errno.h"
 #include "lib/misc.h"     /* M0_IN */
 #include "lib/types.h"
+#include "lib/finject.h"
+
+#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 /**
@@ -216,6 +219,11 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 	M0_PRE(reply->ri_type != NULL);
 	M0_PRE(m0_rpc_item_size(reply) <=
 			m0_rpc_session_get_max_item_size(request->ri_session));
+
+	if (M0_FI_ENABLED("delay_reply")) {
+		M0_LOG(M0_FATAL, "%p reply delayed", request);
+		m0_nanosleep(m0_time(0, 700 * 1000 * 1000), NULL);
+	}
 
 	reply->ri_rpc_time = m0_time_now();
 	reply->ri_session  = request->ri_session;

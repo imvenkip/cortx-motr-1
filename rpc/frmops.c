@@ -433,13 +433,14 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 	        the reply has already been received, in which case
 	        ignore the timeout.
 	 */
+	if (rc != 0 && reply_is_pending) {
+		M0_ASSERT(item->ri_nr_resend_attempts > 0);
+		rc = 0; /* ignore the error */
+	}
 	item->ri_error = rc;
 	if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
 		item->ri_ops->rio_sent(item);
 
-	M0_ASSERT(ergo(rc != 0, !reply_is_pending)); /* if sending is failed
-							then how can reply be
-							pending */
 	if (timeout_is_pending) {
 		if (rc != 0 || reply_is_pending) {
 			/* ignore timeout */;
