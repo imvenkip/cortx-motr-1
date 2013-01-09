@@ -144,6 +144,15 @@ M0_INTERNAL struct m0_sns_cm *it2sns(struct m0_sns_cm_iter *it)
 	return container_of(it, struct m0_sns_cm, sc_it);
 }
 
+/**
+ * Returns index of spare unit in the parity group.
+ */
+static uint64_t __spare_unit_nr(const struct m0_sns_cm_pdclust_layout *spl,
+				uint64_t group)
+{
+	return spl->spl_N + spl->spl_K + 1 - 1;
+}
+
 static uint64_t __unit_start(struct m0_sns_cm_iter *it)
 {
 	struct m0_sns_cm *scm = it2sns(it);
@@ -154,7 +163,7 @@ static uint64_t __unit_start(struct m0_sns_cm_iter *it)
 		return 0;
 	case SNS_REBALANCE:
 		/* Start from the first spare unit of the group. */
-		return it->si_pl.spl_N;
+		return __spare_unit_nr(&it->si_pl, it->si_pl.spl_sa.sa_group);
 	default:
 		 M0_IMPOSSIBLE("op");
 	}
@@ -231,7 +240,8 @@ static ssize_t file_size(struct m0_sns_cm_iter *it)
 {
 	M0_PRE(it != NULL);
 
-	it->si_pl.spl_fsize = m0_trigger_file_size_get(&it->si_pl.spl_gob_fid);
+	if (it->si_pl.spl_fsize == 0)
+		it->si_pl.spl_fsize = m0_trigger_file_size_get(&it->si_pl.spl_gob_fid);
 	return 0;
 }
 
@@ -360,15 +370,6 @@ static uint64_t __group_failed_unit_index(const struct m0_sns_cm_pdclust_layout
 	}
 
 	return ~0;
-}
-
-/**
- * Returns index of spare unit in the parity group.
- */
-static uint64_t __spare_unit_nr(const struct m0_sns_cm_pdclust_layout *spl,
-				uint64_t group)
-{
-	return spl->spl_N + spl->spl_K + 1 - 1;
 }
 
 static uint64_t __target_unit_nr(const struct m0_sns_cm_pdclust_layout *spl,

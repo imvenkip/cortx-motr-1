@@ -229,6 +229,8 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				scm->sc_it.si_pl.spl_N = treq->N;
 				scm->sc_it.si_pl.spl_K = treq->K;
 				scm->sc_it.si_pl.spl_P = treq->P;
+				scm->sc_op             = treq->op;
+				printf("sc_op: %u", treq->op);
 				rc = m0_cm_start(cm);
 				M0_ASSERT(rc == 0);
 				m0_fom_wait_on(fom, &scm->sc_stop_wait, &fom->fo_cb);

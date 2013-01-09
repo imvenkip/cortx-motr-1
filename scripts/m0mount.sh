@@ -401,7 +401,7 @@ function start_server () {
 		fi
 	fi
 
-	local SNAME="-s addb -s ioservice -s sns_repair"
+	local SNAME="-s addb -s ioservice -s sns_cm"
 	if [ $I -eq 0 ]; then
 		SNAME="-s mdservice $SNAME"
 	fi

@@ -146,6 +146,7 @@ static void cob_create(uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx)
 	struct m0_cob        *cob;
 	struct m0_cob_domain *cdom;
 	struct m0_fid         cob_fid;
+	struct m0_fid         gob_fid;
 	struct m0_dtx         tx;
 	struct m0_dbenv      *dbenv;
 	struct m0_cob_nskey  *nskey;
@@ -165,7 +166,7 @@ static void cob_create(uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx)
 
 	M0_SET_ARR0(nskey_bs);
         snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u",
-                 (uint32_t)cob_idx);
+                 (uint32_t)cont);
         nskey_bs_len = strlen(nskey_bs);
 
 	rc = m0_cob_nskey_make(&nskey, gfid, (char *)nskey_bs, nskey_bs_len);
@@ -250,7 +251,7 @@ static void cobs_delete(uint64_t nr_cobs)
 			cob_delete(j, ITER_GOB_KEY_START + i);
 }
 
-static void nsit_verify(struct m0_fid *gfid, int cnt)
+static void nsit_verify(struct m0_fid *gfid)
 {
 	M0_UT_ASSERT(gfid->f_container == 0);
 	/* Verify that gob-fid has been enumerated in lexicographical order. */
@@ -258,18 +259,17 @@ static void nsit_verify(struct m0_fid *gfid, int cnt)
 }
 
 static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata,
-		    bool verify_ns_iter)
+		    bool verify_ns_iter, enum m0_sns_cm_op op)
 {
 	struct m0_sns_cm_cp scp;
 	int                 rc;
-	int                 cnt;
 
 	cobs_create(pool_width);
 	/* Set file size */
 	scm->sc_it.si_pl.spl_fsize = fsize;
 	/* Set fail device. */
 	scm->sc_it.si_fdata = fdata;
-	cnt = 0;
+	scm->sc_op = op;
 	m0_cm_lock(cm);
 	do {
 		M0_SET0(&scp);
@@ -277,10 +277,9 @@ static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata,
 		rc = m0_sns_cm_iter_next(cm, &scp.sc_base);
 		if (rc == M0_FSO_AGAIN) {
 			if (verify_ns_iter)
-				nsit_verify(&scm->sc_it.si_pl.spl_gob_fid, cnt);
+				nsit_verify(&scm->sc_it.si_pl.spl_gob_fid);
 			M0_UT_ASSERT(cp_verify(&scp));
 			buf_put(&scp);
-			++cnt;
 		}
 	} while (rc == M0_FSO_AGAIN);
 	m0_cm_unlock(cm);
@@ -299,12 +298,22 @@ static void iter_stop(uint64_t pool_width)
 	sns_cm_ut_server_stop();
 }
 
-static void iter_success(void)
+static void iter_repair_success(void)
 {
 	int      rc;
 
 	iter_setup(3, 1, 5);
-	rc = iter_run(5, 36864, 2, true);
+	rc = iter_run(5, 36864, 4, true, SNS_REPAIR);
+	M0_UT_ASSERT(rc == -ENODATA);
+	iter_stop(5);
+}
+
+static void iter_rebalance_success(void)
+{
+	int      rc;
+
+	iter_setup(3, 1, 5);
+	rc = iter_run(5, 36864, 4, true, SNS_REBALANCE);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(5);
 }
@@ -314,7 +323,7 @@ static void iter_pool_width_more_than_N_plus_2K(void)
 	int rc;
 
 	iter_setup(2, 1, 10);
-	rc = iter_run(10, 36864, 2, false);
+	rc = iter_run(10, 36864, 4, false, SNS_REPAIR);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(10);
 }
@@ -324,7 +333,7 @@ static void iter_invalid_nr_cobs(void)
 	int rc;
 
 	iter_setup(3, 1, 5);
-	rc = iter_run(3, 36864, 2, false);
+	rc = iter_run(3, 36864, 4, false, SNS_REPAIR);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(3);
 }
@@ -337,7 +346,8 @@ const struct m0_test_suite sns_cm_ut = {
 		{ "service-startstop", service_start_success},
 		{ "service-init-fail", service_init_failure},
 		{ "service-start-fail", service_start_failure},
-		{ "iter-success", iter_success},
+		{ "iter-repair-success", iter_repair_success},
+		{ "iter-rebalance-success", iter_rebalance_success},
 		{ "iter-pool-width-more-than-N-plus-2K",
 		  iter_pool_width_more_than_N_plus_2K},
 		{ "iter-invalid-nr-cobs", iter_invalid_nr_cobs},

@@ -225,7 +225,7 @@ enum m0_magic_satchel {
 
 /* Copy packet */
 	/* m0_cm_cp::cp_bob (ecobabble ace) */
-	CM_CP_MAGIX = 0x33ec0babb1eace,
+	CM_CP_MAGIX = 0x33ec0babb1eace77,
 
 /* desim */
 	/* client_write_ext::cwe_magic (abasic access) */
