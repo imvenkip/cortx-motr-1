@@ -1060,7 +1060,7 @@ static struct m0_fol_rec_part *ad_fol_part_alloc(uint32_t frags)
 {
 	struct m0_fol_rec_part *part;
 
-	part = m0_fol_rec_part_init(&ad_part_ops);
+	part = m0_fol_rec_part_init(&m0_ad_part_type);
 	if (part != NULL) {
 		struct m0_ad_rec_part *arp = part->rp_data;
 

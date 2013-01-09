@@ -108,6 +108,11 @@ struct m0_fol_rec_part_type m0_io_write_part_type;
 struct m0_fol_rec_part_type m0_io_create_part_type;
 struct m0_fol_rec_part_type m0_io_delete_part_type;
 
+const struct m0_fol_rec_part_ops io_default_part_ops = {
+	.rpo_undo = NULL,
+	.rpo_redo = NULL,
+};
+
 M0_INTERNAL void m0_ioservice_fop_fini(void)
 {
 	m0_fop_type_fini(&m0_fop_cob_op_reply_fopt);
@@ -211,11 +216,11 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
 					      M0_RPC_ITEM_TYPE_ONEWAY) ?:
 		m0_fol_rec_part_type_init(&m0_io_write_part_type, "IO write record part",
-					  m0_io_write_rec_part_xc) ?:
+					  m0_io_write_rec_part_xc, &io_default_part_ops) ?:
 		m0_fol_rec_part_type_init(&m0_io_create_part_type, "IO create record part",
-					  m0_io_create_rec_part_xc) ?:
+					  m0_io_create_rec_part_xc, &io_default_part_ops) ?:
 		m0_fol_rec_part_type_init(&m0_io_delete_part_type, "IO delete record part",
-					  m0_io_delete_rec_part_xc);
+					  m0_io_delete_rec_part_xc, &io_default_part_ops);
 }
 
 /**

@@ -131,11 +131,20 @@ static void test_type_unreg(void)
 	m0_fol_rec_type_unregister(&ut_fol_type);
 }
 
+int verify_part_data(struct m0_fol_rec_part *part)
+{
+	struct m0_fid *dec_rec;
+
+	dec_rec = part->rp_data;
+	M0_UT_ASSERT(dec_rec->f_container == 22);
+	M0_UT_ASSERT(dec_rec->f_key == 33);
+	return 0;
+}
+
 struct m0_fol_rec_part_type ut_part_type;
 
 const struct m0_fol_rec_part_ops ut_part_ops = {
-	.rpo_type = &ut_part_type,
-	.rpo_undo = NULL,
+	.rpo_undo = verify_part_data,
 	.rpo_redo = NULL,
 };
 
@@ -148,10 +157,10 @@ static void test_fol_rec_part_encdec(void)
 	M0_ALLOC_PTR(ut_rec_part);
 
 	result =  m0_fol_rec_part_type_init(&ut_part_type, "UT FOL record part",
-					    m0_fid_xc);
+					    m0_fid_xc, &ut_part_ops);
 	M0_ASSERT(result == 0);
 
-	ut_rec_part = m0_fol_rec_part_init(&ut_part_ops);
+	ut_rec_part = m0_fol_rec_part_init(&ut_part_type);
 	M0_ASSERT(ut_rec_part != NULL);
 
 	rec = ut_rec_part->rp_data;
@@ -182,8 +191,7 @@ static void test_fol_rec_part_encdec(void)
 		m0_bcount_t	        len;
 		void		       *buf = &dup.fr_desc.rd_data;
 		struct m0_bufvec	bvec = M0_BUFVEC_INIT_BUF(buf, &len);
-		struct m0_fol_rec_part *part;
-		struct m0_fid	       *dec_rec;
+		struct m0_fol_rec_part  part;
 
 		struct m0_fol_rec_part_header      ph;
 		const struct m0_fol_rec_part_type *part_type;
@@ -196,20 +204,12 @@ static void test_fol_rec_part_encdec(void)
 
 		part_type = m0_fol_rec_part_type_lookup(ph.rph_index);
 
-		part = m0_fol_rec_part_init(&ut_part_ops);
-		M0_ASSERT(part != NULL);
+		part.rp_type = part_type;
 
-		result = m0_fol_rec_part_encdec(part, &cur, M0_BUFVEC_DECODE);
+		result = m0_fol_rec_part_encdec(&part, &cur, M0_BUFVEC_DECODE);
 		M0_ASSERT(result == 0);
 
-		dec_rec = part->rp_data;
-		M0_UT_ASSERT(dec_rec->f_container == rec->f_container);
-		M0_UT_ASSERT(dec_rec->f_key == rec->f_key);
-
-		if (part->rp_data != NULL)
-			m0_xcode_free(&M0_FOL_REC_PART_XCODE_OBJ(part));
-		m0_rec_part_tlink_fini(part);
-		m0_free(part);
+		part.rp_type->rpt_ops->rpo_undo(&part);
 	}
 
 	m0_fol_rec_fini(&dup);

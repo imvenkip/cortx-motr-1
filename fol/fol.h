@@ -490,7 +490,7 @@ M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_dtx *dtx,
 
 /** It represents updates made as part of executing FOM on server. */
 struct m0_fol_rec_part {
-	const struct m0_fol_rec_part_ops  *rp_ops;
+	const struct m0_fol_rec_part_type *rp_type;
 	/** Pointer to the data where FOL record part is serialised or
 	    will be de-serialised.
 	 */
@@ -501,27 +501,28 @@ struct m0_fol_rec_part {
 	uint64_t			   rp_magic;
 };
 
+struct m0_fol_rec_part_ops {
+	int (*rpo_undo)(struct m0_fol_rec_part *part);
+	int (*rpo_redo)(struct m0_fol_rec_part *part);
+};
+
 struct m0_fol_rec_part_type {
+	const struct m0_fol_rec_part_ops      *rpt_ops;
 	uint32_t                               rpt_index;
 	const char                            *rpt_name;
 	/** Xcode type representing FOL record part type. */
 	const struct m0_xcode_type	      *rpt_xt;
 };
 
-struct m0_fol_rec_part_ops {
-	const struct m0_fol_rec_part_type *rpo_type;
-	int (*rpo_undo)(struct m0_fol_rec_part *part);
-	int (*rpo_redo)(struct m0_fol_rec_part *part);
-};
-
 M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(
-		const struct m0_fol_rec_part_ops *ops);
+		const struct m0_fol_rec_part_type *type);
 
 M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part);
 
 M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
 					  const char *name,
-					  const struct m0_xcode_type  *xt);
+					  const struct m0_xcode_type  *xt,
+					  const struct m0_fol_rec_part_ops *ops);
 
 M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type);
 
@@ -536,7 +537,7 @@ M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
 			               enum m0_bufvec_what      what);
 
 #define M0_FOL_REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) {	\
-		.xo_type = r->rp_ops->rpo_type->rpt_xt,		\
+		.xo_type = r->rp_type->rpt_xt,		\
 		.xo_ptr  = r->rp_data,		                \
 }
 

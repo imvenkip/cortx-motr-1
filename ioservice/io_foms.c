@@ -1624,18 +1624,12 @@ static int io_finish(struct m0_fom *fom)
         return M0_FSO_AGAIN;
 }
 
-const struct m0_fol_rec_part_ops io_write_part_ops = {
-	.rpo_type = &m0_io_write_part_type,
-	.rpo_undo = NULL,
-	.rpo_redo = NULL,
-};
-
 static void write_fol_rec_part_add(struct m0_fom *fom)
 {
 	struct m0_fol_rec_part	    *fol_rec_part;
 	struct m0_io_write_rec_part *wrp;
 
-	fol_rec_part = m0_fol_rec_part_init(&io_write_part_ops);
+	fol_rec_part = m0_fol_rec_part_init(&m0_io_write_part_type);
 	M0_ASSERT(fol_rec_part != NULL);
 	wrp = fol_rec_part->rp_data;
 
