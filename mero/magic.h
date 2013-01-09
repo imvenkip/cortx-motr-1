@@ -311,6 +311,8 @@ enum m0_magic_satchel {
 	M0_FOL_REC_PART_LINK_MAGIC = 0x33cea5e1e55deb77,
 	/* m0_fol_rec_part:rp_magic (bloodied bozo) */
 	M0_FOL_REC_PART_HEAD_MAGIC = 0x33b100d1edb02077,
+	/* m0_fol_rec_part_header:rph_magic (baseball aced) */
+	M0_FOL_REC_PART_MAGIC = 0x33ba5eba11aced77,
 
 /* ioservice */
 	/* m0_stob_io_descr::siod_linkage (zealos obsses) */

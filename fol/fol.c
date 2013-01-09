@@ -348,7 +348,8 @@ M0_INTERNAL void m0_fols_fini(void)
 	m0_mutex_fini(&rptypes_lock);
 }
 
-M0_INTERNAL int m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
+M0_INTERNAL int
+m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
 {
 	int		result;
 	static uint32_t index = PART_TYPE_START_INDEX;
@@ -389,6 +390,54 @@ m0_fol_rec_part_type_deregister(struct m0_fol_rec_part_type *type)
 
 static const struct m0_fol_rec_part_type *
 fol_rec_part_type_lookup(uint32_t index)
+{
+	M0_PRE(IS_IN_ARRAY(index, rptypes));
+	return rptypes[index];
+}
+
+M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
+					  const char *name,
+					  const struct m0_xcode_type *xt,
+					  const struct m0_fol_rec_part_type_ops
+					  *ops)
+{
+	M0_PRE(type != NULL);
+
+	type->rpt_ops  = ops;
+	type->rpt_xt   = xt;
+	type->rpt_name = name;
+	return fol_rec_part_type_register(type);
+}
+
+M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type)
+{
+	M0_PRE(type != NULL);
+
+	fol_rec_part_type_deregister(type);
+	type->rpt_xt   = NULL;
+	type->rpt_name = NULL;
+}
+
+static size_t fol_rec_part_data_size(const struct m0_fol_rec_part *part)
+{
+	return part->rp_ops->rpo_type->rpt_xt->xct_sizeof;
+}
+
+static int fol_rec_part_data_alloc(struct m0_fol_rec_part *part)
+{
+	size_t fol_rec_part_size;
+
+	M0_PRE(part != NULL && part->rp_ops != NULL &&
+	       part->rp_ops->rpo_type != NULL);
+
+	part->rp_data = m0_alloc(fol_rec_part_data_size(part));
+	return part->rp_data == NULL ? -ENOMEM : 0;
+}
+
+<<<<<<< HEAD
+M0_INTERNAL struct m0_fol_rec_part *fol_rec_part_init(
+		const struct m0_fol_rec_part_type *type)
+>>>>>>> FOL record part header is encoded.
 {
 	M0_PRE(IS_IN_ARRAY(index, rptypes));
 	return rptypes[index];

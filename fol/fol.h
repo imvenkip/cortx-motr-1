@@ -540,6 +540,21 @@ M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
 		.xo_ptr  = r->rp_data,		                \
 }
 
+struct m0_fol_rec_part_header {
+	uint32_t rph_index;
+	uint64_t rph_magic;
+} M0_XCA_RECORD;
+
+M0_INTERNAL const struct m0_fol_rec_part_type *
+		m0_fol_rec_part_type_lookup(uint32_t index);
+
+M0_INTERNAL int m0_fol_rec_part_header_encdec(
+				struct m0_fol_rec_part_header  *ph,
+				struct m0_bufvec_cursor        *cur,
+				enum m0_bufvec_what             what);
+
+#define M0_PART_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_part_header_xc, ptr)
+
 /** @} end of fol group */
 
 /* __MERO_FOL_FOL_H__ */

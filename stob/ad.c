@@ -1133,12 +1133,9 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 		M0_ASSERT(eodst == eoext);
 	} while (!eodst);
 
-	if (result == 0) {
+	if (result == 0)
 		m0_rec_part_tlist_add_tail(&io->si_tx->tx_fol_rec_parts, part);
 
-		io->si_tx->tx_fol_rec_parts_len += m0_fol_rec_part_data_size(
-							part);
-	}
 	return result;
 }
 

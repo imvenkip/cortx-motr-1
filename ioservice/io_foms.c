@@ -1645,8 +1645,6 @@ static void write_fol_rec_part_add(struct m0_fom *fom)
 				m0_fop_data(fom->fo_rep_fop);
 
 	m0_rec_part_tlist_add_tail(&fom->fo_tx.tx_fol_rec_parts, fol_rec_part);
-	fom->fo_tx.tx_fol_rec_parts_len +=
-		m0_fol_rec_part_data_size(fol_rec_part);
 }
 
 /**

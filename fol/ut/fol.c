@@ -159,7 +159,6 @@ static void test_fol_rec_part_encdec(void)
 	rec->f_key	 = 33;
 
 	m0_rec_part_tlist_add_tail(&dtx.tx_fol_rec_parts, ut_rec_part);
-	dtx.tx_fol_rec_parts_len += m0_fol_rec_part_data_size(ut_rec_part);
 
 	d->rd_type = &ut_fol_type;
 	h->rh_refcount = 1;
@@ -186,9 +185,16 @@ static void test_fol_rec_part_encdec(void)
 		struct m0_fol_rec_part *part;
 		struct m0_fid	       *dec_rec;
 
+		struct m0_fol_rec_part_header      ph;
+		const struct m0_fol_rec_part_type *part_type;
+
 		len = dup.fr_desc.rd_header.rh_data_len;
 
 		m0_bufvec_cursor_init(&cur, &bvec);
+
+		result = m0_fol_rec_part_header_encdec(&ph, &cur, M0_BUFVEC_DECODE);
+
+		part_type = m0_fol_rec_part_type_lookup(ph.rph_index);
 
 		part = m0_fol_rec_part_init(&ut_part_ops);
 		M0_ASSERT(part != NULL);
