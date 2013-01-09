@@ -211,7 +211,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
 					      M0_RPC_ITEM_TYPE_ONEWAY) ?:
 		m0_fol_rec_part_type_init(&m0_io_write_part_type, "IO write record part",
-					  m0_io_write_rec_part_xc);
+					  m0_io_write_rec_part_xc) ?:
 		m0_fol_rec_part_type_init(&m0_io_create_part_type, "IO create record part",
 					  m0_io_create_rec_part_xc) ?:
 		m0_fol_rec_part_type_init(&m0_io_delete_part_type, "IO delete record part",

@@ -28,6 +28,7 @@
 #include "mero/magic.h"
 #include "rpc/rpc_opcodes.h"
 #include "fol/fol.h"
+#include "fol/fol_xc.h"
 #include "xcode/xcode.h"
 
 /**
@@ -64,14 +65,40 @@ M0_TL_DESCR_DEFINE(m0_rec_part, "fol record part", M0_INTERNAL,
 		   M0_FOL_REC_PART_LINK_MAGIC, M0_FOL_REC_PART_HEAD_MAGIC);
 M0_TL_DEFINE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
 
-static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out);
-static int fol_record_decode(struct m0_fol_rec *rec);
 static size_t fol_record_pack_size(struct m0_fol_rec *rec);
 static void fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf);
-static inline m0_bcount_t fol_rec_part_data_size(struct m0_fol_rec_part *part);
-static inline int fol_rec_part_encdec(struct m0_fol_rec_part  *part,
+static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out);
+static int fol_record_decode(struct m0_fol_rec *rec);
+static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
+			       struct m0_bufvec_cursor *cur,
+			       enum m0_bufvec_what what);
+static int fol_rec_header_encdec(struct m0_fol_rec_header *rh,
+				 struct m0_bufvec_cursor *cur,
+				 enum m0_bufvec_what what);
+static int fol_rec_sibling_encdec(struct m0_fol_update_ref *ur,
+				  struct m0_bufvec_cursor *cur,
+				  enum m0_bufvec_what what);
+static int fol_rec_obj_ref_encdec(struct m0_fol_obj_ref *obj_ref,
+				  struct m0_bufvec_cursor *cur,
+				  enum m0_bufvec_what what);
+static int fol_rec_part_header_encdec(struct m0_fol_rec_part_header *ph,
+				      struct m0_bufvec_cursor *cur,
+				      enum m0_bufvec_what what);
+static inline int fol_rec_part_encdec(struct m0_fol_rec_part *part,
 			              struct m0_bufvec_cursor *cur,
-			              enum m0_bufvec_what      what);
+			              enum m0_bufvec_what what);
+
+#define REC_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_header_xc, ptr)
+#define REC_SIBLING_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_update_ref_xc, ptr)
+#define REC_OBJ_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_obj_ref_xc, ptr)
+
+#define REC_PART_HEADER_XCODE_OBJ(ptr) \
+M0_XCODE_OBJ(m0_fol_rec_part_header_xc, ptr)
+
+#define REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) {    \
+		.xo_type = r->rp_ops->rpo_type->rpt_xt,	 \
+		.xo_ptr  = r->rp_data,		         \
+}
 
 M0_INTERNAL bool m0_lsn_is_valid(m0_lsn_t lsn)
 {
@@ -192,23 +219,23 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 		if (result == 0) {
 			result = m0_fol_rec_lookup(fol, &tx, M0_LSN_ANCHOR, &r);
 			if (result == -ENOENT) {
-				result = rec_init(&r, &tx);
-				M0_ASSERT(result == 0);
+				m0_fol_rec_part_list_init(&r);
 				/* initialise new fol */
 				M0_SET0(d);
 				d->rd_header.rh_refcount = 1;
 				d->rd_lsn = M0_LSN_ANCHOR;
 				fol->f_lsn = M0_LSN_ANCHOR + 1;
 				result = m0_fol_rec_add(fol, &tx, &r);
+				m0_fol_rec_part_list_fini(&r);
 			} else if (result == 0) {
 				result = m0_db_cursor_last(&r.fr_ptr,
 							   &r.fr_pair);
 				if (result == 0)
 					fol->f_lsn = lsn_inc(r.fr_desc.rd_lsn);
+				m0_fol_rec_fini(&r);
 			}
 			rc = m0_db_tx_commit(&tx);
 			result = result ?: rc;
-			m0_fol_rec_fini(&r);
 		}
 	}
 	M0_POST(ergo(result == 0, m0_lsn_is_valid(fol->f_lsn)));
@@ -310,17 +337,18 @@ static struct m0_mutex rptypes_lock;
 
 M0_INTERNAL int m0_fols_init(void)
 {
+	m0_xc_fol_init();
 	m0_mutex_init(&rptypes_lock);
 	return 0;
 }
 
 M0_INTERNAL void m0_fols_fini(void)
 {
+	m0_xc_fol_fini();
 	m0_mutex_fini(&rptypes_lock);
 }
 
-M0_INTERNAL int
-m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
+M0_INTERNAL int m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
 {
 	int		result;
 	static uint32_t index = PART_TYPE_START_INDEX;
@@ -345,7 +373,7 @@ m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
 M0_INTERNAL void
 m0_fol_rec_part_type_deregister(struct m0_fol_rec_part_type *type)
 {
-	m0_mutex_unlock(&rptypes_lock);
+	m0_mutex_lock(&rptypes_lock);
 	M0_PRE(IS_IN_ARRAY(type->rpt_index, rptypes));
 	M0_PRE(rptypes[type->rpt_index] == type ||
 	       rptypes[type->rpt_index] == NULL);
@@ -355,6 +383,13 @@ m0_fol_rec_part_type_deregister(struct m0_fol_rec_part_type *type)
 	type->rpt_index = 0;
 	type->rpt_xt	= NULL;
 	type->rpt_ops	= NULL;
+}
+
+static const struct m0_fol_rec_part_type *
+fol_rec_part_type_lookup(uint32_t index)
+{
+	M0_PRE(IS_IN_ARRAY(index, rptypes));
+	return rptypes[index];
 }
 
 M0_INTERNAL void
@@ -371,7 +406,7 @@ m0_fol_rec_part_init(struct m0_fol_rec_part *part, void *data,
 M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 {
 	if (part->rp_data != NULL && part->rp_flag == M0_BUFVEC_DECODE)
-		m0_xcode_free(&M0_FOL_REC_PART_XCODE_OBJ(part));
+		m0_xcode_free(&REC_PART_XCODE_OBJ(part));
 
 	if (m0_rec_part_tlink_is_in(part))
 		m0_rec_part_tlist_del(part);
@@ -384,8 +419,6 @@ M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
 	int                     result;
 	struct m0_buf           buf;
 	struct m0_fol_rec_desc *desc = &rec->fr_desc;
-
-	M0_PRE(m0_lsn_is_valid(desc->rd_lsn));
 
 	result = fol_record_encode(rec, &buf);
 	if (result == 0) {
@@ -402,12 +435,13 @@ static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
 	int                     result;
 	struct m0_fol_rec_desc *desc = &rec->fr_desc;
 
+	desc->rd_header.rh_parts_nr =
+		m0_rec_part_tlist_length(&rec->fr_fol_rec_parts);
+
 	size = fol_record_pack_size(rec);
 	M0_ASSERT(M0_IS_8ALIGNED(size));
 
 	desc->rd_header.rh_data_len = size;
-	desc->rd_header.rh_parts_nr =
-		m0_rec_part_tlist_length(&rec->fr_fol_rec_parts);
 
 	buf = m0_alloc(size);
 	if (buf != NULL) {
@@ -422,49 +456,143 @@ static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
 
 static size_t fol_record_pack_size(struct m0_fol_rec *rec)
 {
-	m0_bcount_t len = 0;
+	struct m0_fol_rec_desc       *desc = &rec->fr_desc;
+	struct m0_fol_rec_part       *part;
+	m0_bcount_t		      len;
+	struct m0_xcode_ctx	      ctx;
+	struct m0_fol_rec_part_header rp;
 
-	/**
-	 * @todo compute the size of FOL record descriptor and
-	 *  FOL record part's header and FOL record parts.
-	 *  Use fol_rec_part_data_size() to get the size of
-	 *  fol record part.
-	 */
+	len = m0_xcode_data_size(&ctx,
+				 &REC_HEADER_XCODE_OBJ(&desc->rd_header)) +
+	      desc->rd_header.rh_obj_nr *
+	      m0_xcode_data_size(&ctx,
+				 &REC_OBJ_REF_XCODE_OBJ(desc->rd_ref)) +
+	      desc->rd_header.rh_sibling_nr *
+	      m0_xcode_data_size(&ctx,
+				 &REC_SIBLING_XCODE_OBJ(desc->rd_sibling)) +
+	      desc->rd_header.rh_parts_nr *
+	      m0_xcode_data_size(&ctx, &REC_PART_HEADER_XCODE_OBJ(&rp));
+
+	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part) {
+		len += m0_xcode_data_size(&ctx, &REC_PART_XCODE_OBJ(part));
+	} m0_tl_endfor;
 	return m0_align(len, 8);
-}
-
-static inline m0_bcount_t fol_rec_part_data_size(struct m0_fol_rec_part *part)
-{
-	struct m0_xcode_ctx  xc_ctx;
-
-	return m0_xcode_data_size(&xc_ctx, &M0_FOL_REC_PART_XCODE_OBJ(part));
 }
 
 static void fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 {
-	/**
-	 * @todo Encode FOL record descriptor and traverse
-	 *  rec->fr_fol_rec_parts and encode fol record
-	 *  parts in the buffer using fol_rec_part_encdec().
-	 *  Also encode m0_fol_rec_part_type::rpt_index
-	 *  for each FOl record type which will be used to decode this
-	 *  from fol record.
-	 * Add assertion part->rp_data != NULL before encoding the record part.
-	 * Assign part->rp_flag to M0_BUFVEC_ENCODE;
-	 */
+	struct m0_fol_rec_part *part;
+	m0_bcount_t	        len = buf->b_nob;
+	struct m0_bufvec        bvec = M0_BUFVEC_INIT_BUF(&buf->b_addr, &len);
+	struct m0_bufvec_cursor cur;
+	int			rc;
+
+	m0_bufvec_cursor_init(&cur, &bvec);
+
+	rc = fol_rec_desc_encdec(&rec->fr_desc, &cur, M0_BUFVEC_ENCODE);
+
+	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part) {
+		struct m0_fol_rec_part_header rph;
+		rph = (struct m0_fol_rec_part_header) {
+			.rph_index  = part->rp_ops->rpo_type->rpt_index,
+			.rph_magic  = M0_FOL_REC_PART_MAGIC,
+		};
+
+		rc = fol_rec_part_header_encdec(&rph, &cur, M0_BUFVEC_ENCODE);
+		M0_ASSERT(rc == 0);
+		rc = fol_rec_part_encdec(part, &cur, M0_BUFVEC_ENCODE);
+		M0_ASSERT(rc == 0);
+	} m0_tl_endfor;
 }
 
-static inline int fol_rec_part_encdec(struct m0_fol_rec_part  *part,
-			              struct m0_bufvec_cursor *cur,
-			              enum m0_bufvec_what      what)
+static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
+			       struct m0_bufvec_cursor *cur,
+			       enum m0_bufvec_what what)
+{
+	struct m0_fol_rec_header *h = &desc->rd_header;
+	int			  rc;
+	uint32_t		  i;
+
+	rc = fol_rec_header_encdec(h, cur, what);
+	M0_ASSERT(rc == 0);
+
+	if (what == M0_BUFVEC_DECODE && h->rh_refcount == 0)
+		return -ENOENT;
+
+	for (i = 0, rc = 0; rc == 0 && i < h->rh_obj_nr; ++i)
+		rc = fol_rec_obj_ref_encdec(&desc->rd_ref[i], cur, what);
+	M0_ASSERT(rc == 0);
+
+	for (i = 0, rc = 0; rc == 0 && i < h->rh_sibling_nr; ++i)
+		rc = fol_rec_sibling_encdec(&desc->rd_sibling[i], cur, what);
+	M0_ASSERT(rc == 0);
+	return rc;
+}
+
+static int fol_rec_header_encdec(struct m0_fol_rec_header *rh,
+				 struct m0_bufvec_cursor *cur,
+				 enum m0_bufvec_what what)
 {
 	int		     rc;
-	struct m0_xcode_ctx  xc_ctx;
+	struct m0_xcode_ctx  ctx;
 
-	rc = m0_xcode_encdec(&xc_ctx, &M0_FOL_REC_PART_XCODE_OBJ(part), cur,
+	rc = m0_xcode_encdec(&ctx, &REC_HEADER_XCODE_OBJ(rh), cur, what);
+	if (rc == 0 && what == M0_BUFVEC_DECODE)
+		*rh = *(struct m0_fol_rec_header *)m0_xcode_ctx_top(&ctx);
+	return rc;
+}
+
+static int fol_rec_sibling_encdec(struct m0_fol_update_ref *ur,
+				  struct m0_bufvec_cursor *cur,
+				  enum m0_bufvec_what what)
+{
+	int		     rc;
+	struct m0_xcode_ctx  ctx;
+
+	rc = m0_xcode_encdec(&ctx, &REC_SIBLING_XCODE_OBJ(ur), cur, what);
+	if (rc == 0 && what == M0_BUFVEC_DECODE)
+		*ur = *(struct m0_fol_update_ref *)m0_xcode_ctx_top(&ctx);
+	return rc;
+}
+
+static int fol_rec_obj_ref_encdec(struct m0_fol_obj_ref *obj_ref,
+				  struct m0_bufvec_cursor *cur,
+				  enum m0_bufvec_what what)
+{
+	int		     rc;
+	struct m0_xcode_ctx  ctx;
+
+	rc = m0_xcode_encdec(&ctx, &REC_OBJ_REF_XCODE_OBJ(obj_ref), cur,
 			     what);
 	if (rc == 0 && what == M0_BUFVEC_DECODE)
-		part->rp_data = m0_xcode_ctx_top(&xc_ctx);
+		*obj_ref = *(struct m0_fol_obj_ref *)m0_xcode_ctx_top(&ctx);
+	return rc;
+}
+
+static int fol_rec_part_header_encdec(struct m0_fol_rec_part_header *ph,
+				      struct m0_bufvec_cursor *cur,
+				      enum m0_bufvec_what what)
+{
+	int		     rc;
+	struct m0_xcode_ctx  ctx;
+
+	rc = m0_xcode_encdec(&ctx, &REC_PART_HEADER_XCODE_OBJ(ph), cur, what);
+	if (rc == 0 && what == M0_BUFVEC_DECODE)
+		*ph = *(struct m0_fol_rec_part_header *)
+			m0_xcode_ctx_top(&ctx);
+	return rc;
+}
+
+static int fol_rec_part_encdec(struct m0_fol_rec_part *part,
+			       struct m0_bufvec_cursor *cur,
+			       enum m0_bufvec_what what)
+{
+	int		     rc;
+	struct m0_xcode_ctx  ctx;
+
+	rc = m0_xcode_encdec(&ctx, &REC_PART_XCODE_OBJ(part), cur, what);
+	if (rc == 0 && what == M0_BUFVEC_DECODE)
+		part->rp_data = m0_xcode_ctx_top(&ctx);
 	return rc;
 }
 
@@ -490,12 +618,38 @@ M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
 
 static int fol_record_decode(struct m0_fol_rec *rec)
 {
-	/**
-	 * @todo Decode FOL record descriptor and parts from record
-	 * buffer rec->fr_pair.dp_rec.db_buf;
-	 * Add assertion part->rp_data == NULL before decoding the record part.
-	 * Assign part->rp_flag to M0_BUFVEC_DECODE;
-	 */
+	struct m0_buf	       *rec_buf = &rec->fr_pair.dp_rec.db_buf;
+	void		       *buf = &rec_buf->b_addr;
+	m0_bcount_t	        len = rec_buf->b_nob;
+	struct m0_bufvec	bvec = M0_BUFVEC_INIT_BUF(buf, &len);
+	struct m0_bufvec_cursor cur;
+	uint32_t		i;
+	struct m0_fol_rec_desc *desc = &rec->fr_desc;
+	int			rc;
+
+	m0_bufvec_cursor_init(&cur, &bvec);
+
+	rc = fol_rec_desc_encdec(desc, &cur, M0_BUFVEC_DECODE);
+	M0_ASSERT(rc == 0);
+
+	for (i = 0, rc = 0; rc == 0 && i < desc->rd_header.rh_parts_nr; ++i) {
+		struct m0_fol_rec_part	          *part;
+		const struct m0_fol_rec_part_type *part_type;
+		struct m0_fol_rec_part_header      ph;
+
+		rc = fol_rec_part_header_encdec(&ph, &cur, M0_BUFVEC_DECODE);
+
+		part_type = fol_rec_part_type_lookup(ph.rph_index);
+
+		M0_ALLOC_PTR(part);
+		M0_ASSERT(part != NULL);
+		m0_fol_rec_part_init(part, NULL, part_type);
+
+		rc = fol_rec_part_encdec(part, &cur, M0_BUFVEC_DECODE);
+		M0_ASSERT(rc == 0);
+
+		m0_fol_rec_part_list_add(rec, part);
+	}
 	return 0;
 }
 
