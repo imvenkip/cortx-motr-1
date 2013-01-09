@@ -469,7 +469,8 @@ static void item_sent(struct m0_rpc_item *item)
 	 * they are SENT/FAILED.
 	 * See: m0_rpc__post_locked(), m0_rpc_reply_post()
 	 */
-	if (m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item))
+	if ((m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item)) &&
+	    item->ri_nr_resend_attempts == 0)
 		m0_rpc_session_release(item->ri_session);
 
 	if (m0_rpc_item_is_request(item)) {

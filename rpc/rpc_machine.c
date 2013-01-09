@@ -765,6 +765,11 @@ static void item_received(struct m0_rpc_item      *item,
 	M0_ENTRY("machine: %p, item: %p, ep_addr: %s", machine,
 		 item, (char *)from_ep->nep_addr);
 
+	if (M0_FI_ENABLED("drop_item")) {
+		M0_LOG(M0_FATAL, "item: %p [%s/%u] dropped", item,
+			item_kind(item), item->ri_type->rit_opcode);
+		return;
+	}
 	if (m0_rpc_item_is_conn_establish(item))
 		m0_rpc_fop_conn_establish_ctx_init(item, from_ep);
 

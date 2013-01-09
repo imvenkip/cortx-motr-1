@@ -60,6 +60,7 @@ M0_INTERNAL void m0_rpc_item_stop_timer(struct m0_rpc_item *item);
 
 M0_INTERNAL int m0_rpc_item_start_resend_timer(struct m0_rpc_item *item);
 M0_INTERNAL void m0_rpc_item_stop_resend_timer(struct m0_rpc_item *item);
+M0_INTERNAL void m0_rpc_item_resend(struct m0_rpc_item *item);
 
 M0_INTERNAL void m0_rpc_item_set_stage(struct m0_rpc_item *item,
 				       enum m0_rpc_item_stage s);

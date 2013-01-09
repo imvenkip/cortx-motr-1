@@ -200,6 +200,7 @@ static void __test_timeout(m0_time_t deadline,
 
 	fop = fop_alloc();
 	item = &fop->f_item;
+	item->ri_resend_is_allowed = false;
 	m0_rpc_machine_get_stats(machine, &saved, false);
 	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
 				deadline, timeout);
@@ -209,6 +210,24 @@ static void __test_timeout(m0_time_t deadline,
 	m0_rpc_machine_get_stats(machine, &stats, true);
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_timedout_items) &&
 		     IS_INCR_BY_1(nr_failed_items));
+	m0_fop_put(fop);
+}
+
+static void test_resend(void)
+{
+	struct m0_rpc_item *item;
+	int                 rc;
+
+	fop = fop_alloc();
+	item = &fop->f_item;
+	m0_fi_enable_once("item_received", "drop_item");
+	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
+				0 /* urgent */, m0_time_from_now(1, 0));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_error == 0);
+	M0_UT_ASSERT(item->ri_nr_resend_attempts == 1);
+	M0_UT_ASSERT(item->ri_reply != NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
 	m0_fop_put(fop);
 }
 
@@ -346,6 +365,7 @@ const struct m0_test_suite item_ut = {
 	.ts_tests = {
 		{ "simple-transitions",     test_simple_transitions     },
 		{ "timeout-transitions",    test_timeout                },
+		{ "item-resend",            test_resend                 },
 		{ "failure-before-sending", test_failure_before_sending },
 		{ "oneway-item",            test_oneway_item            },
 		{ NULL, NULL },

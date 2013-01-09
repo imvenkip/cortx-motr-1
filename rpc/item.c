@@ -192,7 +192,9 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 	[M0_RPC_ITEM_WAITING_FOR_REPLY] = {
 		.sd_name    = "WAITING_FOR_REPLY",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_REPLIED,
-				      M0_RPC_ITEM_FAILED),
+				      M0_RPC_ITEM_FAILED,
+				      M0_RPC_ITEM_ENQUEUED,
+				      M0_RPC_ITEM_URGENT),
 	},
 	[M0_RPC_ITEM_REPLIED] = {
 		.sd_flags   = M0_SDF_FINAL,
@@ -734,7 +736,23 @@ static void item_resend_timer_cb(struct m0_sm_timer *timer)
 	M0_LOG(M0_FATAL, "%p [%s/%u] %s resend timer expired",
 		item, item_kind(item), item->ri_type->rit_opcode,
 		item_state_name(item));
+	m0_sm_timer_init(timer);
+	m0_rpc_item_resend(item);
+}
 
+M0_INTERNAL void m0_rpc_item_resend(struct m0_rpc_item *item)
+{
+	M0_ENTRY("item: %p", item);
+	M0_PRE(item != NULL && m0_rpc_machine_is_locked(item->ri_rmachine));
+	M0_PRE(m0_rpc_item_is_request(item) &&
+	       item->ri_sm.sm_state == M0_RPC_ITEM_WAITING_FOR_REPLY);
+
+	item->ri_nr_resend_attempts++;
+	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm,
+			    item);
+	M0_LOG(M0_FATAL, "item: %p [%s/%u] enqueued", item, item_kind(item),
+		item->ri_type->rit_opcode);
+	M0_LEAVE();
 }
 
 #undef SLOT_REF_XCODE_OBJ
