@@ -103,7 +103,8 @@ dtm_HEADERS                     := verno.h verno_xc.h
 fid_SOURCES                     := fid.c fid_xc.c
 fid_HEADERS                     := fid.h fid_xc.h
 
-fol_SOURCES                     := fol.c
+fol_HEADERS			:= fol.h fol_xc.h
+fol_SOURCES                     := fol.c fol_xc.c
 
 fop_SOURCES                     := fop.c fom.c fop_item_type.c fom_long_lock.c \
                                    fom_generic.c fom_generic_xc.c

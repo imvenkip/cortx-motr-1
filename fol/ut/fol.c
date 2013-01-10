@@ -153,6 +153,7 @@ static void test_fol_rec_part_encdec(void)
 	struct m0_fid	       *rec;
 	struct m0_fol_rec       dup;
 	struct m0_fol_rec_part *ut_rec_part;
+	void		       *dec_buf;
 
 	M0_ALLOC_PTR(ut_rec_part);
 
@@ -185,12 +186,13 @@ static void test_fol_rec_part_encdec(void)
 
 	result = m0_fol_rec_lookup(&fol, &dtx.tx_dbtx, d->rd_lsn, &dup);
 	M0_ASSERT(result == 0);
+	dec_buf = &dup.fr_desc.rd_data;
 
+	m0_fol_rec_fini(&dup);
 	if (result == 0) {
 		struct m0_bufvec_cursor cur;
 		m0_bcount_t	        len;
-		void		       *buf = &dup.fr_desc.rd_data;
-		struct m0_bufvec	bvec = M0_BUFVEC_INIT_BUF(buf, &len);
+		struct m0_bufvec	bvec = M0_BUFVEC_INIT_BUF(dec_buf, &len);
 		struct m0_fol_rec_part  part;
 
 		struct m0_fol_rec_part_header      ph;
@@ -212,7 +214,6 @@ static void test_fol_rec_part_encdec(void)
 		part.rp_type->rpt_ops->rpo_undo(&part);
 	}
 
-	m0_fol_rec_fini(&dup);
 	m0_fol_rec_part_type_fini(&ut_part_type);
 }
 
