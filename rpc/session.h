@@ -565,14 +565,15 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
  * m0_rpc_session_establish() call.
  *
  * @param session     A session object to operate on.
- * @param timeout_sec How much time in seconds to wait for session to become idle.
+ * @param abs_timeout Absolute time after which session establish operation
+ *                    is aborted and session is moved to FAILED state.
  *
  * @pre  session_state(session) == M0_RPC_SESSION_INITIALISED
  * @pre  conn_state(session->s_conn) == M0_RPC_CONN_ACTIVE
  * @post session_state(session) == M0_RPC_SESSION_IDLE
  */
 M0_INTERNAL int m0_rpc_session_establish_sync(struct m0_rpc_session *session,
-					      uint32_t timeout_sec);
+					      m0_time_t abs_timeout);
 
 /**
  * A combination of m0_rpc_session_init() and m0_rpc_session_establish_sync() in
@@ -583,7 +584,7 @@ M0_INTERNAL int m0_rpc_session_establish_sync(struct m0_rpc_session *session,
  */
 M0_INTERNAL int m0_rpc_session_create(struct m0_rpc_session *session,
 				      struct m0_rpc_conn *conn,
-				      uint32_t nr_slots, uint32_t timeout_sec);
+				      uint32_t nr_slots, m0_time_t abs_timeout);
 
 /**
    Sends terminate session fop to receiver.
@@ -604,8 +605,9 @@ M0_INTERNAL int m0_rpc_session_terminate(struct m0_rpc_session *session,
  * after m0_rpc_session_terminate() call.
  *
  * @param session     A session object to operate on.
- * @param timeout_sec How much time in seconds to wait for session to become
- *                    terminated.
+ * @param abs_timeout Absolute time after which session terminate operation
+ *                    is considered as failed and session is moved to
+ *                    FAILED state.
  *
  * @pre M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
  *				       M0_RPC_SESSION_TERMINATING))
@@ -613,7 +615,7 @@ M0_INTERNAL int m0_rpc_session_terminate(struct m0_rpc_session *session,
  *					M0_RPC_SESSION_FAILED))
  */
 M0_INTERNAL int m0_rpc_session_terminate_sync(struct m0_rpc_session *session,
-					      uint32_t timeout_sec);
+					      m0_time_t abs_timeout);
 
 /**
     Waits until @session object reaches in one of states given by @state_flags.
@@ -645,7 +647,7 @@ M0_INTERNAL void m0_rpc_session_fini(struct m0_rpc_session *session);
  * terminated state and finalize session object.
  */
 int m0_rpc_session_destroy(struct m0_rpc_session *session,
-			   uint32_t timeout_sec);
+			   m0_time_t abs_timeout);
 
 /**
    Returns maximum size of an RPC item allowed on this session.

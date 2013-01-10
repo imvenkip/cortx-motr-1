@@ -559,21 +559,20 @@ M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
 				   struct m0_net_end_point *ep,
 				   struct m0_rpc_machine *rpc_machine,
 				   uint64_t max_rpcs_in_flight,
-				   uint32_t timeout_sec)
+				   m0_time_t abs_timeout)
 {
 	int rc;
 
-	M0_ENTRY("conn: %p, ep_addr: %s, machine: %p,"
-		 " max_rpcs_in_flight: %llu, timeout_sec: %u", conn,
-		 (char *)ep->nep_addr, rpc_machine,
-		 (unsigned long long)max_rpcs_in_flight, timeout_sec);
+	M0_ENTRY("conn: %p, ep_addr: %s, machine: %p max_rpcs_in_flight: %llu",
+		 conn, (char *)ep->nep_addr, rpc_machine,
+		 (unsigned long long)max_rpcs_in_flight);
 
 	if (M0_FI_ENABLED("fake_error"))
 		M0_RETURN(-EINVAL);
 
 	rc = m0_rpc_conn_init(conn, ep, rpc_machine, max_rpcs_in_flight);
 	if (rc == 0) {
-		rc = m0_rpc_conn_establish_sync(conn, timeout_sec);
+		rc = m0_rpc_conn_establish_sync(conn, abs_timeout);
 		if (rc != 0)
 			m0_rpc_conn_fini(conn);
 	}
@@ -581,13 +580,13 @@ M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
 }
 
 M0_INTERNAL int m0_rpc_conn_establish_sync(struct m0_rpc_conn *conn,
-					   uint32_t timeout_sec)
+					   m0_time_t abs_timeout)
 {
 	int rc;
 
 	M0_ENTRY();
 
-	rc = m0_rpc_conn_establish(conn, m0_time_from_now(timeout_sec, 0));
+	rc = m0_rpc_conn_establish(conn, abs_timeout);
 	if (rc != 0)
 		M0_RETURN(rc);
 
@@ -719,13 +718,13 @@ M0_INTERNAL void m0_rpc_conn_establish_reply_received(struct m0_rpc_item *item)
 	M0_LEAVE();
 }
 
-int m0_rpc_conn_destroy(struct m0_rpc_conn *conn, uint32_t timeout_sec)
+int m0_rpc_conn_destroy(struct m0_rpc_conn *conn, m0_time_t abs_timeout)
 {
 	int rc;
 
-	M0_ENTRY("conn: %p, timeout: %u secs", conn, timeout_sec);
+	M0_ENTRY("conn: %p", conn);
 
-	rc = m0_rpc_conn_terminate_sync(conn, timeout_sec);
+	rc = m0_rpc_conn_terminate_sync(conn, abs_timeout);
 	m0_rpc_conn_fini(conn);
 
 	M0_RETURN(rc);
@@ -733,13 +732,13 @@ int m0_rpc_conn_destroy(struct m0_rpc_conn *conn, uint32_t timeout_sec)
 M0_EXPORTED(m0_rpc_conn_destroy);
 
 M0_INTERNAL int m0_rpc_conn_terminate_sync(struct m0_rpc_conn *conn,
-					   uint32_t timeout_sec)
+					   m0_time_t abs_timeout)
 {
 	int rc;
 
 	M0_ENTRY();
 
-	rc = m0_rpc_conn_terminate(conn, m0_time_from_now(timeout_sec, 0));
+	rc = m0_rpc_conn_terminate(conn, abs_timeout);
 	if (rc != 0) {
 		M0_RETURN(rc);
 	}

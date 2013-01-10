@@ -342,14 +342,14 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
  * call.
  *
  * @param conn        A connection object to operate on.
- * @param timeout_sec How much time in seconds to wait for connection
- *                    to become active.
+ * @param abs_timeout Absolute timeout after which connection establishing is
+ *                    given up and conn is moved to FAILED state.
  *
  * @pre  conn_state(conn) == M0_RPC_CONN_INITIALISED
  * @post conn_state(conn) == M0_RPC_CONN_ACTIVE
  */
 M0_INTERNAL int m0_rpc_conn_establish_sync(struct m0_rpc_conn *conn,
-					   uint32_t timeout_sec);
+					   m0_time_t abs_timeout);
 
 /**
  * A combination of m0_rpc_conn_init() and m0_rpc_conn_establish_sync() in a
@@ -360,7 +360,7 @@ M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
 				   struct m0_net_end_point *ep,
 				   struct m0_rpc_machine *rpc_machine,
 				   uint64_t max_rpcs_in_flight,
-				   uint32_t timeout_sec);
+				   m0_time_t abs_timeout);
 
 /**
    Sends "conn_terminate" FOP to receiver.
@@ -383,15 +383,15 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
  * call.
  *
  * @param conn        A connection object to operate on.
- * @param timeout_sec How much time in seconds to wait for connection
- *                    to become terminated.
+ * @param abs_timeout Absolute time after which conn-terminate operation
+ *                    considered as failed and conn is moved to FAILED state.
  *
  * @pre (conn_state(conn) == M0_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0) ||
  *       conn_state(conn) == M0_RPC_CONN_TERMINATING
  * @post conn_state(conn) == M0_RPC_CONN_TERMINATED
  */
 M0_INTERNAL int m0_rpc_conn_terminate_sync(struct m0_rpc_conn *conn,
-					   uint32_t timeout_sec);
+					   m0_time_t abs_timeout);
 
 /**
    Finalises m0_rpc_conn.
@@ -407,7 +407,7 @@ M0_INTERNAL void m0_rpc_conn_fini(struct m0_rpc_conn *conn);
  * single routine - terminate the connection, wait until it switched to
  * terminated state and finalize connection object.
  */
-int m0_rpc_conn_destroy(struct m0_rpc_conn *conn, uint32_t timeout_sec);
+int m0_rpc_conn_destroy(struct m0_rpc_conn *conn, m0_time_t abs_timeout);
 
 /**
     Waits until @conn reaches in any one of states specified by @state_flags.

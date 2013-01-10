@@ -195,7 +195,8 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 				      struct m0_rpc_machine *rpc_mach,
 				      const char            *remote_addr,
 				      uint64_t               max_rpcs_in_flight,
-				      uint32_t               nr_slots);
+				      uint32_t               nr_slots,
+				      uint32_t               rpc_timeout_sec);
 
 /**
   Starts client's rpc machine. Creates a connection to a server and establishes

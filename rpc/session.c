@@ -478,7 +478,7 @@ M0_EXPORTED(m0_rpc_session_timedwait);
 
 M0_INTERNAL int m0_rpc_session_create(struct m0_rpc_session *session,
 				      struct m0_rpc_conn *conn,
-				      uint32_t nr_slots, uint32_t timeout_sec)
+				      uint32_t nr_slots, m0_time_t abs_timeout)
 {
 	int rc;
 
@@ -487,7 +487,7 @@ M0_INTERNAL int m0_rpc_session_create(struct m0_rpc_session *session,
 
 	rc = m0_rpc_session_init(session, conn, nr_slots);
 	if (rc == 0) {
-		rc = m0_rpc_session_establish_sync(session, timeout_sec);
+		rc = m0_rpc_session_establish_sync(session, abs_timeout);
 		if (rc != 0)
 			m0_rpc_session_fini(session);
 	}
@@ -496,16 +496,14 @@ M0_INTERNAL int m0_rpc_session_create(struct m0_rpc_session *session,
 }
 
 M0_INTERNAL int m0_rpc_session_establish_sync(struct m0_rpc_session *session,
-					      uint32_t timeout_sec)
+					      m0_time_t abs_timeout)
 {
 	int  rc;
 
-	M0_ENTRY("session: %p, timeout_sec: %u", session, timeout_sec);
-	rc = m0_rpc_session_establish(session,
-				      m0_time_from_now(timeout_sec, 0));
-	if (rc != 0){
+	M0_ENTRY("session: %p", session);
+	rc = m0_rpc_session_establish(session, abs_timeout);
+	if (rc != 0)
 		M0_RETURN(rc);
-	}
 
 	rc = m0_rpc_session_timedwait(session, M0_BITS(M0_RPC_SESSION_IDLE,
 						       M0_RPC_SESSION_FAILED),
@@ -701,13 +699,14 @@ static void session_establish_fop_release(struct m0_ref *ref)
 	m0_free(ctx);
 }
 
-int m0_rpc_session_destroy(struct m0_rpc_session *session, uint32_t timeout_sec)
+int m0_rpc_session_destroy(struct m0_rpc_session *session,
+			   m0_time_t abs_timeout)
 {
 	int rc;
 
 	M0_ENTRY("session: %p", session);
 
-	rc = m0_rpc_session_terminate_sync(session, timeout_sec);
+	rc = m0_rpc_session_terminate_sync(session, abs_timeout);
 	m0_rpc_session_fini(session);
 
 	M0_RETURN(rc);
@@ -715,7 +714,7 @@ int m0_rpc_session_destroy(struct m0_rpc_session *session, uint32_t timeout_sec)
 M0_EXPORTED(m0_rpc_session_destroy);
 
 M0_INTERNAL int m0_rpc_session_terminate_sync(struct m0_rpc_session *session,
-					      uint32_t timeout_sec)
+					      m0_time_t abs_timeout)
 {
 	int rc;
 
@@ -725,8 +724,7 @@ M0_INTERNAL int m0_rpc_session_terminate_sync(struct m0_rpc_session *session,
 	m0_rpc_session_timedwait(session, M0_BITS(M0_RPC_SESSION_IDLE),
 				 M0_TIME_NEVER);
 
-	rc = m0_rpc_session_terminate(session,
-				      m0_time_from_now(timeout_sec, 0));
+	rc = m0_rpc_session_terminate(session, abs_timeout);
 	if (rc == 0) {
 		rc = m0_rpc_session_timedwait(session,
 					      M0_BITS(M0_RPC_SESSION_TERMINATED,

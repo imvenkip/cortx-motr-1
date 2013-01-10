@@ -143,14 +143,12 @@ static int reqh_ctx_args_are_valid(const struct cs_reqh_context *rctx)
 M0_INTERNAL struct m0_rpc_machine *m0_mero_to_rmach(struct m0_mero *mero)
 {
 	struct cs_reqh_context *reqh_ctx;
-	struct m0_rpc_machine  *rmach;
 
 	reqh_ctx = rhctx_tlist_head(&mero->cc_reqh_ctxs);
 	if (reqh_ctx == NULL)
 		return NULL;
 
-	rmach = m0_reqh_rpc_mach_tlist_head(&reqh_ctx->rc_reqh.rh_rpc_machines);
-	return rmach;
+	return m0_reqh_rpc_mach_tlist_head(&reqh_ctx->rc_reqh.rh_rpc_machines);
 }
 
 /**

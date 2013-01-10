@@ -1371,7 +1371,7 @@ static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 
 	rc = m0_rpc_client_connect(&confc->cc_rpc_conn, &confc->cc_rpc_session,
 				   rpc_mach, confd_addr, MAX_RPCS_IN_FLIGHT,
-				   NR_SLOTS);
+				   NR_SLOTS, 30 /*seconds*/);
 	M0_POST((rc == 0) == confc_is_online(confc));
 	M0_RETURN(rc);
 }
@@ -1382,8 +1382,10 @@ static void disconnect_from_confd(struct m0_confc *confc)
 	M0_PRE(confc_is_online(confc));
 	M0_PRE(confc->cc_rpc_session.s_conn == &confc->cc_rpc_conn);
 
-	(void)m0_rpc_session_destroy(&confc->cc_rpc_session, M0_TIME_NEVER);
-	(void)m0_rpc_conn_destroy(&confc->cc_rpc_conn, M0_TIME_NEVER);
+	(void)m0_rpc_session_destroy(&confc->cc_rpc_session,
+				     m0_time_from_now(30, 0));
+	(void)m0_rpc_conn_destroy(&confc->cc_rpc_conn,
+				  m0_time_from_now(30, 0));
 	M0_LEAVE();
 }
 
