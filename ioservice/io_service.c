@@ -393,7 +393,7 @@ static void ios_fini(struct m0_reqh_service *service)
 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
 	M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
 
-	for (i = 0; i < ARRAY_SIZE(&serv_obj->rios_rwfom_stats); ++i) {
+	for (i = 0; i < ARRAY_SIZE(serv_obj->rios_rwfom_stats); ++i) {
 #undef CNTR_FINI
 #define CNTR_FINI(n)							\
 		m0_addb_counter_fini(&serv_obj->rios_rwfom_stats[i]	\
