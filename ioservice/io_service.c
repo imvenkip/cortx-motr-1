@@ -462,7 +462,7 @@ static void ios_stats_post_addb(struct m0_reqh_service *service)
 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
 	M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
 
-	for (i = 0; i < ARRAY_SIZE(&serv_obj->rios_rwfom_stats); ++i) {
+	for (i = 0; i < ARRAY_SIZE(serv_obj->rios_rwfom_stats); ++i) {
 #undef CNTR_POST
 #define CNTR_POST(n)							\
 		M0_ADDB_POST_CNTR(&reqh->rh_addb_mc, cv, &serv_obj->	\
