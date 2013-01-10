@@ -555,6 +555,11 @@ M0_INTERNAL void m0_sm_timeout_fini(struct m0_sm_timeout *to)
 	m0_clink_fini(&to->st_clink);
 }
 
+M0_INTERNAL bool m0_sm_timeout_is_armed(const struct m0_sm_timeout *to)
+{
+	return m0_sm_timer_is_armed(&to->st_timer);
+}
+
 M0_INTERNAL void m0_sm_conf_extend(const struct m0_sm_state_descr *base,
 				   struct m0_sm_state_descr *sub, uint32_t nr)
 {

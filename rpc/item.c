@@ -190,6 +190,8 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "SENT",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_WAITING_FOR_REPLY,
+				      M0_RPC_ITEM_ENQUEUED,/*only reply items*/
+				      M0_RPC_ITEM_URGENT,
 				      M0_RPC_ITEM_UNINITIALISED),
 	},
 	[M0_RPC_ITEM_WAITING_FOR_REPLY] = {
@@ -202,7 +204,9 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 	[M0_RPC_ITEM_REPLIED] = {
 		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "REPLIED",
-		.sd_allowed = M0_BITS(M0_RPC_ITEM_UNINITIALISED),
+		.sd_allowed = M0_BITS(M0_RPC_ITEM_UNINITIALISED,
+				      M0_RPC_ITEM_ENQUEUED,
+				      M0_RPC_ITEM_FAILED),
 	},
 	[M0_RPC_ITEM_FAILED] = {
 		.sd_flags   = M0_SDF_FINAL,
@@ -745,10 +749,18 @@ static void item_resend_timer_cb(struct m0_sm_timer *timer)
 
 M0_INTERNAL void m0_rpc_item_resend(struct m0_rpc_item *item)
 {
+	uint32_t state = item->ri_sm.sm_state;
+
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && m0_rpc_machine_is_locked(item->ri_rmachine));
-	M0_PRE(m0_rpc_item_is_request(item) &&
-	       item->ri_sm.sm_state == M0_RPC_ITEM_WAITING_FOR_REPLY);
+	M0_PRE(m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item));
+	M0_PRE(ergo(m0_rpc_item_is_request(item),
+		    M0_IN(state, (M0_RPC_ITEM_WAITING_FOR_REPLY,
+				  M0_RPC_ITEM_REPLIED,
+				  M0_RPC_ITEM_FAILED))) &&
+		    /* XXX think more about sending failed items */
+	       ergo(m0_rpc_item_is_reply(item),
+		    M0_IN(state, (M0_RPC_ITEM_SENT, M0_RPC_ITEM_FAILED))));
 
 	if (M0_FI_ENABLED("advance_deadline")) {
 		M0_LOG(M0_FATAL,"%p deadline advanced", item);

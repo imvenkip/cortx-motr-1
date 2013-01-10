@@ -1074,7 +1074,22 @@ static void rcv_item_consume(struct m0_rpc_item *item)
 static void rcv_reply_consume(struct m0_rpc_item *req,
 			      struct m0_rpc_item *reply)
 {
-	m0_rpc_frm_enq_item(session_frm(req->ri_session), reply);
+	switch (reply->ri_sm.sm_state) {
+	case M0_RPC_ITEM_INITIALISED:
+		m0_rpc_frm_enq_item(session_frm(req->ri_session), reply);
+		break;
+	case M0_RPC_ITEM_SENT:
+	case M0_RPC_ITEM_FAILED:
+		m0_rpc_item_resend(reply);
+		break;
+	case M0_RPC_ITEM_ENQUEUED:
+	case M0_RPC_ITEM_URGENT:
+	case M0_RPC_ITEM_SENDING:
+		/* Do nothing */
+		break;
+	default:
+		M0_IMPOSSIBLE("State of reply item is invalid");
+	}
 }
 
 M0_INTERNAL int m0_rpc_rcv_session_establish(struct m0_rpc_session *session)

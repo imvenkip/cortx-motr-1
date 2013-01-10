@@ -683,7 +683,16 @@ M0_INTERNAL void m0_rpc_slot_process_reply(struct m0_rpc_item *req)
 					   M0_RPC_ITEM_ACCEPTED,
 					   M0_RPC_ITEM_ENQUEUED,
 					   M0_RPC_ITEM_URGENT)));
+	M0_PRE(M0_IN(req->ri_stage, (RPC_ITEM_STAGE_PAST_COMMITTED,
+				     RPC_ITEM_STAGE_PAST_VOLATILE,
+				     RPC_ITEM_STAGE_IN_PROGRESS)));
 
+	if (req->ri_stage != RPC_ITEM_STAGE_IN_PROGRESS) {
+		/* XXX RETHINK */
+		rpc_item_replied(req, req->ri_reply, 0);
+		M0_LEAVE();
+		return; /* reply is already processed */
+	}
 	m0_rpc_item_set_stage(req, RPC_ITEM_STAGE_PAST_VOLATILE);
 	slot = req->ri_slot_refs[0].sr_slot;
 	slot->sl_in_flight--;

@@ -781,7 +781,7 @@ static void item_received(struct m0_rpc_item      *item,
 	if (rc == 0) {
 		m0_rpc_item_change_state(item, M0_RPC_ITEM_ACCEPTED);
 	} else {
-		M0_LOG(M0_DEBUG, "%p [%s/%d] dropped", item, item_kind(item),
+		M0_LOG(M0_FATAL, "%p [%s/%d] dropped", item, item_kind(item),
 		       item->ri_type->rit_opcode);
 		machine->rm_stats.rs_nr_dropped_items++;
 	}

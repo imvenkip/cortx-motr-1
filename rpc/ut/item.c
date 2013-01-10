@@ -31,6 +31,7 @@
 #include "ut/cs_fop_foms_xc.h"     /* cs_ds2_req_fop */
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
 #include "rpc/ut/rpc_test_fops.h"
+#include "rpc/rpc_internal.h"
 
 static int __test(void);
 static void __test_timeout(m0_time_t deadline,
@@ -245,8 +246,20 @@ static void test_resend(void)
 	M0_UT_ASSERT(item->ri_nr_resend_attempts == 1);
 	M0_UT_ASSERT(item->ri_reply != NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
-	m0_fop_put(fop);
 	M0_LOG(M0_FATAL, "TEST2:END");
+
+	M0_LOG(M0_FATAL, "TEST3:START");
+	m0_rpc_machine_lock(item->ri_rmachine);
+	m0_rpc_item_resend(item);
+	m0_rpc_machine_unlock(item->ri_rmachine);
+	rc = m0_rpc_item_wait_for_reply(item, m0_time_from_now(2, 0));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_error == 0);
+	M0_UT_ASSERT(item->ri_nr_resend_attempts == 2);
+	M0_UT_ASSERT(item->ri_reply != NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
+	M0_LOG(M0_FATAL, "TEST3:END");
+	m0_fop_put(fop);
 }
 
 static void test_failure_before_sending(void)
