@@ -744,6 +744,8 @@ static void item_resend_timer_cb(struct m0_sm_timer *timer)
 	M0_LOG(M0_FATAL, "%p [%s/%u] %s resend timer expired",
 		item, item_kind(item), item->ri_type->rit_opcode,
 		item_state_name(item));
+	/* When _resent_ item enters in WAITING_FOR_REPLY state,
+	   we'll need to again arm this timer, hence reinitialise it here. */
 	m0_sm_timer_init(timer);
 	m0_rpc_item_resend(item);
 }
@@ -759,7 +761,7 @@ M0_INTERNAL void m0_rpc_item_resend(struct m0_rpc_item *item)
 		    M0_IN(state, (M0_RPC_ITEM_WAITING_FOR_REPLY,
 				  M0_RPC_ITEM_REPLIED,
 				  M0_RPC_ITEM_FAILED))) &&
-		    /* XXX think more about sending failed items */
+		    /* XXX think more about resending failed items */
 	       ergo(m0_rpc_item_is_reply(item),
 		    M0_IN(state, (M0_RPC_ITEM_SENT, M0_RPC_ITEM_FAILED))));
 

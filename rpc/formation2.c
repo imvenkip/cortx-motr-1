@@ -293,6 +293,7 @@ static void frm_insert(struct m0_rpc_frm *frm, struct m0_rpc_item *item)
 		m0_rpc_item_change_state(item, M0_RPC_ITEM_ENQUEUED);
 		M0_LOG(M0_DEBUG, "%p Starting deadline timer", item);
 		M0_ASSERT(!m0_sm_timeout_is_armed(&item->ri_deadline_to));
+		/* For resent item, we may need to "re-arm" ri_deadline_to. */
 		m0_sm_timeout_fini(&item->ri_deadline_to);
 		m0_sm_timeout_init(&item->ri_deadline_to);
 		rc = m0_sm_timeout_arm(&item->ri_sm, &item->ri_deadline_to,
