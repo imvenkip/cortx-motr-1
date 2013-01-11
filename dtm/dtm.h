@@ -59,7 +59,7 @@ struct m0_dtx {
 struct m0_update_id {
 	uint32_t ui_node;
 	uint64_t ui_update;
-};
+} M0_XCA_RECORD;
 
 enum m0_update_state {
 	M0_US_INVALID,

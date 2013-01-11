@@ -418,7 +418,7 @@ M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type)
 	type->rpt_name = NULL;
 }
 
-static size_t fol_rec_part_data_size(const struct m0_fol_rec_part *part)
+static size_t fol_rec_part_size(const struct m0_fol_rec_part *part)
 {
 	return part->rp_type->rpt_xt->xct_sizeof;
 }
@@ -428,11 +428,11 @@ static int fol_rec_part_data_alloc(struct m0_fol_rec_part *part)
 	M0_PRE(part != NULL && part->rp_ops != NULL &&
 	       part->rp_ops->rpo_type != NULL);
 
-	part->rp_data = m0_alloc(fol_rec_part_data_size(part));
+	part->rp_data = m0_alloc(fol_rec_part_size(part));
 	return part->rp_data == NULL ? -ENOMEM : 0;
 }
 
-M0_INTERNAL struct m0_fol_rec_part *fol_rec_part_init(
+static struct m0_fol_rec_part *fol_record_part_init(
 		const struct m0_fol_rec_part_type *type)
 >>>>>>> FOL record part header is encoded.
 {
@@ -527,7 +527,8 @@ static size_t fol_record_pack_size(struct m0_fol_rec *rec)
 	return m0_align(len, 8);
 }
 
-static void fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
+static void fol_record_pack(struct m0_dtx *dtx, struct m0_fol_rec_desc *desc,
+			 struct m0_buf *buf)
 {
 	struct m0_fol_rec_part *part;
 	m0_bcount_t	        len = buf->b_nob;
@@ -644,8 +645,8 @@ static int fol_rec_part_encdec(struct m0_fol_rec_part *part,
 	return rc;
 }
 
-M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
-				  m0_lsn_t lsn, struct m0_fol_rec *out)
+M0_INTERNAL int m0_fol_record_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
+				     m0_lsn_t lsn, struct m0_fol_rec *out)
 {
 	int result;
 
@@ -653,8 +654,18 @@ M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
 	result = rec_init(out, tx);
 	if (result == 0) {
 		out->fr_desc.rd_lsn = lsn;
-		result = m0_db_cursor_get(&out->fr_ptr, &out->fr_pair) ?:
-			 fol_record_decode(out);
+		result = m0_db_cursor_get(&out->fr_ptr, &out->fr_pair);
+		if (result == 0) {
+			void		       *buf = &out->fr_pair.dp_rec.db_buf.b_addr;
+			m0_bcount_t	        len = out->fr_pair.dp_rec.db_buf.b_nob;
+			struct m0_bufvec	bvec = M0_BUFVEC_INIT_BUF(buf, &len);
+			struct m0_bufvec_cursor cur;
+
+			m0_bufvec_cursor_init(&cur, &bvec);
+
+			out->fr_desc.rd_data = out->fr_pair.dp_rec.db_buf.b_addr;
+			result = fol_record_decode(&out->fr_desc, &cur);
+		}
 		if (result != 0)
 			m0_fol_rec_fini(out);
 	}

@@ -67,6 +67,10 @@ struct m0_fol_rec;
 #include "db/db.h"        /* m0_table, m0_db_cursor */
 #include "fol/lsn.h"      /* m0_lsn_t */
 
+#include "fid/fid_xc.h"
+#include "dtm/verno_xc.h"
+#include "dtm/dtm_xc.h"
+
 struct m0_dbenv;
 struct m0_db_tx;
 struct m0_epoch_id;
@@ -171,7 +175,7 @@ struct m0_fol_obj_ref {
 	/** version that the object had before operation has been applied,
 	    or {M0_LSN_NONE, 0} if this is the first operation */
 	struct m0_verno or_before_ver;
-};
+} M0_XCA_RECORD;
 
 /**
    Reference to a sibling update of the same operation.
@@ -182,7 +186,7 @@ struct m0_fol_update_ref {
 	/* taken from enum m0_update_state  */
 	uint32_t             ur_state;
 	struct m0_update_id  ur_id;
-};
+} M0_XCA_RECORD;
 
 /**
    Fixed part of a fol record.
@@ -206,7 +210,9 @@ struct m0_fol_rec_header {
 	    @note that the update might be for a different node.
 	 */
 	struct m0_update_id rh_self;
-};
+	/** number of record parts added to the record */
+	uint32_t            rh_parts_nr;
+} M0_XCA_RECORD;
 
 M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_rec_header)));
 M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_obj_ref)));
@@ -514,6 +520,10 @@ struct m0_fol_rec_part_type {
 	const struct m0_xcode_type	      *rpt_xt;
 };
 
+struct m0_fol_rec_part_ops_type_ops {
+	void (*rpo_rec_part_init)(struct m0_fol_rec_part *part, struct m0_fol_rec_part_ops *ops);
+};
+
 M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(
 		const struct m0_fol_rec_part_type *type);
 
@@ -536,8 +546,8 @@ M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
 			               struct m0_bufvec_cursor *cur,
 			               enum m0_bufvec_what      what);
 
-#define M0_FOL_REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) {	\
-		.xo_type = r->rp_type->rpt_xt,		\
+#define M0_REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) {	\
+		.xo_type = r->rp_type->rpt_xt,		        \
 		.xo_ptr  = r->rp_data,		                \
 }
 
@@ -554,7 +564,25 @@ M0_INTERNAL int m0_fol_rec_part_header_encdec(
 				struct m0_bufvec_cursor        *cur,
 				enum m0_bufvec_what             what);
 
+M0_INTERNAL int m0_fol_rec_header_encdec(struct m0_fol_rec_header *rh,
+					 struct m0_bufvec_cursor  *cur,
+					 enum m0_bufvec_what	  what);
+
+M0_INTERNAL int m0_fol_rec_sibling_encdec(struct m0_fol_update_ref *ur,
+					  struct m0_bufvec_cursor  *cur,
+					  enum m0_bufvec_what	  what);
+
+M0_INTERNAL int m0_fol_rec_obj_ref_encdec(struct m0_fol_obj_ref   *obj_ref,
+					  struct m0_bufvec_cursor *cur,
+					  enum m0_bufvec_what	   what);
+
+#define M0_REC_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_header_xc, ptr)
+#define M0_REC_SIBLING_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_update_ref_xc, ptr)
+#define M0_REC_OBJ_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_obj_ref_xc, ptr)
 #define M0_PART_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_part_header_xc, ptr)
+
+M0_INTERNAL int m0_fol_record_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
+				  m0_lsn_t lsn, struct m0_fol_rec *out);
 
 /** @} end of fol group */
 
