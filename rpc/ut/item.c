@@ -36,6 +36,7 @@
 static int __test(void);
 static void __test_timeout(m0_time_t deadline,
 			   m0_time_t timeout);
+static void __test_resend(struct m0_fop *fop);
 
 static struct m0_fop *fop_alloc(void)
 {
@@ -214,31 +215,93 @@ static void __test_timeout(m0_time_t deadline,
 	m0_fop_put(fop);
 }
 
+static bool only_second_time(void *data)
+{
+	int *ip = data;
+
+	++*ip;
+	return *ip == 2;
+}
+
 static void test_resend(void)
 {
 	struct m0_rpc_item *item;
 	int                 rc;
+	int                 cnt = 0;
 
+	/* Test: Request is dropped. */
 	M0_LOG(M0_FATAL, "TEST1:START");
-	fop = fop_alloc();
-	item = &fop->f_item;
 	m0_fi_enable_once("item_received", "drop_item");
-	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
-				0 /* urgent */, m0_time_from_now(1, 0));
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(item->ri_error == 0);
-	M0_UT_ASSERT(item->ri_nr_resend_attempts == 1);
-	M0_UT_ASSERT(item->ri_reply != NULL);
-	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
-	m0_fop_put(fop);
+	__test_resend(NULL);
 	M0_LOG(M0_FATAL, "TEST1:END");
 
-	/* Check ENQUEUED -> REPLIED transition */
+	/* Test: Reply is dropped. */
 	M0_LOG(M0_FATAL, "TEST2:START");
-	fop = fop_alloc();
-	item = &fop->f_item;
+	m0_fi_enable_func("item_received", "drop_item",
+			  only_second_time, &cnt);
+	__test_resend(NULL);
+	m0_fi_disable("item_received", "drop_item");
+	M0_LOG(M0_FATAL, "TEST2:END");
+
+	/* Test: ENQUEUED -> REPLIED transition.
+
+	   Reply is delayed. On sender, request item is enqueued for
+	   resending. But before formation could send the item,
+	   reply is received.
+
+	   nanosleep()s are inserted at specific points to create
+	   this scenario:
+	   - request is sent and is waiting for reply;
+	   - the item's resend timer is set to trigger after 500ms;
+	   - fault_point<"m0_rpc_reply_post", "delay_reply"> delays
+	     sending reply by 700ms;
+	   - resend timer of request item triggers;
+	   - fault_point<"m0_rpc_item_resend", "advance_delay"> moves
+	     deadline of request item 500ms in future, ergo the item
+	     moves to ENQUEUED state when handed over to formation;
+	   - receiver comes out of 700ms sleep and sends reply.
+	 */
+	M0_LOG(M0_FATAL, "TEST3:START");
 	m0_fi_enable_once("m0_rpc_reply_post", "delay_reply");
 	m0_fi_enable_once("m0_rpc_item_resend", "advance_deadline");
+	fop = fop_alloc();
+	item = &fop->f_item;
+	__test_resend(fop);
+	M0_LOG(M0_FATAL, "TEST3:END");
+
+	M0_LOG(M0_FATAL, "TEST4:START");
+	/* CONTINUES TO USE fop/item FROM PREVIOUS TEST-CASE. */
+	/* RPC call is complete i.e. item is in REPLIED state.
+	   Explicitly resend the completed request; the way the item
+	   will be resent during recovery.
+	 */
+	m0_rpc_machine_lock(item->ri_rmachine);
+	m0_rpc_item_resend(item);
+	m0_rpc_machine_unlock(item->ri_rmachine);
+	rc = m0_rpc_item_wait_for_reply(item, m0_time_from_now(2, 0));
+	/* Question: The item already has its ri_reply set. Hence, the item
+	   "skids" to REPLIED state as soon as it is SENT. It doesn't wait
+	   for reply. Is this behavior all right?
+	 */
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_error == 0);
+	M0_UT_ASSERT(item->ri_nr_resend_attempts == 2);
+	M0_UT_ASSERT(item->ri_reply != NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
+	M0_LOG(M0_FATAL, "TEST4:END");
+	m0_fop_put(fop);
+}
+
+static void __test_resend(struct m0_fop *fop)
+{
+	bool fop_put_flag = false;
+	int rc;
+
+	if (fop == NULL) {
+		fop = fop_alloc();
+		fop_put_flag = true;
+	}
+	item = &fop->f_item;
 	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
 				0 /* urgent */, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == 0);
@@ -246,20 +309,8 @@ static void test_resend(void)
 	M0_UT_ASSERT(item->ri_nr_resend_attempts == 1);
 	M0_UT_ASSERT(item->ri_reply != NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
-	M0_LOG(M0_FATAL, "TEST2:END");
-
-	M0_LOG(M0_FATAL, "TEST3:START");
-	m0_rpc_machine_lock(item->ri_rmachine);
-	m0_rpc_item_resend(item);
-	m0_rpc_machine_unlock(item->ri_rmachine);
-	rc = m0_rpc_item_wait_for_reply(item, m0_time_from_now(2, 0));
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(item->ri_error == 0);
-	M0_UT_ASSERT(item->ri_nr_resend_attempts == 2);
-	M0_UT_ASSERT(item->ri_reply != NULL);
-	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
-	M0_LOG(M0_FATAL, "TEST3:END");
-	m0_fop_put(fop);
+	if (fop_put_flag)
+		m0_fop_put(fop);
 }
 
 static void test_failure_before_sending(void)
@@ -290,16 +341,16 @@ static void test_failure_before_sending(void)
 	}
 	/* TEST4: Network layer reported buffer send failure.
 		  The item should move to FAILED state.
-		  NOTE: Buffer sending is successful, hence reply will be
-		  received but reply will be dropped.
+		  NOTE: Buffer sending is successful, hence we need
+		  to explicitly drop the item on receiver using
+		  fault_point<"item_received", "drop_item">.
 	 */
 	M0_LOG(M0_DEBUG, "TEST:4:START");
 	m0_fi_enable("outgoing_buf_event_handler", "fake_err");
+	m0_fi_disable("item_received", "drop_item");
 	rc = __test();
 	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(item->ri_error == -EINVAL);
-	/* Wait for reply */
-	m0_nanosleep(m0_time(0, 10000000), 0); /* sleep 10 milli seconds */
 	m0_rpc_machine_get_stats(machine, &stats, false);
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_dropped_items));
 	m0_fi_disable("outgoing_buf_event_handler", "fake_err");
