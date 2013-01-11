@@ -31,6 +31,7 @@ extern void test_cookie(void);
 extern void test_finject(void);
 extern void test_getopts(void);
 extern void test_list(void);
+extern void test_lockers(void);
 extern void test_memory(void);
 extern void m0_test_misc(void);
 extern void test_mutex(void);
@@ -62,6 +63,7 @@ const struct m0_test_suite libm0_ut = {
 #endif
 		{ "getopts",   test_getopts       },
 		{ "list",      test_list          },
+		{ "lockers",   test_lockers       },
 		{ "memory",    test_memory        },
 		{ "misc",      m0_test_misc	  },
 		{ "mutex",     test_mutex         },

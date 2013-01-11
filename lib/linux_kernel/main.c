@@ -31,6 +31,7 @@ M0_INTERNAL void test_chan(void);
 M0_INTERNAL void test_cookie(void);
 M0_INTERNAL void test_finject(void);
 M0_INTERNAL void test_list(void);
+M0_INTERNAL void test_lockers(void);
 M0_INTERNAL void test_tlist(void);
 M0_INTERNAL void test_mutex(void);
 M0_INTERNAL void test_queue(void);
@@ -61,6 +62,7 @@ const struct m0_test_suite m0_klibm0_ut = {
 		{ "finject",   test_finject       },
 #endif
 		{ "list",      test_list          },
+		{ "lockers",      test_lockers    },
 		{ "tlist",     test_tlist         },
 		{ "mutex",     test_mutex         },
 		{ "queue",     test_queue         },

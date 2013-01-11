@@ -18,6 +18,7 @@ nobase_mero_include_HEADERS += lib/adt.h \
                                   lib/finject.h \
                                   lib/getopts.h \
                                   lib/list.h \
+				  lib/lockers.h \
                                   lib/memory.h \
                                   lib/misc.h \
                                   lib/mutex.h \
@@ -66,6 +67,7 @@ mero_libmero_la_SOURCES  += lib/assert.c \
                                   lib/finject_internal.h \
                                   lib/getopts.c \
                                   lib/list.c \
+				  lib/lockers.c \
                                   lib/misc.c \
                                   lib/mutex.c \
                                   lib/queue.c \

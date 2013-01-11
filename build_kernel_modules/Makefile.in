@@ -127,7 +127,7 @@ lib_SOURCES                     := bitstring.c getopts.c vec.c list.c queue.c \
                                    refs.c time.c bitmap.c chan.c misc.c buf.c \
                                    cond.c thread.c tlist.c bob.c trace.c      \
                                    finject.c vec_xc.c vec.c buf_xc.c buf.c    \
-                                   m0lib.c cookie.c ext.c uuid.c
+                                   m0lib.c cookie.c ext.c uuid.c lockers.c
 
 lib_HEADERS                     := vec.h vec_xc.h buf.h buf_xc.h
 
@@ -140,7 +140,7 @@ lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c  \
                                    mutex.c queue.c refs.c tlist.c time.c    \
                                    vec.c zerovec.c thread.c bob.c trace.c   \
                                    memory.c finject.c buf.c cookie.c misc.c \
-                                   uuid.c
+                                   uuid.c lockers.c
 
 net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c \
                                    tm.c net_otw_types_xc.c tm_provision.c
