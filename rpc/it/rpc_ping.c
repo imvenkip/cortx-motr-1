@@ -179,6 +179,10 @@ static void __print_stats(struct m0_rpc_machine *rpc_mach)
 	       (unsigned long long)stats.rs_nr_rcvd_items);
 	printf("\tsent_items: %llu\n",
 		(unsigned long long)stats.rs_nr_sent_items);
+	printf("\tsent_items_uniq: %llu\n",
+		(unsigned long long)stats.rs_nr_sent_items_uniq);
+	printf("\tresent_items: %llu\n",
+		(unsigned long long)stats.rs_nr_resent_items);
 	printf("\tfailed_items: %llu\n",
 		(unsigned long long)stats.rs_nr_failed_items);
 	printf("\ttimedout_items: %llu\n",

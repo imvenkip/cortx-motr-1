@@ -768,6 +768,8 @@ M0_INTERNAL void m0_rpc_item_resend(struct m0_rpc_item *item)
 		item->ri_deadline = m0_time_from_now(0, 500 * 1000 * 1000);
 	}
 
+	if (item->ri_nr_resend_attempts == 0)
+		item->ri_rmachine->rm_stats.rs_nr_resent_items++;
 	item->ri_nr_resend_attempts++;
 	m0_rpc_session_hold_busy(item->ri_session);
 	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm,

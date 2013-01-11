@@ -465,6 +465,9 @@ static void item_sent(struct m0_rpc_item *item)
 	       item->ri_sm.sm_state == M0_RPC_ITEM_SENDING);
 
 	item->ri_rmachine->rm_stats.rs_nr_sent_items++;
+	if (item->ri_nr_resend_attempts == 0)
+		item->ri_rmachine->rm_stats.rs_nr_sent_items_uniq++;
+
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_SENT);
 	/*
 	 * Request and Reply items take hold on session until
