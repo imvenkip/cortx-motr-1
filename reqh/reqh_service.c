@@ -26,6 +26,7 @@
 #include "lib/trace.h" /* m0_console_printf */
 #include "lib/finject.h" /* M0_FI_ENABLED */
 #include "lib/uuid.h"
+#include "lib/lockers.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "mero/magic.h"
@@ -125,8 +126,8 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 	 */
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	key = service->rs_type->rst_key;
-	M0_ASSERT(reqh->rh_key[key] == NULL);
-	reqh->rh_key[key] = service;
+	M0_ASSERT(m0_reqh_lockers_is_empty(reqh, key));
+	m0_reqh_lockers_set(reqh, key, service);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 	rc = service->rs_ops->rso_start(service);
 	if (rc == 0) {
@@ -137,8 +138,8 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 		m0_rwlock_write_unlock(&reqh->rh_rwlock);
         } else {
 		m0_rwlock_write_lock(&reqh->rh_rwlock);
-		M0_ASSERT(reqh->rh_key[key] == service);
-		reqh->rh_key[key] = NULL;
+		M0_ASSERT(m0_reqh_lockers_get(reqh, key) == service);
+		m0_reqh_lockers_clear(reqh, key);
 		m0_rwlock_write_unlock(&reqh->rh_rwlock);
 		service->rs_state = M0_RST_FAILED;
 	}
@@ -174,8 +175,8 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	m0_reqh_svc_tlist_del(service);
 	service->rs_state = M0_RST_STOPPED;
 	key = service->rs_type->rst_key;
-	M0_ASSERT(reqh->rh_key[key] == service);
-	reqh->rh_key[key] = NULL;
+	M0_ASSERT(m0_reqh_lockers_get(reqh, key) == service);
+	m0_reqh_lockers_clear(reqh, key);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
@@ -243,7 +244,7 @@ int m0_reqh_service_type_register(struct m0_reqh_service_type *rstype)
 
 	m0_reqh_service_type_bob_init(rstype);
 	m0_rwlock_write_lock(&rstypes_rwlock);
-	rstype->rst_key = m0_reqh_key_init();
+	rstype->rst_key = m0_reqh_lockers_allot();
 	rstypes_tlink_init_at_tail(rstype, &rstypes);
 	m0_rwlock_write_unlock(&rstypes_rwlock);
 
@@ -296,14 +297,13 @@ M0_INTERNAL void m0_reqh_service_types_fini(void)
 }
 M0_EXPORTED(m0_reqh_service_types_fini);
 
-M0_INTERNAL struct m0_reqh_service *m0_reqh_service_find(const struct
-							 m0_reqh_service_type
-							 *st,
-							 struct m0_reqh *reqh)
+M0_INTERNAL struct m0_reqh_service *
+m0_reqh_service_find(const struct m0_reqh_service_type *st,
+		     struct m0_reqh                    *reqh)
 {
 	M0_PRE(st != NULL && reqh != NULL);
 
-	return reqh->rh_key[st->rst_key];
+	return m0_reqh_lockers_get(reqh, st->rst_key);
 }
 M0_EXPORTED(m0_reqh_service_find);
 

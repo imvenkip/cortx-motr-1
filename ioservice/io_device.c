@@ -154,8 +154,7 @@
    version number. I/O replies will embed failure vector updates. Please refer
    to the io_fops.h file for detailed design.
 
-   Failure vector will be stored in reqh as a shared key. m0_reqh_key_init(),
-   m0_reqh_key_find() and m0_reqh_key_fini() will be used. By this, latest
+   Failure vector will be stored in reqh as a shared key. By this, latest
    failure vectors and its version number information can be shared between
    multiple modules in the same request handler.
 
@@ -231,6 +230,7 @@
 #include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/lockers.h"
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
 #include "reqh/reqh.h"
@@ -241,9 +241,11 @@
    @{
  */
 
-
-static bool poolmach_is_initialised = false;
-static unsigned poolmach_key = 0;
+/**
+ * Please See ioservice/io_service.c
+ * The key is alloted in m0_ios_register().
+ */
+M0_EXTERN unsigned poolmach_key;
 
 M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh *reqh)
 {
@@ -252,12 +254,11 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh *reqh)
 
 	M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d\n", reqh, poolmach_key);
 	M0_PRE(reqh != NULL);
-	M0_PRE(!poolmach_is_initialised);
+	M0_PRE(m0_reqh_lockers_is_empty(reqh, poolmach_key));
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	poolmach_key = m0_reqh_key_init();
 
-	poolmach = m0_reqh_key_find(reqh, poolmach_key, sizeof *poolmach);
+	poolmach = m0_alloc(sizeof *poolmach);
 	if (poolmach == NULL) {
 		rc = -ENOMEM;
 		goto out;
@@ -266,10 +267,10 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh *reqh)
 	/* TODO configuration information is needed here. */
 	rc = m0_poolmach_init(poolmach, reqh->rh_dtm, 1, 10, 1, 1);
 	if (rc != 0) {
-		m0_reqh_key_fini(reqh, poolmach_key);
+		m0_free(poolmach);
 		goto out;
 	}
-	poolmach_is_initialised = true;
+	m0_reqh_lockers_set(reqh, poolmach_key, poolmach);
 	M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d", reqh, poolmach_key);
 out:
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
@@ -282,10 +283,9 @@ M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(struct m0_reqh *reqh)
 
 	M0_LOG(M0_DEBUG, "key get for reqh=%p, key=%d", reqh, poolmach_key);
 	M0_PRE(reqh != NULL);
-	M0_PRE(poolmach_is_initialised);
-	M0_PRE(poolmach_key != 0);
+	M0_PRE(!m0_reqh_lockers_is_empty(reqh, poolmach_key));
 
-	pm = m0_reqh_key_find(reqh, poolmach_key, sizeof *pm);
+	pm = m0_reqh_lockers_get(reqh, poolmach_key);
 	M0_POST(pm != NULL);
 	return pm;
 }
@@ -297,11 +297,10 @@ M0_INTERNAL void m0_ios_poolmach_fini(struct m0_reqh *reqh)
 
 	M0_LOG(M0_DEBUG, "key fini for reqh=%p, key=%d", reqh, poolmach_key);
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	pm = m0_reqh_key_find(reqh, poolmach_key, sizeof *pm);
+	pm = m0_reqh_lockers_get(reqh, poolmach_key);
 	m0_poolmach_fini(pm);
-	m0_reqh_key_fini(reqh, poolmach_key);
-	poolmach_is_initialised = false;
-	poolmach_key = 0;
+	m0_reqh_lockers_clear(reqh, poolmach_key);
+	m0_free(pm);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 

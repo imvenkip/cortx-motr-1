@@ -54,6 +54,12 @@ enum {
 	M0_NET_BUFFER_POOL_SIZE = 32,
 };
 
+/**
+ * Key for pool machine
+ * For usage please see ioservice/io_device.c:m0_ios_poolmach_*()
+ */
+M0_INTERNAL unsigned poolmach_key;
+
 static int ios_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
 			const char *arg);
@@ -178,7 +184,8 @@ M0_INTERNAL int m0_ios_register(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_delete_fom);
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_io_rw_fom);
 	m0_reqh_service_type_register(&m0_ios_type);
-	ios_cdom_key = m0_reqh_key_init();
+	ios_cdom_key = m0_reqh_lockers_allot();
+	poolmach_key = m0_reqh_lockers_allot();
 	return m0_ioservice_fop_init();
 }
 
@@ -187,7 +194,6 @@ M0_INTERNAL int m0_ios_register(void)
  */
 M0_INTERNAL void m0_ios_unregister(void)
 {
-	ios_cdom_key = 0;
 	m0_reqh_service_type_unregister(&m0_ios_type);
 	m0_ioservice_fop_fini();
 }

@@ -21,15 +21,13 @@
 #include "lib/lockers.h"
 #include "lib/ut.h"
 
-struct bank;
-
-M0_LOCKER_DECLARE(M0_INTERNAL, bank, 32);
+M0_LOCKERS_DECLARE(M0_INTERNAL, bank, 2);
 
 struct bank {
 	struct bank_lockers vault;
 };
 
-M0_LOCKER_DEFINE(M0_INTERNAL, bank, vault);
+M0_LOCKERS_DEFINE(M0_INTERNAL, bank, vault);
 
 static void bank_init(struct bank *bank)
 {
@@ -45,7 +43,7 @@ void test_lockers(void)
 {
 	int         key;
 	char       *valuable = "Gold";
-	char       *get_val;
+	char       *asset;
 	struct bank federal;
 
 	bank_init(&federal);
@@ -57,8 +55,8 @@ void test_lockers(void)
 	bank_lockers_set(&federal, key, valuable);
 	M0_UT_ASSERT(!bank_lockers_is_empty(&federal, key));
 
-	get_val = bank_lockers_get(&federal, key);
-	M0_UT_ASSERT(get_val == valuable);
+	asset = bank_lockers_get(&federal, key);
+	M0_UT_ASSERT(asset == valuable);
 
 	bank_lockers_clear(&federal, key);
 	M0_UT_ASSERT(bank_lockers_is_empty(&federal, key));

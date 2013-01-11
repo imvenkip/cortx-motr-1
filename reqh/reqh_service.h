@@ -518,15 +518,11 @@ M0_INTERNAL bool m0_reqh_service_invariant(const struct m0_reqh_service
 					   *service);
 
 /**
-   Returns service intance of the given service type using the reqhkey
-   framework.
-
-   @see m0_reqh::rh_key
+   Returns service intance of the given service type
  */
-M0_INTERNAL struct m0_reqh_service *m0_reqh_service_find(const struct
-							 m0_reqh_service_type
-							 *st,
-							 struct m0_reqh *reqh);
+M0_INTERNAL struct m0_reqh_service *
+m0_reqh_service_find(const struct m0_reqh_service_type *st,
+		     struct m0_reqh                    *reqh);
 
 M0_INTERNAL int m0_reqh_service_types_length(void);
 M0_INTERNAL bool m0_reqh_service_is_registered(const char *sname);

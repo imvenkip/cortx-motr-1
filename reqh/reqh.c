@@ -65,6 +65,8 @@ M0_TL_DESCR_DEFINE(m0_reqh_rpc_mach, "rpc machines", ,
 
 M0_TL_DEFINE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
 
+M0_LOCKERS_DEFINE(M0_INTERNAL, m0_reqh, rh_lockers);
+
 M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 {
 	return reqh != NULL && reqh->rh_dbenv != NULL &&
@@ -134,6 +136,7 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 	m0_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
 	m0_chan_init(&reqh->rh_sd_signal);
 	m0_rwlock_init(&reqh->rh_rwlock);
+	m0_reqh_lockers_init(reqh);
 	M0_POST(m0_reqh_invariant(reqh));
 
 	return result;
@@ -148,6 +151,7 @@ M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
         m0_reqh_svc_tlist_fini(&reqh->rh_services);
         m0_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
 	m0_chan_fini(&reqh->rh_sd_signal);
+	m0_reqh_lockers_fini(reqh);
 	m0_rwlock_fini(&reqh->rh_rwlock);
 }
 
@@ -269,35 +273,6 @@ M0_INTERNAL uint64_t m0_reqh_nr_localities(const struct m0_reqh *reqh)
 	M0_PRE(m0_reqh_invariant(reqh));
 
 	return reqh->rh_fom_dom.fd_localities_nr;
-}
-
-static unsigned keymax = 0;
-
-M0_INTERNAL unsigned m0_reqh_key_init()
-{
-	M0_PRE(keymax < REQH_KEY_MAX - 1);
-	return keymax++;
-}
-
-M0_INTERNAL void *m0_reqh_key_find(struct m0_reqh *reqh, unsigned key,
-				   m0_bcount_t size)
-{
-	void **data;
-
-	M0_PRE(IS_IN_ARRAY(key, reqh->rh_key) && reqh != NULL && size > 0);
-	M0_PRE(key <= keymax);
-
-	data = &reqh->rh_key[key];
-	if (*data == NULL)
-		M0_ALLOC_ADDB(*data, size, &reqh->rh_addb_mc,
-			      M0_REQH_ADDB_LOC_KEY_FIND, &reqh->rh_addb_ctx);
-	return *data;
-}
-
-M0_INTERNAL void m0_reqh_key_fini(struct m0_reqh *reqh, unsigned key)
-{
-	M0_PRE(IS_IN_ARRAY(key, reqh->rh_key));
-	m0_free(reqh->rh_key[key]);
 }
 
 /** @} endgroup reqh */
