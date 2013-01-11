@@ -663,6 +663,7 @@ M0_INTERNAL int __slot_reply_received(struct m0_rpc_slot *slot,
 				&req->ri_session->s_conn->c_rpcchan->rc_frm,
 				req);
 			m0_rpc_slot_process_reply(req);
+			m0_rpc_session_release(req->ri_session);
 		} else {
 			M0_ASSERT(false);
 		}
@@ -910,6 +911,11 @@ M0_INTERNAL void rpc_item_replied(struct m0_rpc_item *item,
 	m0_rpc_item_stop_timer(item);
 	m0_rpc_item_stop_resend_timer(item);
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_REPLIED);
+	/* Consider a request item X for which reply is received and
+	   ->rio_replied() callback is invoked for item X.
+	   If item X is resent (say for recovery), then ->rio_replied()
+	   callback is invoked again for X.
+	 */
 	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
 		item->ri_ops->rio_replied(item);
 }

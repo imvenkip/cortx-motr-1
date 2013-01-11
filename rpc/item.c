@@ -564,6 +564,7 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 	 * Request and Reply items take hold on session until
 	 * they are SENT/FAILED.
 	 * See: m0_rpc__post_locked(), m0_rpc_reply_post()
+	 *      m0_rpc_item_resend()
 	 */
 	if (M0_IN(item->ri_sm.sm_state, (M0_RPC_ITEM_ENQUEUED,
 					 M0_RPC_ITEM_URGENT,
@@ -768,6 +769,7 @@ M0_INTERNAL void m0_rpc_item_resend(struct m0_rpc_item *item)
 	}
 
 	item->ri_nr_resend_attempts++;
+	m0_rpc_session_hold_busy(item->ri_session);
 	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm,
 			    item);
 	M0_LOG(M0_FATAL, "item: %p [%s/%u] enqueued", item, item_kind(item),
