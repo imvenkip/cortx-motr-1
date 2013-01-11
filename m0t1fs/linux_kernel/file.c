@@ -491,9 +491,10 @@ static inline m0_bindex_t gfile_offset(m0_bindex_t               toff,
 {
 	m0_bindex_t goff;
 
-	M0_ENTRY("grpid = %llu, target_off = %llu", map->pi_grpid, toff);
 	M0_PRE(map  != NULL);
 	M0_PRE(play != NULL);
+
+	M0_ENTRY("grpid = %llu, target_off = %llu", map->pi_grpid, toff);
 
 	goff = map->pi_grpid * data_size(play) +
 	       toff % layout_unit_size(play);
@@ -586,7 +587,7 @@ static void page_pos_get(struct pargrp_iomap *map,
 
 /*
  * Returns the starting offset of page given its position in data matrix.
- * Acts as oposite of page_pos_get() API.
+ * Acts as opposite of page_pos_get() API.
  */
 static void data_page_offset_get(struct pargrp_iomap *map,
 		                uint32_t              row,
@@ -613,9 +614,9 @@ static void data_page_offset_get(struct pargrp_iomap *map,
  * in a parity group.
  */
 static void parity_page_offset_get(struct pargrp_iomap *map,
-		                  uint32_t             row,
-				  uint32_t             col,
-				  m0_bindex_t         *out)
+		                  uint32_t              row,
+				  uint32_t              col,
+				  m0_bindex_t          *out)
 {
 	struct m0_pdclust_layout *play;
 
@@ -749,7 +750,7 @@ static const struct target_ioreq_ops tioreq_ops = {
 static int io_req_fop_dgmode_read(struct io_req_fop *irfop);
 
 static const struct io_req_fop_ops irfop_ops = {
-	.irfo_dgmode_read   = io_req_fop_dgmode_read,
+	.irfo_dgmode_read = io_req_fop_dgmode_read,
 };
 
 static struct data_buf *data_buf_alloc_init(enum page_attr pattr);
@@ -799,35 +800,34 @@ static const struct m0_sm_state_descr io_states[] = {
 	[IRS_INITIALIZED]      = {
 		.sd_flags      = M0_SDF_INITIAL,
 		.sd_name       = "IO_initial",
-		.sd_allowed    = (1 << IRS_READING) | (1 << IRS_WRITING) |
-			         (1 << IRS_FAILED)  | (1 << IRS_REQ_COMPLETE)
+		.sd_allowed    = M0_BITS(IRS_READING, IRS_WRITING,
+				         IRS_FAILED,  IRS_REQ_COMPLETE)
 	},
 	[IRS_READING]	       = {
 		.sd_name       = "IO_reading",
-		.sd_allowed    = (1 << IRS_READ_COMPLETE) |
-			         (1 << IRS_FAILED)
+		.sd_allowed    = M0_BITS(IRS_READ_COMPLETE, IRS_FAILED)
 	},
 	[IRS_READ_COMPLETE]    = {
 		.sd_name       = "IO_read_complete",
-		.sd_allowed    = (1 << IRS_WRITING) | (1 << IRS_REQ_COMPLETE) |
-			         (1 << IRS_DEGRADED_READING) | (1 << IRS_FAILED)
+		.sd_allowed    = M0_BITS(IRS_WRITING, IRS_REQ_COMPLETE,
+			                 IRS_DEGRADED_READING, IRS_FAILED)
 	},
 	[IRS_DEGRADED_READING] = {
 		.sd_name       = "IO_degraded_read",
-		.sd_allowed    = (1 << IRS_READ_COMPLETE)
+		.sd_allowed    = M0_BITS(IRS_READ_COMPLETE)
 	},
 	[IRS_WRITING]          = {
 		.sd_name       = "IO_writing",
-		.sd_allowed    = (1 << IRS_WRITE_COMPLETE) | (1 << IRS_FAILED)
+		.sd_allowed    = M0_BITS(IRS_WRITE_COMPLETE, IRS_FAILED)
 	},
 	[IRS_WRITE_COMPLETE]   = {
 		.sd_name       = "IO_write_complete",
-		.sd_allowed    = (1 << IRS_REQ_COMPLETE) | (1 << IRS_FAILED)
+		.sd_allowed    = M0_BITS(IRS_REQ_COMPLETE, IRS_FAILED)
 	},
 	[IRS_FAILED]           = {
 		.sd_flags      = M0_SDF_FAILURE,
 		.sd_name       = "IO_req_failed",
-		.sd_allowed    = (1 << IRS_REQ_COMPLETE)
+		.sd_allowed    = M0_BITS(IRS_REQ_COMPLETE)
 	},
 	[IRS_REQ_COMPLETE]     = {
 		.sd_flags      = M0_SDF_TERMINAL,
@@ -2085,11 +2085,7 @@ static int pargrp_iomap_pages_mark(struct pargrp_iomap       *map,
 	M0_PRE(map != NULL);
 	M0_PRE(M0_IN(type, (M0_PUT_DATA, M0_PUT_SPARE)));
 
-	play   = pdlayout_get(map->pi_ioreq);
-	row_nr = type == M0_PUT_DATA ? data_row_nr(play) :
-		 parity_row_nr(play);
-	col_nr = type == M0_PUT_DATA ? data_col_nr(play) :
-		 parity_col_nr(play);
+	play = pdlayout_get(map->pi_ioreq);
 
 	if (type == M0_PUT_DATA) {
 		M0_ASSERT(map->pi_databufs != NULL);
@@ -2997,7 +2993,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 		 * Only fully modified pages from parity groups which have
 		 * chosen read-rest approach or aligned parity groups,
 		 * are copied since read-old approach needs reading of
-		 * all spanned pages.
+		 * all spanned pages,
 		 * (no matter fully modified or paritially modified)
 		 * in order to calculate parity correctly.
 		 */
@@ -3555,7 +3551,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			M0_LOG(M0_INFO, "Data seg added");
 		} else {
 			/*
-			 * XXX Need to change this to make it work
+			 * @todo Need to change this to make it work
 			 * irrespective of parity algorithm used.
 			 */
 			buf = map->pi_paritybufs[page_id(goff)]
@@ -4107,8 +4103,8 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	if (tioreq->ti_nwxfer->nxr_iofop_nr == 0)
 		m0_sm_state_set(&req->ir_sm,
-				((ioreq_sm_state(req) == IRS_READING ||
-				  ioreq_sm_state(req) == IRS_DEGRADED_READING) ?
+				(M0_IN(ioreq_sm_state(req),
+				 (IRS_READING, IRS_DEGRADED_READING)) ?
 				IRS_READ_COMPLETE : IRS_WRITE_COMPLETE));
 
 	M0_LEAVE();
@@ -4216,8 +4212,8 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 
 static int io_req_fop_dgmode_read(struct io_req_fop *irfop)
 {
-	int                         rc = 0;
-	uint32_t                    cnt = 1;
+	int                         rc;
+	uint32_t                    cnt;
 	uint32_t                    seg;
 	uint32_t                    seg_nr;
 	uint64_t                    grpid;
@@ -4252,7 +4248,7 @@ static int io_req_fop_dgmode_read(struct io_req_fop *irfop)
 	m0_fop_put(reply);
 
 	if (rc != M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
-		M0_LEAVE();
+		M0_RETURN(0);
 
 	rbulk = &irfop->irf_iofop.if_rbulk;
 
@@ -4284,7 +4280,7 @@ static int io_req_fop_dgmode_read(struct io_req_fop *irfop)
 					irfop->irf_tioreq, index + seg - cnt,
 					cnt);
 			if (rc != 0)
-				M0_RETERR(rc, "Parity group dgmode"
+				M0_RETERR(rc, "Parity group dgmode "
 					  "process failed");
 		}
 	} m0_tl_endfor;
@@ -4380,8 +4376,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	M0_ASSERT(M0_IN(ioreq_sm_state(req),
 		  (IRS_READING, IRS_WRITING, IRS_DEGRADED_READING)));
 
-	if (ioreq_sm_state(req) == IRS_READING ||
-	    ioreq_sm_state(req) == IRS_WRITING) {
+	if (M0_IN(ioreq_sm_state(req), (IRS_READING, IRS_WRITING))) {
 		ivec  = &ti->ti_ivec;
 		bvec  = &ti->ti_bufvec;
 		pattr = ti->ti_pageattrs;
@@ -4469,9 +4464,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					delta -= io_seg_size();
 					rc     = bulk_buffer_add(irfop, ndom,
 							&rbuf, &delta, maxsize);
-					if (rc == -ENOSPC) {
+					if (rc == -ENOSPC)
 						break;
-					}
 					else if (rc != 0)
 						goto fini_fop;
 

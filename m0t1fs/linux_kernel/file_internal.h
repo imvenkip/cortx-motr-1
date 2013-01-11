@@ -1493,19 +1493,19 @@ struct io_req_fop_ops {
  */
 struct io_req_fop {
         /** Holds M0_T1FS_IOFOP_MAGIC */
-        uint64_t                    irf_magic;
+        uint64_t                     irf_magic;
 
         /** In-memory handle for IO fop. */
-        struct m0_io_fop            irf_iofop;
+        struct m0_io_fop             irf_iofop;
 
 	/** Type of pages {PA_DATA, PA_PARITY} carried by io fop. */
-	enum page_attr		    irf_pattr;
+	enum page_attr		     irf_pattr;
 
         /** Callback per IO fop. */
-        struct m0_sm_ast            irf_ast;
+        struct m0_sm_ast             irf_ast;
 
         /** Linkage to link in to target_ioreq::ti_iofops list. */
-        struct m0_tlink             irf_link;
+        struct m0_tlink              irf_link;
 
         /**
          * Backlink to target_ioreq object where rc and number of bytes

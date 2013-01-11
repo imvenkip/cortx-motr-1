@@ -827,31 +827,32 @@ static void target_ioreq_test(void)
 
 static void dgmode_readio_test(void)
 {
-	int                        rc;
-	int                        cnt;
-	char                       content[LAY_P - 1] = {'b', 'c', 'd', 'e'};
-	char                      *cont;
-	uint32_t                   row;
-	uint32_t                   col;
-	uint64_t                   pgcur = 0;
-	m0_bindex_t                goff;
-	struct iovec               iovec_arr[DGMODE_IOVEC_NR];
-	struct m0_fop             *reply;
-	struct io_request         *req;
-	struct io_req_fop         *irfop;
-	struct m0_indexvec         ivec;
-	struct m0_rpc_conn        *conn;
-	struct m0_rpc_bulk        *rbulk;
-	struct pargrp_iomap       *map;
-	struct target_ioreq       *ti;
-	struct m0_rpc_session     *session;
-	struct m0_layout_enum     *le;
-	struct dgmode_readvec     *dgvec;
-	struct dgmode_readvec      dgvec_tmp;
-	struct m0_rpc_bulk_buf    *rbuf;
-	struct m0_pdclust_layout  *play;
-	struct m0_pdclust_src_addr src;
-	struct m0_pdclust_tgt_addr tgt;
+	int                         rc;
+	int                         cnt;
+	char                        content[LAY_P - 1] = {'b', 'c', 'd', 'e'};
+	char                       *cont;
+	uint32_t                    row;
+	uint32_t                    col;
+	uint64_t                    pgcur = 0;
+	m0_bindex_t                 goff;
+	struct iovec                iovec_arr[DGMODE_IOVEC_NR];
+	struct m0_fop              *reply;
+	struct io_request          *req;
+	struct io_req_fop          *irfop;
+	struct m0_indexvec          ivec;
+	struct m0_rpc_conn         *conn;
+	struct m0_rpc_bulk         *rbulk;
+	struct pargrp_iomap        *map;
+	struct target_ioreq        *ti;
+	struct m0_rpc_session      *session;
+	struct m0_layout_enum      *le;
+	struct dgmode_readvec      *dgvec;
+	struct dgmode_readvec       dgvec_tmp;
+	struct m0_rpc_bulk_buf     *rbuf;
+	struct m0_pdclust_layout   *play;
+	struct m0_pdclust_src_addr  src;
+	struct m0_pdclust_tgt_addr  tgt;
+	struct m0_fop_cob_rw_reply *rw_rep;
 
 	M0_ALLOC_PTR(req);
 	M0_UT_ASSERT(req != NULL);
@@ -920,6 +921,8 @@ static void dgmode_readio_test(void)
 	 */
 	ioreq_sm_state_set(req, IRS_READ_COMPLETE);
 	ioreq_sm_state_set(req, IRS_DEGRADED_READING);
+	rw_rep = io_rw_rep_get(reply);
+	rw_rep->rwr_rc = M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
 	io_req_fop_dgmode_read(irfop);
 
 	play = pdlayout_get(req);
@@ -951,8 +954,8 @@ static void dgmode_readio_test(void)
 		tgt.ta_obj   = m0_layout_enum_find(le,
 				file_to_fid(req->ir_file), &ti->ti_fid);
 
-		m0_pdclust_instance_inv(pdlayout_instance(layout_instance(
-					req)), &tgt, &src);
+		m0_pdclust_instance_inv(pdlayout_instance(layout_instance(req)),
+				        &tgt, &src);
 		M0_UT_ASSERT(src.sa_unit < layout_n(play));
 
 		/*
@@ -1011,9 +1014,8 @@ static void dgmode_readio_test(void)
 		for (row = 0; row < data_row_nr(play); ++row) {
 			cont = (char *)map->pi_databufs[row][src.sa_unit]->
 				db_buf.b_addr;
-			for (col = 0; col < PAGE_CACHE_SIZE; ++col, ++cont) {
+			for (col = 0; col < PAGE_CACHE_SIZE; ++col, ++cont)
 				M0_UT_ASSERT(*cont == content[0]);
-			}
 		}
 	}
 
@@ -1031,6 +1033,7 @@ static void dgmode_readio_test(void)
 
 	/* Cleanup */
 	m0_rpc_bulk_buflist_empty(rbulk);
+	m0_fop_put(reply);
 	ioreq_sm_state_set(req, IRS_READ_COMPLETE);
 	req->ir_nwxfer.nxr_iofop_nr = 0;
 	ti->ti_dgvec = NULL;
