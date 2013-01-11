@@ -71,6 +71,7 @@ enum {
 	FID_KEY		 = 3,
 	ATTR_A_CONST	 = 1,
 	ATTR_B_CONST	 = 1,
+	DGMODE_IOVEC_NR  = 8,
 };
 
 static struct super_block            sb;
@@ -86,6 +87,7 @@ static struct m0t1fs_service_context ctx;
 static struct m0_poolmach            poolmach;
 
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
+M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
 
 static int file_io_ut_init(void)
 {
@@ -823,6 +825,223 @@ static void target_ioreq_test(void)
 	m0_free_aligned(aligned_buf, M0_0VEC_ALIGN, M0_0VEC_SHIFT);
 }
 
+static void dgmode_readio_test(void)
+{
+	int                        rc;
+	int                        cnt;
+	char                       content[LAY_P - 1] = {'b', 'c', 'd', 'e'};
+	char                      *cont;
+	uint32_t                   row;
+	uint32_t                   col;
+	uint64_t                   pgcur = 0;
+	m0_bindex_t                goff;
+	struct iovec               iovec_arr[DGMODE_IOVEC_NR];
+	struct m0_fop             *reply;
+	struct io_request         *req;
+	struct io_req_fop         *irfop;
+	struct m0_indexvec         ivec;
+	struct m0_rpc_conn        *conn;
+	struct m0_rpc_bulk        *rbulk;
+	struct pargrp_iomap       *map;
+	struct target_ioreq       *ti;
+	struct m0_rpc_session     *session;
+	struct m0_layout_enum     *le;
+	struct dgmode_readvec     *dgvec;
+	struct dgmode_readvec      dgvec_tmp;
+	struct m0_rpc_bulk_buf    *rbuf;
+	struct m0_pdclust_layout  *play;
+	struct m0_pdclust_src_addr src;
+	struct m0_pdclust_tgt_addr tgt;
+
+	M0_ALLOC_PTR(req);
+	M0_UT_ASSERT(req != NULL);
+
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+
+	/* 8 segments covering a parity group each. */
+	for (cnt = 0; cnt < DGMODE_IOVEC_NR; ++cnt) {
+		iovec_arr[cnt].iov_base = &rc;
+		iovec_arr[cnt].iov_len  = PAGE_CACHE_SIZE;
+
+		INDEX(&ivec, cnt) = cnt * UNIT_SIZE * LAY_N;
+		COUNT(&ivec, cnt) = iovec_arr[cnt].iov_len;
+	}
+
+	ci.ci_inode.i_size = 2 * DATA_SIZE * DGMODE_IOVEC_NR;
+	rc = io_request_init(req, &lfile, iovec_arr, &ivec, IRT_READ);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Creates all pargrp_iomap structures. */
+	rc = ioreq_iomaps_prepare(req);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(req->ir_iomap_nr == DGMODE_IOVEC_NR);
+
+	/* Spawns and initialises all target_ioreq objects. */
+	rc = req->ir_nwxfer.nxr_ops->nxo_prepare(&req->ir_nwxfer);
+	M0_UT_ASSERT(rc == 0);
+
+	ioreq_sm_state_set(req, IRS_READING);
+	ti = tioreqs_tlist_head(&req->ir_nwxfer.nxr_tioreqs);
+
+	/*
+	 * Fake data structure members so that UT passes through
+	 * PRE checks unhurt.
+	 */
+	ti->ti_dgvec = &dgvec_tmp;
+	M0_ALLOC_PTR(session);
+	M0_UT_ASSERT(session != NULL);
+	M0_ALLOC_PTR(conn);
+	M0_UT_ASSERT(conn != NULL);
+	session->s_conn = conn;
+	conn->c_rpc_machine = &m0t1fs_globals.g_rpc_machine;
+	conn->c_rpc_machine->rm_tm.ntm_dom = &m0t1fs_globals.g_ndom;
+	ti->ti_session = session;
+
+	/* Creates IO fops from pages. */
+	rc = target_ioreq_iofops_prepare(ti, PA_DATA);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Retrieves an IO fop that will be treated as a failed fop. */
+	irfop = iofops_tlist_head(&ti->ti_iofops);
+	reply = m0_fop_alloc(&m0_fop_cob_readv_rep_fopt, NULL);
+	irfop->irf_iofop.if_fop.f_item.ri_reply = &reply->f_item;
+
+	/* Increments refcount so that ref release can be verified. */
+	reply = m0_fop_get(reply);
+
+	rbulk = &irfop->irf_iofop.if_rbulk;
+	M0_UT_ASSERT(m0_tlist_length(&rpcbulk_tl, &rbulk->rb_buflist) == 1);
+	rbuf  = m0_tlist_head(&rpcbulk_tl, &rbulk->rb_buflist);
+
+	/*
+	 * Starts degraded mode processing for parity groups whose pages
+	 * are found in the failed IO fop.
+	 */
+	ioreq_sm_state_set(req, IRS_READ_COMPLETE);
+	ioreq_sm_state_set(req, IRS_DEGRADED_READING);
+	io_req_fop_dgmode_read(irfop);
+
+	play = pdlayout_get(req);
+	le   = m0_layout_instance_to_enum(file_to_m0inode(req->ir_file)->
+	       ci_layout_instance);
+
+	for (cnt = 0; cnt < req->ir_iomap_nr; ++cnt) {
+		if (req->ir_iomaps[cnt]->pi_state != PI_DEGRADED)
+			continue;
+
+		rc = req->ir_iomaps[cnt]->pi_ops->pi_dgmode_postprocess(req->
+				ir_iomaps[cnt]);
+		M0_UT_ASSERT(rc == 0);
+	}
+
+	for (cnt = 0; cnt < rbuf->bb_zerovec.z_bvec.ov_vec.v_nr; ++cnt) {
+
+		ioreq_pgiomap_find(req, pargrp_id_find(rbuf->bb_zerovec.
+				   z_index[cnt], UNIT_SIZE), &pgcur, &map);
+		M0_UT_ASSERT(map != NULL);
+		M0_UT_ASSERT(map->pi_state == PI_DEGRADED);
+
+		/* For normal read IO, parity is not read. */
+		goff         = gfile_offset(rbuf->bb_zerovec.z_index[cnt],
+				            map, play);
+
+		tgt.ta_frame = rbuf->bb_zerovec.z_index[cnt] /
+			       layout_unit_size(play);
+		tgt.ta_obj   = m0_layout_enum_find(le,
+				file_to_fid(req->ir_file), &ti->ti_fid);
+
+		m0_pdclust_instance_inv(pdlayout_instance(layout_instance(
+					req)), &tgt, &src);
+		M0_UT_ASSERT(src.sa_unit < layout_n(play));
+
+		/*
+		 * Checks if all pages from given unit_id are marked
+		 * as failed.
+		 */
+		for (row = 0; row < data_row_nr(play); ++row)
+			M0_UT_ASSERT(map->pi_databufs[row][src.sa_unit]->
+				     db_flags & PA_READ_FAILED);
+
+	}
+
+	for (cnt = 0; cnt < req->ir_iomap_nr; ++cnt) {
+		map = req->ir_iomaps[cnt];
+		if (map->pi_state != PI_DEGRADED)
+			continue;
+
+		/* Traversing unit by unit. */
+		for (col = 0; col < data_col_nr(play); ++col) {
+			for (row = 0; row < data_row_nr(play); ++row) {
+				if (col == src.sa_unit)
+					M0_UT_ASSERT(map->pi_databufs
+						     [row][col]->db_flags &
+						     PA_READ_FAILED);
+				else {
+					M0_UT_ASSERT(map->pi_databufs
+						     [row][col]->db_flags &
+						     PA_DGMODE_READ);
+					memset(map->pi_databufs[row][col]->
+					       db_buf.b_addr, content[col],
+					       PAGE_CACHE_SIZE);
+					cont = (char *)map->pi_databufs
+						[row][col]->db_buf.b_addr;
+				}
+			}
+		}
+
+		/* Parity units are needed for recovery. */
+		for (col = 0; col < parity_col_nr(play); ++col) {
+			for (row = 0; row < parity_row_nr(play); ++row) {
+				M0_UT_ASSERT(map->pi_paritybufs[row][col]->
+					     db_flags & PA_DGMODE_READ);
+				memset(map->pi_paritybufs[row][col]->db_buf.
+				       b_addr, content[LAY_P - 2],
+				       PAGE_CACHE_SIZE);
+				cont = (char *)map->pi_paritybufs[row][col]->
+					db_buf.b_addr;
+			}
+		}
+
+		/* Recovers lost data unit/s. */
+		rc = pargrp_iomap_dgmode_recover(map);
+		M0_UT_ASSERT(rc == 0);
+
+		/* Validate the recovered data. */
+		for (row = 0; row < data_row_nr(play); ++row) {
+			cont = (char *)map->pi_databufs[row][src.sa_unit]->
+				db_buf.b_addr;
+			for (col = 0; col < PAGE_CACHE_SIZE; ++col, ++cont) {
+				M0_UT_ASSERT(*cont == content[0]);
+			}
+		}
+	}
+
+	rc = dgmode_readvec_alloc_init(&dgvec, ti);
+	M0_UT_ASSERT(dgvec->dr_tioreq == ti);
+	M0_UT_ASSERT(dgvec->dr_ivec.iv_index != NULL);
+	M0_UT_ASSERT(dgvec->dr_ivec.iv_vec.v_count != NULL);
+	M0_UT_ASSERT(dgvec->dr_bufvec.ov_buf != NULL);
+	M0_UT_ASSERT(dgvec->dr_bufvec.ov_vec.v_count != NULL);
+	M0_UT_ASSERT(dgvec->dr_pageattrs != NULL);
+
+	dgvec->dr_ivec.iv_vec.v_nr = page_nr(layout_unit_size(play) *
+			                     layout_k(play));
+	dgmode_readvec_dealloc_fini(dgvec);
+
+	/* Cleanup */
+	m0_rpc_bulk_buflist_empty(rbulk);
+	ioreq_sm_state_set(req, IRS_READ_COMPLETE);
+	req->ir_nwxfer.nxr_iofop_nr = 0;
+	ti->ti_dgvec = NULL;
+
+	req->ir_ops->iro_iomaps_destroy(req);
+	nw_xfer_req_complete(&req->ir_nwxfer, false);
+	io_request_fini(req);
+	m0_indexvec_free(&ivec);
+	m0_free(req);
+}
+
 const struct m0_test_suite file_io_ut = {
         .ts_name  = "file-io-ut",
         .ts_init  = file_io_ut_init,
@@ -833,6 +1052,7 @@ const struct m0_test_suite file_io_ut = {
                 {"parity_group_ops_test",      pargrp_iomap_test},
 		{"nw_xfer_ops_test",           nw_xfer_ops_test},
                 {"target_ioreq_ops_test",      target_ioreq_test},
+                {"dgmode_readio_test",         dgmode_readio_test},
 		{NULL,                         NULL},
         },
 };

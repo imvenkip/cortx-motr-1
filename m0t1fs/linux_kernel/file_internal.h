@@ -1330,7 +1330,7 @@ struct pargrp_iomap_ops {
 	 * @pre   map->pi_state == PI_HEALTHY.
 	 * @post  map->pi_state == PI_DEGRADED.
 	 */
-	void (*pi_dgmode_process) (struct pargrp_iomap *map,
+	int (*pi_dgmode_process)  (struct pargrp_iomap *map,
 			           struct target_ioreq *tio,
 			           m0_bindex_t         *index,
 				   uint32_t             count);
@@ -1478,7 +1478,7 @@ struct io_req_fop_ops {
 	 * Invokes degraded mode read support routines for upper
 	 * data structures like pargrp_iomap.
 	 */
-	void (*irfo_dgmode_read) (struct io_req_fop *irfop);
+	int (*irfo_dgmode_read) (struct io_req_fop *irfop);
 };
 
 /**
