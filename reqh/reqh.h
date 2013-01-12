@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -218,12 +218,30 @@ M0_INTERNAL void m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop);
 M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh);
 
 /**
-   Waits on m0_reqh::rh_sd_signal using the given clink until
-   m0_fom_domain_is_idle().
+   Waits on the request handler channel (m0_reqh::rh_sd_signal) until the
+   request handler FOM domain (m0_reqh::rh_fom_dom) is idle.
+
+   @note Use with caution. This can block forever if FOMs do not terminate.
+   @see m0_fom_domain_is_idle()
+   @see m0_reqh_shutdown_wait()
+ */
+M0_INTERNAL void m0_reqh_fom_domain_idle_wait(struct m0_reqh *reqh);
+
+/**
+   Initiates the termination of services and then wait for FOMs to
+   terminate.
 
    @param reqh request handler to be shutdown
+   @see m0_reqh_service_prepare_to_stop(), m0_reqh_fom_domain_idle_wait()
  */
 M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh);
+
+/**
+   Stops and finalises all the services registered with a request handler.
+   @see m0_reqh_service_stop()
+   @see m0_reqh_service_fini()
+ */
+M0_INTERNAL void m0_reqh_services_terminate(struct m0_reqh *reqh);
 
 /**
     Initializes global reqh objects like reqh fops and addb context,

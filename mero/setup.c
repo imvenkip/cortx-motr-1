@@ -181,7 +181,8 @@ static struct m0_net_xprt *cs_xprt_lookup(const char *xprt_name,
 /**
    Lists supported network transports.
  */
-static void cs_xprts_list(FILE *out, struct m0_net_xprt **xprts, size_t xprts_nr)
+static void cs_xprts_list(FILE *out, struct m0_net_xprt **xprts,
+			  size_t xprts_nr)
 {
 	int i;
 
@@ -1028,30 +1029,6 @@ cs_service_init(const char *name, const char *arg, struct m0_reqh *reqh)
 	M0_RETURN(rc);
 }
 
-/**
-   Finalises a service.
-   Transitions service to M0_RSPH_STOPPING phase, stops a service and then
-   finalises the same.
-
-   @param service Service to be finalised
-
-   @pre service != NULL
-
-   @see m0_reqh_service_stop()
-   @see m0_reqh_service_fini()
- */
-static void cs_service_fini(struct m0_reqh_service *service)
-{
-	M0_PRE(service != NULL);
-
-	M0_ENTRY("%s", service->rs_type->rst_name);
-
-	m0_reqh_service_stop(service);
-	m0_reqh_service_fini(service);
-}
-
-static void cs_services_fini(struct m0_reqh *reqh);
-
 static int _services_init(struct cs_reqh_context *rctx)
 {
 	const char *name;
@@ -1069,7 +1046,7 @@ static int _services_init(struct cs_reqh_context *rctx)
 			&rctx->rc_reqh);
 	}
 	if (rc != 0)
-		cs_services_fini(&rctx->rc_reqh);
+		m0_reqh_services_terminate(&rctx->rc_reqh);
 	M0_RETURN(rc);
 }
 
@@ -1098,29 +1075,6 @@ static int cs_services_init(struct m0_mero *cctx)
 	} m0_tl_endfor;
 
 	M0_RETURN(rc);
-}
-
-/**
-   Finalises all the services registered with a request handler.
-   Also traverses through the services list and invokes cs_service_fini() on
-   each individual service.
-
-   @param reqh Request handler of which the services are to be finalised
-
-   @pre reqh != NULL
- */
-static void cs_services_fini(struct m0_reqh *reqh)
-{
-	struct m0_reqh_service *svc;
-
-	M0_PRE(reqh != NULL);
-
-	M0_ENTRY();
-
-	m0_tl_for(m0_reqh_svc, &reqh->rh_services, svc) {
-		M0_ASSERT(m0_reqh_service_invariant(svc));
-		cs_service_fini(svc);
-	} m0_tl_endfor;
 }
 
 /**
@@ -1442,7 +1396,7 @@ static void cs_request_handler_stop(struct cs_reqh_context *rctx)
 	reqh = &rctx->rc_reqh;
 	m0_reqh_shutdown_wait(reqh);
 
-	cs_services_fini(reqh);
+	m0_reqh_services_terminate(reqh);
 	cs_rpc_machines_fini(reqh);
 	m0_reqh_fini(reqh);
 	m0_fol_fini(&rctx->rc_fol);

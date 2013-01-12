@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -102,34 +102,32 @@
 
    - unregister service using m0_reqh_service_type_unregister().
 
-   A typical service transitions through its states as below,
+   A typical service transitions through its states as illustrated below.
+   The triggering subroutine is identified, and the service method or
+   service type method invoked is shown within square braces.
    @verbatim
-
-     cs_service_init()
-          |
-          v                 allocated
-     rsto_service_allocate()+------------>M0_RST_INITIALISING
-                                            |
+  m0_reqh_service_allocate()
+       <<START>> ---------------------> M0_RST_INITIALISING
+   [rsto_service_allocate()]                |
                                             | m0_reqh_service_init()
                                             v
                                         M0_RST_INITIALISED
                                             |
-                                            | rso_start()
-                    start up failed         v
-        +------------------------------+M0_RST_STARTING
-        |              rc != 0              |
-	|                                   | m0_reqh_service_start()
-        v                                   v
-   M0_RST_FAILED                          M0_RST_STARTED
-        |                                   |
-        v                                   | rso_stop()
-    rso_fini()                              v
+                                            | m0_reqh_service_start()
+                                            v
+        +------------------------------ M0_RST_STARTING [rso_start()]
+        |                       failure     | success
+        v                                   |
+   M0_RST_FAILED                            |
+        |                              M0_RST_STARTED
+        | m0_reqh_service_fini()            | m0_reqh_service_prepare_to_stop()
+        v                                   |  [rso_prepare_to_stop()]*
+     <<END>> [rso_fini()]                   v
         ^                               M0_RST_STOPPING
-        |                                   |
         |                                   | m0_reqh_service_stop()
+        |                                   | [rso_stop()]
         |     m0_reqh_service_fini()        v
-	+------------------------------+M0_RST_STOPPED
-
+	+------------------------------ M0_RST_STOPPED
    @endverbatim
 
    @{
@@ -172,16 +170,19 @@ enum m0_reqh_service_state {
 	 */
 	M0_RST_STARTED,
 	/**
-	   A service transitions to M0_RST_STOPPING state before service
-           specific stop routine is invoked.
-
-	   @see m0_reqh_service_stop()
+	   A service transitions to M0_RST_STOPPING state before the service
+           specific rso_stop() routine is invoked.
+	   The optional rso_prepare_to_stop() method will be called
+	   when this state is entered.  This gives a service a chance
+	   to trigger FOM termination before its rso_stop() method is
+	   invoked.
+	   @see m0_reqh_shutdown_wait()
 	 */
 	M0_RST_STOPPING,
 	/**
 	   A service transitions to M0_RST_STOPPED state, once service specific
-           stop routine completes successfully and after it is unregistered from
-           the request handler.
+           rso_stop() routine completes successfully and after it is
+           unregistered from the request handler.
 	 */
 	M0_RST_STOPPED,
 	/**
@@ -273,6 +274,17 @@ struct m0_reqh_service_ops {
 	   @see m0_reqh_service_start()
 	 */
 	int (*rso_start)(struct m0_reqh_service *service);
+
+	/**
+	   Optional method to notify the service that the request handler
+	   is preparing to shut down.  After this call is made the request
+	   handler will block waiting for FOM termination, so any long
+	   lived service FOMs should notified that they should stop by this
+	   method.
+	   The service will be in the M0_RST_STARTED state when the method
+	   is invoked.
+	 */
+	void (*rso_prepare_to_stop)(struct m0_reqh_service *service);
 
 	/**
 	   Performs service specific finalisation of objects.
@@ -412,6 +424,16 @@ M0_INTERNAL struct m0_reqh_service_type *m0_reqh_service_type_find(const char
 M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service);
 
 /**
+   Transition the service to the M0_RST_STOPPING state and invoke its
+   rso_prepare_to_stop() method if it is defined.
+   @pre service != NULL
+   @pre service->rs_state == M0_RST_STARTED
+   @post service->rs_state == M0_RST_STOPPING
+ */
+M0_INTERNAL void m0_reqh_service_prepare_to_stop(struct m0_reqh_service
+						 *service);
+
+/**
    Stops a particular service.
    Unregisters a service from the request handler and transitions service to
    M0_RST_STOPPED state.
@@ -422,7 +444,8 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service);
    @pre service != NULL
 
    @see struct m0_reqh_service_ops
-   @see cs_service_fini()
+   @see m0_reqh_service_prepare_to_stop()
+   @see m0_reqh_services_terminate()
  */
 M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service);
 
@@ -451,7 +474,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
    @pre service != NULL && service->rs_state == M0_RST_STOPPED
 
    @see struct m0_reqh_service_ops
-   @see cs_service_fini()
+   @see m0_reqh_services_terminate()
  */
 M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service);
 

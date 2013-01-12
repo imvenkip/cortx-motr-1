@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -42,16 +42,21 @@
    }
    @enddot
    - The FOM starts in the Init phase then transitions to the ComputeTimeout
-   phase.
+   phase.  It forces the next phase to compute the next posting epoch based
+   on the current time.
    - In the ComputeTimeout phase the FOM calculates the absolute time of the
-   next posting epoch.  It then transitions to the Sleep phase.
+   next posting epoch.  The next epoch is computed relative to the previous
+   epoch so as to reduce the impact of the actual time it takes to post the
+   statistics.  However, if the current time has already advanced significantly
+   toward the next epoch, then it will compute the next epoch against current
+   time.  The latter computation is forced on the first iteration, but could
+   conceivably happen at run time because a ready FOM is subject to scheduling
+   delays.  The FOM transitions to the Sleep phase next.
    - In the Sleep phase, it checks to see if the FOM has been shutdown, and
    if so, will transition to the Fini phase.  If not shutdown, it checks to
    see if the current time exceeds the next posting epoch, and if so will
    transition to the Post phase.  Otherwise it will block the FOM until
    the next posting epoch.
-      - Currently using the FOM thread itself to block on as timer based
-        solutions fail.
    - The Post phase will invoke m0_reqh_stats_post_addb() to post pending
    statistics.  It will then transition to the ComputeTimeout phase to repeat
    the cycle.
@@ -62,6 +67,8 @@
    The posting fom is launched only if the ::addb_svc_start_pfom global
    permits.  This control is provided for unit testing.
 
+   The FOM is terminated by invoking addb_pfom_stop().  The subroutine
+   posts an AST to cancel its timer and force it to stop itself.
  */
 
 /* This file is designed to be included by addb/addb.c */
@@ -144,6 +151,15 @@ static struct m0_fom_type addb_pfom_type;
 /** UT hook to track a singleton FOM */
 static bool the_addb_pfom_started;
 
+enum {
+	/**
+	   Tolerance on the posting epoch when re-computing the next epoch.
+	   The number is expressed as a fraction of the posting period.  The
+	   greater the number the narrower the tolerance.
+	 */
+	M0_ADDB_PFOM_PERIOD_FRAC_TOLERANCE = 10,
+};
+
 static bool addb_pfom_invariant(const struct addb_post_fom *pfom)
 {
 	return addb_post_fom_bob_check(pfom);
@@ -157,11 +173,15 @@ static void addb_pfom_fo_fini(struct m0_fom *fom)
 						   as_pfom);
 	struct m0_reqh_service *rsvc = &svc->as_reqhs;
 
+	M0_ENTRY();
+
 	m0_fom_fini(fom);
+	m0_fom_timeout_fini(&pfom->pf_timeout);
 	addb_post_fom_bob_fini(pfom);
 
-	/* Mustn't free as the fom is embedded in the service object, but
-	 * notify waiters.
+	/*
+	 * Mustn't free as the fom is embedded in the service object, but
+	 * notify UT waiters.
 	 */
 	m0_mutex_lock(&rsvc->rs_mutex);
 	pfom->pf_running = false;
@@ -181,42 +201,53 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 					      &addb_pfom_bob);
 	struct addb_svc        *svc = container_of(pfom, struct addb_svc,
 						   as_pfom);
-	struct m0_reqh_service *rsvc = &svc->as_reqhs;
 	struct m0_reqh         *reqh = svc->as_reqhs.rs_reqh;
+	struct m0_reqh_service *rsvc = &svc->as_reqhs;
 	int                     rc = M0_FSO_AGAIN;
+	m0_time_t               now;
+
+	M0_ENTRY();
 
 	switch (m0_fom_phase(fom)) {
 	case ADDB_PFOM_PHASE_INIT:
+		M0_LOG(M0_DEBUG, "init");
+		m0_mutex_lock(&rsvc->rs_mutex);
 		the_addb_pfom_started = true;
+		m0_cond_broadcast(&svc->as_cond, &rsvc->rs_mutex); /* for UT */
+		m0_mutex_unlock(&rsvc->rs_mutex);
 		m0_fom_phase_set(fom, ADDB_PFOM_PHASE_CTO);
 		break;
 	case ADDB_PFOM_PHASE_CTO:
 		M0_LOG(M0_DEBUG, "cto");
-		pfom->pf_next_post = m0_time_now() + pfom->pf_period;
+		now = m0_time_now();
+		if (now < pfom->pf_next_post + pfom->pf_tolerance)
+			pfom->pf_next_post += pfom->pf_period;
+		else
+			pfom->pf_next_post = now + pfom->pf_period;
 		m0_fom_phase_set(fom, ADDB_PFOM_PHASE_SLEEP);
 		break;
 	case ADDB_PFOM_PHASE_SLEEP:
-		if (pfom->pf_shutdown || reqh->rh_shutdown) {
+		if (pfom->pf_timeout.to_cb.fc_fom != NULL) {
+			M0_LOG(M0_DEBUG, "timeout reset");
+			m0_fom_timeout_cancel(&pfom->pf_timeout);
+			m0_fom_timeout_fini(&pfom->pf_timeout);
+			m0_fom_timeout_init(&pfom->pf_timeout);
+		}
+		if (pfom->pf_shutdown) {
 			M0_LOG(M0_DEBUG, "fini");
 			m0_fom_phase_set(fom, ADDB_PFOM_PHASE_FINI);
 			rc = M0_FSO_WAIT;
 			break;
 		}
-		if (m0_time_now() >= pfom->pf_next_post) {
+		now = m0_time_now();
+		if (now >= pfom->pf_next_post) {
 			m0_fom_phase_set(fom, ADDB_PFOM_PHASE_POST);
 			break;
 		}
-		m0_mutex_lock(&rsvc->rs_mutex);
-		pfom->pf_timer_started = true;
-		/** @todo Replace with m0_fom_timeout_wait_on() */
-		m0_fom_block_enter(fom);
-		/* Don't sleep for long time to not hang on process exit */
-		m0_cond_timedwait(&svc->as_cond, &rsvc->rs_mutex,
-		                  m0_time_now() +
-		                  min64u(pfom->pf_period, M0_MKTIME(1, 0)));
-		m0_fom_block_leave(fom);
-		pfom->pf_timer_started = false;
-		m0_mutex_unlock(&rsvc->rs_mutex);
+		m0_fom_timeout_wait_on(&pfom->pf_timeout, &pfom->pf_fom,
+				       pfom->pf_next_post);
+		M0_LOG(M0_DEBUG, "wait");
+		rc = M0_FSO_WAIT;
 		break;
 	case ADDB_PFOM_PHASE_POST:
 		M0_LOG(M0_DEBUG, "post");
@@ -230,7 +261,7 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 		M0_IMPOSSIBLE("Phasors were not on stun!");
 	}
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 static void addb_pfom_fo_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
@@ -273,6 +304,7 @@ static void addb_pfom_start(struct addb_svc *svc)
 	struct m0_fom        *fom = &pfom->pf_fom;
 	struct m0_reqh       *reqh = svc->as_reqhs.rs_reqh;
 
+	M0_ENTRY();
 	M0_PRE(addb_svc_invariant(svc));
 
 	m0_rwlock_read_lock(&reqh->rh_rwlock);
@@ -282,7 +314,11 @@ static void addb_pfom_start(struct addb_svc *svc)
 
 	m0_fom_init(fom, &addb_pfom_type, &addb_pfom_ops, NULL, NULL,
 		    reqh, svc->as_reqhs.rs_type);
+	m0_fom_timeout_init(&pfom->pf_timeout);
 	pfom->pf_period = addb_pfom_period;
+	pfom->pf_tolerance = pfom->pf_period
+		/ M0_ADDB_PFOM_PERIOD_FRAC_TOLERANCE;
+	pfom->pf_next_post = 0; /* force the first timeout calculation */
 	pfom->pf_running = true;
 
         M0_PRE(m0_fom_phase(fom) == ADDB_PFOM_PHASE_INIT);
@@ -292,12 +328,29 @@ static void addb_pfom_start(struct addb_svc *svc)
 }
 
 /**
-   Stops the statistics posting FOM. Returns only after the FOM has
-   terminated.  Uses the service mutex internally.
+   AST callback to safely stop the FOM.
+ */
+static void addb_pfom_stop_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+        struct addb_post_fom *pfom = bob_of(ast, struct addb_post_fom,
+					    pf_ast, &addb_pfom_bob);
+
+	M0_LOG(M0_DEBUG, "pfom_stop_cb: %d\n", (int)pfom->pf_running);
+	if (pfom->pf_running) {
+		m0_fom_timeout_cancel(&pfom->pf_timeout);
+		pfom->pf_shutdown = true;
+		m0_fom_ready(&pfom->pf_fom);
+	}
+}
+
+/**
+   Initiates the termination of the statistics posting FOM. Does not block.
+   Uses the service mutex internally.
  */
 static void addb_pfom_stop(struct addb_svc *svc)
 {
         struct addb_post_fom   *pfom = &svc->as_pfom;
+	struct m0_fom          *fom  = &pfom->pf_fom;
 	struct m0_reqh_service *rsvc = &svc->as_reqhs;
 
 	M0_ENTRY();
@@ -308,20 +361,18 @@ static void addb_pfom_stop(struct addb_svc *svc)
 	m0_mutex_lock(&rsvc->rs_mutex);
 	if (pfom->pf_running) {
 		M0_ASSERT(addb_pfom_invariant(pfom));
-		pfom->pf_shutdown = true;
 
-		M0_LOG(M0_DEBUG, "wake up the fom");
-		/* wake up the fom */
-		if (pfom->pf_timer_started)
-			m0_cond_broadcast(&svc->as_cond, &rsvc->rs_mutex);
+		M0_LOG(M0_DEBUG, "posting stop ast");
+		pfom->pf_ast.sa_cb = addb_pfom_stop_cb;
+		m0_sm_ast_post(&fom->fo_loc->fl_group, &pfom->pf_ast);
 
-		/* block until termination */
-		while (pfom->pf_running) {
-			m0_cond_wait(&svc->as_cond, &rsvc->rs_mutex);
-		}
+		/*
+		 * We could wait for termination on pf_running but
+		 * there is no need to as the request handler will
+		 * wait for FOM termination.
+		 */
 	}
 	m0_mutex_unlock(&rsvc->rs_mutex);
-	M0_POST(!addb_pfom_invariant(pfom));
 }
 
 /**

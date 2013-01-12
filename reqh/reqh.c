@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -197,14 +197,11 @@ M0_INTERNAL void m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
 }
 
-M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
+M0_INTERNAL void m0_reqh_fom_domain_idle_wait(struct m0_reqh *reqh)
 {
 	struct m0_clink clink;
 
-        m0_rwlock_write_lock(&reqh->rh_rwlock);
-        reqh->rh_shutdown = true;
-        m0_rwlock_write_unlock(&reqh->rh_rwlock);
-
+	M0_PRE(reqh != NULL);
         m0_clink_init(&clink, NULL);
         m0_clink_add(&reqh->rh_sd_signal, &clink);
 
@@ -213,6 +210,35 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
 
 	m0_clink_del(&clink);
 	m0_clink_fini(&clink);
+}
+
+M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
+{
+	struct m0_reqh_service *service;
+
+	M0_PRE(reqh != NULL);
+        m0_rwlock_write_lock(&reqh->rh_rwlock);
+        reqh->rh_shutdown = true;
+        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
+	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
+		M0_ASSERT(m0_reqh_service_invariant(service));
+		m0_reqh_service_prepare_to_stop(service);
+	} m0_tl_endfor;
+
+	m0_reqh_fom_domain_idle_wait(reqh);
+}
+
+M0_INTERNAL void m0_reqh_services_terminate(struct m0_reqh *reqh)
+{
+	struct m0_reqh_service *service;
+
+	M0_PRE(reqh != NULL);
+	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
+		M0_ASSERT(m0_reqh_service_invariant(service));
+		m0_reqh_service_stop(service);
+		m0_reqh_service_fini(service);
+	} m0_tl_endfor;
 }
 
 M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh)

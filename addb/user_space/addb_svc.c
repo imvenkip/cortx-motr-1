@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -99,6 +99,8 @@ static int addb_svc_rso_start(struct m0_reqh_service *service)
 {
 	struct addb_svc *svc;
 
+	M0_ENTRY();
+	M0_PRE(service->rs_state == M0_RST_STARTING);
 	svc = bob_of(service, struct addb_svc, as_reqhs, &addb_svc_bob);
 	if (addb_svc_start_pfom)
 		addb_pfom_start(svc);
@@ -107,15 +109,26 @@ static int addb_svc_rso_start(struct m0_reqh_service *service)
 }
 
 /**
-   The rso_stop method to stop the ADDB service and terminate persistent FOMs.
+   The rso_prepare_to_stop method terminates the persistent FOMs.
  */
-static void addb_svc_rso_stop(struct m0_reqh_service *service)
+static void addb_svc_rso_prepare_to_stop(struct m0_reqh_service *service)
 {
 	struct addb_svc *svc;
 
+	M0_ENTRY();
+	M0_PRE(service->rs_state == M0_RST_STARTED);
 	svc = bob_of(service, struct addb_svc, as_reqhs, &addb_svc_bob);
 	if (addb_svc_start_pfom)
 		addb_pfom_stop(svc);
+}
+
+/**
+   The rso_stop method to stop the ADDB service.
+ */
+static void addb_svc_rso_stop(struct m0_reqh_service *service)
+{
+	M0_ENTRY();
+	M0_PRE(service->rs_state == M0_RST_STOPPING);
 }
 
 /**
@@ -125,6 +138,8 @@ static void addb_svc_rso_fini(struct m0_reqh_service *service)
 {
 	struct addb_svc *svc;
 
+	M0_ENTRY();
+	M0_PRE(M0_IN(service->rs_state, (M0_RST_STOPPED, M0_RST_FAILED)));
 	svc = bob_of(service, struct addb_svc, as_reqhs, &addb_svc_bob);
 	m0_cond_fini(&svc->as_cond);
 	addb_svc_bob_fini(svc);
@@ -133,9 +148,10 @@ static void addb_svc_rso_fini(struct m0_reqh_service *service)
 }
 
 static const struct m0_reqh_service_ops addb_service_ops = {
-	.rso_start = addb_svc_rso_start,
-	.rso_stop  = addb_svc_rso_stop,
-	.rso_fini  = addb_svc_rso_fini
+	.rso_start           = addb_svc_rso_start,
+	.rso_prepare_to_stop = addb_svc_rso_prepare_to_stop,
+	.rso_stop            = addb_svc_rso_stop,
+	.rso_fini            = addb_svc_rso_fini
 };
 
 /*

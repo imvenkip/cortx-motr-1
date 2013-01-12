@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -47,19 +47,23 @@ extern struct m0_reqh_service_type m0_addb_svc_type;
    ADDB statistics posting FOM
  */
 struct addb_post_fom {
-	uint64_t      pf_magic;
+	uint64_t              pf_magic;
 	/** Periodicity of the statistics post. */
-	m0_time_t            pf_period;
+	m0_time_t             pf_period;
+	/** Tolerance limit in epoch calculation */
+	m0_time_t             pf_tolerance;
 	/** Next post time. */
-	m0_time_t            pf_next_post;
+	m0_time_t             pf_next_post;
 	/** Shutdown request flag. */
-	bool                 pf_shutdown;
+	bool                  pf_shutdown;
 	/** Running flag.  Used to synchronize termination. */
-	bool                 pf_running;
-	/** Timer indicator */
-	bool                 pf_timer_started;
+	bool                  pf_running;
+	/** trap used to get into the locality to interact with the fom */
+	struct m0_sm_ast      pf_ast;
+	/** The FOM timer */
+	struct m0_fom_timeout pf_timeout;
 	/** Embedded FOM object. */
-	struct m0_fom        pf_fom;
+	struct m0_fom         pf_fom;
 };
 
 /**

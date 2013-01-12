@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -161,7 +161,7 @@ static void test_single_cp(void)
 	 * Wait until all the foms in the request handler locality runq are
 	 * processed. This is required for further validity checks.
 	 */
-	m0_reqh_shutdown_wait(reqh);
+	m0_reqh_fom_domain_idle_wait(reqh);
 
 	/*
 	 * These asserts ensure that the single copy packet has been treated
@@ -197,7 +197,7 @@ static void test_multiple_cp(void)
 	 * Wait until the fom in the request handler locality runq is
 	 * processed. This is required for further validity checks.
 	 */
-	m0_reqh_shutdown_wait(reqh);
+	m0_reqh_fom_domain_idle_wait(reqh);
 
 	/*
 	 * These asserts ensure that all the copy packets have been collected

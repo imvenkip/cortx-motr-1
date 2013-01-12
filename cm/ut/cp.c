@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -227,7 +227,7 @@ static void test_cp_single_thread(void)
          * Wait until all the foms in the request handler locality runq are
          * processed.
          */
-        m0_reqh_shutdown_wait(&cm_ut_reqh);
+        m0_reqh_fom_domain_idle_wait(&cm_ut_reqh);
 	m0_semaphore_fini(&sem);
 }
 
@@ -273,7 +273,7 @@ static void test_cp_multi_thread(void)
          * Wait until all the foms in the request handler locality runq are
          * processed.
          */
-        m0_reqh_shutdown_wait(&cm_ut_reqh);
+        m0_reqh_fom_domain_idle_wait(&cm_ut_reqh);
         m0_free(cp_thread);
 	m0_semaphore_fini(&sem);
 }

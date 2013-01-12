@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -146,15 +146,29 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 	return rc;
 }
 
+M0_INTERNAL void m0_reqh_service_prepare_to_stop(struct m0_reqh_service
+						 *service)
+{
+	M0_PRE(m0_reqh_service_invariant(service));
+	M0_PRE(service->rs_state == M0_RST_STARTED);
+
+	if (service->rs_ops->rso_prepare_to_stop != NULL)
+		service->rs_ops->rso_prepare_to_stop(service);
+	service->rs_state = M0_RST_STOPPING;
+}
+
 M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 {
 	struct m0_reqh *reqh;
 	unsigned        key;
 
 	M0_ASSERT(m0_reqh_service_invariant(service));
+	M0_ASSERT(M0_IN(service->rs_state, (M0_RST_STARTED, M0_RST_STOPPING)));
+
+	if (service->rs_state != M0_RST_STOPPING)
+		m0_reqh_service_prepare_to_stop(service);
 
 	reqh = service->rs_reqh;
-	service->rs_state = M0_RST_STOPPING;
 	service->rs_ops->rso_stop(service);
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	m0_reqh_svc_tlist_del(service);

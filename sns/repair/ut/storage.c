@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -225,7 +225,7 @@ void write_post(void)
 	 * Wait until all the foms in the request handler locality runq are
 	 * processed. This is required for further validity checks.
 	 */
-	m0_reqh_shutdown_wait(reqh);
+	m0_reqh_fom_domain_idle_wait(reqh);
 }
 
 const struct m0_cm_cp_ops read_cp_dummy_ops = {
@@ -265,7 +265,7 @@ static void read_post(void)
          * Wait until all the foms in the request handler locality runq are
          * processed. This is required for further validity checks.
          */
-	m0_reqh_shutdown_wait(reqh);
+	m0_reqh_fom_domain_idle_wait(reqh);
 }
 
 static void test_cp_write_read(void)

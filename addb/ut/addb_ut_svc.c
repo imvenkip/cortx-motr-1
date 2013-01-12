@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -103,34 +103,57 @@ void addb_ut_svc_test(void)
 
 	/*
 	 * Test: Run the posting fom and test that we can stop it.
+	 *       Also test that it loops on the minimum sleep period
+	 *       without doing a post.
 	 */
 	addb_svc_start_pfom = true;
 	M0_UT_ASSERT(!the_addb_pfom_started);
+	M0_UT_ASSERT(addb_ut_svc_rspa_called == 0);
 	M0_UT_ASSERT(server_start() == 0);
 	M0_UT_ASSERT(the_addb_svc != NULL);
+	addb_ut_svc_service_ops = *the_addb_svc->as_reqhs.rs_ops;
+	addb_ut_svc_service_ops.rso_stats_post_addb = addb_ut_svc_rspa;
+	the_addb_svc->as_reqhs.rs_ops = &addb_ut_svc_service_ops;
 	pfom = &the_addb_svc->as_pfom;
 	fom = &pfom->pf_fom;
-	m0_nanosleep(M0_MKTIME(1,0), NULL);
-	M0_UT_ASSERT(the_addb_pfom_started);
+
+	/* wait for the fom to start */
 	m0_mutex_lock(&the_addb_svc->as_reqhs.rs_mutex);
-	M0_UT_ASSERT(pfom->pf_timer_started);
+	while (!the_addb_pfom_started)
+		m0_cond_wait(&the_addb_svc->as_cond,
+			     &the_addb_svc->as_reqhs.rs_mutex);
 	m0_mutex_unlock(&the_addb_svc->as_reqhs.rs_mutex);
+
+	/* explicitly terminate the fom */
 	addb_pfom_stop(the_addb_svc);
+	m0_reqh_fom_domain_idle_wait(the_addb_svc->as_reqhs.rs_reqh);
+	M0_UT_ASSERT(!the_addb_pfom_started);
+
+	/* restart the fom */
+	M0_SET0(pfom);
+	addb_pfom_start(the_addb_svc);
+
+	/* wait for the fom to start */
 	m0_mutex_lock(&the_addb_svc->as_reqhs.rs_mutex);
-	M0_UT_ASSERT(!pfom->pf_timer_started);
+	while (!the_addb_pfom_started)
+		m0_cond_wait(&the_addb_svc->as_cond,
+			     &the_addb_svc->as_reqhs.rs_mutex);
 	m0_mutex_unlock(&the_addb_svc->as_reqhs.rs_mutex);
+
+	/* terminate with service */
 	server_stop();
 	M0_UT_ASSERT(!the_addb_pfom_started);
 	M0_UT_ASSERT(the_addb_svc == NULL);
+	M0_UT_ASSERT(addb_ut_svc_rspa_called == 0);
 
 	/*
 	 * Test: Adjust the period of the posting fom and check that it
 	 *       "ticks".
 	 *       Check that stopping the request handler terminates the FOM.
 	 */
-#undef MS
-#define MS(n) (n) * 1000000ULL
 	saved_period = addb_pfom_period;
+#undef MS
+#define MS(ms) (ms) * 1000000ULL
 	addb_pfom_period = MS(10);
 	M0_UT_ASSERT(!the_addb_pfom_started);
 	M0_UT_ASSERT(addb_ut_svc_rspa_called == 0);
@@ -141,15 +164,14 @@ void addb_ut_svc_test(void)
 	the_addb_svc->as_reqhs.rs_ops = &addb_ut_svc_service_ops;
 	pfom = &the_addb_svc->as_pfom;
 	fom = &pfom->pf_fom;
-	m0_nanosleep(MS(200), NULL);
+	m0_nanosleep(MS(210), NULL);
 	M0_UT_ASSERT(the_addb_pfom_started);
-	M0_ASSERT(fom->fo_transitions > 10);
-	M0_UT_ASSERT(addb_ut_svc_rspa_called != 0);
+	M0_UT_ASSERT(addb_ut_svc_rspa_called >= 19);
 	server_stop();
 	M0_UT_ASSERT(!the_addb_pfom_started);
 	M0_UT_ASSERT(the_addb_svc == NULL);
-	addb_pfom_period = saved_period;
 #undef MS
+	addb_pfom_period = saved_period;
 }
 
 
