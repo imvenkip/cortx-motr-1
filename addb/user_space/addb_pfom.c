@@ -337,9 +337,11 @@ static void addb_pfom_stop_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_LOG(M0_DEBUG, "pfom_stop_cb: %d\n", (int)pfom->pf_running);
 	if (pfom->pf_running) {
-		m0_fom_timeout_cancel(&pfom->pf_timeout);
+		if (m0_fom_is_waiting(&pfom->pf_fom)) {
+			m0_fom_timeout_cancel(&pfom->pf_timeout);
+			m0_fom_ready(&pfom->pf_fom);
+		}
 		pfom->pf_shutdown = true;
-		m0_fom_ready(&pfom->pf_fom);
 	}
 }
 

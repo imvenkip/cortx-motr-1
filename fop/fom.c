@@ -1198,6 +1198,11 @@ M0_INTERNAL int m0_fom_rc(const struct m0_fom *fom)
 	return fom->fo_sm_phase.sm_rc;
 }
 
+M0_INTERNAL int m0_fom_is_waiting(const struct m0_fom *fom)
+{
+	return fom_state(fom) == M0_FOS_WAITING && is_in_wail(fom);
+}
+
 /** @} endgroup fom */
 /*
  *  Local variables:
