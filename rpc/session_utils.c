@@ -31,6 +31,7 @@
 #include "lib/arith.h"
 #include "lib/bitstring.h"
 #include "lib/finject.h"       /* M0_FI_ENABLED */
+#include "lib/uuid.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
@@ -55,7 +56,7 @@ M0_INTERNAL void m0_rpc_session_module_fini(void)
 
 M0_INTERNAL void m0_rpc_sender_uuid_get(struct m0_rpc_sender_uuid *u)
 {
-	u->su_uuid = uuid_generate();
+	u->su_uuid = m0_uuid_generate();
 }
 
 M0_INTERNAL int m0_rpc_sender_uuid_cmp(const struct m0_rpc_sender_uuid *u1,

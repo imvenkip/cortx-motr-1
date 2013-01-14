@@ -26,6 +26,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/bitstring.h"
+#include "lib/uuid.h"
 #include "cob/cob.h"
 #include "mero/magic.h"
 #include "fop/fop.h"
@@ -984,21 +985,6 @@ M0_INTERNAL int m0_rpc_session_cob_create(struct m0_cob *conn_cob,
 	M0_RETURN(rc);
 }
 
-M0_INTERNAL uint64_t uuid_generate(void)
-{
-	static struct m0_atomic64 cnt;
-	uint64_t                  uuid;
-	uint64_t                  millisec;
-
-	do {
-		m0_atomic64_inc(&cnt);
-		millisec = m0_time_nanoseconds(m0_time_now()) * 1000000;
-		uuid = (millisec << 10) | (m0_atomic64_get(&cnt) & 0x3FF);
-	} while (uuid == 0 || uuid == SENDER_ID_INVALID);
-
-	return uuid;
-}
-
 /**
    Allocates and returns new session_id
  */
@@ -1009,7 +995,7 @@ M0_INTERNAL uint64_t session_id_allocate(void)
 	M0_ENTRY();
 
 	do {
-		session_id = uuid_generate();
+		session_id = m0_uuid_generate();
 	} while (session_id <= SESSION_ID_MIN &&
 		 session_id >= SESSION_ID_MAX);
 

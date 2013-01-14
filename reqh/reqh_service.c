@@ -25,6 +25,7 @@
 #include "lib/misc.h" /* M0_SET_ARR0 */
 #include "lib/trace.h" /* m0_console_printf */
 #include "lib/finject.h" /* M0_FI_ENABLED */
+#include "lib/uuid.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "mero/magic.h"
@@ -64,7 +65,7 @@ M0_INTERNAL bool m0_reqh_service_invariant(const struct m0_reqh_service *svc)
 	svc->rs_type != NULL && svc->rs_ops != NULL &&
 	ergo(M0_IN(svc->rs_state, (M0_RST_INITIALISED, M0_RST_STARTING,
 				   M0_RST_STARTED, M0_RST_STOPPING)),
-	     svc->rs_uuid[0] != 0 && svc->rs_reqh != NULL) &&
+	     svc->rs_uuid != 0 && svc->rs_reqh != NULL) &&
 	ergo(M0_IN(svc->rs_state, (M0_RST_STARTED, M0_RST_STOPPING)),
 	     m0_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc));
 }
@@ -127,7 +128,6 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 	M0_ASSERT(reqh->rh_key[key] == NULL);
 	reqh->rh_key[key] = service;
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-
 	rc = service->rs_ops->rso_start(service);
 	if (rc == 0) {
 		m0_rwlock_write_lock(&reqh->rh_rwlock);
@@ -183,7 +183,6 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 				      struct m0_reqh *reqh)
 {
 	struct m0_addb_ctx_type *serv_addb_ct;
-	const char              *sname;
 
 	M0_PRE(service != NULL && reqh != NULL &&
 		service->rs_state == M0_RST_INITIALISING);
@@ -197,13 +196,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 	 */
 	M0_ASSERT(serv_addb_ct->act_cf_nr == 2);
 
-	/*
-	   Generating service uuid with service name and timestamp.
-	 */
-	M0_SET_ARR0(service->rs_uuid);
-	sname = service->rs_type->rst_name;
-	snprintf(service->rs_uuid, M0_REQH_SERVICE_UUID_SIZE, "%s:%llu", sname,
-		(unsigned long long)m0_time_now());
+	service->rs_uuid = m0_uuid_generate();
 	service->rs_state = M0_RST_INITIALISED;
 	service->rs_reqh  = reqh;
 	m0_reqh_svc_tlink_init(service);

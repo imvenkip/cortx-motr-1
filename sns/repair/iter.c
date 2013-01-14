@@ -31,6 +31,7 @@
 #include "mdstore/mdstore.h"
 #include "layout/pdclust.h"
 #include "reqh/reqh.h"
+#include "ioservice/io_service.h"
 #include "mdstore/mdstore.h"
 #include "sns/repair/cm.h"
 #include "sns/repair/cp.h"
@@ -226,7 +227,9 @@ static int cob_locate(const struct m0_sns_repair_cm *rcm,
 	int                   rc;
 
 	dbenv = rcm->rc_base.cm_service.rs_reqh->rh_dbenv;
-	cdom = &rcm->rc_base.cm_service.rs_reqh->rh_mdstore->md_dom;
+	rc = m0_ios_cdom_get(rcm->rc_base.cm_service.rs_reqh, &cdom, 0);
+	if (rc != 0)
+		return rc;
 	M0_ASSERT(cdom != NULL);
 
 	rc = m0_db_tx_init(&tx, dbenv, 0);
@@ -398,13 +401,6 @@ static int __fid_next(struct m0_sns_repair_cm *rcm, struct m0_fid *fid_next)
                 m0_db_tx_commit(&tx);
         else
                 m0_db_tx_abort(&tx);
-
-	/*
-	 * TODO remove this check once separate cob domains are implemented
-	 * for different services.
-	 */
-	if (fid_next->f_container > 0)
-		rc = -ENOENT;
 
 	return rc;
 }
@@ -819,6 +815,10 @@ M0_INTERNAL int m0_sns_repair_iter_init(struct m0_sns_repair_cm *rcm)
 	M0_PRE(rcm != NULL);
 
 	cm = &rcm->rc_base;
+	rc = m0_ios_cdom_get(rcm->rc_base.cm_service.rs_reqh, &cdom, 0);
+	if (rc != 0)
+		return rc;
+
 	rc = layout_setup(rcm);
 	if (rc != 0)
 		return rc;
@@ -831,7 +831,6 @@ M0_INTERNAL int m0_sns_repair_iter_init(struct m0_sns_repair_cm *rcm)
 		rcm->rc_file_size = SNS_FILE_SIZE_DEFAULT;
 
         dbenv = rcm->rc_base.cm_service.rs_reqh->rh_dbenv;
-        cdom = &rcm->rc_base.cm_service.rs_reqh->rh_mdstore->md_dom;
 	rc = m0_cob_ns_iter_init(&rcm->rc_it.ri_cns_it, &gfid, dbenv, cdom);
 
 	return rc;

@@ -243,7 +243,7 @@ extern const struct m0_fid M0_COB_SESSIONS_FID;
    database environment.
  */
 struct m0_cob_domain_id {
-        uint32_t id;
+        uint64_t id;
 };
 
 /**

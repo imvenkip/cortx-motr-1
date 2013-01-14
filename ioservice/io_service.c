@@ -66,6 +66,9 @@ static void ios_stats_post_addb(struct m0_reqh_service *service);
 static void buffer_pool_not_empty(struct m0_net_buffer_pool *bp);
 static void buffer_pool_low(struct m0_net_buffer_pool *bp);
 
+static bool     ios_cdom_is_initialised;
+static unsigned ios_cdom_key;
+
 /**
  * I/O Service type operations.
  */
@@ -175,6 +178,7 @@ M0_INTERNAL int m0_ios_register(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_delete_fom);
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_io_rw_fom);
 	m0_reqh_service_type_register(&m0_ios_type);
+	ios_cdom_key = m0_reqh_key_init();
 	return m0_ioservice_fop_init();
 }
 
@@ -183,6 +187,7 @@ M0_INTERNAL int m0_ios_register(void)
  */
 M0_INTERNAL void m0_ios_unregister(void)
 {
+	ios_cdom_key = 0;
 	m0_reqh_service_type_unregister(&m0_ios_type);
 	m0_ioservice_fop_fini();
 }
@@ -417,9 +422,19 @@ static void ios_fini(struct m0_reqh_service *service)
  */
 static int ios_start(struct m0_reqh_service *service)
 {
-	int			rc;
+	int			   rc;
+	struct m0_cob_domain      *cdom;
+	struct m0_reqh_io_service *serv_obj;
 
 	M0_PRE(service != NULL);
+	M0_PRE(!ios_cdom_is_initialised);
+
+	rc = m0_ios_cdom_get(service->rs_reqh, &cdom, service->rs_uuid);
+	if (rc != 0)
+		return rc;
+
+	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
+	serv_obj->rios_cdom = *cdom;
 
 	rc = ios_create_buffer_pool(service);
 	if (rc != 0) {
@@ -447,6 +462,67 @@ static void ios_stop(struct m0_reqh_service *service)
 	M0_PRE(service != NULL);
 	m0_ios_poolmach_fini(service->rs_reqh);
 	ios_delete_buffer_pool(service);
+	m0_ios_cdom_fini(service->rs_reqh);
+	m0_reqh_key_fini(service->rs_reqh, ios_cdom_key);
+}
+
+M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
+				struct m0_cob_domain **out, uint64_t sid)
+{
+	int                      rc;
+	struct m0_cob_domain    *cdom;
+	struct m0_cob_domain_id  cdom_id;
+	struct m0_db_tx          tx;
+	struct m0_dbenv         *dbenv;
+
+	M0_PRE(reqh != NULL);
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+
+	dbenv = reqh->rh_dbenv;
+	cdom = m0_reqh_key_find(reqh, ios_cdom_key, sizeof *cdom);
+	if (!ios_cdom_is_initialised) {
+		cdom_id.id = sid;
+		rc = m0_cob_domain_init(cdom, dbenv, &cdom_id);
+		if (rc != 0)
+			goto reqh_fini;
+
+		rc = m0_db_tx_init(&tx, dbenv, 0);
+		if (rc != 0)
+			goto cdom_fini;
+
+		rc = m0_cob_domain_mkfs(cdom, &M0_COB_SLASH_FID,
+					&M0_COB_ROOT_FID, &tx);
+		if (rc != 0) {
+			m0_db_tx_abort(&tx);
+			goto cdom_fini;
+		}
+		m0_db_tx_commit(&tx);
+		ios_cdom_is_initialised = true;
+	}
+	*out = cdom;
+	goto out;
+
+cdom_fini:
+	m0_cob_domain_fini(cdom);
+reqh_fini:
+	m0_reqh_key_fini(reqh, ios_cdom_key);
+out:
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+	return rc;
+}
+
+M0_INTERNAL void m0_ios_cdom_fini(struct m0_reqh *reqh)
+{
+	struct m0_cob_domain *cdom;
+
+	M0_PRE(reqh != NULL);
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	cdom = m0_reqh_key_find(reqh, ios_cdom_key, sizeof *cdom);
+	m0_cob_domain_fini(cdom);
+	ios_cdom_is_initialised = false;
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
 /**

@@ -19,9 +19,11 @@
  */
 
 #include "lib/assert.h"
+#include "lib/atomic.h"
 #include "lib/cdefs.h"    /* M0_EXPORTED */
 #include "lib/errno.h"
 #include "lib/string.h"   /* isxdigit, strlen, strtoul */
+#include "lib/time.h"
 #include "lib/uuid.h"
 
 /**
@@ -74,6 +76,21 @@ M0_INTERNAL int m0_uuid_parse(const char *str, struct m0_uint128 *val)
 	return 0;
 }
 M0_EXPORTED(m0_uuid_parse);
+
+M0_INTERNAL uint64_t m0_uuid_generate(void)
+{
+	static struct m0_atomic64 cnt;
+	uint64_t                  uuid;
+	uint64_t                  millisec;
+
+	do {
+		m0_atomic64_inc(&cnt);
+		millisec = m0_time_nanoseconds(m0_time_now()) * 1000000;
+		uuid = (millisec << 10) | (m0_atomic64_get(&cnt) & 0x3FF);
+	} while (uuid == 0 || uuid == UINT64_MAX);
+
+	return uuid;
+}
 
 /*
  *  Local variables:

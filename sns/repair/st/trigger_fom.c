@@ -170,6 +170,15 @@ static size_t trigger_fom_home_locality(const struct m0_fom *fom)
 
 M0_INTERNAL uint64_t m0_trigger_file_size_get(struct m0_fid *gfid)
 {
+	/*
+	 * If trigger fom has not been initialised or if the incoming
+	 * gfid is M0_COB_ROOT_FID, then return the file size as 0,
+	 * so that iterator will simply iterate and come out by calculating
+	 * the number of groups as 0.
+	 */ 
+	if (&fs == NULL || fs.f_nr == 0 ||
+	    (gfid->f_container == 1 && gfid->f_key == 1))
+		return 0;
 	/* m0tifs currently starts its key for gfid from 4. */
 	return fs.f_size[gfid->f_key - 4];
 }

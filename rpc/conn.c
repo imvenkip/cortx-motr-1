@@ -27,6 +27,7 @@
 #include "lib/bitstring.h"
 #include "lib/arith.h"
 #include "lib/finject.h"
+#include "lib/uuid.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "db/db.h"
@@ -1015,7 +1016,7 @@ M0_INTERNAL int m0_rpc_rcv_conn_establish(struct m0_rpc_conn *conn)
 	conn_state_set(conn, M0_RPC_CONN_CONNECTING);
 	rc = m0_db_tx_init(&tx, machine->rm_dom->cd_dbenv, 0);
 	if (rc == 0) {
-		sender_id = uuid_generate();
+		sender_id = m0_uuid_generate();
 		rc = conn_persistent_state_attach(conn, sender_id, &tx);
 		if (rc == 0)
 			rc = m0_db_tx_commit(&tx);

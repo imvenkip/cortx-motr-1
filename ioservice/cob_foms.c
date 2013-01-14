@@ -37,6 +37,7 @@
 #include "pool/pool.h"
 #include "mero/setup.h"
 #include "ioservice/io_service_addb.h"
+#include "ioservice/io_service.h"
 
 /* Forward Declarations. */
 static int  cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
@@ -233,7 +234,7 @@ static int cc_fom_tick(struct m0_fom *fom)
 	}
 
 	fop  = m0_fop_data(fom->fo_fop);
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = m0_fom_reqh(fom);
 	poolmach = m0_ios_poolmach_get(reqh);
 	m0_poolmach_current_version_get(poolmach, &curr);
 	verp = (struct m0_pool_version_numbers*)&fop->cc_common.c_version;
@@ -308,6 +309,18 @@ static int cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 	return rc;
 }
 
+static struct m0_cob_domain *cdom_get(struct m0_fom *fom)
+{
+	struct m0_reqh_io_service *ios;
+
+	M0_PRE(fom != NULL);
+
+	ios = container_of(fom->fo_service, struct m0_reqh_io_service,
+			   rios_gen);
+
+	return &ios->rios_cdom;
+}
+
 static int cc_cob_nskey_make(struct m0_cob_nskey **nskey,
 			     const struct m0_fid *gfid,
 			     uint32_t cob_idx)
@@ -342,7 +355,7 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 	M0_PRE(cc != NULL);
 	M0_SET0(&nsrec);
 
-	cdom = &fom->fo_loc->fl_dom->fd_reqh->rh_mdstore->md_dom;
+	cdom = cdom_get(fom);
 	M0_ASSERT(cdom != NULL);
 	fop = m0_fop_data(fom->fo_fop);
 
@@ -430,15 +443,13 @@ static int cd_fom_tick(struct m0_fom *fom)
 	M0_PRE(fom->fo_ops != NULL);
 	M0_PRE(fom->fo_type != NULL);
 
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
-
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		rc = m0_fom_tick_generic(fom);
 		return rc;
 	}
 
 	fop  = m0_fop_data(fom->fo_fop);
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = m0_fom_reqh(fom);
 	poolmach = m0_ios_poolmach_get(reqh);
 	m0_poolmach_current_version_get(poolmach, &curr);
 	verp = (struct m0_pool_version_numbers*)&fop->cd_common.c_version;
@@ -501,7 +512,7 @@ static int cd_cob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 	M0_PRE(fom != NULL);
 	M0_PRE(cd != NULL);
 
-	cdom = &fom->fo_loc->fl_dom->fd_reqh->rh_mdstore->md_dom;
+	cdom = cdom_get(fom);
 	M0_ASSERT(cdom != NULL);
 
         io_fom_cob_rw_stob2fid_map(&cd->fco_stobid, &fid);

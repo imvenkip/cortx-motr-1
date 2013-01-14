@@ -42,6 +42,9 @@ enum {
  */
 M0_INTERNAL int m0_uuid_parse(const char *str, struct m0_uint128 *val);
 
+/** Generate unique UUID. */
+M0_INTERNAL uint64_t m0_uuid_generate(void);
+
 /** @} end uuid group */
 
 #endif /* __MERO_LIB_UUID_H__ */

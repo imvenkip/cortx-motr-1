@@ -312,7 +312,7 @@ static const struct m0_table_ops cob_omg_ops = {
 static char *cob_dom_id_make(char *buf, const struct m0_cob_domain_id *id,
                              const char *prefix)
 {
-        sprintf(buf, "%s%u", prefix ? prefix : "", id->id);
+        sprintf(buf, "%s%lu", prefix ? prefix : "", (unsigned long)id->id);
         return buf;
 }
 

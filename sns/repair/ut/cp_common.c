@@ -33,7 +33,8 @@ char      *sns_repair_ut_svc[] = { "m0d", "-r", "-p", "-T", "LINUX",
 				     "-D", "sr_db", "-S", "sr_stob",
 				     "-A", "sr_addb_stob",
 				     "-e", "lnet:0@lo:12345:34:1",
-				     "-s", "sns_repair"};
+				     "-s", "sns_repair",
+				     "-s", "ioservice"};
 
 struct m0_net_xprt *sr_xprts[] = {
 	&m0_net_lnet_xprt,

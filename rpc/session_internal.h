@@ -83,11 +83,6 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 M0_INTERNAL void m0_rpc_session_fini_locked(struct m0_rpc_session *session);
 
 /**
-   Generates UUID
- */
-M0_INTERNAL uint64_t uuid_generate(void);
-
-/**
    Lookup for a cob named "SESSION_$session_id" that represents rpc session
    within a given @conn_cob (cob that identifies rpc connection)
  */

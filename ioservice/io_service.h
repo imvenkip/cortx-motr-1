@@ -52,6 +52,7 @@
 #include "reqh/reqh_service.h"
 #include "lib/chan.h"
 #include "lib/tlist.h"
+#include "cob/cob.h"
 
 #include "ioservice/io_service_addb.h"
 
@@ -94,12 +95,19 @@ struct m0_reqh_io_service {
         struct m0_tl              rios_buffer_pools;
 	/** Read[0] and write[1] I/O FOM statistics */
 	struct m0_ios_rwfom_stats rios_rwfom_stats[2];
+	/** Cob domain for ioservice. */
+	struct m0_cob_domain      rios_cdom;
         /** magic to check io service object */
         uint64_t                  rios_magic;
 };
 
 M0_INTERNAL bool m0_reqh_io_service_invariant(const struct m0_reqh_io_service
 					      *rios);
+
+M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
+				struct m0_cob_domain **out, uint64_t sid);
+
+M0_INTERNAL void m0_ios_cdom_fini(struct m0_reqh *reqh);
 
 /** @} end of io_service */
 

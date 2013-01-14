@@ -43,6 +43,7 @@
 #include "sns/repair/cm.h"
 #include "sns/repair/cp.h"
 #include "sns/repair/ag.h"
+#include "ioservice/io_service.h"
 #include "sns/repair/ut/cp_common.h"
 
 #if 0
@@ -60,7 +61,8 @@ static struct m0_net_xprt *sr_xprts[] = {
 #endif
 enum {
 	ITER_UT_BUF_NR = 1 << 4,
-	ITER_DEFAULT_COB_FID_KEY = 4
+	ITER_GOB_KEY_START = 4,
+	GOB_NR = 5
 };
 
 
@@ -150,12 +152,10 @@ static void dbenv_cob_domain_get(struct m0_dbenv **dbenv,
 {
 	*dbenv = cm->cm_service.rs_reqh->rh_dbenv;
 	M0_UT_ASSERT(dbenv != NULL);
-	*cdom = &cm->cm_service.rs_reqh->rh_mdstore->md_dom;
-	M0_UT_ASSERT(cdom != NULL);
-
+	M0_UT_ASSERT(m0_ios_cdom_get(cm->cm_service.rs_reqh, cdom, 0) == 0);
 }
 
-static void cob_create(uint64_t cont, uint64_t key)
+static void cob_create(uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx)
 {
 	struct m0_cob        *cob;
 	struct m0_cob_domain *cdom;
@@ -168,7 +168,6 @@ static void cob_create(uint64_t cont, uint64_t key)
 	struct m0_cob_omgrec  omgrec;
         char                  nskey_bs[UINT32_MAX_STR_LEN];
         uint32_t              nskey_bs_len;
-        uint32_t              cob_idx = 1;
 	int                   rc;
 
 	M0_SET0(&nsrec);
@@ -176,15 +175,14 @@ static void cob_create(uint64_t cont, uint64_t key)
 	dbenv_cob_domain_get(&dbenv, &cdom);
 	rc = m0_cob_alloc(cdom, &cob);
 	M0_UT_ASSERT(rc == 0 && cob != NULL);
-	m0_fid_set(&cob_fid, cont, key);
+	m0_fid_set(&cob_fid, cont, gfid->f_key);
 
 	M0_SET_ARR0(nskey_bs);
         snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u",
                  (uint32_t)cob_idx);
         nskey_bs_len = strlen(nskey_bs);
 
-	rc = m0_cob_nskey_make(&nskey, &cob_fid, (char *)nskey_bs,
-			       nskey_bs_len);
+	rc = m0_cob_nskey_make(&nskey, gfid, (char *)nskey_bs, nskey_bs_len);
 	M0_UT_ASSERT(rc == 0 && nskey != NULL);
 	nsrec.cnr_fid = cob_fid;
 	nsrec.cnr_nlink = 1;
@@ -240,25 +238,37 @@ static void ag_destroy(void)
 
 static void cobs_create(uint64_t nr_cobs)
 {
-	int i;
+	int           i;
+	int           j;
+	struct m0_fid gfid;
+	uint32_t      cob_idx;
 
-        for (i = 1; i <= nr_cobs; ++i)
-                cob_create(i, ITER_DEFAULT_COB_FID_KEY);
+	gfid.f_container = 0;
+	for (i = 0; i < GOB_NR; ++i) {
+		gfid.f_key = ITER_GOB_KEY_START + i;
+		cob_idx = 0;
+		for (j = 1; j <= nr_cobs; ++j) {
+			cob_create(j, &gfid, cob_idx);
+			cob_idx++;
+		}
+	}
 }
 
 static void cobs_delete(uint64_t nr_cobs)
 {
 	int i;
+	int j;
 
-        for (i = 1; i <= nr_cobs; ++i)
-		cob_delete(i, ITER_DEFAULT_COB_FID_KEY);
+        for (i = 0; i < GOB_NR; ++i)
+		for (j = 1; j <= nr_cobs; ++j)
+			cob_delete(j, ITER_GOB_KEY_START + i);
 }
 
 static void nsit_verify(struct m0_fid *gfid, int cnt)
 {
 	M0_UT_ASSERT(gfid->f_container == 0);
 	/* Verify that gob-fid has been enumerated in lexicographical order. */
-	M0_UT_ASSERT(gfid->f_key - cnt == ITER_DEFAULT_COB_FID_KEY);
+	M0_UT_ASSERT(gfid->f_key - cnt == ITER_GOB_KEY_START);
 }
 
 static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata,

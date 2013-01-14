@@ -25,6 +25,7 @@
 #include "ioservice/ut/bulkio_common.h"
 #include "ioservice/cob_foms.c"          /* To access static APIs. */
 #include "lib/finject.h"
+#include "ioservice/io_service.h"
 
 extern struct m0_fop_type m0_fop_cob_create_fopt;
 extern struct m0_fop_type m0_fop_cob_delete_fopt;
@@ -71,9 +72,7 @@ enum {
 	GOB_FID_KEY_ID            = 5678,
 	COB_FOP_SINGLE            = 1,
 	COB_FOP_NR                = 10,
-	COB_TEST_ID               = 1,
-	TEST_ENV_COB              = 1,
-	TEST_ENV_STOB             = 2,
+	COB_TEST_ID               = 111,
 };
 
 #define SERVER_EP_ADDR              "0@lo:12345:34:123"
@@ -107,7 +106,7 @@ struct cobthread_arg {
 };
 
 static char *server_args[] = {
-	"cobfoms_ut", "-r", "-p", "-T", "Linux", "-D", "cobfoms_ut.db", "-S",
+	"m0d", "-r", "-p", "-T", "Linux", "-D", "cobfoms_ut.db", "-S",
 	"cobfoms_ut_stob", "-A", "cobfoms_ut_addb_stob", "-e", SERVER_ENDP,
 	"-s", "ioservice"
 };
@@ -652,7 +651,10 @@ static void cob_verify(struct m0_fom *fom, const bool exists)
         uint32_t              nskey_bs_len;
 	uint32_t              cob_idx = COB_TEST_ID;
 
-	cobdom = &m0_fom_reqh(fom)->rh_mdstore->md_dom;
+	rc = m0_ios_cdom_get(m0_fom_reqh(fom), &cobdom, 0);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(cobdom != NULL);
+ 
 	dbenv = m0_fom_reqh(fom)->rh_dbenv;
 
         snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u",

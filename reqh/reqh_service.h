@@ -133,10 +133,6 @@
    @{
  */
 
-enum {
-	M0_REQH_SERVICE_UUID_SIZE = 64,
-};
-
 /**
    Phases through which a service typically passes.
  */
@@ -202,10 +198,8 @@ enum m0_reqh_service_state {
 struct m0_reqh_service {
 	/**
 	   Service id that should be unique throughout the cluster.
-	   Currently generating service uuid using the service name and local
-	   time stamp.
 	 */
-	char                              rs_uuid[M0_REQH_SERVICE_UUID_SIZE];
+	uint64_t                          rs_uuid;
 
 	/**
 	   Service type specific structure to hold service specific
