@@ -114,6 +114,9 @@ const struct m0_sm_conf trigger_conf = {
 
 int m0_sns_repair_trigger_fop_init(void)
 {
+	struct m0_reqh_service_type *stype;
+
+	stype = m0_reqh_service_type_find("sns_repair");
 	m0_xc_trigger_fop_init();
 	m0_sm_conf_extend(m0_generic_conf.scf_state, trigger_phases,
 			  m0_generic_conf.scf_nr_states);
@@ -124,6 +127,7 @@ int m0_sns_repair_trigger_fop_init(void)
 			.rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
 				     M0_RPC_ITEM_TYPE_MUTABO,
 			.fom_ops   = &trigger_fom_type_ops,
+			.svc_type  = stype,
 			.sm        = &trigger_conf) ?:
 		M0_FOP_TYPE_INIT(&trigger_rep_fop_fopt,
 				.name      = "sns repair trigger reply",
@@ -175,7 +179,7 @@ M0_INTERNAL uint64_t m0_trigger_file_size_get(struct m0_fid *gfid)
 	 * gfid is M0_COB_ROOT_FID, then return the file size as 0,
 	 * so that iterator will simply iterate and come out by calculating
 	 * the number of groups as 0.
-	 */ 
+	 */
 	if (&fs == NULL || fs.f_nr == 0 ||
 	    (gfid->f_container == 1 && gfid->f_key == 1))
 		return 0;
