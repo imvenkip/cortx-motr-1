@@ -2212,14 +2212,17 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 	 */
 	if (map->pi_paritybufs == NULL) {
 		M0_ALLOC_ARR_ADDB(map->pi_paritybufs, parity_row_nr(play),
-				  &m0t1fs_addb, &io_addb_loc);
+				  &m0_addb_gmc,
+				  M0T1FS_ADDB_LOC_DGMODE_PROCESS_1,
+				  &m0t1fs_addb_ctx);
 		if (map->pi_paritybufs == NULL)
 			M0_RETERR(-ENOMEM, "Failed to allocate parity buffers");
 
 		for (row = 0; row < parity_row_nr(play); ++row) {
 			M0_ALLOC_ARR_ADDB(map->pi_paritybufs[row],
-					  parity_col_nr(play), &m0t1fs_addb,
-					  &io_addb_loc);
+					  parity_col_nr(play), &m0_addb_gmc,
+					  M0T1FS_ADDB_LOC_DGMODE_PROCESS_2,
+					  &m0t1fs_addb_ctx);
 			if (map->pi_paritybufs[row] == NULL) {
 				rc = -ENOMEM;
 				goto par_fail;
@@ -2351,11 +2354,14 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 
 	play = pdlayout_get(map->pi_ioreq);
 
-	M0_ALLOC_ARR_ADDB(data, layout_n(play), &m0t1fs_addb, &io_addb_loc);
+	M0_ALLOC_ARR_ADDB(data, layout_n(play), &m0_addb_gmc,
+			  M0T1FS_ADDB_LOC_DGMODE_RECOV_DATA, &m0t1fs_addb_ctx);
 	if (data == NULL)
 		M0_RETERR(-ENOMEM, "Failed to allocate memory for data buf");
 
-	M0_ALLOC_ARR_ADDB(parity, layout_k(play), &m0t1fs_addb, &io_addb_loc);
+	M0_ALLOC_ARR_ADDB(parity, layout_k(play), &m0_addb_gmc,
+			  M0T1FS_ADDB_LOC_DGMODE_RECOV_PARITY,
+			  &m0t1fs_addb_ctx);
 	if (parity == NULL) {
 		m0_free(data);
 		M0_RETERR(-ENOMEM, "Failed to allocate memory for parity buf");
@@ -2369,8 +2375,9 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	}
 
 	failed.b_nob = layout_n(play) + layout_k(play);
-	M0_ALLOC_ARR_ADDB(failed.b_addr, failed.b_nob, &m0t1fs_addb,
-			  &io_addb_loc);
+	M0_ALLOC_ARR_ADDB(failed.b_addr, failed.b_nob, &m0_addb_gmc,
+			  M0T1FS_ADDB_LOC_DGMODE_RECOV_FAILVEC,
+			  &m0t1fs_addb_ctx);
 	if (failed.b_addr == NULL) {
 		m0_free(data);
 		m0_free(parity);
@@ -2564,7 +2571,8 @@ static int dgmode_readvec_alloc_init(struct dgmode_readvec **dgvec,
 	M0_PRE(dgvec  != NULL);
 	M0_PRE(*dgvec != NULL);
 
-	M0_ALLOC_PTR_ADDB(dg, &m0t1fs_addb, &io_addb_loc);
+	M0_ALLOC_PTR_ADDB(dg, &m0_addb_gmc, M0T1FS_ADDB_LOC_READVEC_ALLOC_INIT,
+			  &m0t1fs_addb_ctx);
 	if (dg == NULL) {
 		rc = -ENOMEM;
 		goto failed;
@@ -2580,26 +2588,29 @@ static int dgmode_readvec_alloc_init(struct dgmode_readvec **dgvec,
 			++grp_nr;
 
 	cnt = page_nr(grp_nr * layout_unit_size(play) * layout_k(play));
-	rc  = m0_indexvec_alloc(&dg->dr_ivec, cnt, &m0t1fs_addb,
-			        &io_addb_loc);
+	rc  = m0_indexvec_alloc(&dg->dr_ivec, cnt, &m0t1fs_addb_ctx,
+			        M0T1FS_ADDB_LOC_READVEC_ALLOC_IVEC_FAIL);
 	if (rc != 0)
 		goto failed;
 
-	M0_ALLOC_ARR_ADDB(dg->dr_bufvec.ov_buf, cnt, &m0t1fs_addb,
-			  &io_addb_loc);
+	M0_ALLOC_ARR_ADDB(dg->dr_bufvec.ov_buf, cnt, &m0_addb_gmc,
+			  M0T1FS_ADDB_LOC_READVEC_ALLOC_BVEC, &m0t1fs_addb_ctx);
 	if (dg->dr_bufvec.ov_buf == NULL) {
 		rc = -ENOMEM;
 		goto failed;
 	}
 
-	M0_ALLOC_ARR_ADDB(dg->dr_bufvec.ov_vec.v_count, cnt, &m0t1fs_addb,
-			  &io_addb_loc);
+	M0_ALLOC_ARR_ADDB(dg->dr_bufvec.ov_vec.v_count, cnt, &m0_addb_gmc,
+			  M0T1FS_ADDB_LOC_READVEC_ALLOC_BVEC_CNT,
+			  &m0t1fs_addb_ctx);
 	if (dg->dr_bufvec.ov_vec.v_count == NULL) {
 		rc = -ENOMEM;
 		goto failed;
 	}
 
-	M0_ALLOC_ARR_ADDB(dg->dr_pageattrs, cnt, &m0t1fs_addb, &io_addb_loc);
+	M0_ALLOC_ARR_ADDB(dg->dr_pageattrs, cnt, &m0_addb_gmc,
+			  M0T1FS_ADDB_LOC_READVEC_ALLOC_PAGEATTR,
+			  &m0t1fs_addb_ctx);
 	if (dg->dr_pageattrs == NULL) {
 		rc = -ENOMEM;
 		goto failed;
@@ -2841,12 +2852,10 @@ static int ioreq_dgmode_read(struct io_request *req)
 	 * failed units could be 1.
 	 */
 	play = pdlayout_get(req);
-	if (cnt > layout_k(play)) {
-		M0_ADDB_ADD(&m0t1fs_addb, &io_addb_loc, io_request_failed,
-			    "Number of failed data units exceed"
-			    "number of parity units in parity group.", -EIO);
-		M0_RETERR(-EIO, "Can not recover data");
-	}
+	if (cnt > layout_k(play))
+		M0_RETERR(-EIO, "Failed to recover data since number of failed"
+				"data units exceed number of parity units in"
+				"parity group");
 
 	m0_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
 		if (ti->ti_rc != M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
@@ -4083,7 +4092,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		 * Refcount is incremented here so that this fop can be
 		 * reused in degraded mode read IO processing.
 		 */
-		if (ioreq_sm_state(req) == IRS_READING)
+		if (ioreq_sm_state(req) == IRS_DEGRADED_READING)
 			reply = m0_fop_get(reply);
 	}
 

@@ -857,7 +857,7 @@ static void dgmode_readio_test(void)
 	M0_ALLOC_PTR(req);
 	M0_UT_ASSERT(req != NULL);
 
-	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), NULL, NULL);
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), NULL, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	/* 8 segments covering a parity group each. */
