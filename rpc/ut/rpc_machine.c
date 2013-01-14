@@ -194,7 +194,7 @@ static void rpc_machine_watch_test(void)
 
 	rc = m0_net_xprt_init(xprt);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
