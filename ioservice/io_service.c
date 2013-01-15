@@ -469,7 +469,7 @@ static void ios_stop(struct m0_reqh_service *service)
 M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 				struct m0_cob_domain **out, uint64_t sid)
 {
-	int                      rc;
+	int                      rc = 0;
 	struct m0_cob_domain    *cdom;
 	struct m0_cob_domain_id  cdom_id;
 	struct m0_db_tx          tx;
