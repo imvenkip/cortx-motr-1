@@ -83,11 +83,11 @@ static int dummy_fom_tick(struct m0_fom *fom)
 
 static void dummy_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 {
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+        /**
+         * @todo: Do the actual impl, need to set MAGIC, so that
+         * m0_fom_init() can pass
+         */
+        fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 /* Over-ridden copy packet FOM ops. */

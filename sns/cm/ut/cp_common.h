@@ -27,8 +27,8 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/ag.h"
 
-extern struct m0_reqh cm_cp_ut_reqh;
 extern struct m0_mero sctx;
+
 /* Populates the bufvec with a character value. */
 void bv_populate(struct m0_bufvec *b, char data, uint32_t seg_nr,
 		 uint32_t seg_size);
@@ -41,9 +41,8 @@ inline void bv_free(struct m0_bufvec *b);
 
 void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
 		uint32_t bv_seg_nr, uint32_t bv_seg_size,
-                struct m0_sns_cm_ag *sns_ag,
-                char data, struct m0_fom_ops *cp_fom_ops,
-		struct m0_reqh *reqh);
+                struct m0_sns_cm_ag *sns_ag, char data,
+		struct m0_fom_ops *cp_fom_ops, struct m0_reqh *reqh);
 
 int cs_init(struct m0_mero *sctx);
 void cs_fini(struct m0_mero *sctx);

@@ -33,8 +33,8 @@ enum {
 	SEG_SIZE = 256,
 };
 
-static struct m0_reqh     *reqh;
-static struct m0_semaphore sem;
+static struct m0_reqh      *reqh;
+static struct m0_semaphore  sem;
 
 /* Global structures for single copy packet test. */
 static struct m0_sns_cm_ag s_sag;
@@ -101,11 +101,11 @@ static int dummy_fom_tick(struct m0_fom *fom)
 
 static void dummy_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 {
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+        /**
+         * @todo: Do the actual impl, need to set MAGIC, so that
+         * m0_fom_init() can pass
+         */
+        fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 static void single_cp_fom_fini(struct m0_fom *fom)
@@ -219,15 +219,15 @@ static int xform_init(void)
 	rc = cs_init(&sctx);
 	M0_ASSERT(rc == 0);
 
-	reqh = m0_cs_reqh_get(&sctx, "sns_repair");
+	reqh = m0_cs_reqh_get(&sctx, "sns_cm");
 	M0_ASSERT(reqh != NULL);
 	return 0;
 }
 
 static int xform_fini(void)
 {
-	cs_fini(&sctx);
-	return 0;
+        cs_fini(&sctx);
+        return 0;
 }
 
 /* Tests the correctness of the bufvec_xor function. */
@@ -249,7 +249,7 @@ static void test_bufvec_xor()
 }
 
 const struct m0_test_suite snscm_xform_ut = {
-	.ts_name = "snsrepair_xform-ut",
+	.ts_name = "snscm_xform-ut",
 	.ts_init = &xform_init,
 	.ts_fini = &xform_fini,
 	.ts_tests = {

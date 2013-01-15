@@ -30,14 +30,14 @@
 /* Global structures for setting up mero service. */
 const char log_file_name[] = "sr_ut.errlog";
 char      *sns_cm_ut_svc[] = { "m0d", "-r", "-p", "-T", "LINUX",
-			       "-D", "sr_db", "-S", "sr_stob",
-			       "-A", "sr_addb_stob",
-			       "-e", "lnet:0@lo:12345:34:1",
-			       "-s", "sns_repair",
-			       "-s", "ioservice"};
+                               "-D", "sr_db", "-S", "sr_stob",
+                               "-A", "sr_addb_stob",
+                               "-e", "lnet:0@lo:12345:34:1",
+                               "-s", "sns_cm",
+                               "-s", "ioservice"};
 
 struct m0_net_xprt *sr_xprts[] = {
-	&m0_net_lnet_xprt,
+        &m0_net_lnet_xprt,
 };
 
 FILE           *lfile;
@@ -105,10 +105,72 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
 	cm = container_of(service, struct m0_cm, cm_service);
 	M0_UT_ASSERT(cm != NULL);
 	cp->c_ag->cag_cm = cm;
-        m0_cm_cp_init(cp);
-        cp->c_data = bv;
-        cp->c_fom.fo_ops = cp_fom_ops;
-        cp->c_ops = &m0_sns_cm_cp_ops;
+	m0_cm_cp_init(cp);
+	cp->c_data = bv;
+	cp->c_fom.fo_ops = cp_fom_ops;
+	cp->c_ops = &m0_sns_cm_cp_ops;
+}
+
+/*
+ * Starts mero service, which internally creates and sets up stob domain.
+ * This stob domain is used in read and write phases of the copy packet.
+ */
+int cs_init(struct m0_mero *sctx)
+{
+	int rc;
+
+	M0_SET0(sctx);
+
+	lfile = fopen(log_file_name, "w+");
+	M0_ASSERT(lfile != NULL);
+
+	rc = m0_cs_init(sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_cs_setup_env(sctx, ARRAY_SIZE(sns_repair_ut_svc),
+			     sns_repair_ut_svc);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_cs_start(sctx);
+	M0_ASSERT(rc == 0);
+
+	return rc;
+}
+
+/* Finalises the mero service. */
+void cs_fini(struct m0_mero *sctx)
+{
+	m0_cs_fini(sctx);
+	fclose(lfile);
+}
+
+void sns_repair_ut_server_stop(void)
+{
+	m0_cs_fini(&sctx);
+	fclose(lfile);
+}
+
+int sns_repair_ut_server_start(void)
+{
+	int rc;
+
+	M0_SET0(&sctx);
+	lfile = fopen(log_file_name, "w+");
+	M0_UT_ASSERT(lfile != NULL);
+
+	rc = m0_cs_init(&sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile);
+	if (rc != 0)
+		return rc;
+
+	rc = m0_cs_setup_env(&sctx, ARRAY_SIZE(sns_repair_ut_svc),
+			     sns_repair_ut_svc);
+	if (rc == 0)
+		rc = m0_cs_start(&sctx);
+	if (rc != 0)
+		sns_repair_ut_server_stop();
+
+	return rc;
+>>>>>>> Updated with latest master.
 }
 
 /*

@@ -39,6 +39,8 @@
 				m0_cob_fabrec_make(), m0_cob_create */
 
 #include "fop/fom.h" /* M0_FSO_AGAIN, M0_FSO_WAIT */
+#include "ioservice/io_service.h"
+#include "sns/cm/ut/cp_common.h"
 
 #include "ioservice/io_service.h"
 #include "sns/cm/ut/cp_common.h"
@@ -57,6 +59,12 @@ static struct m0_reqh    *reqh;
 struct m0_reqh_service   *service;
 static struct m0_cm      *cm;
 static struct m0_sns_cm  *scm;
+
+static void sns_repair_ut_server_stop(void)
+{
+	m0_cs_fini(&sctx);
+	fclose(lfile);
+}
 
 static void service_start_success(void)
 {
@@ -146,7 +154,6 @@ static void cob_create(uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx)
 	struct m0_cob        *cob;
 	struct m0_cob_domain *cdom;
 	struct m0_fid         cob_fid;
-	struct m0_fid         gob_fid;
 	struct m0_dtx         tx;
 	struct m0_dbenv      *dbenv;
 	struct m0_cob_nskey  *nskey;
@@ -166,7 +173,7 @@ static void cob_create(uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx)
 
 	M0_SET_ARR0(nskey_bs);
         snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u",
-                 (uint32_t)cont);
+                 (uint32_t)cob_idx);
         nskey_bs_len = strlen(nskey_bs);
 
 	rc = m0_cob_nskey_make(&nskey, gfid, (char *)nskey_bs, nskey_bs_len);
@@ -225,10 +232,10 @@ static void ag_destroy(void)
 
 static void cobs_create(uint64_t nr_cobs)
 {
-	int           i;
-	int           j;
 	struct m0_fid gfid;
 	uint32_t      cob_idx;
+	int           i;
+	int           j;
 
 	gfid.f_container = 0;
 	for (i = 0; i < GOB_NR; ++i) {
@@ -246,9 +253,10 @@ static void cobs_delete(uint64_t nr_cobs)
 	int i;
 	int j;
 
-        for (i = 0; i < GOB_NR; ++i)
+	for (i = 0; i < GOB_NR; ++i) {
 		for (j = 1; j <= nr_cobs; ++j)
 			cob_delete(j, ITER_GOB_KEY_START + i);
+	}
 }
 
 static void nsit_verify(struct m0_fid *gfid)
@@ -263,6 +271,7 @@ static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata,
 {
 	struct m0_sns_cm_cp scp;
 	int                 rc;
+	int                 cnt;
 
 	cobs_create(pool_width);
 	/* Set file size */
@@ -277,9 +286,10 @@ static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata,
 		rc = m0_sns_cm_iter_next(cm, &scp.sc_base);
 		if (rc == M0_FSO_AGAIN) {
 			if (verify_ns_iter)
-				nsit_verify(&scm->sc_it.si_pl.spl_gob_fid);
+				nsit_verify(&scm->sc_it.si_pl.spl_gob_fid, cnt);
 			M0_UT_ASSERT(cp_verify(&scp));
 			buf_put(&scp);
+			cnt++;
 		}
 	} while (rc == M0_FSO_AGAIN);
 	m0_cm_unlock(cm);
