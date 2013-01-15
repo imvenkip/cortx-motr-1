@@ -151,7 +151,6 @@ enum ad_stob_allocation_extent_type {
 	AET_HOLE
 };
 
-
 struct m0_fol_rec_part ad_part;
 
 struct m0_fol_rec_part_type m0_ad_part_type;
@@ -175,8 +174,8 @@ static int ad_stob_type_init(struct m0_stob_type *stype)
 	m0_stob_type_init(stype);
 	m0_xc_ad_init();
 
-	return m0_fol_rec_part_type_init(&ad_part_type, "AD record part",
-					 ad_rec_part_xc, &ad_part_type_ops);
+	return m0_fol_rec_part_type_init(&m0_ad_part_type, "AD record part",
+					 m0_ad_rec_part_xc, &ad_part_type_ops);
 }
 
 /**
@@ -1134,7 +1133,7 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 	} while (!eodst);
 
 	if (result == 0)
-		m0_rec_part_tlist_add_tail(&io->si_tx->tx_fol_rec_parts, part);
+		m0_rec_part_tlist_add_tail(&io->si_tx->tx_fol_rec->fr_fol_rec_parts, part);
 
 	return result;
 }

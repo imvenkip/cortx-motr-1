@@ -232,7 +232,7 @@ static void cob_fol_rec_part_add(struct m0_fom *fom)
 	}
 
 	if (fol_rec_part != NULL)
-		m0_rec_part_tlist_add_tail(&fom->fo_tx.tx_fol_rec_parts, fol_rec_part);
+		m0_rec_part_tlist_add_tail(&fom->fo_tx.tx_fol_rec->fr_fol_rec_parts, fol_rec_part);
 }
 
 static int cc_fom_tick(struct m0_fom *fom)

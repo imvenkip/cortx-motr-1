@@ -38,7 +38,7 @@ static struct m0_dbenv       db;
 static struct m0_fol         fol;
 static struct m0_dtx         dtx;
 
-static struct m0_fol_rec            r;
+static struct m0_fol_rec           *r;
 static struct m0_fol_rec_desc      *d;
 static struct m0_fol_rec_header    *h;
 static struct m0_buf                buf;
@@ -57,7 +57,8 @@ static void test_init(void)
 	result = m0_dtx_open(&dtx, &db);
 	M0_ASSERT(result == 0);
 
-	d = &r.fr_desc;
+	r = dtx.tx_fol_rec;
+	d = &r->fr_desc;
 	h = &d->rd_header;
 }
 
@@ -144,8 +145,18 @@ int verify_part_data(struct m0_fol_rec_part *part)
 struct m0_fol_rec_part_type ut_part_type;
 
 const struct m0_fol_rec_part_ops ut_part_ops = {
+	.rpo_type = &ut_part_type,
 	.rpo_undo = verify_part_data,
 	.rpo_redo = NULL,
+};
+
+static void ut_part_ops_init(struct m0_fol_rec_part *part)
+{
+	part->rp_ops = &ut_part_ops;
+}
+
+const struct m0_fol_rec_part_type_ops ut_part_type_ops = {
+	.rpto_init = ut_part_ops_init,
 };
 
 static void test_fol_rec_part_encdec(void)
@@ -154,11 +165,12 @@ static void test_fol_rec_part_encdec(void)
 	struct m0_fol_rec       dup;
 	struct m0_fol_rec_part *ut_rec_part;
 	void		       *dec_buf;
+	m0_lsn_t		lsn;
 
 	M0_ALLOC_PTR(ut_rec_part);
 
 	result =  m0_fol_rec_part_type_init(&ut_part_type, "UT FOL record part",
-					    m0_fid_xc, &ut_part_ops);
+					    m0_fid_xc, &ut_part_type_ops);
 	M0_ASSERT(result == 0);
 
 	ut_rec_part = m0_fol_rec_part_init(&ut_part_type);
@@ -168,13 +180,13 @@ static void test_fol_rec_part_encdec(void)
 	rec->f_container = 22;
 	rec->f_key	 = 33;
 
-	m0_rec_part_tlist_add_tail(&dtx.tx_fol_rec_parts, ut_rec_part);
+	m0_rec_part_tlist_add_tail(&dtx.tx_fol_rec->fr_fol_rec_parts, ut_rec_part);
 
 	d->rd_type = &ut_fol_type;
 	h->rh_refcount = 1;
-	d->rd_lsn = m0_fol_lsn_allocate(&fol);
+	lsn = d->rd_lsn = m0_fol_lsn_allocate(&fol);
 
-	result = m0_fol_rec_add(&fol, &dtx, d);
+	result = m0_fol_rec_add(&fol, &dtx);
 	M0_ASSERT(result == 0);
 
 	result = m0_dtx_commit(&dtx);
@@ -184,7 +196,7 @@ static void test_fol_rec_part_encdec(void)
 	result = m0_dtx_open(&dtx, &db);
 	M0_ASSERT(result == 0);
 
-	result = m0_fol_record_lookup(&fol, &dtx.tx_dbtx, d->rd_lsn, &dup);
+	result = m0_fol_record_lookup(&fol, &dtx.tx_dbtx, lsn, &dup);
 	M0_ASSERT(result == 0);
 	dec_buf = &dup.fr_desc.rd_data;
 
@@ -211,10 +223,10 @@ static void test_fol_rec_part_encdec(void)
 		if (desc->rd_type == NULL)
 			result = -EIO;
 		for (i = 0, rc = 0; rc == 0 && i < h->rh_obj_nr; ++i)
-			rc = m0_fol_rec_obj_ref_encdec(&desc->rd_ref[i], &cur, M0_BUFVEC_ENCODE);
+			rc = m0_fol_rec_obj_ref_encdec(&desc->rd_ref[i], &cur, M0_BUFVEC_DECODE);
 
 		for (i = 0, rc = 0; rc == 0 && i < h->rh_sibling_nr; ++i)
-			rc = m0_fol_rec_sibling_encdec(&desc->rd_sibling[i], &cur, M0_BUFVEC_ENCODE);
+			rc = m0_fol_rec_sibling_encdec(&desc->rd_sibling[i], &cur, M0_BUFVEC_DECODE);
 
 		result = m0_fol_rec_part_header_encdec(&ph, &cur, M0_BUFVEC_DECODE);
 
@@ -226,7 +238,7 @@ static void test_fol_rec_part_encdec(void)
 		result = m0_fol_rec_part_encdec(part, &cur, M0_BUFVEC_DECODE);
 		M0_ASSERT(result == 0);
 
-		part->rp_type->rpt_ops->rpo_undo(part);
+		part->rp_ops->rpo_undo(part);
 
 		m0_fol_rec_part_fini(part);
 	}

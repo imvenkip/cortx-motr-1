@@ -1638,7 +1638,7 @@ static void write_fol_rec_part_add(struct m0_fom *fom)
 	wrp->wrp_fop_rep = *(struct m0_fop_cob_writev_rep *)
 				m0_fop_data(fom->fo_rep_fop);
 
-	m0_rec_part_tlist_add_tail(&fom->fo_tx.tx_fol_rec_parts, fol_rec_part);
+	m0_rec_part_tlist_add_tail(&fom->fo_tx.tx_fol_rec->fr_fol_rec_parts, fol_rec_part);
 }
 
 /**

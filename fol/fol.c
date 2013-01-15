@@ -398,13 +398,13 @@ fol_rec_part_type_lookup(uint32_t index)
 M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
 					  const char *name,
 					  const struct m0_xcode_type  *xt,
-					  const struct m0_fol_rec_part_ops *ops)
+					  const struct m0_fol_rec_part_type_ops *ops)
 {
 	M0_PRE(type != NULL);
 
-	type->rpt_xt   = xt;
-	type->rpt_ops  = ops;
 	type->rpt_name = name;
+	type->rpt_ops  = ops;
+	type->rpt_xt   = xt;
 	return fol_rec_part_type_register(type);
 }
 
@@ -420,7 +420,7 @@ M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type)
 
 static size_t fol_rec_part_size(const struct m0_fol_rec_part *part)
 {
-	return part->rp_type->rpt_xt->xct_sizeof;
+	return part->rp_ops->rpo_type->rpt_xt->xct_sizeof;
 }
 
 static int fol_rec_part_data_alloc(struct m0_fol_rec_part *part)
@@ -527,8 +527,7 @@ static size_t fol_record_pack_size(struct m0_fol_rec *rec)
 	return m0_align(len, 8);
 }
 
-static void fol_record_pack(struct m0_dtx *dtx, struct m0_fol_rec_desc *desc,
-			 struct m0_buf *buf)
+static void fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 {
 	struct m0_fol_rec_part *part;
 	m0_bcount_t	        len = buf->b_nob;
@@ -656,15 +655,18 @@ M0_INTERNAL int m0_fol_record_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
 		out->fr_desc.rd_lsn = lsn;
 		result = m0_db_cursor_get(&out->fr_ptr, &out->fr_pair);
 		if (result == 0) {
-			void		       *buf = &out->fr_pair.dp_rec.db_buf.b_addr;
-			m0_bcount_t	        len = out->fr_pair.dp_rec.db_buf.b_nob;
-			struct m0_bufvec	bvec = M0_BUFVEC_INIT_BUF(buf, &len);
+			struct m0_buf          *rec_buf =
+						&out->fr_pair.dp_rec.db_buf;
+			void		       *buf = &rec_buf->b_addr;
+			m0_bcount_t	        len = rec_buf->b_nob;
+			struct m0_bufvec	bvec = M0_BUFVEC_INIT_BUF(buf,
+									  &len);
 			struct m0_bufvec_cursor cur;
 
 			m0_bufvec_cursor_init(&cur, &bvec);
 
-			out->fr_desc.rd_data = out->fr_pair.dp_rec.db_buf.b_addr;
-			result = fol_record_decode(&out->fr_desc, &cur);
+			out->fr_desc.rd_data = rec_buf->b_addr;
+			result = fol_record_decode(out, &cur);
 		}
 		if (result != 0)
 			m0_fol_rec_fini(out);
