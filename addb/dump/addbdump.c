@@ -32,56 +32,70 @@
 #include "stob/ad.h"
 #include "stob/linux.h"
 
-/**
+/*
  * Tracks related information pertinent to AD stob.
  */
 struct dump_ad_stob {
-	/** Allocation data storage domain.*/
+	/* Allocation data storage domain.*/
 	struct m0_stob_domain *as_dom;
-	/** Back end storage object id, i.e. ad */
+	/* Back end storage object id, i.e. ad */
 	struct m0_stob_id      as_id_back;
-	/** Back end storage object. */
+	/* Back end storage object. */
 	struct m0_stob        *as_stob_back;
 };
 
-/**
-   Encapsulates stob, stob type and
-   stob domain references for linux and ad stobs.
+/*
+ * Encapsulates stob, stob type and
+ * stob domain references for linux and ad stobs.
  */
 struct dump_stob {
-	/** Type of storage domain (M0_AD_STOB or M0_LINUX_STOB) */
+	/* Type of storage domain (M0_AD_STOB or M0_LINUX_STOB) */
 	int                    s_stype_nr;
-	/** Linux storage domain. */
+	/* Linux storage domain. */
 	struct m0_stob_domain *s_ldom;
 	struct dump_ad_stob   *s_adom;
-	/** The ADDB stob */
+	/* The ADDB stob */
 	struct m0_stob        *s_stob;
 };
 
-/**
+/*
  * Represents m0addbdump environment.
  */
 struct addb_dump_ctl {
-	/** Type of storage. */
+	/* Type of storage. */
 	const char                  *adc_stype;
-	/** ADDB Storage path */
+	/* ADDB Storage path */
 	const char                  *adc_stpath;
-	/** Database environment path. */
+	/* Database environment path. */
 	const char                  *adc_dbpath;
+	/* Binary data input file path */
+	const char                  *adc_infile;
+	/* Output file path */
+	const char                  *adc_outfile;
+	/* Dump binary data */
+	bool                         adc_binarydump;
 
-	/** a string to display with error message */
+	/* a string to display with error message */
 	const char                  *adc_errstr;
 	int                          adc_stype_nr;
 	struct m0_dbenv              adc_db;
 	struct dump_stob             adc_stob;
+	struct m0_addb_segment_iter *adc_iter;
 };
 static struct addb_dump_ctl ctl;
 
-static bool stype_is_valid(const char *stype)
+/* Returns valid stob type ID, or M0_STOB_TYPE_NR */
+static int stype_parse(const char *stype)
 {
-	return stype != NULL &&
-	    (strcasecmp(stype, m0_cs_stypes[M0_AD_STOB]) == 0 ||
-	     strcasecmp(stype, m0_cs_stypes[M0_LINUX_STOB]) == 0);
+	int i;
+
+	if (stype == NULL)
+		return M0_STOB_TYPE_NR;
+	for (i = 0; i < ARRAY_SIZE(m0_cs_stypes); ++i) {
+		if (strcasecmp(ctl.adc_stype, m0_cs_stypes[i]) == 0)
+			break;
+	}
+	return i;
 }
 
 static int dump_linux_stob_init(const char *path, struct dump_stob *stob)
@@ -212,6 +226,8 @@ static void dump_storage_fini(struct dump_stob *stob)
 
 static void cleanup(void)
 {
+	if (ctl.adc_iter != NULL)
+		m0_addb_segment_iter_free(ctl.adc_iter);
 	dump_storage_fini(&ctl.adc_stob);
 	if (ctl.adc_dbpath != NULL)
 		m0_dbenv_fini(&ctl.adc_db);
@@ -228,6 +244,11 @@ static int setup(void)
 			ctl.adc_errstr = ctl.adc_dbpath;
 			return rc;
 		}
+	} else if (ctl.adc_infile != NULL) {
+		rc = m0_addb_file_iter_alloc(&ctl.adc_iter, ctl.adc_infile);
+		if (rc != 0)
+			ctl.adc_errstr = ctl.adc_infile;
+		return rc;
 	}
 
 	ctl.adc_stob.s_stype_nr = ctl.adc_stype_nr;
@@ -249,6 +270,9 @@ static int setup(void)
 		dump_storage_fini(&ctl.adc_stob);
 	if (rc != 0)
 		ctl.adc_errstr = ctl.adc_stpath;
+	else
+		rc = m0_addb_stob_iter_alloc(&ctl.adc_iter,
+					     ctl.adc_stob.s_stob);
 	return rc;
 }
 
@@ -309,16 +333,8 @@ static void dump_event_rec(FILE *out, struct m0_addb_rec *r)
 	int                            i;
 
 	/*
-	 * @todo TS Type CTX Data
+	 * TS Type CTX Data
 	 * one per line, mostly numeric.
-	 * BTW, if you're going to display numbers in hex, we could
-	 * convert all the numbers in the code to hex too.
-	 * Makes it easier to match.
-	 * m0_addb_node_ctx
-	 *  -> m0_addb_proc_ctx
-	 *   -> rh_addb_ctx    // request handler
-	 *     -> rs_addb_ctx  // svc - ctx type id unique by svc type
-	 *      -> fo_addb_ctx // FOM - ctx type id unique by FOP type
 	 */
 	rt = m0_addb_rec_type_lookup(m0_addb_rec_rid_to_id(r->ar_rid));
 	switch (rt != NULL ? rt->art_base_type : M0_ADDB_BRT_NR) {
@@ -378,20 +394,42 @@ static void dump_event_rec(FILE *out, struct m0_addb_rec *r)
 	dump_cv(out, r);
 }
 
-static int dump(struct m0_stob *stob, uint32_t flags, FILE *out)
+static int bindump(FILE *out)
 {
-	struct m0_addb_segment_iter *iter;
-	struct m0_addb_rec          *rec;
-	struct m0_addb_cursor        cur;
-	int                          count = 0;
-	int                          rc;
+	const struct m0_bufvec *bv;
+	int                     i;
+	int                     rc;
 
-	rc = m0_addb_stob_iter_alloc(&iter, stob);
+	while (1) {
+		rc = ctl.adc_iter->asi_nextbuf(ctl.adc_iter, &bv);
+		if (rc < 0)
+			break;
+		M0_ASSERT(bv != NULL);
+		for (i = 0; i < bv->ov_vec.v_nr; ++i) {
+			rc = fwrite(bv->ov_buf[i],
+				    bv->ov_vec.v_count[i], 1, out);
+			if (rc != 1) {
+				rc = errno != 0 ? -errno : -EIO;
+				goto fail;
+			}
+		}
+	}
+fail:
+	if (rc == -ENODATA)
+		rc = 0;
+	return rc;
+}
+
+static int dump(uint32_t flags, FILE *out)
+{
+	struct m0_addb_rec   *rec;
+	struct m0_addb_cursor cur;
+	int                   count = 0;
+	int                   rc;
+
+	rc = m0_addb_cursor_init(&cur, ctl.adc_iter, flags);
 	if (rc != 0)
 		return rc;
-	rc = m0_addb_cursor_init(&cur, iter, flags);
-	if (rc != 0)
-		goto fail;
 	while (1) {
 		rc = m0_addb_cursor_next(&cur, &rec);
 		if (rc == -ENODATA) {
@@ -410,9 +448,7 @@ static int dump(struct m0_stob *stob, uint32_t flags, FILE *out)
 		count++;
 	}
 	m0_addb_cursor_fini(&cur);
-	printf("dumped %d records\n", count);
-fail:
-	m0_addb_stob_iter_free(iter);
+	fprintf(out, "dumped %d records\n", count);
 	return rc;
 }
 
@@ -423,15 +459,26 @@ static void addbdump_help(FILE *out)
 	M0_PRE(out != NULL);
 	fprintf(out,
 		"Usage: m0addbdump [-h]\n"
-		"   or  m0addbdump -T StobType [-D DBPath] -A ADDBStobPath\n");
-	fprintf(out, "\nSupported stob types:\n");
+		"   or  m0addbdump [-b] -T StobType [-D DBPath] -A ADDBStobPath"
+		" [-o path]\n"
+		"   or  m0addbdump -f path [-o path]\n\n");
+	fprintf(out,
+		"  -b       Dump binary data.  All valid segments are dumped.\n"
+		"           The output can be inspected later using -f.\n");
+	fprintf(out,
+		"  -f path  Read data from a binary file created using -b\n"
+		"           rather than reading from the ADDB repository.\n");
+	fprintf(out,
+		"  -o path  Write output to a file rather than stdout.\n");
+	fprintf(out, "\nSupported stob types:");
 	for (i = 0; i < ARRAY_SIZE(m0_cs_stypes); ++i)
-		fprintf(out, " %s\n", m0_cs_stypes[i]);
+		fprintf(out, " %s", m0_cs_stypes[i]);
+	fprintf(out, "\n");
 	fprintf(out,
 		"\nThe DBPath and ADDBStobPath should be the same as those\n"
 		"specified for the matching options of the m0d\n"
 		"request handler that generated the ADDB repository.\n"
-		"The DBPath is not required for linux stob.\n");
+		"The DBPath is not required for Linux stob.\n");
 	fprintf(out, "\n"
 		"Each dumped record includes a sequence identifier, the event\n"
 		"type, its timestamp, its fields and its context(s).\n");
@@ -440,9 +487,9 @@ static void addbdump_help(FILE *out)
 int main(int argc, char *argv[])
 {
 	static const char *m0addbdump = "m0addbdump";
+	FILE              *out = NULL;
 	int                rc = 0;
 	int                r2;
-	int                i;
 
 	rc = m0_init();
 	if (rc != 0) {
@@ -476,6 +523,30 @@ int main(int argc, char *argv[])
 					else
 						ctl.adc_dbpath = str;
 				})),
+			M0_VOIDARG('b', "Dump binary data",
+				LAMBDA(void, (void)
+				{
+					if (ctl.adc_binarydump)
+						rc = -EINVAL;
+					else
+						ctl.adc_binarydump = true;
+				})),
+			M0_STRINGARG('f', "Binary data input file",
+				LAMBDA(void, (const char *str)
+				{
+					if (ctl.adc_infile != NULL)
+						rc = -EINVAL;
+					else
+						ctl.adc_infile = str;
+				})),
+			M0_STRINGARG('o', "Database environment path",
+				LAMBDA(void, (const char *str)
+				{
+					if (ctl.adc_outfile != NULL)
+						rc = -EINVAL;
+					else
+						ctl.adc_outfile = str;
+				})),
 			M0_VOIDARG('h', "usage help",
 				LAMBDA(void, (void)
 				{
@@ -485,33 +556,48 @@ int main(int argc, char *argv[])
 	if (rc == 0)
 		rc = r2;
 	if (rc == 0) {
-		if (!stype_is_valid(ctl.adc_stype) || ctl.adc_stpath == NULL) {
-			rc = EINVAL;
-			addbdump_help(stderr);
-			goto done;
-		}
-		for (i = 0; i < ARRAY_SIZE(m0_cs_stypes); ++i) {
-			if (strcasecmp(ctl.adc_stype, m0_cs_stypes[i]) == 0) {
-				ctl.adc_stype_nr = i;
-				break;
+		if (ctl.adc_infile != NULL) {
+			if (ctl.adc_stype != NULL ||
+			    ctl.adc_stpath != NULL ||
+			    ctl.adc_dbpath != NULL ||
+			    ctl.adc_binarydump) {
+				rc = EINVAL;
+				addbdump_help(stderr);
+				goto done;
 			}
-		}
-		if (ctl.adc_dbpath == NULL && ctl.adc_stype_nr == M0_AD_STOB) {
-			rc = EINVAL;
-			addbdump_help(stderr);
-			goto done;
+		} else {
+			ctl.adc_stype_nr = stype_parse(ctl.adc_stype);
+			if (ctl.adc_stype_nr == M0_STOB_TYPE_NR ||
+			    ctl.adc_stpath == NULL ||
+			    (ctl.adc_dbpath == NULL &&
+			     ctl.adc_stype_nr == M0_AD_STOB)) {
+				rc = EINVAL;
+				addbdump_help(stderr);
+				goto done;
+			}
 		}
 	}
 	if (rc != 0)
 		goto done;
 
+	if (ctl.adc_outfile != NULL) {
+		out = fopen(ctl.adc_outfile, "w");
+		if (out == NULL) {
+			rc = -errno;
+			goto done;
+		}
+	}
 	rc = setup();
 	if (rc != 0)
 		goto done;
-	M0_ASSERT(ctl.adc_stob.s_stob != NULL);
-	rc = dump(ctl.adc_stob.s_stob, 0, stdout);
+	if (ctl.adc_binarydump)
+		rc = bindump(out != NULL ? out : stdout);
+	else
+		rc = dump(0, out != NULL ? out : stdout);
 	cleanup();
 done:
+	if (out != NULL)
+		fclose(out);
 	m0_fini();
 	if (rc < 0) {
 		rc = -rc;

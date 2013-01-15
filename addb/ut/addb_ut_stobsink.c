@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -26,6 +26,7 @@
  ****************************************************************************
  */
 
+#include <stdio.h>
 #include <stdlib.h>    /* system */
 
 #include "stob/linux.h"
@@ -76,6 +77,8 @@ struct stobsink_domain {
 	struct m0_stob_domain ssd_dom;
 	char                  ssd_buf[16];
 };
+
+static const char addb_repofile[] = "./_addb/repofile.dat";
 
 static int stobsink_mock_stob_type_init(struct m0_stob_type *stype)
 {
@@ -501,20 +504,18 @@ static void addb_ut_stobsink_verify(struct stobsink *sink)
 	sink->ss_sync = false;
 }
 
-static void addb_ut_cursor(struct m0_stob *stob, uint32_t flags, int expected)
+static void addb_ut_cursor(struct m0_addb_segment_iter *iter,
+			   uint32_t flags, int expected)
 {
-	struct m0_addb_segment_iter *iter;
-	struct m0_addb_rec          *rec;
-	struct m0_addb_cursor        cur;
-	struct m0_addb_rec_type     *dp = &m0__addb_ut_rt_dp9;
-	uint64_t                     dp_rid;
-	uint64_t                     u = 0;
-	int                          count = 0;
-	int                          rc;
+	struct m0_addb_rec      *rec;
+	struct m0_addb_cursor    cur;
+	struct m0_addb_rec_type *dp = &m0__addb_ut_rt_dp9;
+	uint64_t                 dp_rid;
+	uint64_t                 u = 0;
+	int                      count = 0;
+	int                      rc;
 
 	dp_rid = m0_addb_rec_rid_make(dp->art_base_type, dp->art_id);
-	rc = m0_addb_stob_iter_alloc(&iter, stob);
-	M0_UT_ASSERT(rc == 0);
 	rc = m0_addb_cursor_init(&cur, iter, flags);
 	M0_UT_ASSERT(rc == 0);
 	while (1) {
@@ -535,8 +536,30 @@ static void addb_ut_cursor(struct m0_stob *stob, uint32_t flags, int expected)
 		count++;
 	}
 	m0_addb_cursor_fini(&cur);
-	m0_addb_stob_iter_free(iter);
 	M0_UT_ASSERT(count == expected);
+}
+
+static void addb_ut_stob_cursor(struct m0_stob *stob,
+				uint32_t flags, int expected)
+{
+	struct m0_addb_segment_iter *iter;
+	int                          rc;
+
+	rc = m0_addb_stob_iter_alloc(&iter, stob);
+	M0_UT_ASSERT(rc == 0);
+	addb_ut_cursor(iter, flags, expected);
+	m0_addb_segment_iter_free(iter);
+}
+
+static void addb_ut_file_cursor(uint32_t flags, int expected)
+{
+	struct m0_addb_segment_iter *iter;
+	int                          rc;
+
+	rc = m0_addb_file_iter_alloc(&iter, addb_repofile);
+	M0_UT_ASSERT(rc == 0);
+	addb_ut_cursor(iter, flags, expected);
+	m0_addb_segment_iter_free(iter);
 }
 
 static void addb_ut_retrieval(void)
@@ -544,8 +567,11 @@ static void addb_ut_retrieval(void)
 	struct m0_stob_domain       *dom;
 	struct m0_stob              *stob;
 	struct m0_addb_segment_iter *iter;
+	struct addb_segment_iter    *ai;
 	struct m0_bufvec_cursor      cur;
-	int                          count = 0;
+	const struct m0_bufvec      *bv;
+	FILE                        *f;
+	int                          count;
 	int                          rc;
 
 	rc = m0_stob_domain_locate(&m0_linux_stob_type, "./_addb", &dom);
@@ -561,10 +587,11 @@ static void addb_ut_retrieval(void)
 	rc = stob_retrieval_segsize_get(stob);
 	M0_UT_ASSERT(rc == STOBSINK_SEGMENT_SIZE);
 
-	/* Test: all written segments are retrieved */
+	/* Test: all written segments are retrieved via asi_next */
 	rc = m0_addb_stob_iter_alloc(&iter, stob);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(iter->asi_next == stob_retrieval_iter_next);
+	M0_UT_ASSERT(iter->asi_next == stob_segment_iter_next);
+	count = 0;
 	while (1) {
 		rc = iter->asi_next(iter, &cur);
 		if (rc == 0)
@@ -575,17 +602,86 @@ static void addb_ut_retrieval(void)
 			     sizeof(struct m0_addb_seg_header));
 		count++;
 	}
-	m0_addb_stob_iter_free(iter);
+	m0_addb_segment_iter_free(iter);
+	M0_UT_ASSERT(count == STOBSINK_SMALL_SEG_NR);
+
+	/* Test: all written segments are retrieved via asi_nextbuf */
+	rc = m0_addb_stob_iter_alloc(&iter, stob);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(iter->asi_nextbuf == addb_segment_iter_nextbuf);
+	/* save data in a file, for file iter tests */
+	f = fopen(addb_repofile, "w");
+	M0_ASSERT(f != NULL);
+	count = 0;
+	while (1) {
+		rc = iter->asi_nextbuf(iter, &bv);
+		if (rc == -ENODATA)
+			break;
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(bv->ov_vec.v_nr == 1);
+		M0_UT_ASSERT(bv->ov_vec.v_count[0] == STOBSINK_SEGMENT_SIZE);
+		rc = fwrite(bv->ov_buf[0], bv->ov_vec.v_count[0], 1, f);
+		M0_ASSERT(rc == 1);
+		count++;
+	}
+	fclose(f);
+	m0_addb_segment_iter_free(iter);
 	M0_UT_ASSERT(count == STOBSINK_SMALL_SEG_NR);
 
 	/* Test: event retrieval retrieves all/only event records */
-	addb_ut_cursor(stob, M0_ADDB_CURSOR_REC_EVENT, STOBSINK_FULL_EVENT_NR);
-	addb_ut_cursor(stob, M0_ADDB_CURSOR_REC_CTX, 1);
-	addb_ut_cursor(stob, 0, STOBSINK_FULL_EVENT_NR + 1);
+	addb_ut_stob_cursor(stob,
+			    M0_ADDB_CURSOR_REC_EVENT, STOBSINK_FULL_EVENT_NR);
+	addb_ut_stob_cursor(stob, M0_ADDB_CURSOR_REC_CTX, 1);
+	addb_ut_stob_cursor(stob, 0, STOBSINK_FULL_EVENT_NR + 1);
 
 	M0_UT_ASSERT(m0_atomic64_get(&stob->so_ref) == 2);
 	m0_stob_put(stob);
 	dom->sd_ops->sdo_fini(dom);
+
+	/* Test: file iter alloc correctly determines segment size */
+	rc = m0_addb_file_iter_alloc(&iter, addb_repofile);
+	M0_UT_ASSERT(rc == 0);
+	ai = container_of(iter, struct addb_segment_iter, asi_base);
+	M0_UT_ASSERT(ai->asi_magic == M0_ADDB_FILERET_MAGIC);
+	M0_UT_ASSERT(ai->asi_segsize == STOBSINK_SEGMENT_SIZE);
+
+	/* Test: all segments in file are retrieved via asi_next */
+	M0_UT_ASSERT(iter->asi_next == file_segment_iter_next);
+	count = 0;
+	while (1) {
+		rc = iter->asi_next(iter, &cur);
+		if (rc == 0)
+			break;
+		M0_UT_ASSERT(rc > 0);
+		M0_UT_ASSERT(cur.bc_vc.vc_seg == 0 &&
+			     cur.bc_vc.vc_offset ==
+			     sizeof(struct m0_addb_seg_header));
+		count++;
+	}
+	m0_addb_segment_iter_free(iter);
+	M0_UT_ASSERT(count == STOBSINK_SMALL_SEG_NR);
+
+	/* Test: all segments in file are retrieved via asi_nextbuf */
+	rc = m0_addb_file_iter_alloc(&iter, addb_repofile);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(iter->asi_nextbuf == addb_segment_iter_nextbuf);
+	count = 0;
+	while (1) {
+		rc = iter->asi_nextbuf(iter, &bv);
+		if (rc == -ENODATA)
+			break;
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(bv->ov_vec.v_nr == 1);
+		M0_UT_ASSERT(bv->ov_vec.v_count[0] == STOBSINK_SEGMENT_SIZE);
+		count++;
+	}
+	m0_addb_segment_iter_free(iter);
+	M0_UT_ASSERT(count == STOBSINK_SMALL_SEG_NR);
+
+	/* Test: event retrieval retrieves all/only event records from file */
+	addb_ut_file_cursor(M0_ADDB_CURSOR_REC_EVENT, STOBSINK_FULL_EVENT_NR);
+	addb_ut_file_cursor(M0_ADDB_CURSOR_REC_CTX, 1);
+	addb_ut_file_cursor(0, STOBSINK_FULL_EVENT_NR + 1);
 }
 
 static void addb_ut_stob(void)

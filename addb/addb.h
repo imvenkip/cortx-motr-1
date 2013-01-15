@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -44,7 +44,6 @@ struct m0_addb_mc_recsink;
 struct m0_addb_rec;
 struct m0_addb_rec_seq;
 struct m0_addb_rec_header;
-struct m0_addb_segment_iter;
 struct m0_addb_uint64_seq;
 
 struct m0_rpc_machine;
@@ -1115,6 +1114,41 @@ do {								\
 
 #ifndef __KERNEL__
 /**
+   Abstract ADDB repository segment iterator.
+ */
+struct m0_addb_segment_iter {
+	/**
+	   Get a cursor into the next segment of the ADDB repository.
+	   Only complete segments are returned.
+	   @param iter Segment Iterator object.
+	   @param cur On success, set to the start of the record data in the
+	   segment.  The cursor may be used until the next call to either
+	   asi_next() or asi_nextbuf(), or until the iterator is freed,
+	   whichever occurs first.
+	   @return A positive number denotes the number of records in the
+	   segment.  Zero denotes that more segments are available (EOF).
+	   A negative number denotes that an error occurred.
+	 */
+	int (*asi_next)(struct m0_addb_segment_iter *iter,
+			struct m0_bufvec_cursor     *cur);
+	/**
+	   Get a buffer containing the next segment of the ADDB repository.
+	   Only complete segments are returned.
+	   @param iter Segment Iterator object.
+	   @param bv On success, set to a bufvec containing the data of the
+	   segment.  The buffer may be used until the next call to either
+	   asi_next() or asi_nextbuf(), or until the iterator is freed,
+	   whichever occurs first.
+	 */
+	int (*asi_nextbuf)(struct m0_addb_segment_iter *iter,
+			   const struct m0_bufvec     **bv);
+	/**
+	   Free the segment iterator.
+	 */
+	void (*asi_free)(struct m0_addb_segment_iter *iter);
+};
+
+/**
    Configure an ADDB repository segment iterator reading directly from
    a stob.
    @param iter On success, initialized iterator object is returned.
@@ -1123,7 +1157,16 @@ do {								\
  */
 M0_INTERNAL int m0_addb_stob_iter_alloc(struct m0_addb_segment_iter **iter,
 					struct m0_stob *stob);
-M0_INTERNAL void m0_addb_stob_iter_free(struct m0_addb_segment_iter *iter);
+/**
+   Configure an ADDB repository segment iterator reading from a binary file.
+   @param iter On success, initialized iterator object is returned.
+   @param path The path to the binary file containing ADDB data previously
+   extracted from an ADDB stob.
+ */
+M0_INTERNAL int m0_addb_file_iter_alloc(struct m0_addb_segment_iter **iter,
+					const char *path);
+
+M0_INTERNAL void m0_addb_segment_iter_free(struct m0_addb_segment_iter *iter);
 
 /**
    Cursor operational flags.

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -82,8 +82,11 @@ enum m0_magic_satchel {
 	/* stobsink_poolbuf::spb_magic (addable babel) */
 	M0_ADDB_STOBSINK_BUF_MAGIC = 0x33addab1ebabe177,
 
-	/* stob_retrieval_iter magic (addb seize elf) */
+	/* stob_segment_iter magic (addb seize elf) */
 	M0_ADDB_STOBRET_MAGIC = 0x33addb5e12ee1f77,
+
+	/* file_segment_iter magic (addb file sale) */
+	M0_ADDB_FILERET_MAGIC = 0x33addbf11e5a1e77,
 
 /* balloc */
 	/* m0_balloc_super_block::bsb_magic (blessed baloc) */

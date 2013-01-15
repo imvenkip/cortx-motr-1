@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -482,26 +482,6 @@ struct addb_pt_evmgr {
 	struct m0_addb_mc_evmgr ape_evmgr;
 	struct m0_ref           ape_ref;
 };
-
-/**
-   Abstract ADDB repository segment iterator.
- */
-struct m0_addb_segment_iter {
-	/**
-	   Get the next segment of the ADDB repository.
-	   Only complete segments are returned.
-	   @param iter Segment Iterator object.
-	   @param cur On success, set to the start of the record data in the
-	   segment.  The cursor may be until until the next call, or until
-	   the iterator is freed, whichever occurs first.
-	   @return A positive number denotes the number of records in the
-	   segment.  Zero denotes that more segments are available (EOF).
-	   A negative number denotes that an error occurred.
-	 */
-	int (*asi_next)(struct m0_addb_segment_iter *iter,
-			struct m0_bufvec_cursor     *cur);
-};
-
 
 static void   addb_ctx_init(void);
 static void   addb_ctx_fini(void);
