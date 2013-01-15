@@ -18,6 +18,8 @@
  * Original creation date: 10/19/2012
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADDB
+
 /* This file is designed to be included by addb/ut/addb_ut.c */
 
 #include "addb/user_space/addb_svc.h"
@@ -124,12 +126,11 @@ void addb_ut_svc_test(void)
 			     &the_addb_svc->as_reqhs.rs_mutex);
 	m0_mutex_unlock(&the_addb_svc->as_reqhs.rs_mutex);
 
-	/* explicitly terminate the fom */
+	/* explicitly terminate the fom. */
 	addb_pfom_stop(the_addb_svc);
-	m0_reqh_fom_domain_idle_wait(the_addb_svc->as_reqhs.rs_reqh);
-	M0_UT_ASSERT(!the_addb_pfom_started);
 
 	/* restart the fom */
+	M0_LOG(M0_DEBUG, "UT: resetting pfom");
 	M0_SET0(pfom);
 	addb_pfom_start(the_addb_svc);
 
@@ -151,6 +152,7 @@ void addb_ut_svc_test(void)
 	 *       "ticks".
 	 *       Check that stopping the request handler terminates the FOM.
 	 */
+	M0_LOG(M0_DEBUG, "UT: testing ticks");
 	saved_period = addb_pfom_period;
 #undef MS
 #define MS(ms) (ms) * 1000000ULL
@@ -174,6 +176,7 @@ void addb_ut_svc_test(void)
 	addb_pfom_period = saved_period;
 }
 
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:
