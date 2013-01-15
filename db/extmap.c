@@ -230,6 +230,7 @@ static int emap_next(struct m0_emap_cursor *it)
 	return IT_DO_OPEN(it, &m0_db_cursor_next);
 }
 
+#ifdef ENABLE_DEBUG
 static bool emap_invariant_check(struct m0_emap_cursor *it)
 {
 	int                   result;
@@ -275,6 +276,14 @@ static bool emap_invariant(struct m0_emap_cursor *it)
 		check = true;
 	return check;
 }
+
+#else /* !ENABLE_DEBUG */
+
+static bool emap_invariant(struct m0_emap_cursor *it)
+{
+	return true;
+}
+#endif
 
 int m0_emap_lookup(struct m0_emap *emap, struct m0_db_tx *tx,
 		   const struct m0_uint128 *prefix, m0_bindex_t offset,
