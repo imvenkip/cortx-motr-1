@@ -784,6 +784,8 @@ static const struct io_request_ops ioreq_ops = {
 	.iro_dgmode_recover = ioreq_dgmode_recover,
 };
 
+static void failure_vector_mismatch(struct io_req_fop *irfop);
+
 static inline uint32_t ioreq_sm_state(const struct io_request *req)
 {
 	return req->ir_sm.sm_state;
@@ -2829,22 +2831,35 @@ static int ioreq_dgmode_read(struct io_request *req)
 {
 	int                         rc = 0;
 	uint32_t                    cnt = 0;
+	uint32_t                    st_cnt = 0;
 	uint64_t                    id;
+	struct m0t1fs_sb           *csb;
 	struct io_req_fop          *irfop;
 	struct target_ioreq        *ti;
+	enum m0_pool_nd_state       state;
 	struct m0_pdclust_layout   *play;
 
 	M0_ENTRY();
 	M0_PRE(io_request_invariant(req));
 
+	csb = file_to_sb(req->ir_file);
 	ioreq_sm_state_set(req, IRS_DEGRADED_READING);
 	/*
 	 * Looks up failed target_ioreq structure/s and failed
 	 * IO fop/s in failed target_ioreq structure/s.
 	 */
 	m0_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
-		if (ti->ti_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
+		if (ti->ti_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 			++cnt;
+			rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
+					ti->ti_fid.f_container, &state);
+			if (rc != 0)
+				M0_RETERR(rc, "Failed to retrieve target"
+					  "device state.");
+			if (M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
+				  M0_PNDS_SNS_REPAIRING)))
+				st_cnt++;
+		}
 	} m0_tl_endfor;
 
 	/*
@@ -2856,6 +2871,20 @@ static int ioreq_dgmode_read(struct io_request *req)
 		M0_RETERR(-EIO, "Failed to recover data since number of failed"
 				"data units exceed number of parity units in"
 				"parity group");
+
+	/*
+	 * If none of the target objects lie in states like
+	 * { M0_PNDS_FAILED, M0_PNDS_OFFLINE, M0_PNDS_SNS_REPAIRING }
+	 * the repair process has passed beyond the last state from this set
+	 * (M0_PNDS_SNS_REPAIRING) and the lost data is restored on the
+	 * spare units. Hence degraded mode is not necessary any more.
+	 * Instead, data can be read directly from spare units.
+	 * Ergo, returning -EAGAIN from here which will create new
+	 * io_request and will try to do IO once again.
+	 */
+	if (st_cnt == 0)
+		M0_RETERR(-EAGAIN, "Failed to trigger degraded mode since"
+			  "no target device is in required state.");
 
 	m0_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
 		if (ti->ti_rc != M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
@@ -2960,6 +2989,12 @@ static int ioreq_iosm_handle(struct io_request *req)
 			 * Degraded mode read IO kicks in when existing read IO
 			 * request fails with error code
 			 * M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH.
+			 */
+			/*
+			 * @todo Check the state of target(s) for which
+			 * IO fop(s) failed and
+			 * if target device state < M0_PNDS_SNS_REPAIRED,
+			 * start degraded mode read IO.
 			 */
 			if (req->ir_nwxfer.nxr_rc ==
 			    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
@@ -4008,9 +4043,8 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 	M0_LEAVE();
 }
 
-static int failure_vector_mismatch(struct io_req_fop *irfop)
+static void failure_vector_mismatch(struct io_req_fop *irfop)
 {
-	int                             rc;
 	struct m0_pool_version_numbers *cli;
 	struct m0_pool_version_numbers *srv;
 	struct m0t1fs_sb               *csb;
@@ -4045,7 +4079,6 @@ static int failure_vector_mismatch(struct io_req_fop *irfop)
 	 * When -EAGAIN is return, this system
 	 * call will be restarted.
 	 */
-	rc = -EAGAIN;
 	*cli = *srv;
 
 	while (i < reply_updates->fvu_count) {
@@ -4054,12 +4087,11 @@ static int failure_vector_mismatch(struct io_req_fop *irfop)
 				(struct m0_pool_event*)event);
 		i++;
 	}
-	return rc;
 }
 
 static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	int                         rc;
+	//int                         rc;
 	struct io_req_fop          *irfop;
 	struct io_request          *req;
 	struct target_ioreq        *tioreq;
@@ -4085,9 +4117,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	rw_reply   = io_rw_rep_get(reply);
 
 	if (rw_reply->rwr_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
-		rc = failure_vector_mismatch(irfop);
-		if (rc != 0)
-			tioreq->ti_rc = rc;
+		failure_vector_mismatch(irfop);
 		/*
 		 * Refcount is incremented here so that this fop can be
 		 * reused in degraded mode read IO processing.
