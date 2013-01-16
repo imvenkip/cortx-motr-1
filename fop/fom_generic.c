@@ -611,7 +611,6 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 
 	M0_PRE(fom != NULL);
 
-	fopt = fom->fo_fop->f_type;
 	fol  = m0_fom_reqh(fom)->rh_fol;
 	desc = &fom->fo_tx.tx_fol_rec.fr_desc;
 

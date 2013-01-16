@@ -421,8 +421,13 @@ M0_INTERNAL void m0_fol_rec_part_list_add(struct m0_fol_rec *rec,
 /**  Adds the FOL record by iterating through FOL parts from the list in m0_dtx
  *   added during updates on server.
  */
-M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_dtx *dtx,
-			       struct m0_fol_rec_desc *rec);
+M0_INTERNAL int m0_fol_record_add(struct m0_fol *fol, struct m0_dtx *dtx);
+
+M0_INTERNAL int m0_fol_record_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
+				     m0_lsn_t lsn, struct m0_fol_rec *out);
+
+M0_INTERNAL struct m0_fol_rec *m0_fol_record_init(void);
+M0_INTERNAL void m0_fol_record_fini(struct m0_fol_rec *rec);
 
 /** It represents updates made as part of executing FOM on server. */
 struct m0_fol_rec_part {
