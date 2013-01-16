@@ -159,6 +159,15 @@ const struct m0_fol_rec_part_ops ad_part_ops = {
 	.rpo_redo = NULL,
 };
 
+static void ad_rec_part_init(struct m0_fol_rec_part *part)
+{
+	part->rp_ops = &ad_part_ops;
+}
+
+static const struct m0_fol_rec_part_type_ops ad_part_type_ops = {
+	.rpto_rec_part_init = ad_rec_part_init,
+};
+
 /**
    Implementation of m0_stob_type_op::sto_init().
  */
@@ -167,7 +176,7 @@ static int ad_stob_type_init(struct m0_stob_type *stype)
 	m0_stob_type_init(stype);
 	m0_xc_ad_init();
 	return m0_fol_rec_part_type_init(&ad_part_type, "AD record part",
-					 ad_rec_part_xc);
+					 ad_rec_part_xc, &ad_part_type_ops);
 }
 
 /**

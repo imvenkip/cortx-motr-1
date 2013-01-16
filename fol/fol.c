@@ -590,10 +590,13 @@ static void fol_rec_part_type_deregister(struct m0_fol_rec_part_type *type)
 
 M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
 					  const char *name,
-					  const struct m0_xcode_type *xt)
+					  const struct m0_xcode_type *xt,
+					  const struct m0_fol_rec_part_type_ops
+					  *ops)
 {
 	M0_PRE(type != NULL);
 
+	type->rpt_ops  = ops;
 	type->rpt_xt   = xt;
 	type->rpt_name = name;
 	return fol_rec_part_type_register(type);
@@ -621,21 +624,32 @@ static int fol_rec_part_data_alloc(struct m0_fol_rec_part *part)
 	return part->rp_data == NULL ? -ENOMEM : 0;
 }
 
-M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(
-	const struct m0_fol_rec_part_ops *ops)
+M0_INTERNAL struct m0_fol_rec_part *fol_rec_part_init(
+		const struct m0_fol_rec_part_type *type)
 {
 	struct m0_fol_rec_part *part;
 
 	M0_ALLOC_PTR(part);
 	if (part != NULL) {
+		type->rpt_ops->rpto_rec_part_init(part);
+		m0_rec_part_tlink_init(part);
+	}
+	return part;
+}
+
+M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(
+		const struct m0_fol_rec_part_type *type)
+{
+	struct m0_fol_rec_part *part;
+
+	part = fol_rec_part_init(type);
+	if (part != NULL) {
 		int rc;
-		part->rp_ops  = ops;
 		rc = fol_rec_part_data_alloc(part);
 		if (rc != 0) {
-			m0_free(part);
+			m0_fol_rec_part_fini(part);
 			return NULL;
 		}
-		m0_rec_part_tlink_init(part);
 	}
 	return part;
 }

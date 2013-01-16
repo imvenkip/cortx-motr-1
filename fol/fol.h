@@ -488,6 +488,12 @@ struct m0_fol_rec_part_type {
 	    FOL record parts using xcode operations.
 	 */
 	const struct m0_xcode_type	      *rpt_xt;
+	const struct m0_fol_rec_part_type_ops *rpt_ops;
+};
+
+struct m0_fol_rec_part_type_ops {
+	/**  Sets the record part opeartions vector. */
+	void (*rpto_rec_part_init)(struct m0_fol_rec_part *part);
 };
 
 /** FOL part records are decoded from FOL record and undo or
@@ -502,17 +508,18 @@ struct m0_fol_rec_part_ops {
 /**
  * FOL record part is allocated and ops is assigned to it.
  * FOL record part data rp_data is allocated based on part type.
- * @pre ops->rpo_type != NULL
+ * @pre type != NULL
  */
 M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(
-	const struct m0_fol_rec_part_ops *ops);
+		const struct m0_fol_rec_part_type *type);
 
 M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part);
 
 /** FOL record part type is initialized with the given xcode type xt. */
 M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
 					  const char *name,
-					  const struct m0_xcode_type  *xt);
+					  const struct m0_xcode_type *xt,
+					  const struct m0_fol_rec_part_type_ops *ops);
 
 M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type);
 
