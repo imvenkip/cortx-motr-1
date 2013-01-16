@@ -41,7 +41,7 @@
  */
 
 static const struct m0_fol_rec_type_ops m0_fop_fol_default_ops;
-static int fop_fol_type_init(struct m0_fop_type *fopt);
+static void fop_fol_type_init(struct m0_fop_type *fopt);
 static void fop_fol_type_fini(struct m0_fop_type *fopt);
 
 /** FOP module global ctx */
@@ -189,10 +189,10 @@ void m0_fop_type_fini(struct m0_fop_type *fopt)
 }
 M0_EXPORTED(m0_fop_type_fini);
 
+/** @todo Needs to change return type to void. */
 int m0_fop_type_init(struct m0_fop_type *ft,
 		     const struct __m0_fop_type_init_args *args)
 {
-	int			 rc;
 	struct m0_rpc_item_type *rpc_type;
 
 	M0_PRE(ft->ft_magix == 0);
@@ -209,25 +209,19 @@ int m0_fop_type_init(struct m0_fop_type *ft,
 
 	m0_fom_type_init(&ft->ft_fom_type, args->fom_ops, args->svc_type,
 			 args->sm);
-	rc = m0_rpc_item_type_register(&ft->ft_rpc_item_type) ?:
-		fop_fol_type_init(ft);
-	M0_ASSERT(rc == 0);
+	m0_rpc_item_type_register(&ft->ft_rpc_item_type);
+	fop_fol_type_init(ft);
 	m0_mutex_lock(&fop_types_lock);
 	ft_tlink_init_at(ft, &fop_types_list);
 	m0_mutex_unlock(&fop_types_lock);
-	return rc;
+	return 0;
 }
 M0_EXPORTED(m0_fop_type_init);
 
-M0_INTERNAL int m0_fop_type_init_nr(const struct m0_fop_type_batch *batch)
+M0_INTERNAL void m0_fop_type_init_nr(const struct m0_fop_type_batch *batch)
 {
-	int result = 0;
-
-	for (; batch->tb_type != NULL && result == 0; ++batch)
-		result = m0_fop_type_init(batch->tb_type, &batch->tb_args);
-	if (result != 0)
-		m0_fop_type_fini_nr(batch);
-	return result;
+	for (; batch->tb_type != NULL; ++batch)
+		m0_fop_type_init(batch->tb_type, &batch->tb_args);
 }
 
 M0_INTERNAL void m0_fop_type_fini_nr(const struct m0_fop_type_batch *batch)
@@ -282,9 +276,8 @@ M0_INTERNAL void m0_fops_fini(void)
 
 /* XXX for now */
 
-static int fop_fol_type_init(struct m0_fop_type *fopt)
+static void fop_fol_type_init(struct m0_fop_type *fopt)
 {
-	return 0;
 }
 
 static void fop_fol_type_fini(struct m0_fop_type *fopt)
@@ -295,9 +288,10 @@ static void fop_fol_type_fini(struct m0_fop_type *fopt)
 
 static const struct m0_fol_rec_type_ops m0_fop_fol_default_ops;
 
-static int fop_fol_type_init(struct m0_fop_type *fopt)
+static void fop_fol_type_init(struct m0_fop_type *fopt)
 {
 	struct m0_fol_rec_type *rtype;
+	int			rc;
 
 	M0_CASSERT(sizeof rtype->rt_opcode == sizeof
 		   fopt->ft_rpc_item_type.rit_opcode);
@@ -309,7 +303,8 @@ static int fop_fol_type_init(struct m0_fop_type *fopt)
 		rtype->rt_ops = fopt->ft_ops->fto_rec_ops;
 	else
 		rtype->rt_ops = &m0_fop_fol_default_ops;
-	return m0_fol_rec_type_register(rtype);
+	rc = m0_fol_rec_type_register(rtype);
+	M0_ASSERT(rc == 0);
 }
 
 static void fop_fol_type_fini(struct m0_fop_type *fopt)

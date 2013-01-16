@@ -52,8 +52,9 @@
    @li followed by rh_data_len bytes
    @li followed by the list of fol record parts.
 
-   When a record is fetched from the fol, it is decoded by fol_record_decode(). When a
-   record is placed into the fol, its representation is prepared by fol_record_encode().
+   When a record is fetched from the fol, it is decoded by fol_record_decode().
+   When a record is placed into the fol, its representation is prepared by
+   fol_record_encode().
 
   @{
  */
@@ -492,7 +493,9 @@ M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 	if (part->rp_data != NULL)
 		m0_xcode_free(&M0_FOL_REC_PART_XCODE_OBJ(part));
 
-	m0_rec_part_tlink_del_fini(part);
+	if (m0_rec_part_tlink_is_in(part))
+		m0_rec_part_tlist_del(part);
+	m0_rec_part_tlink_fini(part);
 	m0_free(part);
 }
 

@@ -54,16 +54,10 @@ extern const struct m0_tl_descr remotes_tl;
  */
 static void fom_phase_set(struct m0_fom *fom, int phase)
 {
-	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS) {
+	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS)
 		m0_fom_phase_set(fom, M0_FOPH_FOL_REC_ADD);
-		m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT);
-	} else if (m0_fom_phase(fom) == M0_FOPH_FAILURE) {
-		m0_fom_phase_set(fom, M0_FOPH_TXN_ABORT);
-	}
-
-	if (M0_IN(m0_fom_phase(fom), (M0_FOPH_TXN_COMMIT,
-				      M0_FOPH_TXN_ABORT)))
-		m0_fom_phase_set(fom, M0_FOPH_QUEUE_REPLY);
+	m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT);
+	m0_fom_phase_set(fom, M0_FOPH_QUEUE_REPLY);
 	m0_fom_phase_set(fom, phase);
 }
 

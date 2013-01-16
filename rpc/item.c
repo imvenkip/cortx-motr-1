@@ -125,7 +125,7 @@ M0_INTERNAL void m0_rpc_item_module_fini(void)
 	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_rpc_item_type_register(struct m0_rpc_item_type *item_type)
+M0_INTERNAL void m0_rpc_item_type_register(struct m0_rpc_item_type *item_type)
 {
 
 	M0_ENTRY("item_type: %p, item_opcode: %u", item_type,
@@ -137,7 +137,7 @@ M0_INTERNAL int m0_rpc_item_type_register(struct m0_rpc_item_type *item_type)
 	rit_tlink_init_at(item_type, &rpc_item_types_list);
 	m0_rwlock_write_unlock(&rpc_item_types_lock);
 
-	M0_RETURN(0);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_rpc_item_type_deregister(struct m0_rpc_item_type *item_type)

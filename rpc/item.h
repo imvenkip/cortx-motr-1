@@ -394,7 +394,7 @@ struct m0_rpc_item_type (itype) = {                      \
 
   @param item_type The rpc item type to be registered.
 */
-M0_INTERNAL int m0_rpc_item_type_register(struct m0_rpc_item_type *item_type);
+M0_INTERNAL void m0_rpc_item_type_register(struct m0_rpc_item_type *item_type);
 
 /** De-registers an rpc item type by deleting the corresponding entry in the
     rpc item types list.

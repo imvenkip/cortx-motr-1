@@ -299,7 +299,7 @@ struct m0_fop_type_batch {
 	struct __m0_fop_type_init_args  tb_args;
 };
 
-M0_INTERNAL int m0_fop_type_init_nr(const struct m0_fop_type_batch *batch);
+M0_INTERNAL void m0_fop_type_init_nr(const struct m0_fop_type_batch *batch);
 M0_INTERNAL void m0_fop_type_fini_nr(const struct m0_fop_type_batch *batch);
 
 M0_INTERNAL int m0_fops_init(void);

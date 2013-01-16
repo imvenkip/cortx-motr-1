@@ -34,11 +34,10 @@
    A fol is represented by an instance of struct m0_fol. A fol record has two
    data-types associated with it:
 
-   @li m0_fol_rec_desc: a description of a new fol record to be added to a
-   fol.
+   @li m0_fol_rec_desc: a description of a new fol record to be added to a fol.
 
    @li m0_fol_rec: a record fetched from a fol. m0_fol_rec remembers its
-   location it the fol. fol record contains the list of fol record parts added
+   location in the fol. fol record contains the list of fol record parts added
    during updates.
 
    A fol record belongs to a fol type (m0_fol_rec_type) that defines how record
@@ -104,15 +103,19 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env);
 M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
 
 /**
-   Constructs a in-db representation of a fol record in an allocated buffer.
+   Adds a record to the fol, in the transaction context.
 
-   This function takes @desc as an input parameter, describing the record to be
-   constructed. Representation size is estimated by calling
-   m0_fol_rec_type_ops::rto_pack_size(). A buffer is allocated and the record is
-   spilled into it. It's up to the caller to free the buffer when necessary.
+   rec->fr_desc->rd_lsn must be filled by the caller using
+   m0_fol_lsn_allocate(fol)
+
+   rec->fr_desc->rd_refcounter is initial value of record's reference counter.
+   This field must be filled by the caller.
+
+   @pre m0_lsn_is_valid(drec->rd_lsn);
+   @see m0_fol_add_buf()
  */
-M0_INTERNAL int m0_fol_rec_pack(struct m0_fol_rec_desc *desc,
-				struct m0_buf *buf);
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
+			       struct m0_fol_rec *rec);
 
 /**
    Reserves and returns lsn.
@@ -122,23 +125,7 @@ M0_INTERNAL int m0_fol_rec_pack(struct m0_fol_rec_desc *desc,
 M0_INTERNAL m0_lsn_t m0_fol_lsn_allocate(struct m0_fol *fol);
 
 /**
-   Adds a record to the fol, in the transaction context.
-
-   This function calls m0_fol_rec_pack() internally to pack the record.
-
-   drec->rd_lsn is filled in by m0_fol_add() with lsn assigned to the record.
-
-   drec->rd_refcounter is initial value of record's reference counter. This
-   field must be filled by the caller.
-
-   @pre m0_lsn_is_valid(drec->rd_lsn);
-   @see m0_fol_add_buf()
- */
-M0_INTERNAL int m0_fol_add(struct m0_fol *fol, struct m0_db_tx *tx,
-			   struct m0_fol_rec_desc *drec);
-
-/**
-   Similar to m0_fol_add(), but with a record already packed into a buffer.
+   Similar to m0_fol_rec_add(), but with a record already packed into a buffer.
 
    @pre m0_lsn_is_valid(drec->rd_lsn);
  */
@@ -248,7 +235,10 @@ struct m0_fol_rec_desc {
 	m0_lsn_t                      rd_lsn;
 	struct m0_fol_rec_header      rd_header;
 	const struct m0_fol_rec_type *rd_type;
-	/** pointer for use by fol record type. */
+	/**
+	 * @todo No longer in use, will be removed in code phase.
+	 * pointer for use by fol record type.
+	 */
 	void                         *rd_type_private;
 	/** references to the objects modified by this update. */
 	struct m0_fol_obj_ref        *rd_ref;
@@ -256,7 +246,9 @@ struct m0_fol_rec_desc {
 	struct m0_epoch_id           *rd_epoch;
 	/** identifiers of sibling updates. */
 	struct m0_fol_update_ref     *rd_sibling;
-	/** pointer to the remaining operation type specific data. */
+	/**
+	 * @todo No longer in use, will be removed in code phase.
+	   pointer to the remaining operation type specific data. */
 	void                         *rd_data;
 };
 
@@ -441,23 +433,14 @@ struct m0_fol_rec_type_ops {
 M0_INTERNAL int m0_fols_init(void);
 M0_INTERNAL void m0_fols_fini(void);
 
-/**
- *   Composes the FOL record by iterating through FOL parts from the list in m0_dtx
- *   added during updates on server and adds it in the database.
- */
-M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
-			       struct m0_fol_rec *rec);
-
-M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
-				  m0_lsn_t lsn, struct m0_fol_rec *out);
-
 M0_INTERNAL struct m0_fol_rec *m0_fol_rec_init(void);
 M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec);
 
-/** It represents updates made as part of executing FOM on server. */
+/** Represents updates made as part of executing FOM on server. */
 struct m0_fol_rec_part {
 	const struct m0_fol_rec_part_ops  *rp_ops;
-	/** Pointer to the data where FOL record part is serialised or
+	/**
+	    Pointer to the data where FOL record part is serialised or
 	    will be de-serialised.
 	 */
 	void				  *rp_data;
@@ -467,18 +450,11 @@ struct m0_fol_rec_part {
 	uint64_t			   rp_magic;
 };
 
-/** FOL record part types are registered in a global array of FOL record
-    part types using m0_fol_rec_part_type::rpt_index.
-
-   m0_fol_rec_part_type::rpt_index should also be encoded for each FOL
-   record part, so that decoding of FOL record parts from FOL record
-   can be done using it.
- */
-
 struct m0_fol_rec_part_type {
 	uint32_t                               rpt_index;
 	const char                            *rpt_name;
-	/** Xcode type representing the FOL record part.
+	/**
+	    Xcode type representing the FOL record part.
 	    Used to encode, decode or calculate the length of
 	    FOL record parts using xcode operations.
 	 */
@@ -487,12 +463,13 @@ struct m0_fol_rec_part_type {
 };
 
 struct m0_fol_rec_part_type_ops {
-	/**  Sets the record part opeartions vector. */
+	/**  Sets the record part operations vector. */
 	void (*rpto_rec_part_init)(struct m0_fol_rec_part *part);
 };
 
-/** FOL part records are decoded from FOL record and undo or
-    redo operations are done using them.
+/**
+    FOL record parts are decoded from FOL record and then undo or
+    redo operations are performed on these parts.
  */
 struct m0_fol_rec_part_ops {
 	const struct m0_fol_rec_part_type *rpo_type;
@@ -501,9 +478,8 @@ struct m0_fol_rec_part_ops {
 };
 
 /**
- * FOL record part is allocated and ops is assigned to it.
- * FOL record part data rp_data is allocated based on part type.
- * @pre type != NULL
+   FOL record part data rp_data is allocated based on part type.
+   @pre type != NULL
  */
 M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(
 		const struct m0_fol_rec_part_type *type);
@@ -514,7 +490,8 @@ M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part);
 M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
 					  const char *name,
 					  const struct m0_xcode_type *xt,
-					  const struct m0_fol_rec_part_type_ops *ops);
+					  const struct m0_fol_rec_part_type_ops
+					  *ops);
 
 M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type);
 
