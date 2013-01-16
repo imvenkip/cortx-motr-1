@@ -48,11 +48,12 @@
    @li struct m0_fol_rec_header
    @li followed by rh_obj_nr m0_fol_obj_ref-s
    @li followed by rh_sibling_nr m0_update_id-s
+   @li followed by rh_parts_nr m0_fol_rec_part-s
    @li followed by rh_data_len bytes
+   @li followed by the list of fol record parts.
 
-   When a record is fetched from the fol, it is "parsed" by rec_open(). When a
-   record is placed into the fol, its representation is prepared by
-   m0_fol_rec_pack().
+   When a record is fetched from the fol, it is decoded by fol_record_decode(). When a
+   record is placed into the fol, its representation is prepared by fol_record_encode().
 
   @{
  */
@@ -510,11 +511,11 @@ static void fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 {
 	/**
 	 * @todo Encode FOL record descriptor and traverse
-	 *  rec->fr_fol_rec_parts and encode FOL record
+	 *  rec->fr_fol_rec_parts and encode fol record
 	 *  parts in the buffer using fol_rec_part_encdec().
 	 *  Also encode m0_fol_rec_part_type::rpt_index
 	 *  for each FOl record type which will be used to decode this
-	 *  from FOL record.
+	 *  from fol record.
 	 */
 }
 

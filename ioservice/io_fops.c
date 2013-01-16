@@ -264,7 +264,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    FOL record parts.
 
    @see m0_fol_rec_part_init() : Initialize m0_fol_rec_part with
-				 m0_fol_rec_part_ops.
+				 m0_fol_rec_part_type_ops.
    @see m0_fol_rec_part_fini   : Finalize it.
 
    @see m0_fol_rec_part_type_init() : registers FOL record part type and
@@ -278,14 +278,16 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
    @see ad_rec_part is added for AD write operation.
 
-   FOL record parts list is kept in m0_dtx::tx_fol_rec_parts which is
-   initialized in FOM generic phase create_loc_ctx() -> m0_dtx_init().
-   m0_dtx::tx_fol_rec_parts_len contains the total length of FOL record parts,
-   which is updated whenever FOL record part is added to the list.
+   FOL record parts list is kept in m0_fol_rec::fr_fol_rec_parts which is
+   initialized m0_fol_rec_init()
 
-   m0_fol_rec_add() is used to compose FOL record from FOL record parts.
-   fol_rec_parts_pack() encodes the FOL part records from the list in m0_dtx
-   using m0_fol_rec_part_encdec() in a buffer and then removes them from the list.
+   m0_fol_rec_add() is used to compose FOL record from FOL record descriptor
+   and parts.
+   fol_record_encode() encodes the FOL record parts in the list
+   m0_fol_rec:fr_fol_rec_parts in a buffer, which then will be added into the db
+   using m0_fol_add_buf().
+
+   @see m0_fol_rec_lookup()
 
    Usage:
    @code
@@ -302,7 +304,16 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	.rpo_redo = NULL,
    };
 
-   struct mo_dtx dtx;
+   static void foo_rec_part_init(struct m0_fol_rec_part *part)
+   {
+	   part->rp_ops = &foo_part_ops;
+   }
+
+   const struct m0_fol_rec_part_type_ops foo_part_type_ops = {
+	.rpto_rec_part_init = &foo_rec_part_init,
+   };
+
+   struct m0_fol_rec *rec;
 
    void foo_fol_rec_part_add(void)
    {
@@ -311,8 +322,11 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	struct m0_foo	       *rec;
 
 	result =  m0_fol_rec_part_type_init(&foo_part_type, "foo FOL record part",
-					    m0_foo_xc);
+					    m0_foo_xc, &foo_part_type_ops);
         M0_ASSERT(result == 0);
+
+	rec = mo_fol_rec_init();
+	M0_ASSERT(rec != NULL);
 
 	foo_rec_part = m0_fol_rec_part_init(&foo_part_ops);
         M0_ASSERT(foo_rec_part != NULL);
@@ -321,12 +335,12 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	rec->f_key = 22;
         rec->f_val = 33;
 
-	m0_rec_part_tlist_add_tail(&dtx.tx_fol_rec_parts, foo_rec_part);
-	dtx.tx_fol_rec_parts_len += m0_fol_rec_part_data_size(foo_rec_part);
+	m0_rec_part_tlist_add_tail(&rec->fr_fol_rec_parts, foo_rec_part);
 
-	// Add FOL record parts in the list using m0_fol_rec_add()
+	// FOL record descriptor and parts in the list are added to db
+	// in fom generic phase by using m0_fom_fol_rec_add()
 
-	m0_fol_rec_part_fini(foo_rec_part);
+	m0_fol_rec_fini(rec);
 	m0_fol_rec_part_type_fini(&foo_part_type);
    }
    @endcode

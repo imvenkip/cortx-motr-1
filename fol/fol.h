@@ -35,14 +35,17 @@
    data-types associated with it:
 
    @li m0_fol_rec_desc: a description of a new fol record to be added to a
-   fol. This description is used to add a record via call to m0_fol_add();
+   fol.
 
    @li m0_fol_rec: a record fetched from a fol. m0_fol_rec remembers its
-   location it the fol.
+   location it the fol. fol record contains the list of fol record parts added
+   during updates.
 
    A fol record belongs to a fol type (m0_fol_rec_type) that defines how record
    reacts to the relevant fol state changes.
 
+   @see m0_fol_rec_add()
+   @see m0_fol_rec_lookup()
    @see https://docs.google.com/a/horizontalscale.com/Doc?docid=0Aa9lcGbR4emcZGhxY2hqdmdfNjQ2ZHZocWJ4OWo
 
    @{
