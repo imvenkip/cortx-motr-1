@@ -655,7 +655,7 @@ static int fol_record_decode(struct m0_fol_rec *rec)
 
 		m0_fol_rec_part_list_add(rec, part);
 	}
-	return 0;
+	return rc;
 }
 
 /** @} end of fol group */
