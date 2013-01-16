@@ -188,7 +188,6 @@ M0_EXPORTED(m0_fop_type_fini);
 int m0_fop_type_init(struct m0_fop_type *ft,
 		     const struct __m0_fop_type_init_args *args)
 {
-	int			 rc;
 	struct m0_rpc_item_type *rpc_type;
 
 	M0_PRE(ft->ft_magix == 0);
@@ -210,7 +209,7 @@ int m0_fop_type_init(struct m0_fop_type *ft,
 	m0_mutex_lock(&fop_types_lock);
 	ft_tlink_init_at(ft, &fop_types_list);
 	m0_mutex_unlock(&fop_types_lock);
-	return rc;
+	return 0;
 }
 M0_EXPORTED(m0_fop_type_init);
 

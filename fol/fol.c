@@ -615,7 +615,9 @@ M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 	if (part->rp_data != NULL)
 		m0_xcode_free(&M0_FOL_REC_PART_XCODE_OBJ(part));
 
-	m0_rec_part_tlink_del_fini(part);
+	if (m0_rec_part_tlink_is_in(part))
+		m0_rec_part_tlist_del(part);
+	m0_rec_part_tlink_fini(part);
 	m0_free(part);
 }
 

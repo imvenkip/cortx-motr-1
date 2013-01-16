@@ -429,10 +429,11 @@ M0_INTERNAL int m0_fol_record_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
 M0_INTERNAL struct m0_fol_rec *m0_fol_record_init(void);
 M0_INTERNAL void m0_fol_record_fini(struct m0_fol_rec *rec);
 
-/** It represents updates made as part of executing FOM on server. */
+/** Represents updates made as part of executing FOM on server. */
 struct m0_fol_rec_part {
 	const struct m0_fol_rec_part_ops  *rp_ops;
-	/** Pointer to the data where FOL record part is serialised or
+	/**
+	    Pointer to the data where FOL record part is serialised or
 	    will be de-serialised.
 	 */
 	void				  *rp_data;
