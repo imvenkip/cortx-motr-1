@@ -65,9 +65,6 @@ enum m0_fom_standard_phase {
 	                                context. */
 	M0_FOPH_TIMEOUT,            /*< fom timed out. */
 	M0_FOPH_FAILURE,            /*< fom execution failed. */
-	M0_FOPH_TXN_ABORT,          /*< abort local transaction context. */
-	M0_FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local transaction
-	                                context. */
 	M0_FOPH_QUEUE_REPLY,        /*< queuing fop reply.  */
 	M0_FOPH_QUEUE_REPLY_WAIT,   /*< waiting for fop cache space. */
 	M0_FOPH_NR,                  /*< number of standard phases. fom type
@@ -157,14 +154,14 @@ enum m0_fom_standard_phase {
 		     v			 v<---------------------+
 		 FOPH_FAILED        FOPH_SUCCESS
 		     |			 |
-		     v			 v
-	  +-----FOPH_TXN_ABORT    FOPH_TXN_COMMIT-------------->+
-	  |	     |			 |            FOPH_TXN_COMMIT_WAIT
-	  |	     |	    send reply	 v<---------------------+
-	  |	     +----------->FOPH_QUEUE_REPLY------------->+
-          |	     ^			 |            FOPH_QUEUE_REPLY_WAIT
-	  v	     |			 v<---------------------+
-   FOPH_TXN_ABORT_WAIT		     FOPH_FINISH ---> m0_fom_fini()
+		     |			 v
+		     +------------FOPH_TXN_COMMIT-------------->+
+					 |            FOPH_TXN_COMMIT_WAIT
+			    send reply	 v<---------------------+
+				FOPH_QUEUE_REPLY------------->+
+					 |            FOPH_QUEUE_REPLY_WAIT
+					 v<---------------------+
+				   FOPH_FINISH ---> m0_fom_fini()
 
    @endverbatim
 

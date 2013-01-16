@@ -208,8 +208,7 @@ static int fom_auth_wait(struct m0_fom *fom)
 /**
  * Creates fom local transactional context, the fom operations
  * are executed in this context.
- * If fom execution is completed successfully, the transaction is commited,
- * else it is aborted.
+ * After fom execution is completed successfully the transaction is commited.
  */
 static int create_loc_ctx(struct m0_fom *fom)
 {
@@ -303,7 +302,7 @@ static int fom_txn_commit(struct m0_fom *fom)
 {
 	int rc;
 
-	rc = m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
+	rc = m0_dtx_done(&fom->fo_tx);
 	if (rc < 0) {
 		set_gen_err_reply(fom);
 		return rc;
@@ -317,33 +316,6 @@ static int fom_txn_commit(struct m0_fom *fom)
  * in M0_FOPH_TXN_COMMIT phase.
  */
 static int fom_txn_commit_wait(struct m0_fom *fom)
-{
-	return M0_FSO_AGAIN;
-}
-
-/**
- * Aborts db transaction, if fom execution failed.
- * If fom executions fails before even the transaction
- * is initialised, we don't need to abort any transaction.
- */
-static int fom_txn_abort(struct m0_fom *fom)
-{
-	int rc;
-
-	if (is_tx_initialized(&fom->fo_tx.tx_dbtx)) {
-		rc = m0_db_tx_abort(&fom->fo_tx.tx_dbtx);
-		if (rc < 0)
-			return rc;
-	}
-
-	return M0_FSO_AGAIN;
-}
-
-/**
- * Resumes fom execution after completing a blocking operation
- * in M0_FOPH_TXN_ABORT phase.
- */
-static int fom_txn_abort_wait(struct m0_fom *fom)
 {
 	return M0_FSO_AGAIN;
 }
@@ -465,17 +437,9 @@ static const struct fom_phase_desc fpd_table[] = {
 					     "fom_timeout",
 					      1 << M0_FOPH_TIMEOUT },
 	[M0_FOPH_FAILURE] =		   { &fom_failure,
-					      M0_FOPH_TXN_ABORT,
+					      M0_FOPH_TXN_COMMIT,
 					     "fom_failure",
 					      1 << M0_FOPH_FAILURE },
-	[M0_FOPH_TXN_ABORT] =		   { &fom_txn_abort,
-					      M0_FOPH_QUEUE_REPLY,
-					     "fom_txn_abort",
-					      1 << M0_FOPH_TXN_ABORT },
-	[M0_FOPH_TXN_ABORT_WAIT] =	   { &fom_txn_abort_wait,
-					      M0_FOPH_QUEUE_REPLY,
-					     "fom_txn_abort_wait",
-					      1 << M0_FOPH_TXN_ABORT_WAIT },
 	[M0_FOPH_QUEUE_REPLY] =		   { &fom_queue_reply,
 					      M0_FOPH_FINISH,
 					     "fom_queue_reply",
@@ -586,16 +550,7 @@ static const struct m0_sm_state_descr generic_phases[] = {
 	[M0_FOPH_FAILURE] = {
 		.sd_flags     = M0_SDF_FAILURE,
 		.sd_name      = "fom_failure",
-		.sd_allowed   = M0_BITS(M0_FOPH_TXN_ABORT)
-	},
-	[M0_FOPH_TXN_ABORT] = {
-		.sd_name      = "fom_txn_abort",
-		.sd_allowed   = M0_BITS(M0_FOPH_TXN_ABORT_WAIT,
-					M0_FOPH_QUEUE_REPLY)
-	},
-	[M0_FOPH_TXN_ABORT_WAIT] = {
-		.sd_name      = "fom_txn_abort_wait",
-		.sd_allowed   = M0_BITS(M0_FOPH_QUEUE_REPLY)
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_COMMIT)
 	},
 	[M0_FOPH_QUEUE_REPLY] = {
 		.sd_name      = "fom_queue_reply",

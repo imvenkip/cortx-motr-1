@@ -175,7 +175,7 @@ err_stio:
 out:
 	if (rc != 0) {
 		m0_fom_phase_move(cp_fom, rc, M0_CCP_FINI);
-		m0_db_tx_abort(&cp_fom->fo_tx.tx_dbtx);
+		m0_dtx_done(&cp_fom->fo_tx);
 		rc = M0_FSO_WAIT;
 	} else
 		rc = cp->c_ops->co_phase_next(cp);
@@ -231,12 +231,11 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 	m0_stob_io_fini(&sns_cp->sc_stio);
 	m0_stob_put(sns_cp->sc_stob);
 
+	m0_dtx_done(&cp->c_fom.fo_tx);
 	if (rc != 0) {
 		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
-		m0_db_tx_abort(&cp->c_fom.fo_tx.tx_dbtx);
 		return M0_FSO_WAIT;
-	} else
-		m0_dtx_done(&cp->c_fom.fo_tx);
+	}
 
 	return cp->c_ops->co_phase_next(cp);
 }
