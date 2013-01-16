@@ -94,7 +94,7 @@ static int svc_allocate(struct m0_reqh_service **service,
 	rc = m0_cm_init(cm, container_of(stype, struct m0_cm_type, ct_stype),
 			&cm_ops);
 	if (rc != 0)
-		m0_free(rmach);
+		m0_free(sns_cm);
 
 	M0_LOG(M0_DEBUG, "sns_cm: %p service: %p", sns_cm, *service);
 	M0_RETURN(rc);

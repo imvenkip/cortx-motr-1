@@ -23,6 +23,7 @@
 #endif
 
 #include "reqh/reqh.h"
+#include "mero/setup.h"
 #include "sns/cm/xform.c"
 #include "sns/cm/ut/cp_common.h"
 

@@ -127,70 +127,8 @@ int cs_init(struct m0_mero *sctx)
 	rc = m0_cs_init(sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile);
 	M0_ASSERT(rc == 0);
 
-	rc = m0_cs_setup_env(sctx, ARRAY_SIZE(sns_repair_ut_svc),
-			     sns_repair_ut_svc);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_cs_start(sctx);
-	M0_ASSERT(rc == 0);
-
-	return rc;
-}
-
-/* Finalises the mero service. */
-void cs_fini(struct m0_mero *sctx)
-{
-	m0_cs_fini(sctx);
-	fclose(lfile);
-}
-
-void sns_repair_ut_server_stop(void)
-{
-	m0_cs_fini(&sctx);
-	fclose(lfile);
-}
-
-int sns_repair_ut_server_start(void)
-{
-	int rc;
-
-	M0_SET0(&sctx);
-	lfile = fopen(log_file_name, "w+");
-	M0_UT_ASSERT(lfile != NULL);
-
-	rc = m0_cs_init(&sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile);
-	if (rc != 0)
-		return rc;
-
-	rc = m0_cs_setup_env(&sctx, ARRAY_SIZE(sns_repair_ut_svc),
-			     sns_repair_ut_svc);
-	if (rc == 0)
-		rc = m0_cs_start(&sctx);
-	if (rc != 0)
-		sns_repair_ut_server_stop();
-
-	return rc;
->>>>>>> Updated with latest master.
-}
-
-/*
- * Starts mero service, which internally creates and sets up stob domain.
- * This stob domain is used in read and write phases of the copy packet.
- */
-int cs_init(struct m0_mero *sctx)
-{
-	int rc;
-
-	M0_SET0(sctx);
-
-	lfile = fopen(log_file_name, "w+");
-	M0_ASSERT(lfile != NULL);
-
-	rc = m0_cs_init(sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_cs_setup_env(sctx, ARRAY_SIZE(sns_repair_ut_svc),
-			     sns_repair_ut_svc);
+	rc = m0_cs_setup_env(sctx, ARRAY_SIZE(sns_cm_ut_svc),
+			     sns_cm_ut_svc);
 	M0_ASSERT(rc == 0);
 
 	rc = m0_cs_start(sctx);
@@ -220,15 +158,15 @@ int sns_cm_ut_server_start(void)
 	lfile = fopen(log_file_name, "w+");
 	M0_UT_ASSERT(lfile != NULL);
 
-        rc = m0_cs_init(&sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile);
-        if (rc != 0)
+	rc = m0_cs_init(&sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile);
+	if (rc != 0)
 		return rc;
 
-        rc = m0_cs_setup_env(&sctx, ARRAY_SIZE(sns_cm_ut_svc),
-                             sns_cm_ut_svc);
+	rc = m0_cs_setup_env(&sctx, ARRAY_SIZE(sns_cm_ut_svc),
+			     sns_cm_ut_svc);
 	if (rc == 0)
 		rc = m0_cs_start(&sctx);
-        if (rc != 0)
+	if (rc != 0)
 		sns_cm_ut_server_stop();
 
 	return rc;

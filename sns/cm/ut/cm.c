@@ -60,12 +60,6 @@ struct m0_reqh_service   *service;
 static struct m0_cm      *cm;
 static struct m0_sns_cm  *scm;
 
-static void sns_repair_ut_server_stop(void)
-{
-	m0_cs_fini(&sctx);
-	fclose(lfile);
-}
-
 static void service_start_success(void)
 {
 	int rc;
@@ -259,7 +253,7 @@ static void cobs_delete(uint64_t nr_cobs)
 	}
 }
 
-static void nsit_verify(struct m0_fid *gfid)
+static void nsit_verify(struct m0_fid *gfid, int cnt)
 {
 	M0_UT_ASSERT(gfid->f_container == 0);
 	/* Verify that gob-fid has been enumerated in lexicographical order. */
@@ -279,6 +273,7 @@ static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata,
 	/* Set fail device. */
 	scm->sc_it.si_fdata = fdata;
 	scm->sc_op = op;
+	cnt = 0;
 	m0_cm_lock(cm);
 	do {
 		M0_SET0(&scp);

@@ -269,7 +269,7 @@ static void test_cp_write_read(void)
 {
 	int rc;
 
-	rc = sns_repair_ut_server_start();
+	rc = sns_cm_ut_server_start();
 	M0_ASSERT(rc == 0);
 
 	reqh = m0_cs_reqh_get(&sctx, "sns_cm");
@@ -292,7 +292,7 @@ static void test_cp_write_read(void)
 
 	bv_free(&r_bv);
 	bv_free(&w_bv);
-	sns_repair_ut_server_stop();
+	sns_cm_ut_server_stop();
 }
 
 const struct m0_test_suite snscm_storage_ut = {
