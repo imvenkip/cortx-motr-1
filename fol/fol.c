@@ -395,51 +395,6 @@ fol_rec_part_type_lookup(uint32_t index)
 	return rptypes[index];
 }
 
-M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
-					  const char *name,
-					  const struct m0_xcode_type  *xt,
-					  const struct m0_fol_rec_part_type_ops *ops)
-{
-	M0_PRE(type != NULL);
-
-	type->rpt_name = name;
-	type->rpt_ops  = ops;
-	type->rpt_xt   = xt;
-	return fol_rec_part_type_register(type);
-}
-
-M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type)
-{
-	M0_PRE(type != NULL);
-
-	fol_rec_part_type_deregister(type);
-	type->rpt_xt   = NULL;
-	type->rpt_ops  = NULL;
-	type->rpt_name = NULL;
-}
-
-static size_t fol_rec_part_size(const struct m0_fol_rec_part *part)
-{
-	return part->rp_ops->rpo_type->rpt_xt->xct_sizeof;
-}
-
-static int fol_rec_part_data_alloc(struct m0_fol_rec_part *part)
-{
-	M0_PRE(part != NULL && part->rp_ops != NULL &&
-	       part->rp_ops->rpo_type != NULL);
-
-	part->rp_data = m0_alloc(fol_rec_part_size(part));
-	return part->rp_data == NULL ? -ENOMEM : 0;
-}
-
-static struct m0_fol_rec_part *fol_record_part_init(
-		const struct m0_fol_rec_part_type *type)
->>>>>>> FOL record part header is encoded.
-{
-	M0_PRE(IS_IN_ARRAY(index, rptypes));
-	return rptypes[index];
-}
-
 M0_INTERNAL void
 m0_fol_rec_part_init(struct m0_fol_rec_part *part, void *data,
 		     const struct m0_fol_rec_part_type *type)
@@ -655,18 +610,7 @@ M0_INTERNAL int m0_fol_record_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
 		out->fr_desc.rd_lsn = lsn;
 		result = m0_db_cursor_get(&out->fr_ptr, &out->fr_pair);
 		if (result == 0) {
-			struct m0_buf          *rec_buf =
-						&out->fr_pair.dp_rec.db_buf;
-			void		       *buf = &rec_buf->b_addr;
-			m0_bcount_t	        len = rec_buf->b_nob;
-			struct m0_bufvec	bvec = M0_BUFVEC_INIT_BUF(buf,
-									  &len);
-			struct m0_bufvec_cursor cur;
-
-			m0_bufvec_cursor_init(&cur, &bvec);
-
-			out->fr_desc.rd_data = rec_buf->b_addr;
-			result = fol_record_decode(out, &cur);
+			result = fol_record_decode(out);
 		}
 		if (result != 0)
 			m0_fol_rec_fini(out);
