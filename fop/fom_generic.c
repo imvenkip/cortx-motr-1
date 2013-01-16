@@ -601,6 +601,7 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 
 	if (m0_fom_phase(fom) == M0_FOPH_FINISH)
 		rc = M0_FSO_WAIT;
+
 	return rc;
 }
 
