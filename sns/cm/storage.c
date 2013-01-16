@@ -233,10 +233,10 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 
 	if (rc != 0) {
 		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
-		m0_dtx_abort(&cp->c_fom.fo_tx);
+		m0_db_tx_abort(&cp->c_fom.fo_tx.tx_dbtx);
 		return M0_FSO_WAIT;
 	} else
-		m0_dtx_commit(&cp->c_fom.fo_tx);
+		m0_dtx_done(&cp->c_fom.fo_tx);
 
 	return cp->c_ops->co_phase_next(cp);
 }

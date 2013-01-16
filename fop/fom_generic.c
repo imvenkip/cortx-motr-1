@@ -303,7 +303,7 @@ static int fom_txn_commit(struct m0_fom *fom)
 {
 	int rc;
 
-	rc = m0_dtx_commit(&fom->fo_tx);
+	rc = m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
 	if (rc < 0) {
 		set_gen_err_reply(fom);
 		return rc;
@@ -331,7 +331,7 @@ static int fom_txn_abort(struct m0_fom *fom)
 	int rc;
 
 	if (is_tx_initialized(&fom->fo_tx.tx_dbtx)) {
-		rc = m0_dtx_abort(&fom->fo_tx);
+		rc = m0_db_tx_abort(&fom->fo_tx.tx_dbtx);
 		if (rc < 0)
 			return rc;
 	}

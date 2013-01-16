@@ -214,7 +214,7 @@ void write_post(void)
 	M0_UT_ASSERT(rc == 0);
 
 	m0_stob_put(stob);
-	m0_dtx_commit(&tx);
+	m0_dtx_done(&tx);
 
 	m0_fom_queue(&w_sns_cp.sc_base.c_fom, reqh);
 

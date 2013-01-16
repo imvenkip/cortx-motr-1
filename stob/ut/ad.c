@@ -228,7 +228,7 @@ static int test_ad_fini(void)
 {
 	int i;
 
-	m0_dtx_commit(&tx);
+	m0_dtx_done(&tx);
 
 	m0_stob_put(obj_fore);
 	dom_fore->sd_ops->sdo_fini(dom_fore);

@@ -50,29 +50,15 @@ M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env)
 	return result;
 }
 
-static int dtx_done(struct m0_dtx *tx, bool abort)
+M0_INTERNAL void m0_dtx_done(struct m0_dtx *tx)
 {
-	int rc = 0;
-
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_OPEN)));
 
 	if (tx->tx_state == M0_DTX_OPEN)
-		rc = !abort ? m0_db_tx_commit(&tx->tx_dbtx) :
-			      m0_db_tx_abort(&tx->tx_dbtx);
+		m0_db_tx_commit(&tx->tx_dbtx);
+
 	tx->tx_state = M0_DTX_DONE;
-
 	m0_dtx_fini(tx);
-	return rc;
-}
-
-M0_INTERNAL int m0_dtx_commit(struct m0_dtx *tx)
-{
-	return dtx_done(tx, false);
-}
-
-M0_INTERNAL int m0_dtx_abort(struct m0_dtx *tx)
-{
-	return dtx_done(tx, true);
 }
 
 M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)
