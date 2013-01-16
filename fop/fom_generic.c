@@ -652,27 +652,27 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 
 M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 {
-	struct m0_fop_type    *fopt;
-	struct m0_fol_rec_desc desc;
-	struct m0_fol	      *fol;
+	struct m0_fop_type     *fopt;
+	struct m0_fol_rec_desc *desc;
+	struct m0_fol	       *fol;
 
 	M0_PRE(fom != NULL);
 
 	fopt = fom->fo_fop->f_type;
 	fol  = m0_fom_reqh(fom)->rh_fol;
+	desc = &fom->fo_tx.tx_fol_rec->fr_desc;
 
-	M0_CASSERT(sizeof desc.rd_header.rh_opcode ==
+	M0_CASSERT(sizeof desc->rd_header.rh_opcode ==
 		   sizeof fopt->ft_rpc_item_type.rit_opcode);
 
-	M0_SET0(&desc);
-	desc.rd_type               = &fopt->ft_rec_type;
-	desc.rd_type_private       = fom;
-	desc.rd_lsn                = m0_fol_lsn_allocate(fol);
-	/* XXX an arbitrary number for now */
-	desc.rd_header.rh_refcount = 1;
-	desc.rd_header.rh_opcode   = fopt->ft_rpc_item_type.rit_opcode;
+	M0_SET0(desc);
+	desc->rd_type               = &fopt->ft_rec_type;
+	desc->rd_lsn                = m0_fol_lsn_allocate(fol);
+	/* @note an arbitrary number for now */
+	desc->rd_header.rh_refcount = 1;
+	desc->rd_header.rh_opcode   = fopt->ft_rpc_item_type.rit_opcode;
 
-	return m0_fol_rec_add(fol, &fom->fo_tx, &desc);
+	return m0_fol_record_add(fol, &fom->fo_tx);
 }
 
 /** @} end of fom group */

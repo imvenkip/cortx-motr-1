@@ -50,14 +50,9 @@ struct m0_dtx {
 	/**
 	   @todo placeholder for now.
 	 */
-	enum m0_dtx_state tx_state;
-	struct m0_db_tx   tx_dbtx;
-	/**
-	   A list of FOL record parts to be added in a record.
-	   Record parts are linked through m0_fol_rec_part:rp_link to this list.
-	 */
-	struct m0_tl	  tx_fol_rec_parts;
-	m0_bcount_t	  tx_fol_rec_parts_len;
+	enum m0_dtx_state  tx_state;
+	struct m0_db_tx    tx_dbtx;
+	struct m0_fol_rec *tx_fol_rec;
 };
 
 struct m0_update_id {
@@ -72,7 +67,7 @@ enum m0_update_state {
 	M0_US_NR
 };
 
-M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx);
+M0_INTERNAL int m0_dtx_init(struct m0_dtx *tx);
 M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env);
 M0_INTERNAL int m0_dtx_commit(struct m0_dtx *tx);
 M0_INTERNAL int m0_dtx_abort(struct m0_dtx *tx);

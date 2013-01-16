@@ -369,8 +369,7 @@ M0_INTERNAL m0_bcount_t m0_fop_data_size(struct m0_fop *fop)
 	M0_PRE(fop != NULL);
 	M0_PRE(fop->f_type != NULL);
 
-	m0_xcode_ctx_init(&ctx, &M0_FOP_XCODE_OBJ(fop));
-	return m0_xcode_length(&ctx);
+	return m0_xcode_data_size(&ctx, &M0_FOP_XCODE_OBJ(fop));
 }
 
 M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
@@ -380,19 +379,9 @@ M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
 	int		     rc;
 	struct m0_xcode_ctx  xc_ctx;
 
-	m0_xcode_ctx_init(&xc_ctx, &M0_FOP_XCODE_OBJ(fop));
-	/* structure instance copy! */
-	xc_ctx.xcx_buf   = *cur;
-	xc_ctx.xcx_alloc = m0_xcode_alloc;
-
-	rc = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(&xc_ctx) :
-					m0_xcode_decode(&xc_ctx);
-	if (rc == 0) {
-		if (what == M0_BUFVEC_DECODE)
-			fop->f_data.fd_data =
-				m0_xcode_ctx_top(&xc_ctx);
-		*cur = xc_ctx.xcx_buf;
-	}
+	rc = m0_xcode_encdec(&xc_ctx, &M0_FOP_XCODE_OBJ(fop), cur, what);
+	if (rc == 0 && what == M0_BUFVEC_DECODE)
+		fop->f_data.fd_data = m0_xcode_ctx_top(&xc_ctx);
 	return rc;
 }
 

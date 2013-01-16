@@ -523,12 +523,41 @@ M0_INTERNAL const struct m0_fol_rec_type *m0_fol_rec_type_lookup(uint32_t
 	return rtypes[opcode];
 }
 
+M0_INTERNAL struct m0_fol_rec *m0_fol_record_init(void)
+{
+	struct m0_fol_rec *rec;
+
+	M0_ALLOC_PTR(rec);
+	if (rec == NULL)
+		return NULL;
+	m0_rec_part_tlist_init(&rec->fr_fol_rec_parts);
+	return rec;
+}
+
+M0_INTERNAL void m0_fol_record_fini(struct m0_fol_rec *rec)
+{
+	struct m0_fol_rec_part  *part;
+
+	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part)
+	{
+		m0_fol_rec_part_fini(part);
+	} m0_tl_endfor;
+	m0_rec_part_tlist_fini(&rec->fr_fol_rec_parts);
+	m0_free(rec);
+}
+
+static uint32_t fol_rec_parts_nr(struct m0_fol_rec *rec)
+{
+	M0_PRE(rec != NULL);
+
+	return m0_rec_part_tlist_length(&rec->fr_fol_rec_parts);
+}
+
 M0_INTERNAL m0_bcount_t m0_fol_rec_part_data_size(struct m0_fol_rec_part *part)
 {
 	struct m0_xcode_ctx  xc_ctx;
 
-	m0_xcode_ctx_init(&xc_ctx, &M0_FOL_REC_PART_XCODE_OBJ(part));
-	return m0_xcode_length(&xc_ctx);
+	return m0_xcode_data_size(&xc_ctx, &M0_FOL_REC_PART_XCODE_OBJ(part));
 }
 
 M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
@@ -538,18 +567,10 @@ M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
 	int		     rc;
 	struct m0_xcode_ctx  xc_ctx;
 
-	m0_xcode_ctx_init(&xc_ctx, &M0_FOL_REC_PART_XCODE_OBJ(part));
-	/* structure instance copy! */
-	xc_ctx.xcx_buf   = *cur;
-	xc_ctx.xcx_alloc = m0_xcode_alloc;
-
-	rc = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(&xc_ctx) :
-					m0_xcode_decode(&xc_ctx);
-	if (rc == 0) {
-		if (what == M0_BUFVEC_DECODE)
-			part->rp_data = m0_xcode_ctx_top(&xc_ctx);
-		*cur = xc_ctx.xcx_buf;
-	}
+	rc = m0_xcode_encdec(&xc_ctx, &M0_FOL_REC_PART_XCODE_OBJ(part), cur,
+			     what);
+	if (rc == 0 && what == M0_BUFVEC_DECODE)
+		part->rp_data = m0_xcode_ctx_top(&xc_ctx);
 	return rc;
 }
 
@@ -628,70 +649,97 @@ M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 	m0_free(part);
 }
 
-static size_t fol_rec_parts_pack_size(struct m0_dtx *dtx)
+static size_t fol_record_pack_size(struct m0_fol_rec *rec)
 {
-	m0_bcount_t len;
+	m0_bcount_t len = 0;
 
-	len = dtx->tx_fol_rec_parts_len;
+	/**
+	 * @todo compute the size of FOL record descriptor and
+	 *  FOL record part's header and FOL record parts.
+	 */
 	return m0_align(len, 8);
 }
 
-static void fol_rec_parts_pack(struct m0_dtx *dtx, void *buf)
+static void fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 {
 	/**
-	 * @todo Traverse dtx->tx_fol_rec_parts and encode FOL record
+	 * @todo Encode FOL record descriptor and traverse
+	 *  rec->fr_fol_rec_parts and encode FOL record
 	 *  parts in the buffer using fol_rec_part_encdec().
 	 *  Also encode m0_fol_rec_part_type::rpt_index
 	 *  for each FOl record type which will be used to decode this
-	 *  from FOL record. Then remove FOL record parts from list.
+	 *  from FOL record.
 	 */
 }
 
-static int fol_rec_parts_encode(struct m0_fol_rec_desc *desc,
-				struct m0_dtx *dtx,
-				struct m0_buf *out)
+static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
 {
-	struct m0_fol_rec_header *h;
-	void                     *buf;
-	size_t                    size;
-	int                       result;
-	uint32_t                  data_len;
+	void                   *buf;
+	size_t                  size;
+	int                     result;
+	struct m0_fol_rec_desc *desc = &rec->fr_desc;
 
-	data_len = desc->rd_header.rh_data_len =
-		fol_rec_parts_pack_size(dtx);
-	size = sizeof *h +
-		desc->rd_header.rh_obj_nr * sizeof desc->rd_ref[0] +
-		desc->rd_header.rh_sibling_nr * sizeof desc->rd_sibling[0] +
-		data_len;
+	size = fol_record_pack_size(rec);
 	M0_ASSERT(M0_IS_8ALIGNED(size));
 
-	desc->rd_header.rh_opcode = desc->rd_type->rt_opcode;
+	desc->rd_header.rh_opcode   = desc->rd_type->rt_opcode;
+	desc->rd_header.rh_data_len = size;
+	desc->rd_header.rh_parts_nr = fol_rec_parts_nr(rec);
 
 	buf = m0_alloc(size);
 	if (buf != NULL) {
-		h = out->b_addr = buf;
+		out->b_addr = buf;
 		out->b_nob  = size;
-		*h = desc->rd_header;
-		fol_rec_parts_pack(dtx, h + 1);
+		fol_record_pack(rec, out);
 		result = 0;
 	} else
 		result = -ENOMEM;
 	return result;
 }
 
-M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_dtx *dtx,
-			   struct m0_fol_rec_desc *rec)
+M0_INTERNAL int m0_fol_record_add(struct m0_fol *fol, struct m0_dtx *dtx)
 {
-	int           result;
-	struct m0_buf buf;
+	int                     result;
+	struct m0_buf           buf;
+	struct m0_fol_rec      *rec = dtx->tx_fol_rec;
+	struct m0_fol_rec_desc *desc = &rec->fr_desc;
 
-	M0_PRE(m0_lsn_is_valid(rec->rd_lsn));
+	M0_PRE(m0_lsn_is_valid(desc->rd_lsn));
 
-	result = fol_rec_parts_encode(rec, dtx, &buf);
+	result = fol_record_encode(rec, &buf);
 	if (result == 0) {
-		result = m0_fol_add_buf(fol, &dtx->tx_dbtx, rec, &buf);
+		result = m0_fol_add_buf(fol, &dtx->tx_dbtx, desc, &buf);
 		m0_free(buf.b_addr);
 	}
+	return result;
+}
+
+static int fol_record_decode(struct m0_fol_rec *rec)
+{
+	/**
+	 * @todo Decode FOL record descriptor and parts from record
+	 * buffer rec->fr_pair.dp_rec.db_buf;
+	 */
+	return 0;
+}
+
+M0_INTERNAL int m0_fol_record_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
+				     m0_lsn_t lsn, struct m0_fol_rec *out)
+{
+	int result;
+
+	out->fr_fol = fol;
+	result = rec_init(out, tx);
+	if (result == 0) {
+		out->fr_desc.rd_lsn = lsn;
+		result = m0_db_cursor_get(&out->fr_ptr, &out->fr_pair) ?:
+			 fol_record_decode(out);
+		if (result != 0)
+			rec_fini(out);
+	}
+	M0_POST(ergo(result == 0, out->fr_desc.rd_lsn == lsn));
+	M0_POST(ergo(result == 0, out->fr_desc.rd_header.rh_refcount > 0));
+	M0_POST(ergo(result == 0, m0_fol_rec_invariant(&out->fr_desc)));
 	return result;
 }
 

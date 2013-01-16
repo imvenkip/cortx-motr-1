@@ -209,6 +209,8 @@ struct m0_fol_rec_header {
 	uint32_t            rh_obj_nr;
 	/** number of sibling updates in the same operation */
 	uint32_t            rh_sibling_nr;
+	/** number of record parts added to the record */
+	uint32_t            rh_parts_nr;
 	/** length of the remaining operation type specific data in bytes */
 	uint32_t            rh_data_len;
 	/**
@@ -286,6 +288,11 @@ struct m0_fol_rec_desc {
 struct m0_fol_rec {
 	struct m0_fol               *fr_fol;
 	struct m0_fol_rec_desc       fr_desc;
+	/**
+	   A list of all FOL record parts in a record.
+	   Record parts are linked through m0_fol_rec_part:rp_link to this list.
+	 */
+	struct m0_tl		     fr_fol_rec_parts;
 	/** cursor in the underlying data-base, pointing to the record location
 	    in the fol. */
 	struct m0_db_cursor          fr_ptr;
@@ -440,11 +447,17 @@ struct m0_fol_rec_type_ops {
 M0_INTERNAL int m0_fols_init(void);
 M0_INTERNAL void m0_fols_fini(void);
 
-/**  Composes the FOL record by iterating through FOL parts from the list in m0_dtx
+/**
+ *   Composes the FOL record by iterating through FOL parts from the list in m0_dtx
  *   added during updates on server and adds it in the database.
  */
-M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_dtx *dtx,
-			       struct m0_fol_rec_desc *rec);
+M0_INTERNAL int m0_fol_record_add(struct m0_fol *fol, struct m0_dtx *dtx);
+
+M0_INTERNAL int m0_fol_record_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
+				     m0_lsn_t lsn, struct m0_fol_rec *out);
+
+M0_INTERNAL struct m0_fol_rec *m0_fol_record_init(void);
+M0_INTERNAL void m0_fol_record_fini(struct m0_fol_rec *rec);
 
 /** It represents updates made as part of executing FOM on server. */
 struct m0_fol_rec_part {
