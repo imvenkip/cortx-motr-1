@@ -672,7 +672,7 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 	desc->rd_header.rh_refcount = 1;
 	desc->rd_header.rh_opcode   = fopt->ft_rpc_item_type.rit_opcode;
 
-	return m0_fol_record_add(fol, &fom->fo_tx);
+	return m0_fol_rec_add(fol, &fom->fo_tx.tx_dbtx, fom->fo_tx.tx_fol_rec);
 }
 
 /** @} end of fom group */

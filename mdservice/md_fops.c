@@ -28,7 +28,8 @@
 #include "mdservice/md_fops.h"
 #include "mdservice/md_fops_xc.h"
 
-static size_t m0_md_fol_pack_size(struct m0_fol_rec_desc *desc)
+/** @todo Change it to parts based FOL record design. */
+static inline size_t m0_md_fol_pack_size(struct m0_fol_rec_desc *desc)
 {
         struct m0_fop *fop = desc->rd_type_private;
         size_t len = fop->f_type->ft_xt->xct_sizeof;
@@ -104,7 +105,8 @@ static void copy(char **buf, struct m0_fop_str *str)
 #endif
 }
 
-static void m0_md_fol_pack(struct m0_fol_rec_desc *desc, void *buf)
+/** @todo Change it to parts based FOL record design. */
+static inline void m0_md_fol_pack(struct m0_fol_rec_desc *desc, void *buf)
 {
         struct m0_fop *fop = desc->rd_type_private;
         size_t size = fop->f_type->ft_xt->xct_sizeof;
@@ -183,7 +185,8 @@ static void map(char **buf, struct m0_fop_str *str)
 #endif
 }
 
-static int m0_md_fol_open(const struct m0_fol_rec_type *type,
+/** @todo Change it to parts based FOL record design. */
+static inline int m0_md_fol_open(const struct m0_fol_rec_type *type,
                           struct m0_fol_rec_desc *desc)
 {
         struct m0_fop *fop = desc->rd_type_private;
@@ -273,10 +276,7 @@ static const struct m0_fol_rec_type_ops m0_md_fop_fol_ops = {
         .rto_abort      = NULL,
         .rto_persistent = NULL,
         .rto_cull       = NULL,
-        .rto_open       = m0_md_fol_open,
         .rto_fini       = NULL,
-        .rto_pack_size  = m0_md_fol_pack_size,
-        .rto_pack       = m0_md_fol_pack
 };
 
 const struct m0_fop_type_ops m0_md_fop_ops = {

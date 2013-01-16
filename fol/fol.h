@@ -433,15 +433,6 @@ struct m0_fol_rec_type_ops {
 	   Release resources associated with a record being finalised.
 	 */
 	void (*rto_fini)      (struct m0_fol_rec_desc *desc);
-	/**
-	   Returns number of bytes necessary to store type specific record data.
-	 */
-	size_t (*rto_pack_size)(struct m0_fol_rec_desc *desc);
-	/**
-	   Packs type specific record data into a buffer of size returned by
-	   ->rto_pack_size().
-	 */
-	void (*rto_pack)(struct m0_fol_rec_desc *desc, void *buf);
 };
 
 M0_INTERNAL int m0_fols_init(void);
@@ -451,13 +442,14 @@ M0_INTERNAL void m0_fols_fini(void);
  *   Composes the FOL record by iterating through FOL parts from the list in m0_dtx
  *   added during updates on server and adds it in the database.
  */
-M0_INTERNAL int m0_fol_record_add(struct m0_fol *fol, struct m0_dtx *dtx);
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
+			       struct m0_fol_rec *rec);
 
-M0_INTERNAL int m0_fol_record_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
-				     m0_lsn_t lsn, struct m0_fol_rec *out);
+M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
+				  m0_lsn_t lsn, struct m0_fol_rec *out);
 
-M0_INTERNAL struct m0_fol_rec *m0_fol_record_init(void);
-M0_INTERNAL void m0_fol_record_fini(struct m0_fol_rec *rec);
+M0_INTERNAL struct m0_fol_rec *m0_fol_rec_init(void);
+M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec);
 
 /** It represents updates made as part of executing FOM on server. */
 struct m0_fol_rec_part {

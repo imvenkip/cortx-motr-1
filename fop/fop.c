@@ -317,20 +317,6 @@ static void fop_fol_type_fini(struct m0_fop_type *fopt)
 	m0_fol_rec_type_unregister(&fopt->ft_rec_type);
 }
 
-static size_t fol_pack_size(struct m0_fol_rec_desc *desc)
-{
-	struct m0_fop *fop = desc->rd_type_private;
-
-	return fop_data_size(fop);
-}
-
-static void fol_pack(struct m0_fol_rec_desc *desc, void *buf)
-{
-	struct m0_fop *fop = desc->rd_type_private;
-
-	memcpy(buf, m0_fop_data(fop), fol_pack_size(desc));
-}
-
 static const struct m0_fol_rec_type_ops m0_fop_fol_default_ops = {
 	.rto_commit     = NULL,
 	.rto_abort      = NULL,
@@ -338,8 +324,6 @@ static const struct m0_fol_rec_type_ops m0_fop_fol_default_ops = {
 	.rto_cull       = NULL,
 	.rto_open       = NULL,
 	.rto_fini       = NULL,
-	.rto_pack_size  = fol_pack_size,
-	.rto_pack       = fol_pack
 };
 
 #endif /* __KERNEL__ */

@@ -62,6 +62,8 @@ M0_TL_DESCR_DEFINE(m0_rec_part, "fol record part", M0_INTERNAL,
 		   M0_FOL_REC_PART_LINK_MAGIC, M0_FOL_REC_PART_HEAD_MAGIC);
 M0_TL_DEFINE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
 
+static int fol_record_decode(struct m0_fol_rec *rec);
+
 M0_INTERNAL bool m0_lsn_is_valid(m0_lsn_t lsn)
 {
 	return lsn > M0_LSN_RESERVED_NR;
@@ -104,86 +106,6 @@ static const struct m0_table_ops fol_ops = {
 };
 
 /**
-   Reserves "delta" bytes in a buffer starting at *buf and having *nob
-   bytes. Advances *buf by delta and returns original buffer starting
-   address. If position is advanced past the end of the buffer---returns NULL
-   without modifying *buf.
- */
-static void *buf_move(void **buf, uint32_t *nob, uint32_t delta)
-{
-	void *consumed;
-
-	M0_PRE(M0_IS_8ALIGNED(buf)); /* buffer is aligned */
-
-	if (*nob >= delta) {
-		consumed = *buf;
-		*buf += delta;
-		*nob -= delta;
-	} else
-		consumed = NULL;
-	return consumed;
-}
-
-/**
-   Parses a record representation and fills in @d.
- */
-static int rec_parse(struct m0_fol_rec_desc *d, void *buf, uint32_t nob,
-                     bool open)
-{
-	struct m0_fol_rec_header     *h;
-	const struct m0_fol_rec_type *rtype;
-
-	h = buf_move(&buf, &nob, sizeof *h);
-	if (h == NULL)
-		return -EIO;
-	d->rd_header = *h;
-	d->rd_ref = buf_move(&buf, &nob, h->rh_obj_nr * sizeof d->rd_ref[0]);
-	if (d->rd_ref == NULL)
-		return -EIO;
-	d->rd_sibling = buf_move(&buf, &nob,
-				 h->rh_sibling_nr * sizeof d->rd_sibling[0]);
-	if (d->rd_sibling == NULL)
-		return -EIO;
-	d->rd_data = buf_move(&buf, &nob, h->rh_data_len);
-	if (d->rd_data == NULL)
-		return -EIO;
-	if (nob != 0)
-		return -EIO;
-	if (open) {
-		rtype = d->rd_type = m0_fol_rec_type_lookup(h->rh_opcode);
-		if (rtype == NULL)
-			return -EIO;
-		if (rtype->rt_ops->rto_open != NULL)
-			return rtype->rt_ops->rto_open(rtype, d);
-	}
-	return 0;
-}
-
-/**
-   Parses a record without checking invariants.
- */
-static int rec_open_internal(struct m0_fol_rec *rec, bool open)
-{
-	struct m0_buf *recbuf;
-
-	recbuf = &rec->fr_pair.dp_rec.db_buf;
-	return rec_parse(&rec->fr_desc, recbuf->b_addr, recbuf->b_nob, open);
-}
-
-/**
-   Parses a record representation.
- */
-static int rec_open(struct m0_fol_rec *rec)
-{
-	int result;
-
-	result = rec_open_internal(rec, true);
-	if (result == 0)
-		result = m0_fol_rec_invariant(&rec->fr_desc) ? 0 : -EIO;
-	return result;
-}
-
-/**
    Initializes fields in @rec.
 
    Note, that key buffer in the cursor is initialized to point to
@@ -198,6 +120,7 @@ static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
 
 	M0_PRE(rec->fr_fol != NULL);
 
+	m0_rec_part_tlist_init(&rec->fr_fol_rec_parts);
 	pair = &rec->fr_pair;
 	m0_db_pair_setup(pair, &rec->fr_fol->f_table, &rec->fr_desc.rd_lsn,
 			 sizeof rec->fr_desc.rd_lsn, NULL, 0);
@@ -211,17 +134,15 @@ static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
  */
 M0_INTERNAL void rec_fini(struct m0_fol_rec *rec)
 {
+	struct m0_fol_rec_part  *part;
+
+	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part)
+	{
+		m0_fol_rec_part_fini(part);
+	} m0_tl_endfor;
+	m0_rec_part_tlist_fini(&rec->fr_fol_rec_parts);
 	m0_db_cursor_fini(&rec->fr_ptr);
 	m0_db_pair_fini(&rec->fr_pair);
-}
-
-static size_t anchor_pack_size(struct m0_fol_rec_desc *desc)
-{
-	return 0;
-}
-
-static void anchor_pack(struct m0_fol_rec_desc *desc, void *buf)
-{
 }
 
 /**
@@ -233,10 +154,7 @@ static const struct m0_fol_rec_type_ops anchor_ops = {
 	.rto_abort      = NULL,
 	.rto_persistent = NULL,
 	.rto_cull       = NULL,
-	.rto_open       = NULL,
 	.rto_fini       = NULL,
-	.rto_pack_size  = anchor_pack_size,
-	.rto_pack       = anchor_pack
 };
 
 /**
@@ -274,15 +192,15 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 				d->rd_type = &anchor_type;
 				d->rd_lsn = M0_LSN_ANCHOR;
 				fol->f_lsn = M0_LSN_ANCHOR + 1;
-				result = m0_fol_add(fol, &tx, d);
+				result = m0_fol_rec_add(fol, &tx, &r);
 			} else if (result == 0) {
 				result = m0_db_cursor_last(&r.fr_ptr,
 							   &r.fr_pair);
 				if (result == 0) {
-					result = rec_open_internal(&r, false);
+					result = fol_record_decode(&r);
 					fol->f_lsn = lsn_inc(d->rd_lsn);
 				}
-				m0_fol_rec_fini(&r);
+				rec_fini(&r);
 			}
 			rc = m0_db_tx_commit(&tx);
 			result = result ?: rc;
@@ -311,54 +229,6 @@ M0_INTERNAL m0_lsn_t m0_fol_lsn_allocate(struct m0_fol *fol)
 	m0_mutex_unlock(&fol->f_lock);
 	M0_POST(m0_lsn_is_valid(lsn));
 	return lsn;
-}
-
-M0_INTERNAL int m0_fol_rec_pack(struct m0_fol_rec_desc *desc,
-				struct m0_buf *out)
-{
-	const struct m0_fol_rec_type *rtype;
-	struct m0_fol_rec_header     *h;
-	void                         *buf;
-	size_t                        size;
-	int                           result;
-	uint32_t                      data_len;
-
-	rtype = desc->rd_type;
-	data_len = desc->rd_header.rh_data_len =
-		rtype->rt_ops->rto_pack_size(desc);
-	size = sizeof *h +
-		desc->rd_header.rh_obj_nr * sizeof desc->rd_ref[0] +
-		desc->rd_header.rh_sibling_nr * sizeof desc->rd_sibling[0] +
-		data_len;
-	desc->rd_header.rh_opcode = rtype->rt_opcode;
-	M0_ASSERT((size & 7) == 0);
-
-	buf = m0_alloc(size);
-	if (buf != NULL) {
-		h = out->b_addr = buf;
-		out->b_nob = size;
-		*h = desc->rd_header;
-		rtype->rt_ops->rto_pack(desc, h + 1);
-		result = 0;
-	} else
-		result = -ENOMEM;
-	return result;
-}
-
-M0_INTERNAL int m0_fol_add(struct m0_fol *fol, struct m0_db_tx *tx,
-			   struct m0_fol_rec_desc *rec)
-{
-	int           result;
-	struct m0_buf buf;
-
-	M0_PRE(m0_lsn_is_valid(rec->rd_lsn));
-
-	result = m0_fol_rec_pack(rec, &buf);
-	if (result == 0) {
-		result = m0_fol_add_buf(fol, tx, rec, &buf);
-		m0_free(buf.b_addr);
-	}
-	return result;
 }
 
 M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_db_tx *tx,
@@ -425,44 +295,6 @@ M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec_desc *drec)
 	return true;
 }
 
-M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
-				  m0_lsn_t lsn, struct m0_fol_rec *out)
-{
-	int result;
-
-	out->fr_fol = fol;
-	result = rec_init(out, tx);
-	if (result == 0) {
-		out->fr_desc.rd_lsn = lsn;
-		result = m0_db_cursor_get(&out->fr_ptr, &out->fr_pair);
-		if (result == 0) {
-			struct m0_fol_rec_header *h;
-
-			h = out->fr_pair.dp_rec.db_buf.b_addr;
-			if (out->fr_desc.rd_lsn == lsn && h->rh_refcount > 0)
-				result = rec_open(out);
-			else
-				result = -ENOENT;
-		}
-		if (result != 0)
-			rec_fini(out);
-	}
-	M0_POST(ergo(result == 0, out->fr_desc.rd_lsn == lsn));
-	M0_POST(ergo(result == 0, out->fr_desc.rd_header.rh_refcount > 0));
-	M0_POST(ergo(result == 0, m0_fol_rec_invariant(&out->fr_desc)));
-	return result;
-}
-
-M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec)
-{
-	const struct m0_fol_rec_type *rtype;
-
-	rtype = rec->fr_desc.rd_type;
-	if (rtype != NULL && rtype->rt_ops->rto_fini != NULL)
-		rtype->rt_ops->rto_fini(&rec->fr_desc);
-	rec_fini(rec);
-}
-
 /*
  * FOL record type code.
  *
@@ -523,7 +355,7 @@ M0_INTERNAL const struct m0_fol_rec_type *m0_fol_rec_type_lookup(uint32_t
 	return rtypes[opcode];
 }
 
-M0_INTERNAL struct m0_fol_rec *m0_fol_record_init(void)
+M0_INTERNAL struct m0_fol_rec *m0_fol_rec_init(void)
 {
 	struct m0_fol_rec *rec;
 
@@ -534,7 +366,7 @@ M0_INTERNAL struct m0_fol_rec *m0_fol_record_init(void)
 	return rec;
 }
 
-M0_INTERNAL void m0_fol_record_fini(struct m0_fol_rec *rec)
+M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec)
 {
 	struct m0_fol_rec_part  *part;
 
@@ -711,18 +543,18 @@ static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
 	return result;
 }
 
-M0_INTERNAL int m0_fol_record_add(struct m0_fol *fol, struct m0_dtx *dtx)
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
+			       struct m0_fol_rec *rec)
 {
 	int                     result;
 	struct m0_buf           buf;
-	struct m0_fol_rec      *rec = dtx->tx_fol_rec;
 	struct m0_fol_rec_desc *desc = &rec->fr_desc;
 
 	M0_PRE(m0_lsn_is_valid(desc->rd_lsn));
 
 	result = fol_record_encode(rec, &buf);
 	if (result == 0) {
-		result = m0_fol_add_buf(fol, &dtx->tx_dbtx, desc, &buf);
+		result = m0_fol_add_buf(fol, tx, desc, &buf);
 		m0_free(buf.b_addr);
 	}
 	return result;
@@ -737,8 +569,8 @@ static int fol_record_decode(struct m0_fol_rec *rec)
 	return 0;
 }
 
-M0_INTERNAL int m0_fol_record_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
-				     m0_lsn_t lsn, struct m0_fol_rec *out)
+M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
+				  m0_lsn_t lsn, struct m0_fol_rec *out)
 {
 	int result;
 

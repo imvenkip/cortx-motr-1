@@ -69,19 +69,7 @@ static void test_fini(void)
 	m0_free(buf.b_addr);
 }
 
-static size_t ut_fol_size(struct m0_fol_rec_desc *desc)
-{
-	return 160;
-}
-
-static void ut_fol_pack(struct m0_fol_rec_desc *desc, void *buf)
-{
-	memset(buf, 'y', 160);
-}
-
 static const struct m0_fol_rec_type_ops ut_fol_ops = {
-	.rto_pack_size = ut_fol_size,
-	.rto_pack      = ut_fol_pack
 };
 
 static const struct m0_fol_rec_type ut_fol_type = {
@@ -104,10 +92,7 @@ static void test_add(void)
 	h->rh_refcount = 1;
 
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
-	result = m0_fol_add(&fol, &tx, d);
-	M0_ASSERT(result == 0);
-
-	result = m0_fol_rec_pack(d, &buf);
+	result = m0_fol_rec_add(&fol, &tx, &r);
 	M0_ASSERT(result == 0);
 }
 
@@ -118,7 +103,7 @@ static void test_lookup(void)
 	struct m0_fol_rec dup;
 
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
-	result = m0_fol_add(&fol, &tx, d);
+	result = m0_fol_rec_add(&fol, &tx, &r);
 	M0_ASSERT(result == 0);
 
 	result = m0_fol_rec_lookup(&fol, &tx, d->rd_lsn, &dup);
@@ -196,7 +181,7 @@ static void checkpoint()
 static void ub_insert(int i)
 {
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
-	result = m0_fol_add(&fol, &tx, d);
+	result = m0_fol_rec_add(&fol, &tx, &r);
 	M0_ASSERT(result == 0);
 	last = d->rd_lsn;
 	if (i%1000 == 0)
