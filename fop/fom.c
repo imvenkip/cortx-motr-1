@@ -962,7 +962,8 @@ static void fom_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	if (fom_state(fom) == M0_FOS_WAITING)
 		cb_run(cb);
 	else {
-		M0_ASSERT(fom_state(fom) == M0_FOS_READY || fom_is_blocked(fom));
+		M0_ASSERT(fom_state(fom) == M0_FOS_READY
+			  || fom_is_blocked(fom));
 		/*
 		 * Call-back arrived while our fom is in READY state (hanging on
 		 * the runqueue, waiting for its turn) or RUNNING state (blocked
@@ -1198,7 +1199,7 @@ M0_INTERNAL int m0_fom_rc(const struct m0_fom *fom)
 	return fom->fo_sm_phase.sm_rc;
 }
 
-M0_INTERNAL int m0_fom_is_waiting(const struct m0_fom *fom)
+M0_INTERNAL bool m0_fom_is_waiting(const struct m0_fom *fom)
 {
 	return fom_state(fom) == M0_FOS_WAITING && is_in_wail(fom);
 }
