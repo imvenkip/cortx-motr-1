@@ -187,7 +187,7 @@ static void addb_pfom_fo_fini(struct m0_fom *fom)
 	pfom->pf_running = false;
 	m0_cond_broadcast(&svc->as_cond, &rsvc->rs_mutex);
 	the_addb_pfom_started = false;
-	M0_LOG(M0_DEBUG, "pfom_fo_fini: done");
+	M0_LOG(M0_DEBUG, "done");
 	m0_mutex_unlock(&rsvc->rs_mutex);
 }
 
@@ -211,7 +211,7 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 
 	switch (m0_fom_phase(fom)) {
 	case ADDB_PFOM_PHASE_INIT:
-		M0_LOG(M0_DEBUG, "pfom init");
+		M0_LOG(M0_DEBUG, "init");
 		m0_mutex_lock(&rsvc->rs_mutex);
 		the_addb_pfom_started = true;
 		m0_cond_broadcast(&svc->as_cond, &rsvc->rs_mutex); /* for UT */
@@ -219,7 +219,7 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 		m0_fom_phase_set(fom, ADDB_PFOM_PHASE_CTO);
 		break;
 	case ADDB_PFOM_PHASE_CTO:
-		M0_LOG(M0_DEBUG, "pfom cto");
+		M0_LOG(M0_DEBUG, "cto");
 		now = m0_time_now();
 		if (now < pfom->pf_next_post + pfom->pf_tolerance)
 			pfom->pf_next_post += pfom->pf_period;
@@ -229,7 +229,7 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 		break;
 	case ADDB_PFOM_PHASE_SLEEP:
 		if (pfom->pf_shutdown) {
-			M0_LOG(M0_DEBUG, "pfom fini");
+			M0_LOG(M0_DEBUG, "fini");
 			m0_fom_phase_set(fom, ADDB_PFOM_PHASE_FINI);
 			rc = M0_FSO_WAIT;
 			break;
@@ -243,11 +243,11 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 		m0_fom_timeout_init(&pfom->pf_timeout);
 		m0_fom_timeout_wait_on(&pfom->pf_timeout, &pfom->pf_fom,
 				       pfom->pf_next_post);
-		M0_LOG(M0_DEBUG, "pfom wait");
+		M0_LOG(M0_DEBUG, "wait");
 		rc = M0_FSO_WAIT;
 		break;
 	case ADDB_PFOM_PHASE_POST:
-		M0_LOG(M0_DEBUG, "pfom post");
+		M0_LOG(M0_DEBUG, "post");
 		m0_reqh_stats_post_addb(reqh);
 		if (reqh->rh_addb_mc.am_sink->rs_skulk != NULL)
 			(*reqh->rh_addb_mc.am_sink->rs_skulk)
