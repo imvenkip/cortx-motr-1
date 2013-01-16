@@ -153,10 +153,12 @@ M0_INTERNAL char *m0_debugger_args[4] = {
 
 M0_INTERNAL int m0_threads_init(void)
 {
-	int    result;
+	int         result;
 	static char pidbuf[20];
+	static char debugger_buf[20];
 
-	m0_debugger_args[0] = getenv("MERO_DEBUGGER");
+	m0_debugger_args[0] = debugger_buf;
+	strcpy(debugger_buf, getenv("MERO_DEBUGGER"));
 	/*
 	 * Note: program_invocation_name requires _GNU_SOURCE.
 	 */
