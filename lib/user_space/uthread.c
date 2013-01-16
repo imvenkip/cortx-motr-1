@@ -153,12 +153,13 @@ M0_INTERNAL char *m0_debugger_args[4] = {
 
 M0_INTERNAL int m0_threads_init(void)
 {
-	int         result;
-	static char pidbuf[20];
-	static char debugger_buf[20];
+	int          result;
+	static char  pidbuf[20];
+	char        *env_ptr;
 
-	m0_debugger_args[0] = debugger_buf;
-	strcpy(debugger_buf, getenv("MERO_DEBUGGER"));
+	env_ptr = getenv("MERO_DEBUGGER");
+	if (env_ptr != NULL)
+		m0_debugger_args[0] = strdup(env_ptr);
 	/*
 	 * Note: program_invocation_name requires _GNU_SOURCE.
 	 */
@@ -187,6 +188,8 @@ M0_INTERNAL int m0_threads_init(void)
 
 M0_INTERNAL void m0_threads_fini(void)
 {
+	if (m0_debugger_args[0] != NULL)
+		free(m0_debugger_args[0]);
 	pthread_attr_destroy(&pthread_attr_default);
 	uthread_specific_data_fini();
 	pthread_key_delete(pthread_data_key);

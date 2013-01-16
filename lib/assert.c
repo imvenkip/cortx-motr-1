@@ -21,7 +21,6 @@
 #include <stdio.h>  /* fprintf, fflush */
 #include <stdlib.h> /* abort */
 #include <unistd.h> /* fork, execvp */
-#include <sys/wait.h> /* waitpid */
 
 #ifdef HAVE_BACKTRACE
 #  include <execinfo.h>
@@ -74,8 +73,12 @@ void m0_panic(const char *expr, const char *func, const char *file, int lineno)
 
 		rc = fork();
 		if (rc > 0) {
-			int status;
-			waitpid(rc, &status, WUNTRACED | WCONTINUED);
+			/* parent */
+			volatile bool stop = true;
+
+			while (stop) {
+				;
+			}
 		} else if (rc == 0) {
 			/* child */
 			rc = execvp(m0_debugger_args[0], m0_debugger_args);
