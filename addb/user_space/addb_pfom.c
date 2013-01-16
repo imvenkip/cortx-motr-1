@@ -187,6 +187,7 @@ static void addb_pfom_fo_fini(struct m0_fom *fom)
 	pfom->pf_running = false;
 	m0_cond_broadcast(&svc->as_cond, &rsvc->rs_mutex);
 	the_addb_pfom_started = false;
+	M0_LOG(M0_DEBUG, "done");
 	m0_mutex_unlock(&rsvc->rs_mutex);
 }
 
@@ -227,12 +228,6 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 		m0_fom_phase_set(fom, ADDB_PFOM_PHASE_SLEEP);
 		break;
 	case ADDB_PFOM_PHASE_SLEEP:
-		if (pfom->pf_timeout.to_cb.fc_fom != NULL) {
-			M0_LOG(M0_DEBUG, "timeout reset");
-			m0_fom_timeout_cancel(&pfom->pf_timeout);
-			m0_fom_timeout_fini(&pfom->pf_timeout);
-			m0_fom_timeout_init(&pfom->pf_timeout);
-		}
 		if (pfom->pf_shutdown) {
 			M0_LOG(M0_DEBUG, "fini");
 			m0_fom_phase_set(fom, ADDB_PFOM_PHASE_FINI);
@@ -244,6 +239,8 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 			m0_fom_phase_set(fom, ADDB_PFOM_PHASE_POST);
 			break;
 		}
+		m0_fom_timeout_fini(&pfom->pf_timeout);
+		m0_fom_timeout_init(&pfom->pf_timeout);
 		m0_fom_timeout_wait_on(&pfom->pf_timeout, &pfom->pf_fom,
 				       pfom->pf_next_post);
 		M0_LOG(M0_DEBUG, "wait");
@@ -337,15 +334,18 @@ static void addb_pfom_stop_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_LOG(M0_DEBUG, "pfom_stop_cb: %d\n", (int)pfom->pf_running);
 	if (pfom->pf_running) {
-		m0_fom_timeout_cancel(&pfom->pf_timeout);
+		if (pfom->pf_timeout.to_cb.fc_fom != NULL)
+			m0_fom_timeout_cancel(&pfom->pf_timeout);
+		if (m0_fom_is_waiting(&pfom->pf_fom))
+			m0_fom_ready(&pfom->pf_fom);
 		pfom->pf_shutdown = true;
-		m0_fom_ready(&pfom->pf_fom);
 	}
 }
 
 /**
-   Initiates the termination of the statistics posting FOM. Does not block.
+   Initiates the termination of the statistics posting FOM.
    Uses the service mutex internally.
+   Blocks until the FOM terminates.
  */
 static void addb_pfom_stop(struct addb_svc *svc)
 {
@@ -362,15 +362,13 @@ static void addb_pfom_stop(struct addb_svc *svc)
 	if (pfom->pf_running) {
 		M0_ASSERT(addb_pfom_invariant(pfom));
 
-		M0_LOG(M0_DEBUG, "posting stop ast");
+		M0_LOG(M0_DEBUG, "posting pfom stop ast");
 		pfom->pf_ast.sa_cb = addb_pfom_stop_cb;
 		m0_sm_ast_post(&fom->fo_loc->fl_group, &pfom->pf_ast);
 
-		/*
-		 * We could wait for termination on pf_running but
-		 * there is no need to as the request handler will
-		 * wait for FOM termination.
-		 */
+		M0_LOG(M0_DEBUG, "waiting for pfom to stop");
+		while (pfom->pf_running)
+			m0_cond_wait(&svc->as_cond, &rsvc->rs_mutex);
 	}
 	m0_mutex_unlock(&rsvc->rs_mutex);
 }

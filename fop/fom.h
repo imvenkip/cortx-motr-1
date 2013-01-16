@@ -777,6 +777,8 @@ int m0_fom_phase(const struct m0_fom *fom);
 
 M0_INTERNAL int m0_fom_rc(const struct m0_fom *fom);
 
+M0_INTERNAL bool m0_fom_is_waiting(const struct m0_fom *fom);
+
 M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type,
 				  const struct m0_fom_type_ops *ops,
 				  const struct m0_reqh_service_type *svc_type,
