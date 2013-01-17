@@ -188,8 +188,11 @@ M0_INTERNAL int m0_threads_init(void)
 
 M0_INTERNAL void m0_threads_fini(void)
 {
-	if (m0_debugger_args[0] != NULL)
+	if (m0_debugger_args[0] != NULL) {
 		free(m0_debugger_args[0]);
+		m0_debugger_args[0] = NULL;
+	}
+
 	pthread_attr_destroy(&pthread_attr_default);
 	uthread_specific_data_fini();
 	pthread_key_delete(pthread_data_key);
