@@ -31,7 +31,7 @@
 /** @todo Change it to parts based FOL record design. */
 static inline size_t m0_md_fol_pack_size(struct m0_fol_rec_desc *desc)
 {
-        struct m0_fop *fop = desc->rd_type_private;
+        struct m0_fop *fop = NULL;
         size_t len = fop->f_type->ft_xt->xct_sizeof;
         void *data = m0_fop_data(fop);
 
@@ -108,7 +108,7 @@ static void copy(char **buf, struct m0_fop_str *str)
 /** @todo Change it to parts based FOL record design. */
 static inline void m0_md_fol_pack(struct m0_fol_rec_desc *desc, void *buf)
 {
-        struct m0_fop *fop = desc->rd_type_private;
+        struct m0_fop *fop = NULL;
         size_t size = fop->f_type->ft_xt->xct_sizeof;
         char *data = m0_fop_data(fop);
         char *ptr;
@@ -189,8 +189,8 @@ static void map(char **buf, struct m0_fop_str *str)
 static inline int m0_md_fol_open(const struct m0_fol_rec_type *type,
                           struct m0_fol_rec_desc *desc)
 {
-        struct m0_fop *fop = desc->rd_type_private;
-        void *data = desc->rd_data;
+        struct m0_fop *fop = NULL;
+        void *data = NULL;
         char *ptr;
 
         switch (m0_fop_opcode(fop)) {

@@ -227,7 +227,7 @@ M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_update_ref)));
 
    @li as part of m0_fol_rec returned by m0_fol_rec_lookup() or
    m0_fol_batch(). In this case, m0_fol_rec_desc is filled by the fol code. The
-   user has read-only access to it and has to call m0_fol_rec_fini() once it is
+   user has read-only access to it and has to call m0_rec_fini() once it is
    done with inspecting the record.
  */
 struct m0_fol_rec_desc {
@@ -235,21 +235,12 @@ struct m0_fol_rec_desc {
 	m0_lsn_t                      rd_lsn;
 	struct m0_fol_rec_header      rd_header;
 	const struct m0_fol_rec_type *rd_type;
-	/**
-	 * @todo No longer in use, will be removed in code phase.
-	 * pointer for use by fol record type.
-	 */
-	void                         *rd_type_private;
 	/** references to the objects modified by this update. */
 	struct m0_fol_obj_ref        *rd_ref;
 	/** a DTM epoch this update is a part of. */
 	struct m0_epoch_id           *rd_epoch;
 	/** identifiers of sibling updates. */
 	struct m0_fol_update_ref     *rd_sibling;
-	/**
-	 * @todo No longer in use, will be removed in code phase.
-	   pointer to the remaining operation type specific data. */
-	void                         *rd_data;
 };
 
 /**
@@ -259,7 +250,7 @@ struct m0_fol_rec_desc {
    m0_fol_batch(). m0_fol_rec is bound to a particular fol and remembers its
    location in the log.
 
-   The user must call m0_fol_rec_fini() once it has finished dealing with the
+   The user must call m0_rec_fini() once it has finished dealing with the
    record.
 
    There are two liveness and concurrency scopes for a m0_fol_rec, fetched from
@@ -276,7 +267,7 @@ struct m0_fol_rec_desc {
 
    @li short-term: data copied from the fol and pointed to from the record
    (object references, sibling updates and operation type specific data) are
-   valid until m0_fol_rec_fini() is called. Multiple threads can access the
+   valid until m0_rec_fini() is called. Multiple threads can access the
    record with a given lsn. It's up to them to synchronize access to mutable
    fields (reference counter and sibling updates state).
  */
@@ -309,7 +300,7 @@ M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
    Finalizes the record, returned by the m0_fol_rec_lookup() or m0_fol_batch()
    and releases all associated resources.
  */
-M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec);
+M0_INTERNAL void m0_rec_fini(struct m0_fol_rec *rec);
 
 M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec_desc *drec);
 

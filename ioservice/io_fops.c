@@ -263,11 +263,11 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    m0_fol_rec_part_ops contains operations for undo and redo of
    FOL record parts.
 
-   @see m0_fol_rec_part_init() : Initialize m0_fol_rec_part with
+   @see m0_fol_rec_part_init() : Initializes m0_fol_rec_part with
 				 m0_fol_rec_part_type_ops.
-   @see m0_fol_rec_part_fini   : Finalize it.
+   @see m0_fol_rec_part_fini() : Finalizes FOL record part.
 
-   @see m0_fol_rec_part_type_init() : registers FOL record part type and
+   @see m0_fol_rec_part_type_init() : Registers FOL record part type and
 				      initializes with xcode FOL record part.
    @see m0_fol_rec_part_type_fini() : Finalizes FOL record part type.
 
@@ -279,7 +279,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    @see ad_rec_part is added for AD write operation.
 
    FOL record parts list is kept in m0_fol_rec::fr_fol_rec_parts which is
-   initialized m0_fol_rec_init()
+   initialized in m0_fol_rec_init()
 
    m0_fol_rec_add() is used to compose FOL record from FOL record descriptor
    and parts.
@@ -335,7 +335,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	rec->f_key = 22;
         rec->f_val = 33;
 
-	m0_rec_part_tlist_add_tail(&rec->fr_fol_rec_parts, foo_rec_part);
+	m0_rec_part_add(rec, foo_rec_part);
 
 	// FOL record descriptor and parts in the list are added to db
 	// in fom generic phase by using m0_fom_fol_rec_add()

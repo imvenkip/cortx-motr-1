@@ -107,6 +107,32 @@ static const struct m0_table_ops fol_ops = {
 	.key_cmp = lsn_cmp
 };
 
+static void fol_rec_part_list_init(struct m0_fol_rec *rec)
+{
+	M0_PRE(rec != NULL);
+
+	m0_rec_part_tlist_init(&rec->fr_fol_rec_parts);
+}
+
+static void fol_rec_part_list_fini(struct m0_fol_rec *rec)
+{
+	struct m0_fol_rec_part  *part;
+
+	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part)
+	{
+		m0_fol_rec_part_fini(part);
+	} m0_tl_endfor;
+	m0_rec_part_tlist_fini(&rec->fr_fol_rec_parts);
+}
+
+M0_INTERNAL void m0_fol_rec_part_add(struct m0_fol_rec *rec,
+				     struct m0_fol_rec_part *part)
+{
+	M0_PRE(rec != NULL && part != NULL);
+
+	m0_rec_part_tlist_add_tail(&rec->fr_fol_rec_parts, part);
+}
+
 /**
    Initializes fields in @rec.
 
@@ -114,7 +140,7 @@ static const struct m0_table_ops fol_ops = {
    rec->fr_desc.rd_lsn. As a result, the cursor's key follows lsn changes
    automagically.
 
-   @see rec_fini()
+   @see m0_rec_fini()
  */
 static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
 {
@@ -122,7 +148,7 @@ static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
 
 	M0_PRE(rec->fr_fol != NULL);
 
-	m0_rec_part_tlist_init(&rec->fr_fol_rec_parts);
+	fol_rec_part_list_init(rec);
 	pair = &rec->fr_pair;
 	m0_db_pair_setup(pair, &rec->fr_fol->f_table, &rec->fr_desc.rd_lsn,
 			 sizeof rec->fr_desc.rd_lsn, NULL, 0);
@@ -134,15 +160,9 @@ static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
 
    @see rec_init()
  */
-M0_INTERNAL void rec_fini(struct m0_fol_rec *rec)
+M0_INTERNAL void m0_rec_fini(struct m0_fol_rec *rec)
 {
-	struct m0_fol_rec_part  *part;
-
-	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part)
-	{
-		m0_fol_rec_part_fini(part);
-	} m0_tl_endfor;
-	m0_rec_part_tlist_fini(&rec->fr_fol_rec_parts);
+	fol_rec_part_list_fini(rec);
 	m0_db_cursor_fini(&rec->fr_ptr);
 	m0_db_pair_fini(&rec->fr_pair);
 }
@@ -177,16 +197,18 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 	m0_mutex_init(&fol->f_lock);
 	result = m0_table_init(&fol->f_table, env, "fol", 0, &fol_ops);
 	if (result == 0) {
-		struct m0_fol_rec       r;
-		struct m0_fol_rec_desc *d;
-		struct m0_db_tx         tx;
-		int                     rc;
+		struct m0_dtx dtx;
+		int           rc;
 
-		d = &r.fr_desc;
-		result = m0_db_tx_init(&tx, env, 0);
+		m0_dtx_init(&dtx);
+		result = m0_dtx_open(&dtx, env);
 		if (result == 0) {
-			result = m0_fol_rec_lookup(fol, &tx, M0_LSN_ANCHOR, &r);
+			struct m0_fol_rec r;
+			result = m0_fol_rec_lookup(fol, &dtx.tx_dbtx,
+						   M0_LSN_ANCHOR, &r);
 			if (result == -ENOENT) {
+				struct m0_fol_rec_desc *d =
+						&dtx.tx_fol_rec->fr_desc;
 				/* initialise new fol */
 				M0_SET0(d);
 				d->rd_header.rh_refcount = 1;
@@ -194,17 +216,16 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 				d->rd_type = &anchor_type;
 				d->rd_lsn = M0_LSN_ANCHOR;
 				fol->f_lsn = M0_LSN_ANCHOR + 1;
-				result = m0_fol_rec_add(fol, &tx, &r);
+				result = m0_fol_rec_add(fol, &dtx.tx_dbtx,
+							dtx.tx_fol_rec);
 			} else if (result == 0) {
 				result = m0_db_cursor_last(&r.fr_ptr,
 							   &r.fr_pair);
-				if (result == 0) {
-					result = fol_record_decode(&r);
-					fol->f_lsn = lsn_inc(d->rd_lsn);
-				}
-				rec_fini(&r);
+				if (result == 0)
+					fol->f_lsn = lsn_inc(r.fr_desc.rd_lsn);
+				m0_rec_fini(&r);
 			}
-			rc = m0_db_tx_commit(&tx);
+			rc = m0_dtx_done(&dtx);
 			result = result ?: rc;
 		}
 	}
@@ -364,19 +385,13 @@ M0_INTERNAL struct m0_fol_rec *m0_fol_rec_init(void)
 	M0_ALLOC_PTR(rec);
 	if (rec == NULL)
 		return NULL;
-	m0_rec_part_tlist_init(&rec->fr_fol_rec_parts);
+	fol_rec_part_list_init(rec);
 	return rec;
 }
 
 M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec)
 {
-	struct m0_fol_rec_part  *part;
-
-	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part)
-	{
-		m0_fol_rec_part_fini(part);
-	} m0_tl_endfor;
-	m0_rec_part_tlist_fini(&rec->fr_fol_rec_parts);
+	fol_rec_part_list_fini(rec);
 	m0_free(rec);
 }
 
@@ -585,7 +600,7 @@ M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
 		result = m0_db_cursor_get(&out->fr_ptr, &out->fr_pair) ?:
 			 fol_record_decode(out);
 		if (result != 0)
-			rec_fini(out);
+			m0_rec_fini(out);
 	}
 	M0_POST(ergo(result == 0, out->fr_desc.rd_lsn == lsn));
 	M0_POST(ergo(result == 0, out->fr_desc.rd_header.rh_refcount > 0));
