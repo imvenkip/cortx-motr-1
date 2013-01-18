@@ -142,15 +142,15 @@ static void io_delete_part_ops_init(struct m0_fol_rec_part *part)
 }
 
 static const struct m0_fol_rec_part_type_ops io_write_part_type_ops = {
-	.rpto_init = io_write_part_ops_init,
+	.rpto_rec_part_init = io_write_part_ops_init,
 };
 
 static const struct m0_fol_rec_part_type_ops io_create_part_type_ops = {
-	.rpto_init = io_create_part_ops_init,
+	.rpto_rec_part_init = io_create_part_ops_init,
 };
 
 static const struct m0_fol_rec_part_type_ops io_delete_part_type_ops = {
-	.rpto_init = io_delete_part_ops_init,
+	.rpto_rec_part_init = io_delete_part_ops_init,
 };
 
 M0_INTERNAL void m0_ioservice_fop_fini(void)

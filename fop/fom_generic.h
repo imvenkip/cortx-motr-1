@@ -204,7 +204,8 @@ struct m0_fom_error_rep {
 } M0_XCA_RECORD;
 
 /**
- * Adds the FOL record prepared from the list of FOL record parts in m0_dtx.
+ * Adds the FOL record prepared from the list of FOL record parts in
+ * fom->fo_tx.tx_fol_rec.
  * Record can contain fop data from fom->fo_fop, fom->fo_rep_fop and other data
  * added in FOL record part.
  */

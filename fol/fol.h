@@ -108,17 +108,17 @@ M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
 /**
    Adds a record to the fol, in the transaction context.
 
-   rec->fr_desc->rd_lsn must be filled by the caller using
+   dtx->tx_fol_rec->fr_desc->rd_lsn must be filled by the caller using
    m0_fol_lsn_allocate(fol)
 
-   rec->fr_desc->rd_refcounter is initial value of record's reference counter.
+   dtx->tx_fol_rec->fr_desc->rd_refcounter is initial value of record's
+   reference counter.
    This field must be filled by the caller.
 
    @pre m0_lsn_is_valid(drec->rd_lsn);
    @see m0_fol_add_buf()
  */
-M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
-			       struct m0_fol_rec *rec);
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_dtx *dtx);
 
 /**
    Reserves and returns lsn.
@@ -210,8 +210,6 @@ struct m0_fol_rec_header {
 	    @note that the update might be for a different node.
 	 */
 	struct m0_update_id rh_self;
-	/** number of record parts added to the record */
-	uint32_t            rh_parts_nr;
 } M0_XCA_RECORD;
 
 M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_rec_header)));
@@ -230,7 +228,7 @@ M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_update_ref)));
 
    @li as part of m0_fol_rec returned by m0_fol_rec_lookup() or
    m0_fol_batch(). In this case, m0_fol_rec_desc is filled by the fol code. The
-   user has read-only access to it and has to call m0_fol_rec_fini() once it is
+   user has read-only access to it and has to call m0_rec_fini() once it is
    done with inspecting the record.
  */
 struct m0_fol_rec_desc {
@@ -252,7 +250,7 @@ struct m0_fol_rec_desc {
    m0_fol_batch(). m0_fol_rec is bound to a particular fol and remembers its
    location in the log.
 
-   The user must call m0_fol_rec_fini() once it has finished dealing with the
+   The user must call m0_rec_fini() once it has finished dealing with the
    record.
 
    There are two liveness and concurrency scopes for a m0_fol_rec, fetched from
@@ -269,7 +267,7 @@ struct m0_fol_rec_desc {
 
    @li short-term: data copied from the fol and pointed to from the record
    (object references, sibling updates and operation type specific data) are
-   valid until m0_fol_rec_fini() is called. Multiple threads can access the
+   valid until m0_rec_fini() is called. Multiple threads can access the
    record with a given lsn. It's up to them to synchronize access to mutable
    fields (reference counter and sibling updates state).
  */
@@ -298,11 +296,12 @@ struct m0_fol_rec {
  */
 M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
 				  m0_lsn_t lsn, struct m0_fol_rec *out);
+
 /**
    Finalizes the record, returned by the m0_fol_rec_lookup() or m0_fol_batch()
    and releases all associated resources.
  */
-M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec);
+M0_INTERNAL void m0_rec_fini(struct m0_fol_rec *rec);
 
 M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec_desc *drec);
 
@@ -389,6 +388,11 @@ struct m0_fol_rec_part_ops {
 	int (*rpo_undo)(struct m0_fol_rec_part *part);
 	int (*rpo_redo)(struct m0_fol_rec_part *part);
 };
+
+struct m0_fol_rec_part_header {
+	uint32_t rph_index;
+	uint64_t rph_magic;
+} M0_XCA_RECORD;
 
 /**
    During encoding of FOL record data points to the in-memory FOL record
@@ -488,108 +492,22 @@ M0_TL_DECLARE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
 		.xo_ptr  = r->rp_data,		                \
 }
 
-/**  Adds the FOL record by iterating through FOL parts from the list in m0_dtx
- *   added during updates on server.
- */
-M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_dtx *dtx);
-
-M0_INTERNAL struct m0_fol_rec *m0_fol_record_init(void);
-M0_INTERNAL void m0_fol_record_fini(struct m0_fol_rec *rec);
-
-/** It represents updates made as part of executing FOM on server. */
-struct m0_fol_rec_part {
-	const struct m0_fol_rec_part_ops  *rp_ops;
-	/** Pointer to the data where FOL record part is serialised or
-	    will be de-serialised.
-	 */
-	void				  *rp_data;
-	/** Linkage into a fol record parts. */
-	struct m0_tlink			   rp_link;
-	/** Magic for fol record part list. */
-	uint64_t			   rp_magic;
-};
-
-struct m0_fol_rec_part_ops {
-	const struct m0_fol_rec_part_type *rpo_type;
-	int (*rpo_undo)(struct m0_fol_rec_part *part);
-	int (*rpo_redo)(struct m0_fol_rec_part *part);
-};
-
-struct m0_fol_rec_part_type_ops {
-	void (*rpto_init)(struct m0_fol_rec_part *part);
-};
-
-struct m0_fol_rec_part_type {
-	uint32_t                               rpt_index;
-	const char                            *rpt_name;
-	const struct m0_fol_rec_part_type_ops *rpt_ops;
-	/** Xcode type representing FOL record part type. */
-	const struct m0_xcode_type	      *rpt_xt;
-};
-
-struct m0_fol_rec_part_ops_type_ops {
-	void (*rpo_rec_part_init)(struct m0_fol_rec_part *part, struct m0_fol_rec_part_ops *ops);
-};
-
-M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(
-		const struct m0_fol_rec_part_type *type);
-
-M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part);
-
-M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
-					  const char *name,
-					  const struct m0_xcode_type *xt,
-					  const struct m0_fol_rec_part_type_ops *ops);
-
-M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type);
 
 /** Descriptor for the tlist of fol record parts. */
 M0_TL_DESCR_DECLARE(m0_rec_part, M0_EXTERN);
 M0_TL_DECLARE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
 
-M0_INTERNAL m0_bcount_t m0_fol_rec_part_data_size(struct m0_fol_rec_part *part);
-
-M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
-			               struct m0_bufvec_cursor *cur,
-			               enum m0_bufvec_what      what);
+M0_INTERNAL void m0_fol_rec_part_add(struct m0_fol_rec *rec,
+				     struct m0_fol_rec_part *part);
 
 #define M0_REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) {	\
 		.xo_type = r->rp_ops->rpo_type->rpt_xt,		\
 		.xo_ptr  = r->rp_data,		                \
 }
-
-struct m0_fol_rec_part_header {
-	uint32_t rph_index;
-	uint64_t rph_magic;
-} M0_XCA_RECORD;
-
-M0_INTERNAL const struct m0_fol_rec_part_type *
-		m0_fol_rec_part_type_lookup(uint32_t index);
-
-M0_INTERNAL int m0_fol_rec_part_header_encdec(
-				struct m0_fol_rec_part_header  *ph,
-				struct m0_bufvec_cursor        *cur,
-				enum m0_bufvec_what             what);
-
-M0_INTERNAL int m0_fol_rec_header_encdec(struct m0_fol_rec_header *rh,
-					 struct m0_bufvec_cursor  *cur,
-					 enum m0_bufvec_what	  what);
-
-M0_INTERNAL int m0_fol_rec_sibling_encdec(struct m0_fol_update_ref *ur,
-					  struct m0_bufvec_cursor  *cur,
-					  enum m0_bufvec_what	  what);
-
-M0_INTERNAL int m0_fol_rec_obj_ref_encdec(struct m0_fol_obj_ref   *obj_ref,
-					  struct m0_bufvec_cursor *cur,
-					  enum m0_bufvec_what	   what);
-
+#define M0_PART_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_part_header_xc, ptr)
 #define M0_REC_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_header_xc, ptr)
 #define M0_REC_SIBLING_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_update_ref_xc, ptr)
 #define M0_REC_OBJ_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_obj_ref_xc, ptr)
-#define M0_PART_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_part_header_xc, ptr)
-
-M0_INTERNAL int m0_fol_record_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
-				  m0_lsn_t lsn, struct m0_fol_rec *out);
 
 /** @} end of fol group */
 

@@ -49,7 +49,7 @@ M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env)
 
 M0_INTERNAL int m0_dtx_done(struct m0_dtx *tx)
 {
-	int rc;
+	int rc = 0;
 
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_OPEN)));
 

@@ -330,25 +330,6 @@ M0_INTERNAL int m0_xcode_encode(struct m0_xcode_ctx *ctx)
 	return ctx_walk(ctx, XO_ENC);
 }
 
-M0_INTERNAL int m0_xcode_encdec(struct m0_xcode_ctx *xc_ctx,
-				const struct m0_xcode_obj *obj,
-				struct m0_bufvec_cursor *cur,
-				enum m0_bufvec_what what)
-{
-	int rc;
-
-	m0_xcode_ctx_init(xc_ctx, obj);
-	xc_ctx->xcx_buf   = *cur;
-	xc_ctx->xcx_alloc = m0_xcode_alloc;
-
-	rc = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(xc_ctx) :
-					m0_xcode_decode(xc_ctx);
-	if (rc == 0)
-		*cur = xc_ctx->xcx_buf;
-	return rc;
-
-}
-
 M0_INTERNAL int m0_xcode_length(struct m0_xcode_ctx *ctx)
 {
 	return ctx_walk(ctx, XO_LEN);
