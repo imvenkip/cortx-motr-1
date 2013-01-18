@@ -1050,11 +1050,12 @@ struct io_request_ops {
 	 * Handles degraded mode read IO. Issues read IO for pages
 	 * in all parity groups which need to be read in order to
 	 * recover lost data.
-	 * @pre  req->ir_state == IRS_READ_COMPLETE.
-	 * @pre  io_request_invariant(req).
-	 * @post req->ir_state == IRS_DEGRADED_READING.
+	 * @param rmw Tells whether current io_request is rmw or not.
+	 * @pre   req->ir_state == IRS_READ_COMPLETE.
+	 * @pre   io_request_invariant(req).
+	 * @post  req->ir_state == IRS_DEGRADED_READING.
 	 */
-	int (*iro_dgmode_read)    (struct io_request *req);
+	int (*iro_dgmode_read)    (struct io_request *req, bool rmw);
 
 	/**
 	 * Recovers lost unit/s by calculating parity over remaining
@@ -1367,7 +1368,6 @@ struct target_ioreq_ops {
 				 const struct m0_pdclust_src_addr *src,
 				 const struct m0_pdclust_tgt_addr *tgt,
 				 m0_bindex_t	                   gob_offset,
-				 m0_bindex_t	                   par_offset,
 				 m0_bcount_t	                   count,
 				 struct pargrp_iomap              *map);
 
@@ -1494,6 +1494,9 @@ struct io_req_fop_ops {
 struct io_req_fop {
         /** Holds M0_T1FS_IOFOP_MAGIC */
         uint64_t                     irf_magic;
+
+	/** Status of IO reply fop. */
+	int                          irf_reply_rc;
 
         /** In-memory handle for IO fop. */
         struct m0_io_fop             irf_iofop;

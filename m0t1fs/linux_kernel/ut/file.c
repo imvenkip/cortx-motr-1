@@ -785,7 +785,7 @@ static void target_ioreq_test(void)
 	tgt.ta_frame = 0;
 	tgt.ta_obj   = 0;
 
-	target_ioreq_seg_add(&ti, &src, &tgt, 0, 0, PAGE_CACHE_SIZE, map);
+	target_ioreq_seg_add(&ti, &src, &tgt, 0, PAGE_CACHE_SIZE, map);
 	M0_UT_ASSERT(1 == SEG_NR(&ti.ti_ivec));
 	M0_UT_ASSERT(ti.ti_bufvec.ov_buf[0] == buf->db_buf.b_addr);
 	M0_UT_ASSERT(ti.ti_pageattrs[0] & PA_DATA);
@@ -794,7 +794,7 @@ static void target_ioreq_test(void)
 	page_pos_get(map, COUNT(&ti.ti_ivec, 0), &row, &col);
 	buf = map->pi_databufs[row][col];
 
-	target_ioreq_seg_add(&ti, &src, &tgt, COUNT(&ti.ti_ivec, 0), 0,
+	target_ioreq_seg_add(&ti, &src, &tgt, COUNT(&ti.ti_ivec, 0),
 			     PAGE_CACHE_SIZE, map);
 	M0_UT_ASSERT(2 == SEG_NR(&ti.ti_ivec));
 	M0_UT_ASSERT(ti.ti_bufvec.ov_buf[1] == buf->db_buf.b_addr);
@@ -805,7 +805,7 @@ static void target_ioreq_test(void)
 		[LAY_N % data_col_nr(pdlay)];
 
 	src.sa_unit  = LAY_N;
-	target_ioreq_seg_add(&ti, &src, &tgt, 0, 0, PAGE_CACHE_SIZE, map);
+	target_ioreq_seg_add(&ti, &src, &tgt, 0, PAGE_CACHE_SIZE, map);
 	M0_UT_ASSERT(3 == SEG_NR(&ti.ti_ivec));
 	M0_UT_ASSERT(ti.ti_bufvec.ov_buf[2] == buf->db_buf.b_addr);
 	M0_UT_ASSERT(ti.ti_pageattrs[2] & PA_PARITY);
@@ -834,7 +834,6 @@ static void dgmode_readio_test(void)
 	uint32_t                    row;
 	uint32_t                    col;
 	uint64_t                    pgcur = 0;
-	m0_bindex_t                 goff;
 	struct iovec                iovec_arr[DGMODE_IOVEC_NR];
 	struct m0_fop              *reply;
 	struct io_request          *req;
@@ -846,7 +845,6 @@ static void dgmode_readio_test(void)
 	struct target_ioreq        *ti;
 	struct m0_rpc_session      *session;
 	struct m0_layout_enum      *le;
-	struct dgmode_readvec      *dgvec;
 	struct dgmode_readvec       dgvec_tmp;
 	struct m0_rpc_bulk_buf     *rbuf;
 	struct m0_pdclust_layout   *play;
@@ -945,10 +943,6 @@ static void dgmode_readio_test(void)
 		M0_UT_ASSERT(map != NULL);
 		M0_UT_ASSERT(map->pi_state == PI_DEGRADED);
 
-		/* For normal read IO, parity is not read. */
-		goff         = gfile_offset(rbuf->bb_zerovec.z_index[cnt],
-				            map, play);
-
 		tgt.ta_frame = rbuf->bb_zerovec.z_index[cnt] /
 			       layout_unit_size(play);
 		tgt.ta_obj   = m0_layout_enum_find(le,
@@ -1019,17 +1013,18 @@ static void dgmode_readio_test(void)
 		}
 	}
 
-	rc = dgmode_readvec_alloc_init(&dgvec, ti);
-	M0_UT_ASSERT(dgvec->dr_tioreq == ti);
-	M0_UT_ASSERT(dgvec->dr_ivec.iv_index != NULL);
-	M0_UT_ASSERT(dgvec->dr_ivec.iv_vec.v_count != NULL);
-	M0_UT_ASSERT(dgvec->dr_bufvec.ov_buf != NULL);
-	M0_UT_ASSERT(dgvec->dr_bufvec.ov_vec.v_count != NULL);
-	M0_UT_ASSERT(dgvec->dr_pageattrs != NULL);
+	ti->ti_dgvec = NULL;
+	rc = dgmode_readvec_alloc_init(ti);
+	M0_UT_ASSERT(ti->ti_dgvec->dr_tioreq == ti);
+	M0_UT_ASSERT(ti->ti_dgvec->dr_ivec.iv_index != NULL);
+	M0_UT_ASSERT(ti->ti_dgvec->dr_ivec.iv_vec.v_count != NULL);
+	M0_UT_ASSERT(ti->ti_dgvec->dr_bufvec.ov_buf != NULL);
+	M0_UT_ASSERT(ti->ti_dgvec->dr_bufvec.ov_vec.v_count != NULL);
+	M0_UT_ASSERT(ti->ti_dgvec->dr_pageattrs != NULL);
 
-	dgvec->dr_ivec.iv_vec.v_nr = page_nr(layout_unit_size(play) *
-			                     layout_k(play));
-	dgmode_readvec_dealloc_fini(dgvec);
+	ti->ti_dgvec->dr_ivec.iv_vec.v_nr = page_nr(layout_unit_size(play) *
+			                    layout_k(play));
+	dgmode_readvec_dealloc_fini(ti->ti_dgvec);
 
 	/* Cleanup */
 	m0_rpc_bulk_buflist_empty(rbulk);
