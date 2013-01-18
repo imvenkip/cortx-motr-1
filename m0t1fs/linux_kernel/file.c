@@ -2860,8 +2860,6 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	 * IO fop/s in failed target_ioreq structure/s.
 	 */
 	m0_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
-		//if (ti->ti_rc != M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
-			//continue;
 		rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
 				ti->ti_fid.f_container, &state);
 		if (rc != 0)
