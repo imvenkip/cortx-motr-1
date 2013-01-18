@@ -4,7 +4,8 @@ nobase_mero_include_HEADERS += stob/ad.h \
                                   stob/linux.h \
                                   stob/linux_internal.h \
                                   stob/stob.h \
-                                  stob/stob_id.h
+                                  stob/stob_id.h \
+                                  stob/stob_addb.h
 
 mero_libmero_la_SOURCES  += \
                                   stob/ad.c \

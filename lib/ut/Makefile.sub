@@ -8,6 +8,7 @@ ut_libmero_ut_la_SOURCES += lib/ut/main.c \
                                lib/ut/finject.c \
                                lib/ut/getopts.c \
                                lib/ut/list.c \
+			       lib/ut/lockers.c \
                                lib/ut/misc.c \
                                lib/ut/memory.c \
                                lib/ut/mutex.c \

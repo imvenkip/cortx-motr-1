@@ -25,6 +25,7 @@
 #define __MERO_REQH_REQH_H__
 
 #include "lib/tlist.h"
+#include "lib/lockers.h"
 #include "lib/bob.h"
 
 #include "sm/sm.h"
@@ -56,12 +57,9 @@ struct m0_fol;
 struct m0_fop;
 struct m0_net_xprt;
 struct m0_rpc_machine;
-
-enum {
-        REQH_KEY_MAX = 32
-};
-
 struct m0_local_service_ops;
+
+M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 32);
 
 /** Local reply consumer service (testing or replicator) */
 struct m0_local_service {
@@ -76,6 +74,9 @@ struct m0_local_service_ops {
    Request handler instance.
  */
 struct m0_reqh {
+	/** Request handler magic. */
+	uint64_t                 rh_magic;
+
 	struct m0_dtm		*rh_dtm;
 
 	/** Database environment for this request handler. */
@@ -133,17 +134,17 @@ struct m0_reqh {
 	 */
 	struct m0_chan           rh_sd_signal;
 
-	/**
-	 * Request handler key data.
-	 *
-	 * @see m0_reqh_key_init()
-	 */
-        void                    *rh_key[REQH_KEY_MAX];
-	/** Request handler magic. */
-	uint64_t                 rh_magic;
-
 	/** Local service consuming reply. */
 	struct m0_local_service *rh_svc;
+
+	/**
+	    Lockers to store private data
+
+	    Since this variable has a zero length array, this should be
+	    at the end of structure.
+	    refer <http://gcc.gnu.org/onlinedocs/gcc/Zero-Length.html>
+	 */
+	struct m0_reqh_lockers   rh_lockers;
 };
 
 /**
@@ -265,88 +266,6 @@ M0_BOB_DECLARE(M0_EXTERN, m0_reqh_service);
 /** Descriptor for tlist of rpc machines. */
 M0_TL_DESCR_DECLARE(m0_reqh_rpc_mach, extern);
 M0_TL_DECLARE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
-
-/**
-   @name reqhkey
-
-   This infrastructure allows request handler to be a central repository of
-   data, typically used by the request handler services.
-   This not only allows services to efficiently share the data with other
-   services running in the same request handler but also avoids duplicate
-   implementation of similar kind of framework.
-
-   Following interfaces are of interest to any request handler service intending
-   to store and share its specific data with the corresponding request handler,
-   - m0_reqh_key_init()
-     Returns a new request handler key to access the stored data.
-     Same key should be used in-order to share the data among multiple request
-     handler entities if necessary.
-     @note Key cannot exceed beyond REQH_KEY_MAX range for the given request
-           handler.
-     @see m0_reqh::rh_key
-     @see ::keymax
-
-   - m0_cs_reqh_key_find()
-     Locates and returns the data corresponding to the key in the request
-     handler.  The key is used to locate the data in
-     cs_reqh_context::rc_key[]. If the data is NULL, then size amount of memory
-     is allocated for the data and returned.
-     @note As request handler itself does not have any knowledge about the
-     purpose and usage of the allocated data, it is the responsibility of the
-     caller to initialise the allocated data and verify the consistency of the
-     same throughout its existence.
-
-   - m0_reqh_key_fini()
-     Destroys the request handler resource accessed by the given key.
-     @note This simply destroys the allocated data without formally looking
-     into its contents. Thus the caller must properly finalise the data contents
-     before invoking this function. Also if the data was shared between multiple
-     services, the caller must make sure that there are no more reference on the
-     same.
-
-     Below pseudo code illustrates the usage of reqhkey interfaces mentioned
-     above,
-
-     @code
-
-     struct foo {
-	...
-	bool is_initialised;
-     };
-     static bool     foo_key_is_initialised;
-     static uint32_t foo_key;
-     int bar_init()
-     {
-	struct foo *data;
-
-	if (!foo_key_is_initialised)
-		foo_key = m0_reqh_key_init(); //get new reqh data key
-
-	data = m0_reqh_key_find(reqh, foo_key, sizeof *foo);
-	if (!data->foo_is_initialised)
-		foo_init(data);
-	...
-     }
-
-     void bar_fini()
-     {
-	struct foo *data;
-
-	data = m0_reqh_key_find(reqh, foo_key, sizeof *foo);
-	foo_fini(data);
-	m0_reqh_key_fini(reqh, foo_key);
-     }
-     @endcode
-
- */
-/** @{ reqhkey */
-
-M0_INTERNAL unsigned m0_reqh_key_init(void);
-M0_INTERNAL void *m0_reqh_key_find(struct m0_reqh *reqh, unsigned key,
-				   m0_bcount_t size);
-M0_INTERNAL void m0_reqh_key_fini(struct m0_reqh *reqh, unsigned key);
-
-/** @} reqhkey */
 
 /** @} endgroup reqh */
 

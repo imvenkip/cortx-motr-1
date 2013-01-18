@@ -1,4 +1,6 @@
 nobase_mero_include_HEADERS += cob/cob.h \
-			       cob/ns_iter.h
+			       cob/ns_iter.h \
+			       cob/cob_addb.h
+
 mero_libmero_la_SOURCES  += cob/cob.c \
 			    cob/ns_iter.c
