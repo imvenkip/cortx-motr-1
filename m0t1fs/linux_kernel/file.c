@@ -2100,7 +2100,6 @@ static int pargrp_iomap_pages_mark(struct pargrp_iomap       *map,
 		col_nr = parity_col_nr(play);
 		bufs   = map->pi_paritybufs;
 	}
-	printk(KERN_ERR "row_nr = %u, col_nr = %u\n", row_nr, col_nr);
 
 	/*
 	 * Allocates data_buf structures from either ::pi_databufs
@@ -2116,10 +2115,8 @@ static int pargrp_iomap_pages_mark(struct pargrp_iomap       *map,
 			 * hence the loop breaks from here.
 			 */
 			if (bufs[row][col] != NULL &&
-			    bufs[row][col]->db_flags & PA_READ_FAILED) {
-				printk(KERN_ERR "failed 1, row = %u\n", row);
+			    bufs[row][col]->db_flags & PA_READ_FAILED)
 				break;
-			}
 		}
 
 		if (row == row_nr)
@@ -2188,8 +2185,8 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 				        &tgt, &src);
 		M0_ASSERT(src.sa_group == map->pi_grpid);
 		M0_ASSERT(src.sa_unit  <  layout_n(play) + layout_k(play));
-		M0_LOG(M0_INFO, "tgt_offset = %llu, group = %llu, unit = %llu", index[seg], src.sa_group,
-				src.sa_unit);
+		M0_LOG(M0_INFO, "tgt_offset = %llu, group = %llu, unit = %llu",
+		       index[seg], src.sa_group, src.sa_unit);
 
 		/* Segment belongs to a data unit. */
 		if (src.sa_unit < layout_n(play)) {
@@ -2332,7 +2329,8 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 			if (M0_IN(map->pi_rtype, (PIR_READOLD, PIR_NONE)) &&
 			    within_eof && (dbuf->db_flags & PA_READ) == 0) {
 				dbuf->db_flags |= PA_DGMODE_READ;
-				M0_LOG(M0_INFO, "data row = %u, col = %u marked with dgmode read.", row, col);
+				M0_LOG(M0_INFO, "data row = %u, col = %u"
+				       "marked with dgmode read.", row, col);
 			}
 		}
 	}
@@ -2363,7 +2361,8 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 
 			if (M0_IN(map->pi_rtype, (PIR_READREST, PIR_NONE))) {
 				dbuf->db_flags |= PA_DGMODE_READ;
-				M0_LOG(M0_INFO, "parity row = %u, col = %u marked with dgmode read.", row, col);
+				M0_LOG(M0_INFO, "parity row = %u, col = %u"
+					"marked with dgmode read.", row, col);
 			}
 		}
 	}
@@ -2931,7 +2930,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 
 	/* Resets the status code before starting degraded mode read IO. */
 	if (req->ir_nwxfer.nxr_rc ==
-	    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) 
+	    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
 		req->ir_nwxfer.nxr_rc = 0;
 	req->ir_rc = req->ir_nwxfer.nxr_rc;
 

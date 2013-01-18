@@ -586,7 +586,7 @@
       mode read IO state.
 
    - struct pargrp_iomap
-    - a state enumeration will be added indicating the state of parity group is 
+    - a state enumeration will be added indicating the state of parity group is
       either HEALTHY or DEGRADED.
     - Pages from the data units and/or parity units that need to be read in
       order to retrieve lost data unit will be marked with a special page flag
