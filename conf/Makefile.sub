@@ -10,7 +10,8 @@ nobase_mero_include_HEADERS += \
                                conf/onwire.h \
                                conf/preload.h \
                                conf/reg.h \
-                               conf/schema.h
+                               conf/schema.h \
+                               conf/conf_addb.h
 
 mero_libmero_la_SOURCES += \
                            conf/buf_ext.c \

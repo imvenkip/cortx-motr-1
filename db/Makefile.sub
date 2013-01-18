@@ -2,7 +2,8 @@ nobase_mero_include_HEADERS += db/db.h \
                                   db/extmap.h \
                                   db/extmap_internal.h \
                                   db/db_impl.h \
-                                  db/db_common.h
+                                  db/db_common.h \
+                                  db/db_addb.h
 
 mero_libmero_la_SOURCES  += db/db.c \
                                   db/extmap.c \

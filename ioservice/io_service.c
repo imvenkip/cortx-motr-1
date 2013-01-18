@@ -60,6 +60,11 @@ enum {
  */
 M0_INTERNAL unsigned poolmach_key;
 
+/**
+ * Key for ioservice cob domain
+ */
+static unsigned ios_cdom_key;
+
 static int ios_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
 			const char *arg);
@@ -71,9 +76,6 @@ static void ios_stats_post_addb(struct m0_reqh_service *service);
 
 static void buffer_pool_not_empty(struct m0_net_buffer_pool *bp);
 static void buffer_pool_low(struct m0_net_buffer_pool *bp);
-
-static bool     ios_cdom_is_initialised;
-static unsigned ios_cdom_key;
 
 /**
  * I/O Service type operations.
@@ -433,7 +435,7 @@ static int ios_start(struct m0_reqh_service *service)
 	struct m0_reqh_io_service *serv_obj;
 
 	M0_PRE(service != NULL);
-	M0_PRE(!ios_cdom_is_initialised);
+	M0_PRE(m0_reqh_lockers_is_empty(service->rs_reqh, ios_cdom_key));
 
 	rc = m0_ios_cdom_get(service->rs_reqh, &cdom, service->rs_uuid);
 	if (rc != 0)
@@ -469,7 +471,7 @@ static void ios_stop(struct m0_reqh_service *service)
 	m0_ios_poolmach_fini(service->rs_reqh);
 	ios_delete_buffer_pool(service);
 	m0_ios_cdom_fini(service->rs_reqh);
-	m0_reqh_key_fini(service->rs_reqh, ios_cdom_key);
+	m0_reqh_lockers_clear(service->rs_reqh, ios_cdom_key);
 }
 
 M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
@@ -486,8 +488,15 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 
 	dbenv = reqh->rh_dbenv;
-	cdom = m0_reqh_key_find(reqh, ios_cdom_key, sizeof *cdom);
-	if (!ios_cdom_is_initialised) {
+	cdom = m0_reqh_lockers_get(reqh, ios_cdom_key);
+	if (cdom == NULL) {
+		cdom = m0_alloc(sizeof *cdom);
+		if (cdom == NULL) {
+			rc = -ENOMEM;
+			goto out;
+		}
+		m0_reqh_lockers_set(reqh, ios_cdom_key, cdom);
+
 		cdom_id.id = sid;
 		rc = m0_cob_domain_init(cdom, dbenv, &cdom_id);
 		if (rc != 0)
@@ -504,7 +513,6 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 			goto cdom_fini;
 		}
 		m0_db_tx_commit(&tx);
-		ios_cdom_is_initialised = true;
 	}
 	*out = cdom;
 	goto out;
@@ -512,7 +520,7 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 cdom_fini:
 	m0_cob_domain_fini(cdom);
 reqh_fini:
-	m0_reqh_key_fini(reqh, ios_cdom_key);
+	m0_reqh_lockers_clear(reqh, ios_cdom_key);
 out:
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 	return rc;
@@ -525,9 +533,9 @@ M0_INTERNAL void m0_ios_cdom_fini(struct m0_reqh *reqh)
 	M0_PRE(reqh != NULL);
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	cdom = m0_reqh_key_find(reqh, ios_cdom_key, sizeof *cdom);
+	cdom = m0_reqh_lockers_get(reqh, ios_cdom_key);
 	m0_cob_domain_fini(cdom);
-	ios_cdom_is_initialised = false;
+	m0_free(cdom);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 

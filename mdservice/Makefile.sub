@@ -1,7 +1,8 @@
 nobase_mero_include_HEADERS += mdservice/md_foms.h \
                                   mdservice/md_fops.h \
                                   mdservice/md_service.h \
-                                  mdservice/md_fops_xc.h
+                                  mdservice/md_fops_xc.h \
+                                  mdservice/mdservice_addb.h
 
 mero_libmero_la_SOURCES  += mdservice/md_service.c \
                                   mdservice/md_foms.c \
@@ -14,4 +15,4 @@ XC_FILES   += mdservice/md_fops_xc.h
 
 CLEANFILES += mdservice/md_fops_xc.h \
               mdservice/md_fops_xc.c \
-	      mdservice/md_fops.gccxml
+              mdservice/md_fops.gccxml

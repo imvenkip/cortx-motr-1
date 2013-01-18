@@ -3,7 +3,8 @@ nobase_mero_include_HEADERS += fop/fop.h \
                                fop/fop_item_type.h \
                                fop/fom_generic.h \
                                fop/fom_long_lock.h \
-                               fop/fom_generic_xc.h
+                               fop/fom_generic_xc.h \
+			       fop/fop_addb.h
 
 mero_libmero_la_SOURCES  += fop/fop.c \
                             fop/fom.c \

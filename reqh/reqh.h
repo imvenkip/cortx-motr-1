@@ -74,6 +74,9 @@ struct m0_local_service_ops {
    Request handler instance.
  */
 struct m0_reqh {
+	/** Request handler magic. */
+	uint64_t                 rh_magic;
+
 	struct m0_dtm		*rh_dtm;
 
 	/** Database environment for this request handler. */
@@ -131,16 +134,17 @@ struct m0_reqh {
 	 */
 	struct m0_chan           rh_sd_signal;
 
-	/**
-	    Lockers to store private data
-	 */
-	struct m0_reqh_lockers   rh_lockers;
-
-	/** Request handler magic. */
-	uint64_t                 rh_magic;
-
 	/** Local service consuming reply. */
 	struct m0_local_service *rh_svc;
+
+	/**
+	    Lockers to store private data
+
+	    Since this variable has a zero length array, this should be
+	    at the end of structure.
+	    refer <http://gcc.gnu.org/onlinedocs/gcc/Zero-Length.html>
+	 */
+	struct m0_reqh_lockers   rh_lockers;
 };
 
 /**

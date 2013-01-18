@@ -51,6 +51,8 @@ void test_lockers(void)
 	key = bank_lockers_allot();
 	M0_UT_ASSERT(key == 0);
 
+	M0_UT_ASSERT(key != bank_lockers_allot());
+
 	M0_UT_ASSERT(bank_lockers_is_empty(&federal, key));
 	bank_lockers_set(&federal, key, valuable);
 	M0_UT_ASSERT(!bank_lockers_is_empty(&federal, key));

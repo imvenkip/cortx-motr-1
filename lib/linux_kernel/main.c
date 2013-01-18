@@ -62,7 +62,7 @@ const struct m0_test_suite m0_klibm0_ut = {
 		{ "finject",   test_finject       },
 #endif
 		{ "list",      test_list          },
-		{ "lockers",      test_lockers    },
+		{ "lockers",   test_lockers       },
 		{ "tlist",     test_tlist         },
 		{ "mutex",     test_mutex         },
 		{ "queue",     test_queue         },
