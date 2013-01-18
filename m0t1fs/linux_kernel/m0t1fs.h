@@ -409,10 +409,16 @@
  ******************************************************************************
  */
 enum {
-	M0_ADDB_CTXID_M0T1FS_MOD = 500,
+	M0_ADDB_CTXID_M0T1FS_MOD	= 500,
+	M0_ADDB_CTXID_M0T1FS_MOUNTP	= 501,
+	M0_ADDB_CTXID_M0T1FS_OP_READ	= 502,
+	M0_ADDB_CTXID_M0T1FS_OP_WRITE	= 503,
 };
 
-M0_ADDB_CT(m0_addb_ct_m0t1fs_mod, M0_ADDB_CTXID_M0T1FS_MOD);
+M0_ADDB_CT(m0_addb_ct_m0t1fs_mod,	M0_ADDB_CTXID_M0T1FS_MOD);
+M0_ADDB_CT(m0_addb_ct_m0t1fs_mountp,	M0_ADDB_CTXID_M0T1FS_MOUNTP);
+M0_ADDB_CT(m0_addb_ct_m0t1fs_op_read,	M0_ADDB_CTXID_M0T1FS_OP_READ);
+M0_ADDB_CT(m0_addb_ct_m0t1fs_op_write,	M0_ADDB_CTXID_M0T1FS_OP_WRITE);
 
 extern struct m0_addb_ctx m0t1fs_addb_ctx;
 
@@ -591,6 +597,9 @@ struct m0t1fs_sb {
         struct m0_fid                 csb_root_fid;
         /** Maximal allowed namelen (retrived from mdservice) */
         int                           csb_namelen;
+
+	/** Run-time addb context for each mount point */
+	struct m0_addb_ctx            csb_addb_ctx;
 };
 
 struct m0t1fs_filedata {

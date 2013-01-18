@@ -286,8 +286,6 @@ void io_fops_create(struct bulkio_params *bp, enum M0_RPC_OPCODES op,
 		}
 		else rnd = i;
 
-		io_fops = (op == M0_IOSERVICE_WRITEV_OPCODE) ? bp->bp_wfops :
-			   bp->bp_rfops;
 		io_fop_populate(bp, i, rnd, io_fops, segs_nr);
 	}
 }

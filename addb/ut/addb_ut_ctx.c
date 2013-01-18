@@ -512,7 +512,7 @@ static void addb_ut_ctx_init_test(void)
 
 #undef CTX_VALIDATE
 
-	/* record length is montonically increasing by field size */
+	/* record length is monotonically increasing by field size */
 	for (i = 0; i < ARRAY_SIZE(addb_ut_ctx_gci_ta); ++i) {
 		struct addb_ut_ctx_gci_thread_arg *ta = &addb_ut_ctx_gci_ta[i];
 		if (i == 0)
@@ -572,27 +572,65 @@ static void addb_ut_ctx_init_test(void)
  * Test for context export / import
  ****************************************************************************
  */
+static int addb_ut_ctx_impexp_cb_num;
+static void addb_ut_ctx_impexp_cb(const struct m0_addb_rec *rec)
+{
+	uint64_t ctxpath[3];
+	int i;
+
+	M0_UT_ASSERT(addb_rec_post_ut_data.cv_nr == 1);
+
+	ctxpath[0] = m0_node_uuid.u_hi;
+	ctxpath[1] = m0_node_uuid.u_lo;
+	ctxpath[2] = m0_addb_proc_ctx.ac_id;
+
+	M0_UT_ASSERT(rec->ar_rid == addb_rec_post_ut_data.rid);
+	M0_UT_ASSERT(rec->ar_ctxids.acis_nr == 1);
+	for (i = 0; i < ARRAY_SIZE(ctxpath); ++i)
+		M0_UT_ASSERT(rec->ar_ctxids.acis_data->au64s_data[i]
+			     == ctxpath[i]);
+
+	++addb_ut_ctx_impexp_cb_num;
+
+	addb_rec_post_ut_data.brt = M0_ADDB_BRT_NR; /* reset */
+}
+
 static void addb_ut_ctx_import_export(void)
 {
+	struct m0_addb_mc mc = { 0 };
 	struct m0_addb_ctx ctx;
 	struct m0_addb_ctx *cp;
 	struct m0_addb_uint64_seq id1 = { 0 };
 	struct m0_addb_uint64_seq id2 = { 0 };
 	int i;
 
+	addb_ut_mc_reset();
+	m0_addb_mc_init(&mc);
+	addb_ut_mc_configure_recsink(&mc);
+	addb_ut_mc_configure_pt_evmgr(&mc);
+	M0_UT_ASSERT(m0_addb_mc_is_fully_configured(&mc));
+
 	/* export from a normal context object */
 	M0_UT_ASSERT(m0_addb_ctx_export(&m0_addb_proc_ctx, &id1) == 0);
 	M0_UT_ASSERT(id1.au64s_nr == m0_addb_proc_ctx.ac_depth);
-	for (i = m0_addb_proc_ctx.ac_depth - 1, cp = &m0_addb_proc_ctx; i <= 0;
-	     ++i, cp = cp->ac_parent)
+	for (i = m0_addb_proc_ctx.ac_depth - 1, cp = &m0_addb_proc_ctx; i >= 0;
+	     --i, cp = cp->ac_parent)
 		M0_UT_ASSERT(id1.au64s_data[i] == cp->ac_id);
 
 	/* import */
 	M0_UT_ASSERT(m0_addb_ctx_import(&ctx, &id1) == 0);
 	M0_UT_ASSERT(m0_addb_ctx_is_imported(&ctx));
-	for (i = ctx.ac_depth - 1, cp = &m0_addb_proc_ctx; i <= 0;
-	     ++i, cp = cp->ac_parent)
+	for (i = ctx.ac_depth - 1, cp = &m0_addb_proc_ctx; i >= 0;
+	     --i, cp = cp->ac_parent)
 		M0_UT_ASSERT(ctx.ac_imp_id[i] == cp->ac_id);
+
+	/* make sure the posting works with imported ctx */
+	addb_ut_mc_rs_save_cb = addb_ut_ctx_impexp_cb;
+	addb_ut_ctx_impexp_cb_num = 0;
+	M0_ADDB_POST(&mc, &m0_addb_rt_func_fail,
+		     M0_ADDB_CTX_VEC(&ctx), 1, 2);
+	addb_ut_mc_rs_save_cb = NULL;
+	M0_UT_ASSERT(addb_ut_ctx_impexp_cb_num == 1);
 
 	/* export from the imported context */
 	M0_UT_ASSERT(m0_addb_ctx_export(&ctx, &id2) == 0);
@@ -609,6 +647,8 @@ static void addb_ut_ctx_import_export(void)
 	M0_UT_ASSERT(id2.au64s_data == NULL);
 	m0_addb_ctx_fini(&ctx);
 	M0_UT_ASSERT(!addb_ctx_invariant(&ctx));
+
+	m0_addb_mc_fini(&mc);
 }
 
 /*

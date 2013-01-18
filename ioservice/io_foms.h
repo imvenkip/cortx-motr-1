@@ -199,6 +199,8 @@ struct m0_io_fom_cob_rw {
 	 *  are returned successfully).
 	 */
 	int				 fcrw_rc;
+	/** Imported client ADDB context placeholder */
+	struct m0_addb_ctx		 fcrw_client_addb_ctx;
 };
 
 /**

@@ -431,12 +431,17 @@ static size_t addb_ctxid_seq_build(struct m0_addb_ctxid_seq *seq,
 		++seq->acis_nr;
 		u64s->au64s_nr = (*cv)->ac_depth;
 		u64s->au64s_data = dp;
-		for (i = (*cv)->ac_depth - 1, cp = *cv;
-		     i >= 0; --i, cp = cp->ac_parent) {
-			M0_ASSERT(cp != NULL);
-			dp[i] = cp->ac_id;
+		if ((*cv)->ac_imp_id == NULL) {
+			for (i = (*cv)->ac_depth - 1, cp = *cv;
+			     i >= 0; --i, cp = cp->ac_parent) {
+				M0_ASSERT(cp != NULL);
+				dp[i] = cp->ac_id;
+			}
+			M0_ASSERT(cp == NULL);
+		} else {
+			for (i = 0; i < (*cv)->ac_depth; ++i)
+				dp[i] = (*cv)->ac_imp_id[i];
 		}
-		M0_ASSERT(cp == NULL);
 		dp += u64s->au64s_nr;
 	}
 	return (char *)dp - (char *)seq->acis_data;

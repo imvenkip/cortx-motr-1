@@ -41,7 +41,10 @@ value          enum                    variable  name              file
    400 M0_ADDB_CTXID_SNS_MOD           m0_addb_ct_sns_mod
    401 M0_ADDB_CTXID_SNS_REPAIR_SERV   m0_addb_ct_sns_repair_serv
 500-599							           m0t1fs/linux_kernel/m0t1fs.h
-   500 M0_ADDB_CTXID_M0T1FS_MOD	       m0_addb_ct_m0t1fs_mod
+   500 M0_ADDB_CTXID_M0T1FS_MOD        m0_addb_ct_m0t1fs_mod
+   501 M0_ADDB_CTXID_M0T1FS_MOUNTP     m0_addb_ct_m0t1fs_mountp
+   502 M0_ADDB_CTXID_M0T1FS_OP_READ    m0_addb_ct_m0t1fs_op_read
+   503 M0_ADDB_CTXID_M0T1FS_OP_WRITE   m0_addb_ct_m0t1fs_op_write
 600-699                                                            layout/layout_addb.h
    600 M0_ADDB_CTXID_LAYOUT_MOD	       m0_addb_ct_layout_mod
    601 M0_ADDB_CTXID_LAYOUT_OBJ	       m0_addb_ct_layout_obj

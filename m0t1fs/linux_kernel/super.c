@@ -584,6 +584,8 @@ static void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 	m0_chan_init(&csb->csb_iowait);
 	m0_atomic64_set(&csb->csb_pending_io_nr, 0);
 
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &csb->csb_addb_ctx,
+	                 &m0_addb_ct_m0t1fs_mountp, &m0t1fs_addb_ctx);
 	M0_LEAVE();
 }
 
@@ -591,6 +593,8 @@ static void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
 {
 	M0_ENTRY();
 	M0_PRE(csb != NULL);
+
+	m0_addb_ctx_fini(&csb->csb_addb_ctx);
 
 	m0_chan_fini(&csb->csb_iowait);
 	m0_sm_group_fini(&csb->csb_iogroup);

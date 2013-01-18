@@ -92,6 +92,9 @@ M0_INTERNAL int m0t1fs_init(void)
 	M0_ENTRY();
 
 	m0_addb_ctx_type_register(&m0_addb_ct_m0t1fs_mod);
+	m0_addb_ctx_type_register(&m0_addb_ct_m0t1fs_mountp);
+	m0_addb_ctx_type_register(&m0_addb_ct_m0t1fs_op_read);
+	m0_addb_ctx_type_register(&m0_addb_ct_m0t1fs_op_write);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0t1fs_addb_ctx, &m0_addb_ct_m0t1fs_mod,
 	                 &m0_addb_proc_ctx);
 

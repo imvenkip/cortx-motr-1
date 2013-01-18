@@ -896,6 +896,9 @@ struct io_request {
         const struct io_request_ops *ir_ops;
 
         struct nw_xfer_request       ir_nwxfer;
+
+        /** Run-time addb context of the operation */
+        struct m0_addb_ctx           ir_addb_ctx;
 };
 
 /**

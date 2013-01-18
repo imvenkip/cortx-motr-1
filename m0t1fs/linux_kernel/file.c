@@ -21,6 +21,7 @@
 #include <asm/uaccess.h>    /* VERIFY_READ, VERIFY_WRITE */
 #include <linux/mm.h>       /* get_user_pages(), get_page(), put_page() */
 #include <linux/fs.h>       /* struct file_operations */
+#include <linux/mount.h>    /* struct vfsmount (f_path.mnt) */
 
 #include "lib/memory.h"     /* m0_alloc(), m0_free() */
 #include "lib/misc.h"       /* m0_round_{up/down} */
@@ -3116,7 +3117,8 @@ const struct file_operations m0t1fs_reg_file_operations = {
 };
 
 static int io_fops_async_submit(struct m0_io_fop      *iofop,
-				struct m0_rpc_session *session)
+				struct m0_rpc_session *session,
+				struct m0_addb_ctx    *addb_ctx)
 {
 	int		      rc;
 	struct m0_fop_cob_rw *rwfop;
@@ -3133,6 +3135,10 @@ static int io_fops_async_submit(struct m0_io_fop      *iofop,
 	if (rc != 0)
 		goto out;
 
+	rc = m0_addb_ctx_export(addb_ctx, &rwfop->crw_addb_ctx_id);
+	if (rc != 0)
+		goto out;
+
 	iofop->if_fop.f_item.ri_session = session;
 	rc = m0_rpc_post(&iofop->if_fop.f_item);
 	M0_LOG(M0_INFO, "IO fops submitted to rpc, rc = %d", rc);
@@ -3146,6 +3152,7 @@ static void io_req_fop_release(struct m0_ref *ref)
 	struct m0_fop	  *fop;
 	struct m0_io_fop  *iofop;
 	struct io_req_fop *reqfop;
+	struct m0_fop_cob_rw *rwfop;
 
 	M0_ENTRY("ref %p", ref);
 	M0_PRE(ref != NULL);
@@ -3173,6 +3180,11 @@ static void io_req_fop_release(struct m0_ref *ref)
 		m0_clink_del(&clink);
 		m0_clink_fini(&clink);
 	}
+
+	rwfop = io_rw_get(&iofop->if_fop);
+	M0_ASSERT(rwfop != NULL);
+	if (rwfop->crw_addb_ctx_id.au64s_nr > 0)
+		m0_addb_ctx_id_free(&rwfop->crw_addb_ctx_id);
 
 	m0_io_fop_fini(iofop);
 	m0_free(reqfop);
@@ -3304,14 +3316,27 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 {
-	int		     rc = 0;
-	struct io_req_fop   *irfop;
-	struct io_request   *req;
-	struct target_ioreq *ti;
+	int		         rc = 0;
+	struct io_req_fop       *irfop;
+	struct io_request       *req;
+	struct target_ioreq     *ti;
+	struct m0_addb_ctx_type *ct;
+	struct m0t1fs_sb        *csb;
+
 	M0_ENTRY();
 
 	M0_PRE(xfer != NULL);
 	req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
+
+	if (ioreq_sm_state(req) == IRS_READING)
+		ct = &m0_addb_ct_m0t1fs_op_read;
+	else
+		ct = &m0_addb_ct_m0t1fs_op_write;
+	csb = req->ir_file->f_path.mnt->mnt_sb->s_fs_info;
+	m0t1fs_fs_lock(csb);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &req->ir_addb_ctx, ct,
+	                 &csb->csb_addb_ctx);
+	m0t1fs_fs_unlock(csb);
 
 	m0_tl_for (tioreqs, &xfer->nxr_tioreqs, ti) {
 		rc = ti->ti_ops->tio_iofops_prepare(ti, PA_DATA);
@@ -3327,7 +3352,8 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 		m0_tl_for (iofops, &ti->ti_iofops, irfop) {
 
 			rc = io_fops_async_submit(&irfop->irf_iofop,
-						  ti->ti_session);
+						  ti->ti_session,
+						  &req->ir_addb_ctx);
 			if (rc != 0)
 				goto out;
 			else
@@ -3382,6 +3408,9 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 		xfer->nxr_bytes = 0;
 
 	req->ir_rc = xfer->nxr_rc;
+
+	m0_addb_ctx_fini(&req->ir_addb_ctx);
+
 	M0_LEAVE();
 }
 

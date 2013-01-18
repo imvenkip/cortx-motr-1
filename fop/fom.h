@@ -453,6 +453,8 @@ struct m0_fom {
 	struct m0_reqh_service   *fo_service;
 	/** ADDB context for this fom */
 	struct m0_addb_ctx        fo_addb_ctx;
+	/** Imported client ADDB context (may be NULL) */
+	struct m0_addb_ctx       *fo_client_addb_ctx;
 	/**
 	 *  FOM linkage in the locality runq list or wait list
 	 *  Every access to the FOM via this linkage is

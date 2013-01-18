@@ -31,6 +31,7 @@
 #include "net/net_otw_types.h"
 #include "net/net_otw_types_xc.h"
 #include "addb/addb.h"
+#include "addb/addb_wire_xc.h"
 #include "fid/fid.h"
 #include "fid/fid_xc.h"
 
@@ -114,9 +115,6 @@
    sender.
    Since server side sends the reply fop, it does not need m0_io_fop
    structures since it deals with request IO fops.
-   Ioservice typically works with a pre-allocated, pre-registered pool
-   of network buffers. Buffers are requested as per need from the pool
-   and passed to m0_rpc_bulk_buf_add() call as shown below.
 
    @see m0_rpc_bulk
    @code
@@ -399,21 +397,27 @@ struct m0_fop_cob_rw {
 	struct m0_fv_version      crw_version;
 
 	/** File identifier of read/write request. */
-
 	struct m0_fid             crw_fid;
 
-	/** Net buf descriptors representing the m0_net_buffer containing
-	    the IO buffers. */
-
+	/**
+	 * Net buf descriptors representing the m0_net_buffer containing
+	 * the IO buffers.
+	 */
 	struct m0_io_descs        crw_desc;
 
-	/** Index vectors representing the extent information for the
-	    IO request. */
-
+	/**
+	 * Index vectors representing the extent information for the
+	 * IO request.
+	 */
 	struct m0_io_indexvec_seq crw_ivecs;
 
-	/** Miscellaneous flags. */
+	/**
+	 * ADDB context identifier of the operation
+	 * exported by client and imported by server
+	 */
+	struct m0_addb_uint64_seq crw_addb_ctx_id;
 
+	/** Miscellaneous flags. */
 	uint64_t                  crw_flags;
 } M0_XCA_RECORD;
 

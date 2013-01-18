@@ -743,11 +743,12 @@ const struct m0_sm_conf io_conf = {
 #define IOFOM_ADDB_POST(fom, recid, ...)				\
 do {									\
 	struct m0_addb_mc  *addb_mc;					\
-	struct m0_addb_ctx *cv[2];					\
+	struct m0_addb_ctx *cv[3];					\
 									\
 	addb_mc = &fom->fo_service->rs_reqh->rh_addb_mc;		\
 	cv[0]   = &fom->fo_addb_ctx;					\
-	cv[1]   = NULL;							\
+	cv[1]   =  fom->fo_client_addb_ctx;				\
+	cv[2]   = NULL;							\
 	M0_ADDB_POST(addb_mc, recid, cv, ## __VA_ARGS__);		\
 } while(0)
 
@@ -1047,6 +1048,11 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	netbufs_tlist_init(&fom_obj->fcrw_netbuf_list);
 	stobio_tlist_init(&fom_obj->fcrw_stio_list);
 
+	if (rwfop->crw_addb_ctx_id.au64s_nr > 0) {
+		fom->fo_client_addb_ctx = &fom_obj->fcrw_client_addb_ctx;
+		m0_addb_ctx_import(fom->fo_client_addb_ctx,
+				   &rwfop->crw_addb_ctx_id);
+	}
 	M0_LOG(M0_DEBUG, "FOM created : operation=%s, desc=%d.",
 	       m0_is_read_fop(fop) ? "READ" : "WRITE", rwfop->crw_desc.id_nr);
 
@@ -1785,6 +1791,8 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	m0_addb_counter_update(&stats->ifs_sizes_cntr,
 			       (uint64_t) fom_obj->fcrw_count);
 
+	if (fom->fo_client_addb_ctx != NULL)
+		m0_addb_ctx_fini(fom->fo_client_addb_ctx);
 	m0_fom_fini(fom);
 
 	m0_free(fom_obj);

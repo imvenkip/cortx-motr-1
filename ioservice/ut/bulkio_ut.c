@@ -1229,7 +1229,7 @@ void bulkio_server_single_read_write(void)
 	op = M0_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
 	/*
-	 * Here we replace the original ->ft_ops amd ->ft_fom_type as they were
+	 * Here we replace the original ->ft_ops and ->ft_fom_type as they were
 	 * changed during bulkio_stob_create test.
 	 */
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
