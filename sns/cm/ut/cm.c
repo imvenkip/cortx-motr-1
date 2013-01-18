@@ -44,6 +44,7 @@
 
 #include "ioservice/io_service.h"
 #include "sns/cm/ut/cp_common.h"
+#include "sns/cm/st/trigger_fom.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/ag.h"
@@ -51,7 +52,9 @@
 enum {
 	ITER_UT_BUF_NR = 1 << 4,
 	ITER_GOB_KEY_START = 4,
-	GOB_NR = 5
+	ITER_64K = 65536,
+	ITER_1M = 1048576,
+	ITER_1G = 1073741824,
 };
 
 
@@ -100,7 +103,7 @@ static size_t cm_buffer_pool_provision(struct m0_net_buffer_pool *bp,
 	return bnr;
 }
 
-static void iter_setup(uint32_t N, uint32_t K, uint32_t P)
+static void iter_setup(uint32_t N, uint32_t K, uint32_t P, uint64_t unit_size)
 {
 	size_t bufs_nr;
 	int    rc;
@@ -124,6 +127,7 @@ static void iter_setup(uint32_t N, uint32_t K, uint32_t P)
         scm->sc_it.si_pl.spl_N = N;
         scm->sc_it.si_pl.spl_K = K;
         scm->sc_it.si_pl.spl_P = P;
+	scm->sc_it.si_pl.spl_unit_size = unit_size;
 	rc = m0_sns_cm_iter_init(&scm->sc_it);
 	M0_UT_ASSERT(rc == 0);
 }
@@ -200,7 +204,7 @@ static void cob_delete(uint64_t cont, uint64_t key)
 	m0_cob_oikey_make(&oikey, &cob_fid, 0);
 	rc = m0_db_tx_init(&tx.tx_dbtx, dbenv, 0);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_cob_locate(cdom, &oikey, 0, &cob, &tx.tx_dbtx);
+	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob, &tx.tx_dbtx);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_cob_delete_put(cob, &tx.tx_dbtx);
 	M0_UT_ASSERT(rc == 0);
@@ -224,7 +228,7 @@ static void ag_destroy(void)
 	} m0_tl_endfor;
 }
 
-static void cobs_create(uint64_t nr_cobs)
+static void cobs_create(uint64_t nr_files, uint64_t nr_cobs)
 {
 	struct m0_fid gfid;
 	uint32_t      cob_idx;
@@ -232,7 +236,7 @@ static void cobs_create(uint64_t nr_cobs)
 	int           j;
 
 	gfid.f_container = 0;
-	for (i = 0; i < GOB_NR; ++i) {
+	for (i = 0; i < nr_files; ++i) {
 		gfid.f_key = ITER_GOB_KEY_START + i;
 		cob_idx = 0;
 		for (j = 1; j <= nr_cobs; ++j) {
@@ -242,59 +246,47 @@ static void cobs_create(uint64_t nr_cobs)
 	}
 }
 
-static void cobs_delete(uint64_t nr_cobs)
+static void cobs_delete(uint64_t nr_files, uint64_t nr_cobs)
 {
 	int i;
 	int j;
 
-	for (i = 0; i < GOB_NR; ++i) {
+	for (i = 0; i < nr_files; ++i) {
 		for (j = 1; j <= nr_cobs; ++j)
 			cob_delete(j, ITER_GOB_KEY_START + i);
 	}
 }
 
-static void nsit_verify(struct m0_fid *gfid, int cnt)
-{
-	M0_UT_ASSERT(gfid->f_container == 0);
-	/* Verify that gob-fid has been enumerated in lexicographical order. */
-	M0_UT_ASSERT(gfid->f_key - cnt == ITER_GOB_KEY_START);
-}
-
-static int iter_run(uint64_t pool_width, uint64_t fsize, uint64_t fdata,
-		    bool verify_ns_iter, enum m0_sns_cm_op op)
+static int iter_run(uint64_t pool_width, uint64_t nr_files, uint64_t *fsizes,
+		    uint64_t fdata, enum m0_sns_cm_op op)
 {
 	struct m0_sns_cm_cp scp;
 	int                 rc;
-	int                 cnt;
 
-	cobs_create(pool_width);
-	/* Set file size */
-	scm->sc_it.si_pl.spl_fsize = fsize;
+	cobs_create(nr_files, pool_width);
+	m0_trigger_file_sizes_save(nr_files, fsizes);
 	/* Set fail device. */
 	scm->sc_it.si_fdata = fdata;
 	scm->sc_op = op;
-	cnt = 0;
 	m0_cm_lock(cm);
 	do {
 		M0_SET0(&scp);
 		scm->sc_it.si_cp = &scp;
 		rc = m0_sns_cm_iter_next(cm, &scp.sc_base);
 		if (rc == M0_FSO_AGAIN) {
-			if (verify_ns_iter)
-				nsit_verify(&scm->sc_it.si_pl.spl_gob_fid, cnt);
 			M0_UT_ASSERT(cp_verify(&scp));
 			buf_put(&scp);
-			cnt++;
 		}
 	} while (rc == M0_FSO_AGAIN);
 	m0_cm_unlock(cm);
+	m0_trigger_file_sizes_delete();
 
 	return rc;
 }
 
-static void iter_stop(uint64_t pool_width)
+static void iter_stop(uint64_t nr_files, uint64_t pool_width)
 {
-	cobs_delete(pool_width);
+	cobs_delete(nr_files, pool_width);
 	m0_cm_lock(cm);
 	m0_sns_cm_iter_fini(&scm->sc_it);
 	/* Destroy previously created aggregation groups manually. */
@@ -303,44 +295,80 @@ static void iter_stop(uint64_t pool_width)
 	sns_cm_ut_server_stop();
 }
 
-static void iter_repair_success(void)
+static void iter_repair_single_file(void)
 {
-	int      rc;
+	int       rc;
+	uint64_t  fsizes[] = {ITER_64K};
 
-	iter_setup(3, 1, 5);
-	rc = iter_run(5, 36864, 4, true, SNS_REPAIR);
+	iter_setup(3, 1, 5, 4096);
+	rc = iter_run(5, ARRAY_SIZE(fsizes), fsizes, 3, SNS_REPAIR);
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(5);
+	iter_stop(ARRAY_SIZE(fsizes), 5);
 }
 
-static void iter_rebalance_success(void)
+static void iter_repair_multi_file(void)
 {
-	int      rc;
+	int       rc;
+	uint64_t  fsizes[] = {ITER_64K, ITER_1M};
 
-	iter_setup(3, 1, 5);
-	rc = iter_run(5, 36864, 4, true, SNS_REBALANCE);
+	iter_setup(8, 1, 10, 4096);
+	rc = iter_run(10, ARRAY_SIZE(fsizes), fsizes, 4, SNS_REPAIR);
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(5);
+	iter_stop(ARRAY_SIZE(fsizes), 10);
 }
 
-static void iter_pool_width_more_than_N_plus_2K(void)
+static void iter_repair_large_file_with_large_unit_size(void)
 {
-	int rc;
+	int       rc;
+	uint64_t  fsizes[] = {ITER_1G};
 
-	iter_setup(2, 1, 10);
-	rc = iter_run(10, 36864, 4, false, SNS_REPAIR);
+	iter_setup(8, 1, 10, 262144);
+	rc = iter_run(10, ARRAY_SIZE(fsizes), fsizes, 4, SNS_REPAIR);
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(10);
+	iter_stop(ARRAY_SIZE(fsizes), 10);
+}
+
+static void iter_rebalance_single_file(void)
+{
+	int       rc;
+	uint64_t  fsizes[] = {ITER_64K};
+
+	iter_setup(3, 1, 5, 4096);
+	rc = iter_run(5, ARRAY_SIZE(fsizes), fsizes, 3, SNS_REBALANCE);
+	M0_UT_ASSERT(rc == -ENODATA);
+	iter_stop(ARRAY_SIZE(fsizes), 5);
+}
+
+static void iter_rebalance_multi_file(void)
+{
+	int       rc;
+	uint64_t  fsizes[] = {ITER_64K, ITER_1M};
+
+	iter_setup(8, 1, 10, 4096);
+	rc = iter_run(10, ARRAY_SIZE(fsizes), fsizes, 4, SNS_REBALANCE);
+	M0_UT_ASSERT(rc == -ENODATA);
+	iter_stop(ARRAY_SIZE(fsizes), 10);
+}
+static void iter_rebalance_large_file_with_large_unit_size(void)
+{
+	int       rc;
+	uint64_t  fsizes[] = {ITER_1G};
+
+	iter_setup(8, 1, 10, 262144);
+	rc = iter_run(10, ARRAY_SIZE(fsizes), fsizes, 4, SNS_REBALANCE);
+	M0_UT_ASSERT(rc == -ENODATA);
+	iter_stop(ARRAY_SIZE(fsizes), 10);
 }
 
 static void iter_invalid_nr_cobs(void)
 {
 	int rc;
+	uint64_t fsizes[] = {ITER_64K};
 
-	iter_setup(3, 1, 5);
-	rc = iter_run(3, 36864, 4, false, SNS_REPAIR);
+	iter_setup(3, 1, 5, 4096);
+	rc = iter_run(3, ARRAY_SIZE(fsizes), fsizes, 2, SNS_REPAIR);
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(3);
+	iter_stop(ARRAY_SIZE(fsizes), 3);
 }
 
 const struct m0_test_suite sns_cm_ut = {
@@ -351,10 +379,14 @@ const struct m0_test_suite sns_cm_ut = {
 		{ "service-startstop", service_start_success},
 		{ "service-init-fail", service_init_failure},
 		{ "service-start-fail", service_start_failure},
-		{ "iter-repair-success", iter_repair_success},
-		{ "iter-rebalance-success", iter_rebalance_success},
-		{ "iter-pool-width-more-than-N-plus-2K",
-		  iter_pool_width_more_than_N_plus_2K},
+		{ "iter-repair-single-file", iter_repair_single_file},
+		{ "iter-repair-multi-file", iter_repair_multi_file},
+		{ "iter-repair-large-file-with-large-unit-size",
+		  iter_repair_large_file_with_large_unit_size},
+		{ "iter-rebalance-single-file", iter_rebalance_single_file},
+		{ "iter-rebalance-multi-file", iter_rebalance_multi_file},
+		{ "iter-rebalance-large-file-with-large-unit-size",
+		  iter_rebalance_large_file_with_large_unit_size},
 		{ "iter-invalid-nr-cobs", iter_invalid_nr_cobs},
 		{ NULL, NULL }
 	}

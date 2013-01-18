@@ -32,7 +32,10 @@
 
 #include "mero/setup.h"
 #include "net/net.h"
+#include "ioservice/io_device.h"
+#include "pool/pool.h"
 #include "reqh/reqh.h"
+#include "rpc/rpc.h"
 #include "cm/ag.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
@@ -314,7 +317,7 @@
 */
 
 enum {
-	SNS_SEG_NR = 1,
+	SNS_SEG_NR = 10,
 	SNS_SEG_SIZE = 4096,
 	/*
 	 * Minimum number of buffers to provision m0_sns_cm::sc_ibp
@@ -352,8 +355,8 @@ M0_INTERNAL struct m0_net_buffer *m0_sns_cm_buffer_get(struct m0_net_buffer_pool
 	M0_ASSERT(m0_net_buffer_pool_invariant(bp));
 	buf = m0_net_buffer_pool_get(bp, colour);
 	if (buf != NULL) {
-		for (i = 0; i < SNS_SEG_NR; ++i)
-			memset(buf->nb_buffer.ov_buf[i], 0, SNS_SEG_SIZE);
+		for (i = 0; i < bp->nbp_seg_nr; ++i)
+			memset(buf->nb_buffer.ov_buf[i], 0, bp->nbp_seg_size);
 	}
 	m0_net_buffer_pool_unlock(bp);
 
@@ -396,6 +399,8 @@ static int cm_setup(struct m0_cm *cm)
 	struct m0_net_domain  *ndom;
 	struct m0_sns_cm      *scm;
 	uint64_t               colours;
+	m0_bcount_t            segment_size;
+	uint32_t               segments_nr;
 	int                    rc;
 
 	M0_ENTRY("cm: %p", cm);
@@ -416,13 +421,15 @@ static int cm_setup(struct m0_cm *cm)
 	 */
 	scm->sc_ibp.nbp_ops = &bp_ops;
 	scm->sc_obp.nbp_ops = &bp_ops;
+	segment_size = m0_rpc_max_seg_size(ndom);
+	segments_nr  = m0_rpc_max_segs_nr(ndom);
 	rc = m0_net_buffer_pool_init(&scm->sc_ibp, ndom,
-				     M0_NET_BUFFER_POOL_THRESHOLD, SNS_SEG_NR,
-				     SNS_SEG_SIZE, colours, M0_0VEC_SHIFT);
+				     M0_NET_BUFFER_POOL_THRESHOLD, segments_nr,
+				     segment_size, colours, M0_0VEC_SHIFT);
 	if (rc == 0) {
 		rc = m0_net_buffer_pool_init(&scm->sc_obp, ndom,
 					     M0_NET_BUFFER_POOL_THRESHOLD,
-					     SNS_SEG_NR, SNS_SEG_SIZE,
+					     segments_nr, segment_size,
 					     colours, M0_0VEC_SHIFT);
 		if (rc != 0)
 			m0_net_buffer_pool_fini(&scm->sc_ibp);
@@ -448,6 +455,21 @@ static size_t cm_buffer_pool_provision(struct m0_net_buffer_pool *bp,
 	return bnr;
 }
 
+static int pm_event_setup_and_post(struct m0_poolmach *pm,
+                                   enum m0_pool_event_owner_type et,
+                                   uint32_t oid,
+                                   enum m0_pool_nd_state state)
+{
+	struct m0_pool_event pme;
+
+	M0_SET0(&pme);
+	pme.pe_type  = et;
+	pme.pe_index = oid;
+	pme.pe_state = state;
+
+	return m0_poolmach_state_transit(pm, &pme);
+}
+
 static int cm_start(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm;
@@ -469,9 +491,19 @@ static int cm_start(struct m0_cm *cm)
 	 */
 	if (bufs_nr == 0)
 		return -ENOMEM;
+        rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
+                                     scm->sc_it.si_fdata,
+                                     M0_PNDS_FAILED);
+        if (rc != 0)
+                return rc;
+
 	rc = m0_sns_cm_iter_init(&scm->sc_it);
-	if (rc == 0)
+	if (rc == 0) {
 		m0_cm_sw_fill(cm);
+                rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
+                                             scm->sc_it.si_fdata,
+                                             M0_PNDS_SNS_REPAIRING);
+	}
 
 	M0_LEAVE();
 	return rc;
@@ -485,6 +517,8 @@ static int cm_stop(struct m0_cm *cm)
 
 	scm = cm2sns(cm);
 	m0_sns_cm_iter_fini(&scm->sc_it);
+        pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE, scm->sc_it.si_fdata,
+                                M0_PNDS_SNS_REPAIRED);
 
 	return 0;
 }

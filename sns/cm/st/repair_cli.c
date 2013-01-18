@@ -98,9 +98,10 @@ int main(int argc, char *argv[])
 {
 	struct m0_fop      *fop;
 	struct trigger_fop *treq;
-	uint32_t            op;
-	uint64_t            fdata;
 	int32_t             n = 0;
+	uint32_t            op;
+	uint32_t            unit_size;
+	uint64_t            fdata;
 	uint64_t            fsize[MAX_FILES_NR];
 	uint64_t            N = 0;
 	uint64_t            K = 0;
@@ -111,6 +112,7 @@ int main(int argc, char *argv[])
 
 	rc = M0_GETOPTS("repair", argc, argv,
 			M0_FORMATARG('O', "Operation, i.e. SNS_REPAIR = 2 or SNS_REBALANCE = 4", "%u", &op),
+			M0_FORMATARG('U', "Unit size", "%u", &unit_size),
 			M0_FORMATARG('F', "Failure device", "%lu", &fdata),
 			M0_FORMATARG('n', "Number of files", "%d", &n),
 			M0_NUMBERARG('s', "File size",
@@ -154,8 +156,8 @@ int main(int argc, char *argv[])
 	treq->N = N;
 	treq->K = K;
 	treq->P = P;
+	treq->unit_size = unit_size;
 	treq->op = op;
-	printf("op: %d\n", op);
 	rc = m0_rpc_client_call(fop, &cl_ctx.rcx_session,
 				&trigger_fop_rpc_item_ops,
 				0 /* deadline */,

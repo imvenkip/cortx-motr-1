@@ -43,6 +43,7 @@ struct trigger_fop {
 	uint64_t          P;
 	struct file_sizes fsize;
 	uint32_t          op;
+	uint32_t          unit_size;
 } M0_XCA_RECORD;
 
 struct trigger_rep_fop {

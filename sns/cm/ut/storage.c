@@ -56,7 +56,7 @@ static struct m0_stob_id sid = {
  */
 enum {
 	SEG_NR = 1,
-	SEG_SIZE = M0_CP_SIZE,
+	SEG_SIZE = 4096,
 };
 
 /* Over-ridden copy packet FOM fini. */

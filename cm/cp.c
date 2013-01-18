@@ -496,7 +496,7 @@ M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp)
 
 M0_INTERNAL m0_bcount_t m0_cm_cp_data_size(struct m0_cm_cp *cp)
 {
-	return M0_CP_SIZE;
+	return cp->c_seg_nr * cp->c_seg_size;
 }
 
 M0_INTERNAL void m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp)

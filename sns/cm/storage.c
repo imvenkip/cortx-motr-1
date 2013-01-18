@@ -26,6 +26,7 @@
 #include "lib/memory.h"
 #include "mero/setup.h"
 
+#include "sns/sns_addb.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/cp.h"
 
@@ -34,30 +35,23 @@
  * @{
  */
 
-enum {
-	CP_BUF_NR = 1
-};
-
 static int indexvec_prepare(struct m0_indexvec *iv, m0_bindex_t idx,
+			    uint32_t seg_nr, m0_bcount_t seg_size,
+			    struct m0_addb_ctx *ctx,
 			    uint32_t bshift)
 {
+	int rc;
+	int i;
+
 	M0_PRE(iv != NULL);
 
-	/* It is assumed that each copy packet will have single unit. */
-	iv->iv_vec.v_nr = CP_BUF_NR;
+	rc = m0_indexvec_alloc(iv, seg_nr, ctx, M0_ADDB_CTXID_SNS_REPAIR_SERV);
 
-	M0_ALLOC_ARR(iv->iv_vec.v_count, CP_BUF_NR);
-	if (iv->iv_vec.v_count == NULL)
-		return -ENOMEM;
-
-	M0_ALLOC_ARR(iv->iv_index, CP_BUF_NR);
-	if (iv->iv_index == NULL) {
-		m0_free(iv->iv_vec.v_count);
-		return -ENOMEM;
+	for (i = 0; i < seg_nr; ++i) {
+		iv->iv_vec.v_count[i] = seg_size >> bshift;
+		iv->iv_index[i] = idx >> bshift;
+		idx += seg_size;
 	}
-
-	iv->iv_index[0] = idx >> bshift;
-	iv->iv_vec.v_count[0] = M0_CP_SIZE >> bshift;
 
 	return 0;
 }
@@ -69,24 +63,29 @@ static void indexvec_free(struct m0_indexvec *iv)
 }
 
 static int bufvec_prepare(struct m0_bufvec *obuf, struct m0_bufvec *ibuf,
+			  uint32_t seg_nr, m0_bcount_t seg_size,
 			  uint32_t bshift)
 {
+	int i;
+
 	M0_PRE(obuf != NULL);
 	M0_PRE(ibuf != NULL);
 
-	obuf->ov_vec.v_nr = CP_BUF_NR;
-	M0_ALLOC_ARR(obuf->ov_vec.v_count, CP_BUF_NR);
+	obuf->ov_vec.v_nr = seg_nr;
+	M0_ALLOC_ARR(obuf->ov_vec.v_count, seg_nr);
 	if (obuf->ov_vec.v_count == NULL)
 		return -ENOMEM;
 
-	M0_ALLOC_ARR(obuf->ov_buf, CP_BUF_NR);
+	M0_ALLOC_ARR(obuf->ov_buf, seg_nr);
 	if (obuf->ov_buf == NULL) {
 		m0_free(obuf->ov_vec.v_count);
 		return -ENOMEM;
 	}
 
-	obuf->ov_vec.v_count[0] = M0_CP_SIZE >> bshift;
-	obuf->ov_buf[0] = m0_stob_addr_pack(ibuf->ov_buf[0], bshift);
+	for (i = 0; i < seg_nr; ++i) {
+		obuf->ov_vec.v_count[i] = seg_size >> bshift;
+		obuf->ov_buf[i] = m0_stob_addr_pack(ibuf->ov_buf[i], bshift);
+	}
 
 	return 0;
 }
@@ -106,9 +105,11 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	struct m0_stob          *stob;
 	struct m0_stob_id       *stobid;
 	struct m0_stob_io       *stio;
+	struct m0_addb_ctx      *addb_ctx;
 	uint32_t                 bshift;
 	int                      rc;
 
+	addb_ctx = &cp->c_ag->cag_cm->cm_service.rs_addb_ctx;
 	sns_cp = cp2snscp(cp);
 	cp_fom = &cp->c_fom;
 	reqh = m0_fom_reqh(cp_fom);
@@ -143,11 +144,13 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 
 	bshift = stob->so_op->sop_block_shift(stob);
 
-	rc = indexvec_prepare(&stio->si_stob, sns_cp->sc_index, bshift);
+	rc = indexvec_prepare(&stio->si_stob, sns_cp->sc_index,
+			      cp->c_seg_nr, cp->c_seg_size, addb_ctx, bshift);
 	if (rc != 0)
 		goto err_stio;
 
-	rc = bufvec_prepare(&stio->si_user, cp->c_data, bshift);
+	rc = bufvec_prepare(&stio->si_user, cp->c_data, cp->c_seg_nr,
+			    cp->c_seg_size, bshift);
 	if (rc != 0) {
 		indexvec_free(&stio->si_stob);
 		goto err_stio;

@@ -112,11 +112,44 @@ const struct m0_sm_conf trigger_conf = {
 	.scf_state     = trigger_phases
 };
 
+M0_INTERNAL uint64_t m0_trigger_file_size_get(struct m0_fid *gfid)
+{
+	/*
+	 * If trigger fom has not been initialised or if the incoming
+	 * gfid is M0_COB_ROOT_FID, then return the file size as 0,
+	 * so that iterator will simply iterate and come out by calculating
+	 * the number of groups as 0.
+	 */
+	if (&fs == NULL || fs.f_nr == 0 ||
+	    (gfid->f_container == 1 && gfid->f_key == 1))
+		return 0;
+	/* m0tifs currently starts its key for gfid from 4. */
+	return fs.f_size[gfid->f_key - 4];
+}
+
+M0_INTERNAL void m0_trigger_file_sizes_save(uint64_t nr_files, uint64_t *fsizes)
+{
+	int i;
+	M0_PRE(fsizes != NULL);
+
+	fs.f_nr = nr_files;
+	M0_ALLOC_ARR(fs.f_size, fs.f_nr);
+	M0_ASSERT(fs.f_size != NULL);
+
+	for(i = 0; i < fs.f_nr; ++i)
+		fs.f_size[i] = fsizes[i];
+}
+
+M0_INTERNAL void m0_trigger_file_sizes_delete(void)
+{
+	m0_free(fs.f_size);
+}
+
 int m0_sns_repair_trigger_fop_init(void)
 {
 	struct m0_reqh_service_type *stype;
 
-	stype = m0_reqh_service_type_find("sns_repair");
+	stype = m0_reqh_service_type_find("sns_cm");
 	m0_xc_trigger_fop_init();
 	m0_sm_conf_extend(m0_generic_conf.scf_state, trigger_phases,
 			  m0_generic_conf.scf_nr_states);
@@ -163,6 +196,7 @@ static void trigger_fom_fini(struct m0_fom *fom)
 
 	m0_fom_fini(fom);
 	m0_free(fom);
+	m0_trigger_file_sizes_delete();
 }
 
 static size_t trigger_fom_home_locality(const struct m0_fom *fom)
@@ -170,34 +204,6 @@ static size_t trigger_fom_home_locality(const struct m0_fom *fom)
 	M0_PRE(fom != NULL);
 
 	return m0_fop_opcode(fom->fo_fop);
-}
-
-M0_INTERNAL uint64_t m0_trigger_file_size_get(struct m0_fid *gfid)
-{
-	/*
-	 * If trigger fom has not been initialised or if the incoming
-	 * gfid is M0_COB_ROOT_FID, then return the file size as 0,
-	 * so that iterator will simply iterate and come out by calculating
-	 * the number of groups as 0.
-	 */
-	if (&fs == NULL || fs.f_nr == 0 ||
-	    (gfid->f_container == 1 && gfid->f_key == 1))
-		return 0;
-	/* m0tifs currently starts its key for gfid from 4. */
-	return fs.f_size[gfid->f_key - 4];
-}
-
-static void file_sizes_save(struct trigger_fop *treq)
-{
-	int i;
-	M0_PRE(treq != NULL);
-
-	fs.f_nr = treq->fsize.f_nr;
-	M0_ALLOC_ARR(fs.f_size, fs.f_nr);
-	M0_ASSERT(fs.f_size != NULL);
-
-	for(i = 0; i < fs.f_nr; ++i)
-		fs.f_size[i] = treq->fsize.f_size[i];
 }
 
 static int trigger_fom_tick(struct m0_fom *fom)
@@ -225,12 +231,13 @@ static int trigger_fom_tick(struct m0_fom *fom)
 			case TPH_START:
 				treq = m0_fop_data(fom->fo_fop);
 				scm->sc_it.si_fdata = treq->fdata;
-				file_sizes_save(treq);
+				m0_trigger_file_sizes_save(treq->fsize.f_nr,
+							   treq->fsize.f_size);
 				scm->sc_it.si_pl.spl_N = treq->N;
 				scm->sc_it.si_pl.spl_K = treq->K;
 				scm->sc_it.si_pl.spl_P = treq->P;
+				scm->sc_it.si_pl.spl_unit_size = treq->unit_size;
 				scm->sc_op             = treq->op;
-				printf("sc_op: %u", treq->op);
 				rc = m0_cm_start(cm);
 				M0_ASSERT(rc == 0);
 				m0_fom_wait_on(fom, &scm->sc_stop_wait, &fom->fo_cb);

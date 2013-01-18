@@ -31,7 +31,7 @@ enum {
 	CP_SINGLE = 1,
 	CP_MULTI = 512,
 	SEG_NR = 16,
-	SEG_SIZE = 256,
+	SEG_SIZE = 4096,
 };
 
 static struct m0_reqh      *reqh;

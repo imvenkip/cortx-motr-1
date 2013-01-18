@@ -144,6 +144,10 @@ struct m0_cm_cp {
 	/** Buffer representing the copy packet data.*/
 	struct m0_bufvec          *c_data;
 
+	uint32_t                   c_seg_nr;
+
+	m0_bcount_t                c_seg_size;
+
 	/** Set and used in case of network send/recv.*/
 	struct m0_rpc_bulk	   c_bulk;
 

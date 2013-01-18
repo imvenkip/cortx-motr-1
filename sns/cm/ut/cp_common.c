@@ -107,6 +107,8 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
 	cp->c_ag->cag_cm = cm;
 	m0_cm_cp_init(cp);
 	cp->c_data = bv;
+	cp->c_seg_nr = bv_seg_nr;
+	cp->c_seg_size = bv_seg_size;
 	cp->c_fom.fo_ops = cp_fom_ops;
 	cp->c_ops = &m0_sns_cm_cp_ops;
 }

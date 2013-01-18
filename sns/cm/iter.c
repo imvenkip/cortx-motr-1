@@ -240,8 +240,8 @@ static ssize_t file_size(struct m0_sns_cm_iter *it)
 {
 	M0_PRE(it != NULL);
 
-	if (it->si_pl.spl_fsize == 0)
-		it->si_pl.spl_fsize = m0_trigger_file_size_get(&it->si_pl.spl_gob_fid);
+	it->si_pl.spl_fsize = m0_trigger_file_size_get(&it->si_pl.spl_gob_fid);
+
 	return 0;
 }
 
@@ -279,7 +279,7 @@ static int cob_locate(const struct m0_sns_cm_iter *it,
 	if (rc != 0)
 		return rc;
 	m0_cob_oikey_make(&oikey, cob_fid, 0);
-	rc = m0_cob_locate(cdom, &oikey, 0, &cob, &tx);
+	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob, &tx);
 	if (rc == 0) {
 		M0_ASSERT(m0_fid_eq(cob_fid, cob->co_fid));
 		m0_db_tx_commit(&tx);
@@ -610,14 +610,14 @@ static void agid_setup(const struct m0_fid *gob_fid, uint64_t group,
 	agid->ai_lo.u_lo = group;
 }
 
-static void __cp_setup(struct m0_sns_cm_cp *rcp,
+static void __cp_setup(struct m0_sns_cm_cp *scp,
 		       const struct m0_fid *cob_fid, uint64_t stob_offset,
 		       struct m0_cm_aggr_group *ag)
 {
-	rcp->sc_sid.si_bits.u_hi = cob_fid->f_container;
-	rcp->sc_sid.si_bits.u_lo = cob_fid->f_key;
-	rcp->sc_index = stob_offset;
-	rcp->sc_base.c_ag = ag;
+	scp->sc_sid.si_bits.u_hi = cob_fid->f_container;
+	scp->sc_sid.si_bits.u_lo = cob_fid->f_key;
+	scp->sc_index = stob_offset;
+	scp->sc_base.c_ag = ag;
 }
 
 /**
@@ -629,9 +629,10 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm_ag             *rag;
 	struct m0_sns_cm                *scm = it2sns(it);
 	struct m0_sns_cm_pdclust_layout *spl;
-	struct m0_sns_cm_cp             *rcp;
+	struct m0_sns_cm_cp             *scp;
 	uint64_t                         stob_offset;
 	enum m0_sns_cm_op                op = scm->sc_op;
+	uint32_t                         seg_nr;
 	int                              rc = 0;
 
 	spl = &it->si_pl;
@@ -644,9 +645,12 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	    (spl->spl_cob_is_spare_unit && op == SNS_REBALANCE)) {
 		stob_offset = spl->spl_ta.ta_frame *
 			      m0_pdclust_unit_size(spl->spl_base);
-		rcp = it->si_cp;
-		__cp_setup(rcp, &spl->spl_cob_fid, stob_offset, &rag->sag_base);
-		rc = cm_buf_attach(scm, &rcp->sc_base);
+		seg_nr = m0_pdclust_unit_size(spl->spl_base)/scm->sc_obp.nbp_seg_size;
+		scp = it->si_cp;
+		__cp_setup(scp, &spl->spl_cob_fid, stob_offset, &rag->sag_base);
+		rc = cm_buf_attach(scm, &scp->sc_base);
+		scp->sc_base.c_seg_nr = seg_nr;
+		scp->sc_base.c_seg_size = scm->sc_obp.nbp_seg_size;
 		if (rc < 0)
 			return rc;
 		rc = M0_FSO_AGAIN;
@@ -843,7 +847,9 @@ static int layout_setup(struct m0_sns_cm_iter *it)
 		plattr.pa_N         = spl->spl_N;
 		plattr.pa_K         = spl->spl_K;
 		plattr.pa_P         = spl->spl_P;
-		plattr.pa_unit_size = m0_pagesize_get();
+		if (spl->spl_unit_size == 0)
+			spl->spl_unit_size = m0_pagesize_get();
+		plattr.pa_unit_size = spl->spl_unit_size;
 		m0_uint128_init(&plattr.pa_seed, "upjumpandpumpim,");
 		rc = m0_pdclust_build(&it->si_lay_dom, lid, &plattr,
 				      &spl->spl_le->lle_base, &spl->spl_base);

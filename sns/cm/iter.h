@@ -68,6 +68,8 @@ struct m0_sns_cm_pdclust_layout {
 	/** Total pool width. */
 	uint32_t                      spl_P;
 
+	uint32_t                      spl_unit_size;
+
 	/** Total number of data and parity units in a parity group. */
 	uint32_t                      spl_dpupg;
 

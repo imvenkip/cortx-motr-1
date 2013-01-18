@@ -24,7 +24,8 @@
 #define __MERO_SNS_CM_ST_TRIGGER_FOM_H__
 
 M0_INTERNAL uint64_t m0_trigger_file_size_get(struct m0_fid *gfid);
-
+M0_INTERNAL void m0_trigger_file_sizes_save(uint64_t nr_files, uint64_t *fsizes);
+M0_INTERNAL void m0_trigger_file_sizes_delete(void);
 #endif
 /*
  *  Local variables:
