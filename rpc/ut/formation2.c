@@ -259,6 +259,7 @@ static void check_ready_packet_has_item(struct m0_rpc_item *item)
 
 static void frm_test1(void)
 {
+	struct m0_rpc_item *item;
 	/*
 	 * Timedout item triggers immediate formation.
 	 * Waiting item do not trigger immediate formation, but they are
@@ -266,8 +267,6 @@ static void frm_test1(void)
 	 */
 	void perform_test(int deadline, int kind)
 	{
-		struct m0_rpc_item *item;
-
 		set_timeout(100);
 		item = new_item(deadline, kind);
 		flags_reset();
@@ -297,6 +296,18 @@ static void frm_test1(void)
 	perform_test(WAITING,  BOUND);
 	perform_test(WAITING,  UNBOUND);
 	perform_test(WAITING,  ONEWAY);
+
+	/* Test: item is moved to URGENT state when call to m0_sm_timeout_arm()
+	   fails to start item->ri_deadline_timeout in frm_insert().
+	 */
+	set_timeout(100);
+	item = new_item(WAITING, UNBOUND);
+	flags_reset();
+	m0_fi_enable_once("m0_sm_timeout_arm", "failed");
+	m0_rpc_frm_enq_item(frm, item);
+	M0_UT_ASSERT(packet_ready_called && item_bind_called);
+	check_ready_packet_has_item(item);
+	m0_free(item);
 
 	M0_LEAVE();
 }

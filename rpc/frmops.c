@@ -459,6 +459,8 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 
 static void item_sent(struct m0_rpc_item *item)
 {
+	int rc;
+
 	M0_ENTRY("item: %p", item);
 
 	M0_PRE(item->ri_error == 0 &&
@@ -485,8 +487,10 @@ static void item_sent(struct m0_rpc_item *item)
 			   were waiting for buffer callback */
 			m0_rpc_slot_process_reply(item);
 			M0_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_REPLIED);
-		} else if (item->ri_resend_is_allowed) {
-			(void)m0_rpc_item_start_resend_timer(item);
+		} else if (item->ri_flags & M0_RPC_ITEM_RESEND_IS_ALLOWED) {
+			rc = m0_rpc_item_start_resend_timer(item);
+			if (rc != 0)
+				m0_rpc_item_failed(item, rc);
 		}
 	}
 	M0_LEAVE();

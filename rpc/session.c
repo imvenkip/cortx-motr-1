@@ -1090,6 +1090,13 @@ static void rcv_reply_consume(struct m0_rpc_item *req,
 	case M0_RPC_ITEM_ENQUEUED:
 	case M0_RPC_ITEM_URGENT:
 	case M0_RPC_ITEM_SENDING:
+		/*
+		  This situation can arise when reply item is posted but
+		  not yet sent (i.e. reply is in formation queue or is
+		  currently being sent) and duplicate req item is received.
+		  In this case there is no need to again queue the reply
+		  for sending.
+		 */
 		/* Do nothing */
 		break;
 	default:

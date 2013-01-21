@@ -164,6 +164,10 @@ enum m0_rpc_item_dir {
 	M0_RPC_ITEM_OUTGOING,
 };
 
+enum m0_rpc_item_flags {
+	M0_RPC_ITEM_RESEND_IS_ALLOWED = (1 << 0),
+};
+
 /**
    A single RPC item, such as a FOP or ADDB Record.  This structure should be
    included in every item being sent via RPC layer core to emulate relationship
@@ -179,13 +183,15 @@ struct m0_rpc_item {
 	    the item.
 	 */
 	m0_time_t			 ri_deadline;
+	/** See m0_rpc_item_flags */
+	uint64_t			 ri_flags;
 	/** Absolute time after which the RPC call is considered as failed */
 	m0_time_t                        ri_op_timeout;
 	struct m0_rpc_session		*ri_session;
 	/** item operations */
 	const struct m0_rpc_item_ops	*ri_ops;
-	bool                             ri_resend_is_allowed;
 	m0_time_t                        ri_resend_interval;
+
 /* Public fields: read only */
 
 	struct m0_rpc_machine           *ri_rmachine;
@@ -194,16 +200,15 @@ struct m0_rpc_item {
 	struct m0_rpc_item		*ri_reply;
 
 /* Private fields: */
-	/** If ri_deadline is not in past the ri_deadline_to is used to
+	/** If ri_deadline is not in past the ri_deadline_timeout is used to
 	    move item from ENQUEUD to URGENT state.
 	 */
-	struct m0_sm_timeout             ri_deadline_to;
+	struct m0_sm_timeout             ri_deadline_timeout;
 	/** Invokes item_timedout_cb() after ri_op_timeout is passed */
 	struct m0_sm_timer               ri_timer;
 	struct m0_sm_timer               ri_resend_timer;
 	struct m0_sm                     ri_sm;
 	enum m0_rpc_item_stage		 ri_stage;
-	uint64_t			 ri_flags;
 	uint32_t                         ri_nr_resend_attempts;
 	struct m0_rpc_slot_ref		 ri_slot_refs[MAX_SLOT_REF];
 	/** Anchor to put item on m0_rpc_session::s_unbound_items list */
@@ -269,26 +274,26 @@ struct m0_rpc_item_ops {
 			    struct m0_rpc_item *item);
 };
 
-M0_INTERNAL void m0_rpc_item_init(struct m0_rpc_item *item,
-				  const struct m0_rpc_item_type *itype);
+void m0_rpc_item_init(struct m0_rpc_item *item,
+		      const struct m0_rpc_item_type *itype);
 
-M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item);
+void m0_rpc_item_fini(struct m0_rpc_item *item);
 
 /** Increments item's reference counter. */
-M0_INTERNAL void m0_rpc_item_get(struct m0_rpc_item *item);
+void m0_rpc_item_get(struct m0_rpc_item *item);
 
 /** Decrements item's reference counter. */
-M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item);
+void m0_rpc_item_put(struct m0_rpc_item *item);
 
-M0_INTERNAL m0_bcount_t m0_rpc_item_onwire_header_size(void);
+m0_bcount_t m0_rpc_item_onwire_header_size(void);
 
-M0_INTERNAL m0_bcount_t m0_rpc_item_size(struct m0_rpc_item *item);
+m0_bcount_t m0_rpc_item_size(struct m0_rpc_item *item);
 
-M0_INTERNAL int m0_rpc_item_timedwait(struct m0_rpc_item *item,
-				      uint64_t states, m0_time_t timeout);
+int m0_rpc_item_timedwait(struct m0_rpc_item *item,
+			  uint64_t states, m0_time_t timeout);
 
-M0_INTERNAL int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item,
-					   m0_time_t timeout);
+int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item,
+			       m0_time_t timeout);
 
 struct m0_rpc_item_type_ops {
 	/**

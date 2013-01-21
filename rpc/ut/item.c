@@ -202,7 +202,7 @@ static void __test_timeout(m0_time_t deadline,
 
 	fop = fop_alloc();
 	item = &fop->f_item;
-	item->ri_resend_is_allowed = false;
+	item->ri_flags &= ~M0_RPC_ITEM_RESEND_IS_ALLOWED;
 	m0_rpc_machine_get_stats(machine, &saved, false);
 	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
 				deadline, timeout);
@@ -290,6 +290,29 @@ static void test_resend(void)
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
 	M0_LOG(M0_FATAL, "TEST4:END");
 	m0_fop_put(fop);
+	m0_fi_enable("item_received", "drop_item");
+	/* TEMPORARY: sleep until reply is received and dropped */
+	m0_nanosleep(m0_time(0, 5 * 1000 * 1000), NULL);
+	m0_fi_disable("item_received", "drop_item");
+
+	/* Test: Move item from WAITING_FOR_REOLY to FAILED state if
+		 item_sent() fails to start resend timer.
+	 */
+	M0_LOG(M0_FATAL, "TEST5:START");
+	m0_fi_enable_once("m0_rpc_item_start_resend_timer", "failed");
+	m0_fi_enable("item_received", "drop_item");
+	fop = fop_alloc();
+	item = &fop->f_item;
+	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
+				0 /* urgent */, m0_time_from_now(2, 0));
+	M0_UT_ASSERT(rc == -EINVAL);
+	M0_UT_ASSERT(item->ri_error == -EINVAL);
+	M0_UT_ASSERT(item->ri_reply == NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
+	/* sleep until request reaches at server and is dropped */
+	m0_nanosleep(m0_time(0, 5 * 1000 * 1000), NULL);
+	m0_fi_disable("item_received", "drop_item");
+	M0_LOG(M0_FATAL, "TEST5:END");
 }
 
 static void __test_resend(struct m0_fop *fop)
@@ -347,13 +370,13 @@ static void test_failure_before_sending(void)
 	 */
 	M0_LOG(M0_DEBUG, "TEST:4:START");
 	m0_fi_enable("outgoing_buf_event_handler", "fake_err");
-	m0_fi_disable("item_received", "drop_item");
+	m0_fi_enable("item_received", "drop_item");
 	rc = __test();
 	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(item->ri_error == -EINVAL);
 	m0_rpc_machine_get_stats(machine, &stats, false);
-	M0_UT_ASSERT(IS_INCR_BY_1(nr_dropped_items));
 	m0_fi_disable("outgoing_buf_event_handler", "fake_err");
+	m0_fi_disable("item_received", "drop_item");
 	M0_LOG(M0_DEBUG, "TEST:4:END");
 }
 

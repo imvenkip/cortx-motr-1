@@ -351,8 +351,8 @@ M0_INTERNAL const char *item_kind(const struct m0_rpc_item *item)
 		m0_rpc_item_is_oneway(item)  ? "ONEWAY"  : "INVALID_KIND";
 }
 
-M0_INTERNAL void m0_rpc_item_init(struct m0_rpc_item *item,
-				  const struct m0_rpc_item_type *itype)
+void m0_rpc_item_init(struct m0_rpc_item *item,
+		      const struct m0_rpc_item_type *itype)
 {
 	struct m0_rpc_slot_ref	*sref;
 
@@ -365,7 +365,7 @@ M0_INTERNAL void m0_rpc_item_init(struct m0_rpc_item *item,
 	item->ri_op_timeout = M0_TIME_NEVER;
 	item->ri_magic      = M0_RPC_ITEM_MAGIC;
 
-	item->ri_resend_is_allowed = true;
+	item->ri_flags |= M0_RPC_ITEM_RESEND_IS_ALLOWED;
 	item->ri_resend_interval = m0_time(0, 500 * 1000 * 1000);
 	m0_sm_timer_init(&item->ri_resend_timer);
 
@@ -375,16 +375,17 @@ M0_INTERNAL void m0_rpc_item_init(struct m0_rpc_item *item,
 	slot_item_tlink_init(item);
         m0_list_link_init(&item->ri_unbound_link);
 	packet_item_tlink_init(item);
+	itemq_tlink_init(item);
         rpcitem_tlink_init(item);
 	rpcitem_tlist_init(&item->ri_compound_items);
-	m0_sm_timeout_init(&item->ri_deadline_to);
+	m0_sm_timeout_init(&item->ri_deadline_timeout);
 	m0_sm_timer_init(&item->ri_timer);
 	/* item->ri_sm will be initialised when the item is posted */
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_rpc_item_init);
 
-M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item)
+void m0_rpc_item_fini(struct m0_rpc_item *item)
 {
 	struct m0_rpc_slot_ref *sref = &item->ri_slot_refs[0];
 
@@ -392,7 +393,7 @@ M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item)
 
 	m0_sm_timer_fini(&item->ri_resend_timer);
 	m0_sm_timer_fini(&item->ri_timer);
-	m0_sm_timeout_fini(&item->ri_deadline_to);
+	m0_sm_timeout_fini(&item->ri_deadline_timeout);
 
 	if (item->ri_sm.sm_state > M0_RPC_ITEM_UNINITIALISED)
 		m0_rpc_item_sm_fini(item);
@@ -400,6 +401,7 @@ M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item)
 	sref->sr_ow = invalid_slot_ref;
 	slot_item_tlink_fini(item);
         m0_list_link_fini(&item->ri_unbound_link);
+	itemq_tlink_fini(item);
 	packet_item_tlink_fini(item);
 	rpcitem_tlink_fini(item);
 	rpcitem_tlist_fini(&item->ri_compound_items);
@@ -407,7 +409,7 @@ M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item)
 }
 M0_EXPORTED(m0_rpc_item_fini);
 
-M0_INTERNAL void m0_rpc_item_get(struct m0_rpc_item *item)
+void m0_rpc_item_get(struct m0_rpc_item *item)
 {
 	M0_PRE(item != NULL && item->ri_type != NULL &&
 	       item->ri_type->rit_ops != NULL &&
@@ -416,7 +418,7 @@ M0_INTERNAL void m0_rpc_item_get(struct m0_rpc_item *item)
 	item->ri_type->rit_ops->rito_item_get(item);
 }
 
-M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item)
+void m0_rpc_item_put(struct m0_rpc_item *item)
 {
 	M0_PRE(item != NULL && item->ri_type != NULL &&
 	       item->ri_type->rit_ops != NULL &&
@@ -428,7 +430,7 @@ M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item)
 #define ITEM_XCODE_OBJ(ptr)     M0_XCODE_OBJ(m0_rpc_onwire_slot_ref_xc, ptr)
 #define SLOT_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_onwire_header_xc, ptr)
 
-M0_INTERNAL m0_bcount_t m0_rpc_item_onwire_header_size(void)
+m0_bcount_t m0_rpc_item_onwire_header_size(void)
 {
 	static m0_bcount_t size = 0;
 
@@ -446,7 +448,7 @@ M0_INTERNAL m0_bcount_t m0_rpc_item_onwire_header_size(void)
 	return size;
 }
 
-M0_INTERNAL m0_bcount_t m0_rpc_item_size(struct m0_rpc_item *item)
+m0_bcount_t m0_rpc_item_size(struct m0_rpc_item *item)
 {
 	M0_PRE(item->ri_type != NULL &&
 	       item->ri_type->rit_ops != NULL &&
@@ -585,8 +587,8 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_rpc_item_timedwait(struct m0_rpc_item *item,
-				      uint64_t states, m0_time_t timeout)
+int m0_rpc_item_timedwait(struct m0_rpc_item *item,
+			  uint64_t states, m0_time_t timeout)
 {
         int rc;
 
@@ -597,8 +599,7 @@ M0_INTERNAL int m0_rpc_item_timedwait(struct m0_rpc_item *item,
         return rc;
 }
 
-M0_INTERNAL int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item,
-					   m0_time_t timeout)
+int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item, m0_time_t timeout)
 {
 	int rc;
 
@@ -707,6 +708,7 @@ M0_INTERNAL int m0_rpc_item_start_resend_timer(struct m0_rpc_item *item)
 
 	M0_ENTRY();
 	M0_PRE(item != NULL && m0_rpc_item_is_request(item));
+	if (M0_FI_ENABLED("failed")) return -EINVAL;
 	rc = m0_sm_timer_start(&item->ri_resend_timer,
 				&item->ri_rmachine->rm_sm_grp,
 				item_resend_timer_cb,

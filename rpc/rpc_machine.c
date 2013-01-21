@@ -261,6 +261,7 @@ void m0_rpc_machine_fini(struct m0_rpc_machine *machine)
 
 	M0_LOG(M0_INFO, "Waiting for RPC worker to join");
 	m0_thread_join(&machine->rm_worker);
+	m0_thread_fini(&machine->rm_worker);
 
 	m0_rpc_machine_lock(machine);
 	M0_PRE(rpc_conn_tlist_is_empty(&machine->rm_outgoing_conns));
