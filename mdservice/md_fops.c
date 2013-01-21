@@ -270,7 +270,7 @@ struct m0_fop_type m0_fop_readdir_rep_fopt;
 M0_INTERNAL int m0_mdservice_fop_init(void)
 {
         /*
-         * Provided by ff2c compiler after parsing md_fops.ff
+         * Provided by gccxml2xcode after parsing md_fops.h
          */
         m0_xc_md_fops_init();
 

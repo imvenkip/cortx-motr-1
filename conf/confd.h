@@ -69,7 +69,7 @@
  * value to be retrieved from the configuration db. Confcs and confds
  * use RPC layer as a transport to send FOPs.
  *
- * The following FOPs are defined for confd (see conf/onwire.ff):
+ * The following FOPs are defined for confd (see conf/onwire.h):
  * - m0_conf_fetch --- configuration request;
  * - m0_conf_fetch_resp --- Confd's response to m0_conf_fetch;
  * - m0_conf_update --- Update request;

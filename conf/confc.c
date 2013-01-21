@@ -209,7 +209,7 @@
  *
  * cache_grow() locks the cache (m0_confc::cc_lock) and unlocks before
  * returning.  The function performs the following operations for
- * every object descriptor (confx_object, defined in conf/onwire.ff):
+ * every object descriptor (confx_object, defined in conf/onwire.h):
  *   -#
  *      Tries to find an object with the same identity (type and id)
  *      in the registry of cached objects (m0_confc::cc_registry),

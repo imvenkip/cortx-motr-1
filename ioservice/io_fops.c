@@ -131,7 +131,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_ios_addb_ctx, &m0_addb_ct_ios_mod,
 			 &m0_addb_proc_ctx);
 	/*
-	 * Provided by ff2c compiler after parsing io_fops_xc.ff
+	 * Provided by gccxml2xcode after parsing io_fops.h
 	 */
 	m0_xc_io_fops_init();
 

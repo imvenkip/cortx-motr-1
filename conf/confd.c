@@ -132,11 +132,9 @@
  * }
  * @endcode
  *
- * FOP format, FOP operation vector, FOP type, and RPC item type have
- * to be defined for each FOP.  The following structures are defined
- * for m0_conf_fetch FOP:
- * - struct m0_fop_type_format m0_conf_fetch_tfmt --- defines format
- *   registered in *.ff used in confd;
+ * FOP operation vector, FOP type, and RPC item type have to be defined
+ * for each FOP. The following structures are defined for m0_conf_fetch FOP:
+ *
  * - struct m0_fop_type m0_conf_fetch_fopt --- defines FOP type;
  * - struct m0_fop_type_ops m0_conf_fetch_ops --- defines FOP
  *   operation vector;

@@ -130,7 +130,7 @@ static void fop_free(struct m0_fop *fop)
 
 /*
   Manually calculate the size of the fop based on the .ff file.
-  For the current "test_fop" defined in xcode/ut/test.ff, we have -
+  For the current "test_fop" defined in xcode/ut/xcode_fops.ff, we have -
 
   struct m0_test_buf {
         uint32_t tb_cnt(33);              4
