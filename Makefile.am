@@ -597,7 +597,8 @@ BUILT_SOURCES = pre-all
 
 # this is executed just before 'all' target
 .PHONY: pre-all
-pre-all: check-sources-prebuild generate-files
+pre-all: check-sources-prebuild
+	$(MAKE) generate-files
 
 .PHONY: check-sources-prebuild
 check-sources-prebuild:
