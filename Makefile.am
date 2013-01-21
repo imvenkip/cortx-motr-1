@@ -571,7 +571,7 @@ ff2c_verbose_0 = @echo "  FF2C  " $<;
 # configure (controlled by --enable-silent-rules option)
 gccxml_verbose   = $(gccxml_verbose_$(V))
 gccxml_verbose_  = $(gccxml_verbose_$(AM_DEFAULT_VERBOSITY))
-gccxml_verbose_0 = @echo " GCCXML " $@;
+gccxml_verbose_0 = @echo " GCCXML    " $@;
 
 gccxml2xcode_verbose   = $(gccxml2xcode_verbose_$(V))
 gccxml2xcode_verbose_  = $(gccxml2xcode_verbose_$(AM_DEFAULT_VERBOSITY))
