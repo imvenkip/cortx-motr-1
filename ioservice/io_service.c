@@ -553,10 +553,14 @@ static void ios_stats_post_addb(struct m0_reqh_service *service)
 	M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
 
 	for (i = 0; i < ARRAY_SIZE(serv_obj->rios_rwfom_stats); ++i) {
+		struct m0_ios_rwfom_stats *stats;
+
+		stats = &serv_obj->rios_rwfom_stats[i];
 #undef CNTR_POST
 #define CNTR_POST(n)							\
-		M0_ADDB_POST_CNTR(&reqh->rh_addb_mc, cv, &serv_obj->	\
-				  rios_rwfom_stats[i].ifs_##n##_cntr)
+		if (m0_addb_counter_nr(&stats->ifs_##n##_cntr) > 0)	\
+			M0_ADDB_POST_CNTR(&reqh->rh_addb_mc, cv,	\
+					  &stats->ifs_##n##_cntr)
 		CNTR_POST(sizes);
 		CNTR_POST(times);
 #undef CNTR_POST
