@@ -3,6 +3,8 @@ ut_libmero_ut_la_SOURCES += fop/ut/iterator_test.c \
                             fop/ut/iterator_test_xc.c \
                             fop/ut/long_lock/long_lock_ut.c
 
+fop/ut/iterator_test.h: fid/fid_xc.h
+
 XC_FILES += fop/ut/iterator_test_xc.h
 
 EXTRA_DIST += fop/ut/long_lock/rdwr_test_bench.c \
