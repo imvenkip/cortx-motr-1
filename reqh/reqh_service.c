@@ -147,8 +147,8 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 	return rc;
 }
 
-M0_INTERNAL void m0_reqh_service_prepare_to_stop(struct m0_reqh_service
-						 *service)
+M0_INTERNAL void
+m0_reqh_service_prepare_to_stop(struct m0_reqh_service *service)
 {
 	M0_PRE(m0_reqh_service_invariant(service));
 	M0_PRE(service->rs_state == M0_RST_STARTED);

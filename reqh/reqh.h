@@ -37,14 +37,14 @@
    Request handler provides non-blocking infrastructure for fop execution.
    There typically is a single request handler instance per address space, once
    the request handler is initialised and ready to serve requests, it accepts
-   a fop (file operation packet), iterpretes it by interacting with other sub
+   a fop (file operation packet), interprets it by interacting with other sub
    systems and executes the desired file system operation.
 
    For every incoming fop, request handler creates a corresponding fom
    (file operation state machine), fop is executed in this fom context.
    For every fom, request handler performs some standard operations such as
    authentication, locating resources for its execution, authorisation of file
-   operation by the user, &tc. Once all the standard phases are completed, the
+   operation by the user, &c. Once all the standard phases are completed, the
    fop specific operation is executed.
 
    @see <a href="https://docs.google.com/a/xyratex.com
@@ -197,7 +197,7 @@ M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh);
 
 /**
    Submit fop for request handler processing.
-   Request handler intialises fom corresponding to this fop, finds appropriate
+   Request handler initialises fom corresponding to this fop, finds appropriate
    locality to execute this fom, and enqueues the fom into its runq.
    Fop processing results are reported by other means (ADDB, reply fops, error
    messages, etc.) so this function returns nothing.
@@ -245,7 +245,7 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh);
 M0_INTERNAL void m0_reqh_services_terminate(struct m0_reqh *reqh);
 
 /**
-    Initializes global reqh objects like reqh fops and addb context,
+    Initialises global reqh objects like reqh fops and addb context,
     invoked from m0_init().
  */
 M0_INTERNAL int m0_reqhs_init(void);

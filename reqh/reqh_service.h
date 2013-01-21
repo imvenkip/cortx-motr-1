@@ -43,7 +43,7 @@
    list of the service types maintained by the request handler module.
    The request handler creates and initialises a service by invoking the
    constructor method of its service type, and obtains struct m0_reqh_service
-   instance.The constructor should perform only internal house keeping tasks.
+   instance. The constructor should perform only internal house keeping tasks.
    Next, the service start method is invoked, it should properly initialise the
    internal state of the service, e.g. service fops. &tc.
 
@@ -92,7 +92,7 @@
    - define service type using M0_REQH_SERVICE_TYPE_DEFINE macro,
    @code
    M0_REQH_SERVICE_TYPE_DEFINE(m0_ios_type, &ios_type_ops, "ioservice",
-                                &m0_addb_ct_ios_serv);
+                               &m0_addb_ct_ios_serv);
    @endcode
 
    - now, the above service type can be registered as below,
@@ -257,7 +257,7 @@ struct m0_reqh_service_ops {
 	   Once started, incoming requests related to this service are ready
 	   to be processed by the corresponding request handler.
 	   Service startup can involve operations like initialising service
-	   specific fops, &tc which may fail due to whichever reason, in that
+	   specific fops, &c which may fail due to whichever reason, in that
 	   case the service is finalised and appropriate error is returned.
            This is invoked from m0_reqh_service_start(). Once the service
            specific startup operations are performed, the service is registered
@@ -285,7 +285,7 @@ struct m0_reqh_service_ops {
 	   Once stopped, no incoming request related to this service
 	   on a node will be processed further.
 	   Stopping a service can involve operations like finalising service
-           specific fops, &tc. This is invoked from m0_reqh_service_stop().
+           specific fops, &c. This is invoked from m0_reqh_service_stop().
            Once the service specific objects are finalised, the service is
            unregistered from request handler.
 
@@ -297,7 +297,7 @@ struct m0_reqh_service_ops {
 
 	/**
 	   Destroys a particular service.
-           This is invoked from m0_reqh_service_fini(). Initialy generic part
+           This is invoked from m0_reqh_service_fini(). Initially generic part
            of the service is finalised, followed by the service specific
            finalisation.
 
@@ -418,7 +418,7 @@ M0_INTERNAL struct m0_reqh_service_type *m0_reqh_service_type_find(const char
 M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service);
 
 /**
-   Transition the service to the M0_RST_STOPPING state and invoke its
+   Transitions the service to the M0_RST_STOPPING state and invoke its
    rso_prepare_to_stop() method if it is defined.
    @pre service != NULL
    @pre service->rs_state == M0_RST_STARTED

@@ -254,8 +254,7 @@ static int server_init(const char *stob_path,
 	tms_nr   = 1;
 	bufs_nr  = m0_rpc_bufs_nr(M0_NET_TM_RECV_QUEUE_DEF_LEN, tms_nr);
 
-	rc = m0_rpc_net_buffer_pool_setup(net_dom, &app_pool,
-					  bufs_nr, tms_nr);
+	rc = m0_rpc_net_buffer_pool_setup(net_dom, &app_pool, bufs_nr, tms_nr);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Init the rpcmachine */

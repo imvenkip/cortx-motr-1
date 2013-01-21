@@ -95,7 +95,7 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 	m0_addb_mc_init(&reqh->rh_addb_mc);
 
 	/** @todo Currently passing dbenv to this api, the duty of the
-	    thread doing the io is to create/use a a local/embedded m0_dtx
+	    thread doing the io is to create/use a local/embedded m0_dtx
 	    and do m0_db_tx_init() of its m0_db_tx member and then do the
 	    io (invocation of m0_stob_io_launch(), etc) apis. Need to validate
 	    this.
@@ -103,7 +103,7 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 	if (reqh_args->rhia_addb_stob != NULL) {
 #ifndef __KERNEL__
 		/**
-		 * @todo Need to replace theese 3 with conf parameters and
+		 * @todo Need to replace these 3 with conf parameters and
 		 * correct values, these are temporary
 		 */
 		m0_bcount_t addb_stob_seg_size =
