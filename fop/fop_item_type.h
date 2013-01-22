@@ -41,10 +41,10 @@
    @retval 0 On success.
    @retval -errno On failure.
 */
-M0_INTERNAL int m0_fop_item_type_default_encode(const struct m0_rpc_item_type
-						*item_type,
-						struct m0_rpc_item *item,
-						struct m0_bufvec_cursor *cur);
+M0_INTERNAL int
+m0_fop_item_type_default_encode(const struct m0_rpc_item_type *item_type,
+				struct m0_rpc_item *item,
+				struct m0_bufvec_cursor *cur);
 
 /**
    Generic deserialization routine for a fop rpc item type. Allocates a new rpc
@@ -56,10 +56,10 @@ M0_INTERNAL int m0_fop_item_type_default_encode(const struct m0_rpc_item_type
    @retval 0 On success.
    @retval -errno if failure.
 */
-M0_INTERNAL int m0_fop_item_type_default_decode(const struct m0_rpc_item_type
-						*item_type,
-						struct m0_rpc_item **item_out,
-						struct m0_bufvec_cursor *cur);
+M0_INTERNAL int
+m0_fop_item_type_default_decode(const struct m0_rpc_item_type *item_type,
+				struct m0_rpc_item **item_out,
+				struct m0_bufvec_cursor *cur);
 
 /**
    Return the onwire size of the item type which is a fop in bytes.

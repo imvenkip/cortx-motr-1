@@ -209,7 +209,6 @@ Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg
 #include "dtm/dtm.h"           /* m0_dtx */
 #include "stob/stob.h"
 #include "reqh/reqh_service.h"
-#include "dtm/dtm_update.h"
 
 /* export */
 struct m0_fom_domain;

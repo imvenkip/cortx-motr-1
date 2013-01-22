@@ -26,18 +26,22 @@
 
 M0_INTERNAL m0_bcount_t m0_fop_payload_size(const struct m0_rpc_item *item)
 {
+	struct m0_fop	   *fop;
 	struct m0_xcode_ctx ctx;
 
 	M0_PRE(item != NULL);
 
-	return m0_xcode_data_size(&ctx,
-				  &M0_FOP_XCODE_OBJ(m0_rpc_item_to_fop(item)));
+	fop = m0_rpc_item_to_fop(item);
+	M0_ASSERT(fop != NULL);
+	M0_ASSERT(fop->f_type != NULL);
+
+	return m0_xcode_data_size(&ctx, &M0_FOP_XCODE_OBJ(fop));
 }
 
-M0_INTERNAL int m0_fop_item_type_default_encode(const struct m0_rpc_item_type
-						*item_type,
-						struct m0_rpc_item *item,
-						struct m0_bufvec_cursor *cur)
+M0_INTERNAL int
+m0_fop_item_type_default_encode(const struct m0_rpc_item_type *item_type,
+				struct m0_rpc_item *item,
+				struct m0_bufvec_cursor *cur)
 {
 	M0_PRE(item != NULL);
 	M0_PRE(cur != NULL);
@@ -45,10 +49,10 @@ M0_INTERNAL int m0_fop_item_type_default_encode(const struct m0_rpc_item_type
 	return m0_fop_item_encdec(item, cur, M0_BUFVEC_ENCODE);
 }
 
-M0_INTERNAL int m0_fop_item_type_default_decode(const struct m0_rpc_item_type
-						*item_type,
-						struct m0_rpc_item **item_out,
-						struct m0_bufvec_cursor *cur)
+M0_INTERNAL int
+m0_fop_item_type_default_decode(const struct m0_rpc_item_type *item_type,
+				struct m0_rpc_item **item_out,
+				struct m0_bufvec_cursor *cur)
 {
 	int			 rc;
 	struct m0_fop		*fop;
