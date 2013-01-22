@@ -378,7 +378,9 @@ struct m0_fol_rec_part_ops {
 };
 
 /**
-   data is NULL before FOL record part data rp_data is allocated based on part type.
+   During encoding of FOL record data points to the in-memory FOL record
+   part object allocated by the calling function.
+   In case if decoding data should be NULL, as it is allocated by xcode.
    @pre type != NULL
  */
 M0_INTERNAL struct m0_fol_rec_part *
