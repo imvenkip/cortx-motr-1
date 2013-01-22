@@ -73,27 +73,6 @@ static void test_fini(void)
 	m0_free(buf.b_addr);
 }
 
-static void test_rec_part_type_reg(void)
-{
-	/**
-	 * @todo Declare FOL record type ut_rec_part_type and part
-	 *  type ops.
-	 * result = m0_fol_rec_part_type_register(&ut_rec_part_type);
-	 * M0_ASSERT(result == 0);
-	 * M0_ASSERT(ut_rec_part_type.rpt_index > 0);
-	 */
-}
-
-static void test_rec_part_type_unreg(void)
-{
-	/**
-	 * @todo
-	 * m0_fol_rec_part_type_deregister(&ut_rec_part_type);
-	 * M0_ASSERT(ut_rec_part_type.rpt_ops == NULL);
-	 * M0_ASSERT(ut_rec_part_type.rpt_xt == NULL);
-	 * M0_ASSERT(ut_rec_part_type.rpt_index == 0);
-	 */
-}
 static void test_add(void)
 {
 	M0_SET0(h);
