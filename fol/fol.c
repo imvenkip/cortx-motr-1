@@ -64,7 +64,14 @@ M0_TL_DESCR_DEFINE(m0_rec_part, "fol record part", M0_INTERNAL,
 		   M0_FOL_REC_PART_LINK_MAGIC, M0_FOL_REC_PART_HEAD_MAGIC);
 M0_TL_DEFINE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
 
+static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out);
 static int fol_record_decode(struct m0_fol_rec *rec);
+static size_t fol_record_pack_size(struct m0_fol_rec *rec);
+static void fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf);
+static inline m0_bcount_t fol_rec_part_data_size(struct m0_fol_rec_part *part);
+static inline int fol_rec_part_encdec(struct m0_fol_rec_part  *part,
+			              struct m0_bufvec_cursor *cur,
+			              enum m0_bufvec_what      what);
 
 M0_INTERNAL bool m0_lsn_is_valid(m0_lsn_t lsn)
 {
@@ -302,34 +309,6 @@ M0_INTERNAL void m0_fols_fini(void)
 {
 }
 
-static uint32_t fol_rec_parts_nr(struct m0_fol_rec *rec)
-{
-	M0_PRE(rec != NULL);
-
-	return m0_rec_part_tlist_length(&rec->fr_fol_rec_parts);
-}
-
-M0_INTERNAL m0_bcount_t m0_fol_rec_part_data_size(struct m0_fol_rec_part *part)
-{
-	struct m0_xcode_ctx  xc_ctx;
-
-	return m0_xcode_data_size(&xc_ctx, &M0_FOL_REC_PART_XCODE_OBJ(part));
-}
-
-M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
-			               struct m0_bufvec_cursor *cur,
-			               enum m0_bufvec_what      what)
-{
-	int		     rc;
-	struct m0_xcode_ctx  xc_ctx;
-
-	rc = m0_xcode_encdec(&xc_ctx, &M0_FOL_REC_PART_XCODE_OBJ(part), cur,
-			     what);
-	if (rc == 0 && what == M0_BUFVEC_DECODE)
-		part->rp_data = m0_xcode_ctx_top(&xc_ctx);
-	return rc;
-}
-
 M0_INTERNAL int
 m0_fol_rec_part_type_register(const struct m0_fol_rec_part_type *type)
 {
@@ -346,8 +325,8 @@ m0_fol_rec_part_type_deregister(const struct m0_fol_rec_part_type *type)
 
 }
 
-M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(void *data,
-		const struct m0_fol_rec_part_type *type)
+M0_INTERNAL struct m0_fol_rec_part *
+m0_fol_rec_part_init(void *data, const struct m0_fol_rec_part_type *type)
 {
 	struct m0_fol_rec_part *part;
 
@@ -371,55 +350,6 @@ M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 	m0_free(part);
 }
 
-static size_t fol_record_pack_size(struct m0_fol_rec *rec)
-{
-	m0_bcount_t len = 0;
-
-	/**
-	 * @todo compute the size of FOL record descriptor and
-	 *  FOL record part's header and FOL record parts.
-	 */
-	return m0_align(len, 8);
-}
-
-static void fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
-{
-	/**
-	 * @todo Encode FOL record descriptor and traverse
-	 *  rec->fr_fol_rec_parts and encode fol record
-	 *  parts in the buffer using fol_rec_part_encdec().
-	 *  Also encode m0_fol_rec_part_type::rpt_index
-	 *  for each FOl record type which will be used to decode this
-	 *  from fol record.
-	 * Add assertion part->rp_data != NULL before encoding the record part.
-	 * Assign part->rp_flag to M0_BUFVEC_ENCODE;
-	 */
-}
-
-static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
-{
-	void                   *buf;
-	size_t                  size;
-	int                     result;
-	struct m0_fol_rec_desc *desc = &rec->fr_desc;
-
-	size = fol_record_pack_size(rec);
-	M0_ASSERT(M0_IS_8ALIGNED(size));
-
-	desc->rd_header.rh_data_len = size;
-	desc->rd_header.rh_parts_nr = fol_rec_parts_nr(rec);
-
-	buf = m0_alloc(size);
-	if (buf != NULL) {
-		out->b_addr = buf;
-		out->b_nob  = size;
-		fol_record_pack(rec, out);
-		result = 0;
-	} else
-		result = -ENOMEM;
-	return result;
-}
-
 M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
 			       struct m0_fol_rec *rec)
 {
@@ -437,15 +367,77 @@ M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
 	return result;
 }
 
-static int fol_record_decode(struct m0_fol_rec *rec)
+static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
+{
+	void                   *buf;
+	size_t                  size;
+	int                     result;
+	struct m0_fol_rec_desc *desc = &rec->fr_desc;
+
+	size = fol_record_pack_size(rec);
+	M0_ASSERT(M0_IS_8ALIGNED(size));
+
+	desc->rd_header.rh_data_len = size;
+	desc->rd_header.rh_parts_nr =
+		m0_rec_part_tlist_length(&rec->fr_fol_rec_parts);
+
+	buf = m0_alloc(size);
+	if (buf != NULL) {
+		out->b_addr = buf;
+		out->b_nob  = size;
+		fol_record_pack(rec, out);
+		result = 0;
+	} else
+		result = -ENOMEM;
+	return result;
+}
+
+static size_t fol_record_pack_size(struct m0_fol_rec *rec)
+{
+	m0_bcount_t len = 0;
+
+	/**
+	 * @todo compute the size of FOL record descriptor and
+	 *  FOL record part's header and FOL record parts.
+	 *  Use fol_rec_part_data_size() to get the size of
+	 *  fol record part.
+	 */
+	return m0_align(len, 8);
+}
+
+static inline m0_bcount_t fol_rec_part_data_size(struct m0_fol_rec_part *part)
+{
+	struct m0_xcode_ctx  xc_ctx;
+
+	return m0_xcode_data_size(&xc_ctx, &M0_FOL_REC_PART_XCODE_OBJ(part));
+}
+
+static void fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 {
 	/**
-	 * @todo Decode FOL record descriptor and parts from record
-	 * buffer rec->fr_pair.dp_rec.db_buf;
-	 * Add assertion part->rp_data == NULL before decoding the record part.
-	 * Assign part->rp_flag to M0_BUFVEC_DECODE;
+	 * @todo Encode FOL record descriptor and traverse
+	 *  rec->fr_fol_rec_parts and encode fol record
+	 *  parts in the buffer using fol_rec_part_encdec().
+	 *  Also encode m0_fol_rec_part_type::rpt_index
+	 *  for each FOl record type which will be used to decode this
+	 *  from fol record.
+	 * Add assertion part->rp_data != NULL before encoding the record part.
+	 * Assign part->rp_flag to M0_BUFVEC_ENCODE;
 	 */
-	return 0;
+}
+
+static inline int fol_rec_part_encdec(struct m0_fol_rec_part  *part,
+			              struct m0_bufvec_cursor *cur,
+			              enum m0_bufvec_what      what)
+{
+	int		     rc;
+	struct m0_xcode_ctx  xc_ctx;
+
+	rc = m0_xcode_encdec(&xc_ctx, &M0_FOL_REC_PART_XCODE_OBJ(part), cur,
+			     what);
+	if (rc == 0 && what == M0_BUFVEC_DECODE)
+		part->rp_data = m0_xcode_ctx_top(&xc_ctx);
+	return rc;
 }
 
 M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
@@ -466,6 +458,17 @@ M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
 	M0_POST(ergo(result == 0, out->fr_desc.rd_header.rh_refcount > 0));
 	M0_POST(ergo(result == 0, m0_fol_rec_invariant(&out->fr_desc)));
 	return result;
+}
+
+static int fol_record_decode(struct m0_fol_rec *rec)
+{
+	/**
+	 * @todo Decode FOL record descriptor and parts from record
+	 * buffer rec->fr_pair.dp_rec.db_buf;
+	 * Add assertion part->rp_data == NULL before decoding the record part.
+	 * Assign part->rp_flag to M0_BUFVEC_DECODE;
+	 */
+	return 0;
 }
 
 /** @} end of fol group */

@@ -335,29 +335,29 @@ M0_INTERNAL int m0_xcode_length(struct m0_xcode_ctx *ctx)
 	return ctx_walk(ctx, XO_LEN);
 }
 
-M0_INTERNAL int m0_xcode_encdec(struct m0_xcode_ctx *xc_ctx,
+M0_INTERNAL int m0_xcode_encdec(struct m0_xcode_ctx *ctx,
 				const struct m0_xcode_obj *obj,
 				struct m0_bufvec_cursor *cur,
 				enum m0_bufvec_what what)
 {
-	int rc;
+	int result;
 
-	m0_xcode_ctx_init(xc_ctx, obj);
-	xc_ctx->xcx_buf   = *cur;
-	xc_ctx->xcx_alloc = m0_xcode_alloc;
+	m0_xcode_ctx_init(ctx, obj);
+	ctx->xcx_buf   = *cur;
+	ctx->xcx_alloc = m0_xcode_alloc;
 
-	rc = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(xc_ctx) :
-					m0_xcode_decode(xc_ctx);
-	if (rc == 0)
-		*cur = xc_ctx->xcx_buf;
-	return rc;
+	result = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(ctx) :
+					    m0_xcode_decode(ctx);
+	if (result == 0)
+		*cur = ctx->xcx_buf;
+	return result;
 }
 
-M0_INTERNAL int m0_xcode_data_size(struct m0_xcode_ctx *xc_ctx,
+M0_INTERNAL int m0_xcode_data_size(struct m0_xcode_ctx *ctx,
 				   const struct m0_xcode_obj *obj)
 {
-	m0_xcode_ctx_init(xc_ctx, obj);
-	return m0_xcode_length(xc_ctx);
+	m0_xcode_ctx_init(ctx, obj);
+	return m0_xcode_length(ctx);
 }
 
 M0_INTERNAL void *m0_xcode_alloc(struct m0_xcode_cursor *it, size_t nob)

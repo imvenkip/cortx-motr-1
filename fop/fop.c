@@ -280,16 +280,6 @@ M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type
 	return container_of(item_type, struct m0_fop_type, ft_rpc_item_type);
 }
 
-M0_INTERNAL m0_bcount_t m0_fop_data_size(struct m0_fop *fop)
-{
-	struct m0_xcode_ctx ctx;
-
-	M0_PRE(fop != NULL);
-	M0_PRE(fop->f_type != NULL);
-
-	return m0_xcode_data_size(&ctx, &M0_FOP_XCODE_OBJ(fop));
-}
-
 M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
 			      struct m0_bufvec_cursor *cur,
 			      enum m0_bufvec_what      what)

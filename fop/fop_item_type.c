@@ -24,12 +24,14 @@
 #include "fop/fop_item_type.h"
 #include "rpc/rpc_helpers.h"
 
-M0_INTERNAL m0_bcount_t m0_fop_item_type_default_payload_size(const struct
-							      m0_rpc_item *item)
+M0_INTERNAL m0_bcount_t m0_fop_payload_size(const struct m0_rpc_item *item)
 {
+	struct m0_xcode_ctx ctx;
+
 	M0_PRE(item != NULL);
 
-	return m0_fop_data_size(m0_rpc_item_to_fop(item));
+	return m0_xcode_data_size(&ctx,
+				  &M0_FOP_XCODE_OBJ(m0_rpc_item_to_fop(item)));
 }
 
 M0_INTERNAL int m0_fop_item_type_default_encode(const struct m0_rpc_item_type

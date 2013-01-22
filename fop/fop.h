@@ -173,7 +173,7 @@ M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type
 #define M0_FOP_DEFAULT_ITEM_TYPE_OPS \
 	.rito_encode       = m0_fop_item_type_default_encode,      \
 	.rito_decode       = m0_fop_item_type_default_decode,      \
-	.rito_payload_size = m0_fop_item_type_default_payload_size,\
+	.rito_payload_size = m0_fop_payload_size,                  \
 	.rito_item_get     = m0_fop_item_get,                      \
 	.rito_item_put     = m0_fop_item_put
 
@@ -309,8 +309,6 @@ M0_INTERNAL void m0_fops_fini(void);
 M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
 			      struct m0_bufvec_cursor *cur,
 			      enum m0_bufvec_what      what);
-
-M0_INTERNAL m0_bcount_t m0_fop_data_size(struct m0_fop *fop);
 
 /** @} end of fop group */
 
