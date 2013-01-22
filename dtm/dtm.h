@@ -24,6 +24,7 @@
 #define __MERO_DTM_DTM_H__
 
 #include "db/db.h"
+#include "fol/fol.h"
 
 /**
    @defgroup dtm Distributed transaction manager
@@ -52,22 +53,10 @@ struct m0_dtx {
 	 */
 	enum m0_dtx_state  tx_state;
 	struct m0_db_tx    tx_dbtx;
-	struct m0_fol_rec *tx_fol_rec;
+	struct m0_fol_rec  tx_fol_rec;
 };
 
-struct m0_update_id {
-	uint32_t ui_node;
-	uint64_t ui_update;
-};
-
-enum m0_update_state {
-	M0_US_INVALID,
-	M0_US_VOLATILE,
-	M0_US_PERSISTENT,
-	M0_US_NR
-};
-
-M0_INTERNAL int m0_dtx_init(struct m0_dtx *tx);
+M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx);
 M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env);
 M0_INTERNAL int m0_dtx_done(struct m0_dtx *tx);
 M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx);

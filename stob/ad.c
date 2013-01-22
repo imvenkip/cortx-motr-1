@@ -151,10 +151,16 @@ enum ad_stob_allocation_extent_type {
 	AET_HOLE
 };
 
-struct m0_fol_rec_part_type ad_part_type;
+static void ad_rec_part_init(struct m0_fol_rec_part *part);
 
-const struct m0_fol_rec_part_ops ad_part_ops = {
-	.rpo_type = &ad_part_type,
+static const struct m0_fol_rec_part_type_ops ad_part_type_ops = {
+	.rpto_rec_part_init = ad_rec_part_init,
+};
+
+struct m0_fol_rec_part_type m0_ad_part_type;
+
+static const struct m0_fol_rec_part_ops ad_part_ops = {
+	.rpo_type = &m0_ad_part_type,
 	.rpo_undo = NULL,
 	.rpo_redo = NULL,
 };
@@ -164,10 +170,6 @@ static void ad_rec_part_init(struct m0_fol_rec_part *part)
 	part->rp_ops = &ad_part_ops;
 }
 
-static const struct m0_fol_rec_part_type_ops ad_part_type_ops = {
-	.rpto_rec_part_init = ad_rec_part_init,
-};
-
 /**
    Implementation of m0_stob_type_op::sto_init().
  */
@@ -175,8 +177,14 @@ static int ad_stob_type_init(struct m0_stob_type *stype)
 {
 	m0_stob_type_init(stype);
 	m0_xc_ad_init();
-	return m0_fol_rec_part_type_init(&ad_part_type, "AD record part",
-					 ad_rec_part_xc, &ad_part_type_ops);
+
+	m0_ad_part_type = (struct m0_fol_rec_part_type) {
+		.rpt_name = "AD record part",
+		.rpt_xt   = m0_ad_rec_part_xc,
+		.rpt_ops  = &ad_part_type_ops
+	};
+
+	return m0_fol_rec_part_type_register(&m0_ad_part_type);
 }
 
 /**
@@ -186,6 +194,7 @@ static void ad_stob_type_fini(struct m0_stob_type *stype)
 {
 	m0_xc_ad_fini();
 	m0_stob_type_fini(stype);
+	m0_fol_rec_part_type_deregister(&m0_ad_part_type);
 }
 
 /**

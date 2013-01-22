@@ -112,11 +112,12 @@ M0_INTERNAL int m0_ad_stob_setup(struct m0_stob_domain *adom,
 M0_INTERNAL int m0_ad_stobs_init(void);
 M0_INTERNAL void m0_ad_stobs_fini(void);
 
-struct ad_rec_part {
+struct m0_ad_rec_part {
 	uint32_t               arp_segments;
 	struct m0_emap_seg    *arp_old_data;
 } M0_XCA_SEQUENCE;
 
+extern struct m0_fol_rec_part_type m0_ad_part_type;
 
 /** @} end group stobad */
 

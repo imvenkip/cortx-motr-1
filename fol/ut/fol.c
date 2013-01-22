@@ -113,7 +113,7 @@ static void test_lookup(void)
 	M0_ASSERT(memcmp(&d->rd_header,
 			 &dup.fr_desc.rd_header, sizeof d->rd_header) == 0);
 
-	m0_rec_fini(&dup);
+	m0_fol_rec_fini(&dup);
 
 	result = m0_fol_rec_lookup(&fol, &tx, lsn_inc(d->rd_lsn), &dup);
 	M0_ASSERT(result == -ENOENT);
@@ -197,7 +197,7 @@ static void ub_lookup(int i)
 
 	result = m0_fol_rec_lookup(&fol, &tx, lsn, &rec);
 	M0_ASSERT(result == 0);
-	m0_rec_fini(&rec);
+	m0_fol_rec_fini(&rec);
 	if (i%1000 == 0)
 		checkpoint();
 }

@@ -107,26 +107,25 @@ static const struct m0_table_ops fol_ops = {
 	.key_cmp = lsn_cmp
 };
 
-static void fol_rec_part_list_init(struct m0_fol_rec *rec)
+M0_INTERNAL void m0_fol_rec_part_list_init(struct m0_fol_rec *rec)
 {
 	M0_PRE(rec != NULL);
 
 	m0_rec_part_tlist_init(&rec->fr_fol_rec_parts);
 }
 
-static void fol_rec_part_list_fini(struct m0_fol_rec *rec)
+M0_INTERNAL void m0_fol_rec_part_list_fini(struct m0_fol_rec *rec)
 {
 	struct m0_fol_rec_part  *part;
 
-	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part)
-	{
+	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part) {
 		m0_fol_rec_part_fini(part);
 	} m0_tl_endfor;
 	m0_rec_part_tlist_fini(&rec->fr_fol_rec_parts);
 }
 
-M0_INTERNAL void m0_fol_rec_part_add(struct m0_fol_rec *rec,
-				     struct m0_fol_rec_part *part)
+M0_INTERNAL void m0_fol_rec_part_list_add(struct m0_fol_rec *rec,
+				          struct m0_fol_rec_part *part)
 {
 	M0_PRE(rec != NULL && part != NULL);
 
@@ -140,7 +139,7 @@ M0_INTERNAL void m0_fol_rec_part_add(struct m0_fol_rec *rec,
    rec->fr_desc.rd_lsn. As a result, the cursor's key follows lsn changes
    automagically.
 
-   @see m0_rec_fini()
+   @see m0_fol_rec_fini()
  */
 static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
 {
@@ -148,7 +147,7 @@ static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
 
 	M0_PRE(rec->fr_fol != NULL);
 
-	fol_rec_part_list_init(rec);
+	m0_fol_rec_part_list_init(rec);
 	pair = &rec->fr_pair;
 	m0_db_pair_setup(pair, &rec->fr_fol->f_table, &rec->fr_desc.rd_lsn,
 			 sizeof rec->fr_desc.rd_lsn, NULL, 0);
@@ -160,9 +159,9 @@ static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
 
    @see rec_init()
  */
-M0_INTERNAL void m0_rec_fini(struct m0_fol_rec *rec)
+M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec)
 {
-	fol_rec_part_list_fini(rec);
+	m0_fol_rec_part_list_fini(rec);
 	m0_db_cursor_fini(&rec->fr_ptr);
 	m0_db_pair_fini(&rec->fr_pair);
 }
@@ -197,18 +196,18 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 	m0_mutex_init(&fol->f_lock);
 	result = m0_table_init(&fol->f_table, env, "fol", 0, &fol_ops);
 	if (result == 0) {
-		struct m0_dtx dtx;
-		int           rc;
+		struct m0_fol_rec       r;
+		struct m0_fol_rec_desc *d;
+		struct m0_db_tx         tx;
+		int                     rc;
 
-		m0_dtx_init(&dtx);
-		result = m0_dtx_open(&dtx, env);
+		d = &r.fr_desc;
+		result = m0_db_tx_init(&tx, env, 0);
 		if (result == 0) {
-			struct m0_fol_rec r;
-			result = m0_fol_rec_lookup(fol, &dtx.tx_dbtx,
-						   M0_LSN_ANCHOR, &r);
+			result = m0_fol_rec_lookup(fol, &tx, M0_LSN_ANCHOR, &r);
 			if (result == -ENOENT) {
-				struct m0_fol_rec_desc *d =
-						&dtx.tx_fol_rec->fr_desc;
+				result = rec_init(&r, &tx);
+				M0_ASSERT(result == 0);
 				/* initialise new fol */
 				M0_SET0(d);
 				d->rd_header.rh_refcount = 1;
@@ -216,17 +215,16 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 				d->rd_type = &anchor_type;
 				d->rd_lsn = M0_LSN_ANCHOR;
 				fol->f_lsn = M0_LSN_ANCHOR + 1;
-				result = m0_fol_rec_add(fol, &dtx.tx_dbtx,
-							dtx.tx_fol_rec);
+				result = m0_fol_rec_add(fol, &tx, &r);
 			} else if (result == 0) {
 				result = m0_db_cursor_last(&r.fr_ptr,
 							   &r.fr_pair);
 				if (result == 0)
 					fol->f_lsn = lsn_inc(r.fr_desc.rd_lsn);
-				m0_rec_fini(&r);
 			}
-			rc = m0_dtx_done(&dtx);
+			rc = m0_db_tx_commit(&tx);
 			result = result ?: rc;
+			m0_fol_rec_fini(&r);
 		}
 	}
 	M0_POST(ergo(result == 0, m0_lsn_is_valid(fol->f_lsn)));
@@ -378,23 +376,6 @@ M0_INTERNAL const struct m0_fol_rec_type *m0_fol_rec_type_lookup(uint32_t
 	return rtypes[opcode];
 }
 
-M0_INTERNAL struct m0_fol_rec *m0_fol_rec_init(void)
-{
-	struct m0_fol_rec *rec;
-
-	M0_ALLOC_PTR(rec);
-	if (rec == NULL)
-		return NULL;
-	fol_rec_part_list_init(rec);
-	return rec;
-}
-
-M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec)
-{
-	fol_rec_part_list_fini(rec);
-	m0_free(rec);
-}
-
 static uint32_t fol_rec_parts_nr(struct m0_fol_rec *rec)
 {
 	M0_PRE(rec != NULL);
@@ -423,7 +404,8 @@ M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
 	return rc;
 }
 
-static int fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
+M0_INTERNAL int
+m0_fol_rec_part_type_register(const struct m0_fol_rec_part_type *type)
 {
 	/**
 	 * @todo Maintain a global array of FOL record part types using
@@ -432,80 +414,29 @@ static int fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
 	return 0;
 }
 
-static void fol_rec_part_type_deregister(struct m0_fol_rec_part_type *type)
+M0_INTERNAL void
+m0_fol_rec_part_type_deregister(const struct m0_fol_rec_part_type *type)
 {
 
 }
 
-M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
-					  const char *name,
-					  const struct m0_xcode_type *xt,
-					  const struct m0_fol_rec_part_type_ops
-					  *ops)
-{
-	M0_PRE(type != NULL);
-
-	type->rpt_ops  = ops;
-	type->rpt_xt   = xt;
-	type->rpt_name = name;
-	return fol_rec_part_type_register(type);
-}
-
-M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type)
-{
-	M0_PRE(type != NULL);
-
-	fol_rec_part_type_deregister(type);
-	type->rpt_xt   = NULL;
-	type->rpt_name = NULL;
-}
-
-static int fol_rec_part_data_alloc(struct m0_fol_rec_part *part)
-{
-	size_t fol_rec_part_size;
-
-	M0_PRE(part != NULL && part->rp_ops != NULL &&
-	       part->rp_ops->rpo_type != NULL);
-
-	fol_rec_part_size = part->rp_ops->rpo_type->rpt_xt->xct_sizeof;
-
-	part->rp_data = m0_alloc(fol_rec_part_size);
-	return part->rp_data == NULL ? -ENOMEM : 0;
-}
-
-M0_INTERNAL struct m0_fol_rec_part *fol_rec_part_init(
+M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(void *data,
 		const struct m0_fol_rec_part_type *type)
 {
 	struct m0_fol_rec_part *part;
 
 	M0_ALLOC_PTR(part);
 	if (part != NULL) {
+		part->rp_data = data;
 		type->rpt_ops->rpto_rec_part_init(part);
 		m0_rec_part_tlink_init(part);
 	}
 	return part;
 }
 
-M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(
-		const struct m0_fol_rec_part_type *type)
-{
-	struct m0_fol_rec_part *part;
-
-	part = fol_rec_part_init(type);
-	if (part != NULL) {
-		int rc;
-		rc = fol_rec_part_data_alloc(part);
-		if (rc != 0) {
-			m0_fol_rec_part_fini(part);
-			return NULL;
-		}
-	}
-	return part;
-}
-
 M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 {
-	if (part->rp_data != NULL)
+	if (part->rp_data != NULL && part->rp_flag == M0_BUFVEC_DECODE)
 		m0_xcode_free(&M0_FOL_REC_PART_XCODE_OBJ(part));
 
 	if (m0_rec_part_tlink_is_in(part))
@@ -534,6 +465,8 @@ static void fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 	 *  Also encode m0_fol_rec_part_type::rpt_index
 	 *  for each FOl record type which will be used to decode this
 	 *  from fol record.
+	 * Add assertion part->rp_data != NULL before encoding the record part.
+	 * Assign part->rp_flag to M0_BUFVEC_ENCODE;
 	 */
 }
 
@@ -584,6 +517,8 @@ static int fol_record_decode(struct m0_fol_rec *rec)
 	/**
 	 * @todo Decode FOL record descriptor and parts from record
 	 * buffer rec->fr_pair.dp_rec.db_buf;
+	 * Add assertion part->rp_data == NULL before decoding the record part.
+	 * Assign part->rp_flag to M0_BUFVEC_DECODE;
 	 */
 	return 0;
 }
@@ -600,7 +535,7 @@ M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
 		result = m0_db_cursor_get(&out->fr_ptr, &out->fr_pair) ?:
 			 fol_record_decode(out);
 		if (result != 0)
-			m0_rec_fini(out);
+			m0_fol_rec_fini(out);
 	}
 	M0_POST(ergo(result == 0, out->fr_desc.rd_lsn == lsn));
 	M0_POST(ergo(result == 0, out->fr_desc.rd_header.rh_refcount > 0));

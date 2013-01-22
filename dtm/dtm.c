@@ -26,16 +26,13 @@
 #include "lib/misc.h"              /* M0_SET0 */
 #include "lib/errno.h"             /* ENOMEM */
 #include "dtm/dtm.h"
-#include "fol/fol.h"
+#include "dtm/dtm_update.h"
 
-M0_INTERNAL int m0_dtx_init(struct m0_dtx *tx)
+M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx)
 {
 	M0_SET0(tx);
 	tx->tx_state = M0_DTX_INIT;
-	tx->tx_fol_rec = m0_fol_rec_init();
-	if (tx->tx_fol_rec == NULL)
-		return -ENOMEM;
-	return 0;
+	m0_fol_rec_part_list_init(&tx->tx_fol_rec);
 }
 
 M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env)
@@ -68,7 +65,7 @@ M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)
 {
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_DONE)));
 
-	m0_fol_rec_fini(tx->tx_fol_rec);
+	m0_fol_rec_part_list_init(&tx->tx_fol_rec);
 }
 
 /** @} end of dtm group */
