@@ -40,9 +40,6 @@
    location in the fol. fol record contains the list of fol record parts added
    during updates.
 
-   A fol record belongs to a fol type (m0_fol_rec_type) that defines how record
-   reacts to the relevant fol state changes.
-
    @see m0_fol_rec_add()
    @see m0_fol_rec_lookup()
    @see https://docs.google.com/a/horizontalscale.com/Doc?docid=0Aa9lcGbR4emcZGhxY2hqdmdfNjQ2ZHZocWJ4OWo
@@ -54,7 +51,6 @@
 struct m0_fol;
 struct m0_fol_rec_desc;
 struct m0_fol_rec;
-struct m0_fol_rec_type;
 
 /* import */
 #include "lib/adt.h"      /* m0_buf */
@@ -193,8 +189,6 @@ struct m0_fol_update_ref {
 struct m0_fol_rec_header {
 	/** number of outstanding references to the record */
 	uint64_t            rh_refcount;
-	/** operation code */
-	uint32_t            rh_opcode;
 	/** number of objects modified by this update */
 	uint32_t            rh_obj_nr;
 	/** number of sibling updates in the same operation */
@@ -234,7 +228,6 @@ struct m0_fol_rec_desc {
 	/** record log sequence number */
 	m0_lsn_t                      rd_lsn;
 	struct m0_fol_rec_header      rd_header;
-	const struct m0_fol_rec_type *rd_type;
 	/** references to the objects modified by this update. */
 	struct m0_fol_obj_ref        *rd_ref;
 	/** a DTM epoch this update is a part of. */
@@ -339,88 +332,6 @@ M0_INTERNAL void m0_fol_rec_put(struct m0_fol_rec *rec);
 M0_INTERNAL int m0_fol_batch(struct m0_fol *fol, m0_lsn_t lsn, uint32_t nr,
 			     struct m0_fol_rec *out);
 
-struct m0_fol_rec_type_ops;
-
-/**
-   Fol record type.
-
-   There is an instance of struct m0_fol_rec_type for MKDIR, another for WRITE,
-   yet another for OPEN, etc.
-
-   Liveness.
-
-   The user is responsible for guaranteeing that a fol record type is not
-   unregistered while fol activity is still possible on the node.
- */
-struct m0_fol_rec_type {
-	/** symbolic type name */
-	const char                       *rt_name;
-	/** opcode for records of this type */
-	uint32_t                          rt_opcode;
-	const struct m0_fol_rec_type_ops *rt_ops;
-};
-
-/**
-   Register a new fol record type.
-
-   @pre m0_fol_rec_type_lookup(rtype->rt_opcode) == NULL
-   @post ergo(result == 0, m0_fol_rec_type_lookup(rtype->rt_opcode) == rtype)
-
-   @see m0_fol_rec_type_unregister()
- */
-M0_INTERNAL int m0_fol_rec_type_register(const struct m0_fol_rec_type *rtype);
-
-/**
-   Dual to m0_fol_rec_type_register().
-
-   @pre m0_fol_rec_type_lookup(rtype->rt_opcode) == rtype
-   @post m0_fol_rec_type_lookup(rtype->rt_opcode) == NULL
- */
-M0_INTERNAL void m0_fol_rec_type_unregister(const struct m0_fol_rec_type
-					    *rtype);
-
-/**
-   Finds a record type with a given opcode.
-
-   @post ergo(result != NULL, result->rt_opcode == opcode)
- */
-M0_INTERNAL const struct m0_fol_rec_type *m0_fol_rec_type_lookup(uint32_t
-								 opcode);
-
-struct m0_fol_rec_type_ops {
-	/**
-	   Invoked when a transaction containing a record of the type is
-	   committed.
-	 */
-	void (*rto_commit)    (const struct m0_fol_rec_type *type,
-			       struct m0_fol *fol, m0_lsn_t lsn);
-	/**
-	   Invoked when a transaction containing a record of the type is
-	   aborted.
-	 */
-	void (*rto_abort)     (const struct m0_fol_rec_type *type,
-			       struct m0_fol *fol, m0_lsn_t lsn);
-	/**
-	   Invoked when a record of the type becomes persistent.
-	 */
-	void (*rto_persistent)(const struct m0_fol_rec_type *type,
-			       struct m0_fol *fol, m0_lsn_t lsn);
-	/**
-	   Invoked when a record of the type is culled from a fol.
-	 */
-	void (*rto_cull)      (const struct m0_fol_rec_type *type,
-			       struct m0_db_tx *tx, struct m0_fol_rec *rec);
-	/**
-	   Parse operation type specific data in desc->rd_data.
-	 */
-	int  (*rto_open)      (const struct m0_fol_rec_type *type,
-			       struct m0_fol_rec_desc *desc);
-	/**
-	   Release resources associated with a record being finalised.
-	 */
-	void (*rto_fini)      (struct m0_fol_rec_desc *desc);
-};
-
 M0_INTERNAL int m0_fols_init(void);
 M0_INTERNAL void m0_fols_fini(void);
 
@@ -475,9 +386,9 @@ M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(void *data,
 
 M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part);
 
-/** Registers FOL record part type in a global array. */
-M0_INTERNAL int m0_fol_rec_part_type_register(const struct m0_fol_rec_part_type
-					      *type);
+/** Register a new fol record part type. */
+M0_INTERNAL int
+m0_fol_rec_part_type_register(const struct m0_fol_rec_part_type *type);
 
 M0_INTERNAL void
 m0_fol_rec_part_type_deregister(const struct m0_fol_rec_part_type *type);

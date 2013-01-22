@@ -217,7 +217,6 @@ struct m0_fop_type {
 	const struct m0_fop_type_ops     *ft_ops;
 	/** Xcode type representing this fop type. */
 	const struct m0_xcode_type       *ft_xt;
-	struct m0_fol_rec_type            ft_rec_type;
 	/** State machine for this fop type */
 	struct m0_fom_type                ft_fom_type;
 	/** The rpc_item_type associated with rpc_item
@@ -246,9 +245,6 @@ M0_INTERNAL struct m0_fop_type *m0_fop_type_next(struct m0_fop_type *ftype);
 
 /** fop type operations. */
 struct m0_fop_type_ops {
-	/** fol record type operations for this fop type, or NULL if standard
-	    operations are to be used. */
-	const struct m0_fol_rec_type_ops  *fto_rec_ops;
 	/** Action to be taken on receiving reply of a fop. */
 	void (*fto_fop_replied)(struct m0_fop *fop, struct m0_fop *bfop);
 	/** Try to coalesce multiple fops into one. */

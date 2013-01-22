@@ -69,26 +69,10 @@ static void test_fini(void)
 	m0_free(buf.b_addr);
 }
 
-static const struct m0_fol_rec_type_ops ut_fol_ops = {
-};
-
-static const struct m0_fol_rec_type ut_fol_type = {
-	.rt_name   = "ut-fol-rec",
-	.rt_opcode = M0_FOL_UT_OPCODE,
-	.rt_ops    = &ut_fol_ops
-};
-
-static void test_type_reg(void)
-{
-	result = m0_fol_rec_type_register(&ut_fol_type);
-	M0_ASSERT(result == 0);
-}
-
 static void test_add(void)
 {
 	M0_SET0(h);
 
-	d->rd_type = &ut_fol_type;
 	h->rh_refcount = 1;
 
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
@@ -119,22 +103,14 @@ static void test_lookup(void)
 	M0_ASSERT(result == -ENOENT);
 }
 
-static void test_type_unreg(void)
-{
-	m0_fol_rec_type_unregister(&ut_fol_type);
-}
-
-
 const struct m0_test_suite fol_ut = {
 	.ts_name = "fol-ut",
 	.ts_init = db_reset,
 	/* .ts_fini = db_reset, */
 	.ts_tests = {
 		{ "fol-init", test_init },
-		{ "fol-type-reg", test_type_reg },
 		{ "fol-add", test_add },
 		{ "fol-lookup", test_lookup },
-		{ "fol-type-unreg", test_type_unreg },
 		{ "fol-fini", test_fini },
 		{ NULL, NULL }
 	}
@@ -152,17 +128,14 @@ static void ub_init(void)
 {
 	db_reset();
 	test_init();
-	test_type_reg();
 
 	M0_SET0(h);
 
-	d->rd_type = &ut_fol_type;
 	h->rh_refcount = 1;
 }
 
 static void ub_fini(void)
 {
-	test_type_unreg();
 	test_fini();
 	db_reset();
 }

@@ -40,10 +40,6 @@
    @{
  */
 
-static const struct m0_fol_rec_type_ops m0_fop_fol_default_ops;
-static void fop_fol_type_init(struct m0_fop_type *fopt);
-static void fop_fol_type_fini(struct m0_fop_type *fopt);
-
 /** FOP module global ctx */
 struct m0_addb_ctx     m0_fop_addb_ctx;
 static struct m0_mutex fop_types_lock;
@@ -180,7 +176,6 @@ M0_EXPORTED(m0_fop_opcode);
 
 void m0_fop_type_fini(struct m0_fop_type *fopt)
 {
-	fop_fol_type_fini(fopt);
 	m0_mutex_lock(&fop_types_lock);
 	m0_rpc_item_type_deregister(&fopt->ft_rpc_item_type);
 	ft_tlink_del_fini(fopt);
@@ -210,7 +205,6 @@ int m0_fop_type_init(struct m0_fop_type *ft,
 	m0_fom_type_init(&ft->ft_fom_type, args->fom_ops, args->svc_type,
 			 args->sm);
 	m0_rpc_item_type_register(&ft->ft_rpc_item_type);
-	fop_fol_type_init(ft);
 	m0_mutex_lock(&fop_types_lock);
 	ft_tlink_init_at(ft, &fop_types_list);
 	m0_mutex_unlock(&fop_types_lock);
@@ -267,61 +261,6 @@ M0_INTERNAL void m0_fops_fini(void)
 	m0_mutex_fini(&fop_types_lock);
 	ft_tlist_fini(&fop_types_list);
 }
-
-/*
- * fop-fol interaction.
- */
-
-#ifdef __KERNEL__
-
-/* XXX for now */
-
-static void fop_fol_type_init(struct m0_fop_type *fopt)
-{
-}
-
-static void fop_fol_type_fini(struct m0_fop_type *fopt)
-{
-}
-
-#else /* !__KERNEL__ */
-
-static const struct m0_fol_rec_type_ops m0_fop_fol_default_ops;
-
-static void fop_fol_type_init(struct m0_fop_type *fopt)
-{
-	struct m0_fol_rec_type *rtype;
-	int			rc;
-
-	M0_CASSERT(sizeof rtype->rt_opcode == sizeof
-		   fopt->ft_rpc_item_type.rit_opcode);
-
-	rtype = &fopt->ft_rec_type;
-	rtype->rt_name   = fopt->ft_name;
-	rtype->rt_opcode = fopt->ft_rpc_item_type.rit_opcode;
-	if (fopt->ft_ops != NULL && fopt->ft_ops->fto_rec_ops != NULL)
-		rtype->rt_ops = fopt->ft_ops->fto_rec_ops;
-	else
-		rtype->rt_ops = &m0_fop_fol_default_ops;
-	rc = m0_fol_rec_type_register(rtype);
-	M0_ASSERT(rc == 0);
-}
-
-static void fop_fol_type_fini(struct m0_fop_type *fopt)
-{
-	m0_fol_rec_type_unregister(&fopt->ft_rec_type);
-}
-
-static const struct m0_fol_rec_type_ops m0_fop_fol_default_ops = {
-	.rto_commit     = NULL,
-	.rto_abort      = NULL,
-	.rto_persistent = NULL,
-	.rto_cull       = NULL,
-	.rto_open       = NULL,
-	.rto_fini       = NULL,
-};
-
-#endif /* __KERNEL__ */
 
 struct m0_rpc_item *m0_fop_to_rpc_item(struct m0_fop *fop)
 {

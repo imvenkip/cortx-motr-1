@@ -166,27 +166,6 @@ M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec)
 	m0_db_pair_fini(&rec->fr_pair);
 }
 
-/**
-   Operations vector for an "anchor" record type. A unique anchor record is
-   inserted into every fol on initialisation.
- */
-static const struct m0_fol_rec_type_ops anchor_ops = {
-	.rto_commit     = NULL,
-	.rto_abort      = NULL,
-	.rto_persistent = NULL,
-	.rto_cull       = NULL,
-	.rto_fini       = NULL,
-};
-
-/**
-   A type of a dummy log record inserted into every log on creation.
- */
-static const struct m0_fol_rec_type anchor_type = {
-	.rt_name   = "anchor",
-	.rt_opcode = M0_FOL_ANCHOR_TYPE_OPCODE,
-	.rt_ops    = &anchor_ops
-};
-
 M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 {
 	int result;
@@ -211,8 +190,6 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 				/* initialise new fol */
 				M0_SET0(d);
 				d->rd_header.rh_refcount = 1;
-				d->rd_header.rh_opcode = anchor_type.rt_opcode;
-				d->rd_type = &anchor_type;
 				d->rd_lsn = M0_LSN_ANCHOR;
 				fol->f_lsn = M0_LSN_ANCHOR + 1;
 				result = m0_fol_rec_add(fol, &tx, &r);
@@ -316,64 +293,13 @@ M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec_desc *drec)
 	return true;
 }
 
-/*
- * FOL record type code.
- *
- * An extremely simplistic implementation for now.
- */
-
-enum {
-	M0_FOL_REC_TYPE_MAX = 128
-};
-
-static const struct m0_fol_rec_type *rtypes[M0_FOL_REC_TYPE_MAX];
-static struct m0_mutex rtypes_lock;
-
 M0_INTERNAL int m0_fols_init(void)
 {
-	m0_mutex_init(&rtypes_lock);
-	return m0_fol_rec_type_register(&anchor_type);
+	return 0;
 }
 
 M0_INTERNAL void m0_fols_fini(void)
 {
-	m0_fol_rec_type_unregister(&anchor_type);
-	m0_mutex_fini(&rtypes_lock);
-}
-
-M0_INTERNAL int m0_fol_rec_type_register(const struct m0_fol_rec_type *rt)
-{
-	int result;
-
-	m0_mutex_lock(&rtypes_lock);
-	if (IS_IN_ARRAY(rt->rt_opcode, rtypes)) {
-		if (rtypes[rt->rt_opcode] == NULL) {
-			rtypes[rt->rt_opcode] = rt;
-			result = 0;
-		} else
-			result = -EEXIST;
-	} else
-		result = -EFBIG;
-	m0_mutex_unlock(&rtypes_lock);
-	return result;
-}
-
-M0_INTERNAL void m0_fol_rec_type_unregister(const struct m0_fol_rec_type *rt)
-{
-	m0_mutex_lock(&rtypes_lock);
-
-	M0_PRE(IS_IN_ARRAY(rt->rt_opcode, rtypes));
-	M0_PRE(rtypes[rt->rt_opcode] == rt || rtypes[rt->rt_opcode] == NULL);
-
-	rtypes[rt->rt_opcode] = NULL;
-	m0_mutex_unlock(&rtypes_lock);
-}
-
-M0_INTERNAL const struct m0_fol_rec_type *m0_fol_rec_type_lookup(uint32_t
-								 opcode)
-{
-	M0_PRE(IS_IN_ARRAY(opcode, rtypes));
-	return rtypes[opcode];
 }
 
 static uint32_t fol_rec_parts_nr(struct m0_fol_rec *rec)
@@ -480,7 +406,6 @@ static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
 	size = fol_record_pack_size(rec);
 	M0_ASSERT(M0_IS_8ALIGNED(size));
 
-	desc->rd_header.rh_opcode   = desc->rd_type->rt_opcode;
 	desc->rd_header.rh_data_len = size;
 	desc->rd_header.rh_parts_nr = fol_rec_parts_nr(rec);
 
