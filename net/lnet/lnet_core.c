@@ -380,7 +380,7 @@ M0_INTERNAL int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 #undef TM_EP
 #undef CBD_EP
 
-#ifdef __KERNEL__
+#if defined(__KERNEL__) && !defined(strtoul)
 #define strtoul simple_strtoul
 #endif
 
@@ -419,10 +419,6 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 	}
 	return 0;
 }
-
-#ifdef __KERNEL__
-#undef strtoul
-#endif
 
 void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 			     const struct nlx_core_ep_addr *cepa,
