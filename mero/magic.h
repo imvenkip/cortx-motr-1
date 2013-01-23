@@ -752,6 +752,20 @@ enum m0_magic_satchel {
 /* lib */
 	/* hashlist::hl_magic = invincibilis */
 	M0_LIB_HASHLIST_MAGIC = 0x3319519c1b111577,
+	/* m0_be_tx_engine::te_txs[] (lifeless gel)  */
+	M0_BE_TX_ENGINE_MAGIC = 0x3311fe1e556e1277,
+
+	/* m0_be_tx_group::tg_txs (codified bee)  */
+	M0_BE_TX_GROUP_MAGIC = 0x33c0d1f1edbee377,
+
+/* DTM */
+
+	/* m0_dtm_update::dup_magix (blessed feoff) */
+	M0_DTM_UPDATE_MAGIX  = 0x33b1e55edfe0ff77,
+	/* m0_dtm_history::dhi_updates::t_magic (biblical food) */
+	M0_DTM_HISTORY_MAGIX = 0x33b1b11ca1f00d77,
+	/* m0_dtm_op::do_updates::t_magic (feeble fiddle) */
+	M0_DTM_OP_MAGIX      = 0x33feeb1ef1dd1e77
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */
