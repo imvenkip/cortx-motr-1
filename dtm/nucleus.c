@@ -589,8 +589,8 @@ M0_INTERNAL void hi_print(const struct m0_dtm_hi *hi)
 }
 
 #undef M0_TRACE_SUBSYSTEM
-/** @} end of dtm group */
 
+/** @} end of dtm group */
 
 /*
  *  Local variables:

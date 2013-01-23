@@ -144,7 +144,6 @@ M0_INTERNAL void m0_dtm_up_persistent(struct m0_dtm_up *up);
 M0_INTERNAL void m0_dtm_nu_init      (struct m0_dtm_nu *nu);
 M0_INTERNAL void m0_dtm_nu_fini      (struct m0_dtm_nu *nu);
 
-
 M0_INTERNAL struct m0_dtm_up *m0_dtm_up_prior(struct m0_dtm_up *up);
 M0_INTERNAL struct m0_dtm_up *m0_dtm_up_later(struct m0_dtm_up *up);
 
