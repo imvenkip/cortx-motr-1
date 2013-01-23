@@ -292,7 +292,8 @@ M0_INTERNAL int m0_rpc_slot_cob_create(const struct m0_cob *session_cob,
 M0_INTERNAL void m0_rpc_slot_item_add_internal(struct m0_rpc_slot *slot,
 					       struct m0_rpc_item *item);
 
-M0_INTERNAL void m0_rpc_slot_process_reply(struct m0_rpc_item *req);
+M0_INTERNAL void m0_rpc_slot_process_reply(struct m0_rpc_item *req,
+					   struct m0_rpc_item *reply);
 
 #ifndef __KERNEL__
 int m0_rpc_slot_item_list_print(struct m0_rpc_slot *slot, bool only_active,

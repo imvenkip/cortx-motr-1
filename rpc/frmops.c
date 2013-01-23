@@ -407,67 +407,24 @@ static void outgoing_buf_event_handler(const struct m0_net_buffer_event *ev)
 
 static void item_done(struct m0_rpc_item *item, unsigned long rc)
 {
-//	bool timeout_is_pending;
-//	bool reply_is_pending;
-
 	M0_ENTRY("item: %p rc: %lu", item, rc);
 	M0_PRE(item != NULL);
 	M0_PRE(M0_IN(item->ri_error, (0, -ETIMEDOUT)));
-	/* ============ */
-	/*
+
 	if (item->ri_pending_reply != NULL) {
-		M0_ASSERT(item->ri_nr_sent > 1);
+		/* item that is never sent, i.e. item->ri_nr_sent == 0,
+		   can never have a (pending/any) reply.
+		 */
+		M0_ASSERT(ergo(rc != 0, item->ri_nr_sent > 0));
 		rc = 0;
 		item->ri_error = 0;
 	}
-	*/
 	if (rc == 0)
 		item_sent(item);
 	item->ri_error = item->ri_error ?: rc;
 	if (item->ri_error != 0)
 		m0_rpc_item_failed(item, item->ri_error);
-	/* ============ */
-#if 0
-	timeout_is_pending = item->ri_error == -ETIMEDOUT;
-	if (timeout_is_pending)
-		M0_LOG(M0_DEBUG, "item %p has pending timeout", item);
 
-	reply_is_pending = item->ri_reply != NULL;
-	if (reply_is_pending)
-		M0_LOG(M0_DEBUG, "item %p has pending reply %p",
-		       item, item->ri_reply);
-
-	/* Any or both of timeout_is_pending and reply_is_pending can be true */
-
-	/* If timeout_is_pending AND rc == 0 then,
-		item _is_ placed on the network, do not lie in the
-		->sent() callback, by keeping ri_error as -ETIMEDOUT.
-		So set ri_error to rc; just for the duration of ->sent()
-		callback. And then restore it back to -ETIMEDOUT unless
-	        the reply has already been received, in which case
-	        ignore the timeout.
-	 */
-	if (rc != 0 && reply_is_pending) {
-		M0_ASSERT(item->ri_nr_sent > 1);
-		rc = 0; /* ignore the error */
-	}
-	item->ri_error = rc;
-	if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL &&
-	    item->ri_nr_sent == 1)
-		item->ri_ops->rio_sent(item);
-
-	if (timeout_is_pending) {
-		if (rc != 0 || reply_is_pending) {
-			/* ignore timeout */;
-			M0_ASSERT(item->ri_error == rc);
-		} else
-			item->ri_error = -ETIMEDOUT;
-	}
-	if (item->ri_error == 0)
-		item_sent(item);
-	else
-		m0_rpc_item_failed(item, item->ri_error);
-#endif
 	M0_LEAVE();
 }
 
@@ -503,10 +460,12 @@ static void item_sent(struct m0_rpc_item *item)
 
 	if (m0_rpc_item_is_request(item)) {
 		m0_rpc_item_change_state(item, M0_RPC_ITEM_WAITING_FOR_REPLY);
-		if (item->ri_reply != NULL) {
+		if (item->ri_pending_reply != NULL) {
 			/* Reply has already been received when we
 			   were waiting for buffer callback */
-			m0_rpc_slot_process_reply(item);
+			m0_rpc_slot_process_reply(item,
+						  item->ri_pending_reply);
+			item->ri_pending_reply = NULL;
 			M0_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_REPLIED);
 		}
 	}

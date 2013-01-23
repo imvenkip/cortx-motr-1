@@ -204,6 +204,7 @@ struct m0_rpc_item {
 	struct m0_sm                     ri_sm;
 	enum m0_rpc_item_stage		 ri_stage;
 	uint32_t                         ri_nr_sent;
+	struct m0_rpc_item              *ri_pending_reply;
 	struct m0_rpc_slot_ref		 ri_slot_refs[MAX_SLOT_REF];
 	/** Anchor to put item on m0_rpc_session::s_unbound_items list */
 	struct m0_list_link		 ri_unbound_link;

@@ -44,9 +44,6 @@
 
 M0_INTERNAL void frm_item_reply_received(struct m0_rpc_item *reply_item,
 					 struct m0_rpc_item *req_item);
-M0_INTERNAL void rpc_item_replied(struct m0_rpc_item *item,
-				  struct m0_rpc_item *reply, uint32_t rc);
-M0_INTERNAL void m0_rpc_slot_process_reply(struct m0_rpc_item *req);
 M0_INTERNAL void m0_rpc_item_set_stage(struct m0_rpc_item *item,
 				       enum m0_rpc_item_stage stage);
 M0_INTERNAL int m0_rpc_slot_item_received(struct m0_rpc_item *item);
@@ -590,8 +587,7 @@ M0_INTERNAL int __slot_reply_received(struct m0_rpc_slot *slot,
 				      struct m0_rpc_item *req,
 				      struct m0_rpc_item *reply)
 {
-	uint64_t req_state;
-	int      rc;
+	int rc;
 
 	M0_PRE(slot != NULL && req != NULL && reply != NULL);
 
@@ -616,14 +612,6 @@ M0_INTERNAL int __slot_reply_received(struct m0_rpc_slot *slot,
 		 * Such reply must be ignored
 		 */
 		/* Do nothing. */;
-	} else if (M0_IN(req->ri_stage, (RPC_ITEM_STAGE_PAST_COMMITTED,
-					 RPC_ITEM_STAGE_PAST_VOLATILE))) {
-		/*
-		 * Got a reply to an item for which the reply was already
-		 * received in the past. Compare with the original reply.
-		 * XXX find out how to compare two rpc items to be same
-		 */
-		/* Do nothing */;
 	} else if (M0_IN(req->ri_stage, (RPC_ITEM_STAGE_TIMEDOUT,
 					 RPC_ITEM_STAGE_FAILED))) {
 		/*
@@ -641,30 +629,40 @@ M0_INTERNAL int __slot_reply_received(struct m0_rpc_slot *slot,
 		/*
 		 * This is valid reply case.
 		 */
-		M0_ASSERT(req->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
+		M0_PRE(M0_IN(req->ri_stage, (RPC_ITEM_STAGE_PAST_COMMITTED,
+					     RPC_ITEM_STAGE_PAST_VOLATILE,
+					     RPC_ITEM_STAGE_IN_PROGRESS)));
 		M0_ASSERT(slot->sl_in_flight > 0);
 
-		req_state = req->ri_sm.sm_state;
 		m0_rpc_item_get(reply);
-		req->ri_reply = reply;
-		if (M0_IN(req_state,(M0_RPC_ITEM_ACCEPTED,
-				     M0_RPC_ITEM_WAITING_FOR_REPLY))) {
-			m0_rpc_slot_process_reply(req);
-		} else if (req_state == M0_RPC_ITEM_SENDING) {
-			/*
-			 * Buffer sent callback is still pending;
-			 * postpone reply processing.
-			 */
-			M0_LOG(M0_DEBUG, "req: %p rply: %p rply postponed",
-			       req, reply);
-		} else if (M0_IN(req_state, (M0_RPC_ITEM_ENQUEUED,
-					     M0_RPC_ITEM_URGENT))) {
+
+		switch (req->ri_sm.sm_state) {
+		case M0_RPC_ITEM_ENQUEUED:
+		case M0_RPC_ITEM_URGENT:
 			m0_rpc_frm_remove_item(
 				&req->ri_session->s_conn->c_rpcchan->rc_frm,
 				req);
-			m0_rpc_slot_process_reply(req);
+			m0_rpc_slot_process_reply(req, reply);
 			m0_rpc_session_release(req->ri_session);
-		} else {
+			break;
+
+		case M0_RPC_ITEM_SENDING:
+			/*
+			 * Buffer sent callback is still pending;
+			 * postpone reply processing.
+			 * item_sent() will process the reply.
+			 */
+			M0_LOG(M0_DEBUG, "req: %p rply: %p rply postponed",
+			       req, reply);
+			req->ri_pending_reply = reply;
+			break;
+
+		case M0_RPC_ITEM_ACCEPTED:
+		case M0_RPC_ITEM_WAITING_FOR_REPLY:
+			m0_rpc_slot_process_reply(req, reply);
+			break;
+
+		default:
 			M0_ASSERT(false);
 		}
 		rc = 0;
@@ -672,13 +670,14 @@ M0_INTERNAL int __slot_reply_received(struct m0_rpc_slot *slot,
 	return rc;
 }
 
-M0_INTERNAL void m0_rpc_slot_process_reply(struct m0_rpc_item *req)
+M0_INTERNAL void m0_rpc_slot_process_reply(struct m0_rpc_item *req,
+					   struct m0_rpc_item *reply)
 {
 	struct m0_rpc_slot *slot;
 
 	M0_ENTRY("req: %p", req);
 
-	M0_PRE(req != NULL && req->ri_reply != NULL);
+	M0_PRE(req != NULL && reply != NULL);
 	M0_PRE(m0_rpc_item_is_request(req));
 	M0_PRE(M0_IN(req->ri_sm.sm_state, (M0_RPC_ITEM_WAITING_FOR_REPLY,
 					   M0_RPC_ITEM_ACCEPTED,
@@ -688,17 +687,26 @@ M0_INTERNAL void m0_rpc_slot_process_reply(struct m0_rpc_item *req)
 				     RPC_ITEM_STAGE_PAST_VOLATILE,
 				     RPC_ITEM_STAGE_IN_PROGRESS)));
 
-	if (req->ri_stage != RPC_ITEM_STAGE_IN_PROGRESS) {
-		/* XXX RETHINK */
-		rpc_item_replied(req, req->ri_reply, 0);
-		M0_LEAVE();
-		return; /* reply is already processed */
+	m0_rpc_item_stop_timer(req);
+	if (req->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS) {
+		req->ri_reply = reply;
+		if (req->ri_ops != NULL && req->ri_ops->rio_replied != NULL)
+			req->ri_ops->rio_replied(req);
+		m0_rpc_item_set_stage(req, RPC_ITEM_STAGE_PAST_VOLATILE);
+	} else {
+		/*
+		 * Got a reply to an item for which the reply was already
+		 * received in the past. Compare with the original reply.
+		 * XXX find out how to compare two rpc items to be same
+		 */
+		M0_ASSERT(req->ri_reply != NULL);
+		m0_rpc_item_put(reply);
 	}
-	m0_rpc_item_set_stage(req, RPC_ITEM_STAGE_PAST_VOLATILE);
+	m0_rpc_item_change_state(req, M0_RPC_ITEM_REPLIED);
+
 	slot = req->ri_slot_refs[0].sr_slot;
 	slot->sl_in_flight--;
 	slot_balance(slot);
-	rpc_item_replied(req, req->ri_reply, 0);
 	/*
 	 * On receiver, ->so_reply_consume(req, reply) will hand over
 	 * @reply to formation, to send it back to sender.
@@ -898,25 +906,6 @@ M0_INTERNAL int m0_rpc_slot_item_received(struct m0_rpc_item *item)
 		rc = m0_rpc_slot_reply_received(slot, item, &req);
 
 	return rc;
-}
-
-M0_INTERNAL void rpc_item_replied(struct m0_rpc_item *item,
-				  struct m0_rpc_item *reply, uint32_t rc)
-{
-	M0_ENTRY("req_item: %p, rep_item: %p", item, reply);
-
-	item->ri_error = rc;
-	item->ri_reply = reply;
-
-	m0_rpc_item_stop_timer(item);
-	m0_rpc_item_change_state(item, M0_RPC_ITEM_REPLIED);
-	/* Consider a request item X for which reply is received and
-	   ->rio_replied() callback is invoked for item X.
-	   If item X is resent (say for recovery), then ->rio_replied()
-	   callback is invoked again for X.
-	 */
-	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
-		item->ri_ops->rio_replied(item);
 }
 
 M0_INTERNAL int m0_rpc_slot_cob_lookup(struct m0_cob *session_cob,
