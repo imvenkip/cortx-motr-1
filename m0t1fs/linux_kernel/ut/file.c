@@ -280,6 +280,7 @@ static void ds_test(void)
 	/* io_req_fop attributes test. */
 	M0_ALLOC_PTR(irfop);
 	M0_UT_ASSERT(irfop != NULL);
+	ioreq_sm_state_set(&req, IRS_READING);
 	rc = io_req_fop_init(irfop, &ti, PA_DATA);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(irfop->irf_magic == M0_T1FS_IOFOP_MAGIC);
@@ -335,7 +336,8 @@ static void ds_test(void)
 	req.ir_iomaps[0] = NULL;
 	req.ir_iomap_nr  = 0;
 
-	m0_sm_state_set(&req.ir_sm, IRS_REQ_COMPLETE);
+	ioreq_sm_state_set(&req, IRS_READ_COMPLETE);
+	ioreq_sm_state_set(&req, IRS_REQ_COMPLETE);
 	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
 	req.ir_nwxfer.nxr_bytes = 1;
 	io_request_fini(&req);
