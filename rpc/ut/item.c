@@ -257,14 +257,14 @@ static void test_resend(void)
 	   - fault_point<"m0_rpc_reply_post", "delay_reply"> delays
 	     sending reply by 700ms;
 	   - resend timer of request item triggers;
-	   - fault_point<"m0_rpc_item_resend", "advance_delay"> moves
+	   - fault_point<"m0_rpc_item_send", "advance_delay"> moves
 	     deadline of request item 500ms in future, ergo the item
 	     moves to ENQUEUED state when handed over to formation;
 	   - receiver comes out of 700ms sleep and sends reply.
 	 */
 	M0_LOG(M0_FATAL, "TEST3:START");
 	m0_fi_enable_once("m0_rpc_reply_post", "delay_reply");
-	m0_fi_enable_once("m0_rpc_item_resend", "advance_deadline");
+	m0_fi_enable_once("m0_rpc_item_send", "advance_deadline");
 	fop = fop_alloc();
 	item = &fop->f_item;
 	__test_resend(fop);
@@ -277,7 +277,7 @@ static void test_resend(void)
 	   will be resent during recovery.
 	 */
 	m0_rpc_machine_lock(item->ri_rmachine);
-	m0_rpc_item_resend(item);
+	m0_rpc_item_send(item);
 	m0_rpc_machine_unlock(item->ri_rmachine);
 	rc = m0_rpc_item_wait_for_reply(item, m0_time_from_now(2, 0));
 	/* Question: The item already has its ri_reply set. Hence, the item

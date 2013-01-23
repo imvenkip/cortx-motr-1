@@ -563,7 +563,7 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 	 * Request and Reply items take hold on session until
 	 * they are SENT/FAILED.
 	 * See: m0_rpc__post_locked(), m0_rpc_reply_post()
-	 *      m0_rpc_item_resend()
+	 *      m0_rpc_item_send()
 	 */
 	if (M0_IN(item->ri_sm.sm_state, (M0_RPC_ITEM_ENQUEUED,
 					 M0_RPC_ITEM_URGENT,
@@ -697,7 +697,7 @@ static void item_timedout_cb(struct m0_sm_timer *timer)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_rpc_item_resend(struct m0_rpc_item *item)
+M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 {
 	uint32_t state = item->ri_sm.sm_state;
 
@@ -705,7 +705,8 @@ M0_INTERNAL void m0_rpc_item_resend(struct m0_rpc_item *item)
 	M0_PRE(item != NULL && m0_rpc_machine_is_locked(item->ri_rmachine));
 	M0_PRE(m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item));
 	M0_PRE(ergo(m0_rpc_item_is_request(item),
-		    M0_IN(state, (M0_RPC_ITEM_WAITING_FOR_REPLY,
+		    M0_IN(state, (M0_RPC_ITEM_INITIALISED,
+				  M0_RPC_ITEM_WAITING_FOR_REPLY,
 				  M0_RPC_ITEM_REPLIED,
 				  M0_RPC_ITEM_FAILED))) &&
 		    /* XXX think more about resending failed items */
@@ -716,11 +717,13 @@ M0_INTERNAL void m0_rpc_item_resend(struct m0_rpc_item *item)
 		M0_LOG(M0_FATAL,"%p deadline advanced", item);
 		item->ri_deadline = m0_time_from_now(0, 500 * 1000 * 1000);
 	}
+	/*
+	 * This hold will be released when the item is SENT or FAILED.
+	 * See rpc/frmops.c:item_sent() and m0_rpc_item_failed()
+	 */
 	m0_rpc_session_hold_busy(item->ri_session);
 	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm,
 			    item);
-	M0_LOG(M0_FATAL, "item: %p [%s/%u] enqueued", item, item_kind(item),
-		item->ri_type->rit_opcode);
 	M0_LEAVE();
 }
 

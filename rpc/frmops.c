@@ -411,6 +411,15 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 	M0_PRE(item != NULL);
 	M0_PRE(M0_IN(item->ri_error, (0, -ETIMEDOUT)));
 
+	if (m0_rpc_item_is_request(item) &&
+	    M0_IN(item->ri_stage, (RPC_ITEM_STAGE_PAST_VOLATILE,
+				   RPC_ITEM_STAGE_PAST_COMMITTED))) {
+		/* cannot fail already completed request, just because
+		   resending it failed.
+		 */
+		M0_ASSERT(item->ri_reply != NULL && item->ri_nr_sent > 1);
+		rc = 0;
+	}
 	if (item->ri_pending_reply != NULL) {
 		/* item that is never sent, i.e. item->ri_nr_sent == 0,
 		   can never have a (pending/any) reply.
@@ -453,7 +462,7 @@ static void item_sent(struct m0_rpc_item *item)
 	 * Request and Reply items take hold on session until
 	 * they are SENT/FAILED.
 	 * See: m0_rpc__post_locked(), m0_rpc_reply_post()
-	 *      m0_rpc_item_resend()
+	 *      m0_rpc_item_send()
 	 */
 	if (m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item))
 		m0_rpc_session_release(item->ri_session);

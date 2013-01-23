@@ -1085,7 +1085,7 @@ static void rcv_reply_consume(struct m0_rpc_item *req,
 		break;
 	case M0_RPC_ITEM_SENT:
 	case M0_RPC_ITEM_FAILED:
-		m0_rpc_item_resend(reply);
+		m0_rpc_item_send(reply);
 		break;
 	case M0_RPC_ITEM_ENQUEUED:
 	case M0_RPC_ITEM_URGENT:
