@@ -364,8 +364,8 @@ void m0_rpc_item_init(struct m0_rpc_item *item,
 	item->ri_op_timeout = M0_TIME_NEVER;
 	item->ri_magic      = M0_RPC_ITEM_MAGIC;
 
-	item->ri_flags |= M0_RPC_ITEM_RESEND_IS_ALLOWED;
-	item->ri_resend_interval = m0_time(0, 500 * 1000 * 1000);
+	item->ri_resend_interval = m0_time(1, 0);
+	item->ri_nr_sent_max     = ~(uint64_t)0;
 
 	sref = &item->ri_slot_refs[0];
 	sref->sr_ow = invalid_slot_ref;
@@ -716,10 +716,6 @@ M0_INTERNAL void m0_rpc_item_resend(struct m0_rpc_item *item)
 		M0_LOG(M0_FATAL,"%p deadline advanced", item);
 		item->ri_deadline = m0_time_from_now(0, 500 * 1000 * 1000);
 	}
-
-	if (item->ri_nr_resend_attempts == 0)
-		item->ri_rmachine->rm_stats.rs_nr_resent_items++;
-	item->ri_nr_resend_attempts++;
 	m0_rpc_session_hold_busy(item->ri_session);
 	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm,
 			    item);

@@ -407,13 +407,27 @@ static void outgoing_buf_event_handler(const struct m0_net_buffer_event *ev)
 
 static void item_done(struct m0_rpc_item *item, unsigned long rc)
 {
-	bool timeout_is_pending;
-	bool reply_is_pending;
+//	bool timeout_is_pending;
+//	bool reply_is_pending;
 
 	M0_ENTRY("item: %p rc: %lu", item, rc);
 	M0_PRE(item != NULL);
 	M0_PRE(M0_IN(item->ri_error, (0, -ETIMEDOUT)));
-
+	/* ============ */
+	/*
+	if (item->ri_pending_reply != NULL) {
+		M0_ASSERT(item->ri_nr_sent > 1);
+		rc = 0;
+		item->ri_error = 0;
+	}
+	*/
+	if (rc == 0)
+		item_sent(item);
+	item->ri_error = item->ri_error ?: rc;
+	if (item->ri_error != 0)
+		m0_rpc_item_failed(item, item->ri_error);
+	/* ============ */
+#if 0
 	timeout_is_pending = item->ri_error == -ETIMEDOUT;
 	if (timeout_is_pending)
 		M0_LOG(M0_DEBUG, "item %p has pending timeout", item);
@@ -434,12 +448,12 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 	        ignore the timeout.
 	 */
 	if (rc != 0 && reply_is_pending) {
-		M0_ASSERT(item->ri_nr_resend_attempts > 0);
+		M0_ASSERT(item->ri_nr_sent > 1);
 		rc = 0; /* ignore the error */
 	}
 	item->ri_error = rc;
 	if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL &&
-	    item->ri_nr_resend_attempts == 0)
+	    item->ri_nr_sent == 1)
 		item->ri_ops->rio_sent(item);
 
 	if (timeout_is_pending) {
@@ -453,22 +467,31 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 		item_sent(item);
 	else
 		m0_rpc_item_failed(item, item->ri_error);
-
+#endif
 	M0_LEAVE();
 }
 
 static void item_sent(struct m0_rpc_item *item)
 {
+	struct m0_rpc_stats *stats;
+
 	M0_ENTRY("item: %p", item);
 
-	M0_PRE(item->ri_error == 0 &&
+	M0_PRE(M0_IN(item->ri_error, (0, -ETIMEDOUT)) &&
 	       item->ri_sm.sm_state == M0_RPC_ITEM_SENDING);
 
-	item->ri_rmachine->rm_stats.rs_nr_sent_items++;
-	if (item->ri_nr_resend_attempts == 0)
-		item->ri_rmachine->rm_stats.rs_nr_sent_items_uniq++;
-
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_SENT);
+
+	stats = &item->ri_rmachine->rm_stats;
+	stats->rs_nr_sent_items++;
+	if (item->ri_nr_sent == 0) { /* not resent. */
+		stats->rs_nr_sent_items_uniq++;
+		if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
+			item->ri_ops->rio_sent(item);
+	} else
+		stats->rs_nr_resent_items++;
+	item->ri_nr_sent++;
+
 	/*
 	 * Request and Reply items take hold on session until
 	 * they are SENT/FAILED.

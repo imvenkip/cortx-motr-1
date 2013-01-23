@@ -164,10 +164,6 @@ enum m0_rpc_item_dir {
 	M0_RPC_ITEM_OUTGOING,
 };
 
-enum m0_rpc_item_flags {
-	M0_RPC_ITEM_RESEND_IS_ALLOWED = (1 << 0),
-};
-
 /**
    A single RPC item, such as a FOP or ADDB Record.  This structure should be
    included in every item being sent via RPC layer core to emulate relationship
@@ -183,7 +179,6 @@ struct m0_rpc_item {
 	    the item.
 	 */
 	m0_time_t			 ri_deadline;
-	/** See m0_rpc_item_flags */
 	uint64_t			 ri_flags;
 	/** Absolute time after which the RPC call is considered as failed */
 	m0_time_t                        ri_op_timeout;
@@ -191,7 +186,7 @@ struct m0_rpc_item {
 	/** item operations */
 	const struct m0_rpc_item_ops	*ri_ops;
 	m0_time_t                        ri_resend_interval;
-
+	uint64_t                         ri_nr_sent_max;
 /* Public fields: read only */
 
 	struct m0_rpc_machine           *ri_rmachine;
@@ -208,7 +203,7 @@ struct m0_rpc_item {
 	struct m0_sm_timer               ri_timer;
 	struct m0_sm                     ri_sm;
 	enum m0_rpc_item_stage		 ri_stage;
-	uint32_t                         ri_nr_resend_attempts;
+	uint32_t                         ri_nr_sent;
 	struct m0_rpc_slot_ref		 ri_slot_refs[MAX_SLOT_REF];
 	/** Anchor to put item on m0_rpc_session::s_unbound_items list */
 	struct m0_list_link		 ri_unbound_link;
