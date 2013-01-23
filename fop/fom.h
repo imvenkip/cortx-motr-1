@@ -453,8 +453,16 @@ struct m0_fom {
 	struct m0_reqh_service   *fo_service;
 	/** ADDB context for this fom */
 	struct m0_addb_ctx        fo_addb_ctx;
-	/** Imported client ADDB context (may be NULL) */
-	struct m0_addb_ctx       *fo_client_addb_ctx;
+	/** Imported operational ADDB context placeholder */
+	struct m0_addb_ctx        fo_imp_op_addb_ctx;
+	/**
+	 * Optional imported operational ADDB context pointer to
+	 * m0_fom::fo_imp_op_addb_ctx (NULL if not initialized).
+	 * Initialized via m0_fom_op_addb_ctx_import().
+	 * Use as the last element in a context vector when posting
+	 * ADDB records for the FOM.
+	 */
+	struct m0_addb_ctx       *fo_op_addb_ctx;
 	/**
 	 *  FOM linkage in the locality runq list or wait list
 	 *  Every access to the FOM via this linkage is
@@ -785,6 +793,20 @@ M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type,
 				  const struct m0_fom_type_ops *ops,
 				  const struct m0_reqh_service_type *svc_type,
 				  const struct m0_sm_conf *sm);
+
+/**
+ * Associate an operational context with the FOM.
+ *
+ * Such a context is usually provided by the entity that triggered
+ * the creation of the FOM.
+ *
+ * @param fom The FOM object pointer.
+ * @param id Pointer to the context identifier sequence representing
+ * the operational context. The memory associated with this sequence
+ * must remain stable until the FOM is destroyed.
+ */
+M0_INTERNAL int m0_fom_op_addb_ctx_import(struct m0_fom *fom,
+					const struct m0_addb_uint64_seq *id);
 
 /** @} end of fom group */
 /* __MERO_FOP_FOM_H__ */

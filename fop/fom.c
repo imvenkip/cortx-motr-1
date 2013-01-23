@@ -871,6 +871,10 @@ void m0_fom_fini(struct m0_fom *fom)
 	reqh = fdom->fd_reqh;
 	fom_state_set(fom, M0_FOS_FINISH);
 	m0_addb_ctx_fini(&fom->fo_addb_ctx);
+	if (fom->fo_op_addb_ctx != NULL) {
+		m0_addb_ctx_fini(fom->fo_op_addb_ctx);
+		fom->fo_op_addb_ctx = NULL;
+	}
 	m0_sm_fini(&fom->fo_sm_phase);
 	m0_sm_fini(&fom->fo_sm_state);
 	runq_tlink_fini(fom);
@@ -1202,6 +1206,18 @@ M0_INTERNAL int m0_fom_rc(const struct m0_fom *fom)
 M0_INTERNAL bool m0_fom_is_waiting(const struct m0_fom *fom)
 {
 	return fom_state(fom) == M0_FOS_WAITING && is_in_wail(fom);
+}
+
+M0_INTERNAL int m0_fom_op_addb_ctx_import(struct m0_fom *fom,
+					const struct m0_addb_uint64_seq *id)
+{
+	M0_PRE(fom != NULL);
+	M0_PRE(id  != NULL);
+
+	if (id->au64s_nr <= 0)
+		return -ENOENT;
+	fom->fo_op_addb_ctx = &fom->fo_imp_op_addb_ctx;
+	return m0_addb_ctx_import(fom->fo_op_addb_ctx, id);
 }
 
 /** @} endgroup fom */
