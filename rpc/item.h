@@ -206,7 +206,6 @@ struct m0_rpc_item {
 	struct m0_sm_timeout             ri_deadline_timeout;
 	/** Invokes item_timedout_cb() after ri_op_timeout is passed */
 	struct m0_sm_timer               ri_timer;
-	struct m0_sm_timer               ri_resend_timer;
 	struct m0_sm                     ri_sm;
 	enum m0_rpc_item_stage		 ri_stage;
 	uint32_t                         ri_nr_resend_attempts;

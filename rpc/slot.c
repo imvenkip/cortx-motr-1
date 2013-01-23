@@ -909,7 +909,6 @@ M0_INTERNAL void rpc_item_replied(struct m0_rpc_item *item,
 	item->ri_reply = reply;
 
 	m0_rpc_item_stop_timer(item);
-	m0_rpc_item_stop_resend_timer(item);
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_REPLIED);
 	/* Consider a request item X for which reply is received and
 	   ->rio_replied() callback is invoked for item X.
