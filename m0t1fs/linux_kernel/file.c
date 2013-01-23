@@ -2131,7 +2131,6 @@ static int pargrp_iomap_pages_mark(struct pargrp_iomap       *map,
 				}
 			}
 			bufs[row][col]->db_flags |= PA_READ_FAILED;
-			M0_LOG(M0_INFO, "row = %u, col = %u", row, col);
 		}
 	}
 	M0_RETURN(rc);
@@ -2185,13 +2184,10 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 				        &tgt, &src);
 		M0_ASSERT(src.sa_group == map->pi_grpid);
 		M0_ASSERT(src.sa_unit  <  layout_n(play) + layout_k(play));
-		M0_LOG(M0_INFO, "tgt_offset = %llu, group = %llu, unit = %llu",
-		       index[seg], src.sa_group, src.sa_unit);
 
 		/* Segment belongs to a data unit. */
 		if (src.sa_unit < layout_n(play)) {
 			goff = gfile_offset(index[seg], map, play, &src);
-			M0_LOG(M0_INFO, "gb offset = %llu", goff);
 			page_pos_get(map, goff, &row, &col);
 			M0_ASSERT(map->pi_databufs[row][col] != NULL);
 			map->pi_databufs[row][col]->db_flags |= PA_READ_FAILED;
@@ -2280,11 +2276,6 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 	inode = map->pi_ioreq->ir_file->f_dentry->d_inode;
 	play  = pdlayout_get(map->pi_ioreq);
 
-	M0_LOG(M0_INFO, "data buffers\n");
-	for (id = 0; id < SEG_NR(&map->pi_ivec); ++id)
-		M0_LOG(M0_INFO, "id: %u, index = %llu, count = %llu\n",
-		id, INDEX(&map->pi_ivec, id), COUNT(&map->pi_ivec, id));
-
 	/*
 	 * Data matrix from parity group.
 	 * The loop traverses column by column to be in sync with
@@ -2309,8 +2300,6 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 				INDEX(&map->pi_ivec, id) = start;
 				COUNT(&map->pi_ivec, id) = PAGE_CACHE_SIZE;
 				++SEG_NR(&map->pi_ivec);
-				M0_LOG(M0_INFO, "New index %llu"
-					"populated at id %u", start, id);
 			}
 
 			if (map->pi_databufs[row][col] != NULL) {
@@ -2337,22 +2326,15 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 			 * failure (PA_READ_FAILED flag set) are read in
 			 * degraded mode.
 			 */
-			M0_LOG(M0_INFO, "data:within_eof = %s, pageattrs = %u",
-			        within_eof ?  "true" : "false",
-				dbuf->db_flags);
 			if (M0_IN(map->pi_rtype, (PIR_READOLD, PIR_NONE)) &&
-			    within_eof) {
+			    within_eof)
 				dbuf->db_flags |= PA_DGMODE_READ;
-				M0_LOG(M0_INFO, "data row = %u, col = %u"
-				       "marked with dgmode read.", row, col);
-			}
 		}
 	}
 
 	if (rc != 0)
 		M0_RETERR(rc, "Failed to allocate data buffer");
 
-	M0_LOG(M0_INFO, "parity buffers\n");
 	/* parity matrix from parity group. */
 	for (row = 0; row < parity_row_nr(play); ++row) {
 		for (col = 0; col < parity_col_nr(play); ++col) {
@@ -2373,25 +2355,17 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 			if (dbuf->db_flags & PA_READ_FAILED)
 				continue;
 
-			if (M0_IN(map->pi_rtype, (PIR_READREST, PIR_NONE))) {
+			if (M0_IN(map->pi_rtype, (PIR_READREST, PIR_NONE)))
 				dbuf->db_flags |= PA_DGMODE_READ;
-				M0_LOG(M0_INFO, "parity row = %u, col = %u"
-					"marked with dgmode read.", row, col);
-			}
 		}
 	}
 
-	M0_LOG(M0_INFO, "at end\n");
-	for (id = 0; id < SEG_NR(&map->pi_ivec); ++id)
-		M0_LOG(M0_INFO, "id: %u, index = %llu, count = %llu\n",
-		id, INDEX(&map->pi_ivec, id), COUNT(&map->pi_ivec, id));
 	M0_RETURN(rc);
 }
 
 static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 {
 	int                       rc = 0;
-	char                     *c;
 	uint8_t                  *fail;
 	uint32_t                  row;
 	uint32_t                  col;
@@ -2459,9 +2433,6 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 					PA_READ_FAILED) ? 1 : 0;
 			data[col].b_addr = map->pi_databufs[row][col]->
 				           db_buf.b_addr;
-			c = (char *)data[col].b_addr;
-			M0_LOG(M0_INFO, "data:row = %u, col %u, data = %c %c %c\n",
-				row, col, *c, *(c+1), *(c+2));
 		}
 		for (col = 0; col < parity_col_nr(play); ++col) {
 
@@ -2473,9 +2444,6 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 			*(fail + layout_n(play) + col) =
 				(map->pi_paritybufs[row][col]->db_flags &
 				 PA_READ_FAILED) ? 1 : 0;
-			c = (char *)parity[col].b_addr;
-			M0_LOG(M0_INFO, "parity:row = %u, col %u, data = %c %c %c\n",
-				row, col, *c, *(c+1), *(c+2));
 		}
 		m0_parity_math_recover(parity_math(map->pi_ioreq), data,
 				       parity, &failed);
@@ -4353,7 +4321,6 @@ static int io_req_fop_dgmode_read(struct io_req_fop *irfop)
 
 		for (seg = 0; seg < seg_nr; ) {
 
-			M0_LOG(M0_INFO, "seg %u: %llu\n", seg, index[seg]);
 			grpid = pargrp_id_find(*(index + seg), unit_size);
 			for (cnt = 1, ++seg; seg < seg_nr; ++seg) {
 
@@ -4362,8 +4329,6 @@ static int io_req_fop_dgmode_read(struct io_req_fop *irfop)
 				M0_ASSERT((index[seg] &
 					  (PAGE_CACHE_SHIFT - 1)) == 0);
 
-				M0_LOG(M0_INFO, "seg %u: %llu\n", seg,
-						index[seg]);
 				if (seg < seg_nr && grpid ==
 				    pargrp_id_find(*(index + seg), unit_size))
 					++cnt;
@@ -4373,7 +4338,6 @@ static int io_req_fop_dgmode_read(struct io_req_fop *irfop)
 			ioreq_pgiomap_find(req, grpid, &pgcur, &map);
 			M0_ASSERT(map != NULL);
 			rc = map->pi_ops->pi_dgmode_process(map,
-					//irfop->irf_tioreq, index + seg - cnt,
 					irfop->irf_tioreq, &index[seg - cnt],
 					cnt);
 			if (rc != 0)
