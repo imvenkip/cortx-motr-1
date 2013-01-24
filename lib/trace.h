@@ -172,12 +172,12 @@ do {                                                     \
 	return __rc;                                     \
 } while (0)
 
-#define M0_RETERR(rc, fmt, ...)                                 \
-do {                                                            \
-	typeof(rc) __rc = (rc);                                 \
-	M0_ASSERT(__rc != 0);                                   \
-	M0_LOG(M0_ERROR, "! rc=%d " fmt, __rc, ## __VA_ARGS__); \
-	return __rc;                                            \
+#define M0_RETERR(rc, fmt, ...)                                  \
+do {                                                             \
+	typeof(rc) __rc = (rc);                                  \
+	M0_ASSERT(__rc != 0);                                    \
+	M0_LOG(M0_ERROR, "<! rc=%d " fmt, __rc, ## __VA_ARGS__); \
+	return __rc;                                             \
 } while (0)
 
 M0_INTERNAL int m0_trace_init(void);
