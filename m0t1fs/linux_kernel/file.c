@@ -2849,6 +2849,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 
 	csb = file_to_sb(req->ir_file);
 	ioreq_sm_state_set(req, IRS_DEGRADED_READING);
+
 	/*
 	 * Looks up failed target_ioreq structure/s and failed
 	 * IO fop/s in failed target_ioreq structure/s.
