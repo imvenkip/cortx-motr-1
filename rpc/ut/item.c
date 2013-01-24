@@ -215,6 +215,7 @@ static void __test_timeout(m0_time_t deadline,
 	m0_fop_put(fop);
 }
 
+__attribute__((unused))
 static bool only_second_time(void *data)
 {
 	int *ip = data;
@@ -228,8 +229,9 @@ static void test_resend(void)
 {
 	struct m0_rpc_item *item;
 	int                 rc;
-	int                 cnt = 0;
+	//int                 cnt = 0;
 
+#if 0
 	/* Test: Request is dropped. */
 	M0_LOG(M0_FATAL, "TEST1:START");
 	m0_fi_enable_once("item_received", "drop_item");
@@ -269,33 +271,36 @@ static void test_resend(void)
 	item = &fop->f_item;
 	__test_resend(fop);
 	M0_LOG(M0_FATAL, "TEST3:END");
-
+#endif
 	M0_LOG(M0_FATAL, "TEST4:START");
 	/* CONTINUES TO USE fop/item FROM PREVIOUS TEST-CASE. */
 	/* RPC call is complete i.e. item is in REPLIED state.
 	   Explicitly resend the completed request; the way the item
 	   will be resent during recovery.
 	 */
+	fop = fop_alloc();
+	item = &fop->f_item;
+	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
+				0 /* urgent */, m0_time_from_now(2, 0));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_error == 0);
+	M0_UT_ASSERT(item->ri_nr_sent == 1);
+	M0_UT_ASSERT(item->ri_reply != NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
+
 	m0_rpc_machine_lock(item->ri_rmachine);
 	m0_rpc_item_send(item);
 	m0_rpc_machine_unlock(item->ri_rmachine);
 	rc = m0_rpc_item_wait_for_reply(item, m0_time_from_now(2, 0));
-	/* Question: The item already has its ri_reply set. Hence, the item
-	   "skids" to REPLIED state as soon as it is SENT. It doesn't wait
-	   for reply. Is this behavior all right?
-	 */
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(item->ri_error == 0);
-	M0_UT_ASSERT(item->ri_nr_sent == 3);
+	M0_UT_ASSERT(item->ri_nr_sent == 2);
 	M0_UT_ASSERT(item->ri_reply != NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
-	M0_LOG(M0_FATAL, "TEST4:END");
 	m0_fop_put(fop);
-	m0_fi_enable("item_received", "drop_item");
-	/* TEMPORARY: sleep until reply is received and dropped */
-	m0_nanosleep(m0_time(0, 5 * 1000 * 1000), NULL);
-	m0_fi_disable("item_received", "drop_item");
+	M0_LOG(M0_FATAL, "TEST4:END");
 
+#if 0
 	/* Test: Move item from WAITING_FOR_REOLY to FAILED state if
 		 item_sent() fails to start resend timer.
 	 */
@@ -314,8 +319,10 @@ static void test_resend(void)
 	m0_nanosleep(m0_time(0, 5 * 1000 * 1000), NULL);
 	m0_fi_disable("item_received", "drop_item");
 	M0_LOG(M0_FATAL, "TEST5:END");
+#endif
 }
 
+__attribute__((unused))
 static void __test_resend(struct m0_fop *fop)
 {
 	bool fop_put_flag = false;
@@ -471,7 +478,7 @@ const struct m0_test_suite item_ut = {
 	.ts_tests = {
 		{ "simple-transitions",     test_simple_transitions     },
 		{ "timeout-transitions",    test_timeout                },
-		//{ "item-resend",            test_resend                 },
+		{ "item-resend",            test_resend                 },
 		{ "failure-before-sending", test_failure_before_sending },
 		{ "oneway-item",            test_oneway_item            },
 		{ NULL, NULL },

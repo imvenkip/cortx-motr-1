@@ -47,6 +47,8 @@ enum {
 
 /**
    Call-backs for events that a slot can trigger.
+
+   @see snd_slot_ops, rcv_slot_ops
  */
 struct m0_rpc_slot_ops {
 	/** Item i is ready to be consumed */
@@ -58,6 +60,7 @@ struct m0_rpc_slot_ops {
 	/** Slot has no items to send and hence is idle. Formation
 	    can use such slot to send unbound items. */
 	void (*so_slot_idle)(struct m0_rpc_slot *slot);
+	void (*so_slot_busy)(struct m0_rpc_slot *slot);
 };
 
 /**

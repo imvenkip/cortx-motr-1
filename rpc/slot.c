@@ -343,6 +343,9 @@ static void __slot_balance(struct m0_rpc_slot *slot,
 			if (allow_events)
 				slot->sl_ops->so_slot_idle(slot);
 			break;
+		} else {
+			if (allow_events)
+				slot->sl_ops->so_slot_busy(slot);
 		}
 
 		if (item->ri_stage == RPC_ITEM_STAGE_FUTURE)
@@ -632,7 +635,8 @@ M0_INTERNAL int __slot_reply_received(struct m0_rpc_slot *slot,
 		M0_PRE(M0_IN(req->ri_stage, (RPC_ITEM_STAGE_PAST_COMMITTED,
 					     RPC_ITEM_STAGE_PAST_VOLATILE,
 					     RPC_ITEM_STAGE_IN_PROGRESS)));
-		M0_ASSERT(slot->sl_in_flight > 0);
+		M0_ASSERT(ergo(req->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS,
+			       slot->sl_in_flight > 0));
 
 		m0_rpc_item_get(reply);
 
@@ -660,6 +664,11 @@ M0_INTERNAL int __slot_reply_received(struct m0_rpc_slot *slot,
 		case M0_RPC_ITEM_ACCEPTED:
 		case M0_RPC_ITEM_WAITING_FOR_REPLY:
 			m0_rpc_slot_process_reply(req, reply);
+			break;
+
+		case M0_RPC_ITEM_REPLIED:
+			/* Duplicate reply. Drop it. */
+			m0_rpc_item_put(reply);
 			break;
 
 		default:
@@ -705,8 +714,11 @@ M0_INTERNAL void m0_rpc_slot_process_reply(struct m0_rpc_item *req,
 	m0_rpc_item_change_state(req, M0_RPC_ITEM_REPLIED);
 
 	slot = req->ri_slot_refs[0].sr_slot;
-	slot->sl_in_flight--;
-	slot_balance(slot);
+	if (slot->sl_last_sent == req && slot->sl_in_flight == 1) {
+		M0_ASSERT(slot->sl_max_in_flight == 1);
+		slot->sl_in_flight--;
+		slot_balance(slot);
+	}
 	/*
 	 * On receiver, ->so_reply_consume(req, reply) will hand over
 	 * @reply to formation, to send it back to sender.

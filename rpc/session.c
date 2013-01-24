@@ -45,6 +45,7 @@
  */
 
 static void snd_slot_idle(struct m0_rpc_slot *slot);
+static void snd_slot_busy(struct m0_rpc_slot *slot);
 
 static void snd_item_consume(struct m0_rpc_item *item);
 
@@ -52,6 +53,7 @@ static void snd_reply_consume(struct m0_rpc_item *req,
 				 struct m0_rpc_item *reply);
 
 static void rcv_slot_idle(struct m0_rpc_slot *slot);
+static void rcv_slot_busy(struct m0_rpc_slot *slot);
 
 static void rcv_item_consume(struct m0_rpc_item *item);
 
@@ -80,14 +82,16 @@ static void session_failed(struct m0_rpc_session *session, int32_t error);
 static void session_idle_x_busy(struct m0_rpc_session *session);
 
 static const struct m0_rpc_slot_ops snd_slot_ops = {
-	.so_slot_idle = snd_slot_idle,
-	.so_item_consume = snd_item_consume,
+	.so_slot_idle     = snd_slot_idle,
+	.so_slot_busy     = snd_slot_busy,
+	.so_item_consume  = snd_item_consume,
 	.so_reply_consume = snd_reply_consume
 };
 
 static const struct m0_rpc_slot_ops rcv_slot_ops = {
-	.so_slot_idle = rcv_slot_idle,
-	.so_item_consume = rcv_item_consume,
+	.so_slot_idle     = rcv_slot_idle,
+	.so_slot_busy     = rcv_slot_busy,
+	.so_item_consume  = rcv_item_consume,
 	.so_reply_consume = rcv_reply_consume
 };
 
@@ -1025,6 +1029,14 @@ static void snd_slot_idle(struct m0_rpc_slot *slot)
 	m0_rpc_frm_run_formation(frm);
 }
 
+static void snd_slot_busy(struct m0_rpc_slot *slot)
+{
+	M0_PRE(slot != NULL);
+
+	if (ready_slot_tlink_is_in(slot))
+		ready_slot_tlist_del(slot);
+}
+
 M0_INTERNAL bool m0_rpc_session_bind_item(struct m0_rpc_item *item)
 {
 	struct m0_rpc_session *session;
@@ -1069,6 +1081,11 @@ static void rcv_slot_idle(struct m0_rpc_slot *slot)
 	 * All consumed reply items, will be treated as bound items by
 	 * formation, and will find these items in its own lists.
 	 */
+}
+
+static void rcv_slot_busy(struct m0_rpc_slot *slot)
+{
+	/* Do nothing on receiver */
 }
 
 static void rcv_item_consume(struct m0_rpc_item *item)

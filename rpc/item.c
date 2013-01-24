@@ -165,7 +165,8 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 	},
 	[M0_RPC_ITEM_WAITING_IN_STREAM] = {
 		.sd_name    = "WAITING_IN_STREAM",
-		.sd_allowed = M0_BITS(M0_RPC_ITEM_ENQUEUED),
+		.sd_allowed = M0_BITS(M0_RPC_ITEM_ENQUEUED,
+				      M0_RPC_ITEM_URGENT),
 	},
 	[M0_RPC_ITEM_ENQUEUED] = {
 		.sd_name    = "ENQUEUED",
@@ -205,6 +206,7 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 		.sd_name    = "REPLIED",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_UNINITIALISED,
 				      M0_RPC_ITEM_ENQUEUED,
+				      M0_RPC_ITEM_URGENT,
 				      M0_RPC_ITEM_FAILED),
 	},
 	[M0_RPC_ITEM_FAILED] = {

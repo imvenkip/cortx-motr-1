@@ -417,7 +417,7 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 		/* cannot fail already completed request, just because
 		   resending it failed.
 		 */
-		M0_ASSERT(item->ri_reply != NULL && item->ri_nr_sent > 1);
+		M0_ASSERT(item->ri_reply != NULL && item->ri_nr_sent > 0);
 		rc = 0;
 	}
 	if (item->ri_pending_reply != NULL) {
