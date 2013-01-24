@@ -1467,7 +1467,7 @@ static void pargrp_iomap_fini(struct pargrp_iomap *map)
 		map->pi_databufs[row] = NULL;
 	}
 
-	if (map->pi_ioreq->ir_type == IRT_WRITE) {
+	if (map->pi_paritybufs != NULL) {
 		for (row = 0; row < parity_row_nr(play); ++row) {
 			for (col = 0; col < parity_col_nr(play); ++col) {
 				if (map->pi_paritybufs[row][col] != NULL) {
