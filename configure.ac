@@ -506,8 +506,10 @@ M0_CFLAGS="-Wall -Werror -Wno-attributes -fno-strict-aliasing $M0_CFLAGS"
 
 M0_LDFLAGS="-rdynamic $M0_LDFLAGS"
 
-M0_KCPPFLAGS="-DM0_INTERNAL='' -DM0_EXTERN=extern -include $ABS_BUILDDIR/config.h \
-              -iquote $ABS_BUILDDIR $GALOIS_INCLUDES $M0_KCPPFLAGS"
+M0_KCPPFLAGS="-DM0_INTERNAL='' -DM0_EXTERN=extern \
+              -include $ABS_BUILDDIR/config.h -iquote $ABS_BUILDDIR -iquote $ABS_SRCDIR \
+              -I $LUSTRE/lnet/include -I$LUSTRE/libcfs/include -I$LUSTRE/lustre/include \
+              $GALOIS_INCLUDES $M0_KCPPFLAGS"
 
 M0_KCFLAGS="-Wall -Werror -Wno-attributes $M0_KCFLAGS"
 

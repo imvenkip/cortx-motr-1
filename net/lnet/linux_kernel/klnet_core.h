@@ -30,6 +30,8 @@
 #include "net/lnet/lnet_core.h"
 
 #include <linux/spinlock.h>
+#include <lustre_ver.h>         /* LUSTRE_VERSION_CODE */
+#include <lustre/lustre_idl.h>  /* OBD_OCD_VERSION */
 
 /**
    @defgroup KLNetCore LNet Transport Core Kernel Private Interface
@@ -40,7 +42,20 @@
 
 enum {
 	M0_NET_LNET_MAX_PORTALS     = 64, /**< Number of portals supported. */
-	M0_NET_LNET_EQ_SIZE         = 8,  /**< Size of LNet event queue. */
+
+	/**
+	 * Size of LNet event queue.
+	 *
+	 * Behavior of LNetEQAlloc() was changed since Lustre 2.2.54, so eq_size
+	 * parameter should zero after this version, see commit
+	 * 2.2.54-55-ga096d85 "LU-56 lnet: allow to create EQ with zero eq_size"
+	 * in Lustre git repository for explanation
+	 */
+#if LUSTRE_VERSION_CODE < OBD_OCD_VERSION(2, 2, 54, 0)
+	M0_NET_LNET_EQ_SIZE         = 8,
+#else
+	M0_NET_LNET_EQ_SIZE         = 0,
+#endif
 
 	/** Portal mask when encoded in hdr_data */
 	M0_NET_LNET_PORTAL_MASK     = M0_NET_LNET_BUFFER_ID_MAX,

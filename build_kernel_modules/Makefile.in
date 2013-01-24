@@ -11,9 +11,7 @@ testdirs        = ../net/lnet/st/linux_kernel/ \
                   ../rpc/it/linux_kernel/      \
                   ../utils/linux_kernel/
 
-EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) \
-                  @M0_KCPPFLAGS@ @M0_KCFLAGS@ @KCFLAGS@ \
-                  -I@LUSTRE@/lnet/include -I@LUSTRE@/libcfs/include
+EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . @M0_KCPPFLAGS@ @M0_KCFLAGS@ @KCFLAGS@
 
 #       NOTE:
 #       It is assumed that user space build is done before starting to
