@@ -409,7 +409,6 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 {
 	M0_ENTRY("item: %p rc: %lu", item, rc);
 	M0_PRE(item != NULL);
-	M0_PRE(M0_IN(item->ri_error, (0, -ETIMEDOUT)));
 
 	if (m0_rpc_item_is_request(item) &&
 	    M0_IN(item->ri_stage, (RPC_ITEM_STAGE_PAST_VOLATILE,

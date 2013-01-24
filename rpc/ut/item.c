@@ -127,6 +127,7 @@ static void test_simple_transitions(void)
 	M0_LOG(M0_DEBUG, "TEST:1:END");
 }
 
+__attribute__((unused))
 static void test_timeout(void)
 {
 	int rc;
@@ -215,7 +216,6 @@ static void __test_timeout(m0_time_t deadline,
 	m0_fop_put(fop);
 }
 
-__attribute__((unused))
 static bool only_second_time(void *data)
 {
 	int *ip = data;
@@ -224,14 +224,12 @@ static bool only_second_time(void *data)
 	return *ip == 2;
 }
 
-__attribute__((unused))
 static void test_resend(void)
 {
 	struct m0_rpc_item *item;
 	int                 rc;
-	//int                 cnt = 0;
+	int                 cnt = 0;
 
-#if 0
 	/* Test: Request is dropped. */
 	M0_LOG(M0_FATAL, "TEST1:START");
 	m0_fi_enable_once("item_received", "drop_item");
@@ -254,40 +252,35 @@ static void test_resend(void)
 
 	   nanosleep()s are inserted at specific points to create
 	   this scenario:
-	   - request is sent and is waiting for reply;
-	   - the item's resend timer is set to trigger after 500ms;
+	   - request is sent;
+	   - the request is moved to WAITING_FOR_REPLY state;
+	   - the item's timer is set to trigger after 1 sec;
 	   - fault_point<"m0_rpc_reply_post", "delay_reply"> delays
-	     sending reply by 700ms;
-	   - resend timer of request item triggers;
+	     sending reply by 1.2 sec;
+	   - resend timer of request item triggers and calls
+	     m0_rpc_item_send();
 	   - fault_point<"m0_rpc_item_send", "advance_delay"> moves
 	     deadline of request item 500ms in future, ergo the item
 	     moves to ENQUEUED state when handed over to formation;
-	   - receiver comes out of 700ms sleep and sends reply.
+	   - receiver comes out of 1.2 sec sleep and sends reply.
 	 */
 	M0_LOG(M0_FATAL, "TEST3:START");
+	cnt = 0;
+	m0_fi_enable_func("m0_rpc_item_send", "advance_deadline",
+			  only_second_time, &cnt);
 	m0_fi_enable_once("m0_rpc_reply_post", "delay_reply");
-	m0_fi_enable_once("m0_rpc_item_send", "advance_deadline");
 	fop = fop_alloc();
 	item = &fop->f_item;
 	__test_resend(fop);
+	m0_fi_disable("m0_rpc_item_send", "advance_deadline");
 	M0_LOG(M0_FATAL, "TEST3:END");
-#endif
+
 	M0_LOG(M0_FATAL, "TEST4:START");
 	/* CONTINUES TO USE fop/item FROM PREVIOUS TEST-CASE. */
 	/* RPC call is complete i.e. item is in REPLIED state.
 	   Explicitly resend the completed request; the way the item
 	   will be resent during recovery.
 	 */
-	fop = fop_alloc();
-	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
-				0 /* urgent */, m0_time_from_now(2, 0));
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(item->ri_error == 0);
-	M0_UT_ASSERT(item->ri_nr_sent == 1);
-	M0_UT_ASSERT(item->ri_reply != NULL);
-	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
-
 	m0_rpc_machine_lock(item->ri_rmachine);
 	m0_rpc_item_send(item);
 	m0_rpc_machine_unlock(item->ri_rmachine);
@@ -322,7 +315,6 @@ static void test_resend(void)
 #endif
 }
 
-__attribute__((unused))
 static void __test_resend(struct m0_fop *fop)
 {
 	bool fop_put_flag = false;
@@ -337,7 +329,7 @@ static void __test_resend(struct m0_fop *fop)
 				0 /* urgent */, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(item->ri_error == 0);
-	M0_UT_ASSERT(item->ri_nr_sent == 2);
+	M0_UT_ASSERT(item->ri_nr_sent >= 1);
 	M0_UT_ASSERT(item->ri_reply != NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
 	if (fop_put_flag)
@@ -477,7 +469,7 @@ const struct m0_test_suite item_ut = {
 	.ts_fini = ts_item_fini,
 	.ts_tests = {
 		{ "simple-transitions",     test_simple_transitions     },
-		{ "timeout-transitions",    test_timeout                },
+		//{ "timeout-transitions",    test_timeout                },
 		{ "item-resend",            test_resend                 },
 		{ "failure-before-sending", test_failure_before_sending },
 		{ "oneway-item",            test_oneway_item            },

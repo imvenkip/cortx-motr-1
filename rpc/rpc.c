@@ -172,8 +172,13 @@ M0_EXPORTED(m0_rpc_post);
 
 M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 {
+<<<<<<< HEAD
 	struct m0_rpc_session  *session;
 	struct m0_addb_counter *counter;
+=======
+	struct m0_rpc_session *session;
+	int                    rc;
+>>>>>>> rpc: Trigger resend when item->ri_timer fires.
 
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && item->ri_type != NULL);
@@ -192,11 +197,15 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 	item->ri_rpc_time = m0_time_now();
 	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
-	m0_rpc_item_start_timer(item);
-	counter = &session_machine(session)->rm_cntr_sent_item_sizes;
-	m0_addb_counter_update(counter, (uint64_t)m0_rpc_item_size(item));
-	m0_rpc_item_send(item);
-	M0_RETURN(0);
+	rc = m0_rpc_item_start_timer(item);
+	if (rc == 0) {
+		counter = &session_machine(session)->rm_cntr_sent_item_sizes;
+		m0_addb_counter_update(counter,
+				       (uint64_t)m0_rpc_item_size(item));
+		m0_rpc_item_send(item);
+	} else
+		m0_rpc_item_failed(item, rc);
+	M0_RETURN(rc);
 }
 
 int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
@@ -215,7 +224,7 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 
 	if (M0_FI_ENABLED("delay_reply")) {
 		M0_LOG(M0_FATAL, "%p reply delayed", request);
-		m0_nanosleep(m0_time(0, 700 * 1000 * 1000), NULL);
+		m0_nanosleep(m0_time(1, 200 * 1000 * 1000), NULL);
 	}
 
 	reply->ri_rpc_time = m0_time_now();
