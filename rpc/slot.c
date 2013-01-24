@@ -668,6 +668,7 @@ M0_INTERNAL int __slot_reply_received(struct m0_rpc_slot *slot,
 
 		case M0_RPC_ITEM_REPLIED:
 			/* Duplicate reply. Drop it. */
+			req->ri_rmachine->rm_stats.rs_nr_dropped_items++;
 			m0_rpc_item_put(reply);
 			break;
 
@@ -709,6 +710,7 @@ M0_INTERNAL void m0_rpc_slot_process_reply(struct m0_rpc_item *req,
 		 * XXX find out how to compare two rpc items to be same
 		 */
 		M0_ASSERT(req->ri_reply != NULL);
+		req->ri_rmachine->rm_stats.rs_nr_dropped_items++;
 		m0_rpc_item_put(reply);
 	}
 	m0_rpc_item_change_state(req, M0_RPC_ITEM_REPLIED);

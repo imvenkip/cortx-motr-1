@@ -449,13 +449,17 @@ static void item_sent(struct m0_rpc_item *item)
 
 	stats = &item->ri_rmachine->rm_stats;
 	stats->rs_nr_sent_items++;
-	if (item->ri_nr_sent == 0) { /* not resent. */
+	item->ri_nr_sent++;
+	if (item->ri_nr_sent == 1) { /* not resent. */
 		stats->rs_nr_sent_items_uniq++;
 		if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
 			item->ri_ops->rio_sent(item);
-	} else
+	} else if (item->ri_nr_sent == 2)
+		/* item with ri_nr_sent >= 2 are counted as 1 in
+		   rs_nr_resent_items i.e. rs_nr_resent_items counts number
+		   of items that required resending.
+		 */
 		stats->rs_nr_resent_items++;
-	item->ri_nr_sent++;
 
 	/*
 	 * Request and Reply items take hold on session until
