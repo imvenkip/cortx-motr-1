@@ -115,6 +115,17 @@ M0_INTERNAL void m0_dtm_global_fini(void)
 	m0_dtm_nuclei_fini();
 }
 
+M0_INTERNAL int m0_dtm_global_init(void)
+{
+	m0_dtm_nuclei_init();
+	return 0;
+}
+
+M0_INTERNAL void m0_dtm_global_fini(void)
+{
+	m0_dtm_nuclei_fini();
+}
+
 /** @} end of dtm group */
 
 /*
