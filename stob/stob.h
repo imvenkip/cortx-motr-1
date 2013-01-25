@@ -671,6 +671,8 @@ struct m0_stob_io {
 	   of time.
 	 */
 	uint32_t                    si_stob_magic;
+	/** FOL record part representing operations on storage object. */
+	struct m0_fol_rec_part	   *si_fol_rec_part;
 };
 
 struct m0_stob_io_op {

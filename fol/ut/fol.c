@@ -33,14 +33,13 @@ static int db_reset(void)
         return m0_ut_db_reset(db_name);
 }
 
-static struct m0_dbenv       db;
-static struct m0_fol         fol;
-static struct m0_db_tx       tx;
-
-static struct m0_fol_rec            r;
-static struct m0_fol_rec_desc      *d;
-static struct m0_fol_rec_header    *h;
-static struct m0_buf                buf;
+static struct m0_dbenv           db;
+static struct m0_fol             fol;
+static struct m0_db_tx           tx;
+static struct m0_fol_rec         r;
+static struct m0_fol_rec_desc   *d;
+static struct m0_fol_rec_header *h;
+static struct m0_buf             buf;
 
 static int result;
 
@@ -69,6 +68,27 @@ static void test_fini(void)
 	m0_free(buf.b_addr);
 }
 
+static void test_rec_part_type_reg(void)
+{
+	/**
+	 * @todo Declare FOL record type ut_rec_part_type and part
+	 *  type ops.
+	 * result = m0_fol_rec_part_type_register(&ut_rec_part_type);
+	 * M0_ASSERT(result == 0);
+	 * M0_ASSERT(ut_rec_part_type.rpt_index > 0);
+	 */
+}
+
+static void test_rec_part_type_unreg(void)
+{
+	/**
+	 * @todo
+	 * m0_fol_rec_part_type_deregister(&ut_rec_part_type);
+	 * M0_ASSERT(ut_rec_part_type.rpt_ops == NULL);
+	 * M0_ASSERT(ut_rec_part_type.rpt_xt == NULL);
+	 * M0_ASSERT(ut_rec_part_type.rpt_index == 0);
+	 */
+}
 static void test_add(void)
 {
 	M0_SET0(h);
@@ -109,8 +129,10 @@ const struct m0_test_suite fol_ut = {
 	/* .ts_fini = db_reset, */
 	.ts_tests = {
 		{ "fol-init", test_init },
+		{ "fol-rec-part-type-reg", test_rec_part_type_reg },
 		{ "fol-add", test_add },
 		{ "fol-lookup", test_lookup },
+		{ "fol-rec-part-type-unreg", test_rec_part_type_unreg },
 		{ "fol-fini", test_fini },
 		{ NULL, NULL }
 	}

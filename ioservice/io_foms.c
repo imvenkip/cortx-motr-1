@@ -1458,6 +1458,7 @@ static int io_launch(struct m0_fom *fom)
 
 		stio = &stio_desc->siod_stob_io;
 		m0_stob_io_init(stio);
+		stio->si_fol_rec_part = &stio_desc->siod_fol_rec_part;
 
 		mem_ivec = &stio->si_stob;
 		wire_ivec =

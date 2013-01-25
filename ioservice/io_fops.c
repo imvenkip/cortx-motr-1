@@ -321,17 +321,16 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    void foo_fol_rec_part_add(void)
    {
 	int			result;
-	struct m0_fol_rec_part *foo_rec_part;
+	struct m0_fol_rec_part  foo_rec_part;
 	struct m0_foo	       *foo;
 
 	m0_fol_rec_part_list_init(&rec);
 	result =  m0_fol_rec_part_type_register(&foo_part_type);
         M0_ASSERT(result == 0);
 
-	M0_ALLOC_PTR(rec != NULL);
-	M0_ASSERT(rec != NULL);
-	foo_rec_part = m0_fol_rec_part_init(foo, &foo_part_ops);
-        M0_ASSERT(foo_rec_part != NULL);
+	M0_ALLOC_PTR(foo != NULL);
+	M0_ASSERT(foo != NULL);
+	m0_fol_rec_part_init(&foo_rec_part, foo, &foo_part_type);
 
 	foo->f_key = 22;
         foo->f_val = 33;

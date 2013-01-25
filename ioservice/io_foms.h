@@ -157,6 +157,7 @@ struct m0_stob_io_desc {
         /** Linkage into m0_io_fom_cob_rw::fcrw_stobio_list */
         struct m0_tlink          siod_linkage;
         struct m0_fom_callback   siod_fcb;
+        struct m0_fol_rec_part   siod_fol_rec_part;
 };
 
 /**
@@ -199,6 +200,8 @@ struct m0_io_fom_cob_rw {
 	 *  are returned successfully).
 	 */
 	int				 fcrw_rc;
+	/** fol record part representing operations in io sub-system. */
+	struct m0_fol_rec_part		 fcrw_fol_rec_part;
 };
 
 /**

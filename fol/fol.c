@@ -300,43 +300,72 @@ M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec_desc *drec)
 	return true;
 }
 
+enum {
+	FOL_REC_PART_TYPE_MAX = 128,
+	PART_TYPE_START_INDEX = 1
+};
+
+static const struct m0_fol_rec_part_type *rptypes[FOL_REC_PART_TYPE_MAX];
+static struct m0_mutex rptypes_lock;
+
 M0_INTERNAL int m0_fols_init(void)
 {
+	m0_mutex_init(&rptypes_lock);
 	return 0;
 }
 
 M0_INTERNAL void m0_fols_fini(void)
 {
+	m0_mutex_fini(&rptypes_lock);
 }
 
 M0_INTERNAL int
-m0_fol_rec_part_type_register(const struct m0_fol_rec_part_type *type)
+m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
 {
-	/**
-	 * @todo Maintain a global array of FOL record part types using
-	 * rpt_index.
-	 */
-	return 0;
+	int		result;
+	static uint32_t index = PART_TYPE_START_INDEX;
+
+	M0_PRE(type != NULL);
+	M0_PRE(type->rpt_xt != NULL && type->rpt_ops != NULL);
+	M0_PRE(type->rpt_index == 0);
+
+	m0_mutex_lock(&rptypes_lock);
+	if (IS_IN_ARRAY(index, rptypes)) {
+		M0_ASSERT(rptypes[index] == NULL);
+		rptypes[index]  = type;
+		type->rpt_index = index;
+		++index;
+		result = 0;
+	} else
+		result = -EFBIG;
+	m0_mutex_unlock(&rptypes_lock);
+	return result;
 }
 
 M0_INTERNAL void
-m0_fol_rec_part_type_deregister(const struct m0_fol_rec_part_type *type)
+m0_fol_rec_part_type_deregister(struct m0_fol_rec_part_type *type)
 {
+	m0_mutex_unlock(&rptypes_lock);
+	M0_PRE(IS_IN_ARRAY(type->rpt_index, rptypes));
+	M0_PRE(rptypes[type->rpt_index] == type ||
+	       rptypes[type->rpt_index] == NULL);
 
+	rptypes[type->rpt_index] = NULL;
+	m0_mutex_unlock(&rptypes_lock);
+	type->rpt_index = 0;
+	type->rpt_xt	= NULL;
+	type->rpt_ops	= NULL;
 }
 
-M0_INTERNAL struct m0_fol_rec_part *
-m0_fol_rec_part_init(void *data, const struct m0_fol_rec_part_type *type)
+M0_INTERNAL void
+m0_fol_rec_part_init(struct m0_fol_rec_part *part, void *data,
+		     const struct m0_fol_rec_part_type *type)
 {
-	struct m0_fol_rec_part *part;
+	M0_PRE(part != NULL);
 
-	M0_ALLOC_PTR(part);
-	if (part != NULL) {
-		part->rp_data = data;
-		type->rpt_ops->rpto_rec_part_init(part);
-		m0_rec_part_tlink_init(part);
-	}
-	return part;
+	part->rp_data = data;
+	type->rpt_ops->rpto_rec_part_init(part);
+	m0_rec_part_tlink_init(part);
 }
 
 M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
@@ -347,7 +376,6 @@ M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 	if (m0_rec_part_tlink_is_in(part))
 		m0_rec_part_tlist_del(part);
 	m0_rec_part_tlink_fini(part);
-	m0_free(part);
 }
 
 M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,

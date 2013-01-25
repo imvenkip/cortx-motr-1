@@ -37,8 +37,11 @@
    @li m0_fol_rec_desc: a description of a new fol record to be added to a fol.
 
    @li m0_fol_rec: a record fetched from a fol. m0_fol_rec remembers its
-   location in the fol. fol record contains the list of fol record parts added
-   during updates.
+   location in the fol.
+
+   A fol record contains the list of fol record parts, belonging to fol record
+   part types, added during updates. These fol record parts provides flexibility
+   for madules to participate in a transaction without global knowledge.
 
    @see m0_fol_rec_add()
    @see m0_fol_rec_lookup()
@@ -347,6 +350,10 @@ struct m0_fol_rec_part {
 	struct m0_tlink			   rp_link;
 	/** Magic for fol record part list. */
 	uint64_t			   rp_magic;
+	/**
+	 * As rp_data points to the in-memory record part during encoding,
+	 * rp_data is freed only when rp_flag is equals to M0_BUFVEC_DECODE.
+	 */
 	enum m0_bufvec_what		   rp_flag;
 };
 
@@ -381,19 +388,21 @@ struct m0_fol_rec_part_ops {
    During encoding of FOL record data points to the in-memory FOL record
    part object allocated by the calling function.
    In case if decoding data should be NULL, as it is allocated by xcode.
+   @pre part != NULL
    @pre type != NULL
  */
-M0_INTERNAL struct m0_fol_rec_part *
-m0_fol_rec_part_init(void *data, const struct m0_fol_rec_part_type *type);
+M0_INTERNAL void
+m0_fol_rec_part_init(struct m0_fol_rec_part *part, void *data,
+		     const struct m0_fol_rec_part_type *type);
 
 M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part);
 
 /** Register a new fol record part type. */
 M0_INTERNAL int
-m0_fol_rec_part_type_register(const struct m0_fol_rec_part_type *type);
+m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type);
 
 M0_INTERNAL void
-m0_fol_rec_part_type_deregister(const struct m0_fol_rec_part_type *type);
+m0_fol_rec_part_type_deregister(struct m0_fol_rec_part_type *type);
 
 /** Descriptor for the tlist of fol record parts. */
 M0_TL_DESCR_DECLARE(m0_rec_part, M0_EXTERN);
