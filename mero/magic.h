@@ -759,7 +759,6 @@ enum m0_magic_satchel {
 	M0_BE_TX_GROUP_MAGIC = 0x33c0d1f1edbee377,
 
 /* DTM */
-
 	/* m0_dtm_up::du_magix (blessed feoff) */
 	M0_DTM_UP_MAGIX  = 0x33b1e55edfe0ff77,
 	/* m0_dtm_hi::hi_ups::t_magic (biblical food) */
