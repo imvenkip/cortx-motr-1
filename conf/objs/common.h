@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -23,11 +23,11 @@
 
 #include "conf/obj.h"     /* m0_conf_obj, m0_conf_objtype */
 #include "conf/obj_ops.h" /* m0_conf_obj_ops */
-#include "conf/onwire.h"  /* confx_object */
+#include "conf/onwire.h"  /* m0_confx_obj, arr_buf */
 #include "conf/buf_ext.h"
 #include "lib/memory.h"   /* m0_free */
 #include "lib/errno.h"    /* ENOMEM, ENOENT */
-#include "lib/misc.h"     /* memcpy, memcmp, strlen, M0_IN */
+#include "lib/misc.h"     /* M0_IN */
 
 struct m0_conf_reg;
 struct m0_buf;
@@ -38,11 +38,12 @@ struct m0_buf;
 	__ptr == NULL ? NULL : &__ptr->member; \
 })
 
-#define FLAT_OBJ(ptr, abbrev)                                                 \
-({                                                                            \
-	const struct confx_object     *__ptr = (ptr);                         \
-	const struct confx_ ## abbrev *__emb = &__ptr->o_conf.u.u_ ## abbrev; \
-	__emb;                                                                \
+#define FLAT_OBJ(ptr, abbrev)                            \
+({                                                       \
+	const struct m0_confx_obj        *__ptr = (ptr); \
+	const struct m0_confx_ ## abbrev *__emb =        \
+		&__ptr->o_conf.u.u_ ## abbrev;           \
+	__emb;                                           \
 })
 
 #define M0_CONF__BOB_DEFINE(type, magic, check)                               \
@@ -75,10 +76,10 @@ M0_INTERNAL void child_adopt(struct m0_conf_obj *parent,
 /**
  * Creates new m0_conf_directory and populates it with stubs.
  *
+ * @param cache          Configuration cache.
  * @param dir_id         Directory identifier.
  * @param children_type  Type of entries.
  * @param src            Identifiers of the entries.
- * @param reg            Registry of cached objects.
  * @param[out] out       Resulting pointer.
  *
  * dir_new() is transactional: if it fails, the configuration cache
@@ -86,9 +87,10 @@ M0_INTERNAL void child_adopt(struct m0_conf_obj *parent,
  *
  * XXX @todo UT transactional property of dir_new().
  */
-M0_INTERNAL int dir_new(const struct m0_buf *dir_id,
+M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
+			const struct m0_buf *dir_id,
 			enum m0_conf_objtype children_type,
-			const struct arr_buf *src, struct m0_conf_reg *reg,
+			const struct arr_buf *src,
 			struct m0_conf_dir **out);
 
 M0_INTERNAL bool arrays_eq(const char **cached, const struct arr_buf *flat);

@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -91,7 +91,7 @@ static int waiter_wait(struct waiter *w, struct m0_conf_obj **result)
 }
 
 /* ----------------------------------------------------------------
- * Source of configuration data: conf/ut/conf_str_prof.txt
+ * Source of configuration data: conf/ut/conf-str.txt
  * ---------------------------------------------------------------- */
 
 static void sync_open_test(struct m0_conf_obj *svc_dir)
@@ -115,7 +115,7 @@ static void sync_open_test(struct m0_conf_obj *svc_dir)
 
 	svc = M0_CONF_CAST(obj, m0_conf_service);
 	M0_UT_ASSERT(svc->cs_obj.co_status == M0_CS_READY);
-	M0_UT_ASSERT(svc->cs_obj.co_confc == svc_dir->co_confc);
+	M0_UT_ASSERT(svc->cs_obj.co_cache == svc_dir->co_cache);
 	M0_UT_ASSERT(m0_buf_streq(&svc->cs_obj.co_id, "svc-0"));
 	M0_UT_ASSERT(svc->cs_type == 1);
 	M0_UT_ASSERT(strcmp(svc->cs_endpoints[0], "addr0") == 0);
@@ -146,7 +146,7 @@ static void services_open(struct m0_conf_obj **result, struct m0_confc *confc)
 	waiter_fini(&w);
 
 	M0_UT_ASSERT((*result)->co_status == M0_CS_READY);
-	M0_UT_ASSERT((*result)->co_confc == confc);
+	M0_UT_ASSERT((*result)->co_cache == &confc->cc_cache);
 }
 
 static void _svc_type_add(const struct m0_conf_obj *obj)
@@ -170,7 +170,7 @@ static int dir_entries_use(struct m0_conf_obj *dir,
 	int                 rc;
 	struct m0_conf_obj *entry = NULL;
 
-	waiter_init(&w, dir->co_confc);
+	waiter_init(&w, m0_confc_from_obj(dir));
 
 	while ((rc = m0_confc_readdir(&w.w_ctx, dir, &entry)) > 0) {
 		if (rc == M0_CONF_DIRNEXT) {
@@ -198,7 +198,7 @@ static int dir_entries_use(struct m0_conf_obj *dir,
 
 		/* Re-initialise m0_confc_ctx. */
 		waiter_fini(&w);
-		waiter_init(&w, dir->co_confc);
+		waiter_init(&w, m0_confc_from_obj(dir));
 	}
 
 	m0_confc_close(entry);
@@ -329,7 +329,7 @@ static void test_confc_local(void)
 	struct m0_confc confc;
 	int             rc;
 
-	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf_str_prof.txt"), local_conf,
+	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf-str.txt"), local_conf,
 			     sizeof local_conf);
 	M0_UT_ASSERT(rc == 0);
 
@@ -355,7 +355,7 @@ static void test_confc_net(void)
 		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", NAME("-addb.stob"),
 		"-e", SERVER_ENDPOINT, "-s", "confd",
-		"-c", M0_CONF_UT_PATH("conf_str_prof.txt")
+		"-c", M0_CONF_UT_PATH("conf-str.txt")
 	};
 	M0_RPC_SERVER_CTX_DEFINE(confd, &g_xprt, 1, argv, ARRAY_SIZE(argv),
 				 NULL, 0, NAME(".log"));
@@ -373,6 +373,22 @@ static void test_confc_net(void)
 	m0_ut_rpc_machine_stop(&mach);
 	service_stop(&confd);
 }
+
+static void test_confc_invalid_input(void)
+{
+	char            local_conf[1024];
+	struct m0_confc confc;
+	int             rc;
+
+	rc = m0_ut_file_read(M0_CONF_UT_PATH("duplicated-ids.txt"), local_conf,
+			     sizeof local_conf);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_confc_init(&confc, &g_grp,
+			   &(const struct m0_buf)M0_BUF_INITS("prof"),
+			   NULL, NULL, local_conf);
+	M0_UT_ASSERT(rc == -EEXIST);
+}
 
 /* ------------------------------------------------------------------ */
 
@@ -381,7 +397,7 @@ static struct {
 	struct m0_thread thread;
 } g_ast;
 
-static void ast_thread(int _ __attribute__((unused)))
+static void ast_thread(int _ M0_UNUSED)
 {
 	while (g_ast.run) {
 		m0_chan_wait(&g_grp.s_clink);
@@ -415,8 +431,11 @@ const struct m0_test_suite confc_ut = {
 	.ts_init  = ast_thread_init,
 	.ts_fini  = ast_thread_fini,
 	.ts_tests = {
-		{ "local", test_confc_local },
-		{ "net",   test_confc_net },
+		{ "local",     test_confc_local },
+		{ "net",       test_confc_net },
+		{ "bad-input", test_confc_invalid_input },
 		{ NULL, NULL }
 	}
 };
+
+#undef M0_TRACE_SUBSYSTEM

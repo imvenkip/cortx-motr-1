@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -30,7 +30,6 @@
 #include "conf/schema.h"  /* m0_conf_service_type */
 
 struct m0_conf_obj_ops;
-struct m0_confc;
 
 /**
  * @page conf-fspec-obj Configuration Objects
@@ -192,17 +191,14 @@ struct m0_conf_obj {
 	 */
 	struct m0_chan                co_chan;
 
+	/** Configuration cache this object belongs to. */
+	struct m0_conf_cache         *co_cache;
+
 	/** Linkage to m0_conf_reg::r_objs. */
 	struct m0_tlink               co_reg_link;
 
 	/** Linkage to m0_conf_dir::cd_items. */
 	struct m0_tlink               co_dir_link;
-
-	/**
-	 * Private data of confc implementation.
-	 * NULL at confd side.
-	 */
-	struct m0_confc              *co_confc;
 
 	/**
 	 * Generic magic.
@@ -252,7 +248,7 @@ M0_INTERNAL bool m0_conf_obj_is_stub(const struct m0_conf_obj *obj);
  * Concrete configuration objects
  * ------------------------------------------------------------------ */
 
-/** Directory object --- container for configuration objects. */
+/** Directory object --- a container for configuration objects. */
 struct m0_conf_dir {
 	struct m0_conf_obj   cd_obj;
 	/** List of m0_conf_obj-s, linked through m0_conf_obj::co_dir_link. */

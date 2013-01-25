@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,7 +19,7 @@
  */
 
 #include "conf/objs/common.h"
-#include "conf/reg.h"
+#include "conf/cache.h"
 #include "conf/buf_ext.h" /* m0_buf_is_aimed */
 
 static bool mounted_as(const struct m0_conf_obj *obj, enum m0_conf_objtype type)
@@ -77,8 +77,8 @@ M0_INTERNAL bool child_check(const struct m0_conf_obj *obj,
 					 obj));
 }
 
-M0_INTERNAL void child_adopt(struct m0_conf_obj *parent,
-			     struct m0_conf_obj *child)
+M0_INTERNAL void
+child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 {
 	/* Profile cannot be a child, because it is the topmost object. */
 	M0_PRE(child->co_type != M0_CO_PROFILE);
@@ -87,32 +87,30 @@ M0_INTERNAL void child_adopt(struct m0_conf_obj *parent,
 		       !child->co_mounted || child->co_type == M0_CO_NODE));
 	M0_ASSERT(ergo(child->co_mounted, child->co_parent != NULL ||
 		       child->co_type == M0_CO_NODE));
+	M0_ASSERT(child->co_cache == parent->co_cache);
 
 	if (child->co_type == M0_CO_NODE)
 		M0_ASSERT(child->co_parent == NULL);
 	else
 		child->co_parent = parent;
 
-	/* confc is unable to set ->co_confc of directory objects. */
-	if (child->co_type == M0_CO_DIR)
-		child->co_confc = parent->co_confc;
-
 	child->co_mounted = true;
 }
 
-M0_INTERNAL int dir_new(const struct m0_buf *dir_id,
+M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
+			const struct m0_buf *dir_id,
 			enum m0_conf_objtype children_type,
-			const struct arr_buf *src, struct m0_conf_reg *reg,
-			struct m0_conf_dir **out)
+			const struct arr_buf *src, struct m0_conf_dir **out)
 {
-	struct m0_conf_obj *dir;
 	struct m0_conf_obj *child;
 	uint32_t            i;
 	int                 rc;
-
+	struct m0_conf_obj *dir = m0_conf_reg_lookup(&cache->ca_registry,
+						     M0_CO_DIR, dir_id);
+	M0_PRE(dir == NULL);
 	M0_PRE(*out == NULL);
 
-	dir = m0_conf_obj_create(M0_CO_DIR, dir_id);
+	dir = m0_conf_obj_create(cache, M0_CO_DIR, dir_id);
 	if (dir == NULL)
 		return -ENOMEM;
 	*out = M0_CONF_CAST(dir, m0_conf_dir);
@@ -120,7 +118,14 @@ M0_INTERNAL int dir_new(const struct m0_buf *dir_id,
 	(*out)->cd_item_type = children_type;
 
 	for (rc = 0, i = 0; i < src->ab_count; ++i) {
-		rc = m0_conf_obj_find(reg, children_type, &src->ab_elems[i],
+		child = m0_conf_reg_lookup(&cache->ca_registry, children_type,
+					   &src->ab_elems[i]);
+		if (child != NULL) {
+			rc = -EEXIST; /* ban duplicates */
+			break;
+		}
+
+		rc = m0_conf_obj_find(cache, children_type, &src->ab_elems[i],
 				      &child);
 		if (rc != 0)
 			break;
@@ -130,14 +135,16 @@ M0_INTERNAL int dir_new(const struct m0_buf *dir_id,
 		m0_conf_dir_tlist_add_tail(&(*out)->cd_items, child);
 	}
 
-	rc = rc ?: m0_conf_reg_add(reg, dir);
+	rc = rc ?: m0_conf_reg_add(&cache->ca_registry, dir);
 
 	if (rc == 0) {
 		dir->co_status = M0_CS_READY;
 	} else {
 		/* Restore consistency. */
 		m0_tl_for(m0_conf_dir, &(*out)->cd_items, child) {
-			m0_conf_reg_del(reg, child);
+			m0_conf_dir_tlist_del(child);
+			m0_conf_reg_del(&cache->ca_registry, child);
+			child->co_mounted = false;
 			m0_conf_obj_delete(child);
 		} m0_tl_endfor;
 		m0_conf_obj_delete(dir);

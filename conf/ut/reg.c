@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -45,7 +45,7 @@ void test_reg(void)
 		obj = m0_conf_reg_lookup(&reg, samples[i].type, &samples[i].id);
 		M0_UT_ASSERT(obj == NULL);
 
-		obj = m0_conf_obj_create(samples[i].type, &samples[i].id);
+		obj = m0_conf_obj_create(NULL, samples[i].type, &samples[i].id);
 		M0_UT_ASSERT(obj != NULL);
 		rc = m0_conf_reg_add(&reg, obj);
 		M0_UT_ASSERT(rc == 0);
@@ -61,7 +61,7 @@ void test_reg(void)
 	m0_conf_obj_delete(obj);
 
 	/* Duplicated identity. */
-	obj = m0_conf_obj_create(samples[0].type, &samples[0].id);
+	obj = m0_conf_obj_create(NULL, samples[0].type, &samples[0].id);
 	M0_UT_ASSERT(obj != NULL);
 	rc = m0_conf_reg_add(&reg, obj);
 	M0_UT_ASSERT(rc < 0);

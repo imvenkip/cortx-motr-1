@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -22,7 +22,9 @@
 #define __MERO_CONF_OBJOPS_H__
 
 #include "conf/obj.h"  /* m0_conf_objtype */
-#include "lib/tlist.h" /* M0_TL_DESCR_DECLARE, M0_TL_DECLARE */
+
+struct m0_conf_cache;
+struct m0_confx_obj;
 
 /**
  * @page conf-fspec-objops Configuration Object Operations
@@ -60,14 +62,7 @@
  * @{
  */
 
-/* export */
-M0_TL_DESCR_DECLARE(m0_conf_reg, M0_EXTERN);
-M0_TL_DECLARE(m0_conf_reg, M0_INTERNAL, struct m0_conf_obj);
-
-/* import */
-struct m0_conf_reg;
-struct confx_object;
-
+/* defined in conf/objs/dir.c */
 M0_TL_DESCR_DECLARE(m0_conf_dir, M0_EXTERN);
 M0_TL_DECLARE(m0_conf_dir, M0_INTERNAL, struct m0_conf_obj);
 
@@ -91,35 +86,27 @@ struct m0_conf_obj_ops {
 
 	/**
 	 * Populates concrete object with configuration data taken
-	 * from confx_object.
+	 * from m0_confx_obj.
 	 *
 	 * Creates stubs of object's neighbours, if necessary.
-	 *
-	 * @pre   dest->co_nrefs == 0 && dest->co_status != M0_CS_READY
-	 * @post  dest->co_status == (retval == 0 ? M0_CS_READY : M0_CS_MISSING)
-	 * @post  ergo(retval == 0, dest->co_mounted)
-	 *
-	 * @todo XXX s/coo_fill/coo_decode/
 	 */
-	int (*coo_fill)(struct m0_conf_obj *dest,
-			const struct confx_object *src,
-			struct m0_conf_reg *reg);
+	int (*coo_decode)(struct m0_conf_obj *dest,
+			  const struct m0_confx_obj *src,
+			  struct m0_conf_cache *cache);
 
 	/**
-	 * Encodes concrete configuration object into its network
+	 * Serialises concrete configuration object into its network
 	 * representation.
-	 *
-	 * @todo XXX s/coo_xfill/coo_encode/
 	 */
-	int (*coo_xfill)(struct confx_object *dest,
-			 const struct m0_conf_obj *src);
+	int (*coo_encode)(struct m0_confx_obj *dest,
+			  const struct m0_conf_obj *src);
 
 	/**
 	 * Returns false iff cached configuration object and "flat" object
 	 * have conflicting data.
 	 */
 	bool (*coo_match)(const struct m0_conf_obj *cached,
-			  const struct confx_object *flat);
+			  const struct m0_confx_obj *flat);
 
 	/**
 	 * Finds a child of given object.
@@ -179,16 +166,19 @@ struct m0_conf_obj_ops {
  * @post  ergo(retval != NULL,
  *             !retval->co_mounted && retval->co_status == M0_CS_MISSING)
  */
-M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(enum m0_conf_objtype type,
+M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
+						   enum m0_conf_objtype type,
 						   const struct m0_buf *id);
 
 /**
  * Finds registered object with given identity or, if no object is
  * found, creates and registers a stub.
  *
- * @pre  ergo(retval == 0, m0_conf_obj_invariant(*out))
+ * @pre   m0_mutex_is_locked(&cache->ca_lock)
+ * @post  ergo(retval == 0,
+ *             m0_conf_obj_invariant(*out) && (*out)->co_cache == cache)
  */
-M0_INTERNAL int m0_conf_obj_find(struct m0_conf_reg *reg,
+M0_INTERNAL int m0_conf_obj_find(struct m0_conf_cache *cache,
 				 enum m0_conf_objtype type,
 				 const struct m0_buf *id,
 				 struct m0_conf_obj **out);
@@ -197,6 +187,7 @@ M0_INTERNAL int m0_conf_obj_find(struct m0_conf_reg *reg,
  * Finalises and frees configuration object.
  *
  * @pre  obj->co_nrefs == 0 && obj->co_status != M0_CS_LOADING
+ * @pre  !obj->co_mounted || m0_mutex_is_locked(&obj->co_cache->ca_lock)
  */
 M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj);
 
@@ -206,6 +197,7 @@ M0_INTERNAL bool m0_conf_obj_invariant(const struct m0_conf_obj *obj);
 /**
  * Increments reference counter of given configuration object.
  *
+ * @pre   m0_mutex_is_locked(&obj->co_cache->ca_lock)
  * @pre   obj->co_status == M0_CS_READY
  * @post  obj->co_nrefs > 0
  */
@@ -217,6 +209,7 @@ M0_INTERNAL void m0_conf_obj_get(struct m0_conf_obj *obj);
  * Broadcasts obj->co_chan if the object becomes unpinned (i.e., if
  * the decremented counter reaches 0).
  *
+ * @pre  m0_mutex_is_locked(&obj->co_cache->ca_lock)
  * @pre  obj->co_nrefs > 0 && obj->co_status == M0_CS_READY
  */
 M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj);
@@ -224,39 +217,40 @@ M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj);
 /**
  * Enriches a stub with configuration data.
  *
- * @param dest  A stub to be filled with configuration data.
- * @param src   On-wire object, providing the configuration data.
- * @param reg   Registry of cached configuration objects.
+ * @param dest   A stub to be filled with configuration data.
+ * @param src    On-wire object, providing the configuration data.
+ * @param cache  Configuration cache.
  *
- * Note, that the caller is responsible for passing valid confx_object
+ * Note, that the caller is responsible for passing valid m0_confx_obj
  * via `src' parameter.
  *
  * @pre   `src' is valid
- * @pre   m0_mutex_is_locked(&dest->co_confc->cc_lock)
- * @pre   dest->co_nrefs == 0 && dest->co_status != M0_CS_READY
+ * @pre   m0_mutex_is_locked(&cache->ca_lock)
+ * @pre   m0_conf_obj_is_stub(dest) && dest->co_nrefs == 0
  * @pre   dest->co_type == src->o_conf.u_type
  * @pre   m0_buf_eq(&dest->co_id, &src->o_id)
  *
  * @post  m0_conf_obj_invariant(dest)
- * @post  m0_mutex_is_locked(&dest->co_confc->cc_lock)
- * @post  ergo(retval == 0, dest->co_status == M0_CS_READY && dest->co_mounted)
+ * @post  m0_mutex_is_locked(&cache->ca_lock)
+ * @post  dest->co_status == (retval == 0 ? M0_CS_READY : M0_CS_MISSING)
+ * @post  ergo(retval == 0, dest->co_mounted)
  */
 M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
-				 const struct confx_object *src,
-				 struct m0_conf_reg *reg);
+				 const struct m0_confx_obj *src,
+				 struct m0_conf_cache *cache);
 
 /**
  * Returns false iff cached configuration object and on-wire object
  * have conflicting data.
  *
- * Note, that the caller is responsible for passing valid confx_object
+ * Note, that the caller is responsible for passing valid m0_confx_obj
  * via `flat' parameter.
  *
  * @pre  cached->co_mounted
  * @pre  `flat' is valid
  */
 M0_INTERNAL bool m0_conf_obj_match(const struct m0_conf_obj *cached,
-				   const struct confx_object *flat);
+				   const struct m0_confx_obj *flat);
 
 /** @} conf_dfspec_objops */
 #endif /* __MERO_CONF_OBJOPS_H__ */

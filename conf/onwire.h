@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -48,12 +48,15 @@ struct objid {
 /* ------------------------------------------------------------------
  * Configuration objects
  * ------------------------------------------------------------------ */
-struct confx_profile {
+
+/* Note that m0_confx_dir does not exist. */
+
+struct m0_confx_profile {
 	/* Name of profile's filesystem. */
 	struct m0_buf xp_filesystem;
 } M0_XCA_RECORD;
 
-struct confx_filesystem {
+struct m0_confx_filesystem {
 	/* Rood fid. */
 	struct m0_fid  xf_rootfid;
 	/* Filesystem parameters. */
@@ -62,7 +65,7 @@ struct confx_filesystem {
 	struct arr_buf xf_services;
 } M0_XCA_RECORD;
 
-struct confx_service {
+struct m0_confx_service {
 	/* Service type.  See m0_conf_service_type. */
 	uint32_t       xs_type;
 	/* End-points from which this service is reachable. */
@@ -71,7 +74,7 @@ struct confx_service {
 	struct m0_buf  xs_node;
 } M0_XCA_RECORD;
 
-struct confx_node {
+struct m0_confx_node {
 	/* Memory size in MB. */
 	uint32_t       xn_memsize;
 	/* Number of processors. */
@@ -88,7 +91,7 @@ struct confx_node {
 	struct arr_buf xn_sdevs;
 } M0_XCA_RECORD;
 
-struct confx_nic {
+struct m0_confx_nic {
 	/* Type of network interface.  See m0_cfg_nic_type. */
 	uint32_t      xi_iface;
 	/* Maximum transmission unit. */
@@ -101,7 +104,7 @@ struct confx_nic {
 	uint64_t      xi_last_state;
 } M0_XCA_RECORD;
 
-struct confx_sdev {
+struct m0_confx_sdev {
 	/* Interface type.  See m0_cfg_storage_device_interface_type. */
 	uint32_t       xd_iface;
 	/* Media type.  See m0_cfg_storage_device_media_type. */
@@ -118,7 +121,7 @@ struct confx_sdev {
 	struct arr_buf xd_partitions;
 } M0_XCA_RECORD;
 
-struct confx_partition {
+struct m0_confx_partition {
 	/* Start offset in bytes. */
 	uint64_t      xa_start;
 	/* Size in bytes. */
@@ -131,33 +134,34 @@ struct confx_partition {
 	struct m0_buf xa_file;
 } M0_XCA_RECORD;
 
-struct confx_u {
+struct m0_confx_u {
 	uint32_t u_type; /* see m0_conf_objtype for values */
 	union {
 		/*
-		 * Note that there is no such thing as `confx_dir'.
+		 * Note that there is no such thing as `m0_confx_dir'.
 		 * One-to-many relations are represented by a list of
 		 * identifiers --- `arr_buf'.
 		 */
-		struct confx_profile    u_profile    M0_XCA_TAG("1");
-		struct confx_filesystem u_filesystem M0_XCA_TAG("2");
-		struct confx_service    u_service    M0_XCA_TAG("3");
-		struct confx_node       u_node       M0_XCA_TAG("4");
-		struct confx_nic        u_nic        M0_XCA_TAG("5");
-		struct confx_sdev       u_sdev       M0_XCA_TAG("6");
-		struct confx_partition  u_partition  M0_XCA_TAG("7");
+		struct m0_confx_profile    u_profile    M0_XCA_TAG("1");
+		struct m0_confx_filesystem u_filesystem M0_XCA_TAG("2");
+		struct m0_confx_service    u_service    M0_XCA_TAG("3");
+		struct m0_confx_node       u_node       M0_XCA_TAG("4");
+		struct m0_confx_nic        u_nic        M0_XCA_TAG("5");
+		struct m0_confx_sdev       u_sdev       M0_XCA_TAG("6");
+		struct m0_confx_partition  u_partition  M0_XCA_TAG("7");
 	} u;
 } M0_XCA_UNION;
 
 /** Configuration object descriptor. */
-struct confx_object {
-	struct m0_buf  o_id;   /*< Object identifier. */
-	struct confx_u o_conf; /*< Configuration data. */
+struct m0_confx_obj {
+	struct m0_buf     o_id;   /*< Object identifier. */
+	struct m0_confx_u o_conf; /*< Configuration data. */
 } M0_XCA_RECORD;
 
-struct enconf {
-	uint32_t             ec_nr;
-	struct confx_object *ec_objs;
+/** Encoded configuration --- a sequence of m0_confx_objs. */
+struct m0_confx {
+	uint32_t             cx_nr;
+	struct m0_confx_obj *cx_objs;
 } M0_XCA_SEQUENCE;
 
 /* ------------------------------------------------------------------
@@ -175,20 +179,20 @@ struct m0_conf_fetch {
 /** Confd's response to m0_conf_fetch. */
 struct m0_conf_fetch_resp {
 	/** Result of configuration retrieval (-Exxx = failure, 0 = success). */
-	uint32_t      fr_rc;
+	uint32_t        fr_rc;
 	/** A sequence of configuration object descriptors. */
-	struct enconf fr_data;
+	struct m0_confx fr_data;
 } M0_XCA_RECORD;
 
-/** Update request. */
+/** XXX FUTURE: Update request. */
 struct m0_conf_update {
 	/** Configuration object the path originates from. */
-	struct objid  f_origin;
+	struct objid    f_origin;
 	/** A sequence of configuration object descriptors. */
-	struct enconf fr_data;
+	struct m0_confx fr_data;
 } M0_XCA_RECORD;
 
-/** Confd's response to m0_conf_update. */
+/** XXX FUTURE: Confd's response to m0_conf_update. */
 struct m0_conf_update_resp {
 	/** Result of update request (-Exxx = failure, 0 = success). */
 	uint32_t fr_rc;

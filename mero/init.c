@@ -22,10 +22,9 @@
 #include "fop/fop.h"
 
 #ifndef __KERNEL__
-#   include "lib/user_space/thread.h"
-#   include "desim/sim.h"
+#  include "lib/user_space/thread.h"
+#  include "desim/sim.h"
 #endif
-
 #include "lib/trace.h"  /* m0_trace_init, m0_trace_fini */
 #include "stob/stob.h"
 #include "net/net.h"
@@ -48,16 +47,15 @@
 #include "fop/fom_generic.h"
 #include "mero/init.h"
 #include "lib/cookie.h"
-#include "conf/conf_addb.h" /* m0_conf_addb_init, m0_conf_addb_fini */
-#include "conf/conf_xcode.h" /* m0_confx_types_init, m0_confx_types_fini */
-#include "conf/conf_fop.h"   /* m0_conf_fops_init, m0_conf_fops_fini */
+#include "conf/fop.h"           /* m0_conf_fops_init, m0_confx_types_init */
 #ifdef __KERNEL__
 #  include "m0t1fs/linux_kernel/m0t1fs.h"
 #  include "build_kernel_modules/dummy_init_fini.h"
 #else
-#  include "conf/confd.h"    /* m0_confd_register, m0_confd_unregister */
-#  include "mdstore/mdstore.h"
-#  include "yaml2db/yaml2db.h"
+#  include "conf/confd.h"       /* m0_confd_register */
+#  include "conf/addb.h"        /* m0_conf_addb_init */
+#  include "mdstore/mdstore.h"  /* m0_mdstore_mod_init */
+#  include "yaml2db/yaml2db.h"  /* m0_yaml2db_mod_init */
 #endif
 #include "cob/cob.h"
 #include "ioservice/io_fops.h"

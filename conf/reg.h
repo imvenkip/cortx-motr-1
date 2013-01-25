@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -112,10 +112,9 @@ M0_INTERNAL void m0_conf_reg_del(const struct m0_conf_reg *reg,
  *
  * Returns NULL if there is no such object in the registry.
  */
-M0_INTERNAL struct m0_conf_obj *m0_conf_reg_lookup(const struct m0_conf_reg
-						   *reg,
-						   enum m0_conf_objtype type,
-						   const struct m0_buf *id);
+M0_INTERNAL struct m0_conf_obj *
+m0_conf_reg_lookup(const struct m0_conf_reg *reg, enum m0_conf_objtype type,
+		   const struct m0_buf *id);
 
 /** @} conf_dfspec_reg */
 #endif /* __MERO_CONF_REG_H__ */

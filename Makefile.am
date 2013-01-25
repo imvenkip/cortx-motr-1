@@ -392,19 +392,6 @@ rpc_it_m0rpcping_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.l
 include $(top_srcdir)/rpc/it/Makefile.sub
 
 #
-# conf/st
-#
-
-noinst_PROGRAMS          += conf/st/objx2db
-conf_st_objx2db_LDADD     = $(top_builddir)/mero/libmero.la
-
-noinst_PROGRAMS          += conf/st/confd_test
-conf_st_confd_test_LDADD  = $(top_builddir)/mero/libmero.la
-
-noinst_PROGRAMS          += conf/st/confc_test
-conf_st_confc_test_LDADD  = $(top_builddir)/mero/libmero.la
-
-#
 # console/st
 #
 

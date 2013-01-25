@@ -17,7 +17,10 @@
  * Original creation date: 05/05/2012
  */
 
-#include "conf/conf_fop.h"
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
+
+#include "conf/fop.h"
 #include "conf/onwire_xc.h"
 #include "conf/confd_fom.h"   /* m0_confd_fom_create */
 #include "conf/confd.h"       /* m0_confd_stype */
@@ -90,4 +93,19 @@ M0_INTERNAL void m0_conf_fops_fini(void)
 	m0_fop_type_fini(&m0_conf_update_resp_fopt);
 }
 
+M0_INTERNAL int m0_confx_types_init(void)
+{
+	M0_ENTRY();
+	m0_xc_onwire_init();
+	M0_RETURN(0);
+}
+
+M0_INTERNAL void m0_confx_types_fini(void)
+{
+	M0_ENTRY();
+	m0_xc_onwire_fini();
+	M0_LEAVE();
+}
+
 /** @} conf_fop */
+#undef M0_TRACE_SUBSYSTEM

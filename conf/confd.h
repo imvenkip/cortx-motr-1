@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -21,9 +21,7 @@
 #ifndef __MERO_CONF_CONFD_H__
 #define __MERO_CONF_CONFD_H__
 
-#include "conf/onwire.h" /* m0_conf_fetch, m0_conf_fetch_resp */
-#include "conf/conf_fop.h"
-#include "conf/reg.h"
+#include "conf/cache.h"
 #include "reqh/reqh_service.h"
 #include "db/db.h"
 
@@ -151,10 +149,9 @@ struct m0_confd {
 	/** Generic service. */
 	struct m0_reqh_service d_reqh;
 
-	/** Registry of cached configuration objects. */
-	struct m0_conf_reg     d_reg;
+	/** Configuration cache. */
+	struct m0_conf_cache   d_cache;
 
-	/* struct m0_confd_cache  d_cache; */
 	/* struct m0_confd_stat   d_stat; */
 
 	/** Magic value == M0_CONFD_MAGIC. */
@@ -163,28 +160,6 @@ struct m0_confd {
 
 M0_INTERNAL int m0_confd_register(void);
 M0_INTERNAL void m0_confd_unregister(void);
-
-/* /\** Configuration data accessor. *\/ */
-/* struct m0_confd_cache { */
-/* 	/\** */
-/* 	 * Database environment pointer on m0_reqh::rh_dbenv of the */
-/* 	 * request handler in which m0_confd is registered. */
-/* 	 *\/ */
-/* 	struct m0_dbenv   *ca_db; */
-/* #if 0 /\*XXX*\/ */
-/* 	/\** Registry of cached configuration objects *\/ */
-/* 	struct m0_conf_map ca_cache; */
-/* 	/\** Protects this structure while processing of m0_conf_fetch */
-/* 	 * and m0_conf_update FOPs *\/ */
-/* 	struct m0_longlock ca_rwlock; */
-/* #endif */
-/* }; */
-
-/* /\** */
-/*  * Configuration service statistics */
-/*  * @todo To be defined. */
-/*  *\/ */
-/* struct m0_confd_stat {}; */
 
 /** @} confd_dfspec */
 #endif /* __MERO_CONF_CONFD_H__ */

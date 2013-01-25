@@ -32,7 +32,7 @@ dirs  =                        \
         m0t1fs/linux_kernel    \
         m0t1fs/linux_kernel/ut \
         cob                    \
-        mero                \
+        mero                   \
         conf                   \
         conf/objs              \
         db                     \
@@ -198,11 +198,11 @@ ut_HEADERS                      := rpc.h
 xcode_SOURCES                   := xcode.c string.c
 xcode_ut_SOURCES                := xcode.c
 
-conf_SOURCES                    := buf_ext.c confc.c obj.c obj_ops.c preload.c \
-                                   reg.c onwire_xc.c reg_debug.c conf_xcode.c  \
-                                   conf_fop.c
+conf_SOURCES                    := buf_ext.c cache.c confc.c fop.c obj.c \
+                                   obj_ops.c onwire_xc.c preload.c reg.c \
+                                   reg_debug.c
 
-conf_HEADERS                    := onwire.h onwire_xc.h confc.h
+conf_HEADERS                    := onwire.h onwire_xc.h
 
 conf_objs_SOURCES               := common.c dir.c profile.c filesystem.c \
                                    service.c node.c nic.c sdev.c partition.c

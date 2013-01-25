@@ -21,18 +21,16 @@
 #include "lib/trace.h"
 
 #include "conf/confd_fom.h"
-#include "conf/conf_fop.h"    /* m0_conf_fetch_resp_fopt */
-#include "conf/onwire.h"      /* m0_conf_fetch_resp */
-#include "conf/preload.h"     /* m0_conf_parse */
+#include "conf/fop.h"         /* m0_conf_fetch_resp_fopt */
 #include "conf/confd.h"       /* m0_confd, m0_confd_bob */
-#include "conf/buf_ext.h"     /* m0_buf_strdup */
-#include "conf/obj.h"
-#include "conf/obj_ops.h"
-#include "lib/memory.h"
-#include "lib/errno.h"
-#include "lib/misc.h"         /* M0_SET0 */
-#include "rpc/rpc_opcodes.h"
+#include "conf/obj_ops.h"     /* m0_conf_obj_invariant */
+#include "conf/onwire.h"      /* arr_buf */
+#include "conf/preload.h"     /* m0_confx_free */
+#include "rpc/rpc_opcodes.h"  /* M0_CONF_FETCH_OPCODE */
 #include "fop/fom_generic.h"  /* M0_FOPH_NR */
+#include "lib/memory.h"       /* m0_free */
+#include "lib/misc.h"         /* M0_SET0 */
+#include "lib/errno.h"        /* ENOMEM, EOPNOTSUPP */
 
 /**
  * @addtogroup confd_dlspec
@@ -51,8 +49,9 @@ static void conf_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 
 static int conf_fetch_tick(struct m0_fom *fom);
 static int conf_update_tick(struct m0_fom *fom);
-static int enconf_fill(struct enconf *dest, const struct objid *origin,
-		       const struct arr_buf *path, struct m0_conf_reg *reg);
+static int confx_populate(struct m0_confx *dest, const struct objid *origin,
+			  const struct arr_buf *path,
+			  struct m0_conf_cache *cache);
 
 static size_t confd_fom_locality(const struct m0_fom *fom)
 {
@@ -113,6 +112,7 @@ static int conf_fetch_tick(struct m0_fom *fom)
 {
 	const struct m0_conf_fetch *q;
 	struct m0_conf_fetch_resp  *r;
+	struct m0_conf_cache       *cache;
 	int                         rc;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR)
@@ -128,11 +128,13 @@ static int conf_fetch_tick(struct m0_fom *fom)
 	q = m0_fop_data(fom->fo_fop);
 	r = m0_fop_data(fom->fo_rep_fop);
 
-	rc = enconf_fill(&r->fr_data, &q->f_origin, &q->f_path,
-			 &bob_of(fom->fo_service, struct m0_confd, d_reqh,
-				 &m0_confd_bob)->d_reg);
+	cache = &bob_of(fom->fo_service, struct m0_confd, d_reqh,
+			&m0_confd_bob)->d_cache;
+	m0_mutex_lock(&cache->ca_lock);
+	rc = confx_populate(&r->fr_data, &q->f_origin, &q->f_path, cache);
+	m0_mutex_unlock(&cache->ca_lock);
 	if (rc != 0)
-		M0_ASSERT(r->fr_data.ec_nr == 0 && r->fr_data.ec_objs == NULL);
+		M0_ASSERT(r->fr_data.cx_nr == 0 && r->fr_data.cx_objs == NULL);
 	r->fr_rc = rc;
 out:
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
@@ -147,23 +149,24 @@ static int conf_update_tick(struct m0_fom *fom)
 	return M0_FSO_AGAIN;
 }
 
-static int _count(size_t *n, struct enconf *enc __attribute__((unused)),
-		  const struct m0_conf_obj *obj __attribute__((unused)))
+static int _count(size_t *n, struct m0_confx *enc M0_UNUSED,
+		  const struct m0_conf_obj *obj M0_UNUSED)
 {
 	++*n;
 	return 0;
 }
 
-static int _encode(size_t *n, struct enconf *enc, const struct m0_conf_obj *obj)
+static int
+_encode(size_t *n, struct m0_confx *enc, const struct m0_conf_obj *obj)
 {
 	int rc;
 
 	M0_PRE(m0_conf_obj_invariant(obj) && obj->co_status == M0_CS_READY);
 
 	M0_CNT_DEC(*n);
-	rc = obj->co_ops->coo_xfill(&enc->ec_objs[enc->ec_nr], obj);
+	rc = obj->co_ops->coo_encode(&enc->cx_objs[enc->cx_nr], obj);
 	if (rc == 0)
-		++enc->ec_nr;
+		++enc->cx_nr;
 	return rc;
 }
 
@@ -184,13 +187,13 @@ static int readiness_check(const struct m0_conf_obj *obj)
  * @param cur    Path origin.
  * @param path   Sequence of path components as requested by confc.
  * @param apply  The action to perform.
- * @param cnt    Address of the counter to be used by apply().
+ * @param n      Address of the counter to be used by apply().
  * @param enc    Encoded configuration data to be used by apply().
  */
 static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_buf *path,
-			   int (*apply)(size_t *n, struct enconf *enc,
+			   int (*apply)(size_t *n, struct m0_confx *enc,
 					const struct m0_conf_obj *obj),
-			   size_t *n, struct enconf *enc)
+			   size_t *n, struct m0_confx *enc)
 {
 	struct m0_conf_obj *entry;
 	int                 i;
@@ -236,17 +239,20 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_buf *path,
 	M0_RETURN(rc);
 }
 
-static int enconf_fill(struct enconf *dest, const struct objid *origin,
-		       const struct arr_buf *path, struct m0_conf_reg *reg)
+static int confx_populate(struct m0_confx *dest, const struct objid *origin,
+			  const struct arr_buf *path,
+			  struct m0_conf_cache *cache)
 {
 	struct m0_conf_obj *org;
 	int                 rc;
 	size_t              nr = 0;
 
 	M0_ENTRY();
+	M0_PRE(m0_mutex_is_locked(&cache->ca_lock));
+
 	M0_SET0(dest);
 
-	rc = m0_conf_obj_find(reg, origin->oi_type, &origin->oi_id, &org) ?:
+	rc = m0_conf_obj_find(cache, origin->oi_type, &origin->oi_id, &org) ?:
 		readiness_check(org);
 	if (rc != 0)
 		M0_RETURN(rc);
@@ -255,20 +261,17 @@ static int enconf_fill(struct enconf *dest, const struct objid *origin,
 	if (rc != 0 || nr == 0)
 		M0_RETURN(rc);
 
-	M0_ALLOC_ARR(dest->ec_objs, nr);
-	if (dest->ec_objs == NULL)
+	M0_ALLOC_ARR(dest->cx_objs, nr);
+	if (dest->cx_objs == NULL)
 		M0_RETURN(-ENOMEM);
 
 	M0_LOG(M0_DEBUG, "Will encode %zu configuration object%s", nr,
 	       (char *)(nr > 1 ? "s" : ""));
 	rc = confd_path_walk(org, path, _encode, &nr, dest);
-	if (rc == 0) {
+	if (rc == 0)
 		M0_ASSERT(nr == 0);
-	} else {
-		m0_confx_fini(dest->ec_objs, dest->ec_nr);
-		m0_free(dest->ec_objs);
-	}
-
+	else
+		m0_confx_free(dest);
 	M0_RETURN(rc);
 }
 

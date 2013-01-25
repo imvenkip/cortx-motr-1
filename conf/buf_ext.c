@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -20,7 +20,7 @@
 
 #include "conf/buf_ext.h"
 #include "lib/buf.h"
-#include "lib/misc.h"   /* memcmp, memcpy, strlen, memchr */
+#include "lib/string.h" /* memcmp, memcpy, strlen, memchr */
 #include "lib/memory.h" /* M0_ALLOC_ARR */
 
 M0_INTERNAL bool m0_buf_is_aimed(const struct m0_buf *buf)

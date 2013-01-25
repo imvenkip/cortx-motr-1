@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -40,12 +40,12 @@ M0_CONF__BOB_DEFINE(m0_conf_sdev, M0_CONF_SDEV_MAGIC, sdev_check);
 
 M0_CONF__INVARIANT_DEFINE(sdev_invariant, m0_conf_sdev);
 
-static int sdev_fill(struct m0_conf_obj *dest, const struct confx_object *src,
-		     struct m0_conf_reg *reg)
+static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
+		       struct m0_conf_cache *cache)
 {
-	int                      rc;
-	struct m0_conf_sdev     *d = M0_CONF_CAST(dest, m0_conf_sdev);
-	const struct confx_sdev *s = FLAT_OBJ(src, sdev);
+	int                         rc;
+	struct m0_conf_sdev        *d = M0_CONF_CAST(dest, m0_conf_sdev);
+	const struct m0_confx_sdev *s = FLAT_OBJ(src, sdev);
 
 	d->sd_iface      = s->xd_iface;
 	d->sd_media      = s->xd_media;
@@ -57,7 +57,7 @@ static int sdev_fill(struct m0_conf_obj *dest, const struct confx_object *src,
 	if (d->sd_filename == NULL)
 		return -ENOMEM;
 
-	rc = dir_new(&src->o_id, M0_CO_PARTITION, &s->xd_partitions, reg,
+	rc = dir_new(cache, &src->o_id, M0_CO_PARTITION, &s->xd_partitions,
 		     &d->sd_partitions);
 	if (rc == 0) {
 		child_adopt(dest, &d->sd_partitions->cd_obj);
@@ -66,26 +66,25 @@ static int sdev_fill(struct m0_conf_obj *dest, const struct confx_object *src,
 	return rc;
 }
 
-static int
-sdev_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
+static int sdev_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
 	M0_IMPOSSIBLE("XXX not implemented");
 	return -1;
 }
 
 static bool
-sdev_match(const struct m0_conf_obj *cached, const struct confx_object *flat)
+sdev_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 {
-	const struct confx_sdev   *objx = &flat->o_conf.u.u_sdev;
-	const struct m0_conf_sdev *obj = M0_CONF_CAST(cached, m0_conf_sdev);
+	const struct m0_confx_sdev *xobj = &flat->o_conf.u.u_sdev;
+	const struct m0_conf_sdev  *obj = M0_CONF_CAST(cached, m0_conf_sdev);
 
 	M0_IMPOSSIBLE("XXX TODO: compare dir elements");
-	return  obj->sd_iface      == objx->xd_iface      &&
-		obj->sd_media      == objx->xd_media      &&
-		obj->sd_size       == objx->xd_size       &&
-		obj->sd_last_state == objx->xd_last_state &&
-		obj->sd_flags      == objx->xd_flags      &&
-		m0_buf_streq(&objx->xd_filename, obj->sd_filename);
+	return  obj->sd_iface      == xobj->xd_iface      &&
+		obj->sd_media      == xobj->xd_media      &&
+		obj->sd_size       == xobj->xd_size       &&
+		obj->sd_last_state == xobj->xd_last_state &&
+		obj->sd_flags      == xobj->xd_flags      &&
+		m0_buf_streq(&xobj->xd_filename, obj->sd_filename);
 }
 
 static int sdev_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
@@ -106,8 +105,8 @@ static void sdev_delete(struct m0_conf_obj *obj)
 
 static const struct m0_conf_obj_ops sdev_ops = {
 	.coo_invariant = sdev_invariant,
-	.coo_fill      = sdev_fill,
-	.coo_xfill     = sdev_xfill,
+	.coo_decode    = sdev_decode,
+	.coo_encode    = sdev_encode,
 	.coo_match     = sdev_match,
 	.coo_lookup    = sdev_lookup,
 	.coo_readdir   = NULL,

@@ -1,26 +1,28 @@
 nobase_mero_include_HEADERS += \
+                               conf/addb.h \
                                conf/buf_ext.h \
-                               conf/conf_fop.h \
-                               conf/conf_xcode.h \
+                               conf/cache.h \
                                conf/confc.h \
                                conf/confd.h \
                                conf/confd_fom.h \
+                               conf/db.h \
+                               conf/fop.h \
                                conf/obj.h \
                                conf/obj_ops.h \
                                conf/onwire.h \
                                conf/preload.h \
                                conf/reg.h \
-                               conf/schema.h \
-                               conf/conf_addb.h
+                               conf/schema.h
 
 mero_libmero_la_SOURCES += \
+                           conf/addb.c \
                            conf/buf_ext.c \
-                           conf/conf_addb.c \
-                           conf/conf_fop.c \
-                           conf/conf_xcode.c \
+                           conf/cache.c \
                            conf/confc.c \
                            conf/confd.c \
                            conf/confd_fom.c \
+                           conf/db.c \
+                           conf/fop.c \
                            conf/obj.c \
                            conf/obj_ops.c \
                            conf/onwire_xc.c \

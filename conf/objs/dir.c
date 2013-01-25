@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -54,25 +54,25 @@ M0_CONF__BOB_DEFINE(m0_conf_dir, M0_CONF_DIR_MAGIC, dir_check);
 
 M0_CONF__INVARIANT_DEFINE(dir_invariant, m0_conf_dir);
 
-static int dir_fill(struct m0_conf_obj *dest __attribute__((unused)),
-		    const struct confx_object *src __attribute__((unused)),
-		    struct m0_conf_reg *reg __attribute__((unused)))
+static int dir_decode(struct m0_conf_obj *dest M0_UNUSED,
+		      const struct m0_confx_obj *src M0_UNUSED,
+		      struct m0_conf_cache *cache M0_UNUSED)
 {
-	M0_IMPOSSIBLE("m0_conf_dir should not be filled explicitly");
+	M0_IMPOSSIBLE("m0_conf_dir is not supposed to be decoded");
 	return -1;
 }
 
-static int dir_xfill(struct confx_object *dest __attribute__((unused)),
-		     const struct m0_conf_obj *src __attribute__((unused)))
+static int dir_encode(struct m0_confx_obj *dest M0_UNUSED,
+		      const struct m0_conf_obj *src M0_UNUSED)
 {
-	M0_IMPOSSIBLE("m0_conf_dir should not be xfilled from");
+	M0_IMPOSSIBLE("m0_conf_dir is not supposed to be encoded");
 	return -1;
 }
 
-static bool dir_match(const struct m0_conf_obj *cached __attribute__((unused)),
-		      const struct confx_object *flat __attribute__((unused)))
+static bool dir_match(const struct m0_conf_obj *cached M0_UNUSED,
+		      const struct m0_confx_obj *flat M0_UNUSED)
 {
-	M0_IMPOSSIBLE("m0_conf_dir should not be compared with confx_object");
+	M0_IMPOSSIBLE("m0_conf_dir should not be compared with m0_confx_obj");
 	return false;
 }
 
@@ -191,8 +191,8 @@ static void dir_delete(struct m0_conf_obj *obj)
 
 static const struct m0_conf_obj_ops dir_ops = {
 	.coo_invariant = dir_invariant,
-	.coo_fill      = dir_fill,
-	.coo_xfill     = dir_xfill,
+	.coo_decode    = dir_decode,
+	.coo_encode    = dir_encode,
 	.coo_match     = dir_match,
 	.coo_lookup    = dir_lookup,
 	.coo_readdir   = dir_readdir,

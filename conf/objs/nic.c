@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -36,11 +36,11 @@ M0_CONF__BOB_DEFINE(m0_conf_nic, M0_CONF_NIC_MAGIC, nic_check);
 
 M0_CONF__INVARIANT_DEFINE(nic_invariant, m0_conf_nic);
 
-static int nic_fill(struct m0_conf_obj *dest, const struct confx_object *src,
-		    struct m0_conf_reg *reg)
+static int nic_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
+		      struct m0_conf_cache *cache M0_UNUSED)
 {
-	struct m0_conf_nic     *d = M0_CONF_CAST(dest, m0_conf_nic);
-	const struct confx_nic *s = FLAT_OBJ(src, nic);
+	struct m0_conf_nic        *d = M0_CONF_CAST(dest, m0_conf_nic);
+	const struct m0_confx_nic *s = FLAT_OBJ(src, nic);
 
 	d->ni_iface      = s->xi_iface;
 	d->ni_mtu        = s->xi_mtu;
@@ -51,24 +51,23 @@ static int nic_fill(struct m0_conf_obj *dest, const struct confx_object *src,
 	return d->ni_filename == NULL ? -ENOMEM : 0;
 }
 
-static int
-nic_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
+static int nic_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
 	M0_IMPOSSIBLE("XXX not implemented");
 	return -1;
 }
 
 static bool
-nic_match(const struct m0_conf_obj *cached, const struct confx_object *flat)
+nic_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 {
-	const struct confx_nic   *objx = &flat->o_conf.u.u_nic;
-	const struct m0_conf_nic *obj = M0_CONF_CAST(cached, m0_conf_nic);
+	const struct m0_confx_nic *xobj = &flat->o_conf.u.u_nic;
+	const struct m0_conf_nic  *obj = M0_CONF_CAST(cached, m0_conf_nic);
 
-	return  obj->ni_iface      == objx->xi_iface      &&
-		obj->ni_mtu        == objx->xi_mtu        &&
-		obj->ni_speed      == objx->xi_speed      &&
-		obj->ni_last_state == objx->xi_last_state &&
-		m0_buf_streq(&objx->xi_filename, obj->ni_filename);
+	return  obj->ni_iface      == xobj->xi_iface      &&
+		obj->ni_mtu        == xobj->xi_mtu        &&
+		obj->ni_speed      == xobj->xi_speed      &&
+		obj->ni_last_state == xobj->xi_last_state &&
+		m0_buf_streq(&xobj->xi_filename, obj->ni_filename);
 }
 
 static int nic_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
@@ -89,8 +88,8 @@ static void nic_delete(struct m0_conf_obj *obj)
 
 static const struct m0_conf_obj_ops nic_ops = {
 	.coo_invariant = nic_invariant,
-	.coo_fill      = nic_fill,
-	.coo_xfill     = nic_xfill,
+	.coo_decode    = nic_decode,
+	.coo_encode    = nic_encode,
 	.coo_match     = nic_match,
 	.coo_lookup    = nic_lookup,
 	.coo_readdir   = NULL,

@@ -15,23 +15,24 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
- * Original creation date: 19-Dec-2012
- */
-#pragma once
-#ifndef __MERO_CONF_SCHEMA_H__
-#define __MERO_CONF_SCHEMA_H__
-
-/*
- * XXX TODO: Delete `cfg/cfg.h' after moving necessary definitions here,
- * to conf/schema.h.
+ * Original creation date: 09-Jan-2013
  */
 
-/** Type of Mero service. */
-enum m0_conf_service_type {
-	M0_CST_MDS = 1, /*< Meta-data service. */
-	M0_CST_IOS,     /*< IO/data service. */
-	M0_CST_MGS,     /*< Management service (confd?). */
-	M0_CST_DLM,     /*< DLM service. */
-};
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
 
-#endif /* __MERO_CONF_SCHEMA_H__ */
+#include "conf/cache.h"
+
+M0_INTERNAL void m0_conf_cache_init(struct m0_conf_cache *cache)
+{
+	m0_conf_reg_init(&cache->ca_registry);
+	m0_mutex_init(&cache->ca_lock);
+}
+
+M0_INTERNAL void m0_conf_cache_fini(struct m0_conf_cache *cache)
+{
+	m0_mutex_fini(&cache->ca_lock);
+	m0_conf_reg_fini(&cache->ca_registry);
+}
+
+#undef M0_TRACE_SUBSYSTEM

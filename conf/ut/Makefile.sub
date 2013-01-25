@@ -1,12 +1,13 @@
 ut_libmero_ut_la_SOURCES += \
     conf/ut/confc.c         \
+    conf/ut/db.c            \
     conf/ut/file_helpers.c  \
     conf/ut/file_helpers.h  \
+    conf/ut/fuzz.c          \
     conf/ut/main.c          \
     conf/ut/obj.c           \
     conf/ut/reg.c           \
     conf/ut/rpc_helpers.c   \
-    conf/ut/rpc_helpers.h   \
-    conf/ut/xread.c
+    conf/ut/rpc_helpers.h
 
 ut_libmero_ut_la_CPPFLAGS += -DM0_CONF_UT_DIR=$(abs_top_builddir)/conf/ut/

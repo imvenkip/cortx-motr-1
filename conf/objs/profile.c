@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -26,8 +26,6 @@ static bool profile_check(const void *bob)
 {
 	const struct m0_conf_profile *self = bob;
 	const struct m0_conf_obj     *self_obj = &self->cp_obj;
-	const struct m0_conf_obj     *root =
-		self_obj->co_confc == NULL ? NULL : self_obj->co_confc->cc_root;
 
 	M0_PRE(self_obj->co_type == M0_CO_PROFILE);
 
@@ -36,23 +34,22 @@ static bool profile_check(const void *bob)
 		ergo(self_obj->co_mounted,
 		     child_check(self_obj,
 				 MEMBER_PTR(self->cp_filesystem, cf_obj),
-				 M0_CO_FILESYSTEM) &&
-		     ergo(root != NULL && root->co_status == M0_CS_READY,
-			  root == self_obj));
+				 M0_CO_FILESYSTEM));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_profile, M0_CONF_PROFILE_MAGIC, profile_check);
 
 M0_CONF__INVARIANT_DEFINE(profile_invariant, m0_conf_profile);
 
-static int profile_fill(struct m0_conf_obj *dest,
-			const struct confx_object *src, struct m0_conf_reg *reg)
+static int profile_decode(struct m0_conf_obj *dest,
+			  const struct m0_confx_obj *src,
+			  struct m0_conf_cache *cache)
 {
 	int                     rc;
 	struct m0_conf_obj     *child;
 	struct m0_conf_profile *d = M0_CONF_CAST(dest, m0_conf_profile);
 
-	rc = m0_conf_obj_find(reg, M0_CO_FILESYSTEM,
+	rc = m0_conf_obj_find(cache, M0_CO_FILESYSTEM,
 			      &FLAT_OBJ(src, profile)->xp_filesystem, &child);
 	if (rc == 0) {
 		d->cp_filesystem = M0_CONF_CAST(child, m0_conf_filesystem);
@@ -63,7 +60,7 @@ static int profile_fill(struct m0_conf_obj *dest,
 }
 
 static int
-profile_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
+profile_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
 	int rc;
 	struct m0_conf_profile *s = M0_CONF_CAST(src, m0_conf_profile);
@@ -81,13 +78,13 @@ profile_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
 }
 
 static bool
-profile_match(const struct m0_conf_obj *cached, const struct confx_object *flat)
+profile_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 {
-	const struct confx_profile      *objx = &flat->o_conf.u.u_profile;
+	const struct m0_confx_profile   *xobj = &flat->o_conf.u.u_profile;
 	const struct m0_conf_filesystem *child =
 		M0_CONF_CAST(cached, m0_conf_profile)->cp_filesystem;
 
-	return m0_buf_eq(&child->cf_obj.co_id, &objx->xp_filesystem);
+	return m0_buf_eq(&child->cf_obj.co_id, &xobj->xp_filesystem);
 }
 
 static int profile_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
@@ -113,8 +110,8 @@ static void profile_delete(struct m0_conf_obj *obj)
 
 static const struct m0_conf_obj_ops profile_ops = {
 	.coo_invariant = profile_invariant,
-	.coo_fill      = profile_fill,
-	.coo_xfill     = profile_xfill,
+	.coo_decode    = profile_decode,
+	.coo_encode    = profile_encode,
 	.coo_match     = profile_match,
 	.coo_lookup    = profile_lookup,
 	.coo_readdir   = NULL,

@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -41,17 +41,18 @@ M0_CONF__BOB_DEFINE(m0_conf_service, M0_CONF_SERVICE_MAGIC, service_check);
 
 M0_CONF__INVARIANT_DEFINE(service_invariant, m0_conf_service);
 
-static int service_fill(struct m0_conf_obj *dest,
-			const struct confx_object *src, struct m0_conf_reg *reg)
+static int service_decode(struct m0_conf_obj *dest,
+			  const struct m0_confx_obj *src,
+			  struct m0_conf_cache *cache)
 {
-	int                         rc;
-	struct m0_conf_obj         *child;
-	struct m0_conf_service     *d = M0_CONF_CAST(dest, m0_conf_service);
-	const struct confx_service *s = FLAT_OBJ(src, service);
+	int                            rc;
+	struct m0_conf_obj            *child;
+	struct m0_conf_service        *d = M0_CONF_CAST(dest, m0_conf_service);
+	const struct m0_confx_service *s = FLAT_OBJ(src, service);
 
 	d->cs_type = s->xs_type;
 
-	rc = m0_conf_obj_find(reg, M0_CO_NODE, &s->xs_node, &child);
+	rc = m0_conf_obj_find(cache, M0_CO_NODE, &s->xs_node, &child);
 	if (rc != 0)
 		return rc;
 
@@ -63,11 +64,11 @@ static int service_fill(struct m0_conf_obj *dest,
 }
 
 static int
-service_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
+service_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
-	int                     rc;
-	struct m0_conf_service *s = M0_CONF_CAST(src, m0_conf_service);
-	struct confx_service   *d = &dest->o_conf.u.u_service;
+	int                      rc;
+	struct m0_conf_service  *s = M0_CONF_CAST(src, m0_conf_service);
+	struct m0_confx_service *d = &dest->o_conf.u.u_service;
 
 	rc = m0_buf_copy(&dest->o_id, &src->co_id);
 	if (rc != 0)
@@ -91,16 +92,14 @@ err:
 }
 
 static bool
-service_match(const struct m0_conf_obj *cached, const struct confx_object *flat)
+service_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 {
-	const struct confx_service   *objx = &flat->o_conf.u.u_service;
-	const struct m0_conf_service *obj = M0_CONF_CAST(cached,
-							 m0_conf_service);
-	const struct m0_conf_node    *child = obj->cs_node;
-
-	return obj->cs_type == objx->xs_type &&
-		arrays_eq(obj->cs_endpoints, &objx->xs_endpoints) &&
-		m0_buf_eq(&child->cn_obj.co_id, &objx->xs_node);
+	const struct m0_confx_service *xobj = &flat->o_conf.u.u_service;
+	const struct m0_conf_service  *obj = M0_CONF_CAST(cached,
+							  m0_conf_service);
+	return obj->cs_type == xobj->xs_type &&
+		arrays_eq(obj->cs_endpoints, &xobj->xs_endpoints) &&
+		m0_buf_eq(&obj->cs_node->cn_obj.co_id, &xobj->xs_node);
 }
 
 static int service_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
@@ -127,8 +126,8 @@ static void service_delete(struct m0_conf_obj *obj)
 
 static const struct m0_conf_obj_ops conf_service_ops = {
 	.coo_invariant = service_invariant,
-	.coo_fill      = service_fill,
-	.coo_xfill     = service_xfill,
+	.coo_decode    = service_decode,
+	.coo_encode    = service_encode,
 	.coo_match     = service_match,
 	.coo_lookup    = service_lookup,
 	.coo_readdir   = NULL,

@@ -310,12 +310,12 @@ M0_INTERNAL int m0_yaml2db_conf_emit(struct m0_yaml2db_ctx *yctx,
 M0_INTERNAL void m0_yaml_parser_error_detect(const yaml_parser_t * parser);
 
 /**
-   Module initializer.
+   ADDB module initializer.
  */
 M0_INTERNAL int m0_yaml2db_mod_init(void);
 
 /**
-   Module finalizer.
+   ADDB module finalizer.
  */
 M0_INTERNAL void m0_yaml2db_mod_fini(void);
 

@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,24 +19,25 @@
  */
 
 #include "lib/ut.h"
-#include "conf/conf_xcode.h"
 
+extern void test_reg(void);
+extern void test_obj_xtors(void);
 extern void test_obj_fill(void);
 extern void test_obj_find(void);
-extern void test_obj_xtors(void);
-extern void test_reg(void);
-extern void test_confx_xcode(void);
+extern void test_confdb(void);
+extern void test_confstr_fuzz(void);
 
 const struct m0_test_suite conf_ut = {
 	.ts_name  = "conf-ut",
 	.ts_init  = NULL,
 	.ts_fini  = NULL,
 	.ts_tests = {
-		{ "reg",       test_reg         },
-		{ "obj-xtors", test_obj_xtors   },
-		{ "obj-find",  test_obj_find    },
-		{ "obj-fill",  test_obj_fill    },
-		{ "xcode",     test_confx_xcode },
+		{ "reg",       test_reg          },
+		{ "obj-xtors", test_obj_xtors    },
+		{ "obj-find",  test_obj_find     },
+		{ "obj-fill",  test_obj_fill     },
+		{ "db",        test_confdb       },
+		{ "fuzz",      test_confstr_fuzz },
 		{ NULL, NULL }
 	}
 };

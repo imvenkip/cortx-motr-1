@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -21,9 +21,7 @@
 #ifndef __MERO_CONF_PRELOAD_H__
 #define __MERO_CONF_PRELOAD_H__
 
-#include "lib/types.h" /* size_t */
-
-struct confx_object;
+struct m0_confx;
 
 /**
  * @page conf-fspec-preload Pre-Loading of Configuration Cache
@@ -54,17 +52,15 @@ struct confx_object;
  * The format of configuration string corresponds to the format of
  * string argument of m0_xcode_read() function.
  *
- * The acceptable TAGs are enumerated in struct confx_u.
+ * The acceptable TAGs are enumerated in struct m0_confx_u.
  *
  * The order of fields within an object descriptor should correspond
- * to their order in the corresponding confx_* structure.
+ * to their order in the corresponding m0_confx_{profile..partition}
+ * structure.
  *
  * Object relations are expressed via object ids.  Directory objects
  * (m0_conf_dir) are not included in a configuration string --- they
  * are created dynamically by a configuration module.
- *
- * m0_conf_parse() translates configuration string into an array of
- * confx_objects.
  *
  * E.g., the following configuration string
  *
@@ -78,10 +74,10 @@ struct confx_object;
           [0])})]
 @endverbatim
  *
- * describes two confx_objects:
+ * describes two m0_confx_objs:
  *
  * @code
- * struct confx_object a = {
+ * struct m0_confx_obj a = {
  *         .o_id = M0_BUF_INITS("prof"),
  *         .o_conf = {
  *                 .u_type = M0_CO_PROFILE,
@@ -91,7 +87,7 @@ struct confx_object;
  *         }
  * };
  *
- * struct confx_object b = {
+ * struct m0_confx_obj b = {
  *         .o_id = M0_BUF_INITS("fs"),
  *         .o_conf = {
  *                 .u_type = M0_CO_FILESYSTEM,
@@ -118,7 +114,8 @@ struct confx_object;
  * <!---------------------------------------------------------------->
  * @subsection conf-fspec-preload-string-examples Examples
  *
- * @todo XXX TODO Add more examples.
+ * See examples of configuration strings in conf/ut/conf-str.txt and
+ * m0t1fs/linux_kernel/st/st.
  *
  * @see @ref conf_dfspec_preload "Detailed Functional Specification"
  */
@@ -133,47 +130,18 @@ struct confx_object;
  */
 
 /**
- * Fills the array of confx_objects with configuration data, obtained
- * from a string.
+ * Decodes configuration string.
  *
- * @param[in]  src   Configuration string (see @ref conf-fspec-preload-string).
- * @param[out] dest  Receiver of configuration.
- * @param      n     Number of elements in `dest'.
- *
- * @returns >= 0  The number of confx_objects found.
- * @returns  < 0  Error code.
- *
- * @post  retval <= n
- *
- * @note  In addition to filling `dest' array, m0_conf_parse()
- *        allocates some memory from the heap. This memory is freed by
- *        m0_confx_fini(); the user is responsible for making sure
- *        m0_confx_fini() is called eventually.
- *
- * @see m0_confx_fini()
+ * If the call succeeds, the user is responsible for freeing allocated
+ * memory with m0_confx_free():
+ * @code
+ *         m0_confx_free(*out);
+ * @endcode
  */
-M0_INTERNAL int m0_conf_parse(const char *src, struct confx_object *dest,
-			      size_t n);
+M0_INTERNAL int m0_confstr_parse(const char *s, struct m0_confx **out);
 
-/**
- * Frees the memory, dynamically allocated by m0_conf_parse().
- *
- * @param xobjs  Array of confx_objects.
- * @param n      Number of elements in `xobjs'.
- *
- * @see m0_conf_parse()
- */
-M0_INTERNAL void m0_confx_fini(struct confx_object *xobjs, size_t n);
-
-/**
- * Counts confx_objects encoded in a string.
- *
- * @param[in] src  Configuration string (see @ref conf-fspec-preload-string).
- *
- * @returns >= 0  The number of confx_objects found.
- * @returns  < 0  Error code.
- */
-M0_INTERNAL size_t m0_confx_obj_nr(const char *src);
+/** Frees the memory, dynamically allocated by m0_confstr_parse(). */
+M0_INTERNAL void m0_confx_free(struct m0_confx *enc);
 
 /** @} conf_dfspec_preload */
 #endif /* __MERO_CONF_PRELOAD_H__ */

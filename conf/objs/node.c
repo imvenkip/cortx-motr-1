@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -63,14 +63,14 @@ static int buf_cons(char car, const struct m0_buf *cdr, struct m0_buf *dest)
 	return 0;
 }
 
-static int node_fill(struct m0_conf_obj *dest, const struct confx_object *src,
-		     struct m0_conf_reg *reg)
+static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
+		       struct m0_conf_cache *cache)
 {
-	int                      rc;
-	size_t                   i;
-	struct m0_conf_node     *d = M0_CONF_CAST(dest, m0_conf_node);
-	const struct confx_node *s = FLAT_OBJ(src, node);
-	struct m0_buf            mangled_id = M0_BUF_INIT0;
+	int                         rc;
+	size_t                      i;
+	struct m0_conf_node        *d = M0_CONF_CAST(dest, m0_conf_node);
+	const struct m0_confx_node *s = FLAT_OBJ(src, node);
+	struct m0_buf               mangled_id = M0_BUF_INIT0;
 	struct {
 		struct m0_conf_dir  **pptr;
 		char                  head;
@@ -93,8 +93,8 @@ static int node_fill(struct m0_conf_obj *dest, const struct confx_object *src,
 		if (rc != 0)
 			return rc;
 
-		rc = dir_new(&mangled_id, subdirs[i].children_type,
-			     subdirs[i].children_ids, reg, subdirs[i].pptr);
+		rc = dir_new(cache, &mangled_id, subdirs[i].children_type,
+			     subdirs[i].children_ids, subdirs[i].pptr);
 		m0_buf_free(&mangled_id);
 		if (rc != 0)
 			return rc;
@@ -106,12 +106,11 @@ static int node_fill(struct m0_conf_obj *dest, const struct confx_object *src,
 	return 0;
 }
 
-static int
-node_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
+static int node_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
-	int                  rc;
-	struct m0_conf_node *s = M0_CONF_CAST(src, m0_conf_node);
-	struct confx_node   *d = &dest->o_conf.u.u_node;
+	int                   rc;
+	struct m0_conf_node  *s = M0_CONF_CAST(src, m0_conf_node);
+	struct m0_confx_node *d = &dest->o_conf.u.u_node;
 
 	rc = m0_buf_copy(&dest->o_id, &src->co_id);
 	if (rc != 0)
@@ -136,17 +135,17 @@ node_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
 }
 
 static bool
-node_match(const struct m0_conf_obj *cached, const struct confx_object *flat)
+node_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 {
-	const struct confx_node   *objx = &flat->o_conf.u.u_node;
-	const struct m0_conf_node *obj = M0_CONF_CAST(cached, m0_conf_node);
+	const struct m0_confx_node *xobj = &flat->o_conf.u.u_node;
+	const struct m0_conf_node  *obj = M0_CONF_CAST(cached, m0_conf_node);
 
 	M0_IMPOSSIBLE("XXX TODO: compare dir elements");
-	return  obj->cn_memsize    == objx->xn_memsize    &&
-		obj->cn_nr_cpu     == objx->xn_nr_cpu     &&
-		obj->cn_last_state == objx->xn_last_state &&
-		obj->cn_flags      == objx->xn_flags      &&
-		obj->cn_pool_id    == objx->xn_pool_id;
+	return  obj->cn_memsize    == xobj->xn_memsize    &&
+		obj->cn_nr_cpu     == xobj->xn_nr_cpu     &&
+		obj->cn_last_state == xobj->xn_last_state &&
+		obj->cn_flags      == xobj->xn_flags      &&
+		obj->cn_pool_id    == xobj->xn_pool_id;
 }
 
 static int node_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
@@ -175,8 +174,8 @@ static void node_delete(struct m0_conf_obj *obj)
 
 static const struct m0_conf_obj_ops node_ops = {
 	.coo_invariant = node_invariant,
-	.coo_fill      = node_fill,
-	.coo_xfill     = node_xfill,
+	.coo_decode    = node_decode,
+	.coo_encode    = node_encode,
 	.coo_match     = node_match,
 	.coo_lookup    = node_lookup,
 	.coo_readdir   = NULL,

@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -43,40 +43,37 @@ M0_CONF__BOB_DEFINE(m0_conf_filesystem, M0_CONF_FILESYSTEM_MAGIC,
 
 M0_CONF__INVARIANT_DEFINE(filesystem_invariant, m0_conf_filesystem);
 
-static int filesystem_fill(struct m0_conf_obj *dest,
-			   const struct confx_object *src,
-			   struct m0_conf_reg *reg)
+static int filesystem_decode(struct m0_conf_obj *dest,
+			     const struct m0_confx_obj *src,
+			     struct m0_conf_cache *cache)
 {
 	int rc;
 	struct m0_conf_filesystem *d = M0_CONF_CAST(dest, m0_conf_filesystem);
-	const struct confx_filesystem *s = FLAT_OBJ(src, filesystem);
+	const struct m0_confx_filesystem *s = FLAT_OBJ(src, filesystem);
 
-#if 0 /* XXX Types of d->cf_rootfid and s->xf_rootfid are different:
-       * m0_fid and fid, correspondingly. */
 	d->cf_rootfid = s->xf_rootfid;
-#else
-	d->cf_rootfid.f_container = s->xf_rootfid.f_container;
-	d->cf_rootfid.f_key = s->xf_rootfid.f_key;
-#endif
 	rc = strings_from_arrbuf(&d->cf_params, &s->xf_params);
 	if (rc != 0)
 		return rc;
 
-	rc = dir_new(&src->o_id, M0_CO_SERVICE, &s->xf_services, reg,
+	rc = dir_new(cache, &src->o_id, M0_CO_SERVICE, &s->xf_services,
 		     &d->cf_services);
 	if (rc == 0) {
 		child_adopt(dest, &d->cf_services->cd_obj);
 		dest->co_mounted = true;
+	} else {
+		strings_free(d->cf_params);
+		d->cf_params = NULL; /* make invariant happy */
 	}
 	return rc;
 }
 
 static int
-filesystem_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
+filesystem_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
-	int                        rc;
-	struct m0_conf_filesystem *s = M0_CONF_CAST(src, m0_conf_filesystem);
-	struct confx_filesystem   *d = &dest->o_conf.u.u_filesystem;
+	int                         rc;
+	struct m0_conf_filesystem  *s = M0_CONF_CAST(src, m0_conf_filesystem);
+	struct m0_confx_filesystem *d = &dest->o_conf.u.u_filesystem;
 
 	if (m0_buf_copy(&dest->o_id, &src->co_id))
 		return -ENOMEM;
@@ -99,15 +96,16 @@ err:
 }
 
 static bool filesystem_match(const struct m0_conf_obj *cached,
-			     const struct confx_object *flat)
+			     const struct m0_confx_obj *flat)
 {
-	const struct confx_filesystem   *objx = &flat->o_conf.u.u_filesystem;
-	const struct m0_conf_filesystem *obj = M0_CONF_CAST(cached,
-							    m0_conf_filesystem);
+	const struct m0_confx_filesystem *xobj = &flat->o_conf.u.u_filesystem;
+	const struct m0_conf_filesystem  *obj =
+		M0_CONF_CAST(cached, m0_conf_filesystem);
+
 	M0_IMPOSSIBLE("XXX TODO: compare dir elements");
-	return arrays_eq(obj->cf_params, &objx->xf_params) &&
-		obj->cf_rootfid.f_container == objx->xf_rootfid.f_container &&
-		obj->cf_rootfid.f_key == objx->xf_rootfid.f_key;
+	return arrays_eq(obj->cf_params, &xobj->xf_params) &&
+		obj->cf_rootfid.f_container == xobj->xf_rootfid.f_container &&
+		obj->cf_rootfid.f_key == xobj->xf_rootfid.f_key;
 }
 
 static int filesystem_lookup(struct m0_conf_obj *parent,
@@ -135,8 +133,8 @@ static void filesystem_delete(struct m0_conf_obj *obj)
 
 static const struct m0_conf_obj_ops filesystem_ops = {
 	.coo_invariant = filesystem_invariant,
-	.coo_fill      = filesystem_fill,
-	.coo_xfill     = filesystem_xfill,
+	.coo_decode    = filesystem_decode,
+	.coo_encode    = filesystem_encode,
 	.coo_match     = filesystem_match,
 	.coo_lookup    = filesystem_lookup,
 	.coo_readdir   = NULL,

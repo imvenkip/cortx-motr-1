@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -37,12 +37,12 @@ M0_CONF__BOB_DEFINE(m0_conf_partition, M0_CONF_PARTITION_MAGIC,
 
 M0_CONF__INVARIANT_DEFINE(partition_invariant, m0_conf_partition);
 
-static int partition_fill(struct m0_conf_obj *dest,
-			  const struct confx_object *src,
-			  struct m0_conf_reg *reg)
+static int partition_decode(struct m0_conf_obj *dest,
+			    const struct m0_confx_obj *src,
+			    struct m0_conf_cache *cache M0_UNUSED)
 {
-	struct m0_conf_partition     *d = M0_CONF_CAST(dest, m0_conf_partition);
-	const struct confx_partition *s = FLAT_OBJ(src, partition);
+	struct m0_conf_partition *d = M0_CONF_CAST(dest, m0_conf_partition);
+	const struct m0_confx_partition *s = FLAT_OBJ(src, partition);
 
 	d->pa_start = s->xa_start;
 	d->pa_size  = s->xa_size;
@@ -54,23 +54,23 @@ static int partition_fill(struct m0_conf_obj *dest,
 }
 
 static int
-partition_xfill(struct confx_object *dest, const struct m0_conf_obj *src)
+partition_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
 	M0_IMPOSSIBLE("XXX not implemented");
 	return -1;
 }
 
 static bool partition_match(const struct m0_conf_obj *cached,
-			    const struct confx_object *flat)
+			    const struct m0_confx_obj *flat)
 {
-	const struct confx_partition   *objx = &flat->o_conf.u.u_partition;
-	const struct m0_conf_partition *obj = M0_CONF_CAST(cached,
-							   m0_conf_partition);
-	return  obj->pa_start == objx->xa_start &&
-		obj->pa_size  == objx->xa_size  &&
-		obj->pa_index == objx->xa_index &&
-		obj->pa_type  == objx->xa_type  &&
-		m0_buf_streq(&objx->xa_file, obj->pa_filename);
+	const struct m0_confx_partition *xobj = &flat->o_conf.u.u_partition;
+	const struct m0_conf_partition  *obj = M0_CONF_CAST(cached,
+							    m0_conf_partition);
+	return  obj->pa_start == xobj->xa_start &&
+		obj->pa_size  == xobj->xa_size  &&
+		obj->pa_index == xobj->xa_index &&
+		obj->pa_type  == xobj->xa_type  &&
+		m0_buf_streq(&xobj->xa_file, obj->pa_filename);
 }
 
 static int partition_lookup(struct m0_conf_obj *parent,
@@ -91,8 +91,8 @@ static void partition_delete(struct m0_conf_obj *obj)
 
 static const struct m0_conf_obj_ops partition_ops = {
 	.coo_invariant = partition_invariant,
-	.coo_fill      = partition_fill,
-	.coo_xfill     = partition_xfill,
+	.coo_decode    = partition_decode,
+	.coo_encode    = partition_encode,
 	.coo_match     = partition_match,
 	.coo_lookup    = partition_lookup,
 	.coo_readdir   = NULL,

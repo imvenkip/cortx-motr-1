@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -22,14 +22,14 @@
 #include "lib/trace.h"
 
 #include "conf/obj_ops.h"
-#include "conf/onwire.h"    /* confx_object */
-#include "conf/confc.h"     /* m0_confc */
-#include "conf/buf_ext.h"   /* m0_buf_is_aimed */
-#include "lib/cdefs.h"      /* IS_IN_ARRAY */
-#include "lib/misc.h"       /* M0_IN */
-#include "lib/arith.h"      /* M0_CNT_INC, M0_CNT_DEC */
-#include "lib/errno.h"      /* ENOMEM */
-#include "mero/magic.h"  /* M0_CONF_OBJ_MAGIC */
+#include "conf/cache.h"
+#include "conf/onwire.h"   /* m0_confx_obj */
+#include "conf/buf_ext.h"  /* m0_buf_is_aimed */
+#include "lib/cdefs.h"     /* IS_IN_ARRAY */
+#include "lib/misc.h"      /* M0_IN */
+#include "lib/arith.h"     /* M0_CNT_INC, M0_CNT_DEC */
+#include "lib/errno.h"     /* ENOMEM */
+#include "mero/magic.h"    /* M0_CONF_OBJ_MAGIC */
 
 /**
  * @defgroup conf_dlspec_objops Configuration Object Operations
@@ -97,7 +97,8 @@ static struct m0_conf_obj *(*concrete_ctors[M0_CO_NR])(void) = {
 	[M0_CO_PARTITION]  = m0_conf__partition_create
 };
 
-M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(enum m0_conf_objtype type,
+M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
+						   enum m0_conf_objtype type,
 						   const struct m0_buf *id)
 {
 	struct m0_conf_obj *obj;
@@ -118,30 +119,41 @@ M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(enum m0_conf_objtype type,
 	}
 	obj->co_type = type;
 	obj->co_status = M0_CS_MISSING;
-	m0_chan_init(&obj->co_chan);
+	obj->co_cache = cache;
+
+	/* XXX [lib.chan.ext-lock] Hello, Andriy! Please remove this comment. */
+	m0_chan_init(&obj->co_chan /*, &cache->ca_lock */);
+
 	m0_conf_reg_tlink_init(obj);
 	m0_conf_dir_tlink_init(obj);
 	m0_conf_obj_bob_init(obj);
 	M0_ASSERT(obj->co_gen_magic == M0_CONF_OBJ_MAGIC);
-	M0_ASSERT(obj->co_con_magic != 0);
+	M0_ASSERT(M0_IN(obj->co_con_magic, (M0_CONF_DIR_MAGIC,
+					    M0_CONF_PROFILE_MAGIC,
+					    M0_CONF_FILESYSTEM_MAGIC,
+					    M0_CONF_SERVICE_MAGIC,
+					    M0_CONF_NODE_MAGIC,
+					    M0_CONF_NIC_MAGIC,
+					    M0_CONF_SDEV_MAGIC,
+					    M0_CONF_PARTITION_MAGIC)));
 	M0_ASSERT(!obj->co_mounted);
 
 	M0_POST(m0_conf_obj_invariant(obj));
 	return obj;
 }
 
-static int _stub_create(struct m0_conf_reg *reg, enum m0_conf_objtype type,
-			const struct m0_buf *id, struct m0_conf_obj **out)
+static int stub_create(struct m0_conf_cache *cache, enum m0_conf_objtype type,
+		       const struct m0_buf *id, struct m0_conf_obj **out)
 {
 	int rc;
 
 	M0_ENTRY();
 
-	*out = m0_conf_obj_create(type, id);
+	*out = m0_conf_obj_create(cache, type, id);
 	if (*out == NULL)
 		M0_RETURN(-ENOMEM);
 
-	rc = m0_conf_reg_add(reg, *out);
+	rc = m0_conf_reg_add(&cache->ca_registry, *out);
 	if (rc != 0) {
 		m0_conf_obj_delete(*out);
 		*out = NULL;
@@ -149,7 +161,7 @@ static int _stub_create(struct m0_conf_reg *reg, enum m0_conf_objtype type,
 	M0_RETURN(rc);
 }
 
-M0_INTERNAL int m0_conf_obj_find(struct m0_conf_reg *reg,
+M0_INTERNAL int m0_conf_obj_find(struct m0_conf_cache *cache,
 				 enum m0_conf_objtype type,
 				 const struct m0_buf *id,
 				 struct m0_conf_obj **out)
@@ -157,19 +169,15 @@ M0_INTERNAL int m0_conf_obj_find(struct m0_conf_reg *reg,
 	int rc = 0;
 
 	M0_ENTRY();
+	M0_PRE(m0_mutex_is_locked(&cache->ca_lock));
 
-	*out = m0_conf_reg_lookup(reg, type, id);
+	*out = m0_conf_reg_lookup(&cache->ca_registry, type, id);
 	if (*out == NULL)
-		rc = _stub_create(reg, type, id, out);
+		rc = stub_create(cache, type, id, out);
 
-	M0_POST(ergo(rc == 0, m0_conf_obj_invariant(*out)));
+	M0_POST(ergo(rc == 0,
+		     m0_conf_obj_invariant(*out) && (*out)->co_cache == cache));
 	M0_RETURN(rc);
-}
-
-static bool confc_is_unset_or_locked(const struct m0_conf_obj *obj)
-{
-	return obj->co_confc == NULL ||
-		m0_mutex_is_locked(&obj->co_confc->cc_lock);
 }
 
 M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
@@ -177,7 +185,7 @@ M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
 	M0_PRE(m0_conf_obj_invariant(obj));
 	M0_PRE(obj->co_nrefs == 0);
 	M0_PRE(obj->co_status != M0_CS_LOADING);
-	M0_PRE(!obj->co_mounted || confc_is_unset_or_locked(obj));
+	M0_PRE(!obj->co_mounted || m0_mutex_is_locked(&obj->co_cache->ca_lock));
 
 	/* Finalise generic fields. */
 	m0_conf_obj_bob_fini(obj);
@@ -193,8 +201,8 @@ M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
 M0_INTERNAL void m0_conf_obj_get(struct m0_conf_obj *obj)
 {
 	M0_PRE(m0_conf_obj_invariant(obj));
+	M0_PRE(m0_mutex_is_locked(&obj->co_cache->ca_lock));
 	M0_PRE(obj->co_status == M0_CS_READY);
-	M0_PRE(confc_is_unset_or_locked(obj));
 
 	M0_CNT_INC(obj->co_nrefs);
 }
@@ -202,43 +210,55 @@ M0_INTERNAL void m0_conf_obj_get(struct m0_conf_obj *obj)
 M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj)
 {
 	M0_PRE(m0_conf_obj_invariant(obj));
+	M0_PRE(m0_mutex_is_locked(&obj->co_cache->ca_lock));
 	M0_PRE(obj->co_status == M0_CS_READY);
-	M0_PRE(confc_is_unset_or_locked(obj));
 
 	M0_CNT_DEC(obj->co_nrefs);
 	if (obj->co_nrefs == 0)
 		m0_chan_broadcast(&obj->co_chan);
 }
 
-static bool confx_object_is_valid(const struct confx_object *src);
+/** Performs sanity checking of given m0_confx_obj. */
+static bool confx_obj_is_valid(const struct m0_confx_obj *flat)
+{
+	/* XXX TODO
+	 * - All of m0_buf-s contained in `flat' are m0_buf_is_aimed();
+	 * - all of arr_buf-s are populated with valid m0_buf-s;
+	 * - etc.
+	 */
+	(void)flat; /* XXX */
+	return true;
+}
 
 M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
-				 const struct confx_object *src,
-				 struct m0_conf_reg *reg)
+				 const struct m0_confx_obj *src,
+				 struct m0_conf_cache *cache)
 {
 	int rc;
 
+	M0_ENTRY();
 	M0_PRE(m0_conf_obj_invariant(dest));
-	M0_PRE(confc_is_unset_or_locked(dest));
+	M0_PRE(m0_mutex_is_locked(&cache->ca_lock));
 	M0_PRE(m0_conf_obj_is_stub(dest) && dest->co_nrefs == 0);
 	M0_PRE(dest->co_type == src->o_conf.u_type);
 	M0_PRE(m0_buf_eq(&dest->co_id, &src->o_id));
-	M0_PRE(confx_object_is_valid(src));
+	M0_PRE(confx_obj_is_valid(src));
 
-	rc = dest->co_ops->coo_fill(dest, src, reg);
+	rc = dest->co_ops->coo_decode(dest, src, cache);
 	dest->co_status = rc == 0 ? M0_CS_READY : M0_CS_MISSING;
 
 	M0_POST(ergo(rc == 0, dest->co_mounted));
-	M0_POST(confc_is_unset_or_locked(dest));
+	M0_POST(m0_mutex_is_locked(&cache->ca_lock));
 	M0_POST(m0_conf_obj_invariant(dest));
+	M0_LEAVE("retval=%d", rc);
 	return rc;
 }
 
 M0_INTERNAL bool m0_conf_obj_match(const struct m0_conf_obj *cached,
-				   const struct confx_object *flat)
+				   const struct m0_confx_obj *flat)
 {
 	M0_PRE(m0_conf_obj_invariant(cached));
-	M0_PRE(confx_object_is_valid(flat));
+	M0_PRE(confx_obj_is_valid(flat));
 
 	return cached->co_type == flat->o_conf.u_type &&
 		m0_buf_eq(&cached->co_id, &flat->o_id) &&
@@ -246,18 +266,5 @@ M0_INTERNAL bool m0_conf_obj_match(const struct m0_conf_obj *cached,
 		 cached->co_ops->coo_match(cached, flat));
 }
 
-/** Performs sanity checking of given confx_object. */
-static bool confx_object_is_valid(const struct confx_object *flat)
-{
-	/* XXX
-	 * - All of m0_buf-s contained in `flat' are m0_buf_is_aimed();
-	 * - all of arr_buf-s are populated with valid m0_buf-s;
-	 * - etc.
-	 */
-	(void) flat; /* XXX */
-	return true;
-}
-
-#undef M0_TRACE_SUBSYSTEM
-
 /** @} conf_dlspec_objops */
+#undef M0_TRACE_SUBSYSTEM

@@ -38,5 +38,8 @@ extern struct m0_fop_type m0_conf_update_resp_fopt;
 M0_INTERNAL int m0_conf_fops_init(void);
 M0_INTERNAL void m0_conf_fops_fini(void);
 
+M0_INTERNAL int m0_confx_types_init(void);
+M0_INTERNAL void m0_confx_types_fini(void);
+
 /** @} conf_fop */
 #endif /* __MERO_CONF_FOP_H__ */

@@ -169,7 +169,8 @@ enum m0_magic_satchel {
 	/* m0_conf_sdev::sd_obj.co_con_magic (allseed salad) */
 	M0_CONF_SDEV_MAGIC = 0x33a115eed5a1ad77,
 
-	/* m0_conf_partition::pa_obj.co_con_magic (bacca is aloof) */
+	/* m0_conf_partition::pa_obj.co_con_magic (bacca is aloof)
+	 * Let's hope we won't be sued by Symantec for this name. */
 	M0_CONF_PARTITION_MAGIC = 0x33bacca15a100f77,
 
 	/* m0_confc::cc_magic (zodiac doable) */

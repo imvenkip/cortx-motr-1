@@ -279,6 +279,9 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 				 (op = strsep(&options, ",")) != NULL &&
 				 *op != '\0');
 
+			if (depth > 0)
+				M0_RETERR(-EPROTO, "Unexpected EOF");
+
 			if (rc < 0) {
 				M0_ASSERT(rc == -EPROTO);
 				M0_RETERR(rc, "Configuration string is "
@@ -298,6 +301,10 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 		}
 	}
 out:
+	/*
+	 * If there is an error, the allocated memory will be freed by
+	 * mount_opts_fini(), called by m0t1fs_fill_super().
+	 */
 	M0_RETURN(rc ?: mount_opts_validate(dest));
 }
 
@@ -368,8 +375,7 @@ static int fs_params_parse(struct fs_params *dest, const char **src)
 
 	M0_ENTRY();
 
-	dest->fs_pool_width = dest->fs_nr_data_units =
-		dest->fs_nr_parity_units = dest->fs_unit_size = 0;
+	M0_SET0(dest);
 
 	if (src == NULL)
 		goto end;
@@ -460,7 +466,6 @@ static int connect_to_service(const char *addr, enum m0_conf_service_type type,
 
 	M0_ENTRY("addr=`%s' type=%d", addr, type);
 	M0_PRE(!is_empty(addr));
-	M0_PRE(M0_IN(type, (M0_CST_MDS, M0_CST_IOS))); /* XXX Why? */
 
 	M0_ALLOC_PTR(ctx);
 	if (ctx == NULL)
@@ -537,14 +542,12 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 			mds_is_provided = true;
 		else if (svc->cs_type == M0_CST_IOS)
 			++*nr_ios;
-		else
-			/* XXX Shouldn't we connect to services of
-			 * other types as well? */
-			continue;
 
-		for (rc = 0, pstr = svc->cs_endpoints;
-		     rc == 0 && *pstr != NULL; ++pstr)
+		for (pstr = svc->cs_endpoints; *pstr != NULL; ++pstr) {
 			rc = connect_to_service(*pstr, svc->cs_type, csb);
+			if (rc != 0)
+				break;
+		}
 	}
 
 	m0_confc_close(entry);
@@ -693,18 +696,13 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 	       rep->f_root.f_container, rep->f_root.f_key);
 
 	root_inode = m0t1fs_root_iget(sb, &rep->f_root);
-	if (IS_ERR(root_inode)) {
-		rc = PTR_ERR(root_inode);
-		M0_LOG(M0_ERROR, "m0t1fs_root_iget() failed with %d", rc);
-		M0_RETURN(rc);
-	}
+	if (IS_ERR(root_inode))
+		M0_RETURN((int)PTR_ERR(root_inode));
 
 	sb->s_root = d_alloc_root(root_inode);
 	if (sb->s_root == NULL) {
 		iput(root_inode);
-		rc = -ENOMEM;
-		M0_LOG(M0_ERROR, "d_alloc_root() failed with %d", rc);
-		M0_RETURN(rc);
+		M0_RETURN(-ENOMEM);
 	}
 	M0_RETURN(0);
 }

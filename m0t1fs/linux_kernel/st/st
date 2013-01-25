@@ -152,17 +152,15 @@ services_stop() {
 }
 
 _mount() {
-    local CONF=
+    [ $# -eq 1 -o $# -eq 2 ] || die 'Usage: _mount MODE [FAULT]'
+    local mode="$1"
+    local fault="${2:-}"
+
     local FS_PARAMS=\
 '[4: "pool_width=3","nr_data_units=1","nr_parity_units=1","unit_size=4096"]'
+    [ "$fault" = bad_fs_params ] && FS_PARAMS='[1: "bad_param"]'
 
-    case "${1:-}" in
-	garbage) CONF='garbage';;
-	bad_fs_params) FS_PARAMS='[1: "bad_param"]';;
-	no_fs_data) CONF='[1: ("prof", {1| ("fs")})]';;
-    esac
-
-    [ -z "$CONF" ] && CONF="`cat <<EOF
+    local CONF="`cat <<EOF
 [4:
   ("prof", {1| ("fs")}),
   ("fs", {2| ((11, 22), $FS_PARAMS, [2: "mds", "ios"])}),
@@ -170,14 +168,24 @@ _mount() {
   ("ios", {3| (2, [1: "$IOS0_ENDPOINT"], "node-0")})]
 EOF`"
 
-    if [ $# -eq 0 ]; then
-	# XXX TODO: Feed bad configuration strings to confd as well.
-	mount -t m0t1fs -o profile=prof,confd=$CONFD_ENDPOINT \
-	    none $SANDBOX_DIR/mnt || return $?
-    else
-	mount -t m0t1fs -o profile=prof,local_conf="$CONF" \
-	    none $SANDBOX_DIR/mnt || return $?
-    fi
+    case "$fault" in
+	garbage)        CONF="$(head -c 64 /dev/urandom)";;
+	premature_eof)  CONF="$(echo $CONF | head -c 64)";;
+	duplicated_ids) CONF="$(echo $CONF | sed 's/mds/ios/')";;
+	no_fs_data)     CONF='[1: ("prof", {1| ("fs")})]';;
+	'' | bad_fs_params) ;;
+	*) die "_mount: Unsupported value of \`fault' argument: $fault";;
+    esac
+
+    case "$mode" in
+	net) # XXX TODO: Feed bad configuration strings to confd as well.
+	    mount -t m0t1fs -o profile=prof,confd=$CONFD_ENDPOINT \
+		none $SANDBOX_DIR/mnt || return $?;;
+	local)
+	    mount -t m0t1fs -o profile=prof,local_conf="$CONF" \
+		none $SANDBOX_DIR/mnt || return $?;;
+	*) die "_mount: Unsupported value of \`mode' argument: $mode";;
+    esac
 }
 
 _init() {
@@ -239,21 +247,18 @@ say 'Suite: failures'
 
 echo 4 >/proc/sys/kernel/printk  # Not interested in console output.
 
-## 1), 2), 3)
-for c in garbage bad_fs_params no_fs_data; do
+for c in garbage premature_eof duplicated_ids no_fs_data bad_fs_params; do
     say "  Test: $(echo $c | tr _ ' ')"
-    _mount $c 2>/dev/null && error 'Failed to fail'
+    _mount local $c 2>/dev/null && error 'Failed to fail'
 done
 
-## 4) No network connection.
 say "  Test: no network"
 services_stop
-_mount 2>/dev/null && error 'Failed to fail'
+_mount net 2>/dev/null && error 'Failed to fail'
 
-## 5) m0d is started without confd service.
 say "  Test: no confd"
 services_start noconfd
-_mount 2>/dev/null && error 'Failed to fail'
+_mount net 2>/dev/null && error 'Failed to fail'
 ##
 ## m0d has aborted at this point, because the confc of m0t1fs has sent
 ## unsupported request to m0d's endpoint.  As there is no confd service
@@ -268,17 +273,16 @@ say Suite: successes
 
 echo 8 >/proc/sys/kernel/printk  # Print kernel messages to the console.
 
-## 1) local_conf
 say "  Test: m0t1fs local_conf"
 _mount local || _fini $?
 umount $SANDBOX_DIR/mnt
 
-## 2) confd
 say "  Test: m0t1fs confd"
-_mount || _fini $?
+_mount net || _fini $?
 umount $SANDBOX_DIR/mnt
 
-## 3) "conf-reqh" demo: m0d configures itself, retrieving data from confd.
+## "conf-reqh" demo: start another instance of m0d, which configures
+## itself retrieving data from confd.
 say "  Test: reqh"
 services_start autoconf
 sleep 3

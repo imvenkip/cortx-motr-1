@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -22,15 +22,15 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
 
+#include "conf/confd.h"
+#include "conf/obj_ops.h"  /* m0_conf_obj_find */
+#include "conf/onwire.h"   /* m0_confx, m0_confx_obj */
+#include "conf/preload.h"  /* m0_confx_free */
+#include "conf/addb.h"     /* m0_addb_ct_conf_serv */
 #include "lib/errno.h"     /* ENOMEM */
 #include "lib/memory.h"    /* M0_ALLOC_PTR_ADDB */
-#include "lib/misc.h"      /* strdup */
+#include "lib/string.h"    /* strdup */
 #include "mero/magic.h"    /* M0_CONFD_MAGIC */
-#include "conf/conf_addb.h"
-#include "conf/conf_xcode.h" /* XXX m0_confx_str_read */
-#include "conf/obj_ops.h"  /* m0_conf_obj_find */
-#include "conf/preload.h"  /* m0_confx_fini */
-#include "conf/confd.h"
 
 /**
  * @page confd-lspec-page confd Internals
@@ -470,33 +470,69 @@ static const struct m0_reqh_service_ops confd_ops = {
 	.rso_fini  = confd_fini
 };
 
+/**
+ * Reads contents of file into a buffer.
+ *
+ * @param path  Name of file to read.
+ * @param dest  Buffer to read into.
+ * @param sz    Size of `dest'.
+ *
+ * XXX FIXME: Code duplication!
+ * See m0_ut_file_read() in `conf/ut/file_helpers.c'.
+ */
+static int file_read(const char *path, char *dest, size_t sz)
+{
+	FILE  *f;
+	size_t n;
+	int    rc = 0;
+
+	M0_ENTRY("path=`%s'", path);
+
+	f = fopen(path, "r");
+	if (f == NULL)
+		M0_RETURN(-errno);
+
+	n = fread(dest, 1, sz - 1, f);
+	if (ferror(f))
+		rc = -errno;
+	else if (!feof(f))
+		rc = -EFBIG;
+	else
+		dest[n] = '\0';
+
+	fclose(f);
+	M0_RETURN(rc);
+}
+
 /*
  * XXX TODO: Reuse the code.  This function shares too much logic with
  * cache_preload_locked() of conf/confc.c.
  */
-static int cache_load(struct m0_conf_reg *reg, const char *dbpath)
+static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
 {
-	struct m0_conf_obj  *obj;
-	int                  n;
-	int                  i;
-	int                  rc;
-	struct confx_object *xobjs = NULL; /* make compiler happy */
+	static char      buf[4096];
+	struct m0_confx *enc;
+	int              i;
+	int              rc;
 
 	M0_ENTRY();
 
-	n = m0_confx_str_read(dbpath, &xobjs);
-	if (n <= 0)
-		M0_RETURN(n);
+	rc = file_read(dbpath, buf, sizeof buf) ?: m0_confstr_parse(buf, &enc);
+	if (rc != 0)
+		M0_RETURN(rc);
 
-	for (i = 0, rc = 0; i < n && rc == 0; ++i) {
-		rc = m0_conf_obj_find(reg, xobjs[i].o_conf.u_type,
-				      &xobjs[i].o_id, &obj) ?:
-			m0_conf_obj_fill(obj, &xobjs[i], reg);
+	m0_mutex_lock(&cache->ca_lock);
+	for (i = 0; i < enc->cx_nr && rc == 0; ++i) {
+		struct m0_conf_obj        *obj;
+		const struct m0_confx_obj *xobj = &enc->cx_objs[i];
+
+		rc = m0_conf_obj_find(cache, xobj->o_conf.u_type, &xobj->o_id,
+				      &obj) ?:
+			m0_conf_obj_fill(obj, xobj, cache);
 	}
+	m0_mutex_unlock(&cache->ca_lock);
 
-	m0_confx_fini(xobjs, n);
-	m0_free(xobjs);
-
+	m0_confx_free(enc);
 	M0_RETURN(rc);
 }
 
@@ -519,11 +555,10 @@ static int confd_allocate(struct m0_reqh_service **service,
 	if (confd == NULL)
 		M0_RETURN(-ENOMEM);
 
-	m0_conf_reg_init(&confd->d_reg);
-
-	rc = cache_load(&confd->d_reg, arg);
+	m0_conf_cache_init(&confd->d_cache);
+	rc = confd_cache_preload(&confd->d_cache, arg);
 	if (rc != 0)
-		goto reg_fini;
+		goto cache_fini;
 
 	m0_bob_init(&m0_confd_bob, confd);
 
@@ -531,8 +566,8 @@ static int confd_allocate(struct m0_reqh_service **service,
 	(*service)->rs_ops = &confd_ops;
 
 	M0_RETURN(0);
-reg_fini:
-	m0_conf_reg_fini(&confd->d_reg);
+cache_fini:
+	m0_conf_cache_fini(&confd->d_cache);
 	m0_free(confd);
 	M0_RETURN(rc);
 }
@@ -545,7 +580,7 @@ static void confd_fini(struct m0_reqh_service *service)
 	M0_ENTRY();
 
 	m0_bob_fini(&m0_confd_bob, confd);
-	m0_conf_reg_fini(&confd->d_reg);
+	m0_conf_cache_fini(&confd->d_cache);
 	m0_free(confd);
 
 	M0_LEAVE();

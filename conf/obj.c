@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -163,6 +163,7 @@
  *
  * - @subpage conf-fspec-obj
  * - @subpage confc-fspec
+ * - @subpage conf-fspec-cache
  * - @subpage conf-fspec-preload
  * - @subpage conf-fspec-objops
  * - @subpage conf-fspec-reg
@@ -182,12 +183,8 @@
  * <!---------------------------------------------------------------->
  * @subsection conf-lspec-comps Components Overview
  *
- * Every instance of confc library and confd service maintains a cache
- * of configuration data.  Configuration cache is represented by 1) a
- * set of dynamically allocated configuration objects, joined together
- * by relations into a directed acyclic graph (DAG), and 2) a registry
- * of cached objects, that maps object identities to memory addresses
- * of these objects.
+ * Every instance of confc library and confd service maintains a @ref
+ * conf-fspec-cache "cache of configuration data".
  *
  * Configuration cache can be pre-loaded from an ASCII string. See
  * @ref conf-fspec-preload.
@@ -251,13 +248,12 @@
  *     @test m0_conf_reg operations will be tested.
  *
  *     @test Path operations will be tested. This includes checking
- *           validity of various paths, testing success and failure of
- *           m0_conf_downlink().
+ *           validity of various paths.
  *
  *     @test Object operations will be tested. This includes allocation,
  *           comparison with on-wire representation, stub enrichment.
  *
- *     @test m0_conf_parse() will be tested.
+ *     @test m0_confstr_parse() will be tested.
  *
  * @subsection conf-ut-confc confc Test Suite
  *
@@ -275,7 +271,7 @@
  *
  * @subsection confd-ut confd Test Suite
  *
- * XXX @todo To be added by Anatoliy.
+ * XXX
  *
  * <hr> <!------------------------------------------------------------>
  * @section conf-st System Tests
@@ -359,7 +355,7 @@
  * state, and m0_confc_ctx_error() will return -ENOMEM.  The application
  * may opt to get rid of configuration cache by issuing m0_confc_fini().
  *
- * @todo Implement cache eviction.
+ * XXX @todo Implement cache eviction.
  *
  * <hr> <!------------------------------------------------------------>
  * @section conf-ref References

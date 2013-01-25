@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -21,7 +21,7 @@
 #ifndef __MERO_CONF_CONFC_H__
 #define __MERO_CONF_CONFC_H__
 
-#include "conf/reg.h"     /* m0_conf_reg */
+#include "conf/cache.h"   /* m0_conf_cache */
 #include "conf/onwire.h"  /* m0_conf_fetch */
 #include "lib/buf.h"      /* m0_buf, M0_BUF_INIT0 */
 #include "lib/mutex.h"    /* m0_mutex */
@@ -55,10 +55,10 @@ struct m0_conf_obj;
  * @section confc-fspec-data Data Structures
  *
  * - m0_confc --- an instance of configuration client.
- *   This structure contains configuration cache and a lock protecting
- *   the cache from concurrent writes.  m0_confc also keeps reference
- *   to the state machine group that synchronizes state machines
- *   created by this confc.
+ *   This structure contains m0_conf_cache, which represents
+ *   configuration cache.  m0_confc also keeps reference to the state
+ *   machine group that synchronizes state machines created by this
+ *   confc.
  *
  * - m0_confc_ctx --- configuration retrieval context.
  *   This structure embodies data needed by a state machine to process
@@ -384,8 +384,6 @@ struct m0_conf_obj;
  * #include "conf/obj.h"
  * #include "lib/arith.h" // M0_CNT_INC
  *
- * struct m0_confc *g_confc = ...;
- *
  * struct sm_waiter {
  *         struct m0_confc_ctx w_ctx;
  *         struct m0_clink     w_clink;
@@ -404,7 +402,7 @@ struct m0_conf_obj;
  *         int                 rc;
  *         struct m0_conf_obj *entry = NULL;
  *
- *         sm_waiter_init(&w, dir->co_confc);
+ *         sm_waiter_init(&w, m0_confc_from_obj(dir));
  *
  *         while ((rc = m0_confc_readdir(&w.w_ctx, dir, &entry)) > 0) {
  *                 if (rc == M0_CONF_DIRNEXT) {
@@ -439,7 +437,7 @@ struct m0_conf_obj;
  *
  *                 // Re-initialise m0_confc_ctx.
  *                 sm_waiter_fini(&w);
- *                 sm_waiter_init(&w, dir->co_confc);
+ *                 sm_waiter_init(&w, m0_confc_from_obj(dir));
  *         }
  *
  *         m0_confc_close(entry);
@@ -466,18 +464,6 @@ struct m0_conf_obj;
 
 /** Configuration client. */
 struct m0_confc {
-	/** Registry of cached configuration objects. */
-	struct m0_conf_reg       cc_registry;
-
-	/**
-	 * Root of the DAG of configuration objects.
-	 *
-	 * ->cc_root is never pinned, because there is no way for the
-	 * application to open it.  See the note in @ref
-	 * confc-fspec-sub-use.
-	 */
-	struct m0_conf_obj      *cc_root;
-
 	/**
 	 * Serialises configuration retrieval state machines
 	 * (m0_confc_ctx::fc_mach).
@@ -492,22 +478,27 @@ struct m0_confc {
 	struct m0_sm_group      *cc_group;
 
 	/**
-	 * Confc lock (aka cache lock).
+	 * Configuration cache.
 	 *
-	 * Protects this structure and the DAG of cached configuration
-	 * objects from concurrent modifications.
-	 *
-	 * Rationale: while ->cc_group ensures that there are no
-	 * concurrent state transitions, it has no influence on the
-	 * application, which may modify configuration cache by
-	 * calling m0_confc_close() or m0_confc_fini().
+	 * m0_conf_cache::ca_lock is being used to protect m0_confc
+	 * instance, as well as the DAG of cached configuration
+	 * objects, from concurrent modifications.
 	 *
 	 * If both group and cache locks are needed, group lock must
 	 * be acquired first.
 	 *
 	 * @see confc-lspec-thread
 	 */
-	struct m0_mutex          cc_lock;
+	struct m0_conf_cache     cc_cache;
+
+	/**
+	 * Root of the DAG of configuration objects.
+	 *
+	 * ->cc_root object is never pinned, as there is no way for
+	 * the application to m0_confc_open*() it.  See the note in
+	 * @ref confc-fspec-sub-use.
+	 */
+	struct m0_conf_obj      *cc_root;
 
 	/** Connection to confd. */
 	struct m0_rpc_conn       cc_rpc_conn;
@@ -534,8 +525,7 @@ struct m0_confc {
  * Initialises configuration client.
  *
  * @param confc        A confc instance to be initialised.
- * @param sm_group     State machine group to be associated with confc
- *                     configuration cache.
+ * @param sm_group     State machine group to be associated with this confc.
  * @param profile      Name of profile used by this confc.
  * @param confd_addr   End point address of configuration server (confd).
  * @param rpc_mach     RPC machine that will process configuration RPC items.
@@ -561,6 +551,9 @@ M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
  * @pre  There are no opened (pinned) configuration objects.
  */
 M0_INTERNAL void m0_confc_fini(struct m0_confc *confc);
+
+/** Obtains the address of m0_confc that owns given configuration object. */
+M0_INTERNAL struct m0_confc *m0_confc_from_obj(const struct m0_conf_obj *obj);
 
 /* ------------------------------------------------------------------
  * context
@@ -685,7 +678,7 @@ M0_INTERNAL struct m0_conf_obj *m0_confc_ctx_result(struct m0_confc_ctx *ctx);
  *
  * @pre  ctx->fc_origin == NULL && ctx->fc_path is empty
  * @pre  ctx->fc_mach.sm_state == S_INITIAL
- * @pre  ergo(origin != NULL, origin->co_confc == ctx->fc_confc)
+ * @pre  ergo(origin != NULL, origin->co_cache == &ctx->fc_confc->cc_cache)
  */
 #define m0_confc_open(ctx, origin, ...)                           \
 	m0_confc__open((ctx), (origin), (const struct m0_buf []){ \
@@ -745,9 +738,9 @@ M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj);
  *
  * Entries of a directory are usually present in the configuration
  * cache.  In this common case m0_confc_readdir() can fulfil the
- * request immediately. Return value M0_CONF_DIREND or M0_CONF_DIRNEXT
- * informs the caller of the possibility to proceed without waiting
- * for ctx->fc_mach.sm_chan channel to be signaled.
+ * request immediately. Return values M0_CONF_DIREND and M0_CONF_DIRNEXT
+ * inform the caller that it may proceed without waiting for
+ * ctx->fc_mach.sm_chan channel to be signaled.
  *
  * @retval M0_CONF_DIRMISS  Asynchronous retrieval of configuration has been
  *                          initiated. The caller should wait.
@@ -769,7 +762,7 @@ M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj);
  * @see confc-fspec-recipe4
  *
  * @pre   ctx->fc_mach.sm_state == S_INITIAL
- * @pre   dir->co_type == M0_CO_DIR && dir->co_confc == ctx->fc_confc
+ * @pre   dir->co_type == M0_CO_DIR && dir->co_cache == &ctx->fc_confc->cc_cache
  * @post  ergo(M0_IN(retval, (M0_CONF_DIRNEXT, M0_CONF_DIREND)),
  *             ctx->fc_mach.sm_state == S_INITIAL)
  */

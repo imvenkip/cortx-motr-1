@@ -73,35 +73,11 @@
       end-point address of confd (a.k.a. management service, mgs).
 
   - profile [value type: string]
-      configuration profile. Used while fetching configuration data from confd.
+      configuration profile used while fetching configuration data from confd.
 
   - local_conf [value type: string]
       configuration string, containing data to pre-load configuration
       cache with (see @ref conf-fspec-preload).
-
-  - ios [value type: end-point address]
-      end-point address of io-service. Multiple io-services can be specified
-      as ios=<end-point-addr1>,ios=<end-point-addr2>
-
-  - nr_data_units [value type: number]
-      Number of data units in one parity group. Optional parameter.
-      Default value is M0T1FS_DEFAULT_NR_DATA_UNITS.
-
-  - nr_parity_units [value type: number]
-      Number of parity units in one parity group. Optional parameter.
-      Default value is M0T1FS_DEFAULT_NR_PARITY_UNITS.
-
-  - pool_width [value type: number]
-      Number of component objects over which file contents are striped.
-      Optional parameter.
-      Default value is computed as sum of effective nr_data_units and
-      (2 * nr_parity_units).
-      pool_width >= nr_data_units + 2 * nr_parity_units. (2 to account for
-      nr_spare_units which is equal to nr_parity_units. P >= N + 2 * K)
-
-  - unit_size [value type: number]
-      Size of each stripe unit. Optional parameter. Default value is
-      M0T1FS_DEFAULT_STRIPE_UNIT_SIZE (=PAGE_CACHE_SIZE).
 
    'device' argument of mount command is ignored.
 
@@ -115,13 +91,8 @@
 
    <B>mount/unmount:</B>
 
-   m0t1fs currently takes io/metadata service end-point address and striping
-   parameters as mount options. Once mgs/confd is ready, all this information
-   should be fetched from mgs. In which case, mgs address and profile name
-   will be the only required mount options.
-
    m0t1fs establishes rpc-connections and rpc-sessions with all the services
-   specified in the mount options. If multiple services have same end-point
+   obtained from configuration data. If multiple services have same end-point
    address, separate rpc-connection is established with each service i.e.
    if N services have same end-point address, there will be N rpc-connections
    leading to same target end-point.
@@ -139,9 +110,9 @@
 
    "Container location map" maps container-id to service.
 
-   Even if containers are not yet implemented, notion of
-   container id is required, to be able to locate a service serving some
-   object identified by fid.
+   Even if containers are not yet implemented, notion of container id
+   is required, to be able to locate a service serving some object
+   identified by fid.
 
    Currently m0t1fs implements simple (and temporary) mechanism to
    build container location map. Number of containers is equal to
@@ -162,15 +133,15 @@
 
    <B> Directory Operations: </B>
 
-   To create a regular file, m0t1fs sends cob create requests to mds (for global
-   object aka gob) and io-service (for component objects). Because, mds is not
-   yet implemented, m0t1fs does not send cob create request to any mds.
-   Instead all directory entries are maintained in an in-memory list in root
-   inode itself.
+   To create a regular file, m0t1fs sends cob create requests to mds
+   (for global object aka gob) and io-service (for component
+   objects). Because, mds is not yet implemented, m0t1fs does not send
+   cob create request to any mds.  Instead all directory entries are
+   maintained in an in-memory list in root inode itself.
 
-   If component object creation fails, m0t1fs does not attempt to cleanup
-   component objects that were successfully created. This should be handled by
-   dtm component, which is not yet implemented.
+   If component object creation fails, m0t1fs does not attempt to
+   cleanup component objects that were successfully created. This
+   should be handled by dtm component, which is not yet implemented.
 
    <B> Read/Write: </B>
 
@@ -181,8 +152,8 @@
 
    m0t1fs does not cache any data.
 
-   For simplicity, m0t1fs does synchronous rpc with io-services, to read/write
-   component objects.
+   For simplicity, m0t1fs does synchronous rpc with io-services, to
+   read/write component objects.
  */
 
 /**

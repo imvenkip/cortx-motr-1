@@ -231,12 +231,12 @@ M0_INTERNAL int m0_mdstore_path(struct m0_mdstore       *md,
 				char                   **path);
 
 /**
-   Module initializer.
+   ADDB module initializer.
  */
 M0_INTERNAL int m0_mdstore_mod_init(void);
 
 /**
-   Module finalizer.
+   ADDB module finalizer.
  */
 M0_INTERNAL void m0_mdstore_mod_fini(void);
 
