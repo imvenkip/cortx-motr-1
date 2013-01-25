@@ -41,7 +41,7 @@
 
    A fol record contains the list of fol record parts, belonging to fol record
    part types, added during updates. These fol record parts provides flexibility
-   for madules to participate in a transaction without global knowledge.
+   for modules to participate in a transaction without global knowledge.
 
    @see m0_fol_rec_add()
    @see m0_fol_rec_lookup()

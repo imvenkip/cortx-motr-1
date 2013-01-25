@@ -157,6 +157,10 @@ struct m0_stob_io_desc {
         /** Linkage into m0_io_fom_cob_rw::fcrw_stobio_list */
         struct m0_tlink          siod_linkage;
         struct m0_fom_callback   siod_fcb;
+	/**
+	 * Fol record part representing stob io operations.
+	 * It should be pointed by m0_stob_io::si_fol_rec_part.
+	 */
         struct m0_fol_rec_part   siod_fol_rec_part;
 };
 
