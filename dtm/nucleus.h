@@ -49,7 +49,7 @@ struct m0_dtm_op_ops;
 typedef uint64_t m0_dtm_ver_t;
 
 enum m0_dtm_state {
-	M0_DOS_LIBMO,
+	M0_DOS_LIMBO,
 	M0_DOS_FUTURE,
 	M0_DOS_PREPARE,
 	M0_DOS_INPROGRESS,
@@ -75,7 +75,7 @@ enum m0_dtm_hi_flags {
 
 struct m0_dtm_hi_ops {
 	void (*dho_release)(struct m0_dtm_hi *hi);
-}
+};
 
 enum m0_dtm_up_rule {
 	M0_DUR_INC,
@@ -103,7 +103,6 @@ enum m0_dtm_up_flags {
 };
 
 struct m0_dtm_op {
-	uint64_t                    op_magix;
 	enum m0_dtm_state           op_state;
 	struct m0_tl                op_ups;
 	const struct m0_dtm_op_ops *op_ops;
@@ -120,22 +119,12 @@ struct m0_dtm_op_ops {
 struct m0_dtm_nucleus {
 };
 
-enum m0_dtm_ver_cmp {
-	M0_DVC_LATE  = -1,
-	M0_DVC_READY =  0,
-	M0_DVC_EARLY = +1,
-	M0_DVC_MISER
-};
-
 M0_INTERNAL void m0_dtm_op_init    (struct m0_dtm_op *op);
 M0_INTERNAL void m0_dtm_op_prepared(struct m0_dtm_op *op);
 M0_INTERNAL void m0_dtm_op_done    (struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_up_add  (struct m0_dtm_op *op, struct m0_dtm_up *up);
 M0_INTERNAL void m0_dtm_op_add     (struct m0_dtm_op *op);
 M0_INTERNAL void m0_dtm_op_del     (struct m0_dtm_op *op);
 M0_INTERNAL void m0_dtm_op_fini    (struct m0_dtm_op *op);
-M0_INTERNAL int  m0_dtm_op_cmp     (const struct m0_dtm_up *up);
-M0_INTERNAL bool m0_dtm_op_ordered (const struct m0_dtm_op *op);
 M0_INTERNAL void m0_dtm_op_seen_set(struct m0_dtm_op *op);
 
 M0_INTERNAL void m0_dtm_hi_init    (struct m0_dtm_hi *hi);
@@ -148,12 +137,10 @@ M0_INTERNAL void m0_dtm_up_init    (struct m0_dtm_up *up,
 				    bool seen);
 M0_INTERNAL void m0_dtm_up_fini    (struct m0_dtm_up *up);
 M0_INTERNAL void m0_dtm_up_add     (struct m0_dtm_up *up);
-M0_INTERNAL void m0_dtm_up_del     (struct m0_dtm_up *up);
 M0_INTERNAL void m0_dtm_up_ver_set (struct m0_dtm_up *up,
 				    m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver);
 M0_INTERNAL void m0_dtm_up_seen_set(struct m0_dtm_up *up);
-M0_INTERNAL int  m0_dtm_up_cmp     (const struct m0_dtm_up *up,
-				    m0_dtm_ver_t hver);
+
 M0_INTERNAL struct m0_dtm_up *m0_dtm_up_prior(struct m0_dtm_up *up);
 M0_INTERNAL struct m0_dtm_up *m0_dtm_up_later(struct m0_dtm_up *up);
 
