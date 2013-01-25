@@ -85,6 +85,7 @@ static void test_add(void)
 }
 
 extern m0_lsn_t lsn_inc(m0_lsn_t lsn);
+#define REC_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_header_xc, ptr)
 
 static void test_lookup(void)
 {
@@ -98,8 +99,8 @@ static void test_lookup(void)
 	M0_ASSERT(result == 0);
 
 	M0_ASSERT(dup.fr_desc.rd_lsn == d->rd_lsn);
-	M0_ASSERT(m0_xcode_cmp(&M0_REC_HEADER_XCODE_OBJ(&d->rd_header),
-			       &M0_REC_HEADER_XCODE_OBJ(&dup.fr_desc.rd_header))
+	M0_ASSERT(m0_xcode_cmp(&REC_HEADER_XCODE_OBJ(&d->rd_header),
+			       &REC_HEADER_XCODE_OBJ(&dup.fr_desc.rd_header))
 	          == 0);
 
 	m0_rec_fini(&dup);

@@ -423,17 +423,6 @@ M0_INTERNAL void m0_fol_rec_part_list_fini(struct m0_fol_rec *rec);
 M0_INTERNAL void m0_fol_rec_part_list_add(struct m0_fol_rec *rec,
 				          struct m0_fol_rec_part *part);
 
-#define M0_REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) { \
-		.xo_type = r->rp_ops->rpo_type->rpt_xt,	 \
-		.xo_ptr  = r->rp_data,		         \
-}
-
-#define M0_PART_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_part_header_xc, \
-						   ptr)
-#define M0_REC_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_header_xc, ptr)
-#define M0_REC_SIBLING_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_update_ref_xc, ptr)
-#define M0_REC_OBJ_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_obj_ref_xc, ptr)
-
 #define M0_FOL_REC_PART_TYPE_DECLARE(part, undo, redo)	    \
 struct m0_fol_rec_part_type part ## _type;		    \
 static const struct m0_fol_rec_part_ops part ## _ops = {           \
