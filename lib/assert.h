@@ -117,6 +117,41 @@
  */
 #define M0_IMPOSSIBLE(msg) M0_ASSERT("Impossible: " msg == NULL)
 
+/**
+   Location where _0C() macro stores the name of failed asserted expression.
+ */
+M0_EXTERN const char *m0_failed_condition;
+
+/**
+   A macro to remember failed invariant conjunct.
+
+   This macro is used like the following:
+
+@code
+bool foo_invariant(const struct foo *f)
+{
+	return _0C(f != NULL) && _0C(f->f_ref > 0) &&
+		m0_tl_forall(bar, s, &foo->f_list, _0C(b->b_parent == f) &&
+		                  _0C(b->b_nr < f->f_nr));
+}
+@endcode
+
+   If during invocation of foo_invariant() one of invariant conjuncts evaluates
+   to false, the string representing this conjunct is stored in
+   m0_failed_condition and printed by m0_panic(). This simplifies debugging.
+
+   @note This macro expressly and deliberately violates "M0_" prefix requirement
+   to reduce verbosity.
+
+   @note This compiles to "exp" if M0_ASSERT_OFF is true.
+ */
+#define _0C(exp)					\
+({						\
+	if (!M0_ASSERT_OFF && !(exp))		\
+		m0_failed_condition = #exp;	\
+	exp;					\
+})
+
 /** @} end of assert group */
 
 /* __MERO_LIB_ASSERT_H__ */

@@ -44,6 +44,7 @@ enum {
 };
 
 M0_EXTERN char *m0_debugger_args[4];
+M0_INTERNAL const char *m0_failed_condition;
 
 /**
    Simple user space panic function: issue diagnostics to the stderr, flush the
@@ -55,8 +56,10 @@ M0_EXTERN char *m0_debugger_args[4];
  */
 void m0_panic(const char *expr, const char *func, const char *file, int lineno)
 {
-	fprintf(stderr, "Assertion failure: %s at %s() %s:%i (errno: %i)\n",
-		expr, func, file, lineno, errno);
+	fprintf(stderr,
+		"Panic: %s at %s() %s:%i (errno: %i) (last failed: %s)\n",
+		expr, func, file, lineno, errno,
+		m0_failed_condition ?: "none");
 	fflush(stderr);
 #ifdef HAVE_BACKTRACE
 	{
@@ -67,7 +70,8 @@ void m0_panic(const char *expr, const char *func, const char *file, int lineno)
 		backtrace_symbols_fd(trace, nr, 2);
 	}
 #endif
-	M0_LOG(M0_FATAL, "panic: %s %s() (%s:%i)", expr, func, file, lineno);
+	M0_LOG(M0_FATAL, "panic: %s %s() (%s:%i) %s", expr, func, file, lineno,
+	       m0_failed_condition ?: "");
 	if (m0_debugger_args[0] != NULL) {
 		int rc;
 
