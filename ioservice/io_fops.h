@@ -544,9 +544,9 @@ struct m0_io_delete_rec_part {
 	struct m0_fop_cob_op_reply drp_fop_rep;
 } M0_XCA_RECORD;
 
-extern struct m0_fol_rec_part_type m0_io_write_part_type;
-extern struct m0_fol_rec_part_type m0_io_create_part_type;
-extern struct m0_fol_rec_part_type m0_io_delete_part_type;
+extern struct m0_fol_rec_part_type m0_io_write_rec_part_type;
+extern struct m0_fol_rec_part_type m0_io_create_rec_part_type;
+extern struct m0_fol_rec_part_type m0_io_delete_rec_part_type;
 
 /* __MERO_IOSERVICE_IO_FOPS_H__ */
 #endif

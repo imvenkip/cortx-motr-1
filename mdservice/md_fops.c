@@ -359,6 +359,7 @@ M0_EXPORTED(m0_mdservice_fop_init);
 
 M0_INTERNAL void m0_mdservice_fop_fini(void)
 {
+	md_fol_rec_part_types_deregister();
         m0_fop_type_fini(&m0_fop_create_fopt);
         m0_fop_type_fini(&m0_fop_lookup_fopt);
         m0_fop_type_fini(&m0_fop_link_fopt);

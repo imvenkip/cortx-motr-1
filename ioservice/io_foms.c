@@ -1629,7 +1629,9 @@ static void write_fol_rec_part_add(struct m0_fom *fom)
 	struct m0_fol_rec_part	    *fol_rec_part;
 	struct m0_io_write_rec_part *wrp;
 
-	fol_rec_part = m0_fol_rec_part_init(&m0_io_write_part_type);
+	M0_ALLOC_PTR(wrp);
+	M0_ASSERT(wrp != NULL);
+	fol_rec_part = m0_fol_rec_part_init(wrp, &m0_io_write_rec_part_type);
 	M0_ASSERT(fol_rec_part != NULL);
 	wrp = fol_rec_part->rp_data;
 

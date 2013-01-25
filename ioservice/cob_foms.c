@@ -203,16 +203,17 @@ static void cob_fom_populate(struct m0_fom *fom)
 
 static void cob_fol_rec_part_add(struct m0_fom *fom)
 {
-	struct m0_fol_rec_part *fol_rec_part = NULL;
+	struct m0_fol_rec_part *part = NULL;
 
 	M0_PRE(fom != NULL);
 
 	if (m0_is_cob_create_fop(fom->fo_fop)) {
 		struct m0_io_create_rec_part *crp;
 
-		fol_rec_part = m0_fol_rec_part_init(&m0_io_create_part_type);
-		M0_ASSERT(fol_rec_part != NULL);
-		crp = fol_rec_part->rp_data;
+		M0_ALLOC_PTR(crp);
+		M0_ASSERT(crp != NULL);
+		part = m0_fol_rec_part_init(crp, &m0_io_create_rec_part_type);
+		M0_ASSERT(part != NULL);
 
 		crp->crp_fop = *(struct m0_fop_cob_create *)
 					m0_fop_data(fom->fo_fop);
@@ -221,9 +222,10 @@ static void cob_fol_rec_part_add(struct m0_fom *fom)
 	} else if (m0_is_cob_delete_fop(fom->fo_fop)) {
 		struct m0_io_delete_rec_part *drp;
 
-		fol_rec_part = m0_fol_rec_part_init(&m0_io_delete_part_type);
-		M0_ASSERT(fol_rec_part != NULL);
-		drp = fol_rec_part->rp_data;
+		M0_ALLOC_PTR(drp);
+		M0_ASSERT(drp != NULL);
+		part = m0_fol_rec_part_init(drp, &m0_io_delete_rec_part_type);
+		M0_ASSERT(part != NULL);
 
 		drp->drp_fop = *(struct m0_fop_cob_delete *)
 					m0_fop_data(fom->fo_fop);
@@ -231,8 +233,8 @@ static void cob_fol_rec_part_add(struct m0_fom *fom)
 					m0_fop_data(fom->fo_rep_fop);
 	}
 
-	if (fol_rec_part != NULL)
-		m0_fol_rec_part_add(fom->fo_tx.tx_fol_rec, fol_rec_part);
+	if (part != NULL)
+		m0_fol_rec_part_list_add(&fom->fo_tx.tx_fol_rec, part);
 }
 
 static int cc_fom_tick(struct m0_fom *fom)

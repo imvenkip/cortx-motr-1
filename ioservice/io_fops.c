@@ -104,54 +104,47 @@ const struct m0_fop_type_ops io_fop_rwv_ops = {
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
-struct m0_fol_rec_part_type m0_io_write_part_type;
-struct m0_fol_rec_part_type m0_io_create_part_type;
-struct m0_fol_rec_part_type m0_io_delete_part_type;
-
-const struct m0_fol_rec_part_ops io_write_part_ops = {
-	.rpo_type = &m0_io_write_part_type,
-	.rpo_undo = NULL,
-	.rpo_redo = NULL,
-};
-
-const struct m0_fol_rec_part_ops io_create_part_ops = {
-	.rpo_type = &m0_io_create_part_type,
-	.rpo_undo = NULL,
-	.rpo_redo = NULL,
-};
-
-const struct m0_fol_rec_part_ops io_delete_part_ops = {
-	.rpo_type = &m0_io_delete_part_type,
-	.rpo_undo = NULL,
-	.rpo_redo = NULL,
-};
-
-static void io_write_part_ops_init(struct m0_fol_rec_part *part)
+static int io_fol_rec_part_undo(struct m0_fol_rec_part *part)
 {
-	part->rp_ops = &io_write_part_ops;
+	/**
+	 * @todo Perform the undo operation based on FOL record part type.
+	 */
+	return 0;
 }
 
-static void io_create_part_ops_init(struct m0_fol_rec_part *part)
+static int io_fol_rec_part_redo(struct m0_fol_rec_part *part)
 {
-	part->rp_ops = &io_create_part_ops;
+	/**
+	 * @todo Perform the redo operation based on FOL record part type.
+	 */
+	return 0;
 }
 
-static void io_delete_part_ops_init(struct m0_fol_rec_part *part)
+M0_FOL_REC_PART_TYPE_DECLARE(m0_io_write_rec_part, io_fol_rec_part_undo,
+			     io_fol_rec_part_redo);
+M0_FOL_REC_PART_TYPE_DECLARE(m0_io_create_rec_part, io_fol_rec_part_undo,
+			     io_fol_rec_part_redo);
+M0_FOL_REC_PART_TYPE_DECLARE(m0_io_delete_rec_part, io_fol_rec_part_undo,
+			     io_fol_rec_part_redo);
+
+static int io_fol_rec_part_types_register(void)
 {
-	part->rp_ops = &io_delete_part_ops;
+	M0_FOL_REC_PART_TYPE_INIT(m0_io_write_rec_part, "Write record part");
+	M0_FOL_REC_PART_TYPE_INIT(m0_io_create_rec_part, "Create record part");
+	M0_FOL_REC_PART_TYPE_INIT(m0_io_delete_rec_part, "Delete record part");
+
+	return
+		m0_fol_rec_part_type_register(&m0_io_write_rec_part_type) ?:
+		m0_fol_rec_part_type_register(&m0_io_create_rec_part_type) ?:
+		m0_fol_rec_part_type_register(&m0_io_delete_rec_part_type);
 }
 
-static const struct m0_fol_rec_part_type_ops io_write_part_type_ops = {
-	.rpto_rec_part_init = io_write_part_ops_init,
-};
-
-static const struct m0_fol_rec_part_type_ops io_create_part_type_ops = {
-	.rpto_rec_part_init = io_create_part_ops_init,
-};
-
-static const struct m0_fol_rec_part_type_ops io_delete_part_type_ops = {
-	.rpto_rec_part_init = io_delete_part_ops_init,
-};
+static void io_fol_rec_part_types_deregister(void)
+{
+	m0_fol_rec_part_type_deregister(&m0_io_write_rec_part_type);
+	m0_fol_rec_part_type_deregister(&m0_io_create_rec_part_type);
+	m0_fol_rec_part_type_deregister(&m0_io_delete_rec_part_type);
+}
 
 M0_INTERNAL void m0_ioservice_fop_fini(void)
 {
@@ -164,10 +157,7 @@ M0_INTERNAL void m0_ioservice_fop_fini(void)
 	m0_fop_type_fini(&m0_fop_cob_writev_fopt);
 	m0_fop_type_fini(&m0_fop_cob_readv_fopt);
 
-	m0_fol_rec_part_type_fini(&m0_io_write_part_type);
-	m0_fol_rec_part_type_fini(&m0_io_create_part_type);
-	m0_fol_rec_part_type_fini(&m0_io_delete_part_type);
-
+	io_fol_rec_part_types_deregister();
 	m0_xc_io_fops_fini();
 	m0_addb_ctx_fini(&m0_ios_addb_ctx);
 }
@@ -189,6 +179,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	m0_sm_conf_extend(m0_generic_conf.scf_state, io_phases,
 			  m0_generic_conf.scf_nr_states);
 #endif
+
 	return  M0_FOP_TYPE_INIT(&m0_fop_cob_readv_fopt,
 				 .name      = "Read request",
 				 .opcode    = M0_IOSERVICE_READV_OPCODE,
@@ -255,15 +246,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .xt        = m0_fop_fv_notification_xc,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
 					      M0_RPC_ITEM_TYPE_ONEWAY) ?:
-		m0_fol_rec_part_type_init(&m0_io_write_part_type, "IO write record part",
-					  m0_io_write_rec_part_xc,
-					  &io_write_part_type_ops) ?:
-		m0_fol_rec_part_type_init(&m0_io_create_part_type, "IO create record part",
-					  m0_io_create_rec_part_xc,
-					  &io_create_part_type_ops) ?:
-		m0_fol_rec_part_type_init(&m0_io_delete_part_type, "IO delete record part",
-					  m0_io_delete_rec_part_xc,
-					  &io_delete_part_type_ops);
+		io_fol_rec_part_types_register();
 }
 
 /**
