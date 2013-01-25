@@ -423,92 +423,42 @@ M0_INTERNAL void m0_fol_rec_part_list_fini(struct m0_fol_rec *rec);
 M0_INTERNAL void m0_fol_rec_part_list_add(struct m0_fol_rec *rec,
 				          struct m0_fol_rec_part *part);
 
-#define M0_FOL_REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) {	\
-		.xo_type = r->rp_ops->rpo_type->rpt_xt,		\
-		.xo_ptr  = r->rp_data,		                \
+#define M0_REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) { \
+		.xo_type = r->rp_ops->rpo_type->rpt_xt,	 \
+		.xo_ptr  = r->rp_data,		         \
 }
 
-/**  Adds the FOL record by iterating through FOL parts from the list in m0_dtx
- *   added during updates on server.
- */
-M0_INTERNAL int m0_fol_record_add(struct m0_fol *fol, struct m0_dtx *dtx);
-
-M0_INTERNAL int m0_fol_record_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
-				     m0_lsn_t lsn, struct m0_fol_rec *out);
-
-M0_INTERNAL struct m0_fol_rec *m0_fol_record_init(void);
-M0_INTERNAL void m0_fol_record_fini(struct m0_fol_rec *rec);
-
-/** Represents updates made as part of executing FOM on server. */
-struct m0_fol_rec_part {
-	const struct m0_fol_rec_part_ops  *rp_ops;
-	/**
-	    Pointer to the data where FOL record part is serialised or
-	    will be de-serialised.
-	 */
-	void				  *rp_data;
-	/** Linkage into a fol record parts. */
-	struct m0_tlink			   rp_link;
-	/** Magic for fol record part list. */
-	uint64_t			   rp_magic;
-};
-
-struct m0_fol_rec_part_type {
-	uint32_t                               rpt_index;
-	const char                            *rpt_name;
-	/** Xcode type representing FOL record part type. */
-	const struct m0_xcode_type	      *rpt_xt;
-};
-
-struct m0_fol_rec_part_ops {
-	const struct m0_fol_rec_part_type *rpo_type;
-	int (*rpo_undo)(struct m0_fol_rec_part *part);
-	int (*rpo_redo)(struct m0_fol_rec_part *part);
-};
-
-M0_INTERNAL struct m0_fol_rec_part *m0_fol_rec_part_init(
-	const struct m0_fol_rec_part_ops *ops);
-
-M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part);
-
-M0_INTERNAL int m0_fol_rec_part_type_init(struct m0_fol_rec_part_type *type,
-					  const char *name,
-					  const struct m0_xcode_type  *xt);
-
-M0_INTERNAL void m0_fol_rec_part_type_fini(struct m0_fol_rec_part_type *type);
-
-M0_INTERNAL m0_bcount_t m0_fol_rec_part_data_size(struct m0_fol_rec_part *part);
-
-M0_INTERNAL int m0_fol_rec_part_encdec(struct m0_fol_rec_part  *part,
-			               struct m0_bufvec_cursor *cur,
-			               enum m0_bufvec_what      what);
-
-/** Descriptor for the tlist of fol record parts. */
-M0_TL_DESCR_DECLARE(m0_rec_part, M0_EXTERN);
-M0_TL_DECLARE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
-
-#define M0_FOL_REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) {	\
-		.xo_type = r->rp_ops->rpo_type->rpt_xt,		\
-		.xo_ptr  = r->rp_data,		                \
-}
-
-
-/** Descriptor for the tlist of fol record parts. */
-M0_TL_DESCR_DECLARE(m0_rec_part, M0_EXTERN);
-M0_TL_DECLARE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
-
-M0_INTERNAL void m0_fol_rec_part_add(struct m0_fol_rec *rec,
-				     struct m0_fol_rec_part *part);
-
-#define M0_REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) {	\
-		.xo_type = r->rp_ops->rpo_type->rpt_xt,		\
-		.xo_ptr  = r->rp_data,		                \
-}
-#define M0_PART_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_part_header_xc, ptr)
+#define M0_PART_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_part_header_xc, \
+						   ptr)
 #define M0_REC_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_header_xc, ptr)
 #define M0_REC_SIBLING_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_update_ref_xc, ptr)
 #define M0_REC_OBJ_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_obj_ref_xc, ptr)
 
+#define M0_FOL_REC_PART_TYPE_DECLARE(part, undo, redo)	    \
+struct m0_fol_rec_part_type part ## _type;		    \
+const struct m0_fol_rec_part_ops part ## _ops = {           \
+	.rpo_type = &part ## _type,		            \
+	.rpo_undo = undo,			            \
+	.rpo_redo = redo			            \
+};						            \
+static void part ## _ops_init(struct m0_fol_rec_part *part) \
+{							    \
+	part->rp_ops = &part ## _ops;			    \
+}							    \
+const struct m0_fol_rec_part_type_ops part ## _type_ops = { \
+	.rpto_rec_part_init = part ##_ops_init		    \
+};
+
+#define M0_FOL_REC_PART_TYPE_XC_OPS(name, part_xc, part_type_ops) \
+(struct m0_fol_rec_part_type) {					  \
+	.rpt_name = name,					  \
+	.rpt_xt   = (part_xc),					  \
+	.rpt_ops  = (part_type_ops)				  \
+};
+
+#define M0_FOL_REC_PART_TYPE_INIT(part, name)		        \
+part ## _type = M0_FOL_REC_PART_TYPE_XC_OPS(name, part ## _xc,  \
+				            &part ## _type_ops)
 /** @} end of fol group */
 
 /* __MERO_FOL_FOL_H__ */

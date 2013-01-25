@@ -123,22 +123,7 @@ int verify_part_data(struct m0_fol_rec_part *part)
 	return 0;
 }
 
-struct m0_fol_rec_part_type ut_part_type;
-
-const struct m0_fol_rec_part_ops ut_part_ops = {
-	.rpo_type = &ut_part_type,
-	.rpo_undo = verify_part_data,
-	.rpo_redo = NULL,
-};
-
-static void ut_part_ops_init(struct m0_fol_rec_part *part)
-{
-	part->rp_ops = &ut_part_ops;
-}
-
-const struct m0_fol_rec_part_type_ops ut_part_type_ops = {
-	.rpto_rec_part_init = ut_part_ops_init,
-};
+M0_FOL_REC_PART_TYPE_DECLARE(ut_part, verify_part_data, NULL);
 
 static void test_fol_rec_part_encdec(void)
 {
@@ -150,8 +135,10 @@ static void test_fol_rec_part_encdec(void)
 
 	M0_ALLOC_PTR(ut_rec_part);
 
-	result =  m0_fol_rec_part_type_init(&ut_part_type, "UT FOL record part",
-					    m0_fid_xc, &ut_part_type_ops);
+	ut_part_type = M0_FOL_REC_PART_TYPE_XC_OPS("UT record part", m0_fid_xc,
+						   &ut_part_type_ops);
+
+	result =  m0_fol_rec_part_type_register(&ut_part_type);
 	M0_ASSERT(result == 0);
 
 	ut_rec_part = m0_fol_rec_part_init(&ut_part_type);

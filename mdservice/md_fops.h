@@ -274,6 +274,61 @@ struct m0_fop_layout_rep {
         struct m0_fop_buf lr_buf;
 } M0_XCA_RECORD;
 
+struct m0_md_create_rec_part {
+	struct m0_fop_create	 cp_create;
+	struct m0_fop_create_rep cp_create_rep;
+} M0_XCA_RECORD;
+
+struct m0_md_lookup_rec_part {
+	struct m0_fop_lookup	 lp_lookup;
+	struct m0_fop_lookup_rep lp_lookup_rep;
+} M0_XCA_RECORD;
+
+struct m0_md_link_rec_part {
+	struct m0_fop_link     lnp_link;
+	struct m0_fop_link_rep lnp_link_rep;
+} M0_XCA_RECORD;
+
+struct m0_md_unlink_rec_part {
+	struct m0_fop_unlink     ulp_unlink;
+	struct m0_fop_unlink_rep ulp_unlink_rep;
+} M0_XCA_RECORD;
+
+struct m0_md_open_rec_part {
+	struct m0_fop_open     op_open;
+	struct m0_fop_open_rep op_open_rep;
+} M0_XCA_RECORD;
+
+struct m0_md_close_rec_part {
+	struct m0_fop_close     clp_close;
+	struct m0_fop_close_rep clp_close_rep;
+} M0_XCA_RECORD;
+
+struct m0_md_getattr_rec_part {
+	struct m0_fop_getattr     gap_getattr;
+	struct m0_fop_getattr_rep gap_getattr_rep;
+} M0_XCA_RECORD;
+
+struct m0_md_setattr_rec_part {
+	struct m0_fop_setattr     sap_setattr;
+	struct m0_fop_setattr_rep sap_setattr_rep;
+} M0_XCA_RECORD;
+
+struct m0_md_statfs_rec_part {
+	struct m0_fop_statfs     sfp_statfs;
+	struct m0_fop_statfs_rep sfp_statfs_rep;
+} M0_XCA_RECORD;
+
+struct m0_md_rename_rec_part {
+	struct m0_fop_rename     rnp_rename;
+	struct m0_fop_rename_rep rnp_rename_rep;
+} M0_XCA_RECORD;
+
+struct m0_md_readdir_rec_part {
+	struct m0_fop_readdir     rdp_readdir;
+	struct m0_fop_readdir_rep rdp_readdir_rep;
+} M0_XCA_RECORD;
+
 /**
    Init and fini of mdservice fops code.
  */
