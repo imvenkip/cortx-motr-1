@@ -383,6 +383,34 @@ static int up_cmp(const struct m0_dtm_up *up, m0_dtm_ver_t hver)
 	}
 }
 
+static int up_cmp(const struct m0_dtm_up *up, m0_dtm_ver_t hver)
+{
+	m0_dtm_ver_t uver = up->up_ver;
+
+	/*
+	 * Possible invariant violations on entry: the update is not in the
+	 * history, even when the operation is not in LIMBO.
+	 */
+	M0_PRE(hver != 0);
+
+	if (uver == 0)
+		return READY;
+	if (up->up_orig_ver != 0)
+		return M0_3WAY(up->up_orig_ver, hver);
+
+	switch (up->up_rule) {
+	case M0_DUR_INC:
+		return M0_3WAY(uver, hver + 1);
+	case M0_DUR_SET:
+		return uver <= hver ? LATE : READY;
+	case M0_DUR_NOT:
+		return M0_3WAY(uver, hver);
+	case M0_DUR_APP:
+	default:
+		M0_IMPOSSIBLE("Impossible rule.");
+	}
+}
+
 M0_INTERNAL void m0_dtm_up_ver_set(struct m0_dtm_up *up,
 				   m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver)
 {
