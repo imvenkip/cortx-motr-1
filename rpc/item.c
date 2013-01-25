@@ -774,6 +774,7 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 		M0_LOG(M0_FATAL,"%p deadline advanced", item);
 		item->ri_deadline = m0_time_from_now(0, 500 * 1000 * 1000);
 	}
+	item->ri_nr_sent++;
 	/*
 	 * This hold will be released when the item is SENT or FAILED.
 	 * See rpc/frmops.c:item_sent() and m0_rpc_item_failed()

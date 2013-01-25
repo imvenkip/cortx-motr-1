@@ -270,6 +270,7 @@ M0_INTERNAL int m0_rpc_oneway_item_post(const struct m0_rpc_conn *conn,
 	machine = item->ri_rmachine = conn->c_rpc_machine;
 	m0_rpc_machine_lock(machine);
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
+	item->ri_nr_sent++;
 	m0_rpc_frm_enq_item(&conn->c_rpcchan->rc_frm, item);
 	m0_rpc_machine_unlock(machine);
 	M0_RETURN(0);

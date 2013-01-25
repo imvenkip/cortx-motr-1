@@ -617,7 +617,8 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 		if (rc == 0) /* connection is successfully terminated */
 			fop_rep->f_item.ri_ops = &conn_terminate_reply_item_ops;
 		m0_fom_phase_set(fom, M0_FOPH_FINISH);
-		M0_LOG(M0_INFO, "Conn terminate successful: conn [%p]\n", conn);
+		M0_LOG(M0_DEBUG, "Conn terminate successful: conn [%p] %d\n",
+			conn, rc);
 		m0_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 		M0_LEAVE();
 		return M0_FSO_WAIT;

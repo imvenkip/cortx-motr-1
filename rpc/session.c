@@ -1098,6 +1098,7 @@ static void rcv_reply_consume(struct m0_rpc_item *req,
 {
 	switch (reply->ri_sm.sm_state) {
 	case M0_RPC_ITEM_INITIALISED:
+		reply->ri_nr_sent++;
 		m0_rpc_frm_enq_item(session_frm(req->ri_session), reply);
 		break;
 	case M0_RPC_ITEM_SENT:

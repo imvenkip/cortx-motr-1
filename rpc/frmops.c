@@ -449,7 +449,7 @@ static void item_sent(struct m0_rpc_item *item)
 
 	stats = &item->ri_rmachine->rm_stats;
 	stats->rs_nr_sent_items++;
-	item->ri_nr_sent++;
+
 	if (item->ri_nr_sent == 1) { /* not resent. */
 		stats->rs_nr_sent_items_uniq++;
 		if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
