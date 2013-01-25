@@ -37,6 +37,7 @@ static int __test(void);
 static void __test_timeout(m0_time_t deadline,
 			   m0_time_t timeout);
 static void __test_resend(struct m0_fop *fop);
+static void __test_timer_start_failure(void);
 
 static struct m0_fop *fop_alloc(void)
 {
@@ -293,26 +294,26 @@ static void test_resend(void)
 	m0_fop_put(fop);
 	M0_LOG(M0_FATAL, "TEST4:END");
 
-#if 0
+	/* Test: INITIALISED -> FAILED transition when m0_rpc_post()
+		 fails to start item timer.
+	 */
+	M0_LOG(M0_FATAL, "TEST5.1:START");
+	m0_fi_enable_once("m0_rpc_item_start_timer", "failed");
+	__test_timer_start_failure();
+	M0_LOG(M0_FATAL, "TEST5.1:END");
+
 	/* Test: Move item from WAITING_FOR_REOLY to FAILED state if
 		 item_sent() fails to start resend timer.
 	 */
-	M0_LOG(M0_FATAL, "TEST5:START");
-	m0_fi_enable_once("m0_rpc_item_start_resend_timer", "failed");
+	M0_LOG(M0_FATAL, "TEST5.2:START");
+	cnt = 0;
+	m0_fi_enable_func("m0_rpc_item_start_timer", "failed",
+			  only_second_time, &cnt);
 	m0_fi_enable("item_received", "drop_item");
-	fop = fop_alloc();
-	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
-				0 /* urgent */, m0_time_from_now(2, 0));
-	M0_UT_ASSERT(rc == -EINVAL);
-	M0_UT_ASSERT(item->ri_error == -EINVAL);
-	M0_UT_ASSERT(item->ri_reply == NULL);
-	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
-	/* sleep until request reaches at server and is dropped */
-	m0_nanosleep(m0_time(0, 5 * 1000 * 1000), NULL);
+	__test_timer_start_failure();
 	m0_fi_disable("item_received", "drop_item");
-	M0_LOG(M0_FATAL, "TEST5:END");
-#endif
+	m0_fi_disable("m0_rpc_item_start_timer", "failed");
+	M0_LOG(M0_FATAL, "TEST5.2:END");
 }
 
 static void __test_resend(struct m0_fop *fop)
@@ -336,6 +337,21 @@ static void __test_resend(struct m0_fop *fop)
 		m0_fop_put(fop);
 }
 
+static void __test_timer_start_failure(void)
+{
+	int rc;
+
+	fop = fop_alloc();
+	item = &fop->f_item;
+	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
+				0 /* urgent */, m0_time_from_now(2, 0));
+	M0_UT_ASSERT(rc == -EINVAL);
+	M0_UT_ASSERT(item->ri_error == -EINVAL);
+	M0_UT_ASSERT(item->ri_reply == NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
+	/* sleep until request reaches at server and is dropped */
+	m0_nanosleep(m0_time(0, 5 * 1000 * 1000), NULL);
+}
 static void test_failure_before_sending(void)
 {
 	int rc;

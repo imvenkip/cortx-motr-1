@@ -162,6 +162,7 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_WAITING_IN_STREAM,
 				      M0_RPC_ITEM_ENQUEUED,
 				      M0_RPC_ITEM_URGENT,
+				      M0_RPC_ITEM_FAILED,
 				      M0_RPC_ITEM_UNINITIALISED),
 	},
 	[M0_RPC_ITEM_WAITING_IN_STREAM] = {
@@ -644,8 +645,10 @@ M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item)
 {
 	M0_PRE(m0_rpc_item_is_request(item));
 
-	if (M0_FI_ENABLED("failed"))
+	if (M0_FI_ENABLED("failed")) {
+		M0_LOG(M0_FATAL, "item %p failed to start timer", item);
 		return -EINVAL;
+	}
 
 	if (item->ri_resend_interval != M0_TIME_NEVER) {
 		M0_LOG(M0_DEBUG, "item %p Starting timer", item);
@@ -692,23 +695,27 @@ static void item_timer_cb(struct m0_sm_timer *timer)
 		switch (item->ri_sm.sm_state) {
 		case M0_RPC_ITEM_ENQUEUED:
 		case M0_RPC_ITEM_URGENT:
-		case M0_RPC_ITEM_SENDING:
 			rc = m0_rpc_item_start_timer(item);
 			/* XXX already completed requests??? */
 			if (rc != 0) {
-				if (item->ri_sm.sm_state == M0_RPC_ITEM_SENDING)
-					item->ri_error = rc;
-				else
-					m0_rpc_item_failed(item, rc);
+				m0_rpc_item_get(item);
+				m0_rpc_frm_remove_item(item->ri_frm, item);
+				m0_rpc_item_failed(item, -ETIMEDOUT);
+				m0_rpc_item_put(item);
 			}
+			break;
+
+		case M0_RPC_ITEM_SENDING:
+			item->ri_error = m0_rpc_item_start_timer(item);
 			break;
 
 		case M0_RPC_ITEM_WAITING_FOR_REPLY:
 			rc = m0_rpc_item_start_timer(item);
-			if (rc != 0)
+			if (rc == 0)
+				m0_rpc_item_send(item);
+			else
 				/* XXX already completed requests??? */
 				m0_rpc_item_failed(item, rc);
-			m0_rpc_item_send(item);
 			break;
 
 		default:
