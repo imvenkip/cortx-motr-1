@@ -600,6 +600,8 @@ static int zero_copy_initiate(struct m0_fom *);
 static int zero_copy_finish(struct m0_fom *);
 static int net_buffer_release(struct m0_fom *);
 
+static void write_fol_rec_part_add(struct m0_fom *fom);
+
 /**
  * I/O FOM operation vector.
  */
@@ -1624,25 +1626,6 @@ static int io_finish(struct m0_fom *fom)
         return M0_FSO_AGAIN;
 }
 
-static void write_fol_rec_part_add(struct m0_fom *fom)
-{
-	struct m0_fol_rec_part	    *fol_rec_part;
-	struct m0_io_write_rec_part *wrp;
-
-	M0_ALLOC_PTR(wrp);
-	M0_ASSERT(wrp != NULL);
-	fol_rec_part = m0_fol_rec_part_init(wrp, &m0_io_write_rec_part_type);
-	M0_ASSERT(fol_rec_part != NULL);
-	wrp = fol_rec_part->rp_data;
-
-	wrp->wrp_fop = *(struct m0_fop_cob_writev *)m0_fop_data(fom->fo_fop);
-	wrp->wrp_fid = wrp->wrp_fop.c_rwv.crw_fid;
-	wrp->wrp_fop_rep = *(struct m0_fop_cob_writev_rep *)
-				m0_fop_data(fom->fo_rep_fop);
-
-	m0_fol_rec_part_add(fom->fo_tx.tx_fol_rec, fol_rec_part);
-}
-
 /**
  * State Transition function for I/O operation that executes
  * on data server.
@@ -1860,6 +1843,24 @@ M0_INTERNAL const char *m0_io_fom_cob_rw_service_name(struct m0_fom *fom)
 	M0_PRE(fom->fo_fop != NULL);
 
 	return IOSERVICE_NAME;
+}
+
+static void write_fol_rec_part_add(struct m0_fom *fom)
+{
+	struct m0_fol_rec_part	    *fol_rec_part;
+	struct m0_io_write_rec_part *wrp;
+
+	M0_ALLOC_PTR(wrp);
+	M0_ASSERT(wrp != NULL);
+	fol_rec_part = m0_fol_rec_part_init(wrp, &m0_io_write_rec_part_type);
+	M0_ASSERT(fol_rec_part != NULL);
+
+	wrp->wrp_fop = *(struct m0_fop_cob_writev *)m0_fop_data(fom->fo_fop);
+	wrp->wrp_fid = wrp->wrp_fop.c_rwv.crw_fid;
+	wrp->wrp_fop_rep = *(struct m0_fop_cob_writev_rep *)
+				m0_fop_data(fom->fo_rep_fop);
+
+	m0_fol_rec_part_list_add(&fom->fo_tx.tx_fol_rec, fol_rec_part);
 }
 
 #undef M0_TRACE_SUBSYSTEM

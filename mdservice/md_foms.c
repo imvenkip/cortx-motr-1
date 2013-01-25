@@ -46,6 +46,8 @@
 #include "mdservice/md_service.h"
 #include "mdstore/mdstore.h"
 
+static void md_fol_rec_part_add(struct m0_fom *fom);
+
 static void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
 			       struct m0_fop_cob *body)
 {
@@ -1015,6 +1017,8 @@ out:
                body->b_tfid.f_container, body->b_tfid.f_key, rc);
         rep->s_body.b_rc = rc;
         m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
+	if (rc == 0)
+		md_fol_rec_part_add(fom);
         return M0_FSO_AGAIN;
 }
 
@@ -1722,6 +1726,141 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	*m = fom;
 	return 0;
 }
+
+static void md_fol_rec_part_add(struct m0_fom *fom)
+{
+	struct m0_fol_rec_part	      *part;
+	struct m0_fop		      *fop = fom->fo_fop;
+	struct m0_md_create_rec_part  *cp;
+	struct m0_md_lookup_rec_part  *lp;
+	struct m0_md_link_rec_part    *lnp;
+	struct m0_md_unlink_rec_part  *ulp;
+	struct m0_md_open_rec_part    *op;
+	struct m0_md_close_rec_part   *clp;
+	struct m0_md_getattr_rec_part *gap;
+	struct m0_md_setattr_rec_part *sap;
+	struct m0_md_statfs_rec_part  *sfp;
+	struct m0_md_rename_rec_part  *rnp;
+	struct m0_md_readdir_rec_part *rdp;
+
+	switch (m0_fop_opcode(fop)) {
+        case M0_MDSERVICE_CREATE_OPCODE:
+		M0_ALLOC_PTR(cp);
+		M0_ASSERT(cp != NULL);
+		part = m0_fol_rec_part_init(cp, &m0_md_create_rec_part_type);
+		M0_ASSERT(part != NULL);
+
+		cp->cp_create	  = *(struct m0_fop_create *)m0_fop_data(fop);
+		cp->cp_create_rep = *(struct m0_fop_create_rep *)
+					m0_fop_data(fom->fo_rep_fop);
+		break;
+        case M0_MDSERVICE_LOOKUP_OPCODE:
+		M0_ALLOC_PTR(lp);
+		M0_ASSERT(lp != NULL);
+		part = m0_fol_rec_part_init(lp, &m0_md_lookup_rec_part_type);
+		M0_ASSERT(part != NULL);
+
+		lp->lp_lookup	  = *(struct m0_fop_lookup *)m0_fop_data(fop);
+		lp->lp_lookup_rep = *(struct m0_fop_lookup_rep *)
+					m0_fop_data(fom->fo_rep_fop);
+		break;
+        case M0_MDSERVICE_LINK_OPCODE:
+		M0_ALLOC_PTR(lnp);
+		M0_ASSERT(lnp != NULL);
+		part = m0_fol_rec_part_init(lnp, &m0_md_link_rec_part_type);
+		M0_ASSERT(part != NULL);
+
+		lnp->lnp_link	  = *(struct m0_fop_link *)m0_fop_data(fop);
+		lnp->lnp_link_rep = *(struct m0_fop_link_rep *)
+					m0_fop_data(fom->fo_rep_fop);
+		break;
+        case M0_MDSERVICE_UNLINK_OPCODE:
+		M0_ALLOC_PTR(ulp);
+		M0_ASSERT(ulp != NULL);
+		part = m0_fol_rec_part_init(ulp, &m0_md_unlink_rec_part_type);
+		M0_ASSERT(part != NULL);
+
+		ulp->ulp_unlink	   = *(struct m0_fop_unlink *)m0_fop_data(fop);
+		ulp->ulp_unlink_rep = *(struct m0_fop_unlink_rep *)
+					m0_fop_data(fom->fo_rep_fop);
+		break;
+        case M0_MDSERVICE_OPEN_OPCODE:
+		M0_ALLOC_PTR(op);
+		M0_ASSERT(op != NULL);
+		part = m0_fol_rec_part_init(op, &m0_md_open_rec_part_type);
+		M0_ASSERT(part != NULL);
+
+		op->op_open	= *(struct m0_fop_open *)m0_fop_data(fop);
+		op->op_open_rep = *(struct m0_fop_open_rep *)
+					m0_fop_data(fom->fo_rep_fop);
+		break;
+        case M0_MDSERVICE_CLOSE_OPCODE:
+		M0_ALLOC_PTR(clp);
+		M0_ASSERT(clp != NULL);
+		part = m0_fol_rec_part_init(clp, &m0_md_close_rec_part_type);
+		M0_ASSERT(part != NULL);
+
+		clp->clp_close	   = *(struct m0_fop_close *)m0_fop_data(fop);
+		clp->clp_close_rep = *(struct m0_fop_close_rep *)
+					m0_fop_data(fom->fo_rep_fop);
+		break;
+        case M0_MDSERVICE_GETATTR_OPCODE:
+		M0_ALLOC_PTR(gap);
+		M0_ASSERT(gap != NULL);
+		part = m0_fol_rec_part_init(gap, &m0_md_getattr_rec_part_type);
+		M0_ASSERT(part != NULL);
+
+		gap->gap_getattr     = *(struct m0_fop_getattr *)m0_fop_data(fop);
+		gap->gap_getattr_rep = *(struct m0_fop_getattr_rep *)
+					m0_fop_data(fom->fo_rep_fop);
+		break;
+        case M0_MDSERVICE_SETATTR_OPCODE:
+		M0_ALLOC_PTR(sap);
+		M0_ASSERT(sap != NULL);
+		part = m0_fol_rec_part_init(sap, &m0_md_setattr_rec_part_type);
+		M0_ASSERT(part != NULL);
+
+		sap->sap_setattr     = *(struct m0_fop_setattr *)m0_fop_data(fop);
+		sap->sap_setattr_rep = *(struct m0_fop_setattr_rep *)
+					m0_fop_data(fom->fo_rep_fop);
+		break;
+        case M0_MDSERVICE_STATFS_OPCODE:
+		M0_ALLOC_PTR(sfp);
+		M0_ASSERT(sfp != NULL);
+		part = m0_fol_rec_part_init(sfp, &m0_md_statfs_rec_part_type);
+		M0_ASSERT(part != NULL);
+
+		sfp->sfp_statfs	    = *(struct m0_fop_statfs *)m0_fop_data(fop);
+		sfp->sfp_statfs_rep = *(struct m0_fop_statfs_rep *)
+					m0_fop_data(fom->fo_rep_fop);
+		break;
+        case M0_MDSERVICE_RENAME_OPCODE:
+		M0_ALLOC_PTR(rnp);
+		M0_ASSERT(rnp != NULL);
+		part = m0_fol_rec_part_init(rnp, &m0_md_rename_rec_part_type);
+		M0_ASSERT(part != NULL);
+
+		rnp->rnp_rename	    = *(struct m0_fop_rename *)m0_fop_data(fop);
+		rnp->rnp_rename_rep = *(struct m0_fop_rename_rep *)
+					m0_fop_data(fom->fo_rep_fop);
+		break;
+        case M0_MDSERVICE_READDIR_OPCODE:
+		M0_ALLOC_PTR(rdp);
+		M0_ASSERT(rdp != NULL);
+		part = m0_fol_rec_part_init(rdp, &m0_md_readdir_rec_part_type);
+		M0_ASSERT(part != NULL);
+
+		rdp->rdp_readdir     = *(struct m0_fop_readdir *)m0_fop_data(fop);
+		rdp->rdp_readdir_rep = *(struct m0_fop_readdir_rep *)
+					m0_fop_data(fom->fo_rep_fop);
+		break;
+        default:
+                break;
+	}
+	if (part != NULL)
+		m0_fol_rec_part_list_add(&fom->fo_tx.tx_fol_rec, part);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*

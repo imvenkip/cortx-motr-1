@@ -81,7 +81,6 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
                                  .xt        = m0_fop_create_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
                                               M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
                                  .fom_ops   = &m0_md_fom_ops,
                                  .svc_type  = &m0_mds_type,
@@ -92,7 +91,6 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
                                  .opcode    = M0_MDSERVICE_LOOKUP_OPCODE,
                                  .xt        = m0_fop_lookup_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-                                 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
                                  .fom_ops   = &m0_md_fom_ops,
                                  .svc_type  = &m0_mds_type,
@@ -104,7 +102,6 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
                                  .xt        = m0_fop_link_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
                                               M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
                                  .fom_ops   = &m0_md_fom_ops,
                                  .svc_type  = &m0_mds_type,
@@ -116,7 +113,6 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
                                  .xt        = m0_fop_unlink_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
                                               M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
                                  .fom_ops   = &m0_md_fom_ops,
                                  .svc_type  = &m0_mds_type,
@@ -128,7 +124,6 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
                                  .xt        = m0_fop_open_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
                                               M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
                                  .fom_ops   = &m0_md_fom_ops,
                                  .svc_type  = &m0_mds_type,
@@ -140,7 +135,6 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
                                  .xt        = m0_fop_close_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
                                               M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
                                  .fom_ops   = &m0_md_fom_ops,
                                  .svc_type  = &m0_mds_type,
@@ -152,7 +146,6 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
                                  .xt        = m0_fop_setattr_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
                                               M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
                                  .fom_ops   = &m0_md_fom_ops,
                                  .svc_type  = &m0_mds_type,
@@ -163,7 +156,6 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
                                  .opcode    = M0_MDSERVICE_GETATTR_OPCODE,
                                  .xt        = m0_fop_getattr_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-                                 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
                                  .fom_ops   = &m0_md_fom_ops,
                                  .svc_type  = &m0_mds_type,
@@ -220,7 +212,6 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
                                  .opcode    = M0_MDSERVICE_STATFS_OPCODE,
                                  .xt        = m0_fop_statfs_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-                                 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
                                  .fom_ops   = &m0_md_fom_ops,
                                  .svc_type  = &m0_mds_type,
@@ -232,7 +223,6 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
                                  .xt        = m0_fop_rename_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
                                               M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
                                  .fom_ops   = &m0_md_fom_ops,
                                  .svc_type  = &m0_mds_type,
@@ -243,7 +233,6 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
                                  .opcode    = M0_MDSERVICE_READDIR_OPCODE,
                                  .xt        = m0_fop_readdir_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-                                 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
                                  .fom_ops   = &m0_md_fom_ops,
                                  .svc_type  = &m0_mds_type,

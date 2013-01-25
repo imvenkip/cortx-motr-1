@@ -329,6 +329,17 @@ struct m0_md_readdir_rec_part {
 	struct m0_fop_readdir_rep rdp_readdir_rep;
 } M0_XCA_RECORD;
 
+extern struct m0_fol_rec_part_type m0_md_create_rec_part_type;
+extern struct m0_fol_rec_part_type m0_md_lookup_rec_part_type;
+extern struct m0_fol_rec_part_type m0_md_link_rec_part_type;
+extern struct m0_fol_rec_part_type m0_md_unlink_rec_part_type;
+extern struct m0_fol_rec_part_type m0_md_open_rec_part_type;
+extern struct m0_fol_rec_part_type m0_md_close_rec_part_type;
+extern struct m0_fol_rec_part_type m0_md_getattr_rec_part_type;
+extern struct m0_fol_rec_part_type m0_md_setattr_rec_part_type;
+extern struct m0_fol_rec_part_type m0_md_statfs_rec_part_type;
+extern struct m0_fol_rec_part_type m0_md_rename_rec_part_type;
+extern struct m0_fol_rec_part_type m0_md_readdir_rec_part_type;
 /**
    Init and fini of mdservice fops code.
  */
