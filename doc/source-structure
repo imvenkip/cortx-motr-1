@@ -213,7 +213,7 @@ In a file core/foo/ut/foo.c do something like:
 
 #include "lib/ut.h"
 
-void test_foo0(void)
+static void test_foo0(void)
 {
 	struct foo F;
 
@@ -222,20 +222,20 @@ void test_foo0(void)
         ...
 }
 
-void test_foo1(void)
+static void test_foo1(void)
 {
         ...
 }
 
 ...
 
-int foo_ut_init(void)
+static int foo_ut_init(void)
 {
 	/* prepare for testing */
         ...
 }
 
-int foo_it_fini(void)
+static int foo_it_fini(void)
 {
 	/* cleanup after testing */
         ...
