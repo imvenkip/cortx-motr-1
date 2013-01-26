@@ -76,17 +76,24 @@ static void stable(struct m0_dtm_op *op)
 
 static const struct m0_dtm_op_ops op_ops = {
 	.doo_ready  = ready,
-	.doo_miser  = miser,
 	.doo_late   = late,
+	.doo_miser  = miser,
 	.doo_stable = stable
 };
 
-
-static int init(void)
+static void release(struct m0_dtm_hi *hi)
 {
-	M0_SET0(&c);
-	return 0;
 }
+
+static void persistent(struct m0_dtm_hi *hi, struct m0_dtm_up *up)
+{
+}
+
+static const struct m0_dtm_hi_ops hi_ops = {
+	.dho_release    = release,
+	.dho_persistent = persistent
+};
+
 
 static void hi(void)
 {
@@ -111,6 +118,7 @@ static void ctx_init(void)
 	for (i = 0; i < ARRAY_SIZE(c.c_hi); ++i) {
 		m0_dtm_hi_init(&c.c_hi[i]);
 		c.c_hi[i].hi_ver = 1;
+		c.c_hi[i].hi_ops = &hi_ops;
 	}
 	for (i = 0; i < ARRAY_SIZE(c.c_op); ++i) {
 		m0_dtm_op_init(&c.c_op[i]);
@@ -130,14 +138,14 @@ static void ctx_fini(void)
 }
 
 static void ctx_add(int hi, int op, enum m0_dtm_up_rule rule,
-		    m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver, bool seen)
+		    m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver)
 {
 	M0_UT_ASSERT(c.c_idx < ARRAY_SIZE(c.c_up));
 	M0_UT_ASSERT(hi < ARRAY_SIZE(c.c_hi));
 	M0_UT_ASSERT(op < ARRAY_SIZE(c.c_op));
 
 	m0_dtm_up_init(&c.c_up[c.c_idx], &c.c_hi[hi], &c.c_op[op],
-		       rule, ver, orig_ver, seen);
+		       rule, ver, orig_ver);
 	c.c_idx++;
 }
 
@@ -167,10 +175,27 @@ static void ctx_check(void)
 		m0_dtm_up_invariant(&c.c_up[i]);
 }
 
+static void fail(struct m0_dtm_op *op)
+{
+	M0_UT_ASSERT(1 == 0);
+}
+
+static void ctx_op_add(int i)
+{
+	c_late = c_miser = fail;
+	m0_dtm_op_add(&c.c_op[i]);
+	c_late = c_miser = NULL;
+}
+
+static void ctx_state(int i, enum m0_dtm_state state)
+{
+	M0_UT_ASSERT(c.c_op[i].op_state == state);
+}
+
 static void up(void)
 {
 	ctx_init();
-	ctx_add(0, 0, M0_DUR_NOT, 0, 0, false);
+	ctx_add(0, 0, M0_DUR_NOT, 0, 0);
 	ctx_fini();
 }
 
@@ -186,16 +211,21 @@ static void op_add(void)
 
 	ctx_init();
 	for (i = 0; i < OP_NR; ++i) {
-		ctx_add(0, i, M0_DUR_INC, i + 2, i + 1, i < 3);
-		for (j = 1; j < UP_NR; ++j) {
-			ctx_add(j, i, M0_DUR_INC, 0, 0, i < 4);
-		}
+		ctx_add(0, i, M0_DUR_INC, i + 2, i + 1);
+		for (j = 1; j < UP_NR; ++j)
+			ctx_add(j, i, M0_DUR_INC, 0, 0);
 	}
 	ctx_check();
 	for (i = 0; i < OP_NR; ++i) {
-		m0_dtm_op_add(&c.c_op[i]);
-		M0_UT_ASSERT(M0_IN(c.c_op[i].op_state, (M0_DOS_FUTURE,
-							M0_DOS_PREPARE)));
+		ctx_op_add(i);
+		M0_UT_ASSERT(m0_forall(k, OP_NR,
+			       c.c_op[k].op_state ==
+				 (k <  i ? M0_DOS_INPROGRESS :
+				  k == i ? M0_DOS_PREPARE : M0_DOS_LIMBO)));
+		m0_dtm_op_prepared(&c.c_op[i]);
+		M0_UT_ASSERT(m0_forall(k, OP_NR,
+			       c.c_op[k].op_state ==
+				 (k <= i ? M0_DOS_INPROGRESS : M0_DOS_LIMBO)));
 	}
 	for (i = 0; i < OP_NR * UP_NR; ++i)
 		M0_UT_ASSERT(c.c_up[i].up_ver != 0 &&
@@ -204,21 +234,193 @@ static void op_add(void)
 	ctx_fini();
 }
 
+static void op_gap(void)
+{
+	ctx_init();
+	ctx_add(0, 0, M0_DUR_INC, 3, 2);
+	ctx_op_add(0);
+	ctx_state(0, M0_DOS_FUTURE);
+	ctx_add(0, 1, M0_DUR_INC, 2, 1);
+	ctx_op_add(1);
+	ctx_state(1, M0_DOS_PREPARE);
+	m0_dtm_op_prepared(&c.c_op[1]);
+	ctx_state(1, M0_DOS_INPROGRESS);
+	ctx_state(0, M0_DOS_PREPARE);
+	m0_dtm_op_prepared(&c.c_op[0]);
+	ctx_state(0, M0_DOS_INPROGRESS);
+	ctx_check();
+	ctx_fini();
+}
+
+static bool flag;
+
+static void set_flag(struct m0_dtm_op *op)
+{
+	M0_UT_ASSERT(!flag);
+	flag = true;
+}
+
+static void op_late(void)
+{
+	ctx_init();
+	ctx_add(0, 0, M0_DUR_SET, 3, 1);
+	ctx_op_add(0);
+	ctx_state(0, M0_DOS_PREPARE);
+	m0_dtm_op_prepared(&c.c_op[0]);
+	ctx_state(0, M0_DOS_INPROGRESS);
+	ctx_add(0, 1, M0_DUR_INC, 2, 1);
+	c_late = set_flag;
+	flag = false;
+	m0_dtm_op_add(&c.c_op[1]);
+	M0_UT_ASSERT(flag);
+	c_late = NULL;
+	ctx_check();
+	ctx_fini();
+}
+
+static void op_miser(void)
+{
+	ctx_init();
+	ctx_add(0, 0, M0_DUR_SET, 3, 1);
+	ctx_add(1, 0, M0_DUR_SET, 2, 1);
+	ctx_op_add(0);
+	ctx_state(0, M0_DOS_PREPARE);
+	m0_dtm_op_prepared(&c.c_op[0]);
+	ctx_state(0, M0_DOS_INPROGRESS);
+
+	ctx_add(0, 1, M0_DUR_SET, 2, 1);
+	ctx_add(1, 1, M0_DUR_SET, 3, 2);
+	c_miser = set_flag;
+	flag = false;
+	m0_dtm_op_add(&c.c_op[1]);
+	M0_UT_ASSERT(flag);
+	c_miser = NULL;
+	ctx_check();
+	ctx_fini();
+}
+
+static void op_miser_delayed(void)
+{
+	ctx_init();
+	ctx_add(0, 0, M0_DUR_INC, 2, 1);
+	ctx_add(1, 0, M0_DUR_INC, 0, 0);
+
+	ctx_add(0, 1, M0_DUR_INC, 3, 2);
+	ctx_add(1, 1, M0_DUR_INC, 0, 0);
+
+	ctx_add(0, 2, M0_DUR_INC, 4, 3);
+	ctx_add(1, 2, M0_DUR_INC, 2, 1);
+
+	ctx_op_add(2);
+	ctx_print();
+	ctx_state(0, M0_DOS_LIMBO);
+	ctx_state(1, M0_DOS_LIMBO);
+	ctx_state(2, M0_DOS_FUTURE);
+	ctx_op_add(0);
+	ctx_state(0, M0_DOS_PREPARE);
+	ctx_state(1, M0_DOS_LIMBO);
+	ctx_state(2, M0_DOS_FUTURE);
+	ctx_op_add(1);
+	ctx_state(0, M0_DOS_PREPARE);
+	ctx_state(1, M0_DOS_FUTURE);
+	ctx_state(2, M0_DOS_FUTURE);
+
+	c_miser = set_flag;
+	flag = false;
+	m0_dtm_op_prepared(&c.c_op[0]);
+	ctx_state(0, M0_DOS_INPROGRESS);
+	ctx_state(1, M0_DOS_PREPARE);
+	ctx_state(2, M0_DOS_LIMBO);
+	M0_UT_ASSERT(flag);
+	c_miser = NULL;
+
+	ctx_check();
+	ctx_fini();
+}
+
+static void op_done(void)
+{
+	ctx_init();
+	ctx_add(0, 0, M0_DUR_INC, 2, 1);
+	ctx_add(1, 0, M0_DUR_INC, 0, 0);
+
+	ctx_add(0, 1, M0_DUR_INC, 3, 2);
+	ctx_add(1, 1, M0_DUR_INC, 0, 0);
+
+	ctx_op_add(0);
+	m0_dtm_op_prepared(&c.c_op[0]);
+	ctx_op_add(1);
+	m0_dtm_op_prepared(&c.c_op[1]);
+	ctx_state(0, M0_DOS_INPROGRESS);
+	ctx_state(1, M0_DOS_INPROGRESS);
+
+	m0_dtm_op_done(&c.c_op[0]);
+	m0_dtm_op_done(&c.c_op[1]);
+	ctx_state(0, M0_DOS_VOLATILE);
+	ctx_state(1, M0_DOS_VOLATILE);
+
+	ctx_check();
+	ctx_fini();
+}
+
+static void op_persistent(void)
+{
+	ctx_init();
+	ctx_add(0, 0, M0_DUR_INC, 2, 1);
+	ctx_add(1, 0, M0_DUR_INC, 0, 0);
+	ctx_add(2, 0, M0_DUR_NOT, 0, 0); /* ltx */
+
+	ctx_add(0, 1, M0_DUR_INC, 3, 2);
+	ctx_add(1, 1, M0_DUR_INC, 0, 0);
+	ctx_add(2, 1, M0_DUR_NOT, 0, 0); /* ltx */
+
+	ctx_add(2, 2, M0_DUR_INC, 2, 1); /* close */
+
+	ctx_op_add(0);
+	m0_dtm_op_prepared(&c.c_op[0]);
+	ctx_op_add(1);
+	m0_dtm_op_prepared(&c.c_op[1]);
+	ctx_state(0, M0_DOS_INPROGRESS);
+	ctx_state(1, M0_DOS_INPROGRESS);
+
+	m0_dtm_op_done(&c.c_op[0]);
+	m0_dtm_op_done(&c.c_op[1]);
+	ctx_state(0, M0_DOS_VOLATILE);
+	ctx_state(1, M0_DOS_VOLATILE);
+	ctx_op_add(2);
+	m0_dtm_op_prepared(&c.c_op[2]);
+	m0_dtm_op_done(&c.c_op[2]);
+	ctx_state(2, M0_DOS_VOLATILE);
+
+	m0_dtm_op_persistent(&c.c_op[0]);
+	m0_dtm_op_persistent(&c.c_op[1]);
+	m0_dtm_op_persistent(&c.c_op[2]);
+	ctx_state(0, M0_DOS_PERSISTENT);
+	ctx_state(1, M0_DOS_PERSISTENT);
+	ctx_state(2, M0_DOS_PERSISTENT);
+
+	ctx_check();
+	ctx_fini();
+}
+
 const struct m0_test_suite dtm_nucleus_ut = {
 	.ts_name = "dtm-nucleus-ut",
-	.ts_init = init,
-	.ts_fini = NULL,
 	.ts_tests = {
-		{ "hi",     hi },
-		{ "op",     op },
-		{ "up",     up },
-		{ "op-add", op_add },
+		{ "hi",            hi },
+		{ "op",            op },
+		{ "up",            up },
+		{ "op-add",        op_add },
+		{ "gap",           op_gap },
+		{ "late",          op_late },
+		{ "miser",         op_miser },
+		{ "miser-delayed", op_miser_delayed },
+		{ "done",          op_done },
+		{ "persistent",    op_persistent },
 		{ NULL, NULL }
 	}
 };
 
 /** @} end of dtm group */
-
 
 /*
  *  Local variables:

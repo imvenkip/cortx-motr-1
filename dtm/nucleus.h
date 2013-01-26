@@ -74,7 +74,8 @@ enum m0_dtm_hi_flags {
 };
 
 struct m0_dtm_hi_ops {
-	void (*dho_release)(struct m0_dtm_hi *hi);
+	void (*dho_release)   (struct m0_dtm_hi *hi);
+	void (*dho_persistent)(struct m0_dtm_hi *hi, struct m0_dtm_up *up);
 };
 
 enum m0_dtm_up_rule {
@@ -90,17 +91,12 @@ struct m0_dtm_up {
 	enum m0_dtm_up_rule  up_rule;
 	m0_dtm_ver_t         up_ver;
 	m0_dtm_ver_t         up_orig_ver;
-	uint64_t             up_flags;
 	struct m0_dtm_hi    *up_hi;
 	struct m0_tlink      up_hi_linkage;
 	struct m0_dtm_op    *up_op;
 	struct m0_tlink      up_op_linkage;
 };
 M0_INTERNAL bool m0_dtm_up_invariant(const struct m0_dtm_up *up);
-
-enum m0_dtm_up_flags {
-	M0_DUF_SEEN = 1ULL << 0
-};
 
 struct m0_dtm_op {
 	enum m0_dtm_state           op_state;
@@ -111,35 +107,34 @@ M0_INTERNAL bool m0_dtm_op_invariant(const struct m0_dtm_op *op);
 
 struct m0_dtm_op_ops {
 	void (*doo_ready) (struct m0_dtm_op *op);
-	void (*doo_miser) (struct m0_dtm_op *op);
 	void (*doo_late)  (struct m0_dtm_op *op);
+	void (*doo_miser) (struct m0_dtm_op *op);
 	void (*doo_stable)(struct m0_dtm_op *op);
 };
 
 struct m0_dtm_nucleus {
 };
 
-M0_INTERNAL void m0_dtm_op_init    (struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_prepared(struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_done    (struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_add     (struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_del     (struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_fini    (struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_seen_set(struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_init      (struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_prepared  (struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_done      (struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_add       (struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_del       (struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_fini      (struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_persistent(struct m0_dtm_op *op);
 
-M0_INTERNAL void m0_dtm_hi_init    (struct m0_dtm_hi *hi);
-M0_INTERNAL void m0_dtm_hi_fini    (struct m0_dtm_hi *hi);
+M0_INTERNAL void m0_dtm_hi_init      (struct m0_dtm_hi *hi);
+M0_INTERNAL void m0_dtm_hi_fini      (struct m0_dtm_hi *hi);
 
-M0_INTERNAL void m0_dtm_up_init    (struct m0_dtm_up *up,
-				    struct m0_dtm_hi *hi, struct m0_dtm_op *op,
-				    enum m0_dtm_up_rule rule,
-				    m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver,
-				    bool seen);
-M0_INTERNAL void m0_dtm_up_fini    (struct m0_dtm_up *up);
-M0_INTERNAL void m0_dtm_up_add     (struct m0_dtm_up *up);
-M0_INTERNAL void m0_dtm_up_ver_set (struct m0_dtm_up *up,
-				    m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver);
-M0_INTERNAL void m0_dtm_up_seen_set(struct m0_dtm_up *up);
+M0_INTERNAL void m0_dtm_up_init      (struct m0_dtm_up *up,
+				      struct m0_dtm_hi *hi,
+				      struct m0_dtm_op *op,
+				      enum m0_dtm_up_rule rule,
+				      m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver);
+M0_INTERNAL void m0_dtm_up_fini      (struct m0_dtm_up *up);
+M0_INTERNAL void m0_dtm_up_add       (struct m0_dtm_up *up);
+M0_INTERNAL void m0_dtm_up_ver_set   (struct m0_dtm_up *up,
+				      m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver);
 
 M0_INTERNAL struct m0_dtm_up *m0_dtm_up_prior(struct m0_dtm_up *up);
 M0_INTERNAL struct m0_dtm_up *m0_dtm_up_later(struct m0_dtm_up *up);
