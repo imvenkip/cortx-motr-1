@@ -162,7 +162,7 @@ static void op_del(struct m0_dtm_op *op)
 	} up_endfor;
 }
 
-M0_INTERNAL void m0_dtm_op_del(struct m0_dtm_op *op)
+static void op_del(struct m0_dtm_op *op)
 {
 	op_lock(op);
 	M0_PRE(m0_dtm_op_invariant(op));
@@ -386,7 +386,6 @@ static int up_cmp(const struct m0_dtm_up *up, m0_dtm_ver_t hver)
 static int up_cmp(const struct m0_dtm_up *up, m0_dtm_ver_t hver)
 {
 	m0_dtm_ver_t uver = up->up_ver;
-
 	/*
 	 * Possible invariant violations on entry: the update is not in the
 	 * history, even when the operation is not in LIMBO.

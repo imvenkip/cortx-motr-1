@@ -101,6 +101,12 @@ static void nu(void)
 	m0_dtm_nu_fini(&c.c_nu);
 }
 
+static const struct m0_dtm_hi_ops hi_ops = {
+	.dho_release    = release,
+	.dho_persistent = persistent
+};
+
+
 static void hi(void)
 {
 	struct m0_dtm_hi hi;
