@@ -106,7 +106,6 @@ static const struct m0_dtm_hi_ops hi_ops = {
 	.dho_persistent = persistent
 };
 
-
 static void hi(void)
 {
 	struct m0_dtm_hi hi;
