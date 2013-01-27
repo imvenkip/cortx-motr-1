@@ -39,6 +39,7 @@ enum {
 };
 
 static struct ctx {
+	struct m0_dtm_nu c_nu;
 	struct m0_dtm_hi c_hi[HI_MAX];
 	struct m0_dtm_op c_op[OP_MAX];
 	struct m0_dtm_up c_up[UP_MAX];
@@ -95,33 +96,44 @@ static const struct m0_dtm_hi_ops hi_ops = {
 };
 
 
+static void nu(void)
+{
+	m0_dtm_nu_init(&c.c_nu);
+	m0_dtm_nu_fini(&c.c_nu);
+}
+
 static void hi(void)
 {
 	struct m0_dtm_hi hi;
 
-	m0_dtm_hi_init(&hi);
+	m0_dtm_nu_init(&c.c_nu);
+	m0_dtm_hi_init(&hi, &c.c_nu);
 	m0_dtm_hi_fini(&hi);
+	m0_dtm_nu_fini(&c.c_nu);
 }
 
 static void op(void)
 {
 	struct m0_dtm_op op;
 
-	m0_dtm_op_init(&op);
+	m0_dtm_nu_init(&c.c_nu);
+	m0_dtm_op_init(&op, &c.c_nu);
 	m0_dtm_op_fini(&op);
+	m0_dtm_nu_fini(&c.c_nu);
 }
 
 static void ctx_init(void)
 {
 	int i;
 
+	m0_dtm_nu_init(&c.c_nu);
 	for (i = 0; i < ARRAY_SIZE(c.c_hi); ++i) {
-		m0_dtm_hi_init(&c.c_hi[i]);
+		m0_dtm_hi_init(&c.c_hi[i], &c.c_nu);
 		c.c_hi[i].hi_ver = 1;
 		c.c_hi[i].hi_ops = &hi_ops;
 	}
 	for (i = 0; i < ARRAY_SIZE(c.c_op); ++i) {
-		m0_dtm_op_init(&c.c_op[i]);
+		m0_dtm_op_init(&c.c_op[i], &c.c_nu);
 		c.c_op[i].op_ops = &op_ops;
 	}
 	c.c_idx = 0;
@@ -135,6 +147,7 @@ static void ctx_fini(void)
 		m0_dtm_op_fini(&c.c_op[i]);
 	for (i = 0; i < ARRAY_SIZE(c.c_hi); ++i)
 		m0_dtm_hi_fini(&c.c_hi[i]);
+	m0_dtm_nu_fini(&c.c_nu);
 }
 
 static void ctx_add(int hi, int op, enum m0_dtm_up_rule rule,
@@ -406,6 +419,7 @@ static void op_persistent(void)
 const struct m0_test_suite dtm_nucleus_ut = {
 	.ts_name = "dtm-nucleus-ut",
 	.ts_tests = {
+		{ "nu",            nu },
 		{ "hi",            hi },
 		{ "op",            op },
 		{ "up",            up },

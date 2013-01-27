@@ -63,6 +63,9 @@ static void up_insert (struct m0_dtm_up *up);
 static int  op_cmp    (const struct m0_dtm_op *op);
 static void up_del    (struct m0_dtm_up *up);
 static int  up_cmp    (const struct m0_dtm_up *up, m0_dtm_ver_t hver);
+static void up_fini   (struct m0_dtm_up *up);
+static void op_lock   (struct m0_dtm_op *op);
+static void op_unlock (struct m0_dtm_op *op);
 
 static enum m0_dtm_state up_state(const struct m0_dtm_up *up);
 
@@ -93,16 +96,17 @@ enum m0_dtm_ver_cmp {
 	MISER
 };
 
-M0_INTERNAL void m0_dtm_op_init(struct m0_dtm_op *op)
+M0_INTERNAL void m0_dtm_op_init(struct m0_dtm_op *op, struct m0_dtm_nu *nu)
 {
 	m0_dtm_op_bob_init(op);
+	op->op_nu    = nu;
 	op->op_state = M0_DOS_LIMBO;
 	op_tlist_init(&op->op_ups);
-	M0_POST(m0_dtm_op_invariant(op));
 }
 
 M0_INTERNAL void m0_dtm_op_add(struct m0_dtm_op *op)
 {
+	op_lock(op);
 	M0_PRE(m0_dtm_op_invariant(op));
 	M0_PRE(op->op_state == M0_DOS_LIMBO);
 
@@ -114,10 +118,12 @@ M0_INTERNAL void m0_dtm_op_add(struct m0_dtm_op *op)
 		advance_hi(up->up_hi);
 	} up_endfor;
 	M0_POST(m0_dtm_op_invariant(op));
+	op_unlock(op);
 }
 
 M0_INTERNAL void m0_dtm_op_prepared(struct m0_dtm_op *op)
 {
+	op_lock(op);
 	M0_PRE(m0_dtm_op_invariant(op));
 	M0_PRE(op->op_state == M0_DOS_PREPARE);
 
@@ -129,15 +135,18 @@ M0_INTERNAL void m0_dtm_op_prepared(struct m0_dtm_op *op)
 		advance_hi(up->up_hi);
 	} up_endfor;
 	M0_POST(m0_dtm_op_invariant(op));
+	op_unlock(op);
 }
 
 M0_INTERNAL void m0_dtm_op_done(struct m0_dtm_op *op)
 {
+	op_lock(op);
 	M0_PRE(m0_dtm_op_invariant(op));
 	M0_PRE(op->op_state == M0_DOS_INPROGRESS);
 
 	op->op_state = M0_DOS_VOLATILE;
 	M0_POST(m0_dtm_op_invariant(op));
+	op_unlock(op);
 }
 
 static void op_del(struct m0_dtm_op *op)
@@ -152,19 +161,23 @@ static void op_del(struct m0_dtm_op *op)
 
 M0_INTERNAL void m0_dtm_op_del(struct m0_dtm_op *op)
 {
+	op_lock(op);
 	M0_PRE(m0_dtm_op_invariant(op));
 	op_del(op);
 	M0_POST(m0_dtm_op_invariant(op));
+	op_unlock(op);
 }
 
 M0_INTERNAL void m0_dtm_op_fini(struct m0_dtm_op *op)
 {
+	op_lock(op);
 	M0_PRE(m0_dtm_op_invariant(op));
 	up_for(op, up) {
-		m0_dtm_up_fini(up);
+		up_fini(up);
 	} up_endfor;
 	op_tlist_fini(&op->op_ups);
 	m0_dtm_op_bob_fini(op);
+	op_unlock(op);
 }
 
 static void advance_hi(struct m0_dtm_hi *hi)
@@ -257,6 +270,7 @@ static int op_cmp(const struct m0_dtm_op *op)
 
 M0_INTERNAL void m0_dtm_op_persistent(struct m0_dtm_op *op)
 {
+	op_lock(op);
 	M0_PRE(m0_dtm_op_invariant(op));
 	M0_PRE(op->op_state < M0_DOS_PERSISTENT);
 
@@ -270,12 +284,14 @@ M0_INTERNAL void m0_dtm_op_persistent(struct m0_dtm_op *op)
 	} up_endfor;
 	op->op_state = M0_DOS_PERSISTENT;
 	M0_POST(m0_dtm_op_invariant(op));
+	op_unlock(op);
 }
 
-M0_INTERNAL void m0_dtm_hi_init(struct m0_dtm_hi *hi)
+M0_INTERNAL void m0_dtm_hi_init(struct m0_dtm_hi *hi, struct m0_dtm_nu *nu)
 {
 	M0_SET0(hi);
 	m0_dtm_hi_bob_init(hi);
+	hi->hi_nu = nu;
 	hi_tlist_init(&hi->hi_ups);
 }
 
@@ -289,6 +305,7 @@ M0_INTERNAL void m0_dtm_up_init(struct m0_dtm_up *up, struct m0_dtm_hi *hi,
 				struct m0_dtm_op *op, enum m0_dtm_up_rule rule,
 				m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver)
 {
+	op_lock(op);
 	M0_PRE(m0_dtm_op_invariant(op));
 	M0_PRE(m0_dtm_hi_invariant(hi));
 	M0_PRE(op->op_state == M0_DOS_LIMBO);
@@ -305,9 +322,10 @@ M0_INTERNAL void m0_dtm_up_init(struct m0_dtm_up *up, struct m0_dtm_hi *hi,
 	M0_POST(m0_dtm_up_invariant(up));
 	M0_POST(m0_dtm_op_invariant(op));
 	M0_POST(m0_dtm_hi_invariant(hi));
+	op_unlock(op);
 }
 
-M0_INTERNAL void m0_dtm_up_fini(struct m0_dtm_up *up)
+static void up_fini(struct m0_dtm_up *up)
 {
 	if (hi_tlink_is_in(up))
 		hi_tlink_del_fini(up);
@@ -369,6 +387,7 @@ static int up_cmp(const struct m0_dtm_up *up, m0_dtm_ver_t hver)
 M0_INTERNAL void m0_dtm_up_ver_set(struct m0_dtm_up *up,
 				   m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver)
 {
+	op_lock(up->up_op);
 	M0_PRE(up_state(up) == M0_DOS_INPROGRESS);
 	M0_PRE(m0_dtm_hi_invariant(up->up_hi));
 	M0_PRE(M0_IN(up->up_ver, (0, ver)));
@@ -377,16 +396,39 @@ M0_INTERNAL void m0_dtm_up_ver_set(struct m0_dtm_up *up,
 	up->up_ver      = ver;
 	up->up_orig_ver = orig_ver;
 	M0_POST(m0_dtm_hi_invariant(up->up_hi));
+	op_unlock(up->up_op);
+}
+
+M0_INTERNAL void m0_dtm_nu_init(struct m0_dtm_nu *nu)
+{
+	m0_mutex_init(&nu->nu_lock);
+}
+
+M0_INTERNAL void m0_dtm_nu_fini(struct m0_dtm_nu *nu)
+{
+	m0_mutex_fini(&nu->nu_lock);
 }
 
 M0_INTERNAL struct m0_dtm_up *m0_dtm_up_prior(struct m0_dtm_up *up)
 {
+	M0_PRE(m0_mutex_is_locked(&up->up_hi->hi_nu->nu_lock));
 	return hi_tlist_next(&up->up_hi->hi_ups, up);
 }
 
 M0_INTERNAL struct m0_dtm_up *m0_dtm_up_later(struct m0_dtm_up *up)
 {
+	M0_PRE(m0_mutex_is_locked(&up->up_hi->hi_nu->nu_lock));
 	return hi_tlist_prev(&up->up_hi->hi_ups, up);
+}
+
+static void op_lock(struct m0_dtm_op *op)
+{
+	m0_mutex_lock(&op->op_nu->nu_lock);
+}
+
+static void op_unlock(struct m0_dtm_op *op)
+{
+	m0_mutex_unlock(&op->op_nu->nu_lock);
 }
 
 static bool up_pair_invariant(const struct m0_dtm_up *up,
@@ -432,6 +474,7 @@ M0_INTERNAL bool m0_dtm_op_invariant(const struct m0_dtm_op *op)
 		_0C(0 <= op->op_state && op->op_state < M0_DOS_NR) &&
 		_0C(m0_tl_forall(op, up, &op->op_ups,
 				 m0_dtm_up_invariant(up) && up->up_op == op &&
+				 up->up_hi->hi_nu == op->op_nu &&
 				 m0_dtm_hi_invariant(up->up_hi))) &&
 		_0C(ergo(op->op_state > M0_DOS_LIMBO,
 			 !m0_tl_forall(op, up, &op->op_ups,
