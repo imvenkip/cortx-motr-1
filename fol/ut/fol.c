@@ -173,8 +173,7 @@ static void test_fol_rec_part_encdec(void)
 		dec_part->rp_ops->rpo_undo(dec_part);
 	} m0_tl_endfor;
 
-	m0_fol_rec_part_type_fini(&ut_part_type);
-	m0_rec_fini(&dec_rec);
+	m0_fol_rec_fini(&dec_rec);
 }
 
 const struct m0_test_suite fol_ut = {

@@ -1590,23 +1590,12 @@ static int io_finish(struct m0_fom *fom)
 
                 if (stio->si_rc != 0) {
                         rc = stio->si_rc;
-                } else {
+                } else if (stio->si_count != 0) {
                         fom_obj->fcrw_count += stio->si_count;
                         M0_LOG(M0_DEBUG, "rw_count %d, si_count %d",
                                (int)fom_obj->fcrw_count, (int)stio->si_count);
+			stio->si_count = 0;
                 }
-
-                m0_free(stio->si_user.ov_vec.v_count);
-                m0_free(stio->si_user.ov_buf);
-
-                m0_free(stio->si_stob.iv_vec.v_count);
-                m0_free(stio->si_stob.iv_index);
-
-                m0_stob_io_fini(stio);
-
-                stobio_tlist_del(stio_desc);
-                m0_fom_callback_fini(&stio_desc->siod_fcb);
-                m0_free(stio_desc);
         } m0_tl_endfor;
 
         m0_stob_put(fom_obj->fcrw_stob);
@@ -1771,6 +1760,7 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 		m0_stob_io_fini(stio);
 
 		stobio_tlist_del(stio_desc);
+		m0_fom_callback_fini(&stio_desc->siod_fcb);
 
 		m0_free(stio_desc);
 
