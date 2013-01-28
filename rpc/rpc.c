@@ -172,13 +172,9 @@ M0_EXPORTED(m0_rpc_post);
 
 M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 {
-<<<<<<< HEAD
 	struct m0_rpc_session  *session;
 	struct m0_addb_counter *counter;
-=======
-	struct m0_rpc_session *session;
-	int                    rc;
->>>>>>> rpc: Trigger resend when item->ri_timer fires.
+	int                     rc;
 
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && item->ri_type != NULL);
