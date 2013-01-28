@@ -1122,8 +1122,8 @@ struct m0_addb_segment_iter {
 	   Only complete segments are returned.
 	   @param iter Segment Iterator object.
 	   @param cur On success, set to the start of the record data in the
-	   segment.  The cursor may be used until the next call to either
-	   asi_next() or asi_nextbuf(), or until the iterator is freed,
+	   segment.  The cursor may be used until the next call to asi_next(),
+	   asi_nextbuf() or asi_seq_set(), or until the iterator is freed,
 	   whichever occurs first.
 	   @return A positive number denotes the number of records in the
 	   segment.  Zero denotes that more segments are available (EOF).
@@ -1136,12 +1136,29 @@ struct m0_addb_segment_iter {
 	   Only complete segments are returned.
 	   @param iter Segment Iterator object.
 	   @param bv On success, set to a bufvec containing the data of the
-	   segment.  The buffer may be used until the next call to either
-	   asi_next() or asi_nextbuf(), or until the iterator is freed,
+	   segment.  The buffer may be used until the next call to asi_next(),
+	   asi_nextbuf() or asi_seq_set(), or until the iterator is freed,
 	   whichever occurs first.
 	 */
 	int (*asi_nextbuf)(struct m0_addb_segment_iter *iter,
 			   const struct m0_bufvec     **bv);
+	/**
+	   Gets the sequence number of the current segment.
+	   @return a positive sequence number is returned after a call to
+	   asi_next() or asi_nextbuf() has been made and has successfully read
+	   in a segment.  Otherwise, 0 is returned (i.e. before a segment was
+	   read or after EOF).
+	 */
+	uint64_t (*asi_seq_get)(struct m0_addb_segment_iter *iter);
+	/**
+	   Set the minimum desired sequence number of subsequent segments.
+	   This has the effect of causing the iterator to skip over any segments
+	   whose sequence number is less than the desired value.  Whether the
+	   iterator performs some sort of seek internally is left to the
+	   implementation.  asi_next() or asi_nextbuf() must be called to access
+	   the resulting next segment.
+	 */
+	void (*asi_seq_set)(struct m0_addb_segment_iter *iter, uint64_t seq_nr);
 	/**
 	   Free the segment iterator.
 	 */

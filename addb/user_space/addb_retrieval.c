@@ -172,9 +172,13 @@
 struct addb_segment_iter {
 	uint64_t                    asi_magic;
 	struct m0_addb_segment_iter asi_base;
-	/* repository segment size */
+	/** repository segment size */
 	m0_bcount_t                 asi_segsize;
-	/* holds current segment */
+	/** minimum sequence number the iterator will return */
+	uint64_t                    asi_min_seq_nr;
+	/** sequence number of current segment */
+	uint64_t                    asi_seq_nr;
+	/** holds current segment */
 	struct m0_bufvec            asi_buf;
 };
 
@@ -212,30 +216,54 @@ struct file_segment_iter {
 	FILE                    *fsi_in;
 };
 
+/** Common logic to stob and file segment size determination. */
+static int addb_segsize_decode(struct m0_bufvec *buf)
+{
+	struct m0_bufvec_cursor   cur;
+	struct m0_addb_seg_header header;
+	int                       rc;
+
+	m0_bufvec_cursor_init(&cur, buf);
+	rc = stobsink_header_encdec(&header, &cur, M0_BUFVEC_DECODE);
+	M0_ASSERT(rc == 0); /* fail iff short buffer */
+
+	/* AD stob returns zero filled block at EOF */
+	if (header.sh_seq_nr == 0 &&
+	    header.sh_ver_nr == 0 &&
+	    header.sh_segsize == 0) {
+		rc = -ENODATA;
+	} else if (header.sh_seq_nr == 0 ||
+		   header.sh_segsize == 0 ||
+		   header.sh_segsize > INT32_MAX ||
+		   header.sh_ver_nr != STOBSINK_XCODE_VER_NR)
+		rc = -EINVAL;
+	else
+		rc = header.sh_segsize;
+	return rc;
+}
+
 /**
  * Helper for determining the segment size of an ADDB stob on first use.
  * @return On success, the positive segment size is returned.
  */
 static int stob_retrieval_segsize_get(struct m0_stob *stob)
 {
-	struct m0_bufvec          sri_buf;
-	struct m0_stob_io         sri_io;
-	m0_bcount_t               sri_buf_v_count;
-	void                     *sri_buf_ov_buf;
-	m0_bcount_t               sri_io_v_count;
-	m0_bindex_t               sri_io_iv_index;
-	struct m0_indexvec       *iv;
-	struct m0_bufvec         *obuf;
-	struct m0_clink           sri_wait;
-	struct m0_stob_domain    *dom;
-	struct m0_addb_seg_header header;
-	struct m0_bufvec_cursor   cur;
-	struct m0_dtx             sri_tx;
-	m0_bcount_t               header_size;
-	uint32_t                  bshift = stob->so_op->sop_block_shift(stob);
-	int                       rc;
+	struct m0_bufvec       sri_buf;
+	struct m0_stob_io      sri_io;
+	m0_bcount_t            sri_buf_v_count;
+	void                  *sri_buf_ov_buf;
+	m0_bcount_t            sri_io_v_count;
+	m0_bindex_t            sri_io_iv_index;
+	struct m0_indexvec    *iv;
+	struct m0_bufvec      *obuf;
+	struct m0_clink        sri_wait;
+	struct m0_stob_domain *dom;
+	struct m0_dtx          sri_tx;
+	m0_bcount_t            header_size;
+	uint32_t               bshift = stob->so_op->sop_block_shift(stob);
+	int                    rc;
 
-	header_size = max64u(sizeof header, 1 << bshift);
+	header_size = max64u(sizeof(struct m0_addb_seg_header), 1 << bshift);
 	rc = m0_bufvec_alloc_aligned(&sri_buf, 1, header_size, bshift);
 	if (rc != 0)
 		return rc;
@@ -278,25 +306,7 @@ static int stob_retrieval_segsize_get(struct m0_stob *stob)
 			rc = -ENODATA;
 			break;
 		}
-		m0_bufvec_cursor_init(&cur, &sri_buf);
-		rc = stobsink_header_encdec(&header, &cur, M0_BUFVEC_DECODE);
-		M0_ASSERT(rc == 0); /* fail iff short buffer */
-
-		/* AD stob returns zero filled block at EOF */
-		if (header.sh_seq_nr == 0 &&
-		    header.sh_ver_nr == 0 &&
-		    header.sh_segsize == 0) {
-			rc = -ENODATA;
-			break;
-		}
-		if (header.sh_seq_nr == 0 ||
-		    header.sh_segsize == 0 ||
-		    header.sh_segsize > INT32_MAX ||
-		    header.sh_ver_nr != STOBSINK_XCODE_VER_NR) {
-			rc = -EINVAL;
-			break;
-		}
-		rc = header.sh_segsize;
+		rc = addb_segsize_decode(&sri_buf);
 	} while (0);
 
 	m0_dtx_done(&sri_tx);
@@ -308,10 +318,6 @@ fail_tx:
 	return rc;
 }
 
-/**
- * Subroutine that implements m0_addb_segment_iter::asi_next() for the
- * stob retrieval iterator.
- */
 static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 				  struct m0_bufvec_cursor     *cur)
 {
@@ -335,8 +341,7 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 	m0_dtx_init(&tx);
 	rc = dom->sd_ops->sdo_tx_make(dom, &tx);
 	if (rc != 0)
-		return rc;
-
+		goto fail;
 	m0_clink_init(&seg_wait, NULL);
 
 	while (1) {
@@ -406,17 +411,40 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 
 		si->ssi_io_iv_index += offset;
 		si->ssi_tio_iv_index += offset;
-		if (header.sh_seq_nr != trailer.st_seq_nr ||
-		    trailer.st_rec_nr == 0)
-			continue;
-
-		m0_dtx_done(&tx);
-		return trailer.st_rec_nr;
+		if (header.sh_seq_nr == trailer.st_seq_nr &&
+		    trailer.st_rec_nr != 0 &&
+		    header.sh_seq_nr >= si->ssi_base.asi_min_seq_nr) {
+			m0_dtx_done(&tx);
+			si->ssi_base.asi_seq_nr = header.sh_seq_nr;
+			return trailer.st_rec_nr;
+		}
 	}
 
 	m0_dtx_done(&tx);
+fail:
+	si->ssi_base.asi_seq_nr = 0;
 	M0_POST(rc <= 0);
 	return rc;
+}
+
+static uint64_t stob_segment_iter_seq_get(struct m0_addb_segment_iter *iter)
+{
+	struct addb_segment_iter *ai =
+	    container_of(iter, struct addb_segment_iter, asi_base);
+
+	M0_PRE(iter != NULL && ai->asi_magic == M0_ADDB_STOBRET_MAGIC);
+	return ai->asi_seq_nr;
+}
+
+static void stob_segment_iter_seq_set(struct m0_addb_segment_iter *iter,
+				      uint64_t seq_nr)
+{
+	struct addb_segment_iter *ai =
+	    container_of(iter, struct addb_segment_iter, asi_base);
+
+	M0_PRE(iter != NULL && ai->asi_magic == M0_ADDB_STOBRET_MAGIC);
+	ai->asi_min_seq_nr = seq_nr;
+	ai->asi_seq_nr = 0;
 }
 
 static void stob_segment_iter_free(struct m0_addb_segment_iter *iter)
@@ -441,13 +469,11 @@ static void stob_segment_iter_free(struct m0_addb_segment_iter *iter)
  */
 static int file_retrieval_segsize_get(FILE *infile)
 {
-	struct m0_addb_seg_header header;
-	m0_bcount_t               header_size = sizeof header;
-	char                      buf[sizeof header];
-	void                     *bp = buf;
-	struct m0_bufvec          fbuf = M0_BUFVEC_INIT_BUF(&bp, &header_size);
-	struct m0_bufvec_cursor   cur;
-	int                       rc;
+	m0_bcount_t      header_size = sizeof(struct m0_addb_seg_header);
+	char             buf[sizeof(struct m0_addb_seg_header)];
+	void            *bp = buf;
+	struct m0_bufvec fbuf = M0_BUFVEC_INIT_BUF(&bp, &header_size);
+	int              rc;
 
 	rc = fread(buf, header_size, 1, infile);
 	if (rc != 1)
@@ -455,26 +481,9 @@ static int file_retrieval_segsize_get(FILE *infile)
 	rc = fseek(infile, 0L, SEEK_SET);
 	if (rc < 0)
 		return -errno;
-
-	m0_bufvec_cursor_init(&cur, &fbuf);
-	rc = stobsink_header_encdec(&header, &cur, M0_BUFVEC_DECODE);
-	M0_ASSERT(rc == 0); /* fail iff short buffer */
-
-	if (header.sh_seq_nr == 0 ||
-	    header.sh_segsize == 0 ||
-	    header.sh_segsize > INT32_MAX ||
-	    header.sh_ver_nr != STOBSINK_XCODE_VER_NR)
-		rc = -EINVAL;
-	else
-		rc = header.sh_segsize;
-	M0_POST(rc != 0);
-	return rc;
+	return addb_segsize_decode(&fbuf);
 }
 
-/**
- * Subroutine that implements m0_addb_segment_iter::asi_next() for the
- * file retrieval iterator.
- */
 static int file_segment_iter_next(struct m0_addb_segment_iter *iter,
 				  struct m0_bufvec_cursor     *cur)
 {
@@ -513,12 +522,35 @@ static int file_segment_iter_next(struct m0_addb_segment_iter *iter,
 			break;
 		}
 		if (header.sh_seq_nr == trailer.st_seq_nr &&
-		    trailer.st_rec_nr != 0)
+		    trailer.st_rec_nr != 0 &&
+		    header.sh_seq_nr >= fi->fsi_base.asi_min_seq_nr) {
+			fi->fsi_base.asi_seq_nr = header.sh_seq_nr;
 			return trailer.st_rec_nr;
+		}
 	}
 
+	fi->fsi_base.asi_seq_nr = 0;
 	M0_POST(rc <= 0);
 	return rc;
+}
+
+static uint64_t file_segment_iter_seq_get(struct m0_addb_segment_iter *iter)
+{
+	struct addb_segment_iter *ai =
+	    container_of(iter, struct addb_segment_iter, asi_base);
+
+	M0_PRE(iter != NULL && ai->asi_magic == M0_ADDB_FILERET_MAGIC);
+	return ai->asi_seq_nr;
+}
+
+static void file_segment_iter_seq_set(struct m0_addb_segment_iter *iter,
+				      uint64_t seq_nr)
+{
+	struct addb_segment_iter *ai =
+	    container_of(iter, struct addb_segment_iter, asi_base);
+
+	M0_PRE(iter != NULL && ai->asi_magic == M0_ADDB_FILERET_MAGIC);
+	ai->asi_min_seq_nr = seq_nr;
 }
 
 static void file_segment_iter_free(struct m0_addb_segment_iter *iter)
@@ -534,10 +566,6 @@ static void file_segment_iter_free(struct m0_addb_segment_iter *iter)
 	m0_free(fi);
 }
 
-/**
- * Subroutine that implements m0_addb_segment_iter::asi_nextbuf() for both the
- * stob and file retrieval iterators.
- */
 static int addb_segment_iter_nextbuf(struct m0_addb_segment_iter *iter,
 				     const struct m0_bufvec     **bv)
 {
@@ -557,9 +585,7 @@ static int addb_segment_iter_nextbuf(struct m0_addb_segment_iter *iter,
 	return 0;
 }
 
-/**
- * Helper function to free the m0_addb_rec allocated by xcode decode.
- */
+/** Helper function to free the m0_addb_rec allocated by xcode decode. */
 static void addb_cursor_rec_free(struct m0_addb_cursor *cur)
 {
 	M0_PRE(cur != NULL);
@@ -638,6 +664,8 @@ M0_INTERNAL int m0_addb_stob_iter_alloc(struct m0_addb_segment_iter **iter,
 		return -ENOMEM;
 	si->ssi_base.asi_base.asi_next = stob_segment_iter_next;
 	si->ssi_base.asi_base.asi_nextbuf = addb_segment_iter_nextbuf;
+	si->ssi_base.asi_base.asi_seq_get = stob_segment_iter_seq_get;
+	si->ssi_base.asi_base.asi_seq_set = stob_segment_iter_seq_set;
 	si->ssi_base.asi_base.asi_free = stob_segment_iter_free;
 	rc = stob_retrieval_segsize_get(stob);
 	if (rc < 0) {
@@ -729,6 +757,8 @@ M0_INTERNAL int m0_addb_file_iter_alloc(struct m0_addb_segment_iter **iter,
 	}
 	fi->fsi_base.asi_base.asi_next = file_segment_iter_next;
 	fi->fsi_base.asi_base.asi_nextbuf = addb_segment_iter_nextbuf;
+	fi->fsi_base.asi_base.asi_seq_get = file_segment_iter_seq_get;
+	fi->fsi_base.asi_base.asi_seq_set = file_segment_iter_seq_set;
 	fi->fsi_base.asi_base.asi_free = file_segment_iter_free;
 	fi->fsi_in = infile;
 

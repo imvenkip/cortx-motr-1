@@ -9,6 +9,7 @@
 
 main()
 {
+	NODE_UUID=`uuidgen`
 	mero_service start
 	if [ $? -ne "0" ]
 	then

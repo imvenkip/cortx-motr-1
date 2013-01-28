@@ -32,7 +32,7 @@
 #include "stob/linux.h"
 
 static const struct m0_stob_id stobsink_stobid = {
-	.si_bits = { .u_hi = 1, .u_lo = 0xADDB570b }
+	.si_bits = { .u_hi = 1, .u_lo = 0xaddb570b }
 };
 
 enum {
@@ -609,6 +609,7 @@ static void addb_ut_retrieval(void)
 	rc = m0_addb_stob_iter_alloc(&iter, stob);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(iter->asi_nextbuf == addb_segment_iter_nextbuf);
+	M0_UT_ASSERT(iter->asi_seq_get(iter) == 0);
 	/* save data in a file, for file iter tests */
 	f = fopen(addb_repofile, "w");
 	M0_ASSERT(f != NULL);
@@ -620,13 +621,33 @@ static void addb_ut_retrieval(void)
 		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(bv->ov_vec.v_nr == 1);
 		M0_UT_ASSERT(bv->ov_vec.v_count[0] == STOBSINK_SEGMENT_SIZE);
+		M0_UT_ASSERT(iter->asi_seq_get(iter) ==
+			     (count < 3 ? count + 12 : count + 2));
 		rc = fwrite(bv->ov_buf[0], bv->ov_vec.v_count[0], 1, f);
 		M0_ASSERT(rc == 1);
 		count++;
 	}
+	M0_UT_ASSERT(iter->asi_seq_get(iter) == 0);
 	fclose(f);
 	m0_addb_segment_iter_free(iter);
 	M0_UT_ASSERT(count == STOBSINK_SMALL_SEG_NR);
+
+	/* Test: use of asi_seq_set skips segments that are too low */
+	rc = m0_addb_stob_iter_alloc(&iter, stob);
+	M0_UT_ASSERT(rc == 0);
+	iter->asi_seq_set(iter, STOBSINK_SMALL_SEG_NR - 3);
+	count = 0;
+	while (1) {
+		rc = iter->asi_nextbuf(iter, &bv);
+		if (rc == -ENODATA)
+			break;
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(iter->asi_seq_get(iter) >=
+			     STOBSINK_SMALL_SEG_NR - 3);
+		count++;
+	}
+	m0_addb_segment_iter_free(iter);
+	M0_UT_ASSERT(count == STOBSINK_SMALL_SEG_NR - 2);
 
 	/* Test: event retrieval retrieves all/only event records */
 	addb_ut_stob_cursor(stob,
@@ -665,6 +686,7 @@ static void addb_ut_retrieval(void)
 	rc = m0_addb_file_iter_alloc(&iter, addb_repofile);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(iter->asi_nextbuf == addb_segment_iter_nextbuf);
+	M0_UT_ASSERT(iter->asi_seq_get(iter) == 0);
 	count = 0;
 	while (1) {
 		rc = iter->asi_nextbuf(iter, &bv);
@@ -673,10 +695,30 @@ static void addb_ut_retrieval(void)
 		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(bv->ov_vec.v_nr == 1);
 		M0_UT_ASSERT(bv->ov_vec.v_count[0] == STOBSINK_SEGMENT_SIZE);
+		M0_UT_ASSERT(iter->asi_seq_get(iter) ==
+			     (count < 3 ? count + 12 : count + 2));
+		count++;
+	}
+	M0_UT_ASSERT(iter->asi_seq_get(iter) == 0);
+	m0_addb_segment_iter_free(iter);
+	M0_UT_ASSERT(count == STOBSINK_SMALL_SEG_NR);
+
+	/* Test: use of asi_seq_set skips segments that are too low */
+	rc = m0_addb_file_iter_alloc(&iter, addb_repofile);
+	M0_UT_ASSERT(rc == 0);
+	iter->asi_seq_set(iter, STOBSINK_SMALL_SEG_NR - 3);
+	count = 0;
+	while (1) {
+		rc = iter->asi_nextbuf(iter, &bv);
+		if (rc == -ENODATA)
+			break;
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(iter->asi_seq_get(iter) >=
+			     STOBSINK_SMALL_SEG_NR - 3);
 		count++;
 	}
 	m0_addb_segment_iter_free(iter);
-	M0_UT_ASSERT(count == STOBSINK_SMALL_SEG_NR);
+	M0_UT_ASSERT(count == STOBSINK_SMALL_SEG_NR - 2);
 
 	/* Test: event retrieval retrieves all/only event records from file */
 	addb_ut_file_cursor(M0_ADDB_CURSOR_REC_EVENT, STOBSINK_FULL_EVENT_NR);

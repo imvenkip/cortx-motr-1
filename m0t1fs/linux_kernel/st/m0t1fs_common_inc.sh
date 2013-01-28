@@ -92,6 +92,7 @@ load_kernel_module()
                trace_immediate_mask=$MERO_MODULE_TRACE_MASK \
 	       trace_print_context=$MERO_TRACE_PRINT_CONTEXT \
 	       trace_level=$MERO_TRACE_LEVEL \
+	       node_uuid=${NODE_UUID:-00000000-0000-0000-0000-000000000000} \
                local_addr=$LADDR \
 	       tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
 	       max_rpc_msg_size=$MAX_RPC_MSG_SIZE

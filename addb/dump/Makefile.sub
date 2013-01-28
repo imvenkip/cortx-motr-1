@@ -1,3 +1,4 @@
 addb_dump_m0addbdump_SOURCES  = addb/dump/addbdump.c
 
-EXTRA_DIST += addb/dump/m0addbdump.sh.in
+EXTRA_DIST += addb/dump/m0addbdump.sh.in \
+              addb/dump/st/m0addbdump.py
