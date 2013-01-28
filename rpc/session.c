@@ -1286,7 +1286,13 @@ M0_INTERNAL void m0_rpc_session_item_failed(struct m0_rpc_item *item)
 	M0_PRE(item->ri_sm.sm_state == M0_RPC_ITEM_FAILED);
 
 	if (m0_rpc_item_is_request(item) &&
-	    m0_rpc_item_is_bound(item)) {
+	    M0_IN(item->ri_stage, (RPC_ITEM_STAGE_FUTURE,
+				   RPC_ITEM_STAGE_IN_PROGRESS))) {
+
+		M0_ASSERT(item->ri_error != 0);
+		if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
+			item->ri_ops->rio_replied(item);
+
 		if (item->ri_error == -ETIMEDOUT)
 			m0_rpc_item_set_stage(item, RPC_ITEM_STAGE_TIMEDOUT);
 		else

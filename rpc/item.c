@@ -510,11 +510,12 @@ M0_INTERNAL void m0_rpc_item_set_stage(struct m0_rpc_item *item,
 	M0_PRE(m0_rpc_session_invariant(session));
 
 	was_active = item_is_active(item);
-	M0_ASSERT(ergo(was_active,
+	M0_ASSERT(ergo(was_active && m0_rpc_item_is_bound(item),
 		       session_state(session) == M0_RPC_SESSION_BUSY));
 
 	item->ri_stage = stage;
-	m0_rpc_session_mod_nr_active_items(session,
+	if (m0_rpc_item_is_bound(item))
+		m0_rpc_session_mod_nr_active_items(session,
 					   item_is_active(item) - was_active);
 
 	M0_POST(m0_rpc_session_invariant(session));
@@ -579,12 +580,6 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_FAILED);
 	m0_rpc_item_stop_timer(item);
 	m0_rpc_session_item_failed(item);
-
-	if (m0_rpc_item_is_request(item) &&
-	    item->ri_ops != NULL &&
-	    item->ri_ops->rio_replied != NULL)
-		item->ri_ops->rio_replied(item);
-
 	M0_LEAVE();
 }
 
