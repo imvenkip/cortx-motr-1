@@ -353,7 +353,7 @@ enum m0_fom_phase {
  * Initialises m0_fom_domain object provided by the caller.
  * Creates and initialises localities with handler threads.
  *
- * @param dom, fom domain to be initialised, provided by caller
+ * @param dom fom domain to be initialised, provided by caller
  *
  * @pre dom != NULL
  */
@@ -364,7 +364,7 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom);
  * Also finalises the localities in fom domain and destroys
  * the handler threads per locality.
  *
- * @param dom, fom domain to be finalised, all the
+ * @param dom fom domain to be finalised, all the
  *
  * @pre dom != NULL && dom->fd_localities != NULL
  */
@@ -500,8 +500,8 @@ struct m0_fom {
  * Possible errors are reported through fom state and phase, hence the return
  * type is void.
  *
- * @param fom, A fom to be submitted for execution
- * @param reqh, request handler processing the fom
+ * @param fom A fom to be submitted for execution
+ * @param reqh request handler processing the fom
  *
  * @pre m0_fom_group_is_locked(fom)
  * @pre m0_fom_phase(fom) == M0_FOM_PHASE_INIT
@@ -545,7 +545,7 @@ void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
  * (m0_fom_locality::fl_foms). Signals m0_reqh::rh_sd_signal once this counter
  * reaches 0.
  *
- * @param fom, A fom to be finalised
+ * @param fom A fom to be finalised
  * @pre m0_fom_phase(fom) == M0_FOM_PHASE_FINISH
 */
 void m0_fom_fini(struct m0_fom *fom);
@@ -623,7 +623,7 @@ struct m0_fom_ops {
 /**
  * This function is called before potential blocking point.
  *
- * @param fom, A fom executing a possible blocking operation
+ * @param fom A fom executing a possible blocking operation
  * @see m0_fom_locality
  */
 M0_INTERNAL void m0_fom_block_enter(struct m0_fom *fom);
@@ -631,7 +631,7 @@ M0_INTERNAL void m0_fom_block_enter(struct m0_fom *fom);
 /**
  * This function is called after potential blocking point.
  *
- * @param fom, A fom done executing a blocking operation
+ * @param fom A fom done executing a blocking operation
  */
 M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom);
 
@@ -663,10 +663,10 @@ M0_INTERNAL void m0_fom_callback_init(struct m0_fom_callback *cb);
  * are provided by user.
  * Callback will be called with locality lock held.
  *
- * @param fom, A fom executing a blocking operation
- * @param chan, waiting channel registered with the fom during its
+ * @param fom A fom executing a blocking operation
+ * @param chan waiting channel registered with the fom during its
  *              blocking operation
- * @param cb, AST call-back with initialized fc_bottom
+ * @param cb AST call-back with initialized fc_bottom
  *            @see sm/sm.h
  */
 M0_INTERNAL void m0_fom_callback_arm(struct m0_fom *fom, struct m0_chan *chan,
@@ -677,10 +677,10 @@ M0_INTERNAL void m0_fom_callback_arm(struct m0_fom *fom, struct m0_chan *chan,
  * automatically with internal static routine which just wakes up the fom.
  * Convenient when there is no need for custom fc_bottom.
  *
- * @param fom, A fom executing a blocking operation
- * @param chan, waiting channel registered with the fom during its
+ * @param fom A fom executing a blocking operation
+ * @param chan waiting channel registered with the fom during its
  *              blocking operation
- * @param cb, AST call-back
+ * @param cb AST call-back
  *            @see sm/sm.h
   */
 M0_INTERNAL void m0_fom_wait_on(struct m0_fom *fom, struct m0_chan *chan,
