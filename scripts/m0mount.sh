@@ -9,7 +9,7 @@
 #   their .ssh/authorized_keys file.  If services are defined on the local
 #   host then it should be possible to ssh into the local host.
 
-LOCAL_SERVICES_NR=4
+LOCAL_SERVICES_NR=1
 
 if [ "x$1" == "x-h" ]; then
 	cat <<.
@@ -86,12 +86,12 @@ fi
 
 # This example puts ioservices on 3 nodes, and uses 4 data blocks
 SERVICES=(
-	sjt02-c1 172.18.50.40@o2ib:12345:41:101
-	sjt02-c1 172.18.50.40@o2ib:12345:41:102
-	sjt02-c2 172.18.50.45@o2ib:12345:41:101
-	sjt02-c2 172.18.50.45@o2ib:12345:41:102
+#	sjt02-c1 172.18.50.40@o2ib:12345:41:101
+#	sjt02-c1 172.18.50.40@o2ib:12345:41:102
+#	sjt02-c2 172.18.50.45@o2ib:12345:41:101
+#	sjt02-c2 172.18.50.45@o2ib:12345:41:102
 	sjt00-c1 172.18.50.161@o2ib:12345:41:101
-	sjt00-c1 172.18.50.161@o2ib:12345:41:102
+#	sjt00-c1 172.18.50.161@o2ib:12345:41:102
 )
 
 declare -A NODE_UUID
@@ -129,9 +129,9 @@ if [ "x$1" == "x-ad" ]; then
 fi
 
 UNIT_SIZE=262144
-SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
-POOL_WIDTH=$(expr $SERVICES_NR \* 1)
-NR_DATA=$(expr $POOL_WIDTH - 2)
+SERVICES_NR=1 #$(expr ${#SERVICES[*]} / 2)
+POOL_WIDTH=20 #$(expr $SERVICES_NR \* 1)
+NR_DATA=8 #$(expr $POOL_WIDTH - 2)
 
 M0_TRACE_IMMEDIATE_MASK=0
 M0_TRACE_LEVEL=debug+

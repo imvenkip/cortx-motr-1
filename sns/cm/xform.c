@@ -73,6 +73,11 @@ static void bufvec_xor(struct m0_bufvec *dst, struct m0_bufvec *src,
         }
 }
 
+M0_INTERNAL int m0_sns_cm_cp_xform_wait(struct m0_cm_cp *cp)
+{
+	return cp->c_ops->co_phase_next(cp);
+}
+
 /**
  * Transformation function for sns repair.
  *
@@ -84,21 +89,21 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
         struct m0_sns_cm_ag     *sns_ag;
         struct m0_cm_aggr_group *ag;
 	struct m0_cm_cp         *res_cp;
+	int                      rc;
 	m0_bcount_t              cp_bufvec_size;
 
         M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_XFORM);
 
         ag = cp->c_ag;
         sns_ag = ag2snsag(ag);
+	m0_mutex_lock(&sns_ag->sag_mutex);
 	res_cp = sns_ag->sag_cp;
         if (res_cp == NULL) {
                 /*
                  * If there is only one copy packet in the aggregation group,
                  * call the next phase of the copy packet fom.
                  */
-                if (ag->cag_cp_nr == 1)
-                        return cp->c_ops->co_phase_next(cp);
-
+                if (ag->cag_cp_nr > 1) {
                 /*
                  * If this is the first copy packet for this aggregation group,
                  * (with more copy packets from same aggregation group to be
@@ -118,7 +123,8 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 		 * transformation of all copy packets belonging to the
 		 * aggregation group is complete.
 		 */
-		return M0_FSO_WAIT;
+		}
+                 rc = cp->c_ops->co_phase_next(cp);
         } else {
 		cp_bufvec_size = m0_cm_cp_data_size(cp);
 		/*
@@ -144,11 +150,12 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
                  */
                 if(ag->cag_cp_nr ==
 		   m0_atomic64_get(&ag->cag_transformed_cp_nr)) {
-                        res_cp->c_ops->co_phase_next(res_cp);
 			m0_fom_wakeup(&res_cp->c_fom);
 		}
-		return M0_FSO_WAIT;
+		rc = M0_FSO_WAIT;
         }
+	m0_mutex_unlock(&sns_ag->sag_mutex);
+	return rc;
 }
 
 /** @} SNSCMCP */

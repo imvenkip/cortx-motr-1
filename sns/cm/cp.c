@@ -24,6 +24,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 #endif
 #include "lib/memory.h" /* m0_free() */
+#include "lib/misc.h"
 
 #include "fop/fom.h"
 #include "cm/ag.h"
@@ -57,11 +58,12 @@ static bool cp_invariant(const struct m0_cm_cp *cp)
  */
 M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp)
 {
-	struct m0_cm_ag_id *id;
+	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
+	//struct m0_cm_ag_id *id;
 
-	id = &cp->c_ag->cag_id;
+	//id = &cp->c_ag->cag_id;
 	/* GOB.f_key + parity group number. */
-	return id->ai_hi.u_lo + id->ai_lo.u_lo;
+	return sns_cp->sc_sid.si_bits.u_hi;//id->ai_hi.u_lo + id->ai_lo.u_lo;
 }
 
 static int cp_init(struct m0_cm_cp *cp)
@@ -86,7 +88,8 @@ M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp)
 	int next[] = {
 		[M0_CCP_INIT]  = M0_CCP_READ,
 		[M0_CCP_READ]  = M0_CCP_IO_WAIT,
-		[M0_CCP_XFORM] = M0_CCP_WRITE,
+		[M0_CCP_XFORM] = M0_CCP_XFORM_WAIT,
+		[M0_CCP_XFORM_WAIT] = M0_CCP_WRITE,
 		[M0_CCP_WRITE] = M0_CCP_IO_WAIT,
 		[M0_CCP_IO_WAIT] = M0_CCP_XFORM
 	};
@@ -99,7 +102,8 @@ M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp)
 	}
 
 	m0_fom_phase_set(&cp->c_fom, next[phase]);
-        return next[phase] == M0_CCP_FINI ? M0_FSO_WAIT : M0_FSO_AGAIN;
+        return M0_IN(next[phase], (M0_CCP_IO_WAIT, M0_CCP_XFORM_WAIT, M0_CCP_FINI)) ?
+		M0_FSO_WAIT : M0_FSO_AGAIN;
 }
 
 static void cp_complete(struct m0_cm_cp *cp)
@@ -145,6 +149,7 @@ const struct m0_cm_cp_ops m0_sns_cm_cp_ops = {
 		[M0_CCP_WRITE]   = &m0_sns_cm_cp_write,
 		[M0_CCP_IO_WAIT] = &m0_sns_cm_cp_io_wait,
 		[M0_CCP_XFORM]   = &m0_sns_cm_cp_xform,
+		[M0_CCP_XFORM_WAIT]   = &m0_sns_cm_cp_xform_wait,
 		[M0_CCP_SEND]    = &m0_sns_cm_cp_send,
 		[M0_CCP_RECV]    = &m0_sns_cm_cp_recv,
 		/* To satisfy the m0_cm_cp_invariant() */

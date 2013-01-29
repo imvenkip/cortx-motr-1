@@ -131,6 +131,7 @@ M0_INTERNAL struct m0_sns_cm_ag *m0_sns_cm_ag_find(struct m0_sns_cm *scm,
 		if (sag != NULL) {
 			m0_cm_aggr_group_init(&sag->sag_base, cm, id,
 					      &repair_ag_ops);
+			m0_mutex_init(&sag->sag_mutex);
 			target_unit_to_cob(sag);
 			m0_cm_aggr_group_add(cm, &sag->sag_base);
 		}

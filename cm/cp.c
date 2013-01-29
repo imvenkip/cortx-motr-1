@@ -344,12 +344,13 @@ static void cp_fom_fini(struct m0_fom *fom)
 
 	m0_cm_cp_fini(cp);
 	cp->c_ops->co_free(cp);
-	m0_atomic64_inc(&ag->cag_freed_cp_nr);
 	/**
 	 * Try to create a new copy packet since this copy packet is
 	 * making way for new copy packets in sliding window.
 	 */
 	m0_cm_lock(cm);
+	m0_atomic64_inc(&ag->cag_freed_cp_nr);
+	m0_mb();
 	if (m0_cm_has_more_data(cm))
 		m0_cm_sw_fill(cm);
 	/**
@@ -431,6 +432,12 @@ static const struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
         [M0_CCP_XFORM] = {
                 .sd_flags       = 0,
                 .sd_name        = "Xform",
+                .sd_allowed     = M0_BITS(M0_CCP_XFORM_WAIT, M0_CCP_FINI,
+				          M0_CCP_SEND)
+        },
+        [M0_CCP_XFORM_WAIT] = {
+                .sd_flags       = 0,
+                .sd_name        = "Xform_wait",
                 .sd_allowed     = M0_BITS(M0_CCP_WRITE, M0_CCP_FINI,
 				          M0_CCP_SEND)
         },

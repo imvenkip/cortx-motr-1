@@ -64,6 +64,9 @@ extern const struct m0_cm_cp_ops m0_sns_cm_cp_ops;
 /** Transformation phase function for copy packet. */
 M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp);
 
+/** Transformation phase function for copy packet. */
+M0_INTERNAL int m0_sns_cm_cp_xform_wait(struct m0_cm_cp *cp);
+
 /** Copy packet read phase function. */
 M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp);
 

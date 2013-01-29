@@ -26,6 +26,7 @@
 
 #include "cm/ag.h"
 #include "sns/cm/cm.h"
+#include "lib/mutex.h"
 
 /**
    @defgroup SNSCMAG SNS copy machine aggregation group
@@ -40,6 +41,7 @@ struct m0_sns_cm_ag {
 	/** Base aggregation group. */
 	struct m0_cm_aggr_group      sag_base;
 
+	struct m0_mutex              sag_mutex;
 	/** Transformed copy packet created by transformation function. */
 	struct m0_cm_cp             *sag_cp;
 

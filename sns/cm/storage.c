@@ -174,11 +174,11 @@ out:
 	if (rc != 0) {
 		m0_fom_phase_move(cp_fom, rc, M0_CCP_FINI);
 		m0_db_tx_abort(&cp_fom->fo_tx.tx_dbtx);
-		return M0_FSO_WAIT;
-	} else {
-		cp->c_ops->co_phase_next(cp);
-		return M0_FSO_WAIT;
-	}
+		rc = M0_FSO_WAIT;
+	} else
+		rc = cp->c_ops->co_phase_next(cp);
+
+	return rc;
 }
 
 M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp)

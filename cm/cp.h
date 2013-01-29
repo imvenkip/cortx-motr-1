@@ -119,6 +119,9 @@ enum m0_cm_cp_phase {
 	/** Transform the packet. */
 	M0_CCP_XFORM,
 
+	/** Transform the packet. */
+	M0_CCP_XFORM_WAIT,
+
 	/** Send packet over network. */
 	M0_CCP_SEND,
 
