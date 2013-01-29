@@ -195,7 +195,7 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
 	rc = m0_rpc_item_start_timer(item);
 	if (rc == 0) {
-		counter = &session_machine(session)->rm_cntr_sent_item_sizes;
+		counter = &item->ri_rmachine->rm_cntr_sent_item_sizes;
 		m0_addb_counter_update(counter,
 				       (uint64_t)m0_rpc_item_size(item));
 		m0_rpc_item_send(item);

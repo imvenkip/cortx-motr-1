@@ -39,6 +39,7 @@
 static int item_entered_in_urgent_state(struct m0_sm *mach);
 static void item_timer_cb(struct m0_sm_timer *timer);
 static void item_timedout(struct m0_rpc_item *item);
+static void item_resend(struct m0_rpc_item *item);
 
 M0_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", M0_INTERNAL,
 		   struct m0_rpc_item, ri_field,
@@ -670,10 +671,8 @@ M0_INTERNAL void m0_rpc_item_stop_timer(struct m0_rpc_item *item)
 static void item_timer_cb(struct m0_sm_timer *timer)
 {
 	struct m0_rpc_item *item;
-	int                 rc;
 
 	M0_ENTRY();
-
 	M0_PRE(timer != NULL);
 
 	item = container_of(timer, struct m0_rpc_item, ri_timer);
@@ -683,40 +682,10 @@ static void item_timer_cb(struct m0_sm_timer *timer)
 	M0_LOG(M0_FATAL, "%p [%s/%u] %s Timer elapsed.", item, item_kind(item),
 	       item->ri_type->rit_opcode, item_state_name(item));
 
-	if (item->ri_nr_sent >= item->ri_nr_sent_max) {
+	if (item->ri_nr_sent >= item->ri_nr_sent_max)
 		item_timedout(item);
-	} else {
-		/* Resend the item. */
-		switch (item->ri_sm.sm_state) {
-		case M0_RPC_ITEM_ENQUEUED:
-		case M0_RPC_ITEM_URGENT:
-			rc = m0_rpc_item_start_timer(item);
-			/* XXX already completed requests??? */
-			if (rc != 0) {
-				m0_rpc_item_get(item);
-				m0_rpc_frm_remove_item(item->ri_frm, item);
-				m0_rpc_item_failed(item, -ETIMEDOUT);
-				m0_rpc_item_put(item);
-			}
-			break;
-
-		case M0_RPC_ITEM_SENDING:
-			item->ri_error = m0_rpc_item_start_timer(item);
-			break;
-
-		case M0_RPC_ITEM_WAITING_FOR_REPLY:
-			rc = m0_rpc_item_start_timer(item);
-			if (rc == 0)
-				m0_rpc_item_send(item);
-			else
-				/* XXX already completed requests??? */
-				m0_rpc_item_failed(item, rc);
-			break;
-
-		default:
-			M0_ASSERT(false);
-		}
-	}
+	else
+		item_resend(item);
 }
 
 static void item_timedout(struct m0_rpc_item *item)
@@ -749,6 +718,41 @@ static void item_timedout(struct m0_rpc_item *item)
 	M0_LEAVE();
 }
 
+static void item_resend(struct m0_rpc_item *item)
+{
+	int rc;
+
+	switch (item->ri_sm.sm_state) {
+	case M0_RPC_ITEM_ENQUEUED:
+	case M0_RPC_ITEM_URGENT:
+		rc = m0_rpc_item_start_timer(item);
+		/* XXX already completed requests??? */
+		if (rc != 0) {
+			m0_rpc_item_get(item);
+			m0_rpc_frm_remove_item(item->ri_frm, item);
+			m0_rpc_item_failed(item, -ETIMEDOUT);
+			m0_rpc_item_put(item);
+		}
+		break;
+
+	case M0_RPC_ITEM_SENDING:
+		item->ri_error = m0_rpc_item_start_timer(item);
+		break;
+
+	case M0_RPC_ITEM_WAITING_FOR_REPLY:
+		rc = m0_rpc_item_start_timer(item);
+		if (rc == 0)
+			m0_rpc_item_send(item);
+		else
+			/* XXX already completed requests??? */
+			m0_rpc_item_failed(item, rc);
+		break;
+
+	default:
+		M0_ASSERT(false);
+	}
+}
+
 M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 {
 	uint32_t state = item->ri_sm.sm_state;
@@ -761,7 +765,6 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 				  M0_RPC_ITEM_WAITING_FOR_REPLY,
 				  M0_RPC_ITEM_REPLIED,
 				  M0_RPC_ITEM_FAILED))) &&
-		    /* XXX think more about resending failed items */
 	       ergo(m0_rpc_item_is_reply(item),
 		    M0_IN(state, (M0_RPC_ITEM_SENT, M0_RPC_ITEM_FAILED))));
 
