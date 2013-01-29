@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -86,18 +86,6 @@ static const struct m0_fom_ops cd_fom_ops = {
 	.fo_addb_init     = cd_fom_addb_init
 };
 
-#undef COBFOM_ADDB_POST
-#define COBFOM_ADDB_POST(fom, recid, ...)				\
-do {									\
-	struct m0_addb_mc  *addb_mc;					\
-	struct m0_addb_ctx *cv[2];					\
-									\
-        addb_mc = &fom->fo_service->rs_reqh->rh_addb_mc;		\
-        cv[0]   = &fom->fo_addb_ctx;					\
-        cv[1]   = NULL;							\
-        M0_ADDB_POST(addb_mc, recid, cv, ## __VA_ARGS__);		\
-} while(0)
-
 static int cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			  struct m0_reqh *reqh)
 {
@@ -167,10 +155,11 @@ static void cc_fom_fini(struct m0_fom *fom)
 
 	cfom = cob_fom_get(fom);
 
-	COBFOM_ADDB_POST(fom, &m0_addb_rt_ios_ccfom_finish,
+	M0_FOM_ADDB_POST(fom, &fom->fo_service->rs_reqh->rh_addb_mc,
+			 &m0_addb_rt_ios_ccfom_finish,
 			 cfom->fco_stobid.si_bits.u_hi,
 			 cfom->fco_stobid.si_bits.u_lo,
-			 (uint64_t) m0_fom_rc(fom));
+			 m0_fom_rc(fom));
 
 	m0_fom_fini(fom);
 	m0_free(cfom);
@@ -419,10 +408,11 @@ static void cd_fom_fini(struct m0_fom *fom)
 
 	cfom = cob_fom_get(fom);
 
-	COBFOM_ADDB_POST(fom, &m0_addb_rt_ios_cdfom_finish,
+	M0_FOM_ADDB_POST(fom, &fom->fo_service->rs_reqh->rh_addb_mc,
+			 &m0_addb_rt_ios_cdfom_finish,
 			 cfom->fco_stobid.si_bits.u_hi,
 			 cfom->fco_stobid.si_bits.u_lo,
-			 (uint64_t) m0_fom_rc(fom));
+			 m0_fom_rc(fom));
 
 	m0_fom_fini(fom);
 	m0_free(cfom);

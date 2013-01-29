@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -738,19 +738,6 @@ const struct m0_sm_conf io_conf = {
 	.scf_nr_states = ARRAY_SIZE(io_phases),
 	.scf_state     = io_phases
 };
-
-#undef IOFOM_ADDB_POST
-#define IOFOM_ADDB_POST(fom, recid, ...)				\
-do {									\
-	struct m0_addb_mc  *addb_mc;					\
-	struct m0_addb_ctx *cv[3];					\
-									\
-	addb_mc = &fom->fo_service->rs_reqh->rh_addb_mc;		\
-	cv[0]   = &fom->fo_addb_ctx;					\
-	cv[1]   =  fom->fo_op_addb_ctx;					\
-	cv[2]   = NULL;							\
-	M0_ADDB_POST(addb_mc, recid, cv, ## __VA_ARGS__);		\
-} while(0)
 
 static bool m0_io_fom_cob_rw_invariant(const struct m0_io_fom_cob_rw *io)
 {
@@ -1774,10 +1761,10 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	} m0_tl_endfor;
 	stobio_tlist_fini(&fom_obj->fcrw_stio_list);
 
-	IOFOM_ADDB_POST(fom, &m0_addb_rt_ios_rwfom_finish,
-			(uint64_t) m0_fom_rc(fom),
-			(uint64_t) fom_obj->fcrw_count, (uint64_t)
-			(m0_time_now() - fom_obj->fcrw_fom_start_time) / 1000);
+	M0_FOM_ADDB_POST(fom, &fom->fo_service->rs_reqh->rh_addb_mc,
+			 &m0_addb_rt_ios_rwfom_finish,
+			 m0_fom_rc(fom), fom_obj->fcrw_count,
+			 (m0_time_now() - fom_obj->fcrw_fom_start_time) / 1000);
 
 	stats = &serv_obj->rios_rwfom_stats[m0_is_read_fop(fop)? 0 : 1];
 	m0_addb_counter_update(&stats->ifs_times_cntr, (uint64_t)

@@ -814,6 +814,19 @@ M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type,
 M0_INTERNAL int m0_fom_op_addb_ctx_import(struct m0_fom *fom,
 					const struct m0_addb_uint64_seq *id);
 
+/**
+ * Helper macro for ADDB posting.
+ */
+#define M0_FOM_ADDB_POST(fom, addb_mc, recid, ...)			\
+do {									\
+	struct m0_addb_ctx *cv[3];					\
+									\
+	cv[0]   = &fom->fo_addb_ctx;					\
+	cv[1]   =  fom->fo_op_addb_ctx;					\
+	cv[2]   = NULL;							\
+	M0_ADDB_POST(addb_mc, recid, cv, ## __VA_ARGS__);		\
+} while(0)
+
 /** @} end of fom group */
 /* __MERO_FOP_FOM_H__ */
 #endif
