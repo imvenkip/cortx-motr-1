@@ -52,6 +52,8 @@ enum {
 	TEST_NR = 10
 };
 
+static struct m0_fol_rec_part part;
+
 struct stobio_test {
 	/* ctrl part */
 	struct m0_stob	        *st_obj;
@@ -202,6 +204,7 @@ static void stobio_write(struct stobio_test *test)
 	struct m0_clink    clink;
 
 	m0_stob_io_init(&io);
+	io.si_fol_rec_part = &part;
 
 	stobio_write_prepare(test, &io);
 
@@ -227,7 +230,9 @@ static void stobio_read(struct stobio_test *test)
 	int result;
 	struct m0_stob_io io;
 	struct m0_clink   clink;
+
 	m0_stob_io_init(&io);
+	io.si_fol_rec_part = &part;
 
 	stobio_read_prepare(test, &io);
 

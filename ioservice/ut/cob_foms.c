@@ -452,6 +452,7 @@ static void fom_create(struct m0_fom **fom, enum cob_fom_type fomtype)
 	base_fom->fo_type = &ft;
 
 	m0_fom_sm_init(base_fom);
+	m0_fol_rec_part_list_init(&base_fom->fo_tx.tx_fol_rec);
 }
 
 /*
@@ -471,6 +472,7 @@ static void fom_fini(struct m0_fom *fom, enum cob_fom_type fomtype)
 	default:
 		M0_IMPOSSIBLE("Invalid COB-FOM type");
 	}
+	m0_fol_rec_part_list_fini(&fom->fo_tx.tx_fol_rec);
 }
 
 /*
@@ -704,11 +706,10 @@ static void cc_cob_create_test()
 	 * Test-case 1: Test successful creation of COB
 	 */
 	dbenv = m0_fom_reqh(fom)->rh_dbenv;
-	m0_dtx_init(&fom->fo_tx);
-	rc = m0_dtx_open(&fom->fo_tx, dbenv);
+	rc = m0_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 	M0_UT_ASSERT(rc == 0);
 	rc = cc_cob_create(fom, cc);
-	m0_dtx_done(&fom->fo_tx);
+	m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
 	M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_CC_COB_CREATE);
 	M0_UT_ASSERT(rc == 0);
@@ -719,31 +720,28 @@ static void cc_cob_create_test()
 	/*
 	 * Test-case 1 - Verify COB creation
 	 */
-	m0_dtx_init(&fom->fo_tx);
-	rc = m0_dtx_open(&fom->fo_tx, dbenv);
+	rc = m0_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 	M0_UT_ASSERT(rc == 0);
 	cob_verify(fom, true);
-	m0_dtx_done(&fom->fo_tx);
+	m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
 	/*
 	 * Test-case 2 - Test failure case. Try to create the
 	 * same COB.
 	 */
-	m0_dtx_init(&fom->fo_tx);
-	rc = m0_dtx_open(&fom->fo_tx, dbenv);
+	rc = m0_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 	M0_UT_ASSERT(rc == 0);
 	rc = cc_cob_create(fom, cc);
 	M0_UT_ASSERT(rc != 0);
-	m0_dtx_done(&fom->fo_tx);
+	m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
 	/*
 	 * Start cleanup by deleting the COB
 	 */
-	m0_dtx_init(&fom->fo_tx);
-	rc = m0_dtx_open(&fom->fo_tx, dbenv);
+	rc = m0_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_cob_delete_put(test_cob, &fom->fo_tx.tx_dbtx);
-	m0_dtx_done(&fom->fo_tx);
+	m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
 	M0_UT_ASSERT(rc == 0);
 	test_cob = NULL;
 
@@ -765,11 +763,10 @@ static void cc_fom_state_test(void)
 	M0_UT_ASSERT(cfom != NULL);
 
 	dbenv = m0_fom_reqh(cfom)->rh_dbenv;
-	m0_dtx_init(&cfom->fo_tx);
-	rc = m0_dtx_open(&cfom->fo_tx, dbenv);
+	rc = m0_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
 	M0_UT_ASSERT(rc == 0);
 	rc = cc_fom_tick(cfom);
-	m0_dtx_done(&cfom->fo_tx);
+	m0_db_tx_commit(&cfom->fo_tx.tx_dbtx);
 
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	M0_UT_ASSERT(m0_fom_phase(cfom) == M0_FOPH_SUCCESS);
@@ -778,11 +775,10 @@ static void cc_fom_state_test(void)
 	M0_UT_ASSERT(cc->fco_stobid.si_bits.u_hi == COB_TEST_ID);
 	M0_UT_ASSERT(cc->fco_stobid.si_bits.u_lo == COB_TEST_ID);
 
-	m0_dtx_init(&cfom->fo_tx);
-	rc = m0_dtx_open(&cfom->fo_tx, dbenv);
+	rc = m0_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
 	M0_UT_ASSERT(rc == 0);
 	cob_verify(cfom, true);
-	m0_dtx_done(&cfom->fo_tx);
+	m0_db_tx_commit(&cfom->fo_tx.tx_dbtx);
 
 	/*
 	 * Now create delete fom. Use FOM functions to delete cob-data.
@@ -790,15 +786,14 @@ static void cc_fom_state_test(void)
 	dfom = cd_fom_alloc();
 	M0_UT_ASSERT(dfom != NULL);
 
-	m0_dtx_init(&dfom->fo_tx);
-	rc = m0_dtx_open(&dfom->fo_tx, dbenv);
+	rc = m0_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = cd_fom_tick(dfom);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_SUCCESS);
 
-	m0_dtx_done(&dfom->fo_tx);
+	m0_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 
 	cc_fom_dealloc(cfom);
 	cd_fom_dealloc(dfom);
@@ -915,14 +910,11 @@ static struct m0_fom *cob_testdata_create()
 	M0_UT_ASSERT(fom != NULL);
 
 	dbenv = m0_fom_reqh(fom)->rh_dbenv;
-	m0_dtx_init(&fom->fo_tx);
-	rc = m0_dtx_open(&fom->fo_tx, dbenv);
-	m0_dtx_init(&fom->fo_tx);
-	rc = m0_dtx_open(&fom->fo_tx, dbenv);
+	rc = m0_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = cc_fom_tick(fom);
-	m0_dtx_done(&fom->fo_tx);
+	m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
@@ -990,12 +982,11 @@ static void cd_cob_delete_test()
 	/*
 	 * Test-case 1: Delete cob. The test should succeed.
 	 */
-	m0_dtx_init(&dfom->fo_tx);
-	rc = m0_dtx_open(&dfom->fo_tx, dbenv);
+	rc = m0_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = cd_cob_delete(dfom, cd);
-	m0_dtx_done(&dfom->fo_tx);
+	m0_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 
 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_CD_COB_DEL);
 	M0_UT_ASSERT(rc == 0);
@@ -1003,21 +994,19 @@ static void cd_cob_delete_test()
 	/*
 	 * Make sure that there no entry in the database.
 	 */
-	m0_dtx_init(&dfom->fo_tx);
-	rc = m0_dtx_open(&dfom->fo_tx, dbenv);
+	rc = m0_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	M0_UT_ASSERT(rc == 0);
 	cob_verify(cfom, false);
-	m0_dtx_done(&dfom->fo_tx);
+	m0_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 
 	/*
 	 * Test-case 2: Delete cob again. The test should fail.
 	 */
-	m0_dtx_init(&dfom->fo_tx);
-	rc = m0_dtx_open(&dfom->fo_tx, dbenv);
+	rc = m0_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = cd_cob_delete(dfom, cd);
-	m0_dtx_done(&dfom->fo_tx);
+	m0_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 	M0_UT_ASSERT(rc != 0);
 
 	/*
@@ -1047,12 +1036,11 @@ static void cd_fom_state_test(void)
 	M0_UT_ASSERT(dfom != NULL);
 
 	dbenv = m0_fom_reqh(cfom)->rh_dbenv;
-	m0_dtx_init(&dfom->fo_tx);
-	rc = m0_dtx_open(&dfom->fo_tx, dbenv);
+	rc = m0_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = cd_fom_tick(dfom);
-	m0_dtx_done(&dfom->fo_tx);
+	m0_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 
 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_SUCCESS);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);

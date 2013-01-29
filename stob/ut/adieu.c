@@ -67,6 +67,7 @@ static struct m0_clink clink;
 static FILE *f;
 static uint32_t block_shift;
 static uint32_t buf_size;
+static struct m0_fol_rec_part part;
 
 static int test_adieu_init(void)
 {
@@ -162,6 +163,7 @@ static int test_adieu_fini(void)
 static void test_write(int i)
 {
 	int result;
+
 	m0_stob_io_init(&io);
 
 	io.si_opcode = SIO_WRITE;
@@ -173,6 +175,7 @@ static void test_write(int i)
 	io.si_stob.iv_vec.v_nr = i;
 	io.si_stob.iv_vec.v_count = user_vec;
 	io.si_stob.iv_index = stob_vec;
+	io.si_fol_rec_part = &part;
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
@@ -194,6 +197,7 @@ static void test_write(int i)
 static void test_read(int i)
 {
 	int result;
+
 	m0_stob_io_init(&io);
 
 	io.si_opcode = SIO_READ;
@@ -205,6 +209,7 @@ static void test_read(int i)
 	io.si_stob.iv_vec.v_nr = i;
 	io.si_stob.iv_vec.v_count = user_vec;
 	io.si_stob.iv_index = stob_vec;
+	io.si_fol_rec_part = &part;
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
