@@ -41,6 +41,7 @@
 #include "stob/linux.h"
 #include "stob/ad.h"
 #include "fol/fol.h"
+#include "dtm/dtm.h"
 #include "reqh/reqh.h"
 #include "lib/timer.h"
 #include "fid/fid.h"
@@ -98,8 +99,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_timers_init,      &m0_timers_fini,      "timer" },
 	{ &m0_addb_init,        &m0_addb_fini,        "addb" },
 	{ &m0_db_init,          &m0_db_fini,          "db" },
-	/* fol must be initialised before fops, because fop type registration
-	   registers a fol record type. */
+	{ &m0_dtm_init,         &m0_dtm_fini,         "dtm" },
 	{ &m0_fols_init,        &m0_fols_fini,        "fol" },
 	{ &m0_layouts_init,     &m0_layouts_fini,     "layout" },
 	{ &m0_pools_init,       &m0_pools_fini,       "pool" },

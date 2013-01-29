@@ -209,15 +209,15 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 	m0_mutex_init(&fol->f_lock);
 	result = m0_table_init(&fol->f_table, env, "fol", 0, &fol_ops);
 	if (result == 0) {
-		struct m0_dtx dtx;
-		int           rc;
+		struct m0_fol_rec       r;
+		struct m0_fol_rec_desc *d;
+		struct m0_db_tx         tx;
+		int                     rc;
 
-		m0_dtx_init(&dtx);
-		result = m0_dtx_open(&dtx, env);
+		d = &r.fr_desc;
+		result = m0_db_tx_init(&tx, env, 0);
 		if (result == 0) {
-			struct m0_fol_rec r;
-			result = m0_fol_rec_lookup(fol, &dtx.tx_dbtx,
-						   M0_LSN_ANCHOR, &r);
+			result = m0_fol_rec_lookup(fol, &tx, M0_LSN_ANCHOR, &r);
 			if (result == -ENOENT) {
 				m0_fol_rec_part_list_init(&r);
 				/* initialise new fol */
@@ -234,7 +234,7 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 					fol->f_lsn = lsn_inc(r.fr_desc.rd_lsn);
 				m0_fol_rec_fini(&r);
 			}
-			rc = m0_dtx_done(&dtx);
+			rc = m0_db_tx_commit(&tx);
 			result = result ?: rc;
 		}
 	}

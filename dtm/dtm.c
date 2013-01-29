@@ -28,7 +28,20 @@
 #include "dtm/dtm.h"
 #include "dtm/dtm_update.h"
 
-M0_INTERNAL int m0_dtx_init(struct m0_dtx *tx)
+M0_INTERNAL int m0_dtm_init(void)
+{
+	m0_xc_dtm_update_init();
+	m0_xc_verno_init();
+	return 0;
+}
+
+M0_INTERNAL void m0_dtm_fini(void)
+{
+	m0_xc_dtm_update_fini();
+	m0_xc_verno_fini();
+}
+
+M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx)
 {
 	M0_SET0(tx);
 	tx->tx_state = M0_DTX_INIT;

@@ -108,17 +108,17 @@ M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
 /**
    Adds a record to the fol, in the transaction context.
 
-   dtx->tx_fol_rec->fr_desc->rd_lsn must be filled by the caller using
+   rec->fr_desc->rd_lsn must be filled by the caller using
    m0_fol_lsn_allocate(fol)
 
-   dtx->tx_fol_rec->fr_desc->rd_refcounter is initial value of record's
-   reference counter.
+   rec->fr_desc->rd_refcounter is initial value of record's reference counter.
    This field must be filled by the caller.
 
    @pre m0_lsn_is_valid(drec->rd_lsn);
    @see m0_fol_add_buf()
  */
-M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_dtx *dtx);
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
+			       struct m0_fol_rec *rec);
 
 /**
    Reserves and returns lsn.

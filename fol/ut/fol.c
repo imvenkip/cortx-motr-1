@@ -80,7 +80,7 @@ static void test_add(void)
 	h->rh_refcount = 1;
 
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
-	result = m0_fol_rec_add(&fol, &dtx);
+	result = m0_fol_rec_add(&fol, &dtx.tx_dbtx, &dtx.tx_fol_rec);
 	M0_ASSERT(result == 0);
 }
 
@@ -92,7 +92,7 @@ static void test_lookup(void)
 	struct m0_fol_rec dup;
 
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
-	result = m0_fol_rec_add(&fol, &dtx);
+	result = m0_fol_rec_add(&fol, &dtx.tx_dbtx, &dtx.tx_fol_rec);
 	M0_ASSERT(result == 0);
 
 	result = m0_fol_rec_lookup(&fol, &dtx.tx_dbtx, d->rd_lsn, &dup);
@@ -155,7 +155,7 @@ static void test_fol_rec_part_encdec(void)
 	h->rh_refcount = 1;
 	lsn = d->rd_lsn = m0_fol_lsn_allocate(&fol);
 
-	result = m0_fol_rec_add(&fol, &dtx);
+	result = m0_fol_rec_add(&fol, &dtx.tx_dbtx, &dtx.tx_fol_rec);
 	M0_ASSERT(result == 0);
 
 	result = m0_dtx_done(&dtx);
@@ -168,8 +168,7 @@ static void test_fol_rec_part_encdec(void)
 	result = m0_fol_rec_lookup(&fol, &dtx.tx_dbtx, lsn, &dec_rec);
 	M0_ASSERT(result == 0);
 
-	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part)
-	{
+	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part) {
 		dec_part->rp_ops->rpo_undo(dec_part);
 	} m0_tl_endfor;
 
@@ -204,6 +203,7 @@ static void ub_init(void)
 {
 	db_reset();
 	test_init();
+	test_rec_part_type_reg();
 
 	M0_SET0(h);
 
@@ -212,6 +212,7 @@ static void ub_init(void)
 
 static void ub_fini(void)
 {
+	test_rec_part_type_unreg();
 	test_fini();
 	db_reset();
 }
@@ -231,7 +232,7 @@ static void checkpoint()
 static void ub_insert(int i)
 {
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
-	result = m0_fol_rec_add(&fol, &dtx);
+	result = m0_fol_rec_add(&fol, &dtx.tx_dbtx, &dtx.tx_fol_rec);
 	M0_ASSERT(result == 0);
 	last = d->rd_lsn;
 	if (i%1000 == 0)
