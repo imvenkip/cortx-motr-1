@@ -1409,7 +1409,6 @@ static int io_launch(struct m0_fom *fom)
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
-	M0_ASSERT(stobio_tlist_is_empty(&fom_obj->fcrw_stio_list));
 	M0_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
 
 	fom_obj->fcrw_phase_start_time = m0_time_now();

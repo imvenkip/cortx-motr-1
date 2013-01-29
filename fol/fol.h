@@ -425,7 +425,7 @@ M0_INTERNAL void m0_fol_rec_part_list_add(struct m0_fol_rec *rec,
 
 #define M0_FOL_REC_PART_TYPE_DECLARE(part, undo, redo)	    \
 struct m0_fol_rec_part_type part ## _type;		    \
-static const struct m0_fol_rec_part_ops part ## _ops = {           \
+static const struct m0_fol_rec_part_ops part ## _ops = {    \
 	.rpo_type = &part ## _type,		            \
 	.rpo_undo = undo,			            \
 	.rpo_redo = redo			            \
@@ -435,7 +435,7 @@ static void part ## _ops_init(struct m0_fol_rec_part *part) \
 	part->rp_ops = &part ## _ops;			    \
 }							    \
 static const struct m0_fol_rec_part_type_ops part ## _type_ops = { \
-	.rpto_rec_part_init = part ##_ops_init		    \
+	.rpto_rec_part_init = part ##_ops_init			   \
 };
 
 #define M0_FOL_REC_PART_TYPE_XC_OPS(name, part_xc, part_type_ops) \
