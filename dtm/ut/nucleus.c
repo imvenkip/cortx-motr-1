@@ -131,6 +131,7 @@ static void ctx_init(void)
 		m0_dtm_hi_init(&c.c_hi[i], &c.c_nu);
 		c.c_hi[i].hi_ver = 1;
 		c.c_hi[i].hi_ops = &hi_ops;
+		c.c_hi[i].hi_flags |= M0_DHF_OWNED;
 	}
 	for (i = 0; i < ARRAY_SIZE(c.c_op); ++i) {
 		m0_dtm_op_init(&c.c_op[i], &c.c_nu);
@@ -207,7 +208,7 @@ static void ctx_state(int i, enum m0_dtm_state state)
 	M0_UT_ASSERT(op_state(&c.c_op[i], state));
 }
 
-static void up(void)
+static void up_init(void)
 {
 	ctx_init();
 	ctx_add(0, 0, M0_DUR_NOT, 0, 0);
@@ -327,7 +328,6 @@ static void op_miser_delayed(void)
 	ctx_add(1, 2, M0_DUR_INC, 2, 1);
 
 	ctx_op_add(2);
-	ctx_print();
 	ctx_state(0, M0_DOS_LIMBO);
 	ctx_state(1, M0_DOS_LIMBO);
 	ctx_state(2, M0_DOS_FUTURE);
@@ -424,7 +424,7 @@ const struct m0_test_suite dtm_nucleus_ut = {
 		{ "nu",            nu },
 		{ "hi",            hi },
 		{ "op",            op },
-		{ "up",            up },
+		{ "up",            up_init },
 		{ "op-add",        op_add },
 		{ "gap",           op_gap },
 		{ "late",          op_late },
@@ -435,6 +435,7 @@ const struct m0_test_suite dtm_nucleus_ut = {
 		{ NULL, NULL }
 	}
 };
+M0_EXPORTED(dtm_nucleus_ut);
 
 /** @} end of dtm group */
 

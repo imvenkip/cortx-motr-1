@@ -70,8 +70,6 @@ static void op_unlock (struct m0_dtm_op *op);
 /* clandestinely exported to UT */
 M0_INTERNAL bool op_state(struct m0_dtm_op *op, enum m0_dtm_state state);
 
-static enum m0_dtm_state up_state(const struct m0_dtm_up *up);
-
 #define up_for(op, up)				\
 do {						\
 	struct m0_dtm_up *up;			\
@@ -110,9 +108,9 @@ M0_INTERNAL void m0_dtm_op_add(struct m0_dtm_op *op)
 {
 	op_lock(op);
 	M0_PRE(m0_dtm_op_invariant(op));
-	M0_PRE(op_state(op, M0_DOS_LIMBO));
 
 	up_for(op, up) {
+		M0_PRE(up->up_state == M0_DOS_LIMBO);
 		hi_tlist_add(&up->up_hi->hi_ups, up);
 		up->up_state = M0_DOS_FUTURE;
 	} up_endfor;
@@ -127,9 +125,9 @@ M0_INTERNAL void m0_dtm_op_prepared(struct m0_dtm_op *op)
 {
 	op_lock(op);
 	M0_PRE(m0_dtm_op_invariant(op));
-	M0_PRE(op_state(op, M0_DOS_PREPARE));
 
 	up_for(op, up) {
+		M0_PRE(up->up_state == M0_DOS_PREPARE);
 		up->up_hi->hi_ver = up->up_ver;
 		up->up_state = M0_DOS_INPROGRESS;
 	} up_endfor;
@@ -144,9 +142,9 @@ M0_INTERNAL void m0_dtm_op_done(struct m0_dtm_op *op)
 {
 	op_lock(op);
 	M0_PRE(m0_dtm_op_invariant(op));
-	M0_PRE(op_state(op, M0_DOS_INPROGRESS));
 
 	up_for(op, up) {
+		M0_PRE(up->up_state == M0_DOS_INPROGRESS);
 		up->up_state = M0_DOS_VOLATILE;
 	} up_endfor;
 	M0_POST(m0_dtm_op_invariant(op));
@@ -155,9 +153,8 @@ M0_INTERNAL void m0_dtm_op_done(struct m0_dtm_op *op)
 
 static void op_del(struct m0_dtm_op *op)
 {
-	M0_PRE(op_state(op, M0_DOS_FUTURE) || op_state(op, M0_DOS_LIMBO));
-
 	up_for(op, up) {
+		M0_PRE(M0_IN(up->up_state, (M0_DOS_FUTURE, M0_DOS_LIMBO)));
 		up_del(up);
 		up->up_state = M0_DOS_LIMBO;
 	} up_endfor;
@@ -187,7 +184,7 @@ M0_INTERNAL void m0_dtm_op_fini(struct m0_dtm_op *op)
 static void advance_hi(struct m0_dtm_hi *hi)
 {
 	hi_for(hi, up) {
-		if (up_state(up) > M0_DOS_FUTURE)
+		if (up->up_state > M0_DOS_FUTURE)
 			break;
 		advance_op(up->up_op);
 	} hi_endfor;
@@ -226,14 +223,16 @@ static void up_ready(struct m0_dtm_up *up)
 {
 	struct m0_dtm_hi *hi = up->up_hi;
 
-	if (up->up_orig_ver == 0)
-		up->up_orig_ver = hi->hi_ver;
-	M0_ASSERT(up->up_orig_ver == hi->hi_ver);
-	if (up->up_ver == 0) {
-		if (up->up_rule == M0_DUR_NOT)
-			up->up_ver = up->up_orig_ver;
-		else
-			up->up_ver = up->up_orig_ver + 1;
+	if (up->up_hi->hi_flags & M0_DHF_OWNED) {
+		if (up->up_orig_ver == 0)
+			up->up_orig_ver = hi->hi_ver;
+		M0_ASSERT(up->up_orig_ver == hi->hi_ver);
+		if (up->up_ver == 0) {
+			if (up->up_rule == M0_DUR_NOT)
+				up->up_ver = up->up_orig_ver;
+			else
+				up->up_ver = up->up_orig_ver + 1;
+		}
 	}
 	hi_tlist_del(up);
 	up_insert(up);
@@ -283,7 +282,7 @@ M0_INTERNAL void m0_dtm_op_persistent(struct m0_dtm_op *op)
 		M0_PRE(up->up_state < M0_DOS_PERSISTENT);
 		up->up_state = M0_DOS_PERSISTENT;
 		prev = m0_dtm_up_prior(up);
-		M0_ASSERT(prev == NULL || up_state(prev) >= M0_DOS_PERSISTENT);
+		M0_ASSERT(prev == NULL || prev->up_state >= M0_DOS_PERSISTENT);
 		if (prev == NULL || up->up_ver > prev->up_ver)
 			up->up_hi->hi_ops->dho_persistent(up->up_hi, up);
 	} up_endfor;
@@ -344,7 +343,7 @@ static void up_insert(struct m0_dtm_up *up)
 	M0_PRE(up->up_ver != 0);
 
 	hi_for(hi, scan) {
-		if (up_state(scan) > M0_DOS_FUTURE) {
+		if (scan->up_state > M0_DOS_FUTURE) {
 			hi_tlist_add_before(scan, up);
 			return;
 		}
@@ -355,9 +354,9 @@ static void up_insert(struct m0_dtm_up *up)
 static void up_del(struct m0_dtm_up *up)
 {
 	M0_PRE(m0_dtm_up_invariant(up));
-	M0_PRE(up_state(up) <= M0_DOS_FUTURE);
+	M0_PRE(up->up_state <= M0_DOS_FUTURE);
 
-	if (up_state(up) == M0_DOS_FUTURE)
+	if (up->up_state == M0_DOS_FUTURE)
 		hi_tlist_del(up);
 }
 
@@ -392,7 +391,7 @@ M0_INTERNAL void m0_dtm_up_ver_set(struct m0_dtm_up *up,
 				   m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver)
 {
 	op_lock(up->up_op);
-	M0_PRE(up_state(up) == M0_DOS_INPROGRESS);
+	M0_PRE(up->up_state == M0_DOS_INPROGRESS);
 	M0_PRE(m0_dtm_hi_invariant(up->up_hi));
 	M0_PRE(M0_IN(up->up_ver, (0, ver)));
 	M0_PRE(M0_IN(up->up_orig_ver, (0, orig_ver)));
@@ -450,8 +449,6 @@ M0_INTERNAL bool m0_dtm_hi_invariant(const struct m0_dtm_hi *hi)
 
 M0_INTERNAL bool m0_dtm_up_invariant(const struct m0_dtm_up *up)
 {
-	enum m0_dtm_state state = up_state(up);
-
 	return
 		_0C(m0_dtm_up_bob_check(up)) &&
 		_0C(0 <= up->up_state && up->up_state < M0_DOS_NR) &&
@@ -465,9 +462,10 @@ M0_INTERNAL bool m0_dtm_up_invariant(const struct m0_dtm_up *up)
 			      up->up_ver == up->up_orig_ver + 1))) &&
 		_0C(ergo(up->up_rule == M0_DUR_NOT,
 			 up->up_ver == up->up_orig_ver)) &&
-		_0C(ergo(state >= M0_DOS_INPROGRESS, up->up_orig_ver != 0)) &&
+		_0C(ergo(up->up_state > M0_DOS_INPROGRESS,
+			 up->up_orig_ver != 0)) &&
 		_0C(hi_tlist_contains(&up->up_hi->hi_ups, up) ==
-		                                   (state != M0_DOS_LIMBO)) &&
+		                           (up->up_state != M0_DOS_LIMBO)) &&
 		_0C(op_tlist_contains(&up->up_op->op_ups, up));
 }
 
@@ -501,18 +499,13 @@ M0_INTERNAL bool m0_dtm_op_invariant(const struct m0_dtm_op *op)
 static bool up_pair_invariant(const struct m0_dtm_up *up,
 			      const struct m0_dtm_up *earlier)
 {
-	return earlier == NULL || up_state(up) < M0_DOS_PREPARE ||
-		(_0C(up_state(up) <= up_state(earlier)) &&
+	return earlier == NULL || up->up_state < M0_DOS_PREPARE ||
+		(_0C(up->up_state <= earlier->up_state) &&
 		 _0C(up->up_orig_ver != 0) &&
 		 _0C(up->up_ver != 0) &&
 		 _0C(up->up_orig_ver >= earlier->up_ver) &&
 		 _0C(ergo(up->up_hi->hi_flags & M0_DHF_FULL,
 			  up->up_orig_ver == earlier->up_ver)));
-}
-
-static enum m0_dtm_state up_state(const struct m0_dtm_up *up)
-{
-	return up->up_state;
 }
 
 M0_INTERNAL bool op_state(struct m0_dtm_op *op, enum m0_dtm_state state)
@@ -534,6 +527,7 @@ const static struct m0_bob_type op_bob = {
 
 M0_INTERNAL void m0_dtm_nuclei_init(void)
 {
+	M0_SET0(&up_bob);
 	m0_bob_type_tlist_init(&up_bob, &hi_tl);
 }
 
@@ -543,14 +537,14 @@ M0_INTERNAL void m0_dtm_nuclei_fini(void)
 
 M0_INTERNAL void up_print(const struct m0_dtm_up *up)
 {
-	M0_LOG(M0_DEBUG, "\tup: s: %3.3i r: %3.3i v: %7.7lu o: %7.7lu",
+	M0_LOG(M0_FATAL, "\tup: s: %3.3i r: %3.3i v: %7.7lu o: %7.7lu",
 	       up->up_state, up->up_rule, (unsigned long)up->up_ver,
 	       (unsigned long)up->up_orig_ver);
 }
 
 M0_INTERNAL void op_print(const struct m0_dtm_op *op)
 {
-	M0_LOG(M0_DEBUG, "op");
+	M0_LOG(M0_FATAL, "op");
 	up_for(op, up) {
 		up_print(up);
 	} up_endfor;
@@ -558,7 +552,7 @@ M0_INTERNAL void op_print(const struct m0_dtm_op *op)
 
 M0_INTERNAL void hi_print(const struct m0_dtm_hi *hi)
 {
-	M0_LOG(M0_DEBUG, "hi: f: %3.3lx v: %7.7lu", (unsigned long)hi->hi_flags,
+	M0_LOG(M0_FATAL, "hi: f: %3.3lx v: %7.7lu", (unsigned long)hi->hi_flags,
 	       (unsigned long)hi->hi_ver);
 	hi_for(hi, up) {
 		up_print(up);

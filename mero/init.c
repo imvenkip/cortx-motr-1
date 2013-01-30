@@ -161,10 +161,10 @@ struct init_fini_call subsystem[] = {
 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },
 	{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },
 	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
-	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" }
 #endif /* __KERNEL__ */
 	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
+	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" }
 };
 
 static void fini_nr(int i)

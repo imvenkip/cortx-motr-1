@@ -61,7 +61,6 @@ enum m0_dtm_state {
 };
 
 struct m0_dtm_hi {
-	uint64_t                    hi_magix;
 	struct m0_dtm_nu           *hi_nu;
 	uint64_t                    hi_flags;
 	m0_dtm_ver_t                hi_ver;
@@ -72,7 +71,8 @@ M0_INTERNAL bool m0_dtm_hi_invariant(const struct m0_dtm_hi *hi);
 
 enum m0_dtm_hi_flags {
 	M0_DHF_SHARED = 1ULL << 0,
-	M0_DHF_FULL   = 1ULL << 1
+	M0_DHF_FULL   = 1ULL << 1,
+	M0_DHF_OWNED  = 1ULL << 2
 };
 
 struct m0_dtm_hi_ops {

@@ -760,11 +760,11 @@ enum m0_magic_satchel {
 
 /* DTM */
 
-	/* m0_dtm_update::dup_magix (blessed feoff) */
+	/* m0_dtm_up::du_magix (blessed feoff) */
 	M0_DTM_UP_MAGIX  = 0x33b1e55edfe0ff77,
-	/* m0_dtm_history::dhi_updates::t_magic (biblical food) */
+	/* m0_dtm_hi::hi_ups::t_magic (biblical food) */
 	M0_DTM_HI_MAGIX = 0x33b1b11ca1f00d77,
-	/* m0_dtm_op::do_updates::t_magic (feeble fiddle) */
+	/* m0_dtm_op::op_ups::t_magic (feeble fiddle) */
 	M0_DTM_OP_MAGIX      = 0x33feeb1ef1dd1e77
 };
 
