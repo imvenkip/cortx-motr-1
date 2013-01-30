@@ -164,7 +164,6 @@ struct init_fini_call subsystem[] = {
 #endif /* __KERNEL__ */
 	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
-
 	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" }
 };
 
