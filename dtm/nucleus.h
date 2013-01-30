@@ -90,6 +90,7 @@ enum m0_dtm_up_rule {
 
 struct m0_dtm_up {
 	uint64_t             up_magix;
+	enum m0_dtm_state    up_state;
 	enum m0_dtm_up_rule  up_rule;
 	m0_dtm_ver_t         up_ver;
 	m0_dtm_ver_t         up_orig_ver;
@@ -102,7 +103,6 @@ M0_INTERNAL bool m0_dtm_up_invariant(const struct m0_dtm_up *up);
 
 struct m0_dtm_op {
 	struct m0_dtm_nu           *op_nu;
-	enum m0_dtm_state           op_state;
 	struct m0_tl                op_ups;
 	const struct m0_dtm_op_ops *op_ops;
 };
