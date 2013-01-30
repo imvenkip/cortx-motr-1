@@ -23,6 +23,9 @@
 
 #ifdef NLX_DEBUG
 
+#include <lustre_ver.h>         /* LUSTRE_VERSION_CODE */
+#include <lustre/lustre_idl.h>  /* OBD_OCD_VERSION */
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LNET
 #include "lib/trace.h"        /* M0_LOG and M0_ENTRY */
 
@@ -68,15 +71,61 @@ static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
 
 static const char *nlx_kcore_lnet_event_type_to_string(lnet_event_kind_t et)
 {
-	static const char *lnet_event_s[7] = {
-		"GET", "PUT", "REPLY", "ACK", "SEND", "UNLINK", "<Unknown>"
-	};
 	const char *name;
-	M0_CASSERT(ARRAY_SIZE(lnet_event_s) == LNET_EVENT_UNLINK + 2);
-	if (et >= 0 && et <= LNET_EVENT_UNLINK)
+
+	/*
+	 * This enum is used for build-time checks to ensure that we are using
+	 * correct mapping of LNet event names
+	 *
+	 * LNET_EVENT_XXX values has been changed in lustre release 2.2.57.0 see
+	 * commit v2_2_57-10-g75a8f4b "LU-56 lnet: split lnet_commit_md and
+	 * cleanup" in lustre git repository
+	 */
+	enum {
+#if LUSTRE_VERSION_CODE < OBD_OCD_VERSION(2, 2, 57, 0)
+		M0_LNET_EV_GET    = 0,
+		M0_LNET_EV_PUT    = 1,
+		M0_LNET_EV_REPLY  = 2,
+		M0_LNET_EV_ACK    = 3,
+		M0_LNET_EV_SEND   = 4,
+		M0_LNET_EV_UNLINK = 5,
+#else
+		M0_LNET_EV_GET    = 1,
+		M0_LNET_EV_PUT    = 2,
+		M0_LNET_EV_REPLY  = 3,
+		M0_LNET_EV_ACK    = 4,
+		M0_LNET_EV_SEND   = 5,
+		M0_LNET_EV_UNLINK = 6,
+#endif
+		M0_LNET_EV_UNKNOWN,
+
+		M0_LNET_EV__FIRST = M0_LNET_EV_GET,
+		M0_LNET_EV__LAST  = M0_LNET_EV_UNLINK,
+	};
+
+	static const char *lnet_event_s[] = {
+		[LNET_EVENT_GET]     = "GET",
+		[LNET_EVENT_PUT]     = "PUT",
+		[LNET_EVENT_REPLY]   = "REPLY",
+		[LNET_EVENT_ACK]     = "ACK",
+		[LNET_EVENT_SEND]    = "SEND",
+		[LNET_EVENT_UNLINK]  = "UNLINK",
+
+		[M0_LNET_EV_UNKNOWN] = "<Unknown>"
+	};
+
+	M0_CASSERT(LNET_EVENT_GET    == M0_LNET_EV_GET);
+	M0_CASSERT(LNET_EVENT_PUT    == M0_LNET_EV_PUT);
+	M0_CASSERT(LNET_EVENT_REPLY  == M0_LNET_EV_REPLY);
+	M0_CASSERT(LNET_EVENT_ACK    == M0_LNET_EV_ACK);
+	M0_CASSERT(LNET_EVENT_SEND   == M0_LNET_EV_SEND);
+	M0_CASSERT(LNET_EVENT_UNLINK == M0_LNET_EV_UNLINK);
+
+	if (et >= M0_LNET_EV__FIRST && et <= M0_LNET_EV__LAST)
 		name = lnet_event_s[et];
 	else
-		name = lnet_event_s[6];
+		name = lnet_event_s[M0_LNET_EV_UNKNOWN];
+
 	return name;
 }
 

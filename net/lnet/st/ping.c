@@ -148,16 +148,24 @@ void nlx_ping_print_qstats_tm(struct nlx_ping_ctx *ctx, bool reset)
 }
 
 
-void nlx_ping_print_qstats_total(const char *ident,
-				 const struct nlx_ping_ops *ops)
+int nlx_ping_print_qstats_total(const char *ident,
+				const struct nlx_ping_ops *ops)
 {
-	struct nlx_ping_ctx tctx = {
-		.pc_ops    = ops,
-		.pc_ident  = ident,
-	};
-	m0_atomic64_set(&tctx.pc_errors, ping_qs_total_errors);
-	m0_atomic64_set(&tctx.pc_retries, ping_qs_total_retries);
-	ping_print_qstats(&tctx, ping_qs_total, false);
+	struct nlx_ping_ctx *tctx;
+
+	M0_ALLOC_PTR(tctx);
+	if (tctx == NULL)
+		return -ENOMEM;
+
+	tctx->pc_ops   = ops;
+	tctx->pc_ident = ident;
+
+	m0_atomic64_set(&tctx->pc_errors, ping_qs_total_errors);
+	m0_atomic64_set(&tctx->pc_retries, ping_qs_total_retries);
+	ping_print_qstats(tctx, ping_qs_total, false);
+
+	m0_free(tctx);
+	return 0;
 }
 
 uint64_t nlx_ping_parse_uint64(const char *s)
@@ -1848,41 +1856,40 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 	struct m0_net_end_point *server_ep;
 	char			*bp = NULL;
 	char                    *send_msg = NULL;
-	struct nlx_ping_ctx	 cctx = {
-		.pc_xprt = &m0_net_lnet_xprt,
-		.pc_ops  = params->ops,
-		.pc_nr_bufs = params->nr_bufs,
-		.pc_bulk_size = params->bulk_size,
-		.pc_tm = {
-			.ntm_state     = M0_NET_TM_UNDEFINED
-		},
-		.pc_bulk_timeout = params->bulk_timeout,
-		.pc_msg_timeout = params->msg_timeout,
+	struct nlx_ping_ctx     *cctx;
 
-		.pc_network = params->client_network,
-		.pc_pid     = params->client_pid,
-		.pc_portal  = params->client_portal,
-		.pc_tmid    = params->client_tmid,
+	M0_ALLOC_PTR(cctx);
+	if (cctx == NULL)
+		goto free_ctx;
 
-		.pc_rnetwork = params->server_network,
-		.pc_rpid     = params->server_pid,
-		.pc_rportal  = params->server_portal,
-		.pc_rtmid    = params->server_tmid,
-		.pc_dom_debug = params->debug,
-		.pc_tm_debug  = params->debug,
-		.pc_verbose  = params->verbose,
+	cctx->pc_xprt         = &m0_net_lnet_xprt;
+	cctx->pc_ops          = params->ops;
+	cctx->pc_nr_bufs      = params->nr_bufs;
+	cctx->pc_bulk_size    = params->bulk_size;
+	cctx->pc_tm.ntm_state = M0_NET_TM_UNDEFINED;
+	cctx->pc_bulk_timeout = params->bulk_timeout;
+	cctx->pc_msg_timeout  = params->msg_timeout;
+	cctx->pc_network      = params->client_network;
+	cctx->pc_pid          = params->client_pid;
+	cctx->pc_portal       = params->client_portal;
+	cctx->pc_tmid         = params->client_tmid;
+	cctx->pc_rnetwork     = params->server_network;
+	cctx->pc_rpid         = params->server_pid;
+	cctx->pc_rportal      = params->server_portal;
+	cctx->pc_rtmid        = params->server_tmid;
+	cctx->pc_dom_debug    = params->debug;
+	cctx->pc_tm_debug     = params->debug;
+	cctx->pc_verbose      = params->verbose;
+	cctx->pc_sync_events  = false;
 
-		.pc_sync_events = false,
-	};
-
-	m0_mutex_init(&cctx.pc_mutex);
-	m0_cond_init(&cctx.pc_cond);
-	rc = nlx_ping_client_init(&cctx, &server_ep);
+	m0_mutex_init(&cctx->pc_mutex);
+	m0_cond_init(&cctx->pc_cond);
+	rc = nlx_ping_client_init(cctx, &server_ep);
 	if (rc != 0)
 		goto fail;
 
 	if (params->client_id == 1)
-		ping_print_interfaces(&cctx);
+		ping_print_interfaces(cctx);
 
 	if (params->bulk_size != 0) {
 		bp = m0_alloc(params->bulk_size);
@@ -1899,25 +1906,27 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 	}
 
 	for (i = 1; i <= params->loops; ++i) {
-		PING_OUT(&cctx, 1, "%s: Loop %d\n", cctx.pc_ident, i);
-		rc = nlx_ping_client_msg_send_recv(&cctx, server_ep, send_msg);
+		PING_OUT(cctx, 1, "%s: Loop %d\n", cctx->pc_ident, i);
+		rc = nlx_ping_client_msg_send_recv(cctx, server_ep, send_msg);
 		if (rc != 0)
 			break;
-		rc = nlx_ping_client_passive_recv(&cctx, server_ep);
+		rc = nlx_ping_client_passive_recv(cctx, server_ep);
 		if (rc != 0)
 			break;
-		rc = nlx_ping_client_passive_send(&cctx, server_ep, bp);
+		rc = nlx_ping_client_passive_send(cctx, server_ep, bp);
 		if (rc != 0)
 			break;
 	}
 
-	cctx.pc_ops->pqs(&cctx, false);
-	nlx_ping_client_fini(&cctx, server_ep);
+	cctx->pc_ops->pqs(cctx, false);
+	nlx_ping_client_fini(cctx, server_ep);
 	m0_free(bp);
 	m0_free(send_msg);
 fail:
-	m0_cond_fini(&cctx.pc_cond);
-	m0_mutex_fini(&cctx.pc_mutex);
+	m0_cond_fini(&cctx->pc_cond);
+	m0_mutex_fini(&cctx->pc_mutex);
+free_ctx:
+	m0_free(cctx);
 }
 
 void nlx_ping_init()

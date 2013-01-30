@@ -126,7 +126,7 @@ static void bulkclient_test(void)
 	m0_bcount_t		 max_seg_size;
 	m0_bcount_t		 max_buf_size;
 	struct m0_clink          clink;
-	struct m0_io_fop	 iofop;
+	struct m0_io_fop	*iofop;
 	struct m0_net_xprt	*xprt;
 	struct m0_rpc_bulk	*rbulk;
 	struct m0_rpc_bulk	*sbulk;
@@ -144,7 +144,9 @@ static void bulkclient_test(void)
 	struct bulkio_msg_tm    *ctm;
 	struct bulkio_msg_tm    *stm;
 
-	M0_SET0(&iofop);
+	M0_ALLOC_PTR(iofop);
+	M0_ASSERT(iofop != NULL);
+	M0_SET0(iofop);
 	M0_SET0(&nd);
 
 	xprt = &m0_net_lnet_xprt;
@@ -152,22 +154,22 @@ static void bulkclient_test(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* Test : m0_io_fop_init() */
-	rc = m0_io_fop_init(&iofop, &m0_fop_cob_writev_fopt, NULL);
+	rc = m0_io_fop_init(iofop, &m0_fop_cob_writev_fopt, NULL);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(iofop.if_magic == M0_IO_FOP_MAGIC);
-	M0_UT_ASSERT(iofop.if_fop.f_type != NULL);
-	M0_UT_ASSERT(iofop.if_fop.f_item.ri_type != NULL);
-	M0_UT_ASSERT(iofop.if_fop.f_item.ri_ops  != NULL);
+	M0_UT_ASSERT(iofop->if_magic == M0_IO_FOP_MAGIC);
+	M0_UT_ASSERT(iofop->if_fop.f_type != NULL);
+	M0_UT_ASSERT(iofop->if_fop.f_item.ri_type != NULL);
+	M0_UT_ASSERT(iofop->if_fop.f_item.ri_ops  != NULL);
 
-	M0_UT_ASSERT(iofop.if_rbulk.rb_buflist.t_magic == M0_RPC_BULK_MAGIC);
-	M0_UT_ASSERT(iofop.if_rbulk.rb_magic == M0_RPC_BULK_MAGIC);
-	M0_UT_ASSERT(iofop.if_rbulk.rb_bytes == 0);
-	M0_UT_ASSERT(iofop.if_rbulk.rb_rc    == 0);
+	M0_UT_ASSERT(iofop->if_rbulk.rb_buflist.t_magic == M0_RPC_BULK_MAGIC);
+	M0_UT_ASSERT(iofop->if_rbulk.rb_magic == M0_RPC_BULK_MAGIC);
+	M0_UT_ASSERT(iofop->if_rbulk.rb_bytes == 0);
+	M0_UT_ASSERT(iofop->if_rbulk.rb_rc    == 0);
 
 	/* Test : m0_fop_to_rpcbulk() */
-	rbulk = m0_fop_to_rpcbulk(&iofop.if_fop);
+	rbulk = m0_fop_to_rpcbulk(&iofop->if_fop);
 	M0_UT_ASSERT(rbulk != NULL);
-	M0_UT_ASSERT(rbulk == &iofop.if_rbulk);
+	M0_UT_ASSERT(rbulk == &iofop->if_rbulk);
 
 	/* Test : m0_rpc_bulk_buf_add() */
 	rc = m0_rpc_bulk_buf_add(rbulk, IO_SINGLE_BUFFER, &nd, NULL, &rbuf);
@@ -239,9 +241,9 @@ static void bulkclient_test(void)
 	M0_UT_ASSERT(!rbuf1->bb_flags & M0_RPC_BULK_NETBUF_ALLOCATED);
 
 	M0_UT_ASSERT(rbuf->bb_nbuf != NULL);
-	rc = m0_io_fop_prepare(&iofop.if_fop);
+	rc = m0_io_fop_prepare(&iofop->if_fop);
 	M0_UT_ASSERT(rc == 0);
-	rw = io_rw_get(&iofop.if_fop);
+	rw = io_rw_get(&iofop->if_fop);
 	M0_UT_ASSERT(rw != NULL);
 
 	M0_ALLOC_PTR(ctm);
@@ -314,7 +316,7 @@ static void bulkclient_test(void)
 	}
 
 	m0_mutex_lock(&sbulk->rb_mutex);
-	q = m0_is_read_fop(&iofop.if_fop) ? M0_NET_QT_ACTIVE_BULK_SEND :
+	q = m0_is_read_fop(&iofop->if_fop) ? M0_NET_QT_ACTIVE_BULK_SEND :
 	    M0_NET_QT_ACTIVE_BULK_RECV;
 	m0_rpc_bulk_qtype(sbulk, q);
 	m0_mutex_unlock(&sbulk->rb_mutex);
@@ -367,7 +369,7 @@ static void bulkclient_test(void)
 	m0_free(nbufs);
 	m0_free(sbulk);
 
-	m0_io_fop_destroy(&iofop.if_fop);
+	m0_io_fop_destroy(&iofop->if_fop);
 	M0_UT_ASSERT(rw->crw_desc.id_descs   == NULL);
 	M0_UT_ASSERT(rw->crw_desc.id_nr      == 0);
 	M0_UT_ASSERT(rw->crw_ivecs.cis_ivecs == NULL);
@@ -381,7 +383,8 @@ static void bulkclient_test(void)
 
 	/* Cleanup. */
 	m0_free_aligned(sbuf, M0_0VEC_ALIGN, M0_0VEC_SHIFT);
-	m0_io_fop_fini(&iofop);
+	m0_io_fop_fini(iofop);
+	m0_free(iofop);
 	m0_net_domain_fini(&nd);
 }
 

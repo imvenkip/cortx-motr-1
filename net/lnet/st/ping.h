@@ -160,7 +160,7 @@ void nlx_ping_server_should_stop(struct nlx_ping_ctx *ctx);
 void nlx_ping_client(struct nlx_ping_client_params *params);
 
 void nlx_ping_print_qstats_tm(struct nlx_ping_ctx *ctx, bool reset);
-void nlx_ping_print_qstats_total(const char *ident,
+int  nlx_ping_print_qstats_total(const char *ident,
 				 const struct nlx_ping_ops *ops);
 uint64_t nlx_ping_parse_uint64(const char *s);
 void nlx_ping_init(void);

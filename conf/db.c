@@ -330,7 +330,7 @@ M0_INTERNAL int
 m0_confdb_create(const char *dbpath, const struct m0_confx *conf)
 {
 	struct m0_dbenv   db;
-	struct m0_table   tables[ARRAY_SIZE(table_names)];
+	struct m0_table  *tables;
 	struct m0_db_tx   tx;
 	struct m0_db_pair pair;
 	struct confdb_obj db_obj;
@@ -341,11 +341,15 @@ m0_confdb_create(const char *dbpath, const struct m0_confx *conf)
 	M0_ENTRY();
 	M0_PRE(conf->cx_nr > 0);
 
+	M0_ALLOC_ARR(tables, ARRAY_SIZE(table_names));
+	if (tables == NULL)
+		M0_RETURN(-ENOMEM);
+
 	rc = m0_dbenv_init(&db, dbpath, 0);
 	if (rc != 0)
-		M0_RETURN(rc);
+		goto tables_free;
 
-	rc = confdb_tables_init(&db, tables, ARRAY_SIZE(tables));
+	rc = confdb_tables_init(&db, tables, ARRAY_SIZE(table_names));
 	if (rc != 0)
 		goto dbenv_fini;
 
@@ -354,7 +358,8 @@ m0_confdb_create(const char *dbpath, const struct m0_confx *conf)
 		goto tables_fini;
 
 	for (i = 0; i < conf->cx_nr && rc == 0; ++i) {
-		M0_ASSERT(IS_IN_ARRAY(xobj_type(&conf->cx_objs[i]), tables));
+		M0_ASSERT(IS_IN_ARRAY(xobj_type(&conf->cx_objs[i]),
+				      table_names));
 		rc = confx_to_db(&conf->cx_objs[i], &db_obj);
 		if (rc != 0)
 			break;
@@ -375,9 +380,11 @@ m0_confdb_create(const char *dbpath, const struct m0_confx *conf)
 		(void)m0_db_tx_abort(&tx);
 
 tables_fini:
-	confdb_tables_fini(tables, ARRAY_SIZE(tables));
+	confdb_tables_fini(tables, ARRAY_SIZE(table_names));
 dbenv_fini:
 	m0_dbenv_fini(&db);
+tables_free:
+	m0_free(tables);
 	M0_RETURN(rc);
 }
 
@@ -510,18 +517,22 @@ out:
 M0_INTERNAL int m0_confdb_read(const char *dbpath, struct m0_confx **out)
 {
 	struct m0_dbenv     db;
-	struct m0_table     tables[ARRAY_SIZE(table_names)];
+	struct m0_table    *tables;
 	struct m0_db_tx     tx;
 	int                 rc;
 	size_t              nr_objs = 0;
 
 	M0_ENTRY();
 
+	M0_ALLOC_ARR(tables, ARRAY_SIZE(table_names));
+	if (tables == NULL)
+		M0_RETURN(-ENOMEM);
+
 	rc = m0_dbenv_init(&db, dbpath, 0);
 	if (rc != 0)
-		M0_RETURN(rc);
+		goto tables_free;
 
-	rc = confdb_tables_init(&db, tables, ARRAY_SIZE(tables));
+	rc = confdb_tables_init(&db, tables, ARRAY_SIZE(table_names));
 	if (rc != 0)
 		goto dbenv_fini;
 
@@ -554,9 +565,11 @@ db_tx:
 	else
 		(void)m0_db_tx_abort(&tx);
 tables_fini:
-	confdb_tables_fini(tables, ARRAY_SIZE(tables));
+	confdb_tables_fini(tables, ARRAY_SIZE(table_names));
 dbenv_fini:
 	m0_dbenv_fini(&db);
+tables_free:
+	m0_free(tables);
 	M0_RETURN(rc);
 }
 

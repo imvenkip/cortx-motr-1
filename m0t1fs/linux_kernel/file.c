@@ -543,6 +543,7 @@ static inline uint32_t parity_row_nr(struct m0_pdclust_layout *play)
 	return data_row_nr(play);
 }
 
+#if !defined(round_down)
 static inline uint64_t round_down(uint64_t val, uint64_t size)
 {
 	M0_PRE(m0_is_po2(size));
@@ -554,7 +555,9 @@ static inline uint64_t round_down(uint64_t val, uint64_t size)
 	return (val & (size - 1)) == 0 ?
 	       val : m0_round_down(val, size);
 }
+#endif
 
+#if !defined(round_up)
 static inline uint64_t round_up(uint64_t val, uint64_t size)
 {
 	M0_PRE(m0_is_po2(size));
@@ -566,6 +569,7 @@ static inline uint64_t round_up(uint64_t val, uint64_t size)
 	return (val & (size - 1)) == 0 ?
 	       val : m0_round_up(val, size);
 }
+#endif
 
 /* Returns the position of page in matrix of data buffers. */
 static void page_pos_get(struct pargrp_iomap *map,
