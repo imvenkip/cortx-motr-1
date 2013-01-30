@@ -184,8 +184,8 @@ const struct m0_test_suite fol_ut = {
 		{ "fol-rec-part-type-reg", test_rec_part_type_reg },
 		{ "fol-add", test_add },
 		{ "fol-lookup", test_lookup },
-		{ "fol-part-rec-test", test_fol_rec_part_encdec},
-		{ "fol-type-unreg", test_type_unreg },
+		{ "fol-rec-part-test", test_fol_rec_part_encdec},
+		{ "fol-rec-part-type-unreg", test_rec_part_type_unreg },
 		{ "fol-fini", test_fini },
 		{ NULL, NULL }
 	}

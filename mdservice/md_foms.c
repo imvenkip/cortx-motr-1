@@ -1732,14 +1732,13 @@ M0_ALLOC_PTR(md_part);							    \
 M0_ASSERT(md_part != NULL);						    \
 m0_fol_rec_part_init(part, md_part, &m0_md_ ## md_type ## _rec_part_type);  \
 md_part-> md_part ## _ ## md_type = *(struct m0_fop_ ## md_type *)	    \
-				      m0_fop_data(fop);			    \
+				      m0_fop_data(fom->fo_fop);		    \
 md_part-> md_part ## _ ## md_type ## _rep =				    \
 	*(struct m0_fop_ ## md_type ## _rep *) m0_fop_data(fom->fo_rep_fop);
 
 static void md_fol_rec_part_add(struct m0_fom *fom)
 {
 	struct m0_fol_rec_part	      *part;
-	struct m0_fop		      *fop = fom->fo_fop;
 	struct m0_md_create_rec_part  *cp;
 	struct m0_md_lookup_rec_part  *lp;
 	struct m0_md_link_rec_part    *lnp;
@@ -1752,7 +1751,8 @@ static void md_fol_rec_part_add(struct m0_fom *fom)
 	struct m0_md_rename_rec_part  *rnp;
 	struct m0_md_readdir_rec_part *rdp;
 
-	switch (m0_fop_opcode(fop)) {
+	part = &fom_obj->fm_fol_rec_part;
+	switch (m0_fop_opcode(fom->fo_fop)) {
         case M0_MDSERVICE_CREATE_OPCODE:
 		FOL_REC_PART_FILL(cp, part, create);
 		break;

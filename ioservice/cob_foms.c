@@ -201,36 +201,28 @@ static void cob_fom_populate(struct m0_fom *fom)
 	cfom->fco_cob_idx = common->c_cob_idx;
 }
 
+#define COB_FOL_REC_PART_FILL(cob_part, part, cob_type)			     \
+M0_ALLOC_PTR(cob_part);							     \
+M0_ASSERT(cob_part != NULL);						     \
+m0_fol_rec_part_init(part, cob_part, &m0_io_ ## cob_type ## _rec_part_type); \
+cob_part->cob_part ## _ ## cob_type = *(struct m0_fop_cob_ ## cob_type *)    \
+				      m0_fop_data(fom->fo_fop);		     \
+cob_part->cob_part ## _ ## cob_type ## _rep =				     \
+	*(struct m0_fop_cob_op_reply *) m0_fop_data(fom->fo_rep_fop);
+
 static void cob_fol_rec_part_add(struct m0_fom *fom)
 {
-	struct m0_fol_rec_part *part = NULL;
+	struct m0_fol_rec_part *part;
 
 	M0_PRE(fom != NULL);
 
+	part = &cob_fom_get(fom)->fco_fol_rec_part;
 	if (m0_is_cob_create_fop(fom->fo_fop)) {
 		struct m0_io_create_rec_part *crp;
-
-		M0_ALLOC_PTR(crp);
-		M0_ASSERT(crp != NULL);
-		part = m0_fol_rec_part_init(crp, &m0_io_create_rec_part_type);
-		M0_ASSERT(part != NULL);
-
-		crp->crp_fop = *(struct m0_fop_cob_create *)
-					m0_fop_data(fom->fo_fop);
-		crp->crp_fop_rep = *(struct m0_fop_cob_op_reply *)
-					m0_fop_data(fom->fo_rep_fop);
+		COB_FOL_REC_PART_FILL(crp, part, create);
 	} else if (m0_is_cob_delete_fop(fom->fo_fop)) {
 		struct m0_io_delete_rec_part *drp;
-
-		M0_ALLOC_PTR(drp);
-		M0_ASSERT(drp != NULL);
-		part = m0_fol_rec_part_init(drp, &m0_io_delete_rec_part_type);
-		M0_ASSERT(part != NULL);
-
-		drp->drp_fop = *(struct m0_fop_cob_delete *)
-					m0_fop_data(fom->fo_fop);
-		drp->drp_fop_rep = *(struct m0_fop_cob_op_reply *)
-					m0_fop_data(fom->fo_rep_fop);
+		COB_FOL_REC_PART_FILL(drp, part, delete);
 	}
 
 	if (part != NULL)
