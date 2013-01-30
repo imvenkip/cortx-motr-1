@@ -18,7 +18,6 @@
  * Original creation date: 22-Jan-2013
  */
 
-
 /**
  * @addtogroup dtm
  *
