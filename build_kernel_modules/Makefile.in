@@ -125,14 +125,15 @@ lib_SOURCES                     := bitstring.c getopts.c vec.c list.c queue.c \
                                    refs.c time.c bitmap.c chan.c misc.c buf.c \
                                    cond.c thread.c tlist.c bob.c trace.c      \
                                    finject.c vec_xc.c vec.c buf_xc.c buf.c    \
-                                   m0lib.c cookie.c ext.c uuid.c lockers.c
+                                   m0lib.c cookie.c ext.c uuid.c lockers.c    \
+                                   assert.c
 
 lib_HEADERS                     := vec.h vec_xc.h buf.h buf_xc.h
 
 lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c \
                                    kthread.c semaphore.c processor.c kvec.c  \
                                    ktrace.c finject_init.c ut.c main.c       \
-                                   kcookie.c
+                                   kcookie.c kassert.c
 
 lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c  \
                                    mutex.c queue.c refs.c tlist.c time.c    \

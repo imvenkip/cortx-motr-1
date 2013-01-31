@@ -39,7 +39,6 @@ nobase_mero_include_HEADERS += lib/adt.h \
                                   lib/uuid.h \
                                   lib/vec.h \
                                   lib/vec_xc.h \
-                                  lib/user_space/assert.h \
                                   lib/user_space/cdefs.h \
                                   lib/user_space/getopts.h \
                                   lib/user_space/mutex.h \
@@ -89,6 +88,7 @@ mero_libmero_la_SOURCES  += lib/assert.c \
                                   lib/user_space/processor.c \
                                   lib/user_space/rwlock.c \
                                   lib/user_space/semaphore.c \
+                                  lib/user_space/uassert.c \
                                   lib/user_space/utrace.c \
                                   lib/user_space/ucookie.c \
                                   lib/user_space/uthread.c \

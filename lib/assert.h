@@ -36,17 +36,28 @@
 #define M0_ASSERT_OFF (0)
 #endif
 
-#ifndef __KERNEL__
-#include "user_space/assert.h"
-#else
-#include "linux_kernel/assert.h"
-#endif
-
 #ifdef ENABLE_EXPENSIVE_CHECKS
 #define M0_ASSERT_EX_ON (1)
 #else
 #define M0_ASSERT_EX_ON (0)
 #endif
+
+void m0_panic(const char *expr, const char *func, const char *file, int lineno)
+	__attribute__((noreturn));
+
+M0_INTERNAL void m0_arch_panic(const char *expr, const char *func,
+			       const char *file, int lineno)
+	__attribute__((noreturn));
+
+
+/**
+   A macro to assert that a condition is true. If condition is true, M0_ASSERT()
+   does nothing. Otherwise it emits a diagnostics message and terminates the
+   system. The message and the termination method are platform dependent.
+ */
+#define M0_ASSERT(cond) \
+        (M0_ASSERT_OFF || (cond) ? (void)0 : \
+	    m0_panic(#cond, __func__, __FILE__, __LINE__))
 
 /**
  * The same as M0_ASSERT macro, but this version is disabled (optimized out) if
