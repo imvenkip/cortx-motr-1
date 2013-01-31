@@ -411,9 +411,8 @@ static int ast_thread_init(void)
 {
 	m0_sm_group_init(&g_grp);
 	g_ast.run = true;
-	M0_ASSERT(M0_THREAD_INIT(&g_ast.thread, int, NULL, &ast_thread, 0,
-				 "ast_thread") == 0);
-	return 0;
+	return M0_THREAD_INIT(&g_ast.thread, int, NULL, &ast_thread, 0,
+			      "ast_thread");
 }
 
 static int ast_thread_fini(void)

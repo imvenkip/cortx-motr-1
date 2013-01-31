@@ -693,7 +693,7 @@ M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
 
 M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
 				    struct m0_conf_obj *origin,
-				    const struct m0_buf path[])
+				    const struct m0_buf *path)
 {
 	struct sm_waiter w;
 	int              rc;
