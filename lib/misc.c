@@ -209,7 +209,7 @@ M0_INTERNAL const char *m0_short_file_name(const char *fname)
 	return fname;
 }
 
-const char *m0_failed_condition;
+M0_INTERNAL const char *m0_failed_condition;
 M0_EXPORTED(m0_failed_condition);
 
 /*
