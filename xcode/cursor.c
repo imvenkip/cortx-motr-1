@@ -35,9 +35,8 @@ M0_INTERNAL void m0_xcode_cursor_init(struct m0_xcode_cursor *it,
 	m0_xcode_cursor_top(it)->s_obj = *obj;
 }
 
-M0_INTERNAL struct m0_xcode_cursor_frame *m0_xcode_cursor_top(struct
-							      m0_xcode_cursor
-							      *it)
+M0_INTERNAL struct m0_xcode_cursor_frame *
+m0_xcode_cursor_top(struct m0_xcode_cursor *it)
 {
 	M0_PRE(IS_IN_ARRAY(it->xcu_depth, it->xcu_stack));
 	return &it->xcu_stack[it->xcu_depth];

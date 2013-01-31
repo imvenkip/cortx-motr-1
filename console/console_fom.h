@@ -30,10 +30,13 @@
 #ifndef __MERO_CONSOLE_FOM_H__
 #define __MERO_CONSOLE_FOM_H__
 
-#include "fop/fop.h" /* m0_fop_ */
+#include "fop/fom.h" /* m0_fom_ops */
 
-extern const struct m0_fom_ops m0_cons_fom_device_ops;
-extern struct m0_fom_type m0_cons_fom_device_type;
+extern const struct m0_fom_ops m0_console_fom_device_ops;
+extern const struct m0_fom_type_ops m0_console_fom_type_device_ops;
+
+extern struct m0_fom_ops m0_console_fom_test_ops;
+extern const struct m0_fom_type_ops m0_console_fom_type_test_ops;
 
 /* __MERO_CONSOLE_FOM_H__ */
 #endif
@@ -47,4 +50,3 @@ extern struct m0_fom_type m0_cons_fom_device_type;
  *  scroll-step: 1
  *  End:
  */
-

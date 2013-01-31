@@ -23,12 +23,8 @@
 #ifndef __MERO_CONSOLE_IT_H__
 #define __MERO_CONSOLE_IT_H__
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
-#include "fop/fop.h" /* m0_fop_field_type */
-#include "xcode/xcode.h"
+#include "fop/fop.h"     /* m0_fop_field_type */
+#include "xcode/xcode.h" /* m0_xcode_type */
 
 /**
    @addtogroup console_it
@@ -44,7 +40,7 @@ enum m0_cons_data_process_type {
 /**
  * @struct m0_cons_atom_ops
  *
- * @brief operation to get/set values of ATOM type (i.e. CHAR, U64 etc).
+ * @brief operation to get value of ATOM type (i.e. CHAR, U64 etc).
  */
 struct m0_cons_atom_ops {
 	void (*catom_val_get)(const struct m0_xcode_type *xct,
@@ -63,14 +59,14 @@ struct m0_cons_atom_ops {
 M0_INTERNAL void m0_cons_fop_fields_show(struct m0_fop *fop);
 
 /**
- * @brief Iterate over FOP for Input and output.
+ * @brief Iterate over FOP for input and output.
  *
  * @param fop Fop object
  * @param type Data processing operation type
  */
-M0_INTERNAL void m0_cons_fop_obj_input_output(struct m0_fop *fop,
-					      enum m0_cons_data_process_type
-					      type);
+M0_INTERNAL void
+m0_cons_fop_obj_input_output(struct m0_fop *fop,
+			     enum m0_cons_data_process_type type);
 
 /**
  * @brief Helper function for FOP input
@@ -100,4 +96,3 @@ M0_INTERNAL void m0_cons_fop_obj_output(struct m0_fop *fop);
  *  scroll-step: 1
  *  End:
  */
-

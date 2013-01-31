@@ -33,11 +33,12 @@
 #include "lib/trace.h"
 #include "lib/misc.h"		  /* M0_SET0 */
 #include "rpc/rpclib.h"           /* m0_rpc_server_start */
+#include "rpc/rpc_opcodes.h"
 #include "ut/rpc.h"               /* m0_rpc_client_init */
 
 #include "console/console.h"
-#include "console/console_xc.h"
 #include "console/console_fop.h"
+#include "console/console_fop_xc.h"
 #include "console/console_it.h"
 #include "console/console_yaml.h"
 #include "console/console_mesg.h"
@@ -189,75 +190,28 @@ static int generate_yaml_file(const char *name)
 	fprintf(fp, "cport   : 23126\n");
 	fprintf(fp, "\n\n");
 	fprintf(fp, "Test FOP:\n");
-	fprintf(fp, "  - cons_seq : 1\n");
-	fprintf(fp, "    cons_oid : 2\n");
-	fprintf(fp, "    cons_test_type : d\n");
-	fprintf(fp, "    cons_test_id : 64\n");
+	fprintf(fp, "  - cons_test_type : A\n");
+	fprintf(fp, "    cons_test_id : 495\n");
+	fprintf(fp, "    cons_seq : 144\n");
+	fprintf(fp, "    cons_oid : 233\n");
+	fprintf(fp, "    cons_size : 5\n");
+	fprintf(fp, "    cons_buf : abcde\n");
 
 	fclose(fp);
 	return 0;
 }
 
-static void init_test_fop(struct m0_cons_fop_test *fop)
-{
-	fop->cons_id.cons_seq = 1;
-        fop->cons_id.cons_oid = 2;
-	fop->cons_test_type = 'd';
-	fop->cons_test_id = 64;
-}
-
 static void check_values(struct m0_fop *fop)
 {
-	struct m0_fid          *fid;
-	char                   *data;
-	uint64_t               *value;
-	int                     result;
-	struct m0_xcode_ctx     ctx;
-	struct m0_xcode_cursor *it;
+	struct m0_cons_fop_test *test = m0_fop_data(fop);
 
-	m0_xcode_ctx_init(&ctx, &(struct m0_xcode_obj) {
-			  fop->f_type->ft_xt,
-			  m0_fop_data(fop) });
-	it = &ctx.xcx_it;
-	while ((result = m0_xcode_next(it)) > 0) {
-		const struct m0_xcode_type   *xt;
-		struct m0_xcode_obj          *cur;
-		struct m0_xcode_cursor_frame *top;
-
-		top = m0_xcode_cursor_top(it);
-		if (top->s_flag != M0_XCODE_CURSOR_PRE)
-			continue;
-		cur = &top->s_obj;
-		xt  = cur->xo_type;
-		if (!strcmp(xt->xct_name, "m0_cons_fop_fid")) {
-			fid = cur->xo_ptr;
-			M0_UT_ASSERT(fid->f_container == 1);
-			M0_UT_ASSERT(fid->f_key == 2);
-			m0_xcode_skip(it);
-		} else if (!strcmp(xt->xct_name, "u8")) {
-			data = (char *)cur->xo_ptr;
-			M0_UT_ASSERT(*data == 'd');
-			m0_xcode_skip(it);
-		} else if (!strcmp(xt->xct_name, "u64")) {
-			value = (uint64_t *)cur->xo_ptr;
-			M0_UT_ASSERT(*value == 64);
-			m0_xcode_skip(it);
-		}
-	}
-}
-
-static void fop_iterator_test(void)
-{
-	struct m0_fop		*fop;
-        struct m0_cons_fop_test *f;
-
-        fop = m0_fop_alloc(&m0_cons_fop_test_fopt, NULL);
-        M0_UT_ASSERT(fop != NULL);
-	f = m0_fop_data(fop);
-        M0_UT_ASSERT(f != NULL);
-	init_test_fop(f);
-	check_values(fop);
-        m0_fop_put(fop);
+	M0_UT_ASSERT(test->cons_test_type == 'A');
+	M0_UT_ASSERT(test->cons_test_id == 495);
+	M0_UT_ASSERT(test->cons_id.cons_seq == 144);
+	M0_UT_ASSERT(test->cons_id.cons_oid == 233);
+	M0_UT_ASSERT(test->cons_test_buf.cons_size == 5);
+	M0_UT_ASSERT(strcmp("abcde",
+			    (char *)test->cons_test_buf.cons_buf) == 0);
 }
 
 static void yaml_basic_test(void)
@@ -410,9 +364,9 @@ static void yaml_root_get_test(void)
 
 static void yaml_get_value_test(void)
 {
-	uint32_t  number;
-	int	  result;
-	char	 *value;
+	uint32_t number;
+	int	 result;
+	char	*value;
 
 	result = generate_yaml_file(yaml_file);
 	M0_UT_ASSERT(result == 0);
@@ -437,24 +391,33 @@ static void yaml_get_value_test(void)
 	number = strtoul(value, NULL, 10);
 	M0_UT_ASSERT(number == 23126);
 
-	value = m0_cons_yaml_get_value("cons_seq");
-	M0_UT_ASSERT(value != NULL);
-	number = strtoul(value, NULL, 10);
-	M0_UT_ASSERT(number == 1);
-
-	value = m0_cons_yaml_get_value("cons_oid");
-	M0_UT_ASSERT(value != NULL);
-	number = strtoul(value, NULL, 10);
-	M0_UT_ASSERT(number == 2);
-
 	value = m0_cons_yaml_get_value("cons_test_type");
 	M0_UT_ASSERT(value != NULL);
-	M0_UT_ASSERT(value[0] == 'd');
+	M0_UT_ASSERT(value[0] == 'A');
 
 	value = m0_cons_yaml_get_value("cons_test_id");
 	M0_UT_ASSERT(value != NULL);
 	number = strtoul(value, NULL, 10);
-	M0_UT_ASSERT(number == 64);
+	M0_UT_ASSERT(number == 495);
+
+	value = m0_cons_yaml_get_value("cons_seq");
+	M0_UT_ASSERT(value != NULL);
+	number = strtoul(value, NULL, 10);
+	M0_UT_ASSERT(number == 144);
+
+	value = m0_cons_yaml_get_value("cons_oid");
+	M0_UT_ASSERT(value != NULL);
+	number = strtoul(value, NULL, 10);
+	M0_UT_ASSERT(number == 233);
+
+	value = m0_cons_yaml_get_value("cons_size");
+	M0_UT_ASSERT(value != NULL);
+	number = strtoul(value, NULL, 10);
+	M0_UT_ASSERT(number == 5);
+
+	value = m0_cons_yaml_get_value("cons_buf");
+	M0_UT_ASSERT(value != NULL);
+	M0_UT_ASSERT(strcmp("abcde", value) == 0);
 
 	value = m0_cons_yaml_get_value("xxxx");
 	M0_UT_ASSERT(value == NULL);
@@ -573,13 +536,6 @@ static void mesg_send_client(int dummy)
 	ftype = m0_cons_fop_type_find(M0_CONS_FOP_DEVICE_OPCODE);
 	M0_UT_ASSERT(ftype != NULL);
 
-	/**
-	 * This is a hack, need to set the svc type of the fop type
-	 * of this fop. So that the m0_fom_init() assertion passes
-	 * in @see cons_fop_fom_create()
-	 */
-	M0_UT_ASSERT(ftype->ft_fom_type.ft_rstype == NULL);
-	ftype->ft_fom_type.ft_rstype = &ds1_service_type;
 	m0_cons_fop_name_print(ftype);
 	printf("\n");
 	fop = m0_fop_alloc(ftype, NULL);
@@ -734,7 +690,6 @@ const struct m0_test_suite console_ut = {
         .ts_fini = cons_fini,
         .ts_tests = {
 		{ "yaml_basic_test", yaml_basic_test },
-		{ "fop_iterator_test", fop_iterator_test },
                 { "input_test", input_test },
                 { "console_input_test", console_input_test },
                 { "output_test", output_test },

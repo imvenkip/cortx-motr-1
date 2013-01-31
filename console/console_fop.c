@@ -20,20 +20,21 @@
  * Revision date         : 07/31/2012
  */
 
-#include "lib/memory.h"		/* M0_ALLOC_PTR */
-#include "lib/errno.h"		/* ENOMEM */
-#include "fop/fop_item_type.h"	/* default fop encode/decode */
-#include "fop/fop.h"            /* m0_fop_xcode_length */
-#include "fop/fom_generic.h"    /* m0_generic_conf */
+#include "fop/fop.h"             /* m0_fop_xcode_length */
+#include "fop/fom_generic.h"     /* m0_generic_conf */
+#include "rpc/rpc.h"             /* m0_rpc_service_type */
+#include "rpc/rpc_opcodes.h"     /* M0_CONS_FOP_DEVICE_OPCODE */
 
-#include "console/console_fop.h" /* FOPs defs */
 #include "console/console_fom.h" /* FOMs defs */
-#include "console/console_xc.h"	 /* FOP memory layout */
+#include "console/console_fop.h" /* FOPs defs */
+#include "console/console_fop_xc.h" /* FOP memory layout */
 
 /**
    @addtogroup console
    @{
 */
+
+extern struct m0_reqh_service_type m0_rpc_service_type;
 
 struct m0_fop_type m0_cons_fop_device_fopt;
 struct m0_fop_type m0_cons_fop_reply_fopt;
@@ -44,14 +45,14 @@ M0_INTERNAL void m0_console_fop_fini(void)
 	m0_fop_type_fini(&m0_cons_fop_device_fopt);
 	m0_fop_type_fini(&m0_cons_fop_reply_fopt);
 	m0_fop_type_fini(&m0_cons_fop_test_fopt);
-	m0_xc_console_fini();
+	m0_xc_console_fop_fini();
 }
 
 extern const struct m0_fom_type_ops m0_cons_fom_device_type_ops;
 
 M0_INTERNAL int m0_console_fop_init(void)
 {
-	m0_xc_console_init();
+	m0_xc_console_fop_init();
 
 	return  M0_FOP_TYPE_INIT(&m0_cons_fop_device_fopt,
 			 .name      = "Device Failed",
@@ -59,7 +60,8 @@ M0_INTERNAL int m0_console_fop_init(void)
 			 .xt        = m0_cons_fop_device_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 			 .sm        = &m0_generic_conf,
-			 .fom_ops   = &m0_cons_fom_device_type_ops) ?:
+			 .fom_ops   = &m0_console_fom_type_device_ops,
+			 .svc_type  = &m0_rpc_service_type) ?:
 		M0_FOP_TYPE_INIT(&m0_cons_fop_reply_fopt,
 			 .name      = "Console Reply",
 			 .opcode    = M0_CONS_FOP_REPLY_OPCODE,
@@ -70,7 +72,9 @@ M0_INTERNAL int m0_console_fop_init(void)
 			 .opcode    = M0_CONS_TEST,
 			 .xt        = m0_cons_fop_test_xc,
 			 .sm        = &m0_generic_conf,
-			 .rpc_flags = 0);
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fom_ops   = &m0_console_fom_type_test_ops,
+			 .svc_type  = &m0_rpc_service_type);
 }
 
 /** @} end of console */
@@ -83,4 +87,3 @@ M0_INTERNAL int m0_console_fop_init(void)
  *  scroll-step: 1
  *  End:
  */
-

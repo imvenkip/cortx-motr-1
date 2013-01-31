@@ -68,7 +68,8 @@ static int fop_info_show(uint32_t opcode)
  * @param cctx RPC Client context
  * @param opcode RPC item opcode
  */
-static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode)
+static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode,
+			      const char *fop_input)
 {
 	struct m0_fop_type *ftype;
 	struct m0_rpc_item *item;
@@ -85,9 +86,17 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode)
 	if (fop == NULL)
 		return -EINVAL;
 
-	fprintf(stdout, "\nSending message for ");
+	if (fop_input != NULL) {
+		rc = m0_xcode_read(&M0_FOP_XCODE_OBJ(fop), fop_input);
+		if (rc != 0)
+			return rc;
+	} else
+		m0_cons_fop_obj_input(fop);
+
+	fprintf(stdout, "Sending FOP ");
 	m0_cons_fop_name_print(ftype);
-	m0_cons_fop_obj_input(fop);
+
+	m0_cons_fop_obj_output(fop);
 	fop->f_item.ri_nr_sent_max = timeout;
 	rc = m0_rpc_client_call(fop, &cctx->rcx_session, NULL, 0/* deadline*/);
 	if (rc != 0) {
@@ -112,7 +121,8 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode)
 	}
 
 	/* Print reply */
-	fprintf(stdout, "Print reply FOP: \n");
+	fprintf(stdout, "Server replied with FOP ");
+	m0_cons_fop_name_print(rfop->f_type);
 	m0_cons_fop_obj_output(rfop);
 
 	m0_fop_put(fop);
@@ -120,12 +130,13 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode)
 }
 
 const char *usage_msg =	"Usage: m0console "
-			" { -l FOP list | -f FOP opcode }"
-			" [-s server (e.g. 172.18.50.40@o2ib1:12345:34:1) ]"
-			" [-c client (e.g. 172.18.50.40@o2ib1:12345:34:*) ]"
-			" [-t timeout]"
-			" [[-i] [-y yaml file path]]"
-			" [-h] [-v]";
+	" { -l FOP list | -f FOP opcode }"
+	" [-s server (e.g. 172.18.50.40@o2ib1:12345:34:1) ]"
+	" [-c client (e.g. 172.18.50.40@o2ib1:12345:34:*) ]"
+	" [-t timeout]"
+	" [-d fop_description (in xcode read grammar)] "
+	" [[-i] [-y yaml_file_path]]"
+	" [-h] [-v]";
 
 static void usage(void)
 {
@@ -142,16 +153,8 @@ static void usage(void)
  *	  specified fop type and iterates over fop fields, prompting the user
  *	  for the field values.
  *
- *	  Fop iterator code should be used. The program should support RECORD,
- *	  SEQUENCE and UNION aggregation types, as well as all atomic types
- *	  (U32, U64, BYTE and VOID).
- *
- *	  Usage:
- *	  m0console :	{ -l FOP list | -f FOP opcode }
- *			[-s server (e.g. 172.18.50.40\@o2ib1:12345:34:1) ]
- *			[-c client (e.g. 172.18.50.40\@o2ib1:12345:34:*) ]
- *                      [-q TM recv queue min length] [-m max rpc msg size]
- *			[-t timeout] [[-i] [-y yaml file path]] [-v]
+ *	  The program should support RECORD, SEQUENCE and UNION aggregation
+ *	  types, as well as all atomic types (U32, U64, BYTE and VOID).
  *
  * @return 0 success, -errno failure.
  */
@@ -168,6 +171,7 @@ int main(int argc, char **argv)
 	const char           *client         = NULL;
 	const char           *server         = NULL;
 	const char           *yaml_path      = NULL;
+	const char           *fop_desc       = NULL;
 	struct m0_net_xprt   *xprt           = &m0_net_lnet_xprt;
 	struct m0_net_domain  client_net_dom = { };
 	struct m0_dbenv       client_dbenv;
@@ -201,9 +205,13 @@ int main(int argc, char **argv)
 			    M0_FLAGARG('l', "show list of fops", &show),
 			    M0_FORMATARG('f', "fop type", "%u", &opcode),
 			    M0_STRINGARG('s', "server",
-			    LAMBDA(void, (const char *name){server =  name; })),
+					 LAMBDA(void, (const char *name) {
+							 server =  name;
+						 })),
 			    M0_STRINGARG('c', "client",
-			    LAMBDA(void, (const char *name){client = name; })),
+					 LAMBDA(void, (const char *name) {
+							 client = name;
+						 })),
 			    M0_FORMATARG('t', "wait time(in seconds)",
 					 "%u", &timeout),
 			    M0_FLAGARG('i', "yaml input", &input),
@@ -212,7 +220,13 @@ int main(int argc, char **argv)
 			    M0_FORMATARG('m', "max rpc msg size", "%i",
 					 &max_rpc_msg_size),
 			    M0_STRINGARG('y', "yaml file path",
-			    LAMBDA(void, (const char *name){ yaml_path = name; })),
+					 LAMBDA(void, (const char *name) {
+							 yaml_path = name;
+						 })),
+			    M0_STRINGARG('d', "fop description",
+					 LAMBDA(void, (const char *fd) {
+							 fop_desc = fd;
+						 })),
 			    M0_FLAGARG('v', "verbose", &verbose));
 	if (result != 0)
 		/*
@@ -233,9 +247,11 @@ int main(int argc, char **argv)
 		return EX_USAGE;
 	}
 
-	/* Input is false but yaml is assigned path */
+	/* Input is false but yaml is assigned path or
+	 * both yaml and fop description is provided */
 	if ((!input && yaml_path != NULL) ||
-	    (input && yaml_path == NULL)) {
+	    (input && yaml_path == NULL)  ||
+	    (fop_desc != NULL && yaml_path != NULL)) {
 		usage();
 		return EX_USAGE;
 	}
@@ -315,7 +331,7 @@ int main(int argc, char **argv)
 	printf("Server Address = %s\n", cctx.rcx_remote_addr);
 
 	/* Build the fop/fom/item and send */
-	result = fop_send_and_print(&cctx, opcode);
+	result = fop_send_and_print(&cctx, opcode, fop_desc);
 	if (result != 0) {
 		fprintf(stderr, "fop_send_and_print failed\n");
 		result = EX_SOFTWARE;

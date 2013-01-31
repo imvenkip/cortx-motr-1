@@ -443,9 +443,8 @@ M0_INTERNAL int m0_xcode_next(struct m0_xcode_cursor *it);
 M0_INTERNAL void m0_xcode_skip(struct m0_xcode_cursor *it);
 
 /** Returns the topmost frame in the cursor's stack. */
-M0_INTERNAL struct m0_xcode_cursor_frame *m0_xcode_cursor_top(struct
-							      m0_xcode_cursor
-							      *it);
+M0_INTERNAL struct m0_xcode_cursor_frame *
+m0_xcode_cursor_top(struct m0_xcode_cursor *it);
 
 /** @} iteration. */
 
@@ -548,6 +547,7 @@ M0_INTERNAL int m0_xcode_encode(struct m0_xcode_ctx *ctx);
 /** Calculates the length of serialized representation. */
 M0_INTERNAL int m0_xcode_length(struct m0_xcode_ctx *ctx);
 M0_INTERNAL void *m0_xcode_alloc(struct m0_xcode_cursor *it, size_t nob);
+
 /** @} xcoding. */
 
 /**

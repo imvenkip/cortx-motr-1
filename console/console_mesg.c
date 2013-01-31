@@ -21,13 +21,12 @@
 #include "lib/errno.h" /* ENOTSUP */
 #include "lib/misc.h"  /* M0_BITS */
 
-#include "console/console_fop.h"
-#include "console/console_it.h"
 #include "console/console_mesg.h"
+#include "console/console_it.h" /* m0_cons_fop_fields_show */
 
 M0_INTERNAL void m0_cons_fop_name_print(const struct m0_fop_type *ftype)
 {
-	fprintf(stdout, "%.2d, %s", ftype->ft_rpc_item_type.rit_opcode,
+	fprintf(stdout, "%.2d, %s\n", ftype->ft_rpc_item_type.rit_opcode,
 				    ftype->ft_name);
 }
 
@@ -90,10 +89,8 @@ M0_INTERNAL void m0_cons_fop_list_show(void)
 
 	fprintf(stdout, "List of FOP's: \n");
 	ftype = NULL;
-	while ((ftype = m0_fop_type_next(ftype)) != NULL) {
+	while ((ftype = m0_fop_type_next(ftype)) != NULL)
 		m0_cons_fop_name_print(ftype);
-		fprintf(stdout, "\n");
-	}
 }
 
 M0_INTERNAL struct m0_fop_type *m0_cons_fop_type_find(uint32_t opcode)
@@ -117,4 +114,3 @@ M0_INTERNAL struct m0_fop_type *m0_cons_fop_type_find(uint32_t opcode)
  *  scroll-step: 1
  *  End:
  */
-

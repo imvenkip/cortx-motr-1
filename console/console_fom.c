@@ -23,48 +23,26 @@
 #include "lib/errno.h"		/* EINVAL */
 #include "lib/memory.h"		/* M0_ALLOC_PTR */
 #include "fop/fom_generic.h"    /* M0_FOPH_FAILURE */
-#include "console/console.h"
+
 #include "console/console_fom.h"
 #include "console/console_fop.h"
-#include "console/console_mesg.h"
-#include "console/console_xc.h"
+#include "console/console_fop_xc.h"
+#include "rpc/rpc.h"
 
 /**
    @addtogroup console
    @{
 */
 
-static size_t home_locality(const struct m0_fom *fom)
+static int console_fom_create(struct m0_fop *fop, struct m0_reqh *reqh,
+			      const struct m0_fom_ops *fom_ops,
+			      struct m0_fom **m)
 {
-        M0_PRE(fom != NULL);
-
-        return m0_fop_opcode(fom->fo_fop);
-}
-
-static void cons_fom_addb_init(struct m0_fom * fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
-static void default_fom_fini(struct m0_fom *fom)
-{
-	m0_fom_fini(fom);
-	m0_free(fom);
-}
-
-static int cons_fop_fom_create(struct m0_fop *fop, struct m0_fom **m,
-			       struct m0_reqh *reqh)
-{
-        struct m0_fom *fom;
+	struct m0_fom *fom;
 	struct m0_fop *rep_fop;
 
         M0_PRE(fop != NULL);
         M0_PRE(m != NULL);
-	M0_PRE(fop->f_type == &m0_cons_fop_device_fopt);
 
 	/*
 	 * XXX
@@ -92,14 +70,48 @@ static int cons_fop_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	 * where the client thread creates the fop. So the assertion in
 	 * m0_fom_init should pass
 	 */
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, &m0_cons_fom_device_ops,
-		    fop, rep_fop, reqh, fop->f_type->ft_fom_type.ft_rstype);
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, rep_fop,
+		    reqh, fop->f_type->ft_fom_type.ft_rstype);
+
 	m0_fop_put(rep_fop);
         *m = fom;
-        return 0;
+
+	return 0;
 }
 
-static int cons_fom_tick(struct m0_fom *fom)
+static size_t console_fom_home_locality(const struct m0_fom *fom)
+{
+        M0_PRE(fom != NULL);
+
+        return m0_fop_opcode(fom->fo_fop);
+}
+
+static void console_fom_addb_init(struct m0_fom * fom, struct m0_addb_mc *mc)
+{
+	/**
+	 * @todo: Do the actual impl, need to set MAGIC, so that
+	 * m0_fom_init() can pass
+	 */
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+}
+
+static void console_fom_fini(struct m0_fom *fom)
+{
+	m0_fom_fini(fom);
+	m0_free(fom);
+}
+
+static int console_device_fom_create(struct m0_fop *fop, struct m0_fom **m,
+				     struct m0_reqh *reqh)
+{
+        M0_PRE(fop != NULL);
+        M0_PRE(m != NULL);
+	M0_PRE(fop->f_type == &m0_cons_fop_device_fopt);
+
+	return console_fom_create(fop, reqh, &m0_console_fom_device_ops, m);
+}
+
+static int console_fom_tick(struct m0_fom *fom)
 {
         struct m0_cons_fop_reply *reply_fop;
         struct m0_rpc_item       *reply_item;
@@ -130,15 +142,37 @@ static int cons_fom_tick(struct m0_fom *fom)
 	return M0_FSO_WAIT;
 }
 
-const struct m0_fom_ops m0_cons_fom_device_ops = {
-        .fo_tick	  = cons_fom_tick,
-	.fo_fini	  = default_fom_fini,
-	.fo_home_locality = home_locality,
-	.fo_addb_init     = cons_fom_addb_init
+const struct m0_fom_ops m0_console_fom_device_ops = {
+        .fo_tick	  = console_fom_tick,
+	.fo_fini	  = console_fom_fini,
+	.fo_home_locality = console_fom_home_locality,
+	.fo_addb_init     = console_fom_addb_init
 };
 
-const struct m0_fom_type_ops m0_cons_fom_device_type_ops = {
-        .fto_create = cons_fop_fom_create
+const struct m0_fom_type_ops m0_console_fom_type_device_ops = {
+        .fto_create = console_device_fom_create
+};
+
+static int console_test_fom_create(struct m0_fop  *fop,
+				   struct m0_fom **m,
+				   struct m0_reqh *reqh)
+{
+	M0_PRE(fop != NULL);
+        M0_PRE(m != NULL);
+	M0_PRE(fop->f_type == &m0_cons_fop_test_fopt);
+
+	return console_fom_create(fop, reqh, &m0_console_fom_test_ops, m);
+}
+
+struct m0_fom_ops m0_console_fom_test_ops = {
+	.fo_fini          = console_fom_fini,
+	.fo_tick          = console_fom_tick,
+	.fo_home_locality = console_fom_home_locality,
+	.fo_addb_init     = console_fom_addb_init
+};
+
+const struct m0_fom_type_ops m0_console_fom_type_test_ops = {
+	.fto_create = console_test_fom_create,
 };
 
 /** @} end of console */
@@ -152,4 +186,3 @@ const struct m0_fom_type_ops m0_cons_fom_device_type_ops = {
  *  scroll-step: 1
  *  End:
  */
-

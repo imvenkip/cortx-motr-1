@@ -19,14 +19,15 @@
  */
 
 #include <signal.h>
-#include <unistd.h>               /* sleep */
+#include <unistd.h>             /* sleep */
 
 #include "net/lnet/lnet.h"
-#include "mero/init.h"         /* m0_init */
-#include "lib/getopts.h"	  /* M0_GETOPTS */
+#include "mero/init.h"          /* m0_init */
+#include "lib/getopts.h"	/* M0_GETOPTS */
 
-#include "rpc/rpclib.h"           /* m0_rpc_server_start */
-#include "ut/rpc.h"               /* M0_RPC_SERVER_CTX_DEFINE */
+#include "rpc/rpclib.h"         /* m0_rpc_server_start */
+#include "ut/rpc.h"             /* M0_RPC_SERVER_CTX_DEFINE */
+#include "ut/ut.h"              /* m0_ut_init */
 
 #include "console/console.h"
 #include "console/console_fop.h"
@@ -63,7 +64,8 @@ int main(int argc, char **argv)
 	char *default_server_argv[] = {
 		argv[0], "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
-		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size
+		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size,
+		"-A", "as_addb_stob"
 	};
 
 	M0_RPC_SERVER_CTX_DEFINE_SIMPLE(sctx, xprt, default_server_argv,
@@ -91,6 +93,11 @@ int main(int argc, char **argv)
 		printf("m0_init failed\n");
 		return result;
 	}
+	result = m0_ut_init();
+	if (result != 0) {
+		printf("m0_ut_init failed\n");
+		return result;
+	}
 
 	result = m0_console_fop_init();
 	if (result != 0) {
@@ -115,6 +122,7 @@ int main(int argc, char **argv)
 fop_fini:
 	m0_console_fop_fini();
 m0_fini:
+	m0_ut_fini();
 	m0_fini();
 	return result;
 }

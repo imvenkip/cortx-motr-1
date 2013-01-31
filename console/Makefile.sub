@@ -3,18 +3,22 @@ nobase_mero_include_HEADERS += console/console.h \
                                console/console_fop.h \
                                console/console_it.h \
                                console/console_mesg.h \
-                               console/console_xc.h \
-                               console/console_yaml.h
+                               console/console_yaml.h \
+                               console/console_fop_xc.h
 
 mero_libmero_la_SOURCES  += console/console_fop.c \
                             console/console_fom.c \
-                            console/console_yaml.c \
                             console/console_it.c \
                             console/console_mesg.c \
-                            console/console_xc.c
+                            console/console_yaml.c \
+                            console/console_fop_xc.c
 
-XC_FILES   += console/console_xc.h
+console/console_fop.h : rpc/rpc_onwire.h
 
-CLEANFILES += console/console_xc.h \
-              console/console_xc.c \
-	      console/console.gccxml
+XC_FILES   += console/console_fop_xc.h
+
+EXTRA_DIST += console/st/console-st.sh
+
+CLEANFILES += console/console_fop_xc.h \
+              console/console_fop_xc.c \
+              console/console_fop.gccxml
