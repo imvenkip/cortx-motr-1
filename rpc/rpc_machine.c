@@ -767,7 +767,7 @@ static void item_received(struct m0_rpc_item      *item,
 		 item, (char *)from_ep->nep_addr);
 
 	if (M0_FI_ENABLED("drop_item")) {
-		M0_LOG(M0_FATAL, "item: %p [%s/%u] dropped", item,
+		M0_LOG(M0_DEBUG, "item: %p [%s/%u] dropped", item,
 			item_kind(item), item->ri_type->rit_opcode);
 		return;
 	}
@@ -782,7 +782,7 @@ static void item_received(struct m0_rpc_item      *item,
 	if (rc == 0) {
 		m0_rpc_item_change_state(item, M0_RPC_ITEM_ACCEPTED);
 	} else {
-		M0_LOG(M0_FATAL, "%p [%s/%d] dropped", item, item_kind(item),
+		M0_LOG(M0_DEBUG, "%p [%s/%d] dropped", item, item_kind(item),
 		       item->ri_type->rit_opcode);
 		machine->rm_stats.rs_nr_dropped_items++;
 	}

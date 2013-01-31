@@ -546,7 +546,7 @@ M0_INTERNAL void m0_rpc_item_change_state(struct m0_rpc_item *item,
 {
 	M0_PRE(item != NULL);
 
-	M0_LOG(M0_FATAL, "%p[%s/%u] %s -> %s", item,
+	M0_LOG(M0_DEBUG, "%p[%s/%u] %s -> %s", item,
 	       item_kind(item),
 	       item->ri_type->rit_opcode,
 	       item_state_name(item),
@@ -639,7 +639,7 @@ M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item)
 	M0_PRE(m0_rpc_item_is_request(item));
 
 	if (M0_FI_ENABLED("failed")) {
-		M0_LOG(M0_FATAL, "item %p failed to start timer", item);
+		M0_LOG(M0_DEBUG, "item %p failed to start timer", item);
 		return -EINVAL;
 	}
 
@@ -676,7 +676,7 @@ static void item_timer_cb(struct m0_sm_timer *timer)
 	M0_ASSERT(item->ri_magic == M0_RPC_ITEM_MAGIC);
 	M0_ASSERT(m0_rpc_machine_is_locked(item->ri_rmachine));
 
-	M0_LOG(M0_FATAL, "%p [%s/%u] %s Timer elapsed.", item, item_kind(item),
+	M0_LOG(M0_DEBUG, "%p [%s/%u] %s Timer elapsed.", item, item_kind(item),
 	       item->ri_type->rit_opcode, item_state_name(item));
 
 	if (item->ri_nr_sent >= item->ri_nr_sent_max)
@@ -687,7 +687,7 @@ static void item_timer_cb(struct m0_sm_timer *timer)
 
 static void item_timedout(struct m0_rpc_item *item)
 {
-	M0_LOG(M0_FATAL, "%p [%s/%u] %s TIMEDOUT.", item, item_kind(item),
+	M0_LOG(M0_DEBUG, "%p [%s/%u] %s TIMEDOUT.", item, item_kind(item),
 	       item->ri_type->rit_opcode, item_state_name(item));
 	item->ri_rmachine->rm_stats.rs_nr_timedout_items++;
 
@@ -766,7 +766,7 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 		    M0_IN(state, (M0_RPC_ITEM_SENT, M0_RPC_ITEM_FAILED))));
 
 	if (M0_FI_ENABLED("advance_deadline")) {
-		M0_LOG(M0_FATAL,"%p deadline advanced", item);
+		M0_LOG(M0_DEBUG,"%p deadline advanced", item);
 		item->ri_deadline = m0_time_from_now(0, 500 * 1000 * 1000);
 	}
 	item->ri_nr_sent++;

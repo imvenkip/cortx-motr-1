@@ -219,7 +219,7 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 			m0_rpc_session_get_max_item_size(request->ri_session));
 
 	if (M0_FI_ENABLED("delay_reply")) {
-		M0_LOG(M0_FATAL, "%p reply delayed", request);
+		M0_LOG(M0_DEBUG, "%p reply delayed", request);
 		m0_nanosleep(m0_time(1, 200 * 1000 * 1000), NULL);
 	}
 

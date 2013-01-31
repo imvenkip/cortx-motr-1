@@ -135,7 +135,7 @@ static void test_timeout(void)
 	/* Test2.1: Request item times out before reply reaches to sender.
 		    Delayed reply is then dropped.
 	 */
-	M0_LOG(M0_FATAL, "TEST:2.1:START");
+	M0_LOG(M0_DEBUG, "TEST:2.1:START");
 	fop = fop_alloc();
 	item = &fop->f_item;
 	item->ri_nr_sent_max = 1;
@@ -154,25 +154,25 @@ static void test_timeout(void)
 		     IS_INCR_BY_1(nr_timedout_items) &&
 		     IS_INCR_BY_1(nr_failed_items));
 	m0_fop_put(fop);
-	M0_LOG(M0_FATAL, "TEST:2.1:END");
+	M0_LOG(M0_DEBUG, "TEST:2.1:END");
 
 	/* Test [ENQUEUED] ---timeout----> [FAILED] */
-	M0_LOG(M0_FATAL, "TEST:2.2:START");
+	M0_LOG(M0_DEBUG, "TEST:2.2:START");
 	__test_timeout(m0_time_from_now(1, 0),
 		       m0_time(0, 100 * MILLISEC));
-	M0_LOG(M0_FATAL, "TEST:2.2:END");
+	M0_LOG(M0_DEBUG, "TEST:2.2:END");
 
 	/* Test [URGENT] ---timeout----> [FAILED] */
 	m0_fi_enable("frm_balance", "do_nothing");
-	M0_LOG(M0_FATAL, "TEST:2.3:START");
+	M0_LOG(M0_DEBUG, "TEST:2.3:START");
 	__test_timeout(m0_time_from_now(-1, 0),
 		       m0_time(0, 100 * MILLISEC));
 	m0_fi_disable("frm_balance", "do_nothing");
-	M0_LOG(M0_FATAL, "TEST:2.3:END");
+	M0_LOG(M0_DEBUG, "TEST:2.3:END");
 
 	/* Test: [SENDING] ---timeout----> [FAILED] */
 
-	M0_LOG(M0_FATAL, "TEST:2.4:START");
+	M0_LOG(M0_DEBUG, "TEST:2.4:START");
 	/* Delay "sent" callback for 300 msec. */
 	m0_fi_enable("outgoing_buf_event_handler", "delay_callback");
 	/* ASSUMPTION: Sender will not get "new item received" event until
@@ -183,7 +183,7 @@ static void test_timeout(void)
 		       m0_time(0, 100 * MILLISEC));
 	/* wait until reply is processed */
 	m0_nanosleep(m0_time(0, 500 * MILLISEC), NULL);
-	M0_LOG(M0_FATAL, "TEST:2.4:END");
+	M0_LOG(M0_DEBUG, "TEST:2.4:END");
 	m0_fi_disable("outgoing_buf_event_handler", "delay_callback");
 }
 
@@ -222,18 +222,18 @@ static void test_resend(void)
 	int                 cnt = 0;
 
 	/* Test: Request is dropped. */
-	M0_LOG(M0_FATAL, "TEST:3.1:START");
+	M0_LOG(M0_DEBUG, "TEST:3.1:START");
 	m0_fi_enable_once("item_received", "drop_item");
 	__test_resend(NULL);
-	M0_LOG(M0_FATAL, "TEST:3.1:END");
+	M0_LOG(M0_DEBUG, "TEST:3.1:END");
 
 	/* Test: Reply is dropped. */
-	M0_LOG(M0_FATAL, "TEST:3.2:START");
+	M0_LOG(M0_DEBUG, "TEST:3.2:START");
 	m0_fi_enable_func("item_received", "drop_item",
 			  only_second_time, &cnt);
 	__test_resend(NULL);
 	m0_fi_disable("item_received", "drop_item");
-	M0_LOG(M0_FATAL, "TEST:3.2:END");
+	M0_LOG(M0_DEBUG, "TEST:3.2:END");
 
 	/* Test: ENQUEUED -> REPLIED transition.
 
@@ -255,7 +255,7 @@ static void test_resend(void)
 	     moves to ENQUEUED state when handed over to formation;
 	   - receiver comes out of 1.2 sec sleep and sends reply.
 	 */
-	M0_LOG(M0_FATAL, "TEST:3.3:START");
+	M0_LOG(M0_DEBUG, "TEST:3.3:START");
 	cnt = 0;
 	m0_fi_enable_func("m0_rpc_item_send", "advance_deadline",
 			  only_second_time, &cnt);
@@ -264,9 +264,9 @@ static void test_resend(void)
 	item = &fop->f_item;
 	__test_resend(fop);
 	m0_fi_disable("m0_rpc_item_send", "advance_deadline");
-	M0_LOG(M0_FATAL, "TEST:3.3:END");
+	M0_LOG(M0_DEBUG, "TEST:3.3:END");
 
-	M0_LOG(M0_FATAL, "TEST:3.4:START");
+	M0_LOG(M0_DEBUG, "TEST:3.4:START");
 	/* CONTINUES TO USE fop/item FROM PREVIOUS TEST-CASE. */
 	/* RPC call is complete i.e. item is in REPLIED state.
 	   Explicitly resend the completed request; the way the item
@@ -283,20 +283,20 @@ static void test_resend(void)
 	M0_UT_ASSERT(item->ri_reply != NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
 	m0_fop_put(fop);
-	M0_LOG(M0_FATAL, "TEST:3.4:END");
+	M0_LOG(M0_DEBUG, "TEST:3.4:END");
 
 	/* Test: INITIALISED -> FAILED transition when m0_rpc_post()
 		 fails to start item timer.
 	 */
-	M0_LOG(M0_FATAL, "TEST:3.5.1:START");
+	M0_LOG(M0_DEBUG, "TEST:3.5.1:START");
 	m0_fi_enable_once("m0_rpc_item_start_timer", "failed");
 	__test_timer_start_failure();
-	M0_LOG(M0_FATAL, "TEST:3.5.1:END");
+	M0_LOG(M0_DEBUG, "TEST:3.5.1:END");
 
 	/* Test: Move item from WAITING_FOR_REOLY to FAILED state if
 		 item_sent() fails to start resend timer.
 	 */
-	M0_LOG(M0_FATAL, "TEST:3.5.2:START");
+	M0_LOG(M0_DEBUG, "TEST:3.5.2:START");
 	cnt = 0;
 	m0_fi_enable_func("m0_rpc_item_start_timer", "failed",
 			  only_second_time, &cnt);
@@ -304,7 +304,7 @@ static void test_resend(void)
 	__test_timer_start_failure();
 	m0_fi_disable("item_received", "drop_item");
 	m0_fi_disable("m0_rpc_item_start_timer", "failed");
-	M0_LOG(M0_FATAL, "TEST:3.5.2:END");
+	M0_LOG(M0_DEBUG, "TEST:3.5.2:END");
 }
 
 static void __test_resend(struct m0_fop *fop)
