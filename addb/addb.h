@@ -962,6 +962,11 @@ M0_INTERNAL void m0__addb_ctx_init(struct m0_addb_mc *mc,
  */
 M0_INTERNAL void m0_addb_ctx_fini(struct m0_addb_ctx *ctx);
 
+/**
+   Predicate to determine if a context object has been initialized.
+ */
+M0_INTERNAL bool m0_addb_ctx_is_initialized(const struct m0_addb_ctx *ctx);
+
 /*
  ****************************************************************************
  * Posting

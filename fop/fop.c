@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,8 +18,10 @@
  * Original creation date: 05/19/2010
  */
 
+#undef M0_ADDB_RT_CREATE_DEFINITION
 #undef M0_ADDB_CT_CREATE_DEFINITION
 #define M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_RT_CREATE_DEFINITION
 #include "fop/fop_addb.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
@@ -256,6 +258,8 @@ M0_INTERNAL struct m0_fop_type *m0_fop_type_next(struct m0_fop_type *ftype)
 M0_INTERNAL int m0_fops_init(void)
 {
 	m0_addb_ctx_type_register(&m0_addb_ct_fop_mod);
+	m0_addb_rec_type_register(&m0_addb_rt_fom_init);
+	m0_addb_rec_type_register(&m0_addb_rt_fom_fini);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_fop_addb_ctx, &m0_addb_ct_fop_mod,
 			 &m0_addb_proc_ctx);
 	ft_tlist_init(&fop_types_list);

@@ -90,6 +90,9 @@ value            enum                 variable name         file
     28 M0_ADDB_RECID_NET_AQ_S       m0_addb_rt_net_aq_s
 40-49							           net/lnet/lnet_addb.h
 50-59                                                              reqh/reqh_addb.h
+60-69                                                              fop/fop_addb.h
+    60 M0_ADDB_RECID_FOM_INIT           m0_addb_rt_fom_init
+    61 M0_ADDB_RECID_FOM_FINI           m0_addb_rt_fom_fini
 100-199                                                            ioservice/io_service_addb.h
    100 M0_ADDB_RECID_IOS_RFOM_SIZES	m0_addb_rt_ios_rfom_sizes
    101 M0_ADDB_RECID_IOS_WFOM_SIZES	m0_addb_rt_ios_wfom_sizes

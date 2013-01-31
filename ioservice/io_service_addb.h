@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -100,7 +100,7 @@ M0_ADDB_RT_CNTR(m0_addb_rt_ios_wfom_times,  M0_ADDB_RECID_IOS_WFOM_TIMES,
 /* Data point record type for io service */
 M0_ADDB_RT_DP(m0_addb_rt_ios_rwfom_finish,
 	      M0_ADDB_RECID_IOS_RWFOM_FINISH,
-	      "return_code", "io_size", "turnaround_time");
+	      "return_code", "io_size", "turnaround_time" /* in usec */);
 M0_ADDB_RT_DP(m0_addb_rt_ios_ccfom_finish,
 	      M0_ADDB_RECID_IOS_CCFOM_FINISH,
 	      "stob_id.hi", "stob_id.lo", "rc");

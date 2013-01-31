@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -605,6 +605,11 @@ M0_INTERNAL bool m0_addb_ctx_is_imported(const struct m0_addb_ctx *ctx)
 {
 	M0_PRE(addb_ctx_invariant(ctx));
 	return ctx->ac_imp_id != NULL;
+}
+
+M0_INTERNAL bool m0_addb_ctx_is_initialized(const struct m0_addb_ctx *ctx)
+{
+	return addb_ctx_invariant(ctx);
 }
 
 M0_INTERNAL void m0_addb_ctx_fini(struct m0_addb_ctx *ctx)

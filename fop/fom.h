@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -488,6 +488,12 @@ struct m0_fom {
 	 * Stack of pending call-backs.
 	 */
 	struct m0_fom_callback   *fo_pending;
+
+	/** FOM create time (used to calculate lifetime) */
+	m0_time_t		  fo_ctime;
+	/** Accumulated execution time of the FOM */
+	m0_time_t		  fo_etime;
+
 	uint64_t		  fo_magic;
 };
 

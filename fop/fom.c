@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -502,7 +502,9 @@ static void fom_exec(struct m0_fom *fom)
 {
 	int			rc;
 	struct m0_fom_locality *loc;
+	m0_time_t               start;
 
+	start = m0_time_now();
 	loc = fom->fo_loc;
 	fom->fo_thread = loc->fl_handler;
 	fom_state_set(fom, M0_FOS_RUNNING);
@@ -523,6 +525,8 @@ static void fom_exec(struct m0_fom *fom)
 
 	M0_ASSERT(rc == M0_FSO_WAIT);
 	M0_ASSERT(m0_fom_group_is_locked(fom));
+
+	fom->fo_etime += m0_time_sub(m0_time_now(), start);
 
 	if (m0_fom_phase(fom) == M0_FOM_PHASE_FINISH) {
                 /*
@@ -857,6 +861,17 @@ M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
 			 dom->fd_localities[i].fl_foms == 0);
 }
 
+#undef FOM_ADDB_POST
+#define FOM_ADDB_POST(fom, addb_mc, recid, ...)				\
+do {									\
+	struct m0_addb_ctx *cv[3];					\
+									\
+	cv[0]   = &fom->fo_addb_ctx;					\
+	cv[1]   =  fom->fo_op_addb_ctx;					\
+	cv[2]   = NULL;							\
+	M0_ADDB_POST(addb_mc, recid, cv, ## __VA_ARGS__);		\
+} while(0)
+
 void m0_fom_fini(struct m0_fom *fom)
 {
 	struct m0_fom_domain   *fdom;
@@ -870,6 +885,11 @@ void m0_fom_fini(struct m0_fom *fom)
 	fdom = loc->fl_dom;
 	reqh = fdom->fd_reqh;
 	fom_state_set(fom, M0_FOS_FINISH);
+	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx))
+		FOM_ADDB_POST(fom, &reqh->rh_addb_mc, &m0_addb_rt_fom_fini,
+			      fom->fo_transitions,
+			      m0_time_sub(m0_time_now(), fom->fo_ctime) / 1000,
+			      fom->fo_etime / 1000);
 	m0_addb_ctx_fini(&fom->fo_addb_ctx);
 	if (fom->fo_op_addb_ctx != NULL) {
 		m0_addb_ctx_fini(fom->fo_op_addb_ctx);
@@ -938,6 +958,9 @@ void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
 		(*fom->fo_ops->fo_addb_init)(fom, &reqh->rh_addb_mc);
 		M0_ASSERT(fom->fo_addb_ctx.ac_magic != 0);
 	}
+	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx))
+		FOM_ADDB_POST(fom, &reqh->rh_addb_mc, &m0_addb_rt_fom_init);
+	fom->fo_ctime = m0_time_now();
 }
 M0_EXPORTED(m0_fom_init);
 

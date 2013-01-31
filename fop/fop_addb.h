@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -71,6 +71,33 @@ enum {
 extern struct m0_addb_ctx m0_fop_addb_ctx;
 
 /** @} */ /* end of fop group */
+
+/**
+ * @addtogroup fom
+ * @{
+ */
+
+enum {
+	M0_ADDB_RECID_FOM_INIT = 60,
+	M0_ADDB_RECID_FOM_FINI = 61,
+};
+
+/**
+ * FOM init datapoint record
+ */
+M0_ADDB_RT_DP(m0_addb_rt_fom_init,
+	      M0_ADDB_RECID_FOM_INIT);
+/**
+ * FOM fini datapoint record
+ *
+ * @param transitions FOM transitions number
+ * @param lifetime FOM total life time (in usec)
+ * @param exectime FOM execution time (in usec)
+ */
+M0_ADDB_RT_DP(m0_addb_rt_fom_fini,
+	      M0_ADDB_RECID_FOM_FINI, "transitions", "lifetime", "exectime");
+
+/** @} end of fom group */
 
 #endif /* __MERO_FOP_FOP_ADDB_H__ */
 
