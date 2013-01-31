@@ -122,6 +122,12 @@ void ping_buf_put(struct ping_ctx *ctx, struct m0_net_buffer *nb)
 	m0_mutex_unlock(&ctx->pc_mutex);
 }
 
+static void netbuf_step(struct m0_bufvec_cursor *cur)
+{
+	bool eof = m0_bufvec_cursor_move(cur, 1);
+	M0_ASSERT(!eof);
+}
+
 /** encode a string message into a net buffer, not zero-copy */
 int encode_msg(struct m0_net_buffer *nb, const char *str)
 {
@@ -136,7 +142,7 @@ int encode_msg(struct m0_net_buffer *nb, const char *str)
 	m0_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	bp = m0_bufvec_cursor_addr(&cur);
 	*bp = 'm';
-	M0_ASSERT(!m0_bufvec_cursor_move(&cur, 1));
+	netbuf_step(&cur);
 	m0_bufvec_cursor_init(&incur, &in);
 	copied = m0_bufvec_cursor_copy(&cur, &incur, len);
 	M0_ASSERT(copied == len);
@@ -155,7 +161,7 @@ int encode_desc(struct m0_net_buffer *nb,
 	m0_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	bp = m0_bufvec_cursor_addr(&cur);
 	*bp = send_desc ? 's' : 'r';
-	M0_ASSERT(!m0_bufvec_cursor_move(&cur, 1));
+	netbuf_step(&cur);
 	bp = m0_bufvec_cursor_addr(&cur);
 
 	/* only support sending net_desc in single chunks in this test */
@@ -195,7 +201,7 @@ int decode_msg(struct m0_net_buffer *nb, struct ping_msg *msg)
 	m0_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	bp = m0_bufvec_cursor_addr(&cur);
 	M0_ASSERT(*bp == 'm' || *bp == 's' || *bp == 'r');
-	M0_ASSERT(!m0_bufvec_cursor_move(&cur, 1));
+	netbuf_step(&cur);
 	if (*bp == 'm') {
 		m0_bcount_t len = nb->nb_length - 1;
 		void *str;
@@ -208,12 +214,15 @@ int decode_msg(struct m0_net_buffer *nb, struct ping_msg *msg)
 		step = m0_bufvec_cursor_copy(&outcur, &cur, len);
 		M0_ASSERT(step == len);
 	} else {
+		int rc;
 		int len = 0;
+
 		msg->pm_type = (*bp == 's') ? PM_SEND_DESC : PM_RECV_DESC;
 		bp = m0_bufvec_cursor_addr(&cur);
 		step = m0_bufvec_cursor_step(&cur);
 		M0_ASSERT(step >= 9 && bp[8] == 0);
-		M0_ASSERT(sscanf(bp, "%d", &len) == 1);
+		rc = sscanf(bp, "%d", &len);
+		M0_ASSERT(rc == 1);
 		msg->pm_u.pm_desc.nbd_len = len;
 		M0_ASSERT(step >= 9 + msg->pm_u.pm_desc.nbd_len);
 		bp += 9;

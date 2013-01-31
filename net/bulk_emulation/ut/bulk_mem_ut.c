@@ -746,8 +746,8 @@ static void test_ping(void)
 	if (rc != 0) {
 		M0_UT_FAIL("failed to start ping server");
 		return;
-	} else
-		M0_UT_PASS("started ping server");
+	}
+	M0_UT_PASS("started ping server");
 
 	M0_UT_ASSERT(ping_client_msg_send_recv(&cctx, server_ep, NULL) == 0);
 	M0_UT_ASSERT(ping_client_passive_recv(&cctx, server_ep) == 0);
