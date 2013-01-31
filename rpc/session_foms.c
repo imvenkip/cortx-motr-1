@@ -137,10 +137,6 @@ struct m0_fom_type_ops m0_rpc_fom_conn_establish_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
-struct m0_fom_type m0_rpc_fom_conn_establish_type = {
-	.ft_ops = &m0_rpc_fom_conn_establish_type_ops
-};
-
 M0_INTERNAL size_t m0_rpc_session_default_home_locality(const struct m0_fom
 							*fom)
 {
@@ -309,10 +305,6 @@ struct m0_fom_type_ops m0_rpc_fom_session_establish_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
-struct m0_fom_type m0_rpc_fom_session_establish_type = {
-	.ft_ops = &m0_rpc_fom_session_establish_type_ops
-};
-
 M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 {
 	struct m0_rpc_fop_session_establish_rep *reply;
@@ -415,10 +407,6 @@ struct m0_fom_type_ops m0_rpc_fom_session_terminate_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
-struct m0_fom_type m0_rpc_fom_session_terminate_type = {
-	.ft_ops = &m0_rpc_fom_session_terminate_type_ops
-};
-
 M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 {
 	struct m0_rpc_fop_session_terminate_rep *reply;
@@ -512,10 +500,6 @@ const struct m0_fom_ops m0_rpc_fom_conn_terminate_ops = {
 
 struct m0_fom_type_ops m0_rpc_fom_conn_terminate_type_ops = {
 	.fto_create = session_gen_fom_create
-};
-
-struct m0_fom_type m0_rpc_fom_conn_terminate_type = {
-	.ft_ops = &m0_rpc_fom_conn_terminate_type_ops
 };
 
 static void conn_cleanup_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)

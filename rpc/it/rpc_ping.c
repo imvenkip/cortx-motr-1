@@ -61,9 +61,10 @@
 
 #define CLIENT_DB_FILE_NAME	"m0rpcping_client.db"
 
-#define SERVER_DB_FILE_NAME	"m0rpcping_server.db"
-#define SERVER_STOB_FILE_NAME	"m0rpcping_server.stob"
-#define SERVER_LOG_FILE_NAME	"m0rpcping_server.log"
+#define SERVER_DB_FILE_NAME	   "m0rpcping_server.db"
+#define SERVER_STOB_FILE_NAME	   "m0rpcping_server.stob"
+#define SERVER_ADDB_STOB_FILE_NAME "m0rpcping_server_addb.stob"
+#define SERVER_LOG_FILE_NAME	   "m0rpcping_server.log"
 
 enum ep_type {
 	EP_SERVER,
@@ -412,6 +413,7 @@ static int run_server(void)
 	char *server_argv[] = {
 		"rpclib_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
+		"-A", SERVER_ADDB_STOB_FILE_NAME,
 		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size,
 	};
 
