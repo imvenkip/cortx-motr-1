@@ -288,8 +288,6 @@ M0_INTERNAL bool m0_rpc_item_invariant(const struct m0_rpc_item *item)
 
 		equi(req && item->ri_error == -ETIMEDOUT,
 		     item->ri_stage == RPC_ITEM_STAGE_TIMEDOUT) &&
-		equi(req && item->ri_error == -ETIMEDOUT,
-		     m0_time_is_in_past(item->ri_op_timeout)) &&
 
 		ergo(item->ri_reply != NULL,
 			req &&
@@ -365,9 +363,8 @@ void m0_rpc_item_init(struct m0_rpc_item *item,
 
 	M0_SET0(item);
 
-	item->ri_type       = itype;
-	item->ri_op_timeout = M0_TIME_NEVER;
-	item->ri_magic      = M0_RPC_ITEM_MAGIC;
+	item->ri_type  = itype;
+	item->ri_magic = M0_RPC_ITEM_MAGIC;
 
 	item->ri_resend_interval = m0_time(1, 0);
 	item->ri_nr_sent_max     = ~(uint64_t)0;

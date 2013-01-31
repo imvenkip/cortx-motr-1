@@ -37,11 +37,16 @@ M0_INTERNAL void m0_cons_fop_name_print(const struct m0_fop_type *ftype);
  *
  * @param fop	   FOP to be send.
  * @param session  RPC connection session.
- * @param deadline Time to to wait for RPC reply.
+ * @param resend_interval
+ * @param nr_sent_max
+ *                 Attempt to send fop at most nr_sent_max number of
+ *                 times after each resend_interval; timeout fop if reply
+ *                 is not received after nr_sent_max attempts.
  */
 M0_INTERNAL int m0_cons_fop_send(struct m0_fop *fop,
 				 struct m0_rpc_session *session,
-				 m0_time_t deadline);
+				 m0_time_t resend_interval,
+				 uint64_t nr_sent_max);
 
 /**
  *  @brief Iterate over FOP fields and print names.

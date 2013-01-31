@@ -210,7 +210,16 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx);
 
 /**
-  Make an RPC call to a server, blocking for a reply if desired.
+  Make synchronous RPC call to a server.
+
+  By default, fop is resent after every second until reply is received.
+  To change this behaviour set fop->f_item.ri_nr_sent_max and
+  fop->f_item.ri_resend_interval. They are, maximum number of times
+  fop is sent before failing and interval after which the fop is resent,
+  respectively. Their default values are ~0 and m0_time(1, 0).
+
+  To simply timeout fop after N seconds set fop->f_item.ri_nr_sent_max to N
+  before calling m0_rpc_client_call().
 
   @param item        The rpc item to send.  Presumably ri_reply will hold the
                      reply upon successful return.
@@ -219,12 +228,11 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx);
   @param deadline    Absolute time after which formation should send the fop
 		     as soon as possible. deadline should be 0 if fop shouldn't
 		     wait in formation queue and should be sent immediately.
-  @param timeout   Absolute operation timeout.
 */
 int m0_rpc_client_call(struct m0_fop *fop,
 		       struct m0_rpc_session *session,
 		       const struct m0_rpc_item_ops *ri_ops,
-		       m0_time_t deadline, m0_time_t timeout);
+		       m0_time_t deadline);
 
 /**
   Terminates RPC session and connection with server and finalize client's RPC

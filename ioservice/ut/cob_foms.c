@@ -304,9 +304,9 @@ static void cobfops_send_wait(struct cobthread_arg *arg)
 	fop = arg->ca_ftype == &m0_fop_cob_create_fopt ? cut->cu_createfops[i] :
 		cut->cu_deletefops[i];;
 
+	fop->f_item.ri_nr_sent_max = CLIENT_RPC_CONN_TIMEOUT;
 	rc = m0_rpc_client_call(fop, &cut->cu_cctx.rcx_session,
-				NULL, 0 /* deadline */,
-				m0_time_from_now(CLIENT_RPC_CONN_TIMEOUT, 0));
+				NULL, 0 /* deadline */);
 	M0_UT_ASSERT(rc == 0);
 	rfop = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
 	M0_UT_ASSERT(rfop->cor_rc == arg->ca_rc);

@@ -179,14 +179,13 @@ struct m0_rpc_item {
 	    the item.
 	 */
 	m0_time_t			 ri_deadline;
-	uint64_t			 ri_flags;
+	m0_time_t                        ri_resend_interval;
+	uint64_t                         ri_nr_sent_max;
 	/** Absolute time after which the RPC call is considered as failed */
-	m0_time_t                        ri_op_timeout;
 	struct m0_rpc_session		*ri_session;
 	/** item operations */
 	const struct m0_rpc_item_ops	*ri_ops;
-	m0_time_t                        ri_resend_interval;
-	uint64_t                         ri_nr_sent_max;
+
 /* Public fields: read only */
 
 	struct m0_rpc_machine           *ri_rmachine;

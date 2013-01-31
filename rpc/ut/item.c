@@ -114,8 +114,7 @@ static void test_simple_transitions(void)
 	item = &fop->f_item;
 	rc = m0_rpc_client_call(fop, &cctx.rcx_session,
 				&cs_ds_req_fop_rpc_item_ops,
-				0 /* deadline */,
-				m0_time_from_now(CONNECT_TIMEOUT, 0));
+				0 /* deadline */);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(item->ri_error == 0);
 	M0_UT_ASSERT(item->ri_reply != NULL);
@@ -144,8 +143,7 @@ static void test_timeout(void)
 	m0_fi_enable_once("cs_req_fop_fom_tick", "inject_delay");
 	rc = m0_rpc_client_call(fop, &cctx.rcx_session,
 				&cs_ds_req_fop_rpc_item_ops,
-				0 /* deadline */,
-				m0_time_from_now(1, 0));
+				0 /* deadline */);
 	M0_UT_ASSERT(rc == -ETIMEDOUT);
 	M0_UT_ASSERT(item->ri_error == -ETIMEDOUT);
 	M0_UT_ASSERT(item->ri_reply == NULL);
@@ -196,11 +194,10 @@ static void __test_timeout(m0_time_t deadline,
 
 	fop = fop_alloc();
 	item = &fop->f_item;
+	m0_rpc_machine_get_stats(machine, &saved, false);
 	item->ri_nr_sent_max = 1;
 	item->ri_resend_interval = timeout;
-	m0_rpc_machine_get_stats(machine, &saved, false);
-	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
-				deadline, timeout);
+	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL, deadline);
 	M0_UT_ASSERT(item->ri_error == -ETIMEDOUT);
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
@@ -320,8 +317,7 @@ static void __test_resend(struct m0_fop *fop)
 		fop_put_flag = true;
 	}
 	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
-				0 /* urgent */, m0_time_from_now(2, 0));
+	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL, 0 /* urgent */);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(item->ri_error == 0);
 	M0_UT_ASSERT(item->ri_nr_sent >= 1);
@@ -337,8 +333,7 @@ static void __test_timer_start_failure(void)
 
 	fop = fop_alloc();
 	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
-				0 /* urgent */, m0_time_from_now(2, 0));
+	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL, 0 /* urgent */);
 	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(item->ri_error == -EINVAL);
 	M0_UT_ASSERT(item->ri_reply == NULL);
@@ -400,8 +395,7 @@ static int __test(void)
 	item = &fop->f_item;
 	rc = m0_rpc_client_call(fop, &cctx.rcx_session,
 				&cs_ds_req_fop_rpc_item_ops,
-				0 /* deadline */,
-				m0_time_from_now(CONNECT_TIMEOUT, 0));
+				0 /* deadline */);
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
 	m0_rpc_machine_get_stats(machine, &stats, false);
