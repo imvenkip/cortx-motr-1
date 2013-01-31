@@ -101,6 +101,10 @@ M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp)
 		else
 			next[M0_CCP_IO_WAIT] = M0_CCP_FINI;
 	}
+
+	if (phase == M0_CCP_XFORM && cp->c_ag->cag_cp_nr == 1)
+		next[M0_CCP_XFORM] = M0_CCP_WRITE;
+
 	m0_fom_phase_set(&cp->c_fom, next[phase]);
 
         return M0_IN(next[phase], (M0_CCP_IO_WAIT, M0_CCP_XFORM_WAIT,

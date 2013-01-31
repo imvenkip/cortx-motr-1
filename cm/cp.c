@@ -436,7 +436,7 @@ static const struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
                 .sd_flags       = 0,
                 .sd_name        = "Xform",
                 .sd_allowed     = M0_BITS(M0_CCP_XFORM_WAIT, M0_CCP_FINI,
-				          M0_CCP_SEND)
+				          M0_CCP_WRITE, M0_CCP_SEND)
         },
         [M0_CCP_XFORM_WAIT] = {
                 .sd_flags       = 0,

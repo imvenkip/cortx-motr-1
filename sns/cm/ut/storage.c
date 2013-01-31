@@ -114,7 +114,8 @@ static int dummy_cp_init(struct m0_cm_cp *cp)
 static int dummy_cp_read(struct m0_cm_cp *cp)
 {
 	cp->c_io_op = M0_CM_CP_READ;
-	return cp->c_ops->co_phase_next(cp);
+	cp->c_ops->co_phase_next(cp);
+	return M0_FSO_AGAIN;
 }
 
 /*
@@ -125,7 +126,8 @@ static int dummy_cp_read(struct m0_cm_cp *cp)
 static int dummy_cp_write(struct m0_cm_cp *cp)
 {
 	cp->c_io_op = M0_CM_CP_WRITE;
-	return cp->c_ops->co_phase_next(cp);
+	cp->c_ops->co_phase_next(cp);
+	return M0_FSO_AGAIN;
 }
 
 /* Passthorugh phase for testing purpose. */
@@ -171,16 +173,17 @@ static int dummy_cp_write_io_wait(struct m0_cm_cp *cp)
 
 const struct m0_cm_cp_ops write_cp_dummy_ops = {
 	.co_action = {
-		[M0_CCP_INIT]    = &dummy_cp_init,
-		[M0_CCP_READ]    = &dummy_cp_read,
-		[M0_CCP_WRITE]   = &m0_sns_cm_cp_write,
-		[M0_CCP_IO_WAIT] = &dummy_cp_read_io_wait,
-		[M0_CCP_XFORM]   = &dummy_cp_xform,
-		[M0_CCP_FINI]    = &dummy_cp_fini,
+		[M0_CCP_INIT]       = &dummy_cp_init,
+		[M0_CCP_READ]       = &dummy_cp_read,
+		[M0_CCP_WRITE]      = &m0_sns_cm_cp_write,
+		[M0_CCP_IO_WAIT]    = &dummy_cp_read_io_wait,
+		[M0_CCP_XFORM]      = &dummy_cp_xform,
+		[M0_CCP_XFORM_WAIT] = &m0_sns_cm_cp_xform_wait,
+		[M0_CCP_FINI]       = &dummy_cp_fini,
 	},
-	.co_action_nr            = M0_CCP_NR,
-	.co_phase_next           = &m0_sns_cm_cp_phase_next,
-	.co_complete             = &dummy_cp_complete,
+	.co_action_nr               = M0_CCP_NR,
+	.co_phase_next              = &m0_sns_cm_cp_phase_next,
+	.co_complete                = &dummy_cp_complete,
 };
 
 void write_post(void)
@@ -194,6 +197,7 @@ void write_post(void)
 	w_sns_cp.sc_sid = sid;
 	m0_fid_set(&w_sag.sag_tgt_cobfid, sid.si_bits.u_hi, sid.si_bits.u_lo);
 	w_sag.sag_tgt_cob_index = 0;
+	w_sag.sag_base.cag_cp_nr = 1;
 	w_sns_cp.sc_base.c_ops = &write_cp_dummy_ops;
 
 	sdom = m0_cs_stob_domain_find(reqh, &sid);
@@ -202,7 +206,6 @@ void write_post(void)
 	m0_dtx_init(&tx);
 	rc = sdom->sd_ops->sdo_tx_make(sdom, &tx);
 	M0_ASSERT(rc == 0);
-
 	/*
 	 * Create a stob. In actual repair scenario, this will already be
 	 * created by the IO path.
@@ -227,16 +230,17 @@ void write_post(void)
 
 const struct m0_cm_cp_ops read_cp_dummy_ops = {
 	.co_action = {
-		[M0_CCP_INIT]    = &dummy_cp_init,
-		[M0_CCP_READ]    = &m0_sns_cm_cp_read,
-		[M0_CCP_WRITE]   = &dummy_cp_write,
-		[M0_CCP_IO_WAIT] = &dummy_cp_write_io_wait,
-		[M0_CCP_XFORM]   = &dummy_cp_xform,
-		[M0_CCP_FINI]    = &dummy_cp_fini,
+		[M0_CCP_INIT]       = &dummy_cp_init,
+		[M0_CCP_READ]       = &m0_sns_cm_cp_read,
+		[M0_CCP_WRITE]      = &dummy_cp_write,
+		[M0_CCP_IO_WAIT]    = &dummy_cp_write_io_wait,
+		[M0_CCP_XFORM]      = &dummy_cp_xform,
+		[M0_CCP_XFORM_WAIT] = &m0_sns_cm_cp_xform_wait,
+		[M0_CCP_FINI]       = &dummy_cp_fini,
 	},
-	.co_action_nr            = M0_CCP_NR,
-	.co_phase_next           = &m0_sns_cm_cp_phase_next,
-	.co_complete             = &dummy_cp_complete,
+	.co_action_nr               = M0_CCP_NR,
+	.co_phase_next              = &m0_sns_cm_cp_phase_next,
+	.co_complete                = &dummy_cp_complete,
 };
 
 static void read_post(void)
@@ -250,6 +254,7 @@ static void read_post(void)
 	 */
 	cp_prepare(&r_sns_cp.sc_base, &r_bv, SEG_NR, SEG_SIZE, &r_sag, ' ',
 		   &dummy_cp_fom_ops, reqh);
+	r_sag.sag_base.cag_cp_nr = 1;
 	r_sns_cp.sc_sid = sid;
 	r_sns_cp.sc_base.c_ops = &read_cp_dummy_ops;
 
@@ -267,7 +272,7 @@ static void read_post(void)
 
 static void test_cp_write_read(void)
 {
-	int rc;
+	int                    rc;
 
 	rc = sns_cm_ut_server_start();
 	M0_ASSERT(rc == 0);

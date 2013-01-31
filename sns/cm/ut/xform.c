@@ -94,6 +94,9 @@ static int dummy_fom_tick(struct m0_fom *fom)
 	case M0_CCP_IO_WAIT:
 		m0_fom_phase_set(fom, M0_CCP_FINI);
 		return M0_FSO_WAIT;
+	case M0_CCP_XFORM_WAIT:
+		m0_fom_phase_set(fom, M0_CCP_WRITE);
+		return M0_FSO_AGAIN;
 	default:
 		M0_IMPOSSIBLE("Bad State");
 		return 0;
