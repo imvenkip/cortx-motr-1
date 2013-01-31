@@ -156,11 +156,12 @@ bool foo_invariant(const struct foo *f)
 
    @note This compiles to "exp" if M0_ASSERT_OFF is true.
  */
-#define _0C(exp)					\
+#define _0C(exp)				\
 ({						\
-	if (!M0_ASSERT_OFF && !(exp))		\
+	bool __exp = (exp);			\
+	if (!M0_ASSERT_OFF && !__exp)		\
 		m0_failed_condition = #exp;	\
-	exp;					\
+	__exp;					\
 })
 
 /** @} end of assert group */
