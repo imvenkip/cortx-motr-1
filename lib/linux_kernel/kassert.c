@@ -20,7 +20,7 @@
 
 
 /**
- * @addtogroup XXX
+ * @addtogroup assert
  *
  * @{
  */
@@ -38,7 +38,7 @@ void m0_arch_panic(const char *expr, const char *func,
 	BUG();
 }
 
-/** @} end of XXX group */
+/** @} end of assert group */
 
 
 /*
