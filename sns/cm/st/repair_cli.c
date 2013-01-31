@@ -31,6 +31,7 @@
 #include "lib/getopts.h"
 #include "lib/misc.h"           /* M0_IN() */
 #include "lib/memory.h"
+#include "lib/time.h"
 #include "fop/fop.h"
 #include "net/lnet/lnet.h"
 #include "mero/init.h"
@@ -106,6 +107,8 @@ int main(int argc, char *argv[])
 	uint64_t            N = 0;
 	uint64_t            K = 0;
 	uint64_t            P = 0;
+	m0_time_t           start;
+	m0_time_t           delta;
 	int                 file_cnt = 0;
 	int                 rc;
 	int                 i;
@@ -158,11 +161,15 @@ int main(int argc, char *argv[])
 	treq->P = P;
 	treq->unit_size = unit_size;
 	treq->op = op;
+	start = m0_time_now();
 	rc = m0_rpc_client_call(fop, &cl_ctx.rcx_session,
 				&trigger_fop_rpc_item_ops,
 				0 /* deadline */,
 				M0_TIME_NEVER);
 	M0_ASSERT(rc == 0);
+	delta = m0_time_sub(m0_time_now(), start);
+	printf("Time: %lu.%2.2lu sec\n", (unsigned long)m0_time_seconds(delta),
+	       (unsigned long)m0_time_nanoseconds(delta) * 100 / M0_TIME_ONE_BILLION);
 
 	m0_fop_put(fop);
 	client_fini();

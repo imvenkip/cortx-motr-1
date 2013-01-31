@@ -215,21 +215,13 @@ static int emap_lookup(struct m0_emap *emap, struct m0_db_tx *tx,
 {
 	int result;
 
-#ifndef __KERNEL__
-	printf("prefix: %lu  %lu it->ec_seg.ee_ext: %lu %lu offset: %lu\n",
-		prefix->u_hi, prefix->u_lo, it->ec_seg.ee_ext.e_start, it->ec_seg.ee_ext.e_end, offset);
-#endif
 	result = it_init(emap, tx, prefix, offset, it, 0);
 	if (result == 0) {
 		result = IT_DO_OPEN(it, &m0_db_cursor_get);
 		if (result != 0)
 			emap_close(it);
 	}
-#ifndef __KERNEL__
-	printf("prefix: %lu  %lu it->ec_seg.ee_ext: %lu %lu offset: %lu result: %d\n",
-		prefix->u_hi, prefix->u_lo, it->ec_seg.ee_ext.e_start, it->ec_seg.ee_ext.e_end, offset, result);
-#endif
-	//M0_POST(ergo(result == 0, m0_ext_is_in(&it->ec_seg.ee_ext, offset)));
+	M0_POST(ergo(result == 0, m0_ext_is_in(&it->ec_seg.ee_ext, offset)));
 	return result;
 }
 

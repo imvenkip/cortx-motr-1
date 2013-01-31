@@ -27,6 +27,7 @@
 #include "lib/atomic.h"
 #include "lib/types.h"
 #include "lib/tlist.h"
+#include "lib/mutex.h"
 
 /**
    @defgroup CMAG Copy machine aggregation group
@@ -52,6 +53,8 @@ struct m0_cm_aggr_group {
 
 	struct m0_layout                  *cag_layout;
 
+	struct m0_mutex                    cag_mutex;
+
 	/**
 	 * Number of local copy packets that correspond to this aggregation
 	 * group.
@@ -59,10 +62,10 @@ struct m0_cm_aggr_group {
 	uint64_t                           cag_cp_nr;
 
 	/** Number of copy packets that have been transformed. */
-	struct m0_atomic64		   cag_transformed_cp_nr;
+	uint64_t                           cag_transformed_cp_nr;
 
 	/** Number of copy packets that are freed. */
-	struct m0_atomic64		   cag_freed_cp_nr;
+	uint64_t                           cag_freed_cp_nr;
 
 	/**
 	 * Linkage into the sorted sliding window queue of aggregation groups
@@ -137,6 +140,9 @@ M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_hi(struct m0_cm *cm);
  * @pre cm != NULL && m0_cm_is_locked == true
  */
 M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_lo(struct m0_cm *cm);
+
+M0_INTERNAL void m0_cm_ag_lock(struct m0_cm_aggr_group *ag);
+M0_INTERNAL void m0_cm_ag_unlock(struct m0_cm_aggr_group *ag);
 
 M0_TL_DESCR_DECLARE(aggr_grps, M0_INTERNAL);
 M0_TL_DECLARE(aggr_grps, M0_INTERNAL, struct m0_cm_aggr_group);

@@ -196,46 +196,50 @@
  *
  *   <b>Copy packet is a state machine that goes through following phases:</b>
  *
- *   - @b INIT   Copy packet gets initialised with input data. e.g In SNS,
- *		 extent, COB, &c gets initialised. Usually this will be done
- *		 with some iterator over layout info.
- *		 (m0_cm_cp_phase::M0_CCP_INIT)
+ *   - @b INIT        Copy packet gets initialised with input data. e.g In SNS,
+ *		      extent, COB, &c gets initialised. Usually this will be
+ *		      done with some iterator over layout info.
+ *		      (m0_cm_cp_phase::M0_CCP_INIT)
  *
- *   - @b READ   Reads data from its associated container or device according
- *		 to the input information, and places the data in a copy packet
- *		 data buffer. Before doing this, it needs to grab necessary
- *		 resources: memory, locks, permissions, CPU/disk bandwidth,
- *		 etc. Data/parity is encapsulated in copy packet, and the copy
- *		 packets are transfered to next phase.
- *		 (m0_cm_cp_phase::M0_CCP_READ)
+ *   - @b READ        Reads data from its associated container or device according
+ *		      to the input information, and places the data in a copy
+ *		      packet data buffer. Before doing this, it needs to grab
+ *		      necessary resources: memory, locks, permissions, CPU/disk
+ *		      bandwidth, etc. Data/parity is encapsulated in copy packet,
+ *		      and the copy packets are transfered to next phase.
+ *		      (m0_cm_cp_phase::M0_CCP_READ)
  *
- *   - @b WRITE  Writes data from copy packet data buffer to the container or
- *		 device. Spare container and offset to write is identified from
- *		 layout information.
- *		 (m0_cm_cp_phase::M0_CCP_WRITE)
+ *   - @b WRITE       Writes data from copy packet data buffer to the container
+ *                    or device. Spare container and offset to write is
+ *                    identified from layout information.
+ *		      (m0_cm_cp_phase::M0_CCP_WRITE)
  *
- *   - @b XFORM  Data restructuring is done in this phase. This phase would
- *		 typically process a lot of local copy packets. E.g., for SNS
- *		 repair machine, a file typically has a component object (cob)
- *		 on each device in the pool, which means that a node could
- *		 (and should) calculate "partial parity" of all local units,
- *		 instead of sending each of them separately across the network
- *		 to a remote copy machine replica.
- *		 (m0_cm_cp_phase::M0_CCP_XFORM)
+ *   - @b XFORM       Data restructuring is done in this phase. This phase would
+ *		      typically process a lot of local copy packets. E.g., for
+ *		      SNS repair machine, a file typically has a component object
+ *		      (cob) on each device in the pool, which means that a node
+ *		      could (and should) calculate "partial parity" of all local
+ *		      units, instead of sending each of them separately across
+ *		      the network to a remote copy machine replica.
+ *		      (m0_cm_cp_phase::M0_CCP_XFORM)
  *
- *   - @b IOWAIT Waits for IO to complete. (m0_cm_cp_phase::M0_CCP_IO_WAIT)
+ *   - @b XFORM_WAIT  The resultatnt copy packet or the accumulator for an
+ *                    aggregation group waits until all the copy packets from
+ *                    the group are transformed.
  *
- *   - @b SEND   Send copy packet over network. Control FOP and bulk transfer
- *		 are used for sending copy packet.
- *		 (m0_cm_cp_phase::M0_CCP_SEND)
+ *   - @b IOWAIT      Waits for IO to complete. (m0_cm_cp_phase::M0_CCP_IO_WAIT)
  *
- *   - @b RECV   Copy packet data is received from network. On receipt of
- *		 control FOP, copy packet is created and FOM is submitted for
- *		 execution and phase is set RECV, which will eventually receive
- *		 data using rpc bulk.
- *		 (m0_cm_cp_phase::M0_CCP_RECV)
+ *   - @b SEND        Send copy packet over network. Control FOP and bulk
+ *                    transfer are used for sending copy packet.
+ *		      (m0_cm_cp_phase::M0_CCP_SEND)
  *
- *   - @b FINI   Finalises copy packet.
+ *   - @b RECV        Copy packet data is received from network. On receipt of
+ *		      control FOP, copy packet is created and FOM is submitted
+ *		      for execution and phase is set RECV, which will eventually
+ *		      receive data using rpc bulk.
+ *		      (m0_cm_cp_phase::M0_CCP_RECV)
+ *
+ *   - @b FINI        Finalises copy packet.
  *
  *   Specific copy packet can have phases in addition to these phases.
  *   Additional phases may be used to do processing for copy packet specific
@@ -349,15 +353,14 @@ static void cp_fom_fini(struct m0_fom *fom)
 	 * making way for new copy packets in sliding window.
 	 */
 	m0_cm_lock(cm);
-	m0_atomic64_inc(&ag->cag_freed_cp_nr);
-	m0_mb();
+	++ag->cag_freed_cp_nr;
 	if (m0_cm_has_more_data(cm))
 		m0_cm_sw_fill(cm);
 	/**
 	 * Free the aggregation group if this is the last copy packet
 	 * being finalised for a given aggregation group.
 	 */
-	if(m0_atomic64_get(&ag->cag_freed_cp_nr) == ag->cag_cp_nr)
+	if(ag->cag_freed_cp_nr == ag->cag_cp_nr)
 		ag->cag_ops->cago_fini(ag);
 	m0_cm_unlock(cm);
 }
@@ -438,8 +441,7 @@ static const struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
         [M0_CCP_XFORM_WAIT] = {
                 .sd_flags       = 0,
                 .sd_name        = "Xform_wait",
-                .sd_allowed     = M0_BITS(M0_CCP_WRITE, M0_CCP_FINI,
-				          M0_CCP_SEND)
+                .sd_allowed     = M0_BITS(M0_CCP_WRITE, M0_CCP_SEND)
         },
         [M0_CCP_SEND] = {
                 .sd_flags       = 0,

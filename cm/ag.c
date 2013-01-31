@@ -47,6 +47,16 @@ struct m0_bob_type ag_bob;
 
 M0_BOB_DEFINE(static M0_UNUSED, &ag_bob, m0_cm_aggr_group);
 
+M0_INTERNAL void m0_cm_ag_lock(struct m0_cm_aggr_group *ag)
+{
+	m0_mutex_lock(&ag->cag_mutex);
+}
+
+M0_INTERNAL void m0_cm_ag_unlock(struct m0_cm_aggr_group *ag)
+{
+	m0_mutex_unlock(&ag->cag_mutex);
+}
+
 M0_INTERNAL int m0_cm_ag_id_cmp(const struct m0_cm_ag_id *id0,
 				const struct m0_cm_ag_id *id1)
 {
@@ -70,8 +80,7 @@ M0_INTERNAL void m0_cm_aggr_group_init(struct m0_cm_aggr_group *ag,
 	M0_PRE(ag_ops != NULL);
 
 	ag->cag_cm = cm;
-	m0_atomic64_set(&ag->cag_transformed_cp_nr, 0);
-	m0_atomic64_set(&ag->cag_freed_cp_nr, 0);
+	m0_mutex_init(&ag->cag_mutex);
 	ag->cag_id = *id;
 	aggr_grps_tlink_init(ag);
 	ag->cag_ops = ag_ops;
@@ -93,6 +102,7 @@ M0_INTERNAL void m0_cm_aggr_group_fini(struct m0_cm_aggr_group *ag)
 	if (!m0_cm_has_more_data(cm) &&
 	    aggr_grps_tlist_is_empty(&cm->cm_aggr_grps))
 		cm->cm_ops->cmo_complete(cm);
+	m0_mutex_fini(&ag->cag_mutex);
 	M0_LEAVE();
 }
 

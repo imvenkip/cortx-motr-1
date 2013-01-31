@@ -148,7 +148,7 @@ static struct m0_fom_ops multiple_cp_fom_ops = {
 static void test_single_cp(void)
 {
 	m0_semaphore_init(&sem, 0);
-	m0_atomic64_set(&s_sag.sag_base.cag_transformed_cp_nr, 0);
+	s_sag.sag_base.cag_transformed_cp_nr = 0;
 	cp_prepare(&s_cp, &s_bv, SEG_NR, SEG_SIZE, &s_sag, 'e',
 		   &single_cp_fom_ops, reqh);
 	s_cp.c_ag->cag_ops = &group_single_ops;
@@ -167,8 +167,7 @@ static void test_single_cp(void)
 	 * These asserts ensure that the single copy packet has been treated
 	 * as passthrough.
 	 */
-	M0_UT_ASSERT(m0_atomic64_get(&s_sag.sag_base.cag_transformed_cp_nr) ==
-		     0);
+	M0_UT_ASSERT(s_sag.sag_base.cag_transformed_cp_nr == 0);
 	M0_UT_ASSERT(s_sag.sag_base.cag_cp_nr == 1);
 	m0_semaphore_fini(&sem);
 }
@@ -182,7 +181,7 @@ static void test_multiple_cp(void)
 	int i;
 
 	m0_semaphore_init(&sem, 0);
-	m0_atomic64_set(&m_sag.sag_base.cag_transformed_cp_nr, 0);
+	m_sag.sag_base.cag_transformed_cp_nr = 0;
 	for (i = 0; i < CP_MULTI; ++i) {
 		cp_prepare(&m_cp[i], &m_bv[i], SEG_NR, SEG_SIZE, &m_sag, 'r',
 			   &multiple_cp_fom_ops, reqh);
@@ -203,8 +202,7 @@ static void test_multiple_cp(void)
 	 * These asserts ensure that all the copy packets have been collected
 	 * by the transformation function.
 	 */
-	M0_UT_ASSERT(m0_atomic64_get(&m_sag.sag_base.cag_transformed_cp_nr) ==
-		     CP_MULTI);
+	M0_UT_ASSERT(m_sag.sag_base.cag_transformed_cp_nr == CP_MULTI);
 	M0_UT_ASSERT(m_sag.sag_base.cag_cp_nr == CP_MULTI);
 	m0_semaphore_fini(&sem);
 }

@@ -58,12 +58,13 @@ static bool cp_invariant(const struct m0_cm_cp *cp)
  */
 M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp)
 {
-	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
-	//struct m0_cm_ag_id *id;
+	struct m0_sns_cm_ag *sns_ag = ag2snsag(cp->c_ag);
 
-	//id = &cp->c_ag->cag_id;
-	/* GOB.f_key + parity group number. */
-	return sns_cp->sc_sid.si_bits.u_hi;//id->ai_hi.u_lo + id->ai_lo.u_lo;
+	/*
+         * Serialize writes on a particular stob by returning target
+         * container id to assign a reqh locality to the cp fom.
+         */
+	return sns_ag->sag_tgt_cobfid.f_container;
 }
 
 static int cp_init(struct m0_cm_cp *cp)
@@ -86,12 +87,12 @@ M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp)
 {
 	int phase = m0_fom_phase(&cp->c_fom);
 	int next[] = {
-		[M0_CCP_INIT]  = M0_CCP_READ,
-		[M0_CCP_READ]  = M0_CCP_IO_WAIT,
-		[M0_CCP_XFORM] = M0_CCP_XFORM_WAIT,
+		[M0_CCP_INIT]       = M0_CCP_READ,
+		[M0_CCP_READ]       = M0_CCP_IO_WAIT,
+		[M0_CCP_XFORM]      = M0_CCP_XFORM_WAIT,
 		[M0_CCP_XFORM_WAIT] = M0_CCP_WRITE,
-		[M0_CCP_WRITE] = M0_CCP_IO_WAIT,
-		[M0_CCP_IO_WAIT] = M0_CCP_XFORM
+		[M0_CCP_WRITE]      = M0_CCP_IO_WAIT,
+		[M0_CCP_IO_WAIT]    = M0_CCP_XFORM
 	};
 
 	if (phase == M0_CCP_IO_WAIT) {
@@ -100,10 +101,11 @@ M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp)
 		else
 			next[M0_CCP_IO_WAIT] = M0_CCP_FINI;
 	}
-
 	m0_fom_phase_set(&cp->c_fom, next[phase]);
-        return M0_IN(next[phase], (M0_CCP_IO_WAIT, M0_CCP_XFORM_WAIT, M0_CCP_FINI)) ?
-		M0_FSO_WAIT : M0_FSO_AGAIN;
+
+        return M0_IN(next[phase], (M0_CCP_IO_WAIT, M0_CCP_XFORM_WAIT,
+				   M0_CCP_FINI)) ?
+	       M0_FSO_WAIT : M0_FSO_AGAIN;
 }
 
 static void cp_complete(struct m0_cm_cp *cp)
@@ -144,16 +146,16 @@ static int sns_cm_dummy_cp_fini(struct m0_cm_cp *cp)
 
 const struct m0_cm_cp_ops m0_sns_cm_cp_ops = {
 	.co_action = {
-		[M0_CCP_INIT]    = &cp_init,
-		[M0_CCP_READ]    = &m0_sns_cm_cp_read,
-		[M0_CCP_WRITE]   = &m0_sns_cm_cp_write,
-		[M0_CCP_IO_WAIT] = &m0_sns_cm_cp_io_wait,
-		[M0_CCP_XFORM]   = &m0_sns_cm_cp_xform,
+		[M0_CCP_INIT]         = &cp_init,
+		[M0_CCP_READ]         = &m0_sns_cm_cp_read,
+		[M0_CCP_WRITE]        = &m0_sns_cm_cp_write,
+		[M0_CCP_IO_WAIT]      = &m0_sns_cm_cp_io_wait,
+		[M0_CCP_XFORM]        = &m0_sns_cm_cp_xform,
 		[M0_CCP_XFORM_WAIT]   = &m0_sns_cm_cp_xform_wait,
-		[M0_CCP_SEND]    = &m0_sns_cm_cp_send,
-		[M0_CCP_RECV]    = &m0_sns_cm_cp_recv,
+		[M0_CCP_SEND]         = &m0_sns_cm_cp_send,
+		[M0_CCP_RECV]         = &m0_sns_cm_cp_recv,
 		/* To satisfy the m0_cm_cp_invariant() */
-		[M0_CCP_FINI]    = &sns_cm_dummy_cp_fini,
+		[M0_CCP_FINI]         = &sns_cm_dummy_cp_fini,
 	},
 	.co_action_nr            = M0_CCP_NR,
 	.co_phase_next	         = &m0_sns_cm_cp_phase_next,

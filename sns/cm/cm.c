@@ -323,8 +323,8 @@ enum {
 	 * Minimum number of buffers to provision m0_sns_cm::sc_ibp
 	 * and m0_sns_cm::sc_obp buffer pools.
 	 */
-	SNS_INCOMING_BUF_NR = 32,
-	SNS_OUTGOING_BUF_NR = 32
+	SNS_INCOMING_BUF_NR = 1 << 4,
+	SNS_OUTGOING_BUF_NR = 1 << 4
 };
 
 extern struct m0_net_xprt m0_net_lnet_xprt;
@@ -501,9 +501,9 @@ static int cm_start(struct m0_cm *cm)
 	rc = m0_sns_cm_iter_init(&scm->sc_it);
 	if (rc == 0) {
 		m0_cm_sw_fill(cm);
-                rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
-                                             scm->sc_it.si_fdata,
-                                           M0_PNDS_SNS_REPAIRING);
+               rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
+					    scm->sc_it.si_fdata,
+					    M0_PNDS_SNS_REPAIRING);
 
 	}
 

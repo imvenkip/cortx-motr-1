@@ -96,7 +96,7 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 
         ag = cp->c_ag;
         sns_ag = ag2snsag(ag);
-	m0_mutex_lock(&sns_ag->sag_mutex);
+	m0_cm_ag_lock(ag);
 	res_cp = sns_ag->sag_cp;
         if (res_cp == NULL) {
                 /*
@@ -116,7 +116,7 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 		 * Value of collected copy packets is zero at this stage, hence
 		 * incrementing it will work fine.
 		 */
-                m0_atomic64_inc(&ag->cag_transformed_cp_nr);
+                ++ag->cag_transformed_cp_nr;
 
 		/*
 		 * Put this copy packet to wait queue of request handler till
@@ -133,9 +133,8 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 		 * manipulation like growing or shrinking the buffers.
 		 */
                 bufvec_xor(res_cp->c_data, cp->c_data, cp_bufvec_size);
-                m0_atomic64_inc(&ag->cag_transformed_cp_nr);
-		M0_ASSERT(ag->cag_cp_nr >=
-			  m0_atomic64_get(&ag->cag_transformed_cp_nr));
+                ++ag->cag_transformed_cp_nr;
+		M0_ASSERT(ag->cag_cp_nr >= ag->cag_transformed_cp_nr);
                 /*
                  * Once transformation is complete, mark the copy
                  * packet's fom's sm state to M0_CCP_FINI since it is not
@@ -148,13 +147,12 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
                  * move the resultant copy packet's fom from waiting to ready
                  * queue.
                  */
-                if(ag->cag_cp_nr ==
-		   m0_atomic64_get(&ag->cag_transformed_cp_nr)) {
+                if(ag->cag_cp_nr == ag->cag_transformed_cp_nr)
 			m0_fom_wakeup(&res_cp->c_fom);
-		}
 		rc = M0_FSO_WAIT;
         }
-	m0_mutex_unlock(&sns_ag->sag_mutex);
+	m0_cm_ag_unlock(ag);
+
 	return rc;
 }
 
