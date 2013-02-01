@@ -515,7 +515,6 @@ static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
 	struct m0_fol_rec_header *h = &desc->rd_header;
 	int			  rc;
 	uint32_t		  i;
-	const struct m0_fol_rec_type *rtype;
 
 	rc = fol_rec_header_encdec(h, cur, what);
 	M0_ASSERT(rc == 0);
@@ -600,8 +599,8 @@ static int fol_rec_part_encdec(struct m0_fol_rec_part *part,
 	return rc;
 }
 
-M0_INTERNAL int m0_fol_record_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
-				     m0_lsn_t lsn, struct m0_fol_rec *out)
+M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
+				  m0_lsn_t lsn, struct m0_fol_rec *out)
 {
 	int result;
 

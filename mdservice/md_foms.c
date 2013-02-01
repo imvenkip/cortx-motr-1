@@ -1738,6 +1738,7 @@ md_part-> md_part ## _ ## md_type ## _rep =				    \
 
 static void md_fol_rec_part_add(struct m0_fom *fom)
 {
+	struct m0_fom_md	      *fom_obj;
 	struct m0_fol_rec_part	      *part;
 	struct m0_md_create_rec_part  *cp;
 	struct m0_md_lookup_rec_part  *lp;
@@ -1751,6 +1752,7 @@ static void md_fol_rec_part_add(struct m0_fom *fom)
 	struct m0_md_rename_rec_part  *rnp;
 	struct m0_md_readdir_rec_part *rdp;
 
+	fom_obj = container_of(fom, struct m0_fom_md, fm_fom);
 	part = &fom_obj->fm_fol_rec_part;
 	switch (m0_fop_opcode(fom->fo_fop)) {
         case M0_MDSERVICE_CREATE_OPCODE:
@@ -1785,7 +1787,6 @@ static void md_fol_rec_part_add(struct m0_fom *fom)
 		break;
         case M0_MDSERVICE_READDIR_OPCODE:
 		FOL_REC_PART_FILL(rdp, part, readdir);
->>>>>>> FOL_REC_PART_FILL macro is added to populate mdservice FOL record parts.
 		break;
         default:
                 break;

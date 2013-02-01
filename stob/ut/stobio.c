@@ -30,6 +30,7 @@
 #include "lib/ut.h"
 #include "lib/mutex.h"
 #include "lib/arith.h"
+#include "fol/fol.h"
 
 #include "stob/stob.h"
 #include "stob/linux.h"

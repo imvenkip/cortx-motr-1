@@ -97,8 +97,9 @@ db_SOURCES                      := db_common.c
 
 db_linux_kernel_SOURCES         := db.c
 
-dtm_SOURCES                     := verno.c dtm.c dtm_xc.c verno_xc.c
-dtm_HEADERS                     := dtm.h dtm_xc.h verno.h verno_xc.h
+dtm_SOURCES                     := verno.c dtm.c dtm_update_xc.c verno_xc.c
+dtm_HEADERS                     := dtm.h dtm_update.h dtm_update_xc.h verno.h \
+				   verno_xc.h
 
 fid_SOURCES                     := fid.c fid_xc.c
 fid_HEADERS                     := fid.h fid_xc.h

@@ -23,13 +23,14 @@
 #ifndef __MERO_DTM_DTM_UPDATE_H__
 #define __MERO_DTM_DTM_UPDATE_H__
 
+#include "lib/types_xc.h"
+
 struct m0_epoch_id;
-struct m0_update_id;
 
 struct m0_update_id {
 	uint32_t ui_node;
 	uint64_t ui_update;
-};
+} M0_XCA_RECORD;
 
 enum m0_update_state {
 	M0_US_INVALID,

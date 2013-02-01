@@ -24,6 +24,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"              /* M0_SET0 */
 #include "fol/fol.h"
+#include "dtm/dtm.h"
 #include "rpc/rpc_opcodes.h"
 #include "fid/fid_xc.h"
 #include "fol/fol_xc.h"
@@ -35,16 +36,18 @@ static int db_reset(void)
         return m0_ut_db_reset(db_name);
 }
 
-static struct m0_dbenv       db;
-static struct m0_fol         fol;
-static struct m0_dtx         dtx;
-
-static struct m0_fol_rec           *r;
-static struct m0_fol_rec_desc      *d;
-static struct m0_fol_rec_header    *h;
-static struct m0_buf                buf;
+static struct m0_dbenv           db;
+static struct m0_fol             fol;
+static struct m0_dtx             dtx;
+static struct m0_fol_rec        *r;
+static struct m0_fol_rec_desc   *d;
+static struct m0_fol_rec_header *h;
+static struct m0_buf             buf;
 
 static int result;
+
+static int verify_part_data(struct m0_fol_rec_part *part);
+M0_FOL_REC_PART_TYPE_DECLARE(ut_part, verify_part_data, NULL);
 
 static void test_init(void)
 {
@@ -58,7 +61,7 @@ static void test_init(void)
 	result = m0_dtx_open(&dtx, &db);
 	M0_ASSERT(result == 0);
 
-	r = dtx.tx_fol_rec;
+	r = &dtx.tx_fol_rec;
 	d = &r->fr_desc;
 	h = &d->rd_header;
 }
@@ -71,6 +74,23 @@ static void test_fini(void)
 	m0_fol_fini(&fol);
 	m0_dbenv_fini(&db);
 	m0_free(buf.b_addr);
+}
+
+static void test_rec_part_type_reg(void)
+{
+	ut_part_type = M0_FOL_REC_PART_TYPE_XC_OPS("UT record part", m0_fid_xc,
+						   &ut_part_type_ops);
+	result =  m0_fol_rec_part_type_register(&ut_part_type);
+	M0_ASSERT(result == 0);
+	M0_ASSERT(ut_part_type.rpt_index > 0);
+}
+
+static void test_rec_part_type_unreg(void)
+{
+	m0_fol_rec_part_type_deregister(&ut_part_type);
+	M0_ASSERT(ut_part_type.rpt_ops == NULL);
+	M0_ASSERT(ut_part_type.rpt_xt == NULL);
+	M0_ASSERT(ut_part_type.rpt_index == 0);
 }
 
 static void test_add(void)
@@ -103,18 +123,13 @@ static void test_lookup(void)
 			       &REC_HEADER_XCODE_OBJ(&dup.fr_desc.rd_header))
 	          == 0);
 
-	m0_rec_fini(&dup);
+	m0_fol_rec_fini(&dup);
 
 	result = m0_fol_rec_lookup(&fol, &dtx.tx_dbtx, lsn_inc(d->rd_lsn), &dup);
 	M0_ASSERT(result == -ENOENT);
 }
 
-static void test_type_unreg(void)
-{
-	m0_fol_rec_type_unregister(&ut_fol_type);
-}
-
-int verify_part_data(struct m0_fol_rec_part *part)
+static int verify_part_data(struct m0_fol_rec_part *part)
 {
 	struct m0_fid *dec_rec;
 
@@ -124,34 +139,24 @@ int verify_part_data(struct m0_fol_rec_part *part)
 	return 0;
 }
 
-M0_FOL_REC_PART_TYPE_DECLARE(ut_part, verify_part_data, NULL);
-
 static void test_fol_rec_part_encdec(void)
 {
 	struct m0_fid	       *rec;
 	struct m0_fol_rec       dec_rec;
-	struct m0_fol_rec_part *ut_rec_part;
+	struct m0_fol_rec_part  ut_rec_part;
 	m0_lsn_t		lsn;
 	struct m0_fol_rec_part *dec_part;
 
-	M0_ALLOC_PTR(ut_rec_part);
+	M0_ALLOC_PTR(rec);
+	M0_UT_ASSERT(rec != NULL);
 
-	ut_part_type = M0_FOL_REC_PART_TYPE_XC_OPS("UT record part", m0_fid_xc,
-						   &ut_part_type_ops);
-
-	result =  m0_fol_rec_part_type_register(&ut_part_type);
-	M0_ASSERT(result == 0);
-
-	ut_rec_part = m0_fol_rec_part_init(&ut_part_type);
-	M0_ASSERT(ut_rec_part != NULL);
-
-	rec = ut_rec_part->rp_data;
 	rec->f_container = 22;
 	rec->f_key	 = 33;
 
-	m0_fol_rec_part_add(dtx.tx_fol_rec, ut_rec_part);
+	m0_fol_rec_part_init(&ut_rec_part, rec, &ut_part_type);
 
-	d->rd_type = &ut_fol_type;
+	m0_fol_rec_part_list_add(&dtx.tx_fol_rec, &ut_rec_part);
+
 	h->rh_refcount = 1;
 	lsn = d->rd_lsn = m0_fol_lsn_allocate(&fol);
 
@@ -248,7 +253,7 @@ static void ub_lookup(int i)
 
 	result = m0_fol_rec_lookup(&fol, &dtx.tx_dbtx, lsn, &rec);
 	M0_ASSERT(result == 0);
-	m0_rec_fini(&rec);
+	m0_fol_rec_fini(&rec);
 	if (i%1000 == 0)
 		checkpoint();
 }

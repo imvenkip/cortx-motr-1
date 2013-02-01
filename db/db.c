@@ -41,6 +41,7 @@
 #include "mero/magic.h"
 #include "db/db.h"
 #include "db/db_common.h"
+#include "db/extmap_xc.h"
 
 /**
    @addtogroup db
@@ -790,14 +791,14 @@ M0_INTERNAL int m0_db_init(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_db_mod);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_db_mod_ctx,
 			 &m0_addb_ct_db_mod, &m0_addb_proc_ctx);
-	m0_xc_extmap_seg_init();
+	m0_xc_extmap_init();
 	return 0;
 }
 
 M0_INTERNAL void m0_db_fini(void)
 {
         m0_addb_ctx_fini(&m0_db_mod_ctx);
-	m0_xc_extmap_seg_fini();
+	m0_xc_extmap_fini();
 }
 
 static int key_compare(DB *db, const DBT *dbt0, const DBT *dbt1)

@@ -1,18 +1,18 @@
 nobase_mero_include_HEADERS += dtm/dtm.h \
-                                  dtm/dtm_xc.h \
+                                  dtm/dtm_update_xc.h \
                                   dtm/verno.h \
                                   dtm/verno_xc.h
 
 mero_libmero_la_SOURCES  += dtm/dtm.c \
-                                  dtm/dtm_xc.c \
+                                  dtm/dtm_update_xc.c \
                                   dtm/verno.c \
                                   dtm/verno_xc.c
 
-XC_FILES   += dtm/dtm_xc.h dtm/verno_xc.h
+XC_FILES   += dtm/dtm_update_xc.h dtm/verno_xc.h
 
-CLEANFILES += dtm/dtm_xc.h   \
-              dtm/dtm_xc.c   \
-              dtm/dtm.gccxml \
+CLEANFILES += dtm/dtm_update_xc.h   \
+              dtm/dtm_update_xc.c   \
+              dtm/dtm_update.gccxml \
 	      dtm/verno_xc.h \
               dtm/verno_xc.c \
               dtm/verno.gccxml

@@ -351,6 +351,7 @@
 #include "lib/refs.h" /* m0_ref */
 #include "dtm/dtm.h"  /* m0_dtx */
 #include "stob/stob.h"
+#include "fol/fol.h"
 
 /**
    @defgroup addb_stobsink ADDB Stob Sink Interfaces
@@ -432,6 +433,9 @@ struct stobsink {
 	struct m0_bufvec_cursor   ss_cur;
 	/** The externally visible record sink interface */
 	struct m0_addb_mc_recsink ss_sink;
+	/** FOL record part to be added for addb storage operations. */
+	/** @todo: Whether fol record part for addb is needed or not ? */
+	struct m0_fol_rec_part    ss_fol_rec_part;
 };
 
 enum {
@@ -555,6 +559,8 @@ static int stobsink_header_read(struct stobsink *sink,
 	pb->spb_io.si_obj = NULL;
 	pb->spb_io.si_rc = 0;
 	pb->spb_io.si_count = 0;
+	pb->spb_io.si_fol_rec_part = &sink->ss_fol_rec_part;
+
 	rc = m0_stob_io_launch(&pb->spb_io, sink->ss_stob, &pb->spb_tx, NULL);
 	if (rc != 0) {
 		pb->spb_busy = false;
@@ -810,6 +816,7 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 	pb->spb_io.si_obj = NULL;
 	pb->spb_io.si_rc = 0;
 	pb->spb_io.si_count = 0;
+	pb->spb_io.si_fol_rec_part = &sink->ss_fol_rec_part;
 	m0_mutex_unlock(&sink->ss_mutex);
 	m0_dtx_init(&pb->spb_tx);
 	rc = dom->sd_ops->sdo_tx_make(dom, &pb->spb_tx);

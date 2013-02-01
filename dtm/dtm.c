@@ -26,7 +26,7 @@
 #include "lib/misc.h"              /* M0_SET0 */
 #include "lib/errno.h"             /* ENOMEM */
 #include "dtm/dtm.h"
-#include "dtm/dtm_update.h"
+#include "dtm/dtm_update_xc.h"
 
 M0_INTERNAL int m0_dtm_init(void)
 {

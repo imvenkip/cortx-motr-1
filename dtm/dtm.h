@@ -34,8 +34,6 @@
 /* export */
 struct m0_dtm;
 struct m0_dtx;
-struct m0_epoch_id;
-struct m0_update_id;
 
 struct m0_dtm {};
 
@@ -56,19 +54,7 @@ struct m0_dtx {
 	struct m0_fol_rec  tx_fol_rec;
 };
 
-struct m0_update_id {
-	uint32_t ui_node;
-	uint64_t ui_update;
-} M0_XCA_RECORD;
-
-enum m0_update_state {
-	M0_US_INVALID,
-	M0_US_VOLATILE,
-	M0_US_PERSISTENT,
-	M0_US_NR
-};
-
-M0_INTERNAL int m0_dtx_init(struct m0_dtx *tx);
+M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx);
 M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env);
 M0_INTERNAL int m0_dtx_done(struct m0_dtx *tx);
 M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx);

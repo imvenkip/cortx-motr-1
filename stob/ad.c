@@ -186,8 +186,6 @@ static int ad_stob_type_init(struct m0_stob_type *stype)
  */
 static void ad_stob_type_fini(struct m0_stob_type *stype)
 {
-	m0_fol_rec_part_type_fini(&m0_ad_part_type);
-
 	m0_xc_ad_fini();
 	m0_stob_type_fini(stype);
 	m0_fol_rec_part_type_deregister(&m0_ad_rec_part_type);
@@ -1058,26 +1056,23 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 	return result ?: rc;
 }
 
-static struct m0_fol_rec_part *ad_fol_part_alloc(uint32_t frags)
+static int ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
 {
-	struct m0_fol_rec_part *part;
+	struct m0_ad_rec_part  *arp;
 
 	M0_ALLOC_PTR(arp);
 	if (arp == NULL)
-		return NULL;
-	part = m0_fol_rec_part_init(arp, &m0_ad_rec_part_type);
-	if (part != NULL) {
-		struct m0_ad_rec_part *arp = part->rp_data;
+		return -ENOMEM;
+	m0_fol_rec_part_init(part, arp, &m0_ad_rec_part_type);
 
-		arp->arp_segments = frags;
+	arp->arp_segments = frags;
 
-		M0_ALLOC_ARR(arp->arp_old_data, frags);
-		if (arp->arp_old_data == NULL) {
-			m0_fol_rec_part_fini(part);
-			return NULL;
-		}
+	M0_ALLOC_ARR(arp->arp_old_data, frags);
+	if (arp->arp_old_data == NULL) {
+		m0_free(arp);
+		return -ENOMEM;
 	}
-	return part;
+	return 0;
 }
 
 /**
@@ -1106,12 +1101,12 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 	struct m0_ad_rec_part  *arp;
 	uint32_t		i = 0;
 
-	part = ad_fol_part_alloc(frags);
-	if (part == NULL)
-		return -ENOMEM;
+	part = io->si_fol_rec_part;
+	result = ad_fol_part_alloc(part, frags);
+	if (result != 0)
+		return result;
 
 	arp = part->rp_data;
-	result = 0;
 	do {
 		m0_bindex_t offset;
 
@@ -1123,7 +1118,8 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 		todo.e_end   = todo.e_start + frag_size;
 
 		arp->arp_old_data[i].ee_ext.e_start = offset;
-		arp->arp_old_data[i].ee_ext.e_end   = offset + m0_ext_length(&todo);
+		arp->arp_old_data[i].ee_ext.e_end   = offset +
+						      m0_ext_length(&todo);
 		arp->arp_old_data[i].ee_val         = todo.e_start;
 		arp->arp_old_data[i].ee_pre         = map->ct_it->ec_seg.ee_pre;
 		++i;
@@ -1139,7 +1135,7 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 	} while (!eodst);
 
 	if (result == 0)
-		m0_fol_rec_part_add(io->si_tx->tx_fol_rec, part);
+		m0_fol_rec_part_list_add(&io->si_tx->tx_fol_rec, part);
 
 	return result;
 }
@@ -1268,8 +1264,9 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 	if (result != 0)
 		return result;
 
-	back->si_opcode = io->si_opcode;
-	back->si_flags  = io->si_flags;
+	back->si_opcode	      = io->si_opcode;
+	back->si_flags	      = io->si_flags;
+	back->si_fol_rec_part = io->si_fol_rec_part;
 
 	switch (io->si_opcode) {
 	case SIO_READ:

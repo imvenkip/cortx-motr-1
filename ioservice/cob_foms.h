@@ -49,6 +49,8 @@ struct m0_fom_cob_op {
 	struct m0_fid		 fco_cfid;
 	/** Unique cob index in pool. */
 	uint32_t                 fco_cob_idx;
+	/** FOL rec part for create and delete operations. */
+	struct m0_fol_rec_part   fco_fol_rec_part;
 };
 
 /**

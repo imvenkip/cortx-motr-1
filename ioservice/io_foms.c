@@ -1836,20 +1836,24 @@ M0_INTERNAL const char *m0_io_fom_cob_rw_service_name(struct m0_fom *fom)
 
 static void write_fol_rec_part_add(struct m0_fom *fom)
 {
-	struct m0_fol_rec_part	    *fol_rec_part;
+	struct m0_fol_rec_part	    *part;
 	struct m0_io_write_rec_part *wrp;
+	struct m0_io_fom_cob_rw	    *fom_obj;
+
+	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+	part = &fom_obj->fcrw_fol_rec_part;
 
 	M0_ALLOC_PTR(wrp);
 	M0_ASSERT(wrp != NULL);
-	fol_rec_part = m0_fol_rec_part_init(wrp, &m0_io_write_rec_part_type);
-	M0_ASSERT(fol_rec_part != NULL);
+	m0_fol_rec_part_init(part, wrp, &m0_io_write_rec_part_type);
+	M0_ASSERT(part != NULL);
 
 	wrp->wrp_write = *(struct m0_fop_cob_writev *)m0_fop_data(fom->fo_fop);
 	wrp->wrp_fid = wrp->wrp_write.c_rwv.crw_fid;
 	wrp->wrp_write_rep = *(struct m0_fop_cob_writev_rep *)
 				m0_fop_data(fom->fo_rep_fop);
 
-	m0_fol_rec_part_list_add(&fom->fo_tx.tx_fol_rec, fol_rec_part);
+	m0_fol_rec_part_list_add(&fom->fo_tx.tx_fol_rec, part);
 }
 
 #undef M0_TRACE_SUBSYSTEM
