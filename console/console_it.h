@@ -56,7 +56,7 @@ struct m0_cons_atom_ops {
  *
  * @param fop fop object.
  */
-M0_INTERNAL void m0_cons_fop_fields_show(struct m0_fop *fop);
+M0_INTERNAL int m0_cons_fop_fields_show(struct m0_fop *fop);
 
 /**
  * @brief Iterate over FOP for input and output.
@@ -64,7 +64,7 @@ M0_INTERNAL void m0_cons_fop_fields_show(struct m0_fop *fop);
  * @param fop Fop object
  * @param type Data processing operation type
  */
-M0_INTERNAL void
+M0_INTERNAL int
 m0_cons_fop_obj_input_output(struct m0_fop *fop,
 			     enum m0_cons_data_process_type type);
 
@@ -73,14 +73,14 @@ m0_cons_fop_obj_input_output(struct m0_fop *fop,
  *
  * @param fop fop object.
  */
-M0_INTERNAL void m0_cons_fop_obj_input(struct m0_fop *fop);
+M0_INTERNAL int m0_cons_fop_obj_input(struct m0_fop *fop);
 
 /**
  * @brief Helper function for FOP output.
  *
  * @param fop fop object.
  */
-M0_INTERNAL void m0_cons_fop_obj_output(struct m0_fop *fop);
+M0_INTERNAL int m0_cons_fop_obj_output(struct m0_fop *fop);
 
 /** @} end of console_it */
 

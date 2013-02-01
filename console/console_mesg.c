@@ -26,7 +26,7 @@
 
 M0_INTERNAL void m0_cons_fop_name_print(const struct m0_fop_type *ftype)
 {
-	fprintf(stdout, "%.2d, %s\n", ftype->ft_rpc_item_type.rit_opcode,
+	fprintf(stdout, "%.2d %s\n", ftype->ft_rpc_item_type.rit_opcode,
 				    ftype->ft_name);
 }
 
@@ -62,7 +62,7 @@ M0_INTERNAL int m0_cons_fop_send(struct m0_fop *fop,
 M0_INTERNAL int m0_cons_fop_show(struct m0_fop_type *fopt)
 {
 	struct m0_fop *fop;
-	void	      *fdata;
+	int            rc;
 
 	fop = m0_fop_alloc(fopt, NULL);
 	if (fop == NULL) {
@@ -70,17 +70,10 @@ M0_INTERNAL int m0_cons_fop_show(struct m0_fop_type *fopt)
 		return -ENOMEM;
 	}
 
-	fdata = m0_fop_data(fop);
-	if (fdata == NULL) {
-		fprintf(stderr, "FOP data does not exist\n");
-		m0_fop_put(fop);
-		return -EINVAL;
-	}
-
-	m0_cons_fop_fields_show(fop);
+	rc = m0_cons_fop_fields_show(fop);
 
 	m0_fop_put(fop);
-	return 0;
+	return rc;
 }
 
 M0_INTERNAL void m0_cons_fop_list_show(void)

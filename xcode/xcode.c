@@ -198,18 +198,9 @@ static void **allocp(struct m0_xcode_cursor *it, size_t *out)
 	return slot;
 }
 
-/**
-   Handles memory allocation during decoding.
-
-   This function takes an xcode iteration cursor and, if necessary, allocates
-   memory where the object currently being decoded will reside.
-
-   The pointer to the allocated memory is returned in m0_xcode_obj::xo_ptr. In
-   addition, this pointer is stored at the appropriate offset in the parent
-   object.
- */
-ssize_t xcode_alloc(struct m0_xcode_cursor *it,
-		    void *(*alloc)(struct m0_xcode_cursor *, size_t))
+M0_INTERNAL ssize_t
+m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
+		   void *(*alloc)(struct m0_xcode_cursor *, size_t))
 {
 	struct m0_xcode_obj  *obj;
 	size_t                nob = 0;
@@ -257,7 +248,7 @@ static int ctx_walk(struct m0_xcode_ctx *ctx, enum xcode_op op)
 		cur = &top->s_obj;
 
 		if (op == XO_DEC) {
-			result = xcode_alloc(it, ctx->xcx_alloc);
+			result = m0_xcode_alloc_obj(it, ctx->xcx_alloc);
 			if (result != 0)
 				return result;
 		}

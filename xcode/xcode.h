@@ -548,6 +548,19 @@ M0_INTERNAL int m0_xcode_encode(struct m0_xcode_ctx *ctx);
 M0_INTERNAL int m0_xcode_length(struct m0_xcode_ctx *ctx);
 M0_INTERNAL void *m0_xcode_alloc(struct m0_xcode_cursor *it, size_t nob);
 
+/**
+   Handles memory allocation during decoding.
+
+   This function takes an xcode iteration cursor and, if necessary, allocates
+   memory where the object currently being decoded will reside.
+
+   The pointer to the allocated memory is returned in m0_xcode_obj::xo_ptr. In
+   addition, this pointer is stored at the appropriate offset in the parent
+   object.
+ */
+M0_INTERNAL ssize_t
+m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
+		   void *(*alloc)(struct m0_xcode_cursor *, size_t));
 /** @} xcoding. */
 
 /**

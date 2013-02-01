@@ -638,7 +638,7 @@ static void console_input_test(void)
 	sprintf(buf, "%d", M0_CONS_FOP_DEVICE_OPCODE);
 	result = console_cmd("show_fops", "-l", "-f", buf, NULL);
 	M0_UT_ASSERT(result == EX_OK);
-	sprintf(buf, "%.2d, Device Failed",
+	sprintf(buf, "%.2d Device Failed",
 		     M0_CONS_FOP_DEVICE_OPCODE);
 	M0_UT_ASSERT(m0_error_mesg_match(stdout, buf));
 	result = truncate(out_file, 0L);
@@ -648,7 +648,7 @@ static void console_input_test(void)
 	sprintf(buf, "%d", M0_CONS_FOP_REPLY_OPCODE);
 	result = console_cmd("show_fops", "-l", "-f", buf, NULL);
 	M0_UT_ASSERT(result == EX_OK);
-	sprintf(buf, "%.2d, Console Reply",
+	sprintf(buf, "%.2d Console Reply",
 		     M0_CONS_FOP_REPLY_OPCODE);
 	M0_UT_ASSERT(m0_error_mesg_match(stdout, buf));
 	result = truncate(out_file, 0L);

@@ -90,13 +90,19 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode,
 		rc = m0_xcode_read(&M0_FOP_XCODE_OBJ(fop), fop_input);
 		if (rc != 0)
 			return rc;
-	} else
-		m0_cons_fop_obj_input(fop);
+	} else {
+		rc = m0_cons_fop_obj_input(fop);
+		if (rc != 0)
+			return rc;
+	}
 
 	fprintf(stdout, "Sending FOP ");
 	m0_cons_fop_name_print(ftype);
 
-	m0_cons_fop_obj_output(fop);
+	rc = m0_cons_fop_obj_output(fop);
+	if (rc != 0)
+		return rc;
+
 	fop->f_item.ri_nr_sent_max = timeout;
 	rc = m0_rpc_client_call(fop, &cctx->rcx_session, NULL, 0/* deadline*/);
 	if (rc != 0) {
@@ -123,7 +129,9 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode,
 	/* Print reply */
 	fprintf(stdout, "Server replied with FOP ");
 	m0_cons_fop_name_print(rfop->f_type);
-	m0_cons_fop_obj_output(rfop);
+	rc = m0_cons_fop_obj_output(rfop);
+	if (rc != 0)
+		return rc;
 
 	m0_fop_put(fop);
 	return 0;
@@ -134,6 +142,10 @@ const char *usage_msg =	"Usage: m0console "
 	" [-s server (e.g. 172.18.50.40@o2ib1:12345:34:1) ]"
 	" [-c client (e.g. 172.18.50.40@o2ib1:12345:34:*) ]"
 	" [-t timeout]"
+	/*
+	 * Please refer to xcode/xcode.h for more information on
+	 * xcode read grammar
+	 */
 	" [-d fop_description (in xcode read grammar)] "
 	" [[-i] [-y yaml_file_path]]"
 	" [-h] [-v]";
@@ -153,7 +165,7 @@ static void usage(void)
  *	  specified fop type and iterates over fop fields, prompting the user
  *	  for the field values.
  *
- *	  The program should support RECORD, SEQUENCE and UNION aggregation
+ *	  The program supports RECORD, SEQUENCE and UNION aggregation
  *	  types, as well as all atomic types (U32, U64, BYTE and VOID).
  *
  * @return 0 success, -errno failure.

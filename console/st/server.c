@@ -64,8 +64,8 @@ int main(int argc, char **argv)
 	char *default_server_argv[] = {
 		argv[0], "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
-		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size,
-		"-A", "as_addb_stob"
+		"-s", "ds1", "-s", "ds2", "-s", "ioservice", "-q", tm_len,
+		"-m", rpc_size, "-A", "as_addb_stob"
 	};
 
 	M0_RPC_SERVER_CTX_DEFINE_SIMPLE(sctx, xprt, default_server_argv,

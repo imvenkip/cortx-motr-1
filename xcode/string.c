@@ -33,8 +33,9 @@
  */
 
 /* xcode.c */
-extern ssize_t xcode_alloc(struct m0_xcode_cursor *it,
-			   void *(*alloc)(struct m0_xcode_cursor *, size_t));
+M0_EXTERN ssize_t
+m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
+		   void *(*alloc)(struct m0_xcode_cursor *, size_t));
 
 M0_INTERNAL const char *space_skip(const char *str)
 {
@@ -143,7 +144,7 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 
 		str = space_skip(str);
 		if (flag == M0_XCODE_CURSOR_PRE) {
-			result = xcode_alloc(&it, m0_xcode_alloc);
+			result = m0_xcode_alloc_obj(&it, m0_xcode_alloc);
 			if (result != 0)
 				return result;
 			if (it.xcu_depth > 0) {

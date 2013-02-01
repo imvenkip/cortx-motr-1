@@ -33,11 +33,10 @@
  */
 
 bool verbose;
-bool alloc_seq;
 
 void depth_print(int depth)
 {
-	static const char ruler[] = "\t\t\t\t\t.....\t";
+	static const char ruler[] = "\t\t\t\t\t\t\t\t\t\t";
 	if (verbose)
 		printf("%*.*s", depth, depth, ruler);
 }
@@ -51,13 +50,11 @@ static void default_show(const struct m0_xcode_type *xct,
 static void void_get(const struct m0_xcode_type *xct,
 		     const char *name, void *data)
 {
-
 }
 
 static void void_set(const struct m0_xcode_type *xct,
 		     const char *name, void *data)
 {
-
 }
 
 static void byte_get(const struct m0_xcode_type *xct,
@@ -156,8 +153,6 @@ static struct m0_cons_atom_ops atom_ops[M0_XAT_NR] = {
 void console_xc_atom_process(struct m0_xcode_cursor_frame *top,
 			     enum m0_cons_data_process_type type)
 {
-	size_t                              size;
-	size_t                              nob;
 	const char                         *name;
 	struct m0_xcode_obj                *cur   = &top->s_obj;
 	const struct m0_xcode_type         *xt    = cur->xo_type;
@@ -166,7 +161,6 @@ void console_xc_atom_process(struct m0_xcode_cursor_frame *top,
 	const struct m0_xcode_obj          *par;
 	const struct m0_xcode_cursor_frame *prev;
 
-	size = xt->xct_sizeof;
 	prev = top - 1;
 	par  = &prev->s_obj;
 	pt   = par->xo_type;
@@ -174,33 +168,35 @@ void console_xc_atom_process(struct m0_xcode_cursor_frame *top,
 
 	switch (type) {
 	case CONS_IT_INPUT:
-		if (alloc_seq) {
-			void **slot;
-
-			nob = m0_xcode_tag(par) * size;
-			slot = m0_xcode_addr(par, prev->s_fieldno, ~0ULL);
-			cur->xo_ptr = *slot = m0_alloc(nob);
-			M0_ASSERT(cur->xo_ptr != NULL);
-			alloc_seq = false;
-		}
 		atom_ops[atype].catom_val_set(xt, name, cur->xo_ptr);
 		break;
 	case CONS_IT_OUTPUT:
 		atom_ops[atype].catom_val_get(xt, name, cur->xo_ptr);
 		break;
 	case CONS_IT_SHOW:
+		/*
+		 * If it's a sequence element, set count field to 1.
+		 * If count field is 0, rest of the sequence element
+		 * will be skipped, and we won't be able to display it.
+		 */
+		if (pt->xct_aggr == M0_XA_SEQUENCE) {
+			void **ptr;
 
+			ptr = m0_xcode_addr(par, 1, ~0ULL);
+			*(uint32_t *)ptr = 1;
+		}
 	default:
 		atom_ops[atype].catom_val_show(xt, name, cur->xo_ptr);
 	}
 }
 
-M0_INTERNAL void
+M0_INTERNAL int
 m0_cons_fop_obj_input_output(struct m0_fop *fop,
 			     enum m0_cons_data_process_type type)
 {
 	int                     fop_depth = 0;
 	int                     result;
+	bool                    skip_next = false;
 	struct m0_xcode_ctx     ctx;
 	struct m0_xcode_cursor *it;
 
@@ -208,11 +204,11 @@ m0_cons_fop_obj_input_output(struct m0_fop *fop,
 
 	m0_xcode_ctx_init(&ctx, &M0_FOP_XCODE_OBJ(fop));
 	it = &ctx.xcx_it;
-	alloc_seq = false;
 
 	printf("\n");
 
         while((result = m0_xcode_next(it)) > 0) {
+		int                                 rc;
 		struct m0_xcode_cursor_frame       *top;
 		struct m0_xcode_obj                *cur;
 		const struct m0_xcode_type         *xt;
@@ -223,11 +219,15 @@ m0_cons_fop_obj_input_output(struct m0_fop *fop,
 		top   = m0_xcode_cursor_top(it);
 		cur   = &top->s_obj;
 		xt    = cur->xo_type;
-		gtype = xt->xct_aggr;
 		prev  = top - 1;
 		par   = &prev->s_obj;
+		gtype = xt->xct_aggr;
 
-		if (top->s_flag == M0_XCODE_CURSOR_PRE) {
+		switch (top->s_flag) {
+		case M0_XCODE_CURSOR_PRE:
+			rc = m0_xcode_alloc_obj(it, m0_xcode_alloc);
+			if (rc != 0)
+				return rc;
 			++fop_depth;
 			depth_print(fop_depth);
 
@@ -235,41 +235,52 @@ m0_cons_fop_obj_input_output(struct m0_fop *fop,
 				printf("%s\n", xt->xct_name);
 			else if (gtype == M0_XA_ATOM)
 				console_xc_atom_process(top, type);
-		} else if (gtype == M0_XA_SEQUENCE &&
-			   top->s_flag == M0_XCODE_CURSOR_IN &&
-			   top->s_fieldno == 1) {
-			m0_xcode_skip(it);
-			--fop_depth;
-		} else if (top->s_flag == M0_XCODE_CURSOR_POST) {
-			if (par->xo_type->xct_aggr == M0_XA_SEQUENCE &&
-			    top->s_fieldno == 0) {
-				/*
-				 * Instruct atom process to allocate
-				 * memory before taking next input
-				 */
-				alloc_seq = true;
+			break;
+		case M0_XCODE_CURSOR_IN:
+			if (gtype == M0_XA_SEQUENCE && skip_next) {
+				m0_xcode_skip(it);
+				skip_next = false;
+				--fop_depth;
+			}
+			break;
+		case M0_XCODE_CURSOR_POST:
+			if (prev->s_fieldno == 1 &&
+			    par->xo_type->xct_aggr == M0_XA_SEQUENCE) {
+				if (m0_xcode_tag(par) == 1)
+					skip_next = true;
+				else if (xt->xct_atype == M0_XAT_U8)
+					skip_next = true;
 			}
 			--fop_depth;
+		default:
+			break;
 		}
         }
+
+	return 0;
 }
 
-M0_INTERNAL void m0_cons_fop_obj_input(struct m0_fop *fop)
+M0_INTERNAL int m0_cons_fop_obj_input(struct m0_fop *fop)
 {
-	m0_cons_fop_obj_input_output(fop, CONS_IT_INPUT);
+	return m0_cons_fop_obj_input_output(fop, CONS_IT_INPUT);
 }
 
-M0_INTERNAL void m0_cons_fop_obj_output(struct m0_fop *fop)
+M0_INTERNAL int m0_cons_fop_obj_output(struct m0_fop *fop)
 {
-	m0_cons_fop_obj_input_output(fop, CONS_IT_OUTPUT);
+	return m0_cons_fop_obj_input_output(fop, CONS_IT_OUTPUT);
 }
 
-
-M0_INTERNAL void m0_cons_fop_fields_show(struct m0_fop *fop)
+M0_INTERNAL int m0_cons_fop_fields_show(struct m0_fop *fop)
 {
+	bool vo;
+	int  rc;
+
+	vo = verbose;
 	verbose = true;
-	m0_cons_fop_obj_input_output(fop, CONS_IT_SHOW);
-	verbose = false;
+	rc = m0_cons_fop_obj_input_output(fop, CONS_IT_SHOW);
+	verbose = vo;
+
+	return rc;
 }
 
 /** @} end of console_it group */
