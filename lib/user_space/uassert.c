@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -64,7 +64,7 @@ void m0_arch_panic(const char *expr, const char *func,
 		   const char *file, int lineno)
 {
 	fprintf(stderr,
-		"Panic: %s at %s() %s:%i (errno: %i) (last failed: %s)\n",
+		"Mero panic: %s at %s() %s:%i (errno: %i) (last failed: %s)\n",
 		expr, func, file, lineno, errno,
 		m0_failed_condition ?: "none");
 	fflush(stderr);

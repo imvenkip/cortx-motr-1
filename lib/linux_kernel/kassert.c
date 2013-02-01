@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -25,16 +25,15 @@
  * @{
  */
 
-#include <linux/kernel.h>
+#include <linux/kernel.h>         /* pr_emerg */
 
 #include "lib/assert.h"           /* m0_failed_condition */
 
 void m0_arch_panic(const char *expr, const char *func,
 		   const char *file, int lineno)
 {
-	printk(KERN_EMERG
-	       "Panic: %s at %s() %s:%i (last failed: %s)\n",
-	       expr, func, file, lineno, m0_failed_condition ?: "none");
+	pr_emerg("Mero panic: %s at %s() %s:%i (last failed: %s)\n",
+		 expr, func, file, lineno, m0_failed_condition ?: "none");
 	BUG();
 }
 
