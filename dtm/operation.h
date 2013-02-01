@@ -31,24 +31,26 @@
  * @{
  */
 
+/* import */
 #include "dtm/nucleus.h"
+struct m0_dtm_update;
+struct m0_dtm_object;
 
 /* export */
 struct m0_dtm_operation;
 
 struct m0_dtm_operation {
-	uint64_t          oprt_magix;
-	struct m0_dtm_op  oprt_op;
-	unsigned          oprt_nr;
-	unsigned          oprt_idx;
-	struct m0_dtm_up *oprt_up;
+	struct m0_dtm_op      oprt_op;
+	unsigned              oprt_nr;
+	unsigned              oprt_idx;
+	struct m0_dtm_update *oprt_up;
 };
 
 M0_INTERNAL int  m0_dtm_operation_init(struct m0_dtm_operation *oper,
 				       unsigned nr);
 M0_INTERNAL void m0_dtm_operation_fini(struct m0_dtm_operation *oper);
 M0_INTERNAL void m0_dtm_operation_add (struct m0_dtm_operation *oper,
-				       struct m0_dtm_hi *hi,
+				       struct m0_dtm_object *obj,
 				       enum m0_dtm_up_rule rule,
 				       m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver);
 /** @} end of dtm group */
