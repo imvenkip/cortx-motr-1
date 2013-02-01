@@ -96,8 +96,12 @@ Commands:
                         The resulting archive file will be deleted,
                         unless '-a' option is used.
 
-    check-everything    = rebuild + run-all + dist-check
-                        Please run this command before landing new feature.
+    check-everything  = (rebuild + dist-check + run-all) * 2
+                        Please run this command before landing.
+                        .
+                        '* 2' means that the command is being run two
+                        times; the second time with './configure
+                        --disable-m0-asserts'.
 
     clean [-f]          Call 'make distclean' in M0 sources directory.
                         '-f' will also remove untracked files and
@@ -128,12 +132,19 @@ case "$1" in
         run_st;;
     dist-check) shift; dist_check "$@";;
     check-everything)
-	clean
-	build
-	run_ut
-	run_kut
-	run_st
-	dist_check;;
+        while true; do
+            clean
+            build
+            dist_check
+            run_ut
+            run_kut
+            run_st
+	    if echo $CONFIGURE_OPTS | grep -qe '--disable-m0-asserts'; then
+		break
+	    else
+		CONFIGURE_OPTS="$CONFIGURE_OPTS --disable-m0-asserts"
+	    fi
+        done;;
     clean) shift; clean "$@";;
     help) help 0;;
     *)    help 1;;
