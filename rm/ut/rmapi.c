@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -64,7 +64,7 @@ static void credits_api_test (void)
 
 	/* 3. Test m0_rm_owner_selfadd. Test memory failure */
 	test_data.rd_credit.cr_datum = ALLRINGS;
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	m0_fi_enable_once("rings_credit_copy", "fail_copy");
 	rc = m0_rm_owner_selfadd(&test_data.rd_owner, &test_data.rd_credit);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
@@ -80,7 +80,7 @@ static void credits_api_test (void)
 	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
 	test_data.rd_in.rin_want.cr_datum = test_data.rd_credit.cr_datum;
 	test_data.rd_in.rin_ops = &rings_incoming_ops;
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	m0_fi_enable_once("rings_credit_copy", "fail_copy");
 	m0_rm_credit_get(&test_data.rd_in);
 	M0_UT_ASSERT(test_data.rd_in.rin_rc == -ENOMEM);
 	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
@@ -119,8 +119,8 @@ static void owner_api_test (void)
 	 * Indirectly tests resource_get(), owner_internal_init(),
 	 * owner_invariant(), owner_invariant_state().
 	 */
-	m0_rm_owner_init(&test_data.rd_owner, &test_data.rd_res.rs_resource,
-			 NULL);
+	m0_rm_owner_init(&test_data.rd_owner,
+			 &test_data.rd_res.rs_resource, NULL);
 	M0_UT_ASSERT(test_data.rd_owner.ro_sm.sm_state == ROS_ACTIVE);
 	M0_UT_ASSERT(test_data.rd_owner.ro_creditor == NULL);
 	M0_UT_ASSERT(test_data.rd_owner.ro_resource ==

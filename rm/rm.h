@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -349,6 +349,15 @@ struct m0_rm_resource_type {
 	/**
 	 * Domain this resource type is registered with.
 	 */
+	struct m0_sm_group                    rt_sm_grp;
+	/**
+	 * Executes ASTs for this owner.
+	 */
+	struct m0_thread                      rt_worker;
+	/**
+	 * Flag for ro_worker thread to stop.
+	 */
+	bool                                 rt_stop_worker;
 	struct m0_rm_domain		     *rt_dom;
 };
 
@@ -875,8 +884,6 @@ enum m0_rm_owner_queue_state {
  */
 struct m0_rm_owner {
 	struct m0_sm           ro_sm;
-
-	struct m0_sm_group     ro_sm_grp;
 	/**
 	 * Resource this owner possesses the credits on.
 	 */
@@ -1474,8 +1481,8 @@ M0_INTERNAL void m0_rm_domain_fini(struct m0_rm_domain *dom);
  *       rtype->rt_dom == NULL
  * @post IS_IN_ARRAY(rtype->rt_id, dom->rd_types) && rtype->rt_dom == dom
  */
-M0_INTERNAL void m0_rm_type_register(struct m0_rm_domain *dom,
-				     struct m0_rm_resource_type *rt);
+M0_INTERNAL int m0_rm_type_register(struct m0_rm_domain *dom,
+				    struct m0_rm_resource_type *rt);
 
 /**
  * Deregisters a resource type.

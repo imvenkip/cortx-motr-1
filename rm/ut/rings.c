@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,6 +18,7 @@
  * Original author: Rajesh Bhalerao <rajesh_bhalerao@xyratex.com>
  * Original creation date: 05/12/2011
  */
+#include "lib/finject.h"
 #include "lib/mutex.h"
 #include "lib/list.h"
 #include "lib/memory.h"
@@ -42,7 +43,7 @@ static void rings_credit_init(struct m0_rm_resource *resource,
 
 const struct m0_rm_resource_ops rings_ops = {
 	.rop_credit_decode = NULL,
-	.rop_policy	  = rings_policy,
+	.rop_policy	   = rings_policy,
 	.rop_credit_init   = rings_credit_init
 };
 
@@ -62,8 +63,8 @@ static bool resource_is(const struct m0_rm_resource *res, uint64_t res_id)
 }
 
 const struct m0_rm_resource_type_ops rings_rtype_ops = {
-	.rto_eq		 = resources_are_equal,
-	.rto_is          = resource_is
+	.rto_eq = resources_are_equal,
+	.rto_is = resource_is
 };
 
 static bool credit_intersects(const struct m0_rm_credit *c0,
@@ -110,6 +111,9 @@ static int rings_credit_decode(struct m0_rm_credit *credit,
 static int rings_credit_copy(struct m0_rm_credit *dest,
 			     const struct m0_rm_credit *src)
 {
+	if (M0_FI_ENABLED("fail_copy"))
+		return -ENOMEM;
+
 	dest->cr_datum = src->cr_datum;
 	dest->cr_owner = src->cr_owner;
 	dest->cr_ops = src->cr_ops;

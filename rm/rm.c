@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -22,6 +22,7 @@
 
 #undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
+
 #include "lib/memory.h" /* M0_ALLOC_PTR */
 #include "lib/misc.h"   /* M0_SET_ARR0 */
 #include "lib/errno.h"  /* ETIMEDOUT */
@@ -106,6 +107,8 @@ static int remnant_loan_get	    (const struct m0_rm_loan *loan,
 static int loan_dup		    (const struct m0_rm_loan *src_loan,
 				     struct m0_rm_loan **dest_loan);
 static void owner_liquidate	    (struct m0_rm_owner *src_owner);
+static void credit_processor        (struct m0_rm_resource_type *rt);
+
 static struct m0_rm_resource *
 resource_find(const struct m0_rm_resource_type *rt,
 	      const struct m0_rm_resource *res);
@@ -233,9 +236,11 @@ resource_find(const struct m0_rm_resource_type *rt,
 	return scan;
 }
 
-M0_INTERNAL void m0_rm_type_register(struct m0_rm_domain *dom,
-				     struct m0_rm_resource_type *rt)
+M0_INTERNAL int m0_rm_type_register(struct m0_rm_domain *dom,
+				    struct m0_rm_resource_type *rt)
 {
+	int rc;
+
 	M0_ENTRY("resource type: %s", rt->rt_name);
 	M0_PRE(rt->rt_dom == NULL);
 	M0_PRE(IS_IN_ARRAY(rt->rt_id, dom->rd_types));
@@ -244,6 +249,13 @@ M0_INTERNAL void m0_rm_type_register(struct m0_rm_domain *dom,
 	m0_mutex_init(&rt->rt_lock);
 	res_tlist_init(&rt->rt_resources);
 	rt->rt_nr_resources = 0;
+	m0_sm_group_init(&rt->rt_sm_grp);
+
+	rt->rt_stop_worker = false;
+	rc = M0_THREAD_INIT(&rt->rt_worker, struct m0_rm_resource_type *, NULL,
+			    &credit_processor, rt, "RM RT agent");
+	if (rc != 0)
+		M0_RETURN(rc);
 
 	m0_mutex_lock(&dom->rd_lock);
 	dom->rd_types[rt->rt_id] = rt;
@@ -253,7 +265,8 @@ M0_INTERNAL void m0_rm_type_register(struct m0_rm_domain *dom,
 
 	M0_POST(dom->rd_types[rt->rt_id] == rt);
 	M0_POST(rt->rt_dom == dom);
-	M0_LEAVE();
+
+	M0_RETURN(rc);
 }
 M0_EXPORTED(m0_rm_type_register);
 
@@ -263,19 +276,30 @@ M0_INTERNAL void m0_rm_type_deregister(struct m0_rm_resource_type *rt)
 
 	M0_ENTRY("resource type: %s", rt->rt_name);
 	M0_PRE(dom != NULL);
-	M0_PRE(IS_IN_ARRAY(rt->rt_id, dom->rd_types));
-	M0_PRE(dom->rd_types[rt->rt_id] == rt);
 	M0_PRE(res_tlist_is_empty(&rt->rt_resources));
 	M0_PRE(rt->rt_nr_resources == 0);
 
 	m0_mutex_lock(&dom->rd_lock);
+	M0_PRE(IS_IN_ARRAY(rt->rt_id, dom->rd_types));
+	M0_PRE(dom->rd_types[rt->rt_id] == rt);
 	M0_PRE(resource_type_invariant(rt));
 
 	dom->rd_types[rt->rt_id] = NULL;
+	m0_mutex_unlock(&dom->rd_lock);
+
+	m0_sm_group_lock(&rt->rt_sm_grp);
+	rt->rt_stop_worker = true;
+	m0_clink_signal(&rt->rt_sm_grp.s_clink);
+	m0_sm_group_unlock(&rt->rt_sm_grp);
+
+	M0_LOG(M0_INFO, "Waiting for RM RT agent to join");
+	m0_thread_join(&rt->rt_worker);
+	m0_thread_fini(&rt->rt_worker);
+	m0_sm_group_fini(&rt->rt_sm_grp);
+
 	rt->rt_dom = NULL;
 	res_tlist_fini(&rt->rt_resources);
 	m0_mutex_fini(&rt->rt_lock);
-	m0_mutex_unlock(&dom->rd_lock);
 
 	M0_POST(rt->rt_dom == NULL);
 	M0_LEAVE();
@@ -452,17 +476,26 @@ static void owner_finalisation_check(struct m0_rm_owner *owner)
 	 */
 }
 
+static bool owner_smgrp_is_locked(const struct m0_rm_owner *owner)
+{
+	struct m0_sm_group *smgrp;
+
+	M0_PRE(owner != NULL);
+	smgrp = owner_grp(owner);
+	return m0_mutex_is_locked(&smgrp->s_lock);
+}
+
 M0_INTERNAL void m0_rm_owner_lock(struct m0_rm_owner *owner)
 {
-	m0_sm_group_lock(&owner->ro_sm_grp);
+	m0_sm_group_lock(owner_grp(owner));
 }
-M0_EXPORTED(m0_rm_owner_lock);
+M0_EXPORTED(m0_rm_rt_lock);
 
 M0_INTERNAL void m0_rm_owner_unlock(struct m0_rm_owner *owner)
 {
-	m0_sm_group_unlock(&owner->ro_sm_grp);
+	m0_sm_group_unlock(owner_grp(owner));
 }
-M0_EXPORTED(m0_rm_owner_unlock);
+M0_EXPORTED(m0_rm_rt_unlock);
 
 M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner *owner,
 				  struct m0_rm_resource *res,
@@ -473,11 +506,9 @@ M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner *owner,
 
 	M0_ENTRY("owner: %p resource: %p creditor: %p",
 		 owner, res, creditor);
-	m0_sm_group_init(&owner->ro_sm_grp);
-	m0_sm_init(&owner->ro_sm, &owner_conf, ROS_INITIAL,
-		   &owner->ro_sm_grp, NULL);
-
 	owner->ro_resource = res;
+	m0_sm_init(&owner->ro_sm, &owner_conf, ROS_INITIAL,
+		   owner_grp(owner), NULL);
 	m0_rm_owner_lock(owner);
 	owner_state_set(owner, ROS_INITIALISING);
 	m0_rm_owner_unlock(owner);
@@ -486,7 +517,6 @@ M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner *owner,
 	m0_rm_ur_tlist_init(&owner->ro_borrowed);
 	m0_rm_ur_tlist_init(&owner->ro_sublet);
 	RM_OWNER_LISTS_FOR(owner, m0_rm_ur_tlist_init);
-
 	resource_get(res);
 	m0_rm_owner_lock(owner);
 	owner_state_set(owner, ROS_ACTIVE);
@@ -496,9 +526,28 @@ M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner *owner,
 
 	M0_POST(owner_invariant(owner));
 	M0_POST(owner->ro_resource == res);
+
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_rm_owner_init);
+
+static void credit_processor(struct m0_rm_resource_type *rt)
+{
+	M0_ENTRY();
+	M0_PRE(rt != NULL);
+
+	while (true) {
+		m0_sm_group_lock(&rt->rt_sm_grp);
+		if (rt->rt_stop_worker) {
+			m0_sm_group_unlock(&rt->rt_sm_grp);
+			M0_LEAVE("RM RT agent STOPPED");
+			return;
+		}
+		m0_sm_group_unlock(&rt->rt_sm_grp);
+		m0_chan_timedwait(&rt->rt_sm_grp.s_clink,
+				  m0_time_from_now(RM_CREDIT_TIMEOUT, 0));
+	}
+}
 
 M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner *owner,
 				    struct m0_rm_credit *r)
@@ -648,13 +697,9 @@ M0_INTERNAL void m0_rm_owner_fini(struct m0_rm_owner *owner)
 	M0_PRE(M0_IN(owner_state(owner), (ROS_FINAL, ROS_INSOLVENT)));
 
 	RM_OWNER_LISTS_FOR(owner, m0_rm_ur_tlist_fini);
-
-	m0_sm_fini(&owner->ro_sm);
-
 	owner->ro_resource = NULL;
-	m0_sm_group_fini(&owner->ro_sm_grp);
-
 	resource_put(res);
+
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_rm_owner_fini);
@@ -734,7 +779,7 @@ static const struct m0_sm_conf inc_conf = {
 static inline void incoming_state_set(struct m0_rm_incoming *in,
 				      enum m0_rm_incoming_state state)
 {
-	M0_PRE(m0_mutex_is_locked(&in->rin_want.cr_owner->ro_sm_grp.s_lock));
+	M0_PRE(owner_smgrp_is_locked(in->rin_want.cr_owner));
 	M0_LOG(M0_INFO, "Incoming req: %p, state change:[%d -> %d]\n",
 	       in, in->rin_sm.sm_state, state);
 	m0_sm_state_set(&in->rin_sm, state);
@@ -751,7 +796,7 @@ M0_INTERNAL void m0_rm_incoming_init(struct m0_rm_incoming *in,
 
 	M0_SET0(in);
 	m0_sm_init(&in->rin_sm, &inc_conf, RI_INITIALISED,
-		   &owner->ro_sm_grp, NULL);
+		   owner_grp(owner), NULL);
 	in->rin_type   = type;
 	in->rin_policy = policy;
 	in->rin_flags  = flags;

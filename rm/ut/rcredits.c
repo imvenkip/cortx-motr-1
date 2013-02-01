@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -465,8 +465,8 @@ static void test3_run(void)
 	credit_setup(SERVER_2, RIF_MAY_REVOKE | RIF_MAY_BORROW,
 		    NENYA | VILYA);
 	m0_rm_credit_get(in);
-	M0_UT_ASSERT(incoming_state(in) == RI_WAIT);
-	m0_chan_wait(&rm_ctx[SERVER_2].rc_clink);
+	if (incoming_state(in) == RI_WAIT)
+		m0_chan_wait(&rm_ctx[SERVER_2].rc_clink);
 	M0_UT_ASSERT(incoming_state(in) == RI_SUCCESS);
 	M0_UT_ASSERT(in->rin_rc == 0);
 	m0_rm_credit_put(in);
@@ -507,8 +507,8 @@ static void test1_run(void)
 	 */
 	credit_setup(SERVER_2, RIF_MAY_BORROW, NENYA);
 	m0_rm_credit_get(in);
-	M0_UT_ASSERT(incoming_state(in) == RI_WAIT);
-	m0_chan_wait(&rm_ctx[SERVER_2].rc_clink);
+	if (incoming_state(in) == RI_WAIT)
+		m0_chan_wait(&rm_ctx[SERVER_2].rc_clink);
 	M0_UT_ASSERT(incoming_state(in) == RI_FAILURE);
 	M0_UT_ASSERT(in->rin_rc == -EPROTO);
 	m0_rm_incoming_fini(in);
@@ -521,8 +521,8 @@ static void test1_run(void)
 	creditor_cookie_setup(SERVER_2, SERVER_3);
 	credit_setup(SERVER_2, RIF_MAY_BORROW, NENYA);
 	m0_rm_credit_get(in);
-	M0_UT_ASSERT(incoming_state(in) == RI_WAIT);
-	m0_chan_wait(&rm_ctx[SERVER_2].rc_clink);
+	if (incoming_state(in) == RI_WAIT)
+		m0_chan_wait(&rm_ctx[SERVER_2].rc_clink);
 	M0_UT_ASSERT(incoming_state(in) == RI_SUCCESS);
 	M0_UT_ASSERT(in->rin_rc == 0);
 	m0_rm_credit_put(in);

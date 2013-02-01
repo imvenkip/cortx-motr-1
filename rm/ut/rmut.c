@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -51,6 +51,8 @@ void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
  */
 void rm_utdata_init(struct rm_ut_data *data, enum obj_type type)
 {
+	int rc;
+
 	M0_UT_ASSERT(data != NULL);
 
 	switch (type) {
@@ -61,7 +63,8 @@ void rm_utdata_init(struct rm_ut_data *data, enum obj_type type)
 		case OBJ_RES_TYPE:
 			rm_utdata_init(data, OBJ_DOMAIN);
 			/* Register test resource type */
-			m0_rm_type_register(&data->rd_dom, &data->rd_rt);
+			rc = m0_rm_type_register(&data->rd_dom, &data->rd_rt);
+			M0_UT_ASSERT(rc == 0);
 			data->rd_rt.rt_ops = &rings_rtype_ops;
 			break;
 		case OBJ_RES:

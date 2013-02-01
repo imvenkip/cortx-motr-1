@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -238,7 +238,10 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 				       &test_data.rd_credit);
 		M0_UT_ASSERT(rc == 0);
 		item = rm_reply_create(M0_RIT_BORROW, err);
-		borrow_reply(item);
+		reply_process(item);
+		/* Lock and unlock the owner to run AST */
+		m0_rm_owner_lock(&test_data.rd_owner);
+		m0_rm_owner_unlock(&test_data.rd_owner);
 		post_borrow_validate(err);
 		post_borrow_cleanup(item, err);
 		break;
@@ -251,7 +254,10 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 		m0_rm_ur_tlist_add(&test_data.rd_owner.ro_sublet,
 				   &test_loan->rl_credit);
 		m0_rm_owner_unlock(&test_data.rd_owner);
-		revoke_reply(item);
+		reply_process(item);
+		/* Lock and unlock the owner to run AST */
+		m0_rm_owner_lock(&test_data.rd_owner);
+		m0_rm_owner_unlock(&test_data.rd_owner);
 		post_revoke_validate(err);
 		post_revoke_cleanup(item, err);
 		/*

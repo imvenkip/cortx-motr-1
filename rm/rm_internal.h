@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -24,6 +24,10 @@
 
 #include "lib/bob.h"
 #include "lib/cookie.h"
+
+enum {
+	RM_CREDIT_TIMEOUT = 60
+};
 
 /**
  * Created as a result of remote request which is either BORROW or REVOKE
@@ -244,6 +248,12 @@ static inline enum m0_rm_owner_state
 owner_state(const struct m0_rm_owner *owner)
 {
 	return owner->ro_sm.sm_state;
+}
+
+static inline struct m0_sm_group *
+owner_grp(const struct m0_rm_owner *owner)
+{
+	return &owner->ro_resource->r_type->rt_sm_grp;
 }
 
 /** @} end of RM lists. */

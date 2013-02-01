@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -440,8 +440,10 @@ static int request_post_process(struct m0_fom *fom)
 	in = &rfom->rf_in.ri_incoming;
 
 	rc = in->rin_rc;
+	M0_ASSERT(ergo(rc == 0, incoming_state(in) == RI_SUCCESS));
+	M0_ASSERT(ergo(rc != 0, incoming_state(in) == RI_FAILURE));
+
 	if (incoming_state(in) == RI_SUCCESS) {
-		M0_ASSERT(rc == 0);
 		rc = reply_prepare(in->rin_type, fom);
 		m0_rm_credit_put(in);
 	}

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -355,7 +355,7 @@ static void brw_fom_state_test(enum test_type test)
 	 * Call the first phase of FOM.
 	 */
 	if (test == RM_UT_MEMFAIL_TEST)
-		m0_fi_enable_once("m0_alloc", "fail_allocation");
+		m0_fi_enable_once("rings_credit_copy", "fail_copy");
 	rc = borrow_fom_tick(fom);
 	M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_FINISH);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
@@ -568,7 +568,7 @@ static void rvk_fom_state_test(enum test_type test)
 	 * Call the first FOM phase.
 	 */
 	if (test == RM_UT_MEMFAIL_TEST)
-		m0_fi_enable_once("m0_alloc", "fail_allocation");
+		m0_fi_enable_once("rings_credit_copy", "fail_copy");
 	rc = revoke_fom_tick(fom);
 	M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_FINISH);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
