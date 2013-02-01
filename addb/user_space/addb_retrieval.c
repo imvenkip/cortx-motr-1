@@ -262,6 +262,7 @@ static int stob_retrieval_segsize_get(struct m0_stob *stob)
 	m0_bcount_t            header_size;
 	uint32_t               bshift = stob->so_op->sop_block_shift(stob);
 	int                    rc;
+	struct m0_fol_rec_part fol_rec_part;
 
 	header_size = max64u(sizeof(struct m0_addb_seg_header), 1 << bshift);
 	rc = m0_bufvec_alloc_aligned(&sri_buf, 1, header_size, bshift);
@@ -270,6 +271,7 @@ static int stob_retrieval_segsize_get(struct m0_stob *stob)
 
 	m0_stob_io_init(&sri_io);
 	sri_io.si_opcode = SIO_READ;
+	sri_io.si_fol_rec_part = &fol_rec_part;
 	m0_clink_init(&sri_wait, NULL);
 	m0_clink_add_lock(&sri_io.si_wait, &sri_wait);
 
@@ -330,6 +332,7 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 	struct m0_addb_seg_trailer trailer;
 	m0_bindex_t                offset;
 	int                        rc;
+	struct m0_fol_rec_part     fol_rec_part;
 
 	M0_PRE(iter != NULL && cur != NULL);
 	si = container_of(iter, struct stob_segment_iter, ssi_base.asi_base);
@@ -349,6 +352,7 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 		si->ssi_tio.si_obj = NULL;
 		si->ssi_tio.si_rc = 0;
 		si->ssi_tio.si_count = 0;
+		si->ssi_tio.si_fol_rec_part = &fol_rec_part;
 		m0_clink_add_lock(&si->ssi_tio.si_wait, &seg_wait);
 		rc = m0_stob_io_launch(&si->ssi_tio, stob, &tx, NULL);
 		if (rc < 0) {
@@ -374,6 +378,7 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 		si->ssi_io.si_obj = NULL;
 		si->ssi_io.si_rc = 0;
 		si->ssi_io.si_count = 0;
+		si->ssi_io.si_fol_rec_part = &fol_rec_part;
 		m0_clink_add_lock(&si->ssi_io.si_wait, &seg_wait);
 		rc = m0_stob_io_launch(&si->ssi_io, stob, &tx, NULL);
 		if (rc < 0) {

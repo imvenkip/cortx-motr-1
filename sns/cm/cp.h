@@ -36,19 +36,22 @@
  */
 
 struct m0_sns_cm_cp {
-	struct m0_cm_cp    sc_base;
+	struct m0_cm_cp        sc_base;
 
 	/** Read/write stob id. */
-	struct m0_stob_id  sc_sid;
+	struct m0_stob_id      sc_sid;
 
 	/** Offset within the stob. */
-	m0_bindex_t        sc_index;
+	m0_bindex_t            sc_index;
 
 	/** Stob IO context. */
-	struct m0_stob_io  sc_stio;
+	struct m0_stob_io      sc_stio;
 
 	/** Stob context. */
-	struct m0_stob    *sc_stob;
+	struct m0_stob        *sc_stob;
+
+	/** FOL record part for storage objects. */
+	struct m0_fol_rec_part sc_fol_rec_part;
 };
 
 M0_INTERNAL struct m0_sns_cm_cp *cp2snscp(const struct m0_cm_cp *cp);

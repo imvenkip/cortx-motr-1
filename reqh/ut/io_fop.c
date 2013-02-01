@@ -135,6 +135,8 @@ struct m0_stob_io_fom {
 	struct m0_stob			*sif_stobj;
 	/** Stob IO packet for the operation. */
 	struct m0_stob_io		 sif_stio;
+	/** FOL record part for storage objects. */
+	struct m0_fol_rec_part		 sif_fol_rec_part;
 };
 
 extern struct m0_stob_domain *reqh_ut_stob_domain_find(void);
@@ -443,6 +445,7 @@ static int stob_read_fom_tick(struct m0_fom *fom)
 
                         stio->si_opcode = SIO_READ;
                         stio->si_flags  = 0;
+			stio->si_fol_rec_part = &fom_obj->sif_fol_rec_part;
 
                         m0_mutex_lock(&stio->si_mutex);
                         m0_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
@@ -558,6 +561,7 @@ static int stob_write_fom_tick(struct m0_fom *fom)
                         stio->si_stob.iv_index       = &offset;
                         stio->si_opcode = SIO_WRITE;
                         stio->si_flags  = 0;
+			stio->si_fol_rec_part = &fom_obj->sif_fol_rec_part;
 
                         m0_mutex_lock(&stio->si_mutex);
                         m0_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
