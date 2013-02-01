@@ -82,17 +82,21 @@ M0_EXPORTED(m0_ut_add);
 
 static int decimal_width(int i)
 {
+	int s = 1;  /* at least 1 decimal digit */
+       	int ref;
+
         if (i < 0) {
-		return 1 + decimal_width(-i);
-	} else {
-		int s = 1, ref;
-		for (ref = 10; ref <= i; ref *= 10) {
-			s++;
-			if (ref * 10 < ref) break;
-		};
-		return s;
-	};
-};
+		s++;  /* one character more for sign */ 
+		i = -i;
+	}
+	for (ref = 10; ref <= i; ref *= 10) {
+		s++;
+		if (ref * 10 < ref)
+			break;
+	}
+
+	return s;
+}
 
 /**
    Generate a run summary similar in appearance to a CUnit run summary.
