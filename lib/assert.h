@@ -36,17 +36,28 @@
 #define M0_ASSERT_OFF (0)
 #endif
 
-#ifndef __KERNEL__
-#include "user_space/assert.h"
-#else
-#include "linux_kernel/assert.h"
-#endif
-
 #ifdef ENABLE_EXPENSIVE_CHECKS
 #define M0_ASSERT_EX_ON (1)
 #else
 #define M0_ASSERT_EX_ON (0)
 #endif
+
+void m0_panic(const char *expr, const char *func, const char *file, int lineno)
+	__attribute__((noreturn));
+
+M0_INTERNAL void m0_arch_panic(const char *expr, const char *func,
+			       const char *file, int lineno)
+	__attribute__((noreturn));
+
+
+/**
+   A macro to assert that a condition is true. If condition is true, M0_ASSERT()
+   does nothing. Otherwise it emits a diagnostics message and terminates the
+   system. The message and the termination method are platform dependent.
+ */
+#define M0_ASSERT(cond) \
+        (M0_ASSERT_OFF || (cond) ? (void)0 : \
+	    m0_panic(#cond, __func__, __FILE__, __LINE__))
 
 /**
  * The same as M0_ASSERT macro, but this version is disabled (optimized out) if
@@ -116,6 +127,42 @@
    A macro indicating that computation reached an invalid state.
  */
 #define M0_IMPOSSIBLE(msg) M0_ASSERT("Impossible: " msg == NULL)
+
+/**
+   Location where _0C() macro stores the name of failed asserted expression.
+ */
+M0_EXTERN const char *m0_failed_condition;
+
+/**
+   A macro to remember failed invariant conjunct.
+
+   This macro is used like the following:
+
+@code
+bool foo_invariant(const struct foo *f)
+{
+	return _0C(f != NULL) && _0C(f->f_ref > 0) &&
+		m0_tl_forall(bar, s, &foo->f_list, _0C(b->b_parent == f) &&
+		                  _0C(b->b_nr < f->f_nr));
+}
+@endcode
+
+   If during invocation of foo_invariant() one of invariant conjuncts evaluates
+   to false, the string representing this conjunct is stored in
+   m0_failed_condition and printed by m0_panic(). This simplifies debugging.
+
+   @note This macro expressly and deliberately violates "M0_" prefix requirement
+   to reduce verbosity.
+
+   @note This compiles to "exp" if M0_ASSERT_OFF is true.
+ */
+#define _0C(exp)				\
+({						\
+	bool __exp = (exp);			\
+	if (!M0_ASSERT_OFF && !__exp)		\
+		m0_failed_condition = #exp;	\
+	__exp;					\
+})
 
 /** @} end of assert group */
 

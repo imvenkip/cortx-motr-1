@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,30 +15,30 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 08/04/2010
+ * Original creation date: 31-Jan-2013
  */
 
-#pragma once
-
-#ifndef __MERO_LIB_LINUX_KERNEL_ASSERT_H__
-#define __MERO_LIB_LINUX_KERNEL_ASSERT_H__
 
 /**
-   @addtogroup assert
+ * @addtogroup assert
+ *
+ * @{
+ */
 
-   <b>Linux kernel assertion mechanism.</b>
+#include <linux/kernel.h>         /* pr_emerg */
 
-   Based on standard BUG_ON() macro.
+#include "lib/assert.h"           /* m0_failed_condition */
 
-   @{
-*/
-
-#define M0_ASSERT(cond) BUG_ON(!(M0_ASSERT_OFF || (cond)))
+void m0_arch_panic(const char *expr, const char *func,
+		   const char *file, int lineno)
+{
+	pr_emerg("Mero panic: %s at %s() %s:%i (last failed: %s)\n",
+		 expr, func, file, lineno, m0_failed_condition ?: "none");
+	BUG();
+}
 
 /** @} end of assert group */
 
-/* __MERO_LIB_LINUX_KERNEL_ASSERT_H__ */
-#endif
 
 /*
  *  Local variables:
@@ -48,4 +48,7 @@
  *  fill-column: 80
  *  scroll-step: 1
  *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
  */
