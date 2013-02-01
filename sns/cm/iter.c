@@ -167,6 +167,8 @@ static uint64_t __unit_start(struct m0_sns_cm_iter *it)
 	default:
 		 M0_IMPOSSIBLE("op");
 	}
+
+	return ~0;
 }
 
 static uint64_t __unit_end(struct m0_sns_cm_iter *it)
@@ -183,6 +185,8 @@ static uint64_t __unit_end(struct m0_sns_cm_iter *it)
 	default:
 		M0_IMPOSSIBLE("op");
 	}
+
+	return ~0;
 }
 
 /**
@@ -384,6 +388,8 @@ static uint64_t __target_unit_nr(const struct m0_sns_cm_pdclust_layout *spl,
 	default:
 		 M0_IMPOSSIBLE("op");
 	}
+
+	return ~0;
 }
 
 M0_INTERNAL void target_unit_to_cob(struct m0_sns_cm_ag *sag)
