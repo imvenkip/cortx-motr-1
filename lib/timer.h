@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -41,7 +41,7 @@
    User supplied callback function should be small, run and complete quickly.
 
    There are two types of timer: soft timer and hard timer. For Linux kernel
-   implementation, all timers are hard timer. For userspace implemenation,
+   implementation, all timers are hard timer. For userspace implementation,
    soft timer and hard timer have different mechanism:
 
    - Hard timer has better resolution and is driven by signal. The
@@ -110,9 +110,9 @@ struct m0_timer_locality {
    @param timer m0_timer structure
    @param type timer type (M0_TIMER_SOFT or M0_TIMER_HARD)
    @param expire absolute expiration time for timer. If this time is already
-	  passed, then the timer callback will be executed immediatelly
+	  passed, then the timer callback will be executed immediately
 	  after m0_timer_start().
-   @param callback this callback will be triggered whem timer alarms.
+   @param callback this callback will be triggered when timer alarms.
    @param data data for the callback.
    @pre callback != NULL
    @post timer is not running

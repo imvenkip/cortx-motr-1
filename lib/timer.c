@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -66,7 +66,7 @@ enum timer_func {
 	TIMER_FUNC_NR
 };
 
-static m0_time_t zero_time;
+static const m0_time_t zero_time = M0_MKTIME(0, 0);
 
 /**
    Typed list of m0_timer_tid structures.
@@ -564,7 +564,6 @@ M0_INTERNAL bool m0_timer_is_started(const struct m0_timer *timer)
 M0_INTERNAL int m0_timers_init()
 {
 	timer_sigaction(TIMER_SIGNO, timer_sighandler);
-	m0_time_set(&zero_time, 0, 0);
 	return 0;
 }
 
