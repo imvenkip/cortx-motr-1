@@ -1,138 +1,138 @@
 nobase_mero_include_HEADERS += lib/adt.h \
-                                  lib/arith.h \
-                                  lib/assert.h \
-                                  lib/atomic.h \
-                                  lib/bitmap.h \
-                                  lib/bitstring.h \
-                                  lib/bob.h \
-                                  lib/buf.h \
-                                  lib/buf_xc.h \
-                                  lib/byteorder.h \
-                                  lib/cdefs.h \
-                                  lib/chan.h \
-                                  lib/cond.h \
-                                  lib/cookie.h \
-                                  lib/cookie_xc.h \
-                                  lib/errno.h \
-                                  lib/ext.h \
-                                  lib/finject.h \
-                                  lib/getopts.h \
-                                  lib/list.h \
-				  lib/lockers.h \
-                                  lib/memory.h \
-                                  lib/misc.h \
-                                  lib/mutex.h \
-                                  lib/processor.h \
-                                  lib/queue.h \
-                                  lib/refs.h \
-                                  lib/rwlock.h \
-                                  lib/semaphore.h \
-                                  lib/string.h \
-                                  lib/thread.h \
-                                  lib/time.h \
-                                  lib/timer.h \
-                                  lib/tlist.h \
-                                  lib/trace.h \
-                                  lib/types.h \
-                                  lib/ub.h \
-                                  lib/ut.h \
-                                  lib/uuid.h \
-                                  lib/vec.h \
-                                  lib/vec_xc.h \
-                                  lib/user_space/cdefs.h \
-                                  lib/user_space/getopts.h \
-                                  lib/user_space/mutex.h \
-                                  lib/user_space/rwlock.h \
-                                  lib/user_space/time.h \
-                                  lib/user_space/types.h \
-                                  lib/user_space/user_x86_64_atomic.h \
-                                  lib/user_space/thread.h \
-                                  lib/user_space/trace.h \
-                                  lib/user_space/timer.h \
-                                  lib/user_space/semaphore.h
+                               lib/arith.h \
+                               lib/assert.h \
+                               lib/atomic.h \
+                               lib/bitmap.h \
+                               lib/bitstring.h \
+                               lib/bob.h \
+                               lib/buf.h \
+                               lib/buf_xc.h \
+                               lib/byteorder.h \
+                               lib/cdefs.h \
+                               lib/chan.h \
+                               lib/cond.h \
+                               lib/cookie.h \
+                               lib/cookie_xc.h \
+                               lib/errno.h \
+                               lib/ext.h \
+                               lib/finject.h \
+                               lib/getopts.h \
+                               lib/list.h \
+                               lib/lockers.h \
+                               lib/memory.h \
+                               lib/misc.h \
+                               lib/mutex.h \
+                               lib/processor.h \
+                               lib/queue.h \
+                               lib/refs.h \
+                               lib/rwlock.h \
+                               lib/semaphore.h \
+                               lib/string.h \
+                               lib/thread.h \
+                               lib/time.h \
+                               lib/timer.h \
+                               lib/tlist.h \
+                               lib/trace.h \
+                               lib/types.h \
+                               lib/ub.h \
+                               lib/ut.h \
+                               lib/uuid.h \
+                               lib/vec.h \
+                               lib/vec_xc.h \
+                               lib/user_space/cdefs.h \
+                               lib/user_space/getopts.h \
+                               lib/user_space/mutex.h \
+                               lib/user_space/rwlock.h \
+                               lib/user_space/semaphore.h \
+                               lib/user_space/thread.h \
+                               lib/user_space/time.h \
+                               lib/user_space/timer.h \
+                               lib/user_space/trace.h \
+                               lib/user_space/types.h \
+                               lib/user_space/user_x86_64_atomic.h
 
-mero_libmero_la_SOURCES  += lib/assert.c \
-                                  lib/bitmap.c \
-                                  lib/bitstring.c \
-                                  lib/bob.c \
-                                  lib/buf.c \
-                                  lib/buf_xc.c \
-                                  lib/chan.c \
-                                  lib/cond.c \
-                                  lib/cookie.c \
-                                  lib/cookie_xc.c \
-                                  lib/ext.c \
-                                  lib/finject.c \
-                                  lib/finject_internal.h \
-                                  lib/getopts.c \
-                                  lib/list.c \
-				  lib/lockers.c \
-                                  lib/misc.c \
-                                  lib/mutex.c \
-                                  lib/queue.c \
-                                  lib/refs.c \
-                                  lib/thread.c \
-                                  lib/time.c \
-                                  lib/timer.c \
-                                  lib/tlist.c \
-                                  lib/trace.c \
-                                  lib/trace_internal.h \
-                                  lib/vec.c \
-                                  lib/vec_xc.c \
-                                  lib/m0lib.c \
-                                  lib/ub.c \
-                                  lib/ut.c \
-                                  lib/uuid.c \
-                                  lib/user_space/finject_init.c \
-                                  lib/user_space/memory.c \
-                                  lib/user_space/processor.c \
-                                  lib/user_space/rwlock.c \
-                                  lib/user_space/semaphore.c \
-                                  lib/user_space/uassert.c \
-                                  lib/user_space/utrace.c \
-                                  lib/user_space/ucookie.c \
-                                  lib/user_space/uthread.c \
-                                  lib/user_space/ugetopts.c \
-                                  lib/user_space/umisc.c \
-                                  lib/user_space/utime.c
+mero_libmero_la_SOURCES += lib/assert.c \
+                           lib/bitmap.c \
+                           lib/bitstring.c \
+                           lib/bob.c \
+                           lib/buf.c \
+                           lib/buf_xc.c \
+                           lib/chan.c \
+                           lib/cond.c \
+                           lib/cookie.c \
+                           lib/cookie_xc.c \
+                           lib/ext.c \
+                           lib/finject.c \
+                           lib/finject_internal.h \
+                           lib/getopts.c \
+                           lib/list.c \
+                           lib/lockers.c \
+                           lib/m0lib.c \
+                           lib/misc.c \
+                           lib/mutex.c \
+                           lib/queue.c \
+                           lib/refs.c \
+                           lib/thread.c \
+                           lib/time.c \
+                           lib/timer.c \
+                           lib/tlist.c \
+                           lib/trace.c \
+                           lib/trace_internal.h \
+                           lib/ub.c \
+                           lib/ut.c \
+                           lib/uuid.c \
+                           lib/vec.c \
+                           lib/vec_xc.c \
+                           lib/user_space/finject_init.c \
+                           lib/user_space/memory.c \
+                           lib/user_space/processor.c \
+                           lib/user_space/rwlock.c \
+                           lib/user_space/semaphore.c \
+                           lib/user_space/uassert.c \
+                           lib/user_space/ucookie.c \
+                           lib/user_space/ugetopts.c \
+                           lib/user_space/umisc.c \
+                           lib/user_space/uthread.c \
+                           lib/user_space/utime.c \
+                           lib/user_space/utrace.c
 
-XC_FILES   += lib/buf_xc.h \
-              lib/vec_xc.h \
-              lib/cookie_xc.h
+XC_FILES += lib/buf_xc.h \
+            lib/cookie_xc.h \
+            lib/vec_xc.h
 
-EXTRA_DIST += lib/linux_kernel/assert.h \
-              lib/linux_kernel/atomic64.h \
+EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/cdefs.h \
               lib/linux_kernel/finject_init.c \
+              lib/linux_kernel/kassert.c \
               lib/linux_kernel/kcookie.c \
-              lib/linux_kernel/kthread.c \
-              lib/linux_kernel/ktrace.c \
-              lib/linux_kernel/ktime.c \
-              lib/linux_kernel/memory.c \
               lib/linux_kernel/kmisc.c \
+              lib/linux_kernel/kthread.c \
+              lib/linux_kernel/ktime.c \
+              lib/linux_kernel/ktrace.c \
+              lib/linux_kernel/kvec.c \
+              lib/linux_kernel/main.c \
+              lib/linux_kernel/memory.c \
               lib/linux_kernel/mutex.c \
               lib/linux_kernel/mutex.h \
               lib/linux_kernel/processor.c \
+              lib/linux_kernel/rwlock.c \
+              lib/linux_kernel/rwlock.h \
               lib/linux_kernel/semaphore.c \
               lib/linux_kernel/semaphore.h \
               lib/linux_kernel/thread.h \
-              lib/linux_kernel/timer.c \
               lib/linux_kernel/time.h \
+              lib/linux_kernel/timer.c \
               lib/linux_kernel/timer.h \
-              lib/linux_kernel/vec.h \
-              lib/linux_kernel/kvec.c \
-              lib/linux_kernel/rwlock.c \
-              lib/linux_kernel/rwlock.h \
+              lib/linux_kernel/types.h \
               lib/linux_kernel/ut.c \
-              lib/linux_kernel/main.c \
-              lib/linux_kernel/types.h
+              lib/linux_kernel/vec.h
 
-CLEANFILES += lib/buf_xc.h \
+CLEANFILES += lib/buf.gccxml \
               lib/buf_xc.c \
-              lib/buf.gccxml \
-              lib/vec_xc.h \
-              lib/vec_xc.c \
-              lib/vec.gccxml \
-              lib/cookie_xc.h \
+              lib/buf_xc.h \
+              lib/cookie.gccxml \
               lib/cookie_xc.c \
-              lib/cookie.gccxml
+              lib/cookie_xc.h \
+              lib/vec.gccxml \
+              lib/vec_xc.c \
+              lib/vec_xc.h
