@@ -91,7 +91,7 @@ static int decimal_width(int n)
 	}
 	for (ref = 10; ref <= n; ref *= 10) {
 		w++;
-		if (ref * 10 < ref)
+		if (ref * 10 < ref)  /* overflow check */
 			break;
 	}
 
