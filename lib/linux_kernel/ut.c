@@ -18,7 +18,7 @@
  * Original creation date: 04/13/2011
  */
 
-#include "lib/arith.h"  /* min_type */
+#include "lib/arith.h"  /* max_check */
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/list.h"
@@ -116,26 +116,17 @@ static void uts_summary(void)
 	diff = m0_time_sub(now, started);
 	msec = (m0_time_nanoseconds(diff) + ONE_MILLION / 2) / ONE_MILLION;
 
-	ran_w    = max_type(int,
-			    max_type(int,
-				     strlen("Total"),
-				     decimal_width(suite_ran)),
-			    max_type(int,
-				     decimal_width(test_ran),
-				     decimal_width(ran))
-			   ) + 1;  /* +1 char for space between columns */
-	passed_w = max_type(int,
-			    strlen("Passed"),
-			    max_type(int,
-				     decimal_width(test_passed),
-				     decimal_width(passed))
-			   ) + 1;
-	failed_w = max_type(int,
-			    strlen("Failed"),
-			    max_type(int,
-				     decimal_width(test_failed),
-				     decimal_width(failed))
-			   ) + 1;
+	ran_w    = max_check(max_check((int)strlen("Total"),
+				       decimal_width(suite_ran)),
+			     max_check(decimal_width(test_ran),
+				       decimal_width(ran))
+			    ) + 1;  /* +1 char for space between columns */
+	passed_w = max_check((int)strlen("Passed"),
+			     max_check(decimal_width(test_passed),
+				       decimal_width(passed))) + 1;
+	failed_w = max_check((int)strlen("Failed"),
+			     max_check(decimal_width(test_failed),
+				       decimal_width(failed))) + 1;
 	printk(KERN_INFO "Run Summary:    Type%*s%*s%*s%*s\n",
 	       ran_w, "Total", ran_w, "Ran", passed_w, "Passed", failed_w,
 	       "Failed");
