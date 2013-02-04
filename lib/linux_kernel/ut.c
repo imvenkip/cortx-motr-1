@@ -80,22 +80,22 @@ M0_INTERNAL void m0_ut_add(const struct m0_test_suite *ts)
 }
 M0_EXPORTED(m0_ut_add);
 
-static int decimal_width(int i)
+static int decimal_width(int n)
 {
-	int s = 1;  /* at least 1 decimal digit */
-       	int ref;
+	int w = 1;  /* at least 1 decimal digit */
+	int ref;
 
-        if (i < 0) {
-		s++;  /* one character more for sign */ 
-		i = -i;
+        if (n < 0) {
+		w++;  /* one character more for sign */
+		n = -n;
 	}
-	for (ref = 10; ref <= i; ref *= 10) {
-		s++;
+	for (ref = 10; ref <= n; ref *= 10) {
+		w++;
 		if (ref * 10 < ref)
 			break;
 	}
 
-	return s;
+	return w;
 }
 
 /**
