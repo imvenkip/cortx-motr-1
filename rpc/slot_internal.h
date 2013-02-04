@@ -47,6 +47,8 @@ enum {
 
 /**
    Call-backs for events that a slot can trigger.
+
+   @see snd_slot_ops, rcv_slot_ops
  */
 struct m0_rpc_slot_ops {
 	/** Item i is ready to be consumed */
@@ -58,6 +60,7 @@ struct m0_rpc_slot_ops {
 	/** Slot has no items to send and hence is idle. Formation
 	    can use such slot to send unbound items. */
 	void (*so_slot_idle)(struct m0_rpc_slot *slot);
+	void (*so_slot_busy)(struct m0_rpc_slot *slot);
 };
 
 /**
@@ -292,7 +295,8 @@ M0_INTERNAL int m0_rpc_slot_cob_create(const struct m0_cob *session_cob,
 M0_INTERNAL void m0_rpc_slot_item_add_internal(struct m0_rpc_slot *slot,
 					       struct m0_rpc_item *item);
 
-M0_INTERNAL void m0_rpc_slot_process_reply(struct m0_rpc_item *req);
+M0_INTERNAL void m0_rpc_slot_process_reply(struct m0_rpc_item *req,
+					   struct m0_rpc_item *reply);
 
 #ifndef __KERNEL__
 int m0_rpc_slot_item_list_print(struct m0_rpc_slot *slot, bool only_active,

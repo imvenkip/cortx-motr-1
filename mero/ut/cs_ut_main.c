@@ -265,10 +265,10 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 			fop[i] = m0_fop_alloc(&cs_ds1_req_fop_fopt, NULL);
 			cs_ds1_fop = m0_fop_data(fop[i]);
 			cs_ds1_fop->csr_value = i;
+			fop[i]->f_item.ri_nr_sent_max = 60;
 			rc = m0_rpc_client_call(fop[i], cl_rpc_session,
 						&cs_ds_req_fop_rpc_item_ops,
-						0 /* deadline */,
-						m0_time_from_now(60, 0));
+						0 /* deadline */);
 			M0_UT_ASSERT(rc == 0);
 			m0_fop_put(fop[i]);
 		}
@@ -278,10 +278,10 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 			fop[i] = m0_fop_alloc(&cs_ds2_req_fop_fopt, NULL);
 			cs_ds2_fop = m0_fop_data(fop[i]);
 			cs_ds2_fop->csr_value = i;
+			fop[i]->f_item.ri_nr_sent_max = 60;
 			rc = m0_rpc_client_call(fop[i], cl_rpc_session,
 						&cs_ds_req_fop_rpc_item_ops,
-						0 /* deadline */,
-						m0_time_from_now(60, 0));
+						0 /* deadline */);
 			M0_UT_ASSERT(rc == 0);
 			m0_fop_put(fop[i]);
 		}

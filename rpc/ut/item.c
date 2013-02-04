@@ -31,10 +31,13 @@
 #include "ut/cs_fop_foms_xc.h"     /* cs_ds2_req_fop */
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
 #include "rpc/ut/rpc_test_fops.h"
+#include "rpc/rpc_internal.h"
 
 static int __test(void);
 static void __test_timeout(m0_time_t deadline,
 			   m0_time_t timeout);
+static void __test_resend(struct m0_fop *fop);
+static void __test_timer_start_failure(void);
 
 static struct m0_fop *fop_alloc(void)
 {
@@ -111,8 +114,7 @@ static void test_simple_transitions(void)
 	item = &fop->f_item;
 	rc = m0_rpc_client_call(fop, &cctx.rcx_session,
 				&cs_ds_req_fop_rpc_item_ops,
-				0 /* deadline */,
-				m0_time_from_now(CONNECT_TIMEOUT, 0));
+				0 /* deadline */);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(item->ri_error == 0);
 	M0_UT_ASSERT(item->ri_reply != NULL);
@@ -136,12 +138,12 @@ static void test_timeout(void)
 	M0_LOG(M0_DEBUG, "TEST:2.1:START");
 	fop = fop_alloc();
 	item = &fop->f_item;
+	item->ri_nr_sent_max = 1;
 	m0_rpc_machine_get_stats(machine, &saved, false);
 	m0_fi_enable_once("cs_req_fop_fom_tick", "inject_delay");
 	rc = m0_rpc_client_call(fop, &cctx.rcx_session,
 				&cs_ds_req_fop_rpc_item_ops,
-				0 /* deadline */,
-				m0_time_from_now(1, 0));
+				0 /* deadline */);
 	M0_UT_ASSERT(rc == -ETIMEDOUT);
 	M0_UT_ASSERT(item->ri_error == -ETIMEDOUT);
 	M0_UT_ASSERT(item->ri_reply == NULL);
@@ -157,39 +159,31 @@ static void test_timeout(void)
 	/* Test [ENQUEUED] ---timeout----> [FAILED] */
 	M0_LOG(M0_DEBUG, "TEST:2.2:START");
 	__test_timeout(m0_time_from_now(1, 0),
-		       m0_time_from_now(0, 100 * MILLISEC));
+		       m0_time(0, 100 * MILLISEC));
 	M0_LOG(M0_DEBUG, "TEST:2.2:END");
 
-	/* Test: timeout is in past AND [ENQUEUED] ---timeout----> [FAILED] */
+	/* Test [URGENT] ---timeout----> [FAILED] */
+	m0_fi_enable("frm_balance", "do_nothing");
 	M0_LOG(M0_DEBUG, "TEST:2.3:START");
-	__test_timeout(m0_time_from_now(1, 0),
-		       m0_time_from_now(-1, 0));
+	__test_timeout(m0_time_from_now(-1, 0),
+		       m0_time(0, 100 * MILLISEC));
+	m0_fi_disable("frm_balance", "do_nothing");
 	M0_LOG(M0_DEBUG, "TEST:2.3:END");
 
-	m0_fi_enable("frm_balance", "do_nothing");
-
-	/* Test [URGENT] ---timeout----> [FAILED] */
-	M0_LOG(M0_DEBUG, "TEST:2.4:START");
-	__test_timeout(m0_time_from_now(-1, 0),
-		       m0_time_from_now(0, 100 * MILLISEC));
-	M0_LOG(M0_DEBUG, "TEST:2.4:END");
-
-	/* Test: timeout is in past AND [URGENT] ---timeout----> [FAILED] */
-	M0_LOG(M0_DEBUG, "TEST:2.5:START");
-	__test_timeout(m0_time_from_now(-1, 0),
-		       m0_time_from_now(-1, 0));
-	M0_LOG(M0_DEBUG, "TEST:2.5:END");
-
-	m0_fi_disable("frm_balance", "do_nothing");
-
 	/* Test: [SENDING] ---timeout----> [FAILED] */
+
+	M0_LOG(M0_DEBUG, "TEST:2.4:START");
+	/* Delay "sent" callback for 300 msec. */
 	m0_fi_enable("outgoing_buf_event_handler", "delay_callback");
-	M0_LOG(M0_DEBUG, "TEST:2.6:START");
+	/* ASSUMPTION: Sender will not get "new item received" event until
+		       the thread that has called outgoing_buf_event_handler()
+		       comes out of sleep and returns to net layer.
+	 */
 	__test_timeout(m0_time_from_now(-1, 0),
-		       m0_time_from_now(0, 100 * MILLISEC));
+		       m0_time(0, 100 * MILLISEC));
 	/* wait until reply is processed */
 	m0_nanosleep(m0_time(0, 500 * MILLISEC), NULL);
-	M0_LOG(M0_DEBUG, "TEST:2.6:END");
+	M0_LOG(M0_DEBUG, "TEST:2.4:END");
 	m0_fi_disable("outgoing_buf_event_handler", "delay_callback");
 }
 
@@ -201,8 +195,9 @@ static void __test_timeout(m0_time_t deadline,
 	fop = fop_alloc();
 	item = &fop->f_item;
 	m0_rpc_machine_get_stats(machine, &saved, false);
-	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL,
-				deadline, timeout);
+	item->ri_nr_sent_max = 1;
+	item->ri_resend_interval = timeout;
+	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL, deadline);
 	M0_UT_ASSERT(item->ri_error == -ETIMEDOUT);
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
@@ -212,6 +207,140 @@ static void __test_timeout(m0_time_t deadline,
 	m0_fop_put(fop);
 }
 
+static bool only_second_time(void *data)
+{
+	int *ip = data;
+
+	++*ip;
+	return *ip == 2;
+}
+
+static void test_resend(void)
+{
+	struct m0_rpc_item *item;
+	int                 rc;
+	int                 cnt = 0;
+
+	/* Test: Request is dropped. */
+	M0_LOG(M0_DEBUG, "TEST:3.1:START");
+	m0_fi_enable_once("item_received", "drop_item");
+	__test_resend(NULL);
+	M0_LOG(M0_DEBUG, "TEST:3.1:END");
+
+	/* Test: Reply is dropped. */
+	M0_LOG(M0_DEBUG, "TEST:3.2:START");
+	m0_fi_enable_func("item_received", "drop_item",
+			  only_second_time, &cnt);
+	__test_resend(NULL);
+	m0_fi_disable("item_received", "drop_item");
+	M0_LOG(M0_DEBUG, "TEST:3.2:END");
+
+	/* Test: ENQUEUED -> REPLIED transition.
+
+	   Reply is delayed. On sender, request item is enqueued for
+	   resending. But before formation could send the item,
+	   reply is received.
+
+	   nanosleep()s are inserted at specific points to create
+	   this scenario:
+	   - request is sent;
+	   - the request is moved to WAITING_FOR_REPLY state;
+	   - the item's timer is set to trigger after 1 sec;
+	   - fault_point<"m0_rpc_reply_post", "delay_reply"> delays
+	     sending reply by 1.2 sec;
+	   - resend timer of request item triggers and calls
+	     m0_rpc_item_send();
+	   - fault_point<"m0_rpc_item_send", "advance_delay"> moves
+	     deadline of request item 500ms in future, ergo the item
+	     moves to ENQUEUED state when handed over to formation;
+	   - receiver comes out of 1.2 sec sleep and sends reply.
+	 */
+	M0_LOG(M0_DEBUG, "TEST:3.3:START");
+	cnt = 0;
+	m0_fi_enable_func("m0_rpc_item_send", "advance_deadline",
+			  only_second_time, &cnt);
+	m0_fi_enable_once("m0_rpc_reply_post", "delay_reply");
+	fop = fop_alloc();
+	item = &fop->f_item;
+	__test_resend(fop);
+	m0_fi_disable("m0_rpc_item_send", "advance_deadline");
+	M0_LOG(M0_DEBUG, "TEST:3.3:END");
+
+	M0_LOG(M0_DEBUG, "TEST:3.4:START");
+	/* CONTINUES TO USE fop/item FROM PREVIOUS TEST-CASE. */
+	/* RPC call is complete i.e. item is in REPLIED state.
+	   Explicitly resend the completed request; the way the item
+	   will be resent during recovery.
+	 */
+	m0_rpc_machine_lock(item->ri_rmachine);
+	M0_UT_ASSERT(item->ri_nr_sent == 2);
+	m0_rpc_item_send(item);
+	m0_rpc_machine_unlock(item->ri_rmachine);
+	rc = m0_rpc_item_wait_for_reply(item, m0_time_from_now(2, 0));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_error == 0);
+	M0_UT_ASSERT(item->ri_nr_sent == 3);
+	M0_UT_ASSERT(item->ri_reply != NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
+	m0_fop_put(fop);
+	M0_LOG(M0_DEBUG, "TEST:3.4:END");
+
+	/* Test: INITIALISED -> FAILED transition when m0_rpc_post()
+		 fails to start item timer.
+	 */
+	M0_LOG(M0_DEBUG, "TEST:3.5.1:START");
+	m0_fi_enable_once("m0_rpc_item_start_timer", "failed");
+	__test_timer_start_failure();
+	M0_LOG(M0_DEBUG, "TEST:3.5.1:END");
+
+	/* Test: Move item from WAITING_FOR_REOLY to FAILED state if
+		 item_sent() fails to start resend timer.
+	 */
+	M0_LOG(M0_DEBUG, "TEST:3.5.2:START");
+	cnt = 0;
+	m0_fi_enable_func("m0_rpc_item_start_timer", "failed",
+			  only_second_time, &cnt);
+	m0_fi_enable("item_received", "drop_item");
+	__test_timer_start_failure();
+	m0_fi_disable("item_received", "drop_item");
+	m0_fi_disable("m0_rpc_item_start_timer", "failed");
+	M0_LOG(M0_DEBUG, "TEST:3.5.2:END");
+}
+
+static void __test_resend(struct m0_fop *fop)
+{
+	bool fop_put_flag = false;
+	int rc;
+
+	if (fop == NULL) {
+		fop = fop_alloc();
+		fop_put_flag = true;
+	}
+	item = &fop->f_item;
+	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL, 0 /* urgent */);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_error == 0);
+	M0_UT_ASSERT(item->ri_nr_sent >= 1);
+	M0_UT_ASSERT(item->ri_reply != NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
+	if (fop_put_flag)
+		m0_fop_put(fop);
+}
+
+static void __test_timer_start_failure(void)
+{
+	int rc;
+
+	fop = fop_alloc();
+	item = &fop->f_item;
+	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL, 0 /* urgent */);
+	M0_UT_ASSERT(rc == -EINVAL);
+	M0_UT_ASSERT(item->ri_error == -EINVAL);
+	M0_UT_ASSERT(item->ri_reply == NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
+	/* sleep until request reaches at server and is dropped */
+	m0_nanosleep(m0_time(0, 5 * 1000 * 1000), NULL);
+}
 static void test_failure_before_sending(void)
 {
 	int rc;
@@ -240,19 +369,19 @@ static void test_failure_before_sending(void)
 	}
 	/* TEST4: Network layer reported buffer send failure.
 		  The item should move to FAILED state.
-		  NOTE: Buffer sending is successful, hence reply will be
-		  received but reply will be dropped.
+		  NOTE: Buffer sending is successful, hence we need
+		  to explicitly drop the item on receiver using
+		  fault_point<"item_received", "drop_item">.
 	 */
 	M0_LOG(M0_DEBUG, "TEST:4:START");
 	m0_fi_enable("outgoing_buf_event_handler", "fake_err");
+	m0_fi_enable("item_received", "drop_item");
 	rc = __test();
 	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(item->ri_error == -EINVAL);
-	/* Wait for reply */
-	m0_nanosleep(m0_time(0, 10000000), 0); /* sleep 10 milli seconds */
 	m0_rpc_machine_get_stats(machine, &stats, false);
-	M0_UT_ASSERT(IS_INCR_BY_1(nr_dropped_items));
 	m0_fi_disable("outgoing_buf_event_handler", "fake_err");
+	m0_fi_disable("item_received", "drop_item");
 	M0_LOG(M0_DEBUG, "TEST:4:END");
 }
 
@@ -266,8 +395,7 @@ static int __test(void)
 	item = &fop->f_item;
 	rc = m0_rpc_client_call(fop, &cctx.rcx_session,
 				&cs_ds_req_fop_rpc_item_ops,
-				0 /* deadline */,
-				m0_time_from_now(CONNECT_TIMEOUT, 0));
+				0 /* deadline */);
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
 	m0_rpc_machine_get_stats(machine, &stats, false);
@@ -345,7 +473,8 @@ const struct m0_test_suite item_ut = {
 	.ts_fini = ts_item_fini,
 	.ts_tests = {
 		{ "simple-transitions",     test_simple_transitions     },
-		{ "timeout-transitions",    test_timeout                },
+		{ "item-timeout",           test_timeout                },
+		{ "item-resend",            test_resend                 },
 		{ "failure-before-sending", test_failure_before_sending },
 		{ "oneway-item",            test_oneway_item            },
 		{ NULL, NULL },

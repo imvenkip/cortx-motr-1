@@ -73,6 +73,14 @@ m0_rpc_client_start
 m0_rpc_client_stop
 m0_rpc_conn_destroy
 m0_rpc_item_to_fop
+m0_rpc_item_init
+m0_rpc_item_fini
+m0_rpc_item_get
+m0_rpc_item_put
+m0_rpc_item_onwire_header_size
+m0_rpc_item_size
+m0_rpc_item_timedwait
+m0_rpc_item_wait_for_reply
 m0_rpc_machine_bob_check
 m0_rpc_machine_bob_fini
 m0_rpc_machine_bob_init

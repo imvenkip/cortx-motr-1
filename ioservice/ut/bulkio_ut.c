@@ -1545,10 +1545,9 @@ void bulkio_server_read_write_fv_mismatch(void)
 	wfop->f_type->ft_ops = &io_fop_rwv_ops;
         wfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
 
+	wfop->f_item.ri_nr_sent_max = IO_RPC_ITEM_TIMEOUT;
 	rc = m0_rpc_client_call(wfop, &bp->bp_cctx->rcx_session,
-				NULL,
-				0 /* deadline */,
-				m0_time_from_now(IO_RPC_ITEM_TIMEOUT, 0));
+				NULL, 0 /* deadline */);
 	M0_ASSERT(rc == 0);
 	rw_reply = io_rw_rep_get(m0_rpc_item_to_fop(wfop->f_item.ri_reply));
 	M0_UT_ASSERT(rw_reply->rwr_rc ==
@@ -1561,9 +1560,9 @@ void bulkio_server_read_write_fv_mismatch(void)
 	rfop->f_type->ft_ops = &io_fop_rwv_ops;
         rfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
 
+	rfop->f_item.ri_nr_sent_max = IO_RPC_ITEM_TIMEOUT;
 	rc = m0_rpc_client_call(rfop, &bp->bp_cctx->rcx_session,
-				NULL, 0 /* deadline */,
-				m0_time_from_now(IO_RPC_ITEM_TIMEOUT, 0));
+				NULL, 0 /* deadline */);
 	M0_ASSERT(rc == 0);
 	rw_reply = io_rw_rep_get(m0_rpc_item_to_fop(rfop->f_item.ri_reply));
 	M0_UT_ASSERT(rw_reply->rwr_rc ==

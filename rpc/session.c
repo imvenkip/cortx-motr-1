@@ -45,6 +45,7 @@
  */
 
 static void snd_slot_idle(struct m0_rpc_slot *slot);
+static void snd_slot_busy(struct m0_rpc_slot *slot);
 
 static void snd_item_consume(struct m0_rpc_item *item);
 
@@ -52,6 +53,7 @@ static void snd_reply_consume(struct m0_rpc_item *req,
 				 struct m0_rpc_item *reply);
 
 static void rcv_slot_idle(struct m0_rpc_slot *slot);
+static void rcv_slot_busy(struct m0_rpc_slot *slot);
 
 static void rcv_item_consume(struct m0_rpc_item *item);
 
@@ -80,14 +82,16 @@ static void session_failed(struct m0_rpc_session *session, int32_t error);
 static void session_idle_x_busy(struct m0_rpc_session *session);
 
 static const struct m0_rpc_slot_ops snd_slot_ops = {
-	.so_slot_idle = snd_slot_idle,
-	.so_item_consume = snd_item_consume,
+	.so_slot_idle     = snd_slot_idle,
+	.so_slot_busy     = snd_slot_busy,
+	.so_item_consume  = snd_item_consume,
 	.so_reply_consume = snd_reply_consume
 };
 
 static const struct m0_rpc_slot_ops rcv_slot_ops = {
-	.so_slot_idle = rcv_slot_idle,
-	.so_item_consume = rcv_item_consume,
+	.so_slot_idle     = rcv_slot_idle,
+	.so_slot_busy     = rcv_slot_busy,
+	.so_item_consume  = rcv_item_consume,
 	.so_reply_consume = rcv_reply_consume
 };
 
@@ -897,6 +901,8 @@ m0_rpc_session_get_max_item_payload_size(const struct m0_rpc_session *session)
 
 M0_INTERNAL void m0_rpc_session_hold_busy(struct m0_rpc_session *session)
 {
+	M0_LOG(M0_DEBUG, "session %p %d -> %d", session, session->s_hold_cnt,
+		session->s_hold_cnt + 1);
 	++session->s_hold_cnt;
 	session_idle_x_busy(session);
 }
@@ -906,6 +912,8 @@ M0_INTERNAL void m0_rpc_session_release(struct m0_rpc_session *session)
 	M0_PRE(session_state(session) == M0_RPC_SESSION_BUSY);
 	M0_PRE(session->s_hold_cnt > 0);
 
+	M0_LOG(M0_DEBUG, "session %p %d -> %d", session, session->s_hold_cnt,
+		session->s_hold_cnt - 1);
 	--session->s_hold_cnt;
 	session_idle_x_busy(session);
 }
@@ -1021,6 +1029,14 @@ static void snd_slot_idle(struct m0_rpc_slot *slot)
 	m0_rpc_frm_run_formation(frm);
 }
 
+static void snd_slot_busy(struct m0_rpc_slot *slot)
+{
+	M0_PRE(slot != NULL);
+
+	if (ready_slot_tlink_is_in(slot))
+		ready_slot_tlist_del(slot);
+}
+
 M0_INTERNAL bool m0_rpc_session_bind_item(struct m0_rpc_item *item)
 {
 	struct m0_rpc_session *session;
@@ -1047,6 +1063,7 @@ M0_INTERNAL bool m0_rpc_session_bind_item(struct m0_rpc_item *item)
 
 static void snd_item_consume(struct m0_rpc_item *item)
 {
+	m0_rpc_session_hold_busy(item->ri_session);
 	m0_rpc_frm_enq_item(session_frm(item->ri_session), item);
 }
 
@@ -1066,6 +1083,11 @@ static void rcv_slot_idle(struct m0_rpc_slot *slot)
 	 */
 }
 
+static void rcv_slot_busy(struct m0_rpc_slot *slot)
+{
+	/* Do nothing on receiver */
+}
+
 static void rcv_item_consume(struct m0_rpc_item *item)
 {
 	m0_rpc_item_dispatch(item);
@@ -1074,7 +1096,30 @@ static void rcv_item_consume(struct m0_rpc_item *item)
 static void rcv_reply_consume(struct m0_rpc_item *req,
 			      struct m0_rpc_item *reply)
 {
-	m0_rpc_frm_enq_item(session_frm(req->ri_session), reply);
+	switch (reply->ri_sm.sm_state) {
+	case M0_RPC_ITEM_INITIALISED:
+		reply->ri_nr_sent++;
+		m0_rpc_frm_enq_item(session_frm(req->ri_session), reply);
+		break;
+	case M0_RPC_ITEM_SENT:
+	case M0_RPC_ITEM_FAILED:
+		m0_rpc_item_send(reply);
+		break;
+	case M0_RPC_ITEM_ENQUEUED:
+	case M0_RPC_ITEM_URGENT:
+	case M0_RPC_ITEM_SENDING:
+		/*
+		  This situation can arise when reply item is posted but
+		  not yet sent (i.e. reply is in formation queue or is
+		  currently being sent) and duplicate req item is received.
+		  In this case there is no need to again queue the reply
+		  for sending.
+		 */
+		/* Do nothing */
+		break;
+	default:
+		M0_IMPOSSIBLE("State of reply item is invalid");
+	}
 }
 
 M0_INTERNAL int m0_rpc_rcv_session_establish(struct m0_rpc_session *session)
@@ -1241,7 +1286,13 @@ M0_INTERNAL void m0_rpc_session_item_failed(struct m0_rpc_item *item)
 	M0_PRE(item->ri_sm.sm_state == M0_RPC_ITEM_FAILED);
 
 	if (m0_rpc_item_is_request(item) &&
-	    m0_rpc_item_is_bound(item)) {
+	    M0_IN(item->ri_stage, (RPC_ITEM_STAGE_FUTURE,
+				   RPC_ITEM_STAGE_IN_PROGRESS))) {
+
+		M0_ASSERT(item->ri_error != 0);
+		if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
+			item->ri_ops->rio_replied(item);
+
 		if (item->ri_error == -ETIMEDOUT)
 			m0_rpc_item_set_stage(item, RPC_ITEM_STAGE_TIMEDOUT);
 		else

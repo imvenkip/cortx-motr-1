@@ -407,47 +407,30 @@ static void outgoing_buf_event_handler(const struct m0_net_buffer_event *ev)
 
 static void item_done(struct m0_rpc_item *item, unsigned long rc)
 {
-	bool timeout_is_pending;
-	bool reply_is_pending;
-
 	M0_ENTRY("item: %p rc: %lu", item, rc);
 	M0_PRE(item != NULL);
-	M0_PRE(M0_IN(item->ri_error, (0, -ETIMEDOUT)));
 
-	timeout_is_pending = item->ri_error == -ETIMEDOUT;
-	if (timeout_is_pending)
-		M0_LOG(M0_DEBUG, "item %p has pending timeout", item);
-
-	reply_is_pending = item->ri_reply != NULL;
-	if (reply_is_pending)
-		M0_LOG(M0_DEBUG, "item %p has pending reply %p",
-		       item, item->ri_reply);
-
-	/* Any or both of timeout_is_pending and reply_is_pending can be true */
-
-	/* If timeout_is_pending AND rc == 0 then,
-		item _is_ placed on the network, do not lie in the
-		->sent() callback, by keeping ri_error as -ETIMEDOUT.
-		So set ri_error to rc; just for the duration of ->sent()
-		callback. And then restore it back to -ETIMEDOUT.
-	 */
-	item->ri_error = rc;
-	if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
-		item->ri_ops->rio_sent(item);
-
-	M0_ASSERT(ergo(rc != 0, !reply_is_pending)); /* if sending is failed
-							then how can reply be
-							pending */
-	if (timeout_is_pending) {
-		if (rc != 0 || reply_is_pending) {
-			/* ignore timeout */;
-			M0_ASSERT(item->ri_error == rc);
-		} else
-			item->ri_error = -ETIMEDOUT;
+	if (m0_rpc_item_is_request(item) &&
+	    M0_IN(item->ri_stage, (RPC_ITEM_STAGE_PAST_VOLATILE,
+				   RPC_ITEM_STAGE_PAST_COMMITTED))) {
+		/* cannot fail already completed request, just because
+		   resending it failed.
+		 */
+		M0_ASSERT(item->ri_reply != NULL && item->ri_nr_sent > 0);
+		rc = 0;
 	}
-	if (item->ri_error == 0)
+	if (item->ri_pending_reply != NULL) {
+		/* item that is never sent, i.e. item->ri_nr_sent == 0,
+		   can never have a (pending/any) reply.
+		 */
+		M0_ASSERT(ergo(rc != 0, item->ri_nr_sent > 0));
+		rc = 0;
+		item->ri_error = 0;
+	}
+	if (rc == 0)
 		item_sent(item);
-	else
+	item->ri_error = item->ri_error ?: rc;
+	if (item->ri_error != 0)
 		m0_rpc_item_failed(item, item->ri_error);
 
 	M0_LEAVE();
@@ -455,27 +438,46 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 
 static void item_sent(struct m0_rpc_item *item)
 {
+	struct m0_rpc_stats *stats;
+
 	M0_ENTRY("item: %p", item);
 
-	M0_PRE(item->ri_error == 0 &&
+	M0_PRE(M0_IN(item->ri_error, (0, -ETIMEDOUT)) &&
 	       item->ri_sm.sm_state == M0_RPC_ITEM_SENDING);
 
-	item->ri_rmachine->rm_stats.rs_nr_sent_items++;
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_SENT);
+
+	stats = &item->ri_rmachine->rm_stats;
+	stats->rs_nr_sent_items++;
+
+	if (item->ri_nr_sent == 1) { /* not resent. */
+		stats->rs_nr_sent_items_uniq++;
+		if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
+			item->ri_ops->rio_sent(item);
+	} else if (item->ri_nr_sent == 2)
+		/* item with ri_nr_sent >= 2 are counted as 1 in
+		   rs_nr_resent_items i.e. rs_nr_resent_items counts number
+		   of items that required resending.
+		 */
+		stats->rs_nr_resent_items++;
+
 	/*
 	 * Request and Reply items take hold on session until
 	 * they are SENT/FAILED.
 	 * See: m0_rpc__post_locked(), m0_rpc_reply_post()
+	 *      m0_rpc_item_send()
 	 */
 	if (m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item))
 		m0_rpc_session_release(item->ri_session);
 
 	if (m0_rpc_item_is_request(item)) {
 		m0_rpc_item_change_state(item, M0_RPC_ITEM_WAITING_FOR_REPLY);
-		if (item->ri_reply != NULL) {
+		if (item->ri_pending_reply != NULL) {
 			/* Reply has already been received when we
 			   were waiting for buffer callback */
-			m0_rpc_slot_process_reply(item);
+			m0_rpc_slot_process_reply(item,
+						  item->ri_pending_reply);
+			item->ri_pending_reply = NULL;
 			M0_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_REPLIED);
 		}
 	}

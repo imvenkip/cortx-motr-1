@@ -445,7 +445,7 @@ M0_INTERNAL int m0_sm_timer_start(struct m0_sm_timer *timer,
 	timer->tr_state = ARMED;
 	timer->tr_grp   = group;
 	timer->tr_cb    = cb;
-	m0_timer_init(&timer->tr_timer, M0_TIMER_HARD, deadline, sm_timer_top,
+	m0_timer_init(&timer->tr_timer, M0_TIMER_SOFT, deadline, sm_timer_top,
 		      (unsigned long)timer);
 	result = m0_timer_start(&timer->tr_timer);
 	if (result != 0) {
@@ -533,6 +533,8 @@ M0_INTERNAL int m0_sm_timeout_arm(struct m0_sm *mach, struct m0_sm_timeout *to,
 	M0_PRE(m0_forall(i, mach->sm_conf->scf_nr_states,
 			 ergo(M0_BITS(i) & bitmask,
 			      state_get(mach, i)->sd_allowed & M0_BITS(state))));
+	if (M0_FI_ENABLED("failed")) return -EINVAL;
+
 	/*
 	 * @todo to->st_clink remains registered with mach->sm_chan even after
 	 * the timer expires or is cancelled. This does no harm, but should be
@@ -553,6 +555,11 @@ M0_INTERNAL void m0_sm_timeout_fini(struct m0_sm_timeout *to)
 	if (m0_clink_is_armed(&to->st_clink))
 		m0_clink_del(&to->st_clink);
 	m0_clink_fini(&to->st_clink);
+}
+
+M0_INTERNAL bool m0_sm_timeout_is_armed(const struct m0_sm_timeout *to)
+{
+	return m0_sm_timer_is_armed(&to->st_timer);
 }
 
 M0_INTERNAL void m0_sm_conf_extend(const struct m0_sm_state_descr *base,

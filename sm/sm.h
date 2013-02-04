@@ -646,6 +646,11 @@ M0_INTERNAL int m0_sm_timeout_arm(struct m0_sm *mach, struct m0_sm_timeout *to,
 M0_INTERNAL void m0_sm_timeout_fini(struct m0_sm_timeout *to);
 
 /**
+   Returns true iff timer associated with the timeout is running.
+ */
+M0_INTERNAL bool m0_sm_timeout_is_armed(const struct m0_sm_timeout *to);
+
+/**
    Posts an AST to a group.
  */
 M0_INTERNAL void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast);

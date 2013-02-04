@@ -164,12 +164,12 @@ int main(int argc, char *argv[])
 	start = m0_time_now();
 	rc = m0_rpc_client_call(fop, &cl_ctx.rcx_session,
 				&trigger_fop_rpc_item_ops,
-				0 /* deadline */,
-				M0_TIME_NEVER);
+				0 /* deadline */);
 	M0_ASSERT(rc == 0);
 	delta = m0_time_sub(m0_time_now(), start);
 	printf("Time: %lu.%2.2lu sec\n", (unsigned long)m0_time_seconds(delta),
-	       (unsigned long)m0_time_nanoseconds(delta) * 100 / M0_TIME_ONE_BILLION);
+	       (unsigned long)m0_time_nanoseconds(delta) * 100 /
+		M0_TIME_ONE_BILLION);
 
 	m0_fop_put(fop);
 	client_fini();

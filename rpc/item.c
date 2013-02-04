@@ -26,6 +26,7 @@
 #include "lib/rwlock.h"
 #include "lib/misc.h"
 #include "lib/errno.h"
+#include "lib/finject.h"
 #include "mero/magic.h"
 #include "rpc/rpc_internal.h"
 
@@ -36,7 +37,9 @@
  */
 
 static int item_entered_in_urgent_state(struct m0_sm *mach);
-static void item_timedout_cb(struct m0_sm_timer *timer);
+static void item_timer_cb(struct m0_sm_timer *timer);
+static void item_timedout(struct m0_rpc_item *item);
+static void item_resend(struct m0_rpc_item *item);
 
 M0_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", M0_INTERNAL,
 		   struct m0_rpc_item, ri_field,
@@ -160,23 +163,27 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_WAITING_IN_STREAM,
 				      M0_RPC_ITEM_ENQUEUED,
 				      M0_RPC_ITEM_URGENT,
+				      M0_RPC_ITEM_FAILED,
 				      M0_RPC_ITEM_UNINITIALISED),
 	},
 	[M0_RPC_ITEM_WAITING_IN_STREAM] = {
 		.sd_name    = "WAITING_IN_STREAM",
-		.sd_allowed = M0_BITS(M0_RPC_ITEM_ENQUEUED),
+		.sd_allowed = M0_BITS(M0_RPC_ITEM_ENQUEUED,
+				      M0_RPC_ITEM_URGENT),
 	},
 	[M0_RPC_ITEM_ENQUEUED] = {
 		.sd_name    = "ENQUEUED",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_SENDING,
 				      M0_RPC_ITEM_URGENT,
-				      M0_RPC_ITEM_FAILED),
+				      M0_RPC_ITEM_FAILED,
+				      M0_RPC_ITEM_REPLIED),
 	},
 	[M0_RPC_ITEM_URGENT] = {
 		.sd_name    = "URGENT",
 		.sd_in      = item_entered_in_urgent_state,
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_SENDING,
-				      M0_RPC_ITEM_FAILED),
+				      M0_RPC_ITEM_FAILED,
+				      M0_RPC_ITEM_REPLIED),
 	},
 	[M0_RPC_ITEM_SENDING] = {
 		.sd_name    = "SENDING",
@@ -186,17 +193,24 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "SENT",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_WAITING_FOR_REPLY,
+				      M0_RPC_ITEM_ENQUEUED,/*only reply items*/
+				      M0_RPC_ITEM_URGENT,
 				      M0_RPC_ITEM_UNINITIALISED),
 	},
 	[M0_RPC_ITEM_WAITING_FOR_REPLY] = {
 		.sd_name    = "WAITING_FOR_REPLY",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_REPLIED,
-				      M0_RPC_ITEM_FAILED),
+				      M0_RPC_ITEM_FAILED,
+				      M0_RPC_ITEM_ENQUEUED,
+				      M0_RPC_ITEM_URGENT),
 	},
 	[M0_RPC_ITEM_REPLIED] = {
 		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "REPLIED",
-		.sd_allowed = M0_BITS(M0_RPC_ITEM_UNINITIALISED),
+		.sd_allowed = M0_BITS(M0_RPC_ITEM_UNINITIALISED,
+				      M0_RPC_ITEM_ENQUEUED,
+				      M0_RPC_ITEM_URGENT,
+				      M0_RPC_ITEM_FAILED),
 	},
 	[M0_RPC_ITEM_FAILED] = {
 		.sd_flags   = M0_SDF_FINAL,
@@ -274,8 +288,6 @@ M0_INTERNAL bool m0_rpc_item_invariant(const struct m0_rpc_item *item)
 
 		equi(req && item->ri_error == -ETIMEDOUT,
 		     item->ri_stage == RPC_ITEM_STAGE_TIMEDOUT) &&
-		equi(req && item->ri_error == -ETIMEDOUT,
-		     m0_time_is_in_past(item->ri_op_timeout)) &&
 
 		ergo(item->ri_reply != NULL,
 			req &&
@@ -312,7 +324,7 @@ M0_INTERNAL bool m0_rpc_item_invariant(const struct m0_rpc_item *item)
 			item->ri_stage <= RPC_ITEM_STAGE_PAST_VOLATILE);
 }
 
-static const char *item_state_name(const struct m0_rpc_item *item)
+M0_INTERNAL const char *item_state_name(const struct m0_rpc_item *item)
 {
 	return item->ri_sm.sm_conf->scf_state[item->ri_sm.sm_state].sd_name;
 }
@@ -341,8 +353,8 @@ M0_INTERNAL const char *item_kind(const struct m0_rpc_item *item)
 		m0_rpc_item_is_oneway(item)  ? "ONEWAY"  : "INVALID_KIND";
 }
 
-M0_INTERNAL void m0_rpc_item_init(struct m0_rpc_item *item,
-				  const struct m0_rpc_item_type *itype)
+void m0_rpc_item_init(struct m0_rpc_item *item,
+		      const struct m0_rpc_item_type *itype)
 {
 	struct m0_rpc_slot_ref	*sref;
 
@@ -351,9 +363,11 @@ M0_INTERNAL void m0_rpc_item_init(struct m0_rpc_item *item,
 
 	M0_SET0(item);
 
-	item->ri_type       = itype;
-	item->ri_op_timeout = M0_TIME_NEVER;
-	item->ri_magic      = M0_RPC_ITEM_MAGIC;
+	item->ri_type  = itype;
+	item->ri_magic = M0_RPC_ITEM_MAGIC;
+
+	item->ri_resend_interval = m0_time(1, 0);
+	item->ri_nr_sent_max     = ~(uint64_t)0;
 
 	sref = &item->ri_slot_refs[0];
 	sref->sr_ow = invalid_slot_ref;
@@ -361,23 +375,24 @@ M0_INTERNAL void m0_rpc_item_init(struct m0_rpc_item *item,
 	slot_item_tlink_init(item);
         m0_list_link_init(&item->ri_unbound_link);
 	packet_item_tlink_init(item);
+	itemq_tlink_init(item);
         rpcitem_tlink_init(item);
 	rpcitem_tlist_init(&item->ri_compound_items);
-	m0_sm_timeout_init(&item->ri_deadline_to);
+	m0_sm_timeout_init(&item->ri_deadline_timeout);
 	m0_sm_timer_init(&item->ri_timer);
 	/* item->ri_sm will be initialised when the item is posted */
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_rpc_item_init);
 
-M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item)
+void m0_rpc_item_fini(struct m0_rpc_item *item)
 {
 	struct m0_rpc_slot_ref *sref = &item->ri_slot_refs[0];
 
 	M0_ENTRY("item: %p", item);
 
 	m0_sm_timer_fini(&item->ri_timer);
-	m0_sm_timeout_fini(&item->ri_deadline_to);
+	m0_sm_timeout_fini(&item->ri_deadline_timeout);
 
 	if (item->ri_sm.sm_state > M0_RPC_ITEM_UNINITIALISED)
 		m0_rpc_item_sm_fini(item);
@@ -385,6 +400,7 @@ M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item)
 	sref->sr_ow = invalid_slot_ref;
 	slot_item_tlink_fini(item);
         m0_list_link_fini(&item->ri_unbound_link);
+	itemq_tlink_fini(item);
 	packet_item_tlink_fini(item);
 	rpcitem_tlink_fini(item);
 	rpcitem_tlist_fini(&item->ri_compound_items);
@@ -392,7 +408,7 @@ M0_INTERNAL void m0_rpc_item_fini(struct m0_rpc_item *item)
 }
 M0_EXPORTED(m0_rpc_item_fini);
 
-M0_INTERNAL void m0_rpc_item_get(struct m0_rpc_item *item)
+void m0_rpc_item_get(struct m0_rpc_item *item)
 {
 	M0_PRE(item != NULL && item->ri_type != NULL &&
 	       item->ri_type->rit_ops != NULL &&
@@ -401,7 +417,7 @@ M0_INTERNAL void m0_rpc_item_get(struct m0_rpc_item *item)
 	item->ri_type->rit_ops->rito_item_get(item);
 }
 
-M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item)
+void m0_rpc_item_put(struct m0_rpc_item *item)
 {
 	M0_PRE(item != NULL && item->ri_type != NULL &&
 	       item->ri_type->rit_ops != NULL &&
@@ -413,7 +429,7 @@ M0_INTERNAL void m0_rpc_item_put(struct m0_rpc_item *item)
 #define ITEM_XCODE_OBJ(ptr)     M0_XCODE_OBJ(m0_rpc_onwire_slot_ref_xc, ptr)
 #define SLOT_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_onwire_header_xc, ptr)
 
-M0_INTERNAL m0_bcount_t m0_rpc_item_onwire_header_size(void)
+m0_bcount_t m0_rpc_item_onwire_header_size(void)
 {
 	static m0_bcount_t size = 0;
 
@@ -431,7 +447,7 @@ M0_INTERNAL m0_bcount_t m0_rpc_item_onwire_header_size(void)
 	return size;
 }
 
-M0_INTERNAL m0_bcount_t m0_rpc_item_size(struct m0_rpc_item *item)
+m0_bcount_t m0_rpc_item_size(struct m0_rpc_item *item)
 {
 	M0_PRE(item->ri_type != NULL &&
 	       item->ri_type->rit_ops != NULL &&
@@ -492,11 +508,12 @@ M0_INTERNAL void m0_rpc_item_set_stage(struct m0_rpc_item *item,
 	M0_PRE(m0_rpc_session_invariant(session));
 
 	was_active = item_is_active(item);
-	M0_ASSERT(ergo(was_active,
+	M0_ASSERT(ergo(was_active && m0_rpc_item_is_bound(item),
 		       session_state(session) == M0_RPC_SESSION_BUSY));
 
 	item->ri_stage = stage;
-	m0_rpc_session_mod_nr_active_items(session,
+	if (m0_rpc_item_is_bound(item))
+		m0_rpc_session_mod_nr_active_items(session,
 					   item_is_active(item) - was_active);
 
 	M0_POST(m0_rpc_session_invariant(session));
@@ -549,6 +566,7 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 	 * Request and Reply items take hold on session until
 	 * they are SENT/FAILED.
 	 * See: m0_rpc__post_locked(), m0_rpc_reply_post()
+	 *      m0_rpc_item_send()
 	 */
 	if (M0_IN(item->ri_sm.sm_state, (M0_RPC_ITEM_ENQUEUED,
 					 M0_RPC_ITEM_URGENT,
@@ -560,17 +578,11 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_FAILED);
 	m0_rpc_item_stop_timer(item);
 	m0_rpc_session_item_failed(item);
-
-	if (m0_rpc_item_is_request(item) &&
-	    item->ri_ops != NULL &&
-	    item->ri_ops->rio_replied != NULL)
-		item->ri_ops->rio_replied(item);
-
 	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_rpc_item_timedwait(struct m0_rpc_item *item,
-				      uint64_t states, m0_time_t timeout)
+int m0_rpc_item_timedwait(struct m0_rpc_item *item,
+			  uint64_t states, m0_time_t timeout)
 {
         int rc;
 
@@ -581,8 +593,7 @@ M0_INTERNAL int m0_rpc_item_timedwait(struct m0_rpc_item *item,
         return rc;
 }
 
-M0_INTERNAL int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item,
-					   m0_time_t timeout)
+int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item, m0_time_t timeout)
 {
 	int rc;
 
@@ -627,14 +638,20 @@ M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item)
 {
 	M0_PRE(m0_rpc_item_is_request(item));
 
-	if (item->ri_op_timeout != M0_TIME_NEVER) {
-		if (m0_time_is_in_past(item->ri_op_timeout))
-			M0_LOG(M0_WARN, "item: %p timeout in past", item);
+	if (M0_FI_ENABLED("failed")) {
+		M0_LOG(M0_DEBUG, "item %p failed to start timer", item);
+		return -EINVAL;
+	}
+
+	if (item->ri_resend_interval != M0_TIME_NEVER) {
 		M0_LOG(M0_DEBUG, "item %p Starting timer", item);
+		m0_sm_timer_fini(&item->ri_timer);
+		m0_sm_timer_init(&item->ri_timer);
 		return m0_sm_timer_start(&item->ri_timer,
 					 &item->ri_rmachine->rm_sm_grp,
-					 item_timedout_cb,
-					 item->ri_op_timeout);
+					 item_timer_cb,
+					 m0_time_add(m0_time_now(),
+						    item->ri_resend_interval));
 	}
 	return 0;
 }
@@ -648,38 +665,118 @@ M0_INTERNAL void m0_rpc_item_stop_timer(struct m0_rpc_item *item)
 	}
 }
 
-static void item_timedout_cb(struct m0_sm_timer *timer)
+static void item_timer_cb(struct m0_sm_timer *timer)
 {
-	enum m0_rpc_item_state  state;
-	struct m0_rpc_item     *item;
+	struct m0_rpc_item *item;
 
 	M0_ENTRY();
-
 	M0_PRE(timer != NULL);
 
 	item = container_of(timer, struct m0_rpc_item, ri_timer);
 	M0_ASSERT(item->ri_magic == M0_RPC_ITEM_MAGIC);
 	M0_ASSERT(m0_rpc_machine_is_locked(item->ri_rmachine));
 
-	M0_LOG(M0_DEBUG, "%p [%s/%u] %s -> TIMEDOUT", item, item_kind(item),
+	M0_LOG(M0_DEBUG, "%p [%s/%u] %s Timer elapsed.", item, item_kind(item),
 	       item->ri_type->rit_opcode, item_state_name(item));
 
+	if (item->ri_nr_sent >= item->ri_nr_sent_max)
+		item_timedout(item);
+	else
+		item_resend(item);
+}
+
+static void item_timedout(struct m0_rpc_item *item)
+{
+	M0_LOG(M0_DEBUG, "%p [%s/%u] %s TIMEDOUT.", item, item_kind(item),
+	       item->ri_type->rit_opcode, item_state_name(item));
 	item->ri_rmachine->rm_stats.rs_nr_timedout_items++;
 
-	state = item->ri_sm.sm_state;
-	if (M0_IN(state, (M0_RPC_ITEM_ENQUEUED, M0_RPC_ITEM_URGENT))) {
+	switch (item->ri_sm.sm_state) {
+	case M0_RPC_ITEM_ENQUEUED:
+	case M0_RPC_ITEM_URGENT:
 		m0_rpc_item_get(item);
 		m0_rpc_frm_remove_item(item->ri_frm, item);
 		m0_rpc_item_failed(item, -ETIMEDOUT);
 		m0_rpc_item_put(item);
-	} else if (state == M0_RPC_ITEM_WAITING_FOR_REPLY) {
-		m0_rpc_item_failed(item, -ETIMEDOUT);
-	} else if (state == M0_RPC_ITEM_SENDING) {
+		break;
+
+	case M0_RPC_ITEM_SENDING:
 		item->ri_error = -ETIMEDOUT;
 		/* item will be moved to FAILED state in item_done() */
-	} else {
+		break;
+
+	case M0_RPC_ITEM_WAITING_FOR_REPLY:
+		m0_rpc_item_failed(item, -ETIMEDOUT);
+		break;
+
+	default:
 		M0_ASSERT(false);
 	}
+	M0_LEAVE();
+}
+
+static void item_resend(struct m0_rpc_item *item)
+{
+	int rc;
+
+	switch (item->ri_sm.sm_state) {
+	case M0_RPC_ITEM_ENQUEUED:
+	case M0_RPC_ITEM_URGENT:
+		rc = m0_rpc_item_start_timer(item);
+		/* XXX already completed requests??? */
+		if (rc != 0) {
+			m0_rpc_item_get(item);
+			m0_rpc_frm_remove_item(item->ri_frm, item);
+			m0_rpc_item_failed(item, -ETIMEDOUT);
+			m0_rpc_item_put(item);
+		}
+		break;
+
+	case M0_RPC_ITEM_SENDING:
+		item->ri_error = m0_rpc_item_start_timer(item);
+		break;
+
+	case M0_RPC_ITEM_WAITING_FOR_REPLY:
+		rc = m0_rpc_item_start_timer(item);
+		if (rc == 0)
+			m0_rpc_item_send(item);
+		else
+			/* XXX already completed requests??? */
+			m0_rpc_item_failed(item, rc);
+		break;
+
+	default:
+		M0_ASSERT(false);
+	}
+}
+
+M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
+{
+	uint32_t state = item->ri_sm.sm_state;
+
+	M0_ENTRY("item: %p", item);
+	M0_PRE(item != NULL && m0_rpc_machine_is_locked(item->ri_rmachine));
+	M0_PRE(m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item));
+	M0_PRE(ergo(m0_rpc_item_is_request(item),
+		    M0_IN(state, (M0_RPC_ITEM_INITIALISED,
+				  M0_RPC_ITEM_WAITING_FOR_REPLY,
+				  M0_RPC_ITEM_REPLIED,
+				  M0_RPC_ITEM_FAILED))) &&
+	       ergo(m0_rpc_item_is_reply(item),
+		    M0_IN(state, (M0_RPC_ITEM_SENT, M0_RPC_ITEM_FAILED))));
+
+	if (M0_FI_ENABLED("advance_deadline")) {
+		M0_LOG(M0_DEBUG,"%p deadline advanced", item);
+		item->ri_deadline = m0_time_from_now(0, 500 * 1000 * 1000);
+	}
+	item->ri_nr_sent++;
+	/*
+	 * This hold will be released when the item is SENT or FAILED.
+	 * See rpc/frmops.c:item_sent() and m0_rpc_item_failed()
+	 */
+	m0_rpc_session_hold_busy(item->ri_session);
+	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm,
+			    item);
 	M0_LEAVE();
 }
 

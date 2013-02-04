@@ -33,7 +33,8 @@ M0_INTERNAL void m0_cons_fop_name_print(const struct m0_fop_type *ftype)
 
 M0_INTERNAL int m0_cons_fop_send(struct m0_fop *fop,
 				 struct m0_rpc_session *session,
-				 m0_time_t timeout)
+				 m0_time_t resend_interval,
+				 uint64_t nr_sent_max)
 {
 	struct m0_rpc_item *item;
 	int		    rc;
@@ -41,10 +42,11 @@ M0_INTERNAL int m0_cons_fop_send(struct m0_fop *fop,
 	M0_PRE(fop != NULL && session != NULL);
 
 	item = &fop->f_item;
-	item->ri_deadline   = 0;
-	item->ri_prio       = M0_RPC_ITEM_PRIO_MID;
-	item->ri_session    = session;
-	item->ri_op_timeout = timeout;
+	item->ri_deadline        = 0;
+	item->ri_prio            = M0_RPC_ITEM_PRIO_MID;
+	item->ri_session         = session;
+	item->ri_nr_sent_max     = nr_sent_max;
+	item->ri_resend_interval = resend_interval;
 
         rc = m0_rpc_post(item);
 	if (rc == 0) {

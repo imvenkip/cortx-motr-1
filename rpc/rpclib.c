@@ -173,7 +173,7 @@ err:
 int m0_rpc_client_call(struct m0_fop *fop,
 		       struct m0_rpc_session *session,
 		       const struct m0_rpc_item_ops *ri_ops,
-		       m0_time_t deadline, m0_time_t timeout)
+		       m0_time_t deadline)
 {
 	struct m0_rpc_item *item;
 	int                 rc;
@@ -187,7 +187,6 @@ int m0_rpc_client_call(struct m0_fop *fop,
 	item->ri_session    = session;
 	item->ri_prio       = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline   = deadline;
-	item->ri_op_timeout = timeout;
 
 	rc = m0_rpc_post(item);
 	if (rc == 0)

@@ -61,9 +61,10 @@
 
 #define CLIENT_DB_FILE_NAME	"m0rpcping_client.db"
 
-#define SERVER_DB_FILE_NAME	"m0rpcping_server.db"
-#define SERVER_STOB_FILE_NAME	"m0rpcping_server.stob"
-#define SERVER_LOG_FILE_NAME	"m0rpcping_server.log"
+#define SERVER_DB_FILE_NAME	   "m0rpcping_server.db"
+#define SERVER_STOB_FILE_NAME	   "m0rpcping_server.stob"
+#define SERVER_ADDB_STOB_FILE_NAME "m0rpcping_server_addb.stob"
+#define SERVER_LOG_FILE_NAME	   "m0rpcping_server.log"
 
 enum ep_type {
 	EP_SERVER,
@@ -179,6 +180,10 @@ static void __print_stats(struct m0_rpc_machine *rpc_mach)
 	       (unsigned long long)stats.rs_nr_rcvd_items);
 	printf("\tsent_items: %llu\n",
 		(unsigned long long)stats.rs_nr_sent_items);
+	printf("\tsent_items_uniq: %llu\n",
+		(unsigned long long)stats.rs_nr_sent_items_uniq);
+	printf("\tresent_items: %llu\n",
+		(unsigned long long)stats.rs_nr_resent_items);
 	printf("\tfailed_items: %llu\n",
 		(unsigned long long)stats.rs_nr_failed_items);
 	printf("\ttimedout_items: %llu\n",
@@ -236,9 +241,9 @@ static void send_ping_fop(struct m0_rpc_session *session)
 	M0_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
 	M0_ASSERT(ping_fop->fp_arr.f_data != NULL);
 
+	fop->f_item.ri_nr_sent_max = CONNECT_TIMEOUT;
 	rc = m0_rpc_client_call(fop, session, NULL,
-				m0_time_from_now(0, 20 * 1000 * 1000),
-				m0_time_from_now(CONNECT_TIMEOUT, 0));
+				m0_time_from_now(0, 20 * 1000 * 1000));
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(fop->f_item.ri_error == 0);
 	M0_ASSERT(fop->f_item.ri_reply != 0);
@@ -408,6 +413,7 @@ static int run_server(void)
 	char *server_argv[] = {
 		"rpclib_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
+		"-A", SERVER_ADDB_STOB_FILE_NAME,
 		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size,
 	};
 

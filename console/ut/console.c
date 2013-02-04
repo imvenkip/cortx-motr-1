@@ -585,9 +585,9 @@ static void mesg_send_client(int dummy)
 	fop = m0_fop_alloc(ftype, NULL);
 	M0_UT_ASSERT(fop != NULL);
 	m0_cons_fop_obj_input(fop);
+	fop->f_item.ri_nr_sent_max = CONNECT_TIMEOUT;
 	result = m0_rpc_client_call(fop, &cctx.rcx_session,
-				    NULL, 0 /* deadline */,
-				    m0_time_from_now(CONNECT_TIMEOUT, 0));
+				    NULL, 0 /* deadline */);
 	M0_UT_ASSERT(result == 0);
 	m0_fop_put(fop);
 	cons_client_fini(&cctx);

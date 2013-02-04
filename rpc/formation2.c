@@ -57,6 +57,8 @@ static void frm_try_merging_item(struct m0_rpc_frm  *frm,
 
 static bool item_less_or_equal(const struct m0_rpc_item *i0,
 			       const struct m0_rpc_item *i1);
+static void item_move_to_urgent_queue(struct m0_rpc_frm *frm,
+				      struct m0_rpc_item *item);
 
 static m0_bcount_t available_space_in_packet(const struct m0_rpc_packet *p,
 					     const struct m0_rpc_frm    *frm);
@@ -274,7 +276,7 @@ static void frm_insert(struct m0_rpc_frm *frm, struct m0_rpc_item *item)
 	int                         rc;
 
 	M0_ENTRY("frm: %p item: %p", frm, item);
-	M0_PRE(item != NULL);
+	M0_PRE(item != NULL && !itemq_tlink_is_in(item));
 	M0_LOG(M0_DEBUG, "priority: %d", item->ri_prio);
 
 	qtype = frm_which_qtype(frm, item);
@@ -289,14 +291,27 @@ static void frm_insert(struct m0_rpc_frm *frm, struct m0_rpc_item *item)
 	if (frm->f_state == FRM_IDLE)
 		frm->f_state = FRM_BUSY;
 
+up:
 	if (item_is_in_waiting_queue(item, frm)) {
 		m0_rpc_item_change_state(item, M0_RPC_ITEM_ENQUEUED);
 		M0_LOG(M0_DEBUG, "%p Starting deadline timer", item);
-		rc = m0_sm_timeout_arm(&item->ri_sm, &item->ri_deadline_to,
-				       item->ri_deadline, M0_RPC_ITEM_URGENT, 0);
-		if (rc != 0)
+		M0_ASSERT(!m0_sm_timeout_is_armed(&item->ri_deadline_timeout));
+		/* For resent item, we may need to "re-arm"
+		   ri_deadline_timeout.
+		 */
+		m0_sm_timeout_fini(&item->ri_deadline_timeout);
+		m0_sm_timeout_init(&item->ri_deadline_timeout);
+		rc = m0_sm_timeout_arm(&item->ri_sm,
+				       &item->ri_deadline_timeout,
+				       item->ri_deadline,
+				       M0_RPC_ITEM_URGENT, 0);
+		if (rc != 0) {
 			M0_LOG(M0_NOTICE, "%p failed to start deadline timer",
 			       item);
+			item->ri_deadline = 0;
+			item_move_to_urgent_queue(frm, item);
+			goto up;
+		}
 	} else {
 		m0_rpc_item_change_state(item, M0_RPC_ITEM_URGENT);
 	}
@@ -365,13 +380,12 @@ static void __itemq_insert(struct m0_tl *q, struct m0_rpc_item *new_item)
 	/* insertion sort. */
 	m0_tl_for(itemq, q, item) {
 		if (!item_less_or_equal(item, new_item)) {
-			itemq_tlink_init(new_item);
 			itemq_tlist_add_before(item, new_item);
 			break;
 		}
 	} m0_tl_endfor;
 	if (item == NULL)
-		itemq_tlink_init_at_tail(new_item, q);
+		itemq_tlist_add_tail(q, new_item);
 	new_item->ri_itemq = q;
 
 	M0_ASSERT(itemq_invariant(q));
@@ -381,20 +395,26 @@ static void __itemq_insert(struct m0_tl *q, struct m0_rpc_item *new_item)
 M0_INTERNAL void m0_rpc_frm_item_deadline_passed(struct m0_rpc_frm *frm,
 						 struct m0_rpc_item *item)
 {
+	M0_ENTRY("frm: %p item: %p", frm, item);
+
+	item_move_to_urgent_queue(frm, item);
+	frm_balance(frm);
+
+	M0_LEAVE();
+}
+
+static void item_move_to_urgent_queue(struct m0_rpc_frm *frm,
+				      struct m0_rpc_item *item)
+{
 	enum m0_rpc_frm_itemq_type  qtype;
 	struct m0_tl               *q;
 
-	M0_ENTRY("frm: %p item: %p", frm, item);
 	M0_PRE(item != NULL && item->ri_deadline <= m0_time_now());
 
 	__itemq_remove(item);
 	qtype = frm_which_qtype(frm, item);
 	q     = &frm->f_itemq[qtype];
 	__itemq_insert(q, item);
-
-	frm_balance(frm);
-
-	M0_LEAVE();
 }
 
 /**

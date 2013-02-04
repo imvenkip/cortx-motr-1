@@ -316,7 +316,7 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 	item = &io_fops[i]->if_fop.f_item;
 	item->ri_session = &bp->bp_cctx->rcx_session;
 	item->ri_prio = M0_RPC_ITEM_PRIO_MID;
-	item->ri_op_timeout = m0_time_from_now(IO_RPC_ITEM_TIMEOUT, 0);
+	item->ri_nr_sent_max = IO_RPC_ITEM_TIMEOUT;
 	rc = m0_rpc_post(item);
 	M0_ASSERT(rc == 0);
 

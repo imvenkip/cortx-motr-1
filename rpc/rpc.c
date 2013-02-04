@@ -28,6 +28,9 @@
 #include "lib/errno.h"
 #include "lib/misc.h"     /* M0_IN */
 #include "lib/types.h"
+#include "lib/finject.h"
+
+#include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 
 /**
@@ -171,6 +174,7 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 {
 	struct m0_rpc_session  *session;
 	struct m0_addb_counter *counter;
+	int                     rc;
 
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && item->ri_type != NULL);
@@ -184,23 +188,20 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 	M0_ASSERT(m0_rpc_item_size(item) <=
 			m0_rpc_session_get_max_item_size(session));
 	M0_ASSERT(m0_rpc_machine_is_locked(session_machine(session)));
-	/*
-	 * This hold will be released when the item is SENT or FAILED.
-	 * See rpc/frmops.c:item_sent() and m0_rpc_item_failed()
-	 */
-	m0_rpc_session_hold_busy(session);
 
 	item->ri_rmachine = session_machine(session);
 	item->ri_rpc_time = m0_time_now();
 	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
-	m0_rpc_item_start_timer(item);
-	m0_rpc_frm_enq_item(session_frm(session), item);
-
-	counter = &session_machine(session)->rm_cntr_sent_item_sizes;
-	m0_addb_counter_update(counter, (uint64_t)m0_rpc_item_size(item));
-
-	M0_RETURN(0);
+	rc = m0_rpc_item_start_timer(item);
+	if (rc == 0) {
+		counter = &item->ri_rmachine->rm_cntr_sent_item_sizes;
+		m0_addb_counter_update(counter,
+				       (uint64_t)m0_rpc_item_size(item));
+		m0_rpc_item_send(item);
+	} else
+		m0_rpc_item_failed(item, rc);
+	M0_RETURN(rc);
 }
 
 int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
@@ -216,6 +217,11 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 	M0_PRE(reply->ri_type != NULL);
 	M0_PRE(m0_rpc_item_size(reply) <=
 			m0_rpc_session_get_max_item_size(request->ri_session));
+
+	if (M0_FI_ENABLED("delay_reply")) {
+		M0_LOG(M0_DEBUG, "%p reply delayed", request);
+		m0_nanosleep(m0_time(1, 200 * 1000 * 1000), NULL);
+	}
 
 	reply->ri_rpc_time = m0_time_now();
 	reply->ri_session  = request->ri_session;
@@ -260,6 +266,7 @@ M0_INTERNAL int m0_rpc_oneway_item_post(const struct m0_rpc_conn *conn,
 	machine = item->ri_rmachine = conn->c_rpc_machine;
 	m0_rpc_machine_lock(machine);
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
+	item->ri_nr_sent++;
 	m0_rpc_frm_enq_item(&conn->c_rpcchan->rc_frm, item);
 	m0_rpc_machine_unlock(machine);
 	M0_RETURN(0);

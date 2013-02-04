@@ -261,6 +261,7 @@ void m0_rpc_machine_fini(struct m0_rpc_machine *machine)
 
 	M0_LOG(M0_INFO, "Waiting for RPC worker to join");
 	m0_thread_join(&machine->rm_worker);
+	m0_thread_fini(&machine->rm_worker);
 
 	m0_rpc_machine_lock(machine);
 	M0_PRE(rpc_conn_tlist_is_empty(&machine->rm_outgoing_conns));
@@ -765,6 +766,11 @@ static void item_received(struct m0_rpc_item      *item,
 	M0_ENTRY("machine: %p, item: %p, ep_addr: %s", machine,
 		 item, (char *)from_ep->nep_addr);
 
+	if (M0_FI_ENABLED("drop_item")) {
+		M0_LOG(M0_DEBUG, "item: %p [%s/%u] dropped", item,
+			item_kind(item), item->ri_type->rit_opcode);
+		return;
+	}
 	if (m0_rpc_item_is_conn_establish(item))
 		m0_rpc_fop_conn_establish_ctx_init(item, from_ep);
 
