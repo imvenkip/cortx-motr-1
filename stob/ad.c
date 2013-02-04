@@ -1092,21 +1092,23 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 			struct m0_emap_caret *map, struct ad_wext_cursor *wc,
 			uint32_t frags)
 {
-	int           result;
-	m0_bcount_t   frag_size;
-	bool          eodst;
-	bool          eoext;
-	struct m0_ext todo;
-	struct m0_fol_rec_part *part;
+	int			result;
+	m0_bcount_t		frag_size;
+	bool			eodst;
+	bool			eoext;
+	struct m0_ext		todo;
+	struct m0_fol_rec_part *part = NULL;
 	struct m0_ad_rec_part  *arp;
 	uint32_t		i = 0;
 
-	part = io->si_fol_rec_part;
-	result = ad_fol_part_alloc(part, frags);
-	if (result != 0)
-		return result;
+	if (io->si_flags & SIF_FOL_REC_PART) {
+		part = io->si_fol_rec_part;
+		result = ad_fol_part_alloc(part, frags);
+		if (result != 0)
+			return result;
+		arp = part->rp_data;
+	}
 
-	arp = part->rp_data;
 	do {
 		m0_bindex_t offset;
 
@@ -1117,12 +1119,15 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
 		todo.e_end   = todo.e_start + frag_size;
 
-		arp->arp_old_data[i].ee_ext.e_start = offset;
-		arp->arp_old_data[i].ee_ext.e_end   = offset +
-						      m0_ext_length(&todo);
-		arp->arp_old_data[i].ee_val         = todo.e_start;
-		arp->arp_old_data[i].ee_pre         = map->ct_it->ec_seg.ee_pre;
-		++i;
+		if (io->si_flags & SIF_FOL_REC_PART && arp != NULL) {
+			arp->arp_old_data[i].ee_ext.e_start = offset;
+			arp->arp_old_data[i].ee_ext.e_end   = offset +
+						m0_ext_length(&todo);
+			arp->arp_old_data[i].ee_val         = todo.e_start;
+			arp->arp_old_data[i].ee_pre         =
+						map->ct_it->ec_seg.ee_pre;
+			++i;
+		}
 		result = ad_write_map_ext(io, adom, offset, map->ct_it, &todo);
 
 		if (result != 0)
@@ -1134,7 +1139,7 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 		M0_ASSERT(eodst == eoext);
 	} while (!eodst);
 
-	if (result == 0)
+	if (result == 0 && part != NULL)
 		m0_fol_rec_part_list_add(&io->si_tx->tx_fol_rec, part);
 
 	return result;

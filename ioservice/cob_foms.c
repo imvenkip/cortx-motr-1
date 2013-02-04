@@ -58,6 +58,7 @@ static void   cob_fom_populate(struct m0_fom *fom);
 static int    cob_op_fom_create(struct m0_fom **out);
 static size_t cob_fom_locality_get(const struct m0_fom *fom);
 static inline struct m0_fom_cob_op *cob_fom_get(struct m0_fom *fom);
+static void cob_fol_rec_part_add(struct m0_fom *fom);
 
 enum {
 	CC_COB_VERSION_INIT	= 0,
@@ -199,34 +200,6 @@ static void cob_fom_populate(struct m0_fom *fom)
 	cfom->fco_cfid = common->c_cobfid;
 	io_fom_cob_rw_fid2stob_map(&cfom->fco_cfid, &cfom->fco_stobid);
 	cfom->fco_cob_idx = common->c_cob_idx;
-}
-
-#define COB_FOL_REC_PART_FILL(cob_part, part, cob_type)			     \
-M0_ALLOC_PTR(cob_part);							     \
-M0_ASSERT(cob_part != NULL);						     \
-m0_fol_rec_part_init(part, cob_part, &m0_io_ ## cob_type ## _rec_part_type); \
-cob_part->cob_part ## _ ## cob_type = *(struct m0_fop_cob_ ## cob_type *)    \
-				      m0_fop_data(fom->fo_fop);		     \
-cob_part->cob_part ## _ ## cob_type ## _rep =				     \
-	*(struct m0_fop_cob_op_reply *) m0_fop_data(fom->fo_rep_fop);
-
-static void cob_fol_rec_part_add(struct m0_fom *fom)
-{
-	struct m0_fol_rec_part *part;
-
-	M0_PRE(fom != NULL);
-
-	part = &cob_fom_get(fom)->fco_fol_rec_part;
-	if (m0_is_cob_create_fop(fom->fo_fop)) {
-		struct m0_io_create_rec_part *crp;
-		COB_FOL_REC_PART_FILL(crp, part, create);
-	} else if (m0_is_cob_delete_fop(fom->fo_fop)) {
-		struct m0_io_delete_rec_part *drp;
-		COB_FOL_REC_PART_FILL(drp, part, delete);
-	}
-
-	if (part != NULL)
-		m0_fol_rec_part_list_add(&fom->fo_tx.tx_fol_rec, part);
 }
 
 static int cc_fom_tick(struct m0_fom *fom)
@@ -589,6 +562,44 @@ static int cd_stob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 	M0_LOG(M0_DEBUG, "Stob deleted successfully.");
 
 	return rc;
+}
+
+#define COB_FOL_REC_PART_FILL(cob_part, part, cob_type, ctx)			\
+do {										\
+	IOS_ALLOC_PTR(cob_part, ctx, COB_FOL_REC_PART_ADD);			\
+	if (cob_part != NULL) {							\
+		m0_fol_rec_part_init(part, cob_part,				\
+				     &m0_io_ ## cob_type ## _rec_part_type);	\
+		cob_part->cob_part ## _ ## cob_type =				\
+			*(struct m0_fop_cob_ ## cob_type *)			\
+			  m0_fop_data(fom->fo_fop);				\
+		cob_part->cob_part ## _ ## cob_type ## _rep =			\
+			*(struct m0_fop_cob_op_reply *)				\
+			  m0_fop_data(fom->fo_rep_fop);				\
+	}									\
+} while(0);
+
+static void cob_fol_rec_part_add(struct m0_fom *fom)
+{
+	struct m0_fol_rec_part *part;
+	struct m0_addb_ctx     *ctx;
+
+	M0_PRE(fom != NULL);
+
+	part = &cob_fom_get(fom)->fco_fol_rec_part;
+	ctx  = &fom->fo_addb_ctx;
+
+	if (m0_is_cob_create_fop(fom->fo_fop)) {
+		struct m0_io_create_rec_part *crp;
+		COB_FOL_REC_PART_FILL(crp, part, create, ctx);
+	} else if (m0_is_cob_delete_fop(fom->fo_fop)) {
+		struct m0_io_delete_rec_part *drp;
+		COB_FOL_REC_PART_FILL(drp, part, delete, ctx);
+	} else
+		part = NULL;
+
+	if (part != NULL)
+		m0_fol_rec_part_list_add(&fom->fo_tx.tx_fol_rec, part);
 }
 
 #undef M0_TRACE_SUBSYSTEM

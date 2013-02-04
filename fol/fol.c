@@ -66,7 +66,7 @@ M0_TL_DESCR_DEFINE(m0_rec_part, "fol record part", M0_INTERNAL,
 M0_TL_DEFINE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
 
 static size_t fol_record_pack_size(struct m0_fol_rec *rec);
-static void fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf);
+static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf);
 static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out);
 static int fol_record_decode(struct m0_fol_rec *rec);
 static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
@@ -408,6 +408,8 @@ m0_fol_rec_part_init(struct m0_fol_rec_part *part, void *data,
 
 M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 {
+	M0_PRE(part != NULL);
+
 	if (part->rp_data != NULL && part->rp_flag == M0_BUFVEC_DECODE)
 		m0_xcode_free(&REC_PART_XCODE_OBJ(part));
 
@@ -421,8 +423,13 @@ M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
 {
 	int                     result;
 	struct m0_buf           buf;
-	struct m0_fol_rec_desc *desc = &rec->fr_desc;
+	struct m0_fol_rec_desc *desc;
 
+	M0_PRE(rec != NULL);
+	M0_PRE(fol != NULL);
+	M0_PRE(tx != NULL);
+
+	desc = &rec->fr_desc;
 	result = fol_record_encode(rec, &buf);
 	if (result == 0) {
 		result = m0_fol_add_buf(fol, tx, desc, &buf);
@@ -450,8 +457,7 @@ static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
 	if (buf != NULL) {
 		out->b_addr = buf;
 		out->b_nob  = size;
-		fol_record_pack(rec, out);
-		result = 0;
+		result = fol_record_pack(rec, out);
 	} else
 		result = -ENOMEM;
 	return result;
@@ -482,7 +488,7 @@ static size_t fol_record_pack_size(struct m0_fol_rec *rec)
 	return m0_align(len, 8);
 }
 
-static void fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
+static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 {
 	struct m0_fol_rec_part *part;
 	m0_bcount_t	        len = buf->b_nob;
@@ -493,6 +499,8 @@ static void fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 	m0_bufvec_cursor_init(&cur, &bvec);
 
 	rc = fol_rec_desc_encdec(&rec->fr_desc, &cur, M0_BUFVEC_ENCODE);
+	if (rc != 0)
+		return rc;
 
 	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part) {
 		struct m0_fol_rec_part_header rph;
@@ -501,11 +509,13 @@ static void fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 			.rph_magic  = M0_FOL_REC_PART_MAGIC,
 		};
 
-		rc = fol_rec_part_header_encdec(&rph, &cur, M0_BUFVEC_ENCODE);
-		M0_ASSERT(rc == 0);
-		rc = fol_rec_part_encdec(part, &cur, M0_BUFVEC_ENCODE);
-		M0_ASSERT(rc == 0);
+		rc = fol_rec_part_header_encdec(&rph, &cur, M0_BUFVEC_ENCODE) ?:
+		     fol_rec_part_encdec(part, &cur, M0_BUFVEC_ENCODE);
+		if (rc != 0)
+			return rc;
 	} m0_tl_endfor;
+
+	return rc;
 }
 
 static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
@@ -611,9 +621,10 @@ M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
 		result = m0_db_cursor_get(&out->fr_ptr, &out->fr_pair);
 		if (result == 0) {
 			result = fol_record_decode(out);
-		}
-		if (result != 0)
+		} else {
 			m0_fol_rec_fini(out);
+			return result;
+		}
 	}
 	M0_POST(ergo(result == 0, out->fr_desc.rd_lsn == lsn));
 	M0_POST(ergo(result == 0, out->fr_desc.rd_header.rh_refcount > 0));
@@ -635,25 +646,25 @@ static int fol_record_decode(struct m0_fol_rec *rec)
 	m0_bufvec_cursor_init(&cur, &bvec);
 
 	rc = fol_rec_desc_encdec(desc, &cur, M0_BUFVEC_DECODE);
-	M0_ASSERT(rc == 0);
+	if (rc != 0)
+		return rc;
 
-	for (i = 0, rc = 0; rc == 0 && i < desc->rd_header.rh_parts_nr; ++i) {
+	for (i = 0; rc == 0 && i < desc->rd_header.rh_parts_nr; ++i) {
 		struct m0_fol_rec_part	          *part;
 		const struct m0_fol_rec_part_type *part_type;
 		struct m0_fol_rec_part_header      ph;
 
 		rc = fol_rec_part_header_encdec(&ph, &cur, M0_BUFVEC_DECODE);
+		if (rc == 0) {
+			part_type = fol_rec_part_type_lookup(ph.rph_index);
 
-		part_type = fol_rec_part_type_lookup(ph.rph_index);
+			M0_ALLOC_PTR(part);
+			m0_fol_rec_part_init(part, NULL, part_type);
 
-		M0_ALLOC_PTR(part);
-		M0_ASSERT(part != NULL);
-		m0_fol_rec_part_init(part, NULL, part_type);
-
-		rc = fol_rec_part_encdec(part, &cur, M0_BUFVEC_DECODE);
-		M0_ASSERT(rc == 0);
-
-		m0_fol_rec_part_list_add(rec, part);
+			rc = fol_rec_part_encdec(part, &cur, M0_BUFVEC_DECODE);
+			if (rc == 0)
+				m0_fol_rec_part_list_add(rec, part);
+		}
 	}
 	return rc;
 }

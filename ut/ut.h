@@ -23,6 +23,8 @@
 #ifndef __MERO_UT_UT_H__
 #define __MERO_UT_UT_H__
 
+#include "fop/fom.h"
+
 /**
    @defgroup mero-ut Mero UT library
    @brief Common unit test library
@@ -39,6 +41,8 @@
 
 int m0_ut_init(void);
 void m0_ut_fini(void);
+
+void m0_ut_fom_phase_set(struct m0_fom *fom, int phase);
 
 /**
    @} mero-ut end group

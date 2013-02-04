@@ -31,7 +31,6 @@
 #include "lib/ub.h"
 #include "lib/ut.h"
 #include "lib/assert.h"
-#include "fol/fol.h"
 
 #include "stob/stob.h"
 #include "stob/linux.h"
@@ -244,16 +243,6 @@ static int test_ad_fini(void)
 	return 0;
 }
 
-static void fol_rec_part_init(void)
-{
-	struct m0_fol_rec_part *part;
-
-	M0_ALLOC_PTR(part);
-	M0_ASSERT(part != NULL);
-
-	io.si_fol_rec_part = part;
-}
-
 static void test_write(int i)
 {
 	int result;
@@ -268,8 +257,6 @@ static void test_write(int i)
 	io.si_stob.iv_vec.v_nr = i;
 	io.si_stob.iv_vec.v_count = user_vec;
 	io.si_stob.iv_index = stob_vec;
-
-	fol_rec_part_init();
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
@@ -304,7 +291,6 @@ static void test_read(int i)
 	io.si_stob.iv_vec.v_count = user_vec;
 	io.si_stob.iv_index = stob_vec;
 
-	fol_rec_part_init();
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
 

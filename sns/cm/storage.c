@@ -141,6 +141,7 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	m0_stob_io_init(stio);
 	stio->si_flags = 0;
 	stio->si_opcode = op;
+	stio->si_flags |= SIF_FOL_REC_PART;
 	stio->si_fol_rec_part = &sns_cp->sc_fol_rec_part;
 
 	bshift = stob->so_op->sop_block_shift(stob);
@@ -232,9 +233,9 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 	m0_stob_io_fini(&sns_cp->sc_stio);
 	m0_stob_put(sns_cp->sc_stob);
 
-	m0_dtx_done(&cp->c_fom.fo_tx);
 	if (rc != 0) {
 		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
+		m0_dtx_done(&cp->c_fom.fo_tx);
 		return M0_FSO_WAIT;
 	}
 	return cp->c_ops->co_phase_next(cp);

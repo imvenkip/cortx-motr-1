@@ -25,7 +25,6 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/string.h"
 #include "lib/vec.h"	/* m0_0vec */
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
 #include "lib/trace.h"

@@ -30,7 +30,6 @@
 #include "lib/ut.h"
 #include "lib/assert.h"
 #include "lib/arith.h"
-#include "fol/fol.h"
 #include "stob/stob.h"
 #include "stob/linux.h"
 
@@ -67,7 +66,6 @@ static struct m0_clink clink;
 static FILE *f;
 static uint32_t block_shift;
 static uint32_t buf_size;
-static struct m0_fol_rec_part part;
 
 static int test_adieu_init(void)
 {
@@ -175,7 +173,6 @@ static void test_write(int i)
 	io.si_stob.iv_vec.v_nr = i;
 	io.si_stob.iv_vec.v_count = user_vec;
 	io.si_stob.iv_index = stob_vec;
-	io.si_fol_rec_part = &part;
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
@@ -209,7 +206,6 @@ static void test_read(int i)
 	io.si_stob.iv_vec.v_nr = i;
 	io.si_stob.iv_vec.v_count = user_vec;
 	io.si_stob.iv_index = stob_vec;
-	io.si_fol_rec_part = &part;
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);

@@ -30,7 +30,6 @@
 #include "lib/ut.h"
 #include "lib/mutex.h"
 #include "lib/arith.h"
-#include "fol/fol.h"
 
 #include "stob/stob.h"
 #include "stob/linux.h"
@@ -52,8 +51,6 @@ enum {
 	MIN_BUFF_SIZE_IN_BLOCKS = 4,
 	TEST_NR = 10
 };
-
-static struct m0_fol_rec_part part;
 
 struct stobio_test {
 	/* ctrl part */
@@ -205,7 +202,6 @@ static void stobio_write(struct stobio_test *test)
 	struct m0_clink    clink;
 
 	m0_stob_io_init(&io);
-	io.si_fol_rec_part = &part;
 
 	stobio_write_prepare(test, &io);
 
@@ -233,7 +229,6 @@ static void stobio_read(struct stobio_test *test)
 	struct m0_clink   clink;
 
 	m0_stob_io_init(&io);
-	io.si_fol_rec_part = &part;
 
 	stobio_read_prepare(test, &io);
 

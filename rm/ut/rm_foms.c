@@ -31,6 +31,7 @@
 #include "rm/ut/rmut.h"
 #include "rm/ut/rings.h"
 #include "rm/rm_foms.c"          /* To access static APIs. */
+#include "ut/ut.h"		/* m0_ut_fom_phase_set() */
 
 enum test_type {
 	RM_UT_FULL_CREDITS_TEST=1,
@@ -52,17 +53,6 @@ extern const struct m0_tl_descr remotes_tl;
  * Common test functions for test cases in this file.
  ******************
  */
-static void fom_phase_set(struct m0_fom *fom, int phase)
-{
-	if (M0_IN(m0_fom_phase(fom), (M0_FOPH_SUCCESS, M0_FOPH_FAILURE))) {
-		if (m0_fom_phase(fom) == M0_FOPH_SUCCESS)
-			m0_fom_phase_set(fom, M0_FOPH_FOL_REC_ADD);
-		m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT);
-		m0_fom_phase_set(fom, M0_FOPH_QUEUE_REPLY);
-	}
-	m0_fom_phase_set(fom, phase);
-}
-
 static void rmfoms_utinit(void)
 {
 	int rc;
@@ -162,7 +152,7 @@ static void fom_fini(struct m0_fom *fom, enum m0_rm_incoming_type fomtype)
 {
 	struct m0_fop *fop = fom->fo_fop;
 
-	fom_phase_set(fom, M0_FOPH_FINISH);
+	m0_ut_fom_phase_set(fom, M0_FOPH_FINISH);
 
 	fom_fop_put_norpc(fom);
 
@@ -218,7 +208,7 @@ static void fom_create_test(enum m0_rm_incoming_type fomtype,
 	fom_create(fomtype, err_test, fop, &fom);
 	if (!err_test) {
 		M0_UT_ASSERT(fom != NULL);
-		fom_phase_set(fom, M0_FOPH_SUCCESS);
+		m0_ut_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		fom_fini(fom, fomtype);
 	} else
 		fop_dealloc(fop);
@@ -348,7 +338,7 @@ static void brw_fom_state_test(enum test_type test)
 	M0_UT_ASSERT(fom != NULL);
 	brw_fop_populate(fom, test);
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
-	fom_phase_set(fom, FOPH_RM_REQ_START);
+	m0_ut_fom_phase_set(fom, FOPH_RM_REQ_START);
 
 	/*
 	 * Call the first phase of FOM.
@@ -562,7 +552,7 @@ static void rvk_fom_state_test(enum test_type test)
 	rvk_fop_populate(fom);
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
-	fom_phase_set(fom, FOPH_RM_REQ_START);
+	m0_ut_fom_phase_set(fom, FOPH_RM_REQ_START);
 	/*
 	 * Call the first FOM phase.
 	 */

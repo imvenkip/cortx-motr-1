@@ -27,6 +27,7 @@
 #include "ioservice/ut/bulkio_common.h"
 #include "ioservice/cob_foms.c"          /* To access static APIs. */
 #include "ioservice/io_service.h"
+#include "ut/ut.h"			/* m0_ut_fom_phase_set() */
 
 extern struct m0_fop_type m0_fop_cob_create_fopt;
 extern struct m0_fop_type m0_fop_cob_delete_fopt;
@@ -40,17 +41,6 @@ static struct m0_cob *test_cob = NULL;
 
 static struct m0_fom *cd_fom_alloc();
 static void cd_fom_dealloc(struct m0_fom *fom);
-
-static void fom_phase_set(struct m0_fom *fom, int phase)
-{
-	if (M0_IN(m0_fom_phase(fom), (M0_FOPH_SUCCESS, M0_FOPH_FAILURE))) {
-		if (m0_fom_phase(fom) == M0_FOPH_SUCCESS)
-			m0_fom_phase_set(fom, M0_FOPH_FOL_REC_ADD);
-		m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT);
-		m0_fom_phase_set(fom, M0_FOPH_QUEUE_REPLY);
-	}
-	m0_fom_phase_set(fom, phase);
-}
 
 enum cob_fom_type {
 	COB_CREATE = 1,
@@ -460,7 +450,7 @@ static void fom_create(struct m0_fom **fom, enum cob_fom_type fomtype)
  */
 static void fom_fini(struct m0_fom *fom, enum cob_fom_type fomtype)
 {
-	fom_phase_set(fom, M0_FOPH_FINISH);
+	m0_ut_fom_phase_set(fom, M0_FOPH_FINISH);
 
 	switch (fomtype) {
 	case COB_CREATE:
@@ -567,7 +557,7 @@ static void fom_create_test(enum cob_fom_type fomtype)
  */
 static void cc_fom_dealloc(struct m0_fom *fom)
 {
-	fom_phase_set(fom, M0_FOPH_FINISH);
+	m0_ut_fom_phase_set(fom, M0_FOPH_FINISH);
 	fom_fop_put_norpc(fom);
 	cc_fom_fini(fom);
 }
@@ -827,7 +817,7 @@ static void cc_fom_populate_test()
  */
 static void cd_fom_dealloc(struct m0_fom *fom)
 {
-	fom_phase_set(fom, M0_FOPH_FINISH);
+	m0_ut_fom_phase_set(fom, M0_FOPH_FINISH);
 	fom_fop_put_norpc(fom);
 	cd_fom_fini(fom);
 }

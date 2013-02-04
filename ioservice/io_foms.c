@@ -1460,6 +1460,7 @@ static int io_launch(struct m0_fom *fom)
 		stio = &stio_desc->siod_stob_io;
 		m0_stob_io_init(stio);
 		stio->si_fol_rec_part = &stio_desc->siod_fol_rec_part;
+		stio->si_flags |= SIF_FOL_REC_PART;
 
 		mem_ivec = &stio->si_stob;
 		wire_ivec =
@@ -1589,11 +1590,11 @@ static int io_finish(struct m0_fom *fom)
 
                 if (stio->si_rc != 0) {
                         rc = stio->si_rc;
-                } else if (stio->si_count != 0) {
+                } else if (stio->si_flags & SIF_FOL_REC_PART) {
                         fom_obj->fcrw_count += stio->si_count;
                         M0_LOG(M0_DEBUG, "rw_count %d, si_count %d",
                                (int)fom_obj->fcrw_count, (int)stio->si_count);
-			stio->si_count = 0;
+			stio->si_flags &= ~(1 < SIF_FOL_REC_PART);
                 }
         } m0_tl_endfor;
 
@@ -1840,20 +1841,23 @@ static void write_fol_rec_part_add(struct m0_fom *fom)
 	struct m0_io_write_rec_part *wrp;
 	struct m0_io_fom_cob_rw	    *fom_obj;
 
+	M0_PRE(fom != NULL);
+
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	part = &fom_obj->fcrw_fol_rec_part;
 
-	M0_ALLOC_PTR(wrp);
-	M0_ASSERT(wrp != NULL);
-	m0_fol_rec_part_init(part, wrp, &m0_io_write_rec_part_type);
-	M0_ASSERT(part != NULL);
+	IOS_ALLOC_PTR(wrp, &fom->fo_addb_ctx, WRITE_FOL_REC_PART_ADD);
+	if (wrp != NULL) {
+		m0_fol_rec_part_init(part, wrp, &m0_io_write_rec_part_type);
 
-	wrp->wrp_write = *(struct m0_fop_cob_writev *)m0_fop_data(fom->fo_fop);
-	wrp->wrp_fid = wrp->wrp_write.c_rwv.crw_fid;
-	wrp->wrp_write_rep = *(struct m0_fop_cob_writev_rep *)
-				m0_fop_data(fom->fo_rep_fop);
+		wrp->wrp_write = *(struct m0_fop_cob_writev *)
+				   m0_fop_data(fom->fo_fop);
+		wrp->wrp_fid = wrp->wrp_write.c_rwv.crw_fid;
+		wrp->wrp_write_rep = *(struct m0_fop_cob_writev_rep *)
+				       m0_fop_data(fom->fo_rep_fop);
 
-	m0_fol_rec_part_list_add(&fom->fo_tx.tx_fol_rec, part);
+		m0_fol_rec_part_list_add(&fom->fo_tx.tx_fol_rec, part);
+	}
 }
 
 #undef M0_TRACE_SUBSYSTEM
