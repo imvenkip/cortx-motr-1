@@ -18,7 +18,7 @@
  * Original creation date: 04/13/2011
  */
 
-#include "lib/arith.h"  /* min_type(t, a, b) */
+#include "lib/arith.h"  /* min_type */
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/list.h"
@@ -85,7 +85,7 @@ static int decimal_width(int n)
 	int w = 1;  /* at least 1 decimal digit */
 	int ref;
 
-        if (n < 0) {
+	if (n < 0) {
 		w++;  /* one character more for sign */
 		n = -n;
 	}
@@ -106,7 +106,9 @@ static void uts_summary(void)
 	m0_time_t now;
 	m0_time_t diff;
 	int64_t msec;
-	int ran_w, passed_w, failed_w;
+	int ran_w;     /* Ran/Total column width */
+	int passed_w;  /* Passed column width */
+	int failed_w;  /* Failed column width */
 	int test_ran = test_passed + test_failed;
 	int ran = passed + failed;
 
@@ -114,13 +116,26 @@ static void uts_summary(void)
 	diff = m0_time_sub(now, started);
 	msec = (m0_time_nanoseconds(diff) + ONE_MILLION / 2) / ONE_MILLION;
 
-	ran_w = max_type(int, max_type(int, 6, decimal_width(suite_ran) + 1),
-			 max_type(int, decimal_width(test_ran),
-				  decimal_width(ran)) + 1);
-	passed_w = max_type(int, 7, max_type(int, decimal_width(test_passed),
-					     decimal_width(passed)) + 1);
-	failed_w = max_type(int, 7, max_type(int, decimal_width(test_passed),
-					     decimal_width(passed)) + 1);
+	ran_w    = max_type(int,
+			    max_type(int,
+				     strlen("Total"),
+				     decimal_width(suite_ran)),
+			    max_type(int,
+				     decimal_width(test_ran),
+				     decimal_width(ran))
+			   ) + 1;  /* +1 char for space between columns */
+	passed_w = max_type(int,
+			    strlen("Passed"),
+			    max_type(int,
+				     decimal_width(test_passed),
+				     decimal_width(passed))
+			   ) + 1;
+	failed_w = max_type(int,
+			    strlen("Failed"),
+			    max_type(int,
+				     decimal_width(test_failed),
+				     decimal_width(failed))
+			   ) + 1;
 	printk(KERN_INFO "Run Summary:    Type%*s%*s%*s%*s\n",
 	       ran_w, "Total", ran_w, "Ran", passed_w, "Passed", failed_w,
 	       "Failed");
