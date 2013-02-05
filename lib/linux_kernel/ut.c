@@ -19,6 +19,7 @@
  */
 
 #include "lib/arith.h"  /* max_check */
+#include "linux/string.h"  /* strlen */
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/list.h"
