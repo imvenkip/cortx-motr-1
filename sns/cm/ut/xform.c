@@ -32,10 +32,12 @@ enum {
 	CP_MULTI = 512,
 	SEG_NR = 16,
 	SEG_SIZE = 4096,
+	FAIL_NR = 1
 };
 
 static struct m0_reqh      *reqh;
 static struct m0_semaphore  sem;
+static int                  cp_fini_nr;
 
 /* Global structures for single copy packet test. */
 static struct m0_sns_cm_ag s_sag;
@@ -124,8 +126,16 @@ static void multiple_cp_fom_fini(struct m0_fom *fom)
 {
 	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
 
+	/*
+	 * If the copy packet to be finalised is the resultant copy packet,
+	 * i.e. the last copy packet, check if it's corresponding bitmap
+	 * is full.
+	 */
+	if (cp_fini_nr == CP_MULTI - 1)
+		M0_UT_ASSERT(res_cp_bitmap_is_full(cp));
 	bv_free(cp->c_data);
 	m0_cm_cp_fini(cp);
+	M0_CNT_INC(cp_fini_nr);
 }
 
 /* Over-ridden copy packet FOM ops. */
@@ -153,9 +163,12 @@ static void test_single_cp(void)
 	m0_semaphore_init(&sem, 0);
 	s_sag.sag_base.cag_transformed_cp_nr = 0;
 	cp_prepare(&s_cp, &s_bv, SEG_NR, SEG_SIZE, &s_sag, 'e',
-		   &single_cp_fom_ops, reqh);
+		   &single_cp_fom_ops, reqh, 0);
 	s_cp.c_ag->cag_ops = &group_single_ops;
-	s_cp.c_ag->cag_cp_nr = s_cp.c_ag->cag_ops->cago_local_cp_nr(s_cp.c_ag);
+	s_cp.c_ag->cag_cp_local_nr = s_cp.c_ag->cag_ops->cago_local_cp_nr(
+								s_cp.c_ag);
+	s_cp.c_ag->cag_cp_global_nr = s_cp.c_ag->cag_cp_local_nr +
+				      FAIL_NR;
 	m0_fom_queue(&s_cp.c_fom, reqh);
 
 	/* Wait till ast gets posted. */
@@ -171,7 +184,7 @@ static void test_single_cp(void)
 	 * as passthrough.
 	 */
 	M0_UT_ASSERT(s_sag.sag_base.cag_transformed_cp_nr == 0);
-	M0_UT_ASSERT(s_sag.sag_base.cag_cp_nr == 1);
+	M0_UT_ASSERT(s_sag.sag_base.cag_cp_local_nr == 1);
 	m0_semaphore_fini(&sem);
 }
 
@@ -187,10 +200,12 @@ static void test_multiple_cp(void)
 	m_sag.sag_base.cag_transformed_cp_nr = 0;
 	for (i = 0; i < CP_MULTI; ++i) {
 		cp_prepare(&m_cp[i], &m_bv[i], SEG_NR, SEG_SIZE, &m_sag, 'r',
-			   &multiple_cp_fom_ops, reqh);
+			   &multiple_cp_fom_ops, reqh, i);
 		m_cp[i].c_ag->cag_ops = &group_multi_ops;
-		m_cp[i].c_ag->cag_cp_nr =
+		m_cp[i].c_ag->cag_cp_local_nr =
 			m_cp[i].c_ag->cag_ops->cago_local_cp_nr(m_cp[i].c_ag);
+		m_cp[i].c_ag->cag_cp_global_nr = m_cp[i].c_ag->cag_cp_local_nr +
+						 FAIL_NR;
 		m0_fom_queue(&m_cp[i].c_fom, reqh);
 		m0_semaphore_down(&sem);
 	}
@@ -206,7 +221,7 @@ static void test_multiple_cp(void)
 	 * by the transformation function.
 	 */
 	M0_UT_ASSERT(m_sag.sag_base.cag_transformed_cp_nr == CP_MULTI);
-	M0_UT_ASSERT(m_sag.sag_base.cag_cp_nr == CP_MULTI);
+	M0_UT_ASSERT(m_sag.sag_base.cag_cp_local_nr == CP_MULTI);
 	m0_semaphore_fini(&sem);
 }
 

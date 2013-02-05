@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -41,6 +41,9 @@
  *   - @ref CPDLD-lspec
  *      - @ref CPDLD-lspec-comps
  *      - @ref CPDLD-lspec-state
+ *      - @ref CPDLD-lspec-mn-xform
+ *         - @ref CPDLD-lspec-mn-xform-out
+ *         - @ref CPDLD-lspec-mn-xform-in
  *      - @ref CPDLD-lspec-thread
  *   - @ref CPDLD-conformance
  *   - @ref CPDLD-ut
@@ -272,6 +275,45 @@
  *   }
  *   @enddot
  *
+ *   @subsection CPDLD-lspec-mn-xform Transformation in multinode environment
+ *
+ *   When copy packet fom enters transformation phase, it calculates
+ *   partial parity on that particular node. This calculation is based on the
+ *   incoming copy packets for an aggregation group. In case of multinode data
+ *   restructuring, transformation is executed locally i.e. along outgoing path
+ *   as well as along the incoming path.
+ *
+ *   @subsubsection CPDLD-lspec-mn-xform-out Outgoing path
+ *
+ *   The transformed copy packet contains partial parity of the local copy
+ *   packets belonging to a particular aggregation group. The transformed copy
+ *   packet can either be written locally or can be sent to remote destination
+ *   node.
+ *
+ *   @subsubsection CPDLD-lspec-mn-xform-in Incoming path
+ *
+ *   The transformed copy packet contains the partial parity of the copy packets
+ *   which are received from other nodes as well as local copy packets. This
+ *   is executed typically on the destination node (i.e. node on which spare
+ *   units are allocated, in case of repair operation). Transformation phase
+ *   function inherently waits for all the copy packets in an aggregation group
+ *   to be transformed. For this to happen, transformation function has to do
+ *   bookkeeping of following information:
+ *   - number of copy packets that have been transformed for a particular
+ *   aggregation group (m0_cm_aggr_group::cag_transformed_cp_nr).
+ *   - indices of the copy packets in an aggregation group that have been
+ *   transformed (this knowledge is required by parity recovery algorithm like
+ *   Reed-Solomon) This is stored using a bitmap (m0_cm_cp::c_xform_cp_indices).
+ *
+ *   The index of the copy packet in an aggregation group is stored by the
+ *   iterator in m0_cm_cp::c_ag_cp_idx. This index is used by the transformation
+ *   function to populate the bitmap (m0_cm_cp::c_xform_cp_indices).
+ *   Note: This index should be global index of a copy packet in an aggregation
+ *   group.
+ *
+ *   For any aggregation group, transformation is marked as complete, iff all
+ *   indices in the bitmap are set to true.
+ *
  *   @subsection CPDLD-lspec-thread Threading and Concurrency Model
  *
  *   Copy packet is implemented as a FOM and thus do not have its own thread.
@@ -300,7 +342,10 @@
  *
  *   <hr>
  *   @section CPDLD-ut Unit Tests
- *   - Basic Test: Alloc, Init, fini and free
+ *   - Basic Test: Alloc, Init, fini and free.
+ *   - Test storage phases (write, read and then verify).
+ *   - Test transformation phase. Wait in the transformation phase till the
+ *     bitmap in the transformed copy packet has all its bits set to true.
  *
  *   <hr>
  *   @section CPDLD-st System Tests
@@ -360,7 +405,7 @@ static void cp_fom_fini(struct m0_fom *fom)
 	 * Free the aggregation group if this is the last copy packet
 	 * being finalised for a given aggregation group.
 	 */
-	if(ag->cag_freed_cp_nr == ag->cag_cp_nr)
+	if(ag->cag_freed_cp_nr == ag->cag_cp_local_nr)
 		ag->cag_ops->cago_fini(ag);
 	m0_cm_unlock(cm);
 }

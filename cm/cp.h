@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -143,6 +143,15 @@ struct m0_cm_cp {
 
         /** Aggregation group to which this copy packet belongs.*/
         struct m0_cm_aggr_group   *c_ag;
+
+	/** Index of this copy packet in aggregation group. */
+	uint64_t                   c_ag_cp_idx;
+
+	/**
+	 * Bitmap of the indices of copy packets in an aggregation
+	 * group that have been transformed to this resultant copy packet.
+	 */
+	struct m0_bitmap           c_xform_cp_indices;
 
 	/** Buffer representing the copy packet data.*/
 	struct m0_bufvec          *c_data;

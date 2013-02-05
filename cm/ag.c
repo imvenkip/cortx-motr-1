@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -84,7 +84,7 @@ M0_INTERNAL void m0_cm_aggr_group_init(struct m0_cm_aggr_group *ag,
 	ag->cag_id = *id;
 	aggr_grps_tlink_init(ag);
 	ag->cag_ops = ag_ops;
-	ag->cag_cp_nr = ag->cag_ops->cago_local_cp_nr(ag);
+	ag->cag_cp_local_nr = ag->cag_ops->cago_local_cp_nr(ag);
 	M0_LEAVE();
 }
 

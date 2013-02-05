@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -89,7 +89,7 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
 		uint32_t bv_seg_nr, uint32_t bv_seg_size,
 		struct m0_sns_cm_ag *sns_ag,
 		char data, struct m0_fom_ops *cp_fom_ops,
-		struct m0_reqh *reqh)
+		struct m0_reqh *reqh, uint64_t cp_ag_idx)
 {
 	struct m0_reqh_service *service;
 	struct m0_cm           *cm;
@@ -111,6 +111,7 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
 	cp->c_seg_size = bv_seg_size;
 	cp->c_fom.fo_ops = cp_fom_ops;
 	cp->c_ops = &m0_sns_cm_cp_ops;
+	cp->c_ag_cp_idx = cp_ag_idx;
 }
 
 /*

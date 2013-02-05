@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -83,33 +83,45 @@ M0_INTERNAL int m0_sns_cm_cp_recv(struct m0_cm_cp *cp)
 	return M0_FSO_AGAIN;
 }
 
+static int next[] = {
+	[M0_CCP_INIT]       = M0_CCP_READ,
+	[M0_CCP_READ]       = M0_CCP_IO_WAIT,
+	[M0_CCP_XFORM]      = M0_CCP_XFORM_WAIT,
+	[M0_CCP_XFORM_WAIT] = M0_CCP_WRITE,
+	[M0_CCP_WRITE]      = M0_CCP_IO_WAIT,
+	[M0_CCP_IO_WAIT]    = M0_CCP_XFORM
+};
+
 M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp)
 {
-	int phase = m0_fom_phase(&cp->c_fom);
-	int next[] = {
-		[M0_CCP_INIT]       = M0_CCP_READ,
-		[M0_CCP_READ]       = M0_CCP_IO_WAIT,
-		[M0_CCP_XFORM]      = M0_CCP_XFORM_WAIT,
-		[M0_CCP_XFORM_WAIT] = M0_CCP_WRITE,
-		[M0_CCP_WRITE]      = M0_CCP_IO_WAIT,
-		[M0_CCP_IO_WAIT]    = M0_CCP_XFORM
-	};
+	int phase = m0_sns_cm_cp_next_phase_get(m0_fom_phase(&cp->c_fom), cp);
 
-	if (phase == M0_CCP_IO_WAIT) {
-		if (cp->c_io_op == M0_CM_CP_READ)
-			next[M0_CCP_IO_WAIT] = M0_CCP_XFORM;
-		else
-			next[M0_CCP_IO_WAIT] = M0_CCP_FINI;
-	}
+	m0_fom_phase_set(&cp->c_fom, phase);
 
-	if (phase == M0_CCP_XFORM && cp->c_ag->cag_cp_nr == 1)
-		next[M0_CCP_XFORM] = M0_CCP_WRITE;
-
-	m0_fom_phase_set(&cp->c_fom, next[phase]);
-
-        return M0_IN(next[phase], (M0_CCP_IO_WAIT, M0_CCP_XFORM_WAIT,
+        return M0_IN(phase, (M0_CCP_IO_WAIT, M0_CCP_XFORM_WAIT,
 				   M0_CCP_FINI)) ?
 	       M0_FSO_WAIT : M0_FSO_AGAIN;
+}
+
+M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
+{
+	/*
+	 * cp is used as context to make decisions. It could be NULL, when no
+	 * such context is required.
+	 */
+	if (cp != NULL) {
+		if (phase == M0_CCP_IO_WAIT) {
+			if (cp->c_io_op == M0_CM_CP_READ)
+				return  M0_CCP_XFORM;
+			else
+				return M0_CCP_FINI;
+		}
+
+		if (phase == M0_CCP_XFORM && cp->c_ag->cag_cp_local_nr == 1)
+			return M0_CCP_WRITE;
+	}
+
+	return next[phase];
 }
 
 static void cp_complete(struct m0_cm_cp *cp)

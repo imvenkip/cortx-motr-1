@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -618,12 +618,13 @@ static void agid_setup(const struct m0_fid *gob_fid, uint64_t group,
 
 static void __cp_setup(struct m0_sns_cm_cp *scp,
 		       const struct m0_fid *cob_fid, uint64_t stob_offset,
-		       struct m0_cm_aggr_group *ag)
+		       struct m0_cm_aggr_group *ag, uint64_t ag_cp_idx)
 {
 	scp->sc_sid.si_bits.u_hi = cob_fid->f_container;
 	scp->sc_sid.si_bits.u_lo = cob_fid->f_key;
 	scp->sc_index = stob_offset;
 	scp->sc_base.c_ag = ag;
+	scp->sc_base.c_ag_cp_idx = ag_cp_idx;
 }
 
 /**
@@ -653,7 +654,12 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 			      m0_pdclust_unit_size(spl->spl_base);
 		seg_nr = m0_pdclust_unit_size(spl->spl_base)/scm->sc_obp.nbp_seg_size;
 		scp = it->si_cp;
-		__cp_setup(scp, &spl->spl_cob_fid, stob_offset, &rag->sag_base);
+		/*
+		 * spl->spl_sa.sa_unit has gotten one index ahead. Hence actual
+		 * index of the copy packet is (spl->spl_sa.sa_unit - 1).
+		 */
+		__cp_setup(scp, &spl->spl_cob_fid, stob_offset, &rag->sag_base,
+			   spl->spl_sa.sa_unit - 1);
 		rc = cm_buf_attach(scm, &scp->sc_base);
 		scp->sc_base.c_seg_nr = seg_nr;
 		scp->sc_base.c_seg_size = scm->sc_obp.nbp_seg_size;

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -56,10 +56,16 @@ struct m0_cm_aggr_group {
 	struct m0_mutex                    cag_mutex;
 
 	/**
+	 * Number of global copy packets that correspond to this aggregation
+	 * group.
+	 */
+	uint64_t                           cag_cp_global_nr;
+
+	/**
 	 * Number of local copy packets that correspond to this aggregation
 	 * group.
 	 */
-	uint64_t                           cag_cp_nr;
+	uint64_t                           cag_cp_local_nr;
 
 	/** Number of copy packets that have been transformed. */
 	uint64_t                           cag_transformed_cp_nr;

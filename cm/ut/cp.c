@@ -217,7 +217,7 @@ static void test_cp_single_thread(void)
 	m0_semaphore_init(&sem, 0);
 
 	s_ag.cag_cm = &cm_ut;
-	s_ag.cag_cp_nr = 1;
+	s_ag.cag_cp_local_nr = 1;
 	cp_post(&s_sns_cp, &s_ag, &s_bv);
 
 	while (m0_fom_domain_is_idle(&cm_ut_reqh.rh_fom_dom) ||
@@ -238,7 +238,7 @@ static void test_cp_single_thread(void)
 static void cp_op(const int tid)
 {
 	m_ag[tid].cag_cm = &cm_ut;
-	m_ag[tid].cag_cp_nr = 1;
+	m_ag[tid].cag_cp_local_nr = 1;
 	cp_post(&m_sns_cp[tid], &m_ag[tid], &m_bv[tid]);
 }
 

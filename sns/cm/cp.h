@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -81,6 +81,8 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp);
 M0_INTERNAL int m0_sns_cm_cp_recv(struct m0_cm_cp *cp);
 
 M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp);
+
+M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp);
 
 /** @} SNSCMCP */
 #endif /* __MERO_SNS_CM_CP_H__ */
