@@ -71,6 +71,13 @@ dist_check() {
     [ "$1" = '-a' ] || rm "$SRC/$DIST.tar.gz"
 }
 
+check_everything() {
+    for cmd in clean build dist_check run_ut run_kut run_st; do
+	echo "----- $cmd -----" >&2
+	$cmd
+    done
+}
+
 help() {
     [ $1 -eq 0 ] && _usage || _usage >&2
     exit $1
@@ -132,19 +139,11 @@ case "$1" in
         run_st;;
     dist-check) shift; dist_check "$@";;
     check-everything)
-        while true; do
-            clean
-            build
-            dist_check
-            run_ut
-            run_kut
-            run_st
-	    if echo $CONFIGURE_OPTS | grep -qe '--disable-m0-asserts'; then
-		break
-	    else
-		CONFIGURE_OPTS="$CONFIGURE_OPTS --disable-m0-asserts"
-	    fi
-        done;;
+	check_everything
+	echo $CONFIGURE_OPTS | grep -qe '--disable-m0-asserts' || {
+	    CONFIGURE_OPTS="$CONFIGURE_OPTS --disable-m0-asserts"
+	    check_everything
+	};;
     clean) shift; clean "$@";;
     help) help 0;;
     *)    help 1;;
