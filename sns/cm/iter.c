@@ -654,6 +654,7 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 			      m0_pdclust_unit_size(spl->spl_base);
 		seg_nr = m0_pdclust_unit_size(spl->spl_base)/scm->sc_obp.nbp_seg_size;
 		scp = it->si_cp;
+		rag->sag_base.cag_cp_global_nr = spl->spl_dpupg;
 		/*
 		 * spl->spl_sa.sa_unit has gotten one index ahead. Hence actual
 		 * index of the copy packet is (spl->spl_sa.sa_unit - 1).
