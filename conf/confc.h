@@ -478,17 +478,21 @@ struct m0_confc {
 	struct m0_sm_group      *cc_group;
 
 	/**
-	 * Configuration cache.
+	 * Confc cache lock.
 	 *
-	 * m0_conf_cache::ca_lock is being used to protect m0_confc
-	 * instance, as well as the DAG of cached configuration
-	 * objects, from concurrent modifications.
+	 * - Protects m0_confc instance from concurrent modifications.
+	 * - Protects the DAG of cached configuration objects from
+	 *   concurrent modifications.
+	 * - Guards m0_conf_obj::co_chan of the cached objects.
 	 *
 	 * If both group and cache locks are needed, group lock must
 	 * be acquired first.
 	 *
 	 * @see confc-lspec-thread
 	 */
+	struct m0_mutex          cc_lock;
+
+	/** Configuration cache. */
 	struct m0_conf_cache     cc_cache;
 
 	/**
@@ -577,7 +581,7 @@ struct m0_confc_ctx {
 	struct m0_sm_ast     fc_ast;
 
 	/** Provides AST's callback with an integer value. */
-	int32_t              fc_ast_datum;
+	int                  fc_ast_datum;
 
 	/**
 	 * Origin of the requested path.

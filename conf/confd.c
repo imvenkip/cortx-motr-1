@@ -34,6 +34,9 @@
 
 /**
  * @page confd-lspec-page confd Internals
+ *
+ * XXX FIXME: confd documentation is outdated.
+ *
  * - @ref confd-depends
  * - @ref confd-highlights
  * - @ref confd-lspec
@@ -374,8 +377,8 @@
  * designed for use in FOMs: the FOM does not busy-wait, but gets
  * blocked until lock acquisition can be retried. Simplistic
  * synchronization of the database and in-memory cache through means
- * of this read/writer lock (m0_confd::d_cache::ca_lock) is
- * sufficient, as the workload of confd is predominantly read-only.
+ * of this read/writer lock (m0_confd::d_lock) is sufficient, as the
+ * workload of confd is predominantly read-only.
  *
  * @subsection confd-lspec-numa NUMA Optimizations
  *
@@ -393,7 +396,7 @@
  *   of the HLD. The same data structures are used for confc and
  *   confd.  Configuration structures are kept in memory.
  * - @b i.conf.cache.unique-objects
- *   A registry of cached objects (m0_conf_cache::cc_registry) is used
+ *   A registry of cached objects (m0_conf_cache::ca_registry) is used
  *   to achieve uniqueness of configuration object identities.
  *
  * <hr> <!------------------------------------------------------------->
@@ -504,10 +507,6 @@ static int file_read(const char *path, char *dest, size_t sz)
 	M0_RETURN(rc);
 }
 
-/*
- * XXX TODO: Reuse the code.  This function shares too much logic with
- * cache_preload_locked() of conf/confc.c.
- */
 static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
 {
 	static char      buf[4096];
@@ -516,12 +515,12 @@ static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
 	int              rc;
 
 	M0_ENTRY();
+	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
 
 	rc = file_read(dbpath, buf, sizeof buf) ?: m0_confstr_parse(buf, &enc);
 	if (rc != 0)
 		M0_RETURN(rc);
 
-	m0_mutex_lock(&cache->ca_lock);
 	for (i = 0; i < enc->cx_nr && rc == 0; ++i) {
 		struct m0_conf_obj        *obj;
 		const struct m0_confx_obj *xobj = &enc->cx_objs[i];
@@ -530,7 +529,6 @@ static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
 				      &obj) ?:
 			m0_conf_obj_fill(obj, xobj, cache);
 	}
-	m0_mutex_unlock(&cache->ca_lock);
 
 	m0_confx_free(enc);
 	M0_RETURN(rc);
@@ -545,6 +543,7 @@ static int confd_allocate(struct m0_reqh_service **service,
 	int              rc;
 
 	M0_ENTRY();
+	M0_PRE(stype == &m0_confd_stype);
 
 	if (arg == NULL || *arg == '\0')
 		M0_RETERR(-EPROTO,
@@ -555,20 +554,22 @@ static int confd_allocate(struct m0_reqh_service **service,
 	if (confd == NULL)
 		M0_RETURN(-ENOMEM);
 
-	m0_conf_cache_init(&confd->d_cache);
+	m0_mutex_init(&confd->d_lock);
+	m0_conf_cache_init(&confd->d_cache, &confd->d_lock);
+
+	m0_mutex_lock(&confd->d_lock);
 	rc = confd_cache_preload(&confd->d_cache, arg);
-	if (rc != 0)
-		goto cache_fini;
+	m0_mutex_unlock(&confd->d_lock);
 
-	m0_bob_init(&m0_confd_bob, confd);
-
-	*service = &confd->d_reqh;
-	(*service)->rs_ops = &confd_ops;
-
-	M0_RETURN(0);
-cache_fini:
-	m0_conf_cache_fini(&confd->d_cache);
-	m0_free(confd);
+	if (rc == 0) {
+		m0_bob_init(&m0_confd_bob, confd);
+		*service = &confd->d_reqh;
+		(*service)->rs_ops = &confd_ops;
+	} else {
+		m0_conf_cache_fini(&confd->d_cache);
+		m0_mutex_fini(&confd->d_lock);
+		m0_free(confd);
+	}
 	M0_RETURN(rc);
 }
 
@@ -581,110 +582,25 @@ static void confd_fini(struct m0_reqh_service *service)
 
 	m0_bob_fini(&m0_confd_bob, confd);
 	m0_conf_cache_fini(&confd->d_cache);
+	m0_mutex_fini(&confd->d_lock);
 	m0_free(confd);
 
 	M0_LEAVE();
 }
 
-/**
- * Starts confd service.
- *
- * - Initialises configuration cache if necessary: first start will
- *   create the cache, subsequent starts won't.
- *
- * - Loads configuration cache from the configuration database.
- */
 static int confd_start(struct m0_reqh_service *service)
 {
 	M0_ENTRY();
-
-	/* XXX TODO: mount local storage, ... ? */
-
+	/* XXX FUTURE: mount local storage, ... ? */
 	M0_RETURN(0);
 }
 
 static void confd_stop(struct m0_reqh_service *service)
 {
 	M0_ENTRY();
-
-	/* XXX TODO: unmount local storage, ... ? */
-
+	/* XXX FUTURE: unmount local storage, ... ? */
 	M0_LEAVE();
 }
 
-/* /\** */
-/*  * m0_conf_fetch FOM phases. */
-/*  *\/ */
-/* enum m0_confd_fetch_status { */
-/* 	F_INITIAL = FOPH_NR + 1, */
-/* 	F_SERIALISE, */
-/* 	F_TERMINATE, */
-/* 	F_FAILURE */
-/* /\* }; *\/ */
-
-/* /\** */
-/*  * m0_conf_update FOM pahses. */
-/*  *\/ */
-/* enum m0_confd_update_status { */
-/* 	U_INITIAL = FOPH_NR + 1, */
-/* 	U_UPDATE, */
-/* 	U_TERMINATE, */
-/* 	U_FAILURE */
-/* }; */
-
-/* /\** */
-/*  * Serialises given path into FOP-package. */
-/*  * */
-/*  * @param confd	configuration service instance. */
-/*  * @param path path to the object/directory requested by confc. */
-/*  * @param fout FOP, prepared to be sent as a reply with m0_rpc_reply_post(). */
-/*  * */
-/*  * @pre for_each(obj in path) obj.co_status == M0_CS_READY. */
-/*  * @pre out is not initialized. */
-/*  *\/ */
-/* static int obj_serialize(struct m0_confd *confd, struct m0_conf_pathcomp *path, */
-/* 			 struct m0_fop *fout) */
-/* { */
-/* } */
-
-/* /\** */
-/*  * Transits fetch FOM into the next phase. */
-/*  * */
-/*  * @param confd	configuration service instance. */
-/*  * @param st current pahse of incoming FOP-request processing. */
-/*  *\/ */
-/* static int fetch_next_state(struct m0_confd *confd, int st) */
-/* { */
-/* } */
-
-/* /\** */
-/*  * Transits update FOM into the next state. */
-/*  * */
-/*  * @param confd	configuration service instance. */
-/*  * @param st current phase of incoming FOP-request processing. */
-/*  *\/ */
-/* static int update_next_state(struct m0_confd *confd, int st) */
-/* { */
-/* } */
-
-/* /\** */
-/*  * Called when confd transits to F_FAILURE */
-/*  * */
-/*  * @param confd	configuration service instance. */
-/*  *\/ */
-/* static void fetch_failure_handle(struct m0_confd *confd) */
-/* { */
-/* } */
-
-/* /\** */
-/*  * Called when confd transits to U_FAILURE */
-/*  * */
-/*  * @param confd	configuration service instance. */
-/*  *\/ */
-/* static void update_failure_handle(struct m0_confd *confd) */
-/* { */
-/* } */
-
-#undef M0_TRACE_SUBSYSTEM
-
 /** @} confd_dlspec */
+#undef M0_TRACE_SUBSYSTEM

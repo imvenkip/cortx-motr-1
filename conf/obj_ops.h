@@ -163,6 +163,7 @@ struct m0_conf_obj_ops {
  * Note, that m0_conf_obj_create() does not add the resulting object
  * into configuration cache.
  *
+ * @pre   cache != NULL && m0_buf_is_aimed(id)
  * @post  ergo(retval != NULL,
  *             !retval->co_mounted && retval->co_status == M0_CS_MISSING)
  */
@@ -174,7 +175,7 @@ M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
  * Finds registered object with given identity or, if no object is
  * found, creates and registers a stub.
  *
- * @pre   m0_mutex_is_locked(&cache->ca_lock)
+ * @pre   m0_mutex_is_locked(cache->ca_lock)
  * @post  ergo(retval == 0,
  *             m0_conf_obj_invariant(*out) && (*out)->co_cache == cache)
  */
@@ -187,7 +188,7 @@ M0_INTERNAL int m0_conf_obj_find(struct m0_conf_cache *cache,
  * Finalises and frees configuration object.
  *
  * @pre  obj->co_nrefs == 0 && obj->co_status != M0_CS_LOADING
- * @pre  !obj->co_mounted || m0_mutex_is_locked(&obj->co_cache->ca_lock)
+ * @pre  !obj->co_mounted || m0_mutex_is_locked(obj->co_cache->ca_lock)
  */
 M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj);
 
@@ -197,7 +198,7 @@ M0_INTERNAL bool m0_conf_obj_invariant(const struct m0_conf_obj *obj);
 /**
  * Increments reference counter of given configuration object.
  *
- * @pre   m0_mutex_is_locked(&obj->co_cache->ca_lock)
+ * @pre   m0_mutex_is_locked(obj->co_cache->ca_lock)
  * @pre   obj->co_status == M0_CS_READY
  * @post  obj->co_nrefs > 0
  */
@@ -209,7 +210,7 @@ M0_INTERNAL void m0_conf_obj_get(struct m0_conf_obj *obj);
  * Broadcasts obj->co_chan if the object becomes unpinned (i.e., if
  * the decremented counter reaches 0).
  *
- * @pre  m0_mutex_is_locked(&obj->co_cache->ca_lock)
+ * @pre  m0_mutex_is_locked(obj->co_cache->ca_lock)
  * @pre  obj->co_nrefs > 0 && obj->co_status == M0_CS_READY
  */
 M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj);
@@ -225,13 +226,13 @@ M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj);
  * via `src' parameter.
  *
  * @pre   `src' is valid
- * @pre   m0_mutex_is_locked(&cache->ca_lock)
+ * @pre   m0_mutex_is_locked(cache->ca_lock)
  * @pre   m0_conf_obj_is_stub(dest) && dest->co_nrefs == 0
  * @pre   dest->co_type == src->o_conf.u_type
  * @pre   m0_buf_eq(&dest->co_id, &src->o_id)
  *
  * @post  m0_conf_obj_invariant(dest)
- * @post  m0_mutex_is_locked(&cache->ca_lock)
+ * @post  m0_mutex_is_locked(cache->ca_lock)
  * @post  dest->co_status == (retval == 0 ? M0_CS_READY : M0_CS_MISSING)
  * @post  ergo(retval == 0, dest->co_mounted)
  */

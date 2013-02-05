@@ -32,7 +32,7 @@
 #include "mero/magic.h"    /* M0_CONF_OBJ_MAGIC */
 
 /**
- * @defgroup conf_dlspec_objops Configuration Object Operations
+ * @defgroup conf_dlspec_objops Configuration Object Operations (lspec)
  *
  * @see @ref conf, @ref conf-lspec
  *
@@ -63,7 +63,9 @@ static bool _generic_obj_invariant(const void *bob)
 		m0_buf_is_aimed(&obj->co_id) && obj->co_ops != NULL &&
 		M0_IN(obj->co_status,
 		      (M0_CS_MISSING, M0_CS_LOADING, M0_CS_READY)) &&
-		ergo(m0_conf_obj_is_stub(obj), obj->co_nrefs == 0);
+		ergo(m0_conf_obj_is_stub(obj), obj->co_nrefs == 0) &&
+		ergo(obj->co_mounted, m0_conf_cache_tlist_contains(
+			     &obj->co_cache->ca_registry, obj));
 }
 
 static bool _concrete_obj_invariant(const struct m0_conf_obj *obj)
@@ -104,6 +106,7 @@ M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
 	struct m0_conf_obj *obj;
 	int                 rc;
 
+	M0_PRE(cache != NULL && m0_buf_is_aimed(id));
 	M0_PRE(IS_IN_ARRAY(type, concrete_ctors));
 
 	/* Allocate concrete object; initialise concrete fields. */
@@ -121,10 +124,13 @@ M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
 	obj->co_status = M0_CS_MISSING;
 	obj->co_cache = cache;
 
-	/* XXX [lib.chan.ext-lock] Hello, Andriy! Please remove this comment. */
-	m0_chan_init(&obj->co_chan /*, &cache->ca_lock */);
+#ifdef XXX_ANDRIY_CHANLOCK
+	m0_chan_init(&obj->co_chan, cache->ca_lock);
+#else
+	m0_chan_init(&obj->co_chan);
+#endif
 
-	m0_conf_reg_tlink_init(obj);
+	m0_conf_cache_tlink_init(obj);
 	m0_conf_dir_tlink_init(obj);
 	m0_conf_obj_bob_init(obj);
 	M0_ASSERT(obj->co_gen_magic == M0_CONF_OBJ_MAGIC);
@@ -153,7 +159,7 @@ static int stub_create(struct m0_conf_cache *cache, enum m0_conf_objtype type,
 	if (*out == NULL)
 		M0_RETURN(-ENOMEM);
 
-	rc = m0_conf_reg_add(&cache->ca_registry, *out);
+	rc = m0_conf_cache_add(cache, *out);
 	if (rc != 0) {
 		m0_conf_obj_delete(*out);
 		*out = NULL;
@@ -169,9 +175,9 @@ M0_INTERNAL int m0_conf_obj_find(struct m0_conf_cache *cache,
 	int rc = 0;
 
 	M0_ENTRY();
-	M0_PRE(m0_mutex_is_locked(&cache->ca_lock));
+	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
 
-	*out = m0_conf_reg_lookup(&cache->ca_registry, type, id);
+	*out = m0_conf_cache_lookup(cache, type, id);
 	if (*out == NULL)
 		rc = stub_create(cache, type, id, out);
 
@@ -185,12 +191,12 @@ M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
 	M0_PRE(m0_conf_obj_invariant(obj));
 	M0_PRE(obj->co_nrefs == 0);
 	M0_PRE(obj->co_status != M0_CS_LOADING);
-	M0_PRE(!obj->co_mounted || m0_mutex_is_locked(&obj->co_cache->ca_lock));
+	M0_PRE(!obj->co_mounted || m0_mutex_is_locked(obj->co_cache->ca_lock));
 
 	/* Finalise generic fields. */
 	m0_conf_obj_bob_fini(obj);
 	m0_conf_dir_tlink_fini(obj);
-	m0_conf_reg_tlink_fini(obj);
+	m0_conf_cache_tlink_fini(obj);
 	m0_chan_fini(&obj->co_chan);
 	m0_buf_free(&obj->co_id);
 
@@ -201,7 +207,7 @@ M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
 M0_INTERNAL void m0_conf_obj_get(struct m0_conf_obj *obj)
 {
 	M0_PRE(m0_conf_obj_invariant(obj));
-	M0_PRE(m0_mutex_is_locked(&obj->co_cache->ca_lock));
+	M0_PRE(m0_mutex_is_locked(obj->co_cache->ca_lock));
 	M0_PRE(obj->co_status == M0_CS_READY);
 
 	M0_CNT_INC(obj->co_nrefs);
@@ -210,7 +216,7 @@ M0_INTERNAL void m0_conf_obj_get(struct m0_conf_obj *obj)
 M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj)
 {
 	M0_PRE(m0_conf_obj_invariant(obj));
-	M0_PRE(m0_mutex_is_locked(&obj->co_cache->ca_lock));
+	M0_PRE(m0_mutex_is_locked(obj->co_cache->ca_lock));
 	M0_PRE(obj->co_status == M0_CS_READY);
 
 	M0_CNT_DEC(obj->co_nrefs);
@@ -238,7 +244,7 @@ M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
 
 	M0_ENTRY();
 	M0_PRE(m0_conf_obj_invariant(dest));
-	M0_PRE(m0_mutex_is_locked(&cache->ca_lock));
+	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
 	M0_PRE(m0_conf_obj_is_stub(dest) && dest->co_nrefs == 0);
 	M0_PRE(dest->co_type == src->o_conf.u_type);
 	M0_PRE(m0_buf_eq(&dest->co_id, &src->o_id));
@@ -248,7 +254,7 @@ M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
 	dest->co_status = rc == 0 ? M0_CS_READY : M0_CS_MISSING;
 
 	M0_POST(ergo(rc == 0, dest->co_mounted));
-	M0_POST(m0_mutex_is_locked(&cache->ca_lock));
+	M0_POST(m0_mutex_is_locked(cache->ca_lock));
 	M0_POST(m0_conf_obj_invariant(dest));
 	M0_LEAVE("retval=%d", rc);
 	return rc;

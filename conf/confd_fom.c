@@ -14,7 +14,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
- * Original creation date: 05/05/2012
+ * Original creation date: 05-May-2012
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
@@ -112,7 +112,7 @@ static int conf_fetch_tick(struct m0_fom *fom)
 {
 	const struct m0_conf_fetch *q;
 	struct m0_conf_fetch_resp  *r;
-	struct m0_conf_cache       *cache;
+	struct m0_confd            *confd;
 	int                         rc;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR)
@@ -128,11 +128,11 @@ static int conf_fetch_tick(struct m0_fom *fom)
 	q = m0_fop_data(fom->fo_fop);
 	r = m0_fop_data(fom->fo_rep_fop);
 
-	cache = &bob_of(fom->fo_service, struct m0_confd, d_reqh,
-			&m0_confd_bob)->d_cache;
-	m0_mutex_lock(&cache->ca_lock);
-	rc = confx_populate(&r->fr_data, &q->f_origin, &q->f_path, cache);
-	m0_mutex_unlock(&cache->ca_lock);
+	confd = bob_of(fom->fo_service, struct m0_confd, d_reqh, &m0_confd_bob);
+	m0_mutex_lock(&confd->d_lock);
+	rc = confx_populate(&r->fr_data, &q->f_origin, &q->f_path,
+			    &confd->d_cache);
+	m0_mutex_unlock(&confd->d_lock);
 	if (rc != 0)
 		M0_ASSERT(r->fr_data.cx_nr == 0 && r->fr_data.cx_objs == NULL);
 	r->fr_rc = rc;
@@ -145,7 +145,7 @@ static int conf_update_tick(struct m0_fom *fom)
 {
 	M0_IMPOSSIBLE("XXX Not implemented");
 
-	m0_fom_phase_move(fom, -999, M0_FOPH_FAILURE);
+	m0_fom_phase_move(fom, -ENOSYS, M0_FOPH_FAILURE);
 	return M0_FSO_AGAIN;
 }
 
@@ -248,7 +248,7 @@ static int confx_populate(struct m0_confx *dest, const struct objid *origin,
 	size_t              nr = 0;
 
 	M0_ENTRY();
-	M0_PRE(m0_mutex_is_locked(&cache->ca_lock));
+	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
 
 	M0_SET0(dest);
 
@@ -276,3 +276,4 @@ static int confx_populate(struct m0_confx *dest, const struct objid *origin,
 }
 
 /** @} confd_dlspec */
+#undef M0_TRACE_SUBSYSTEM

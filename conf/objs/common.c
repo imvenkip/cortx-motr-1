@@ -105,8 +105,8 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 	struct m0_conf_obj *child;
 	uint32_t            i;
 	int                 rc;
-	struct m0_conf_obj *dir = m0_conf_reg_lookup(&cache->ca_registry,
-						     M0_CO_DIR, dir_id);
+	struct m0_conf_obj *dir = m0_conf_cache_lookup(cache, M0_CO_DIR,
+						       dir_id);
 	M0_PRE(dir == NULL);
 	M0_PRE(*out == NULL);
 
@@ -118,8 +118,8 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 	(*out)->cd_item_type = children_type;
 
 	for (rc = 0, i = 0; i < src->ab_count; ++i) {
-		child = m0_conf_reg_lookup(&cache->ca_registry, children_type,
-					   &src->ab_elems[i]);
+		child = m0_conf_cache_lookup(cache, children_type,
+					     &src->ab_elems[i]);
 		if (child != NULL) {
 			rc = -EEXIST; /* ban duplicates */
 			break;
@@ -135,7 +135,7 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 		m0_conf_dir_tlist_add_tail(&(*out)->cd_items, child);
 	}
 
-	rc = rc ?: m0_conf_reg_add(&cache->ca_registry, dir);
+	rc = rc ?: m0_conf_cache_add(cache, dir);
 
 	if (rc == 0) {
 		dir->co_status = M0_CS_READY;
@@ -143,9 +143,7 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 		/* Restore consistency. */
 		m0_tl_for(m0_conf_dir, &(*out)->cd_items, child) {
 			m0_conf_dir_tlist_del(child);
-			m0_conf_reg_del(&cache->ca_registry, child);
-			child->co_mounted = false;
-			m0_conf_obj_delete(child);
+			m0_conf_cache_del(cache, child);
 		} m0_tl_endfor;
 		m0_conf_obj_delete(dir);
 	}

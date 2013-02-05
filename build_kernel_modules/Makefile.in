@@ -198,8 +198,7 @@ xcode_SOURCES                   := xcode.c string.c
 xcode_ut_SOURCES                := xcode.c
 
 conf_SOURCES                    := buf_ext.c cache.c confc.c fop.c obj.c \
-                                   obj_ops.c onwire_xc.c preload.c reg.c \
-                                   reg_debug.c
+                                   obj_ops.c onwire_xc.c preload.c
 
 conf_HEADERS                    := onwire.h onwire_xc.h
 

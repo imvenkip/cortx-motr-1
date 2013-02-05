@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
- * Original creation date: 05/05/2012
+ * Original creation date: 05-May-2012
  */
 #pragma once
 #ifndef __MERO_CONFD_FOM_H__

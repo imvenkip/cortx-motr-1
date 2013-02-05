@@ -29,9 +29,6 @@
 #include "lib/errno.h"    /* ENOMEM, ENOENT */
 #include "lib/misc.h"     /* M0_IN */
 
-struct m0_conf_reg;
-struct m0_buf;
-
 #define MEMBER_PTR(ptr, member)                \
 ({                                             \
 	typeof(ptr) __ptr = (ptr);             \

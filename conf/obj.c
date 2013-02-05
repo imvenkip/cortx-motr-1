@@ -128,7 +128,7 @@
  *
  * - Mero database library ("db/db.h") should provide a user-space
  *   interface for creating in-memory databases. This interface will
- *   be used by confd and user-space confc; see @ref conf-fspec-reg.
+ *   be used by confd and user-space confc.
  *
  *   See also `Writing In-Memory Berkeley DB Applications'
  *   [http://docs.oracle.com/cd/E17076_02/html/articles/inmemory/C/index.html].
@@ -147,16 +147,17 @@
  * - The application should not use relations of a configuration
  *   object to access other objects.
  *
- *   Rationale: relations may point to unpinned objects. Confc or
- *   confd implementation, who owns the cache, is free to convert
- *   unpinned objects into stubs.  The application cannot use stubs,
- *   as those contain no valid configuration data.
+ *   Rationale: relations may point to unpinned objects. Confc
+ *   implementation may convert unpinned objects into stubs. The
+ *   application shall not use stubs, since they contain no valid
+ *   configuration data.
  *
  *   @see @ref conf-fspec-obj-private
  *
- * - The registry of cached configuration objects (m0_conf_reg) is
- *   queried infrequently; it makes sense to base its implementation
- *   on linked list data structure.
+ * - The registry of cached configuration objects
+ *   (m0_conf_cache::ca_registry) is not expected to be queried
+ *   frequently. It makes sense to base its implementation on linked
+ *   list data structure.
  *
  * <hr> <!------------------------------------------------------------>
  * @section conf-fspec Functional Specification
@@ -166,7 +167,6 @@
  * - @subpage conf-fspec-cache
  * - @subpage conf-fspec-preload
  * - @subpage conf-fspec-objops
- * - @subpage conf-fspec-reg
  * - @subpage confd-fspec
  *
  * <hr> <!------------------------------------------------------------>
@@ -175,7 +175,7 @@
  * - @ref conf-lspec-comps
  * - @subpage confc-lspec
  * - @ref conf_dlspec_objops
- * - @ref conf_dlspec_reg
+ * - @ref conf_dlspec_cache
  * - @subpage confd-lspec-page
  * - @ref conf-lspec-state
  * - @ref conf-lspec-thread
@@ -183,11 +183,11 @@
  * <!---------------------------------------------------------------->
  * @subsection conf-lspec-comps Components Overview
  *
- * Every instance of confc library and confd service maintains a @ref
- * conf-fspec-cache "cache of configuration data".
+ * Confc and confd maintain independent in-memory @ref
+ * conf-fspec-cache "caches" of configuration data.
  *
- * Configuration cache can be pre-loaded from an ASCII string. See
- * @ref conf-fspec-preload.
+ * Configuration cache can be @ref conf-fspec-preload "pre-loaded"
+ * from an ASCII string.
  *
  * If a confc cache does not have enough data to fulfill a request of
  * configuration consumer, confc obtains the necessary data from the
@@ -233,7 +233,7 @@
  *   pinned when the cache is being destroyed.
  * - @b i.conf.cache.unique-objects
  *   Uniqueness of configuration object identities is achieved by
- *   using a registry of cached objects (m0_conf_reg).
+ *   using a registry of cached objects (m0_conf_cache::ca_registry).
  *
  * <hr> <!------------------------------------------------------------>
  * @section conf-ut Unit Tests
@@ -245,7 +245,7 @@
  *
  * @subsection conf-ut-common Infrastructure Test Suite
  *
- *     @test m0_conf_reg operations will be tested.
+ *     @test m0_conf_cache operations will be tested.
  *
  *     @test Path operations will be tested. This includes checking
  *           validity of various paths.

@@ -516,11 +516,11 @@ out:
 
 M0_INTERNAL int m0_confdb_read(const char *dbpath, struct m0_confx **out)
 {
-	struct m0_dbenv     db;
-	struct m0_table    *tables;
-	struct m0_db_tx     tx;
-	int                 rc;
-	size_t              nr_objs = 0;
+	struct m0_dbenv  db;
+	struct m0_table *tables;
+	struct m0_db_tx  tx;
+	int              rc;
+	size_t           nr_objs = 0;
 
 	M0_ENTRY();
 

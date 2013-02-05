@@ -54,7 +54,7 @@ static int nic_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 static int nic_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
 	M0_IMPOSSIBLE("XXX not implemented");
-	return -1;
+	return -ENOSYS;
 }
 
 static bool
@@ -74,7 +74,7 @@ static int nic_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
 		      struct m0_conf_obj **out)
 {
 	M0_IMPOSSIBLE("XXX not implemented");
-	return -1;
+	return -ENOSYS;
 }
 
 static void nic_delete(struct m0_conf_obj *obj)

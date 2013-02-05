@@ -142,8 +142,8 @@ enum m0_magic_satchel {
         M0_T1FS_PGROUP_MAGIC = 0x3319ca9de5ce9177,
 
 /* Configuration */
-	/* m0_conf_reg::r_magic (fabled feodal) */
-	M0_CONF_REG_MAGIC = 0x33fab1edfe0da177,
+	/* m0_conf_cache::ca_registry::t_magic (fabled feodal) */
+	M0_CONF_CACHE_MAGIC = 0x33fab1edfe0da177,
 
 	/* m0_conf_obj::co_gen_magic (selfless cell) */
 	M0_CONF_OBJ_MAGIC = 0x335e1f1e55ce1177,

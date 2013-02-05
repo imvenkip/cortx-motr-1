@@ -194,8 +194,8 @@ struct m0_conf_obj {
 	/** Configuration cache this object belongs to. */
 	struct m0_conf_cache         *co_cache;
 
-	/** Linkage to m0_conf_reg::r_objs. */
-	struct m0_tlink               co_reg_link;
+	/** Linkage to m0_conf_cache::ca_registry. */
+	struct m0_tlink               co_cache_link;
 
 	/** Linkage to m0_conf_dir::cd_items. */
 	struct m0_tlink               co_dir_link;

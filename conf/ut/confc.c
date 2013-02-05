@@ -341,7 +341,7 @@ static void test_confc_local(void)
 	rc = m0_confc_init(&confc, &g_grp,
 			   &(const struct m0_buf)M0_BUF_INITS("bad profile"),
 			   NULL, NULL, local_conf);
-	M0_UT_ASSERT(rc == -EBADF);
+	M0_UT_ASSERT(rc == -ENODATA);
 
 	confc_test(NULL, NULL, local_conf);
 }

@@ -26,6 +26,8 @@
 #include "lib/memory.h"    /* m0_free */
 #include "lib/ut.h"
 
+extern void test_confdb(void);
+
 /** Statistics accumulator for m0_confstr_parse() call. */
 struct fuzz_acc {
 	uint32_t nr_successes;
@@ -222,3 +224,14 @@ void test_confstr_fuzz(void)
 
 	M0_ASSERT(100 * acc.nr_successes / acc.nr_total < 1); /* < 1% */
 }
+
+const struct m0_test_suite confstr_ut = {
+	.ts_name  = "confstr-ut",
+	.ts_init  = NULL,
+	.ts_fini  = NULL,
+	.ts_tests = {
+		{ "db",   test_confdb       },
+		{ "fuzz", test_confstr_fuzz },
+		{ NULL, NULL }
+	}
+};

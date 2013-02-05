@@ -23,10 +23,11 @@
 
 #include "conf/cache.h"
 #include "reqh/reqh_service.h"
-#include "db/db.h"
 
 /**
  * @page confd-fspec Configuration Service (confd)
+ *
+ * XXX FIXME: confd documentation is outdated.
  *
  * Configuration service (confd) is designed to work as a part of
  * user-space configuration service, driven by request handler and
@@ -152,7 +153,14 @@ struct m0_confd {
 	/** Configuration cache. */
 	struct m0_conf_cache   d_cache;
 
-	/* struct m0_confd_stat   d_stat; */
+	/**
+	 * Confd cache lock.
+	 *
+	 * - Protects the DAG of cached configuration objects from
+	 *   concurrent modifications.
+	 * - Guards m0_conf_obj::co_chan of the cached objects.
+	 */
+	struct m0_mutex        d_lock;
 
 	/** Magic value == M0_CONFD_MAGIC. */
 	uint64_t               d_magic;

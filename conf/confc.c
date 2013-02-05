@@ -28,7 +28,7 @@
 #include "conf/fop.h"       /* m0_conf_fetch_fopt */
 #include "mero/magic.h"     /* M0_CONFC_MAGIC, M0_CONFC_CTX_MAGIC */
 #include "rpc/rpc.h"        /* m0_rpc_post */
-#include "rpc/rpclib.h"     /* m0_rpc_client_call */
+#include "rpc/rpclib.h"     /* m0_rpc_client_connect */
 #include "lib/cdefs.h"      /* M0_HAS_TYPE */
 #include "lib/arith.h"      /* M0_CNT_INC, M0_CNT_DEC */
 #include "lib/misc.h"       /* M0_IN */
@@ -188,8 +188,8 @@
  * <hr> <!------------------------------------------------------------>
  * @section confc-lspec-walk Walking the DAG
  *
- * path_walk() begins with locking the confc cache
- * (m0_confc::cc_cache::ca_lock); it unlocks the cache before returning.
+ * path_walk() begins with locking the confc cache (m0_confc::cc_lock);
+ * it unlocks the cache before returning.
  *
  * The function "moves" along the DAG of cached configuration objects,
  * starting at m0_confc_ctx::fc_origin object and following
@@ -207,38 +207,23 @@
  * <hr> <!------------------------------------------------------------>
  * @section confc-lspec-grow Growing the cache
  *
- * cache_grow() locks the cache (m0_confc::cc_cache::ca_lock) and
- * unlocks before returning.  The function performs the following
- * operations for every object descriptor (m0_confx_obj, defined in
+ * cache_grow() locks the cache (m0_confc::cc_cache) and unlocks
+ * before returning.  The function performs the following operations
+ * for every object descriptor (m0_confx_obj, defined in
  * conf/onwire.ff):
  *   -#
- *      Tries to find an object with the same identity (type and id)
- *      in the registry of cached objects (m0_confc::cc_registry),
- *      using m0_conf_reg_lookup().
+ *      m0_conf_obj_find(): tries to find an object with the same
+ *      identity (type and id) in the registry of cached objects.
+ *      If the object is not found, a stub is created and added to the
+ *      cache.
  *   -#
- *      If cached object is found, it is "enriched" (see
- *      object_enrich() below).  Otherwise new object is added to the
- *      cache with cache_add().
- *
- * cache_add() performs the following operations:
- *   -# m0_conf_obj_create() --- allocates configuration object and
- *      initialises its fields;
- *   -# m0_conf_obj_fill() --- fills new object with configuration data
- *      contained in on-wire object descriptor (m0_confx_obj);
- *   -# m0_conf_reg_add() --- adds configuration object to the
- *      registry of cached objects.
- *
- * object_enrich() compares cached object with the descriptor received
- * from the confd.  If a discrepancy is found (!m0_conf_obj_match()),
- * the function reports it (M0_ADDB_ADD()) and returns an error code.
- *
- * If there is no discrepancy, and the cached object is a stub,
- * object_enrich()
- *   - fills the cached object with configuration data
- *     (m0_conf_obj_fill());
- *   - changes status of the cached object to M0_CS_READY or
- *     M0_CS_MISSING, depending on whether filling was successful;
- *   - signals object's channel.
+ *      object_enrich(): compares cached object with the descriptor
+ *      received from the confd.  If a discrepancy is found
+ *      (!m0_conf_obj_match()), the function reports it
+ *      (M0_ADDB_ADD()) and returns an error code.  If there is no
+ *      discrepancy, and the cached object is a stub, object_enrich()
+ *      fills the cached object with configuration data
+ *      (m0_conf_obj_fill()) and signals object's channel.
  *
  * <hr> <!------------------------------------------------------------>
  * @section confc-lspec-thread Threading and Concurrency Model
@@ -250,11 +235,11 @@
  * running at any given time.  Synchronization of state transitions is
  * achieved by using m0_sm_group (m0_confc::cc_group).
  *
- * Modifications to m0_confc instance and confc cache are protected by
- * m0_confc::cc_cache::ca_lock mutex, aka cache lock.  Group lock
- * (m0_confc::cc_group::s_lock) cannot be used for this purpose, as it
- * does not prevent the application from modifying the cache with
- * m0_confc_close().
+ * m0_confc instance and confc cache are protected from concurrent
+ * modifications by m0_confc::cc_lock mutex, aka cache lock.  Group
+ * lock (m0_confc::cc_group::s_lock) cannot be used for this purpose,
+ * because it does not prevent the application from modifying the
+ * cache with m0_confc_close().
  *
  * If a function needs both locks -- group lock and cache lock -- for
  * its operation, group lock must be acquired first.  Note, that the
@@ -396,19 +381,54 @@ static bool ctx_invariant(const struct m0_confc_ctx *ctx)
  * m0_confc
  * ------------------------------------------------------------------ */
 
-static int root_stub_create(struct m0_confc *confc,
-			    const struct m0_buf *profile);
-static int cache_preload(struct m0_confc *confc, const char *local_conf);
+static int confc_cache_preload(struct m0_confc *confc, const char *local_conf);
 static bool confc_is_online(const struct m0_confc *confc);
 static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 			    struct m0_rpc_machine *rpc_mach);
 static void disconnect_from_confd(struct m0_confc *confc);
-static void confc_cache_lock(struct m0_confc *confc);
-static void confc_cache_unlock(struct m0_confc *confc);
+static void confc_lock(struct m0_confc *confc);
+static void confc_unlock(struct m0_confc *confc);
+static bool confc_is_locked(const struct m0_confc *confc);
 
 static bool not_empty(const char *s)
 {
 	return s != NULL && *s != '\0';
+}
+
+static int confc_cache_create(struct m0_confc *confc,
+			      const struct m0_buf *profile,
+			      const char *local_conf)
+{
+	int rc;
+
+	M0_ENTRY("confc=%p", confc);
+	M0_PRE(m0_buf_is_aimed(profile));
+	M0_PRE(confc_is_locked(confc));
+
+	m0_conf_cache_init(&confc->cc_cache, &confc->cc_lock);
+
+	/* Create a stub for root object. */
+	rc = m0_conf_obj_find(&confc->cc_cache, M0_CO_PROFILE, profile,
+			      &confc->cc_root);
+	if (rc != 0)
+		M0_RETURN(rc);
+	confc->cc_root->co_mounted = true;
+
+	if (not_empty(local_conf)) {
+		rc = confc_cache_preload(confc, local_conf);
+		if (rc == 0 && confc->cc_root->co_status != M0_CS_READY) {
+			/* XXX Is this really a problem?  We can
+			 * imagine a situation when non-profile
+			 * configuration is preloaded from a string
+			 * and the rest of configuration, including
+			 * that of profile, is retrieved from confd.
+			 *  --vvv */
+			M0_LOG(M0_ERROR, "Preloaded configuration has no data"
+			       " on profile `%s'", (char *)profile->b_addr);
+			rc = -ENODATA;
+		}
+	}
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
@@ -421,23 +441,16 @@ M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 	int rc;
 
 	M0_ENTRY("confc=%p", confc);
-	M0_PRE(not_empty(confd_addr) || not_empty(local_conf));
 	M0_PRE(sm_group != NULL);
+	M0_PRE(not_empty(confd_addr) || not_empty(local_conf));
 	M0_PRE(ergo(not_empty(confd_addr), rpc_mach != NULL));
 
-	m0_conf_cache_init(&confc->cc_cache);
-	rc = root_stub_create(confc, profile);
+	m0_mutex_init(&confc->cc_lock);
+	confc_lock(confc);
+	rc = confc_cache_create(confc, profile, local_conf);
+	confc_unlock(confc);
 	if (rc != 0)
 		goto err;
-
-	confc->cc_group = sm_group;
-	confc->cc_nr_ctx = 0;
-
-	if (not_empty(local_conf)) {
-		rc = cache_preload(confc, local_conf);
-		if (rc != 0)
-			goto err;
-	}
 
 	M0_SET0(&confc->cc_rpc_conn);
 	M0_ASSERT(!confc_is_online(confc));
@@ -445,15 +458,19 @@ M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 		rc = connect_to_confd(confc, confd_addr, rpc_mach);
 
 	if (rc == 0) {
+		confc->cc_group = sm_group;
+		confc->cc_nr_ctx = 0;
 		m0_confc_bob_init(confc);
+
 		M0_POST(not_empty(confd_addr) == confc_is_online(confc));
 		M0_POST(confc_invariant(confc));
-		M0_RETURN(rc);
+		M0_RETURN(0);
 	}
 err:
-	confc->cc_group = NULL;
 	confc->cc_root = NULL;
 	m0_conf_cache_fini(&confc->cc_cache);
+	m0_mutex_fini(&confc->cc_lock);
+
 	M0_RETURN(rc);
 }
 
@@ -470,6 +487,7 @@ M0_INTERNAL void m0_confc_fini(struct m0_confc *confc)
 	confc->cc_group = NULL;
 	confc->cc_root = NULL;
 	m0_conf_cache_fini(&confc->cc_cache);
+	m0_mutex_fini(&confc->cc_lock);
 
 	M0_LEAVE();
 }
@@ -482,25 +500,7 @@ M0_INTERNAL struct m0_confc *m0_confc_from_obj(const struct m0_conf_obj *obj)
 static bool _confc_check(const void *bob)
 {
 	const struct m0_confc *confc = bob;
-	return confc->cc_root != NULL && confc->cc_group != NULL;
-}
-
-static int
-root_stub_create(struct m0_confc *confc, const struct m0_buf *profile)
-{
-	int rc;
-
-	M0_ENTRY("confc=%p", confc);
-	M0_PRE(m0_buf_is_aimed(profile));
-
-	confc_cache_lock(confc);
-	rc = m0_conf_obj_find(&confc->cc_cache, M0_CO_PROFILE, profile,
-			      &confc->cc_root);
-	confc_cache_unlock(confc);
-
-	if (rc == 0)
-		confc->cc_root->co_mounted = true;
-	M0_RETURN(rc);
+	return confc->cc_root->co_mounted && confc->cc_group != NULL;
 }
 
 /* ------------------------------------------------------------------
@@ -526,9 +526,9 @@ m0_confc_ctx_init(struct m0_confc_ctx *ctx, struct m0_confc *confc)
 	m0_sm_init(&ctx->fc_mach, &confc_ctx_states_conf, S_INITIAL,
 		   confc->cc_group, NULL /* XXX TODO m0_addb_ctx */);
 
-	confc_cache_lock(confc);
+	confc_lock(confc);
 	M0_CNT_INC(confc->cc_nr_ctx); /* attach to m0_confc */
-	confc_cache_unlock(confc);
+	confc_unlock(confc);
 
 	confc_group_unlock(confc);
 
@@ -556,11 +556,11 @@ M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx)
 
 	confc_group_lock(confc); /* needed for m0_sm_fini() */
 
-	confc_cache_lock(confc);
+	confc_lock(confc);
 	if (ctx->fc_mach.sm_state == S_TERMINAL && ctx->fc_result != NULL)
 		m0_conf_obj_put(ctx->fc_result);
 	M0_CNT_DEC(confc->cc_nr_ctx); /* detach from m0_confc */
-	confc_cache_unlock(confc);
+	confc_unlock(confc);
 
 	m0_sm_fini(&ctx->fc_mach);
 	confc_group_unlock(confc);
@@ -714,9 +714,9 @@ M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj)
 {
 	M0_ENTRY();
 	if (obj != NULL) {
-		confc_cache_lock(m0_confc_from_obj(obj));
+		confc_lock(m0_confc_from_obj(obj));
 		m0_conf_obj_put(obj);
-		confc_cache_unlock(m0_confc_from_obj(obj));
+		confc_unlock(m0_confc_from_obj(obj));
 	}
 	M0_LEAVE();
 }
@@ -771,7 +771,7 @@ M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
 	M0_PRE(dir->co_type == M0_CO_DIR &&
 	       dir->co_cache == &ctx->fc_confc->cc_cache);
 
-	confc_cache_lock(m0_confc_from_obj(dir));
+	confc_lock(m0_confc_from_obj(dir));
 	rc = dir->co_ops->coo_readdir(dir, pptr);
 	if (rc == M0_CONF_DIRMISS) {
 		/*
@@ -791,7 +791,7 @@ M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
 		rc = m0_confc__open(ctx, dir->co_parent, path) ?:
 			M0_CONF_DIRMISS;
 	}
-	confc_cache_unlock(m0_confc_from_obj(dir));
+	confc_unlock(m0_confc_from_obj(dir));
 
 	M0_LEAVE("retval=%d", rc);
 	return rc;
@@ -868,9 +868,8 @@ static struct m0_confc_ctx *ast_to_ctx(struct m0_sm_ast *ast)
 static int path_walk(struct m0_confc_ctx *ctx);
 static int cache_grow(struct m0_confc *confc,
 		      const struct m0_conf_fetch_resp *resp);
-static void ast_fail(struct m0_sm_ast *ast, int32_t rc);
+static void ast_fail(struct m0_sm_ast *ast, int rc);
 static struct m0_confc_ctx *item_to_ctx(const struct m0_rpc_item *item);
-static bool confc_cache_is_locked(const struct m0_confc *confc);
 
 /** Actions to perform on entering S_CHECK state. */
 static int check_st_in(struct m0_sm *mach)
@@ -959,9 +958,10 @@ static int failure_st_in(struct m0_sm *mach)
 	 * Unset M0_CS_LOADING object with path_walk() in order for
 	 * m0_confc_fini() not to fail:
 	 *    m0_confc_fini
-	 *     \_ m0_conf_reg_fini
-	 *         \_ m0_conf_obj_delete
-	 *             \_ M0_PRE(obj->co_status != M0_CS_LOADING)
+	 *     \_ m0_conf_cache_fini
+	 *         \_ _obj_del
+	 *             \_ m0_conf_obj_delete
+	 *                 \_ M0_PRE(obj->co_status != M0_CS_LOADING)
 	 */
 	(void)path_walk(mach_to_ctx(mach));
 
@@ -981,7 +981,7 @@ static void on_replied(struct m0_rpc_item *item)
 		m0_rpc_item_get(item->ri_reply);
 		ast_state_set(&ctx->fc_ast, S_GROW_CACHE);
 	} else {
-		ast_fail(&ctx->fc_ast, item->ri_error);
+		ast_fail(&ctx->fc_ast, (int)item->ri_error);
 	}
 	M0_LEAVE();
 }
@@ -993,7 +993,7 @@ static bool on_object_updated(struct m0_clink *link)
 					  fc_clink, &ctx_bob);
 
 	M0_ENTRY();
-	M0_PRE(confc_cache_is_locked(ctx->fc_confc));
+	M0_PRE(confc_is_locked(ctx->fc_confc));
 
 	m0_clink_del(&ctx->fc_clink);
 	ast_state_set(&ctx->fc_ast, S_CHECK);
@@ -1077,7 +1077,7 @@ static int path_walk(struct m0_confc_ctx *ctx)
 	M0_PRE(m0_conf_obj_invariant(ctx->fc_origin));
 	M0_PRE(M0_IN(ctx->fc_mach.sm_state, (S_CHECK, S_FAILURE)));
 
-	confc_cache_lock(ctx->fc_confc);
+	confc_lock(ctx->fc_confc);
 
 	for (rc = 0, obj = ctx->fc_origin, ri = 0;
 	     rc == 0 && obj->co_status == M0_CS_READY &&
@@ -1090,7 +1090,7 @@ static int path_walk(struct m0_confc_ctx *ctx)
 	else
 		M0_ASSERT(rc == -ENOENT);
 
-	confc_cache_unlock(ctx->fc_confc);
+	confc_unlock(ctx->fc_confc);
 
 	M0_POST(confc_group_is_locked(ctx->fc_confc));
 	M0_LEAVE("retval=%d", rc);
@@ -1114,7 +1114,7 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 
 	M0_ENTRY("ctx=%p obj=%p ri=%zu", ctx, obj, ri);
 	M0_PRE(confc_group_is_locked(ctx->fc_confc));
-	M0_PRE(confc_cache_is_locked(ctx->fc_confc));
+	M0_PRE(confc_is_locked(ctx->fc_confc));
 
 	switch (obj->co_status) {
 	case M0_CS_READY:
@@ -1173,7 +1173,7 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 
 static void _state_set(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
 {
-	int state = *(int32_t *)ast->sa_datum;
+	int state = *(int *)ast->sa_datum;
 	M0_PRE(M0_IN(state, (S_INITIAL, S_CHECK, S_WAIT_REPLY, S_WAIT_STATUS,
 			     S_GROW_CACHE, /* note the absence of S_FAILURE */
 			     S_TERMINAL)));
@@ -1183,13 +1183,12 @@ static void _state_set(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
 
 static void _fail(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
 {
-	m0_sm_fail(&ast_to_ctx(ast)->fc_mach, S_FAILURE,
-		   *(int32_t *)ast->sa_datum);
+	m0_sm_fail(&ast_to_ctx(ast)->fc_mach, S_FAILURE, *(int *)ast->sa_datum);
 }
 
 static void _ast_post(struct m0_sm_ast *ast,
 		      void (*cb)(struct m0_sm_group *, struct m0_sm_ast *),
-		      int32_t datum)
+		      int datum)
 {
 	struct m0_confc_ctx *ctx = ast_to_ctx(ast);
 
@@ -1207,7 +1206,7 @@ static void ast_state_set(struct m0_sm_ast *ast, enum confc_ctx_state state)
 }
 
 /** Posts an AST that will move the state machine to S_FAILURE state. */
-static void ast_fail(struct m0_sm_ast *ast, int32_t rc)
+static void ast_fail(struct m0_sm_ast *ast, int rc)
 {
 	_ast_post(ast, _fail, rc);
 }
@@ -1223,10 +1222,11 @@ static int object_enrich(struct m0_conf_obj *dest,
 
 	M0_ENTRY();
 	M0_PRE(dest->co_type == src->o_conf.u_type);
-	M0_PRE(confc_cache_is_locked(confc));
+	M0_PRE(confc_is_locked(confc));
 	M0_PRE(dest->co_cache == &confc->cc_cache);
 
 	if (!m0_conf_obj_match(dest, src))
+		/* XXX TODO: ADDB */
 		M0_RETERR(-EPROTO,
 			  "Conflict of incoming and cached configuration data");
 
@@ -1234,8 +1234,7 @@ static int object_enrich(struct m0_conf_obj *dest,
 		M0_RETURN(0); /* do nothing */
 
 	rc = m0_conf_obj_fill(dest, src, &confc->cc_cache);
-	if (rc != 0)
-		dest->co_status = M0_CS_MISSING;
+	M0_ASSERT(dest->co_status == (rc == 0 ? M0_CS_READY : M0_CS_MISSING));
 	m0_chan_broadcast(&dest->co_chan);
 
 	M0_RETURN(rc);
@@ -1252,44 +1251,23 @@ cached_obj_update(struct m0_confc *confc, const struct m0_confx_obj *flat)
 		  object_enrich(obj, flat, confc));
 }
 
-static int cache_preload_locked(struct m0_confc *confc, const char *conf_str)
+/** Adds objects, described by a configuration string, to the cache. */
+static int confc_cache_preload(struct m0_confc *confc, const char *local_conf)
 {
 	struct m0_confx *enc;
 	uint32_t         i;
 	int              rc;
 
 	M0_ENTRY();
-	M0_PRE(confc_cache_is_locked(confc));
+	M0_PRE(confc_is_locked(confc));
 
-	rc = m0_confstr_parse(conf_str, &enc);
+	rc = m0_confstr_parse(local_conf, &enc);
 	if (rc == 0) {
 		for (i = 0; i < enc->cx_nr && rc == 0; ++i)
 			rc = cached_obj_update(confc, &enc->cx_objs[i]);
 		m0_confx_free(enc);
 	}
 	M0_RETURN(rc);
-}
-
-/** Adds objects, described by a configuration string, to the cache. */
-static int cache_preload(struct m0_confc *confc, const char *local_conf)
-{
-	int rc;
-
-	M0_ENTRY();
-	M0_PRE(confc->cc_root->co_status == M0_CS_MISSING);
-
-	confc_cache_lock(confc);
-	rc = cache_preload_locked(confc, local_conf);
-	confc_cache_unlock(confc);
-	if (rc != 0)
-		M0_RETURN(rc);
-
-	if (confc->cc_root->co_status == M0_CS_MISSING)
-		M0_RETERR(-EBADF,
-			  "Profile doesn't match preloaded configuration");
-
-	M0_POST(confc->cc_root->co_status == M0_CS_READY);
-	M0_RETURN(0);
 }
 
 /**
@@ -1309,7 +1287,7 @@ cache_grow(struct m0_confc *confc, const struct m0_conf_fetch_resp *resp)
 	M0_PRE(resp->fr_rc == 0);
 	M0_PRE(confc_group_is_locked(confc));
 
-	confc_cache_lock(confc);
+	confc_lock(confc);
 	for (i = 0; i < resp->fr_data.cx_nr; ++i) {
 		flat = &resp->fr_data.cx_objs[i];
 
@@ -1323,7 +1301,7 @@ cache_grow(struct m0_confc *confc, const struct m0_conf_fetch_resp *resp)
 		if (rc != 0)
 			break;
 	}
-	confc_cache_unlock(confc);
+	confc_unlock(confc);
 	M0_RETURN(rc);
 }
 
@@ -1543,19 +1521,19 @@ static bool confc_group_is_locked(const struct m0_confc *confc)
 	return m0_mutex_is_locked(&confc->cc_group->s_lock);
 }
 
-static void confc_cache_lock(struct m0_confc *confc)
+static void confc_lock(struct m0_confc *confc)
 {
-	m0_mutex_lock(&confc->cc_cache.ca_lock);
+	m0_mutex_lock(&confc->cc_lock);
 }
 
-static void confc_cache_unlock(struct m0_confc *confc)
+static void confc_unlock(struct m0_confc *confc)
 {
-	m0_mutex_unlock(&confc->cc_cache.ca_lock);
+	m0_mutex_unlock(&confc->cc_lock);
 }
 
-static bool confc_cache_is_locked(const struct m0_confc *confc)
+static bool confc_is_locked(const struct m0_confc *confc)
 {
-	return m0_mutex_is_locked(&confc->cc_cache.ca_lock);
+	return m0_mutex_is_locked(&confc->cc_lock);
 }
 
 /** @} confc_dlspec */

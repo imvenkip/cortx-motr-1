@@ -11,7 +11,6 @@ nobase_mero_include_HEADERS += \
                                conf/obj_ops.h \
                                conf/onwire.h \
                                conf/preload.h \
-                               conf/reg.h \
                                conf/schema.h
 
 mero_libmero_la_SOURCES += \
@@ -26,9 +25,7 @@ mero_libmero_la_SOURCES += \
                            conf/obj.c \
                            conf/obj_ops.c \
                            conf/onwire_xc.c \
-                           conf/preload.c \
-                           conf/reg.c \
-                           conf/reg_debug.c
+                           conf/preload.c
 
 XC_FILES += conf/onwire_xc.h
 

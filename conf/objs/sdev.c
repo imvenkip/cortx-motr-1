@@ -69,7 +69,7 @@ static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 static int sdev_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
 	M0_IMPOSSIBLE("XXX not implemented");
-	return -1;
+	return -ENOSYS;
 }
 
 static bool
@@ -91,7 +91,7 @@ static int sdev_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
 		       struct m0_conf_obj **out)
 {
 	M0_IMPOSSIBLE("XXX not implemented");
-	return -1;
+	return -ENOSYS;
 }
 
 static void sdev_delete(struct m0_conf_obj *obj)
