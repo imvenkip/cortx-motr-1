@@ -1,4 +1,3 @@
-#include <linux/time.h>
 /*
  * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
@@ -18,6 +17,9 @@
  * Original creation date: 04/13/2011
  */
 
+#include <linux/string.h>  /* strlen */
+#include <linux/time.h>
+#include "lib/arith.h"     /* max_check */
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/list.h"
@@ -79,30 +81,66 @@ M0_INTERNAL void m0_ut_add(const struct m0_test_suite *ts)
 }
 M0_EXPORTED(m0_ut_add);
 
+static int decimal_width(int n)
+{
+	int w = 1;  /* at least 1 decimal digit */
+	int ref;
+
+	if (n < 0) {
+		w++;  /* one character more for sign */
+		n = -n;
+	}
+	for (ref = 10; ref <= n; ref *= 10) {
+		w++;
+		if (ref * 10 < ref)  /* overflow check */
+			break;
+	}
+
+	return w;
+}
+
 /**
    Generate a run summary similar in appearance to a CUnit run summary.
  */
 static void uts_summary(void)
 {
-	int ran;
 	m0_time_t now;
 	m0_time_t diff;
 	int64_t msec;
+	int ran_w;     /* Ran/Total column width */
+	int passed_w;  /* Passed column width */
+	int failed_w;  /* Failed column width */
+	int test_ran = test_passed + test_failed;
+	int ran = passed + failed;
 
 	now = m0_time_now();
 	diff = m0_time_sub(now, started);
 	msec = (m0_time_nanoseconds(diff) + ONE_MILLION / 2) / ONE_MILLION;
 
-	printk(KERN_INFO "Run Summary:    Type  Total    Ran Passed Failed\n");
+	ran_w    = max_check(max_check((int)strlen("Total"),
+				       decimal_width(suite_ran)),
+			     max_check(decimal_width(test_ran),
+				       decimal_width(ran))
+			    ) + 1;  /* +1 char for space between columns */
+	passed_w = max_check((int)strlen("Passed"),
+			     max_check(decimal_width(test_passed),
+				       decimal_width(passed))) + 1;
+	failed_w = max_check((int)strlen("Failed"),
+			     max_check(decimal_width(test_failed),
+				       decimal_width(failed))) + 1;
+	printk(KERN_INFO "Run Summary:    Type%*s%*s%*s%*s\n",
+	       ran_w, "Total", ran_w, "Ran", passed_w, "Passed", failed_w,
+	       "Failed");
 	/* initial "." keeps syslog from trimming leading spaces */
-	printk(KERN_INFO ".%19s%7d%7d%7s%7d\n",
-	       "suites", suite_ran, suite_ran, "n/a", suite_failed);
-	ran = test_passed + test_failed;
-	printk(KERN_INFO ".%19s%7d%7d%7d%7d\n",
-	       "tests", ran, ran, test_passed, test_failed);
-	ran = passed + failed;
-	printk(KERN_INFO ".%19s%7d%7d%7d%7d\n",
-	       "asserts", ran, ran, passed, failed);
+	printk(KERN_INFO ".%19s%*d%*d%*s%*d\n",
+	       "suites", ran_w, suite_ran, ran_w, suite_ran, passed_w, "n/a",
+	       failed_w, suite_failed);
+	printk(KERN_INFO ".%19s%*d%*d%*d%*d\n",
+	       "tests", ran_w, test_ran, ran_w, test_ran, passed_w,
+	       test_passed, failed_w, test_failed);
+	printk(KERN_INFO ".%19s%*d%*d%*d%*d\n",
+	       "asserts", ran_w, ran, ran_w, ran, passed_w, passed, failed_w,
+	       failed);
 	printk(KERN_INFO "Elapsed time = %4lld.%03lld seconds\n",
 	       m0_time_seconds(diff), msec);
 }
