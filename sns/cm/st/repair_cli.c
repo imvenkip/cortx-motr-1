@@ -103,6 +103,8 @@ int main(int argc, char *argv[])
 	uint32_t            op;
 	uint32_t            unit_size;
 	uint64_t            fdata;
+	uint64_t            total_size = 0;
+	uint64_t            throughput;
 	uint64_t            fsize[MAX_FILES_NR];
 	uint64_t            N = 0;
 	uint64_t            K = 0;
@@ -153,7 +155,7 @@ int main(int argc, char *argv[])
 	M0_ALLOC_ARR(treq->fsize.f_size, file_cnt);
 	M0_ASSERT(treq->fsize.f_size != NULL);
 	for (i = 0; i < file_cnt; ++i)
-		treq->fsize.f_size[i] = fsize[i];
+		total_size += treq->fsize.f_size[i] = fsize[i];
 	treq->fsize.f_nr = file_cnt;
 
 	treq->N = N;
@@ -167,10 +169,12 @@ int main(int argc, char *argv[])
 				0 /* deadline */);
 	M0_ASSERT(rc == 0);
 	delta = m0_time_sub(m0_time_now(), start);
-	printf("Time: %lu.%2.2lu sec\n", (unsigned long)m0_time_seconds(delta),
+	printf("Time: %lu.%2.2lu sec,", (unsigned long)m0_time_seconds(delta),
 	       (unsigned long)m0_time_nanoseconds(delta) * 100 /
-		M0_TIME_ONE_BILLION);
-
+	       M0_TIME_ONE_BILLION);
+	throughput = total_size / (unsigned long)m0_time_seconds(delta);
+	printf(" %lu.%2.2lu MB/s\n", throughput / (1024 *1024),
+	       (throughput % (1024 * 1024)) / (1024 * 100));
 	m0_fop_put(fop);
 	client_fini();
 	m0_sns_repair_trigger_fop_fini();

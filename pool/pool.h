@@ -43,6 +43,13 @@ struct m0_dtx;
 struct m0_pool;
 struct m0_poolmach;
 
+enum {
+	PM_DEFAULT_NR_NODES = 1,
+	PM_DEFAULT_NR_DEV = 20,
+	PM_DEFAULT_MAX_NODE_FAILURES = 1,
+	PM_DEFAULT_MAX_DEV_FAILURES = 1
+};
+
 struct m0_pool {
 	uint32_t            po_width;
 	struct m0_poolmach *po_mach;

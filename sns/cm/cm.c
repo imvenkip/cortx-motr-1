@@ -472,13 +472,15 @@ static int pm_event_setup_and_post(struct m0_poolmach *pm,
 
 static int cm_start(struct m0_cm *cm)
 {
-	struct m0_sns_cm *scm;
-	int               bufs_nr;
-	int               rc;
+	struct m0_sns_cm      *scm;
+	enum m0_pool_nd_state  pm_state;
+	int                    bufs_nr;
+	int                    rc;
 
 	M0_ENTRY("cm: %p", cm);
 
 	scm = cm2sns(cm);
+	M0_ASSERT(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
 
 	bufs_nr = cm_buffer_pool_provision(&scm->sc_ibp, SNS_INCOMING_BUF_NR);
 	if (bufs_nr == 0)
@@ -492,18 +494,22 @@ static int cm_start(struct m0_cm *cm)
 	if (bufs_nr == 0)
 		return -ENOMEM;
 
-        rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
-                                     scm->sc_it.si_fdata,
-                                     M0_PNDS_FAILED);
-        if (rc != 0)
-                return rc;
+	pm_state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRING :
+					      M0_PNDS_SNS_REBALANCING;
+	if (pm_state == M0_PNDS_SNS_REPAIRING) {
+		rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
+					     scm->sc_it.si_fdata,
+					     M0_PNDS_FAILED);
+		if (rc != 0)
+			return rc;
+	}
 
 	rc = m0_sns_cm_iter_init(&scm->sc_it);
 	if (rc == 0) {
 		m0_cm_sw_fill(cm);
                rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
 					    scm->sc_it.si_fdata,
-					    M0_PNDS_SNS_REPAIRING);
+					    pm_state);
 
 	}
 
@@ -513,14 +519,18 @@ static int cm_start(struct m0_cm *cm)
 
 static int cm_stop(struct m0_cm *cm)
 {
-	struct m0_sns_cm *scm;
+	struct m0_sns_cm      *scm;
+	enum m0_pool_nd_state  pm_state;
 
 	M0_PRE(cm != NULL);
 
 	scm = cm2sns(cm);
+	M0_ASSERT(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
+	pm_state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRED :
+					      M0_PNDS_SNS_REBALANCED;
 	m0_sns_cm_iter_fini(&scm->sc_it);
         pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE, scm->sc_it.si_fdata,
-                                M0_PNDS_SNS_REPAIRED);
+                                pm_state);
 
 	return 0;
 }

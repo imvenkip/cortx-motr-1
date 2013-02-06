@@ -265,7 +265,9 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh *reqh)
 	}
 
 	/* TODO configuration information is needed here. */
-	rc = m0_poolmach_init(poolmach, reqh->rh_dtm, 1, 10, 1, 1);
+	rc = m0_poolmach_init(poolmach, reqh->rh_dtm, PM_DEFAULT_NR_NODES,
+			      PM_DEFAULT_NR_DEV, PM_DEFAULT_MAX_NODE_FAILURES,
+			      PM_DEFAULT_MAX_DEV_FAILURES);
 	if (rc != 0) {
 		m0_free(poolmach);
 		goto out;
