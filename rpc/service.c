@@ -35,10 +35,10 @@
 static struct m0_bob_type rpc_service_type_bob;
 
 static void m0_rpc_service_type_bob_init(struct m0_rpc_service_type *)
-				__attribute__((unused));
+	__attribute__((unused));
 
 static void m0_rpc_service_type_bob_fini(struct m0_rpc_service_type *)
-				__attribute__((unused));
+	__attribute__((unused));
 
 M0_BOB_DEFINE(static, &rpc_service_type_bob, m0_rpc_service_type);
 
@@ -114,8 +114,8 @@ M0_INTERNAL void m0_rpc_service_type_unregister(struct m0_rpc_service_type
 		NULL);
 }
 
-M0_INTERNAL struct m0_rpc_service_type *m0_rpc_service_type_locate(uint32_t
-								   type_id)
+M0_INTERNAL struct m0_rpc_service_type *
+m0_rpc_service_type_locate(uint32_t type_id)
 {
 	struct m0_rpc_service_type *service_type;
 

@@ -1,11 +1,18 @@
 ut_libmero_ut_la_SOURCES += reqh/ut/reqh_fom_ut.c \
-			    reqh/ut/io_fop.c \
+                            reqh/ut/io_fop.c \
                             reqh/ut/io_fop.h \
                             reqh/ut/io_fop_xc.h \
-			    reqh/ut/io_fop_xc.c
+                            reqh/ut/io_fop_xc.c \
+                            reqh/ut/reqh_service.c \
+                            reqh/ut/reqh_service_xc.h \
+                            reqh/ut/reqh_service_xc.c
 
-XC_FILES   += reqh/ut/io_fop_xc.h
+XC_FILES   += reqh/ut/io_fop_xc.h \
+              reqh/ut/reqh_service_xc.h
 
 CLEANFILES += reqh/ut/io_fop_xc.h \
               reqh/ut/io_fop_xc.c \
-	      reqh/ut/io_fop.gccxml
+	      reqh/ut/io_fop.gccxml \
+              reqh/ut/reqh_service_xc.h \
+              reqh/ut/reqh_service_xc.c \
+	      reqh/ut/reqh_service.gccxml

@@ -118,8 +118,8 @@ M0_INTERNAL void m0_rpc_service_type_register(struct m0_rpc_service_type
  *         otherwise.
  * @post ergo(result != NULL, result->svt_type_id == type_id)
  */
-M0_INTERNAL struct m0_rpc_service_type *m0_rpc_service_type_locate(uint32_t
-								   type_id);
+M0_INTERNAL struct m0_rpc_service_type *
+m0_rpc_service_type_locate(uint32_t type_id);
 
 /**
  * Unregisters a service type.

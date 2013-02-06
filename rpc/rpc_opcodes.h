@@ -167,6 +167,9 @@ enum M0_RPC_OPCODES {
 
 	M0_LAYOUT_OPCODE                    = 93,
 	M0_LAYOUT_REP_OPCODE                = 94,
+
+	/* Request handler ut dummy opcode */
+	M0_REQH_UT_DUMMY_OPCODE             = 95,
 };
 /** @} endgroup rpc_layer_core */
 
@@ -181,4 +184,3 @@ enum M0_RPC_OPCODES {
  *  scroll-step: 1
  *  End:
  */
-

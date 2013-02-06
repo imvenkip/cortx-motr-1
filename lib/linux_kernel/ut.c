@@ -26,6 +26,8 @@
 #include "lib/time.h"
 #include "lib/ut.h"
 
+#include "ut/ut.h"
+
 /**
    @addtogroup ut
    @{
@@ -52,7 +54,7 @@ enum {
 M0_INTERNAL int m0_uts_init(void)
 {
 	m0_list_init(&suites);
-	return 0;
+	return m0_ut_init();
 }
 M0_EXPORTED(m0_uts_init);
 
@@ -66,6 +68,7 @@ M0_INTERNAL void m0_uts_fini(void)
 		m0_list_del(&ts->tse_link);
 		m0_free(ts);
 	}
+	m0_ut_fini();
 	m0_list_fini(&suites);
 }
 M0_EXPORTED(m0_uts_fini);

@@ -107,12 +107,3 @@ M0_INTERNAL void m0_timers_fini(void)
 {
 
 }
-
-struct m0_reqh_service;
-struct m0_reqh;
-M0_INTERNAL struct m0_reqh_service *m0_reqh_service_get(const char
-							*service_name,
-							struct m0_reqh *reqh)
-{
-	return NULL;
-}
