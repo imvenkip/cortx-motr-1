@@ -861,17 +861,6 @@ M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
 			 dom->fd_localities[i].fl_foms == 0);
 }
 
-#undef FOM_ADDB_POST
-#define FOM_ADDB_POST(fom, addb_mc, recid, ...)				\
-do {									\
-	struct m0_addb_ctx *cv[3];					\
-									\
-	cv[0]   = &fom->fo_addb_ctx;					\
-	cv[1]   =  fom->fo_op_addb_ctx;					\
-	cv[2]   = NULL;							\
-	M0_ADDB_POST(addb_mc, recid, cv, ## __VA_ARGS__);		\
-} while(0)
-
 void m0_fom_fini(struct m0_fom *fom)
 {
 	struct m0_fom_domain   *fdom;
@@ -886,10 +875,10 @@ void m0_fom_fini(struct m0_fom *fom)
 	reqh = fdom->fd_reqh;
 	fom_state_set(fom, M0_FOS_FINISH);
 	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx))
-		FOM_ADDB_POST(fom, &reqh->rh_addb_mc, &m0_addb_rt_fom_fini,
-			      fom->fo_transitions,
-			      m0_time_sub(m0_time_now(), fom->fo_ctime) / 1000,
-			      fom->fo_etime / 1000);
+		M0_FOM_ADDB_POST(fom, &reqh->rh_addb_mc, &m0_addb_rt_fom_fini,
+				 fom->fo_transitions,
+			       m0_time_sub(m0_time_now(), fom->fo_ctime) / 1000,
+				 fom->fo_etime / 1000);
 	m0_addb_ctx_fini(&fom->fo_addb_ctx);
 	if (fom->fo_op_addb_ctx != NULL) {
 		m0_addb_ctx_fini(fom->fo_op_addb_ctx);
@@ -959,7 +948,7 @@ void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
 		M0_ASSERT(fom->fo_addb_ctx.ac_magic != 0);
 	}
 	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx))
-		FOM_ADDB_POST(fom, &reqh->rh_addb_mc, &m0_addb_rt_fom_init);
+		M0_FOM_ADDB_POST(fom, &reqh->rh_addb_mc, &m0_addb_rt_fom_init);
 	fom->fo_ctime = m0_time_now();
 }
 M0_EXPORTED(m0_fom_init);
