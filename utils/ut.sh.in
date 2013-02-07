@@ -28,8 +28,13 @@ modload || exit $?
 # this can be overridden with '-e' CLI option.
 export M0_TRACE_LEVEL='fatal+'
 
+# $EXEC allows to reuse this script to execute different utilities which need
+# loaded mero modules prior to be run. For example, running utitiliy called `ub'
+# will need the following symlink to be created: `ln -s ut.sh ub.sh'.
+EXEC=`echo ${0##*/} | sed 's/\.sh$//'`
+
 if test x$enable_rpm = xyes; then
-    ut "$@"
+    $EXEC "$@"
 else
-    @abs_top_srcdir@/utils/ut "$@"
+    @abs_top_srcdir@/utils/$EXEC "$@"
 fi

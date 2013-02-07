@@ -95,19 +95,19 @@ static void ub_64(int i)
 struct m0_ub_set m0_trace_ub = {
 	.us_name = "trace-ub",
 	.us_run  = {
-		{ .ut_name = "empty",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_empty },
+		{ .ub_name = "empty",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_empty },
 
-		{ .ut_name = "8",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_8 },
+		{ .ub_name = "8",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_8 },
 
-		{ .ut_name = "64",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_64 },
+		{ .ub_name = "64",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_64 },
 
-		{ .ut_name = NULL }
+		{ .ub_name = NULL }
 	}
 };
 

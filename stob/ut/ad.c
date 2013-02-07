@@ -383,19 +383,19 @@ struct m0_ub_set m0_ad_ub = {
 	.us_init = (void *)test_ad_init,
 	.us_fini = (void *)test_ad_fini,
 	.us_run  = {
-		{ .ut_name = "write-prime",
-		  .ut_iter = 1,
-		  .ut_round = ub_write },
+		{ .ub_name = "write-prime",
+		  .ub_iter = 1,
+		  .ub_round = ub_write },
 
-		{ .ut_name = "write",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_write },
+		{ .ub_name = "write",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_write },
 
-		{ .ut_name = "read",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_read },
+		{ .ub_name = "read",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_read },
 
-		{ .ut_name = NULL }
+		{ .ub_name = NULL }
 	}
 };
 

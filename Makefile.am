@@ -132,7 +132,8 @@ include $(top_srcdir)/xcode/ff2c/Makefile.sub
 lib_LTLIBRARIES                += mero/libmero.la
 mero_libmero_la_LDFLAGS   = -release @LT_RELEASE@ -pthread $(AM_LDFLAGS)
 mero_libmero_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
-                                  @DB_LIBS@ @GALOIS_LIBS@ @YAML_LIBS@ @CUNIT_LIBS@
+                            @DB_LIBS@ @GALOIS_LIBS@ @YAML_LIBS@ @CUNIT_LIBS@ \
+                            @PROFILER_LIBS@
 
 # TODO: remove CUnit dependency from libmero, move lib/ut.c to ut/ and
 # libmero-ut
@@ -208,6 +209,7 @@ include $(top_srcdir)/console/ut/Makefile.sub
 include $(top_srcdir)/db/ut/Makefile.sub
 include $(top_srcdir)/fol/ut/Makefile.sub
 include $(top_srcdir)/fop/ut/Makefile.sub
+include $(top_srcdir)/fop/perf/Makefile.sub
 include $(top_srcdir)/ioservice/ut/Makefile.sub
 include $(top_srcdir)/layout/ut/Makefile.sub
 include $(top_srcdir)/mdservice/ut/Makefile.sub

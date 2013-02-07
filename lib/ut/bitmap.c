@@ -159,16 +159,16 @@ struct m0_ub_set m0_bitmap_ub = {
 	.us_init = ub_init,
 	.us_fini = ub_fini,
 	.us_run  = {
-		{ .ut_name = "set0",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_set0 },
-		{ .ut_name = "set1",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_set1 },
-		{ .ut_name = "get",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_get },
-		{ .ut_name = NULL }
+		{ .ub_name = "set0",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_set0 },
+		{ .ub_name = "set1",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_set1 },
+		{ .ub_name = "get",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_get },
+		{ .ub_name = NULL }
 	}
 };
 

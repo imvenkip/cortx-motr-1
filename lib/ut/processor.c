@@ -808,16 +808,16 @@ struct m0_ub_set m0_processor_ub = {
 	.us_init = ub_init,
 	.us_fini = ub_fini,
 	.us_run = {
-		   {.ut_name = "Init1",
-		    .ut_iter = UB_ITER,
-		    .ut_round = ub_init1},
-		   {.ut_name = "Init2",
-		    .ut_iter = UB_ITER,
-		    .ut_round = ub_init2},
-		   {.ut_name = "Init3",
-		    .ut_iter = UB_ITER,
-		    .ut_round = ub_init3},
-		   {.ut_name = NULL}
+		   {.ub_name = "Init1",
+		    .ub_iter = UB_ITER,
+		    .ub_round = ub_init1},
+		   {.ub_name = "Init2",
+		    .ub_iter = UB_ITER,
+		    .ub_round = ub_init2},
+		   {.ub_name = "Init3",
+		    .ub_iter = UB_ITER,
+		    .ub_round = ub_init3},
+		   {.ub_name = NULL}
 		   }
 };
 

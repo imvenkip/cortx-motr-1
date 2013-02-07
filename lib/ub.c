@@ -27,6 +27,7 @@
 #include <math.h>      /* sqrt */
 
 #include "lib/misc.h"   /* M0_SET0 */
+#include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/arith.h"
 #include "lib/ub.h"
@@ -37,6 +38,31 @@
  */
 
 static struct m0_ub_set *last = NULL;
+
+M0_INTERNAL void m0_ub_set_print(void)
+{
+	struct m0_ub_set *set;
+
+	printf("Available benchmarks:\n");
+	for (set = last; set != NULL; set = set->us_prev)
+		printf("%s\n", set->us_name);
+}
+
+M0_INTERNAL int m0_ub_set_select(const char *name)
+{
+	struct m0_ub_set *set;
+
+	for (set = last; set != NULL; set = set->us_prev) {
+		if (strcmp(set->us_name, name) == 0) {
+			last = set;
+			last->us_prev = NULL;
+			return 0;
+		}
+	}
+	printf("Given benchmark `%s' not found\n", name);
+
+	return -ENOENT;
+}
 
 M0_INTERNAL void m0_ub_set_add(struct m0_ub_set *set)
 {
@@ -95,19 +121,19 @@ static void ub_run_one(const struct m0_ub_set *set, struct m0_ub_bench *bench)
 	double         sec;
 
 	printf(".");
-	if (bench->ut_init != NULL)
-		bench->ut_init();
+	if (bench->ub_init != NULL)
+		bench->ub_init();
 	gettimeofday(&start, NULL);
-	for (i = 0; i < bench->ut_iter; ++i)
-		bench->ut_round(i);
+	for (i = 0; i < bench->ub_iter; ++i)
+		bench->ub_round(i);
 	gettimeofday(&end, NULL);
-	if (bench->ut_fini != NULL)
-		bench->ut_fini();
+	if (bench->ub_fini != NULL)
+		bench->ub_fini();
 	sec = delay(&start, &end);
-	bench->ut_total += sec;
-	bench->ut_square += sec * sec;
-	bench->ut_max = max_type(double, bench->ut_max, sec);
-	bench->ut_min = min_type(double, bench->ut_min, sec);
+	bench->ub_total += sec;
+	bench->ub_square += sec * sec;
+	bench->ub_max = max_type(double, bench->ub_max, sec);
+	bench->ub_min = min_type(double, bench->ub_min, sec);
 }
 
 M0_INTERNAL void m0_ub_run(uint32_t rounds)
@@ -117,11 +143,11 @@ M0_INTERNAL void m0_ub_run(uint32_t rounds)
 	struct m0_ub_bench *bench;
 
 	for (set = last; set != NULL; set = set->us_prev) {
-		for (bench = &set->us_run[0]; bench->ut_name; bench++) {
-			bench->ut_total  = 0.0;
-			bench->ut_square = 0.0;
-			bench->ut_min    = INFINITY;
-			bench->ut_max    = 0.0;
+		for (bench = &set->us_run[0]; bench->ub_name; bench++) {
+			bench->ub_total  = 0.0;
+			bench->ub_square = 0.0;
+			bench->ub_min    = INFINITY;
+			bench->ub_max    = 0.0;
 		}
 	}
 
@@ -131,7 +157,7 @@ M0_INTERNAL void m0_ub_run(uint32_t rounds)
 			printf("%s[", set->us_name);
 			if (set->us_init != NULL)
 				set->us_init();
-			for (bench = &set->us_run[0]; bench->ut_name; bench++)
+			for (bench = &set->us_run[0]; bench->ub_name; bench++)
 				ub_run_one(set, bench);
 			if (set->us_fini != NULL)
 				set->us_fini();
@@ -143,19 +169,19 @@ M0_INTERNAL void m0_ub_run(uint32_t rounds)
 		       "sec/op", "op/sec");
 		for (set = last; set != NULL; set = set->us_prev) {
 			printf("\tset: %12.12s\n", set->us_name);
-			for (bench = &set->us_run[0]; bench->ut_name; bench++) {
+			for (bench = &set->us_run[0]; bench->ub_name; bench++) {
 				double avg;
 				double std;
 
-				avg = bench->ut_total/i;
-				std = sqrt(bench->ut_square/i - avg*avg);
+				avg = bench->ub_total/i;
+				std = sqrt(bench->ub_square/i - avg*avg);
 				printf("\t\t%12.12s: [%7i] %6.2f %6.2f "
 				       "%6.2f %5.2f%% %8.3e/%8.3e\n",
-				       bench->ut_name,
-				       bench->ut_iter,
-				       bench->ut_min, bench->ut_max,
+				       bench->ub_name,
+				       bench->ub_iter,
+				       bench->ub_min, bench->ub_max,
 				       avg, std*100.0/avg,
-				       avg/bench->ut_iter, bench->ut_iter/avg);
+				       avg/bench->ub_iter, bench->ub_iter/avg);
 			}
 		}
 	}

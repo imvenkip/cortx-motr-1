@@ -231,19 +231,19 @@ struct m0_ub_set m0_fol_ub = {
 	.us_init = ub_init,
 	.us_fini = ub_fini,
 	.us_run  = {
-		{ .ut_name = "insert",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_insert },
+		{ .ub_name = "insert",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_insert },
 
-		{ .ut_name = "lookup",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_lookup },
+		{ .ub_name = "lookup",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_lookup },
 
-		{ .ut_name = "insert-buf",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_insert_buf },
+		{ .ub_name = "insert-buf",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_insert_buf },
 
-		{ .ut_name = NULL }
+		{ .ub_name = NULL }
 	}
 };
 

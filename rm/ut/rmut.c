@@ -157,7 +157,7 @@ struct m0_ub_set m0_rm_ub = {
 	.us_init = ub_init,
 	.us_fini = ub_fini,
 	.us_run  = {
-		{ .ut_name = NULL }
+		{ .ub_name = NULL }
 	}
 };
 

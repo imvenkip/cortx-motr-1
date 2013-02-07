@@ -109,39 +109,39 @@ struct m0_ub_set m0_memory_ub = {
 	.us_init = ub_init,
 	.us_fini = NULL,
 	.us_run  = {
-		{ .ut_name  = "alloc-small",
-		  .ut_iter  = UB_ITER,
-		  .ut_round = ub_small },
+		{ .ub_name  = "alloc-small",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_small },
 
-		{ .ut_name  = "free-small",
-		  .ut_iter  = UB_ITER,
-		  .ut_round = ub_free },
+		{ .ub_name  = "free-small",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_free },
 
-		{ .ut_name  = "alloc-medium",
-		  .ut_iter  = UB_ITER,
-		  .ut_round = ub_medium },
+		{ .ub_name  = "alloc-medium",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_medium },
 
-		{ .ut_name  = "free-medium",
-		  .ut_iter  = UB_ITER,
-		  .ut_round = ub_free },
+		{ .ub_name  = "free-medium",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_free },
 
-		{ .ut_name  = "alloc-large",
-		  .ut_iter  = UB_ITER,
-		  .ut_round = ub_large },
+		{ .ub_name  = "alloc-large",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_large },
 
-		{ .ut_name  = "free-large",
-		  .ut_iter  = UB_ITER,
-		  .ut_round = ub_free },
+		{ .ub_name  = "free-large",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_free },
 
-		{ .ut_name  = "alloc-huge",
-		  .ut_iter  = UB_ITER/1000,
-		  .ut_round = ub_huge },
+		{ .ub_name  = "alloc-huge",
+		  .ub_iter  = UB_ITER/1000,
+		  .ub_round = ub_huge },
 
-		{ .ut_name  = "free-huge",
-		  .ut_iter  = UB_ITER/1000,
-		  .ut_round = ub_free },
+		{ .ub_name  = "free-huge",
+		  .ub_iter  = UB_ITER/1000,
+		  .ub_round = ub_free },
 
-		{ .ut_name = NULL }
+		{ .ub_name = NULL }
 	}
 };
 

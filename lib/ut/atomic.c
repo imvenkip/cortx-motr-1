@@ -266,11 +266,11 @@ struct m0_ub_set m0_atomic_ub = {
 	.us_init = NULL,
 	.us_fini = NULL,
 	.us_run  = {
-		{ .ut_name  = "atomic",
-		  .ut_iter  = UB_ITER,
-		  .ut_round = atomic_ub },
+		{ .ub_name  = "atomic",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = atomic_ub },
 
-		{ .ut_name  = NULL }
+		{ .ub_name  = NULL }
 	}
 };
 

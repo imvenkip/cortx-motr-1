@@ -473,43 +473,43 @@ struct m0_ub_set m0_parity_math_ub = {
         .us_fini = NULL,
         .us_run  = {
 		/*             parity_math-: */
-                { .ut_name  = "s 10/05/ 4K",
-                  .ut_iter  = UB_ITER,
-                  .ut_round = ub_small_4096 },
+                { .ub_name  = "s 10/05/ 4K",
+                  .ub_iter  = UB_ITER,
+                  .ub_round = ub_small_4096 },
 
-                { .ut_name  = "m 20/06/ 4K",
-                  .ut_iter  = UB_ITER,
-                  .ut_round = ub_medium_4096 },
+                { .ub_name  = "m 20/06/ 4K",
+                  .ub_iter  = UB_ITER,
+                  .ub_round = ub_medium_4096 },
 
-                { .ut_name  = "l 30/12/ 4K",
-                  .ut_iter  = UB_ITER,
-                  .ut_round = ub_large_4096 },
+                { .ub_name  = "l 30/12/ 4K",
+                  .ub_iter  = UB_ITER,
+                  .ub_round = ub_large_4096 },
 
-                { .ut_name  = "s 10/05/32K",
-                  .ut_iter  = UB_ITER,
-                  .ut_round = ub_small_32768 },
+                { .ub_name  = "s 10/05/32K",
+                  .ub_iter  = UB_ITER,
+                  .ub_round = ub_small_32768 },
 
-                { .ut_name  = "m 20/06/32K",
-                  .ut_iter  = UB_ITER,
-                  .ut_round = ub_medium_32768 },
+                { .ub_name  = "m 20/06/32K",
+                  .ub_iter  = UB_ITER,
+                  .ub_round = ub_medium_32768 },
 
-                { .ut_name  = "l 30/12/32K",
-                  .ut_iter  = UB_ITER,
-                  .ut_round = ub_large_32768 },
+                { .ub_name  = "l 30/12/32K",
+                  .ub_iter  = UB_ITER,
+                  .ub_round = ub_large_32768 },
 
-                { .ut_name  = "s  03/02/ 1M",
-                  .ut_iter  = UB_ITER,
-                  .ut_round = ub_small_1048576 },
+                { .ub_name  = "s  03/02/ 1M",
+                  .ub_iter  = UB_ITER,
+                  .ub_round = ub_small_1048576 },
 
-                { .ut_name  = "m 06/03/ 1M",
-                  .ut_iter  = UB_ITER,
-                  .ut_round = ub_medium_1048576 },
+                { .ub_name  = "m 06/03/ 1M",
+                  .ub_iter  = UB_ITER,
+                  .ub_round = ub_medium_1048576 },
 
-                { .ut_name  = "l 08/04/ 1M",
-                  .ut_iter  = UB_ITER,
-                  .ut_round = ub_large_1048576 },
+                { .ub_name  = "l 08/04/ 1M",
+                  .ub_iter  = UB_ITER,
+                  .ub_round = ub_large_1048576 },
 
-		{ .ut_name = NULL}
+		{ .ub_name = NULL}
 	}
 };
 

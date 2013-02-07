@@ -19,8 +19,13 @@
  */
 
 #include <stdlib.h>             /* atoi */
+#include <string.h>             /* strdup */
 
 #include "lib/ub.h"
+#include "lib/memory.h"
+#include "lib/cdefs.h"          /* ARRAY_SIZE */
+#include "lib/thread.h"         /* LAMBDA */
+#include "lib/getopts.h"
 #include "utils/common.h"
 
 extern struct m0_ub_set m0_atomic_ub;
@@ -38,42 +43,110 @@ extern struct m0_ub_set m0_emap_ub;
 extern struct m0_ub_set m0_fol_ub;
 extern struct m0_ub_set m0_parity_math_ub;
 extern struct m0_ub_set m0_rm_ub;
+extern struct m0_ub_set m0_fom_ub;
 
 #define UB_SANDBOX "./ub-sandbox"
 
-int main(int argc, char *argv[])
+struct ub_args {
+	bool	    ua_ub_list;
+	uint32_t    ua_rounds;
+	char       *ua_name;
+	char       *ua_args;
+};
+
+static void ub_args_fini(struct ub_args *args)
 {
-	uint32_t rounds;
+	m0_free(args->ua_args);
+	m0_free(args->ua_name);
+}
 
-	if (argc > 1)
-		rounds = atoi(argv[1]);
-	else
-		rounds = ~0;
+static int ub_args_parse(int argc, char *argv[], struct ub_args *out)
+{
+	out->ua_rounds = 1;
+	out->ua_name = NULL;
+	out->ua_args = NULL;
+	out->ua_ub_list = false;
 
-	if (unit_start(UB_SANDBOX) == 0) {
-                /* Note these tests are run in reverse order from the way
-                   they are listed here */
-		m0_ub_set_add(&m0_memory_ub);
-                m0_ub_set_add(&m0_adieu_ub);
-                m0_ub_set_add(&m0_ad_ub);
-                m0_ub_set_add(&m0_db_ub);
-                m0_ub_set_add(&m0_cob_ub);
-                m0_ub_set_add(&m0_emap_ub);
-                m0_ub_set_add(&m0_fol_ub);
-                m0_ub_set_add(&m0_tlist_ub);
-                m0_ub_set_add(&m0_list_ub);
-                m0_ub_set_add(&m0_bitmap_ub);
-                m0_ub_set_add(&m0_parity_math_ub);
-                m0_ub_set_add(&m0_rm_ub);
-		m0_ub_set_add(&m0_thread_ub);
-		m0_ub_set_add(&m0_trace_ub);
-		m0_ub_set_add(&m0_atomic_ub);
-		m0_ub_run(rounds);
+	return M0_GETOPTS("ub", argc, argv,
+		  M0_HELPARG('h'),
+		  M0_NUMBERARG('r', "Number of rounds UB has to be run",
+			       LAMBDA(void, (int64_t rounds) {
+					       out->ua_rounds = rounds;
+				       })),
+		  M0_VOIDARG('l', "List available benchmark tests",
+			     LAMBDA(void, (void) {
+					     out->ua_ub_list = true;
+				     })),
+		  M0_STRINGARG('t', "Benchmark test name to run",
+			       LAMBDA(void, (const char *str) {
+					       out->ua_name = strdup(str);
+				       })),
+		  M0_STRINGARG('a', "Benchmark test args",
+			       LAMBDA(void, (const char *str) {
+					       out->ua_args = strdup(str);
+				       }))
+		);
+}
 
-		unit_end(UB_SANDBOX, false);
+static void ub_add(const struct ub_args *args)
+{
+	/* Note these tests are run in reverse order from the way
+	   they are listed here */
+
+	m0_ub_set_add(&m0_memory_ub);
+	m0_ub_set_add(&m0_adieu_ub);
+	m0_ub_set_add(&m0_ad_ub);
+	m0_ub_set_add(&m0_db_ub);
+	m0_ub_set_add(&m0_cob_ub);
+	m0_ub_set_add(&m0_emap_ub);
+	m0_ub_set_add(&m0_fol_ub);
+	m0_ub_set_add(&m0_tlist_ub);
+	m0_ub_set_add(&m0_list_ub);
+	m0_ub_set_add(&m0_bitmap_ub);
+	m0_ub_set_add(&m0_parity_math_ub);
+	m0_ub_set_add(&m0_rm_ub);
+	m0_ub_set_add(&m0_thread_ub);
+	m0_ub_set_add(&m0_trace_ub);
+	m0_ub_set_add(&m0_atomic_ub);
+	m0_ub_set_add(&m0_fom_ub);
+}
+
+static void ub_run(const struct ub_args *args)
+{
+	if (args->ua_ub_list) {
+		m0_ub_set_print();
+		return;
 	}
 
-	return 0;
+	if (args->ua_name != NULL) {
+		if (m0_ub_set_select(args->ua_name) != 0)
+			return;
+	}
+
+	m0_ub_run(args->ua_rounds);
+}
+
+int main(int argc, char *argv[])
+{
+	struct ub_args args;
+	int            rc;
+
+	rc = unit_start(UB_SANDBOX);
+	if (rc != 0)
+		goto unit;
+
+	rc = ub_args_parse(argc, argv, &args);
+	if (rc != 0)
+		goto parse;
+
+	ub_add(&args);
+	ub_run(&args);
+
+parse:
+	ub_args_fini(&args);
+unit:
+	unit_end(UB_SANDBOX, false);
+	return rc;
 }
 
 /*

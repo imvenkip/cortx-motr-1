@@ -221,21 +221,21 @@ struct m0_ub_set m0_thread_ub = {
 	.us_init = ub_init,
 	.us_fini = ub_fini,
 	.us_run  = {
-		{ .ut_name  = "spawn",
-		  .ut_iter  = UB_ITER,
-		  .ut_round = ub_spawn },
+		{ .ub_name  = "spawn",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_spawn },
 
-		{ .ut_name  = "join",
-		  .ut_iter  = UB_ITER,
-		  .ut_round = ub_join,
-		  .ut_fini  = ub_init /* sic */ },
+		{ .ub_name  = "join",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_join,
+		  .ub_fini  = ub_init /* sic */ },
 
-		{ .ut_name  = "spawn-init",
-		  .ut_iter  = UB_ITER,
-		  .ut_round = ub_spawn_init,
-		  .ut_fini  = ub_join_all },
+		{ .ub_name  = "spawn-init",
+		  .ub_iter  = UB_ITER,
+		  .ub_round = ub_spawn_init,
+		  .ub_fini  = ub_join_all },
 
-		{ .ut_name = NULL }
+		{ .ub_name = NULL }
 	}
 };
 

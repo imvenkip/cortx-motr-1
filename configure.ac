@@ -48,6 +48,7 @@ AC_ARG_VAR([GCCXML],  [gccxml command])
 
 AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in automic functions])
 AH_TEMPLATE([ENABLE_DEBUG],           [Enable debug info.])
+AH_TEMPLATE([ENABLE_PROFILER],        [Enable profile samples gathering.])
 AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
 AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([ENABLE_EXPENSIVE_CHECKS],[Enable expensive checks.])
@@ -68,6 +69,13 @@ AC_ARG_ENABLE([debug],
 )
 AM_CONDITIONAL([ENABLE_DEBUG],
                [test "x$enable_debug" = xyes])
+
+AC_ARG_ENABLE([profiler],
+        [AS_HELP_STRING([--enable-profiler], [enable gperftools profiler supprot])],
+        [], [enable_profiler=no]
+)
+AM_CONDITIONAL([ENABLE_PROFILER],
+               [test "x$enable_profiler" = xyes])
 
 AC_ARG_ENABLE([coverage],
         [AS_HELP_STRING([--enable-coverage], [build for test coverage analysis])],
@@ -471,6 +479,22 @@ AS_IF([test x$enable_debug = xyes],
       ]
 )
 
+AS_IF([test x$enable_profiler = xyes],
+[
+	AC_CHECK_PROG(PPROF, pprof, pprof)
+	AS_IF([test -z $PPROF],
+           AC_MSG_ERROR([pprof not found. yum install pprof.noarch to install]))
+
+	MERO_SEARCH_LIBS([ProfilerStart], [c profiler], [PROFILER_LIBS],
+	[libprofiler cannot be found! The following commmand install needed \
+packages from yum: yum install gperftools-libs.x86_64 gperftools-devel.x86_64 \
+gperf-debuginfo.x86_64]
+)
+AC_SUBST([PROFILER_LIBS])
+],
+[ PROFILER_LIBS=" " ]
+)
+
 AS_IF([test x$enable_coverage = xyes],
       [
         # Remove -O<digit> flag from $M0_CFLAGS
@@ -547,7 +571,8 @@ AC_CONFIG_FILES([m0t1fs/linux_kernel/st/common.sh],
 AC_CONFIG_FILES([net/test/m0netperf.sh], [chmod + net/test/m0netperf.sh])
 AC_CONFIG_FILES([net/test/m0netperfd.sh], [chmod + net/test/m0netperfd.sh])
 AC_CONFIG_FILES([net/test/test-user.sh], [chmod + net/test/test-user.sh])
-AC_CONFIG_FILES([utils/ut.sh], [chmod +x utils/ut.sh])
+AC_CONFIG_FILES([utils/ut.sh], [chmod +x utils/ut.sh;
+			        (cd utils/ && ${LN_S} ut.sh ub.sh)])
 AC_CONFIG_FILES([utils/linux_kernel/ut.sh], [chmod +x utils/linux_kernel/ut.sh])
 
 AC_OUTPUT
@@ -582,6 +607,7 @@ echo "MATH_LIBS    :  \"$MATH_LIBS\""
 echo "PTHREAD_LIBS :  \"$PTHREAD_LIBS\""
 echo "AIO_LIBS     :  \"$AIO_LIBS\""
 echo "RT_LIBS      :  \"$RT_LIBS\""
+echo "PROFILER_LIBS:  \"$PROFILER_LIBS\""
 echo "GALOIS_LIBS  :  \"$GALOIS_LIBS\""
 echo "CUNIT_LIBS   :  \"$CUNIT_LIBS\""
 echo "YAML_LIBS    :  \"$YAML_LIBS\""

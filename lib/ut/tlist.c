@@ -332,15 +332,15 @@ struct m0_ub_set m0_tlist_ub = {
 	.us_init = ub_init,
 	.us_fini = ub_fini,
 	.us_run  = {
-		{ .ut_name = "insert",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_insert },
+		{ .ub_name = "insert",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_insert },
 
-		{ .ut_name = "delete",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_delete },
+		{ .ub_name = "delete",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_delete },
 
-		{ .ut_name = NULL }
+		{ .ub_name = NULL }
 	}
 };
 

@@ -286,28 +286,28 @@ struct m0_ub_set m0_emap_ub = {
 	.us_init = ub_init,
 	.us_fini = ub_fini,
 	.us_run  = {
-		{ .ut_name = "obj-init",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_obj_init },
+		{ .ub_name = "obj-init",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_obj_init },
 
-		{ .ut_name = "obj-fini",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_obj_fini },
+		{ .ub_name = "obj-fini",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_obj_fini },
 
-		{ .ut_name = "obj-init-same-tx",
-		  .ut_iter = UB_ITER_TX,
-		  .ut_round = ub_obj_init_same },
+		{ .ub_name = "obj-init-same-tx",
+		  .ub_iter = UB_ITER_TX,
+		  .ub_round = ub_obj_init_same },
 
-		{ .ut_name = "obj-fini-same-tx",
-		  .ut_iter = UB_ITER_TX,
-		  .ut_round = ub_obj_fini_same },
+		{ .ub_name = "obj-fini-same-tx",
+		  .ub_iter = UB_ITER_TX,
+		  .ub_round = ub_obj_fini_same },
 
-		{ .ut_name = "split",
-		  .ut_iter = UB_ITER/5,
-		  .ut_init = test_obj_init,
-		  .ut_round = ub_split },
+		{ .ub_name = "split",
+		  .ub_iter = UB_ITER/5,
+		  .ub_init = test_obj_init,
+		  .ub_round = ub_split },
 
-		{ .ut_name = NULL }
+		{ .ub_name = NULL }
 	}
 };
 

@@ -348,29 +348,29 @@ struct m0_ub_set m0_adieu_ub = {
 	.us_init = (void *)test_adieu_init,
 	.us_fini = (void *)test_adieu_fini,
 	.us_run  = {
-		{ .ut_name = "write-prime",
-		  .ut_iter = 1,
-		  .ut_round = ub_write },
+		{ .ub_name = "write-prime",
+		  .ub_iter = 1,
+		  .ub_round = ub_write },
 
-		{ .ut_name = "write",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_write },
+		{ .ub_name = "write",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_write },
 
-		{ .ut_name = "read",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_read },
+		{ .ub_name = "read",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_read },
 
-		{ .ut_name = "iovec-sort",
-		  .ut_iter = UB_ITER_SORT,
-		  .ut_init = ub_iovec_init,
-		  .ut_round = ub_iovec_sort },
+		{ .ub_name = "iovec-sort",
+		  .ub_iter = UB_ITER_SORT,
+		  .ub_init = ub_iovec_init,
+		  .ub_round = ub_iovec_sort },
 
-		{ .ut_name = "iovec-sort-invert",
-		  .ut_iter = UB_ITER_SORT,
-		  .ut_init = ub_iovec_init,
-		  .ut_round = ub_iovec_sort_invert },
+		{ .ub_name = "iovec-sort-invert",
+		  .ub_iter = UB_ITER_SORT,
+		  .ub_init = ub_iovec_init,
+		  .ub_round = ub_iovec_sort_invert },
 
-		{ .ut_name = NULL }
+		{ .ub_name = NULL }
 	}
 };
 

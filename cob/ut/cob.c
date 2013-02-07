@@ -302,9 +302,6 @@ const struct m0_test_suite cob_ut = {
  * UB
  */
 
-/* CU_ASSERT doesn't work for ub tests */
-#define M0_UB_ASSERT M0_ASSERT
-
 static struct m0_db_tx cob_ub_tx;
 
 enum {
@@ -400,15 +397,15 @@ struct m0_ub_set m0_cob_ub = {
         .us_init = ub_init,
         .us_fini = ub_fini,
         .us_run  = {
-                { .ut_name = "create",
-                  .ut_iter = UB_ITER,
-                  .ut_round = ub_create },
+                { .ub_name = "create",
+                  .ub_iter = UB_ITER,
+                  .ub_round = ub_create },
 
-                { .ut_name = "lookup",
-                  .ut_iter = UB_ITER,
-                  .ut_round = ub_lookup },
+                { .ub_name = "lookup",
+                  .ub_iter = UB_ITER,
+                  .ub_round = ub_lookup },
 
-                { .ut_name = NULL }
+                { .ub_name = NULL }
         }
 };
 

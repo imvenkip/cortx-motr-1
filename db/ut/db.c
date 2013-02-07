@@ -588,31 +588,31 @@ struct m0_ub_set m0_db_ub = {
 	.us_init = ub_init,
 	.us_fini = ub_fini,
 	.us_run  = {
-		{ .ut_name = "insert",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_insert },
+		{ .ub_name = "insert",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_insert },
 
-		{ .ut_name = "lookup",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_lookup },
+		{ .ub_name = "lookup",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_lookup },
 
-		{ .ut_name  = "iterate",
-		  .ut_iter  = UB_ITER_TX,
-		  .ut_init  = ub_iterate_init,
-		  .ut_round = ub_iterate,
-		  .ut_fini  = ub_iterate_fini },
+		{ .ub_name  = "iterate",
+		  .ub_iter  = UB_ITER_TX,
+		  .ub_init  = ub_iterate_init,
+		  .ub_round = ub_iterate,
+		  .ub_fini  = ub_iterate_fini },
 
-		{ .ut_name  = "iterate-back",
-		  .ut_iter  = UB_ITER_TX,
-		  .ut_init  = ub_iterate_back_init,
-		  .ut_round = ub_iterate_back,
-		  .ut_fini  = ub_iterate_back_fini },
+		{ .ub_name  = "iterate-back",
+		  .ub_iter  = UB_ITER_TX,
+		  .ub_init  = ub_iterate_back_init,
+		  .ub_round = ub_iterate_back,
+		  .ub_fini  = ub_iterate_back_fini },
 
-		{ .ut_name = "delete",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_delete },
+		{ .ub_name = "delete",
+		  .ub_iter = UB_ITER,
+		  .ub_round = ub_delete },
 
-		{ .ut_name = NULL }
+		{ .ub_name = NULL }
 	}
 };
 
