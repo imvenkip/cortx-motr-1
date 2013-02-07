@@ -409,8 +409,8 @@ static void test2_run(void)
 	 */
 	credit_setup(SERVER_1, RIF_MAY_BORROW, NENYA | DURIN);
 	m0_rm_credit_get(in);
-	M0_UT_ASSERT (incoming_state(in) == RI_WAIT);
-	m0_chan_wait(&rm_ctx[SERVER_1].rc_clink);
+	if (incoming_state(in) == RI_WAIT)
+		m0_chan_wait(&rm_ctx[SERVER_1].rc_clink);
 	M0_UT_ASSERT (incoming_state(in) == RI_SUCCESS);
 	M0_UT_ASSERT(in->rin_rc == 0);
 	m0_rm_credit_put(in);
