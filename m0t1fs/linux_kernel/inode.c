@@ -31,13 +31,6 @@
 #include "lib/trace.h"          /* M0_LOG and M0_ENTRY */
 #include "mero/magic.h"
 
-static int m0t1fs_inode_test(struct inode *inode, void *opaque);
-static int m0t1fs_inode_set(struct inode *inode, void *opaque);
-
-static int m0t1fs_build_layout_instance(const uint64_t              layout_id,
-					const struct m0_fid        *fid,
-					struct m0_layout_instance **linst);
-
 static struct kmem_cache *m0t1fs_inode_cachep = NULL;
 
 static const struct m0_bob_type m0t1fs_inode_bob = {
@@ -294,7 +287,7 @@ static int m0t1fs_inode_read(struct inode *inode,
 		rc = -ENOSYS;
 	}
         if (!m0t1fs_inode_is_root(inode)) {
-                ci->ci_layout_id = (M0T1FS_SB(inode->i_sb))->csb_layout_id;
+                ci->ci_layout_id = body->b_lid;
                 rc = m0t1fs_inode_layout_init(ci);
         }
 out:
@@ -356,8 +349,38 @@ out_err:
 	return ERR_PTR(err);
 }
 
+static int m0t1fs_build_layout_instance(struct m0t1fs_sb           *csb,
+					const uint64_t              layout_id,
+					const struct m0_fid        *fid,
+					struct m0_layout_instance **linst)
+{
+	struct m0_layout *layout;
+	int               rc;
+
+	M0_ENTRY();
+	M0_PRE(fid != NULL);
+	M0_PRE(linst != NULL);
+
+	layout = m0_layout_find(&m0t1fs_globals.g_layout_dom, layout_id);
+	if (layout == NULL) {
+		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP,
+				      layout_id, &layout);
+		if (rc != 0)
+			goto out;
+	}
+
+	*linst = NULL;
+	rc = m0_layout_instance_build(layout, fid, linst);
+	m0_layout_put(layout);
+
+out:
+	M0_LEAVE("rc: %d", rc);
+	return rc;
+}
+
 M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
 {
+	struct m0t1fs_sb          *csb;
 	struct m0_layout_instance *linst;
 	int                        rc;
 
@@ -366,35 +389,13 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
 			(unsigned long)ci->ci_fid.f_container,
 			(unsigned long)ci->ci_fid.f_key);
 
+	csb = M0T1FS_SB(ci->ci_inode.i_sb);
+
 	M0_ASSERT(ci->ci_layout_id != 0);
-	rc = m0t1fs_build_layout_instance(ci->ci_layout_id,
+	rc = m0t1fs_build_layout_instance(csb, ci->ci_layout_id,
 					  &ci->ci_fid, &linst);
 	if (rc == 0)
 		ci->ci_layout_instance = linst;
-
-	M0_LEAVE("rc: %d", rc);
-	return rc;
-}
-
-static int m0t1fs_build_layout_instance(const uint64_t              layout_id,
-					const struct m0_fid        *fid,
-					struct m0_layout_instance **linst)
-{
-	struct m0_layout           *layout;
-	int                         rc;
-
-	M0_ENTRY();
-	M0_PRE(fid != NULL && linst != NULL);
-
-	layout   = m0_layout_find(&m0t1fs_globals.g_layout_dom, layout_id);
-	/**
-	 * During m0t1fs mount we have built a layout, so m0_layout_find
-	 * will always return a registered layout.
-	 */
-	M0_ASSERT(layout != NULL);
-	*linst   = NULL;
-	rc = m0_layout_instance_build(layout, fid, linst);
-	m0_layout_put(layout);
 
 	M0_LEAVE("rc: %d", rc);
 	return rc;

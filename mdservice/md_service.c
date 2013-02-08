@@ -30,6 +30,7 @@
 #include "mero/magic.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
+#include "layout/layout.h"
 #include "mdservice/md_fops.h"
 #include "mdservice/md_service.h"
 
@@ -101,7 +102,6 @@ static int mds_allocate(struct m0_reqh_service **service,
 
         *service = &mds->rmds_gen;
         (*service)->rs_ops = &mds_ops;
-
         return 0;
 }
 
@@ -131,9 +131,21 @@ static void mds_fini(struct m0_reqh_service *service)
  */
 static int mds_start(struct m0_reqh_service *service)
 {
-        int rc = 0;
+        struct m0_reqh_md_service *serv_obj;
+        int rc;
         M0_PRE(service != NULL);
-        return rc;
+
+        serv_obj = container_of(service, struct m0_reqh_md_service, rmds_gen);
+        rc = m0_layout_domain_init(&serv_obj->rmds_layout_dom,
+				   service->rs_reqh->rh_dbenv);
+        if (rc == 0) {
+                rc = m0_layout_standard_types_register(
+					&serv_obj->rmds_layout_dom);
+		if (rc != 0)
+			m0_layout_domain_fini(&serv_obj->rmds_layout_dom);
+	}
+
+       return rc;
 }
 
 /**
@@ -144,7 +156,12 @@ static int mds_start(struct m0_reqh_service *service)
  */
 static void mds_stop(struct m0_reqh_service *service)
 {
+        struct m0_reqh_md_service *serv_obj;
         M0_PRE(service != NULL);
+
+        serv_obj = container_of(service, struct m0_reqh_md_service, rmds_gen);
+        m0_layout_standard_types_unregister(&serv_obj->rmds_layout_dom);
+        m0_layout_domain_fini(&serv_obj->rmds_layout_dom);
 }
 
 /** @} endgroup mdservice */

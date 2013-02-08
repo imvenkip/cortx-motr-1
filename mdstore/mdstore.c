@@ -188,6 +188,7 @@ M0_INTERNAL int m0_mdstore_create(struct m0_mdstore     *md,
         nsrec.cnr_atime = attr->ca_atime;
         nsrec.cnr_mtime = attr->ca_mtime;
         nsrec.cnr_ctime = attr->ca_ctime;
+        nsrec.cnr_lid   = attr->ca_lid;
 
         omgrec.cor_uid = attr->ca_uid;
         omgrec.cor_gid = attr->ca_gid;
@@ -481,21 +482,23 @@ M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
          */
         if (cob->co_flags & M0_CA_NSREC) {
                 nsrec = &cob->co_nsrec;
-                if (attr->ca_flags & M0_COB_ATIME)
+                if (attr->ca_valid & M0_COB_ATIME)
                         nsrec->cnr_atime = attr->ca_atime;
-                if (attr->ca_flags & M0_COB_MTIME)
+                if (attr->ca_valid & M0_COB_MTIME)
                         nsrec->cnr_mtime = attr->ca_mtime;
-                if (attr->ca_flags & M0_COB_CTIME)
+                if (attr->ca_valid & M0_COB_CTIME)
                         nsrec->cnr_ctime = attr->ca_ctime;
-                if (attr->ca_flags & M0_COB_SIZE)
+                if (attr->ca_valid & M0_COB_SIZE)
                         nsrec->cnr_size = attr->ca_size;
-                /*if (attr->ca_flags & M0_COB_RDEV)
+                /*if (attr->ca_valid & M0_COB_RDEV)
                         nsrec->cnr_rdev = attr->ca_rdev;*/
-                if (attr->ca_flags & M0_COB_BLOCKS)
+                if (attr->ca_valid & M0_COB_BLOCKS)
                         nsrec->cnr_blocks = attr->ca_blocks;
-                if (attr->ca_flags & M0_COB_BLKSIZE)
+                if (attr->ca_valid & M0_COB_BLKSIZE)
                         nsrec->cnr_blksize = attr->ca_blksize;
-                if (attr->ca_flags & M0_COB_NLINK) {
+                if (attr->ca_valid & M0_COB_LID)
+                        nsrec->cnr_lid = attr->ca_lid;
+                if (attr->ca_valid & M0_COB_NLINK) {
                         M0_ASSERT(attr->ca_nlink > 0);
                         nsrec->cnr_nlink = attr->ca_nlink;
                 }
@@ -507,11 +510,11 @@ M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
          */
         if (cob->co_flags & M0_CA_OMGREC) {
                 omgrec = &cob->co_omgrec;
-                if (attr->ca_flags & M0_COB_UID)
+                if (attr->ca_valid & M0_COB_UID)
                         omgrec->cor_uid = attr->ca_uid;
-                if (attr->ca_flags & M0_COB_GID)
+                if (attr->ca_valid & M0_COB_GID)
                         omgrec->cor_gid = attr->ca_gid;
-                if (attr->ca_flags & M0_COB_MODE)
+                if (attr->ca_valid & M0_COB_MODE)
                         omgrec->cor_mode = attr->ca_mode;
         }
 
@@ -537,7 +540,7 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
         M0_ASSERT(cob != NULL);
 
         M0_SET0(attr);
-        attr->ca_flags = 0;
+        attr->ca_valid = 0;
         attr->ca_tfid = cob->co_nsrec.cnr_fid;
         attr->ca_pfid = cob->co_nskey->cnk_pfid;
 
@@ -545,7 +548,7 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
          * Copy permissions and owner info into rep.
          */
         if (cob->co_flags & M0_CA_OMGREC) {
-                attr->ca_flags |= M0_COB_UID | M0_COB_GID | M0_COB_MODE;
+                attr->ca_valid |= M0_COB_UID | M0_COB_GID | M0_COB_MODE;
                 attr->ca_uid = cob->co_omgrec.cor_uid;
                 attr->ca_gid = cob->co_omgrec.cor_gid;
                 attr->ca_mode = cob->co_omgrec.cor_mode;
@@ -555,9 +558,9 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
          * Copy nsrec fields into response.
          */
         if (cob->co_flags & M0_CA_NSREC) {
-                attr->ca_flags |= M0_COB_ATIME | M0_COB_CTIME | M0_COB_MTIME |
+                attr->ca_valid |= M0_COB_ATIME | M0_COB_CTIME | M0_COB_MTIME |
                                   M0_COB_SIZE | M0_COB_BLKSIZE | M0_COB_BLOCKS/* |
-                                  M0_COB_RDEV*/;
+                                  M0_COB_RDEV*/ | M0_COB_LID;
                 attr->ca_atime = cob->co_nsrec.cnr_atime;
                 attr->ca_ctime = cob->co_nsrec.cnr_ctime;
                 attr->ca_mtime = cob->co_nsrec.cnr_mtime;
@@ -566,6 +569,7 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
                 attr->ca_nlink = cob->co_nsrec.cnr_nlink;
                 //attr->ca_rdev = cob->co_nsrec.cnr_rdev;
                 attr->ca_size = cob->co_nsrec.cnr_size;
+                attr->ca_lid = cob->co_nsrec.cnr_lid;
                 //attr->ca_version = cob->co_nsrec.cnr_version;
         }
 

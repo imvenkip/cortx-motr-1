@@ -302,13 +302,14 @@ enum m0_cob_valid_flags {
         M0_COB_FLAGS   = 1 << 9,
         M0_COB_NLINK   = 1 << 10,
         M0_COB_RDEV    = 1 << 11,
-        M0_COB_BLKSIZE = 1 << 12
+        M0_COB_BLKSIZE = 1 << 12,
+        M0_COB_LID     = 1 << 13
 };
 
-#define M0_COB_ALL (M0_COB_ATIME | M0_COB_MTIME | M0_COB_CTIME |                \
-                    M0_COB_SIZE | M0_COB_MODE | M0_COB_UID | M0_COB_GID |       \
-                    M0_COB_BLOCKS | M0_COB_TYPE | M0_COB_FLAGS | M0_COB_NLINK | \
-                    M0_COB_RDEV | M0_COB_BLKSIZE)
+#define M0_COB_ALL (M0_COB_ATIME | M0_COB_MTIME | M0_COB_CTIME |               \
+                    M0_COB_SIZE | M0_COB_MODE | M0_COB_UID | M0_COB_GID |      \
+                    M0_COB_BLOCKS | M0_COB_TYPE | M0_COB_FLAGS | M0_COB_NLINK |\
+                    M0_COB_RDEV | M0_COB_BLKSIZE | M0_COB_LID)
 
 /**
  * Attributes describing object that needs to be created or modified.
@@ -317,23 +318,24 @@ enum m0_cob_valid_flags {
  * should not be dealing with fop request or response.
  */
 struct m0_cob_attr {
-        struct m0_fid       ca_pfid;    /**< parent fid */
-        struct m0_fid       ca_tfid;    /**< object fid */
-        uint16_t            ca_flags;   /**< flags (enum m0_cob_valid_flags) */
-        uint32_t            ca_mode;    /**< protection. */
-        uint32_t            ca_uid;     /**< user ID of owner. */
-        uint32_t            ca_gid;     /**< group ID of owner. */
-        uint64_t            ca_atime;   /**< time of last access. */
-        uint64_t            ca_mtime;   /**< time of last modification. */
-        uint64_t            ca_ctime;   /**< time of last status change. */
-        uint64_t            ca_rdev;    /**< devid for special devices */
-        uint32_t            ca_nlink;   /**< number of hard links. */
-        uint64_t            ca_size;    /**< total size, in bytes. */
-        uint64_t            ca_blksize; /**< blocksize for filesystem I/O. */
-        uint64_t            ca_blocks;  /**< number of blocks allocated. */
-        uint64_t            ca_version; /**< object version */
-        struct m0_buf       ca_name;    /**< object name */
-        struct m0_buf       ca_link;    /**< symlink body */
+        struct m0_fid ca_pfid;    /**< parent fid */
+        struct m0_fid ca_tfid;    /**< object fid */
+        uint32_t      ca_valid;   /**< valid bits (enum m0_cob_valid_flags) */
+        uint32_t      ca_mode;    /**< protection. */
+        uint32_t      ca_uid;     /**< user ID of owner. */
+        uint32_t      ca_gid;     /**< group ID of owner. */
+        uint64_t      ca_atime;   /**< time of last access. */
+        uint64_t      ca_mtime;   /**< time of last modification. */
+        uint64_t      ca_ctime;   /**< time of last status change. */
+        uint64_t      ca_rdev;    /**< devid for special devices */
+        uint32_t      ca_nlink;   /**< number of hard links. */
+        uint64_t      ca_size;    /**< total size, in bytes. */
+        uint64_t      ca_blksize; /**< blocksize for filesystem I/O. */
+        uint64_t      ca_blocks;  /**< number of blocks allocated. */
+        uint64_t      ca_version; /**< object version */
+        uint64_t      ca_lid;     /**< layout id */
+        struct m0_buf ca_name;    /**< object name */
+        struct m0_buf ca_link;    /**< symlink body */
 };
 
 /**
@@ -375,6 +377,7 @@ struct m0_cob_nsrec {
         uint64_t          cnr_atime;   /**< time of last access */
         uint64_t          cnr_mtime;   /**< time of last modification */
         uint64_t          cnr_ctime;   /**< time of last status change */
+        uint64_t          cnr_lid;     /**< layout id */
 };
 
 /** Object index table key. The oi table record is a struct m0_cob_nskey. */

@@ -37,10 +37,13 @@
 #include "reqh/reqh.h"
 #include "rpc/rpc_opcodes.h"
 #include "fop/fom_generic.h"
+#include "layout/layout.h"
+#include "layout/pdclust.h"
+#include "layout/layout_db.h"
 #include "mdservice/md_fops.h"
 #include "mdservice/md_fops_xc.h"
 #include "mdservice/md_foms.h"
-
+#include "mdservice/md_service.h"
 #include "mdstore/mdstore.h"
 
 static void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
@@ -49,7 +52,7 @@ static void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
         M0_SET0(attr);
         attr->ca_pfid = body->b_pfid;
         attr->ca_tfid = body->b_tfid;
-        attr->ca_flags = body->b_valid;
+        attr->ca_valid = body->b_valid;
         if (body->b_valid & M0_COB_MODE)
                 attr->ca_mode = body->b_mode;
         if (body->b_valid & M0_COB_UID)
@@ -72,6 +75,8 @@ static void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
                 attr->ca_blksize = body->b_blksize;
         if (body->b_valid & M0_COB_BLOCKS)
                 attr->ca_blocks = body->b_blocks;
+        if (body->b_valid & M0_COB_LID)
+                attr->ca_lid = body->b_lid;
         attr->ca_version = body->b_version;
 }
 
@@ -80,7 +85,7 @@ static void m0_md_cob_mem2wire(struct m0_fop_cob *body,
 {
         body->b_pfid = attr->ca_pfid;
         body->b_tfid = attr->ca_tfid;
-        body->b_valid = attr->ca_flags;
+        body->b_valid = attr->ca_valid;
         if (body->b_valid & M0_COB_MODE)
                 body->b_mode = attr->ca_mode;
         if (body->b_valid & M0_COB_UID)
@@ -103,6 +108,8 @@ static void m0_md_cob_mem2wire(struct m0_fop_cob *body,
                 body->b_blksize = attr->ca_blksize;
         if (body->b_valid & M0_COB_BLOCKS)
                 body->b_blocks = attr->ca_blocks;
+        if (body->b_valid & M0_COB_LID)
+                body->b_lid = attr->ca_lid;
         body->b_version = attr->ca_version;
 }
 
@@ -520,12 +527,12 @@ static int m0_md_tick_open(struct m0_fom *fom)
                 rc = m0_mdstore_open(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
                                      cob, body->b_flags, &fom->fo_tx.tx_dbtx);
                 if (rc == 0 &&
-                    (!(attr.ca_flags & M0_COB_NLINK) || attr.ca_nlink > 0)) {
+                    (!(attr.ca_valid & M0_COB_NLINK) || attr.ca_nlink > 0)) {
                         /*
                          * Mode contains open flags that we don't need
                          * to store to db.
                          */
-                        attr.ca_flags &= ~M0_COB_MODE;
+                        attr.ca_valid &= ~M0_COB_MODE;
                         rc = m0_mdstore_setattr(
                                 fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
                                 cob, &attr, &fom->fo_tx.tx_dbtx);
@@ -602,12 +609,12 @@ static int m0_md_tick_close(struct m0_fom *fom)
         rc = m0_mdstore_close(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
                                &fom->fo_tx.tx_dbtx);
         if (rc == 0 &&
-            (!(attr.ca_flags & M0_COB_NLINK) || attr.ca_nlink > 0)) {
+            (!(attr.ca_valid & M0_COB_NLINK) || attr.ca_nlink > 0)) {
                 /*
                  * Mode contains open flags that we don't need
                  * to store to db.
                  */
-                attr.ca_flags &= ~M0_COB_MODE;
+                attr.ca_valid &= ~M0_COB_MODE;
                 rc = m0_mdstore_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
                                         cob, &attr, &fom->fo_tx.tx_dbtx);
         }
@@ -756,7 +763,7 @@ static int m0_md_tick_lookup(struct m0_fom *fom)
         m0_fom_block_leave(fom);
 
         if (rc == 0) {
-                attr.ca_flags = M0_COB_ALL;
+                attr.ca_valid = M0_COB_ALL;
                 m0_md_cob_mem2wire(&rep->l_body, &attr);
         } else {
                 M0_LOG(M0_DEBUG, "Getattr on object [%lx:%lx] failed with %d",
@@ -821,7 +828,7 @@ static int m0_md_tick_getattr(struct m0_fom *fom)
         m0_cob_put(cob);
         m0_fom_block_leave(fom);
         if (rc == 0) {
-                attr.ca_flags = M0_COB_ALL;
+                attr.ca_valid = M0_COB_ALL;
                 m0_md_cob_mem2wire(&rep->g_body, &attr);
         }
 out:
@@ -1002,6 +1009,116 @@ out:
         m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
         return M0_FSO_AGAIN;
 }
+
+static void layout_pair_set(struct m0_db_pair *pair, uint64_t *lid,
+                            void *area, m0_bcount_t num_bytes)
+{
+        pair->dp_key.db_buf.b_addr = lid;
+        pair->dp_key.db_buf.b_nob  = sizeof *lid;
+        pair->dp_rec.db_buf.b_addr = area;
+        pair->dp_rec.db_buf.b_nob  = num_bytes;
+}
+
+static int m0_md_tick_layout(struct m0_fom *fom)
+{
+	struct m0_fop_layout          *req;
+	struct m0_fop_layout_rep      *rep;
+	struct m0_fop                 *fop;
+	struct m0_fop                 *fop_rep;
+	int                            rc;
+	struct m0_bufvec               bv;
+	struct m0_bufvec_cursor        cur;
+	struct m0_layout              *l;
+	struct m0_layout_type         *lt;
+	struct m0_reqh_md_service     *serv_obj;
+	struct m0_db_pair              pair;
+
+	rc = m0_md_tick_generic(fom);
+	if (rc != 0)
+		return rc;
+
+	fop = fom->fo_fop;
+	M0_ASSERT(fop != NULL);
+	req = m0_fop_data(fop);
+
+	fop_rep = fom->fo_rep_fop;
+	M0_ASSERT(fop_rep != NULL);
+	rep = m0_fop_data(fop_rep);
+
+	rc = m0_md_fop_init(fop, fom);
+	if (rc != 0)
+		goto out;
+
+	M0_LOG(M0_DEBUG, "This is a layout fop op = %u, lid = %llu",
+		req->l_op, (unsigned long long)req->l_lid);
+
+        serv_obj = container_of(fom->fo_service, struct m0_reqh_md_service,
+				rmds_gen);
+
+	m0_fom_block_enter(fom);
+	switch (req->l_op) {
+	case M0_LAYOUT_OP_ADD:
+	case M0_LAYOUT_OP_DELETE:
+		bv = (struct m0_bufvec)
+			M0_BUFVEC_INIT_BUF((void**)&req->l_buf.b_addr,
+					   (m0_bcount_t*)&req->l_buf.b_count);
+		m0_bufvec_cursor_init(&cur, &bv);
+		lt = &m0_pdclust_layout_type;
+
+		rc = lt->lt_ops->lto_allocate(&serv_obj->rmds_layout_dom,
+					      req->l_lid, &l);
+		if (rc != 0)
+			break;
+
+		rc = m0_layout_decode(l, &cur, M0_LXO_BUFFER_OP, NULL);
+                m0_mutex_unlock(&l->l_lock);/* lock held by ->lto_allocate() */
+		if (rc == 0) {
+			M0_LOG(M0_DEBUG, "Start");
+			layout_pair_set(&pair, &req->l_lid,
+					req->l_buf.b_addr,
+					req->l_buf.b_count);
+			if (req->l_op == M0_LAYOUT_OP_ADD)
+				rc = m0_layout_add(l, &fom->fo_tx.tx_dbtx,
+						   &pair);
+			else if (req->l_op == M0_LAYOUT_OP_DELETE)
+				rc = m0_layout_delete(l, &fom->fo_tx.tx_dbtx,
+						      &pair);
+			M0_LOG(M0_DEBUG, "Done");
+		}
+		m0_layout_put(l); /* ref from ->lto_allocate() */
+		break;
+
+	case M0_LAYOUT_OP_LOOKUP:
+		M0_LOG(M0_DEBUG, "Lookup Start");
+
+		rep->lr_buf.b_count = m0_layout_max_recsize(
+					&serv_obj->rmds_layout_dom);
+		rep->lr_buf.b_addr = m0_alloc(rep->lr_buf.b_count);
+		if (rep->lr_buf.b_addr == NULL) {
+			rc = -ENOMEM;
+			break;
+		}
+
+		layout_pair_set(&pair, &req->l_lid,
+				rep->lr_buf.b_addr,
+				rep->lr_buf.b_count);
+		/* lookup from db and encode into pair */
+		rc = m0_layout_lookup(&serv_obj->rmds_layout_dom, req->l_lid,
+				      &m0_pdclust_layout_type,
+				      &fom->fo_tx.tx_dbtx, &pair, &l);
+		if (rc == 0)
+			m0_layout_put(l);
+		M0_LOG(M0_DEBUG, "Lookup Done");
+		break;
+	}
+
+	m0_fom_block_leave(fom);
+out:
+	rep->lr_rc = rc;
+	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	return M0_FSO_AGAIN;
+}
+
 
 static int m0_md_req_path_get(struct m0_mdstore *mdstore,
                               struct m0_fid *fid,
@@ -1226,6 +1343,14 @@ static const struct m0_fom_ops m0_md_fom_readdir_ops = {
 	.fo_addb_init = m0_md_fom_addb_init
 };
 
+static const struct m0_fom_ops m0_md_fom_layout_ops = {
+        .fo_home_locality = m0_md_req_fom_locality_get,
+        .fo_tick   = m0_md_tick_layout,
+        .fo_fini   = m0_md_req_fom_fini,
+        .fo_addb_init = m0_md_fom_addb_init
+};
+
+
 M0_INTERNAL int m0_md_rep_fom_create(struct m0_fop *fop, struct m0_fom **m,
 				     struct m0_reqh *reqh)
 {
@@ -1292,6 +1417,10 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
         case M0_MDSERVICE_READDIR_OPCODE:
                 ops = &m0_md_fom_readdir_ops;
                 rep_fopt = &m0_fop_readdir_rep_fopt;
+                break;
+         case M0_LAYOUT_OPCODE:
+                ops = &m0_md_fom_layout_ops;
+                rep_fopt = &m0_fop_layout_rep_fopt;
                 break;
         default:
                 m0_free(fom_obj);

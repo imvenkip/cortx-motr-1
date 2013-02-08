@@ -47,6 +47,9 @@ struct m0_reqh_md_service {
         struct m0_reqh_service       rmds_gen;
         /** Magic to check io service object */
         uint64_t                     rmds_magic;
+
+        /** layout domain for this mdservice */
+        struct m0_layout_domain      rmds_layout_dom;
 };
 
 M0_INTERNAL void m0_mds_unregister(void);

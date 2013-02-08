@@ -74,6 +74,9 @@ static size_t m0_md_fol_pack_size(struct m0_fol_rec_desc *desc)
         case M0_MDSERVICE_READDIR_OPCODE:
                 len += ((struct m0_fop_readdir *)data)->r_path.s_len;
                 break;
+        case M0_LAYOUT_OPCODE:
+                len += ((struct m0_fop_layout *)data)->l_buf.b_count;
+                break;
         default:
                 break;
         }
@@ -140,6 +143,10 @@ static void m0_md_fol_pack(struct m0_fol_rec_desc *desc, void *buf)
                 break;
         case M0_MDSERVICE_READDIR_OPCODE:
                 copy(&ptr, &((struct m0_fop_readdir *)data)->r_path);
+                break;
+        case M0_LAYOUT_OPCODE:
+                copy(&ptr, (struct m0_fop_str*)
+				&((struct m0_fop_layout *)data)->l_buf);
                 break;
         default:
                 break;
@@ -213,6 +220,11 @@ static int m0_md_fol_open(const struct m0_fol_rec_type *type,
                 ptr = (char *)((struct m0_fop_readdir *)data + 1);
                 map(&ptr, &((struct m0_fop_readdir *)data)->r_path);
                 break;
+        case M0_LAYOUT_OPCODE:
+                ptr = (char *)((struct m0_fop_layout *)data + 1);
+                map(&ptr, (struct m0_fop_str *)
+				&((struct m0_fop_layout *)data)->l_buf);
+                break;
         default:
                 break;
         }
@@ -254,6 +266,7 @@ struct m0_fop_type m0_fop_getattr_fopt;
 struct m0_fop_type m0_fop_statfs_fopt;
 struct m0_fop_type m0_fop_rename_fopt;
 struct m0_fop_type m0_fop_readdir_fopt;
+struct m0_fop_type m0_fop_layout_fopt;
 
 struct m0_fop_type m0_fop_create_rep_fopt;
 struct m0_fop_type m0_fop_lookup_rep_fopt;
@@ -266,6 +279,7 @@ struct m0_fop_type m0_fop_getattr_rep_fopt;
 struct m0_fop_type m0_fop_statfs_rep_fopt;
 struct m0_fop_type m0_fop_rename_rep_fopt;
 struct m0_fop_type m0_fop_readdir_rep_fopt;
+struct m0_fop_type m0_fop_layout_rep_fopt;
 
 M0_INTERNAL int m0_mdservice_fop_init(void)
 {
@@ -402,6 +416,17 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
                                  .svc_type  = &m0_mds_type,
 #endif
                                  .sm        = &m0_generic_conf) ?:
+                 M0_FOP_TYPE_INIT(&m0_fop_layout_fopt,
+                                 .name      = "Layout request",
+                                 .opcode    = M0_LAYOUT_OPCODE,
+                                 .xt        = m0_fop_layout_xc,
+                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+                                 .fop_ops   = &m0_md_fop_ops,
+#ifndef __KERNEL__
+                                 .fom_ops   = &m0_md_fom_ops,
+                                 .svc_type  = &m0_mds_type,
+#endif
+                                 .sm        = &m0_generic_conf) ?:
                 M0_FOP_TYPE_INIT(&m0_fop_create_rep_fopt,
                                  .name      = "Create reply",
                                  .opcode    = M0_MDSERVICE_CREATE_REP_OPCODE,
@@ -456,6 +481,11 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
                                  .name      = "Readdir reply",
                                  .opcode    = M0_MDSERVICE_READDIR_REP_OPCODE,
                                  .xt        = m0_fop_readdir_rep_xc,
+                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
+                M0_FOP_TYPE_INIT(&m0_fop_layout_rep_fopt,
+                                 .name      = "layout reply",
+                                 .opcode    = M0_LAYOUT_REP_OPCODE,
+                                 .xt        = m0_fop_layout_rep_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 }
 M0_EXPORTED(m0_mdservice_fop_init);
@@ -466,24 +496,27 @@ M0_INTERNAL void m0_mdservice_fop_fini(void)
         m0_fop_type_fini(&m0_fop_lookup_fopt);
         m0_fop_type_fini(&m0_fop_link_fopt);
         m0_fop_type_fini(&m0_fop_unlink_fopt);
-        m0_fop_type_fini(&m0_fop_rename_fopt);
-        m0_fop_type_fini(&m0_fop_readdir_fopt);
         m0_fop_type_fini(&m0_fop_open_fopt);
         m0_fop_type_fini(&m0_fop_close_fopt);
         m0_fop_type_fini(&m0_fop_setattr_fopt);
         m0_fop_type_fini(&m0_fop_getattr_fopt);
         m0_fop_type_fini(&m0_fop_statfs_fopt);
+        m0_fop_type_fini(&m0_fop_rename_fopt);
+        m0_fop_type_fini(&m0_fop_readdir_fopt);
+        m0_fop_type_fini(&m0_fop_layout_fopt);
+
         m0_fop_type_fini(&m0_fop_create_rep_fopt);
         m0_fop_type_fini(&m0_fop_lookup_rep_fopt);
         m0_fop_type_fini(&m0_fop_link_rep_fopt);
         m0_fop_type_fini(&m0_fop_unlink_rep_fopt);
-        m0_fop_type_fini(&m0_fop_rename_rep_fopt);
-        m0_fop_type_fini(&m0_fop_readdir_rep_fopt);
         m0_fop_type_fini(&m0_fop_open_rep_fopt);
         m0_fop_type_fini(&m0_fop_close_rep_fopt);
         m0_fop_type_fini(&m0_fop_setattr_rep_fopt);
         m0_fop_type_fini(&m0_fop_getattr_rep_fopt);
         m0_fop_type_fini(&m0_fop_statfs_rep_fopt);
+        m0_fop_type_fini(&m0_fop_rename_rep_fopt);
+        m0_fop_type_fini(&m0_fop_readdir_rep_fopt);
+        m0_fop_type_fini(&m0_fop_layout_rep_fopt);
         m0_xc_md_fops_fini();
 }
 M0_EXPORTED(m0_mdservice_fop_fini);

@@ -543,6 +543,9 @@ struct m0t1fs_sb {
 	/** mutex that serialises all file and directory operations */
 	struct m0_mutex               csb_mutex;
 
+	/** File layout ID */
+	uint64_t                      csb_layout_id;
+
 	/** Layout for file */
 	struct m0_layout             *csb_file_layout;
 
@@ -571,11 +574,9 @@ struct m0t1fs_sb {
         /** State machine group used for all IO requests. */
         struct m0_sm_group            csb_iogroup;
 
-	/** File layout ID */
-	uint64_t                      csb_layout_id;
-
         /** Root fid, retrieved from mdservice in mount time. */
         struct m0_fid                 csb_root_fid;
+
         /** Maximal allowed namelen (retrived from mdservice) */
         int                           csb_namelen;
 
@@ -593,6 +594,8 @@ struct m0t1fs_filedata {
  */
 struct m0t1fs_mdop {
         struct m0_cob_attr         mo_attr;
+        enum m0_layout_opcode      mo_layout_op;
+        struct m0_layout          *mo_layout;
 };
 
 /**
@@ -723,6 +726,18 @@ M0_INTERNAL int m0t1fs_mds_cob_setattr(struct m0t1fs_sb           *csb,
 M0_INTERNAL int m0t1fs_mds_cob_readdir(struct m0t1fs_sb           *csb,
                                        const struct m0t1fs_mdop   *mo,
                                        struct m0_fop_readdir_rep **rep);
+
+/**
+ * layout operation from client to mds.
+ * @param op in {CREATE/DELETE/LOOKUP}
+ * @param lid layout id
+ * @param l_out if op is LOOKUP, new layout is returned here. If *l_out is
+ *        returned properly, m0_layout_put() should be called after use.
+ */
+M0_INTERNAL int m0t1fs_layout_op(struct m0t1fs_sb *csb,
+			         enum m0_layout_opcode op,
+			         uint64_t lid,
+				 struct m0_layout **l_out);
 
 M0_INTERNAL int m0t1fs_size_update(struct inode *inode,
                                    uint64_t newsize);

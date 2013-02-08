@@ -29,6 +29,8 @@
 #include "rpc/rpc_opcodes.h"
 #include "ioservice/io_device.h"
 #include "mero/magic.h"
+#include "layout/layout.h"
+#include "layout/pdclust.h"
 #include "m0t1fs/linux_kernel/m0t1fs.h"
 
 M0_INTERNAL void m0t1fs_inode_bob_init(struct m0t1fs_inode *bob);
@@ -135,6 +137,8 @@ static void body_mem2wire(struct m0_fop_cob *body,
                 body->b_blocks = attr->ca_blocks;
         if (valid & M0_COB_NLINK)
                 body->b_nlink = attr->ca_nlink;
+        if (valid & M0_COB_LID)
+                body->b_lid = attr->ca_lid;
         body->b_valid = valid;
 }
 
@@ -195,7 +199,7 @@ static int m0t1fs_create(struct inode     *dir,
 
 	ci               = M0T1FS_I(inode);
 	ci->ci_fid       = m0t1fs_fid_alloc(csb);
-	ci->ci_layout_id = csb->csb_layout_id;
+	ci->ci_layout_id = csb->csb_layout_id; /* layout id for new file */
 
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);
@@ -211,15 +215,18 @@ static int m0t1fs_create(struct inode     *dir,
         mo.mo_attr.ca_atime     = inode->i_atime.tv_sec;
         mo.mo_attr.ca_ctime     = inode->i_ctime.tv_sec;
         mo.mo_attr.ca_mtime     = inode->i_mtime.tv_sec;
-        mo.mo_attr.ca_blocks    = inode->i_blocks;
         mo.mo_attr.ca_mode      = inode->i_mode;
+        mo.mo_attr.ca_blocks    = inode->i_blocks;
         mo.mo_attr.ca_pfid      = csb->csb_root_fid;
         mo.mo_attr.ca_tfid      = ci->ci_fid;
+        mo.mo_attr.ca_lid       = ci->ci_layout_id;
         mo.mo_attr.ca_nlink     = inode->i_nlink;
-        mo.mo_attr.ca_flags     = (M0_COB_UID | M0_COB_GID | M0_COB_ATIME |
-                                   M0_COB_CTIME | M0_COB_MTIME | M0_COB_MODE |
-                                   M0_COB_BLOCKS | M0_COB_SIZE | M0_COB_NLINK);
-        m0_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name, dentry->d_name.len);
+        mo.mo_attr.ca_valid     = (M0_COB_UID    | M0_COB_GID   | M0_COB_ATIME |
+                                   M0_COB_CTIME  | M0_COB_MTIME | M0_COB_MODE  |
+                                   M0_COB_BLOCKS | M0_COB_SIZE  | M0_COB_LID   |
+                                   M0_COB_NLINK);
+        m0_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name,
+		    dentry->d_name.len);
 
         rc = m0t1fs_mds_cob_create(csb, &mo, &rep);
         if (rc != 0)
@@ -467,11 +474,11 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 
         M0_SET0(&mo);
         now = CURRENT_TIME_SEC;
-        mo.mo_attr.ca_pfid = csb->csb_root_fid;
+        mo.mo_attr.ca_pfid  = csb->csb_root_fid;
         mo.mo_attr.ca_tfid  = ci->ci_fid;
         mo.mo_attr.ca_nlink = inode->i_nlink + 1;
         mo.mo_attr.ca_ctime = now.tv_sec;
-        mo.mo_attr.ca_flags = (M0_COB_CTIME | M0_COB_NLINK);
+        mo.mo_attr.ca_valid = (M0_COB_CTIME | M0_COB_NLINK);
         m0_buf_init(&mo.mo_attr.ca_name, (char *)new->d_name.name, new->d_name.len);
 
         rc = m0t1fs_mds_cob_link(csb, &mo, &link_rep);
@@ -520,7 +527,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
         mo.mo_attr.ca_tfid = ci->ci_fid;
         mo.mo_attr.ca_nlink = inode->i_nlink - 1;
         mo.mo_attr.ca_ctime = now.tv_sec;
-        mo.mo_attr.ca_flags = (M0_COB_NLINK | M0_COB_CTIME);
+        mo.mo_attr.ca_valid = (M0_COB_NLINK | M0_COB_CTIME);
         m0_buf_init(&mo.mo_attr.ca_name,
                     (char *)dentry->d_name.name, dentry->d_name.len);
 
@@ -547,7 +554,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
         mo.mo_attr.ca_tfid  = csb->csb_root_fid;
         mo.mo_attr.ca_ctime = now.tv_sec;
         mo.mo_attr.ca_mtime = now.tv_sec;
-        mo.mo_attr.ca_flags = (M0_COB_CTIME | M0_COB_MTIME);
+        mo.mo_attr.ca_valid = (M0_COB_CTIME | M0_COB_MTIME);
 
         rc = m0t1fs_mds_cob_setattr(csb, &mo, &setattr_rep);
         if (rc != 0) {
@@ -601,6 +608,18 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
         if (rc != 0)
                 goto out;
 
+	if (!m0t1fs_inode_is_root(&ci->ci_inode) &&
+	    ci->ci_layout_id != getattr_rep->g_body.b_lid) {
+                /* layout for this file is changed. */
+
+                M0_ASSERT(ci->ci_layout_instance != NULL);
+                m0_layout_instance_fini(ci->ci_layout_instance);
+
+                ci->ci_layout_id = getattr_rep->g_body.b_lid;
+                rc = m0t1fs_inode_layout_init(ci);
+                M0_ASSERT(rc == 0);
+        }
+
         /** Now its time to return inode stat data to user. */
         stat->dev = inode->i_sb->s_dev;
         stat->ino = inode->i_ino;
@@ -641,7 +660,7 @@ M0_INTERNAL int m0t1fs_size_update(struct inode *inode, uint64_t newsize)
         M0_SET0(&mo);
         mo.mo_attr.ca_tfid  = ci->ci_fid;
         mo.mo_attr.ca_size = newsize;
-        mo.mo_attr.ca_flags |= M0_COB_SIZE;
+        mo.mo_attr.ca_valid |= M0_COB_SIZE;
 
         rc = m0t1fs_mds_cob_setattr(csb, &mo, &setattr_rep);
         if (rc != 0)
@@ -680,38 +699,46 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 
         if (attr->ia_valid & ATTR_CTIME) {
                 mo.mo_attr.ca_ctime = attr->ia_ctime.tv_sec;
-                mo.mo_attr.ca_flags |= M0_COB_CTIME;
+                mo.mo_attr.ca_valid |= M0_COB_CTIME;
         }
 
         if (attr->ia_valid & ATTR_MTIME) {
                 mo.mo_attr.ca_mtime = attr->ia_mtime.tv_sec;
-                mo.mo_attr.ca_flags |= M0_COB_MTIME;
+                mo.mo_attr.ca_valid |= M0_COB_MTIME;
         }
 
         if (attr->ia_valid & ATTR_ATIME) {
                 mo.mo_attr.ca_atime = attr->ia_atime.tv_sec;
-                mo.mo_attr.ca_flags |= M0_COB_ATIME;
+                mo.mo_attr.ca_valid |= M0_COB_ATIME;
         }
 
         if (attr->ia_valid & ATTR_SIZE) {
                 mo.mo_attr.ca_size = attr->ia_size;
-                mo.mo_attr.ca_flags |= M0_COB_SIZE;
+                mo.mo_attr.ca_valid |= M0_COB_SIZE;
         }
 
         if (attr->ia_valid & ATTR_MODE) {
                 mo.mo_attr.ca_mode = attr->ia_mode;
-                mo.mo_attr.ca_flags |= M0_COB_MODE;
+                mo.mo_attr.ca_valid |= M0_COB_MODE;
         }
 
         if (attr->ia_valid & ATTR_UID) {
                 mo.mo_attr.ca_uid = attr->ia_uid;
-                mo.mo_attr.ca_flags |= M0_COB_UID;
+                mo.mo_attr.ca_valid |= M0_COB_UID;
         }
 
         if (attr->ia_valid & ATTR_GID) {
                 mo.mo_attr.ca_gid = attr->ia_gid;
-                mo.mo_attr.ca_flags |= M0_COB_GID;
+                mo.mo_attr.ca_valid |= M0_COB_GID;
         }
+
+	/*
+	 * Layout can be changed explicitly in setattr()
+	 * to a new layout, e.g. to a composite layout in NBA.
+	 * Check for that use case and update layout id for this
+	 * file. When that happens, a special setattr() with
+	 * valid layout id should be called.
+	 */
 
         rc = m0t1fs_mds_cob_setattr(csb, &mo, &setattr_rep);
         if (rc != 0)
@@ -820,6 +847,7 @@ static int m0t1fs_mds_cob_fop_populate(const struct m0t1fs_mdop *mo,
         struct m0_fop_statfs    *statfs;
         struct m0_fop_setattr   *setattr;
         struct m0_fop_readdir   *readdir;
+        struct m0_fop_layout    *layout;
         struct m0_fop_cob       *req;
         int                      rc = 0;
 
@@ -830,7 +858,7 @@ static int m0t1fs_mds_cob_fop_populate(const struct m0t1fs_mdop *mo,
 
                 req->b_pfid = mo->mo_attr.ca_pfid;
                 req->b_tfid = mo->mo_attr.ca_tfid;
-                body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_flags);
+                body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_valid);
                 rc = name_mem2wire(&create->c_name, &mo->mo_attr.ca_name);
                 break;
         case M0_MDSERVICE_LINK_OPCODE:
@@ -839,7 +867,7 @@ static int m0t1fs_mds_cob_fop_populate(const struct m0t1fs_mdop *mo,
 
                 req->b_pfid = mo->mo_attr.ca_pfid;
                 req->b_tfid = mo->mo_attr.ca_tfid;
-                body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_flags);
+                body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_valid);
                 rc = name_mem2wire(&link->l_name, &mo->mo_attr.ca_name);
                 break;
         case M0_MDSERVICE_UNLINK_OPCODE:
@@ -848,7 +876,7 @@ static int m0t1fs_mds_cob_fop_populate(const struct m0t1fs_mdop *mo,
 
                 req->b_pfid = mo->mo_attr.ca_pfid;
                 req->b_tfid = mo->mo_attr.ca_tfid;
-                body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_flags);
+                body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_valid);
                 rc = name_mem2wire(&unlink->u_name, &mo->mo_attr.ca_name);
                 break;
         case M0_MDSERVICE_STATFS_OPCODE:
@@ -873,7 +901,7 @@ static int m0t1fs_mds_cob_fop_populate(const struct m0t1fs_mdop *mo,
                 req = &setattr->s_body;
 
                 req->b_tfid = mo->mo_attr.ca_tfid;
-                body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_flags);
+                body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_valid);
                 break;
         case M0_MDSERVICE_READDIR_OPCODE:
                 readdir = m0_fop_data(fop);
@@ -882,6 +910,42 @@ static int m0t1fs_mds_cob_fop_populate(const struct m0t1fs_mdop *mo,
                 req->b_tfid = mo->mo_attr.ca_tfid;
                 rc = name_mem2wire(&readdir->r_pos, &mo->mo_attr.ca_name);
                 break;
+         case M0_LAYOUT_OPCODE: {
+		struct m0_bufvec          bv;
+		struct m0_bufvec_cursor   cur;
+		struct m0_layout         *l = mo->mo_layout;
+
+		layout = m0_fop_data(fop);
+		layout->l_op  = mo->mo_layout_op;
+		layout->l_lid = mo->mo_attr.ca_lid;
+
+		if (layout->l_op == M0_LAYOUT_OP_ADD ||
+		    layout->l_op == M0_LAYOUT_OP_DELETE) {
+			M0_ASSERT(l != NULL);
+
+			/* TODO m0_layout_size(const struct *l) should be used
+			 * in the future to calculate buffer size large enough
+			 * for any type of layout.
+			 */
+			layout->l_buf.b_count = m0_layout_max_recsize(
+						&m0t1fs_globals.g_layout_dom);
+			layout->l_buf.b_addr = m0_alloc(layout->l_buf.b_count);
+			if (layout->l_buf.b_addr == NULL) {
+				rc = -ENOMEM;
+				break;
+			}
+
+			bv = (struct m0_bufvec)
+			       M0_BUFVEC_INIT_BUF((void**)&layout->l_buf.b_addr,
+					 (m0_bcount_t *)&layout->l_buf.b_count);
+			m0_bufvec_cursor_init(&cur, &bv);
+
+			m0_mutex_lock(&l->l_lock);
+			rc = m0_layout_encode(l, M0_LXO_BUFFER_OP, NULL, &cur);
+			m0_mutex_unlock(&l->l_lock);
+		}
+		break;
+	}
         default:
                 rc = -ENOSYS;
                 break;
@@ -909,6 +973,8 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
         struct m0_fop_open_rep      *open_rep;
         struct m0_fop_close_rep     *close_rep;
         struct m0_fop_readdir_rep   *readdir_rep;
+        struct m0_fop_layout_rep    *layout_rep;
+        void                        *reply_fop;
 
         M0_PRE(ftype != NULL);
 
@@ -951,66 +1017,62 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 	fop->f_item.ri_nr_sent_max = M0T1FS_RPC_TIMEOUT;
         rc = m0_rpc_client_call(fop, session, NULL, 0 /* deadline */);
         if (rc != 0) {
-                M0_LOG(M0_ERROR,
-                       "m0_rpc_client_call(%x) failed with %d", m0_fop_opcode(fop), rc);
+                M0_LOG(M0_ERROR, "m0_rpc_client_call(%x) failed with %d",
+		       m0_fop_opcode(fop), rc);
                 goto out;
         }
 
+        reply_fop = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+        *rep = reply_fop;
+
         switch (m0_fop_opcode(fop)) {
         case M0_MDSERVICE_CREATE_OPCODE:
-                create_rep = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+                create_rep = reply_fop;
                 rc = create_rep->c_body.b_rc;
-                *rep = create_rep;
                 break;
         case M0_MDSERVICE_STATFS_OPCODE:
-                statfs_rep = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+                statfs_rep = reply_fop;
                 rc = statfs_rep->f_rc;
-                *rep = statfs_rep;
                 break;
         case M0_MDSERVICE_LOOKUP_OPCODE:
-                lookup_rep = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+                lookup_rep = reply_fop;
                 rc = lookup_rep->l_body.b_rc;
-                *rep = lookup_rep;
                 break;
         case M0_MDSERVICE_LINK_OPCODE:
-                link_rep = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+                link_rep = reply_fop;
                 rc = link_rep->l_body.b_rc;
-                *rep = link_rep;
                 break;
         case M0_MDSERVICE_UNLINK_OPCODE:
-                unlink_rep = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+                unlink_rep = reply_fop;
                 rc = unlink_rep->u_body.b_rc;
-                *rep = unlink_rep;
                 break;
         case M0_MDSERVICE_RENAME_OPCODE:
-                rename_rep = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+                rename_rep = reply_fop;
                 rc = rename_rep->r_body.b_rc;
-                *rep = rename_rep;
                 break;
         case M0_MDSERVICE_SETATTR_OPCODE:
-                setattr_rep = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+                setattr_rep = reply_fop;
                 rc = setattr_rep->s_body.b_rc;
-                *rep = setattr_rep;
                 break;
         case M0_MDSERVICE_GETATTR_OPCODE:
-                getattr_rep = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+                getattr_rep = reply_fop;
                 rc = getattr_rep->g_body.b_rc;
-                *rep = getattr_rep;
                 break;
         case M0_MDSERVICE_OPEN_OPCODE:
-                open_rep = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+                open_rep = reply_fop;
                 rc = open_rep->o_body.b_rc;
-                *rep = open_rep;
                 break;
         case M0_MDSERVICE_CLOSE_OPCODE:
-                close_rep = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+                close_rep = reply_fop;
                 rc = close_rep->c_body.b_rc;
-                *rep = close_rep;
                 break;
         case M0_MDSERVICE_READDIR_OPCODE:
-                readdir_rep = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+                readdir_rep = reply_fop;
                 rc = readdir_rep->r_body.b_rc;
-                *rep = readdir_rep;
+                break;
+         case M0_LAYOUT_OPCODE:
+                layout_rep = reply_fop;
+                rc = layout_rep->lr_rc;
                 break;
         default:
                 M0_LOG(M0_ERROR, "Unexpected fop opcode %x", m0_fop_opcode(fop));
@@ -1023,6 +1085,74 @@ out:
 		m0_fop_put(fop);
         M0_LEAVE("%d", rc);
         return rc;
+}
+
+
+int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
+		     uint64_t lid, struct m0_layout **l_out)
+{
+	struct m0t1fs_mdop        mo = { {  { 0 } } };
+	struct m0_fop_layout_rep *rep = NULL;
+	int                       rc;
+	struct m0_layout         *layout = NULL;
+	struct m0_layout_domain  *ldom = &m0t1fs_globals.g_layout_dom;
+
+	M0_ENTRY();
+
+	M0_LOG(M0_DEBUG, "layout op = %u lid = %llu", op, lid);
+	if (op == M0_LAYOUT_OP_ADD || op == M0_LAYOUT_OP_DELETE) {
+		layout = m0_layout_find(ldom, lid);
+		if (layout == NULL)
+			M0_RETURN(-ENOENT);
+	}
+
+	mo.mo_layout_op   = op;
+	mo.mo_attr.ca_lid = lid;
+	mo.mo_layout      = layout;
+
+	rc = m0t1fs_mds_cob_op(csb, &mo, &m0_fop_layout_fopt, (void **)&rep);
+	M0_LOG(M0_DEBUG, "layout rep rc = %d", rc);
+	if (rc == 0) {
+		M0_LOG(M0_DEBUG, "layout rep->lr_rc = %d", rep->lr_rc);
+
+		if (op == M0_LAYOUT_OP_LOOKUP) {
+			struct m0_bufvec               bv;
+			struct m0_bufvec_cursor        cur;
+			struct m0_layout              *l;
+			struct m0_layout_type         *lt;
+			M0_ASSERT(l_out != NULL);
+
+		        bv = (struct m0_bufvec)
+				M0_BUFVEC_INIT_BUF((void**)&rep->lr_buf.b_addr,
+					   (m0_bcount_t*)&rep->lr_buf.b_count);
+			m0_bufvec_cursor_init(&cur, &bv);
+
+			/* FIXME This hard coding of 'lt' will be gotten rid of
+			 * once we enhance the layout id to contain the layout
+			 * type as well.
+			 */
+			lt = &m0_pdclust_layout_type;
+			rc = lt->lt_ops->lto_allocate(ldom, lid, &l);
+			if (rc == 0) {
+				rc = m0_layout_decode(l, &cur, M0_LXO_BUFFER_OP,
+						      NULL);
+				/* release lock held by ->lto_allocate() */
+				m0_mutex_unlock(&l->l_lock);
+				if (rc == 0) {
+					/* m0_layout_put() should be called
+					 * after use of this l_out */
+					*l_out = l;
+				} else {
+					m0_layout_put(l);
+				}
+			}
+		}
+	}
+
+	if (layout != NULL)
+		m0_layout_put(layout); /* dual to m0_layout_find() */
+
+	M0_RETURN(rc);
 }
 
 int m0t1fs_mds_statfs(struct m0t1fs_sb *csb, struct m0_fop_statfs_rep **rep)

@@ -36,6 +36,17 @@
 #include "conf/confc.h"    /* m0_confc */
 #include "rpc/rpclib.h"    /* m0_rcp_client_connect */
 
+static int m0t1fs_layout_build(const uint64_t         layout_id,
+			       const uint32_t         N,
+			       const uint32_t         K,
+			       const uint32_t         pool_width,
+			       const uint64_t         unit_size,
+			       struct m0_layout_enum *le,
+			       struct m0_layout     **layout);
+
+static int m0t1fs_cob_id_enum_build(const uint32_t pool_width,
+				    struct m0_layout_enum **lay_enum);
+
 extern struct io_mem_stats iommstats;
 
 M0_INTERNAL void io_bob_tlists_init(void);
@@ -689,6 +700,12 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 	if (rc != 0)
 		M0_RETURN(rc);
 
+	/* create the new layout on mds: -EEXIST is OK */
+	rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_ADD, csb->csb_layout_id,
+			      NULL);
+	if (rc != 0 && rc != -EEXIST)
+		M0_RETURN(rc);
+
 	sb->s_magic = rep->f_type;
 	csb->csb_namelen = rep->f_namelen;
 
@@ -903,7 +920,13 @@ m0t1fs_sb_layout_init(struct m0t1fs_sb *csb, const struct fs_params *fs_params)
 	if (rc == 0) {
 		uint64_t random = m0_time_nanoseconds(m0_time_now());
 
-		csb->csb_layout_id = m0_rnd(~0ULL >> 16, &random);
+		/* A new and unique layout id is needed here. The uniqueness
+		 * in cluster, and in history. FIXME later.
+		 */
+		do {
+			csb->csb_layout_id = m0_rnd(~0ULL >> 16, &random);
+		} while (csb->csb_layout_id == 0);
+
 		rc = m0t1fs_layout_build(csb->csb_layout_id,
 					 fs_params->fs_nr_data_units,
 					 fs_params->fs_nr_parity_units,

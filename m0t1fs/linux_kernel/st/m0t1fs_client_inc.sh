@@ -310,19 +310,38 @@ file_creation_test()
 	echo "Test: Creating $nr_files files on m0t1fs..." \
 	    >> $MERO_TEST_LOGFILE
 	for ((i=0; i<$nr_files; ++i)); do
-		touch $m0t1fs_mount_dir/file$i || break
+		touch $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
+		ls -li $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
 	done
-	echo "Removing files..." >> $MERO_TEST_LOGFILE
-	rm -f $m0t1fs_mount_dir/file*
 	unmount_and_clean &>> $MERO_TEST_LOGFILE
 	echo -n "Test: file creation: " >> $MERO_TEST_LOGFILE
 	if [ $i -eq $nr_files ]; then
-		echo "Success." >> $MERO_TEST_LOGFILE
-		return 0
+		echo "Creation Success." >> $MERO_TEST_LOGFILE
 	else
-		echo "Failed." >> $MERO_TEST_LOGFILE
+		echo "Creation Failed." >> $MERO_TEST_LOGFILE
 		return 1
 	fi
+
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 &>> $MERO_TEST_LOGFILE || {
+		cat $MERO_TEST_LOGFILE
+		return 1
+	}
+	echo "Test: removing $nr_files files on m0t1fs..." \
+	    >> $MERO_TEST_LOGFILE
+	for ((i=0; i<$nr_files; ++i)); do
+		rm -vf $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
+	done
+
+	unmount_and_clean &>> $MERO_TEST_LOGFILE
+	echo -n "Test: file removal: " >> $MERO_TEST_LOGFILE
+	if [ $i -eq $nr_files ]; then
+		echo "Removal Success." >> $MERO_TEST_LOGFILE
+		return 0
+	else
+		echo "Removal Failed." >> $MERO_TEST_LOGFILE
+		return 1
+	fi
+
 	return 1
 }
 
