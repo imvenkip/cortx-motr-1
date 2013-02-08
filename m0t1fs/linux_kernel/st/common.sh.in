@@ -8,7 +8,7 @@ MODLIST="@ABS_SRCDIR@/build_kernel_modules/m0mero.ko"
 
 # The following associative array carries the list of module parameters for
 # modules in MODLIST.
-typeset -A MODPARAMS
+declare -A MODPARAMS
 NULL_UUID="00000000-0000-0000-0000-000000000000"
 MODPARAMS[m0mero.ko]="node_uuid=${NODE_UUID:-$NULL_UID}"
 

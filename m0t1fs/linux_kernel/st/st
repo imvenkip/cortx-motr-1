@@ -109,7 +109,7 @@ services_start() {
   ("mds", {3| (1, [1: "$MDS_ENDPOINT"], "node-0")}),
   ("ios", {3| (2, [1: "$IOS0_ENDPOINT"], "node-0")}),
 
-  ("prof-1", {1| ("fs-1")}),
+  ("prof-ac", {1| ("fs-1")}),
   ("fs-1", {2| ((11, 22),
                 [8: "-r", "-p", "-T", "linux", "-D", "db", "-S", "stobs"],
                 [1: "ios-1"])}),
@@ -129,7 +129,7 @@ EOF`"
 -e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s addb -s ioservice
  -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN
 EOF`"
-    [ "$MODE" = autoconf ] && OPTIONS="-C $CONFD_ENDPOINT -P prof-1"
+    [ "$MODE" = autoconf ] && OPTIONS="-C $CONFD_ENDPOINT -P prof-ac"
 
     echo "--- `date` ---" >>$SANDBOX_DIR/m0d.log
     cd $SANDBOX_DIR
