@@ -137,14 +137,14 @@ AC_ARG_ENABLE([rpm],
         [enable_rpm=no]
 )
 
-AC_ARG_WITH([linux-obj],
-        [AS_HELP_STRING([--with-linux-obj=path],
-                        [set path to Linux objects dir (default=/lib/modules/$(uname -r)/build])],
-        [LINUX_OBJ=$with_linux_obj],
-        [LINUX_OBJ=/lib/modules/`uname -r`/build]
+AC_ARG_WITH([linux],
+        [AS_HELP_STRING([--with-linux=path],
+                        [set path to Linux kernel dir, default is /lib/modules/`uname -r`/build])],
+        [LINUX=$with_linux; LINUX_OBJ=$LINUX; LINUX_MOD=$LINUX],
+        [LINUX=/lib/modules/`uname -r`; LINUX_OBJ=$LINUX/build; LINUX_MOD=$LINUX]
 )
 AC_SUBST([LINUX_OBJ])
-AC_SUBST([LINUX_MOD], [$(dirname $LINUX_OBJ)])
+AC_SUBST([LINUX_MOD])
 
 AC_ARG_WITH([lustre],
         [AS_HELP_STRING([--with-lustre=path], [set path to lustre sources])],
