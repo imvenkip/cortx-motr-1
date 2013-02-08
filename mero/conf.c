@@ -152,6 +152,7 @@ node_options_add(struct cs_args *args, const struct m0_conf_node *node)
 	option_add(args, strdup(buf));
 }
 
+/** Uses confc API to generate CLI arguments. */
 static int conf_to_args(struct cs_args *dest, const char *confd_addr,
 			const char *profile, struct m0_rpc_machine *rpc_mach)
 {
@@ -192,6 +193,14 @@ static int conf_to_args(struct cs_args *dest, const char *confd_addr,
 			       "Unable to obtain configuration of a node");
 			break;
 		}
+		/*
+		 * XXX FIXME: Options of a particular node should be
+		 * added only once.
+		 *
+		 * Several services may be hosted on the same node. We
+		 * should take this fact into consideration when
+		 * adding node options (currently we are ignoring it).
+		 */
 		node_options_add(dest, M0_CONF_CAST(node, m0_conf_node));
 		m0_confc_close(node);
 	}
@@ -207,6 +216,10 @@ end:
 	M0_RETURN(rc);
 }
 
+/**
+ * Establishes network connection with confd, fills CLI arguments (`args'),
+ * disconnects from confd.
+ */
 M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 				const char *profile)
 {

@@ -21,15 +21,15 @@
 #include <stdio.h>     /* fprintf */
 #include <sys/stat.h>  /* mkdir */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0D
+#include "lib/trace.h"
+
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/finject.h"    /* M0_FI_ENABLED */
 #include "lib/getopts.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0D
-#include "lib/trace.h"
-
 #include "balloc/balloc.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
@@ -1695,6 +1695,7 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 	M0_RETURN(rc);
 }
 
+/** Parses CLI arguments, filling m0_mero structure. */
 static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 		       const char **confd_addr, const char **profile)
 {
@@ -1859,13 +1860,6 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 	M0_RETURN(result ?: rc);
 }
 
-/**
- * Parses given arguments and allocates request handler context, if all the
- * required arguments are provided and valid.
- *
- * Every allocated request handler context is added to the list of the same in
- * given mero context.
- */
 static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 {
 	int         rc;
