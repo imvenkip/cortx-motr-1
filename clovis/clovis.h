@@ -51,8 +51,8 @@
  *     - domain is a collection of objects and containers with a specified
  *       access discipline and certain guaranteed fault-tolerance
  *       characteristics. There are different types of domains, specified by the
- *       enum m0_clovis_domain_type. Initially clovis supports only domains of
- *       M0_CLOVIS_DOMAIN_TYPE_EXCL. Such domains have, at any given moment, at
+ *       enum m0_clovis_dom_type. Initially clovis supports only domains of
+ *       M0_CLOVIS_DOM_TYPE_EXCL. Such domains have, at any given moment, at
  *       most one application accessing the domain. This application is called
  *       "domain owner".
  *
@@ -115,8 +115,9 @@
 #include "dtm/dtm.h"
 
 /* export */
-struct m0_clovis_domain;
+struct m0_clovis_dom;
 struct m0_clovis_dtx;
+struct m0_clovis_attr;
 struct m0_clovis_obj;
 struct m0_clovis_obj_attr;
 struct m0_clovis_bag;
@@ -131,26 +132,11 @@ struct m0_clovis_rec;
  *
  * Domains, objects and containers have separate identifier
  * name-spaces. Identifier allocation, assignment, recycling and reuse are up to
- * the application, except for a pre-defined M0_CLOVIS_DOMAIN0_ID identifier in
+ * the application, except for a pre-defined M0_CLOVIS_DOM0_ID identifier in
  * the domain name-space.
  */
 struct m0_clovis_id {
 	struct m0_uint128 cid_128;
-};
-
-/**
- * m0_clovis_common contains state common for domains, objects and containers.
- */
-struct m0_clovis_common {
-	/**
-	 * State machine. Possible state are taken from enum m0_clovis_state.
-	 */
-	struct m0_sm          com_sm;
-	/**
-	 * Identifier of this entity.
-	 */
-	struct m0_clovis_is   com_id;
-	struct m0_clovis_attr com_attr;
 };
 
 /**
@@ -174,39 +160,73 @@ struct m0_clovis_attr {
 };
 
 /**
+ * m0_clovis_common contains state common for domains, objects and containers.
+ */
+struct m0_clovis_common {
+	/**
+	 * State machine. Possible state are taken from enum m0_clovis_state.
+	 */
+	struct m0_sm          com_sm;
+	/**
+	 * Identifier of this entity.
+	 */
+	struct m0_clovis_is   com_id;
+	struct m0_clovis_attr com_attr;
+};
+
+/**
  * Possible entity states, where an entity is domain, object or container.
+ *
+ * @verbatim
+ *
+ *                  create
+ *        CREATING<--------+
+ *            |            |
+ *            |        	   |
+ *            |        	   |
+ *            |        	   |
+ *            +---------->INIT<----------------------CLOSING
+ *            |        	   | |                           ^
+ *            |            | |                           |
+ *            |            | |                           | close
+ *            |            | |                           |
+ *        DELETING<--------+ +-------->OPENING-------->ACTIVE
+ *                  delete      open
+ *
+ * @endverbatim
+ *
  */
 enum m0_clovis_state {
 	/**
 	 * Entity has been initialised.
 	 *
-	 * @see m0_clovis_domain_init(), m0_clovis_obj_init(), m0_clovis_bag_init().
+	 * @see m0_clovis_dom_init(), m0_clovis_obj_init(), m0_clovis_bag_init().
 	 */
 	M0_CS_INIT = 1,
 	/**
 	 * Entity is being opened.
 	 *
-	 * @see m0_clovis_domain_open(), m0_clovis_obj_open(), m0_clovis_bag_open().
+	 * @see m0_clovis_dom_open(), m0_clovis_obj_open(), m0_clovis_bag_open().
 	 */
 	M0_CS_OPENING,
 	/**
 	 * Not previously existing entity is being created.
 	 *
-	 * @see m0_clovis_domain_create(), m0_clovis_obj_create().
+	 * @see m0_clovis_dom_create(), m0_clovis_obj_create().
 	 * @see m0_clovis_bag_create().
 	 */
 	M0_CS_CREATING,
 	/**
 	 * Existing entity is being deleted.
 	 *
-	 * @see m0_clovis_domain_delete(), m0_clovis_obj_delete().
+	 * @see m0_clovis_dom_delete(), m0_clovis_obj_delete().
 	 * @see m0_clovis_bag_delete().
 	 */
 	M0_CS_DELETING,
 	/**
 	 * Opened entity is being closed.
 	 *
-	 * @see m0_clovis_domain_close(), m0_clovis_obj_close().
+	 * @see m0_clovis_dom_close(), m0_clovis_obj_close().
 	 * @see m0_clovis_bag_close().
 	 */
 	M0_CS_CLOSING,
@@ -225,7 +245,7 @@ enum m0_clovis_state {
 /**
  * Supported domain types.
  */
-enum m0_clovis_domain_type {
+enum m0_clovis_dom_type {
 	/**
 	 * Exclusively owned domain.
 	 *
@@ -233,14 +253,14 @@ enum m0_clovis_domain_type {
 	 * application. This application is called domain owner.
 	 *
 	 * It is up to the application to guaranatee that when an exclusively
-	 * owned domain is opened (m0_clovis_domain_open()), the previous user
+	 * owned domain is opened (m0_clovis_dom_open()), the previous user
 	 * of the clovis interface that opened the domain either successfully
-	 * completed the m0_clovis_domain_close() call or is somehow guaranteed
+	 * completed the m0_clovis_dom_close() call or is somehow guaranteed
 	 * to make no more calls against this domain (the latter case typically
 	 * means that the previous user is known to be dead or was STONITHed).
 	 */
-	M0_CLOVIS_DOMAIN_TYPE_EXCL = 1,
-	M0_CLOVIS_DOMAIN_TYPE_NR
+	M0_CLOVIS_DOM_TYPE_EXCL = 1,
+	M0_CLOVIS_DOM_TYPE_NR
 };
 
 /**
@@ -252,9 +272,9 @@ enum m0_clovis_domain_type {
  * domain resources. Internally, clovis implementation manages other resources:
  * free storage space, layouts, &c.
  */
-struct m0_clovis_domain {
-	struct m0_clovis_common    cdo_com;
-	enum m0_clovis_domain_type cdo_type;
+struct m0_clovis_dom {
+	struct m0_clovis_common cdo_com;
+	enum m0_clovis_dom_type cdo_type;
 };
 
 /**
@@ -320,7 +340,7 @@ struct m0_clovis_bag_attr {
  *
  * Data buffers are used for:
  *
- *     - application-supplied data which is to be written to an object;
+ *     - application-supplied data which are to be written to an object;
  *
  *     - space for implementation-returned data read from an object;
  *
@@ -349,13 +369,39 @@ struct m0_clovis_sgsl {
 	 */
 	struct m0_indexvec    csg_ext;
 	/**
-	 * Data buffer of the same size as total extent length.
+	 * Data buffer of the same size as total extents length.
 	 */
 	struct m0_clovis_data csg_buf;
 };
 
 /**
  * State of clovis operation (m0_clovis_op).
+ *
+ * @verbatim
+ *                    (*)
+ *                     |
+ *                     | m0_clovis_op_init()
+ *                     |
+ *                     V
+ *                   INIT
+ *                     |
+ *                     | m0_clovis_obj_op(), m0_clovis_bag_op()
+ *                     |
+ *                     V
+ *   FAILED<-------ONGOING<-------+
+ *     |               |          |
+ *     |               |          | m0_clovis_cur_next()
+ *     |               |          |
+ *     |               V          |
+ *     |           COMPLETE-------+
+ *     |               |
+ *     |               | m0_clovis_op_fini()
+ *     |               |
+ *     |               V
+ *     +------------->(+)
+ *
+ * @endverbatim
+ *
  */
 enum m0_clovis_op_state {
 	M0_CO_INIT = 1,
@@ -364,17 +410,61 @@ enum m0_clovis_op_state {
 	M0_CO_COMPLETE
 };
 
+/**
+ * Attributes common for object and container operations.
+ */
 struct m0_clovis_op {
-	unsigned              co_type;
-	struct m0_sm          co_sm;
-	struct m0_clovis_obj *co_obj;
-	struct m0_clovis_dtx *co_dx;
+	/**
+	 * Operation type is taken from one of enums, defined below:
+	 * m0_clovis_obj_op_type or m0_clovis_bag_op_type.
+	 */
+	unsigned                 co_type;
+	/** State machine tracking operation progress. */
+	struct m0_sm             co_sm;
+	/** Object or container the operation is against. */
+	struct m0_clovis_common *co_target;
+	/**
+	 * Transaction this operation is part of. This must be NULL for a
+	 * read-only operation (M0_COOT_READ, M0_CBOT_LOOKUP and M0_CBOT_CURSOR)
+	 * and must be non-NULL for an updating operaiton (any other).
+	 */
+	struct m0_clovis_dtx    *co_dx;
 };
 
+/**
+ * Object operation types.
+ */
 enum m0_clovis_obj_op_type {
+	/**
+	 * Read data from the extents specified by
+	 * m0_clovis_obj_op::cio_data::csg_ext and place them in the buffers
+	 * specified by m0_clovis_obj_op::cio_data::csg_buf.
+	 *
+	 */
 	M0_COOT_READ,
+	/**
+	 * Take data from the buffers specified by
+	 * m0_clovis_obj_op::cio_data::csg_buf and write them to the extents
+	 * specified by m0_clovis_obj_op::cio_data::csg_ext.
+	 */
 	M0_COOT_WRITE,
+	/**
+	 * "Free" operation deallocates data blocks from the object. It
+	 * generalises truncate and punch operations. Only extent vector
+	 * (m0_clovis_obj_op::cio_data::csg_ext) is used by this operation. Data
+	 * buffer (m0_clovis_obj_op::cio_data::csg_buf) must have size 0.
+	 *
+	 * Subsequent reads from deallocated object extents return zeroes.
+	 */
 	M0_COOT_FREE,
+	/**
+	 * "Alloc" operation pre-allocates storage space for the specified
+	 * extents in object offset space. No change for already allocated parts
+	 * of the object. The requirements on m0_clovis_obj_op::cio_data are the
+	 * same as in M0_COOT_FREE.
+	 *
+	 * The exact meaning of "pre-allocation" is implementation dependent.
+	 */
 	M0_COOT_ALLOC
 };
 
@@ -383,47 +473,79 @@ struct m0_clovis_obj_op {
 	const struct m0_clovis_sgsl cio_data;
 };
 
+/**
+ * Container operation types.
+ */
 enum m0_clovis_bag_op_type {
+	/**
+	 * Lookup a record with a given key.
+	 */
 	M0_CBOT_LOOKUP,
+	/**
+	 * Insert a given record in the container.
+	 */
 	M0_CBOT_INSERT,
+	/**
+	 * Delete the record with a given key.
+	 */
 	M0_CBOT_DELETE,
+	/**
+	 * Replace the value associated with the given key.
+	 */
 	M0_CBOT_UPDATE,
+	/**
+	 * Start a cursor and position it on the given key.
+	 */
 	M0_CBOT_CURSOR
 };
 
+/**
+ * Key-value record.
+ */
 struct m0_clovis_rec {
 	struct m0_clovis_data cre_key;
 	struct m0_clovis_data cre_val;
 };
 
+/**
+ * Container operation.
+ */
 struct m0_clovis_bag_op {
 	struct m0_clovis_op  cbo_op;
 	struct m0_clovis_rec cbo_rec;
 };
 
-M0_EXTERN const struct m0_clovis_id M0_CLOVIS_DOMAIN0_ID;
+/**
+ * Pre-defined identifier of domain0, created by the implementation.
+ *
+ * Application may not use this identifier for the domains created by the
+ * application. domain0 should be used only to start transactions used to create
+ * other domains.
+ */
+M0_EXTERN const struct m0_clovis_id M0_CLOVIS_DOM0_ID;
 
-void m0_clovis_domain_init  (struct m0_clovis_domain *dom,
-			     enum m0_clovis_domain_type type,
-			     const struct m0_clovis_id *id);
-void m0_clovis_domain_fini  (struct m0_clovis_domain *dom);
-void m0_clovis_domain_create(struct m0_clovis_domain *dom, struct m0_clovis_dtx *dx);
-void m0_clovis_domain_open  (struct m0_clovis_domain *dom);
-void m0_clovis_domain_close (struct m0_clovis_domain *dom);
-void m0_clovis_domain_delete(struct m0_clovis_domain *dom, struct m0_clovis_dtx *dx);
+void m0_clovis_dom_init  (struct m0_clovis_dom *dom,
+			  enum m0_clovis_dom_type type,
+			  const struct m0_clovis_id *id);
+void m0_clovis_dom_fini  (struct m0_clovis_dom *dom);
+void m0_clovis_dom_create(struct m0_clovis_dom *dom, struct m0_clovis_dtx *dx);
+void m0_clovis_dom_open  (struct m0_clovis_dom *dom);
+void m0_clovis_dom_close (struct m0_clovis_dom *dom);
+void m0_clovis_dom_delete(struct m0_clovis_dom *dom, struct m0_clovis_dtx *dx);
 
-void m0_clovis_dtx_init (struct m0_clovis_dtx *dx);
-void m0_clovis_dtx_fini (struct m0_clovis_dtx *dx);
-void m0_clovis_dtx_open (struct m0_clovis_dtx *dx, struct m0_clovis_domain *dom);
-void m0_clovis_dtx_close(struct m0_clovis_dtx *dx);
-void m0_clovis_dtx_add  (struct m0_clovis_dtx *dx, struct m0_clovis_op *op);
-void m0_clovis_dtx_force(struct m0_clovis_dtx *dx);
+void m0_clovis_dtx_init  (struct m0_clovis_dtx *dx);
+void m0_clovis_dtx_fini  (struct m0_clovis_dtx *dx);
+void m0_clovis_dtx_open  (struct m0_clovis_dtx *dx, struct m0_clovis_dom *dom);
+void m0_clovis_dtx_close (struct m0_clovis_dtx *dx);
+void m0_clovis_dtx_add   (struct m0_clovis_dtx *dx, struct m0_clovis_op *op);
+void m0_clovis_dtx_force (struct m0_clovis_dtx *dx);
 
 void m0_clovis_op_init   (struct m0_clovis_obj_op *op, unsigned otype,
 			  struct m0_clovis_obj *obj, struct m0_clovis_dtx *dx);
 void m0_clovis_op_fini   (struct m0_clovis_obj_op *op);
 
-void m0_clovis_obj_init  (struct m0_clovis_obj *obj, const struct m0_clovis_id *id);
+void m0_clovis_obj_init  (struct m0_clovis_obj *obj,
+			  const struct m0_clovis_id *id);
 void m0_clovis_obj_fini  (struct m0_clovis_obj *obj);
 void m0_clovis_obj_create(struct m0_clovis_obj *obj, struct m0_clovis_dtx *dx);
 void m0_clovis_obj_open  (struct m0_clovis_obj *obj);
@@ -432,7 +554,8 @@ void m0_clovis_obj_delete(struct m0_clovis_obj *obj, struct m0_clovis_dtx *dx);
 
 void m0_clovis_obj_op    (struct m0_clovis_obj_op *op);
 
-void m0_clovis_bag_init  (struct m0_clovis_bag *bag, const struct m0_clovis_id *id);
+void m0_clovis_bag_init  (struct m0_clovis_bag *bag,
+			  const struct m0_clovis_id *id);
 void m0_clovis_bag_fini  (struct m0_clovis_bag *bag);
 void m0_clovis_bag_create(struct m0_clovis_bag *bag, struct m0_clovis_dtx *dx);
 void m0_clovis_bag_open  (struct m0_clovis_bag *bag);
@@ -441,7 +564,6 @@ void m0_clovis_bag_delete(struct m0_clovis_bag *bag, struct m0_clovis_dtx *dx);
 
 void m0_clovis_bag_op    (struct m0_clovis_bag_op *op);
 void m0_clovis_cur_next  (struct m0_clovis_bag_op *op);
-void m0_clovis_cur_close (struct m0_clovis_bag_op *op);
 
 /** @} end of clovis group */
 
