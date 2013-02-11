@@ -2,7 +2,7 @@ CORE_SRCDIR     = @abs_top_srcdir@
 BUILD_DIR       = $(CORE_SRCDIR)/build_kernel_modules
 KERNEL_BUILDDIR = @LINUX_OBJ@
 
-KBUILD_EXTRA_SYMBOLS = $(BUILD_DIR)/Lustre.symvers @GALOIS_SYMVERS@
+KBUILD_EXTRA_SYMBOLS = @LUSTRE_SYMVERS@ @GALOIS_SYMVERS@
 
 GCOV_PROFILE    = @K_ENABLE_COVERAGE@
 
@@ -248,8 +248,6 @@ create_links = $(shell ln -s $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f))     \
 all:
 	@echo $(m0mero-y)
 	for s in $(testdirs); do $(MAKE) -C $$s prepare; done
-#	Following line is commented out until a lustre devel RPM is available
-#	ln -fs @LUSTRE@/config.h lustre_config.h
 #       Following lines create links to files from core/ tree to
 #       build_kernel_modules/ tree if links does not already exists.
 #       for d in $(dirs); do
@@ -279,12 +277,10 @@ uninstall:
 
 dist distdir:
 	cp -v dummy_init_fini.[ch] main.c Makefile.in \
-		lustre_config.h Lustre.symvers \
 		@top_builddir@/@PACKAGE@-@PACKAGE_VERSION@/build_kernel_modules
 
 clean distclean:
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd` clean
-#	$(RM) lustre_config.h
 	$(RM) Module.markers modules.order
 	$(foreach d, $(dirs), $(shell rm -rf $(firstword $(subst /, , $(d)))))
 	for s in $(testdirs) ;do $(MAKE) -C $$s clean ;done

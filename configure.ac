@@ -147,9 +147,15 @@ AC_SUBST([LINUX_OBJ])
 AC_SUBST([LINUX_MOD])
 
 AC_ARG_WITH([lustre],
-        [AS_HELP_STRING([--with-lustre=path], [set path to lustre sources])],
+        [AS_HELP_STRING([--with-lustre=path],
+                        [set path to lustre headers or built sources dir, default is /usr/src/lustre-*])],
         [LUSTRE=$with_lustre],
-        [LUSTRE=/usr/src/`ls /usr/src | grep lustre | tail -1`]
+        [LUSTRE=/usr/src/`ls /usr/src | grep lustre- | tail -1`]
+)
+AS_IF([test -z "$LUSTRE" || ! test -d "$LUSTRE/"],
+      [AC_MSG_ERROR([Lustre headers not found! Please, install lustre-devel \
+package or provide the path to a directory with built Lustre sources, \
+using --with-lustre option.])]
 )
 AC_SUBST([LUSTRE])
 
@@ -323,25 +329,30 @@ MERO_LINUX_SENDFILE
 AC_MSG_CHECKING([for LNet header dir])
 AS_IF([! test -d $LUSTRE/lnet/include],
       [AC_MSG_ERROR([lnet/include not found in '$LUSTRE', please provide a
-correct path to Lustre sources using --with-lustre option])]
+correct path to Lustre headers using --with-lustre option])]
 )
-AC_MSG_RESULT([$LUSTRE])
+AC_MSG_RESULT([$LUSTRE/lnet/include])
 
-# Disabling check for lustre config and Module.symvers until devel RPM is ready
-#
-#AC_MSG_CHECKING([for Lustre config.h])
-#AS_IF([! test -e $LUSTRE/config.h],
-#      AC_MSG_RESULT([no])
-#      AC_MSG_ERROR([$LUSTRE/config.h not found! Did you configure lustre?])
-#)
-#AC_MSG_RESULT([$LUSTRE/config.h])
-#
-#AC_MSG_CHECKING([for Lustre symbols file])
-#AS_IF([! test -e $LUSTRE/Module.symvers],
-#      AC_MSG_RESULT([no])
-#      AC_MSG_ERROR([$LUSTRE/Module.symvers not found! Did you build lustre?])
-#)
-#AC_MSG_RESULT([$LUSTRE/Module.symvers])
+AC_MSG_CHECKING([for Lustre config.h])
+LUSTRE_CONFIG="$LUSTRE/config.h"
+AS_IF([! test -e $LUSTRE_CONFIG],
+      [ AC_MSG_RESULT([no])
+        AC_MSG_ERROR([$LUSTRE_CONFIG not found! Did you configure Lustre?])
+      ],[
+        (cd $ABS_BUILDDIR/build_kernel_modules; $LN_S $LUSTRE_CONFIG lustre_config.h)
+      ]
+)
+AC_MSG_RESULT([$LUSTRE_CONFIG])
+AC_SUBST([LUSTRE_CONFIG_LINK], [$ABS_BUILDDIR/build_kernel_modules/lustre_config.h])
+
+AC_MSG_CHECKING([for Lustre symbols file])
+LUSTRE_SYMVERS="$LUSTRE/Module.symvers"
+AS_IF([! test -e $LUSTRE_SYMVERS],
+      AC_MSG_RESULT([no])
+      AC_MSG_ERROR([$LUSTRE_SYMVERS not found! Did you build Lustre?])
+)
+AC_MSG_RESULT([$LUSTRE_SYMVERS])
+AC_SUBST([LUSTRE_SYMVERS])
 
 #
 # Configure and build dependencies in external mero repositories

@@ -94,6 +94,7 @@ noinst_LTLIBRARIES =
 
 EXTRA_DIST = autogen.sh mero.spec.in
 CLEANFILES =
+DISTCLEANFILES = @LUSTRE_CONFIG_LINK@
 
 # a list of auto-generated *_ff.[hc] files
 FF_FILES =
