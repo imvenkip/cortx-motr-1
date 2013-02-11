@@ -243,7 +243,7 @@ extern const struct m0_fid M0_COB_SESSIONS_FID;
    database environment.
  */
 struct m0_cob_domain_id {
-        uint64_t id;
+	uint64_t id;
 };
 
 /**
@@ -264,12 +264,12 @@ struct m0_cob_domain_id {
    therefore cob domains and databases.
 */
 struct m0_cob_domain {
-        struct m0_cob_domain_id cd_id;
-        struct m0_dbenv        *cd_dbenv;
-        struct m0_table         cd_object_index;
-        struct m0_table         cd_namespace;
-        struct m0_table         cd_fileattr_basic;
-        struct m0_table         cd_fileattr_omg;
+	struct m0_cob_domain_id cd_id;
+	struct m0_dbenv        *cd_dbenv;
+	struct m0_table         cd_object_index;
+	struct m0_table         cd_namespace;
+	struct m0_table         cd_fileattr_basic;
+	struct m0_table         cd_fileattr_omg;
 };
 
 int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_dbenv *env,
@@ -290,26 +290,26 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
  * Flags for cob attributes.
  */
 enum m0_cob_valid_flags {
-        M0_COB_ATIME   = 1 << 0,
-        M0_COB_MTIME   = 1 << 1,
-        M0_COB_CTIME   = 1 << 2,
-        M0_COB_SIZE    = 1 << 3,
-        M0_COB_MODE    = 1 << 4,
-        M0_COB_UID     = 1 << 5,
-        M0_COB_GID     = 1 << 6,
-        M0_COB_BLOCKS  = 1 << 7,
-        M0_COB_TYPE    = 1 << 8,
-        M0_COB_FLAGS   = 1 << 9,
-        M0_COB_NLINK   = 1 << 10,
-        M0_COB_RDEV    = 1 << 11,
-        M0_COB_BLKSIZE = 1 << 12,
-        M0_COB_LID     = 1 << 13
+	M0_COB_ATIME   = 1 << 0,
+	M0_COB_MTIME   = 1 << 1,
+	M0_COB_CTIME   = 1 << 2,
+	M0_COB_SIZE    = 1 << 3,
+	M0_COB_MODE    = 1 << 4,
+	M0_COB_UID     = 1 << 5,
+	M0_COB_GID     = 1 << 6,
+	M0_COB_BLOCKS  = 1 << 7,
+	M0_COB_TYPE    = 1 << 8,
+	M0_COB_FLAGS   = 1 << 9,
+	M0_COB_NLINK   = 1 << 10,
+	M0_COB_RDEV    = 1 << 11,
+	M0_COB_BLKSIZE = 1 << 12,
+	M0_COB_LID     = 1 << 13
 };
 
 #define M0_COB_ALL (M0_COB_ATIME | M0_COB_MTIME | M0_COB_CTIME |               \
-                    M0_COB_SIZE | M0_COB_MODE | M0_COB_UID | M0_COB_GID |      \
-                    M0_COB_BLOCKS | M0_COB_TYPE | M0_COB_FLAGS | M0_COB_NLINK |\
-                    M0_COB_RDEV | M0_COB_BLKSIZE | M0_COB_LID)
+		    M0_COB_SIZE | M0_COB_MODE | M0_COB_UID | M0_COB_GID |      \
+		    M0_COB_BLOCKS | M0_COB_TYPE | M0_COB_FLAGS | M0_COB_NLINK |\
+		    M0_COB_RDEV | M0_COB_BLKSIZE | M0_COB_LID)
 
 /**
  * Attributes describing object that needs to be created or modified.
@@ -318,32 +318,32 @@ enum m0_cob_valid_flags {
  * should not be dealing with fop request or response.
  */
 struct m0_cob_attr {
-        struct m0_fid ca_pfid;    /**< parent fid */
-        struct m0_fid ca_tfid;    /**< object fid */
-        uint32_t      ca_valid;   /**< valid bits (enum m0_cob_valid_flags) */
-        uint32_t      ca_mode;    /**< protection. */
-        uint32_t      ca_uid;     /**< user ID of owner. */
-        uint32_t      ca_gid;     /**< group ID of owner. */
-        uint64_t      ca_atime;   /**< time of last access. */
-        uint64_t      ca_mtime;   /**< time of last modification. */
-        uint64_t      ca_ctime;   /**< time of last status change. */
-        uint64_t      ca_rdev;    /**< devid for special devices */
-        uint32_t      ca_nlink;   /**< number of hard links. */
-        uint64_t      ca_size;    /**< total size, in bytes. */
-        uint64_t      ca_blksize; /**< blocksize for filesystem I/O. */
-        uint64_t      ca_blocks;  /**< number of blocks allocated. */
-        uint64_t      ca_version; /**< object version */
-        uint64_t      ca_lid;     /**< layout id */
-        struct m0_buf ca_name;    /**< object name */
-        struct m0_buf ca_link;    /**< symlink body */
+	struct m0_fid ca_pfid;    /**< parent fid */
+	struct m0_fid ca_tfid;    /**< object fid */
+	uint32_t      ca_valid;   /**< valid bits (enum m0_cob_valid_flags) */
+	uint32_t      ca_mode;    /**< protection. */
+	uint32_t      ca_uid;     /**< user ID of owner. */
+	uint32_t      ca_gid;     /**< group ID of owner. */
+	uint64_t      ca_atime;   /**< time of last access. */
+	uint64_t      ca_mtime;   /**< time of last modification. */
+	uint64_t      ca_ctime;   /**< time of last status change. */
+	uint64_t      ca_rdev;    /**< devid for special devices */
+	uint32_t      ca_nlink;   /**< number of hard links. */
+	uint64_t      ca_size;    /**< total size, in bytes. */
+	uint64_t      ca_blksize; /**< blocksize for filesystem I/O. */
+	uint64_t      ca_blocks;  /**< number of blocks allocated. */
+	uint64_t      ca_version; /**< object version */
+	uint64_t      ca_lid;     /**< layout id */
+	struct m0_buf ca_name;    /**< object name */
+	struct m0_buf ca_link;    /**< symlink body */
 };
 
 /**
  * Namespace table key. For data objects, cnk_pfid = cfid and cnk_name = "".
  */
 struct m0_cob_nskey {
-        struct m0_fid       cnk_pfid;
-        struct m0_bitstring cnk_name;
+	struct m0_fid       cnk_pfid;
+	struct m0_bitstring cnk_name;
 };
 
 M0_INTERNAL size_t m0_cob_nskey_size(const struct m0_cob_nskey *nskey);
@@ -361,29 +361,29 @@ M0_INTERNAL int m0_cob_nskey_cmp(const struct m0_cob_nskey *k0,
  * file attributes.
  */
 struct m0_cob_nsrec {
-        struct m0_fid     cnr_fid;     /**< object fid */
-        uint32_t          cnr_linkno;  /**< number of link for the name */
+	struct m0_fid     cnr_fid;     /**< object fid */
+	uint32_t          cnr_linkno;  /**< number of link for the name */
 
-        /**
-         * The following fields are only important for 0-nsrec, that is,
-         * stat data. For other records, only two fields above are valid.
-         */
-        uint32_t          cnr_nlink;   /**< number of hard links */
-        uint32_t          cnr_cntr;    /**< linkno allocation counter */
-        uint64_t          cnr_omgid;   /**< uid/gid/mode slot reference */
-        uint64_t          cnr_size;    /**< total size, in bytes */
-        uint64_t          cnr_blksize; /**< blocksize for filesystem I/O */
-        uint64_t          cnr_blocks;  /**< number of blocks allocated */
-        uint64_t          cnr_atime;   /**< time of last access */
-        uint64_t          cnr_mtime;   /**< time of last modification */
-        uint64_t          cnr_ctime;   /**< time of last status change */
-        uint64_t          cnr_lid;     /**< layout id */
+	/**
+	 * The following fields are only important for 0-nsrec, that is,
+	 * stat data. For other records, only two fields above are valid.
+	 */
+	uint32_t          cnr_nlink;   /**< number of hard links */
+	uint32_t          cnr_cntr;    /**< linkno allocation counter */
+	uint64_t          cnr_omgid;   /**< uid/gid/mode slot reference */
+	uint64_t          cnr_size;    /**< total size, in bytes */
+	uint64_t          cnr_blksize; /**< blocksize for filesystem I/O */
+	uint64_t          cnr_blocks;  /**< number of blocks allocated */
+	uint64_t          cnr_atime;   /**< time of last access */
+	uint64_t          cnr_mtime;   /**< time of last modification */
+	uint64_t          cnr_ctime;   /**< time of last status change */
+	uint64_t          cnr_lid;     /**< layout id */
 };
 
 /** Object index table key. The oi table record is a struct m0_cob_nskey. */
 struct m0_cob_oikey {
-        struct m0_fid     cok_fid;
-        uint32_t          cok_linkno;  /**< hardlink ordinal index */
+	struct m0_fid     cok_fid;
+	uint32_t          cok_linkno;  /**< hardlink ordinal index */
 };
 
 /**
@@ -399,31 +399,31 @@ struct m0_cob_oikey {
  * from smaller namespace entries.
  */
 struct m0_cob_fabkey {
-        struct m0_fid     cfb_fid;
+	struct m0_fid     cfb_fid;
 };
 
 struct m0_cob_fabrec {
-        struct m0_verno   cfb_version;  /**< version from last fop */
-        uint64_t          cfb_layoutid; /**< reference to layout */
-        uint16_t          cfb_linklen;  /**< symlink len if any */
-        char              cfb_link[0];  /**< symlink body */
-        /* add ACL, Besides ACL, no further metadata is needed for stat(2). */
+	struct m0_verno   cfb_version;  /**< version from last fop */
+	uint64_t          cfb_layoutid; /**< reference to layout */
+	uint16_t          cfb_linklen;  /**< symlink len if any */
+	char              cfb_link[0];  /**< symlink body */
+	/* add ACL, Besides ACL, no further metadata is needed for stat(2). */
 };
 
 /**
  * Omg (owner/mode/group) table key
  */
 struct m0_cob_omgkey {
-        uint64_t          cok_omgid;   /**< omg id ref */
+	uint64_t          cok_omgid;   /**< omg id ref */
 };
 
 /**
  * Protection and access flags are stored in omg table.
  */
 struct m0_cob_omgrec {
-        uint32_t          cor_uid;     /**< user ID of owner */
-        uint32_t          cor_mode;    /**< protection */
-        uint32_t          cor_gid;     /**< group ID of owner */
+	uint32_t          cor_uid;     /**< user ID of owner */
+	uint32_t          cor_mode;    /**< protection */
+	uint32_t          cor_gid;     /**< group ID of owner */
 };
 
 /**
@@ -484,59 +484,59 @@ struct m0_cob_omgrec {
  * access. Currently these issues are completely covered by db[45].
  */
 struct m0_cob {
-        struct m0_cob_domain  *co_dom;
-        struct m0_stob        *co_stob;     /**< underlying storage object */
-        struct m0_ref          co_ref;      /**< refcounter for caching cobs */
-        uint64_t               co_flags;    /**< @see enum m0_cob_valid_flags */
-        struct m0_fid         *co_fid;      /**< object fid, ref to nsrec fid */
-        struct m0_cob_nskey   *co_nskey;    /**< cob statdata nskey */
-        struct m0_cob_oikey    co_oikey;    /**< object fid, linkno */
-        struct m0_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
-        struct m0_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl...) */
-        struct m0_cob_omgrec   co_omgrec;   /**< permission data */
-        struct m0_db_pair      co_oipair;   /**< used for object index access */
-        struct m0_addb_ctx     co_addb;     /**< cob private addb ctx */
+	struct m0_cob_domain  *co_dom;
+	struct m0_stob        *co_stob;     /**< underlying storage object */
+	struct m0_ref          co_ref;      /**< refcounter for caching cobs */
+	uint64_t               co_flags;    /**< @see enum m0_cob_valid_flags */
+	struct m0_fid         *co_fid;      /**< object fid, ref to nsrec fid */
+	struct m0_cob_nskey   *co_nskey;    /**< cob statdata nskey */
+	struct m0_cob_oikey    co_oikey;    /**< object fid, linkno */
+	struct m0_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
+	struct m0_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl...) */
+	struct m0_cob_omgrec   co_omgrec;   /**< permission data */
+	struct m0_db_pair      co_oipair;   /**< used for object index access */
+	struct m0_addb_ctx     co_addb;     /**< cob private addb ctx */
 };
 
 /**
  * This is all standard readdir related stuff. This is one readdir entry.
  */
 struct m0_dirent {
-        uint32_t             d_namelen;
-        uint32_t             d_reclen;
-        char                 d_name[0];
+	uint32_t             d_namelen;
+	uint32_t             d_reclen;
+	char                 d_name[0];
 };
 
 /**
  * Readdir page.
  */
 struct m0_rdpg {
-        struct m0_bitstring *r_pos;
-        struct m0_buf        r_buf;
-        struct m0_bitstring *r_end;
+	struct m0_bitstring *r_pos;
+	struct m0_buf        r_buf;
+	struct m0_bitstring *r_end;
 };
 
 /**
  * Cob iterator. Holds current position inside a cob (used by readdir).
  */
 struct m0_cob_iterator {
-        struct m0_cob         *ci_cob;      /**< the cob we iterate */
-        struct m0_db_cursor    ci_cursor;   /**< cob iterator cursor */
-        struct m0_cob_nskey   *ci_key;      /**< current iterator pos */
-        struct m0_cob_nsrec    ci_rec;      /**< current iterator rec */
-        struct m0_db_pair      ci_pair;     /**< used for iterator cursor */
+	struct m0_cob         *ci_cob;      /**< the cob we iterate */
+	struct m0_db_cursor    ci_cursor;   /**< cob iterator cursor */
+	struct m0_cob_nskey   *ci_key;      /**< current iterator pos */
+	struct m0_cob_nsrec    ci_rec;      /**< current iterator rec */
+	struct m0_db_pair      ci_pair;     /**< used for iterator cursor */
 };
 
 /**
  * Cob flags and valid attributes.
  */
 enum m0_cob_flags {
-        M0_CA_NSKEY      = (1 << 0),  /**< nskey in cob is up-to-date */
-        M0_CA_NSKEY_FREE = (1 << 1),  /**< cob will dealloc the nskey */
-        M0_CA_NSREC      = (1 << 2),  /**< nsrec in cob is up-to-date */
-        M0_CA_FABREC     = (1 << 3),  /**< fabrec in cob is up-to-date */
-        M0_CA_OMGREC     = (1 << 4),  /**< omgrec in cob is up-to-date */
-        M0_CA_LAYOUT     = (1 << 5),  /**< layout in cob is up-to-date */
+	M0_CA_NSKEY      = (1 << 0),  /**< nskey in cob is up-to-date */
+	M0_CA_NSKEY_FREE = (1 << 1),  /**< cob will dealloc the nskey */
+	M0_CA_NSREC      = (1 << 2),  /**< nsrec in cob is up-to-date */
+	M0_CA_FABREC     = (1 << 3),  /**< fabrec in cob is up-to-date */
+	M0_CA_OMGREC     = (1 << 4),  /**< omgrec in cob is up-to-date */
+	M0_CA_LAYOUT     = (1 << 5),  /**< layout in cob is up-to-date */
 };
 
 /**

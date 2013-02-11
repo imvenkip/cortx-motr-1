@@ -550,52 +550,52 @@ struct m0t1fs_sb {
 	struct m0_layout             *csb_file_layout;
 
 	/**
-         * Flag indicating if m0t1fs mount is active or not.
-         * Flag is set when m0t1fs is mounted and is reset by unmount thread.
-         */
-        bool                          csb_active;
+	 * Flag indicating if m0t1fs mount is active or not.
+	 * Flag is set when m0t1fs is mounted and is reset by unmount thread.
+	 */
+	bool                          csb_active;
 
-        /**
-         * Instantaneous count of pending io requests.
-         * Every io request increments this value while initializing
-         * and decrements it while finalizing.
-         */
-        struct m0_atomic64            csb_pending_io_nr;
+	/**
+	 * Instantaneous count of pending io requests.
+	 * Every io request increments this value while initializing
+	 * and decrements it while finalizing.
+	 */
+	struct m0_atomic64            csb_pending_io_nr;
 
-        /** Special thread which runs ASTs from io requests. */
-        struct m0_thread              csb_astthread;
+	/** Special thread which runs ASTs from io requests. */
+	struct m0_thread              csb_astthread;
 
-        /**
-         * Channel on which unmount thread will wait. It will be signalled
-         * by AST thread while exiting.
-         */
-        struct m0_chan                csb_iowait;
+	/**
+	 * Channel on which unmount thread will wait. It will be signalled
+	 * by AST thread while exiting.
+	 */
+	struct m0_chan                csb_iowait;
 
-        /** State machine group used for all IO requests. */
-        struct m0_sm_group            csb_iogroup;
+	/** State machine group used for all IO requests. */
+	struct m0_sm_group            csb_iogroup;
 
-        /** Root fid, retrieved from mdservice in mount time. */
-        struct m0_fid                 csb_root_fid;
+	/** Root fid, retrieved from mdservice in mount time. */
+	struct m0_fid                 csb_root_fid;
 
-        /** Maximal allowed namelen (retrived from mdservice) */
-        int                           csb_namelen;
+	/** Maximal allowed namelen (retrived from mdservice) */
+	int                           csb_namelen;
 
 	/** Run-time addb context for each mount point */
 	struct m0_addb_ctx            csb_addb_ctx;
 };
 
 struct m0t1fs_filedata {
-        int                        fd_direof;
-        struct m0_bitstring       *fd_dirpos;
+	int                        fd_direof;
+	struct m0_bitstring       *fd_dirpos;
 };
 
 /**
    Metadata operation helper structure.
  */
 struct m0t1fs_mdop {
-        struct m0_cob_attr         mo_attr;
-        enum m0_layout_opcode      mo_layout_op;
-        struct m0_layout          *mo_layout;
+	struct m0_cob_attr         mo_attr;
+	enum m0_layout_opcode      mo_layout_op;
+	struct m0_layout          *mo_layout;
 };
 
 /**
@@ -647,10 +647,10 @@ M0_INTERNAL void m0t1fs_fs_unlock(struct m0t1fs_sb *csb);
 M0_INTERNAL bool m0t1fs_fs_is_locked(const struct m0t1fs_sb *csb);
 
 M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *de,
-                               struct kstat *stat);
+			       struct kstat *stat);
 M0_INTERNAL int m0t1fs_setattr(struct dentry *de, struct iattr *attr);
 M0_INTERNAL int m0t1fs_inode_update(struct inode *inode,
-                                    struct m0_fop_cob *body);
+				    struct m0_fop_cob *body);
 
 M0_INTERNAL struct m0_rpc_session *
 m0t1fs_container_id_to_session(const struct m0t1fs_sb *csb,
@@ -664,10 +664,10 @@ M0_INTERNAL void m0t1fs_inode_cache_fini(void);
 M0_INTERNAL bool m0t1fs_inode_is_root(const struct inode *inode);
 
 M0_INTERNAL struct inode *m0t1fs_root_iget(struct super_block *sb,
-                                           struct m0_fid *root_fid);
+					   struct m0_fid *root_fid);
 M0_INTERNAL struct inode *m0t1fs_iget(struct super_block *sb,
 				      const struct m0_fid *fid,
-                          	      struct m0_fop_cob *body);
+				      struct m0_fop_cob *body);
 
 M0_INTERNAL struct inode *m0t1fs_alloc_inode(struct super_block *sb);
 M0_INTERNAL void m0t1fs_destroy_inode(struct inode *inode);
@@ -697,35 +697,35 @@ struct io_mem_stats {
 };
 
 M0_INTERNAL int m0t1fs_mds_cob_create(struct m0t1fs_sb          *csb,
-                                      const struct m0t1fs_mdop  *mo,
-                                      struct m0_fop_create_rep **rep);
+				      const struct m0t1fs_mdop  *mo,
+				      struct m0_fop_create_rep **rep);
 
 M0_INTERNAL int m0t1fs_mds_cob_unlink(struct m0t1fs_sb          *csb,
-                                      const struct m0t1fs_mdop  *mo,
-                                      struct m0_fop_unlink_rep **rep);
+				      const struct m0t1fs_mdop  *mo,
+				      struct m0_fop_unlink_rep **rep);
 
 M0_INTERNAL int m0t1fs_mds_cob_link(struct m0t1fs_sb          *csb,
-                                    const struct m0t1fs_mdop  *mo,
-                                    struct m0_fop_link_rep   **rep);
+				    const struct m0t1fs_mdop  *mo,
+				    struct m0_fop_link_rep   **rep);
 
 M0_INTERNAL int m0t1fs_mds_cob_lookup(struct m0t1fs_sb          *csb,
-                                      const struct m0t1fs_mdop  *mo,
-                                      struct m0_fop_lookup_rep **rep);
+				      const struct m0t1fs_mdop  *mo,
+				      struct m0_fop_lookup_rep **rep);
 
 M0_INTERNAL int m0t1fs_mds_cob_getattr(struct m0t1fs_sb           *csb,
-                                       const struct m0t1fs_mdop   *mo,
-                                       struct m0_fop_getattr_rep **rep);
+				       const struct m0t1fs_mdop   *mo,
+				       struct m0_fop_getattr_rep **rep);
 
 M0_INTERNAL int m0t1fs_mds_statfs(struct m0t1fs_sb                *csb,
-                                  struct m0_fop_statfs_rep       **rep);
+				  struct m0_fop_statfs_rep       **rep);
 
 M0_INTERNAL int m0t1fs_mds_cob_setattr(struct m0t1fs_sb           *csb,
-                                       const struct m0t1fs_mdop   *mo,
-                                       struct m0_fop_setattr_rep **rep);
+				       const struct m0t1fs_mdop   *mo,
+				       struct m0_fop_setattr_rep **rep);
 
 M0_INTERNAL int m0t1fs_mds_cob_readdir(struct m0t1fs_sb           *csb,
-                                       const struct m0t1fs_mdop   *mo,
-                                       struct m0_fop_readdir_rep **rep);
+				       const struct m0t1fs_mdop   *mo,
+				       struct m0_fop_readdir_rep **rep);
 
 /**
  * layout operation from client to mds.
@@ -735,12 +735,12 @@ M0_INTERNAL int m0t1fs_mds_cob_readdir(struct m0t1fs_sb           *csb,
  *        returned properly, m0_layout_put() should be called after use.
  */
 M0_INTERNAL int m0t1fs_layout_op(struct m0t1fs_sb *csb,
-			         enum m0_layout_opcode op,
-			         uint64_t lid,
+				 enum m0_layout_opcode op,
+				 uint64_t lid,
 				 struct m0_layout **l_out);
 
 M0_INTERNAL int m0t1fs_size_update(struct inode *inode,
-                                   uint64_t newsize);
+				   uint64_t newsize);
 
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 

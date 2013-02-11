@@ -47,70 +47,70 @@
 #include "mdstore/mdstore.h"
 
 static void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
-                               struct m0_fop_cob *body)
+			       struct m0_fop_cob *body)
 {
-        M0_SET0(attr);
-        attr->ca_pfid = body->b_pfid;
-        attr->ca_tfid = body->b_tfid;
-        attr->ca_valid = body->b_valid;
-        if (body->b_valid & M0_COB_MODE)
-                attr->ca_mode = body->b_mode;
-        if (body->b_valid & M0_COB_UID)
-                attr->ca_uid = body->b_uid;
-        if (body->b_valid & M0_COB_GID)
-                attr->ca_gid = body->b_gid;
-        if (body->b_valid & M0_COB_ATIME)
-                attr->ca_atime = body->b_atime;
-        if (body->b_valid & M0_COB_MTIME)
-                attr->ca_mtime = body->b_mtime;
-        if (body->b_valid & M0_COB_CTIME)
-                attr->ca_ctime = body->b_ctime;
-        if (body->b_valid & M0_COB_NLINK)
-                attr->ca_nlink = body->b_nlink;
-        if (body->b_valid & M0_COB_RDEV)
-                attr->ca_rdev = body->b_rdev;
-        if (body->b_valid & M0_COB_SIZE)
-                attr->ca_size = body->b_size;
-        if (body->b_valid & M0_COB_BLKSIZE)
-                attr->ca_blksize = body->b_blksize;
-        if (body->b_valid & M0_COB_BLOCKS)
-                attr->ca_blocks = body->b_blocks;
-        if (body->b_valid & M0_COB_LID)
-                attr->ca_lid = body->b_lid;
-        attr->ca_version = body->b_version;
+	M0_SET0(attr);
+	attr->ca_pfid = body->b_pfid;
+	attr->ca_tfid = body->b_tfid;
+	attr->ca_valid = body->b_valid;
+	if (body->b_valid & M0_COB_MODE)
+		attr->ca_mode = body->b_mode;
+	if (body->b_valid & M0_COB_UID)
+		attr->ca_uid = body->b_uid;
+	if (body->b_valid & M0_COB_GID)
+		attr->ca_gid = body->b_gid;
+	if (body->b_valid & M0_COB_ATIME)
+		attr->ca_atime = body->b_atime;
+	if (body->b_valid & M0_COB_MTIME)
+		attr->ca_mtime = body->b_mtime;
+	if (body->b_valid & M0_COB_CTIME)
+		attr->ca_ctime = body->b_ctime;
+	if (body->b_valid & M0_COB_NLINK)
+		attr->ca_nlink = body->b_nlink;
+	if (body->b_valid & M0_COB_RDEV)
+		attr->ca_rdev = body->b_rdev;
+	if (body->b_valid & M0_COB_SIZE)
+		attr->ca_size = body->b_size;
+	if (body->b_valid & M0_COB_BLKSIZE)
+		attr->ca_blksize = body->b_blksize;
+	if (body->b_valid & M0_COB_BLOCKS)
+		attr->ca_blocks = body->b_blocks;
+	if (body->b_valid & M0_COB_LID)
+		attr->ca_lid = body->b_lid;
+	attr->ca_version = body->b_version;
 }
 
 static void m0_md_cob_mem2wire(struct m0_fop_cob *body,
-                              struct m0_cob_attr *attr)
+			      struct m0_cob_attr *attr)
 {
-        body->b_pfid = attr->ca_pfid;
-        body->b_tfid = attr->ca_tfid;
-        body->b_valid = attr->ca_valid;
-        if (body->b_valid & M0_COB_MODE)
-                body->b_mode = attr->ca_mode;
-        if (body->b_valid & M0_COB_UID)
-                body->b_uid = attr->ca_uid;
-        if (body->b_valid & M0_COB_GID)
-                body->b_gid = attr->ca_gid;
-        if (body->b_valid & M0_COB_ATIME)
-                body->b_atime = attr->ca_atime;
-        if (body->b_valid & M0_COB_MTIME)
-                body->b_mtime = attr->ca_mtime;
-        if (body->b_valid & M0_COB_CTIME)
-                body->b_ctime = attr->ca_ctime;
-        if (body->b_valid & M0_COB_NLINK)
-                body->b_nlink = attr->ca_nlink;
-        if (body->b_valid & M0_COB_RDEV)
-                body->b_rdev = attr->ca_rdev;
-        if (body->b_valid & M0_COB_SIZE)
-                body->b_size = attr->ca_size;
-        if (body->b_valid & M0_COB_BLKSIZE)
-                body->b_blksize = attr->ca_blksize;
-        if (body->b_valid & M0_COB_BLOCKS)
-                body->b_blocks = attr->ca_blocks;
-        if (body->b_valid & M0_COB_LID)
-                body->b_lid = attr->ca_lid;
-        body->b_version = attr->ca_version;
+	body->b_pfid = attr->ca_pfid;
+	body->b_tfid = attr->ca_tfid;
+	body->b_valid = attr->ca_valid;
+	if (body->b_valid & M0_COB_MODE)
+		body->b_mode = attr->ca_mode;
+	if (body->b_valid & M0_COB_UID)
+		body->b_uid = attr->ca_uid;
+	if (body->b_valid & M0_COB_GID)
+		body->b_gid = attr->ca_gid;
+	if (body->b_valid & M0_COB_ATIME)
+		body->b_atime = attr->ca_atime;
+	if (body->b_valid & M0_COB_MTIME)
+		body->b_mtime = attr->ca_mtime;
+	if (body->b_valid & M0_COB_CTIME)
+		body->b_ctime = attr->ca_ctime;
+	if (body->b_valid & M0_COB_NLINK)
+		body->b_nlink = attr->ca_nlink;
+	if (body->b_valid & M0_COB_RDEV)
+		body->b_rdev = attr->ca_rdev;
+	if (body->b_valid & M0_COB_SIZE)
+		body->b_size = attr->ca_size;
+	if (body->b_valid & M0_COB_BLKSIZE)
+		body->b_blksize = attr->ca_blksize;
+	if (body->b_valid & M0_COB_BLOCKS)
+		body->b_blocks = attr->ca_blocks;
+	if (body->b_valid & M0_COB_LID)
+		body->b_lid = attr->ca_lid;
+	body->b_version = attr->ca_version;
 }
 
 /**
@@ -119,168 +119,168 @@ static void m0_md_cob_mem2wire(struct m0_fop_cob *body,
    links.
  */
 static int m0_md_create(struct m0_mdstore  *md,
-                        struct m0_fid       *pfid,
-                        struct m0_fid       *tfid,
-                        struct m0_cob_attr  *attr,
-                        struct m0_db_tx     *tx)
+			struct m0_fid       *pfid,
+			struct m0_fid       *tfid,
+			struct m0_cob_attr  *attr,
+			struct m0_db_tx     *tx)
 {
-        struct m0_cob *scob = NULL;
-        int            rc;
+	struct m0_cob *scob = NULL;
+	int            rc;
 
-        rc = m0_mdstore_locate(md, tfid, &scob,
-                                M0_MD_LOCATE_STORED, tx);
-        if (rc == -ENOENT) {
-                /*
-                 * Statdata cob is not found, let's create it. This
-                 * must be normal create case.
-                 */
-                rc = m0_mdstore_create(md, pfid, attr, &scob, tx);
-        } else if (rc == 0) {
-                /*
-                 * There is statdata name, this must be hardlink
-                 * case.
-                 */
-                rc = m0_mdstore_link(md, pfid, scob, &attr->ca_name, tx);
-                /*
-                 * Each operation changes target attributes (times).
-                 * We want to keep them up-to-date.
-                 */
-                if (rc == 0)
-                        rc = m0_mdstore_setattr(md, scob, attr, tx);
-        }
-        if (scob)
-                m0_cob_put(scob);
-        return rc;
+	rc = m0_mdstore_locate(md, tfid, &scob,
+				M0_MD_LOCATE_STORED, tx);
+	if (rc == -ENOENT) {
+		/*
+		 * Statdata cob is not found, let's create it. This
+		 * must be normal create case.
+		 */
+		rc = m0_mdstore_create(md, pfid, attr, &scob, tx);
+	} else if (rc == 0) {
+		/*
+		 * There is statdata name, this must be hardlink
+		 * case.
+		 */
+		rc = m0_mdstore_link(md, pfid, scob, &attr->ca_name, tx);
+		/*
+		 * Each operation changes target attributes (times).
+		 * We want to keep them up-to-date.
+		 */
+		if (rc == 0)
+			rc = m0_mdstore_setattr(md, scob, attr, tx);
+	}
+	if (scob)
+		m0_cob_put(scob);
+	return rc;
 }
 
 static inline int m0_md_tick_generic(struct m0_fom *fom)
 {
-        M0_PRE(m0_fom_invariant(fom));
+	M0_PRE(m0_fom_invariant(fom));
 
-        if (m0_fom_phase(fom) < M0_FOPH_NR) {
-                /**
-                 * Don't send reply in case there is no service running.
-                 * This is local use of mdservice just like replicator needs.
-                 * In this case we jump right to finish phase of fom.
-                 */
-                if (fom->fo_service == NULL &&
-                    m0_fom_phase(fom) == M0_FOPH_QUEUE_REPLY) {
-                        m0_fom_phase_move(fom, 0, M0_FOPH_FINISH);
-                        return M0_FSO_WAIT;
-                }
-                return m0_fom_tick_generic(fom);
-        }
-        return 0;
+	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+		/**
+		 * Don't send reply in case there is no service running.
+		 * This is local use of mdservice just like replicator needs.
+		 * In this case we jump right to finish phase of fom.
+		 */
+		if (fom->fo_service == NULL &&
+		    m0_fom_phase(fom) == M0_FOPH_QUEUE_REPLY) {
+			m0_fom_phase_move(fom, 0, M0_FOPH_FINISH);
+			return M0_FSO_WAIT;
+		}
+		return m0_fom_tick_generic(fom);
+	}
+	return 0;
 }
 
 static int m0_md_tick_create(struct m0_fom *fom)
 {
-        struct m0_cob_attr        attr;
-        struct m0_fop_cob        *body;
-        struct m0_fop_create     *req;
-        struct m0_fop_create_rep *rep;
-        struct m0_fop            *fop;
-        struct m0_fop            *fop_rep;
-        int                       rc;
+	struct m0_cob_attr        attr;
+	struct m0_fop_cob        *body;
+	struct m0_fop_create     *req;
+	struct m0_fop_create_rep *rep;
+	struct m0_fop            *fop;
+	struct m0_fop            *fop_rep;
+	int                       rc;
 
-        rc = m0_md_tick_generic(fom);
-        if (rc != 0)
-                return rc;
+	rc = m0_md_tick_generic(fom);
+	if (rc != 0)
+		return rc;
 
-        fop = fom->fo_fop;
-        M0_ASSERT(fop != NULL);
-        req = m0_fop_data(fop);
+	fop = fom->fo_fop;
+	M0_ASSERT(fop != NULL);
+	req = m0_fop_data(fop);
 
-        body = &req->c_body;
-        m0_md_cob_wire2mem(&attr, body);
+	body = &req->c_body;
+	m0_md_cob_wire2mem(&attr, body);
 
-        fop_rep = fom->fo_rep_fop;
-        M0_ASSERT(fop_rep != NULL);
-        rep = m0_fop_data(fop_rep);
+	fop_rep = fom->fo_rep_fop;
+	M0_ASSERT(fop_rep != NULL);
+	rep = m0_fop_data(fop_rep);
 
-        m0_buf_init(&attr.ca_name, req->c_name.s_buf, req->c_name.s_len);
+	m0_buf_init(&attr.ca_name, req->c_name.s_buf, req->c_name.s_len);
 
-        M0_LOG(M0_DEBUG, "Create [%lx:%lx]/[%lx:%lx] %.*s",
-               body->b_pfid.f_container, body->b_pfid.f_key,
-               body->b_tfid.f_container, body->b_tfid.f_key,
-               (int)attr.ca_name.b_nob, (char *)attr.ca_name.b_addr);
+	M0_LOG(M0_DEBUG, "Create [%lx:%lx]/[%lx:%lx] %.*s",
+	       body->b_pfid.f_container, body->b_pfid.f_key,
+	       body->b_tfid.f_container, body->b_tfid.f_key,
+	       (int)attr.ca_name.b_nob, (char *)attr.ca_name.b_addr);
 
-        /**
-         * Init some fop fields (full path) that require mdstore and other
-         * initialialized structures.
-         */
-        rc = m0_md_fop_init(fop, fom);
-        if (rc != 0)
-                goto out;
+	/**
+	 * Init some fop fields (full path) that require mdstore and other
+	 * initialialized structures.
+	 */
+	rc = m0_md_fop_init(fop, fom);
+	if (rc != 0)
+		goto out;
 
-        if (S_ISLNK(attr.ca_mode)) {
-                /** Symlink body size is stored in @attr->ca_size */
-                m0_buf_init(&attr.ca_link, (char *)req->c_target.s_buf, attr.ca_size);
-        }
+	if (S_ISLNK(attr.ca_mode)) {
+		/** Symlink body size is stored in @attr->ca_size */
+		m0_buf_init(&attr.ca_link, (char *)req->c_target.s_buf, attr.ca_size);
+	}
 
-        m0_fom_block_enter(fom);
-        rc = m0_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &body->b_pfid,
-                          &body->b_tfid, &attr, &fom->fo_tx.tx_dbtx);
-        m0_fom_block_leave(fom);
+	m0_fom_block_enter(fom);
+	rc = m0_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &body->b_pfid,
+			  &body->b_tfid, &attr, &fom->fo_tx.tx_dbtx);
+	m0_fom_block_leave(fom);
 out:
-        M0_LOG(M0_DEBUG, "Create finished with %d", rc);
-        rep->c_body.b_rc = rc;
-        m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-        return M0_FSO_AGAIN;
+	M0_LOG(M0_DEBUG, "Create finished with %d", rc);
+	rep->c_body.b_rc = rc;
+	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	return M0_FSO_AGAIN;
 }
 
 static int m0_md_tick_link(struct m0_fom *fom)
 {
-        struct m0_fop_cob        *body;
-        struct m0_fop_link       *req;
-        struct m0_fop_link_rep   *rep;
-        struct m0_fop            *fop;
-        struct m0_fop            *fop_rep;
-        struct m0_cob_attr        attr;
-        int                       rc;
+	struct m0_fop_cob        *body;
+	struct m0_fop_link       *req;
+	struct m0_fop_link_rep   *rep;
+	struct m0_fop            *fop;
+	struct m0_fop            *fop_rep;
+	struct m0_cob_attr        attr;
+	int                       rc;
 
-        rc = m0_md_tick_generic(fom);
-        if (rc != 0)
-                return rc;
+	rc = m0_md_tick_generic(fom);
+	if (rc != 0)
+		return rc;
 
-        fop = fom->fo_fop;
-        M0_ASSERT(fop != NULL);
-        req = m0_fop_data(fop);
+	fop = fom->fo_fop;
+	M0_ASSERT(fop != NULL);
+	req = m0_fop_data(fop);
 
-        fop_rep = fom->fo_rep_fop;
-        M0_ASSERT(fop_rep != NULL);
-        rep = m0_fop_data(fop_rep);
+	fop_rep = fom->fo_rep_fop;
+	M0_ASSERT(fop_rep != NULL);
+	rep = m0_fop_data(fop_rep);
 
-        body = &req->l_body;
-        m0_md_cob_wire2mem(&attr, body);
-        m0_buf_init(&attr.ca_name, req->l_name.s_buf, req->l_name.s_len);
+	body = &req->l_body;
+	m0_md_cob_wire2mem(&attr, body);
+	m0_buf_init(&attr.ca_name, req->l_name.s_buf, req->l_name.s_len);
 
-        M0_LOG(M0_DEBUG, "Link [%lx:%lx]/%.*s -> [%lx:%lx] started",
-               body->b_pfid.f_container, body->b_pfid.f_key,
-               (int)req->l_name.s_len, (char *)req->l_name.s_buf,
-               body->b_tfid.f_container, body->b_tfid.f_key);
+	M0_LOG(M0_DEBUG, "Link [%lx:%lx]/%.*s -> [%lx:%lx] started",
+	       body->b_pfid.f_container, body->b_pfid.f_key,
+	       (int)req->l_name.s_len, (char *)req->l_name.s_buf,
+	       body->b_tfid.f_container, body->b_tfid.f_key);
 
-        /**
-         * Init some fop fields (full path) that require mdstore and other
-         * initialialized structures.
-         */
-        rc = m0_md_fop_init(fop, fom);
-        if (rc != 0)
-                goto out;
+	/**
+	 * Init some fop fields (full path) that require mdstore and other
+	 * initialialized structures.
+	 */
+	rc = m0_md_fop_init(fop, fom);
+	if (rc != 0)
+		goto out;
 
-        m0_fom_block_enter(fom);
-        rc = m0_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                          &body->b_pfid, &body->b_tfid, &attr,
-                          &fom->fo_tx.tx_dbtx);
-        m0_fom_block_leave(fom);
+	m0_fom_block_enter(fom);
+	rc = m0_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+			  &body->b_pfid, &body->b_tfid, &attr,
+			  &fom->fo_tx.tx_dbtx);
+	m0_fom_block_leave(fom);
 out:
-        M0_LOG(M0_DEBUG, "Link [%lx:%lx]/%.*s -> [%lx:%lx] finished with %d",
-               body->b_pfid.f_container, body->b_pfid.f_key,
-               (int)req->l_name.s_len, (char *)req->l_name.s_buf,
-               body->b_tfid.f_container, body->b_tfid.f_key, rc);
-        rep->l_body.b_rc = rc;
-        m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-        return M0_FSO_AGAIN;
+	M0_LOG(M0_DEBUG, "Link [%lx:%lx]/%.*s -> [%lx:%lx] finished with %d",
+	       body->b_pfid.f_container, body->b_pfid.f_key,
+	       (int)req->l_name.s_len, (char *)req->l_name.s_buf,
+	       body->b_tfid.f_container, body->b_tfid.f_key, rc);
+	rep->l_body.b_rc = rc;
+	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	return M0_FSO_AGAIN;
 }
 
 static void m0_md_fom_addb_init(struct m0_fom *fom,
@@ -295,599 +295,599 @@ static void m0_md_fom_addb_init(struct m0_fom *fom,
 
 static int m0_md_tick_unlink(struct m0_fom *fom)
 {
-        struct m0_cob_attr        attr;
-        struct m0_fop_cob        *body;
-        struct m0_cob            *scob = NULL;
-        struct m0_fop_unlink     *req;
-        struct m0_fop_unlink_rep *rep;
-        struct m0_fop            *fop;
-        struct m0_fop            *fop_rep;
-        struct m0_db_tx          *tx;
-        struct m0_mdstore        *md;
-        int                       rc;
+	struct m0_cob_attr        attr;
+	struct m0_fop_cob        *body;
+	struct m0_cob            *scob = NULL;
+	struct m0_fop_unlink     *req;
+	struct m0_fop_unlink_rep *rep;
+	struct m0_fop            *fop;
+	struct m0_fop            *fop_rep;
+	struct m0_db_tx          *tx;
+	struct m0_mdstore        *md;
+	int                       rc;
 
-        rc = m0_md_tick_generic(fom);
-        if (rc != 0)
-                return rc;
+	rc = m0_md_tick_generic(fom);
+	if (rc != 0)
+		return rc;
 
-        fop = fom->fo_fop;
-        M0_ASSERT(fop != NULL);
-        req = m0_fop_data(fop);
-        body = &req->u_body;
+	fop = fom->fo_fop;
+	M0_ASSERT(fop != NULL);
+	req = m0_fop_data(fop);
+	body = &req->u_body;
 
-        fop_rep = fom->fo_rep_fop;
-        M0_ASSERT(fop_rep != NULL);
-        rep = m0_fop_data(fop_rep);
+	fop_rep = fom->fo_rep_fop;
+	M0_ASSERT(fop_rep != NULL);
+	rep = m0_fop_data(fop_rep);
 
-        md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
-        tx = &fom->fo_tx.tx_dbtx;
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+	tx = &fom->fo_tx.tx_dbtx;
 
-        m0_md_cob_wire2mem(&attr, body);
-        m0_buf_init(&attr.ca_name, req->u_name.s_buf, req->u_name.s_len);
+	m0_md_cob_wire2mem(&attr, body);
+	m0_buf_init(&attr.ca_name, req->u_name.s_buf, req->u_name.s_len);
 
-        M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s started",
-               body->b_pfid.f_container, body->b_pfid.f_key,
-               (int)req->u_name.s_len, (char *)req->u_name.s_buf);
+	M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s started",
+	       body->b_pfid.f_container, body->b_pfid.f_key,
+	       (int)req->u_name.s_len, (char *)req->u_name.s_buf);
 
-        /**
-         * Init some fop fields (full path) that require mdstore and other
-         * initialialized structures.
-         */
-        rc = m0_md_fop_init(fop, fom);
-        if (rc != 0)
-                goto out;
+	/**
+	 * Init some fop fields (full path) that require mdstore and other
+	 * initialialized structures.
+	 */
+	rc = m0_md_fop_init(fop, fom);
+	if (rc != 0)
+		goto out;
 
-        m0_fom_block_enter(fom);
-        rc = m0_mdstore_locate(md, &body->b_tfid, &scob, M0_MD_LOCATE_STORED,
-                               tx);
-        if (rc != 0) {
-                M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s failed with %d",
-                       body->b_pfid.f_container, body->b_pfid.f_key,
-                       (int)req->u_name.s_len, (char *)req->u_name.s_buf,
-                        rc);
-                m0_fom_block_leave(fom);
-                goto out;
-        }
+	m0_fom_block_enter(fom);
+	rc = m0_mdstore_locate(md, &body->b_tfid, &scob, M0_MD_LOCATE_STORED,
+			       tx);
+	if (rc != 0) {
+		M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s failed with %d",
+		       body->b_pfid.f_container, body->b_pfid.f_key,
+		       (int)req->u_name.s_len, (char *)req->u_name.s_buf,
+			rc);
+		m0_fom_block_leave(fom);
+		goto out;
+	}
 
-        rc = m0_mdstore_unlink(md, &body->b_pfid, scob, &attr.ca_name, tx);
-        m0_cob_put(scob);
-        if (rc != 0) {
-                M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s failed with %d",
-                       body->b_pfid.f_container, body->b_pfid.f_key,
-                       (int)req->u_name.s_len, (char *)req->u_name.s_buf,
-                        rc);
-                m0_fom_block_leave(fom);
-                goto out;
-        }
-        m0_fom_block_leave(fom);
+	rc = m0_mdstore_unlink(md, &body->b_pfid, scob, &attr.ca_name, tx);
+	m0_cob_put(scob);
+	if (rc != 0) {
+		M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s failed with %d",
+		       body->b_pfid.f_container, body->b_pfid.f_key,
+		       (int)req->u_name.s_len, (char *)req->u_name.s_buf,
+			rc);
+		m0_fom_block_leave(fom);
+		goto out;
+	}
+	m0_fom_block_leave(fom);
 out:
-        M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s finished with %d",
-               body->b_pfid.f_container, body->b_pfid.f_key,
-               (int)req->u_name.s_len, (char *)req->u_name.s_buf, rc);
-        rep->u_body.b_rc = rc;
-        m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-        return M0_FSO_AGAIN;
+	M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s finished with %d",
+	       body->b_pfid.f_container, body->b_pfid.f_key,
+	       (int)req->u_name.s_len, (char *)req->u_name.s_buf, rc);
+	rep->u_body.b_rc = rc;
+	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	return M0_FSO_AGAIN;
 }
 
 static int m0_md_rename(struct m0_mdstore  *md,
-                        struct m0_fid       *pfid_tgt,
-                        struct m0_fid       *pfid_src,
-                        struct m0_fid       *tfid_tgt,
-                        struct m0_fid       *tfid_src,
-                        struct m0_cob_attr  *tattr,
-                        struct m0_cob_attr  *sattr,
-                        struct m0_cob       *tcob,
-                        struct m0_cob       *scob,
-                        struct m0_db_tx     *tx)
+			struct m0_fid       *pfid_tgt,
+			struct m0_fid       *pfid_src,
+			struct m0_fid       *tfid_tgt,
+			struct m0_fid       *tfid_src,
+			struct m0_cob_attr  *tattr,
+			struct m0_cob_attr  *sattr,
+			struct m0_cob       *tcob,
+			struct m0_cob       *scob,
+			struct m0_db_tx     *tx)
 {
-        int rc;
+	int rc;
 
-        M0_ASSERT(scob != NULL);
-        M0_ASSERT(tcob != NULL);
+	M0_ASSERT(scob != NULL);
+	M0_ASSERT(tcob != NULL);
 
-        /*
-         * Do normal rename as all objects are fine.
-         */
-        rc = m0_mdstore_rename(md, pfid_tgt, pfid_src, tcob, scob,
-                               &tattr->ca_name, &sattr->ca_name, tx);
-        if (rc != 0)
-                return rc;
-        /*
-         * Update attributes of source and target.
-         */
-        if (m0_fid_eq(scob->co_fid, tcob->co_fid)) {
-                if (tcob->co_nsrec.cnr_nlink > 0)
-                        rc = m0_mdstore_setattr(md, tcob, tattr, tx);
-        } else {
-                rc = m0_mdstore_setattr(md, scob, sattr, tx);
-                if (rc == 0 && tcob->co_nsrec.cnr_nlink > 0)
-                        rc = m0_mdstore_setattr(md, tcob, tattr, tx);
-        }
-        return rc;
+	/*
+	 * Do normal rename as all objects are fine.
+	 */
+	rc = m0_mdstore_rename(md, pfid_tgt, pfid_src, tcob, scob,
+			       &tattr->ca_name, &sattr->ca_name, tx);
+	if (rc != 0)
+		return rc;
+	/*
+	 * Update attributes of source and target.
+	 */
+	if (m0_fid_eq(scob->co_fid, tcob->co_fid)) {
+		if (tcob->co_nsrec.cnr_nlink > 0)
+			rc = m0_mdstore_setattr(md, tcob, tattr, tx);
+	} else {
+		rc = m0_mdstore_setattr(md, scob, sattr, tx);
+		if (rc == 0 && tcob->co_nsrec.cnr_nlink > 0)
+			rc = m0_mdstore_setattr(md, tcob, tattr, tx);
+	}
+	return rc;
 }
 
 static int m0_md_tick_rename(struct m0_fom *fom)
 {
-        struct m0_fop_cob        *sbody;
-        struct m0_fop_cob        *tbody;
-        struct m0_fop_rename     *req;
-        struct m0_fop_rename_rep *rep;
-        struct m0_fop            *fop;
-        struct m0_fop            *fop_rep;
-        struct m0_cob            *tcob = NULL;
-        struct m0_cob            *scob = NULL;
-        struct m0_cob_attr        sattr;
-        struct m0_cob_attr        tattr;
-        struct m0_db_tx          *tx;
-        struct m0_mdstore        *md;
-        int                       rc;
+	struct m0_fop_cob        *sbody;
+	struct m0_fop_cob        *tbody;
+	struct m0_fop_rename     *req;
+	struct m0_fop_rename_rep *rep;
+	struct m0_fop            *fop;
+	struct m0_fop            *fop_rep;
+	struct m0_cob            *tcob = NULL;
+	struct m0_cob            *scob = NULL;
+	struct m0_cob_attr        sattr;
+	struct m0_cob_attr        tattr;
+	struct m0_db_tx          *tx;
+	struct m0_mdstore        *md;
+	int                       rc;
 
-        rc = m0_md_tick_generic(fom);
-        if (rc != 0)
-                return rc;
+	rc = m0_md_tick_generic(fom);
+	if (rc != 0)
+		return rc;
 
-        fop = fom->fo_fop;
-        M0_ASSERT(fop != NULL);
-        req = m0_fop_data(fop);
+	fop = fom->fo_fop;
+	M0_ASSERT(fop != NULL);
+	req = m0_fop_data(fop);
 
-        fop_rep = fom->fo_rep_fop;
-        M0_ASSERT(fop_rep != NULL);
-        rep = m0_fop_data(fop_rep);
+	fop_rep = fom->fo_rep_fop;
+	M0_ASSERT(fop_rep != NULL);
+	rep = m0_fop_data(fop_rep);
 
-        tx = &fom->fo_tx.tx_dbtx;
-        md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+	tx = &fom->fo_tx.tx_dbtx;
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
-        /**
-         * Init some fop fields (full path) that require mdstore and other
-         * initialialized structures.
-         */
-        rc = m0_md_fop_init(fop, fom);
-        if (rc != 0)
-                goto out;
+	/**
+	 * Init some fop fields (full path) that require mdstore and other
+	 * initialialized structures.
+	 */
+	rc = m0_md_fop_init(fop, fom);
+	if (rc != 0)
+		goto out;
 
-        sbody = &req->r_sbody;
-        tbody = &req->r_tbody;
+	sbody = &req->r_sbody;
+	tbody = &req->r_tbody;
 
-        m0_md_cob_wire2mem(&tattr, tbody);
-        m0_buf_init(&tattr.ca_name, req->r_tname.s_buf, req->r_tname.s_len);
+	m0_md_cob_wire2mem(&tattr, tbody);
+	m0_buf_init(&tattr.ca_name, req->r_tname.s_buf, req->r_tname.s_len);
 
-        m0_md_cob_wire2mem(&sattr, sbody);
-        m0_buf_init(&sattr.ca_name, req->r_sname.s_buf, req->r_sname.s_len);
+	m0_md_cob_wire2mem(&sattr, sbody);
+	m0_buf_init(&sattr.ca_name, req->r_sname.s_buf, req->r_sname.s_len);
 
-        m0_fom_block_enter(fom);
-        rc = m0_mdstore_locate(md, &sbody->b_tfid, &scob,
-                               M0_MD_LOCATE_STORED, tx);
-        if (rc != 0) {
-                m0_fom_block_leave(fom);
-                goto out;
-        }
-        if (m0_fid_eq(&tbody->b_tfid, &sbody->b_tfid)) {
-                rc = m0_md_rename(md, &tbody->b_pfid, &sbody->b_pfid,
-                                  &tbody->b_tfid, &sbody->b_tfid, &tattr,
-                                  &sattr, scob, scob, tx);
-        } else {
-                rc = m0_mdstore_locate(md, &tbody->b_tfid, &tcob,
-                                        M0_MD_LOCATE_STORED, tx);
-                if (rc != 0) {
-                        m0_fom_block_leave(fom);
-                        goto out;
-                }
-                rc = m0_md_rename(md, &tbody->b_pfid, &sbody->b_pfid,
-                                  &tbody->b_tfid, &sbody->b_tfid, &tattr,
-                                  &sattr, tcob, scob, tx);
-                m0_cob_put(tcob);
-        }
-        m0_cob_put(scob);
-        m0_fom_block_leave(fom);
+	m0_fom_block_enter(fom);
+	rc = m0_mdstore_locate(md, &sbody->b_tfid, &scob,
+			       M0_MD_LOCATE_STORED, tx);
+	if (rc != 0) {
+		m0_fom_block_leave(fom);
+		goto out;
+	}
+	if (m0_fid_eq(&tbody->b_tfid, &sbody->b_tfid)) {
+		rc = m0_md_rename(md, &tbody->b_pfid, &sbody->b_pfid,
+				  &tbody->b_tfid, &sbody->b_tfid, &tattr,
+				  &sattr, scob, scob, tx);
+	} else {
+		rc = m0_mdstore_locate(md, &tbody->b_tfid, &tcob,
+					M0_MD_LOCATE_STORED, tx);
+		if (rc != 0) {
+			m0_fom_block_leave(fom);
+			goto out;
+		}
+		rc = m0_md_rename(md, &tbody->b_pfid, &sbody->b_pfid,
+				  &tbody->b_tfid, &sbody->b_tfid, &tattr,
+				  &sattr, tcob, scob, tx);
+		m0_cob_put(tcob);
+	}
+	m0_cob_put(scob);
+	m0_fom_block_leave(fom);
 out:
-        rep->r_body.b_rc = rc;
-        m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-        return M0_FSO_AGAIN;
+	rep->r_body.b_rc = rc;
+	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	return M0_FSO_AGAIN;
 }
 
 static int m0_md_tick_open(struct m0_fom *fom)
 {
-        struct m0_fop_cob        *body;
-        struct m0_cob            *cob;
-        struct m0_fop_open       *req;
-        struct m0_fop_open_rep   *rep;
-        struct m0_fop            *fop;
-        struct m0_fop            *fop_rep;
-        struct m0_cob_attr        attr;
-        int                       rc;
+	struct m0_fop_cob        *body;
+	struct m0_cob            *cob;
+	struct m0_fop_open       *req;
+	struct m0_fop_open_rep   *rep;
+	struct m0_fop            *fop;
+	struct m0_fop            *fop_rep;
+	struct m0_cob_attr        attr;
+	int                       rc;
 
-        rc = m0_md_tick_generic(fom);
-        if (rc != 0)
-                return rc;
+	rc = m0_md_tick_generic(fom);
+	if (rc != 0)
+		return rc;
 
-        fop = fom->fo_fop;
-        M0_ASSERT(fop != NULL);
-        req = m0_fop_data(fop);
+	fop = fom->fo_fop;
+	M0_ASSERT(fop != NULL);
+	req = m0_fop_data(fop);
 
-        fop_rep = fom->fo_rep_fop;
-        M0_ASSERT(fop_rep != NULL);
-        rep = m0_fop_data(fop_rep);
+	fop_rep = fom->fo_rep_fop;
+	M0_ASSERT(fop_rep != NULL);
+	rep = m0_fop_data(fop_rep);
 
-        /**
-         * Init some fop fields (full path) that require mdstore and other
-         * initialialized structures.
-         */
-        rc = m0_md_fop_init(fop, fom);
-        if (rc != 0)
-                goto out;
+	/**
+	 * Init some fop fields (full path) that require mdstore and other
+	 * initialialized structures.
+	 */
+	rc = m0_md_fop_init(fop, fom);
+	if (rc != 0)
+		goto out;
 
-        body = &req->o_body;
-        m0_md_cob_wire2mem(&attr, body);
+	body = &req->o_body;
+	m0_md_cob_wire2mem(&attr, body);
 
-        m0_fom_block_enter(fom);
-        rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                               &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
-                               &fom->fo_tx.tx_dbtx);
-        if (rc == 0) {
-                rc = m0_mdstore_open(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                                     cob, body->b_flags, &fom->fo_tx.tx_dbtx);
-                if (rc == 0 &&
-                    (!(attr.ca_valid & M0_COB_NLINK) || attr.ca_nlink > 0)) {
-                        /*
-                         * Mode contains open flags that we don't need
-                         * to store to db.
-                         */
-                        attr.ca_valid &= ~M0_COB_MODE;
-                        rc = m0_mdstore_setattr(
-                                fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                                cob, &attr, &fom->fo_tx.tx_dbtx);
-                }
-                m0_cob_put(cob);
-        } else if (rc == -ENOENT) {
-                /*
-                 * Lustre has create before open in case of OPEN_CREATE.
-                 * We don't have to create anything here as file already
-                 * should exist, let's just check this.
-                 */
-                /* M0_ASSERT(!(body->b_flags & M0_MD_OPEN_CREAT)); */
-        } else if (rc != 0) {
-                m0_fom_block_leave(fom);
-                goto out;
-        }
+	m0_fom_block_enter(fom);
+	rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+			       &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
+			       &fom->fo_tx.tx_dbtx);
+	if (rc == 0) {
+		rc = m0_mdstore_open(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+				     cob, body->b_flags, &fom->fo_tx.tx_dbtx);
+		if (rc == 0 &&
+		    (!(attr.ca_valid & M0_COB_NLINK) || attr.ca_nlink > 0)) {
+			/*
+			 * Mode contains open flags that we don't need
+			 * to store to db.
+			 */
+			attr.ca_valid &= ~M0_COB_MODE;
+			rc = m0_mdstore_setattr(
+				fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+				cob, &attr, &fom->fo_tx.tx_dbtx);
+		}
+		m0_cob_put(cob);
+	} else if (rc == -ENOENT) {
+		/*
+		 * Lustre has create before open in case of OPEN_CREATE.
+		 * We don't have to create anything here as file already
+		 * should exist, let's just check this.
+		 */
+		/* M0_ASSERT(!(body->b_flags & M0_MD_OPEN_CREAT)); */
+	} else if (rc != 0) {
+		m0_fom_block_leave(fom);
+		goto out;
+	}
 
-        m0_fom_block_leave(fom);
+	m0_fom_block_leave(fom);
 out:
-        rep->o_body.b_rc = rc;
-        m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-        return M0_FSO_AGAIN;
+	rep->o_body.b_rc = rc;
+	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	return M0_FSO_AGAIN;
 }
 
 static int m0_md_tick_close(struct m0_fom *fom)
 {
-        struct m0_fop_cob        *body;
-        struct m0_cob            *cob;
-        struct m0_fop_close      *req;
-        struct m0_fop_close_rep  *rep;
-        struct m0_fop            *fop;
-        struct m0_fop            *fop_rep;
-        struct m0_cob_attr        attr;
-        int                       rc;
+	struct m0_fop_cob        *body;
+	struct m0_cob            *cob;
+	struct m0_fop_close      *req;
+	struct m0_fop_close_rep  *rep;
+	struct m0_fop            *fop;
+	struct m0_fop            *fop_rep;
+	struct m0_cob_attr        attr;
+	int                       rc;
 
-        rc = m0_md_tick_generic(fom);
-        if (rc != 0)
-                return rc;
+	rc = m0_md_tick_generic(fom);
+	if (rc != 0)
+		return rc;
 
-        fop = fom->fo_fop;
-        M0_ASSERT(fop != NULL);
-        req = m0_fop_data(fop);
+	fop = fom->fo_fop;
+	M0_ASSERT(fop != NULL);
+	req = m0_fop_data(fop);
 
-        fop_rep = fom->fo_rep_fop;
-        M0_ASSERT(fop_rep != NULL);
-        rep = m0_fop_data(fop_rep);
+	fop_rep = fom->fo_rep_fop;
+	M0_ASSERT(fop_rep != NULL);
+	rep = m0_fop_data(fop_rep);
 
-        /**
-         * Init some fop fields (full path) that require mdstore and other
-         * initialialized structures.
-         */
-        rc = m0_md_fop_init(fop, fom);
-        if (rc != 0)
-                goto out;
+	/**
+	 * Init some fop fields (full path) that require mdstore and other
+	 * initialialized structures.
+	 */
+	rc = m0_md_fop_init(fop, fom);
+	if (rc != 0)
+		goto out;
 
-        body = &req->c_body;
-        m0_md_cob_wire2mem(&attr, body);
+	body = &req->c_body;
+	m0_md_cob_wire2mem(&attr, body);
 
-        m0_fom_block_enter(fom);
-        /*
-         * @TODO: This should lookup for cobs in special opened
-         * cobs table. But so far orphans and open/close are not
-         * quite implemented and we lookup on main store to make
-         * ut happy.
-         */
-        rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                               &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
-                               &fom->fo_tx.tx_dbtx);
-        if (rc != 0) {
-                m0_fom_block_leave(fom);
-                goto out;
-        }
+	m0_fom_block_enter(fom);
+	/*
+	 * @TODO: This should lookup for cobs in special opened
+	 * cobs table. But so far orphans and open/close are not
+	 * quite implemented and we lookup on main store to make
+	 * ut happy.
+	 */
+	rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+			       &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
+			       &fom->fo_tx.tx_dbtx);
+	if (rc != 0) {
+		m0_fom_block_leave(fom);
+		goto out;
+	}
 
-        rc = m0_mdstore_close(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
-                               &fom->fo_tx.tx_dbtx);
-        if (rc == 0 &&
-            (!(attr.ca_valid & M0_COB_NLINK) || attr.ca_nlink > 0)) {
-                /*
-                 * Mode contains open flags that we don't need
-                 * to store to db.
-                 */
-                attr.ca_valid &= ~M0_COB_MODE;
-                rc = m0_mdstore_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                                        cob, &attr, &fom->fo_tx.tx_dbtx);
-        }
-        m0_cob_put(cob);
-        m0_fom_block_leave(fom);
+	rc = m0_mdstore_close(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
+			       &fom->fo_tx.tx_dbtx);
+	if (rc == 0 &&
+	    (!(attr.ca_valid & M0_COB_NLINK) || attr.ca_nlink > 0)) {
+		/*
+		 * Mode contains open flags that we don't need
+		 * to store to db.
+		 */
+		attr.ca_valid &= ~M0_COB_MODE;
+		rc = m0_mdstore_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+					cob, &attr, &fom->fo_tx.tx_dbtx);
+	}
+	m0_cob_put(cob);
+	m0_fom_block_leave(fom);
 out:
-        rep->c_body.b_rc = rc;
-        m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-        return M0_FSO_AGAIN;
+	rep->c_body.b_rc = rc;
+	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	return M0_FSO_AGAIN;
 }
 
 static int m0_md_tick_setattr(struct m0_fom *fom)
 {
-        struct m0_cob_attr             attr;
-        struct m0_fop_cob             *body;
-        struct m0_cob                 *cob;
-        struct m0_fop_setattr         *req;
-        struct m0_fop_setattr_rep     *rep;
-        struct m0_fop                 *fop;
-        struct m0_fop                 *fop_rep;
-        int                            rc;
+	struct m0_cob_attr             attr;
+	struct m0_fop_cob             *body;
+	struct m0_cob                 *cob;
+	struct m0_fop_setattr         *req;
+	struct m0_fop_setattr_rep     *rep;
+	struct m0_fop                 *fop;
+	struct m0_fop                 *fop_rep;
+	int                            rc;
 
-        rc = m0_md_tick_generic(fom);
-        if (rc != 0)
-                return rc;
+	rc = m0_md_tick_generic(fom);
+	if (rc != 0)
+		return rc;
 
-        fop = fom->fo_fop;
-        M0_ASSERT(fop != NULL);
-        req = m0_fop_data(fop);
+	fop = fom->fo_fop;
+	M0_ASSERT(fop != NULL);
+	req = m0_fop_data(fop);
 
-        fop_rep = fom->fo_rep_fop;
-        M0_ASSERT(fop_rep != NULL);
-        rep = m0_fop_data(fop_rep);
+	fop_rep = fom->fo_rep_fop;
+	M0_ASSERT(fop_rep != NULL);
+	rep = m0_fop_data(fop_rep);
 
-        body = &req->s_body;
-        m0_md_cob_wire2mem(&attr, body);
+	body = &req->s_body;
+	m0_md_cob_wire2mem(&attr, body);
 
-        M0_LOG(M0_DEBUG, "Setattr for [%lx:%lx] started",
-               body->b_tfid.f_container, body->b_tfid.f_key);
+	M0_LOG(M0_DEBUG, "Setattr for [%lx:%lx] started",
+	       body->b_tfid.f_container, body->b_tfid.f_key);
 
-        /**
-         * Init some fop fields (full path) that require mdstore and other
-         * initialialized structures.
-         */
-        rc = m0_md_fop_init(fop, fom);
-        if (rc != 0)
-                goto out;
+	/**
+	 * Init some fop fields (full path) that require mdstore and other
+	 * initialialized structures.
+	 */
+	rc = m0_md_fop_init(fop, fom);
+	if (rc != 0)
+		goto out;
 
-        m0_fom_block_enter(fom);
+	m0_fom_block_enter(fom);
 
-        /*
-         * Setattr fop does not carry enough information to create
-         * an object in case there is no target yet. This is why
-         * we return quickly if no object is found.
-         */
-        rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                               &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
-                               &fom->fo_tx.tx_dbtx);
-        if (rc != 0) {
-                M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
-                       body->b_tfid.f_container, body->b_tfid.f_key, rc);
-                m0_fom_block_leave(fom);
-                goto out;
-        }
+	/*
+	 * Setattr fop does not carry enough information to create
+	 * an object in case there is no target yet. This is why
+	 * we return quickly if no object is found.
+	 */
+	rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+			       &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
+			       &fom->fo_tx.tx_dbtx);
+	if (rc != 0) {
+		M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
+		       body->b_tfid.f_container, body->b_tfid.f_key, rc);
+		m0_fom_block_leave(fom);
+		goto out;
+	}
 
-        rc = m0_mdstore_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
-                                &attr, &fom->fo_tx.tx_dbtx);
-        m0_cob_put(cob);
-        m0_fom_block_leave(fom);
+	rc = m0_mdstore_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
+				&attr, &fom->fo_tx.tx_dbtx);
+	m0_cob_put(cob);
+	m0_fom_block_leave(fom);
 out:
-        M0_LOG(M0_DEBUG, "Setattr for [%lx:%lx] finished with %d",
-               body->b_tfid.f_container, body->b_tfid.f_key, rc);
-        rep->s_body.b_rc = rc;
-        m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-        return M0_FSO_AGAIN;
+	M0_LOG(M0_DEBUG, "Setattr for [%lx:%lx] finished with %d",
+	       body->b_tfid.f_container, body->b_tfid.f_key, rc);
+	rep->s_body.b_rc = rc;
+	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	return M0_FSO_AGAIN;
 }
 
 static int m0_md_tick_lookup(struct m0_fom *fom)
 {
-        struct m0_cob_attr             attr;
-        struct m0_fop_cob             *body;
-        struct m0_cob                 *cob;
-        struct m0_fop_lookup          *req;
-        struct m0_fop_lookup_rep      *rep;
-        struct m0_fop                 *fop;
-        struct m0_fop                 *fop_rep;
-        struct m0_fid                  tfid;
-        int                            rc;
-        struct m0_buf                  name;
+	struct m0_cob_attr             attr;
+	struct m0_fop_cob             *body;
+	struct m0_cob                 *cob;
+	struct m0_fop_lookup          *req;
+	struct m0_fop_lookup_rep      *rep;
+	struct m0_fop                 *fop;
+	struct m0_fop                 *fop_rep;
+	struct m0_fid                  tfid;
+	int                            rc;
+	struct m0_buf                  name;
 
-        rc = m0_md_tick_generic(fom);
-        if (rc != 0)
-                return rc;
+	rc = m0_md_tick_generic(fom);
+	if (rc != 0)
+		return rc;
 
-        fop = fom->fo_fop;
-        M0_ASSERT(fop != NULL);
-        req = m0_fop_data(fop);
-        body = &req->l_body;
+	fop = fom->fo_fop;
+	M0_ASSERT(fop != NULL);
+	req = m0_fop_data(fop);
+	body = &req->l_body;
 
-        fop_rep = fom->fo_rep_fop;
-        M0_ASSERT(fop_rep != NULL);
-        rep = m0_fop_data(fop_rep);
+	fop_rep = fom->fo_rep_fop;
+	M0_ASSERT(fop_rep != NULL);
+	rep = m0_fop_data(fop_rep);
 
-        m0_buf_init(&name, req->l_name.s_buf, req->l_name.s_len);
+	m0_buf_init(&name, req->l_name.s_buf, req->l_name.s_len);
 
-        M0_LOG(M0_DEBUG, "Lookup for \"%.*s\" in object [%lx:%lx]",
-               (int)name.b_nob, (char *)name.b_addr, body->b_pfid.f_container,
-               body->b_pfid.f_key);
+	M0_LOG(M0_DEBUG, "Lookup for \"%.*s\" in object [%lx:%lx]",
+	       (int)name.b_nob, (char *)name.b_addr, body->b_pfid.f_container,
+	       body->b_pfid.f_key);
 
-        /**
-         * Init some fop fields (full path) that require mdstore and other
-         * initialialized structures.
-         */
-        rc = m0_md_fop_init(fop, fom);
-        if (rc != 0)
-                goto out;
+	/**
+	 * Init some fop fields (full path) that require mdstore and other
+	 * initialialized structures.
+	 */
+	rc = m0_md_fop_init(fop, fom);
+	if (rc != 0)
+		goto out;
 
-        m0_fom_block_enter(fom);
+	m0_fom_block_enter(fom);
 
-        rc = m0_mdstore_lookup(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                               &body->b_pfid, &name, &cob, &fom->fo_tx.tx_dbtx);
-        if (rc != 0) {
-                M0_LOG(M0_DEBUG, "m0_mdstore_lookup() failed with %d", rc);
-                m0_fom_block_leave(fom);
-                goto out;
-        }
-        tfid = *cob->co_fid;
-        m0_cob_put(cob);
+	rc = m0_mdstore_lookup(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+			       &body->b_pfid, &name, &cob, &fom->fo_tx.tx_dbtx);
+	if (rc != 0) {
+		M0_LOG(M0_DEBUG, "m0_mdstore_lookup() failed with %d", rc);
+		m0_fom_block_leave(fom);
+		goto out;
+	}
+	tfid = *cob->co_fid;
+	m0_cob_put(cob);
 
-        M0_LOG(M0_DEBUG, "Found object [%lx:%lx] go for getattr",
-               tfid.f_container, tfid.f_key);
+	M0_LOG(M0_DEBUG, "Found object [%lx:%lx] go for getattr",
+	       tfid.f_container, tfid.f_key);
 
-        rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                               &tfid, &cob, M0_MD_LOCATE_STORED,
-                               &fom->fo_tx.tx_dbtx);
-        if (rc != 0) {
-                M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
-                       tfid.f_container, tfid.f_key, rc);
-                m0_fom_block_leave(fom);
-                goto out;
-        }
+	rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+			       &tfid, &cob, M0_MD_LOCATE_STORED,
+			       &fom->fo_tx.tx_dbtx);
+	if (rc != 0) {
+		M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
+		       tfid.f_container, tfid.f_key, rc);
+		m0_fom_block_leave(fom);
+		goto out;
+	}
 
-        rc = m0_mdstore_getattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                                cob, &attr, &fom->fo_tx.tx_dbtx);
-        m0_cob_put(cob);
-        m0_fom_block_leave(fom);
+	rc = m0_mdstore_getattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+				cob, &attr, &fom->fo_tx.tx_dbtx);
+	m0_cob_put(cob);
+	m0_fom_block_leave(fom);
 
-        if (rc == 0) {
-                attr.ca_valid = M0_COB_ALL;
-                m0_md_cob_mem2wire(&rep->l_body, &attr);
-        } else {
-                M0_LOG(M0_DEBUG, "Getattr on object [%lx:%lx] failed with %d",
-                       cob->co_fid->f_container, cob->co_fid->f_key, rc);
-        }
+	if (rc == 0) {
+		attr.ca_valid = M0_COB_ALL;
+		m0_md_cob_mem2wire(&rep->l_body, &attr);
+	} else {
+		M0_LOG(M0_DEBUG, "Getattr on object [%lx:%lx] failed with %d",
+		       cob->co_fid->f_container, cob->co_fid->f_key, rc);
+	}
 out:
-        M0_LOG(M0_DEBUG, "Lookup for \"%.*s\" finished with %d",
-               (int)name.b_nob, (char *)name.b_addr, rc);
-        rep->l_body.b_rc = rc;
-        m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
-        return M0_FSO_AGAIN;
+	M0_LOG(M0_DEBUG, "Lookup for \"%.*s\" finished with %d",
+	       (int)name.b_nob, (char *)name.b_addr, rc);
+	rep->l_body.b_rc = rc;
+	m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
+	return M0_FSO_AGAIN;
 }
 
 static int m0_md_tick_getattr(struct m0_fom *fom)
 {
-        struct m0_cob_attr             attr;
-        struct m0_fop_cob             *body;
-        struct m0_cob                 *cob;
-        struct m0_fop_getattr         *req;
-        struct m0_fop_getattr_rep     *rep;
-        struct m0_fop                 *fop;
-        struct m0_fop                 *fop_rep;
-        int                            rc;
+	struct m0_cob_attr             attr;
+	struct m0_fop_cob             *body;
+	struct m0_cob                 *cob;
+	struct m0_fop_getattr         *req;
+	struct m0_fop_getattr_rep     *rep;
+	struct m0_fop                 *fop;
+	struct m0_fop                 *fop_rep;
+	int                            rc;
 
-        rc = m0_md_tick_generic(fom);
-        if (rc != 0)
-                return rc;
+	rc = m0_md_tick_generic(fom);
+	if (rc != 0)
+		return rc;
 
-        fop = fom->fo_fop;
-        M0_ASSERT(fop != NULL);
-        req = m0_fop_data(fop);
-        body = &req->g_body;
+	fop = fom->fo_fop;
+	M0_ASSERT(fop != NULL);
+	req = m0_fop_data(fop);
+	body = &req->g_body;
 
-        fop_rep = fom->fo_rep_fop;
-        M0_ASSERT(fop_rep != NULL);
-        rep = m0_fop_data(fop_rep);
+	fop_rep = fom->fo_rep_fop;
+	M0_ASSERT(fop_rep != NULL);
+	rep = m0_fop_data(fop_rep);
 
-        M0_LOG(M0_DEBUG, "Getattr for [%lx:%lx] started",
-               body->b_tfid.f_container, body->b_tfid.f_key);
+	M0_LOG(M0_DEBUG, "Getattr for [%lx:%lx] started",
+	       body->b_tfid.f_container, body->b_tfid.f_key);
 
-        /**
-         * Init some fop fields (full path) that require mdstore and other
-         * initialialized structures.
-         */
-        rc = m0_md_fop_init(fop, fom);
-        if (rc != 0)
-                goto out;
+	/**
+	 * Init some fop fields (full path) that require mdstore and other
+	 * initialialized structures.
+	 */
+	rc = m0_md_fop_init(fop, fom);
+	if (rc != 0)
+		goto out;
 
-        m0_fom_block_enter(fom);
-        rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                               &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
-                               &fom->fo_tx.tx_dbtx);
-        if (rc != 0) {
-                M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
-                       body->b_tfid.f_container, body->b_tfid.f_key, rc);
-                m0_fom_block_leave(fom);
-                goto out;
-        }
+	m0_fom_block_enter(fom);
+	rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+			       &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
+			       &fom->fo_tx.tx_dbtx);
+	if (rc != 0) {
+		M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
+		       body->b_tfid.f_container, body->b_tfid.f_key, rc);
+		m0_fom_block_leave(fom);
+		goto out;
+	}
 
-        rc = m0_mdstore_getattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                                cob, &attr, &fom->fo_tx.tx_dbtx);
-        m0_cob_put(cob);
-        m0_fom_block_leave(fom);
-        if (rc == 0) {
-                attr.ca_valid = M0_COB_ALL;
-                m0_md_cob_mem2wire(&rep->g_body, &attr);
-        }
+	rc = m0_mdstore_getattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+				cob, &attr, &fom->fo_tx.tx_dbtx);
+	m0_cob_put(cob);
+	m0_fom_block_leave(fom);
+	if (rc == 0) {
+		attr.ca_valid = M0_COB_ALL;
+		m0_md_cob_mem2wire(&rep->g_body, &attr);
+	}
 out:
-        M0_LOG(M0_DEBUG, "Getattr for [%lx:%lx] finished with %d",
-               body->b_tfid.f_container, body->b_tfid.f_key, rc);
-        rep->g_body.b_rc = rc;
-        m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
-        return M0_FSO_AGAIN;
+	M0_LOG(M0_DEBUG, "Getattr for [%lx:%lx] finished with %d",
+	       body->b_tfid.f_container, body->b_tfid.f_key, rc);
+	rep->g_body.b_rc = rc;
+	m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
+	return M0_FSO_AGAIN;
 }
 
 static void md_statfs_mem2wire(struct m0_fop_statfs_rep *rep,
-                               struct m0_statfs *statfs)
+			       struct m0_statfs *statfs)
 {
-        rep->f_type = statfs->sf_type;
-        rep->f_bsize = statfs->sf_bsize;
-        rep->f_blocks = statfs->sf_blocks;
-        rep->f_bfree = statfs->sf_bfree;
-        rep->f_bavail = statfs->sf_bavail;
-        rep->f_files = statfs->sf_files;
-        rep->f_ffree = statfs->sf_ffree;
-        rep->f_namelen = statfs->sf_namelen;
-        rep->f_root = statfs->sf_root;
+	rep->f_type = statfs->sf_type;
+	rep->f_bsize = statfs->sf_bsize;
+	rep->f_blocks = statfs->sf_blocks;
+	rep->f_bfree = statfs->sf_bfree;
+	rep->f_bavail = statfs->sf_bavail;
+	rep->f_files = statfs->sf_files;
+	rep->f_ffree = statfs->sf_ffree;
+	rep->f_namelen = statfs->sf_namelen;
+	rep->f_root = statfs->sf_root;
 }
 
 static int m0_md_tick_statfs(struct m0_fom *fom)
 {
-        struct m0_fop_statfs          *req;
-        struct m0_fop_statfs_rep      *rep;
-        struct m0_fop                 *fop;
-        struct m0_fop                 *fop_rep;
-        struct m0_statfs               statfs;
-        int                            rc;
+	struct m0_fop_statfs          *req;
+	struct m0_fop_statfs_rep      *rep;
+	struct m0_fop                 *fop;
+	struct m0_fop                 *fop_rep;
+	struct m0_statfs               statfs;
+	int                            rc;
 
-        rc = m0_md_tick_generic(fom);
-        if (rc != 0)
-                return rc;
+	rc = m0_md_tick_generic(fom);
+	if (rc != 0)
+		return rc;
 
-        fop = fom->fo_fop;
-        M0_ASSERT(fop != NULL);
-        req = m0_fop_data(fop);
+	fop = fom->fo_fop;
+	M0_ASSERT(fop != NULL);
+	req = m0_fop_data(fop);
 
-        fop_rep = fom->fo_rep_fop;
-        M0_ASSERT(fop_rep != NULL);
-        rep = m0_fop_data(fop_rep);
+	fop_rep = fom->fo_rep_fop;
+	M0_ASSERT(fop_rep != NULL);
+	rep = m0_fop_data(fop_rep);
 
-        rc = m0_md_fop_init(fop, fom);
-        if (rc != 0)
-                goto out;
+	rc = m0_md_fop_init(fop, fom);
+	if (rc != 0)
+		goto out;
 
-        m0_fom_block_enter(fom);
-        rc = m0_mdstore_statfs(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                               &statfs, &fom->fo_tx.tx_dbtx);
-        m0_fom_block_leave(fom);
-        if (rc == 0)
-                md_statfs_mem2wire(rep, &statfs);
+	m0_fom_block_enter(fom);
+	rc = m0_mdstore_statfs(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+			       &statfs, &fom->fo_tx.tx_dbtx);
+	m0_fom_block_leave(fom);
+	if (rc == 0)
+		md_statfs_mem2wire(rep, &statfs);
 out:
-        rep->f_rc = rc;
-        m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-        return M0_FSO_AGAIN;
+	rep->f_rc = rc;
+	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	return M0_FSO_AGAIN;
 }
 
 /** Readdir fop data buffer size */
@@ -895,128 +895,128 @@ out:
 
 static int m0_md_tick_readdir(struct m0_fom *fom)
 {
-        struct m0_fop_cob             *body;
-        struct m0_cob                 *cob;
-        struct m0_fop_readdir         *req;
-        struct m0_fop_readdir_rep     *rep;
-        struct m0_fop                 *fop;
-        struct m0_fop                 *fop_rep;
-        struct m0_rdpg                 rdpg;
-        void                          *addr;
-        int                            rc;
+	struct m0_fop_cob             *body;
+	struct m0_cob                 *cob;
+	struct m0_fop_readdir         *req;
+	struct m0_fop_readdir_rep     *rep;
+	struct m0_fop                 *fop;
+	struct m0_fop                 *fop_rep;
+	struct m0_rdpg                 rdpg;
+	void                          *addr;
+	int                            rc;
 
-        rc = m0_md_tick_generic(fom);
-        if (rc != 0)
-                return rc;
+	rc = m0_md_tick_generic(fom);
+	if (rc != 0)
+		return rc;
 
-        fop = fom->fo_fop;
-        M0_ASSERT(fop != NULL);
-        req = m0_fop_data(fop);
+	fop = fom->fo_fop;
+	M0_ASSERT(fop != NULL);
+	req = m0_fop_data(fop);
 
-        fop_rep = fom->fo_rep_fop;
-        M0_ASSERT(fop_rep != NULL);
-        rep = m0_fop_data(fop_rep);
+	fop_rep = fom->fo_rep_fop;
+	M0_ASSERT(fop_rep != NULL);
+	rep = m0_fop_data(fop_rep);
 
-        /**
-         * Init some fop fields (full path) that require mdstore and other
-         * initialialized structures.
-         */
-        rc = m0_md_fop_init(fop, fom);
-        if (rc != 0)
-                goto out;
+	/**
+	 * Init some fop fields (full path) that require mdstore and other
+	 * initialialized structures.
+	 */
+	rc = m0_md_fop_init(fop, fom);
+	if (rc != 0)
+		goto out;
 
-        body = &req->r_body;
-        m0_fom_block_enter(fom);
-        rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                               &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
-                               &fom->fo_tx.tx_dbtx);
-        if (rc != 0) {
-                m0_fom_block_leave(fom);
-                goto out;
-        }
+	body = &req->r_body;
+	m0_fom_block_enter(fom);
+	rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+			       &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
+			       &fom->fo_tx.tx_dbtx);
+	if (rc != 0) {
+		m0_fom_block_leave(fom);
+		goto out;
+	}
 
-        if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
-                m0_fom_block_leave(fom);
-                rc = -ENOTDIR;
-                m0_cob_put(cob);
-                goto out;
-        }
+	if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
+		m0_fom_block_leave(fom);
+		rc = -ENOTDIR;
+		m0_cob_put(cob);
+		goto out;
+	}
 
-        M0_SET0(&rdpg);
-        rdpg.r_pos = m0_alloc(M0_MD_MAX_NAME_LEN);
-        if (rdpg.r_pos == NULL) {
-                m0_fom_block_leave(fom);
-                m0_cob_put(cob);
-                rc = -ENOMEM;
-                goto out;
-        }
-        m0_bitstring_copy(rdpg.r_pos,
-                         (char *)req->r_pos.s_buf, req->r_pos.s_len);
+	M0_SET0(&rdpg);
+	rdpg.r_pos = m0_alloc(M0_MD_MAX_NAME_LEN);
+	if (rdpg.r_pos == NULL) {
+		m0_fom_block_leave(fom);
+		m0_cob_put(cob);
+		rc = -ENOMEM;
+		goto out;
+	}
+	m0_bitstring_copy(rdpg.r_pos,
+			 (char *)req->r_pos.s_buf, req->r_pos.s_len);
 
-        addr = m0_alloc(M0_MD_READDIR_BUFF_SIZE);
-        if (addr == NULL) {
-                m0_fom_block_leave(fom);
-                m0_bitstring_free(rdpg.r_pos);
-                m0_cob_put(cob);
-                rc = -ENOMEM;
-                goto out;
-        }
+	addr = m0_alloc(M0_MD_READDIR_BUFF_SIZE);
+	if (addr == NULL) {
+		m0_fom_block_leave(fom);
+		m0_bitstring_free(rdpg.r_pos);
+		m0_cob_put(cob);
+		rc = -ENOMEM;
+		goto out;
+	}
 
-        m0_buf_init(&rdpg.r_buf, addr, M0_MD_READDIR_BUFF_SIZE);
+	m0_buf_init(&rdpg.r_buf, addr, M0_MD_READDIR_BUFF_SIZE);
 
-        rc = m0_mdstore_readdir(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                                cob, &rdpg, &fom->fo_tx.tx_dbtx);
-        m0_fom_block_leave(fom);
-        m0_free(rdpg.r_pos);
-        m0_cob_put(cob);
-        if (rc < 0) {
-                m0_free(addr);
-                goto out;
-        }
+	rc = m0_mdstore_readdir(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+				cob, &rdpg, &fom->fo_tx.tx_dbtx);
+	m0_fom_block_leave(fom);
+	m0_free(rdpg.r_pos);
+	m0_cob_put(cob);
+	if (rc < 0) {
+		m0_free(addr);
+		goto out;
+	}
 
-        /*
-         * Prepare end position.
-         */
-        rep->r_end.s_len = m0_bitstring_len_get(rdpg.r_end);
-        rep->r_end.s_buf = m0_alloc(rep->r_end.s_len);
-        if (rep->r_end.s_buf == NULL) {
-                m0_free(addr);
-                rc = -ENOMEM;
-                goto out;
-        }
-        memcpy(rep->r_end.s_buf, m0_bitstring_buf_get(rdpg.r_end),
-               rep->r_end.s_len);
-        m0_bitstring_free(rdpg.r_end);
+	/*
+	 * Prepare end position.
+	 */
+	rep->r_end.s_len = m0_bitstring_len_get(rdpg.r_end);
+	rep->r_end.s_buf = m0_alloc(rep->r_end.s_len);
+	if (rep->r_end.s_buf == NULL) {
+		m0_free(addr);
+		rc = -ENOMEM;
+		goto out;
+	}
+	memcpy(rep->r_end.s_buf, m0_bitstring_buf_get(rdpg.r_end),
+	       rep->r_end.s_len);
+	m0_bitstring_free(rdpg.r_end);
 
-        /*
-         * Prepare buf with data.
-         */
-        rep->r_buf.b_count = rdpg.r_buf.b_nob;
-        rep->r_buf.b_addr = rdpg.r_buf.b_addr;
+	/*
+	 * Prepare buf with data.
+	 */
+	rep->r_buf.b_count = rdpg.r_buf.b_nob;
+	rep->r_buf.b_addr = rdpg.r_buf.b_addr;
 out:
-        rep->r_body.b_rc = rc;
+	rep->r_body.b_rc = rc;
 
-        /*
-         * Readddir return convention:
-         * <0 - some error occured;
-         *  0 - no errors, more data available for next readdir;
-         * >0 - EOF detyected, more data available but this is the last page.
-         *
-         * Return code according to this convention should go to client but
-         * local state machine requires "normal" errors. Let's adopt @rc.
-         */
-        rc = (rc < 0 ? rc : 0);
-        m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-        return M0_FSO_AGAIN;
+	/*
+	 * Readddir return convention:
+	 * <0 - some error occured;
+	 *  0 - no errors, more data available for next readdir;
+	 * >0 - EOF detyected, more data available but this is the last page.
+	 *
+	 * Return code according to this convention should go to client but
+	 * local state machine requires "normal" errors. Let's adopt @rc.
+	 */
+	rc = (rc < 0 ? rc : 0);
+	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	return M0_FSO_AGAIN;
 }
 
 static void layout_pair_set(struct m0_db_pair *pair, uint64_t *lid,
-                            void *area, m0_bcount_t num_bytes)
+			    void *area, m0_bcount_t num_bytes)
 {
-        pair->dp_key.db_buf.b_addr = lid;
-        pair->dp_key.db_buf.b_nob  = sizeof *lid;
-        pair->dp_rec.db_buf.b_addr = area;
-        pair->dp_rec.db_buf.b_nob  = num_bytes;
+	pair->dp_key.db_buf.b_addr = lid;
+	pair->dp_key.db_buf.b_nob  = sizeof *lid;
+	pair->dp_rec.db_buf.b_addr = area;
+	pair->dp_rec.db_buf.b_nob  = num_bytes;
 }
 
 static int m0_md_tick_layout(struct m0_fom *fom)
@@ -1052,7 +1052,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 	M0_LOG(M0_DEBUG, "This is a layout fop op = %u, lid = %llu",
 		req->l_op, (unsigned long long)req->l_lid);
 
-        serv_obj = container_of(fom->fo_service, struct m0_reqh_md_service,
+	serv_obj = container_of(fom->fo_service, struct m0_reqh_md_service,
 				rmds_gen);
 
 	m0_fom_block_enter(fom);
@@ -1071,7 +1071,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 			break;
 
 		rc = m0_layout_decode(l, &cur, M0_LXO_BUFFER_OP, NULL);
-                m0_mutex_unlock(&l->l_lock);/* lock held by ->lto_allocate() */
+		m0_mutex_unlock(&l->l_lock);/* lock held by ->lto_allocate() */
 		if (rc == 0) {
 			M0_LOG(M0_DEBUG, "Start");
 			layout_pair_set(&pair, &req->l_lid,
@@ -1121,325 +1121,325 @@ out:
 
 
 static int m0_md_req_path_get(struct m0_mdstore *mdstore,
-                              struct m0_fid *fid,
-                              struct m0_fop_str *str)
+			      struct m0_fid *fid,
+			      struct m0_fop_str *str)
 {
-        int rc;
+	int rc;
 
-        rc = m0_mdstore_path(mdstore, fid, (char **)&str->s_buf);
-        if (rc != 0)
-                return rc;
-        str->s_len = strlen((char *)str->s_buf);
-        return 0;
+	rc = m0_mdstore_path(mdstore, fid, (char **)&str->s_buf);
+	if (rc != 0)
+		return rc;
+	str->s_len = strlen((char *)str->s_buf);
+	return 0;
 }
 
 M0_INTERNAL int m0_md_fop_init(struct m0_fop *fop, struct m0_fom *fom)
 {
-        struct m0_fop_create    *create;
-        struct m0_fop_unlink    *unlink;
-        struct m0_fop_rename    *rename;
-        struct m0_fop_link      *link;
-        struct m0_fop_setattr   *setattr;
-        struct m0_fop_getattr   *getattr;
-        struct m0_fop_lookup    *lookup;
-        struct m0_fop_open      *open;
-        struct m0_fop_close     *close;
-        struct m0_fop_readdir   *readdir;
-        struct m0_mdstore       *md;
-        int                      rc;
+	struct m0_fop_create    *create;
+	struct m0_fop_unlink    *unlink;
+	struct m0_fop_rename    *rename;
+	struct m0_fop_link      *link;
+	struct m0_fop_setattr   *setattr;
+	struct m0_fop_getattr   *getattr;
+	struct m0_fop_lookup    *lookup;
+	struct m0_fop_open      *open;
+	struct m0_fop_close     *close;
+	struct m0_fop_readdir   *readdir;
+	struct m0_mdstore       *md;
+	int                      rc;
 
-        M0_PRE(fop != NULL);
-        md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+	M0_PRE(fop != NULL);
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
-        switch (m0_fop_opcode(fop)) {
-        case M0_MDSERVICE_CREATE_OPCODE:
-                create = m0_fop_data(fop);
-                rc = m0_md_req_path_get(md,
-                                        &create->c_body.b_pfid,
-                                        &create->c_path);
-                break;
-        case M0_MDSERVICE_LINK_OPCODE:
-                link = m0_fop_data(fop);
-                rc = m0_md_req_path_get(md,
-                                        &link->l_body.b_pfid,
-                                        &link->l_tpath);
-                if (rc != 0)
-                        return rc;
-                rc = m0_md_req_path_get(md,
-                                        &link->l_body.b_tfid,
-                                        &link->l_spath);
-                if (rc != 0) {
-                        m0_free(link->l_tpath.s_buf);
-                        link->l_tpath.s_buf = NULL;
-                        link->l_tpath.s_len = 0;
-                        return rc;
-                }
-                break;
-        case M0_MDSERVICE_UNLINK_OPCODE:
-                unlink = m0_fop_data(fop);
-                rc = m0_md_req_path_get(md,
-                                        &unlink->u_body.b_pfid,
-                                        &unlink->u_path);
-                break;
-        case M0_MDSERVICE_RENAME_OPCODE:
-                rename = m0_fop_data(fop);
-                rc = m0_md_req_path_get(md,
-                                        &rename->r_sbody.b_pfid,
-                                        &rename->r_spath);
-                if (rc != 0)
-                        return rc;
-                rc = m0_md_req_path_get(md,
-                                        &rename->r_tbody.b_pfid,
-                                        &rename->r_tpath);
-                if (rc != 0) {
-                        m0_free(rename->r_spath.s_buf);
-                        rename->r_spath.s_buf = NULL;
-                        rename->r_spath.s_len = 0;
-                        return rc;
-                }
-                break;
-        case M0_MDSERVICE_OPEN_OPCODE:
-                open = m0_fop_data(fop);
-                rc = m0_md_req_path_get(md,
-                                        &open->o_body.b_tfid,
-                                        &open->o_path);
-                break;
-        case M0_MDSERVICE_CLOSE_OPCODE:
-                close = m0_fop_data(fop);
-                rc = m0_md_req_path_get(md,
-                                        &close->c_body.b_tfid,
-                                        &close->c_path);
-                break;
-        case M0_MDSERVICE_SETATTR_OPCODE:
-                setattr = m0_fop_data(fop);
-                rc = m0_md_req_path_get(md,
-                                        &setattr->s_body.b_tfid,
-                                        &setattr->s_path);
-                break;
-        case M0_MDSERVICE_GETATTR_OPCODE:
-                getattr = m0_fop_data(fop);
-                rc = m0_md_req_path_get(md,
-                                        &getattr->g_body.b_tfid,
-                                        &getattr->g_path);
-                break;
-        case M0_MDSERVICE_LOOKUP_OPCODE:
-                lookup = m0_fop_data(fop);
-                rc = m0_md_req_path_get(md,
-                                        &lookup->l_body.b_pfid,
-                                        &lookup->l_path);
-                break;
-        case M0_MDSERVICE_READDIR_OPCODE:
-                readdir = m0_fop_data(fop);
-                rc = m0_md_req_path_get(md,
-                                        &readdir->r_body.b_tfid,
-                                        &readdir->r_path);
-                break;
-        default:
-                rc = 0;
-                break;
-        }
+	switch (m0_fop_opcode(fop)) {
+	case M0_MDSERVICE_CREATE_OPCODE:
+		create = m0_fop_data(fop);
+		rc = m0_md_req_path_get(md,
+					&create->c_body.b_pfid,
+					&create->c_path);
+		break;
+	case M0_MDSERVICE_LINK_OPCODE:
+		link = m0_fop_data(fop);
+		rc = m0_md_req_path_get(md,
+					&link->l_body.b_pfid,
+					&link->l_tpath);
+		if (rc != 0)
+			return rc;
+		rc = m0_md_req_path_get(md,
+					&link->l_body.b_tfid,
+					&link->l_spath);
+		if (rc != 0) {
+			m0_free(link->l_tpath.s_buf);
+			link->l_tpath.s_buf = NULL;
+			link->l_tpath.s_len = 0;
+			return rc;
+		}
+		break;
+	case M0_MDSERVICE_UNLINK_OPCODE:
+		unlink = m0_fop_data(fop);
+		rc = m0_md_req_path_get(md,
+					&unlink->u_body.b_pfid,
+					&unlink->u_path);
+		break;
+	case M0_MDSERVICE_RENAME_OPCODE:
+		rename = m0_fop_data(fop);
+		rc = m0_md_req_path_get(md,
+					&rename->r_sbody.b_pfid,
+					&rename->r_spath);
+		if (rc != 0)
+			return rc;
+		rc = m0_md_req_path_get(md,
+					&rename->r_tbody.b_pfid,
+					&rename->r_tpath);
+		if (rc != 0) {
+			m0_free(rename->r_spath.s_buf);
+			rename->r_spath.s_buf = NULL;
+			rename->r_spath.s_len = 0;
+			return rc;
+		}
+		break;
+	case M0_MDSERVICE_OPEN_OPCODE:
+		open = m0_fop_data(fop);
+		rc = m0_md_req_path_get(md,
+					&open->o_body.b_tfid,
+					&open->o_path);
+		break;
+	case M0_MDSERVICE_CLOSE_OPCODE:
+		close = m0_fop_data(fop);
+		rc = m0_md_req_path_get(md,
+					&close->c_body.b_tfid,
+					&close->c_path);
+		break;
+	case M0_MDSERVICE_SETATTR_OPCODE:
+		setattr = m0_fop_data(fop);
+		rc = m0_md_req_path_get(md,
+					&setattr->s_body.b_tfid,
+					&setattr->s_path);
+		break;
+	case M0_MDSERVICE_GETATTR_OPCODE:
+		getattr = m0_fop_data(fop);
+		rc = m0_md_req_path_get(md,
+					&getattr->g_body.b_tfid,
+					&getattr->g_path);
+		break;
+	case M0_MDSERVICE_LOOKUP_OPCODE:
+		lookup = m0_fop_data(fop);
+		rc = m0_md_req_path_get(md,
+					&lookup->l_body.b_pfid,
+					&lookup->l_path);
+		break;
+	case M0_MDSERVICE_READDIR_OPCODE:
+		readdir = m0_fop_data(fop);
+		rc = m0_md_req_path_get(md,
+					&readdir->r_body.b_tfid,
+					&readdir->r_path);
+		break;
+	default:
+		rc = 0;
+		break;
+	}
 
-        return rc;
+	return rc;
 }
 
 static void m0_md_req_fom_fini(struct m0_fom *fom)
 {
-        struct m0_fom_md         *fom_obj;
-        struct m0_local_service  *svc;
+	struct m0_fom_md         *fom_obj;
+	struct m0_local_service  *svc;
 
-        fom_obj = container_of(fom, struct m0_fom_md, fm_fom);
+	fom_obj = container_of(fom, struct m0_fom_md, fm_fom);
 
-        /* Let local sevice know that we have finished. */
-        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
-        if (svc != NULL && svc->s_ops->lso_fini)
-                svc->s_ops->lso_fini(svc, fom);
-        /* Fini fom itself. */
-        m0_fom_fini(fom);
-        m0_free(fom_obj);
+	/* Let local sevice know that we have finished. */
+	svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
+	if (svc != NULL && svc->s_ops->lso_fini)
+		svc->s_ops->lso_fini(svc, fom);
+	/* Fini fom itself. */
+	m0_fom_fini(fom);
+	m0_free(fom_obj);
 }
 
 static size_t m0_md_req_fom_locality_get(const struct m0_fom *fom)
 {
-        M0_PRE(fom != NULL);
-        M0_PRE(fom->fo_fop != NULL);
+	M0_PRE(fom != NULL);
+	M0_PRE(fom->fo_fop != NULL);
 
-        return m0_fop_opcode(fom->fo_fop);
+	return m0_fop_opcode(fom->fo_fop);
 }
 
 static const struct m0_fom_ops m0_md_fom_create_ops = {
-        .fo_home_locality = m0_md_req_fom_locality_get,
-        .fo_tick   = m0_md_tick_create,
-        .fo_fini   = m0_md_req_fom_fini,
+	.fo_home_locality = m0_md_req_fom_locality_get,
+	.fo_tick   = m0_md_tick_create,
+	.fo_fini   = m0_md_req_fom_fini,
 	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_link_ops = {
-        .fo_home_locality = m0_md_req_fom_locality_get,
-        .fo_tick   = m0_md_tick_link,
-        .fo_fini   = m0_md_req_fom_fini,
+	.fo_home_locality = m0_md_req_fom_locality_get,
+	.fo_tick   = m0_md_tick_link,
+	.fo_fini   = m0_md_req_fom_fini,
 	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_unlink_ops = {
-        .fo_home_locality = m0_md_req_fom_locality_get,
-        .fo_tick   = m0_md_tick_unlink,
-        .fo_fini   = m0_md_req_fom_fini,
+	.fo_home_locality = m0_md_req_fom_locality_get,
+	.fo_tick   = m0_md_tick_unlink,
+	.fo_fini   = m0_md_req_fom_fini,
 	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_rename_ops = {
-        .fo_home_locality = m0_md_req_fom_locality_get,
-        .fo_tick   = m0_md_tick_rename,
-        .fo_fini   = m0_md_req_fom_fini,
+	.fo_home_locality = m0_md_req_fom_locality_get,
+	.fo_tick   = m0_md_tick_rename,
+	.fo_fini   = m0_md_req_fom_fini,
 	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_open_ops = {
-        .fo_home_locality = m0_md_req_fom_locality_get,
-        .fo_tick   = m0_md_tick_open,
-        .fo_fini   = m0_md_req_fom_fini,
+	.fo_home_locality = m0_md_req_fom_locality_get,
+	.fo_tick   = m0_md_tick_open,
+	.fo_fini   = m0_md_req_fom_fini,
 	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_close_ops = {
-        .fo_home_locality = m0_md_req_fom_locality_get,
-        .fo_tick  = m0_md_tick_close,
-        .fo_fini  = m0_md_req_fom_fini,
+	.fo_home_locality = m0_md_req_fom_locality_get,
+	.fo_tick  = m0_md_tick_close,
+	.fo_fini  = m0_md_req_fom_fini,
 	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_setattr_ops = {
-        .fo_home_locality = m0_md_req_fom_locality_get,
-        .fo_tick   = m0_md_tick_setattr,
-        .fo_fini   = m0_md_req_fom_fini,
+	.fo_home_locality = m0_md_req_fom_locality_get,
+	.fo_tick   = m0_md_tick_setattr,
+	.fo_fini   = m0_md_req_fom_fini,
 	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_getattr_ops = {
-        .fo_home_locality = m0_md_req_fom_locality_get,
-        .fo_tick   = m0_md_tick_getattr,
-        .fo_fini   = m0_md_req_fom_fini,
+	.fo_home_locality = m0_md_req_fom_locality_get,
+	.fo_tick   = m0_md_tick_getattr,
+	.fo_fini   = m0_md_req_fom_fini,
 	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_lookup_ops = {
-        .fo_home_locality = m0_md_req_fom_locality_get,
-        .fo_tick   = m0_md_tick_lookup,
-        .fo_fini   = m0_md_req_fom_fini,
+	.fo_home_locality = m0_md_req_fom_locality_get,
+	.fo_tick   = m0_md_tick_lookup,
+	.fo_fini   = m0_md_req_fom_fini,
 	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_statfs_ops = {
-        .fo_home_locality = m0_md_req_fom_locality_get,
-        .fo_tick   = m0_md_tick_statfs,
-        .fo_fini   = m0_md_req_fom_fini,
+	.fo_home_locality = m0_md_req_fom_locality_get,
+	.fo_tick   = m0_md_tick_statfs,
+	.fo_fini   = m0_md_req_fom_fini,
 	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_readdir_ops = {
-        .fo_home_locality = m0_md_req_fom_locality_get,
-        .fo_tick   = m0_md_tick_readdir,
-        .fo_fini   = m0_md_req_fom_fini,
+	.fo_home_locality = m0_md_req_fom_locality_get,
+	.fo_tick   = m0_md_tick_readdir,
+	.fo_fini   = m0_md_req_fom_fini,
 	.fo_addb_init = m0_md_fom_addb_init
 };
 
 static const struct m0_fom_ops m0_md_fom_layout_ops = {
-        .fo_home_locality = m0_md_req_fom_locality_get,
-        .fo_tick   = m0_md_tick_layout,
-        .fo_fini   = m0_md_req_fom_fini,
-        .fo_addb_init = m0_md_fom_addb_init
+	.fo_home_locality = m0_md_req_fom_locality_get,
+	.fo_tick   = m0_md_tick_layout,
+	.fo_fini   = m0_md_req_fom_fini,
+	.fo_addb_init = m0_md_fom_addb_init
 };
 
 
 M0_INTERNAL int m0_md_rep_fom_create(struct m0_fop *fop, struct m0_fom **m,
 				     struct m0_reqh *reqh)
 {
-        return 0;
+	return 0;
 }
 
 M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
 				     struct m0_reqh *reqh)
 {
 	struct m0_fop           *rep_fop;
-        struct m0_fom           *fom;
-        struct m0_fom_md        *fom_obj;
-        struct m0_fop_type      *rep_fopt;
-        const struct m0_fom_ops *ops;
+	struct m0_fom           *fom;
+	struct m0_fom_md        *fom_obj;
+	struct m0_fop_type      *rep_fopt;
+	const struct m0_fom_ops *ops;
 
-        M0_PRE(fop != NULL);
-        M0_PRE(m != NULL);
+	M0_PRE(fop != NULL);
+	M0_PRE(m != NULL);
 
-        fom_obj = m0_alloc(sizeof(struct m0_fom_md));
-        if (fom_obj == NULL)
-                return -ENOMEM;
+	fom_obj = m0_alloc(sizeof(struct m0_fom_md));
+	if (fom_obj == NULL)
+		return -ENOMEM;
 
-        switch (m0_fop_opcode(fop)) {
-        case M0_MDSERVICE_CREATE_OPCODE:
-                ops = &m0_md_fom_create_ops;
-                rep_fopt = &m0_fop_create_rep_fopt;
-                break;
-        case M0_MDSERVICE_LOOKUP_OPCODE:
-                ops = &m0_md_fom_lookup_ops;
-                rep_fopt = &m0_fop_lookup_rep_fopt;
-                break;
-        case M0_MDSERVICE_LINK_OPCODE:
-                ops = &m0_md_fom_link_ops;
-                rep_fopt = &m0_fop_link_rep_fopt;
-                break;
-        case M0_MDSERVICE_UNLINK_OPCODE:
-                ops = &m0_md_fom_unlink_ops;
-                rep_fopt = &m0_fop_unlink_rep_fopt;
-                break;
-        case M0_MDSERVICE_RENAME_OPCODE:
-                ops = &m0_md_fom_rename_ops;
-                rep_fopt = &m0_fop_rename_rep_fopt;
-                break;
-        case M0_MDSERVICE_OPEN_OPCODE:
-                ops = &m0_md_fom_open_ops;
-                rep_fopt = &m0_fop_open_rep_fopt;
-                break;
-        case M0_MDSERVICE_CLOSE_OPCODE:
-                ops = &m0_md_fom_close_ops;
-                rep_fopt = &m0_fop_close_rep_fopt;
-                break;
-        case M0_MDSERVICE_SETATTR_OPCODE:
-                ops = &m0_md_fom_setattr_ops;
-                rep_fopt = &m0_fop_setattr_rep_fopt;
-                break;
-        case M0_MDSERVICE_GETATTR_OPCODE:
-                ops = &m0_md_fom_getattr_ops;
-                rep_fopt = &m0_fop_getattr_rep_fopt;
-                break;
-        case M0_MDSERVICE_STATFS_OPCODE:
-                ops = &m0_md_fom_statfs_ops;
-                rep_fopt = &m0_fop_statfs_rep_fopt;
-                break;
-        case M0_MDSERVICE_READDIR_OPCODE:
-                ops = &m0_md_fom_readdir_ops;
-                rep_fopt = &m0_fop_readdir_rep_fopt;
-                break;
-         case M0_LAYOUT_OPCODE:
-                ops = &m0_md_fom_layout_ops;
-                rep_fopt = &m0_fop_layout_rep_fopt;
-                break;
-        default:
-                m0_free(fom_obj);
-                return -EOPNOTSUPP;
-        }
+	switch (m0_fop_opcode(fop)) {
+	case M0_MDSERVICE_CREATE_OPCODE:
+		ops = &m0_md_fom_create_ops;
+		rep_fopt = &m0_fop_create_rep_fopt;
+		break;
+	case M0_MDSERVICE_LOOKUP_OPCODE:
+		ops = &m0_md_fom_lookup_ops;
+		rep_fopt = &m0_fop_lookup_rep_fopt;
+		break;
+	case M0_MDSERVICE_LINK_OPCODE:
+		ops = &m0_md_fom_link_ops;
+		rep_fopt = &m0_fop_link_rep_fopt;
+		break;
+	case M0_MDSERVICE_UNLINK_OPCODE:
+		ops = &m0_md_fom_unlink_ops;
+		rep_fopt = &m0_fop_unlink_rep_fopt;
+		break;
+	case M0_MDSERVICE_RENAME_OPCODE:
+		ops = &m0_md_fom_rename_ops;
+		rep_fopt = &m0_fop_rename_rep_fopt;
+		break;
+	case M0_MDSERVICE_OPEN_OPCODE:
+		ops = &m0_md_fom_open_ops;
+		rep_fopt = &m0_fop_open_rep_fopt;
+		break;
+	case M0_MDSERVICE_CLOSE_OPCODE:
+		ops = &m0_md_fom_close_ops;
+		rep_fopt = &m0_fop_close_rep_fopt;
+		break;
+	case M0_MDSERVICE_SETATTR_OPCODE:
+		ops = &m0_md_fom_setattr_ops;
+		rep_fopt = &m0_fop_setattr_rep_fopt;
+		break;
+	case M0_MDSERVICE_GETATTR_OPCODE:
+		ops = &m0_md_fom_getattr_ops;
+		rep_fopt = &m0_fop_getattr_rep_fopt;
+		break;
+	case M0_MDSERVICE_STATFS_OPCODE:
+		ops = &m0_md_fom_statfs_ops;
+		rep_fopt = &m0_fop_statfs_rep_fopt;
+		break;
+	case M0_MDSERVICE_READDIR_OPCODE:
+		ops = &m0_md_fom_readdir_ops;
+		rep_fopt = &m0_fop_readdir_rep_fopt;
+		break;
+	 case M0_LAYOUT_OPCODE:
+		ops = &m0_md_fom_layout_ops;
+		rep_fopt = &m0_fop_layout_rep_fopt;
+		break;
+	default:
+		m0_free(fom_obj);
+		return -EOPNOTSUPP;
+	}
 
 	rep_fop = m0_fop_alloc(rep_fopt, NULL);
-        if (rep_fop == NULL) {
-                m0_free(fom_obj);
-                return -ENOMEM;
-        }
-        fom = &fom_obj->fm_fom;
-        m0_fom_init(fom, &fop->f_type->ft_fom_type,
-                    ops, fop, rep_fop, reqh,
-                    fop->f_type->ft_fom_type.ft_rstype);
+	if (rep_fop == NULL) {
+		m0_free(fom_obj);
+		return -ENOMEM;
+	}
+	fom = &fom_obj->fm_fom;
+	m0_fom_init(fom, &fop->f_type->ft_fom_type,
+		    ops, fop, rep_fop, reqh,
+		    fop->f_type->ft_fom_type.ft_rstype);
 
 	m0_fop_put(rep_fop);
-        *m = fom;
-        return 0;
+	*m = fom;
+	return 0;
 }
 #undef M0_TRACE_SUBSYSTEM
 

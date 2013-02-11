@@ -54,7 +54,7 @@ static void init_once(void *foo)
 
 	M0_ENTRY();
 
-        m0_fid_set(&ci->ci_fid, 0, 0);
+	m0_fid_set(&ci->ci_fid, 0, 0);
 	inode_init_once(&ci->ci_inode);
 
 	M0_LEAVE();
@@ -155,24 +155,24 @@ M0_INTERNAL void m0t1fs_destroy_inode(struct inode *inode)
 }
 
 M0_INTERNAL struct inode *m0t1fs_root_iget(struct super_block *sb,
-                                           struct m0_fid *root_fid)
+					   struct m0_fid *root_fid)
 {
-        struct m0_fop_getattr_rep *rep = NULL;
+	struct m0_fop_getattr_rep *rep = NULL;
 	struct m0t1fs_mdop mo;
 	struct inode *inode;
 	int rc;
 
 	M0_ENTRY("sb: %p", sb);
 
-        M0_SET0(&mo);
-        mo.mo_attr.ca_tfid = *root_fid;
-        M0T1FS_SB(sb)->csb_root_fid = *root_fid;
-        M0T1FS_SB(sb)->csb_next_key = root_fid->f_key + 1;
+	M0_SET0(&mo);
+	mo.mo_attr.ca_tfid = *root_fid;
+	M0T1FS_SB(sb)->csb_root_fid = *root_fid;
+	M0T1FS_SB(sb)->csb_next_key = root_fid->f_key + 1;
 
 	rc = m0t1fs_mds_cob_getattr(M0T1FS_SB(sb), &mo, &rep);
 	if (rc != 0) {
-	        M0_LOG(M0_FATAL, "m0t1fs_mds_cob_getattr() failed with %d", rc);
-	        return ERR_PTR(rc);
+		M0_LOG(M0_FATAL, "m0t1fs_mds_cob_getattr() failed with %d", rc);
+		return ERR_PTR(rc);
 	}
 
 	inode = m0t1fs_iget(sb, root_fid, &rep->g_body);
@@ -231,39 +231,39 @@ static int m0t1fs_inode_set(struct inode *inode, void *opaque)
 }
 
 M0_INTERNAL int m0t1fs_inode_update(struct inode *inode,
-                                    struct m0_fop_cob *body)
+				    struct m0_fop_cob *body)
 {
 	int rc = 0;
 
 	M0_ENTRY();
 
-        if (body->b_valid & M0_COB_ATIME)
-	        inode->i_atime.tv_sec  = body->b_atime;
-        if (body->b_valid & M0_COB_MTIME)
-	        inode->i_mtime.tv_sec  = body->b_mtime;
-        if (body->b_valid & M0_COB_CTIME)
-	        inode->i_ctime.tv_sec  = body->b_ctime;
-        if (body->b_valid & M0_COB_UID)
-                inode->i_uid    = body->b_uid;
-        if (body->b_valid & M0_COB_GID)
-	        inode->i_gid    = body->b_gid;
-        if (body->b_valid & M0_COB_BLOCKS)
-	        inode->i_blocks = body->b_blocks;
-        if (body->b_valid & M0_COB_SIZE)
-	        inode->i_size = body->b_size;
-        if (body->b_valid & M0_COB_NLINK)
-	        inode->i_nlink = body->b_nlink;
-        if (body->b_valid & M0_COB_MODE)
-	        inode->i_mode = body->b_mode;
+	if (body->b_valid & M0_COB_ATIME)
+		inode->i_atime.tv_sec  = body->b_atime;
+	if (body->b_valid & M0_COB_MTIME)
+		inode->i_mtime.tv_sec  = body->b_mtime;
+	if (body->b_valid & M0_COB_CTIME)
+		inode->i_ctime.tv_sec  = body->b_ctime;
+	if (body->b_valid & M0_COB_UID)
+		inode->i_uid    = body->b_uid;
+	if (body->b_valid & M0_COB_GID)
+		inode->i_gid    = body->b_gid;
+	if (body->b_valid & M0_COB_BLOCKS)
+		inode->i_blocks = body->b_blocks;
+	if (body->b_valid & M0_COB_SIZE)
+		inode->i_size = body->b_size;
+	if (body->b_valid & M0_COB_NLINK)
+		inode->i_nlink = body->b_nlink;
+	if (body->b_valid & M0_COB_MODE)
+		inode->i_mode = body->b_mode;
 
 	M0_LEAVE("rc: %d", rc);
 	return rc;
 }
 
 static int m0t1fs_inode_read(struct inode *inode,
-                             struct m0_fop_cob *body)
+			     struct m0_fop_cob *body)
 {
-        struct m0t1fs_inode *ci = M0T1FS_I(inode);
+	struct m0t1fs_inode *ci = M0T1FS_I(inode);
 	int rc = 0;
 
 	M0_ENTRY();
@@ -275,7 +275,7 @@ static int m0t1fs_inode_read(struct inode *inode,
 
 	rc = m0t1fs_inode_update(inode, body);
 	if (rc != 0)
-	        goto out;
+		goto out;
 
 	if (S_ISREG(inode->i_mode)) {
 		inode->i_op   = &m0t1fs_reg_inode_operations;
@@ -286,10 +286,10 @@ static int m0t1fs_inode_read(struct inode *inode,
 	} else {
 		rc = -ENOSYS;
 	}
-        if (!m0t1fs_inode_is_root(inode)) {
-                ci->ci_layout_id = body->b_lid;
-                rc = m0t1fs_inode_layout_init(ci);
-        }
+	if (!m0t1fs_inode_is_root(inode)) {
+		ci->ci_layout_id = body->b_lid;
+		rc = m0t1fs_inode_layout_init(ci);
+	}
 out:
 	M0_LEAVE("rc: %d", rc);
 	return rc;
@@ -307,7 +307,7 @@ static unsigned long fid_hash(const struct m0_fid *fid)
 
 M0_INTERNAL struct inode *m0t1fs_iget(struct super_block *sb,
 				      const struct m0_fid *fid,
-                          	      struct m0_fop_cob *body)
+				      struct m0_fop_cob *body)
 {
 	struct inode *inode;
 	unsigned long hash;
@@ -324,21 +324,21 @@ M0_INTERNAL struct inode *m0t1fs_iget(struct super_block *sb,
 	 * set I_NEW flag in inode->i_state for newly allocated inode.
 	 */
 	inode = iget5_locked(sb, hash, m0t1fs_inode_test, m0t1fs_inode_set,
-                             (void *)fid);
-        if (IS_ERR(inode)) {
-	        M0_LEAVE("inode: %p", ERR_CAST(inode));
-	        return ERR_CAST(inode);
-        }
+			     (void *)fid);
+	if (IS_ERR(inode)) {
+		M0_LEAVE("inode: %p", ERR_CAST(inode));
+		return ERR_CAST(inode);
+	}
 	
-        if ((inode->i_state & I_NEW) != 0) {
-	        /* New inode, set its fields from @body */
-	        err = m0t1fs_inode_read(inode, body);
+	if ((inode->i_state & I_NEW) != 0) {
+		/* New inode, set its fields from @body */
+		err = m0t1fs_inode_read(inode, body);
 	} else if (!(inode->i_state & (I_FREEING | I_CLEAR))) {
-	        /* Not a new inode, let's update its attributes from @body */
-	        err = m0t1fs_inode_update(inode, body);
+		/* Not a new inode, let's update its attributes from @body */
+		err = m0t1fs_inode_update(inode, body);
 	}
 	if (err != 0)
-	        goto out_err;
+		goto out_err;
 	if ((inode->i_state & I_NEW) != 0)
 		unlock_new_inode(inode);
 	M0_LEAVE("inode: %p", inode);

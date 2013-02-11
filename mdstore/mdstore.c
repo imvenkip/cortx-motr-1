@@ -66,7 +66,7 @@ M0_INTERNAL int m0_mdstore_mod_init(void)
 
 M0_INTERNAL void m0_mdstore_mod_fini(void)
 {
-        m0_addb_ctx_fini(&m0_mdstore_mod_ctx);
+	m0_addb_ctx_fini(&m0_mdstore_mod_ctx);
 }
 
 
@@ -75,78 +75,78 @@ M0_INTERNAL void m0_mdstore_mod_fini(void)
 #define M0_MD_FAKE_VOLUME    250000
 
 M0_INTERNAL int m0_mdstore_statfs(struct m0_mdstore        *md,
-                                  struct m0_statfs         *statfs,
-                                  struct m0_db_tx          *tx)
+				  struct m0_statfs         *statfs,
+				  struct m0_db_tx          *tx)
 {
-        /**
-           We need statfs mostly to provide mdstore root fid to
-           m0t1fs at this point. It is not yet clear what else
-           info should be returned where it can be retrieved from.
-           Hence return zeros so far.
-         */
-        M0_SET0(statfs);
-        statfs->sf_type = M0_T1FS_SUPER_MAGIC;
-        statfs->sf_bsize = M0_MD_FAKE_BLOCKSIZE;
-        statfs->sf_blocks = M0_MD_FAKE_VOLUME;
-        statfs->sf_bfree = M0_MD_FAKE_VOLUME;
-        statfs->sf_bavail = M0_MD_FAKE_VOLUME;
-        statfs->sf_files = 1024000;
-        statfs->sf_ffree = 1024000;
-        statfs->sf_namelen = M0_MD_MAX_NAME_LEN;
-        if (md->md_root)
-                statfs->sf_root = *md->md_root->co_fid;
-        return 0;
+	/**
+	   We need statfs mostly to provide mdstore root fid to
+	   m0t1fs at this point. It is not yet clear what else
+	   info should be returned where it can be retrieved from.
+	   Hence return zeros so far.
+	 */
+	M0_SET0(statfs);
+	statfs->sf_type = M0_T1FS_SUPER_MAGIC;
+	statfs->sf_bsize = M0_MD_FAKE_BLOCKSIZE;
+	statfs->sf_blocks = M0_MD_FAKE_VOLUME;
+	statfs->sf_bfree = M0_MD_FAKE_VOLUME;
+	statfs->sf_bavail = M0_MD_FAKE_VOLUME;
+	statfs->sf_files = 1024000;
+	statfs->sf_ffree = 1024000;
+	statfs->sf_namelen = M0_MD_MAX_NAME_LEN;
+	if (md->md_root)
+		statfs->sf_root = *md->md_root->co_fid;
+	return 0;
 }
 
 M0_INTERNAL int m0_mdstore_init(struct m0_mdstore          *md,
-                                struct m0_cob_domain_id    *id,
-                                struct m0_dbenv            *db,
-                                bool                        init_root)
+				struct m0_cob_domain_id    *id,
+				struct m0_dbenv            *db,
+				bool                        init_root)
 {
-        struct m0_db_tx        tx;
-        int                    rc;
+	struct m0_db_tx        tx;
+	int                    rc;
 
-        M0_PRE(md != NULL && id != NULL && db != NULL);
+	M0_PRE(md != NULL && id != NULL && db != NULL);
 
-        M0_SET0(md);
-        rc = m0_cob_domain_init(&md->md_dom, db, id);
-        if (rc != 0)
-                return rc;
-        if (init_root) {
-                struct m0_buf name;
+	M0_SET0(md);
+	rc = m0_cob_domain_init(&md->md_dom, db, id);
+	if (rc != 0)
+		return rc;
+	if (init_root) {
+		struct m0_buf name;
 
-                rc = m0_db_tx_init(&tx, db, 0);
-                if (rc != 0)
-                        goto out;
-                m0_buf_init(&name, (char *)M0_COB_ROOT_NAME, strlen(M0_COB_ROOT_NAME));
-                rc = m0_mdstore_lookup(md, NULL, &name, &md->md_root, &tx);
+		rc = m0_db_tx_init(&tx, db, 0);
+		if (rc != 0)
+			goto out;
+		m0_buf_init(&name, (char *)M0_COB_ROOT_NAME, strlen(M0_COB_ROOT_NAME));
+		rc = m0_mdstore_lookup(md, NULL, &name, &md->md_root, &tx);
 		MDSTORE_FUNC_FAIL(INIT_1, rc);
-                if (rc != 0) {
-                        m0_db_tx_abort(&tx);
-                } else {
-                        /**
-                         * Check if omgid can be allocated.
-                         */
-                        rc = m0_cob_alloc_omgid(&md->md_dom, &tx, NULL);
-                        if (rc != 0)
-                                m0_db_tx_abort(&tx);
-                        else
-                                m0_db_tx_commit(&tx);
-                }
-        }
+		if (rc != 0) {
+			m0_db_tx_abort(&tx);
+		} else {
+			/**
+			 * Check if omgid can be allocated.
+			 */
+			rc = m0_cob_alloc_omgid(&md->md_dom, &tx, NULL);
+			if (rc != 0)
+				m0_db_tx_abort(&tx);
+			else
+				m0_db_tx_commit(&tx);
+		}
+	}
 out:
 	MDSTORE_FUNC_FAIL(INIT_2, rc);
-        if (rc != 0)
-                m0_mdstore_fini(md);
-        return rc;
+	if (rc != 0)
+		m0_mdstore_fini(md);
+	return rc;
 }
 
 M0_INTERNAL void m0_mdstore_fini(struct m0_mdstore *md)
 {
-        if (md->md_root != NULL)
-                m0_cob_put(md->md_root);
-        m0_addb_ctx_fini(&md->md_addb);
-        m0_cob_domain_fini(&md->md_dom);
+	if (md->md_root != NULL)
+		m0_cob_put(md->md_root);
+	m0_addb_ctx_fini(&md->md_addb);
+	m0_cob_domain_fini(&md->md_dom);
 }
 
 M0_INTERNAL int m0_mdstore_dir_nlink_update(struct m0_mdstore   *md,
@@ -192,71 +192,71 @@ M0_INTERNAL int m0_mdstore_create(struct m0_mdstore     *md,
 				  struct m0_cob        **out,
 				  struct m0_db_tx       *tx)
 {
-        struct m0_cob         *cob;
-        struct m0_cob_nskey   *nskey;
-        struct m0_cob_nsrec    nsrec;
-        struct m0_cob_fabrec  *fabrec;
-        struct m0_cob_omgrec   omgrec;
-        int                    linklen;
-        int                    rc;
+	struct m0_cob         *cob;
+	struct m0_cob_nskey   *nskey;
+	struct m0_cob_nsrec    nsrec;
+	struct m0_cob_fabrec  *fabrec;
+	struct m0_cob_omgrec   omgrec;
+	int                    linklen;
+	int                    rc;
 
 	M0_ENTRY();
-        M0_ASSERT(pfid != NULL);
+	M0_ASSERT(pfid != NULL);
 
-        M0_SET0(&nsrec);
-        M0_SET0(&omgrec);
+	M0_SET0(&nsrec);
+	M0_SET0(&omgrec);
 
-        rc = m0_cob_alloc(&md->md_dom, &cob);
-        if (rc != 0)
-                goto out;
+	rc = m0_cob_alloc(&md->md_dom, &cob);
+	if (rc != 0)
+		goto out;
 
-        rc = m0_cob_nskey_make(&nskey, pfid, (char *)attr->ca_name.b_addr,
-                               attr->ca_name.b_nob);
-        if (rc != 0) {
-                m0_cob_put(cob);
-                return rc;
-        }
+	rc = m0_cob_nskey_make(&nskey, pfid, (char *)attr->ca_name.b_addr,
+			       attr->ca_name.b_nob);
+	if (rc != 0) {
+		m0_cob_put(cob);
+		return rc;
+	}
 
-        nsrec.cnr_fid = attr->ca_tfid;
-        M0_ASSERT(attr->ca_nlink > 0);
-        nsrec.cnr_nlink = attr->ca_nlink;
-        nsrec.cnr_size = attr->ca_size;
-        nsrec.cnr_blksize = attr->ca_blksize;
-        nsrec.cnr_blocks = attr->ca_blocks;
-        nsrec.cnr_atime = attr->ca_atime;
-        nsrec.cnr_mtime = attr->ca_mtime;
-        nsrec.cnr_ctime = attr->ca_ctime;
-        nsrec.cnr_lid   = attr->ca_lid;
+	nsrec.cnr_fid = attr->ca_tfid;
+	M0_ASSERT(attr->ca_nlink > 0);
+	nsrec.cnr_nlink = attr->ca_nlink;
+	nsrec.cnr_size = attr->ca_size;
+	nsrec.cnr_blksize = attr->ca_blksize;
+	nsrec.cnr_blocks = attr->ca_blocks;
+	nsrec.cnr_atime = attr->ca_atime;
+	nsrec.cnr_mtime = attr->ca_mtime;
+	nsrec.cnr_ctime = attr->ca_ctime;
+	nsrec.cnr_lid   = attr->ca_lid;
 
-        omgrec.cor_uid = attr->ca_uid;
-        omgrec.cor_gid = attr->ca_gid;
-        omgrec.cor_mode = attr->ca_mode;
+	omgrec.cor_uid = attr->ca_uid;
+	omgrec.cor_gid = attr->ca_gid;
+	omgrec.cor_mode = attr->ca_mode;
 
-        linklen = attr->ca_link.b_addr ? attr->ca_link.b_nob : 0;
-        rc = m0_cob_fabrec_make(&fabrec, (char *)attr->ca_link.b_addr,
-                                linklen);
-        if (rc != 0) {
-                m0_cob_put(cob);
-                m0_free(nskey);
-                goto out;
-        }
-        rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
-        if (rc != 0) {
-                m0_cob_put(cob);
-                m0_free(nskey);
-                m0_free(fabrec);
-        } else {
-                *out = cob;
+	linklen = attr->ca_link.b_addr ? attr->ca_link.b_nob : 0;
+	rc = m0_cob_fabrec_make(&fabrec, (char *)attr->ca_link.b_addr,
+				linklen);
+	if (rc != 0) {
+		m0_cob_put(cob);
+		m0_free(nskey);
+		goto out;
+	}
+	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
+	if (rc != 0) {
+		m0_cob_put(cob);
+		m0_free(nskey);
+		m0_free(fabrec);
+	} else {
+		*out = cob;
 		if (S_ISDIR(attr->ca_mode)) {
 			/** Increment cnr_nlink of parent directory. */
 			rc = m0_mdstore_dir_nlink_update(md, pfid, +1, tx);
 		}
-        }
+	}
 
 out:
 	MDSTORE_FUNC_FAIL(CREATE, rc);
 	M0_LEAVE("rc: %d", rc);
-        return rc;
+	return rc;
 }
 
 M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
@@ -265,41 +265,41 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 				struct m0_buf           *name,
 				struct m0_db_tx         *tx)
 {
-        struct m0_cob_nskey   *nskey;
-        struct m0_cob_nsrec    nsrec;
-        time_t                 now;
-        int                    rc;
+	struct m0_cob_nskey   *nskey;
+	struct m0_cob_nsrec    nsrec;
+	time_t                 now;
+	int                    rc;
 
 	M0_ENTRY();
-        M0_ASSERT(pfid != NULL);
-        M0_ASSERT(cob != NULL);
+	M0_ASSERT(pfid != NULL);
+	M0_ASSERT(cob != NULL);
 
-        time(&now);
-        M0_SET0(&nsrec);
+	time(&now);
+	M0_SET0(&nsrec);
 
-        /*
-         * Link @nskey to a file described with @cob
-         */
-        rc = m0_cob_nskey_make(&nskey, pfid, (char *)name->b_addr,
-                               name->b_nob);
-        if (rc != 0)
-                return rc;
-        M0_PRE(m0_fid_is_set(&cob->co_nsrec.cnr_fid));
+	/*
+	 * Link @nskey to a file described with @cob
+	 */
+	rc = m0_cob_nskey_make(&nskey, pfid, (char *)name->b_addr,
+			       name->b_nob);
+	if (rc != 0)
+		return rc;
+	M0_PRE(m0_fid_is_set(&cob->co_nsrec.cnr_fid));
 
-        nsrec.cnr_fid = cob->co_nsrec.cnr_fid;
-        nsrec.cnr_linkno = cob->co_nsrec.cnr_cntr;
+	nsrec.cnr_fid = cob->co_nsrec.cnr_fid;
+	nsrec.cnr_linkno = cob->co_nsrec.cnr_cntr;
 
-        rc = m0_cob_name_add(cob, nskey, &nsrec, tx);
-        m0_free(nskey);
-        if (rc != 0)
-                goto out;
+	rc = m0_cob_name_add(cob, nskey, &nsrec, tx);
+	m0_free(nskey);
+	if (rc != 0)
+		goto out;
 
-        /*
-         * Update nlink and links allocation counter in statdata and
-         * save it to storage.
-         */
-        cob->co_nsrec.cnr_cntr++;
-        rc = m0_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
+	/*
+	 * Update nlink and links allocation counter in statdata and
+	 * save it to storage.
+	 */
+	cob->co_nsrec.cnr_cntr++;
+	rc = m0_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
 
 out:
 	MDSTORE_FUNC_FAIL(LINK, rc);
@@ -352,7 +352,7 @@ out:
 	if (rc == -ENOENT)
 		rc = 0;
 	M0_LEAVE("rc: %d", rc);
-        return rc;
+	return rc;
 }
 
 M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
@@ -361,11 +361,11 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 				  struct m0_buf         *name,
 				  struct m0_db_tx       *tx)
 {
-        struct m0_cob         *ncob;
-        struct m0_cob_nskey   *nskey;
-        struct m0_cob_oikey    oikey;
-        time_t                 now;
-        int                    rc;
+	struct m0_cob         *ncob;
+	struct m0_cob_nskey   *nskey;
+	struct m0_cob_oikey    oikey;
+	time_t                 now;
+	int                    rc;
 
 	M0_ENTRY("[%lx:%lx]/%.*s", pfid->f_container, pfid->f_key,
 		 (int)name->b_nob, (char *)name->b_addr);
@@ -376,110 +376,110 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 	       (char *)m0_bitstring_buf_get(&cob->co_nskey->cnk_name),
 	       cob->co_nsrec.cnr_fid.f_container, 
 	       cob->co_nsrec.cnr_fid.f_key, cob->co_nsrec.cnr_linkno);
-        M0_ASSERT(pfid != NULL);
-        M0_ASSERT(cob != NULL);
+	M0_ASSERT(pfid != NULL);
+	M0_ASSERT(cob != NULL);
 
-        M0_PRE(cob->co_nsrec.cnr_nlink > 0);
+	M0_PRE(cob->co_nsrec.cnr_nlink > 0);
 
-        time(&now);
+	time(&now);
 
-        /*
-         * Check for hardlinks.
-         */
-        if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
-                /*
-                 * New stat data name should get updated nlink value.
-                 */
-                cob->co_nsrec.cnr_nlink--;
+	/*
+	 * Check for hardlinks.
+	 */
+	if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
+		/*
+		 * New stat data name should get updated nlink value.
+		 */
+		cob->co_nsrec.cnr_nlink--;
 
-                rc = m0_cob_nskey_make(&nskey, pfid, (char *)name->b_addr,
-                                       name->b_nob);
-                if (rc != 0) {
-                        M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): nskey make "
-                               "failed with %d", rc);
-                        goto out;
-                }
+		rc = m0_cob_nskey_make(&nskey, pfid, (char *)name->b_addr,
+				       name->b_nob);
+		if (rc != 0) {
+			M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): nskey make "
+			       "failed with %d", rc);
+			goto out;
+		}
 
-                /*
-                 * Check if we're trying to kill stata data entry. We need to
-                 * move stat data to another name if so.
-                 */
-                if (cob->co_nsrec.cnr_nlink > 0) {
-                        M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): more links exist");
-                        if (m0_cob_nskey_cmp(nskey, cob->co_nskey) == 0) {
-                                M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): unlink statdata "
-                                       "name, find new statdata with %d or more nlinks",
-                                       cob->co_nsrec.cnr_linkno + 1);
+		/*
+		 * Check if we're trying to kill stata data entry. We need to
+		 * move stat data to another name if so.
+		 */
+		if (cob->co_nsrec.cnr_nlink > 0) {
+			M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): more links exist");
+			if (m0_cob_nskey_cmp(nskey, cob->co_nskey) == 0) {
+				M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): unlink statdata "
+				       "name, find new statdata with %d or more nlinks",
+				       cob->co_nsrec.cnr_linkno + 1);
 
-                                /*
-                                 * Find another name (new stat data) in object index to
-                                 * move old statdata to it.
-                                 */
-                                m0_cob_oikey_make(&oikey, cob->co_fid,
-                                                  cob->co_nsrec.cnr_linkno + 1);
+				/*
+				 * Find another name (new stat data) in object index to
+				 * move old statdata to it.
+				 */
+				m0_cob_oikey_make(&oikey, cob->co_fid,
+						  cob->co_nsrec.cnr_linkno + 1);
 
-                                rc = m0_cob_locate(&md->md_dom, &oikey, 0, &ncob, tx);
-                                if (rc != 0) {
-                                        M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): locate "
-                                               "failed with %d", rc);
-                                        m0_free(nskey);
-                                        goto out;
-                                }
-                                M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): locate found "
-                                       "name with %d nlinks", ncob->co_oikey.cok_linkno);
-                                cob->co_nsrec.cnr_linkno = ncob->co_oikey.cok_linkno;
-                        } else {
-                                M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): unlink hardlink "
-                                       "name");
-                                ncob = cob;
-                        }
+				rc = m0_cob_locate(&md->md_dom, &oikey, 0, &ncob, tx);
+				if (rc != 0) {
+					M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): locate "
+					       "failed with %d", rc);
+					m0_free(nskey);
+					goto out;
+				}
+				M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): locate found "
+				       "name with %d nlinks", ncob->co_oikey.cok_linkno);
+				cob->co_nsrec.cnr_linkno = ncob->co_oikey.cok_linkno;
+			} else {
+				M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): unlink hardlink "
+				       "name");
+				ncob = cob;
+			}
 
-                        M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): update statdata on store");
+			M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): update statdata on store");
 
-                        /**
-                           Copy statdata (in case of killing old statdata) or update
-                           statdata with new nlink number.
-                         */
-                        rc = m0_cob_update(ncob, &cob->co_nsrec, NULL, NULL, tx);
-                        if (rc != 0) {
-                                M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): new statdata "
-                                       "update failed with %d", rc);
-                                m0_free(nskey);
-                                goto out;
-                        }
+			/**
+			   Copy statdata (in case of killing old statdata) or update
+			   statdata with new nlink number.
+			 */
+			rc = m0_cob_update(ncob, &cob->co_nsrec, NULL, NULL, tx);
+			if (rc != 0) {
+				M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): new statdata "
+				       "update failed with %d", rc);
+				m0_free(nskey);
+				goto out;
+			}
 
-                        /** Kill the name itself. */
-                        rc = m0_cob_name_del(cob, nskey, tx);
-                        if (rc != 0) {
-                                M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): name del "
-                                       "failed with %d", rc);
-                                m0_free(nskey);
-                                goto out;
-                        }
-                } else {
-                        /* Zero nlink reached, kill entire object. */
-                        rc = m0_cob_delete(cob, tx);
-                }
-                m0_free(nskey);
-        } else {
-                /*
+			/** Kill the name itself. */
+			rc = m0_cob_name_del(cob, nskey, tx);
+			if (rc != 0) {
+				M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): name del "
+				       "failed with %d", rc);
+				m0_free(nskey);
+				goto out;
+			}
+		} else {
+			/* Zero nlink reached, kill entire object. */
+			rc = m0_cob_delete(cob, tx);
+		}
+		m0_free(nskey);
+	} else {
+		/*
 		 * TODO: we must take some sort of a lock
 		 * when doing check-before-modify update to directory.
-                 */
+		 */
 		rc = m0_mdstore_dir_empty_check(md, cob, tx);
 		if (rc != 0)
 			goto out;
-                rc = m0_cob_delete(cob, tx);
+		rc = m0_cob_delete(cob, tx);
 		if (rc != 0)
 			goto out;
 		/** Decrement cnr_nlink of parent directory. */
 		rc = m0_mdstore_dir_nlink_update(md, pfid, -1, tx);
-        }
+	}
 
 out:
 	MDSTORE_FUNC_FAIL(UNLINK, rc);
 	M0_LEAVE("rc: %d", rc);
-        return rc;
+	return rc;
 }
 
 M0_INTERNAL int m0_mdstore_open(struct m0_mdstore       *md,
@@ -487,34 +487,34 @@ M0_INTERNAL int m0_mdstore_open(struct m0_mdstore       *md,
 				m0_mdstore_locate_flags_t flags,
 				struct m0_db_tx         *tx)
 {
-        int rc = 0;
+	int rc = 0;
 
-        M0_ASSERT(cob != NULL);
+	M0_ASSERT(cob != NULL);
 
-        /*
-         * @todo: Place cob to open files table.
-         */
+	/*
+	 * @todo: Place cob to open files table.
+	 */
 
 	MDSTORE_FUNC_FAIL(OPEN, rc);
-        return rc;
+	return rc;
 }
 
 M0_INTERNAL int m0_mdstore_close(struct m0_mdstore      *md,
 				 struct m0_cob          *cob,
 				 struct m0_db_tx        *tx)
 {
-        int rc = 0;
+	int rc = 0;
 
-        M0_ASSERT(cob != NULL);
+	M0_ASSERT(cob != NULL);
 
-        /*
-         * @todo:
-         *   - orphans handling?
-         *   - quota handling?
-         */
+	/*
+	 * @todo:
+	 *   - orphans handling?
+	 *   - quota handling?
+	 */
 
 	MDSTORE_FUNC_FAIL(CLOSE, rc);
-        return rc;
+	return rc;
 }
 
 M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
@@ -526,50 +526,50 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
 				  struct m0_buf         *sname,
 				  struct m0_db_tx       *tx)
 {
-        struct m0_cob_nskey  *srckey = NULL;
-        struct m0_cob_nskey  *tgtkey = NULL;
-        struct m0_cob        *tncob = NULL;
-        bool                  unlink;
-        time_t                now;
-        int                   rc;
+	struct m0_cob_nskey  *srckey = NULL;
+	struct m0_cob_nskey  *tgtkey = NULL;
+	struct m0_cob        *tncob = NULL;
+	bool                  unlink;
+	time_t                now;
+	int                   rc;
 
 	M0_ENTRY();
-        M0_ASSERT(pfid_tgt != NULL);
-        M0_ASSERT(pfid_src != NULL);
+	M0_ASSERT(pfid_tgt != NULL);
+	M0_ASSERT(pfid_src != NULL);
 
-        time(&now);
+	time(&now);
 
-        /*
-         * Let's kill existing target name.
-         */
-        rc = m0_mdstore_lookup(md, pfid_tgt, tname, &tncob, tx);
-        unlink = (tncob != NULL &&
-            m0_cob_nskey_cmp(tncob->co_nskey, cob_tgt->co_nskey) != 0);
+	/*
+	 * Let's kill existing target name.
+	 */
+	rc = m0_mdstore_lookup(md, pfid_tgt, tname, &tncob, tx);
+	unlink = (tncob != NULL &&
+	    m0_cob_nskey_cmp(tncob->co_nskey, cob_tgt->co_nskey) != 0);
 
-        if (!m0_fid_eq(cob_tgt->co_fid, cob_src->co_fid) || unlink) {
-                rc = m0_mdstore_unlink(md, pfid_tgt, cob_tgt, tname, tx);
-                if (rc != 0) {
-                        if (tncob)
-                                m0_cob_put(tncob);
-                        goto out;
-                }
-        }
-        if (tncob)
-                m0_cob_put(tncob);
-        /*
-         * Prepare src and dst keys.
-         */
-        m0_cob_nskey_make(&srckey, pfid_src, (char *)sname->b_addr, sname->b_nob);
-        m0_cob_nskey_make(&tgtkey, pfid_tgt, (char *)tname->b_addr, tname->b_nob);
+	if (!m0_fid_eq(cob_tgt->co_fid, cob_src->co_fid) || unlink) {
+		rc = m0_mdstore_unlink(md, pfid_tgt, cob_tgt, tname, tx);
+		if (rc != 0) {
+			if (tncob)
+				m0_cob_put(tncob);
+			goto out;
+		}
+	}
+	if (tncob)
+		m0_cob_put(tncob);
+	/*
+	 * Prepare src and dst keys.
+	 */
+	m0_cob_nskey_make(&srckey, pfid_src, (char *)sname->b_addr, sname->b_nob);
+	m0_cob_nskey_make(&tgtkey, pfid_tgt, (char *)tname->b_addr, tname->b_nob);
 
-        rc = m0_cob_name_update(cob_src, srckey, tgtkey, tx);
+	rc = m0_cob_name_update(cob_src, srckey, tgtkey, tx);
 
-        m0_free(srckey);
-        m0_free(tgtkey);
+	m0_free(srckey);
+	m0_free(tgtkey);
 out:
 	MDSTORE_FUNC_FAIL(RENAME, rc);
 	M0_LEAVE("rc: %d", rc);
-        return rc;
+	return rc;
 }
 
 M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
@@ -577,110 +577,110 @@ M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
 				   struct m0_cob_attr   *attr,
 				   struct m0_db_tx      *tx)
 {
-        struct m0_cob_nsrec   *nsrec = NULL;
-        struct m0_cob_fabrec  *fabrec = NULL;
-        struct m0_cob_omgrec  *omgrec = NULL;
-        int                    rc;
+	struct m0_cob_nsrec   *nsrec = NULL;
+	struct m0_cob_fabrec  *fabrec = NULL;
+	struct m0_cob_omgrec  *omgrec = NULL;
+	int                    rc;
 
 	M0_ENTRY();
-        M0_ASSERT(cob != NULL);
+	M0_ASSERT(cob != NULL);
 
-        /*
-         * Handle basic stat fields update.
-         */
-        if (cob->co_flags & M0_CA_NSREC) {
-                nsrec = &cob->co_nsrec;
-                if (attr->ca_valid & M0_COB_ATIME)
-                        nsrec->cnr_atime = attr->ca_atime;
-                if (attr->ca_valid & M0_COB_MTIME)
-                        nsrec->cnr_mtime = attr->ca_mtime;
-                if (attr->ca_valid & M0_COB_CTIME)
-                        nsrec->cnr_ctime = attr->ca_ctime;
-                if (attr->ca_valid & M0_COB_SIZE)
-                        nsrec->cnr_size = attr->ca_size;
-                /*if (attr->ca_valid & M0_COB_RDEV)
-                        nsrec->cnr_rdev = attr->ca_rdev;*/
-                if (attr->ca_valid & M0_COB_BLOCKS)
-                        nsrec->cnr_blocks = attr->ca_blocks;
-                if (attr->ca_valid & M0_COB_BLKSIZE)
-                        nsrec->cnr_blksize = attr->ca_blksize;
-                if (attr->ca_valid & M0_COB_LID)
-                        nsrec->cnr_lid = attr->ca_lid;
-                if (attr->ca_valid & M0_COB_NLINK) {
-                        M0_ASSERT(attr->ca_nlink > 0);
-                        nsrec->cnr_nlink = attr->ca_nlink;
-                }
-                //nsrec->cnr_version = attr->ca_version;
-        }
+	/*
+	 * Handle basic stat fields update.
+	 */
+	if (cob->co_flags & M0_CA_NSREC) {
+		nsrec = &cob->co_nsrec;
+		if (attr->ca_valid & M0_COB_ATIME)
+			nsrec->cnr_atime = attr->ca_atime;
+		if (attr->ca_valid & M0_COB_MTIME)
+			nsrec->cnr_mtime = attr->ca_mtime;
+		if (attr->ca_valid & M0_COB_CTIME)
+			nsrec->cnr_ctime = attr->ca_ctime;
+		if (attr->ca_valid & M0_COB_SIZE)
+			nsrec->cnr_size = attr->ca_size;
+		/*if (attr->ca_valid & M0_COB_RDEV)
+			nsrec->cnr_rdev = attr->ca_rdev;*/
+		if (attr->ca_valid & M0_COB_BLOCKS)
+			nsrec->cnr_blocks = attr->ca_blocks;
+		if (attr->ca_valid & M0_COB_BLKSIZE)
+			nsrec->cnr_blksize = attr->ca_blksize;
+		if (attr->ca_valid & M0_COB_LID)
+			nsrec->cnr_lid = attr->ca_lid;
+		if (attr->ca_valid & M0_COB_NLINK) {
+			M0_ASSERT(attr->ca_nlink > 0);
+			nsrec->cnr_nlink = attr->ca_nlink;
+		}
+		//nsrec->cnr_version = attr->ca_version;
+	}
 
-        /*
-         * Handle uid/gid/mode update.
-         */
-        if (cob->co_flags & M0_CA_OMGREC) {
-                omgrec = &cob->co_omgrec;
-                if (attr->ca_valid & M0_COB_UID)
-                        omgrec->cor_uid = attr->ca_uid;
-                if (attr->ca_valid & M0_COB_GID)
-                        omgrec->cor_gid = attr->ca_gid;
-                if (attr->ca_valid & M0_COB_MODE)
-                        omgrec->cor_mode = attr->ca_mode;
-        }
+	/*
+	 * Handle uid/gid/mode update.
+	 */
+	if (cob->co_flags & M0_CA_OMGREC) {
+		omgrec = &cob->co_omgrec;
+		if (attr->ca_valid & M0_COB_UID)
+			omgrec->cor_uid = attr->ca_uid;
+		if (attr->ca_valid & M0_COB_GID)
+			omgrec->cor_gid = attr->ca_gid;
+		if (attr->ca_valid & M0_COB_MODE)
+			omgrec->cor_mode = attr->ca_mode;
+	}
 
-        /*
-         * @todo: update fabrec.
-         */
-        if (cob->co_flags & M0_CA_FABREC)
-                fabrec = cob->co_fabrec;
+	/*
+	 * @todo: update fabrec.
+	 */
+	if (cob->co_flags & M0_CA_FABREC)
+		fabrec = cob->co_fabrec;
 
-        rc = m0_cob_update(cob, nsrec, fabrec, omgrec, tx);
+	rc = m0_cob_update(cob, nsrec, fabrec, omgrec, tx);
 
 	MDSTORE_FUNC_FAIL(SETATTR, rc);
 	M0_LEAVE("rc: %d", rc);
-        return rc;
+	return rc;
 }
 
 M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
-                       		   struct m0_cob           *cob,
-                       		   struct m0_cob_attr      *attr,
-                       		   struct m0_db_tx         *tx)
+				   struct m0_cob           *cob,
+				   struct m0_cob_attr      *attr,
+				   struct m0_db_tx         *tx)
 {
-        int                rc = 0;
+	int                rc = 0;
 
 	M0_ENTRY();
-        M0_ASSERT(cob != NULL);
+	M0_ASSERT(cob != NULL);
 
-        M0_SET0(attr);
-        attr->ca_valid = 0;
-        attr->ca_tfid = cob->co_nsrec.cnr_fid;
-        attr->ca_pfid = cob->co_nskey->cnk_pfid;
+	M0_SET0(attr);
+	attr->ca_valid = 0;
+	attr->ca_tfid = cob->co_nsrec.cnr_fid;
+	attr->ca_pfid = cob->co_nskey->cnk_pfid;
 
-        /*
-         * Copy permissions and owner info into rep.
-         */
-        if (cob->co_flags & M0_CA_OMGREC) {
-                attr->ca_valid |= M0_COB_UID | M0_COB_GID | M0_COB_MODE;
-                attr->ca_uid = cob->co_omgrec.cor_uid;
-                attr->ca_gid = cob->co_omgrec.cor_gid;
-                attr->ca_mode = cob->co_omgrec.cor_mode;
-        }
+	/*
+	 * Copy permissions and owner info into rep.
+	 */
+	if (cob->co_flags & M0_CA_OMGREC) {
+		attr->ca_valid |= M0_COB_UID | M0_COB_GID | M0_COB_MODE;
+		attr->ca_uid = cob->co_omgrec.cor_uid;
+		attr->ca_gid = cob->co_omgrec.cor_gid;
+		attr->ca_mode = cob->co_omgrec.cor_mode;
+	}
 
-        /*
-         * Copy nsrec fields into response.
-         */
-        if (cob->co_flags & M0_CA_NSREC) {
-                attr->ca_valid |= M0_COB_ATIME | M0_COB_CTIME | M0_COB_MTIME |
-                                  M0_COB_SIZE | M0_COB_BLKSIZE | M0_COB_BLOCKS/* |
-                                  M0_COB_RDEV*/ | M0_COB_LID;
-                attr->ca_atime = cob->co_nsrec.cnr_atime;
-                attr->ca_ctime = cob->co_nsrec.cnr_ctime;
-                attr->ca_mtime = cob->co_nsrec.cnr_mtime;
-                attr->ca_blksize = cob->co_nsrec.cnr_blksize;
-                attr->ca_blocks = cob->co_nsrec.cnr_blocks;
-                attr->ca_nlink = cob->co_nsrec.cnr_nlink;
-                //attr->ca_rdev = cob->co_nsrec.cnr_rdev;
-                attr->ca_size = cob->co_nsrec.cnr_size;
-                attr->ca_lid = cob->co_nsrec.cnr_lid;
-                //attr->ca_version = cob->co_nsrec.cnr_version;
+	/*
+	 * Copy nsrec fields into response.
+	 */
+	if (cob->co_flags & M0_CA_NSREC) {
+		attr->ca_valid |= M0_COB_ATIME | M0_COB_CTIME | M0_COB_MTIME |
+				  M0_COB_SIZE | M0_COB_BLKSIZE | M0_COB_BLOCKS/* |
+				  M0_COB_RDEV*/ | M0_COB_LID;
+		attr->ca_atime = cob->co_nsrec.cnr_atime;
+		attr->ca_ctime = cob->co_nsrec.cnr_ctime;
+		attr->ca_mtime = cob->co_nsrec.cnr_mtime;
+		attr->ca_blksize = cob->co_nsrec.cnr_blksize;
+		attr->ca_blocks = cob->co_nsrec.cnr_blocks;
+		attr->ca_nlink = cob->co_nsrec.cnr_nlink;
+		//attr->ca_rdev = cob->co_nsrec.cnr_rdev;
+		attr->ca_size = cob->co_nsrec.cnr_size;
+		attr->ca_lid = cob->co_nsrec.cnr_lid;
+		//attr->ca_version = cob->co_nsrec.cnr_version;
 		M0_LOG(M0_DEBUG, "attrs of [%lx:%lx]/%.*s->[%lx:%lx],%u: "
 		       "cntr:%u, nlink:%u",
 		       attr->ca_pfid.f_container, attr->ca_pfid.f_key,
@@ -690,138 +690,138 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
 		       (unsigned)cob->co_nsrec.cnr_linkno,
 		       (unsigned)cob->co_nsrec.cnr_cntr,
 		       (unsigned)attr->ca_nlink);
-        }
+	}
 
-        /*
-         * @todo: Copy fab fields.
-         */
+	/*
+	 * @todo: Copy fab fields.
+	 */
 	MDSTORE_FUNC_FAIL(GETATTR, rc);
 	M0_LEAVE("rc: %d", rc);
-        return rc;
+	return rc;
 }
 
 M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
-                                   struct m0_cob           *cob,
-                                   struct m0_rdpg          *rdpg,
-                                   struct m0_db_tx         *tx)
+				   struct m0_cob           *cob,
+				   struct m0_rdpg          *rdpg,
+				   struct m0_db_tx         *tx)
 {
-        struct m0_cob_iterator         it;
-        struct m0_dirent              *ent;
-        struct m0_dirent              *last = NULL;
-        int                            nob;
-        int                            reclen;
-        int                            first;
-        int                            second;
-        int                            rc;
+	struct m0_cob_iterator         it;
+	struct m0_dirent              *ent;
+	struct m0_dirent              *last = NULL;
+	int                            nob;
+	int                            reclen;
+	int                            first;
+	int                            second;
+	int                            rc;
 
 	M0_ENTRY();
-        M0_ASSERT(cob != NULL);
+	M0_ASSERT(cob != NULL);
 
-        M0_LOG(M0_DEBUG,
+	M0_LOG(M0_DEBUG,
 	       "Readdir on object [%lx:%lx] starting from \"%.*s\"",
-               cob->co_fid->f_container, cob->co_fid->f_key,
-               m0_bitstring_len_get(rdpg->r_pos),
+	       cob->co_fid->f_container, cob->co_fid->f_key,
+	       m0_bitstring_len_get(rdpg->r_pos),
 	       (char *)m0_bitstring_buf_get(rdpg->r_pos));
 
 	first = !strncmp(m0_bitstring_buf_get(rdpg->r_pos), ".", 2);
-        second = 0;
+	second = 0;
 
-        rc = m0_cob_iterator_init(cob, &it, rdpg->r_pos, tx);
-        if (rc != 0) {
-                M0_LOG(M0_DEBUG, "Iterator failed to position with %d", rc);
-                goto out;
-        }
+	rc = m0_cob_iterator_init(cob, &it, rdpg->r_pos, tx);
+	if (rc != 0) {
+		M0_LOG(M0_DEBUG, "Iterator failed to position with %d", rc);
+		goto out;
+	}
 
-        rc = m0_cob_iterator_get(&it);
-        if (rc == 0) {
+	rc = m0_cob_iterator_get(&it);
+	if (rc == 0) {
 		if (!first) {
 			rc = m0_cob_iterator_next(&it);
 		} else {
 			rc = 0;
 		}
 	} else if (rc == -ENOENT) {
-                /*
-                 * Not exact position found and we are on least key
-                 * let's do one step forward.
-                 */
-                rc = m0_cob_iterator_next(&it);
-                } else {
+		/*
+		 * Not exact position found and we are on least key
+		 * let's do one step forward.
+		 */
+		rc = m0_cob_iterator_next(&it);
+		} else {
 		M0_LOG(M0_DEBUG, "Iterator failed to get cursor with %d", rc);
 		goto out;
-        }
+	}
 
-        ent = rdpg->r_buf.b_addr;
-        nob = rdpg->r_buf.b_nob;
-        while (rc == 0 || first || second) {
-                int do_next = 0;
-                if (first) {
-                        m0_bitstring_copy(rdpg->r_pos, ".", 1);
-                        second = 1;
-                        first = 0;
-                } else if (second) {
-                        m0_bitstring_copy(rdpg->r_pos, "..", 2);
-                        second = 0;
-                } else {
-                        if (!m0_fid_eq(&it.ci_key->cnk_pfid, cob->co_fid)) {
-                                M0_LOG(M0_DEBUG,
-                                       "EOF detected. [%lx:%lx] != [%lx:%lx]",
-                                       it.ci_key->cnk_pfid.f_container,
-                                       it.ci_key->cnk_pfid.f_key,
-                                       cob->co_fid->f_container,
-                                       cob->co_fid->f_key);
+	ent = rdpg->r_buf.b_addr;
+	nob = rdpg->r_buf.b_nob;
+	while (rc == 0 || first || second) {
+		int do_next = 0;
+		if (first) {
+			m0_bitstring_copy(rdpg->r_pos, ".", 1);
+			second = 1;
+			first = 0;
+		} else if (second) {
+			m0_bitstring_copy(rdpg->r_pos, "..", 2);
+			second = 0;
+		} else {
+			if (!m0_fid_eq(&it.ci_key->cnk_pfid, cob->co_fid)) {
+				M0_LOG(M0_DEBUG,
+				       "EOF detected. [%lx:%lx] != [%lx:%lx]",
+				       it.ci_key->cnk_pfid.f_container,
+				       it.ci_key->cnk_pfid.f_key,
+				       cob->co_fid->f_container,
+				       cob->co_fid->f_key);
 				rc = -ENOENT;
-                                break;
-                        }
+				break;
+			}
 
-                        m0_bitstring_copy(rdpg->r_pos,
-                                          m0_bitstring_buf_get(&it.ci_key->cnk_name),
-                                          m0_bitstring_len_get(&it.ci_key->cnk_name));
-                        do_next = 1;
-                }
+			m0_bitstring_copy(rdpg->r_pos,
+					  m0_bitstring_buf_get(&it.ci_key->cnk_name),
+					  m0_bitstring_len_get(&it.ci_key->cnk_name));
+			do_next = 1;
+		}
 
-                reclen = ((sizeof(*ent) + m0_bitstring_len_get(rdpg->r_pos)) + 7) & ~7;
+		reclen = ((sizeof(*ent) + m0_bitstring_len_get(rdpg->r_pos)) + 7) & ~7;
 
-                if (nob >= reclen) {
-                        memcpy(ent->d_name, m0_bitstring_buf_get(rdpg->r_pos),
-                               m0_bitstring_len_get(rdpg->r_pos));
-                        ent->d_namelen = m0_bitstring_len_get(rdpg->r_pos);
-                        ent->d_reclen = reclen;
-                        M0_LOG(M0_DEBUG,
+		if (nob >= reclen) {
+			memcpy(ent->d_name, m0_bitstring_buf_get(rdpg->r_pos),
+			       m0_bitstring_len_get(rdpg->r_pos));
+			ent->d_namelen = m0_bitstring_len_get(rdpg->r_pos);
+			ent->d_reclen = reclen;
+			M0_LOG(M0_DEBUG,
 			       "Readdir filled entry \"%.*s\" recsize %d",
-                               ent->d_namelen, (char *)ent->d_name, ent->d_reclen);
-                } else {
-                        if (last) {
-                                last->d_reclen += nob;
-                                rc = 0;
-                        } else {
-                                rc = -EINVAL;
-                        }
-                        goto out_end;
-                }
-                last = ent;
-                ent = (void *)ent + reclen;
-                nob -= reclen;
-                if (do_next)
-                        rc = m0_cob_iterator_next(&it);
-        }
+			       ent->d_namelen, (char *)ent->d_name, ent->d_reclen);
+		} else {
+			if (last) {
+				last->d_reclen += nob;
+				rc = 0;
+			} else {
+				rc = -EINVAL;
+			}
+			goto out_end;
+		}
+		last = ent;
+		ent = (void *)ent + reclen;
+		nob -= reclen;
+		if (do_next)
+			rc = m0_cob_iterator_next(&it);
+	}
 out_end:
-        m0_cob_iterator_fini(&it);
+	m0_cob_iterator_fini(&it);
 	if (rc == -ENOENT) {
-                if (last)
-                        last->d_reclen = 0;
-                rdpg->r_end = m0_bitstring_alloc(m0_bitstring_buf_get(rdpg->r_pos),
-                                                 m0_bitstring_len_get(rdpg->r_pos));
-                M0_LOG(M0_DEBUG,
+		if (last)
+			last->d_reclen = 0;
+		rdpg->r_end = m0_bitstring_alloc(m0_bitstring_buf_get(rdpg->r_pos),
+						 m0_bitstring_len_get(rdpg->r_pos));
+		M0_LOG(M0_DEBUG,
 		      "Setting last name to \"%.*s\"",
-                      (int)m0_bitstring_len_get(rdpg->r_pos),
-                      (char *)m0_bitstring_buf_get(rdpg->r_pos));
+		      (int)m0_bitstring_len_get(rdpg->r_pos),
+		      (char *)m0_bitstring_buf_get(rdpg->r_pos));
 		rc = ENOENT;
-        }
+	}
 out:
-        M0_LOG(M0_DEBUG, "Readdir finished with %d", rc);
+	M0_LOG(M0_DEBUG, "Readdir finished with %d", rc);
 	MDSTORE_FUNC_FAIL(READDIR, rc);
 	M0_LEAVE("rc: %d", rc);
-        return rc;
+	return rc;
 }
 
 M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
@@ -830,21 +830,21 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 				  int                    flags,
 				  struct m0_db_tx       *tx)
 {
-        struct m0_cob_oikey oikey;
-        int                 rc;
+	struct m0_cob_oikey oikey;
+	int                 rc;
 
 	M0_ENTRY("[%lx:%lx]", fid->f_container, fid->f_key);
-        m0_cob_oikey_make(&oikey, fid, 0);
+	m0_cob_oikey_make(&oikey, fid, 0);
 
-        if (flags == M0_MD_LOCATE_STORED) {
-                rc = m0_cob_locate(&md->md_dom, &oikey,
-                                   (M0_CA_FABREC | M0_CA_OMGREC), cob, tx);
-        } else {
-                /*
-                 * @todo: locate cob in opened cobs table.
-                 */
-                rc = -EOPNOTSUPP;
-        }
+	if (flags == M0_MD_LOCATE_STORED) {
+		rc = m0_cob_locate(&md->md_dom, &oikey,
+				   (M0_CA_FABREC | M0_CA_OMGREC), cob, tx);
+	} else {
+		/*
+		 * @todo: locate cob in opened cobs table.
+		 */
+		rc = -EOPNOTSUPP;
+	}
 	if (rc == 0) {
 		M0_LEAVE("[%lx:%lx]<-[%lx:%lx]/%.*s",
 			 (*cob)->co_nsrec.cnr_fid.f_container,
@@ -856,7 +856,7 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 	} else {
 		M0_LEAVE("rc: %d", rc);
 	}
-        return rc;
+	return rc;
 }
 
 M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
@@ -865,18 +865,18 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 				  struct m0_cob        **cob,
 				  struct m0_db_tx       *tx)
 {
-        struct m0_cob_nskey *nskey;
-        int flags;
-        int rc;
+	struct m0_cob_nskey *nskey;
+	int flags;
+	int rc;
 
 	M0_ENTRY();
-        if (pfid == NULL)
-                pfid = (struct m0_fid *)&M0_COB_ROOT_FID;
+	if (pfid == NULL)
+		pfid = (struct m0_fid *)&M0_COB_ROOT_FID;
 
-        rc = m0_cob_nskey_make(&nskey, pfid, (char *)name->b_addr, name->b_nob);
-        if (rc != 0)
-                return rc;
-        flags = (M0_CA_NSKEY_FREE | M0_CA_FABREC | M0_CA_OMGREC);
+	rc = m0_cob_nskey_make(&nskey, pfid, (char *)name->b_addr, name->b_nob);
+	if (rc != 0)
+		return rc;
+	flags = (M0_CA_NSKEY_FREE | M0_CA_FABREC | M0_CA_OMGREC);
 	rc = m0_cob_lookup(&md->md_dom, nskey, flags, cob, tx);
 	M0_LEAVE("rc: %d", rc);
 	return rc;
@@ -886,63 +886,63 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 #define MDSTORE_NAME_MAX 255
 
 M0_INTERNAL int m0_mdstore_path(struct m0_mdstore       *md,
-                                struct m0_fid           *fid,
+				struct m0_fid           *fid,
 				char                   **path)
 {
-        struct m0_cob   *cob;
-        struct m0_fid    pfid;
-        struct m0_db_tx  tx;
-        int              rc;
+	struct m0_cob   *cob;
+	struct m0_fid    pfid;
+	struct m0_db_tx  tx;
+	int              rc;
 
 	M0_ENTRY("[%lx:%lx]", fid->f_container, fid->f_key);
-        *path = m0_alloc(MDSTORE_PATH_MAX);
-        if (*path == NULL)
-                return -ENOMEM;
+	*path = m0_alloc(MDSTORE_PATH_MAX);
+	if (*path == NULL)
+		return -ENOMEM;
 
 restart:
-        pfid = *fid;
+	pfid = *fid;
 
-        rc = m0_db_tx_init(&tx, md->md_dom.cd_dbenv, 0);
-        if (rc != 0) {
-                m0_free(*path);
-                *path = NULL;
-                return rc;
-        }
+	rc = m0_db_tx_init(&tx, md->md_dom.cd_dbenv, 0);
+	if (rc != 0) {
+		m0_free(*path);
+		*path = NULL;
+		return rc;
+	}
 
-        do {
-                char name[MDSTORE_NAME_MAX] = {0,};
+	do {
+		char name[MDSTORE_NAME_MAX] = {0,};
 
-                rc = m0_mdstore_locate(md, &pfid, &cob, M0_MD_LOCATE_STORED, &tx);
-                if (rc != 0)
-                        goto out;
+		rc = m0_mdstore_locate(md, &pfid, &cob, M0_MD_LOCATE_STORED, &tx);
+		if (rc != 0)
+			goto out;
 
-                if (!m0_fid_eq(cob->co_fid, md->md_root->co_fid)) {
-                        strncat(name,
-                                m0_bitstring_buf_get(&cob->co_nskey->cnk_name),
-                                m0_bitstring_len_get(&cob->co_nskey->cnk_name));
-                }
-                if (!m0_fid_eq(cob->co_fid, fid) ||
-                    m0_fid_eq(cob->co_fid, md->md_root->co_fid))
-                        strcat(name, "/");
-                memmove(*path + strlen(name), *path, strlen(*path));
-                memcpy(*path, name, strlen(name));
-                pfid = cob->co_nskey->cnk_pfid;
-                m0_cob_put(cob);
-        } while (!m0_fid_eq(&pfid, &M0_COB_ROOT_FID));
+		if (!m0_fid_eq(cob->co_fid, md->md_root->co_fid)) {
+			strncat(name,
+				m0_bitstring_buf_get(&cob->co_nskey->cnk_name),
+				m0_bitstring_len_get(&cob->co_nskey->cnk_name));
+		}
+		if (!m0_fid_eq(cob->co_fid, fid) ||
+		    m0_fid_eq(cob->co_fid, md->md_root->co_fid))
+			strcat(name, "/");
+		memmove(*path + strlen(name), *path, strlen(*path));
+		memcpy(*path, name, strlen(name));
+		pfid = cob->co_nskey->cnk_pfid;
+		m0_cob_put(cob);
+	} while (!m0_fid_eq(&pfid, &M0_COB_ROOT_FID));
 out:
-        if (rc != 0) {
-                m0_db_tx_abort(&tx);
-                if (rc == -EDEADLK) {
-                        memset(*path, 0, MDSTORE_PATH_MAX);
-                        goto restart;
-                }
-                m0_free(*path);
-                *path = NULL;
-        } else {
-                m0_db_tx_commit(&tx);
-        }
+	if (rc != 0) {
+		m0_db_tx_abort(&tx);
+		if (rc == -EDEADLK) {
+			memset(*path, 0, MDSTORE_PATH_MAX);
+			goto restart;
+		}
+		m0_free(*path);
+		*path = NULL;
+	} else {
+		m0_db_tx_commit(&tx);
+	}
 	M0_LEAVE("rc: %d, path: %s", rc, *path);
-        return rc;
+	return rc;
 }
 #undef M0_TRACE_SUBSYSTEM
 
