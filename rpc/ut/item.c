@@ -340,7 +340,9 @@ static void __test_timer_start_failure(void)
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
 	/* sleep until request reaches at server and is dropped */
 	m0_nanosleep(m0_time(0, 5 * 1000 * 1000), NULL);
+	m0_fop_put(fop);
 }
+
 static void test_failure_before_sending(void)
 {
 	int rc;

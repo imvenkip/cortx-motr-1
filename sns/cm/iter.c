@@ -287,6 +287,7 @@ static int cob_locate(const struct m0_sns_cm_iter *it,
 	if (rc == 0) {
 		M0_ASSERT(m0_fid_eq(cob_fid, cob->co_fid));
 		m0_db_tx_commit(&tx);
+		m0_cob_put(cob);
 	} else
 		m0_db_tx_abort(&tx);
 
@@ -751,7 +752,7 @@ static int (*iter_action[])(struct m0_sns_cm_iter *it) = {
 M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm *scm;
-	int                      rc;
+	int               rc;
 
 	M0_PRE(cm != NULL && cp != NULL);
 

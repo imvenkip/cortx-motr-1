@@ -50,18 +50,17 @@
 #include "sns/cm/ag.h"
 
 enum {
-	ITER_UT_BUF_NR = 1 << 4,
+	ITER_UT_BUF_NR     = 1 << 4,
 	ITER_GOB_KEY_START = 4,
-	ITER_64K = 65536,
-	ITER_1M = 1048576,
-	ITER_1G = 1073741824,
+	ITER_64K           = 65536,
+	ITER_1M            = 1048576,
+	ITER_1G            = 1073741824,
 };
 
-
-static struct m0_reqh    *reqh;
-struct m0_reqh_service   *service;
-static struct m0_cm      *cm;
-static struct m0_sns_cm  *scm;
+static struct m0_reqh   *reqh;
+struct m0_reqh_service  *service;
+static struct m0_cm     *cm;
+static struct m0_sns_cm *scm;
 
 static void service_start_success(void)
 {
