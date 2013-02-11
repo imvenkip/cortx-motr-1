@@ -48,7 +48,7 @@ struct m0_rpc_item_source_ops {
 	void (*riso_conn_terminated)(struct m0_rpc_item_source *source);
 
 	struct m0_rpc_item *(*riso_get_item)(struct m0_rpc_item_source *ris,
-					     size_t available_space);
+					     size_t max_payload_size);
 };
 
 int m0_rpc_item_source_init(struct m0_rpc_item_source *ris,
