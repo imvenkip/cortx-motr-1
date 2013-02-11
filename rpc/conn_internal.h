@@ -30,6 +30,7 @@ struct m0_rpc_session;
 struct m0_db_tx;
 struct m0_rpc_item;
 struct m0_cob_domain;
+struct m0_rpc_item_source;
 
 /**
    @addtogroup rpc_session
@@ -40,6 +41,9 @@ struct m0_cob_domain;
 enum {
 	SENDER_ID_INVALID = UINT64_MAX,
 };
+
+M0_TL_DESCR_DECLARE(item_source, M0_EXTERN);
+M0_TL_DECLARE(item_source, M0_INTERNAL, struct m0_rpc_item_source);
 
 M0_INTERNAL bool m0_rpc_conn_invariant(const struct m0_rpc_conn *conn);
 

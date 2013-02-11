@@ -280,6 +280,8 @@ struct m0_rpc_conn {
 	 */
 	struct m0_tl              c_sessions;
 
+	struct m0_tl              c_item_sources;
+
 	struct m0_rpc_service    *c_service;
 
 	/** A m0_rpc_chan structure that will point to the transfer

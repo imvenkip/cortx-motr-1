@@ -47,6 +47,7 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "rpc/rpc_helpers.h"
 #include "net/buffer_pool.h"
 #include "rpc/item.h"        /* m0_rpc_item_onwire_header_size() */
+#include "rpc/item_source.h"
 
 /* imports */
 struct m0_db_tx;

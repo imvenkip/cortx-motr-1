@@ -89,6 +89,11 @@ static void __conn_fini(struct m0_rpc_conn *conn);
 
 static void conn_failed(struct m0_rpc_conn *conn, int32_t error);
 
+M0_TL_DESCR_DEFINE(item_source, "item-source-list", M0_INTERNAL,
+		   struct m0_rpc_item_source, ris_tlink, ris_magic,
+		   M0_RPC_ITEM_SOURCE_MAGIC, M0_RPC_ITEM_SOURCE_HEAD_MAGIC);
+M0_TL_DEFINE(item_source, M0_INTERNAL, struct m0_rpc_item_source);
+
 /*
  * This is sender side item_ops of conn_establish fop.
  * Receiver side conn_establish fop has different item_ops
@@ -318,6 +323,7 @@ static int __conn_init(struct m0_rpc_conn      *conn,
 	conn->c_nr_sessions = 0;
 
 	rpc_session_tlist_init(&conn->c_sessions);
+	item_source_tlist_init(&conn->c_item_sources);
 	rpc_conn_tlink_init(conn);
 
 	rc = session_zero_attach(conn);
@@ -375,6 +381,7 @@ static void __conn_fini(struct m0_rpc_conn *conn)
 	rpc_chan_put(conn->c_rpcchan);
 
 	rpc_session_tlist_fini(&conn->c_sessions);
+	item_source_tlist_fini(&conn->c_item_sources);
 	rpc_conn_tlink_fini(conn);
 	M0_LEAVE();
 }
