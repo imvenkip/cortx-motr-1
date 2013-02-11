@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -339,7 +339,8 @@ M0_INTERNAL struct inode *m0t1fs_iget(struct super_block *sb,
 	}
 	if (err != 0)
 	        goto out_err;
-	unlock_new_inode(inode);
+	if ((inode->i_state & I_NEW) != 0)
+		unlock_new_inode(inode);
 	M0_LEAVE("inode: %p", inode);
 	return inode;
 

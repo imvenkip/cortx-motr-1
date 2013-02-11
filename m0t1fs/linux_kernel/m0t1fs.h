@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -82,7 +82,7 @@
    'device' argument of mount command is ignored.
 
    m0t1fs supports following operations:
-   - Creating up to M0T1FS_MAX_NR_DIR_ENTS number of regular files
+   - Creating a regular file
    - Remove a regular file
    - Listing files in root directory
    - file read/write of full-stripe width
@@ -635,8 +635,6 @@ extern const struct inode_operations m0t1fs_reg_inode_operations;
 
 /* super.c */
 
-M0_INTERNAL bool m0t1fs_inode_is_root(const struct inode *inode);
-
 M0_INTERNAL int m0t1fs_get_sb(struct file_system_type *fstype,
 			      int flags,
 			      const char *devname,
@@ -662,6 +660,8 @@ m0t1fs_container_id_to_session(const struct m0t1fs_sb *csb,
 
 M0_INTERNAL int m0t1fs_inode_cache_init(void);
 M0_INTERNAL void m0t1fs_inode_cache_fini(void);
+
+M0_INTERNAL bool m0t1fs_inode_is_root(const struct inode *inode);
 
 M0_INTERNAL struct inode *m0t1fs_root_iget(struct super_block *sb,
                                            struct m0_fid *root_fid);

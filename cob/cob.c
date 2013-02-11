@@ -439,7 +439,7 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
         nsrec.cnr_omgid = 0;
         nsrec.cnr_fid = *rootfid;
 
-        nsrec.cnr_nlink = 1;
+	nsrec.cnr_nlink = 2;
         nsrec.cnr_size = MKFS_ROOT_SIZE;
         nsrec.cnr_blksize = MKFS_ROOT_BLKSIZE;
         nsrec.cnr_blocks = MKFS_ROOT_BLOCKS;
@@ -892,20 +892,7 @@ M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
 
 M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
 {
-        int rc;
-
-        rc = m0_db_cursor_get(&it->ci_cursor, &it->ci_pair);
-
-        /*
-         * Exact position found.
-         */
-        if (rc == 0)
-                return 1;
-
-        /*
-         * Not exact position found.
-         */
-        return 0;
+	return m0_db_cursor_get(&it->ci_cursor, &it->ci_pair);
 }
 
 M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
@@ -913,15 +900,11 @@ M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
         int rc;
 
         rc = m0_db_cursor_next(&it->ci_cursor, &it->ci_pair);
-        if (rc == -ENOENT)
-                return 1;
-        else if (rc != 0)
-                return rc;
 
-        if (!m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
-                return 1;
+	if (rc == 0 && !m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
+		return -ENOENT;
 
-        return 0;
+	return rc;
 }
 
 M0_INTERNAL void m0_cob_iterator_fini(struct m0_cob_iterator *it)

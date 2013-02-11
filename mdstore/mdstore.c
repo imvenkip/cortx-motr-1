@@ -149,6 +149,43 @@ M0_INTERNAL void m0_mdstore_fini(struct m0_mdstore *md)
         m0_cob_domain_fini(&md->md_dom);
 }
 
+M0_INTERNAL int m0_mdstore_dir_nlink_update(struct m0_mdstore   *md,
+					    struct m0_fid       *fid,
+					    int                  inc,
+					    struct m0_db_tx     *tx)
+{
+	struct m0_cob         *cob;
+	struct m0_cob_oikey    oikey;
+	int                    rc;
+
+	M0_ENTRY("%+d nlinks for dir[%lx:%lx]", inc, fid->f_container,
+		 fid->f_key);
+	/**
+	 * Directories cannot have hardlinks, so they can always
+	 * be found by oikey(fid, 0):
+	 */
+	m0_cob_oikey_make(&oikey, fid, 0);
+	rc = m0_cob_locate(&md->md_dom, &oikey, 0, &cob, tx);
+	if (rc != 0) {
+		M0_LOG(M0_DEBUG, "cannot locate stat data for dir[%lx:%lx] "
+		       "- %d", fid->f_container, fid->f_key, rc);
+		goto out;
+	}
+	M0_LOG(M0_DEBUG, "%u %+d nlinks for [%lx:%lx]<-[%lx:%lx]/%.*s",
+	       (unsigned)cob->co_nsrec.cnr_nlink, inc,
+	       fid->f_container, fid->f_key,
+	       cob->co_nskey->cnk_pfid.f_container,
+	       cob->co_nskey->cnk_pfid.f_key,
+	       m0_bitstring_len_get(&cob->co_nskey->cnk_name),
+	       (char *)m0_bitstring_buf_get(&cob->co_nskey->cnk_name));
+	cob->co_nsrec.cnr_nlink += inc;
+	rc = m0_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
+	m0_cob_put(cob);
+out:
+	M0_LEAVE("rc: %d", rc);
+	return rc;
+}
+
 M0_INTERNAL int m0_mdstore_create(struct m0_mdstore     *md,
 				  struct m0_fid         *pfid,
 				  struct m0_cob_attr    *attr,
@@ -163,6 +200,7 @@ M0_INTERNAL int m0_mdstore_create(struct m0_mdstore     *md,
         int                    linklen;
         int                    rc;
 
+	M0_ENTRY();
         M0_ASSERT(pfid != NULL);
 
         M0_SET0(&nsrec);
@@ -209,10 +247,15 @@ M0_INTERNAL int m0_mdstore_create(struct m0_mdstore     *md,
                 m0_free(fabrec);
         } else {
                 *out = cob;
+		if (S_ISDIR(attr->ca_mode)) {
+			/** Increment cnr_nlink of parent directory. */
+			rc = m0_mdstore_dir_nlink_update(md, pfid, +1, tx);
+		}
         }
 
 out:
 	MDSTORE_FUNC_FAIL(CREATE, rc);
+	M0_LEAVE("rc: %d", rc);
         return rc;
 }
 
@@ -227,6 +270,7 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
         time_t                 now;
         int                    rc;
 
+	M0_ENTRY();
         M0_ASSERT(pfid != NULL);
         M0_ASSERT(cob != NULL);
 
@@ -255,10 +299,59 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
          * save it to storage.
          */
         cob->co_nsrec.cnr_cntr++;
-
         rc = m0_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
+
 out:
 	MDSTORE_FUNC_FAIL(LINK, rc);
+	M0_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+/**
+ * Checks that cob->co_fid directory is empty.
+ *
+ * @retval 0           Directory is empty.
+ * @retval -ENOTEMPTY  Directory isn not empty.
+ * @retval -ENOMEM     Memory allocation error.
+ */
+M0_INTERNAL int m0_mdstore_dir_empty_check(struct m0_mdstore *md,
+					   struct m0_cob     *cob,
+					   struct m0_db_tx   *tx)
+{
+	struct m0_cob_iterator  it;
+	struct m0_bitstring    *pos;
+	int                     rc;
+
+	M0_ENTRY();
+	pos = m0_bitstring_alloc(".", 1);
+	if (pos == NULL)
+		return -ENOMEM;
+	rc = m0_cob_iterator_init(cob, &it, pos, tx);
+	if (rc != 0) {
+		M0_LOG(M0_DEBUG, "iterator init: %d", rc);
+		goto out;
+	}
+	for (rc = m0_cob_iterator_get(&it);
+	     rc == 0 && m0_fid_eq(&it.ci_key->cnk_pfid, cob->co_fid);
+	     rc = m0_cob_iterator_next(&it)) {
+		M0_LOG(M0_DEBUG, "[%lx:%lx]/%.*s contains [%lx:%lx]/%.*s",
+		       cob->co_nskey->cnk_pfid.f_container,
+		       cob->co_nskey->cnk_pfid.f_key,
+		       m0_bitstring_len_get(&cob->co_nskey->cnk_name),
+		       (char *)m0_bitstring_buf_get(&cob->co_nskey->cnk_name),
+		       it.ci_key->cnk_pfid.f_container,
+		       it.ci_key->cnk_pfid.f_key,
+		       m0_bitstring_len_get(&it.ci_key->cnk_name),
+		       (char *)m0_bitstring_buf_get(&it.ci_key->cnk_name));
+		rc = -ENOTEMPTY;
+		break;
+	}
+	m0_cob_iterator_fini(&it);
+out:
+	m0_bitstring_free(pos);
+	if (rc == -ENOENT)
+		rc = 0;
+	M0_LEAVE("rc: %d", rc);
         return rc;
 }
 
@@ -274,6 +367,15 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
         time_t                 now;
         int                    rc;
 
+	M0_ENTRY("[%lx:%lx]/%.*s", pfid->f_container, pfid->f_key,
+		 (int)name->b_nob, (char *)name->b_addr);
+	M0_LOG(M0_DEBUG, "[%lx:%lx]/%.*s->[%lx:%lx],%d cob",
+	       cob->co_nskey->cnk_pfid.f_container,
+	       cob->co_nskey->cnk_pfid.f_key,
+	       m0_bitstring_len_get(&cob->co_nskey->cnk_name),
+	       (char *)m0_bitstring_buf_get(&cob->co_nskey->cnk_name),
+	       cob->co_nsrec.cnr_fid.f_container, 
+	       cob->co_nsrec.cnr_fid.f_key, cob->co_nsrec.cnr_linkno);
         M0_ASSERT(pfid != NULL);
         M0_ASSERT(cob != NULL);
 
@@ -361,19 +463,22 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
                 m0_free(nskey);
         } else {
                 /*
-                 * We ignore nlink for dirs and go for killing it.
-                 * This is because we don't update parent nlink in
-                 * case of killing subdirs. This results in a case
-                 * that dir will have nlink > 0 because correct
-                 * fop that will bring its nlink to zero will come
-                 * later.
+		 * TODO: we must take some sort of a lock
+		 * when doing check-before-modify update to directory.
                  */
-                cob->co_nsrec.cnr_nlink = 0;
+		rc = m0_mdstore_dir_empty_check(md, cob, tx);
+		if (rc != 0)
+			goto out;
                 rc = m0_cob_delete(cob, tx);
+		if (rc != 0)
+			goto out;
+		/** Decrement cnr_nlink of parent directory. */
+		rc = m0_mdstore_dir_nlink_update(md, pfid, -1, tx);
         }
 
 out:
 	MDSTORE_FUNC_FAIL(UNLINK, rc);
+	M0_LEAVE("rc: %d", rc);
         return rc;
 }
 
@@ -428,6 +533,7 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
         time_t                now;
         int                   rc;
 
+	M0_ENTRY();
         M0_ASSERT(pfid_tgt != NULL);
         M0_ASSERT(pfid_src != NULL);
 
@@ -462,6 +568,7 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
         m0_free(tgtkey);
 out:
 	MDSTORE_FUNC_FAIL(RENAME, rc);
+	M0_LEAVE("rc: %d", rc);
         return rc;
 }
 
@@ -475,6 +582,7 @@ M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
         struct m0_cob_omgrec  *omgrec = NULL;
         int                    rc;
 
+	M0_ENTRY();
         M0_ASSERT(cob != NULL);
 
         /*
@@ -527,6 +635,7 @@ M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
         rc = m0_cob_update(cob, nsrec, fabrec, omgrec, tx);
 
 	MDSTORE_FUNC_FAIL(SETATTR, rc);
+	M0_LEAVE("rc: %d", rc);
         return rc;
 }
 
@@ -537,6 +646,7 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
 {
         int                rc = 0;
 
+	M0_ENTRY();
         M0_ASSERT(cob != NULL);
 
         M0_SET0(attr);
@@ -571,12 +681,22 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
                 attr->ca_size = cob->co_nsrec.cnr_size;
                 attr->ca_lid = cob->co_nsrec.cnr_lid;
                 //attr->ca_version = cob->co_nsrec.cnr_version;
+		M0_LOG(M0_DEBUG, "attrs of [%lx:%lx]/%.*s->[%lx:%lx],%u: "
+		       "cntr:%u, nlink:%u",
+		       attr->ca_pfid.f_container, attr->ca_pfid.f_key,
+		       m0_bitstring_len_get(&cob->co_nskey->cnk_name),
+		       (char *)m0_bitstring_buf_get(&cob->co_nskey->cnk_name),
+		       attr->ca_tfid.f_container, attr->ca_tfid.f_key,
+		       (unsigned)cob->co_nsrec.cnr_linkno,
+		       (unsigned)cob->co_nsrec.cnr_cntr,
+		       (unsigned)attr->ca_nlink);
         }
 
         /*
          * @todo: Copy fab fields.
          */
 	MDSTORE_FUNC_FAIL(GETATTR, rc);
+	M0_LEAVE("rc: %d", rc);
         return rc;
 }
 
@@ -594,17 +714,16 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
         int                            second;
         int                            rc;
 
+	M0_ENTRY();
         M0_ASSERT(cob != NULL);
 
         M0_LOG(M0_DEBUG,
-               "Readdir on object [%lx:%lx] starting from \"%*s\" (len %d)",
+	       "Readdir on object [%lx:%lx] starting from \"%.*s\"",
                cob->co_fid->f_container, cob->co_fid->f_key,
                m0_bitstring_len_get(rdpg->r_pos),
-               (char *)m0_bitstring_buf_get(rdpg->r_pos),
-               m0_bitstring_len_get(rdpg->r_pos));
+	       (char *)m0_bitstring_buf_get(rdpg->r_pos));
 
-        first = m0_bitstring_len_get(rdpg->r_pos) == 1 &&
-                !strncmp(m0_bitstring_buf_get(rdpg->r_pos), ".", 1);
+	first = !strncmp(m0_bitstring_buf_get(rdpg->r_pos), ".", 2);
         second = 0;
 
         rc = m0_cob_iterator_init(cob, &it, rdpg->r_pos, tx);
@@ -615,17 +734,20 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
 
         rc = m0_cob_iterator_get(&it);
         if (rc == 0) {
+		if (!first) {
+			rc = m0_cob_iterator_next(&it);
+		} else {
+			rc = 0;
+		}
+	} else if (rc == -ENOENT) {
                 /*
                  * Not exact position found and we are on least key
                  * let's do one step forward.
                  */
                 rc = m0_cob_iterator_next(&it);
-        } else if (rc > 0) {
-                if (!first) {
-                        rc = m0_cob_iterator_next(&it);
                 } else {
-                        rc = 0;
-                }
+		M0_LOG(M0_DEBUG, "Iterator failed to get cursor with %d", rc);
+		goto out;
         }
 
         ent = rdpg->r_buf.b_addr;
@@ -647,7 +769,7 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
                                        it.ci_key->cnk_pfid.f_key,
                                        cob->co_fid->f_container,
                                        cob->co_fid->f_key);
-                                rc = 1;
+				rc = -ENOENT;
                                 break;
                         }
 
@@ -665,7 +787,7 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
                         ent->d_namelen = m0_bitstring_len_get(rdpg->r_pos);
                         ent->d_reclen = reclen;
                         M0_LOG(M0_DEBUG,
-                               "Readdir filled entry \"%*s\" recsize %d",
+			       "Readdir filled entry \"%.*s\" recsize %d",
                                ent->d_namelen, (char *)ent->d_name, ent->d_reclen);
                 } else {
                         if (last) {
@@ -684,19 +806,21 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
         }
 out_end:
         m0_cob_iterator_fini(&it);
-        if (rc >= 0) {
+	if (rc == -ENOENT) {
                 if (last)
                         last->d_reclen = 0;
                 rdpg->r_end = m0_bitstring_alloc(m0_bitstring_buf_get(rdpg->r_pos),
                                                  m0_bitstring_len_get(rdpg->r_pos));
                 M0_LOG(M0_DEBUG,
-                      "Setting last name to \"%*s\"",
+		      "Setting last name to \"%.*s\"",
                       (int)m0_bitstring_len_get(rdpg->r_pos),
                       (char *)m0_bitstring_buf_get(rdpg->r_pos));
+		rc = ENOENT;
         }
 out:
         M0_LOG(M0_DEBUG, "Readdir finished with %d", rc);
 	MDSTORE_FUNC_FAIL(READDIR, rc);
+	M0_LEAVE("rc: %d", rc);
         return rc;
 }
 
@@ -709,6 +833,7 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
         struct m0_cob_oikey oikey;
         int                 rc;
 
+	M0_ENTRY("[%lx:%lx]", fid->f_container, fid->f_key);
         m0_cob_oikey_make(&oikey, fid, 0);
 
         if (flags == M0_MD_LOCATE_STORED) {
@@ -720,7 +845,17 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
                  */
                 rc = -EOPNOTSUPP;
         }
-
+	if (rc == 0) {
+		M0_LEAVE("[%lx:%lx]<-[%lx:%lx]/%.*s",
+			 (*cob)->co_nsrec.cnr_fid.f_container,
+			 (*cob)->co_nsrec.cnr_fid.f_key,
+			 (*cob)->co_nskey->cnk_pfid.f_container,
+			 (*cob)->co_nskey->cnk_pfid.f_key,
+			 m0_bitstring_len_get(&(*cob)->co_nskey->cnk_name),
+			 (char *)m0_bitstring_buf_get(&(*cob)->co_nskey->cnk_name));
+	} else {
+		M0_LEAVE("rc: %d", rc);
+	}
         return rc;
 }
 
@@ -734,6 +869,7 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
         int flags;
         int rc;
 
+	M0_ENTRY();
         if (pfid == NULL)
                 pfid = (struct m0_fid *)&M0_COB_ROOT_FID;
 
@@ -741,7 +877,9 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
         if (rc != 0)
                 return rc;
         flags = (M0_CA_NSKEY_FREE | M0_CA_FABREC | M0_CA_OMGREC);
-        return m0_cob_lookup(&md->md_dom, nskey, flags, cob, tx);
+	rc = m0_cob_lookup(&md->md_dom, nskey, flags, cob, tx);
+	M0_LEAVE("rc: %d", rc);
+	return rc;
 }
 
 #define MDSTORE_PATH_MAX 1024
@@ -756,6 +894,7 @@ M0_INTERNAL int m0_mdstore_path(struct m0_mdstore       *md,
         struct m0_db_tx  tx;
         int              rc;
 
+	M0_ENTRY("[%lx:%lx]", fid->f_container, fid->f_key);
         *path = m0_alloc(MDSTORE_PATH_MAX);
         if (*path == NULL)
                 return -ENOMEM;
@@ -802,6 +941,7 @@ out:
         } else {
                 m0_db_tx_commit(&tx);
         }
+	M0_LEAVE("rc: %d, path: %s", rc, *path);
         return rc;
 }
 #undef M0_TRACE_SUBSYSTEM

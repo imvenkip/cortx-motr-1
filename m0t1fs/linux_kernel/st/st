@@ -5,10 +5,12 @@ set -u
 ## CAUTION: This path will be removed by superuser.
 SANDBOX_DIR=~devvm/_m0-sandbox
 
-# TRACE_MASK=all
-TRACE_MASK='!rpc,formation,fop,memory'
-TRACE_LEVEL='info+'
-# TRACE_CONTEXT=full
+TRACE_MASK="${TRACE_MASK:-!rpc,formation,fop,memory}"
+TRACE_LEVEL="${TRACE_LEVEL:-info+}"
+M0_TRACE_LEVEL="${M0_TRACE_LEVEL:-$TRACE_LEVEL}"
+M0_TRACE_IMMEDIATE_MASK="${M0_TRACE_IMMEDIATE_MASK:-$TRACE_MASK}"
+M0_TRACE_PRINT_CONTEXT="${M0_TRACE_PRINT_CONTEXT:-${TRACE_CONTEXT:-}}"
+export M0_TRACE_LEVEL M0_TRACE_IMMEDIATE_MASK M0_TRACE_IMMEDIATE_MASK
 
 MAX_RPC_MSG_SIZE=163840
 TM_MIN_RECV_QUEUE_LEN=2
@@ -22,10 +24,7 @@ M0_CORE_DIR=${M0_CORE_DIR%/*/*/*/*}
 ## Path to the file with configuration string for confd.
 CONF_FILE=$SANDBOX_DIR/conf.txt
 
-### Starts LNET. (Note that the script never stops LNET.)
-lnet_up() {
-    modprobe lnet
-    lctl network up >/dev/null
+export_lnet_nid_endpoints() {
     local LNET_NID=`lctl list_nids | head -1`
 
     export M0T1FS_ENDPOINT="$LNET_NID:12345:34:6"
@@ -33,6 +32,21 @@ lnet_up() {
     export IOS1_ENDPOINT="$LNET_NID:12345:34:2"
     export MDS_ENDPOINT="$IOS0_ENDPOINT"
     export CONFD_ENDPOINT="$IOS0_ENDPOINT"
+}
+
+init_endpoints() {
+    if ps -ef | grep '\<m[0]d\>' > /dev/null; then
+	export_lnet_nid_endpoints
+    else
+	_init
+    fi
+}
+
+### Starts LNET. (Note that the script never stops LNET.)
+lnet_up() {
+    modprobe lnet
+    lctl network up >/dev/null
+    export_lnet_nid_endpoints
 }
 
 sandbox_init() {
@@ -133,9 +147,6 @@ EOF`"
 
     echo "--- `date` ---" >>$SANDBOX_DIR/m0d.log
     cd $SANDBOX_DIR
-    env ${TRACE_MASK:+M0_TRACE_IMMEDIATE_MASK=$TRACE_MASK} \
-	${TRACE_LEVEL:+M0_TRACE_LEVEL=$TRACE_LEVEL} \
-	${TRACE_CONTEXT:+M0_TRACE_PRINT_CONTEXT=$TRACE_CONTEXT} \
 	$M0_CORE_DIR/mero/m0d $OPTIONS >>$SANDBOX_DIR/m0d.log 2>&1 &
 
     sleep 1
@@ -236,6 +247,8 @@ case "${1:-}" in
     rmmod) modules_remove; exit;;
     sstart) _init; exit;;
     sstop) _fini; exit;;
+    mount) init_endpoints; _mount local; exit;;
+    umount) umount $SANDBOX_DIR/mnt; exit;;
     help) usage; exit;;
     *) usage >&2; die;;
 esac

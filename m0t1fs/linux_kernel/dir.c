@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -56,6 +56,9 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry);
 static int m0t1fs_link(struct dentry *old, struct inode *dir,
 		       struct dentry *new);
 
+static int m0t1fs_mkdir(struct inode *dir, struct dentry *dentry, int mode);
+static int m0t1fs_rmdir(struct inode *dir, struct dentry *dentry);
+
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 				       int (*func)(struct m0t1fs_sb *csb,
 					           const struct m0_fid *cfid,
@@ -98,6 +101,8 @@ const struct inode_operations m0t1fs_dir_inode_operations = {
 	.lookup  = m0t1fs_lookup,
 	.unlink  = m0t1fs_unlink,
 	.link    = m0t1fs_link,
+	.mkdir   = m0t1fs_mkdir,
+	.rmdir   = m0t1fs_rmdir,
         .setattr = m0t1fs_setattr,
         .getattr = m0t1fs_getattr
 };
@@ -175,10 +180,10 @@ static int m0t1fs_create(struct inode     *dir,
 	int                       rc;
 
 	M0_ENTRY();
-	M0_LOG(M0_INFO, "Creating \"%s\"", dentry->d_name.name);
-
-	/* Flat file system. create allowed only on root directory */
-	M0_ASSERT(m0t1fs_inode_is_root(dir));
+	M0_LOG(M0_INFO, "Creating \"%s\" in pdir %lu[%llu:%llu]",
+	       dentry->d_name.name, dir->i_ino,
+	       M0T1FS_I(dir)->ci_fid.f_container,
+	       M0T1FS_I(dir)->ci_fid.f_key);
 
 	/* new_inode() will call m0t1fs_alloc_inode() using super_operations */
 	inode = new_inode(sb);
@@ -189,13 +194,24 @@ static int m0t1fs_create(struct inode     *dir,
 
 	m0t1fs_fs_lock(csb);
 
-	inode->i_uid    = 0;
-	inode->i_gid    = 0;
+	inode->i_mode = mode;
+	inode->i_uid = current_fsuid();
+	if (dir->i_mode & S_ISGID) {
+		inode->i_gid = dir->i_gid;
+		if (S_ISDIR(mode))
+			inode->i_mode |= S_ISGID;
+	} else
+		inode->i_gid = current_fsgid();
 	inode->i_mtime  = inode->i_atime = inode->i_ctime = CURRENT_TIME_SEC;
 	inode->i_blocks = 0;
-	inode->i_op     = &m0t1fs_reg_inode_operations;
-	inode->i_fop    = &m0t1fs_reg_file_operations;
-	inode->i_mode   = mode;
+	if (S_ISDIR(mode)) {
+		inode->i_op  = &m0t1fs_dir_inode_operations;
+		inode->i_fop = &m0t1fs_dir_file_operations;
+		inc_nlink(inode);  /* one more link (".") for directories */
+	} else {
+		inode->i_op     = &m0t1fs_reg_inode_operations;
+		inode->i_fop    = &m0t1fs_reg_file_operations;
+	}
 
 	ci               = M0T1FS_I(inode);
 	ci->ci_fid       = m0t1fs_fid_alloc(csb);
@@ -208,7 +224,6 @@ static int m0t1fs_create(struct inode     *dir,
 	if (rc != 0)
 		goto out;
 
-        /** No hierarchy so far, all live in root */
         M0_SET0(&mo);
         mo.mo_attr.ca_uid       = inode->i_uid;
         mo.mo_attr.ca_gid       = inode->i_gid;
@@ -217,7 +232,7 @@ static int m0t1fs_create(struct inode     *dir,
         mo.mo_attr.ca_mtime     = inode->i_mtime.tv_sec;
         mo.mo_attr.ca_mode      = inode->i_mode;
         mo.mo_attr.ca_blocks    = inode->i_blocks;
-        mo.mo_attr.ca_pfid      = csb->csb_root_fid;
+	mo.mo_attr.ca_pfid      = M0T1FS_I(dir)->ci_fid;
         mo.mo_attr.ca_tfid      = ci->ci_fid;
         mo.mo_attr.ca_lid       = ci->ci_layout_id;
         mo.mo_attr.ca_nlink     = inode->i_nlink;
@@ -232,10 +247,13 @@ static int m0t1fs_create(struct inode     *dir,
         if (rc != 0)
                 goto out;
 
-	rc = m0t1fs_component_objects_op(ci, m0t1fs_ios_cob_create);
-	if (rc != 0)
-		goto out;
-
+	if (S_ISREG(mode)) {
+		rc = m0t1fs_component_objects_op(ci, m0t1fs_ios_cob_create);
+		if (rc != 0)
+			goto out;
+	}
+  
+	mark_inode_dirty(dir);
 	m0t1fs_fs_unlock(csb);
 
 	d_instantiate(dentry, inode);
@@ -248,6 +266,11 @@ out:
 
 	M0_LEAVE("rc: %d", rc);
 	return rc;
+}
+
+static int m0t1fs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
+{
+	return m0t1fs_create(dir, dentry, mode | S_IFDIR, NULL);
 }
 
 static struct dentry *m0t1fs_lookup(struct inode     *dir,
@@ -277,7 +300,7 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	m0t1fs_fs_lock(csb);
 
         M0_SET0(&mo);
-        mo.mo_attr.ca_pfid = csb->csb_root_fid;
+	mo.mo_attr.ca_pfid = M0T1FS_I(dir)->ci_fid;
         m0_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name,
                     dentry->d_name.len);
 
@@ -410,11 +433,11 @@ static int m0t1fs_readdir(struct file *f,
                                 type = DT_DIR;
                         } else {
                                 /**
-                                   TODO: Entry type is hardcoded to regular
-                                   files, should be fixed later.
+				   TODO: Entry type is unknown and ino is
+				   pretty random, should be fixed later.
                                  */
                                 ino = ++i;
-                                type = DT_REG;
+				type = DT_UNKNOWN;
                         }
 
                         M0_LOG(M0_DEBUG, "filled off %lu ino %lu name \"%*s\"",
@@ -474,12 +497,13 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 
         M0_SET0(&mo);
         now = CURRENT_TIME_SEC;
-        mo.mo_attr.ca_pfid  = csb->csb_root_fid;
+	mo.mo_attr.ca_pfid  = M0T1FS_I(dir)->ci_fid;
         mo.mo_attr.ca_tfid  = ci->ci_fid;
         mo.mo_attr.ca_nlink = inode->i_nlink + 1;
         mo.mo_attr.ca_ctime = now.tv_sec;
         mo.mo_attr.ca_valid = (M0_COB_CTIME | M0_COB_NLINK);
-        m0_buf_init(&mo.mo_attr.ca_name, (char *)new->d_name.name, new->d_name.len);
+	m0_buf_init(&mo.mo_attr.ca_name, (char *)new->d_name.name,
+		    new->d_name.len);
 
         rc = m0t1fs_mds_cob_link(csb, &mo, &link_rep);
         if (rc != 0) {
@@ -487,11 +511,11 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
                 goto out;
         }
 
-        inc_nlink(inode);
+	inode_inc_link_count(inode);
         inode->i_ctime = now;
-        mark_inode_dirty(inode);
         atomic_inc(&inode->i_count);
         d_instantiate(new, inode);
+	mark_inode_dirty(dir);
 
 out:
         m0t1fs_fs_unlock(csb);
@@ -523,7 +547,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 
         M0_SET0(&mo);
         now = CURRENT_TIME_SEC;
-        mo.mo_attr.ca_pfid = csb->csb_root_fid;
+	mo.mo_attr.ca_pfid = M0T1FS_I(dir)->ci_fid;
         mo.mo_attr.ca_tfid = ci->ci_fid;
         mo.mo_attr.ca_nlink = inode->i_nlink - 1;
         mo.mo_attr.ca_ctime = now.tv_sec;
@@ -551,7 +575,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 
         /** Update ctime and mtime on parent dir. */
         M0_SET0(&mo);
-        mo.mo_attr.ca_tfid  = csb->csb_root_fid;
+	mo.mo_attr.ca_tfid  = M0T1FS_I(dir)->ci_fid;
         mo.mo_attr.ca_ctime = now.tv_sec;
         mo.mo_attr.ca_mtime = now.tv_sec;
         mo.mo_attr.ca_valid = (M0_COB_CTIME | M0_COB_MTIME);
@@ -564,10 +588,26 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 
         inode->i_ctime = dir->i_ctime = dir->i_mtime = now;
         inode_dec_link_count(inode);
+	mark_inode_dirty(dir);
 out:
         m0t1fs_fs_unlock(csb);
         M0_LEAVE("rc: %d", rc);
         return rc;
+}
+
+static int m0t1fs_rmdir(struct inode *dir, struct dentry *dentry)
+{
+	int rc;
+
+	M0_ENTRY();
+	rc = m0t1fs_unlink(dir, dentry);
+	if (rc == 0) {
+		inode_dec_link_count(dentry->d_inode);
+		drop_nlink(dir);
+	}
+	M0_LEAVE("rc: %d", rc);
+
+	return rc;
 }
 
 M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,

@@ -200,7 +200,7 @@ static int m0_md_tick_create(struct m0_fom *fom)
 
         m0_buf_init(&attr.ca_name, req->c_name.s_buf, req->c_name.s_len);
 
-        M0_LOG(M0_DEBUG, "Create [%lx:%lx]/[%lx:%lx] %*s",
+        M0_LOG(M0_DEBUG, "Create [%lx:%lx]/[%lx:%lx] %.*s",
                body->b_pfid.f_container, body->b_pfid.f_key,
                body->b_tfid.f_container, body->b_tfid.f_key,
                (int)attr.ca_name.b_nob, (char *)attr.ca_name.b_addr);
@@ -255,7 +255,7 @@ static int m0_md_tick_link(struct m0_fom *fom)
         m0_md_cob_wire2mem(&attr, body);
         m0_buf_init(&attr.ca_name, req->l_name.s_buf, req->l_name.s_len);
 
-        M0_LOG(M0_DEBUG, "Link [%lx:%lx]/%*s -> [%lx:%lx] started",
+        M0_LOG(M0_DEBUG, "Link [%lx:%lx]/%.*s -> [%lx:%lx] started",
                body->b_pfid.f_container, body->b_pfid.f_key,
                (int)req->l_name.s_len, (char *)req->l_name.s_buf,
                body->b_tfid.f_container, body->b_tfid.f_key);
@@ -274,7 +274,7 @@ static int m0_md_tick_link(struct m0_fom *fom)
                           &fom->fo_tx.tx_dbtx);
         m0_fom_block_leave(fom);
 out:
-        M0_LOG(M0_DEBUG, "Link [%lx:%lx]/%*s -> [%lx:%lx] finished with %d",
+        M0_LOG(M0_DEBUG, "Link [%lx:%lx]/%.*s -> [%lx:%lx] finished with %d",
                body->b_pfid.f_container, body->b_pfid.f_key,
                (int)req->l_name.s_len, (char *)req->l_name.s_buf,
                body->b_tfid.f_container, body->b_tfid.f_key, rc);
@@ -325,7 +325,7 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
         m0_md_cob_wire2mem(&attr, body);
         m0_buf_init(&attr.ca_name, req->u_name.s_buf, req->u_name.s_len);
 
-        M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%*s started",
+        M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s started",
                body->b_pfid.f_container, body->b_pfid.f_key,
                (int)req->u_name.s_len, (char *)req->u_name.s_buf);
 
@@ -341,7 +341,7 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
         rc = m0_mdstore_locate(md, &body->b_tfid, &scob, M0_MD_LOCATE_STORED,
                                tx);
         if (rc != 0) {
-                M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%*s failed with %d",
+                M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s failed with %d",
                        body->b_pfid.f_container, body->b_pfid.f_key,
                        (int)req->u_name.s_len, (char *)req->u_name.s_buf,
                         rc);
@@ -352,7 +352,7 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
         rc = m0_mdstore_unlink(md, &body->b_pfid, scob, &attr.ca_name, tx);
         m0_cob_put(scob);
         if (rc != 0) {
-                M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%*s failed with %d",
+                M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s failed with %d",
                        body->b_pfid.f_container, body->b_pfid.f_key,
                        (int)req->u_name.s_len, (char *)req->u_name.s_buf,
                         rc);
@@ -361,7 +361,7 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
         }
         m0_fom_block_leave(fom);
 out:
-        M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%*s finished with %d",
+        M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s finished with %d",
                body->b_pfid.f_container, body->b_pfid.f_key,
                (int)req->u_name.s_len, (char *)req->u_name.s_buf, rc);
         rep->u_body.b_rc = rc;
@@ -720,7 +720,7 @@ static int m0_md_tick_lookup(struct m0_fom *fom)
 
         m0_buf_init(&name, req->l_name.s_buf, req->l_name.s_len);
 
-        M0_LOG(M0_DEBUG, "Lookup for \"%*s\" in object [%lx:%lx]",
+        M0_LOG(M0_DEBUG, "Lookup for \"%.*s\" in object [%lx:%lx]",
                (int)name.b_nob, (char *)name.b_addr, body->b_pfid.f_container,
                body->b_pfid.f_key);
 
@@ -770,7 +770,7 @@ static int m0_md_tick_lookup(struct m0_fom *fom)
                        cob->co_fid->f_container, cob->co_fid->f_key, rc);
         }
 out:
-        M0_LOG(M0_DEBUG, "Lookup for \"%*s\" finished with %d",
+        M0_LOG(M0_DEBUG, "Lookup for \"%.*s\" finished with %d",
                (int)name.b_nob, (char *)name.b_addr, rc);
         rep->l_body.b_rc = rc;
         m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);

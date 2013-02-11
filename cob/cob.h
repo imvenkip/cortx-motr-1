@@ -682,11 +682,19 @@ M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
 
 /**
  * Position to next name in a dir cob.
+ *
+ * @retval 0        Success.
+ * @retval -ENOENT  Next name not found in directory.
+ * @retval -errno   Other error.
  */
 M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it);
 
 /**
  * Position in table according with @it properties.
+ *
+ * @retval 0        Success.
+ * @retval -ENOENT  Specified position not found in table.
+ * @retval -errno   Other error.
  */
 M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it);
 
