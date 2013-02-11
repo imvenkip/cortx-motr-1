@@ -24,7 +24,7 @@ To gather appropriate performance numbers mero has to be built in a release
 mode, without additional debug checks used in the development. This can be done
 with the following command:
 
-CONFIGURE_OPTS=--disable-altogether-mode\ --enable-debug\ --disable-m0-asserts\
+CONFIGURE_OPTS=--disable-altogether-mode\ --disable-m0-asserts\
                --enable-profiler ./scripts/m0 rebuild
 
 

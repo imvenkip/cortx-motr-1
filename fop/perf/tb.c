@@ -54,28 +54,28 @@ static void cpu_utilize(struct ub_fom_ctx *ctx, size_t rq_seqn, size_t rq_type,
 			size_t cycles)
 {
 	volatile char read;
-	size_t        offset;
-	size_t        size;
+	size_t        off1;
+	size_t        off2;
 	size_t        i;
 	size_t        j;
 
-	offset = rq_seqn % ctx->fc_mem_sz;
+	off1 = rq_seqn % ctx->fc_mem_sz;
 
 	if (rq_type == UB_FOM_MEM_B)        /* 256 bytes max */
-		size = min_check(ctx->fc_mem_sz - offset, offset & 0xFF);
+		off2 = min_check(ctx->fc_mem_sz - off1, off1 & 0xFF);
 	else if (rq_type == UB_FOM_MEM_KB)  /* 64 kbytes max */
-		size = min_check(ctx->fc_mem_sz - offset, offset & 0xFFFF);
+		off2 = min_check(ctx->fc_mem_sz - off1, off1 & 0xFFFF);
 	else if (rq_type == UB_FOM_MEM_MB)  /* 1 mbyte max */
-		size = min_check(ctx->fc_mem_sz - offset, offset & 0xFFFFF);
+		off2 = min_check(ctx->fc_mem_sz - off1, off1 & 0xFFFFF);
 	else {
-		size = 0; /* pacify gcc with 'uninitialized variable warning' */
+		off2 = 0; /* pacify gcc with 'uninitialized variable warning' */
 		M0_IMPOSSIBLE("Wrong ub_fom_ctx::fc_type arrived with FOM!");
 	}
 
-	M0_ASSERT(size + offset < ctx->fc_mem_sz);
+	M0_ASSERT(off1 < off2 && off2 + off1 < ctx->fc_mem_sz);
 
 	for (j = 0; j < cycles; ++j) {
-		for (i = offset; i < size; ++i) {
+		for (i = off1; i < off2; ++i) {
 			switch (rq_seqn % 3) {
 			case 0: /* write */
 				ctx->fc_mem[i] = i;
@@ -104,7 +104,7 @@ static int ub_fom_mem_tick(struct m0_fom *fom)
 	rq_type = ctx->fc_type;
 	M0_LOG(M0_DEBUG, "fom:seqn=%zu", rq_seqn);
 
-	cpu_utilize(ctx, rq_seqn, rq_type, 500000);
+	cpu_utilize(ctx, rq_seqn, rq_type, UB_FOM_CYCLES);
 
 	m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
 	return M0_FSO_WAIT;
@@ -124,7 +124,7 @@ static int ub_fom_mutex_tick(struct m0_fom *fom)
 	m0_mutex_lock(ctx->fc_lock);
 
 	M0_LOG(M0_DEBUG, "fom:seqn=%zu", rq_seqn);
-	cpu_utilize(ctx, rq_seqn, UB_FOM_MEM_KB, 500000);
+	cpu_utilize(ctx, rq_seqn, UB_FOM_MEM_KB, UB_FOM_CYCLES);
 
 	m0_mutex_unlock(ctx->fc_lock);
 	m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
@@ -165,7 +165,7 @@ static int ub_fom_long_tick(struct m0_fom *fom)
 						    &ctx->fc_link,
 						    PH_GOT_LOCK));
 	} else if (m0_fom_phase(fom) == PH_GOT_LOCK) {
-		cpu_utilize(ctx, rq_seqn, UB_FOM_MEM_KB, 500000);
+		cpu_utilize(ctx, rq_seqn, UB_FOM_MEM_KB, UB_FOM_CYCLES);
 		unlock(ctx->fc_long_lock, &ctx->fc_link);
 		m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
 	} else {
@@ -189,7 +189,7 @@ static int ub_fom_block_tick(struct m0_fom *fom)
 	m0_mutex_lock(ctx->fc_lock);
 
 	M0_LOG(M0_DEBUG, "fom:seqn=%zu", rq_seqn);
-	cpu_utilize(ctx, rq_seqn, UB_FOM_MEM_KB, 5000);
+	cpu_utilize(ctx, rq_seqn, UB_FOM_MEM_KB, UB_FOM_BLOCK_CYCLES);
 
 	m0_mutex_unlock(ctx->fc_lock);
 	m0_fom_block_leave(fom);
@@ -242,7 +242,6 @@ static void req_handle(struct m0_reqh *reqh, size_t seqn,
  *
  * @param reqh    an array of request handlers.
  * @param reqh_nr count of used request handlers in reqh.
- * @param iter    a number of iterations to run.
  */
 static void reqh_test_run(struct m0_reqh **reqh, size_t reqh_nr,
 			  enum ub_fom_type test_type)

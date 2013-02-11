@@ -42,6 +42,18 @@ enum ub_fom_type {
 };
 
 /**
+ * Count of memory accessing cycles used in tests.
+ *
+ * @note: Cycles count for m0_fom_block_{enter,leave}() test is reduced due to
+ *        significant synchronization overhead.
+ */
+enum ub_fom_cycles {
+	UB_FOM_CYCLES       = 500000,
+	/** Cycles count for m0_fom_block_{enter,leave}(). */
+	UB_FOM_BLOCK_CYCLES = UB_FOM_CYCLES / 100
+};
+
+/**
  * Object encompassing FOM used as a unit benchmarkcontext data.
  */
 struct ub_fom_ctx {
