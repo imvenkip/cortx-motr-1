@@ -59,6 +59,7 @@ extern const struct m0_test_suite fol_ut;
 extern const struct m0_test_suite frm_ut;
 extern const struct m0_test_suite ios_bufferpool_ut;
 extern const struct m0_test_suite item_ut;
+extern const struct m0_test_suite item_source_ut;
 extern const struct m0_test_suite layout_ut;
 extern const struct m0_test_suite m0_addb_ut;
 extern const struct m0_test_suite m0_fop_lock_ut;
@@ -115,6 +116,7 @@ void add_uts(void)
 	m0_ut_add(&frm_ut);
 	m0_ut_add(&ios_bufferpool_ut);
 	m0_ut_add(&item_ut);
+	m0_ut_add(&item_source_ut);
 	m0_ut_add(&layout_ut);
 	m0_ut_add(&m0_addb_ut);
 	m0_ut_add(&m0_fop_lock_ut);

@@ -26,7 +26,6 @@
 #include "lib/semaphore.h"
 #include "fop/fop.h"               /* m0_fop_alloc */
 #include "rpc/rpclib.h"
-#include "net/lnet/lnet.h"         /* m0_net_lnet_xprt */
 #include "ut/cs_fop_foms.h"        /* cs_ds2_req_fop_fopt */
 #include "ut/cs_fop_foms_xc.h"     /* cs_ds2_req_fop */
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
@@ -63,38 +62,18 @@ static struct m0_fop         *fop;
 
 static int ts_item_init(void)   /* ts_ for "test suite" */
 {
-	int rc;
-
 	m0_rpc_test_fops_init();
-
-	rc = m0_net_xprt_init(xprt);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_rpc_server_start(&sctx);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_rpc_client_init(&cctx);
-	M0_ASSERT(rc == 0);
-
+	start_rpc_client_and_server();
 	machine = cctx.rcx_session.s_conn->c_rpc_machine;
 
-	return rc;
+	return 0;
 }
 
 static int ts_item_fini(void)
 {
-	int rc;
-
-	rc = m0_rpc_client_fini(&cctx);
-	M0_ASSERT(rc == 0);
-	m0_rpc_server_stop(&sctx);
-	m0_net_domain_fini(&client_net_dom);
-	m0_net_xprt_fini(xprt);
+	stop_rpc_client_and_server();
 	m0_rpc_test_fops_fini();
-	return rc;
+	return 0;
 }
 
 static bool chk_state(const struct m0_rpc_item *item,
