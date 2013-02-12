@@ -163,6 +163,7 @@ static const struct m0_sm_state_descr outgoing_item_states[] = {
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_WAITING_IN_STREAM,
 				      M0_RPC_ITEM_ENQUEUED,
 				      M0_RPC_ITEM_URGENT,
+				      M0_RPC_ITEM_SENDING,
 				      M0_RPC_ITEM_FAILED,
 				      M0_RPC_ITEM_UNINITIALISED),
 	},

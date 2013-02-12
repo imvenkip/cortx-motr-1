@@ -101,9 +101,7 @@ void m0_rpc_item_source_deregister(struct m0_rpc_item_source *ris)
 	m0_rpc_machine_unlock(machine);
 }
 
-
 /** @} end of rpc group */
-
 
 /*
  *  Local variables:

@@ -24,10 +24,7 @@
 #include "lib/finject.h"
 #include "lib/misc.h"              /* M0_BITS */
 #include "lib/semaphore.h"
-#include "fop/fop.h"               /* m0_fop_alloc */
 #include "rpc/rpclib.h"
-#include "ut/cs_fop_foms.h"        /* cs_ds2_req_fop_fopt */
-#include "ut/cs_fop_foms_xc.h"     /* cs_ds2_req_fop */
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
 #include "rpc/ut/rpc_test_fops.h"
 #include "rpc/rpc_internal.h"
@@ -37,20 +34,6 @@ static void __test_timeout(m0_time_t deadline,
 			   m0_time_t timeout);
 static void __test_resend(struct m0_fop *fop);
 static void __test_timer_start_failure(void);
-
-static struct m0_fop *fop_alloc(void)
-{
-	struct cs_ds2_req_fop *cs_ds2_fop;
-	struct m0_fop         *fop;
-
-	fop = m0_fop_alloc(&cs_ds2_req_fop_fopt, NULL);
-	M0_UT_ASSERT(fop != NULL);
-
-	cs_ds2_fop = m0_fop_data(fop);
-	cs_ds2_fop->csr_value = 0xaaf5;
-
-	return fop;
-}
 
 static struct m0_rpc_machine *machine;
 static struct m0_rpc_stats    saved;

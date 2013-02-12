@@ -19,6 +19,9 @@
  */
 
 #include "ut/rpc.h"
+#include "fop/fop.h"               /* m0_fop_alloc */
+#include "ut/cs_fop_foms.h"        /* cs_ds2_req_fop_fopt */
+#include "ut/cs_fop_foms_xc.h"     /* cs_ds2_req_fop */
 #include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
 #include "rpc/rpclib.h"
 
@@ -102,6 +105,20 @@ static inline void stop_rpc_client_and_server(void)
 	m0_rpc_server_stop(&sctx);
 	m0_net_domain_fini(&client_net_dom);
 	m0_net_xprt_fini(xprt);
+}
+
+static inline struct m0_fop *fop_alloc(void)
+{
+	struct cs_ds2_req_fop *cs_ds2_fop;
+	struct m0_fop         *fop;
+
+	fop = m0_fop_alloc(&cs_ds2_req_fop_fopt, NULL);
+	M0_UT_ASSERT(fop != NULL);
+
+	cs_ds2_fop = m0_fop_data(fop);
+	cs_ds2_fop->csr_value = 0xaaf5;
+
+	return fop;
 }
 
 #endif /* __KERNEL__ */

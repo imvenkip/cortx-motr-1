@@ -26,13 +26,22 @@
  */
 
 #include "lib/ut.h"
+#include "lib/finject.h"
+#include "lib/misc.h"              /* M0_BITS */
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 #include "rpc/ut/clnt_srv_ctx.c"
+#include "rpc/ut/rpc_test_fops.h"  /* m0_rpc_arrow_fopt */
+#include "ut/cs_fop_foms.h"        /* cs_ds2_req_fop_fopt */
+#include "ut/cs_fop_foms_xc.h"     /* cs_ds2_req_fop */
+
 #include <stdio.h>
 
 static struct m0_rpc_conn *conn;
 
 static int item_source_test_suite_init(void)
 {
+	m0_rpc_test_fops_init();
 	start_rpc_client_and_server();
 	conn = &cctx.rcx_connection;
 	printf("rpc started...\n");
@@ -42,19 +51,31 @@ static int item_source_test_suite_init(void)
 static int item_source_test_suite_fini(void)
 {
 	stop_rpc_client_and_server();
+	m0_rpc_test_fops_fini();
 	printf("rpc stopped...\n");
 	return 0;
 }
 
+static bool has_item_flag = false;
+static struct m0_rpc_item *item = NULL;
+
+static bool has_item_called;
+static bool get_item_called;
+
 static bool has_item(const struct m0_rpc_item_source *ris)
 {
-	return false;
+	if (has_item_called)
+		return false;
+
+	has_item_called = true;
+	return true;
 }
 
 static struct m0_rpc_item *get_item(struct m0_rpc_item_source *ris,
 				    size_t max_payload_size)
 {
-	return NULL;
+	get_item_called = true;
+	return item;
 }
 
 const struct m0_rpc_item_source_ops ris_ops = {
@@ -75,13 +96,54 @@ static void item_source_basic_test(void)
 	m0_rpc_item_source_fini(&ris);
 }
 
+static void item_source_test(void)
+{
+	struct m0_rpc_item_source  ris;
+	struct m0_fop             *fop;
+	bool                       ok;
+	int                        rc;
+
+	rc = m0_rpc_item_source_init(&ris, "test-item-source", &ris_ops);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(ris.ris_ops == &ris_ops);
+	m0_rpc_item_source_register(conn, &ris);
+
+	fop = m0_fop_alloc(&m0_rpc_arrow_fopt, NULL);
+	item = &fop->f_item;
+	item->ri_nr_sent_max = 1;
+	has_item_flag = true;
+	m0_fi_enable("frm_is_ready", "ready");
+	has_item_called = get_item_called = false;
+	m0_rpc_machine_lock(conn->c_rpc_machine);
+	m0_rpc_frm_run_formation(&conn->c_rpcchan->rc_frm);
+	m0_rpc_machine_unlock(conn->c_rpc_machine);
+	M0_UT_ASSERT(has_item_called && get_item_called);
+	rc = m0_rpc_item_timedwait(item, M0_BITS(M0_RPC_ITEM_SENT,
+						 M0_RPC_ITEM_FAILED),
+				   m0_time_from_now(2, 0));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_SENT);
+	m0_rpc_item_source_deregister(&ris);
+	m0_rpc_item_source_fini(&ris);
+
+        ok = m0_semaphore_timeddown(&arrow_hit, m0_time_from_now(5, 0));
+        M0_UT_ASSERT(ok);
+
+        ok = m0_semaphore_timeddown(&arrow_destroyed, m0_time_from_now(5, 0));
+        M0_UT_ASSERT(ok);
+
+	m0_fi_disable("frm_is_ready", "ready");
+	m0_fop_put(fop);
+}
+
 const struct m0_test_suite item_source_ut = {
 	.ts_name = "item-source-ut",
 	.ts_init = item_source_test_suite_init,
 	.ts_fini = item_source_test_suite_fini,
 	.ts_tests = {
-		{"simple-test", item_source_basic_test},
-		{NULL, NULL},
+		{ "basic",     item_source_basic_test},
+		{ "item_pull", item_source_test      },
+		{ NULL,        NULL                  },
 	}
 };
 
