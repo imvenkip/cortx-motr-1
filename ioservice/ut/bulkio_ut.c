@@ -1197,7 +1197,7 @@ void bulkio_stob_create(void)
 				    NULL);
 		M0_UT_ASSERT(rc == 0);
 		/*
-		 * We replace the original ->ft_ops amd ->ft_fom_type for
+		 * We replace the original ->ft_ops and ->ft_fom_type for
 		 * regular io_fops. This is reset later.
 		 */
                 bp->bp_wfops[i]->if_fop.f_type->ft_fom_type.ft_ops =
@@ -1238,7 +1238,6 @@ void bulkio_server_single_read_write(void)
 	targ.ta_op = op;
 	targ.ta_bp = bp;
 	io_fops_rpc_submit(&targ);
-	io_fops_destroy(bp);
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
@@ -1252,6 +1251,56 @@ void bulkio_server_single_read_write(void)
 	targ.ta_op = op;
 	targ.ta_bp = bp;
 	io_fops_rpc_submit(&targ);
+}
+
+void bulkio_server_single_read_write_fol(void)
+{
+	struct m0_reqh		 *reqh;
+	struct m0_fol_rec	  dec_rec;
+	struct m0_dtx             dtx;
+	int			  result;
+	struct m0_fol_rec_part	 *dec_part;
+	struct m0_fop		 *fop;
+	struct m0_fop_cob_writev *wfop;
+	struct m0_fid		 *fid;
+
+	fop = &bp->bp_wfops[0]->if_fop;
+	fid = &bp->bp_fids[0];
+	wfop = (struct m0_fop_cob_writev *)m0_fop_data(fop);
+
+	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx, "ioservice");
+	M0_UT_ASSERT(reqh != NULL);
+
+	m0_dtx_init(&dtx);
+	result = m0_dtx_open(&dtx, reqh->rh_dbenv);
+	M0_ASSERT(result == 0);
+
+	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
+				   reqh->rh_fol->f_lsn - 2, &dec_rec);
+	M0_ASSERT(result == 0);
+
+	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part) {
+		if(strcmp(dec_part->rp_ops->rpo_type->rpt_name,
+			  "Write record part") == 0) {
+			struct m0_io_write_rec_part *wrp;
+
+			wrp = (struct m0_io_write_rec_part *)dec_part->rp_data;
+			M0_ASSERT(m0_xcode_cmp(
+				  &M0_XCODE_OBJ(m0_fop_cob_writev_xc,
+						&wrp->wrp_write),
+				  &M0_XCODE_OBJ(m0_fop_cob_writev_xc, wfop))
+				  == 0);
+			M0_ASSERT(m0_xcode_cmp(
+				  &M0_XCODE_OBJ(m0_fid_xc, &wrp->wrp_fid),
+				  &M0_XCODE_OBJ(m0_fid_xc, wfop))
+				  == 0);
+			M0_ASSERT(wrp->wrp_write_rep.c_rep.rwr_rc == 0);
+			M0_ASSERT(wrp->wrp_write_rep.c_rep.rwr_count > 0);
+		}
+	} m0_tl_endfor;
+
+	m0_fol_rec_fini(&dec_rec);
+	m0_dtx_done(&dtx);
 	io_fops_destroy(bp);
 }
 
@@ -1570,7 +1619,6 @@ void bulkio_server_read_write_fv_mismatch(void)
 	m0_fop_put(rfop);
 }
 
-
 static void bulkio_init(void)
 {
 	int  rc;
@@ -1619,6 +1667,8 @@ const struct m0_test_suite bulkio_server_ut = {
 		{ "bulkio_init", bulkio_init},
 		{ "bulkio_server_single_read_write",
 		   bulkio_server_single_read_write},
+		{ "bulkio_server_single_read_write_fol",
+		   bulkio_server_single_read_write_fol},
 		{ "bulkio_server_read_write_state_test",
 		   bulkio_server_read_write_state_test},
 		{ "bulkio_server_vectored_read_write",
