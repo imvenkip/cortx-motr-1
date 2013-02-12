@@ -260,17 +260,28 @@ M0_INTERNAL int m0_rpc_oneway_item_post(const struct m0_rpc_conn *conn,
 
 	M0_ENTRY("conn: %p, item: %p", conn, item);
 	M0_PRE(conn != NULL);
+	M0_PRE(m0_rpc_machine_is_not_locked(conn->c_rpc_machine));
+
+	machine = conn->c_rpc_machine;
+	m0_rpc_machine_lock(machine);
+	m0_rpc_oneway_item_post_locked(conn, item);
+	m0_rpc_machine_unlock(machine);
+
+	M0_RETURN(0);
+}
+
+M0_INTERNAL void m0_rpc_oneway_item_post_locked(const struct m0_rpc_conn *conn,
+						struct m0_rpc_item *item)
+{
+	M0_PRE(conn != NULL &&
+	       m0_rpc_machine_is_locked(conn->c_rpc_machine));
 	M0_PRE(item != NULL && m0_rpc_item_is_oneway(item));
 
-	item->ri_rpc_time = m0_time_now();
-
-	machine = item->ri_rmachine = conn->c_rpc_machine;
-	m0_rpc_machine_lock(machine);
+	item->ri_rmachine = conn->c_rpc_machine;
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
 	item->ri_nr_sent++;
+	item->ri_rpc_time = m0_time_now();
 	m0_rpc_frm_enq_item(&conn->c_rpcchan->rc_frm, item);
-	m0_rpc_machine_unlock(machine);
-	M0_RETURN(0);
 }
 
 M0_INTERNAL int m0_rpc_reply_timedwait(struct m0_clink *clink,

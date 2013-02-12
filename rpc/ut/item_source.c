@@ -28,6 +28,7 @@
 #include "lib/ut.h"
 #include "lib/finject.h"
 #include "lib/misc.h"              /* M0_BITS */
+#include "lib/time.h"              /* m0_nanosleep */
 #include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 #include "rpc/ut/clnt_srv_ctx.c"
@@ -106,8 +107,10 @@ static void item_source_basic_test(void)
 
 static void item_source_test(void)
 {
+	enum {MILLISEC = 1000 * 1000 };
 	struct m0_rpc_item_source  ris;
 	bool                       ok;
+	int                        trigger;
 	int                        rc;
 
 	rc = m0_rpc_item_source_init(&ris, "test-item-source", &ris_ops);
@@ -115,29 +118,44 @@ static void item_source_test(void)
 	M0_UT_ASSERT(ris.ris_ops == &ris_ops);
 	m0_rpc_item_source_register(conn, &ris);
 
-	has_item_flag = true;
-	m0_fi_enable("frm_is_ready", "ready");
-	has_item_called = get_item_called = false;
-	m0_rpc_machine_lock(conn->c_rpc_machine);
-	m0_rpc_frm_run_formation(&conn->c_rpcchan->rc_frm);
-	m0_rpc_machine_unlock(conn->c_rpc_machine);
-	M0_UT_ASSERT(has_item_called && get_item_called);
-	rc = m0_rpc_item_timedwait(item, M0_BITS(M0_RPC_ITEM_SENT,
-						 M0_RPC_ITEM_FAILED),
-				   m0_time_from_now(2, 0));
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_SENT);
+	for (trigger = 0; trigger < 2; trigger++) {
+		has_item_flag = true;
+		m0_fi_enable("frm_is_ready", "ready");
+		has_item_called = get_item_called = false;
+		switch (trigger) {
+		case 0:
+			m0_rpc_machine_lock(conn->c_rpc_machine);
+			m0_rpc_frm_run_formation(&conn->c_rpcchan->rc_frm);
+			m0_rpc_machine_unlock(conn->c_rpc_machine);
+			break;
+		case 1:
+			m0_clink_signal(
+				&conn->c_rpc_machine->rm_sm_grp.s_clink);
+			/* Give rpc-worker thread a chance to run. */
+			m0_nanosleep(m0_time(0, 100 * MILLISEC), NULL);
+			break;
+		default:
+			M0_IMPOSSIBLE("only two triggers");
+		}
+		M0_UT_ASSERT(has_item_called && get_item_called);
+		rc = m0_rpc_item_timedwait(item, M0_BITS(M0_RPC_ITEM_SENT,
+							 M0_RPC_ITEM_FAILED),
+					   m0_time_from_now(2, 0));
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_SENT);
+		ok = m0_semaphore_timeddown(&arrow_hit, m0_time_from_now(5, 0));
+		M0_UT_ASSERT(ok);
+
+		ok = m0_semaphore_timeddown(&arrow_destroyed,
+					    m0_time_from_now(5, 0));
+		M0_UT_ASSERT(ok);
+
+		m0_fi_disable("frm_is_ready", "ready");
+		m0_rpc_item_put(item);
+	}
 	m0_rpc_item_source_deregister(&ris);
 	m0_rpc_item_source_fini(&ris);
 
-        ok = m0_semaphore_timeddown(&arrow_hit, m0_time_from_now(5, 0));
-        M0_UT_ASSERT(ok);
-
-        ok = m0_semaphore_timeddown(&arrow_destroyed, m0_time_from_now(5, 0));
-        M0_UT_ASSERT(ok);
-
-	m0_fi_disable("frm_is_ready", "ready");
-	m0_rpc_item_put(item);
 }
 
 const struct m0_test_suite item_source_ut = {

@@ -77,6 +77,7 @@ static void packet_received(struct m0_rpc_packet    *p,
 static void item_received(struct m0_rpc_item      *item,
 			  struct m0_net_end_point *from_ep);
 static void net_buf_err(struct m0_net_buffer *nb, int32_t status);
+static void drain_item_sources(struct m0_rpc_machine *machine);
 
 static const struct m0_bob_type rpc_machine_bob_type = {
 	.bt_name         = "rpc_machine",
@@ -296,10 +297,41 @@ M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine)
 			return;
 		}
 		m0_sm_asts_run(&machine->rm_sm_grp);
+		drain_item_sources(machine);
 		m0_rpc_machine_unlock(machine);
 		m0_chan_timedwait(&machine->rm_sm_grp.s_clink,
 				  m0_time_from_now(60, 0));
 	}
+}
+
+static void drain_item_sources(struct m0_rpc_machine *machine)
+{
+	struct m0_rpc_item_source *source;
+	struct m0_rpc_conn        *conn;
+	struct m0_rpc_item        *item;
+	m0_bcount_t                max_size;
+
+	M0_ENTRY();
+
+	max_size = machine->rm_min_recv_size - m0_rpc_item_onwire_header_size();
+
+	M0_LOG(M0_DEBUG, "max_size: %llu", (unsigned long long)max_size);
+	m0_tl_for(rpc_conn, &machine->rm_outgoing_conns, conn) {
+		M0_LOG(M0_DEBUG, "conn: %p", conn);
+		m0_tl_for(item_source, &conn->c_item_sources, source) {
+			M0_LOG(M0_DEBUG, "source: %p", source);
+			while (source->ris_ops->riso_has_item(source)) {
+				item = source->ris_ops->riso_get_item(source,
+								     max_size);
+				if (item == NULL)
+					break;
+				M0_LOG(M0_DEBUG, "item: %p", item);
+				m0_rpc_oneway_item_post_locked(conn, item);
+			}
+		} m0_tl_endfor;
+	} m0_tl_endfor;
+
+	M0_LEAVE();
 }
 
 static struct m0_rpc_machine *
