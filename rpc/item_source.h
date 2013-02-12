@@ -45,10 +45,10 @@ struct m0_rpc_item_source {
 struct m0_rpc_item_source_ops {
 	bool (*riso_has_item)(const struct m0_rpc_item_source *ris);
 
-	void (*riso_conn_terminated)(struct m0_rpc_item_source *source);
-
 	struct m0_rpc_item *(*riso_get_item)(struct m0_rpc_item_source *ris,
 					     size_t max_payload_size);
+
+	void (*riso_conn_terminating)(struct m0_rpc_item_source *source);
 };
 
 int m0_rpc_item_source_init(struct m0_rpc_item_source *ris,

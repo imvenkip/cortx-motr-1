@@ -767,12 +767,18 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 	struct m0_rpc_fop_conn_terminate *args;
 	struct m0_rpc_session            *session_0;
 	struct m0_rpc_machine            *machine;
+	struct m0_rpc_item_source        *source;
 	int                               rc;
 
 	M0_ENTRY("conn: %p", conn);
 	M0_PRE(conn != NULL);
 	M0_PRE(conn->c_service == NULL);
 	M0_PRE(conn->c_rpc_machine != NULL);
+
+	m0_tl_for(item_source, &conn->c_item_sources, source) {
+		if (source->ris_ops->riso_conn_terminating != NULL)
+			source->ris_ops->riso_conn_terminating(source);
+	} m0_tl_endfor;
 
 	fop = m0_fop_alloc(&m0_rpc_fop_conn_terminate_fopt, NULL);
 	machine = conn->c_rpc_machine;
@@ -1076,9 +1082,10 @@ static int conn_persistent_state_destroy(struct m0_rpc_conn *conn,
 
 M0_INTERNAL int m0_rpc_rcv_conn_terminate(struct m0_rpc_conn *conn)
 {
-	struct m0_rpc_machine *machine;
-	struct m0_db_tx        tx;
-	int                    rc;
+	struct m0_rpc_item_source *source;
+	struct m0_rpc_machine     *machine;
+	struct m0_db_tx            tx;
+	int                        rc;
 
 	M0_ENTRY("conn: %p", conn);
 	M0_PRE(conn != NULL);
@@ -1093,6 +1100,11 @@ M0_INTERNAL int m0_rpc_rcv_conn_terminate(struct m0_rpc_conn *conn)
 	if (conn->c_nr_sessions > 1) {
 		M0_RETURN(-EBUSY);
 	}
+
+	m0_tl_for(item_source, &conn->c_item_sources, source) {
+		if (source->ris_ops->riso_conn_terminating != NULL)
+			source->ris_ops->riso_conn_terminating(source);
+	} m0_tl_endfor;
 
 	conn_state_set(conn, M0_RPC_CONN_TERMINATING);
 
