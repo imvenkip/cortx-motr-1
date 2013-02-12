@@ -10,19 +10,11 @@ e.g. compactness vs flexibility
 We are using both these mechanisms to write GDB commands to print Mero
 specific objects.
 
-core/gdbinit and core/gdbinit.py define "user defined GDB commands" for Mero.
-core/gdbinit defines commands using GDB's 'define' command, whereas all
-Python based GDB commands go in core/gdbinit.py.
-Few commands from core/gdbinit use commands defined in gdbinit.py. Hence to
-use them it is _mandatory_ to load gdbinit.py.
-
-To use these commands "source" these two files in gdb as:
-(gdb) source /laptop/ioint/mero/core/gdbinit.py
-Loading gdb commands for Mero...
-NOTE: You may also want to load core/gdbinit
-(gdb) source /laptop/ioint/mero/core/gdbinit
-Loading gdb commands for Mero
-NOTE: Do not forget to load gdbinit.py
+scripts/gdb/gdb-extensions and scripts/gdb/gdb-extensions.py define "user
+defined GDB commands" for Mero. gdb-extensions defines commands using GDB's
+'define' command, whereas all Python based GDB commands go in gdb-extensions.py.
+These two file are automatically loaded from the top-level .gdbinit file which
+located in the root directory of mero git repository.
 
 To see list of mero related commands do:
 (gdb) apropos m0

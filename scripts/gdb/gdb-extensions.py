@@ -314,5 +314,5 @@ M0ListPrint()
 M0BufvecPrint()
 M0IndexvecPrint()
 
-print "Loading gdb commands for Mero..."
-print "NOTE: If you've not already loaded, you may also want to load core/gdbinit"
+print "Loading python gdb extensions for Mero..."
+#print "NOTE: If you've not already loaded, you may also want to load gdb-extensions"

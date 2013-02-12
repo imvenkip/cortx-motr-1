@@ -1,12 +1,12 @@
 #
-# m0-list-print command is defined in core/gdbinit.py
+# m0-list-print command is defined in gdb-extensions.py
 #
-# It is mandatory that core/gdbinit.py is loaded before executing
+# It is mandatory that gdb-extensions.py is loaded before executing
 # commands(that use m0-list-print) from this file.
 #
 
 printf "Loading gdb commands for Mero...\n"
-printf "NOTE: If not already done, DO load gdbinit.py\n"
+#printf "NOTE: If not already done, DO load gdb-extensions.py\n"
 
 define __visit_ft
 	set $ft = (struct m0_fop_type *)$arg0
