@@ -59,12 +59,16 @@ static bool cp_invariant(const struct m0_cm_cp *cp)
 M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm_ag *sns_ag = ag2snsag(cp->c_ag);
+	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
 
 	/*
-         * Serialize writes on a particular stob by returning target
+         * Serialize read/writes on a particular stob by returning target
          * container id to assign a reqh locality to the cp fom.
          */
-	return sns_ag->sag_tgt_cobfid.f_container;
+	if (sns_cp->sc_is_acc)
+		return sns_ag->sag_tgt_cobfid.f_container;
+	else
+		return sns_cp->sc_sid.si_bits.u_hi;
 }
 
 static int cp_init(struct m0_cm_cp *cp)
@@ -105,11 +109,15 @@ M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp)
 
 M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 {
+	struct m0_sns_cm_cp *sns_cp;
+
 	/*
 	 * cp is used as context to make decisions. It could be NULL, when no
 	 * such context is required.
 	 */
 	if (cp != NULL) {
+		sns_cp = cp2snscp(cp);
+
 		if (phase == M0_CCP_IO_WAIT) {
 			if (cp->c_io_op == M0_CM_CP_READ)
 				return  M0_CCP_XFORM;
@@ -118,6 +126,9 @@ M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 		}
 
 		if (phase == M0_CCP_XFORM && cp->c_ag->cag_cp_local_nr == 1)
+			return M0_CCP_WRITE;
+
+		if (phase == M0_CCP_INIT && sns_cp->sc_is_acc)
 			return M0_CCP_WRITE;
 	}
 

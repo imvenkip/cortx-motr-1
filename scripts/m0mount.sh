@@ -16,7 +16,7 @@
 # about Titan nodes in Fremont lab:
 #
 # +----------------------------------------------------------------+
-# | Hostname   |   IP-address   |    IB-address   |  IPMI-address  |
+# | Hostname   |   IPaddress   |    IBaddress   |  IPMIaddress  |
 # +------------+----------------+-----------------+----------------+
 # | sjt00-c1   |  10.76.50.161  |  172.18.50.161  |  10.76.50.162  |
 # | sjt00-c2   |  10.76.50.163  |  172.18.50.163  |  10.76.50.164  |
@@ -155,7 +155,7 @@ XPT_PARAM_L="max_rpc_msg_size=163840 tm_recv_queue_min_len=48"	# local host
 
 #KTRACE_FLAGS=m0_trace_immediate_mask=8
 
-BROOT=${PWD}   # globally visible build root
+BROOT=${PWD%/*}   # globally visible build root
 # track hosts that have been initialized in an associative array
 declare -A SETUP
 
@@ -535,7 +535,7 @@ main()
 
 	DISKS_SH_NR=`expr $POOL_WIDTH + 1`
 
-	if [ ! -d build_kernel_modules -o ! $BROOT -ef $PWD ]; then
+	if [ ! -d build_kernel_modules -o ! $BROOT/core -ef $PWD ]; then
 		echo ERROR: Run this script in the top of the Mero source directory
 		exit 1
 	fi
@@ -549,7 +549,7 @@ main()
 		exit 1
 	}
 	l_run modprobe lnet
-	l_run insmod $BROOT/build_kernel_modules/m0mero.ko || {
+	l_run insmod $BROOT/core/build_kernel_modules/m0mero.ko || {
 		echo ERROR: Failed to load m0mero module
 		rmmod galois
 		exit 1
@@ -615,35 +615,82 @@ EOF`"
 	fi
 }
 
+usage()
+{
+	cat <<.
+Usage:
+
+The script should be run from mero/core directory:
+
+$ cd ~/path/to/mero/core
+$ sudo ~/path/to/m0mount.sh [-L] [-a] [-l] [-d NUM] [-p NUM] [-n NUM] [-u NUM] [-q]
+
+Where:
+-a: Use AD stobs
+    configure the services to run on ad stobs.
+    it automatically detects and make configuration files
+    for the Titan discs.
+    Before using ad option make sure the discs are online:
+    $ sudo ~root/gem.sh dumpdrives
+    Turn them on if needed:
+    $ sudo ~root/gem.sh powerondrive all
+    If 'local' option is set also - /dev/loopX discs
+    should be prepeared for ad stobs beforehand.
+
+-l: Use loop device for ad stob configuration
+
+-L: Use local machine configuration.
+    start the services on the local host only,
+    it is convenient for debugging on a local devvm.
+    The number of services is controlled by LOCAL_SERVICES_NR
+    variable. The default number is $LOCAL_SERVICES_NR.
+
+-h: Print this help.
+
+-n NUM: Start 'NUM' number of local m0d. (default is $LOCAL_SERVICES_NR)
+
+-d NUM: Use NUM number of data units. (default is $NR_DATA)
+
+-p NUM: Use NUM as pool width. (default is $POOL_WIDTH)
+
+-u NUM: Use NUM Unit size. (default is $UNIT_SIZE)
+
+-q: Dont wait after mounting m0t1fs, exit immediately. (default is wait)
+
+.
+}
+
+OPTIONS_STRING="aln:d:p:u:qhL"
+
 while getopts "$OPTIONS_STRING" OPTION; do
     case "$OPTION" in
         a)
             STOB="ad"
             ;;
         l)
-            use_loop_device=1
+	    use_loop_device=1
             ;;
         L)
-            setup_local_server_config=1
+	    setup_local_server_config=1
             ;;
         h)
             usage
             exit 0
             ;;
         n)
-            LOCAL_SERVICES_NR="$OPTARG"
+	    LOCAL_SERVICES_NR="$OPTARG"
             ;;
         d)
-            NR_DATA="$OPTARG"
+	    NR_DATA="$OPTARG"
             ;;
         p)
-            POOL_WIDTH="$OPTARG"
+	    POOL_WIDTH="$OPTARG"
             ;;
         u)
-            UNIT_SIZE="$OPTARG"
+	    UNIT_SIZE="$OPTARG"
             ;;
         q)
-            wait_after_mount=0
+	    wait_after_mount=0
             ;;
         *)
             usage

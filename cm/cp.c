@@ -458,8 +458,8 @@ static const struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
         [M0_CCP_INIT] = {
                 .sd_flags       = M0_SDF_INITIAL,
                 .sd_name        = "Init",
-                .sd_allowed     = M0_BITS(M0_CCP_READ, M0_CCP_RECV,
-				          M0_CCP_XFORM)
+                .sd_allowed     = M0_BITS(M0_CCP_READ, M0_CCP_WRITE,
+					  M0_CCP_RECV, M0_CCP_XFORM)
         },
         [M0_CCP_READ] = {
                 .sd_flags       = 0,

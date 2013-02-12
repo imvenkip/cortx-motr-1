@@ -26,6 +26,7 @@
 
 #include "cm/ag.h"
 #include "sns/cm/cm.h"
+#include "sns/cm/cp.h"
 
 /**
    @defgroup SNSCMAG SNS copy machine aggregation group
@@ -42,6 +43,9 @@ struct m0_sns_cm_ag {
 
 	/** Transformed copy packet created by transformation function. */
 	struct m0_cm_cp             *sag_cp;
+
+	/** Accumulator copy packet. */
+	struct m0_sns_cm_cp         *sag_acc;
 
 	/**
 	 * COB fid of the cob containing the target unit for this aggregation

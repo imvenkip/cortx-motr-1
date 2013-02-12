@@ -374,13 +374,13 @@ M0_INTERNAL void m0_sns_cm_buffer_put(struct m0_net_buffer_pool *bp,
 
 static struct m0_cm_cp *cm_cp_alloc(struct m0_cm *cm)
 {
-	struct m0_sns_cm_cp *rcp;
+	struct m0_sns_cm_cp *scp;
 
-	M0_ALLOC_PTR(rcp);
-	if (rcp == NULL)
+	M0_ALLOC_PTR(scp);
+	if (scp == NULL)
 		return NULL;
-	rcp->sc_base.c_ops = &m0_sns_cm_cp_ops;
-	return &rcp->sc_base;
+	scp->sc_base.c_ops = &m0_sns_cm_cp_ops;
+	return &scp->sc_base;
 }
 
 static void bp_below_threshold(struct m0_net_buffer_pool *bp)

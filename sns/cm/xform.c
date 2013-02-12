@@ -23,9 +23,11 @@
 #endif
 
 #include "lib/bob.h"
+#include "lib/misc.h"
 #include "cm/cp.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/cp.h"
+#include "sns/cm/cm.h"
 #include "sns/parity_math.h"
 
 /**
@@ -108,7 +110,7 @@ static void res_cp_fom_wakeup(struct m0_cm_cp *cp)
 {
 	M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_XFORM_WAIT);
 
-	cp->c_ops->co_phase_next(cp);
+	//cp->c_ops->co_phase_next(cp);
 	m0_fom_wakeup(&cp->c_fom);
 }
 
@@ -125,9 +127,38 @@ static void res_cp_bitmap_merge(struct m0_cm_cp *dst, struct m0_cm_cp *src)
 	}
 }
 
+static void acc_cp_init_and_post(struct m0_cm_cp *cp)
+{
+	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
+	struct m0_sns_cm_cp *acc_sns_cp;
+	struct m0_sns_cm_ag *sns_ag = ag2snsag(cp->c_ag);
+	struct m0_cm_cp *acc_cp;
+	struct m0_cm *cm = sns_ag->sag_base.cag_cm;
+
+	M0_PRE(sns_cp != NULL);
+
+	acc_cp = cm->cm_ops->cmo_cp_alloc(cm);
+	M0_ASSERT(acc_cp != NULL);
+	sns_ag->sag_acc = cp2snscp(acc_cp);
+	acc_sns_cp = sns_ag->sag_acc;
+	*acc_sns_cp = *sns_cp;
+	sns_cp->sc_base.c_data = NULL;
+	M0_SET0(&acc_cp->c_fom);
+	m0_cm_lock(cm);
+	++sns_ag->sag_base.cag_cp_local_nr;
+	m0_cm_unlock(cm);
+	acc_sns_cp->sc_is_acc = true;
+	m0_cm_cp_init(acc_cp);
+	M0_ASSERT(m0_cm_cp_invariant(acc_cp));
+	m0_cm_cp_enqueue(cm, acc_cp);
+}
+
 M0_INTERNAL int m0_sns_cm_cp_xform_wait(struct m0_cm_cp *cp)
 {
-	return cp->c_ops->co_phase_next(cp);
+	cp->c_ops->co_phase_next(cp);
+	acc_cp_init_and_post(cp);
+	m0_fom_phase_set(&cp->c_fom, M0_CCP_FINI);
+	return M0_FSO_WAIT;
 }
 
 /**
