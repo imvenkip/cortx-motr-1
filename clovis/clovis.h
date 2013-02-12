@@ -28,7 +28,7 @@
 /**
  * @defgroup clovis
  *
- * Overview.
+ * Overview
  * --------
  *
  * Clovis is *the* interface exported by Mero for use by Mero
@@ -77,7 +77,7 @@
  * to wait for the state machine state changes using m0_sm interface. Errors are
  * returned through m0_sm::sm_rc.
  *
- * Ownership.
+ * Ownership
  * ---------
  *
  * Clovis data structures (domains, objects, containers, transactions and
@@ -92,7 +92,7 @@
  * data blocks may be freed as soon as the transaction of which the operation is
  * part, becomes stable.
  *
- * Concurrency.
+ * Concurrency
  * -----------
  *
  * Clovis implementation guarantees that concurrent calls to the same container
@@ -564,6 +564,10 @@ void m0_clovis_bag_delete(struct m0_clovis_bag *bag, struct m0_clovis_dtx *dx);
 
 void m0_clovis_bag_op    (struct m0_clovis_bag_op *op);
 void m0_clovis_cur_next  (struct m0_clovis_bag_op *op);
+
+bool m0_clovis_id_is_set (const struct m0_clovis_is *id);
+bool m0_clovis_id_eq     (const struct m0_clovis_is *id0,
+			  const struct m0_clovis_is *id1);
 
 /** @} end of clovis group */
 
