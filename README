@@ -1,1 +1,38 @@
-Mero core project
+Mero
+====
+
+Build
+-----
+
+    $ ./autogen.sh
+    $ ./configure
+    $ make
+
+or in one command:
+
+    $ ./scripts/m0 rebuild
+
+
+Test
+----
+
+    $ ./scripts/m0 run-all
+
+
+Get to know
+-----------
+
+    doc/source-structure
+    doc/coding-style
+    doc/todo
+
+Go deep...
+
+Still surfing? Surf this:
+
+    doc/reading-list.html
+
+    $ make doc
+    $ x-www-browser doc/html/index.html
+
+Welcome, Earthling!
