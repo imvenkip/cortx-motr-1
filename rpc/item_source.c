@@ -61,6 +61,7 @@ int m0_rpc_item_source_init(struct m0_rpc_item_source *ris,
 void m0_rpc_item_source_fini(struct m0_rpc_item_source *ris)
 {
 	M0_ASSERT(item_source_invariant(ris));
+	M0_PRE(!item_source_tlink_is_in(ris));
 
 	item_source_tlink_fini(ris);
 }
@@ -74,11 +75,13 @@ void m0_rpc_item_source_register(struct m0_rpc_conn *conn,
 	       m0_rpc_machine_is_not_locked(conn->c_rpc_machine));
 
 	m0_rpc_machine_lock(conn->c_rpc_machine);
+
 	ris->ris_conn = conn;
 	item_source_tlist_add(&conn->c_item_sources, ris);
 
 	M0_ASSERT(item_source_invariant(ris));
 	M0_POST(ris->ris_conn == conn);
+
 	m0_rpc_machine_unlock(conn->c_rpc_machine);
 }
 
@@ -95,9 +98,13 @@ void m0_rpc_item_source_deregister(struct m0_rpc_item_source *ris)
 
 	m0_rpc_machine_lock(machine);
 	M0_ASSERT(item_source_invariant(ris));
+
 	item_source_tlist_del(ris);
 	ris->ris_conn = NULL;
+
 	M0_ASSERT(item_source_invariant(ris));
+	M0_POST(ris->ris_conn == NULL);
+
 	m0_rpc_machine_unlock(machine);
 }
 

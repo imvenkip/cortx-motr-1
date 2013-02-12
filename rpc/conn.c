@@ -1102,6 +1102,7 @@ M0_INTERNAL int m0_rpc_rcv_conn_terminate(struct m0_rpc_conn *conn)
 	}
 
 	m0_tl_for(item_source, &conn->c_item_sources, source) {
+		item_source_tlink_del_fini(source);
 		if (source->ris_ops->riso_conn_terminating != NULL)
 			source->ris_ops->riso_conn_terminating(source);
 	} m0_tl_endfor;
