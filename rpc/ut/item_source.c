@@ -45,7 +45,6 @@ static int item_source_test_suite_init(void)
 	m0_rpc_test_fops_init();
 	start_rpc_client_and_server();
 	conn = &cctx.rcx_connection;
-	printf("rpc started...\n");
 	return 0;
 }
 
@@ -53,7 +52,6 @@ static int item_source_test_suite_fini(void)
 {
 	stop_rpc_client_and_server();
 	m0_rpc_test_fops_fini();
-	printf("rpc stopped...\n");
 	return 0;
 }
 
@@ -87,7 +85,7 @@ static struct m0_rpc_item *get_item(struct m0_rpc_item_source *ris,
 	return item;
 }
 
-const struct m0_rpc_item_source_ops ris_ops = {
+static const struct m0_rpc_item_source_ops ris_ops = {
 	.riso_has_item = has_item,
 	.riso_get_item = get_item,
 };
@@ -113,9 +111,12 @@ static void item_source_test(void)
 	int                        trigger;
 	int                        rc;
 
+	/*
+	   Test:
+	   - Confirm that formation correctly pulls items and sends them.
+	   - Also verify that periodic item-source drain works.
+	 */
 	rc = m0_rpc_item_source_init(&ris, "test-item-source", &ris_ops);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(ris.ris_ops == &ris_ops);
 	m0_rpc_item_source_register(conn, &ris);
 
 	for (trigger = 0; trigger < 2; trigger++) {
@@ -129,6 +130,7 @@ static void item_source_test(void)
 			m0_rpc_machine_unlock(conn->c_rpc_machine);
 			break;
 		case 1:
+			/* Wake-up rpc-worker thread */
 			m0_clink_signal(
 				&conn->c_rpc_machine->rm_sm_grp.s_clink);
 			/* Give rpc-worker thread a chance to run. */
@@ -143,9 +145,12 @@ static void item_source_test(void)
 					   m0_time_from_now(2, 0));
 		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_SENT);
+
+		/* wait until the fop is executed on the receiver */
 		ok = m0_semaphore_timeddown(&arrow_hit, m0_time_from_now(5, 0));
 		M0_UT_ASSERT(ok);
 
+		/* wait until received fop is freed on the receiver */
 		ok = m0_semaphore_timeddown(&arrow_destroyed,
 					    m0_time_from_now(5, 0));
 		M0_UT_ASSERT(ok);

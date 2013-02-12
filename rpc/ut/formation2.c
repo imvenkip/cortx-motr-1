@@ -42,6 +42,7 @@ static int frm_ut_init(void)
 
 	rchan.rc_rpc_machine = &rmachine;
 	frm = &rchan.rc_frm;
+	rpc_conn_tlist_init(&rmachine.rm_outgoing_conns);
 	m0_sm_group_init(&rmachine.rm_sm_grp);
 	rmachine.rm_stopping = false;
 	rc = M0_THREAD_INIT(&rmachine.rm_worker, struct m0_rpc_machine *,
@@ -59,6 +60,7 @@ static int frm_ut_fini(void)
 	m0_rpc_machine_unlock(&rmachine);
 	m0_thread_join(&rmachine.rm_worker);
 	m0_sm_group_fini(&rmachine.rm_sm_grp);
+	rpc_conn_tlist_fini(&rmachine.rm_outgoing_conns);
 	return 0;
 }
 

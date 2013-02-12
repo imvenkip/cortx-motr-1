@@ -601,30 +601,26 @@ static void frm_fill_packet_from_item_sources(struct m0_rpc_frm    *frm,
 
 	header_size = m0_rpc_item_onwire_header_size();
 	m0_tl_for(rpc_conn, &machine->rm_outgoing_conns, conn) {
-		M0_LOG(M0_FATAL, "conn: %p", conn);
+		M0_LOG(M0_DEBUG, "conn: %p", conn);
 		if (&conn->c_rpcchan->rc_frm != frm ||
 		    conn_state(conn) != M0_RPC_CONN_ACTIVE)
 			continue;
 		m0_tl_for(item_source, &conn->c_item_sources, source) {
-			M0_LOG(M0_FATAL, "source: %p", source);
+			M0_LOG(M0_DEBUG, "source: %p", source);
 			while (source->ris_ops->riso_has_item(source)) {
 				available_space = available_space_in_packet(p,
 									frm);
-				if (available_space <= header_size) {
-					M0_LOG(M0_FATAL, "goto out");
+				if (available_space <= header_size)
 					goto out;
-				}
 				item = source->ris_ops->riso_get_item(source,
 						available_space - header_size);
-				if (item == NULL) {
-					M0_LOG(M0_FATAL, "item is null");
-					break;
-				}
+				if (item == NULL)
+					break; /* next item source */
 				M0_ASSERT(m0_rpc_item_is_oneway(item));
 				item->ri_rmachine = frm_rmachine(frm);
 				item->ri_nr_sent++;
 				m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
-				M0_LOG(M0_FATAL, "item: %p", item);
+				M0_LOG(M0_DEBUG, "item: %p", item);
 				M0_ASSERT(!item_will_exceed_packet_size(item,
 								p, frm));
 				m0_rpc_packet_add_item(p, item);
