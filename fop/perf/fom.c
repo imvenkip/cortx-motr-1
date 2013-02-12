@@ -34,6 +34,8 @@ enum ub_fom_type {
 	UB_FOM_MEM_MB,
 	/** Test taking and releasing a mutex. */
 	UB_FOM_MUTEX,
+	/** Test taking and releasing mutexes associated with each locality */
+	UB_FOM_MUTEX_PER_LOC,
 	/** Test taking and releasing a fom long lock. */
 	UB_FOM_LONG_LOCK,
 	/** Test calling m0_fom_block_{enter,leave}(). */
@@ -42,15 +44,23 @@ enum ub_fom_type {
 };
 
 /**
- * Count of memory accessing cycles used in tests.
+ * Settings used in benchmarks.
  *
- * @note: Cycles count for m0_fom_block_{enter,leave}() test is reduced due to
- *        significant synchronization overhead.
+ * @note: Cycles count for m0_fom_block_{enter,leave}() test may be
+ *        reduced due to significant synchronization overhead.
+ * @note: Cycles count for byte accessing test may be increased
  */
-enum ub_fom_cycles {
-	UB_FOM_CYCLES       = 500000,
+enum ub_fom_settings {
+	/* Count of memory accessing cycles used in tests. */
+	UB_FOM_CYCLES             = 50,
+	/** Increase cycles count for UB_FOM_MEM_B benchmark. */
+	UB_FOM_BYTE_CYCLES        = 20 * UB_FOM_CYCLES,
 	/** Cycles count for m0_fom_block_{enter,leave}(). */
-	UB_FOM_BLOCK_CYCLES = UB_FOM_CYCLES / 100
+	UB_FOM_BLOCK_CYCLES       = UB_FOM_CYCLES,
+	/** Number of FOMs sent to reqh in every benchmark */
+	UB_FOM_COUNT              = 20000,
+	/** Relation between count of read and write locks in long lock test. */
+	UB_FOM_WRITER_OCCURRENCE  = 1000
 };
 
 /**
@@ -65,8 +75,10 @@ struct ub_fom_ctx {
 	enum ub_fom_type          fc_type;
 	/** Long lock used non-blocking synchronization test. */
 	struct m0_long_lock      *fc_long_lock;
-	/** Mutex used in synchronization overhead test. */
+	/** Mutexes used in synchronization overhead test. */
 	struct m0_mutex          *fc_lock;
+	/** Number of ub_fom_ctx::fc_lock(s). */
+	size_t                    fc_lock_nr;
 	/** Long lock link used non-blocking synchronization test. */
 	struct m0_long_lock_link  fc_link;
 	/** Pointer to an array with size ~2*cache size, shared by tests. */
@@ -127,7 +139,8 @@ static int ub_fom_create(struct m0_fom **m, struct m0_reqh *reqh)
 	m0_long_lock_link_init(&ctx->fc_link, fom);
 
 	ctx->fc_long_lock = &g_fom_long_lock;
-	ctx->fc_lock = &g_fom_mutex;
+	ctx->fc_lock = g_fom_mutex;
+	ctx->fc_lock_nr = g_fom_mutex_nr;
 	ctx->fc_mem = g_test_mem;
 	ctx->fc_mem_sz = ARRAY_SIZE(g_test_mem);
 

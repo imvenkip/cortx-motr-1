@@ -481,6 +481,7 @@ AS_IF([test x$enable_debug = xyes],
 
 AS_IF([test x$enable_profiler = xyes],
 [
+	AC_DEFINE([ENABLE_PROFILER])
 	AC_CHECK_PROG(PPROF, pprof, pprof)
 	AS_IF([test -z $PPROF],
            AC_MSG_ERROR([pprof not found. yum install pprof.noarch to install]))

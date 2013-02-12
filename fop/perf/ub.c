@@ -34,7 +34,8 @@ enum {
 
 static struct m0_reqh_service *g_service[REQH_MAX];
 static struct m0_reqh          g_reqh[REQH_MAX];
-static struct m0_mutex         g_fom_mutex;
+static struct m0_mutex        *g_fom_mutex;
+static size_t                  g_fom_mutex_nr;
 static struct m0_long_lock     g_fom_long_lock;
 /* 8MB ~= 2*(L3 cache size) on most of VMs used by our team */
 static char                    g_test_mem[8 * (1 << 20)];
@@ -55,47 +56,23 @@ M0_UNUSED static void ub_fom_test_n(int iter)
 	reqh_test_run(r, REQH_MAX, UB_FOM_MEM_B);
 }
 
-static void ub_fom_test_mem_b(int iter)
-{
-	static struct m0_reqh *r[1] = { &g_reqh[0] };
+/* Generates UB runner function passed as a pointer into ->ub_round() of
+   m0_ub_bench structure */
+#define UB_FOM_TEST_ADD(ub_func_name, ub_type)			\
+	static void ub_func_name(int iter)			\
+	{							\
+		static struct m0_reqh *r[1] = { &g_reqh[0] };	\
+								\
+		reqh_test_run(r, 1, ub_type);			\
+	}
 
-	reqh_test_run(r, 1, UB_FOM_MEM_B);
-}
-
-static void ub_fom_test_mem_kb(int iter)
-{
-	static struct m0_reqh *r[1] = { &g_reqh[0] };
-
-	reqh_test_run(r, 1, UB_FOM_MEM_KB);
-}
-
-static void ub_fom_test_mem_mb(int iter)
-{
-	static struct m0_reqh *r[1] = { &g_reqh[0] };
-
-	reqh_test_run(r, 1, UB_FOM_MEM_MB);
-}
-
-static void ub_fom_test_mutex(int iter)
-{
-	static struct m0_reqh *r[1] = { &g_reqh[0] };
-
-	reqh_test_run(r, 1, UB_FOM_MUTEX);
-}
-
-static void ub_fom_test_long_lock(int iter)
-{
-	static struct m0_reqh *r[1] = { &g_reqh[0] };
-
-	reqh_test_run(r, 1, UB_FOM_LONG_LOCK);
-}
-
-M0_UNUSED static void ub_fom_test_block(int iter)
-{
-	static struct m0_reqh *r[1] = { &g_reqh[0] };
-
-	reqh_test_run(r, 1, UB_FOM_BLOCK);
-}
+UB_FOM_TEST_ADD(ub_fom_test_mem_b,              UB_FOM_MEM_B);
+UB_FOM_TEST_ADD(ub_fom_test_mem_kb,             UB_FOM_MEM_KB);
+UB_FOM_TEST_ADD(ub_fom_test_mem_mb,             UB_FOM_MEM_MB);
+UB_FOM_TEST_ADD(ub_fom_test_mutex,              UB_FOM_MUTEX);
+UB_FOM_TEST_ADD(ub_fom_test_long_lock,          UB_FOM_LONG_LOCK);
+UB_FOM_TEST_ADD(ub_fom_test_mutex_per_lock,     UB_FOM_MUTEX_PER_LOC);
+M0_UNUSED UB_FOM_TEST_ADD(ub_fom_test_block,    UB_FOM_BLOCK);
 
 static int ub_perf_fom_service_start(struct m0_reqh_service *service)
 {
@@ -195,7 +172,11 @@ static void ub_fini(void)
 	m0_reqh_service_type_unregister(&ub_fom_service_type);
 
 	m0_long_lock_fini(&g_fom_long_lock);
-	m0_mutex_fini(&g_fom_mutex);
+
+	for (i = 0; i < g_fom_mutex_nr; ++i)
+		m0_mutex_init(&g_fom_mutex[i]);
+
+	m0_free(g_fom_mutex);
 }
 
 static void ub_init(void)
@@ -207,10 +188,8 @@ static void ub_init(void)
 	   Ensure there is no garbage left from the previous rounds: */
 	M0_SET_ARR0(g_reqh);
 	M0_SET_ARR0(g_service);
-	M0_SET0(&g_fom_mutex);
 	M0_SET0(&g_fom_long_lock);
 
-	m0_mutex_init(&g_fom_mutex);
 	m0_long_lock_init(&g_fom_long_lock);
 
 	/* fill g_test_mem with dummy values */
@@ -219,10 +198,15 @@ static void ub_init(void)
 
 	rc = ub_fom_init();
 	M0_UB_ASSERT(rc == 0);
+
+	g_fom_mutex_nr = m0_reqh_nr_localities(&g_reqh[0]);
+	M0_ALLOC_ARR(g_fom_mutex, g_fom_mutex_nr);
+	M0_UB_ASSERT(g_fom_mutex != NULL);
+
+	for (i = 0; i < g_fom_mutex_nr; ++i)
+		m0_mutex_init(&g_fom_mutex[i]);
 }
 
-/* See fop/perf/README for more details regarding the following definition: */
-/* #define __MERO_DISABLE_POORLY_PROFILED_TESTS__ */
 struct m0_ub_set m0_fom_ub = {
         .us_name = "fom-ub",
         .us_init = ub_init,
@@ -240,14 +224,18 @@ struct m0_ub_set m0_fom_ub = {
                 { .ub_name  = "mutex",
                   .ub_iter  = 1,
                   .ub_round = ub_fom_test_mutex },
+                { .ub_name  = "n-mutex",
+                  .ub_iter  = 1,
+                  .ub_round = ub_fom_test_mutex_per_lock },
                 { .ub_name  = "llock",
                   .ub_iter  = 1,
                   .ub_round = ub_fom_test_long_lock },
-#ifndef __MERO_DISABLE_POORLY_PRFILED_TESTS__
+/* See fop/perf/README for more details regarding this definition. */
+#ifndef ENABLE_PROFILER
                 { .ub_name  = "block",
                   .ub_iter  = 1,
                   .ub_round = ub_fom_test_block },
-#endif /* __MERO_DISABLE_POORLY_PROFILED_TESTS__ */
+#endif /* ENABLE_PROFILER */
 		{ .ub_name = NULL}
 	}
 };

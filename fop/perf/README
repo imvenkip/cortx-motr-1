@@ -53,9 +53,8 @@ RUNNING TEST
   - WARNING: Some tests can not be profiled properly. It's so due to the
     architecture and implementation features of used profiler. Tests which
     actively create and join threads may lead to wrong profiling results and
-    even to profiler crash. The following definition has to be defined to switch
-    such tests off while profiling session:
-    __MERO_DISABLE_POORLY_PROFILED_TESTS__
+    even to profiler crash. ENABLE_PROFILER definition introduced in
+    configure.ac is utilized to switch such tests off while profiling session.
 
   - Prior to gather samples, ./utils/ut.sh -t XXX has to be run at least once.
     This has to be done to prepare ELF executable ./utils/.libs/lt-ub.
