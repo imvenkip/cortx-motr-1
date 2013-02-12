@@ -1,0 +1,20 @@
+[submodule "extra-libs/cunit"]
+	path = extra-libs/cunit
+	url = ssh://gitosis@git.clusterstor.com/mero-cunit.git
+	ignore = untracked
+[submodule "extra-libs/db4"]
+	path = extra-libs/db4
+	url = ssh://gitosis@git.clusterstor.com/mero-db4.git
+	ignore = untracked
+[submodule "extra-libs/galois"]
+	path = extra-libs/galois
+	url = ssh://gitosis@git.clusterstor.com/mero-galois.git
+	ignore = untracked
+[submodule "extra-libs/rvm"]
+	path = extra-libs/rvm
+	url = ssh://gitosis@git.clusterstor.com/mero-rvm.git
+	ignore = untracked
+[submodule "extra-libs/yaml"]
+	path = extra-libs/yaml
+	url = ssh://gitosis@git.clusterstor.com/mero-yaml.git
+	ignore = untracked

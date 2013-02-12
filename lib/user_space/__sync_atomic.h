@@ -36,18 +36,18 @@
    @ref http://gcc.gnu.org/onlinedocs/gcc-4.5.4/gcc/Atomic-Builtins.html
 
    We did a benchmark of these function against the assembly based functions in
-   core/lib/user_space/user_x86_64_atomic.h and we came to know that these are
+   lib/user_space/user_x86_64_atomic.h and we came to know that these are
    a bit slower than their assembly counterparts. So these are kept off by
    default (a configure option --enable-sync_atomic will enable them.)
 
    * With assembly
-   [xyratex@guest0 sandbox1]$ core/utils/ub 10
+   [xyratex@guest0 sandbox1]$ utils/ub 10
    set:    atomic-ub
     bench: [   iter]    min    max    avg   std   sec/op   op/sec
    atomic: [   1000]  73.68  83.15  79.57  3.40% 7.957e-02/1.257e+01
 
    * with gcc built-ins
-   [xyratex@guest0 sandbox1]$ core/utils/ub 10
+   [xyratex@guest0 sandbox1]$ utils/ub 10
    set:    atomic-ub
     bench: [   iter]    min    max    avg   std   sec/op   op/sec
    atomic: [   1000]  74.35  95.29  81.38  6.37% 8.138e-02/1.229e+01

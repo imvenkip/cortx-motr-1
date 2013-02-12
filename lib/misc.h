@@ -155,27 +155,27 @@ M0_INTERNAL const char *m0_bool_to_str(bool b);
 /**
  * Extracts the file name, relative to a mero sources directory, from a
  * full-path file name. A mero source directory is detected by a name
- * "core/".
+ * "mero/".
  *
  * For example, given the following full-path file name:
  *
- *     /data/mero/core/lib/ut/finject.c
+ *     /path/to/mero/lib/ut/finject.c
  *
- * A short file name, relative to the "core/" directory, is:
+ * A short file name, relative to the "mero/" directory, is:
  *
  *     lib/ut/finject.c
  *
- * If there is a "core/build_kernel_modules/" directory in the file's full path,
+ * If there is "mero/build_kernel_modules/" directory in the file's full path,
  * then short file name is stripped relative to this directory:
  *
- *     /data/mero/core/build_kernel_modules/rpc/packet.c => rpc/packet.c
+ *     /path/to/mero/build_kernel_modules/rpc/packet.c => rpc/packet.c
  *
  * @bug {
- *     This function doesn't search for the right-most occurrence of "core/"
- *     in a file path, if "core/" encounters several times in the path the first
+ *     This function doesn't search for the rightmost occurrence of "mero/"
+ *     in a file path, if "mero/" encounters several times in the path the first
  *     one will be picked up:
  *
- *       /prj/core/fs/mero/core/lib/misc.h => fs/mero/core/lib/misc.h
+ *       /path/to/mero/fs/mero/lib/misc.h => fs/mero/lib/misc.h
  * }
  *
  * @param   fname  full path

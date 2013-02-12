@@ -35,7 +35,7 @@ sub-team leads, contact them to add more things here.
 
 2012-Nov-29 rpc: use m0_cookie for sender-id
 
-2012-Nov-29 change core/console to use m0_xcode_read() instead of yaml
+2012-Nov-29 change console/ to use m0_xcode_read() instead of yaml
 
 2012-Nov-29 gccxml: add M0_XCA_ENUM
 
@@ -135,7 +135,7 @@ struct m0_xcode_enum {
 
 2012-May-04 [Amit] .gdbinit macros for basic Mero structures
 
-    Add to core/.gdbinit file gdb macros to display core Mero structures:
+    Add to .gdbinit file gdb macros to display core Mero structures:
     lists, vectors, &c. Preferably, the macros should be placed in .gdbinit
     files, located in the corresponding modules, with top-level .gdbinit loading
     them.

@@ -1,6 +1,6 @@
 EXTRA_DIST += scripts/bloatmeter \
               scripts/branchmeter.sh \
-              scripts/check-include-guards \
+              scripts/check-sources \
               scripts/check-public-api \
               scripts/check-xlibri-traces \
               scripts/gcov_stats_genhtml.sh \

@@ -822,7 +822,7 @@ static const struct m0_sm_conf cm_iter_sm_conf = {
  * P = N + 2K. Eventually the layout for a particular file will be fetched as
  * part of the file attributes.
  * @note The default parameters and layout setup code are similar to that of
- * core/m0t1fs/linux_kernel/super.c used in m0t1fs client.
+ * m0t1fs/linux_kernel/super.c used in m0t1fs client.
  * This also puts a temporary limitation on the client to mount m0t1fs with the
  * same default parameters.
  * @todo Fetch layout details dynamically.

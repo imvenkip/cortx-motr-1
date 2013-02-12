@@ -266,12 +266,12 @@ run_test_automate()
            run_command "$MERO_SOURCE/core" 'make'; then
 
 	    pushd 2>/dev/null $TESTROOT/$DIRTIME/sandbox > /dev/null
-            run_command '' "sudo $MERO_SOURCE/core/utils/ut.sh" '' 1
+            run_command '' "sudo $MERO_SOURCE/utils/ut.sh" '' 1
 	    rc=$?
 	    popd &>/dev/null
 
             if [ $UB_ROUNDS -ne 0 ] && [ $rc -eq 0 ]; then
-                run_command "$MERO_SOURCE/core/utils" 'sudo ./ub' $UB_ROUNDS
+                run_command "$MERO_SOURCE/utils" 'sudo ./ub' $UB_ROUNDS
 		rc=$?
             fi
 

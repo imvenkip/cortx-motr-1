@@ -133,12 +133,20 @@ END_GUARD_MSG
 
 sub check_include_guards
 {
+    my $exclude_dirs = File::Find::Rule->directory
+                                       ->name('extra-libs')
+                                       ->prune
+                                       ->discard;
+
+    my $include_files = File::Find::Rule->file()
+                                        ->not( File::Find::Rule->symlink() )
+                                        ->name('*.h')
+                                        ->not( File::Find::Rule->name('config.h') );
+
+    my @files = File::Find::Rule->or( $exclude_dirs, $include_files )
+                                ->in( $root_dir_name );
+
     my %guard;
-    my @files = File::Find::Rule->file()
-                                ->not( File::Find::Rule->symlink() )
-                                ->name('*.h')
-                                ->not( File::Find::Rule->name('config.h') )
-                                ->in($root_dir_name);
 
     FILE:
     for my $file (@files) {
@@ -233,11 +241,11 @@ __END__
 
 =head1 NAME
 
-check-include-guards - checks correctness of include guards in C header files
+check-sources - checks correctness of include guards in C header files
 
 =head1 SYNOPSIS
 
-check-include-guards [-n|--noisy] [-h|--help] [--usage] [--man] [path]
+check-sources [-n|--noisy] [-h|--help] [--usage] [--man] [path]
 
 =head1 ARGUMENTS
 

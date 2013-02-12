@@ -5,7 +5,7 @@ set -e
 ### Mero helper script
 ###
 ### Installation:
-###     ln -s /path/to/mero/core/scripts/m0 ~/bin/m0
+###     ln -s /path/to/mero/scripts/m0 ~/bin/m0
 ###
 ### Type `m0 help' for usage.
 ### --------------------------------------------------------------------
@@ -65,10 +65,13 @@ dist_check() {
 
     make dist distdir=$DISTDIR $MAKE_OPTS
 
-    cd ..
     ## Don't preserve files' ownership (if $SRC/.. is on NFS, it will fail).
     ## And strip leading "tmp/" part.
     tar --no-same-owner --strip-components=1 -xzf $DISTFILE
+
+    for lib in extra-libs/*; do
+        ln -s ../../$lib  $DIST/extra-libs/
+    done
 
     cd $DIST
     build

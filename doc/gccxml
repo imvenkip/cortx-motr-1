@@ -298,4 +298,4 @@ and script code itself:
     $ gccxml2xcode --man
     $ view gccxml2xcode
 
-The script is located in 'mero/core/xcode/' directory.
+The script is located in 'xcode/' directory.

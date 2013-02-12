@@ -762,16 +762,16 @@ sub set_global_vars
     }
 
     # according to the mero coding style, all header files should be included
-    # using full path relative to the mero/core/ directory; for example
-    # trace.h header from mero/core/lib/ should be included as "lib/trace.h"
+    # using full path relative to the mero/ directory; for example
+    # trace.h header from mero/lib/ should be included as "lib/trace.h"
     # and not as "trace.h"; so we need to preserve a directory path after the
-    # "core/" part.
-    if ($cli_option{'input_file_name'} =~ m#/core/#) {
+    # "mero/" part
+    if ($cli_option{'input_file_name'} =~ m#/mero/#) {
         ($header_file_name = $cli_option{'input_file_name'})
-            =~ s#^.*/core/(.*)\.gccxml$#$1.h#xms;
+            =~ s#^.*/mero/(.*)\.gccxml$#$1.h#xms;
     }
     else {
-        # if we processing file not from mero/core/ source tree, then
+        # if we processing file not from mero/ source tree, then
         # just use a file name without directory path
         $header_file_name = $xcode_name . '.h';
     }
@@ -865,7 +865,7 @@ Print the complete manpage.
 
 The idea behind this script is to use some special gcc's __attribute__() with
 C struct declarations in C header files to automatically generate corresponding
-xcode data (see m0 xcode documentation in mero/core/xcode/xcode.h).
+xcode data (see m0 xcode documentation in mero/xcode/xcode.h).
 
 It does the same thing as ff2c generator, but instead of using pseudo-code
 description of data structures, it uses C structure declarations directly from

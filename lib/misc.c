@@ -194,17 +194,17 @@ M0_INTERNAL const char *m0_bool_to_str(bool b)
 
 M0_INTERNAL const char *m0_short_file_name(const char *fname)
 {
-	static const char  bkm[]  = "core/build_kernel_modules/";
-	static const char  core[] = "core/";
+	static const char  bkm[]         = "mero/build_kernel_modules/";
+	static const char  top_src_dir[] = "mero/";
 	const char        *p;
 
 	p = strstr(fname, bkm);
 	if (p != NULL)
 		return p + strlen(bkm);
 
-	p = strstr(fname, core);
+	p = strstr(fname, top_src_dir);
 	if (p != NULL)
-		return p + strlen(core);
+		return p + strlen(top_src_dir);
 
 	return fname;
 }

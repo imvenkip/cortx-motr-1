@@ -71,7 +71,8 @@ dirs  =                        \
 # NOTE: Currently due to the way `.ff' files are processed, a `*_ff.c' file
 #       searches for its corresponding `*_ff.h' in the same directory; So only
 #       headers that need to be included in following listing are those of
-#       type `*_ff.h'; rest of the headers will be assumed relative to `core/'
+#       type `*_ff.h'; rest of the headers will be assumed relative to
+#       `$top_src_dir'
 
 addb_SOURCES                    := addb_wire_xc.c
 addb_HEADERS                    := addb_wire.h addb_wire_xc.h
@@ -248,11 +249,11 @@ create_links = $(shell ln -s $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f))     \
 all:
 	@echo $(m0mero-y)
 	for s in $(testdirs); do $(MAKE) -C $$s prepare; done
-#       Following lines create links to files from core/ tree to
+#       Following lines create links to files from $top_src_dir/ tree to
 #       build_kernel_modules/ tree if links does not already exists.
 #       for d in $(dirs); do
 #               for f in $(d)_SOURCES; do
-#                   ln -sf core/$(d)/$(f) core/build_kernel_modules/$(d)/$(f)
+#                   ln -sf $top_src_dir/$(d)/$(f) $top_src_dir/build_kernel_modules/$(d)/$(f)
 #               done
 #       done
 

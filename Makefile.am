@@ -593,7 +593,7 @@ pre-all: check-sources-prebuild
 .PHONY: check-sources-prebuild
 check-sources-prebuild:
 	@echo -n 'Checking source files... '
-	@$(top_srcdir)/scripts/check-include-guards --noisy $(top_srcdir)
+	@$(top_srcdir)/scripts/check-sources --noisy $(top_srcdir)
 	@$(top_srcdir)/scripts/check-xlibri-traces $(top_srcdir)
 	@echo 'OK'
 
@@ -612,13 +612,13 @@ generate-xc-files: $(XC_FILES)
 
 # this is executed just after 'all' target
 all-local: build-kernel-modules $(LTLIBRARIES) $(PROGRAMS)
-	@$(top_srcdir)/scripts/check-include-guards $(top_srcdir)
+	@$(top_srcdir)/scripts/check-sources $(top_srcdir)
 	@$(top_srcdir)/scripts/check-public-api
 	@$(top_srcdir)/scripts/print-elf-sizes
 
 .PHONY: check-sources-postbuild
 check-sources-postbuild:
-	@$(top_srcdir)/scripts/check-include-guards $(top_srcdir)
+	@$(top_srcdir)/scripts/check-sources $(top_srcdir)
 
 .PHONY: check-public-api
 check-public-api:

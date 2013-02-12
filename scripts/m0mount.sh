@@ -170,7 +170,7 @@ declare -A SETUP
 declare -A STARTED
 
 # A file whose sum we can check
-SUMFILE=$BROOT/core/mero/.libs/m0d
+SUMFILE=$BROOT/mero/.libs/m0d
 LSUM=
 
 ###########
@@ -236,7 +236,7 @@ function setup_host () {
 		echo ERROR: Failed to load galois module on $H
 		return 1
 	fi
-	$RUN insmod $BROOT/core/build_kernel_modules/m0mero.ko local_addr=$KEP $XPT_PARAM $KTRACE_FLAGS node_uuid=${NODE_UUID[$H]}
+	$RUN insmod $BROOT/build_kernel_modules/m0mero.ko local_addr=$KEP $XPT_PARAM $KTRACE_FLAGS node_uuid=${NODE_UUID[$H]}
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to load m0mero module on $H
 		$RUN rmmod galois
@@ -410,7 +410,7 @@ function start_server () {
 M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
-$BROOT/core/mero/m0d -r -p \
+$BROOT/mero/m0d -r -p \
 $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A $DDIR/stobs \
 -e $XPT:$EP $SNAME $XPT_SETUP" > ${SLOG}$I.log &
 	if [ $? -ne 0 ]; then
@@ -525,7 +525,7 @@ l_run insmod $BROOT/galois/src/linux_kernel/galois.ko || {
 	exit 1
 }
 l_run modprobe lnet
-l_run insmod $BROOT/core/build_kernel_modules/m0mero.ko || {
+l_run insmod $BROOT/build_kernel_modules/m0mero.ko || {
 	echo ERROR: Failed to load m0mero module
 	rmmod galois
 	exit 1

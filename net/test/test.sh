@@ -1,5 +1,5 @@
 #! /bin/sh
-# see original file at core/utils/linux_kernel/ut.sh
+# see original file at utils/linux_kernel/ut.sh
 
 # Small wrapper to run mero network benchmark node module
 

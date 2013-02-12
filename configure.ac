@@ -196,7 +196,7 @@ AX_PROG_PERL_MODULES([List::MoreUtils], ,
 installed from perl-List-MoreUtils package on Red Hat based systems])
 )
 
-# these two perl-modules are required for scripts/check-include-guards script
+# these two perl-modules are required for scripts/check-sources script
 AX_PROG_PERL_MODULES([File::Find::Rule], ,
         AC_MSG_ERROR([No File::Find::Rule Perl module found: it can be \
 installed from perl-File-Find-Rule package on Red Hat based systems])
@@ -371,12 +371,12 @@ GALOIS_SRC=""
 
 MERO_SEARCH_LIBS([galois_create_mult_tables], [galois], [GALOIS_LIBS],
         [libgalois cannot be found! Try install galois package from \
-$SRCDIR/../galois or from rpm]
+$SRCDIR/extra-libs/galois or from rpm]
 )
 
 AC_CHECK_HEADERS([galois/galois.h], [],
                  AC_MSG_ERROR([galois/galois.h is not found. Try install \
-galois from $SRCDIR/../galois or from rpm])
+galois from $SRCDIR/extra-libs/galois or from rpm])
 )
 
 galois_locations="{/usr,/usr/local,/opt,/opt/local}"
@@ -394,19 +394,19 @@ AC_SUBST([GALOIS_SYMVERS])
 
 MERO_SEARCH_LIBS([yaml_parser_initialize], [yaml], [YAML_LIBS],
         [yaml_parser_initialize cannot be found! Try install yaml package from \
-$SRCDIR/../yaml or from rpm]
+$SRCDIR/extra-libs/yaml or from rpm]
 )
 
 # Check for CUnit
 
 MERO_SEARCH_LIBS([CU_add_suite], [cunit], [CUNIT_LIBS],
         [CU_add_suite cannot be found! Try install CUnit package from \
-$SRCDIR/../cunit or from rpm]
+$SRCDIR/extra-libs/cunit or from rpm]
 )
 
 AC_CHECK_HEADERS([CUnit/Basic.h], [],
                  AC_MSG_ERROR([CUnit/Basic.h is not found. Try install CUnit \
-from $SRCDIR/../cunit or CUnit-devel rpm package])
+from $SRCDIR/extra-libs/cunit or CUnit-devel rpm package])
 )
 
 # Check for berkeley db
@@ -423,7 +423,7 @@ else # non-rpm setup
 
 # Check for galois
 
-GALOIS_SRC=$ABS_SRCDIR/../galois
+GALOIS_SRC=$ABS_SRCDIR/extra-libs/galois
 GALOIS_INCLUDES="-I$GALOIS_SRC/include"
 GALOIS_LIBS="$GALOIS_SRC/src/libgalois.la"
 AC_MSG_CHECKING([for galois libs])
@@ -440,7 +440,7 @@ AC_SUBST([GALOIS_SYMVERS])
 
 # Check for yaml
 
-YAML_SRC=$SRCDIR/../yaml
+YAML_SRC=$SRCDIR/extra-libs/yaml
 YAML_INCLUDES="-I$YAML_SRC/include"
 YAML_LIBS="$YAML_SRC/src/libyaml.la"
 AC_MSG_CHECKING([for yaml libs])
@@ -448,7 +448,7 @@ MERO_BUILD_LIB([yaml], [$YAML_SRC], [$YAML_LIBS])
 
 # Check for CUnit
 
-CUNIT_SRC=$SRCDIR/../cunit
+CUNIT_SRC=$SRCDIR/extra-libs/cunit
 CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/libcunit.la"
 CUNIT_INCLUDES="-I$CUNIT_SRC/CUnit/Headers"
 AC_MSG_CHECKING([for cunit libs])
@@ -456,7 +456,7 @@ MERO_BUILD_LIB([cunit], [$CUNIT_SRC], [$CUNIT_LIBS])
 
 # Check for berkeley db
 
-DB_SRC="$SRCDIR/../db4/build_unix"
+DB_SRC="$SRCDIR/extra-libs/db4/build_unix"
 DB_INCLUDES="-I$DB_SRC/build_unix -I$DB_SRC"
 DB_LIBS="$DB_SRC/libdb.a"
 AC_MSG_CHECKING([for db libs])

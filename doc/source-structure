@@ -10,10 +10,9 @@ misnomer, because currently db5 is used) and a "core"
 Structure
 =========
 
-Each major Mero sub-system and component has a sub-directory in
-core/ directory. Such sub-directory might contain other
-sub-directories for sub-sub-systems. In addition, a sub-directory
-might contain the following standard sub-directories:
+Each major Mero sub-system and component has its own sub-directory.  Such
+sub-directory might contain other sub-directories for sub-sub-systems. In
+addition, a sub-directory might contain the following standard sub-directories:
 
     - ut: for CUnit based unit testing and unit benchmarking;
 
@@ -36,7 +35,7 @@ current configuration (currently only one configuration is supported,
 unit and system tests, benchmarks and Mero executables.
 
 All sources needed by the current configuration are linked
-together into core/mero/libmero.la. Then binaries, including
+together into mero/libmero.la. Then binaries, including
 unit tests are built and linked against libmero.
 
 Kernel code is built by using Linux kernel build. The modules for mero
@@ -48,10 +47,9 @@ Recipes (for user space code)
 How to add a new file to the source tree?
 -----------------------------------------
 
-Create a new file, say, core/foo/bar.c in the file system, edit
-it. Add bar.c to he corresponding _SOURCES entry in
-core/foo/Makefile.sub. Add the file to git (git add foo/bar.c) and
-commit your changes.
+Create a new file, say, foo/bar.c in the file system, edit it. Add bar.c to the
+corresponding _SOURCES entry in foo/Makefile.sub. Add the file to git (git add
+foo/bar.c) and commit your changes.
 
 If you are planning to add file bar.h then bar.h should typically
 start with:
@@ -82,12 +80,12 @@ Include system headers as usual:
 
 #include <unistd.h>
 
-To include a Mero header core/foo/foo_bar.h do
+To include a Mero header foo/foo_bar.h do
 
 #include "foo/foo_bar.h"
 
-This applies even to the headers from the same directory, that is,
-core/foo/foo.c must include core/foo/foo_internal.h as
+This applies even to the headers from the same directory, that is, foo/foo.c
+must include foo/foo_internal.h as
 
 #include "foo/foo_internal.h"
 
@@ -98,26 +96,26 @@ Oracle Berkeley data-base interfaces must be included as
 How Mero build system is organized?
 ------------------------------------------
 
-Please, read the "Quick start guide" section at the beginning of
-top-level core/Makefile.am makefile.
+Please, read the "Quick start guide" section at the beginning of top-level
+Makefile.am makefile.
 
 How to add a new internal Mero library?
 ------------------------------------------
 
-Create a new core/foo directory, if necessary. Add something like this
-to top-level core/Makefile.am:
+Create a new foo directory, if necessary. Add something like this to top-level
+Makefile.am:
 
     noinst_LTLIBRARIES += foo/libmero-foo.la
 
     include $(top_srcdir)/foo/Makefile.sub
 
-In core/foo/Makefile.sub put:
+In foo/Makefile.sub put:
 
     foo_libmero_foo_la_HEADERS = foo/foo.h
 
     foo_libmero_foo_la_SOURCES = foo/foo.c \
-                                    foo/foo_internal.h \
-                                    foo/foo_bar.c
+				 foo/foo_internal.h \
+				 foo/foo_bar.c
 
 NOTICE: public headers (which are used by other mero modules) of
 foo module should go into _HEADERS variable - this is what will be
@@ -125,13 +123,13 @@ installed to /usr/include on `make install`. While internal headers of
 foo module should go into _SOURCES variable.
 
 If necessary, add sources under foo/{ut,st} to the
-ut_libmero_ut_la_SOURCES variable in core/foo/{ut,st}/Makefile.sub:
+ut_libmero_ut_la_SOURCES variable in foo/{ut,st}/Makefile.sub:
 
     ut_libmero_ut_la_SOURCES += foo/ut/foo_test.c
 
-And include this core/foo/{ut,st}/Makefile.sub makefile into
-core/Makefile.am in appropriate place (search where other ut/st
-makefiles are included, in alphabetic order).
+And include this foo/{ut,st}/Makefile.sub makefile into Makefile.am in
+appropriate place (search where other ut/st makefiles are included, in
+alphabetic order).
 
 How to add a new Mero module?
 --------------------------------
@@ -143,22 +141,21 @@ mero_libmero_la_{SOURCES,HEADERS} variables in foo/Makefile.sub:
 
     mero_libmero_la_SOURCES += foo/foo.c
 
-And include this foo/Makefile.sub into the top-levevl core/Makefile.am
+And include this foo/Makefile.sub into the top-levevl Makefile.am
 in appropriate place in alphabetic order (search where other
 makefiles, which are part of libmero.la library, are included).
 
 How to add a new executable?
 ----------------------------
 
-To build a new executable core/foo/baz add to the
-core/foo/Makefile.sub:
+To build a new executable foo/baz add to the foo/Makefile.sub:
 
     noinst_PROGRAMS += foo/baz
     foo_baz_LDADD    = $(top_builddir)/mero/libmero.la
 
     include $(top_srcdir)/foo/Makefile.sub
 
-And in core/foo/Makefile.sub:
+And in foo/Makefile.sub:
 
     foo_baz_SOURCES = foo/baz.c \
                       foo/bar.c
@@ -177,7 +174,7 @@ _SOURCES, FF_FILES, XC_FILES and CLEANFILES.
 System initialization and finalisation
 --------------------------------------
 
-core/mero/init.h declares functions
+mero/init.h declares functions
 
 int  m0_init(void);
 void m0_fini(void);
@@ -185,21 +182,20 @@ void m0_fini(void);
 That must be called by an executable to respectively initialise and
 finalise Mero internal libraries.
 
-If your library (say, core/foo/libmero-foo.la) requires some global
+If your library (say, foo/libmero-foo.la) requires some global
 (per address space) initialisation or finalisation actions (e.g.,
 starting service threads, opening files), declare
 
 int  m0_foo_init(void);
 void m0_foo_fini(void);
 
-in core/foo/foo.h, add
+in foo/foo.h, add
 
 #include "foo/foo.h"
 
-to core/mero/init.c and add { &m0_foo_init, &m0_foo_fini } to the
-subsystem[] array, defined in core/mero/init.c. foo_init() must
-follow standard return conventions: 0 on success, negated errno value
-on failure.
+to mero/init.c and add { &m0_foo_init, &m0_foo_fini } to the subsystem[] array,
+defined in mero/init.c. foo_init() must follow standard return conventions: 0 on
+success, negated errno value on failure.
 
 How to add a new unit test?
 ---------------------------
@@ -209,7 +205,7 @@ M0 uses a unit test framework based on CUnit
 
 To add a collection of unit tests ("test suite") for a module foo:
 
-In a file core/foo/ut/foo.c do something like:
+In a file foo/ut/foo.c do something like:
 
 #include "lib/ut.h"
 
@@ -253,17 +249,16 @@ const struct m0_test_suite foo_ut = {
 	}
 };
 
-In core/foo/ut/Makefile.sub do:
+In foo/ut/Makefile.sub do:
 
     ut_libmero_ut_la_SOURCES += foo/ut/foo.c ...
 
-In core/Makefile.am add the following include line in appropriate
-place, in alphabetic order (search where other ut makefiles are
-included).
+In Makefile.am add the following include line in appropriate place, in
+alphabetic order (search where other ut makefiles are included).
 
     include $(top_srcdir)/foo/ut/Makefile.sub
 
-In core/utils/ut_main.c add
+In utils/ut_main.c add
 
 extern const struct m0_test_suite foo_ut;
 
@@ -273,7 +268,7 @@ declaration and
 
 to add_uts().
 
-All unit tests are executed by ./core/utils/ut.
+All unit tests are executed by ./utils/ut.
 
 A few comments:
 
@@ -289,7 +284,7 @@ A few comments:
     * unit tests are ran in an address space where m0_init() was
       already executed.
 
-See core/lib/ut/*.c, core/stob/ut/adieu.c, core/fop/ut/fmt_test.c for
+See lib/ut/*.c, stob/ut/adieu.c, fop/ut/fmt_test.c for
 examples.
 
 Note, that a unit test should create no files outside of current process
@@ -301,11 +296,10 @@ How to add a new unit benchmark?
 Unit benchmarks for a component is a collection of micro-benchmarks
 measuring performance of common code-paths at the function level.
 
-It is clear that unit benchmarks are somewhat similar to unit
-tests. Indeed, they usually happen to share a lot of code. As a
-result, unit benchmark code is typically kept in the same
-core/foo/ut/foo.c code as unit tests for the same component. See
-core/lib/ut/*.c and core/stob/ut/adieu.c for examples.
+It is clear that unit benchmarks are somewhat similar to unit tests. Indeed,
+they usually happen to share a lot of code. As a result, unit benchmark code is
+typically kept in the same foo/ut/foo.c code as unit tests for the same
+component. See lib/ut/*.c and stob/ut/adieu.c for examples.
 
 Note, that a unit benchmark should create no files outside of current
 process directory (except for possibly in its sub-directories).
@@ -317,26 +311,25 @@ A new module can be added to Mero in two ways,
   1) functionality built into m0mero.ko
   2) Module for stand-alone UT's
 
-1) In mero all the functionality for kernel side is implemented into
-a single kernel module called m0mero.ko
-So to add your new kernel source(s) for core/module to m0mero,
-create core/module/ directory
+1) In mero all the functionality for kernel side is implemented into a single
+kernel module called m0mero.ko.
 
-Add the following lines into build_kernel_modules/Makefile.in:
-In macro dirs:
+So to add your new kernel source(s) for <module> to m0mero, create <module/>
+directory
+
+Add the following lines into build_kernel_modules/Makefile.in: In macro dirs:
 add source dir "module"
 
-then the sources for the module are listed as
-module_SOURCES := foo.c bar.c baz.c
-module_HEADERS := foo.h bar.h baz.h
+then the sources for the module are listed as module_SOURCES := foo.c bar.c
+baz.c module_HEADERS := foo.h bar.h baz.h
 
-create these source and header files in core/module directory
+create these source and header files in <module> directory
 
-2) If you want to build the module as separate stand-alone UT named
-core/module, create
+2) If you want to build the module as separate stand-alone UT named <module>,
+create
 
-core/module/linux_kernel directory and add
-core/module/linux_kernel/Makefile.in into:
+module/linux_kernel directory and add
+module/linux_kernel/Makefile.in into:
 
 obj-m       := <mod.name.o>
 shared_src  := <shared sources>
@@ -359,7 +352,7 @@ distdir:
 
 Add the following lines into configure.ac:
 In macro AC_CONFIG_FILES:
-add source "core/module/linux_kernel/Makefile".
+add source "module/linux_kernel/Makefile".
 
 add following lines into build_kernel_modules/Makefile.in:
 In macro testdirs:
