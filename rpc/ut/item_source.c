@@ -74,7 +74,15 @@ static bool has_item(const struct m0_rpc_item_source *ris)
 static struct m0_rpc_item *get_item(struct m0_rpc_item_source *ris,
 				    size_t max_payload_size)
 {
+	struct m0_fop *fop;
+
 	get_item_called = true;
+
+	fop  = m0_fop_alloc(&m0_rpc_arrow_fopt, NULL);
+	item = &fop->f_item;
+	/* without this "get", the item will be freed as soon as it is
+	   sent/failed. */
+	m0_rpc_item_get(item);
 	return item;
 }
 
@@ -99,7 +107,6 @@ static void item_source_basic_test(void)
 static void item_source_test(void)
 {
 	struct m0_rpc_item_source  ris;
-	struct m0_fop             *fop;
 	bool                       ok;
 	int                        rc;
 
@@ -108,9 +115,6 @@ static void item_source_test(void)
 	M0_UT_ASSERT(ris.ris_ops == &ris_ops);
 	m0_rpc_item_source_register(conn, &ris);
 
-	fop = m0_fop_alloc(&m0_rpc_arrow_fopt, NULL);
-	item = &fop->f_item;
-	item->ri_nr_sent_max = 1;
 	has_item_flag = true;
 	m0_fi_enable("frm_is_ready", "ready");
 	has_item_called = get_item_called = false;
@@ -133,7 +137,7 @@ static void item_source_test(void)
         M0_UT_ASSERT(ok);
 
 	m0_fi_disable("frm_is_ready", "ready");
-	m0_fop_put(fop);
+	m0_rpc_item_put(item);
 }
 
 const struct m0_test_suite item_source_ut = {

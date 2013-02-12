@@ -629,6 +629,7 @@ static void frm_fill_packet_from_item_sources(struct m0_rpc_frm    *frm,
 				m0_rpc_packet_add_item(p, item);
 				m0_rpc_item_change_state(item,
 							 M0_RPC_ITEM_SENDING);
+				m0_rpc_item_put(item);
 			}
 		} m0_tl_endfor;
 	} m0_tl_endfor;
