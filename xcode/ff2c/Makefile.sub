@@ -6,3 +6,6 @@ xcode_ff2c_libmero_xcode_ff2c_la_SOURCES = xcode/ff2c/lex.c \
                                               xcode/ff2c/sem.h \
                                               xcode/ff2c/gen.c \
                                               xcode/ff2c/gen.h
+
+EXTRA_DIST += xcode/ff2c/sample.ff \
+              xcode/ff2c/bnf

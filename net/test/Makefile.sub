@@ -26,4 +26,6 @@ net_test_libmero_net_test_la_SOURCES += net/test/commands.c \
                                            net/test/user_space/stats_u.h
 
 EXTRA_DIST += net/test/test-user.sh.in \
-              net/test/linux_kernel/node_k.c
+              net/test/linux_kernel/node_k.c \
+              net/test/run.sh \
+              net/test/test.sh

@@ -1,3 +1,5 @@
 ut_libmero_ut_la_SOURCES += fop/perf/ub.c
 
-EXTRA_DIST += fop/perf/tb.c fop/perf/fom.c
+EXTRA_DIST += fop/perf/tb.c \
+              fop/perf/fom.c \
+              fop/perf/README

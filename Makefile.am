@@ -92,9 +92,9 @@ noinst_LTLIBRARIES =
 #ETAGS_ARGS = automake.in --lang=none \
 #             --regex=’/^@node[ \t]+\([^,]+\)/\1/’ automake.texi
 
-EXTRA_DIST = autogen.sh mero.spec.in
+EXTRA_DIST = autogen.sh mero.spec.in LICENCE .gdbinit extra-libs/.gitignore
 CLEANFILES =
-DISTCLEANFILES = @LUSTRE_CONFIG_LINK@
+DISTCLEANFILES = @LUSTRE_CONFIG_LINK@ utils/ub.sh
 
 # a list of auto-generated *_ff.[hc] files
 FF_FILES =

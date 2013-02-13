@@ -11,5 +11,6 @@ EXTRA_DIST += utils/ut.sh.in \
               utils/linux_kernel/main.c \
               utils/linux_kernel/ctl.c \
               utils/linux_kernel/finject_debugfs.c \
-              utils/linux_kernel/finject_debugfs.h
+              utils/linux_kernel/finject_debugfs.h \
+              utils/README
 

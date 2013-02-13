@@ -49,7 +49,8 @@ nobase_mero_include_HEADERS += lib/adt.h \
                                lib/user_space/timer.h \
                                lib/user_space/trace.h \
                                lib/user_space/types.h \
-                               lib/user_space/user_x86_64_atomic.h
+                               lib/user_space/user_x86_64_atomic.h \
+                               lib/user_space/__sync_atomic.h
 
 mero_libmero_la_SOURCES += lib/assert.c \
                            lib/bitmap.c \

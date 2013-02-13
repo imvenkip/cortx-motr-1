@@ -5,9 +5,12 @@ EXTRA_DIST += scripts/bloatmeter \
               scripts/check-xlibri-traces \
               scripts/gcov_stats_genhtml.sh \
               scripts/gen-src-skel \
+              scripts/gdb/gdb-extensions \
+              scripts/gdb/gdb-extensions.py \
               scripts/m0 \
               scripts/m0mount.sh \
               scripts/mero_build_test.sh \
               scripts/modload \
               scripts/print-elf-sizes \
-              scripts/process_lcov.sh
+              scripts/process_lcov.sh \
+              scripts/MountWithLocalServers.sh

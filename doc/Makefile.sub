@@ -1,4 +1,5 @@
 EXTRA_DIST += doc/Doxyfile \
+              doc/addb-ids \
               doc/coding-style \
               doc/dld-index.c \
               doc/dld-sample-uml.png \

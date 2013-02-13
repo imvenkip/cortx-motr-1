@@ -11,7 +11,10 @@ XC_FILES   += rpc/it/ping_fop_xc.h
 
 EXTRA_DIST += rpc/it/linux_kernel/rpc_ping.h \
               rpc/it/linux_kernel/rpcping_kernel.c \
-              rpc/it/linux_kernel/rpcload.sh
+              rpc/it/linux_kernel/rpcload.sh \
+              rpc/it/linux_kernel/load.sh \
+              rpc/it/linux_kernel/unload.sh \
+              rpc/it/linux_kernel/m0mero.symvers
 
 CLEANFILES += rpc/it/ping_fop_xc.h \
               rpc/it/ping_fop_xc.c \
