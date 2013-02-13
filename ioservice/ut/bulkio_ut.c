@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -1278,6 +1278,8 @@ static void bulkio_server_write_fol_rec_verify(void)
 	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
 				   reqh->rh_fol->f_lsn - 2, &dec_rec);
 	M0_UT_ASSERT(result == 0);
+
+	M0_UT_ASSERT(dec_rec.fr_desc.rd_header.rh_parts_nr == 2);
 
 	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part) {
 		if (strcmp(dec_part->rp_ops->rpo_type->rpt_name,
