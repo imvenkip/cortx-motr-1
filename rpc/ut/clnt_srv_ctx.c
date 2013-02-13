@@ -79,6 +79,9 @@ static struct m0_rpc_server_ctx sctx = {
 	.rsx_log_file_name    = SERVER_LOG_FILE_NAME,
 };
 
+/* 'inline' is used, to avoid compiler warning if the function is not used
+   in file that includes this file.
+ */
 static inline void start_rpc_client_and_server(void)
 {
 	int rc;
@@ -96,6 +99,9 @@ static inline void start_rpc_client_and_server(void)
 	M0_ASSERT(rc == 0);
 }
 
+/* 'inline' is used, to avoid compiler warning if the function is not used
+   in file that includes this file.
+ */
 static inline void stop_rpc_client_and_server(void)
 {
 	int rc;
@@ -107,6 +113,9 @@ static inline void stop_rpc_client_and_server(void)
 	m0_net_xprt_fini(xprt);
 }
 
+/* 'inline' is used, to avoid compiler warning if the function is not used
+   in file that includes this file.
+ */
 static inline struct m0_fop *fop_alloc(void)
 {
 	struct cs_ds2_req_fop *cs_ds2_fop;

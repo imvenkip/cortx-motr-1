@@ -667,7 +667,7 @@ static void frm_fini_test(void)
 }
 
 const struct m0_test_suite frm_ut = {
-	.ts_name = "formation-ut",
+	.ts_name = "rpc-formation-ut",
 	.ts_init = frm_ut_init,
 	.ts_fini = frm_ut_fini,
 	.ts_tests = {

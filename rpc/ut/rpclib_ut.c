@@ -171,7 +171,7 @@ static int test_rpclib_fini(void)
 }
 
 const struct m0_test_suite rpclib_ut = {
-	.ts_name = "rpclib-ut",
+	.ts_name = "rpc-lib-ut",
 	.ts_init = test_rpclib_init,
 	.ts_fini = test_rpclib_fini,
 	.ts_tests = {

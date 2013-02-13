@@ -152,6 +152,9 @@ M0_INTERNAL bool m0_rpc_item_is_control_msg(const struct m0_rpc_item *item);
 M0_INTERNAL void m0_rpc_oneway_item_post_locked(const struct m0_rpc_conn *conn,
 						struct m0_rpc_item *item);
 
+M0_TL_DESCR_DECLARE(item_source, M0_EXTERN);
+M0_TL_DECLARE(item_source, M0_INTERNAL, struct m0_rpc_item_source);
+
 /** @} */
 
 #endif /* __MERO_RPC_INT_H__ */

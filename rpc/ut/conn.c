@@ -319,7 +319,7 @@ static void conn_terminate_reply_fail_test(void)
 }
 
 const struct m0_test_suite conn_ut = {
-	.ts_name = "connection-ut",
+	.ts_name = "rpc-connection-ut",
 	.ts_init = conn_ut_init,
 	.ts_fini = conn_ut_fini,
 	.ts_tests = {

@@ -432,7 +432,7 @@ static void rply_before_sentcb(void)
 */
 
 const struct m0_test_suite item_ut = {
-	.ts_name = "item-ut",
+	.ts_name = "rpc-item-ut",
 	.ts_init = ts_item_init,
 	.ts_fini = ts_item_fini,
 	.ts_tests = {

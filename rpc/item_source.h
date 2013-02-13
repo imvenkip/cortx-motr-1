@@ -121,15 +121,20 @@ int m0_rpc_item_source_init(struct m0_rpc_item_source *ris,
 			    const struct m0_rpc_item_source_ops *ops);
 
 /**
-   @pre !item_source_tlink_is_in(ris)
+   Returns true iff ris is registered.
+ */
+bool m0_rpc_item_source_is_registered(const struct m0_rpc_item_source *ris);
+
+/**
+   @pre !m0_rpc_item_source_is_registered(ris)
  */
 void m0_rpc_item_source_fini(struct m0_rpc_item_source *ris);
 
 /**
    Registers an item-source with rpc-connection.
 
-   @pre ris->ris_conn == NULL
-   @pre ris->ris_conn == conn && item_source_tlink_is_in(ris)
+   @pre !m0_rpc_item_source_is_registered(ris)
+   @post m0_rpc_item_source_is_registered(ris)
  */
 void m0_rpc_item_source_register(struct m0_rpc_conn *conn,
 				struct m0_rpc_item_source *ris);
@@ -137,8 +142,10 @@ void m0_rpc_item_source_register(struct m0_rpc_conn *conn,
 /**
    Deregisters item-source.
 
-   @pre ris->ris_conn != NULL
-   @post ris->ris_conn == NULL && !item_source_tlink_is_in(ris)
+   Calling m0_rpc_item_source_deregister() on an already deregistered
+   item-source is safe.
+
+   @post !m0_rpc_item_source_is_registered(ris)
  */
 void m0_rpc_item_source_deregister(struct m0_rpc_item_source *ris);
 

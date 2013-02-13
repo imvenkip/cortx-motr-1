@@ -164,7 +164,7 @@ static void item_source_test(void)
 }
 
 const struct m0_test_suite item_source_ut = {
-	.ts_name = "item-source-ut",
+	.ts_name = "rpc-item-source-ut",
 	.ts_init = item_source_test_suite_init,
 	.ts_fini = item_source_test_suite_fini,
 	.ts_tests = {

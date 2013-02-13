@@ -88,12 +88,8 @@ static int __conn_init(struct m0_rpc_conn      *conn,
 static void __conn_fini(struct m0_rpc_conn *conn);
 
 static void conn_failed(struct m0_rpc_conn *conn, int32_t error);
-static void deregister_all_item_sources(struct m0_rpc_conn *conn);
 
-M0_TL_DESCR_DEFINE(item_source, "item-source-list", M0_INTERNAL,
-		   struct m0_rpc_item_source, ris_tlink, ris_magic,
-		   M0_RPC_ITEM_SOURCE_MAGIC, M0_RPC_ITEM_SOURCE_HEAD_MAGIC);
-M0_TL_DEFINE(item_source, M0_INTERNAL, struct m0_rpc_item_source);
+static void deregister_all_item_sources(struct m0_rpc_conn *conn);
 
 /*
  * This is sender side item_ops of conn_establish fop.
@@ -775,8 +771,6 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 	M0_PRE(conn->c_service == NULL);
 	M0_PRE(conn->c_rpc_machine != NULL);
 
-	deregister_all_item_sources(conn);
-
 	fop = m0_fop_alloc(&m0_rpc_fop_conn_terminate_fopt, NULL);
 	machine = conn->c_rpc_machine;
 	m0_rpc_machine_lock(machine);
@@ -784,6 +778,9 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 	M0_PRE(M0_IN(conn_state(conn), (M0_RPC_CONN_ACTIVE,
 					M0_RPC_CONN_TERMINATING)));
 	M0_PRE(conn->c_nr_sessions == 1);
+
+	deregister_all_item_sources(conn);
+
 	if (fop == NULL) {
 		/* see note [^1] at the end of function */
 		rc = -ENOMEM;
@@ -843,8 +840,11 @@ static void deregister_all_item_sources(struct m0_rpc_conn *conn)
 {
 	struct m0_rpc_item_source *source;
 
+	M0_PRE(m0_rpc_machine_is_locked(conn->c_rpc_machine));
+
 	m0_tl_for(item_source, &conn->c_item_sources, source) {
-		item_source_tlink_del_fini(source);
+		item_source_tlist_del(source);
+		source->ris_conn = NULL;
 		if (source->ris_ops->riso_conn_terminating != NULL)
 			source->ris_ops->riso_conn_terminating(source);
 	} m0_tl_endfor;
