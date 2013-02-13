@@ -845,8 +845,7 @@ static void deregister_all_item_sources(struct m0_rpc_conn *conn)
 	m0_tl_for(item_source, &conn->c_item_sources, source) {
 		item_source_tlist_del(source);
 		source->ris_conn = NULL;
-		if (source->ris_ops->riso_conn_terminating != NULL)
-			source->ris_ops->riso_conn_terminating(source);
+		source->ris_ops->riso_conn_terminating(source);
 	} m0_tl_endfor;
 }
 

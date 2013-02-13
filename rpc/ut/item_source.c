@@ -26,6 +26,7 @@
  */
 
 #include "lib/ut.h"
+#include "lib/memory.h"
 #include "lib/finject.h"
 #include "lib/misc.h"              /* M0_BITS */
 #include "lib/time.h"              /* m0_nanosleep */
@@ -39,6 +40,7 @@
 #include <stdio.h>
 
 static struct m0_rpc_conn *conn;
+static bool conn_terminating_cb_called;
 
 static int item_source_test_suite_init(void)
 {
@@ -50,7 +52,6 @@ static int item_source_test_suite_init(void)
 
 static int item_source_test_suite_fini(void)
 {
-	stop_rpc_client_and_server();
 	m0_rpc_test_fops_fini();
 	return 0;
 }
@@ -63,6 +64,7 @@ static bool get_item_called;
 
 static bool has_item(const struct m0_rpc_item_source *ris)
 {
+	M0_UT_ASSERT(m0_rpc_machine_is_locked(ris->ris_conn->c_rpc_machine));
 	if (has_item_called)
 		return false;
 
@@ -75,19 +77,39 @@ static struct m0_rpc_item *get_item(struct m0_rpc_item_source *ris,
 {
 	struct m0_fop *fop;
 
+	M0_UT_ASSERT(m0_rpc_machine_is_locked(ris->ris_conn->c_rpc_machine));
 	get_item_called = true;
 
 	fop  = m0_fop_alloc(&m0_rpc_arrow_fopt, NULL);
+	M0_UT_ASSERT(fop != NULL);
 	item = &fop->f_item;
 	/* without this "get", the item will be freed as soon as it is
-	   sent/failed. */
+	   sent/failed. The reference is required to protect item until
+	   item_source_test() performs its checks on the item.
+	 */
 	m0_rpc_item_get(item);
+
+	M0_UT_ASSERT(m0_rpc_item_is_oneway(item) &&
+		     m0_rpc_item_payload_size(item) <= max_payload_size);
+
 	return item;
 }
 
+static void conn_terminating(struct m0_rpc_item_source *ris)
+{
+	M0_UT_ASSERT(!m0_rpc_item_source_is_registered(ris));
+
+	conn_terminating_cb_called = true;
+	m0_rpc_item_source_fini(ris);
+	m0_free(ris);
+
+	return;
+}
+
 static const struct m0_rpc_item_source_ops ris_ops = {
-	.riso_has_item = has_item,
-	.riso_get_item = get_item,
+	.riso_has_item         = has_item,
+	.riso_get_item         = get_item,
+	.riso_conn_terminating = conn_terminating,
 };
 
 static void item_source_basic_test(void)
@@ -106,18 +128,20 @@ static void item_source_basic_test(void)
 static void item_source_test(void)
 {
 	enum {MILLISEC = 1000 * 1000 };
-	struct m0_rpc_item_source  ris;
-	bool                       ok;
-	int                        trigger;
-	int                        rc;
+	struct m0_rpc_item_source  *ris;
+	bool                        ok;
+	int                         trigger;
+	int                         rc;
 
 	/*
 	   Test:
 	   - Confirm that formation correctly pulls items and sends them.
 	   - Also verify that periodic item-source drain works.
 	 */
-	rc = m0_rpc_item_source_init(&ris, "test-item-source", &ris_ops);
-	m0_rpc_item_source_register(conn, &ris);
+	M0_ALLOC_PTR(ris);
+	M0_UT_ASSERT(ris != NULL);
+	rc = m0_rpc_item_source_init(ris, "test-item-source", &ris_ops);
+	m0_rpc_item_source_register(conn, ris);
 
 	for (trigger = 0; trigger < 2; trigger++) {
 		has_item_flag = true;
@@ -158,9 +182,28 @@ static void item_source_test(void)
 		m0_fi_disable("frm_is_ready", "ready");
 		m0_rpc_item_put(item);
 	}
-	m0_rpc_item_source_deregister(&ris);
-	m0_rpc_item_source_fini(&ris);
+	m0_rpc_item_source_deregister(ris);
+	m0_rpc_item_source_fini(ris);
+	m0_free(ris);
+}
 
+static void conn_terminating_cb_test(void)
+{
+	struct m0_rpc_item_source *ris;
+	int                        rc;
+
+	M0_ALLOC_PTR(ris);
+	M0_UT_ASSERT(ris != NULL);
+	rc = m0_rpc_item_source_init(ris, "test-item-source", &ris_ops);
+	M0_UT_ASSERT(rc == 0);
+	m0_rpc_item_source_register(conn, ris);
+
+	M0_UT_ASSERT(!conn_terminating_cb_called);
+	stop_rpc_client_and_server();
+	/* riso_conn_terminating() callback will be called on item-sources,
+	   which were still registered when rpc-conn was being terminated
+	 */
+	M0_UT_ASSERT(conn_terminating_cb_called);
 }
 
 const struct m0_test_suite item_source_ut = {
@@ -168,9 +211,10 @@ const struct m0_test_suite item_source_ut = {
 	.ts_init = item_source_test_suite_init,
 	.ts_fini = item_source_test_suite_fini,
 	.ts_tests = {
-		{ "basic",     item_source_basic_test},
-		{ "item_pull", item_source_test      },
-		{ NULL,        NULL                  },
+		{ "basic",                    item_source_basic_test   },
+		{ "item_pull",                item_source_test         },
+		{ "conn_terminating_cb_test", conn_terminating_cb_test },
+		{ NULL,                       NULL                     },
 	}
 };
 

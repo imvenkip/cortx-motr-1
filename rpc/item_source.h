@@ -72,11 +72,11 @@ struct m0_rpc_item_source {
    The callback subroutines are invoked within the scope of the RPC machine
    lock so should not make re-entrant calls to the RPC subsystem that take
    RPC machine lock.
+
+   Implementation of all of the callbacks is mandatory.
  */
 struct m0_rpc_item_source_ops {
 	/** Returns true iff the item-source has item to send.
-
-	    Implementation of this callback is mandatory.
 
 	    @pre m0_rpc_machine_is_locked(ris->ris_conn->c_rpc_machine)
 	 */
@@ -84,8 +84,6 @@ struct m0_rpc_item_source_ops {
 
 	/** Returns an item to be sent. Returns NULL if couldn't form an item.
 	    Payload size should not exceed max_payload_size.
-
-	    Implementation of this callback is mandatory.
 
 	    Important: RPC reuses reference on returned item. If returned item
 	    has ref-count == 1 then the item will be freed as soon as it is
@@ -106,15 +104,15 @@ struct m0_rpc_item_source_ops {
 	    of this routine can choose to free :ris. RPC won't touch :ris
 	    after this callback.
 
-	    Implementation of this callback is optional (user must then take
-	    care to safely free ris).
+	    @pre !m0_rpc_item_source_is_registered(ris)
 	 */
 	void (*riso_conn_terminating)(struct m0_rpc_item_source *ris);
 };
 
 /**
    @pre ris != NULL && name != NULL
-   @pre ops != NULL && ops->riso_has_item != NULL && ops->riso_get_item != NULL
+   @pre ops != NULL && ops->riso_has_item != NULL &&
+	ops->riso_get_item != NULL && ops->riso_conn_terminating != NULL
  */
 int m0_rpc_item_source_init(struct m0_rpc_item_source *ris,
 			    const char *name,
