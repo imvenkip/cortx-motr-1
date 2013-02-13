@@ -40,7 +40,6 @@
 #include <stdio.h>
 
 static struct m0_rpc_conn *conn;
-static bool conn_terminating_cb_called;
 
 static int item_source_test_suite_init(void)
 {
@@ -52,20 +51,22 @@ static int item_source_test_suite_init(void)
 
 static int item_source_test_suite_fini(void)
 {
+	/* rpc client-server will be stopped in conn_terminating_cb_test() */
 	m0_rpc_test_fops_fini();
 	return 0;
 }
 
 static struct m0_rpc_item *item = NULL;
 
-static bool has_item_called;
-static bool get_item_called;
+static int has_item_calls;
+static int get_item_calls;
+static bool conn_terminating_cb_called;
 
 static bool has_item(const struct m0_rpc_item_source *ris)
 {
 	M0_UT_ASSERT(m0_rpc_machine_is_locked(ris->ris_conn->c_rpc_machine));
 
-	has_item_called = true;
+	has_item_calls++;
 	return M0_FI_ENABLED("yes");
 }
 
@@ -75,8 +76,7 @@ static struct m0_rpc_item *get_item(struct m0_rpc_item_source *ris,
 	struct m0_fop *fop;
 
 	M0_UT_ASSERT(m0_rpc_machine_is_locked(ris->ris_conn->c_rpc_machine));
-	get_item_called = true;
-
+	get_item_calls++;
 	fop  = m0_fop_alloc(&m0_rpc_arrow_fopt, NULL);
 	M0_UT_ASSERT(fop != NULL);
 	item = &fop->f_item;
@@ -88,7 +88,6 @@ static struct m0_rpc_item *get_item(struct m0_rpc_item_source *ris,
 
 	M0_UT_ASSERT(m0_rpc_item_is_oneway(item) &&
 		     m0_rpc_item_payload_size(item) <= max_payload_size);
-
 	return item;
 }
 
@@ -99,8 +98,6 @@ static void conn_terminating(struct m0_rpc_item_source *ris)
 	conn_terminating_cb_called = true;
 	m0_rpc_item_source_fini(ris);
 	m0_free(ris);
-
-	return;
 }
 
 static const struct m0_rpc_item_source_ops ris_ops = {
@@ -143,7 +140,7 @@ static void item_source_test(void)
 	for (trigger = 0; trigger < 2; trigger++) {
 		m0_fi_enable_once("has_item", "yes");
 		m0_fi_enable("frm_is_ready", "ready");
-		has_item_called = get_item_called = false;
+		has_item_calls = get_item_calls = 0;
 		switch (trigger) {
 		case 0:
 			m0_rpc_machine_lock(conn->c_rpc_machine);
@@ -160,7 +157,8 @@ static void item_source_test(void)
 		default:
 			M0_IMPOSSIBLE("only two triggers");
 		}
-		M0_UT_ASSERT(has_item_called && get_item_called);
+		M0_UT_ASSERT(has_item_calls > get_item_calls &&
+			     get_item_calls == 1);
 		rc = m0_rpc_item_timedwait(item, M0_BITS(M0_RPC_ITEM_SENT,
 							 M0_RPC_ITEM_FAILED),
 					   m0_time_from_now(2, 0));
@@ -180,11 +178,12 @@ static void item_source_test(void)
 		   Test that get_item does not get called when has_item
 		   returns false
 		 */
-		has_item_called = get_item_called = false;
+		has_item_calls = get_item_calls = 0;
 		m0_rpc_machine_lock(conn->c_rpc_machine);
 		m0_rpc_frm_run_formation(&conn->c_rpcchan->rc_frm);
 		m0_rpc_machine_unlock(conn->c_rpc_machine);
-		M0_UT_ASSERT(has_item_called && !get_item_called);
+		M0_UT_ASSERT(has_item_calls > get_item_calls &&
+			     get_item_calls == 0);
 
 		m0_fi_disable("frm_is_ready", "ready");
 		m0_rpc_item_put(item);
@@ -207,7 +206,7 @@ static void conn_terminating_cb_test(void)
 
 	M0_UT_ASSERT(!conn_terminating_cb_called);
 	stop_rpc_client_and_server();
-	/* riso_conn_terminating() callback will be called on item-sources,
+	/* riso_conn_terminating() callback will be called on item-sources
 	   which were still registered when rpc-conn was being terminated
 	 */
 	M0_UT_ASSERT(conn_terminating_cb_called);
