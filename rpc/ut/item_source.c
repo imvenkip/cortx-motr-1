@@ -56,7 +56,6 @@ static int item_source_test_suite_fini(void)
 	return 0;
 }
 
-static bool has_item_flag = false;
 static struct m0_rpc_item *item = NULL;
 
 static bool has_item_called;
@@ -65,11 +64,9 @@ static bool get_item_called;
 static bool has_item(const struct m0_rpc_item_source *ris)
 {
 	M0_UT_ASSERT(m0_rpc_machine_is_locked(ris->ris_conn->c_rpc_machine));
-	if (has_item_called)
-		return false;
 
 	has_item_called = true;
-	return true;
+	return M0_FI_ENABLED("yes");
 }
 
 static struct m0_rpc_item *get_item(struct m0_rpc_item_source *ris,
@@ -144,7 +141,7 @@ static void item_source_test(void)
 	m0_rpc_item_source_register(conn, ris);
 
 	for (trigger = 0; trigger < 2; trigger++) {
-		has_item_flag = true;
+		m0_fi_enable_once("has_item", "yes");
 		m0_fi_enable("frm_is_ready", "ready");
 		has_item_called = get_item_called = false;
 		switch (trigger) {
@@ -178,6 +175,16 @@ static void item_source_test(void)
 		ok = m0_semaphore_timeddown(&arrow_destroyed,
 					    m0_time_from_now(5, 0));
 		M0_UT_ASSERT(ok);
+
+		/* riso_has_item() is set to return false.
+		   Test that get_item does not get called when has_item
+		   returns false
+		 */
+		has_item_called = get_item_called = false;
+		m0_rpc_machine_lock(conn->c_rpc_machine);
+		m0_rpc_frm_run_formation(&conn->c_rpcchan->rc_frm);
+		m0_rpc_machine_unlock(conn->c_rpc_machine);
+		M0_UT_ASSERT(has_item_called && !get_item_called);
 
 		m0_fi_disable("frm_is_ready", "ready");
 		m0_rpc_item_put(item);
