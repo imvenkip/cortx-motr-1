@@ -46,19 +46,19 @@ static int io_fop_stob_create_fom_create(struct m0_fop *fop, struct m0_fom **m,
 static int check_write_fom_tick(struct m0_fom *fom);
 static int check_read_fom_tick(struct m0_fom *fom);
 
-struct m0_fop_type_ops bulkio_stob_create_ops = {
+static struct m0_fop_type_ops bulkio_stob_create_ops = {
 	.fto_fop_replied = io_fop_replied,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
-struct m0_fop_type_ops bulkio_server_write_fop_ut_ops = {
+static struct m0_fop_type_ops bulkio_server_write_fop_ut_ops = {
 	.fto_fop_replied = io_fop_replied,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
-struct m0_fop_type_ops bulkio_server_read_fop_ut_ops = {
+static struct m0_fop_type_ops bulkio_server_read_fop_ut_ops = {
 	.fto_fop_replied = io_fop_replied,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
@@ -293,7 +293,7 @@ static void fill_buffers_pool(uint32_t colour)
         m0_net_buffer_pool_unlock(buf_pool);
 }
 
-void fom_phase_set(struct m0_fom *fom, int phase)
+static void fom_phase_set(struct m0_fom *fom, int phase)
 {
 	if (m0_fom_phase(fom) == M0_FOPH_FAILURE) {
 		const struct fom_phase_desc *fpd_phase;
@@ -1181,7 +1181,7 @@ static int io_fop_server_read_fom_create(struct m0_fop  *fop,
 	return rc;
 }
 
-void bulkio_stob_create(void)
+static void bulkio_stob_create(void)
 {
 	struct m0_fop_cob_rw	*rw;
 	enum M0_RPC_OPCODES	 op;
@@ -1215,7 +1215,7 @@ void bulkio_stob_create(void)
 	io_fops_destroy(bp);
 }
 
-void bulkio_server_single_read_write(void)
+static void bulkio_server_single_read_write(void)
 {
 	int		    j;
 	enum M0_RPC_OPCODES op;
@@ -1253,7 +1253,7 @@ void bulkio_server_single_read_write(void)
 	io_fops_rpc_submit(&targ);
 }
 
-void bulkio_server_single_read_write_fol(void)
+static void bulkio_server_write_fol_rec_verify(void)
 {
 	struct m0_reqh		 *reqh;
 	struct m0_fol_rec	  dec_rec;
@@ -1273,29 +1273,28 @@ void bulkio_server_single_read_write_fol(void)
 
 	m0_dtx_init(&dtx);
 	result = m0_dtx_open(&dtx, reqh->rh_dbenv);
-	M0_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 
 	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
 				   reqh->rh_fol->f_lsn - 2, &dec_rec);
-	M0_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 
 	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part) {
-		if(strcmp(dec_part->rp_ops->rpo_type->rpt_name,
+		if (strcmp(dec_part->rp_ops->rpo_type->rpt_name,
 			  "Write record part") == 0) {
 			struct m0_io_write_rec_part *wrp;
 
 			wrp = (struct m0_io_write_rec_part *)dec_part->rp_data;
-			M0_ASSERT(m0_xcode_cmp(
-				  &M0_XCODE_OBJ(m0_fop_cob_writev_xc,
-						&wrp->wrp_write),
-				  &M0_XCODE_OBJ(m0_fop_cob_writev_xc, wfop))
-				  == 0);
-			M0_ASSERT(m0_xcode_cmp(
-				  &M0_XCODE_OBJ(m0_fid_xc, &wrp->wrp_fid),
-				  &M0_XCODE_OBJ(m0_fid_xc, wfop))
-				  == 0);
-			M0_ASSERT(wrp->wrp_write_rep.c_rep.rwr_rc == 0);
-			M0_ASSERT(wrp->wrp_write_rep.c_rep.rwr_count > 0);
+			M0_UT_ASSERT(m0_xcode_cmp(
+				     &M0_XCODE_OBJ(m0_fop_cob_writev_xc,
+						   &wrp->wrp_write),
+				     &M0_XCODE_OBJ(m0_fop_cob_writev_xc, wfop))
+				     == 0);
+			M0_UT_ASSERT(m0_xcode_cmp(
+				     &M0_XCODE_OBJ(m0_fid_xc, &wrp->wrp_fid),
+				     &M0_XCODE_OBJ(m0_fid_xc, wfop)) == 0);
+			M0_UT_ASSERT(wrp->wrp_write_rep.c_rep.rwr_rc == 0);
+			M0_UT_ASSERT(wrp->wrp_write_rep.c_rep.rwr_count > 0);
 		}
 	} m0_tl_endfor;
 
@@ -1308,7 +1307,7 @@ void bulkio_server_single_read_write_fol(void)
  * Sends regular write and read io fops, although replaces the original FOM
  * types in each io fop type with UT specific FOM types.
  */
-void bulkio_server_read_write_state_test(void)
+static void bulkio_server_read_write_state_test(void)
 {
 	int		    j;
 	enum M0_RPC_OPCODES op;
@@ -1352,7 +1351,7 @@ void bulkio_server_read_write_state_test(void)
  * in each io fop type with UT specific FOM types to check state transition for
  * I/O FOM.
  */
-void bulkio_server_rw_state_transition_test(void)
+static void bulkio_server_rw_state_transition_test(void)
 {
 	int		    j;
 	enum M0_RPC_OPCODES op;
@@ -1392,7 +1391,7 @@ void bulkio_server_rw_state_transition_test(void)
 	io_fops_destroy(bp);
 }
 
-void bulkio_server_multiple_read_write(void)
+static void bulkio_server_multiple_read_write(void)
 {
 	int		     rc;
 	int		     i;
@@ -1440,7 +1439,7 @@ void bulkio_server_multiple_read_write(void)
 	}
 }
 
-void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
+static void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
 {
 	struct m0_io_fop       **io_fops;
 	struct m0_rpc_bulk_buf	*rbuf;
@@ -1521,7 +1520,7 @@ void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
 		bp->bp_offsets[i] = IO_SEG_START_OFFSET;
 }
 
-void bulkio_server_read_write_multiple_nb(void)
+static void bulkio_server_read_write_multiple_nb(void)
 {
 	int		    i;
 	int		    j;
@@ -1562,7 +1561,7 @@ void bulkio_server_read_write_multiple_nb(void)
 	io_fops_destroy(bp);
 }
 
-void bulkio_server_read_write_fv_mismatch(void)
+static void bulkio_server_read_write_fv_mismatch(void)
 {
 	struct m0_reqh      *reqh;
 	struct m0_poolmach  *pm;
@@ -1667,8 +1666,8 @@ const struct m0_test_suite bulkio_server_ut = {
 		{ "bulkio_init", bulkio_init},
 		{ "bulkio_server_single_read_write",
 		   bulkio_server_single_read_write},
-		{ "bulkio_server_single_read_write_fol",
-		   bulkio_server_single_read_write_fol},
+		{ "bulkio_server_write_fol_rec_verify",
+		   bulkio_server_write_fol_rec_verify},
 		{ "bulkio_server_read_write_state_test",
 		   bulkio_server_read_write_state_test},
 		{ "bulkio_server_vectored_read_write",

@@ -28,6 +28,7 @@
 #include "ioservice/cob_foms.c"          /* To access static APIs. */
 #include "ioservice/io_service.h"
 #include "ut/ut.h"			/* m0_ut_fom_phase_set() */
+#include "ioservice/io_fops_xc.h"
 
 extern struct m0_fop_type m0_fop_cob_create_fopt;
 extern struct m0_fop_type m0_fop_cob_delete_fopt;
@@ -1039,7 +1040,7 @@ static void cd_fom_state_test(void)
 	cob_testdata_cleanup(cfom);
 }
 
-void dummy_locality_setup()
+static void dummy_locality_setup()
 {
 	struct m0_reqh *reqh;
 
@@ -1135,6 +1136,78 @@ static void cobfoms_fv_updates(void)
 			      COB_FOP_SINGLE);
 }
 
+static void cobfoms_fol_verify(void)
+{
+	struct m0_reqh		 *reqh;
+	struct m0_fol_rec	  dec_cc_rec;
+	struct m0_fol_rec	  dec_cd_rec;
+	struct m0_dtx             dtx;
+	int			  result;
+	struct m0_fol_rec_part	 *dec_part;
+	struct m0_fop_cob_common *cc;
+	struct m0_fop		 *c_fop;
+	struct m0_fop		 *d_fop;
+
+	cobfoms_fop_thread_init(1, 1);
+	cobfoms_fops_dispatch(&m0_fop_cob_create_fopt, 0);
+	cobfoms_fops_dispatch(&m0_fop_cob_delete_fopt, 0);
+
+	c_fop = cut->cu_createfops[0];
+	d_fop = cut->cu_deletefops[0];
+
+	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx, "ioservice");
+	M0_UT_ASSERT(reqh != NULL);
+
+	m0_dtx_init(&dtx);
+	result = m0_dtx_open(&dtx, reqh->rh_dbenv);
+	M0_UT_ASSERT(result == 0);
+
+	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
+				   reqh->rh_fol->f_lsn - 2, &dec_cc_rec);
+	M0_UT_ASSERT(result == 0);
+
+	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
+				   reqh->rh_fol->f_lsn - 1, &dec_cd_rec);
+	M0_UT_ASSERT(result == 0);
+
+	m0_tl_for(m0_rec_part, &dec_cc_rec.fr_fol_rec_parts, dec_part) {
+		if (strcmp(dec_part->rp_ops->rpo_type->rpt_name,
+			   "Create record part") == 0) {
+			struct m0_io_create_rec_part *crp;
+
+			crp = (struct m0_io_create_rec_part *)dec_part->rp_data;
+			cc = m0_cobfop_common_get(c_fop);
+			M0_UT_ASSERT(m0_xcode_cmp(
+				     &M0_XCODE_OBJ(m0_fop_cob_common_xc,
+						   &crp->crp_create.cc_common),
+				     &M0_XCODE_OBJ(m0_fop_cob_common_xc, cc))
+				     == 0);
+			M0_UT_ASSERT(crp->crp_create_rep.cor_rc == 0);
+		}
+	} m0_tl_endfor;
+
+	m0_tl_for(m0_rec_part, &dec_cd_rec.fr_fol_rec_parts, dec_part) {
+		if (strcmp(dec_part->rp_ops->rpo_type->rpt_name,
+			  "Delete record part") == 0) {
+			struct m0_io_delete_rec_part *drp;
+
+			drp = (struct m0_io_delete_rec_part *)dec_part->rp_data;
+			cc = m0_cobfop_common_get(d_fop);
+			M0_UT_ASSERT(m0_xcode_cmp(
+				     &M0_XCODE_OBJ(m0_fop_cob_common_xc,
+						   &drp->drp_delete.cd_common),
+				     &M0_XCODE_OBJ(m0_fop_cob_common_xc, cc))
+				     == 0);
+			M0_UT_ASSERT(drp->drp_delete_rep.cor_rc == 0);
+		}
+	} m0_tl_endfor;
+	m0_fol_rec_fini(&dec_cc_rec);
+	m0_fol_rec_fini(&dec_cd_rec);
+	m0_dtx_done(&dtx);
+
+	cobfoms_fop_thread_fini(&m0_fop_cob_create_fopt, &m0_fop_cob_delete_fopt);
+}
+
 const struct m0_test_suite cobfoms_ut = {
 	.ts_name  = "cob-foms-ut",
 	.ts_init  = NULL,
@@ -1147,6 +1220,7 @@ const struct m0_test_suite cobfoms_ut = {
 		{ "cobfoms_delete_nonexistent_cob", cobfoms_del_nonexist_cob},
 		{ "cobfoms_create_cob_apitest",     cob_create_api_test},
 		{ "cobfoms_delete_cob_apitest",     cob_delete_api_test},
+		{ "cob_create_delete_fol_verify",   cobfoms_fol_verify},
 		{ "single_fop_with_mismatch_fv",    cobfoms_fv_updates},
 		{ "cobfoms_utfini",                 cobfoms_utfini},
 		{ NULL, NULL }
