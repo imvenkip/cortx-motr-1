@@ -19,7 +19,7 @@ SUDO='sudo -E'
 
 clean() {
     cd "$SRC"
-    make distclean $MAKE_OPTS || true
+    make distclean || true
     [ "$1" = '-f' ] && git clean -fdx || true
 }
 
