@@ -43,7 +43,7 @@ M0_INTERNAL struct m0_sns_cm_cp *cp2snscp(const struct m0_cm_cp *cp)
 	return container_of(cp, struct m0_sns_cm_cp, sc_base);
 }
 
-static bool cp_invariant(const struct m0_cm_cp *cp)
+M0_INTERNAL bool m0_sns_cm_cp_invariant(const struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
 
@@ -58,17 +58,13 @@ static bool cp_invariant(const struct m0_cm_cp *cp)
  */
 M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp)
 {
-	struct m0_sns_cm_ag *sns_ag = ag2snsag(cp->c_ag);
 	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
 
 	/*
-         * Serialize read/writes on a particular stob by returning target
+         * Serialize read on a particular stob by returning target
          * container id to assign a reqh locality to the cp fom.
          */
-	if (sns_cp->sc_is_acc)
-		return sns_ag->sag_tgt_cobfid.f_container;
-	else
-		return sns_cp->sc_sid.si_bits.u_hi;
+	return sns_cp->sc_sid.si_bits.u_hi;
 }
 
 static int cp_init(struct m0_cm_cp *cp)
@@ -127,15 +123,12 @@ M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 
 		if (phase == M0_CCP_XFORM && cp->c_ag->cag_cp_local_nr == 1)
 			return M0_CCP_WRITE;
-
-		if (phase == M0_CCP_INIT && sns_cp->sc_is_acc)
-			return M0_CCP_WRITE;
 	}
 
 	return next[phase];
 }
 
-static void cp_complete(struct m0_cm_cp *cp)
+M0_INTERNAL void m0_sns_cm_cp_complete(struct m0_cm_cp *cp)
 {
 }
 
@@ -153,7 +146,7 @@ static void cp_buf_release(struct m0_cm_cp *cp)
         m0_sns_cm_buffer_put(nbp, nbuf, colour);
 }
 
-static void cp_free(struct m0_cm_cp *cp)
+M0_INTERNAL void m0_sns_cm_cp_free(struct m0_cm_cp *cp)
 {
 	M0_PRE(cp != NULL);
 
@@ -166,7 +159,7 @@ static void cp_free(struct m0_cm_cp *cp)
  * Dummy dud destructor function for struct m0_cm_cp_ops::co_action array
  * in-order to statisfy the m0_cm_cp_invariant.
  */
-static int sns_cm_dummy_cp_fini(struct m0_cm_cp *cp)
+M0_INTERNAL int m0_sns_cm_cp_fini(struct m0_cm_cp *cp)
 {
 	return 0;
 }
@@ -182,14 +175,14 @@ const struct m0_cm_cp_ops m0_sns_cm_cp_ops = {
 		[M0_CCP_SEND]         = &m0_sns_cm_cp_send,
 		[M0_CCP_RECV]         = &m0_sns_cm_cp_recv,
 		/* To satisfy the m0_cm_cp_invariant() */
-		[M0_CCP_FINI]         = &sns_cm_dummy_cp_fini,
+		[M0_CCP_FINI]         = &m0_sns_cm_cp_fini,
 	},
 	.co_action_nr            = M0_CCP_NR,
 	.co_phase_next	         = &m0_sns_cm_cp_phase_next,
-	.co_invariant	         = &cp_invariant,
+	.co_invariant	         = &m0_sns_cm_cp_invariant,
 	.co_home_loc_helper      = &cp_home_loc_helper,
-	.co_complete	         = &cp_complete,
-	.co_free                 = &cp_free,
+	.co_complete	         = &m0_sns_cm_cp_complete,
+	.co_free                 = &m0_sns_cm_cp_free,
 };
 
 /** @} SNSCMCP */

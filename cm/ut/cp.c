@@ -136,14 +136,14 @@ const struct m0_cm_cp_ops m0_sns_cm_cp_dummy_ops = {
                 [M0_CCP_XFORM_WAIT] = &dummy_cp_xform,
                 [M0_CCP_SEND]       = &m0_sns_cm_cp_send,
                 [M0_CCP_RECV]       = &m0_sns_cm_cp_recv,
-                [M0_CCP_FINI]       = &sns_cm_dummy_cp_fini,
+                [M0_CCP_FINI]       = &m0_sns_cm_cp_fini,
         },
         .co_action_nr          = M0_CCP_NR,
         .co_phase_next         = &m0_sns_cm_cp_phase_next,
-        .co_invariant          = &cp_invariant,
+        .co_invariant          = &m0_sns_cm_cp_invariant,
         .co_home_loc_helper    = &cp_home_loc_helper,
-        .co_complete           = &cp_complete,
-        .co_free               = &cp_free,
+        .co_complete           = &m0_sns_cm_cp_complete,
+        .co_free               = &m0_sns_cm_cp_free,
 };
 
 /*

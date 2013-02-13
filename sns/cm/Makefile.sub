@@ -6,6 +6,7 @@ nobase_mero_include_HEADERS += sns/cm/ag.h \
 
 mero_libmero_la_SOURCES  += sns/cm/ag.c \
                                   sns/cm/ag.h \
+                                  sns/cm/acc_cp.c \
                                   sns/cm/cm.c \
                                   sns/cm/cm.h \
                                   sns/cm/cp.c \
