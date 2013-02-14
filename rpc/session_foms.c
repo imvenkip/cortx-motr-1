@@ -150,6 +150,7 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	struct m0_rpc_fop_conn_establish_rep *reply;
 	struct m0_rpc_fop_conn_establish_ctx *ctx;
 	struct m0_rpc_fop_conn_establish     *request;
+	struct m0_rpc_onwire_slot_ref        *ow_sref;
 	struct m0_fop                        *fop;
 	struct m0_fop                        *fop_rep;
 	struct m0_rpc_item                   *item;
@@ -172,7 +173,7 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	M0_ASSERT(reply != NULL);
 
 	item = &fop->f_item;
-
+	ow_sref = &item->ri_slot_refs[0].sr_ow;
 	/*
 	 * On receiver side CONN_ESTABLISH fop is wrapped in
 	 * m0_rpc_fop_conn_etablish_ctx object.
@@ -184,7 +185,7 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 
 	RPC_ALLOC_PTR(conn, SESSION_FOM_CONN_ESTABLISH_TICK,
 		      &m0_rpc_addb_ctx);
-	if (conn == NULL){
+	if (conn == NULL) {
 		M0_RETURN(-ENOMEM);
 		/* no reply if conn establish failed.
 		   See [4] at end of this function. */
@@ -197,20 +198,21 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	/* we won't need ctx->cec_sender_ep after this point */
 	m0_net_end_point_put(ctx->cec_sender_ep);
 	if (rc == 0) {
+		session0 = m0_rpc_conn_session0(conn);
+		if (ow_sref->osr_slot_id >= session0->s_nr_slots) {
+			rc = -EPROTO;
+			m0_rpc_conn_fini_locked(conn);
+			goto out;
+		}
 		rc = m0_rpc_rcv_conn_establish(conn);
 		if (rc == 0) {
 			/* See [1] at the end of function */
-			session0         = m0_rpc_conn_session0(conn);
-			slot             = session0->s_slot_table[0];
+			slot = session0->s_slot_table[ow_sref->osr_slot_id];
 			M0_ASSERT(slot != NULL);
-
 			item->ri_session = session0;
 			m0_rpc_slot_item_add_internal(slot, item);
-
 			/* See [2] at the end of function */
-			item->ri_slot_refs[0].sr_ow.osr_sender_id =
-				SENDER_ID_INVALID;
-
+			ow_sref->osr_sender_id = SENDER_ID_INVALID;
 			M0_ASSERT(conn_state(conn) == M0_RPC_CONN_ACTIVE);
 			M0_ASSERT(m0_rpc_conn_invariant(conn));
 		} else {
@@ -220,15 +222,13 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	}
 	m0_rpc_machine_unlock(machine);
 
+out:
 	if (rc == 0) {
 		reply->rcer_sender_id = conn->c_sender_id;
 		reply->rcer_rc        = 0;
-
 		M0_LOG(M0_INFO, "Conn established: conn [%p] id [%lu]\n", conn,
 				(unsigned long)conn->c_sender_id);
-
 		m0_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-
 	} else {
 		M0_ASSERT(conn != NULL);
 		m0_free(conn);
