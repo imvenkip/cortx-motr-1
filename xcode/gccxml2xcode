@@ -783,7 +783,9 @@ sub set_global_vars
         $header_file_path = $header_file_name;
     }
 
-    $include_protector_name = '__MERO_' . uc $xcode_name . '_XC_H__';
+    ($include_protector_name = $header_file_path) =~ s# \s+ | -+ | / #_#xmsg;
+    $include_protector_name =~ s/ \.h $//xmsg;
+    $include_protector_name = '__MERO_' . uc $include_protector_name . '_XC_H__';
 }
 
 sub main
