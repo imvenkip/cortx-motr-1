@@ -175,7 +175,8 @@ rpc_SOURCES                     := rpc.c service.c \
                                    session_utils.c session_fops.c rpc_addb.c \
                                    rpc_onwire.c session_fops_xc.c rpclib.c \
                                    formation2.c frmops.c packet.c item.c \
-                                   bulk.c rpc_machine.c rpc_onwire_xc.c
+                                   bulk.c rpc_machine.c rpc_onwire_xc.c \
+                                   item_source.c
 
 rpc_HEADERS                     := session_fops.h session_fops_xc.h \
 				   rpc_onwire.h rpc_onwire_xc.h

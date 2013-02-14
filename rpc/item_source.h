@@ -45,8 +45,8 @@ struct m0_rpc_item_source_ops;
    send.
 
    RPC module can ask for an item iff application has registered an
-   :m0_rpc_item_source with :m0_rpc_conn. Once registered application should
-   not free the :m0_rpc_item_source instance without first deregistering it.
+   @a m0_rpc_item_source with @a m0_rpc_conn. Once registered application should
+   not free the @a m0_rpc_item_source instance without first deregistering it.
    @see m0_rpc_item_source_ops::riso_conn_terminating.
 
    @note Current implementation allows item-sources to provide only one-way
@@ -100,9 +100,9 @@ struct m0_rpc_item_source_ops {
 	/** This callback is invoked when rpc-connection is being terminated
 	    while the connection still has item-sources registered with it.
 
-	    :ris is deregistered before invoking this callback. Implementation
-	    of this routine can choose to free :ris. RPC won't touch :ris
-	    after this callback.
+	    <a>ris</a> is deregistered before invoking this callback.
+	    Implementation of this routine can choose to free <a>ris</a>.
+	    RPC won't touch <a>ris</a> after this callback.
 
 	    @pre !m0_rpc_item_source_is_registered(ris)
 	 */
