@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -104,14 +104,14 @@ static void addb_ut_evmgr_pt_thread(struct addb_ut_evmgr_pt_thread_arg
 	/* init our sequence */
 	seq.au64s_nr = ta->n * ADDB_UT_EVMGR_PT_SEQ_MULT;
 	M0_ALLOC_ARR(seq.au64s_data, seq.au64s_nr);
-	M0_ASSERT(ergo(seq.au64s_nr > 0, seq.au64s_data != NULL));
+	M0_UT_ASSERT(ergo(seq.au64s_nr > 0, seq.au64s_data != NULL));
 	for (i = 0; i < seq.au64s_nr; ++i)
 		seq.au64s_data[i] = ta->n * i;
 
 	M0_ALLOC_PTR(cntr);
-	M0_ASSERT(cntr != NULL);
+	M0_UT_ASSERT(cntr != NULL);
 	rc = m0_addb_counter_init(cntr, ta->cntr);
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	cntrp = (uint64_t *)cntr->acn_data;
 #define CNTR_DATA_SIZE sizeof(struct m0_addb_counter_data) / \
 		       sizeof(uint64_t)
@@ -164,7 +164,7 @@ static void addb_ut_evmgr_pt_thread(struct addb_ut_evmgr_pt_thread_arg
 		M0_ADDB_POST(ta->mc, ta->dp, cv, 9, 8, 7, 6, 5, 4, 3, 2, 1);
 		break;
 	default:
-		M0_ASSERT(ta->n < 9);
+		M0_UT_ASSERT(ta->n < 9);
 	}
 	M0_ADDB_POST_CNTR(ta->mc, cv, cntr);
 	M0_ADDB_POST_SEQ(ta->mc, &m0__addb_ut_rt_seq, cv, &seq);
@@ -196,7 +196,7 @@ static void addb_ut_evmgr_pt_cb(const struct m0_addb_rec *rec)
 	 */
 	ta = container_of(addb_rec_post_ut_data.cv[0],
 			  struct addb_ut_evmgr_pt_thread_arg, ctx);
-	M0_ASSERT(ta->n < ARRAY_SIZE(addb_ut_evmgr_pt_ta));
+	M0_UT_ASSERT(ta->n < ARRAY_SIZE(addb_ut_evmgr_pt_ta));
 
 	/* assemble the data to validate */
 	ctxpathlen = 4;
@@ -210,11 +210,11 @@ static void addb_ut_evmgr_pt_cb(const struct m0_addb_rec *rec)
 
 	switch (addb_rec_post_ut_data.brt) {
 	case M0_ADDB_BRT_EX:
-		M0_ASSERT(fields_nr == ta->n);
+		M0_UT_ASSERT(fields_nr == ta->n);
 		reclen = &ta->ex_reclen;
 		break;
 	case M0_ADDB_BRT_DP:
-		M0_ASSERT(fields_nr == ta->n);
+		M0_UT_ASSERT(fields_nr == ta->n);
 		reclen = &ta->dp_reclen;
 		break;
 	case M0_ADDB_BRT_CNTR:
@@ -323,7 +323,7 @@ static void addb_ut_evmgr_pt_post_test(void)
 
 	/* init */
 	rc = m0_semaphore_init(&sem, 0);
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	addb_ut_mc_reset();
 	m0_addb_mc_init(&mc);
 	addb_ut_mc_configure_recsink(&mc);
@@ -374,7 +374,7 @@ static void addb_ut_evmgr_pt_post_test(void)
 	 * Post using the initialized but unconfigured global machine.
 	 * It won't work, but it won't fail either.
 	 */
-	M0_ASSERT(!m0_addb_mc_is_configured(&m0_addb_gmc));
+	M0_UT_ASSERT(!m0_addb_mc_is_configured(&m0_addb_gmc));
 	M0_ADDB_POST(&m0_addb_gmc, &m0__addb_ut_rt_ex0,
 		     M0_ADDB_CTX_VEC(&m0_addb_node_ctx));
 
@@ -389,18 +389,18 @@ static void addb_ut_evmgr_pt_post_test(void)
 		ta->mc = &mc;
 		ta->sem = &sem;
 		M0_SET0(&ta->t);
-		M0_ASSERT(ta->ex != NULL); /* set in RT_REG */
-		M0_ASSERT(ta->dp != NULL); /* set in RT_REG */
-		M0_ASSERT(ta->cntr != NULL); /* set in RT_REG */
-		M0_ASSERT(ta->ex_reclen == 0);
-		M0_ASSERT(ta->dp_reclen == 0);
-		M0_ASSERT(ta->cntr_reclen == 0);
-		M0_ASSERT(ta->seq_reclen == 0);
+		M0_UT_ASSERT(ta->ex != NULL); /* set in RT_REG */
+		M0_UT_ASSERT(ta->dp != NULL); /* set in RT_REG */
+		M0_UT_ASSERT(ta->cntr != NULL); /* set in RT_REG */
+		M0_UT_ASSERT(ta->ex_reclen == 0);
+		M0_UT_ASSERT(ta->dp_reclen == 0);
+		M0_UT_ASSERT(ta->cntr_reclen == 0);
+		M0_UT_ASSERT(ta->seq_reclen == 0);
 		rc = M0_THREAD_INIT(&ta->t,
 				    struct addb_ut_evmgr_pt_thread_arg *,
 				    NULL, &addb_ut_evmgr_pt_thread, ta,
 				    "addb_ut_evmgr%d", i);
-		M0_ASSERT(rc == 0);
+		M0_UT_ASSERT(rc == 0);
 	}
 	for (i = 0; i < ARRAY_SIZE(addb_ut_evmgr_pt_ta); ++i)
 		m0_semaphore_up(&sem); /* unblock threads */

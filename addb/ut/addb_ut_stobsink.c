@@ -99,7 +99,7 @@ static int stobsink_mock_stob_type_domain_locate(struct m0_stob_type *type,
 	struct m0_stob_domain  *dom;
 	int                     rc;
 
-	M0_ASSERT(strlen(domain_name) < sizeof sdom->ssd_buf);
+	M0_UT_ASSERT(strlen(domain_name) < sizeof sdom->ssd_buf);
 	sdom = m0_alloc(sizeof *sdom);
 	if (sdom != NULL) {
 		dom = &sdom->ssd_dom;
@@ -166,7 +166,7 @@ static int stobsink_mock_stob_locate(struct m0_stob *obj, struct m0_dtx *tx)
 
 int stobsink_mock_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io)
 {
-	M0_PRE(io->si_state == SIS_IDLE);
+	M0_UT_ASSERT(io->si_state == SIS_IDLE);
 	io->si_op = &stobsink_mock_stob_io_op;
 	return 0;
 }
@@ -296,7 +296,7 @@ static void addb_ut_stobsink_search(void)
 	int64_t                   expected_offset;
 
 	rc = stobsink_mock_stobs_init();
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 
 	m0_addb_mc_init(&mc);
 
@@ -307,8 +307,8 @@ static void addb_ut_stobsink_search(void)
 	M0_UT_ASSERT(rc == 0 && stob != NULL);
 	M0_UT_ASSERT(stob->so_state == CSS_UNKNOWN);
 	rc = m0_stob_create(stob, NULL);
-	M0_ASSERT(rc == 0);
-	M0_ASSERT(stob->so_state == CSS_EXISTS);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(stob->so_state == CSS_EXISTS);
 
 	/* Test: full configure path, exercises EOF handling. */
 	stobsink_search_idx = 0;
@@ -371,7 +371,7 @@ static int addb_ut_rec_seq_enc(struct m0_addb_rec_seq  *rs,
 	};
 	int rc;
 
-	M0_PRE(rs != NULL && cur != NULL);
+	M0_UT_ASSERT(rs != NULL && cur != NULL);
 
 	obj.xo_ptr = rs;
 	m0_xcode_ctx_init(&ctx, &obj);
@@ -580,8 +580,8 @@ static void addb_ut_retrieval(void)
 	M0_UT_ASSERT(rc == 0 && stob != NULL);
 	M0_UT_ASSERT(stob->so_state == CSS_UNKNOWN);
 	rc = m0_stob_create(stob, NULL);
-	M0_ASSERT(rc == 0);
-	M0_ASSERT(stob->so_state == CSS_EXISTS);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(stob->so_state == CSS_EXISTS);
 
 	/* Test: segment size written to stob is retreived */
 	rc = stob_retrieval_segsize_get(stob);
@@ -612,7 +612,7 @@ static void addb_ut_retrieval(void)
 	M0_UT_ASSERT(iter->asi_seq_get(iter) == 0);
 	/* save data in a file, for file iter tests */
 	f = fopen(addb_repofile, "w");
-	M0_ASSERT(f != NULL);
+	M0_UT_ASSERT(f != NULL);
 	count = 0;
 	while (1) {
 		rc = iter->asi_nextbuf(iter, &bv);
@@ -624,7 +624,7 @@ static void addb_ut_retrieval(void)
 		M0_UT_ASSERT(iter->asi_seq_get(iter) ==
 			     (count < 3 ? count + 12 : count + 2));
 		rc = fwrite(bv->ov_buf[0], bv->ov_vec.v_count[0], 1, f);
-		M0_ASSERT(rc == 1);
+		M0_UT_ASSERT(rc == 1);
 		count++;
 	}
 	M0_UT_ASSERT(iter->asi_seq_get(iter) == 0);
@@ -761,11 +761,11 @@ static void addb_ut_stob(void)
 	bool                      bp_wrapped;
 
 	rc = system("rm -fr ./_addb");
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	rc = mkdir("./_addb", 0700);
-	M0_ASSERT(rc == 0 || (rc == -1 && errno == EEXIST));
+	M0_UT_ASSERT(rc == 0 || (rc == -1 && errno == EEXIST));
 	rc = mkdir("./_addb/o", 0700);
-	M0_ASSERT(rc == 0 || (rc == -1 && errno == EEXIST));
+	M0_UT_ASSERT(rc == 0 || (rc == -1 && errno == EEXIST));
 
 	rc = m0_stob_domain_locate(&m0_linux_stob_type, "./_addb", &dom);
 	M0_UT_ASSERT(rc == 0);
@@ -773,8 +773,8 @@ static void addb_ut_stob(void)
 	M0_UT_ASSERT(rc == 0 && stob != NULL);
 	M0_UT_ASSERT(stob->so_state == CSS_UNKNOWN);
 	rc = m0_stob_create(stob, NULL);
-	M0_ASSERT(rc == 0);
-	M0_ASSERT(stob->so_state == CSS_EXISTS);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(stob->so_state == CSS_EXISTS);
 
 	m0_addb_mc_init(&mc);
 	stob_size = STOBSINK_SEGMENT_SIZE * STOBSINK_SMALL_SEG_NR;

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -154,7 +154,7 @@ static void addb_ut_ct_test(void)
 		size_t len;
 
 		M0_ALLOC_ARR(cts, cts_nr);
-		M0_ASSERT(cts != NULL);
+		M0_UT_ASSERT(cts != NULL);
 
 		for (i = 0; i < ARRAY_SIZE(addb_ct_htab); ++i)
 			htab_len_orig += addb_ct_tlist_length(&addb_ct_htab[i]);
@@ -168,7 +168,7 @@ static void addb_ut_ct_test(void)
 		}
 		/* register concurrently on background threads */
 		rc = m0_semaphore_init(&sem, 0);
-		M0_ASSERT(rc == 0);
+		M0_UT_ASSERT(rc == 0);
 		for (i = 0; i < CT_UT_MULTIPLIER; ++i) {
 			ta[i].cts = cts;
 			ta[i].cts_nr = cts_nr;
@@ -180,7 +180,7 @@ static void addb_ut_ct_test(void)
 					    struct addb_ut_ct_thread_arg *,
 					    NULL, &addb_ut_ct_thread, &ta[i],
 					    "addb_ut_ct%d", i);
-			M0_ASSERT(rc == 0);
+			M0_UT_ASSERT(rc == 0);
 		}
 		for (i = 0; i < CT_UT_MULTIPLIER; ++i)
 			m0_semaphore_up(&sem); /* unblock threads */
@@ -548,7 +548,7 @@ static void addb_ut_rt_test(void)
 		size_t len;
 
 		M0_ALLOC_ARR(rts, rts_nr);
-		M0_ASSERT(rts != NULL);
+		M0_UT_ASSERT(rts != NULL);
 
 		for (i = 0; i < ARRAY_SIZE(addb_rt_htab); ++i)
 			htab_len_orig += addb_rt_tlist_length(&addb_rt_htab[i]);
@@ -569,7 +569,7 @@ static void addb_ut_rt_test(void)
 		}
 		/* register concurrently on background threads */
 		rc = m0_semaphore_init(&sem, 0);
-		M0_ASSERT(rc == 0);
+		M0_UT_ASSERT(rc == 0);
 		for (i = 0; i < RT_UT_MULTIPLIER; ++i) {
 			ta[i].rts = rts;
 			ta[i].rts_nr = rts_nr;
@@ -581,7 +581,7 @@ static void addb_ut_rt_test(void)
 					    struct addb_ut_rt_thread_arg *,
 					    NULL, &addb_ut_rt_thread, &ta[i],
 					    "addb_ut_rt%d", i);
-			M0_ASSERT(rc == 0);
+			M0_UT_ASSERT(rc == 0);
 		}
 		for (i = 0; i < RT_UT_MULTIPLIER; ++i)
 			m0_semaphore_up(&sem); /* unblock threads */

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -121,9 +121,9 @@ static void addb_ut_ctx_gpt_cb(const struct m0_addb_rec *rec)
 	} else { /* deferred contexts */
 		int j;
 
-		M0_ASSERT(addb_ut_ctx_gpt_cb_num >= 3);
+		M0_UT_ASSERT(addb_ut_ctx_gpt_cb_num >= 3);
 		i = addb_ut_ctx_gpt_cb_num - 3;
-		M0_ASSERT(i < ARRAY_SIZE(addb_ut_def_ctx));
+		M0_UT_ASSERT(i < ARRAY_SIZE(addb_ut_def_ctx));
 		ctxpathlen = 3;
 		ctxpath[0] = m0_node_uuid.u_hi;
 		ctxpath[1] = m0_node_uuid.u_lo;
@@ -133,7 +133,7 @@ static void addb_ut_ctx_gpt_cb(const struct m0_addb_rec *rec)
 		for (j = 0; j < nf; ++j)
 			f[j] = j + 1;
 	}
-	M0_ASSERT(nf <= ARRAY_SIZE(f));
+	M0_UT_ASSERT(nf <= ARRAY_SIZE(f));
 	rid = m0_addb_rec_rid_make(M0_ADDB_BRT_CTXDEF, ctxid);
 	M0_UT_ASSERT(rec->ar_rid == rid);
 	M0_UT_ASSERT(m0_addb_rec_rid_to_brt(rid) == M0_ADDB_BRT_CTXDEF);
@@ -251,12 +251,12 @@ static void addb_ut_ctx_global_post_test(void)
 				 &m0__addb_ut_ct3, &m0_addb_node_ctx, 1, 2, 3);
 		M0_UT_ASSERT(addb_cdc_tlist_length(&addb_cdc) == i + 1);
 		ce = addb_cdc_tlist_tail(&addb_cdc);
-		M0_ASSERT(ce != NULL);
+		M0_UT_ASSERT(ce != NULL);
 		M0_UT_ASSERT(ce->cdc_ctx == &ctx);
 		m0_addb_ctx_fini(&ctx);
 		M0_UT_ASSERT(addb_cdc_tlist_length(&addb_cdc) == i);
 		ce = addb_cdc_tlist_tail(&addb_cdc);
-		M0_ASSERT(ce != NULL);
+		M0_UT_ASSERT(ce != NULL);
 		M0_UT_ASSERT(ce->cdc_ctx != &ctx);
 	}
 
@@ -361,7 +361,7 @@ static void addb_ut_ctx_gci_thread(struct addb_ut_ctx_gci_thread_arg *ta)
 				 5, 6, 7, 8, 9);
 		break;
 	default:
-		M0_ASSERT(ta->n < 9);
+		M0_UT_ASSERT(ta->n < 9);
 	}
 	return;
 }
@@ -382,8 +382,8 @@ static void addb_ut_ctx_gci_cb(const struct m0_addb_rec *rec)
 	ta = container_of(addb_rec_post_ut_data.cv[0],
 			  struct addb_ut_ctx_gci_thread_arg, ctx);
 
-	M0_ASSERT(ta->n < ARRAY_SIZE(addb_ut_ctx_gci_ta));
-	M0_ASSERT(&addb_ut_ctx_gci_ta[ta->n] == ta);
+	M0_UT_ASSERT(ta->n < ARRAY_SIZE(addb_ut_ctx_gci_ta));
+	M0_UT_ASSERT(&addb_ut_ctx_gci_ta[ta->n] == ta);
 
 	ctxpathlen = 4;
 	ctxpath[0] = m0_node_uuid.u_hi;
@@ -425,7 +425,7 @@ static void addb_ut_ctx_init_test(void)
 	uint64_t cntr;
 
 	rc = m0_semaphore_init(&sem, 0);
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 
 	addb_ut_mc_reset();
 	m0_addb_mc_init(&mc);
@@ -470,12 +470,12 @@ static void addb_ut_ctx_init_test(void)
 		ta->sem = &sem;
 		ta->pctx = pctx;
 		M0_SET0(&ta->t);
-		M0_ASSERT(ta->ct != NULL); /* set in CT_REG */
-		M0_ASSERT(ta->reclen == 0);
+		M0_UT_ASSERT(ta->ct != NULL); /* set in CT_REG */
+		M0_UT_ASSERT(ta->reclen == 0);
 		rc = M0_THREAD_INIT(&ta->t, struct addb_ut_ctx_gci_thread_arg *,
 				    NULL, &addb_ut_ctx_gci_thread, ta,
 				    "addb_ut_ctx%d", i);
-		M0_ASSERT(rc == 0);
+		M0_UT_ASSERT(rc == 0);
 	}
 	for (i = 0; i < ARRAY_SIZE(addb_ut_ctx_gci_ta); ++i)
 		m0_semaphore_up(&sem); /* unblock threads */

@@ -97,7 +97,7 @@ void addb_ut_svc_test(void)
 	 * Test: Start and stop the service, no FOMs
 	 */
 	addb_svc_start_pfom = false;
-	M0_ASSERT(the_addb_svc == NULL);
+	M0_UT_ASSERT(the_addb_svc == NULL);
 	M0_UT_ASSERT(server_start() == 0);
 	M0_UT_ASSERT(the_addb_svc != NULL);
 	server_stop();
