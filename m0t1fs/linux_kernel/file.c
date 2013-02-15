@@ -4592,6 +4592,10 @@ err:
 }
 
 const struct inode_operations m0t1fs_reg_inode_operations = {
-        .setattr = m0t1fs_setattr,
-        .getattr = m0t1fs_getattr
+        .setattr        = m0t1fs_setattr,
+        .getattr        = m0t1fs_getattr,
+        .setxattr       = m0t1fs_setxattr,
+        .getxattr       = m0t1fs_getxattr,
+        .listxattr      = m0t1fs_listxattr,
+        .removexattr    = m0t1fs_removexattr
 };

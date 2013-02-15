@@ -77,6 +77,16 @@ static size_t m0_md_fol_pack_size(struct m0_fol_rec_desc *desc)
         case M0_LAYOUT_OPCODE:
                 len += ((struct m0_fop_layout *)data)->l_buf.b_count;
                 break;
+        case M0_MDSERVICE_SETXATTR_OPCODE:
+                len += ((struct m0_fop_setxattr *)data)->s_key.s_len;
+                len += ((struct m0_fop_setxattr *)data)->s_value.s_len;
+                break;
+        case M0_MDSERVICE_GETXATTR_OPCODE:
+                len += ((struct m0_fop_getxattr *)data)->g_key.s_len;
+                break;
+        case M0_MDSERVICE_DELXATTR_OPCODE:
+                len += ((struct m0_fop_delxattr *)data)->d_key.s_len;
+                break;
         default:
                 break;
         }
@@ -147,6 +157,16 @@ static void m0_md_fol_pack(struct m0_fol_rec_desc *desc, void *buf)
         case M0_LAYOUT_OPCODE:
                 copy(&ptr, (struct m0_fop_str*)
 				&((struct m0_fop_layout *)data)->l_buf);
+                break;
+        case M0_MDSERVICE_SETXATTR_OPCODE:
+                copy(&ptr, &((struct m0_fop_setxattr *)data)->s_key);
+                copy(&ptr, &((struct m0_fop_setxattr *)data)->s_value);
+                break;
+        case M0_MDSERVICE_GETXATTR_OPCODE:
+                copy(&ptr, &((struct m0_fop_getxattr *)data)->g_key);
+                break;
+        case M0_MDSERVICE_DELXATTR_OPCODE:
+                copy(&ptr, &((struct m0_fop_delxattr *)data)->d_key);
                 break;
         default:
                 break;
@@ -225,6 +245,22 @@ static int m0_md_fol_open(const struct m0_fol_rec_type *type,
                 map(&ptr, (struct m0_fop_str *)
 				&((struct m0_fop_layout *)data)->l_buf);
                 break;
+        case M0_MDSERVICE_SETXATTR_OPCODE:
+                ptr = (char *)((struct m0_fop_setxattr *)data + 1);
+                map(&ptr, &((struct m0_fop_setxattr *)data)->s_key);
+                map(&ptr, &((struct m0_fop_setxattr *)data)->s_value);
+                break;
+        case M0_MDSERVICE_GETXATTR_OPCODE:
+                ptr = (char *)((struct m0_fop_getxattr *)data + 1);
+                map(&ptr, &((struct m0_fop_getxattr *)data)->g_key);
+                break;
+        case M0_MDSERVICE_DELXATTR_OPCODE:
+                ptr = (char *)((struct m0_fop_delxattr *)data + 1);
+                map(&ptr, &((struct m0_fop_delxattr *)data)->d_key);
+                break;
+        case M0_MDSERVICE_LISTXATTR_OPCODE:
+                ptr = (char *)((struct m0_fop_listxattr *)data + 1);
+                break;
         default:
                 break;
         }
@@ -263,6 +299,10 @@ struct m0_fop_type m0_fop_open_fopt;
 struct m0_fop_type m0_fop_close_fopt;
 struct m0_fop_type m0_fop_setattr_fopt;
 struct m0_fop_type m0_fop_getattr_fopt;
+struct m0_fop_type m0_fop_setxattr_fopt;
+struct m0_fop_type m0_fop_getxattr_fopt;
+struct m0_fop_type m0_fop_delxattr_fopt;
+struct m0_fop_type m0_fop_listxattr_fopt;
 struct m0_fop_type m0_fop_statfs_fopt;
 struct m0_fop_type m0_fop_rename_fopt;
 struct m0_fop_type m0_fop_readdir_fopt;
@@ -276,18 +316,17 @@ struct m0_fop_type m0_fop_open_rep_fopt;
 struct m0_fop_type m0_fop_close_rep_fopt;
 struct m0_fop_type m0_fop_setattr_rep_fopt;
 struct m0_fop_type m0_fop_getattr_rep_fopt;
+struct m0_fop_type m0_fop_setxattr_rep_fopt;
+struct m0_fop_type m0_fop_getxattr_rep_fopt;
+struct m0_fop_type m0_fop_delxattr_rep_fopt;
+struct m0_fop_type m0_fop_listxattr_rep_fopt;
 struct m0_fop_type m0_fop_statfs_rep_fopt;
 struct m0_fop_type m0_fop_rename_rep_fopt;
 struct m0_fop_type m0_fop_readdir_rep_fopt;
 struct m0_fop_type m0_fop_layout_rep_fopt;
 
-M0_INTERNAL int m0_mdservice_fop_init(void)
+M0_INTERNAL int m0_mdservice_fopts_init(void)
 {
-        /*
-         * Provided by gccxml2xcode after parsing md_fops.h
-         */
-        m0_xc_md_fops_init();
-
         return  M0_FOP_TYPE_INIT(&m0_fop_create_fopt,
                                  .name      = "Create request",
                                  .opcode    = M0_MDSERVICE_CREATE_OPCODE,
@@ -382,6 +421,52 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
                                  .svc_type  = &m0_mds_type,
 #endif
                                  .sm        = &m0_generic_conf) ?:
+                M0_FOP_TYPE_INIT(&m0_fop_setxattr_fopt,
+                                 .name      = "Setxattr request",
+                                 .opcode    = M0_MDSERVICE_SETXATTR_OPCODE,
+                                 .xt        = m0_fop_setxattr_xc,
+                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+                                              M0_RPC_ITEM_TYPE_MUTABO,
+                                 .fop_ops   = &m0_md_fop_ops,
+#ifndef __KERNEL__
+                                 .fom_ops   = &m0_md_fom_ops,
+                                 .svc_type  = &m0_mds_type,
+#endif
+                                 .sm        = &m0_generic_conf) ?:
+                M0_FOP_TYPE_INIT(&m0_fop_getxattr_fopt,
+                                 .name      = "Getxattr request",
+                                 .opcode    = M0_MDSERVICE_GETXATTR_OPCODE,
+                                 .xt        = m0_fop_getxattr_xc,
+                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+                                 .fop_ops   = &m0_md_fop_ops,
+#ifndef __KERNEL__
+                                 .fom_ops   = &m0_md_fom_ops,
+                                 .svc_type  = &m0_mds_type,
+#endif
+                                 .sm        = &m0_generic_conf) ?:
+                M0_FOP_TYPE_INIT(&m0_fop_delxattr_fopt,
+                                 .name      = "Delxattr request",
+                                 .opcode    = M0_MDSERVICE_DELXATTR_OPCODE,
+                                 .xt        = m0_fop_delxattr_xc,
+                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+                                              M0_RPC_ITEM_TYPE_MUTABO,
+                                 .fop_ops   = &m0_md_fop_ops,
+#ifndef __KERNEL__
+                                 .fom_ops   = &m0_md_fom_ops,
+                                 .svc_type  = &m0_mds_type,
+#endif
+                                 .sm        = &m0_generic_conf) ?:
+		M0_FOP_TYPE_INIT(&m0_fop_listxattr_fopt,
+                                 .name      = "Listxattr request",
+                                 .opcode    = M0_MDSERVICE_LISTXATTR_OPCODE,
+                                 .xt        = m0_fop_listxattr_xc,
+                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+                                 .fop_ops   = &m0_md_fop_ops,
+#ifndef __KERNEL__
+                                 .fom_ops   = &m0_md_fom_ops,
+                                 .svc_type  = &m0_mds_type,
+#endif
+                                 .sm        = &m0_generic_conf) ?:
                 M0_FOP_TYPE_INIT(&m0_fop_statfs_fopt,
                                  .name      = "Statfs request",
                                  .opcode    = M0_MDSERVICE_STATFS_OPCODE,
@@ -426,8 +511,12 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
                                  .fom_ops   = &m0_md_fom_ops,
                                  .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_create_rep_fopt,
+                                 .sm        = &m0_generic_conf);
+}
+
+M0_INTERNAL int m0_mdservice_rep_fopts_init(void)
+{
+	return  M0_FOP_TYPE_INIT(&m0_fop_create_rep_fopt,
                                  .name      = "Create reply",
                                  .opcode    = M0_MDSERVICE_CREATE_REP_OPCODE,
                                  .xt        = m0_fop_create_rep_xc,
@@ -467,6 +556,26 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
                                  .opcode    = M0_MDSERVICE_GETATTR_REP_OPCODE,
                                  .xt        = m0_fop_getattr_rep_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
+                M0_FOP_TYPE_INIT(&m0_fop_setxattr_rep_fopt,
+                                 .name      = "Setxattr reply",
+                                 .opcode    = M0_MDSERVICE_SETXATTR_REP_OPCODE,
+                                 .xt        = m0_fop_setxattr_rep_xc,
+                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
+                M0_FOP_TYPE_INIT(&m0_fop_getxattr_rep_fopt,
+                                 .name      = "Getxattr reply",
+                                 .opcode    = M0_MDSERVICE_GETXATTR_REP_OPCODE,
+                                 .xt        = m0_fop_getxattr_rep_xc,
+                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
+                M0_FOP_TYPE_INIT(&m0_fop_delxattr_rep_fopt,
+                                 .name      = "Delxattr reply",
+                                 .opcode    = M0_MDSERVICE_DELXATTR_REP_OPCODE,
+                                 .xt        = m0_fop_delxattr_rep_xc,
+                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
+                M0_FOP_TYPE_INIT(&m0_fop_listxattr_rep_fopt,
+                                 .name      = "Listxattr reply",
+                                 .opcode    = M0_MDSERVICE_LISTXATTR_REP_OPCODE,
+                                 .xt        = m0_fop_listxattr_rep_xc,
+                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
                 M0_FOP_TYPE_INIT(&m0_fop_statfs_rep_fopt,
                                  .name      = "Statfs reply",
                                  .opcode    = M0_MDSERVICE_STATFS_REP_OPCODE,
@@ -488,6 +597,16 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
                                  .xt        = m0_fop_layout_rep_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 }
+
+M0_INTERNAL int m0_mdservice_fop_init(void)
+{
+        /*
+         * Provided by gccxml2xcode after parsing md_fops.h
+         */
+        m0_xc_md_fops_init();
+
+        return m0_mdservice_fopts_init() ?: m0_mdservice_rep_fopts_init();
+}
 M0_EXPORTED(m0_mdservice_fop_init);
 
 M0_INTERNAL void m0_mdservice_fop_fini(void)
@@ -500,6 +619,10 @@ M0_INTERNAL void m0_mdservice_fop_fini(void)
         m0_fop_type_fini(&m0_fop_close_fopt);
         m0_fop_type_fini(&m0_fop_setattr_fopt);
         m0_fop_type_fini(&m0_fop_getattr_fopt);
+        m0_fop_type_fini(&m0_fop_setxattr_fopt);
+        m0_fop_type_fini(&m0_fop_getxattr_fopt);
+        m0_fop_type_fini(&m0_fop_delxattr_fopt);
+        m0_fop_type_fini(&m0_fop_listxattr_fopt);
         m0_fop_type_fini(&m0_fop_statfs_fopt);
         m0_fop_type_fini(&m0_fop_rename_fopt);
         m0_fop_type_fini(&m0_fop_readdir_fopt);
@@ -513,6 +636,10 @@ M0_INTERNAL void m0_mdservice_fop_fini(void)
         m0_fop_type_fini(&m0_fop_close_rep_fopt);
         m0_fop_type_fini(&m0_fop_setattr_rep_fopt);
         m0_fop_type_fini(&m0_fop_getattr_rep_fopt);
+        m0_fop_type_fini(&m0_fop_setxattr_rep_fopt);
+        m0_fop_type_fini(&m0_fop_getxattr_rep_fopt);
+        m0_fop_type_fini(&m0_fop_delxattr_rep_fopt);
+        m0_fop_type_fini(&m0_fop_listxattr_rep_fopt);
         m0_fop_type_fini(&m0_fop_statfs_rep_fopt);
         m0_fop_type_fini(&m0_fop_rename_rep_fopt);
         m0_fop_type_fini(&m0_fop_readdir_rep_fopt);

@@ -674,6 +674,8 @@ M0_INTERNAL void m0t1fs_destroy_inode(struct inode *inode);
 
 M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci);
 
+/* dir.c */
+
 M0_INTERNAL struct m0_fid m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci,
 					     int index);
 /**
@@ -727,6 +729,22 @@ M0_INTERNAL int m0t1fs_mds_cob_readdir(struct m0t1fs_sb           *csb,
 				       const struct m0t1fs_mdop   *mo,
 				       struct m0_fop_readdir_rep **rep);
 
+M0_INTERNAL int m0t1fs_mds_cob_setxattr(struct m0t1fs_sb            *csb,
+					const struct m0t1fs_mdop    *mo,
+					struct m0_fop_setxattr_rep **rep);
+
+M0_INTERNAL int m0t1fs_mds_cob_getxattr(struct m0t1fs_sb            *csb,
+					const struct m0t1fs_mdop    *mo,
+					struct m0_fop_getxattr_rep **rep);
+
+M0_INTERNAL int m0t1fs_mds_cob_listxattr(struct m0t1fs_sb             *csb,
+					 const struct m0t1fs_mdop     *mo,
+					 struct m0_fop_listxattr_rep **rep);
+
+M0_INTERNAL int m0t1fs_mds_cob_delxattr(struct m0t1fs_sb            *csb,
+					const struct m0t1fs_mdop    *mo,
+					struct m0_fop_delxattr_rep **rep);
+
 /**
  * layout operation from client to mds.
  * @param op in {CREATE/DELETE/LOOKUP}
@@ -741,6 +759,16 @@ M0_INTERNAL int m0t1fs_layout_op(struct m0t1fs_sb *csb,
 
 M0_INTERNAL int m0t1fs_size_update(struct inode *inode,
 				   uint64_t newsize);
+
+M0_INTERNAL int m0t1fs_setxattr(struct dentry *dentry, const char *name,
+                                const void *value, size_t size, int flags);
+
+M0_INTERNAL ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
+                                    void *buffer, size_t size);
+
+M0_INTERNAL int m0t1fs_removexattr(struct dentry *dentry, const char *name);
+
+M0_INTERNAL ssize_t m0t1fs_listxattr(struct dentry *dentry, char *buffer, size_t size);
 
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 

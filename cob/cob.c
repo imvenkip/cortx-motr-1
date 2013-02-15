@@ -47,7 +47,8 @@
 */
 
 enum {
-	M0_COB_NAME_MAX = 256
+	M0_COB_NAME_MAX = 256,
+	M0_COB_EA_MAX   = 4096
 };
 
 /**
@@ -139,6 +140,80 @@ M0_INTERNAL size_t m0_cob_nskey_size(const struct m0_cob_nskey *cnk)
 		m0_bitstring_len_get(&cnk->cnk_name);
 }
 
+M0_INTERNAL int m0_cob_eakey_make(struct m0_cob_eakey **keyh,
+				  const struct m0_fid *fid,
+				  const char *name, size_t namelen)
+{
+	struct m0_cob_eakey *key;
+
+	key = m0_alloc(sizeof *key + namelen);
+	if (key == NULL)
+		return -ENOMEM;
+	key->cek_fid = *fid;
+	m0_bitstring_copy(&key->cek_name, name, namelen);
+	*keyh = key;
+	return 0;
+}
+
+/**
+   Make eakey for iterator. Allocate space for max possible name
+   but put real string len into the struct.
+*/
+static int m0_cob_max_eakey_make(struct m0_cob_eakey **keyh,
+				 const struct m0_fid *fid,
+				 const char *name,
+				 int namelen)
+{
+	struct m0_cob_eakey *key;
+
+	key = m0_alloc(sizeof *key + M0_COB_NAME_MAX);
+	if (key == NULL)
+		return -ENOMEM;
+	key->cek_fid = *fid;
+	m0_bitstring_copy(&key->cek_name, name, namelen);
+	*keyh = key;
+	return 0;
+}
+
+M0_INTERNAL int m0_cob_eakey_cmp(const struct m0_cob_eakey *k0,
+				 const struct m0_cob_eakey *k1)
+{
+	int rc;
+
+	M0_PRE(m0_fid_is_set(&k0->cek_fid));
+	M0_PRE(m0_fid_is_set(&k1->cek_fid));
+
+	rc = m0_fid_cmp(&k0->cek_fid, &k1->cek_fid);
+	return rc ?: m0_bitstring_cmp(&k0->cek_name, &k1->cek_name);
+}
+
+M0_INTERNAL size_t m0_cob_eakey_size(const struct m0_cob_eakey *cek)
+{
+	return sizeof *cek +
+		m0_bitstring_len_get(&cek->cek_name);
+}
+
+static size_t m0_cob_earec_size(const struct m0_cob_earec *rec)
+{
+	return sizeof *rec + rec->cer_size;
+}
+
+/**
+   Maximal possible earec size.
+ */
+M0_INTERNAL size_t m0_cob_max_earec_size(void)
+{
+	return sizeof(struct m0_cob_earec) + M0_COB_EA_MAX;
+}
+
+/**
+   Maximal possible eakey size.
+ */
+static size_t m0_cob_max_eakey_size(const struct m0_cob_eakey *cek)
+{
+	return sizeof *cek + M0_COB_NAME_MAX;
+}
+
 /**
    Fabrec size taking into account symlink length.
  */
@@ -210,7 +285,7 @@ static int m0_cob_max_nskey_make(struct m0_cob_nskey **keyh,
    and want to allocate it for worst case scenario, that is, for max
    possible name len.
  */
-static size_t m0_cob_nskey_size_max(const struct m0_cob_nskey *cnk)
+static size_t m0_cob_max_nskey_size(const struct m0_cob_nskey *cnk)
 {
 	return sizeof *cnk + M0_COB_NAME_MAX;
 }
@@ -264,6 +339,9 @@ static const struct m0_table_ops cob_oi_ops = {
 	.key_cmp = oi_cmp
 };
 
+/**
+   File attributes table definition
+ */
 static int fb_cmp(struct m0_table *table, const void *key0, const void *key1)
 {
 	const struct m0_cob_fabkey *cok0 = key0;
@@ -285,6 +363,26 @@ static const struct m0_table_ops cob_fab_ops = {
 		}
 	},
 	.key_cmp = fb_cmp
+};
+
+/**
+   Extended attributes table definition
+ */
+static int ea_cmp(struct m0_table *table, const void *key0, const void *key1)
+{
+	return m0_cob_eakey_cmp(key0, key1);
+}
+
+static const struct m0_table_ops cob_ea_ops = {
+	.to = {
+		[TO_KEY] = {
+			.max_size = ~0
+		},
+		[TO_REC] = {
+			.max_size = ~0
+		}
+	},
+	.key_cmp = ea_cmp
 };
 
 /**
@@ -365,11 +463,23 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_dbenv *env,
 		return rc;
 	}
 
+	rc = m0_table_init(&dom->cd_fileattr_ea, dom->cd_dbenv,
+			   cob_dom_id_make(table, &dom->cd_id, "ea"),
+			   0, &cob_ea_ops);
+	if (rc != 0) {
+		m0_table_fini(&dom->cd_fileattr_basic);
+		m0_table_fini(&dom->cd_object_index);
+		m0_table_fini(&dom->cd_namespace);
+		m0_table_fini(&dom->cd_fileattr_omg);
+		return rc;
+	}
+
 	return 0;
 }
 
 void m0_cob_domain_fini(struct m0_cob_domain *dom)
 {
+	m0_table_fini(&dom->cd_fileattr_ea);
 	m0_table_fini(&dom->cd_fileattr_omg);
 	m0_table_fini(&dom->cd_fileattr_basic);
 	m0_table_fini(&dom->cd_object_index);
@@ -875,7 +985,7 @@ M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
 	 * Init iterator cursor with max possible key size.
 	 */
 	m0_db_pair_setup(&it->ci_pair, &cob->co_dom->cd_namespace,
-			 it->ci_key, m0_cob_nskey_size_max(it->ci_key),
+			 it->ci_key, m0_cob_max_nskey_size(it->ci_key),
 			 &it->ci_rec, sizeof it->ci_rec);
 
 	rc = m0_db_cursor_init(&it->ci_cursor,
@@ -1227,7 +1337,8 @@ out:
 
 M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
 				struct m0_cob_nskey *nskey,
-				struct m0_cob_nsrec *nsrec, struct m0_db_tx *tx)
+				struct m0_cob_nsrec *nsrec,
+				struct m0_db_tx *tx)
 {
 	struct m0_cob_oikey  oikey;
 	struct m0_db_pair    pair;
@@ -1380,6 +1491,136 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
 out:
 	COB_FUNC_FAIL(NAME_UPDATE, rc);
 	return rc;
+}
+
+M0_INTERNAL int m0_cob_ea_get(struct m0_cob *cob,
+                              struct m0_cob_eakey *eakey,
+                              struct m0_cob_earec *out,
+                              struct m0_db_tx *tx)
+{
+	struct m0_db_pair     pair;
+	int                   rc;
+
+	m0_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_ea,
+			 eakey, m0_cob_eakey_size(eakey),
+			 out, m0_cob_max_earec_size());
+	rc = m0_table_lookup(tx, &pair);
+	m0_db_pair_release(&pair);
+	m0_db_pair_fini(&pair);
+	return rc;
+}
+
+M0_INTERNAL int m0_cob_ea_set(struct m0_cob *cob,
+			      struct m0_cob_eakey *eakey,
+			      struct m0_cob_earec *earec,
+			      struct m0_db_tx *tx)
+{
+	struct m0_db_pair     pair;
+	int                   rc;
+
+	M0_PRE(cob != NULL);
+	M0_PRE(eakey != NULL);
+	M0_PRE(m0_fid_is_set(&eakey->cek_fid));
+	M0_PRE(m0_cob_is_valid(cob));
+
+	m0_cob_ea_del(cob, eakey, tx);
+
+	m0_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_ea,
+			 eakey, m0_cob_eakey_size(eakey),
+			 earec, m0_cob_earec_size(earec));
+
+	rc = m0_table_insert(tx, &pair);
+	m0_db_pair_release(&pair);
+	m0_db_pair_fini(&pair);
+
+	COB_FUNC_FAIL(EA_ADD, rc);
+	return rc;
+}
+
+M0_INTERNAL int m0_cob_ea_del(struct m0_cob *cob,
+			      struct m0_cob_eakey *eakey,
+			      struct m0_db_tx *tx)
+{
+	struct m0_db_pair   pair;
+	int                 rc;
+
+	M0_PRE(m0_cob_is_valid(cob));
+
+	m0_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_ea,
+			 eakey, m0_cob_eakey_size(eakey), NULL, 0);
+	rc = m0_table_delete(tx, &pair);
+	m0_db_pair_fini(&pair);
+
+	COB_FUNC_FAIL(EA_DEL, rc);
+	return rc;
+}
+
+M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
+				        struct m0_cob_ea_iterator *it,
+				        struct m0_bitstring *name,
+				        struct m0_db_tx *tx)
+{
+	int rc;
+
+	/*
+	 * Prepare entry key using passed started pos.
+	 */
+	rc = m0_cob_max_eakey_make(&it->ci_key, cob->co_fid,
+				   m0_bitstring_buf_get(name),
+				   m0_bitstring_len_get(name));
+	if (rc != 0)
+		return rc;
+
+        it->ci_rec = m0_alloc(m0_cob_max_earec_size());
+	if (it->ci_rec == NULL) {
+	        m0_free(it->ci_key);
+		return rc;
+        }
+
+	/*
+	 * Init iterator cursor with max possible key and rec size.
+	 */
+	m0_db_pair_setup(&it->ci_pair, &cob->co_dom->cd_fileattr_ea,
+			 it->ci_key, m0_cob_max_eakey_size(it->ci_key),
+			 it->ci_rec, m0_cob_max_earec_size());
+
+	rc = m0_db_cursor_init(&it->ci_cursor,
+			       &cob->co_dom->cd_fileattr_ea, tx, 0);
+	if (rc != 0) {
+		m0_db_pair_release(&it->ci_pair);
+		m0_db_pair_fini(&it->ci_pair);
+		m0_free(it->ci_key);
+		m0_free(it->ci_rec);
+		return rc;
+	}
+	it->ci_cob = cob;
+	return rc;
+}
+
+M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it)
+{
+	return m0_db_cursor_get(&it->ci_cursor, &it->ci_pair);
+}
+
+M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it)
+{
+	int rc;
+
+	rc = m0_db_cursor_next(&it->ci_cursor, &it->ci_pair);
+
+	if (rc == 0 && !m0_fid_eq(&it->ci_key->cek_fid, it->ci_cob->co_fid))
+		return -ENOENT;
+
+	return rc;
+}
+
+M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it)
+{
+	m0_db_pair_release(&it->ci_pair);
+	m0_db_pair_fini(&it->ci_pair);
+	m0_db_cursor_fini(&it->ci_cursor);
+	m0_free(it->ci_key);
+	m0_free(it->ci_rec);
 }
 
 /** @} end group cob */

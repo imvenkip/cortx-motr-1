@@ -36,6 +36,10 @@ extern struct m0_fop_type m0_fop_open_fopt;
 extern struct m0_fop_type m0_fop_close_fopt;
 extern struct m0_fop_type m0_fop_setattr_fopt;
 extern struct m0_fop_type m0_fop_getattr_fopt;
+extern struct m0_fop_type m0_fop_setxattr_fopt;
+extern struct m0_fop_type m0_fop_getxattr_fopt;
+extern struct m0_fop_type m0_fop_delxattr_fopt;
+extern struct m0_fop_type m0_fop_listxattr_fopt;
 extern struct m0_fop_type m0_fop_statfs_fopt;
 extern struct m0_fop_type m0_fop_rename_fopt;
 extern struct m0_fop_type m0_fop_readdir_fopt;
@@ -49,6 +53,10 @@ extern struct m0_fop_type m0_fop_open_rep_fopt;
 extern struct m0_fop_type m0_fop_close_rep_fopt;
 extern struct m0_fop_type m0_fop_setattr_rep_fopt;
 extern struct m0_fop_type m0_fop_getattr_rep_fopt;
+extern struct m0_fop_type m0_fop_setxattr_rep_fopt;
+extern struct m0_fop_type m0_fop_getxattr_rep_fopt;
+extern struct m0_fop_type m0_fop_delxattr_rep_fopt;
+extern struct m0_fop_type m0_fop_listxattr_rep_fopt;
 extern struct m0_fop_type m0_fop_statfs_rep_fopt;
 extern struct m0_fop_type m0_fop_rename_rep_fopt;
 extern struct m0_fop_type m0_fop_readdir_rep_fopt;
@@ -82,6 +90,11 @@ struct m0_fop_cob {
         struct m0_fid b_pfid;
         struct m0_fid b_tfid;
 } M0_XCA_RECORD;
+
+struct m0_fop_buf {
+        uint32_t b_count;
+        uint8_t *b_addr;
+} M0_XCA_SEQUENCE;
 
 struct m0_fop_create {
         struct m0_fop_cob c_body;
@@ -174,16 +187,50 @@ struct m0_fop_getattr_rep {
         struct m0_fop_cob g_body;
 } M0_XCA_RECORD;
 
+struct m0_fop_getxattr {
+        struct m0_fop_cob g_body;
+        struct m0_fop_str g_key;
+} M0_XCA_RECORD;
+
+struct m0_fop_getxattr_rep {
+        struct m0_fop_cob g_body;
+        struct m0_fop_str g_value;
+} M0_XCA_RECORD;
+
+struct m0_fop_setxattr {
+        struct m0_fop_cob s_body;
+        struct m0_fop_str s_key;
+        struct m0_fop_str s_value;
+} M0_XCA_RECORD;
+
+struct m0_fop_setxattr_rep {
+        struct m0_fop_cob s_body;
+} M0_XCA_RECORD;
+
+struct m0_fop_delxattr {
+        struct m0_fop_cob d_body;
+        struct m0_fop_str d_key;
+} M0_XCA_RECORD;
+
+struct m0_fop_delxattr_rep {
+        struct m0_fop_cob d_body;
+} M0_XCA_RECORD;
+
+struct m0_fop_listxattr {
+        struct m0_fop_cob l_body;
+} M0_XCA_RECORD;
+
+struct m0_fop_listxattr_rep {
+        struct m0_fop_str l_end;
+        struct m0_fop_cob l_body;
+        struct m0_fop_buf l_buf;
+} M0_XCA_RECORD;
+
 struct m0_fop_readdir {
         struct m0_fop_cob r_body;
         struct m0_fop_str r_path;
         struct m0_fop_str r_pos;
 } M0_XCA_RECORD;
-
-struct m0_fop_buf {
-        uint32_t b_count;
-        uint8_t *b_addr;
-} M0_XCA_SEQUENCE;
 
 struct m0_fop_readdir_rep {
         struct m0_fop_str r_end;
@@ -192,20 +239,20 @@ struct m0_fop_readdir_rep {
 } M0_XCA_RECORD;
 
 struct m0_fop_statfs {
-        uint64_t f_flags;
+        uint64_t          f_flags;
 } M0_XCA_RECORD;
 
 struct m0_fop_statfs_rep {
-        uint32_t      f_rc;
-        uint64_t      f_type;
-        uint32_t      f_bsize;
-        uint64_t      f_blocks;
-        uint64_t      f_bfree;
-        uint64_t      f_bavail;
-        uint64_t      f_files;
-        uint64_t      f_ffree;
-        uint32_t      f_namelen;
-        struct m0_fid f_root;
+        uint32_t          f_rc;
+        uint64_t          f_type;
+        uint32_t          f_bsize;
+        uint64_t          f_blocks;
+        uint64_t          f_bfree;
+        uint64_t          f_bavail;
+        uint64_t          f_files;
+        uint64_t          f_ffree;
+        uint32_t          f_namelen;
+        struct m0_fid     f_root;
 } M0_XCA_RECORD;
 
 enum m0_layout_opcode {

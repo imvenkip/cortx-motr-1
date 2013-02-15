@@ -97,14 +97,18 @@ const struct file_operations m0t1fs_dir_file_operations = {
 };
 
 const struct inode_operations m0t1fs_dir_inode_operations = {
-	.create  = m0t1fs_create,
-	.lookup  = m0t1fs_lookup,
-	.unlink  = m0t1fs_unlink,
-	.link    = m0t1fs_link,
-	.mkdir   = m0t1fs_mkdir,
-	.rmdir   = m0t1fs_rmdir,
-	.setattr = m0t1fs_setattr,
-	.getattr = m0t1fs_getattr
+	.create         = m0t1fs_create,
+	.lookup         = m0t1fs_lookup,
+	.unlink         = m0t1fs_unlink,
+	.link           = m0t1fs_link,
+	.mkdir          = m0t1fs_mkdir,
+	.rmdir          = m0t1fs_rmdir,
+	.setattr        = m0t1fs_setattr,
+	.getattr        = m0t1fs_getattr,
+        .setxattr       = m0t1fs_setxattr,
+        .getxattr       = m0t1fs_getxattr,
+        .listxattr      = m0t1fs_listxattr,
+        .removexattr    = m0t1fs_removexattr
 };
 
 static int name_mem2wire(struct m0_fop_str *tgt,
@@ -166,6 +170,105 @@ static struct m0_fid m0t1fs_fid_alloc(struct m0t1fs_sb *csb)
 	return fid;
 }
 
+int m0t1fs_setxattr(struct dentry *dentry, const char *name,
+                    const void *value, size_t size, int flags)
+{
+	struct m0t1fs_inode        *ci = M0T1FS_I(dentry->d_inode);
+	struct m0t1fs_sb           *csb = M0T1FS_SB(ci->ci_inode.i_sb);
+	struct m0_fop_setxattr_rep *rep = NULL;
+	struct m0t1fs_mdop          mo;
+	int                         rc;
+
+	M0_ENTRY("Setting %.*s's xattr %s=%.*s", dentry->d_name.len,
+		 dentry->d_name.name, name, (int)size, (char *)value);
+
+	m0t1fs_fs_lock(csb);
+
+	M0_SET0(&mo);
+	mo.mo_attr.ca_tfid = ci->ci_fid;
+	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
+		    dentry->d_name.len);
+	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
+	m0_buf_init(&mo.mo_attr.ca_eaval, (void *)value, size);
+
+	rc = m0t1fs_mds_cob_setxattr(csb, &mo, &rep);
+
+	m0t1fs_fs_unlock(csb);
+	M0_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
+                        void *buffer, size_t size)
+{
+	struct m0t1fs_inode        *ci = M0T1FS_I(dentry->d_inode);
+	struct m0t1fs_sb           *csb = M0T1FS_SB(ci->ci_inode.i_sb);
+	struct m0_fop_getxattr_rep *rep = NULL;
+	struct m0t1fs_mdop          mo;
+	int                         rc;
+
+	M0_ENTRY("Getting %.*s's xattr %s", dentry->d_name.len,
+		 dentry->d_name.name, name);
+
+	m0t1fs_fs_lock(csb);
+
+	M0_SET0(&mo);
+	mo.mo_attr.ca_tfid = ci->ci_fid;
+	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
+		    dentry->d_name.len);
+	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
+
+	rc = m0t1fs_mds_cob_getxattr(csb, &mo, &rep);
+	if (rc == 0) {
+		if (buffer != NULL) {
+			if ((size_t)rep->g_value.s_len > size) {
+				rc = -ERANGE;
+				goto out;
+			}
+			memcpy(buffer, rep->g_value.s_buf, rep->g_value.s_len);
+		}
+		rc = rep->g_value.s_len; /* return xattr length */
+	} else if (rc == -ENOENT)
+		rc = -ENODATA;
+out:
+	m0t1fs_fs_unlock(csb);
+	M0_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+ssize_t m0t1fs_listxattr(struct dentry *dentry, char *buffer, size_t size)
+{
+        return -EOPNOTSUPP;
+}
+
+int m0t1fs_removexattr(struct dentry *dentry, const char *name)
+{
+	struct m0t1fs_inode        *ci = M0T1FS_I(dentry->d_inode);
+	struct m0t1fs_sb           *csb = M0T1FS_SB(ci->ci_inode.i_sb);
+	struct m0_fop_delxattr_rep *rep = NULL;
+	struct m0t1fs_mdop          mo;
+	int                         rc;
+
+	M0_ENTRY("Deleting %.*s's xattr %s", dentry->d_name.len,
+		 dentry->d_name.name, name);
+
+	m0t1fs_fs_lock(csb);
+
+	M0_SET0(&mo);
+	mo.mo_attr.ca_tfid = ci->ci_fid;
+	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
+		    dentry->d_name.len);
+	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
+
+	rc = m0t1fs_mds_cob_delxattr(csb, &mo, &rep);
+	if (rc == -ENOENT)
+		rc = -ENODATA;
+
+	m0t1fs_fs_unlock(csb);
+	M0_LEAVE("rc: %d", rc);
+	return rc;
+}
+
 static int m0t1fs_create(struct inode     *dir,
 			 struct dentry    *dentry,
 			 int               mode,
@@ -209,8 +312,8 @@ static int m0t1fs_create(struct inode     *dir,
 		inode->i_fop = &m0t1fs_dir_file_operations;
 		inc_nlink(inode);  /* one more link (".") for directories */
 	} else {
-		inode->i_op     = &m0t1fs_reg_inode_operations;
-		inode->i_fop    = &m0t1fs_reg_file_operations;
+		inode->i_op  = &m0t1fs_reg_inode_operations;
+		inode->i_fop = &m0t1fs_reg_file_operations;
 	}
 
 	ci               = M0T1FS_I(inode);
@@ -252,7 +355,7 @@ static int m0t1fs_create(struct inode     *dir,
 		if (rc != 0)
 			goto out;
 	}
-  
+
 	mark_inode_dirty(dir);
 	m0t1fs_fs_unlock(csb);
 
@@ -433,16 +536,18 @@ static int m0t1fs_readdir(struct file *f,
 				type = DT_DIR;
 			} else {
 				/**
-				   TODO: Entry type is unknown and ino is
-				   pretty random, should be fixed later.
+				 * TODO: Entry type is unknown and ino is
+				 * pretty random, should be fixed later.
 				 */
 				ino = ++i;
 				type = DT_UNKNOWN;
 			}
 
-			M0_LOG(M0_DEBUG, "filled off %lu ino %lu name \"%*s\"",
+			M0_LOG(M0_DEBUG, "filled off %lu ino %lu name"
+			       " \"%.*s\", ino %lu, type %d",
 			       (unsigned long)f->f_pos, (unsigned long)ino,
-			       ent->d_namelen, (char *)ent->d_name);
+			       ent->d_namelen, (char *)ent->d_name,
+			       ino, type);
 
 			over = filldir(buf, ent->d_name, ent->d_namelen,
 				       f->f_pos, ino, type);
@@ -888,6 +993,10 @@ static int m0t1fs_mds_cob_fop_populate(const struct m0t1fs_mdop *mo,
 	struct m0_fop_setattr   *setattr;
 	struct m0_fop_readdir   *readdir;
 	struct m0_fop_layout    *layout;
+	struct m0_fop_setxattr  *setxattr;
+	struct m0_fop_getxattr  *getxattr;
+	struct m0_fop_listxattr *listxattr;
+	struct m0_fop_delxattr  *delxattr;
 	struct m0_fop_cob       *req;
 	int                      rc = 0;
 
@@ -986,6 +1095,35 @@ static int m0t1fs_mds_cob_fop_populate(const struct m0t1fs_mdop *mo,
 		}
 		break;
 	}
+	case M0_MDSERVICE_SETXATTR_OPCODE:
+		setxattr = m0_fop_data(fop);
+		req = &setxattr->s_body;
+
+		req->b_tfid = mo->mo_attr.ca_tfid;
+		rc = name_mem2wire(&setxattr->s_key, &mo->mo_attr.ca_eakey) ?:
+			name_mem2wire(&setxattr->s_value,
+				      &mo->mo_attr.ca_eaval);
+		break;
+	case M0_MDSERVICE_GETXATTR_OPCODE:
+		getxattr = m0_fop_data(fop);
+		req = &getxattr->g_body;
+
+		req->b_tfid = mo->mo_attr.ca_tfid;
+		rc = name_mem2wire(&getxattr->g_key, &mo->mo_attr.ca_eakey);
+		break;
+	case M0_MDSERVICE_LISTXATTR_OPCODE:
+		listxattr = m0_fop_data(fop);
+		req = &listxattr->l_body;
+
+		req->b_tfid = mo->mo_attr.ca_tfid;
+		break;
+	case M0_MDSERVICE_DELXATTR_OPCODE:
+		delxattr = m0_fop_data(fop);
+		req = &delxattr->d_body;
+
+		req->b_tfid = mo->mo_attr.ca_tfid;
+		rc = name_mem2wire(&delxattr->d_key, &mo->mo_attr.ca_eakey);
+		break;
 	default:
 		rc = -ENOSYS;
 		break;
@@ -1014,6 +1152,10 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 	struct m0_fop_close_rep     *close_rep;
 	struct m0_fop_readdir_rep   *readdir_rep;
 	struct m0_fop_layout_rep    *layout_rep;
+	struct m0_fop_setxattr_rep  *setxattr_rep;
+	struct m0_fop_getxattr_rep  *getxattr_rep;
+	struct m0_fop_listxattr_rep *listxattr_rep;
+	struct m0_fop_delxattr_rep  *delxattr_rep;
 	void                        *reply_fop;
 
 	M0_PRE(ftype != NULL);
@@ -1110,9 +1252,25 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 		readdir_rep = reply_fop;
 		rc = readdir_rep->r_body.b_rc;
 		break;
-	 case M0_LAYOUT_OPCODE:
+	case M0_LAYOUT_OPCODE:
 		layout_rep = reply_fop;
 		rc = layout_rep->lr_rc;
+		break;
+	case M0_MDSERVICE_SETXATTR_OPCODE:
+		setxattr_rep = reply_fop;
+		rc = setxattr_rep->s_body.b_rc;
+		break;
+	case M0_MDSERVICE_GETXATTR_OPCODE:
+		getxattr_rep = reply_fop;
+		rc = getxattr_rep->g_body.b_rc;
+		break;
+	case M0_MDSERVICE_LISTXATTR_OPCODE:
+		listxattr_rep = reply_fop;
+		rc = listxattr_rep->l_body.b_rc;
+		break;
+	case M0_MDSERVICE_DELXATTR_OPCODE:
+		delxattr_rep = reply_fop;
+		rc = delxattr_rep->d_body.b_rc;
 		break;
 	default:
 		M0_LOG(M0_ERROR, "Unexpected fop opcode %x", m0_fop_opcode(fop));
@@ -1247,6 +1405,35 @@ int m0t1fs_mds_cob_readdir(struct m0t1fs_sb           *csb,
 			   struct m0_fop_readdir_rep **rep)
 {
 	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_readdir_fopt, (void **)rep);
+}
+
+int m0t1fs_mds_cob_setxattr(struct m0t1fs_sb            *csb,
+			    const struct m0t1fs_mdop    *mo,
+			    struct m0_fop_setxattr_rep **rep)
+{
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_setxattr_fopt, (void **)rep);
+}
+
+int m0t1fs_mds_cob_getxattr(struct m0t1fs_sb            *csb,
+			    const struct m0t1fs_mdop    *mo,
+			    struct m0_fop_getxattr_rep **rep)
+{
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_getxattr_fopt, (void **)rep);
+}
+
+int m0t1fs_mds_cob_listxattr(struct m0t1fs_sb             *csb,
+			     const struct m0t1fs_mdop     *mo,
+			     struct m0_fop_listxattr_rep **rep)
+{
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_listxattr_fopt,
+				 (void **)rep);
+}
+
+int m0t1fs_mds_cob_delxattr(struct m0t1fs_sb            *csb,
+			    const struct m0t1fs_mdop    *mo,
+			    struct m0_fop_delxattr_rep **rep)
+{
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_delxattr_fopt, (void **)rep);
 }
 
 static int m0t1fs_ios_cob_create(struct m0t1fs_sb    *csb,

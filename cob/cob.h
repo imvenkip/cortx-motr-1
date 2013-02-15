@@ -270,6 +270,7 @@ struct m0_cob_domain {
 	struct m0_table         cd_namespace;
 	struct m0_table         cd_fileattr_basic;
 	struct m0_table         cd_fileattr_omg;
+	struct m0_table         cd_fileattr_ea;
 };
 
 int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_dbenv *env,
@@ -336,6 +337,8 @@ struct m0_cob_attr {
 	uint64_t      ca_lid;     /**< layout id */
 	struct m0_buf ca_name;    /**< object name */
 	struct m0_buf ca_link;    /**< symlink body */
+	struct m0_buf ca_eakey;   /**< xattr name */
+	struct m0_buf ca_eaval;   /**< xattr value */
 };
 
 /**
@@ -424,6 +427,18 @@ struct m0_cob_omgrec {
 	uint32_t          cor_uid;     /**< user ID of owner */
 	uint32_t          cor_mode;    /**< protection */
 	uint32_t          cor_gid;     /**< group ID of owner */
+};
+
+/** Extended attributes table key */
+struct m0_cob_eakey {
+	struct m0_fid       cek_fid;   /**< EA owner fid */
+	struct m0_bitstring cek_name;  /**< EA name */
+};
+
+/** Extended attributes table value */
+struct m0_cob_earec {
+	uint16_t          cer_size;    /**< EA len */
+	char              cer_body[0]; /**< EA body */
 };
 
 /**
@@ -524,6 +539,17 @@ struct m0_cob_iterator {
 	struct m0_db_cursor    ci_cursor;   /**< cob iterator cursor */
 	struct m0_cob_nskey   *ci_key;      /**< current iterator pos */
 	struct m0_cob_nsrec    ci_rec;      /**< current iterator rec */
+	struct m0_db_pair      ci_pair;     /**< used for iterator cursor */
+};
+
+/**
+ * Cob EA iterator. Holds current position inside EA table.
+ */
+struct m0_cob_ea_iterator {
+	struct m0_cob         *ci_cob;      /**< the cob we iterate */
+	struct m0_db_cursor    ci_cursor;   /**< cob iterator cursor */
+	struct m0_cob_eakey   *ci_key;      /**< current iterator pos */
+	struct m0_cob_earec   *ci_rec;      /**< current iterator rec */
 	struct m0_db_pair      ci_pair;     /**< used for iterator cursor */
 };
 
@@ -671,6 +697,72 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
 				   struct m0_cob_nskey *srckey,
 				   struct m0_cob_nskey *tgtkey,
 				   struct m0_db_tx *tx);
+
+/** Max possible size of earec. */
+M0_INTERNAL size_t m0_cob_max_earec_size(void);
+
+/**
+   Create ea table key from passed file fid and ea name.
+ */
+M0_INTERNAL int m0_cob_eakey_make(struct m0_cob_eakey **keyh,
+				  const struct m0_fid *fid,
+				  const char *name,
+				  size_t namelen);
+
+/**
+   Search for a record to the extended attributes table
+ */
+M0_INTERNAL int m0_cob_ea_get(struct m0_cob *cob,
+                              struct m0_cob_eakey *eakey,
+                              struct m0_cob_earec *out,
+                              struct m0_db_tx *tx);
+
+/**
+   Add a record to the extended attributes table. If key already exists
+   then kill the old record.
+ */
+M0_INTERNAL int m0_cob_ea_set(struct m0_cob *cob,
+			      struct m0_cob_eakey *eakey,
+			      struct m0_cob_earec *earec,
+			      struct m0_db_tx *tx);
+
+/**
+   Del a record in the extended attributes table
+ */
+M0_INTERNAL int m0_cob_ea_del(struct m0_cob *cob,
+			      struct m0_cob_eakey *eakey,
+			      struct m0_db_tx *tx);
+
+/**
+ * Init ea iterator on passed @cob and @name as a start position.
+ */
+M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
+				        struct m0_cob_ea_iterator *it,
+				        struct m0_bitstring *name,
+				        struct m0_db_tx *tx);
+
+/**
+ * Position to next name in a ea table.
+ *
+ * @retval 0        Success.
+ * @retval -ENOENT  Next name is not found in ea table.
+ * @retval -errno   Other error.
+ */
+M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it);
+
+/**
+ * Position in table according with @it properties.
+ *
+ * @retval 0        Success.
+ * @retval -ENOENT  Specified position not found in table.
+ * @retval -errno   Other error.
+ */
+M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it);
+
+/**
+ * Finish cob ea iterator.
+ */
+M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it);
 
 /**
  * Init cob iterator on passed @cob and @name as a start position.

@@ -55,6 +55,8 @@ enum {
 	M0_COB_ADDB_LOC_NAME_DEL    = 50,
 	M0_COB_ADDB_LOC_NAME_UPDATE = 60,
 	M0_COB_ADDB_LOC_UPDATE      = 70,
+	M0_COB_ADDB_LOC_EA_ADD      = 80,
+	M0_COB_ADDB_LOC_EA_DEL      = 90,
 };
 
 /** @} */ /* end of cob group */
