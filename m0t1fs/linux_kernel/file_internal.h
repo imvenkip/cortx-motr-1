@@ -45,6 +45,14 @@
       - @ref rmw-dgreadIO-conformance
       - @ref rmw-dgreadIO-ut
       - @ref rmw-dgreadIO-impl-plan
+   - @ref rmw-degraded-writeIO
+      - @ref rmw-dgwriteIO-req
+      - @ref rmw-dgwriteIO-highlights
+      - @ref rmw-dgwriteIO-lspec
+      - @ref rmw-dgwriteIO-limitations
+      - @ref rmw-dgwriteIO-conformance
+      - @ref rmw-dgwriteIO-ut
+      - @ref rmw-dgwriteIO-impl-plan
    - @ref rmw-conformance
    - @ref rmw-ut
    - @ref rmw-st
@@ -695,6 +703,230 @@
 
    - At last, all the invariants will be changed as part of addition of new
    members in existing data structures.
+
+   @section rmw-degraded-writeIO
+
+   This section describes the internals of degraded mode write IO, an update
+   operation, going concurrently with SNS repair process.
+   Since SNS repair and write IO can operate on same file at a file, a
+   distributed lock is used to synchronize access to files.
+   This distributed lock will be used by Mero client IO code as well as
+   the SNS repair process.
+   Once lock is acquired on the given file, write IO request will send IO
+   fops to respective healthy devices and will return the number of bytes
+   written to the end user.
+
+   @subsection rmw-dgwriteIO-req
+
+   @b R.dg.mode.writeIO.consistency The implementation shall keep the state
+   of file system to be consistent after degraded mode write IO requests.
+   Ergo, any further read IO requests on same extents should fetch the
+   expected data.
+
+   @b R.dg.mode.writeIO.efficient The implementation shall provide an
+   efficient way of provisioning degraded write IO support, keeping the
+   performance hits to a minimum.
+
+   @b R.dg.mode.writeIO.dist_locks The implementation shall use cluster wide
+   distributed locks in order to synchronize access between write IO path
+   and SNS repair process. Although due to unavailability of distributed
+   locks, the implementation shall stick to a working business logic which
+   can be demonstrated through appropriate test cases. Distributed locks
+   shall be introduced as and when they are available.
+
+   @subsection rmw-dgwriteIO-highlights
+
+   A new state will be introduced in IO request state machine to handle
+   all details of degraded mode write IO.
+   The IO request shall try to acquire a distributed lock on the given
+   file and will block until lock is granted.
+   The degraded mode write IO request will find out the current window
+   of SNS repair process in order to find out whether repair process has
+   repaired given file or not.
+   Accordingly write IO fops will be sent to devices (cobs) and total
+   number of bytes written will be returned to end user.
+
+   @subsection rmw-dgwriteIO-lspec
+
+   A new state DEGRADED_WRITING will be introduced which will take care of
+   handling degraded write IO details.
+
+   - As the first step, IO path will try to acquire distributed lock on the
+     given file. This code will be a stub in this case, since distributed
+     locks are not available yet.
+     IO path will block until the distributed lock is not acquired.
+
+   - When SNS repair starts, the normal write IO will fail with a version
+     mismatch error.
+
+   - The IO reply fop will be incorporated with a fid structure
+     (equivalent to m0_fid) which represents the global file on which repair
+     is going on. Since SNS repair proceeds in a lexicographic order, this
+     fid will give good idea about whether given file on which write IO is
+     about to start is lagging behind or leading SNS repair.
+
+   - Use-case 1: If SNS repair is yet to start on given file, the write
+     IO fops for the failed device can be completely ommitted since there
+     is enough information in parity group which can be used by SNS repair
+     to re-generate lost data.
+       - If the lost unit is file data, it can be re-generated using
+         parity recover algorithms since parity is updated in this case.
+       - If lost unit is parity, it can be re-calculated using parity
+         generation algorithm.
+
+   - Use-case 2: If SNS repair has completed for given file, the write
+     IO fops for the failed device can be redirected to spare units since
+     by that time, SNS repair has re-generated data and has dumped it on
+     spare units.
+       - A mechanism is needed possibly from parity generation algorithms
+         to find out which unit from parity group maps to which spare
+	 unit.
+
+   - The state machine will transition as follows.
+     @n WRITING          --> WRITE_COMPLETE
+     @n WRITE_COMPLETE   --> DEGRADED_WRITING
+     @n DEGRADED_WRITING --> WRITE_COMPLETE
+
+   - Existing rmw IO structures will be modified as mentioned below.
+     - struct io_request
+       - State machine will be changed by addition of a new state which
+         will handle degraded mode write IO.
+       - ioreq_iosm_handle() will be modified to handle new state whenever
+         write IO fails with a particular error code.
+
+     - struct pargrp_iomap
+       - There will be no change in pargrp_iomap since when write IO request
+         fails with version mismatch error, no write has been done. And
+	 all pages need to be sent again for write IO.
+
+     - struct nw_xfer_request
+       - Needs change in nw_xfer_tioreq_map() to factor out common code
+         which will be shared with the use-case where repair has completed
+	 for given file and lost data is re-generated on spare units. In
+	 this case, write IO fops on failed device need to be redirected
+	 to spare units.
+
+   - When number of spare units in a storage pool is greater than 1, algorithm
+     like Reed & Solomon is used to generate parity.
+     During repair, the repair process code recovers the lost data using
+     parity recovery algorithms.
+     If number of parity units is greater than one, the order in which lost
+     units are stored on spare units (which data unit will be stored on
+     which spare unit) should be similar with the second use-case where
+     data for lost devices needs to be redirected to spare units.
+
+     An example can illustrate this properly -
+      - Consider a storage pool with parameters
+        N = 8,
+	K = 2,
+	P = 12
+      - Assume that device# 2 and #3 fail and SNS repair is triggered.
+      - When SNS repair recovers lost data for 2 lost devices, it needs to be
+        stored on the 2 spare units.
+      - Now the order in which this data is stored on spare units matters
+        and should be same with the order used by Mero client IO code in cases
+	where file to be written is already repaired by SNS repair process.
+	 - Recovered unit# 2 stored on Spare unit# 0 OR
+	 - Recovered unit# 2 stored on Spare unit# 1.
+	   AND
+	 - Recovered unit# 3 stored on Spare unit# 0 OR
+	 - Recovered unit# 3 stored on Spare unit# 1.
+      - Same routine will be used by Mero degraded write IO code path
+        as well as SNS repair code to decide this order.
+
+   - End user is unaware of degraded mode write IO. It can be characterised
+     by low IO throughput.
+
+   @subsection rmw-dgwriteIO-limitations
+
+   - Since degraded mode write IO requires distributed locks and distributed
+     locks are not available yet, the implementation tries to stick to
+     implement the business logic of degraded mode write IO.
+     Since by using file granularity distributed locks, either SNS repair
+     or write IO request will have exclusive access to given file at a time
+     and hence this task tries to implement the business logic of degraded
+     mode write IO _assuming_ the distributed lock has been acquired on
+     given file.
+     Later when distributed locks are available in Mero, they will be
+     incorporated in Mero client IO path and SNS repair code.
+
+   - As is the case with every other subcomponent of m0t1fs, only XOR is
+     supported at the moment. And it can recover only one failure in a
+     storage pool at a time.
+
+   @subsection rmw-dgwriteIO-conformance
+
+   @b I.dg.mode.writeIO.consistency In either of possible use-cases, write
+      IO request will write enough data in parity group so that the data for
+      lost device is either
+        - re-generated by SNS repair process
+	  (repair yet to happen on given file) OR
+	- is available on spare units (repair completed for given file)
+      This can be illustrated by having a subsequent read IO on same file
+      extent which can confirm file contents are sane.
+
+   @b I.dg.mode.writeIO.efficient The implementation shall provide an async
+      way of sending fops. All pages are aggregated and sent as one/more IO
+      fops. Code is written in such a manner that normal IO requests are
+      not affected by degraded mode functionality.
+
+   @b I.dg.mode.writeIO.dist_locks The implementation shall use dummy calls
+      for acquiring distributed locks since distributed locks are not yet
+      available in Mero. Later when distributed locks are available in
+      Mero, they will be incorporated in client IO code.
+
+   @subsection rmw-dgwriteIO-ut
+
+   The existing UT will be modified in order to accommodate tests for
+   degraded mode write IO. The unit tests will focus on checking function
+   level correctness, while ST will use different combinations of file sizes
+   to be repaired in order to exercise degraded mode write IO code.
+
+   The ST especially can exercise the 2 use-cases mentioned in logical spec,
+   @see rmw-dgwriteIO-lspec.
+
+   @test In order to exercise the use-case where SNS repair is yet to start
+   on the file,
+   - Write 2 files, one which is sufficiently big in size
+     (for instance, worth thousands of parity groups in  size) and another
+     which is smaller (worth one/two parity groups in size).
+   - Keep a known data pattern in the smaller file which can be validated for
+     correctness.
+   - Write the big file first to m0t1fs and then the smaller one.
+   - Start SNS repair manually by specifying failed device.
+   - Repair will start in lexicographical order and will engage the bigger
+     file first.
+   - Issue a write IO request immediately (while repair is going on) on
+     smaller file which will exercise the use-case of given file still
+     to be repaired by SNS repair process.
+
+   @test In order to exercise the use-case where SNS repair has completed for
+   given file,
+   - Write 2 files, one which is sufficiently big in size
+     (worth thousands of parity groups in size) and another which is smaller
+     (worth one/two parity groups in size).
+   - Keep a known data pattern in smaller file in order to verify the write
+     IO later.
+   - Write the smaller file first to m0t1fs and then the bigger one.
+   - Start SNS repair manually by specifying failed device.
+   - Repair will start in lexicographical order and will engage the smaller
+     file first.
+   - Issue a write IO request immediately (while repair is going on) on
+     the smaller file which will exercise the use-case of given file being
+     repaired by SNS repair.
+
+   @subsection rmw-dgwriteIO-impl-plan
+
+   - The io_request structure will be enhanced first to incorporate a new
+     state to handle degraded mode write IO.
+   - ioreq_iosm_handle() will be enhanced then to handle new state and
+     invoke appropriate routines.
+   - Code from nw_xfer_tioreq_map() will be refactored in order to reuse it
+     at new state handler function as well. 
+   - UT code will be developed along with the production code to ensure
+     proper functioning and incremental development.
+   - The test cases mentioned above will be exercised to ensure degraded
+     mode write IO is working properly.
 
    <hr>
    @section rmw-conformance Conformance
