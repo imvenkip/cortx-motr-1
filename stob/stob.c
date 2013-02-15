@@ -47,7 +47,7 @@ M0_TL_DESCR_DEFINE(dom, "stob domains", static, struct m0_stob_domain,
 		   0xACCE551B1EEFFACE);
 M0_TL_DEFINE(dom, static, struct m0_stob_domain);
 
-struct m0_addb_ctx m0_stob_mod_ctx;
+M0_INTERNAL struct m0_addb_ctx m0_stob_mod_ctx;
 
 M0_INTERNAL int m0_stob_mod_init(void)
 {

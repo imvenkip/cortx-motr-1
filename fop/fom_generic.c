@@ -38,7 +38,7 @@
    @{
  */
 
-struct m0_fop_type m0_fom_error_rep_fopt;
+M0_INTERNAL struct m0_fop_type m0_fom_error_rep_fopt;
 
 M0_INTERNAL void m0_fom_generic_fini(void)
 {

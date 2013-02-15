@@ -32,6 +32,8 @@
 */
 
 static struct m0_cons_yaml_info yaml_info;
+/** enable/disable yaml support */
+M0_INTERNAL bool yaml_support;
 
 M0_INTERNAL int m0_cons_yaml_init(const char *file_path)
 {
@@ -151,4 +153,3 @@ M0_INTERNAL int m0_cons_yaml_set_value(const char *name, void *data)
  *  scroll-step: 1
  *  End:
  */
-

@@ -28,6 +28,11 @@
 
 extern const struct m0_tl_descr remotes_tl;
 
+/*
+ * Test variable(s)
+ */
+M0_INTERNAL struct rm_ut_data	   test_data;
+
 extern void rm_api_test(void);
 extern void local_credits_test(void);
 extern void remote_credits_test(void);

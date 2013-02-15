@@ -39,7 +39,7 @@ static int dev_key_cmp(struct m0_table *table, const void *key0,
 }
 
 /* Table ops for disk table */
-const struct m0_table_ops m0_cfg_storage_device_table_ops = {
+M0_INTERNAL const struct m0_table_ops m0_cfg_storage_device_table_ops = {
         .to = {
                 [TO_KEY] = {
 			.max_size = sizeof(struct m0_cfg_storage_device__key)

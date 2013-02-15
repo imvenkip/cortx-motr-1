@@ -72,12 +72,12 @@ M0_TL_DEFINE(cs_eps, static, struct cs_endpoint_and_xprt);
 static struct m0_bob_type cs_eps_bob;
 M0_BOB_DEFINE(static, &cs_eps_bob, cs_endpoint_and_xprt);
 
-const char *m0_cs_stypes[M0_STOB_TYPE_NR] = {
+M0_INTERNAL const char *m0_cs_stypes[M0_STOB_TYPE_NR] = {
 	[M0_LINUX_STOB] = "Linux",
 	[M0_AD_STOB]    = "AD"
 };
 
-const struct m0_stob_id m0_addb_stob_id = {
+M0_INTERNAL const struct m0_stob_id m0_addb_stob_id = {
 	.si_bits = {
 		.u_hi = M0_ADDB_STOB_ID_HI,
 		.u_lo = M0_ADDB_STOB_ID_LI

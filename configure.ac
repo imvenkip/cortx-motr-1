@@ -535,6 +535,11 @@ M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
 # use gccxml attributes.
 M0_CFLAGS="-Wall -Werror -Wno-attributes -fno-strict-aliasing $M0_CFLAGS"
 
+# Prevents gcc from introducing common symbols in object files. These symbols
+# are avoided because they break the compilation toolchain that Parallel
+# Scientific is using.
+M0_CFLAGS="-fno-common $M0_CFLAGS"
+
 M0_LDFLAGS="-rdynamic $M0_LDFLAGS"
 
 M0_KCPPFLAGS="-DM0_INTERNAL='' -DM0_EXTERN=extern \

@@ -69,7 +69,7 @@ extern struct m0_reqh_service_type m0_rpc_service_type;
  * FOP definitions for resource-credit revoke request and reply.
  */
 struct m0_fop_type m0_fop_rm_revoke_fopt;
-struct m0_fop_type m0_fom_error_rep_fopt;
+extern struct m0_fop_type m0_fom_error_rep_fopt;
 
 /*
  * Extern FOM params

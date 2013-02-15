@@ -271,7 +271,7 @@ struct m0_cfg_storage_device__val {
 	char     csd_nodename[M0_CFG_NAME_LEN];
 };
 
-const struct m0_table_ops m0_cfg_storage_device_table_ops;
+M0_EXTERN const struct m0_table_ops m0_cfg_storage_device_table_ops;
 
 /**
    Mero partition types.

@@ -35,7 +35,7 @@
 */
 
 /** enable/disable yaml support */
-bool yaml_support;
+M0_EXTERN bool yaml_support;
 
 /**
  * @brief Keeps info for YAML parser.
@@ -101,4 +101,3 @@ M0_INTERNAL void m0_cons_yaml_fini(void);
  *  scroll-step: 1
  *  End:
  */
-

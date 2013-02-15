@@ -45,7 +45,7 @@ struct rm_ut_data {
 /*
  * Test variable(s)
  */
-struct rm_ut_data	   test_data;
+M0_EXTERN struct rm_ut_data	   test_data;
 
 void rm_utdata_init(struct rm_ut_data *data, enum obj_type type);
 void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type);

@@ -131,10 +131,10 @@ enum {
 };
 
 /** String representations corresponding to the stob types. */
-const char *m0_cs_stypes[M0_STOB_TYPE_NR];
+M0_EXTERN const char *m0_cs_stypes[M0_STOB_TYPE_NR];
 
 /** Well-known stob ID for an addb stob. */
-const struct m0_stob_id m0_addb_stob_id;
+M0_EXTERN const struct m0_stob_id m0_addb_stob_id;
 
 /**
  * Auxiliary structure used to pass command line arguments to cs_parse_args().

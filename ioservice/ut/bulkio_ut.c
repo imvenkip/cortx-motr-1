@@ -31,7 +31,7 @@
 #include "lib/finject.h"
 #include "fop/fom_generic.c"
 
-struct bulkio_params *bp;
+static struct bulkio_params *bp;
 
 extern void bulkioapi_test(void);
 static int io_fop_server_write_fom_create(struct m0_fop  *fop,

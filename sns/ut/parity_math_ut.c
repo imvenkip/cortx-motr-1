@@ -386,7 +386,7 @@ void parity_math_tb(void)
 	}
 }
 
-void ub_small_4096(int iter)
+static void ub_small_4096(int iter)
 {
 	UNIT_BUFF_SIZE = 4096;
 	duc = 10;
@@ -395,7 +395,7 @@ void ub_small_4096(int iter)
 	parity_math_tb();
 }
 
-void ub_medium_4096(int iter)
+static void ub_medium_4096(int iter)
 {
 	UNIT_BUFF_SIZE = 4096;
 	duc = 20;
@@ -404,7 +404,7 @@ void ub_medium_4096(int iter)
 	parity_math_tb();
 }
 
-void ub_large_4096(int iter)
+static void ub_large_4096(int iter)
 {
 	UNIT_BUFF_SIZE = 4096;
 	duc = 30;
@@ -413,7 +413,7 @@ void ub_large_4096(int iter)
 	parity_math_tb();
 }
 
-void ub_small_1048576(int iter)
+static void ub_small_1048576(int iter)
 {
 	UNIT_BUFF_SIZE = 1048576;
 	duc = 3;
@@ -422,7 +422,7 @@ void ub_small_1048576(int iter)
 	parity_math_tb();
 }
 
-void ub_medium_1048576(int iter)
+static void ub_medium_1048576(int iter)
 {
 	UNIT_BUFF_SIZE = 1048576;
 	duc = 6;
@@ -431,7 +431,7 @@ void ub_medium_1048576(int iter)
 	parity_math_tb();
 }
 
-void ub_large_1048576(int iter)
+static void ub_large_1048576(int iter)
 {
 	UNIT_BUFF_SIZE = 1048576;
 	duc = 8;
@@ -440,7 +440,7 @@ void ub_large_1048576(int iter)
 	parity_math_tb();
 }
 
-void ub_small_32768(int iter)
+static void ub_small_32768(int iter)
 {
 	UNIT_BUFF_SIZE = 32768;
 	duc = 10;
@@ -449,7 +449,7 @@ void ub_small_32768(int iter)
 	parity_math_tb();
 }
 
-void ub_medium_32768(int iter)
+static void ub_medium_32768(int iter)
 {
 	UNIT_BUFF_SIZE = 32768;
 	duc = 20;
@@ -458,7 +458,7 @@ void ub_medium_32768(int iter)
 	parity_math_tb();
 }
 
-void ub_large_32768(int iter)
+static void ub_large_32768(int iter)
 {
 	UNIT_BUFF_SIZE = 32768;
 	duc = 30;

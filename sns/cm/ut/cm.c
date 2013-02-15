@@ -58,7 +58,7 @@ enum {
 };
 
 static struct m0_reqh   *reqh;
-struct m0_reqh_service  *service;
+static struct m0_reqh_service  *service;
 static struct m0_cm     *cm;
 static struct m0_sns_cm *scm;
 

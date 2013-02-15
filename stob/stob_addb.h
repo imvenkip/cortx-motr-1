@@ -89,7 +89,7 @@ do {									\
 #define M0_STOB_OOM(loc)						\
 M0_ADDB_OOM(&m0_addb_gmc, M0_STOB_ADDB_LOC_##loc, &m0_stob_mod_ctx)
 
-struct m0_addb_ctx m0_stob_mod_ctx;
+M0_EXTERN struct m0_addb_ctx m0_stob_mod_ctx;
 
 /** @} */ /* end of stob group */
 

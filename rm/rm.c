@@ -157,7 +157,7 @@ static const struct m0_bob_type pin_bob = {
 };
 M0_BOB_DEFINE(static, &pin_bob, m0_rm_pin);
 
-const struct m0_bob_type loan_bob = {
+M0_INTERNAL const struct m0_bob_type loan_bob = {
 	.bt_name         = "loan",
 	.bt_magix_offset = offsetof(struct m0_rm_loan, rl_magix),
 	.bt_magix        = M0_RM_LOAN_MAGIC,

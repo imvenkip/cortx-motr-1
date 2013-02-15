@@ -211,7 +211,7 @@ M0_TL_DECLARE(pr, M0_INTERNAL, struct m0_rm_pin);
 M0_TL_DESCR_DECLARE(pi, extern);
 M0_TL_DECLARE(pi, M0_INTERNAL, struct m0_rm_pin);
 
-const struct m0_bob_type loan_bob;
+M0_EXTERN const struct m0_bob_type loan_bob;
 M0_BOB_DECLARE(M0_INTERNAL, m0_rm_loan);
 
 /**
