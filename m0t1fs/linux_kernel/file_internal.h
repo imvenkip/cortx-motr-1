@@ -47,12 +47,10 @@
    - @ref rmw-degraded-writeIO
       - @ref rmw-dgwriteIO-req
       - @ref rmw-dgwriteIO-highlights
-      - @ref rmw-dgwriteIO-depends
       - @ref rmw-dgwriteIO-lspec
       - @ref rmw-dgwriteIO-limitations
       - @ref rmw-dgwriteIO-conformance
       - @ref rmw-dgwriteIO-ut
-      - @ref rmw-dgwriteIO-impl-plan
    - @ref rmw-conformance
    - @ref rmw-ut
    - @ref rmw-st
@@ -943,19 +941,6 @@
    - Issue a write IO request immediately (while repair is going on) on
      the smaller file which will exercise the use-case of given file being
      repaired by SNS repair.
-
-   @subsection rmw-dgwriteIO-impl-plan
-
-   - The io_request structure will be enhanced first to incorporate a new
-     state to handle degraded mode write IO.
-   - ioreq_iosm_handle() will be enhanced then to handle new state and
-     invoke appropriate routines.
-   - Code from nw_xfer_tioreq_map() will be refactored in order to reuse it
-     at new state handler function as well.
-   - UT code will be developed along with the production code to ensure
-     proper functioning and incremental development.
-   - The test cases mentioned above will be exercised to ensure degraded
-     mode write IO is working properly.
 
    <hr>
    @section rmw-conformance Conformance
