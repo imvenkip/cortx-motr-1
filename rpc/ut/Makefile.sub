@@ -5,6 +5,7 @@ ut_libmero_ut_la_SOURCES += rpc/ut/rpclib_ut.c \
                                rpc/ut/rpc_machine.c \
                                rpc/ut/session.c \
                                rpc/ut/item.c \
+                               rpc/ut/item_source.c \
 			       rpc/ut/packet.c \
 			       rpc/ut/rpc_test_fops_xc.c \
 			       rpc/ut/rpc_test_fops.c

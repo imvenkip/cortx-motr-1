@@ -48,6 +48,8 @@ static void __itemq_remove(struct m0_rpc_item *item);
 static void frm_balance(struct m0_rpc_frm *frm);
 static bool frm_is_ready(const struct m0_rpc_frm *frm);
 static void frm_fill_packet(struct m0_rpc_frm *frm, struct m0_rpc_packet *p);
+static void frm_fill_packet_from_item_sources(struct m0_rpc_frm    *frm,
+					      struct m0_rpc_packet *p);
 static bool frm_packet_ready(struct m0_rpc_frm *frm, struct m0_rpc_packet *p);
 static bool frm_try_to_bind_item(struct m0_rpc_frm  *frm,
 				 struct m0_rpc_item *item);
@@ -494,6 +496,9 @@ static bool frm_is_ready(const struct m0_rpc_frm *frm)
 
 	M0_PRE(frm != NULL);
 
+	if (M0_FI_ENABLED("ready"))
+		return true;
+
 	has_urgent_items =
 		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_BOUND]) ||
 		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_UNBOUND]) ||
@@ -548,6 +553,7 @@ static void frm_fill_packet(struct m0_rpc_frm *frm, struct m0_rpc_packet *p)
 			m0_rpc_item_put(item);
 		} m0_tl_endfor;
 	}
+	frm_fill_packet_from_item_sources(frm, p);
 out:
 	M0_ASSERT(frm_invariant(frm));
 	M0_LEAVE();
@@ -579,6 +585,55 @@ static bool item_supports_merging(const struct m0_rpc_item *item)
 	       item->ri_type->rit_ops != NULL);
 
 	return item->ri_type->rit_ops->rito_try_merge != NULL;
+}
+
+static void frm_fill_packet_from_item_sources(struct m0_rpc_frm    *frm,
+					      struct m0_rpc_packet *p)
+{
+	struct m0_rpc_machine     *machine = frm_rmachine(frm);
+	struct m0_rpc_conn        *conn;
+	struct m0_rpc_item_source *source;
+	struct m0_rpc_item        *item;
+	m0_bcount_t                available_space;
+	m0_bcount_t                header_size;
+
+	M0_ENTRY();
+
+	header_size = m0_rpc_item_onwire_header_size();
+	m0_tl_for(rpc_conn, &machine->rm_outgoing_conns, conn) {
+		M0_LOG(M0_DEBUG, "conn: %p", conn);
+		if (&conn->c_rpcchan->rc_frm != frm ||
+		    conn_state(conn) != M0_RPC_CONN_ACTIVE)
+			continue;
+		m0_tl_for(item_source, &conn->c_item_sources, source) {
+			M0_LOG(M0_DEBUG, "source: %p", source);
+			while (source->ris_ops->riso_has_item(source)) {
+				available_space = available_space_in_packet(p,
+									frm);
+				if (available_space <= header_size)
+					goto out;
+				item = source->ris_ops->riso_get_item(source,
+						available_space - header_size);
+				if (item == NULL)
+					break; /* next item source */
+				M0_ASSERT(m0_rpc_item_is_oneway(item));
+				item->ri_rmachine = frm_rmachine(frm);
+				item->ri_nr_sent++;
+				m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
+				M0_LOG(M0_DEBUG, "item: %p", item);
+				M0_ASSERT(!item_will_exceed_packet_size(item,
+								p, frm));
+				m0_rpc_packet_add_item(p, item);
+				m0_rpc_item_change_state(item,
+							 M0_RPC_ITEM_SENDING);
+				m0_rpc_item_put(item);
+			}
+		} m0_tl_endfor;
+	} m0_tl_endfor;
+
+out:
+	M0_LEAVE();
+	return;
 }
 
 /**

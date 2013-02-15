@@ -504,6 +504,12 @@ enum m0_magic_satchel {
 	/* rpcitem_tl::td_head_magic (disabled disc) */
 	M0_RPC_ITEM_HEAD_MAGIC = 0x33d15ab1edd15c77,
 
+	/* m0_rpc_item_source::ri_magic (ACCESSIBLE AC) */
+	M0_RPC_ITEM_SOURCE_MAGIC = 0x33ACCE551B1EAC77,
+
+	/* item_source_tl::td_head_magic (AC ACCESSIBLE) */
+	M0_RPC_ITEM_SOURCE_HEAD_MAGIC = 0x33ACACCE551B1E77,
+
 	/* rpc_buffer::rb_magic (iodized isaac) */
 	M0_RPC_BUF_MAGIC = 0x3310d12ed15aac77,
 

@@ -19,6 +19,10 @@
  */
 
 #include "ut/rpc.h"
+#include "fop/fop.h"               /* m0_fop_alloc */
+#include "ut/cs_fop_foms.h"        /* cs_ds2_req_fop_fopt */
+#include "ut/cs_fop_foms_xc.h"     /* cs_ds2_req_fop */
+#include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
 #include "rpc/rpclib.h"
 
 #ifndef __KERNEL__
@@ -74,6 +78,57 @@ static struct m0_rpc_server_ctx sctx = {
 	.rsx_service_types_nr = 2,
 	.rsx_log_file_name    = SERVER_LOG_FILE_NAME,
 };
+
+/* 'inline' is used, to avoid compiler warning if the function is not used
+   in file that includes this file.
+ */
+static inline void start_rpc_client_and_server(void)
+{
+	int rc;
+
+	rc = m0_net_xprt_init(xprt);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_rpc_server_start(&sctx);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_rpc_client_init(&cctx);
+	M0_ASSERT(rc == 0);
+}
+
+/* 'inline' is used, to avoid compiler warning if the function is not used
+   in file that includes this file.
+ */
+static inline void stop_rpc_client_and_server(void)
+{
+	int rc;
+
+	rc = m0_rpc_client_fini(&cctx);
+	M0_ASSERT(rc == 0);
+	m0_rpc_server_stop(&sctx);
+	m0_net_domain_fini(&client_net_dom);
+	m0_net_xprt_fini(xprt);
+}
+
+/* 'inline' is used, to avoid compiler warning if the function is not used
+   in file that includes this file.
+ */
+static inline struct m0_fop *fop_alloc(void)
+{
+	struct cs_ds2_req_fop *cs_ds2_fop;
+	struct m0_fop         *fop;
+
+	fop = m0_fop_alloc(&cs_ds2_req_fop_fopt, NULL);
+	M0_UT_ASSERT(fop != NULL);
+
+	cs_ds2_fop = m0_fop_data(fop);
+	cs_ds2_fop->csr_value = 0xaaf5;
+
+	return fop;
+}
 
 #endif /* __KERNEL__ */
 

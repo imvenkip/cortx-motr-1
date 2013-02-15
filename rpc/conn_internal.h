@@ -30,6 +30,7 @@ struct m0_rpc_session;
 struct m0_db_tx;
 struct m0_rpc_item;
 struct m0_cob_domain;
+struct m0_rpc_item_source;
 
 /**
    @addtogroup rpc_session

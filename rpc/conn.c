@@ -89,6 +89,8 @@ static void __conn_fini(struct m0_rpc_conn *conn);
 
 static void conn_failed(struct m0_rpc_conn *conn, int32_t error);
 
+static void deregister_all_item_sources(struct m0_rpc_conn *conn);
+
 /*
  * This is sender side item_ops of conn_establish fop.
  * Receiver side conn_establish fop has different item_ops
@@ -318,6 +320,7 @@ static int __conn_init(struct m0_rpc_conn      *conn,
 	conn->c_nr_sessions = 0;
 
 	rpc_session_tlist_init(&conn->c_sessions);
+	item_source_tlist_init(&conn->c_item_sources);
 	rpc_conn_tlink_init(conn);
 
 	rc = session_zero_attach(conn);
@@ -375,6 +378,7 @@ static void __conn_fini(struct m0_rpc_conn *conn)
 	rpc_chan_put(conn->c_rpcchan);
 
 	rpc_session_tlist_fini(&conn->c_sessions);
+	item_source_tlist_fini(&conn->c_item_sources);
 	rpc_conn_tlink_fini(conn);
 	M0_LEAVE();
 }
@@ -756,10 +760,10 @@ M0_EXPORTED(m0_rpc_conn_terminate_sync);
 M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 				      m0_time_t abs_timeout)
 {
-	struct m0_fop                    *fop;
 	struct m0_rpc_fop_conn_terminate *args;
 	struct m0_rpc_session            *session_0;
 	struct m0_rpc_machine            *machine;
+	struct m0_fop                    *fop;
 	int                               rc;
 
 	M0_ENTRY("conn: %p", conn);
@@ -774,6 +778,9 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 	M0_PRE(M0_IN(conn_state(conn), (M0_RPC_CONN_ACTIVE,
 					M0_RPC_CONN_TERMINATING)));
 	M0_PRE(conn->c_nr_sessions == 1);
+
+	deregister_all_item_sources(conn);
+
 	if (fop == NULL) {
 		/* see note [^1] at the end of function */
 		rc = -ENOMEM;
@@ -828,6 +835,19 @@ M0_EXPORTED(m0_rpc_conn_terminate);
  * For now, later is chosen. This can be changed in future
  * to alternative 1, iff required.
  */
+
+static void deregister_all_item_sources(struct m0_rpc_conn *conn)
+{
+	struct m0_rpc_item_source *source;
+
+	M0_PRE(m0_rpc_machine_is_locked(conn->c_rpc_machine));
+
+	m0_tl_for(item_source, &conn->c_item_sources, source) {
+		item_source_tlist_del(source);
+		source->ris_conn = NULL;
+		source->ris_ops->riso_conn_terminating(source);
+	} m0_tl_endfor;
+}
 
 M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
 {
@@ -1087,8 +1107,9 @@ M0_INTERNAL int m0_rpc_rcv_conn_terminate(struct m0_rpc_conn *conn)
 		M0_RETURN(-EBUSY);
 	}
 
-	conn_state_set(conn, M0_RPC_CONN_TERMINATING);
+	deregister_all_item_sources(conn);
 
+	conn_state_set(conn, M0_RPC_CONN_TERMINATING);
 	rc = m0_db_tx_init(&tx, conn->c_cob->co_dom->cd_dbenv, 0);
 	if (rc == 0) {
 		rc = conn_persistent_state_destroy(conn, &tx);
