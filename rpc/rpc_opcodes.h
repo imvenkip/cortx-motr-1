@@ -165,8 +165,8 @@ enum M0_RPC_OPCODES {
 	M0_RM_FOP_REVOKE_REPLY              = 91,
 	M0_RM_FOP_CANCEL                    = 92,
 
-	M0_LAYOUT_OPCODE                    = 90,
-	M0_LAYOUT_REP_OPCODE                = 91,
+	M0_LAYOUT_OPCODE                    = 93,
+	M0_LAYOUT_REP_OPCODE                = 94,
 };
 /** @} endgroup rpc_layer_core */
 
