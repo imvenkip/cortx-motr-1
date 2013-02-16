@@ -1273,7 +1273,7 @@ static void rm_addb_req_counter_update(enum m0_rm_incoming_type      type,
 		m0_addb_counter_update(&rs->rs_nr, (uint64_t)rs->rs_count);
 		m0_addb_counter_update(&rs->rs_time,
 				       (uint64_t) m0_time_sub(m0_time_now(),
-					rem_in->ri_incoming.rin_req_time));
+					rem_in->ri_incoming.rin_req_time) >> 10);
 
 		next_update = m0_time_add(now, rm_addb_update_interval);
 	}
@@ -1289,7 +1289,7 @@ static void rm_addb_credit_counter_update(struct m0_rm_credit *credit)
 
 	m0_addb_counter_update(&as->as_credit_time,
 			       (uint64_t) m0_time_sub(m0_time_now(),
-						      credit->cr_get_time));
+						      credit->cr_get_time) >> 10);
 }
 
 

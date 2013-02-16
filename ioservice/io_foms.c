@@ -1943,7 +1943,7 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	stats = &serv_obj->rios_rwfom_stats[m0_is_read_fop(fop)? 0 : 1];
 	m0_addb_counter_update(&stats->ais_times_cntr, (uint64_t)
 			       m0_time_sub(m0_time_now(),
-					   fom_obj->fcrw_fom_start_time));
+					   fom_obj->fcrw_fom_start_time) >> 10);
 	m0_addb_counter_update(&stats->ais_sizes_cntr,
 			       (uint64_t) fom_obj->fcrw_count);
 

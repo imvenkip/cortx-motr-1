@@ -235,14 +235,11 @@ static int counter_data_update(struct m0_addb_counter_data *data,
 			       uint64_t datum)
 {
 	if (m0_addu64_will_overflow(data->acd_sum_sq, datum * datum))
-		return -EOVERFLOW;
-	/** @todo Will be resolved by Mero-8 JIRA issue. */
-	/*
-		M0_RETERR(-EOVERFLOW, "%s: counter's sum of samples square "
-			"overflow: datum=%llu",
-			rt->art_name, (unsigned long long)datum);
-	*/
-	++data->acd_nr;
+                M0_RETERR(-EOVERFLOW, "%s: counter's sum of samples square "
+                          "overflow: datum=%llu", rt->art_name,
+                          (unsigned long long)datum);
+
+        ++data->acd_nr;
 	data->acd_total += datum;
 	if (data->acd_nr > 1) {
 		data->acd_min = min64u(data->acd_min, datum);
