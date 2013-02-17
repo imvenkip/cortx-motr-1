@@ -10,8 +10,10 @@ set -e
 ### Type `m0 help' for usage.
 ### --------------------------------------------------------------------
 
+umask 0002
+
 ## CAUTION! This directory will be removed by superuser.
-RUNDIR=${RUNDIR:-$HOME/XXX}
+RUNDIR=${RUNDIR:-/var/mero/ut/$USER}
 
 PROG="${0##*/}"
 SRC="$(readlink -f $0)"
@@ -45,7 +47,7 @@ build() {
 
 run_init() {
     $SUDO rm -rf "$RUNDIR"  # Ouch!
-    mkdir "$RUNDIR"
+    $SUDO mkdir -p "$RUNDIR"
     cd "$RUNDIR"
 }
 

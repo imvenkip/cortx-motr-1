@@ -509,7 +509,7 @@ M0_INTERNAL int m0_sm_timer_start(struct m0_sm_timer *timer,
 	/*
 	 * This is how timer is implemented:
 	 *
-	 *    - a timer is armed (with sm_timer_top() call-back;
+	 *    - a timer is armed (with sm_timer_top() call-back);
 	 *
 	 *    - when the timer fires off, an AST to the state machine group is
 	 *      posted from the timer call-back;

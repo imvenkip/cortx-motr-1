@@ -189,7 +189,7 @@ m0_get_global_services()
 # Return space-separated list of all services in the cluster
 m0_get_global_ios_services()
 {
-    echo $(m0_get_global_services) | grep -E -o 'ios[[:digit:]]+'
+    echo $(m0_get_global_services) | grep -E -o 'ios([[:digit:]]+)?'
 }
 
 # Return m0mero.ko endpoint
@@ -227,7 +227,7 @@ m0_get_ios_eps()
     local service
 
     for service in $(m0_get_services $node); do
-        if echo $service | grep -q -E '^ios[[:digit:]]+$'; then
+        if echo $service | grep -q -E '^ios([[:digit:]]+)?$'; then
             ios_eps="$ios_eps lnet:$lnid:12345:41:$((ios_tid++))"
         elif echo $service | grep -q -E '^singlenode$'; then
             ios_eps=$(m0_get_mds_ep)

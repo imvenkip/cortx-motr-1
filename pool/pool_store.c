@@ -82,7 +82,7 @@ static const struct m0_table_ops m0_poolmach_store_ops = {
 			 /* XXX: Hack!!! For big values of pool width.
 			    Will be removed by pool/ conversion.
 			  */
-			.max_size = 4096
+			.max_size = 10240
 			/* .max_size = ~0 */
 			}
 	},

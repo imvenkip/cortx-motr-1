@@ -140,26 +140,35 @@ static int swu_store(struct m0_cm_sw_update *swu)
 	int                       rc;
 
 	M0_PRE(m0_cm_is_locked(cm));
-	m0_dtx_init(tx, seg->bs_domain,
-			&fom->fo_loc->fl_group);
-	tx->tx_betx_cred = M0_BE_TX_CREDIT_TYPE(struct m0_cm_sw);
-	rc = m0_dtx_open_sync(tx);
+
+	if (tx->tx_state < M0_DTX_INIT) {
+		m0_dtx_init(tx, seg->bs_domain,
+				&fom->fo_loc->fl_group);
+		tx->tx_betx_cred = M0_BE_TX_CREDIT_TYPE(struct m0_cm_sw);
+	}
+
+	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_PREPARE) {
+		m0_dtx_open(tx);
+		return M0_FSO_AGAIN;
+	} else if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_OPENING) {
+		m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
+		return M0_FSO_WAIT;
+	}
+
+	M0_SET0(&sw);
+	hi = m0_cm_ag_hi(cm);
+	lo = m0_cm_ag_lo(cm);
+	if (hi == NULL && lo == NULL) {
+		rc = -EINVAL;
+		goto err;
+	}
+	m0_cm_sw_set(&sw, &lo->cag_id, &hi->cag_id);
+	m0_dtx_opened(tx);
+	rc = m0_cm_sw_store_update(cm, &tx->tx_betx, &sw);
 	if (rc == 0) {
-		M0_SET0(&sw);
-		hi = m0_cm_ag_hi(cm);
-		lo = m0_cm_ag_lo(cm);
-		if (hi == NULL && lo == NULL) {
-			rc = -EINVAL;
-			goto err;
-		}
-		m0_cm_sw_set(&sw, &lo->cag_id, &hi->cag_id);
-		rc = m0_cm_sw_store_update(cm, &tx->tx_betx, &sw);
-		if (rc == 0) {
-			m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan,
-				       &fom->fo_cb);
-			m0_dtx_done(tx);
-			m0_fom_phase_move(fom, rc, SWU_WAIT);
-		}
+		m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
+		m0_dtx_done(tx);
+		m0_fom_phase_move(fom, rc, SWU_WAIT);
 	}
 
 err:
@@ -184,6 +193,7 @@ static int swu_wait(struct m0_cm_sw_update *swu)
 			goto out;
 		}
 		m0_dtx_fini(tx);
+		M0_SET0(tx);
 		if (swu->swu_is_complete)
 			m0_fom_phase_move(fom, 0, SWU_FINI);
 		else {
@@ -214,22 +224,28 @@ static int swu_complete(struct m0_cm_sw_update *swu)
 		return M0_FSO_WAIT;
 	}
 	M0_LOG(M0_DEBUG, "sw = %p", sw);
-	m0_dtx_init(tx, seg->bs_domain, &fom->fo_loc->fl_group);
-	M0_BE_FREE_CREDIT_PTR(sw, seg, &tx->tx_betx_cred);
-	m0_be_seg_dict_delete_credit(seg, cm_sw_name, &tx->tx_betx_cred);
-	rc = m0_dtx_open_sync(tx);
-	M0_LOG(M0_DEBUG, "tx open rc = %d", rc);
-	if (rc == 0) {
-		M0_BE_FREE_PTR_SYNC(sw, seg, &tx->tx_betx);
-		m0_be_seg_dict_delete(seg, &tx->tx_betx, cm_sw_name);
-		m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
-		swu->swu_is_complete = true;
-		m0_dtx_done(tx);
-		m0_fom_phase_move(fom, rc, SWU_WAIT);
-	}
+        if (tx->tx_state < M0_DTX_INIT) {
+                m0_dtx_init(tx, seg->bs_domain,
+                                &fom->fo_loc->fl_group);
+		M0_BE_FREE_CREDIT_PTR(sw, seg, &tx->tx_betx_cred);
+		m0_be_seg_dict_delete_credit(seg, cm_sw_name,
+					     &tx->tx_betx_cred);
+        }
 
-	if (rc != 0)
-		m0_fom_phase_move(fom, rc, SWU_FINI);
+        if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_PREPARE) {
+                m0_dtx_open(tx);
+                return M0_FSO_AGAIN;
+        } else if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_OPENING) {
+                m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
+                return M0_FSO_WAIT;
+        }
+
+	M0_BE_FREE_PTR_SYNC(sw, seg, &tx->tx_betx);
+	m0_be_seg_dict_delete(seg, &tx->tx_betx, cm_sw_name);
+	m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
+	swu->swu_is_complete = true;
+	m0_dtx_done(tx);
+	m0_fom_phase_move(fom, rc, SWU_WAIT);
 
 	return M0_FSO_WAIT;
 }
