@@ -202,11 +202,10 @@ M0_INTERNAL int m0_cob_eakey_make(struct m0_cob_eakey **keyh,
 }
 
 /**
-   Make eakey for iterator. Allocate space for max possible name
-   but put real string len into the struct.
+   Make eakey for iterator. Allocate space for maximal possible name.
 */
-M0_UNUSED static int m0_cob_max_eakey_make(struct m0_cob_eakey **keyh,
-				 const struct m0_fid *fid,
+static int m0_cob_max_eakey_make(struct m0_cob_eakey **keyh,
+   		                 const struct m0_fid *fid,
 				 const char *name,
 				 int namelen)
 {
@@ -255,9 +254,9 @@ M0_INTERNAL size_t m0_cob_max_earec_size(void)
 /**
    Maximal possible eakey size.
  */
-M0_UNUSED static size_t m0_cob_max_eakey_size(const struct m0_cob_eakey *cek)
+static size_t m0_cob_max_eakey_size()
 {
-	return sizeof *cek + M0_COB_NAME_MAX;
+	return sizeof(struct m0_cob_eakey) + M0_COB_NAME_MAX;
 }
 
 /**
@@ -307,10 +306,9 @@ static int m0_cob_max_fabrec_make(struct m0_cob_fabrec **rech)
 }
 
 /**
-   Make nskey for iterator. Allocate space for max possible name
-   but put real string len into the struct.
+   Make nskey for iterator. Allocate space for maximal possible name.
 */
-M0_UNUSED static int m0_cob_max_nskey_make(struct m0_cob_nskey **keyh,
+static int m0_cob_max_nskey_make(struct m0_cob_nskey **keyh,
 				 const struct m0_fid *pfid,
 				 const char *name,
 				 int namelen)
@@ -331,9 +329,9 @@ M0_UNUSED static int m0_cob_max_nskey_make(struct m0_cob_nskey **keyh,
    and want to allocate it for worst case scenario, that is, for max
    possible name len.
  */
-static size_t m0_cob_max_nskey_size(const struct m0_cob_nskey *cnk)
+static size_t m0_cob_max_nskey_size()
 {
-	return sizeof *cnk + M0_COB_NAME_MAX;
+	return sizeof(struct m0_cob_nskey) + M0_COB_NAME_MAX;
 }
 
 /**
@@ -1244,6 +1242,7 @@ M0_INTERNAL void m0_cob_iterator_fini(struct m0_cob_iterator *it)
 
 M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
 {
+        struct m0_cob_nskey *nskey;
 	struct m0_buf key;
 	int rc;
 
@@ -1252,12 +1251,19 @@ M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
 	rc = m0_be_btree_cursor_get_sync(&it->ci_cursor, &key, true);
 	if (rc == 0) {
 		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
-		M0_ASSERT(m0_cob_nskey_size(it->ci_key) <=
-			  m0_cob_nskey_size(key.b_addr));
-		memcpy(it->ci_key, key.b_addr, m0_cob_nskey_size(key.b_addr));
-		if (!m0_fid_eq(&it->ci_key->cnk_pfid,
-			       m0_cob_fid(it->ci_cob)))
+		nskey = (struct m0_cob_nskey *)key.b_addr;
+
+                /**
+                   Check if we are stil inside the object bounds. Assert and
+                   key copy can be done only in this case.
+                 */
+		if (!m0_fid_eq(&nskey->cnk_pfid, m0_cob_fid(it->ci_cob)))
 			rc = -ENOENT;
+
+                if (rc == 0) {
+                        M0_ASSERT(m0_cob_nskey_size(nskey) <= m0_cob_max_nskey_size());
+		        memcpy(it->ci_key, nskey, m0_cob_nskey_size(nskey));
+                }
 	}
 	M0_COB_NSKEY_LOG(LEAVE, "[%lx:%lx]/%.*s rc: %d", it->ci_key, rc);
 	return rc;
@@ -1265,6 +1271,7 @@ M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
 
 M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
 {
+        struct m0_cob_nskey *nskey;
 	struct m0_buf key;
 	int rc;
 
@@ -1272,12 +1279,18 @@ M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
 	rc = m0_be_btree_cursor_next_sync(&it->ci_cursor);
 	if (rc == 0) {
 		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
-		M0_ASSERT(m0_cob_nskey_size(it->ci_key) <=
-			  m0_cob_nskey_size(key.b_addr));
-		memcpy(it->ci_key, key.b_addr, m0_cob_nskey_size(key.b_addr));
-		if (!m0_fid_eq(&it->ci_key->cnk_pfid,
-			       m0_cob_fid(it->ci_cob)))
+		nskey = (struct m0_cob_nskey *)key.b_addr;
+
+                /**
+                   Check if we are stil inside the object bounds. Assert and
+                   key copy can be done only in this case.
+                 */
+		if (!m0_fid_eq(&nskey->cnk_pfid, m0_cob_fid(it->ci_cob)))
 			rc = -ENOENT;
+                if (rc == 0) {
+                        M0_ASSERT(m0_cob_nskey_size(nskey) <= m0_cob_max_nskey_size());
+		        memcpy(it->ci_key, nskey, m0_cob_nskey_size(nskey));
+                }
 	}
 	M0_COB_NSKEY_LOG(LEAVE, "[%lx:%lx]/%.*s rc: %d", it->ci_key, rc);
 	return rc;
@@ -1313,17 +1326,25 @@ M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it)
 {
 	int rc;
 	struct m0_buf key;
+        struct m0_cob_eakey *eakey;
 
 	m0_buf_init(&key, it->ci_key, m0_cob_eakey_size(it->ci_key));
 	rc = m0_be_btree_cursor_get_sync(&it->ci_cursor, &key, true);
 	if (rc == 0) {
 		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
-		M0_ASSERT(m0_cob_eakey_size(it->ci_key) <=
-			  m0_cob_eakey_size(key.b_addr));
-		memcpy(it->ci_key, key.b_addr, m0_cob_eakey_size(key.b_addr));
-		if (!m0_fid_eq(&it->ci_key->cek_fid,
-			       m0_cob_fid(it->ci_cob)))
-			rc = -ENOENT;
+                eakey = (struct m0_cob_eakey *)key.b_addr;
+
+                /**
+                   Check if we are stil inside the object bounds. Assert and
+                   key copy can be done only in this case.
+                 */
+                if (!m0_fid_eq(&eakey->cek_fid, m0_cob_fid(it->ci_cob)))
+                         rc = -ENOENT;
+
+                if (rc == 0) {
+                        M0_ASSERT(m0_cob_eakey_size(eakey) <= m0_cob_max_eakey_size());
+		        memcpy(it->ci_key, eakey, m0_cob_eakey_size(eakey));
+                }
 	}
 	return rc;
 }
@@ -1332,16 +1353,24 @@ M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it)
 {
 	int rc;
 	struct m0_buf key;
+        struct m0_cob_eakey *eakey;
 
 	rc = m0_be_btree_cursor_next_sync(&it->ci_cursor);
 	if (rc == 0) {
 		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
-		M0_ASSERT(m0_cob_eakey_size(it->ci_key) <=
-			  m0_cob_eakey_size(key.b_addr));
-		memcpy(it->ci_key, key.b_addr, m0_cob_eakey_size(key.b_addr));
-		if (!m0_fid_eq(&it->ci_key->cek_fid,
-			       m0_cob_fid(it->ci_cob)))
-			rc = -ENOENT;
+                eakey = (struct m0_cob_eakey *)key.b_addr;
+
+                /**
+                   Check if we are stil inside the object bounds. Assert and
+                   key copy can be done only in this case.
+                 */
+                if (!m0_fid_eq(&eakey->cek_fid, m0_cob_fid(it->ci_cob)))
+                         rc = -ENOENT;
+
+                if (rc == 0) {
+                        M0_ASSERT(m0_cob_eakey_size(eakey) <= m0_cob_max_eakey_size());
+		        memcpy(it->ci_key, eakey, m0_cob_eakey_size(eakey));
+                }
 	}
 
 	return rc;
