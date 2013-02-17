@@ -109,10 +109,11 @@ struct m0_dtm_op {
 M0_INTERNAL bool m0_dtm_op_invariant(const struct m0_dtm_op *op);
 
 struct m0_dtm_op_ops {
-	void (*doo_ready) (struct m0_dtm_op *op);
-	void (*doo_late)  (struct m0_dtm_op *op);
-	void (*doo_miser) (struct m0_dtm_op *op);
-	void (*doo_stable)(struct m0_dtm_op *op);
+	void (*doo_ready)     (struct m0_dtm_op *op);
+	void (*doo_late)      (struct m0_dtm_op *op);
+	void (*doo_miser)     (struct m0_dtm_op *op);
+	void (*doo_persistent)(struct m0_dtm_op *op);
+	void (*doo_stable)    (struct m0_dtm_op *op);
 };
 
 struct m0_dtm_nu {
@@ -139,6 +140,7 @@ M0_INTERNAL void m0_dtm_up_init      (struct m0_dtm_up *up,
 				      m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver);
 M0_INTERNAL void m0_dtm_up_ver_set   (struct m0_dtm_up *up,
 				      m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver);
+M0_INTERNAL void m0_dtm_up_persistent(struct m0_dtm_up *up);
 M0_INTERNAL void m0_dtm_nu_init      (struct m0_dtm_nu *nu);
 M0_INTERNAL void m0_dtm_nu_fini      (struct m0_dtm_nu *nu);
 

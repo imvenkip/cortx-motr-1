@@ -63,9 +63,11 @@ static void up_insert (struct m0_dtm_up *up);
 static int  op_cmp    (const struct m0_dtm_op *op);
 static void up_del    (struct m0_dtm_up *up);
 static int  up_cmp    (const struct m0_dtm_up *up, m0_dtm_ver_t hver);
+static void up_persist(struct m0_dtm_up *up);
 static void up_fini   (struct m0_dtm_up *up);
 static void op_lock   (struct m0_dtm_op *op);
 static void op_unlock (struct m0_dtm_op *op);
+static void op_persist(struct m0_dtm_op *op);
 
 /* clandestinely exported to UT */
 M0_INTERNAL bool op_state(struct m0_dtm_op *op, enum m0_dtm_state state);
@@ -277,15 +279,9 @@ M0_INTERNAL void m0_dtm_op_persistent(struct m0_dtm_op *op)
 	M0_PRE(m0_dtm_op_invariant(op));
 
 	up_for(op, up) {
-		struct m0_dtm_up *prev;
-
-		M0_PRE(up->up_state < M0_DOS_PERSISTENT);
-		up->up_state = M0_DOS_PERSISTENT;
-		prev = m0_dtm_up_prior(up);
-		M0_ASSERT(prev == NULL || prev->up_state >= M0_DOS_PERSISTENT);
-		if (prev == NULL || up->up_ver > prev->up_ver)
-			up->up_hi->hi_ops->dho_persistent(up->up_hi, up);
+		up_persist(up);
 	} up_endfor;
+	op_persist(op);
 	M0_POST(m0_dtm_op_invariant(op));
 	op_unlock(op);
 }
@@ -402,6 +398,19 @@ M0_INTERNAL void m0_dtm_up_ver_set(struct m0_dtm_up *up,
 	op_unlock(up->up_op);
 }
 
+M0_INTERNAL void m0_dtm_up_persistent(struct m0_dtm_up *up)
+{
+	struct m0_dtm_op *op = up->up_op;
+
+	op_lock(op);
+	M0_PRE(m0_dtm_op_invariant(op));
+	M0_PRE(up->up_state == M0_DOS_VOLATILE);
+	up_persist(up);
+	op_persist(op);
+	M0_PRE(m0_dtm_op_invariant(op));
+	op_unlock(op);
+}
+
 M0_INTERNAL void m0_dtm_nu_init(struct m0_dtm_nu *nu)
 {
 	m0_mutex_init(&nu->nu_lock);
@@ -422,6 +431,26 @@ M0_INTERNAL struct m0_dtm_up *m0_dtm_up_later(struct m0_dtm_up *up)
 {
 	M0_PRE(m0_mutex_is_locked(&up->up_hi->hi_nu->nu_lock));
 	return hi_tlist_prev(&up->up_hi->hi_ups, up);
+}
+
+static void up_persist(struct m0_dtm_up *up)
+{
+	struct m0_dtm_up *prev;
+
+	if (up->up_state < M0_DOS_PERSISTENT) {
+		up->up_state = M0_DOS_PERSISTENT;
+		prev = m0_dtm_up_prior(up);
+		M0_ASSERT(prev == NULL || prev->up_state >= M0_DOS_PERSISTENT);
+		if (prev == NULL || up->up_ver > prev->up_ver)
+			up->up_hi->hi_ops->dho_persistent(up->up_hi, up);
+	}
+}
+
+static void op_persist(struct m0_dtm_op *op)
+{
+	if (m0_tl_forall(op, up, &op->op_ups,
+			 up->up_state >= M0_DOS_PERSISTENT))
+		op->op_ops->doo_persistent(op);
 }
 
 static void op_lock(struct m0_dtm_op *op)
