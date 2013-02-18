@@ -73,6 +73,9 @@ value          enum                    variable  name              file
   1501 M0_ADDB_CTXID_MGMT_SERVICE      m0_addb_ct_mgmt_service
   1502 M0_ADDB_CTXID_MGMT_FOM_SS       m0_addb_ct_mgmt_fom_ss
   1503 M0_ADDB_CTXID_MGMT_CTL          m0_addb_ct_mgmt_ctl
+1600-1699
+   1600 M0_ADDB_CTXID_RMS_MOD          m0_addb_ct_rms_mod          rm/rmservice_addb.h
+   1601 M0_ADDB_CTXID_RMS_SERV         m0_addb_ct_rms_serv
 
 ******************************************************************************
 Record Type Identifiers

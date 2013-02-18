@@ -59,7 +59,6 @@ static void rmfoms_utinit(void)
 	rc = m0_dbenv_init(&dbenv, "something", 0);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_rm_fop_init();
 	rc = M0_REQH_INIT(&reqh,
 			.rhia_dtm       = (void*)1,
 			.rhia_db        = &dbenv,
@@ -78,8 +77,6 @@ static void rmfoms_utfini(void)
         m0_sm_group_fini(&dummy_loc.fl_group);
 	m0_reqh_services_terminate(&reqh);
 	m0_reqh_fini(&reqh);
-	m0_rm_fop_fini();
-	m0_dbenv_fini(&dbenv);
 }
 
 /*
@@ -91,11 +88,11 @@ static struct m0_fop *fop_alloc(enum m0_rm_incoming_type fomtype)
 
 	switch (fomtype) {
 	case M0_RIT_BORROW:
-		fop = m0_fop_alloc(&m0_fop_rm_borrow_fopt, NULL);
+		fop = m0_fop_alloc(&m0_rm_fop_borrow_fopt, NULL);
 		M0_UT_ASSERT(fop != NULL);
 		break;
 	case M0_RIT_REVOKE:
-		fop = m0_fop_alloc(&m0_fop_rm_revoke_fopt, NULL);
+		fop = m0_fop_alloc(&m0_rm_fop_revoke_fopt, NULL);
 		M0_UT_ASSERT(fop != NULL);
 		break;
 	default:
@@ -229,7 +226,7 @@ static void fom_create_test(enum m0_rm_incoming_type fomtype,
  */
 static void brw_fop_populate(struct m0_fom *fom, enum test_type test)
 {
-	struct m0_fop_rm_borrow *brw_fop;
+	struct m0_rm_fop_borrow *brw_fop;
 	struct m0_rm_credit	 credit;
 
 	brw_fop = m0_fop_data(fom->fo_fop);
@@ -278,7 +275,7 @@ static void brw_test_cleanup(void)
 static void brw_fom_state_validate(struct m0_fom *fom, int32_t rc,
 				   enum test_type test)
 {
-	struct m0_fop_rm_borrow *brw_fop;
+	struct m0_rm_fop_borrow *brw_fop;
 
 	m0_rm_owner_lock(&test_data.rd_owner);
 	switch (test) {
@@ -439,7 +436,7 @@ static void rvk_data_setup(enum test_type test)
  */
 static void rvk_fop_populate(struct m0_fom *fom)
 {
-	struct m0_fop_rm_revoke *rvk_fop;
+	struct m0_rm_fop_revoke *rvk_fop;
 	struct m0_rm_credit	 credit;
 
 	rvk_fop = m0_fop_data(fom->fo_fop);
@@ -491,7 +488,7 @@ static void rvk_test_cleanup(void)
 static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
 				   enum test_type test)
 {
-	struct m0_fop_rm_revoke *rvk_fop;
+	struct m0_rm_fop_revoke *rvk_fop;
 
 	m0_rm_owner_lock(&test_data.rd_owner);
 	switch (test) {

@@ -29,12 +29,6 @@
 #include "lib/cookie.h"
 #include "net/net.h"
 #include "sm/sm.h"
-#include "lib/cookie_xc.h"
-#include "lib/buf.h"
-#include "lib/buf_xc.h"
-#include "fop/fom_generic.h"
-#include "fop/fom_generic_xc.h"
-#include "xcode/xcode_attr.h"
 
 /**
  * @defgroup rm Resource management
@@ -122,7 +116,7 @@
  *
  * A debtor can voluntary return a loan. This is called a "cancel" operation.
  *
- * @b Concurrency control.
+ * <b> Concurrency control. </b>
  *
  * Generic resource manager makes no assumptions about threading model used by
  * its callers. Generic resource data-structures and code are thread safe.
@@ -185,18 +179,18 @@
  * network by revoking the loans it sublet to and by retuning the loans it
  * borrowed from other owners.
  *
- * @b Resource identification and location.
+ * <b> Resource identification and location. </b>
  *
  * @see m0_rm_remote
  *
- * @b Persistent state.
+ * <b> Persistent state. </b>
  *
- * @b Network protocol.
+ * <b> Network protocol. </b>
  *
  * @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfN2NiNXM1dHF3&hl=en
  *
  * @{
-*/
+ */
 
 /* import */
 struct m0_bufvec_cursor;
@@ -298,6 +292,8 @@ struct m0_rm_resource_ops {
 	 */
 	void (*rop_credit_init)(struct m0_rm_resource *resource,
 			        struct m0_rm_credit *credit);
+
+	void (*rop_resource_free)(struct m0_rm_resource *resource);
 };
 
 /**
@@ -346,9 +342,6 @@ struct m0_rm_resource_type {
 	 * m0_rm_resource_type::rt_lock.
 	 */
 	uint32_t			      rt_nr_resources;
-	/**
-	 * Domain this resource type is registered with.
-	 */
 	struct m0_sm_group                    rt_sm_grp;
 	/**
 	 * Executes ASTs for this owner.
@@ -358,6 +351,9 @@ struct m0_rm_resource_type {
 	 * Flag for ro_worker thread to stop.
 	 */
 	bool                                 rt_stop_worker;
+	/**
+	 * Domain this resource type is registered with.
+	 */
 	struct m0_rm_domain		     *rt_dom;
 };
 
@@ -373,15 +369,19 @@ struct m0_rm_resource_type_ops {
 	bool (*rto_is)(const struct m0_rm_resource *resource,
 		       uint64_t id);
 	/**
+	 * Return the size of the resource data
+	 */
+	m0_bcount_t (*rto_len) (const struct m0_rm_resource *resource);
+	/**
 	 * De-serialises the resource from a buffer.
 	 */
-	int  (*rto_decode)(const struct m0_bufvec_cursor *cur,
+	int  (*rto_decode)(struct m0_bufvec_cursor *cur,
 			   struct m0_rm_resource **resource);
 	/**
 	 * Serialise a resource into a buffer.
 	 */
 	int  (*rto_encode)(struct m0_bufvec_cursor *cur,
-			   const struct m0_rm_resource *resource);
+			   struct m0_rm_resource *resource);
 };
 
 /**
@@ -932,7 +932,7 @@ struct m0_rm_owner {
 	 */
 	struct m0_tl           ro_outgoing[OQS_NR];
 	/**
-	 * Generation count associated with a owner cookie.
+	 * Generation count associated with an owner cookie.
 	 */
 	uint64_t	       ro_id;
 };
@@ -1494,6 +1494,13 @@ M0_INTERNAL int m0_rm_type_register(struct m0_rm_domain *dom,
 M0_INTERNAL void m0_rm_type_deregister(struct m0_rm_resource_type *rtype);
 
 /**
+ * Lookup registered resource type from given domain.
+ */
+M0_INTERNAL struct m0_rm_resource_type *
+m0_rm_resource_type_lookup(const struct m0_rm_domain *dom,
+			   const uint64_t             rtype_id);
+
+/**
  * Adds a resource to the list of resources and increments resource type
  * reference count.
  *
@@ -1517,6 +1524,14 @@ M0_INTERNAL void m0_rm_resource_add(struct m0_rm_resource_type *rtype,
  */
 M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res);
 
+/**
+ * Encode resource onto a buffer.
+ *
+ * @pre res->r_type != 0
+ * @pre res->r_type->rt_ops != NULL
+ */
+M0_INTERNAL int m0_rm_resource_encode(struct m0_rm_resource *res,
+				      struct m0_buf         *buf);
 /**
  * Initialises owner fields and increments resource reference counter.
  *
@@ -1594,15 +1609,6 @@ M0_INTERNAL void m0_rm_owner_lock(struct m0_rm_owner *owner);
 M0_INTERNAL void m0_rm_owner_unlock(struct m0_rm_owner *owner);
 
 /**
- * Locks state machine group of an owner
- */
-void m0_rm_owner_lock(struct m0_rm_owner *owner);
-/**
- * Unlocks state machine group of an owner
- */
-void m0_rm_owner_unlock(struct m0_rm_owner *owner);
-
-/**
  * Initialises generic fields in struct m0_rm_credit.
  *
  * This is called by generic RM code to initialise an empty credit of any
@@ -1629,16 +1635,7 @@ M0_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
 				struct m0_rm_credit **dest_credit);
 
 /**
- * @param src_credit - A source credit which is to be duplicated.
- * @param dest_credit - A destination credit. This credit will be allocated,
- *                     initialised and then filled with src_credit.
- * Allocates and duplicates a credit.
- */
-int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
-		    struct m0_rm_credit **dest_credit);
-
-/**
- * Initialises the fields of for incoming structure.
+ * Initialises the fields of incoming structure.
  * This creates an incoming request with an empty m0_rm_incoming::rin_want
  * credit.
  *
@@ -1717,7 +1714,7 @@ M0_INTERNAL void m0_rm_credit_put(struct m0_rm_incoming *in);
 /** @} */
 
 /**
- * @defgroup Resource manager networking
+ * @defgroup rmnet Resource Manager Networking
  */
 /** @{ */
 
@@ -1735,9 +1732,11 @@ M0_INTERNAL int m0_rm_net_locate(struct m0_rm_credit *credit,
 
    @pre  rem->rem_state < REM_SERVICE_LOCATED
    @post rem->rem_state == REM_SERVICE_LOCATED
-void m0_rm_remote_service_set(struct m0_rm_remote *rem,
-			      struct m0_service_id *sid);
+
+M0_INTERNAL void m0_rm_remote_service_set(struct m0_rm_remote *rem,
+					  struct m0_service_id *sid);
 */
+
 /**
  * Assigns an owner id to a given remote.
  *
@@ -1748,83 +1747,6 @@ M0_INTERNAL void m0_rm_remote_owner_set(struct m0_rm_remote *rem, uint64_t id);
 
 /** @} end of Resource manager networking */
 
-/**
- * @defgroup Resource manager FOP description
- * @{
- */
-
-/**
- *
- * This file defines RM-fops needed for RM-generic layer. All the layers using
- * RM will have to define their own FOPs to fetch resource data. RM-generic FOPs
- * provide a facility for resource credits management and to fetch small
- * resource data.
- *
- * <b>RM fop formats</b>
- *
- * Various RM data-structures have to be located based on information stored in
- * fops:
- *
- *     - resource type: identified by 64-bit identifier
- *       (m0_rm_resource_type::rt_id),
- *
- *     - resource: resource information is never passed separately, but only to
- *       identify a resource owner,
- *
- *     - owner: when a first request to a remote resource owner is made, the
- *       owner is identified by the resource
- *       (m0_rm_resource_type_ops::rto_encode()) it is a responsibility of the
- *       remote RM to locate the owner. In the subsequent fops for the same
- *       owner, it is identified by a 128-bit cookie (m0_rm_cookie),
- *
- *     - credit: identified by an opaque byte array
- *       (m0_rm_resource_ops::rop_credit_decode(),
- *       m0_rm_credit_ops::rro_encode()). A 0-sized array in REVOKE and CANCEL
- *       fops is interpreted to mean "whole credit previously granted",
- *
- *     - loan: identified by a 128-bit cookie (m0_rm_cookie).
- *
- */
-
-struct m0_fop_rm_owner {
-	struct m0_cookie ow_cookie;
-	struct m0_buf    ow_resource;
-} M0_XCA_RECORD;
-
-struct m0_fop_rm_loan {
-	struct m0_cookie lo_cookie;
-} M0_XCA_RECORD;
-
-struct m0_fop_rm_credit {
-	struct m0_buf cr_opaque;
-} M0_XCA_RECORD;
-
-struct m0_fop_rm_req {
-	/* Could either be debtor or creditor */
-	struct m0_fop_rm_owner  rrq_owner;
-	struct m0_fop_rm_credit rrq_credit;
-	uint64_t                rrq_policy;
-	uint64_t                rrq_flags;
-} M0_XCA_RECORD;
-
-struct m0_fop_rm_borrow {
-	struct m0_fop_rm_req   bo_base;
-	struct m0_fop_rm_owner bo_creditor;
-} M0_XCA_RECORD;
-
-struct m0_fop_rm_borrow_rep {
-	struct m0_fop_generic_reply br_rc;
-	struct m0_fop_rm_loan       br_loan;
-	struct m0_fop_rm_credit     br_credit;
-	struct m0_buf               br_lvb;
-} M0_XCA_RECORD;
-
-struct m0_fop_rm_revoke {
-	struct m0_fop_rm_req  rr_base;
-	struct m0_fop_rm_loan rr_loan;
-} M0_XCA_RECORD;
-
-/** @} end of Resource manager FOP description */
 /* __MERO_RM_RM_H__ */
 #endif
 

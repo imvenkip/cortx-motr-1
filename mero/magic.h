@@ -574,7 +574,10 @@ enum m0_magic_satchel {
 	M0_RM_REMOTE_OWNER_HEAD_MAGIC = 0x330ffa101df00177,
 
 	/* m0_rm_remote::rem_magix (hobo hillbill) */
-	M0_RM_REMOTE_MAGIC = 0x090477147719,
+	M0_RM_REMOTE_MAGIC = 0x3309047714771977,
+
+	/* m0_reqh_rm_service::rms_magix (seidel afield) */
+	M0_RM_SERVICE_MAGIC = 0x335e1de1af1e1d77,
 
 /* RPC */
 	/* m0_rpc_service_type::svt_magix (seedless seel) */

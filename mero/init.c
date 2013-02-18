@@ -64,6 +64,7 @@
 #include "ioservice/io_service.h"
 #include "mdservice/md_fops.h"
 #include "mdservice/md_service.h"
+#include "rm/rm_service.h"
 #include "sns/sns.h"
 #include "cm/cm.h"
 #include "addb/addb_fops.h"
@@ -137,6 +138,10 @@ struct init_fini_call subsystem[] = {
 	{ &m0_confd_register,   &m0_confd_unregister, "confd" },
 	{ &m0_ios_register,     &m0_ios_unregister,   "ioservice" },
 	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
+	/**
+	 * @todo Start rmservice in kernel mode.
+	 */
+	{ &m0_rms_register,     &m0_rms_unregister,   "rmservice"},
 	{ &m0_cm_module_init,   &m0_cm_module_fini,   "copy machine" },
 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },
 	{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },

@@ -59,10 +59,10 @@ int pin_add(struct m0_rm_incoming *in, struct m0_rm_credit *credit,
 	    uint32_t flag);
 
 /**
- * @name rm-fop interface.
+ * @name RM FOP interface.
  *
- * Functions and data-structures used for interaction between RM core and RM fops
- * (and fom)s.
+ * Functions and data-structures used for interaction between RM core and RM
+ * fops (and fom)s.
  */
 
 /** @{ */
@@ -143,7 +143,7 @@ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
  * credit.
  *
  * @param out - outgoing (remote) credit request structure
- * @param type - outgoing request type
+ * @param req_type - outgoing request type
  * @see m0_rm_outgoing_fini
  */
 M0_INTERNAL void m0_rm_outgoing_init(struct m0_rm_outgoing *out,
@@ -173,7 +173,8 @@ M0_INTERNAL void m0_rm_loan_fini(struct m0_rm_loan *loan);
  *
  * @param loan - On success, this will contain an allocated and initialised
  *               loan strucutre
- * @param credit - the credits for which loan is being aloocated/created.
+ * @param credit - the credits for which loan is being allocated/created.
+ * @param creditor - Remote resource owner.
  */
 M0_INTERNAL int m0_rm_loan_alloc(struct m0_rm_loan **loan,
 				 const struct m0_rm_credit *credit,

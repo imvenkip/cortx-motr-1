@@ -93,14 +93,20 @@ M0_INTERNAL int m0_cookie_dereference(const struct m0_cookie *cookie,
  */
 M0_INTERNAL bool m0_addr_is_sane(const uint64_t * addr);
 
+
+/**
+ * Returns 'true' when cookie is NULL.
+ */
+M0_INTERNAL bool m0_cookie_is_null(struct m0_cookie cookie);
+
 /**
  * A macro to retrive address of a parent structure, associated with an object
  * embedded in a cookie.
  */
 #define m0_cookie_of(cookie, type, field)		      \
 ({							      \
-	uint64_t	 *__gen;			      \
-	struct m0_cookie *__cookie = (cookie);		      \
+	uint64_t	       *__gen;			      \
+	const struct m0_cookie *__cookie = (cookie);	      \
 	m0_cookie_dereference(__cookie, &__gen) != 0 ? NULL : \
 			container_of(__gen, type, field);     \
 })
@@ -109,6 +115,7 @@ M0_INTERNAL bool m0_addr_is_sane(const uint64_t * addr);
 /*__M0_LIB_COOKIE_H__*/
 #endif
 
+extern const struct m0_cookie M0_COOKIE_NULL;
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

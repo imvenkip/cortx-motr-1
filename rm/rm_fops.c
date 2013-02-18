@@ -20,14 +20,15 @@
 
 #undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/trace.h"
 #include "lib/finject.h"
-#include "fop/fom_generic.h"
-#include "fop/fom_generic_xc.h"
-#include "rm_fops.h"
+
+#include "rm/rm_fops.h"
+#include "rm/rm_fops_xc.h"
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc.h"
@@ -60,15 +61,16 @@ const struct m0_rpc_item_ops rm_request_rpc_ops = {
 /**
  * FOP definitions for resource-credit borrow request and reply.
  */
-struct m0_fop_type m0_fop_rm_borrow_fopt;
-struct m0_fop_type m0_fop_rm_borrow_rep_fopt;
+struct m0_fop_type m0_rm_fop_borrow_fopt;
+struct m0_fop_type m0_rm_fop_borrow_rep_fopt;
 extern struct m0_sm_state_descr rm_req_phases[];
 extern struct m0_reqh_service_type m0_rpc_service_type;
+extern struct m0_reqh_service_type m0_rm_svct;
 
 /**
  * FOP definitions for resource-credit revoke request and reply.
  */
-struct m0_fop_type m0_fop_rm_revoke_fopt;
+struct m0_fop_type m0_rm_fop_revoke_fopt;
 
 /*
  * Extern FOM params
@@ -136,51 +138,63 @@ static void rm_fop_release(struct m0_ref *ref)
 	M0_LEAVE();
 }
 
-static int fop_common_fill(struct rm_out *outreq,
+static int fop_common_fill(struct rm_out         *outreq,
 			   struct m0_rm_incoming *in,
-			   struct m0_rm_credit *credit,
-			   struct m0_cookie *cookie,
-			   struct m0_fop_type *fopt,
-			   size_t offset, void **data)
+			   struct m0_rm_credit   *credit,
+			   struct m0_cookie      *cookie,
+			   struct m0_fop_type    *fopt,
+			   size_t                 offset,
+			   void                 **data)
 {
-	struct m0_fop_rm_req *req;
-	struct m0_fop	     *fop;
-	int		      rc;
+	struct m0_rm_fop_req *req;
+	struct m0_fop        *fop;
+	int                   rc;
 
 	fop = &outreq->ou_fop;
 	m0_fop_init(fop, fopt, NULL, rm_fop_release);
 	rc = m0_fop_data_alloc(fop);
 	if (rc == 0) {
+		//struct m0_rm_resource_type *rtype;
+		struct m0_rm_resource      *resource;
+
 		*data  = m0_fop_data(fop);
-		req = (struct m0_fop_rm_req *) (char *)*data + offset;
+		req = (struct m0_rm_fop_req *) (char *)*data + offset;
 		req->rrq_policy = in->rin_policy;
 		req->rrq_flags = in->rin_flags;
 		req->rrq_owner.ow_cookie = *cookie;
-		rc = m0_rm_credit_encode(credit, &req->rrq_credit.cr_opaque);
+
+		resource = in->rin_want.cr_owner->ro_resource;
+		//rtype = &resource->r_type;
+		//req->rrq_owner->ow_rtype_id = rtype->rt_id;
+		rc = m0_rm_resource_encode(resource,
+					   &req->rrq_owner.ow_resource) ?:
+			m0_rm_credit_encode(credit, &req->rrq_credit.cr_opaque);
 	}
 	return rc;
 }
 
-static int borrow_fop_fill(struct rm_out *outreq,
+static int borrow_fop_fill(struct rm_out         *outreq,
 			   struct m0_rm_incoming *in,
-			   struct m0_rm_credit *credit)
+			   struct m0_rm_credit   *credit)
 {
-	struct m0_fop_rm_borrow *bfop;
+	struct m0_rm_fop_borrow *bfop;
 	struct m0_cookie	 cookie;
 	int			 rc;
 
-	M0_ENTRY("creating borrow fop for incoming: %p credit value: %lu",
-		 in, credit->cr_datum);
+	M0_ENTRY("creating borrow fop for incoming: %p credit value: %llu",
+		 in, (long long unsigned) credit->cr_datum);
 	m0_cookie_init(&cookie, &in->rin_want.cr_owner->ro_id);
 	rc = fop_common_fill(outreq, in, credit, &cookie,
-			     &m0_fop_rm_borrow_fopt,
-			     offsetof(struct m0_fop_rm_borrow, bo_base),
+			     &m0_rm_fop_borrow_fopt,
+			     offsetof(struct m0_rm_fop_borrow, bo_base),
 			     (void **)&bfop);
 
 	if (rc == 0) {
+		struct m0_rm_remote *rem = in->rin_want.cr_owner->ro_creditor;
+
 		/* Copy creditor cookie */
-		bfop->bo_creditor.ow_cookie =
-			in->rin_want.cr_owner->ro_creditor->rem_cookie;
+		bfop->bo_creditor.ow_cookie = rem ? rem->rem_cookie :
+			M0_COOKIE_NULL;
 	}
 	M0_RETURN(rc);
 }
@@ -190,14 +204,14 @@ static int revoke_fop_fill(struct rm_out *outreq,
 			   struct m0_rm_loan *loan,
 			   struct m0_rm_credit *credit)
 {
-	struct m0_fop_rm_revoke *rfop;
+	struct m0_rm_fop_revoke *rfop;
 	int			 rc;
 
-	M0_ENTRY("creating revoke fop for incoming: %p credit value: %lu",
-		 in, credit->cr_datum);
+	M0_ENTRY("creating revoke fop for incoming: %p credit value: %llu",
+		 in, (long long unsigned) credit->cr_datum);
 	rc = fop_common_fill(outreq, in, credit, &loan->rl_other->rem_cookie,
-			     &m0_fop_rm_revoke_fopt,
-			     offsetof(struct m0_fop_rm_revoke, rr_base),
+			     &m0_rm_fop_revoke_fopt,
+			     offsetof(struct m0_rm_fop_revoke, rr_base),
 			     (void **)&rfop);
 
 	if (rc == 0)
@@ -207,16 +221,16 @@ static int revoke_fop_fill(struct rm_out *outreq,
 }
 
 int m0_rm_request_out(enum m0_rm_outgoing_type otype,
-		      struct m0_rm_incoming *in,
-		      struct m0_rm_loan *loan,
-		      struct m0_rm_credit *credit)
+		      struct m0_rm_incoming   *in,
+		      struct m0_rm_loan       *loan,
+		      struct m0_rm_credit     *credit)
 {
 	struct m0_rpc_session *session = NULL;
 	struct rm_out	      *outreq;
 	int		       rc;
 
-	M0_ENTRY("sending request type: %d for incoming: %p credit value: %lu",
-		 otype, in, credit->cr_datum);
+	M0_ENTRY("sending request type: %d for incoming: %p credit value: %llu",
+		 otype, in, (long long unsigned) credit->cr_datum);
 	M0_PRE(M0_IN(otype, (M0_ROT_BORROW, M0_ROT_REVOKE)));
 
 	rc = rm_out_create(&outreq, in, credit);
@@ -226,6 +240,13 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 	switch (otype) {
 	case M0_ROT_BORROW:
 		rc = borrow_fop_fill(outreq, in, credit);
+		/* This should be as discussed:
+		 *	take rm service end point from confd
+		 *	for this simple case, it should be stored
+		 *	in some variable, a rpc session must be
+		 *	created and this created session is assigned
+		 *	below.
+		 */
 		session = in->rin_want.cr_owner->ro_creditor->rem_session;
 		outreq->ou_ast.sa_cb = &borrow_ast;
 		break;
@@ -262,11 +283,10 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 out:
 	M0_RETURN(rc);
 }
-M0_EXPORTED(m0_rm_borrow_out);
 
 static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_fop_rm_borrow_rep *borrow_reply;
+	struct m0_rm_fop_borrow_rep *borrow_reply;
 	struct m0_rm_owner	    *owner;
 	struct m0_rm_loan	    *loan = NULL; /* for m0_free(loan) */
 	struct m0_rm_credit	    *credit;
@@ -315,8 +335,8 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 			m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
 					   credit);
 			M0_LOG(M0_INFO, "borrow request:%p successful "
-					"credit value: %lu",
-					outreq, credit->cr_datum);
+			       "credit value: %llu",
+			       outreq, (long long unsigned) credit->cr_datum);
 		} else {
 			M0_LOG(M0_ERROR, "borrowed loan/credit allocation"
 					 " request: %p failed: rc [%d]\n",
@@ -405,10 +425,10 @@ static void reply_process(struct m0_rpc_item *item)
 
 M0_INTERNAL void m0_rm_fop_fini(void)
 {
-	m0_fop_type_fini(&m0_fop_rm_revoke_fopt);
-	m0_fop_type_fini(&m0_fop_rm_borrow_rep_fopt);
-	m0_fop_type_fini(&m0_fop_rm_borrow_fopt);
-	m0_xc_rm_fini();
+	m0_fop_type_fini(&m0_rm_fop_revoke_fopt);
+	m0_fop_type_fini(&m0_rm_fop_borrow_rep_fopt);
+	m0_fop_type_fini(&m0_rm_fop_borrow_fopt);
+	m0_xc_rm_fops_fini();
 	m0_xc_fom_generic_fini();
 	m0_xc_cookie_fini();
 	m0_xc_buf_fini();
@@ -424,36 +444,36 @@ M0_INTERNAL int m0_rm_fop_init(void)
 	m0_xc_buf_init();
 	m0_xc_cookie_init();
 	m0_xc_fom_generic_init();
-	m0_xc_rm_init();
+	m0_xc_rm_fops_init();
 #ifndef __KERNEL__
 	m0_sm_conf_extend(m0_generic_conf.scf_state, rm_req_phases,
 			  m0_generic_conf.scf_nr_states);
 #endif
-	return  M0_FOP_TYPE_INIT(&m0_fop_rm_borrow_fopt,
+	return  M0_FOP_TYPE_INIT(&m0_rm_fop_borrow_fopt,
 				 .name      = "Credit Borrow",
 				 .opcode    = M0_RM_FOP_BORROW,
-				 .xt        = m0_fop_rm_borrow_xc,
+				 .xt        = m0_rm_fop_borrow_xc,
 #ifndef __KERNEL__
 				 .sm	    = &borrow_sm_conf,
 				 .fom_ops   = &rm_borrow_fom_type_ops,
 #endif
-				 .svc_type  = &m0_rpc_service_type,
+				 .svc_type  = &m0_rm_svct,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_rm_borrow_rep_fopt,
+		M0_FOP_TYPE_INIT(&m0_rm_fop_borrow_rep_fopt,
 				 .name      = "Credit Borrow Reply",
 				 .opcode    = M0_RM_FOP_BORROW_REPLY,
-				 .xt        = m0_fop_rm_borrow_rep_xc,
+				 .xt        = m0_rm_fop_borrow_rep_xc,
 				 .svc_type  = &m0_rpc_service_type,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_rm_revoke_fopt,
+		M0_FOP_TYPE_INIT(&m0_rm_fop_revoke_fopt,
 				 .name      = "Credit Revoke",
 				 .opcode    = M0_RM_FOP_REVOKE,
-				 .xt        = m0_fop_rm_revoke_xc,
+				 .xt        = m0_rm_fop_revoke_xc,
 #ifndef __KERNEL__
 				 .sm	    = &revoke_sm_conf,
 				 .fom_ops   = &rm_revoke_fom_type_ops,
 #endif
-				 .svc_type  = &m0_rpc_service_type,
+				 .svc_type  = &m0_rm_svct,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
 }
 M0_EXPORTED(m0_rm_fop_init);

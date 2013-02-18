@@ -30,30 +30,44 @@
 #include "rm/rm.h"
 #include "rm/ut/rings.h"
 
+struct m0_rm_resource_type rings_resource_type = {
+	.rt_name = "Rings of Power",
+	.rt_id   = RINGS_RESOURCE_TYPE_ID,
+};
+
 static void rings_policy(struct m0_rm_resource *resource,
 			 struct m0_rm_incoming *in)
 {
 }
 
 static void rings_credit_init(struct m0_rm_resource *resource,
-			      struct m0_rm_credit *credit)
+			      struct m0_rm_credit   *credit)
 {
 	credit->cr_ops = &rings_credit_ops;
+}
+
+void rings_resource_free(struct m0_rm_resource *resource)
+{
+	struct m0_rings *rings;
+
+	rings = container_of(resource, struct m0_rings, rs_resource);
+	m0_free(rings);
 }
 
 const struct m0_rm_resource_ops rings_ops = {
 	.rop_credit_decode = NULL,
 	.rop_policy	   = rings_policy,
-	.rop_credit_init   = rings_credit_init
+	.rop_credit_init   = rings_credit_init,
+	.rop_resource_free = rings_resource_free,
 };
 
-static bool resources_are_equal(const struct m0_rm_resource *c0,
-				const struct m0_rm_resource *c1)
+static bool rings_resources_are_equal(const struct m0_rm_resource *c0,
+				      const struct m0_rm_resource *c1)
 {
 	return c0 == c1;
 }
 
-static bool resource_is(const struct m0_rm_resource *res, uint64_t res_id)
+static bool rings_resource_is(const struct m0_rm_resource *res, uint64_t res_id)
 {
 	struct m0_rings *ring;
 
@@ -62,25 +76,69 @@ static bool resource_is(const struct m0_rm_resource *res, uint64_t res_id)
 	return res_id == ring->rs_id;
 }
 
+static m0_bcount_t rings_resource_len(const struct m0_rm_resource *resource)
+{
+	/* Resource type id + resource id*/
+	return (m0_bcount_t) sizeof(uint64_t) + sizeof(uint64_t);
+}
+
+static int rings_resource_encode(struct m0_bufvec_cursor  *cur,
+				 struct m0_rm_resource    *resource)
+{
+	struct m0_rings *rings;
+
+	rings = container_of(resource, struct m0_rings, rs_resource);
+	M0_ASSERT(rings != NULL);
+
+	m0_bufvec_cursor_copyto(cur, (void *)&resource->r_type->rt_id,
+				sizeof resource->r_type->rt_id);
+
+	m0_bufvec_cursor_copyto(cur, (void *)&rings->rs_id,
+				sizeof rings->rs_id);
+	return 0;
+}
+
+static int rings_resource_decode(struct m0_bufvec_cursor  *cur,
+				 struct m0_rm_resource   **resource)
+{
+	static uint64_t  res_id;
+	struct m0_rings *rings;
+
+	m0_bufvec_cursor_copyfrom(cur, &res_id, sizeof res_id);
+
+	M0_ALLOC_PTR(rings);
+	rings->rs_id                     = res_id;
+	rings->rs_resource.r_type        = &rings_resource_type;
+	rings->rs_resource.r_type->rt_ops = &rings_rtype_ops;
+	rings->rs_resource.r_ops         = &rings_ops;
+
+	*resource = &rings->rs_resource;
+	return 0;
+}
+
 const struct m0_rm_resource_type_ops rings_rtype_ops = {
-	.rto_eq = resources_are_equal,
-	.rto_is = resource_is
+	.rto_eq     = rings_resources_are_equal,
+	.rto_is     = rings_resource_is,
+	.rto_len    = rings_resource_len,
+	.rto_encode = rings_resource_encode,
+	.rto_decode = rings_resource_decode
 };
 
-static bool credit_intersects(const struct m0_rm_credit *c0,
-			     const struct m0_rm_credit *c1)
+static bool rings_credit_intersects(const struct m0_rm_credit *c0,
+				    const struct m0_rm_credit *c1)
 {
       return (c0->cr_datum & c1->cr_datum) != 0;
 }
 
-static int credit_join(struct m0_rm_credit *c0,
-		       const struct m0_rm_credit *c1)
+static int rings_credit_join(struct m0_rm_credit       *c0,
+			     const struct m0_rm_credit *c1)
 {
 	c0->cr_datum |= c1->cr_datum;
 	return 0;
 }
 
-static int credit_diff(struct m0_rm_credit *c0, const struct m0_rm_credit *c1)
+static int rings_credit_diff(struct m0_rm_credit       *c0,
+			     const struct m0_rm_credit *c1)
 {
 	c0->cr_datum &= ~c1->cr_datum;
 	return 0;
@@ -92,7 +150,7 @@ static void rings_credit_free(struct m0_rm_credit *credit)
 }
 
 static int rings_credit_encode(const struct m0_rm_credit *credit,
-			       struct m0_bufvec_cursor *cur)
+			       struct m0_bufvec_cursor   *cur)
 {
 	m0_bufvec_cursor_copyto(cur, (void *)&credit->cr_datum,
 				sizeof credit->cr_datum);
@@ -100,7 +158,7 @@ static int rings_credit_encode(const struct m0_rm_credit *credit,
 	return 0;
 }
 
-static int rings_credit_decode(struct m0_rm_credit *credit,
+static int rings_credit_decode(struct m0_rm_credit     *credit,
 			       struct m0_bufvec_cursor *cur)
 {
 	m0_bufvec_cursor_copyfrom(cur, &credit->cr_datum,
@@ -108,7 +166,7 @@ static int rings_credit_decode(struct m0_rm_credit *credit,
 	return 0;
 }
 
-static int rings_credit_copy(struct m0_rm_credit *dest,
+static int rings_credit_copy(struct m0_rm_credit       *dest,
 			     const struct m0_rm_credit *src)
 {
 	if (M0_FI_ENABLED("fail_copy"))
@@ -131,9 +189,9 @@ static bool rings_is_subset(const struct m0_rm_credit *src,
 	return (dest->cr_datum & src->cr_datum) == src->cr_datum;
 }
 
-static int rings_disjoin(struct m0_rm_credit *src,
+static int rings_disjoin(struct m0_rm_credit       *src,
 			 const struct m0_rm_credit *dest,
-			 struct m0_rm_credit *intersection)
+			 struct m0_rm_credit       *intersection)
 {
 	intersection->cr_datum = src->cr_datum & dest->cr_datum;
 	src->cr_datum &= ~intersection->cr_datum;
@@ -147,9 +205,9 @@ static bool rings_conflicts(const struct m0_rm_credit *c0,
 }
 
 const struct m0_rm_credit_ops rings_credit_ops = {
-	.cro_intersects = credit_intersects,
-	.cro_join	= credit_join,
-	.cro_diff	= credit_diff,
+	.cro_intersects = rings_credit_intersects,
+	.cro_join	= rings_credit_join,
+	.cro_diff	= rings_credit_diff,
 	.cro_copy	= rings_credit_copy,
 	.cro_free	= rings_credit_free,
 	.cro_encode	= rings_credit_encode,
@@ -160,18 +218,18 @@ const struct m0_rm_credit_ops rings_credit_ops = {
 	.cro_conflicts	= rings_conflicts,
 };
 
-static void incoming_complete(struct m0_rm_incoming *in, int32_t rc)
+static void rings_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	M0_PRE(in != NULL);
 }
 
-static void incoming_conflict(struct m0_rm_incoming *in)
+static void rings_incoming_conflict(struct m0_rm_incoming *in)
 {
 }
 
 const struct m0_rm_incoming_ops rings_incoming_ops = {
-	.rio_complete = incoming_complete,
-	.rio_conflict = incoming_conflict
+	.rio_complete = rings_incoming_complete,
+	.rio_conflict = rings_incoming_conflict
 };
 
 /*

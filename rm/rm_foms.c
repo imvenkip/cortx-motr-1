@@ -28,6 +28,7 @@
 #include "fop/fom_generic.h"
 #include "rm/rm_fops.h"
 #include "rm/rm_foms.h"
+#include "rm/rm_service.h"
 
 /**
    @addtogroup rm
@@ -189,7 +190,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 
 	switch (type) {
 	case M0_RIT_BORROW:
-		fopt = &m0_fop_rm_borrow_rep_fopt;
+		fopt = &m0_rm_fop_borrow_rep_fopt;
 		fom_ops = &rm_fom_borrow_ops;
 		break;
 	case M0_RIT_REVOKE:
@@ -251,7 +252,7 @@ static size_t locality(const struct m0_fom *fom)
 static int reply_prepare(const enum m0_rm_incoming_type type,
 			 struct m0_fom *fom)
 {
-	struct m0_fop_rm_borrow_rep *bfop;
+	struct m0_rm_fop_borrow_rep *bfop;
 	struct rm_request_fom       *rfom;
 	struct m0_rm_loan	    *loan;
 	int			     rc = 0;
@@ -318,9 +319,9 @@ static void reply_err_set(enum m0_rm_incoming_type type,
  */
 static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 {
-	struct m0_fop_rm_borrow     *bfop;
-	struct m0_fop_rm_revoke     *rfop;
-	struct m0_fop_rm_req	    *basefop;
+	struct m0_rm_fop_borrow     *bfop;
+	struct m0_rm_fop_revoke     *rfop;
+	struct m0_rm_fop_req	    *basefop;
 	struct m0_rm_incoming	    *in;
 	struct m0_rm_owner	    *owner;
 	struct rm_request_fom	    *rfom;
@@ -337,16 +338,18 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 	case M0_RIT_BORROW:
 		bfop = m0_fop_data(fom->fo_fop);
 		basefop = &bfop->bo_base;
+		/* Remote owner (requester) cookie */
 		rfom->rf_in.ri_rem_owner_cookie = basefop->rrq_owner.ow_cookie;
 		/*
 		 * @todo Figure out how to find local session that can
 		 * send RPC back to the debtor.
-		   rfom->rf_in.ri_rem_session = NULL;
+		 * rfom->rf_in.ri_rem_session = NULL;
 		 */
 		/*
 		 * Populate the owner cookie for creditor (local)
 		 * This is used later by locality().
 		 */
+		/* Possibly M0_COOKIE_NULL */
 		rfom->rf_in.ri_owner_cookie = bfop->bo_creditor.ow_cookie;
 		break;
 
@@ -373,12 +376,33 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 	policy = basefop->rrq_policy;
 	flags = basefop->rrq_flags;
 	buf = &basefop->rrq_credit.cr_opaque;
-
 	owner = m0_cookie_of(&rfom->rf_in.ri_owner_cookie, struct m0_rm_owner,
 			     ro_id);
-	rc = owner ? 0 : -EPROTO;
+	in = &rfom->rf_in.ri_incoming;
+	/*
+	 * Owner is NULL, add the resource to system
+	 * m0_rm_resource_add
+	 * m0_rm_owner_init
+	 * m0_rm_owner_self_add
+	 *
+	 * Pass above owner to incoming init below.
+	 */
+	if (owner == NULL) {
+		struct m0_rm_credit *credit;
+
+		M0_ALLOC_PTR(owner);
+		if (owner == NULL)
+			return -ENOMEM;
+		rc = m0_rm_svc_owner_create(fom->fo_service, &owner,
+					    &basefop->rrq_owner.ow_resource);
+		if (rc != 0)
+			return rc;
+		M0_ALLOC_PTR(credit);
+		m0_rm_credit_init(credit, owner);
+		credit->cr_datum = in->rin_want.cr_datum;
+		rc = m0_rm_owner_selfadd(owner, credit);
+	}
 	if (rc == 0) {
-		in = &rfom->rf_in.ri_incoming;
 		m0_rm_incoming_init(in, owner, type, policy, flags);
 		in->rin_ops = &remote_incoming_ops;
 		rc = m0_rm_credit_decode(&in->rin_want, buf);
@@ -451,8 +475,7 @@ static int request_post_process(struct m0_fom *fom)
 	reply_err_set(in->rin_type, fom, rc);
 	m0_rm_incoming_fini(in);
 
-	M0_LEAVE();
-	return M0_FSO_AGAIN;
+	M0_RETURN(M0_FSO_AGAIN);
 }
 
 static int request_fom_tick(struct m0_fom *fom,

@@ -113,6 +113,8 @@ static struct m0_rm_resource *
 resource_find(const struct m0_rm_resource_type *rt,
 	      const struct m0_rm_resource *res);
 
+#define INCOMING_CREDIT(in) in->rin_want.cr_datum
+
 M0_TL_DESCR_DEFINE(res, "resources", , struct m0_rm_resource,
 		   r_linkage, r_magix,
 		   M0_RM_RESOURCE_MAGIC, M0_RM_RESOURCE_HEAD_MAGIC);
@@ -236,7 +238,7 @@ resource_find(const struct m0_rm_resource_type *rt,
 	return scan;
 }
 
-M0_INTERNAL int m0_rm_type_register(struct m0_rm_domain *dom,
+M0_INTERNAL int m0_rm_type_register(struct m0_rm_domain        *dom,
 				    struct m0_rm_resource_type *rt)
 {
 	int rc;
@@ -306,8 +308,19 @@ M0_INTERNAL void m0_rm_type_deregister(struct m0_rm_resource_type *rt)
 }
 M0_EXPORTED(m0_rm_type_deregister);
 
+M0_INTERNAL struct m0_rm_resource_type *
+m0_rm_resource_type_lookup(const struct m0_rm_domain *dom,
+			   const uint64_t             rtype_id)
+{
+	M0_PRE(dom != NULL);
+	M0_PRE(IS_IN_ARRAY(rtype_id, dom->rd_types));
+	M0_PRE(dom->rd_types[rtype_id] != NULL);
+
+	return dom->rd_types[rtype_id];
+}
+
 M0_INTERNAL void m0_rm_resource_add(struct m0_rm_resource_type *rtype,
-				    struct m0_rm_resource *res)
+				    struct m0_rm_resource      *res)
 {
 	M0_ENTRY("res-type: %p resource : %p", rtype, res);
 	m0_mutex_lock(&rtype->rt_lock);
@@ -347,6 +360,32 @@ M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res)
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_rm_resource_del);
+
+M0_INTERNAL int m0_rm_resource_encode(struct m0_rm_resource *res,
+				      struct m0_buf         *buf)
+{
+	struct m0_bufvec	datum_buf;
+	struct m0_bufvec_cursor cursor;
+
+	M0_PRE(buf != NULL);
+	M0_PRE(res->r_type != NULL);
+	M0_PRE(res->r_type->rt_ops != NULL);
+	M0_PRE(res->r_type->rt_ops->rto_len != NULL);
+	M0_PRE(res->r_type->rt_ops->rto_encode != NULL);
+
+	buf->b_nob = res->r_type->rt_ops->rto_len(res);
+	buf->b_addr = m0_alloc(buf->b_nob);
+	if (buf->b_addr == NULL)
+		return -ENOMEM;
+
+	datum_buf.ov_buf = &buf->b_addr;
+	datum_buf.ov_vec.v_nr = 1;
+	datum_buf.ov_vec.v_count = &buf->b_nob;
+
+	m0_bufvec_cursor_init(&cursor, &datum_buf);
+	M0_RETURN(res->r_type->rt_ops->rto_encode(&cursor, res));
+}
+M0_EXPORTED(m0_rm_resource_encode);
 
 static void resource_get(struct m0_rm_resource *res)
 {
@@ -417,7 +456,7 @@ static const struct m0_sm_conf owner_conf = {
 /*
  * Group lock is held
  */
-static inline void owner_state_set(struct m0_rm_owner *owner,
+static inline void owner_state_set(struct m0_rm_owner    *owner,
 				   enum m0_rm_owner_state state)
 {
 	M0_LOG(M0_INFO, "Owner: %p, state change:[%d -> %d]\n",
@@ -489,17 +528,15 @@ M0_INTERNAL void m0_rm_owner_lock(struct m0_rm_owner *owner)
 {
 	m0_sm_group_lock(owner_grp(owner));
 }
-M0_EXPORTED(m0_rm_rt_lock);
 
 M0_INTERNAL void m0_rm_owner_unlock(struct m0_rm_owner *owner)
 {
 	m0_sm_group_unlock(owner_grp(owner));
 }
-M0_EXPORTED(m0_rm_rt_unlock);
 
-M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner *owner,
+M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner    *owner,
 				  struct m0_rm_resource *res,
-				  struct m0_rm_remote *creditor)
+				  struct m0_rm_remote   *creditor)
 {
 	M0_PRE(ergo(creditor != NULL,
 		    creditor->rem_state >= REM_SERVICE_LOCATED));
@@ -548,7 +585,7 @@ static void credit_processor(struct m0_rm_resource_type *rt)
 	}
 }
 
-M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner *owner,
+M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner  *owner,
 				    struct m0_rm_credit *r)
 {
 	struct m0_rm_credit *credit_transfer;
@@ -660,8 +697,8 @@ static void owner_liquidate(struct m0_rm_owner *owner)
 }
 
 M0_INTERNAL int m0_rm_owner_timedwait(struct m0_rm_owner *owner,
-				      uint64_t state,
-				      const m0_time_t abs_timeout)
+				      uint64_t            state,
+				      const m0_time_t     abs_timeout)
 {
 	int rc;
 
@@ -704,7 +741,7 @@ M0_INTERNAL void m0_rm_owner_fini(struct m0_rm_owner *owner)
 M0_EXPORTED(m0_rm_owner_fini);
 
 M0_INTERNAL void m0_rm_credit_init(struct m0_rm_credit *credit,
-				   struct m0_rm_owner *owner)
+				   struct m0_rm_owner  *owner)
 {
 	M0_ENTRY("credit: %p with owner: %p", credit, owner);
 	M0_PRE(credit != NULL);
@@ -775,8 +812,8 @@ static const struct m0_sm_conf inc_conf = {
 	.scf_state     = inc_states
 };
 
-static inline void incoming_state_set(struct m0_rm_incoming *in,
-				      enum m0_rm_incoming_state state)
+static inline void incoming_state_set(struct m0_rm_incoming     *in,
+				      enum m0_rm_incoming_state  state)
 {
 	M0_PRE(owner_smgrp_is_locked(in->rin_want.cr_owner));
 	M0_LOG(M0_INFO, "Incoming req: %p, state change:[%d -> %d]\n",
@@ -784,11 +821,11 @@ static inline void incoming_state_set(struct m0_rm_incoming *in,
 	m0_sm_state_set(&in->rin_sm, state);
 }
 
-M0_INTERNAL void m0_rm_incoming_init(struct m0_rm_incoming *in,
-				     struct m0_rm_owner *owner,
-				     enum m0_rm_incoming_type type,
-				     enum m0_rm_incoming_policy policy,
-				     uint64_t flags)
+M0_INTERNAL void m0_rm_incoming_init(struct m0_rm_incoming      *in,
+				     struct m0_rm_owner         *owner,
+				     enum m0_rm_incoming_type    type,
+				     enum m0_rm_incoming_policy  policy,
+				     uint64_t                    flags)
 {
 	M0_ENTRY("incoming: %p for owner: %p", in, owner);
 	M0_PRE(in != NULL);
@@ -860,8 +897,8 @@ static void windup_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_rm_outgoing_init(struct m0_rm_outgoing *out,
-				     enum m0_rm_outgoing_type req_type)
+M0_INTERNAL void m0_rm_outgoing_init(struct m0_rm_outgoing    *out,
+				     enum m0_rm_outgoing_type  req_type)
 {
 	M0_ENTRY("outgoing: %p", out);
 	M0_PRE(out != NULL);
@@ -882,21 +919,22 @@ M0_INTERNAL void m0_rm_outgoing_fini(struct m0_rm_outgoing *out)
 }
 M0_EXPORTED(m0_rm_outgoing_fini);
 
-static int loan_dup(const struct m0_rm_loan *src_loan,
-		    struct m0_rm_loan **dest_loan)
+static int loan_dup(const struct m0_rm_loan  *src_loan,
+		    struct m0_rm_loan       **dest_loan)
 {
 	return m0_rm_loan_alloc(dest_loan, &src_loan->rl_credit,
 				src_loan->rl_other);
 }
 
-M0_INTERNAL int m0_rm_loan_alloc(struct m0_rm_loan **loan,
-				 const struct m0_rm_credit *credit,
-				 struct m0_rm_remote *creditor)
+M0_INTERNAL int m0_rm_loan_alloc(struct m0_rm_loan         **loan,
+				 const struct m0_rm_credit  *credit,
+				 struct m0_rm_remote        *creditor)
 {
 	struct m0_rm_loan *new_loan;
 	int		   rc = -ENOMEM;
 
-	M0_ENTRY("loan credit: %lu creditor: %p", credit->cr_datum, creditor);
+	M0_ENTRY("loan credit: %llu creditor: %p",
+		 (long long unsigned) credit->cr_datum, creditor);
 	M0_PRE(loan != NULL);
 	M0_PRE(credit != NULL);
 
@@ -918,15 +956,16 @@ M0_EXPORTED(m0_rm_loan_alloc);
  * Allocates a new loan and calculates the difference between
  * loan->rl_credit and credit.
  */
-static int remnant_loan_get(const struct m0_rm_loan *loan,
-			    const struct m0_rm_credit *credit,
-			    struct m0_rm_loan **remnant_loan)
+static int remnant_loan_get(const struct m0_rm_loan    *loan,
+			    const struct m0_rm_credit  *credit,
+			    struct m0_rm_loan         **remnant_loan)
 {
 	struct m0_rm_loan *new_loan;
 	int		   rc;
 
-	M0_ENTRY("split loan credit: %lu with credit: %lu",
-		loan->rl_credit.cr_datum, credit->cr_datum);
+	M0_ENTRY("split loan credit: %llu with credit: %llu",
+		 (long long unsigned) loan->rl_credit.cr_datum,
+		 (long long unsigned) credit->cr_datum);
 	M0_PRE(remnant_loan != NULL);
 	M0_PRE(loan != NULL);
 
@@ -941,9 +980,9 @@ static int remnant_loan_get(const struct m0_rm_loan *loan,
 	M0_RETURN(rc);
 }
 
-M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan *loan,
+M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan         *loan,
 				const struct m0_rm_credit *credit,
-				struct m0_rm_remote *creditor)
+				struct m0_rm_remote       *creditor)
 {
 	M0_PRE(loan != NULL);
 	M0_PRE(credit != NULL);
@@ -977,10 +1016,10 @@ M0_INTERNAL void m0_rm_loan_fini(struct m0_rm_loan *loan)
 }
 M0_EXPORTED(m0_rm_loan_fini);
 
-static int remote_find(struct m0_rm_remote **rem,
-		       struct m0_rpc_session *session,
-		       struct m0_rm_resource *res,
-		       struct m0_cookie *cookie)
+static int remote_find(struct m0_rm_remote   **rem,
+		       struct m0_rpc_session  *session,
+		       struct m0_rm_resource  *res,
+		       struct m0_cookie       *cookie)
 {
 	struct m0_rm_remote *other;
 	int		     rc = 0;
@@ -1014,7 +1053,7 @@ static int remote_find(struct m0_rm_remote **rem,
 	return rc;
 }
 
-M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote *rem,
+M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote   *rem,
 				   struct m0_rm_resource *res)
 {
 	M0_PRE(rem->rem_state == REM_FREED);
@@ -1078,7 +1117,8 @@ static int cached_credits_remove(struct m0_rm_incoming *in)
 	struct m0_tl	     remove_list;
 	int		     rc = 0;
 
-	M0_ENTRY("owner: %p credit: %lu", owner, in->rin_want.cr_datum);
+	M0_ENTRY("owner: %p credit: %llu", owner,
+		 (long long unsigned) INCOMING_CREDIT(in));
 	/* Credits can be removed for remote requests */
 	M0_PRE(in->rin_type != M0_RIT_LOCAL);
 
@@ -1137,7 +1177,8 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
 	struct m0_rm_remote   *debtor = NULL;
 	int                    rc;
 
-	M0_ENTRY("owner: %p credit: %lu", owner, in->rin_want.cr_datum);
+	M0_ENTRY("owner: %p credit: %llu", owner,
+		 (long long unsigned) INCOMING_CREDIT(in));
 	M0_PRE(in->rin_type == M0_RIT_BORROW);
 
 	/*
@@ -1155,7 +1196,7 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
 		 */
 		m0_rm_ur_tlist_add(&owner->ro_sublet, &loan->rl_credit);
 		/*
-		 * Store loan cookie llocally. Copy it into
+		 * Store loan cookie locally. Copy it into
 		 * rem_in->ri_loan_cookie.
 		 */
 		m0_cookie_init(&loan->rl_cookie, &loan->rl_id);
@@ -1182,7 +1223,8 @@ M0_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rem_in)
 	int                    rc         = 0;
 	bool		       is_remnant = false;
 
-	M0_ENTRY("owner: %p credit: %lu", owner, in->rin_want.cr_datum);
+	M0_ENTRY("owner: %p credit: %llu", owner,
+		 (long long unsigned) INCOMING_CREDIT(in));
 	M0_PRE(in->rin_type == M0_RIT_REVOKE);
 	M0_PRE(!m0_rm_ur_tlist_is_empty(&owner->ro_borrowed));
 
@@ -1298,7 +1340,8 @@ M0_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in)
 {
 	struct m0_rm_owner *owner = in->rin_want.cr_owner;
 
-	M0_ENTRY("owner: %p credit: %lu", owner, in->rin_want.cr_datum);
+	M0_ENTRY("owner: %p credit: %llu", owner,
+		 (long long unsigned) INCOMING_CREDIT(in));
 	M0_PRE(IS_IN_ARRAY(in->rin_priority, owner->ro_incoming));
 	M0_PRE(in->rin_sm.sm_rc == 0);
 	M0_PRE(in->rin_rc == 0);
@@ -1334,7 +1377,8 @@ M0_INTERNAL void m0_rm_credit_put(struct m0_rm_incoming *in)
 {
 	struct m0_rm_owner *owner = in->rin_want.cr_owner;
 
-	M0_ENTRY("owner: %p credit: %lu", owner, in->rin_want.cr_datum);
+	M0_ENTRY("owner: %p credit: %llu", owner,
+		 (long long unsigned) INCOMING_CREDIT(in));
 	incoming_release(in);
 	m0_rm_owner_lock(owner);
 	incoming_surrender(in);
@@ -1362,7 +1406,8 @@ static int cached_credits_hold(struct m0_rm_incoming *in)
 	struct m0_tl		      transfers;
 	int			      rc;
 
-	M0_ENTRY("owner: %p credit: %lu", owner, in->rin_want.cr_datum);
+	M0_ENTRY("owner: %p credit: %llu", owner,
+		 (long long unsigned) INCOMING_CREDIT(in));
 	/* Only local request can hold the credits */
 	M0_PRE(in->rin_type == M0_RIT_LOCAL);
 
@@ -1542,7 +1587,7 @@ static void incoming_check(struct m0_rm_incoming *in)
 	if (in->rin_rc == 0) {
 		m0_rm_credit_init(&rest, in->rin_want.cr_owner);
 		rc = credit_copy(&rest, &in->rin_want) ?:
-		     incoming_check_with(in, &rest);
+			incoming_check_with(in, &rest);
 		m0_rm_credit_fini(&rest);
 	} else
 		rc = in->rin_rc;
@@ -1613,7 +1658,7 @@ static bool incoming_is_complete(struct m0_rm_incoming *in)
  *     - -ve: error, the target state is RI_FAILURE.
  */
 static int incoming_check_with(struct m0_rm_incoming *in,
-			       struct m0_rm_credit *rest)
+			       struct m0_rm_credit   *rest)
 {
 	struct m0_rm_credit *want = &in->rin_want;
 	struct m0_rm_owner  *o    = want->cr_owner;
@@ -1623,7 +1668,8 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 	int                  wait = 0;
 	int		     rc   = 0;
 
-	M0_ENTRY("incoming: %p credit: %lu", in, rest->cr_datum);
+	M0_ENTRY("incoming: %p credit: %llu", in,
+		 (long long unsigned) rest->cr_datum);
 	M0_PRE(m0_rm_ur_tlist_contains(
 		       &o->ro_incoming[in->rin_priority][OQS_GROUND], want));
 
@@ -1783,10 +1829,10 @@ static void incoming_policy_apply(struct m0_rm_incoming *in)
  * Check if the outgoing request for requested credit is already pending.
  * If yes, attach a tracking pin.
  */
-static int outgoing_check(struct m0_rm_incoming *in,
-			  enum m0_rm_outgoing_type otype,
-			  struct m0_rm_credit *credit,
-			  struct m0_rm_remote *other)
+static int outgoing_check(struct m0_rm_incoming    *in,
+			  enum m0_rm_outgoing_type  otype,
+			  struct m0_rm_credit      *credit,
+			  struct m0_rm_remote      *other)
 {
 	int		       i;
 	int		       rc = 0;
@@ -1826,11 +1872,13 @@ static int outgoing_check(struct m0_rm_incoming *in,
  * loan.
  */
 static int revoke_send(struct m0_rm_incoming *in,
-		       struct m0_rm_loan *loan, struct m0_rm_credit *credit)
+		       struct m0_rm_loan     *loan,
+		       struct m0_rm_credit   *credit)
 {
 	int rc;
 
-	M0_ENTRY("incoming: %p credit: %lu", in, credit->cr_datum);
+	M0_ENTRY("incoming: %p credit: %llu", in,
+		 (long long unsigned) credit->cr_datum);
 	rc = outgoing_check(in, M0_ROT_REVOKE, credit, loan->rl_other);
 	if (!credit_is_empty(credit) && rc == 0)
 		rc = m0_rm_request_out(M0_ROT_REVOKE, in, loan, credit);
@@ -1845,11 +1893,12 @@ static int borrow_send(struct m0_rm_incoming *in, struct m0_rm_credit *credit)
 {
 	int rc;
 
-	M0_ENTRY("incoming: %p credit: %lu", in, credit->cr_datum);
+	M0_ENTRY("incoming: %p credit: %llu", in,
+		 (long long unsigned) credit->cr_datum);
 	M0_PRE(in->rin_want.cr_owner->ro_creditor != NULL);
 
 	rc = outgoing_check(in, M0_ROT_BORROW, credit,
-				in->rin_want.cr_owner->ro_creditor);
+			    in->rin_want.cr_owner->ro_creditor);
 	if (!credit_is_empty(credit) && rc == 0)
 		rc = m0_rm_request_out(M0_ROT_BORROW, in, NULL, credit);
 	M0_RETURN(rc);
@@ -1865,7 +1914,8 @@ M0_INTERNAL int m0_rm_sublet_remove(struct m0_rm_credit *credit)
 	struct m0_tl	     remove_list;
 	int		     rc = 0;
 
-	M0_ENTRY("credit: %lu", credit->cr_datum);
+	M0_ENTRY("credit: %llu",
+		 (long long unsigned) credit->cr_datum);
 	M0_PRE(credit != NULL);
 
 	m0_rm_ur_tlist_init(&diff_list);
@@ -1907,7 +1957,7 @@ M0_INTERNAL int m0_rm_sublet_remove(struct m0_rm_credit *credit)
 /** @} end of Owner state machine group */
 
 /**
- * @name invariant Invariants group
+ * @name Invariants group
  *
  * Resource manager maintains a number of interrelated data-structures in
  * memory. Invariant checking functions, defined in this section assert internal
@@ -2008,7 +2058,7 @@ static bool credit_invariant(const struct m0_rm_credit *credit, void *data)
 /**
  * Checks internal consistency of a resource owner.
  */
-static bool owner_invariant_state(const struct m0_rm_owner *owner,
+static bool owner_invariant_state(const struct m0_rm_owner     *owner,
 				  struct owner_invariant_state *is)
 {
 	struct m0_rm_credit *credit;
@@ -2104,7 +2154,7 @@ static bool owner_invariant(struct m0_rm_owner *owner)
 /** @} end of invariant group */
 
 /**
-   @name pin Pin helpers
+   @name Pin helpers
 
   @{
  */
@@ -2223,8 +2273,8 @@ static void pin_del(struct m0_rm_pin *pin)
  * requests that stuck pins into it are notified.
  */
 int pin_add(struct m0_rm_incoming *in,
-	    struct m0_rm_credit *credit,
-	    uint32_t flags)
+	    struct m0_rm_credit   *credit,
+	    uint32_t               flags)
 {
 	struct m0_rm_pin *pin;
 
@@ -2261,7 +2311,7 @@ int pin_add(struct m0_rm_incoming *in,
 /** @} end of pin group */
 
 /**
- *  @name credit Credit helpers
+ *  @name Credit helpers
  *
  * @{
  */
@@ -2317,14 +2367,15 @@ static bool credit_eq(const struct m0_rm_credit *c0,
  * Stores the diff(src, diff) in the newly allocated credit.
  */
 static int remnant_credit_get(const struct m0_rm_credit *src,
-			     const struct m0_rm_credit *diff,
-			     struct m0_rm_credit **remnant_credit)
+			     const struct m0_rm_credit  *diff,
+			     struct m0_rm_credit       **remnant_credit)
 {
 	struct m0_rm_credit *new_credit;
 	int		     rc;
 
-	M0_ENTRY("splitting credits %lu and %lu", src->cr_datum,
-						  diff->cr_datum);
+	M0_ENTRY("splitting credits %llu and %llu",
+		 (long long unsigned) src->cr_datum,
+		 (long long unsigned) diff->cr_datum);
 	M0_PRE(remnant_credit != NULL);
 	M0_PRE(src != NULL);
 	M0_PRE(diff != NULL);
@@ -2344,7 +2395,7 @@ static int remnant_credit_get(const struct m0_rm_credit *src,
  * Allocates memory and makes another copy of credit struct.
  */
 M0_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
-				 struct m0_rm_credit **dest_credit)
+				 struct m0_rm_credit      **dest_credit)
 {
 	struct m0_rm_credit *credit;
 	int		     rc = -ENOMEM;
@@ -2388,12 +2439,13 @@ static bool credit_is_empty(const struct m0_rm_credit *credit)
 }
 
 M0_INTERNAL int m0_rm_credit_encode(const struct m0_rm_credit *credit,
-				   struct m0_buf *buf)
+				   struct m0_buf              *buf)
 {
 	struct m0_bufvec	datum_buf;
 	struct m0_bufvec_cursor cursor;
 
-	M0_ENTRY("credit: %lu", credit->cr_datum);
+	M0_ENTRY("credit: %llu",
+		 (long long unsigned) credit->cr_datum);
 	M0_PRE(buf != NULL);
 	M0_PRE(credit->cr_ops != NULL);
 	M0_PRE(credit->cr_ops->cro_len != NULL);
@@ -2414,13 +2466,14 @@ M0_INTERNAL int m0_rm_credit_encode(const struct m0_rm_credit *credit,
 M0_EXPORTED(m0_rm_credit_encode);
 
 M0_INTERNAL int m0_rm_credit_decode(struct m0_rm_credit *credit,
-				    struct m0_buf *buf)
+				    struct m0_buf       *buf)
 {
 	struct m0_bufvec	datum_buf = M0_BUFVEC_INIT_BUF(&buf->b_addr,
 							       &buf->b_nob);
 	struct m0_bufvec_cursor cursor;
 
-	M0_ENTRY("credit: %lu", credit->cr_datum);
+	M0_ENTRY("credit: %llu",
+		 (long long unsigned) credit->cr_datum);
 	M0_PRE(credit->cr_ops != NULL);
 	M0_PRE(credit->cr_ops->cro_decode != NULL);
 
@@ -2432,11 +2485,11 @@ M0_EXPORTED(m0_rm_credit_decode);
 /** @} end of credit group */
 
 /**
- * @name remote Code to deal with remote owners
+ * @name Code to deal with remote owners
  *
  * @{
  */
-M0_INTERNAL int m0_rm_db_service_query(const char *name,
+M0_INTERNAL int m0_rm_db_service_query(const char          *name,
 				       struct m0_rm_remote *rem)
 {
         /* Create search query for DB using name as key and
@@ -2447,16 +2500,16 @@ M0_INTERNAL int m0_rm_db_service_query(const char *name,
 
 M0_INTERNAL int m0_rm_remote_resource_locate(struct m0_rm_remote *rem)
 {
-         /* Send resource management fop to locate resource */
-         rem->rem_state = REM_OWNER_LOCATED;
-         return 0;
+	/* Send resource management fop to locate resource */
+	rem->rem_state = REM_OWNER_LOCATED;
+	return 0;
 }
 
 /**
  * A distributed resource location data-base is consulted to locate the service.
  */
 static int service_locate(struct m0_rm_resource_type *rtype,
-			  struct m0_rm_remote *rem)
+			  struct m0_rm_remote        *rem)
 {
 	struct m0_clink clink;
 	int		rc;
@@ -2493,7 +2546,7 @@ error:
  * further communications.
  */
 static int resource_locate(struct m0_rm_resource_type *rtype,
-			   struct m0_rm_remote *rem)
+			   struct m0_rm_remote        *rem)
 {
 	struct m0_clink clink;
 	int		rc;

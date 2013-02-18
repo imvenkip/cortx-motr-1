@@ -40,6 +40,9 @@ extern void rm_fom_funcs_test(void);
 extern void rm_fop_funcs_test(void);
 extern bool m0_rm_ur_tlist_is_empty(const struct m0_tl *list);
 extern void remotes_tlist_del(struct m0_rm_remote *other);
+extern void rmsvc(void);
+
+struct rm_ut_data test_data;
 
 void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
 				 struct m0_rm_credit *credit)
@@ -137,6 +140,7 @@ const struct m0_test_suite rm_ut = {
 		{ "fom-funcs", rm_fom_funcs_test },
 		{ "fop-funcs", rm_fop_funcs_test },
 		{ "rcredits", remote_credits_test },
+		{ "rmsvc", rmsvc },
 		{ NULL, NULL }
 	}
 };

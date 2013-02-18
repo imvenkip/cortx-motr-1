@@ -36,12 +36,12 @@ static struct m0_rm_loan *test_loan;
 static struct m0_rm_remote remote;
 
 static void post_borrow_validate(int err);
-static void borrow_reply_populate(struct m0_fop_rm_borrow_rep *breply,
+static void borrow_reply_populate(struct m0_rm_fop_borrow_rep *breply,
 				  int err);
 static void post_borrow_cleanup(struct m0_rpc_item *item, int err);
-static void borrow_fop_validate(struct m0_fop_rm_borrow *bfop);
+static void borrow_fop_validate(struct m0_rm_fop_borrow *bfop);
 static void post_revoke_validate(int err);
-static void revoke_fop_validate(struct m0_fop_rm_revoke *rfop);
+static void revoke_fop_validate(struct m0_rm_fop_revoke *rfop);
 static void post_revoke_cleanup(struct m0_rpc_item *item, int err);
 static void revoke_reply_populate(struct m0_fop_generic_reply *rreply,
 				  int err);
@@ -51,15 +51,6 @@ static void revoke_reply_populate(struct m0_fop_generic_reply *rreply,
  * Common test functions for test cases in this file.
  ******************
  */
-static void rmfops_utinit(void)
-{
-	m0_rm_fop_init();
-}
-
-static void rmfops_utfini(void)
-{
-	m0_rm_fop_fini();
-}
 
 /*
  * Prepare parameters (request) for testing RM-FOP-send functions.
@@ -111,8 +102,8 @@ static void request_param_fini(void)
  */
 static void rm_req_fop_validate(enum m0_rm_incoming_type reqtype)
 {
-	struct m0_fop_rm_borrow *bfop;
-	struct m0_fop_rm_revoke *rfop;
+	struct m0_rm_fop_borrow *bfop;
+	struct m0_rm_fop_revoke *rfop;
 	struct m0_rm_pin	*pin;
 	struct m0_rm_loan	*loan;
 	struct m0_rm_outgoing	*og;
@@ -158,10 +149,9 @@ static void rm_req_fop_validate(enum m0_rm_incoming_type reqtype)
 static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
 					   int err)
 {
-	struct m0_fop_rm_borrow_rep *breply;
 	struct m0_fop_generic_reply *rreply;
+	struct m0_rm_fop_borrow_rep *breply;
 	struct m0_fop_type          *fopt = NULL;
-
 	struct m0_fop		    *fop;
 	struct m0_rm_pin	    *pin;
 	struct m0_rm_loan	    *loan;
@@ -181,7 +171,7 @@ static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
 
 		switch (reqtype) {
 		case M0_RIT_BORROW:
-			fopt = &m0_fop_rm_borrow_rep_fopt;
+			fopt = &m0_rm_fop_borrow_rep_fopt;
 			break;
 		case M0_RIT_REVOKE:
 			fopt = &m0_fop_generic_reply_fopt;
@@ -325,7 +315,7 @@ static void post_borrow_validate(int err)
 	M0_UT_ASSERT(ergo(err == 0, got_credit));
 }
 
-static void borrow_reply_populate(struct m0_fop_rm_borrow_rep *breply,
+static void borrow_reply_populate(struct m0_rm_fop_borrow_rep *breply,
 				  int err)
 {
 	int rc;
@@ -370,7 +360,7 @@ static void post_borrow_cleanup(struct m0_rpc_item *item, int err)
 /*
  * Check if m0_rm_request_out() has filled the FOP correctly
  */
-static void borrow_fop_validate(struct m0_fop_rm_borrow *bfop)
+static void borrow_fop_validate(struct m0_rm_fop_borrow *bfop)
 {
 	struct m0_rm_owner  *owner;
 	struct m0_rm_credit  credit;
@@ -442,7 +432,7 @@ static void post_revoke_validate(int err)
 /*
  * Check if m0_rm_request_out() has filled the FOP correctly
  */
-static void revoke_fop_validate(struct m0_fop_rm_revoke *rfop)
+static void revoke_fop_validate(struct m0_rm_fop_revoke *rfop)
 {
 	struct m0_rm_owner *owner;
 	struct m0_rm_credit credit;
@@ -562,10 +552,8 @@ static void revoke_fop_funcs_test(void)
 
 void rm_fop_funcs_test(void)
 {
-	rmfops_utinit();
 	borrow_fop_funcs_test();
 	revoke_fop_funcs_test();
-	rmfops_utfini();
 }
 
 /*

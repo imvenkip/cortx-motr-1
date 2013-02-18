@@ -17,23 +17,6 @@
  * Original author: Rajesh Bhalerao <rajesh_bhalerao@xyratex.com>
  * Original creation date: 08/21/2012
  */
-#include "lib/types.h"            /* uint64_t */
-#include "lib/chan.h"
-#include "lib/misc.h"
-#include "lib/memory.h"
-#include "lib/time.h"
-#include "ut/ut.h"
-#include "db/db.h"
-#include "cob/cob.h"
-#include "net/lnet/lnet.h"
-#include "net/buffer_pool.h"
-#include "mdstore/mdstore.h"
-#include "reqh/reqh.h"
-#include "rpc/rpc.h"
-#include "rpc/rpc_internal.h"
-#include "rpc/rpc_machine.h"
-#include "fop/fom_generic.h"
-#include "fop/fom_generic.h"
 
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
@@ -64,53 +47,9 @@ static const int cob_ids[] = { 20, 30, 40 };
 static uint32_t bp_buf_nr = 8;
 static uint32_t bp_tm_nr = 2;
 
-enum rm_server {
-	SERVER_1 = 0,
-	SERVER_2,
-	SERVER_3,
-	SERVER_NR,
-	SERVER_INVALID,
-};
-
-enum rr_tests {
-	TEST1 = 0,
-	TEST2,
-	TEST3,
-	TEST4,
-	TEST_NR,
-};
-
-/*
- * RM server context. It lives inside a thread in this test.
- */
-struct rm_context {
-	enum rm_server		  rc_id;
-	const char		 *rc_ep_addr;
-	struct m0_thread	  rc_thr;
-	struct m0_chan		  rc_chan;
-	struct m0_clink		  rc_clink;
-	struct m0_mutex		  rc_mutex;
-	struct m0_rpc_machine	  rc_rpc;
-	struct m0_dbenv		  rc_dbenv;
-	struct m0_fol		  rc_fol;
-	struct m0_cob_domain_id	  rc_cob_id;
-	struct m0_mdstore	  rc_mdstore;
-	struct m0_cob_domain	  rc_cob_dom;
-	struct m0_net_domain	  rc_net_dom;
-	struct m0_net_buffer_pool rc_bufpool;
-	struct m0_net_xprt	 *rc_xprt;
-	struct m0_reqh		  rc_reqh;
-	struct m0_net_end_point	 *rc_ep[SERVER_NR];
-	struct m0_rpc_conn	  rc_conn[SERVER_NR];
-	struct m0_rpc_session	  rc_sess[SERVER_NR];
-	struct rm_ut_data	  rc_test_data;
-	enum rm_server		  creditor_id;
-	enum rm_server		  debtor_id;
-};
-
 static struct m0_chan rr_tests_chan;
 static struct m0_clink tests_clink[TEST_NR];
-static struct m0_mutex rr_tests_chan_mutex;
+static struct m0_reqh_service *rmservice;
 
 struct rm_context rm_ctx[SERVER_NR];
 
@@ -175,10 +114,11 @@ static void buf_low(struct m0_net_buffer_pool *bp)
 {
 }
 
-static void rm_ctx_init(struct rm_context *rmctx)
+void rm_ctx_init(struct rm_context *rmctx)
 {
-	int		rc;
-	struct m0_db_tx tx;
+	int                          rc;
+	struct m0_db_tx              tx;
+	struct m0_reqh_service_type *stype;
 
 	rmctx->rc_xprt = &m0_net_lnet_xprt;
 	rc = m0_net_xprt_init(rmctx->rc_xprt);
@@ -215,12 +155,11 @@ static void rm_ctx_init(struct rm_context *rmctx)
 	m0_db_tx_commit(&tx);
 
 	rc = M0_REQH_INIT(&rmctx->rc_reqh,
-			.rhia_dtm       = (void*)1,
-			.rhia_db        = &rmctx->rc_dbenv,
-			.rhia_mdstore   = &rmctx->rc_mdstore,
-			.rhia_fol       = &rmctx->rc_fol,
-			.rhia_svc       = (void*)1,
-			.rhia_addb_stob = NULL);
+			  .rhia_dtm       = (void*)1,
+			  .rhia_db        = &rmctx->rc_dbenv,
+			  .rhia_mdstore   = &rmctx->rc_mdstore,
+			  .rhia_fol       = &rmctx->rc_fol,
+			  .rhia_svc       = (void*)1);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_start(&rmctx->rc_reqh);
 
@@ -233,10 +172,20 @@ static void rm_ctx_init(struct rm_context *rmctx)
 	M0_UT_ASSERT(rc == 0);
 	m0_mutex_init(&rmctx->rc_mutex);
 	m0_chan_init(&rmctx->rc_chan, &rmctx->rc_mutex);
+
+	stype = m0_reqh_service_type_find("rmservice");
+	M0_UT_ASSERT(stype != NULL);
+	rc = m0_reqh_service_allocate(&rmservice, stype, NULL);
+	M0_UT_ASSERT(rc == 0);
+	m0_reqh_service_init(rmservice, &rmctx->rc_reqh);
+	rc = m0_reqh_service_start(rmservice);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_chan_init(&rmctx->rc_chan);
 	m0_clink_init(&rmctx->rc_clink, NULL);
 }
 
-static void rm_ctx_fini(struct rm_context *rmctx)
+void rm_ctx_fini(struct rm_context *rmctx)
 {
 	m0_clink_fini(&rmctx->rc_clink);
 	m0_chan_fini_lock(&rmctx->rc_chan);
@@ -290,7 +239,6 @@ static void rm_disconnect(struct rm_context *src, const struct rm_context *dest)
 	M0_UT_ASSERT(rc == 0);
 
 	m0_net_end_point_put(src->rc_ep[dest->rc_id]);
-	M0_UT_ASSERT(rc == 0);
 }
 
 static void server_start(enum rm_server srv_id)
@@ -350,7 +298,6 @@ static void creditor_cookie_setup(enum rm_server dsrv_id,
 	struct m0_rm_owner *owner = &rm_ctx[dsrv_id].rc_test_data.rd_owner;
 
 	m0_cookie_init(&owner->ro_creditor->rem_cookie, &creditor->ro_id);
-
 }
 
 static void credit_setup(enum rm_server srv_id,
@@ -361,7 +308,6 @@ static void credit_setup(enum rm_server srv_id,
 	struct m0_rm_owner    *owner = &rm_ctx[srv_id].rc_test_data.rd_owner;
 
 	m0_rm_incoming_init(in, owner, M0_RIT_LOCAL, RIP_NONE, flag);
-	m0_rm_credit_init(&in->rin_want, owner);
 	in->rin_want.cr_datum = value;
 	switch (srv_id) {
 	case SERVER_1:
@@ -420,7 +366,7 @@ static void test2_run(void)
 	m0_rm_credit_get(in);
 	if (incoming_state(in) == RI_WAIT)
 		m0_chan_wait(&rm_ctx[SERVER_1].rc_clink);
-	M0_UT_ASSERT (incoming_state(in) == RI_SUCCESS);
+	M0_UT_ASSERT(incoming_state(in) == RI_SUCCESS);
 	M0_UT_ASSERT(in->rin_rc == 0);
 	m0_rm_credit_put(in);
 	m0_rm_incoming_fini(in);
@@ -642,7 +588,6 @@ static void remote_credits_utinit(void)
 		m0_clink_init(&tests_clink[i], NULL);
 		m0_clink_add_lock(&rr_tests_chan, &tests_clink[i]);
 	}
-	m0_rm_fop_init();
 }
 
 static void remote_credits_utfini(void)

@@ -71,19 +71,21 @@ enum {
 
 	ALLRINGS = NARYA | NENYA | VILYA | DURIN | THROR | GR_2 |
 	GR_3 | GR_4 | GR_5 | GR_6 | ANGMAR | KHAMUL | MR_2 | MR_3 | MR_4 |
-	MR_5 | MR_6 | MR_7 | MR_8 | THE_ONE
+	MR_5 | MR_6 | MR_7 | MR_8 | THE_ONE,
 
+	RINGS_RESOURCE_TYPE_ID = 0,
 };
 
 struct m0_rings {
-        struct m0_rm_resource rs_resource;
+	struct m0_rm_resource rs_resource;
 	uint64_t              rs_id;
 };
 
-extern const struct m0_rm_resource_ops rings_ops;
+extern struct m0_rm_resource_type           rings_resource_type;
+extern const struct m0_rm_resource_ops      rings_ops;
 extern const struct m0_rm_resource_type_ops rings_rtype_ops;
-extern const struct m0_rm_credit_ops rings_credit_ops;
-extern const struct m0_rm_incoming_ops rings_incoming_ops;
+extern const struct m0_rm_credit_ops        rings_credit_ops;
+extern const struct m0_rm_incoming_ops      rings_incoming_ops;
 
 /* __MERO_RM_RINGS_H__ */
 #endif

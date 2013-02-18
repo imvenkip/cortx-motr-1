@@ -1,9 +1,8 @@
-ut_libmero_ut_la_SOURCES += rm/ut/rings.h \
-                            rm/ut/rmut.h \
-                            rm/ut/rings.c \
+ut_libmero_ut_la_SOURCES += rm/ut/rmut.h \
                             rm/ut/rmapi.c \
                             rm/ut/lcredits.c \
                             rm/ut/rcredits.c \
                             rm/ut/rm_foms.c \
                             rm/ut/rm_fops.c \
-                            rm/ut/rmut.c
+                            rm/ut/rmut.c \
+                            rm/ut/rm_service.c

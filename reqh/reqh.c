@@ -136,7 +136,7 @@ M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 			     const struct m0_reqh_init_args *reqh_args)
 {
-	int         result;
+	int result;
 
 	M0_PRE(reqh != NULL);
 
