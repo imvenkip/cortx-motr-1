@@ -5,12 +5,6 @@ set -e
 BROOT=${PWD%/*}
 
 N=(
-	2
-	3
-	4
-	5
-	6
-	7
 	8
 	10
 	11
@@ -26,12 +20,6 @@ N=(
 K=1
 
 P=(
-	4
-	5
-	6
-	7
-	8
-	9
 	10
 	15
 	20
@@ -45,16 +33,10 @@ P=(
 )
 	
 U=(
-	4096
-	8192
-	16384
-	32768
-	65536
-	131072
-	262144
-	131072
 	262144
 	524288
+	1024000
+	1024000
 	1024000
 	1024000
 	1024000
@@ -70,8 +52,9 @@ cleanup()
 	pkill -INT -f m0d
 
 	while ps ax | grep -v grep | grep m0d; do
-		echo -n .; sleep 2;
+		sleep 2;
 	done
+
 	rmmod m0mero galois
 }
 
@@ -85,7 +68,7 @@ main()
 			return 1
 		fi
 
-		cmd="dd if=/dev/zero of=/mnt/m0/dat bs=30M count=10000"
+		cmd="dd if=/dev/zero of=/mnt/m0/dat bs=20M count=5000"
 		if ! $cmd
 		then
 			echo "write failed"
@@ -93,8 +76,8 @@ main()
 			return 1
 		fi
 
-		cmd="$BROOT/core/sns/cm/st/m0repair -O 2 -U ${U[$i]} -F ${U[$i]} -n 1
-			-s 300000000000 -N ${N[$i]} -K 1 -P ${P[$i]} -C 172.18.50.45@o2ib:12345:41:102
+		cmd="$BROOT/core/sns/cm/st/m0repair -O 2 -U ${U[$i]} -F ${N[$i]} -n 1
+			-s 100000000000 -N ${N[$i]} -K 1 -P ${P[$i]} -C 172.18.50.45@o2ib:12345:41:102
 			-S 172.18.50.45@o2ib:12345:41:101"
 		if ! $cmd 
 		then
