@@ -39,7 +39,7 @@ void bv_compare(struct m0_bufvec *b1, struct m0_bufvec *b2, uint32_t seg_nr,
 
 inline void bv_free(struct m0_bufvec *b);
 
-void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
+void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 		uint32_t bv_seg_nr, uint32_t bv_seg_size,
                 struct m0_sns_cm_ag *sns_ag, char data,
 		struct m0_fom_ops *cp_fom_ops, struct m0_reqh *reqh,

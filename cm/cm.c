@@ -702,7 +702,8 @@ M0_INTERNAL int m0_cm_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 
 	rc = cm->cm_ops->cmo_data_next(cm, cp);
 
-	M0_POST(ergo(rc == 0, cp->c_data != NULL));
+	M0_POST(ergo(rc == 0,
+		     cp_data_buf_tlist_length(&cp->c_buffers) == cp->c_buf_nr));
 
 	M0_LEAVE("rc: %d", rc);
 	return rc;

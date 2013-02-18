@@ -380,6 +380,7 @@ static struct m0_cm_cp *cm_cp_alloc(struct m0_cm *cm)
 	if (scp == NULL)
 		return NULL;
 	scp->sc_base.c_ops = &m0_sns_cm_cp_ops;
+
 	return &scp->sc_base;
 }
 

@@ -1519,6 +1519,8 @@ struct m0_net_buffer {
 	 */
         struct m0_tlink            nb_ioservice_linkage;
 
+	struct m0_tlink            nb_extern_linkage;
+
 	/**
 	   Magic for network buffer list.
 	 */

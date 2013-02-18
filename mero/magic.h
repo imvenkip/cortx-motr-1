@@ -227,6 +227,9 @@ enum m0_magic_satchel {
 	/* m0_cm_cp::cp_bob (ecobabble ace) */
 	CM_CP_MAGIX = 0x33ec0babb1eace77,
 
+	/* m0_cm_cp::c_buffers (deadfoodbaad) */
+	CM_CP_DATA_BUF_HEAD_MAGIX = 0x33DEADF00DBAAD77,
+
 /* desim */
 	/* client_write_ext::cwe_magic (abasic access) */
 	M0_DESIM_CLIENT_WRITE_EXT_MAGIC = 0x33aba51cacce5577,

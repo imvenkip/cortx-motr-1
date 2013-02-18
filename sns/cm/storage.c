@@ -35,13 +35,13 @@
  * @{
  */
 
-static int indexvec_prepare(struct m0_indexvec *iv, m0_bindex_t idx,
-			    uint32_t seg_nr, m0_bcount_t seg_size,
-			    struct m0_addb_ctx *ctx,
-			    uint32_t bshift)
+static int ivec_prepare(struct m0_indexvec *iv, m0_bindex_t idx,
+			uint32_t seg_nr, size_t seg_size,
+			struct m0_addb_ctx *ctx,
+			uint32_t bshift)
 {
-	int rc;
-	int i;
+	int                   rc;
+	int                   i;
 
 	M0_PRE(iv != NULL);
 
@@ -58,36 +58,39 @@ static int indexvec_prepare(struct m0_indexvec *iv, m0_bindex_t idx,
 	return 0;
 }
 
-static void indexvec_free(struct m0_indexvec *iv)
+static int bufvec_prepare(struct m0_bufvec *obuf, struct m0_tl *cp_buffers_head,
+			  uint32_t data_seg_nr, size_t seg_size, uint32_t bshift)
 {
-	m0_free(iv->iv_vec.v_count);
-	m0_free(iv->iv_index);
-}
-
-static int bufvec_prepare(struct m0_bufvec *obuf, struct m0_bufvec *ibuf,
-			  uint32_t seg_nr, m0_bcount_t seg_size,
-			  uint32_t bshift)
-{
-	int i;
+	struct m0_net_buffer *nbuf;
+	struct m0_bufvec     *ibuf;
+	int                  i;
+	int                  j = 0;
 
 	M0_PRE(obuf != NULL);
-	M0_PRE(ibuf != NULL);
+	M0_PRE(!cp_data_buf_tlist_is_empty(cp_buffers_head));
 
-	obuf->ov_vec.v_nr = seg_nr;
-	M0_ALLOC_ARR(obuf->ov_vec.v_count, seg_nr);
+	obuf->ov_vec.v_nr = data_seg_nr;
+	M0_ALLOC_ARR(obuf->ov_vec.v_count, data_seg_nr);
 	if (obuf->ov_vec.v_count == NULL)
 		return -ENOMEM;
 
-	M0_ALLOC_ARR(obuf->ov_buf, seg_nr);
+	M0_ALLOC_ARR(obuf->ov_buf, data_seg_nr);
 	if (obuf->ov_buf == NULL) {
 		m0_free(obuf->ov_vec.v_count);
 		return -ENOMEM;
 	}
 
-	for (i = 0; i < seg_nr; ++i) {
-		obuf->ov_vec.v_count[i] = seg_size >> bshift;
-		obuf->ov_buf[i] = m0_stob_addr_pack(ibuf->ov_buf[i], bshift);
-	}
+	m0_tl_for(cp_data_buf, cp_buffers_head, nbuf) {
+		ibuf = &nbuf->nb_buffer;
+		for (i = 0; i < nbuf->nb_pool->nbp_seg_nr && j < data_seg_nr;
+		     ++i, ++j) {
+			obuf->ov_vec.v_count[j] = seg_size >> bshift;
+			obuf->ov_buf[j] = m0_stob_addr_pack(ibuf->ov_buf[i],
+							    bshift);
+		}
+	} m0_tl_endfor;
+
+	M0_POST(j == data_seg_nr);
 
 	return 0;
 }
@@ -96,6 +99,37 @@ static void bufvec_free(struct m0_bufvec *bv)
 {
 	m0_free(bv->ov_vec.v_count);
 	m0_free(bv->ov_buf);
+}
+
+static int cp_prepare(struct m0_cm_cp *cp,
+		      struct m0_indexvec *dst_ivec,
+		      struct m0_bufvec *dst_bvec,
+		      m0_bindex_t start_idx,
+		      struct m0_addb_ctx *ctx, uint32_t bshift)
+{
+	struct m0_net_buffer *nbuf;
+	uint32_t              data_seg_nr;
+	size_t                seg_size;
+	int                   rc;
+
+	M0_PRE(m0_cm_cp_invariant(cp));
+	M0_PRE(!cp_data_buf_tlist_is_empty(&cp->c_buffers));
+
+	nbuf = cp_data_buf_tlist_head(&cp->c_buffers);
+	data_seg_nr = cp->c_data_seg_nr;
+	seg_size = nbuf->nb_pool->nbp_seg_size;
+
+	rc = ivec_prepare(dst_ivec, start_idx, data_seg_nr, seg_size, ctx,
+			  bshift);
+	if (rc != 0)
+		return rc;
+
+	rc = bufvec_prepare(dst_bvec, &cp->c_buffers, data_seg_nr, seg_size,
+			    bshift);
+	if (rc != 0)
+		m0_indexvec_free(dst_ivec);
+
+	return rc;
 }
 
 static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
@@ -146,18 +180,10 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	stio->si_fol_rec_part = &sns_cp->sc_fol_rec_part;
 
 	bshift = stob->so_op->sop_block_shift(stob);
-
-	rc = indexvec_prepare(&stio->si_stob, sns_cp->sc_index,
-			      cp->c_seg_nr, cp->c_seg_size, addb_ctx, bshift);
+	rc = cp_prepare(cp, &stio->si_stob, &stio->si_user, sns_cp->sc_index,
+			addb_ctx, bshift);
 	if (rc != 0)
 		goto err_stio;
-
-	rc = bufvec_prepare(&stio->si_user, cp->c_data, cp->c_seg_nr,
-			    cp->c_seg_size, bshift);
-	if (rc != 0) {
-		indexvec_free(&stio->si_stob);
-		goto err_stio;
-	}
 
 	m0_mutex_lock(&stio->si_mutex);
 	m0_fom_wait_on(cp_fom, &stio->si_wait, &cp_fom->fo_cb);
@@ -166,7 +192,7 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	rc = m0_stob_io_launch(stio, stob, &cp_fom->fo_tx, NULL);
 	if (rc != 0) {
 		m0_fom_callback_cancel(&cp_fom->fo_cb);
-		indexvec_free(&stio->si_stob);
+		m0_indexvec_free(&stio->si_stob);
 		bufvec_free(&stio->si_user);
 		goto err_stio;
 	} else
@@ -229,7 +255,7 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 		cp->c_ops->co_complete(cp);
 
 	/* Cleanup before proceeding to next phase. */
-	indexvec_free(&sns_cp->sc_stio.si_stob);
+	m0_indexvec_free(&sns_cp->sc_stio.si_stob);
 	bufvec_free(&sns_cp->sc_stio.si_user);
 	m0_stob_io_fini(&sns_cp->sc_stio);
 	m0_stob_put(sns_cp->sc_stob);

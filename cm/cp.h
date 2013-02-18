@@ -25,6 +25,8 @@
 #define __MERO_CM_CP_H__
 
 #include "lib/vec.h"
+#include "lib/tlist.h"
+#include "net/net.h"
 
 #include "fop/fom_generic.h"
 #include "rpc/bulk.h"
@@ -153,12 +155,15 @@ struct m0_cm_cp {
 	 */
 	struct m0_bitmap           c_xform_cp_indices;
 
+	/** List of buffers holding data. */
+	struct m0_tl               c_buffers;
+
 	/** Buffer representing the copy packet data.*/
-	struct m0_bufvec          *c_data;
+	//struct m0_bufvec          *c_data;
 
-	uint32_t                   c_seg_nr;
+	uint32_t                   c_buf_nr;
 
-	m0_bcount_t                c_seg_size;
+	uint32_t                   c_data_seg_nr;
 
 	/** Set and used in case of network send/recv.*/
 	struct m0_rpc_bulk	   c_bulk;
@@ -230,12 +235,11 @@ M0_INTERNAL void m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp);
 
 M0_INTERNAL bool m0_cm_cp_invariant(const struct m0_cm_cp *cp);
 
-/**
- * Returns the size of the bufvec of the copy packet.
- * Initialized at time of configuration from layout info.
- * It is also used for buffer pool provisioning.
- */
-M0_INTERNAL m0_bcount_t m0_cm_cp_data_size(struct m0_cm_cp *cp);
+M0_INTERNAL void m0_cm_cp_buf_add(struct m0_cm_cp *cp,
+				  struct m0_net_buffer *nb);
+
+M0_TL_DESCR_DECLARE(cp_data_buf, M0_INTERNAL);
+M0_TL_DECLARE(cp_data_buf, M0_INTERNAL, struct m0_net_buffer);
 
 /**
  @}

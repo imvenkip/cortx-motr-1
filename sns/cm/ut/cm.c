@@ -135,7 +135,7 @@ static void iter_setup(uint32_t N, uint32_t K, uint32_t P, uint64_t unit_size)
 static bool cp_verify(struct m0_sns_cm_cp *scp)
 {
 	return m0_stob_id_is_set(&scp->sc_sid) && scp->sc_base.c_ag != NULL &&
-	       scp->sc_base.c_data != NULL;
+	       !cp_data_buf_tlist_is_empty(&scp->sc_base.c_buffers);
 }
 
 static void dbenv_cob_domain_get(struct m0_dbenv **dbenv,
@@ -212,10 +212,13 @@ static void cob_delete(uint64_t cont, uint64_t key)
 
 static void buf_put(struct m0_sns_cm_cp *scp)
 {
+/*
 	m0_sns_cm_buffer_put(&scm->sc_obp, container_of(scp->sc_base.c_data,
 							struct m0_net_buffer,
 							nb_buffer),
 			     0);
+*/
+	m0_cm_cp_buf_release(&scp->sc_base);
 }
 
 static void ag_destroy(void)

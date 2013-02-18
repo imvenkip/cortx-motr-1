@@ -35,19 +35,20 @@ enum {
 	FAIL_NR = 1
 };
 
-static struct m0_reqh      *reqh;
-static struct m0_semaphore  sem;
-static int                  cp_fini_nr;
+static struct m0_reqh            *reqh;
+static struct m0_semaphore        sem;
+static int                        cp_fini_nr;
+static struct m0_net_buffer_pool  nbp;
 
 /* Global structures for single copy packet test. */
-static struct m0_sns_cm_ag s_sag;
-static struct m0_cm_cp     s_cp;
-static struct m0_bufvec    s_bv;
+static struct m0_sns_cm_ag  s_sag;
+static struct m0_cm_cp      s_cp;
+static struct m0_net_buffer s_buf;
 
 /* Global structures for multiple copy packet test. */
-static struct m0_sns_cm_ag m_sag;
-static struct m0_cm_cp     m_cp[CP_MULTI];
-static struct m0_bufvec    m_bv[CP_MULTI];
+static struct m0_sns_cm_ag  m_sag;
+static struct m0_cm_cp      m_cp[CP_MULTI];
+static struct m0_net_buffer m_buf[CP_MULTI];
 
 /* Global structures for testing bufvec xor correctness. */
 struct m0_bufvec src;
@@ -118,7 +119,6 @@ static void single_cp_fom_fini(struct m0_fom *fom)
 {
 	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
 
-	bv_free(cp->c_data);
 	m0_cm_cp_fini(cp);
 }
 
@@ -133,7 +133,6 @@ static void multiple_cp_fom_fini(struct m0_fom *fom)
 	 */
 	if (cp_fini_nr == CP_MULTI - 1)
 		M0_UT_ASSERT(res_cp_bitmap_is_full(cp));
-	bv_free(cp->c_data);
 	m0_cm_cp_fini(cp);
 	M0_CNT_INC(cp_fini_nr);
 }
@@ -162,7 +161,8 @@ static void test_single_cp(void)
 {
 	m0_semaphore_init(&sem, 0);
 	s_sag.sag_base.cag_transformed_cp_nr = 0;
-	cp_prepare(&s_cp, &s_bv, SEG_NR, SEG_SIZE, &s_sag, 'e',
+	s_buf.nb_pool = &nbp;
+	cp_prepare(&s_cp, &s_buf, SEG_NR, SEG_SIZE, &s_sag, 'e',
 		   &single_cp_fom_ops, reqh, 0);
 	s_cp.c_ag->cag_ops = &group_single_ops;
 	s_cp.c_ag->cag_cp_local_nr = s_cp.c_ag->cag_ops->cago_local_cp_nr(
@@ -186,6 +186,7 @@ static void test_single_cp(void)
 	M0_UT_ASSERT(s_sag.sag_base.cag_transformed_cp_nr == 0);
 	M0_UT_ASSERT(s_sag.sag_base.cag_cp_local_nr == 1);
 	m0_semaphore_fini(&sem);
+	bv_free(&s_buf.nb_buffer);
 }
 
 /*
@@ -199,7 +200,8 @@ static void test_multiple_cp(void)
 	m0_semaphore_init(&sem, 0);
 	m_sag.sag_base.cag_transformed_cp_nr = 0;
 	for (i = 0; i < CP_MULTI; ++i) {
-		cp_prepare(&m_cp[i], &m_bv[i], SEG_NR, SEG_SIZE, &m_sag, 'r',
+		m_buf[i].nb_pool = &nbp;
+		cp_prepare(&m_cp[i], &m_buf[i], SEG_NR, SEG_SIZE, &m_sag, 'r',
 			   &multiple_cp_fom_ops, reqh, i);
 		m_cp[i].c_ag->cag_ops = &group_multi_ops;
 		m_cp[i].c_ag->cag_cp_local_nr =
@@ -223,6 +225,8 @@ static void test_multiple_cp(void)
 	M0_UT_ASSERT(m_sag.sag_base.cag_transformed_cp_nr == CP_MULTI);
 	M0_UT_ASSERT(m_sag.sag_base.cag_cp_local_nr == CP_MULTI);
 	m0_semaphore_fini(&sem);
+	for (i = 0; i < CP_MULTI; ++i)
+		bv_free(&m_buf[i].nb_buffer);
 }
 
 /*

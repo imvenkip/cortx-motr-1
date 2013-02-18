@@ -370,6 +370,11 @@
  * @{
  */
 
+M0_TL_DESCR_DEFINE(cp_data_buf, "copy packet data buffers", M0_INTERNAL,
+                   struct m0_net_buffer, nb_extern_linkage, nb_magic,
+                   M0_NET_BUFFER_LINK_MAGIC, CM_CP_DATA_BUF_HEAD_MAGIX);
+M0_TL_DEFINE(cp_data_buf, M0_INTERNAL, struct m0_net_buffer);
+
 static const struct m0_bob_type cp_bob = {
 	.bt_name = "copy packet",
 	.bt_magix_offset = M0_MAGIX_OFFSET(struct m0_cm_cp, c_magix),
@@ -521,7 +526,7 @@ M0_INTERNAL bool m0_cm_cp_invariant(const struct m0_cm_cp *cp)
 {
 	const struct m0_cm_cp_ops *ops = cp->c_ops;
 
-	return m0_cm_cp_bob_check(cp) && ops != NULL && cp->c_data != NULL &&
+	return m0_cm_cp_bob_check(cp) && ops != NULL && cp->c_buf_nr > 0 &&
 	       cp->c_ag != NULL &&
 	       m0_fom_phase(&cp->c_fom) < ops->co_action_nr &&
 	       cp->c_ops->co_invariant(cp) &&
@@ -538,6 +543,7 @@ M0_INTERNAL void m0_cm_cp_init(struct m0_cm_cp *cp)
 
 	service = &cp->c_ag->cag_cm->cm_service;
 	m0_cm_cp_bob_init(cp);
+	cp_data_buf_tlist_init(&cp->c_buffers);
 	m0_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL,
 		    service->rs_reqh, service->rs_type);
 }
@@ -546,11 +552,6 @@ M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp)
 {
 	m0_fom_fini(&cp->c_fom);
 	m0_cm_cp_bob_fini(cp);
-}
-
-M0_INTERNAL m0_bcount_t m0_cm_cp_data_size(struct m0_cm_cp *cp)
-{
-	return cp->c_seg_nr * cp->c_seg_size;
 }
 
 M0_INTERNAL void m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp)
@@ -564,6 +565,16 @@ M0_INTERNAL void m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp)
         M0_PRE(m0_cm_cp_invariant(cp));
 
         m0_fom_queue(fom, reqh);
+}
+
+M0_INTERNAL void m0_cm_cp_buf_add(struct m0_cm_cp *cp, struct m0_net_buffer *nb)
+{
+	M0_PRE(cp != NULL);
+	M0_PRE(nb != NULL);
+
+	cp_data_buf_tlink_init(nb);
+	cp_data_buf_tlist_add(&cp->c_buffers, nb);
+	++cp->c_buf_nr;
 }
 
 /** @} end-of-CPDLD */

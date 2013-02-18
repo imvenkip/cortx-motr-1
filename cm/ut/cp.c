@@ -33,9 +33,10 @@
 static struct m0_semaphore     sem;
 
 /* Single thread test vars. */
-static struct m0_sns_cm_cp s_sns_cp;
-static struct m0_cm_aggr_group s_ag;
-static struct m0_bufvec s_bv;
+static struct m0_sns_cm_cp      s_sns_cp;
+struct m0_net_buffer            s_nb;
+static struct m0_cm_aggr_group  s_ag;
+//static struct m0_bufvec s_bv;
 
 enum {
 	THREADS_NR = 17,
@@ -93,7 +94,8 @@ M0_REQH_SERVICE_TYPE_DEFINE(ut_cp_service_type,
 /* Multithreaded test vars. */
 static struct m0_sns_cm_cp m_sns_cp[THREADS_NR];
 static struct m0_cm_aggr_group m_ag[THREADS_NR];
-static struct m0_bufvec m_bv[THREADS_NR];
+static struct m0_net_buffer m_nb[THREADS_NR];
+//static struct m0_bufvec m_bv[THREADS_NR];
 
 static int dummy_cp_read(struct m0_cm_cp *cp)
 {
@@ -181,8 +183,8 @@ static struct m0_fom_ops dummy_cp_fom_ops = {
  * Populates the copy packet and queues it to the request handler
  * for processing.
  */
-static void cp_post(struct m0_sns_cm_cp *sns_cp,
-		    struct m0_cm_aggr_group *ag, struct m0_bufvec *bv)
+static void cp_post(struct m0_sns_cm_cp *sns_cp, struct m0_cm_aggr_group *ag,
+		    struct m0_net_buffer *nb)
 {
 	struct m0_cm_cp *cp;
 	struct m0_stob_id sid = {
@@ -195,7 +197,8 @@ static void cp_post(struct m0_sns_cm_cp *sns_cp,
 	cp = &sns_cp->sc_base;
 	cp->c_ag = ag;
 	m0_cm_cp_init(cp);
-	cp->c_data = bv;
+	m0_cm_cp_buf_add(cp, nb);
+	//cp->c_data = bv;
 	sns_cp->sc_sid = sid;
 	cp->c_ops = &m0_sns_cm_cp_dummy_ops;
 	/* Over-ride the fom ops. */
@@ -215,10 +218,9 @@ static void test_cp_single_thread(void)
 	rc = m0_cm_start(&cm_ut);
 	M0_ASSERT(rc == 0);
 	m0_semaphore_init(&sem, 0);
-
 	s_ag.cag_cm = &cm_ut;
 	s_ag.cag_cp_local_nr = 1;
-	cp_post(&s_sns_cp, &s_ag, &s_bv);
+	cp_post(&s_sns_cp, &s_ag, &s_nb);
 
 	while (m0_fom_domain_is_idle(&cm_ut_reqh.rh_fom_dom) ||
 	       !m0_cm_cp_pump_is_complete(&cm_ut.cm_cp_pump))
@@ -239,7 +241,7 @@ static void cp_op(const int tid)
 {
 	m_ag[tid].cag_cm = &cm_ut;
 	m_ag[tid].cag_cp_local_nr = 1;
-	cp_post(&m_sns_cp[tid], &m_ag[tid], &m_bv[tid]);
+	cp_post(&m_sns_cp[tid], &m_ag[tid], &m_nb[tid]);
 }
 
 /*

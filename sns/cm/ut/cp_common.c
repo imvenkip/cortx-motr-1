@@ -85,7 +85,7 @@ inline void bv_free(struct m0_bufvec *b)
         m0_bufvec_free(b);
 }
 
-void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
+void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 		uint32_t bv_seg_nr, uint32_t bv_seg_size,
 		struct m0_sns_cm_ag *sns_ag,
 		char data, struct m0_fom_ops *cp_fom_ops,
@@ -95,10 +95,10 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
 	struct m0_cm           *cm;
 
         M0_UT_ASSERT(cp != NULL);
-        M0_UT_ASSERT(bv != NULL);
+        M0_UT_ASSERT(buf != NULL);
         M0_UT_ASSERT(sns_ag != NULL);
 
-        bv_populate(bv, data, bv_seg_nr, bv_seg_size);
+        bv_populate(&buf->nb_buffer, data, bv_seg_nr, bv_seg_size);
         cp->c_ag = &sns_ag->sag_base;
 	service = m0_reqh_service_find(&sns_cmt.ct_stype, reqh);
 	M0_UT_ASSERT(service != NULL);
@@ -106,9 +106,12 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_bufvec *bv,
 	M0_UT_ASSERT(cm != NULL);
 	cp->c_ag->cag_cm = cm;
 	m0_cm_cp_init(cp);
-	cp->c_data = bv;
-	cp->c_seg_nr = bv_seg_nr;
-	cp->c_seg_size = bv_seg_size;
+	//cp->c_data = bv;
+	m0_cm_cp_buf_add(cp, buf);
+	cp->c_data_seg_nr = bv_seg_nr;
+	buf->nb_pool->nbp_seg_nr = bv_seg_nr;
+	buf->nb_pool->nbp_seg_size = bv_seg_size;
+	buf->nb_pool->nbp_buf_nr = 1;
 	cp->c_fom.fo_ops = cp_fom_ops;
 	cp->c_ops = &m0_sns_cm_cp_ops;
 	cp->c_ag_cp_idx = cp_ag_idx;

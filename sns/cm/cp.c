@@ -132,26 +132,26 @@ M0_INTERNAL void m0_sns_cm_cp_complete(struct m0_cm_cp *cp)
 {
 }
 
-static void cp_buf_release(struct m0_cm_cp *cp)
+M0_INTERNAL void m0_cm_cp_buf_release(struct m0_cm_cp *cp)
 {
 	struct m0_net_buffer      *nbuf;
 	struct m0_net_buffer_pool *nbp;
 	uint64_t                   colour;
 
-	nbuf = container_of(cp->c_data, struct m0_net_buffer, nb_buffer);
-	M0_ASSERT(nbuf != NULL);
-	nbp = nbuf->nb_pool;
-	M0_ASSERT(nbp != NULL);
-	colour = cp_home_loc_helper(cp) % nbp->nbp_colours_nr;
-        m0_sns_cm_buffer_put(nbp, nbuf, colour);
+	m0_tl_for(cp_data_buf, &cp->c_buffers, nbuf) {
+		nbp = nbuf->nb_pool;
+		M0_ASSERT(nbp != NULL);
+		colour = cp_home_loc_helper(cp) % nbp->nbp_colours_nr;
+		m0_sns_cm_buffer_put(nbp, nbuf, colour);
+		cp_data_buf_tlink_del_fini(nbuf);
+	} m0_tl_endfor;
 }
 
 M0_INTERNAL void m0_sns_cm_cp_free(struct m0_cm_cp *cp)
 {
 	M0_PRE(cp != NULL);
 
-	if (cp->c_data != NULL)
-		cp_buf_release(cp);
+	m0_cm_cp_buf_release(cp);
 	m0_free(cp2snscp(cp));
 }
 

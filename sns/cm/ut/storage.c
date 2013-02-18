@@ -25,23 +25,25 @@
 #include "lib/misc.h"
 #include "reqh/reqh.h"
 #include "mero/setup.h"
+#include "net/net.h"
 #include "sns/cm/ut/cp_common.h"
 
-struct m0_reqh_service       *service;
-static struct m0_reqh        *reqh;
-static struct m0_semaphore    sem;
-static struct m0_stob        *stob;
-static struct m0_dtx          tx;
+struct m0_reqh_service          *service;
+static struct m0_reqh           *reqh;
+static struct m0_semaphore       sem;
+static struct m0_stob           *stob;
+static struct m0_dtx             tx;
+static struct m0_net_buffer_pool nbp;
 
 /* Global structures for write copy packet. */
-static struct m0_sns_cm_ag w_sag;
-static struct m0_sns_cm_cp w_sns_cp;
-static struct m0_bufvec    w_bv;
+static struct m0_sns_cm_ag  w_sag;
+static struct m0_sns_cm_cp  w_sns_cp;
+static struct m0_net_buffer w_buf;
 
 /* Global structures for read copy packet. */
-static struct m0_sns_cm_ag r_sag;
-static struct m0_sns_cm_cp r_sns_cp;
-static struct m0_bufvec    r_bv;
+static struct m0_sns_cm_ag  r_sag;
+static struct m0_sns_cm_cp  r_sns_cp;
+static struct m0_net_buffer r_buf;
 
 static struct m0_stob_id sid = {
 	.si_bits = {
@@ -179,10 +181,13 @@ const struct m0_cm_cp_ops write_cp_dummy_ops = {
 		[M0_CCP_IO_WAIT]    = &dummy_cp_read_io_wait,
 		[M0_CCP_XFORM]      = &dummy_cp_xform,
 		[M0_CCP_XFORM_WAIT] = &m0_sns_cm_cp_xform_wait,
+                [M0_CCP_SEND]       = &m0_sns_cm_cp_send,
+                [M0_CCP_RECV]       = &m0_sns_cm_cp_recv,
 		[M0_CCP_FINI]       = &dummy_cp_fini,
 	},
 	.co_action_nr               = M0_CCP_NR,
 	.co_phase_next              = &m0_sns_cm_cp_phase_next,
+	.co_invariant               = &m0_sns_cm_cp_invariant,
 	.co_complete                = &dummy_cp_complete,
 };
 
@@ -192,8 +197,9 @@ void write_post(void)
 	struct m0_stob_domain *sdom;
 
 	m0_semaphore_init(&sem, 0);
-	cp_prepare(&w_sns_cp.sc_base, &w_bv, SEG_NR, SEG_SIZE, &w_sag, 'e',
-		   &dummy_cp_fom_ops, reqh, 0);
+	w_buf.nb_pool = &nbp;
+	cp_prepare(&w_sns_cp.sc_base, &w_buf, SEG_NR, SEG_SIZE,
+		   &w_sag, 'e', &dummy_cp_fom_ops, reqh, 0);
 	w_sns_cp.sc_sid = sid;
 	m0_fid_set(&w_sag.sag_tgt_cobfid, sid.si_bits.u_hi, sid.si_bits.u_lo);
 	w_sag.sag_tgt_cob_index = 0;
@@ -236,10 +242,13 @@ const struct m0_cm_cp_ops read_cp_dummy_ops = {
 		[M0_CCP_IO_WAIT]    = &dummy_cp_write_io_wait,
 		[M0_CCP_XFORM]      = &dummy_cp_xform,
 		[M0_CCP_XFORM_WAIT] = &m0_sns_cm_cp_xform_wait,
+                [M0_CCP_SEND]       = &m0_sns_cm_cp_send,
+                [M0_CCP_RECV]       = &m0_sns_cm_cp_recv,
 		[M0_CCP_FINI]       = &dummy_cp_fini,
 	},
 	.co_action_nr               = M0_CCP_NR,
 	.co_phase_next              = &m0_sns_cm_cp_phase_next,
+	.co_invariant               = &m0_sns_cm_cp_invariant,
 	.co_complete                = &dummy_cp_complete,
 };
 
@@ -247,13 +256,14 @@ static void read_post(void)
 {
 	m0_semaphore_init(&sem, 0);
 
+	r_buf.nb_pool = &nbp;
 	/*
 	 * Purposefully fill the read bv with spaces i.e. ' '. This should get
 	 * replaced by 'e', when the data is read. This is due to the fact
 	 * that write operation is writing 'e' to the bv.
 	 */
-	cp_prepare(&r_sns_cp.sc_base, &r_bv, SEG_NR, SEG_SIZE, &r_sag, ' ',
-		   &dummy_cp_fom_ops, reqh, 0);
+	cp_prepare(&r_sns_cp.sc_base, &r_buf, SEG_NR, SEG_SIZE,
+		   &r_sag, ' ', &dummy_cp_fom_ops, reqh, 0);
 	r_sag.sag_base.cag_cp_local_nr = 1;
 	r_sns_cp.sc_sid = sid;
 	r_sns_cp.sc_base.c_ops = &read_cp_dummy_ops;
@@ -293,10 +303,10 @@ static void test_cp_write_read(void)
 	 * Compare the bv that is read with the previously written bv.
 	 * This verifies the correctness of both write and read operation.
 	 */
-	bv_compare(&r_bv, &w_bv, SEG_NR, SEG_SIZE);
+	bv_compare(&r_buf.nb_buffer, &w_buf.nb_buffer, SEG_NR, SEG_SIZE);
 
-	bv_free(&r_bv);
-	bv_free(&w_bv);
+	bv_free(&r_buf.nb_buffer);
+	bv_free(&w_buf.nb_buffer);
 	sns_cm_ut_server_stop();
 }
 

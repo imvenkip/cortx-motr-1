@@ -87,6 +87,33 @@ static void bufvec_xor(struct m0_bufvec *dst, struct m0_bufvec *src,
         }
 }
 
+static void bufvecs_xor(struct m0_cm_cp *src_cp, struct m0_cm_cp *dst_cp)
+{
+	struct m0_net_buffer      *src_nbuf;
+	struct m0_net_buffer      *dst_nbuf;
+	struct m0_net_buffer_pool *nbp;
+	uint64_t                   rem_data_size;
+	uint64_t                   buf_size = 0;
+
+	M0_PRE(!cp_data_buf_tlist_is_empty(&src_cp->c_buffers));
+	M0_PRE(!cp_data_buf_tlist_is_empty(&dst_cp->c_buffers));
+	M0_PRE(src_cp->c_buf_nr == dst_cp->c_buf_nr);
+
+	for (src_nbuf = cp_data_buf_tlist_head(&src_cp->c_buffers),
+	     dst_nbuf = cp_data_buf_tlist_head(&dst_cp->c_buffers);
+	     src_nbuf != NULL && dst_nbuf != NULL;
+	     src_nbuf = cp_data_buf_tlist_next(&src_cp->c_buffers, src_nbuf),
+	     dst_nbuf = cp_data_buf_tlist_next(&dst_cp->c_buffers, dst_nbuf))
+	{
+		nbp = src_nbuf->nb_pool;
+		rem_data_size = (src_cp->c_data_seg_nr * nbp->nbp_seg_size) -
+				buf_size;
+		buf_size = nbp->nbp_seg_nr * nbp->nbp_seg_size;
+		bufvec_xor(&dst_nbuf->nb_buffer, &src_nbuf->nb_buffer,
+			   min64u(buf_size, rem_data_size));
+	}
+}
+
 /**
  * Checks if the bitmap of resultant copy packet is full, i.e. bits
  * corresponding to all copy packets in an aggregation group are set.
@@ -143,24 +170,23 @@ M0_INTERNAL int m0_sns_cm_cp_xform_wait(struct m0_cm_cp *cp)
  */
 M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 {
-        struct m0_sns_cm_ag     *sns_ag;
-        struct m0_cm_aggr_group *ag;
+	struct m0_sns_cm_ag     *sns_ag;
+	struct m0_cm_aggr_group *ag;
 	struct m0_cm_cp         *res_cp;
 	int                      rc;
-	m0_bcount_t              cp_bufvec_size;
 
-        M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_XFORM);
+	M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_XFORM);
 
-        ag = cp->c_ag;
-        sns_ag = ag2snsag(ag);
+	ag = cp->c_ag;
+	sns_ag = ag2snsag(ag);
 	m0_cm_ag_lock(ag);
 	res_cp = sns_ag->sag_cp;
-        if (res_cp == NULL) {
-                /*
-                 * If there is only one copy packet in the aggregation group,
-                 * call the next phase of the copy packet fom.
-                 */
-                if (ag->cag_cp_local_nr > 1) {
+	if (res_cp == NULL) {
+		/*
+		 * If there is only one copy packet in the aggregation group,
+		 * call the next phase of the copy packet fom.
+		 */
+		if (ag->cag_cp_local_nr > 1) {
 			/*
 			 * If this is the first copy packet for this aggregation
 			 * group, (with more copy packets from same aggregation
@@ -197,16 +223,10 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 		 * transformation of all copy packets belonging to the
 		 * aggregation group is complete.
 		 */
-                 rc = cp->c_ops->co_phase_next(cp);
-        } else {
-		cp_bufvec_size = m0_cm_cp_data_size(cp);
-		/*
-		 * Typically, all copy packets will have same buffer vector
-		 * size. Hence, there is no need for any complex buffer
-		 * manipulation like growing or shrinking the buffers.
-		 */
-                bufvec_xor(res_cp->c_data, cp->c_data, cp_bufvec_size);
-                M0_CNT_INC(ag->cag_transformed_cp_nr);
+		rc = cp->c_ops->co_phase_next(cp);
+	} else {
+		bufvecs_xor(cp, res_cp);
+		M0_CNT_INC(ag->cag_transformed_cp_nr);
 		m0_bitmap_set(&res_cp->c_xform_cp_indices, cp->c_ag_cp_idx,
 			      true);
 		/*
@@ -219,36 +239,36 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 			res_cp_bitmap_merge(res_cp, cp);
 
 		M0_ASSERT(ag->cag_cp_local_nr >= ag->cag_transformed_cp_nr);
-                /*
-                 * Once transformation is complete, mark the copy
-                 * packet's fom's sm state to M0_CCP_FINI since it is not
-                 * needed anymore. This copy packet will be freed during
-                 * M0_CCP_FINI phase execution.
-                 */
+		/*
+		 * Once transformation is complete, mark the copy
+		 * packet's fom's sm state to M0_CCP_FINI since it is not
+		 * needed anymore. This copy packet will be freed during
+		 * M0_CCP_FINI phase execution.
+		 */
 		m0_fom_phase_set(&cp->c_fom, M0_CCP_FINI);
-                /*
-                 * If all copy packets are processed at this stage,
-                 * move the resultant copy packet's fom from waiting to ready
-                 * queue.
-                 * For incoming path i.e. when the next-to-next phase of the
-                 * resultant copy packet is STORAGE-OUT, transformation can be
-                 * marked as complete if bitmap of transformed copy packets
-                 * "global" to aggregation group is full.
-                 * For outgoing path i.e. when the next-to-next phase of the
-                 * resultant copy packet is NETWORK-OUT, if all "local" copy
-                 * packets in aggregation group are transformed, then
-                 * transformation can be marked complete.
-                 */
+		/*
+		 * If all copy packets are processed at this stage,
+		 * move the resultant copy packet's fom from waiting to ready
+		 * queue.
+		 * For incoming path i.e. when the next-to-next phase of the
+		 * resultant copy packet is STORAGE-OUT, transformation can be
+		 * marked as complete if bitmap of transformed copy packets
+		 * "global" to aggregation group is full.
+		 * For outgoing path i.e. when the next-to-next phase of the
+		 * resultant copy packet is NETWORK-OUT, if all "local" copy
+		 * packets in aggregation group are transformed, then
+		 * transformation can be marked complete.
+		 */
 		if (m0_sns_cm_cp_next_phase_get(
-			m0_sns_cm_cp_next_phase_get(m0_fom_phase(
-					&res_cp->c_fom),
-					NULL), NULL) == M0_CCP_WRITE) {
+					m0_sns_cm_cp_next_phase_get(m0_fom_phase(
+							&res_cp->c_fom),
+						NULL), NULL) == M0_CCP_WRITE) {
 			if (res_cp_bitmap_is_full(res_cp))
 				res_cp_fom_wakeup(res_cp);
 		} else if (ag->cag_cp_local_nr == ag->cag_transformed_cp_nr)
-				res_cp_fom_wakeup(res_cp);
+			res_cp_fom_wakeup(res_cp);
 		rc = M0_FSO_WAIT;
-        }
+	}
 	m0_cm_ag_unlock(ag);
 
 	return rc;
