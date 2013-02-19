@@ -140,7 +140,7 @@ static void stob_dev_init(const struct stobio_test *test)
 
 	sprintf(backingfile, "%s/%lu", test->st_dom->sd_name,
 				       test->st_id.si_bits.u_hi);
-	sprintf(sysbuf, "dd if=/dev/zero of=%s bs=1M count=%lu",
+	sprintf(sysbuf, "dd if=/dev/zero of=%s bs=1M count=%lu &>>/dev/null",
 			backingfile, (unsigned long)dev_sz);
 	result = system(sysbuf);
 	M0_UT_ASSERT(result == 0);

@@ -16,7 +16,7 @@
 if [ $# -ne 3 ]
 then
 	echo "Usage: gcov_stats_genhtml.sh [user|kernel] <src_dir> <output_dir>"
-	echo "       <src_dir>:    path of mero/core directory"
+	echo "       <src_dir>:    path of mero directory"
 	echo "       <output_dir>: path where output of lcov will be stored"
 	exit 1
 fi
@@ -34,12 +34,6 @@ fi
 if [ ! -d $src ]
 then
 	echo "Error: Either $src does not exists or is not a directory"
-	exit 1
-fi
-
-if [ `basename $src` != "core" ]
-then
-	echo "Error: baseame of <src_dir> must be \"core\""
 	exit 1
 fi
 

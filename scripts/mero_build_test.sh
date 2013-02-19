@@ -32,7 +32,7 @@ usage()
 {
     echo "Test automation script for mero"
     echo "mero_build_test.sh -r <path> -b [all | i=a,b,... | e=a,b,... | current]"
-    echo "                     [-d <path>] [-h] [-m <e-mail-id>] [-s suffix]"
+    echo "                     [-d <path>] [-h] [-s suffix]"
 
     echo ""
     echo "Where:"
@@ -43,40 +43,39 @@ usage()
     echo "                      current  - Current branch"
     echo "-d <path>      Directory from where Mero source is to be used"
     echo "-h             Print this help"
-    echo "-m <e-mail-id> Send mail to this email address in case of error or success."
     echo "-r <path>      Test root directory (Mandatory)."
     echo "-s <suffix>    Suffix to be appended to top level directory name in "
     echo "               case user wants to differentiate between test directories."
 }
 
-OPTIONS_STRING="b:d:hm:r:s:"
+OPTIONS_STRING="b:d:hr:s:"
 
 # Directory structure:
 # The utility will create the following directory structure on invocation,
 
 # $TESTROOT/
-# └── $DIRTIME/
-#     ├── mero_build_test.log
-#     ├── branches.txt
-#     ├── <Branch Name>/ [ For each branch ]
-#     │   ├── core-dumps/
-#     │   ├── coverage-data/
-#     │   │   ├── html/
-#     │   │   └── coverage-data.txt
-#     │   └── logs/
-#     │       ├── autogen.sh.log
-#     │       ├── configure.log
-#     │       ├── cov.log
-#     │       ├── git.log
-#     │       ├── make.log
-#     │       ├── make-clean.log
-#     │       ├── ut.log
-#     │       └── ub.log
-#     ├── src[-YYYY-MM-DD_HH-MM-SS/] [ If mero repository is given on command
+# |-- $DIRTIME/
+#     |-- mero_build_test.log
+#     |-- branches.txt
+#     |-- <Branch Name>/ [ For each branch ]
+#     |   |-- core-dumps/
+#     │   |-- coverage-data/
+#     │   │   |-- html/
+#     │   │   |-- coverage-data.txt
+#     │   |-- logs/
+#     │       |-- autogen.sh.log
+#     │       |-- configure.log
+#     │       |-- cov.log
+#     │       |-- git.log
+#     │       |-- make.log
+#     │       |-- make-clean.log
+#     │       |-- ut.log
+#     │       |-- ub.log
+#     |-- src[-YYYY-MM-DD_HH-MM-SS/] [ If mero repository is given on command
 #     │                                 line then src is a link to the
 #     │                                 mero repository otherwise it is a
 #     │                                 cloned mero repository ]
-#     └── sandbox/                   [ All tests will be run from this directory ]
+#     |-- sandbox/                   [ All tests will be run from this directory ]
 
 # The messages will be printed in following format;
 # DATE:TIME:CODE:BRANCH:PHASE:$rc:MESSAGE
@@ -92,16 +91,13 @@ OPTIONS_STRING="b:d:hm:r:s:"
 # Messages with code `ERR' contain $rc as error code.
 
 
-# NOTE(S):
-# For sending mail it is assumed that mail command is configured
-
 #-------------------------------------------------------------------------------
 
 # Directories to be created if not present
 DIRS="logs core-dumps coverage-data coverage-data/html"
 
 # GIT Variables
-# REMOTE_GIT_CMD="git clone ssh://gitosis@git.clusterstor.com/mero.git"
+# REMOTE_GIT_CMD="git clone --recursive ssh://gitosis@git.clusterstor.com/mero.git"
 
 # For setting any of the variables below, do -
 # UB_ROUNDS=NUM ./mero_build_test.sh [OPTIONS ...]
@@ -114,24 +110,16 @@ GIT_REPOSITORY=${GIT_REPOSITORY:-mero.git}
 UB_ROUNDS=${UB_ROUNDS:-0}
 DATE_BASED_DIR_NAME=${DATE_BASED_DIR_NAME:-0}
 
-MAIL_TEXT_FILE=$(mktemp /tmp/build-auto-mail-log.XXXXXX) > /dev/null
-
 MERO_CORE_PATH=""
 
 #-------------------------------------------------------------------------------
 
-# print_msg arg1 arg2
-# arg1 - Echo the message to console
-# arg2 - If arg2 == 1 then put arg1 in e-mail also
-
+# print_msg arg1
+# arg1 - Message to be echoed
 print_msg()
 {
-    mail_text=$(echo $(date +"%Y-%m-%d:%H-%M-%S")":$1")
-    echo $mail_text >> $TESTROOT/$DIRTIME/mero_build_test.log
-
-    if [ "$2" = "1" ]; then
-        echo $mail_text >> $MAIL_TEXT_FILE
-    fi
+    msg=$(echo $(date +"%Y-%m-%d:%H-%M-%S")":$1")
+    echo $msg >> $TESTROOT/$DIRTIME/mero_build_test.log
 }
 
 # create_dir arg1
@@ -152,7 +140,6 @@ create_dir()
 #run_command DIR CMD ARG CORE_DUMP_FLAG
 # Run the command `CMD' in `DIR' with argument `ARG'
 # If CORE_DUMP_FLAG=1 then invoke copy_core_dump
-
 run_command()
 {
     DIR=$1
@@ -174,7 +161,7 @@ run_command()
     $CMD $ARG >> "$cur_branch_dir/logs/$CMD_LOG.log" 2>&1
     rc=$?
     if [ "$rc" != "0" ]; then
-        print_msg "ERR:$current_branch:$rc:$CMD_LOG failed" 1
+        print_msg "ERR:$current_branch:$rc:$CMD_LOG failed"
         if [ "$CORE_DUMP_FLAG" = "1" ]; then
             copy_core_dump
 	fi
@@ -188,17 +175,16 @@ run_command()
 
 copy_core_dump()
 {
-
     if [ "$(id -u)" -eq 0 ]; then
 	cur_branch_dir="$TESTROOT/$DIRTIME/$current_branch"
 	cp $TESTROOT/$DIRTIME/sandbox/ut-sandbox/core.* $cur_branch_dir/core-dumps/ &> /dev/null
 	rc=$?
 	sudo cp $MERO_CORE_PATH/utils/.libs/lt-ut $cur_branch_dir/core-dumps/ &> /dev/null
 	if [ $rc -eq 0 ]; then
-	    print_msg "INFO:::A core is copied at $cur_branch_dir/core-dumps/" 1
+	    print_msg "INFO:::A core is copied at $cur_branch_dir/core-dumps/"
 	fi
     else
-	print_msg "INFO:::A core is generated at $TESTROOT/$DIRTIME/sandbox/ut-sandbox/" 1
+	print_msg "INFO:::A core is generated at $TESTROOT/$DIRTIME/sandbox/ut-sandbox/"
     fi
 }
 
@@ -215,7 +201,7 @@ gather_coverage()
         rc=$?
         if [ $rc -ne 0 ]; then
             print_msg "ERR:$current_branch:Coverage:$rc:Gathering coverage \
-                data failed" 1
+                data failed"
         else
             if [ -f process_lcov.sh ]; then
                 sudo ./process_lcov.sh \
@@ -224,13 +210,13 @@ gather_coverage()
                 rc=$?
                 if [ $rc -ne 0 ]; then
                     print_msg "ERR:$current_branch:Coverage:$rc:Gathering \
-                        coverage data failed" 1
+                        coverage data failed"
                 fi
             fi
         fi
     else
         print_msg "ERR:$current_branch:Coverage:$rc:gcov_stats_genhtml.sh \
-                not found" 1
+                not found"
         rc=2
     fi
     print_msg "INFO:$current_branch:Coverage:End"
@@ -243,27 +229,18 @@ run_test_automate()
     for line in $(cat $TESTROOT/$DIRTIME/branches.txt); do
         current_branch=$(basename $line)
         BRANCH_NAMES="$current_branch"", $BRANCH_NAMES"
-        create_dir $TESTROOT/$DIRTIME/$current_branch
-        rc=$?
-        if [ $rc -ne 0 ]; then
-            return $rc
-        fi
+        create_dir $TESTROOT/$DIRTIME/$current_branch || return $?
 
         for directory in $DIRS; do
-            create_dir $TESTROOT/$DIRTIME/$current_branch/$directory
-            rc=$?
-            if [ $rc -ne 0 ]; then
-                return $rc
-            fi
+            create_dir $TESTROOT/$DIRTIME/$current_branch/$directory || return $?
         done
 
         git checkout $current_branch >> \
                 $TESTROOT/$DIRTIME/$current_branch/logs/git.log 2>&1
 
-        if run_command "$MERO_SOURCE/galois" 'sh autogen.sh'                  && \
-	   run_command "$MERO_SOURCE/core" 'sh autogen.sh'                    && \
-           run_command "$MERO_SOURCE/core" './configure' '--enable-coverage'  && \
-           run_command "$MERO_SOURCE/core" 'make'; then
+        if run_command "$MERO_SOURCE" 'sh autogen.sh'                    && \
+           run_command "$MERO_SOURCE" './configure' '--enable-coverage'  && \
+           run_command "$MERO_SOURCE" 'make'; then
 
 	    pushd 2>/dev/null $TESTROOT/$DIRTIME/sandbox > /dev/null
             run_command '' "sudo $MERO_SOURCE/utils/ut.sh" '' 1
@@ -303,7 +280,7 @@ parse_branches()
             ;;
 
         current)
-            pushd $MERO_SOURCE/core > /dev/null
+            pushd $MERO_SOURCE > /dev/null
             git branch | grep \* | awk '{print $2}' > \
                 $TESTROOT/$DIRTIME/branches.txt
             popd 2> /dev/null > /dev/null
@@ -365,65 +342,30 @@ init_dirs()
 	MERO_SOURCE=$TESTROOT/$DIRTIME/src
     fi
 
-    create_dir $TESTROOT/$DIRTIME
-    rc=$?
-    if [ $rc -ne 0 ]; then
-        return $rc
-    fi
+    create_dir $TESTROOT/$DIRTIME || return $?
 
-    create_dir $TESTROOT/$DIRTIME/sandbox
-    rc=$?
-    if [ $rc -ne 0 ]; then
-        return $rc
-    fi
+    create_dir $TESTROOT/$DIRTIME/sandbox || return $?
 
     if [ "$src_dir" = "" ]; then
-        create_dir $MERO_SOURCE
-        rc=$?
-        if [ $rc -ne 0 ]; then
-            return $rc
-        fi
+        create_dir $MERO_SOURCE || return $?
 
         print_msg "INFO:Cloning Mero source please wait..."
 
         # Clone the Mero source
-        git clone $GIT_PROTOCOL://$GIT_USER@$GIT_WEB_ADDRESS/$GIT_REPOSITORY \
-                $MERO_SOURCE >> $TESTROOT/$DIRTIME/mero_build_test.log 2>&1
-        rc=$?
-        if [ $rc -ne 0 ]; then
-            print_msg "ERR:::$rc:Cloning the Mero source failed" 1
-            return $rc
-        fi
-
-        if [ -f $MERO_SOURCE/checkout ]; then
-            cd $MERO_SOURCE > /dev/null
-            ./checkout >> $TESTROOT/$DIRTIME/mero_build_test.log 2>&1
-            rc=$?
-            if [ $? -ne 0 ]; then
-                print_msg "ERR:::$rc:Cloning the Mero source failed" 1
-                return $rc
-            fi
-        else
-            print_msg "ERR:::$rc:No checkout script found in source" 1
-            return 1
-        fi
+        git clone --recursive $GIT_PROTOCOL://$GIT_USER@$GIT_WEB_ADDRESS/$GIT_REPOSITORY \
+                $MERO_SOURCE >> $TESTROOT/$DIRTIME/mero_build_test.log 2>&1 || return $?
     else # [ "$src_dir" != "" ]
         ln -s $src_dir $MERO_SOURCE
     fi
 
-    pushd $MERO_SOURCE/core > /dev/null
+    pushd $MERO_SOURCE > /dev/null
 
     git branch -a | grep origin/ | grep -v HEAD > \
         $TESTROOT/$DIRTIME/branches.txt
 
-    parse_branches
-    rc=$?
-    if [ $? -ne 0 ]; then
-        print_msg "ERR:::$rc:Branch parsing failed" 1
-        return $rc
-    fi
+    parse_branches || return $?
 
-    MERO_CORE_PATH=$MERO_SOURCE/core
+    MERO_CORE_PATH=$MERO_SOURCE
 
     popd 2> /dev/null > /dev/null
 }
@@ -432,65 +374,29 @@ check_and_setup_environ()
 {
     which lcov > /dev/null 2>&1
     if [ $? -ne 0 ]; then
-        print_msg "ERR:::$rc:lcov not present" 1
+        print_msg "ERR:::$rc:lcov not present"
         return 2
     fi
 
     ulimit -c unlimited > /dev/null 2>&1
 
-    echo "" > $MAIL_TEXT_FILE
-
     return 0
-}
-
-send_email()
-{
-    if [ "$MAIL_ADDRESS" != "" ]; then
-        if [ $1 -eq 0 ]; then
-            curr_hostname=$(hostname)
-            SUCCESS_MSG="Following branches were successfully tested - \
-                $BRANCH_NAMES. The results can be found at $TESTROOT/$DIRTIME/"
-
-            echo $SUCCESS_MSG | mail -s "Mero build automation script ran \
-                successfully on $curr_hostname" $MAIL_ADDRESS
-        else
-            echo $MAIL_TEXT_FILE | mail -s "Error in Mero build automation \
-                script on $curr_hostname" $MAIL_ADDRESS
-        fi
-    fi
-    mv $MAIL_TEXT_FILE $TESTROOT/$DIRTIME/mail.log
 }
 
 main()
 {
     cd $TESTROOT/$DIRTIME > /dev/null
-    check_and_setup_environ
-    rc=$?
-    if [ $rc -ne 0 ]; then
-        exit $rc
-    fi
+    check_and_setup_environ || exit $?
 
-    init_dirs
-    rc=$?
-    if [ $rc -ne 0 ]; then
-        exit $rc
-    fi
+    init_dirs || exit $?
 
     cd $TESTROOT/$DIRTIME/sandbox > /dev/null
-    run_test_automate
-    rc=$?
-    if [ $rc -ne 0 ]; then
-        exit $rc
-    fi
-
-    send_email $?
-
-    return 0
+    run_test_automate || exit $?
 }
 
 if [ $# -lt 2 ]; then
     usage
-    exit 1;
+    exit 1
 fi
 
 while getopts "$OPTIONS_STRING" OPTION; do
@@ -506,10 +412,6 @@ while getopts "$OPTIONS_STRING" OPTION; do
         h)
             usage
             exit 0
-            ;;
-
-        m)
-            MAIL_ADDRESS="$OPTARG"
             ;;
 
         r)
@@ -534,13 +436,13 @@ if [ "$TESTROOT" = "" ]; then
     exit 1
 else
     if ! [ -d $TESTROOT ]; then
-        print_msg "ERR:::2:Directory not found" 1
+        print_msg "ERR:::2:Directory not found"
         exit 2
     fi
 fi
 
 if [ "$BRANCHES" = "" ]; then
-    print_msg "BRANCHES not specified"
+    print_msg "Branch not specified"
     usage
     exit 1
 fi
