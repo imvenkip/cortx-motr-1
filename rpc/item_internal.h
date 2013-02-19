@@ -31,14 +31,14 @@
    @{
  */
 
-/** Initialises the rpc item types list and lock */
-M0_INTERNAL int m0_rpc_item_type_list_init(void);
+/** Initialises global the rpc item state including types list and lock */
+M0_INTERNAL int m0_rpc_item_module_init(void);
 
 /**
-  Finalizes and destroys the rpc item type list by traversing the list and
-  deleting and finalizing each element.
+  Finalizes and destroys the global rpc item state including type list by
+  traversing the list and deleting and finalizing each element.
 */
-M0_INTERNAL void m0_rpc_item_type_list_fini(void);
+M0_INTERNAL void m0_rpc_item_module_fini(void);
 
 M0_INTERNAL bool m0_rpc_item_is_bound(const struct m0_rpc_item *item);
 

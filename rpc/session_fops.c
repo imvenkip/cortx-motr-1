@@ -140,11 +140,6 @@ extern struct m0_fom_type_ops m0_rpc_fom_session_terminate_type_ops;
 extern struct m0_reqh_service_type m0_rpc_service_type;
 M0_INTERNAL int m0_rpc_session_fop_init(void)
 {
-	/**
-	 * @todo This should be done from dtm subsystem init.
-	 */
-	m0_xc_verno_init();
-	m0_xc_rpc_onwire_init();
 	m0_xc_session_fops_init();
 	return  M0_FOP_TYPE_INIT(&m0_rpc_fop_conn_establish_fopt,
 			 .name      = "Rpc conn establish",

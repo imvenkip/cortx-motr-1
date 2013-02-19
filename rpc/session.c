@@ -896,7 +896,7 @@ M0_INTERNAL m0_bcount_t
 m0_rpc_session_get_max_item_payload_size(const struct m0_rpc_session *session)
 {
 	return m0_rpc_session_get_max_item_size(session) -
-	       m0_rpc_item_onwire_header_size();
+	       m0_rpc_item_onwire_header_size;
 }
 
 M0_INTERNAL void m0_rpc_session_hold_busy(struct m0_rpc_session *session)

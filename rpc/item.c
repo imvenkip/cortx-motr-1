@@ -77,17 +77,38 @@ static bool opcode_is_dup(uint32_t opcode)
 	return m0_rpc_item_type_lookup(opcode) != NULL;
 }
 
-M0_INTERNAL int m0_rpc_item_type_list_init(void)
+M0_INTERNAL m0_bcount_t m0_rpc_item_onwire_header_size;
+
+#define ITEM_XCODE_OBJ(ptr)     M0_XCODE_OBJ(m0_rpc_onwire_slot_ref_xc, ptr)
+#define SLOT_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_onwire_header_xc, ptr)
+
+M0_INTERNAL int m0_rpc_item_module_init(void)
 {
+	struct m0_rpc_item_onwire_header head;
+	struct m0_xcode_ctx              head_xc;
+	struct m0_rpc_onwire_slot_ref    slotr;
+	struct m0_xcode_ctx              slotr_xc;
+
 	M0_ENTRY();
+
+	/**
+	 * @todo This should be done from dtm subsystem init.
+	 */
+	m0_xc_verno_init();
+	m0_xc_rpc_onwire_init();
 
 	m0_rwlock_init(&rpc_item_types_lock);
 	rit_tlist_init(&rpc_item_types_list);
 
+	m0_xcode_ctx_init(&head_xc, &ITEM_XCODE_OBJ(&head));
+	m0_xcode_ctx_init(&slotr_xc, &SLOT_REF_XCODE_OBJ(&slotr));
+	m0_rpc_item_onwire_header_size = m0_xcode_length(&head_xc) +
+		m0_xcode_length(&slotr_xc);
+
 	M0_RETURN(0);
 }
 
-M0_INTERNAL void m0_rpc_item_type_list_fini(void)
+M0_INTERNAL void m0_rpc_item_module_fini(void)
 {
 	struct m0_rpc_item_type		*item_type;
 
@@ -427,31 +448,10 @@ void m0_rpc_item_put(struct m0_rpc_item *item)
 	item->ri_type->rit_ops->rito_item_put(item);
 }
 
-#define ITEM_XCODE_OBJ(ptr)     M0_XCODE_OBJ(m0_rpc_onwire_slot_ref_xc, ptr)
-#define SLOT_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_onwire_header_xc, ptr)
-
-m0_bcount_t m0_rpc_item_onwire_header_size(void)
-{
-	static m0_bcount_t size = 0;
-
-	if (size == 0) {
-		struct m0_rpc_item_onwire_header head;
-		struct m0_xcode_ctx              head_xc;
-		struct m0_rpc_onwire_slot_ref    slotr;
-		struct m0_xcode_ctx              slotr_xc;
-
-		m0_xcode_ctx_init(&head_xc, &ITEM_XCODE_OBJ(&head));
-		m0_xcode_ctx_init(&slotr_xc, &SLOT_REF_XCODE_OBJ(&slotr));
-		size = m0_xcode_length(&head_xc) + m0_xcode_length(&slotr_xc);
-	}
-
-	return size;
-}
-
 m0_bcount_t m0_rpc_item_size(struct m0_rpc_item *item)
 {
 	if (item->ri_size == 0)
-		item->ri_size = m0_rpc_item_onwire_header_size() +
+		item->ri_size = m0_rpc_item_onwire_header_size +
 				m0_rpc_item_payload_size(item);
 	M0_ASSERT(item->ri_size != 0);
 	return item->ri_size;

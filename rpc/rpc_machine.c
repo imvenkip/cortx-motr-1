@@ -313,7 +313,7 @@ static void drain_item_sources(struct m0_rpc_machine *machine)
 
 	M0_ENTRY();
 
-	max_size = machine->rm_min_recv_size - m0_rpc_item_onwire_header_size();
+	max_size = machine->rm_min_recv_size - m0_rpc_item_onwire_header_size;
 
 	M0_LOG(M0_DEBUG, "max_size: %llu", (unsigned long long)max_size);
 	m0_tl_for(rpc_conn, &machine->rm_outgoing_conns, conn) {
