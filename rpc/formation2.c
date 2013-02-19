@@ -599,7 +599,7 @@ static void frm_fill_packet_from_item_sources(struct m0_rpc_frm    *frm,
 
 	M0_ENTRY();
 
-	header_size = m0_rpc_item_onwire_header_size();
+	header_size = m0_rpc_item_onwire_header_size;
 	m0_tl_for(rpc_conn, &machine->rm_outgoing_conns, conn) {
 		M0_LOG(M0_DEBUG, "conn: %p", conn);
 		if (&conn->c_rpcchan->rc_frm != frm ||

@@ -128,7 +128,7 @@ M0_INTERNAL int m0_rpc_init(void)
 #undef RT_REG
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_rpc_addb_ctx,
 			 &m0_addb_ct_rpc_mod, &m0_addb_proc_ctx);
-	rc = m0_rpc_item_type_list_init() ?:
+	rc = m0_rpc_item_module_init() ?:
 	     m0_rpc_service_module_init() ?:
 	     m0_rpc_service_register() ?:
 	     m0_rpc_session_module_init();
@@ -143,7 +143,7 @@ M0_INTERNAL void m0_rpc_fini(void)
 	m0_rpc_session_module_fini();
 	m0_rpc_service_unregister();
 	m0_rpc_service_module_fini();
-	m0_rpc_item_type_list_fini();
+	m0_rpc_item_module_fini();
 	m0_addb_ctx_fini(&m0_rpc_addb_ctx);
 
 	M0_LEAVE();

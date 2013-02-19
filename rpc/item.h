@@ -279,7 +279,7 @@ void m0_rpc_item_get(struct m0_rpc_item *item);
 /** Decrements item's reference counter. */
 void m0_rpc_item_put(struct m0_rpc_item *item);
 
-m0_bcount_t m0_rpc_item_onwire_header_size(void);
+M0_EXTERN m0_bcount_t m0_rpc_item_onwire_header_size;
 m0_bcount_t m0_rpc_item_payload_size(struct m0_rpc_item *item);
 m0_bcount_t m0_rpc_item_size(struct m0_rpc_item *item);
 
