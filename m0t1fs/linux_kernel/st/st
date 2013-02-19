@@ -19,7 +19,7 @@ die() { echo "$@" >&2; exit 1; }
 
 M0_CORE_DIR=`readlink -f $0`
 M0_CORE_DIR=${M0_CORE_DIR%/*/*/*/*}
-[ "${M0_CORE_DIR##*/}" = core ] || die 'Unable to determine M0_CORE_DIR'
+[ "${M0_CORE_DIR##*/}" = mero ] || die 'Unable to determine M0_CORE_DIR'
 
 ## Path to the file with configuration string for confd.
 CONF_FILE=$SANDBOX_DIR/conf.txt
@@ -63,7 +63,7 @@ sandbox_fini() {
 }
 
 modules_insert() {
-    insmod $M0_CORE_DIR/../galois/src/linux_kernel/galois.ko || {
+    insmod $M0_CORE_DIR/extra-libs/galois/src/linux_kernel/galois.ko || {
 	echo 'Inserting galois.ko failed' >&2
 	return 1
     }
