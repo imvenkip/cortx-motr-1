@@ -120,6 +120,7 @@ static int cpp_alloc(struct m0_cm_cp_pump *cp_pump)
 	if (cp == NULL) {
 		pump_move(cp_pump, -ENOMEM, CPP_FAIL);
 	} else {
+		m0_cm_cp_init(cp);
 		cp_pump->p_cp = cp;
 		pump_move(cp_pump, 0, CPP_DATA_NEXT);
 	}
@@ -164,7 +165,7 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 		goto fail;
 	}
 	if (rc == M0_FSO_AGAIN) {
-		//m0_cm_cp_init(cp);
+		m0_cm_cp_fom_init(cp);
 		M0_ASSERT(m0_cm_cp_invariant(cp));
 		m0_cm_cp_enqueue(cm, cp);
 		pump_move(cp_pump, 0, CPP_ALLOC);

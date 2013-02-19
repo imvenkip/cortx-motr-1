@@ -599,22 +599,21 @@ static int cm_buf_attach(struct m0_sns_cm *scm, struct m0_cm_cp *cp)
 	struct m0_net_buffer *buf;
 	size_t                colour;
 	uint32_t              seg_nr;
-	uint32_t              total_bufs;
-	int                   i;
+	uint32_t              rem_bufs;
 
-
-	seg_nr = cp->c_data_seg_nr;
-	total_bufs = seg_nr % scm->sc_obp.nbp_seg_nr ?
-		     seg_nr / scm->sc_obp.nbp_seg_nr + 1 :
-		     seg_nr / scm->sc_obp.nbp_seg_nr;
 	colour =  cp_home_loc_helper(cp) % scm->sc_obp.nbp_colours_nr;
-	for (i = total_bufs; i > cp->c_buf_nr; --i) {
-		buf = m0_sns_cm_buffer_get(&scm->sc_obp, colour);
+	seg_nr = cp->c_data_seg_nr;
+	rem_bufs = seg_nr % scm->sc_obp.nbp_seg_nr ?
+		   seg_nr / scm->sc_obp.nbp_seg_nr + 1 :
+		   seg_nr / scm->sc_obp.nbp_seg_nr;
+	rem_bufs -= cp->c_buf_nr;
+	while (rem_bufs > 0) {
+		buf = m0_cm_buffer_get(&scm->sc_obp, colour);
 		if (buf == NULL)
 			return -ENOBUFS;
 		m0_cm_cp_buf_add(cp, buf);
+		--rem_bufs;
 	}
-	//cp->c_data = &buf->nb_buffer;
 
 	return 0;
 }
@@ -665,6 +664,10 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 			      m0_pdclust_unit_size(spl->spl_base);
 		scp = it->si_cp;
 		scp->sc_base.c_data_seg_nr =
+				m0_pdclust_unit_size(spl->spl_base) %
+				scm->sc_obp.nbp_seg_size ?
+				m0_pdclust_unit_size(spl->spl_base) /
+				scm->sc_obp.nbp_seg_size + 1 :
 				m0_pdclust_unit_size(spl->spl_base) /
 				scm->sc_obp.nbp_seg_size;
 		rag->sag_base.cag_cp_global_nr = spl->spl_dpupg;
@@ -674,10 +677,10 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 		 */
 		__cp_setup(scp, &spl->spl_cob_fid, stob_offset, &rag->sag_base,
 			   spl->spl_sa.sa_unit - 1);
-		m0_cm_cp_init(&scp->sc_base);
 		rc = cm_buf_attach(scm, &scp->sc_base);
 		if (rc < 0)
 			return rc;
+
 		rc = M0_FSO_AGAIN;
 	}
 

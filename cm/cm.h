@@ -107,6 +107,7 @@
 
 /* Import */
 struct m0_fop;
+struct m0_net_buffer_pool;
 
 /**
  * Copy machine states.
@@ -404,6 +405,13 @@ M0_INTERNAL int m0_cm_data_next(struct m0_cm *cm, struct m0_cm_cp *cp);
  * this function.
  */
 M0_INTERNAL bool m0_cm_has_more_data(const struct m0_cm *cm);
+
+M0_INTERNAL struct m0_net_buffer *m0_cm_buffer_get(struct m0_net_buffer_pool
+						   *bp, uint64_t colour);
+
+M0_INTERNAL void m0_cm_buffer_put(struct m0_net_buffer_pool *bp,
+				  struct m0_net_buffer *buf,
+				  uint64_t colour);
 
 /** @} endgroup CM */
 

@@ -38,6 +38,7 @@
 #include "lib/finject.h"
 #include "mero/magic.h"
 #include "ioservice/io_device.h"
+#include "net/buffer_pool.h"
 
 #include "cm/cm.h"
 #include "cm/ag.h"
@@ -714,6 +715,33 @@ M0_INTERNAL bool m0_cm_has_more_data(const struct m0_cm *cm)
 	M0_PRE(m0_cm_invariant(cm));
 
 	return !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump);
+}
+
+M0_INTERNAL struct m0_net_buffer *m0_cm_buffer_get(struct m0_net_buffer_pool
+						   *bp, uint64_t colour)
+{
+	struct m0_net_buffer *buf;
+	int                   i;
+
+	m0_net_buffer_pool_lock(bp);
+	M0_ASSERT(m0_net_buffer_pool_invariant(bp));
+	buf = m0_net_buffer_pool_get(bp, colour);
+	if (buf != NULL) {
+		for (i = 0; i < bp->nbp_seg_nr; ++i)
+			memset(buf->nb_buffer.ov_buf[i], 0, bp->nbp_seg_size);
+	}
+	m0_net_buffer_pool_unlock(bp);
+
+	return buf;
+}
+
+M0_INTERNAL void m0_cm_buffer_put(struct m0_net_buffer_pool *bp,
+				  struct m0_net_buffer *buf,
+				  uint64_t colour)
+{
+	m0_net_buffer_pool_lock(bp);
+	m0_net_buffer_pool_put(bp, buf, colour);
+	m0_net_buffer_pool_unlock(bp);
 }
 
 #undef M0_TRACE_SUBSYSTEM

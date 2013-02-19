@@ -245,7 +245,7 @@ struct m0_balloc_discard_req {
  * which equals group size in ext4
  */
 enum {
-	BALLOC_DEF_CONTAINER_SIZE	= 4096ULL * 1024 * 1024 * 1000,
+	BALLOC_DEF_CONTAINER_SIZE	= 2000ULL * 1024 * 1024 * 1000,
 	BALLOC_DEF_BLOCK_SHIFT		= 12,// 4K Blocks
 	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768,
 	BALLOC_DEF_RESERVED_GROUPS	= 2

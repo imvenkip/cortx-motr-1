@@ -323,8 +323,8 @@ enum {
 	 * Minimum number of buffers to provision m0_sns_cm::sc_ibp
 	 * and m0_sns_cm::sc_obp buffer pools.
 	 */
-	SNS_INCOMING_BUF_NR = 1 << 4,
-	SNS_OUTGOING_BUF_NR = 1 << 4
+	SNS_INCOMING_BUF_NR = 1 << 12,
+	SNS_OUTGOING_BUF_NR = 1 << 12
 };
 
 extern struct m0_net_xprt m0_net_lnet_xprt;
@@ -343,33 +343,6 @@ M0_INTERNAL int m0_sns_cm_type_register(void)
 M0_INTERNAL void m0_sns_cm_type_deregister(void)
 {
 	m0_cm_type_deregister(&sns_cmt);
-}
-
-M0_INTERNAL struct m0_net_buffer *m0_sns_cm_buffer_get(struct m0_net_buffer_pool
-						       *bp, uint64_t colour)
-{
-	struct m0_net_buffer *buf;
-	int                   i;
-
-	m0_net_buffer_pool_lock(bp);
-	M0_ASSERT(m0_net_buffer_pool_invariant(bp));
-	buf = m0_net_buffer_pool_get(bp, colour);
-	if (buf != NULL) {
-		for (i = 0; i < bp->nbp_seg_nr; ++i)
-			memset(buf->nb_buffer.ov_buf[i], 0, bp->nbp_seg_size);
-	}
-	m0_net_buffer_pool_unlock(bp);
-
-	return buf;
-}
-
-M0_INTERNAL void m0_sns_cm_buffer_put(struct m0_net_buffer_pool *bp,
-					  struct m0_net_buffer *buf,
-					  uint64_t colour)
-{
-	m0_net_buffer_pool_lock(bp);
-	m0_net_buffer_pool_put(bp, buf, colour);
-	m0_net_buffer_pool_unlock(bp);
 }
 
 static struct m0_cm_cp *cm_cp_alloc(struct m0_cm *cm)

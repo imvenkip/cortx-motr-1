@@ -62,8 +62,6 @@ M0_INTERNAL struct m0_sns_cm_cp *cp2snscp(const struct m0_cm_cp *cp);
  */
 M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp);
 
-M0_INTERNAL void m0_cm_cp_buf_release(struct m0_cm_cp *cp);
-
 M0_INTERNAL bool m0_sns_cm_cp_invariant(const struct m0_cm_cp *cp);
 
 extern const struct m0_cm_cp_ops m0_sns_cm_cp_ops;

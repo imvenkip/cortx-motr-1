@@ -223,8 +223,10 @@ M0_INTERNAL void m0_cm_cp_module_init(void);
  */
 M0_INTERNAL void m0_cm_cp_init(struct m0_cm_cp *cp);
 
+M0_INTERNAL void m0_cm_cp_fom_init(struct  m0_cm_cp *cp);
+
 /**
- * Finalises generic copy packet.
+ * Finalises generic copy packet and copy packet FOM.
  *
  * @pre cp->c_fom.fo_phase == M0_FOPH_FINISH
  */
@@ -237,6 +239,8 @@ M0_INTERNAL bool m0_cm_cp_invariant(const struct m0_cm_cp *cp);
 
 M0_INTERNAL void m0_cm_cp_buf_add(struct m0_cm_cp *cp,
 				  struct m0_net_buffer *nb);
+
+M0_INTERNAL void m0_cm_cp_buf_release(struct m0_cm_cp *cp);
 
 M0_TL_DESCR_DECLARE(cp_data_buf, M0_INTERNAL);
 M0_TL_DECLARE(cp_data_buf, M0_INTERNAL, struct m0_net_buffer);

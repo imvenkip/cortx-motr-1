@@ -139,6 +139,8 @@ M0_INTERNAL void m0_sns_cm_acc_cp_init_and_post(struct m0_cm_cp *cp)
 
         acc_cp = cm->cm_ops->cmo_cp_alloc(cm);
         M0_ASSERT(acc_cp != NULL);
+        m0_cm_cp_init(acc_cp);
+
 	/* Override original cp ops with accumulator cp ops. */
 	sns_cp->sc_base.c_ops = &m0_sns_cm_acc_cp_ops;
 
@@ -153,7 +155,7 @@ M0_INTERNAL void m0_sns_cm_acc_cp_init_and_post(struct m0_cm_cp *cp)
 	 */
         ++sns_ag->sag_base.cag_cp_local_nr;
         m0_cm_unlock(cm);
-        m0_cm_cp_init(acc_cp);
+	m0_cm_cp_fom_init(acc_cp);
         M0_ASSERT(m0_cm_cp_invariant(acc_cp));
         m0_cm_cp_enqueue(cm, acc_cp);
 }

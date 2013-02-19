@@ -25,6 +25,8 @@
 #include "lib/misc.h"   /* m0_forall */
 #include "mero/magic.h"
 #include "reqh/reqh.h"
+#include "net/buffer_pool.h"
+
 #include "cm/cp.h"
 #include "cm/ag.h"
 #include "cm/cm.h"
@@ -535,15 +537,21 @@ M0_INTERNAL bool m0_cm_cp_invariant(const struct m0_cm_cp *cp)
 
 M0_INTERNAL void m0_cm_cp_init(struct m0_cm_cp *cp)
 {
-	struct m0_reqh_service *service;
 	M0_PRE(cp != NULL);
+
+	m0_cm_cp_bob_init(cp);
+	cp_data_buf_tlist_init(&cp->c_buffers);
+}
+
+M0_INTERNAL void m0_cm_cp_fom_init(struct  m0_cm_cp *cp)
+{
+	struct m0_reqh_service *service;
 
 	M0_PRE(cp->c_ag != NULL);
 	M0_PRE(cp->c_ag->cag_cm != NULL);
+	M0_PRE(m0_cm_cp_bob_check(cp) && cp->c_ops != NULL);
 
 	service = &cp->c_ag->cag_cm->cm_service;
-	m0_cm_cp_bob_init(cp);
-	cp_data_buf_tlist_init(&cp->c_buffers);
 	m0_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL,
 		    service->rs_reqh, service->rs_type);
 }
@@ -575,6 +583,22 @@ M0_INTERNAL void m0_cm_cp_buf_add(struct m0_cm_cp *cp, struct m0_net_buffer *nb)
 	cp_data_buf_tlink_init(nb);
 	cp_data_buf_tlist_add(&cp->c_buffers, nb);
 	++cp->c_buf_nr;
+}
+
+M0_INTERNAL void m0_cm_cp_buf_release(struct m0_cm_cp *cp)
+{
+	struct m0_net_buffer      *nbuf;
+	struct m0_net_buffer_pool *nbp;
+	uint64_t                   colour;
+
+	m0_tl_for(cp_data_buf, &cp->c_buffers, nbuf) {
+		nbp = nbuf->nb_pool;
+		M0_ASSERT(nbp != NULL);
+		colour = cp->c_ops->co_home_loc_helper(cp) % nbp->nbp_colours_nr;
+		m0_cm_buffer_put(nbp, nbuf, colour);
+		cp_data_buf_tlink_del_fini(nbuf);
+	} m0_tl_endfor;
+	cp_data_buf_tlist_fini(&cp->c_buffers);
 }
 
 /** @} end-of-CPDLD */

@@ -273,11 +273,13 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files, uint64_t *fsizes,
 	m0_cm_lock(cm);
 	do {
 		M0_SET0(&scp);
+		m0_cm_cp_init(&scp.sc_base);
 		scm->sc_it.si_cp = &scp;
 		rc = m0_sns_cm_iter_next(cm, &scp.sc_base);
 		if (rc == M0_FSO_AGAIN) {
 			M0_UT_ASSERT(cp_verify(&scp));
 			buf_put(&scp);
+			cp_data_buf_tlist_fini(&scp.sc_base.c_buffers);
 		}
 	} while (rc == M0_FSO_AGAIN);
 	m0_cm_unlock(cm);
@@ -324,7 +326,7 @@ static void iter_repair_large_file_with_large_unit_size(void)
 	int       rc;
 	uint64_t  fsizes[] = {ITER_1G};
 
-	iter_setup(8, 1, 10, 262144);
+	iter_setup(8, 1, 10, 10485760);
 	rc = iter_run(10, ARRAY_SIZE(fsizes), fsizes, 4, SNS_REPAIR);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(ARRAY_SIZE(fsizes), 10);
@@ -356,7 +358,7 @@ static void iter_rebalance_large_file_with_large_unit_size(void)
 	int       rc;
 	uint64_t  fsizes[] = {ITER_1G};
 
-	iter_setup(8, 1, 10, 262144);
+	iter_setup(8, 1, 10, 10485760);
 	rc = iter_run(10, ARRAY_SIZE(fsizes), fsizes, 4, SNS_REBALANCE);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(ARRAY_SIZE(fsizes), 10);
