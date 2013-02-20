@@ -3,6 +3,7 @@ ut_libmero_ut_la_SOURCES += reqh/ut/reqh_fom_ut.c \
                             reqh/ut/io_fop.h \
                             reqh/ut/io_fop_xc.h \
                             reqh/ut/io_fop_xc.c \
+                            reqh/ut/reqh_service.h \
                             reqh/ut/reqh_service.c \
                             reqh/ut/reqh_service_xc.h \
                             reqh/ut/reqh_service_xc.c
