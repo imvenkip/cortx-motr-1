@@ -45,7 +45,7 @@
    constructor method of its service type, and obtains struct m0_reqh_service
    instance. The constructor should perform only internal house keeping tasks.
    Next, the service start method is invoked, it should properly initialise the
-   internal state of the service, e.g. service fops. &tc.
+   internal state of the service, e.g. service fops, &c.
 
    Request handler creates an rpc_machine for each specified end point per
    network domain. There could be multiple rpc machines running within a single
@@ -399,8 +399,8 @@ M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **service,
    @see m0_reqh_service_init()
 
  */
-M0_INTERNAL struct m0_reqh_service_type *m0_reqh_service_type_find(const char
-								   *sname);
+M0_INTERNAL struct m0_reqh_service_type *
+m0_reqh_service_type_find(const char *sname);
 
 /**
    Starts a particular service.

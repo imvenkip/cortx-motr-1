@@ -56,6 +56,7 @@ dirs  =                        \
         net/ut                 \
         pool                   \
         reqh                   \
+        reqh/ut                \
         rpc                    \
         rpc/ut                 \
         sm                     \
@@ -156,9 +157,6 @@ net_lnet_ut_SOURCES             := lnet_ut.c
 net_test_SOURCES                := commands.c console.c network.c node_bulk.c \
                                    node.c node_ping.c ringbuf.c serialize.c   \
                                    service.c slist.c stats.c str.c
-net_test_HEADERS                := commands.h console.h network.h node_bulk.h \
-                                   node.h node_ping.h ringbuf.h serialize.h   \
-                                   service.h slist.h stats.h str.h
 
 net_test_ut_SOURCES             := client_server.c commands.c main.c          \
                                    network.c ringbuf.c serialize.c service.c  \
@@ -170,6 +168,9 @@ net_ut_HEADERS                  := tm_provision_ut.c
 pool_SOURCES                    := pool.c
 
 reqh_SOURCES                    := reqh.c reqh_service.c
+
+reqh_ut_SOURCES                 := reqh_service.c reqh_service_xc.c
+reqh_ut_HEADERS                 := reqh_service_xc.h reqh_service.h
 
 rpc_SOURCES                     := rpc.c service.c \
                                    session.c session_foms.c conn.c slot.c \
@@ -193,8 +194,9 @@ sns_SOURCES                     := ls_solve.c matvec.c parity_math.c \
 
 stob_SOURCES                    := stob.c stob_id.c
 
-ut_SOURCES                      := rpc.c
-ut_HEADERS                      := rpc.h
+ut_SOURCES                      := rpc.c cs_service.c cs_fop_foms.c \
+                                   cs_fop_foms_xc.c ut.c
+ut_HEADERS                      := cs_fop_foms_xc.h cs_fop_foms.h
 
 xcode_SOURCES                   := xcode.c string.c
 xcode_ut_SOURCES                := xcode.c

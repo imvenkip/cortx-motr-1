@@ -93,7 +93,6 @@ struct init_fini_call subsystem[] = {
 	{ &libm0_init,          &libm0_fini,          "libm0" },
 	{ &m0_fid_init,         &m0_fid_fini,         "fid" },
 	{ &m0_cookie_global_init, &m0_cookie_global_fini, "cookie" },
-	{ &m0_uts_init,         &m0_uts_fini,         "ut" },
 	{ &m0_processors_init,  &m0_processors_fini,  "processors" },
 	{ &m0_threads_init,     &m0_threads_fini,     "thread" },
 	{ &m0_timers_init,      &m0_timers_fini,      "timer" },
@@ -109,6 +108,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fops_init,        &m0_fops_fini,        "fop" },
 	{ &m0_net_init,         &m0_net_fini,         "net" },
 	{ &m0_reqhs_init,       &m0_reqhs_fini,       "reqhs" },
+	{ &m0_uts_init,         &m0_uts_fini,         "ut" },
 	{ &m0_rpc_init,         &m0_rpc_fini,         "rpc" },
 	/* fom generic must be after rpc, because it initialises rpc item
 	   type for generic error reply. */

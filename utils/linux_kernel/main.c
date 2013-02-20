@@ -44,6 +44,7 @@ extern const struct m0_test_suite file_io_ut;
 extern const struct m0_test_suite frm_ut;
 extern const struct m0_test_suite layout_ut;
 extern const struct m0_test_suite packet_encdec_ut;
+extern const struct m0_test_suite reqh_service_ut;
 extern const struct m0_test_suite rpc_mc_ut;
 extern const struct m0_test_suite rpc_service_ut;
 extern const struct m0_test_suite session_ut;
@@ -58,7 +59,6 @@ static void run_kernel_ut(int ignored)
 {
         printk(KERN_INFO "Mero Kernel Unit Test\n");
 
-	m0_uts_init();
 	/* sort test suites in alphabetic order */
 	m0_ut_add(&m0_klibm0_ut);  /* test lib first */
 	m0_ut_add(&m0_addb_ut);
@@ -74,6 +74,7 @@ static void run_kernel_ut(int ignored)
 	m0_ut_add(&frm_ut);
 	m0_ut_add(&layout_ut);
 	m0_ut_add(&packet_encdec_ut);
+	m0_ut_add(&reqh_service_ut);
 	m0_ut_add(&rpc_mc_ut);
 	m0_ut_add(&rpc_service_ut);
 	m0_ut_add(&session_ut);
@@ -81,7 +82,6 @@ static void run_kernel_ut(int ignored)
 	m0_ut_add(&xcode_ut);
 
 	m0_ut_run();
-	m0_uts_fini();
 }
 
 static int __init m0_ut_module_init(void)

@@ -24,8 +24,6 @@
 #include "lib/memory.h"
 
 #include "reqh/reqh_service.h"
-#include "mero/setup.h"
-
 #include "ut/cs_fop_foms.h"
 
 static int ds1_service_start(struct m0_reqh_service *service);

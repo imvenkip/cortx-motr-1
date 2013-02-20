@@ -44,9 +44,6 @@ M0_INTERNAL void m0_ad_stobs_fini(void);
 M0_INTERNAL int sim_global_init(void);
 M0_INTERNAL void sim_global_fini(void);
 
-M0_INTERNAL int m0_reqhs_init(void);
-M0_INTERNAL void m0_reqhs_fini(void);
-
 M0_INTERNAL int m0_timers_init(void);
 M0_INTERNAL void m0_timers_fini(void);
 

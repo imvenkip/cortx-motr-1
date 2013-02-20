@@ -170,9 +170,9 @@ M0_INTERNAL int m0_reqhs_init(void)
 
 M0_INTERNAL void m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 {
-	struct m0_fom	       *fom;
-	int			result;
-	bool                    rsd;
+	struct m0_fom *fom;
+	int	       result;
+	bool           rsd;
 
 	M0_PRE(reqh != NULL);
 	M0_PRE(fop != NULL);

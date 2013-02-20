@@ -159,14 +159,14 @@ struct m0_stob_domain *reqh_ut_stob_domain_find(void)
 	return sdom;
 }
 
-static int server_init(const char *stob_path,
-		       const char *srv_db_name,
-		       struct m0_net_domain *net_dom,
-		       struct m0_stob_id *backid,
+static int server_init(const char             *stob_path,
+		       const char             *srv_db_name,
+		       struct m0_net_domain   *net_dom,
+		       struct m0_stob_id      *backid,
 		       struct m0_stob_domain **bdom,
-		       struct m0_stob **bstore,
-		       struct m0_stob **reqh_addb_stob,
-		       struct m0_stob_id *rh_addb_stob_id)
+		       struct m0_stob        **bstore,
+		       struct m0_stob        **reqh_addb_stob,
+		       struct m0_stob_id      *rh_addb_stob_id)
 {
         struct m0_db_tx              tx;
         int                          rc;
@@ -277,7 +277,7 @@ static int server_init(const char *stob_path,
 
 /* Fini the server */
 static void server_fini(struct m0_stob_domain *bdom,
-			struct m0_stob *reqh_addb_stob)
+			struct m0_stob        *reqh_addb_stob)
 {
         /* Fini the rpc_machine */
         m0_rpc_machine_fini(&srv_rpc_mach);
