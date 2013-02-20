@@ -552,7 +552,7 @@ M0_INTERNAL int m0_xcode_length(struct m0_xcode_ctx *ctx);
     object in the cursor based on what value.
  */
 M0_INTERNAL int m0_xcode_encdec(struct m0_xcode_ctx *ctx,
-				const struct m0_xcode_obj *obj,
+				struct m0_xcode_obj *obj,
 				struct m0_bufvec_cursor *cur,
 				enum m0_bufvec_what what);
 

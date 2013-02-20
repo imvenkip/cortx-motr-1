@@ -287,9 +287,9 @@ M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
 	int		     rc;
 	struct m0_xcode_ctx  xc_ctx;
 
+	if (what == M0_BUFVEC_DECODE)
+		fop->f_data.fd_data = m0_alloc(fop->f_type->ft_xt->xct_sizeof);
 	rc = m0_xcode_encdec(&xc_ctx, &M0_FOP_XCODE_OBJ(fop), cur, what);
-	if (rc == 0 && what == M0_BUFVEC_DECODE)
-		fop->f_data.fd_data = m0_xcode_ctx_top(&xc_ctx);
 	return rc;
 }
 
