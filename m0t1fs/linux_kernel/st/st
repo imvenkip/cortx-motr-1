@@ -19,7 +19,7 @@ die() { echo "$@" >&2; exit 1; }
 
 M0_CORE_DIR=`readlink -f $0`
 M0_CORE_DIR=${M0_CORE_DIR%/*/*/*/*}
-[ "${M0_CORE_DIR##*/}" = mero* ] || die 'Unable to determine M0_CORE_DIR'
+[[ "${M0_CORE_DIR##*/}" =~ ^mero ]] || die 'Unable to determine M0_CORE_DIR'
 
 ## Path to the file with configuration string for confd.
 CONF_FILE=$SANDBOX_DIR/conf.txt
