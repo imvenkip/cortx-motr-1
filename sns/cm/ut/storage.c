@@ -200,11 +200,11 @@ void write_post(void)
 	w_buf.nb_pool = &nbp;
 	cp_prepare(&w_sns_cp.sc_base, &w_buf, SEG_NR, SEG_SIZE,
 		   &w_sag, 'e', &dummy_cp_fom_ops, reqh, 0);
+	w_sns_cp.sc_base.c_ops = &write_cp_dummy_ops;
 	w_sns_cp.sc_sid = sid;
 	m0_fid_set(&w_sag.sag_tgt_cobfid, sid.si_bits.u_hi, sid.si_bits.u_lo);
 	w_sag.sag_tgt_cob_index = 0;
 	w_sag.sag_base.cag_cp_local_nr = 1;
-	w_sns_cp.sc_base.c_ops = &write_cp_dummy_ops;
 
 	sdom = m0_cs_stob_domain_find(reqh, &sid);
 	M0_UT_ASSERT(sdom != NULL);
@@ -264,10 +264,9 @@ static void read_post(void)
 	 */
 	cp_prepare(&r_sns_cp.sc_base, &r_buf, SEG_NR, SEG_SIZE,
 		   &r_sag, ' ', &dummy_cp_fom_ops, reqh, 0);
+	r_sns_cp.sc_base.c_ops = &read_cp_dummy_ops;
 	r_sag.sag_base.cag_cp_local_nr = 1;
 	r_sns_cp.sc_sid = sid;
-	r_sns_cp.sc_base.c_ops = &read_cp_dummy_ops;
-
 	m0_fom_queue(&r_sns_cp.sc_base.c_fom, reqh);
 
         /* Wait till ast gets posted. */

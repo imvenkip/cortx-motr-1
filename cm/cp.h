@@ -158,11 +158,10 @@ struct m0_cm_cp {
 	/** List of buffers holding data. */
 	struct m0_tl               c_buffers;
 
-	/** Buffer representing the copy packet data.*/
-	//struct m0_bufvec          *c_data;
-
+	/** Number of data buffers acquired by this copy packet. */
 	uint32_t                   c_buf_nr;
 
+	/** Total number of data segments in this copy packet. */
 	uint32_t                   c_data_seg_nr;
 
 	/** Set and used in case of network send/recv.*/

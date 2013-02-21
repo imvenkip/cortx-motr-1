@@ -274,6 +274,7 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files, uint64_t *fsizes,
 	do {
 		M0_SET0(&scp);
 		m0_cm_cp_init(&scp.sc_base);
+		scp.sc_base.c_ops = &m0_sns_cm_cp_ops;
 		scm->sc_it.si_cp = &scp;
 		rc = m0_sns_cm_iter_next(cm, &scp.sc_base);
 		if (rc == M0_FSO_AGAIN) {

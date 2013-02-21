@@ -212,7 +212,7 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 			/*
 			 * The resultant copy packet also includes partial
 			 * parity of itself. Hence set the bit value of its own
-			 * index in the trasnformation bitmap.
+			 * index in the transformation bitmap.
 			 */
 			m0_bitmap_set(&cp->c_xform_cp_indices, cp->c_ag_cp_idx,
 				      true);

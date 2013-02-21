@@ -115,17 +115,24 @@ static void cp_copy(struct m0_sns_cm_cp *src_cp, struct m0_sns_cm_cp *dst_cp)
 	 * Thus move data buffers from original cp to the accumulator.
 	 */
         cp_buffers_move(&src_cp->sc_base, &dst_cp->sc_base);
-	
 }
 
 /**
- * Creates an accumulator copy packet from the previous resultant copy packet
- * after transformation. The newly created accumulator copy packet is submitted
- * as a new separate copy packet FOM to reqh for processing.
- * Currently, for K = 1, the accumulator copy packet uses the original resultant
- * copy packet's bufvec after transformation. Later for k > 1 the accumulator
- * copy packet may use its own separate bufvec in which the tranformation of
- * other data/parity copy packets for the corresponding group will be performed.
+ * Allocates and creates a new accumulator copy packet to perform write
+ * operation. The accumulator copy packet as of now uses the previous resultant
+ * copy packet's data buffers after transformation. Once an accumulator copy
+ * packet is created from the resultant copy packet after transformation, its
+ * corresponding copy packet FOM is submitted to request handler for  processing.
+ * The accumulator copy packet FOM is assigned a different locality for write
+ * operation.
+ *
+ * @see struct m0_sns_cm_ag::sag_acc
+ * @see m0_sns_cm_cp_xform_wait()
+ *
+ * @todo To have accumulator copy packets = K  in the struct m0_sns_cm_ag. The
+ * accumulator copy packet must have its own separate set of buffers assigned
+ * on initialization of aggregation group to perform transformation for a given
+ * parity.
  */
 M0_INTERNAL void m0_sns_cm_acc_cp_init_and_post(struct m0_cm_cp *cp)
 {

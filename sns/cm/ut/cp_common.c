@@ -105,15 +105,15 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 	cm = container_of(service, struct m0_cm, cm_service);
 	M0_UT_ASSERT(cm != NULL);
 	cp->c_ag->cag_cm = cm;
+	cp->c_ops = &m0_sns_cm_cp_ops;
 	m0_cm_cp_init(cp);
-	//cp->c_data = bv;
+	m0_cm_cp_fom_init(cp);
 	m0_cm_cp_buf_add(cp, buf);
 	cp->c_data_seg_nr = bv_seg_nr;
 	buf->nb_pool->nbp_seg_nr = bv_seg_nr;
 	buf->nb_pool->nbp_seg_size = bv_seg_size;
 	buf->nb_pool->nbp_buf_nr = 1;
 	cp->c_fom.fo_ops = cp_fom_ops;
-	cp->c_ops = &m0_sns_cm_cp_ops;
 	cp->c_ag_cp_idx = cp_ag_idx;
 }
 

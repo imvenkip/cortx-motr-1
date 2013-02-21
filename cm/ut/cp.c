@@ -33,10 +33,10 @@
 static struct m0_semaphore     sem;
 
 /* Single thread test vars. */
-static struct m0_sns_cm_cp      s_sns_cp;
-struct m0_net_buffer            s_nb;
-static struct m0_cm_aggr_group  s_ag;
-//static struct m0_bufvec s_bv;
+static struct m0_sns_cm_cp       s_sns_cp;
+struct m0_net_buffer             s_nb;
+static struct m0_net_buffer_pool nbp;
+static struct m0_cm_aggr_group   s_ag;
 
 enum {
 	THREADS_NR = 17,
@@ -196,13 +196,13 @@ static void cp_post(struct m0_sns_cm_cp *sns_cp, struct m0_cm_aggr_group *ag,
 
 	cp = &sns_cp->sc_base;
 	cp->c_ag = ag;
-	m0_cm_cp_init(cp);
-	m0_cm_cp_buf_add(cp, nb);
-	//cp->c_data = bv;
 	sns_cp->sc_sid = sid;
 	cp->c_ops = &m0_sns_cm_cp_dummy_ops;
+	m0_cm_cp_init(cp);
+	m0_cm_cp_fom_init(cp);
 	/* Over-ride the fom ops. */
 	cp->c_fom.fo_ops = &dummy_cp_fom_ops;
+	m0_cm_cp_buf_add(cp, nb);
 	m0_fom_queue(&cp->c_fom, &cm_ut_reqh);
 	m0_semaphore_down(&sem);
 }
@@ -220,6 +220,7 @@ static void test_cp_single_thread(void)
 	m0_semaphore_init(&sem, 0);
 	s_ag.cag_cm = &cm_ut;
 	s_ag.cag_cp_local_nr = 1;
+	s_nb.nb_pool = &nbp;
 	cp_post(&s_sns_cp, &s_ag, &s_nb);
 
 	while (m0_fom_domain_is_idle(&cm_ut_reqh.rh_fom_dom) ||
@@ -241,6 +242,7 @@ static void cp_op(const int tid)
 {
 	m_ag[tid].cag_cm = &cm_ut;
 	m_ag[tid].cag_cp_local_nr = 1;
+	m_nb[tid].nb_pool = &nbp;
 	cp_post(&m_sns_cp[tid], &m_ag[tid], &m_nb[tid]);
 }
 
