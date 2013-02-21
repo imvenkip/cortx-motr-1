@@ -210,8 +210,8 @@ static void check_values(struct m0_fop *fop)
 	M0_UT_ASSERT(test->cons_id.cons_seq == 144);
 	M0_UT_ASSERT(test->cons_id.cons_oid == 233);
 	M0_UT_ASSERT(test->cons_test_buf.cons_size == 5);
-	M0_UT_ASSERT(strcmp("abcde",
-			    (char *)test->cons_test_buf.cons_buf) == 0);
+	M0_UT_ASSERT(strncmp("abcde", (char *)test->cons_test_buf.cons_buf,
+	                     test->cons_test_buf.cons_size) == 0);
 }
 
 static void yaml_basic_test(void)
