@@ -438,19 +438,8 @@ static void cs_reqh_ctx_free(struct cs_reqh_context *rctx)
 	m0_free(rctx);
 }
 
-/**
-   Finds network domain for specified network transport in a given mero
-   context.
-
-   @param cctx Mero context
-   @param xprt_name Type of network transport to be initialised
-
-   @pre cctx != NULL && xprt_name != NULL
-
-   @see m0_cs_init()
- */
-M0_INTERNAL struct m0_net_domain *m0_cs_net_domain_locate(struct m0_mero *cctx,
-							  const char *xprt_name)
+M0_INTERNAL struct m0_net_domain *
+m0_cs_net_domain_locate(struct m0_mero *cctx, const char *xprt_name)
 {
 	struct m0_net_domain *ndom;
 

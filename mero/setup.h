@@ -273,6 +273,12 @@ struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx, const char *service_name);
  */
 M0_INTERNAL struct m0_mero *m0_cs_ctx_get(struct m0_reqh *reqh);
 
+/**
+ * Finds network domain for specified network transport in a given mero
+ * context.
+ *
+ * @pre cctx != NULL && xprt_name != NULL
+ */
 M0_INTERNAL struct m0_net_domain *m0_cs_net_domain_locate(struct m0_mero *cctx,
 							  const char *xprtname);
 
