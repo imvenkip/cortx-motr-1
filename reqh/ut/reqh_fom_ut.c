@@ -62,10 +62,11 @@
 #define SERVER_DB_NAME		"reqh_ut_stob/sdb"
 
 enum {
-	CLIENT_COB_DOM_ID	= 101,
-	SESSION_SLOTS		= 5,
-	MAX_RPCS_IN_FLIGHT	= 32,
-	CONNECT_TIMEOUT		= 5,
+	CLIENT_COB_DOM_ID  = 101,
+	SESSION_SLOTS      = 5,
+	MAX_RPCS_IN_FLIGHT = 32,
+	CONNECT_TIMEOUT    = 5,
+	MAX_RETRIES        = 5,
 };
 
 static struct m0_stob_domain   *sdom;
@@ -299,13 +300,22 @@ static void server_fini(struct m0_stob_domain *bdom,
 	m0_dbenv_fini(&srv_db);
 }
 
-/**
- * Sends create fop request.
- */
+static void fop_send(struct m0_fop *fop, struct m0_rpc_session *session)
+{
+	int rc;
+
+	fop->f_item.ri_nr_sent_max = MAX_RETRIES;
+	rc = m0_rpc_client_call(fop, session, NULL, 0 /* deadline */);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(fop->f_item.ri_error == 0);
+	M0_UT_ASSERT(fop->f_item.ri_reply != 0);
+	m0_fop_put(fop);
+}
+
+/** Sends create fop request. */
 static void create_send(struct m0_rpc_session *session)
 {
-	int                      rc;
-	uint32_t                 i;
+	uint32_t                  i;
 	struct m0_fop            *fop;
 	struct m0_stob_io_create *rh_io_fop;
 
@@ -314,51 +324,33 @@ static void create_send(struct m0_rpc_session *session)
 		rh_io_fop = m0_fop_data(fop);
 		rh_io_fop->fic_object.f_seq = i;
 		rh_io_fop->fic_object.f_oid = i;
-
-		fop->f_item.ri_nr_sent_max = CONNECT_TIMEOUT;
-		rc = m0_rpc_client_call(fop, session, NULL, 0 /* deadline */);
-		M0_UT_ASSERT(rc == 0);
-		M0_UT_ASSERT(fop->f_item.ri_error == 0);
-		M0_UT_ASSERT(fop->f_item.ri_reply != 0);
-		m0_fop_put(fop);
+		fop_send(fop, session);
 	}
 }
 
-/**
- * Sends read fop request.
- */
+/** Sends read fop request. */
 static void read_send(struct m0_rpc_session *session)
 {
-	int                     rc;
 	uint32_t                i;
-	struct m0_fop           *fop;
-	struct m0_stob_io_read  *rh_io_fop;
+	struct m0_fop          *fop;
+	struct m0_stob_io_read *rh_io_fop;
 
 	for (i = 0; i < 10; ++i) {
 		fop = m0_fop_alloc(&m0_stob_io_read_fopt, NULL);
 		rh_io_fop = m0_fop_data(fop);
 		rh_io_fop->fir_object.f_seq = i;
 		rh_io_fop->fir_object.f_oid = i;
-
-		fop->f_item.ri_nr_sent_max = CONNECT_TIMEOUT;
-		rc = m0_rpc_client_call(fop, session, NULL, 0 /* deadline */);
-		M0_UT_ASSERT(rc == 0);
-		M0_UT_ASSERT(fop->f_item.ri_error == 0);
-		M0_UT_ASSERT(fop->f_item.ri_reply != 0);
-		m0_fop_put(fop);
+		fop_send(fop, session);
 	}
 }
 
-/**
- * Sends write fop request.
- */
+/** Sends write fop request. */
 static void write_send(struct m0_rpc_session *session)
 {
-	int                      rc;
 	uint32_t                 i;
-	struct m0_fop            *fop;
-	struct m0_stob_io_write  *rh_io_fop;
-	uint8_t                  *buf;
+	struct m0_fop           *fop;
+	struct m0_stob_io_write *rh_io_fop;
+	uint8_t                 *buf;
 
 	for (i = 0; i < 10; ++i) {
 		fop = m0_fop_alloc(&m0_stob_io_write_fopt, NULL);
@@ -371,12 +363,7 @@ static void write_send(struct m0_rpc_session *session)
 		rh_io_fop->fiw_value.fi_buf   = buf;
 		rh_io_fop->fiw_value.fi_count = 1 << BALLOC_DEF_BLOCK_SHIFT;
 
-		fop->f_item.ri_nr_sent_max = CONNECT_TIMEOUT;
-		rc = m0_rpc_client_call(fop, session, NULL, 0 /* deadline */);
-		M0_UT_ASSERT(rc == 0);
-		M0_UT_ASSERT(fop->f_item.ri_error == 0);
-		M0_UT_ASSERT(fop->f_item.ri_reply != 0);
-		m0_fop_put(fop);
+		fop_send(fop, session);
 	}
 }
 

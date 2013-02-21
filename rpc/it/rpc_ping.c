@@ -79,6 +79,7 @@ enum {
 	MAX_RPCS_IN_FLIGHT = 32,
 	CLIENT_COB_DOM_ID  = 13,
 	CONNECT_TIMEOUT	   = 20,
+	MAX_RETRIES        = 5
 };
 
 #ifndef __KERNEL__
@@ -242,7 +243,7 @@ static void send_ping_fop(struct m0_rpc_session *session)
 	M0_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
 	M0_ASSERT(ping_fop->fp_arr.f_data != NULL);
 
-	fop->f_item.ri_nr_sent_max = CONNECT_TIMEOUT;
+	fop->f_item.ri_nr_sent_max = MAX_RETRIES;
 	rc = m0_rpc_client_call(fop, session, NULL,
 				m0_time_from_now(0, 20 * 1000 * 1000));
 	M0_ASSERT(rc == 0);

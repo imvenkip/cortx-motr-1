@@ -74,10 +74,11 @@ static struct m0_ut_redirect err_redir;
 #define SERVER_LOG_FILE_NAME	   "cons_server.log"
 
 enum {
-	CLIENT_COB_DOM_ID	= 14,
-	SESSION_SLOTS		= 1,
-	MAX_RPCS_IN_FLIGHT	= 1,
-	CONNECT_TIMEOUT		= 5,
+	CLIENT_COB_DOM_ID  = 14,
+	SESSION_SLOTS      = 1,
+	MAX_RPCS_IN_FLIGHT = 1,
+	CONNECT_TIMEOUT    = 5,
+	MAX_RETRIES        = 5,
 };
 
 static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
@@ -541,7 +542,7 @@ static void mesg_send_client(int dummy)
 	fop = m0_fop_alloc(ftype, NULL);
 	M0_UT_ASSERT(fop != NULL);
 	m0_cons_fop_obj_input(fop);
-	fop->f_item.ri_nr_sent_max = CONNECT_TIMEOUT;
+	fop->f_item.ri_nr_sent_max = MAX_RETRIES;
 	result = m0_rpc_client_call(fop, &cctx.rcx_session,
 				    NULL, 0 /* deadline */);
 	M0_UT_ASSERT(result == 0);

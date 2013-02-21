@@ -899,15 +899,15 @@ static int check_st_in(struct m0_sm *mach)
 /** Actions to perform on entering S_WAIT_REPLY state. */
 static int wait_reply_st_in(struct m0_sm *mach)
 {
-	enum { NR_SENT_MAX = 5 };
+	enum { MAX_RETRIES = 5 };
 	int                  rc;
 	struct m0_confc_ctx *ctx = mach_to_ctx(mach);
 
 	M0_ENTRY("mach=%p ctx=%p", mach, ctx);
 	M0_PRE(ctx->fc_rpc_item != NULL);
 
-	ctx->fc_rpc_item->ri_nr_sent_max = NR_SENT_MAX;
-	rc = m0_rpc_post(ctx->fc_rpc_item); /* timeouts after 5 sec */
+	ctx->fc_rpc_item->ri_nr_sent_max = MAX_RETRIES;
+	rc = m0_rpc_post(ctx->fc_rpc_item);
 	if (rc == 0) {
 		M0_LEAVE("retval=-1");
 		return -1;

@@ -65,6 +65,7 @@ enum {
 	CLIENT_COB_DOM_ID         = 12,
 	CLIENT_RPC_SESSION_SLOTS  = 1,
 	CLIENT_RPC_CONN_TIMEOUT   = 200,
+	CLIENT_RPC_MAX_RETRIES    = 5,
 	CLIENT_MAX_RPCS_IN_FLIGHT = 8,
 	COB_NAME_STRLEN           = 34,
 	COB_FID_CONTAINER_ID      = 1234,
@@ -303,9 +304,9 @@ static void cobfops_send_wait(struct cobthread_arg *arg)
 
 	i = arg->ca_index;
 	fop = arg->ca_ftype == &m0_fop_cob_create_fopt ? cut->cu_createfops[i] :
-		cut->cu_deletefops[i];;
+		cut->cu_deletefops[i];
 
-	fop->f_item.ri_nr_sent_max = CLIENT_RPC_CONN_TIMEOUT;
+	fop->f_item.ri_nr_sent_max = CLIENT_RPC_MAX_RETRIES;
 	rc = m0_rpc_client_call(fop, &cut->cu_cctx.rcx_session,
 				NULL, 0 /* deadline */);
 	M0_UT_ASSERT(rc == 0);
@@ -656,7 +657,7 @@ static void cob_verify(struct m0_fom *fom, const bool exists)
 	rc = m0_ios_cdom_get(m0_fom_reqh(fom), &cobdom, 0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cobdom != NULL);
- 
+
 	dbenv = m0_fom_reqh(fom)->rh_dbenv;
 
         snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u",

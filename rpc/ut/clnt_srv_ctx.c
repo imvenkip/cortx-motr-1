@@ -38,10 +38,11 @@
 #define SERVER_LOG_FILE_NAME	   "rpc_ut_server.log"
 
 enum {
-	CLIENT_COB_DOM_ID	= 16,
-	SESSION_SLOTS		= 15,
-	MAX_RPCS_IN_FLIGHT	= 1,
-	CONNECT_TIMEOUT		= 5,
+	CLIENT_COB_DOM_ID  = 16,
+	SESSION_SLOTS      = 15,
+	MAX_RPCS_IN_FLIGHT = 1,
+	CONNECT_TIMEOUT    = 5,
+	MAX_RETRIES        = 5,
 };
 
 static struct m0_net_xprt    *xprt = &m0_net_lnet_xprt;
