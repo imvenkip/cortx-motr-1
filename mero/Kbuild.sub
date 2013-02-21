@@ -1,0 +1,3 @@
+m0mero_objects += mero/init.o
+
+m0mero_objects += mero/linux_kernel/dummy_init_fini.o

@@ -123,7 +123,6 @@ EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/ktime.c \
               lib/linux_kernel/ktrace.c \
               lib/linux_kernel/kvec.c \
-              lib/linux_kernel/main.c \
               lib/linux_kernel/memory.c \
               lib/linux_kernel/mutex.c \
               lib/linux_kernel/mutex.h \
@@ -138,7 +137,8 @@ EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/timer.h \
               lib/linux_kernel/types.h \
               lib/linux_kernel/ut.c \
-              lib/linux_kernel/vec.h
+              lib/linux_kernel/vec.h \
+              lib/linux_kernel/ut/main.c
 
 CLEANFILES += lib/buf.gccxml \
               lib/buf_xc.c \

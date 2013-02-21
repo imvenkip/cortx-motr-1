@@ -39,6 +39,7 @@ M0_INTERNAL bool m0_fid_is_valid(const struct m0_fid *fid)
 {
         return true;
 }
+M0_EXPORTED(m0_fid_is_valid);
 
 M0_INTERNAL bool m0_fid_is_set(const struct m0_fid *fid)
 {
@@ -48,6 +49,7 @@ M0_INTERNAL bool m0_fid_is_set(const struct m0_fid *fid)
         };
         return !m0_fid_eq(fid, &zero);
 }
+M0_EXPORTED(m0_fid_is_set);
 
 M0_INTERNAL void m0_fid_set(struct m0_fid *fid, uint64_t container,
 			    uint64_t key)
@@ -57,11 +59,13 @@ M0_INTERNAL void m0_fid_set(struct m0_fid *fid, uint64_t container,
         fid->f_container = container;
         fid->f_key = key;
 }
+M0_EXPORTED(m0_fid_set);
 
 M0_INTERNAL bool m0_fid_eq(const struct m0_fid *fid0, const struct m0_fid *fid1)
 {
         return memcmp(fid0, fid1, sizeof *fid0) == 0;
 }
+M0_EXPORTED(m0_fid_eq);
 
 M0_INTERNAL int m0_fid_cmp(const struct m0_fid *fid0, const struct m0_fid *fid1)
 {
@@ -77,6 +81,7 @@ M0_INTERNAL int m0_fid_cmp(const struct m0_fid *fid0, const struct m0_fid *fid1)
 
         return m0_uint128_cmp(&u0, &u1);
 }
+M0_EXPORTED(m0_fid_cmp);
 
 M0_INTERNAL int m0_fid_init(void)
 {

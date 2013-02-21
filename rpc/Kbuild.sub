@@ -1,0 +1,20 @@
+m0mero_objects += rpc/bulk.o \
+                 rpc/conn.o \
+                 rpc/formation2.o \
+                 rpc/frmops.o \
+                 rpc/item.o \
+                 rpc/item_source.o \
+                 rpc/packet.o \
+                 rpc/rpc_addb.o \
+                 rpc/rpclib.o \
+                 rpc/rpc_machine.o \
+                 rpc/rpc.o \
+                 rpc/rpc_onwire.o \
+                 rpc/rpc_onwire_xc.o \
+                 rpc/service.o \
+                 rpc/session_foms.o \
+                 rpc/session_fops.o \
+                 rpc/session_fops_xc.o \
+                 rpc/session.o \
+                 rpc/session_utils.o \
+                 rpc/slot.o

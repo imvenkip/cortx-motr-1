@@ -250,7 +250,7 @@ function setup_host () {
 		echo ERROR: Failed to load galois module on $H
 		return 1
 	fi
-	$RUN insmod $BROOT/build_kernel_modules/m0mero.ko local_addr=$KEP $XPT_PARAM $KTRACE_FLAGS node_uuid=${NODE_UUID[$H]}
+	$RUN insmod $BROOT/mero/linux_kernel/m0mero.ko local_addr=$KEP $XPT_PARAM $KTRACE_FLAGS node_uuid=${NODE_UUID[$H]}
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to load m0mero module on $H
 		$RUN rmmod galois
@@ -535,7 +535,7 @@ main()
 
 	DISKS_SH_NR=`expr $POOL_WIDTH + 1`
 
-	if [ ! -d build_kernel_modules -o ! $BROOT -ef $PWD ]; then
+	if [ ! $BROOT -ef $PWD ]; then
 		echo ERROR: Run this script in the top of the Mero source directory
 		exit 1
 	fi
@@ -549,7 +549,7 @@ main()
 		exit 1
 	}
 	l_run modprobe lnet
-	l_run insmod $BROOT/build_kernel_modules/m0mero.ko || {
+	l_run insmod $BROOT/mero/linux_kernel/m0mero.ko || {
 		echo ERROR: Failed to load m0mero module
 		rmmod galois
 		exit 1

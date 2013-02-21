@@ -237,7 +237,7 @@ io_combinations()
 m0loop_st_run()
 {
 	echo "Load m0loop module... "
-	cmd="insmod `dirname $0`/../../../build_kernel_modules/m0loop.ko"
+	cmd="insmod `dirname $0`/../../../mero/m0loop.ko"
 	echo $cmd && $cmd || return 1
 
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 || return 1

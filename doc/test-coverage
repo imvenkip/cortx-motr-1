@@ -137,7 +137,7 @@ Run scripts/gcov_stats_genhtml.sh to collect stats, as specified in above sectio
 [root@xyralab_02 utils]# ./gcov_stats_genhtml.sh kernel /laptop/mero/coverage/mero/ ~/lcov/kernel
 
 [root@xyralab_02 utils]# ls ~/lcov/kernel/
-addb       build_kernel_modules  dtm          fop        index.html         ioservice  pool      snow.png    xcode
+addb       dtm          fop        index.html         ioservice  pool      snow.png    xcode
 amber.png  m0t1fs                emerald.png  galois     index-sort-b.html  layout     rpc       sns
 app1.info  cob                   fid          gcov.css   index-sort-f.html  lib        ruby.png  stob
 app.info   db                    fol          glass.png  index-sort-l.html  net        sm        updown.png

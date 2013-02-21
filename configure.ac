@@ -175,15 +175,15 @@ AC_PROG_INSTALL
 # gccxml is required by xcode/gccxml2xcode script
 AC_CHECK_PROG(GCCXML, gccxml, gccxml)
 AS_IF([test -z $GCCXML],
-      AC_MSG_ERROR([gccxml not found: it can be installed from gccxml package \
-on Red Hat based systems])
+      AC_MSG_ERROR([gccxml is not found: it can be installed from gccxml \
+package on Red Hat based systems])
 )
 
 # c++ compiler is required by gccxml
 AC_CHECK_PROG(CXX, g++, g++)
 AS_IF([test -z $CXX],
-      AC_MSG_ERROR([g++ not found: it can be installed from gcc-c++ package on \
-Red Hat based systems])
+      AC_MSG_ERROR([g++ is not found: it can be installed from gcc-c++ package \
+on Red Hat based systems])
 )
 
 # the following two perl-modules are required by xcode/gccxml2xcode script
@@ -210,6 +210,18 @@ perl-IO-All package on Red Hat based systems])
 
 AC_CHECK_PROG(DOXYGEN, doxygen, doxygen,
               [echo doxygen is not found please install it])
+
+# BASH variable is already set by configure to /bin/sh, so we need to unset it
+# first to prevent AC_CHECK_PROG from using cached value
+unset BASH
+
+# bash shell is required by Makefile.am to build kernel modules
+# see 'build-kernel-modules' make target for more details
+AC_CHECK_PROG(BASH, bash, bash)
+AS_IF([test -z $BASH],
+      AC_MSG_ERROR([bash is not found: it can be installed from bash package on \
+Red Hat based systems])
+)
 
 #
 # Checking for required libraries
@@ -340,11 +352,11 @@ AS_IF([! test -e $LUSTRE_CONFIG],
       [ AC_MSG_RESULT([no])
         AC_MSG_ERROR([$LUSTRE_CONFIG not found! Did you configure Lustre?])
       ],[
-        (cd $ABS_BUILDDIR/build_kernel_modules; $LN_S $LUSTRE_CONFIG lustre_config.h)
+        (cd $ABS_BUILDDIR; $LN_S $LUSTRE_CONFIG lustre_config.h)
       ]
 )
 AC_MSG_RESULT([$LUSTRE_CONFIG])
-AC_SUBST([LUSTRE_CONFIG_LINK], [$ABS_BUILDDIR/build_kernel_modules/lustre_config.h])
+AC_SUBST([LUSTRE_CONFIG_LINK], [$ABS_BUILDDIR/lustre_config.h])
 
 AC_MSG_CHECKING([for Lustre symbols file])
 LUSTRE_SYMVERS="$LUSTRE/Module.symvers"
@@ -568,12 +580,7 @@ AC_SUBST([M0_LDFLAGS])
 
 AC_CONFIG_FILES([
                  Makefile
-                 build_kernel_modules/Makefile
-		 net/lnet/st/linux_kernel/Makefile
-		 net/test/linux_kernel/Makefile
-		 rpc/it/linux_kernel/Makefile
-                 ut/linux_kernel/Makefile
-                 utils/linux_kernel/Makefile
+                 Kbuild
                 ])
 AC_CONFIG_FILES([mdservice/ut/mdstore.h])
 AC_CONFIG_FILES([mero.spec])

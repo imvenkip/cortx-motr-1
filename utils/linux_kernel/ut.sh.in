@@ -14,8 +14,8 @@ NODE_UUID="12345678-90ab-cdef-fedc-ba0987654321"
 
 . @abs_top_srcdir@/m0t1fs/linux_kernel/st/common.sh
 
-MODLIST="@abs_top_srcdir@/build_kernel_modules/m0mero.ko \
-         @abs_top_srcdir@/build_kernel_modules/m0loop.ko   \
+MODLIST="@abs_top_srcdir@/mero/linux_kernel/m0mero.ko \
+         @abs_top_srcdir@/mero/m0loop.ko   \
          @abs_top_srcdir@/utils/linux_kernel/m0ut.ko"
 
 log='/var/log/kern'

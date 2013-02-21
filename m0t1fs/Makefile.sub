@@ -1,4 +1,4 @@
-EXTRA_DIST += m0t1fs/linux_kernel/m0loop.c \
+EXTRA_DIST += m0t1fs/linux_kernel/m0loop_main.c \
               m0t1fs/linux_kernel/m0loop_internal.h \
               m0t1fs/linux_kernel/m0t1fs.c \
               m0t1fs/linux_kernel/m0t1fs.h \

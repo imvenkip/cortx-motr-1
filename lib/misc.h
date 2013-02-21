@@ -165,11 +165,6 @@ M0_INTERNAL const char *m0_bool_to_str(bool b);
  *
  *     lib/ut/finject.c
  *
- * If there is "mero/build_kernel_modules/" directory in the file's full path,
- * then short file name is stripped relative to this directory:
- *
- *     /path/to/mero/build_kernel_modules/rpc/packet.c => rpc/packet.c
- *
  * @bug {
  *     This function doesn't search for the rightmost occurrence of "mero/"
  *     in a file path, if "mero/" encounters several times in the path the first

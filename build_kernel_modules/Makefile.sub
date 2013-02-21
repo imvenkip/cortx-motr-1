@@ -1,4 +1,0 @@
-EXTRA_DIST += build_kernel_modules/dummy_init_fini.c \
-              build_kernel_modules/dummy_init_fini.h \
-              build_kernel_modules/main.c
-

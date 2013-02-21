@@ -65,7 +65,7 @@ modules_insert() {
 	return 1
     }
 
-    insmod $M0_CORE_DIR/build_kernel_modules/m0mero.ko \
+    insmod $M0_CORE_DIR/mero/linux_kernel/m0mero.ko \
 	local_addr=$M0T1FS_ENDPOINT \
 	max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
 	tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
