@@ -29,6 +29,6 @@ extern struct m0_reqh_service_type ds1_service_type;
 extern struct m0_reqh_service_type ds2_service_type;
 
 extern struct m0_reqh_service_type *m0_cs_default_stypes[];
-extern size_t m0_cs_default_stypes_nr;
+extern const size_t m0_cs_default_stypes_nr;
 
 #endif /* __MERO_UT_CS_SERVICE_H__ */

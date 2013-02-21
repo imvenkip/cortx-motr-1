@@ -69,7 +69,7 @@ struct m0_reqh_service_type *m0_cs_default_stypes[] = {
 	&ds2_service_type,
 };
 
-size_t m0_cs_default_stypes_nr = ARRAY_SIZE(m0_cs_default_stypes);
+const size_t m0_cs_default_stypes_nr = ARRAY_SIZE(m0_cs_default_stypes);
 
 static int _ds_alloc(struct m0_reqh_service **service,
 		     struct m0_reqh_service_type *stype,
