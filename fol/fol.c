@@ -553,7 +553,6 @@ M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
 			result = fol_record_decode(out);
 		} else {
 			m0_fol_rec_fini(out);
-			return result;
 		}
 	}
 	M0_POST(ergo(result == 0, out->fr_desc.rd_lsn == lsn));

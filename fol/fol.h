@@ -43,9 +43,46 @@
    part types, added during updates. These fol record parts provides flexibility
    for modules to participate in a transaction without global knowledge.
 
+   @see m0_fol_rec_part : FOL record part.
+   @see m0_fol_rec_part_type : FOL record part type.
+
+   m0_fol_rec_part_ops contains operations for undo and redo of
+   FOL record parts.
+
+   @see m0_fol_rec_part_init() : Initializes m0_fol_rec_part with
+				 m0_fol_rec_part_type_ops.
+   @see m0_fol_rec_part_fini() : Finalizes FOL record part.
+
+   @see m0_fol_rec_part_type_register() : Registers FOL record part type.
+   @see m0_fol_rec_part_type_deregister() : Deregisters FOL record part type.
+
+   FOL record parts list is kept in m0_fol_rec::fr_fol_rec_parts which is
+   initialized in m0_fol_rec_init()
+
+   m0_fol_rec_add() is used to compose FOL record from FOL record descriptor
+   and parts.
+   fol_record_encode() encodes the FOL record parts in the list
+   m0_fol_rec:fr_fol_rec_parts in a buffer, which then will be added into the db
+   using m0_fol_add_buf().
+
    @see m0_fol_rec_add()
    @see m0_fol_rec_lookup()
    @see https://docs.google.com/a/horizontalscale.com/Doc?docid=0Aa9lcGbR4emcZGhxY2hqdmdfNjQ2ZHZocWJ4OWo
+
+   m0_fol_rec_part_type_init() and m0_fol_rec_part_type_fini() are added
+   to initialize and finalize FOL part types.
+   FOL recors part types are registered in a global array of FOL record
+   parts using m0_fol_rec_part_type::rpt_index.
+
+   After successful execution of updates on server side, in FOM generic phase
+   using m0_fom_fol_rec_add() FOL record parts in the list are combined in a
+   FOL record and is made persistent. Before this phase all FOL record parts
+   needs to be added in the list after completing their updates.
+
+   After retrieving FOL record from data base, FOL record parts are decoded
+   based on part type using index and are used in undo or redo operations.
+   <hr>
+   @section IOFOLDLD-conformance Conformance
 
    @{
  */
@@ -343,7 +380,7 @@ M0_INTERNAL int m0_fol_batch(struct m0_fol *fol, m0_lsn_t lsn, uint32_t nr,
 M0_INTERNAL int m0_fols_init(void);
 M0_INTERNAL void m0_fols_fini(void);
 
-/** Represents updates made as part of executing FOM on server. */
+/** Represents a part of FOL record. */
 struct m0_fol_rec_part {
 	const struct m0_fol_rec_part_ops  *rp_ops;
 	/**
@@ -424,7 +461,7 @@ M0_INTERNAL void m0_fol_rec_part_list_add(struct m0_fol_rec *rec,
 				          struct m0_fol_rec_part *part);
 
 #define M0_FOL_REC_PART_TYPE_DECLARE(part, undo, redo)	           \
-struct m0_fol_rec_part_type part ## _type;		           \
+struct m0_fol_rec_part_type part ## _type;			   \
 static const struct m0_fol_rec_part_ops part ## _ops = {           \
 	.rpo_type = &part ## _type,		                   \
 	.rpo_undo = undo,			                   \

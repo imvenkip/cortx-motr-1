@@ -270,18 +270,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
    <hr>
    @section IOFOLDLD-def Definitions
-   FOL (File operation log) is a per-node collection of records, describing
-   updates to file system state carried out on the node.
-   IO FOL is log of records for create, delete and write operations in ioservice
-   which are used to perform undo or as a reply cache.
-
-   Each File system object called unit has "verno of its latest state" as an
-   attribute. This attribute is modified with every update to unit state.
-
-   A verno consists of two components:
-	-LSN (lsn): A reference to a FOL record, points to the record with
-		    the last update for the unit.
-	-VC: A version counter
 
    <hr>
    @section IOFOLDLD-req Requirements
@@ -304,99 +292,12 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    @section IOFOLDLD-fspec Functional Specification
    The following new APIs are introduced:
 
-   @see m0_fol_rec_part : FOL record part.
-   @see m0_fol_rec_part_type : FOL record part type.
-
-   m0_fol_rec_part_ops contains operations for undo and redo of
-   FOL record parts.
-
-   @see m0_fol_rec_part_init() : Initializes m0_fol_rec_part with
-				 m0_fol_rec_part_type_ops.
-   @see m0_fol_rec_part_fini() : Finalizes FOL record part.
-
-   @see m0_fol_rec_part_type_register() : Registers FOL record part type.
-   @see m0_fol_rec_part_type_deregister() : Deregisters FOL record part type.
-
    FOL Record parts in ioservice,
    @see io_write_rec_part  : write updates
    @see io_create_rec_part : create updates
    @see io_delete_rec_part : delete updates
 
    @see ad_rec_part is added for AD write operation.
-
-   FOL record parts list is kept in m0_fol_rec::fr_fol_rec_parts which is
-   initialized in m0_fol_rec_init()
-
-   m0_fol_rec_add() is used to compose FOL record from FOL record descriptor
-   and parts.
-   fol_record_encode() encodes the FOL record parts in the list
-   m0_fol_rec:fr_fol_rec_parts in a buffer, which then will be added into the db
-   using m0_fol_add_buf().
-
-   @see m0_fol_rec_lookup()
-
-   Usage:
-   @code
-   struct m0_foo {
-	int f_key;
-	int f_val;
-   } M0_XCA_RECORD;
-
-   const struct m0_fol_rec_part_ops foo_part_ops = {
-	.rpo_type = &foo_part_type,
-	.rpo_undo = NULL,
-	.rpo_redo = NULL,
-   };
-
-   static void foo_rec_part_init(struct m0_fol_rec_part *part)
-   {
-	   part->rp_ops = &foo_part_ops;
-   }
-
-   const struct m0_fol_rec_part_type_ops foo_part_type_ops = {
-	.rpto_rec_part_init = &foo_rec_part_init,
-   };
-
-   struct m0_fol_rec_part_type foo_part_type {
-	.rpt_name = "foo FOL record part type",
-	.rpt_xt   = m0_foo_xc,
-	.rpt_ops  = &foo_part_type_ops
-   };
-
-   struct m0_fol_rec rec;
-
-   void foo_fol_rec_part_add(void)
-   {
-	int			result;
-	struct m0_fol_rec_part  foo_rec_part;
-	struct m0_foo	       *foo;
-
-	m0_fol_rec_part_list_init(&rec);
-	result =  m0_fol_rec_part_type_register(&foo_part_type);
-        M0_ASSERT(result == 0);
-
-	M0_ALLOC_PTR(foo != NULL);
-	M0_ASSERT(foo != NULL);
-	m0_fol_rec_part_init(&foo_rec_part, foo, &foo_part_type);
-
-	foo->f_key = 22;
-        foo->f_val = 33;
-
-	m0_fol_rec_part_list_add(&rec, foo_rec_part);
-
-	// FOL record descriptor and parts in the list are added to db
-	// in fom generic phase by using m0_fom_fol_rec_add()
-	...
-
-	m0_fol_rec_part_list_fini(&rec);
-	m0_fol_rec_part_type_deregister(&foo_part_type);
-   }
-   @endcode
-
-   m0_fol_rec_part_type_init() and m0_fol_rec_part_type_fini() are added
-   to initialize and finalize FOL part types.
-   FOL recors part types are registered in a global array of FOL record
-   parts using m0_fol_rec_part_type::rpt_index.
 
    For each of create, delete and write IO operations FOL record parts are
    initialised with their xcode type and FOL operations.
@@ -411,16 +312,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    FOL record part struct ad_rec_part.
 
    Add these FOL record parts in the list.
-
-   After successful execution of updates on server side, in FOM generic phase
-   using m0_fom_fol_rec_add() FOL record parts in the list are combined in a
-   FOL record and is made persistent. Before this phase all FOL record parts
-   needs to be added in the list after completing their updates.
-
-   After retrieving FOL record from data base, FOL record parts are decoded
-   based on part type using index and are used in undo or redo operations.
-   <hr>
-   @section IOFOLDLD-conformance Conformance
 
    <hr>
    @section IOFOLDLD-ut Unit Tests
