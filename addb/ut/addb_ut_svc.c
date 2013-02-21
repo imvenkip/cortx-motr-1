@@ -168,7 +168,7 @@ void addb_ut_svc_test(void)
 	fom = &pfom->pf_fom;
 	m0_nanosleep(MS(210), NULL);
 	M0_UT_ASSERT(the_addb_pfom_started);
-	M0_UT_ASSERT(addb_ut_svc_rspa_called >= 19);
+	M0_UT_ASSERT(addb_ut_svc_rspa_called == fom->fo_transitions / 4);
 	server_stop();
 	M0_UT_ASSERT(!the_addb_pfom_started);
 	M0_UT_ASSERT(the_addb_svc == NULL);
