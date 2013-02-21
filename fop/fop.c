@@ -33,6 +33,7 @@
 #include "lib/errno.h"
 #include "mero/magic.h"
 #include "fop/fop.h"
+#include "fop/fop_xc.h"
 #include "fop/fom_long_lock.h" /* m0_fom_ll_global_init */
 
 /**
@@ -291,6 +292,65 @@ M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
 		fop->f_data.fd_data = m0_alloc(fop->f_type->ft_xt->xct_sizeof);
 	rc = m0_xcode_encdec(&xc_ctx, &M0_FOP_XCODE_OBJ(fop), cur, what);
 	return rc;
+}
+
+M0_INTERNAL struct m0_fop_type *m0_fop_type_find(uint32_t opcode)
+{
+        struct m0_fop_type *ftype = NULL;
+
+	while ((ftype = m0_fop_type_next(ftype)) != NULL) {
+		if(ftype->ft_rpc_item_type.rit_opcode == opcode)
+			break;
+	}
+	return ftype;
+}
+
+static int fop_xc_type(uint32_t opcode, const struct m0_xcode_type **out)
+{
+        struct m0_fop_type	   *ftype;
+
+	ftype = m0_fop_type_find(opcode);
+	if (ftype == NULL)
+		return -EINVAL;
+
+	*out = ftype->ft_xt;
+	return 0;
+}
+
+M0_INTERNAL int m0_fop_xc_type(const struct m0_xcode_obj   *par,
+		   const struct m0_xcode_type **out)
+{
+	struct m0_fop_fol_rec_part *rp = par->xo_ptr;
+
+	return fop_xc_type(rp->ffrp_fop_code, out);
+}
+
+M0_INTERNAL int m0_fop_rep_xc_type(const struct m0_xcode_obj   *par,
+		       const struct m0_xcode_type **out)
+{
+	struct m0_fop_fol_rec_part *rp = par->xo_ptr;
+
+	return fop_xc_type(rp->ffrp_rep_code, out);
+}
+
+int m0_fop_fol_add(const struct m0_fol_rec_part_type *rptype,
+		   struct m0_fop *fop, struct m0_fop *rep,
+		   struct m0_dtx *dtx)
+{
+	struct m0_fol_rec_part	    *part;
+	struct m0_fop_fol_rec_part  *rp;
+
+	M0_ALLOC_PTR(part);
+	M0_ALLOC_PTR(rp);
+	if (rp != NULL) {
+		m0_fol_rec_part_init(part, rp, rptype);
+
+		rp->ffrp_fop = fop;
+		rp->ffrp_rep = rep;
+
+		m0_fol_rec_part_list_add(&dtx->tx_fol_rec, part);
+	}
+	return 0;
 }
 
 /** @} end of fop group */
