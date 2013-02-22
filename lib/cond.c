@@ -35,21 +35,22 @@
    @{
  */
 
-M0_INTERNAL void m0_cond_init(struct m0_cond *cond)
+M0_INTERNAL void m0_cond_init(struct m0_cond *cond, struct m0_mutex *mutex)
 {
-	m0_chan_init(&cond->c_chan);
+	m0_chan_init(&cond->c_chan, mutex);
 }
 M0_EXPORTED(m0_cond_init);
 
 M0_INTERNAL void m0_cond_fini(struct m0_cond *cond)
 {
-	m0_chan_fini(&cond->c_chan);
+	m0_chan_fini_lock(&cond->c_chan);
 }
 M0_EXPORTED(m0_cond_fini);
 
-M0_INTERNAL void m0_cond_wait(struct m0_cond *cond, struct m0_mutex *mutex)
+M0_INTERNAL void m0_cond_wait(struct m0_cond *cond)
 {
 	struct m0_clink clink;
+	struct m0_mutex *mutex = cond->c_chan.ch_guard;
 
 	/*
 	 * First, register the clink with the channel, *then* unlock the
@@ -69,10 +70,11 @@ M0_INTERNAL void m0_cond_wait(struct m0_cond *cond, struct m0_mutex *mutex)
 }
 M0_EXPORTED(m0_cond_wait);
 
-M0_INTERNAL bool m0_cond_timedwait(struct m0_cond *cond, struct m0_mutex *mutex,
+M0_INTERNAL bool m0_cond_timedwait(struct m0_cond *cond,
 				   const m0_time_t abs_timeout)
 {
 	struct m0_clink clink;
+	struct m0_mutex *mutex = cond->c_chan.ch_guard;
 	bool retval;
 
 	M0_PRE(m0_mutex_is_locked(mutex));
@@ -89,16 +91,16 @@ M0_INTERNAL bool m0_cond_timedwait(struct m0_cond *cond, struct m0_mutex *mutex,
 }
 M0_EXPORTED(m0_cond_timedwait);
 
-M0_INTERNAL void m0_cond_signal(struct m0_cond *cond, struct m0_mutex *mutex)
+M0_INTERNAL void m0_cond_signal(struct m0_cond *cond)
 {
-	M0_PRE(m0_mutex_is_locked(mutex));
+	M0_PRE(m0_mutex_is_locked(cond->c_chan.ch_guard));
 	m0_chan_signal(&cond->c_chan);
 }
 M0_EXPORTED(m0_cond_signal);
 
-M0_INTERNAL void m0_cond_broadcast(struct m0_cond *cond, struct m0_mutex *mutex)
+M0_INTERNAL void m0_cond_broadcast(struct m0_cond *cond)
 {
-	M0_PRE(m0_mutex_is_locked(mutex));
+	M0_PRE(m0_mutex_is_locked(cond->c_chan.ch_guard));
 	m0_chan_broadcast(&cond->c_chan);
 }
 

@@ -134,7 +134,8 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 
 	m0_reqh_svc_tlist_init(&reqh->rh_services);
 	m0_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
-	m0_chan_init(&reqh->rh_sd_signal);
+	m0_mutex_init(&reqh->rh_mutex);
+	m0_chan_init(&reqh->rh_sd_signal, &reqh->rh_mutex);
 	m0_rwlock_init(&reqh->rh_rwlock);
 	m0_reqh_lockers_init(reqh);
 	M0_POST(m0_reqh_invariant(reqh));
@@ -150,9 +151,11 @@ M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
         m0_fom_domain_fini(&reqh->rh_fom_dom);
         m0_reqh_svc_tlist_fini(&reqh->rh_services);
         m0_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
-	m0_chan_fini(&reqh->rh_sd_signal);
+	m0_chan_fini_lock(&reqh->rh_sd_signal);
 	m0_reqh_lockers_fini(reqh);
 	m0_rwlock_fini(&reqh->rh_rwlock);
+	m0_chan_fini_lock(&reqh->rh_sd_signal);
+	m0_mutex_fini(&reqh->rh_mutex);
 }
 
 M0_INTERNAL void m0_reqhs_fini(void)
@@ -207,12 +210,12 @@ M0_INTERNAL void m0_reqh_fom_domain_idle_wait(struct m0_reqh *reqh)
 
 	M0_PRE(reqh != NULL);
         m0_clink_init(&clink, NULL);
-        m0_clink_add(&reqh->rh_sd_signal, &clink);
+        m0_clink_add_lock(&reqh->rh_sd_signal, &clink);
 
 	while (!m0_fom_domain_is_idle(&reqh->rh_fom_dom))
 		m0_chan_wait(&clink);
 
-	m0_clink_del(&clink);
+	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 }
 

@@ -327,7 +327,7 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 			/* best effort; can't say if this will always work */
 			for (i = 0; i < len; ++i) {
 				nb = m0_net_tm_tlist_head(&tm->ntm_q[qt]);
-				m0_clink_add(&tm->ntm_chan, &cl);
+				m0_clink_add_lock(&tm->ntm_chan, &cl);
 				NLXDBGP(td, 2,
 					"Cleanup/DEL D:%p T:%p Q:%d B:%p\n",
 					dom, tm, qt, nb);
@@ -344,7 +344,7 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 							(tm);
 					}
 				}
-				m0_clink_del(&cl);
+				m0_clink_del_lock(&cl);
 			}
 			len = m0_tlist_length(&m0_net_tm_tl, &tm->ntm_q[qt]);
 			if (len != 0) {
@@ -486,10 +486,10 @@ do {									\
 									\
 		sprintf(epstr, "%s:%d:%d:*",				\
 			**nidstrs, STARTSTOP_PID, STARTSTOP_PORTAL);	\
-		m0_clink_add(&tm->ntm_chan, &td->tmwait ## which);	\
+		m0_clink_add_lock(&tm->ntm_chan, &td->tmwait ## which);	\
 		M0_UT_ASSERT(!m0_net_tm_start(tm, epstr));		\
 		m0_chan_wait(&td->tmwait ## which);			\
-		m0_clink_del(&td->tmwait ## which);			\
+		m0_clink_del_lock(&td->tmwait ## which);		\
 		M0_UT_ASSERT(tm->ntm_state == M0_NET_TM_STARTED);	\
 		if (tm->ntm_state == M0_NET_TM_FAILED) {		\
 			M0_UT_FAIL("aborting: tm" #which " startup failed"); \
@@ -505,10 +505,10 @@ do {									\
 do {									\
         struct m0_net_domain *dom;					\
 	struct m0_net_transfer_mc *tm = &td->tm ## which;		\
-	m0_clink_add(&tm->ntm_chan, &td->tmwait ## which);		\
+	m0_clink_add_lock(&tm->ntm_chan, &td->tmwait ## which);		\
 	M0_UT_ASSERT(!m0_net_tm_stop(tm, false));			\
 	m0_chan_wait(&td->tmwait ## which);				\
-	m0_clink_del(&td->tmwait ## which);				\
+	m0_clink_del_lock(&td->tmwait ## which);			\
 	M0_UT_ASSERT(tm->ntm_state == M0_NET_TM_STOPPED);		\
  fini ## which:								\
 	tm = &td->tm ## which;						\
@@ -821,10 +821,10 @@ static void test_tm_startstop(void)
 
 	M0_UT_ASSERT(!m0_net_tm_init(tm, dom, &m0_addb_gmc, &m0_addb_proc_ctx));
 	m0_clink_init(&tmwait1, NULL);
-	m0_clink_add(&tm->ntm_chan, &tmwait1);
+	m0_clink_add_lock(&tm->ntm_chan, &tmwait1);
 	M0_UT_ASSERT(!m0_net_tm_start(tm, badportal_epstr));
 	m0_chan_wait(&tmwait1);
-	m0_clink_del(&tmwait1);
+	m0_clink_del_lock(&tmwait1);
 	M0_UT_ASSERT(ecb_count == 1);
 	M0_UT_ASSERT(ecb_status == -EINVAL);
 	M0_UT_ASSERT(tm->ntm_state == M0_NET_TM_FAILED);
@@ -835,10 +835,10 @@ static void test_tm_startstop(void)
 	m0_net_lnet_tm_stat_interval_set(tm, STARTSTOP_STAT_SECS);
 
 	m0_clink_init(&tmwait1, NULL);
-	m0_clink_add(&tm->ntm_chan, &tmwait1);
+	m0_clink_add_lock(&tm->ntm_chan, &tmwait1);
 	M0_UT_ASSERT(!m0_net_tm_start(tm, epstr));
 	m0_chan_wait(&tmwait1);
-	m0_clink_del(&tmwait1);
+	m0_clink_del_lock(&tmwait1);
 	M0_UT_ASSERT(ecb_count == 1);
 	M0_UT_ASSERT(ecb_evt == M0_NET_TEV_STATE_CHANGE);
 	M0_UT_ASSERT(ecb_tms == M0_NET_TM_STARTED);
@@ -878,10 +878,10 @@ static void test_tm_startstop(void)
 		     STARTSTOP_STAT_SECS);
 	tm->ntm_qstats[M0_NET_QT_MSG_RECV] = fake_stats;
 	ecb_reset();
-	m0_clink_add(&tm->ntm_chan, &tmwait1);
+	m0_clink_add_lock(&tm->ntm_chan, &tmwait1);
 	M0_UT_ASSERT(!m0_net_tm_stop(tm, true));
 	m0_chan_wait(&tmwait1);
-	m0_clink_del(&tmwait1);
+	m0_clink_del_lock(&tmwait1);
 	M0_UT_ASSERT(ecb_count == 1);
 	M0_UT_ASSERT(ecb_evt == M0_NET_TEV_STATE_CHANGE);
 	M0_UT_ASSERT(ecb_tms == M0_NET_TM_STOPPED);
@@ -913,10 +913,10 @@ static void test_tm_startstop(void)
 		m0_bitmap_fini(&procs);
 
 		ecb_reset();
-		m0_clink_add(&tm[i].ntm_chan, &tmwait1);
+		m0_clink_add_lock(&tm[i].ntm_chan, &tmwait1);
 		M0_UT_ASSERT(!m0_net_tm_start(&tm[i], dyn_epstr));
 		m0_chan_wait(&tmwait1);
-		m0_clink_del(&tmwait1);
+		m0_clink_del_lock(&tmwait1);
 		M0_UT_ASSERT(ecb_tms == M0_NET_TM_STARTED);
 		M0_UT_ASSERT(tm[i].ntm_state == M0_NET_TM_STARTED);
 		M0_UT_ASSERT(strcmp(tm[i].ntm_ep->nep_addr, dyn_epstr) != 0);
@@ -927,28 +927,28 @@ static void test_tm_startstop(void)
 
 	/* subtest: dynamic TMID reuse using middle TM */
 	strcpy(save_epstr, tm[1].ntm_ep->nep_addr);
-	m0_clink_add(&tm[1].ntm_chan, &tmwait1);
+	m0_clink_add_lock(&tm[1].ntm_chan, &tmwait1);
 	M0_UT_ASSERT(!m0_net_tm_stop(&tm[1], false));
 	m0_chan_wait(&tmwait1);
-	m0_clink_del(&tmwait1);
+	m0_clink_del_lock(&tmwait1);
 	M0_UT_ASSERT(tm[1].ntm_state == M0_NET_TM_STOPPED);
 	m0_net_tm_fini(&tm[1]);
 	M0_UT_ASSERT(!m0_net_tm_init(&tm[1], &dom[1], &m0_addb_gmc,
 				     &m0_addb_proc_ctx));
 
-	m0_clink_add(&tm[1].ntm_chan, &tmwait1);
+	m0_clink_add_lock(&tm[1].ntm_chan, &tmwait1);
 	M0_UT_ASSERT(!m0_net_tm_start(&tm[1], dyn_epstr));
 	m0_chan_wait(&tmwait1);
-	m0_clink_del(&tmwait1);
+	m0_clink_del_lock(&tmwait1);
 	M0_UT_ASSERT(ecb_tms == M0_NET_TM_STARTED);
 	M0_UT_ASSERT(tm[1].ntm_state == M0_NET_TM_STARTED);
 	M0_UT_ASSERT(strcmp(tm[1].ntm_ep->nep_addr, save_epstr) == 0);
 
 	for (i = 0; i < STARTSTOP_DOM_NR; ++i) {
-		m0_clink_add(&tm[i].ntm_chan, &tmwait1);
+		m0_clink_add_lock(&tm[i].ntm_chan, &tmwait1);
 		M0_UT_ASSERT(!m0_net_tm_stop(&tm[i], false));
 		m0_chan_wait(&tmwait1);
-		m0_clink_del(&tmwait1);
+		m0_clink_del_lock(&tmwait1);
 		M0_UT_ASSERT(ecb_tms == M0_NET_TM_STOPPED);
 		M0_UT_ASSERT(tm[i].ntm_state == M0_NET_TM_STOPPED);
 		m0_net_tm_fini(&tm[i]);
@@ -997,8 +997,8 @@ static bool test_msg_send_loop(struct ut_data          *td,
 	M0_UT_ASSERT(!m0_net_tm_stats_get(TM2, M0_NET_QT_MSG_SEND,
 					  &td->qs, true));
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
-	m0_clink_add(&TM2->ntm_chan, &td->tmwait2);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM2->ntm_chan, &td->tmwait2);
 
 	/* UT sanity check: messages within buffer bounds */
 	if (send_len_first > td->buf_size1 || send_len_first > td->buf_size2 ||
@@ -1129,8 +1129,8 @@ static bool test_msg_send_loop(struct ut_data          *td,
 
 	rc = true;
  aborted:
-	m0_clink_del(&td->tmwait2);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait2);
+	m0_clink_del_lock(&td->tmwait1);
 	return rc;
 
 #undef RESET_RECV_COUNTERS
@@ -1159,10 +1159,10 @@ static void test_msg_body(struct ut_data *td)
 	ut_cbreset();
 	zUT(m0_net_buffer_add(nb1, TM1), done);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	m0_net_buffer_del(nb1, TM1);
 	ut_chan_timedwait(&td->tmwait1, 10);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_MSG_RECV);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_status1 == -ECANCELED);
@@ -1231,7 +1231,7 @@ static void test_msg_body(struct ut_data *td)
 	M0_UT_ASSERT(!(cb_nb1->nb_flags & M0_NET_BUF_QUEUED));
 
 	ut_cbreset();
-	m0_clink_add(&TM2->ntm_chan, &td->tmwait2);
+	m0_clink_add_lock(&TM2->ntm_chan, &td->tmwait2);
 	M0_UT_ASSERT(!m0_net_tm_stats_get(TM2, M0_NET_QT_MSG_SEND,
 					  &td->qs, true));
 
@@ -1308,7 +1308,7 @@ static void test_msg_body(struct ut_data *td)
 	ep2 = NULL;
 
  aborted:
-	m0_clink_del(&td->tmwait2);
+	m0_clink_del_lock(&td->tmwait2);
  done:
 	return;
 }
@@ -1600,8 +1600,8 @@ static int test_bulk_passive_send(struct ut_data *td)
 
 	ut_cbreset();
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
-	m0_clink_add(&TM2->ntm_chan, &td->tmwait2);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM2->ntm_chan, &td->tmwait2);
 
 	/* stage passive send buffer */
 	M0_UT_ASSERT(td->buf_size1 >= pBytes);
@@ -1689,8 +1689,8 @@ static int test_bulk_passive_send(struct ut_data *td)
 		m0_net_desc_free(&nb2s->nb_desc);
 		m0_free(nb2s);
 	}
-	m0_clink_del(&td->tmwait1);
-	m0_clink_del(&td->tmwait2);
+	m0_clink_del_lock(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait2);
 	return rc;
 }
 
@@ -1705,8 +1705,8 @@ static int test_bulk_passive_recv(struct ut_data *td)
 
 	ut_cbreset();
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
-	m0_clink_add(&TM2->ntm_chan, &td->tmwait2);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM2->ntm_chan, &td->tmwait2);
 
 	/* stage passive recv buffer */
 	nb1->nb_qtype = M0_NET_QT_PASSIVE_BULK_RECV;
@@ -1792,8 +1792,8 @@ static int test_bulk_passive_recv(struct ut_data *td)
 		m0_net_desc_free(&nb2l->nb_desc);
 		m0_free(nb2l);
 	}
-	m0_clink_del(&td->tmwait1);
-	m0_clink_del(&td->tmwait2);
+	m0_clink_del_lock(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait2);
 	return rc;
 }
 
@@ -1822,10 +1822,10 @@ static void test_bulk_body(struct ut_data *td)
 		M0_UT_ASSERT(nb1->nb_desc.nbd_len == sizeof *CBD1);
 		M0_UT_ASSERT(nb1->nb_desc.nbd_data != NULL);
 
-		m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+		m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 		m0_net_buffer_del(nb1, TM1);
 		ut_chan_timedwait(&td->tmwait1, 10);
-		m0_clink_del(&td->tmwait1);
+		m0_clink_del_lock(&td->tmwait1);
 		M0_UT_ASSERT(cb_called1 == 1);
 		M0_UT_ASSERT(cb_nb1 == nb1);
 		M0_UT_ASSERT(!(nb1->nb_flags & M0_NET_BUF_QUEUED));
@@ -1920,8 +1920,8 @@ static void test_sync_body(struct ut_data *td)
 
 	m0_net_lnet_tm_set_debug(TM1, 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
-	m0_clink_add(&TM2->ntm_chan, &td->tmwait2);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM2->ntm_chan, &td->tmwait2);
 
 	/* TEST
 	   No-op calls
@@ -2028,8 +2028,8 @@ static void test_sync_body(struct ut_data *td)
 	M0_UT_ASSERT(td->qs.nqs_num_dels == 0);
 
  done:
-	m0_clink_del(&td->tmwait2);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait2);
+	m0_clink_del_lock(&td->tmwait1);
 	if (ep2 != NULL)
 		m0_net_end_point_put(ep2);
 	return;
@@ -2094,7 +2094,7 @@ static void test_timeout_body(struct ut_data *td)
 	m0_time_t rel_timeout;
 	uint64_t timeout_secs = 1;
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 
 	/* TEST
 	   Enqueue non-active buffers one at a time on different queues,
@@ -2285,7 +2285,7 @@ static void test_timeout_body(struct ut_data *td)
 	m0_net_desc_free(&nb1->nb_desc);
 
  done:
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 }
 
 static void test_timeout(void)

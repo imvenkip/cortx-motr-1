@@ -492,7 +492,7 @@ static void c_m_recv_cb(const struct m0_net_buffer_event *ev)
 
 	m0_mutex_lock(&ctx->pc_mutex);
 	m0_list_add(&ctx->pc_work_queue, &wi->pwi_link);
-	m0_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+	m0_cond_signal(&ctx->pc_cond);
 	m0_mutex_unlock(&ctx->pc_mutex);
 }
 
@@ -522,7 +522,7 @@ static void c_m_send_cb(const struct m0_net_buffer_event *ev)
 
 		m0_mutex_lock(&ctx->pc_mutex);
 		m0_list_add(&ctx->pc_work_queue, &wi->pwi_link);
-		m0_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+		m0_cond_signal(&ctx->pc_cond);
 		m0_mutex_unlock(&ctx->pc_mutex);
 	} else {
 		m0_net_desc_free(&ev->nbe_buffer->nb_desc);
@@ -534,7 +534,7 @@ static void c_m_send_cb(const struct m0_net_buffer_event *ev)
 
 		m0_mutex_lock(&ctx->pc_mutex);
 		m0_list_add(&ctx->pc_work_queue, &wi->pwi_link);
-		m0_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+		m0_cond_signal(&ctx->pc_cond);
 		m0_mutex_unlock(&ctx->pc_mutex);
 	}
 }
@@ -604,7 +604,7 @@ static void c_p_recv_cb(const struct m0_net_buffer_event *ev)
 
 	m0_mutex_lock(&ctx->pc_mutex);
 	m0_list_add(&ctx->pc_work_queue, &wi->pwi_link);
-	m0_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+	m0_cond_signal(&ctx->pc_cond);
 	m0_mutex_unlock(&ctx->pc_mutex);
 }
 
@@ -636,7 +636,7 @@ static void c_p_send_cb(const struct m0_net_buffer_event *ev)
 
 	m0_mutex_lock(&ctx->pc_mutex);
 	m0_list_add(&ctx->pc_work_queue, &wi->pwi_link);
-	m0_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+	m0_cond_signal(&ctx->pc_cond);
 	m0_mutex_unlock(&ctx->pc_mutex);
 }
 
@@ -858,7 +858,7 @@ static void s_m_recv_cb(const struct m0_net_buffer_event *ev)
 			if (ctx->pc_sync_events)
 				m0_chan_signal(&ctx->pc_wq_chan);
 			else
-				m0_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+				m0_cond_signal(&ctx->pc_cond);
 			m0_mutex_unlock(&ctx->pc_mutex);
 		}
 		ev->nbe_buffer->nb_ep = NULL;
@@ -1055,15 +1055,15 @@ static int ping_init(struct nlx_ping_ctx *ctx)
 	m0_atomic64_set(&ctx->pc_retries, 0);
 	ctx->pc_interfaces = NULL;
 	if (ctx->pc_sync_events) {
-		m0_chan_init(&ctx->pc_wq_chan);
-		m0_chan_init(&ctx->pc_net_chan);
+		m0_chan_init(&ctx->pc_wq_chan, &ctx->pc_mutex);
+		m0_chan_init(&ctx->pc_net_chan, &ctx->pc_mutex);
 
 		m0_clink_init(&ctx->pc_wq_clink, &ping_workq_clink_cb);
 		m0_clink_attach(&ctx->pc_net_clink, &ctx->pc_wq_clink,
 				&ping_net_clink_cb); /* group */
 
-		m0_clink_add(&ctx->pc_wq_chan, &ctx->pc_wq_clink);
-		m0_clink_add(&ctx->pc_net_chan, &ctx->pc_net_clink);
+		m0_clink_add_lock(&ctx->pc_wq_chan, &ctx->pc_wq_clink);
+		m0_clink_add_lock(&ctx->pc_net_chan, &ctx->pc_net_clink);
 	}
 
 	/** @todo replace proc ctx */
@@ -1153,7 +1153,7 @@ static int ping_init(struct nlx_ping_ctx *ctx)
 	}
 
 	m0_clink_init(&tmwait, NULL);
-	m0_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
+	m0_clink_add_lock(&ctx->pc_tm.ntm_chan, &tmwait);
 	rc = m0_net_tm_start(&ctx->pc_tm, addr);
 	if (rc != 0) {
 		PING_ERR("transfer machine start failed: %d\n", rc);
@@ -1162,7 +1162,7 @@ static int ping_init(struct nlx_ping_ctx *ctx)
 
 	/* wait for tm to notify it has started */
 	m0_chan_wait(&tmwait);
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	if (ctx->pc_tm.ntm_state != M0_NET_TM_STARTED) {
 		rc = ctx->pc_status;
 		if (rc == 0)
@@ -1214,7 +1214,7 @@ static void ping_fini(struct nlx_ping_ctx *ctx)
 		if (ctx->pc_tm.ntm_state != M0_NET_TM_FAILED) {
 			struct m0_clink tmwait;
 			m0_clink_init(&tmwait, NULL);
-			m0_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
+			m0_clink_add_lock(&ctx->pc_tm.ntm_chan, &tmwait);
 			m0_net_tm_stop(&ctx->pc_tm, true);
 			while (ctx->pc_tm.ntm_state != M0_NET_TM_STOPPED) {
 				/* wait for it to stop */
@@ -1222,7 +1222,7 @@ static void ping_fini(struct nlx_ping_ctx *ctx)
 							     50 * ONE_MILLION);
 				m0_chan_timedwait(&tmwait, timeout);
 			}
-			m0_clink_del(&tmwait);
+			m0_clink_del_lock(&tmwait);
 		}
 
 		if (ctx->pc_ops->pqs != NULL)
@@ -1254,14 +1254,14 @@ static void ping_fini(struct nlx_ping_ctx *ctx)
 		m0_free(wi);
 	}
 	if (ctx->pc_sync_events) {
-		m0_clink_del(&ctx->pc_net_clink);
-		m0_clink_del(&ctx->pc_wq_clink);
+		m0_clink_del_lock(&ctx->pc_net_clink);
+		m0_clink_del_lock(&ctx->pc_wq_clink);
 
 		m0_clink_fini(&ctx->pc_net_clink);
 		m0_clink_fini(&ctx->pc_wq_clink);
 
-		m0_chan_fini(&ctx->pc_net_chan);
-		m0_chan_fini(&ctx->pc_wq_chan);
+		m0_chan_fini_lock(&ctx->pc_net_chan);
+		m0_chan_fini_lock(&ctx->pc_wq_chan);
 	}
 
 	m0_list_fini(&ctx->pc_work_queue);
@@ -1337,7 +1337,7 @@ static void nlx_ping_server_async(struct nlx_ping_ctx *ctx)
 	while (!server_stop) {
 		nlx_ping_server_work(ctx);
 		timeout = m0_time_from_now(5, 0);
-		m0_cond_timedwait(&ctx->pc_cond, &ctx->pc_mutex, timeout);
+		m0_cond_timedwait(&ctx->pc_cond, timeout);
 	}
 
 	return;
@@ -1453,9 +1453,9 @@ static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 
 	/* startup synchronization handshake */
 	ctx->pc_ready = true;
-	m0_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+	m0_cond_signal(&ctx->pc_cond);
 	while (ctx->pc_ready)
-		m0_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
+		m0_cond_wait(&ctx->pc_cond);
 
 	if (ctx->pc_sync_events)
 		nlx_ping_server_sync(ctx);
@@ -1468,21 +1468,21 @@ static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 
 	for (i = 0; i < num_recv_bufs; ++i) {
 		nb = &ctx->pc_nbs[i];
-		m0_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
+		m0_clink_add_lock(&ctx->pc_tm.ntm_chan, &tmwait);
 		m0_net_buffer_del(nb, &ctx->pc_tm);
 		m0_bitmap_set(&ctx->pc_nbbm, i, false);
 		ping_tm_wait(ctx, &tmwait);
-		m0_clink_del(&tmwait);
+		m0_clink_del_lock(&tmwait);
 	}
 
 	/* wait for active buffers to flush */
-	m0_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
+	m0_clink_add_lock(&ctx->pc_tm.ntm_chan, &tmwait);
 	for (i = 0; i < M0_NET_QT_NR; ++i)
 		while (!m0_net_tm_tlist_is_empty(&ctx->pc_tm.ntm_q[i])) {
 			PING_OUT(ctx, 1, "waiting for queue %d to empty\n", i);
 			ping_tm_wait(ctx, &tmwait);
 		}
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	m0_clink_fini(&tmwait);
 
 	ping_fini(ctx);
@@ -1496,7 +1496,7 @@ void nlx_ping_server_should_stop(struct nlx_ping_ctx *ctx)
 	if (ctx->pc_sync_events)
 		m0_chan_signal(&ctx->pc_wq_chan);
 	else
-		m0_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+		m0_cond_signal(&ctx->pc_cond);
 	m0_mutex_unlock(&ctx->pc_mutex);
 }
 
@@ -1514,9 +1514,9 @@ void nlx_ping_server_spawn(struct m0_thread *server_thread,
 			    NULL, &nlx_ping_server, sctx, "ping_server");
 	M0_ASSERT(rc == 0);
 	while (!sctx->pc_ready)
-		m0_cond_wait(&sctx->pc_cond, &sctx->pc_mutex);
+		m0_cond_wait(&sctx->pc_cond);
 	sctx->pc_ready = false;
-	m0_cond_signal(&sctx->pc_cond, &sctx->pc_mutex);
+	m0_cond_signal(&sctx->pc_cond);
 	m0_mutex_unlock(&sctx->pc_mutex);
 }
 
@@ -1613,8 +1613,8 @@ static int nlx_ping_client_msg_send_recv(struct nlx_ping_ctx *ctx,
 		if (recv_done == 2)
 			break;
 		if (session_timeout == M0_TIME_NEVER)
-			m0_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
-		else if (!m0_cond_timedwait(&ctx->pc_cond, &ctx->pc_mutex,
+			m0_cond_wait(&ctx->pc_cond);
+		else if (!m0_cond_timedwait(&ctx->pc_cond,
 					    session_timeout)) {
 			ctx->pc_ops->pf("%s: Receive TIMED OUT\n",
 					ctx->pc_ident);
@@ -1702,7 +1702,7 @@ static int nlx_ping_client_passive_recv(struct nlx_ping_ctx *ctx,
 		}
 		if (recv_done == 2)
 			break;
-		m0_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
+		m0_cond_wait(&ctx->pc_cond);
 	}
 
 	m0_mutex_unlock(&ctx->pc_mutex);
@@ -1788,7 +1788,7 @@ static int nlx_ping_client_passive_send(struct nlx_ping_ctx *ctx,
 		}
 		if (send_done == 2)
 			break;
-		m0_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
+		m0_cond_wait(&ctx->pc_cond);
 	}
 
 	m0_mutex_unlock(&ctx->pc_mutex);
@@ -1883,7 +1883,7 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 	cctx->pc_sync_events  = false;
 
 	m0_mutex_init(&cctx->pc_mutex);
-	m0_cond_init(&cctx->pc_cond);
+	m0_cond_init(&cctx->pc_cond, &cctx->pc_mutex);
 	rc = nlx_ping_client_init(cctx, &server_ep);
 	if (rc != 0)
 		goto fail;

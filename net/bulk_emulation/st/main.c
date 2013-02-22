@@ -268,7 +268,7 @@ void client(struct client_params *params)
 	else
 		cctx.pc_ops = &quiet_ops;
 	m0_mutex_init(&cctx.pc_mutex);
-	m0_cond_init(&cctx.pc_cond);
+	m0_cond_init(&cctx.pc_cond, &cctx.pc_mutex);
 	rc = ping_client_init(&cctx, &server_ep);
 	if (rc != 0)
 		goto fail;
@@ -403,7 +403,7 @@ int main(int argc, char *argv[])
 	if (!client_only) {
 		/* start server in background thread */
 		m0_mutex_init(&sctx.pc_mutex);
-		m0_cond_init(&sctx.pc_cond);
+		m0_cond_init(&sctx.pc_cond, &sctx.pc_mutex);
 		if (verbose)
 			sctx.pc_ops = &verbose_ops;
 		else

@@ -32,6 +32,7 @@ enum {
 
 static struct m0_thread t[NR];
 static struct m0_chan   c[NR];
+static struct m0_mutex  m[NR];
 static struct m0_clink  l[NR];
 
 static void t0(int self)
@@ -42,7 +43,7 @@ static void t0(int self)
 	for (i = 0; i < NR; ++i) {
 		for (j = 0; j < NR; ++j) {
 			if (j != self)
-				m0_chan_signal(&c[j]);
+				m0_chan_signal_lock(&c[j]);
 		}
 
 		for (j = 0; j < NR - 1; ++j)
@@ -86,6 +87,7 @@ unsigned long signal_the_chan_in_timer(unsigned long data)
 
 void test_chan(void)
 {
+	struct m0_mutex mutex;
 	struct m0_chan  chan;
 	struct m0_clink clink1;
 	struct m0_clink clink2;
@@ -95,37 +97,43 @@ void test_chan(void)
 	int             j;
 	bool            got;
 
-	m0_chan_init(&chan);
+	m0_mutex_init(&mutex);
+	m0_chan_init(&chan, &mutex);
 
 	/* test call-back notification */
 	flag = 0;
 	m0_clink_init(&clink1, &cb1);
+
+	m0_mutex_lock(&mutex);
 	m0_clink_add(&chan, &clink1);
 	m0_chan_signal(&chan);
 	M0_UT_ASSERT(flag == 1);
 	m0_chan_broadcast(&chan);
 	M0_UT_ASSERT(flag == 2);
+	m0_mutex_unlock(&mutex);
 
 	m0_clink_init(&clink2, &cb2);
-	m0_clink_add(&chan, &clink2);
+	m0_clink_add_lock(&chan, &clink2);
 
 	flag = 0;
-	m0_chan_signal(&chan);
+	m0_chan_signal_lock(&chan);
 	M0_UT_ASSERT(flag == 1 || flag == 2);
 	flag = 0;
-	m0_chan_broadcast(&chan);
+	m0_chan_broadcast_lock(&chan);
 	M0_UT_ASSERT(flag == 3);
 
+	m0_mutex_lock(&mutex);
 	m0_clink_del(&clink1);
+	m0_mutex_unlock(&mutex);
 
 	flag = 0;
-	m0_chan_signal(&chan);
+	m0_chan_signal_lock(&chan);
 	M0_UT_ASSERT(flag == 2);
 	flag = 0;
-	m0_chan_broadcast(&chan);
+	m0_chan_broadcast_lock(&chan);
 	M0_UT_ASSERT(flag == 2);
 
-	m0_clink_del(&clink2);
+	m0_clink_del_lock(&clink2);
 
 	m0_clink_fini(&clink1);
 	m0_clink_fini(&clink2);
@@ -133,16 +141,16 @@ void test_chan(void)
 	/* test synchronous notification */
 
 	m0_clink_init(&clink1, NULL);
-	m0_clink_add(&chan, &clink1);
+	m0_clink_add_lock(&chan, &clink1);
 
 	got = m0_chan_trywait(&clink1);
 	M0_UT_ASSERT(!got);
 
-	m0_chan_signal(&chan);
+	m0_chan_signal_lock(&chan);
 	got = m0_chan_trywait(&clink1);
 	M0_UT_ASSERT(got);
 
-	m0_chan_signal(&chan);
+	m0_chan_signal_lock(&chan);
 	m0_chan_wait(&clink1);
 
 	/* wait will expire after 1/5 second */
@@ -174,34 +182,36 @@ void test_chan(void)
 	m0_timer_stop(&timer);
 	m0_timer_fini(&timer);
 
-	m0_clink_del(&clink1);
+	m0_clink_del_lock(&clink1);
 	m0_clink_fini(&clink1);
 
 	/* test filtered events. */
 	m0_clink_init(&clink3, &cb_filter);
-	m0_clink_add(&chan, &clink3);
+	m0_clink_add_lock(&chan, &clink3);
 
 	flag = 1;
-	m0_chan_signal(&chan);
+	m0_chan_signal_lock(&chan);
 	got = m0_chan_trywait(&clink3);
 	M0_UT_ASSERT(!got);
 
 	flag = 0;
-	m0_chan_signal(&chan);
+	m0_chan_signal_lock(&chan);
 	got = m0_chan_trywait(&clink3);
 	M0_UT_ASSERT(got);
 
-	m0_clink_del(&clink3);
+	m0_clink_del_lock(&clink3);
 	m0_clink_fini(&clink3);
 
-	m0_chan_fini(&chan);
+	m0_chan_fini_lock(&chan);
+	m0_mutex_fini(&mutex);
 
 	/* multi-threaded test */
 
 	for (i = 0; i < ARRAY_SIZE(c); ++i) {
-		m0_chan_init(&c[i]);
+		m0_mutex_init(&m[i]);
+		m0_chan_init(&c[i], &m[i]);
 		m0_clink_init(&l[i], NULL);
-		m0_clink_add(&c[i], &l[i]);
+		m0_clink_add_lock(&c[i], &l[i]);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
@@ -215,9 +225,10 @@ void test_chan(void)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(c); ++i) {
-		m0_clink_del(&l[i]);
+		m0_clink_del_lock(&l[i]);
 		m0_clink_fini(&l[i]);
-		m0_chan_fini(&c[i]);
+		m0_chan_fini_lock(&c[i]);
+		m0_mutex_fini(&m[i]);
 	}
 
 	/*
@@ -233,15 +244,17 @@ void test_chan(void)
 	 */
 
 	for (j = 0; j < ARRAY_SIZE(c); ++j) {
-		for (i = 0; i < ARRAY_SIZE(c); ++i)
-			m0_chan_init(&c[i]);
+		for (i = 0; i < ARRAY_SIZE(c); ++i) {
+			m0_mutex_init(&m[i]);
+			m0_chan_init(&c[i], &m[i]);
+		}
 
 		m0_clink_init(&l[0], j == 0 ? mfilter : NULL);
 		for (i = 1; i < ARRAY_SIZE(c); ++i)
 			m0_clink_attach(&l[i], &l[0], j == i ? mfilter : NULL);
 
 		for (i = 0; i < ARRAY_SIZE(c); ++i)
-			m0_clink_add(&c[i], &l[i]);
+			m0_clink_add_lock(&c[i], &l[i]);
 
 		flag = 0;
 		m0_timer_init(&timer, M0_TIMER_HARD,
@@ -256,9 +269,10 @@ void test_chan(void)
 		m0_timer_fini(&timer);
 
 		for (i = ARRAY_SIZE(c) - 1; i >= 0; --i) {
-			m0_clink_del(&l[i]);
+			m0_clink_del_lock(&l[i]);
 			m0_clink_fini(&l[i]);
-			m0_chan_fini(&c[i]);
+			m0_chan_fini_lock(&c[i]);
+			m0_mutex_fini(&m[i]);
 		}
 	}
 

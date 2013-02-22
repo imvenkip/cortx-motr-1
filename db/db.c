@@ -278,7 +278,7 @@ static int dbenv_setup(struct m0_dbenv *env, const char *name, uint64_t flags)
 	m0_dbenv_common_init(env);
 	m0_mutex_init(&di->d_lock);
 	enw_tlist_init(&di->d_waiters);
-	m0_cond_init(&di->d_shutdown_cond);
+	m0_cond_init(&di->d_shutdown_cond, &di->d_lock);
 	/*
 	 * XXX translate flags from m0 to db5.
 	 */
@@ -382,7 +382,7 @@ void m0_dbenv_fini(struct m0_dbenv *env)
 	if (di->d_thread.t_state == TS_RUNNING) {
 		m0_mutex_lock(&di->d_lock);
 		di->d_shutdown = true;
-		m0_cond_signal(&di->d_shutdown_cond, &di->d_lock);
+		m0_cond_signal(&di->d_shutdown_cond);
 		m0_mutex_unlock(&di->d_lock);
 		m0_thread_join(&di->d_thread);
 		m0_thread_fini(&di->d_thread);
@@ -874,8 +874,7 @@ static void dbenv_thread(struct m0_dbenv *env)
 				}
 			} m0_tl_endfor;
 		}
-		m0_cond_timedwait(&di->d_shutdown_cond, &di->d_lock,
-				  m0_time_from_now(1, 0));
+		m0_cond_timedwait(&di->d_shutdown_cond, m0_time_from_now(1, 0));
 		m0_mutex_unlock(&di->d_lock);
 	} while (!last);
 	M0_ASSERT(enw_tlist_is_empty(&env->d_i.d_waiters));

@@ -234,7 +234,7 @@ static int stobsink_mock_stob_io_launch(struct m0_stob_io *io)
 	else
 		io->si_count = io->si_stob.iv_vec.v_count[0];
 	io->si_state = SIS_IDLE;
-	m0_chan_broadcast(&io->si_wait);
+	m0_chan_broadcast_lock(&io->si_wait);
 
 	return 0;
 }

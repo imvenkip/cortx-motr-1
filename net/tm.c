@@ -144,7 +144,7 @@ static void m0_net__tm_cleanup(struct m0_net_transfer_mc *tm)
 	int i;
 	m0_mutex_fini(&tm->ntm_mutex);
 	tm->ntm_dom = NULL;
-	m0_chan_fini(&tm->ntm_chan);
+	m0_chan_fini_lock(&tm->ntm_chan);
 	m0_list_fini(&tm->ntm_end_points);
 	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
 		m0_net_tm_tlist_fini(&tm->ntm_q[i]);
@@ -180,7 +180,7 @@ M0_INTERNAL int m0_net_tm_init(struct m0_net_transfer_mc *tm,
 	tm->ntm_dom = dom;
 	tm->ntm_ep = NULL;
 	m0_list_init(&tm->ntm_end_points);
-	m0_chan_init(&tm->ntm_chan);
+	m0_chan_init(&tm->ntm_chan, &tm->ntm_mutex);
 	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
 		m0_net_tm_tlist_init(&tm->ntm_q[i]);
 	}
@@ -232,11 +232,11 @@ M0_INTERNAL void m0_net_tm_fini(struct m0_net_transfer_mc *tm)
 	if (tm->ntm_callback_counter > 0) {
 		struct m0_clink tmwait;
 		m0_clink_init(&tmwait, NULL);
-		m0_clink_add(&tm->ntm_chan, &tmwait);
+		m0_clink_add_lock(&tm->ntm_chan, &tmwait);
 		while (tm->ntm_callback_counter > 0 &&
 		       tm->ntm_state == M0_NET_TM_STARTED)
 			m0_chan_wait(&tmwait);
-		m0_clink_del(&tmwait);
+		m0_clink_del_lock(&tmwait);
 	}
 
 	m0_mutex_lock(&dom->nd_mutex);

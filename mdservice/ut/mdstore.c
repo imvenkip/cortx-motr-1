@@ -30,6 +30,7 @@
 #include "lib/bitstring.h"
 #include "lib/processor.h"
 #include "fop/fop.h"
+#include "fop/ut/fop_put_norpc.h"
 #include "cob/cob.h"
 #include "reqh/reqh.h"
 #include "mdstore/mdstore.h"
@@ -51,6 +52,7 @@ static int                      rc;
 int m0_md_lustre_fop_alloc(struct m0_fop **fop, void *data);
 
 static struct m0_chan test_signal;
+static struct m0_mutex mutex;
 static struct m0_clink clink;
 static int locked = 0;
 static int error = 0;
@@ -64,12 +66,12 @@ static void signal_locked()
 static void wait_locked()
 {
         m0_clink_init(&clink, NULL);
-        m0_clink_add(&test_signal, &clink);
+        m0_clink_add_lock(&test_signal, &clink);
 
         while (locked)
                 m0_chan_wait(&clink);
 
-        m0_clink_del(&clink);
+        m0_clink_del_lock(&clink);
         m0_clink_fini(&clink);
         locked = 1;
 }
@@ -78,6 +80,9 @@ static void fom_fini(struct m0_local_service *service, struct m0_fom *fom)
 {
         if (error == 0)
                 error = m0_fom_rc(fom);
+
+	fom_fop_put_norpc(fom);
+
         signal_locked();
 }
 
@@ -136,7 +141,8 @@ static void test_mkfs(void)
 
 static void test_init(void)
 {
-        m0_chan_init(&test_signal);
+	m0_mutex_init(&mutex);
+        m0_chan_init(&test_signal, &mutex);
 
         rc = m0_dbenv_init(&db, db_name, 0);
         M0_ASSERT(rc == 0);
@@ -178,8 +184,9 @@ static void test_mdops(void)
                 fop = NULL;
 
                 /**
-                 * All fops should be sent in order they stored in dump. This is why we wait here
-                 * for locked == 0, which is set in ->lso_fini()
+                 * All fops should be sent in order they stored in dump.
+                 * This is why we wait here for locked == 0, which is set
+                 * in ->lso_fini().
                  */
                 wait_locked();
 again:
@@ -228,7 +235,8 @@ static void test_fini(void)
         m0_fol_fini(&fol);
         m0_mdstore_fini(&md);
         m0_dbenv_fini(&db);
-        m0_chan_fini(&test_signal);
+        m0_chan_fini_lock(&test_signal);
+        m0_mutex_fini(&mutex);
 }
 
 const struct m0_test_suite mdservice_ut = {

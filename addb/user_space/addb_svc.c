@@ -177,7 +177,7 @@ static int addb_svc_rsto_service_allocate(struct m0_reqh_service **service,
 	*service = &svc->as_reqhs;
 	(*service)->rs_type = stype;
 	(*service)->rs_ops = &addb_service_ops;
-	m0_cond_init(&svc->as_cond);
+	m0_cond_init(&svc->as_cond, &(*service)->rs_mutex);
 	addb_svc_bob_init(svc);
 
 	M0_POST(addb_svc_invariant(svc));

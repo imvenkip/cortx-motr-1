@@ -35,7 +35,7 @@ extern bool res_tlist_contains(const struct m0_tl *list,
 static void lcredits_in_complete(struct m0_rm_incoming *in, int32_t rc)
 {
         M0_UT_ASSERT(in != NULL);
-        m0_chan_broadcast(&lcredits_chan);
+        m0_chan_broadcast_lock(&lcredits_chan);
 }
 
 static void lcredits_in_conflict(struct m0_rm_incoming *in)
@@ -52,12 +52,12 @@ static void local_credits_init(void)
 	rm_utdata_init(&test_data, OBJ_OWNER);
 	rm_test_owner_capital_raise(&test_data.rd_owner, &test_data.rd_credit);
 	M0_SET0(&test_data.rd_in);
-	m0_chan_init(&lcredits_chan);
+	m0_chan_init(&lcredits_chan, &test_data.rd_rt.rt_lock);
 }
 
 static void local_credits_fini(void)
 {
-	m0_chan_fini(&lcredits_chan);
+	m0_chan_fini_lock(&lcredits_chan);
 	rm_utdata_fini(&test_data, OBJ_OWNER);
 }
 
@@ -132,7 +132,7 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
 
 	if (flags == RIF_LOCAL_WAIT) {
 		m0_clink_init(&clink, NULL);
-		m0_clink_add(&lcredits_chan, &clink);
+		m0_clink_add_lock(&lcredits_chan, &clink);
 	}
 
 	/* First caller releases the credit */
@@ -147,7 +147,7 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
 		M0_UT_ASSERT(next_in.rin_rc == 0);
 		M0_UT_ASSERT(next_in.rin_sm.sm_state == RI_SUCCESS);
 		m0_rm_credit_put(&next_in);
-		m0_clink_del(&clink);
+		m0_clink_del_lock(&clink);
 		m0_clink_fini(&clink);
 	}
 

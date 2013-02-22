@@ -124,11 +124,7 @@ M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
 	obj->co_status = M0_CS_MISSING;
 	obj->co_cache = cache;
 
-#ifdef XXX_ANDRIY_CHANLOCK
 	m0_chan_init(&obj->co_chan, cache->ca_lock);
-#else
-	m0_chan_init(&obj->co_chan);
-#endif
 
 	m0_conf_cache_tlink_init(obj);
 	m0_conf_dir_tlink_init(obj);

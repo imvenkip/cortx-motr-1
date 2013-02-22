@@ -21,10 +21,11 @@
 
 #include "lib/ut.h"
 #include "lib/memory.h"
+#include "lib/finject.h"
 #include "net/lnet/lnet.h"
+#include "fop/ut/fop_put_norpc.h"
 #include "ioservice/ut/bulkio_common.h"
 #include "ioservice/cob_foms.c"          /* To access static APIs. */
-#include "lib/finject.h"
 #include "ioservice/io_service.h"
 
 extern struct m0_fop_type m0_fop_cob_create_fopt;
@@ -568,6 +569,7 @@ static void fom_create_test(enum cob_fom_type fomtype)
 static void cc_fom_dealloc(struct m0_fom *fom)
 {
 	fom_phase_set(fom, M0_FOPH_FINISH);
+	fom_fop_put_norpc(fom);
 	cc_fom_fini(fom);
 }
 
@@ -827,6 +829,7 @@ static void cc_fom_populate_test()
 static void cd_fom_dealloc(struct m0_fom *fom)
 {
 	fom_phase_set(fom, M0_FOPH_FINISH);
+	fom_fop_put_norpc(fom);
 	cd_fom_fini(fom);
 }
 

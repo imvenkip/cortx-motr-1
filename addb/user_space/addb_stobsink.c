@@ -723,7 +723,7 @@ static int stobsink_poolbuf_grow(struct stobsink *sink)
 	m0_stob_io_init(&pb->spb_io);
 	pb->spb_io.si_opcode = SIO_WRITE;
 	m0_clink_init(&pb->spb_wait, stobsink_chan_cb);
-	m0_clink_add(&pb->spb_io.si_wait, &pb->spb_wait);
+	m0_clink_add_lock(&pb->spb_io.si_wait, &pb->spb_wait);
 
 	iv = &pb->spb_io.si_stob;
 	iv->iv_vec.v_nr = 1;
@@ -948,7 +948,7 @@ static void stobsink_release(struct m0_ref *ref)
 
 		m0_mutex_lock(&sink->ss_mutex);
 		stobsink_pool_tlink_del_fini(pb);
-		m0_clink_del(&pb->spb_wait);
+		m0_clink_del_lock(&pb->spb_wait);
 		m0_clink_fini(&pb->spb_wait);
 		m0_stob_io_fini(&pb->spb_io);
 		m0_bufvec_free_aligned(&pb->spb_buf, sink->ss_bshift);

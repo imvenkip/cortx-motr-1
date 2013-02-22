@@ -127,7 +127,7 @@
    } while(request_io_fop->io_buf_desc_list is not finished);
 
    m0_clink_init(&clink, NULL);
-   m0_clink_add(&rbulk->rb_chan, &clink);
+   m0_clink_add_lock(&rbulk->rb_chan, &clink);
    m0_rpc_bulk_buf_load(rbulk, conn, &request_io_fop->desc_list);
    ..
    m0_chan_wait(&clink);

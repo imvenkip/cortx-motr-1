@@ -478,12 +478,12 @@ void m0_net_test_network_ut_buf_desc(void)
 
 	/* remove bulk buffer from queue */
 	m0_clink_init(&tmwait, NULL);
-	m0_clink_add(&ctx.ntc_tm->ntm_chan, &tmwait);
+	m0_clink_add_lock(&ctx.ntc_tm->ntm_chan, &tmwait);
 	m0_net_test_network_buffer_dequeue(&ctx, M0_NET_TEST_BUF_BULK, 0);
 	m0_chan_wait(&tmwait);
 	m0_net_test_network_buffer_dequeue(&ctx, M0_NET_TEST_BUF_BULK, 1);
 	m0_chan_wait(&tmwait);
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	m0_clink_fini(&tmwait);
 
 	m0_net_test_network_ctx_fini(&ctx);

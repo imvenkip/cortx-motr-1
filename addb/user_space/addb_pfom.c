@@ -185,7 +185,7 @@ static void addb_pfom_fo_fini(struct m0_fom *fom)
 	 */
 	m0_mutex_lock(&rsvc->rs_mutex);
 	pfom->pf_running = false;
-	m0_cond_broadcast(&svc->as_cond, &rsvc->rs_mutex);
+	m0_cond_broadcast(&svc->as_cond);
 	the_addb_pfom_started = false;
 	M0_LOG(M0_DEBUG, "done");
 	m0_mutex_unlock(&rsvc->rs_mutex);
@@ -214,7 +214,7 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 		M0_LOG(M0_DEBUG, "init");
 		m0_mutex_lock(&rsvc->rs_mutex);
 		the_addb_pfom_started = true;
-		m0_cond_broadcast(&svc->as_cond, &rsvc->rs_mutex); /* for UT */
+		m0_cond_broadcast(&svc->as_cond); /* for UT */
 		m0_mutex_unlock(&rsvc->rs_mutex);
 		m0_fom_phase_set(fom, ADDB_PFOM_PHASE_CTO);
 		break;
@@ -368,7 +368,7 @@ static void addb_pfom_stop(struct addb_svc *svc)
 
 		M0_LOG(M0_DEBUG, "waiting for pfom to stop");
 		while (pfom->pf_running)
-			m0_cond_wait(&svc->as_cond, &rsvc->rs_mutex);
+			m0_cond_wait(&svc->as_cond);
 	}
 	m0_mutex_unlock(&rsvc->rs_mutex);
 }

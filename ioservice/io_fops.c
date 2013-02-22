@@ -344,6 +344,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    Ioservice subsystem primarily comprises of 2 sub-components
    - IO client (comprises of IO coalescing code)
    - IO server (server part of io routines)
+
    The IO client subsystem under which IO requests belonging to same fid
    and intent (read/write) are clubbed together in one fop and this resultant
    fop is sent instead of member io fops.

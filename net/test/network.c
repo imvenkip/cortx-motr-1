@@ -256,7 +256,7 @@ static void net_test_tm_stop(struct m0_net_transfer_mc *tm)
 	struct m0_clink	tmwait;
 
 	m0_clink_init(&tmwait, NULL);
-	m0_clink_add(&tm->ntm_chan, &tmwait);
+	m0_clink_add_lock(&tm->ntm_chan, &tmwait);
 
 	rc = m0_net_tm_stop(tm, true);
 	M0_ASSERT(rc == 0);
@@ -266,7 +266,7 @@ static void net_test_tm_stop(struct m0_net_transfer_mc *tm)
 	} while (tm->ntm_state != M0_NET_TM_STOPPED &&
 		 tm->ntm_state != M0_NET_TM_FAILED);
 
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	m0_clink_fini(&tmwait);
 }
 
@@ -334,10 +334,10 @@ int m0_net_test_network_ctx_init(struct m0_net_test_network_ctx *ctx,
 		goto free_tm;
 
 	m0_clink_init(&tmwait, NULL);
-	m0_clink_add(&ctx->ntc_tm->ntm_chan, &tmwait);
+	m0_clink_add_lock(&ctx->ntc_tm->ntm_chan, &tmwait);
 	rc = m0_net_tm_start(ctx->ntc_tm, tm_addr);
 	m0_chan_wait(&tmwait);
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	m0_clink_fini(&tmwait);
 	if (rc != 0)
 		goto fini_tm;

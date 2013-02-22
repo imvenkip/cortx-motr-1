@@ -435,8 +435,10 @@ static int cm_setup(struct m0_cm *cm)
 			m0_net_buffer_pool_fini(&scm->sc_ibp);
 	}
 
-	if (rc == 0)
-		m0_chan_init(&scm->sc_stop_wait);
+	if (rc == 0) {
+		m0_mutex_init(&scm->sc_stop_wait_mutex);
+		m0_chan_init(&scm->sc_stop_wait, &scm->sc_stop_wait_mutex);
+	}
 
 	M0_LEAVE();
 	return rc;
@@ -545,6 +547,9 @@ static void cm_fini(struct m0_cm *cm)
 	m0_net_buffer_pool_fini(&scm->sc_ibp);
 	m0_net_buffer_pool_fini(&scm->sc_obp);
 
+	m0_chan_fini_lock(&scm->sc_stop_wait);
+	m0_mutex_fini(&scm->sc_stop_wait_mutex);
+
 	M0_LEAVE();
 }
 
@@ -553,7 +558,7 @@ static void cm_complete(struct m0_cm *cm)
 	struct m0_sns_cm *scm;
 
 	scm = cm2sns(cm);
-	m0_chan_signal(&scm->sc_stop_wait);
+	m0_chan_signal_lock(&scm->sc_stop_wait);
 }
 
 /** Copy machine operations. */

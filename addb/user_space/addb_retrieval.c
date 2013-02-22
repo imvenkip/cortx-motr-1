@@ -271,7 +271,7 @@ static int stob_retrieval_segsize_get(struct m0_stob *stob)
 	m0_stob_io_init(&sri_io);
 	sri_io.si_opcode = SIO_READ;
 	m0_clink_init(&sri_wait, NULL);
-	m0_clink_add(&sri_io.si_wait, &sri_wait);
+	m0_clink_add_lock(&sri_io.si_wait, &sri_wait);
 
 	iv = &sri_io.si_stob;
 	iv->iv_vec.v_nr = 1;
@@ -311,7 +311,7 @@ static int stob_retrieval_segsize_get(struct m0_stob *stob)
 
 	m0_dtx_done(&sri_tx);
 fail_tx:
-	m0_clink_del(&sri_wait);
+	m0_clink_del_lock(&sri_wait);
 	m0_stob_io_fini(&sri_io);
 	m0_bufvec_free_aligned(&sri_buf, bshift);
 	M0_POST(rc != 0);
@@ -349,15 +349,15 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 		si->ssi_tio.si_obj = NULL;
 		si->ssi_tio.si_rc = 0;
 		si->ssi_tio.si_count = 0;
-		m0_clink_add(&si->ssi_tio.si_wait, &seg_wait);
+		m0_clink_add_lock(&si->ssi_tio.si_wait, &seg_wait);
 		rc = m0_stob_io_launch(&si->ssi_tio, stob, &tx, NULL);
 		if (rc < 0) {
-			m0_clink_del(&seg_wait);
+			m0_clink_del_lock(&seg_wait);
 			break;
 		}
 		while (si->ssi_tio.si_state != SIS_IDLE)
 			m0_chan_wait(&seg_wait);
-		m0_clink_del(&seg_wait);
+		m0_clink_del_lock(&seg_wait);
 		rc = si->ssi_tio.si_rc;
 		if (rc < 0)
 			break;
@@ -374,15 +374,15 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 		si->ssi_io.si_obj = NULL;
 		si->ssi_io.si_rc = 0;
 		si->ssi_io.si_count = 0;
-		m0_clink_add(&si->ssi_io.si_wait, &seg_wait);
+		m0_clink_add_lock(&si->ssi_io.si_wait, &seg_wait);
 		rc = m0_stob_io_launch(&si->ssi_io, stob, &tx, NULL);
 		if (rc < 0) {
-			m0_clink_del(&seg_wait);
+			m0_clink_del_lock(&seg_wait);
 			break;
 		}
 		while (si->ssi_io.si_state != SIS_IDLE)
 			m0_chan_wait(&seg_wait);
-		m0_clink_del(&seg_wait);
+		m0_clink_del_lock(&seg_wait);
 		rc = si->ssi_io.si_rc;
 		if (rc < 0)
 			break;

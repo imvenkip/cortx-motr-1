@@ -24,8 +24,9 @@
 #include "net/lnet/lnet.h"
 #include "rpc/rpc.h"
 #include "ut/rpc.h"
-#include "rm/rm.h"
 #include "reqh/reqh.h"
+#include "fop/ut/fop_put_norpc.h"
+#include "rm/rm.h"
 #include "rm/rm_fops.h"
 #include "rm/ut/rmut.h"
 #include "rm/ut/rings.h"
@@ -166,6 +167,8 @@ static void fom_fini(struct m0_fom *fom, enum m0_rm_incoming_type fomtype)
 	struct m0_fop *fop = fom->fo_fop;
 
 	fom_phase_set(fom, M0_FOPH_FINISH);
+
+	fom_fop_put_norpc(fom);
 
 	switch (fomtype) {
 	case M0_RIT_BORROW:

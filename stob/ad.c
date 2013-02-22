@@ -538,7 +538,7 @@ M0_INTERNAL int ad_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io)
 		aio->ai_fore = io;
 		m0_stob_io_init(&aio->ai_back);
 		m0_clink_init(&aio->ai_clink, &ad_endio);
-		m0_clink_add(&aio->ai_back.si_wait, &aio->ai_clink);
+		m0_clink_add_lock(&aio->ai_back.si_wait, &aio->ai_clink);
 		result = 0;
 	} else {
 		M0_STOB_OOM(AD_IO_INIT);
@@ -583,7 +583,7 @@ static void ad_stob_io_fini(struct m0_stob_io *io)
 	struct ad_stob_io *aio = io->si_stob_private;
 
 	ad_stob_io_release(aio);
-	m0_clink_del(&aio->ai_clink);
+	m0_clink_del_lock(&aio->ai_clink);
 	m0_clink_fini(&aio->ai_clink);
 	m0_stob_io_fini(&aio->ai_back);
 	m0_free(aio);
@@ -1268,7 +1268,7 @@ static bool ad_endio(struct m0_clink *link)
 	io->si_count += aio->ai_back.si_count;
 	io->si_state  = SIS_IDLE;
 	ad_stob_io_release(aio);
-	m0_chan_broadcast(&io->si_wait);
+	m0_chan_broadcast_lock(&io->si_wait);
 	return true;
 }
 

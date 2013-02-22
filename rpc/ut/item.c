@@ -166,7 +166,9 @@ static void __test_timeout(m0_time_t deadline,
 	m0_rpc_machine_get_stats(machine, &stats, true);
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_timedout_items) &&
 		     IS_INCR_BY_1(nr_failed_items));
+	m0_rpc_machine_lock(item->ri_rmachine);
 	m0_fop_put(fop);
+	m0_rpc_machine_unlock(item->ri_rmachine);
 }
 
 static bool only_second_time(void *data)
@@ -302,7 +304,9 @@ static void __test_timer_start_failure(void)
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
 	/* sleep until request reaches at server and is dropped */
 	m0_nanosleep(m0_time(0, 5 * 1000 * 1000), NULL);
+	m0_rpc_machine_lock(item->ri_rmachine);
 	m0_fop_put(fop);
+	m0_rpc_machine_unlock(item->ri_rmachine);
 }
 
 static void test_failure_before_sending(void)
@@ -409,7 +413,9 @@ static void test_oneway_item(void)
 	ok = m0_semaphore_timeddown(&arrow_destroyed, m0_time_from_now(5, 0));
 	M0_UT_ASSERT(ok);
 
+	m0_rpc_machine_lock(item->ri_rmachine);
 	m0_fop_put(fop);
+	m0_rpc_machine_unlock(item->ri_rmachine);
 }
 
 /*

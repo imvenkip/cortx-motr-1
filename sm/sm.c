@@ -50,17 +50,17 @@ M0_INTERNAL void m0_sm_group_init(struct m0_sm_group *grp)
 	m0_mutex_init(&grp->s_lock);
 	/* add grp->s_clink to otherwise unused grp->s_chan, because m0_chan
 	   code assumes that a clink is always associated with a channel. */
-	m0_chan_init(&grp->s_chan);
+	m0_chan_init(&grp->s_chan, &grp->s_lock);
 	m0_clink_init(&grp->s_clink, NULL);
-	m0_clink_add(&grp->s_chan, &grp->s_clink);
+	m0_clink_add_lock(&grp->s_chan, &grp->s_clink);
 }
 
 M0_INTERNAL void m0_sm_group_fini(struct m0_sm_group *grp)
 {
 	if (m0_clink_is_armed(&grp->s_clink))
-		m0_clink_del(&grp->s_clink);
+		m0_clink_del_lock(&grp->s_clink);
 	m0_clink_fini(&grp->s_clink);
-	m0_chan_fini(&grp->s_chan);
+	m0_chan_fini_lock(&grp->s_chan);
 	m0_mutex_fini(&grp->s_lock);
 }
 
@@ -243,7 +243,7 @@ M0_INTERNAL void m0_sm_init(struct m0_sm *mach, const struct m0_sm_conf *conf,
 	mach->sm_grp   = grp;
 	mach->sm_addb  = ctx;
 	mach->sm_rc    = 0;
-	m0_chan_init(&mach->sm_chan);
+	m0_chan_init(&mach->sm_chan, &grp->s_lock);
 	M0_POST(sm_invariant0(mach));
 }
 

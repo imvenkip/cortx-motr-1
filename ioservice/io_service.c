@@ -287,7 +287,7 @@ static int ios_create_buffer_pool(struct m0_reqh_service *service)
 		 * Initialise channel for sending availability of buffers
 		 * with buffer pool to I/O FOMs.
 		 */
-		m0_chan_init(&newbp->rios_bp_wait);
+		m0_chan_init(&newbp->rios_bp_wait, &newbp->rios_bp.nbp_mutex);
 
 		/* Pre-allocate network buffers */
 		m0_net_buffer_pool_lock(&newbp->rios_bp);
@@ -296,7 +296,7 @@ static int ios_create_buffer_pool(struct m0_reqh_service *service)
 		m0_net_buffer_pool_unlock(&newbp->rios_bp);
 		if (nbuffs < M0_NET_BUFFER_POOL_SIZE) {
 			rc = -ENOMEM;
-			m0_chan_fini(&newbp->rios_bp_wait);
+			m0_chan_fini_lock(&newbp->rios_bp_wait);
 			m0_net_buffer_pool_fini(&newbp->rios_bp);
 			m0_free(newbp);
 			break;
@@ -333,7 +333,7 @@ static void ios_delete_buffer_pool(struct m0_reqh_service *service)
 
 		M0_ASSERT(bp != NULL);
 
-		m0_chan_fini(&bp->rios_bp_wait);
+		m0_chan_fini_lock(&bp->rios_bp_wait);
 		bufferpools_tlink_del_fini(bp);
 		m0_net_buffer_pool_fini(&bp->rios_bp);
 		m0_free(bp);

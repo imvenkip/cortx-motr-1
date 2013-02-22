@@ -85,10 +85,10 @@ static void mem_wf_state_change(struct m0_net_transfer_mc *tm,
 		ev.nte_next_state = M0_NET_TM_STOPPED;
 
 		/* broadcast on cond and wait for work item queue to empty */
-		m0_cond_broadcast(&tp->xtm_work_list_cv, &tm->ntm_mutex);
+		m0_cond_broadcast(&tp->xtm_work_list_cv);
 		while (!m0_list_is_empty(&tp->xtm_work_list) ||
 		       tp->xtm_callback_counter > 1)
-			m0_cond_wait(&tp->xtm_work_list_cv, &tm->ntm_mutex);
+			m0_cond_wait(&tp->xtm_work_list_cv);
 
 		m0_mutex_unlock(&tm->ntm_mutex);
 		ev.nte_time = m0_time_now();
@@ -221,15 +221,13 @@ static void mem_xo_tm_worker(struct m0_net_transfer_mc *tm)
 			}
 			tp->xtm_callback_counter--;
 			/* signal that wi was removed from queue */
-			m0_cond_signal(&tp->xtm_work_list_cv, &tm->ntm_mutex);
+			m0_cond_signal(&tp->xtm_work_list_cv);
 		}
 		if (tp->xtm_state == M0_NET_XTM_STOPPED)
 			break;
 		do {
 			timeout = m0_time_from_now(MEM_XO_TIMEOUT_SECS, 0);
-			rc = m0_cond_timedwait(&tp->xtm_work_list_cv,
-					       &tm->ntm_mutex,
-					       timeout);
+			rc = m0_cond_timedwait(&tp->xtm_work_list_cv, timeout);
 		} while (!rc);
 	}
 

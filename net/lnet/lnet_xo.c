@@ -409,7 +409,7 @@ static int nlx_xo_tm_init(struct m0_net_transfer_mc *tm)
 	tm->ntm_xprt_private = tp;
 
 	/* defer init of processors, thread and xtm_core to TM confine/start */
-	m0_cond_init(&tp->xtm_ev_cond);
+	m0_cond_init(&tp->xtm_ev_cond, &tm->ntm_mutex);
 	m0_time_set(&tp->xtm_stat_interval,
 		    M0_NET_LNET_TM_STAT_INTERVAL_SECS, 0);
 
@@ -477,7 +477,7 @@ static int nlx_xo_tm_stop(struct m0_net_transfer_mc *tm, bool cancel)
 				tm->ntm_qstats[qt].nqs_num_dels++;
 			} m0_tl_endfor;
 
-	m0_cond_signal(&tp->xtm_ev_cond, &tm->ntm_mutex);
+	m0_cond_signal(&tp->xtm_ev_cond);
 	return 0;
 }
 
@@ -620,7 +620,7 @@ static void nlx_xo_bev_notify(struct m0_net_transfer_mc *tm,
 
 	/* set the notification channel and awaken nlx_tm_ev_worker() */
 	tp->xtm_ev_chan = chan;
-	m0_cond_signal(&tp->xtm_ev_cond, &tm->ntm_mutex);
+	m0_cond_signal(&tp->xtm_ev_cond);
 
 	return;
 }

@@ -621,9 +621,9 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm)
 	      (char *)cm->cm_type->ct_stype.rst_name,
 	      cm->cm_id, cm->cm_mach.sm_state);
 	m0_cm_state_set(cm, M0_CMS_FINI);
+	m0_sm_fini(&cm->cm_mach);
 	m0_cm_unlock(cm);
 
-	m0_sm_fini(&cm->cm_mach);
 	m0_sm_group_fini(&cm->cm_sm_group);
 
 	M0_LEAVE();

@@ -384,7 +384,7 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 	/* Start the transfer machine so that users of this rpc_machine
 	   can send/receive messages. */
 	m0_clink_init(&tmwait, NULL);
-	m0_clink_add(&tm->ntm_chan, &tmwait);
+	m0_clink_add_lock(&tm->ntm_chan, &tmwait);
 
 	rc = m0_net_tm_start(tm, ep_addr);
 	if (rc == 0) {
@@ -392,7 +392,7 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 		       tm->ntm_state != M0_NET_TM_FAILED)
 			m0_chan_wait(&tmwait);
 	}
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	m0_clink_fini(&tmwait);
 
 	if (tm->ntm_state == M0_NET_TM_FAILED) {
@@ -416,12 +416,12 @@ static void rpc_tm_cleanup(struct m0_rpc_machine *machine)
 	M0_PRE(machine != NULL);
 
 	m0_clink_init(&tmwait, NULL);
-	m0_clink_add(&tm->ntm_chan, &tmwait);
+	m0_clink_add_lock(&tm->ntm_chan, &tmwait);
 
 	rc = m0_net_tm_stop(tm, true);
 
 	if (rc < 0) {
-		m0_clink_del(&tmwait);
+		m0_clink_del_lock(&tmwait);
 		m0_clink_fini(&tmwait);
 		RPCMC_ADDB_FUNCFAIL(rc, machine->rm_reqh != NULL ?
 				    &machine->rm_reqh->rh_addb_mc :
@@ -437,7 +437,7 @@ static void rpc_tm_cleanup(struct m0_rpc_machine *machine)
 	while (tm->ntm_state != M0_NET_TM_STOPPED &&
 	       tm->ntm_state != M0_NET_TM_FAILED)
 		m0_chan_wait(&tmwait);
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	m0_clink_fini(&tmwait);
 
 	/* Fini the transfer machine here and deallocate the chan. */
@@ -783,7 +783,9 @@ static void packet_received(struct m0_rpc_packet    *p,
 		m0_rpc_item_get(item);
 		m0_rpc_packet_remove_item(p, item);
 		item_received(item, from_ep);
+		m0_rpc_machine_lock(machine); /* protect ri_sm fini() */
 		m0_rpc_item_put(item);
+		m0_rpc_machine_unlock(machine);
 	} end_for_each_item_in_packet;
 
 	M0_LEAVE();

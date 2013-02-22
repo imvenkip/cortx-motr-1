@@ -175,7 +175,7 @@ static void test_write(int i)
 	io.si_stob.iv_index = stob_vec;
 
 	m0_clink_init(&clink, NULL);
-	m0_clink_add(&io.si_wait, &clink);
+	m0_clink_add_lock(&io.si_wait, &clink);
 
 	result = m0_stob_io_launch(&io, obj, NULL, NULL);
 	M0_ASSERT(result == 0);
@@ -185,7 +185,7 @@ static void test_write(int i)
 	M0_ASSERT(io.si_rc == 0);
 	M0_ASSERT(io.si_count == (buf_size * i) >> block_shift);
 
-	m0_clink_del(&clink);
+	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 
 	m0_stob_io_fini(&io);
@@ -207,7 +207,7 @@ static void test_read(int i)
 	io.si_stob.iv_index = stob_vec;
 
 	m0_clink_init(&clink, NULL);
-	m0_clink_add(&io.si_wait, &clink);
+	m0_clink_add_lock(&io.si_wait, &clink);
 
 	result = m0_stob_io_launch(&io, obj, NULL, NULL);
 	M0_ASSERT(result == 0);
@@ -217,7 +217,7 @@ static void test_read(int i)
 	M0_ASSERT(io.si_rc == 0);
 	M0_ASSERT(io.si_count == (buf_size * i) >> block_shift);
 
-	m0_clink_del(&clink);
+	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 
 	m0_stob_io_fini(&io);

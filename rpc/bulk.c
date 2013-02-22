@@ -172,10 +172,11 @@ static void rpc_bulk_buf_cb(const struct m0_net_buffer_event *evt)
 	rpc_bulk_buf_deregister(buf);
 
 	rpc_bulk_buf_fini(buf);
-	m0_mutex_unlock(&rbulk->rb_mutex);
 	if (m0_chan_has_waiters(&rbulk->rb_chan) &&
 	    rpcbulk_tlist_is_empty(&rbulk->rb_buflist))
 		m0_chan_signal(&rbulk->rb_chan);
+	m0_mutex_unlock(&rbulk->rb_mutex);
+
 	M0_LEAVE();
 }
 
@@ -212,8 +213,8 @@ M0_INTERNAL void m0_rpc_bulk_init(struct m0_rpc_bulk *rbulk)
 	M0_PRE(rbulk != NULL);
 
 	rpcbulk_tlist_init(&rbulk->rb_buflist);
-	m0_chan_init(&rbulk->rb_chan);
 	m0_mutex_init(&rbulk->rb_mutex);
+	m0_chan_init(&rbulk->rb_chan, &rbulk->rb_mutex);
 	rbulk->rb_magic = M0_RPC_BULK_MAGIC;
 	rbulk->rb_bytes = 0;
 	rbulk->rb_rc = 0;
@@ -230,7 +231,7 @@ M0_INTERNAL void m0_rpc_bulk_fini(struct m0_rpc_bulk *rbulk)
 	m0_mutex_unlock(&rbulk->rb_mutex);
 	M0_PRE(rpcbulk_tlist_is_empty(&rbulk->rb_buflist));
 
-	m0_chan_fini(&rbulk->rb_chan);
+	m0_chan_fini_lock(&rbulk->rb_chan);
 	m0_mutex_fini(&rbulk->rb_mutex);
 	rpcbulk_tlist_fini(&rbulk->rb_buflist);
 	M0_LEAVE();

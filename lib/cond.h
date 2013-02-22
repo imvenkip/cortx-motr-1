@@ -52,7 +52,7 @@ struct m0_mutex;
            // add the buffer to the free list
            buf_tlist_add(&buffer_pool_free, buf);
            // and signal the condition variable
-           m0_cond_signal(&buffer_pool_hasfree, &buffer_pool_lock);
+           m0_cond_signal(&buffer_pool_hasfree);
            m0_mutex_unlock(&buffer_pool_lock);
    }
    @endcode
@@ -66,7 +66,7 @@ struct m0_mutex;
 
            m0_mutex_lock(&buffer_pool_lock);
            while (buf_tlist_is_empty(&buffer_pool_free))
-                   m0_cond_wait(&buffer_pool_hasfree, &buffer_pool_lock);
+                   m0_cond_wait(&buffer_pool_hasfree);
            buf = buf_tlist_head(&buffer_pool_free);
            buf_tlist_del(buf);
            m0_mutex_unlock(&buffer_pool_lock);
@@ -98,7 +98,7 @@ struct m0_cond {
 	struct m0_chan c_chan;
 };
 
-M0_INTERNAL void m0_cond_init(struct m0_cond *cond);
+M0_INTERNAL void m0_cond_init(struct m0_cond *cond, struct m0_mutex *mutex);
 M0_INTERNAL void m0_cond_fini(struct m0_cond *cond);
 
 /**
@@ -108,7 +108,7 @@ M0_INTERNAL void m0_cond_fini(struct m0_cond *cond);
    @pre  m0_mutex_is_locked(mutex)
    @post m0_mutex_is_locked(mutex)
  */
-M0_INTERNAL void m0_cond_wait(struct m0_cond *cond, struct m0_mutex *mutex);
+M0_INTERNAL void m0_cond_wait(struct m0_cond *cond);
 
 /**
    This is the same as m0_cond_wait, except that it has a timeout value. If the
@@ -124,7 +124,7 @@ M0_INTERNAL void m0_cond_wait(struct m0_cond *cond, struct m0_mutex *mutex);
    @return false if condition variable is not signaled but timeout expires.
 	   errno is ETIMEDOUT;
  */
-M0_INTERNAL bool m0_cond_timedwait(struct m0_cond *cond, struct m0_mutex *mutex,
+M0_INTERNAL bool m0_cond_timedwait(struct m0_cond *cond,
 				   const m0_time_t abs_timeout);
 
 /**
@@ -132,15 +132,14 @@ M0_INTERNAL bool m0_cond_timedwait(struct m0_cond *cond, struct m0_mutex *mutex,
 
    @pre m0_mutex_is_locked(mutex)
  */
-M0_INTERNAL void m0_cond_signal(struct m0_cond *cond, struct m0_mutex *mutex);
+M0_INTERNAL void m0_cond_signal(struct m0_cond *cond);
 
 /**
    Wakes up all threads waiting on the condition variable.
 
    @pre m0_mutex_is_locked(mutex)
  */
-M0_INTERNAL void m0_cond_broadcast(struct m0_cond *cond,
-				   struct m0_mutex *mutex);
+M0_INTERNAL void m0_cond_broadcast(struct m0_cond *cond);
 
 /** @} end of cond group */
 

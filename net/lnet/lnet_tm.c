@@ -204,8 +204,7 @@ static void nlx_tm_ev_worker(struct m0_net_transfer_mc *tm)
 		} else {		/* application initiated delivery */
 			m0_mutex_lock(&tm->ntm_mutex);
 			if (tp->xtm_ev_chan == NULL)
-				m0_cond_timedwait(&tp->xtm_ev_cond,
-						  &tm->ntm_mutex, timeout);
+				m0_cond_timedwait(&tp->xtm_ev_cond, timeout);
 			if (tp->xtm_ev_chan != NULL) {
 				m0_mutex_unlock(&tm->ntm_mutex);
 				rc = nlx_core_buf_event_wait(cd, ctp, timeout);

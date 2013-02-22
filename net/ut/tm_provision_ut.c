@@ -117,21 +117,21 @@ static int ut_tm_prov_stop(struct m0_net_transfer_mc *tm, bool cancel)
 	ql = &tm->ntm_q[M0_NET_QT_MSG_RECV];
 
 	M0_UT_ASSERT(m0_mutex_is_locked(&tm->ntm_mutex));
-	m0_mutex_unlock(&tm->ntm_mutex);
 	m0_tl_for(m0_net_tm, ql, nb) {
 		ut_buf_del_called = false;
 		m0_clink_add(&tm->ntm_chan, &tmwait);
+		m0_mutex_unlock(&tm->ntm_mutex);
 		m0_net_buffer_del(nb, tm);
 		M0_UT_ASSERT(ut_buf_del_called);
 		/* wait on channel for post (and consume UT thread) */
 		m0_chan_wait(&tmwait);
+		m0_mutex_lock(&tm->ntm_mutex);
 		m0_clink_del(&tmwait);
 		rc = m0_thread_join(&ut_del_thread);
 		M0_UT_ASSERT(rc == 0);
 	} m0_tl_endfor;
 
 	ut_tm_prov_stop_called = true;
-	m0_mutex_lock(&tm->ntm_mutex);
 	rc = ut_tm_stop(tm, false);
 	m0_clink_fini(&tmwait);
 	return rc;
@@ -158,12 +158,12 @@ struct m0_net_buffer * pool_colour_buffer_add(struct m0_net_transfer_mc *tm)
 		&pool_prov->nbp_colours[tm->ntm_pool_colour]) == 0);
 	nb = m0_net_tm_tlist_head(&tm->ntm_q[M0_NET_QT_MSG_RECV]);
 	m0_clink_init(&tmwait, NULL);
-	m0_clink_add(&tm->ntm_chan, &tmwait);
+	m0_clink_add_lock(&tm->ntm_chan, &tmwait);
 	m0_net_buffer_del(nb, tm);
 	M0_UT_ASSERT(ut_buf_del_called);
 	/* wait on channel for post (and consume UT thread) */
 	m0_chan_wait(&tmwait);
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	rc = m0_thread_join(&ut_del_thread);
 	M0_UT_ASSERT(rc == 0);
 	/* A buffer with colour of TM is put back into the pool. */
@@ -192,11 +192,11 @@ void ut_tm_stop_fini(struct m0_net_transfer_mc *tm)
 	struct m0_clink tmwait;
 	int		rc;
 	m0_clink_init(&tmwait, NULL);
-	m0_clink_add(&tm->ntm_chan, &tmwait);
+	m0_clink_add_lock(&tm->ntm_chan, &tmwait);
 	rc = m0_net_tm_stop(tm, false);
 	M0_UT_ASSERT(rc == 0);
 	m0_chan_wait(&tmwait);
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	m0_thread_join(&ut_tm_thread); /* cleanup thread */
 	m0_thread_fini(&ut_tm_thread);
 	m0_net_tm_fini(tm);
@@ -291,7 +291,7 @@ static void test_net_tm_prov(void)
 
 	/* TM start */
 	m0_clink_init(&tmwait, NULL);
-	m0_clink_add(&tm1->ntm_chan, &tmwait);
+	m0_clink_add_lock(&tm1->ntm_chan, &tmwait);
 	ut_end_point_create_called = false;
 	M0_UT_ASSERT(m0_net_tm_tlist_length(&tm1->ntm_q[M0_NET_QT_MSG_RECV]) ==
 		     0);
@@ -303,7 +303,7 @@ static void test_net_tm_prov(void)
 
 	/* wait on channel until TM state changed to started */
 	m0_chan_wait(&tmwait);
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	M0_UT_ASSERT(ut_tm_prov_event_cb_calls == 1);
 	M0_UT_ASSERT(tm1->ntm_state == M0_NET_TM_STARTED);
 	M0_UT_ASSERT(ut_end_point_create_called);
@@ -371,7 +371,7 @@ static void test_net_tm_prov(void)
 
 	/* TM1 start */
 	m0_clink_init(&tmwait, NULL);
-	m0_clink_add(&tm2->ntm_chan, &tmwait);
+	m0_clink_add_lock(&tm2->ntm_chan, &tmwait);
 	ut_end_point_create_called = false;
 	M0_UT_ASSERT(m0_net_tm_tlist_length(&tm2->ntm_q[M0_NET_QT_MSG_RECV]) ==
 		     0);
@@ -383,7 +383,7 @@ static void test_net_tm_prov(void)
 
 	/* wait on channel until TM state changed to started */
 	m0_chan_wait(&tmwait);
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	M0_UT_ASSERT(ut_tm_prov_event_cb_calls == 2);
 	M0_UT_ASSERT(tm2->ntm_state == M0_NET_TM_STARTED);
 	M0_UT_ASSERT(ut_end_point_create_called);

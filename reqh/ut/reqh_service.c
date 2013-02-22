@@ -23,6 +23,7 @@
 
 #include "fop/fop.h"
 #include "fop/fom_generic.h"
+#include "fop/ut/fop_put_norpc.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "reqh/ut/reqh_service.h"
@@ -101,6 +102,13 @@ static void reqhut_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 
 static void reqhut_fom_fini(struct m0_fom *fom)
 {
+	/*
+	 * m0_fom_fini() requires rpc machine for m0_fop_put(),
+	 * which we don't have here, so put the fop explicitly.
+	 */
+	m0_fop_put(fom->fo_fop);
+	fom->fo_fop = NULL;
+
 	m0_fom_fini(fom);
 	m0_free(fom);
 }

@@ -595,7 +595,7 @@ static void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 	svc_ctx_tlist_init(&csb->csb_service_contexts);
 	m0_sm_group_init(&csb->csb_iogroup);
 	csb->csb_active = true;
-	m0_chan_init(&csb->csb_iowait);
+	m0_chan_init(&csb->csb_iowait, &csb->csb_iogroup.s_lock);
 	m0_atomic64_set(&csb->csb_pending_io_nr, 0);
 
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &csb->csb_addb_ctx,
@@ -610,7 +610,7 @@ static void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
 
 	m0_addb_ctx_fini(&csb->csb_addb_ctx);
 
-	m0_chan_fini(&csb->csb_iowait);
+	m0_chan_fini_lock(&csb->csb_iowait);
 	m0_sm_group_fini(&csb->csb_iogroup);
 	svc_ctx_tlist_fini(&csb->csb_service_contexts);
 	m0_mutex_fini(&csb->csb_mutex);
@@ -968,7 +968,7 @@ static void ast_thread(struct m0t1fs_sb *csb)
 		m0_sm_group_unlock(&csb->csb_iogroup);
 		if (!csb->csb_active &&
 		    m0_atomic64_get(&csb->csb_pending_io_nr) == 0) {
-			m0_chan_signal(&csb->csb_iowait);
+			m0_chan_signal_lock(&csb->csb_iowait);
 			return;
 		}
 	}
@@ -979,14 +979,14 @@ static void ast_thread_stop(struct m0t1fs_sb *csb)
 	struct m0_clink w;
 
 	m0_clink_init(&w, NULL);
-	m0_clink_add(&csb->csb_iowait, &w);
+	m0_clink_add_lock(&csb->csb_iowait, &w);
 
 	csb->csb_active = false;
-	m0_chan_signal(&csb->csb_iogroup.s_chan);
+	m0_chan_signal_lock(&csb->csb_iogroup.s_chan);
 	m0_chan_wait(&w);
 	m0_thread_join(&csb->csb_astthread);
 
-	m0_clink_del(&w);
+	m0_clink_del_lock(&w);
 	m0_clink_fini(&w);
 }
 

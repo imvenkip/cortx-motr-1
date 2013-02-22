@@ -130,7 +130,7 @@ static void mem_wi_add(struct m0_net_bulk_mem_work_item *wi,
 		       struct m0_net_bulk_mem_tm_pvt *tp)
 {
 	m0_list_add_tail(&tp->xtm_work_list, &wi->xwi_link);
-	m0_cond_signal(&tp->xtm_work_list_cv, &tp->xtm_tm->ntm_mutex);
+	m0_cond_signal(&tp->xtm_work_list_cv);
 }
 
 /**
@@ -535,7 +535,7 @@ static int mem_xo_tm_init(struct m0_net_transfer_mc *tm)
 	tp->xtm_tm = tm;
 	tp->xtm_state = M0_NET_XTM_INITIALIZED;
 	m0_list_init(&tp->xtm_work_list);
-	m0_cond_init(&tp->xtm_work_list_cv);
+	m0_cond_init(&tp->xtm_work_list_cv, &tm->ntm_mutex);
 	M0_POST(mem_tm_invariant(tm));
 	return 0;
 }
@@ -559,7 +559,7 @@ static void mem_xo_tm_fini(struct m0_net_transfer_mc *tm)
 	dp = mem_dom_to_pvt(tm->ntm_dom);
 	m0_mutex_lock(&tm->ntm_mutex);
 	tp->xtm_state = M0_NET_XTM_STOPPED; /* to stop the workers */
-	m0_cond_broadcast(&tp->xtm_work_list_cv, &tm->ntm_mutex);
+	m0_cond_broadcast(&tp->xtm_work_list_cv);
 	m0_mutex_unlock(&tm->ntm_mutex);
 	if (tp->xtm_worker_threads != NULL) {
 		int i;

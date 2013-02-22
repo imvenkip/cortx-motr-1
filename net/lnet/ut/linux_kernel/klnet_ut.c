@@ -56,7 +56,7 @@ static int read_lnet_ut(char *page, char **start, off_t off,
 	if (*page == UT_TEST_DONE) {
 		ktest_done = true;
 		*eof = 1;
-		m0_cond_signal(&ktest_cond, &ktest_mutex);
+		m0_cond_signal(&ktest_cond);
 	}
 	m0_mutex_unlock(&ktest_mutex);
 	return 1;
@@ -107,7 +107,7 @@ static int write_lnet_ut(struct file *file, const char __user *buffer,
 		printk("%s: unknown user test state: %02x\n", __func__, *buf);
 		count = -EINVAL;
 	}
-	m0_cond_signal(&ktest_cond, &ktest_mutex);
+	m0_cond_signal(&ktest_cond);
 	m0_mutex_unlock(&ktest_mutex);
 	return count;
 }
@@ -119,7 +119,7 @@ static int ktest_lnet_init(void)
 		return -ENOENT;
 
 	m0_mutex_init(&ktest_mutex);
-	m0_cond_init(&ktest_cond);
+	m0_cond_init(&ktest_cond, &ktest_mutex);
 	m0_semaphore_init(&ktest_sem, 0);
 	ktest_id = UT_TEST_NONE;
 	ktest_user_failed = false;
@@ -774,12 +774,12 @@ static void ktest_msg_body(struct ut_data *td)
 	addr.cepa_portal = 35; /* arbitrary */
 	offset = 0;
 	len = 1;
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_ack_event(kcb1); /* bad event */
 	ut_ktest_msg_put_event(kcb1, len, offset, 0, 0, &addr);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_MSG_RECV);
 	M0_UT_ASSERT(cb_status1 == 0);
@@ -798,11 +798,11 @@ static void ktest_msg_body(struct ut_data *td)
 	cb_save_ep1 = true;
 	offset += len;
 	len = 10; /* arbitrary */
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_msg_put_event(kcb1, len, offset, 0, 0, &addr);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_MSG_RECV);
 	M0_UT_ASSERT(cb_status1 == 0);
@@ -825,12 +825,12 @@ static void ktest_msg_body(struct ut_data *td)
 	addr.cepa_tmid -= 12;
 	offset += len;
 	len = 11;
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_ack_event(kcb1); /* bad event */
 	ut_ktest_msg_put_event(kcb1, len, offset, 0, 1, &addr);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_MSG_RECV);
 	M0_UT_ASSERT(cb_status1 == 0);
@@ -872,7 +872,7 @@ static void ktest_msg_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 	cb_save_ep1 = false;
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	ut_ktest_msg_buf_event_wait_delay_chan = &TM2->ntm_chan;/* unused */
 	m0_atomic64_set(&ut_ktest_msg_buf_event_wait_stall, 1);
 	while(m0_atomic64_get(&ut_ktest_msg_buf_event_wait_stall) == 1)
@@ -911,7 +911,7 @@ static void ktest_msg_body(struct ut_data *td)
 	while (cb_called1 < count) {
 		ut_chan_timedwait(&td->tmwait1,1);
 	}
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == count);
 
 	M0_UT_ASSERT(m0_list_length(&TM1->ntm_end_points) == 1);
@@ -948,10 +948,10 @@ static void ktest_msg_body(struct ut_data *td)
 	offset = 0;
 	len = 5;
 	M0_UT_ASSERT(bevs_left-- > 0);
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	ut_ktest_msg_put_event(kcb1, len, offset, 0, 0, &addr);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_MSG_RECV);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -973,7 +973,7 @@ static void ktest_msg_body(struct ut_data *td)
 	M0_UT_ASSERT(cb_called1 == 0);
 	cb_save_ep1 = true;
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 
 	addr.cepa_portal += 1;
 	offset += len;
@@ -990,7 +990,7 @@ static void ktest_msg_body(struct ut_data *td)
 	count++;
 
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1); /* just one callback! */
 	M0_UT_ASSERT(cb_status1 == -ENOMEM);
 	M0_UT_ASSERT(m0_atomic64_get(&ut_ktest_msg_ep_create_fail)
@@ -1045,11 +1045,11 @@ static void ktest_msg_body(struct ut_data *td)
 	ut_ktest_msg_LNetPut_ep = NULL;
 
 	/* deliver the completion event */
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	ut_ktest_ack_event(kcb1); /* bad event */
 	ut_ktest_msg_send_event(kcb1, UT_MSG_SIZE, 0);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_MSG_SEND);
@@ -1096,10 +1096,10 @@ static void ktest_msg_body(struct ut_data *td)
 	ut_ktest_msg_LNetPut_ep = NULL;
 
 	/* deliver the completion event */
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	ut_ktest_msg_send_event(kcb1, UT_MSG_SIZE, -1);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_MSG_SEND);
@@ -1383,11 +1383,11 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_bulk_put_event(kcb1, UT_BULK_SIZE - 1, 0);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_PASSIVE_BULK_RECV);
@@ -1426,12 +1426,12 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_ack_event(kcb1); /* bad event */
 	ut_ktest_bulk_unlink_event(kcb1);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_PASSIVE_BULK_RECV);
@@ -1471,11 +1471,11 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_bulk_get_event(kcb1, UT_BULK_SIZE, 0);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_PASSIVE_BULK_SEND);
@@ -1513,12 +1513,12 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_ack_event(kcb1); /* bad event */
 	ut_ktest_bulk_unlink_event(kcb1);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_PASSIVE_BULK_SEND);
@@ -1552,7 +1552,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	M0_UT_ASSERT(!kcb1->kb_ooo_reply);
 	ut_ktest_bulk_send_event(kcb1, UT_BULK_SIZE, 0, 0, 1);
@@ -1560,7 +1560,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_ktest_bulk_reply_event(kcb1, UT_BULK_SIZE, 0, 1, 0);
 	M0_UT_ASSERT(!kcb1->kb_ooo_reply);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_ACTIVE_BULK_RECV);
@@ -1590,7 +1590,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	M0_UT_ASSERT(!kcb1->kb_ooo_reply);
 	ut_ktest_bulk_reply_event(kcb1, UT_BULK_SIZE, 0, 0, 1);
@@ -1601,7 +1601,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_ktest_bulk_send_event(kcb1, 0, 0, 1, 0); /* size is wrong */
 	ut_ktest_ack_event(kcb1); /* bad event */
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_ACTIVE_BULK_RECV);
@@ -1638,12 +1638,12 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	M0_UT_ASSERT(!kcb1->kb_ooo_reply);
 	ut_ktest_bulk_send_event(kcb1, UT_BULK_SIZE, -EIO, 1, 1);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_ACTIVE_BULK_RECV);
@@ -1672,7 +1672,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	M0_UT_ASSERT(!kcb1->kb_ooo_reply);
 	ut_ktest_bulk_send_event(kcb1, UT_BULK_SIZE, 0, 0, 1);
@@ -1680,7 +1680,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_ktest_bulk_reply_event(kcb1, UT_BULK_SIZE, -EIO, 1, 0);
 	M0_UT_ASSERT(!kcb1->kb_ooo_reply);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_ACTIVE_BULK_RECV);
@@ -1710,7 +1710,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	M0_UT_ASSERT(!kcb1->kb_ooo_reply);
 	ut_ktest_bulk_reply_event(kcb1, UT_BULK_SIZE, -EIO, 0, 1);
@@ -1720,7 +1720,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	M0_UT_ASSERT(kcb1->kb_ooo_offset == 0);
 	ut_ktest_bulk_send_event(kcb1, UT_BULK_SIZE, 0, 1, 0);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_ACTIVE_BULK_RECV);
@@ -1755,13 +1755,13 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	M0_UT_ASSERT(!kcb1->kb_ooo_reply);
 	ut_ktest_ack_event(kcb1); /* bad event */
 	ut_ktest_bulk_send_event(kcb1, UT_BULK_SIZE, 0, 1, 1);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_ACTIVE_BULK_RECV);
@@ -1790,12 +1790,12 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	M0_UT_ASSERT(!kcb1->kb_ooo_reply);
 	ut_ktest_bulk_unlink_event(kcb1);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_ACTIVE_BULK_RECV);
@@ -1831,11 +1831,11 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_bulk_send_event(kcb1, UT_BULK_SIZE, 0, 1, 0);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_ACTIVE_BULK_SEND);
@@ -1866,12 +1866,12 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_ack_event(kcb1); /* bad event */
 	ut_ktest_bulk_send_event(kcb1, UT_BULK_SIZE, -EIO, 1, 0);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_ACTIVE_BULK_SEND);
@@ -1902,12 +1902,12 @@ static void ktest_bulk_body(struct ut_data *td)
 	ut_cbreset();
 	M0_UT_ASSERT(cb_called1 == 0);
 
-	m0_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	M0_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_ack_event(kcb1); /* bad event */
 	ut_ktest_bulk_unlink_event(kcb1);
 	m0_chan_wait(&td->tmwait1);
-	m0_clink_del(&td->tmwait1);
+	m0_clink_del_lock(&td->tmwait1);
 	M0_UT_ASSERT(cb_called1 == 1);
 	M0_UT_ASSERT(cb_nb1 == nb1);
 	M0_UT_ASSERT(cb_qt1 == M0_NET_QT_ACTIVE_BULK_SEND);
@@ -2071,7 +2071,7 @@ int ut_dev_close(struct inode *inode, struct file *file)
 	M0_UT_ASSERT(file->private_data == NULL);
 	m0_mutex_lock(&ktest_mutex);
 	ut_dev_closes++;
-	m0_cond_signal(&ktest_cond, &ktest_mutex);
+	m0_cond_signal(&ktest_cond);
 	m0_mutex_unlock(&ktest_mutex);
 	return rc;
 }
@@ -2086,7 +2086,7 @@ bool user_helper_wait(int id)
 	m0_mutex_lock(&ktest_mutex);
 	while ((ktest_id == id && !ktest_user_failed && ok) ||
 	       ut_dev_opens > ut_dev_closes)
-		ok = m0_cond_timedwait(&ktest_cond, &ktest_mutex, to);
+		ok = m0_cond_timedwait(&ktest_cond, to);
 	m0_mutex_unlock(&ktest_mutex);
 	M0_UT_ASSERT(ok);
 	M0_UT_ASSERT(!ktest_user_failed);
@@ -2112,7 +2112,7 @@ static void ktest_dev(void)
 	/* initial handshake with the user program */
 	m0_mutex_lock(&ktest_mutex);
 	if (ktest_id == UT_TEST_NONE)
-		ok = m0_cond_timedwait(&ktest_cond, &ktest_mutex, to);
+		ok = m0_cond_timedwait(&ktest_cond, to);
 	else
 		ok = true;
 	M0_UT_ASSERT(!ktest_user_failed);
@@ -2179,7 +2179,7 @@ static void ktest_dev(void)
 	to = m0_time_from_now(UT_SYNC_DELAY_SEC, 0);
 	m0_mutex_lock(&ktest_mutex);
 	while (!ktest_done && !ktest_user_failed && ok)
-		ok = m0_cond_timedwait(&ktest_cond, &ktest_mutex, to);
+		ok = m0_cond_timedwait(&ktest_cond, to);
 	m0_mutex_unlock(&ktest_mutex);
 	M0_UT_ASSERT(ok);
 	M0_UT_ASSERT(!ktest_user_failed);
@@ -2191,7 +2191,7 @@ restore_fops:
 	nlx_dev_file_ops.open    = nlx_dev_open;
 	m0_mutex_lock(&ktest_mutex);
 	while (ut_dev_opens > ut_dev_closes)
-		m0_cond_wait(&ktest_cond, &ktest_mutex);
+		m0_cond_wait(&ktest_cond);
 	m0_mutex_unlock(&ktest_mutex);
 	nlx_dev_file_ops.release = nlx_dev_close;
 }

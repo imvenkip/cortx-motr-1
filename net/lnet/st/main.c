@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
 	if (!client_only) {
 		/* start server in background thread */
 		m0_mutex_init(&sctx.pc_mutex);
-		m0_cond_init(&sctx.pc_cond);
+		m0_cond_init(&sctx.pc_cond, &sctx.pc_mutex);
 		if (!quiet)
 			sctx.pc_ops = &verbose_ops;
 		else

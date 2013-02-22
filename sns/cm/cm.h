@@ -121,6 +121,7 @@ struct m0_sns_cm {
 	 * groups are processed and struct m0_cm::cm_aggr_grps list is empty.
 	 */
 	struct m0_chan             sc_stop_wait;
+	struct m0_mutex            sc_stop_wait_mutex;
 };
 
 M0_INTERNAL int m0_sns_cm_type_register(void);

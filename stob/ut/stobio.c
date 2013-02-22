@@ -206,7 +206,7 @@ static void stobio_write(struct stobio_test *test)
 	stobio_write_prepare(test, &io);
 
 	m0_clink_init(&clink, NULL);
-	m0_clink_add(&io.si_wait, &clink);
+	m0_clink_add_lock(&io.si_wait, &clink);
 
 	result = m0_stob_io_launch(&io, test->st_obj, NULL, NULL);
 	M0_UT_ASSERT(result == 0);
@@ -216,7 +216,7 @@ static void stobio_write(struct stobio_test *test)
 	M0_UT_ASSERT(io.si_rc == 0);
 	M0_UT_ASSERT(io.si_count == test->st_rw_buf_size_in_blocks * RW_BUFF_NR);
 
-	m0_clink_del(&clink);
+	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 
 	m0_stob_io_fini(&io);
@@ -232,7 +232,7 @@ static void stobio_read(struct stobio_test *test)
 	stobio_read_prepare(test, &io);
 
 	m0_clink_init(&clink, NULL);
-	m0_clink_add(&io.si_wait, &clink);
+	m0_clink_add_lock(&io.si_wait, &clink);
 
 	result = m0_stob_io_launch(&io, test->st_obj, NULL, NULL);
 	M0_UT_ASSERT(result == 0);
@@ -242,7 +242,7 @@ static void stobio_read(struct stobio_test *test)
 	M0_UT_ASSERT(io.si_rc == 0);
 	M0_UT_ASSERT(io.si_count == test->st_rw_buf_size_in_blocks * RW_BUFF_NR);
 
-	m0_clink_del(&clink);
+	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 
 	m0_stob_io_fini(&io);

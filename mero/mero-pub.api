@@ -1,5 +1,4 @@
 m0_alloc
-m0_chan_has_waiters
 m0_cob_domain_fini
 m0_cob_domain_init
 m0_cs_fini

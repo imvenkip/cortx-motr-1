@@ -240,7 +240,10 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				scm->sc_op             = treq->op;
 				rc = m0_cm_start(cm);
 				M0_ASSERT(rc == 0);
-				m0_fom_wait_on(fom, &scm->sc_stop_wait, &fom->fo_cb);
+				m0_mutex_lock(&scm->sc_stop_wait_mutex);
+				m0_fom_wait_on(fom, &scm->sc_stop_wait,
+					       &fom->fo_cb);
+				m0_mutex_unlock(&scm->sc_stop_wait_mutex);
 				m0_fom_phase_set(fom, TPH_WAIT);
 				rc = M0_FSO_WAIT;
 				break;

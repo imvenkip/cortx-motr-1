@@ -167,7 +167,7 @@ enum m0_rpc_item_dir {
 /**
    A single RPC item, such as a FOP or ADDB Record.  This structure should be
    included in every item being sent via RPC layer core to emulate relationship
-   similar to inheritance and to allow extening the set of rpc_items without
+   similar to inheritance and to allow extending the set of rpc_items without
    modifying core rpc headers.
    @see m0_fop.
  */

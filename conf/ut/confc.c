@@ -66,12 +66,12 @@ static void waiter_init(struct waiter *w, struct m0_confc *confc)
 {
 	m0_confc_ctx_init(&w->w_ctx, confc);
 	m0_clink_init(&w->w_clink, _filter);
-	m0_clink_add(&w->w_ctx.fc_mach.sm_chan, &w->w_clink);
+	m0_clink_add_lock(&w->w_ctx.fc_mach.sm_chan, &w->w_clink);
 }
 
 static void waiter_fini(struct waiter *w)
 {
-	m0_clink_del(&w->w_clink);
+	m0_clink_del_lock(&w->w_clink);
 	m0_clink_fini(&w->w_clink);
 	m0_confc_ctx_fini(&w->w_ctx);
 }

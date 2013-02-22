@@ -102,7 +102,7 @@ static int file_io_ut_init(void)
         csb.csb_active = true;
 	csb.csb_nr_containers = LAY_P + 1;
 	csb.csb_pool_width = LAY_P;
-        m0_chan_init(&csb.csb_iowait);
+        m0_chan_init(&csb.csb_iowait, &csb.csb_iogroup.s_lock);
         m0_atomic64_set(&csb.csb_pending_io_nr, 0);
         io_bob_tlists_init();
 
@@ -665,7 +665,7 @@ static int file_io_ut_fini(void)
 
 	m0_addb_ctx_fini(&m0t1fs_addb_ctx);
 	m0_sm_group_fini(&csb.csb_iogroup);
-	m0_chan_fini(&csb.csb_iowait);
+	m0_chan_fini_lock(&csb.csb_iowait);
 
 	/* Finalizes the m0_pdclust_layout type. */
 	m0_layout_put(&pdlay->pl_base.sl_base);

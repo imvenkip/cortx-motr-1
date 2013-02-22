@@ -89,6 +89,7 @@ struct rm_context {
 	struct m0_thread	  rc_thr;
 	struct m0_chan		  rc_chan;
 	struct m0_clink		  rc_clink;
+	struct m0_mutex		  rc_mutex;
 	struct m0_rpc_machine	  rc_rpc;
 	struct m0_dbenv		  rc_dbenv;
 	struct m0_fol		  rc_fol;
@@ -109,6 +110,7 @@ struct rm_context {
 
 static struct m0_chan rr_tests_chan;
 static struct m0_clink tests_clink[TEST_NR];
+static struct m0_mutex rr_tests_chan_mutex;
 
 struct rm_context rm_ctx[SERVER_NR];
 
@@ -127,7 +129,7 @@ static void buf_empty(struct m0_net_buffer_pool *bp)
 static void server1_in_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	M0_UT_ASSERT(in != NULL);
-	m0_chan_broadcast(&rm_ctx[SERVER_1].rc_chan);
+	m0_chan_broadcast_lock(&rm_ctx[SERVER_1].rc_chan);
 }
 
 static void server1_in_conflict(struct m0_rm_incoming *in)
@@ -142,7 +144,7 @@ const struct m0_rm_incoming_ops server1_incoming_ops = {
 static void server2_in_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	M0_UT_ASSERT(in != NULL);
-	m0_chan_broadcast(&rm_ctx[SERVER_2].rc_chan);
+	m0_chan_broadcast_lock(&rm_ctx[SERVER_2].rc_chan);
 }
 
 static void server2_in_conflict(struct m0_rm_incoming *in)
@@ -157,7 +159,7 @@ const struct m0_rm_incoming_ops server2_incoming_ops = {
 static void server3_in_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	M0_UT_ASSERT(in != NULL);
-	m0_chan_broadcast(&rm_ctx[SERVER_3].rc_chan);
+	m0_chan_broadcast_lock(&rm_ctx[SERVER_3].rc_chan);
 }
 
 static void server3_in_conflict(struct m0_rm_incoming *in)
@@ -226,14 +228,16 @@ static void rm_ctx_init(struct rm_context *rmctx)
 				 M0_RPC_DEF_MAX_RPC_MSG_SIZE,
 				 M0_NET_TM_RECV_QUEUE_DEF_LEN);
 	M0_UT_ASSERT(rc == 0);
-	m0_chan_init(&rmctx->rc_chan);
+	m0_mutex_init(&rmctx->rc_mutex);
+	m0_chan_init(&rmctx->rc_chan, &rmctx->rc_mutex);
 	m0_clink_init(&rmctx->rc_clink, NULL);
 }
 
 static void rm_ctx_fini(struct rm_context *rmctx)
 {
 	m0_clink_fini(&rmctx->rc_clink);
-	m0_chan_fini(&rmctx->rc_chan);
+	m0_chan_fini_lock(&rmctx->rc_chan);
+	m0_mutex_fini(&rmctx->rc_mutex);
 	m0_rpc_machine_fini(&rmctx->rc_rpc);
 	m0_reqh_fini(&rmctx->rc_reqh);
 	m0_mdstore_fini(&rmctx->rc_mdstore);
@@ -420,12 +424,13 @@ static void test2_run(void)
 static void server1_tests(void)
 {
 	m0_chan_wait(&tests_clink[TEST2]);
-	m0_clink_add(&rm_ctx[SERVER_1].rc_chan, &rm_ctx[SERVER_1].rc_clink);
+	m0_clink_add_lock(&rm_ctx[SERVER_1].rc_chan,
+			  &rm_ctx[SERVER_1].rc_clink);
 	test2_run();
 	test2_verify();
-	m0_clink_del(&rm_ctx[SERVER_1].rc_clink);
+	m0_clink_del_lock(&rm_ctx[SERVER_1].rc_clink);
 
-	m0_chan_signal(&rr_tests_chan);
+	m0_chan_signal_lock(&rr_tests_chan);
 }
 
 static void test3_verify(void)
@@ -532,20 +537,21 @@ static void test1_run(void)
 static void server2_tests(void)
 {
 	m0_chan_wait(&tests_clink[TEST1]);
-	m0_clink_add(&rm_ctx[SERVER_2].rc_chan, &rm_ctx[SERVER_2].rc_clink);
+	m0_clink_add_lock(&rm_ctx[SERVER_2].rc_chan,
+			  &rm_ctx[SERVER_2].rc_clink);
 	test1_run();
 	test1_verify();
 
 	/* Begin next test */
-	m0_chan_signal(&rr_tests_chan);
+	m0_chan_signal_lock(&rr_tests_chan);
 
 	m0_chan_wait(&tests_clink[TEST3]);
 	test3_run();
 	test3_verify();
-	m0_clink_del(&rm_ctx[SERVER_2].rc_clink);
+	m0_clink_del_lock(&rm_ctx[SERVER_2].rc_clink);
 
 	/* Begin next test */
-	m0_chan_signal(&rr_tests_chan);
+	m0_chan_signal_lock(&rr_tests_chan);
 }
 
 static void test4_run(void)
@@ -571,9 +577,10 @@ static void test4_run(void)
 static void server3_tests(void)
 {
 	m0_chan_wait(&tests_clink[TEST4]);
-	m0_clink_add(&rm_ctx[SERVER_3].rc_chan, &rm_ctx[SERVER_3].rc_clink);
+	m0_clink_add_lock(&rm_ctx[SERVER_3].rc_chan,
+			  &rm_ctx[SERVER_3].rc_clink);
 	test4_run();
-	m0_clink_del(&rm_ctx[SERVER_3].rc_clink);
+	m0_clink_del_lock(&rm_ctx[SERVER_3].rc_clink);
 }
 
 static void rm_server_start(const int tid)
@@ -623,11 +630,12 @@ static void remote_credits_utinit(void)
 		rm_ctx_init(&rm_ctx[i]);
 	}
 	server_hier_config();
-	m0_chan_init(&rr_tests_chan);
+	m0_mutex_init(&rr_tests_chan_mutex);
+	m0_chan_init(&rr_tests_chan, &rr_tests_chan_mutex);
 	/* Set up test sync points */
 	for (i = 0; i < TEST_NR; ++i) {
 		m0_clink_init(&tests_clink[i], NULL);
-		m0_clink_add(&rr_tests_chan, &tests_clink[i]);
+		m0_clink_add_lock(&rr_tests_chan, &tests_clink[i]);
 	}
 	m0_rm_fop_init();
 }
@@ -644,10 +652,11 @@ static void remote_credits_utfini(void)
 		rm_ctx_fini(&rm_ctx[i]);
 	}
 	for (i = 0; i < TEST_NR; ++i) {
-		m0_clink_del(&tests_clink[i]);
+		m0_clink_del_lock(&tests_clink[i]);
 		m0_clink_fini(&tests_clink[i]);
 	}
-	m0_chan_fini(&rr_tests_chan);
+	m0_chan_fini_lock(&rr_tests_chan);
+	m0_mutex_fini(&rr_tests_chan_mutex);
 }
 
 void remote_credits_test(void)
@@ -664,7 +673,7 @@ void remote_credits_test(void)
 	}
 
 	/* Now start the tests - wait till all the servers are ready */
-	m0_chan_signal(&rr_tests_chan);
+	m0_chan_signal_lock(&rr_tests_chan);
 	for (i = 0; i < SERVER_NR; ++i) {
 		m0_thread_join(&rm_ctx[i].rc_thr);
 		m0_thread_fini(&rm_ctx[i].rc_thr);

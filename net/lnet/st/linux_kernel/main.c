@@ -231,7 +231,7 @@ static int __init m0_netst_init_k(void)
 	if (!client_only) {
 		/* set up server context */
 		m0_mutex_init(&sctx.pc_mutex);
-		m0_cond_init(&sctx.pc_cond);
+		m0_cond_init(&sctx.pc_cond, &sctx.pc_mutex);
 		if (!quiet)
 			sctx.pc_ops = &verbose_ops;
 		else

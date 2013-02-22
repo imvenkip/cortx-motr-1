@@ -447,7 +447,7 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 		          !m0_queue_link_is_in(&lio->si_qev[i].iq_linkage)));
 		linux_stob_io_release(lio);
 		io->si_state = SIS_IDLE;
-		m0_chan_broadcast(&io->si_wait);
+		m0_chan_broadcast_lock(&io->si_wait);
 	}
 }
 

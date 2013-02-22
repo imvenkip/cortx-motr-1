@@ -179,7 +179,7 @@ static int fom_rdwr_tick(struct m0_fom *fom)
 		}
 
 		/* notify, fom ready */
-		m0_chan_signal(&chan[rq_seqn]);
+		m0_chan_signal_lock(&chan[rq_seqn]);
 	} else if (m0_fom_phase(fom) == PH_GOT_LOCK) {
 		M0_UT_ASSERT(ergo(M0_IN(rq_type, (RQ_READ, RQ_WRITE)),
 				  lock_check(&long_lock, rq_type,
@@ -204,7 +204,7 @@ static int fom_rdwr_tick(struct m0_fom *fom)
 		}
 
 		/* notify, fom ready */
-		m0_chan_signal(&chan[rq_seqn]);
+		m0_chan_signal_lock(&chan[rq_seqn]);
 		m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
 		result = M0_FSO_WAIT;
         } else {
@@ -300,9 +300,9 @@ static void rdwr_send_fop(struct m0_reqh **reqh, size_t reqh_nr)
 		m0_long_lock_init(&long_lock);
 
 		for (i = 0; test[j][i].tr_type != RQ_LAST; ++i) {
-			m0_chan_init(&chan[i]);
+			m0_chan_init(&chan[i], &long_lock.l_lock);
 			m0_clink_init(&clink[i], NULL);
-			m0_clink_add(&chan[i], &clink[i]);
+			m0_clink_add_lock(&chan[i], &clink[i]);
 
 			/* d. Send FOMs from multiple request handlers, where
 			 * they can contend for the lock. 'reqh[i % reqh_nr]'
@@ -323,8 +323,8 @@ static void rdwr_send_fop(struct m0_reqh **reqh, size_t reqh_nr)
 
 		/* Cleanup */
 		for (i = 0; test[j][i].tr_type != RQ_LAST; ++i) {
-			m0_clink_del(&clink[i]);
-			m0_chan_fini(&chan[i]);
+			m0_clink_del_lock(&clink[i]);
+			m0_chan_fini_lock(&chan[i]);
 			m0_clink_fini(&clink[i]);
 		}
 

@@ -833,8 +833,8 @@ M0_INTERNAL void m0_rm_incoming_fini(struct m0_rm_incoming *in)
 	M0_PRE(M0_IN(incoming_state(in),
 		    (RI_INITIALISED, RI_FAILURE, RI_RELEASED)));
 	incoming_state_set(in, RI_FINAL);
-	m0_rm_owner_unlock(in->rin_want.cr_owner);
 	internal_incoming_fini(in);
+	m0_rm_owner_unlock(in->rin_want.cr_owner);
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_rm_incoming_fini);
@@ -1024,7 +1024,7 @@ M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote *rem,
 	M0_ENTRY("remote: %p", rem);
 	rem->rem_state = REM_INITIALISED;
 	rem->rem_resource = res;
-	m0_chan_init(&rem->rem_signal);
+	m0_chan_init(&rem->rem_signal, &res->r_type->rt_lock);
 	remotes_tlink_init(rem);
 	m0_rm_remote_bob_init(rem);
 	resource_get(res);
@@ -1040,7 +1040,7 @@ M0_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem)
 				      REM_SERVICE_LOCATED,
 				      REM_OWNER_LOCATED)));
 	rem->rem_state = REM_FREED;
-	m0_chan_fini(&rem->rem_signal);
+	m0_chan_fini_lock(&rem->rem_signal);
 	remotes_tlink_fini(rem);
 	resource_put(rem->rem_resource);
 	m0_rm_remote_bob_fini(rem);

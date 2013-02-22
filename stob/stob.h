@@ -603,6 +603,7 @@ struct m0_stob_io {
 	   used.
 	 */
 	struct m0_chan              si_wait;
+	struct m0_mutex             si_mutex; /**< si_wait chan protection */
 
 	/* The fields below are modified only by an adieu implementation. */
 

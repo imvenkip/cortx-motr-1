@@ -636,12 +636,12 @@ static void sm_waiter_init(struct sm_waiter *w, struct m0_confc *confc)
 {
 	m0_confc_ctx_init(&w->w_ctx, confc);
 	m0_clink_init(&w->w_clink, sm__filter);
-	m0_clink_add(&w->w_ctx.fc_mach.sm_chan, &w->w_clink);
+	m0_clink_add_lock(&w->w_ctx.fc_mach.sm_chan, &w->w_clink);
 }
 
 static void sm_waiter_fini(struct sm_waiter *w)
 {
-	m0_clink_del(&w->w_clink);
+	m0_clink_del_lock(&w->w_clink);
 	m0_clink_fini(&w->w_clink);
 	m0_confc_ctx_fini(&w->w_ctx);
 }
@@ -1155,7 +1155,7 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 			m0_chan_broadcast(&obj->co_chan);
 			break;
 		}
-		m0_clink_add(&obj->co_chan, &ctx->fc_clink);
+		m0_clink_add_lock(&obj->co_chan, &ctx->fc_clink);
 		M0_LEAVE("retval=M0_CS_LOADING");
 		return M0_CS_LOADING;
 

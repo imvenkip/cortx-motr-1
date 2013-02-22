@@ -94,7 +94,9 @@ void test_cache(void)
 	m0_mutex_unlock(&g_lock);
 	M0_UT_ASSERT(rc == -EEXIST);
 
+	m0_mutex_lock(&g_lock);
 	m0_conf_obj_delete(obj);
+	m0_mutex_unlock(&g_lock);
 }
 
 void test_obj_find(void)

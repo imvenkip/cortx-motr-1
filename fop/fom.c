@@ -35,6 +35,7 @@
 #include "reqh/reqh.h"
 #include "sm/sm.h"
 #include "fop/fop_addb.h"
+#include "rpc/rpc_machine.h"
 
 /**
  * @addtogroup fom
@@ -407,7 +408,7 @@ M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom)
 	 * loc->fl_unblocking drops to 0.
 	 */
 	if (m0_atomic64_add_return(&loc->fl_unblocking, 1) == 1)
-		m0_chan_signal(&loc->fl_runrun);
+		m0_clink_signal(&loc->fl_group.s_clink);
 	group_lock(loc);
 	M0_ASSERT(m0_locality_invariant(loc));
 	M0_ASSERT(fom_is_blocked(fom));
@@ -474,7 +475,7 @@ static void cb_done(struct m0_fom_callback *cb)
 
 	cb->fc_state = M0_FCS_DONE;
 	if (m0_clink_is_armed(clink))
-		m0_clink_del(clink);
+		m0_clink_del_lock(clink);
 }
 
 /**
@@ -652,9 +653,9 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 		th->lt_state = IDLE;
 		m0_clink_del(clink);
 		m0_clink_fini(clink);
-		group_unlock(loc);
 		m0_clink_init(&th->lt_clink, NULL);
 		m0_clink_add(&loc->fl_idle, &th->lt_clink);
+		group_unlock(loc);
 		if (loc->fl_shutdown)
 			break;
 	}
@@ -715,9 +716,11 @@ static void loc_fini(struct m0_fom_locality *loc)
 	struct m0_loc_thread *th;
 
 	loc->fl_shutdown = true;
+	m0_clink_signal(&loc->fl_group.s_clink);
+
+	group_lock(loc);
 	m0_chan_broadcast(&loc->fl_runrun);
 	m0_chan_broadcast(&loc->fl_idle);
-	group_lock(loc);
 	while ((th = thr_tlist_head(&loc->fl_threads)) != NULL) {
 		group_unlock(loc);
 		m0_thread_join(&th->lt_thread);
@@ -732,11 +735,12 @@ static void loc_fini(struct m0_fom_locality *loc)
 	wail_tlist_fini(&loc->fl_wail);
 	M0_ASSERT(loc->fl_wail_nr == 0);
 
-	m0_sm_group_fini(&loc->fl_group);
-	m0_chan_fini(&loc->fl_runrun);
 	thr_tlist_fini(&loc->fl_threads);
 	M0_ASSERT(m0_atomic64_get(&loc->fl_unblocking) == 0);
-	m0_chan_fini(&loc->fl_idle);
+
+	m0_chan_fini_lock(&loc->fl_idle);
+	m0_chan_fini_lock(&loc->fl_runrun);
+	m0_sm_group_fini(&loc->fl_group);
 
 	m0_bitmap_fini(&loc->fl_processors);
 }
@@ -769,10 +773,10 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	loc->fl_wail_nr = 0;
 
 	m0_sm_group_init(&loc->fl_group);
-	m0_chan_init(&loc->fl_runrun);
+	m0_chan_init(&loc->fl_runrun, &loc->fl_group.s_lock);
 	thr_tlist_init(&loc->fl_threads);
 	m0_atomic64_set(&loc->fl_unblocking, 0);
-	m0_chan_init(&loc->fl_idle);
+	m0_chan_init(&loc->fl_idle, &loc->fl_group.s_lock);
 
 	result = m0_bitmap_init(&loc->fl_processors, cpu_max);
 
@@ -861,6 +865,19 @@ M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
 			 dom->fd_localities[i].fl_foms == 0);
 }
 
+static void fop_fini(struct m0_fop *fop)
+{
+	struct m0_rpc_machine  *rmachine;
+
+	if (fop != NULL) {
+		rmachine = fop->f_item.ri_rmachine;
+		M0_ASSERT(rmachine != NULL);
+		m0_sm_group_lock(&rmachine->rm_sm_grp);
+		m0_fop_put(fop);
+		m0_sm_group_unlock(&rmachine->rm_sm_grp);
+	}
+}
+
 void m0_fom_fini(struct m0_fom *fom)
 {
 	struct m0_fom_domain   *fdom;
@@ -889,14 +906,12 @@ void m0_fom_fini(struct m0_fom *fom)
 	runq_tlink_fini(fom);
 	m0_fom_callback_init(&fom->fo_cb);
 
-	if (fom->fo_fop != NULL)
-		m0_fop_put(fom->fo_fop);
-	if (fom->fo_rep_fop != NULL)
-		m0_fop_put(fom->fo_rep_fop);
+	fop_fini(fom->fo_fop);
+	fop_fini(fom->fo_rep_fop);
 
 	M0_CNT_DEC(loc->fl_foms);
 	if (loc->fl_foms == 0)
-		m0_chan_signal(&reqh->rh_sd_signal);
+		m0_chan_signal_lock(&reqh->rh_sd_signal);
 }
 M0_EXPORTED(m0_fom_fini);
 
@@ -1010,8 +1025,7 @@ M0_INTERNAL void m0_fom_callback_arm(struct m0_fom *fom, struct m0_chan *chan,
 
 	cb->fc_ast.sa_cb = &fom_ast_cb;
 	cb->fc_state = M0_FCS_ARMED;
-	/* XXX a memory barrier is required
-	 * if m0_clink_add() doesn't do its own locking. */
+	m0_mb();
 	m0_clink_add(chan, &cb->fc_clink);
 }
 

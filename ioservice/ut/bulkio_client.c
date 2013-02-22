@@ -47,7 +47,7 @@ static struct m0_net_tm_callbacks bulkio_ut_tm_cb = {
  * This structure represents message sending/receiving entity on network
  * for either client or server. Since rpc can not be used as is,
  * this structure just tries to start transfer machines on both ends.
- * Since uiltimately rpc uses transfer machine rpc, message
+ * Since ultimately rpc uses transfer machine rpc, message
  * sending/receiving can be achieved easily without having to go
  * through rpc interfaces.
  * The m0_rpc_conn member is just a placeholder. It is needed for
@@ -81,14 +81,14 @@ static void bulkio_msg_tm_init(struct bulkio_msg_tm *bmt,
 	M0_UT_ASSERT(rc == 0);
 
 	m0_clink_init(&clink, NULL);
-	m0_clink_add(&tm->ntm_chan, &clink);
+	m0_clink_add_lock(&tm->ntm_chan, &clink);
 	rc = m0_net_tm_start(tm, bmt->bmt_addr);
 	M0_UT_ASSERT(rc == 0);
 
 	while (tm->ntm_state != M0_NET_TM_STARTED)
 		m0_chan_wait(&clink);
 
-	m0_clink_del(&clink);
+	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 }
 
@@ -103,7 +103,7 @@ static void bulkio_msg_tm_fini(struct bulkio_msg_tm *bmt)
 	M0_UT_ASSERT(bmt->bmt_conn.c_rpc_machine == &bmt->bmt_mach);
 
 	m0_clink_init(&clink, NULL);
-	m0_clink_add(&bmt->bmt_mach.rm_tm.ntm_chan, &clink);
+	m0_clink_add_lock(&bmt->bmt_mach.rm_tm.ntm_chan, &clink);
 
 	rc = m0_net_tm_stop(&bmt->bmt_mach.rm_tm, false);
 	M0_UT_ASSERT(rc == 0);
@@ -111,7 +111,7 @@ static void bulkio_msg_tm_fini(struct bulkio_msg_tm *bmt)
 	while(bmt->bmt_mach.rm_tm.ntm_state != M0_NET_TM_STOPPED)
 		m0_chan_wait(&clink);
 
-	m0_clink_del(&clink);
+	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 
 	m0_net_tm_fini(&bmt->bmt_mach.rm_tm);
@@ -319,10 +319,10 @@ static void bulkclient_test(void)
 	q = m0_is_read_fop(&iofop->if_fop) ? M0_NET_QT_ACTIVE_BULK_SEND :
 	    M0_NET_QT_ACTIVE_BULK_RECV;
 	m0_rpc_bulk_qtype(sbulk, q);
-	m0_mutex_unlock(&sbulk->rb_mutex);
-
 	m0_clink_init(&clink, NULL);
 	m0_clink_add(&sbulk->rb_chan, &clink);
+	m0_mutex_unlock(&sbulk->rb_mutex);
+
 	rc = m0_rpc_bulk_load(sbulk, &stm->bmt_conn, rw->crw_desc.id_descs);
 
 	/*
@@ -349,8 +349,9 @@ static void bulkclient_test(void)
 
 	m0_mutex_lock(&sbulk->rb_mutex);
 	M0_UT_ASSERT(m0_tlist_is_empty(&rpcbulk_tl, &sbulk->rb_buflist));
-	m0_mutex_unlock(&sbulk->rb_mutex);
 	m0_clink_del(&clink);
+	m0_mutex_unlock(&sbulk->rb_mutex);
+
 	m0_clink_fini(&clink);
 	m0_rpc_bulk_fini(sbulk);
 

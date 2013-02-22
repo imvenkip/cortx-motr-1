@@ -716,7 +716,7 @@ static void test_net_bulk_if(void)
 
 	/* TM start */
 	m0_clink_init(&tmwait, NULL);
-	m0_clink_add(&tm->ntm_chan, &tmwait);
+	m0_clink_add_lock(&tm->ntm_chan, &tmwait);
 
 	M0_UT_ASSERT(ut_end_point_create_called == false);
 	rc = m0_net_tm_start(tm, "addr2");
@@ -727,7 +727,7 @@ static void test_net_bulk_if(void)
 
 	/* wait on channel for started */
 	m0_chan_wait(&tmwait);
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	M0_UT_ASSERT(ut_tm_event_cb_calls == 1);
 	M0_UT_ASSERT(tm->ntm_state == M0_NET_TM_STARTED);
 	M0_UT_ASSERT(ut_end_point_create_called);
@@ -910,7 +910,7 @@ static void test_net_bulk_if(void)
 					 max_bytes[nb->nb_qtype]);
 
 	ut_buf_del_called = false;
-	m0_clink_add(&tm->ntm_chan, &tmwait);
+	m0_clink_add_lock(&tm->ntm_chan, &tmwait);
 	m0_net_buffer_del(nb, tm);
 	M0_UT_ASSERT(ut_buf_del_called);
 	m0_net_desc_free(&nb->nb_desc);
@@ -918,7 +918,7 @@ static void test_net_bulk_if(void)
 
 	/* wait on channel for post (and consume UT thread) */
 	m0_chan_wait(&tmwait);
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	rc = m0_thread_join(&ut_del_thread);
 	M0_UT_ASSERT(rc == 0);
 
@@ -1039,14 +1039,14 @@ static void test_net_bulk_if(void)
 	m0_net_end_point_put(ep2);
 
 	/* TM stop */
-	m0_clink_add(&tm->ntm_chan, &tmwait);
+	m0_clink_add_lock(&tm->ntm_chan, &tmwait);
 	rc = m0_net_tm_stop(tm, false);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(ut_tm_stop_called);
 
 	/* wait on channel for stopped */
 	m0_chan_wait(&tmwait);
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	M0_UT_ASSERT(ut_tm_event_cb_calls == 2);
 	M0_UT_ASSERT(tm->ntm_state == M0_NET_TM_STOPPED);
 
@@ -1160,10 +1160,10 @@ static void test_net_bulk_if(void)
 
 	/* start the TM */
 	m0_clink_init(&tmwait, NULL);
-	m0_clink_add(&tm->ntm_chan, &tmwait);
+	m0_clink_add_lock(&tm->ntm_chan, &tmwait);
 	rc = m0_net_tm_start(tm, "addr3");
 	m0_chan_wait(&tmwait);
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	M0_UT_ASSERT(tm->ntm_state == M0_NET_TM_STARTED);
 	m0_thread_join(&ut_tm_thread); /* cleanup thread */
 	m0_thread_fini(&ut_tm_thread);
@@ -1188,10 +1188,10 @@ static void test_net_bulk_if(void)
 	M0_UT_ASSERT(ut_bev_deliver_all_called);
 
 	/* TM stop and fini */
-	m0_clink_add(&tm->ntm_chan, &tmwait);
+	m0_clink_add_lock(&tm->ntm_chan, &tmwait);
 	rc = m0_net_tm_stop(tm, false);
 	m0_chan_wait(&tmwait);
-	m0_clink_del(&tmwait);
+	m0_clink_del_lock(&tmwait);
 	m0_thread_join(&ut_tm_thread); /* cleanup thread */
 	m0_thread_fini(&ut_tm_thread);
 	m0_clink_fini(&tmwait);

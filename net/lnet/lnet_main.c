@@ -420,7 +420,7 @@ HLD of Mero LNet Transport</a>
       } else {                             // application initiated delivery
 	     m0_mutex_lock(&tm->ntm_mutex);
 	     if (lctm.xtm_ev_chan == NULL)
-	        m0_cond_timedwait(lctm->xtm_ev_cond, &tm->ntm_mutex, timeout);
+	        m0_cond_timedwait(lctm->xtm_ev_cond, timeout);
 	     if (lctm.xtm_ev_chan != NULL) {
 	        rc = nlx_core_buf_event_wait(lctm, timeout);
 	        if (rc == 0) {

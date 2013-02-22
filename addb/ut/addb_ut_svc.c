@@ -122,8 +122,7 @@ void addb_ut_svc_test(void)
 	/* wait for the fom to start */
 	m0_mutex_lock(&the_addb_svc->as_reqhs.rs_mutex);
 	while (!the_addb_pfom_started)
-		m0_cond_wait(&the_addb_svc->as_cond,
-			     &the_addb_svc->as_reqhs.rs_mutex);
+		m0_cond_wait(&the_addb_svc->as_cond);
 	m0_mutex_unlock(&the_addb_svc->as_reqhs.rs_mutex);
 
 	/* explicitly terminate the fom. */
@@ -137,8 +136,7 @@ void addb_ut_svc_test(void)
 	/* wait for the fom to start */
 	m0_mutex_lock(&the_addb_svc->as_reqhs.rs_mutex);
 	while (!the_addb_pfom_started)
-		m0_cond_wait(&the_addb_svc->as_cond,
-			     &the_addb_svc->as_reqhs.rs_mutex);
+		m0_cond_wait(&the_addb_svc->as_cond);
 	m0_mutex_unlock(&the_addb_svc->as_reqhs.rs_mutex);
 
 	/* terminate with service */

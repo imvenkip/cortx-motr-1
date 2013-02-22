@@ -186,7 +186,9 @@ static void item_source_test(void)
 			     get_item_calls == 0);
 
 		m0_fi_disable("frm_is_ready", "ready");
+		m0_rpc_machine_lock(conn->c_rpc_machine);
 		m0_rpc_item_put(item);
+		m0_rpc_machine_unlock(conn->c_rpc_machine);
 	}
 	m0_rpc_item_source_deregister(ris);
 	m0_rpc_item_source_fini(ris);

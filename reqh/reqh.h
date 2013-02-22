@@ -133,6 +133,7 @@ struct m0_reqh {
 	    Channel to wait on for reqh shutdown.
 	 */
 	struct m0_chan           rh_sd_signal;
+	struct m0_mutex          rh_mutex; /**< protect rh_sd_signal chan */
 
 	/** Local service consuming reply. */
 	struct m0_local_service *rh_svc;

@@ -216,7 +216,8 @@ M0_INTERNAL void m0_stob_io_init(struct m0_stob_io *io)
 
 	io->si_opcode = SIO_INVALID;
 	io->si_state  = SIS_IDLE;
-	m0_chan_init(&io->si_wait);
+	m0_mutex_init(&io->si_mutex);
+	m0_chan_init(&io->si_wait, &io->si_mutex);
 
 	M0_POST(io->si_state == SIS_IDLE);
 }
@@ -225,7 +226,8 @@ M0_INTERNAL void m0_stob_io_fini(struct m0_stob_io *io)
 {
 	M0_PRE(io->si_state == SIS_IDLE);
 
-	m0_chan_fini(&io->si_wait);
+	m0_chan_fini_lock(&io->si_wait);
+	m0_mutex_fini(&io->si_mutex);
 	m0_stob_io_private_fini(io);
 }
 

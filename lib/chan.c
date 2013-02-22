@@ -61,11 +61,26 @@ static bool clink_is_head(const struct m0_clink *clink)
 	return clink->cl_group == clink;
 }
 
+static void chan_lock(struct m0_chan *ch)
+{
+	m0_mutex_lock(ch->ch_guard);
+}
+
+static void chan_unlock(struct m0_chan *ch)
+{
+	m0_mutex_unlock(ch->ch_guard);
+}
+
+static bool chan_is_locked(const struct m0_chan *ch)
+{
+	return m0_mutex_is_locked(ch->ch_guard);
+}
+
 /**
    Channel invariant: all clinks on the list are clinks for this channel and
    number of waiters matches list length.
  */
-static bool m0_chan_invariant_locked(struct m0_chan *chan)
+static bool m0_chan_invariant(struct m0_chan *chan)
 {
 	return chan->ch_waiters == clink_tlist_length(&chan->ch_links) &&
 		m0_tl_forall(clink, scan, &chan->ch_links,
@@ -74,52 +89,34 @@ static bool m0_chan_invariant_locked(struct m0_chan *chan)
 			     clink_is_head(scan->cl_group));
 }
 
-static bool m0_chan_invariant(struct m0_chan *chan)
+M0_INTERNAL void m0_chan_init(struct m0_chan *chan, struct m0_mutex *ch_guard)
 {
-	bool holds;
-
-	m0_mutex_lock(&chan->ch_guard);
-	holds = m0_chan_invariant_locked(chan);
-	m0_mutex_unlock(&chan->ch_guard);
-	return holds;
-}
-
-M0_INTERNAL void m0_chan_init(struct m0_chan *chan)
-{
+	M0_PRE(ch_guard != NULL);
 	clink_tlist_init(&chan->ch_links);
-	m0_mutex_init(&chan->ch_guard);
+	chan->ch_guard = ch_guard;
 	chan->ch_waiters = 0;
-	M0_ASSERT(m0_chan_invariant(chan));
 }
 M0_EXPORTED(m0_chan_init);
 
 M0_INTERNAL void m0_chan_fini(struct m0_chan *chan)
 {
-	M0_ASSERT(m0_chan_invariant(chan));
+	M0_PRE(chan_is_locked(chan));
 	M0_ASSERT(chan->ch_waiters == 0);
-
-	m0_mutex_lock(&chan->ch_guard);
-	/*
-	 * This seemingly useless lock-unlock pair is to synchronize with
-	 * m0_chan_{signal,broadcast}() that might be still using chan.
-	 */
-	m0_mutex_unlock(&chan->ch_guard);
-
-	m0_mutex_fini(&chan->ch_guard);
 	clink_tlist_fini(&chan->ch_links);
 }
 M0_EXPORTED(m0_chan_fini);
 
-static struct m0_clink *chan_head(struct m0_chan *chan)
+M0_INTERNAL void m0_chan_fini_lock(struct m0_chan *chan)
 {
-	struct m0_clink *clink;
-
-	clink = clink_tlist_head(&chan->ch_links);
-	if (clink != NULL)
-		clink_tlist_move_tail(&chan->ch_links, clink);
-	M0_ASSERT((chan->ch_waiters > 0) == (clink != NULL));
-	return clink;
+	/*
+	 * This seemingly useless lock-unlock pair is to synchronize with
+	 * m0_chan_{signal,broadcast}() that might be still using chan.
+	 */
+	chan_lock(chan);
+	m0_chan_fini(chan);
+	chan_unlock(chan);
 }
+M0_EXPORTED(m0_chan_fini_lock);
 
 static void clink_signal(struct m0_clink *clink)
 {
@@ -137,19 +134,19 @@ static void chan_signal_nr(struct m0_chan *chan, uint32_t nr)
 {
 	uint32_t i;
 
-	m0_mutex_lock(&chan->ch_guard);
-	M0_ASSERT(m0_chan_invariant_locked(chan));
+	M0_PRE(chan_is_locked(chan));
+	M0_ASSERT(m0_chan_invariant(chan));
 	for (i = 0; i < nr; ++i) {
-		struct m0_clink *clink;
+		struct m0_clink *clink = clink_tlist_head(&chan->ch_links);
 
-		clink = chan_head(chan);
-		if (clink != NULL)
+		if (clink != NULL) {
+			clink_tlist_move_tail(&chan->ch_links, clink);
 			clink_signal(clink);
-		else
+		} else {
 			break;
+		}
 	}
-	M0_ASSERT(m0_chan_invariant_locked(chan));
-	m0_mutex_unlock(&chan->ch_guard);
+	M0_ASSERT(m0_chan_invariant(chan));
 }
 
 M0_INTERNAL void m0_chan_signal(struct m0_chan *chan)
@@ -158,18 +155,30 @@ M0_INTERNAL void m0_chan_signal(struct m0_chan *chan)
 }
 M0_EXPORTED(m0_chan_signal);
 
+M0_INTERNAL void m0_chan_signal_lock(struct m0_chan *chan)
+{
+	chan_lock(chan);
+	m0_chan_signal(chan);
+	chan_unlock(chan);
+}
+
 M0_INTERNAL void m0_chan_broadcast(struct m0_chan *chan)
 {
 	chan_signal_nr(chan, chan->ch_waiters);
 }
 M0_EXPORTED(m0_chan_broadcast);
 
-bool m0_chan_has_waiters(struct m0_chan *chan)
+M0_INTERNAL void m0_chan_broadcast_lock(struct m0_chan *chan)
 {
-	M0_ASSERT(m0_chan_invariant(chan));
+	chan_lock(chan);
+	m0_chan_broadcast(chan);
+	chan_unlock(chan);
+}
+
+M0_INTERNAL bool m0_chan_has_waiters(struct m0_chan *chan)
+{
 	return chan->ch_waiters > 0;
 }
-M0_EXPORTED(m0_chan_has_waiters);
 
 static void clink_init(struct m0_clink *link,
 		       struct m0_clink *group, m0_chan_cb_t cb)
@@ -204,16 +213,6 @@ M0_INTERNAL void m0_clink_attach(struct m0_clink *link,
 }
 M0_EXPORTED(m0_clink_attach);
 
-static void clink_lock(struct m0_clink *clink)
-{
-	m0_mutex_lock(&clink->cl_chan->ch_guard);
-}
-
-static void clink_unlock(struct m0_clink *clink)
-{
-	m0_mutex_unlock(&clink->cl_chan->ch_guard);
-}
-
 /**
    @pre  !m0_clink_is_armed(link)
    @post  m0_clink_is_armed(link)
@@ -222,6 +221,7 @@ M0_INTERNAL void m0_clink_add(struct m0_chan *chan, struct m0_clink *link)
 {
 	int rc;
 
+	M0_PRE(chan_is_locked(chan));
 	M0_PRE(!m0_clink_is_armed(link));
 	/* head is registered first */
 	M0_PRE(ergo(!clink_is_head(link), m0_clink_is_armed(link->cl_group)));
@@ -232,16 +232,22 @@ M0_INTERNAL void m0_clink_add(struct m0_chan *chan, struct m0_clink *link)
 		M0_ASSERT(rc == 0);
 	}
 
-	clink_lock(link);
-	M0_ASSERT(m0_chan_invariant_locked(chan));
+	M0_ASSERT(m0_chan_invariant(chan));
 	chan->ch_waiters++;
 	clink_tlist_add_tail(&chan->ch_links, link);
-	M0_ASSERT(m0_chan_invariant_locked(chan));
-	clink_unlock(link);
+	M0_ASSERT(m0_chan_invariant(chan));
 
 	M0_POST(m0_clink_is_armed(link));
 }
 M0_EXPORTED(m0_clink_add);
+
+void m0_clink_add_lock(struct m0_chan *chan, struct m0_clink *link)
+{
+	chan_lock(chan);
+	m0_clink_add(chan, link);
+	chan_unlock(chan);
+}
+M0_EXPORTED(m0_clink_add_lock);
 
 /**
    @pre   m0_clink_is_armed(link)
@@ -249,20 +255,18 @@ M0_EXPORTED(m0_clink_add);
  */
 M0_INTERNAL void m0_clink_del(struct m0_clink *link)
 {
-	struct m0_chan *chan;
+	struct m0_chan *chan = link->cl_chan;
 
 	M0_PRE(m0_clink_is_armed(link));
+	M0_PRE(chan_is_locked(chan));
 	/* head is de-registered last */
 	M0_PRE(ergo(!clink_is_head(link), m0_clink_is_armed(link->cl_group)));
 
-	clink_lock(link);
-	chan = link->cl_chan;
-	M0_ASSERT(m0_chan_invariant_locked(chan));
+	M0_ASSERT(m0_chan_invariant(chan));
 	M0_ASSERT(chan->ch_waiters > 0);
 	chan->ch_waiters--;
 	clink_tlist_del(link);
-	M0_ASSERT(m0_chan_invariant_locked(chan));
-	clink_unlock(link);
+	M0_ASSERT(m0_chan_invariant(chan));
 
 	link->cl_chan = NULL;
 	if (clink_is_head(link))
@@ -271,6 +275,16 @@ M0_INTERNAL void m0_clink_del(struct m0_clink *link)
 	M0_POST(!m0_clink_is_armed(link));
 }
 M0_EXPORTED(m0_clink_del);
+
+M0_INTERNAL void m0_clink_del_lock(struct m0_clink *link)
+{
+	struct m0_chan *chan = link->cl_chan;
+
+	chan_lock(chan);
+	m0_clink_del(link);
+	chan_unlock(chan);
+}
+M0_EXPORTED(m0_clink_del_lock);
 
 M0_INTERNAL bool m0_clink_is_armed(const struct m0_clink *link)
 {
@@ -284,32 +298,19 @@ M0_INTERNAL void m0_clink_signal(struct m0_clink *clink)
 
 M0_INTERNAL bool m0_chan_trywait(struct m0_clink *link)
 {
-	bool result;
-
-	M0_ASSERT(m0_chan_invariant(link->cl_chan));
-	result = m0_semaphore_trydown(&link->cl_group->cl_wait);
-	M0_ASSERT(m0_chan_invariant(link->cl_chan));
-	return result;
+	return m0_semaphore_trydown(&link->cl_group->cl_wait);
 }
 
 M0_INTERNAL void m0_chan_wait(struct m0_clink *link)
 {
-	M0_ASSERT(m0_chan_invariant(link->cl_chan));
 	m0_semaphore_down(&link->cl_group->cl_wait);
-	M0_ASSERT(m0_chan_invariant(link->cl_chan));
 }
 M0_EXPORTED(m0_chan_wait);
 
 M0_INTERNAL bool m0_chan_timedwait(struct m0_clink *link,
 				   const m0_time_t abs_timeout)
 {
-	bool result;
-
-	M0_ASSERT(m0_chan_invariant(link->cl_chan));
-
-	result = m0_semaphore_timeddown(&link->cl_group->cl_wait, abs_timeout);
-	M0_ASSERT(m0_chan_invariant(link->cl_chan));
-	return result;
+	return m0_semaphore_timeddown(&link->cl_group->cl_wait, abs_timeout);
 }
 M0_EXPORTED(m0_chan_timedwait);
 

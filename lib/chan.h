@@ -126,9 +126,6 @@
 
        - call-backs can be used for event filtering on any channel as usual;
 
-       - if N clinks from the group are registered with the same channel, an
-         event in this channel will be delivered N times.
-
        - de-register the clinks, head last.
 
    @code
@@ -180,47 +177,60 @@ typedef bool (*m0_chan_cb_t)(struct m0_clink *link);
 
    <b>Concurrency control</b>
 
-   Implementation serializes producer interface calls, but see
-   m0_chan_broadcast() description. Implementation serializes m0_clink_add() and
-   m0_clink_del() calls against a given channel.
+   There are tree groups of channel functions with different serialization
+   requirements:
+
+   - (A) caller holds the ch_guard lock:
+
+          m0_clink_add(),
+          m0_clink_del(),
+          m0_chan_signal(),
+          m0_chan_broadcast(),
+          m0_chan_fini();
+
+         The implementation checks that the channel lock is held.
+
+   - (B) caller does not hold the ch_guard lock:
+
+          m0_clink_add_lock(),
+          m0_clink_del_lock(),
+          m0_chan_signal_lock(),
+          m0_chan_broadcast_lock(),
+          m0_chan_fini_lock();
+
+         The implementation checks that the channel lock is not held.
+
+   - (C) caller may hold the ch_guard lock:
+
+          m0_clink_init(),
+          m0_clink_fini(),
+          m0_clink_attach(),
+          m0_clink_is_armed(),
+          m0_clink_signal() (note this lock-tolerant signalling facility!),
+          m0_chan_init(),
+          m0_chan_wait(),
+          m0_chan_trywait(),
+          m0_chan_timedwait().
+
+         Nothing is assumed by the implementation about the channel lock.
 
    <b>Liveness</b>
 
    A user has to enforce a serialization between event production and channel
-   destruction. Implementation guarantees that call to m0_chan_fini() first
-   waits until calls to m0_chan_{signal,broadcast}() that started before this
-   m0_chan_fini() call complete. This make the following idiomatic usage safe:
-
-   @code
-   struct m0_chan *complete;
-
-   producer() {
-           ...
-           m0_chan_signal(complete);
-   }
-
-   consumer() {
-           m0_clink_add(complete, &wait);
-           for (i = 0; i < nr_producers; ++i)
-                   m0_chan_wait(&wait);
-           m0_clink_del(&wait);
-           m0_chan_fini(complete);
-           m0_free(complete);
-   }
-   @endcode
+   destruction.
 
    <b>Invariants</b>
 
    m0_chan_invariant()
  */
 struct m0_chan {
-	/** Lock protecting other fields. */
-	struct m0_mutex ch_guard;
+	/** Protecting lock, should be provided by user. */
+	struct m0_mutex *ch_guard;
 	/** List of registered clinks. */
-	struct m0_tl    ch_links;
+	struct m0_tl     ch_links;
 	/** Number of clinks in m0_chan::ch_links. This is used to speed up
 	    m0_chan_broadcast(). */
-	uint32_t        ch_waiters;
+	uint32_t         ch_waiters;
 };
 
 /**
@@ -232,10 +242,10 @@ struct m0_chan {
 
    @li an asynchronous call-back can be specified as an argument to clink
    constructor m0_clink_init(). This call-back is called when an event happens
-   in the channel the clink is registered with. It is guaranteed that a
-   call-back is executed in the same context where event producer declared new
-   event. A per-channel mutex m0_chan::ch_guard is held while call-backs are
-   executed (except the case when m0_clink_signal() is used by producer).
+   in the channel the clink is registered with. It is guaranteed that
+   a call-back is executed in the same context where event producer declared
+   new event. A per-channel mutex m0_chan::ch_guard is held while call-backs
+   are executed (except the case when m0_clink_signal() is used by producer).
 
    @li once a clink is registered with a channel, it is possible to wait until
    an event happens by calling m0_chan_wait().
@@ -270,16 +280,23 @@ struct m0_clink {
 	uint64_t            cl_magic;
 };
 
-M0_INTERNAL void m0_chan_init(struct m0_chan *chan);
+M0_INTERNAL void m0_chan_init(struct m0_chan *chan, struct m0_mutex *ch_guard);
 M0_INTERNAL void m0_chan_fini(struct m0_chan *chan);
+M0_INTERNAL void m0_chan_fini_lock(struct m0_chan *chan);
 
 /**
    Notifies a clink currently registered with the channel that a new event
    happened.
 
+   @pre m0_mutex_is_locked(ch->ch_guard)
    @see m0_chan_broadcast()
  */
 M0_INTERNAL void m0_chan_signal(struct m0_chan *chan);
+
+/**
+   Calls m0_chan_signal() with ch_guard locked.
+ */
+M0_INTERNAL void m0_chan_signal_lock(struct m0_chan *chan);
 
 /**
    Notifies all clinks currently registered with the channel that a new event
@@ -292,9 +309,15 @@ M0_INTERNAL void m0_chan_signal(struct m0_chan *chan);
    at the time of this call, the call-backs are run to completion as part of
    broadcast.
 
+   @pre m0_mutex_is_locked(ch->ch_guard)
    @see m0_chan_signal()
  */
 M0_INTERNAL void m0_chan_broadcast(struct m0_chan *chan);
+
+/**
+   Calls m0_chan_broadcast() with ch_guard locked.
+ */
+M0_INTERNAL void m0_chan_broadcast_lock(struct m0_chan *chan);
 
 /**
    Notifies a given clink that a new event happened.
@@ -316,7 +339,7 @@ M0_INTERNAL void m0_clink_signal(struct m0_clink *clink);
    time it returns. It is up to the user to provide concurrency control
    mechanisms that would make this function useful.
  */
-bool m0_chan_has_waiters(struct m0_chan *chan);
+M0_INTERNAL bool m0_chan_has_waiters(struct m0_chan *chan);
 
 M0_INTERNAL void m0_clink_init(struct m0_clink *link, m0_chan_cb_t cb);
 M0_INTERNAL void m0_clink_fini(struct m0_clink *link);
@@ -330,6 +353,7 @@ M0_INTERNAL void m0_clink_attach(struct m0_clink *link,
 /**
    Registers the clink with the channel.
 
+   @pre m0_mutex_is_locked(ch->ch_guard)
    @pre !m0_clink_is_armed(link)
    @post m0_clink_is_armed(link)
  */
@@ -338,10 +362,21 @@ M0_INTERNAL void m0_clink_add(struct m0_chan *chan, struct m0_clink *link);
 /**
    Un-registers the clink from the channel.
 
+   @pre m0_mutex_is_locked(ch->ch_guard)
    @pre   m0_clink_is_armed(link)
    @post !m0_clink_is_armed(link)
  */
 M0_INTERNAL void m0_clink_del(struct m0_clink *link);
+
+/**
+   Calls m0_clink_add() with ch_guard locked.
+ */
+M0_INTERNAL void m0_clink_add_lock(struct m0_chan *chan, struct m0_clink *link);
+
+/**
+   Calls m0_clink_del() with ch_guard locked.
+ */
+M0_INTERNAL void m0_clink_del_lock(struct m0_clink *link);
 
 /**
    True iff the clink is registered with a channel.
