@@ -557,10 +557,10 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 		for (pstr = svc->cs_endpoints; *pstr != NULL; ++pstr) {
 			rc = connect_to_service(*pstr, svc->cs_type, csb);
 			if (rc != 0)
-				break;
+				goto out;
 		}
 	}
-
+out:
 	m0_confc_close(entry);
 	m0_confc_close(dir);
 
