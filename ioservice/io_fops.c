@@ -119,32 +119,6 @@ static int io_fol_rec_part_redo(struct m0_fol_rec_part *part)
 	return 0;
 }
 
-M0_FOL_REC_PART_TYPE_DECLARE(m0_io_write_rec_part, io_fol_rec_part_undo,
-			     io_fol_rec_part_redo);
-M0_FOL_REC_PART_TYPE_DECLARE(m0_io_create_rec_part, io_fol_rec_part_undo,
-			     io_fol_rec_part_redo);
-M0_FOL_REC_PART_TYPE_DECLARE(m0_io_delete_rec_part, io_fol_rec_part_undo,
-			     io_fol_rec_part_redo);
-
-static int io_fol_rec_part_types_register(void)
-{
-	M0_FOL_REC_PART_TYPE_INIT(m0_io_write_rec_part, "Write record part");
-	M0_FOL_REC_PART_TYPE_INIT(m0_io_create_rec_part, "Create record part");
-	M0_FOL_REC_PART_TYPE_INIT(m0_io_delete_rec_part, "Delete record part");
-
-	return
-		m0_fol_rec_part_type_register(&m0_io_write_rec_part_type) ?:
-		m0_fol_rec_part_type_register(&m0_io_create_rec_part_type) ?:
-		m0_fol_rec_part_type_register(&m0_io_delete_rec_part_type);
-}
-
-static void io_fol_rec_part_types_deregister(void)
-{
-	m0_fol_rec_part_type_deregister(&m0_io_write_rec_part_type);
-	m0_fol_rec_part_type_deregister(&m0_io_create_rec_part_type);
-	m0_fol_rec_part_type_deregister(&m0_io_delete_rec_part_type);
-}
-
 M0_INTERNAL void m0_ioservice_fop_fini(void)
 {
 	m0_fop_type_fini(&m0_fop_cob_op_reply_fopt);
@@ -156,7 +130,6 @@ M0_INTERNAL void m0_ioservice_fop_fini(void)
 	m0_fop_type_fini(&m0_fop_cob_writev_fopt);
 	m0_fop_type_fini(&m0_fop_cob_readv_fopt);
 
-	io_fol_rec_part_types_deregister();
 	m0_xc_io_fops_fini();
 	m0_addb_ctx_fini(&m0_ios_addb_ctx);
 }
@@ -244,8 +217,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .opcode = M0_IOSERVICE_FV_NOTIFICATION_OPCODE,
 				 .xt        = m0_fop_fv_notification_xc,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-					      M0_RPC_ITEM_TYPE_ONEWAY) ?:
-		io_fol_rec_part_types_register();
+					      M0_RPC_ITEM_TYPE_ONEWAY);
 }
 
 /**

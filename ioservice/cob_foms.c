@@ -58,7 +58,6 @@ static void   cob_fom_populate(struct m0_fom *fom);
 static int    cob_op_fom_create(struct m0_fom **out);
 static size_t cob_fom_locality_get(const struct m0_fom *fom);
 static inline struct m0_fom_cob_op *cob_fom_get(struct m0_fom *fom);
-static void cob_fol_rec_part_add(struct m0_fom *fom);
 
 enum {
 	CC_COB_VERSION_INIT	= 0,
@@ -265,9 +264,6 @@ out:
 					     &reply->cor_fv_updates);
 
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-
-	if (rc == 0)
-		cob_fol_rec_part_add(fom);
 
 	return M0_FSO_AGAIN;
 }
@@ -482,9 +478,6 @@ out:
 
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 
-	if (rc == 0)
-		cob_fol_rec_part_add(fom);
-
 	return M0_FSO_AGAIN;
 }
 
@@ -562,44 +555,6 @@ static int cd_stob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 	M0_LOG(M0_DEBUG, "Stob deleted successfully.");
 
 	return rc;
-}
-
-#define COB_FOL_REC_PART_FILL(cob_part, part, cob_type, ctx)			\
-do {										\
-	IOS_ALLOC_PTR(cob_part, ctx, COB_FOL_REC_PART_ADD);			\
-	if (cob_part != NULL) {							\
-		m0_fol_rec_part_init(part, cob_part,				\
-				     &m0_io_ ## cob_type ## _rec_part_type);	\
-		cob_part->cob_part ## _ ## cob_type =				\
-			*(struct m0_fop_cob_ ## cob_type *)			\
-			  m0_fop_data(fom->fo_fop);				\
-		cob_part->cob_part ## _ ## cob_type ## _rep =			\
-			*(struct m0_fop_cob_op_reply *)				\
-			  m0_fop_data(fom->fo_rep_fop);				\
-	}									\
-} while(0);
-
-static void cob_fol_rec_part_add(struct m0_fom *fom)
-{
-	struct m0_fol_rec_part *part;
-	struct m0_addb_ctx     *ctx;
-
-	M0_PRE(fom != NULL);
-
-	part = &cob_fom_get(fom)->fco_fol_rec_part;
-	ctx  = &fom->fo_addb_ctx;
-
-	if (m0_is_cob_create_fop(fom->fo_fop)) {
-		struct m0_io_create_rec_part *crp;
-		COB_FOL_REC_PART_FILL(crp, part, create, ctx);
-	} else if (m0_is_cob_delete_fop(fom->fo_fop)) {
-		struct m0_io_delete_rec_part *drp;
-		COB_FOL_REC_PART_FILL(drp, part, delete, ctx);
-	} else
-		part = NULL;
-
-	if (part != NULL)
-		m0_fol_rec_part_list_add(&fom->fo_tx.tx_fol_rec, part);
 }
 
 #undef M0_TRACE_SUBSYSTEM

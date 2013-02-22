@@ -528,26 +528,6 @@ struct m0_fop_fv_notification {
 	struct m0_fv_version fvn_version;
 } M0_XCA_RECORD;
 
-struct m0_io_write_rec_part {
-	struct m0_fop_cob_writev     wrp_write;
-	struct m0_fid		     wrp_fid;
-	struct m0_fop_cob_writev_rep wrp_write_rep;
-} M0_XCA_RECORD;
-
-struct m0_io_create_rec_part {
-	struct m0_fop_cob_create   crp_create;
-	struct m0_fop_cob_op_reply crp_create_rep;
-} M0_XCA_RECORD;
-
-struct m0_io_delete_rec_part {
-	struct m0_fop_cob_delete   drp_delete;
-	struct m0_fop_cob_op_reply drp_delete_rep;
-} M0_XCA_RECORD;
-
-extern struct m0_fol_rec_part_type m0_io_write_rec_part_type;
-extern struct m0_fol_rec_part_type m0_io_create_rec_part_type;
-extern struct m0_fol_rec_part_type m0_io_delete_rec_part_type;
-
 /* __MERO_IOSERVICE_IO_FOPS_H__ */
 #endif
 

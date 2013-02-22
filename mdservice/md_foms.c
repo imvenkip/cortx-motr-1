@@ -47,8 +47,6 @@
 #include "mdstore/mdstore.h"
 #include "mdservice/mdservice_addb.h"
 
-static void md_fol_rec_part_add(struct m0_fom *fom);
-
 static void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
 			       struct m0_fop_cob *body)
 {
@@ -1018,8 +1016,6 @@ out:
                body->b_tfid.f_container, body->b_tfid.f_key, rc);
         rep->s_body.b_rc = rc;
         m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
-	if (rc == 0)
-		md_fol_rec_part_add(fom);
         return M0_FSO_AGAIN;
 }
 
@@ -1726,85 +1722,6 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
         m0_fop_put(rep_fop);
 	*m = fom;
 	return 0;
-}
-
-#define FOL_REC_PART_FILL(md_part, part, md_type, ctx)			     \
-do {									     \
-	MDS_ALLOC_PTR(md_part, ctx, FOL_REC_PART_ADD);			     \
-	if (md_part != NULL) {						     \
-		m0_fol_rec_part_init(part, md_part,			     \
-				     &m0_md_ ## md_type ## _rec_part_type);  \
-		md_part-> md_part ## _ ## md_type =			     \
-			*(struct m0_fop_ ## md_type *)			     \
-			  m0_fop_data(fom->fo_fop);			     \
-		md_part-> md_part ## _ ## md_type ## _rep =		     \
-			*(struct m0_fop_ ## md_type ## _rep *)		     \
-			  m0_fop_data(fom->fo_rep_fop);			     \
-	}								     \
-} while (0);
-
-static void md_fol_rec_part_add(struct m0_fom *fom)
-{
-	struct m0_fom_md	      *fom_obj;
-	struct m0_fol_rec_part	      *part;
-	struct m0_md_create_rec_part  *cp;
-	struct m0_md_lookup_rec_part  *lp;
-	struct m0_md_link_rec_part    *lnp;
-	struct m0_md_unlink_rec_part  *ulp;
-	struct m0_md_open_rec_part    *op;
-	struct m0_md_close_rec_part   *clp;
-	struct m0_md_getattr_rec_part *gap;
-	struct m0_md_setattr_rec_part *sap;
-	struct m0_md_statfs_rec_part  *sfp;
-	struct m0_md_rename_rec_part  *rnp;
-	struct m0_md_readdir_rec_part *rdp;
-	struct m0_addb_ctx	      *ctx;
-
-	M0_PRE(fom != NULL);
-
-	fom_obj = container_of(fom, struct m0_fom_md, fm_fom);
-	part = &fom_obj->fm_fol_rec_part;
-	ctx  = &fom->fo_addb_ctx;
-
-	switch (m0_fop_opcode(fom->fo_fop)) {
-        case M0_MDSERVICE_CREATE_OPCODE:
-		FOL_REC_PART_FILL(cp, part, create, ctx);
-		break;
-        case M0_MDSERVICE_LOOKUP_OPCODE:
-		FOL_REC_PART_FILL(lp, part, lookup, ctx);
-		break;
-        case M0_MDSERVICE_LINK_OPCODE:
-		FOL_REC_PART_FILL(lnp, part, link, ctx);
-		break;
-        case M0_MDSERVICE_UNLINK_OPCODE:
-		FOL_REC_PART_FILL(ulp, part, unlink, ctx);
-		break;
-        case M0_MDSERVICE_OPEN_OPCODE:
-		FOL_REC_PART_FILL(op, part, open, ctx);
-		break;
-        case M0_MDSERVICE_CLOSE_OPCODE:
-		FOL_REC_PART_FILL(clp, part, close, ctx);
-		break;
-        case M0_MDSERVICE_GETATTR_OPCODE:
-		FOL_REC_PART_FILL(gap, part, getattr, ctx);
-		break;
-        case M0_MDSERVICE_SETATTR_OPCODE:
-		FOL_REC_PART_FILL(sap, part, setattr, ctx);
-		break;
-        case M0_MDSERVICE_STATFS_OPCODE:
-		FOL_REC_PART_FILL(sfp, part, statfs, ctx);
-		break;
-        case M0_MDSERVICE_RENAME_OPCODE:
-		FOL_REC_PART_FILL(rnp, part, rename, ctx);
-		break;
-        case M0_MDSERVICE_READDIR_OPCODE:
-		FOL_REC_PART_FILL(rdp, part, readdir, ctx);
-		break;
-        default:
-                break;
-	}
-	if (part != NULL)
-		m0_fol_rec_part_list_add(&fom->fo_tx.tx_fol_rec, part);
 }
 
 #undef M0_TRACE_SUBSYSTEM
