@@ -31,6 +31,7 @@
 #include "fol/fol_xc.h"
 #include "xcode/xcode.h"
 #include "fop/fop.h"
+#include "fol/fol_private.h"
 
 /**
    @addtogroup fol
@@ -74,7 +75,6 @@ static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
 			       struct m0_bufvec_cursor *cur,
 			       enum m0_bufvec_what what);
 
-#define REC_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_header_xc, ptr)
 #define REC_SIBLING_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_update_ref_xc, ptr)
 #define REC_OBJ_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_obj_ref_xc, ptr)
 
@@ -464,7 +464,7 @@ static size_t fol_record_pack_size(struct m0_fol_rec *rec)
 	struct m0_fol_rec_part_header rp;
 
 	len = m0_xcode_data_size(&ctx,
-				 &REC_HEADER_XCODE_OBJ(&desc->rd_header)) +
+				 &M0_REC_HEADER_XCODE_OBJ(&desc->rd_header)) +
 	      desc->rd_header.rh_obj_nr *
 	      m0_xcode_data_size(&ctx,
 				 &REC_OBJ_REF_XCODE_OBJ(desc->rd_ref)) +
@@ -528,7 +528,7 @@ static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
 	uint32_t		  i;
 	struct m0_xcode_ctx       ctx;
 
-	rc = m0_xcode_encdec(&ctx, &REC_HEADER_XCODE_OBJ(h), cur, what);
+	rc = m0_xcode_encdec(&ctx, &M0_REC_HEADER_XCODE_OBJ(h), cur, what);
 	if (rc != 0)
 		return rc;
 

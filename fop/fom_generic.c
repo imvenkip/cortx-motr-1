@@ -631,7 +631,7 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 	desc = &fom->fo_tx.tx_fol_rec.fr_desc;
 
 	M0_SET0(desc);
-	desc->rd_lsn                = m0_fol_lsn_allocate(fol);
+	desc->rd_lsn = m0_fol_lsn_allocate(fol);
 	/* @todo an arbitrary number for now */
 	desc->rd_header.rh_refcount = 1;
 

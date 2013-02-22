@@ -1592,7 +1592,7 @@ static int io_finish(struct m0_fom *fom)
                         fom_obj->fcrw_count += stio->si_count;
                         M0_LOG(M0_DEBUG, "rw_count %d, si_count %d",
                                (int)fom_obj->fcrw_count, (int)stio->si_count);
-			stio->si_flags &= ~(1 < SIF_FOL_REC_PART);
+			stio->si_flags &= ~SIF_FOL_REC_PART;
                 }
         } m0_tl_endfor;
 
