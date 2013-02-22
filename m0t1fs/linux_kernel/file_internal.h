@@ -47,6 +47,7 @@
    - @ref rmw-degraded-writeIO
       - @ref rmw-dgwriteIO-req
       - @ref rmw-dgwriteIO-highlights
+      - @ref rmw-dgwriteIO-depends
       - @ref rmw-dgwriteIO-lspec
       - @ref rmw-dgwriteIO-limitations
       - @ref rmw-dgwriteIO-conformance
@@ -492,6 +493,11 @@
 	Swriting   -> Swritedone [ label = "write_complete()", fontsize=9 ],
 	Swritedone -> Sdgwriting [ label = "writeIO failed", fontsize = 9 ]
 	Sdgwriting -> Swritedone [ label = "writeIO successful", fontsize=9,
+	Sreading   -> Sdgreading [ label = "readIO failed", fontsize=9 ],
+	Sdgreading -> Sreaddone  [ label = "read_complete()", fontsize=9 ],
+	Swriting   -> Sdgwriting [ label = "writeIO failed", fontsize=9 ],
+	Sdgwriting -> Swritedone [ label = "write_complete()", fontsize = 9 ]
+	Swriting   -> Swritedone [ label = "write_complete()", fontsize=9,
 			           weight=4 ]
 	Swriting   -> Sreading   [ label = "is_rmw()", fontsize=9 ]
 	Sreaddone  -> Slockrel   [ label = "io == read()", fontsize=9 ]
