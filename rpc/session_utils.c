@@ -92,11 +92,14 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 	item->ri_prio       = M0_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline   = 0;
 	item->ri_ops        = ops;
+
+	item->ri_nr_sent_max = 0;
 	if (abs_timeout > now)
-		item->ri_nr_sent_max = m0_time_seconds(
-						m0_time_sub(abs_timeout, now));
-	else
+		item->ri_nr_sent_max = m0_time_sub(abs_timeout, now) /
+					item->ri_resend_interval;
+	if (item->ri_nr_sent_max == 0)
 		item->ri_nr_sent_max = 1;
+
 	rc = m0_rpc__post_locked(item);
 	M0_RETURN(rc);
 }
