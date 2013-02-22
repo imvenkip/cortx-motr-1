@@ -45,7 +45,7 @@ M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx)
 {
 	M0_SET0(tx);
 	tx->tx_state = M0_DTX_INIT;
-	m0_fol_rec_part_list_init(&tx->tx_fol_rec);
+	m0_fol_rec_init(&tx->tx_fol_rec);
 }
 
 M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env)
@@ -78,7 +78,7 @@ M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)
 {
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_DONE)));
 
-	m0_fol_rec_part_list_fini(&tx->tx_fol_rec);
+	m0_fol_rec_fini(&tx->tx_fol_rec);
 }
 
 /** @} end of dtm group */

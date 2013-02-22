@@ -362,7 +362,7 @@ int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
 	rp->ffrp_fop = m0_fop_data(fop);
 	rp->ffrp_rep = m0_fop_data(rep);
 
-	m0_fol_rec_part_list_add(&dtx->tx_fol_rec, part);
+	m0_fol_rec_part_add(&dtx->tx_fol_rec, part);
 	return 0;
 }
 

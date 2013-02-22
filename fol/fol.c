@@ -130,31 +130,6 @@ static const struct m0_table_ops fol_ops = {
 	.key_cmp = lsn_cmp
 };
 
-M0_INTERNAL void m0_fol_rec_part_list_init(struct m0_fol_rec *rec)
-{
-	M0_PRE(rec != NULL);
-
-	m0_rec_part_tlist_init(&rec->fr_fol_rec_parts);
-}
-
-M0_INTERNAL void m0_fol_rec_part_list_fini(struct m0_fol_rec *rec)
-{
-	struct m0_fol_rec_part  *part;
-
-	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part) {
-		m0_fol_rec_part_fini(part);
-	} m0_tl_endfor;
-	m0_rec_part_tlist_fini(&rec->fr_fol_rec_parts);
-}
-
-M0_INTERNAL void m0_fol_rec_part_list_add(struct m0_fol_rec *rec,
-				          struct m0_fol_rec_part *part)
-{
-	M0_PRE(rec != NULL && part != NULL);
-
-	m0_rec_part_tlist_add_tail(&rec->fr_fol_rec_parts, part);
-}
-
 /**
    Initializes fields in @rec.
 
@@ -170,11 +145,18 @@ static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
 
 	M0_PRE(rec->fr_fol != NULL);
 
-	m0_fol_rec_part_list_init(rec);
+	m0_fol_rec_init(rec);
 	pair = &rec->fr_pair;
 	m0_db_pair_setup(pair, &rec->fr_fol->f_table, &rec->fr_desc.rd_lsn,
 			 sizeof rec->fr_desc.rd_lsn, NULL, 0);
 	return m0_db_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_table, tx, 0);
+}
+
+M0_INTERNAL void m0_fol_rec_init(struct m0_fol_rec *rec)
+{
+	M0_PRE(rec != NULL);
+
+	m0_rec_part_tlist_init(&rec->fr_fol_rec_parts);
 }
 
 /**
@@ -182,11 +164,31 @@ static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
 
    @see rec_init()
  */
-M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec)
+M0_INTERNAL void m0_fol_lookup_rec_fini(struct m0_fol_rec *rec)
 {
-	m0_fol_rec_part_list_fini(rec);
+	M0_PRE(rec != NULL);
+
+	m0_fol_rec_fini(rec);
 	m0_db_cursor_fini(&rec->fr_ptr);
 	m0_db_pair_fini(&rec->fr_pair);
+}
+
+M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec)
+{
+	struct m0_fol_rec_part *part;
+
+	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part) {
+		m0_fol_rec_part_fini(part);
+	} m0_tl_endfor;
+	m0_rec_part_tlist_fini(&rec->fr_fol_rec_parts);
+}
+
+M0_INTERNAL void m0_fol_rec_part_add(struct m0_fol_rec *rec,
+				     struct m0_fol_rec_part *part)
+{
+	M0_PRE(rec != NULL && part != NULL);
+
+	m0_rec_part_tlist_add_tail(&rec->fr_fol_rec_parts, part);
 }
 
 M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
@@ -208,20 +210,20 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 		if (result == 0) {
 			result = m0_fol_rec_lookup(fol, &tx, M0_LSN_ANCHOR, &r);
 			if (result == -ENOENT) {
-				m0_fol_rec_part_list_init(&r);
+				m0_fol_rec_init(&r);
 				/* initialise new fol */
 				M0_SET0(d);
 				d->rd_header.rh_refcount = 1;
 				d->rd_lsn = M0_LSN_ANCHOR;
 				fol->f_lsn = M0_LSN_ANCHOR + 1;
 				result = m0_fol_rec_add(fol, &tx, &r);
-				m0_fol_rec_part_list_fini(&r);
+				m0_fol_rec_fini(&r);
 			} else if (result == 0) {
 				result = m0_db_cursor_last(&r.fr_ptr,
 							   &r.fr_pair);
 				if (result == 0)
 					fol->f_lsn = lsn_inc(r.fr_desc.rd_lsn);
-				m0_fol_rec_fini(&r);
+				m0_fol_lookup_rec_fini(&r);
 			}
 			rc = m0_db_tx_commit(&tx);
 			result = result ?: rc;
@@ -421,11 +423,10 @@ M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
 	M0_PRE(tx != NULL);
 
 	desc = &rec->fr_desc;
-	result = fol_record_encode(rec, &buf);
-	if (result == 0) {
-		result = m0_fol_add_buf(fol, tx, desc, &buf);
+	result = fol_record_encode(rec, &buf) ?:
+		 m0_fol_add_buf(fol, tx, desc, &buf);
+	if (result == 0)
 		m0_free(buf.b_addr);
-	}
 	return result;
 }
 
@@ -560,12 +561,10 @@ M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
 	result = rec_init(out, tx);
 	if (result == 0) {
 		out->fr_desc.rd_lsn = lsn;
-		result = m0_db_cursor_get(&out->fr_ptr, &out->fr_pair);
-		if (result == 0) {
-			result = fol_record_decode(out);
-		} else {
-			m0_fol_rec_fini(out);
-		}
+		result = m0_db_cursor_get(&out->fr_ptr, &out->fr_pair) ?:
+			 fol_record_decode(out);
+		if (result != 0)
+			m0_fol_lookup_rec_fini(out);
 	}
 	M0_POST(ergo(result == 0, out->fr_desc.rd_lsn == lsn));
 	M0_POST(ergo(result == 0, out->fr_desc.rd_header.rh_refcount > 0));
@@ -615,7 +614,7 @@ static int fol_record_decode(struct m0_fol_rec *rec)
 			rc = m0_xcode_encdec(&ctx, &REC_PART_XCODE_OBJ(part),
 					     &cur, M0_BUFVEC_DECODE);
 			if (rc == 0)
-				m0_fol_rec_part_list_add(rec, part);
+				m0_fol_rec_part_add(rec, part);
 		}
 	}
 	return rc;

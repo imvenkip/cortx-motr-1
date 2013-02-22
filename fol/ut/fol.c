@@ -24,7 +24,6 @@
 #include "lib/memory.h"
 #include "lib/misc.h"              /* M0_SET0 */
 #include "fol/fol.h"
-#include "dtm/dtm.h"
 #include "rpc/rpc_opcodes.h"
 #include "fid/fid_xc.h"
 #include "fol/fol_xc.h"
@@ -38,8 +37,8 @@ static int db_reset(void)
 
 static struct m0_dbenv           db;
 static struct m0_fol             fol;
-static struct m0_dtx             dtx;
-static struct m0_fol_rec        *r;
+static struct m0_db_tx           tx;
+static struct m0_fol_rec         r;
 static struct m0_fol_rec_desc   *d;
 static struct m0_fol_rec_header *h;
 static struct m0_buf             buf;
@@ -57,18 +56,20 @@ static void test_init(void)
 	result = m0_fol_init(&fol, &db);
 	M0_ASSERT(result == 0);
 
-	m0_dtx_init(&dtx);
-	result = m0_dtx_open(&dtx, &db);
+	result = m0_db_tx_init(&tx, &db, 0);
 	M0_ASSERT(result == 0);
 
-	r = &dtx.tx_fol_rec;
-	d = &r->fr_desc;
+	m0_fol_rec_init(&r);
+
+	d = &r.fr_desc;
 	h = &d->rd_header;
 }
 
 static void test_fini(void)
 {
-	result = m0_dtx_done(&dtx);
+	m0_fol_rec_fini(&r);
+
+	result = m0_db_tx_commit(&tx);
 	M0_ASSERT(result == 0);
 
 	m0_fol_fini(&fol);
@@ -100,7 +101,7 @@ static void test_add(void)
 	h->rh_refcount = 1;
 
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
-	result = m0_fol_rec_add(&fol, &dtx.tx_dbtx, &dtx.tx_fol_rec);
+	result = m0_fol_rec_add(&fol, &tx, &r);
 	M0_ASSERT(result == 0);
 }
 
@@ -112,10 +113,10 @@ static void test_lookup(void)
 	struct m0_fol_rec dup;
 
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
-	result = m0_fol_rec_add(&fol, &dtx.tx_dbtx, &dtx.tx_fol_rec);
+	result = m0_fol_rec_add(&fol, &tx, &r);
 	M0_ASSERT(result == 0);
 
-	result = m0_fol_rec_lookup(&fol, &dtx.tx_dbtx, d->rd_lsn, &dup);
+	result = m0_fol_rec_lookup(&fol, &tx, d->rd_lsn, &dup);
 	M0_ASSERT(result == 0);
 
 	M0_ASSERT(dup.fr_desc.rd_lsn == d->rd_lsn);
@@ -123,9 +124,9 @@ static void test_lookup(void)
 			       &REC_HEADER_XCODE_OBJ(&dup.fr_desc.rd_header))
 	          == 0);
 
-	m0_fol_rec_fini(&dup);
+	m0_fol_lookup_rec_fini(&dup);
 
-	result = m0_fol_rec_lookup(&fol, &dtx.tx_dbtx, lsn_inc(d->rd_lsn), &dup);
+	result = m0_fol_rec_lookup(&fol, &tx, lsn_inc(d->rd_lsn), &dup);
 	M0_ASSERT(result == -ENOENT);
 }
 
@@ -147,6 +148,7 @@ static void test_fol_rec_part_encdec(void)
 	m0_lsn_t		lsn;
 	struct m0_fol_rec_part *dec_part;
 
+	m0_fol_rec_init(&r);
 	M0_ALLOC_PTR(rec);
 	M0_UT_ASSERT(rec != NULL);
 
@@ -155,29 +157,29 @@ static void test_fol_rec_part_encdec(void)
 
 	m0_fol_rec_part_init(&ut_rec_part, rec, &ut_part_type);
 
-	m0_fol_rec_part_list_add(&dtx.tx_fol_rec, &ut_rec_part);
+	m0_fol_rec_part_add(&r, &ut_rec_part);
 
 	h->rh_refcount = 1;
 	lsn = d->rd_lsn = m0_fol_lsn_allocate(&fol);
 
-	result = m0_fol_rec_add(&fol, &dtx.tx_dbtx, &dtx.tx_fol_rec);
+	result = m0_fol_rec_add(&fol, &tx, &r);
 	M0_ASSERT(result == 0);
 
-	result = m0_dtx_done(&dtx);
+	result = m0_db_tx_commit(&tx);
+	M0_ASSERT(result == 0);
+	m0_fol_rec_fini(&r);
+
+	result = m0_db_tx_init(&tx, &db, 0);
 	M0_ASSERT(result == 0);
 
-	m0_dtx_init(&dtx);
-	result = m0_dtx_open(&dtx, &db);
-	M0_ASSERT(result == 0);
-
-	result = m0_fol_rec_lookup(&fol, &dtx.tx_dbtx, lsn, &dec_rec);
+	result = m0_fol_rec_lookup(&fol, &tx, lsn, &dec_rec);
 	M0_ASSERT(result == 0);
 
 	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part) {
 		dec_part->rp_ops->rpo_undo(dec_part);
 	} m0_tl_endfor;
 
-	m0_fol_rec_fini(&dec_rec);
+	m0_fol_lookup_rec_fini(&dec_rec);
 }
 
 const struct m0_test_suite fol_ut = {
@@ -226,18 +228,17 @@ static m0_lsn_t last;
 
 static void checkpoint()
 {
-	result = m0_dtx_done(&dtx);
+	result = m0_db_tx_commit(&tx);
 	M0_ASSERT(result == 0);
 
-	m0_dtx_init(&dtx);
-	result = m0_dtx_open(&dtx, &db);
+	result = m0_db_tx_init(&tx, &db, 0);
 	M0_ASSERT(result == 0);
 }
 
 static void ub_insert(int i)
 {
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
-	result = m0_fol_rec_add(&fol, &dtx.tx_dbtx, &dtx.tx_fol_rec);
+	result = m0_fol_rec_add(&fol, &tx, &r);
 	M0_ASSERT(result == 0);
 	last = d->rd_lsn;
 	if (i%1000 == 0)
@@ -251,9 +252,9 @@ static void ub_lookup(int i)
 
 	lsn = last - i;
 
-	result = m0_fol_rec_lookup(&fol, &dtx.tx_dbtx, lsn, &rec);
+	result = m0_fol_rec_lookup(&fol, &tx, lsn, &rec);
 	M0_ASSERT(result == 0);
-	m0_fol_rec_fini(&rec);
+	m0_fol_lookup_rec_fini(&rec);
 	if (i%1000 == 0)
 		checkpoint();
 }
@@ -261,7 +262,7 @@ static void ub_lookup(int i)
 static void ub_insert_buf(int i)
 {
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
-	result = m0_fol_add_buf(&fol, &dtx.tx_dbtx, d, &buf);
+	result = m0_fol_add_buf(&fol, &tx, d, &buf);
 	M0_ASSERT(result == 0);
 	if (i%1000 == 0)
 		checkpoint();

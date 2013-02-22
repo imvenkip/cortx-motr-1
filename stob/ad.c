@@ -1140,7 +1140,7 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 	} while (!eodst);
 
 	if (result == 0 && part != NULL)
-		m0_fol_rec_part_list_add(&io->si_tx->tx_fol_rec, part);
+		m0_fol_rec_part_add(&io->si_tx->tx_fol_rec, part);
 
 	return result;
 }

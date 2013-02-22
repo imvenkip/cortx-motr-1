@@ -442,7 +442,7 @@ static void fom_create(struct m0_fom **fom, enum cob_fom_type fomtype)
 	base_fom->fo_type = &ft;
 
 	m0_fom_sm_init(base_fom);
-	m0_fol_rec_part_list_init(&base_fom->fo_tx.tx_fol_rec);
+	m0_fol_rec_init(&base_fom->fo_tx.tx_fol_rec);
 }
 
 /*
@@ -462,7 +462,7 @@ static void fom_fini(struct m0_fom *fom, enum cob_fom_type fomtype)
 	default:
 		M0_IMPOSSIBLE("Invalid COB-FOM type");
 	}
-	m0_fol_rec_part_list_fini(&fom->fo_tx.tx_fol_rec);
+	m0_fol_rec_fini(&fom->fo_tx.tx_fol_rec);
 }
 
 /*
