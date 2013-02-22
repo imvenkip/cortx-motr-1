@@ -48,6 +48,7 @@
    - @ref rmw-degraded-writeIO
       - @ref rmw-dgwriteIO-req
       - @ref rmw-dgwriteIO-highlights
+      - @ref rmw-dgwriteIO-depends
       - @ref rmw-dgwriteIO-lspec
       - @ref rmw-dgwriteIO-limitations
       - @ref rmw-dgwriteIO-conformance
@@ -469,6 +470,8 @@
 	Swriting   [ label = "IRS_WRITING" ]
 	Sreaddone  [ label = "IRS_READ_COMPLETE" ]
 	Swritedone [ label = "IRS_WRITE_COMPLETE" ]
+	Sdgreading [ label = "IRS_DG_READING"]
+	Sdgwriting [ label = "IRS_DG_WRITING" ]
 	Sreqdone   [ label = "IRS_REQ_COMPLETE" ]
 
 	Start      -> Suninit    [ label = "allocate", fontsize=10, weight=8 ]
@@ -483,8 +486,10 @@
 	{
 	    rank = same; Swritedone; Sreaddone;
 	};
-	Sreading   -> Sdgreading [ label = "readIO failed", fontsize=9],
-	Sdgreading -> Sreaddone  [ label = "read_complete()", fontsize=9],
+	Sreading   -> Sdgreading [ label = "readIO failed", fontsize=9 ],
+	Sdgreading -> Sreaddone  [ label = "read_complete()", fontsize=9 ],
+	Swriting   -> Sdgwriting [ label = "writeIO failed", fontsize=9 ],
+	Sdgwriting -> Swritedone [ label = "write_complete()", fontsize = 9 ]
 	Swriting   -> Swritedone [ label = "write_complete()", fontsize=9,
 			           weight=4 ]
 	Sreading   -> Sreaddone  [ label = "read_complete()", fontsize=9,
@@ -746,6 +751,53 @@
    Accordingly write IO fops will be sent to devices (cobs) and total
    number of bytes written will be returned to end user.
 
+   @subsection rmw-dgwriteIO-depends
+
+   - Distributed lock API is expected from resource management subsystem
+     which will take care of synchronizing access to files.
+     The Mero client IO path will request a distributed lock for given file
+     and will block until lock is not granted.
+     Similarly, SNS repair should acquire locks on global files which are
+     part of current sliding window while repairing.
+
+   - An API is expected from SNS subsystem which will find out if repair has
+     completed for input global file fid or not.
+     Since the SNS repair sliding window consists of a set of global fids
+     which are currently under repair, assuming the lexigraphical order
+     of repair, the API should return whether input global fid has been
+     repaired or not.
+
+   - When number of spare units in a storage pool is greater than one,
+     algorithm like Reed & Solomon is used to generate parity.
+     During repair, the SNS repair process recovers the lost data using
+     parity recovery algorithms.
+     If number of parity units is greater than one, the order in which lost
+     units are stored on spare units
+     (which recovered data unit will be stored on which spare unit)
+     should be well known.
+     It should be similar to degraded mode write IO use-case where
+     data for lost devices needs to be redirected to spare units.
+     @n An example can illustrate this properly -
+      - Consider a storage pool with parameters
+        N = 8,
+	K = 2,
+	P = 12
+      - Assuming device# 2 and #3 failed and SNS repair is triggered.
+      - When SNS repair recovers lost data for 2 lost devices, it needs to be
+        stored on the 2 spare units in all parity groups.
+      - Now the order in which this data is stored on spare units matters
+        and should be same with the order used by Mero client IO code in cases
+	where data for lost devices need to be redirected towards corresponding
+	spare units in same parity group.
+	For instance,
+	 - Recovered unit# 2 stored on Spare unit# 0 AND
+	 - Recovered unit# 3 stored on Spare unit# 1.
+	   OR
+	 - Recovered unit# 2 stored on Spare unit# 1 AND
+	 - Recovered unit# 3 stored on Spare unit# 0.
+      - Same routine will be used by Mero degraded write IO code path
+        as well as SNS repair code to decide this order.
+
    @subsection rmw-dgwriteIO-lspec
 
    A new state DEGRADED_WRITING will be introduced which will take care of
@@ -759,11 +811,11 @@
    - When SNS repair starts, the normal write IO will fail with a version
      mismatch error.
 
-   - The IO reply fop will be incorporated with a fid structure
-     (equivalent to m0_fid) which represents the global file on which repair
-     is going on. Since SNS repair proceeds in a lexicographic order, this
-     fid will give good idea about whether given file on which write IO is
-     about to start is lagging behind or leading SNS repair.
+   - The IO reply fop will be incorporated with a U64 field which will indicate
+     whether SNS repair has finished or is yet to start on given file.
+     The SNS repair subsystem will invoke an API @see @ref rmw-dgwriteIO-depends
+     which will return either a boolean value indicating whether repair has
+     completed for given file or not.
 
    - Use-case 1: If SNS repair is yet to start on given file, the write
      IO fops for the failed device can be completely ommitted since there
@@ -781,11 +833,13 @@
        - A mechanism is needed possibly from parity generation algorithms
          to find out which unit from parity group maps to which spare
 	 unit.
+	 @n @see @ref rmw-dgwriteIO-depends
 
    - The state machine will transition as follows.
      @n WRITING          --> WRITE_COMPLETE
      @n WRITE_COMPLETE   --> DEGRADED_WRITING
      @n DEGRADED_WRITING --> WRITE_COMPLETE
+     @see @ref rmw-lspec-state
 
    - Existing rmw IO structures will be modified as mentioned below.
      - struct io_request
@@ -806,33 +860,18 @@
 	 this case, write IO fops on failed device need to be redirected
 	 to spare units.
 
-   - When number of spare units in a storage pool is greater than 1, algorithm
-     like Reed & Solomon is used to generate parity.
-     During repair, the repair process code recovers the lost data using
-     parity recovery algorithms.
-     If number of parity units is greater than one, the order in which lost
-     units are stored on spare units (which data unit will be stored on
-     which spare unit) should be similar with the second use-case where
-     data for lost devices needs to be redirected to spare units.
+     - struct target_ioreq
+       - Struct dgmode_readvec will be reused to work for degraded mode write
+         IO.
+       - The routine target_ioreq_seg_add() will be modified to accommodate
+         pages belonging to use-case where repair has completed for given
+	 file and the pages belonging to failed device need to be diverted
+	 to appropriate spare unit in same parity group.
 
-     An example can illustrate this properly -
-      - Consider a storage pool with parameters
-        N = 8,
-	K = 2,
-	P = 12
-      - Assume that device# 2 and #3 fail and SNS repair is triggered.
-      - When SNS repair recovers lost data for 2 lost devices, it needs to be
-        stored on the 2 spare units.
-      - Now the order in which this data is stored on spare units matters
-        and should be same with the order used by Mero client IO code in cases
-	where file to be written is already repaired by SNS repair process.
-	 - Recovered unit# 2 stored on Spare unit# 0 OR
-	 - Recovered unit# 2 stored on Spare unit# 1.
-	   AND
-	 - Recovered unit# 3 stored on Spare unit# 0 OR
-	 - Recovered unit# 3 stored on Spare unit# 1.
-      - Same routine will be used by Mero degraded write IO code path
-        as well as SNS repair code to decide this order.
+   - IO reply on-wire fop will be enhanced with a U64 field which will
+     imply if SNS repair has completed for global fid in IO request fop
+     or not. This field is only used in case of ongoing SNS repair.
+     It is not used during healthy pool state.
 
    - End user is unaware of degraded mode write IO. It can be characterised
      by low IO throughput.
