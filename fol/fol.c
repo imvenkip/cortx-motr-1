@@ -30,6 +30,7 @@
 #include "fol/fol.h"
 #include "fol/fol_xc.h"
 #include "xcode/xcode.h"
+#include "fop/fop.h"
 
 /**
    @addtogroup fol
@@ -80,10 +81,13 @@ static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
 #define REC_PART_HEADER_XCODE_OBJ(ptr) \
 M0_XCODE_OBJ(m0_fol_rec_part_header_xc, ptr)
 
-#define REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) {    \
-		.xo_type = r->rp_ops->rpo_type->rpt_xt,	 \
-		.xo_ptr  = r->rp_data,		         \
+#define REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) { \
+	.xo_type = part->rp_ops != NULL ?	      \
+		   part->rp_ops->rpo_type->rpt_xt :   \
+		   m0_fop_fol_rec_part_type.rpt_xt,   \
+	.xo_ptr  = r->rp_data,		              \
 }
+
 
 M0_INTERNAL bool m0_lsn_is_valid(m0_lsn_t lsn)
 {
@@ -340,7 +344,7 @@ m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
 	static uint32_t index = PART_TYPE_START_INDEX;
 
 	M0_PRE(type != NULL);
-	M0_PRE(type->rpt_xt != NULL && type->rpt_ops != NULL);
+	M0_PRE(type->rpt_xt != NULL);
 	M0_PRE(type->rpt_index == 0);
 
 	m0_mutex_lock(&rptypes_lock);
@@ -385,9 +389,11 @@ m0_fol_rec_part_init(struct m0_fol_rec_part *part, void *data,
 		     const struct m0_fol_rec_part_type *type)
 {
 	M0_PRE(part != NULL);
+	M0_PRE(type != NULL);
 
 	part->rp_data = data;
-	type->rpt_ops->rpto_rec_part_init(part);
+	if (type->rpt_ops != NULL)
+		type->rpt_ops->rpto_rec_part_init(part);
 	m0_rec_part_tlink_init(part);
 }
 
@@ -490,8 +496,14 @@ static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 
 	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part) {
 		struct m0_fol_rec_part_header rph;
+		uint32_t		      index;
+
+		index = part->rp_ops != NULL ?
+			part->rp_ops->rpo_type->rpt_index :
+			m0_fop_fol_rec_part_type.rpt_index;
+
 		rph = (struct m0_fol_rec_part_header) {
-			.rph_index  = part->rp_ops->rpo_type->rpt_index,
+			.rph_index  = index,
 			.rph_magic  = M0_FOL_REC_PART_MAGIC,
 		};
 
@@ -590,8 +602,15 @@ static int fol_record_decode(struct m0_fol_rec *rec)
 			part_type = fol_rec_part_type_lookup(ph.rph_index);
 
 			M0_ALLOC_PTR(part);
+			if (part == NULL)
+				return -ENOMEM;
+
 			m0_fol_rec_part_init(part, NULL, part_type);
 			part->rp_data = m0_alloc(part_type->rpt_xt->xct_sizeof);
+			if (part->rp_data == NULL) {
+				m0_free(part);
+				return -ENOMEM;
+			}
 
 			rc = m0_xcode_encdec(&ctx, &REC_PART_XCODE_OBJ(part),
 					     &cur, M0_BUFVEC_DECODE);

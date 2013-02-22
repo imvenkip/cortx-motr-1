@@ -279,6 +279,13 @@ static int fom_success(struct m0_fom *fom)
 	return M0_FSO_AGAIN;
 }
 
+static int fom_fop_fol_rec_part_add(struct m0_fom *fom)
+{
+	m0_fop_fol_add(fom->fo_fop, fom->fo_rep_fop, &fom->fo_tx);
+
+	return M0_FSO_AGAIN;
+}
+
 /**
  * Make a FOL transaction record
  */
@@ -417,9 +424,13 @@ static const struct fom_phase_desc fpd_table[] = {
 					     "create_loc_ctx_wait",
 					      1 << M0_FOPH_TXN_CONTEXT_WAIT },
 	[M0_FOPH_SUCCESS] =		   { &fom_success,
-					      M0_FOPH_FOL_REC_ADD,
+					      M0_FOPH_FOL_REC_PART_ADD,
 					     "fom_success",
 					      1 << M0_FOPH_SUCCESS },
+	[M0_FOPH_FOL_REC_PART_ADD] =       { &fom_fop_fol_rec_part_add,
+					      M0_FOPH_FOL_REC_ADD,
+					     "fop_fol_rec_part_add",
+					      1 << M0_FOPH_FOL_REC_PART_ADD},
 	[M0_FOPH_FOL_REC_ADD] =		   { &fom_fol_rec_add,
 					      M0_FOPH_TXN_COMMIT,
 					     "fom_fol_rec_add",
@@ -528,6 +539,10 @@ static const struct m0_sm_state_descr generic_phases[] = {
 	},
 	[M0_FOPH_SUCCESS] = {
 		.sd_name      = "fom_success",
+		.sd_allowed   = M0_BITS(M0_FOPH_FOL_REC_PART_ADD)
+	},
+	[M0_FOPH_FOL_REC_PART_ADD] = {
+		.sd_name      = "fom_fop_fol_rec_part_add",
 		.sd_allowed   = M0_BITS(M0_FOPH_FOL_REC_ADD)
 	},
 	[M0_FOPH_FOL_REC_ADD] = {

@@ -68,6 +68,7 @@ struct m0_xcode_type;
 /* export */
 struct m0_fop_data;
 struct m0_fop;
+struct m0_fop_fol_rec_part;
 
 /**
     fop storage.
@@ -253,6 +254,8 @@ struct m0_fop_type_ops {
 	/** Returns the net buf desc in io fop. */
 	void (*fto_io_desc_get)(struct m0_fop *fop,
 			        struct m0_net_buf_desc **desc);
+	int (*fto_undo)(struct m0_fop_fol_rec_part *fpart);
+	int (*fto_redo)(struct m0_fop_fol_rec_part *fpart);
 };
 
 typedef uint32_t m0_fop_type_code_t;
@@ -312,10 +315,10 @@ M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
 			      enum m0_bufvec_what      what);
 
 M0_INTERNAL int m0_fop_xc_type(const struct m0_xcode_obj   *par,
-		       const struct m0_xcode_type **out);
+			       const struct m0_xcode_type **out);
 
 M0_INTERNAL int m0_fop_rep_xc_type(const struct m0_xcode_obj   *par,
-		       const struct m0_xcode_type **out);
+				   const struct m0_xcode_type **out);
 
 /**
  * fol record part for a fop.
@@ -332,10 +335,10 @@ struct m0_fop_fol_rec_part {
 /**
  * Adds fol record part for this fop (m0_fop_fol_rec_part) to the transaction.
  */
-int m0_fop_fol_add(const struct m0_fol_rec_part_type *rptype,
-		   struct m0_fop *fop, struct m0_fop *rep,
+int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
 		   struct m0_dtx *dtx);
 
+extern struct m0_fol_rec_part_type m0_fop_fol_rec_part_type;
 /** @} end of fop group */
 
 /* __MERO_FOP_FOP_H__ */
