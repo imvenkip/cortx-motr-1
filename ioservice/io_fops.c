@@ -97,27 +97,31 @@ static const struct m0_rpc_item_type_ops io_item_type_ops = {
         .rito_io_coalesce    = item_io_coalesce,
 };
 
+static int io_fol_rec_part_undo(struct m0_fop_fol_rec_part *fpart)
+{
+	/**
+	 * @todo Perform the undo operation for write, create and delete
+	 * updates using the generic fop fol record part.
+	 */
+	return 0;
+}
+
+static int io_fol_rec_part_redo(struct m0_fop_fol_rec_part *fpart)
+{
+	/**
+	 * @todo Perform the redo operation for write, create and delete
+	 * updates using the generic fop fol record part.
+	 */
+	return 0;
+}
+
 const struct m0_fop_type_ops io_fop_rwv_ops = {
 	.fto_fop_replied = io_fop_replied,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
+	.fto_undo        = io_fol_rec_part_undo,
+	.fto_redo        = io_fol_rec_part_redo,
 };
-
-static int io_fol_rec_part_undo(struct m0_fol_rec_part *part)
-{
-	/**
-	 * @todo Perform the undo operation based on FOL record part type.
-	 */
-	return 0;
-}
-
-static int io_fol_rec_part_redo(struct m0_fol_rec_part *part)
-{
-	/**
-	 * @todo Perform the redo operation based on FOL record part type.
-	 */
-	return 0;
-}
 
 M0_INTERNAL void m0_ioservice_fop_fini(void)
 {
@@ -262,17 +266,11 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
    <hr>
    @section IOFOLDLD-fspec Functional Specification
-   The following new APIs are introduced:
-
-   FOL Record parts in ioservice,
-   @see io_write_rec_part  : write updates
-   @see io_create_rec_part : create updates
-   @see io_delete_rec_part : delete updates
 
    @see ad_rec_part is added for AD write operation.
 
    For each of create, delete and write IO operations FOL record parts are
-   initialised with their xcode type and FOL operations.
+   added in FOM generic phase M0_FOPH_FOL_REC_PART_ADD using m0_fop_fol_add().
 
    For create and delete operations fop data and reply fop data is stored
    in FOL record parts.
@@ -283,7 +281,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    For write operation, in ad_write_launch() store AD allocated extents in
    FOL record part struct ad_rec_part.
 
-   Add these FOL record parts in the list.
+   All these FOL record parts are to the list in the trasaction record.
 
    <hr>
    @section IOFOLDLD-ut Unit Tests
