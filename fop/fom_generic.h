@@ -27,6 +27,8 @@
 #include "lib/types.h"
 #include "xcode/xcode_attr.h"
 
+struct m0_rpc_item;
+
 /**
  * @addtogroup fom
  */
@@ -198,11 +200,14 @@ M0_INTERNAL int m0_fom_generic_init(void);
 extern const struct m0_sm_conf m0_generic_conf;
 
 /**
- * <b>Fom generic error reply</b>
- */
+   Generic reply.
 
-struct m0_fom_error_rep {
-	uint32_t rerr_rc;
+   RPC operations that returns nothing but error code to sender can use
+   this generic reply fop. Request handler uses this type of fop to
+   report operation failure in generic fom phases.
+ */
+struct m0_fop_generic_reply {
+	uint32_t gr_rc;
 } M0_XCA_RECORD;
 
 /**
@@ -212,6 +217,12 @@ struct m0_fom_error_rep {
  * added in FOL record part.
  */
 M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
+
+M0_INTERNAL bool
+m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item);
+
+M0_INTERNAL uint32_t
+m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *item);
 
 /** @} end of fom group */
 

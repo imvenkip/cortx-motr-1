@@ -38,24 +38,40 @@
    @{
  */
 
-M0_INTERNAL struct m0_fop_type m0_fom_error_rep_fopt;
+struct m0_fop_type m0_fop_generic_reply_fopt;
 
 M0_INTERNAL void m0_fom_generic_fini(void)
 {
-	m0_fop_type_fini(&m0_fom_error_rep_fopt);
+	m0_fop_type_fini(&m0_fop_generic_reply_fopt);
 	m0_xc_fom_generic_fini();
 }
 
 M0_INTERNAL int m0_fom_generic_init(void)
 {
 	m0_xc_fom_generic_init();
-	return M0_FOP_TYPE_INIT(&m0_fom_error_rep_fopt,
-				.name      = "fom error reply",
+	return M0_FOP_TYPE_INIT(&m0_fop_generic_reply_fopt,
+				.name      = "generic-reply",
 				.opcode    = M0_REQH_ERROR_REPLY_OPCODE,
-				.xt        = m0_fom_error_rep_xc,
+				.xt        = m0_fop_generic_reply_xc,
 				.rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 }
 
+M0_INTERNAL bool
+m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item)
+{
+	return item->ri_type == &m0_fop_generic_reply_fopt.ft_rpc_item_type;
+}
+
+M0_INTERNAL uint32_t
+m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *item)
+{
+	struct m0_fop_generic_reply *reply;
+
+	M0_PRE(m0_rpc_item_is_generic_reply_fop(item));
+
+	reply = m0_fop_data(m0_rpc_item_to_fop(item));
+	return reply->gr_rc;
+}
 
 /**
  * Fom phase descriptor structure, helps to transition fom
@@ -240,16 +256,16 @@ static int create_loc_ctx_wait(struct m0_fom *fom)
  */
 static int set_gen_err_reply(struct m0_fom *fom)
 {
-	struct m0_fop           *rfop;
-	struct m0_fom_error_rep *out_fop;
+	struct m0_fop               *rfop;
+	struct m0_fop_generic_reply *out_fop;
 
 	M0_PRE(fom != NULL);
 
-	rfop = m0_fop_alloc(&m0_fom_error_rep_fopt, NULL);
+	rfop = m0_fop_alloc(&m0_fop_generic_reply_fopt, NULL);
 	if (rfop == NULL)
 		return -ENOMEM;
 	out_fop = m0_fop_data(rfop);
-	out_fop->rerr_rc = m0_fom_rc(fom);
+	out_fop->gr_rc = m0_fom_rc(fom);
 	fom->fo_rep_fop = rfop;
 
 	return 0;

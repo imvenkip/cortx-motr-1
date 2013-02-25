@@ -89,7 +89,7 @@ static struct m0_fop_type *ioservice_fops[] = {
 
 /* Used for IO REQUEST items only. */
 const struct m0_rpc_item_ops io_req_rpc_item_ops = {
-	.rio_replied	= io_item_replied,
+	.rio_replied = io_item_replied,
 };
 
 static const struct m0_rpc_item_type_ops io_item_type_ops = {

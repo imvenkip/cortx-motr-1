@@ -32,7 +32,7 @@
 extern struct m0_fop_type m0_fop_rm_borrow_fopt;
 extern struct m0_fop_type m0_fop_rm_borrow_rep_fopt;
 extern struct m0_fop_type m0_fop_rm_revoke_fopt;
-M0_EXTERN struct m0_fop_type m0_fom_error_rep_fopt;
+extern struct m0_fop_type m0_fop_generic_reply_fopt;
 
 /**
  * FOP init() and fini() functions.

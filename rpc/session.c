@@ -636,12 +636,6 @@ M0_INTERNAL void m0_rpc_session_establish_reply_received(struct m0_rpc_item
 	       item->ri_session != NULL &&
 	       item->ri_session->s_session_id == SESSION_ID_0);
 
-	reply_item = item->ri_reply;
-	rc         = item->ri_error;
-
-	M0_PRE(ergo(rc == 0, reply_item != NULL &&
-			     item->ri_session == reply_item->ri_session));
-
 	fop = m0_rpc_item_to_fop(item);
 	ctx = container_of(fop, struct fop_session_establish_ctx, sec_fop);
 	session = ctx->sec_session;
@@ -653,25 +647,29 @@ M0_INTERNAL void m0_rpc_session_establish_reply_received(struct m0_rpc_item
 	M0_ASSERT(m0_rpc_session_invariant(session));
 	M0_ASSERT(session_state(session) == M0_RPC_SESSION_ESTABLISHING);
 
-	if (rc != 0) {
-		session_failed(session, rc);
-		goto out;
-	}
-
-	reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
-
-	sender_id  = reply->rser_sender_id;
-	session_id = reply->rser_session_id;
-	rc         = reply->rser_rc;
-
+	reply_item = item->ri_reply;
+	reply      = NULL;
+	rc         = item->ri_error;
+	M0_PRE(ergo(rc == 0, reply_item != NULL &&
+			     item->ri_session == reply_item->ri_session));
 	if (rc == 0) {
+		if (m0_rpc_item_is_generic_reply_fop(reply_item)) {
+			rc = m0_rpc_item_generic_reply_rc(reply_item);
+			M0_ASSERT(rc != 0);
+		} else {
+			reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
+			rc    = reply->rser_rc;
+		}
+	}
+	if (rc == 0) {
+		M0_ASSERT(reply != NULL);
+		sender_id  = reply->rser_sender_id;
+		session_id = reply->rser_session_id;
 		if (session_id > SESSION_ID_MIN &&
 		    session_id < SESSION_ID_MAX &&
 		    sender_id != SENDER_ID_INVALID) {
-
 			session->s_session_id = session_id;
 			session_state_set(session, M0_RPC_SESSION_IDLE);
-
 			for (i = 0; i < session->s_nr_slots; i++) {
 				slot = session->s_slot_table[i];
 				slot->sl_ops->so_slot_idle(slot);
@@ -680,11 +678,9 @@ M0_INTERNAL void m0_rpc_session_establish_reply_received(struct m0_rpc_item
 			rc = -EPROTO;
 		}
 	}
-
 	if (rc != 0)
 		session_failed(session, rc);
 
-out:
 	M0_ASSERT(m0_rpc_session_invariant(session));
 	M0_POST(M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
 					       M0_RPC_SESSION_FAILED)));
@@ -846,33 +842,31 @@ M0_INTERNAL void m0_rpc_session_terminate_reply_received(struct m0_rpc_item
 
 	conn    = item->ri_session->s_conn;
 	machine = conn->c_rpc_machine;
-
 	M0_ASSERT(m0_rpc_machine_is_locked(machine));
-
 	M0_ASSERT(conn_state(conn) == M0_RPC_CONN_ACTIVE);
 
-	reply_item = item->ri_reply;
-	rc         = item->ri_error;
-
-	M0_ASSERT(ergo(rc == 0, reply_item != NULL &&
-			        item->ri_session == reply_item->ri_session));
-
-	args = m0_fop_data(m0_rpc_item_to_fop(item));
-
+	args       = m0_fop_data(m0_rpc_item_to_fop(item));
 	sender_id  = args->rst_sender_id;
 	session_id = args->rst_session_id;
-
 	M0_ASSERT(sender_id == conn->c_sender_id);
-
 	session = m0_rpc_session_search(conn, session_id);
 	M0_ASSERT(m0_rpc_session_invariant(session) &&
 		  session_state(session) == M0_RPC_SESSION_TERMINATING);
 
+	reply_item = item->ri_reply;
+	reply      = NULL;
+	rc         = item->ri_error;
+	M0_ASSERT(ergo(rc == 0, reply_item != NULL &&
+			        item->ri_session == reply_item->ri_session));
 	if (rc == 0) {
-		reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
-		rc    = reply->rstr_rc;
+		if (m0_rpc_item_is_generic_reply_fop(reply_item)) {
+			rc = m0_rpc_item_generic_reply_rc(reply_item);
+			M0_ASSERT(rc != 0);
+		} else {
+			reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
+			rc    = reply->rstr_rc;
+		}
 	}
-
 	if (rc == 0)
 		session_state_set(session, M0_RPC_SESSION_TERMINATED);
 	else

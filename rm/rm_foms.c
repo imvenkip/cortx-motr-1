@@ -193,7 +193,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 		fom_ops = &rm_fom_borrow_ops;
 		break;
 	case M0_RIT_REVOKE:
-		fopt = &m0_fom_error_rep_fopt;
+		fopt = &m0_fop_generic_reply_fopt;
 		fom_ops = &rm_fom_revoke_ops;
 		break;
 	default:
@@ -292,7 +292,7 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 			 struct m0_fom *fom, int rc)
 {
 	struct m0_fop_rm_borrow_rep *bfop;
-	struct m0_fom_error_rep     *rfop = NULL;
+	struct m0_fop_generic_reply *rfop = NULL;
 
 	M0_ENTRY("reply for fom: %p type: %d error: %d", fom, type, rc);
 
@@ -308,7 +308,7 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 		M0_IMPOSSIBLE("Unrecognized RM request");
 		break;
 	}
-	rfop->rerr_rc = rc;
+	rfop->gr_rc = rc;
 	m0_fom_phase_move(fom, rc, rc ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
 	M0_LEAVE();
 }

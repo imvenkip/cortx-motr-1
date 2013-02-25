@@ -69,7 +69,6 @@ extern struct m0_reqh_service_type m0_rpc_service_type;
  * FOP definitions for resource-credit revoke request and reply.
  */
 struct m0_fop_type m0_fop_rm_revoke_fopt;
-extern struct m0_fop_type m0_fom_error_rep_fopt;
 
 /*
  * Extern FOM params
@@ -286,7 +285,7 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	borrow_reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
 	bcredit = &outreq->ou_req.rog_want.rl_credit;
 	owner = bcredit->cr_owner;
-	rc = item->ri_error ?: borrow_reply->br_rc.rerr_rc;
+	rc = item->ri_error ?: borrow_reply->br_rc.gr_rc;
 
 	M0_ASSERT(m0_mutex_is_locked(&grp->s_lock));
 	if (rc == 0) {
@@ -333,13 +332,13 @@ out:
 
 static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_fom_error_rep *revoke_reply;
-	struct m0_rm_owner	*owner;
-	struct m0_rm_credit	*credit;
-	struct m0_rm_credit	*out_credit;
-	struct rm_out		*outreq;
-	struct m0_rpc_item	*item;
-	int			 rc;
+	struct m0_fop_generic_reply *revoke_reply;
+	struct m0_rm_owner	    *owner;
+	struct m0_rm_credit	    *credit;
+	struct m0_rm_credit	    *out_credit;
+	struct rm_out		    *outreq;
+	struct m0_rpc_item	    *item;
+	int			     rc;
 
 	M0_ENTRY();
 	outreq = container_of(ast, struct rm_out, ou_ast);
@@ -347,7 +346,7 @@ static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	revoke_reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
 	out_credit = &outreq->ou_req.rog_want.rl_credit;
 	owner = out_credit->cr_owner;
-	rc = item->ri_error ?: revoke_reply->rerr_rc;
+	rc = item->ri_error ?: revoke_reply->gr_rc;
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "revoke request:%p failed: rc [%d]\n",
 				 outreq, rc);
