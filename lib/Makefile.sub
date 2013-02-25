@@ -3,6 +3,7 @@ nobase_mero_include_HEADERS += lib/adt.h \
                                lib/assert.h \
                                lib/atomic.h \
                                lib/bitmap.h \
+                               lib/bitmap_xc.h \
                                lib/bitstring.h \
                                lib/bob.h \
                                lib/buf.h \
@@ -34,6 +35,7 @@ nobase_mero_include_HEADERS += lib/adt.h \
                                lib/tlist.h \
                                lib/trace.h \
                                lib/types.h \
+                               lib/types_xc.h \
                                lib/ub.h \
                                lib/ut.h \
                                lib/uuid.h \
@@ -54,6 +56,7 @@ nobase_mero_include_HEADERS += lib/adt.h \
 
 mero_libmero_la_SOURCES += lib/assert.c \
                            lib/bitmap.c \
+                           lib/bitmap_xc.c \
                            lib/bitstring.c \
                            lib/bob.c \
                            lib/buf.c \
@@ -79,6 +82,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/tlist.c \
                            lib/trace.c \
                            lib/trace_internal.h \
+                           lib/types_xc.c \
                            lib/ub.c \
                            lib/ut.c \
                            lib/uuid.c \
@@ -99,7 +103,9 @@ mero_libmero_la_SOURCES += lib/assert.c \
 
 XC_FILES += lib/buf_xc.h \
             lib/cookie_xc.h \
-            lib/vec_xc.h
+            lib/vec_xc.h \
+	    lib/bitmap_xc.h \
+	    lib/types_xc.h
 
 EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/cdefs.h \
@@ -136,4 +142,10 @@ CLEANFILES += lib/buf.gccxml \
               lib/cookie_xc.h \
               lib/vec.gccxml \
               lib/vec_xc.c \
-              lib/vec_xc.h
+              lib/vec_xc.h \
+	      lib/bitmap.gccxml \
+	      lib/bitmap_xc.c \
+	      lib/bitmap_xc.h \
+	      lib/types.gccxml \
+	      lib/types_xc.c \
+	      lib/types_xc.h

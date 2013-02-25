@@ -26,6 +26,7 @@
 
 #include "lib/atomic.h"
 #include "lib/types.h"
+#include "lib/types_xc.h"
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 
@@ -40,7 +41,7 @@
 struct m0_cm_ag_id {
 	struct m0_uint128 ai_hi;
 	struct m0_uint128 ai_lo;
-};
+} M0_XCA_RECORD;
 
 /** Copy Machine Aggregation Group. */
 struct m0_cm_aggr_group {
@@ -150,7 +151,7 @@ M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_lo(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_ag_lock(struct m0_cm_aggr_group *ag);
 M0_INTERNAL void m0_cm_ag_unlock(struct m0_cm_aggr_group *ag);
 
-M0_TL_DESCR_DECLARE(aggr_grps, M0_INTERNAL);
+M0_TL_DESCR_DECLARE(aggr_grps, M0_EXTERN);
 M0_TL_DECLARE(aggr_grps, M0_INTERNAL, struct m0_cm_aggr_group);
 
 /** @} CMAG */

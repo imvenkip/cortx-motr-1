@@ -170,6 +170,10 @@ enum M0_RPC_OPCODES {
 
 	/* Request handler ut dummy opcode */
 	M0_REQH_UT_DUMMY_OPCODE             = 95,
+
+	/* SNS copy packet. */
+	M0_SNS_CM_CP_OPCODE                 = 96,
+	M0_SNS_CM_CP_REP_OPCODE             = 97
 };
 /** @} endgroup rpc_layer_core */
 

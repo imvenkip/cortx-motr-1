@@ -379,7 +379,7 @@ static const struct m0_bob_type cp_bob = {
 
 M0_BOB_DEFINE(static, &cp_bob, m0_cm_cp);
 
-static const struct m0_fom_type_ops cp_fom_type_ops = {
+const struct m0_fom_type_ops cp_fom_type_ops = {
         .fto_create = NULL
 };
 
@@ -573,7 +573,7 @@ M0_INTERNAL void m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp)
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

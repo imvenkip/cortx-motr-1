@@ -25,6 +25,7 @@
 
 #include "lib/types.h"
 #include "lib/assert.h"
+#include "xcode/xcode_attr.h"
 
 /**
    @defgroup bitmap Bitmap
@@ -41,7 +42,7 @@ struct m0_bitmap {
 	size_t    b_nr;
 	/** Words with bits. */
 	uint64_t *b_words;
-};
+} M0_XCA_SEQUENCE;
 
 /**
    Initialise a bitmap to hold nr bits. The array to store bits is

@@ -19,18 +19,24 @@
  */
 
 #include "lib/cdefs.h"
+#include "lib/bitmap_xc.h"
 #include "lib/buf_xc.h"
+#include "lib/types_xc.h"
 #include "lib/vec_xc.h"
 
 static void xc_types_init(void)
 {
+	m0_xc_bitmap_init();
 	m0_xc_buf_init();
+	m0_xc_types_init();
 	m0_xc_vec_init();
 }
 
 static void xc_types_fini(void)
 {
+	m0_xc_bitmap_fini();
 	m0_xc_buf_fini();
+	m0_xc_types_fini();
 	m0_xc_vec_fini();
 }
 

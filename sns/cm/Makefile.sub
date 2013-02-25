@@ -1,7 +1,8 @@
 nobase_mero_include_HEADERS += sns/cm/ag.h \
                                   sns/cm/cm.h \
                                   sns/cm/cp.h \
-                                  sns/cm/iter.h
+                                  sns/cm/iter.h \
+				  sns/cm/sns_cp_onwire.h
 
 mero_libmero_la_SOURCES  += sns/cm/ag.c \
                                   sns/cm/ag.h \
@@ -13,6 +14,14 @@ mero_libmero_la_SOURCES  += sns/cm/ag.c \
                                   sns/cm/iter.h \
                                   sns/cm/service.c \
                                   sns/cm/xform.c \
-                                  sns/cm/storage.c
+                                  sns/cm/storage.c \
+				  sns/cm/sns_cp_onwire.c \
+				  sns/cm/sns_cp_onwire_xc.c
+
+XC_FILES += sns/cm/sns_cp_onwire_xc.h
 
 EXTRA_DIST += sns/poolmach.c
+
+CLEANFILES += sns/cm/sns_cp_onwire_xc.h \
+	      sns/cm/sns_cp_onwire_xc.c \
+	      sns/cm/sns_cp_onwire.gccxml

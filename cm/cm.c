@@ -42,6 +42,8 @@
 #include "cm/cm.h"
 #include "cm/ag.h"
 #include "cm/cp.h"
+#include "cm/cp_onwire_xc.h"
+#include "cm/ag_xc.h"
 #include "reqh/reqh.h"
 
 /**
@@ -539,6 +541,12 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 	return rc;
 }
 
+static void cm_xc_init()
+{
+	m0_xc_ag_init();
+	m0_xc_cp_onwire_init();
+}
+
 M0_INTERNAL int m0_cm_module_init(void)
 {
 	M0_ENTRY();
@@ -550,8 +558,15 @@ M0_INTERNAL int m0_cm_module_init(void)
 	m0_mutex_init(&cmtypes_mutex);
 	m0_cm_cp_pump_init();
 	m0_cm_cp_module_init();
+	cm_xc_init();
 	M0_LEAVE();
         return 0;
+}
+
+static void cm_xc_fini()
+{
+	m0_xc_ag_fini();
+	m0_xc_cp_onwire_fini();
 }
 
 M0_INTERNAL void m0_cm_module_fini(void)
@@ -560,6 +575,7 @@ M0_INTERNAL void m0_cm_module_fini(void)
 	cmtypes_tlist_fini(&cmtypes);
 	m0_mutex_fini(&cmtypes_mutex);
         m0_addb_ctx_fini(&m0_cm_mod_ctx);
+	cm_xc_fini();
 	M0_LEAVE();
 }
 

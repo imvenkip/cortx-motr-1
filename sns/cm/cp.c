@@ -187,7 +187,7 @@ const struct m0_cm_cp_ops m0_sns_cm_cp_ops = {
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

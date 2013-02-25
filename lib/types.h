@@ -28,11 +28,12 @@
 #else
 #include "lib/user_space/types.h"
 #endif
+#include "xcode/xcode_attr.h"
 
 struct m0_uint128 {
 	uint64_t u_hi;
 	uint64_t u_lo;
-};
+} M0_XCA_RECORD;
 
 #define M0_UINT128(hi, lo) (struct m0_uint128) { .u_hi = (hi), .u_lo = (lo) }
 

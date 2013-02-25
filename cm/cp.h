@@ -247,7 +247,7 @@ M0_INTERNAL m0_bcount_t m0_cm_cp_data_size(struct m0_cm_cp *cp);
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */
