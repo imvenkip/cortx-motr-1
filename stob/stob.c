@@ -200,6 +200,8 @@ M0_INTERNAL void m0_stob_put(struct m0_stob *obj)
 	if (m0_atomic64_dec_and_test(&obj->so_ref))
 		obj->so_op->sop_fini(obj);
 	m0_rwlock_write_unlock(&dom->sd_guard);
+
+	M0_LEAVE();
 }
 
 static void m0_stob_io_private_fini(struct m0_stob_io *io)
