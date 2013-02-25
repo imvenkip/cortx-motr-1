@@ -90,15 +90,15 @@ struct m0_ios_rwfom_stats {
  */
 struct m0_reqh_io_service {
         /** Generic reqh service object */
-        struct m0_reqh_service    rios_gen;
+        struct m0_reqh_service     rios_gen;
         /** Buffer pools belongs to this services */
-        struct m0_tl              rios_buffer_pools;
+        struct m0_tl               rios_buffer_pools;
 	/** Read[0] and write[1] I/O FOM statistics */
-	struct m0_ios_rwfom_stats rios_rwfom_stats[2];
+	struct m0_ios_rwfom_stats  rios_rwfom_stats[2];
 	/** Cob domain for ioservice. */
-	struct m0_cob_domain      rios_cdom;
+	struct m0_cob_domain      *rios_cdom;
         /** magic to check io service object */
-        uint64_t                  rios_magic;
+        uint64_t                   rios_magic;
 };
 
 M0_INTERNAL bool m0_reqh_io_service_invariant(const struct m0_reqh_io_service

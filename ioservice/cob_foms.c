@@ -307,7 +307,7 @@ static struct m0_cob_domain *cdom_get(struct m0_fom *fom)
 	ios = container_of(fom->fo_service, struct m0_reqh_io_service,
 			   rios_gen);
 
-	return &ios->rios_cdom;
+	return ios->rios_cdom;
 }
 
 static int cc_cob_nskey_make(struct m0_cob_nskey **nskey,

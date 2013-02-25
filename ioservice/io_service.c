@@ -431,18 +431,17 @@ static void ios_fini(struct m0_reqh_service *service)
 static int ios_start(struct m0_reqh_service *service)
 {
 	int			   rc;
-	struct m0_cob_domain      *cdom;
 	struct m0_reqh_io_service *serv_obj;
 
 	M0_PRE(service != NULL);
 	M0_PRE(m0_reqh_lockers_is_empty(service->rs_reqh, ios_cdom_key));
 
-	rc = m0_ios_cdom_get(service->rs_reqh, &cdom, service->rs_uuid);
+	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
+
+	rc = m0_ios_cdom_get(service->rs_reqh, &serv_obj->rios_cdom,
+			     service->rs_uuid);
 	if (rc != 0)
 		return rc;
-
-	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
-	serv_obj->rios_cdom = *cdom;
 
 	rc = ios_create_buffer_pool(service);
 	if (rc != 0) {
