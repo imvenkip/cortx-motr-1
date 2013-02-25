@@ -276,19 +276,33 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_rm_credit	    *bcredit;
 	struct rm_out		    *outreq;
 	struct m0_rpc_item	    *item;
+	struct m0_rpc_item	    *item_rep;
 	struct m0_buf		     buf;
 	int			     rc;
 
 	M0_ENTRY();
-	outreq = container_of(ast, struct rm_out, ou_ast);
-	item = &outreq->ou_fop.f_item;
-	borrow_reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
-	bcredit = &outreq->ou_req.rog_want.rl_credit;
-	owner = bcredit->cr_owner;
-	rc = item->ri_error ?: borrow_reply->br_rc.gr_rc;
 
+	borrow_reply = NULL;
+	outreq = container_of(ast, struct rm_out, ou_ast);
+	item   = &outreq->ou_fop.f_item;
+	rc     = item->ri_error;
+	if (rc == 0) {
+		item_rep = item->ri_reply;
+		M0_ASSERT(item_rep != NULL);
+		if (m0_rpc_item_is_generic_reply_fop(item_rep)) {
+			rc = m0_rpc_item_generic_reply_rc(item_rep);
+			M0_ASSERT(rc != 0);
+		} else {
+			borrow_reply = m0_fop_data(
+					m0_rpc_item_to_fop(item_rep));
+			rc = borrow_reply->br_rc.gr_rc;
+		}
+	}
 	M0_ASSERT(m0_mutex_is_locked(&grp->s_lock));
 	if (rc == 0) {
+		M0_ASSERT(borrow_reply != NULL);
+		bcredit = &outreq->ou_req.rog_want.rl_credit;
+		owner   = bcredit->cr_owner;
 		/* Get the data for a credit from the FOP */
 		m0_buf_init(&buf, borrow_reply->br_credit.cr_opaque.b_addr,
 				  borrow_reply->br_credit.cr_opaque.b_nob);
@@ -341,18 +355,25 @@ static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	int			     rc;
 
 	M0_ENTRY();
-	outreq = container_of(ast, struct rm_out, ou_ast);
-	item = &outreq->ou_fop.f_item;
-	revoke_reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
+	M0_ASSERT(m0_mutex_is_locked(&grp->s_lock));
+
+	outreq     = container_of(ast, struct rm_out, ou_ast);
 	out_credit = &outreq->ou_req.rog_want.rl_credit;
-	owner = out_credit->cr_owner;
-	rc = item->ri_error ?: revoke_reply->gr_rc;
-	if (rc != 0)
+	owner      = out_credit->cr_owner;
+
+	item = &outreq->ou_fop.f_item;
+	rc   = item->ri_error;
+	if (rc == 0) {
+		M0_ASSERT(item->ri_reply != NULL);
+		revoke_reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
+		rc = revoke_reply->gr_rc;
+	}
+	if (rc != 0) {
 		M0_LOG(M0_ERROR, "revoke request:%p failed: rc [%d]\n",
 				 outreq, rc);
-
-	M0_ASSERT(m0_mutex_is_locked(&grp->s_lock));
-	rc = rc ?: m0_rm_credit_dup(out_credit, &credit);
+		goto out;
+	}
+	rc = m0_rm_credit_dup(out_credit, &credit);
 	if (rc == 0) {
 		rc = m0_rm_sublet_remove(out_credit);
 		if (rc == 0) {
@@ -369,6 +390,7 @@ static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		M0_LOG(M0_ERROR, "revoke request:%p credit allocation "
 				 "failed: rc [%d]\n", outreq, rc);
 
+out:
 	outreq->ou_req.rog_rc = rc;
 	m0_rm_outgoing_complete(&outreq->ou_req);
 	m0_fop_put(&outreq->ou_fop);
