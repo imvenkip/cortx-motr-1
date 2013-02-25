@@ -100,7 +100,7 @@ void m0_rpc_server_stop(struct m0_rpc_server_ctx *sctx);
 M0_INTERNAL struct m0_rpc_machine *
 m0_rpc_server_ctx_get_rmachine(struct m0_rpc_server_ctx *sctx);
 
-#endif
+#endif /* !__KERNEL__ */
 
 struct m0_net_xprt;
 struct m0_net_domain;
@@ -243,4 +243,3 @@ int m0_rpc_client_call(struct m0_fop *fop,
 int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx);
 
 #endif /* __MERO_RPC_RPCLIB_H__ */
-

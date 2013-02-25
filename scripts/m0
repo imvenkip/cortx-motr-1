@@ -70,7 +70,7 @@ dist_check() {
     tar --no-same-owner --strip-components=1 -xzf $DISTFILE
 
     for lib in extra-libs/*; do
-        ln -s ../../$lib  $DIST/extra-libs/
+	ln -s ../../$lib $DIST/extra-libs/
     done
 
     cd $DIST

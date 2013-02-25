@@ -128,7 +128,6 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 
 	M0_RETURN(rc);
 }
-M0_EXPORTED(m0_rpc_client_connect);
 
 int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 {
@@ -193,7 +192,6 @@ int m0_rpc_client_call(struct m0_fop *fop,
 		rc = m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER);
 	M0_RETURN(rc);
 }
-M0_EXPORTED(m0_rpc_client_call);
 
 int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 {
