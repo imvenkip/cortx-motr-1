@@ -1056,7 +1056,6 @@ M0_INTERNAL bool m0_rpc_session_bind_item(struct m0_rpc_item *item)
 	m0_rpc_slot_item_add_internal(slot, item);
 
 	M0_POST(m0_rpc_item_is_bound(item));
-
 	M0_LEAVE("rc: TRUE");
 	return true;
 }

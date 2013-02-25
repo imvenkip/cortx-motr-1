@@ -471,8 +471,8 @@ static void frm_balance(struct m0_rpc_frm *frm)
 		}
 	}
 
+	M0_POST(frm_invariant(frm));
 	M0_LEAVE("formed %d packet(s) [%d items]", packet_count, item_count);
-	M0_ASSERT(frm_invariant(frm));
 }
 /*
  * FRM_BALANCE_NOTE_1
@@ -535,9 +535,8 @@ static void frm_fill_packet(struct m0_rpc_frm *frm, struct m0_rpc_packet *p)
 				continue;
 			if (m0_rpc_item_is_unbound(item)) {
 				bound = frm_try_to_bind_item(frm, item);
-				if (!bound) {
+				if (!bound)
 					continue;
-				}
 			}
 			M0_ASSERT(m0_rpc_item_is_oneway(item) ||
 				  m0_rpc_item_is_bound(item));
@@ -633,7 +632,6 @@ static void frm_fill_packet_from_item_sources(struct m0_rpc_frm    *frm,
 
 out:
 	M0_LEAVE();
-	return;
 }
 
 /**

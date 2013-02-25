@@ -649,17 +649,16 @@ M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item)
 		return -EINVAL;
 	}
 
-	if (item->ri_resend_interval != M0_TIME_NEVER) {
-		M0_LOG(M0_DEBUG, "item %p Starting timer", item);
-		m0_sm_timer_fini(&item->ri_timer);
-		m0_sm_timer_init(&item->ri_timer);
-		return m0_sm_timer_start(&item->ri_timer,
-					 &item->ri_rmachine->rm_sm_grp,
-					 item_timer_cb,
-					 m0_time_add(m0_time_now(),
-						    item->ri_resend_interval));
-	}
-	return 0;
+	if (item->ri_resend_interval == M0_TIME_NEVER)
+		return 0;
+
+	M0_LOG(M0_DEBUG, "item %p Starting timer", item);
+	m0_sm_timer_fini(&item->ri_timer);
+	m0_sm_timer_init(&item->ri_timer);
+	return m0_sm_timer_start(&item->ri_timer, &item->ri_rmachine->rm_sm_grp,
+				 item_timer_cb,
+				 m0_time_add(m0_time_now(),
+					     item->ri_resend_interval));
 }
 
 M0_INTERNAL void m0_rpc_item_stop_timer(struct m0_rpc_item *item)
@@ -781,8 +780,7 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 	 * See rpc/frmops.c:item_sent() and m0_rpc_item_failed()
 	 */
 	m0_rpc_session_hold_busy(item->ri_session);
-	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm,
-			    item);
+	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
 	M0_LEAVE();
 }
 

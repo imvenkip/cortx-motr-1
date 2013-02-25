@@ -49,16 +49,15 @@ extern struct m0_addb_ctx m0_rpc_addb_ctx;
  *  @param ctx Runtime context pointer
  *  @pre rc < 0
  */
-
 #define RPC_ADDB_FUNCFAIL(rc, loc, ctx)					\
 	M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_RPC_ADDB_LOC_##loc, rc, ctx)
 
 #define RPC_ALLOC(ptr, len, loc, ctx)					\
-M0_ALLOC_ADDB(ptr, len, &m0_addb_gmc, M0_RPC_ADDB_LOC_##loc, ctx)
+	M0_ALLOC_ADDB(ptr, len, &m0_addb_gmc, M0_RPC_ADDB_LOC_##loc, ctx)
 #define RPC_ALLOC_PTR(ptr, loc, ctx)					\
-M0_ALLOC_PTR_ADDB(ptr, &m0_addb_gmc, M0_RPC_ADDB_LOC_##loc, ctx)
+	M0_ALLOC_PTR_ADDB(ptr, &m0_addb_gmc, M0_RPC_ADDB_LOC_##loc, ctx)
 #define RPC_ALLOC_ARR(ptr, nr, loc, ctx)				\
-M0_ALLOC_ARR_ADDB(ptr, nr, &m0_addb_gmc, M0_RPC_ADDB_LOC_##loc, ctx)
+	M0_ALLOC_ARR_ADDB(ptr, nr, &m0_addb_gmc, M0_RPC_ADDB_LOC_##loc, ctx)
 
 /**
  * @addtogroup rpc
