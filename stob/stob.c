@@ -185,6 +185,7 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *obj, struct m0_dtx *tx)
 
 M0_INTERNAL void m0_stob_get(struct m0_stob *obj)
 {
+	M0_ENTRY();
 	m0_atomic64_inc(&obj->so_ref);
 	M0_LEAVE("ref: %lu", (unsigned long)m0_atomic64_get(&obj->so_ref));
 }
