@@ -1,30 +1,31 @@
-nobase_mero_include_HEADERS += cm/cm.h \
-                                  cm/cp.h \
-                                  cm/ag.h \
-                                  cm/pump.h \
-				  cm/cm_addb.h
+nobase_mero_include_HEADERS += cm/ag.h \
+                               cm/cm.h \
+                               cm/cm_addb.h \
+                               cm/cp.h \
+                               cm/cp_onwire.h \
+                               cm/pump.h
 
-mero_libmero_la_SOURCES  += cm/cm.c \
-                                  cm/cp.c \
-                                  cm/ag.c \
-                                  cm/pump.c \
-				  cm/cp_onwire_xc.c \
-				  cm/ag_xc.c
+mero_libmero_la_SOURCES += cm/ag.c \
+                           cm/ag_xc.c \
+                           cm/cm.c \
+                           cm/cp.c \
+                           cm/cp_onwire_xc.c \
+                           cm/pump.c
 
-cm/cp_onwire.h: net/net_otw_types_xc.h \
-		fid/fid_xc.h \
-		dtm/verno_xc.h \
-		lib/bitmap_xc.h \
-		cm/ag_xc.h \
-		ioservice/io_fops_xc.h
+cm/cp_onwire.h: cm/ag_xc.h \
+                dtm/verno_xc.h \
+                fid/fid_xc.h \
+                ioservice/io_fops_xc.h \
+                lib/bitmap_xc.h \
+                net/net_otw_types_xc.h
 
 cm/ag.h: lib/types_xc.h
 
-XC_FILES += cm/cp_onwire_xc.h
+XC_FILES += cm/ag_xc.h cm/cp_onwire_xc.h
 
-CLEANFILES += cm/cp_onwire_xc.h \
-	      cm/cp_onwire_xc.c \
-	      cm/cp_onwire.gccxml \
-	      cm/ag_xc.h \
-	      cm/ag_xc.c \
-	      cm/ag.gccxml
+CLEANFILES += cm/ag_xc.h \
+              cm/ag_xc.c \
+              cm/ag.gccxml \
+              cm/cp_onwire_xc.h \
+              cm/cp_onwire_xc.c \
+              cm/cp_onwire.gccxml
