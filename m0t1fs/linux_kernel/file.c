@@ -23,6 +23,7 @@
 #include <linux/fs.h>       /* struct file_operations */
 #include <linux/mount.h>    /* struct vfsmount (f_path.mnt) */
 
+#include "fop/fom_generic.h"/* m0_rpc_item_is_generic_reply_fop */
 #include "lib/memory.h"     /* m0_alloc(), m0_free() */
 #include "lib/misc.h"       /* m0_round_{up/down} */
 #include "lib/bob.h"        /* m0_bob_type */
@@ -4130,10 +4131,12 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 
 static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
+	int                         rc;
 	struct io_req_fop          *irfop;
 	struct io_request          *req;
 	struct target_ioreq        *tioreq;
-	struct m0_fop              *reply;
+	struct m0_fop              *reply_fop;
+	struct m0_rpc_item         *req_item;
 	struct m0_rpc_item         *reply_item;
 	struct m0_fop_cob_rw_reply *rw_reply;
 
@@ -4150,21 +4153,41 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ASSERT(M0_IN(ioreq_sm_state(req), (IRS_READING, IRS_WRITING,
 					      IRS_DEGRADED_READING)));
 
-	reply_item = irfop->irf_iofop.if_fop.f_item.ri_reply;
-	reply      = m0_rpc_item_to_fop(reply_item);
-	rw_reply   = io_rw_rep_get(reply);
+	req_item   = &irfop->irf_iofop.if_fop.f_item;
+	rc         = req_item->ri_error;
+	reply_item = req_item->ri_reply;
 
+	M0_ASSERT(ergo(rc == 0, reply_item != NULL));
+
+	/*
+	 * rc != 0 indicates fop sending failed and hence there is no reply.
+	 * In case, the reply fop received is generic reply fop, no IO fop
+	 * processing can be done and hence only pending fop count is
+	 * decremented.
+	 */
+	if (rc != 0)
+		goto ref_dec;
+	else if (m0_rpc_item_is_generic_reply_fop(reply_item)) {
+		rc = m0_rpc_item_generic_reply_rc(reply_item);
+		M0_ASSERT(rc != 0);
+		goto ref_dec;
+	}
+
+	reply_fop = m0_rpc_item_to_fop(reply_item);
+	rw_reply  = io_rw_rep_get(reply_fop);
+	rc        = rw_reply->rwr_rc;
 	M0_LOG(M0_INFO, "reply received = %d\n", rw_reply->rwr_rc);
-	if (rw_reply->rwr_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
+
+	if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 		M0_LOG(M0_INFO, "VERSION_MISMATCH received on fid %llu:%llu\n",
 		       tioreq->ti_fid.f_container, tioreq->ti_fid.f_key);
 		failure_vector_mismatch(irfop);
-		irfop->irf_reply_rc = rw_reply->rwr_rc;
+		irfop->irf_reply_rc = rc;
 	}
 
 	if (tioreq->ti_rc == 0) {
-		tioreq->ti_rc             = rw_reply->rwr_rc;
-		tioreq->ti_nwxfer->nxr_rc = rw_reply->rwr_rc;
+		tioreq->ti_rc             = rc;
+		tioreq->ti_nwxfer->nxr_rc = rc;
 	}
 
 	if (irfop->irf_pattr == PA_DATA)
@@ -4172,6 +4195,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	else
 		tioreq->ti_parbytes  += irfop->irf_iofop.if_rbulk.rb_bytes;
 
+ref_dec:
 	M0_CNT_DEC(tioreq->ti_nwxfer->nxr_iofop_nr);
 	m0_atomic64_dec(&file_to_sb(req->ir_file)->csb_pending_io_nr);
 	M0_LOG(M0_INFO, "Due io fops = %llu", tioreq->ti_nwxfer->nxr_iofop_nr);
