@@ -31,6 +31,15 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
 #include "lib/trace.h"        /* M0_LOG and M0_ENTRY */
 
+#define M0_COB_KEY_LOG(logger, fmt, key, fid_member, str_member, ...)      \
+	M0_ ## logger (fmt, (long)(key)->fid_member.f_container,           \
+		       (long)(key)->fid_member.f_key,                      \
+		       m0_bitstring_len_get(&((key)->str_member)),         \
+		       (char *)m0_bitstring_buf_get(&((key)->str_member)), \
+		       ## __VA_ARGS__)
+#define M0_COB_NSKEY_LOG(logger, fmt, key, ...)\
+	M0_COB_KEY_LOG(logger, fmt, key, cnk_pfid, cnk_name, ## __VA_ARGS__)
+
 #include "lib/misc.h"   /* M0_SET0 */
 #include "lib/cdefs.h"
 #include "lib/arith.h"   /* M0_3WAY */
@@ -1003,44 +1012,22 @@ M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
 M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
 {
 	int rc;
-	M0_ENTRY("[%lx:%lx]/%.*s",
-		 (long)it->ci_key->cnk_pfid.f_container,
-		 (long)it->ci_key->cnk_pfid.f_key,
-		 m0_bitstring_len_get(&it->ci_key->cnk_name),
-		 (char *)m0_bitstring_buf_get(&it->ci_key->cnk_name));
-
+	M0_COB_NSKEY_LOG(ENTRY, "[%lx:%lx]/%.*s", it->ci_key);
 	rc = m0_db_cursor_get(&it->ci_cursor, &it->ci_pair);
 	if (rc == 0 && !m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
 		rc = -ENOENT;
-
-	M0_LEAVE("[%lx:%lx]/%.*s rc: %d",
-		 (long)it->ci_key->cnk_pfid.f_container,
-		 (long)it->ci_key->cnk_pfid.f_key,
-		 m0_bitstring_len_get(&it->ci_key->cnk_name),
-		 (char *)m0_bitstring_buf_get(&it->ci_key->cnk_name),
-		 rc);
+	M0_COB_NSKEY_LOG(LEAVE, "[%lx:%lx]/%.*s rc: %d", it->ci_key, rc);
 	return rc;
 }
 
 M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
 {
 	int rc;
-	M0_ENTRY("[%lx:%lx]/%.*s",
-		 (long)it->ci_key->cnk_pfid.f_container,
-		 (long)it->ci_key->cnk_pfid.f_key,
-		 m0_bitstring_len_get(&it->ci_key->cnk_name),
-		 (char *)m0_bitstring_buf_get(&it->ci_key->cnk_name));
-
+	M0_COB_NSKEY_LOG(ENTRY, "[%lx:%lx]/%.*s", it->ci_key);
 	rc = m0_db_cursor_next(&it->ci_cursor, &it->ci_pair);
 	if (rc == 0 && !m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
 		rc = -ENOENT;
-
-	M0_LEAVE("[%lx:%lx]/%.*s rc: %d",
-		 (long)it->ci_key->cnk_pfid.f_container,
-		 (long)it->ci_key->cnk_pfid.f_key,
-		 m0_bitstring_len_get(&it->ci_key->cnk_name),
-		 (char *)m0_bitstring_buf_get(&it->ci_key->cnk_name),
-		 rc);
+	M0_COB_NSKEY_LOG(LEAVE, "[%lx:%lx]/%.*s rc: %d", it->ci_key, rc);
 	return rc;
 }
 
