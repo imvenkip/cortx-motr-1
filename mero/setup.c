@@ -1029,7 +1029,7 @@ cs_service_init(const char *name, const char *arg, struct m0_reqh *reqh)
 	M0_RETURN(rc);
 }
 
-static int _services_init(struct cs_reqh_context *rctx)
+static int reqh_services_init(struct cs_reqh_context *rctx)
 {
 	const char *name;
 	uint32_t    i;
@@ -1066,10 +1066,8 @@ static int cs_services_init(struct m0_mero *cctx)
 	M0_PRE(cctx != NULL);
 
 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-		rc = cs_service_init("rpcservice", NULL, &rctx->rc_reqh);
-		if (rc != 0)
-			break;
-		rc = _services_init(rctx);
+		rc = cs_service_init("rpcservice", NULL, &rctx->rc_reqh) ?:
+			reqh_services_init(rctx);
 		if (rc != 0)
 			break;
 	} m0_tl_endfor;
@@ -1278,7 +1276,6 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 		}
 	}
 
-	M0_ASSERT(rc == 0);
 	rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
 			     &rctx->rc_stob, &rctx->rc_db);
 	if (rc != 0) {
@@ -1906,14 +1903,9 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 
 int m0_cs_start(struct m0_mero *cctx)
 {
-	int rc;
-
+	M0_ENTRY();
 	M0_PRE(cctx != NULL);
-
-	rc = cs_services_init(cctx);
-	if (rc != 0)
-		M0_LOG(M0_ERROR, "m0_cs_start");
-	return rc;
+	M0_RETURN(cs_services_init(cctx));
 }
 
 int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
