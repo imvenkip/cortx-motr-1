@@ -70,31 +70,13 @@ M0_INTERNAL void m0_bitstring_copy(struct m0_bitstring *dst, const char *src,
    Shorter strings precede longer strings.
    Strings may contain embedded NULLs.
  */
-M0_INTERNAL int m0_bitstring_cmp(const struct m0_bitstring *c1,
-				 const struct m0_bitstring *m0)
+M0_INTERNAL int m0_bitstring_cmp(const struct m0_bitstring *s1,
+				 const struct m0_bitstring *s2)
 {
-        /* Compare the bytes as unsigned */
-        const unsigned char *s1 = (const unsigned char *)c1->b_data;
-        const unsigned char *s2 = (const unsigned char *)m0->b_data;
-        uint32_t pos = 1, min_len;
-        int rc;
-
-        min_len = min_check(c1->b_len, m0->b_len);
-        if (min_len == 0)
-                return 0;
-
-        /* Find the first differing char */
-        while (*s1 == *s2 && pos < min_len) {
-                s1++;
-                s2++;
-                pos++;
-        }
-
-        if ((rc = M0_3WAY(*s1, *s2)))
-                return rc;
-
-        /* Everything matches through the shortest string, so compare length */
-        return M0_3WAY(c1->b_len, m0->b_len);
+	/* Compare leading parts up to min_len. If they differ, return the
+	 * result, otherwize compare lengths. */
+	return memcmp(s1->b_data, s2->b_data, min_check(s1->b_len, s2->b_len))
+		?: M0_3WAY(s1->b_len, s2->b_len);
 }
 
 /*

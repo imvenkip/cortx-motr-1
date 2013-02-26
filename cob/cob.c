@@ -1002,18 +1002,45 @@ M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
 
 M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
 {
-	return m0_db_cursor_get(&it->ci_cursor, &it->ci_pair);
+	int rc;
+	M0_ENTRY("[%lx:%lx]/%.*s",
+		 (long)it->ci_key->cnk_pfid.f_container,
+		 (long)it->ci_key->cnk_pfid.f_key,
+		 m0_bitstring_len_get(&it->ci_key->cnk_name),
+		 (char *)m0_bitstring_buf_get(&it->ci_key->cnk_name));
+
+	rc = m0_db_cursor_get(&it->ci_cursor, &it->ci_pair);
+	if (rc == 0 && !m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
+		rc = -ENOENT;
+
+	M0_LEAVE("[%lx:%lx]/%.*s rc: %d",
+		 (long)it->ci_key->cnk_pfid.f_container,
+		 (long)it->ci_key->cnk_pfid.f_key,
+		 m0_bitstring_len_get(&it->ci_key->cnk_name),
+		 (char *)m0_bitstring_buf_get(&it->ci_key->cnk_name),
+		 rc);
+	return rc;
 }
 
 M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
 {
 	int rc;
+	M0_ENTRY("[%lx:%lx]/%.*s",
+		 (long)it->ci_key->cnk_pfid.f_container,
+		 (long)it->ci_key->cnk_pfid.f_key,
+		 m0_bitstring_len_get(&it->ci_key->cnk_name),
+		 (char *)m0_bitstring_buf_get(&it->ci_key->cnk_name));
 
 	rc = m0_db_cursor_next(&it->ci_cursor, &it->ci_pair);
-
 	if (rc == 0 && !m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
-		return -ENOENT;
+		rc = -ENOENT;
 
+	M0_LEAVE("[%lx:%lx]/%.*s rc: %d",
+		 (long)it->ci_key->cnk_pfid.f_container,
+		 (long)it->ci_key->cnk_pfid.f_key,
+		 m0_bitstring_len_get(&it->ci_key->cnk_name),
+		 (char *)m0_bitstring_buf_get(&it->ci_key->cnk_name),
+		 rc);
 	return rc;
 }
 
