@@ -129,20 +129,20 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 	M0_ASSERT(m0_reqh_lockers_is_empty(reqh, key));
 	m0_reqh_lockers_set(reqh, key, service);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
 	rc = service->rs_ops->rso_start(service);
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	if (rc == 0) {
-		m0_rwlock_write_lock(&reqh->rh_rwlock);
 		m0_reqh_svc_tlist_add_tail(&reqh->rh_services, service);
 		service->rs_state = M0_RST_STARTED;
 		M0_ASSERT(m0_reqh_service_invariant(service));
-		m0_rwlock_write_unlock(&reqh->rh_rwlock);
         } else {
-		m0_rwlock_write_lock(&reqh->rh_rwlock);
 		M0_ASSERT(m0_reqh_lockers_get(reqh, key) == service);
 		m0_reqh_lockers_clear(reqh, key);
-		m0_rwlock_write_unlock(&reqh->rh_rwlock);
 		service->rs_state = M0_RST_FAILED;
 	}
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	return rc;
 }

@@ -42,8 +42,7 @@ struct m0_rwlock {
 
 /** @} end of mutex group */
 
-/* __MERO_LIB_LINUX_KERNEL_RWLOCK_H__ */
-#endif
+#endif /* __MERO_LIB_LINUX_KERNEL_RWLOCK_H__ */
 
 /*
  *  Local variables:

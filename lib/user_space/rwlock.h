@@ -23,7 +23,6 @@
 #ifndef __MERO_LIB_USER_SPACE_RWLOCK_H__
 #define __MERO_LIB_USER_SPACE_RWLOCK_H__
 
-
 /**
    @addtogroup rwlock
 
@@ -41,8 +40,7 @@ struct m0_rwlock {
 
 /** @} end of rwlock group */
 
-/* __MERO_LIB_USER_SPACE_RWLOCK_H__ */
-#endif
+#endif /* __MERO_LIB_USER_SPACE_RWLOCK_H__ */
 
 /*
  *  Local variables:

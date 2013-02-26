@@ -84,13 +84,13 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 	result = m0_fom_domain_init(&reqh->rh_fom_dom);
 	if (result != 0)
 		return result;
-        reqh->rh_dtm             = reqh_args->rhia_dtm;
-        reqh->rh_dbenv           = reqh_args->rhia_db;
-        reqh->rh_svc             = reqh_args->rhia_svc;
-        reqh->rh_mdstore         = reqh_args->rhia_mdstore;
-        reqh->rh_fol             = reqh_args->rhia_fol;
-        reqh->rh_shutdown        = false;
-        reqh->rh_fom_dom.fd_reqh = reqh;
+	reqh->rh_dtm             = reqh_args->rhia_dtm;
+	reqh->rh_dbenv           = reqh_args->rhia_db;
+	reqh->rh_svc             = reqh_args->rhia_svc;
+	reqh->rh_mdstore         = reqh_args->rhia_mdstore;
+	reqh->rh_fol             = reqh_args->rhia_fol;
+	reqh->rh_shutdown        = false;
+	reqh->rh_fom_dom.fd_reqh = reqh;
 
 	m0_addb_mc_init(&reqh->rh_addb_mc);
 
