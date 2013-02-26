@@ -432,13 +432,14 @@ static int run_server(void)
 	rc = m0_init();
 	if (rc != 0)
 		return rc;
+
 	rc = m0_ut_init();
 	if (rc != 0)
 		goto m0_fini;
 
 	rc = m0_ping_fop_init();
 	if (rc != 0)
-		goto m0_fini;
+		goto ut_fini;
 
 	/*
 	 * Prepend transport name to the beginning of endpoint,
@@ -450,7 +451,7 @@ static int run_server(void)
 		EP_SERVER, server_endpoint + strlen(server_endpoint),
 		sizeof(server_endpoint) - strlen(server_endpoint));
 	if (rc != 0)
-		return rc;
+		goto fop_fini;
 
 	rc = m0_rpc_server_start(&sctx);
 	if (rc != 0)
@@ -478,6 +479,7 @@ static int run_server(void)
 	m0_rpc_server_stop(&sctx);
 fop_fini:
 	m0_ping_fop_fini();
+ut_fini:
 	m0_ut_fini();
 m0_fini:
 	m0_fini();
