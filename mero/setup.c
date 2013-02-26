@@ -502,17 +502,12 @@ static int cs_rpc_machine_init(struct m0_mero *cctx, const char *xprt_name,
 	ndom = m0_cs_net_domain_locate(cctx, xprt_name);
 	if (ndom == NULL)
 		return -EINVAL;
+	if (max_rpc_msg_size > m0_net_domain_get_max_buffer_size(ndom))
+		return -EINVAL;
 
 	M0_ALLOC_PTR(rpcmach);
-	if (rpcmach == NULL) {
-		M0_LOG(M0_ERROR, "malloc failed");
+	if (rpcmach == NULL)
 		return -ENOMEM;
-	}
-
-	if (max_rpc_msg_size > m0_net_domain_get_max_buffer_size(ndom)) {
-		m0_free(rpcmach);
-		return -EINVAL;
-	}
 
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
 	rc = m0_rpc_machine_init(rpcmach, &reqh->rh_mdstore->md_dom, ndom, ep,
