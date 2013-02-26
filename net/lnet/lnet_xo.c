@@ -410,10 +410,9 @@ static int nlx_xo_tm_init(struct m0_net_transfer_mc *tm)
 
 	/* defer init of processors, thread and xtm_core to TM confine/start */
 	m0_cond_init(&tp->xtm_ev_cond, &tm->ntm_mutex);
-	m0_time_set(&tp->xtm_stat_interval,
-		    M0_NET_LNET_TM_STAT_INTERVAL_SECS, 0);
-
+	tp->xtm_stat_interval = m0_time(M0_NET_LNET_TM_STAT_INTERVAL_SECS, 0);
 	tp->xtm_tm = tm;
+
 	M0_POST(nlx_tm_invariant(tm));
 	return 0;
 }

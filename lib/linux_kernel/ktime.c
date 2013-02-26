@@ -37,25 +37,20 @@
 
 m0_time_t m0_time_now(void)
 {
-	struct timespec ts;
-	m0_time_t	t;
-
-	ts = current_kernel_time();
-	m0_time_set(&t, ts.tv_sec,  ts.tv_nsec);
-
-	return t;
+	struct timespec ts = current_kernel_time();
+	return m0_time(ts.tv_sec, ts.tv_nsec);
 }
 M0_EXPORTED(m0_time_now);
 
 /**
    Sleep for requested time
 */
-M0_INTERNAL int m0_nanosleep(const m0_time_t req, m0_time_t * rem)
+M0_INTERNAL int m0_nanosleep(const m0_time_t req, m0_time_t *rem)
 {
 	struct timespec ts = {
-			.tv_sec  = m0_time_seconds(req),
-			.tv_nsec = m0_time_nanoseconds(req)
-		};
+		.tv_sec  = m0_time_seconds(req),
+		.tv_nsec = m0_time_nanoseconds(req)
+	};
 	int rc = 0;
 	unsigned long tj = timespec_to_jiffies(&ts);
 

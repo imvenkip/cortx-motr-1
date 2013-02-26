@@ -114,7 +114,6 @@ m0_time_is_in_past
 m0_time_nanoseconds
 m0_time_now
 m0_time_seconds
-m0_time_set
 m0_time_sub
 m0_tlist_head
 m0_tlist_next

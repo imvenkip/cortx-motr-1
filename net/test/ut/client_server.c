@@ -115,10 +115,8 @@ static void net_test_node(struct m0_net_test_node_cfg *node_cfg)
 
 static m0_time_t ms2time(int ms)
 {
-	m0_time_t time;
-
-	return m0_time_set(&time,NTCS_TIMEOUT_SEND_MS / 1000,
-			   (NTCS_TIMEOUT_SEND_MS % 1000) * 1000000);
+	return m0_time(NTCS_TIMEOUT_SEND_MS / 1000,
+		       NTCS_TIMEOUT_SEND_MS % 1000 * 1000000);
 }
 
 static void node_cfg_fill(struct m0_net_test_node_cfg *ncfg,
@@ -165,7 +163,6 @@ static void net_test_client_server(const char *nid,
 	struct m0_net_test_console_ctx console;
 	int			       rc;
 	int			       i;
-	m0_time_t		       _1s = M0_MKTIME(1, 0);
 
 	M0_PRE(clients_nr <= NTCS_NODES_MAX);
 	M0_PRE(servers_nr <= NTCS_NODES_MAX);
@@ -252,7 +249,7 @@ static void net_test_client_server(const char *nid,
 	M0_UT_ASSERT(rc == clients_nr);
 	/* send STATUS command to the test clients until it finishes. */
 	do {
-		m0_nanosleep(_1s, NULL);
+		m0_nanosleep(M0_MKTIME(1, 0), NULL);
 		rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_CLIENT,
 					     M0_NET_TEST_CMD_STATUS);
 		M0_UT_ASSERT(rc == clients_nr);

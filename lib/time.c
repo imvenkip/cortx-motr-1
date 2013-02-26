@@ -33,17 +33,9 @@
 
 m0_time_t m0_time(uint64_t secs, long ns)
 {
-	m0_time_t t;
-	m0_time_set(&t, secs, ns);
-	return t;
+	return M0_MKTIME(secs, ns);
 }
-
-m0_time_t m0_time_set(m0_time_t * time, uint64_t secs, long ns)
-{
-	*time = secs * M0_TIME_ONE_BILLION + ns;
-	return *time;
-}
-M0_EXPORTED(m0_time_set);
+M0_EXPORTED(m0_time);
 
 m0_time_t m0_time_add(const m0_time_t t1, const m0_time_t t2)
 {
@@ -95,7 +87,7 @@ M0_EXPORTED(m0_time_nanoseconds);
 
 m0_time_t m0_time_from_now(uint64_t secs, long ns)
 {
-	return m0_time_now() + secs * M0_TIME_ONE_BILLION + ns;
+	return m0_time_now() + m0_time(secs, ns);
 }
 M0_EXPORTED(m0_time_from_now);
 

@@ -208,10 +208,10 @@ static void timer_posix_fini(timer_t posix_timer)
    Run timer_settime() with given expire time (absolute).
    Return previous expiration time if old_expire != NULL.
  */
-static void timer_posix_set(struct m0_timer *timer,
-		m0_time_t expire, m0_time_t *old_expire)
+static void
+timer_posix_set(struct m0_timer *timer, m0_time_t expire, m0_time_t *old_expire)
 {
-	int		  rc;
+	int               rc;
 	struct itimerspec ts;
 	struct itimerspec ots;
 
@@ -223,21 +223,18 @@ static void timer_posix_set(struct m0_timer *timer,
 	ts.it_value.tv_nsec = m0_time_nanoseconds(expire);
 
 	rc = timer_settime(timer->t_ptimer, TIMER_ABSTIME, &ts, &ots);
-	/*
-	 * timer_settime() can only fail if timer->t_ptimer isn't valid
-	 * timer ID or ts has invalid fields.
-	 */
+	/* timer_settime() can only fail if timer->t_ptimer isn't valid
+	 * timer ID or ts has invalid fields. */
 	M0_ASSERT(rc == 0);
+
 	if (old_expire != NULL)
-		m0_time_set(old_expire, ots.it_value.tv_sec,
-				ots.it_value.tv_nsec);
+		*old_expire = m0_time(ots.it_value.tv_sec,
+				      ots.it_value.tv_nsec);
 }
 
-/**
-   Set up signal handler sighandler for given signo.
- */
-static int timer_sigaction(int signo,
-		void (*sighandler)(int, siginfo_t*, void*))
+/** Set up signal handler sighandler for given signo. */
+static int
+timer_sigaction(int signo, void (*sighandler)(int, siginfo_t*, void*))
 {
 	struct sigaction sa;
 
@@ -245,9 +242,8 @@ static int timer_sigaction(int signo,
 	sa.sa_sigaction = sighandler;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_SIGINFO;
-	if (sigaction(signo, &sa, NULL) != 0)
-		return errno;
-	return 0;
+
+	return sigaction(signo, &sa, NULL) == 0 ? 0 : errno;
 }
 
 /**

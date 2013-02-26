@@ -2058,12 +2058,10 @@ static void test_timeout_msg_recv_cb1(const struct m0_net_buffer_event *ev)
 }
 
 /* intercepted sub */
-static m0_time_t test_timeout_tm_get_buffer_timeout_tick(const struct
-							 m0_net_transfer_mc *tm)
+static m0_time_t
+test_timeout_tm_get_buffer_timeout_tick(const struct m0_net_transfer_mc *tm)
 {
-	m0_time_t tick;
-	m0_time_set(&tick, 1, 0);
-	return tick >> 1; /* 500ms */
+	return m0_time(1, 0) >> 1; /* 500ms */
 }
 
 /* intercepted sub */
@@ -2103,7 +2101,7 @@ static void test_timeout_body(struct ut_data *td)
 	*/
 	m0_net_lnet_tm_set_debug(TM1, 0);
 	nb1->nb_length = td->buf_size1;
-	m0_time_set(&rel_timeout, timeout_secs, 0);
+	rel_timeout = m0_time(timeout_secs, 0);
 	for (i = 0; i < ARRAY_SIZE(qts); ++i) {
 		qt = qts[i];
 		NLXDBGPnl(td, 1, "TEST: buffer single timeout: %d\n", (int) qt);

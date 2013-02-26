@@ -41,29 +41,23 @@
 
 typedef uint64_t m0_time_t;
 
-enum {
-	M0_TIME_ONE_BILLION = 1000000000ULL
-};
+enum { M0_TIME_ONE_BILLION = 1000000000ULL };
 
-#define M0_MKTIME(secs, ns) ((m0_time_t)				\
-			    ((uint64_t)(secs) * M0_TIME_ONE_BILLION +	\
-			    (uint64_t)(ns)))
-#define M0_MKTIME_HOURS(hours, mins, secs, ns)				\
-		((m0_time_t)						\
-		 ((uint64_t)((hours) * 60 * 60 +			\
-			     (mins) * 60 +				\
-			     (secs)) * M0_TIME_ONE_BILLION +		\
-		  (uint64_t)(ns)))
+/** The largest time that is never reached in system life. */
+extern const m0_time_t M0_TIME_NEVER;
 
-/**
-   Get the current time.  This may or may not relate to wall time.
+/** Create and return a m0_time_t from seconds and nanoseconds. */
+m0_time_t m0_time(uint64_t secs, long ns);
 
-   @return The current time.
- */
+/** Similar to m0_time(). To be used in initialisers. */
+#define M0_MKTIME(secs, ns) \
+	((m0_time_t)((uint64_t)(secs) * M0_TIME_ONE_BILLION + (uint64_t)(ns)))
+
+/** Get the current time.  This may or may not relate to wall time. */
 m0_time_t m0_time_now(void);
 
 /**
-   Create a m0_time_t initialized with seconds + nanosecond in the future.
+   Create a m0_time_t initialised with seconds + nanosecond in the future.
 
    @param secs seconds from now
    @param ns nanoseconds from now
@@ -71,21 +65,6 @@ m0_time_t m0_time_now(void);
    @return The result time.
  */
 m0_time_t m0_time_from_now(uint64_t secs, long ns);
-
-/**
-   Create and return a m0_time_t from seconds and nanoseconds.
- */
-m0_time_t m0_time(uint64_t secs, long ns);
-
-/**
-   Create a m0_time_t from seconds and nanoseconds.
-
-   @param time [OUT] the result time.
-   @param secs Seconds from epoch.
-   @param ns Nanoseconds.
-   @retval the result time.
- */
-m0_time_t m0_time_set(m0_time_t * time, uint64_t secs, long ns);
 
 /**
    Add t2 to t1 and return that result.
@@ -110,29 +89,19 @@ m0_time_t m0_time_sub(const m0_time_t t1, const m0_time_t t2);
    @param rem [OUT] remaining time, NULL causes remaining time to be ignored.
    @return 0 means success. -1 means error. Remaining time is stored in rem.
  */
-int m0_nanosleep(const m0_time_t req, m0_time_t * rem);
+int m0_nanosleep(const m0_time_t req, m0_time_t *rem);
 
-/**
-   Get "second" part from the time.
- */
+/** Get "second" part from the time. */
 uint64_t m0_time_seconds(const m0_time_t time);
 
-/**
-   Get "nanosecond" part from the time.
- */
+/** Get "nanosecond" part from the time. */
 uint64_t m0_time_nanoseconds(const m0_time_t time);
 
 bool m0_time_is_in_past(m0_time_t time);
 
-/**
-   The largest time that is never reached in system life.
- */
-extern const m0_time_t M0_TIME_NEVER;
-
 /** @} end of time group */
 
-/* __MERO_LIB_TIME_H__ */
-#endif
+#endif /* __MERO_LIB_TIME_H__ */
 
 /*
  *  Local variables:

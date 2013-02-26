@@ -88,10 +88,7 @@ M0_INTERNAL int m0_timer_start(struct m0_timer *timer)
 
 	M0_ASSERT(timer->t_callback != NULL);
 
-	if (timer->t_expire > now)
-		rem = m0_time_sub(timer->t_expire, now);
-	else
-		m0_time_set(&rem, 0, 0);
+	rem = timer->t_expire > now ? m0_time_sub(timer->t_expire, now) : 0;
 	ts.tv_sec  = m0_time_seconds(rem);
 	ts.tv_nsec = m0_time_nanoseconds(rem);
 	timer->t_timer.expires = jiffies + timespec_to_jiffies(&ts);

@@ -37,32 +37,30 @@ int nanosleep(const struct timespec *req, struct timespec *rem);
 m0_time_t m0_time_now(void)
 {
         struct timeval tv;
-	m0_time_t      t;
 
         /* We could use clock_gettime(CLOCK_REALTIME, time) for nanoseconds,
-         but we would have to link librt... */
+	 * but in this case we would have to link librt... */
         gettimeofday(&tv, NULL);
-        m0_time_set(&t, tv.tv_sec, tv.tv_usec * 1000);
 
-        return t;
+        return m0_time(tv.tv_sec, tv.tv_usec * 1000);
 }
 M0_EXPORTED(m0_time_now);
 
 /**
    Sleep for requested time
 */
-int m0_nanosleep(const m0_time_t req, m0_time_t * rem)
+int m0_nanosleep(const m0_time_t req, m0_time_t *rem)
 {
 	struct timespec reqts = {
-			.tv_sec  = m0_time_seconds(req),
-			.tv_nsec = m0_time_nanoseconds(req)
-			};
+		.tv_sec  = m0_time_seconds(req),
+		.tv_nsec = m0_time_nanoseconds(req)
+	};
 	struct timespec remts = { 0 };
 	int rc;
 
 	rc = nanosleep(&reqts, &remts);
 	if (rem != NULL)
-		m0_time_set(rem, remts.tv_sec, remts.tv_nsec);
+		*rem = m0_time(remts.tv_sec, remts.tv_nsec);
 	return rc;
 }
 M0_EXPORTED(m0_nanosleep);

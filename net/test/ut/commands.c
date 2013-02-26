@@ -67,10 +67,7 @@ static struct m0_net_test_cmd_ctx console;
 
 static m0_time_t timeout_get(void)
 {
-	m0_time_t timeout;
-
-	return m0_time_set(&timeout, NTC_TIMEOUT_MS / 1000,
-		           (NTC_TIMEOUT_MS % 1000) * 1000000);
+	return m0_time(NTC_TIMEOUT_MS / 1000, NTC_TIMEOUT_MS % 1000 * 1000000);
 }
 
 static m0_time_t timeout_get_abs(void)
@@ -399,7 +396,7 @@ static void commands_ut_send_all_type(size_t nr,
 		cmd_init->ntci_msg_nr	   = 0x10000;
 		cmd_init->ntci_msg_size	   = 0x100000;
 		cmd_init->ntci_concurrency = 0x100;
-		cmd_init->ntci_buf_send_timeout = M0_MKTIME(2, 3);
+		cmd_init->ntci_buf_send_timeout = m0_time(2, 3);
 		cmd_init->ntci_tm_ep	   = "0@lo:1:2:3";
 		m0_net_test_slist_init(&cmd_init->ntci_ep, "1,2,3", ',');
 	} else if (type != M0_NET_TEST_CMD_START &&

@@ -340,7 +340,7 @@ int main(int argc, char *argv[])
 	rc = m0_init();
 	M0_ASSERT(rc == 0);
 
-	m0_time_set(&delay, PROC_DELAY_SEC, 0);
+	delay = m0_time(PROC_DELAY_SEC, 0);
 	for (i = 0; i < MAX_PROC_TRIES; ++i) {
 		procf = open(lnet_ut_proc, O_RDWR);
 		if (procf >= 0)

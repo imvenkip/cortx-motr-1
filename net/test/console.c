@@ -162,7 +162,7 @@ static void status_data_reset(struct m0_net_test_cmd_status_data *sd)
 	m0_net_test_stats_reset(&sd->ntcsd_rtt);
 	sd->ntcsd_finished    = true;
 	sd->ntcsd_time_start  = M0_TIME_NEVER;
-	sd->ntcsd_time_finish = M0_MKTIME(0, 0);
+	sd->ntcsd_time_finish = 0;
 }
 
 static m0_time_t time_min(m0_time_t t1, m0_time_t t2)

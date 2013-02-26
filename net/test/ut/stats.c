@@ -198,7 +198,7 @@ static void stats_time_ut(void)
 	m0_net_test_stats_reset(&stats);
 	/* sample: .5s, 1.5s, 2.5s, 3.5s, 4.5s */
 	for (i = 0; i < 5; ++i) {
-		m0_net_test_stats_time_add(&stats, M0_MKTIME(i, 500000000));
+		m0_net_test_stats_time_add(&stats, m0_time(i, 500000000));
 		stats_serialize_ut(&stats);
 	}
 	/* check */

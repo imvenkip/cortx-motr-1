@@ -82,10 +82,7 @@ static pid_t gettid()
 
 static m0_time_t make_time(int ms)
 {
-	m0_time_t t;
-
-	m0_time_set(&t, ms / 1000, (ms % 1000) * 1000000);
-	return t;
+	return m0_time(ms / 1000, ms % 1000 * 1000000);
 }
 
 static m0_time_t make_time_abs(int ms)
@@ -134,7 +131,6 @@ static void test_timers(enum m0_timer_type timer_type, int nr_timers,
 	int		 i;
 	int		 time;
 	int		 rc;
-	m0_time_t	 zero_time;
 	m0_time_t	 wait;
 	m0_time_t	 rem;
 
@@ -160,11 +156,11 @@ static void test_timers(enum m0_timer_type timer_type, int nr_timers,
 		M0_UT_ASSERT(rc == 0);
 	}
 	/* wait some time */
-	m0_time_set(&zero_time, 0, 0);
 	wait = make_time(wait_time_ms);
-	do
-		m0_nanosleep(wait, &rem);
-	while ((wait = rem) != zero_time);
+	do {
+		(void)m0_nanosleep(wait, &rem);
+		wait = rem;
+	} while (wait != 0);
 	/* m0_timer_stop() */
 	for (i = 0; i < nr_timers; ++i) {
 		rc = m0_timer_stop(&timers[i]);

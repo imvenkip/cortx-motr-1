@@ -155,39 +155,22 @@ m0_bcount_t m0_net_test_stats_serialize(enum m0_net_test_serialize_op op,
 	return len == 0 ? 0 : len_total;
 }
 
-static m0_time_t unsigned_long2m0_time_t(unsigned long value)
+void m0_net_test_stats_time_add(struct m0_net_test_stats *stats, m0_time_t time)
 {
-	m0_time_t time;
-
-	return m0_time_set(&time, value / M0_TIME_ONE_BILLION,
-				  value % M0_TIME_ONE_BILLION);
-}
-
-static unsigned long m0_time_t2unsigned_long(m0_time_t time)
-{
-	return m0_time_seconds(time) * M0_TIME_ONE_BILLION +
-	       m0_time_nanoseconds(time);
-}
-
-void m0_net_test_stats_time_add(struct m0_net_test_stats *stats,
-				m0_time_t time)
-{
-	m0_net_test_stats_add(stats, m0_time_t2unsigned_long(time));
+	m0_net_test_stats_add(stats, (unsigned long)time);
 }
 
 m0_time_t m0_net_test_stats_time_min(struct m0_net_test_stats *stats)
 {
-	return unsigned_long2m0_time_t(m0_net_test_stats_min(stats));
+	return m0_net_test_stats_min(stats);
 }
 
 m0_time_t m0_net_test_stats_time_max(struct m0_net_test_stats *stats)
 {
-	return unsigned_long2m0_time_t(m0_net_test_stats_max(stats));
+	return m0_net_test_stats_max(stats);
 }
 
-/**
-   @} end of NetTestStatsInternals group
- */
+/** @} end of NetTestStatsInternals group */
 
 /**
    @defgroup NetTestTimestampInternals Timestamp

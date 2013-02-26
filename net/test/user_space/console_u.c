@@ -386,7 +386,6 @@ static void print_status_data(struct m0_net_test_console_ctx *ctx)
 
 static int console_run(struct m0_net_test_console_ctx *ctx)
 {
-	m0_time_t status_interval = M0_MKTIME(1, 0);
 	bool good;
 
 	good = console_step(ctx, M0_NET_TEST_ROLE_SERVER, M0_NET_TEST_CMD_INIT,
@@ -411,7 +410,7 @@ static int console_run(struct m0_net_test_console_ctx *ctx)
 		return -ENETUNREACH;
 	do {
 		/** @todo can be interrupted */
-		m0_nanosleep(status_interval, NULL);
+		m0_nanosleep(M0_MKTIME(1, 0), NULL);
 		if (!console_step(ctx, M0_NET_TEST_ROLE_CLIENT,
 				  M0_NET_TEST_CMD_STATUS, NULL, NULL)) {
 			m0_net_test_u_printf("STATUS DATA command failed.\n");

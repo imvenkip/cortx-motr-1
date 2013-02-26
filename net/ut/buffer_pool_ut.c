@@ -179,7 +179,7 @@ static void buffers_get_put(int rc)
 {
 	struct m0_net_buffer *nb;
 	struct m0_clink buf_link;
-	m0_time_t t;
+
 	m0_clink_init(&buf_link, NULL);
 	m0_clink_add_lock(&buf_chan, &buf_link);
 	do {
@@ -189,7 +189,7 @@ static void buffers_get_put(int rc)
 		if (nb == NULL)
 			m0_chan_wait(&buf_link);
 	} while (nb == NULL);
-	m0_nanosleep(m0_time_set(&t, 0, 100), NULL);
+	m0_nanosleep(m0_time(0, 100), NULL);
 	m0_net_buffer_pool_lock(&bp);
 	if (nb != NULL)
 		m0_net_buffer_pool_put(&bp, nb, rc);

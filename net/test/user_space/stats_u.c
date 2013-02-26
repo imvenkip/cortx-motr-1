@@ -83,7 +83,7 @@ static m0_time_t double2m0_time_t(double value)
 
 	seconds	    = (uint64_t) floor(value / M0_TIME_ONE_BILLION);
 	nanoseconds = (uint64_t) (value - seconds * M0_TIME_ONE_BILLION);
-	return M0_MKTIME(seconds, nanoseconds);
+	return m0_time(seconds, nanoseconds);
 }
 
 m0_time_t m0_net_test_stats_time_sum(struct m0_net_test_stats *stats)

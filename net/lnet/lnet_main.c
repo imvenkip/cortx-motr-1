@@ -977,7 +977,7 @@ M0_INTERNAL void m0_net_lnet_tm_stat_interval_set(struct m0_net_transfer_mc *tm,
 	M0_PRE(nlx_tm_invariant(tm));
 
 	tp = tm->ntm_xprt_private;
-	m0_time_set(&tp->xtm_stat_interval, secs, 0);
+	tp->xtm_stat_interval = m0_time(secs, 0);
 	m0_mutex_unlock(&tm->ntm_mutex);
 }
 M0_EXPORTED(m0_net_lnet_tm_stat_interval_set);

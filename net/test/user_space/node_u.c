@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
 		.ntnc_addr	   = NULL,
 		.ntnc_addr_console = NULL,
 		/** @todo add to command line parameters */
-		.ntnc_send_timeout = M0_MKTIME(3, 0),
+		.ntnc_send_timeout = M0_MKTIME(3, 0)
 	};
 
 	m0_net_test_u_printf_v("m0_init()\n");

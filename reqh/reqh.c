@@ -109,7 +109,7 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 		m0_bcount_t addb_stob_seg_size =
 		    M0_RPC_DEF_MAX_RPC_MSG_SIZE * 2;
 		m0_bcount_t addb_stob_size = addb_stob_seg_size * 1000;
-		m0_time_t   addb_stob_timeout = M0_MKTIME(5 * 60, 0);
+		m0_time_t   addb_stob_timeout = M0_MKTIME(300, 0); /* 5 mins */
 
 		result = m0_addb_mc_configure_stob_sink(&reqh->rh_addb_mc,
 						reqh_args->rhia_addb_stob,

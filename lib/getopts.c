@@ -75,7 +75,7 @@ M0_INTERNAL int m0_bcount_get(const char *arg, m0_bcount_t * out)
 	return rc;
 }
 
-M0_INTERNAL int m0_time_get(const char *arg, m0_time_t * out)
+M0_INTERNAL int m0_time_get(const char *arg, m0_time_t *out)
 {
 	char	*end = NULL;
 	uint64_t before;	/* before decimal point */
@@ -83,7 +83,6 @@ M0_INTERNAL int m0_time_get(const char *arg, m0_time_t * out)
 	int	 rc = 0;
 	uint64_t unit_mul = 1000000000;
 	int	 i;
-	uint64_t time_ns;
 	uint64_t pow_of_10 = 1;
 
 	static const char *unit[] = {
@@ -123,12 +122,8 @@ M0_INTERNAL int m0_time_get(const char *arg, m0_time_t * out)
 		if (i == ARRAY_SIZE(unit))
 			rc = -EINVAL;
 	}
-	if (rc == 0) {
-		time_ns = before * unit_mul +
-			  (after * unit_mul / pow_of_10);
-		m0_time_set(out, time_ns / M0_TIME_ONE_BILLION,
-			    time_ns % M0_TIME_ONE_BILLION);
-	}
+	if (rc == 0)
+		*out = before * unit_mul + after * unit_mul / pow_of_10;
 	return rc;
 }
 

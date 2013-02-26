@@ -199,11 +199,8 @@ uint64_t nlx_ping_parse_uint64(const char *s)
 
 static void ping_sleep_secs(int secs)
 {
-	m0_time_t req, rem;
-	if (secs == 0)
-		return;
-	m0_time_set(&req, secs, 0);
-	m0_nanosleep(req, &rem);
+	if (secs != 0)
+		m0_nanosleep(m0_time(secs, 0), NULL);
 }
 
 static int alloc_buffers(int num, uint32_t segs, m0_bcount_t segsize,
@@ -1593,8 +1590,7 @@ static int nlx_ping_client_msg_send_recv(struct nlx_ping_ctx *ctx,
 					m0_atomic64_inc(&ctx->pc_errors);
 					return -ETIMEDOUT;
 				}
-				m0_time_set(&delay,
-					    SEND_RETRIES + 1 - retries, 0);
+				delay = m0_time(SEND_RETRIES + 1 - retries, 0);
 				--retries;
 				m0_nanosleep(delay, NULL);
 				m0_atomic64_inc(&ctx->pc_retries);
@@ -1687,8 +1683,7 @@ static int nlx_ping_client_passive_recv(struct nlx_ping_ctx *ctx,
 					m0_atomic64_inc(&ctx->pc_errors);
 					return -ETIMEDOUT;
 				}
-				m0_time_set(&delay,
-					    SEND_RETRIES + 1 - retries, 0);
+				delay = m0_time(SEND_RETRIES + 1 - retries, 0);
 				--retries;
 				m0_nanosleep(delay, NULL);
 				m0_atomic64_inc(&ctx->pc_retries);
@@ -1773,8 +1768,7 @@ static int nlx_ping_client_passive_send(struct nlx_ping_ctx *ctx,
 					m0_atomic64_inc(&ctx->pc_errors);
 					return -ETIMEDOUT;
 				}
-				m0_time_set(&delay,
-					    SEND_RETRIES + 1 - retries, 0);
+				delay = m0_time(SEND_RETRIES + 1 - retries, 0);
 				--retries;
 				m0_nanosleep(delay, NULL);
 				m0_atomic64_inc(&ctx->pc_retries);

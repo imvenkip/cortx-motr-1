@@ -44,11 +44,8 @@ struct ping_work_item {
 
 static void ping_sleep_secs(int secs)
 {
-	m0_time_t req, rem;
-	if (secs == 0)
-		return;
-	m0_time_set(&req, secs, 0);
-	m0_nanosleep(req, &rem);
+	if (secs != 0)
+		m0_nanosleep(m0_time(secs, 0), NULL);
 }
 
 int alloc_buffers(int num, uint32_t segs, m0_bcount_t segsize,
@@ -1071,8 +1068,7 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 					m0_free(wi);
 					return -ETIMEDOUT;
 				}
-				m0_time_set(&delay,
-					    SEND_RETRIES + 1 - retries, 0);
+				delay = m0_time(SEND_RETRIES + 1 - retries, 0);
 				--retries;
 				m0_nanosleep(delay, NULL);
 				rc = m0_net_buffer_add(nb, &ctx->pc_tm);
@@ -1156,8 +1152,7 @@ int ping_client_passive_recv(struct ping_ctx *ctx,
 					ping_buf_put(ctx, nb);
 					return -ETIMEDOUT;
 				}
-				m0_time_set(&delay,
-					    SEND_RETRIES + 1 - retries, 0);
+				delay = m0_time(SEND_RETRIES + 1 - retries, 0);
 				--retries;
 				m0_nanosleep(delay, NULL);
 				rc = m0_net_buffer_add(nb, &ctx->pc_tm);
@@ -1246,8 +1241,7 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 					ping_buf_put(ctx, nb);
 					return -ETIMEDOUT;
 				}
-				m0_time_set(&delay,
-					    SEND_RETRIES + 1 - retries, 0);
+				delay = m0_time(SEND_RETRIES + 1 - retries, 0);
 				--retries;
 				m0_nanosleep(delay, NULL);
 				rc = m0_net_buffer_add(nb, &ctx->pc_tm);

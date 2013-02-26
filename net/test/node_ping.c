@@ -624,8 +624,8 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
 
 	M0_PRE(ctx != NULL);
 
-	m0_time_set(&to_check_interval, TO_CHECK_INTERVAL / 1000,
-					TO_CHECK_INTERVAL * 1000000);
+	to_check_interval = m0_time(TO_CHECK_INTERVAL / 1000,
+				    TO_CHECK_INTERVAL * 1000000);
 	while (1) {
 		/* get buffer index from ringbuf */
 		deadline = m0_time_add(m0_time_now(), to_check_interval);
@@ -920,9 +920,9 @@ static int node_ping_cmd_start(void *ctx_,
 			       struct m0_net_test_cmd *reply)
 {
 	struct m0_net_test_cmd_status_data *sd;
-	struct node_ping_ctx		   *ctx = ctx_;
-	int				    rc;
-	m0_time_t			    _1s = M0_MKTIME(1, 0);
+	struct node_ping_ctx               *ctx = ctx_;
+	int                                 rc;
+	const m0_time_t                     _1s = M0_MKTIME(1, 0);
 
 	M0_PRE(ctx != NULL);
 	M0_PRE(cmd != NULL);
@@ -944,8 +944,7 @@ static int node_ping_cmd_start(void *ctx_,
 	/* start test */
 	ctx->npc_buf_rb_done = false;
 	rc = M0_THREAD_INIT(&ctx->npc_thread, struct node_ping_ctx *, NULL,
-			    &node_ping_worker, ctx,
-			    "net-test-worker#%s",
+			    &node_ping_worker, ctx, "net-test-worker#%s",
 			    ctx->npc_net.ntc_tm->ntm_ep->nep_addr);
 	if (rc != 0) {
 		/* change service state */

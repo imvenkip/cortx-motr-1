@@ -43,12 +43,7 @@ static void make_desc(struct m0_net_buf_desc *desc);
 #define KPRN(fmt,...)
 #endif
 
-#define DELAY_MS(ms)				\
-{       m0_time_t rem;				\
-	m0_time_t del;				\
-        m0_time_set(&del, 0, ms * 1000000ULL);	\
-        m0_nanosleep(del, &rem);		\
-}
+#define DELAY_MS(ms) m0_nanosleep(m0_time(0, (ms) * 1000000ULL), NULL)
 
 /*
  *****************************************************
@@ -675,7 +670,7 @@ static void test_net_bulk_if(void)
 		num_dels[i] = 0;
 		total_bytes[i] = 0;
 	}
-	m0_time_set(&m0tt_to_period, 120, 0); /* 2 min */
+	m0tt_to_period = m0_time(120, 0); /* 2 min */
 
 	/* TM init with callbacks */
 	rc = m0_net_tm_init(tm, dom, &m0_addb_gmc, &m0_addb_proc_ctx);
@@ -848,8 +843,7 @@ static void test_net_bulk_if(void)
 			make_desc(&nb->nb_desc);
 			break;
 		}
-		nb->nb_timeout = m0_time_add(m0_time_now(),
-					     m0tt_to_period);
+		nb->nb_timeout = m0_time_add(m0_time_now(), m0tt_to_period);
 		rc = m0_net_buffer_add(nb, tm);
 		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(nb->nb_flags & M0_NET_BUF_QUEUED);

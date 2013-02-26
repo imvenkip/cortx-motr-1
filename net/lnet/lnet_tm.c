@@ -88,11 +88,10 @@ static int nlx_tm_timeout_buffers(struct m0_net_transfer_mc *tm, m0_time_t now)
    The subroutine exists only for unit test control.
    It is only called once in the lifetime of a transfer machine.
  */
-static m0_time_t nlx_tm_get_buffer_timeout_tick(const struct
-						m0_net_transfer_mc *tm)
+static m0_time_t
+nlx_tm_get_buffer_timeout_tick(const struct m0_net_transfer_mc *tm)
 {
-	m0_time_t tick;
-	return m0_time_set(&tick, M0_NET_LNET_BUF_TIMEOUT_TICK_SECS, 0);
+	return m0_time(M0_NET_LNET_BUF_TIMEOUT_TICK_SECS, 0);
 }
 
 /**
