@@ -36,7 +36,12 @@
 struct m0_dtm;
 struct m0_dtx;
 
-struct m0_dtm {};
+struct m0_dtm {
+};
+
+struct m0_dtm_remote {
+	struct m0_dtm_history drm_fol;
+};
 
 enum m0_dtx_state {
 	M0_DTX_INIT = 1,

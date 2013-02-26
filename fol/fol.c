@@ -46,8 +46,6 @@
    variable-sized format:
 
    @li struct m0_fol_rec_header
-   @li followed by rh_obj_nr m0_fol_obj_ref-s
-   @li followed by rh_sibling_nr m0_update_id-s
    @li followed by rh_parts_nr m0_fol_rec_part-s
    @li followed by rh_data_len bytes
    @li followed by the list of fol record parts.
@@ -65,7 +63,6 @@ M0_TL_DESCR_DEFINE(m0_rec_part, "fol record part", M0_INTERNAL,
 M0_TL_DEFINE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
 
 #define REC_SIBLING_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_update_ref_xc, ptr)
-#define REC_OBJ_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_obj_ref_xc, ptr)
 
 #define REC_PART_HEADER_XCODE_OBJ(ptr) \
 	M0_XCODE_OBJ(m0_fol_rec_part_header_xc, ptr)
@@ -479,51 +476,8 @@ M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec)
 M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec_desc *drec)
 {
 	const struct m0_fol_rec_header *h = &drec->rd_header;
-	uint32_t i;
-	uint32_t j;
 
-	if (!m0_lsn_is_valid(drec->rd_lsn))
-		return false;
-	if (h->rh_magic != M0_FOL_REC_MAGIC)
-		return false;
-	for (i = 0; i < h->rh_obj_nr; ++i) {
-		struct m0_fol_obj_ref *ref;
-
-		ref = &drec->rd_ref[i];
-		if (!m0_fid_is_valid(&ref->or_fid))
-			return false;
-		if (!m0_lsn_is_valid(ref->or_before_ver.vn_lsn) &&
-		    ref->or_before_ver.vn_lsn != M0_LSN_NONE)
-			return false;
-		if (drec->rd_lsn <= ref->or_before_ver.vn_lsn)
-			return false;
-		for (j = 0; j < i; ++j) {
-			if (m0_fid_eq(&ref->or_fid, &drec->rd_ref[j].or_fid))
-				return false;
-		}
-	}
-/* XXX DELETEME: Do we care about the disabled section?  --vvv */
-#if 0
-	if (!m0_epoch_is_valid(&drec->rd_epoch))
-		return false;
-	if (!m0_update_is_valid(&h->rh_self))
-		return false;
-	for (i = 0; i < h->rh_sibling_nr; ++i) {
-		struct m0_fol_update_ref *upd;
-
-		upd = &drec->rd_sibling[i];
-		if (!m0_update_is_valid(&upd->ui_id))
-			return false;
-		if (!m0_update_state_is_valid(upd->ui_state))
-			return false;
-		for (j = 0; j < i; ++j) {
-			if (m0_update_is_eq(&upd->ui_id,
-					    &drec->rd_sibling[j].ui_id))
-				return false;
-		}
-	}
-#endif
-	return true;
+	return m0_lsn_is_valid(drec->rd_lsn) && h->rh_magic == M0_FOL_REC_MAGIC;
 }
 
 M0_INTERNAL void m0_fol_rec_part_init(struct m0_fol_rec_part *part, void *data,
@@ -654,11 +608,6 @@ static size_t fol_record_pack_size(struct m0_fol_rec *rec)
 	m0_bcount_t                   len;
 
 	len = fol_rec_header_pack_size(h) +
-	      h->rh_obj_nr *
-		m0_xcode_data_size(&ctx, &REC_OBJ_REF_XCODE_OBJ(desc->rd_ref)) +
-	      h->rh_sibling_nr *
-		m0_xcode_data_size(&ctx,
-				   &REC_SIBLING_XCODE_OBJ(desc->rd_sibling)) +
 	      h->rh_parts_nr *
 		m0_xcode_data_size(&ctx, &REC_PART_HEADER_XCODE_OBJ(&rph));
 
@@ -689,20 +638,6 @@ static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
 
 	if (what == M0_XCODE_DECODE && h->rh_refcount == 0)
 		return -ENOENT;
-
-	for (i = 0; i < h->rh_obj_nr; ++i) {
-		struct m0_fol_obj_ref *r = &desc->rd_ref[i];
-		rc = m0_xcode_encdec(&REC_OBJ_REF_XCODE_OBJ(r), cur, what);
-		if (rc != 0)
-			return rc;
-	}
-
-	for (i = 0; i < h->rh_sibling_nr; ++i) {
-		struct m0_fol_update_ref *r = &desc->rd_sibling[i];
-		rc = m0_xcode_encdec(&REC_SIBLING_XCODE_OBJ(r), cur, what);
-		if (rc != 0)
-			return rc;
-	}
 
 	M0_POST(ergo(what == M0_XCODE_DECODE, h->rh_magic == M0_FOL_REC_MAGIC));
 	return 0;

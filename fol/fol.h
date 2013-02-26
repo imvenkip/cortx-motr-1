@@ -239,37 +239,6 @@ M0_INTERNAL m0_lsn_t m0_fol_lsn_allocate(struct m0_fol *fol);
 M0_INTERNAL int m0_fol_force(struct m0_fol *fol, m0_lsn_t upto);
 
 /**
-   Reference to a file system object from a fol record.
-
-   This reference points to a specific fol record which modified the object in
-   question. FOL object references are used in two ways:
-
-   @li they are embedded into a fol record to point to the previous update of
-   the same object. Multiple reference might be embedded into a given record
-   (depending on the file system operation type), because an operation might
-   affect multiple objects;
-
-   @li a reference is embedded into an object index record to point to the
-   latest operation applied to the object.
-
-   Together these references specify the complete history of updates of a given
-   object. To navigate through this history, one obtains from the object index a
-   reference to the latest operation against the object and then follows the
-   chain of prevlsn-s.
-
-   An invariant of this system of references is that object versions decrease
-   one by one as prevlsn-s for the operations against the object are followed
-   and their lsn-s also decrease.
- */
-struct m0_fol_obj_ref {
-	/** file identifier */
-	struct m0_fid   or_fid;
-	/** version that the object had before operation has been applied,
-	    or {M0_LSN_NONE, 0} if this is the first operation */
-	struct m0_verno or_before_ver;
-} M0_XCA_RECORD;
-
-/**
    Reference to a sibling update of the same operation.
 
    @todo More detailed description is to be supplied as part of DTM design.
@@ -310,8 +279,6 @@ struct m0_fol_rec_header {
 } M0_XCA_RECORD;
 
 M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_rec_header)));
-M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_obj_ref)));
-M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_update_ref)));
 
 /**
    In-memory representation of a fol record.
@@ -332,8 +299,6 @@ struct m0_fol_rec_desc {
 	/** Record log sequence number. */
 	m0_lsn_t                  rd_lsn;
 	struct m0_fol_rec_header  rd_header;
-	/** References to the objects modified by this update. */
-	struct m0_fol_obj_ref    *rd_ref;
 	/** A DTM epoch this update is a part of. */
 	struct m0_epoch_id       *rd_epoch;
 	/** Identifiers of sibling updates. */

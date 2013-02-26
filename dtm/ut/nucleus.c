@@ -49,6 +49,7 @@ static void (*c_ready) (struct m0_dtm_op *op);
 static void (*c_miser) (struct m0_dtm_op *op);
 static void (*c_late)  (struct m0_dtm_op *op);
 static void (*c_stable)(struct m0_dtm_op *op);
+static void (*c_persistent)(struct m0_dtm_op *op);
 
 static void ready(struct m0_dtm_op *op)
 {
@@ -74,24 +75,31 @@ static void stable(struct m0_dtm_op *op)
 		c_stable(op);
 }
 
+static void persistent(struct m0_dtm_op *op)
+{
+	if (c_persistent != NULL)
+		c_persistent(op);
+}
+
 static const struct m0_dtm_op_ops op_ops = {
-	.doo_ready  = ready,
-	.doo_late   = late,
-	.doo_miser  = miser,
-	.doo_stable = stable
+	.doo_ready      = ready,
+	.doo_late       = late,
+	.doo_miser      = miser,
+	.doo_stable     = stable,
+	.doo_persistent = persistent
 };
 
-static void release(struct m0_dtm_hi *hi)
+static void h_release(struct m0_dtm_hi *hi)
 {
 }
 
-static void persistent(struct m0_dtm_hi *hi, struct m0_dtm_up *up)
+static void h_persistent(struct m0_dtm_hi *hi, struct m0_dtm_up *up)
 {
 }
 
 static const struct m0_dtm_hi_ops hi_ops = {
-	.dho_release    = release,
-	.dho_persistent = persistent
+	.dho_release    = h_release,
+	.dho_persistent = h_persistent
 };
 
 
