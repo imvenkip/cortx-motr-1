@@ -28,27 +28,27 @@
 #include "lib/getopts.h"
 #include "utils/common.h"
 
-extern struct m0_ub_set m0_atomic_ub;
-extern struct m0_ub_set m0_list_ub;
-extern struct m0_ub_set m0_tlist_ub;
-extern struct m0_ub_set m0_bitmap_ub;
-extern struct m0_ub_set m0_thread_ub;
-extern struct m0_ub_set m0_memory_ub;
-extern struct m0_ub_set m0_trace_ub;
-extern struct m0_ub_set m0_adieu_ub;
 extern struct m0_ub_set m0_ad_ub;
+extern struct m0_ub_set m0_adieu_ub;
+extern struct m0_ub_set m0_atomic_ub;
+extern struct m0_ub_set m0_bitmap_ub;
 extern struct m0_ub_set m0_cob_ub;
 extern struct m0_ub_set m0_db_ub;
 extern struct m0_ub_set m0_emap_ub;
 extern struct m0_ub_set m0_fol_ub;
+extern struct m0_ub_set m0_fom_ub;
+extern struct m0_ub_set m0_list_ub;
+extern struct m0_ub_set m0_memory_ub;
 extern struct m0_ub_set m0_parity_math_ub;
 extern struct m0_ub_set m0_rm_ub;
-extern struct m0_ub_set m0_fom_ub;
+extern struct m0_ub_set m0_thread_ub;
+extern struct m0_ub_set m0_tlist_ub;
+extern struct m0_ub_set m0_trace_ub;
 
 #define UB_SANDBOX "./ub-sandbox"
 
 struct ub_args {
-	bool	    ua_ub_list;
+	bool        ua_ub_list;
 	uint32_t    ua_rounds;
 	char       *ua_name;
 	char       *ua_args;
@@ -93,22 +93,22 @@ static void ub_add(const struct ub_args *args)
 	/* Note these tests are run in reverse order from the way
 	   they are listed here */
 
-	m0_ub_set_add(&m0_memory_ub);
-	m0_ub_set_add(&m0_adieu_ub);
 	m0_ub_set_add(&m0_ad_ub);
-	m0_ub_set_add(&m0_db_ub);
+	m0_ub_set_add(&m0_adieu_ub);
+	m0_ub_set_add(&m0_atomic_ub);
+	m0_ub_set_add(&m0_bitmap_ub);
 	m0_ub_set_add(&m0_cob_ub);
+	m0_ub_set_add(&m0_db_ub);
 	m0_ub_set_add(&m0_emap_ub);
 	m0_ub_set_add(&m0_fol_ub);
-	m0_ub_set_add(&m0_tlist_ub);
+	m0_ub_set_add(&m0_fom_ub);
 	m0_ub_set_add(&m0_list_ub);
-	m0_ub_set_add(&m0_bitmap_ub);
+	m0_ub_set_add(&m0_memory_ub);
 	m0_ub_set_add(&m0_parity_math_ub);
 	m0_ub_set_add(&m0_rm_ub);
 	m0_ub_set_add(&m0_thread_ub);
+	m0_ub_set_add(&m0_tlist_ub);
 	m0_ub_set_add(&m0_trace_ub);
-	m0_ub_set_add(&m0_atomic_ub);
-	m0_ub_set_add(&m0_fom_ub);
 }
 
 static void ub_run(const struct ub_args *args)

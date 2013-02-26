@@ -35,7 +35,6 @@
 #define M0_UB_ASSERT(cond) \
         ((cond) ? (void)0 : m0_panic(#cond, __func__, __FILE__, __LINE__))
 
-
 /**
  * Structure to define a unit benchmark.
  */
@@ -106,9 +105,7 @@ M0_INTERNAL void m0_ub_set_add(struct m0_ub_set *set);
 M0_INTERNAL void m0_ub_run(uint32_t rounds);
 
 /** @} end of ub group. */
-
-/* __MERO_LIB_UB_H__ */
-#endif
+#endif /* __MERO_LIB_UB_H__ */
 
 /*
  *  Local variables:

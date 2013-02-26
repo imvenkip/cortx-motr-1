@@ -71,7 +71,8 @@ AM_CONDITIONAL([ENABLE_DEBUG],
                [test "x$enable_debug" = xyes])
 
 AC_ARG_ENABLE([profiler],
-        [AS_HELP_STRING([--enable-profiler], [enable gperftools profiler supprot])],
+        [AS_HELP_STRING([--enable-profiler],
+                       [enable gperftools profiling information])],
         [], [enable_profiler=no]
 )
 AM_CONDITIONAL([ENABLE_PROFILER],
@@ -491,21 +492,15 @@ AS_IF([test x$enable_debug = xyes],
 )
 
 AS_IF([test x$enable_profiler = xyes],
-[
-	AC_DEFINE([ENABLE_PROFILER])
-	AC_CHECK_PROG(PPROF, pprof, pprof)
-	AS_IF([test -z $PPROF],
-           AC_MSG_ERROR([pprof not found. yum install pprof.noarch to install]))
-
-	MERO_SEARCH_LIBS([ProfilerStart], [c profiler], [PROFILER_LIBS],
-	[libprofiler cannot be found! The following commmand install needed \
-packages from yum: yum install gperftools-libs.x86_64 gperftools-devel.x86_64 \
-gperf-debuginfo.x86_64]
-)
-AC_SUBST([PROFILER_LIBS])
-],
-[ PROFILER_LIBS=" " ]
-)
+      [AC_DEFINE([ENABLE_PROFILER])
+       AC_CHECK_PROG(PPROF, pprof, pprof)
+       AS_IF([test -z $PPROF],
+             AC_MSG_ERROR([pprof not found. Try to 'yum install pprof'.]))
+       MERO_SEARCH_LIBS([ProfilerStart], [c profiler], [PROFILER_LIBS],
+                        [libprofiler not found. Try to \
+'yum install gperftools-libs gperftools-devel gperf-debuginfo'.])
+       AC_SUBST([PROFILER_LIBS])],
+       [PROFILER_LIBS=" "])
 
 AS_IF([test x$enable_coverage = xyes],
       [
