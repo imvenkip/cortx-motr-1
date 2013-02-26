@@ -1136,6 +1136,8 @@ static void cobfoms_fv_updates(void)
 			      COB_FOP_SINGLE);
 }
 
+#define COB_DATA(data) M0_XCODE_OBJ(m0_fop_cob_common_xc, data)
+
 static void cobfoms_fol_verify(void)
 {
 	struct m0_reqh		 *reqh;
@@ -1144,7 +1146,7 @@ static void cobfoms_fol_verify(void)
 	struct m0_dtx             dtx;
 	int			  result;
 	struct m0_fol_rec_part	 *dec_part;
-	struct m0_fop_cob_common *cc;
+	struct m0_fop_cob_common *cob_cmn;
 	struct m0_fop		 *c_fop;
 	struct m0_fop		 *d_fop;
 
@@ -1173,38 +1175,42 @@ static void cobfoms_fol_verify(void)
 	M0_UT_ASSERT(dec_cd_rec.fr_desc.rd_header.rh_parts_nr == 1);
 
 	m0_tl_for(m0_rec_part, &dec_cc_rec.fr_fol_rec_parts, dec_part) {
-		if (strcmp(dec_part->rp_ops->rpo_type->rpt_name,
-			   "Create record part") == 0) {
-			struct m0_io_create_rec_part *crp;
+		if (dec_part->rp_ops->rpo_type->rpt_index ==
+		    m0_fop_fol_rec_part_type.rpt_index) {
+			struct m0_fop_fol_rec_part  *fp_part;
+			struct m0_fop_cob_create    *create_fop;
+			struct m0_fop_cob_op_reply  *cob_rep;
 
-			crp = (struct m0_io_create_rec_part *)dec_part->rp_data;
-			cc = m0_cobfop_common_get(c_fop);
+			fp_part    = dec_part->rp_data;
+			create_fop = fp_part->ffrp_fop;
+			cob_rep    = fp_part->ffrp_rep;
+			cob_cmn    = m0_cobfop_common_get(c_fop);
 			M0_UT_ASSERT(m0_xcode_cmp(
-				     &M0_XCODE_OBJ(m0_fop_cob_common_xc,
-						   &crp->crp_create.cc_common),
-				     &M0_XCODE_OBJ(m0_fop_cob_common_xc, cc))
-				     == 0);
-			M0_UT_ASSERT(crp->crp_create_rep.cor_rc == 0);
+				     &COB_DATA(&create_fop->cc_common),
+				     &COB_DATA(cob_cmn)) == 0);
+			M0_UT_ASSERT(cob_rep->cor_rc == 0);
 		}
 	} m0_tl_endfor;
 
 	m0_tl_for(m0_rec_part, &dec_cd_rec.fr_fol_rec_parts, dec_part) {
-		if (strcmp(dec_part->rp_ops->rpo_type->rpt_name,
-			  "Delete record part") == 0) {
-			struct m0_io_delete_rec_part *drp;
+		if (dec_part->rp_ops->rpo_type->rpt_index ==
+		    m0_fop_fol_rec_part_type.rpt_index) {
+			struct m0_fop_fol_rec_part *fp_part;
+			struct m0_fop_cob_delete   *del_fop;
+			struct m0_fop_cob_op_reply *cob_rep;
 
-			drp = (struct m0_io_delete_rec_part *)dec_part->rp_data;
-			cc = m0_cobfop_common_get(d_fop);
+			fp_part = dec_part->rp_data;
+			del_fop = fp_part->ffrp_fop;
+			cob_rep = fp_part->ffrp_rep;
+			cob_cmn = m0_cobfop_common_get(d_fop);
 			M0_UT_ASSERT(m0_xcode_cmp(
-				     &M0_XCODE_OBJ(m0_fop_cob_common_xc,
-						   &drp->drp_delete.cd_common),
-				     &M0_XCODE_OBJ(m0_fop_cob_common_xc, cc))
-				     == 0);
-			M0_UT_ASSERT(drp->drp_delete_rep.cor_rc == 0);
+				     &COB_DATA(&del_fop->cd_common),
+				     &COB_DATA(cob_cmn)) == 0);
+			M0_UT_ASSERT(cob_rep->cor_rc == 0);
 		}
 	} m0_tl_endfor;
-	m0_fol_rec_fini(&dec_cc_rec);
-	m0_fol_rec_fini(&dec_cd_rec);
+	m0_fol_lookup_rec_fini(&dec_cc_rec);
+	m0_fol_lookup_rec_fini(&dec_cd_rec);
 	m0_dtx_done(&dtx);
 
 	cobfoms_fop_thread_fini(&m0_fop_cob_create_fopt, &m0_fop_cob_delete_fopt);

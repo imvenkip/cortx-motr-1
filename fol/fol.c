@@ -346,7 +346,7 @@ m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
 	static uint32_t index = PART_TYPE_START_INDEX;
 
 	M0_PRE(type != NULL);
-	M0_PRE(type->rpt_xt != NULL);
+	M0_PRE(type->rpt_xt != NULL && type->rpt_ops != NULL);
 	M0_PRE(type->rpt_index == 0);
 
 	m0_mutex_lock(&rptypes_lock);
@@ -391,11 +391,10 @@ m0_fol_rec_part_init(struct m0_fol_rec_part *part, void *data,
 		     const struct m0_fol_rec_part_type *type)
 {
 	M0_PRE(part != NULL);
-	M0_PRE(type != NULL);
+	M0_PRE(type != NULL && type->rpt_ops != NULL);
 
 	part->rp_data = data;
-	if (type->rpt_ops != NULL)
-		type->rpt_ops->rpto_rec_part_init(part);
+	type->rpt_ops->rpto_rec_part_init(part);
 	m0_rec_part_tlink_init(part);
 }
 
@@ -466,8 +465,7 @@ static size_t fol_record_pack_size(struct m0_fol_rec *rec)
 	len = m0_xcode_data_size(&ctx,
 				 &M0_REC_HEADER_XCODE_OBJ(&desc->rd_header)) +
 	      desc->rd_header.rh_obj_nr *
-	      m0_xcode_data_size(&ctx,
-				 &REC_OBJ_REF_XCODE_OBJ(desc->rd_ref)) +
+	      m0_xcode_data_size(&ctx, &REC_OBJ_REF_XCODE_OBJ(desc->rd_ref)) +
 	      desc->rd_header.rh_sibling_nr *
 	      m0_xcode_data_size(&ctx,
 				 &REC_SIBLING_XCODE_OBJ(desc->rd_sibling)) +
@@ -504,8 +502,8 @@ static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 			m0_fop_fol_rec_part_type.rpt_index;
 
 		rph = (struct m0_fol_rec_part_header) {
-			.rph_index  = index,
-			.rph_magic  = M0_FOL_REC_PART_MAGIC,
+			.rph_index = index,
+			.rph_magic = M0_FOL_REC_PART_MAGIC,
 		};
 
 		rc = m0_xcode_encdec(&ctx, &REC_PART_HEADER_XCODE_OBJ(&rph),

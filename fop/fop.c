@@ -46,8 +46,6 @@ struct m0_addb_ctx     m0_fop_addb_ctx;
 static struct m0_mutex fop_types_lock;
 static struct m0_tl    fop_types_list;
 
-struct m0_fol_rec_part_type m0_fop_fol_rec_part_type;
-
 M0_TL_DESCR_DEFINE(ft, "fop types", static, struct m0_fop_type,
 		   ft_linkage,	ft_magix,
 		   M0_FOP_TYPE_MAGIC, M0_FOP_TYPE_HEAD_MAGIC);
@@ -245,6 +243,8 @@ M0_INTERNAL struct m0_fop_type *m0_fop_type_next(struct m0_fop_type *ftype)
 	return rtype;
 }
 
+
+M0_FOL_REC_PART_TYPE_DECLARE(m0_fop_fol_rec_part, NULL, NULL);
 M0_INTERNAL int m0_fops_init(void)
 {
 	m0_xc_fop_init();
@@ -259,6 +259,7 @@ M0_INTERNAL int m0_fops_init(void)
 
 	m0_fop_fol_rec_part_type.rpt_xt  = m0_fop_fol_rec_part_xc;
 	m0_fop_fol_rec_part_type.rpt_ops = NULL;
+	M0_FOL_REC_PART_TYPE_INIT(m0_fop_fol_rec_part, "fop generic record part");
 	return m0_fol_rec_part_type_register(&m0_fop_fol_rec_part_type);
 }
 

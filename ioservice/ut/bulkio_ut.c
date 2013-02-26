@@ -1253,6 +1253,8 @@ static void bulkio_server_single_read_write(void)
 	io_fops_rpc_submit(&targ);
 }
 
+#define WRITE_FOP_DATA(fop) M0_XCODE_OBJ(m0_fop_cob_writev_xc, fop)
+
 static void bulkio_server_write_fol_rec_verify(void)
 {
 	struct m0_reqh		 *reqh;
@@ -1280,27 +1282,25 @@ static void bulkio_server_write_fol_rec_verify(void)
 	M0_UT_ASSERT(result == 0);
 
 	M0_UT_ASSERT(dec_rec.fr_desc.rd_header.rh_parts_nr == 2);
-
 	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part) {
-		if (strcmp(dec_part->rp_ops->rpo_type->rpt_name,
-			  "Write record part") == 0) {
-			struct m0_io_write_rec_part *wrp;
+		struct m0_fop_fol_rec_part *fp_part = dec_part->rp_data;
 
-			wrp = (struct m0_io_write_rec_part *)dec_part->rp_data;
+		if (dec_part->rp_ops->rpo_type->rpt_index ==
+		    m0_fop_fol_rec_part_type.rpt_index &&
+		    fp_part->ffrp_fop_code == M0_IOSERVICE_WRITEV_OPCODE) {
+			struct m0_fop_cob_writev_rep *wfop_rep;
+
 			M0_UT_ASSERT(m0_xcode_cmp(
-				     &M0_XCODE_OBJ(m0_fop_cob_writev_xc,
-						   &wrp->wrp_write),
-				     &M0_XCODE_OBJ(m0_fop_cob_writev_xc, wfop))
-				     == 0);
-			M0_UT_ASSERT(m0_xcode_cmp(
-				     &M0_XCODE_OBJ(m0_fid_xc, &wrp->wrp_fid),
-				     &M0_XCODE_OBJ(m0_fid_xc, wfop)) == 0);
-			M0_UT_ASSERT(wrp->wrp_write_rep.c_rep.rwr_rc == 0);
-			M0_UT_ASSERT(wrp->wrp_write_rep.c_rep.rwr_count > 0);
+				&WRITE_FOP_DATA(fp_part->ffrp_fop),
+				&WRITE_FOP_DATA(wfop)) == 0);
+
+			wfop_rep = fp_part->ffrp_rep;
+			M0_UT_ASSERT(wfop_rep->c_rep.rwr_rc == 0);
+			M0_UT_ASSERT(wfop_rep->c_rep.rwr_count > 0);
 		}
 	} m0_tl_endfor;
 
-	m0_fol_rec_fini(&dec_rec);
+	m0_fol_lookup_rec_fini(&dec_rec);
 	m0_dtx_done(&dtx);
 	io_fops_destroy(bp);
 }
