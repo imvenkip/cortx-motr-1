@@ -255,7 +255,30 @@ struct m0_rpc_item_ops {
 	   - or any failure is occured (including timeout) in which case
 	     item->ri_error != 0
 
+	   If item->ri_error != 0, then item->ri_error may or may not be NULL.
+
+	   For each request sender receives one of following two types
+	   of replies:
+	   - generic-reply (m0_fop_generic_reply):
+	     This type of reply is received when operation fails in generic
+	     fom phases;
+	   - operation specific reply.
+
+	   Implementation of rio_replied() should check three levels of error,
+	   in specified sequence, to determine operation status:
+	   1. item->ri_error;
+	   2. error reported by generic-reply fop;
+	   3. error code in operation specific part of fop.
+	   @see m0_rpc_session_terminate_reply_received() for example.
+	   @see m0_rpc_item_is_generic_reply_fop()
+	   @see m0_rpc_item_generic_reply_rc()
+
 	   IMP: Called with rpc-machine mutex held. Do not reenter in RPC.
+		Implementation of rio_replied() should avoid taking any
+		locks, to ensure there are no lock ordering violations within
+		application locks and rpc-machine lock. If taking application
+		level lock is essential then consider using AST.
+		See rm/rm_fops.c:reply_process() for example.
 	 */
 	void (*rio_replied)(struct m0_rpc_item *item);
 	/**
