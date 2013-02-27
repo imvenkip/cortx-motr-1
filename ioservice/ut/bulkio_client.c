@@ -33,7 +33,7 @@ enum {
 
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 extern struct m0_fop_cob_rw *io_rw_get(struct m0_fop *fop);
-extern const struct m0_net_buffer_callbacks rpc_bulk_cb;
+extern const struct m0_net_buffer_callbacks m0_rpc__buf_bulk_cb;
 
 static void bulkio_tm_cb(const struct m0_net_tm_event *ev)
 {
@@ -261,7 +261,8 @@ static void bulkclient_test(void)
 	 */
 	m0_mutex_lock(&rbulk->rb_mutex);
 	m0_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
-		M0_UT_ASSERT(rbuf->bb_nbuf->nb_callbacks == &rpc_bulk_cb);
+		M0_UT_ASSERT(rbuf->bb_nbuf->nb_callbacks ==
+			     &m0_rpc__buf_bulk_cb);
 		M0_UT_ASSERT(rbuf->bb_nbuf != NULL);
 		M0_UT_ASSERT(rbuf->bb_nbuf->nb_app_private == rbuf);
 		M0_UT_ASSERT(rbuf->bb_nbuf->nb_flags & M0_NET_BUF_REGISTERED);

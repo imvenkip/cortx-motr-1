@@ -136,9 +136,9 @@ static void test_timeout(void)
 
 	M0_LOG(M0_DEBUG, "TEST:2.4:START");
 	/* Delay "sent" callback for 300 msec. */
-	m0_fi_enable("outgoing_buf_event_handler", "delay_callback");
+	m0_fi_enable("buf_send_cb", "delay_callback");
 	/* ASSUMPTION: Sender will not get "new item received" event until
-		       the thread that has called outgoing_buf_event_handler()
+		       the thread that has called buf_send_cb()
 		       comes out of sleep and returns to net layer.
 	 */
 	__test_timeout(m0_time_from_now(-1, 0),
@@ -146,7 +146,7 @@ static void test_timeout(void)
 	/* wait until reply is processed */
 	m0_nanosleep(m0_time(0, 500 * MILLISEC), NULL);
 	M0_LOG(M0_DEBUG, "TEST:2.4:END");
-	m0_fi_disable("outgoing_buf_event_handler", "delay_callback");
+	m0_fi_disable("buf_send_cb", "delay_callback");
 }
 
 static void __test_timeout(m0_time_t deadline,
@@ -342,13 +342,13 @@ static void test_failure_before_sending(void)
 		  fault_point<"item_received", "drop_item">.
 	 */
 	M0_LOG(M0_DEBUG, "TEST:4:START");
-	m0_fi_enable("outgoing_buf_event_handler", "fake_err");
+	m0_fi_enable("buf_send_cb", "fake_err");
 	m0_fi_enable("item_received", "drop_item");
 	rc = __test();
 	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(item->ri_error == -EINVAL);
 	m0_rpc_machine_get_stats(machine, &stats, false);
-	m0_fi_disable("outgoing_buf_event_handler", "fake_err");
+	m0_fi_disable("buf_send_cb", "fake_err");
 	m0_fi_disable("item_received", "drop_item");
 	M0_LOG(M0_DEBUG, "TEST:4:END");
 }
@@ -431,9 +431,9 @@ static void rply_before_sentcb(void)
 	     NB_A.sent() callback is invoked.
 
 	     Tried to simulate this case, by introducing artificial delay in
-	     outgoing_buf_event_handler(). But because there is only one thread
-	     from lnet transport that delivers buffer events, it also blocks
-	     delivery of net_buf_receieved(A.reply) event.
+	     buf_send_cb(). But because there is only one thread from lnet
+	     transport that delivers buffer events, it also blocks delivery of
+	     net_buf_receieved(A.reply) event.
 }
 */
 

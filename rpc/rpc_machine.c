@@ -66,7 +66,7 @@ static int rpc_chan_create(struct m0_rpc_chan **chan,
 			   uint64_t max_packets_in_flight);
 static void rpc_chan_ref_release(struct m0_ref *ref);
 static void rpc_recv_pool_buffer_put(struct m0_net_buffer *nb);
-static void net_buf_event_handler(const struct m0_net_buffer_event *ev);
+static void buf_recv_cb(const struct m0_net_buffer_event *ev);
 static void net_buf_received(struct m0_net_buffer    *nb,
 			     m0_bindex_t              offset,
 			     m0_bcount_t              length,
@@ -91,9 +91,9 @@ M0_BOB_DEFINE(, &rpc_machine_bob_type, m0_rpc_machine);
 /**
    Buffer callback for buffers added by rpc layer for receiving messages.
  */
-const struct m0_net_buffer_callbacks m0_rpc_rcv_buf_callbacks = {
+static const struct m0_net_buffer_callbacks rpc_buf_recv_cb = {
 	.nbc_cb = {
-		[M0_NET_QT_MSG_RECV] = net_buf_event_handler,
+		[M0_NET_QT_MSG_RECV] = buf_recv_cb,
 	}
 };
 
@@ -369,8 +369,7 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 	if (rc < 0)
 		M0_RETERR(rc, "TM initialization");
 
-	rc = m0_net_tm_pool_attach(tm, pool,
-				   &m0_rpc_rcv_buf_callbacks,
+	rc = m0_net_tm_pool_attach(tm, pool, &rpc_buf_recv_cb,
 				   m0_rpc_max_msg_size(net_dom, msg_size),
 				   m0_rpc_max_recv_msgs(net_dom, msg_size),
 				   qlen);
@@ -714,7 +713,7 @@ static void rpc_chan_ref_release(struct m0_ref *ref)
 	M0_LEAVE();
 }
 
-static void net_buf_event_handler(const struct m0_net_buffer_event *ev)
+static void buf_recv_cb(const struct m0_net_buffer_event *ev)
 {
 	struct m0_net_buffer *nb;
 	bool                  buf_is_queued;

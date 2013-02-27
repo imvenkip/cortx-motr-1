@@ -97,11 +97,11 @@ static int rpc_buffer_submit(struct rpc_buffer *rpcbuf);
 
 static void rpc_buffer_fini(struct rpc_buffer *rpcbuf);
 
-static void outgoing_buf_event_handler(const struct m0_net_buffer_event *ev);
+static void buf_send_cb(const struct m0_net_buffer_event *ev);
 
-static const struct m0_net_buffer_callbacks outgoing_buf_callbacks = {
+static const struct m0_net_buffer_callbacks rpc_buf_send_cb = {
 	.nbc_cb = {
-		[M0_NET_QT_MSG_SEND] = outgoing_buf_event_handler
+		[M0_NET_QT_MSG_SEND] = buf_send_cb
 	}
 };
 
@@ -324,7 +324,7 @@ static int rpc_buffer_submit(struct rpc_buffer *rpcbuf)
 	netbuf = &rpcbuf->rb_netbuf;
 
 	netbuf->nb_qtype     = M0_NET_QT_MSG_SEND;
-	netbuf->nb_callbacks = &outgoing_buf_callbacks;
+	netbuf->nb_callbacks = &rpc_buf_send_cb;
 
 	machine = rpc_buffer__rmachine(rpcbuf);
 	rc = m0_net_buffer_add(netbuf, &machine->rm_tm);
@@ -354,7 +354,7 @@ static void rpc_buffer_fini(struct rpc_buffer *rpcbuf)
    Network layer calls this function, whenever there is any event on
    network buffer which was previously submitted for sending by RPC layer.
  */
-static void outgoing_buf_event_handler(const struct m0_net_buffer_event *ev)
+static void buf_send_cb(const struct m0_net_buffer_event *ev)
 {
 	struct m0_net_buffer  *netbuf;
 	struct rpc_buffer     *rpcbuf;

@@ -134,7 +134,7 @@ static int rpc_bulk_buf_init(struct m0_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 	M0_RETURN(rc);
 }
 
-static void rpc_bulk_buf_cb(const struct m0_net_buffer_event *evt)
+static void buf_bulk_cb(const struct m0_net_buffer_event *evt)
 {
 	struct m0_rpc_bulk	*rbulk;
 	struct m0_rpc_bulk_buf	*buf;
@@ -198,12 +198,12 @@ M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk)
 	} m0_tl_endfor;
 }
 
-const struct m0_net_buffer_callbacks rpc_bulk_cb  = {
+const struct m0_net_buffer_callbacks m0_rpc__buf_bulk_cb  = {
 	.nbc_cb = {
-		[M0_NET_QT_PASSIVE_BULK_SEND] = rpc_bulk_buf_cb,
-		[M0_NET_QT_PASSIVE_BULK_RECV] = rpc_bulk_buf_cb,
-		[M0_NET_QT_ACTIVE_BULK_RECV]  = rpc_bulk_buf_cb,
-		[M0_NET_QT_ACTIVE_BULK_SEND]  = rpc_bulk_buf_cb,
+		[M0_NET_QT_PASSIVE_BULK_SEND] = buf_bulk_cb,
+		[M0_NET_QT_PASSIVE_BULK_RECV] = buf_bulk_cb,
+		[M0_NET_QT_ACTIVE_BULK_RECV]  = buf_bulk_cb,
+		[M0_NET_QT_ACTIVE_BULK_SEND]  = buf_bulk_cb
 	}
 };
 
@@ -385,7 +385,7 @@ static int rpc_bulk_op(struct m0_rpc_bulk *rbulk,
 			  ergo(op == M0_RPC_BULK_LOAD, M0_IN(nb->nb_qtype,
 					    (M0_NET_QT_ACTIVE_BULK_RECV,
 					     M0_NET_QT_ACTIVE_BULK_SEND))));
-		nb->nb_callbacks = &rpc_bulk_cb;
+		nb->nb_callbacks = &m0_rpc__buf_bulk_cb;
 
 		/*
 		 * Registers the net buffer with net domain if it is not
