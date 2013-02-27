@@ -34,7 +34,7 @@ mero_service()
 			echo $cmd
 			(eval $cmd) &
 
-			sleep 1
+			sleep 2
 			status $prog_exec
 			if [ $? -eq 0 ]; then
 				SNAME=$(echo $SNAME | sed 's/-s //g')

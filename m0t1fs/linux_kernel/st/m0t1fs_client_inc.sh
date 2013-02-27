@@ -236,7 +236,6 @@ io_combinations()
 
 m0loop_st_run()
 {
-#set -x
 	echo "Load m0loop module... "
 	cmd="insmod `dirname $0`/../../../build_kernel_modules/m0loop.ko"
 	echo $cmd && $cmd || return 1
@@ -459,7 +458,7 @@ rmw_test()
 
 m0t1fs_system_tests()
 {
-file_creation_test $MAX_NR_FILES || {
+	file_creation_test $MAX_NR_FILES || {
                 echo "Failed: File creation test failed."
 		return 1
 	}

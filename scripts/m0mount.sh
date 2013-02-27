@@ -9,38 +9,6 @@
 #   their .ssh/authorized_keys file.  If services are defined on the local
 #   host then it should be possible to ssh into the local host.
 
-LOCAL_SERVICES_NR=4
-
-if [ "x$1" == "x-h" ]; then
-	cat <<.
-Usage:
-
-The script should be run from mero/core directory:
-
-$ cd ~/path/to/mero/core
-$ sudo ~/path/to/m0mount.sh [local] [-ad] # this script
-
-local: start the services on the local host only,
-    it is convenient for debugging on a local devvm.
-    The number of services is controlled by LOCAL_SERVICES_NR
-    variable. The default number is $LOCAL_SERVICES_NR.
-
--ad: configure the services to run on ad stobs.
-    it automatically detects and make configuration files
-    for the Titan discs.
-
-    Before using -ad option make sure the discs are online:
-    $ sudo ~root/gem.sh dumpdrives
-
-    Turn them on if needed:
-    $ sudo ~root/gem.sh powerondrive all
-
-    If 'local' option is set also - /dev/loopX discs
-    should be prepeared for ad stobs beforehand.
-.
-	exit
-fi
-
 # Before running the script, make sure you configured
 # the IP/IB addresses of your setup correctly here (see below).
 
@@ -84,6 +52,53 @@ fi
 # (the code depends on this).
 #
 
+usage()
+{
+	cat <<.
+Usage:
+
+The script should be run from mero directory:
+
+$ cd ~/path/to/mero
+$ sudo ~/path/to/m0mount.sh [-L] [-a] [-l] [-d NUM] [-p NUM] [-n NUM] [-u NUM] [-q]
+
+Where:
+-a: Use AD stobs
+    configure the services to run on ad stobs.
+    it automatically detects and make configuration files
+    for the Titan discs.
+    Before using ad option make sure the discs are online:
+    $ sudo ~root/gem.sh dumpdrives
+    Turn them on if needed:
+    $ sudo ~root/gem.sh powerondrive all
+    If 'local' option is set also - /dev/loopX discs
+    should be prepeared for ad stobs beforehand.
+
+-l: Use loop device for ad stob configuration
+
+-L: Use local machine configuration.
+    start the services on the local host only,
+    it is convenient for debugging on a local devvm.
+    The number of services is controlled by LOCAL_SERVICES_NR
+    variable. The default number is $LOCAL_SERVICES_NR.
+
+-h: Print this help.
+
+-n NUM: Start 'NUM' number of local m0d. (default is $LOCAL_SERVICES_NR)
+
+-d NUM: Use NUM number of data units. (default is $NR_DATA)
+
+-p NUM: Use NUM as pool width. (default is $POOL_WIDTH)
+
+-u NUM: Use NUM Unit size. (default is $UNIT_SIZE)
+
+-q: Dont wait after mounting m0t1fs, exit immediately. (default is wait)
+
+.
+}
+
+OPTIONS_STRING="aln:d:p:u:qhL"
+
 # This example puts ioservices on 3 nodes, and uses 4 data blocks
 SERVICES=(
 	sjt02-c1 172.18.50.40@o2ib:12345:41:101
@@ -102,36 +117,15 @@ NODE_UUID[sjt00-c1]=54b0a56a-56ba-41a8-9caf-3f3981cfdf69
 THIS_HOST=$(hostname)
 DISKS_PATTERN="/dev/disk/by-id/scsi-35*"
 
-if [ "x$1" = "xlocal" ]; then
-	modprobe lnet
-	lctl network up &>> /dev/null
-	LOCAL_NID=`lctl list_nids | head -1`
-	LOCAL_EP_PREFIX=12345:33:10
-	NODE_UUID[$THIS_HOST]=02e94b88-19ab-4166-b26b-91b51f22ad91
-
-	unset SERVICES
-	# Update each field of SERVICES array with local node values
-	# Update hostname and end point addresses
-	for ((i = 0; i < $LOCAL_SERVICES_NR; i++)); do
-		SERVICES[((i*2))]=$THIS_HOST
-		SERVICES[((i*2 +1))]="${LOCAL_NID}:${LOCAL_EP_PREFIX}"$((i+1))
-	done
-
-	DISKS_PATTERN="/dev/loop[0-$((LOCAL_SERVICES_NR*2 -1))]"
-
-	shift
-fi
-
 STOB=linux
-if [ "x$1" == "x-ad" ]; then
-	STOB=$1
-	shift
-fi
-
-UNIT_SIZE=262144
+LOCAL_SERVICES_NR=4
 SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
-POOL_WIDTH=$(expr $SERVICES_NR \* 1)
-NR_DATA=$(expr $POOL_WIDTH - 2)
+NR_DATA=3
+POOL_WIDTH=5
+UNIT_SIZE=262144
+use_loop_device=0
+setup_local_server_config=0
+wait_after_mount=1
 
 M0_TRACE_IMMEDIATE_MASK=0
 M0_TRACE_LEVEL=debug+
@@ -139,7 +133,7 @@ M0_TRACE_PRINT_CONTEXT=full
 
 # number of disks to split by for each service
 # in ad-stob mode
-DISKS_SH_NR=`expr $POOL_WIDTH / $SERVICES_NR + 1`
+DISKS_SH_NR=1 #`expr $POOL_WIDTH / $SERVICES_NR + 1`
 # +1 for ADDB stob
 
 # Local mount data
@@ -161,8 +155,7 @@ XPT_PARAM_L="max_rpc_msg_size=163840 tm_recv_queue_min_len=48"	# local host
 
 #KTRACE_FLAGS=m0_trace_immediate_mask=8
 
-BROOT=${PWD%/*}   # globally visible build root
-
+BROOT=${PWD}   # globally visible build root
 # track hosts that have been initialized in an associative array
 declare -A SETUP
 
@@ -175,6 +168,27 @@ LSUM=
 
 ###########
 # functions
+
+setup_local_params()
+{
+	modprobe lnet
+	lctl network up &>> /dev/null
+	LOCAL_NID=`lctl list_nids | head -1`
+	LOCAL_EP_PREFIX=12345:41:10
+	NODE_UUID[$THIS_HOST]=02e94b88-19ab-4166-b26b-91b51f22ad91
+
+	unset SERVICES
+	# Update each field of SERVICES array with local node values
+	# Update hostname and end point addresses
+	for ((i = 0; i < $LOCAL_SERVICES_NR; i++)); do
+		SERVICES[((i*2))]=$THIS_HOST
+		SERVICES[((i*2 +1))]="${LOCAL_NID}:${LOCAL_EP_PREFIX}"$((i+1))
+	done
+
+	if [ $use_loop_device -eq 1 ]; then
+		DISKS_PATTERN="/dev/loop[0-$((LOCAL_SERVICES_NR*2 -1))]"
+	fi
+}
 
 function l_run () {
 	echo "# $*" >/dev/tty
@@ -231,7 +245,7 @@ function setup_host () {
 		return 1
 	fi
 	$RUN rmmod m0mero galois 2>/dev/null
-	$RUN insmod $BROOT/galois/src/linux_kernel/galois.ko
+	$RUN insmod $BROOT/extra-libs/galois/src/linux_kernel/galois.ko
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to load galois module on $H
 		return 1
@@ -368,7 +382,7 @@ function start_server () {
 	local DF=$SDIR/m0d.sh
 	local DISKS_SH_FILE=$WORK_ARENA/disks$dcf_id.conf
 	local STOB_PARAMS="-T linux"
-	if [ $STOB == "-ad" -o $STOB == "-td" ]; then
+	if [ $STOB == "ad" -o $STOB == "-td" ]; then
 
 		if ! $RUN [ -f $DISKS_SH_FILE ]; then
 			local dev_id=1
@@ -379,7 +393,7 @@ function start_server () {
 			gen_disks_conf_files $dev_id || return 1
 		fi
 
-		if [ $STOB == "-ad" ]; then
+		if [ $STOB == "ad" ]; then
 			$RUN cat $DISKS_SH_FILE
 		else
 			local disk=`$RUN "cat $DISKS_SH_FILE | grep filename"`
@@ -396,7 +410,7 @@ function start_server () {
 			$RUN ~root/gem.sh dumpdrives
 			return 1
 		fi
-		if [ $STOB == "-ad" ]; then
+		if [ $STOB == "ad" ]; then
 			STOB_PARAMS="-T ad -d $DISKS_SH_FILE"
 		fi
 	fi
@@ -423,7 +437,7 @@ $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A $DDIR/stobs \
 
 function start_servers () {
 	local devs_conf_cnt=0
-	if [ $STOB == "-ad" -o $STOB == "-td" ]; then
+	if [ $STOB == "ad" -o $STOB == "-td" ]; then
 		for ((i=0; i < ${#SERVICES[*]}; i += 2)); do
 			H=${SERVICES[$i]}
 			local RUN
@@ -511,51 +525,59 @@ EOF
 ######
 # main
 
-if [ ! -d build_kernel_modules -o ! $BROOT/core -ef $PWD ]; then
-	echo ERROR: Run this script in the top of the Mero source directory
-	exit 1
-fi
-LSUM=$(sum $SUMFILE)
+main()
+{
+	if [ $setup_local_server_config -eq 1 ]; then
+		setup_local_params
+	fi
 
-rmmod m0loop m0mero galois &> /dev/null
+	SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
 
-# ldemo now needs kernel module loaded for some reason...
-l_run insmod $BROOT/galois/src/linux_kernel/galois.ko || {
-	echo ERROR: Failed to load galois module
-	exit 1
-}
-l_run modprobe lnet
-l_run insmod $BROOT/build_kernel_modules/m0mero.ko || {
-	echo ERROR: Failed to load m0mero module
-	rmmod galois
-	exit 1
-}
+	DISKS_SH_NR=`expr $POOL_WIDTH + 1`
 
-l_run utils/m0layout $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
-if [ $? -ne 0 ]; then
-	echo ERROR: Parity configuration is incorrect
-	exit 1
-fi
+	if [ ! -d build_kernel_modules -o ! $BROOT -ef $PWD ]; then
+		echo ERROR: Run this script in the top of the Mero source directory
+		exit 1
+	fi
+	LSUM=$(sum $SUMFILE)
 
-trap cleanup EXIT
+	rmmod m0loop m0mero galois &> /dev/null
 
-setup_hosts && start_servers
-if [ $? -ne 0 ]; then
-	exit 1
-fi
+	# ldemo now needs kernel module loaded for some reason...
+	l_run insmod $BROOT/extra-libs/galois/src/linux_kernel/galois.ko || {
+		echo ERROR: Failed to load galois module
+		exit 1
+	}
+	l_run modprobe lnet
+	l_run insmod $BROOT/build_kernel_modules/m0mero.ko || {
+		echo ERROR: Failed to load m0mero module
+		rmmod galois
+		exit 1
+	}
 
-# prepare configuration data
-MDS_ENDPOINT="\"${SERVICES[1]}\""
-IOS_NAMES='"ios1"'
-IOS_OBJS="($IOS_NAMES, {3| (2, [1: $MDS_ENDPOINT], \"_\")})"
-for i in `seq 3 2 ${#SERVICES[*]}`; do
-    IOS_NAME="\"ios$(((i+1) / 2))\""
-    IOS_NAMES="$IOS_NAMES, $IOS_NAME"
-    IOS_OBJ="($IOS_NAME, {3| (2, [1: \"${SERVICES[$i]}\"], \"_\")})"
-    IOS_OBJS="$IOS_OBJS, $IOS_OBJ"
-done
+	l_run utils/m0layout $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
+	if [ $? -ne 0 ]; then
+		echo ERROR: Parity configuration is incorrect
+		exit 1
+	fi
 
-CONF="`cat <<EOF
+	setup_hosts && start_servers
+	if [ $? -ne 0 ]; then
+		exit 1
+	fi
+
+	# prepare configuration data
+	MDS_ENDPOINT="\"${SERVICES[1]}\""
+	IOS_NAMES='"ios1"'
+	IOS_OBJS="($IOS_NAMES, {3| (2, [1: $MDS_ENDPOINT], \"_\")})"
+	for i in `seq 3 2 ${#SERVICES[*]}`; do
+		IOS_NAME="\"ios$(((i+1) / 2))\""
+		IOS_NAMES="$IOS_NAMES, $IOS_NAME"
+		IOS_OBJ="($IOS_NAME, {3| (2, [1: \"${SERVICES[$i]}\"], \"_\")})"
+		IOS_OBJS="$IOS_OBJS, $IOS_OBJ"
+	done
+
+	CONF="`cat <<EOF
 [$((SERVICES_NR + 3)):
   ("prof", {1| ("fs")}),
   ("fs", {2| ((11, 22),
@@ -567,22 +589,75 @@ CONF="`cat <<EOF
   $IOS_OBJS]
 EOF`"
 
-# mount the file system
-mkdir -p $MP
-l_run "mount -t m0t1fs -o profile=prof,local_conf='$CONF' none $MP" || {
-	echo ERROR: Unable to mount the file system
-	exit 1
-}
-mount | grep m0t1fs
-IS_MOUNTED=yes
+	# mount the file system
+	mkdir -p $MP
+	l_run "mount -t m0t1fs -o profile=prof,local_conf='$CONF' none $MP" || {
+		echo ERROR: Unable to mount the file system
+		exit 1
+	}
+	mount | grep m0t1fs
+	IS_MOUNTED=yes
 
-# wait to terminate
-echo
-echo The mero file system may be accessed with another terminal at $MP
-echo Type quit or EOF in this terminal to unmount the file system and cleanup
-while read LINE; do
-	if [ "$LINE" = "quit" ]; then
-		break
+	# wait to terminate
+	if [ $wait_after_mount -eq 1 ]; then
+
+		trap cleanup EXIT
+
+		echo
+		echo The mero file system may be accessed with another terminal at $MP
+		echo Type quit or EOF in this terminal to unmount the file system and cleanup
+		while read LINE; do
+			if [ "$LINE" = "quit" ]; then
+				break
+			fi
+		done
+		echo
 	fi
+}
+
+while getopts "$OPTIONS_STRING" OPTION; do
+    case "$OPTION" in
+        a)
+            STOB="ad"
+            ;;
+        l)
+            use_loop_device=1
+            ;;
+        L)
+            setup_local_server_config=1
+            ;;
+        h)
+            usage
+            exit 0
+            ;;
+        n)
+            LOCAL_SERVICES_NR="$OPTARG"
+            ;;
+        d)
+            NR_DATA="$OPTARG"
+            ;;
+        p)
+            POOL_WIDTH="$OPTARG"
+            ;;
+        u)
+            UNIT_SIZE="$OPTARG"
+            ;;
+        q)
+            wait_after_mount=0
+            ;;
+        *)
+            usage
+            exit 1
+            ;;
+    esac
 done
-echo
+
+#set -x
+
+main
+
+# Local variables:
+# sh-basic-offset: 8
+# sh-indentation: 8
+# tab-width: 8
+# End:
