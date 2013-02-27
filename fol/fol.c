@@ -533,8 +533,7 @@ static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
 	if (what == M0_BUFVEC_DECODE && h->rh_refcount == 0)
 		return -ENOENT;
 
-	for (i = 0, rc = 0; rc == 0 && i < h->rh_obj_nr; ++i)
-	{
+	for (i = 0, rc = 0; rc == 0 && i < h->rh_obj_nr; ++i) {
 		struct m0_fol_obj_ref *obj_ref = &desc->rd_ref[i];
 		rc = m0_xcode_encdec(&ctx, &REC_OBJ_REF_XCODE_OBJ(obj_ref), cur,
 				     what);
@@ -542,8 +541,7 @@ static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
 	if (rc != 0)
 		return rc;
 
-	for (i = 0, rc = 0; rc == 0 && i < h->rh_sibling_nr; ++i)
-	{
+	for (i = 0, rc = 0; rc == 0 && i < h->rh_sibling_nr; ++i) {
 		struct m0_fol_update_ref *ur = &desc->rd_sibling[i];
 		rc = m0_xcode_encdec(&ctx, &REC_SIBLING_XCODE_OBJ(ur), cur, what);
 	}

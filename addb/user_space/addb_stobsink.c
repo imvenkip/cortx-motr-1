@@ -560,7 +560,6 @@ static int stobsink_header_read(struct stobsink *sink,
 	pb->spb_io.si_obj = NULL;
 	pb->spb_io.si_rc = 0;
 	pb->spb_io.si_count = 0;
-
 	rc = m0_stob_io_launch(&pb->spb_io, sink->ss_stob, &pb->spb_tx, NULL);
 	if (rc != 0) {
 		pb->spb_busy = false;

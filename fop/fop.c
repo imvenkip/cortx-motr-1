@@ -259,7 +259,8 @@ M0_INTERNAL int m0_fops_init(void)
 
 	m0_fop_fol_rec_part_type.rpt_xt  = m0_fop_fol_rec_part_xc;
 	m0_fop_fol_rec_part_type.rpt_ops = NULL;
-	M0_FOL_REC_PART_TYPE_INIT(m0_fop_fol_rec_part, "fop generic record part");
+	M0_FOL_REC_PART_TYPE_INIT(m0_fop_fol_rec_part,
+				  "fop generic record part");
 	return m0_fol_rec_part_type_register(&m0_fop_fol_rec_part_type);
 }
 
