@@ -1458,7 +1458,6 @@ static int io_launch(struct m0_fom *fom)
 		stio = &stio_desc->siod_stob_io;
 		m0_stob_io_init(stio);
 		stio->si_fol_rec_part = &stio_desc->siod_fol_rec_part;
-		stio->si_flags |= SIF_FOL_REC_PART;
 
 		mem_ivec = &stio->si_stob;
 		wire_ivec =
@@ -1588,11 +1587,10 @@ static int io_finish(struct m0_fom *fom)
 
                 if (stio->si_rc != 0) {
                         rc = stio->si_rc;
-                } else if (stio->si_flags & SIF_FOL_REC_PART) {
+                } else {
                         fom_obj->fcrw_count += stio->si_count;
                         M0_LOG(M0_DEBUG, "rw_count %d, si_count %d",
                                (int)fom_obj->fcrw_count, (int)stio->si_count);
-			stio->si_flags &= ~SIF_FOL_REC_PART;
                 }
         } m0_tl_endfor;
 

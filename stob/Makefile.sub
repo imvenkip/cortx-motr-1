@@ -1,5 +1,6 @@
 nobase_mero_include_HEADERS += stob/ad.h \
-				  stob/ad_xc.h \
+				  stob/ad_private.h \
+				  stob/ad_private_xc.h \
                                   stob/cache.h \
                                   stob/linux_getevents.h \
                                   stob/linux.h \
@@ -9,17 +10,17 @@ nobase_mero_include_HEADERS += stob/ad.h \
                                   stob/stob_addb.h
 
 mero_libmero_la_SOURCES  += stob/ad.c \
-                                  stob/ad_xc.c \
+                                  stob/ad_private_xc.c \
                                   stob/cache.c \
                                   stob/linux.c \
                                   stob/linux_adieu.c \
                                   stob/stob.c \
                                   stob/stob_id.c
 
-stob/ad_xc.h : db/extmap_xc.h
+stob/ad_private_xc.h : db/extmap_xc.h
 
-XC_FILES   += stob/ad_xc.h
+XC_FILES   += stob/ad_private_xc.h
 
-CLEANFILES += stob/ad_xc.c \
-	      stob/ad_xc.h \
-	      stob/ad.gccxml
+CLEANFILES += stob/ad_private_xc.c \
+	      stob/ad_private_xc.h \
+	      stob/ad_private.gccxml

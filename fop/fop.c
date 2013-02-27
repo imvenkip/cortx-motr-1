@@ -244,7 +244,7 @@ M0_INTERNAL struct m0_fop_type *m0_fop_type_next(struct m0_fop_type *ftype)
 }
 
 
-M0_FOL_REC_PART_TYPE_DECLARE(m0_fop_fol_rec_part, NULL, NULL);
+M0_FOL_REC_PART_TYPE_DECLARE(m0_fop_fol_rec_part, , NULL, NULL);
 M0_INTERNAL int m0_fops_init(void)
 {
 	m0_xc_fop_init();
@@ -342,8 +342,8 @@ M0_INTERNAL int m0_fop_rep_xc_type(const struct m0_xcode_obj   *par,
 	return fop_xc_type(rp->ffrp_rep_code, out);
 }
 
-int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
-		   struct m0_dtx *dtx)
+M0_INTERNAL int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
+			       struct m0_dtx *dtx)
 {
 	struct m0_fol_rec_part	   *part;
 	struct m0_fop_fol_rec_part *rp;
@@ -353,16 +353,17 @@ int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
 		return -ENOMEM;
 
 	M0_ALLOC_PTR(rp);
-	if (rp == NULL)
+	if (rp == NULL) {
+		m0_free(part);
 		return -ENOMEM;
-
-	m0_fol_rec_part_init(part, rp, &m0_fop_fol_rec_part_type);
+	}
 
 	rp->ffrp_fop_code = fop->f_type->ft_rpc_item_type.rit_opcode;
 	rp->ffrp_rep_code = rep->f_type->ft_rpc_item_type.rit_opcode;
 	rp->ffrp_fop = m0_fop_data(fop);
 	rp->ffrp_rep = m0_fop_data(rep);
 
+	m0_fol_rec_part_init(part, rp, &m0_fop_fol_rec_part_type);
 	m0_fol_rec_part_add(&dtx->tx_fol_rec, part);
 	return 0;
 }

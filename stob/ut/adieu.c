@@ -32,6 +32,7 @@
 #include "lib/arith.h"
 #include "stob/stob.h"
 #include "stob/linux.h"
+#include "fol/fol.h"
 
 /**
    @addtogroup stob
@@ -160,12 +161,17 @@ static int test_adieu_fini(void)
 
 static void test_write(int i)
 {
-	int result;
+	int			result;
+	struct m0_fol_rec_part *fol_rec_part;
+
+	M0_ALLOC_PTR(fol_rec_part);
+	M0_UT_ASSERT(fol_rec_part != NULL);
 
 	m0_stob_io_init(&io);
 
 	io.si_opcode = SIO_WRITE;
 	io.si_flags  = 0;
+	io.si_fol_rec_part = fol_rec_part;
 	io.si_user.ov_vec.v_nr = i;
 	io.si_user.ov_vec.v_count = user_vec;
 	io.si_user.ov_buf = (void **)user_bufs;

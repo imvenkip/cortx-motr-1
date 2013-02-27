@@ -29,7 +29,6 @@ m0_fop_put
 m0_fop_to_rpc_item
 m0_fop_type_fini
 m0_fop_type_init
-m0_fop_fol_add
 m0_free
 m0_getopts
 m0_init

@@ -596,19 +596,21 @@ static int fol_record_decode(struct m0_fol_rec *rec)
 		rc = m0_xcode_encdec(&ctx, &REC_PART_HEADER_XCODE_OBJ(&ph),
 				     &cur, M0_BUFVEC_DECODE);
 		if (rc == 0) {
+			void *rp_data;
+
 			part_type = fol_rec_part_type_lookup(ph.rph_index);
 
 			M0_ALLOC_PTR(part);
 			if (part == NULL)
 				return -ENOMEM;
 
-			m0_fol_rec_part_init(part, NULL, part_type);
-			part->rp_data = m0_alloc(part_type->rpt_xt->xct_sizeof);
-			if (part->rp_data == NULL) {
+			rp_data = m0_alloc(part_type->rpt_xt->xct_sizeof);
+			if (rp_data == NULL) {
 				m0_free(part);
 				return -ENOMEM;
 			}
 
+			m0_fol_rec_part_init(part, rp_data, part_type);
 			rc = m0_xcode_encdec(&ctx, &REC_PART_XCODE_OBJ(part),
 					     &cur, M0_BUFVEC_DECODE);
 			if (rc == 0)

@@ -47,7 +47,7 @@ static struct m0_buf             buf;
 static int result;
 
 static int verify_part_data(struct m0_fol_rec_part *part);
-M0_FOL_REC_PART_TYPE_DECLARE(ut_part, verify_part_data, NULL);
+M0_FOL_REC_PART_TYPE_DECLARE(ut_part, static, verify_part_data, NULL);
 
 static void test_init(void)
 {

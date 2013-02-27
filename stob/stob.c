@@ -248,8 +248,7 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 	       m0_vec_count(&io->si_stob.iv_vec));
 	M0_PRE(m0_stob_io_user_is_valid(&io->si_user));
 	M0_PRE(m0_stob_io_stob_is_valid(&io->si_stob));
-	M0_PRE(ergo(io->si_flags & SIF_FOL_REC_PART,
-		    io->si_fol_rec_part != NULL));
+	M0_PRE(ergo(io->si_opcode == SIO_WRITE, io->si_fol_rec_part != NULL));
 
 	if (io->si_stob_magic != obj->so_domain->sd_type->st_magic) {
 		m0_stob_io_private_fini(io);

@@ -37,6 +37,7 @@
 #include "stob/ad.h"
 #include "balloc/balloc.h"
 #include "mero/init.h"
+#include "fol/fol.h"
 
 #define WITH_LOCK(lock, action, args...) ({		\
 			struct m0_mutex *lk = lock;	\
@@ -183,6 +184,7 @@ static void stobio_write_prepare(struct stobio_test *test,
 				 struct m0_stob_io *io)
 {
 	io->si_opcode = SIO_WRITE;
+	io->si_fol_rec_part = (void *)1;
 	io->si_user.ov_buf = (void **) test->st_wrbuf_packed;
 	stobio_io_prepare(test, io);
 }

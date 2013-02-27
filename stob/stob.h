@@ -564,11 +564,6 @@ enum m0_stob_io_flags {
 	   [X, X+M] is a prefix of [X, X+N] when M <= N.
 	 */
 	SIF_PREFIX	 = (1 << 0),
-	/**
-	  Adds fol record part m0_stob_io:si_fol_rec_part in the list of fol
-	  record parts in the record si_tx->tx_fol_rec.
-	 */
-	SIF_FOL_REC_PART = (1 << 1)
 };
 
 /**

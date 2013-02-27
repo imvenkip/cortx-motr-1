@@ -34,7 +34,8 @@
 #include "stob/cache.h"
 #include "stob/ad.h"
 #include "stob/stob_addb.h"
-#include "stob/ad_xc.h"
+#include "stob/ad_private.h"
+#include "stob/ad_private_xc.h"
 
 /**
    @addtogroup stobad
@@ -167,7 +168,7 @@ static int ad_rec_part_redo(struct m0_fol_rec_part *part)
 	return 0;
 }
 
-M0_FOL_REC_PART_TYPE_DECLARE(m0_ad_rec_part, ad_rec_part_undo,
+M0_FOL_REC_PART_TYPE_DECLARE(ad_rec_part, static, ad_rec_part_undo,
 			     ad_rec_part_redo);
 /**
    Implementation of m0_stob_type_op::sto_init().
@@ -175,10 +176,10 @@ M0_FOL_REC_PART_TYPE_DECLARE(m0_ad_rec_part, ad_rec_part_undo,
 static int ad_stob_type_init(struct m0_stob_type *stype)
 {
 	m0_stob_type_init(stype);
-	m0_xc_ad_init();
+	m0_xc_ad_private_init();
 
-	M0_FOL_REC_PART_TYPE_INIT(m0_ad_rec_part, "AD record part");
-	return m0_fol_rec_part_type_register(&m0_ad_rec_part_type);
+	M0_FOL_REC_PART_TYPE_INIT(ad_rec_part, "AD record part");
+	return m0_fol_rec_part_type_register(&ad_rec_part_type);
 }
 
 /**
@@ -186,9 +187,9 @@ static int ad_stob_type_init(struct m0_stob_type *stype)
  */
 static void ad_stob_type_fini(struct m0_stob_type *stype)
 {
-	m0_xc_ad_fini();
+	m0_xc_ad_private_fini();
 	m0_stob_type_fini(stype);
-	m0_fol_rec_part_type_deregister(&m0_ad_rec_part_type);
+	m0_fol_rec_part_type_deregister(&ad_rec_part_type);
 }
 
 /**
@@ -1058,12 +1059,12 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 
 static int ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
 {
-	struct m0_ad_rec_part  *arp;
+	struct ad_rec_part *arp;
 
 	M0_ALLOC_PTR(arp);
 	if (arp == NULL)
 		return -ENOMEM;
-	m0_fol_rec_part_init(part, arp, &m0_ad_rec_part_type);
+	m0_fol_rec_part_init(part, arp, &ad_rec_part_type);
 
 	arp->arp_segments = frags;
 
@@ -1098,16 +1099,14 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 	bool			eoext;
 	struct m0_ext		todo;
 	struct m0_fol_rec_part *part = NULL;
-	struct m0_ad_rec_part  *arp;
+	struct ad_rec_part     *arp;
 	uint32_t		i = 0;
 
-	if (io->si_flags & SIF_FOL_REC_PART) {
-		part = io->si_fol_rec_part;
-		result = ad_fol_part_alloc(part, frags);
-		if (result != 0)
-			return result;
-		arp = part->rp_data;
-	}
+	part = io->si_fol_rec_part;
+	result = ad_fol_part_alloc(part, frags);
+	if (result != 0)
+		return result;
+	arp = part->rp_data;
 
 	do {
 		m0_bindex_t offset;
@@ -1119,15 +1118,12 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
 		todo.e_end   = todo.e_start + frag_size;
 
-		if (io->si_flags & SIF_FOL_REC_PART && arp != NULL) {
-			arp->arp_old_data[i].ee_ext.e_start = offset;
-			arp->arp_old_data[i].ee_ext.e_end   = offset +
-						m0_ext_length(&todo);
-			arp->arp_old_data[i].ee_val         = todo.e_start;
-			arp->arp_old_data[i].ee_pre         =
-						map->ct_it->ec_seg.ee_pre;
-			++i;
-		}
+		arp->arp_old_data[i].ee_ext.e_start = offset;
+		arp->arp_old_data[i].ee_ext.e_end   = offset +
+						      m0_ext_length(&todo);
+		arp->arp_old_data[i].ee_val         = todo.e_start;
+		arp->arp_old_data[i].ee_pre         = map->ct_it->ec_seg.ee_pre;
+		++i;
 		result = ad_write_map_ext(io, adom, offset, map->ct_it, &todo);
 
 		if (result != 0)
@@ -1139,7 +1135,7 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 		M0_ASSERT(eodst == eoext);
 	} while (!eodst);
 
-	if (result == 0 && part != NULL)
+	if (result == 0)
 		m0_fol_rec_part_add(&io->si_tx->tx_fol_rec, part);
 
 	return result;

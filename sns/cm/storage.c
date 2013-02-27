@@ -141,7 +141,6 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	m0_stob_io_init(stio);
 	stio->si_flags = 0;
 	stio->si_opcode = op;
-	stio->si_flags |= SIF_FOL_REC_PART;
 	stio->si_fol_rec_part = &sns_cp->sc_fol_rec_part;
 
 	bshift = stob->so_op->sop_block_shift(stob);
