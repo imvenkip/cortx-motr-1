@@ -202,7 +202,7 @@ extern const struct m0_sm_conf m0_generic_conf;
 /**
    Generic reply.
 
-   RPC operations that returns nothing but error code to sender can use
+   RPC operations that return nothing but error code to sender can use
    this generic reply fop. Request handler uses this type of fop to
    report operation failure in generic fom phases.
  */
@@ -221,6 +221,11 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
 M0_INTERNAL bool
 m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item);
 
+/**
+   If item is of type m0_fop_generic_reply then m0_rpc_item_generic_reply_rc()
+   extracts and returns error code contained in the fop; otherwise it
+   returns 0.
+ */
 M0_INTERNAL uint32_t
 m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *item);
 

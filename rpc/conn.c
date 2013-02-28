@@ -695,17 +695,12 @@ M0_INTERNAL void m0_rpc_conn_establish_reply_received(struct m0_rpc_item *item)
 
 	reply_item = item->ri_reply;
 	reply      = NULL;
-	rc         = item->ri_error;
-	M0_PRE(ergo(rc == 0, reply_item != NULL &&
-			     item->ri_session == reply_item->ri_session));
+	rc         = item->ri_error ?: m0_rpc_item_generic_reply_rc(reply_item);
 	if (rc == 0) {
-		if (m0_rpc_item_is_generic_reply_fop(reply_item)) {
-			rc = m0_rpc_item_generic_reply_rc(reply_item);
-			M0_ASSERT(rc != 0);
-		} else {
-			reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
-			rc    = reply->rcer_rc;
-		}
+		M0_ASSERT(reply_item != NULL &&
+			  item->ri_session == reply_item->ri_session);
+		reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
+		rc    = reply->rcer_rc;
 	}
 	if (rc == 0) {
 		M0_ASSERT(reply != NULL);
@@ -872,17 +867,12 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
 
 	reply_item = item->ri_reply;
 	reply      = NULL;
-	rc         = item->ri_error;
-	M0_ASSERT(ergo(rc == 0, reply_item != NULL &&
-				item->ri_session == reply_item->ri_session));
+	rc         = item->ri_error ?: m0_rpc_item_generic_reply_rc(reply_item);
 	if (rc == 0) {
-		if (m0_rpc_item_is_generic_reply_fop(reply_item)) {
-			rc = m0_rpc_item_generic_reply_rc(reply_item);
-			M0_ASSERT(rc != 0);
-		} else {
-			reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
-			rc    = reply->ctr_rc;
-		}
+		M0_ASSERT(reply_item != NULL &&
+			  item->ri_session == reply_item->ri_session);
+		reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
+		rc    = reply->ctr_rc;
 	}
 	if (rc == 0) {
 		M0_ASSERT(reply != NULL);

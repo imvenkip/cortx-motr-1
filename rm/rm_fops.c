@@ -283,20 +283,13 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ENTRY();
 
 	borrow_reply = NULL;
-	outreq = container_of(ast, struct rm_out, ou_ast);
-	item   = &outreq->ou_fop.f_item;
-	rc     = item->ri_error;
+	outreq   = container_of(ast, struct rm_out, ou_ast);
+	item     = &outreq->ou_fop.f_item;
+	item_rep = item->ri_reply;
+	rc       = item->ri_error ?: m0_rpc_item_generic_reply_rc(item_rep);
 	if (rc == 0) {
-		item_rep = item->ri_reply;
-		M0_ASSERT(item_rep != NULL);
-		if (m0_rpc_item_is_generic_reply_fop(item_rep)) {
-			rc = m0_rpc_item_generic_reply_rc(item_rep);
-			M0_ASSERT(rc != 0);
-		} else {
-			borrow_reply = m0_fop_data(
-					m0_rpc_item_to_fop(item_rep));
-			rc = borrow_reply->br_rc.gr_rc;
-		}
+		borrow_reply = m0_fop_data(m0_rpc_item_to_fop(item_rep));
+		rc = borrow_reply->br_rc.gr_rc;
 	}
 	M0_ASSERT(m0_mutex_is_locked(&grp->s_lock));
 	if (rc == 0) {

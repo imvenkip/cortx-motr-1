@@ -4154,25 +4154,12 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 					      IRS_DEGRADED_READING)));
 
 	req_item   = &irfop->irf_iofop.if_fop.f_item;
-	rc         = req_item->ri_error;
 	reply_item = req_item->ri_reply;
-
-	M0_ASSERT(ergo(rc == 0, reply_item != NULL));
-
-	/*
-	 * rc != 0 indicates fop sending failed and hence there is no reply.
-	 * In case, the reply fop received is generic reply fop, no IO fop
-	 * processing can be done and hence only pending fop count is
-	 * decremented.
-	 */
+	rc = req_item->ri_error ?: m0_rpc_item_generic_reply_rc(reply_item);
 	if (rc != 0)
 		goto ref_dec;
-	else if (m0_rpc_item_is_generic_reply_fop(reply_item)) {
-		rc = m0_rpc_item_generic_reply_rc(reply_item);
-		M0_ASSERT(rc != 0);
-		goto ref_dec;
-	}
-
+	M0_ASSERT(reply_item != NULL &&
+		  !m0_rpc_item_is_generic_reply_fop(reply_item));
 	reply_fop = m0_rpc_item_to_fop(reply_item);
 	rw_reply  = io_rw_rep_get(reply_fop);
 	rc        = rw_reply->rwr_rc;
