@@ -39,6 +39,12 @@
 # include <linux/kernel.h>
 # include <linux/string.h>
 #endif
+#include "lib/types.h"
+
+struct m0_fop_str {
+	uint32_t s_len;
+	uint8_t *s_buf;
+} M0_XCA_SEQUENCE;
 
 /* __MERO_LIB_STRING_H__ */
 #endif

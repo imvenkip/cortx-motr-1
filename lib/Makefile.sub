@@ -30,6 +30,7 @@ nobase_mero_include_HEADERS += lib/adt.h \
                                lib/rwlock.h \
                                lib/semaphore.h \
                                lib/string.h \
+                               lib/string_xc.h \
                                lib/thread.h \
                                lib/time.h \
                                lib/timer.h \
@@ -77,6 +78,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/misc.c \
                            lib/mutex.c \
                            lib/queue.c \
+                           lib/string_xc.c \
                            lib/refs.c \
                            lib/thread.c \
                            lib/time.c \
@@ -108,7 +110,8 @@ XC_FILES += lib/buf_xc.h \
             lib/vec_xc.h \
 	    lib/bitmap_xc.h \
 	    lib/types_xc.h \
-	    lib/ext_xc.h
+	    lib/ext_xc.h \
+	    lib/string_xc.h
 
 EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/cdefs.h \
@@ -154,4 +157,7 @@ CLEANFILES += lib/buf.gccxml \
 	      lib/types_xc.h \
               lib/ext_xc.h \
               lib/ext_xc.c \
-              lib/ext.gccxml
+              lib/ext.gccxml \
+	      lib/string_xc.c \
+	      lib/string_xc.h \
+	      lib/string.gccxml
