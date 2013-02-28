@@ -961,7 +961,7 @@
    - ioreq_iosm_handle() will be enhanced then to handle new state and
      invoke appropriate routines.
    - Code from nw_xfer_tioreq_map() will be refactored in order to reuse it
-     at new state handler function as well. 
+     at new state handler function as well.
    - UT code will be developed along with the production code to ensure
      proper functioning and incremental development.
    - The test cases mentioned above will be exercised to ensure degraded
