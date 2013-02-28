@@ -1,4 +1,5 @@
 nobase_mero_include_HEADERS += dtm/dtm.h \
+                                  dtm/dtm_update.h \
                                   dtm/dtm_update_xc.h \
                                   dtm/verno.h \
                                   dtm/verno_xc.h

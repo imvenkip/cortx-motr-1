@@ -1,4 +1,5 @@
 nobase_mero_include_HEADERS += fol/fol.h \
+                                  fol/fol_private.h \
                                   fol/lsn.h \
                                   fol/fol_xc.h
 
