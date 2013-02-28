@@ -3,7 +3,7 @@ set -e
 set -u
 
 ## CAUTION: This path will be removed by superuser.
-SANDBOX_DIR=~devvm/_m0-sandbox
+SANDBOX_DIR=${SANDBOX_DIR:-~devvm/_m0-sandbox}
 
 TRACE_MASK="${TRACE_MASK:-!rpc,formation,fop,memory}"
 TRACE_LEVEL="${TRACE_LEVEL:-info+}"
