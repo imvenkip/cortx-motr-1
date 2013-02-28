@@ -26,6 +26,8 @@
 #include "fop/fom.h"
 #include "lib/types.h"
 #include "xcode/xcode_attr.h"
+#include "lib/string.h"
+#include "lib/string_xc.h"
 
 struct m0_rpc_item;
 
@@ -207,7 +209,8 @@ extern const struct m0_sm_conf m0_generic_conf;
    report operation failure in generic fom phases.
  */
 struct m0_fop_generic_reply {
-	uint32_t gr_rc;
+	uint32_t          gr_rc;
+	struct m0_fop_str gr_msg;
 } M0_XCA_RECORD;
 
 /**
@@ -218,16 +221,16 @@ struct m0_fop_generic_reply {
  */
 M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
 
-M0_INTERNAL bool
-m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item);
+extern struct m0_fop_type m0_fop_generic_reply_fopt;
+
+bool m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item);
 
 /**
    If item is of type m0_fop_generic_reply then m0_rpc_item_generic_reply_rc()
    extracts and returns error code contained in the fop; otherwise it
    returns 0.
  */
-M0_INTERNAL uint32_t
-m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *item);
+uint32_t m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *item);
 
 /** @} end of fom group */
 

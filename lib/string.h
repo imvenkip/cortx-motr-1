@@ -38,6 +38,11 @@
 # include <linux/ctype.h>
 # include <linux/kernel.h>
 # include <linux/string.h>
+
+static inline char *strerror(int errnum)
+{
+	return "strerror() is not supported in kernel";
+}
 #endif
 #include "lib/types.h"
 

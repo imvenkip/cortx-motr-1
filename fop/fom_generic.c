@@ -19,10 +19,14 @@
  * Original creation date: 07/19/2011
  */
 
+#undef M0_TRACE_SUBSYSTEM
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
+#include "lib/string.h"
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fop.h"
@@ -39,6 +43,7 @@
  */
 
 struct m0_fop_type m0_fop_generic_reply_fopt;
+M0_EXPORTED(m0_fop_generic_reply_fopt);
 
 M0_INTERNAL void m0_fom_generic_fini(void)
 {
@@ -56,24 +61,29 @@ M0_INTERNAL int m0_fom_generic_init(void)
 				.rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 }
 
-M0_INTERNAL bool
-m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item)
+bool m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item)
 {
 	return item->ri_type == &m0_fop_generic_reply_fopt.ft_rpc_item_type;
 }
+M0_EXPORTED(m0_rpc_item_is_generic_reply_fop);
 
-M0_INTERNAL uint32_t
-m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *reply)
+uint32_t m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *reply)
 {
 	struct m0_fop_generic_reply *reply_fop;
+	uint32_t                     rc;
 
 	if (m0_rpc_item_is_generic_reply_fop(reply)) {
 		reply_fop = m0_fop_data(m0_rpc_item_to_fop(reply));
-		return reply_fop->gr_rc;
+		rc = reply_fop->gr_rc;
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "Receiver reported error: %d \"%s\"",
+			       rc,
+			       (char*)reply_fop->gr_msg.s_buf ?: strerror(rc));
+		return rc;
 	} else
 		return 0;
 }
-
+M0_EXPORTED(m0_rpc_item_generic_reply_rc);
 /**
  * Fom phase descriptor structure, helps to transition fom
  * through its standard phases
@@ -653,6 +663,8 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 }
 
 /** @} end of fom group */
+#undef M0_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
