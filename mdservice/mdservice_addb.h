@@ -44,17 +44,13 @@ enum {
 M0_ADDB_CT(m0_addb_ct_mds_mod, M0_ADDB_CTXID_MDS_MOD);
 M0_ADDB_CT(m0_addb_ct_mds_serv, M0_ADDB_CTXID_MDS_SERV, "hi", "low");
 
-#define MDS_ALLOC_PTR(ptr, ctx, loc)			             \
-M0_ALLOC_PTR_ADDB(ptr, &m0_addb_gmc, M0_MDS_ADDB_LOC_##loc, ctx)
-
 /*
  ******************************************************************************
  * MDService handler ADDB posting locations
  ******************************************************************************
  */
 enum {
-	M0_MDS_ADDB_LOC_ALLOCATE         = 10,
-	M0_MDS_ADDB_LOC_FOL_REC_PART_ADD = 20,
+	M0_MDS_ADDB_LOC_ALLOCATE = 10,
 };
 
 /** @} */ /* end of mdservice group */

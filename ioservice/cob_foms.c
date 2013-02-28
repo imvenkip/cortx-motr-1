@@ -210,7 +210,7 @@ static int cc_fom_tick(struct m0_fom *fom)
 	struct m0_reqh                 *reqh;
 	struct m0_pool_version_numbers *verp;
 	struct m0_pool_version_numbers  curr;
-	struct m0_fop_cob_create      *fop;
+	struct m0_fop_cob_create       *fop;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_ops != NULL);
@@ -263,7 +263,6 @@ out:
 					     &reply->cor_fv_updates);
 
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-
 	return M0_FSO_AGAIN;
 }
 
@@ -476,7 +475,6 @@ out:
 					     &reply->cor_fv_updates);
 
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-
 	return M0_FSO_AGAIN;
 }
 

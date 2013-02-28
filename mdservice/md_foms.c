@@ -45,7 +45,6 @@
 #include "mdservice/md_foms.h"
 #include "mdservice/md_service.h"
 #include "mdstore/mdstore.h"
-#include "mdservice/mdservice_addb.h"
 
 static void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
 			       struct m0_fop_cob *body)
@@ -1723,7 +1722,6 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	*m = fom;
 	return 0;
 }
-
 #undef M0_TRACE_SUBSYSTEM
 
 /*

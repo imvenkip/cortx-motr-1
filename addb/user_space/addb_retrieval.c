@@ -349,7 +349,6 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 		si->ssi_tio.si_obj = NULL;
 		si->ssi_tio.si_rc = 0;
 		si->ssi_tio.si_count = 0;
-		si->ssi_tio.si_fol_rec_part = &fol_rec_part;
 		m0_clink_add_lock(&si->ssi_tio.si_wait, &seg_wait);
 		rc = m0_stob_io_launch(&si->ssi_tio, stob, &tx, NULL);
 		if (rc < 0) {
@@ -375,7 +374,6 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 		si->ssi_io.si_obj = NULL;
 		si->ssi_io.si_rc = 0;
 		si->ssi_io.si_count = 0;
-		si->ssi_io.si_fol_rec_part = &fol_rec_part;
 		m0_clink_add_lock(&si->ssi_io.si_wait, &seg_wait);
 		rc = m0_stob_io_launch(&si->ssi_io, stob, &tx, NULL);
 		if (rc < 0) {

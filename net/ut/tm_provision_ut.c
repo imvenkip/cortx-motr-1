@@ -27,7 +27,7 @@
 #include "net/buffer_pool.h"
 
 static int max_recv_msgs = 1;
-struct m0_net_buffer_pool *pool_prov;
+static struct m0_net_buffer_pool *pool_prov;
 enum {
 	POOL_COLOURS   = 5,
 	POOL_THRESHOLD = 2,
@@ -77,7 +77,7 @@ static void ut_prov_msg_recv_cb(const struct m0_net_buffer_event *ev)
 	m0_net_buffer_pool_unlock(tm->ntm_recv_pool);
 }
 
-struct m0_net_buffer_callbacks ut_buf_prov_cb = {
+static const struct m0_net_buffer_callbacks ut_buf_prov_cb = {
 	.nbc_cb = {
 		[M0_NET_QT_MSG_RECV]          = ut_prov_msg_recv_cb,
 		[M0_NET_QT_MSG_SEND]          = ut_msg_send_cb,
@@ -145,7 +145,8 @@ static int ut_tm_prov_stop(struct m0_net_transfer_mc *tm, bool cancel)
  * It adds a deleted buffer with TM's colour into the pool in corresponding
  * colour list.
  */
-struct m0_net_buffer * pool_colour_buffer_add(struct m0_net_transfer_mc *tm)
+static struct m0_net_buffer *
+pool_colour_buffer_add(struct m0_net_transfer_mc *tm)
 {
 	struct m0_net_buffer *nb;
 	struct m0_clink	      tmwait;
@@ -176,8 +177,8 @@ struct m0_net_buffer * pool_colour_buffer_add(struct m0_net_transfer_mc *tm)
 	return nb;
 }
 
-void provision_buffer_validate_colour(struct m0_net_buffer *nb,
-				      struct m0_net_transfer_mc *tm)
+static void provision_buffer_validate_colour(struct m0_net_buffer *nb,
+					     struct m0_net_transfer_mc *tm)
 {
 	m0_net_tm_pool_length_set(tm, tm->ntm_recv_queue_min_length + 1);
 	M0_UT_ASSERT(nb == m0_net_tm_tlist_tail(
@@ -187,7 +188,7 @@ void provision_buffer_validate_colour(struct m0_net_buffer *nb,
 }
 
 /* TM stop and fini */
-void ut_tm_stop_fini(struct m0_net_transfer_mc *tm)
+static void ut_tm_stop_fini(struct m0_net_transfer_mc *tm)
 {
 	struct m0_clink tmwait;
 	int		rc;

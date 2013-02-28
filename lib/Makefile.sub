@@ -154,4 +154,4 @@ CLEANFILES += lib/buf.gccxml \
 	      lib/types_xc.h \
               lib/ext_xc.h \
               lib/ext_xc.c \
-              lib/ext.gccxml \
+              lib/ext.gccxml

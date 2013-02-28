@@ -31,11 +31,11 @@ static void notempty(struct m0_net_buffer_pool *bp);
 static void low(struct m0_net_buffer_pool *bp);
 static void buffers_get_put(int rc);
 
-static struct m0_net_buffer_pool  bp;
-static struct m0_chan	   buf_chan;
-static struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
+static struct m0_net_buffer_pool bp;
+static struct m0_chan		 buf_chan;
+static struct m0_net_xprt	*xprt = &m0_net_lnet_xprt;
 
-const struct m0_net_buffer_pool_ops b_ops = {
+static const struct m0_net_buffer_pool_ops b_ops = {
 	.nbpo_not_empty	      = notempty,
 	.nbpo_below_threshold = low,
 };

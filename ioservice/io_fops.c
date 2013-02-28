@@ -150,12 +150,14 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_ios_mod);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_ios_addb_ctx, &m0_addb_ct_ios_mod,
 			 &m0_addb_proc_ctx);
+	/*
+	 * Provided by gccxml2xcode after parsing io_fops.h
+	 */
 	m0_xc_io_fops_init();
 #ifndef __KERNEL__
 	m0_sm_conf_extend(m0_generic_conf.scf_state, io_phases,
 			  m0_generic_conf.scf_nr_states);
 #endif
-
 	return  M0_FOP_TYPE_INIT(&m0_fop_cob_readv_fopt,
 				 .name      = "Read request",
 				 .opcode    = M0_IOSERVICE_READV_OPCODE,

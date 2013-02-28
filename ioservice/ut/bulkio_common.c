@@ -40,7 +40,7 @@ enum {
 };
 
 /* Global reference to bulkio_params structure. */
-struct bulkio_params *bparm;
+static struct bulkio_params *bparm;
 
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 

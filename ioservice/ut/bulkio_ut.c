@@ -46,37 +46,37 @@ static int io_fop_stob_create_fom_create(struct m0_fop *fop, struct m0_fom **m,
 static int check_write_fom_tick(struct m0_fom *fom);
 static int check_read_fom_tick(struct m0_fom *fom);
 
-static struct m0_fop_type_ops bulkio_stob_create_ops = {
+static const struct m0_fop_type_ops bulkio_stob_create_ops = {
 	.fto_fop_replied = io_fop_replied,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
-static struct m0_fop_type_ops bulkio_server_write_fop_ut_ops = {
+static const struct m0_fop_type_ops bulkio_server_write_fop_ut_ops = {
 	.fto_fop_replied = io_fop_replied,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
-static struct m0_fop_type_ops bulkio_server_read_fop_ut_ops = {
+static const struct m0_fop_type_ops bulkio_server_read_fop_ut_ops = {
 	.fto_fop_replied = io_fop_replied,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
-static struct m0_fom_type_ops bulkio_server_write_fomt_ops = {
+static const struct m0_fom_type_ops bulkio_server_write_fomt_ops = {
 	.fto_create = io_fop_server_write_fom_create,
 };
 
-static struct m0_fom_type_ops bulkio_server_read_fomt_ops = {
+static const struct m0_fom_type_ops bulkio_server_read_fomt_ops = {
 	.fto_create = io_fop_server_read_fom_create,
 };
 
-static struct m0_fom_type_ops bulkio_stob_create_fomt_ops = {
+static const struct m0_fom_type_ops bulkio_stob_create_fomt_ops = {
 	.fto_create = io_fop_stob_create_fom_create,
 };
 
-static struct m0_fom_type_ops ut_io_fom_cob_rw_type_ops = {
+static const struct m0_fom_type_ops ut_io_fom_cob_rw_type_ops = {
 	.fto_create = ut_io_fom_cob_rw_create,
 };
 
@@ -1085,28 +1085,28 @@ static void bulkio_stob_create_fom_addb_init(struct m0_fom *fom,
 	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
-static struct m0_fom_ops bulkio_stob_create_fom_ops = {
+static const struct m0_fom_ops bulkio_stob_create_fom_ops = {
 	.fo_fini = bulkio_stob_fom_fini,
 	.fo_tick = bulkio_stob_create_fom_tick,
 	.fo_home_locality = m0_io_fom_cob_rw_locality_get,
 	.fo_addb_init = bulkio_stob_create_fom_addb_init
 };
 
-static struct m0_fom_ops bulkio_server_write_fom_ops = {
+static const struct m0_fom_ops bulkio_server_write_fom_ops = {
 	.fo_fini = m0_io_fom_cob_rw_fini,
 	.fo_tick = bulkio_server_write_fom_tick,
 	.fo_home_locality = m0_io_fom_cob_rw_locality_get,
 	.fo_addb_init = bulkio_server_write_fom_addb_init
 };
 
-static struct m0_fom_ops ut_io_fom_cob_rw_ops = {
+static const struct m0_fom_ops ut_io_fom_cob_rw_ops = {
 	.fo_fini = m0_io_fom_cob_rw_fini,
 	.fo_tick = ut_io_fom_cob_rw_state,
 	.fo_home_locality = m0_io_fom_cob_rw_locality_get,
 	.fo_addb_init = ut_io_fom_cob_rw_addb_init
 };
 
-static struct m0_fom_ops bulkio_server_read_fom_ops = {
+static const struct m0_fom_ops bulkio_server_read_fom_ops = {
 	.fo_fini = m0_io_fom_cob_rw_fini,
 	.fo_tick = bulkio_server_read_fom_tick,
 	.fo_home_locality = m0_io_fom_cob_rw_locality_get,

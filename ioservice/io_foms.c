@@ -741,8 +741,8 @@ const struct m0_sm_conf io_conf = {
 
 static bool m0_io_fom_cob_rw_invariant(const struct m0_io_fom_cob_rw *io)
 {
-	int                      acquired_net_buffs = 0;
-	struct m0_fop_cob_rw    *rwfop;
+	int                   acquired_net_buffs;
+	struct m0_fop_cob_rw *rwfop;
 
 	if (io == NULL)
 		return false;
@@ -771,10 +771,7 @@ static bool m0_io_fom_cob_rw_invariant(const struct m0_io_fom_cob_rw *io)
 
 static bool m0_stob_io_desc_invariant(const struct m0_stob_io_desc *stobio_desc)
 {
-	if (stobio_desc->siod_magic != M0_STOB_IO_DESC_LINK_MAGIC)
-		return false;
-
-	return true;
+	return stobio_desc->siod_magic == M0_STOB_IO_DESC_LINK_MAGIC;
 }
 
 /**
@@ -852,7 +849,7 @@ M0_INTERNAL void io_fom_cob_rw_stob2fid_map(const struct m0_stob_id *in,
  * @pre in != NULL
  * @pre out != NULL
  */
-static int indexvec_wire2mem(struct m0_fom	    *fom,
+static int indexvec_wire2mem(struct m0_fom	   *fom,
 			     struct m0_io_indexvec *in,
 			     struct m0_indexvec    *out,
 			     uint32_t		    bshift)
@@ -909,10 +906,10 @@ static int align_bufvec(struct m0_fom    *fom,
 			m0_bcount_t       ivec_count,
 			uint32_t          bshift)
 {
-	int                rc = 0;
-	int                i = 0;
-	m0_bcount_t        bufvec_count = 0;
-	int                bufvec_seg_size = 0;
+	int         rc = 0;
+	int         i;
+	m0_bcount_t bufvec_count;
+	int         bufvec_seg_size;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(obuf != NULL);
@@ -930,7 +927,7 @@ static int align_bufvec(struct m0_fom    *fom,
 	 *         This can be better expressin ( or math function).
 	 */
 	bufvec_count = (ivec_count / bufvec_seg_size) +
-		       ((ivec_count % bufvec_seg_size) == 0 ? 0:1);
+		       ((ivec_count % bufvec_seg_size) == 0 ? 0 : 1);
 
 	IOS_ALLOC_ARR(obuf->ov_vec.v_count, bufvec_count, &fom->fo_addb_ctx,
 		      ALIGN_BUFVEC_1);
@@ -1058,12 +1055,12 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
  */
 static int net_buffer_acquire(struct m0_fom *fom)
 {
-        uint32_t                      colour;
-        int                           acquired_net_bufs;
-        int                           required_net_bufs;
-        struct m0_fop                *fop;
-        struct m0_io_fom_cob_rw      *fom_obj = NULL;
-        struct m0_net_transfer_mc    *tm;
+        uint32_t                   colour;
+        int                        acquired_net_bufs;
+        int                        required_net_bufs;
+        struct m0_fop             *fop;
+        struct m0_io_fom_cob_rw   *fom_obj;
+        struct m0_net_transfer_mc *tm;
 
         M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1082,9 +1079,9 @@ static int net_buffer_acquire(struct m0_fom *fom)
          * Cache buffer pool pointer with FOM object.
          */
         if (fom_obj->fcrw_bp == NULL) {
-                struct m0_reqh_io_service    *serv_obj;
-                struct m0_rios_buffer_pool   *bpdesc = NULL;
-                struct m0_net_domain         *fop_ndom = NULL;
+                struct m0_reqh_io_service  *serv_obj;
+                struct m0_rios_buffer_pool *bpdesc;
+                struct m0_net_domain       *fop_ndom;
 
                 serv_obj = container_of(fom->fo_service,
                                         struct m0_reqh_io_service, rios_gen);
@@ -1093,7 +1090,7 @@ static int net_buffer_acquire(struct m0_fom *fom)
                 /* Get network buffer pool for network domain */
                 fop_ndom = tm->ntm_dom;
                 m0_tl_for(bufferpools, &serv_obj->rios_buffer_pools,
-                             bpdesc) {
+                          bpdesc) {
                         if (bpdesc->rios_ndom == fop_ndom) {
                                 fom_obj->fcrw_bp = &bpdesc->rios_bp;
                                 break;
@@ -1113,13 +1110,13 @@ static int net_buffer_acquire(struct m0_fom *fom)
          */
         M0_ASSERT(acquired_net_bufs <= required_net_bufs);
         while (acquired_net_bufs < required_net_bufs) {
-            struct m0_net_buffer      *nb = NULL;
+            struct m0_net_buffer *nb;
 
             m0_net_buffer_pool_lock(fom_obj->fcrw_bp);
             nb = m0_net_buffer_pool_get(fom_obj->fcrw_bp, colour);
 
             if (nb == NULL && acquired_net_bufs == 0) {
-                    struct m0_rios_buffer_pool   *bpdesc = NULL;
+                    struct m0_rios_buffer_pool *bpdesc;
                     /*
                      * Network buffer is not available. At least one
                      * buffer is need for zero-copy. Registers FOM clink
@@ -1150,7 +1147,7 @@ static int net_buffer_acquire(struct m0_fom *fom)
                    nb->nb_qtype = M0_NET_QT_ACTIVE_BULK_RECV;
 
             M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
-                                         &fom_obj->fcrw_netbuf_list));
+					       &fom_obj->fcrw_netbuf_list));
 
             netbufs_tlink_init(nb);
             netbufs_tlist_add(&fom_obj->fcrw_netbuf_list, nb);
@@ -1178,19 +1175,12 @@ static int net_buffer_acquire(struct m0_fom *fom)
  */
 static int net_buffer_release(struct m0_fom *fom)
 {
-        uint32_t                        colour;
-        int                             acquired_net_bufs;
-        int                             required_net_bufs;
-        struct m0_fop                  *fop;
-        struct m0_io_fom_cob_rw        *fom_obj = NULL;
-        struct m0_net_transfer_mc      *tm;
-
-
-        M0_PRE(fom != NULL);
-        M0_PRE(m0_is_read_fop(fom->fo_fop) || m0_is_write_fop(fom->fo_fop));
-        M0_PRE(fom->fo_service != NULL);
-        M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_BUFFER_RELEASE);
-
+        uint32_t                  colour;
+        int                       acquired_net_bufs;
+        int                       required_net_bufs;
+        struct m0_fop             *fop;
+        struct m0_io_fom_cob_rw   *fom_obj;
+        struct m0_net_transfer_mc *tm;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_read_fop(fom->fo_fop) || m0_is_write_fop(fom->fo_fop));
@@ -1205,7 +1195,8 @@ static int net_buffer_release(struct m0_fom *fom)
 	tm     = io_fop_tm_get(fop);
 	colour = m0_net_tm_colour_get(tm);
 
-	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
+	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
+					   &fom_obj->fcrw_netbuf_list));
 	acquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
 	required_net_bufs = fom_obj->fcrw_ndesc - fom_obj->fcrw_curr_desc_index;
 
@@ -1244,16 +1235,16 @@ static int net_buffer_release(struct m0_fom *fom)
  */
 static int zero_copy_initiate(struct m0_fom *fom)
 {
-        int                        rc = 0;
-        struct m0_fop             *fop = fom->fo_fop;
-        struct m0_io_fom_cob_rw   *fom_obj = NULL;
-        struct m0_fop_cob_rw      *rwfop;
-        const struct m0_rpc_item  *rpc_item;
-        struct m0_rpc_bulk        *rbulk;
-        struct m0_net_buffer      *nb = NULL;
-        struct m0_net_buf_desc    *net_desc;
-        struct m0_net_domain      *dom;
-        uint32_t                   buffers_added = 0;
+        int                      rc = 0;
+        struct m0_fop            *fop;
+        struct m0_io_fom_cob_rw  *fom_obj;
+        struct m0_fop_cob_rw     *rwfop;
+        const struct m0_rpc_item *rpc_item;
+        struct m0_rpc_bulk       *rbulk;
+        struct m0_net_buffer     *nb;
+        struct m0_net_buf_desc   *net_desc;
+        struct m0_net_domain     *dom;
+        uint32_t                  buffers_added = 0;
 
         M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1264,20 +1255,22 @@ static int zero_copy_initiate(struct m0_fom *fom)
 
 	fom_obj->fcrw_phase_start_time = m0_time_now();
 
+	fop   = fom->fo_fop;
 	rwfop = io_rw_get(fop);
 	rbulk = &fom_obj->fcrw_bulk;
 	m0_rpc_bulk_init(rbulk);
 
-	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
+	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
+					   &fom_obj->fcrw_netbuf_list));
 	dom      = io_fop_tm_get(fop)->ntm_dom;
         net_desc = &rwfop->crw_desc.id_descs[fom_obj->fcrw_curr_desc_index];
         rpc_item = (const struct m0_rpc_item *)&(fop->f_item);
 
         /* Create rpc bulk bufs list using available net buffers */
         m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
-                int                         current_index;
-                uint32_t                    segs_nr;
-                struct m0_rpc_bulk_buf     *rb_buf = NULL;
+                int                     current_index;
+                uint32_t                segs_nr;
+                struct m0_rpc_bulk_buf *rb_buf;
 
 	        current_index = fom_obj->fcrw_curr_desc_index;
                 segs_nr = rwfop->crw_ivecs.cis_ivecs[current_index].ci_nr;
@@ -1343,8 +1336,8 @@ static int zero_copy_initiate(struct m0_fom *fom)
  */
 static int zero_copy_finish(struct m0_fom *fom)
 {
-	struct m0_io_fom_cob_rw   *fom_obj;
-	struct m0_rpc_bulk        *rbulk;
+	struct m0_io_fom_cob_rw *fom_obj;
+	struct m0_rpc_bulk      *rbulk;
 
         M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1390,16 +1383,16 @@ static int zero_copy_finish(struct m0_fom *fom)
  */
 static int io_launch(struct m0_fom *fom)
 {
-	int				 rc;
-	uint32_t			 bshift;
-	struct m0_fop			*fop;
-	struct m0_io_fom_cob_rw	        *fom_obj;
-	struct m0_stob_id		 stobid;
-	struct m0_net_buffer            *nb = NULL;
-	struct m0_fop_cob_rw		*rwfop;
-	struct m0_io_indexvec            wire_ivec;
-	struct m0_stob_domain		*fom_stdom;
-	struct m0_reqh                  *reqh;
+	int			 rc;
+	uint32_t		 bshift;
+	struct m0_fop		*fop;
+	struct m0_io_fom_cob_rw	*fom_obj;
+	struct m0_stob_id	 stobid;
+	struct m0_net_buffer    *nb;
+	struct m0_fop_cob_rw	*rwfop;
+	struct m0_io_indexvec    wire_ivec;
+	struct m0_stob_domain	*fom_stdom;
+	struct m0_reqh          *reqh;
 
 	M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1437,8 +1430,10 @@ static int io_launch(struct m0_fom *fom)
 	 */
 	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 
-	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
-	M0_INVARIANT_EX(m0_tlist_invariant(&stobio_tl, &fom_obj->fcrw_stio_list));
+	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
+					   &fom_obj->fcrw_netbuf_list));
+	M0_INVARIANT_EX(m0_tlist_invariant(&stobio_tl,
+					   &fom_obj->fcrw_stio_list));
 
 	m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
 		struct m0_indexvec     *mem_ivec;
@@ -1501,10 +1496,7 @@ static int io_launch(struct m0_fom *fom)
                         break;
                 }
 
-                if (m0_is_write_fop(fop))
-                        stio->si_opcode = SIO_WRITE;
-                else
-                        stio->si_opcode = SIO_READ;
+                stio->si_opcode = m0_is_write_fop(fop) ? SIO_WRITE : SIO_READ;
 
                 stio_desc->siod_fcb.fc_bottom = stobio_complete_cb;
                 m0_mutex_lock(&stio->si_mutex);
@@ -1562,9 +1554,9 @@ cleanup:
  */
 static int io_finish(struct m0_fom *fom)
 {
-        struct m0_io_fom_cob_rw   *fom_obj;
-        struct m0_stob_io_desc    *stio_desc;
-	int                        rc = 0;
+        struct m0_io_fom_cob_rw *fom_obj;
+        struct m0_stob_io_desc  *stio_desc;
+	int                      rc = 0;
 
         M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1576,7 +1568,8 @@ static int io_finish(struct m0_fom *fom)
         fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
         M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
         M0_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
-        M0_INVARIANT_EX(m0_tlist_invariant(&stobio_tl, &fom_obj->fcrw_stio_list));
+        M0_INVARIANT_EX(m0_tlist_invariant(&stobio_tl,
+					   &fom_obj->fcrw_stio_list));
         /*
          * Empty the list as all STOB I/O completed here.
          */
@@ -1702,11 +1695,11 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 {
 	uint32_t		  colour;
-	struct m0_fop		  *fop = fom->fo_fop;
+	struct m0_fop		  *fop;
 	struct m0_io_fom_cob_rw	  *fom_obj;
 	struct m0_reqh_io_service *serv_obj;
-	struct m0_net_buffer	  *nb = NULL;
-	struct m0_stob_io_desc	  *stio_desc = NULL;
+	struct m0_net_buffer	  *nb;
+	struct m0_stob_io_desc	  *stio_desc;
 	struct m0_net_transfer_mc *tm;
 	struct m0_ios_rwfom_stats *stats;
 
@@ -1718,6 +1711,7 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 				rios_gen);
 	M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
 
+	fop = fom->fo_fop;
 	M0_LOG(M0_DEBUG, "FOM finished : operation=%s, nbytes=%lu.",
 	       m0_is_read_fop(fop) ? "READ" : "WRITE", fom_obj->fcrw_count);
 
@@ -1725,18 +1719,19 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	colour = m0_net_tm_colour_get(tm);
 
 	if (fom_obj->fcrw_bp != NULL) {
-	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
-			&fom_obj->fcrw_netbuf_list));
-	m0_net_buffer_pool_lock(fom_obj->fcrw_bp);
-	m0_tl_for (netbufs, &fom_obj->fcrw_netbuf_list, nb) {
-		m0_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
-		netbufs_tlink_del_fini(nb);
-	} m0_tl_endfor;
-	m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
-	netbufs_tlist_fini(&fom_obj->fcrw_netbuf_list);
+		M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
+						   &fom_obj->fcrw_netbuf_list));
+		m0_net_buffer_pool_lock(fom_obj->fcrw_bp);
+		m0_tl_for (netbufs, &fom_obj->fcrw_netbuf_list, nb) {
+			m0_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
+			netbufs_tlink_del_fini(nb);
+		} m0_tl_endfor;
+		m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+		netbufs_tlist_fini(&fom_obj->fcrw_netbuf_list);
 	}
 
-	M0_INVARIANT_EX(m0_tlist_invariant(&stobio_tl, &fom_obj->fcrw_stio_list));
+	M0_INVARIANT_EX(m0_tlist_invariant(&stobio_tl,
+					   &fom_obj->fcrw_stio_list));
 	m0_tl_for (stobio, &fom_obj->fcrw_stio_list, stio_desc) {
 		struct m0_stob_io *stio;
 
@@ -1800,7 +1795,7 @@ static size_t m0_io_fom_cob_rw_locality_get(const struct m0_fom *fom)
 static void m0_io_fom_cob_rw_addb_init(struct m0_fom *fom,
 				       struct m0_addb_mc *mc)
 {
-        struct m0_fop_cob_rw      *rwfop;
+        struct m0_fop_cob_rw *rwfop;
 
 	rwfop = io_rw_get(fom->fo_fop);
 	M0_ADDB_CTX_INIT(mc, &fom->fo_addb_ctx, &m0_addb_ct_cob_io_rw_fom,
