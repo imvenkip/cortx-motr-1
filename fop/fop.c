@@ -185,7 +185,6 @@ void m0_fop_type_fini(struct m0_fop_type *fopt)
 }
 M0_EXPORTED(m0_fop_type_fini);
 
-/** @todo Needs to change return type to void. */
 int m0_fop_type_init(struct m0_fop_type *ft,
 		     const struct __m0_fop_type_init_args *args)
 {

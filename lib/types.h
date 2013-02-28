@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -28,8 +28,6 @@
 #else
 #include "lib/user_space/types.h"
 #endif
-#include "xcode/xcode_attr.h"
-
 #include "xcode/xcode_attr.h"
 
 struct m0_uint128 {
