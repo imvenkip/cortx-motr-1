@@ -176,12 +176,20 @@ In brief:
      (c) merge your branch back to master
 
            $ git checkout master
-           $ git merge --no-ff YOUR_BRANCH
 
-         it's essential to use '--no-ff' option for 'merge', because it will
-         group your changes into a separate line of history instead of doing
-         fast-forward, in which case there would be no way to single out your
-         changes
+         and then
+
+           $ git merge --no-ff YOUR_BRANCH
+         or
+           $ git merge YOUR_BRANCH
+
+         Depending on how many commits there are in your branch and how they
+         relate to each other (one logical series or a number of independent
+         changes) you may decide either to use '--no-ff' option for 'merge' or
+         not. If used, it will group your changes into a separate line of
+         history instead of doing fast-forward. Please, follow a common sense
+         here, there is definitely no point to use '--no-ff' option if your
+         branch has only one commit ;)
 
 
 Rationale:
