@@ -12,15 +12,6 @@ mero_libmero_la_SOURCES += cm/ag.c \
                            cm/cp_onwire_xc.c \
                            cm/pump.c
 
-cm/cp_onwire.h: cm/ag_xc.h \
-                dtm/verno_xc.h \
-                fid/fid_xc.h \
-                ioservice/io_fops_xc.h \
-                lib/bitmap_xc.h \
-                net/net_otw_types_xc.h
-
-cm/ag.h: lib/types_xc.h
-
 XC_FILES += cm/ag_xc.h cm/cp_onwire_xc.h
 
 CLEANFILES += cm/ag_xc.h \

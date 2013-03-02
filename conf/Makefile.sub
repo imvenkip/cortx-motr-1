@@ -32,5 +32,3 @@ XC_FILES += conf/onwire_xc.h
 CLEANFILES += conf/onwire_xc.h \
               conf/onwire_xc.c \
               conf/onwire.gccxml
-
-conf/onwire.h: lib/buf_xc.h fid/fid_xc.h

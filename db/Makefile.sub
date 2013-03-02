@@ -11,8 +11,6 @@ mero_libmero_la_SOURCES  += db/db.c \
                                   db/extmap_xc.c \
                                   db/db_common.c
 
-db/extmap_xc.h : lib/types_xc.h lib/ext_xc.h
-
 XC_FILES   += db/extmap_xc.h
 
 EXTRA_DIST += db/linux_kernel/db.c \

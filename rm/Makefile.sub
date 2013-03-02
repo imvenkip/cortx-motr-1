@@ -12,10 +12,6 @@ XC_FILES                    += rm/rm_xc.h
 
 EXTRA_DIST		    += rm/rm_internal.h
 
-rm/rm.h: fop/fom_generic_xc.h \
-         lib/buf_xc.h \
-         lib/cookie_xc.h
-
 CLEANFILES                  += rm/rm_xc.h \
                                rm/rm_xc.c \
 			       rm/rm.gccxml

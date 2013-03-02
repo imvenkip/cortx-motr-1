@@ -5,8 +5,6 @@ rpc_it_m0rpcping_SOURCES  = rpc/it/ping_fop.c \
                             rpc/it/ping_fop.h \
                             rpc/it/ping_fom.h
 
-rpc/it/ping_fop.h: rpc/rpc_onwire_xc.h
-
 XC_FILES   += rpc/it/ping_fop_xc.h
 
 EXTRA_DIST += rpc/it/linux_kernel/rpc_ping.h \

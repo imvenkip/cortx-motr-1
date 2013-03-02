@@ -7,11 +7,6 @@ ut_libmero_ut_la_SOURCES += xcode/ut/xcode_fop_test.c \
                                xcode/ut/test_gccxml_xc.c \
                                xcode/ut/xcode_fops_ff.c
 
-xcode/ut/test_gccxml.h: lib/vec_xc.h \
-                        xcode/ut/test_gccxml_simple_xc.h
-
-xcode/ut/test_gccxml_simple.h: fid/fid_xc.h
-
 FF_FILES   += xcode/ut/xcode_fops_ff.h
 
 XC_FILES   += xcode/ut/test_gccxml_xc.h \

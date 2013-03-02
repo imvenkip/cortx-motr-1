@@ -18,8 +18,6 @@ mero_libmero_la_SOURCES  += sns/cm/ag.c \
 				  sns/cm/sns_cp_onwire.c \
 				  sns/cm/sns_cp_onwire_xc.c
 
-sns/cm/sns_cp_onwire.h: cm/cp_onwire_xc.h
-
 XC_FILES += sns/cm/sns_cp_onwire_xc.h
 
 EXTRA_DIST += sns/poolmach.c

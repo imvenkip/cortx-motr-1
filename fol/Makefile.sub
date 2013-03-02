@@ -6,8 +6,6 @@ nobase_mero_include_HEADERS += fol/fol.h \
 mero_libmero_la_SOURCES  += fol/fol.c \
 				fol/fol_xc.c
 
-fol/fol_xc.h : dtm/verno_xc.h dtm/dtm_update_xc.h
-
 XC_FILES   += fol/fol_xc.h
 
 CLEANFILES += fol/fol_xc.h \

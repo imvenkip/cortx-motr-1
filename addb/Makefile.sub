@@ -30,5 +30,3 @@ EXTRA_DIST += addb/addb_counter.c \
 CLEANFILES += addb/addb_wire_xc.c \
               addb/addb_wire_xc.h \
               addb/addb_wire.gccxml
-
-addb/addb.c: addb/addb_wire_xc.h

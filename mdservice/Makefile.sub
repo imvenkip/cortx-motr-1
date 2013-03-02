@@ -9,8 +9,6 @@ mero_libmero_la_SOURCES  += mdservice/md_service.c \
                                   mdservice/md_fops.c \
                                   mdservice/md_fops_xc.c
 
-mdservice/md_fops.h: fid/fid_xc.h
-
 XC_FILES   += mdservice/md_fops_xc.h
 
 CLEANFILES += mdservice/md_fops_xc.h \
