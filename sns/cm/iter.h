@@ -85,11 +85,17 @@ struct m0_sns_cm_pdclust_layout {
 
 	/**
 	 * COB index and frame number in the COB, corresponding to
-	 * m0_sns_cm_iter::si_sa.
+	 * m0_sns_cm_pdclust_layout::spl_sa.
 	 */
 	struct m0_pdclust_tgt_addr    spl_ta;
 
-	/** COB fid corresponding to m0_sns_cm_iter::si_ta. */
+	/**
+	 * Total number of failed units in an aggregation group represented by
+	 * m0_sns_cm_pdclust_layout::spl_sa.sa_group
+	 */
+	uint64_t                      spl_group_nr_fail_units;
+
+	/** COB fid corresponding to m0_sns_cm_pdclust_layout::spl_ta. */
 	struct m0_fid                 spl_cob_fid;
 
 	bool                          spl_cob_is_spare_unit;
@@ -114,7 +120,7 @@ struct m0_sns_cm_iter {
          * SNS copy machine data iterator assumes this to be set before invoking
          * m0_sns_cm_iter_next().
          */
-        uint64_t                         si_fdata;
+        uint64_t                        *si_fdata;
 
 	struct m0_dbenv                 *si_dbenv;
 
@@ -158,7 +164,7 @@ M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp);
 /**
  * Calculates number of local data units for a given parity group.
  * This is invoked when new struct m0_sns_cm_ag instance is allocated, from
- * m0_sns_cm_ag_find(). This is done in context of sns copy machine data
+ * m0_cm_aggr_group_alloc(). This is done in context of sns copy machine data
  * iterator during the latter's ITPH_CP_SETUP phase. Thus we need not calculate
  * the new GOB layout and corresponding pdclust instance, instead used the ones
  * already calculated and save in the iterator, but we take GOB fid and group
@@ -169,12 +175,16 @@ M0_INTERNAL uint64_t nr_local_units(struct m0_sns_cm *scm,
 
 /**
  * Calculates fid of the COB containing the spare unit, and its index into the
- * COB for the given aggregation group.
+ * COB for the given failure index in the aggregation group.
  *
- * @see m0_sns_cm_ag::sag_spare_cobfid
- * @see m0_sns_cm_ag::sag_spare_cob_index
+ * @see m0_sns_cm_ag::sag_tgts
+ * @see m0_sns_cm_ag_tgt_addr::tgt_cob_index
+ * @see m0_sns_cm_ag_tgt_addr::tgt_cobfid
  */
-M0_INTERNAL void target_unit_to_cob(struct m0_sns_cm_ag *rag);
+M0_INTERNAL void m0_sns_cm_iter_tgt_unit_to_cob(struct m0_sns_cm_ag *rag);
+
+M0_INTERNAL uint64_t
+m0_sns_cm_iter_failures_nr(const struct m0_sns_cm_iter *it);
 
 /** @} SNSCM */
 #endif /* __MERO_SNS_CM_ITER_H__ */

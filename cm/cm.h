@@ -213,12 +213,12 @@ struct m0_cm_ops {
 	/** Invoked from m0_cm_stop(). */
 	int (*cmo_stop)(struct m0_cm *cm);
 
+	int (*cmo_ag_alloc) (struct m0_cm *cm, const struct m0_cm_ag_id *id,
+			     struct m0_cm_aggr_group **out);
+
 	/** Creates copy packets only if resources permit. */
 	struct m0_cm_cp *(*cmo_cp_alloc)(struct m0_cm *cm);
 
-	/** Creates aggregation group for the given "id". */
-	struct m0_cm_aggr_group *(*cmo_ag_alloc) (struct m0_cm *cm,
-						  struct m0_cm_ag_id *id);
 	/**
 	 * Iterates over the copy machine data set and populates the copy packet
 	 * with meta data of next data object to be restructured, i.e. fid,

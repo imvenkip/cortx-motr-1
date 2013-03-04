@@ -115,11 +115,15 @@ M0_INTERNAL int m0_cm_ag_id_cmp(const struct m0_cm_ag_id *id0,
 				const struct m0_cm_ag_id *id1);
 /**
  * Searches for an aggregation group for the given "id" in
- * m0_cm::cm_aggr_groups, creates a new one if not found and returns it.
+ * m0_cm::cm_aggr_groups.
  */
-M0_INTERNAL struct m0_cm_aggr_group *m0_cm_aggr_group_find(struct m0_cm *cm,
-							   const struct
-							   m0_cm_ag_id *id);
+M0_INTERNAL struct m0_cm_aggr_group *m0_cm_aggr_group_locate(struct m0_cm *cm,
+							     const struct
+							     m0_cm_ag_id *id);
+
+M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
+				       const struct m0_cm_ag_id *id,
+				       struct m0_cm_aggr_group **out);
 
 /**
  * Adds an aggregation group to a copy machine's list of aggregation groups -

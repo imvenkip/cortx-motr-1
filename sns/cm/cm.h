@@ -102,6 +102,8 @@ struct m0_sns_cm {
 	/** Operation that sns copy machine is going to execute. */
 	enum m0_sns_cm_op          sc_op;
 
+	uint64_t                   sc_failures_nr;
+
 	/** SNS copy machine data iterator. */
 	struct m0_sns_cm_iter      sc_it;
 
@@ -133,7 +135,11 @@ M0_INTERNAL void m0_sns_cm_buffer_put(struct m0_net_buffer_pool *bp,
 					  struct m0_net_buffer *buf,
 					  uint64_t colour);
 
+M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_sns_cm *scm, struct m0_cm_cp *cp);
+
 M0_INTERNAL struct m0_sns_cm *cm2sns(struct m0_cm *cm);
+
+M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm);
 
 /** @} SNSCM */
 #endif /* __MERO_SNS_CM_CM_H__ */

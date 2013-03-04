@@ -106,9 +106,9 @@ M0_INTERNAL void m0_cm_aggr_group_fini(struct m0_cm_aggr_group *ag)
 	M0_LEAVE();
 }
 
-M0_INTERNAL struct m0_cm_aggr_group *m0_cm_aggr_group_find(struct m0_cm *cm,
-							   const struct
-							   m0_cm_ag_id *id)
+M0_INTERNAL struct m0_cm_aggr_group *m0_cm_aggr_group_locate(struct m0_cm *cm,
+							     const struct
+							     m0_cm_ag_id *id)
 {
 	struct m0_cm_aggr_group *ag;
 
@@ -148,6 +148,25 @@ M0_INTERNAL void m0_cm_aggr_group_add(struct m0_cm *cm,
 	} m0_tl_endfor;
 	aggr_grps_tlist_add_tail(&cm->cm_aggr_grps, ag);
 	M0_LEAVE();
+}
+
+M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
+				       const struct m0_cm_ag_id *id,
+				       struct m0_cm_aggr_group **out)
+{
+	int rc;
+
+	M0_ENTRY("cm: %p", cm);
+	M0_PRE(cm != NULL && id != NULL);
+	M0_PRE(m0_cm_is_locked(cm));
+
+	rc = cm->cm_ops->cmo_ag_alloc(cm, id, out);
+	if (rc == 0) {
+		M0_ASSERT(*out != NULL);
+		m0_cm_aggr_group_add(cm, *out);
+	}
+
+	return rc;
 }
 
 M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_hi(struct m0_cm *cm)

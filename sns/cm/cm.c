@@ -39,6 +39,7 @@
 #include "cm/ag.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
+#include "sns/cm/ag.h"
 
 /**
   @page SNSCMDLD SNS copy machine DLD
@@ -452,6 +453,7 @@ static int cm_start(struct m0_cm *cm)
 	enum m0_pool_nd_state  pm_state;
 	int                    bufs_nr;
 	int                    rc;
+	int                    i;
 
 	M0_ENTRY("cm: %p", cm);
 
@@ -472,20 +474,27 @@ static int cm_start(struct m0_cm *cm)
 
 	pm_state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRING :
 					      M0_PNDS_SNS_REBALANCING;
-	if (pm_state == M0_PNDS_SNS_REPAIRING) {
-		rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
-					     scm->sc_it.si_fdata,
-					     M0_PNDS_FAILED);
-		if (rc != 0)
-			return rc;
+	if (scm->sc_op == SNS_REPAIR)
+		M0_CNT_INC(scm->sc_failures_nr);
+
+	for (i = 0; i < scm->sc_failures_nr; ++i) {
+		if (pm_state == M0_PNDS_SNS_REPAIRING) {
+			rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
+						     scm->sc_it.si_fdata[i],
+						     M0_PNDS_FAILED);
+			if (rc != 0)
+				return rc;
+		}
 	}
 
 	rc = m0_sns_cm_iter_init(&scm->sc_it);
 	if (rc == 0) {
 		m0_cm_sw_fill(cm);
-               rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
-					    scm->sc_it.si_fdata,
-					    pm_state);
+		for (i = 0; i < scm->sc_failures_nr; ++i) {
+			rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
+						     scm->sc_it.si_fdata[i],
+						     pm_state);
+		}
 
 	}
 
@@ -497,6 +506,7 @@ static int cm_stop(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm;
 	enum m0_pool_nd_state  pm_state;
+	int                    i;
 
 	M0_PRE(cm != NULL);
 
@@ -505,8 +515,10 @@ static int cm_stop(struct m0_cm *cm)
 	pm_state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRED :
 					      M0_PNDS_SNS_REBALANCED;
 	m0_sns_cm_iter_fini(&scm->sc_it);
-        pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE, scm->sc_it.si_fdata,
-                                pm_state);
+	for (i = 0; i < scm->sc_failures_nr; ++i) {
+		pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
+					scm->sc_it.si_fdata[i], pm_state);
+	}
 
 	return 0;
 }
@@ -535,10 +547,49 @@ static void cm_complete(struct m0_cm *cm)
 	m0_chan_signal_lock(&scm->sc_stop_wait);
 }
 
+M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_sns_cm *scm, struct m0_cm_cp *cp)
+{
+	struct m0_net_buffer *buf;
+	size_t                colour;
+	uint32_t              seg_nr;
+	uint32_t              rem_bufs;
+
+	colour =  cp_home_loc_helper(cp) % scm->sc_obp.nbp_colours_nr;
+	seg_nr = cp->c_data_seg_nr;
+	rem_bufs = seg_nr % scm->sc_obp.nbp_seg_nr ?
+		   seg_nr / scm->sc_obp.nbp_seg_nr + 1 :
+		   seg_nr / scm->sc_obp.nbp_seg_nr;
+	rem_bufs -= cp->c_buf_nr;
+	while (rem_bufs > 0) {
+		buf = m0_cm_buffer_get(&scm->sc_obp, colour);
+		if (buf == NULL)
+			return -ENOBUFS;
+		m0_cm_cp_buf_add(cp, buf);
+		M0_CNT_DEC(rem_bufs);
+	}
+
+	return 0;
+}
+
+M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm)
+{
+	struct m0_sns_cm_pdclust_layout *spl = &scm->sc_it.si_pl;
+
+	M0_PRE(scm != NULL);
+
+	return m0_pdclust_unit_size(spl->spl_base) %
+	       scm->sc_obp.nbp_seg_size ?
+	       m0_pdclust_unit_size(spl->spl_base) /
+	       scm->sc_obp.nbp_seg_size + 1 :
+	       m0_pdclust_unit_size(spl->spl_base) /
+	       scm->sc_obp.nbp_seg_size;
+}
+
 /** Copy machine operations. */
 const struct m0_cm_ops cm_ops = {
 	.cmo_setup         = cm_setup,
 	.cmo_start         = cm_start,
+	.cmo_ag_alloc      = m0_sns_cm_ag_alloc,
 	.cmo_cp_alloc      = cm_cp_alloc,
 	.cmo_data_next     = m0_sns_cm_iter_next,
 	.cmo_complete      = cm_complete,

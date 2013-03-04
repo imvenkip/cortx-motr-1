@@ -42,13 +42,17 @@ static struct m0_net_buffer_pool  nbp;
 
 /* Global structures for single copy packet test. */
 static struct m0_sns_cm_ag  s_sag;
+static struct m0_sns_cm_cp  s_acc_cp;
 static struct m0_cm_cp      s_cp;
 static struct m0_net_buffer s_buf;
+static struct m0_net_buffer s_acc_buf;
 
 /* Global structures for multiple copy packet test. */
 static struct m0_sns_cm_ag  m_sag;
+static struct m0_sns_cm_cp  m_acc_cp;
 static struct m0_cm_cp      m_cp[CP_MULTI];
 static struct m0_net_buffer m_buf[CP_MULTI];
+static struct m0_net_buffer m_acc_buf;
 
 /* Global structures for testing bufvec xor correctness. */
 struct m0_bufvec src;
@@ -89,17 +93,31 @@ static int dummy_fom_tick(struct m0_fom *fom)
 		m0_fom_phase_set(fom, M0_CCP_XFORM);
 		m0_semaphore_up(&sem);
 		return cp->c_ops->co_action[M0_CCP_XFORM](cp);
-	case M0_CCP_FINI:
-		return M0_FSO_WAIT;
 	case M0_CCP_WRITE:
 		m0_fom_phase_set(fom, M0_CCP_IO_WAIT);
 		return M0_FSO_AGAIN;
 	case M0_CCP_IO_WAIT:
 		m0_fom_phase_set(fom, M0_CCP_FINI);
 		return M0_FSO_WAIT;
-	case M0_CCP_XFORM_WAIT:
+	default:
+		M0_IMPOSSIBLE("Bad State");
+		return 0;
+	}
+}
+
+static int dummy_acc_cp_fom_tick(struct m0_fom *fom)
+{
+	switch (m0_fom_phase(fom)) {
+	case M0_FOM_PHASE_INIT:
 		m0_fom_phase_set(fom, M0_CCP_WRITE);
+		m0_semaphore_up(&sem);
 		return M0_FSO_AGAIN;
+	case M0_CCP_WRITE:
+		m0_fom_phase_set(fom, M0_CCP_IO_WAIT);
+		return M0_FSO_AGAIN;
+	case M0_CCP_IO_WAIT:
+		m0_fom_phase_set(fom, M0_CCP_FINI);
+		return M0_FSO_WAIT;
 	default:
 		M0_IMPOSSIBLE("Bad State");
 		return 0;
@@ -125,14 +143,15 @@ static void single_cp_fom_fini(struct m0_fom *fom)
 static void multiple_cp_fom_fini(struct m0_fom *fom)
 {
 	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
+	struct m0_sns_cm_ag *sag = ag2snsag(cp->c_ag);
 
 	/*
 	 * If the copy packet to be finalised is the resultant copy packet,
 	 * i.e. the last copy packet, check if it's corresponding bitmap
 	 * is full.
 	 */
-	if (cp_fini_nr == CP_MULTI - 1)
-		M0_UT_ASSERT(res_cp_bitmap_is_full(cp));
+	if (cp_fini_nr == CP_MULTI + 1)
+		M0_UT_ASSERT(res_cp_bitmap_is_full(&sag->sag_accs[0].sc_base));
 	m0_cm_cp_fini(cp);
 	M0_CNT_INC(cp_fini_nr);
 }
@@ -143,6 +162,14 @@ static struct m0_fom_ops single_cp_fom_ops = {
 	.fo_tick          = dummy_fom_tick,
 	.fo_home_locality = dummy_fom_locality,
 	.fo_addb_init     = dummy_fom_addb_init
+};
+
+static struct m0_fom_ops acc_cp_fom_ops = {
+	.fo_fini          = single_cp_fom_fini,
+	.fo_tick          = dummy_acc_cp_fom_tick,
+	.fo_home_locality = dummy_fom_locality,
+	.fo_addb_init     = dummy_fom_addb_init
+
 };
 
 /* Over-ridden copy packet FOM ops. */
@@ -161,9 +188,14 @@ static void test_single_cp(void)
 {
 	m0_semaphore_init(&sem, 0);
 	s_sag.sag_base.cag_transformed_cp_nr = 0;
+	s_sag.sag_fnr = 1;
+	s_acc_buf.nb_pool = &nbp;
 	s_buf.nb_pool = &nbp;
 	cp_prepare(&s_cp, &s_buf, SEG_NR, SEG_SIZE, &s_sag, 'e',
-		   &single_cp_fom_ops, reqh, 0);
+		   &single_cp_fom_ops, reqh, 0, false);
+	cp_prepare(&s_acc_cp.sc_base, &s_acc_buf, SEG_NR, SEG_SIZE, &s_sag, 0,
+		   &acc_cp_fom_ops, reqh, 0, true);
+	s_sag.sag_accs = &s_acc_cp;
 	s_cp.c_ag->cag_ops = &group_single_ops;
 	s_cp.c_ag->cag_cp_local_nr = s_cp.c_ag->cag_ops->cago_local_cp_nr(
 								s_cp.c_ag);
@@ -183,7 +215,7 @@ static void test_single_cp(void)
 	 * These asserts ensure that the single copy packet has been treated
 	 * as passthrough.
 	 */
-	M0_UT_ASSERT(s_sag.sag_base.cag_transformed_cp_nr == 0);
+	M0_UT_ASSERT(s_sag.sag_base.cag_transformed_cp_nr == 1);
 	M0_UT_ASSERT(s_sag.sag_base.cag_cp_local_nr == 1);
 	m0_semaphore_fini(&sem);
 	bv_free(&s_buf.nb_buffer);
@@ -199,10 +231,15 @@ static void test_multiple_cp(void)
 
 	m0_semaphore_init(&sem, 0);
 	m_sag.sag_base.cag_transformed_cp_nr = 0;
+	m_sag.sag_fnr = 1;
+	m_acc_buf.nb_pool = &nbp;
+	cp_prepare(&m_acc_cp.sc_base, &m_acc_buf, SEG_NR, SEG_SIZE,
+		   &m_sag, 0, &acc_cp_fom_ops, reqh, 0, true);
+	m_sag.sag_accs = &m_acc_cp;
 	for (i = 0; i < CP_MULTI; ++i) {
 		m_buf[i].nb_pool = &nbp;
 		cp_prepare(&m_cp[i], &m_buf[i], SEG_NR, SEG_SIZE, &m_sag, 'r',
-			   &multiple_cp_fom_ops, reqh, i);
+			   &multiple_cp_fom_ops, reqh, i, false);
 		m_cp[i].c_ag->cag_ops = &group_multi_ops;
 		m_cp[i].c_ag->cag_cp_local_nr =
 			m_cp[i].c_ag->cag_ops->cago_local_cp_nr(m_cp[i].c_ag);
@@ -262,7 +299,7 @@ static void test_bufvec_xor()
 	 * 4 XOR D = p
 	 */
 	bv_populate(&xor, 'p', SEG_NR, SEG_SIZE);
-	bufvec_xor(&dst, &src, SEG_SIZE * SEG_NR);
+	bufvec_xor(&src, &dst, SEG_SIZE * SEG_NR);
 	bv_compare(&dst, &xor, SEG_NR, SEG_SIZE);
 	bv_free(&src);
 	bv_free(&dst);

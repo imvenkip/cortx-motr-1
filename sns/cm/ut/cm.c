@@ -50,7 +50,7 @@
 #include "sns/cm/ag.h"
 
 enum {
-	ITER_UT_BUF_NR     = 1 << 4,
+	ITER_UT_BUF_NR     = 1 << 5,
 	ITER_GOB_KEY_START = 4,
 	ITER_64K           = 65536,
 	ITER_1M            = 1048576,
@@ -212,12 +212,6 @@ static void cob_delete(uint64_t cont, uint64_t key)
 
 static void buf_put(struct m0_sns_cm_cp *scp)
 {
-/*
-	m0_sns_cm_buffer_put(&scm->sc_obp, container_of(scp->sc_base.c_data,
-							struct m0_net_buffer,
-							nb_buffer),
-			     0);
-*/
 	m0_cm_cp_buf_release(&scp->sc_base);
 }
 
@@ -262,23 +256,29 @@ static void cobs_delete(uint64_t nr_files, uint64_t nr_cobs)
 static int iter_run(uint64_t pool_width, uint64_t nr_files, uint64_t *fsizes,
 		    uint64_t fdata, enum m0_sns_cm_op op)
 {
-	struct m0_sns_cm_cp scp;
-	int                 rc;
+	struct m0_sns_cm_cp  scp;
+	struct m0_sns_cm_ag *sag;
+	int                  rc;
+	int                  i;
 
 	cobs_create(nr_files, pool_width);
 	m0_trigger_file_sizes_save(nr_files, fsizes);
 	/* Set fail device. */
-	scm->sc_it.si_fdata = fdata;
+	scm->sc_it.si_fdata = &fdata;
 	scm->sc_op = op;
+	scm->sc_failures_nr = 1;
 	m0_cm_lock(cm);
 	do {
 		M0_SET0(&scp);
-		m0_cm_cp_init(&scp.sc_base);
 		scp.sc_base.c_ops = &m0_sns_cm_cp_ops;
+		m0_cm_cp_init(cm, &scp.sc_base);
 		scm->sc_it.si_cp = &scp;
 		rc = m0_sns_cm_iter_next(cm, &scp.sc_base);
 		if (rc == M0_FSO_AGAIN) {
 			M0_UT_ASSERT(cp_verify(&scp));
+			sag = ag2snsag(scp.sc_base.c_ag);
+			for (i = 0; i < sag->sag_fnr; ++i)
+				buf_put(&sag->sag_accs[i]);
 			buf_put(&scp);
 			cp_data_buf_tlist_fini(&scp.sc_base.c_buffers);
 		}

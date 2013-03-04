@@ -34,8 +34,6 @@
  * @{
  */
 
-M0_INTERNAL void m0_sns_cm_acc_cp_init_and_post(struct m0_cm_cp *cp);
-
 /**
  * Number of failed disks.
  * @todo Replace this with information received from trigger fop, once it is
@@ -55,7 +53,7 @@ enum {
  * @param src - source bufvec.
  * @param num_bytes - size of bufvec
  */
-static void bufvec_xor(struct m0_bufvec *dst, struct m0_bufvec *src,
+static void bufvec_xor(struct m0_bufvec *src, struct m0_bufvec *dst,
 		       m0_bcount_t num_bytes)
 {
         struct m0_bufvec_cursor s_cur;
@@ -109,7 +107,7 @@ static void bufvecs_xor(struct m0_cm_cp *src_cp, struct m0_cm_cp *dst_cp)
 		rem_data_size = (src_cp->c_data_seg_nr * nbp->nbp_seg_size) -
 				buf_size;
 		buf_size = nbp->nbp_seg_nr * nbp->nbp_seg_size;
-		bufvec_xor(&dst_nbuf->nb_buffer, &src_nbuf->nb_buffer,
+		bufvec_xor(&src_nbuf->nb_buffer, &dst_nbuf->nb_buffer,
 			   min64u(buf_size, rem_data_size));
 	}
 }
@@ -133,16 +131,8 @@ static bool res_cp_bitmap_is_full(struct m0_cm_cp *cp)
 			    true : false;
 }
 
-/** Wakes up the copy packet fom by assigning the next phase. */
-static void res_cp_fom_wakeup(struct m0_cm_cp *cp)
-{
-	M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_XFORM_WAIT);
-
-	m0_fom_wakeup(&cp->c_fom);
-}
-
 /** Merges the source bitmap to the destination bitmap. */
-static void res_cp_bitmap_merge(struct m0_cm_cp *dst, struct m0_cm_cp *src)
+static void res_cp_bitmap_merge(struct m0_cm_cp *src, struct m0_cm_cp *dst)
 {
 	int i;
 
@@ -154,16 +144,15 @@ static void res_cp_bitmap_merge(struct m0_cm_cp *dst, struct m0_cm_cp *src)
 	}
 }
 
-M0_INTERNAL int m0_sns_cm_cp_xform_wait(struct m0_cm_cp *cp)
-{
-	cp->c_ops->co_phase_next(cp);
-	m0_sns_cm_acc_cp_init_and_post(cp);
-	m0_fom_phase_set(&cp->c_fom, M0_CCP_FINI);
-	return M0_FSO_WAIT;
-}
-
 /**
  * Transformation function for sns repair.
+ * Performs transformation between the accumulator and the given copy packet.
+ * Once all the data/parity copy packets are transformed, the accumulator
+ * copy packet is posted for further execution. Thus if there exist multiple
+ * accumulator copy packets (i.e. in-case multiple units of an aggregation
+ * group are failed and need to be recovered, provided k > 1), then the same
+ * set of local data copy packets are transformed into multiple accumulators
+ * for a given aggregation group.
  *
  * @pre cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_XFORM
  * @param cp Copy packet that has to be transformed.
@@ -173,60 +162,37 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 	struct m0_sns_cm_ag     *sns_ag;
 	struct m0_cm_aggr_group *ag;
 	struct m0_cm_cp         *res_cp;
+	struct m0_sns_cm        *scm;
 	int                      rc;
+	int                      i;
 
 	M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_XFORM);
 
 	ag = cp->c_ag;
+	scm = cm2sns(ag->cag_cm);
 	sns_ag = ag2snsag(ag);
 	m0_cm_ag_lock(ag);
-	res_cp = sns_ag->sag_cp;
-	if (res_cp == NULL) {
+
+	/* Increment number of transformed copy packets in the accumulator. */
+	M0_CNT_INC(ag->cag_transformed_cp_nr);
+	M0_ASSERT(ag->cag_cp_local_nr >= ag->cag_transformed_cp_nr);
+
+	for (i = 0; i < sns_ag->sag_fnr; ++i) {
+		res_cp = &sns_ag->sag_accs[i].sc_base;
 		/*
-		 * If there is only one copy packet in the aggregation group,
-		 * call the next phase of the copy packet fom.
+		 * Initialise the bitmap representing the copy packets
+		 * which will be transformed into the resultant copy
+		 * packet.
 		 */
-		if (ag->cag_cp_local_nr > 1) {
-			/*
-			 * If this is the first copy packet for this aggregation
-			 * group, (with more copy packets from same aggregation
-			 * group yet to be transformed), store it's pointer in
-			 * m0_sns_cm_ag::sag_cp. This copy packet will be used
-			 * as a resultant copy packet for transformation.
-			 */
-			sns_ag->sag_cp = cp;
-			/*
-			 * Value of collected copy packets is zero at this
-			 * stage, hence incrementing it will work fine.
-			 */
-			M0_CNT_INC(ag->cag_transformed_cp_nr);
+		m0_bitmap_init(&res_cp->c_xform_cp_indices,
+			       ag->cag_cp_global_nr);
 
-			/*
-			 * Initialise the bitmap representing the copy packets
-			 * which will be transformed into the resultant copy
-			 * packet.
-			 */
-			m0_bitmap_init(&cp->c_xform_cp_indices,
-				       ag->cag_cp_global_nr);
-
-			/*
-			 * The resultant copy packet also includes partial
-			 * parity of itself. Hence set the bit value of its own
-			 * index in the transformation bitmap.
-			 */
-			m0_bitmap_set(&cp->c_xform_cp_indices, cp->c_ag_cp_idx,
-				      true);
-
-		}
-		/*
-		 * Put this copy packet to wait queue of request handler till
-		 * transformation of all copy packets belonging to the
-		 * aggregation group is complete.
-		 */
-		rc = cp->c_ops->co_phase_next(cp);
-	} else {
 		bufvecs_xor(cp, res_cp);
-		M0_CNT_INC(ag->cag_transformed_cp_nr);
+		/*
+		 * The resultant copy packet also includes partial
+		 * parity of itself. Hence set the bit value of its own
+		 * index in the transformation bitmap.
+		 */
 		m0_bitmap_set(&res_cp->c_xform_cp_indices, cp->c_ag_cp_idx,
 			      true);
 		/*
@@ -236,20 +202,9 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 		 * packet which has arrived from some remote node.
 		 */
 		if (cp->c_xform_cp_indices.b_nr > 0)
-			res_cp_bitmap_merge(res_cp, cp);
-
-		M0_ASSERT(ag->cag_cp_local_nr >= ag->cag_transformed_cp_nr);
-		/*
-		 * Once transformation is complete, mark the copy
-		 * packet's fom's sm state to M0_CCP_FINI since it is not
-		 * needed anymore. This copy packet will be freed during
-		 * M0_CCP_FINI phase execution.
-		 */
-		m0_fom_phase_set(&cp->c_fom, M0_CCP_FINI);
+			res_cp_bitmap_merge(cp, res_cp);
 		/*
 		 * If all copy packets are processed at this stage,
-		 * move the resultant copy packet's fom from waiting to ready
-		 * queue.
 		 * For incoming path i.e. when the next-to-next phase of the
 		 * resultant copy packet is STORAGE-OUT, transformation can be
 		 * marked as complete if bitmap of transformed copy packets
@@ -264,11 +219,19 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 							&res_cp->c_fom),
 						NULL), NULL) == M0_CCP_WRITE) {
 			if (res_cp_bitmap_is_full(res_cp))
-				res_cp_fom_wakeup(res_cp);
+				m0_cm_cp_enqueue(res_cp->c_ag->cag_cm, res_cp);
 		} else if (ag->cag_cp_local_nr == ag->cag_transformed_cp_nr)
-			res_cp_fom_wakeup(res_cp);
-		rc = M0_FSO_WAIT;
+			m0_cm_cp_enqueue(res_cp->c_ag->cag_cm, res_cp);
 	}
+
+	/*
+	 * Once transformation is complete, mark the copy
+	 * packet's fom's sm state to M0_CCP_FINI since it is not
+	 * needed anymore. This copy packet will be freed during
+	 * M0_CCP_FINI phase execution.
+	 */
+	m0_fom_phase_set(&cp->c_fom, M0_CCP_FINI);
+	rc = M0_FSO_WAIT;
 	m0_cm_ag_unlock(ag);
 
 	return rc;

@@ -26,7 +26,7 @@
 #include "cm/cp.h"
 #include "cm/cp.c"
 #include "sns/cm/cp.h"
-#include "sns/cm/cp.c"
+//#include "sns/cm/cp.c"
 #include "cm/ag.h"
 #include "cm/ut/common_service.h"
 
@@ -95,7 +95,6 @@ M0_REQH_SERVICE_TYPE_DEFINE(ut_cp_service_type,
 static struct m0_sns_cm_cp m_sns_cp[THREADS_NR];
 static struct m0_cm_aggr_group m_ag[THREADS_NR];
 static struct m0_net_buffer m_nb[THREADS_NR];
-//static struct m0_bufvec m_bv[THREADS_NR];
 
 static int dummy_cp_read(struct m0_cm_cp *cp)
 {
@@ -123,7 +122,8 @@ static int dummy_cp_xform(struct m0_cm_cp *cp)
 
 static int dummy_cp_init(struct m0_cm_cp *cp)
 {
-	int rc = cp_init(cp);
+	int rc = m0_sns_cm_cp_init(cp);
+
 	m0_semaphore_up(&sem);
 	return rc;
 }
@@ -135,7 +135,6 @@ const struct m0_cm_cp_ops m0_sns_cm_cp_dummy_ops = {
                 [M0_CCP_WRITE]      = &dummy_cp_write,
                 [M0_CCP_IO_WAIT]    = &dummy_cp_io_wait,
                 [M0_CCP_XFORM]      = &dummy_cp_xform,
-                [M0_CCP_XFORM_WAIT] = &dummy_cp_xform,
                 [M0_CCP_SEND]       = &m0_sns_cm_cp_send,
                 [M0_CCP_RECV]       = &m0_sns_cm_cp_recv,
                 [M0_CCP_FINI]       = &m0_sns_cm_cp_fini,
@@ -198,8 +197,7 @@ static void cp_post(struct m0_sns_cm_cp *sns_cp, struct m0_cm_aggr_group *ag,
 	cp->c_ag = ag;
 	sns_cp->sc_sid = sid;
 	cp->c_ops = &m0_sns_cm_cp_dummy_ops;
-	m0_cm_cp_init(cp);
-	m0_cm_cp_fom_init(cp);
+	m0_cm_cp_init(ag->cag_cm, cp);
 	/* Over-ride the fom ops. */
 	cp->c_fom.fo_ops = &dummy_cp_fom_ops;
 	m0_cm_cp_buf_add(cp, nb);
@@ -213,22 +211,11 @@ static void cp_post(struct m0_sns_cm_cp *sns_cp, struct m0_cm_aggr_group *ag,
  */
 static void test_cp_single_thread(void)
 {
-	int rc;
-
-	rc = m0_cm_start(&cm_ut);
-	M0_ASSERT(rc == 0);
 	m0_semaphore_init(&sem, 0);
 	s_ag.cag_cm = &cm_ut;
 	s_ag.cag_cp_local_nr = 1;
 	s_nb.nb_pool = &nbp;
 	cp_post(&s_sns_cp, &s_ag, &s_nb);
-
-	while (m0_fom_domain_is_idle(&cm_ut_reqh.rh_fom_dom) ||
-	       !m0_cm_cp_pump_is_complete(&cm_ut.cm_cp_pump))
-		usleep(200);
-
-	rc = m0_cm_stop(&cm_ut);
-	M0_ASSERT(rc == 0);
 
         /*
          * Wait until all the foms in the request handler locality runq are
@@ -253,11 +240,7 @@ static void cp_op(const int tid)
 static void test_cp_multi_thread(void)
 {
 	int               i;
-	int               rc;
 	struct m0_thread *cp_thread;
-
-	rc = m0_cm_start(&cm_ut);
-	M0_ASSERT(rc == 0);
 
 	m0_semaphore_init(&sem, 0);
 
@@ -271,13 +254,6 @@ static void test_cp_multi_thread(void)
 
 	for (i = 0; i < THREADS_NR; ++i)
 		m0_thread_join(&cp_thread[i]);
-
-	while (m0_fom_domain_is_idle(&cm_ut_reqh.rh_fom_dom) ||
-	       !m0_cm_cp_pump_is_complete(&cm_ut.cm_cp_pump))
-		usleep(200);
-
-	rc = m0_cm_stop(&cm_ut);
-	M0_ASSERT(rc == 0);
         /*
          * Wait until all the foms in the request handler locality runq are
          * processed.

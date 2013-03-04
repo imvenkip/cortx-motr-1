@@ -67,15 +67,6 @@ enum {
         SNS_REPAIR_ITER_MAGIX = 0x33BAADF00DCAFE77,
 };
 
-/**
- * Default hard coded file fid for a single file repair.
- * This will be removed and name space iterator mechanism will be used.
- */
-static const struct m0_fid default_single_file_fid = {
-	.f_container = 0,
-	.f_key = 4
-};
-
 static const struct m0_bob_type iter_bob = {
 	.bt_name = "sns cm data iterator",
 	.bt_magix_offset = M0_MAGIX_OFFSET(struct m0_sns_cm_iter, si_magix),
@@ -128,6 +119,13 @@ enum cm_data_iter_phase {
 	 */
 	ITPH_CP_SETUP,
 	/**
+	 * Once the aggregation group is created and initialised, we need to
+	 * acquire buffers for accumulator copy packets in the aggregation group.
+	 * This operation may block.
+	 * @see m0_sns_cm_ag::sag_accs
+	 */
+	ITPH_AG_SETUP,
+	/**
 	 * Iterator is finalised after the sns repair operation is complete.
 	 * This is done as part of m0_cm_stop().
 	 */
@@ -144,13 +142,33 @@ M0_INTERNAL struct m0_sns_cm *it2sns(struct m0_sns_cm_iter *it)
 	return container_of(it, struct m0_sns_cm, sc_it);
 }
 
+M0_INTERNAL uint64_t m0_sns_cm_iter_failures_nr(const struct m0_sns_cm_iter *it)
+{
+	return it->si_pl.spl_group_nr_fail_units;
+}
+
+static bool is_cob_failed(struct m0_sns_cm_iter *it,
+			  const struct m0_fid *cob_fid)
+{
+	struct m0_sns_cm *scm = it2sns(it);
+	int               i;
+
+	for (i = 0; i < scm->sc_failures_nr; ++i) {
+		if (cob_fid->f_container == it->si_fdata[i])
+			return true;
+	}
+
+	return false;
+}
+
 /**
- * Returns index of spare unit in the parity group.
+ * Returns index of spare unit in the parity group, given the failure index
+ * in the group.
  */
 static uint64_t __spare_unit_nr(const struct m0_sns_cm_pdclust_layout *spl,
-				uint64_t group)
+				uint64_t group, uint64_t fidx)
 {
-	return spl->spl_N + spl->spl_K + 1 - 1;
+	return spl->spl_N + spl->spl_K + fidx;
 }
 
 static uint64_t __unit_start(struct m0_sns_cm_iter *it)
@@ -163,7 +181,8 @@ static uint64_t __unit_start(struct m0_sns_cm_iter *it)
 		return 0;
 	case SNS_REBALANCE:
 		/* Start from the first spare unit of the group. */
-		return __spare_unit_nr(&it->si_pl, it->si_pl.spl_sa.sa_group);
+		return __spare_unit_nr(&it->si_pl, it->si_pl.spl_sa.sa_group,
+				       0);
 	default:
 		 M0_IMPOSSIBLE("op");
 	}
@@ -341,7 +360,7 @@ M0_INTERNAL uint64_t nr_local_units(struct m0_sns_cm *scm,
 		__unit_to_cobfid(spl->spl_base, spl->spl_pi, &sa, &ta, fid,
 				 &cobfid);
 		rc = cob_locate(it, &cobfid);
-		if (rc == 0 && cobfid.f_container != it->si_fdata)
+		if (rc == 0 && is_cob_failed(it, &cobfid))
 			++nrlu;
 	}
 
@@ -379,11 +398,11 @@ static uint64_t __group_failed_unit_index(const struct m0_sns_cm_pdclust_layout
 
 static uint64_t __target_unit_nr(const struct m0_sns_cm_pdclust_layout *spl,
 				 uint64_t group, uint64_t fdata,
-				 enum m0_sns_cm_op op)
+				 enum m0_sns_cm_op op, uint64_t fidx)
 {
 	switch (op) {
 	case SNS_REPAIR:
-		return __spare_unit_nr(spl, group);
+		return __spare_unit_nr(spl, group, fidx);
 	case SNS_REBALANCE:
 		return __group_failed_unit_index(spl, group, fdata);
 	default:
@@ -393,7 +412,7 @@ static uint64_t __target_unit_nr(const struct m0_sns_cm_pdclust_layout *spl,
 	return ~0;
 }
 
-M0_INTERNAL void target_unit_to_cob(struct m0_sns_cm_ag *sag)
+M0_INTERNAL void m0_sns_cm_iter_tgt_unit_to_cob(struct m0_sns_cm_ag *sag)
 {
 	struct m0_sns_cm                *scm = cm2sns(sag->sag_base.cag_cm);
 	struct m0_sns_cm_pdclust_layout *spl = &scm->sc_it.si_pl;
@@ -401,24 +420,27 @@ M0_INTERNAL void target_unit_to_cob(struct m0_sns_cm_ag *sag)
 	struct m0_pdclust_tgt_addr       ta;
 	struct m0_fid                    gobfid;
 	struct m0_fid                    cobfid;
+	uint64_t                         fidx;
 
-
-	M0_SET0(&ta);
-	M0_SET0(&cobfid);
-	agid2fid(&sag->sag_base, &gobfid);
-	M0_ASSERT(m0_fid_eq(&gobfid, &spl->spl_gob_fid));
-	sa.sa_group = agid2group(&sag->sag_base);
-	sa.sa_unit  = __target_unit_nr(spl, sa.sa_group, scm->sc_it.si_fdata,
-				       scm->sc_op);
-	__unit_to_cobfid(spl->spl_base, spl->spl_pi, &sa, &ta, &gobfid,
-			 &cobfid);
-	sag->sag_tgt_cobfid = cobfid;
-	sag->sag_tgt_cob_index = ta.ta_frame *
-				 m0_pdclust_unit_size(spl->spl_base);
+	for (fidx = 0; fidx < sag->sag_fnr; ++fidx) {
+		M0_SET0(&ta);
+		M0_SET0(&cobfid);
+		agid2fid(&sag->sag_base, &gobfid);
+		M0_ASSERT(m0_fid_eq(&gobfid, &spl->spl_gob_fid));
+		sa.sa_group = agid2group(&sag->sag_base);
+		sa.sa_unit  = __target_unit_nr(spl, sa.sa_group,
+					       scm->sc_it.si_fdata[fidx],
+					       scm->sc_op, fidx);
+		__unit_to_cobfid(spl->spl_base, spl->spl_pi, &sa, &ta, &gobfid,
+				 &cobfid);
+		sag->sag_tgts[fidx].tgt_cobfid = cobfid;
+		sag->sag_tgts[fidx].tgt_cob_index = ta.ta_frame *
+					m0_pdclust_unit_size(spl->spl_base);
+	}
 }
 
 /**
- * Calculates COB fid for m0_sns_cm_iter::si_pl::si_sa.
+ * Calculates COB fid for m0_sns_cm_pdclust_layout::spl_sa.
  * Saves calculated struct m0_pdclust_tgt_addr in
  * m0_sns_cm_pdclust_layout::spl_ta.
  */
@@ -541,22 +563,30 @@ static uint64_t nr_groups(struct m0_sns_cm_pdclust_layout *spl)
  */
 static int __group_next(struct m0_sns_cm_iter *it)
 {
+	struct m0_sns_cm                *scm = it2sns(it);
 	struct m0_sns_cm_pdclust_layout *spl;
 	struct m0_pdclust_src_addr      *sa;
 	struct m0_fid                    cob_fid;
 	uint64_t                         groups_nr;
 	uint64_t                         group;
 	uint64_t                         unit;
+	int                              i;
 
 	spl = &it->si_pl;
 	spl->spl_groups_nr = groups_nr = nr_groups(spl);
 	sa = &spl->spl_sa;
 	for (group = sa->sa_group; group < groups_nr; ++group) {
+		spl->spl_group_nr_fail_units = 0;
 		for (unit = 0; unit < spl->spl_dpupg; ++unit) {
 			spl->spl_sa.sa_unit = unit;
 			spl->spl_sa.sa_group = group;
 			unit_to_cobfid(spl, &cob_fid);
-			if (cob_fid.f_container == it->si_fdata) {
+			/* find number of failed units in this group. */
+			for (i = 0; i < scm->sc_failures_nr; ++i) {
+				if (cob_fid.f_container == it->si_fdata[i])
+					M0_CNT_INC(spl->spl_group_nr_fail_units);
+			}
+			if (spl->spl_group_nr_fail_units > 0){
 				spl->spl_sa.sa_unit = __unit_start(it);
 				iter_phase_set(it, ITPH_COB_NEXT);
 				goto out;
@@ -594,30 +624,6 @@ static int iter_group_next(struct m0_sns_cm_iter *it)
 	return rc;
 }
 
-static int cm_buf_attach(struct m0_sns_cm *scm, struct m0_cm_cp *cp)
-{
-	struct m0_net_buffer *buf;
-	size_t                colour;
-	uint32_t              seg_nr;
-	uint32_t              rem_bufs;
-
-	colour =  cp_home_loc_helper(cp) % scm->sc_obp.nbp_colours_nr;
-	seg_nr = cp->c_data_seg_nr;
-	rem_bufs = seg_nr % scm->sc_obp.nbp_seg_nr ?
-		   seg_nr / scm->sc_obp.nbp_seg_nr + 1 :
-		   seg_nr / scm->sc_obp.nbp_seg_nr;
-	rem_bufs -= cp->c_buf_nr;
-	while (rem_bufs > 0) {
-		buf = m0_cm_buffer_get(&scm->sc_obp, colour);
-		if (buf == NULL)
-			return -ENOBUFS;
-		m0_cm_cp_buf_add(cp, buf);
-		--rem_bufs;
-	}
-
-	return 0;
-}
-
 static void agid_setup(const struct m0_fid *gob_fid, uint64_t group,
 		       struct m0_cm_ag_id *agid)
 {
@@ -627,15 +633,29 @@ static void agid_setup(const struct m0_fid *gob_fid, uint64_t group,
 	agid->ai_lo.u_lo = group;
 }
 
-static void __cp_setup(struct m0_sns_cm_cp *scp,
-		       const struct m0_fid *cob_fid, uint64_t stob_offset,
-		       struct m0_cm_aggr_group *ag, uint64_t ag_cp_idx)
+/**
+ * Configures aggregation group, acquires buffers for accumulator copy packets.
+ *
+ * @see struct m0_sns_cm_ag::sag_accs
+ * @see m0_sns_cm_ag_setup()
+ */
+static int iter_ag_setup(struct m0_sns_cm_iter *it)
 {
-	scp->sc_sid.si_bits.u_hi = cob_fid->f_container;
-	scp->sc_sid.si_bits.u_lo = cob_fid->f_key;
-	scp->sc_index = stob_offset;
-	scp->sc_base.c_ag = ag;
-	scp->sc_base.c_ag_cp_idx = ag_cp_idx;
+	struct m0_sns_cm                *scm = it2sns(it);
+	struct m0_sns_cm_pdclust_layout *spl = &it->si_pl;
+	struct m0_cm_aggr_group         *ag;
+	struct m0_sns_cm_ag             *sag;
+	struct m0_cm_ag_id               agid;
+	int                              rc;
+
+	agid_setup(&spl->spl_gob_fid, spl->spl_sa.sa_group, &agid);
+	ag = m0_cm_aggr_group_locate(&scm->sc_base, &agid);
+	sag = ag2snsag(ag);
+	rc = m0_sns_cm_ag_setup(sag);
+	if (rc == 0)
+		iter_phase_set(it, ITPH_CP_SETUP);
+
+	return rc;
 }
 
 /**
@@ -643,9 +663,9 @@ static void __cp_setup(struct m0_sns_cm_cp *scp,
  */
 static int iter_cp_setup(struct m0_sns_cm_iter *it)
 {
-	struct m0_cm_ag_id               agid;
-	struct m0_sns_cm_ag             *rag;
 	struct m0_sns_cm                *scm = it2sns(it);
+	struct m0_cm_ag_id               agid;
+	struct m0_cm_aggr_group         *ag;
 	struct m0_sns_cm_pdclust_layout *spl;
 	struct m0_sns_cm_cp             *scp;
 	uint64_t                         stob_offset;
@@ -654,36 +674,32 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 
 	spl = &it->si_pl;
 	agid_setup(&spl->spl_gob_fid, spl->spl_sa.sa_group, &agid);
-	rag = m0_sns_cm_ag_find(scm, &agid);
-
-	if (rag == NULL)
-		return -EINVAL;
+	ag = m0_cm_aggr_group_locate(&scm->sc_base, &agid);
+	if (ag == NULL) {
+		rc = m0_cm_aggr_group_alloc(&scm->sc_base, &agid,
+					    &ag);
+		if (rc == 0)
+			iter_phase_set(it, ITPH_AG_SETUP);
+		return rc;
+	}
 	if ((!spl->spl_cob_is_spare_unit && op == SNS_REPAIR) ||
 	    (spl->spl_cob_is_spare_unit && op == SNS_REBALANCE)) {
 		stob_offset = spl->spl_ta.ta_frame *
 			      m0_pdclust_unit_size(spl->spl_base);
 		scp = it->si_cp;
-		scp->sc_base.c_data_seg_nr =
-				m0_pdclust_unit_size(spl->spl_base) %
-				scm->sc_obp.nbp_seg_size ?
-				m0_pdclust_unit_size(spl->spl_base) /
-				scm->sc_obp.nbp_seg_size + 1 :
-				m0_pdclust_unit_size(spl->spl_base) /
-				scm->sc_obp.nbp_seg_size;
-		rag->sag_base.cag_cp_global_nr = spl->spl_dpupg;
+		scp->sc_base.c_ag = ag;
+		ag->cag_cp_global_nr = spl->spl_dpupg;
 		/*
 		 * spl->spl_sa.sa_unit has gotten one index ahead. Hence actual
 		 * index of the copy packet is (spl->spl_sa.sa_unit - 1).
 		 */
-		__cp_setup(scp, &spl->spl_cob_fid, stob_offset, &rag->sag_base,
-			   spl->spl_sa.sa_unit - 1);
-		rc = cm_buf_attach(scm, &scp->sc_base);
+		rc = m0_sns_cm_cp_setup(scp, &spl->spl_cob_fid, stob_offset,
+					spl->spl_sa.sa_unit - 1);
 		if (rc < 0)
 			return rc;
 
 		rc = M0_FSO_AGAIN;
 	}
-
 	iter_phase_set(it, ITPH_COB_NEXT);
 
 	return rc;
@@ -729,7 +745,7 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 		rc = cob_locate(it, cob_fid);
 		++sa->sa_unit;
 	} while (rc == -ENOENT ||
-		 cob_fid->f_container == it->si_fdata);
+		 is_cob_failed(it, cob_fid));
 
 	if (rc == 0)
 		iter_phase_set(it, ITPH_CP_SETUP);
@@ -755,6 +771,7 @@ static int (*iter_action[])(struct m0_sns_cm_iter *it) = {
 	[ITPH_FID_NEXT]        = iter_fid_next,
 	[ITPH_FID_NEXT_WAIT]   = iter_fid_next_wait,
 	[ITPH_CP_SETUP]        = iter_cp_setup,
+	[ITPH_AG_SETUP]        = iter_ag_setup,
 };
 
 /**
@@ -814,7 +831,12 @@ static const struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {
 	[ITPH_CP_SETUP] = {
 		.sd_flags   = 0,
 		.sd_name    = "cp setup",
-		.sd_allowed = M0_BITS(ITPH_COB_NEXT)
+		.sd_allowed = M0_BITS(ITPH_AG_SETUP, ITPH_COB_NEXT)
+	},
+	[ITPH_AG_SETUP] = {
+		.sd_flags   = 0,
+		.sd_name    = "ag setup",
+		.sd_allowed = M0_BITS(ITPH_CP_SETUP)
 	},
 	[ITPH_FINI] = {
 		.sd_flags = M0_SDF_TERMINAL,
@@ -841,6 +863,7 @@ static const struct m0_sm_conf cm_iter_sm_conf = {
  */
 static int layout_setup(struct m0_sns_cm_iter *it)
 {
+
 	struct m0_sns_cm_pdclust_layout *spl;
 	struct m0_layout_linear_attr     lattr;
 	struct m0_pdclust_attr           plattr;
@@ -885,6 +908,10 @@ static int layout_setup(struct m0_sns_cm_iter *it)
 		}
 
 		pl = spl->spl_base;
+		/*
+		 * We need only the number of parity units equivalent to the
+		 * number of failures.
+		 */
 		spl->spl_dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
 		spl->spl_upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
 	}

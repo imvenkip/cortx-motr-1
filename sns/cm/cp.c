@@ -67,7 +67,7 @@ M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp)
 	return sns_cp->sc_sid.si_bits.u_hi;
 }
 
-static int cp_init(struct m0_cm_cp *cp)
+M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp)
 {
 	M0_PRE(m0_fom_phase(&cp->c_fom) == M0_CCP_INIT);
 	return cp->c_ops->co_phase_next(cp);
@@ -86,8 +86,7 @@ M0_INTERNAL int m0_sns_cm_cp_recv(struct m0_cm_cp *cp)
 static int next[] = {
 	[M0_CCP_INIT]       = M0_CCP_READ,
 	[M0_CCP_READ]       = M0_CCP_IO_WAIT,
-	[M0_CCP_XFORM]      = M0_CCP_XFORM_WAIT,
-	[M0_CCP_XFORM_WAIT] = M0_CCP_WRITE,
+	[M0_CCP_XFORM]      = M0_CCP_WRITE,
 	[M0_CCP_WRITE]      = M0_CCP_IO_WAIT,
 	[M0_CCP_IO_WAIT]    = M0_CCP_XFORM
 };
@@ -98,22 +97,20 @@ M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp)
 
 	m0_fom_phase_set(&cp->c_fom, phase);
 
-        return M0_IN(phase, (M0_CCP_IO_WAIT, M0_CCP_XFORM_WAIT,
-				   M0_CCP_FINI)) ?
+        return M0_IN(phase, (M0_CCP_IO_WAIT, M0_CCP_FINI)) ?
 	       M0_FSO_WAIT : M0_FSO_AGAIN;
 }
 
 M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 {
-	struct m0_sns_cm_cp *sns_cp;
+	//struct m0_sns_cm_cp *sns_cp;
 
 	/*
 	 * cp is used as context to make decisions. It could be NULL, when no
 	 * such context is required.
 	 */
 	if (cp != NULL) {
-		sns_cp = cp2snscp(cp);
-
+		//sns_cp = cp2snscp(cp);
 		if (phase == M0_CCP_IO_WAIT) {
 			if (cp->c_io_op == M0_CM_CP_READ)
 				return  M0_CCP_XFORM;
@@ -149,14 +146,31 @@ M0_INTERNAL int m0_sns_cm_cp_fini(struct m0_cm_cp *cp)
 	return 0;
 }
 
+M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
+				   const struct m0_fid *cob_fid,
+				   uint64_t stob_offset,
+				   uint64_t ag_cp_idx)
+{
+	struct m0_sns_cm *scm = cm2sns(scp->sc_base.c_ag->cag_cm);
+
+	M0_PRE(scp != NULL && scp->sc_base.c_ag != NULL);
+
+	scp->sc_base.c_data_seg_nr = m0_sns_cm_data_seg_nr(scm);
+	scp->sc_sid.si_bits.u_hi = cob_fid->f_container;
+	scp->sc_sid.si_bits.u_lo = cob_fid->f_key;
+	scp->sc_index = stob_offset;
+	scp->sc_base.c_ag_cp_idx = ag_cp_idx;
+
+	return m0_sns_cm_buf_attach(scm, &scp->sc_base);
+}
+
 const struct m0_cm_cp_ops m0_sns_cm_cp_ops = {
 	.co_action = {
-		[M0_CCP_INIT]         = &cp_init,
+		[M0_CCP_INIT]         = &m0_sns_cm_cp_init,
 		[M0_CCP_READ]         = &m0_sns_cm_cp_read,
 		[M0_CCP_WRITE]        = &m0_sns_cm_cp_write,
 		[M0_CCP_IO_WAIT]      = &m0_sns_cm_cp_io_wait,
 		[M0_CCP_XFORM]        = &m0_sns_cm_cp_xform,
-		[M0_CCP_XFORM_WAIT]   = &m0_sns_cm_cp_xform_wait,
 		[M0_CCP_SEND]         = &m0_sns_cm_cp_send,
 		[M0_CCP_RECV]         = &m0_sns_cm_cp_recv,
 		/* To satisfy the m0_cm_cp_invariant() */

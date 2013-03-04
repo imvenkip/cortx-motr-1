@@ -65,12 +65,12 @@ M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp);
 M0_INTERNAL bool m0_sns_cm_cp_invariant(const struct m0_cm_cp *cp);
 
 extern const struct m0_cm_cp_ops m0_sns_cm_cp_ops;
+extern const struct m0_cm_cp_ops m0_sns_cm_acc_cp_ops;
+
+M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp);
 
 /** Transformation phase function for copy packet. */
 M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp);
-
-/** Transformation phase function for copy packet. */
-M0_INTERNAL int m0_sns_cm_cp_xform_wait(struct m0_cm_cp *cp);
 
 /** Copy packet read phase function. */
 M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp);
@@ -85,9 +85,20 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp);
 
 M0_INTERNAL int m0_sns_cm_cp_recv(struct m0_cm_cp *cp);
 
+M0_INTERNAL void m0_sns_cm_cp_complete(struct m0_cm_cp *cp);
+
 M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp);
 
+M0_INTERNAL void m0_sns_cm_cp_free(struct m0_cm_cp *cp);
+
+M0_INTERNAL int m0_sns_cm_cp_fini(struct m0_cm_cp *cp);
+
 M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp);
+
+M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
+				   const struct m0_fid *cob_fid,
+				   uint64_t stob_offset,
+				   uint64_t ag_cp_idx);
 
 /** @} SNSCMCP */
 #endif /* __MERO_SNS_CM_CP_H__ */

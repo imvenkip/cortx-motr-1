@@ -228,10 +228,6 @@
  *		      the network to a remote copy machine replica.
  *		      (m0_cm_cp_phase::M0_CCP_XFORM)
  *
- *   - @b XFORM_WAIT  The resultatnt copy packet or the accumulator for an
- *                    aggregation group waits until all the copy packets from
- *                    the group are transformed.
- *
  *   - @b IOWAIT      Waits for IO to complete. (m0_cm_cp_phase::M0_CCP_IO_WAIT)
  *
  *   - @b SEND        Send copy packet over network. Control FOP and bulk
@@ -270,6 +266,8 @@
  *	   INIT  -> READ -> IOWAIT -> SEND -> FINI
  *	   INIT  -> RECV -> WRITE -> IOWAIT -> FINI
  *	   INIT  -> XFORM -> FINI
+ *	   INIT  -> WRITE
+ *	   INIT  -> SEND
  *	   IOWAIT -> XFORM -> SEND
  *	   RECV  -> XFORM -> WRITE
  *	   FINI  -> end
@@ -405,7 +403,7 @@ static void cp_fom_fini(struct m0_fom *fom)
 	 * making way for new copy packets in sliding window.
 	 */
 	m0_cm_lock(cm);
-	++ag->cag_freed_cp_nr;
+	M0_CNT_INC(ag->cag_freed_cp_nr);
 	if (m0_cm_has_more_data(cm))
 		m0_cm_sw_fill(cm);
 	/**
@@ -487,13 +485,8 @@ static const struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
         [M0_CCP_XFORM] = {
                 .sd_flags       = 0,
                 .sd_name        = "Xform",
-                .sd_allowed     = M0_BITS(M0_CCP_XFORM_WAIT, M0_CCP_FINI,
-				          M0_CCP_WRITE, M0_CCP_SEND)
-        },
-        [M0_CCP_XFORM_WAIT] = {
-                .sd_flags       = 0,
-                .sd_name        = "Xform_wait",
-                .sd_allowed     = M0_BITS(M0_CCP_WRITE, M0_CCP_SEND)
+                .sd_allowed     = M0_BITS(M0_CCP_FINI, M0_CCP_WRITE,
+					  M0_CCP_SEND)
         },
         [M0_CCP_SEND] = {
                 .sd_flags       = 0,
@@ -535,23 +528,16 @@ M0_INTERNAL bool m0_cm_cp_invariant(const struct m0_cm_cp *cp)
 	       m0_forall(i, ops->co_action_nr, ops->co_action[i] != NULL);
 }
 
-M0_INTERNAL void m0_cm_cp_init(struct m0_cm_cp *cp)
-{
-	M0_PRE(cp != NULL);
-
-	m0_cm_cp_bob_init(cp);
-	cp_data_buf_tlist_init(&cp->c_buffers);
-}
-
-M0_INTERNAL void m0_cm_cp_fom_init(struct  m0_cm_cp *cp)
+M0_INTERNAL void m0_cm_cp_init(struct m0_cm *cm, struct m0_cm_cp *cp)
 {
 	struct m0_reqh_service *service;
 
-	M0_PRE(cp->c_ag != NULL);
-	M0_PRE(cp->c_ag->cag_cm != NULL);
-	M0_PRE(m0_cm_cp_bob_check(cp) && cp->c_ops != NULL);
+	M0_PRE(cm != NULL && cp != NULL && cp->c_ops != NULL);
 
-	service = &cp->c_ag->cag_cm->cm_service;
+	m0_cm_cp_bob_init(cp);
+	cp_data_buf_tlist_init(&cp->c_buffers);
+
+	service = &cm->cm_service;
 	m0_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL,
 		    service->rs_reqh, service->rs_type);
 }
@@ -582,7 +568,7 @@ M0_INTERNAL void m0_cm_cp_buf_add(struct m0_cm_cp *cp, struct m0_net_buffer *nb)
 
 	cp_data_buf_tlink_init(nb);
 	cp_data_buf_tlist_add(&cp->c_buffers, nb);
-	++cp->c_buf_nr;
+	M0_CNT_INC(cp->c_buf_nr);
 }
 
 M0_INTERNAL void m0_cm_cp_buf_release(struct m0_cm_cp *cp)

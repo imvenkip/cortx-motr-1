@@ -40,8 +40,8 @@ static int ivec_prepare(struct m0_indexvec *iv, m0_bindex_t idx,
 			struct m0_addb_ctx *ctx,
 			uint32_t bshift)
 {
-	int                   rc;
-	int                   i;
+	int rc;
+	int i;
 
 	M0_PRE(iv != NULL);
 
@@ -218,20 +218,9 @@ M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp)
 	return cp_io(cp, SIO_READ);
 }
 
-static void spare_stobid_fill(struct m0_cm_cp *cp)
-{
-	struct m0_sns_cm_ag *sns_ag = ag2snsag(cp->c_ag);
-	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
-
-	sns_cp->sc_sid.si_bits.u_hi = sns_ag->sag_tgt_cobfid.f_container;
-	sns_cp->sc_sid.si_bits.u_lo = sns_ag->sag_tgt_cobfid.f_key;
-	sns_cp->sc_index            = sns_ag->sag_tgt_cob_index;
-}
-
 M0_INTERNAL int m0_sns_cm_cp_write(struct m0_cm_cp *cp)
 {
 	cp->c_io_op = M0_CM_CP_WRITE;
-	spare_stobid_fill(cp);
 	/*
 	 * Finalise the bitmap representing the transformed copy packets.
 	 * It is not needed after this point.

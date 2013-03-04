@@ -42,10 +42,9 @@
  *	- @b m0_cm_cp  : Generic copy packet.
  *	- @b m0_cm_ops : Copy packet operations.
  * @section CPDLD-fspec-sub Subroutines
- *	- @b m0_cm_cp_init() : Initialises copy packet members and calls
- *			       c_ops->init() to initialise specific data.
- *	- @b m0_cm_cp_fini() : Finalises copy packet members and calls
- *			       c_ops->fini() internal to finalise specific data.
+ *	- @b m0_cm_cp_init() : Initialises copy packet and its corresponding
+ *			       FOM.
+ *	- @b m0_cm_cp_fini() : Finalises copy packet and its corresponding FOM.
  *	- @b m0_cm_cp_enqueue() : Posts copy packet FOM for execution.
  *
  * @subsection CPDLD-fspec-sub-acc Accessors and Invariants
@@ -120,9 +119,6 @@ enum m0_cm_cp_phase {
 
 	/** Transform the packet. */
 	M0_CCP_XFORM,
-
-	/** Transform the packet. */
-	M0_CCP_XFORM_WAIT,
 
 	/** Send packet over network. */
 	M0_CCP_SEND,
@@ -220,9 +216,7 @@ M0_INTERNAL void m0_cm_cp_module_init(void);
  * @pre cp->c_fom.fo_phase == CCP_INIT
  * @post cp->c_fom.fo_phase == M0_FOPH_INIT
  */
-M0_INTERNAL void m0_cm_cp_init(struct m0_cm_cp *cp);
-
-M0_INTERNAL void m0_cm_cp_fom_init(struct  m0_cm_cp *cp);
+M0_INTERNAL void m0_cm_cp_init(struct m0_cm *cm, struct m0_cm_cp *cp);
 
 /**
  * Finalises generic copy packet and copy packet FOM.

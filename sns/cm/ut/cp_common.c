@@ -89,7 +89,7 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 		uint32_t bv_seg_nr, uint32_t bv_seg_size,
 		struct m0_sns_cm_ag *sns_ag,
 		char data, struct m0_fom_ops *cp_fom_ops,
-		struct m0_reqh *reqh, uint64_t cp_ag_idx)
+		struct m0_reqh *reqh, uint64_t cp_ag_idx, bool is_acc_cp)
 {
 	struct m0_reqh_service *service;
 	struct m0_cm           *cm;
@@ -105,9 +105,10 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 	cm = container_of(service, struct m0_cm, cm_service);
 	M0_UT_ASSERT(cm != NULL);
 	cp->c_ag->cag_cm = cm;
-	cp->c_ops = &m0_sns_cm_cp_ops;
-	m0_cm_cp_init(cp);
-	m0_cm_cp_fom_init(cp);
+	if (!is_acc_cp)
+		cp->c_ops = &m0_sns_cm_cp_ops;
+	cp->c_ops = &m0_sns_cm_acc_cp_ops;
+	m0_cm_cp_init(cm, cp);
 	m0_cm_cp_buf_add(cp, buf);
 	cp->c_data_seg_nr = bv_seg_nr;
 	buf->nb_pool->nbp_seg_nr = bv_seg_nr;

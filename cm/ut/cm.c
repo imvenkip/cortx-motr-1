@@ -142,13 +142,13 @@ static void ag_id_test_find()
 
 	for (i = AG_ID_NR - 1; i >= 0; --i) {
 		ag_id_assign(&id, i, i, i, i);
-		ag = m0_cm_aggr_group_find(&cm_ut, &id);
+		ag = m0_cm_aggr_group_locate(&cm_ut, &id);
 		M0_UT_ASSERT(ag != NULL);
 		rc = m0_cm_ag_id_cmp(&id, &ag->cag_id);
 		M0_UT_ASSERT(rc == 0);
 	}
 	ag_id_assign(&id, 10, 35, 2, 3);
-	ag = m0_cm_aggr_group_find(&cm_ut, &id);
+	ag = m0_cm_aggr_group_locate(&cm_ut, &id);
 	M0_UT_ASSERT(ag == NULL);
 }
 

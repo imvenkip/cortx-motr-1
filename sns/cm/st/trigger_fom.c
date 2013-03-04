@@ -226,7 +226,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 		switch(m0_fom_phase(fom)) {
 			case TPH_START:
 				treq = m0_fop_data(fom->fo_fop);
-				scm->sc_it.si_fdata = treq->fdata;
+				scm->sc_it.si_fdata = &treq->fdata;
 				m0_trigger_file_sizes_save(treq->fsize.f_nr,
 							   treq->fsize.f_size);
 				scm->sc_it.si_pl.spl_N = treq->N;
