@@ -59,13 +59,11 @@ static void ut_prov_msg_recv_cb(const struct m0_net_buffer_event *ev)
 {
 	struct m0_net_transfer_mc *tm;
 	struct m0_net_buffer	  *nb;
-	struct m0_tl		  *ql;
 
 	M0_UT_ASSERT(ev != NULL && ev->nbe_buffer != NULL);
 	nb = ev->nbe_buffer;
 	tm = nb->nb_tm;
 	M0_UT_ASSERT(tm->ntm_recv_pool != NULL && nb->nb_pool != NULL);
-	ql = &tm->ntm_q[M0_NET_QT_MSG_RECV];
 
 	m0_net_buffer_pool_lock(tm->ntm_recv_pool);
 	if (nb->nb_tm->ntm_state == M0_NET_TM_STARTED)

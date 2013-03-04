@@ -161,7 +161,6 @@ static int net_test_buf_init(struct m0_net_buffer *buf,
 	m0_bcount_t	      seg_size;
 	uint32_t	      seg_num;
 	m0_bcount_t	      seg_size_max;
-	uint32_t	      seg_num_max;
 	m0_bcount_t	      buf_size_max;
 	struct m0_net_domain *dom;
 
@@ -176,7 +175,6 @@ static int net_test_buf_init(struct m0_net_buffer *buf,
 	if (size > buf_size_max)
 		return -E2BIG;
 
-	seg_num_max  = m0_net_domain_get_max_buffer_segments(dom);
 	seg_size_max = m0_net_domain_get_max_buffer_segment_size(dom);
 
 	M0_ASSERT(seg_size_max > 0);

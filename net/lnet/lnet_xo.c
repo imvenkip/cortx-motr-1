@@ -396,13 +396,11 @@ static void nlx_xo_buf_del(struct m0_net_buffer *nb)
 
 static int nlx_xo_tm_init(struct m0_net_transfer_mc *tm)
 {
-	struct nlx_xo_domain *dp;
 	struct nlx_xo_transfer_mc *tp;
 
 	M0_PRE(nlx_dom_invariant(tm->ntm_dom));
 	M0_PRE(tm->ntm_xprt_private == NULL);
 
-	dp = tm->ntm_dom->nd_xprt_private;
 	NLX_ALLOC_ALIGNED_PTR_ADDB(tp, &tm->ntm_addb_ctx, C_TM_INIT);
 	if (tp == NULL)
 		return -ENOMEM;

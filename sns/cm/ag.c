@@ -42,16 +42,12 @@ M0_INTERNAL struct m0_sns_cm_ag *ag2snsag(const struct m0_cm_aggr_group *ag)
 static int ag_fini(struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_ag *sag;
-	struct m0_sns_cm *scm;
-	struct m0_cm        *cm;
 
 	M0_ENTRY();
 	M0_PRE(ag != NULL);
 
 	sag = ag2snsag(ag);
-	cm = ag->cag_cm;
 	m0_cm_aggr_group_fini(ag);
-	scm = cm2sns(cm);
 	m0_free(sag);
 	M0_LEAVE();
 	return 0;

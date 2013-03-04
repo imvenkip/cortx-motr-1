@@ -46,6 +46,8 @@ static int indexvec_prepare(struct m0_indexvec *iv, m0_bindex_t idx,
 	M0_PRE(iv != NULL);
 
 	rc = m0_indexvec_alloc(iv, seg_nr, ctx, M0_ADDB_CTXID_SNS_REPAIR_SERV);
+	if (rc != 0)
+		return rc;
 
 	for (i = 0; i < seg_nr; ++i) {
 		iv->iv_vec.v_count[i] = seg_size >> bshift;

@@ -691,12 +691,10 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm_pdclust_layout *spl;
 	struct m0_fid                   *cob_fid;
 	struct m0_pdclust_src_addr      *sa;
-	struct m0_pdclust_layout        *pl;
 	uint32_t                         upg;
 	int                              rc = 0;
 
 	spl = &it->si_pl;
-	pl = spl->spl_base;
 	upg = spl->spl_upg;
 	sa = &spl->spl_sa;
 

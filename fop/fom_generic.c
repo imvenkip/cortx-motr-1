@@ -598,11 +598,8 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 {
 	int			     rc;
 	const struct fom_phase_desc *fpd_phase;
-	struct m0_reqh              *reqh;
 
 	M0_PRE(fom != NULL);
-
-	reqh = m0_fom_reqh(fom);
 
 	fpd_phase = &fpd_table[m0_fom_phase(fom)];
 

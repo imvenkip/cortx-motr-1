@@ -65,12 +65,9 @@ static const struct m0_fom_type_ops trigger_fom_type_ops = {
 
 static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
 {
-	struct m0_fop *req_fop;
 	struct m0_fop *rep_fop;
 
 	M0_PRE(item != NULL);
-
-	req_fop = m0_rpc_item_to_fop(item);
 
 	if (item->ri_error == 0) {
 		rep_fop = m0_rpc_item_to_fop(item->ri_reply);
@@ -120,8 +117,7 @@ M0_INTERNAL uint64_t m0_trigger_file_size_get(struct m0_fid *gfid)
 	 * so that iterator will simply iterate and come out by calculating
 	 * the number of groups as 0.
 	 */
-	if (&fs == NULL || fs.f_nr == 0 ||
-	    (gfid->f_container == 1 && gfid->f_key == 1))
+	if (fs.f_nr == 0 || (gfid->f_container == 1 && gfid->f_key == 1))
 		return 0;
 	/* m0tifs currently starts its key for gfid from 4. */
 	return fs.f_size[gfid->f_key - 4];

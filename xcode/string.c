@@ -140,7 +140,6 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 		enum m0_xcode_cursor_flag     flag = top->s_flag;
 		const struct m0_xcode_type   *xt   = cur->xo_type;
 		enum m0_xcode_aggr            aggr = xt->xct_aggr;
-		char                          ch;
 
 		str = space_skip(str);
 		if (flag == M0_XCODE_CURSOR_PRE) {
@@ -172,7 +171,6 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 				continue;
 			}
 		}
-		ch = structure[aggr][flag];
 		result = char_check(&str, structure[aggr][flag]);
 		if (result != 0)
 			return result;

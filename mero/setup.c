@@ -529,13 +529,11 @@ static int cs_rpc_machine_init(struct m0_mero *cctx, const char *xprt_name,
 static int cs_rpc_machines_init(struct m0_mero *cctx)
 {
 	int                          rc = 0;
-	FILE                        *ofd;
 	struct cs_reqh_context      *rctx;
 	struct cs_endpoint_and_xprt *ep;
 
 	M0_PRE(cctx != NULL);
 
-	ofd = cctx->cc_outfile;
 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
 		M0_ASSERT(cs_reqh_context_invariant(rctx));
 		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
@@ -1351,11 +1349,9 @@ static int cs_request_handlers_start(struct m0_mero *cctx)
 {
 	int                     rc = 0;
 	struct cs_reqh_context *rctx;
-	FILE                   *ofd;
 
 	M0_PRE(cctx != NULL);
 
-	ofd = cctx->cc_outfile;
 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
 		M0_ASSERT(cs_reqh_context_invariant(rctx));
 		rc = cs_request_handler_start(rctx);

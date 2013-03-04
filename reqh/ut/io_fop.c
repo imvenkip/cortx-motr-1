@@ -646,7 +646,6 @@ int m0_stob_io_fop_init(void)
 {
 	int		    result;
 	int		    i;
-	m0_fop_type_code_t  code;
 	struct m0_fop_type *fop_type;
 
 	m0_sm_conf_extend(m0_generic_conf.scf_state, stob_read_phases,
@@ -705,7 +704,6 @@ int m0_stob_io_fop_init(void)
 			if ((fop_type->ft_rpc_item_type.rit_flags &
 						M0_RPC_ITEM_TYPE_REQUEST) == 0)
 				continue;
-			code = fop_type->ft_rpc_item_type.rit_opcode;
 		}
 	} else
 		m0_stob_io_fop_fini();

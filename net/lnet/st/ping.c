@@ -1343,7 +1343,6 @@ static void nlx_ping_server_async(struct nlx_ping_ctx *ctx)
 static void nlx_ping_server_sync(struct nlx_ping_ctx *ctx)
 {
 	m0_time_t timeout;
-	bool signalled;
 
 	M0_ASSERT(m0_mutex_is_locked(&ctx->pc_mutex));
 
@@ -1357,8 +1356,7 @@ static void nlx_ping_server_sync(struct nlx_ping_ctx *ctx)
 			m0_mutex_unlock(&ctx->pc_mutex);
 			/* wait on the channel group */
 			timeout = m0_time_from_now(15, 0);
-			signalled = m0_chan_timedwait(&ctx->pc_wq_clink,
-						      timeout);
+			m0_chan_timedwait(&ctx->pc_wq_clink, timeout);
 			m0_mutex_lock(&ctx->pc_mutex);
 		}
 

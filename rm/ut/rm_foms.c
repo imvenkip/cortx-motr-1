@@ -318,10 +318,9 @@ static void brw_fom_state_validate(struct m0_fom *fom, int32_t rc,
  */
 static void brw_fom_state_test(enum test_type test)
 {
-	struct m0_fom	      *fom;
-	struct m0_fop	      *fop;
-	struct rm_request_fom *rfom;
-	int		       rc;
+	struct m0_fom *fom;
+	struct m0_fop *fop;
+	int	       rc;
 
 	/* Initialise hierarchy of RM objects */
 	rm_utdata_init(&test_data, OBJ_OWNER);
@@ -337,7 +336,7 @@ static void brw_fom_state_test(enum test_type test)
 	fom_create(M0_RIT_BORROW, false, fop, &fom);
 	M0_UT_ASSERT(fom != NULL);
 	brw_fop_populate(fom, test);
-	rfom = container_of(fom, struct rm_request_fom, rf_fom);
+
 	m0_ut_fom_phase_set(fom, FOPH_RM_REQ_START);
 
 	/*
@@ -534,10 +533,9 @@ static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
  */
 static void rvk_fom_state_test(enum test_type test)
 {
-	struct m0_fom	      *fom;
-	struct m0_fop	      *fop;
-	struct rm_request_fom *rfom;
-	int		       rc;
+	struct m0_fom *fom;
+	struct m0_fop *fop;
+	int	       rc;
 
 	/* Initialise hierarchy of RM objects */
 	rm_utdata_init(&test_data, OBJ_OWNER);
@@ -551,7 +549,6 @@ static void rvk_fom_state_test(enum test_type test)
 
 	rvk_fop_populate(fom);
 
-	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 	m0_ut_fom_phase_set(fom, FOPH_RM_REQ_START);
 	/*
 	 * Call the first FOM phase.

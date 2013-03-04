@@ -41,8 +41,9 @@ static void nlx_print_core_ep_addr(const char *pre,
 	NLXP("\t   tmid = %d\n", (unsigned) cepa->cepa_tmid);
 }
 
-static void nlx_print_core_buffer_event(const char *pre,
-				const struct nlx_core_buffer_event *lcbev)
+static void
+nlx_print_core_buffer_event(const char *pre,
+			    const struct nlx_core_buffer_event *lcbev)
 {
 	NLXP("%s: %p nlx_core_buffer_event\n", pre, lcbev);
 	NLXP("\tcbe_buffer_id: %lx\n", (unsigned long) lcbev->cbe_buffer_id);
@@ -58,8 +59,9 @@ static void nlx_print_core_buffer_event(const char *pre,
 	     (unsigned) lcbev->cbe_sender.cepa_tmid);
 }
 
-static void nlx_print_net_buffer_event(const char *pre,
-				       const struct m0_net_buffer_event *nbev)
+static void
+nlx_print_net_buffer_event(const char *pre,
+			   const struct m0_net_buffer_event *nbev)
 {
 	NLXP("%s: %p m0_net_buffer_event\n", (char*) pre, nbev);
 	NLXP("\t  nbe_time: %lx\n", (unsigned long) nbev->nbe_time);

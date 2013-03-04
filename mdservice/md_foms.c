@@ -1092,12 +1092,11 @@ static int m0_md_tick_listxattr(struct m0_fom *fom)
 
 static int m0_md_tick_statfs(struct m0_fom *fom)
 {
-	struct m0_fop_statfs          *req;
-	struct m0_fop_statfs_rep      *rep;
-	struct m0_fop                 *fop;
-	struct m0_fop                 *fop_rep;
-	struct m0_statfs               statfs;
-	int                            rc;
+	struct m0_fop_statfs_rep *rep;
+	struct m0_fop            *fop;
+	struct m0_fop            *fop_rep;
+	struct m0_statfs          statfs;
+	int                       rc;
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
@@ -1105,7 +1104,6 @@ static int m0_md_tick_statfs(struct m0_fom *fom)
 
 	fop = fom->fo_fop;
 	M0_ASSERT(fop != NULL);
-	req = m0_fop_data(fop);
 
 	fop_rep = fom->fo_rep_fop;
 	M0_ASSERT(fop_rep != NULL);

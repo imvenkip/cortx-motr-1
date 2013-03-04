@@ -330,14 +330,13 @@ static int cc_cob_nskey_make(struct m0_cob_nskey **nskey,
 
 static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 {
-	int			  rc;
-	struct m0_cob		 *cob;
-	struct m0_cob_domain	 *cdom;
-	struct m0_fop_cob_create *fop;
-	struct m0_cob_nskey	 *nskey;
-	struct m0_cob_nsrec	  nsrec;
-	struct m0_cob_fabrec	 *fabrec;
-	struct m0_cob_omgrec      omgrec;
+	int		      rc;
+	struct m0_cob	     *cob;
+	struct m0_cob_domain *cdom;
+	struct m0_cob_nskey  *nskey;
+	struct m0_cob_nsrec   nsrec;
+	struct m0_cob_fabrec *fabrec;
+	struct m0_cob_omgrec  omgrec;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(cc != NULL);
@@ -345,7 +344,6 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 
 	cdom = cdom_get(fom);
 	M0_ASSERT(cdom != NULL);
-	fop = m0_fop_data(fom->fo_fop);
 
         rc = m0_cob_alloc(cdom, &cob);
         if (rc)

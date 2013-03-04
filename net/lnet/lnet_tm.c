@@ -27,6 +27,7 @@
 static inline bool all_tm_queues_are_empty(struct m0_net_transfer_mc *tm)
 {
 	int i;
+
 	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i)
 		if (!m0_net_tm_tlist_is_empty(&tm->ntm_q[i]))
 			return false;
@@ -60,10 +61,10 @@ static void nlx_tm_stats_report(struct m0_net_transfer_mc *tm)
  */
 static int nlx_tm_timeout_buffers(struct m0_net_transfer_mc *tm, m0_time_t now)
 {
-	int qt;
-	struct m0_net_buffer *nb;
+	int                        qt;
+	struct m0_net_buffer      *nb;
 	struct nlx_xo_transfer_mc *tp;
-	int i;
+	int                        i;
 
 	M0_PRE(tm != NULL && nlx_tm_invariant(tm));
 	M0_PRE(m0_mutex_is_locked(&tm->ntm_mutex));
@@ -104,22 +105,22 @@ nlx_tm_get_buffer_timeout_tick(const struct m0_net_transfer_mc *tm)
  */
 static void nlx_tm_ev_worker(struct m0_net_transfer_mc *tm)
 {
-	struct nlx_xo_transfer_mc *tp;
+	struct nlx_xo_transfer_mc   *tp;
 	struct nlx_core_transfer_mc *ctp;
-	struct nlx_xo_domain *dp;
-	struct nlx_core_domain *cd;
-	struct m0_net_tm_event tmev = {
-		.nte_type   = M0_NET_TEV_STATE_CHANGE,
-		.nte_tm     = tm,
-		.nte_status = 0
+	struct nlx_xo_domain        *dp;
+	struct nlx_core_domain      *cd;
+	struct m0_net_tm_event tmev     = {
+		.nte_type               = M0_NET_TEV_STATE_CHANGE,
+		.nte_tm                 = tm,
+		.nte_status             = 0
 	};
-	m0_time_t timeout;
-	m0_time_t last_stat_time;
-	m0_time_t next_stat_time;
-	m0_time_t next_buffer_timeout;
-	m0_time_t buffer_timeout_tick;
-	m0_time_t now;
-	int rc = 0;
+	m0_time_t                    timeout;
+	m0_time_t                    last_stat_time;
+	m0_time_t                    next_stat_time;
+	m0_time_t                    next_buffer_timeout;
+	m0_time_t                    buffer_timeout_tick;
+	m0_time_t                    now;
+	int                          rc = 0;
 
 	m0_mutex_lock(&tm->ntm_mutex);
 	M0_PRE(nlx_tm_invariant(tm));
@@ -272,8 +273,8 @@ M0_INTERNAL int nlx_xo_core_bev_to_net_bev(struct m0_net_transfer_mc *tm,
 					   struct m0_net_buffer_event *nbev)
 {
 	struct nlx_xo_transfer_mc *tp;
-	struct m0_net_buffer *nb;
-	int rc = 0;
+	struct m0_net_buffer      *nb;
+	int                        rc = 0;
 
 	M0_PRE(m0_mutex_is_locked(&tm->ntm_mutex));
 	M0_PRE(nlx_tm_invariant(tm));

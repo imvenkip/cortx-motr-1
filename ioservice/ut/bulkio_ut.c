@@ -1264,10 +1264,8 @@ static void bulkio_server_write_fol_rec_verify(void)
 	struct m0_fol_rec_part	 *dec_part;
 	struct m0_fop		 *fop;
 	struct m0_fop_cob_writev *wfop;
-	struct m0_fid		 *fid;
 
 	fop = &bp->bp_wfops[0]->if_fop;
-	fid = &bp->bp_fids[0];
 	wfop = (struct m0_fop_cob_writev *)m0_fop_data(fop);
 
 	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx, "ioservice");
@@ -1400,8 +1398,7 @@ static void bulkio_server_multiple_read_write(void)
 	int		     j;
 	enum M0_RPC_OPCODES  op;
 	struct thrd_arg      targ[IO_FOPS_NR];
-	struct m0_io_fop   **io_fops;
-	struct m0_bufvec   *buf;
+	struct m0_bufvec    *buf;
 
 	for (i = 0; i < IO_FOPS_NR; ++i) {
 		buf = &bp->bp_iobuf[i]->nb_buffer;
@@ -1416,8 +1413,6 @@ static void bulkio_server_multiple_read_write(void)
 		 * the reply fop. See io_item_free().
 		 */
 		io_fops_create(bp, op, IO_FIDS_NR, IO_FOPS_NR, IO_SEGS_NR);
-		io_fops = (op == M0_IOSERVICE_WRITEV_OPCODE) ? bp->bp_wfops :
-							       bp->bp_rfops;
 		for (i = 0; i < IO_FOPS_NR; ++i) {
 			targ[i].ta_index = i;
 			targ[i].ta_op = op;

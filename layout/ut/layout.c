@@ -443,10 +443,7 @@ static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K, uint32_t P,
 			   struct m0_pdclust_layout **pl,
 			   bool failure_test)
 {
-	struct m0_layout_type  *lt;
 	struct m0_pdclust_attr  attr;
-
-	lt = &m0_pdclust_layout_type;
 
 	M0_UT_ASSERT(le != NULL);
 	M0_UT_ASSERT(pl != NULL);
