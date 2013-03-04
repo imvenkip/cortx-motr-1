@@ -532,7 +532,7 @@ static void mesg_send_client(int dummy)
 
 	cons_client_init(&cctx);
 
-	ftype = m0_cons_fop_type_find(M0_CONS_FOP_DEVICE_OPCODE);
+	ftype = m0_fop_type_find(M0_CONS_FOP_DEVICE_OPCODE);
 	M0_UT_ASSERT(ftype != NULL);
 
 	m0_cons_fop_name_print(ftype);

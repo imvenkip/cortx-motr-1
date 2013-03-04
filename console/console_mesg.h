@@ -58,15 +58,6 @@ M0_INTERNAL int m0_cons_fop_show(struct m0_fop_type *fopt);
  */
 M0_INTERNAL void m0_cons_fop_list_show(void);
 
-/**
- * @brief Find the fop type equals to opcode and returns.
- *
- * @param opcode FOP opcode.
- *
- * @return m0_fop_type ref. or NULL
- */
-M0_INTERNAL struct m0_fop_type *m0_cons_fop_type_find(uint32_t opcode);
-
 /* __MERO_CONSOLE_MESG_H__ */
 #endif
 

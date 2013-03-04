@@ -1299,6 +1299,20 @@ static void bulkio_server_write_fol_rec_verify(void)
 		}
 	} m0_tl_endfor;
 
+	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part) {
+		struct m0_fop_fol_rec_part *fp_part = dec_part->rp_data;
+
+		if (dec_part->rp_ops->rpo_type->rpt_index ==
+		    m0_fop_fol_rec_part_type.rpt_index) {
+			struct m0_fop_type *ftype;
+
+			ftype = m0_fop_type_find(fp_part->ffrp_fop_code);
+			M0_UT_ASSERT(ftype != NULL);
+			M0_UT_ASSERT(ftype->ft_ops->fto_undo != NULL &&
+				     ftype->ft_ops->fto_redo != NULL);
+		}
+	} m0_tl_endfor;
+
 	m0_fol_lookup_rec_fini(&dec_rec);
 	m0_dtx_done(&dtx);
 	io_fops_destroy(bp);

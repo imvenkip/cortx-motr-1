@@ -53,7 +53,7 @@ static int fop_info_show(uint32_t opcode)
 	struct m0_fop_type *ftype;
 
 	fprintf(stdout, "\n");
-	ftype = m0_cons_fop_type_find(opcode);
+	ftype = m0_fop_type_find(opcode);
 	if (ftype == NULL) {
 		fprintf(stderr, "Invalid FOP opcode %.2d.\n", opcode);
 		return -EINVAL;
@@ -78,7 +78,7 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode,
 	struct m0_fop	   *rfop;
 	int		    rc;
 
-	ftype = m0_cons_fop_type_find(opcode);
+	ftype = m0_fop_type_find(opcode);
 	if (ftype == NULL)
 		return -EINVAL;
 

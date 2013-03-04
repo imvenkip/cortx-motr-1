@@ -28,7 +28,12 @@
 #include "mdservice/md_fops.h"
 #include "mdservice/md_fops_xc.h"
 
+static int md_fol_rec_part_undo(struct m0_fop_fol_rec_part *fpart);
+static int md_fol_rec_part_redo(struct m0_fop_fol_rec_part *fpart);
+
 const struct m0_fop_type_ops m0_md_fop_ops = {
+	.fto_undo = md_fol_rec_part_undo,
+	.fto_redo = md_fol_rec_part_redo,
 };
 
 #ifndef __KERNEL__
@@ -395,6 +400,24 @@ M0_INTERNAL void m0_mdservice_fop_fini(void)
         m0_xc_md_fops_fini();
 }
 M0_EXPORTED(m0_mdservice_fop_fini);
+
+static int md_fol_rec_part_undo(struct m0_fop_fol_rec_part *fpart)
+{
+	/**
+	 * @todo Perform the undo operation for meta-data
+	 * updates using the generic fop fol record part.
+	 */
+	return 0;
+}
+
+static int md_fol_rec_part_redo(struct m0_fop_fol_rec_part *fpart)
+{
+	/**
+	 * @todo Perform the redo operation for meta-data
+	 * updates using the generic fop fol record part.
+	 */
+	return 0;
+}
 
 /*
  *  Local variables:

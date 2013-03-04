@@ -86,18 +86,6 @@ M0_INTERNAL void m0_cons_fop_list_show(void)
 		m0_cons_fop_name_print(ftype);
 }
 
-M0_INTERNAL struct m0_fop_type *m0_cons_fop_type_find(uint32_t opcode)
-{
-        struct m0_fop_type *ftype;
-
-	ftype = NULL;
-	while ((ftype = m0_fop_type_next(ftype)) != NULL) {
-		if(ftype->ft_rpc_item_type.rit_opcode == opcode)
-			break;
-	}
-	return ftype;
-}
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

@@ -245,6 +245,13 @@ struct m0_fop_type {
  */
 M0_INTERNAL struct m0_fop_type *m0_fop_type_next(struct m0_fop_type *ftype);
 
+/**
+   Finds the fop type corresponding to the opcode.
+   @param opcode FOP opcode.
+   @return m0_fop_type ref. or NULL
+ */
+M0_INTERNAL struct m0_fop_type *m0_fop_type_find(uint32_t opcode);
+
 /** fop type operations. */
 struct m0_fop_type_ops {
 	/** Action to be taken on receiving reply of a fop. */
