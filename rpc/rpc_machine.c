@@ -57,6 +57,7 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 			uint32_t                   qlen);
 static int __rpc_machine_init(struct m0_rpc_machine *machine);
 static void __rpc_machine_fini(struct m0_rpc_machine *machine);
+static void cleanup_incoming_connections(struct m0_rpc_machine *machine);
 M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine);
 static struct m0_rpc_chan *rpc_chan_locate(struct m0_rpc_machine *machine,
 					   struct m0_net_end_point *dest_ep);
@@ -266,8 +267,7 @@ void m0_rpc_machine_fini(struct m0_rpc_machine *machine)
 
 	m0_rpc_machine_lock(machine);
 	M0_PRE(rpc_conn_tlist_is_empty(&machine->rm_outgoing_conns));
-	/* RPC does not yet support finalising active connections */
-	M0_PRE(rpc_conn_tlist_is_empty(&machine->rm_incoming_conns));
+	cleanup_incoming_connections(machine);
 	m0_rpc_machine_unlock(machine);
 
 	/* Detach watchers if any */
@@ -282,6 +282,50 @@ void m0_rpc_machine_fini(struct m0_rpc_machine *machine)
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_rpc_machine_fini);
+
+/**
+   [TEMPORARY]
+   Terminates all active incoming sessions and connections.
+
+   Such cleanup is required to handle case where receiver is terminated
+   while one or more senders are still connected to it.
+
+   For more information on this issue visit
+   <a href="https://groups.google.com/a/xyratex.com/forum/
+?hl=en&fromgroups=#!topic/grp-colibri-dev/t2NP5msUD2A"> here </a>
+
+ */
+static void cleanup_incoming_connections(struct m0_rpc_machine *machine)
+{
+	struct m0_rpc_conn    *conn;
+	struct m0_rpc_session *session;
+	int                    rc;
+
+	M0_PRE(m0_rpc_machine_is_locked(machine));
+
+	m0_tl_for(rpc_conn, &machine->rm_incoming_conns, conn) {
+		m0_tl_for(rpc_session, &conn->c_sessions, session) {
+			if (session->s_session_id == SESSION_ID_0)
+				continue;
+			M0_LOG(M0_WARN, "Aborting session %llu",
+				(unsigned long long)session->s_session_id);
+			m0_sm_timedwait(&session->s_sm,
+					M0_BITS(M0_RPC_SESSION_IDLE),
+					M0_TIME_NEVER);
+			(void)m0_rpc_rcv_session_terminate(session);
+			m0_rpc_session_fini_locked(session);
+			m0_free(session);
+		} m0_tl_endfor;
+		M0_ASSERT(rpc_session_tlist_length(&conn->c_sessions) == 1);
+		M0_LOG(M0_WARN, "Aborting conn %llu",
+			(unsigned long long)conn->c_sender_id);
+		rc = m0_rpc_rcv_conn_terminate(conn);
+		M0_ASSERT(ergo(rc == 0,
+			       conn_state(conn) == M0_RPC_CONN_TERMINATING));
+		m0_rpc_conn_terminate_reply_sent(conn);
+	} m0_tl_endfor;
+	M0_POST(rpc_conn_tlist_is_empty(&machine->rm_incoming_conns));
+}
 
 /* Not static because formation ut requires it. */
 M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine)
