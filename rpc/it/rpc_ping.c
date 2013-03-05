@@ -18,59 +18,53 @@
  * Original creation date: 06/27/2011
  */
 
-#include "mero/init.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/getopts.h"
 #include "lib/memory.h"
-#include "lib/misc.h" /* M0_SET0 */
+#include "lib/misc.h"           /* M0_SET0 */
 #include "lib/thread.h"
 #include "lib/time.h"
+#include "mero/init.h"
+#include "reqh/reqh.h"          /* m0_reqh_rpc_mach_tl */
 #include "net/net.h"
 #include "net/lnet/lnet.h"
+#include "fop/fop.h"            /* m0_fop_default_item_ops */
 #include "rpc/rpc.h"
-#include "rpc/it/ping_fop.h"
-#include "rpc/it/ping_fom.h"
-#include "rpc/rpclib.h" /* m0_rpc_server_start */
+#include "rpc/rpclib.h"         /* m0_rpc_server_start, m0_rpc_client_start */
 #include "rpc/service.h"
-#include "ut/rpc.h"     /* m0_rpc_client_init */
-#include "ut/ut.h"
-#include "fop/fop.h"    /* m0_fop_default_item_ops */
-#include "reqh/reqh.h"  /* m0_reqh_rpc_mach_tl */
+#include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fop_xc.h"
+#include "rpc/it/ping_fom.h"
+#include "ut/cs_service.h"      /* m0_cs_default_stypes */
+#include "ut/ut.h"
 
 #ifdef __KERNEL__
-#include <linux/kernel.h>
-#include "rpc/it/linux_kernel/rpc_ping.h"
-#define printf printk
+#  include <linux/kernel.h>
+#  include "rpc/it/linux_kernel/rpc_ping.h"
+#  define printf printk
 #else
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+#  include <stdlib.h>
+#  include <stdio.h>
+#  include <string.h>
+#  ifdef HAVE_NETINET_IN_H
+#    include <netinet/in.h>
+#  endif
+#  include <arpa/inet.h>
+#  include <netdb.h>
 #endif
 
-#ifndef __KERNEL__
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif
-#include <arpa/inet.h>
-#include <netdb.h>
-#endif
+#define TRANSPORT_NAME  "lnet"
+#define SERVER_ENDPOINT TRANSPORT_NAME ":" "0@lo:12345:34:1"
 
-#define TRANSPORT_NAME		"lnet"
-#define SERVER_ENDPOINT         TRANSPORT_NAME ":" "0@lo:12345:34:1"
+#define CLIENT_DB_FILE_NAME        "m0rpcping_client.db"
 
-#define CLIENT_DB_FILE_NAME	"m0rpcping_client.db"
-
-#define SERVER_DB_FILE_NAME	   "m0rpcping_server.db"
-#define SERVER_STOB_FILE_NAME	   "m0rpcping_server.stob"
+#define SERVER_DB_FILE_NAME        "m0rpcping_server.db"
+#define SERVER_STOB_FILE_NAME      "m0rpcping_server.stob"
 #define SERVER_ADDB_STOB_FILE_NAME "m0rpcping_server_addb.stob"
-#define SERVER_LOG_FILE_NAME	   "m0rpcping_server.log"
+#define SERVER_LOG_FILE_NAME       "m0rpcping_server.log"
 
-enum ep_type {
-	EP_SERVER,
-	EP_CLIENT,
-};
+enum ep_type { EP_SERVER, EP_CLIENT };
 
 enum {
 	BUF_LEN		   = 128,
@@ -262,7 +256,7 @@ static void rpcping_thread(struct m0_rpc_session *session)
 
 /*
  * An rpcping-specific implementation of client fini function, which is used
- * instead of m0_rpc_client_fini(). It's required in order to get a correct
+ * instead of m0_rpc_client_stop(). It's required in order to get a correct
  * statistics from rpc machine, which is possible only when all connections,
  * associated with rpc machine, are terminated, but rpc machine itself is not
  * finalized yet.
@@ -347,7 +341,7 @@ static int run_client(void)
 	if (rc != 0)
 		goto xprt_fini;
 
-	rc = m0_rpc_client_init(&cctx);
+	rc = m0_rpc_client_start(&cctx);
 	if (rc != 0) {
 		printf("m0rpcping: client init failed \"%i\"\n", -rc);
 		goto net_dom_fini;
@@ -372,7 +366,7 @@ static int run_client(void)
 	delta = m0_time_sub(m0_time_now(), start);
 
 	/*
-	 * NOTE: don't use m0_rpc_client_fini() here, see the comment above
+	 * NOTE: don't use m0_rpc_client_stop() here, see the comment above
 	 * client_fini() for explanation.
 	 */
 	rc = client_fini(&cctx);

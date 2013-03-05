@@ -23,7 +23,6 @@
 #include "lib/finject.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpc.h"
-#include "ut/rpc.h"
 #include "reqh/reqh.h"
 #include "fop/ut/fop_put_norpc.h"
 #include "rm/rm.h"

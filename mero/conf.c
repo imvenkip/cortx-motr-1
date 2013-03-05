@@ -29,68 +29,13 @@
 #include "conf/schema.h"          /* m0_conf_service_type */
 
 /* ----------------------------------------------------------------
- * XXX Code-duplicated boilerplate to be scrapped
- * See
- * https://reviewboard.clusterstor.com/r/1177/diff/1/?file=36746#file36746line47
- * ---------------------------------------------------------------- */
-
-static int init_cob(struct m0_rpc_client_ctx *cctx)
-{
-	int rc;
-	struct m0_cob_domain_id cob_dom_id = { .id = cctx->rcx_cob_dom_id };
-
-	rc = m0_dbenv_init(cctx->rcx_dbenv, cctx->rcx_db_name, 0);
-	if (rc != 0)
-		return rc;
-
-	rc = m0_cob_domain_init(cctx->rcx_cob_dom, cctx->rcx_dbenv,
-				&cob_dom_id);
-	if (rc != 0)
-		m0_dbenv_fini(cctx->rcx_dbenv);
-	return rc;
-}
-
-static void fini_cob(struct m0_rpc_client_ctx *cctx)
-{
-	m0_cob_domain_fini(cctx->rcx_cob_dom);
-	m0_dbenv_fini(cctx->rcx_dbenv);
-}
-
-static int rpc_client_init(struct m0_rpc_client_ctx *cctx)
-{
-	int rc;
-
-	rc = init_cob(cctx);
-	if (rc != 0)
-		return rc;
-
-	rc = m0_rpc_client_start(cctx);
-	if (rc != 0)
-		fini_cob(cctx);
-	return rc;
-}
-
-static int rpc_client_fini(struct m0_rpc_client_ctx *cctx)
-{
-	int rc;
-
-	rc = m0_rpc_client_stop(cctx);
-	if (rc != 0)
-		return rc;
-
-	fini_cob(cctx);
-
-	return rc;
-}
-
-/* ----------------------------------------------------------------
  * Mero options
  * ---------------------------------------------------------------- */
 
+static struct m0_sm_group g_grp;
+
 static void ast_thread_init(void);
 static void ast_thread_fini(void);
-
-static struct m0_sm_group g_grp;
 
 /* Note: `s' is believed to be heap-allocated. */
 static void option_add(struct cs_args *args, char *s)
@@ -282,15 +227,15 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 	if (rc != 0)
 		goto xprt;
 
-	rc = rpc_client_init(&cctx);
+	rc = m0_rpc_client_start(&cctx);
 	if (rc != 0)
 		goto net_dom;
 
 	rc = conf_to_args(args, server_ep, profile, &cctx.rcx_rpc_machine);
 	if (rc == 0)
-		rc = rpc_client_fini(&cctx);
+		rc = m0_rpc_client_stop(&cctx);
 	else
-		(void)rpc_client_fini(&cctx);
+		(void)m0_rpc_client_stop(&cctx);
 net_dom:
 	m0_net_domain_fini(&client_net_dom);
 xprt:

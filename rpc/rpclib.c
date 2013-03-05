@@ -20,9 +20,10 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
+
 #ifndef __KERNEL__
-#include <errno.h> /* errno */
-#include <stdio.h> /* fopen(), fclose() */
+#  include <errno.h>  /* errno */
+#  include <stdio.h>  /* fopen, fclose */
 #endif
 
 #include "lib/cdefs.h"
@@ -36,9 +37,9 @@
 #include "rpc/rpclib.h"
 
 #ifndef __KERNEL__
-#include "reqh/reqh.h"
-#include "reqh/reqh_service.h"
-#include "mero/setup.h"
+#  include "reqh/reqh.h"
+#  include "reqh/reqh_service.h"
+#  include "mero/setup.h"
 #endif
 
 #ifndef __KERNEL__
@@ -87,7 +88,6 @@ void m0_rpc_server_stop(struct m0_rpc_server_ctx *sctx)
 	fclose(sctx->rsx_log_file);
 
 	M0_LEAVE();
-	return;
 }
 
 M0_INTERNAL struct m0_rpc_machine *
@@ -95,7 +95,7 @@ m0_rpc_server_ctx_get_rmachine(struct m0_rpc_server_ctx *sctx)
 {
 	return m0_mero_to_rmach(&sctx->rsx_mero_ctx);
 }
-#endif
+#endif /* !__KERNEL__ */
 
 M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 				      struct m0_rpc_session *session,
@@ -129,12 +129,38 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 	M0_RETURN(rc);
 }
 
+static int dbcob_init(struct m0_rpc_client_ctx *cctx)
+{
+	int rc;
+	struct m0_cob_domain_id cob_dom_id = { .id = cctx->rcx_cob_dom_id };
+
+	rc = m0_dbenv_init(cctx->rcx_dbenv, cctx->rcx_db_name, 0);
+	if (rc != 0)
+		return rc;
+
+	rc = m0_cob_domain_init(cctx->rcx_cob_dom, cctx->rcx_dbenv,
+				&cob_dom_id);
+	if (rc != 0)
+		m0_dbenv_fini(cctx->rcx_dbenv);
+	return rc;
+}
+
+static void dbcob_fini(struct m0_rpc_client_ctx *cctx)
+{
+	m0_cob_domain_fini(cctx->rcx_cob_dom);
+	m0_dbenv_fini(cctx->rcx_dbenv);
+}
+
 int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 {
 	enum { NR_TM = 1 }; /* Number of TMs. */
 	int rc;
 
 	M0_ENTRY("client_ctx: %p", cctx);
+
+	rc = dbcob_init(cctx);
+	if (rc != 0)
+		return rc;
 
 	if (cctx->rcx_recv_queue_min_length == 0)
 		cctx->rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
@@ -166,33 +192,9 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
 err:
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
+	dbcob_fini(cctx);
 	M0_RETURN(rc);
 }
-
-int m0_rpc_client_call(struct m0_fop *fop,
-		       struct m0_rpc_session *session,
-		       const struct m0_rpc_item_ops *ri_ops,
-		       m0_time_t deadline)
-{
-	struct m0_rpc_item *item;
-	int                 rc;
-
-	M0_ENTRY("fop: %p, session: %p", fop, session);
-	M0_PRE(fop != NULL);
-	M0_PRE(session != NULL);
-
-	item                = &fop->f_item;
-	item->ri_ops        = ri_ops;
-	item->ri_session    = session;
-	item->ri_prio       = M0_RPC_ITEM_PRIO_MID;
-	item->ri_deadline   = deadline;
-
-	rc = m0_rpc_post(item);
-	if (rc == 0)
-		rc = m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER);
-	M0_RETURN(rc);
-}
-M0_EXPORTED(m0_rpc_client_call);
 
 int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 {
@@ -213,9 +215,32 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 
 	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
+	dbcob_fini(cctx);
 
 	M0_RETURN(rc0 ?: rc1);
 }
+
+int m0_rpc_client_call(struct m0_fop *fop,
+		       struct m0_rpc_session *session,
+		       const struct m0_rpc_item_ops *ri_ops,
+		       m0_time_t deadline)
+{
+	struct m0_rpc_item *item;
+
+	M0_ENTRY("fop: %p, session: %p", fop, session);
+	M0_PRE(fop != NULL);
+	M0_PRE(session != NULL);
+
+	item              = &fop->f_item;
+	item->ri_ops      = ri_ops;
+	item->ri_session  = session;
+	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
+	item->ri_deadline = deadline;
+
+	M0_RETURN(m0_rpc_post(item) ?:
+		  m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER));
+}
+M0_EXPORTED(m0_rpc_client_call);
 
 #undef M0_TRACE_SUBSYSTEM
 

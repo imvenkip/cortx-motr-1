@@ -27,11 +27,10 @@
 #include "mero/init.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
+#include "cob/cob.h"            /* m0_cob_domain */
 #include "ioservice/io_fops.h"	/* m0_io_fop */
 #include "rpc/rpc.h"		/* m0_rpc_bulk, m0_rpc_bulk_buf */
-#include "rpc/rpc_opcodes.h"	/* enum M0_RPC_OPCODES */
-#include "rpc/rpclib.h"		/* m0_rpc_ctx */
-#include "ut/rpc.h"		/* m0_rpc_client_init, m0_rpc_server_init */
+#include "rpc/rpc_opcodes.h"	/* M0_RPC_OPCODES */
 #include "lib/thread.h"		/* M0_THREAD_INIT */
 #include "lib/misc.h"		/* M0_SET_ARR0 */
 

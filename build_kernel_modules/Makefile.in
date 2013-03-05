@@ -198,8 +198,8 @@ sns_SOURCES                     := ls_solve.c matvec.c parity_math.c \
 
 stob_SOURCES                    := stob.c stob_id.c
 
-ut_SOURCES                      := rpc.c cs_service.c cs_fop_foms.c \
-                                   cs_fop_foms_xc.c ut.c
+ut_SOURCES                      := cs_service.c cs_fop_foms.c cs_fop_foms_xc.c \
+                                   ut.c
 ut_HEADERS                      := cs_fop_foms_xc.h cs_fop_foms.h
 
 xcode_SOURCES                   := xcode.c string.c

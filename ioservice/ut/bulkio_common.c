@@ -18,17 +18,17 @@
  * Original creation date: 02/21/2011
  */
 
-#include "bulkio_common.h"
-#include "ut/cs_service.h"	/* ds1_service_type */
 #ifndef __KERNEL__
-#include <errno.h>
+#  include <errno.h>
 #endif
-
+#include "bulkio_common.h"
+#include "rpc/rpclib.h"     /* m0_rpc_client_start */
+#include "ut/cs_service.h"  /* ds1_service_type */
 #include "net/lnet/lnet.h"
 
-#define S_DBFILE		  "bulkio_st.db"
-#define S_STOBFILE		  "bulkio_st_stob"
-#define S_ADDB_STOBFILE		  "bulkio_st_addb_stob"
+#define S_DBFILE        "bulkio_st.db"
+#define S_STOBFILE      "bulkio_st_stob"
+#define S_ADDB_STOBFILE "bulkio_st_addb_stob"
 
 /**
    @todo This value can be reduced after multiple message delivery in a
@@ -445,7 +445,7 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr,
 	cctx->rcx_dbenv   = &bp->bp_cdbenv;
 	cctx->rcx_cob_dom = &bp->bp_ccbdom;
 
-	rc = m0_rpc_client_init(cctx);
+	rc = m0_rpc_client_start(cctx);
 	M0_ASSERT(rc == 0);
 
 	bp->bp_cctx    = cctx;
@@ -462,7 +462,7 @@ void bulkio_client_stop(struct m0_rpc_client_ctx *cctx)
 
 	M0_ASSERT(cctx != NULL);
 
-	rc = m0_rpc_client_fini(cctx);
+	rc = m0_rpc_client_stop(cctx);
 	M0_ASSERT(rc == 0);
 
 	m0_free(cctx);

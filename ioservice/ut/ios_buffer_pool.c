@@ -18,18 +18,18 @@
  * Original creation date: 01/06/2012
  */
 
-#include "lib/ut.h"    /* M0_UT_ASSERT */
+#include "lib/ut.h"                /* M0_UT_ASSERT */
 #include "lib/errno.h"
 #include "lib/tlist.h"
 
-#include "ut/rpc.h"
 #include "rpc/rpclib.h"
 #include "net/lnet/lnet.h"
 #include "net/bulk_mem.h"
 #include "reqh/reqh_service.h"
 #include "ioservice/io_service.h"
-
 #include "mero/setup.h"
+#include "ut/cs_service.h"         /* m0_cs_default_stypes */
+
 #include "ioservice/io_service.c"
 
 struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx,

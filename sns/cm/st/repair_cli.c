@@ -29,14 +29,13 @@
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/getopts.h"
-#include "lib/misc.h"           /* M0_IN() */
+#include "lib/misc.h"        /* M0_IN() */
 #include "lib/memory.h"
 #include "lib/time.h"
 #include "fop/fop.h"
 #include "net/lnet/lnet.h"
 #include "mero/init.h"
 
-#include "ut/rpc.h"
 #include "rpc/rpc.h"
 #include "rpc/rpclib.h"
 
@@ -81,7 +80,7 @@ static void client_init(void)
 	cl_ctx.rcx_timeout_s          = RPC_TIMEOUTS;
 	cl_ctx.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
 
-	rc = m0_rpc_client_init(&cl_ctx);
+	rc = m0_rpc_client_start(&cl_ctx);
 	M0_ASSERT(rc == 0);
 }
 
@@ -89,7 +88,7 @@ static void client_fini(void)
 {
 	int rc;
 
-	rc = m0_rpc_client_fini(&cl_ctx);
+	rc = m0_rpc_client_stop(&cl_ctx);
 	M0_ASSERT(rc == 0);
 
 	m0_net_domain_fini(&cl_ndom);

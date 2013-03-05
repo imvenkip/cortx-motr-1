@@ -20,13 +20,13 @@
 
 #include <sysexits.h>
 
-#include "lib/errno.h"		  /* ETIMEDOUT */
-#include "lib/memory.h"		  /* m0_free */
-#include "lib/getopts.h"	  /* M0_GETOPTS */
-#include "mero/init.h"	  /* m0_init */
+#include "lib/errno.h"      /* ETIMEDOUT */
+#include "lib/memory.h"     /* m0_free */
+#include "lib/getopts.h"    /* M0_GETOPTS */
+#include "mero/init.h"      /* m0_init */
 #include "net/lnet/lnet.h"
+#include "rpc/rpclib.h"     /* m0_rpc_client_call */
 #include "fop/fop.h"
-#include "ut/rpc.h"
 
 #include "console/console.h"
 #include "console/console_mesg.h"
@@ -332,9 +332,9 @@ int main(int argc, char **argv)
 	cctx.rcx_recv_queue_min_length = tm_recv_queue_len;
 	cctx.rcx_max_rpc_msg_size      = max_rpc_msg_size;
 
-	result = m0_rpc_client_init(&cctx);
+	result = m0_rpc_client_start(&cctx);
 	if (result != 0) {
-		fprintf(stderr, "m0_rpc_client_init failed\n");
+		fprintf(stderr, "m0_rpc_client_start failed\n");
 		result = EX_SOFTWARE;
 		goto end1;
 	}
@@ -351,7 +351,7 @@ int main(int argc, char **argv)
 	}
 
 cleanup:
-	result = m0_rpc_client_fini(&cctx);
+	result = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(result == 0);
 end1:
 #ifndef CONSOLE_UT

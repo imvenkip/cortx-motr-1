@@ -25,6 +25,7 @@
 #include "lib/ut.h"
 #include "bulkio_common.h"
 #include "net/lnet/lnet.h"
+#include "rpc/rpclib.h"
 #include "ioservice/io_fops.c"	/* To access static APIs. */
 #include "ioservice/io_foms.c"	/* To access static APIs. */
 #include "mero/setup.h"

@@ -33,7 +33,6 @@
 #include "rpc/rpclib.h"
 #include "net/lnet/lnet.h"
 
-#include "ut/rpc.h"
 #include "ut/cs_service.h"
 #include "ut/cs_fop_foms.h"
 #include "ut/cs_fop_foms_xc.h"
@@ -60,19 +59,19 @@ static void test_m0_rpc_client_start(void)
 		return;
 
 	m0_fi_enable_once("m0_rpc_machine_init", "fake_error");
-	M0_UT_ASSERT(m0_rpc_client_init(&cctx) != 0);
+	M0_UT_ASSERT(m0_rpc_client_start(&cctx) != 0);
 
 	m0_fi_enable_once("m0_net_end_point_create", "fake_error");
-	M0_UT_ASSERT(m0_rpc_client_init(&cctx) != 0);
+	M0_UT_ASSERT(m0_rpc_client_start(&cctx) != 0);
 
 	m0_fi_enable_once("m0_rpc_conn_create", "fake_error");
-	M0_UT_ASSERT(m0_rpc_client_init(&cctx) != 0);
+	M0_UT_ASSERT(m0_rpc_client_start(&cctx) != 0);
 
 	m0_fi_enable_once("m0_rpc_conn_establish", "fake_error");
-	M0_UT_ASSERT(m0_rpc_client_init(&cctx) != 0);
+	M0_UT_ASSERT(m0_rpc_client_start(&cctx) != 0);
 
 	m0_fi_enable_once("m0_rpc_session_establish", "fake_error");
-	M0_UT_ASSERT(m0_rpc_client_init(&cctx) != 0);
+	M0_UT_ASSERT(m0_rpc_client_start(&cctx) != 0);
 
 	m0_rpc_server_stop(&sctx);
 }
@@ -131,7 +130,7 @@ static void test_rpclib(void)
 	if (rc != 0)
 		return;
 
-	rc = m0_rpc_client_init(&cctx);
+	rc = m0_rpc_client_start(&cctx);
 	M0_UT_ASSERT(rc == 0);
 	if (rc != 0)
 		goto server_fini;
@@ -139,7 +138,7 @@ static void test_rpclib(void)
 	rc = send_fop(&cctx.rcx_session);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_rpc_client_fini(&cctx);
+	rc = m0_rpc_client_stop(&cctx);
 	M0_UT_ASSERT(rc == 0);
 
 server_fini:

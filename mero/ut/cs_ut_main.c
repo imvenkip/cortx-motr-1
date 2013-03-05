@@ -24,15 +24,16 @@
 #include "lib/memory.h"
 #include "lib/tlist.h"
 
-#include "ut/rpc.h"             /* M0_RPC_SERVER_CTX_DEFINE */
-#include "ut/cs_fop_foms.h"
-#include "ut/cs_fop_foms_xc.h" /* cs_ds1_{req,rep}_fop, cs_ds2_{req,rep}_fop */
+#include "rpc/rpclib.h"        /* M0_RPC_SERVER_CTX_DEFINE */
+#include "rpc/rpc_opcodes.h"
 #include "fop/fop.h"
 #include "net/bulk_mem.h"
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 #include "mero/setup.h"
-#include "rpc/rpc_opcodes.h"
+#include "ut/cs_fop_foms.h"
+#include "ut/cs_fop_foms_xc.h" /* cs_ds1_{req,rep}_fop, cs_ds2_{req,rep}_fop */
+#include "ut/cs_service.h"     /* m0_cs_default_stypes */
 
 #include "mero/setup.c"
 
@@ -228,7 +229,7 @@ static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	cl_ctx->rcx_timeout_s          = RPC_TIMEOUTS;
 	cl_ctx->rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
 
-	rc = m0_rpc_client_init(cl_ctx);
+	rc = m0_rpc_client_start(cl_ctx);
 	M0_UT_ASSERT(rc == 0);
 
 	return rc;
@@ -240,7 +241,7 @@ static void cs_ut_client_fini(struct cl_ctx *cctx)
 
 	M0_PRE(cctx != NULL);
 
-	rc = m0_rpc_client_fini(&cctx->cl_ctx);
+	rc = m0_rpc_client_stop(&cctx->cl_ctx);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_net_domain_fini(&cctx->cl_ndom);

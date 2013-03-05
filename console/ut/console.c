@@ -24,17 +24,17 @@
 
 #include <sysexits.h>
 
-#include "lib/types.h"            /* uint64_t */
+#include "lib/types.h"        /* uint64_t */
 #include "lib/ut.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
-#include "lib/errno.h"            /* ETIMEDOUT */
-#include "lib/thread.h"		  /* m0_thread */
+#include "lib/errno.h"        /* ETIMEDOUT */
+#include "lib/thread.h"       /* m0_thread */
 #include "lib/trace.h"
-#include "lib/misc.h"		  /* M0_SET0 */
-#include "rpc/rpclib.h"           /* m0_rpc_server_start */
+#include "lib/misc.h"         /* M0_SET0 */
+#include "rpc/rpclib.h"       /* m0_rpc_server_start, m0_rpc_client_start */
 #include "rpc/rpc_opcodes.h"
-#include "ut/rpc.h"               /* m0_rpc_client_init */
+#include "ut/cs_service.h"    /* m0_cs_default_stypes */
 
 #include "console/console.h"
 #include "console/console_fop.h"
@@ -468,7 +468,7 @@ static void cons_client_init(struct m0_rpc_client_ctx *cctx)
 	M0_UT_ASSERT(result == 0);
 	result = m0_cons_yaml_init(yaml_file);
 	M0_UT_ASSERT(result == 0);
-	result = m0_rpc_client_init(cctx);
+	result = m0_rpc_client_start(cctx);
 	M0_UT_ASSERT(result == 0);
 }
 
@@ -477,7 +477,7 @@ static void cons_client_fini(struct m0_rpc_client_ctx *cctx)
 	int result;
 
 	/* Fini Test */
-	result = m0_rpc_client_fini(cctx);
+	result = m0_rpc_client_stop(cctx);
 	M0_UT_ASSERT(result == 0);
 	m0_cons_yaml_fini();
 	result = remove(yaml_file);

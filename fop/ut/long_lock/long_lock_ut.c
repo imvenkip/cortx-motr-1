@@ -22,8 +22,7 @@
 #include "reqh/reqh.h"
 #include "rpc/rpclib.h"
 #include "net/lnet/lnet.h"
-#include "ut/rpc.h"
-#include "fop/fom_generic.h"        /* m0_generic_conf */
+#include "fop/fom_generic.h"  /* m0_generic_conf */
 #include "addb/addb.h"
 
 enum {

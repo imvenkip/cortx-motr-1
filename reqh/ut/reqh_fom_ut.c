@@ -43,7 +43,6 @@
 #include "reqh/ut/io_fop.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpclib.h"
-#include "ut/rpc.h"
 #include "balloc/balloc.h"
 
 #include "mdstore/mdstore.h"
@@ -436,7 +435,7 @@ void test_reqh(void)
 	server_init(path, SERVER_DB_NAME, &srv_net_dom, &backid, &bdom, &bstore,
 		    &reqh_addb_stob, &reqh_addb_stob_id);
 
-	result = m0_rpc_client_init(&cctx);
+	result = m0_rpc_client_start(&cctx);
 	M0_UT_ASSERT(result == 0);
 
 	/* send fops */
@@ -444,7 +443,7 @@ void test_reqh(void)
 	write_send(&cctx.rcx_session);
 	read_send(&cctx.rcx_session);
 
-	result = m0_rpc_client_fini(&cctx);
+	result = m0_rpc_client_stop(&cctx);
 	M0_UT_ASSERT(result == 0);
 
 	server_fini(bdom, reqh_addb_stob);

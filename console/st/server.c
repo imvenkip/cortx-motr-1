@@ -23,10 +23,10 @@
 
 #include "net/lnet/lnet.h"
 #include "mero/init.h"          /* m0_init */
-#include "lib/getopts.h"	/* M0_GETOPTS */
+#include "lib/getopts.h"        /* M0_GETOPTS */
 
 #include "rpc/rpclib.h"         /* m0_rpc_server_start */
-#include "ut/rpc.h"             /* M0_RPC_SERVER_CTX_DEFINE */
+#include "ut/cs_service.h"      /* m0_cs_default_stypes */
 #include "ut/ut.h"              /* m0_ut_init */
 
 #include "console/console.h"
@@ -37,12 +37,12 @@
    @{
  */
 
-#define SERVER_ENDPOINT_ADDR	"0@lo:12345:34:1"
-#define SERVER_ENDPOINT		"lnet:" SERVER_ENDPOINT_ADDR
-#define SERVER_DB_FILE_NAME	"cons_server.db"
-#define SERVER_STOB_FILE_NAME	"cons_server.stob"
-#define SERVER_LOG_FILE_NAME	"cons_server.log"
-#define CONSOLE_STR_LEN         16
+#define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
+#define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
+#define SERVER_DB_FILE_NAME   "cons_server.db"
+#define SERVER_STOB_FILE_NAME "cons_server.stob"
+#define SERVER_LOG_FILE_NAME  "cons_server.log"
+#define CONSOLE_STR_LEN       16
 
 static int signaled = 0;
 
@@ -55,10 +55,10 @@ static void sig_handler(int num)
 int main(int argc, char **argv)
 {
 	int                 result;
-	uint32_t            tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
-	uint32_t            max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 	char                tm_len[CONSOLE_STR_LEN];
 	char                rpc_size[CONSOLE_STR_LEN];
+	uint32_t            tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
+	uint32_t            max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 	struct m0_net_xprt *xprt              = &m0_net_lnet_xprt;
 
 	char *default_server_argv[] = {
@@ -68,8 +68,10 @@ int main(int argc, char **argv)
 		"-m", rpc_size, "-A", "as_addb_stob"
 	};
 
-	M0_RPC_SERVER_CTX_DEFINE_SIMPLE(sctx, xprt, default_server_argv,
-					SERVER_LOG_FILE_NAME);
+	M0_RPC_SERVER_CTX_DEFINE(sctx, &xprt, 1, default_server_argv,
+				 ARRAY_SIZE(default_server_argv),
+				 m0_cs_default_stypes, m0_cs_default_stypes_nr,
+				 SERVER_LOG_FILE_NAME);
 
 	verbose = false;
 

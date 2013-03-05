@@ -392,7 +392,6 @@ rpc_it_m0rpcping_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.l
                                      ut/ut_libmero_ut_la-cs_service.lo \
                                      ut/ut_libmero_ut_la-cs_fop_foms.lo \
                                      ut/ut_libmero_ut_la-cs_fop_foms_xc.lo \
-                                     ut/ut_libmero_ut_la-rpc.lo \
                                      ut/ut_libmero_ut_la-ut.lo
 
 include $(top_srcdir)/rpc/it/Makefile.sub

@@ -23,12 +23,14 @@
 #include "lib/memory.h"
 #include "lib/finject.h"
 #include "net/lnet/lnet.h"
+#include "rpc/rpclib.h"                  /* m0_rpc_server_ctx */
 #include "fop/ut/fop_put_norpc.h"
 #include "ioservice/ut/bulkio_common.h"
 #include "ioservice/cob_foms.c"          /* To access static APIs. */
 #include "ioservice/io_service.h"
-#include "ut/ut.h"			/* m0_ut_fom_phase_set() */
 #include "ioservice/io_fops_xc.h"
+#include "ut/cs_service.h"               /* ds1_service_type */
+#include "ut/ut.h"                       /* m0_ut_fom_phase_set */
 
 extern struct m0_fop_type m0_fop_cob_create_fopt;
 extern struct m0_fop_type m0_fop_cob_delete_fopt;
@@ -144,7 +146,7 @@ static void cobfoms_utinit(void)
 	cctx->rcx_timeout_s          = CLIENT_RPC_CONN_TIMEOUT;
 	cctx->rcx_max_rpcs_in_flight = CLIENT_MAX_RPCS_IN_FLIGHT;
 
-	rc = m0_rpc_client_init(cctx);
+	rc = m0_rpc_client_start(cctx);
 	M0_UT_ASSERT(rc == 0);
 
 	cut->cu_gobindex = 0;
@@ -156,7 +158,7 @@ static void cobfoms_utfini(void)
 
 	M0_UT_ASSERT(cut != NULL);
 
-	rc = m0_rpc_client_fini(&cut->cu_cctx);
+	rc = m0_rpc_client_stop(&cut->cu_cctx);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_rpc_server_stop(&cut->cu_sctx);

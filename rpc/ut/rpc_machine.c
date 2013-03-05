@@ -208,7 +208,7 @@ static void rpc_machine_watch_test(void)
 
 	m0_rpc_machine_watch_attach(&watch);
 
-	rc = m0_rpc_client_init(&cctx);
+	rc = m0_rpc_client_start(&cctx);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(conn_added_called && session_added_called);
 
@@ -222,7 +222,7 @@ static void rpc_machine_watch_test(void)
 	 */
 	watch.mw_mach_terminated = mach_terminated;
 	m0_rpc_machine_watch_attach(&watch);
-	rc = m0_rpc_client_fini(&cctx);
+	rc = m0_rpc_client_stop(&cctx);
 	M0_UT_ASSERT(rc == 0);
 	m0_rpc_server_stop(&sctx);
 	M0_UT_ASSERT(mach_terminated_called);

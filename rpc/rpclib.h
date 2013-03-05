@@ -24,22 +24,21 @@
 #define __MERO_RPC_RPCLIB_H__
 
 #ifndef __KERNEL__
-#  include <stdio.h> /* FILE */
+#  include <stdio.h>          /* FILE */
+#  include "mero/setup.h"     /* m0_mero */
 #endif
-
 #include "rpc/rpc.h"
-#include "db/db.h"       /* struct m0_dbenv */
-#include "cob/cob.h"     /* struct m0_cob_domain */
-#include "net/net.h"     /* struct m0_net_end_point */
+#include "db/db.h"            /* m0_dbenv */
+#include "cob/cob.h"          /* m0_cob_domain */
+#include "net/net.h"          /* m0_net_end_point */
 #include "net/buffer_pool.h"
 
-#ifndef __KERNEL__
-#  include "mero/setup.h" /* struct m0_mero */
-#endif
-
 struct m0_fop;
+struct m0_net_xprt;
+struct m0_net_domain;
 
 #ifndef __KERNEL__
+
 struct m0_reqh;
 struct m0_reqh_service_type;
 
@@ -81,6 +80,19 @@ struct m0_rpc_server_ctx {
 	FILE                         *rsx_log_file;
 };
 
+#define M0_RPC_SERVER_CTX_DEFINE(name, xprts, xprts_nr, server_argv, \
+				 server_argc, service_types,         \
+				 service_types_nr, log_file_name)    \
+	struct m0_rpc_server_ctx name = {                            \
+		.rsx_xprts            = (xprts),                     \
+		.rsx_xprts_nr         = (xprts_nr),                  \
+		.rsx_argv             = (server_argv),               \
+		.rsx_argc             = (server_argc),               \
+		.rsx_service_types    = (service_types),             \
+		.rsx_service_types_nr = (service_types_nr),          \
+		.rsx_log_file_name    = (log_file_name)              \
+	}
+
 /**
   Starts server's rpc machine.
 
@@ -101,9 +113,6 @@ M0_INTERNAL struct m0_rpc_machine *
 m0_rpc_server_ctx_get_rmachine(struct m0_rpc_server_ctx *sctx);
 
 #endif /* !__KERNEL__ */
-
-struct m0_net_xprt;
-struct m0_net_domain;
 
 /**
  * RPC client context structure.
@@ -199,47 +208,54 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 				      uint32_t               rpc_timeout_sec);
 
 /**
-  Starts client's rpc machine. Creates a connection to a server and establishes
-  an rpc session on top of it.  Created session object can be set in an rpc item
-  and used in m0_rpc_post().
-
-  @param cctx  Initialized rpc context structure.
-
-  @pre cctx->rcx_dbenv and rctx->rcx_cob_dom are initialized
-*/
+ * Starts client's rpc machine.
+ *
+ * Creates connection to server and establishes an rpc session on top
+ * of it.  Created session object can be set in an rpc item and used
+ * in m0_rpc_post().
+ *
+ * @param cctx  Initialised rpc context structure.
+ *
+ * @pre cctx->rcx_dbenv and rctx->rcx_cob_dom are initialized
+ */
 int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx);
 
 /**
-  Make synchronous RPC call to a server.
+ * Terminates RPC session and connection with server and finalises
+ * client's RPC machine.
+ *
+ * @param cctx  Initialised rpc context structure.
+ */
+int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx);
 
-  By default, fop is resent after every second until reply is received.
-  To change this behaviour set fop->f_item.ri_nr_sent_max and
-  fop->f_item.ri_resend_interval. They are, maximum number of times
-  fop is sent before failing and interval after which the fop is resent,
-  respectively. Their default values are ~0 and m0_time(1, 0).
-
-  To simply timeout fop after N seconds set fop->f_item.ri_nr_sent_max to N
-  before calling m0_rpc_client_call().
-
-  @param item        The rpc item to send.  Presumably ri_reply will hold the
-                     reply upon successful return.
-  @param rpc_session The session to be used for the client call.
-  @param ri_ops      Pointer to RPC item ops structure.
-  @param deadline    Absolute time after which formation should send the fop
-		     as soon as possible. deadline should be 0 if fop shouldn't
-		     wait in formation queue and should be sent immediately.
-*/
+/**
+ * Makes synchronous RPC call to a server.
+ *
+ * By default, fop is resent after every second until reply is received.
+ * To change this behaviour set fop->f_item.ri_nr_sent_max and
+ * fop->f_item.ri_resend_interval. They are, maximum number of times
+ * fop is sent before failing and interval after which the fop is resent,
+ * respectively. Their default values are ~0 and m0_time(1, 0).
+ *
+ * To simply timeout fop after N seconds set fop->f_item.ri_nr_sent_max
+ * to N before calling m0_rpc_client_call().
+ *
+ * @param fop       Fop to send.  Presumably, fop->f_item.ri_reply will hold
+ *                  the reply upon successful return.
+ * @param session   The session to be used for the client call.
+ * @param ri_ops    Pointer to RPC item ops structure.
+ * @param deadline  Absolute time after which formation should send the
+ *		    fop as soon as possible. deadline should be 0 if
+ *		    fop shouldn't wait in formation queue and should
+ *		    be sent immediately.
+ *
+ * XXX @todo m0_rpc_client_call() is a misnomer, it has nothing to do
+ * with the rest of m0_rpc_client_*() functions.
+ * Rename to m0_rpc_call_sync()?
+ */
 int m0_rpc_client_call(struct m0_fop *fop,
 		       struct m0_rpc_session *session,
 		       const struct m0_rpc_item_ops *ri_ops,
 		       m0_time_t deadline);
-
-/**
-  Terminates RPC session and connection with server and finalize client's RPC
-  machine.
-
-  @param cctx  Initialized rpc context structure.
-*/
-int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx);
 
 #endif /* __MERO_RPC_RPCLIB_H__ */

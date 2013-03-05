@@ -18,24 +18,24 @@
  * Original creation date: 09/28/2011
  */
 
-#include "ut/rpc.h"
-#include "fop/fop.h"               /* m0_fop_alloc */
-#include "ut/cs_fop_foms.h"        /* cs_ds2_req_fop_fopt */
-#include "ut/cs_fop_foms_xc.h"     /* cs_ds2_req_fop */
-#include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
+#include "fop/fop.h"            /* m0_fop_alloc */
+#include "net/lnet/lnet.h"      /* m0_net_lnet_xprt */
 #include "rpc/rpclib.h"
+#include "ut/cs_fop_foms.h"     /* cs_ds2_req_fop_fopt */
+#include "ut/cs_fop_foms_xc.h"  /* cs_ds2_req_fop */
+#include "ut/cs_service.h"      /* m0_cs_default_stypes */
 
 #ifndef __KERNEL__
 
 #define CLIENT_ENDPOINT_ADDR       "0@lo:12345:34:*"
-#define CLIENT_DB_NAME		   "rpclib_ut_client.db"
+#define CLIENT_DB_NAME             "rpclib_ut_client.db"
 
-#define SERVER_ENDPOINT_ADDR	   "0@lo:12345:34:1"
-#define SERVER_ENDPOINT		   "lnet:" SERVER_ENDPOINT_ADDR
-#define SERVER_DB_FILE_NAME	   "rpc_ut_server.db"
-#define SERVER_STOB_FILE_NAME	   "rpc_ut_server.stob"
+#define SERVER_ENDPOINT_ADDR       "0@lo:12345:34:1"
+#define SERVER_ENDPOINT            "lnet:" SERVER_ENDPOINT_ADDR
+#define SERVER_DB_FILE_NAME        "rpc_ut_server.db"
+#define SERVER_STOB_FILE_NAME      "rpc_ut_server.stob"
 #define SERVER_ADDB_STOB_FILE_NAME "rpc_ut_server.addb_stob"
-#define SERVER_LOG_FILE_NAME	   "rpc_ut_server.log"
+#define SERVER_LOG_FILE_NAME       "rpc_ut_server.log"
 
 enum {
 	CLIENT_COB_DOM_ID  = 16,
@@ -96,7 +96,7 @@ static inline void start_rpc_client_and_server(void)
 	rc = m0_rpc_server_start(&sctx);
 	M0_ASSERT(rc == 0);
 
-	rc = m0_rpc_client_init(&cctx);
+	rc = m0_rpc_client_start(&cctx);
 	M0_ASSERT(rc == 0);
 }
 
@@ -107,7 +107,7 @@ static inline void stop_rpc_client_and_server(void)
 {
 	int rc;
 
-	rc = m0_rpc_client_fini(&cctx);
+	rc = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(rc == 0);
 	m0_rpc_server_stop(&sctx);
 	m0_net_domain_fini(&client_net_dom);

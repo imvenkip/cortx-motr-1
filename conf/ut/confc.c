@@ -27,8 +27,7 @@
 #include "conf/ut/file_helpers.h"
 #include "conf/ut/rpc_helpers.h"
 #include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
-#include "rpc/rpclib.h"     /* m0_rpc_server_ctx */
-#include "ut/rpc.h"         /* M0_RPC_SERVER_CTX_DEFINE */
+#include "rpc/rpclib.h"     /* m0_rpc_server_ctx, M0_RPC_SERVER_CTX_DEFINE */
 #include "lib/ut.h"
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
