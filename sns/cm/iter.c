@@ -120,9 +120,10 @@ enum cm_data_iter_phase {
 	ITPH_CP_SETUP,
 	/**
 	 * Once the aggregation group is created and initialised, we need to
-	 * acquire buffers for accumulator copy packets in the aggregation group.
-	 * This operation may block.
-	 * @see m0_sns_cm_ag::sag_accs
+	 * acquire buffers for accumulator copy packet in the aggregation group
+	 * falure contexts. This operation may block.
+	 * @see m0_sns_cm_ag::sag_fc
+	 * @see struct m0_sns_cm_ag_failure_ctx
 	 */
 	ITPH_AG_SETUP,
 	/**
@@ -433,8 +434,8 @@ M0_INTERNAL void m0_sns_cm_iter_tgt_unit_to_cob(struct m0_sns_cm_ag *sag)
 					       scm->sc_op, fidx);
 		__unit_to_cobfid(spl->spl_base, spl->spl_pi, &sa, &ta, &gobfid,
 				 &cobfid);
-		sag->sag_tgts[fidx].tgt_cobfid = cobfid;
-		sag->sag_tgts[fidx].tgt_cob_index = ta.ta_frame *
+		sag->sag_fc[fidx].fc_tgt_cobfid = cobfid;
+		sag->sag_fc[fidx].fc_tgt_cob_index = ta.ta_frame *
 					m0_pdclust_unit_size(spl->spl_base);
 	}
 }
@@ -634,9 +635,11 @@ static void agid_setup(const struct m0_fid *gob_fid, uint64_t group,
 }
 
 /**
- * Configures aggregation group, acquires buffers for accumulator copy packets.
+ * Configures aggregation group, acquires buffers for accumulator copy packet
+ * in the aggregation group failure contexts.
  *
- * @see struct m0_sns_cm_ag::sag_accs
+ * @see struct m0_sns_cm_ag::sag_fc
+ * @see struct m0_sns_cm_ag_failure_ctx
  * @see m0_sns_cm_ag_setup()
  */
 static int iter_ag_setup(struct m0_sns_cm_iter *it)

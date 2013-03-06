@@ -278,7 +278,7 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files, uint64_t *fsizes,
 			M0_UT_ASSERT(cp_verify(&scp));
 			sag = ag2snsag(scp.sc_base.c_ag);
 			for (i = 0; i < sag->sag_fnr; ++i)
-				buf_put(&sag->sag_accs[i]);
+				buf_put(&sag->sag_fc[i].fc_tgt_acc_cp);
 			buf_put(&scp);
 			cp_data_buf_tlist_fini(&scp.sc_base.c_buffers);
 		}

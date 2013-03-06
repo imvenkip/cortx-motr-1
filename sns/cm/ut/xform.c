@@ -41,18 +41,18 @@ static int                        cp_fini_nr;
 static struct m0_net_buffer_pool  nbp;
 
 /* Global structures for single copy packet test. */
-static struct m0_sns_cm_ag  s_sag;
-static struct m0_sns_cm_cp  s_acc_cp;
-static struct m0_cm_cp      s_cp;
-static struct m0_net_buffer s_buf;
-static struct m0_net_buffer s_acc_buf;
+static struct m0_sns_cm_ag             s_sag;
+static struct m0_sns_cm_ag_failure_ctx s_fc;
+static struct m0_cm_cp                 s_cp;
+static struct m0_net_buffer            s_buf;
+static struct m0_net_buffer            s_acc_buf;
 
 /* Global structures for multiple copy packet test. */
-static struct m0_sns_cm_ag  m_sag;
-static struct m0_sns_cm_cp  m_acc_cp;
-static struct m0_cm_cp      m_cp[CP_MULTI];
-static struct m0_net_buffer m_buf[CP_MULTI];
-static struct m0_net_buffer m_acc_buf;
+static struct m0_sns_cm_ag             m_sag;
+static struct m0_sns_cm_ag_failure_ctx m_fc;
+static struct m0_cm_cp                 m_cp[CP_MULTI];
+static struct m0_net_buffer            m_buf[CP_MULTI];
+static struct m0_net_buffer            m_acc_buf;
 
 /* Global structures for testing bufvec xor correctness. */
 struct m0_bufvec src;
@@ -144,6 +144,7 @@ static void multiple_cp_fom_fini(struct m0_fom *fom)
 {
 	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
 	struct m0_sns_cm_ag *sag = ag2snsag(cp->c_ag);
+	struct m0_cm_cp     *acc_cp = &sag->sag_fc[0].fc_tgt_acc_cp.sc_base;
 
 	/*
 	 * If the copy packet to be finalised is the resultant copy packet,
@@ -151,7 +152,7 @@ static void multiple_cp_fom_fini(struct m0_fom *fom)
 	 * is full.
 	 */
 	if (cp_fini_nr == CP_MULTI + 1)
-		M0_UT_ASSERT(res_cp_bitmap_is_full(&sag->sag_accs[0].sc_base));
+		M0_UT_ASSERT(res_cp_bitmap_is_full(acc_cp));
 	m0_cm_cp_fini(cp);
 	M0_CNT_INC(cp_fini_nr);
 }
@@ -189,18 +190,20 @@ static void test_single_cp(void)
 	m0_semaphore_init(&sem, 0);
 	s_sag.sag_base.cag_transformed_cp_nr = 0;
 	s_sag.sag_fnr = 1;
+	s_sag.sag_base.cag_ops = &group_single_ops;
+	s_sag.sag_base.cag_cp_local_nr =
+			s_sag.sag_base.cag_ops->cago_local_cp_nr(&s_sag.sag_base);
+	s_sag.sag_base.cag_cp_global_nr = s_sag.sag_base.cag_cp_local_nr +
+					  FAIL_NR;
 	s_acc_buf.nb_pool = &nbp;
 	s_buf.nb_pool = &nbp;
 	cp_prepare(&s_cp, &s_buf, SEG_NR, SEG_SIZE, &s_sag, 'e',
 		   &single_cp_fom_ops, reqh, 0, false);
-	cp_prepare(&s_acc_cp.sc_base, &s_acc_buf, SEG_NR, SEG_SIZE, &s_sag, 0,
-		   &acc_cp_fom_ops, reqh, 0, true);
-	s_sag.sag_accs = &s_acc_cp;
-	s_cp.c_ag->cag_ops = &group_single_ops;
-	s_cp.c_ag->cag_cp_local_nr = s_cp.c_ag->cag_ops->cago_local_cp_nr(
-								s_cp.c_ag);
-	s_cp.c_ag->cag_cp_global_nr = s_cp.c_ag->cag_cp_local_nr +
-				      FAIL_NR;
+	cp_prepare(&s_fc.fc_tgt_acc_cp.sc_base, &s_acc_buf, SEG_NR, SEG_SIZE,
+		   &s_sag, 0, &acc_cp_fom_ops, reqh, 0, true);
+	m0_bitmap_init(&s_fc.fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
+		       s_sag.sag_base.cag_cp_global_nr);
+	s_sag.sag_fc = &s_fc;
 	m0_fom_queue(&s_cp.c_fom, reqh);
 
 	/* Wait till ast gets posted. */
@@ -232,19 +235,21 @@ static void test_multiple_cp(void)
 	m0_semaphore_init(&sem, 0);
 	m_sag.sag_base.cag_transformed_cp_nr = 0;
 	m_sag.sag_fnr = 1;
+	m_sag.sag_base.cag_ops = &group_multi_ops;
+	m_sag.sag_base.cag_cp_local_nr =
+		m_sag.sag_base.cag_ops->cago_local_cp_nr(&m_sag.sag_base);
+	m_sag.sag_base.cag_cp_global_nr = m_sag.sag_base.cag_cp_local_nr +
+					  FAIL_NR;
 	m_acc_buf.nb_pool = &nbp;
-	cp_prepare(&m_acc_cp.sc_base, &m_acc_buf, SEG_NR, SEG_SIZE,
+	cp_prepare(&m_fc.fc_tgt_acc_cp.sc_base, &m_acc_buf, SEG_NR, SEG_SIZE,
 		   &m_sag, 0, &acc_cp_fom_ops, reqh, 0, true);
-	m_sag.sag_accs = &m_acc_cp;
+	m0_bitmap_init(&m_fc.fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
+		       m_sag.sag_base.cag_cp_global_nr);
+	m_sag.sag_fc = &m_fc;
 	for (i = 0; i < CP_MULTI; ++i) {
 		m_buf[i].nb_pool = &nbp;
 		cp_prepare(&m_cp[i], &m_buf[i], SEG_NR, SEG_SIZE, &m_sag, 'r',
 			   &multiple_cp_fom_ops, reqh, i, false);
-		m_cp[i].c_ag->cag_ops = &group_multi_ops;
-		m_cp[i].c_ag->cag_cp_local_nr =
-			m_cp[i].c_ag->cag_ops->cago_local_cp_nr(m_cp[i].c_ag);
-		m_cp[i].c_ag->cag_cp_global_nr = m_cp[i].c_ag->cag_cp_local_nr +
-						 FAIL_NR;
 		m0_fom_queue(&m_cp[i].c_fom, reqh);
 		m0_semaphore_down(&sem);
 	}
@@ -299,7 +304,7 @@ static void test_bufvec_xor()
 	 * 4 XOR D = p
 	 */
 	bv_populate(&xor, 'p', SEG_NR, SEG_SIZE);
-	bufvec_xor(&src, &dst, SEG_SIZE * SEG_NR);
+	bufvec_xor(&dst, &src, SEG_SIZE * SEG_NR);
 	bv_compare(&dst, &xor, SEG_NR, SEG_SIZE);
 	bv_free(&src);
 	bv_free(&dst);

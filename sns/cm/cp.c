@@ -103,14 +103,11 @@ M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp)
 
 M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 {
-	//struct m0_sns_cm_cp *sns_cp;
-
 	/*
 	 * cp is used as context to make decisions. It could be NULL, when no
 	 * such context is required.
 	 */
 	if (cp != NULL) {
-		//sns_cp = cp2snscp(cp);
 		if (phase == M0_CCP_IO_WAIT) {
 			if (cp->c_io_op == M0_CM_CP_READ)
 				return  M0_CCP_XFORM;

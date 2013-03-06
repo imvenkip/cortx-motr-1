@@ -53,7 +53,7 @@ enum {
  * @param src - source bufvec.
  * @param num_bytes - size of bufvec
  */
-static void bufvec_xor(struct m0_bufvec *src, struct m0_bufvec *dst,
+static void bufvec_xor(struct m0_bufvec *dst, struct m0_bufvec *src,
 		       m0_bcount_t num_bytes)
 {
         struct m0_bufvec_cursor s_cur;
@@ -85,7 +85,7 @@ static void bufvec_xor(struct m0_bufvec *src, struct m0_bufvec *dst,
         }
 }
 
-static void bufvecs_xor(struct m0_cm_cp *src_cp, struct m0_cm_cp *dst_cp)
+static void bufvecs_xor(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp)
 {
 	struct m0_net_buffer      *src_nbuf;
 	struct m0_net_buffer      *dst_nbuf;
@@ -107,7 +107,7 @@ static void bufvecs_xor(struct m0_cm_cp *src_cp, struct m0_cm_cp *dst_cp)
 		rem_data_size = (src_cp->c_data_seg_nr * nbp->nbp_seg_size) -
 				buf_size;
 		buf_size = nbp->nbp_seg_nr * nbp->nbp_seg_size;
-		bufvec_xor(&src_nbuf->nb_buffer, &dst_nbuf->nb_buffer,
+		bufvec_xor(&dst_nbuf->nb_buffer, &src_nbuf->nb_buffer,
 			   min64u(buf_size, rem_data_size));
 	}
 }
@@ -132,7 +132,7 @@ static bool res_cp_bitmap_is_full(struct m0_cm_cp *cp)
 }
 
 /** Merges the source bitmap to the destination bitmap. */
-static void res_cp_bitmap_merge(struct m0_cm_cp *src, struct m0_cm_cp *dst)
+static void res_cp_bitmap_merge(struct m0_cm_cp *dst, struct m0_cm_cp *src)
 {
 	int i;
 
@@ -178,16 +178,8 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 	M0_ASSERT(ag->cag_cp_local_nr >= ag->cag_transformed_cp_nr);
 
 	for (i = 0; i < sns_ag->sag_fnr; ++i) {
-		res_cp = &sns_ag->sag_accs[i].sc_base;
-		/*
-		 * Initialise the bitmap representing the copy packets
-		 * which will be transformed into the resultant copy
-		 * packet.
-		 */
-		m0_bitmap_init(&res_cp->c_xform_cp_indices,
-			       ag->cag_cp_global_nr);
-
-		bufvecs_xor(cp, res_cp);
+		res_cp = &sns_ag->sag_fc[i].fc_tgt_acc_cp.sc_base;
+		bufvecs_xor(res_cp, cp);
 		/*
 		 * The resultant copy packet also includes partial
 		 * parity of itself. Hence set the bit value of its own
@@ -202,7 +194,7 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 		 * packet which has arrived from some remote node.
 		 */
 		if (cp->c_xform_cp_indices.b_nr > 0)
-			res_cp_bitmap_merge(cp, res_cp);
+			res_cp_bitmap_merge(res_cp, cp);
 		/*
 		 * If all copy packets are processed at this stage,
 		 * For incoming path i.e. when the next-to-next phase of the

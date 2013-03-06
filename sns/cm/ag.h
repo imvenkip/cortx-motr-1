@@ -38,40 +38,35 @@
 struct m0_sns_cm;
 
 /**
- * Represents target cob and offset within the cob.
+ * Represents a failure context corresponding to an aggregation group.
  * This is populated on creation of the aggregation group.
  */
-struct m0_sns_cm_ag_tgt_addr {
+struct m0_sns_cm_ag_failure_ctx {
+	/** Accumulator copy packet for this failure context. */
+	struct m0_sns_cm_cp          fc_tgt_acc_cp;
 	/*
 	 * cob fid containing the target unit for the aggregation
 	 * group.
 	 */
-	struct m0_fid                tgt_cobfid;
+	struct m0_fid                fc_tgt_cobfid;
 
 	/** Target unit offset within the cob identified by tgt_cobfid. */
-	uint64_t                     tgt_cob_index;
+	uint64_t                     fc_tgt_cob_index;
 };
 
 struct m0_sns_cm_ag {
 	/** Base aggregation group. */
-	struct m0_cm_aggr_group       sag_base;
+	struct m0_cm_aggr_group          sag_base;
 
 	/** Total number of failure units in this aggregation group. */
-	uint64_t                      sag_fnr;
+	uint64_t                         sag_fnr;
 
-	/**
-	 * Accumulator copy packets.
-	 * Number of accumulator copy packets is equivalent to the total
-	 * number of failure units in this aggregation group.
+	/*
+	 * Accumulator copy packet, target unit cob id offset within the cob.
+	 * Number of failure contexts are equivalent to number of failures in
+	 * the aggregation group, i.e. m0_sns_cm_ag::sag_fnr.
 	 */
-	struct m0_sns_cm_cp          *sag_accs;
-
-	/**
-	 * Target unit cob id and offset within the cob.
-	 * Number of targets are equivalent to number of failures in the
-	 * aggregation group, i.e. m0_sns_cm_ag::sag_fnr.
-	 */
-	struct m0_sns_cm_ag_tgt_addr *sag_tgts;
+	struct m0_sns_cm_ag_failure_ctx *sag_fc;
 };
 
 

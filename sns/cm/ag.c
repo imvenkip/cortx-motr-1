@@ -40,7 +40,8 @@ M0_INTERNAL void m0_sns_cm_acc_cp_init(struct m0_sns_cm_cp *scp,
 				       struct m0_sns_cm_ag *ag);
 
 M0_INTERNAL int m0_sns_cm_acc_cp_setup(struct m0_sns_cm_cp *scp,
-                                       struct m0_sns_cm_ag_tgt_addr *tgt_addr);
+				       struct m0_fid *tgt_cobfid,
+				       uint64_t tgt_cob_index);
 
 M0_INTERNAL struct m0_sns_cm_ag *ag2snsag(const struct m0_cm_aggr_group *ag)
 {
@@ -57,7 +58,7 @@ static int ag_fini(struct m0_cm_aggr_group *ag)
 	sag = ag2snsag(ag);
 	m0_cm_aggr_group_fini(ag);
 	scm = cm2sns(cm);
-	m0_free(sag->sag_tgts);
+	m0_free(sag->sag_fc);
 	m0_free(sag);
 	M0_LEAVE();
 	return 0;
@@ -127,14 +128,8 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 		return -ENOMEM;
 	f_nr = m0_sns_cm_iter_failures_nr(&sns_cm->sc_it);
 	M0_ASSERT(f_nr != 0);
-	M0_ALLOC_ARR(sag->sag_accs, f_nr);
-	if (sag->sag_accs == NULL) {
-		m0_free(sag);
-		return -ENOMEM;
-	}
-	M0_ALLOC_ARR(sag->sag_tgts, f_nr);
-	if (sag->sag_tgts == NULL) {
-		m0_free(sag->sag_accs);
+	M0_ALLOC_ARR(sag->sag_fc, f_nr);
+	if (sag->sag_fc == NULL) {
 		m0_free(sag);
 		return -ENOMEM;
 	}
@@ -142,7 +137,7 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 	m0_cm_aggr_group_init(&sag->sag_base, cm, id, &sns_cm_ag_ops);
 	m0_sns_cm_iter_tgt_unit_to_cob(sag);
 	for (i = 0; i < sag->sag_fnr; ++i)
-		m0_sns_cm_acc_cp_init(&sag->sag_accs[i], sag);
+		m0_sns_cm_acc_cp_init(&sag->sag_fc[i].fc_tgt_acc_cp, sag);
 
 	*out = &sag->sag_base;
 
@@ -158,8 +153,9 @@ M0_INTERNAL int m0_sns_cm_ag_setup(struct m0_sns_cm_ag *sag)
 	M0_PRE(sag != NULL);
 
 	for (i = 0; i < sag->sag_fnr; ++i) {
-		rc = m0_sns_cm_acc_cp_setup(&sag->sag_accs[i],
-					    &sag->sag_tgts[i]);
+		rc = m0_sns_cm_acc_cp_setup(&sag->sag_fc[i].fc_tgt_acc_cp,
+					    &sag->sag_fc[i].fc_tgt_cobfid,
+					    sag->sag_fc[i].fc_tgt_cob_index);
 		if (rc < 0)
 			return rc;
 		/*
