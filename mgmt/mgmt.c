@@ -29,6 +29,11 @@
    - @subpage MGMT-DLD-fspec "Functional Specification" <!-- Note @subpage -->
    - @ref MGMT-DLD-lspec
       - @ref MGMT-DLD-lspec-comps
+      - @ref MGMT-DLD-lspec-osif
+      - @ref MGMT-DLD-lspec-genders
+      - @ref MGMT-DLD-lspec-hosts
+      - @ref MGMT-SVC-DLD "The management service"
+      - @ref MGMT-M0MC-DLD "The management command (m0mc)"
       - @ref MGMT-DLD-lspec-state
       - @ref MGMT-DLD-lspec-thread
       - @ref MGMT-DLD-lspec-numa
@@ -63,7 +68,7 @@
 
    - @b LOMO Lustre Objects over Mero.
    - @b WOMO Web Objects over Mero.
-   - @b Genders The @ref libgenders-3 "libgenders(3)" database subsystem that
+   - @b Genders The @ref libgenders3 "libgenders(3)" database subsystem that
    is used in cluster administration.  The module is in the public domain, and
    originated from LLNL.
 
@@ -103,7 +108,7 @@
 
    Component DLDs will document their individual dependencies.
 
-   - The @ref libgenders-3 "genders" database is crucial to the management of
+   - The @ref libgenders3 "genders" database is crucial to the management of
    Mero.  The design relies on external agencies to set up this database and
    propagate it to all the hosts in the cluster.
    - The design relies on external agencies to set up the Lustre Network
@@ -111,36 +116,27 @@
    - The design relies on external agencies to set up the cluster hosts
    database and assign names and addresses for both normal TCP/IP and LNet
    purposes.  The hosts database must be propagated to all hosts in the cluster.
-   - A per @ref reqhservice "request handler service" activity counter is
-   required to track active FOPs.  This is needed to implement a graceful
-   shutdown of a service.
-@code
-   struct m0_reqh_service {
-         ...
-         struct m0_atomic64 rs_fop_count;
-   };
-@endcode
-   The counter is operated from the ::m0_reqh_fop_handle() subroutine.
-   - The @ref reqh "request handler" module requires modifications to always
-   configure the management service.
-   - Both the @ref reqh "request handler" object and the
-   @ref reqhservice "request handler service" object may need to
-   be extended or otherwise modified to support the necessary service
-   management functionality.
 
    <hr>
    @section MGMT-DLD-highlights Design Highlights
-   - Use the Genders database to obtain static run time component configuration
-   information.
-   - Provide the m0mc command line program to manage Mero
-   - Automatically insert a Management service in every request handler
-   - Interact with this service through Management FOPs for run time control
+   - Describe the run time environment consisting of TCP/IP and LNet host names,
+     addresses and network interfaces, host UUIDs, service configuration
+     choices, run time locations, common parameters.
+   - Reflect static environment data in the Genders database.
+   - Adopt a standard m0d deployment configuration.
+      - Provide standard operating system "service" command support to start
+        and stop m0d.
+   - Automatically insert a Management service in every request handler.
+      - Interact with this service through Management FOPs.
+      - Provide the m0mc command line program.
 
    <hr>
    @section MGMT-DLD-lspec Logical Specification
 
    - @ref MGMT-DLD-lspec-comps
+   - @ref MGMT-DLD-lspec-osif
    - @ref MGMT-DLD-lspec-genders
+   - @ref MGMT-DLD-lspec-hosts
    - @ref MGMT-SVC-DLD "The management service"
    - @ref MGMT-M0MC-DLD "The management command (m0mc)"
    - @ref MGMT-DLD-lspec-state
@@ -148,17 +144,158 @@
    - @ref MGMT-DLD-lspec-numa
 
    @subsection MGMT-DLD-lspec-comps Component Overview
-   <i>Mandatory.
-   This section describes the internal logical decomposition.
-   A diagram of the interaction between internal components and
-   between external consumers and the internal components is useful.</i>
-
    The Management module consists of the following components:
-   - @b @ref MGMT-DLD-lspec-genders
-   - @b @ref MGMT-DLD-lspec-svc "The Management Service"
-   - @b @ref MGMT-M0MC-DLD "The management command (m0mc)"
+   - @ref MGMT-DLD-lspec-osif
+   - @ref MGMT-DLD-lspec-svc "The Management Service"
+   - @ref MGMT-M0MC-DLD "The management command (m0mc)"
 
-   @subsubsection MGMT-DLD-lspec-genders Genders database
+   @subsection MGMT-DLD-lspec-osif Support for the service command
+   Support will be provided to start and stop m0d with the "service" command.
+   This is an operating system tool commonly used to manage subsystems.
+
+   A standard deployment pattern is adopted for this purpose:
+   - The kernel module will use a well known portal number.  Its request
+     handler will use a TMID of 0.
+   - There will be only one m0d per node, with a well known portal number.
+   - There will be only one request handler per m0d. The request handler will
+     have only one network end point, using a TMID of 0.
+   - Standard location in the file system for run time data.
+   - Use of the /etc/hosts and /etc/genders databases to capture static
+     configuration data.  It is assumed that these files will be identical
+     on all nodes of the Mero cluster.
+
+   The following functionality will be offered:
+@code
+# service mero start
+# service mero status
+# service mero stop
+@endcode
+   See @ref service8 "service(8)" for more details.
+
+   - The "start" option will load the Mero kernel module and then start the m0d
+   process.
+   - The "stop" option will stop the m0d process and unload the kernel
+   module.
+   - The "query" option will use the m0mc command to query m0d and then
+   return a summary status.
+
+   The functionality is provided by scripts in the /etc/init.d directory.
+   The scripts will be driven by data from the /etc/hosts and /etc/genders file.
+
+   @subsection MGMT-DLD-lspec-genders The /etc/genders file
+
+   The @ref libgenders3 "Genders" database will be used to store static
+   configuration information describing each node in the Mero cluster.
+   It is expected that this file will be replicated on each participating
+   host in the Mero cluster.
+
+   The information will include:
+   - specify the node UUID
+   - specify the LNet information
+     - the LNet hostname and interface to use for the node
+     - the portal numbers to use in the kernel, m0d and client commands
+   - specify which services must run on the node
+   - specify m0d flag options for individual Mero services
+   - specify where Mero run time data will be located
+
+   Information in the genders file is supplemented with the hostname to IP
+   mapping from the /etc/hosts file.
+
+   A sample genders database may look like this:
+@verbatim
+# Hostname to IP assumed found in the hosts database for both TCP/IP hostnames
+# and LNet hostnames
+h[00-10]  all
+h[00-10]  lnet_if=o2ib0,lnet_pid=12345   # LNet common defaults
+h[00-10]  lnet_kernel_portal=34          # portal for the kernel
+h[00-10]  lnet_m0d_portal=35             # portal for m0d
+h[00-10]  lnet_client_portal=36          # portal for clients (dynamic TMID)
+h[00-10]  lnet_host=l%n                  # Mapping of IP to LNet hostname
+h[00-10]  ws=/var/mero                   # workspace directory
+h[00-10]  max_rpc_msg=163840             # max rpc message size
+h[00-10]  min_recv_q=2                   # minimum receive queue length
+h00,h01   s_confd=-c:%ws/confdb.txt      # hosts running confd, db file
+h00,h01   s_rm                           # hosts running the resource manager
+h00,h01   s_mdservice                    # hosts running the meta-data service
+h[00-10]  s_addb=-A:%ws/stobs            # hosts running the ADDB service
+h[00-10]  s_ioservice=-T:AD:-S:%ws/stobs # hosts running the IO service
+h[00-10]  s_sns                          # hosts running SNS
+h00       HA-PROXY                       # hosts running HA proxies
+h00       uuid=b47539c2-143e-44e8-9594-a8f6e09bfec0
+h01       uuid=6d5ddc53-b1b6-43ae-9c7c-16c227b2ea5a
+h02       uuid=26a17da7-d5f2-462d-960d-205334adb028
+h03       uuid=68b617e1-097a-4e46-8d16-3e202628c568
+@endverbatim
+   Most of the attributes in the example above are self explanatory, but
+   some need to be called out:
+   - s_@em Name denotes a service (type) @em Name that needs to be started
+   on a node.
+   The value of this attribute, if any, are a list of colon separated m0d
+   arguments.
+   - lnet_host This attribute provides a mapping from a node name to the
+   symbolic host name associated with the IP address to use for LNet on that
+   node.
+   - ws is the location of the "workspace" directory where run time Mero data is
+   maintained.
+
+   Note that while the "%n" token is automatically replaced by genders with the
+   node name, the "%ws" token has to be explicitly replaced by the value of
+   the work space directory.
+
+   The following illustrates some queries on the genders database above:
+@verbatim
+#  nodeattr -f /tmp/genders -s all
+h00 h01 h02 h03 h04 h05 h06 h07 h08 h09 h10
+
+# nodeattr -l h03
+all
+lnet_if=o2ib0
+lnet_pid=12345
+lnet_kernel_portal=34
+lnet_m0d_portal=35
+lnet_host=lh03
+ws=/var/mero
+max_rpc_msg=163840
+min_recv_q=2
+s_addb=-A:%ws/stobs
+s_ioservice=-T:AD:-S:%ws/stobs
+s_sns
+uuid=68b617e1-097a-4e46-8d16-3e202628c568
+
+# nodeattr -c s_confd
+h00,h01
+@endverbatim
+   See @ref nodeattr8 "nodeattr(8)" for more details.
+   Common cluster support utilites like @ref pdsh1 "pdsh(1)" and
+   @ref pdcp1 "pdcp(1)" can also be fed the output of this command.
+
+   @subsection MGMT-DLD-lspec-hosts The /etc/hosts file
+   The @ref hosts5 "hosts(5)" database provides hostname to IP address mapping
+   for the host names used in TCP/IP and LNet communication.
+   It is expected that this file will be replicated on each participating
+   host in the Mero cluster.
+
+   TCP/IP host naming in the cluster must follow a pattern supported by
+   @ref libgenders3 "Genders", which refers to such a name as the "node name".
+
+   LNet end points are named with IP addresses assigned to local network
+   interfaces.  This assignment is done by external agencies, not by Mero,
+   and can be seen in the /etc/modprobe.d/luster.conf file.
+   The IP addresses used for LNet should also be assigned symbolic host names in
+   the hosts database.  There should be a straight forward mapping from node
+   name to LNet host name using just prefixes and suffixes.  See the "lnet_host"
+   attribute in the sample genders database above for an example.
+
+   To continue with the previous example, a hosts database for its Mero
+   cluster would have records like the following:
+@verbatim
+h00      192.168.1.0
+h01      192.168.1.1
+...
+lh00     10.76.50.40
+lh01     10.76.50.41
+...
+@endverbatim
 
    @subsection MGMT-DLD-lspec-state State Specification
    <i>Mandatory.
@@ -210,10 +347,15 @@ Mero Service Interface Planning</a>
    - @anchor MGMT-DLD-ref-mw-prod-plan [1] <a href="https://docs.google.com/a/
 xyratex.com/document/d/1OTmELk-rsABDONlsXCIFrR8q5NVlVlpQkiKEzgP0hl8/view">
 Mero-WOMO Productization Planning</a>
-   - @anchor libgenders-3 <a href="http://linux.die.net/man/3/libgenders">
+   - Manual pages:
+   @anchor hosts5 <a href="http://linux.die.net/man/5/hosts">hosts(5)</a>,
+   @anchor libgenders3 <a href="http://linux.die.net/man/3/libgenders">
    libgenders(3)</a>,
-   @anchor nodeattr-1 <a href="http://linux.die.net/man/1/nodeattr">
-   nodeattr(1)</a>
+   @anchor nodeattr1 <a href="http://linux.die.net/man/1/nodeattr">
+   nodeattr(1)</a>,
+   @anchor pdcp1 <a href="http://linux.die.net/man/1/pdcp">pdcp(1)</a>,
+   @anchor pdsh1 <a href="http://linux.die.net/man/1/pdsh">pdsh(1)</a>,
+   @anchor service8 <a href="http://linux.die.net/man/8/service">service(8)</a>
 
    <hr>
    @section MGMT-DLD-impl-plan Implementation Plan
@@ -230,9 +372,4 @@ Mero-WOMO Productization Planning</a>
  *  fill-column: 80
  *  scroll-step: 1
  *  End:
- */
-
-/*  LocalWords:  XYRATEX XYRATEX'S Braganza MGMT DLD Mero subpage lspec numa
- */
-/*  LocalWords:  DLDs SVC
  */
