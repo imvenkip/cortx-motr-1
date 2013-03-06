@@ -57,7 +57,6 @@ static int ag_fini(struct m0_cm_aggr_group *ag)
 
 	sag = ag2snsag(ag);
 	m0_cm_aggr_group_fini(ag);
-	scm = cm2sns(cm);
 	m0_free(sag->sag_fc);
 	m0_free(sag);
 	M0_LEAVE();
