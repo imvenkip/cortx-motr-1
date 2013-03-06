@@ -1514,11 +1514,7 @@ struct m0_net_buffer {
 	 */
 	struct m0_tlink		   nb_lru;
 
-        /**
-	   This link is used by I/O service.
-	 */
-        struct m0_tlink            nb_ioservice_linkage;
-
+	/** Linkage to external buffer pool other than transfer machine. */
 	struct m0_tlink            nb_extern_linkage;
 
 	/**

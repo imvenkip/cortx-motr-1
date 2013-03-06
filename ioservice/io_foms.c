@@ -564,7 +564,7 @@ M0_TL_DESCR_DEFINE(stobio, "STOB I/O", static, struct m0_stob_io_desc,
 M0_TL_DEFINE(stobio, static, struct m0_stob_io_desc);
 
 M0_TL_DESCR_DEFINE(netbufs, "Aquired net buffers", static,
-		   struct m0_net_buffer, nb_ioservice_linkage, nb_magic,
+		   struct m0_net_buffer, nb_extern_linkage, nb_magic,
 		   M0_NET_BUFFER_LINK_MAGIC, M0_IOS_NET_BUFFER_HEAD_MAGIC);
 M0_TL_DEFINE(netbufs, static, struct m0_net_buffer);
 
