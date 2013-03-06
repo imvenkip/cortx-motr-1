@@ -1,8 +1,18 @@
 #!/bin/sh
 
+# Script to perform system tests for single node sns repair.
+# Uses various combination of values for N, K, P and unit size parameters of
+# pdclust layout used by sns repair.
+# Working:
+# 1) Start mero service using mero/scripts/m0mount.sh
+#    - This also mount m0t1fs
+# 2) Write data to mounted m0t1fs
+# 3) Once i/o is done, start repair.
+# Note: This script should be run from mero directory
+
 set -e
 
-BROOT=${PWD%/*}
+BROOT=${PWD}
 
 N=(8 10 11 12 13 14 15 16 18 20)
 
@@ -28,7 +38,7 @@ cleanup()
 main()
 {
 	for ((i = 0; i < ${#P[*]}; i++)); do
-		cmd="$BROOT/core/scripts/m0mount.sh -a -L -n 1 -d ${N[$i]} -p ${P[$i]} -u ${U[$i]} -q"
+		cmd="$BROOT/scripts/m0mount.sh -a -L -n 1 -d ${N[$i]} -p ${P[$i]} -u ${U[$i]} -q"
 		if ! $cmd
 		then
 			echo "Cannot start mero service"
@@ -43,7 +53,7 @@ main()
 			return 1
 		fi
 
-		cmd="$BROOT/core/sns/cm/st/m0repair -O 2 -U ${U[$i]} -F ${N[$i]} -n 1
+		cmd="$BROOT/sns/cm/st/m0repair -O 2 -U ${U[$i]} -F ${N[$i]} -n 1
 			-s 100000000000 -N ${N[$i]} -K 1 -P ${P[$i]} -C 172.18.50.45@o2ib:12345:41:102
 			-S 172.18.50.45@o2ib:12345:41:101"
 		if ! $cmd
