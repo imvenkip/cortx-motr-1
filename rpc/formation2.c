@@ -280,7 +280,10 @@ static void drop_all_oneway_items(struct m0_rpc_frm *frm)
 			q = &frm->f_itemq[i];
 			m0_tl_for(itemq, q, item) {
 				M0_ASSERT(m0_rpc_item_is_oneway(item));
+				m0_rpc_item_get(item);
 				frm_remove(frm, item);
+				m0_rpc_item_failed(item, -ECANCELED);
+				m0_rpc_item_put(item);
 			} m0_tl_endfor;
 			M0_ASSERT(itemq_tlist_is_empty(q));
 		}
@@ -527,7 +530,6 @@ static bool frm_is_ready(const struct m0_rpc_frm *frm)
 
 	if (M0_FI_ENABLED("ready"))
 		return true;
-
 	has_urgent_items =
 		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_BOUND]) ||
 		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_UNBOUND]) ||
@@ -569,6 +571,9 @@ static void frm_fill_packet(struct m0_rpc_frm *frm, struct m0_rpc_packet *p)
 			}
 			M0_ASSERT(m0_rpc_item_is_oneway(item) ||
 				  m0_rpc_item_is_bound(item));
+			if (M0_FI_ENABLED("skip_oneway_items") &&
+			    m0_rpc_item_is_oneway(item))
+				continue;
 			m0_rpc_item_get(item);
 			frm_remove(frm, item);
 			if (item_supports_merging(item)) {

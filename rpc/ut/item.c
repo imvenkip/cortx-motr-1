@@ -24,6 +24,7 @@
 #include "lib/finject.h"
 #include "lib/misc.h"              /* M0_BITS */
 #include "lib/semaphore.h"
+#include "lib/memory.h"
 #include "rpc/rpclib.h"
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
 #include "rpc/ut/rpc_test_fops.h"
@@ -381,6 +382,13 @@ static const struct m0_rpc_item_ops arrow_item_ops = {
 	.rio_sent = arrow_sent_cb,
 };
 
+static bool fop_release_called;
+static void fop_release(struct m0_ref *ref)
+{
+	fop_release_called = true;
+	m0_fop_release(ref);
+}
+
 static void test_oneway_item(void)
 {
 	struct m0_rpc_item *item;
@@ -388,6 +396,7 @@ static void test_oneway_item(void)
 	bool                ok;
 	int                 rc;
 
+	/* Test 1: Confirm one-way items reach receiver */
 	fop = m0_fop_alloc(&m0_rpc_arrow_fopt, NULL);
 	M0_UT_ASSERT(fop != NULL);
 
@@ -416,6 +425,32 @@ static void test_oneway_item(void)
 	m0_rpc_machine_lock(item->ri_rmachine);
 	m0_fop_put(fop);
 	m0_rpc_machine_unlock(item->ri_rmachine);
+
+	/* Test 2: Remaining queued oneway items are dropped during
+		   m0_rpc_frm_fini()
+	 */
+	M0_ALLOC_PTR(fop);
+	M0_UT_ASSERT(fop != NULL);
+	m0_fop_init(fop, &m0_rpc_arrow_fopt, NULL, fop_release);
+	rc = m0_fop_data_alloc(fop);
+	M0_UT_ASSERT(rc == 0);
+	item              = &fop->f_item;
+	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
+	item->ri_deadline = m0_time_from_now(10, 0);
+	item->ri_ops      = &arrow_item_ops;
+	arrow_sent_cb_called = fop_release_called = false;
+	rc = m0_rpc_oneway_item_post(&cctx.rcx_connection, item);
+	M0_UT_ASSERT(rc == 0);
+	m0_fop_put(fop);
+	M0_UT_ASSERT(!arrow_sent_cb_called);
+	M0_UT_ASSERT(!fop_release_called);
+	m0_fi_enable("frm_fill_packet", "skip_oneway_items");
+	/* stop client server to trigger m0_rpc_frm_fini() */
+	stop_rpc_client_and_server();
+	M0_UT_ASSERT(!arrow_sent_cb_called);
+	M0_UT_ASSERT(fop_release_called);
+	start_rpc_client_and_server();
+	m0_fi_disable("frm_fill_packet", "skip_oneway_items");
 }
 
 /*
