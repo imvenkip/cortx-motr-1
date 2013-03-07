@@ -291,9 +291,7 @@ M0_EXPORTED(m0_rpc_machine_fini);
    while one or more senders are still connected to it.
 
    For more information on this issue visit
-   <a href="https://groups.google.com/a/xyratex.com/forum/
-?hl=en&fromgroups=#!topic/grp-colibri-dev/t2NP5msUD2A"> here </a>
-
+   <a href="http://goo.gl/5vXUS"> here </a>
  */
 static void cleanup_incoming_connections(struct m0_rpc_machine *machine)
 {

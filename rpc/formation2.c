@@ -70,6 +70,8 @@ static bool item_will_exceed_packet_size(struct m0_rpc_item         *item,
 
 static bool item_supports_merging(const struct m0_rpc_item *item);
 
+static void drop_all_oneway_items(struct m0_rpc_frm *frm);
+
 static bool
 constraints_are_valid(const struct m0_rpc_frm_constraints *constraints);
 
@@ -245,8 +247,17 @@ M0_INTERNAL void m0_rpc_frm_fini(struct m0_rpc_frm *frm)
 	M0_ENTRY("frm: %p", frm);
 	M0_PRE(frm_invariant(frm));
 	M0_LOG(M0_DEBUG, "frm state: %d", frm->f_state);
-	M0_PRE(frm->f_state == FRM_IDLE);
 
+	/*
+	 * It is possible that some oneway items might still be queued.
+	 * There are two alternatives here:
+	 * - send all remaining oneway items; or
+	 * - simply drop them.
+	 * Choosing later one for its simplicity.
+	 * In future iff needed this can be changed to implement first option.
+	 */
+	drop_all_oneway_items(frm);
+	M0_ASSERT(frm->f_state == FRM_IDLE);
 	m0_addb_ctx_fini(&frm->f_addb_ctx);
 	for_each_itemq_in_frm(q, frm) {
 		itemq_tlist_fini(q);
@@ -256,6 +267,24 @@ M0_INTERNAL void m0_rpc_frm_fini(struct m0_rpc_frm *frm)
 	frm->f_magic = 0;
 
 	M0_LEAVE();
+}
+
+static void drop_all_oneway_items(struct m0_rpc_frm *frm)
+{
+	struct m0_rpc_item *item;
+	struct m0_tl       *q;
+	int                 i;
+
+	for (i = 0; i < FRMQ_NR_QUEUES; i++) {
+		if (M0_IN(i, (FRMQ_URGENT_ONEWAY, FRMQ_WAITING_ONEWAY))) {
+			q = &frm->f_itemq[i];
+			m0_tl_for(itemq, q, item) {
+				M0_ASSERT(m0_rpc_item_is_oneway(item));
+				frm_remove(frm, item);
+			} m0_tl_endfor;
+			M0_ASSERT(itemq_tlist_is_empty(q));
+		}
+	}
 }
 
 M0_INTERNAL void m0_rpc_frm_enq_item(struct m0_rpc_frm *frm,
