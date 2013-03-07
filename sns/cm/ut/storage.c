@@ -193,7 +193,6 @@ const struct m0_cm_cp_ops write_cp_dummy_ops = {
 void write_post(void)
 {
 	struct m0_stob_domain           *sdom;
-	//struct m0_sns_cm_ag_failure_ctx  ag_fctx;
 	int                              rc;
 
 	m0_semaphore_init(&sem, 0);
@@ -202,10 +201,6 @@ void write_post(void)
 		   &w_sag, 'e', &dummy_cp_fom_ops, reqh, 0, false);
 	w_sns_cp.sc_base.c_ops = &write_cp_dummy_ops;
 	w_sns_cp.sc_sid = sid;
-	//tgt_addr.tgt_cobfid.f_container = sid.si_bits.u_hi;
-//	tgt_addr.tgt_cobfid.f_key = sid.si_bits.u_lo;
-//	tgt_addr.tgt_cob_index = 0;
-//	w_sag.sag_tgts = &tgt_addr;
 	w_sag.sag_base.cag_cp_local_nr = 1;
 	w_sag.sag_fnr = 1;
 
