@@ -184,11 +184,12 @@
    It is up to an external agency to set up all the required configuration
    to enable use of the "service" command interface.
 
-   The following functionality will be offered with the "service" command:
+   The following functionality will be available through the "service" command
+   with the provision of the /etc/rc.d/init.d/mero script:
 @code
-# service m0 start
-# service m0 status
-# service m0 stop
+# service mero start
+# service mero status
+# service mero stop
 @endcode
    - The "start" option will load the Mero kernel module and then start the m0d
    process.
@@ -199,7 +200,7 @@
 
    See @ref service8 "service(8)" for more details.
 
-   The scripts will be driven by data from the /etc/hosts and /etc/genders file,
+   The script will be driven by data from the /etc/hosts and /etc/genders file,
    and information in the /etc/sysconfig/mero directory.
 
    @todo Define STOB data required in /etc/sysconfig/mero/*
