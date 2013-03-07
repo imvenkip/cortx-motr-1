@@ -830,9 +830,8 @@
      IO fops for the failed device can be redirected to spare units since
      by that time, SNS repair has re-generated data and has dumped it on
      spare units.
-       - A mechanism is needed possibly from parity generation algorithms
-         to find out which unit from parity group maps to which spare
-	 unit.
+       - A mechanism is needed from SNS repair subsystem to find out which
+         unit from parity group maps to which spare unit.
 	 @n @see @ref rmw-dgwriteIO-depends
 
    - The state machine will transition as follows.
