@@ -203,7 +203,7 @@
    The script will be driven by data from the /etc/hosts and /etc/genders file,
    and information in the /etc/sysconfig/mero directory.
 
-   @todo Define STOB data required in /etc/sysconfig/mero/*
+   @todo Define STOB data required under /etc/sysconfig/mero
    @todo Investigate other flags such as -p.
    @todo Investigate other service startup needs.
 
@@ -386,8 +386,38 @@ Mero-WOMO Productization Planning</a>
    @section MGMT-DLD-impl-plan Implementation Plan
 
  */
-
 
+
+#undef M0_ADDB_RT_CREATE_DEFINITION
+#undef M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_RT_CREATE_DEFINITION
+#include "mgmt/mgmt_addb.h"
+
+#include "mgmt/mgmt_pvt.h"
+
+/** Management module global ADDB context */
+struct m0_addb_ctx m0_mgmt_addb_ctx;
+
+/**
+   @addtogroup mgmt
+   @{
+ */
+
+M0_INTERNAL int m0_mgmt_init(void)
+{
+	m0_addb_ctx_type_register(&m0_addb_ct_mgmt_mod);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_mgmt_addb_ctx, &m0_addb_ct_mgmt_mod,
+			 &m0_addb_proc_ctx);
+	return 0;
+}
+
+M0_INTERNAL void m0_mgmt_fini(void)
+{
+	m0_addb_ctx_fini(&m0_mgmt_addb_ctx);
+}
+
+/** @} end of mgmt group */
 
 /*
  *  Local variables:

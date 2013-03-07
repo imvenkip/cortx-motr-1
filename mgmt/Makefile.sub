@@ -1,0 +1,6 @@
+nobase_mero_include_HEADERS += mgmt/mgmt.h \
+			       mgmt/mgmt_addb.h \
+			       mgmt/mgmt_pvt.h
+
+mero_libmero_la_SOURCES  += mgmt/mgmt.c
+

@@ -167,6 +167,7 @@ include $(top_srcdir)/cfg/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
 include $(top_srcdir)/cob/Makefile.sub
 include $(top_srcdir)/mero/Makefile.sub
+include $(top_srcdir)/mgmt/Makefile.sub
 include $(top_srcdir)/conf/Makefile.sub
 include $(top_srcdir)/conf/objs/Makefile.sub
 include $(top_srcdir)/console/Makefile.sub

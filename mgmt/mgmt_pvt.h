@@ -91,6 +91,9 @@
    @{
  */
 
+/** Management module ADDB context */
+extern struct m0_addb_ctx m0_mgmt_addb_ctx;
+
 /** @} end mgmt_pvt group */
 #endif /* __MERO_MGMT_MGMT_PVT_H__ */
 /*

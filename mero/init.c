@@ -66,6 +66,7 @@
 #include "mdservice/md_service.h"
 #include "sns/sns.h"
 #include "cm/cm.h"
+#include "mgmt/mgmt.h"
 
 M0_INTERNAL int m0_memory_init(void);
 M0_INTERNAL void m0_memory_fini(void);
@@ -140,6 +141,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
 	{ &m0_yaml2db_mod_init, &m0_yaml2db_mod_fini, "yaml2db" },
 #endif /* __KERNEL__ */
+	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
 };
 
 static void fini_nr(int i)
