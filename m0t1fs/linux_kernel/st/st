@@ -138,7 +138,7 @@ EOF`"
 
     echo "--- `date` ---" >>$SANDBOX_DIR/m0d.log
     cd $SANDBOX_DIR
-    $M0_CORE_DIR/mero/m0d $OPTIONS >>$SANDBOX_DIR/m0d.log 2>&1 &
+    ($M0_CORE_DIR/mero/m0d $OPTIONS >>$SANDBOX_DIR/m0d.log 2>&1 &)
 
     sleep 1
     killall -q -0 lt-m0d || {
