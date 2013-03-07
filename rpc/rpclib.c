@@ -195,6 +195,7 @@ err:
 	dbcob_fini(cctx);
 	M0_RETURN(rc);
 }
+M0_EXPORTED(m0_rpc_client_start);
 
 int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 {
