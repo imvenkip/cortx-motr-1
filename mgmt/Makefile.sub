@@ -2,5 +2,11 @@ nobase_mero_include_HEADERS += mgmt/mgmt.h \
 			       mgmt/mgmt_addb.h \
 			       mgmt/mgmt_pvt.h
 
-mero_libmero_la_SOURCES  += mgmt/mgmt.c
+XC_FILES   += mgmt/mgmt_fops_xc.h
 
+mero_libmero_la_SOURCES  += mgmt/mgmt.c \
+			    mgmt/mgmt_fops_xc.c
+
+
+CLEANFILES += mgmt/mgmt_fops_xc.c \
+	      mgmt/mgmt_fops_xc.h

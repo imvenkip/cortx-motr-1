@@ -396,6 +396,7 @@ Mero-WOMO Productization Planning</a>
 #include "mgmt/mgmt_addb.h"
 
 #include "mgmt/mgmt_pvt.h"
+#include "mgmt/mgmt_fops_xc.h"
 
 /** Management module global ADDB context */
 struct m0_addb_ctx m0_mgmt_addb_ctx;
@@ -407,6 +408,7 @@ struct m0_addb_ctx m0_mgmt_addb_ctx;
 
 M0_INTERNAL int m0_mgmt_init(void)
 {
+	m0_xc_mgmt_fops_init();
 	m0_addb_ctx_type_register(&m0_addb_ct_mgmt_mod);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_mgmt_addb_ctx, &m0_addb_ct_mgmt_mod,
 			 &m0_addb_proc_ctx);
@@ -416,6 +418,7 @@ M0_INTERNAL int m0_mgmt_init(void)
 M0_INTERNAL void m0_mgmt_fini(void)
 {
 	m0_addb_ctx_fini(&m0_mgmt_addb_ctx);
+	m0_xc_mgmt_fops_fini();
 }
 
 /** @} end of mgmt group */
