@@ -37,6 +37,8 @@
 
    <hr>
    @section MGMT-SVC-DLD-ovw Overview
+   The management service provides external control and monitoring over the
+   services executing under a request handler.
 
    <hr>
    @section MGMT-SVC-DLD-req Requirements
@@ -52,7 +54,7 @@
          struct m0_atomic64 rs_fop_count;
    };
 @endcode
-   The counter is operated from the ::m0_reqh_fop_handle() subroutine.
+   The counter is operated from the m0_reqh_fop_handle() subroutine.
    - The @ref reqh "request handler" module requires modifications to always
    configure the management service.
    - Both the @ref reqh "request handler" object and the

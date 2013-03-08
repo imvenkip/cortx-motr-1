@@ -164,8 +164,8 @@
      - All services relevant to a node will be configured to run within this
      m0d process.
    - Use of the /etc/hosts and /etc/genders databases to capture static
-     configuration data.  It is assumed that these files will be identical
-     on all nodes of the Mero cluster.
+     configuration data.  It is assumed that these files will have the same
+     content on all nodes of the Mero cluster.
    - A standard directory in the file system, /etc/sysconfig/mero, is specified
      for additional configuration, including information on the disks to be used
      on the node (STOB data).  Some of this information will eventually be
@@ -176,7 +176,7 @@
      - This will be the run time directory of the m0d process.  Core files
        should end up in this directory.
      - A subdirectory named "db" will be temporarily created and passed as
-       the argument to the -D m0d flag.
+       the argument to the '-D' m0d flag.
      - The confd database will be in a sub-directory named "confd" on
        hosts that run the configuration database service.
      - Trace files could be placed in this directory.
@@ -191,11 +191,11 @@
 # service mero status
 # service mero stop
 @endcode
-   - The "start" option will load the Mero kernel module and then start the m0d
-   process.
-   - The "stop" option will stop the m0d process and unload the kernel
+   - The "start" directive will load the Mero kernel module and then start
+   the m0d process.
+   - The "stop" directive will stop the m0d process and unload the kernel
    module.
-   - The "query" option will use the m0mc command to query m0d and then
+   - The "query" directive will use the m0mc command to query m0d and then
    return a summary status.
 
    See @ref service8 "service(8)" for more details.
@@ -204,7 +204,8 @@
    and information in the /etc/sysconfig/mero directory.
 
    @todo Define STOB data required under /etc/sysconfig/mero
-   @todo Investigate other flags such as -p.
+   @todo Investigate other m0d flags such as '-p'.  This generalizes to handling
+   one-time initialization issues.
    @todo Investigate other service startup needs.
 
    @subsection MGMT-DLD-lspec-genders Use of the /etc/genders file
@@ -309,7 +310,7 @@ h00,h01
    replicated on each participating host in the Mero cluster so that they all
    have the same set of mappings.
 
-   The TCP/IP host names for Mero cluster servers must follow the pattern
+   The host names for Mero cluster servers must follow the pattern
    defined for @ref libgenders3 "/etc/genders".  Genders refers to a
    cluster host name as its "node name".
 
