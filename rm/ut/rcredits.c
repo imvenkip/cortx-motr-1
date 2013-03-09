@@ -181,6 +181,8 @@ static void rm_ctx_init(struct rm_context *rmctx)
 	struct m0_db_tx tx;
 
 	rmctx->rc_xprt = &m0_net_lnet_xprt;
+	rc = m0_net_xprt_init(rmctx->rc_xprt);
+	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_net_domain_init(&rmctx->rc_net_dom, rmctx->rc_xprt,
 	                        &m0_addb_proc_ctx);
@@ -246,6 +248,7 @@ static void rm_ctx_fini(struct rm_context *rmctx)
 	m0_dbenv_fini(&rmctx->rc_dbenv);
 	m0_rpc_net_buffer_pool_cleanup(&rmctx->rc_bufpool);
 	m0_net_domain_fini(&rmctx->rc_net_dom);
+	m0_net_xprt_fini(rmctx->rc_xprt);
 }
 
 static void rm_connect(struct rm_context *src, const struct rm_context *dest)
@@ -645,12 +648,14 @@ static void remote_credits_utfini(void)
 	uint32_t i;
 
 	m0_rm_fop_fini();
-	for (i = 0; i < SERVER_NR; ++i) {
+
+	for (i = 0; i < SERVER_NR; ++i)
 		server_stop(i);
-	}
-	for (i = 0; i < SERVER_NR; ++i) {
+	/* Another loop is needed, because no rm_context should be finalised
+	 * until all servers are stopped. */
+	for (i = 0; i < SERVER_NR; ++i)
 		rm_ctx_fini(&rm_ctx[i]);
-	}
+
 	for (i = 0; i < TEST_NR; ++i) {
 		m0_clink_del_lock(&tests_clink[i]);
 		m0_clink_fini(&tests_clink[i]);
