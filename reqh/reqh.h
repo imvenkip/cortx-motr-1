@@ -31,6 +31,7 @@
 #include "sm/sm.h"
 #include "fop/fom.h"
 #include "layout/layout.h"
+#include "reqh/reqh_fp.h"
 
 /**
    @defgroup reqh Request handler
@@ -112,6 +113,7 @@ struct m0_reqh {
 	struct m0_rwlock         rh_rwlock;
 
 	/**
+	   @deprecated
 	    True if request handler received a shutdown signal.
 	    Request handler should not process any further requests
 	    if this flag is set.
@@ -128,10 +130,13 @@ struct m0_reqh {
 	struct m0_addb_ctx       rh_addb_ctx;
 
 	/**
-	    Channel to wait on for reqh shutdown.
+	    Channel to wait on for reqh shutdown or FOM termination.
 	 */
 	struct m0_chan           rh_sd_signal;
 	struct m0_mutex          rh_mutex; /**< protect rh_sd_signal chan */
+
+	/** FOP acceptance policy */
+	struct m0_reqh_fop_policy rh_fp;
 
 	/** Local service consuming reply. */
 	struct m0_local_service *rh_svc;

@@ -23,13 +23,17 @@
 #ifndef __MERO_REQH_REQH_SERVICE_H__
 #define __MERO_REQH_REQH_SERVICE_H__
 
+#include "lib/atomic.h"
 #include "lib/tlist.h"
 #include "lib/bob.h"
 #include "lib/mutex.h"
 #include "addb/addb.h"
 
+struct m0_fop;
+
 /**
    @defgroup reqhservice Request handler service
+   @ingroup reqh
 
    A mero service is described to a request handler using a struct
    m0_reqh_service_type data structure.
@@ -246,6 +250,13 @@ struct m0_reqh_service {
 	 * service context
 	 */
 	struct m0_reqh_context           *rs_reqh_ctx;
+
+	/**
+	   Count of outstanding FOMs created by this service.
+	   @see m0_fom_init(), m0_fom_fini()
+	 */
+	struct m0_atomic64                rs_nr_foms;
+
 	/**
 	   Service magic to check consistency of service instance.
 	 */
@@ -319,6 +330,17 @@ struct m0_reqh_service_ops {
 	   The method is optional and need not be specified.
 	 */
 	void (*rso_stats_post_addb)(struct m0_reqh_service *service);
+
+	/**
+	   Method to determine if an incoming FOP for this service should
+	   be accepted when the service is stopping or will shortly be
+	   stopped.
+	   The method is optional and need not be specified.
+	   @see m0_reqh_fop_policy
+	 */
+	int (*rso_fop_accept)(struct m0_reqh_service *service,
+			      struct m0_fop *fop);
+
 };
 
 struct m0_reqh_context;

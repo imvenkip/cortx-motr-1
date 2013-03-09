@@ -19,7 +19,7 @@
  */
 
 /**
-   @page MGMT-DLD Mero Management Interfaces
+   @page MGMT-DLD Management Interface Design
 
    - @ref MGMT-DLD-ovw
    - @ref MGMT-DLD-def
@@ -32,7 +32,7 @@
       - @ref MGMT-DLD-lspec-osif
       - @ref MGMT-DLD-lspec-genders
       - @ref MGMT-DLD-lspec-hosts
-      - @ref MGMT-SVC-DLD "The management service"
+      - @ref MGMT-SVC-DLD "Management Service Design"
       - @ref MGMT-M0MC-DLD "The management command (m0mc)"
       - @ref MGMT-DLD-lspec-state
       - @ref MGMT-DLD-lspec-thread
@@ -45,8 +45,8 @@
    - @ref MGMT-DLD-impl-plan
 
    Additional design details are found in component DLDs:
-   - @subpage MGMT-SVC-DLD "The Management Service Detailed Design"
-   - @subpage MGMT-M0MC-DLD "The m0mc Command Detailed Design"
+   - @subpage MGMT-SVC-DLD "Management Service Design"
+   - @subpage MGMT-M0MC-DLD "The m0mc Command Design"
 
    <hr>
    @section MGMT-DLD-ovw Overview
@@ -57,10 +57,10 @@
    command line utilities necessary for interaction with external
    subsystems such as the HA subsystem. @ref MGMT-DLD-ref-svc-plan "[0]".
 
-   The Management module provides @i mechanisms by which Mero is managed;
-   it does not provide @i policy.  This DLD and associated documents
-   should aid in the development of middle-ware required to successfully
-   deploy a Mero based product such as
+   The Management module provides @i mechanisms by which Mero is configured
+   and managed externally; it does not define external @i policy.
+   This DLD and associated documents should aid in the development of
+   middle-ware required to successfully deploy a Mero based product such as
    @ref MGMT-DLD-ref-mw-prod-plan "WOMO [1]".
 
    <hr>
@@ -119,16 +119,18 @@
 
    <hr>
    @section MGMT-DLD-highlights Design Highlights
-   - Describe the run time environment consisting of TCP/IP and LNet host names,
-     addresses and network interfaces, host UUIDs, service configuration
-     choices, run time locations, common parameters.
-   - Reflect static environment data in the Genders database.
+   - Describe the run time environment in terms of the host names, addresses and
+     network interfaces, host UUIDs, service configuration choices, run time
+     locations, and common parameters required to define the cluster.
+   - Reflect static configuration data in the Genders database.
    - Adopt a standard m0d deployment configuration.
       - Provide standard operating system "service" command support to start
         and stop m0d.
    - Automatically insert a Management service in every request handler.
       - Interact with this service through Management FOPs.
       - Provide the m0mc command line program.
+      - Add a formal policy to control when m0d accepts incoming FOPs, to
+      handle graceful startup and shutdown.
 
    <hr>
    @section MGMT-DLD-lspec Logical Specification
@@ -165,7 +167,7 @@
      m0d process.
    - Use of the /etc/hosts and /etc/genders databases to capture static
      configuration data.  It is assumed that these files will have the same
-     content on all nodes of the Mero cluster.
+     cluster related content on all nodes of the Mero cluster.
    - A standard directory in the file system, /etc/sysconfig/mero, is specified
      for additional configuration, including information on the disks to be used
      on the node (STOB data).  Some of this information will eventually be
@@ -344,9 +346,14 @@ lh01     10.76.50.41
 
    <hr>
    @section MGMT-DLD-conformance Conformance
-   <i>Mandatory.
-   This section cites each requirement in the @ref MGMT-DLD-req section,
-   and explains briefly how the DLD meets the requirement.</i>
+
+   - @b I.reqh.mgmt-api.service.start
+   - @b I.reqh.startup.synchronous
+   - @b I.reqh.mgmt-api.service.stop
+   - @b I.reqh.mgmt-api.service.query
+   - @b I.reqh.mgmt-api.shutdown
+   - @b I.reqh.mgmt-api.control
+        See @ref MGMT-SVC-DLD "Management Service Design"
 
    <hr>
    @section MGMT-DLD-ut Unit Tests

@@ -15,36 +15,34 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Carl Braganza <carl_braganza@xyratex.com>
- * Original creation date: 5-Mar-2013
+ * Original creation date: 8-Mar-2013
  */
 #pragma once
-#ifndef __MERO_MGMT_MGMT_H__
-#define __MERO_MGMT_MGMT_H__
+#ifndef __MERO_MGMT_SVC_H__
+#define __MERO_MGMT_SVC_H__
+
+#include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
 
 /**
-   @defgroup mgmt Management Interfaces
-   This module provides interfaces to manage Mero.
-
-   @see @ref MGMT-DLD "Management Detailed Design"
-
+   @defgroup mgmt_svc_pvt Management Service Private
+   @ingroup mgmt_pvt
    @{
  */
-
-/** The name of the management service service-type */
-#define M0_MGMT_SVC_TYPE_NAME "mgmt"
+extern struct m0_reqh_service_type m0_mgmt_svc_type;
 
 /**
-   Management module initializer.
+   The Management service.  There is one instance of this service in every
+   request handler.  It is created by the cs_services_init() subroutine.
  */
-M0_INTERNAL int m0_mgmt_init(void);
+struct m0_mgmt_svc {
+	/** Embedded request handler service */
+	struct m0_reqh_service ms_reqhs;
+};
 
-/**
-   Management module finalizer.
- */
-M0_INTERNAL void m0_mgmt_fini(void);
+/** @} end mgmt_pvt group */
+#endif /* __MERO_MGMT_SVC_H__ */
 
-/** @} end mgmt group */
-#endif /* __MERO_MGMT_MGMT_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

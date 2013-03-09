@@ -24,7 +24,7 @@ Detailed designs, ordered alphabetically:
            <!-- net/lnet/lnet_main.c -->
 - @subpage net-test "Mero Network Benchmark"
            <!-- net/test/main.c -->
-- @subpage MGMT-DLD "Mero Management Interfaces"
+- @subpage MGMT-DLD "Management Interface Design"
            <!-- mgmt/mgmt.c -->
 - @subpage rpc-layer-core-dld "RPC layer core DLD"
            <!-- rpc/rpc.h -->
