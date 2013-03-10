@@ -55,8 +55,20 @@ run_kut() {
 
 run_st() {
     _reset
+
     $SUDO "$SRC/net/test/st/st.sh"
+
+    ## rpc ping
+    $SUDO "$SRC/m0t1fs/linux_kernel/st/st" insmod
+    local rc=0
+    "$SRC/rpc/it/st" || rc=$?
+    $SUDO "$SRC/m0t1fs/linux_kernel/st/st" rmmod
+    [ $rc -eq 0 ] || exit $rc
+
+    ## conf ST
     $SUDO SANDBOX_DIR=${RUNDIR}/_m0-sandbox "$SRC/m0t1fs/linux_kernel/st/st"
+
+    ## other ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_test.sh"
 }
 
