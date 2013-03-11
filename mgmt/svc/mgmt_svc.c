@@ -102,7 +102,7 @@
    handler to formally define when FOPs are to be accepted.
    - A special "management" request handler service is provided to
    expose a service management FOP interface.
-     - It is works in conjunction with the FOP acceptance policy.
+     - It works in conjunction with the FOP acceptance policy.
      - The m0mc command will be its primary client.
      - It is extensible to additional management tasks.
 
@@ -251,7 +251,7 @@
 @code
 	m0_rwlock_read_lock(&reqh->rh_rwlock);
 	rc = m0_reqh_fp_accept(&reqh->rh_fp, reqh, fop);
-	if (rc) {
+	if (rc != 0) {
 		REQH_ADDB_FUNCFAIL(rc, FOP_HANDLE_2, &reqh->rh_addb_ctx);
 		m0_rwlock_read_unlock(&reqh->rh_rwlock);
 		return;

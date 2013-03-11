@@ -71,7 +71,7 @@ struct m0_fop_mgmt_service_state_res {
 } M0_XCA_RECORD;
 
 /**
-   Request FOP to ask for the status of a services or of all services.
+   Request FOP to ask for the status of a service or of all services.
    The response is a ::m0_fop_mgmt_service_status_res FOP.
  */
 struct m0_fop_mgmt_service_status_req {
