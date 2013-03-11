@@ -142,9 +142,9 @@ M0_INTERNAL void m0_net_tm_event_post(const struct m0_net_tm_event *ev)
 static void m0_net__tm_cleanup(struct m0_net_transfer_mc *tm)
 {
 	int i;
-	m0_mutex_fini(&tm->ntm_mutex);
 	tm->ntm_dom = NULL;
 	m0_chan_fini_lock(&tm->ntm_chan);
+	m0_mutex_fini(&tm->ntm_mutex);
 	m0_list_fini(&tm->ntm_end_points);
 	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
 		m0_net_tm_tlist_fini(&tm->ntm_q[i]);

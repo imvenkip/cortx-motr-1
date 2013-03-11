@@ -151,7 +151,6 @@ M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
         m0_fom_domain_fini(&reqh->rh_fom_dom);
         m0_reqh_svc_tlist_fini(&reqh->rh_services);
         m0_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
-	m0_chan_fini_lock(&reqh->rh_sd_signal);
 	m0_reqh_lockers_fini(reqh);
 	m0_rwlock_fini(&reqh->rh_rwlock);
 	m0_chan_fini_lock(&reqh->rh_sd_signal);

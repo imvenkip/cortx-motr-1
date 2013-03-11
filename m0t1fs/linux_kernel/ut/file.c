@@ -664,8 +664,8 @@ static int file_io_ut_fini(void)
 	m0_layout_instance_fini(ci.ci_layout_instance);
 
 	m0_addb_ctx_fini(&m0t1fs_addb_ctx);
-	m0_sm_group_fini(&csb.csb_iogroup);
 	m0_chan_fini_lock(&csb.csb_iowait);
+	m0_sm_group_fini(&csb.csb_iogroup);
 
 	/* Finalizes the m0_pdclust_layout type. */
 	m0_layout_put(&pdlay->pl_base.sl_base);
