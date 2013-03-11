@@ -67,13 +67,13 @@
 enum ep_type { EP_SERVER, EP_CLIENT };
 
 enum {
-	BUF_LEN		   = 128,
-	STRING_LEN	   = 16,
+	BUF_LEN            = 128,
+	STRING_LEN         = 16,
 	M0_LNET_PORTAL     = 34,
 	MAX_RPCS_IN_FLIGHT = 32,
 	CLIENT_COB_DOM_ID  = 13,
-	CONNECT_TIMEOUT	   = 20,
-	MAX_RETRIES        = 5
+	CONNECT_TIMEOUT    = 20,
+	MAX_RETRIES        = 10
 };
 
 #ifndef __KERNEL__
