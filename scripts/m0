@@ -31,7 +31,7 @@ build() {
     autoreconf -ifs
     ./configure $CONFIGURE_OPTS
 
-    local _OUT=mktemp
+    local _OUT=`mktemp`
     trap "rm $_OUT" 0
     make $MAKE_OPTS 2>&1 | tee $_OUT
     if grep 'WARNING:' $_OUT; then
