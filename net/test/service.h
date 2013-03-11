@@ -27,7 +27,6 @@
 #include "lib/thread.h"			/* m0_thread */
 
 #include "net/test/commands.h"		/* m0_net_test_cmd_ctx */
-#include "net/test/node.h"		/* m0_net_test_node_ctx */
 
 /**
    @defgroup NetTestServiceDFS Test Service
@@ -111,7 +110,7 @@ struct m0_net_test_service {
    m0_net_test_service_fini();
    @endcode
 
-   @note Service state will not be changed it ops->ntso_init returns
+   @note Service state will not be changed if ops->ntso_init returns
    non-zero result and will be changed to M0_NET_TEST_SERVICE_READY
    otherwise.
 

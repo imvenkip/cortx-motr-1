@@ -158,9 +158,10 @@ net_lnet_SOURCES                := lnet_addb.c
 
 net_lnet_ut_SOURCES             := lnet_ut.c
 
-net_test_SOURCES                := commands.c console.c network.c node_bulk.c \
-                                   node.c node_ping.c ringbuf.c serialize.c   \
-                                   service.c slist.c stats.c str.c
+net_test_SOURCES		:= commands.c console.c initfini.c network.c  \
+				   node_bulk.c node_helper.c node_ping.c      \
+				   node_stub.c node.c ringbuf.c serialize.c   \
+				   service.c slist.c stats.c str.c
 
 net_test_ut_SOURCES             := client_server.c commands.c main.c          \
                                    network.c ringbuf.c serialize.c service.c  \

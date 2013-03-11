@@ -21,7 +21,7 @@
  */
 
 /**
-   @defgroup desim Discreet Event Simulator
+   @defgroup desim Discrete Event Simulator
 
    <b>Concepts</b>
 

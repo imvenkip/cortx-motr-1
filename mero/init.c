@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -52,6 +52,7 @@
 #ifdef __KERNEL__
 #  include "m0t1fs/linux_kernel/m0t1fs.h"
 #  include "build_kernel_modules/dummy_init_fini.h"
+#  include "net/test/initfini.h"	/* m0_net_test_init */
 #else
 #  include "conf/confd.h"       /* m0_confd_register */
 #  include "conf/addb.h"        /* m0_conf_addb_init */
@@ -107,6 +108,9 @@ struct init_fini_call subsystem[] = {
 	   type for network descriptors. */
 	{ &m0_fops_init,        &m0_fops_fini,        "fop" },
 	{ &m0_net_init,         &m0_net_fini,         "net" },
+#ifdef __KERNEL__
+	{ &m0_net_test_init,    &m0_net_test_fini,    "net-test" },
+#endif
 	{ &m0_reqhs_init,       &m0_reqhs_fini,       "reqhs" },
 	{ &m0_uts_init,         &m0_uts_fini,         "ut" },
 	{ &m0_rpc_init,         &m0_rpc_fini,         "rpc" },

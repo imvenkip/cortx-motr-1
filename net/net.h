@@ -987,7 +987,6 @@ struct m0_net_transfer_mc {
 
    All fields in the structure other then the above will be set to their
    appropriate initial values.
-   @note An initialized TM cannot be fini'd without first starting it.
    @param dom     Network domain pointer.
    @param addb_mc Pointer to the ADDB machine to use with this transfer machine
    for non-exception related posts.  The global ADDB machine, ::m0_addb_gmc,

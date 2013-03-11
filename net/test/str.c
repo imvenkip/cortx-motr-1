@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -26,13 +26,13 @@
 
 #include "lib/memory.h"		/* m0_alloc */
 
+#include "mero/magic.h"	/* M0_NET_TEST_STR_MAGIC */
+
 #include "net/test/str.h"
 
 /**
    @defgroup NetTestStrInternals Serialization of ASCIIZ string
    @ingroup NetTestInternals
-
-   @todo move to net/test/str.h
 
    @see
    @ref net-test
@@ -41,13 +41,14 @@
  */
 
 struct net_test_str_len {
-	size_t   ntsl_len;
+	/** M0_NET_TEST_STR_MAGIC */
 	uint64_t ntsl_magic;
+	size_t   ntsl_len;
 };
 
 TYPE_DESCR(net_test_str_len) = {
-	FIELD_DESCR(struct net_test_str_len, ntsl_len),
 	FIELD_DESCR(struct net_test_str_len, ntsl_magic),
+	FIELD_DESCR(struct net_test_str_len, ntsl_len),
 };
 
 m0_bcount_t m0_net_test_str_serialize(enum m0_net_test_serialize_op op,
@@ -56,19 +57,21 @@ m0_bcount_t m0_net_test_str_serialize(enum m0_net_test_serialize_op op,
 				      m0_bcount_t bv_offset)
 {
 	struct net_test_str_len str_len;
-	m0_bcount_t		len = 0;
+	m0_bcount_t		len;
 	m0_bcount_t		len_total;
 
 	M0_PRE(op == M0_NET_TEST_SERIALIZE || op == M0_NET_TEST_DESERIALIZE);
 	M0_PRE(str != NULL);
+	M0_PRE(ergo(op == M0_NET_TEST_SERIALIZE, *str != NULL));
 
 	if (op == M0_NET_TEST_SERIALIZE) {
 		str_len.ntsl_len = strlen(*str) + 1;
 		str_len.ntsl_magic = M0_NET_TEST_STR_MAGIC;
 	}
-	len_total = m0_net_test_serialize(op, &str_len,
-					  USE_TYPE_DESCR(net_test_str_len),
-					  bv, bv_offset);
+	len = m0_net_test_serialize(op, &str_len,
+				    USE_TYPE_DESCR(net_test_str_len),
+				    bv, bv_offset);
+	len_total = net_test_len_accumulate(0, len);
 	if (len_total != 0) {
 		if (op == M0_NET_TEST_DESERIALIZE) {
 			if (str_len.ntsl_magic != M0_NET_TEST_STR_MAGIC)
@@ -80,10 +83,10 @@ m0_bcount_t m0_net_test_str_serialize(enum m0_net_test_serialize_op op,
 		len = m0_net_test_serialize_data(op, *str, str_len.ntsl_len,
 						 true,
 						 bv, bv_offset + len_total);
-		len_total += len;
+		len_total = net_test_len_accumulate(len_total, len);
 	};
 
-	return len == 0 ? 0 : len_total;
+	return len_total;
 }
 
 void m0_net_test_str_fini(char **str)

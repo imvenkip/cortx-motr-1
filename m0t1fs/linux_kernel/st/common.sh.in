@@ -57,6 +57,6 @@ modunload()
 	for m in $MODLIST ;do
 		echo $m
 	done | tac | while read ;do
-		rmmod $REPLY &>> /dev/null || echo "Error unloading $m."
+		rmmod $REPLY &>> /dev/null || echo "Error unloading $REPLY."
 	done
 }

@@ -141,6 +141,7 @@ sub check_include_guards
     my $include_files = File::Find::Rule->file()
                                         ->not( File::Find::Rule->symlink() )
                                         ->name('*.h')
+					->not( File::Find::Rule->name('debug.h') )
                                         ->not( File::Find::Rule->name('config.h') );
 
     my @files = File::Find::Rule->or( $exclude_dirs, $include_files )

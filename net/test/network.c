@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,20 +18,15 @@
  * Original creation date: 03/22/2012
  */
 
-#ifdef __KERNEL__
-#include <linux/kernel.h>	/* snprintf() */
-#else
-#include <stdio.h>		/* snprintf() */
-#include <inttypes.h>		/* PRIu64 */
-#endif
-
 #include "lib/cdefs.h"		/* ergo */
 #include "lib/errno.h"		/* E2BIG */
 #include "lib/memory.h"		/* M0_ALLOC_ARR */
 #include "lib/misc.h"		/* M0_SET0 */
 #include "lib/vec.h"		/* M0_SEG_SHIFT */
 
-#include "net/net.h"
+#include "mero/magic.h"	/* M0_NET_TEST_NETWORK_BD_MAGIC */
+
+#include "net/net.h"		/* m0_net_buffer */
 #include "net/lnet/lnet.h"	/* m0_net_lnet_xprt */
 
 #include "net/test/network.h"
@@ -49,20 +44,6 @@
 
    @{
  */
-
-#if 0
-#ifndef __KERNEL__
-#define DEBUG_NET_TEST_NETWORK
-#endif
-#endif
-
-/* see buf_desc_decode() and m0_net_test_network_bd_encode() */
-M0_BASSERT(sizeof(unsigned)	 == sizeof(uint32_t));
-M0_BASSERT(sizeof(unsigned long) == sizeof(m0_bcount_t));
-
-enum {
-	M0_NET_TEST_STRLEN_NBD_HEADER = 32,
-};
 
 int m0_net_test_network_init(void)
 {
@@ -100,7 +81,8 @@ static uint32_t cb_buf_index_extract(const struct m0_net_buffer_event *ev,
 	type_ping = q == M0_NET_QT_MSG_SEND || q == M0_NET_QT_MSG_RECV;
 	arr = type_ping ? ctx->ntc_buf_ping : ctx->ntc_buf_bulk;
 	index = ev->nbe_buffer - arr;
-	index_max = type_ping ? ctx->ntc_buf_ping_nr : ctx->ntc_buf_bulk_nr;
+	index_max = type_ping ? ctx->ntc_cfg.ntncfg_buf_ping_nr :
+				ctx->ntc_cfg.ntncfg_buf_bulk_nr;
 
 	M0_POST(index >= 0 && index < index_max);
 
@@ -120,6 +102,7 @@ static void cb_default(const struct m0_net_buffer_event *ev)
 	enum m0_net_queue_type		q;
 
 	M0_PRE(buf != NULL);
+	M0_PRE((buf->nb_flags & M0_NET_BUF_QUEUED) == 0);
 	q = ev->nbe_buffer->nb_qtype;
 
 	ctx = cb_ctx_extract(ev);
@@ -133,7 +116,7 @@ static void cb_default(const struct m0_net_buffer_event *ev)
 		buf->nb_offset = 0;
 	}
 
-	ctx->ntc_buf_cb.ntnbc_cb[q](ctx, buf_index, q, ev);
+	ctx->ntc_cfg.ntncfg_buf_cb.ntnbc_cb[q](ctx, buf_index, q, ev);
 }
 
 static struct m0_net_buffer_callbacks net_test_network_buf_cb = {
@@ -272,64 +255,63 @@ bool m0_net_test_network_ctx_invariant(struct m0_net_test_network_ctx *ctx)
 {
 	M0_PRE(ctx != NULL);
 
-	return ctx->ntc_ep_nr <= ctx->ntc_ep_max;
+	return ctx->ntc_ep_nr <= ctx->ntc_cfg.ntncfg_ep_max;
 }
 
-int m0_net_test_network_ctx_init(struct m0_net_test_network_ctx *ctx,
-				 const char *tm_addr,
-				 const struct m0_net_tm_callbacks *tm_cb,
-				 const struct
-				 m0_net_test_network_buffer_callbacks *buf_cb,
-				 m0_bcount_t buf_size_ping,
-				 uint32_t buf_ping_nr,
-				 m0_bcount_t buf_size_bulk,
-				 uint32_t buf_bulk_nr,
-				 uint32_t ep_max,
-				 const struct m0_net_test_network_timeouts
-				 *timeouts)
+static int net_test_network_ctx_initfini(struct m0_net_test_network_ctx *ctx,
+					 struct m0_net_test_network_cfg *cfg,
+					 const char *tm_addr)
 {
-	int		       rc;
-	struct m0_clink        tmwait;
+	struct m0_clink tmwait;
+	int		rc;
+	int		i;
 
-	M0_PRE(ctx     != NULL);
-	M0_PRE(tm_addr != NULL);
-	M0_PRE(tm_cb   != NULL);
-	M0_PRE(buf_cb  != NULL);
+	M0_PRE(ctx != NULL);
+	M0_PRE(equi(cfg != NULL, tm_addr != NULL));
+
+	if (cfg == NULL)
+		goto fini;
 
 	M0_SET0(ctx);
+	ctx->ntc_cfg = *cfg;
 
+	rc = -ENOMEM;
+	/** @todo make ctx->ntc_dom embedded into ctx */
 	M0_ALLOC_PTR(ctx->ntc_dom);
 	if (ctx->ntc_dom == NULL)
-		return -ENOMEM;
+		goto fail;
+	M0_ALLOC_PTR(ctx->ntc_tm);
+	if (ctx->ntc_tm == NULL)
+		goto free_dom;
+	M0_ALLOC_ARR(ctx->ntc_buf_ping, ctx->ntc_cfg.ntncfg_buf_ping_nr);
+	if (ctx->ntc_buf_ping == NULL)
+		goto free_tm;
+	M0_ALLOC_ARR(ctx->ntc_buf_bulk, ctx->ntc_cfg.ntncfg_buf_bulk_nr);
+	if (ctx->ntc_buf_bulk == NULL)
+		goto free_buf_ping;
+	M0_ALLOC_ARR(ctx->ntc_ep, ctx->ntc_cfg.ntncfg_ep_max);
+	if (ctx->ntc_ep == NULL)
+		goto free_buf_bulk;
 
 	/** @todo replace proc ctx */
 	rc = m0_net_domain_init(ctx->ntc_dom, &m0_net_lnet_xprt,
 				&m0_addb_proc_ctx);
 	if (rc != 0)
-		goto free_dom;
-
-	ctx->ntc_tm_cb	     = *tm_cb;
-	ctx->ntc_buf_cb	     = *buf_cb;
-	ctx->ntc_buf_ping_nr = buf_ping_nr;
-	ctx->ntc_buf_bulk_nr = buf_bulk_nr;
-	ctx->ntc_ep_nr	     = 0;
-	ctx->ntc_ep_max	     = ep_max;
-	ctx->ntc_timeouts    = timeouts != NULL ? *timeouts :
-			       m0_net_test_network_timeouts_never();
+		goto free_ep;
 
 	/* init and start tm */
-	M0_ALLOC_PTR(ctx->ntc_tm);
-	if (ctx->ntc_tm == NULL)
-		goto fini_dom;
-
 	ctx->ntc_tm->ntm_state     = M0_NET_TM_UNDEFINED;
-	ctx->ntc_tm->ntm_callbacks = &ctx->ntc_tm_cb;
-
+	ctx->ntc_tm->ntm_callbacks = &ctx->ntc_cfg.ntncfg_tm_cb;
 	/** @todo replace gmc and ctx */
 	rc = m0_net_tm_init(ctx->ntc_tm, ctx->ntc_dom, &m0_addb_gmc,
 			    &m0_addb_proc_ctx);
 	if (rc != 0)
-		goto free_tm;
+		goto fini_dom;
+
+	rc = ctx->ntc_cfg.ntncfg_sync ?
+	     m0_net_buffer_event_deliver_synchronously(ctx->ntc_tm) : 0;
+	if (rc != 0)
+		goto fini_tm;
 
 	m0_clink_init(&tmwait, NULL);
 	m0_clink_add_lock(&ctx->ntc_tm->ntm_chan, &tmwait);
@@ -339,78 +321,68 @@ int m0_net_test_network_ctx_init(struct m0_net_test_network_ctx *ctx,
 	m0_clink_fini(&tmwait);
 	if (rc != 0)
 		goto fini_tm;
-	rc = -ECONNREFUSED;
-	if (ctx->ntc_tm->ntm_state != M0_NET_TM_STARTED)
+	if (ctx->ntc_tm->ntm_state != M0_NET_TM_STARTED) {
+		rc = -ECONNREFUSED;
 		goto fini_tm;
+	}
 
-	rc = -ENOMEM;
-	/* alloc arrays */
-	M0_ALLOC_ARR(ctx->ntc_buf_ping, ctx->ntc_buf_ping_nr);
-	if (ctx->ntc_buf_ping == NULL)
+	/* init and register buffers */
+	rc = net_test_bufs_init(ctx->ntc_buf_ping,
+				ctx->ntc_cfg.ntncfg_buf_ping_nr,
+				ctx->ntc_cfg.ntncfg_buf_size_ping, ctx);
+	if (rc != 0)
 		goto stop_tm;
-	M0_ALLOC_ARR(ctx->ntc_buf_bulk, ctx->ntc_buf_bulk_nr);
-	if (ctx->ntc_buf_bulk == NULL)
-		goto free_buf_bulk;
-	M0_ALLOC_ARR(ctx->ntc_ep, ctx->ntc_ep_max);
-	if (ctx->ntc_buf_bulk == NULL)
-		goto free_buf_ping;
-
-	/* init buffers */
-	rc = net_test_bufs_init(ctx->ntc_buf_ping, ctx->ntc_buf_ping_nr,
-			buf_size_ping, ctx);
+	rc = net_test_bufs_init(ctx->ntc_buf_bulk,
+				ctx->ntc_cfg.ntncfg_buf_bulk_nr,
+				ctx->ntc_cfg.ntncfg_buf_size_bulk, ctx);
 	if (rc != 0)
-		goto free_ep;
-	rc = net_test_bufs_init(ctx->ntc_buf_bulk, ctx->ntc_buf_bulk_nr,
-			buf_size_bulk, ctx);
-	if (rc != 0)
-		goto free_bufs_ping;
+		goto fini_buf_ping;
 
 	M0_POST(m0_net_test_network_ctx_invariant(ctx));
 	goto success;
+fini:
+	M0_PRE(m0_net_test_network_ctx_invariant(ctx));
 
-    free_bufs_ping:
-	net_test_bufs_fini(ctx->ntc_buf_ping, ctx->ntc_buf_ping_nr,
+	rc = 0;
+	for (i = 0; i < ctx->ntc_ep_nr; ++i)
+		m0_net_end_point_put(ctx->ntc_ep[i]);
+	net_test_bufs_fini(ctx->ntc_buf_bulk, ctx->ntc_cfg.ntncfg_buf_bulk_nr,
 			   ctx->ntc_dom);
-    free_ep:
-	m0_free(ctx->ntc_ep);
-    free_buf_bulk:
-	m0_free(ctx->ntc_buf_bulk);
-    free_buf_ping:
-	m0_free(ctx->ntc_buf_ping);
-    stop_tm:
+fini_buf_ping:
+	net_test_bufs_fini(ctx->ntc_buf_ping, ctx->ntc_cfg.ntncfg_buf_ping_nr,
+			   ctx->ntc_dom);
+stop_tm:
 	net_test_tm_stop(ctx->ntc_tm);
-    fini_tm:
+fini_tm:
 	m0_net_tm_fini(ctx->ntc_tm);
-    free_tm:
-	m0_free(ctx->ntc_tm);
-    fini_dom:
+fini_dom:
 	m0_net_domain_fini(ctx->ntc_dom);
-    free_dom:
+free_ep:
+	m0_free(ctx->ntc_ep);
+free_buf_bulk:
+	m0_free(ctx->ntc_buf_bulk);
+free_buf_ping:
+	m0_free(ctx->ntc_buf_ping);
+free_tm:
+	m0_free(ctx->ntc_tm);
+free_dom:
 	m0_free(ctx->ntc_dom);
-    success:
+fail:
+success:
 	return rc;
+}
+
+int m0_net_test_network_ctx_init(struct m0_net_test_network_ctx *ctx,
+				 struct m0_net_test_network_cfg *cfg,
+				 const char *tm_addr)
+{
+	return net_test_network_ctx_initfini(ctx, cfg, tm_addr);
 }
 
 void m0_net_test_network_ctx_fini(struct m0_net_test_network_ctx *ctx)
 {
-	int i;
-
-	M0_PRE(m0_net_test_network_ctx_invariant(ctx));
-
-	for (i = 0; i < ctx->ntc_ep_nr; ++i)
-		m0_net_end_point_put(ctx->ntc_ep[i]);
-	net_test_bufs_fini(ctx->ntc_buf_bulk, ctx->ntc_buf_bulk_nr,
-			   ctx->ntc_dom);
-	net_test_bufs_fini(ctx->ntc_buf_ping, ctx->ntc_buf_ping_nr,
-			   ctx->ntc_dom);
-	m0_free(ctx->ntc_ep);
-	m0_free(ctx->ntc_buf_bulk);
-	m0_free(ctx->ntc_buf_ping);
-	net_test_tm_stop(ctx->ntc_tm);
-	m0_net_tm_fini(ctx->ntc_tm);
-	m0_net_domain_fini(ctx->ntc_dom);
-	m0_free(ctx->ntc_tm);
-	m0_free(ctx->ntc_dom);
+	int rc = net_test_network_ctx_initfini(ctx, NULL, NULL);
+	M0_ASSERT(rc == 0);
 }
 
 int m0_net_test_network_ep_add(struct m0_net_test_network_ctx *ctx,
@@ -421,7 +393,7 @@ int m0_net_test_network_ep_add(struct m0_net_test_network_ctx *ctx,
 	M0_PRE(m0_net_test_network_ctx_invariant(ctx));
 	M0_PRE(ep_addr != NULL);
 
-	if (ctx->ntc_ep_nr != ctx->ntc_ep_max) {
+	if (ctx->ntc_ep_nr != ctx->ntc_cfg.ntncfg_ep_max) {
 		rc = m0_net_end_point_create(&ctx->ntc_ep[ctx->ntc_ep_nr],
 					     ctx->ntc_tm, ep_addr);
 		M0_ASSERT(rc <= 0);
@@ -433,11 +405,35 @@ int m0_net_test_network_ep_add(struct m0_net_test_network_ctx *ctx,
 	return rc;
 }
 
+int m0_net_test_network_ep_add_slist(struct m0_net_test_network_ctx *ctx,
+				     const struct m0_net_test_slist *eps)
+{
+	int    rc = 0;
+	size_t i;
+
+	M0_PRE(m0_net_test_network_ctx_invariant(ctx));
+	M0_PRE(m0_net_test_slist_invariant(eps));
+
+	for (i = 0; i < eps->ntsl_nr; ++i) {
+		rc = m0_net_test_network_ep_add(ctx, eps->ntsl_list[i]);
+		if (rc < 0)
+			break;
+	}
+	if (rc < 0) {
+		/* m0_net_end_point_put() for last i endpoints */
+		for (; i != 0; --i)
+			m0_net_end_point_put(ctx->ntc_ep[--ctx->ntc_ep_nr]);
+	}
+	M0_POST(m0_net_test_network_ctx_invariant(ctx));
+
+	return rc >= 0 ? 0 : rc;
+}
+
 static int net_test_buf_queue(struct m0_net_test_network_ctx *ctx,
 			      struct m0_net_buffer *nb,
 			      enum m0_net_queue_type q)
 {
-	m0_time_t timeout = ctx->ntc_timeouts.ntnt_timeout[q];
+	m0_time_t timeout = ctx->ntc_cfg.ntncfg_timeouts.ntnt_timeout[q];
 
 	M0_PRE((nb->nb_flags & M0_NET_BUF_QUEUED) == 0);
 	M0_PRE(ergo(q == M0_NET_QT_MSG_SEND, nb->nb_ep != NULL));
@@ -458,7 +454,7 @@ int m0_net_test_network_msg_send_ep(struct m0_net_test_network_ctx *ctx,
 	struct m0_net_buffer *nb;
 
 	M0_PRE(m0_net_test_network_ctx_invariant(ctx));
-	M0_PRE(buf_ping_index < ctx->ntc_buf_ping_nr);
+	M0_PRE(buf_ping_index < ctx->ntc_cfg.ntncfg_buf_ping_nr);
 
 	nb = &ctx->ntc_buf_ping[buf_ping_index];
 	nb->nb_ep = ep;
@@ -471,7 +467,7 @@ int m0_net_test_network_msg_send(struct m0_net_test_network_ctx *ctx,
 				 uint32_t ep_index)
 {
 	M0_PRE(m0_net_test_network_ctx_invariant(ctx));
-	M0_PRE(buf_ping_index < ctx->ntc_buf_ping_nr);
+	M0_PRE(buf_ping_index < ctx->ntc_cfg.ntncfg_buf_ping_nr);
 	M0_PRE(ep_index < ctx->ntc_ep_nr);
 
 	return m0_net_test_network_msg_send_ep(ctx, buf_ping_index,
@@ -482,7 +478,7 @@ int m0_net_test_network_msg_recv(struct m0_net_test_network_ctx *ctx,
 				 uint32_t buf_ping_index)
 {
 	M0_PRE(m0_net_test_network_ctx_invariant(ctx));
-	M0_PRE(buf_ping_index < ctx->ntc_buf_ping_nr);
+	M0_PRE(buf_ping_index < ctx->ntc_cfg.ntncfg_buf_ping_nr);
 
 	return net_test_buf_queue(ctx, &ctx->ntc_buf_ping[buf_ping_index],
 			M0_NET_QT_MSG_RECV);
@@ -496,12 +492,11 @@ int m0_net_test_network_bulk_enqueue(struct m0_net_test_network_ctx *ctx,
 	struct m0_net_buffer *buf;
 
 	M0_PRE(m0_net_test_network_ctx_invariant(ctx));
-	M0_PRE(buf_bulk_index < ctx->ntc_buf_bulk_nr);
+	M0_PRE(buf_bulk_index < ctx->ntc_cfg.ntncfg_buf_bulk_nr);
 
 	buf = &ctx->ntc_buf_bulk[buf_bulk_index];
 	if (q == M0_NET_QT_PASSIVE_BULK_SEND ||
-			q == M0_NET_QT_PASSIVE_BULK_RECV) {
-
+	    q == M0_NET_QT_PASSIVE_BULK_RECV) {
 		M0_PRE(ep_index < ctx->ntc_ep_nr);
 		buf->nb_ep = ctx->ntc_ep[ep_index];
 	} else
@@ -520,208 +515,218 @@ void m0_net_test_network_buffer_dequeue(struct m0_net_test_network_ctx *ctx,
 			  ctx->ntc_tm);
 }
 
-void m0_net_test_network_bd_reset(struct m0_net_test_network_ctx *ctx,
-				  int32_t buf_ping_index)
+/** Structure to help m0_net_buf_desc serialization */
+struct net_test_network_bd {
+	/** M0_NET_TEST_NETWORK_BD_MAGIC */
+	uint64_t    ntnbd_magic;
+	/** Passive buffer size */
+	m0_bcount_t ntnbd_buf_size;
+	/** m0_net_buf_desc.nbd_len */
+	uint32_t    ntnbd_len;
+};
+
+/** net_test_network_bd_descr */
+TYPE_DESCR(net_test_network_bd) = {
+	FIELD_DESCR(struct net_test_network_bd, ntnbd_magic),
+	FIELD_DESCR(struct net_test_network_bd, ntnbd_buf_size),
+	FIELD_DESCR(struct net_test_network_bd, ntnbd_len),
+};
+
+/** Header for ping buffer with serialized m0_net_buf_desc's */
+struct net_test_network_bds_header {
+	/** M0_NET_TEST_NETWORK_BDS_MAGIC */
+	uint64_t ntnbh_magic;
+	/** Number of buffer descriptors in ping buffer */
+	uint64_t ntnbh_nr;
+};
+
+/** net_test_network_bds_header_descr */
+TYPE_DESCR(net_test_network_bds_header) = {
+	FIELD_DESCR(struct net_test_network_bds_header, ntnbh_magic),
+	FIELD_DESCR(struct net_test_network_bds_header, ntnbh_nr),
+};
+
+/** @see m0_net_test_serialize() */
+static m0_bcount_t network_bd_serialize(enum m0_net_test_serialize_op op,
+					struct m0_net_buffer *buf,
+					struct m0_bufvec *bv,
+					m0_bcount_t bv_offset)
 {
-	M0_PRE(m0_net_test_network_ctx_invariant(ctx));
+	struct net_test_network_bd bd;
+	m0_bcount_t		   len;
+	m0_bcount_t		   len_total;
 
-	ctx->ntc_buf_ping[buf_ping_index].nb_length = 0;
-}
+	M0_PRE(buf != NULL);
+	M0_PRE(bv != NULL);
 
-static m0_bcount_t bufvec_append(struct m0_bufvec_cursor *dcur,
-				 void *data,
-				 m0_bcount_t length)
-{
-	struct m0_bufvec	data_bv = M0_BUFVEC_INIT_BUF(&data, &length);
-	struct m0_bufvec_cursor data_cur;
+	bd.ntnbd_magic	  = M0_NET_TEST_NETWORK_BD_MAGIC;
+	bd.ntnbd_buf_size = buf->nb_length;
+	bd.ntnbd_len	  = buf->nb_desc.nbd_len;
 
-	m0_bufvec_cursor_init(&data_cur, &data_bv);
-	return m0_bufvec_cursor_copy(dcur, &data_cur, length);
-}
-
-static m0_bcount_t bufvec_read(struct m0_bufvec_cursor *scur,
-			       void *data,
-			       m0_bcount_t length)
-{
-	struct m0_bufvec        data_bv = M0_BUFVEC_INIT_BUF(&data, &length);
-	struct m0_bufvec_cursor data_cur;
-
-	m0_bufvec_cursor_init(&data_cur, &data_bv);
-	return m0_bufvec_cursor_copy(&data_cur, scur, length);
-}
-
-static bool buf_desc_decode(struct m0_bufvec_cursor *cur,
-			    m0_bcount_t offset,
-			    m0_bcount_t buf_len,
-			    m0_bcount_t *passive_len,
-			    int32_t *desc_len)
-{
-	char	    str[M0_NET_TEST_STRLEN_NBD_HEADER];
-	m0_bcount_t rc_bcount;
-	int	    rc;
-
-	if (offset + M0_NET_TEST_STRLEN_NBD_HEADER > buf_len)
-		return false;
-
-	rc_bcount = bufvec_read(cur, str, M0_NET_TEST_STRLEN_NBD_HEADER);
-	if (rc_bcount != M0_NET_TEST_STRLEN_NBD_HEADER)
-		return false;
-
-	/* note Linux uses the LP64 standard */
-	rc = sscanf(str, "%lu %u",
-		    (unsigned long *) passive_len, desc_len);
-#ifdef DEBUG_NET_TEST_NETWORK
-	printf("rc = %d, passive_len = %"PRIu64", desc_len = %"PRIu32", "
-		"str = %s\n", rc, *passive_len, *desc_len, str);
-#endif
-	return rc == 2 &&
-		offset + M0_NET_TEST_STRLEN_NBD_HEADER + *desc_len <= buf_len;
-}
-
-uint32_t m0_net_test_network_bd_count(struct m0_net_test_network_ctx *ctx,
-				      int32_t buf_ping_index)
-{
-	struct m0_net_buffer   *buf_ping;
-	struct m0_bufvec_cursor cur_buf;
-	uint32_t		result = 0;
-	m0_bcount_t		offset;
-	m0_bcount_t		buf_len;
-	m0_bcount_t		passive_len;
-	int32_t			desc_len;
-	bool			decoded;
-
-	M0_PRE(m0_net_test_network_ctx_invariant(ctx));
-	M0_PRE(buf_ping_index < ctx->ntc_buf_ping_nr);
-
-	buf_ping = &ctx->ntc_buf_ping[buf_ping_index];
-	m0_bufvec_cursor_init(&cur_buf, &buf_ping->nb_buffer);
-	m0_bufvec_cursor_move(&cur_buf,  buf_ping->nb_offset);
-
-	offset  = 0;
-	buf_len = buf_ping->nb_length;
-	while (offset < buf_len) {
-		decoded = buf_desc_decode(&cur_buf, offset, buf_len,
-					  &passive_len, &desc_len);
-		if (!decoded)
-			break;
-		result++;
-		m0_bufvec_cursor_move(&cur_buf, desc_len);
-		offset += M0_NET_TEST_STRLEN_NBD_HEADER + desc_len;
-	}
-
-	return result;
-}
-
-int m0_net_test_network_bd_encode(struct m0_net_test_network_ctx *ctx,
-				  int32_t buf_ping_index,
-				  int32_t buf_bulk_index)
-{
-	int			rc;
-	m0_bcount_t		rc_bcount;
-	struct m0_net_buffer   *buf_bulk;
-	struct m0_net_buffer   *buf_ping;
-	struct m0_bufvec_cursor cur_buf;
-	m0_bcount_t	        desc_len;
-	const m0_bcount_t	str_len = 20 + 1 + 10 + 1;
-	/*				  ^    ^   ^    ^
-		passive side buffer size -+   ' '  |  '\0'
-		m0_net_buf_desc .nbd_len ----------+
-	 */
-	char			str[str_len];
-
-	M0_ASSERT(str_len == M0_NET_TEST_STRLEN_NBD_HEADER);
-	M0_PRE(m0_net_test_network_ctx_invariant(ctx));
-	M0_PRE(buf_bulk_index < ctx->ntc_buf_bulk_nr);
-	M0_PRE(buf_ping_index < ctx->ntc_buf_ping_nr);
-
-	buf_bulk = &ctx->ntc_buf_bulk[buf_bulk_index];
-	buf_ping = &ctx->ntc_buf_ping[buf_ping_index];
-
-	desc_len = buf_bulk->nb_desc.nbd_len;
-
-	m0_bufvec_cursor_init(&cur_buf, &buf_ping->nb_buffer);
-	m0_bufvec_cursor_move(&cur_buf, buf_ping->nb_offset +
-					buf_ping->nb_length);
-
-	/* check for space left in buf_ping */
-	if (m0_vec_count(&buf_ping->nb_buffer.ov_vec) <
-	    buf_ping->nb_offset + buf_ping->nb_length + str_len + desc_len)
-		return -E2BIG;
-
-	/* fill str[] */
-	/* note Linux uses the LP64 standard */
-	rc = snprintf(str, str_len, "%020lu %010u",
-		      (unsigned long) buf_bulk->nb_length,
-		      buf_bulk->nb_desc.nbd_len);
-	M0_ASSERT(rc == str_len - 1);
-	/* copy str[] to buf_ping */
-	rc_bcount = bufvec_append(&cur_buf, str, str_len);
-	if (rc_bcount != str_len)
-		return -E2BIG;
-	/* copy m0_net_buf_desc .nbd_data to buf_ping */
-	rc_bcount = bufvec_append(&cur_buf, buf_bulk->nb_desc.nbd_data,
-				  desc_len);
-	if (rc_bcount != desc_len)
-		return -E2BIG;
-	/* adjust buf_ping .nb_length */
-	buf_ping->nb_length += str_len + desc_len;
-	return 0;
-}
-
-/* see m0_net_test_network_bd_encode() */
-int m0_net_test_network_bd_decode(struct m0_net_test_network_ctx *ctx,
-				  int32_t buf_ping_index,
-				  int32_t buf_bulk_index)
-{
-	struct m0_net_buffer   *buf_bulk;
-	struct m0_net_buffer   *buf_ping;
-	struct m0_bufvec_cursor cur_buf;
-	m0_bcount_t		buf_ping_len;
-	m0_bcount_t		passive_len;
-	m0_bcount_t		offset;
-	int32_t			desc_len;
-	m0_bcount_t		rc_bcount;
-	bool			decoded;
-
-	M0_PRE(m0_net_test_network_ctx_invariant(ctx));
-	M0_PRE(buf_bulk_index < ctx->ntc_buf_bulk_nr);
-	M0_PRE(buf_ping_index < ctx->ntc_buf_ping_nr);
-
-	buf_bulk = &ctx->ntc_buf_bulk[buf_bulk_index];
-	buf_ping = &ctx->ntc_buf_ping[buf_ping_index];
-
-	m0_bufvec_cursor_init(&cur_buf, &buf_ping->nb_buffer);
-	m0_bufvec_cursor_move(&cur_buf, buf_ping->nb_offset +
-					buf_ping->nb_length);
-
-	offset  = buf_ping->nb_offset + buf_ping->nb_length;
-	buf_ping_len = m0_vec_count(&buf_ping->nb_buffer.ov_vec);
-	decoded = buf_desc_decode(&cur_buf, offset, buf_ping_len,
-				  &passive_len, &desc_len);
-	if (!decoded)
-		return -EBADMSG;
-
-	if (passive_len > m0_vec_count(&buf_bulk->nb_buffer.ov_vec))
-		return -E2BIG;
+	len = m0_net_test_serialize(op, &bd,
+				    USE_TYPE_DESCR(net_test_network_bd),
+				    bv, bv_offset);
+	if (len == 0)
+		return 0;
+	len_total = net_test_len_accumulate(0, len);
 
 	/* optimizing memory allocation */
-	if (buf_bulk->nb_desc.nbd_len != desc_len) {
+	if (op == M0_NET_TEST_DESERIALIZE &&
+	    buf->nb_desc.nbd_len != bd.ntnbd_len) {
 		/* free old */
-		m0_free(buf_bulk->nb_desc.nbd_data);
-		buf_bulk->nb_desc.nbd_len = 0;
+		m0_free(buf->nb_desc.nbd_data);
+		buf->nb_desc.nbd_len = 0;
 		/* alloc new */
-		buf_bulk->nb_desc.nbd_data = m0_alloc(desc_len);
-		if (buf_bulk->nb_desc.nbd_data == NULL)
-			return -ENOMEM;
-		buf_bulk->nb_desc.nbd_len = desc_len;
+		buf->nb_desc.nbd_data = m0_alloc(bd.ntnbd_len);
+		if (buf->nb_desc.nbd_data == NULL)
+			return 0;
+		buf->nb_desc.nbd_len = bd.ntnbd_len;
 	}
 
-	rc_bcount = bufvec_read(&cur_buf, buf_bulk->nb_desc.nbd_data, desc_len);
-	if (rc_bcount != desc_len)
-		return -EBADMSG;
+	len = m0_net_test_serialize_data(op, buf->nb_desc.nbd_data,
+					 buf->nb_desc.nbd_len, true,
+					 bv, bv_offset + len_total);
+	len_total = net_test_len_accumulate(len_total, len);
+	return len_total;
+}
 
-	buf_ping->nb_length += M0_NET_TEST_STRLEN_NBD_HEADER + desc_len;
-	return 0;
+static m0_bcount_t network_bds_serialize(enum m0_net_test_serialize_op op,
+					 size_t *nr,
+					 struct m0_bufvec *bv)
+{
+	struct net_test_network_bds_header header;
+	m0_bcount_t			   len;
+
+	M0_PRE(nr != NULL);
+	M0_PRE(bv != NULL);
+
+	if (op == M0_NET_TEST_SERIALIZE) {
+		header.ntnbh_magic = M0_NET_TEST_NETWORK_BDS_MAGIC;
+		header.ntnbh_nr	   = *nr;
+	}
+
+	len = m0_net_test_serialize(op, &header,
+				USE_TYPE_DESCR(net_test_network_bds_header),
+				    bv, 0);
+
+	if (op == M0_NET_TEST_DESERIALIZE) {
+		if (header.ntnbh_magic == M0_NET_TEST_NETWORK_BDS_MAGIC)
+			*nr = header.ntnbh_nr;
+		else
+			len = 0;
+	}
+
+	return len;
+}
+
+/**
+   Number of serialized network buffer descriptors in ping buffer
+   is stored inside ping buffer in serialized form. This function
+   modifies this number.
+   @param ctx Network context
+   @param buf_ping_index Index of ping buffer
+   @param value This value will be added to the number of serialized
+		network buffer descriptors. Can be -1, 0, 1. If it is
+		-1, then function will M0_ASSERT() that number will
+		not underflow.
+   @return New value of number of serialized network buffer descriptors.
+ */
+static size_t network_bd_nr_add(struct m0_net_test_network_ctx *ctx,
+				uint32_t buf_ping_index,
+				int32_t value)
+{
+	struct m0_bufvec *bv;
+	m0_bcount_t	  len;
+	size_t		  nr;
+
+	M0_PRE(ctx != NULL);
+	M0_PRE(buf_ping_index < ctx->ntc_cfg.ntncfg_buf_ping_nr);
+	M0_PRE(M0_IN(value, (-1, 0, 1)));
+
+	bv = &m0_net_test_network_buf(ctx, M0_NET_TEST_BUF_PING,
+				      buf_ping_index)->nb_buffer;
+	len = network_bds_serialize(M0_NET_TEST_DESERIALIZE, &nr, bv);
+	M0_ASSERT(len != 0);
+	/* simply "get number of network bd" */
+	if (value == 0)
+		return nr;
+
+	M0_ASSERT(ergo(value == -1, nr > 0));
+	nr += value;
+	len = network_bds_serialize(M0_NET_TEST_SERIALIZE, &nr, bv);
+	M0_ASSERT(len != 0);
+
+	return nr;
+}
+
+m0_bcount_t
+m0_net_test_network_bd_serialize(enum m0_net_test_serialize_op op,
+				 struct m0_net_test_network_ctx *ctx,
+				 uint32_t buf_bulk_index,
+				 uint32_t buf_ping_index,
+				 m0_bcount_t offset)
+{
+	struct m0_net_buffer *buf;
+	struct m0_bufvec     *bv;
+	m0_bcount_t	      len;
+	m0_bcount_t	      len_total;
+	size_t		      nr;
+
+	M0_PRE(op == M0_NET_TEST_SERIALIZE || op == M0_NET_TEST_DESERIALIZE);
+	M0_PRE(ctx != NULL);
+	M0_PRE(buf_bulk_index < ctx->ntc_cfg.ntncfg_buf_bulk_nr);
+	M0_PRE(buf_ping_index < ctx->ntc_cfg.ntncfg_buf_ping_nr);
+
+	/*
+	M0_LOG(M0_DEBUG, "%d %s", op, ctx->ntc_tm->ntm_ep->nep_addr);
+	M0_LOG(M0_DEBUG, "bd_serialize: op = %d, tm_addr = %s, "
+			 "buf_bulk_index = %u, buf_ping_index = %u, "
+			 "offset = %lu",
+			 op, ctx->ntc_tm->ntm_ep->nep_addr,
+			 buf_bulk_index, buf_ping_index,
+			 (long unsigned) offset);
+	*/
+
+	bv = &m0_net_test_network_buf(ctx, M0_NET_TEST_BUF_PING,
+				      buf_ping_index)->nb_buffer;
+	M0_ASSERT(bv != NULL);
+	buf = m0_net_test_network_buf(ctx, M0_NET_TEST_BUF_BULK,
+				      buf_bulk_index);
+	M0_ASSERT(buf != NULL);
+
+	if (offset == 0) {
+		nr = 0;
+		/* include header length to the first descriptor length */
+		len = network_bds_serialize(op, &nr, bv);
+		if (len == 0)
+			return 0;
+		len_total = net_test_len_accumulate(0, len);
+	} else {
+		len_total = 0;
+	}
+	len = network_bd_serialize(op, buf, bv, offset + len_total);
+	len_total = net_test_len_accumulate(len_total, len);
+	/* increase number of descriptors for 'serialize' operation */
+	if (len_total != 0 && op == M0_NET_TEST_SERIALIZE)
+		network_bd_nr_add(ctx, buf_ping_index, 1);
+
+	/*
+	M0_LOG(M0_DEBUG, "bd_serialize: len_total = %lu",
+	       (long unsigned) len_total);
+	*/
+	return len_total;
+}
+
+size_t m0_net_test_network_bd_nr(struct m0_net_test_network_ctx *ctx,
+				 uint32_t buf_ping_index)
+{
+	return network_bd_nr_add(ctx, buf_ping_index, 0);
+}
+
+void m0_net_test_network_bd_nr_dec(struct m0_net_test_network_ctx *ctx,
+				   uint32_t buf_ping_index)
+{
+	network_bd_nr_add(ctx, buf_ping_index, -1);
 }
 
 struct m0_net_buffer *
@@ -733,7 +738,8 @@ m0_net_test_network_buf(struct m0_net_test_network_ctx *ctx,
 	M0_PRE(buf_type == M0_NET_TEST_BUF_PING ||
 	       buf_type == M0_NET_TEST_BUF_BULK);
 	M0_PRE(buf_index < (buf_type == M0_NET_TEST_BUF_PING ?
-	       ctx->ntc_buf_ping_nr : ctx->ntc_buf_bulk_nr));
+	       ctx->ntc_cfg.ntncfg_buf_ping_nr :
+	       ctx->ntc_cfg.ntncfg_buf_bulk_nr));
 
 	return buf_type == M0_NET_TEST_BUF_PING ?
 		&ctx->ntc_buf_ping[buf_index] : &ctx->ntc_buf_bulk[buf_index];

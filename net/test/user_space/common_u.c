@@ -78,15 +78,16 @@ void m0_net_test_u_print_time(char *name, m0_time_t time)
 void m0_net_test_u_print_bsize(double bsize)
 {
 	/*
-	 * 012345
-	 *    1b
-	 * 1022b
-	 * 1.00kB
-	 * 9.99kB
-	 * 10.0kB
-	 * 99.9kB
-	 *  100kB
-	 * 1024kB
+	 * 0123456
+	 *    1B
+	 * 1023B
+	 * 1.00KiB
+	 * 9.99KiB
+	 * 10.0KiB
+	 * 99.9KiB
+	 *  100KiB
+	 * 1023KiB
+	 * 1.00MiB
 	 */
 	char *fmt;
 	int   i;
@@ -94,16 +95,16 @@ void m0_net_test_u_print_bsize(double bsize)
 		unsigned long  max;
 		char	      *name;
 	}     suffix[] = {
-		{ .max = 1ul << 20, .name = "kB" },
-		{ .max = 1ul << 30, .name = "MB" },
-		{ .max = 1ul << 40, .name = "GB" },
-		{ .max = 1ul << 50, .name = "TB" },
-		{ .max = 1ul << 60, .name = "PB" },
-		{ .max = ULONG_MAX, .name = "EB" },
+		{ .max = 1ul << 20, .name = "KiB" },
+		{ .max = 1ul << 30, .name = "MiB" },
+		{ .max = 1ul << 40, .name = "GiB" },
+		{ .max = 1ul << 50, .name = "TiB" },
+		{ .max = 1ul << 60, .name = "PiB" },
+		{ .max = ULONG_MAX, .name = "EiB" },
 	};
 
 	if (bsize < 1023.5) {
-		m0_net_test_u_printf("%4db ", (int) bsize);
+		m0_net_test_u_printf("%4dB  ", (int) bsize);
 	} else {
 		for (i = 0; i < ARRAY_SIZE(suffix) - 1; ++i) {
 			if (bsize < suffix[i].max - .5)

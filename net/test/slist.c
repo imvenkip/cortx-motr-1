@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -22,6 +22,8 @@
 #include "lib/memory.h"		/* M0_ALLOC_ARR */
 #include "lib/errno.h"		/* ENOMEM */
 
+#include "mero/magic.h"	/* M0_NET_TEST_SLIST_MAGIC */
+
 #include "net/test/slist.h"
 
 /**
@@ -30,11 +32,6 @@
 
    @{
  */
-
-enum {
-	/** NT_SLIST @todo move to lib/magic.h */
-	SLIST_SERIALIZE_MAGIC =  0x5453494C535F544E,
-};
 
 static bool slist_alloc(struct m0_net_test_slist *slist,
 		        size_t string_nr,
@@ -59,10 +56,11 @@ int m0_net_test_slist_init(struct m0_net_test_slist *slist,
 			   const char *str,
 			   char delim)
 {
-	char  *str1;
-	size_t len = 0;
-	size_t i = 0;
-	bool   allocated;
+	const char *str1;
+	char	   *str2;
+	size_t	    len = 0;
+	size_t	    i = 0;
+	bool	    allocated;
 
 	M0_PRE(slist != NULL);
 	M0_PRE(str   != NULL);
@@ -70,24 +68,25 @@ int m0_net_test_slist_init(struct m0_net_test_slist *slist,
 
 	M0_SET0(slist);
 
-	for (len = 0; str[len] != '\0'; ++len)
-		slist->ntsl_nr += str[len] == delim;
-
+	len = strlen(str);
 	if (len != 0) {
-		slist->ntsl_nr++;
-
+		for (str1 = str; str1 != NULL; str1 = strchr(str1, delim)) {
+			++str1;
+			++slist->ntsl_nr;
+		}
 		allocated = slist_alloc(slist, slist->ntsl_nr, len + 1);
 		if (!allocated)
 			return -ENOMEM;
 
 		strncpy(slist->ntsl_str, str, len + 1);
-		str1 = slist->ntsl_str;
-		slist->ntsl_list[i++] = str1;
-		for (; *str1 != '\0'; ++str1)
-			if (*str1 == delim) {
-				*str1 = '\0';
-				slist->ntsl_list[i++] = str1 + 1;
+		str2 = slist->ntsl_str;
+		for ( ; str2 != NULL; str2 = strchr(str2, delim)) {
+			if (str2 != slist->ntsl_str) {
+				*str2 = '\0';
+				++str2;
 			}
+			slist->ntsl_list[i++] = str2;
+		}
 	}
 	M0_POST(m0_net_test_slist_invariant(slist));
 	return 0;
@@ -141,15 +140,15 @@ bool m0_net_test_slist_unique(const struct m0_net_test_slist *slist)
 }
 
 struct slist_params {
+	uint64_t sp_magic;	/**< M0_NET_TEST_SLIST_MAGIC */
 	size_t   sp_nr;		/**< number if strings in the list */
 	size_t   sp_len;	/**< length of string array */
-	uint64_t sp_magic;	/**< SLIST_XCODE_MAGIC */
 };
 
 TYPE_DESCR(slist_params) = {
+	FIELD_DESCR(struct slist_params, sp_magic),
 	FIELD_DESCR(struct slist_params, sp_nr),
 	FIELD_DESCR(struct slist_params, sp_len),
-	FIELD_DESCR(struct slist_params, sp_magic),
 };
 
 static m0_bcount_t slist_encode(struct m0_net_test_slist *slist,
@@ -165,18 +164,19 @@ static m0_bcount_t slist_encode(struct m0_net_test_slist *slist,
 		      slist->ntsl_list[slist->ntsl_nr - 1] -
 		      slist->ntsl_list[0] +
 		      strlen(slist->ntsl_list[slist->ntsl_nr - 1]) + 1;
-	sp.sp_magic = SLIST_SERIALIZE_MAGIC;
+	sp.sp_magic = M0_NET_TEST_SLIST_MAGIC;
 
-	len_total = m0_net_test_serialize(M0_NET_TEST_SERIALIZE, &sp,
-				          USE_TYPE_DESCR(slist_params),
-					  bv, offset);
-	if (len_total == 0 || slist->ntsl_nr == 0)
-		return len_total;
+	len = m0_net_test_serialize(M0_NET_TEST_SERIALIZE, &sp,
+				    USE_TYPE_DESCR(slist_params), bv, offset);
+	if (len == 0 || slist->ntsl_nr == 0)
+		return len;
+	len_total = net_test_len_accumulate(0, len);
 
 	len = m0_net_test_serialize_data(M0_NET_TEST_SERIALIZE, slist->ntsl_str,
 					 sp.sp_len, true,
 					 bv, offset + len_total);
-	return len == 0 ? 0 : len_total + len;
+	len_total = net_test_len_accumulate(len_total, len);
+	return len_total;
 }
 
 static m0_bcount_t slist_decode(struct m0_net_test_slist *slist,
@@ -190,11 +190,12 @@ static m0_bcount_t slist_decode(struct m0_net_test_slist *slist,
 	bool		    allocated;
 
 
-	len_total = m0_net_test_serialize(M0_NET_TEST_DESERIALIZE, &sp,
-					  USE_TYPE_DESCR(slist_params),
-					  bv, offset);
-	if (len_total == 0 || sp.sp_magic != SLIST_SERIALIZE_MAGIC)
+	len = m0_net_test_serialize(M0_NET_TEST_DESERIALIZE, &sp,
+				    USE_TYPE_DESCR(slist_params),
+				    bv, offset);
+	if (len == 0 || sp.sp_magic != M0_NET_TEST_SLIST_MAGIC)
 		return 0;
+	len_total = net_test_len_accumulate(0, len);
 
 	M0_SET0(slist);
 	slist->ntsl_nr = sp.sp_nr;
@@ -206,10 +207,12 @@ static m0_bcount_t slist_decode(struct m0_net_test_slist *slist,
 	if (!allocated)
 		return 0;
 
-	len = m0_net_test_serialize_data(M0_NET_TEST_DESERIALIZE, slist->ntsl_str,
-				    sp.sp_len, true, bv, offset + len_total);
+	len = m0_net_test_serialize_data(M0_NET_TEST_DESERIALIZE,
+					 slist->ntsl_str, sp.sp_len, true,
+					 bv, offset + len_total);
 	if (len == 0)
 		goto failed;
+	len_total = net_test_len_accumulate(len_total, len);
 
 	slist->ntsl_list[0] = slist->ntsl_str;
 	/* additional check if received string doesn't contains '\0' */
@@ -221,7 +224,7 @@ static m0_bcount_t slist_decode(struct m0_net_test_slist *slist,
 			goto failed;
 	}
 
-	return len + len_total;
+	return len_total;
 failed:
 	slist_free(slist);
 	return 0;

@@ -428,12 +428,12 @@ include $(top_srcdir)/net/lnet/st/Makefile.sub
 # net/test
 #
 
-noinst_PROGRAMS                     += net/test/user_space/m0netperf
-net_test_user_space_m0netperf_LDADD  = $(top_builddir)/mero/libmero.la \
+noinst_PROGRAMS                     += net/test/user_space/m0nettest
+net_test_user_space_m0nettest_LDADD  = $(top_builddir)/mero/libmero.la \
                                        $(top_builddir)/net/test/libmero-net-test.la
 
-noinst_PROGRAMS                      += net/test/user_space/m0netperfd
-net_test_user_space_m0netperfd_LDADD  = $(top_builddir)/mero/libmero.la \
+noinst_PROGRAMS                      += net/test/user_space/m0nettestd
+net_test_user_space_m0nettestd_LDADD  = $(top_builddir)/mero/libmero.la \
                                         $(top_builddir)/net/test/libmero-net-test.la
 
 include $(top_srcdir)/net/test/user_space/Makefile.sub

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -30,10 +30,22 @@
 
 #include "net/test/user_space/common_u.h" /* m0_net_test_u_str_copy */
 #include "net/test/node.h"
+#include "net/test/initfini.h"		/* m0_net_test_init */
 
 /**
    @page net-test-fspec-cli-node-user Test node command line pamameters
-   @todo write
+   @verbatim
+   $ net/test/m0nettestd.sh -?
+   Usage: m0nettestd options...
+
+   where valid options are
+
+	 -a     string: Test node commands endpoint
+	 -c     string: Test console commands endpoint
+	 -v           : Verbose output
+	 -l           : List available LNET interfaces
+	 -?           : display this help and exit
+   @endverbatim
  */
 
 /**
@@ -69,7 +81,7 @@ static int configure(int argc, char *argv[], struct m0_net_test_node_cfg *cfg)
 {
 	bool list_if = false;
 
-	M0_GETOPTS("ntn", argc, argv,
+	M0_GETOPTS("m0nettestd", argc, argv,
 		M0_STRINGARG('a', "Test node commands endpoint",
 		LAMBDA(void, (const char *addr) {
 			cfg->ntnc_addr = m0_net_test_u_str_copy(addr);
@@ -104,6 +116,11 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		return rc;
 
+	rc = m0_net_test_init();
+	m0_net_test_u_print_error("Net-test initialization failed", rc);
+	if (rc != 0)
+		goto mero_fini;
+
 	/** @todo add Ctrl+C handler
 	   m0_net_test_fini()+m0_net_test_config_fini() */
 	/** @todo atexit() */
@@ -117,7 +134,7 @@ int main(int argc, char *argv[])
 			m0_net_test_u_printf("Error in configuration.\n");
 			config_free(&cfg);
 		}
-		goto mero_fini;
+		goto net_test_fini;
 	}
 
 	m0_net_test_u_printf_v("m0_net_test_node_init()\n");
@@ -142,6 +159,8 @@ node_fini:
 	m0_net_test_node_fini(&node);
 cfg_free:
 	config_free(&cfg);
+net_test_fini:
+	m0_net_test_fini();
 mero_fini:
 	m0_net_test_u_printf_v("m0_fini()\n");
 	m0_fini();

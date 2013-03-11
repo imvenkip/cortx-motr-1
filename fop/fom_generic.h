@@ -58,7 +58,7 @@ enum m0_fom_standard_phase {
 	M0_FOPH_AUTHORISATION_WAIT, /*< waiting for userdb cache miss. */
 	M0_FOPH_TXN_CONTEXT,        /*< creating local transactional context. */
 	M0_FOPH_TXN_CONTEXT_WAIT,   /*< waiting for log space. */
-	M0_FOPH_SUCCESS,            /*< fom execution completed succesfully. */
+	M0_FOPH_SUCCESS,            /*< fom execution completed successfully. */
 	M0_FOPH_FOL_REC_PART_ADD,   /*< add a fol record part for the fop to the
 					trasaction. */
 	M0_FOPH_FOL_REC_ADD,        /*< add a FOL transaction record. */

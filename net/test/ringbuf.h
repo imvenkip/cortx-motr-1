@@ -39,7 +39,7 @@
    absolute indices.
  */
 struct m0_net_test_ringbuf {
-	size_t		    ntr_size;	/**< Number of elements in ringbuf */
+	size_t		    ntr_size;	/**< Maximum number of elements */
 	size_t		   *ntr_buf;	/**< Ringbuf array */
 	struct m0_atomic64  ntr_start;	/**< Start pointer */
 	struct m0_atomic64  ntr_end;	/**< End pointer */
@@ -80,6 +80,13 @@ size_t m0_net_test_ringbuf_pop(struct m0_net_test_ringbuf *rb);
    @pre m0_net_test_ringbuf_invariant(rb)
  */
 bool m0_net_test_ringbuf_is_empty(struct m0_net_test_ringbuf *rb);
+
+/**
+   Get current number of elements in the ring buffer.
+   @note This function is not thread-safe.
+   @pre m0_net_test_ringbuf_invariant(rb)
+ */
+size_t m0_net_test_ringbuf_nr(struct m0_net_test_ringbuf *rb);
 
 /**
    @} end of NetTestRingbufDFS group

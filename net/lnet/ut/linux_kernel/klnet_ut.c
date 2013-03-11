@@ -497,9 +497,9 @@ int ut_ktest_msg_buf_event_wait(struct nlx_core_domain *lcdom,
 		M0_ASSERT(ut_ktest_msg_buf_event_wait_delay_chan != NULL);
 		m0_atomic64_inc(&ut_ktest_msg_buf_event_wait_stall);
 		m0_clink_init(&cl, NULL);
-		m0_clink_add(ut_ktest_msg_buf_event_wait_delay_chan,&cl);
+		m0_clink_add_lock(ut_ktest_msg_buf_event_wait_delay_chan,&cl);
 		m0_chan_timedwait(&cl, timeout);
-		m0_clink_del(&cl);
+		m0_clink_del_lock(&cl);
 		return -ETIMEDOUT;
 	}
 	return nlx_core_buf_event_wait(lcdom, lctm, timeout);
@@ -907,7 +907,7 @@ static void ktest_msg_body(struct ut_data *td)
 
 	/* open the spigot ... */
 	m0_atomic64_set(&ut_ktest_msg_buf_event_wait_stall, 0);
-	m0_chan_signal(ut_ktest_msg_buf_event_wait_delay_chan);
+	m0_chan_signal_lock(ut_ktest_msg_buf_event_wait_delay_chan);
 	while (cb_called1 < count) {
 		ut_chan_timedwait(&td->tmwait1,1);
 	}

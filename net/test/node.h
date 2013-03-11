@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -36,6 +36,8 @@
      - @subpage net-test-fspec-cli-node-user "Userspace node"
      - @subpage net-test-fspec-cli-console "Console"
    - @ref net-test-fspec-usecases
+     - @ref net-test-fspec-usecases-bd
+     - @ref net-test-fspec-usecases-serialize
      - @ref net-test-fspec-usecases-kernel
      - @ref net-test-fspec-usecases-console "Console"
    - @ref NetTestDFS "Detailed Functional Specification"
@@ -78,7 +80,70 @@
 
    @section net-test-fspec-usecases Recipes
 
+   @subsection net-test-fspec-usecases-bd Using bulk buffer network descriptors
+
+   Usage pattern for passive side:
+   @code
+   m0_bcount_t offset = 0;
+   m0_bcount_t len;
+   <...>
+   for (bulk buffers) {
+	<add bulk buffer to passive bulk queue>
+	using m0_net_test_network_bulk_enqueue()>
+	len = m0_net_test_network_bd_serialize(M0_NET_TEST_SERIALIZE,
+					       ctx, <buf_bulk_index>,
+					       buf_ping_index, offset);
+	<check for len == 0>
+	offset += len;
+   }
+   @endcode
+   Usage pattern for active side:
+   @code
+   m0_bcount_t offset = 0;
+   m0_bcount_t len;
+   size_t desc_nr;
+   <...>
+   desc_nr = m0_net_test_network_bd_nr(ctx, buf_ping_index);
+   for (i = 0; i < desc_nr; ++i) {
+	len = m0_net_test_network_bd_serialize(M0_NET_TEST_DESERIALIZE,
+					       ctx, <buf_bulk_index>,
+					       buf_ping_index, offset);
+	<check for len == 0>
+	offset += len;
+	<add bulk buffer to active bulk queue>
+   }
+   @endcode
+
+   @subsection net-test-fspec-usecases-serialize Complex serialization
+
+   Usage pattern:
+   @code
+	m0_bcount_t len;
+	m0_bcount_t len_total;
+
+	len = serialize_first_part(...);
+	if (len == 0)
+		return 0;
+	len_total = net_test_len_accumulate(0, len);
+	len = serialize_second_part(...);
+	if (len == 0)
+		return 0;
+	len_total = net_test_len_accumulate(len_total, len);
+	...
+	for (i = 0; i < number_of_items && len_total != 0; ++i) {
+		len = serialize_item(i, ...);
+		len_total = net_test_len_accumulate(len_total, len);
+	}
+	if (len_total == 0)
+		return 0;
+	...
+	len = serialize_last_part(...);
+	len_total = net_test_len_accumulate(len_total, len);
+	return len_total;
+   @endcode
+
    @subsection net-test-fspec-usecases-kernel Kernel module parameters example
+   @todo Outdated and not used now
 
    @code
    node_role=client test_type=ping count=10 target=s1,s2,s3
@@ -141,6 +206,7 @@ struct m0_net_test_node_ctx {
 	/**
 	   Exit flag for the node thread.
 	   Node thread will check this flag and will terminate if it is set.
+	   @todo make it atomic
 	 */
 	bool			       ntnc_exit_flag;
 	/** Error code. Set in node thread if something goes wrong. */
@@ -187,6 +253,13 @@ int m0_net_test_node_start(struct m0_net_test_node_ctx *ctx);
    @see @ref net-test-lspec
  */
 void m0_net_test_node_stop(struct m0_net_test_node_ctx *ctx);
+
+/**
+   Helper for kernel module node.
+   This function is M0_EXPORTED, so it can be called from m0nettest.ko.
+   @param cfg node configuration. Call with NULL value to finalize.
+ */
+int m0_net_test_node_module_initfini(struct m0_net_test_node_cfg *cfg);
 
 /**
    @} end of NetTestNodeDFS group

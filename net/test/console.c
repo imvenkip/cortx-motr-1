@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,26 +18,15 @@
  * Original creation date: 09/03/2012
  */
 
-/* @todo remove */
-#ifndef __KERNEL__
-#include <stdio.h>		/* printf */
-#endif
-
-/* @todo debug only, remove it */
-#ifndef __KERNEL__
-/*
-#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
-*/
-#define LOGD(format, ...) do {} while (0)
-#else
-#define LOGD(format, ...) do {} while (0)
-#endif
-
+#include "lib/arith.h"		/* min_check */
 #include "lib/memory.h"		/* M0_ALLOC_PTR */
 #include "lib/misc.h"		/* M0_SET0 */
 #include "lib/errno.h"		/* ETIMEDOUT */
 
 #include "net/test/console.h"
+
+#define NET_TEST_MODULE_NAME console
+#include "net/test/debug.h"	/* LOGD */
 
 
 /**
@@ -51,16 +40,17 @@
  */
 
 static int console_role_init_fini(struct m0_net_test_console_role_ctx *ctx,
-				 struct m0_net_test_console_cfg *cfg,
-				 enum m0_net_test_role role,
-				 bool init)
+				  struct m0_net_test_console_cfg *cfg,
+				  enum m0_net_test_role role)
 {
 	struct m0_net_test_slist *nodes;
 	char			 *addr_console;
 	int			  rc = -ENOMEM;
 
-	if (!init)
+	if (cfg == NULL)
 		goto fini;
+
+	M0_SET0(ctx);
 
 	addr_console = role == M0_NET_TEST_ROLE_CLIENT ?
 		cfg->ntcc_addr_console4clients : cfg->ntcc_addr_console4servers;
@@ -106,32 +96,30 @@ success:
 }
 
 static int console_init_fini(struct m0_net_test_console_ctx *ctx,
-			     struct m0_net_test_console_cfg *cfg,
-			     bool init)
+			     struct m0_net_test_console_cfg *cfg)
 {
 	int rc;
 
 	M0_PRE(ctx != NULL);
-	M0_PRE(ergo(init, cfg != NULL));
 
 	ctx->ntcc_cfg = cfg;
 	rc = console_role_init_fini(&ctx->ntcc_clients, cfg,
-				    M0_NET_TEST_ROLE_CLIENT, init);
+				    M0_NET_TEST_ROLE_CLIENT);
 	if (rc == 0)
 		rc = console_role_init_fini(&ctx->ntcc_servers, cfg,
-					    M0_NET_TEST_ROLE_SERVER, init);
+					    M0_NET_TEST_ROLE_SERVER);
 	return rc;
 }
 
 int m0_net_test_console_init(struct m0_net_test_console_ctx *ctx,
 			     struct m0_net_test_console_cfg *cfg)
 {
-	return console_init_fini(ctx, cfg, true);
+	return console_init_fini(ctx, cfg);
 }
 
 void m0_net_test_console_fini(struct m0_net_test_console_ctx *ctx)
 {
-	int rc = console_init_fini(ctx, NULL, false);
+	int rc = console_init_fini(ctx, NULL);
 	M0_POST(rc == 0);
 }
 
@@ -143,10 +131,16 @@ static void console_cmd_init_fill(struct m0_net_test_console_cfg *cfg,
 	cinit->ntci_type	     = cfg->ntcc_test_type;
 	cinit->ntci_msg_nr	     = cfg->ntcc_msg_nr;
 	cinit->ntci_msg_size	     = cfg->ntcc_msg_size;
-	cinit->ntci_concurrency      = role == M0_NET_TEST_ROLE_CLIENT ?
+	cinit->ntci_bd_buf_nr	     = role == M0_NET_TEST_ROLE_CLIENT ?
+				       cfg->ntcc_bd_buf_nr_client :
+				       cfg->ntcc_bd_buf_nr_server;
+	cinit->ntci_bd_buf_size	     = cfg->ntcc_bd_buf_size;
+	cinit->ntci_bd_nr_max	     = cfg->ntcc_bd_nr_max;
+	cinit->ntci_msg_concurrency  = role == M0_NET_TEST_ROLE_CLIENT ?
 				       cfg->ntcc_concurrency_client :
 				       cfg->ntcc_concurrency_server;
 	cinit->ntci_buf_send_timeout = cfg->ntcc_buf_send_timeout;
+	cinit->ntci_buf_bulk_timeout = cfg->ntcc_buf_bulk_timeout;
 	cinit->ntci_ep		     = role == M0_NET_TEST_ROLE_CLIENT ?
 				       cfg->ntcc_data_servers :
 				       cfg->ntcc_data_clients;
@@ -154,50 +148,79 @@ static void console_cmd_init_fill(struct m0_net_test_console_cfg *cfg,
 
 static void status_data_reset(struct m0_net_test_cmd_status_data *sd)
 {
+	/* Statistics reset order is not important here */
+	struct m0_net_test_msg_nr * const msg_nr[] = {
+		&sd->ntcsd_msg_nr_send,
+		&sd->ntcsd_msg_nr_recv,
+		&sd->ntcsd_bulk_nr_send,
+		&sd->ntcsd_bulk_nr_recv,
+		&sd->ntcsd_transfers,
+	};
+	struct m0_net_test_stats * const stats[] = {
+		&sd->ntcsd_mps_send.ntmps_stats,
+		&sd->ntcsd_mps_recv.ntmps_stats,
+		&sd->ntcsd_rtt,
+	};
+	size_t i;
+
 	M0_SET0(sd);
-	m0_net_test_msg_nr_reset(&sd->ntcsd_msg_nr_send);
-	m0_net_test_msg_nr_reset(&sd->ntcsd_msg_nr_recv);
-	m0_net_test_stats_reset(&sd->ntcsd_mps_send.ntmps_stats);
-	m0_net_test_stats_reset(&sd->ntcsd_mps_recv.ntmps_stats);
-	m0_net_test_stats_reset(&sd->ntcsd_rtt);
+	for (i = 0; i < ARRAY_SIZE(msg_nr); ++i)
+		m0_net_test_msg_nr_reset(msg_nr[i]);
+	for (i = 0; i < ARRAY_SIZE(stats); ++i)
+		m0_net_test_stats_reset(stats[i]);
 	sd->ntcsd_finished    = true;
 	sd->ntcsd_time_start  = M0_TIME_NEVER;
 	sd->ntcsd_time_finish = 0;
 }
 
-static m0_time_t time_min(m0_time_t t1, m0_time_t t2)
-{
-	return t1 < t2 ? t1 : t2;
-}
-
-static m0_time_t time_max(m0_time_t t1, m0_time_t t2)
-{
-	return t1 > t2 ? t1 : t2;
-}
-
-static void status_data_add(struct m0_net_test_cmd_status_data *sd,
+static void status_data_add(struct m0_net_test_cmd_status_data *all_sd,
 			    const struct m0_net_test_cmd_status_data *cmd_sd)
 {
+	/* Parts of statistics are independent here, so order isn't important */
+	const struct {
+		struct m0_net_test_msg_nr	*nr_all;
+		const struct m0_net_test_msg_nr *nr_node;
+	} msg_nr[] = {
+		{	.nr_all  = &all_sd->ntcsd_msg_nr_send,
+			.nr_node = &cmd_sd->ntcsd_msg_nr_send	},
+		{	.nr_all  = &all_sd->ntcsd_msg_nr_recv,
+			.nr_node = &cmd_sd->ntcsd_msg_nr_recv	},
+		{	.nr_all  = &all_sd->ntcsd_bulk_nr_send,
+			.nr_node = &cmd_sd->ntcsd_bulk_nr_send	},
+		{	.nr_all  = &all_sd->ntcsd_bulk_nr_recv,
+			.nr_node = &cmd_sd->ntcsd_bulk_nr_recv	},
+		{	.nr_all  = &all_sd->ntcsd_transfers,
+			.nr_node = &cmd_sd->ntcsd_transfers	},
+	};
+	const struct {
+		struct m0_net_test_stats       *s_all;
+		const struct m0_net_test_stats *s_node;
+	} stats[] = {
+		{	.s_all  = &all_sd->ntcsd_mps_send.ntmps_stats,
+			.s_node = &cmd_sd->ntcsd_mps_send.ntmps_stats	},
+		{	.s_all  = &all_sd->ntcsd_mps_recv.ntmps_stats,
+			.s_node = &cmd_sd->ntcsd_mps_recv.ntmps_stats	},
+		{	.s_all  = &all_sd->ntcsd_rtt,
+			.s_node = &cmd_sd->ntcsd_rtt,			},
+	};
+	size_t i;
+
 	LOGD("new STATUS_DATA:\n");
 	LOGD("send total = %lu\n", cmd_sd->ntcsd_msg_nr_send.ntmn_total);
 	LOGD("recv total = %lu\n", cmd_sd->ntcsd_msg_nr_recv.ntmn_total);
 	LOGD("finished = %d\n", cmd_sd->ntcsd_finished);
 	LOGD("end of STATUS_DATA\n");
-	m0_net_test_msg_nr_add(&sd->ntcsd_msg_nr_send,
-			       &cmd_sd->ntcsd_msg_nr_send);
-	m0_net_test_msg_nr_add(&sd->ntcsd_msg_nr_recv,
-			       &cmd_sd->ntcsd_msg_nr_recv);
-	m0_net_test_stats_add_stats(&sd->ntcsd_mps_send.ntmps_stats,
-				    &cmd_sd->ntcsd_mps_send.ntmps_stats);
-	m0_net_test_stats_add_stats(&sd->ntcsd_mps_recv.ntmps_stats,
-				    &cmd_sd->ntcsd_mps_recv.ntmps_stats);
-	m0_net_test_stats_add_stats(&sd->ntcsd_rtt, &cmd_sd->ntcsd_rtt);
-	sd->ntcsd_finished &= cmd_sd->ntcsd_finished;
+	for (i = 0; i < ARRAY_SIZE(msg_nr); ++i)
+		m0_net_test_msg_nr_add(msg_nr[i].nr_all, msg_nr[i].nr_node);
+	for (i = 0; i < ARRAY_SIZE(stats); ++i)
+		m0_net_test_stats_add_stats(stats[i].s_all, stats[i].s_node);
+	all_sd->ntcsd_finished &= cmd_sd->ntcsd_finished;
 	if (cmd_sd->ntcsd_finished) {
-		sd->ntcsd_time_start = time_min(sd->ntcsd_time_start,
-						cmd_sd->ntcsd_time_start);
-		sd->ntcsd_time_finish = time_max(sd->ntcsd_time_finish,
-						 cmd_sd->ntcsd_time_finish);
+		all_sd->ntcsd_time_start = min_check(all_sd->ntcsd_time_start,
+						     cmd_sd->ntcsd_time_start);
+		all_sd->ntcsd_time_finish =
+			max_check(all_sd->ntcsd_time_finish,
+				  cmd_sd->ntcsd_time_finish);
 	}
 }
 
@@ -208,7 +231,7 @@ size_t m0_net_test_console_cmd(struct m0_net_test_console_ctx *ctx,
 	struct m0_net_test_console_role_ctx *rctx;
 	struct m0_net_test_console_cfg	    *cfg;
 	struct m0_net_test_cmd_ctx	    *cmd_ctx;
-	struct m0_net_test_cmd		     cmd;
+	struct m0_net_test_cmd		    *cmd;
 	struct m0_net_test_cmd_status_data  *sd = NULL;
 	int				     i;
 	int				     j;
@@ -235,22 +258,26 @@ size_t m0_net_test_console_cmd(struct m0_net_test_console_ctx *ctx,
 	       cmd_type == M0_NET_TEST_CMD_STOP ||
 	       cmd_type == M0_NET_TEST_CMD_STATUS);
 
-	M0_SET0(&cmd);
+	M0_ALLOC_PTR(cmd);
+	if (cmd == NULL) {
+		rc = -ENOMEM;
+		goto done;
+	}
 	cfg = ctx->ntcc_cfg;
 
 	if (cmd_type == M0_NET_TEST_CMD_INIT)
-		console_cmd_init_fill(cfg, role, &cmd.ntc_init);
+		console_cmd_init_fill(cfg, role, &cmd->ntc_init);
 
-	role_client  = role == M0_NET_TEST_ROLE_CLIENT;
-	cmd.ntc_type = cmd_type;
-	nodes	     = role_client ? &cfg->ntcc_clients : &cfg->ntcc_servers;
-	nodes_data   = role_client ? &cfg->ntcc_data_clients :
-				     &cfg->ntcc_data_servers;
+	role_client   = role == M0_NET_TEST_ROLE_CLIENT;
+	cmd->ntc_type = cmd_type;
+	nodes	      = role_client ? &cfg->ntcc_clients : &cfg->ntcc_servers;
+	nodes_data    = role_client ? &cfg->ntcc_data_clients :
+				      &cfg->ntcc_data_servers;
 	rctx	     = role_client ? &ctx->ntcc_clients : &ctx->ntcc_servers;
 	cmd_ctx	     = rctx->ntcrc_cmd;
 
 	/* clear commands receive queue */
-	while ((rc = m0_net_test_commands_recv(cmd_ctx, &cmd, m0_time_now())) !=
+	while ((rc = m0_net_test_commands_recv(cmd_ctx, cmd, m0_time_now())) !=
 	       -ETIMEDOUT) {
 		/*
 		 * Exit from this loop after nodes->ntsl_nr failures.
@@ -262,16 +289,17 @@ size_t m0_net_test_console_cmd(struct m0_net_test_console_ctx *ctx,
 		if (failures_nr > nodes->ntsl_nr)
 			break;
 		rc = m0_net_test_commands_recv_enqueue(cmd_ctx,
-						       cmd.ntc_buf_index);
-		/** @todo rc != 0 is lost here */
-		m0_net_test_commands_received_free(&cmd);
+						       cmd->ntc_buf_index);
+		if (rc != 0)
+			++rctx->ntcrc_recv_enqueue_errors;
+		m0_net_test_commands_received_free(cmd);
 	}
 	/* send all commands */
 	for (i = 0; i < nodes->ntsl_nr; ++i) {
 		if (cmd_type == M0_NET_TEST_CMD_INIT)
-			cmd.ntc_init.ntci_tm_ep = nodes_data->ntsl_list[i];
-		cmd.ntc_ep_index     = i;
-		rctx->ntcrc_errno[i] = m0_net_test_commands_send(cmd_ctx, &cmd);
+			cmd->ntc_init.ntci_tm_ep = nodes_data->ntsl_list[i];
+		cmd->ntc_ep_index     = i;
+		rctx->ntcrc_errno[i] = m0_net_test_commands_send(cmd_ctx, cmd);
 	}
 	m0_net_test_commands_send_wait_all(cmd_ctx);
 
@@ -282,20 +310,21 @@ size_t m0_net_test_console_cmd(struct m0_net_test_console_ctx *ctx,
 	}
 	deadline = m0_time_add(m0_time_now(), cfg->ntcc_cmd_recv_timeout);
 	while (m0_time_now() <= deadline && rcvd_nr < nodes->ntsl_nr) {
-		rc = m0_net_test_commands_recv(cmd_ctx, &cmd, deadline);
+		rc = m0_net_test_commands_recv(cmd_ctx, cmd, deadline);
 		/* deadline reached */
 		if (rc == -ETIMEDOUT)
 			break;
-		/** @todo possible spinlock if all recv fails instantly? */
-		if (rc != 0)
+		if (rc != 0) {
+			++rctx->ntcrc_recv_errors;
 			continue;
+		}
 		rcvd_nr++;
 		/* reject unknown sender */
-		j = cmd.ntc_ep_index;
+		j = cmd->ntc_ep_index;
 		if (j < 0)
 			goto reuse_cmd;
 		/* reject unexpected command type */
-		if (cmd.ntc_type != answer[cmd_type])
+		if (cmd->ntc_type != answer[cmd_type])
 			goto reuse_cmd;
 		/*
 		 * reject command from node, which can't have outgoing cmd
@@ -306,31 +335,33 @@ size_t m0_net_test_console_cmd(struct m0_net_test_console_ctx *ctx,
 			goto reuse_cmd;
 		/* handle incoming command */
 		if (answer[cmd_type] == M0_NET_TEST_CMD_STATUS_DATA) {
-			status_data_add(sd, &cmd.ntc_status_data);
+			status_data_add(sd, &cmd->ntc_status_data);
 			success_nr++;
 		} else {
-			rctx->ntcrc_status[j] = cmd.ntc_done.ntcd_errno;
+			rctx->ntcrc_status[j] = cmd->ntc_done.ntcd_errno;
 			if (rctx->ntcrc_status[j] == 0)
 				success_nr++;
 		}
-		/*
-		 * @todo console user can't recover from this error -
-		 * cmd.ntc_buf_index is lost. use ringbuf to save?
-		 */
 reuse_cmd:
 		rc = m0_net_test_commands_recv_enqueue(cmd_ctx,
-						       cmd.ntc_buf_index);
+						       cmd->ntc_buf_index);
+		if (rc != 0)
+			++rctx->ntcrc_recv_enqueue_errors;
 		if (j != -1) {
 			M0_ASSERT(j >= 0 && j < nodes->ntsl_nr);
 			rctx->ntcrc_errno[j] = rc;
 		}
-		m0_net_test_commands_received_free(&cmd);
+		m0_net_test_commands_received_free(cmd);
 	}
 
+done:
+	m0_free(cmd);
 	LOGD("console: rc = %d\n", rc);
 
 	return success_nr;
 }
+
+#undef NET_TEST_MODULE_NAME
 
 /**
    @} end of NetTestConsoleInternals group

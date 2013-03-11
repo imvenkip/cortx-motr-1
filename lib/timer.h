@@ -147,7 +147,7 @@ M0_INTERNAL bool m0_timer_is_started(const struct m0_timer *timer);
 /**
    Destroy the timer.
 
-   @pre m0_timer_init() for this timer was succesfully called.
+   @pre m0_timer_init() for this timer was successfully called.
    @pre timer is not running.
  */
 M0_INTERNAL int m0_timer_fini(struct m0_timer *timer);
@@ -160,7 +160,7 @@ M0_INTERNAL void m0_timer_locality_init(struct m0_timer_locality *loc);
 /**
    Fini timer locality.
 
-   @pre m0_timer_locality_init() succesfully called.
+   @pre m0_timer_locality_init() successfully called.
    @pre locality is empty
  */
 M0_INTERNAL void m0_timer_locality_fini(struct m0_timer_locality *loc);

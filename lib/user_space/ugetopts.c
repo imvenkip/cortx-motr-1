@@ -60,7 +60,7 @@ static void usage(const char *progname,
 			o->go_type == GOT_HELP ? "" :
 			o->go_type == GOT_FLAG ? "" :
 			o->go_type == GOT_FORMAT ? o->go_u.got_fmt.f_string :
-			o->go_type == GOT_SCALED ? "number of bytes" :
+			o->go_type == GOT_SCALED ? "scaled" :
 			o->go_type == GOT_NUMBER ? "number" : "string",
 			o->go_desc);
 	}

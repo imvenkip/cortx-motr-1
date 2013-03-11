@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,31 +18,21 @@
  * Original creation date: 05/05/2012
  */
 
-/* @todo remove */
-#ifndef __KERNEL__
-#include <stdio.h>		/* printf */
-#endif
-
-/* @todo debug only, remove it */
-#ifndef __KERNEL__
-/*
-#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
-*/
-#define LOGD(format, ...) do {} while (0)
-#else
-#define LOGD(format, ...) do {} while (0)
-#endif
-
 #include "lib/cdefs.h"		/* container_of */
 #include "lib/types.h"		/* m0_bcount_t */
 #include "lib/misc.h"		/* M0_SET0 */
 #include "lib/memory.h"		/* M0_ALLOC_ARR */
 #include "lib/errno.h"		/* ENOMEM */
+#include "lib/trace.h"		/* M0_LOG */
 
 #include "net/test/serialize.h"	/* m0_net_test_serialize */
 #include "net/test/str.h"	/* m0_net_test_str */
 
 #include "net/test/commands.h"
+
+#define NET_TEST_MODULE_NAME commands
+#include "net/test/debug.h"	/* LOGD */
+
 
 /**
    @defgroup NetTestCommandsInternals Commands
@@ -70,8 +60,12 @@ TYPE_DESCR(m0_net_test_cmd_init) = {
 	FIELD_DESCR(struct m0_net_test_cmd_init, ntci_type),
 	FIELD_DESCR(struct m0_net_test_cmd_init, ntci_msg_nr),
 	FIELD_DESCR(struct m0_net_test_cmd_init, ntci_msg_size),
-	FIELD_DESCR(struct m0_net_test_cmd_init, ntci_concurrency),
+	FIELD_DESCR(struct m0_net_test_cmd_init, ntci_bd_buf_nr),
+	FIELD_DESCR(struct m0_net_test_cmd_init, ntci_bd_buf_size),
+	FIELD_DESCR(struct m0_net_test_cmd_init, ntci_bd_nr_max),
+	FIELD_DESCR(struct m0_net_test_cmd_init, ntci_msg_concurrency),
 	FIELD_DESCR(struct m0_net_test_cmd_init, ntci_buf_send_timeout),
+	FIELD_DESCR(struct m0_net_test_cmd_init, ntci_buf_bulk_timeout),
 };
 
 /* m0_net_test_msg_nr_descr */
@@ -101,6 +95,9 @@ cmd_status_data_serialize(enum m0_net_test_serialize_op op,
 	const struct m0_net_test_msg_nr *msg_nr[] = {
 			&sd->ntcsd_msg_nr_send,
 			&sd->ntcsd_msg_nr_recv,
+			&sd->ntcsd_bulk_nr_send,
+			&sd->ntcsd_bulk_nr_recv,
+			&sd->ntcsd_transfers,
 	};
 	const struct m0_net_test_stats  *stats[] = {
 			&sd->ntcsd_mps_send.ntmps_stats,
@@ -113,22 +110,23 @@ cmd_status_data_serialize(enum m0_net_test_serialize_op op,
 	if (op == M0_NET_TEST_DESERIALIZE)
 		M0_SET0(sd);
 
-	len_total = len = m0_net_test_serialize(op, sd,
-			  USE_TYPE_DESCR(m0_net_test_cmd_status_data),
-			  bv, offset);
+	len = m0_net_test_serialize(op, sd,
+				    USE_TYPE_DESCR(m0_net_test_cmd_status_data),
+				    bv, offset);
+	len_total = net_test_len_accumulate(0, len);
 
-	for (i = 0; i < ARRAY_SIZE(msg_nr) && len != 0; ++i) {
+	for (i = 0; i < ARRAY_SIZE(msg_nr) && len_total != 0; ++i) {
 		len = m0_net_test_serialize(op, (void *) msg_nr[i],
 					    USE_TYPE_DESCR(m0_net_test_msg_nr),
 					    bv, offset + len_total);
-		len_total += len;
+		len_total = net_test_len_accumulate(len_total, len);
 	}
-	for (i = 0; i < ARRAY_SIZE(stats) && len != 0; ++i) {
+	for (i = 0; i < ARRAY_SIZE(stats) && len_total != 0; ++i) {
 		len = m0_net_test_stats_serialize(op, (void *) stats[i], bv,
 						  offset + len_total);
-		len_total += len;
+		len_total = net_test_len_accumulate(len_total, len);
 	}
-	return len == 0 ? 0 : len_total;
+	return len_total;
 }
 
 /**
@@ -151,10 +149,11 @@ static int cmd_serialize(enum m0_net_test_serialize_op op,
 	m0_bcount_t	  len_total;
 
 	M0_PRE(cmd != NULL);
-	len = len_total = m0_net_test_serialize(op, cmd,
-				  USE_TYPE_DESCR(m0_net_test_cmd), bv, offset);
-	if (len_total == 0)
+	len = m0_net_test_serialize(op, cmd, USE_TYPE_DESCR(m0_net_test_cmd),
+				    bv, offset);
+	if (len == 0)
 		return -EINVAL;
+	len_total = net_test_len_accumulate(0, len);
 
 	switch (cmd->ntc_type) {
 	case M0_NET_TEST_CMD_INIT:
@@ -163,13 +162,13 @@ static int cmd_serialize(enum m0_net_test_serialize_op op,
 					bv, offset + len_total);
 		if (len == 0)
 			break;
-		len_total += len;
+		len_total = net_test_len_accumulate(len_total, len);
 
 		len = m0_net_test_str_serialize(op, &cmd->ntc_init.ntci_tm_ep,
 						bv, offset + len_total);
 		if (len == 0)
 			break;
-		len_total += len;
+		len_total = net_test_len_accumulate(len_total, len);
 
 		len = m0_net_test_slist_serialize(op, &cmd->ntc_init.ntci_ep,
 						  bv, offset + len_total);
@@ -193,11 +192,12 @@ static int cmd_serialize(enum m0_net_test_serialize_op op,
 		return -ENOSYS;
 	};
 
-	return len == 0 ? -EINVAL : 0;
+	len_total = net_test_len_accumulate(len_total, len);
+	return len_total == 0 ? -EINVAL : 0;
 }
 
 /**
-   Free m0_net_test_cmd after succesful
+   Free m0_net_test_cmd after successful
    cmd_serialize(M0_NET_TEST_DESERIALIZE, ...).
  */
 static void cmd_free(struct m0_net_test_cmd *cmd)
@@ -205,7 +205,7 @@ static void cmd_free(struct m0_net_test_cmd *cmd)
 	M0_PRE(cmd != NULL);
 
 	if (cmd->ntc_type == M0_NET_TEST_CMD_INIT) {
-		m0_net_test_str_fini  (&cmd->ntc_init.ntci_tm_ep);
+		m0_net_test_str_fini(&cmd->ntc_init.ntci_tm_ep);
 		m0_net_test_slist_fini(&cmd->ntc_init.ntci_ep);
 	}
 }
@@ -231,7 +231,10 @@ static void commands_cb_msg_recv(struct m0_net_test_network_ctx *net_ctx,
 	struct m0_net_test_cmd_ctx *ctx = cmd_ctx_extract(net_ctx);
 
 	M0_PRE(m0_net_test_commands_invariant(ctx));
+	M0_PRE(buf_index >= ctx->ntcc_ep_nr && buf_index < ctx->ntcc_ep_nr * 2);
 	M0_PRE(q == M0_NET_QT_MSG_RECV);
+	LOGD("M0_NET_QT_MSG_RECV commands callback from %s",
+	     ev->nbe_ep == NULL ? "NULL" : ev->nbe_ep->nep_addr);
 
 	/* save endpoint and buffer status */
 	if (ev->nbe_ep != NULL)
@@ -255,6 +258,10 @@ static void commands_cb_msg_send(struct m0_net_test_network_ctx *net_ctx,
 
 	M0_PRE(m0_net_test_commands_invariant(ctx));
 	M0_PRE(q == M0_NET_QT_MSG_SEND);
+	M0_PRE(buf_index < ctx->ntcc_ep_nr);
+	LOGD("M0_NET_QT_MSG_SEND commands callback to %s",
+	     ev->nbe_buffer->nb_ep == NULL ? "NULL" :
+	     ev->nbe_buffer->nb_ep->nep_addr);
 
 	/* invoke 'message sent' callback if it is present */
 	if (ctx->ntcc_send_cb != NULL)
@@ -272,7 +279,7 @@ static void commands_cb_impossible(struct m0_net_test_network_ctx *ctx,
 	M0_IMPOSSIBLE("commands bulk buffer callback is impossible");
 }
 
-static const struct m0_net_tm_callbacks m0_net_test_commands_tm_cb = {
+static const struct m0_net_tm_callbacks net_test_commands_tm_cb = {
 	.ntc_event_cb = commands_tm_event_cb
 };
 
@@ -291,6 +298,8 @@ static int commands_recv_enqueue(struct m0_net_test_cmd_ctx *ctx,
 				 size_t buf_index)
 {
 	int rc;
+
+	M0_PRE(buf_index >= ctx->ntcc_ep_nr && buf_index < ctx->ntcc_ep_nr * 2);
 
 	ctx->ntcc_buf_status[buf_index].ntcbs_in_recv_queue = true;
 	rc = m0_net_test_network_msg_recv(&ctx->ntcc_net, buf_index);
@@ -315,9 +324,9 @@ static void commands_recv_ep_put(struct m0_net_test_cmd_ctx *ctx,
 }
 
 static bool is_buf_in_recv_q(struct m0_net_test_cmd_ctx *ctx,
-			  size_t buf_index)
+			     size_t buf_index)
 {
-	M0_PRE(buf_index < ctx->ntcc_ep_nr * 2);
+	M0_PRE(buf_index >= ctx->ntcc_ep_nr && buf_index < ctx->ntcc_ep_nr * 2);
 
 	return ctx->ntcc_buf_status[buf_index].ntcbs_in_recv_queue;
 }
@@ -348,9 +357,9 @@ static int commands_initfini(struct m0_net_test_cmd_ctx *ctx,
 			     struct m0_net_test_slist *ep_list,
 			     bool init)
 {
-	struct m0_net_test_network_timeouts timeouts;
-	int				    i;
-	int				    rc = -EEXIST;
+	struct m0_net_test_network_cfg net_cfg;
+	int			       i;
+	int			       rc = -EEXIST;
 
 	M0_PRE(ctx != NULL);
 	if (!init)
@@ -361,9 +370,6 @@ static int commands_initfini(struct m0_net_test_cmd_ctx *ctx,
 
 	if (!m0_net_test_slist_unique(ep_list))
 		goto fail;
-
-	timeouts = m0_net_test_network_timeouts_never();
-	timeouts.ntnt_timeout[M0_NET_QT_MSG_SEND] = send_timeout;
 
 	ctx->ntcc_ep_nr   = ep_list->ntsl_nr;
 	ctx->ntcc_send_cb = send_cb;
@@ -384,23 +390,22 @@ static int commands_initfini(struct m0_net_test_cmd_ctx *ctx,
 	if (ctx->ntcc_buf_status == NULL)
 		goto free_rb;
 
-	rc = m0_net_test_network_ctx_init(&ctx->ntcc_net, cmd_ep,
-					  &m0_net_test_commands_tm_cb,
-					  &commands_buffer_cb,
-					  M0_NET_TEST_CMD_SIZE_MAX,
-					  2 * ctx->ntcc_ep_nr,
-					  0, 0,
-					  ep_list->ntsl_nr,
-					  &timeouts);
+	M0_SET0(&net_cfg);
+	net_cfg.ntncfg_tm_cb	     = net_test_commands_tm_cb;
+	net_cfg.ntncfg_buf_cb	     = commands_buffer_cb;
+	net_cfg.ntncfg_buf_size_ping = M0_NET_TEST_CMD_SIZE_MAX;
+	net_cfg.ntncfg_buf_ping_nr   = 2 * ctx->ntcc_ep_nr;
+	net_cfg.ntncfg_ep_max	     = ep_list->ntsl_nr;
+	net_cfg.ntncfg_timeouts	     = m0_net_test_network_timeouts_never();
+	net_cfg.ntncfg_timeouts.ntnt_timeout[M0_NET_QT_MSG_SEND] = send_timeout;
+
+	rc = m0_net_test_network_ctx_init(&ctx->ntcc_net, &net_cfg, cmd_ep);
 	if (rc != 0)
 		goto free_buf_status;
 
-	for (i = 0; i < ep_list->ntsl_nr; ++i) {
-		rc = m0_net_test_network_ep_add(&ctx->ntcc_net,
-						ep_list->ntsl_list[i]);
-		if (rc < 0)
-			goto free_net_ctx;
-	}
+	rc = m0_net_test_network_ep_add_slist(&ctx->ntcc_net, ep_list);
+	if (rc != 0)
+		goto free_net_ctx;
 	for (i = 0; i < ctx->ntcc_ep_nr; ++i) {
 		rc = commands_recv_enqueue(ctx, ctx->ntcc_ep_nr + i);
 		if (rc != 0) {
@@ -458,12 +463,10 @@ int m0_net_test_commands_send(struct m0_net_test_cmd_ctx *ctx,
 	M0_PRE(m0_net_test_commands_invariant(ctx));
 	M0_PRE(cmd != NULL);
 
-	LOGD("m0_net_test_commands_send:\n");
-	LOGD("> from:\t\t%s\n", ctx->ntcc_net.ntc_tm->ntm_ep->nep_addr);
-	LOGD("> to %lu:\t\t%s\n", cmd->ntc_ep_index,
-	     ctx->ntcc_net.ntc_ep[cmd->ntc_ep_index]->nep_addr);
-	LOGD("> cmd->ntc_type = %d\n", cmd->ntc_type);
-	LOGD("end.\n");
+	LOGD("m0_net_test_commands_send: from %s to %lu %s cmd->ntc_type = %d",
+	     ctx->ntcc_net.ntc_tm->ntm_ep->nep_addr, cmd->ntc_ep_index,
+	     ctx->ntcc_net.ntc_ep[cmd->ntc_ep_index]->nep_addr,
+	     cmd->ntc_type);
 
 	buf_index = cmd->ntc_ep_index;
 	buf = m0_net_test_network_buf(&ctx->ntcc_net, M0_NET_TEST_BUF_PING,
@@ -488,6 +491,7 @@ void m0_net_test_commands_send_wait_all(struct m0_net_test_cmd_ctx *ctx)
 	int64_t nr;
 	int64_t i;
 
+	LOGD("m0_net_test_commands_send_wait_all enter");
 	M0_PRE(m0_net_test_commands_invariant(ctx));
 
 	m0_mutex_lock(&ctx->ntcc_send_mutex);
@@ -495,8 +499,12 @@ void m0_net_test_commands_send_wait_all(struct m0_net_test_cmd_ctx *ctx)
 	ctx->ntcc_send_nr = 0;
 	m0_mutex_unlock(&ctx->ntcc_send_mutex);
 
-	for (i = 0; i < nr; ++i)
+	LOGD("nr = %ld", (long) nr);
+	for (i = 0; i < nr; ++i) {
+		LOGD("semaphore_down() #%ld", (long) i);
 		m0_semaphore_down(&ctx->ntcc_sem_send);
+	}
+	LOGD("m0_net_test_commands_send_wait_all leave");
 }
 
 int m0_net_test_commands_recv(struct m0_net_test_cmd_ctx *ctx,
@@ -548,13 +556,12 @@ done:
 	/* buffer now not in receive queue */
 	ctx->ntcc_buf_status[buf_index].ntcbs_in_recv_queue = false;
 
-	LOGD("m0_net_test_commands_recv:\n");
-	LOGD("> rc = %d\n", rc);
-	LOGD("> from %lu:\t%s\n", cmd->ntc_ep_index,
-	     ctx->ntcc_net.ntc_ep[cmd->ntc_ep_index]->nep_addr);
-	LOGD("> to:\t\t%s\n", ctx->ntcc_net.ntc_tm->ntm_ep->nep_addr);
-	LOGD("> cmd->ntc_type = %d\n", cmd->ntc_type);
-	LOGD("end.\n");
+	LOGD("m0_net_test_commands_recv: from %lu %s to %s "
+	     "rc = %d cmd->ntc_type = %d",
+	     cmd->ntc_ep_index,
+	     ctx->ntcc_net.ntc_ep[cmd->ntc_ep_index]->nep_addr,
+	     ctx->ntcc_net.ntc_tm->ntm_ep->nep_addr,
+	     rc, cmd->ntc_type);
 
 	return rc;
 }
@@ -581,12 +588,14 @@ bool m0_net_test_commands_invariant(struct m0_net_test_cmd_ctx *ctx)
 		return false;
 	if (ctx->ntcc_ep_nr != ctx->ntcc_net.ntc_ep_nr)
 		return false;
-	if (ctx->ntcc_ep_nr * 2 != ctx->ntcc_net.ntc_buf_ping_nr)
+	if (ctx->ntcc_ep_nr * 2 != ctx->ntcc_net.ntc_cfg.ntncfg_buf_ping_nr)
 		return false;
-	if (ctx->ntcc_net.ntc_buf_bulk_nr != 0)
+	if (ctx->ntcc_net.ntc_cfg.ntncfg_buf_bulk_nr != 0)
 		return false;
 	return true;
 }
+
+#undef NET_TEST_MODULE_NAME
 
 /**
    @} end of NetTestCommandsInternals group

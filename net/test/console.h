@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -73,30 +73,64 @@ struct m0_net_test_console_cfg {
 	 * @see m0_net_test_console_cfg.ntcc_data_servers
 	 */
 	struct m0_net_test_slist ntcc_data_clients;
-	/** Commands send timeout for the test nodes */
+	/** Commands send timeout for the test nodes and test console */
 	m0_time_t		 ntcc_cmd_send_timeout;
-	/** Commands receive timeout for the test nodes */
+	/** Commands receive timeout for the test nodes and test console */
 	m0_time_t		 ntcc_cmd_recv_timeout;
 	/** Test messages send timeout for the test nodes */
 	m0_time_t		 ntcc_buf_send_timeout;
 	/** Test messages receive timeout for the test nodes */
 	m0_time_t		 ntcc_buf_recv_timeout;
+	/**
+	 * Test messages receive timeout for the bulk transfers
+	 * in bulk testing on the test nodes
+	 */
+	m0_time_t		 ntcc_buf_bulk_timeout;
 	/** Test type */
 	enum m0_net_test_type	 ntcc_test_type;
 	/** Number of test messages for the test client */
-	size_t			 ntcc_msg_nr;
+	uint64_t		 ntcc_msg_nr;
+	/**
+	 * Test run time limit. The test will stop after
+	 * ntcc_msg_nr test messages or when time limit reached.
+	 */
+	m0_time_t		 ntcc_test_time_limit;
 	/** Test messages size */
 	m0_bcount_t		 ntcc_msg_size;
 	/**
-	 * Test server concurrency.
-	 * @see m0_net_test_cmd_init.ntci_concurrency
+	 * Number of buffers for bulk buffer network descriptors
+	 * for the test server.
+	 * @note Used in bulk testing only.
 	 */
-	size_t			 ntcc_concurrency_server;
+	uint64_t		 ntcc_bd_buf_nr_server;
+	/**
+	 * Number of buffers for bulk buffer network descriptors
+	 * for the test client.
+	 * @note Used in bulk testing only.
+	 */
+	uint64_t		 ntcc_bd_buf_nr_client;
+	/**
+	 * Size of buffer for bulk buffer network descriptors.
+	 * @note Used in bulk testing only.
+	 */
+	m0_bcount_t		 ntcc_bd_buf_size;
+	/**
+	 * Maximum number of bulk buffer network descriptors in
+	 * msg buffer.
+	 * @see node_bulk_ctx.nbc_bd_nr_max
+	 * @note Used in bulk testing only.
+	 */
+	uint64_t		 ntcc_bd_nr_max;
+	/**
+	 * Test server concurrency.
+	 * @see m0_net_test_cmd_init.ntci_msg_concurrency
+	 */
+	uint64_t		 ntcc_concurrency_server;
 	/**
 	 * Test client concurrency.
-	 * @see m0_net_test_cmd_init.ntci_concurrency
+	 * @see m0_net_test_cmd_init.ntci_msg_concurrency
 	 */
-	size_t			 ntcc_concurrency_client;
+	uint64_t		 ntcc_concurrency_client;
 };
 
 /** Test console context for the node role */
@@ -111,6 +145,10 @@ struct m0_net_test_console_role_ctx {
 	int				   *ntcrc_errno;
 	/** status of last received *_DONE command */
 	int				   *ntcrc_status;
+	/** number of m0_net_test_commands_recv() failures */
+	size_t				    ntcrc_recv_errors;
+	/** number of m0_net_test_commands_recv_enqueue() failures */
+	size_t				    ntcrc_recv_enqueue_errors;
 };
 
 /** Test console context */

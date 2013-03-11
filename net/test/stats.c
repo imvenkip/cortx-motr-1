@@ -27,6 +27,8 @@
 #include "lib/misc.h"		/* M0_SET0 */
 #include "lib/arith.h"		/* min_check */
 
+#include "mero/magic.h"	/* M0_NET_TEST_TIMESTAMP_MAGIC */
+
 #include "net/test/stats.h"
 
 /**
@@ -133,7 +135,10 @@ m0_bcount_t m0_net_test_stats_serialize(enum m0_net_test_serialize_op op,
 					struct m0_bufvec *bv,
 					m0_bcount_t bv_offset)
 {
-	struct m0_uint128 *pv128;
+	struct m0_uint128 * const pv128[] = {
+		&stats->nts_sum,
+		&stats->nts_sum_sqr,
+	};
 	m0_bcount_t	   len_total;
 	m0_bcount_t	   len;
 	int		   i;
@@ -141,18 +146,14 @@ m0_bcount_t m0_net_test_stats_serialize(enum m0_net_test_serialize_op op,
 	len = m0_net_test_serialize(op, stats,
 				    USE_TYPE_DESCR(m0_net_test_stats),
 				    bv, bv_offset);
-	len_total = len;
-	for (i = 0; i < 2; ++i) {
-		if (len != 0) {
-			pv128 = stats == NULL ? NULL : i == 0 ?
-				&stats->nts_sum : &stats->nts_sum_sqr;
-			len = m0_net_test_serialize(op, pv128,
-						    USE_TYPE_DESCR(m0_uint128),
-						    bv, bv_offset + len_total);
-			len_total += len;
-		}
+	len_total = net_test_len_accumulate(0, len);
+	for (i = 0; i < ARRAY_SIZE(pv128) && len_total != 0; ++i) {
+		len = m0_net_test_serialize(op, pv128[i],
+					    USE_TYPE_DESCR(m0_uint128),
+					    bv, bv_offset + len_total);
+		len_total = net_test_len_accumulate(len_total, len);
 	}
-	return len == 0 ? 0 : len_total;
+	return len_total;
 }
 
 void m0_net_test_stats_time_add(struct m0_net_test_stats *stats, m0_time_t time)
@@ -189,9 +190,9 @@ void m0_net_test_timestamp_init(struct m0_net_test_timestamp *t, uint64_t seq)
 }
 
 TYPE_DESCR(m0_net_test_timestamp) = {
+	FIELD_DESCR(struct m0_net_test_timestamp, ntt_magic),
 	FIELD_DESCR(struct m0_net_test_timestamp, ntt_time),
 	FIELD_DESCR(struct m0_net_test_timestamp, ntt_seq),
-	FIELD_DESCR(struct m0_net_test_timestamp, ntt_magic),
 };
 
 m0_bcount_t m0_net_test_timestamp_serialize(enum m0_net_test_serialize_op op,
@@ -304,7 +305,7 @@ m0_time_t m0_net_test_mps_add(struct m0_net_test_mps *mps,
  */
 
 /**
-   @defgroup NetTestStatsMsgNRInternals Messages Per Second Statistics
+   @defgroup NetTestStatsMsgNRInternals Messages Number
    @ingroup NetTestInternals
 
    @{

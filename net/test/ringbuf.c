@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,9 +18,9 @@
  * Original creation date: 07/02/2012
  */
 
-#include "lib/errno.h"	/* ENOMEM */
-#include "lib/misc.h"	/* M0_SET0 */
-#include "lib/memory.h"	/* M0_ALLOC_ARR */
+#include "lib/errno.h"		/* ENOMEM */
+#include "lib/misc.h"		/* M0_SET0 */
+#include "lib/memory.h"		/* M0_ALLOC_ARR */
 
 #include "net/test/ringbuf.h"
 
@@ -99,6 +99,13 @@ bool m0_net_test_ringbuf_is_empty(struct m0_net_test_ringbuf *rb)
 	M0_PRE(m0_net_test_ringbuf_invariant(rb));
 
 	return m0_atomic64_get(&rb->ntr_end) == m0_atomic64_get(&rb->ntr_start);
+}
+
+size_t m0_net_test_ringbuf_nr(struct m0_net_test_ringbuf *rb)
+{
+	M0_PRE(m0_net_test_ringbuf_invariant(rb));
+
+	return m0_atomic64_get(&rb->ntr_end) - m0_atomic64_get(&rb->ntr_start);
 }
 
 /**

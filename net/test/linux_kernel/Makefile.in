@@ -1,13 +1,15 @@
-NET_TEST_SRCDIR	:= @SRCDIR@/net/test/linux_kernel
-NET_TEST	:= m0netperfd
+NET_TEST_SRCDIR	:= @ABS_SRCDIR@/net/test/linux_kernel
+NET_TEST	:= m0nettestd
 
 shared_src	:=
 kernel_src	:= node_k.c
 
 obj-m		:= $(NET_TEST).o
 $(NET_TEST)-y	:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
+orig		:= $(shared_src:%=../%)
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+EXTRA_CFLAGS	= -DHAVE_CONFIG_H -I@top_srcdir@ \
+		  @M0_KCPPFLAGS@ @M0_KCFLAGS@ @KCFLAGS@
 
 prepare:
 	true

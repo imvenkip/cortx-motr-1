@@ -29,7 +29,7 @@ if [ $1 != "console" -a $1 != "server" -a $1 != "client" ]; then
 	exit
 fi
 
-. @SRCDIR@/m0t1fs/linux_kernel/st/common.sh
+. @ABS_SRCDIR@/m0t1fs/linux_kernel/st/common.sh
 
 unload_all() {
     modunload
@@ -42,7 +42,7 @@ modload_galois
 modload || exit $?
 
 JOB_IDS=
-SCRIPT=@SRCDIR@/net/test/test-user.sh
+SCRIPT=@ABS_SRCDIR@/net/test/test-user.sh
 
 PID=12345
 PORTAL=42
@@ -62,7 +62,7 @@ job_id_add() {
 }
 
 run_console() {
-	@SRCDIR@/net/test/user_space/m0netperf \
+	@ABS_SRCDIR@/net/test/user_space/m0nettest \
 		-t $TEST_TYPE \
 		-n $MSG_NR \
 		-s $MSG_SIZE \
@@ -78,14 +78,14 @@ run_console() {
 }
 
 run_server() {
-	@SRCDIR@/net/test/user_space/m0netperfd \
+	@ABS_SRCDIR@/net/test/user_space/m0nettestd \
 		-a "$SERVER_IF:$PID:$PORTAL:200" \
 		-c "$CONSOLE_IF:$PID:$PORTAL:100" &
 	job_id_add
 }
 
 run_client() {
-	@SRCDIR@/net/test/user_space/m0netperfd \
+	@ABS_SRCDIR@/net/test/user_space/m0nettestd \
 		-a "$CLIENT_IF:$PID:$PORTAL:300" \
 		-c "$CONSOLE_IF:$PID:$PORTAL:101" &
 	job_id_add

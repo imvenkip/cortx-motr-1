@@ -57,6 +57,7 @@ struct m0_net_test_descr {
 
 #define FIELD_SIZE(type, field) (sizeof ((type *) 0)->field)
 
+/** Recommended to use in field declaration order */
 #define FIELD_DESCR(type, field) {					\
 	.ntd_offset	= offsetof(type, field),			\
 	.ntd_length	= FIELD_SIZE(type, field),			\
@@ -91,7 +92,7 @@ m0_bcount_t m0_net_test_serialize_data(enum m0_net_test_serialize_op op,
    @param descr_nr Described fields number in descr.
    @param bv m0_bufvec. Can be NULL - in this case bv_offset is ignored.
    @param bv_offset Offset in bv.
-   @return 0 No space in buffer or descr_nr == 0.
+   @return 0 No free space in buffer or descr_nr == 0.
    @return >0 Number of bytes read/written/will be written to/from buffer.
    @pre op == M0_NET_TEST_SERIALIZE || op == M0_NET_TEST_DESERIALIZE
    @pre obj != NULL
@@ -105,6 +106,22 @@ m0_bcount_t m0_net_test_serialize(enum m0_net_test_serialize_op op,
 				  size_t descr_nr,
 				  struct m0_bufvec *bv,
 				  m0_bcount_t bv_offset);
+
+/**
+   Get new len_total value after serializing part of data.
+   @see @ref net-test-fspec-usecases-serialize
+   @param accumulator Total serialized length before serializing current
+		      part of data.
+   @param addend Length of serialized current part of data.
+		 0 means serializing failed.
+   @return 0 if addend == 0
+	   accumulator + addend otherwise.
+ */
+static inline m0_bcount_t net_test_len_accumulate(m0_bcount_t accumulator,
+						  m0_bcount_t addend)
+{
+	return addend == 0 ? 0 : accumulator + addend;
+}
 
 /**
    @} end of NetTestSerializeDFS group

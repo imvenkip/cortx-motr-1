@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -29,15 +29,17 @@
 
 /* NTC_ == NET_TEST_COMMANDS_ */
 enum {
-	NTC_PORTAL	      = 42,
-	NTC_TMID_CONSOLE      = 3000,
-	NTC_TMID_NODE	      = 3001,
-	NTC_MULTIPLE_COMMANDS = 64,
+	NTC_TMID_START	      = 3000,
+	NTC_TMID_CONSOLE      = NTC_TMID_START,
+	NTC_TMID_NODE	      = NTC_TMID_CONSOLE + 1,
+	NTC_MULTIPLE_NODES    = 64,
+	NTC_MULTIPLE_COMMANDS = 32,
 	NTC_ADDR_LEN_MAX      = 0x100,
 	NTC_TIMEOUT_MS	      = 1000,
+	NTC_CMD_RECV_WAIT_NS  = 25000000,
 };
 
-static const char   NTC_ADDR[]	   = "0@lo:12345:%d:%d";
+static const char   NTC_ADDR[]	   = "0@lo:12345:42:%d";
 static const size_t NTC_ADDR_LEN   = ARRAY_SIZE(NTC_ADDR);
 static const char   NTC_DELIM      = ',';
 
@@ -55,15 +57,18 @@ struct net_test_cmd_node {
 	bool			   ntcn_barriers_disabled;
 	/** used when checking send/recv */
 	bool			   ntcn_flag;
+	/** transfer machine address */
+	char			  *ntcn_addr;
 };
 
 static char addr_console[NTC_ADDR_LEN_MAX];
-static char addr_node[NTC_ADDR_LEN_MAX * NTC_MULTIPLE_COMMANDS];
+static char addr_node[NTC_ADDR_LEN_MAX * NTC_MULTIPLE_NODES];
 
 static struct m0_net_test_slist   slist_node;
 static struct m0_net_test_slist   slist_console;
 static struct net_test_cmd_node	 *node;
 static struct m0_net_test_cmd_ctx console;
+static struct net_test_cmd_node	  nodes[NTC_MULTIPLE_NODES];
 
 static m0_time_t timeout_get(void)
 {
@@ -75,10 +80,9 @@ static m0_time_t timeout_get_abs(void)
 	return m0_time_add(m0_time_now(), timeout_get());
 }
 
-static int make_addr(char *s, size_t s_len, int port, int svc_id,
-		     bool add_comma)
+static int make_addr(char *s, size_t s_len, int svc_id, bool add_comma)
 {
-	int rc = snprintf(s, s_len, NTC_ADDR, port, svc_id);
+	int rc = snprintf(s, s_len, NTC_ADDR, svc_id);
 
 	M0_ASSERT(NTC_ADDR_LEN <= NTC_ADDR_LEN_MAX);
 	M0_ASSERT(rc > 0);
@@ -98,11 +102,10 @@ static void fill_addr(uint32_t nr)
 	int	 diff;
 
 	/* console */
-	make_addr(addr_console, NTC_ADDR_LEN_MAX, NTC_PORTAL,
-		  NTC_TMID_CONSOLE, false);
+	make_addr(addr_console, NTC_ADDR_LEN_MAX, NTC_TMID_CONSOLE, false);
 	/* nodes */
 	for (i = 0; i < nr; ++i) {
-		diff = make_addr(pos, NTC_ADDR_LEN_MAX, NTC_PORTAL,
+		diff = make_addr(pos, NTC_ADDR_LEN_MAX,
 				 NTC_TMID_NODE + i, i != nr - 1);
 		M0_ASSERT(diff < NTC_ADDR_LEN_MAX);
 		pos += diff;
@@ -245,6 +248,8 @@ static void commands_ut_recv(struct net_test_cmd_node *node,
 	M0_SET0(&cmd);
 	rc = m0_net_test_commands_recv(ctx, &cmd, deadline);
 	commands_ut_assert(node, rc == 0);
+	if (rc != 0)
+		return;
 	if (ep_index == NULL) {
 		rc = m0_net_test_commands_recv_enqueue(ctx, cmd.ntc_buf_index);
 		commands_ut_assert(node, rc == 0);
@@ -281,7 +286,8 @@ static void commands_ut_recv_type(struct net_test_cmd_node *node,
 					 M0_NET_TEST_TYPE_BULK);
 		commands_ut_assert(node, cmd_init->ntci_msg_nr	 == 0x10000);
 		commands_ut_assert(node, cmd_init->ntci_msg_size == 0x100000);
-		commands_ut_assert(node, cmd_init->ntci_concurrency == 0x100);
+		commands_ut_assert(node,
+				   cmd_init->ntci_msg_concurrency == 0x100);
 		timeout = cmd_init->ntci_buf_send_timeout;
 		commands_ut_assert(node, m0_time_seconds(timeout) == 2);
 		commands_ut_assert(node, m0_time_nanoseconds(timeout) == 3);
@@ -390,14 +396,14 @@ static void commands_ut_send_all_type(size_t nr,
 	M0_SET0(&cmd);
 	cmd.ntc_type = type;
 	if (type == M0_NET_TEST_CMD_INIT) {
-		cmd_init		   = &cmd.ntc_init;
-		cmd_init->ntci_role	   = M0_NET_TEST_ROLE_SERVER;
-		cmd_init->ntci_type	   = M0_NET_TEST_TYPE_BULK;
-		cmd_init->ntci_msg_nr	   = 0x10000;
-		cmd_init->ntci_msg_size	   = 0x100000;
-		cmd_init->ntci_concurrency = 0x100;
-		cmd_init->ntci_buf_send_timeout = m0_time(2, 3);
-		cmd_init->ntci_tm_ep	   = "0@lo:1:2:3";
+		cmd_init			= &cmd.ntc_init;
+		cmd_init->ntci_role		= M0_NET_TEST_ROLE_SERVER;
+		cmd_init->ntci_type		= M0_NET_TEST_TYPE_BULK;
+		cmd_init->ntci_msg_nr		= 0x10000;
+		cmd_init->ntci_msg_size		= 0x100000;
+		cmd_init->ntci_msg_concurrency  = 0x100;
+		cmd_init->ntci_buf_send_timeout = M0_MKTIME(2, 3);
+		cmd_init->ntci_tm_ep		= "0@lo:1:2:3";
 		m0_net_test_slist_init(&cmd_init->ntci_ep, "1,2,3", ',');
 	} else if (type != M0_NET_TEST_CMD_START &&
 		   type != M0_NET_TEST_CMD_STOP &&
@@ -510,8 +516,8 @@ static void net_test_command_ut(size_t nr)
 	flags_reset(nr);
 	commands_ut_send_all(nr);
 	barrier_with_nodes();				/* barrier #4.1 */
-	M0_UT_ASSERT(is_flags_set_odd(nr));
 	barrier_with_nodes();				/* barrier #4.2 */
+	M0_UT_ASSERT(is_flags_set_odd(nr));
 	barrier_with_nodes();				/* barrier #4.3 */
 	/*
 	   Test #5: every node sends two commands, and only after that console
@@ -570,7 +576,165 @@ void m0_net_test_cmd_ut_single(void)
 
 void m0_net_test_cmd_ut_multiple(void)
 {
-	net_test_command_ut(NTC_MULTIPLE_COMMANDS);
+	net_test_command_ut(NTC_MULTIPLE_NODES);
+}
+
+static void commands_node_loop(struct net_test_cmd_node *node,
+			       struct m0_net_test_cmd *cmd)
+{
+	m0_time_t deadline;
+	int	  cmd_rcvd = 0;
+	int	  rc;
+
+	/*
+	 * Receive command from console and send it back.
+	 * Repeat NTC_MULTIPLE_COMMANDS times.
+	 */
+	while (cmd_rcvd != NTC_MULTIPLE_COMMANDS) {
+		deadline = m0_time_from_now(0, NTC_CMD_RECV_WAIT_NS);
+		rc = m0_net_test_commands_recv(&node->ntcn_ctx, cmd, deadline);
+		if (rc == -ETIMEDOUT)
+			continue;
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(cmd->ntc_ep_index == 0);
+		rc = m0_net_test_commands_recv_enqueue(&node->ntcn_ctx,
+						       cmd->ntc_buf_index);
+		M0_UT_ASSERT(rc == 0);
+		m0_net_test_commands_send_wait_all(&node->ntcn_ctx);
+		rc = m0_net_test_commands_send(&node->ntcn_ctx, cmd);
+		M0_UT_ASSERT(rc == 0);
+		m0_net_test_commands_received_free(cmd);
+		++cmd_rcvd;
+	}
+}
+
+static void commands_console_loop(struct net_test_cmd_node *node,
+				  struct m0_net_test_cmd *cmd)
+{
+	m0_time_t deadline;
+	int	  cmd_sent = 0;
+	int	  cmd_rcvd;
+	int	  i;
+	int	  rc;
+
+	/*
+	 * Send command to every node and receive reply.
+	 * Repeat NTC_MULTIPLE_COMMANDS times.
+	 */
+	while (cmd_sent != NTC_MULTIPLE_COMMANDS) {
+		m0_net_test_commands_send_wait_all(&node->ntcn_ctx);
+		for (i = 1; i < ARRAY_SIZE(nodes); ++i) {
+			cmd->ntc_ep_index = i - 1;
+			cmd->ntc_type = M0_NET_TEST_CMD_INIT_DONE;
+			rc = m0_net_test_commands_send(&node->ntcn_ctx, cmd);
+			M0_UT_ASSERT(rc == 0);
+		}
+		m0_net_test_commands_send_wait_all(&node->ntcn_ctx);
+		cmd_rcvd = 0;
+		deadline = timeout_get_abs();
+		while (cmd_rcvd != ARRAY_SIZE(nodes) - 1 &&
+		       m0_time_now() <= deadline) {
+			rc = m0_net_test_commands_recv(&node->ntcn_ctx, cmd,
+						       deadline);
+			M0_UT_ASSERT(rc == 0);
+			rc = m0_net_test_commands_recv_enqueue(&node->ntcn_ctx,
+							cmd->ntc_buf_index);
+			M0_UT_ASSERT(rc == 0);
+			++cmd_rcvd;
+			m0_net_test_commands_received_free(cmd);
+		}
+		M0_UT_ASSERT(cmd_rcvd == ARRAY_SIZE(nodes) - 1);
+		++cmd_sent;
+	}
+}
+
+static void commands_node_thread2(struct net_test_cmd_node *node)
+{
+	struct m0_net_test_cmd	 *cmd;
+	struct m0_net_test_slist  endpoints;
+	static char		  buf[NTC_MULTIPLE_NODES * NTC_ADDR_LEN_MAX];
+	int			  rc;
+	bool			  console_thread = node == &nodes[0];
+	int			  i;
+
+	M0_ALLOC_PTR(cmd);
+	M0_UT_ASSERT(cmd != NULL);
+
+	if (console_thread) {
+		buf[0] = '\0';
+		for (i = 1; i < ARRAY_SIZE(nodes); ++i) {
+			strncat(buf, nodes[i].ntcn_addr, NTC_ADDR_LEN_MAX - 1);
+			if (i != ARRAY_SIZE(nodes) - 1)
+				strncat(buf, ",", 1);
+		}
+		rc = m0_net_test_slist_init(&endpoints, buf, ',');
+		M0_UT_ASSERT(rc == 0);
+	} else {
+		rc = m0_net_test_slist_init(&endpoints,
+					    nodes[0].ntcn_addr, '`');
+		M0_UT_ASSERT(rc == 0);
+	}
+	rc = m0_net_test_commands_init(&node->ntcn_ctx, node->ntcn_addr,
+				       timeout_get(), NULL, &endpoints);
+	M0_UT_ASSERT(rc == 0);
+
+	barrier_with_main(node);
+
+	if (console_thread) {
+		commands_console_loop(node, cmd);
+	} else {
+		commands_node_loop(node, cmd);
+	}
+
+	m0_net_test_commands_fini(&node->ntcn_ctx);
+	m0_net_test_slist_fini(&endpoints);
+	m0_free(cmd);
+}
+
+/* main thread */
+void m0_net_test_cmd_ut_multiple2(void)
+{
+	struct net_test_cmd_node *node;
+	size_t			  i;
+	int			  rc;
+
+	/* console is node #0 */
+	for (i = 0; i < ARRAY_SIZE(nodes); ++i) {
+		node = &nodes[i];
+		barrier_init(node);
+		node->ntcn_addr = m0_alloc(NTC_ADDR_LEN_MAX);
+		M0_UT_ASSERT(node->ntcn_addr != NULL);
+		make_addr(node->ntcn_addr, NTC_ADDR_LEN_MAX,
+			  NTC_TMID_START + i, false);
+	}
+	/* start threads */
+	for (i = 0; i < ARRAY_SIZE(nodes); ++i) {
+		node = &nodes[i];
+		rc = M0_THREAD_INIT(&node->ntcn_thread,
+				    struct net_test_cmd_node *, NULL,
+				    &commands_node_thread2,
+				    node, "#%dcmd_ut__%s", (int) i,
+				    i == 0 ? "console" : "node");
+		M0_UT_ASSERT(rc == 0);
+	}
+	/* barrier with node threads */
+	for (i = 0; i < ARRAY_SIZE(nodes); ++i)
+		m0_semaphore_down(&nodes[i].ntcn_signal);
+	for (i = 0; i < ARRAY_SIZE(nodes); ++i)
+		m0_semaphore_up(&nodes[i].ntcn_wait);
+	/* stop threads */
+	for (i = 0; i < ARRAY_SIZE(nodes); ++i) {
+		node = &nodes[i];
+		rc = m0_thread_join(&node->ntcn_thread);
+		M0_UT_ASSERT(rc == 0);
+		m0_thread_fini(&node->ntcn_thread);
+	}
+	/* fini nodes */
+	for (i = 0; i < ARRAY_SIZE(nodes); ++i) {
+		node = &nodes[i];
+		m0_free(node->ntcn_addr);
+		barrier_fini(node);
+	}
 }
 
 /*

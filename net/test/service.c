@@ -18,18 +18,6 @@
  * Original creation date: 09/03/2012
  */
 
-/* @todo remove */
-#ifndef __KERNEL__
-#include <stdio.h>		/* printf */
-#endif
-
-/* @todo debug only, remove it */
-#ifndef __KERNEL__
-#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
-#else
-#define LOGD(format, ...) do {} while (0)
-#endif
-
 #include "lib/memory.h"		/* M0_ALLOC_PTR */
 #include "lib/misc.h"		/* M0_SET0 */
 #include "lib/errno.h"		/* ENOENT */

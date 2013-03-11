@@ -210,7 +210,12 @@ static void nlx_tm_ev_worker(struct m0_net_transfer_mc *tm)
 				rc = nlx_core_buf_event_wait(cd, ctp, timeout);
 				m0_mutex_lock(&tm->ntm_mutex);
 				if (rc == 0 && tp->xtm_ev_chan != NULL) {
-					m0_chan_signal(tp->xtm_ev_chan);
+					if (tp->xtm_ev_chan == &tm->ntm_chan) {
+						m0_chan_signal(tp->xtm_ev_chan);
+					} else {
+						m0_chan_signal_lock(
+							tp->xtm_ev_chan);
+					}
 					tp->xtm_ev_chan = NULL;
 				}
 			}

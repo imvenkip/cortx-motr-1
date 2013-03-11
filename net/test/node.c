@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,25 +18,18 @@
  * Original creation date: 03/22/2012
  */
 
-/* @todo remove */
-#ifndef __KERNEL__
-#include <stdio.h>		/* printf */
-#endif
-
-/* @todo debug only, remove it */
-#ifndef __KERNEL__
-//#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
-#define LOGD(format, ...) do {} while (0)
-#else
-#define LOGD(format, ...) do {} while (0)
-#endif
-
 #include "lib/errno.h"		/* ETIMEDOUT */
 #include "lib/misc.h"		/* M0_SET0 */
+#include "lib/memory.h"		/* M0_ALLOC_PTR */
+#include "lib/trace.h"		/* M0_LOG */
 
 #include "net/test/node.h"	/* m0_net_test_node_ctx */
+#include "net/test/node_stub.h"	/* m0_net_test_node_stub_ops */
 #include "net/test/node_ping.h"	/* m0_net_test_node_ping_ops */
 #include "net/test/node_bulk.h"	/* m0_net_test_node_bulk_ops */
+
+#define NET_TEST_MODULE_NAME node
+#include "net/test/debug.h"
 
 /**
    @page net-test Mero Network Benchmark
@@ -56,6 +49,8 @@
    - @ref net-test-ut
    - @ref net-test-st
    - @ref net-test-O
+   - @ref net-test-lim
+   - @ref net-test-issues
    - @ref net-test-ref
 
 
@@ -132,8 +127,10 @@
    - @ref net-test-lspec-comps
      - @ref net-test-lspec-ping
      - @ref net-test-lspec-bulk
-     - @ref net-test-lspec-algo-client
-     - @ref net-test-lspec-algo-server
+     - @ref net-test-lspec-algo-client-ping
+     - @ref net-test-lspec-algo-client-bulk
+     - @ref net-test-lspec-algo-server-ping
+     - @ref net-test-lspec-algo-server-bulk
      - @ref net-test-lspec-console
      - @ref net-test-lspec-misc
    - @ref net-test-lspec-state
@@ -151,6 +148,7 @@
      stats	[label="stats.c"];
      node_ping	[label="node_ping.c"];
      node_bulk	[label="node_bulk.c"];
+     node_help	[label="node_helper.c"];
      node_	[label="node.c"];
      node_u	[label="user_space/node_u.c"];
      node_k	[label="linux_kernel/node_k.c"];
@@ -162,14 +160,18 @@
      node_ping	-> network;
      node_ping	-> service;
      node_ping	-> stats;
+     node_ping	-> node_help;
      node_bulk	-> network;
      node_bulk	-> service;
      node_bulk	-> stats;
+     node_bulk	-> node_help;
      node_	-> node_ping;
      node_	-> node_bulk;
      node_	-> commands;
+     node_	-> service;
      node_u	-> node_;
      node_k	-> node_;
+     commands	-> network;
      console	-> commands;
      console_u	-> console;
      stats_u	-> stats;
@@ -205,16 +207,21 @@
 
    |||;
    c rbox c [label = "Create test message for ping test with timestamp
-	              and sequence number"];
+		      and sequence number"];
    c=>s     [label = "Test message"];
    ...;
    s=>c     [label = "Test message"];
    c rbox c [label = "Check test message timestamp and sequence number,
-		     add to statistics"];
+		      add to statistics"];
    |||;
    @endmsc
 
    @subsubsection net-test-lspec-bulk Bulk Test
+
+   RTT is measured as length of time interval
+   [time of transition to transfer start state,
+    time of transition to transfer finish state]. See
+   @ref net-test-lspec-algo-client-bulk, @ref net-test-lspec-algo-server-bulk.
 
    One test message travel:
    @msc
@@ -244,7 +251,7 @@
    |||;
    @endmsc
 
-   @subsubsection net-test-lspec-algo-client Test Client Algorithm
+   @subsubsection net-test-lspec-algo-client-ping Ping Test Client Algorithm
 
    @todo Outdated and not used now.
 
@@ -295,25 +302,113 @@ finished.up();\l", shape=box];
      - update stats
      - buf_free.up()
 
-   Callbacks for bulk test
-   - M0_NET_QT_MSG_SEND
-     - nothing
-   - M0_NET_QT_PASSIVE_BULK_SEND
-     - update stats
-   - M0_NET_QT_PASSIVE_BULK_RECV
-     - update stats
-     - buf_free.up()
+   @subsubsection net-test-lspec-algo-sm-legend State Machine Legend
+   - Red solid arrow - state transition to "error" states.
+   - Green bold arrow - state transition for "successful" operation.
+   - Black dashed arrow - auto state transition (shouldn't be explicit).
+   - State name in double oval - final state.
 
-   External variables and interrupts
-   - semaphore stop = 0;
-   - semaphore finished = 0;
-   - client_stop()
-     - stop.up()
-   - stop and block until finish
-     - client_stop()
-     - finished.down()
+   @subsubsection net-test-lspec-algo-client-bulk Bulk Test Client Algorithm
 
-   @subsubsection net-test-lspec-algo-server Test Server Algorithm
+   @dot
+   digraph {
+	label = "Bulk Test Client Buffer States";
+	unused	    [label="UNUSED"];
+	queued	    [label="QUEUED"];
+	bd_sent	    [label="BD_SENT"];
+	cb_left2    [label="CB_LEFT2"];
+	cb_left1    [label="CB_LEFT1"];
+	failed2	    [label="FAILED2", color="red"];
+	failed1	    [label="FAILED1", color="red"];
+	transferred [label="TRANSFERRED", peripheries=2];
+	failed	    [label="FAILED", peripheries=2];
+
+	unused	    -> queued	   [color="green", style="bold"];
+	queued	    -> bd_sent	   [color="green", style="bold"];
+	queued	    -> failed	   [color="red", style="solid"];
+	queued	    -> failed1	   [color="red", style="solid"];
+	queued	    -> failed2	   [color="red", style="solid"];
+	bd_sent	    -> cb_left2	   [color="green", style="bold"];
+	bd_sent	    -> failed2	   [color="red", style="solid"];
+	cb_left2    -> cb_left1	   [color="green", style="bold"];
+	cb_left2    -> failed1	   [color="red", style="solid"];
+	cb_left1    -> transferred [color="green", style="bold"];
+	cb_left1    -> failed	   [color="red", style="solid"];
+	failed2	    -> failed1	   [color="red", style="solid"];
+	failed1	    -> failed	   [color="red", style="solid"];
+	transferred -> unused	   [color="black", style="dashed"];
+	failed	    -> unused	   [color="black", style="dashed"];
+   }
+   @enddot
+
+   @see @ref net-test-lspec-algo-sm-legend
+
+   Bulk buffer pair states
+   - UNUSED - buffer pair is not used in buffer operations now.
+     It is initial state of buffer pair.
+   - QUEUED - buffer pair is queued or almost added to network bulk queue.
+     See @ref net-test-lspec-bulk-buf-states "RECEIVING state".
+   - BD_SENT - buffer descriptors for bulk buffer pair are sent or almost sent
+     to the test server.  See @ref net-test-lspec-bulk-buf-states "RECEIVING state".
+   - CB_LEFT2(CB_LFET1) - there are 2 (or 1) network buffer callback(s) left
+     for this buffer pair (including network buffer callback for the message
+     with buffer descriptor).
+   - TRANSFERRED - all buffer for this buffer pair and message with buffer
+     descriptors was successfully executed.
+   - FAILED2(FAILED1, FAILED) - some operation failed. Also 2 (1, 0) callbacks
+     left for this buffer pair (like CB_LEFT2, CB_LEFT1).
+
+   Initial state: UNUSED.
+
+   Final states: TRANSFERRED, FAILED.
+
+   Transfer start state: QUEUED.
+
+   Transfer finish state: TRANSFERRED.
+
+   Bulk buffer pair state transitions
+   - UNUSED -> QUEUED
+     - client_process_unused_bulk()
+       - add bulk buffer to passive bulk send queue, then add
+	 another bulk buffer in pair to passive recv queue
+   - QUEUED -> BD_SENT
+     - client_process_queued_bulk()
+       - send msg buffer with bulk buffer descriptors
+   - QUEUED -> FAILED
+     - client_process_unused_bulk()
+       - addition to passive send queue failed
+   - QUEUED -> FAILED1
+     - client_process_unused_bulk()
+       - addition to passive recv queue failed
+	 - remove from passive send queue already queued buffer
+   - QUEUED -> FAILED2
+     - client_process_queued_bulk()
+       - bulk buffer network descriptors to ping buffer encoding failed
+	 - dequeue already queued bulk buffers
+       - addition msg with bulk buffer descriptors to network queue failed
+	 - dequeue already queued bulk buffers
+   - BD_SENT -> CB_LEFT2
+   - CB_LEFT2 -> CB_LEFT1
+   - CB_LEFT1 -> TRANSFERRED
+     - network buffer callback
+       - ev->nbe_status == 0
+   - BD_SENT -> FAILED2
+   - CB_LEFT2 -> FAILED1
+   - CB_LEFT1 -> FAILED
+     - network buffer callback
+       - ev->nbe_status != 0
+   - FAILED2 -> FAILED1
+   - FAILED1 -> FAILED
+     - network buffer callback
+   - TRANSFERRED -> UNUSED
+     - node_bulk_state_transition_auto_all()
+       - stats: increase total number of number messages
+   - FAILED -> UNUSED
+     - node_bulk_state_transition_auto_all()
+       - stats: increase total number of test messages and
+	 number of failed messages
+
+   @subsubsection net-test-lspec-algo-server-ping Ping Test Server Algorithm
 
    @todo Outdated and not used now.
 
@@ -327,49 +422,139 @@ finished.up();\l", shape=box];
    - M0_NET_QT_MSG_SEND
      - add buffer to msg recv queue
 
-   Bulk test callbacks
-   - M0_NET_QT_MSG_RECV
-     - add first buffer descriptor to ACTIVE_BULK_RECV queue
-     - add msg buffer to MSG_RECV queue
-   - M0_NET_QT_ACTIVE_BULK_RECV
-     - add second buffer descriptor to ACTIVE_BULK_SEND queue
-     (to send just received buffer)
-   - M0_NET_QT_ACTIVE_BULK_SEND
-     - add sent buffer to ACTIVE_BULK_RECV queue
+   @subsubsection net-test-lspec-algo-server-bulk Bulk Test Server Algorithm
+
+   - Every bulk buffer have its own state.
+   - Bulk test server maintains unused bulk buffers queue - the bulk buffer
+     for messages transfer will be taken from this queue when buffer
+     descriptor arrives. If there are no buffers in queue -
+     then buffer descriptor will be discarded, and number of failed and total
+     test messages will be increased.
+
+   @dot
+   digraph {
+	label = "Bulk Test Server Buffer States";
+	unused	    [label="UNUSED"];
+	bd_received [label="BD_RECEIVED"];
+	receiving   [label="RECEIVING"];
+	sending	    [label="SENDING"];
+	transferred [label="TRANSFERRED", peripheries=2];
+	failed	    [label="FAILED", peripheries=2];
+	badmsg	    [label="BADMSG", peripheries=2];
+
+	unused	    -> bd_received [color="green", style="bold"];
+	bd_received -> badmsg	   [color="red", style="solid"];
+	bd_received -> receiving   [color="green", style="bold"];
+	receiving   -> sending	   [color="green", style="bold"];
+	receiving   -> failed	   [color="red", style="solid"];
+	sending	    -> transferred [color="green", style="bold"];
+	sending	    -> failed	   [color="red", style="solid"];
+	transferred -> unused	   [color="black", style="dashed"];
+	failed	    -> unused	   [color="black", style="dashed"];
+	badmsg	    -> unused	   [color="black", style="dashed"];
+   }
+   @enddot
+
+   @see @ref net-test-lspec-algo-sm-legend
+
+   @anchor net-test-lspec-bulk-buf-states
+   Bulk buffer states
+   - UNUSED - bulk buffer isn't currently used in network operations and
+     can be used when passive bulk buffer decriptors arrive.
+   - BD_RECEIVED - message with buffer descriptors was received from the test
+     client.
+   - RECEIVING - bulk buffer added to the active bulk receive queue. Bulk
+     buffer enters this state just before adding to the network queue because
+     network buffer callback may be executed before returning from
+     'add to network buffer queue' function.
+   - SENDING - bulk buffer added to the active bulk send queue. Bulk buffer
+     enters this state as well as for the RECEIVING state.
+   - TRANSFERRED - bulk buffer was successfully received and sent.
+   - FAILED - some operation failed.
+   - BADMSG - message with buffer descriptors contains invalid data.
+
+   Initial state: UNUSED.
+
+   Final states: TRANSFERRED, FAILED, BADMSG.
+
+   Transfer start state: RECEIVING.
+
+   Transfer finish state: TRANSFERRED.
+
+   Bulk buffer state transitions
+
+   - UNUSED -> BD_RECEIVED
+     - M0_NET_QT_MSG_RECV callback
+       - message with buffer decriptors was received from the test client
+   - BD_RECEIVED -> BADMSG
+     - M0_NET_QT_MSG_RECV callback
+       - message with buffer decscriptors contains invalid data
+   - BD_RECEIVED -> RECEIVING
+     - M0_NET_QT_MSG_RECV callback
+       - bulk buffer was successfully added to active bulk receive queue.
+   - RECEIVING -> SENDING
+     - M0_NET_QT_ACTIVE_BULK_RECV callback
+       - bulk buffer was successfully received from the test client.
+   - RECEIVING -> FAILED
+     - M0_NET_QT_MSG_RECV callback
+       - addition to the active bulk receive queue failed.
+     - M0_NET_QT_ACTIVE_BULK_RECV callback
+       - bulk buffer receiving failed.
+   - SENDING -> TRANSFERRED
+     - M0_NET_QT_ACTIVE_BULK_SEND callback
+       - bulk buffer was successfully sent to the test client.
+   - SENDING -> FAILED
+     - M0_NET_QT_ACTIVE_BULK_RECV callback
+       - addition to the active bulk send queue failed.
+     - M0_NET_QT_ACTIVE_BULK_SEND callback
+       - active bulk sending failed.
+   - TRANSFERRED -> UNUSED
+     - node_bulk_state_transition_auto_all()
+       - stats: increase total number of number messages
+   - FAILED -> UNUSED
+     - node_bulk_state_transition_auto_all()
+       - stats: increase total number of test messages and
+	 number of failed messages
+   - BADMSG -> UNUSED
+     - node_bulk_state_transition_auto_all()
+       - stats: increase total number of test messages and
+	 number of bad messages
 
    @subsubsection net-test-lspec-console Test Console
    @msc
-   console, client, server;
+   console [label="Test Console"],
+   clients [label="Test Clients"],
+   servers [label="Test Servers"];
 
    |||;
-   client rbox client [label = "Listening for console commands"],
-   server rbox server [label = "Listening for console commands"];
-   console => server  [label = "INIT command"];
-   server => console  [label = "INIT DONE response"];
-   ---                [label = "waiting for all servers"];
-   console => client  [label = "INIT command"];
-   client => console  [label = "INIT DONE response"];
-   ---                [label = "waiting for all clients"];
-   console => server  [label = "START command"];
-   server => console  [label = "START ACK response"];
-   ---                [label = "waiting for all servers"];
-   console => client  [label = "START command"];
-   client => console  [label = "START ACK response"];
-   ---                [label = "waiting for all clients"];
-   ---                [label = "running..."];
-   console => client  [label = "STATUS command"];
-   client => console  [label = "STATUS DATA response"];
-   console => server  [label = "STATUS command"];
-   server => console  [label = "STATUS DATA response"];
-   ---                [label = "console wants to stop client&server"];
-   console => client  [label = "STOP command"];
-   client => console  [label = "STOP DONE response"];
-   client rbox client [label = "clients cleanup"];
-   ---                [label = "waiting for all clients"];
-   console => server  [label = "STOP command"];
-   server => console  [label = "STOP DONE response"];
-   server rbox server [label = "server cleanup"];
-   ---                [label = "waiting for all servers"];
+   clients rbox clients	[label = "Listening for console commands"],
+   servers rbox servers	[label = "Listening for console commands"];
+   console => servers	[label = "INIT command"];
+   servers => console	[label = "INIT DONE response"];
+   ---			[label = "waiting for all servers"];
+   console => clients	[label = "INIT command"];
+   clients => console	[label = "INIT DONE response"];
+   ---			[label = "waiting for all clients"];
+   console => servers	[label = "START command"];
+   servers => console	[label = "START ACK response"];
+   ---			[label = "waiting for all servers"];
+   console => clients	[label = "START command"];
+   clients => console	[label = "START ACK response"];
+   ---			[label = "waiting for all clients"];
+   ---			[label = "running..."];
+   console => clients	[label = "STATUS command"];
+   clients => console	[label = "STATUS DATA response"];
+   console => servers	[label = "STATUS command"];
+   servers => console	[label = "STATUS DATA response"];
+   ---			[label = "console wants to stop clients&servers"];
+   console => clients	[label = "STOP command"];
+   clients => console	[label = "STOP DONE response"];
+   clients rbox clients	[label = "clients cleanup"];
+   ---			[label = "waiting for all clients"];
+   console => servers	[label = "STOP command"];
+   servers => console	[label = "STOP DONE response"];
+   servers rbox servers	[label = "servers cleanup"];
+   ---			[label = "waiting for all servers"];
    @endmsc
 
    @subsubsection net-test-lspec-misc Misc
@@ -394,12 +579,12 @@ finished.up();\l", shape=box];
    @dot
    digraph {
      node [style=box];
-     label = "Test Client and Test Server States";
+     label = "Test Service States";
      S0 [label="Uninitialized"];
      S1 [label="Ready"];
      S2 [label="Finished"];
      S3 [label="Failed"];
-     S0 -> S1 [label="succesful m0_net_test_service_init()"];
+     S0 -> S1 [label="successful m0_net_test_service_init()"];
      S1 -> S0 [label="m0_net_test_service_fini()"];
      S1 -> S2 [label="service state change: service was finished"];
      S1 -> S3 [label="service state change: service was failed"];
@@ -473,6 +658,35 @@ finished.up();\l", shape=box];
    @see @ref net-test-hld "Mero Network Benchmark HLD"
 
    <hr>
+   @section net-test-lim Current Limitations
+
+   - test buffer for commands between test console and test node have
+     size 16KiB now (see ::M0_NET_TEST_CMD_SIZE_MAX);
+   @anchor net-test-sem-max-value
+   - m0_net_test_cmd_ctx.ntcc_sem_send, m0_net_test_cmd_ctx.ntcc_sem_recv
+     and node_ping_ctx.npc_buf_q_sem can exceed
+     SEMVMX (see 'man 3 sem_post', 'man 2 semop') if large number of
+     network buffers used in the corresponding structures;
+
+   <hr>
+   @section net-test-issues Know Issues
+
+   - Test console returns different number of transfers for
+     test clients and test servers if time limit reached.
+     It is because test node can't answer to STATUS command
+     after STOP command. Possible solution: split STOP command to
+     2 different commands - "stop sending test messages" and
+     "finalize test messages transfer machine" (now STOP command
+     handler performs these actions) - in this case STATUS command
+     can be sent after "stop sending test messages" command.
+   - Bulk test worker thread (node_bulk_worker()): it is possible
+     for the test server to have all work done in single
+     m0_net_buffer_event_deliver_all(), especially if number of
+     concurrent buffers is high.  STATUS command will give
+     inconsistent results for test clients and test servers in this case.
+     Workaround: use stats from the test client in bulk test.
+
+   <hr>
    @section net-test-ref References
 
    @anchor net-test-hld
@@ -505,20 +719,14 @@ enum {
 	NODE_WAIT_CMD_GRANULARITY_MS = 20,
 };
 
-static void node_tm_event_cb(const struct m0_net_tm_event *ev)
-{
-}
-
-static const struct m0_net_tm_callbacks node_tm_cb = {
-	.ntc_event_cb = node_tm_event_cb
-};
-
 static struct m0_net_test_service_ops *
 service_ops_get(struct m0_net_test_cmd *cmd)
 {
 	M0_PRE(cmd->ntc_type == M0_NET_TEST_CMD_INIT);
 
 	switch (cmd->ntc_init.ntci_type) {
+	case M0_NET_TEST_TYPE_STUB:
+		return &m0_net_test_node_stub_ops;
 	case M0_NET_TEST_TYPE_PING:
 		return &m0_net_test_node_ping_ops;
 	case M0_NET_TEST_TYPE_BULK:
@@ -537,10 +745,10 @@ static int node_cmd_get(struct m0_net_test_cmd_ctx *cmd_ctx,
 		rc = m0_net_test_commands_recv_enqueue(cmd_ctx,
 						       cmd->ntc_buf_index);
 	if (rc == 0) {
-		LOGD("node_cmd_get: rc = %d\n", rc);
-		LOGD("node_cmd_get: cmd->ntc_type = %d\n", cmd->ntc_type);
-		LOGD("node_cmd_get: cmd->ntc_init.ntci_msg_nr = %lu\n",
-		     cmd->ntc_init.ntci_msg_nr);
+		LOGD("node_cmd_get: rc = %d", rc);
+		LOGD("node_cmd_get: cmd->ntc_type = %d", cmd->ntc_type);
+		LOGD("node_cmd_get: cmd->ntc_init.ntci_msg_nr = %lu",
+		     (unsigned long) cmd->ntc_init.ntci_msg_nr);
 	}
 	return rc;
 }
@@ -560,6 +768,8 @@ static int node_cmd_wait(struct m0_net_test_node_ctx *ctx,
 		rc = node_cmd_get(&ctx->ntnc_cmd, cmd, deadline);
 		if (rc != 0 && rc != -ETIMEDOUT)
 			return rc;	/** @todo add retry count */
+		if (rc == 0 && cmd->ntc_type != type)
+			m0_net_test_commands_received_free(cmd);
 	} while (!(rc == 0 && cmd->ntc_type == type) && !ctx->ntnc_exit_flag);
 	return 0;
 }
@@ -569,32 +779,42 @@ static void node_thread(struct m0_net_test_node_ctx *ctx)
 	struct m0_net_test_service	svc;
 	struct m0_net_test_service_ops *svc_ops;
 	enum m0_net_test_service_state	svc_state;
-	struct m0_net_test_cmd		cmd;
-	struct m0_net_test_cmd		reply;
+	struct m0_net_test_cmd	       *cmd;
+	struct m0_net_test_cmd	       *reply;
 	int				rc;
 	bool				skip_cmd_get;
 
 	M0_PRE(ctx != NULL);
 
-	/* wait for INIT command */
-	M0_SET0(&cmd);
-	ctx->ntnc_errno = node_cmd_wait(ctx, &cmd, M0_NET_TEST_CMD_INIT);
-	if (ctx->ntnc_exit_flag) {
-		m0_net_test_commands_received_free(&cmd);
-		return;
+	M0_ALLOC_PTR(cmd);
+	M0_ALLOC_PTR(reply);
+	if (cmd == NULL || reply == NULL) {
+		rc = -ENOMEM;
+		goto done;
 	}
-	if (ctx->ntnc_errno != 0)
-		return;
+
+	/* wait for INIT command */
+	ctx->ntnc_errno = node_cmd_wait(ctx, cmd, M0_NET_TEST_CMD_INIT);
+	if (ctx->ntnc_exit_flag) {
+		rc = 0;
+		m0_net_test_commands_received_free(cmd);
+		goto done;
+	}
+	if (ctx->ntnc_errno != 0) {
+		rc = ctx->ntnc_errno;
+		goto done;
+	}
 	/* we have configuration; initialize test service */
-	svc_ops = service_ops_get(&cmd);
+	svc_ops = service_ops_get(cmd);
 	if (svc_ops == NULL) {
-		m0_net_test_commands_received_free(&cmd);
-		return;
+		rc = -ENODATA;
+		m0_net_test_commands_received_free(cmd);
+		goto done;
 	}
 	rc = m0_net_test_service_init(&svc, svc_ops);
 	if (rc != 0) {
-		m0_net_test_commands_received_free(&cmd);
-		return;
+		m0_net_test_commands_received_free(cmd);
+		goto done;
 	}
 	/* handle INIT command inside main loop */
 	skip_cmd_get = true;
@@ -602,27 +822,29 @@ static void node_thread(struct m0_net_test_node_ctx *ctx)
 	do {
 		/* get command */
 		if (rc == 0 && !skip_cmd_get)
-			rc = node_cmd_get(&ctx->ntnc_cmd, &cmd, m0_time_now());
+			rc = node_cmd_get(&ctx->ntnc_cmd, cmd,
+					  m0_time_from_now(0, 25000000));
+					  // m0_time_now());
 		else
 			skip_cmd_get = false;
 		if (rc == 0)
 			LOGD("node_thread: cmd_get, "
-			     "rc = %d, cmd.ntc_ep_index = %lu\n",
-			     rc, cmd.ntc_ep_index);
-		if (rc == 0 && cmd.ntc_ep_index >= 0) {
-			LOGD("node_thread: have command\n");
+			     "rc = %d, cmd.ntc_ep_index = %lu",
+			     rc, cmd->ntc_ep_index);
+		if (rc == 0 && cmd->ntc_ep_index >= 0) {
+			LOGD("node_thread: have command");
 			/* we have command. handle it */
-			rc = m0_net_test_service_cmd_handle(&svc, &cmd, &reply);
-			LOGD("node_thread: cmd handle: rc = %d\n", rc);
-			reply.ntc_ep_index = cmd.ntc_ep_index;
-			m0_net_test_commands_received_free(&cmd);
+			rc = m0_net_test_service_cmd_handle(&svc, cmd, reply);
+			LOGD("node_thread: cmd handle: rc = %d", rc);
+			reply->ntc_ep_index = cmd->ntc_ep_index;
+			m0_net_test_commands_received_free(cmd);
 			/* send reply */
-			LOGD("node_thread: reply.ntc_ep_index = %lu\n",
-			     reply.ntc_ep_index);
+			LOGD("node_thread: reply.ntc_ep_index = %lu",
+			     reply->ntc_ep_index);
 			m0_net_test_commands_send_wait_all(&ctx->ntnc_cmd);
-			rc = m0_net_test_commands_send(&ctx->ntnc_cmd, &reply);
-			LOGD("node_thread: send reply: rc = %d\n", rc);
-			M0_SET0(&cmd);
+			rc = m0_net_test_commands_send(&ctx->ntnc_cmd, reply);
+			LOGD("node_thread: send reply: rc = %d", rc);
+			M0_SET0(cmd);
 		} else if (rc == -ETIMEDOUT) {
 			/* we haven't command. take a step. */
 			rc = m0_net_test_service_step(&svc);
@@ -635,24 +857,25 @@ static void node_thread(struct m0_net_test_node_ctx *ctx)
 		 !ctx->ntnc_exit_flag &&
 		 rc == 0);
 
-	LOGD("6, rc = %d\n", rc);
-	ctx->ntnc_errno = rc;
 	/* finalize test service */
 	m0_net_test_service_fini(&svc);
 
+done:
+	m0_free(cmd);
+	m0_free(reply);
+	LOGD("rc = %d", rc);
+	ctx->ntnc_errno = rc;
 	m0_semaphore_up(&ctx->ntnc_thread_finished_sem);
 }
 
 static int node_init_fini(struct m0_net_test_node_ctx *ctx,
-			  struct m0_net_test_node_cfg *cfg,
-			  bool init)
+			  struct m0_net_test_node_cfg *cfg)
 {
 	struct m0_net_test_slist ep_list;
 	int			 rc;
 
 	M0_PRE(ctx != NULL);
-	M0_PRE(ergo(init, cfg != NULL));
-	if (!init)
+	if (cfg == NULL)
 		goto fini;
 
 	M0_SET0(ctx);
@@ -685,12 +908,12 @@ failed:
 int m0_net_test_node_init(struct m0_net_test_node_ctx *ctx,
 			  struct m0_net_test_node_cfg *cfg)
 {
-	return node_init_fini(ctx, cfg, true);
+	return node_init_fini(ctx, cfg);
 }
 
 void m0_net_test_node_fini(struct m0_net_test_node_ctx *ctx)
 {
-	int rc = node_init_fini(ctx, NULL, false);
+	int rc = node_init_fini(ctx, NULL);
 	M0_POST(rc == 0);
 }
 
@@ -727,6 +950,48 @@ void m0_net_test_node_stop(struct m0_net_test_node_ctx *ctx)
 	M0_ASSERT(rc == 0);
 	m0_thread_fini(&ctx->ntnc_thread);
 }
+
+static struct m0_net_test_node_ctx *m0_net_test_node_module_ctx = NULL;
+
+int m0_net_test_node_module_initfini(struct m0_net_test_node_cfg *cfg)
+{
+	int rc = 0;
+
+	if (cfg == NULL)
+		goto fini;
+	if (cfg->ntnc_addr == NULL ||
+	    cfg->ntnc_addr_console == NULL ||
+	    cfg->ntnc_send_timeout == 0) {
+		rc = -EINVAL;
+		goto fail;
+	}
+
+	M0_ALLOC_PTR(m0_net_test_node_module_ctx);
+	if (m0_net_test_node_module_ctx == NULL) {
+		rc = -ENOMEM;
+		goto fail;
+	}
+	rc = m0_net_test_node_init(m0_net_test_node_module_ctx, cfg);
+	if (rc != 0)
+		goto free_ctx;
+	rc = m0_net_test_node_start(m0_net_test_node_module_ctx);
+	if (rc != 0)
+		goto fini_node;
+
+	goto success;
+fini:
+	m0_net_test_node_stop(m0_net_test_node_module_ctx);
+fini_node:
+	m0_net_test_node_fini(m0_net_test_node_module_ctx);
+free_ctx:
+	m0_free(m0_net_test_node_module_ctx);
+fail:
+success:
+	return rc;
+}
+M0_EXPORTED(m0_net_test_node_module_initfini);
+
+#undef NET_TEST_MODULE_NAME
 
 /**
    @} end of NetTestNodeInternals group

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,32 +18,23 @@
  * Original creation date: 09/03/2012
  */
 
-/* @todo remove */
-#ifndef __KERNEL__
-#include <stdio.h>		/* printf */
-#endif
+#include "lib/memory.h"			/* M0_ALLOC_PTR */
+#include "lib/misc.h"			/* M0_SET0 */
+#include "lib/time.h"			/* m0_time_t */
+#include "lib/errno.h"			/* ENOMEM */
+#include "lib/thread.h"			/* M0_THREAD_INIT */
+#include "lib/tlist.h"			/* m0_tlist */
 
-/* @todo debug only, remove it */
-#ifndef __KERNEL__
-/*
-#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
-*/
-#define LOGD(format, ...) do {} while (0)
-#else
-#define LOGD(format, ...) do {} while (0)
-#endif
+#include "mero/magic.h"		/* M0_NET_TEST_BS_LINK_MAGIC */
 
-#include "lib/memory.h"		/* M0_ALLOC_PTR */
-#include "lib/misc.h"		/* M0_SET0 */
-#include "lib/time.h"		/* m0_time_t */
-#include "lib/errno.h"		/* ENOMEM */
-#include "lib/thread.h"		/* M0_THREAD_INIT */
-#include "lib/tlist.h"		/* m0_tlist */
-
-#include "net/test/network.h"	/* m0_net_test_network_ctx */
-#include "net/test/node.h"	/* m0_net_test_node_ctx */
+#include "net/test/network.h"		/* m0_net_test_network_ctx */
+#include "net/test/node.h"		/* m0_net_test_node_ctx */
+#include "net/test/node_helper.h"	/* m0_net_test_node_ctx */
 
 #include "net/test/node_ping.h"
+
+#define NET_TEST_MODULE_NAME node_ping
+#include "net/test/debug.h"		/* LOGD */
 
 
 /**
@@ -82,16 +73,14 @@
  */
 
 enum {
-	/** @todo change after merging to master and move to lib/magic.h */
-	BS_LINK_MAGIC	  = 0x1213141516,
-	/** @todo change after merging to master and move to lib/magic.h */
-	BS_HEAD_MAGIC	  = 0x1718191A1B,
 	/** Timeout checking interval, ms */
 	TO_CHECK_INTERVAL = 10,
 };
 
 /** Buffer state */
 struct buf_state {
+	/** Magic for messages timeout list */
+	uint64_t		   bs_link_magic;
 	/** Queue type */
 	enum m0_net_queue_type	   bs_q;
 	/**
@@ -125,12 +114,11 @@ struct buf_state {
 	size_t			   bs_index_pair;
 	/** Link for messages timeout list */
 	struct m0_tlink		   bs_link;
-	/** Magic for typed list */
-	uint64_t		   bs_link_magic;
 };
 
 M0_TL_DESCR_DEFINE(buf_state, "buf_state", static, struct buf_state, bs_link,
-		   bs_link_magic, BS_LINK_MAGIC, BS_HEAD_MAGIC);
+		   bs_link_magic, M0_NET_TEST_BS_LINK_MAGIC,
+		   M0_NET_TEST_BS_HEAD_MAGIC);
 M0_TL_DEFINE(buf_state, static, struct buf_state);
 
 /**
@@ -144,8 +132,6 @@ M0_TL_DEFINE(buf_state, static, struct buf_state);
  *   server with index 1 etc.).
  */
 struct node_ping_client_ctx {
-	/** Number of added to send queue messages */
-	size_t	     npcc_msg_sent;
 	/**
 	 * Number of test messages sent to test server and received back
 	 * (including failed) for the test client.
@@ -169,12 +155,12 @@ struct node_ping_server_ctx {
 
 /** Ping node context */
 struct node_ping_ctx {
+	/** Node helper */
+	struct m0_net_test_nh		    npc_nh;
 	/** Network context for testing */
 	struct m0_net_test_network_ctx	    npc_net;
 	/** Test service. Used when changing service state. */
 	struct m0_net_test_service	   *npc_svc;
-	/** Node role */
-	enum m0_net_test_role		    npc_node_role;
 	/**
 	   Number of network buffers to send/receive test messages.
 	   @see m0_net_test_cmd_init.ntci_concurrency
@@ -184,26 +170,20 @@ struct node_ping_ctx {
 	m0_bcount_t			    npc_buf_size;
 	/** Timeout for test message sending */
 	m0_time_t			    npc_buf_send_timeout;
-	/** Test was initialized (succesful node_ping_cmd_start() */
+	/** Test was initialized (successful node_ping_cmd_start()) */
 	bool				    npc_test_initialized;
-	/** All needed statistics */
-	struct m0_net_test_cmd_status_data  npc_status_data;
-	/** @todo use spinlock instead of mutex
-	 *  @todo make copy of status data, protect it with mutex.
-	 *  N times per secound update this copy from original status data,
-	 *  but leave original status data updates without mutex.
-	 */
-	struct m0_mutex			    npc_status_data_lock;
 	/**
 	 * Buffer enqueue semaphore.
 	 * - initial value - number of buffers;
 	 * - up() in network buffer callback;
 	 * - (down() * number_of_buffers) in node_ping_cmd_stop();
-	 * - down() after succesful addition to network buffer queue;
+	 * - down() after successful addition to network buffer queue;
 	 * - trydown() before addition to queue. if failed -
 	 *   then don't add to queue;
-	 * - up() after unsuccesful addition to queue.
-	 * @todo problem with semaphore max value can be here
+	 * - up() after unsuccessful addition to queue.
+	 *
+	 * @note Problem with semaphore max value can be here.
+	 * @see @ref net-test-sem-max-value "Problem Description"
 	 */
 	struct m0_semaphore		    npc_buf_q_sem;
 	/** Ringbuf of buffers that are not in network buffers queue */
@@ -214,7 +194,7 @@ struct node_ping_ctx {
 	bool				    npc_buf_rb_done;
 	/** Array of buffer states */
 	struct buf_state		   *npc_buf_state;
-	/* Worker thread */
+	/** Worker thread */
 	struct m0_thread		    npc_thread;
 	union {
 		struct node_ping_client_ctx npc__client;
@@ -231,6 +211,15 @@ struct node_ping_ctx {
 	struct node_ping_server_ctx	   *npc_server;
 };
 
+/** Wrapper for m0_net_test_nh_sd_update() with smaller name */
+static void sd_update(struct node_ping_ctx *ctx,
+		      enum m0_net_test_nh_msg_type type,
+		      enum m0_net_test_nh_msg_status status,
+		      enum m0_net_test_nh_msg_direction direction)
+{
+	m0_net_test_nh_sd_update(&ctx->npc_nh, type, status, direction);
+}
+
 static void node_ping_tm_event_cb(const struct m0_net_tm_event *ev)
 {
 	/* nothing for now */
@@ -243,8 +232,7 @@ static const struct m0_net_tm_callbacks node_ping_tm_cb = {
 static struct node_ping_ctx *
 node_ping_ctx_from_net_ctx(struct m0_net_test_network_ctx *net_ctx)
 {
-	return (struct node_ping_ctx *)
-	       ((char *) net_ctx - offsetof(struct node_ping_ctx, npc_net));
+	return container_of(net_ctx, struct node_ping_ctx, npc_net);
 }
 
 static m0_time_t node_ping_timestamp_put(struct m0_net_test_network_ctx *net_ctx,
@@ -281,8 +269,7 @@ static bool node_ping_timestamp_get(struct m0_net_test_network_ctx *net_ctx,
 static void node_ping_to_add(struct node_ping_ctx *ctx,
 			     size_t buf_index)
 {
-	LOGD(">> WAIT: >> %s: buf_index = %lu\n",
-	     __FUNCTION__, buf_index);
+	LOGD("buf_index = %lu", buf_index);
 	buf_state_tlist_add_tail(&ctx->npc_client->npcc_to,
 				 &ctx->npc_buf_state[buf_index]);
 }
@@ -290,8 +277,7 @@ static void node_ping_to_add(struct node_ping_ctx *ctx,
 static void node_ping_to_del(struct node_ping_ctx *ctx,
 			     size_t buf_index)
 {
-	LOGD(">> WAIT: >> %s: buf_index = %lu\n",
-	     __FUNCTION__, buf_index);
+	LOGD("buf_index = %lu", buf_index);
 	buf_state_tlist_del(&ctx->npc_buf_state[buf_index]);
 }
 
@@ -343,11 +329,8 @@ static void node_ping_buf_enqueue(struct node_ping_ctx *ctx,
 		bs->bs_errno = -EWOULDBLOCK;
 		return;
 	}
-	LOGD("node_ping_buf_enqueue:");
-	LOGD(", q = %d", q);
-	LOGD(", buf_index = %lu", buf_index);
-	LOGD(", ep_index = %lu", ep_index);
-	LOGD(", %s", ctx->npc_net.ntc_tm->ntm_ep->nep_addr);
+	LOGD("q = %d, buf_index = %lu, ep_index = %lu, %s",
+	     q, buf_index, ep_index, ctx->npc_net.ntc_tm->ntm_ep->nep_addr);
 	if (q == M0_NET_QT_MSG_SEND) {
 		LOGD(" => %s", (ep == NULL ?
 			    m0_net_test_network_ep(&ctx->npc_net, ep_index) :
@@ -355,7 +338,6 @@ static void node_ping_buf_enqueue(struct node_ping_ctx *ctx,
 	} else {
 		LOGD(" <= ");
 	}
-	LOGD("\n");
 	bs->bs_errno = (bs->bs_q = q) == M0_NET_QT_MSG_RECV ?
 		  m0_net_test_network_msg_recv(nctx, buf_index) : ep == NULL ?
 		  m0_net_test_network_msg_send(nctx, buf_index, ep_index) :
@@ -380,6 +362,7 @@ static void node_ping_client_send(struct node_ping_ctx *ctx,
 	struct buf_state	    *bs;
 	size_t			     ep_index;
 	m0_time_t		     begin;
+	bool			     transfer_next;
 
 	M0_PRE(ctx != NULL && ctx->npc_client != NULL);
 	M0_PRE(buf_index < ctx->npc_buf_nr / 2);
@@ -388,10 +371,11 @@ static void node_ping_client_send(struct node_ping_ctx *ctx,
 	cctx	 = ctx->npc_client;
 	ep_index = buf_index / cctx->npcc_concurrency;
 	/* check for max number of messages */
-	if (cctx->npcc_msg_sent >= cctx->npcc_msg_rt_max)
+	transfer_next = m0_net_test_nh_transfer_next(&ctx->npc_nh);
+	if (!transfer_next)
 		return;
 	/* put timestamp and sequence number */
-	bs->bs_seq   = ++cctx->npcc_msg_sent;
+	bs->bs_seq   = ctx->npc_nh.ntnh_transfers_started_nr;
 	bs->bs_cb_nr = 0;
 	begin = node_ping_timestamp_put(&ctx->npc_net, buf_index, bs->bs_seq);
 	bs->bs_deadline = m0_time_add(begin, ctx->npc_buf_send_timeout);
@@ -399,7 +383,7 @@ static void node_ping_client_send(struct node_ping_ctx *ctx,
 	node_ping_buf_enqueue(ctx, buf_index, M0_NET_QT_MSG_SEND,
 			      NULL, ep_index);
 	if (bs->bs_errno != 0)
-		--cctx->npcc_msg_sent;
+		sd_update(ctx, MT_MSG, MS_FAILED, MD_SEND);
 }
 
 static void node_ping_client_cb2(struct node_ping_ctx *ctx,
@@ -429,7 +413,7 @@ static bool node_ping_client_recv_cb(struct node_ping_ctx *ctx,
 	ssize_t			      server_index;
 	ssize_t			      buf_index_send;
 	bool			      decoded;
-	bool			      finished;
+	m0_time_t		      rtt;
 
 	M0_PRE(ctx != NULL && ctx->npc_client != NULL);
 	M0_PRE(buf_index >= ctx->npc_buf_nr / 2 &&
@@ -461,24 +445,13 @@ static bool node_ping_client_recv_cb(struct node_ping_ctx *ctx,
 	bs_send->bs_index_pair = buf_index;
 	bs->bs_index_pair      = buf_index_send;
 	/* successfully received message */
-	++ctx->npc_client->npcc_msg_rt;
-	finished = ctx->npc_client->npcc_msg_rt >=
-		   ctx->npc_client->npcc_msg_rt_max;
-	m0_mutex_lock(&ctx->npc_status_data_lock);
+	sd_update(ctx, MT_TRANSFER, MS_SUCCESS, MD_BOTH);
 	/* update RTT statistics */
-	m0_net_test_stats_time_add(&ctx->npc_status_data.ntcsd_rtt,
-				   m0_time_sub(bs->bs_time, ts.ntt_time));
-	/* set 'client is finished' flag */
-	if (equi(finished, !ctx->npc_status_data.ntcsd_finished)) {
-		ctx->npc_status_data.ntcsd_finished = true;
-		ctx->npc_status_data.ntcsd_time_finish = m0_time_now();
-	}
-	m0_mutex_unlock(&ctx->npc_status_data_lock);
+	rtt = m0_time_sub(bs->bs_time, ts.ntt_time);
+	m0_net_test_nh_sd_update_rtt(&ctx->npc_nh, rtt);
 	goto good_buf;
 bad_buf:
-	m0_mutex_lock(&ctx->npc_status_data_lock);
-	++ctx->npc_status_data.ntcsd_msg_nr_recv.ntmn_bad;
-	m0_mutex_unlock(&ctx->npc_status_data_lock);
+	sd_update(ctx, MT_TRANSFER, MS_BAD, MD_BOTH);
 good_buf:
 	/* enqueue recv buffer */
 	if (bs_send == NULL) {
@@ -501,20 +474,17 @@ static void node_ping_msg_cb(struct m0_net_test_network_ctx *net_ctx,
 	ctx = node_ping_ctx_from_net_ctx(net_ctx);
 	bs = &ctx->npc_buf_state[buf_index];
 
-	LOGD("%s,      role = %d, buf_index = %u, nbe_status = %d, q = %d",
-	     __FUNCTION__, ctx->npc_node_role, buf_index, ev->nbe_status, q);
-	LOGD(", ev->nbe_length = %lu", ev->nbe_length);
+	LOGD("role = %d, buf_index = %u, nbe_status = %d, q = %d",
+	     ctx->npc_nh.ntnh_role, buf_index, ev->nbe_status, q);
+	LOGD(", ev->nbe_length = %lu", (long unsigned) ev->nbe_length);
 
 	if (q == M0_NET_QT_MSG_RECV && ev->nbe_status == 0)
 		LOGD(", ev->nbe_ep->nep_addr = %s", ev->nbe_ep->nep_addr);
-
-	LOGD("\n");
 
 	if (ev->nbe_status == -ECANCELED) {
 		m0_semaphore_up(&ctx->npc_buf_q_sem);
 		return;
 	}
-
 	/* save buffer event */
 	bs->bs_ev = *ev;
 	/* save endpoint from successfully received buffer */
@@ -612,7 +582,6 @@ static void node_ping_server_handle(struct node_ping_ctx *ctx,
 
 static void node_ping_worker(struct node_ping_ctx *ctx)
 {
-	struct m0_net_test_msg_nr *msg_nr;
 	struct buf_state	  *bs;
 	size_t			  buf_index;
 	bool			  failed;
@@ -621,18 +590,19 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
 	m0_time_t		  deadline;
 	struct m0_net_end_point	 *ep;
 	bool			  rb_is_empty;
+	ssize_t			  to_index;
 
 	M0_PRE(ctx != NULL);
 
-	to_check_interval = m0_time(TO_CHECK_INTERVAL / 1000,
-				    TO_CHECK_INTERVAL * 1000000);
+	to_check_interval = M0_MKTIME(TO_CHECK_INTERVAL / 1000,
+				      TO_CHECK_INTERVAL * 1000000);
 	while (1) {
 		/* get buffer index from ringbuf */
 		deadline = m0_time_add(m0_time_now(), to_check_interval);
 		rb_is_empty = !m0_semaphore_timeddown(&ctx->npc_buf_rb_sem,
 						      deadline);
 		/* check timeout list */
-		if (ctx->npc_node_role == M0_NET_TEST_ROLE_CLIENT)
+		if (ctx->npc_nh.ntnh_role == M0_NET_TEST_ROLE_CLIENT)
 			node_ping_to_check(ctx);
 		if (rb_is_empty)
 			continue;
@@ -640,26 +610,23 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
 			break;
 		buf_index = m0_net_test_ringbuf_pop(&ctx->npc_buf_rb);
 		bs = &ctx->npc_buf_state[buf_index];
-		LOGD("POP from ringbuf: %lu, role = %d\n",
-		     buf_index, ctx->npc_node_role);
+		LOGD("POP from ringbuf: %lu, role = %d",
+		     buf_index, ctx->npc_nh.ntnh_role);
 		/* update total/failed stats */
 		failed = bs->bs_errno != 0 || bs->bs_ev.nbe_status != 0;
-		msg_nr = bs->bs_q == M0_NET_QT_MSG_RECV ?
-			 &ctx->npc_status_data.ntcsd_msg_nr_recv :
-			 &ctx->npc_status_data.ntcsd_msg_nr_send;
-		m0_mutex_lock(&ctx->npc_status_data_lock);
-		++msg_nr->ntmn_total;
-		msg_nr->ntmn_failed += failed;
-		m0_mutex_unlock(&ctx->npc_status_data_lock);
+		sd_update(ctx, MT_MSG, failed ? MS_FAILED : MS_SUCCESS,
+			  bs->bs_q == M0_NET_QT_MSG_RECV ? MD_RECV : MD_SEND);
 		ep = bs->bs_errno == 0 && bs->bs_ev.nbe_status == 0 &&
 		     bs->bs_q == M0_NET_QT_MSG_RECV ? bs->bs_ev.nbe_ep : NULL;
 		/* handle buffer */
-		if (ctx->npc_node_role == M0_NET_TEST_ROLE_CLIENT)
+		if (ctx->npc_nh.ntnh_role == M0_NET_TEST_ROLE_CLIENT)
 			node_ping_client_handle(ctx, bs, buf_index);
 		else
 			node_ping_server_handle(ctx, bs, buf_index);
 		if (ep != NULL)
 			m0_net_end_point_put(ep);
+		/* update copy of statistics */
+		m0_net_test_nh_sd_copy_locked(&ctx->npc_nh);
 	}
 	/* dequeue all buffers */
 	for (i = 0; i < ctx->npc_buf_nr; ++i) {
@@ -669,9 +636,14 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
 	/* wait for buffer callbacks */
 	for (i = 0; i < ctx->npc_buf_nr; ++i)
 		m0_semaphore_down(&ctx->npc_buf_q_sem);
-	/* clear ringbuf, put() every saved endpoint */
+	/* clear timeouts list for the test client */
+	if (ctx->npc_nh.ntnh_role == M0_NET_TEST_ROLE_CLIENT) {
+		while ((to_index = node_ping_to_peek(ctx)) != -1)
+			node_ping_to_del(ctx, to_index);
+	}
 	/*
-	 * use !m0_net_test_ringbuf_is_empty(&ctx->npc_buf_rb) instead of
+	 * Clear ringbuf, put() every saved endpoint.
+	 * Use !m0_net_test_ringbuf_is_empty(&ctx->npc_buf_rb) instead of
 	 * m0_semaphore_trydown(&ctx->npc_buf_rb_sem) because
 	 * ctx->npc_buf_rb_sem may not be up()'ed in buffer callback.
 	 */
@@ -689,7 +661,7 @@ static void node_ping_rb_fill(struct node_ping_ctx *ctx)
 	size_t i;
 	size_t half_buf = ctx->npc_buf_nr / 2;
 
-	if (ctx->npc_node_role == M0_NET_TEST_ROLE_CLIENT) {
+	if (ctx->npc_nh.ntnh_role == M0_NET_TEST_ROLE_CLIENT) {
 		M0_ASSERT(ctx->npc_buf_nr % 2 == 0);
 		/* add recv buffers */
 		for (i = 0; i < half_buf; ++i)
@@ -706,14 +678,13 @@ static void node_ping_rb_fill(struct node_ping_ctx *ctx)
 static int node_ping_test_init_fini(struct node_ping_ctx *ctx,
 				    const struct m0_net_test_cmd *cmd)
 {
-	struct m0_net_test_network_timeouts  timeouts;
-	int				     rc;
-	int				     i;
-	char				    *ep_addr;
+	struct m0_net_test_network_cfg net_cfg;
+	int			       rc;
+	int			       i;
 
 	if (cmd == NULL) {
 		rc = 0;
-		if (ctx->npc_test_initialized)
+		if (ctx->npc_nh.ntnh_test_initialized)
 			goto fini;
 		else
 			goto exit;
@@ -733,36 +704,33 @@ static int node_ping_test_init_fini(struct node_ping_ctx *ctx,
 		goto free_buf_rb;
 
 	/* initialize network context */
-	timeouts = m0_net_test_network_timeouts_never();
-	timeouts.ntnt_timeout[M0_NET_QT_MSG_SEND] = ctx->npc_buf_send_timeout;
-	rc = m0_net_test_network_ctx_init(&ctx->npc_net,
-					  cmd->ntc_init.ntci_tm_ep,
-					  &node_ping_tm_cb,
-					  &node_ping_buf_cb,
-					  ctx->npc_buf_size,
-					  ctx->npc_buf_nr,
-					  0, 0,
-					  cmd->ntc_init.ntci_ep.ntsl_nr,
-					  &timeouts);
+	M0_SET0(&net_cfg);
+	net_cfg.ntncfg_tm_cb	     = node_ping_tm_cb;
+	net_cfg.ntncfg_buf_cb	     = node_ping_buf_cb;
+	net_cfg.ntncfg_buf_size_ping = ctx->npc_buf_size;
+	net_cfg.ntncfg_buf_ping_nr   = ctx->npc_buf_nr;
+	net_cfg.ntncfg_ep_max	     = cmd->ntc_init.ntci_ep.ntsl_nr;
+	net_cfg.ntncfg_timeouts	     = m0_net_test_network_timeouts_never();
+	net_cfg.ntncfg_timeouts.ntnt_timeout[M0_NET_QT_MSG_SEND] =
+		ctx->npc_buf_send_timeout;
+	rc = m0_net_test_network_ctx_init(&ctx->npc_net, &net_cfg,
+					  cmd->ntc_init.ntci_tm_ep);
 	if (rc != 0)
 		goto free_buf_state;
 	/* add test node endpoints to the network context endpoint list */
-	for (i = 0; i < cmd->ntc_init.ntci_ep.ntsl_nr; ++i) {
-		ep_addr = cmd->ntc_init.ntci_ep.ntsl_list[i];
-		rc = m0_net_test_network_ep_add(&ctx->npc_net, ep_addr);
-		if (rc < 0)
-			goto fini;
-	}
-	if (ctx->npc_node_role == M0_NET_TEST_ROLE_CLIENT) {
+	rc = m0_net_test_network_ep_add_slist(&ctx->npc_net,
+					      &cmd->ntc_init.ntci_ep);
+	if (rc != 0)
+		goto fini;
+	if (ctx->npc_nh.ntnh_role == M0_NET_TEST_ROLE_CLIENT) {
 		buf_state_tlist_init(&ctx->npc_client->npcc_to);
 		for (i = 0; i < ctx->npc_buf_nr; ++i)
 			buf_state_tlink_init(&ctx->npc_buf_state[i]);
 	}
-	ctx->npc_test_initialized = true;
 	rc = 0;
 	goto exit;
 fini:
-	if (ctx->npc_node_role == M0_NET_TEST_ROLE_CLIENT) {
+	if (ctx->npc_nh.ntnh_role == M0_NET_TEST_ROLE_CLIENT) {
 		for (i = 0; i < ctx->npc_buf_nr; ++i)
 			buf_state_tlink_fini(&ctx->npc_buf_state[i]);
 		buf_state_tlist_fini(&ctx->npc_client->npcc_to);
@@ -780,72 +748,41 @@ exit:
 	return rc;
 }
 
-static void *node_ping_init_fini(void *ctx_,
-				 struct m0_net_test_service *svc,
-				 bool init)
+static void *node_ping_initfini(void *ctx_, struct m0_net_test_service *svc)
 {
-	struct node_ping_ctx *ctx = ctx_;
+	struct node_ping_ctx *ctx;
+	int		      rc;
 
-	M0_PRE(equi(init, ctx == NULL));
-	M0_PRE(equi(init, svc != NULL));
+	M0_PRE(equi(ctx_ == NULL, svc != NULL));
 
-	if (init) {
+	if (svc != NULL) {
 		M0_ALLOC_PTR(ctx);
 		if (ctx != NULL) {
-			ctx->npc_svc = svc;
-			m0_mutex_init(&ctx->npc_status_data_lock);
+			ctx->npc_svc			  = svc;
+			ctx->npc_nh.ntnh_test_initialized = false;
 		}
 	} else {
-		node_ping_test_init_fini(ctx, NULL);
-		m0_mutex_fini(&ctx->npc_status_data_lock);
+		ctx = ctx_;
+		rc = node_ping_test_init_fini(ctx, NULL);
+		M0_ASSERT(rc == 0);
 		m0_free(ctx);
 	}
-	return init ? ctx : NULL;
+	return svc != NULL ? ctx : NULL;
 }
 
 static void *node_ping_init(struct m0_net_test_service *svc)
 {
-	return node_ping_init_fini(NULL, svc, true);
+	return node_ping_initfini(NULL, svc);
 }
 
 static void node_ping_fini(void *ctx_)
 {
-	void *rc = node_ping_init_fini(ctx_, NULL, false);
+	void *rc = node_ping_initfini(ctx_, NULL);
 	M0_POST(rc == NULL);
 }
 
 static int node_ping_step(void *ctx_)
 {
-	struct m0_net_test_cmd_status_data *sd;
-	struct m0_net_test_msg_nr	    msg_send;
-	struct m0_net_test_msg_nr	    msg_recv;
-	struct node_ping_ctx		   *ctx = ctx_;
-	m0_time_t			    now;
-	bool				    finished;
-
-	M0_PRE(ctx != NULL);
-	sd = &ctx->npc_status_data;
-
-	/* update MPS stats */
-	m0_mutex_lock(&ctx->npc_status_data_lock);
-	msg_send = sd->ntcsd_msg_nr_send;
-	msg_recv = sd->ntcsd_msg_nr_recv;
-	now	 = m0_time_now();
-	finished = sd->ntcsd_finished;
-	m0_mutex_unlock(&ctx->npc_status_data_lock);
-
-	if (!finished) {
-		/*
-		 * MPS stats can be updated without lock because
-		 * they are used in node_ping_step() and
-		 * node_ping_cmd_status(), which are serialized.
-		 */
-		m0_net_test_mps_add(&sd->ntcsd_mps_send,
-				    msg_send.ntmn_total, now);
-		m0_net_test_mps_add(&sd->ntcsd_mps_recv,
-				    msg_recv.ntmn_total, now);
-	}
-
 	return 0;
 }
 
@@ -853,14 +790,17 @@ static int node_ping_cmd_init(void *ctx_,
 			      const struct m0_net_test_cmd *cmd,
 			      struct m0_net_test_cmd *reply)
 {
-	struct node_ping_ctx *ctx = ctx_;
-	int		      rc;
+	const struct m0_net_test_cmd_init *icmd;
+	struct node_ping_ctx		  *ctx = ctx_;
+	int				   rc;
+	bool				   role_client;
 
 	M0_PRE(ctx != NULL);
 	M0_PRE(cmd != NULL);
 	M0_PRE(reply != NULL);
 
-	LOGD("%s\n", __FUNCTION__);
+	icmd	    = &cmd->ntc_init;
+	role_client = icmd->ntci_role == M0_NET_TEST_ROLE_CLIENT;
 
 	/* ep wasn't recognized */
 	if (cmd->ntc_ep_index == -1) {
@@ -868,31 +808,27 @@ static int node_ping_cmd_init(void *ctx_,
 		goto reply;
 	}
 	/* network context already initialized */
-	if (ctx->npc_test_initialized) {
+	if (ctx->npc_nh.ntnh_test_initialized) {
 		rc = -EALREADY;
 		goto reply;
 	}
 	/* check command type */
-	M0_ASSERT(cmd->ntc_init.ntci_type == M0_NET_TEST_TYPE_PING);
+	M0_ASSERT(icmd->ntci_type == M0_NET_TEST_TYPE_PING);
 	/* parse INIT command */
-	ctx->npc_node_role	  = cmd->ntc_init.ntci_role;
-	ctx->npc_buf_size	  = cmd->ntc_init.ntci_msg_size;
-	ctx->npc_buf_send_timeout = cmd->ntc_init.ntci_buf_send_timeout;
+	m0_net_test_nh_init(&ctx->npc_nh, icmd);
+	ctx->npc_buf_size	  = icmd->ntci_msg_size;
+	ctx->npc_buf_send_timeout = icmd->ntci_buf_send_timeout;
 
-	ctx->npc_buf_nr	 = cmd->ntc_init.ntci_concurrency;
-	ctx->npc_buf_nr *= ctx->npc_node_role == M0_NET_TEST_ROLE_CLIENT ?
-			   2 * cmd->ntc_init.ntci_ep.ntsl_nr : 1;
+	ctx->npc_buf_nr	 = icmd->ntci_msg_concurrency;
+	ctx->npc_buf_nr *= role_client ?  2 * icmd->ntci_ep.ntsl_nr : 1;
 
-	ctx->npc_client = ctx->npc_node_role == M0_NET_TEST_ROLE_CLIENT ?
-			  &ctx->npc__client : NULL;
-	ctx->npc_server = ctx->npc_node_role == M0_NET_TEST_ROLE_SERVER ?
-			  &ctx->npc__server : NULL;
+	ctx->npc_client = role_client  ? &ctx->npc__client : NULL;
+	ctx->npc_server = !role_client ? &ctx->npc__server : NULL;
 
-	if (ctx->npc_node_role == M0_NET_TEST_ROLE_CLIENT) {
+	if (role_client) {
 		M0_SET0(ctx->npc_client);
-		ctx->npc_client->npcc_msg_rt_max = cmd->ntc_init.ntci_msg_nr;
-		ctx->npc_client->npcc_concurrency =
-			cmd->ntc_init.ntci_concurrency;
+		ctx->npc_client->npcc_msg_rt_max  = icmd->ntci_msg_nr;
+		ctx->npc_client->npcc_concurrency = icmd->ntci_msg_concurrency;
 	}
 
 	/* do sanity check */
@@ -920,17 +856,15 @@ static int node_ping_cmd_start(void *ctx_,
 			       struct m0_net_test_cmd *reply)
 {
 	struct m0_net_test_cmd_status_data *sd;
-	struct node_ping_ctx               *ctx = ctx_;
-	int                                 rc;
-	const m0_time_t                     _1s = M0_MKTIME(1, 0);
+	struct node_ping_ctx		   *ctx = ctx_;
+	int				    rc;
+	const m0_time_t			    _1s = M0_MKTIME(1, 0);
 
 	M0_PRE(ctx != NULL);
 	M0_PRE(cmd != NULL);
 	M0_PRE(reply != NULL);
 
-	LOGD("%s\n", __FUNCTION__);
-
-	sd = &ctx->npc_status_data;
+	sd = &ctx->npc_nh.ntnh_sd;
 	M0_SET0(sd);
 
 	/* fill test start time */
@@ -938,13 +872,12 @@ static int node_ping_cmd_start(void *ctx_,
 	/* initialize stats */
 	m0_net_test_mps_init(&sd->ntcsd_mps_send, 0, sd->ntcsd_time_start, _1s);
 	m0_net_test_mps_init(&sd->ntcsd_mps_recv, 0, sd->ntcsd_time_start, _1s);
-	m0_net_test_stats_reset(&sd->ntcsd_rtt);
 	/* add buffer indexes to ringbuf */
 	node_ping_rb_fill(ctx);
 	/* start test */
 	ctx->npc_buf_rb_done = false;
 	rc = M0_THREAD_INIT(&ctx->npc_thread, struct node_ping_ctx *, NULL,
-			    &node_ping_worker, ctx, "net-test-worker#%s",
+			    &node_ping_worker, ctx, "net-test-ping-worker#%s",
 			    ctx->npc_net.ntc_tm->ntm_ep->nep_addr);
 	if (rc != 0) {
 		/* change service state */
@@ -968,8 +901,6 @@ static int node_ping_cmd_stop(void *ctx_,
 	M0_PRE(cmd != NULL);
 	M0_PRE(reply != NULL);
 
-	LOGD("%s\n", __FUNCTION__);
-
 	/* stop worker thread */
 	ctx->npc_buf_rb_done = true;
 	m0_semaphore_up(&ctx->npc_buf_rb_sem);
@@ -989,29 +920,11 @@ static int node_ping_cmd_status(void *ctx_,
 				const struct m0_net_test_cmd *cmd,
 				struct m0_net_test_cmd *reply)
 {
-	struct m0_net_test_cmd_status_data *sd;
-	struct node_ping_ctx		   *ctx = ctx_;
+	struct node_ping_ctx *ctx = ctx_;
 
 	M0_PRE(ctx != NULL);
-	M0_PRE(cmd != NULL);
-	M0_PRE(reply != NULL);
 
-	sd  = &reply->ntc_status_data;
-
-	reply->ntc_type = M0_NET_TEST_CMD_STATUS_DATA;
-
-	m0_mutex_lock(&ctx->npc_status_data_lock);
-	*sd = ctx->npc_status_data;
-	m0_mutex_unlock(&ctx->npc_status_data_lock);
-
-	sd->ntcsd_time_now = m0_time_now();
-
-	if (ctx->npc_node_role == M0_NET_TEST_ROLE_CLIENT) {
-		LOGD("ctx->npc_client->npcc_msg_rt = %lu\n",
-		     ctx->npc_client->npcc_msg_rt);
-		LOGD("ctx->npc_client->npcc_msg_sent = %lu\n",
-		     ctx->npc_client->npcc_msg_sent);
-	}
+	m0_net_test_nh_cmd_status(&ctx->npc_nh, cmd, reply);
 
 	return 0;
 }
@@ -1042,6 +955,8 @@ struct m0_net_test_service_ops m0_net_test_node_ping_ops = {
 	.ntso_cmd_handler    = node_ping_cmd_handler,
 	.ntso_cmd_handler_nr = ARRAY_SIZE(node_ping_cmd_handler),
 };
+
+#undef NET_TEST_MODULE_NAME
 
 /**
    @} end of NetTestPingNodeInternals group

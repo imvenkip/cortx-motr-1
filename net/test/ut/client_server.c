@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,38 +18,29 @@
  * Original creation date: 05/19/2012
  */
 
-/* @todo remove */
-#ifndef __KERNEL__
-#include <stdio.h>		/* printf */
-#endif
-
-/* @todo debug only, remove it */
-#ifndef __KERNEL__
-/*
-#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
-*/
-#define LOGD(format, ...) do {} while (0)
-#else
-#define LOGD(format, ...) do {} while (0)
-#endif
-
-#include "net/test/node.h"		/* m0_net_test_node_ctx */
-#include "net/test/console.h"		/* m0_net_test_console_ctx */
-
 #include "lib/ut.h"			/* M0_UT_ASSERT */
 #include "lib/memory.h"			/* m0_free */
 #include "lib/thread.h"			/* M0_THREAD_INIT */
 #include "lib/semaphore.h"		/* m0_semaphore_down */
 #include "lib/misc.h"			/* M0_SET0 */
+#include "lib/trace.h"			/* M0_LOG */
+
 #include "net/lnet/lnet.h"		/* M0_NET_LNET_PID */
+
+#include "net/test/node.h"		/* m0_net_test_node_ctx */
+#include "net/test/console.h"		/* m0_net_test_console_ctx */
+
+#define NET_TEST_MODULE_NAME ut_client_server
+#include "net/test/debug.h"
 
 enum {
 	NTCS_PID		  = M0_NET_LNET_PID,
 	NTCS_PORTAL		  = 42,
 	NTCS_NODES_MAX		  = 128,
 	NTCS_NODE_ADDR_MAX	  = 0x100,
-	NTCS_TIMEOUT_SEND_MS	  = 10000,
-	NTCS_TIMEOUT_RECV_MS	  = 10000,
+	NTCS_TIMEOUT		  = 20,
+	/* 20min for debugging in gdb */
+	NTCS_TIMEOUT_GDB	  = 1200,
 	NTCS_TMID_CONSOLE4CLIENTS = 2998,
 	NTCS_TMID_CONSOLE4SERVERS = 2999,
 	NTCS_TMID_NODES		  = 3000,
@@ -65,12 +56,13 @@ static struct m0_semaphore	   node_init_sem;
 
 static char *addr_console4clients;
 static char *addr_console4servers;
-static char  clients[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
-static char  servers[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
-static char  clients_data[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
-static char  servers_data[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
-m0_time_t    timeout_send;
-m0_time_t    timeout_recv;
+static char  clients[NTCS_NODES_MAX * NTCS_NODE_ADDR_MAX];
+static char  servers[NTCS_NODES_MAX * NTCS_NODE_ADDR_MAX];
+static char  clients_data[NTCS_NODES_MAX * NTCS_NODE_ADDR_MAX];
+static char  servers_data[NTCS_NODES_MAX * NTCS_NODE_ADDR_MAX];
+
+/* s/NTCS_TIMEOUT/NTCS_TIMEOUT_GDB/ while using gdb */
+static m0_time_t timeout = M0_MKTIME(NTCS_TIMEOUT, 0);
 
 static char *addr_get(const char *nid, int tmid)
 {
@@ -113,12 +105,6 @@ static void net_test_node(struct m0_net_test_node_cfg *node_cfg)
 	m0_free(ctx);
 }
 
-static m0_time_t ms2time(int ms)
-{
-	return m0_time(NTCS_TIMEOUT_SEND_MS / 1000,
-		       NTCS_TIMEOUT_SEND_MS % 1000 * 1000000);
-}
-
 static void node_cfg_fill(struct m0_net_test_node_cfg *ncfg,
 			  char *addr_cmd,
 			  char *addr_cmd_list,
@@ -127,14 +113,16 @@ static void node_cfg_fill(struct m0_net_test_node_cfg *ncfg,
 			  char *addr_console,
 			  bool last_node)
 {
-	ncfg->ntnc_addr		= addr_cmd;
-	ncfg->ntnc_addr_console = addr_console;
-	ncfg->ntnc_send_timeout = timeout_send;
+	*ncfg = (struct m0_net_test_node_cfg) {
+		.ntnc_addr	   = addr_cmd,
+		.ntnc_addr_console = addr_console,
+		.ntnc_send_timeout = timeout,
+	};
 
-	strncat(addr_cmd_list, ncfg->ntnc_addr, NTCS_NODE_ADDR_MAX);
-	strncat(addr_cmd_list, last_node ? "" : ",", 2);
-	strncat(addr_data_list, addr_data, NTCS_NODE_ADDR_MAX);
-	strncat(addr_data_list, last_node ? "" : ",", 2);
+	strncat(addr_cmd_list, ncfg->ntnc_addr, NTCS_NODE_ADDR_MAX - 1);
+	strncat(addr_cmd_list, last_node ? "" : ",", 1);
+	strncat(addr_data_list, addr_data, NTCS_NODE_ADDR_MAX - 1);
+	strncat(addr_data_list, last_node ? "" : ",", 1);
 
 	addr_free(addr_data);
 }
@@ -142,7 +130,7 @@ static void node_cfg_fill(struct m0_net_test_node_cfg *ncfg,
 static void msg_nr_print(const char *prefix,
 			 const struct m0_net_test_msg_nr *msg_nr)
 {
-	LOGD("%s total/failed/bad = %lu/%lu/%lu\n", prefix,
+	LOGD("%-21s total/failed/bad = %lu/%lu/%lu", prefix,
 	     msg_nr->ntmn_total, msg_nr->ntmn_failed, msg_nr->ntmn_bad);
 }
 
@@ -157,21 +145,31 @@ static void net_test_client_server(const char *nid,
 				   size_t concurrency_client,
 				   size_t concurrency_server,
 				   size_t msg_nr,
-				   m0_bcount_t msg_size)
+				   m0_bcount_t msg_size,
+				   size_t bd_buf_nr_client,
+				   size_t bd_buf_nr_server,
+				   m0_bcount_t bd_buf_size,
+				   size_t bd_nr_max)
 {
-	struct m0_net_test_console_cfg console_cfg;
-	struct m0_net_test_console_ctx console;
-	int			       rc;
-	int			       i;
+	struct m0_net_test_cmd_status_data *sd_servers;
+	struct m0_net_test_cmd_status_data *sd_clients;
+	struct m0_net_test_console_cfg	   *console_cfg;
+	struct m0_net_test_console_ctx	   *console;
+	int				    rc;
+	int				    i;
 
 	M0_PRE(clients_nr <= NTCS_NODES_MAX);
 	M0_PRE(servers_nr <= NTCS_NODES_MAX);
+
+	M0_ALLOC_PTR(console_cfg);
+	M0_ALLOC_PTR(console);
+	if (console_cfg == NULL || console == NULL)
+		goto done;
 	/* prepare config for test clients and test servers */
-	timeout_send = ms2time(NTCS_TIMEOUT_SEND_MS);
-	timeout_recv = ms2time(NTCS_TIMEOUT_RECV_MS);
 	addr_console4clients = addr_get(nid, NTCS_TMID_CONSOLE4CLIENTS);
 	addr_console4servers = addr_get(nid, NTCS_TMID_CONSOLE4SERVERS);
 	clients[0] = '\0';
+	clients_data[0] = '\0';
 	for (i = 0; i < clients_nr; ++i) {
 		node_cfg_fill(&node_cfg[i],
 			      addr_get(nid, NTCS_TMID_CMD_CLIENTS + i), clients,
@@ -180,6 +178,7 @@ static void net_test_client_server(const char *nid,
 			      i == clients_nr - 1);
 	}
 	servers[0] = '\0';
+	servers_data[0] = '\0';
 	for (i = 0; i < servers_nr; ++i) {
 		node_cfg_fill(&node_cfg[clients_nr + i],
 			      addr_get(nid, NTCS_TMID_CMD_SERVERS + i), servers,
@@ -193,7 +192,7 @@ static void net_test_client_server(const char *nid,
 		rc = M0_THREAD_INIT(&node_thread[i],
 				    struct m0_net_test_node_cfg *,
 				    NULL, &net_test_node, &node_cfg[i],
-				    "node_thread#%d", i);
+				    "ut_node_thread#%d", i);
 		M0_UT_ASSERT(rc == 0);
 	}
 	/* wait until test node started */
@@ -201,88 +200,130 @@ static void net_test_client_server(const char *nid,
 		m0_semaphore_down(&node_init_sem);
 	m0_semaphore_fini(&node_init_sem);
 	/* prepare console config */
-	console_cfg.ntcc_addr_console4servers = addr_console4servers;
-	console_cfg.ntcc_addr_console4clients = addr_console4clients;
-	LOGD("\naddr_console4servers = %s\n", addr_console4servers);
-	LOGD("addr_console4clients = %s\n", addr_console4clients);
-	LOGD("clients		   = %s\n", clients);
-	LOGD("servers		   = %s\n", servers);
-	LOGD("clients_data	   = %s\n", clients_data);
-	LOGD("servers_data	   = %s\n", servers_data);
-	rc = m0_net_test_slist_init(&console_cfg.ntcc_clients, clients, ',');
+	*console_cfg = (struct m0_net_test_console_cfg) {
+		.ntcc_addr_console4servers = addr_console4servers,
+		.ntcc_addr_console4clients = addr_console4clients,
+		.ntcc_cmd_send_timeout	   = timeout,
+		.ntcc_cmd_recv_timeout	   = timeout,
+		.ntcc_buf_send_timeout	   = timeout,
+		.ntcc_buf_recv_timeout	   = timeout,
+		.ntcc_buf_bulk_timeout	   = timeout,
+		.ntcc_test_type		   = type,
+		.ntcc_msg_nr		   = msg_nr,
+		.ntcc_test_time_limit	   = M0_TIME_NEVER,
+		.ntcc_msg_size		   = msg_size,
+		.ntcc_bd_buf_nr_server	   = bd_buf_nr_server,
+		.ntcc_bd_buf_nr_client	   = bd_buf_nr_client,
+		.ntcc_bd_buf_size	   = bd_buf_size,
+		.ntcc_bd_nr_max		   = bd_nr_max,
+		.ntcc_concurrency_server   = concurrency_server,
+		.ntcc_concurrency_client   = concurrency_client,
+	};
+	LOGD("addr_console4servers = %s", addr_console4servers);
+	LOGD("addr_console4clients = %s", addr_console4clients);
+	LOGD("clients      = %s", (char *) clients);
+	LOGD("servers      = %s", (char *) servers);
+	LOGD("clients_data = %s", (char *) clients_data);
+	LOGD("servers_data = %s", (char *) servers_data);
+	rc = m0_net_test_slist_init(&console_cfg->ntcc_clients, clients, ',');
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_net_test_slist_init(&console_cfg.ntcc_servers, servers, ',');
+	rc = m0_net_test_slist_init(&console_cfg->ntcc_servers, servers, ',');
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_net_test_slist_init(&console_cfg.ntcc_data_clients,
+	rc = m0_net_test_slist_init(&console_cfg->ntcc_data_clients,
 				    clients_data, ',');
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_net_test_slist_init(&console_cfg.ntcc_data_servers,
+	rc = m0_net_test_slist_init(&console_cfg->ntcc_data_servers,
 				    servers_data, ',');
 	M0_UT_ASSERT(rc == 0);
-	console_cfg.ntcc_cmd_send_timeout   = timeout_send;
-	console_cfg.ntcc_cmd_recv_timeout   = timeout_recv;
-	console_cfg.ntcc_buf_send_timeout   = timeout_send;
-	console_cfg.ntcc_buf_recv_timeout   = timeout_recv;
-	console_cfg.ntcc_test_type	    = type;
-	console_cfg.ntcc_msg_nr		    = msg_nr;
-	console_cfg.ntcc_msg_size	    = msg_size;
-	console_cfg.ntcc_concurrency_server = concurrency_server;
-	console_cfg.ntcc_concurrency_client = concurrency_client;
 	/* initialize console */
-	rc = m0_net_test_console_init(&console, &console_cfg);
+	rc = m0_net_test_console_init(console, console_cfg);
 	M0_UT_ASSERT(rc == 0);
 	/* send INIT to the test servers */
-	rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_SERVER,
+	rc = m0_net_test_console_cmd(console, M0_NET_TEST_ROLE_SERVER,
 				     M0_NET_TEST_CMD_INIT);
 	M0_UT_ASSERT(rc == servers_nr);
 	/* send INIT to the test clients */
-	rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_CLIENT,
+	rc = m0_net_test_console_cmd(console, M0_NET_TEST_ROLE_CLIENT,
 				     M0_NET_TEST_CMD_INIT);
 	M0_UT_ASSERT(rc == clients_nr);
 	/* send START command to the test servers */
-	rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_SERVER,
+	rc = m0_net_test_console_cmd(console, M0_NET_TEST_ROLE_SERVER,
 				     M0_NET_TEST_CMD_START);
 	M0_UT_ASSERT(rc == servers_nr);
 	/* send START command to the test clients */
-	rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_CLIENT,
+	rc = m0_net_test_console_cmd(console, M0_NET_TEST_ROLE_CLIENT,
 				     M0_NET_TEST_CMD_START);
 	M0_UT_ASSERT(rc == clients_nr);
 	/* send STATUS command to the test clients until it finishes. */
 	do {
-		m0_nanosleep(M0_MKTIME(1, 0), NULL);
-		rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_CLIENT,
+		rc = m0_net_test_console_cmd(console, M0_NET_TEST_ROLE_CLIENT,
 					     M0_NET_TEST_CMD_STATUS);
 		M0_UT_ASSERT(rc == clients_nr);
-	} while (!console.ntcc_clients.ntcrc_sd->ntcsd_finished);
+	} while (!console->ntcc_clients.ntcrc_sd->ntcsd_finished);
+	/* send STATUS command to the test clients */
+	rc = m0_net_test_console_cmd(console, M0_NET_TEST_ROLE_CLIENT,
+				     M0_NET_TEST_CMD_STATUS);
+	M0_UT_ASSERT(rc == clients_nr);
 	/* send STATUS command to the test servers */
-	rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_SERVER,
+	rc = m0_net_test_console_cmd(console, M0_NET_TEST_ROLE_SERVER,
 				     M0_NET_TEST_CMD_STATUS);
 	M0_UT_ASSERT(rc == servers_nr);
-	msg_nr_print("client sent\t",
-		     &console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_send);
-	msg_nr_print("client received\t",
-		     &console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_recv);
-	msg_nr_print("server sent\t",
-		     &console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_send);
-	msg_nr_print("server received\t",
-		     &console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_recv);
-	M0_UT_ASSERT(
-		console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_send.ntmn_total ==
-		console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_recv.ntmn_total);
+	msg_nr_print("client msg sent",
+		     &console->ntcc_clients.ntcrc_sd->ntcsd_msg_nr_send);
+	msg_nr_print("client msg received",
+		     &console->ntcc_clients.ntcrc_sd->ntcsd_msg_nr_recv);
+	msg_nr_print("client bulk sent",
+		     &console->ntcc_clients.ntcrc_sd->ntcsd_bulk_nr_send);
+	msg_nr_print("client bulk received",
+		     &console->ntcc_clients.ntcrc_sd->ntcsd_bulk_nr_recv);
+	msg_nr_print("client transfers",
+		     &console->ntcc_clients.ntcrc_sd->ntcsd_transfers);
+	msg_nr_print("server msg sent",
+		     &console->ntcc_servers.ntcrc_sd->ntcsd_msg_nr_send);
+	msg_nr_print("server msg received",
+		     &console->ntcc_servers.ntcrc_sd->ntcsd_msg_nr_recv);
+	msg_nr_print("server bulk sent",
+		     &console->ntcc_servers.ntcrc_sd->ntcsd_bulk_nr_send);
+	msg_nr_print("server bulk received",
+		     &console->ntcc_servers.ntcrc_sd->ntcsd_bulk_nr_recv);
+	msg_nr_print("server transfers",
+		     &console->ntcc_servers.ntcrc_sd->ntcsd_transfers);
 	/* send STOP command to the test clients */
-	rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_CLIENT,
+	rc = m0_net_test_console_cmd(console, M0_NET_TEST_ROLE_CLIENT,
 				     M0_NET_TEST_CMD_STOP);
 	M0_UT_ASSERT(rc == clients_nr);
 	/* send STOP command to the test servers */
-	rc = m0_net_test_console_cmd(&console, M0_NET_TEST_ROLE_SERVER,
+	rc = m0_net_test_console_cmd(console, M0_NET_TEST_ROLE_SERVER,
 				     M0_NET_TEST_CMD_STOP);
 	M0_UT_ASSERT(rc == servers_nr);
+	sd_servers = console->ntcc_servers.ntcrc_sd;
+	sd_clients = console->ntcc_clients.ntcrc_sd;
+	/* check stats */
+	/* @todo temporary disabled */
+#if 0
+	M0_UT_ASSERT(sd_servers->ntcsd_msg_nr_send.ntmn_total ==
+		     sd_clients->ntcsd_msg_nr_recv.ntmn_total);
+	M0_UT_ASSERT(sd_servers->ntcsd_msg_nr_recv.ntmn_total ==
+		     sd_clients->ntcsd_msg_nr_send.ntmn_total);
+	M0_UT_ASSERT(sd_servers->ntcsd_bulk_nr_send.ntmn_total ==
+		     sd_clients->ntcsd_bulk_nr_recv.ntmn_total);
+	M0_UT_ASSERT(sd_servers->ntcsd_bulk_nr_recv.ntmn_total ==
+		     sd_clients->ntcsd_bulk_nr_send.ntmn_total);
+	if (type == M0_NET_TEST_TYPE_BULK) {
+		/*
+		 * number of transfers are not measured on the test server
+		 * for ping test.
+		 */
+		M0_UT_ASSERT(sd_servers->ntcsd_transfers.ntmn_total ==
+			     sd_clients->ntcsd_transfers.ntmn_total);
+	}
+#endif
 	/* finalize console */
-	m0_net_test_slist_fini(&console_cfg.ntcc_data_servers);
-	m0_net_test_slist_fini(&console_cfg.ntcc_data_clients);
-	m0_net_test_slist_fini(&console_cfg.ntcc_servers);
-	m0_net_test_slist_fini(&console_cfg.ntcc_clients);
-	m0_net_test_console_fini(&console);
+	m0_net_test_slist_fini(&console_cfg->ntcc_servers);
+	m0_net_test_slist_fini(&console_cfg->ntcc_clients);
+	m0_net_test_slist_fini(&console_cfg->ntcc_data_servers);
+	m0_net_test_slist_fini(&console_cfg->ntcc_data_clients);
+	m0_net_test_console_fini(console);
 	/* finalize test clients and test servers */
 	for (i = 0; i < clients_nr + servers_nr; ++i) {
 		rc = m0_thread_join(&node_thread[i]);
@@ -292,25 +333,57 @@ static void net_test_client_server(const char *nid,
 	}
 	addr_free(addr_console4servers);
 	addr_free(addr_console4clients);
+done:
+	m0_free(console);
+	m0_free(console_cfg);
+}
+
+void m0_net_test_client_server_stub_ut(void)
+{
+	/* test console-node interaction with dummy node */
+	net_test_client_server("0@lo", M0_NET_TEST_TYPE_STUB,
+			       1, 1, 1, 1, 1, 1,
+			       0, 0, 0, 0);
 }
 
 void m0_net_test_client_server_ping_ut(void)
 {
-	net_test_client_server("0@lo", M0_NET_TEST_TYPE_PING,
-			       8, 8, 8, 128, 0x1000, 0x1000);
 	/*
+	 * - 0@lo interface
+	 * - 8 test clients, 8 test servers
+	 * - 4k test messages x 4KiB per message
+	 * - 8 pairs of concurrent buffers on each test client
+	 * - 128 concurrent buffers on each test server
+	 */
 	net_test_client_server("0@lo", M0_NET_TEST_TYPE_PING,
-			       8, 8, 4, 16, 0x100, 0x100);
-	*/
+			       8, 8, 8, 128, 0x1000, 0x1000,
+			       /* 1, 1, 8, 128, 0x1000, 0x1000, */
+			       0, 0, 0, 0);
 }
 
 void m0_net_test_client_server_bulk_ut(void)
 {
+	/**
+	 * @todo investigate strange m0_net_tm_stop() time
+	 * on the bulk test client.
+	 */
 	/*
+	 * - 0@lo interface
+	 * - 2 test clients, 2 test servers
+	 * - 64 test messages x 1MiB per message
+	 * - 2 pairs of concurrent buffers on each test client
+	 * - 8 concurrent buffers on each test server
+	 * - 8(16) network buffers for network buffer descriptors
+	 *   on the test client(server) with 4KiB per buffer and
+	 *   64k maximum buffer descriptors in buffer
+	 */
 	net_test_client_server("0@lo", M0_NET_TEST_TYPE_BULK,
-			       8, 8, 4, 16, 0x100, 0x10000);
-	*/
+			       2, 2, 2, 8,
+			       64, 0x100000,
+			       8, 16, 0x1000, 0x10000);
 }
+
+#undef NET_TEST_MODULE_NAME
 
 /*
  *  Local variables:

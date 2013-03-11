@@ -36,11 +36,6 @@
    @{
  */
 
-enum {
-	/** NTSTRING @todo move to lib/magic.h */
-	M0_NET_TEST_STR_MAGIC = 0x474e49525453544e,
-};
-
 /**
    Serialize or deserialize ASCIIZ string.
    @pre op == M0_NET_TEST_SERIALIZE || op == M0_NET_TEST_DESERIALIZE

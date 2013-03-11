@@ -34,6 +34,9 @@
 
 extern struct m0_net_test_service_ops m0_net_test_node_bulk_ops;
 
+int m0_net_test_node_bulk_init(void);
+void m0_net_test_node_bulk_fini(void);
+
 /**
    @} end of NetTestBulkNodeDFS group
  */

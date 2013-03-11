@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -76,11 +76,6 @@
    @{
  */
 
-enum {
-	/** NT_TIMES @todo move to lib/magic.h */
-	M0_NET_TEST_TIMESTAMP_MAGIC = 0x53454d49545f544e,
-};
-
 /**
    This structure is used for statistics calculation and collecting.
    Min and max stored directly in this structure, average and
@@ -115,6 +110,7 @@ struct m0_net_test_stats {
 
 /**
    Reset m0_net_test_stats structure.
+   Set sample size and min/max/sum/sum_sqr to 0.
    @post m0_net_test_stats_invariant(stats)
  */
 void m0_net_test_stats_reset(struct m0_net_test_stats *stats);
@@ -173,8 +169,10 @@ m0_bcount_t m0_net_test_stats_serialize(enum m0_net_test_serialize_op op,
    - m0_net_test_stats_time_sum()
    - m0_net_test_stats_time_avg()
    - m0_net_test_stats_time_stddev()
-   Mixing m0_net_test_stats_add() and m0_net_test_stats_time_add()
+   @note Mixing m0_net_test_stats_add() and m0_net_test_stats_time_add()
    will lead to undefined behavior.
+   @note m0_net_test_stats_time_sum(), m0_net_test_stats_time_avg(),
+   m0_net_test_stats_time_stddev() are available from user space only.
  */
 void m0_net_test_stats_time_add(struct m0_net_test_stats *stats,
 				m0_time_t time);
@@ -199,14 +197,16 @@ m0_time_t m0_net_test_stats_time_max(struct m0_net_test_stats *stats);
 
    Used to transmit m0_time_t value in ping/bulk buffers.
    @see m0_net_test_timestamp_init(), m0_net_test_timestamp_serialize().
+
+   @{
  */
 struct m0_net_test_timestamp {
+	/** M0_NET_TEST_TIMESTAMP_MAGIC */
+	uint64_t  ntt_magic;
 	/** Current time. Set in m0_net_test_timestamp_init() */
 	m0_time_t ntt_time;
 	/** Sequence number. */
 	uint64_t  ntt_seq;
-	/** Magic. Checked when deserializing. */
-	uint64_t  ntt_magic;
 };
 
 /**

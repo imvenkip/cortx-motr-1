@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,24 +18,13 @@
  * Original creation date: 05/19/2012
  */
 
-/* @todo remove */
-#ifndef __KERNEL__
-#include <stdio.h>		/* printf */
-#endif
-
 #include "lib/ut.h"		/* M0_UT_ASSERT */
+#include "lib/misc.h"		/* M0_SET0 */
 #include "lib/semaphore.h"	/* m0_semaphore */
 #include "lib/memory.h"		/* m0_alloc */
 #include "net/lnet/lnet.h"	/* m0_net_lnet_ifaces_get */
 
 #include "net/test/network.h"
-
-/* @todo debug only, remove it */
-#ifndef __KERNEL__
-#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
-#else
-#define LOGD(format, ...) do {} while (0)
-#endif
 
 enum {
 	NET_TEST_PING_BUF_SIZE = 4096,
@@ -56,7 +45,7 @@ static m0_bcount_t bv_copy(struct m0_bufvec *dst,
 	return m0_bufvec_cursor_copy(&bcdst, &bcsrc, len);
 }
 
-/* @todo too expensive, use m0_bufvec_cursor_step() + memcmp() */
+/** @todo too expensive, use m0_bufvec_cursor_step() + memcmp() */
 static bool net_buf_data_eq(enum m0_net_test_network_buf_type buf_type,
 			    struct m0_net_test_network_ctx *ctx1,
 			    uint32_t buf_index1,
@@ -146,6 +135,7 @@ static struct m0_net_test_network_buffer_callbacks ping_buf_cb = {
 
 void m0_net_test_network_ut_ping(void)
 {
+	static struct m0_net_test_network_cfg cfg;
 	static struct m0_net_test_network_ctx send;
 	static struct m0_net_test_network_ctx recv;
 	int				      rc;
@@ -153,18 +143,17 @@ void m0_net_test_network_ut_ping(void)
 	m0_bcount_t			      buf_size;
 
 	buf_size = NET_TEST_PING_BUF_SIZE;
-	rc = m0_net_test_network_ctx_init(&send, "0@lo:12345:42:4000",
-					  &ping_tm_cb, &ping_buf_cb,
-					  buf_size, 1,
-					  0, 0,
-					  1, NULL);
+	M0_SET0(&cfg);
+	cfg.ntncfg_tm_cb	 = ping_tm_cb;
+	cfg.ntncfg_buf_cb	 = ping_buf_cb;
+	cfg.ntncfg_buf_size_ping = buf_size;
+	cfg.ntncfg_buf_ping_nr	 = 1;
+	cfg.ntncfg_ep_max	 = 1;
+	cfg.ntncfg_timeouts	 = m0_net_test_network_timeouts_never();
+	rc = m0_net_test_network_ctx_init(&send, &cfg, "0@lo:12345:42:4000");
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_net_test_network_ctx_init(&recv, "0@lo:12345:42:4001",
-					  &ping_tm_cb, &ping_buf_cb,
-					  buf_size, 1,
-					  0, 0,
-					  1, NULL);
+	rc = m0_net_test_network_ctx_init(&recv, &cfg, "0@lo:12345:42:4001");
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_net_test_network_ep_add(&send, "0@lo:12345:42:4001");
@@ -193,7 +182,7 @@ void m0_net_test_network_ut_ping(void)
 		rc = m0_net_test_network_msg_send(&send, 0, 0);
 		M0_UT_ASSERT(rc == 0);
 
-		/* @todo timeddown */
+		/** @todo timeddown */
 		m0_semaphore_down(&recv_sem);
 		m0_semaphore_down(&send_sem);
 
@@ -249,24 +238,29 @@ static struct m0_net_test_network_buffer_callbacks bulk_buf_cb = {
 
 void m0_net_test_network_ut_bulk(void)
 {
+	static struct m0_net_test_network_cfg cfg;
 	static struct m0_net_test_network_ctx client;
 	static struct m0_net_test_network_ctx server;
+	m0_bcount_t			      offset;
+	m0_bcount_t			      bcount;
 	int				      rc;
-	int				      rc_u32;
+	size_t				      rc_size;
 	int				      i;
 	bool				      rc_bool;
 
-	rc = m0_net_test_network_ctx_init(&client, "0@lo:12345:42:4000",
-					  &bulk_tm_cb, &bulk_buf_cb,
-					  NET_TEST_PING_BUF_SIZE, 1,
-					  NET_TEST_BULK_BUF_SIZE, 2,
-					  1, NULL);
+	M0_SET0(&cfg);
+	cfg.ntncfg_tm_cb	 = bulk_tm_cb;
+	cfg.ntncfg_buf_cb	 = bulk_buf_cb;
+	cfg.ntncfg_buf_size_ping = NET_TEST_PING_BUF_SIZE;
+	cfg.ntncfg_buf_ping_nr	 = 1;
+	cfg.ntncfg_buf_size_bulk = NET_TEST_PING_BUF_SIZE;
+	cfg.ntncfg_buf_bulk_nr	 = 2;
+	cfg.ntncfg_ep_max	 = 1;
+	cfg.ntncfg_timeouts	 = m0_net_test_network_timeouts_never();
+	rc = m0_net_test_network_ctx_init(&client, &cfg, "0@lo:12345:42:4000");
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_net_test_network_ctx_init(&server, "0@lo:12345:42:4001",
-					  &bulk_tm_cb, &bulk_buf_cb,
-					  NET_TEST_PING_BUF_SIZE, 1,
-					  NET_TEST_BULK_BUF_SIZE, 1,
-					  1, NULL);
+	cfg.ntncfg_buf_bulk_nr = 1;
+	rc = m0_net_test_network_ctx_init(&server, &cfg, "0@lo:12345:42:4001");
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_net_test_network_ep_add(&client, "0@lo:12345:42:4001");
@@ -301,13 +295,16 @@ void m0_net_test_network_ut_bulk(void)
 			M0_NET_QT_PASSIVE_BULK_RECV);
 	M0_UT_ASSERT(rc == 0);
 	/* client: add buffer descriptors to ping buf */
-	m0_net_test_network_bd_reset(&client, 0);
-	rc = m0_net_test_network_bd_encode(&client, 0, 0);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_net_test_network_bd_encode(&client, 0, 1);
-	M0_UT_ASSERT(rc == 0);
-	rc_u32 = m0_net_test_network_bd_count(&client, 0);
-	M0_UT_ASSERT(rc_u32 == 2);
+	offset = 0;
+	bcount = m0_net_test_network_bd_serialize(M0_NET_TEST_SERIALIZE,
+						  &client, 0, 0, offset);
+	M0_UT_ASSERT(bcount != 0);
+	offset += bcount;
+	bcount = m0_net_test_network_bd_serialize(M0_NET_TEST_SERIALIZE,
+						  &client, 1, 0, offset);
+	M0_UT_ASSERT(bcount != 0);
+	rc_size = m0_net_test_network_bd_nr(&client, 0);
+	M0_UT_ASSERT(rc_size == 2);
 	/* client: send ping buf */
 	rc = m0_net_test_network_msg_send(&client, 0, 0);
 	M0_UT_ASSERT(rc == 0);
@@ -317,23 +314,26 @@ void m0_net_test_network_ut_bulk(void)
 	rc_bool = net_buf_data_eq(M0_NET_TEST_BUF_PING, &client, 0, &server, 0);
 	M0_ASSERT(rc_bool);
 	/* server: extract buf descriptor for active recv */
-	rc_u32 = m0_net_test_network_bd_count(&server, 0);
-	M0_UT_ASSERT(rc_u32 == 2);
-	m0_net_test_network_bd_reset(&server, 0);
-	rc = m0_net_test_network_bd_decode(&server, 0, 0);
-	M0_UT_ASSERT(rc == 0);
+	rc_size = m0_net_test_network_bd_nr(&server, 0);
+	M0_UT_ASSERT(rc_size == 2);
+	offset = 0;
+	bcount = m0_net_test_network_bd_serialize(M0_NET_TEST_DESERIALIZE,
+						  &server, 0, 0, offset);
+	M0_UT_ASSERT(bcount != 0);
+	offset += bcount;
 	/* server: do active recv */
 	rc = m0_net_test_network_bulk_enqueue(&server, 0, 0,
-			M0_NET_QT_ACTIVE_BULK_RECV);
+					      M0_NET_QT_ACTIVE_BULK_RECV);
 	M0_UT_ASSERT(rc == 0);
 	/* server: wait for active recv callback */
 	m0_semaphore_down(&bulk_cb_sem[M0_NET_QT_ACTIVE_BULK_RECV]);
 	/* server: extract buf descriptor for active send */
-	rc = m0_net_test_network_bd_decode(&server, 0, 0);
-	M0_UT_ASSERT(rc == 0);
+	bcount = m0_net_test_network_bd_serialize(M0_NET_TEST_DESERIALIZE,
+						  &server, 0, 0, offset);
+	M0_UT_ASSERT(bcount != 0);
 	/* server: do active send */
 	rc = m0_net_test_network_bulk_enqueue(&server, 0, 0,
-			M0_NET_QT_ACTIVE_BULK_SEND);
+					      M0_NET_QT_ACTIVE_BULK_SEND);
 	M0_UT_ASSERT(rc == 0);
 	/* server: wait for active send callbacks */
 	m0_semaphore_down(&bulk_cb_sem[M0_NET_QT_ACTIVE_BULK_SEND]);
@@ -413,33 +413,32 @@ static bool buf_desc_eq(struct m0_net_test_network_ctx *ctx1,
 static void multiple_buf_desc_encode_decode(struct m0_net_test_network_ctx *ctx,
 					    int count)
 {
-	int i;
-	bool rc_bool;
-	uint32_t rc_u32;
-	int rc;
+	m0_bcount_t bcount;
+	m0_bcount_t offset;
+	size_t	    rc_size;
+	int	    i;
+	bool	    rc_bool;
 
-	m0_net_test_network_bd_reset(ctx, 0);
-	rc_u32 = m0_net_test_network_bd_count(ctx, 0);
-	M0_UT_ASSERT(rc_u32 == 0);
+	offset = 0;
 	for (i = 0; i < count; ++i) {
 		/* encode */
-		rc = m0_net_test_network_bd_encode(ctx, 0, i % 2);
-		M0_UT_ASSERT(rc == 0);
+		bcount = m0_net_test_network_bd_serialize(M0_NET_TEST_SERIALIZE,
+							 ctx, i % 2, 0, offset);
+		M0_UT_ASSERT(bcount != 0);
+		offset += bcount;
 		/* check number of buf descriptors in the ping buffer */
-		rc_u32 = m0_net_test_network_bd_count(ctx, 0);
-		M0_UT_ASSERT(rc_u32 == i + 1);
+		rc_size = m0_net_test_network_bd_nr(ctx, 0);
+		M0_UT_ASSERT(rc_size == i + 1);
 	}
 	/* prepare to decode */
-	m0_net_test_network_bd_reset(ctx, 0);
-	rc_u32 = m0_net_test_network_bd_count(ctx, 0);
-	M0_UT_ASSERT(rc_u32 == 0);
+	offset = 0;
 	for (i = 0; i < count; ++i) {
 		/* decode */
-		rc = m0_net_test_network_bd_decode(ctx, 0, 2 + i % 2);
-		M0_UT_ASSERT(rc == 0);
-		/* check number of buf descriptors in the ping buffer */
-		rc_u32 = m0_net_test_network_bd_count(ctx, 0);
-		M0_UT_ASSERT(rc_u32 == i + 1);
+		bcount = m0_net_test_network_bd_serialize(
+				M0_NET_TEST_DESERIALIZE,
+				ctx, 2 + i % 2, 0, offset);
+		M0_UT_ASSERT(bcount != 0);
+		offset += bcount;
 		/* compare m0_net_buf_desc's */
 		rc_bool = buf_desc_eq(ctx, i % 2, ctx, 2 + i % 2);
 		M0_UT_ASSERT(rc_bool);
@@ -448,16 +447,22 @@ static void multiple_buf_desc_encode_decode(struct m0_net_test_network_ctx *ctx,
 
 void m0_net_test_network_ut_buf_desc(void)
 {
+	static struct m0_net_test_network_cfg cfg;
 	static struct m0_net_test_network_ctx ctx;
-	int i;
-	int rc;
-	static struct m0_clink tmwait;
+	static struct m0_clink		      tmwait;
+	int				      i;
+	int				      rc;
 
-	rc = m0_net_test_network_ctx_init(&ctx, "0@lo:12345:42:*",
-					  &tm_cb_empty, &buf_cb_empty,
-					  NET_TEST_PING_BUF_SIZE, 2,
-					  NET_TEST_BULK_BUF_SIZE, 4,
-					  1, NULL);
+	M0_SET0(&cfg);
+	cfg.ntncfg_tm_cb	 = tm_cb_empty;
+	cfg.ntncfg_buf_cb	 = buf_cb_empty;
+	cfg.ntncfg_buf_size_ping = NET_TEST_PING_BUF_SIZE;
+	cfg.ntncfg_buf_ping_nr	 = 2;
+	cfg.ntncfg_buf_size_bulk = NET_TEST_PING_BUF_SIZE;
+	cfg.ntncfg_buf_bulk_nr	 = 4;
+	cfg.ntncfg_ep_max	 = 1;
+	cfg.ntncfg_timeouts	 = m0_net_test_network_timeouts_never();
+	rc = m0_net_test_network_ctx_init(&ctx, &cfg, "0@lo:12345:42:*");
 	M0_UT_ASSERT(rc == 0);
 
 	/* add some ep - tranfer machine ep */

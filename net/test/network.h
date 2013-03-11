@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -24,6 +24,8 @@
 #define __MERO_NET_TEST_NETWORK_H__
 
 #include "net/net.h"
+#include "net/test/serialize.h"		/* m0_net_test_serialize_op */
+#include "net/test/slist.h"		/* m0_net_test_slist */
 
 /**
    @defgroup NetTestNetworkDFS Network
@@ -68,27 +70,49 @@ struct m0_net_test_network_timeouts {
 };
 
 /**
+ * Net-test network context configuration.
+ * This structure is embedded into m0_net_test_network_ctx.
+ */
+struct m0_net_test_network_cfg {
+	/** transfer machine callbacks */
+	struct m0_net_tm_callbacks		    ntncfg_tm_cb;
+	/** buffer callbacks for every type of network queue */
+	struct m0_net_test_network_buffer_callbacks ntncfg_buf_cb;
+	/** size of ping buffers */
+	m0_bcount_t				    ntncfg_buf_size_ping;
+	/** number of ping buffers */
+	uint32_t				    ntncfg_buf_ping_nr;
+	/** size of bulk buffers */
+	m0_bcount_t				    ntncfg_buf_size_bulk;
+	/** number of bulk buffers */
+	uint32_t				    ntncfg_buf_bulk_nr;
+	/** maximum number of endpoints in context */
+	uint32_t				    ntncfg_ep_max;
+	/**
+	 * Timeouts for every type of network buffer.
+	 * @see m0_net_test_network_timeouts_never()
+	 */
+	struct m0_net_test_network_timeouts	    ntncfg_timeouts;
+	/** transfer machine should use synchronous event delivery */
+	bool					    ntncfg_sync;
+};
+
+/**
    Net-test network context structure.
    Contains transfer machine, tm and buffer callbacks, endpoints,
    ping and bulk message buffers.
  */
 struct m0_net_test_network_ctx {
+	/** Network context configuration. */
+	struct m0_net_test_network_cfg		    ntc_cfg;
 	/** Network domain. */
 	struct m0_net_domain			   *ntc_dom;
-	/** Transfer machine callbacks. */
-	struct m0_net_tm_callbacks		    ntc_tm_cb;
 	/** Transfer machine. */
 	struct m0_net_transfer_mc		   *ntc_tm;
-	/** Buffer callbacks. */
-	struct m0_net_test_network_buffer_callbacks ntc_buf_cb;
 	/** Array of message buffers. Used for message send/recv. */
 	struct m0_net_buffer			   *ntc_buf_ping;
-	/** Number of message buffers. */
-	uint32_t				    ntc_buf_ping_nr;
 	/** Array of buffers for bulk transfer. */
 	struct m0_net_buffer			   *ntc_buf_bulk;
-	/** Number of buffers for bulk transfer. */
-	uint32_t				    ntc_buf_bulk_nr;
 	/**
 	   Array of pointers to endpoints.
 	   Initially this array have no endpoints, but they can
@@ -97,73 +121,77 @@ struct m0_net_test_network_ctx {
 	   Endpoints are freed in m0_net_test_network_ctx_fini().
 	 */
 	struct m0_net_end_point			  **ntc_ep;
-	/**
-	   Current number of endpoints in ntc_ep array.
-	 */
+	/** Current number of endpoints in ntc_ep array. */
 	uint32_t				    ntc_ep_nr;
-	/**
-	   Maximum number of endponts in ntc_ep array.
-	 */
-	uint32_t				    ntc_ep_max;
-	/**
-	   Timeouts for every type of network buffer queue.
-	   Used when buffer is added to queue.
-	 */
-	struct m0_net_test_network_timeouts	    ntc_timeouts;
 };
 
 /**
    Initialize net-test network module.
-   Calls m0_net_xprt_init(), m0_net_domain_init().
+   Calls m0_net_xprt_init().
  */
 int m0_net_test_network_init(void);
 
 /**
    Finalize net-test network module.
-   Calls m0_net_xprt_fini(), m0_net_domain_fini().
+   Calls m0_net_xprt_fini().
  */
 void m0_net_test_network_fini(void);
 
 /**
-   Initialize m0_net_test_network_ctx structure.
+   Initialize net-test network context.
    Allocate ping and bulk buffers.
-   @note timeouts parameter can be NULL, in this case it is assumed
-   that all timeouts is M0_TIME_NEVER.
+   @param ctx net-test network context structure.
+   @param cfg net-test network context configuration. Function will make
+	      make a copy of this structure in ctx, so there is no need to
+	      keep cfg valid until m0_net_test_network_ctx_fini().
+   @param tm_addr transfer machine address (example: "0@lo:12345:42:1024")
+   @note if cfg.ntncfg_sync parameter is set, then
+   m0_net_buffer_event_deliver_synchronously() will be called for transfer
+   machine and m0_net_buffer_event_deliver_all() should be used for buffer
+   event delivery.
    @see m0_net_test_network_ctx
+   @see m0_net_test_network_cfg
    @pre ctx     != NULL
+   @pre cfg	!= NULL
    @pre tm_addr != NULL
-   @pre tm_cb   != NULL
-   @pre buf_cb  != NULL
    @post m0_net_test_network_ctx_invariant(ctx)
    @return 0 (success)
    @return -ECONNREFUSED m0_net_tm_start() failed.
    @return -errno (failire)
+   @todo create configuration structure instead a lot of parameters
  */
 int m0_net_test_network_ctx_init(struct m0_net_test_network_ctx *ctx,
-				 const char *tm_addr,
-				 const struct m0_net_tm_callbacks *tm_cb,
-				 const struct
-				 m0_net_test_network_buffer_callbacks *buf_cb,
-				 m0_bcount_t buf_size_ping,
-				 uint32_t buf_ping_nr,
-				 m0_bcount_t buf_size_bulk,
-				 uint32_t buf_bulk_nr,
-				 uint32_t ep_max,
-				 const struct m0_net_test_network_timeouts
-				 *timeouts);
+				 struct m0_net_test_network_cfg *cfg,
+				 const char *tm_addr);
+/** Finalize net-test network context */
 void m0_net_test_network_ctx_fini(struct m0_net_test_network_ctx *ctx);
+/** Invariant for net-test network context */
 bool m0_net_test_network_ctx_invariant(struct m0_net_test_network_ctx *ctx);
 
 /**
-   Add entry point to m0_net_test_network_ctx structure.
-   @return entry point number.
+   Add endpoint to m0_net_test_network_ctx structure.
+   @return endpoint number.
    @return -E2BIG ctx->ntc_ep already contains maximum number of endpoints.
    @return -errno (if failure)
+   @pre m0_net_test_network_ctx_invariant(ctx)
+   @pre ep_addr != NULL
 
    @see m0_net_test_network_init()
  */
 int m0_net_test_network_ep_add(struct m0_net_test_network_ctx *ctx,
 			       const char *ep_addr);
+
+/**
+   Add endpoints to m0_net_test_network_ctx structure.
+   If some endpoint addition fails, then no endpoints will be added to
+   network context and all added endpoints will be m0_net_end_point_put()'ed.
+   @return -E2BIG ctx->ntc_ep already contains maximum number of endpoints.
+   @pre m0_net_test_network_ctx_invariant(ctx)
+   @pre m0_net_test_slist_invariant(eps)
+   @post m0_net_test_network_ctx_invariant(ctx)
+ */
+int m0_net_test_network_ep_add_slist(struct m0_net_test_network_ctx *ctx,
+				     const struct m0_net_test_slist *eps);
 
 /**
    Add message buffer to network messages send queue.
@@ -220,53 +248,52 @@ void m0_net_test_network_buffer_dequeue(struct m0_net_test_network_ctx *ctx,
 					int32_t buf_index);
 
 /**
-   Reset to 0 number of network buffer descriptors in the message buffer.
-   @see @ref m0_net_test_network_bd_encode().
+   Serialize or deserialize bulk buffer network transport descriptor
+   to/from ping buffer.
+   @see @ref net-test-fspec-usecases-bd
+   @param op Serialization operation.
+   @param ctx Net-test network context.
+   @param buf_bulk_index Bulk buffer index. Buffer descriptor will be taken
+			 from this buffer for serialization and set for this
+			 buffer after deserialization.
+   @param buf_ping_index Ping buffer index. This buffer will be used as
+			 container to serialized buffer descriptors.
+   @param offset Offset in the ping buffer to serialize/deserialize
+		 network descriptor. Should have value 0 for the first
+		 descriptor when serializing/deserializing.
+   @return length of serialized/deserialized buffer descriptor.
+   @pre op == M0_NET_TEST_SERIALIZE || op == M0_NET_TEST_DESERIALIZE
+   @pre ctx != NULL
+   @pre buf_bulk_index < ctx->ntc_cfg.ntncfg_buf_bulk_nr
+   @pre buf_ping_index < ctx->ntc_cfg.ntncfg_buf_ping_nr
+   @todo possible security vulnerability because bounds are not checked
  */
-void m0_net_test_network_bd_reset(struct m0_net_test_network_ctx *ctx,
-				  int32_t buf_ping_index);
-/**
-   Get the number of network buffer descriptors in the message buffer.
-   @see @ref m0_net_test_network_bd_encode().
- */
-uint32_t m0_net_test_network_bd_count(struct m0_net_test_network_ctx *ctx,
-				      int32_t buf_ping_index);
+m0_bcount_t
+m0_net_test_network_bd_serialize(enum m0_net_test_serialize_op op,
+				 struct m0_net_test_network_ctx *ctx,
+				 uint32_t buf_bulk_index,
+				 uint32_t buf_ping_index,
+				 m0_bcount_t offset);
 
 /**
-   Store network buffer descriptor (m0_net_buf_desc) in the message buffer.
-   m0_net_buf_desc is serialized and is stored in the message buffer
-   one after the other. Buffer length is adjusted on every encoding.
-   So, to send some number of network descriptors over the network
-   there is a simple steps:
-   - @b passive: call m0_net_test_network_bd_reset() to reset to 0 number of
-     network descriptors in the ping buffer;
-   - @b passive: call m0_net_test_network_bd_encode() as many times as needed
-     to serialize bulk buffer descriptors (from buffers, previously added
-     to passive bulk queues) to ping buffer;
-   - @b passive: send ping buffer to active side;
-   - @b active: receive ping buffer;
-   - @b active: determine number of network buffer descriptors inside ping
-     buffer using m0_net_test_network_bd_count();
-   - @b active: reset number of network buffer desriptors in the ping buffer
-     using m0_net_test_network_bd_reset();
-   - @b active: sequentially call m0_net_test_network_bd_encode() as many times
-     as there is network buffer descriptors, encoded in this ping buffer,
-     to set appropriate network buffer descriptors for a bulk buffers to
-     perform active send/receive.
-   @param ctx Net-test network context.
-   @param buf_ping_index Index of message buffer in ctx->ntc_buf_ping array.
-   @param buf_bulk_index Index of bulk buffer in ctx->ntc_buf_bulk array.
+   Get number of stored network buffer descriptors in ping buffer.
+   @see @ref net-test-fspec-usecases-bd
+   @see m0_net_test_network_bd_serialize()
+   @pre ctx != NULL
+   @pre buf_ping_index < ctx->ntc_cfg.ntncfg_buf_ping_nr
  */
-int m0_net_test_network_bd_encode(struct m0_net_test_network_ctx *ctx,
-				  int32_t buf_ping_index,
-				  int32_t buf_bulk_index);
+size_t m0_net_test_network_bd_nr(struct m0_net_test_network_ctx *ctx,
+				 uint32_t buf_ping_index);
+
 /**
-   Recover a network descriptor from the message buffer.
-   @see @ref m0_net_test_network_bd_encode().
+   Decrease number of network buffer descriptors in ping buffer.
+   This function simply decreases number of network buffer descriptors
+   stored in ping buffer.
+   @see @ref net-test-fspec-usecases-bd
+   @see m0_net_test_network_bd_serialize()
  */
-int m0_net_test_network_bd_decode(struct m0_net_test_network_ctx *ctx,
-				  int32_t buf_ping_index,
-				  int32_t buf_bulk_index);
+void m0_net_test_network_bd_nr_dec(struct m0_net_test_network_ctx *ctx,
+				   uint32_t buf_ping_index);
 
 /**
    Accessor to buffers in net-test network context.

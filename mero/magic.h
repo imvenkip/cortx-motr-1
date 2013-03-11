@@ -434,6 +434,45 @@ enum m0_magic_satchel {
 	/* nlx_xo_ep::xe_magic (failed fiasco) */
 	M0_NET_LNET_XE_MAGIC = 0x33fa11edf1a5c077,
 
+	/* bsb_tl::tl_head_magic (collides lail) */
+	M0_NET_TEST_BSB_HEAD_MAGIC = 0x33c0111de51a1177,
+
+	/* buf_status_bulk::bsb_magic (colloidal dal) */
+	M0_NET_TEST_BSB_MAGIC = 0x33c01101da1da177,
+
+	/* bsp_tl::tl_head_magic (delocalize so) */
+	M0_NET_TEST_BSP_HEAD_MAGIC = 0x33de10ca112e5077,
+
+	/* buf_status_ping::bsp_magic (lossless bafo) */
+	M0_NET_TEST_BSP_MAGIC = 0x3310551e55baf077,
+
+	/* buf_state_tl::tl_head_magic (official oecd) */
+	M0_NET_TEST_BS_HEAD_MAGIC = 0x330ff1c1a10ecd77,
+
+	/* buf_state::bs_link_magic (decibel aedes) */
+	M0_NET_TEST_BS_LINK_MAGIC = 0x33dec1be1aede577,
+
+	/* net_test_network_bds_header::ntnbh_magic (boldfaces esd) */
+	M0_NET_TEST_NETWORK_BDS_MAGIC = 0x33b01dface5e5d77,
+
+	/* net_test_network_bd::ntnbd_magic (socialized io) */
+	M0_NET_TEST_NETWORK_BD_MAGIC = 0x3350c1a112ed1077,
+
+	/* slist_params::sp_magic (sodaless adze) */
+	M0_NET_TEST_SLIST_MAGIC = 0x3350da1e55ad2e77,
+
+	/* ssb_tl::tl_head_magic (coloss caball) */
+	M0_NET_TEST_SSB_HEAD_MAGIC = 0x33c01055caba1177,
+
+	/* server_status_bulk::ssb_magic (closes doddie) */
+	M0_NET_TEST_SSB_MAGIC = 0x33c105e5d0dd1e77,
+
+	/* net_test_str_len::ntsl_magic (boldfaced sao) */
+	M0_NET_TEST_STR_MAGIC = 0x33b01dfaced5a077,
+
+	/* m0_net_test_timestamp::ntt_magic (allied cabiai) */
+	M0_NET_TEST_TIMESTAMP_MAGIC = 0x33a111edcab1a177,
+
 /* Request handler */
 	/* m0_reqh_service::rs_magix (bacilli babel) */
 	M0_REQH_SVC_MAGIC = 0x33bac1111babe177,

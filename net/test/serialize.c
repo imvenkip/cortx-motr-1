@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,7 +18,6 @@
  * Original creation date: 06/28/2012
  */
 
-#include "lib/cdefs.h"		/* container_of */
 #include "lib/misc.h"		/* M0_SET0 */
 #include "lib/memory.h"		/* m0_alloc */
 #include "lib/errno.h"		/* ENOMEM */
@@ -52,7 +51,7 @@ static void net_test_serialize_cpu_to_le(char *d, char *s, m0_bcount_t len)
 	} else if (len == 8) {
 		* (uint64_t *) d = m0_byteorder_cpu_to_le64(* (uint64_t *) s);
 	} else {
-		M0_IMPOSSIBLE("len isn't power of 2");
+		M0_IMPOSSIBLE("len isn't a power of 2");
 	}
 
 }
@@ -68,7 +67,7 @@ static void net_test_serialize_le_to_cpu(char *d, char *s, m0_bcount_t len)
 	} else if (len == 8) {
 		* (uint64_t *) d = m0_byteorder_le64_to_cpu(* (uint64_t *) s);
 	} else {
-		M0_IMPOSSIBLE("len isn't power of 2");
+		M0_IMPOSSIBLE("len isn't a power of 2");
 	}
 
 }
@@ -183,7 +182,7 @@ m0_bcount_t m0_net_test_serialize(enum m0_net_test_serialize_op op,
 	const struct m0_net_test_descr *d_i;
 	void			       *addr;
 	m0_bcount_t			len_total = 0;
-	m0_bcount_t			len_current = 0;
+	m0_bcount_t			len;
 	m0_bcount_t			bv_length;
 
 	M0_PRE(op == M0_NET_TEST_SERIALIZE || op == M0_NET_TEST_DESERIALIZE);
@@ -195,15 +194,15 @@ m0_bcount_t m0_net_test_serialize(enum m0_net_test_serialize_op op,
 	for (i = 0; i < descr_nr; ++i) {
 		d_i = &descr[i];
 		addr = &((char *) obj)[d_i->ntd_offset];
-		len_current = net_test_serialize_data(op, addr, d_i->ntd_length,
-						      d_i->ntd_plain_data,
-						      bv, bv_offset + len_total,
-						      bv_length);
-		len_total += len_current;
-		if (len_current == 0)
+		len = net_test_serialize_data(op, addr, d_i->ntd_length,
+					      d_i->ntd_plain_data,
+					      bv, bv_offset + len_total,
+					      bv_length);
+		len_total = net_test_len_accumulate(len_total, len);
+		if (len_total == 0)
 			break;
 	}
-	return len_current == 0 ? 0 : len_total;
+	return len_total;
 }
 
 /**
