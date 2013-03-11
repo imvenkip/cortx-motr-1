@@ -25,8 +25,6 @@
 #include "ut/cs_fop_foms_xc.h"  /* cs_ds2_req_fop */
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
 
-#ifndef __KERNEL__
-
 #define CLIENT_ENDPOINT_ADDR       "0@lo:12345:34:*"
 #define CLIENT_DB_NAME             "rpclib_ut_client.db"
 
@@ -47,6 +45,8 @@ enum {
 
 static struct m0_net_xprt    *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain   client_net_dom = { };
+
+#ifndef __KERNEL__
 static struct m0_dbenv        client_dbenv;
 static struct m0_cob_domain   client_cob_dom;
 

@@ -34,14 +34,12 @@ struct m0_rpc_machine            machine;
 static uint32_t                  max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 static const char               *ep_addr = "0@lo:12345:34:2";
 static struct m0_cob_domain      cdom;
-static struct m0_net_domain      ndom;
 static struct m0_cob_domain_id   cdom_id = {
 	.id = 10000
 };
 static struct m0_dbenv           dbenv;
 static const char               *dbname = "db";
 static struct m0_net_buffer_pool buf_pool;
-static struct m0_net_xprt        *net_xprt = &m0_net_lnet_xprt;
 
 static uint32_t tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 
@@ -68,14 +66,16 @@ static int rpc_mc_ut_init(void)
 	uint32_t bufs_nr;
 	uint32_t tms_nr;
 
-	tms_nr = 1;
-	rc = m0_net_domain_init(&ndom, net_xprt, &m0_addb_proc_ctx);
+	rc = m0_net_xprt_init(xprt);
 	M0_ASSERT(rc == 0);
-
+	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
+	M0_ASSERT(rc == 0);
 	cob_domain_init();
 
+	tms_nr  = 1;
 	bufs_nr = m0_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
-	rc = m0_rpc_net_buffer_pool_setup(&ndom, &buf_pool, bufs_nr, tms_nr);
+	rc = m0_rpc_net_buffer_pool_setup(&client_net_dom, &buf_pool, bufs_nr,
+					  tms_nr);
 	M0_ASSERT(rc == 0);
 
 	return 0;
@@ -85,7 +85,8 @@ static int rpc_mc_ut_fini(void)
 {
 	m0_rpc_net_buffer_pool_cleanup(&buf_pool);
 	cob_domain_fini();
-	m0_net_domain_fini(&ndom);
+	m0_net_domain_fini(&client_net_dom);
+	m0_net_xprt_fini(xprt);
 
 	return 0;
 }
@@ -98,10 +99,9 @@ static void rpc_mc_init_fini_test(void)
 	 * Test - rpc_machine_init & rpc_machine_fini for success case
 	 */
 
-	rc = m0_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
-			         &buf_pool, M0_BUFFER_ANY_COLOUR,
-				 max_rpc_msg_size,
-				 tm_recv_queue_min_len);
+	rc = m0_rpc_machine_init(&machine, &cdom, &client_net_dom, ep_addr,
+				 NULL, &buf_pool, M0_BUFFER_ANY_COLOUR,
+				 max_rpc_msg_size, tm_recv_queue_min_len);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(machine.rm_reqh == NULL);
 	M0_UT_ASSERT(machine.rm_dom == &cdom);
@@ -123,17 +123,15 @@ static void rpc_mc_init_fail_test(void)
 	 */
 
 	m0_fi_enable_once("m0_net_tm_init", "fake_error");
-	rc = m0_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
-				 &buf_pool, M0_BUFFER_ANY_COLOUR,
-				 max_rpc_msg_size,
-				 tm_recv_queue_min_len);
+	rc = m0_rpc_machine_init(&machine, &cdom, &client_net_dom, ep_addr,
+				 NULL, &buf_pool, M0_BUFFER_ANY_COLOUR,
+				 max_rpc_msg_size, tm_recv_queue_min_len);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	m0_fi_enable_once("m0_net_tm_start", "fake_error");
-	rc = m0_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
-				 &buf_pool, M0_BUFFER_ANY_COLOUR,
-				 max_rpc_msg_size,
-				 tm_recv_queue_min_len);
+	rc = m0_rpc_machine_init(&machine, &cdom, &client_net_dom, ep_addr,
+				 NULL, &buf_pool, M0_BUFFER_ANY_COLOUR,
+				 max_rpc_msg_size, tm_recv_queue_min_len);
 	M0_UT_ASSERT(rc == -ENETUNREACH);
 	/**
 	  Root session cob as well as other mkfs related structres are now
@@ -141,17 +139,15 @@ static void rpc_mc_init_fail_test(void)
 	 */
 /*#ifndef __KERNEL__
 	m0_fi_enable_once("root_session_cob_create", "fake_error");
-	rc = m0_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
-				 &buf_pool, M0_BUFFER_ANY_COLOUR,
-				 max_rpc_msg_size,
-				 tm_recv_queue_min_len);
+	rc = m0_rpc_machine_init(&machine, &cdom, &client_net_dom, ep_addr,
+				 NULL, &buf_pool, M0_BUFFER_ANY_COLOUR,
+				 max_rpc_msg_size, tm_recv_queue_min_len);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	m0_fi_enable_once("m0_rpc_root_session_cob_create", "fake_error");
-	rc = m0_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
-				 &buf_pool, M0_BUFFER_ANY_COLOUR,
-				 max_rpc_msg_size,
-				 tm_recv_queue_min_len);
+	rc = m0_rpc_machine_init(&machine, &cdom, &client_net_dom, ep_addr,
+				 NULL, &buf_pool, M0_BUFFER_ANY_COLOUR,
+				 max_rpc_msg_size, tm_recv_queue_min_len);
 	M0_UT_ASSERT(rc == -EINVAL);
 #endif*/
 }
@@ -192,10 +188,6 @@ static void rpc_machine_watch_test(void)
 	struct m0_rpc_machine       *rmach;
 	int                          rc;
 
-	rc = m0_net_xprt_init(xprt);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
-	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
 
@@ -226,8 +218,6 @@ static void rpc_machine_watch_test(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_rpc_server_stop(&sctx);
 	M0_UT_ASSERT(mach_terminated_called);
-	m0_net_domain_fini(&client_net_dom);
-	m0_net_xprt_fini(xprt);
 }
 #endif /* __KERNEL__ */
 
