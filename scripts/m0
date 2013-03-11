@@ -10,12 +10,16 @@ set -e
 ### Type `m0 help' for usage.
 ### --------------------------------------------------------------------
 
-RUNDIR=${RUNDIR:-$HOME/XXX}  # CAUTION! This directory will be removed by superuser.
+## CAUTION! This directory will be removed by superuser.
+RUNDIR=${RUNDIR:-$HOME/XXX}
+
 PROG="${0##*/}"
 SRC="$(readlink -f $0)"
 SRC="${SRC%/*/*}"
 
 SUDO='sudo -E'
+
+die() { echo "$@" >&2; exit 1; }
 
 clean() {
     cd "$SRC"
@@ -26,7 +30,13 @@ clean() {
 build() {
     autoreconf -ifs
     ./configure $CONFIGURE_OPTS
-    make $MAKE_OPTS
+
+    local _OUT=mktemp
+    trap "rm $_OUT" 0
+    make $MAKE_OPTS 2>&1 | tee $_OUT
+    if grep 'WARNING:' $_OUT; then
+	die 'WARNING in make output is treated as error'
+    fi
 }
 
 _reset() {
@@ -58,10 +68,7 @@ dist_check() {
     local DISTFILE=$DISTDIR.tar.gz
 
     cd "$SRC"
-    [ -f Makefile ] || {
-	echo "You need to \`$PROG rebuild' first." >&2
-	exit 1
-    }
+    [ -f Makefile ] || die "You need to \`$PROG rebuild' first."
 
     make dist distdir=$DISTDIR $MAKE_OPTS
 
