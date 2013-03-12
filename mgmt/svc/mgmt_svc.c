@@ -352,7 +352,7 @@ struct cs_reqh_context {
    We have to ensure that any change to service state from management
    FOPs is done while holding the write lock on m0_reqh::rh_rwlock.
 
-   	@todo The locking model for FOM creation must be re-addressed.
+	@todo The locking model for FOM creation must be re-addressed.
 	Currently a read-lock is held on the request handler, and the
 	service mutex is acquired in the call to m0_fom_init().
 
