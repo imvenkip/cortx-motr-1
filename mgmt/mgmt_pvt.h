@@ -102,8 +102,13 @@
    @{
  */
 
+#include "mgmt/mgmt.h"
+
 /** Management module ADDB context */
 extern struct m0_addb_ctx m0_mgmt_addb_ctx;
+
+static int mgmt_svc_init();
+static void mgmt_svc_fini();
 
 /** @} end mgmt_pvt group */
 #endif /* __MERO_MGMT_MGMT_PVT_H__ */

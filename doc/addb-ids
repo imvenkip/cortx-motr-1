@@ -67,8 +67,9 @@ value          enum                    variable  name              file
 1400-1499                                                          fop/fop_addb.h
   1400 M0_ADDB_CTXID_FOP_MOD           m0_addb_ct_fop_mod
   1420 M0_ADDB_CTXID_FOM_LOCALITY      m0_addb_ct_fom_locality
-1500-1599
-  1500 M0_ADDB_CTXID_MGMT_MOD          m0_addb_ct_mgmt_mod         mgmt/mgmt_addb.h
+1500-1599                                                          mgmt/mgmt_addb.h
+  1500 M0_ADDB_CTXID_MGMT_MOD          m0_addb_ct_mgmt_mod
+  1501 M0_ADDB_CTXID_MGMT_SERVICE      m0_addb_ct_mgmt_service
 
 ******************************************************************************
 Record Type Identifiers

@@ -35,10 +35,14 @@ extern struct m0_reqh_service_type m0_mgmt_svc_type;
    The Management service.  There is one instance of this service in every
    request handler.  It is created by the cs_services_init() subroutine.
  */
-struct m0_mgmt_svc {
+struct mgmt_svc {
+	uint64_t               ms_magic;
 	/** Embedded request handler service */
 	struct m0_reqh_service ms_reqhs;
 };
+
+static int  mgmt_fom_service_state_req_init();
+static void mgmt_fom_service_state_req_fini();
 
 /** @} end mgmt_pvt group */
 #endif /* __MERO_MGMT_SVC_H__ */

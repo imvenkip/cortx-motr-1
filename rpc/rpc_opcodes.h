@@ -178,6 +178,12 @@ enum M0_RPC_OPCODES {
 	/* RPC UB */
 	M0_RPC_UB_REQ_OPCODE                = 98,
 	M0_RPC_UB_RESP_OPCODE               = 99
+
+	/* Management opcodes */
+	M0_MGMT_SERVICE_STATUS_REPLY_OPCODE = 100,
+	M0_MGMT_SERVICE_STATUS_OPCODE       = 101,
+	M0_MGMT_SERVICE_TERMINATE_OPCODE    = 102,
+	M0_MGMT_SERVICE_RUN_OPCODE          = 103,
 };
 /** @} endgroup rpc_layer_core */
 

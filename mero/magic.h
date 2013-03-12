@@ -373,6 +373,10 @@ enum m0_magic_satchel {
 	/* m0_layout_linear_enum::lla_magic (boldface blob) */
 	M0_LAYOUT_LINEAR_ENUM_MAGIC = 0x33b01dfaceb10b77,
 
+/* MGMT */
+	/* mgmt_svc::ms_magic (bald dada casa) */
+	M0_MGMT_SVC_MAGIC = 0x33ba1ddadaca5a77,
+
 /* Net */
 	/* m0_net_domain::nd_magix (acidic access) */
 	M0_NET_DOMAIN_MAGIC = 0x33ac1d1cacce5577,

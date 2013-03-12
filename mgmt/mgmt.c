@@ -411,11 +411,21 @@ Mero-WOMO Productization Planning</a>
 #define M0_ADDB_RT_CREATE_DEFINITION
 #include "mgmt/mgmt_addb.h"
 
+#include "lib/errno.h"
+#include "lib/memory.h"
+#include "lib/misc.h"
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MGMT
+#include "lib/trace.h"  /* M0_LOG() */
+#include "mero/magic.h"
+
 #include "mgmt/mgmt_pvt.h"
 #include "mgmt/mgmt_fops_xc.h"
 
 /** Management module global ADDB context */
 struct m0_addb_ctx m0_mgmt_addb_ctx;
+
+/* Include C files to minimize symbol exposure */
+#include "mgmt/svc/mgmt_svc.c"
 
 /**
    @addtogroup mgmt
@@ -424,8 +434,15 @@ struct m0_addb_ctx m0_mgmt_addb_ctx;
 
 M0_INTERNAL int m0_mgmt_init(void)
 {
+	int rc;
+
+	rc = mgmt_svc_init();
+	if (rc != 0)
+		return rc;
+
 	m0_xc_mgmt_fops_init();
 	m0_addb_ctx_type_register(&m0_addb_ct_mgmt_mod);
+	m0_addb_ctx_type_register(&m0_addb_ct_mgmt_service);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_mgmt_addb_ctx, &m0_addb_ct_mgmt_mod,
 			 &m0_addb_proc_ctx);
 	return 0;
@@ -435,7 +452,10 @@ M0_INTERNAL void m0_mgmt_fini(void)
 {
 	m0_addb_ctx_fini(&m0_mgmt_addb_ctx);
 	m0_xc_mgmt_fops_fini();
+	mgmt_svc_fini();
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of mgmt group */
 

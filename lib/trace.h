@@ -209,13 +209,14 @@ M0_INTERNAL void m0_trace_fini(void);
   M0_TRACE_SUBSYS(M0D,       13) \
   M0_TRACE_SUBSYS(M0T1FS,    14) \
   M0_TRACE_SUBSYS(MEMORY,    15) \
-  M0_TRACE_SUBSYS(NET,       16) \
-  M0_TRACE_SUBSYS(POOL,      17) \
-  M0_TRACE_SUBSYS(RM,        18) \
-  M0_TRACE_SUBSYS(RPC,       19) \
-  M0_TRACE_SUBSYS(SNS,       20) \
-  M0_TRACE_SUBSYS(SNSCM,     21) \
-  M0_TRACE_SUBSYS(STOB,      22)
+  M0_TRACE_SUBSYS(MGMT,      16) \
+  M0_TRACE_SUBSYS(NET,       17) \
+  M0_TRACE_SUBSYS(POOL,      18) \
+  M0_TRACE_SUBSYS(RM,        19) \
+  M0_TRACE_SUBSYS(RPC,       20) \
+  M0_TRACE_SUBSYS(SNS,       21) \
+  M0_TRACE_SUBSYS(SNSCM,     22) \
+  M0_TRACE_SUBSYS(STOB,      23)
 
 #define M0_TRACE_SUBSYS(name, value) M0_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */
@@ -396,7 +397,7 @@ M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list ap);
 		.td_sizeof = _sizeof					\
 	};								\
 	printf_check(FMT , ## __VA_ARGS__);				\
-	m0_trace_allot(&__trace_descr, &(const struct t_body){ __VA_ARGS__ });	\
+	m0_trace_allot(&__trace_descr, &(const struct t_body){ __VA_ARGS__ });\
 })
 
 #ifndef M0_TRACE_SUBSYSTEM

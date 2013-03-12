@@ -15,53 +15,49 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Carl Braganza <carl_braganza@xyratex.com>
- * Original creation date: 7-Mar-2013
+ * Original creation date: 11-Mar-2013
  */
 
-#pragma once
+/**
+   @page MGMT-SVC-DLD-FOP-SSR Management Service Status Response FOM
+   This FOP, defined by m0_fop_mgmt_service_status_res, returns the
+   status of a list of services.  There is no FOM defined for this
+   FOP.
 
-#ifndef __MERO_MGMT_MGMT_ADDB_H__
-#define __MERO_MGMT_MGMT_ADDB_H__
+   This FOP is used as the response FOP for a number of different request FOPs.
+   As such it is associated with the following utilities:
+   - mgmt_fop_ssr_fill()
+ */
+
 
-#include "addb/addb.h"
+/* This file is designed to be included by mgmt/svc/mgmt_svc.c */
 
 /**
-   @addtogroup mgmt
+   @ingroup mgmt_svc_pvt
    @{
  */
 
 /*
  ******************************************************************************
- * Management ADDB context types.
- * Do not change the numbering.
+ * FOP initialization logic
  ******************************************************************************
  */
-enum {
-	M0_ADDB_CTXID_MGMT_MOD     = 1500,
-	M0_ADDB_CTXID_MGMT_SERVICE = 1501,
-};
+static int mgmt_fop_ssr_init()
+{
+	return
+	   M0_FOP_TYPE_INIT(&m0_fop_mgmt_service_status_res_fopt,
+			    .name      = "Mgmt Service Status Response",
+			    .opcode    = M0_MGMT_SERVICE_STATUS_REPLY_OPCODE,
+			    .xt        = m0_fop_mgmt_service_status_res_xc,
+			    .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+}
 
-M0_ADDB_CT(m0_addb_ct_mgmt_mod, M0_ADDB_CTXID_MGMT_MOD);
-M0_ADDB_CT(m0_addb_ct_mgmt_service, M0_ADDB_CTXID_MGMT_SERVICE, "hi", "low");
+static void mgmt_fop_ssr_fini()
+{
+	m0_fop_type_fini(&m0_fop_mgmt_service_state_res_fopt);
+}
 
-/*
- ******************************************************************************
- * Management ADDB record identifiers.
- * Do not change the numbering.
- ******************************************************************************
- */
-
-
-/*
- ******************************************************************************
- * Management ADDB posting locations.
- * Do not change the numbering.
- ******************************************************************************
- */
-
-/** @} */ /* end of mgmt group */
-
-#endif /* __MERO_MGMT_MGMT_ADDB_H__ */
+/** @} end group mgmt_svc_pvt */
 
 /*
  *  Local variables:

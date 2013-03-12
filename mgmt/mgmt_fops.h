@@ -69,6 +69,7 @@ struct m0_mgmt_service_state_seq {
 /**
    Response FOP with state of services.  Typically sent in response to service
    management requests.
+   @see M0_MGMT_SERVICE_STATUS_REPLY_OPCODE
  */
 struct m0_fop_mgmt_service_state_res {
 	/**

@@ -37,6 +37,12 @@
    - @ref MGMT-SVC-DLD-st
    - @ref MGMT-SVC-DLD-O
 
+   Individual FOPs are documented separately:
+   - @subpage MGMT-SVC-DLD-FOP-SSR "Service Status Response FOP"
+   - @subpage MGMT-SVC-DLD-FOP-SS "Service Status FOP"
+   - @todo MGMT-SVC-DLD-FOP-SR "Service Run FOP"
+   - @todo MGMT-SVC-DLD-FOP-ST "Service Terminate FOP"
+
    <hr>
    @section MGMT-SVC-DLD-ovw Overview
    This design provides external control and monitoring interfaces for the
@@ -470,6 +476,171 @@ struct cs_reqh_context {
 
  */
 
+
+/* This file is designed to be included by mgmt/mgmt.c */
+#include "mgmt/svc/mgmt_svc.h"
+
+/* Include the FOPs */
+#include "mgmt/svc/fop_ssr.c"
+#include "mgmt/svc/fop_ss.c"
+
+/**
+   @ingroup mgmt_svc_pvt
+   @{
+ */
+
+static const struct m0_bob_type mgmt_svc_bob = {
+	.bt_name = "mgmt svc",
+	.bt_magix_offset = M0_MAGIX_OFFSET(struct mgmt_svc, ms_magic),
+	.bt_magix = M0_MGMT_SVC_MAGIC,
+	.bt_check = NULL
+};
+
+M0_BOB_DEFINE(static, &mgmt_svc_bob, mgmt_svc);
+
+/**
+   UT handle to a started singleton service.  Every instance started will
+   overwrite this without serialization.
+ */
+static struct mgmt_svc *the_mgmt_svc; /** @todo: Need this? */
+
+/*
+ ******************************************************************************
+ * MGMT service
+ ******************************************************************************
+ */
+static bool mgmt_svc_invariant(const struct mgmt_svc *svc)
+{
+	return mgmt_svc_bob_check(svc);
+}
+
+/**
+   The rso_start method to start the MGMT service.
+ */
+static int mgmt_svc_rso_start(struct m0_reqh_service *service)
+{
+	struct mgmt_svc *svc;
+
+	M0_LOG(M0_DEBUG, "starting");
+	M0_PRE(service->rs_state == M0_RST_STARTING);
+	/** @todo Should assert reqh state */
+	svc = bob_of(service, struct mgmt_svc, ms_reqhs, &mgmt_svc_bob);
+	the_mgmt_svc = svc;
+	return 0;
+}
+
+/**
+   The rso_prepare_to_stop method terminates the persistent FOMs.
+ */
+static void mgmt_svc_rso_prepare_to_stop(struct m0_reqh_service *service)
+{
+	struct mgmt_svc *svc;
+
+	M0_LOG(M0_DEBUG, "preparing to stop");
+	M0_PRE(service->rs_state == M0_RST_STARTED);
+	/** @todo Should assert reqh state */
+	svc = bob_of(service, struct mgmt_svc, ms_reqhs, &mgmt_svc_bob);
+}
+
+/**
+   The rso_stop method to stop the MGMT service.
+ */
+static void mgmt_svc_rso_stop(struct m0_reqh_service *service)
+{
+	M0_LOG(M0_DEBUG, "stopping");
+	M0_PRE(service->rs_state == M0_RST_STOPPING);
+	/** @todo Should assert reqh state */
+}
+
+/**
+   The rso_fini method to finalize the MGMT service.
+ */
+static void mgmt_svc_rso_fini(struct m0_reqh_service *service)
+{
+	struct mgmt_svc *svc;
+
+	M0_LOG(M0_DEBUG, "done");
+	M0_PRE(M0_IN(service->rs_state, (M0_RST_STOPPED, M0_RST_FAILED)));
+	/** @todo Should assert reqh state */
+	svc = bob_of(service, struct mgmt_svc, ms_reqhs, &mgmt_svc_bob);
+	mgmt_svc_bob_fini(svc);
+	the_mgmt_svc = NULL;
+	m0_free(svc);
+}
+
+static const struct m0_reqh_service_ops mgmt_service_ops = {
+	.rso_start           = mgmt_svc_rso_start,
+	.rso_prepare_to_stop = mgmt_svc_rso_prepare_to_stop,
+	.rso_stop            = mgmt_svc_rso_stop,
+	.rso_fini            = mgmt_svc_rso_fini
+};
+
+/*
+ ******************************************************************************
+ * MGMT service type
+ ******************************************************************************
+ */
+
+/**
+   The rsto_service_allocate method to allocate an MGMT service instance.
+ */
+static int mgmt_svc_rsto_service_allocate(struct m0_reqh_service **service,
+					  struct m0_reqh_service_type *stype,
+					const char *arg __attribute__((unused)))
+{
+	struct mgmt_svc *svc;
+
+	M0_ALLOC_PTR(svc);
+	if (svc == NULL) {
+		M0_LOG(M0_ERROR, "Unable to allocate memory for MGMT service");
+		return -ENOMEM;
+	}
+	*service = &svc->ms_reqhs;
+	(*service)->rs_type = stype;
+	(*service)->rs_ops = &mgmt_service_ops;
+	mgmt_svc_bob_init(svc);
+
+	M0_POST(mgmt_svc_invariant(svc));
+
+	return 0;
+}
+
+static struct m0_reqh_service_type_ops mgmt_service_type_ops = {
+	.rsto_service_allocate = mgmt_svc_rsto_service_allocate,
+};
+
+M0_REQH_SERVICE_TYPE_DEFINE(m0_mgmt_svc_type, &mgmt_service_type_ops,
+                            M0_MGMT_SVC_TYPE_NAME, &m0_addb_ct_mgmt_service);
+
+/*
+ ******************************************************************************
+ * MGMT service initialization
+ ******************************************************************************
+ */
+
+/**
+   Initialize the management service sub-module.
+ */
+static int mgmt_svc_init()
+{
+	int rc;
+
+	rc = m0_reqh_service_type_register(&m0_mgmt_svc_type) ?:
+		mgmt_fop_ssr_init() ?:
+		mgmt_fop_ss_init();
+	return rc;
+}
+
+/**
+   Finalize the management service sub-module.
+ */
+static void mgmt_svc_fini()
+{
+	mgmt_fom_service_state_req_fini();
+        m0_reqh_service_type_unregister(&m0_mgmt_svc_type);
+}
+
+/** @} end group mgmt_svc_pvt */
 
 /*
  *  Local variables:
