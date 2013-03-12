@@ -486,9 +486,6 @@ enum m0_magic_satchel {
 	/* m0_reqh_rpc_mach_tl::td_head_magic (laissez eifel) */
 	M0_REQH_RPC_MACH_HEAD_MAGIC = 0x331a155e2e1fe177,
 
-	/* m0_reqh_fop_policy::rfp_magic (fops decided) */
-	M0_REQH_FP_MAGIC = 0x33f0b50dec1ded77,
-
 /* State Machine */
 	/* m0_sm_conf::scf_magic (falsie zodiac) */
 	M0_SM_CONF_MAGIC = 0x33FA151E20D1AC77,

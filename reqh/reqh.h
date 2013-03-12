@@ -73,11 +73,33 @@ struct m0_local_service_ops {
 };
 
 /**
+   Request handler states.
+
+   See @ref MGMT-SVC-DLD-lspec-rh-sm "Request Handler State Machine".
+   <!-- mgmt/svc/mgmt_svc.c -->
+ */
+enum m0_reqh_states {
+	M0_REQH_ST_INIT = 0,
+	M0_REQH_ST_MGMT_START,
+	M0_REQH_ST_SVCS_START,
+	M0_REQH_ST_NORMAL,
+	M0_REQH_ST_DRAIN,
+	M0_REQH_ST_SVCS_STOP,
+	M0_REQH_ST_MGMT_STOP,
+	M0_REQH_ST_STOPPED,
+
+	M0_REQH_ST_NR
+};
+
+/**
    Request handler instance.
  */
 struct m0_reqh {
 	/** Request handler magic. */
 	uint64_t                 rh_magic;
+
+	/** State machine. */
+	struct m0_sm             rh_sm;
 
 	struct m0_dtm		*rh_dtm;
 
@@ -99,6 +121,9 @@ struct m0_reqh {
 	    @see m0_reqh_service::rs_linkage
 	 */
         struct m0_tl             rh_services;
+
+	/** Pointer to the management service */
+	struct m0_reqh_service  *rh_mgmt_svc;
 
         /**
 	    RPC machines running in this request handler
@@ -134,9 +159,6 @@ struct m0_reqh {
 	 */
 	struct m0_chan           rh_sd_signal;
 	struct m0_mutex          rh_mutex; /**< protect rh_sd_signal chan */
-
-	/** FOP acceptance policy */
-	struct m0_reqh_fop_policy rh_fp;
 
 	/** Local service consuming reply. */
 	struct m0_local_service *rh_svc;
@@ -203,6 +225,35 @@ M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh);
    @pre reqh != NULL
  */
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh);
+
+/**
+   Get the state of the request handler.
+ */
+M0_INTERNAL int m0_reqh_state_get(struct m0_reqh *reqh);
+
+/**
+   Set the state of the request handler.
+   @pre state > M0_REQH_ST_INIT && state < M0_REQH_ST_NR
+ */
+M0_INTERNAL void m0_reqh_state_set(struct m0_reqh *reqh,
+				   enum m0_reqh_states state);
+
+/**
+   Identify the management service.
+
+   See @ref MGMT-SVC-DLD-lspec-mgmt-svc "The Management Service".
+   <!-- mgmt/svc/mgmt_svc.c -->
+ */
+M0_INTERNAL void m0_reqh_mgmt_service_set(struct m0_reqh *reqh,
+					  struct m0_reqh_service *mgmt_svc);
+
+/**
+   Decide whether to process an incoming FOP.
+
+   See @ref MGMT-SVC-DLD-lspec-rh-sm "Request Handler State Machine".
+   <!-- mgmt/svc/mgmt_svc.c -->
+ */
+M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop);
 
 /**
    Submit fop for request handler processing.

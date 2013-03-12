@@ -26,9 +26,7 @@
    - @ref MGMT-SVC-DLD-highlights
    - @ref MGMT-SVC-DLD-lspec
       - @ref MGMT-SVC-DLD-lspec-comps
-      - @ref MGMT-SVC-DLD-lspec-fap
-         - @ref MGMT-SVC-DLD-lspec-fap-sm
-         - @ref MGMT-SVC-DLD-lspec-fap-mc
+      - @ref MGMT-SVC-DLD-lspec-rh-sm
       - @ref MGMT-SVC-DLD-lspec-mgmt-svc
       - @ref MGMT-SVC-DLD-lspec-mgmt-foms
       - @ref MGMT-SVC-DLD-lspec-state
@@ -61,28 +59,16 @@
 
    <hr>
    @section MGMT-SVC-DLD-depends Dependencies
-   - A FOP acceptance policy engine is added to the request handler to address
+   - A state machine is added to the request handler to address
    R.reqh.startup.synchronous, graceful shutdown and to support management
-   operations.  This is explained in @ref MGMT-SVC-DLD-lspec-fap.
-@code
-   struct m0_reqh {
-          ...
-          struct m0_reqh_fop_policy rh_fap;
-   };
-@endcode
+   operations.
    The m0_reqh::rh_shutdown flag will be eliminated.  Associated methods of the
    request handler object and its container object will need modification.
+   This is explained in @ref MGMT-SVC-DLD-lspec-rh-sm.
 
    - The m0_reqh_service_ops object is extended to define a new optional method
-   to be used by the FOP acceptance policy under circumstances described in
-   @ref MGMT-SVC-DLD-lspec-fap-mc :
-@code
-   struct m0_reqh_service_ops {
-       ...
-       int (*rso_fop_accept)(struct m0_reqh_service *service,
-                             struct m0_fop *fop);
-   }
-@endcode
+   to be used by the request handler under circumstances described in
+   @ref MGMT-SVC-DLD-lspec-rh-sm.
 
    - The m0_reqh_service object is extended to add a counter to track the number
    of outstanding FOMs of a service.  This is needed to implement the graceful
@@ -95,23 +81,52 @@
 @endcode
    The counter is operated from the m0_fom_init() and m0_fom_fini() subroutines,
    as explained in @ref MGMT-SVC-DLD-lspec-mgmt-foms.
+   - The m0_reqh_service object identifier must be modified to use a 128 bit
+   field UUID instead of its current 64 bit identifier.  However, since this
+   field is used as a 64 bit identifier in the IO service, an alternative field
+   is introduced until such time as this can get resolved.
+@code
+   struct m0_reqh_service {
+         struct m0_uint128 rs_service_uuid;
+	 // deprecated
+         uint64_t          rs_uuid;
+         ...
+   };
+@endcode
+   - The _args_parse() subroutine of mero/setup.c must be extended to
+   accept an optional UUID field after the service type in the arguments
+   of m0d.
+@verbatim
+         -s ServiceType[:UUID]
+@endverbatim
+   The service UUID can be parsed with m0_uuid_parse(). A new array field should
+   be added to cs_reqh_context to store the list of service UUIDs parallel
+   to the service type in rc_services.
+@code
+struct cs_reqh_context {
+	...
+	const char                 **rc_services;      // existing, malloc'd
+	struct m0_uint128           *rc_service_uuids; // new, malloc'd
+	...
+};
+@endcode
+   The array must be allocated along with rc_services in cs_reqh_ctx_alloc(),
+   and freed in cs_reqh_ctx_free().
 
    <hr>
    @section MGMT-SVC-DLD-highlights Design Highlights
-   - A policy to control incoming FOP processing is added to the request
-   handler to formally define when FOPs are to be accepted.
+   - A state machine added to the request handler to formally define when FOPs
+   are to be accepted.
    - A special "management" request handler service is provided to
    expose a service management FOP interface.
-     - It works in conjunction with the FOP acceptance policy.
+     - It works in conjunction with the request handler state machine.
      - The m0mc command will be its primary client.
      - It is extensible to additional management tasks.
 
    <hr>
    @section MGMT-SVC-DLD-lspec Logical Specification
    - @ref MGMT-SVC-DLD-lspec-comps
-   - @ref MGMT-SVC-DLD-lspec-fap
-      - @ref MGMT-SVC-DLD-lspec-fap-sm
-      - @ref MGMT-SVC-DLD-lspec-fap-mc
+   - @ref MGMT-SVC-DLD-lspec-rh-sm
    - @ref MGMT-SVC-DLD-lspec-mgmt-svc
    - @ref MGMT-SVC-DLD-lspec-mgmt-foms
    - @ref MGMT-SVC-DLD-lspec-state
@@ -120,11 +135,11 @@
 
    @subsection MGMT-SVC-DLD-lspec-comps Component Overview
    This design involves the following sub-components:
-   - A FOP acceptance policy
+   - A state machine in the request handler
    - An associated management service
 
-   @subsection MGMT-SVC-DLD-lspec-fap FOP Acceptance Policy
-   A policy engine is introduced in the @ref reqh "request handler"
+   @subsection MGMT-SVC-DLD-lspec-rh-sm Request Handler State Machine
+   A state machine is introduced in the @ref reqh "request handler"
    to determine when incoming FOPs are to be accepted for processing.
    This is necessary because:
    - External management support requires that we precisely define when
@@ -134,49 +149,52 @@
    - Shutdown is very abrupt - it may be necessary to "drain" activities
    of some services on a case-by-case basis.
 
-   The policy must take the following into account when determining whether to
-   accept an incoming FOP:
-   - The willingness of the request handler to process incoming FOPs.  A formal
-   state model is introduced, as described in @ref MGMT-SVC-DLD-lspec-fap-sm.
+   The following must be taken into account when determining whether to
+   accept an incoming FOP in the request handler:
+   - The ability of the request handler to process incoming FOPs.  A formal
+   state model is introduced, as described below.
    - The state of the request handler service that will animate the incoming
-   FOP.  The policy must take into account the fact that a service could be
+   FOP.  The decision must take into account the fact that a service could be
    starting or stopping in response to individual management operations.
 
-   The policy is represented the m0_reqh::rh_fap field, whose data type
-   is defined as:
+   The request handler is extended as follows:
 @code
-   struct m0_reqh_fop_policy {
-       struct m0_sm            rfp_sm;       // policy state machine
-       struct m0_reqh_service *rfp_mgmt_svc; // the management service
+   struct m0_reqh {
+       ...
+       struct m0_sm            rh_sm;       // state machine
+       struct m0_reqh_service *rh_mgmt_svc; // the management service
    };
 @endcode
-   Note that the policy is designed to work in conjunction with the management
-   service, and maintains a pointer to the service for this purpose.
+   Note that the state machine works in conjunction with the management
+   service, and hence a pointer to the service is maintained for this purpose.
 
-   New subroutines are provided to initialize and finalize the policy:
-   - m0_reqh_fp_init()
-   - m0_reqh_fp_fini()
+   Additionally, a new method is added to m0_reqh_service_ops:
+@code
+   struct m0_reqh_service_ops {
+       ...
+       int (*rso_fop_accept)(struct m0_reqh_service *service,
+                             struct m0_fop *fop);
+   }
+@endcode
+   The method is optional, and will be used by the m0_reqh_fop_allow()
+   subroutine described below.
 
-   The policy object can be extended in the future to maintain statistical
-   information on its use.
-
-   @subsubsection MGMT-SVC-DLD-lspec-fap-sm FOP Acceptance Policy State Machine
-   The FOP acceptance policy state machine is as follows:
+   The request handler state machine is defined as follows:
    @dot
    digraph fa_sm {
        size = "6,7"
-       label = "FOP Acceptance State Machine"
+       label = "Request Handler State Machine"
        node [shape=record, fontname=Courier, fontsize=12]
        edge [fontsize=12]
        before [label="", shape="plaintext", layer=""]
-       init   [label="INIT"]
-       mstart [label="M0_REQH_FP_MGMT_START"]
-       sstart [label="M0_REQH_FP_SVCS_START"]
-       normal [label="M0_REQH_FP_NORMAL"]
-       sdrain [label="M0_REQH_FP_DRAIN"]
-       sstop  [label="M0_REQH_FP_SVCS_STOP"]
-       mstop  [label="M0_REQH_FP_MGMT_STOP"]
-       fini   [label="M0_REQH_FP_STOPPED"]
+       init   [label="M0_REQH_ST_INIT"]
+       mstart [label="M0_REQH_ST_MGMT_START"]
+       sstart [label="M0_REQH_ST_SVCS_START"]
+       normal [label="M0_REQH_ST_NORMAL"]
+       sdrain [label="M0_REQH_ST_DRAIN"]
+       sstop  [label="M0_REQH_ST_SVCS_STOP"]
+       mstop  [label="M0_REQH_ST_MGMT_STOP"]
+       fini   [label="M0_REQH_ST_STOPPED"]
        before -> init [label="m0_reqh_init(reqh)"]
        init -> mstart [label="cs_services_init()"]
        init -> fini [label="fail"]
@@ -191,25 +209,25 @@
    }
    @enddot
    The states and associated activities are as follows:
-   - @b M0_REQH_FP_INIT The initial state when the request handler object has
+   - @b M0_REQH_ST_INIT The initial state when the request handler object has
      been initialized by m0_reqh_init().
      No FOPs are accepted in this state.
-   - @b M0_REQH_FP_MGMT_START The request handler starts the management service
+   - @b M0_REQH_ST_MGMT_START The request handler starts the management service
      in this state.
      No FOPs are accepted in this state.
      The transition to this state will take place in cs_services_init().
-   - @b M0_REQH_FP_SVCS_START The request handler starts other services in
+   - @b M0_REQH_ST_SVCS_START The request handler starts other services in
      this state.
      Incoming management status queries are accepted, but all other FOPs are
-     rejected.
+     rejected, as explained below.
      The transition to this state will take place in cs_services_init().
-   - @b M0_REQH_FP_NORMAL All services are started, and all FOPs are accepted.
+   - @b M0_REQH_ST_NORMAL All services are started, and all FOPs are accepted.
      It is possible that individual services be started and stopped via
      management calls when the request handler is in this state, so care has to
      be taken to reject FOPs for services that are not in their ::M0_RST_STARTED
      state.
      The transition to this state will take place in cs_services_init().
-   - @b M0_REQH_FP_DRAIN Services are notified that they will be stopped.
+   - @b M0_REQH_ST_DRAIN Services are notified that they will be stopped.
      Incoming management status queries are accepted, but all other FOPs are
      rejected.
      The transition to this state happens within m0_reqh_shutdown_wait().
@@ -223,34 +241,34 @@
           locality FOM counters, or reject management queries if they arrive
 	  too frequently or after some maximum count has been reached since
 	  transitioning to the state.
-   - @b M0_REQH_FP_SVCS_STOP Services are stopped and finalized.  Incoming
+   - @b M0_REQH_ST_SVCS_STOP Services are stopped and finalized.  Incoming
      management status queries are accepted, but all other FOPs are rejected.
      The transition to this state happens within m0_reqh_services_terminate();
      care must be taken to not stop the management service until the other
      services are terminated.
-   - @b M0_REQH_FP_MGMT_STOP The management service is stopped.
+   - @b M0_REQH_ST_MGMT_STOP The management service is stopped.
      The transition to this state happens within m0_reqh_services_terminate(),
      after services are terminated.
      No FOPs are accepted in this state.
      A second call must be made to m0_reqh_fom_domain_idle_wait() to ensure that
      ongoing management FOMs terminate and then the management service is
      stopped.
-   - @b M0_REQH_FP_STOPPED The request handler object is stopped.
+   - @b M0_REQH_ST_STOPPED The request handler object is stopped.
      The transition to this state is made in m0_reqh_services_terminate()
      after the management service is stopped.
 
-   New utility subroutines are provided to operate on the policy state machine:
-   - m0_reqh_fp_state_get() returns the state of this state machine.
-   - m0_reqh_fp_state_set() sets the state of this state machine.
+   New utility subroutines are provided to operate on the state machine:
+   - m0_reqh_state_get() returns the state of this state machine.
+   - m0_reqh_state_set() sets the state of this state machine.
+   - m0_reqh_fop_allow() determines if an incoming FOP should be accepted.
 
-   @subsubsection MGMT-SVC-DLD-lspec-fap-mc FOP Acceptance Policy Engine
-   The FOP acceptance policy decision is made by the m0_reqh_fp_accept()
+   The decision to accept an incoming FOP is made by the m0_reqh_fop_allow()
    subroutine.  It is intended to be used from the m0_reqh_fop_handle()
    subroutine, and will return an error code that can be provided to the
    underlying RPC subsystem, as follows:
 @code
 	m0_rwlock_read_lock(&reqh->rh_rwlock);
-	rc = m0_reqh_fp_accept(&reqh->rh_fp, reqh, fop);
+	rc = m0_reqh_fop_allow(reqh, fop);
 	if (rc != 0) {
 		REQH_ADDB_FUNCFAIL(rc, FOP_HANDLE_2, &reqh->rh_addb_ctx);
 		m0_rwlock_read_unlock(&reqh->rh_rwlock);
@@ -262,17 +280,22 @@
    Note that the existing m0_reqh::rh_shutdown field which is currently
    tested in the above "if" statement is no longer necessary.
 
-   The policy decision algorithm is illustrated by the following pseudo-code:
+   @todo Explore moving this call to later after FOM creation, so that
+   a proper failure response FOP can be returned.  This may particularly
+   apply to case @b C (see below).
+
+   The m0_reqh_fop_allow() algorithm is illustrated by the following
+   pseudo-code:
 @code
-   if (fp state is INIT or MGMT_START)
+   if (reqh state is INIT or MGMT_START)
       return -EAGAIN;
    rc = -ESHUTDOWN;
-   if (fp state is MGMT_STOP or STOPPED)
+   if (reqh state is MGMT_STOP or STOPPED)
       return rc;
    svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);
    if (svc == NULL)
       return -ECONNREFUSED;
-   if (fp state is NORMAL) {
+   if (reqh state is NORMAL) {
        if (svc->rs_state == M0_RST_STARTED)
           return 0; // case A
        else if (svc->rs_state == M0_RST_STOPPING) {
@@ -280,13 +303,13 @@
              rc = (*svc->rs_ops->rso_fop_accept)(svc, fop); // case B
        }
        else if (svc->rs_state == M0_RST_STARTING)
-             rc = -EAGAIN;  // case C
-   } else if (fp state is DRAIN) {
+             rc = -EBUSY;  // case C
+   } else if (reqh state is DRAIN) {
        if (svc->rs_ops->rso_fop_accept != NULL &&
            (svc->rs_state == M0_RST_STARTED ||
 	    svc->rs_state == M0_RST_STOPPING))
 	   rc = (*svc->rs_ops->rso_fop_accept)(svc, fop); // case D
-   } else if (fp state is SVCS_START or SVCS_STOP &&
+   } else if (reqh state is SVCS_START or SVCS_STOP &&
               svc is the management service)
        rc = (*svc->rs_ops->rso_fop_accept)(svc, fop); // case E
    return rc;
@@ -300,8 +323,10 @@
    sort of session tear down processing.
    - @b C In this case the request handler is operating normally but the
    service is in the process of starting (in response to an earlier management
-   operation).  The error code indicates that the request could be retried
-   later.
+   operation).  The returned error code must distinguish this case from others
+   to allow higher layers the option of sending a failure response FOP.
+   Note that this case cannot happen if the service in question was not
+   previously terminated by a management FOP.
    - @b D In this case the request handler is draining operations. If the
    service defines an rso_fop_accept() method then, like in case @b B, the
    service is consulted.  Note that the management service itself should
@@ -311,26 +336,39 @@
    services. Only management service query operations are permitted, and
    the management service is consulted on whether to accept the FOP or not.
 
-   Note the use of m0_reqh_service_find() to locate the service for the
-   incoming FOP based on the service type.  This copies similar logic in
-   the m0_fom_init() subroutine.
+   The m0_reqh_service_find() subroutine is used to locate the service for
+   the incoming FOP based on the service type.  This copies similar logic in the
+   m0_fom_init() subroutine.
 
-   Note that we have to ensure that any change to service state from management
+         @todo When the request handler manages services by their UUID instead
+	 of their service type, all such occurences should be modified.  The
+	 locker key should be moved to the service object and not the service
+	 type.  Some work will need to be done to handle assignment of a FOP
+	 to a specific service if multiple of the same type exist in the
+	 request handler.  In turn, this will need modification to the
+	 fto_create() method signature to pass the service object pointer in
+	 directly.
+
+   We have to ensure that any change to service state from management
    FOPs is done while holding the write lock on m0_reqh::rh_rwlock.
+
+   	@todo The locking model for FOM creation must be re-addressed.
+	Currently a read-lock is held on the request handler, and the
+	service mutex is acquired in the call to m0_fom_init().
 
    @subsection MGMT-SVC-DLD-lspec-mgmt-svc The Management Service
    The management service is a special request handler service that is
    implicitly created in the cs_services_init() subroutine.
    The management service should never be created explicitly; this
    will be asserted by the service's rso_start() method, which is charged with
-   setting the m0_reqh_fop_policy::rfp_mgmt_svc field in the FOP acceptance
-   policy object in the request handler.
+   setting the m0_reqh::rh_mgmt_svc field in the request handler.
 
    @subsection MGMT-SVC-DLD-lspec-mgmt-foms Management FOPs and FOMs
    The management service defines FOPs for the following operations:
-   - Query the state of services (m0_fop_mgmt_service_status_req)
-   - Start services (m0_fop_mgmt_service_run_req)
-   - Stop services (m0_fop_mgmt_service_terminate_req)
+   - Query the state of services (m0_fop_mgmt_service_state_req)
+
+   @todo Start services (m0_fop_mgmt_service_run_req)
+   and Stop services (m0_fop_mgmt_service_terminate_req)
 
    Additional FOPs can be added in the future to control run time tracing, etc.
 
@@ -365,20 +403,16 @@
 
    @subsection MGMT-SVC-DLD-lspec-state State Specification
 
-   The FOP acceptance policy is influenced by two state machines:
-   m0_reqh::rh_fhp::rfp_sm described in @ref MGMT-SVC-DLD-lspec-fap-sm, and
-   m0_reqh_service::rs_state, described in
-   @ref reqhservice "request handler service".
-   The policy engine is described in @ref MGMT-SVC-DLD-lspec-fap-mc.
+   A state machine is introduced in the @ref reqh "Request Handler" and
+   is described in @ref MGMT-SVC-DLD-lspec-rh-sm.
 
    Each management FOM implements a "phase" state machine. See the individual
-   FOMs for details:
-   - @todo Add references to the FOMs here
+   FOMs for details.
 
    @subsection MGMT-SVC-DLD-lspec-thread Threading and Concurrency Model
    - The m0_reqh::rh_rwlock read-lock is held in the m0_reqh_fop_handle()
    subroutine when using m0_reqh::rh_fap::rfp_accept() method.  This
-   is described in @ref MGMT-SVC-DLD-lspec-fap-mc.
+   is described in @ref MGMT-SVC-DLD-lspec-rh-sm.
    - The m0_reqh::rh_rwlock is used to synchronize service management
    operations.  These are potentially blocking calls so FOM blocking support
    subroutines are used.
@@ -398,14 +432,15 @@
    - @b I.reqh.mgmt-api.service.start
      The m0_fop_mgmt_service_run_req FOP is provided for this.
    - @b I.reqh.startup.synchronous
-     A FOP acceptance policy has been added to the request handler to
+     A state machine has been added to the request handler to
      address this issue.
    - @b I.reqh.mgmt-api.service.stop
      The m0_fop_mgmt_service_terminate_req FOP is provided for this.
    - @b I.reqh.mgmt-api.service.query
      The m0_fop_mgmt_service_status_req FOP is provided for this.
    - @b R.reqh.mgmt-api.shutdown
-     The FOP acceptance policy provides support for a more graceful shutdown.
+     The request handler state machine provides support for a more graceful
+     shutdown.
    - @b I.reqh.mgmt-api.control Provide an external interface to control
      New FOPs can be added to the management service to provide such
      control.
@@ -419,10 +454,19 @@
 
    <hr>
    @section MGMT-SVC-DLD-O Analysis
-   The FOP acceptance policy is involved with each FOP processed. The data it
-   references is readily available and no major computation is involved.
+   The m0_reqh_fop_allow() subroutine is involved with each FOP processed. The
+   data it references is readily available and no major computation is involved.
    Service methods are invoked only in the rare cases of request handler or
    service state change while processing FOPs.
+
+   <hr>
+   @section MGMT-DLD-impl-plan Implementation Plan
+   - Implement support to query all services, and not individual services.
+   Do not implement support for individual service level control.
+   - Implement the state machine in the request handler, instrumenting the
+   existing startup and shutdown logic.
+
+   Other features as required by the shipping product.
 
  */
 

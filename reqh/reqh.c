@@ -37,7 +37,6 @@
 #include "fop/fop.h"
 #include "dtm/dtm.h"
 #include "rpc/rpc.h"
-#include "reqh/reqh_fp.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
 #include "layout/pdclust.h"
@@ -174,6 +173,7 @@ M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
         m0_fom_domain_fini(&reqh->rh_fom_dom);
         m0_reqh_svc_tlist_fini(&reqh->rh_services);
         m0_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
+	/** @todo finalize the state machine */
 	m0_reqh_lockers_fini(reqh);
 	m0_rwlock_fini(&reqh->rh_rwlock);
 	m0_chan_fini_lock(&reqh->rh_sd_signal);
@@ -191,6 +191,27 @@ M0_INTERNAL int m0_reqhs_init(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_reqh_mod);
 	m0_bob_type_tlist_init(&rqsvc_bob, &m0_reqh_svc_tl);
 	return 0;
+}
+
+M0_INTERNAL int m0_reqh_state_get(struct m0_reqh *reqh)
+{
+	return 0;
+}
+
+M0_INTERNAL void m0_reqh_state_set(struct m0_reqh *reqh,
+				   enum m0_reqh_states state)
+{
+}
+
+M0_INTERNAL void m0_reqh_mgmt_service_set(struct m0_reqh *reqh,
+					  struct m0_reqh_service *mgmt_svc)
+{
+}
+
+M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh,
+				  struct m0_fop *fop)
+{
+	return -ENOSYS;
 }
 
 M0_INTERNAL void m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)

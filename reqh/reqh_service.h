@@ -203,6 +203,14 @@ struct m0_reqh_service {
 	/**
 	   Service id that should be unique throughout the cluster.
 	 */
+	struct m0_uint128                 rs_service_uuid;
+
+	/**
+	   @deprecated Use rs_service_uuid instead.
+	   Service id that should be unique throughout the cluster.
+	   This must be a 128 bit number, but is currently used as a 64
+	   bit key by IO service in m0_ios_cdom_get().
+	 */
 	uint64_t                          rs_uuid;
 
 	/**

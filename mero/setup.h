@@ -26,6 +26,7 @@
 #include <stdio.h> /* FILE */
 
 #include "lib/tlist.h"
+#include "lib/types.h"        /* m0_uint128 */
 #include "reqh/reqh_service.h"
 #include "stob/stob.h"
 #include "db/db.h"
@@ -360,6 +361,9 @@ struct m0_reqh_context {
 
 	/** Services running in request handler context. */
 	const char                 **rc_services;
+
+	/** Service UUIDs */
+	struct m0_uint128           *rc_service_uuids;
 
 	/** Number of services configured in request handler context. */
 	uint32_t                     rc_nr_services;

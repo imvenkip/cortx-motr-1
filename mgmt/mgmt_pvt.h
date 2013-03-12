@@ -36,12 +36,23 @@
    - Query
    - Stop
 
+   The following existing data structures are modified by this design:
+   - m0_reqh
+   - m0_reqh_service_ops
+
    <hr>
    @section MGMT-DLD-fspec-sub Subroutines and Macros
 
    The following interfaces interact with the Mero initialization subsystem:
    - m0_mgmt_init()
    - m0_mgmt_fini()
+
+   The following interfaces are added to the Request handler to support
+   proper management of services:
+   - m0_reqh_fop_allow()
+   - m0_reqh_mgmt_service_set()
+   - m0_reqh_state_get()
+   - m0_reqh_state_set()
 
    <hr>
    @section MGMT-DLD-fspec-cli Command Usage

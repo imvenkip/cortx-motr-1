@@ -126,11 +126,11 @@
    - Adopt a standard m0d deployment configuration.
       - Provide standard operating system "service" command support to start
         and stop m0d.
+   - Add formal states to a request handler to handle graceful startup and
+   shutdown.
    - Automatically insert a Management service in every request handler.
       - Interact with this service through Management FOPs.
       - Provide the m0mc command line program.
-      - Add a formal policy to control when m0d accepts incoming FOPs, to
-      handle graceful startup and shutdown.
 
    <hr>
    @section MGMT-DLD-lspec Logical Specification
@@ -259,20 +259,30 @@ h[00-10]  s_ioservice=-T:AD:-S:/etc/sysconfig/mero/stobs # IO service; stobs
 h[00-10]  s_sns                          # hosts running SNS
 h00       HA-PROXY                       # hosts running HA proxies
 h00       uuid=b47539c2-143e-44e8-9594-a8f6e09bfec0
+h00       u_confd=d2655b68-f578-45cb-bbb9-c1495e083074
 h01       uuid=6d5ddc53-b1b6-43ae-9c7c-16c227b2ea5a
 h02       uuid=26a17da7-d5f2-462d-960d-205334adb028
 h03       uuid=68b617e1-097a-4e46-8d16-3e202628c568
+h03       u_ioservice=f595564a-20ca-4b12-8f4b-0d2f82726d61
 @endverbatim
    Most of the attributes in the example above are self explanatory, but
    some need additional explanation:
-   - s_@em Name denotes a service (type) @em Name that needs to be started
+   - @a uuid is the Node UUID.  This value is passed as a parameter to the Mero
+   kernel module to uniquely identify the node.
+   - @a s_Name denotes a service (type) @em Name that needs to be started
    on a node.
    The value of this attribute, if any, are a list of colon separated m0d
    arguments.
-   - lnet_host This attribute provides a mapping from a node name to the
+   - @a u_Name specifies the UUID of the specified service (type).
+   Every service instance in the cluster must a UUID - the example above
+   only illustrates a couple of service uuids.  Communication with
+   @ref MGMT-SVC-DLD-lspec-mgmt-foms "Management FOPs" uses the
+   service UUIDs.  The m0mc program will handle user friendly service type
+   names for services instead of UUID, if there is no ambiguity.
+   - @a lnet_host This attribute provides a mapping from a node name to the
    symbolic host name associated with the IP address to use for LNet on that
    node.
-   - "var" is the location of the variable data directory where run time Mero
+   - @a var is the location of the variable data directory where run time Mero
    data is stored.  This directory will be used as the "current" directory of
    the m0d process
 
@@ -295,6 +305,7 @@ s_addb=-A:/etc/sysconfig/mero/addb-stobs
 s_ioservice=-T:AD:-S:/etc/sysconfig/mero/stobs
 s_sns
 uuid=68b617e1-097a-4e46-8d16-3e202628c568
+u_ioservice=f595564a-20ca-4b12-8f4b-0d2f82726d61
 
 # nodeattr -c s_confd
 h00,h01
