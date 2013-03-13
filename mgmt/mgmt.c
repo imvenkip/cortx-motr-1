@@ -274,11 +274,9 @@ h03       u_ioservice=f595564a-20ca-4b12-8f4b-0d2f82726d61
    The value of this attribute, if any, are a list of colon separated m0d
    arguments.
    - @a u_Name specifies the UUID of the specified service (type).
-   Every service instance in the cluster must a UUID - the example above
+   Every service instance in the cluster must have a UUID - the example above
    only illustrates a couple of service uuids.  Communication with
-   @ref MGMT-SVC-DLD-lspec-mgmt-foms "Management FOPs" uses the
-   service UUIDs.  The m0mc program will handle user friendly service type
-   names for services instead of UUID, if there is no ambiguity.
+   @ref MGMT-SVC-DLD-lspec-mgmt-foms "Management FOPs" uses service UUIDs.
    - @a lnet_host This attribute provides a mapping from a node name to the
    symbolic host name associated with the IP address to use for LNet on that
    node.
