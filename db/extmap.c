@@ -606,6 +606,18 @@ M0_INTERNAL m0_bcount_t m0_emap_caret_step(const struct m0_emap_caret *car)
 	return car->ct_it->ec_seg.ee_ext.e_end - car->ct_index;
 }
 
+M0_INTERNAL int m0_emap_extent_update(struct m0_emap_cursor *it,
+				      struct m0_emap_seg *es)
+{
+	M0_PRE(es != NULL);
+
+	it->ec_seg.ee_ext.e_start = es->ee_ext.e_start;
+	it->ec_seg.ee_ext.e_end   = es->ee_ext.e_end;
+	it->ec_seg.ee_val         = es->ee_val;
+
+	return IT_DO_PACK(it, m0_db_cursor_set);
+}
+
 /** @} end group extmap */
 
 /*

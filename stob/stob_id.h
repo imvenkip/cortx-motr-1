@@ -23,6 +23,7 @@
 #define __MERO_STOB_STOB_ID_H__
 
 #include "lib/arith.h"
+#include "lib/types_xc.h"
 
 /**
    Unique storage object identifier.
@@ -31,7 +32,7 @@
  */
 struct m0_stob_id {
 	struct m0_uint128 si_bits;
-};
+} M0_XCA_RECORD;
 
 M0_INTERNAL bool m0_stob_id_eq(const struct m0_stob_id *id0,
 			       const struct m0_stob_id *id1);

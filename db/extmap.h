@@ -305,6 +305,9 @@ M0_INTERNAL int m0_emap_caret_move(struct m0_emap_caret *car,
 
 M0_INTERNAL m0_bcount_t m0_emap_caret_step(const struct m0_emap_caret *car);
 
+M0_INTERNAL int m0_emap_extent_update(struct m0_emap_cursor *it,
+				      struct m0_emap_seg *es);
+
 /** @} end group extmap */
 
 /* __MERO_DB_EXTMAP_H__ */

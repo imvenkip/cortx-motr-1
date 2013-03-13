@@ -84,11 +84,30 @@ M0_INTERNAL int m0_stob_domain_locate(struct m0_stob_type *type,
 	return M0_STOB_TYPE_OP(type, sto_domain_locate, domain_name, dom);
 }
 
+M0_INTERNAL struct m0_stob_domain *
+m0_stob_domain_lookup(struct m0_stob_type *type,
+		      uint32_t domain_id)
+{
+	struct m0_stob_domain *domain;
+
+	M0_PRE(type != NULL);
+
+	m0_tl_for(dom, &type->st_domains, domain) {
+		if (domain_id == domain->sd_dom_id)
+			return domain;
+	} m0_tl_endfor;
+	return NULL;
+}
+
+
 M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
 				     struct m0_stob_type *t)
 {
+	static int dom_id = 0;
+
 	m0_rwlock_init(&dom->sd_guard);
 	dom->sd_type = t;
+	dom->sd_dom_id = ++dom_id;
 	dom_tlink_init_at_tail(dom, &t->st_domains);
 	/** @todo m0_addb_ctx_init(&dom->sd_addb, &m0_stob_domain_addb,
 	    &t->st_addb);

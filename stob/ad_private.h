@@ -23,12 +23,16 @@
 #ifndef __MERO_STOB_AD_PRIVATE_H__
 #define __MERO_STOB_AD_PRIVATE_H__
 
+#include "stob/stob_id.h"
+#include "stob/stob_id_xc.h"
 #include "db/extmap_xc.h"
 
 struct ad_rec_part {
 	uint32_t            arp_segments;
 	struct m0_emap_seg *arp_old_data;
-} M0_XCA_SEQUENCE;
+	uint32_t	    arp_dom_id;
+	struct m0_stob_id   arp_stob_id;
+} M0_XCA_RECORD;
 
 /* __MERO_STOB_AD_PRIVATE_H__ */
 #endif

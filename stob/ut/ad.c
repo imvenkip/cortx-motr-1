@@ -360,6 +360,38 @@ static void test_ad(void)
 	}
 }
 
+static void test_ad_undo(void)
+{
+	int                     result;
+	struct m0_fol_rec_part *rpart;
+
+	m0_dtx_done(&tx);
+
+	m0_dtx_init(&tx);
+	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
+	M0_UT_ASSERT(result == 0);
+
+	memset(user_buf[0], 'a', buf_size);
+	test_write(1);
+
+	test_read(1);
+
+	M0_ASSERT(memcmp(user_buf[0], read_bufs[0], buf_size) == 0);
+
+	rpart = m0_rec_part_tlist_head(&tx.tx_fol_rec.fr_fol_rec_parts);
+	M0_ASSERT(rpart != NULL);
+
+	/* Write new data in stob */
+	memset(user_buf[0], 'b', buf_size);
+	test_write(1);
+	result = rpart->rp_ops->rpo_undo(rpart);
+	M0_UT_ASSERT(result == 0);
+	test_read(1);
+
+	M0_ASSERT(memcmp(user_buf[0], read_bufs[0], buf_size) != 0);
+
+}
+
 const struct m0_test_suite ad_ut = {
 	.ts_name = "ad-ut",
 	.ts_init = test_ad_init,
@@ -367,6 +399,7 @@ const struct m0_test_suite ad_ut = {
 	.ts_tests = {
 		{ "ad", test_ad },
 		{ "ad-rw-unordered", test_ad_rw_unordered },
+		{ "ad-undo", test_ad_undo},
 		{ NULL, NULL }
 	}
 };

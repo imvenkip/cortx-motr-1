@@ -99,6 +99,17 @@ static const struct m0_rpc_item_type_ops io_item_type_ops = {
 
 static int io_fol_rec_part_undo(struct m0_fop_fol_rec_part *fpart)
 {
+	M0_PRE(fpart != NULL);
+
+	switch(fpart->ffrp_fop_code) {
+	case M0_IOSERVICE_WRITEV_OPCODE:
+		break;
+	case M0_IOSERVICE_COB_CREATE_OPCODE:
+		break;
+	case M0_IOSERVICE_COB_DELETE_OPCODE:
+		break;
+	}
+
 	/**
 	 * @todo Perform the undo operation for write, create and delete
 	 * updates using the generic fop fol record part.

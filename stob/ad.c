@@ -154,10 +154,35 @@ enum ad_stob_allocation_extent_type {
 
 static int ad_rec_part_undo(struct m0_fol_rec_part *part)
 {
+	struct ad_rec_part    *arp;
+	struct m0_stob_domain *dom;
+	struct ad_domain      *adom;
+	struct m0_emap_cursor  it;
+	int		       i;
+	int		       rc;
+	struct m0_db_tx	       tx;
+
+	M0_PRE(part != NULL);
+
+	arp = part->rp_data;
+
+	dom = m0_stob_domain_lookup(&m0_ad_stob_type, arp->arp_dom_id);
+	adom = domain2ad(dom);
+	rc = m0_db_tx_init(&tx, adom->ad_dbenv, 0);
+
+	for (i = 0; rc == 0 && i < arp->arp_segments; ++i) {
+		rc = m0_emap_lookup(&adom->ad_adata, &tx,
+				    &arp->arp_old_data[i].ee_pre,
+				    arp->arp_old_data[i].ee_ext.e_start,
+				    &it) ?:
+		     m0_emap_extent_update(&it, &arp->arp_old_data[i]);
+		m0_emap_close(&it);
+	}
+	rc = m0_db_tx_commit(&tx);
 	/**
 	 * @todo Perform the undo operation based on FOL record part type.
 	 */
-	return 0;
+	return rc;
 }
 
 static int ad_rec_part_redo(struct m0_fol_rec_part *part)
@@ -1107,6 +1132,9 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 	if (result != 0)
 		return result;
 	arp = part->rp_data;
+
+	arp->arp_stob_id = io->si_obj->so_id;
+	arp->arp_dom_id  = adom->ad_base.sd_dom_id;
 
 	do {
 		m0_bindex_t offset;
