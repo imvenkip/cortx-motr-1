@@ -224,13 +224,15 @@ static void print_stats(struct m0_reqh *reqh)
 static void ping_reply_received(struct m0_rpc_item *item)
 {
 	struct m0_fop_ping_rep *reply;
+	struct m0_fop          *rfop;
 	int                     rc;
 
 	/* typical error checking performed in replied callback */
 	rc = item->ri_error ?: m0_rpc_item_generic_reply_rc(item->ri_reply);
 	if (rc == 0) {
 		M0_ASSERT(item->ri_reply != NULL);
-		reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
+		rfop = container_of(item->ri_reply, struct m0_fop, f_item);
+		reply = m0_fop_data(rfop);
 		M0_ASSERT(reply != NULL);
 		rc = reply->fpr_rc;
 	}
