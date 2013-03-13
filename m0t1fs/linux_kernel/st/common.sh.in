@@ -11,6 +11,7 @@ MODLIST="@ABS_SRCDIR@/mero/linux_kernel/m0mero.ko"
 declare -A MODPARAMS
 NULL_UUID="00000000-0000-0000-0000-000000000000"
 MODPARAMS[m0mero.ko]="node_uuid=${NODE_UUID:-$NULL_UID}"
+MODPARAMS[m0ut.ko]="node_uuid=${NODE_UUID:-$NULL_UID}"
 
 abort()
 {

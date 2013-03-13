@@ -1,3 +1,4 @@
+m0_addb_kmod_uuid_file_set
 m0_alloc
 m0_cob_domain_fini
 m0_cob_domain_init
