@@ -53,7 +53,7 @@ static void accum_bios_basic1(void)
 	bio_list_init(&bios);
 
 	bio = bio_alloc(GFP_KERNEL, 1);
-	M0_UT_ASSERT(bio != NULL);
+	BUG_ON(bio == NULL);
 
 	bio->bi_bdev = (void*)1;
 	bio->bi_vcnt = 1;
@@ -62,9 +62,9 @@ static void accum_bios_basic1(void)
 	bio_list_add(&lo.lo_bio_list, bio);
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	M0_UT_ASSERT(n == 1);
-	M0_UT_ASSERT(pos == 0);
-	M0_UT_ASSERT(size == PAGE_SIZE);
+	BUG_ON(n != 1);
+	BUG_ON(pos != 0);
+	BUG_ON(size != PAGE_SIZE);
 
 	bio_put(bio);
 }
@@ -86,7 +86,7 @@ static void accum_bios_basic2(void)
 	bio_list_init(&bios);
 
 	bio = bio_alloc(GFP_KERNEL, 2);
-	M0_UT_ASSERT(bio != NULL);
+	BUG_ON(bio == NULL);
 
 	bio->bi_bdev = (void*)1;
 	bio->bi_vcnt = 2;
@@ -95,9 +95,9 @@ static void accum_bios_basic2(void)
 	bio_list_add(&lo.lo_bio_list, bio);
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	M0_UT_ASSERT(n == 2);
-	M0_UT_ASSERT(pos == 0);
-	M0_UT_ASSERT(size == bio->bi_vcnt * PAGE_SIZE);
+	BUG_ON(n != 2);
+	BUG_ON(pos != 0);
+	BUG_ON(size != bio->bi_vcnt * PAGE_SIZE);
 
 	bio_put(bio);
 }
@@ -122,7 +122,7 @@ static void accum_bios_basic3(void)
 
 	for (i = 0; i < 2; ++i) {
 		bio = bio_alloc(GFP_KERNEL, 1);
-		M0_UT_ASSERT(bio != NULL);
+		BUG_ON(bio == NULL);
 
 		bio->bi_bdev = (void*)1;
 		bio->bi_sector = PAGE_SIZE / 512 * i;
@@ -133,11 +133,11 @@ static void accum_bios_basic3(void)
 	}
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	M0_UT_ASSERT(n == 2);
-	M0_UT_ASSERT(pos == 0);
-	M0_UT_ASSERT(size == 2*PAGE_SIZE);
+	BUG_ON(n != 2);
+	BUG_ON(pos != 0);
+	BUG_ON(size != 2*PAGE_SIZE);
 
-	M0_UT_ASSERT(bio_list_size(&bios) == 2);
+	BUG_ON(bio_list_size(&bios) != 2);
 	while (!bio_list_empty(&bios))
 		bio_put(bio_list_pop(&bios));
 }
@@ -164,7 +164,7 @@ static void accum_bios_except1(void)
 
 	for (i = 0; i < 2; ++i) {
 		bio = bio_alloc(GFP_KERNEL, 1);
-		M0_UT_ASSERT(bio != NULL);
+		BUG_ON(bio == NULL);
 
 		bio->bi_bdev = (void*)1;
 		bio->bi_sector = 0;
@@ -175,18 +175,18 @@ static void accum_bios_except1(void)
 	}
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	M0_UT_ASSERT(n == 1);
-	M0_UT_ASSERT(pos == 0);
-	M0_UT_ASSERT(size == PAGE_SIZE);
-	M0_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 1);
-	M0_UT_ASSERT(bio_list_size(&bios) == 1);
+	BUG_ON(n != 1);
+	BUG_ON(pos != 0);
+	BUG_ON(size != PAGE_SIZE);
+	BUG_ON(bio_list_size(&lo.lo_bio_list) != 1);
+	BUG_ON(bio_list_size(&bios) != 1);
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	M0_UT_ASSERT(n == 1);
-	M0_UT_ASSERT(pos == 0);
-	M0_UT_ASSERT(size == PAGE_SIZE);
-	M0_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 0);
-	M0_UT_ASSERT(bio_list_size(&bios) == 2);
+	BUG_ON(n != 1);
+	BUG_ON(pos != 0);
+	BUG_ON(size != PAGE_SIZE);
+	BUG_ON(bio_list_size(&lo.lo_bio_list) != 0);
+	BUG_ON(bio_list_size(&bios) != 2);
 
 	while (!bio_list_empty(&bios))
 		bio_put(bio_list_pop(&bios));
@@ -212,7 +212,7 @@ static void accum_bios_except2(void)
 
 	for (i = 0; i < 2; ++i) {
 		bio = bio_alloc(GFP_KERNEL, 1);
-		M0_UT_ASSERT(bio != NULL);
+		BUG_ON(bio == NULL);
 
 		bio->bi_bdev = (void*)1;
 		bio->bi_sector = PAGE_SIZE / 512 * i;
@@ -224,18 +224,18 @@ static void accum_bios_except2(void)
 	}
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	M0_UT_ASSERT(n == 1);
-	M0_UT_ASSERT(pos == 0);
-	M0_UT_ASSERT(size == PAGE_SIZE);
-	M0_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 1);
-	M0_UT_ASSERT(bio_list_size(&bios) == 1);
+	BUG_ON(n != 1);
+	BUG_ON(pos != 0);
+	BUG_ON(size != PAGE_SIZE);
+	BUG_ON(bio_list_size(&lo.lo_bio_list) != 1);
+	BUG_ON(bio_list_size(&bios) != 1);
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	M0_UT_ASSERT(n == 1);
-	M0_UT_ASSERT(pos == PAGE_SIZE);
-	M0_UT_ASSERT(size == PAGE_SIZE);
-	M0_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 0);
-	M0_UT_ASSERT(bio_list_size(&bios) == 2);
+	BUG_ON(n != 1);
+	BUG_ON(pos != PAGE_SIZE);
+	BUG_ON(size != PAGE_SIZE);
+	BUG_ON(bio_list_size(&lo.lo_bio_list) != 0);
+	BUG_ON(bio_list_size(&bios) != 2);
 
 	while (!bio_list_empty(&bios))
 		bio_put(bio_list_pop(&bios));
@@ -262,7 +262,7 @@ static void accum_bios_bound1(void)
 
 	for (i = 0; i < IOV_ARR_SIZE; ++i) {
 		bio = bio_alloc(GFP_KERNEL, 1);
-		M0_UT_ASSERT(bio != NULL);
+		BUG_ON(bio == NULL);
 
 		bio->bi_bdev = (void*)1;
 		bio->bi_sector = PAGE_SIZE / 512 * i;
@@ -273,11 +273,11 @@ static void accum_bios_bound1(void)
 	}
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	M0_UT_ASSERT(n == IOV_ARR_SIZE);
-	M0_UT_ASSERT(pos == 0);
-	M0_UT_ASSERT(size == IOV_ARR_SIZE * PAGE_SIZE);
-	M0_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 0);
-	M0_UT_ASSERT(bio_list_size(&bios) == IOV_ARR_SIZE);
+	BUG_ON(n != IOV_ARR_SIZE);
+	BUG_ON(pos != 0);
+	BUG_ON(size != IOV_ARR_SIZE * PAGE_SIZE);
+	BUG_ON(bio_list_size(&lo.lo_bio_list) != 0);
+	BUG_ON(bio_list_size(&bios) != IOV_ARR_SIZE);
 
 	while (!bio_list_empty(&bios))
 		bio_put(bio_list_pop(&bios));
@@ -303,7 +303,7 @@ static void accum_bios_bound2(void)
 
 	for (i = 0; i < IOV_ARR_SIZE + 1; ++i) {
 		bio = bio_alloc(GFP_KERNEL, 1);
-		M0_UT_ASSERT(bio != NULL);
+		BUG_ON(bio == NULL);
 
 		bio->bi_bdev = (void*)1;
 		bio->bi_sector = PAGE_SIZE / 512 * i;
@@ -314,18 +314,18 @@ static void accum_bios_bound2(void)
 	}
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	M0_UT_ASSERT(n == IOV_ARR_SIZE);
-	M0_UT_ASSERT(pos == 0);
-	M0_UT_ASSERT(size == IOV_ARR_SIZE * PAGE_SIZE);
-	M0_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 1);
-	M0_UT_ASSERT(bio_list_size(&bios) == IOV_ARR_SIZE);
+	BUG_ON(n != IOV_ARR_SIZE);
+	BUG_ON(pos != 0);
+	BUG_ON(size != IOV_ARR_SIZE * PAGE_SIZE);
+	BUG_ON(bio_list_size(&lo.lo_bio_list) != 1);
+	BUG_ON(bio_list_size(&bios) != IOV_ARR_SIZE);
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	M0_UT_ASSERT(n == 1);
-	M0_UT_ASSERT(pos == IOV_ARR_SIZE * PAGE_SIZE);
-	M0_UT_ASSERT(size == PAGE_SIZE);
-	M0_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 0);
-	M0_UT_ASSERT(bio_list_size(&bios) == IOV_ARR_SIZE + 1);
+	BUG_ON(n != 1);
+	BUG_ON(pos != IOV_ARR_SIZE * PAGE_SIZE);
+	BUG_ON(size != PAGE_SIZE);
+	BUG_ON(bio_list_size(&lo.lo_bio_list) != 0);
+	BUG_ON(bio_list_size(&bios) != IOV_ARR_SIZE + 1);
 
 	while (!bio_list_empty(&bios))
 		bio_put(bio_list_pop(&bios));
@@ -352,7 +352,7 @@ static void accum_bios_bound3(void)
 
 	for (i = 0; i < IOV_ARR_SIZE - 1; ++i) {
 		bio = bio_alloc(GFP_KERNEL, 1);
-		M0_UT_ASSERT(bio != NULL);
+		BUG_ON(bio == NULL);
 
 		bio->bi_bdev = (void*)1;
 		bio->bi_sector = PAGE_SIZE / 512 * i;
@@ -363,7 +363,7 @@ static void accum_bios_bound3(void)
 	}
 
 	bio = bio_alloc(GFP_KERNEL, 2);
-	M0_UT_ASSERT(bio != NULL);
+	BUG_ON(bio == NULL);
 
 	bio->bi_bdev = (void*)1;
 	bio->bi_sector = PAGE_SIZE / 512 * i;
@@ -373,18 +373,18 @@ static void accum_bios_bound3(void)
 	bio_list_add(&lo.lo_bio_list, bio);
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	M0_UT_ASSERT(n == IOV_ARR_SIZE - 1);
-	M0_UT_ASSERT(pos == 0);
-	M0_UT_ASSERT(size == (IOV_ARR_SIZE - 1) * PAGE_SIZE);
-	M0_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 1);
-	M0_UT_ASSERT(bio_list_size(&bios) == IOV_ARR_SIZE - 1);
+	BUG_ON(n != IOV_ARR_SIZE - 1);
+	BUG_ON(pos != 0);
+	BUG_ON(size != (IOV_ARR_SIZE - 1) * PAGE_SIZE);
+	BUG_ON(bio_list_size(&lo.lo_bio_list) != 1);
+	BUG_ON(bio_list_size(&bios) != IOV_ARR_SIZE - 1);
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
-	M0_UT_ASSERT(n == 2);
-	M0_UT_ASSERT(pos == (IOV_ARR_SIZE - 1) * PAGE_SIZE);
-	M0_UT_ASSERT(size == 2 * PAGE_SIZE);
-	M0_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 0);
-	M0_UT_ASSERT(bio_list_size(&bios) == IOV_ARR_SIZE);
+	BUG_ON(n != 2);
+	BUG_ON(pos != (IOV_ARR_SIZE - 1) * PAGE_SIZE);
+	BUG_ON(size != 2 * PAGE_SIZE);
+	BUG_ON(bio_list_size(&lo.lo_bio_list) != 0);
+	BUG_ON(bio_list_size(&bios) != IOV_ARR_SIZE);
 
 	while (!bio_list_empty(&bios))
 		bio_put(bio_list_pop(&bios));
