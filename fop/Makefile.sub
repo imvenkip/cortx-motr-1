@@ -21,7 +21,7 @@ EXTRA_DIST += fop/linux_kernel/fop_kernel.h
 
 CLEANFILES += fop/fop_xc.h \
               fop/fop_xc.c \
-              fop/fop_xc.gccxml \
+              fop/fop.gccxml \
               fop/fom_generic_xc.h \
               fop/fom_generic_xc.c \
-	      fop/fom_generic.gccxml
+              fop/fom_generic.gccxml
