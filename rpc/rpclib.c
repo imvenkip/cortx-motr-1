@@ -238,7 +238,7 @@ int m0_rpc_client_call(struct m0_fop *fop,
 	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline = deadline;
 
-	M0_RETURN(m0_rpc_post(item) ?:
+	M0_RETURN(m0_rpc_post(item, NULL) ?:
 		  m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER));
 }
 M0_EXPORTED(m0_rpc_client_call);

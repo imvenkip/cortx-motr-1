@@ -328,7 +328,7 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 	item->ri_session = &bp->bp_cctx->rcx_session;
 	item->ri_prio = M0_RPC_ITEM_PRIO_MID;
 	item->ri_nr_sent_max = IO_RPC_MAX_RETRIES;
-	rc = m0_rpc_post(item);
+	rc = m0_rpc_post(item, NULL);
 	M0_ASSERT(rc == 0);
 
 	rc = m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER);

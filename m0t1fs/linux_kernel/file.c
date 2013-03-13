@@ -4003,7 +4003,7 @@ static int io_fops_async_submit(struct m0_io_fop      *iofop,
 		goto out;
 
 	iofop->if_fop.f_item.ri_session = session;
-	rc = m0_rpc_post(&iofop->if_fop.f_item);
+	rc = m0_rpc_post(&iofop->if_fop.f_item, NULL);
 	M0_LOG(M0_INFO, "IO fops submitted to rpc, rc = %d", rc);
 
 out:

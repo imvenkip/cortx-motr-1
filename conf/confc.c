@@ -910,7 +910,7 @@ static int wait_reply_st_in(struct m0_sm *mach)
 	M0_PRE(ctx->fc_rpc_item != NULL);
 
 	ctx->fc_rpc_item->ri_nr_sent_max = MAX_RETRIES;
-	rc = m0_rpc_post(ctx->fc_rpc_item);
+	rc = m0_rpc_post(ctx->fc_rpc_item, NULL);
 	if (rc == 0) {
 		M0_LEAVE("retval=-1");
 		return -1;

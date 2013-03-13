@@ -285,6 +285,9 @@ M0_INTERNAL int m0_rpc_slot_cob_create(const struct m0_cob *session_cob,
 				       struct m0_cob **slot_cob,
 				       struct m0_db_tx *tx);
 
+M0_INTERNAL void m0_rpc_slot_item_add(struct m0_rpc_slot *slot,
+				      struct m0_rpc_item *item);
+
 /**
    Adds an item to slot->sl_item_list, without triggering
    any slot related events i.e. slot->ops->consume_item()

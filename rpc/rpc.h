@@ -97,7 +97,8 @@ M0_INTERNAL void m0_rpc_fini(void);
   @pre m0_rpc_item_size(item) <=
           m0_rpc_session_get_max_item_size(item->ri_session)
 */
-M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item);
+M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item,
+			    struct m0_rpc_slot *slot);
 
 /**
   Posts reply item on the same session on which the request item is received.
