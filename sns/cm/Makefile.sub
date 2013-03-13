@@ -21,6 +21,10 @@ mero_libmero_la_SOURCES  += sns/cm/ag.c \
 
 XC_FILES += sns/cm/sns_cp_onwire_xc.h
 
+sns/cm/sns_cp_onwire_xc.h: ioservice/io_fops_xc.h \
+                            cm/ag_xc.h \
+                            cm/cp_onwire_xc.h
+
 EXTRA_DIST += sns/poolmach.c
 
 CLEANFILES += sns/cm/sns_cp_onwire_xc.h \

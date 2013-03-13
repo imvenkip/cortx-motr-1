@@ -43,7 +43,7 @@ static void borrow_fop_validate(struct m0_fop_rm_borrow *bfop);
 static void post_revoke_validate(int err);
 static void revoke_fop_validate(struct m0_fop_rm_revoke *rfop);
 static void post_revoke_cleanup(struct m0_rpc_item *item, int err);
-static void revoke_reply_populate(struct m0_fom_error_rep *rreply,
+static void revoke_reply_populate(struct m0_fop_generic_reply *rreply,
 				  int err);
 
 /*
@@ -159,7 +159,7 @@ static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
 					   int err)
 {
 	struct m0_fop_rm_borrow_rep *breply;
-	struct m0_fom_error_rep     *rreply;
+	struct m0_fop_generic_reply *rreply;
 	struct m0_fop_type          *fopt = NULL;
 
 	struct m0_fop		    *fop;
@@ -184,7 +184,7 @@ static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
 			fopt = &m0_fop_rm_borrow_rep_fopt;
 			break;
 		case M0_RIT_REVOKE:
-			fopt = &m0_fom_error_rep_fopt;
+			fopt = &m0_fop_generic_reply_fopt;
 			break;
 		default:
 			break;
@@ -330,7 +330,7 @@ static void borrow_reply_populate(struct m0_fop_rm_borrow_rep *breply,
 {
 	int rc;
 
-	breply->br_rc.rerr_rc = err;
+	breply->br_rc.gr_rc = err;
 
 	if (err == 0) {
 		rc = m0_rm_credit_encode(&test_data.rd_credit,
@@ -501,10 +501,10 @@ static void post_revoke_cleanup(struct m0_rpc_item *item, int err)
 	m0_fop_put(m0_rpc_item_to_fop(item->ri_reply));
 }
 
-static void revoke_reply_populate(struct m0_fom_error_rep *rreply,
+static void revoke_reply_populate(struct m0_fop_generic_reply *rreply,
 				  int err)
 {
-	rreply->rerr_rc = err;
+	rreply->gr_rc = err;
 }
 
 /*

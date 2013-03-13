@@ -27,6 +27,8 @@
 #include "xcode/xcode_attr.h"
 #include "fid/fid_xc.h"
 #include "fid/fid.h"
+#include "lib/string.h"
+#include "lib/string_xc.h"
 
 extern struct m0_fop_type m0_fop_create_fopt;
 extern struct m0_fop_type m0_fop_lookup_fopt;
@@ -61,11 +63,6 @@ extern struct m0_fop_type m0_fop_statfs_rep_fopt;
 extern struct m0_fop_type m0_fop_rename_rep_fopt;
 extern struct m0_fop_type m0_fop_readdir_rep_fopt;
 extern struct m0_fop_type m0_fop_layout_rep_fopt;
-
-struct m0_fop_str {
-        uint32_t s_len;
-        uint8_t *s_buf;
-} M0_XCA_SEQUENCE;
 
 struct m0_fop_cob {
         uint32_t      b_rc;

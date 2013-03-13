@@ -19,10 +19,14 @@
  * Original creation date: 07/19/2011
  */
 
+#undef M0_TRACE_SUBSYSTEM
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
+#include "lib/string.h"
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fop.h"
@@ -38,25 +42,48 @@
    @{
  */
 
-M0_INTERNAL struct m0_fop_type m0_fom_error_rep_fopt;
+struct m0_fop_type m0_fop_generic_reply_fopt;
+M0_EXPORTED(m0_fop_generic_reply_fopt);
 
 M0_INTERNAL void m0_fom_generic_fini(void)
 {
-	m0_fop_type_fini(&m0_fom_error_rep_fopt);
+	m0_fop_type_fini(&m0_fop_generic_reply_fopt);
 	m0_xc_fom_generic_fini();
 }
 
 M0_INTERNAL int m0_fom_generic_init(void)
 {
 	m0_xc_fom_generic_init();
-	return M0_FOP_TYPE_INIT(&m0_fom_error_rep_fopt,
-				.name      = "fom error reply",
+	return M0_FOP_TYPE_INIT(&m0_fop_generic_reply_fopt,
+				.name      = "generic-reply",
 				.opcode    = M0_REQH_ERROR_REPLY_OPCODE,
-				.xt        = m0_fom_error_rep_xc,
+				.xt        = m0_fop_generic_reply_xc,
 				.rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 }
 
+bool m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item)
+{
+	return item->ri_type == &m0_fop_generic_reply_fopt.ft_rpc_item_type;
+}
+M0_EXPORTED(m0_rpc_item_is_generic_reply_fop);
 
+uint32_t m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *reply)
+{
+	struct m0_fop_generic_reply *reply_fop;
+	uint32_t                     rc;
+
+	if (m0_rpc_item_is_generic_reply_fop(reply)) {
+		reply_fop = m0_fop_data(m0_rpc_item_to_fop(reply));
+		rc = reply_fop->gr_rc;
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "Receiver reported error: %d \"%s\"",
+			       rc,
+			       (char*)reply_fop->gr_msg.s_buf ?: strerror(rc));
+		return rc;
+	} else
+		return 0;
+}
+M0_EXPORTED(m0_rpc_item_generic_reply_rc);
 /**
  * Fom phase descriptor structure, helps to transition fom
  * through its standard phases
@@ -240,16 +267,16 @@ static int create_loc_ctx_wait(struct m0_fom *fom)
  */
 static int set_gen_err_reply(struct m0_fom *fom)
 {
-	struct m0_fop           *rfop;
-	struct m0_fom_error_rep *out_fop;
+	struct m0_fop               *rfop;
+	struct m0_fop_generic_reply *out_fop;
 
 	M0_PRE(fom != NULL);
 
-	rfop = m0_fop_alloc(&m0_fom_error_rep_fopt, NULL);
+	rfop = m0_fop_alloc(&m0_fop_generic_reply_fopt, NULL);
 	if (rfop == NULL)
 		return -ENOMEM;
 	out_fop = m0_fop_data(rfop);
-	out_fop->rerr_rc = m0_fom_rc(fom);
+	out_fop->gr_rc = m0_fom_rc(fom);
 	fom->fo_rep_fop = rfop;
 
 	return 0;
@@ -636,6 +663,8 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 }
 
 /** @} end of fom group */
+#undef M0_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

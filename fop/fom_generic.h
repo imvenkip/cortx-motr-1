@@ -26,6 +26,10 @@
 #include "fop/fom.h"
 #include "lib/types.h"
 #include "xcode/xcode_attr.h"
+#include "lib/string.h"
+#include "lib/string_xc.h"
+
+struct m0_rpc_item;
 
 /**
  * @addtogroup fom
@@ -198,11 +202,15 @@ M0_INTERNAL int m0_fom_generic_init(void);
 extern const struct m0_sm_conf m0_generic_conf;
 
 /**
- * <b>Fom generic error reply</b>
- */
+   Generic reply.
 
-struct m0_fom_error_rep {
-	uint32_t rerr_rc;
+   RPC operations that return nothing but error code to sender can use
+   this generic reply fop. Request handler uses this type of fop to
+   report operation failure in generic fom phases.
+ */
+struct m0_fop_generic_reply {
+	uint32_t          gr_rc;
+	struct m0_fop_str gr_msg;
 } M0_XCA_RECORD;
 
 /**
@@ -212,6 +220,17 @@ struct m0_fom_error_rep {
  * added in FOL record part.
  */
 M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
+
+extern struct m0_fop_type m0_fop_generic_reply_fopt;
+
+bool m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item);
+
+/**
+   If item is of type m0_fop_generic_reply then m0_rpc_item_generic_reply_rc()
+   extracts and returns error code contained in the fop; otherwise it
+   returns 0.
+ */
+uint32_t m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *item);
 
 /** @} end of fom group */
 

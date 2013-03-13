@@ -23,17 +23,18 @@
 
 #include "conf/confc.h"
 #include "conf/obj_ops.h"
-#include "conf/preload.h"   /* m0_confstr_parse */
-#include "conf/buf_ext.h"   /* m0_buf_is_aimed */
-#include "conf/fop.h"       /* m0_conf_fetch_fopt */
-#include "mero/magic.h"     /* M0_CONFC_MAGIC, M0_CONFC_CTX_MAGIC */
-#include "rpc/rpc.h"        /* m0_rpc_post */
-#include "rpc/rpclib.h"     /* m0_rpc_client_connect */
-#include "lib/cdefs.h"      /* M0_HAS_TYPE */
-#include "lib/arith.h"      /* M0_CNT_INC, M0_CNT_DEC */
-#include "lib/misc.h"       /* M0_IN */
-#include "lib/errno.h"      /* ENOMEM, EPROTO */
-#include "lib/memory.h"     /* M0_ALLOC_ARR, m0_free */
+#include "conf/preload.h"     /* m0_confstr_parse */
+#include "conf/buf_ext.h"     /* m0_buf_is_aimed */
+#include "conf/fop.h"         /* m0_conf_fetch_fopt */
+#include "mero/magic.h"       /* M0_CONFC_MAGIC, M0_CONFC_CTX_MAGIC */
+#include "fop/fom_generic.h"  /* m0_rpc_item_is_generic_reply_fop */
+#include "rpc/rpc.h"          /* m0_rpc_post */
+#include "rpc/rpclib.h"       /* m0_rpc_client_connect */
+#include "lib/cdefs.h"        /* M0_HAS_TYPE */
+#include "lib/arith.h"        /* M0_CNT_INC, M0_CNT_DEC */
+#include "lib/misc.h"         /* M0_IN */
+#include "lib/errno.h"        /* ENOMEM, EPROTO */
+#include "lib/memory.h"       /* M0_ALLOC_ARR, m0_free */
 
 /**
  * @page confc-lspec confc Internals
@@ -973,15 +974,19 @@ static int failure_st_in(struct m0_sm *mach)
 static void on_replied(struct m0_rpc_item *item)
 {
 	struct m0_confc_ctx *ctx = item_to_ctx(item);
+	struct m0_rpc_item  *reply;
+	int                  rc;
 
 	M0_ENTRY("item=%p ctx=%p", item, ctx);
 	M0_PRE(ctx_invariant(ctx));
 
-	if (item->ri_error == 0) {
-		m0_rpc_item_get(item->ri_reply);
+	reply = item->ri_reply;
+	rc    = item->ri_error ?: m0_rpc_item_generic_reply_rc(reply);
+	if (rc == 0) {
+		m0_rpc_item_get(reply);
 		ast_state_set(&ctx->fc_ast, S_GROW_CACHE);
 	} else {
-		ast_fail(&ctx->fc_ast, (int)item->ri_error);
+		ast_fail(&ctx->fc_ast, rc);
 	}
 	M0_LEAVE();
 }

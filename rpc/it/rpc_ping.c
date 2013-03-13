@@ -38,6 +38,10 @@
 #include "rpc/it/ping_fom.h"
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
 #include "ut/ut.h"
+#include "fop/fop.h"            /* m0_fop_default_item_ops */
+#include "fop/fom_generic.h"    /* m0_rpc_item_generic_reply_rc */
+#include "reqh/reqh.h"          /* m0_reqh_rpc_mach_tl */
+#include "rpc/it/ping_fop_xc.h"
 
 #ifdef __KERNEL__
 #  include <linux/kernel.h>
@@ -217,6 +221,23 @@ static void print_stats(struct m0_reqh *reqh)
 }
 #endif
 
+static void ping_reply_received(struct m0_rpc_item *item)
+{
+	int rc;
+
+	rc = item->ri_error ?: m0_rpc_item_generic_reply_rc(item->ri_reply);
+	if (verbose) {
+		if (rc == 0)
+			printf("Reply received\n");
+		else
+			printf("Ping error\n");
+	}
+}
+
+const struct m0_rpc_item_ops ping_item_ops = {
+	.rio_replied = ping_reply_received,
+};
+
 /* Create a ping fop and post it to rpc layer */
 static void send_ping_fop(struct m0_rpc_session *session)
 {
@@ -238,7 +259,7 @@ static void send_ping_fop(struct m0_rpc_session *session)
 	M0_ASSERT(ping_fop->fp_arr.f_data != NULL);
 
 	fop->f_item.ri_nr_sent_max = MAX_RETRIES;
-	rc = m0_rpc_client_call(fop, session, NULL,
+	rc = m0_rpc_client_call(fop, session, &ping_item_ops,
 				m0_time_from_now(0, 20 * 1000 * 1000));
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(fop->f_item.ri_error == 0);

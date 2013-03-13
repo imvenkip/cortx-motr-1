@@ -130,11 +130,12 @@ lib_SOURCES                     := bitstring.c getopts.c vec.c list.c queue.c \
                                    cond.c thread.c tlist.c bob.c trace.c      \
                                    finject.c vec_xc.c vec.c buf_xc.c buf.c    \
                                    m0lib.c cookie.c ext.c uuid.c lockers.c    \
-                                   assert.c bitmap_xc.c types_xc.c ext_xc.c
+                                   assert.c bitmap_xc.c types_xc.c ext_xc.c   \
+                                   string_xc.c
 
 lib_HEADERS                     := vec.h vec_xc.h buf.h buf_xc.h \
-				   bitmap.h bitmap_xc.h types_xc.h types.h \
-				   ext.h ext_xc.h
+				   bitmap.h bitmap_xc.h types_xc.h types.h   \
+                                   ext.h ext_xc.h string.h string_xc.h
 
 lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c \
                                    kthread.c semaphore.c processor.c kvec.c  \

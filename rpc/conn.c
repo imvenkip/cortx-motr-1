@@ -679,18 +679,12 @@ M0_INTERNAL void m0_rpc_conn_establish_reply_received(struct m0_rpc_item *item)
 	struct m0_rpc_machine                *machine;
 	struct m0_rpc_conn                   *conn;
 	struct m0_rpc_item                   *reply_item;
-	struct m0_fop                        *reply_fop;
 	int32_t                               rc;
 
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL &&
 	       item->ri_session != NULL &&
 	       item->ri_session->s_session_id == SESSION_ID_0);
-
-	reply_item = item->ri_reply;
-	rc         = item->ri_error;
-	M0_PRE(ergo(rc == 0, reply_item != NULL &&
-			     item->ri_session == reply_item->ri_session));
 
 	conn    = item->ri_session->s_conn;
 	machine = conn->c_rpc_machine;
@@ -699,20 +693,23 @@ M0_INTERNAL void m0_rpc_conn_establish_reply_received(struct m0_rpc_item *item)
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	M0_PRE(conn_state(conn) == M0_RPC_CONN_CONNECTING);
 
+	reply_item = item->ri_reply;
+	reply      = NULL;
+	rc         = item->ri_error ?: m0_rpc_item_generic_reply_rc(reply_item);
 	if (rc == 0) {
-		reply_fop = m0_rpc_item_to_fop(reply_item);
-		reply     = m0_fop_data(reply_fop);
-
-		rc = reply->rcer_rc;
-		if (rc == 0) {
-			if (reply->rcer_sender_id != SENDER_ID_INVALID) {
-				conn->c_sender_id = reply->rcer_sender_id;
-				conn_state_set(conn, M0_RPC_CONN_ACTIVE);
-			} else
-				rc = -EPROTO;
-		}
+		M0_ASSERT(reply_item != NULL &&
+			  item->ri_session == reply_item->ri_session);
+		reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
+		rc    = reply->rcer_rc;
 	}
-
+	if (rc == 0) {
+		M0_ASSERT(reply != NULL);
+		if (reply->rcer_sender_id != SENDER_ID_INVALID) {
+			conn->c_sender_id = reply->rcer_sender_id;
+			conn_state_set(conn, M0_RPC_CONN_ACTIVE);
+		} else
+			rc = -EPROTO;
+	}
 	if (rc != 0)
 		conn_failed(conn, rc);
 
@@ -852,7 +849,6 @@ static void deregister_all_item_sources(struct m0_rpc_conn *conn)
 M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
 {
 	struct m0_rpc_fop_conn_terminate_rep *reply;
-	struct m0_fop                        *reply_fop;
 	struct m0_rpc_conn                   *conn;
 	struct m0_rpc_machine                *machine;
 	struct m0_rpc_item                   *reply_item;
@@ -863,33 +859,28 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
 	       item->ri_session != NULL &&
 	       item->ri_session->s_session_id == SESSION_ID_0);
 
-	reply_item = item->ri_reply;
-	rc         = item->ri_error;
-
-	M0_ASSERT(ergo(rc == 0, reply_item != NULL &&
-				item->ri_session == reply_item->ri_session));
-
 	conn    = item->ri_session->s_conn;
 	machine = conn->c_rpc_machine;
-
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	M0_PRE(m0_rpc_machine_is_locked(machine));
 	M0_PRE(conn_state(conn) == M0_RPC_CONN_TERMINATING);
 
+	reply_item = item->ri_reply;
+	reply      = NULL;
+	rc         = item->ri_error ?: m0_rpc_item_generic_reply_rc(reply_item);
 	if (rc == 0) {
-		reply_fop = m0_rpc_item_to_fop(reply_item);
-		reply     = m0_fop_data(reply_fop);
-
-		rc = reply->ctr_rc;
-		if (rc == 0) {
-			if (conn->c_sender_id == reply->ctr_sender_id)
-				conn_state_set(conn, M0_RPC_CONN_TERMINATED);
-			else
-				/* XXX generate ADDB record here. */
-				rc = -EPROTO;
-		}
+		M0_ASSERT(reply_item != NULL &&
+			  item->ri_session == reply_item->ri_session);
+		reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
+		rc    = reply->ctr_rc;
 	}
-
+	if (rc == 0) {
+		M0_ASSERT(reply != NULL);
+		if (conn->c_sender_id == reply->ctr_sender_id)
+			conn_state_set(conn, M0_RPC_CONN_TERMINATED);
+		else
+			rc = -EPROTO;
+	}
 	if (rc != 0)
 		conn_failed(conn, rc);
 
