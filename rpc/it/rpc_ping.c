@@ -223,14 +223,21 @@ static void print_stats(struct m0_reqh *reqh)
 
 static void ping_reply_received(struct m0_rpc_item *item)
 {
-	int rc;
+	struct m0_fop_ping_rep *reply;
+	int                     rc;
 
+	/* typical error checking performed in replied callback */
 	rc = item->ri_error ?: m0_rpc_item_generic_reply_rc(item->ri_reply);
-	if (verbose) {
-		if (rc == 0)
-			printf("Reply received\n");
-		else
-			printf("Ping error\n");
+	if (rc == 0) {
+		M0_ASSERT(item->ri_reply != NULL);
+		reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
+		M0_ASSERT(reply != NULL);
+		rc = reply->fpr_rc;
+	}
+	if (rc == 0) {
+		/* operation is successful. */;
+	} else {
+		/* operation is failed */;
 	}
 }
 

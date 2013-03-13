@@ -65,32 +65,16 @@ M0_INTERNAL void m0_fom_ping_addb_init(struct m0_fom *fom,
  */
 M0_INTERNAL int m0_fom_ping_state(struct m0_fom *fom)
 {
-	struct m0_fop			*fop;
-        struct m0_fop_ping_rep		*ping_fop_rep;
-	struct m0_fop_generic_reply     *gen_reply;
-        struct m0_rpc_item              *item;
-        struct m0_fom_ping		*fom_obj;
-	char                            *buf;
-	const char                      *msg = "Generic-reply-test-ok";
-	static int                       count;
+        struct m0_fop_ping_rep *ping_fop_rep;
+        struct m0_rpc_item     *item;
+        struct m0_fom_ping     *fom_obj;
+	struct m0_fop          *fop;
 
 	fom_obj = container_of(fom, struct m0_fom_ping, fp_gen);
-	if (++count % 10 == 0) {
-		fop = m0_fop_alloc(&m0_fop_generic_reply_fopt, NULL);
-		M0_ASSERT(fop != NULL);
-		gen_reply = m0_fop_data(fop);
-		gen_reply->gr_rc = EINVAL;
-		buf = m0_alloc(strlen(msg) + 1);
-		M0_ASSERT(buf != NULL);
-		strcpy(buf, msg);
-		gen_reply->gr_msg.s_buf = (uint8_t *)buf;
-		gen_reply->gr_msg.s_len = strlen(msg) + 1;
-	} else {
-		fop = m0_fop_alloc(&m0_fop_ping_rep_fopt, NULL);
-		M0_ASSERT(fop != NULL);
-		ping_fop_rep = m0_fop_data(fop);
-		ping_fop_rep->fpr_rc = true;
-	}
+	fop = m0_fop_alloc(&m0_fop_ping_rep_fopt, NULL);
+	M0_ASSERT(fop != NULL);
+	ping_fop_rep = m0_fop_data(fop);
+	ping_fop_rep->fpr_rc = 0;
 	item = m0_fop_to_rpc_item(fop);
         m0_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
 	m0_fop_put(fop);
