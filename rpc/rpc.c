@@ -242,11 +242,6 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 	slot = sref->sr_slot;
 	m0_rpc_machine_lock(machine);
 	m0_rpc_item_sm_init(reply, M0_RPC_ITEM_OUTGOING);
-	/*
-	 * This hold will be released when the item is SENT or FAILED.
-	 * See rpc/frmops.c:item_done() and m0_rpc_item_failed()
-	 */
-	m0_rpc_session_hold_busy(reply->ri_session);
 	__slot_reply_received(slot, request, reply);
 	m0_rpc_machine_unlock(machine);
 	M0_RETURN(0);

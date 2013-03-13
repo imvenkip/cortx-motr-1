@@ -772,7 +772,9 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 				  M0_RPC_ITEM_REPLIED,
 				  M0_RPC_ITEM_FAILED))) &&
 	       ergo(m0_rpc_item_is_reply(item),
-		    M0_IN(state, (M0_RPC_ITEM_SENT, M0_RPC_ITEM_FAILED))));
+		    M0_IN(state, (M0_RPC_ITEM_INITIALISED,
+				  M0_RPC_ITEM_SENT,
+				  M0_RPC_ITEM_FAILED))));
 
 	if (M0_FI_ENABLED("advance_deadline")) {
 		M0_LOG(M0_DEBUG,"%p deadline advanced", item);
