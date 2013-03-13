@@ -99,7 +99,7 @@ struct cobthread_arg {
 static char *server_args[] = {
 	"m0d", "-r", "-p", "-T", "Linux", "-D", "cobfoms_ut.db", "-S",
 	"cobfoms_ut_stob", "-A", "cobfoms_ut_addb_stob", "-e", SERVER_ENDP,
-	"-s", "ioservice"
+	"-s", "ioservice", "-w", "10"
 };
 
 static void cobfoms_utinit(void)

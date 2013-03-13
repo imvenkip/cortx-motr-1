@@ -442,7 +442,7 @@ M0_INTERNAL void m0t1fs_fini(void);
 const char *m0t1fs_param_node_uuid_get(void);
 
 enum {
-	M0T1FS_RPC_TIMEOUT              = 10, /* seconds */
+	M0T1FS_RPC_TIMEOUT              = 30, /* seconds */
 	M0T1FS_RPC_MAX_RETRIES          = 5,
 	M0T1FS_NR_SLOTS_PER_SESSION     = 10,
 	M0T1FS_MAX_NR_RPC_IN_FLIGHT     = 100,

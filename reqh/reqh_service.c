@@ -18,12 +18,13 @@
  * Original creation date: 05/08/2011
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
+#include "lib/trace.h" /* m0_console_printf */
 #include "lib/rwlock.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/time.h"
 #include "lib/misc.h" /* M0_SET_ARR0 */
-#include "lib/trace.h" /* m0_console_printf */
 #include "lib/finject.h" /* M0_FI_ENABLED */
 #include "lib/uuid.h"
 #include "lib/lockers.h"
@@ -92,15 +93,16 @@ m0_reqh_service_type_find(const char *sname)
 
 M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **service,
 					 struct m0_reqh_service_type *stype,
-					 const char *arg)
+					 struct m0_reqh_context *rctx)
 {
 	int rc;
 
 	M0_PRE(service != NULL && stype != NULL);
 
-        rc = stype->rst_ops->rsto_service_allocate(service, stype, arg);
+        rc = stype->rst_ops->rsto_service_allocate(service, stype, rctx);
         if (rc == 0) {
 		(*service)->rs_type = stype;
+		(*service)->rs_reqh_ctx = rctx;
 		m0_reqh_service_bob_init(*service);
 		M0_POST(m0_reqh_service_invariant(*service));
 	}
@@ -306,6 +308,8 @@ m0_reqh_service_find(const struct m0_reqh_service_type *st,
 	return m0_reqh_lockers_get(reqh, st->rst_key);
 }
 M0_EXPORTED(m0_reqh_service_find);
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} endgroup reqhservice */
 

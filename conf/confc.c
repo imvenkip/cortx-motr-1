@@ -446,6 +446,8 @@ M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 	M0_PRE(not_empty(confd_addr) || not_empty(local_conf));
 	M0_PRE(ergo(not_empty(confd_addr), rpc_mach != NULL));
 
+	M0_LOG(M0_DEBUG, "confd=%s lconf=%s", confd_addr, local_conf);
+
 	m0_mutex_init(&confc->cc_lock);
 	confc_lock(confc);
 	rc = confc_cache_create(confc, profile, local_conf);

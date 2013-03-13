@@ -53,7 +53,7 @@
 #include "lib/chan.h"
 #include "lib/tlist.h"
 #include "cob/cob.h"
-
+#include "layout/layout.h"
 #include "ioservice/io_service_addb.h"
 
 M0_INTERNAL int m0_ios_register(void);
@@ -89,16 +89,26 @@ struct m0_ios_rwfom_stats {
  * service specific information.
  */
 struct m0_reqh_io_service {
-        /** Generic reqh service object */
-        struct m0_reqh_service     rios_gen;
-        /** Buffer pools belongs to this services */
-        struct m0_tl               rios_buffer_pools;
+	/** Generic reqh service object */
+	struct m0_reqh_service       rios_gen;
+	/** Buffer pools belongs to this services */
+	struct m0_tl                 rios_buffer_pools;
 	/** Read[0] and write[1] I/O FOM statistics */
-	struct m0_ios_rwfom_stats  rios_rwfom_stats[2];
+	struct m0_ios_rwfom_stats    rios_rwfom_stats[2];
 	/** Cob domain for ioservice. */
-	struct m0_cob_domain      *rios_cdom;
-        /** magic to check io service object */
-        uint64_t                   rios_magic;
+	struct m0_cob_domain         *rios_cdom;
+
+	/**
+	 * rpc client to metadata & management service.
+	 * This is stored in reqh as a key. So other services, like "sns_repair"
+	 * can also use this to contact mds to get layout for files, get
+	 * attributes for files, etc.
+	 */
+	struct m0_rpc_client_ctx    *rios_mds_rpc_ctx;
+	struct m0_net_domain         rios_cl_ndom;
+
+	/** magic to check io service object */
+	uint64_t                     rios_magic;
 };
 
 M0_INTERNAL bool m0_reqh_io_service_invariant(const struct m0_reqh_io_service
@@ -108,6 +118,21 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 				struct m0_cob_domain **out, uint64_t sid);
 
 M0_INTERNAL void m0_ios_cdom_fini(struct m0_reqh *reqh);
+
+M0_INTERNAL int m0_ios_mds_rpc_ctx_init(struct m0_reqh_service *service);
+M0_INTERNAL struct m0_rpc_client_ctx
+*m0_ios_mds_rpc_ctx_get(struct m0_reqh *reqh);
+
+M0_INTERNAL void m0_ios_mds_rpc_ctx_fini(struct m0_reqh_service *service);
+
+M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
+				   const struct m0_fid *gfid,
+				   struct m0_cob_attr *attr);
+
+M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
+				      struct m0_layout_domain *ldom,
+				      uint64_t lid,
+				      struct m0_layout **l_out);
 
 /** @} end of io_service */
 

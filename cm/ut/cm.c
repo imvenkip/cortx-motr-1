@@ -18,6 +18,8 @@
  * Original creation date: 09/25/2012
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
+#include "lib/trace.h"
 #include "lib/finject.h"
 #include "lib/memory.h"
 #include "lib/ut.h"
@@ -65,7 +67,7 @@ static void cm_setup_ut(void)
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_ios_poolmach_init(cm_ut_service->rs_reqh);
+	rc = m0_ios_poolmach_init(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Checks if the restructuring process is started successfully. */
@@ -79,8 +81,8 @@ static void cm_setup_ut(void)
 	rc = m0_cm_stop(&cm_ut);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_shutdown_wait(&cm_ut_reqh);
+	m0_ios_poolmach_fini(cm_ut_service);
 	cm_ut_service_cleanup();
-	m0_ios_poolmach_fini(&cm_ut_reqh);
 }
 static void cm_init_failure_ut(void)
 {
@@ -217,6 +219,7 @@ const struct m0_test_suite cm_generic_ut = {
         }
 };
 
+#undef M0_TRACE_SUBSYSTEM
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

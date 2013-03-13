@@ -38,6 +38,8 @@
 #include "mero/setup.h"
 #include "ioservice/io_service_addb.h"
 #include "ioservice/io_service.h"
+#include "layout/pdclust.h"
+#include "layout/layout.h"
 
 /* Forward Declarations. */
 static int  cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
@@ -349,7 +351,7 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
         if (rc)
                 return rc;
 
-        M0_LOG(M0_DEBUG, "Creating cob [%lx:%lx]/%x",
+        M0_LOG(M0_DEBUG, "Creating cob for [%lx:%lx]/%x",
                cc->fco_cfid.f_container, cc->fco_cfid.f_key, cc->fco_cob_idx);
 
 	rc = cc_cob_nskey_make(&nskey, &cc->fco_gfid, cc->fco_cob_idx);
@@ -501,6 +503,9 @@ static int cd_cob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 
 	cdom = cdom_get(fom);
 	M0_ASSERT(cdom != NULL);
+
+        M0_LOG(M0_DEBUG, "Deleting cob for [%lx:%lx]/%x",
+               cd->fco_cfid.f_container, cd->fco_cfid.f_key, cd->fco_cob_idx);
 
         io_fom_cob_rw_stob2fid_map(&cd->fco_stobid, &fid);
         m0_cob_oikey_make(&oikey, &fid, 0);

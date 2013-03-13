@@ -116,7 +116,7 @@ services_start() {
 
   ("prof-ac", {1| ("fs-1")}),
   ("fs-1", {2| ((11, 22),
-                [8: "-r", "-p", "-T", "linux", "-D", "db", "-S", "stobs"],
+                [12: "-r", "-p", "-T", "linux", "-D", "db", "-S", "stobs", "-A", "addb-stobs", "-w", "3"],
                 [1: "ios-1"])}),
   ("ios-1", {3| (2, [1: "lnet:$IOS1_ENDPOINT"], "node-1")}),
   ("node-1", {4| (163840, 0, 0, 16, 0, [0], [0])})]
@@ -132,7 +132,7 @@ EOF`"
 -r -p -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
 -A $SANDBOX_DIR/addb-stobs
 -e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s addb -s ioservice
- -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN
+ -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3
 EOF`"
     [ "$MODE" = autoconf ] && OPTIONS="-C $CONFD_ENDPOINT -P prof-ac"
 
@@ -200,6 +200,7 @@ _init() {
 _fini() {
     services_stop
     sandbox_fini
+    lsmod | grep m0mero
     modules_remove
     exit ${1:-$?}
 }
@@ -223,7 +224,7 @@ usage() {
 
 ## Keep the audience engaged.
 ## XXX TODO: Measure and report elapsed time a la CUnit.
-say() { echo "$@"; }
+say() { echo "$@" | tee -a $SANDBOX_DIR/m0d.log; }
 
 ## -------------------------------------------------------------------
 ## main()

@@ -67,7 +67,7 @@ static const struct m0_reqh_service_ops ut_cp_service_ops = {
 
 static int ut_cp_service_allocate(struct m0_reqh_service **service,
 				  struct m0_reqh_service_type *stype,
-				  const char *arg __attribute__((unused)))
+				  struct m0_reqh_context *rctx)
 {
 	struct m0_reqh_service *serv;
 
@@ -283,7 +283,7 @@ static int cm_cp_init(void)
 	cm_ut_service_alloc_init();
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_ASSERT(rc == 0);
-	rc = m0_ios_poolmach_init(cm_ut_service->rs_reqh);
+	rc = m0_ios_poolmach_init(cm_ut_service);
 	M0_ASSERT(rc == 0);
 
         return 0;
@@ -292,7 +292,7 @@ static int cm_cp_init(void)
 /* Finalises the request handler. */
 static int cm_cp_fini(void)
 {
-	m0_ios_poolmach_fini(cm_ut_service->rs_reqh);
+	m0_ios_poolmach_fini(cm_ut_service);
 	cm_ut_service_cleanup();
 	m0_cm_type_deregister(&cm_ut_cmt);
         m0_reqh_fini(&cm_ut_reqh);

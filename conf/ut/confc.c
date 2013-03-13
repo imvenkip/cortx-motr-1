@@ -352,7 +352,7 @@ static void test_confc_net(void)
 #define NAME(ext) "ut_confd" ext
 	char *argv[] = {
 		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
-		"-S", NAME(".stob"), "-A", NAME("-addb.stob"),
+		"-S", NAME(".stob"), "-A", NAME("-addb.stob"), "-w", "10",
 		"-e", SERVER_ENDPOINT, "-s", "confd",
 		"-c", M0_CONF_UT_PATH("conf-str.txt")
 	};

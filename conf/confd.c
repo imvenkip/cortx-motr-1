@@ -31,6 +31,7 @@
 #include "lib/memory.h"    /* M0_ALLOC_PTR_ADDB */
 #include "lib/string.h"    /* strdup */
 #include "mero/magic.h"    /* M0_CONFD_MAGIC */
+#include "mero/setup.h"
 
 /**
  * @page confd-lspec-page confd Internals
@@ -444,7 +445,7 @@ const struct m0_bob_type m0_confd_bob = {
 
 static int confd_allocate(struct m0_reqh_service **out,
 			  struct m0_reqh_service_type *stype,
-			  const char *arg);
+			  struct m0_reqh_context *rctx);
 
 static const struct m0_reqh_service_type_ops confd_stype_ops = {
 	.rsto_service_allocate = confd_allocate
@@ -537,7 +538,7 @@ static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
 /** Allocates and initialises confd service. */
 static int confd_allocate(struct m0_reqh_service **service,
 			  struct m0_reqh_service_type *stype,
-			  const char *arg)
+			  struct m0_reqh_context *rctx)
 {
 	struct m0_confd *confd;
 	int              rc;
@@ -545,7 +546,7 @@ static int confd_allocate(struct m0_reqh_service **service,
 	M0_ENTRY();
 	M0_PRE(stype == &m0_confd_stype);
 
-	if (arg == NULL || *arg == '\0')
+	if (rctx == NULL || rctx->rc_confdb == NULL || *rctx->rc_confdb == '\0')
 		M0_RETERR(-EPROTO,
 			  "Path to the configuration database is not provided");
 
@@ -558,7 +559,7 @@ static int confd_allocate(struct m0_reqh_service **service,
 	m0_conf_cache_init(&confd->d_cache, &confd->d_lock);
 
 	m0_mutex_lock(&confd->d_lock);
-	rc = confd_cache_preload(&confd->d_cache, arg);
+	rc = confd_cache_preload(&confd->d_cache, rctx->rc_confdb);
 	m0_mutex_unlock(&confd->d_lock);
 
 	if (rc == 0) {

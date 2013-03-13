@@ -84,6 +84,7 @@ struct m0_fv_updates;
  */
 struct m0_reqh;
 struct m0_poolmach;
+struct m0_reqh_service;
 
 enum {
 	/**
@@ -97,7 +98,7 @@ enum {
  * Initializes the pool machine. This will create a shared reqh key
  * and call m0_poolmach_init() internally.
  */
-M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh *reqh);
+M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service);
 
 /**
  * Gets the shared pool machine.
@@ -107,7 +108,7 @@ M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(struct m0_reqh *reqh);
 /**
  * Finializes the pool machine when it is no longer used.
  */
-M0_INTERNAL void m0_ios_poolmach_fini(struct m0_reqh *reqh);
+M0_INTERNAL void m0_ios_poolmach_fini(struct m0_reqh_service *service);
 
 /**
  * Pack the current server version and delta of failure vectors

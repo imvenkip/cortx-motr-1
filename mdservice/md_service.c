@@ -38,7 +38,7 @@ static struct m0_addb_ctx m0_mds_mod_ctx;
 
 static int mds_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
-                        const char *arg);
+                        struct m0_reqh_context *rctx);
 static void mds_fini(struct m0_reqh_service *service);
 
 static int mds_start(struct m0_reqh_service *service);
@@ -87,7 +87,7 @@ M0_INTERNAL void m0_mds_unregister(void)
  */
 static int mds_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
-                        const char *arg __attribute__((unused)))
+                        struct m0_reqh_context *rctx)
 {
         struct m0_reqh_md_service *mds;
 

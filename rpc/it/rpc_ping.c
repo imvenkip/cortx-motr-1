@@ -439,7 +439,7 @@ static int run_server(void)
 	char *server_argv[] = {
 		"rpclib_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
-		"-A", SERVER_ADDB_STOB_FILE_NAME,
+		"-A", SERVER_ADDB_STOB_FILE_NAME, "-w", "5",
 		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size,
 	};
 

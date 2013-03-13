@@ -67,7 +67,7 @@ static const struct m0_reqh_service_ops rpc_ops = {
 
 static int rpc_service_allocate(struct m0_reqh_service **service,
 				struct m0_reqh_service_type *stype,
-				const char *arg __attribute__((unused)))
+				struct m0_reqh_context *rctx)
 {
 	struct m0_reqh_service *serv;
 

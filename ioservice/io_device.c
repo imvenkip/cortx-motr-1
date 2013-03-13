@@ -234,7 +234,9 @@
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
 #include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
 #include "ioservice/io_fops.h"
+#include "mero/setup.h"
 
 /**
    @addtogroup io_calls_params_dldDFS
@@ -247,16 +249,19 @@
  */
 M0_EXTERN unsigned poolmach_key;
 
-M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh *reqh)
+M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 {
 	int                 rc;
 	struct m0_poolmach *poolmach;
+	struct m0_reqh     *reqh = service->rs_reqh;
+	M0_PRE(service != NULL);
+	M0_PRE(service->rs_reqh_ctx != NULL);
+	M0_PRE(service->rs_reqh_ctx->rc_mero != NULL);
 
+	reqh = service->rs_reqh;
 	M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d\n", reqh, poolmach_key);
 	M0_PRE(reqh != NULL);
 	M0_PRE(m0_reqh_lockers_is_empty(reqh, poolmach_key));
-
-	m0_rwlock_write_lock(&reqh->rh_rwlock);
 
 	poolmach = m0_alloc(sizeof *poolmach);
 	if (poolmach == NULL) {
@@ -266,16 +271,18 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh *reqh)
 
 	/* TODO configuration information is needed here. */
 	rc = m0_poolmach_init(poolmach, reqh->rh_dtm, PM_DEFAULT_NR_NODES,
-			      PM_DEFAULT_NR_DEV, PM_DEFAULT_MAX_NODE_FAILURES,
+			      service->rs_reqh_ctx->rc_mero->cc_pool_width,
+			      PM_DEFAULT_MAX_NODE_FAILURES,
 			      PM_DEFAULT_MAX_DEV_FAILURES);
 	if (rc != 0) {
 		m0_free(poolmach);
 		goto out;
 	}
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	m0_reqh_lockers_set(reqh, poolmach_key, poolmach);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 	M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d", reqh, poolmach_key);
 out:
-	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 	return rc;
 }
 
@@ -292,18 +299,24 @@ M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(struct m0_reqh *reqh)
 	return pm;
 }
 
-M0_INTERNAL void m0_ios_poolmach_fini(struct m0_reqh *reqh)
+M0_INTERNAL void m0_ios_poolmach_fini(struct m0_reqh_service *service)
 {
 	struct m0_poolmach *pm;
+	struct m0_reqh     *reqh;
+
+	M0_PRE(service != NULL);
+	reqh = service->rs_reqh;
 	M0_PRE(reqh != NULL);
 
 	M0_LOG(M0_DEBUG, "key fini for reqh=%p, key=%d", reqh, poolmach_key);
+
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	pm = m0_reqh_lockers_get(reqh, poolmach_key);
-	m0_poolmach_fini(pm);
 	m0_reqh_lockers_clear(reqh, poolmach_key);
-	m0_free(pm);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
+	m0_poolmach_fini(pm);
+	m0_free(pm);
 }
 
 M0_INTERNAL int

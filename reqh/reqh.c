@@ -23,6 +23,8 @@
 #define M0_ADDB_CT_CREATE_DEFINITION
 #include "reqh/reqh_addb.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -221,16 +223,37 @@ M0_INTERNAL void m0_reqh_fom_domain_idle_wait(struct m0_reqh *reqh)
 M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
 {
 	struct m0_reqh_service *service;
+	struct m0_reqh_service *mdservice = NULL;
+	struct m0_reqh_service *rpcservice = NULL;
 
 	M0_PRE(reqh != NULL);
-        m0_rwlock_write_lock(&reqh->rh_rwlock);
-        reqh->rh_shutdown = true;
-        m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
 		M0_ASSERT(m0_reqh_service_invariant(service));
+		/* skip mdservice in first loop */
+		if ((strcmp(service->rs_type->rst_name, "mdservice") == 0)) {
+			mdservice = service;
+			continue;
+		}
+		/* skip rpcservice in first loop */
+		if ((strcmp(service->rs_type->rst_name, "rpcservice") == 0)) {
+			rpcservice = service;
+			continue;
+		}
 		m0_reqh_service_prepare_to_stop(service);
 	} m0_tl_endfor;
+
+	/* shutdown mdservice */
+	if (mdservice != NULL)
+		m0_reqh_service_prepare_to_stop(mdservice);
+	/* shutdown rpcservice */
+	if (rpcservice != NULL)
+		m0_reqh_service_prepare_to_stop(rpcservice);
+
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	reqh->rh_shutdown = true;
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	m0_reqh_fom_domain_idle_wait(reqh);
 }
@@ -277,6 +300,7 @@ M0_INTERNAL uint64_t m0_reqh_nr_localities(const struct m0_reqh *reqh)
 	return reqh->rh_fom_dom.fd_localities_nr;
 }
 
+#undef M0_TRACE_SUBSYSTEM
 /** @} endgroup reqh */
 
 /*

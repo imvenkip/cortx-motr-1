@@ -21,6 +21,7 @@
  */
 
 #include "cm/ut/common_service.h"
+#include "mero/setup.h"
 
 struct m0_reqh           cm_ut_reqh;
 struct m0_cm_cp          cm_ut_cp;
@@ -128,7 +129,7 @@ const struct m0_cm_aggr_group_ops cm_ag_ut_ops = {
 
 static int cm_ut_service_allocate(struct m0_reqh_service **service,
 				  struct m0_reqh_service_type *stype,
-				  const char *arg __attribute__((unused)))
+				  struct m0_reqh_context *rctx)
 {
 	struct m0_cm *cm = &cm_ut;
 
@@ -147,13 +148,16 @@ static const struct m0_reqh_service_type_ops cm_ut_service_type_ops = {
 M0_CM_TYPE_DECLARE(cm_ut, &cm_ut_service_type_ops, "cm_ut",
 		   &m0_addb_ct_ut_service);
 
+struct m0_mero         mero = { .cc_pool_width = 3 };
+struct m0_reqh_context rctx = { .rc_mero = &mero };
+
 void cm_ut_service_alloc_init()
 {
 	int rc;
 	/* Internally calls m0_cm_init(). */
 	M0_ASSERT(cm_ut_service == NULL);
 	rc = m0_reqh_service_allocate(&cm_ut_service, &cm_ut_cmt.ct_stype,
-	                              NULL);
+	                              &rctx);
 	M0_ASSERT(rc == 0);
 	m0_reqh_service_init(cm_ut_service, &cm_ut_reqh);
 }

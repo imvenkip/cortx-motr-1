@@ -21,7 +21,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0D
 #include "lib/trace.h"
 
-#include "mero/setup_internal.h"  /* cs_args */
+#include "mero/setup.h"           /* cs_args */
 #include "rpc/rpclib.h"           /* m0_rpc_client_ctx */
 #include "conf/obj.h"             /* m0_conf_filesystem */
 #include "conf/buf_ext.h"         /* m0_buf_strdup */
@@ -193,6 +193,8 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 
 	M0_ENTRY();
 	M0_PRE(confd_addr != NULL && profile != NULL);
+
+	M0_LOG(M0_DEBUG, "confd_addr=%s profile=%s", confd_addr, profile);
 
 	cctx.rcx_net_dom               = &client_net_dom;
 	cctx.rcx_local_addr            = client_ep;

@@ -430,5 +430,7 @@ M0_INTERNAL int m0_rpc_conn_timedwait(struct m0_rpc_conn *conn,
 				      uint64_t state_flags,
 				      const m0_time_t abs_timeout);
 
+M0_INTERNAL int m0_rpc_machine_conn_list_dump(struct m0_rpc_machine *machine,
+					      int dir);
 /** @}  End of rpc_session group */
 #endif /* __MERO_RPC_CONN_H__ */

@@ -32,10 +32,10 @@ static void ds1_service_stop(struct m0_reqh_service *service);
 static void ds2_service_stop(struct m0_reqh_service *service);
 static int ds1_service_allocate(struct m0_reqh_service **service,
 				struct m0_reqh_service_type *stype,
-				const char *arg);
+				struct m0_reqh_context *rctx);
 static int ds2_service_allocate(struct m0_reqh_service **service,
 				struct m0_reqh_service_type *stype,
-				const char *arg);
+				struct m0_reqh_context *rctx);
 static void ds_service_fini(struct m0_reqh_service *service);
 
 static const struct m0_reqh_service_type_ops ds1_service_type_ops = {
@@ -92,14 +92,14 @@ static int _ds_alloc(struct m0_reqh_service **service,
 
 static int ds1_service_allocate(struct m0_reqh_service **service,
 				struct m0_reqh_service_type *stype,
-				const char *arg __attribute__((unused)))
+				struct m0_reqh_context *rctx)
 {
 	return _ds_alloc(service, stype, &ds1_service_ops);
 }
 
 static int ds2_service_allocate(struct m0_reqh_service **service,
 				struct m0_reqh_service_type *stype,
-				const char *arg __attribute__((unused)))
+				struct m0_reqh_context *rctx)
 {
 	return _ds_alloc(service, stype, &ds2_service_ops);
 }

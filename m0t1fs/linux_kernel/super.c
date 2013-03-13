@@ -392,6 +392,7 @@ static int fs_params_parse(struct fs_params *dest, const char **src)
 		goto end;
 
 	for (rc = 0; rc == 0 && *src != NULL; ++src) {
+		M0_LOG(M0_DEBUG, "conf fs src=%s", *src);
 		/* match_token() doesn't change the string pointed to
 		 * by its first argument.  We don't want to remove
 		 * `const' from m0_conf_filesystem::cf_params only
@@ -555,6 +556,7 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 			++*nr_ios;
 
 		for (pstr = svc->cs_endpoints; *pstr != NULL; ++pstr) {
+			M0_LOG(M0_DEBUG, "svc type=%d, ep=%s", svc->cs_type, *pstr);
 			rc = connect_to_service(*pstr, svc->cs_type, csb);
 			if (rc != 0)
 				goto out;

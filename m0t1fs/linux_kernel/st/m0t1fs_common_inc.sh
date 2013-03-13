@@ -37,6 +37,7 @@ MERO_TEST_LOGFILE=`pwd`/mero_`date +"%Y-%m-%d_%T"`.log
 MERO_ADDBSERVICE_NAME=addb
 MERO_IOSERVICE_NAME=ioservice
 MERO_MDSERVICE_NAME=mdservice
+MERO_CMSERVICE_NAME=sns_cm
 MERO_STOB_DOMAIN=linux
 
 PREPARE_STORAGE="-p"
@@ -56,6 +57,15 @@ EP=(
     12345:33:103
     12345:33:104
 )
+
+# list of client endpoints to mdservice
+EPC2M=(
+    12345:33:201
+    12345:33:202
+    12345:33:203
+    12345:33:204
+)
+
 
 unload_kernel_module()
 {

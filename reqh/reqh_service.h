@@ -243,6 +243,10 @@ struct m0_reqh_service {
 	struct m0_addb_ctx                rs_addb_ctx;
 
 	/**
+	 * service context
+	 */
+	struct m0_reqh_context           *rs_reqh_ctx;
+	/**
 	   Service magic to check consistency of service instance.
 	 */
 	uint64_t                          rs_magix;
@@ -317,6 +321,7 @@ struct m0_reqh_service_ops {
 	void (*rso_stats_post_addb)(struct m0_reqh_service *service);
 };
 
+struct m0_reqh_context;
 /**
    Service type operations vector.
  */
@@ -336,7 +341,7 @@ struct m0_reqh_service_type_ops {
 	 */
 	int (*rsto_service_allocate)(struct m0_reqh_service **service,
 				     struct m0_reqh_service_type *stype,
-				     const char *arg);
+				     struct m0_reqh_context *rctx);
 };
 
 /**
@@ -386,7 +391,7 @@ struct m0_reqh_service_type {
  */
 M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **service,
 					 struct m0_reqh_service_type *stype,
-					 const char *arg);
+					 struct m0_reqh_context *rctx);
 
 /**
    Searches a particular type of service by traversing global list of service

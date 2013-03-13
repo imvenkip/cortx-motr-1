@@ -46,8 +46,8 @@
 #include "mdservice/md_service.h"
 #include "mdstore/mdstore.h"
 
-static void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
-			       struct m0_fop_cob *body)
+M0_INTERNAL void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
+				    const struct m0_fop_cob *body)
 {
 	M0_SET0(attr);
 	attr->ca_pfid = body->b_pfid;
@@ -80,8 +80,8 @@ static void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
 	attr->ca_version = body->b_version;
 }
 
-static void m0_md_cob_mem2wire(struct m0_fop_cob *body,
-			      struct m0_cob_attr *attr)
+M0_INTERNAL void m0_md_cob_mem2wire(struct m0_fop_cob *body,
+				    const struct m0_cob_attr *attr)
 {
 	body->b_pfid = attr->ca_pfid;
 	body->b_tfid = attr->ca_tfid;

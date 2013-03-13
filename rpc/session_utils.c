@@ -278,4 +278,5 @@ M0_INTERNAL void m0_rpc_item_dispatch(struct m0_rpc_item *item)
 	M0_LEAVE();
 }
 
+#undef M0_TRACE_SUBSYSTEM
 /** @} */

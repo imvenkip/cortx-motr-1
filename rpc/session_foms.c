@@ -465,7 +465,7 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 	m0_rpc_machine_unlock(machine);
 
 	reply->rstr_rc = rc;
-	M0_LOG(M0_INFO, "Session terminate %s: session [%p] rc [%d]\n",
+	M0_LOG(M0_INFO, "Session terminate %s: session [%p] rc [%d]",
 			(rc == 0) ? "successful" : "failed", session, rc);
 	/*
 	 * Note: request is received on SESSION_0, which is different from
@@ -577,7 +577,7 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 		 * set sender side conn to FAILED state.
 		 * XXX generate ADDB record here.
 		 */
-		M0_LOG(M0_ERROR, "Conn terminate failed: conn [%p]\n", conn);
+		M0_LOG(M0_ERROR, "Conn terminate failed: conn [%p]", conn);
 		m0_rpc_conn_fini_locked(conn);
 
 		m0_rpc_machine_unlock(machine);
@@ -601,7 +601,7 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 		if (rc == 0) /* connection is successfully terminated */
 			fop_rep->f_item.ri_ops = &conn_terminate_reply_item_ops;
 		m0_fom_phase_set(fom, M0_FOPH_FINISH);
-		M0_LOG(M0_DEBUG, "Conn terminate successful: conn [%p] %d\n",
+		M0_LOG(M0_DEBUG, "Conn terminate successful: conn [%p] %d",
 			conn, rc);
 		m0_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 		M0_LEAVE();

@@ -26,10 +26,14 @@
 #define M0_ADDB_RT_CREATE_DEFINITION
 #include "ioservice/io_service_addb.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/tlist.h"
 #include "mero/magic.h"
+#include "rpc/rpc.h"
+#include "rpc/rpclib.h"
 #include "net/buffer_pool.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
@@ -37,6 +41,10 @@
 #include "ioservice/io_service.h"
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
+#include "net/lnet/lnet.h"
+#include "mdservice/md_fops.h"
+#include "layout/layout.h"
+#include "layout/pdclust.h"
 
 M0_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh",
 		   M0_INTERNAL,
@@ -65,12 +73,18 @@ M0_INTERNAL unsigned poolmach_key;
  */
 static unsigned ios_cdom_key;
 
+/**
+ * Key for rpc_ctx to mds.
+ */
+static unsigned ios_mds_rpc_ctx_key = 0;
+
 static int ios_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
-			const char *arg);
+			struct m0_reqh_context *rctx);
 static void ios_fini(struct m0_reqh_service *service);
 
 static int ios_start(struct m0_reqh_service *service);
+void ios_prepare_to_stop(struct m0_reqh_service *service);
 static void ios_stop(struct m0_reqh_service *service);
 static void ios_stats_post_addb(struct m0_reqh_service *service);
 
@@ -89,6 +103,7 @@ static const struct m0_reqh_service_type_ops ios_type_ops = {
  */
 static const struct m0_reqh_service_ops ios_ops = {
 	.rso_start           = ios_start,
+	.rso_prepare_to_stop = ios_prepare_to_stop,
 	.rso_stop            = ios_stop,
 	.rso_fini            = ios_fini,
 	.rso_stats_post_addb = ios_stats_post_addb
@@ -355,7 +370,7 @@ static void ios_delete_buffer_pool(struct m0_reqh_service *service)
  */
 static int ios_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
-			const char *arg __attribute__((unused)))
+			struct m0_reqh_context *rctx)
 {
 	int                        i;
 	int                        j;
@@ -443,16 +458,35 @@ static int ios_start(struct m0_reqh_service *service)
 	if (rc != 0)
 		return rc;
 
+	rc = m0_ios_mds_rpc_ctx_init(service);
+	if (rc != 0) {
+		m0_ios_cdom_fini(service->rs_reqh);
+		return rc;
+	}
+
 	rc = ios_create_buffer_pool(service);
 	if (rc != 0) {
 		/* Cleanup required for already created buffer pools. */
 		ios_delete_buffer_pool(service);
+		m0_ios_mds_rpc_ctx_fini(service);
+		m0_ios_cdom_fini(service->rs_reqh);
 		return rc;
 	}
 
-	rc = m0_ios_poolmach_init(service->rs_reqh);
-
+	rc = m0_ios_poolmach_init(service);
+	if (rc != 0) {
+		ios_delete_buffer_pool(service);
+		m0_ios_mds_rpc_ctx_fini(service);
+		m0_ios_cdom_fini(service->rs_reqh);
+	}
 	return rc;
+}
+
+void ios_prepare_to_stop(struct m0_reqh_service *service)
+{
+	M0_LOG(M0_DEBUG, "ioservice PREPARE ......");
+	m0_ios_mds_rpc_ctx_fini(service);
+	M0_LOG(M0_DEBUG, "ioservice PREPARE STOPPED");
 }
 
 /**
@@ -467,10 +501,12 @@ static int ios_start(struct m0_reqh_service *service)
 static void ios_stop(struct m0_reqh_service *service)
 {
 	M0_PRE(service != NULL);
-	m0_ios_poolmach_fini(service->rs_reqh);
+
+	m0_ios_poolmach_fini(service);
 	ios_delete_buffer_pool(service);
 	m0_ios_cdom_fini(service->rs_reqh);
 	m0_reqh_lockers_clear(service->rs_reqh, ios_cdom_key);
+	M0_LOG(M0_DEBUG, "ioservice STOPPED");
 }
 
 M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
@@ -565,6 +601,276 @@ static void ios_stats_post_addb(struct m0_reqh_service *service)
 #undef CNTR_POST
 	}
 }
+
+M0_INTERNAL int m0_ios_mds_rpc_ctx_init(struct m0_reqh_service *service)
+{
+	struct m0_reqh             *reqh = service->rs_reqh;
+	struct m0_reqh_io_service  *serv_obj;
+	struct m0_rpc_client_ctx   *rpc_client_ctx;
+	int                         rc;
+	const char                 *dbname = "sr_cdb";
+	struct m0_net_domain       *cl_ndom;
+	struct m0_reqh_context     *reqh_ctx = service->rs_reqh_ctx;
+	const char                 *cli_ep_addr;
+	const char                 *srv_ep_addr;
+	enum {
+		RPC_TIMEOUT              = 8, /* seconds */
+		NR_SLOTS_PER_SESSION     = 2,
+		MAX_NR_RPC_IN_FLIGHT     = 5,
+		CLIENT_COB_DOM_ID        = 14,
+	};
+	static struct m0_dbenv      client_dbenv;
+	static struct m0_cob_domain client_cob_dom;
+
+	srv_ep_addr = reqh_ctx->rc_mero->cc_mds_epx.ex_endpoint;
+	cli_ep_addr = reqh_ctx->rc_mero->cc_cli2mds_epx.ex_endpoint;
+
+	M0_LOG(M0_DEBUG, "cli = %s", cli_ep_addr);
+	M0_LOG(M0_DEBUG, "srv = %s", srv_ep_addr);
+
+	if (srv_ep_addr == NULL || cli_ep_addr == NULL) {
+		M0_LOG(M0_WARN, "No mdservice endpoint.");
+		M0_RETURN(0);
+	}
+
+	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
+	M0_ALLOC_PTR(rpc_client_ctx);
+	if (rpc_client_ctx == NULL)
+		M0_RETURN(-ENOMEM);
+
+	cl_ndom = &serv_obj->rios_cl_ndom;
+	rc = m0_net_domain_init(cl_ndom, &m0_net_lnet_xprt,
+				&service->rs_addb_ctx);
+	if (rc != 0) {
+		m0_free(rpc_client_ctx);
+		M0_RETURN(rc);
+	}
+	rpc_client_ctx->rcx_net_dom            = cl_ndom;
+	rpc_client_ctx->rcx_local_addr         = cli_ep_addr;
+	rpc_client_ctx->rcx_remote_addr        = srv_ep_addr;
+	rpc_client_ctx->rcx_db_name            = dbname;
+	rpc_client_ctx->rcx_dbenv              = &client_dbenv;
+	rpc_client_ctx->rcx_cob_dom_id         = CLIENT_COB_DOM_ID;
+	rpc_client_ctx->rcx_cob_dom            = &client_cob_dom;
+	rpc_client_ctx->rcx_nr_slots           = NR_SLOTS_PER_SESSION;
+	rpc_client_ctx->rcx_timeout_s          = RPC_TIMEOUT;
+	rpc_client_ctx->rcx_max_rpcs_in_flight = MAX_NR_RPC_IN_FLIGHT;
+
+	rc = m0_rpc_client_start(rpc_client_ctx);
+	if (rc != 0) {
+		m0_net_domain_fini(cl_ndom);
+		m0_free(rpc_client_ctx);
+		M0_RETURN(rc);
+	}
+
+	ios_mds_rpc_ctx_key = m0_reqh_lockers_allot();
+	M0_PRE(m0_reqh_lockers_is_empty(reqh, ios_mds_rpc_ctx_key));
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	m0_reqh_lockers_set(reqh, ios_mds_rpc_ctx_key, rpc_client_ctx);
+	serv_obj->rios_mds_rpc_ctx = rpc_client_ctx;
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
+	M0_RETURN(0);
+}
+
+M0_INTERNAL
+struct m0_rpc_client_ctx *m0_ios_mds_rpc_ctx_get(struct m0_reqh *reqh)
+{
+	struct m0_rpc_client_ctx *rpc_client_ctx;
+	M0_PRE(reqh != NULL);
+
+	if (ios_mds_rpc_ctx_key != 0) {
+		rpc_client_ctx = m0_reqh_lockers_get(reqh, ios_mds_rpc_ctx_key);
+		M0_POST(rpc_client_ctx != NULL);
+	} else
+		rpc_client_ctx = NULL;
+	return rpc_client_ctx;
+}
+
+M0_INTERNAL void m0_ios_mds_rpc_ctx_fini(struct m0_reqh_service *service)
+{
+	struct m0_reqh            *reqh = service->rs_reqh;
+	struct m0_reqh_io_service *serv_obj;
+	struct m0_rpc_client_ctx  *rpc_client_ctx;
+	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
+
+	if (service->rs_reqh_ctx->rc_mero->cc_mds_epx.ex_endpoint == NULL ||
+	    service->rs_reqh_ctx->rc_mero->cc_cli2mds_epx.ex_endpoint == NULL)
+		return;
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	rpc_client_ctx = m0_reqh_lockers_get(reqh, ios_mds_rpc_ctx_key);
+	m0_reqh_lockers_clear(reqh, ios_mds_rpc_ctx_key);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
+	m0_rpc_client_stop(rpc_client_ctx);
+	m0_net_domain_fini(&serv_obj->rios_cl_ndom);
+	m0_free(rpc_client_ctx);
+}
+
+/**
+ * Gets file attributes from mdservice.
+ * @param reqh the request handler.
+ * @param gfid the global fid of the file.
+ * @param attr the returned attributes will be stored here.
+ */
+M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
+				   const struct m0_fid *gfid,
+				   struct m0_cob_attr *attr)
+{
+	struct m0_rpc_client_ctx  *rpc_client_ctx;
+	struct m0_fop             *req;
+	struct m0_fop             *rep;
+	struct m0_fop_getattr     *getattr;
+	struct m0_fop_getattr_rep *getattr_rep;
+	struct m0_fop_cob         *req_fop_cob;
+	struct m0_fop_cob         *rep_fop_cob;
+	int                        rc;
+
+	rpc_client_ctx = m0_ios_mds_rpc_ctx_get(reqh);
+	if (rpc_client_ctx == NULL)
+		return -ENODEV;
+
+	req = m0_fop_alloc(&m0_fop_getattr_fopt, NULL);
+	if (req == NULL)
+		return -ENOMEM;
+
+	getattr = m0_fop_data(req);
+	req_fop_cob = &getattr->g_body;
+	req_fop_cob->b_tfid = *gfid;
+
+	rc = m0_rpc_client_call(req, &rpc_client_ctx->rcx_session, NULL, 0);
+	if (rc == 0) {
+		rep = m0_rpc_item_to_fop(req->f_item.ri_reply);
+		getattr_rep = m0_fop_data(rep);
+		rep_fop_cob = &getattr_rep->g_body;
+		if (rep_fop_cob->b_rc == 0)
+			m0_md_cob_wire2mem(attr, rep_fop_cob);
+		else
+			rc = rep_fop_cob->b_rc;
+	}
+	m0_fop_put(req);
+	return rc;
+}
+
+/**
+ Gets layout from mdservice with specified layout id.
+ @param reqh the request handler.
+ @param ldom the layout domain in which the layout will be created.
+ @param lid  the layout id to query.
+ @param l_out returned layout will be stored here.
+
+ The sample code to use m0_ios_mds_getattr() and m0_ios_mds_layout_get() in
+ services such as ioservice and copy machine is as following:
+ @code
+        struct m0_fid      gfid = cc->fco_gfid;
+        struct m0_cob_attr attr = { {0} };
+	struct m0_layout_domain dom;
+	struct m0_layout_domain *ldom = &dom;
+	int new;
+	struct m0_pdclust_layout *pdl = NULL;
+	struct m0_layout *layout = NULL;
+
+	M0_LOG(M0_FATAL, "getattr");
+	rc = m0_ios_mds_getattr(fom->fo_service->rs_reqh, &gfid, &attr);
+	M0_LOG(M0_FATAL, "rc = %d lid = %lld", rc, (unsigned long long)attr.ca_lid);
+	M0_ASSERT(rc == 0);
+	M0_ASSERT(attr.ca_valid | M0_COB_LID);
+
+	if (m0_pdclust_layout_type.lt_domain == NULL) {
+		rc = m0_layout_domain_init(ldom, fom->fo_service->rs_reqh->rh_dbenv);
+		M0_ASSERT(rc == 0);
+		rc = m0_layout_standard_types_register(ldom);
+		M0_ASSERT(rc == 0);
+		new  = 1;
+	} else {
+		ldom = m0_pdclust_layout_type.lt_domain;
+		new = 0;
+	}
+
+	M0_LOG(M0_FATAL, "getlayout new = %d", new);
+	rc = m0_ios_mds_layout_get(fom->fo_service->rs_reqh, ldom, attr.ca_lid, &layout);
+	M0_LOG(M0_FATAL, "getlayout rc = %d", rc);
+	if (rc == 0) {
+		pdl = m0_layout_to_pdl(layout);
+		M0_LOG(M0_FATAL, "pdl N=%d,K=%d,P=%d,unit_size=%llu",
+				 m0_pdclust_N(pdl),
+				 m0_pdclust_K(pdl),
+				 m0_pdclust_P(pdl),
+				 (unsigned long long)m0_pdclust_unit_size(pdl));
+
+		m0_layout_put(layout);
+	}
+
+	if (new) {
+		m0_layout_standard_types_unregister(ldom);
+		m0_layout_domain_fini(ldom);
+	}
+ @endcode
+*/
+M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
+				      struct m0_layout_domain *ldom,
+				      uint64_t lid,
+				      struct m0_layout **l_out)
+{
+	struct m0_rpc_client_ctx  *rpc_client_ctx;
+	struct m0_fop             *req;
+	struct m0_fop             *rep;
+	struct m0_fop_layout      *layout;
+	struct m0_fop_layout_rep  *layout_rep;
+	int                        rc;
+	M0_ENTRY();
+
+	rpc_client_ctx = m0_ios_mds_rpc_ctx_get(reqh);
+	if (rpc_client_ctx == NULL)
+		return -ENODEV;
+
+	req = m0_fop_alloc(&m0_fop_layout_fopt, NULL);
+	if (req == NULL)
+		return -ENOMEM;
+
+	layout = m0_fop_data(req);
+	layout->l_op  = M0_LAYOUT_OP_LOOKUP;
+	layout->l_lid = lid;
+
+	rc = m0_rpc_client_call(req, &rpc_client_ctx->rcx_session, NULL, 0);
+	if (rc == 0) {
+		struct m0_bufvec               bv;
+		struct m0_bufvec_cursor        cur;
+		struct m0_layout              *l;
+		struct m0_layout_type         *lt;
+		M0_ASSERT(l_out != NULL);
+
+		rep = m0_rpc_item_to_fop(req->f_item.ri_reply);
+		layout_rep = m0_fop_data(rep);
+
+		bv = (struct m0_bufvec)
+			M0_BUFVEC_INIT_BUF((void**)&layout_rep->lr_buf.b_addr,
+				   (m0_bcount_t*)&layout_rep->lr_buf.b_count);
+		m0_bufvec_cursor_init(&cur, &bv);
+
+		lt = &m0_pdclust_layout_type;
+		rc = lt->lt_ops->lto_allocate(ldom, lid, &l);
+		if (rc == 0) {
+			rc = m0_layout_decode(l, &cur, M0_LXO_BUFFER_OP, NULL);
+			/* release lock held by ->lto_allocate() */
+			m0_mutex_unlock(&l->l_lock);
+			if (rc == 0) {
+				/* m0_layout_put() should be called for l_out
+				 * after use
+				 */
+				*l_out = l;
+			} else {
+				m0_layout_put(l);
+			}
+		}
+	}
+
+	m0_fop_put(req);
+	M0_RETURN(rc);
+}
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} endgroup io_service */
 

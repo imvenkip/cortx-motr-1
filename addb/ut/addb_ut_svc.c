@@ -38,6 +38,7 @@
 static char *addb_ut_svc[] = { "m0d", "-r", "-p", "-T", "linux",
 			       "-D", "as_db", "-S", "as_stob",
 			       "-A", "as_addb_stob",
+			       "-w", "10",
 			       "-e", "lnet:0@lo:12345:34:1",
 			       "-s", M0_ADDB_SVC_NAME};
 static struct m0_net_xprt *as_xprts[] = {

@@ -34,6 +34,7 @@
 #include "sns/sns_addb.h"
 #include "sns/cm/st/trigger_fop.h"
 #include "sns/cm/cm.h"
+#include "mero/setup.h"
 
 /**
   @defgroup SNSCMSVC SNS copy machine service
@@ -45,7 +46,7 @@
 /** Copy machine service type operations.*/
 static int svc_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
-			const char *arg __attribute__((unused)));
+			struct m0_reqh_context *rctx);
 
 static const struct m0_reqh_service_type_ops svc_type_ops = {
 	.rsto_service_allocate = svc_allocate,
@@ -73,7 +74,7 @@ extern const struct m0_cm_ops cm_ops;
  */
 static int svc_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
-			const char *arg __attribute__((unused)))
+			struct m0_reqh_context *rctx)
 {
 	struct m0_sns_cm *sns_cm;
 	struct m0_cm     *cm;
@@ -105,8 +106,11 @@ static int svc_allocate(struct m0_reqh_service **service,
  */
 static int svc_start(struct m0_reqh_service *service)
 {
-	struct m0_cm *cm;
-	int           rc;
+	struct m0_cm                *cm;
+	int                          rc;
+	struct cs_endpoint_and_xprt *ep;
+	struct m0_reqh_context      *rctx;
+	struct m0_mero              *mero;
 
 	M0_ENTRY("service: %p", service);
 	M0_PRE(service != NULL);
@@ -114,6 +118,21 @@ static int svc_start(struct m0_reqh_service *service)
         /* XXX Register SNS copy machine FOP types */
 	cm = container_of(service, struct m0_cm, cm_service);
 	rc = m0_cm_setup(cm) ?: m0_sns_repair_trigger_fop_init();
+
+	/* The following shows how to retrieve ioservice endpoints list.
+	 * Copy machine can establish connections to all ioservices,
+	 * and build a map for "cob_id" -> "sesssion of ioservice" with
+	 * the same algorithm on m0t1fs client.
+	 */
+	rctx = service->rs_reqh_ctx;
+	mero = rctx->rc_mero;
+	m0_tl_for(cs_eps, &mero->cc_ios_eps, ep) {
+		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
+		M0_LOG(M0_DEBUG, "pool_width=%d, "
+				 "ioservice xprt:endpoints: %s:%s",
+				 mero->cc_pool_width,
+				 ep->ex_xprt, ep->ex_endpoint);
+	} m0_tl_endfor;
 
 	M0_LEAVE();
 	return rc;

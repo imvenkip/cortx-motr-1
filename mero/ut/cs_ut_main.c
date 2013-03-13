@@ -55,12 +55,20 @@ struct cl_ctx {
 static char *cs_ut_service_one_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
-                                "-e", "lnet:0@lo:12345:34:1" ,
+                                "-e", "lnet:0@lo:12345:34:1",
+				"-w", "10",
+                                "-s", "ds1"};
+
+static char *cs_ut_missing_pool[] = { "m0d", "-r", "-p", "-T", "linux",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-A", "cs_addb_stob",
+                                "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
 static char *cs_ut_services_many_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
+				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s", "ds1", "-s" "ds2"};
@@ -68,6 +76,7 @@ static char *cs_ut_services_many_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
 static char *cs_ut_reqhs_many_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "cs_r1sdb", "-S", "cs_r1stob",
                                 "-A", "cs_r1addb_stob",
+				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1",
                                 "-r", "-p", "-T", "AD",
@@ -78,12 +87,14 @@ static char *cs_ut_reqhs_many_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
 
 static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-r", "-p", "-D",
                                 "cs_sdb", "-T", "AD", "-s", "ds1",
+				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-S", "cs_stob", "-A", "cs_addb_stob"};
 
 static char *cs_ut_dev_stob_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
+				"-w", "10",
                                 "-d", "devices.conf",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
@@ -91,52 +102,60 @@ static char *cs_ut_dev_stob_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
 static char *cs_ut_reqh_none_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
+				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
 static char *cs_ut_stype_bad_cmd[] = { "m0d", "-r", "-p", "-T", "asdadd",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_sdb",
+				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
 static char *cs_ut_xprt_bad_cmd[] = { "m0d", "-r", "-p","-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_sdb",
+				"-w", "10",
                                 "-e", "asdasdada:172.18.50.40@o2ib1:34567:2",
                                 "-s", "ds1"};
 
 static char *cs_ut_ep_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_sdb",
+				"-w", "10",
                                 "-e", "lnet:asdad:asdsd:sadasd",
                                 "-s", "ds1"};
 
 static char *cs_ut_service_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_sdb",
+				"-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
                                 "-s", "dasdadasd"};
 
 static char *cs_ut_args_bad_cmd[] = { "m0d", "-r", "-p", "-D", "cs_sdb",
-                                "-S", "cs_stob", "-A", "cs_addb_sdb",
+                                "-S", "cs_stob", "-A", "cs_addb_sdb", "-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1"};
 
 static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
+				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1", "-q", "4", "-m", "4096"};
 
 static char *cs_ut_lnet_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_sdb",
+				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
 static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
+				"-w", "10",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
                                 "-s", "ioservice"};
@@ -144,6 +163,7 @@ static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
 static char *cs_ut_lnet_ep_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
+				"-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-s", "ds1", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb2", "-S", "cs_stob2",
@@ -154,6 +174,7 @@ static char *cs_ut_lnet_ep_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
 static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
+				"-w", "10",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
@@ -163,6 +184,7 @@ static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
 static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
+				"-w", "10",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@tcp:12345:32:105",
                                 "-s", "ds1"};
@@ -170,6 +192,7 @@ static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
 static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
+				"-w", "10",
                                 "-e", "lnet:asdad:asdsd:sadasd",
                                 "-s", "ds1"};
 
@@ -354,6 +377,13 @@ static void test_cs_ut_service_one(void)
 	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_service_one_cmd,
 				  ARRAY_SIZE(cs_ut_service_one_cmd));
 }
+
+static void test_cs_ut_missing_pool_width(void)
+{
+	cs_ut_test_helper_failure(cs_ut_missing_pool,
+				  ARRAY_SIZE(cs_ut_missing_pool));
+}
+
 
 static void dev_conf_file_create(void)
 {
@@ -553,6 +583,7 @@ const struct m0_test_suite m0d_ut = {
         .ts_fini = NULL,
         .ts_tests = {
                 { "cs-single-service", test_cs_ut_service_one},
+                { "cs-missing-pool-width", test_cs_ut_missing_pool_width},
 		{ "cs-multiple-services", test_cs_ut_services_many},
 		{ "cs-multiple-request-handlers", test_cs_ut_reqhs_many},
 		{ "cs-command-options-jumbled", test_cs_ut_opts_jumbled},

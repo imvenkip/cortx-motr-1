@@ -32,6 +32,7 @@
 #include "lib/finject.h"
 #include "fop/fom_generic.c"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
 static struct bulkio_params *bp;
 
 extern void bulkioapi_test(void);
@@ -1681,3 +1682,4 @@ const struct m0_test_suite bulkio_server_ut = {
 	}
 };
 M0_EXPORTED(bulkio_server_ut);
+#undef M0_TRACE_SUBSYSTEM

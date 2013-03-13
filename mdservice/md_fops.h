@@ -277,6 +277,13 @@ struct m0_fop_layout_rep {
 M0_INTERNAL int m0_mdservice_fop_init(void);
 M0_INTERNAL void m0_mdservice_fop_fini(void);
 
+struct m0_cob_attr;
+M0_INTERNAL void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
+				    const struct m0_fop_cob *body);
+
+M0_INTERNAL void m0_md_cob_mem2wire(struct m0_fop_cob *body,
+				    const struct m0_cob_attr *attr);
+
 #endif /* __MERO_MDSERVICE_MD_FOMS_H__ */
 /*
  *  Local variables:

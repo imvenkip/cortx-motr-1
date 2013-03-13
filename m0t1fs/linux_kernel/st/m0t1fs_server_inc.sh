@@ -12,10 +12,13 @@ mero_service()
 
 	start() {
 		prepare
+		for ((i=0; i < ${#EP[*]}; i++)) ; do
+			ios_eps="$ios_eps -i $XPT:${lnet_nid}:${EP[$i]} "
+		done
 
 		# spawn servers
 		for ((i=0; i < ${#EP[*]}; i++)) ; do
-			SNAME="-s $MERO_IOSERVICE_NAME"
+			SNAME="-s $MERO_IOSERVICE_NAME -s $MERO_CMSERVICE_NAME"
 			SNAME="-s $MERO_ADDBSERVICE_NAME $SNAME"
 			if ((i == 0)); then
 				SNAME="-s $MERO_MDSERVICE_NAME $SNAME"
@@ -28,7 +31,11 @@ mero_service()
 			$prog_start -r $PREPARE_STORAGE \
 			 -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A addb-stobs \
+			 -w $POOL_WIDTH \
+			 -G $XPT:${lnet_nid}:${EP[0]} \
 			 -e $XPT:${lnet_nid}:${EP[$i]} \
+			 $ios_eps \
+			 -L $XPT:${lnet_nid}:${EPC2M[$i]} \
 			 $SNAME -m $MAX_RPC_MSG_SIZE \
 			 -q $TM_MIN_RECV_QUEUE_LEN"
 			echo $cmd
@@ -47,7 +54,29 @@ mero_service()
 	}
 
 	stop() {
-		killproc $prog_exec
+
+		# shutdown services. mds should be stopped last, because
+		# other ioservices may have connections to mdservice.
+		pids=$(__pids_pidof $prog_exec)
+		echo === pids of services: $pids ===
+		echo "Shutting down services one by one. mdservice is the last."
+		delay=5
+		for pid in $pids; do
+		       echo ----- $pid stopping--------
+		       if checkpid $pid 2>&1; then
+			   # TERM first, then KILL if not dead
+			   kill -TERM $pid >/dev/null 2>&1
+			   usleep 100000
+			   if checkpid $pid && sleep 1 &&
+			      checkpid $pid && sleep $delay &&
+			      checkpid $pid ; then
+                                kill -KILL $pid >/dev/null 2>&1
+				usleep 100000
+			   fi
+		        fi
+		       echo ----- $pid stopped --------
+		done
+
 		unprepare
 	}
 

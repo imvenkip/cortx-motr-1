@@ -452,6 +452,9 @@ M0_INTERNAL void m0_rpc_conn_fini_locked(struct m0_rpc_conn *conn)
 					M0_RPC_CONN_INITIALISED)));
 
 	rpc_conn_tlist_del(conn);
+	M0_LOG(M0_DEBUG, "rpcmach %p conn %p deleted from %s list",
+		conn->c_rpc_machine, conn,
+		(conn->c_flags & RCF_SENDER_END) ? "outgoing" : "incoming");
 	session_zero_detach(conn);
 	__conn_fini(conn);
 	conn_state_set(conn, M0_RPC_CONN_FINALISED);
@@ -1161,15 +1164,14 @@ M0_INTERNAL bool m0_rpc_item_is_conn_terminate(const struct m0_rpc_item *item)
 	return item->ri_type->rit_opcode == M0_RPC_CONN_TERMINATE_OPCODE;
 }
 
-#ifndef __KERNEL__
 /**
    Just for debugging purpose. Useful in gdb.
 
    dir = 1, to print incoming conn list
    dir = 0, to print outgoing conn list
  */
-M0_INTERNAL int m0_rpc_machine_conn_list_print(struct m0_rpc_machine *machine,
-					       int dir)
+M0_INTERNAL int m0_rpc_machine_conn_list_dump(struct m0_rpc_machine *machine,
+					      int dir)
 {
 	struct m0_tl       *list;
 	struct m0_rpc_conn *conn;
@@ -1177,24 +1179,25 @@ M0_INTERNAL int m0_rpc_machine_conn_list_print(struct m0_rpc_machine *machine,
 	list = dir ? &machine->rm_incoming_conns : &machine->rm_outgoing_conns;
 
 	m0_tl_for(rpc_conn, list, conn) {
-		printf("CONN: %p id %llu state %x\n", conn,
-				(unsigned long long)conn->c_sender_id,
-				conn_state(conn));
+		M0_LOG(M0_DEBUG, "rmach %8p conn %8p id %llu state %x dir %s",
+				 machine, conn,
+				 (unsigned long long)conn->c_sender_id,
+				 conn_state(conn),
+				 (conn->c_flags & RCF_SENDER_END)? "S":"R");
 	} m0_tl_endfor;
 	return 0;
 }
 
-M0_INTERNAL int m0_rpc_conn_session_list_print(const struct m0_rpc_conn *conn)
+M0_INTERNAL int m0_rpc_conn_session_list_dump(const struct m0_rpc_conn *conn)
 {
 	struct m0_rpc_session *session;
 
 	m0_tl_for(rpc_session, &conn->c_sessions, session) {
-		printf("session %p id %llu state %x\n", session,
-			(unsigned long long)session->s_session_id,
-			session_state(session));
+		M0_LOG(M0_DEBUG, "session %p id %llu state %x", session,
+			         (unsigned long long)session->s_session_id,
+			         session_state(session));
 	} m0_tl_endfor;
 	return 0;
 }
 
 /** @} */
-#endif
