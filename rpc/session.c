@@ -1046,8 +1046,7 @@ M0_INTERNAL bool m0_rpc_session_bind_item(struct m0_rpc_item *item)
 
 static void snd_item_consume(struct m0_rpc_item *item)
 {
-	m0_rpc_session_hold_busy(item->ri_session);
-	m0_rpc_frm_enq_item(session_frm(item->ri_session), item);
+	m0_rpc_item_send(item);
 }
 
 static void snd_reply_consume(struct m0_rpc_item *req,

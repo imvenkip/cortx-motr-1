@@ -746,12 +746,7 @@ static void item_resend(struct m0_rpc_item *item)
 		break;
 
 	case M0_RPC_ITEM_WAITING_FOR_REPLY:
-		rc = m0_rpc_item_start_timer(item);
-		if (rc == 0)
-			m0_rpc_item_send(item);
-		else
-			/* XXX already completed requests??? */
-			m0_rpc_item_failed(item, rc);
+		m0_rpc_item_send(item);
 		break;
 
 	default:
@@ -762,6 +757,7 @@ static void item_resend(struct m0_rpc_item *item)
 M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 {
 	uint32_t state = item->ri_sm.sm_state;
+	int      rc;
 
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && m0_rpc_machine_is_locked(item->ri_rmachine));
@@ -769,6 +765,7 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 	M0_PRE(ergo(m0_rpc_item_is_request(item),
 		    M0_IN(state, (M0_RPC_ITEM_INITIALISED,
 				  M0_RPC_ITEM_WAITING_FOR_REPLY,
+				  M0_RPC_ITEM_WAITING_IN_STREAM,
 				  M0_RPC_ITEM_REPLIED,
 				  M0_RPC_ITEM_FAILED))) &&
 	       ergo(m0_rpc_item_is_reply(item),
@@ -779,6 +776,14 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 	if (M0_FI_ENABLED("advance_deadline")) {
 		M0_LOG(M0_DEBUG,"%p deadline advanced", item);
 		item->ri_deadline = m0_time_from_now(0, 500 * 1000 * 1000);
+	}
+	if (m0_rpc_item_is_request(item)) {
+		rc = m0_rpc_item_start_timer(item);
+		if (rc != 0) {
+			m0_rpc_item_failed(item, rc);
+			M0_LEAVE();
+			return;
+		}
 	}
 	item->ri_nr_sent++;
 	/*
