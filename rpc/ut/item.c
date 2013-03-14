@@ -462,7 +462,7 @@ enum {NR_ITEMS = 100};
 static void bound_item_replied_cb(struct m0_rpc_item *item)
 {
 	struct cs_ds2_rep_fop *reply;
-	static int count = 0;
+	static int             count = 0;
 
 	M0_UT_ASSERT(item->ri_error == 0 && item->ri_reply != NULL);
 	reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
@@ -497,7 +497,7 @@ static void test_bound_items(void)
 	   received reply is one greater than sequence number received
 	   in previous call.
 	 */
-	for (i = 0; i < 100; i++) {
+	for (i = 0; i < NR_ITEMS; i++) {
 		fop = fop_alloc();
 		data = m0_fop_data(fop);
 		M0_UT_ASSERT(data != NULL);

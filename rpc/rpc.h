@@ -57,16 +57,20 @@ M0_INTERNAL int m0_rpc_init(void);
 M0_INTERNAL void m0_rpc_fini(void);
 
 /**
-  Posts an unbound item to the rpc layer.
+  Posts an item to the rpc layer.
 
-  The item will be sent through one of item->ri_session slots.
+  If slot is not NULL then item will be bound to the slot otherwise RPC
+  will choose any available slot in item->ri_session.
 
   The rpc layer will try to send the item out not later than
   item->ri_deadline and with priority of item->ri_priority.
 
-  Request will be considered as timed-out after item->ri_op_timeout is passed.
-  item->ri_op_timeout can be set to M0_TIME_NEVER, if you want the operation
-  to never timeout.
+  Operation timeout is controlled by item->ri_resend_interval and
+  item->ri_nr_sent_max. By default their values are set to 1 second and
+  UINT64_MAX respectively. This will result in resending the request after
+  every 1 second, until reply to the request is received.
+  item->ri_resend_interval and item->ri_nr_sent_max are "public" fields that
+  user can set before posting an item.
 
   After successful call to m0_rpc_post(), user should not attempt to directly
   free the item. Instead reference on the item should be dropped.

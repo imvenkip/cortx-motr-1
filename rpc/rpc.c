@@ -180,7 +180,6 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item,
 
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && item->ri_type != NULL);
-	/* XXX Temporary assertion, until bound item posting is supported */
 	M0_PRE(m0_rpc_item_is_request(item) && !m0_rpc_item_is_bound(item));
 
 	session = item->ri_session;
