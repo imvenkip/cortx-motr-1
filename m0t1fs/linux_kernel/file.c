@@ -835,18 +835,18 @@ static struct m0_sm_state_descr io_states[] = {
 		.sd_name        = "IO_degraded_read",
 		.sd_allowed     = M0_BITS(IRS_READ_COMPLETE, IRS_FAILED)
 	},
-	[IRS_DEGRADED_WRITING]  = {
-		.sd_name        = "IO_degraded_write",
-		.sd_allowed     = M0_BITS(IRS_WRITE_COMPLETE, IRS_FAILED)
+	[IRS_DEGRADED_WRITING] = {
+		.sd_name       = "IO_degraded_write",
+		.sd_allowed    = M0_BITS(IRS_WRITE_COMPLETE, IRS_FAILED)
 	},
-	[IRS_WRITING]           = {
-		.sd_name        = "IO_writing",
-		.sd_allowed     = M0_BITS(IRS_WRITE_COMPLETE, IRS_FAILED)
+	[IRS_WRITING]          = {
+		.sd_name       = "IO_writing",
+		.sd_allowed    = M0_BITS(IRS_WRITE_COMPLETE, IRS_FAILED)
 	},
-	[IRS_WRITE_COMPLETE]    = {
-		.sd_name        = "IO_write_complete",
-		.sd_allowed     = M0_BITS(IRS_REQ_COMPLETE, IRS_FAILED,
-				          IRS_DEGRADED_WRITING)
+	[IRS_WRITE_COMPLETE]   = {
+		.sd_name       = "IO_write_complete",
+		.sd_allowed    = M0_BITS(IRS_REQ_COMPLETE, IRS_FAILED,
+				         IRS_DEGRADED_WRITING)
 	},
 	[IRS_LOCK_RELINQUISHED] = {
 		.sd_name        = "IO_dist_lock_relinquished",
@@ -2356,6 +2356,24 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 				dbuf->db_flags |= PA_DGMODE_READ;
 		}
 	}
+
+	/*
+	 * Populates the index vector if original
+	 * read IO request did not span it.
+	 */
+	/*if (!map->pi_ops->pi_spans_seg(map, start, PAGE_CACHE_SIZE)) {
+		id = SEG_NR(&map->pi_ivec);
+		INDEX(&map->pi_ivec, id) = start;
+		COUNT(&map->pi_ivec, id) = PAGE_CACHE_SIZE;
+		++SEG_NR(&map->pi_ivec);
+		M0_LOG(M0_DEBUG, "Index vector increased, new index = %llu, seg_nr = %u", start, map->pi_ivec.iv_vec.v_nr);
+	}*/
+	INDEX(&map->pi_ivec, 0) = map->pi_grpid * data_size(play);
+	COUNT(&map->pi_ivec, 0) = min64u(INDEX(&map->pi_ivec, 0) +
+					 data_size(play),
+					 inode->i_size) - 
+				  INDEX(&map->pi_ivec, 0);
+	SEG_NR(&map->pi_ivec)   = 1;
 
 	if (rc != 0)
 		M0_RETERR(rc, "Failed to allocate data buffer");
