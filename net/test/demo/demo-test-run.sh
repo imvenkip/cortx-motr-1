@@ -20,7 +20,7 @@ DIR_SCRIPT=${0%/*}
 TOP_SCRDIR="$DIR_SCRIPT/../../.."
 # TODO hardcoded for now
 MOD_GALOIS="$TOP_SCRDIR/extra-libs/galois/src/linux_kernel/galois.ko"
-MOD_M0MERO="$TOP_SCRDIR/build_kernel_modules/m0mero.ko"
+MOD_M0MERO="$TOP_SCRDIR/mero/linux_kernel/m0mero.ko"
 PARAMS_M0MERO="node_uuid=00000000-0000-0000-0000-000000000000"
 
 main()

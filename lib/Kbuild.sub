@@ -1,0 +1,46 @@
+m0mero_objects += lib/assert.o \
+                  lib/bitmap.o \
+                  lib/bitmap_xc.o \
+                  lib/bitstring.o \
+                  lib/bob.o \
+                  lib/buf.o \
+                  lib/buf.o \
+                  lib/buf_xc.o \
+                  lib/chan.o \
+                  lib/cond.o \
+                  lib/cookie.o \
+                  lib/ext.o \
+                  lib/ext_xc.o \
+                  lib/finject.o \
+                  lib/getopts.o \
+                  lib/list.o \
+                  lib/lockers.o \
+                  lib/m0lib.o \
+                  lib/misc.o \
+                  lib/queue.o \
+                  lib/refs.o \
+                  lib/string_xc.o \
+                  lib/thread.o \
+                  lib/time.o \
+                  lib/tlist.o \
+                  lib/trace.o \
+                  lib/types_xc.o \
+                  lib/uuid.o \
+                  lib/vec.o \
+                  lib/vec.o \
+                  lib/vec_xc.o
+
+m0mero_objects += lib/linux_kernel/finject_init.o \
+                  lib/linux_kernel/kassert.o \
+                  lib/linux_kernel/kcookie.o \
+                  lib/linux_kernel/kthread.o \
+                  lib/linux_kernel/ktime.o \
+                  lib/linux_kernel/ktrace.o \
+                  lib/linux_kernel/kvec.o \
+                  lib/linux_kernel/memory.o \
+                  lib/linux_kernel/mutex.o \
+                  lib/linux_kernel/processor.o \
+                  lib/linux_kernel/rwlock.o \
+                  lib/linux_kernel/semaphore.o \
+                  lib/linux_kernel/timer.o \
+                  lib/linux_kernel/ut.o

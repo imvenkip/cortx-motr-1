@@ -1,0 +1,2 @@
+m0mero_objects += net/lnet/lnet_main.o \
+                  net/lnet/lnet_addb.o

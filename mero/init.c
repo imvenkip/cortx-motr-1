@@ -51,7 +51,7 @@
 #include "conf/fop.h"           /* m0_conf_fops_init, m0_confx_types_init */
 #ifdef __KERNEL__
 #  include "m0t1fs/linux_kernel/m0t1fs.h"
-#  include "build_kernel_modules/dummy_init_fini.h"
+#  include "mero/linux_kernel/dummy_init_fini.h"
 #  include "net/test/initfini.h"	/* m0_net_test_init */
 #else
 #  include "conf/confd.h"       /* m0_confd_register */

@@ -1,0 +1,4 @@
+m0mero_objects += dtm/dtm.o \
+                  dtm/dtm_update_xc.o \
+                  dtm/verno.o \
+                  dtm/verno_xc.o

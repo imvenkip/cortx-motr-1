@@ -11,4 +11,7 @@ mero_m0d_SOURCES = mero/m0d.c \
 
 EXTRA_DIST += mero/devices.sh  \
               mero/DS-Reqh.gif \
-              mero/mero-pub.api
+              mero/mero-pub.api \
+              mero/linux_kernel/dummy_init_fini.c \
+              mero/linux_kernel/dummy_init_fini.h \
+              mero/linux_kernel/m0mero_main.c

@@ -1,0 +1,2 @@
+m0ctl_objects += utils/linux_kernel/m0ctl_main.o \
+                 utils/linux_kernel/finject_debugfs.o

@@ -24,6 +24,7 @@
 #include "lib/assert.h"
 #include "lib/thread.h"
 #include "lib/ut.h"
+#include "mero/init.h"
 
 MODULE_AUTHOR("Xyratex International");
 MODULE_DESCRIPTION("Mero Unit Test Module");
@@ -34,7 +35,6 @@ extern const struct m0_test_suite m0_klibm0_ut; /* test lib first */
 extern const struct m0_test_suite m0_addb_ut;
 extern const struct m0_test_suite buffer_pool_ut;
 extern const struct m0_test_suite bulkio_client_ut;
-extern const struct m0_test_suite m0_loop_ut;
 extern const struct m0_test_suite m0_net_bulk_if_ut;
 extern const struct m0_test_suite m0_net_bulk_mem_ut;
 extern const struct m0_test_suite m0_net_lnet_ut;
@@ -90,6 +90,9 @@ static int __init m0_ut_module_init(void)
 {
 	int rc;
 
+	rc = m0_init();
+	M0_ASSERT(rc == 0);
+
 	rc = M0_THREAD_INIT(&ut_thread, int, NULL,
 		            &run_kernel_ut, 0, "run_kernel_ut");
 	M0_ASSERT(rc == 0);
@@ -100,6 +103,7 @@ static int __init m0_ut_module_init(void)
 static void __exit m0_ut_module_fini(void)
 {
 	m0_thread_join(&ut_thread);
+	m0_fini();
 }
 
 module_init(m0_ut_module_init)

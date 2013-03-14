@@ -34,6 +34,11 @@
 /** path to read kmod uuid parameter */
 static const char *kmod_uuid_file = "/sys/module/m0mero/parameters/node_uuid";
 
+void m0_addb_kmod_uuid_file_set(const char *path)
+{
+	kmod_uuid_file = path;
+}
+
 /**
    Construct the node UUID in user space by reading our kernel module's
    node_uuid parameter.

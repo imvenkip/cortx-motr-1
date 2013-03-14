@@ -88,7 +88,7 @@ load_kernel_module()
 	# Client end point (m0mero module local_addr)
 	LADDR="$lnet_nid:12345:33:1"
 
-	mero_module_path=$MERO_CORE_ROOT/build_kernel_modules
+	mero_module_path=$MERO_CORE_ROOT/mero/linux_kernel
 	mero_module=$MERO_MODULE
 	lsmod | grep $mero_module &> /dev/null
 	if [ $? -eq "0" ]

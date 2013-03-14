@@ -50,6 +50,7 @@ GTAGS
 
 # generated in top-level directory
 /INSTALL
+/Kbuild
 /Makefile
 /Makefile.in
 /aclocal.m4
@@ -63,6 +64,7 @@ GTAGS
 /install-sh
 /libtool
 /ltmain.sh
+/lustre_config.h
 /missing
 /stamp-h1
 

@@ -1,0 +1,17 @@
+m0mero_objects += conf/buf_ext.o \
+                  conf/cache.o \
+                  conf/confc.o \
+                  conf/fop.o \
+                  conf/obj.o \
+                  conf/obj_ops.o \
+                  conf/onwire_xc.o \
+                  conf/preload.o \
+                  conf/objs/common.o \
+                  conf/objs/dir.o \
+                  conf/objs/profile.o \
+                  conf/objs/filesystem.o \
+                  conf/objs/service.o \
+                  conf/objs/node.o \
+                  conf/objs/nic.o \
+                  conf/objs/sdev.o \
+                  conf/objs/partition.o

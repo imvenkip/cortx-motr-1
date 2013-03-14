@@ -776,7 +776,7 @@ RPC Bulk Transfer Task Plan</a>
 #undef PACKAGE_TARNAME
 #undef PACKAGE_VERSION
 #undef VERSION
-#include "build_kernel_modules/lustre_config.h" /* required by lnet/types.h */
+#include "lustre_config.h" /* required by lnet/types.h */
 #include "libcfs/libcfs.h" /* lnet/types.h fails if this is not included */
 #include "lnet/types.h"
 

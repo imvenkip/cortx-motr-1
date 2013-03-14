@@ -3,7 +3,8 @@ nobase_mero_include_HEADERS += addb/addb.h \
                                addb/addb_pvt.h \
                                addb/addb_wire.h \
                                addb/addb_wire_xc.h \
-                               addb/user_space/addb_svc.h
+                               addb/user_space/addb_svc.h \
+                               addb/user_space/uctx.h
 
 mero_libmero_la_SOURCES  += addb/addb.c \
                             addb/addb_wire_xc.c
