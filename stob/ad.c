@@ -161,21 +161,23 @@ static int ad_rec_part_undo(struct m0_fol_rec_part *part)
 	int		       i;
 	int		       rc;
 	struct m0_db_tx	       tx;
+	struct m0_emap_seg    *old_data;
 
 	M0_PRE(part != NULL);
 
 	arp = part->rp_data;
+	old_data = &arp->arp_seg.ps_old_data[0];
 
 	dom = m0_stob_domain_lookup(&m0_ad_stob_type, arp->arp_dom_id);
 	adom = domain2ad(dom);
 	rc = m0_db_tx_init(&tx, adom->ad_dbenv, 0);
 
-	for (i = 0; rc == 0 && i < arp->arp_segments; ++i) {
+	for (i = 0; rc == 0 && i < arp->arp_seg.ps_segments; ++i) {
 		rc = m0_emap_lookup(&adom->ad_adata, &tx,
-				    &arp->arp_old_data[i].ee_pre,
-				    arp->arp_old_data[i].ee_ext.e_start,
+				    &old_data[i].ee_pre,
+				    old_data[i].ee_ext.e_start,
 				    &it) ?:
-		     m0_emap_extent_update(&it, &arp->arp_old_data[i]);
+		     m0_emap_extent_update(&it, &old_data[i]);
 		m0_emap_close(&it);
 	}
 	rc = m0_db_tx_commit(&tx);
@@ -1091,10 +1093,10 @@ static int ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
 		return -ENOMEM;
 	m0_fol_rec_part_init(part, arp, &ad_rec_part_type);
 
-	arp->arp_segments = frags;
+	arp->arp_seg.ps_segments = frags;
 
-	M0_ALLOC_ARR(arp->arp_old_data, frags);
-	if (arp->arp_old_data == NULL) {
+	M0_ALLOC_ARR(arp->arp_seg.ps_old_data, frags);
+	if (arp->arp_seg.ps_old_data == NULL) {
 		m0_free(arp);
 		return -ENOMEM;
 	}
@@ -1146,12 +1148,16 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
 		todo.e_end   = todo.e_start + frag_size;
 
-		arp->arp_old_data[i].ee_ext.e_start = offset;
-		arp->arp_old_data[i].ee_ext.e_end   = offset +
-						      m0_ext_length(&todo);
-		arp->arp_old_data[i].ee_val         = todo.e_start;
-		arp->arp_old_data[i].ee_pre         = map->ct_it->ec_seg.ee_pre;
+		arp->arp_seg.ps_old_data[i] = (struct m0_emap_seg ) {
+			.ee_ext = {
+				.e_start = offset,
+				.e_end   = offset + m0_ext_length(&todo)
+			},
+			.ee_val = todo.e_start,
+			.ee_pre = map->ct_it->ec_seg.ee_pre
+		};
 		++i;
+
 		result = ad_write_map_ext(io, adom, offset, map->ct_it, &todo);
 
 		if (result != 0)

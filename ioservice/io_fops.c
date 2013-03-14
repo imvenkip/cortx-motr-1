@@ -99,10 +99,13 @@ static const struct m0_rpc_item_type_ops io_item_type_ops = {
 
 static int io_fol_rec_part_undo(struct m0_fop_fol_rec_part *fpart)
 {
+	struct m0_fop_cob_writev_rep *wfop;
 	M0_PRE(fpart != NULL);
 
 	switch(fpart->ffrp_fop_code) {
 	case M0_IOSERVICE_WRITEV_OPCODE:
+		wfop = fpart->ffrp_rep;
+		M0_ASSERT(wfop->c_rep.rwr_rc == 0);
 		break;
 	case M0_IOSERVICE_COB_CREATE_OPCODE:
 		break;

@@ -36,6 +36,7 @@
 #include "lib/trace.h"
 
 #include "stob/stob.h"
+#include "stob/stob_id_xc.h"
 
 /**
    @addtogroup stob
@@ -54,12 +55,14 @@ M0_INTERNAL int m0_stob_mod_init(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_stob_mod);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_stob_mod_ctx,
 			 &m0_addb_ct_stob_mod, &m0_addb_proc_ctx);
+	m0_xc_stob_id_init();
 	return 0;
 }
 
 M0_INTERNAL void m0_stob_mod_fini(void)
 {
         m0_addb_ctx_fini(&m0_stob_mod_ctx);
+	m0_xc_stob_id_fini();
 }
 
 M0_INTERNAL int m0_stob_type_init(struct m0_stob_type *kind)

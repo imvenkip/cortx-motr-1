@@ -516,6 +516,24 @@ M0_INTERNAL int m0_emap_merge(struct m0_emap_cursor *it, m0_bindex_t delta)
 	return result;
 }
 
+M0_INTERNAL int m0_emap_extent_update(struct m0_emap_cursor *it,
+				      struct m0_emap_seg *es)
+{
+	M0_PRE(it != NULL);
+	M0_PRE(es != NULL);
+	M0_PRE(m0_uint128_eq(&it->ec_seg.ee_pre, &es->ee_pre));
+
+	it->ec_seg = (struct m0_emap_seg) {
+		.ee_ext = {
+			.e_start = es->ee_ext.e_start,
+			.e_end   = es->ee_ext.e_end
+		},
+		.ee_val = es->ee_val
+	};
+
+	return IT_DO_PACK(it, m0_db_cursor_set);
+}
+
 M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *emap, struct m0_db_tx *tx,
 				   const struct m0_uint128 *prefix,
 				   uint64_t val)
@@ -604,18 +622,6 @@ M0_INTERNAL m0_bcount_t m0_emap_caret_step(const struct m0_emap_caret *car)
 {
 	M0_ASSERT(m0_emap_caret_invariant(car));
 	return car->ct_it->ec_seg.ee_ext.e_end - car->ct_index;
-}
-
-M0_INTERNAL int m0_emap_extent_update(struct m0_emap_cursor *it,
-				      struct m0_emap_seg *es)
-{
-	M0_PRE(es != NULL);
-
-	it->ec_seg.ee_ext.e_start = es->ee_ext.e_start;
-	it->ec_seg.ee_ext.e_end   = es->ee_ext.e_end;
-	it->ec_seg.ee_val         = es->ee_val;
-
-	return IT_DO_PACK(it, m0_db_cursor_set);
 }
 
 /** @} end group extmap */

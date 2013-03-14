@@ -273,6 +273,15 @@ M0_INTERNAL int m0_emap_merge(struct m0_emap_cursor *iterator,
 			      m0_bindex_t delta);
 
 /**
+   Updates the segment the cursor is currently postioned at with the given
+   segment having same prefix.
+
+   @pre m0_uint128_eq(&it->ec_seg.ee_pre, &es->ee_pre) == true
+ */
+M0_INTERNAL int m0_emap_extent_update(struct m0_emap_cursor *it,
+				      struct m0_emap_seg *es);
+
+/**
    Release the resources associated with the cursor.
  */
 M0_INTERNAL void m0_emap_close(struct m0_emap_cursor *iterator);
@@ -304,9 +313,6 @@ M0_INTERNAL int m0_emap_caret_move(struct m0_emap_caret *car,
 				   m0_bcount_t count);
 
 M0_INTERNAL m0_bcount_t m0_emap_caret_step(const struct m0_emap_caret *car);
-
-M0_INTERNAL int m0_emap_extent_update(struct m0_emap_cursor *it,
-				      struct m0_emap_seg *es);
 
 /** @} end group extmap */
 

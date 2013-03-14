@@ -27,11 +27,15 @@
 #include "stob/stob_id_xc.h"
 #include "db/extmap_xc.h"
 
+struct ad_rec_part_seg {
+	uint32_t            ps_segments;
+	struct m0_emap_seg *ps_old_data;
+} M0_XCA_SEQUENCE;
+
 struct ad_rec_part {
-	uint32_t            arp_segments;
-	struct m0_emap_seg *arp_old_data;
-	uint32_t	    arp_dom_id;
-	struct m0_stob_id   arp_stob_id;
+	uint32_t	       arp_dom_id;
+	struct m0_stob_id      arp_stob_id;
+	struct ad_rec_part_seg arp_seg;
 } M0_XCA_RECORD;
 
 /* __MERO_STOB_AD_PRIVATE_H__ */

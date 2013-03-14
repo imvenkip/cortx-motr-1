@@ -1,2 +1,3 @@
 m0mero_objects += stob/stob.o \
-                 stob/stob_id.o
+                 stob/stob_id.o \
+		 stob/stob_id_xc.o
