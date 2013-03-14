@@ -21,6 +21,8 @@
 #ifndef __MERO_MGMT_SVC_H__
 #define __MERO_MGMT_SVC_H__
 
+#include "fop/fop.h"
+#include "fop/fom.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 

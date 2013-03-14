@@ -69,7 +69,7 @@ struct m0_mgmt_service_state_seq {
 /**
    Response FOP with state of services.  Typically sent in response to service
    management requests.
-   @see M0_MGMT_SERVICE_STATUS_REPLY_OPCODE
+   @see M0_MGMT_SERVICE_STATE_REPLY_OPCODE
  */
 struct m0_fop_mgmt_service_state_res {
 	/**
@@ -85,6 +85,7 @@ struct m0_fop_mgmt_service_state_res {
 /**
    Request FOP to ask for the state of a service or of all services.
    The response is a ::m0_fop_mgmt_service_state_res FOP.
+   @see M0_MGMT_SERVICE_STATE_OPCODE
  */
 struct m0_fop_mgmt_service_state_req {
 	/**
@@ -103,6 +104,7 @@ struct m0_fop_mgmt_service_state_req {
 /**
    Request to stop a service.
    The response is a ::m0_fop_mgmt_service_state_res FOP.
+   @see M0_MGMT_SERVICE_TERMINATE_OPCODE
    @todo Not supported yet.
  */
 struct m0_fop_mgmt_service_terminate_req {
@@ -121,6 +123,7 @@ struct m0_fop_mgmt_service_terminate_req {
 /**
    Request to start a service.
    The response is a ::m0_fop_mgmt_service_state_res FOP.
+   @see M0_MGMT_SERVICE_RUN_OPCODE
    @todo Not supported yet.
  */
 struct m0_fop_mgmt_service_run_req {
