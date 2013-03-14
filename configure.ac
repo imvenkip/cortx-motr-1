@@ -471,7 +471,7 @@ MERO_BUILD_LIB([cunit], [$CUNIT_SRC], [$CUNIT_LIBS])
 
 DB_SRC="$SRCDIR/extra-libs/db4/build_unix"
 DB_INCLUDES="-I$DB_SRC/build_unix -I$DB_SRC"
-DB_LIBS="$DB_SRC/libdb.a"
+DB_LIBS="$DB_SRC/libdb-4.8.la"
 AC_MSG_CHECKING([for db libs])
 MERO_BUILD_LIB([db], [$DB_SRC], [$DB_LIBS], ["../dist"], ["--with-pic"])
 
