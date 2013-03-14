@@ -733,11 +733,12 @@
    performance hits to a minimum.
 
    @b R.dg.mode.writeIO.dist_locks The implementation shall use cluster wide
-   distributed locks in order to synchronize access between write IO path
-   and SNS repair process. Although due to unavailability of distributed
-   locks, the implementation shall stick to a working business logic which
-   can be demonstrated through appropriate test cases. Distributed locks
-   shall be introduced as and when they are available.
+   distributed locks in order to synchronize access between client IO path
+   and SNS repair process.
+   Although due to unavailability of distributed locks, the implementation
+   shall stick to a working business logic which can be demonstrated through
+   appropriate test cases. Distributed locks shall be introduced as and when
+   they are available.
 
    @subsection rmw-dgwriteIO-highlights
 
@@ -763,7 +764,7 @@
    - An API is expected from SNS subsystem which will find out if repair has
      completed for input global file fid or not.
      Since the SNS repair sliding window consists of a set of global fids
-     which are currently under repair, assuming the lexigraphical order
+     which are currently under repair, assuming the lexicographical order
      of repair, the API should return whether input global fid has been
      repaired or not.
 
@@ -806,13 +807,16 @@
    - As the first step, IO path will try to acquire distributed lock on the
      given file. This code will be a stub in this case, since distributed
      locks are not available yet.
-     IO path will block until the distributed lock is not acquired.
+     IO path will block until the distributed lock is not granted.
 
    - When SNS repair starts, the normal write IO will fail with a version
      mismatch error.
 
    - The IO reply fop will be incorporated with a U64 field which will indicate
-     whether SNS repair has finished or is yet to start on given file.
+     whether SNS repair has finished or is yet to start on given file fid.
+     Alongside, the IO request fop will be incorporated with global fid since
+     since it is not present in current IO request fop and it is needed to
+     find out whether SNS repair has completed for this global fid or not.
      The SNS repair subsystem will invoke an API @see @ref rmw-dgwriteIO-depends
      which will return either a boolean value indicating whether repair has
      completed for given file or not.
@@ -1260,6 +1264,7 @@ enum io_req_state {
         IRS_READ_COMPLETE,
         IRS_WRITE_COMPLETE,
 	IRS_DEGRADED_READING,
+	IRS_DEGRADED_WRITING,
         IRS_REQ_COMPLETE,
 	IRS_FAILED,
 };

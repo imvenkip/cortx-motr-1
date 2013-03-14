@@ -368,6 +368,12 @@ struct m0_fop_cob_rw_reply {
 	 * defined special code.
 	 */
 	struct m0_fv_updates rwr_fv_updates;
+
+	/**
+	 * A boolean value indicating whether repair has finished or not
+	 * for given global fid.
+	 */
+	uint64_t             rwr_repair_done;
 } M0_XCA_RECORD;
 
 /**
@@ -395,6 +401,13 @@ struct m0_fop_cob_writev_rep {
 struct m0_fop_cob_rw {
 	/** Client known failure vector version number */
 	struct m0_fv_version      crw_version;
+
+	/**
+	 * File identified for global file. This is needed during degraded
+	 * mode write IO when SNS repair subsystem is queried for status of
+	 * SNS repair process with respect to this global fid.
+	 */
+	struct m0_fid             crw_gfid;
 
 	/** File identifier of read/write request. */
 	struct m0_fid             crw_fid;
