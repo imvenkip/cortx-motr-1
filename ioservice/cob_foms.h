@@ -64,6 +64,9 @@ enum m0_fom_cob_delete_phases {
 	M0_FOPH_CD_COB_DEL = M0_FOPH_NR + 1,
 };
 
+M0_INTERNAL int m0_cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				  struct m0_reqh *reqh);
+
 #endif    /* __MERO_IOSERVICE_COB_FOMS_H__ */
 
 /*

@@ -38,6 +38,7 @@
 #include "ioservice/io_fops.h"
 #include "ioservice/io_fops_xc.h"
 #include "fop/fom_generic.h"
+#include "ioservice/cob_foms.h"
 
 /**
  * This addb ctx would be used only to post for exception records
@@ -97,9 +98,11 @@ static const struct m0_rpc_item_type_ops io_item_type_ops = {
         .rito_io_coalesce    = item_io_coalesce,
 };
 
-static int io_fol_rec_part_undo(struct m0_fop_fol_rec_part *fpart)
+static int io_fol_rec_part_undo(struct m0_fop_fol_rec_part *fpart,
+				struct m0_fol *fol)
 {
-	struct m0_fop_cob_writev_rep *wfop;
+	struct m0_fop_cob_writev_rep *wfop = fpart->ffrp_rep;
+
 	M0_PRE(fpart != NULL);
 
 	switch(fpart->ffrp_fop_code) {
@@ -107,20 +110,56 @@ static int io_fol_rec_part_undo(struct m0_fop_fol_rec_part *fpart)
 		wfop = fpart->ffrp_rep;
 		M0_ASSERT(wfop->c_rep.rwr_rc == 0);
 		break;
-	case M0_IOSERVICE_COB_CREATE_OPCODE:
-		break;
-	case M0_IOSERVICE_COB_DELETE_OPCODE:
-		break;
 	}
-
-	/**
-	 * @todo Perform the undo operation for write, create and delete
-	 * updates using the generic fop fol record part.
-	 */
 	return 0;
 }
 
-static int io_fol_rec_part_redo(struct m0_fop_fol_rec_part *fpart)
+static int io_fol_cd_rec_part_undo(struct m0_fop_fol_rec_part *fpart,
+				   struct m0_fol *fol)
+{
+	int			  result = 0;
+#ifndef __KERNEL__
+	struct m0_fop		 *fop;
+	struct m0_fop_cob_create *cc;
+	struct m0_fop_cob_delete *cd;
+	struct m0_reqh		 *reqh;
+	struct m0_fom		 *fom;
+
+	M0_PRE(fpart != NULL);
+
+	reqh = fol->f_reqh;
+
+	switch(fpart->ffrp_fop_code) {
+	case M0_IOSERVICE_COB_CREATE_OPCODE:
+		cc = fpart->ffrp_fop;
+
+		M0_ALLOC_PTR(cd);
+		if (cd == NULL)
+			return -ENOMEM;
+		cd->cd_common = cc->cc_common;
+
+		fop = m0_fop_alloc(&m0_fop_cob_delete_fopt, cd);
+		break;
+	case M0_IOSERVICE_COB_DELETE_OPCODE:
+		cd = fpart->ffrp_fop;
+
+		M0_ALLOC_PTR(cc);
+		if (cc == NULL)
+			return -ENOMEM;
+		cc->cc_common = cd->cd_common;
+
+		fop = m0_fop_alloc(&m0_fop_cob_create_fopt, cc);
+		break;
+	}
+	result = m0_cob_fom_create(fop, &fom, reqh);
+	if (result == 0)
+		 m0_fom_queue(fom, reqh);
+#endif
+	return result;
+}
+
+static int io_fol_rec_part_redo(struct m0_fop_fol_rec_part *fpart,
+				struct m0_fol *fol)
 {
 	/**
 	 * @todo Perform the redo operation for write, create and delete
@@ -135,6 +174,11 @@ const struct m0_fop_type_ops io_fop_rwv_ops = {
 	.fto_io_desc_get = io_fop_desc_get,
 	.fto_undo        = io_fol_rec_part_undo,
 	.fto_redo        = io_fol_rec_part_redo,
+};
+
+const struct m0_fop_type_ops io_fop_cd_ops = {
+	.fto_undo = io_fol_cd_rec_part_undo,
+	.fto_redo = io_fol_rec_part_redo,
 };
 
 M0_INTERNAL void m0_ioservice_fop_fini(void)
@@ -212,6 +256,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .opcode    = M0_IOSERVICE_COB_CREATE_OPCODE,
 				 .xt        = m0_fop_cob_create_xc,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+				 .fop_ops   = &io_fop_cd_ops,
 #ifndef __KERNEL__
 				 .fom_ops   = &cob_fom_type_ops,
 				 .svc_type  = &m0_ios_type,
@@ -222,6 +267,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .opcode    = M0_IOSERVICE_COB_DELETE_OPCODE,
 				 .xt        = m0_fop_cob_delete_xc,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+				 .fop_ops   = &io_fop_cd_ops,
 #ifndef __KERNEL__
 				 .fom_ops   = &cob_fom_type_ops,
 				 .svc_type  = &m0_ios_type,

@@ -1109,7 +1109,7 @@ static void cob_delete_api_test(void)
 	m0_sm_group_unlock(&dummy_loc.fl_group);
 }
 
-static void cobfoms_fv_updates(void)
+static inline void cobfoms_fv_updates(void)
 {
 	struct m0_reqh      *reqh;
 	struct m0_poolmach  *pm;
@@ -1173,30 +1173,13 @@ static void cobfoms_fol_verify(void)
 	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(dec_cd_rec.fr_desc.rd_header.rh_parts_nr == 1);
 
-	m0_tl_for(m0_rec_part, &dec_cc_rec.fr_fol_rec_parts, dec_part) {
-		if (dec_part->rp_ops->rpo_type->rpt_index ==
-		    m0_fop_fol_rec_part_type.rpt_index) {
-			struct m0_fop_fol_rec_part  *fp_part;
-			struct m0_fop_cob_create    *create_fop;
-			struct m0_fop_cob_op_reply  *cob_rep;
-
-			fp_part    = dec_part->rp_data;
-			create_fop = fp_part->ffrp_fop;
-			cob_rep    = fp_part->ffrp_rep;
-			cob_cmn    = m0_cobfop_common_get(c_fop);
-			M0_UT_ASSERT(m0_xcode_cmp(
-				     &COB_DATA(&create_fop->cc_common),
-				     &COB_DATA(cob_cmn)) == 0);
-			M0_UT_ASSERT(cob_rep->cor_rc == 0);
-		}
-	} m0_tl_endfor;
-
 	m0_tl_for(m0_rec_part, &dec_cd_rec.fr_fol_rec_parts, dec_part) {
 		if (dec_part->rp_ops->rpo_type->rpt_index ==
 		    m0_fop_fol_rec_part_type.rpt_index) {
 			struct m0_fop_fol_rec_part *fp_part;
 			struct m0_fop_cob_delete   *del_fop;
 			struct m0_fop_cob_op_reply *cob_rep;
+			struct m0_fop_type *ftype;
 
 			fp_part = dec_part->rp_data;
 			del_fop = fp_part->ffrp_fop;
@@ -1206,8 +1189,42 @@ static void cobfoms_fol_verify(void)
 				     &COB_DATA(&del_fop->cd_common),
 				     &COB_DATA(cob_cmn)) == 0);
 			M0_UT_ASSERT(cob_rep->cor_rc == 0);
+
+			ftype = m0_fop_type_find(fp_part->ffrp_fop_code);
+			M0_UT_ASSERT(ftype != NULL);
+			M0_UT_ASSERT(ftype->ft_ops->fto_undo != NULL &&
+				     ftype->ft_ops->fto_redo != NULL);
+			ftype->ft_ops->fto_undo(fp_part, reqh->rh_fol);
+			m0_reqh_fom_domain_idle_wait(reqh);
 		}
 	} m0_tl_endfor;
+
+	m0_tl_for(m0_rec_part, &dec_cc_rec.fr_fol_rec_parts, dec_part) {
+		if (dec_part->rp_ops->rpo_type->rpt_index ==
+		    m0_fop_fol_rec_part_type.rpt_index) {
+			struct m0_fop_fol_rec_part  *fp_part;
+			struct m0_fop_cob_create    *create_fop;
+			struct m0_fop_cob_op_reply  *cob_rep;
+			struct m0_fop_type *ftype;
+
+			fp_part    = dec_part->rp_data;
+			create_fop = fp_part->ffrp_fop;
+			cob_rep    = fp_part->ffrp_rep;
+			cob_cmn    = m0_cobfop_common_get(c_fop);
+			M0_UT_ASSERT(m0_xcode_cmp(
+				     &COB_DATA(&create_fop->cc_common),
+				     &COB_DATA(cob_cmn)) == 0);
+			M0_UT_ASSERT(cob_rep->cor_rc == 0);
+
+			ftype = m0_fop_type_find(fp_part->ffrp_fop_code);
+			M0_UT_ASSERT(ftype != NULL);
+			M0_UT_ASSERT(ftype->ft_ops->fto_undo != NULL &&
+				     ftype->ft_ops->fto_redo != NULL);
+			ftype->ft_ops->fto_undo(fp_part, reqh->rh_fol);
+			m0_reqh_fom_domain_idle_wait(reqh);
+		}
+	} m0_tl_endfor;
+
 	m0_fol_lookup_rec_fini(&dec_cc_rec);
 	m0_fol_lookup_rec_fini(&dec_cd_rec);
 	m0_dtx_done(&dtx);

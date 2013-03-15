@@ -1310,7 +1310,7 @@ static void bulkio_server_write_fol_rec_verify(void)
 			M0_UT_ASSERT(ftype != NULL);
 			M0_UT_ASSERT(ftype->ft_ops->fto_undo != NULL &&
 				     ftype->ft_ops->fto_redo != NULL);
-			ftype->ft_ops->fto_undo(fp_part);
+			ftype->ft_ops->fto_undo(fp_part, reqh->rh_fol);
 		}
 	} m0_tl_endfor;
 

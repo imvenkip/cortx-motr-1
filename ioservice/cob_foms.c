@@ -42,8 +42,6 @@
 #include "layout/layout.h"
 
 /* Forward Declarations. */
-static int  cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
-			   struct m0_reqh *reqh);
 static void cc_fom_fini(struct m0_fom *fom);
 static int  cc_fom_tick(struct m0_fom *fom);
 static void cc_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
@@ -77,7 +75,7 @@ static const struct m0_fom_ops cc_fom_ops = {
 
 /** Common fom_type_ops for m0_fop_cob_create and m0_fop_cob_delete fops. */
 const struct m0_fom_type_ops cob_fom_type_ops = {
-	.fto_create = cob_fom_create,
+	.fto_create = m0_cob_fom_create,
 };
 
 /** Cob delete fom ops. */
@@ -88,8 +86,8 @@ static const struct m0_fom_ops cd_fom_ops = {
 	.fo_addb_init     = cd_fom_addb_init
 };
 
-static int cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
-			  struct m0_reqh *reqh)
+M0_INTERNAL int m0_cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				  struct m0_reqh *reqh)
 {
 	int			  rc;
 	struct m0_fop            *rfop;
@@ -244,13 +242,7 @@ static int cc_fom_tick(struct m0_fom *fom)
 	if (m0_fom_phase(fom) == M0_FOPH_CC_COB_CREATE) {
 		cc = cob_fom_get(fom);
 
-		rc = cc_stob_create(fom, cc);
-		if (rc != 0) {
-                        M0_LOG(M0_DEBUG, "Stob create failed with %d", rc);
-			goto out;
-		}
-
-		rc = cc_cob_create(fom, cc);
+		rc = cc_stob_create(fom, cc) ?: cc_cob_create(fom, cc);
 	} else {
 		rc = -EINVAL;
 		M0_IMPOSSIBLE("Invalid phase for cob create fom.");
@@ -459,11 +451,7 @@ static int cd_fom_tick(struct m0_fom *fom)
 	if (m0_fom_phase(fom) == M0_FOPH_CD_COB_DEL) {
 		cd = cob_fom_get(fom);
 
-		rc = cd_cob_delete(fom, cd);
-		if (rc != 0)
-			goto out;
-
-		rc = cd_stob_delete(fom, cd);
+		rc = cd_cob_delete(fom, cd) ?: cd_stob_delete(fom, cd);
 	} else {
 		rc = -EINVAL;
 		M0_IMPOSSIBLE("Invalid phase for cob delete fom.");

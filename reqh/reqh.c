@@ -156,6 +156,9 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 		return result;
 	}
 
+	if (reqh->rh_fol != NULL)
+		reqh->rh_fol->f_reqh = reqh;
+
 	m0_addb_mc_init(&reqh->rh_addb_mc);
 
 	/** @todo Currently passing dbenv to this api, the duty of the

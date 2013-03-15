@@ -131,6 +131,7 @@ struct m0_fol {
 	m0_lsn_t        f_lsn;
 	/** Lock, serializing fol access. */
 	struct m0_mutex f_lock;
+	struct m0_reqh *f_reqh;
 };
 
 /**

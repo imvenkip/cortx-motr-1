@@ -261,8 +261,8 @@ struct m0_fop_type_ops {
 	/** Returns the net buf desc in io fop. */
 	void (*fto_io_desc_get)(struct m0_fop *fop,
 			        struct m0_net_buf_desc **desc);
-	int (*fto_undo)(struct m0_fop_fol_rec_part *fpart);
-	int (*fto_redo)(struct m0_fop_fol_rec_part *fpart);
+	int (*fto_undo)(struct m0_fop_fol_rec_part *fpart, struct m0_fol *fol);
+	int (*fto_redo)(struct m0_fop_fol_rec_part *fpart, struct m0_fol *fol);
 };
 
 typedef uint32_t m0_fop_type_code_t;
