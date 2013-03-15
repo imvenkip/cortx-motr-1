@@ -247,7 +247,7 @@ include $(top_srcdir)/yaml2db/ut/Makefile.sub
 #
 
 noinst_LTLIBRARIES += net/test/libmero-net-test.la
-net_test_libmero_net_test_la__CPPFLAGS = -DM0_TARGET='libmero-net-test' $(AM_CPPFLAGS)
+net_test_libmero_net_test_la_CPPFLAGS = -DM0_TARGET='libmero-net-test' $(AM_CPPFLAGS)
 
 net_test_libmero_net_test_la_SOURCES =
 
