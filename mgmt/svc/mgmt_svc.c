@@ -477,12 +477,10 @@ struct cs_reqh_context {
  */
 
 
-/* This file is designed to be included by mgmt/mgmt.c */
-#include "mgmt/svc/mgmt_svc.h"
-
-/* Include the FOPs */
-#include "mgmt/svc/fop_ssr.c"
-#include "mgmt/svc/fop_ss.c"
+/* This file is designed to be included by mgmt/mgmt.c only if the
+   management service is to be built.
+ */
+#include "mgmt/svc/mgmt_svc_pvt.h"
 
 /**
    @ingroup mgmt_svc_pvt
@@ -612,6 +610,7 @@ static struct m0_reqh_service_type_ops mgmt_service_type_ops = {
 M0_REQH_SERVICE_TYPE_DEFINE(m0_mgmt_svc_type, &mgmt_service_type_ops,
                             M0_MGMT_SVC_TYPE_NAME, &m0_addb_ct_mgmt_service);
 
+
 /*
  ******************************************************************************
  * MGMT service initialization
@@ -619,24 +618,18 @@ M0_REQH_SERVICE_TYPE_DEFINE(m0_mgmt_svc_type, &mgmt_service_type_ops,
  */
 
 /**
-   Initialize the management service sub-module.
+   Initialize the management service.
  */
-static int mgmt_svc_init()
+static int mgmt_svc_init(void)
 {
-	int rc;
-
-	rc = m0_reqh_service_type_register(&m0_mgmt_svc_type) ?:
-		mgmt_fop_ssr_init() ?:
-		mgmt_fop_ss_init();
-	return rc;
+	return m0_reqh_service_type_register(&m0_mgmt_svc_type);
 }
 
 /**
-   Finalize the management service sub-module.
+   Finalize the management service.
  */
-static void mgmt_svc_fini()
+static void mgmt_svc_fini(void)
 {
-	mgmt_fom_service_state_req_fini();
         m0_reqh_service_type_unregister(&m0_mgmt_svc_type);
 }
 

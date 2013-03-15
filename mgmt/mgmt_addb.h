@@ -39,10 +39,17 @@
 enum {
 	M0_ADDB_CTXID_MGMT_MOD     = 1500,
 	M0_ADDB_CTXID_MGMT_SERVICE = 1501,
+	M0_ADDB_CTXID_MGMT_FOM_SS  = 1502,
 };
 
 M0_ADDB_CT(m0_addb_ct_mgmt_mod, M0_ADDB_CTXID_MGMT_MOD);
 M0_ADDB_CT(m0_addb_ct_mgmt_service, M0_ADDB_CTXID_MGMT_SERVICE, "hi", "low");
+
+/**
+   Service query FOP.
+   @param num  The number of services specified.
+ */
+M0_ADDB_CT(m0_addb_ct_mgmt_fom_ss, M0_ADDB_CTXID_MGMT_FOM_SS, "num");
 
 /*
  ******************************************************************************
@@ -58,6 +65,11 @@ M0_ADDB_CT(m0_addb_ct_mgmt_service, M0_ADDB_CTXID_MGMT_SERVICE, "hi", "low");
  * Do not change the numbering.
  ******************************************************************************
  */
+enum {
+	M0_MGMT_ADDB_LOC_FOP_SSR_FILL  = 130,
+	M0_MGMT_ADDB_LOC_FOP_SS_FTOC_1 = 230,
+	M0_MGMT_ADDB_LOC_FOP_SS_FTOC_2 = 240,
+};
 
 /** @} */ /* end of mgmt group */
 

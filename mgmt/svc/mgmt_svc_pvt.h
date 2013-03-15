@@ -18,19 +18,15 @@
  * Original creation date: 8-Mar-2013
  */
 #pragma once
-#ifndef __MERO_MGMT_SVC_H__
-#define __MERO_MGMT_SVC_H__
-
-#include "fop/fop.h"
-#include "fop/fom.h"
-#include "reqh/reqh.h"
-#include "reqh/reqh_service.h"
+#ifndef __MERO_MGMT_SVC_PVT_H__
+#define __MERO_MGMT_SVC_PVT_H__
 
 /**
    @defgroup mgmt_svc_pvt Management Service Private
    @ingroup mgmt_pvt
    @{
  */
+
 extern struct m0_reqh_service_type m0_mgmt_svc_type;
 
 /**
@@ -43,11 +39,18 @@ struct mgmt_svc {
 	struct m0_reqh_service ms_reqhs;
 };
 
-static int  mgmt_fom_service_state_req_init();
-static void mgmt_fom_service_state_req_fini();
+/**
+   Utility to fill in a service state response fop.
+   @param fom The current FOM with a m0_fop_mgmt_service_state_res
+   reply fop allocated.
+   @param services Pointer to sequence of service UUIDs
+   @pre The request handler rwlock must be held across this call.
+ */
+static void mgmt_fop_ssr_fill(struct m0_fom *fom,
+			      struct m0_mgmt_service_uuid_seq *services);
 
-/** @} end mgmt_pvt group */
-#endif /* __MERO_MGMT_SVC_H__ */
+/** @} end mgmt_svc_pvt group */
+#endif /* __MERO_MGMT_SVC_PVT_H__ */
 
 /*
  *  Local variables:

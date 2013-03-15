@@ -377,6 +377,9 @@ enum m0_magic_satchel {
 	/* mgmt_svc::ms_magic (bald dada casa) */
 	M0_MGMT_SVC_MAGIC = 0x33ba1ddadaca5a77,
 
+	/* mgmt_fop_ss_fom_bob (obese seafood) */
+	M0_MGMT_FOP_SS_FOM_MAGIC = 0x330be5e5eaf00d77,
+
 /* Net */
 	/* m0_net_domain::nd_magix (acidic access) */
 	M0_NET_DOMAIN_MAGIC = 0x33ac1d1cacce5577,

@@ -102,13 +102,18 @@
    @{
  */
 
-#include "mgmt/mgmt.h"
-
-/** Management module ADDB context */
+/** Management module global ADDB context */
 extern struct m0_addb_ctx m0_mgmt_addb_ctx;
 
-static int mgmt_svc_init();
-static void mgmt_svc_fini();
+#define MGMT_ADDB_FUNCFAIL(rc, loc)					\
+M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_MGMT_ADDB_LOC_##loc, rc, &m0_mgmt_addb_ctx)
+
+#define MGMT_ALLOC_PTR(ptr, loc, ...)					\
+M0_ALLOC_PTR_ADDB(ptr, &m0_addb_gmc, M0_MGMT_ADDB_LOC_##loc, &m0_mgmt_addb_ctx)
+
+#define MGMT_ALLOC_ARR(ptr, nr, loc)					\
+M0_ALLOC_ARR_ADDB(ptr, nr, &m0_addb_gmc, M0_MGMT_ADDB_LOC_##loc,	\
+		  &m0_mgmt_addb_ctx)
 
 /** @} end mgmt_pvt group */
 #endif /* __MERO_MGMT_MGMT_PVT_H__ */

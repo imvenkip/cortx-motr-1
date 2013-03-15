@@ -411,21 +411,45 @@ Mero-WOMO Productization Planning</a>
 #define M0_ADDB_RT_CREATE_DEFINITION
 #include "mgmt/mgmt_addb.h"
 
+#include "fop/fop.h"
+#include "fop/fom.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MGMT
 #include "lib/trace.h"  /* M0_LOG() */
+#include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
+#include "rpc/rpc_opcodes.h"
 #include "mero/magic.h"
 
+#include "mgmt/mgmt.h"
 #include "mgmt/mgmt_pvt.h"
 #include "mgmt/mgmt_fops_xc.h"
+#include "mgmt/mgmt_fops.h"
 
-/** Management module global ADDB context */
+/**
+   @addtogroup mgmt_pvt
+   @{
+ */
+#ifndef __KERNEL__
+/**
+   Define this macro to create the management service.
+   @todo Should a management service be in the kernel?  It requires reqh.
+ */
+#define M0_MGMT_SERVICE_PRESENT
+#endif /* !__KERNEL__ */
+
+/** @} end group mgmt_pvt */
+
 struct m0_addb_ctx m0_mgmt_addb_ctx;
 
 /* Include C files to minimize symbol exposure */
+#ifdef M0_MGMT_SERVICE_PRESENT
 #include "mgmt/svc/mgmt_svc.c"
+#endif
+#include "mgmt/svc/fop_ssr.c"
+#include "mgmt/svc/fop_ss.c"
 
 /**
    @addtogroup mgmt
@@ -434,30 +458,37 @@ struct m0_addb_ctx m0_mgmt_addb_ctx;
 
 M0_INTERNAL int m0_mgmt_init(void)
 {
-	int rc;
-
-	rc = mgmt_svc_init();
-	if (rc != 0)
-		return rc;
+	int rc = 0;
 
 	m0_xc_mgmt_fops_init();
 	m0_addb_ctx_type_register(&m0_addb_ct_mgmt_mod);
 	m0_addb_ctx_type_register(&m0_addb_ct_mgmt_service);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_mgmt_addb_ctx, &m0_addb_ct_mgmt_mod,
 			 &m0_addb_proc_ctx);
-	return 0;
+
+#ifdef M0_MGMT_SERVICE_PRESENT
+	rc = mgmt_svc_init();
+#endif
+	rc = rc ?:
+		mgmt_fop_ssr_init() ?:
+		mgmt_fop_ss_init();
+	return rc;
 }
 
 M0_INTERNAL void m0_mgmt_fini(void)
 {
+	mgmt_fop_ss_fini();
+	mgmt_fop_ssr_fini();
+#ifdef M0_MGMT_SERVICE_PRESENT
+	mgmt_svc_fini();
+#endif
 	m0_addb_ctx_fini(&m0_mgmt_addb_ctx);
 	m0_xc_mgmt_fops_fini();
-	mgmt_svc_fini();
 }
 
-#undef M0_TRACE_SUBSYSTEM
-
 /** @} end of mgmt group */
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

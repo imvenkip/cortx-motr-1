@@ -21,6 +21,8 @@
 #ifndef __MERO_MGMT_MGMT_FOPS_H__
 #define __MERO_MGMT_MGMT_FOPS_H__
 
+struct m0_fop_type;
+
 #include "addb/addb_wire.h"
 #include "addb/addb_wire_xc.h"
 #include "lib/buf.h"
@@ -72,6 +74,10 @@ struct m0_mgmt_service_state_seq {
    @see M0_MGMT_SERVICE_STATE_REPLY_OPCODE
  */
 struct m0_fop_mgmt_service_state_res {
+	/**
+	   Error code.
+	 */
+	uint32_t                         msr_rc;
 	/**
 	   Request handler state. See enum m0_reqh_states.
 	 */
@@ -138,6 +144,11 @@ struct m0_fop_mgmt_service_run_req {
 	 */
 	struct m0_mgmt_service_uuid_seq msrrq_services;
 } M0_XCA_RECORD;
+
+/** Fop type for m0_fop_mgmt_service_state_req */
+extern struct m0_fop_type m0_fop_mgmt_service_state_req_fopt;
+/** Fop type for m0_fop_mgmt_service_state_res */
+extern struct m0_fop_type m0_fop_mgmt_service_state_res_fopt;
 
 /** @} end mgmt group */
 
