@@ -50,9 +50,15 @@
    The following interfaces are added to the Request handler to support
    proper management of services:
    - m0_reqh_fop_allow()
-   - m0_reqh_mgmt_service_set()
+   - m0_reqh_mgmt_service_start()
+   - m0_reqh_mgmt_service_stop()
+   - m0_reqh_start()
    - m0_reqh_state_get()
-   - m0_reqh_state_set()
+
+   In addition, the following existing subroutines are extended to understand
+   the request handler state:
+   - m0_reqh_services_terminate()
+   - m0_reqh_shutdown_wait()
 
    <hr>
    @section MGMT-DLD-fspec-cli Command Usage

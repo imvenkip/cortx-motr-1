@@ -40,6 +40,7 @@
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
 #include "layout/pdclust.h"
+#include "mgmt/mgmt.h"
 
 /**
    @addtogroup reqh
@@ -68,6 +69,61 @@ M0_TL_DESCR_DEFINE(m0_reqh_rpc_mach, "rpc machines", ,
 M0_TL_DEFINE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
 
 M0_LOCKERS_DEFINE(M0_INTERNAL, m0_reqh, rh_lockers);
+
+/**
+   Request handler state machine description
+ */
+static const struct m0_sm_state_descr m0_reqh_sm_descr[] = {
+        [M0_REQH_ST_INIT] = {
+                .sd_flags       = M0_SDF_INITIAL,
+                .sd_name        = "Init",
+                .sd_allowed     = M0_BITS(M0_REQH_ST_MGMT_START,
+					  M0_REQH_ST_NORMAL,
+					  M0_REQH_ST_SVCS_STOP)
+        },
+        [M0_REQH_ST_MGMT_START] = {
+                .sd_flags       = 0,
+                .sd_name        = "ManagementStart",
+                .sd_allowed     = M0_BITS(M0_REQH_ST_NORMAL,
+					  M0_REQH_ST_SVCS_STOP)
+        },
+        [M0_REQH_ST_NORMAL] = {
+                .sd_flags       = 0,
+                .sd_name        = "Normal",
+                .sd_allowed     = M0_BITS(M0_REQH_ST_DRAIN,
+					  M0_REQH_ST_SVCS_STOP)
+        },
+        [M0_REQH_ST_DRAIN] = {
+                .sd_flags       = 0,
+                .sd_name        = "Drain",
+                .sd_allowed     = M0_BITS(M0_REQH_ST_SVCS_STOP)
+        },
+        [M0_REQH_ST_SVCS_STOP] = {
+                .sd_flags       = 0,
+                .sd_name        = "ServicesStop",
+                .sd_allowed     = M0_BITS(M0_REQH_ST_MGMT_STOP,
+					  M0_REQH_ST_STOPPED)
+        },
+        [M0_REQH_ST_MGMT_STOP] = {
+                .sd_flags       = 0,
+                .sd_name        = "ManagementStop",
+                .sd_allowed     = M0_BITS(M0_REQH_ST_STOPPED)
+        },
+        [M0_REQH_ST_STOPPED] = {
+                .sd_flags       = M0_SDF_TERMINAL,
+                .sd_name        = "Stopped",
+                .sd_allowed     = 0
+        },
+};
+
+/**
+   Request handler state machine configuration.
+ */
+static struct m0_sm_conf m0_reqh_sm_conf = {
+	.scf_name      = "Request Handler States",
+	.scf_nr_states = ARRAY_SIZE(m0_reqh_sm_descr),
+	.scf_state     = m0_reqh_sm_descr,
+};
 
 M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 {
@@ -153,9 +209,12 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 
 	m0_reqh_svc_tlist_init(&reqh->rh_services);
 	m0_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
-	m0_mutex_init(&reqh->rh_mutex);
-	m0_chan_init(&reqh->rh_sd_signal, &reqh->rh_mutex);
+	m0_sm_group_init(&reqh->rh_sm_grp);
+	m0_mutex_init(&reqh->rh_mutex); /* deprecated */
+	m0_chan_init(&reqh->rh_sd_signal, &reqh->rh_mutex); /* deprecated */
 	m0_rwlock_init(&reqh->rh_rwlock);
+	m0_sm_init(&reqh->rh_sm, &m0_reqh_sm_conf, M0_REQH_ST_INIT,
+		   &reqh->rh_sm_grp, &reqh->rh_addb_ctx);
 	m0_reqh_lockers_init(reqh);
 	M0_POST(m0_reqh_invariant(reqh));
 
@@ -165,19 +224,20 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 {
 	M0_PRE(reqh != NULL);
+
 	m0_layout_standard_types_unregister(&reqh->rh_ldom);
 	m0_layout_domain_fini(&reqh->rh_ldom);
-
+	m0_sm_fini(&reqh->rh_sm);
+	m0_sm_group_fini(&reqh->rh_sm_grp);
 	m0_addb_ctx_fini(&reqh->rh_addb_ctx);
 	m0_addb_mc_fini(&reqh->rh_addb_mc);
         m0_fom_domain_fini(&reqh->rh_fom_dom);
         m0_reqh_svc_tlist_fini(&reqh->rh_services);
         m0_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
-	/** @todo finalize the state machine */
 	m0_reqh_lockers_fini(reqh);
 	m0_rwlock_fini(&reqh->rh_rwlock);
-	m0_chan_fini_lock(&reqh->rh_sd_signal);
-	m0_mutex_fini(&reqh->rh_mutex);
+	m0_chan_fini_lock(&reqh->rh_sd_signal); /* deprecated */
+	m0_mutex_fini(&reqh->rh_mutex); /* deprecated */
 }
 
 M0_INTERNAL void m0_reqhs_fini(void)
@@ -195,17 +255,15 @@ M0_INTERNAL int m0_reqhs_init(void)
 
 M0_INTERNAL int m0_reqh_state_get(struct m0_reqh *reqh)
 {
-	return 0;
+	M0_PRE(m0_reqh_invariant(reqh));
+
+	return reqh->rh_sm.sm_state;
 }
 
-M0_INTERNAL void m0_reqh_state_set(struct m0_reqh *reqh,
-				   enum m0_reqh_states state)
+static void reqh_state_set(struct m0_reqh *reqh,
+			   enum m0_reqh_states state)
 {
-}
-
-M0_INTERNAL void m0_reqh_mgmt_service_set(struct m0_reqh *reqh,
-					  struct m0_reqh_service *mgmt_svc)
-{
+	m0_sm_state_set(&reqh->rh_sm, state);
 }
 
 M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh,
@@ -269,6 +327,12 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
 	struct m0_reqh_service *rpcservice = NULL;
 
 	M0_PRE(reqh != NULL);
+	M0_PRE(m0_reqh_invariant(reqh));
+
+        m0_rwlock_write_lock(&reqh->rh_rwlock);
+	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
+	reqh_state_set(reqh, M0_REQH_ST_DRAIN);
+        m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
 		M0_ASSERT(m0_reqh_service_invariant(service));
@@ -292,10 +356,9 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
 	if (rpcservice != NULL)
 		m0_reqh_service_prepare_to_stop(rpcservice);
 
-
-	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	reqh->rh_shutdown = true;
-	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+        m0_rwlock_write_lock(&reqh->rh_rwlock);
+        reqh->rh_shutdown = true; /* deprecated */
+        m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	m0_reqh_fom_domain_idle_wait(reqh);
 }
@@ -305,11 +368,103 @@ M0_INTERNAL void m0_reqh_services_terminate(struct m0_reqh *reqh)
 	struct m0_reqh_service *service;
 
 	M0_PRE(reqh != NULL);
+        m0_rwlock_write_lock(&reqh->rh_rwlock);
+	M0_PRE(m0_reqh_invariant(reqh));
+
+	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
+	       m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_START ||
+	       m0_reqh_state_get(reqh) == M0_REQH_ST_INIT);
+	reqh_state_set(reqh, M0_REQH_ST_SVCS_STOP);
+
+        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
 		M0_ASSERT(m0_reqh_service_invariant(service));
 		m0_reqh_service_stop(service);
 		m0_reqh_service_fini(service);
 	} m0_tl_endfor;
+
+        m0_rwlock_write_lock(&reqh->rh_rwlock);
+	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_SVCS_STOP);
+
+	if (reqh->rh_mgmt_svc != NULL)
+		reqh_state_set(reqh, M0_REQH_ST_MGMT_STOP);
+	else
+		reqh_state_set(reqh, M0_REQH_ST_STOPPED);
+
+        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+}
+
+M0_INTERNAL void m0_reqh_start(struct m0_reqh *reqh)
+{
+	M0_PRE(reqh != NULL);
+        m0_rwlock_write_lock(&reqh->rh_rwlock);
+	M0_PRE(m0_reqh_invariant(reqh));
+
+	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_START ||
+	       m0_reqh_state_get(reqh) == M0_REQH_ST_INIT);
+	reqh_state_set(reqh, M0_REQH_ST_NORMAL);
+
+        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+}
+
+M0_INTERNAL int m0_reqh_mgmt_service_start(struct m0_reqh *reqh)
+{
+	struct m0_reqh_service *service;
+	int                     rc;
+
+	M0_PRE(reqh != NULL);
+        m0_rwlock_write_lock(&reqh->rh_rwlock);
+	M0_PRE(m0_reqh_invariant(reqh));
+
+	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_INIT);
+	M0_PRE(reqh->rh_mgmt_svc == NULL);
+
+	rc = m0_mgmt_service_allocate(&service);
+	if (rc != 0)
+		goto allocate_failed;
+	m0_reqh_service_init(service, reqh);
+	reqh->rh_mgmt_svc = service;
+	rc = m0_reqh_service_start(service);
+	if (rc != 0)
+		goto start_failed;
+	M0_POST(reqh->rh_mgmt_svc == service);
+	M0_POST(m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_START);
+ done:
+        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+	return rc;
+
+ start_failed:
+	reqh->rh_mgmt_svc = NULL;
+	m0_reqh_service_fini(service);
+ allocate_failed:
+	reqh_state_set(reqh, M0_REQH_ST_STOPPED);
+	M0_POST(reqh->rh_mgmt_svc == NULL);
+	M0_POST(rc != 0);
+	goto done;
+}
+
+M0_INTERNAL void m0_reqh_mgmt_service_stop(struct m0_reqh *reqh)
+{
+	struct m0_reqh_service *service;
+
+	M0_PRE(reqh != NULL);
+        m0_rwlock_write_lock(&reqh->rh_rwlock);
+	M0_PRE(m0_reqh_invariant(reqh));
+
+	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP);
+	service = reqh->rh_mgmt_svc;
+
+	if (service != NULL) {
+		reqh->rh_mgmt_svc = NULL;
+		m0_reqh_service_prepare_to_stop(service);
+		m0_reqh_fom_domain_idle_wait(reqh); /* drain mgmt fops */
+		m0_reqh_service_stop(service);
+		m0_reqh_service_fini(service);
+	}
+	reqh_state_set(reqh, M0_REQH_ST_STOPPED);
+
+        m0_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
 M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh)

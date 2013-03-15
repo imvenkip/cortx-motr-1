@@ -43,6 +43,11 @@ M0_INTERNAL int m0_mgmt_init(void);
  */
 M0_INTERNAL void m0_mgmt_fini(void);
 
+/**
+   Allocate a management service.
+ */
+M0_INTERNAL int m0_mgmt_service_allocate(struct m0_reqh_service **service);
+
 /** @} end mgmt group */
 #endif /* __MERO_MGMT_MGMT_H__ */
 /*

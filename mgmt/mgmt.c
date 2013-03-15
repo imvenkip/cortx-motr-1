@@ -179,8 +179,10 @@
        should end up in this directory.
      - A subdirectory named "db" will be temporarily created and passed as
        the argument to the '-D' m0d flag.
-     - The confd database will be in a sub-directory named "confd" on
-       hosts that run the configuration database service.
+     - The confd database will be in the /var/mero/confd directory on hosts that
+       run the configuration database service.  It should not be under /etc
+       because the size is proportional to both the number of physical and the
+       number of logical resources.
      - Trace files could be placed in this directory.
 
    It is up to an external agency to set up all the required configuration
@@ -484,6 +486,15 @@ M0_INTERNAL void m0_mgmt_fini(void)
 #endif
 	m0_addb_ctx_fini(&m0_mgmt_addb_ctx);
 	m0_xc_mgmt_fops_fini();
+}
+
+M0_INTERNAL int m0_mgmt_service_allocate(struct m0_reqh_service **service)
+{
+#ifdef M0_MGMT_SERVICE_PRESENT
+	return m0_reqh_service_allocate(service, &m0_mgmt_svc_type, NULL);
+#else
+	return -ENOSYS;
+#endif
 }
 
 /** @} end of mgmt group */

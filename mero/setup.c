@@ -1073,10 +1073,12 @@ static int cs_services_init(struct m0_mero *cctx)
 	M0_PRE(cctx != NULL);
 
 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-		rc = cs_service_init("rpcservice", NULL, &rctx->rc_reqh) ?:
+		rc = m0_reqh_mgmt_service_start(&rctx->rc_reqh) ?:
+			cs_service_init("rpcservice", NULL, &rctx->rc_reqh) ?:
 			reqh_services_init(rctx);
 		if (rc != 0)
 			break;
+		m0_reqh_start(&rctx->rc_reqh);
 	} m0_tl_endfor;
 
 	M0_RETURN(rc);
@@ -1397,8 +1399,9 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 
 	reqh = &rctx->rc_reqh;
 	m0_reqh_shutdown_wait(reqh);
-
 	m0_reqh_services_terminate(reqh);
+	if (m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP)
+		m0_reqh_mgmt_service_stop(reqh);
 	cs_rpc_machines_fini(reqh);
 	m0_reqh_fini(reqh);
 	m0_fol_fini(&rctx->rc_fol);

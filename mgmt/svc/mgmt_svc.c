@@ -185,7 +185,8 @@ struct cs_reqh_context {
    The method is optional, and will be used by the m0_reqh_fop_allow()
    subroutine described below.
 
-   The request handler state machine is defined as follows:
+   The request handler state machine is illustrated below. All subroutines
+   mentioned in edge labels have their "m0_reqh_" prefix stripped for clarity.
    @dot
    digraph fa_sm {
        size = "6,7"
@@ -195,78 +196,81 @@ struct cs_reqh_context {
        before [label="", shape="plaintext", layer=""]
        init   [label="M0_REQH_ST_INIT"]
        mstart [label="M0_REQH_ST_MGMT_START"]
-       sstart [label="M0_REQH_ST_SVCS_START"]
        normal [label="M0_REQH_ST_NORMAL"]
        sdrain [label="M0_REQH_ST_DRAIN"]
        sstop  [label="M0_REQH_ST_SVCS_STOP"]
        mstop  [label="M0_REQH_ST_MGMT_STOP"]
        fini   [label="M0_REQH_ST_STOPPED"]
-       before -> init [label="m0_reqh_init(reqh)"]
-       init -> mstart [label="cs_services_init()"]
-       init -> fini [label="fail"]
-       mstart -> sstart [label="management started"]
-       mstart -> fini [label="fail"]
-       sstart -> normal [label="all services started"]
-       sstart -> sstop [label="some service failed"]
-       normal -> sdrain [label="m0_reqh_shutdown_wait()"]
-       sdrain -> sstop [label="m0_reqh_services_terminate()"]
-       sstop -> mstop [label="services stopped"]
-       mstop -> fini [label="mgmt stopped"]
+       after  [label="", shape="plaintext", layer=""]
+       before -> init [label="init()"]
+       init -> mstart [label="mgmt_service_start()"]
+       init -> init [label="service_start()\nservice_stop()"]
+       init -> sstop [label="services_terminate()"]
+       init -> normal [label="start()"]
+       mstart -> mstart [label="service_start()\nservice_stop()"]
+       mstart -> normal [label="start()"]
+       mstart -> sstop [label="services_terminate()"]
+       normal -> normal [label="service_start()\nservice_stop()"]
+       normal -> sdrain [label="shutdown_wait()"]
+       normal -> sstop [label="services_terminate()"]
+       sdrain -> sstop [label="services_terminate()"]
+       sstop -> mstop [label="has management"]
+       sstop -> fini [label="no managment"]
+       mstop -> fini [label="mgmt_service_stop()"]
+       fini -> after [label="fini()"]
    }
    @enddot
    The states and associated activities are as follows:
    - @b M0_REQH_ST_INIT The initial state when the request handler object has
      been initialized by m0_reqh_init().
-     No FOPs are accepted in this state.
-   - @b M0_REQH_ST_MGMT_START The request handler starts the management service
-     in this state.
-     No FOPs are accepted in this state.
-     The transition to this state will take place in cs_services_init().
-   - @b M0_REQH_ST_SVCS_START The request handler starts other services in
-     this state.
-     Incoming management status queries are accepted, but all other FOPs are
-     rejected, as explained below.
-     The transition to this state will take place in cs_services_init().
-   - @b M0_REQH_ST_NORMAL All services are started, and all FOPs are accepted.
+     Services can be started and stopped but no FOPs are accepted in this state.
+   - @b M0_REQH_ST_MGMT_START A management service is available in this state.
+     Services can be started and stopped.
+     Incoming management status query FOPs are accepted, but all other FOPs are
+     rejected, as explained in the algorithm below.
+   - @b M0_REQH_ST_NORMAL All FOPs are accepted.
      It is possible that individual services be started and stopped via
      management calls when the request handler is in this state, so care has to
      be taken to reject FOPs for services that are not in their ::M0_RST_STARTED
      state.
-     The transition to this state will take place in cs_services_init().
    - @b M0_REQH_ST_DRAIN Services are notified that they will be stopped.
      Incoming management status queries are accepted, but all other FOPs are
      rejected.
-     The transition to this state happens within m0_reqh_shutdown_wait().
-        - Note: The m0_reqh_shutdown_wait() subroutine uses
-          m0_reqh_fom_domain_idle_wait() to wait for activity to cease. This
-          implies that during this period it is possible that a stream of
-          incoming management status requests could prevent the request handler
-          from ever leaving the state. Some action has to be taken to sense such
-          a condition and prevent it from happening; for example, we could wait
-          on the FOM counters of the individual services instead of on the
-          locality FOM counters, or reject management queries if they arrive
-	  too frequently or after some maximum count has been reached since
-	  transitioning to the state.
+     - Note: The m0_reqh_shutdown_wait() subroutine uses
+       m0_reqh_fom_domain_idle_wait() to wait for activity to cease. This
+       implies that during this period it is possible that a stream of incoming
+       management status requests could prevent the request handler from ever
+       leaving the state. Some action has to be taken to sense such a condition
+       and prevent it from happening; for example, we could wait on the FOM
+       counters of the individual services instead of on the locality FOM
+       counters, or reject management queries if they arrive too frequently or
+       after some maximum count has been reached since transitioning to the
+       state.
    - @b M0_REQH_ST_SVCS_STOP Services are stopped and finalized.  Incoming
      management status queries are accepted, but all other FOPs are rejected.
-     The transition to this state happens within m0_reqh_services_terminate();
-     care must be taken to not stop the management service until the other
-     services are terminated.
    - @b M0_REQH_ST_MGMT_STOP The management service is stopped.
-     The transition to this state happens within m0_reqh_services_terminate(),
-     after services are terminated.
      No FOPs are accepted in this state.
-     A second call must be made to m0_reqh_fom_domain_idle_wait() to ensure that
-     ongoing management FOMs terminate and then the management service is
-     stopped.
-   - @b M0_REQH_ST_STOPPED The request handler object is stopped.
-     The transition to this state is made in m0_reqh_services_terminate()
-     after the management service is stopped.
+     - Note: A second call must be made to m0_reqh_fom_domain_idle_wait() to
+       ensure that ongoing management FOMs terminate.
+   - @b M0_REQH_ST_STOPPED The request handler object is stopped and may be
+     finalized.
 
    New utility subroutines are provided to operate on the state machine:
    - m0_reqh_state_get() returns the state of this state machine.
-   - m0_reqh_state_set() sets the state of this state machine.
    - m0_reqh_fop_allow() determines if an incoming FOP should be accepted.
+   - m0_reqh_start() causes a transition to the NORMAL state. It is possible
+   to transition to the NORMAL state even without a management service. This
+   is provided mainly for unit tests.
+   - m0_reqh_mgmt_service_start() starts the management service and transitions
+   the state to MGMT_START.
+   - m0_reqh_mgmt_service_stop() terminates the management service and
+   transitions the state machine from MGMT_STOP to STOPPED.
+
+   In addition, the following existing subroutines are extended to understand
+   the request handler state:
+   - m0_reqh_services_terminate() transitions the request handler to the
+   SVCS_STOP state, and from there to either the MGMT_STOP or STOPPED states.
+   - m0_reqh_shutdown_wait() transitions the request handler to the DRAIN state.
 
    The decision to accept an incoming FOP is made by the m0_reqh_fop_allow()
    subroutine.  It is intended to be used from the m0_reqh_fop_handle()
@@ -293,32 +297,33 @@ struct cs_reqh_context {
    The m0_reqh_fop_allow() algorithm is illustrated by the following
    pseudo-code:
 @code
-   if (reqh state is INIT or MGMT_START)
+   if (reqh state is INIT)
       return -EAGAIN;
-   rc = -ESHUTDOWN;
    if (reqh state is MGMT_STOP or STOPPED)
-      return rc;
+      return -ESHUTDOWN;
    svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);
    if (svc == NULL)
       return -ECONNREFUSED;
    if (reqh state is NORMAL) {
        if (svc->rs_state == M0_RST_STARTED)
           return 0; // case A
-       else if (svc->rs_state == M0_RST_STOPPING) {
+       if (svc->rs_state == M0_RST_STOPPING) {
           if (svc->rs_ops->rso_fop_accept != NULL)
-             rc = (*svc->rs_ops->rso_fop_accept)(svc, fop); // case B
-       }
-       else if (svc->rs_state == M0_RST_STARTING)
-             rc = -EBUSY;  // case C
+             return (*svc->rs_ops->rso_fop_accept)(svc, fop); // case B
+	  return -ESHUTDOWN;
+       } else if (svc->rs_state == M0_RST_STARTING)
+             return -EBUSY;  // case C
+       return -ESHUTDOWN;
    } else if (reqh state is DRAIN) {
        if (svc->rs_ops->rso_fop_accept != NULL &&
            (svc->rs_state == M0_RST_STARTED ||
 	    svc->rs_state == M0_RST_STOPPING))
-	   rc = (*svc->rs_ops->rso_fop_accept)(svc, fop); // case D
-   } else if (reqh state is SVCS_START or SVCS_STOP &&
+	   return (*svc->rs_ops->rso_fop_accept)(svc, fop); // case D
+       return -ESHUTDOWN;
+   } else if (reqh state is MGMT_START or SVCS_STOP &&
               svc is the management service)
-       rc = (*svc->rs_ops->rso_fop_accept)(svc, fop); // case E
-   return rc;
+       return (*svc->rs_ops->rso_fop_accept)(svc, fop); // case E
+   return -ESHUTDOWN;
 @endcode
    The interesting cases have been flagged:
    - @b A This is the normal operating case
@@ -364,10 +369,18 @@ struct cs_reqh_context {
 
    @subsection MGMT-SVC-DLD-lspec-mgmt-svc The Management Service
    The management service is a special request handler service that is
-   implicitly created in the cs_services_init() subroutine.
-   The management service should never be created explicitly; this
-   will be asserted by the service's rso_start() method, which is charged with
-   setting the m0_reqh::rh_mgmt_svc field in the request handler.
+   implicitly created in the cs_services_init() subroutine by invoking
+   m0_reqh_mgmt_service_start().  This subroutine will use
+   m0_mgmt_service_allocate() to allocate an instance of the service and
+   set m0_reqh::rh_mgmt_svc to point to this instance.
+   It then starts the service using m0_reqh_service_start().
+   The management service's rso_start() method will fail if this field
+   matches its service instance value.  This ensures that the management
+   service cannot be started explicitly.
+
+   The management service should be terminated explicitly with
+   m0_reqh_mgmt_service_stop().  It is not stopped by the
+   m0_reqh_services_terminate() subroutine.
 
    @subsection MGMT-SVC-DLD-lspec-mgmt-foms Management FOPs and FOMs
    The management service defines FOPs for the following operations:
@@ -518,12 +531,22 @@ static bool mgmt_svc_invariant(const struct mgmt_svc *svc)
 static int mgmt_svc_rso_start(struct m0_reqh_service *service)
 {
 	struct mgmt_svc *svc;
+	struct m0_reqh  *reqh;
 
 	M0_LOG(M0_DEBUG, "starting");
 	M0_PRE(service->rs_state == M0_RST_STARTING);
-	/** @todo Should assert reqh state */
+
 	svc = bob_of(service, struct mgmt_svc, ms_reqhs, &mgmt_svc_bob);
-	the_mgmt_svc = svc;
+
+	/* There is only one management service per request handler
+	   and it is special!
+	 */
+	reqh = service->rs_reqh;
+	if (m0_reqh_state_get(reqh) != M0_REQH_ST_MGMT_START ||
+	    reqh->rh_mgmt_svc != service)
+		return -EPROTO;
+
+	the_mgmt_svc = svc; /* UT */
 	return 0;
 }
 
@@ -536,7 +559,6 @@ static void mgmt_svc_rso_prepare_to_stop(struct m0_reqh_service *service)
 
 	M0_LOG(M0_DEBUG, "preparing to stop");
 	M0_PRE(service->rs_state == M0_RST_STARTED);
-	/** @todo Should assert reqh state */
 	svc = bob_of(service, struct mgmt_svc, ms_reqhs, &mgmt_svc_bob);
 }
 
@@ -547,7 +569,6 @@ static void mgmt_svc_rso_stop(struct m0_reqh_service *service)
 {
 	M0_LOG(M0_DEBUG, "stopping");
 	M0_PRE(service->rs_state == M0_RST_STOPPING);
-	/** @todo Should assert reqh state */
 }
 
 /**
