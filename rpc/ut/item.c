@@ -447,7 +447,7 @@ static void test_oneway_item(void)
 	m0_fi_enable("frm_fill_packet", "skip_oneway_items");
 	/* stop client server to trigger m0_rpc_frm_fini() */
 	stop_rpc_client_and_server();
-	M0_UT_ASSERT(!arrow_sent_cb_called);
+	M0_UT_ASSERT(arrow_sent_cb_called); /* callback with FAILED items */
 	M0_UT_ASSERT(fop_release_called);
 	start_rpc_client_and_server();
 	m0_fi_disable("frm_fill_packet", "skip_oneway_items");

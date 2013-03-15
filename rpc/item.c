@@ -583,6 +583,10 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 	item->ri_error = rc;
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_FAILED);
 	m0_rpc_item_stop_timer(item);
+	if (m0_rpc_item_is_oneway(item) &&
+	    item->ri_ops != NULL && item->ri_ops->rio_sent != NULL) {
+		item->ri_ops->rio_sent(item);
+	}
 	m0_rpc_session_item_failed(item);
 	M0_LEAVE();
 }
