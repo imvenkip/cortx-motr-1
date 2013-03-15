@@ -310,8 +310,20 @@ enum {
 
 static void ub_init(void)
 {
+        struct m0_db_tx         tx;
+        int                     rc;
+
         db_reset();
         test_init();
+
+        rc = m0_db_tx_init(&tx, &db, 0);
+        M0_ASSERT(rc == 0);
+        /* Create root and other structures */
+        rc = m0_cob_domain_mkfs(&dom, &M0_COB_SLASH_FID,
+                                &M0_COB_SESSIONS_FID, &tx);
+        M0_ASSERT(rc == 0);
+        m0_db_tx_commit(&tx);
+
         rc = m0_db_tx_init(&cob_ub_tx, dom.cd_dbenv, 0);
         M0_ASSERT(rc == 0);
 }
