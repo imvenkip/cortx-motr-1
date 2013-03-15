@@ -48,28 +48,16 @@ M0_INTERNAL void m0_rpc_item_set_stage(struct m0_rpc_item *item,
 				       enum m0_rpc_item_stage stage);
 M0_INTERNAL int m0_rpc_slot_item_received(struct m0_rpc_item *item);
 
+static void duplicate_item_received(struct m0_rpc_slot *slot,
+				    struct m0_rpc_item *item);
+static void misordered_item_received(struct m0_rpc_slot *slot,
+				     struct m0_rpc_item *item);
+
 M0_TL_DESCR_DEFINE(slot_item, "slot-ref-item-list", M0_INTERNAL,
 		   struct m0_rpc_item, ri_slot_refs[0].sr_link, ri_magic,
 		   M0_RPC_ITEM_MAGIC, M0_RPC_SLOT_REF_HEAD_MAGIC);
 M0_TL_DEFINE(slot_item, M0_INTERNAL, struct m0_rpc_item);
 
-/*
-static inline struct m0_verno *
-item_verno(struct m0_rpc_item *item,
-	   int                 idx)
-{
-	M0_PRE(idx < MAX_SLOT_REF);
-	return &item->ri_slot_refs[idx].sr_ow.osr_verno;
-}
-
-static inline uint64_t
-item_xid(struct m0_rpc_item *item,
-	 int                 idx)
-{
-	M0_PRE(idx < MAX_SLOT_REF);
-	return item->ri_slot_refs[idx].sr_ow.osr_xid;
-}
-*/
 static struct m0_rpc_machine *
 slot_get_rpc_machine(const struct m0_rpc_slot *slot)
 {
@@ -454,8 +442,8 @@ M0_INTERNAL void m0_rpc_slot_item_add_internal(struct m0_rpc_slot *slot,
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_rpc_slot_misordered_item_received(struct m0_rpc_slot *slot,
-						      struct m0_rpc_item *item)
+static void misordered_item_received(struct m0_rpc_slot *slot,
+				     struct m0_rpc_item *item)
 {
 	struct m0_rpc_item *reply;
 	struct m0_fop      *fop;
@@ -481,72 +469,75 @@ M0_INTERNAL void m0_rpc_slot_misordered_item_received(struct m0_rpc_slot *slot,
 M0_INTERNAL int m0_rpc_slot_item_apply(struct m0_rpc_slot *slot,
 				       struct m0_rpc_item *item)
 {
-	struct m0_rpc_item *req;
-	int                 redoable;
-	int                 rc = -EPROTO;
+	int rc;
 
 	M0_ENTRY("slot: %p, item: %p", slot, item);
 	M0_ASSERT(item != NULL);
 	M0_ASSERT(m0_rpc_slot_invariant(slot));
 	M0_PRE(m0_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 
-	redoable = m0_verno_is_redoable(&slot->sl_verno,
-					item_verno(item, 0), false);
-	switch (redoable) {
-	case 0:
+	if (item_xid(item, 0) == slot->sl_xid) {
+		/* valid in sequence */
 		__slot_item_add(slot, item, true);
 		rc = 0;
-		break;
-	case -EALREADY:
-		/* item is a duplicate request. Find originial. */
-		req = item_find(slot, item_xid(item, 0));
-		if (req == NULL) {
-			m0_rpc_slot_misordered_item_received(slot, item);
-			break;
-		}
-		/*
-		 * XXX At this point req->ri_slot_refs[0].sr_verno and
-		 * item->ri_slot_refs[0].sr_verno MUST be same. If they are
-		 * not same then generate ADDB record.
-		 * For now, assert this condition for testing purpose.
-		 */
-		M0_ASSERT(m0_verno_cmp(item_verno(req, 0),
-				       item_verno(item, 0)) == 0);
-
-		switch (req->ri_stage) {
-		case RPC_ITEM_STAGE_PAST_VOLATILE:
-		case RPC_ITEM_STAGE_PAST_COMMITTED:
-			/*
-			 * @item is duplicate and corresponding original is
-			 * already consumed (i.e. executed if item is FOP).
-			 * Consume cached reply. (on receiver, this means
-			 * resend cached reply)
-			 */
-			M0_ASSERT(req->ri_reply != NULL);
-			slot->sl_ops->so_reply_consume(req, req->ri_reply);
-			break;
-		case RPC_ITEM_STAGE_IN_PROGRESS:
-		case RPC_ITEM_STAGE_FUTURE:
-			/* item is already present but is not
-			   processed yet. Ignore it*/
-			/* do nothing */;
-			break;
-		case RPC_ITEM_STAGE_TIMEDOUT:
-		case RPC_ITEM_STAGE_FAILED:
-			M0_IMPOSSIBLE("Original req in TIMEDOUT/FAILED stage");
-		}
-		/*
-		 * Irrespective of any of above cases, we're going to
-		 * ignore this _duplicate_ item.
-		 */
-		break;
-
-	case -EAGAIN:
-		m0_rpc_slot_misordered_item_received(slot, item);
-		break;
+	} else if (item_xid(item, 0) < slot->sl_xid) {
+		duplicate_item_received(slot, item);
+		rc = -EPROTO;
+	} else {
+		/* neither duplicate nor in seq */
+		misordered_item_received(slot, item);
+		rc = -EPROTO;
 	}
 	M0_ASSERT(m0_rpc_slot_invariant(slot));
 	M0_RETURN(rc);
+}
+
+static void duplicate_item_received(struct m0_rpc_slot *slot,
+				    struct m0_rpc_item *item)
+{
+	struct m0_rpc_item *req;
+
+	/* item is a duplicate request. Find originial. */
+	req = item_find(slot, item_xid(item, 0));
+	if (req == NULL) {
+		misordered_item_received(slot, item);
+		return;
+	}
+	/*
+	 * XXX At this point req->ri_slot_refs[0].sr_verno and
+	 * item->ri_slot_refs[0].sr_verno MUST be same. If they are
+	 * not same then generate ADDB record.
+	 * For now, assert this condition for testing purpose.
+	 */
+	M0_ASSERT(m0_verno_cmp(item_verno(req, 0),
+			       item_verno(item, 0)) == 0);
+
+	switch (req->ri_stage) {
+	case RPC_ITEM_STAGE_PAST_VOLATILE:
+	case RPC_ITEM_STAGE_PAST_COMMITTED:
+		/*
+		 * @item is duplicate and corresponding original is
+		 * already consumed (i.e. executed if item is FOP).
+		 * Consume cached reply. (on receiver, this means
+		 * resend cached reply)
+		 */
+		M0_ASSERT(req->ri_reply != NULL);
+		slot->sl_ops->so_reply_consume(req, req->ri_reply);
+		break;
+	case RPC_ITEM_STAGE_IN_PROGRESS:
+	case RPC_ITEM_STAGE_FUTURE:
+		/* item is already present but is not
+		   processed yet. Ignore it*/
+		/* do nothing */;
+		break;
+	case RPC_ITEM_STAGE_TIMEDOUT:
+	case RPC_ITEM_STAGE_FAILED:
+		M0_IMPOSSIBLE("Original req in TIMEDOUT/FAILED stage");
+	}
+	/*
+	 * Irrespective of any of above cases, we're going to
+	 * ignore this _duplicate_ item.
+	 */
 }
 
 M0_INTERNAL int m0_rpc_slot_reply_received(struct m0_rpc_slot *slot,
@@ -576,7 +567,11 @@ M0_INTERNAL int m0_rpc_slot_reply_received(struct m0_rpc_slot *slot,
 		 * Either it is a duplicate reply and its corresponding request
 		 * item is pruned from the item list, or it is a corrupted
 		 * reply
+		 * XXX This sutuation is not expected to arise during testing.
+		 *     When control reaches this point during testing it might
+		 *     be because of a possible bug. So assert.
 		 */
+		M0_ASSERT(false);
 		M0_RETURN(-EPROTO);
 	}
 	rc = __slot_reply_received(slot, req, reply);

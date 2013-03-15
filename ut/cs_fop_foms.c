@@ -176,8 +176,7 @@ int m0_cs_ut_ds2_fop_init(void)
 				 .name      = "ds2 request",
 				 .opcode    = M0_CS_DS2_REQ_OPCODE,
 				 .xt        = cs_ds2_req_fop_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-					      M0_RPC_ITEM_TYPE_MUTABO,
+				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 				 .fom_ops   = &cs_ds2_req_fop_fom_type_ops,
 				 .sm        = &m0_generic_conf,
 				 .svc_type  = &ds2_service_type) ?:

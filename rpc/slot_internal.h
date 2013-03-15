@@ -252,9 +252,6 @@ M0_INTERNAL int m0_rpc_slot_reply_received(struct m0_rpc_slot *slot,
 M0_INTERNAL void m0_rpc_slot_persistence(struct m0_rpc_slot *slot,
 					 struct m0_verno last_persistent);
 
-M0_INTERNAL void m0_rpc_slot_misordered_item_received(struct m0_rpc_slot *slot,
-						      struct m0_rpc_item *item);
-
 /**
    Resets version number of slot to @last_seen
    @post m0_verno_cmp(&slot->sl_last_sent->ri_slot_refs[0].sr_verno,
