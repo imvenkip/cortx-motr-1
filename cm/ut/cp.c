@@ -281,6 +281,7 @@ static int cm_cp_init(void)
 			  .rhia_svc       = (void *)1,
 			  .rhia_addb_stob = NULL);
 	M0_ASSERT(rc == 0);
+	m0_reqh_start(&cm_ut_reqh);
 	rc = m0_cm_type_register(&cm_ut_cmt);
 	M0_ASSERT(rc == 0);
 	cm_ut_service_alloc_init();
@@ -298,6 +299,8 @@ static int cm_cp_fini(void)
 	m0_ios_poolmach_fini(cm_ut_service);
 	cm_ut_service_cleanup();
 	m0_cm_type_deregister(&cm_ut_cmt);
+	m0_reqh_fini(&cm_ut_reqh);
+	m0_reqh_services_terminate(&cm_ut_reqh);
 	m0_reqh_fini(&cm_ut_reqh);
 	M0_SET0(&cm_ut_reqh);
 	m0_dbenv_fini(&dbenv);

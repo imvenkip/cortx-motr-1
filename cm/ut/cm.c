@@ -47,6 +47,7 @@ static int cm_ut_init(void)
 		     .rhia_fol       = (void *)1,
 		     .rhia_svc       = (void *)1,
 		     .rhia_addb_stob = NULL);
+	m0_reqh_start(&cm_ut_reqh);
 	rc = m0_cm_type_register(&cm_ut_cmt);
 	M0_ASSERT(rc == 0);
 
@@ -56,6 +57,7 @@ static int cm_ut_init(void)
 static int cm_ut_fini(void)
 {
 	m0_cm_type_deregister(&cm_ut_cmt);
+	m0_reqh_services_terminate(&cm_ut_reqh);
 	m0_reqh_fini(&cm_ut_reqh);
 	m0_dbenv_fini(&dbenv);
 	return 0;

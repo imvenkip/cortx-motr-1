@@ -68,6 +68,7 @@ static void rmfoms_utinit(void)
 			.rhia_svc       = (void*)1,
 			.rhia_addb_stob = NULL);
 	M0_UT_ASSERT(rc == 0);
+	m0_reqh_start(&reqh);
 	dummy_loc.fl_dom = &reqh.rh_fom_dom;
         m0_sm_group_init(&dummy_loc.fl_group);
 }
@@ -75,6 +76,7 @@ static void rmfoms_utinit(void)
 static void rmfoms_utfini(void)
 {
         m0_sm_group_fini(&dummy_loc.fl_group);
+	m0_reqh_services_terminate(&reqh);
 	m0_reqh_fini(&reqh);
 	m0_rm_fop_fini();
 	m0_dbenv_fini(&dbenv);

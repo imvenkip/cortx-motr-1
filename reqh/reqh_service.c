@@ -69,7 +69,8 @@ M0_INTERNAL bool m0_reqh_service_invariant(const struct m0_reqh_service *svc)
 				   M0_RST_STARTED, M0_RST_STOPPING)),
 	     svc->rs_uuid != 0 && svc->rs_reqh != NULL) &&
 	ergo(M0_IN(svc->rs_state, (M0_RST_STARTED, M0_RST_STOPPING)),
-	     m0_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc));
+	     m0_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc) ||
+	     svc->rs_reqh->rh_mgmt_svc == svc);
 }
 M0_EXPORTED(m0_reqh_service_invariant);
 
@@ -136,7 +137,8 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	if (rc == 0) {
-		m0_reqh_svc_tlist_add_tail(&reqh->rh_services, service);
+		if (service != reqh->rh_mgmt_svc)
+			m0_reqh_svc_tlist_add_tail(&reqh->rh_services, service);
 		service->rs_state = M0_RST_STARTED;
 		M0_ASSERT(m0_reqh_service_invariant(service));
         } else {
@@ -174,7 +176,8 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	reqh = service->rs_reqh;
 	service->rs_ops->rso_stop(service);
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	m0_reqh_svc_tlist_del(service);
+	if (service != reqh->rh_mgmt_svc)
+		m0_reqh_svc_tlist_del(service);
 	service->rs_state = M0_RST_STOPPED;
 	key = service->rs_type->rst_key;
 	M0_ASSERT(m0_reqh_lockers_get(reqh, key) == service);

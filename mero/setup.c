@@ -1398,10 +1398,15 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 	M0_ENTRY();
 
 	reqh = &rctx->rc_reqh;
-	m0_reqh_shutdown_wait(reqh);
-	m0_reqh_services_terminate(reqh);
+	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
+		m0_reqh_shutdown_wait(reqh);
+	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
+	    m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_START ||
+	    m0_reqh_state_get(reqh) == M0_REQH_ST_INIT)
+		m0_reqh_services_terminate(reqh);
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP)
 		m0_reqh_mgmt_service_stop(reqh);
+	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
 	cs_rpc_machines_fini(reqh);
 	m0_reqh_fini(reqh);
 	m0_fol_fini(&rctx->rc_fol);

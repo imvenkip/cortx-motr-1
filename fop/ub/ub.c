@@ -440,6 +440,7 @@ static int _init(const char *opts M0_UNUSED)
 			  .rhia_svc       = NULL,
 			  .rhia_addb_stob = NULL);
 	M0_UB_ASSERT(rc == 0);
+	m0_reqh_start(&g_reqh);
 
 	rc = m0_reqh_service_allocate(&g_svc, &ub_fom_stype, NULL);
 	M0_UB_ASSERT(rc == 0);
@@ -473,6 +474,7 @@ static void _fini(void)
 	m0_reqh_shutdown_wait(&g_reqh);
 	m0_reqh_service_stop(g_svc);
 	m0_reqh_service_fini(g_svc);
+	m0_reqh_services_terminate(&g_reqh);
 	m0_reqh_fini(&g_reqh);
 	m0_reqh_service_type_unregister(&ub_fom_stype);
 	m0_dbenv_fini(&dbenv);

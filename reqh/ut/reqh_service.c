@@ -155,6 +155,7 @@ static void test_service(void)
 			  .rhia_mdstore   = (void *)1,
 			  .rhia_fol       = (void *)1);
 	M0_UT_ASSERT(rc == 0);
+	m0_reqh_start(&reqh);
 
 	svct = m0_reqh_service_type_find("ds1");
 	M0_UT_ASSERT(svct != NULL);
@@ -179,6 +180,7 @@ static void test_service(void)
 
 	m0_reqh_service_stop(reqh_svc);
 	m0_reqh_service_fini(reqh_svc);
+	m0_reqh_services_terminate(&reqh);
 	m0_reqh_fini(&reqh);
 	m0_dbenv_fini(&dbenv);
 

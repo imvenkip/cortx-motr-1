@@ -227,7 +227,9 @@ M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 
 	m0_layout_standard_types_unregister(&reqh->rh_ldom);
 	m0_layout_domain_fini(&reqh->rh_ldom);
+	m0_sm_group_lock(&reqh->rh_sm_grp);
 	m0_sm_fini(&reqh->rh_sm);
+	m0_sm_group_unlock(&reqh->rh_sm_grp);
 	m0_sm_group_fini(&reqh->rh_sm_grp);
 	m0_addb_ctx_fini(&reqh->rh_addb_ctx);
 	m0_addb_mc_fini(&reqh->rh_addb_mc);
@@ -263,7 +265,9 @@ M0_INTERNAL int m0_reqh_state_get(struct m0_reqh *reqh)
 static void reqh_state_set(struct m0_reqh *reqh,
 			   enum m0_reqh_states state)
 {
+	m0_sm_group_lock(&reqh->rh_sm_grp);
 	m0_sm_state_set(&reqh->rh_sm, state);
+	m0_sm_group_unlock(&reqh->rh_sm_grp);
 }
 
 M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh,
@@ -372,6 +376,7 @@ M0_INTERNAL void m0_reqh_services_terminate(struct m0_reqh *reqh)
 	M0_PRE(m0_reqh_invariant(reqh));
 
 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
+	       m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL ||
 	       m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_START ||
 	       m0_reqh_state_get(reqh) == M0_REQH_ST_INIT);
 	reqh_state_set(reqh, M0_REQH_ST_SVCS_STOP);
@@ -425,7 +430,13 @@ M0_INTERNAL int m0_reqh_mgmt_service_start(struct m0_reqh *reqh)
 		goto allocate_failed;
 	m0_reqh_service_init(service, reqh);
 	reqh->rh_mgmt_svc = service;
+	reqh_state_set(reqh, M0_REQH_ST_MGMT_START);
+
+        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
 	rc = m0_reqh_service_start(service);
+        m0_rwlock_write_lock(&reqh->rh_rwlock);
+
 	if (rc != 0)
 		goto start_failed;
 	M0_POST(reqh->rh_mgmt_svc == service);
@@ -454,17 +465,16 @@ M0_INTERNAL void m0_reqh_mgmt_service_stop(struct m0_reqh *reqh)
 
 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP);
 	service = reqh->rh_mgmt_svc;
+	reqh_state_set(reqh, M0_REQH_ST_STOPPED);
+        m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	if (service != NULL) {
-		reqh->rh_mgmt_svc = NULL;
 		m0_reqh_service_prepare_to_stop(service);
 		m0_reqh_fom_domain_idle_wait(reqh); /* drain mgmt fops */
 		m0_reqh_service_stop(service);
 		m0_reqh_service_fini(service);
+		reqh->rh_mgmt_svc = NULL;
 	}
-	reqh_state_set(reqh, M0_REQH_ST_STOPPED);
-
-        m0_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
 M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh)

@@ -222,6 +222,7 @@ static void rm_ctx_init(struct rm_context *rmctx)
 			.rhia_svc       = (void*)1,
 			.rhia_addb_stob = NULL);
 	M0_UT_ASSERT(rc == 0);
+	m0_reqh_start(&rmctx->rc_reqh);
 
 	rc = m0_rpc_machine_init(&rmctx->rc_rpc, &rmctx->rc_cob_dom,
 				 &rmctx->rc_net_dom, rmctx->rc_ep_addr,
@@ -241,6 +242,7 @@ static void rm_ctx_fini(struct rm_context *rmctx)
 	m0_chan_fini_lock(&rmctx->rc_chan);
 	m0_mutex_fini(&rmctx->rc_mutex);
 	m0_rpc_machine_fini(&rmctx->rc_rpc);
+	m0_reqh_services_terminate(&rmctx->rc_reqh);
 	m0_reqh_fini(&rmctx->rc_reqh);
 	m0_mdstore_fini(&rmctx->rc_mdstore);
 	m0_cob_domain_fini(&rmctx->rc_cob_dom);

@@ -130,6 +130,7 @@ static int test_long_lock_init(void)
 				  .rhia_svc       = NULL,
 				  .rhia_addb_stob = NULL);
 		M0_ASSERT(rc == 0);
+		m0_reqh_start(&reqh[i]);
 	}
 	for (i = 0; i < REQH_IN_UT_MAX; ++i) {
 		rc = m0_reqh_service_allocate(&service[i],
@@ -149,6 +150,7 @@ static int test_long_lock_fini(void)
 	for (i = 0; i < REQH_IN_UT_MAX; ++i) {
 		m0_reqh_service_stop(service[i]);
 		m0_reqh_service_fini(service[i]);
+		m0_reqh_services_terminate(&reqh[i]);
 		m0_reqh_fini(&reqh[i]);
 	}
 	m0_reqh_service_type_unregister(&ut_long_lock_service_type);

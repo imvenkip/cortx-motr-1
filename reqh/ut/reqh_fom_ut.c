@@ -250,6 +250,7 @@ static int server_init(const char             *stob_path,
 			  .rhia_svc       = NULL,
 			  .rhia_addb_stob = NULL);
 	M0_UT_ASSERT(rc == 0);
+	m0_reqh_start(&reqh);
 
 	tms_nr   = 1;
 	bufs_nr  = m0_rpc_bufs_nr(M0_NET_TM_RECV_QUEUE_DEF_LEN, tms_nr);
@@ -291,6 +292,7 @@ static void server_fini(struct m0_stob_domain *bdom,
 
 	m0_reqh_service_stop(reqh_ut_service);
 	m0_reqh_service_fini(reqh_ut_service);
+	m0_reqh_services_terminate(&reqh);
 	m0_reqh_fini(&reqh);
 	M0_UT_ASSERT(sdom != NULL);
 	sdom->sd_ops->sdo_fini(sdom);

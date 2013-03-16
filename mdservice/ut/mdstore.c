@@ -123,7 +123,8 @@ static void test_mkfs(void)
 
         /* Create root and other structures */
         m0_fid_set(&rootfid, testroot.f_seq, testroot.f_oid);
-        rc = m0_cob_domain_mkfs(&md.md_dom, (const struct m0_fid *)&rootfid, &M0_COB_SESSIONS_FID, &tx);
+        rc = m0_cob_domain_mkfs(&md.md_dom, (const struct m0_fid *)&rootfid,
+				&M0_COB_SESSIONS_FID, &tx);
         M0_UT_ASSERT(rc == 0);
         m0_db_tx_commit(&tx);
 
@@ -164,6 +165,7 @@ static void test_init(void)
 		          .rhia_svc       = &svc,
 		          .rhia_addb_stob = NULL);
         M0_ASSERT(rc == 0);
+	m0_reqh_start(&reqh);
 }
 
 static void test_mdops(void)
@@ -231,6 +233,7 @@ again:
 static void test_fini(void)
 {
         m0_reqh_shutdown_wait(&reqh);
+	m0_reqh_services_terminate(&reqh);
         m0_reqh_fini(&reqh);
         m0_fol_fini(&fol);
         m0_mdstore_fini(&md);
