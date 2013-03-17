@@ -16,7 +16,6 @@ die() { echo "$@" >&2; exit 1; }
 
 M0_CORE_DIR=`readlink -f $0`
 M0_CORE_DIR=${M0_CORE_DIR%/*/*/*/*}
-[[ "${M0_CORE_DIR##*/}" =~ ^mero ]] || die 'Unable to determine M0_CORE_DIR'
 
 ## Path to the file with configuration string for confd.
 CONF_FILE=$SANDBOX_DIR/conf.txt
@@ -24,6 +23,11 @@ CONF_FILE=$SANDBOX_DIR/conf.txt
 export_lnet_nid_endpoints() {
     local LNET_NID=`lctl list_nids | head -1`
 
+    ## LNet endpoint address format (see net/lnet/lnet.h):
+    ##     NID:PID:Portal:TMID
+    ##
+    ## The PID value of 12345 is used by Lustre in the kernel and is
+    ## the only value currently supported.
     export M0T1FS_ENDPOINT="$LNET_NID:12345:34:6"
     export IOS0_ENDPOINT="$LNET_NID:12345:34:1"
     export IOS1_ENDPOINT="$LNET_NID:12345:34:2"
@@ -60,10 +64,8 @@ sandbox_fini() {
 }
 
 modules_insert() {
-    insmod $M0_CORE_DIR/extra-libs/galois/src/linux_kernel/galois.ko || {
-	echo 'Inserting galois.ko failed' >&2
-	return 1
-    }
+    insmod $M0_CORE_DIR/extra-libs/galois/src/linux_kernel/galois.ko || \
+	die 'Inserting galois.ko failed'
 
     insmod $M0_CORE_DIR/mero/linux_kernel/m0mero.ko \
 	local_addr=$M0T1FS_ENDPOINT \
@@ -73,9 +75,8 @@ modules_insert() {
 	${TRACE_LEVEL:+trace_level=$TRACE_LEVEL} \
 	${TRACE_CONTEXT:+trace_print_context=$TRACE_CONTEXT} \
 	|| {
-	echo 'Inserting m0mero.ko failed' >&2
 	rmmod galois
-	return 1
+	die 'Inserting m0mero.ko failed'
     }
 }
 
