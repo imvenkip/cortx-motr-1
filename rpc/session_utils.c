@@ -65,8 +65,8 @@ M0_INTERNAL int m0_rpc_sender_uuid_cmp(const struct m0_rpc_sender_uuid *u1,
 	return M0_3WAY(u1->su_uuid, u2->su_uuid);
 }
 
-M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item);
-
+M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item,
+				    struct m0_rpc_slot *slot);
 /**
    Initialises rpc item and posts it to rpc-layer
  */
@@ -100,7 +100,7 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 	if (item->ri_nr_sent_max == 0)
 		item->ri_nr_sent_max = 1;
 
-	rc = m0_rpc__post_locked(item);
+	rc = m0_rpc__post_locked(item, NULL);
 	M0_RETURN(rc);
 }
 

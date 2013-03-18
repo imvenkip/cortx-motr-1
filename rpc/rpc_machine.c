@@ -359,9 +359,7 @@ static void drain_item_sources(struct m0_rpc_machine *machine)
 
 	M0_LOG(M0_DEBUG, "max_size: %llu", (unsigned long long)max_size);
 	m0_tl_for(rpc_conn, &machine->rm_outgoing_conns, conn) {
-		M0_LOG(M0_DEBUG, "conn: %p", conn);
 		m0_tl_for(item_source, &conn->c_item_sources, source) {
-			M0_LOG(M0_DEBUG, "source: %p", source);
 			while (source->ris_ops->riso_has_item(source)) {
 				item = source->ris_ops->riso_get_item(source,
 								     max_size);

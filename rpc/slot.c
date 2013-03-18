@@ -371,8 +371,7 @@ static void slot_balance(struct m0_rpc_slot *slot)
    @see m0_rpc_slot_item_add_internal()
  */
 static void __slot_item_add(struct m0_rpc_slot *slot,
-			    struct m0_rpc_item *item,
-			    bool                allow_events)
+			    struct m0_rpc_item *item)
 {
 	struct m0_rpc_session  *session;
 	struct m0_rpc_machine  *machine;
@@ -380,6 +379,7 @@ static void __slot_item_add(struct m0_rpc_slot *slot,
 	M0_ENTRY("slot: %p, item: %p", slot, item);
 	M0_PRE(item != NULL);
 	M0_PRE(m0_rpc_slot_invariant(slot));
+	M0_PRE(m0_rpc_item_is_request(item));
 	M0_PRE(slot->sl_session == item->ri_session);
 	M0_PRE(slot->sl_session != NULL);
 
@@ -422,10 +422,7 @@ static void __slot_item_add(struct m0_rpc_slot *slot,
 	m0_rpc_item_get(item);
 	slot_item_tlink_init_at_tail(item, &slot->sl_item_list);
 	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
-	if (session != NULL)
-		m0_rpc_session_mod_nr_active_items(session, 1);
-
-	__slot_balance(slot, allow_events);
+	m0_rpc_session_mod_nr_active_items(session, 1);
 	M0_LEAVE();
 }
 
@@ -433,12 +430,19 @@ M0_INTERNAL void m0_rpc_slot_item_add_internal(struct m0_rpc_slot *slot,
 					       struct m0_rpc_item *item)
 {
 	M0_ENTRY("slot: %p, item: %p", slot, item);
-	M0_PRE(m0_rpc_slot_invariant(slot) && item != NULL);
-	M0_PRE(m0_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
-	M0_PRE(slot->sl_session == item->ri_session);
+	__slot_item_add(slot, item);
+	__slot_balance(slot, false); /* not allowed to trigger events */
+	M0_LEAVE();
+}
 
-	__slot_item_add(slot, item,
-			false);  /* slot is not allowed to trigger events */
+M0_INTERNAL void m0_rpc_slot_item_add(struct m0_rpc_slot *slot,
+				      struct m0_rpc_item *item)
+{
+	M0_ENTRY("slot: %p, item: %p", slot, item);
+	__slot_item_add(slot, item);
+	if (m0_rpc_conn_is_snd(slot->sl_session->s_conn))
+		m0_rpc_item_change_state(item, M0_RPC_ITEM_WAITING_IN_STREAM);
+	slot_balance(slot);
 	M0_LEAVE();
 }
 
@@ -478,7 +482,8 @@ M0_INTERNAL int m0_rpc_slot_item_apply(struct m0_rpc_slot *slot,
 
 	if (item_xid(item, 0) == slot->sl_xid) {
 		/* valid in sequence */
-		__slot_item_add(slot, item, true);
+		__slot_item_add(slot, item);
+		slot_balance(slot);
 		rc = 0;
 	} else if (item_xid(item, 0) < slot->sl_xid) {
 		duplicate_item_received(slot, item);

@@ -200,8 +200,17 @@ struct m0_rpc_item {
 	    move item from ENQUEUD to URGENT state.
 	 */
 	struct m0_sm_timeout             ri_deadline_timeout;
-	/** Invokes item_timedout_cb() after ri_op_timeout is passed */
+	/** Resend timer.
+
+	    Invokes item_timer_cb() after every item->ri_resend_interval.
+	    item_timer_cb() then decides whether to resend the item or timeout
+	    the operation, depending on ri_nr_sent and ri_nr_sent_max.
+	 */
 	struct m0_sm_timer               ri_timer;
+	/** RPC item state machine.
+	    @see outgoing_item_states
+	    @see incoming_item_states
+	 */
 	struct m0_sm                     ri_sm;
 	enum m0_rpc_item_stage		 ri_stage;
 	uint32_t                         ri_nr_sent;
@@ -209,6 +218,7 @@ struct m0_rpc_item {
 	struct m0_rpc_slot_ref		 ri_slot_refs[MAX_SLOT_REF];
 	/** Anchor to put item on m0_rpc_session::s_unbound_items list */
 	struct m0_list_link		 ri_unbound_link;
+	/** Item size in bytes. header + payload. */
 	size_t                           ri_size;
 	/** Pointer to the type object for this item */
 	const struct m0_rpc_item_type	*ri_type;
@@ -255,9 +265,9 @@ struct m0_rpc_item_ops {
 	   - or any failure is occured (including timeout) in which case
 	     item->ri_error != 0
 
-	   If item->ri_error != 0, then item->ri_error may or may not be NULL.
+	   If item->ri_error != 0, then item->ri_reply may or may not be NULL.
 
-	   For each request sender receives one of following two types
+	   For each request, sender receives one of following two types
 	   of replies:
 	   - generic-reply (m0_fop_generic_reply):
 	     This type of reply is received when operation fails in generic
@@ -308,15 +318,35 @@ M0_EXTERN m0_bcount_t m0_rpc_item_onwire_header_size;
 m0_bcount_t m0_rpc_item_payload_size(struct m0_rpc_item *item);
 m0_bcount_t m0_rpc_item_size(struct m0_rpc_item *item);
 
+/**
+   Waits until item reaches in one of states specified in
+   _states_ or absolute timeout specified by _timeout_ is
+   passed.
+
+   @see m0_sm_timedwait() to know more about values returned
+        by this function.
+ */
 int m0_rpc_item_timedwait(struct m0_rpc_item *item,
 			  uint64_t states, m0_time_t timeout);
 
+/**
+   Waits until either item reaches in one of REPLIED/FAILED states
+   or timeout is elapsed.
+
+   @returns 0 when item is REPLIED
+   @returns item->ri_error if item is FAILED
+ */
 int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item,
 			       m0_time_t timeout);
 
+/**
+   For default implementations of these interfaces for fops
+   @see M0_FOP_DEFAULT_ITEM_TYPE_OPS
+ */
 struct m0_rpc_item_type_ops {
 	/**
-	   Find out the size of rpc payload.
+	   Returns item payload size.
+	   @see m0_fop_payload_size()
 	 */
 	m0_bcount_t (*rito_payload_size)(const struct m0_rpc_item *item);
 
@@ -333,13 +363,15 @@ struct m0_rpc_item_type_ops {
 				 struct m0_list *list, uint64_t size);
 
 	/**
-	   Serialise item at location given by cur.
+	   Serialises item at location given by cur.
+	   @see m0_fop_item_type_default_encode()
 	 */
 	int (*rito_encode)(const struct m0_rpc_item_type *item_type,
 		           struct m0_rpc_item *item,
 	                   struct m0_bufvec_cursor *cur);
 	/**
 	   Create in memory item from serialised representation of item
+	   @see m0_fop_item_type_default_decode()
 	 */
 	int (*rito_decode)(const struct m0_rpc_item_type *item_type,
 			   struct m0_rpc_item **item,

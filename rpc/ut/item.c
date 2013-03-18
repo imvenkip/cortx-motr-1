@@ -37,6 +37,7 @@ static void __test_resend(struct m0_fop *fop);
 static void __test_timer_start_failure(void);
 
 static struct m0_rpc_machine *machine;
+static struct m0_rpc_session *session;
 static struct m0_rpc_stats    saved;
 static struct m0_rpc_stats    stats;
 static struct m0_rpc_item    *item;
@@ -48,6 +49,7 @@ static int ts_item_init(void)   /* ts_ for "test suite" */
 {
 	m0_rpc_test_fops_init();
 	start_rpc_client_and_server();
+	session = &cctx.rcx_session;
 	machine = cctx.rcx_session.s_conn->c_rpc_machine;
 
 	return 0;
@@ -75,7 +77,7 @@ static void test_simple_transitions(void)
 	m0_rpc_machine_get_stats(machine, &saved, false /* clear stats? */);
 	fop = fop_alloc();
 	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, &cctx.rcx_session,
+	rc = m0_rpc_client_call(fop, session,
 				&cs_ds_req_fop_rpc_item_ops,
 				0 /* deadline */);
 	M0_UT_ASSERT(rc == 0);
@@ -104,7 +106,7 @@ static void test_timeout(void)
 	item->ri_nr_sent_max = 1;
 	m0_rpc_machine_get_stats(machine, &saved, false);
 	m0_fi_enable_once("cs_req_fop_fom_tick", "inject_delay");
-	rc = m0_rpc_client_call(fop, &cctx.rcx_session,
+	rc = m0_rpc_client_call(fop, session,
 				&cs_ds_req_fop_rpc_item_ops,
 				0 /* deadline */);
 	M0_UT_ASSERT(rc == -ETIMEDOUT);
@@ -160,7 +162,7 @@ static void __test_timeout(m0_time_t deadline,
 	m0_rpc_machine_get_stats(machine, &saved, false);
 	item->ri_nr_sent_max = 1;
 	item->ri_resend_interval = timeout;
-	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL, deadline);
+	rc = m0_rpc_client_call(fop, session, NULL, deadline);
 	M0_UT_ASSERT(item->ri_error == -ETIMEDOUT);
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
@@ -239,6 +241,7 @@ static void test_resend(void)
 	 */
 	m0_rpc_machine_lock(item->ri_rmachine);
 	M0_UT_ASSERT(item->ri_nr_sent == 2);
+	item->ri_resend_interval = M0_TIME_NEVER;
 	m0_rpc_item_send(item);
 	m0_rpc_machine_unlock(item->ri_rmachine);
 	rc = m0_rpc_item_wait_for_reply(item, m0_time_from_now(2, 0));
@@ -282,7 +285,7 @@ static void __test_resend(struct m0_fop *fop)
 		fop_put_flag = true;
 	}
 	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL, 0 /* urgent */);
+	rc = m0_rpc_client_call(fop, session, NULL, 0 /* urgent */);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(item->ri_error == 0);
 	M0_UT_ASSERT(item->ri_nr_sent >= 1);
@@ -298,7 +301,7 @@ static void __test_timer_start_failure(void)
 
 	fop = fop_alloc();
 	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, &cctx.rcx_session, NULL, 0 /* urgent */);
+	rc = m0_rpc_client_call(fop, session, NULL, 0 /* urgent */);
 	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(item->ri_error == -EINVAL);
 	M0_UT_ASSERT(item->ri_reply == NULL);
@@ -362,7 +365,7 @@ static int __test(void)
 	m0_rpc_machine_get_stats(machine, &saved, false);
 	fop  = fop_alloc();
 	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, &cctx.rcx_session,
+	rc = m0_rpc_client_call(fop, session,
 				&cs_ds_req_fop_rpc_item_ops,
 				0 /* deadline */);
 	M0_UT_ASSERT(item->ri_reply == NULL);
@@ -453,6 +456,61 @@ static void test_oneway_item(void)
 	m0_fi_disable("frm_fill_packet", "skip_oneway_items");
 }
 
+static struct m0_semaphore done_sem;
+enum {NR_ITEMS = 100};
+
+static void bound_item_replied_cb(struct m0_rpc_item *item)
+{
+	struct cs_ds2_rep_fop *reply;
+	static int             expected = 0;
+
+	M0_UT_ASSERT(item->ri_error == 0 && item->ri_reply != NULL);
+	reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
+	M0_UT_ASSERT(reply->csr_rc == expected);
+	++expected;
+	if (expected == NR_ITEMS)
+		m0_semaphore_up(&done_sem);
+}
+
+static const struct m0_rpc_item_ops bound_item_ops = {
+	.rio_replied = bound_item_replied_cb,
+};
+
+static void test_bound_items(void)
+{
+	struct cs_ds2_req_fop *data;
+	int                    rc;
+	int                    i;
+
+	m0_semaphore_init(&done_sem, 0);
+	/* Test case confirms that items that are posted on a specific slot are
+	   delivered in order.
+
+	   The test posts 100 request items on slot0 of session. Each fop
+	   carries its sequence number. Reciever simply copies the sequence
+	   number in reply fop. RPC is instructed to invoke
+	   bound_item_replied_cb() upon receiving reply to any of the request
+	   items. The callback ensures that the sequence number in
+	   received reply is one greater than sequence number received
+	   in previous call.
+	 */
+	for (i = 0; i < NR_ITEMS; i++) {
+		fop = fop_alloc();
+		data = m0_fop_data(fop);
+		M0_UT_ASSERT(data != NULL);
+		data->csr_value   = i;
+		item              = &fop->f_item;
+		item->ri_session  = session;
+		item->ri_deadline = 0;
+		item->ri_ops      = &bound_item_ops;
+		rc = m0_rpc_post_slot(item, session->s_slot_table[0]);
+		M0_UT_ASSERT(rc == 0);
+		m0_fop_put(fop);
+	}
+	/* wait until reply to all items is received */
+	m0_semaphore_down(&done_sem);
+}
+
 /*
 static void rply_before_sentcb(void)
 {
@@ -482,6 +540,7 @@ const struct m0_test_suite item_ut = {
 		{ "item-resend",            test_resend                 },
 		{ "failure-before-sending", test_failure_before_sending },
 		{ "oneway-item",            test_oneway_item            },
+		{ "bound-item",             test_bound_items            },
 		{ NULL, NULL },
 	}
 };

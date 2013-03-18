@@ -438,7 +438,8 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 
 static void item_sent(struct m0_rpc_item *item)
 {
-	struct m0_rpc_stats *stats;
+	struct m0_addb_counter *counter;
+	struct m0_rpc_stats    *stats;
 
 	M0_ENTRY("item: %p", item);
 
@@ -452,6 +453,9 @@ static void item_sent(struct m0_rpc_item *item)
 
 	if (item->ri_nr_sent == 1) { /* not resent. */
 		stats->rs_nr_sent_items_uniq++;
+		counter = &item->ri_rmachine->rm_cntr_sent_item_sizes;
+		m0_addb_counter_update(counter,
+				       (uint64_t)m0_rpc_item_size(item));
 		if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
 			item->ri_ops->rio_sent(item);
 	} else if (item->ri_nr_sent == 2)

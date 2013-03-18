@@ -38,7 +38,8 @@
  * @{
  */
 
-M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item);
+M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item,
+				    struct m0_rpc_slot *slot);
 
 struct m0_addb_ctx m0_rpc_addb_ctx;
 
@@ -151,6 +152,12 @@ M0_INTERNAL void m0_rpc_fini(void)
 
 M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item)
 {
+	return m0_rpc_post_slot(item, NULL);
+}
+
+M0_INTERNAL int m0_rpc_post_slot(struct m0_rpc_item *item,
+				 struct m0_rpc_slot *slot)
+{
 	int                    rc;
 	uint64_t               size;
 	struct m0_rpc_machine *machine;
@@ -164,22 +171,20 @@ M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item)
 	M0_ASSERT(size <= machine->rm_min_recv_size);
 
 	m0_rpc_machine_lock(machine);
-	rc = m0_rpc__post_locked(item);
+	rc = m0_rpc__post_locked(item, slot);
 	m0_rpc_machine_unlock(machine);
 
 	M0_RETURN(rc);
 }
 M0_EXPORTED(m0_rpc_post);
 
-M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
+M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item,
+				    struct m0_rpc_slot *slot)
 {
 	struct m0_rpc_session  *session;
-	struct m0_addb_counter *counter;
-	int                     rc;
 
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && item->ri_type != NULL);
-	/* XXX Temporary assertion, until bound item posting is supported */
 	M0_PRE(m0_rpc_item_is_request(item) && !m0_rpc_item_is_bound(item));
 
 	session = item->ri_session;
@@ -192,17 +197,15 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 
 	item->ri_rmachine = session_machine(session);
 	item->ri_rpc_time = m0_time_now();
-	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
-	rc = m0_rpc_item_start_timer(item);
-	if (rc == 0) {
-		counter = &item->ri_rmachine->rm_cntr_sent_item_sizes;
-		m0_addb_counter_update(counter,
-				       (uint64_t)m0_rpc_item_size(item));
+
+	if (slot == NULL) {
+		item->ri_stage = RPC_ITEM_STAGE_FUTURE;
 		m0_rpc_item_send(item);
-	} else
-		m0_rpc_item_failed(item, rc);
-	M0_RETURN(rc);
+	} else {
+		m0_rpc_slot_item_add(slot, item);
+	}
+	M0_RETURN(item->ri_error);
 }
 
 int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
@@ -224,6 +227,7 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 		m0_nanosleep(m0_time(1, 200 * 1000 * 1000), NULL);
 	}
 
+	reply->ri_resend_interval = M0_TIME_NEVER;
 	reply->ri_rpc_time = m0_time_now();
 	reply->ri_session  = request->ri_session;
 	machine = reply->ri_rmachine = request->ri_rmachine;
@@ -242,11 +246,6 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 	slot = sref->sr_slot;
 	m0_rpc_machine_lock(machine);
 	m0_rpc_item_sm_init(reply, M0_RPC_ITEM_OUTGOING);
-	/*
-	 * This hold will be released when the item is SENT or FAILED.
-	 * See rpc/frmops.c:item_done() and m0_rpc_item_failed()
-	 */
-	m0_rpc_session_hold_busy(reply->ri_session);
 	__slot_reply_received(slot, request, reply);
 	m0_rpc_machine_unlock(machine);
 	M0_RETURN(0);
@@ -277,10 +276,12 @@ M0_INTERNAL void m0_rpc_oneway_item_post_locked(const struct m0_rpc_conn *conn,
 	       m0_rpc_machine_is_locked(conn->c_rpc_machine));
 	M0_PRE(item != NULL && m0_rpc_item_is_oneway(item));
 
-	item->ri_rmachine = conn->c_rpc_machine;
+	item->ri_resend_interval = M0_TIME_NEVER;
+	item->ri_rpc_time        = m0_time_now();
+	item->ri_rmachine        = conn->c_rpc_machine;
+
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
 	item->ri_nr_sent++;
-	item->ri_rpc_time = m0_time_now();
 	m0_rpc_frm_enq_item(&conn->c_rpcchan->rc_frm, item);
 }
 
