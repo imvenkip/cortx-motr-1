@@ -34,6 +34,7 @@ build() {
     local _OUT=`mktemp`
     trap "rm $_OUT" 0
     make $MAKE_OPTS 2>&1 | tee $_OUT
+    [ ${PIPESTATUS[0]} -eq 0 ] || exit ${PIPESTATUS[0]}
     if grep 'WARNING:' $_OUT; then
 	die 'WARNING in make output is treated as error'
     fi
