@@ -59,7 +59,7 @@ M0_INTERNAL void m0_rpc_fini(void);
 /**
   Posts an item to the rpc layer.
 
-  If slot is not NULL then item will be bound to the slot otherwise RPC
+  If slot is not NULL then item will be bound to the slot, otherwise RPC
   will choose any available slot in item->ri_session.
 
   The rpc layer will try to send the item out not later than
@@ -67,10 +67,10 @@ M0_INTERNAL void m0_rpc_fini(void);
 
   Operation timeout is controlled by item->ri_resend_interval and
   item->ri_nr_sent_max. By default their values are set to 1 second and
-  UINT64_MAX respectively. This will result in resending the request after
-  every 1 second, until reply to the request is received.
-  item->ri_resend_interval and item->ri_nr_sent_max are "public" fields that
-  user can set before posting an item.
+  UINT64_MAX respectively. RPC resends the request every ->ri_resend_interval
+  seconds, until a reply is received. item->ri_resend_interval and
+  item->ri_nr_sent_max are "public" fields that user can set before
+  posting an item.
 
   After successful call to m0_rpc_post(), user should not attempt to directly
   free the item. Instead reference on the item should be dropped.
@@ -101,8 +101,15 @@ M0_INTERNAL void m0_rpc_fini(void);
   @pre m0_rpc_item_size(item) <=
           m0_rpc_session_get_max_item_size(item->ri_session)
 */
-M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item,
-			    struct m0_rpc_slot *slot);
+M0_INTERNAL int m0_rpc_post_slot(struct m0_rpc_item *item,
+				 struct m0_rpc_slot *slot);
+
+/**
+   @see m0_rpc_post_slot()
+
+   Calls m0_rpc_post_slot() with NULL slot.
+ */
+M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item);
 
 /**
   Posts reply item on the same session on which the request item is received.

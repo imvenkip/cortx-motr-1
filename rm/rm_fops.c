@@ -260,7 +260,7 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 			 outreq, session);
 	outreq->ou_fop.f_item.ri_session = session;
 	outreq->ou_fop.f_item.ri_ops = &rm_request_rpc_ops;
-	m0_rpc_post(&outreq->ou_fop.f_item, NULL);
+	m0_rpc_post(&outreq->ou_fop.f_item);
 
 out:
 	M0_RETURN(rc);

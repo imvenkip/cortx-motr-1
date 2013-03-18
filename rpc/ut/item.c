@@ -462,16 +462,13 @@ enum {NR_ITEMS = 100};
 static void bound_item_replied_cb(struct m0_rpc_item *item)
 {
 	struct cs_ds2_rep_fop *reply;
-	static int             count = 0;
+	static int             expected = 0;
 
 	M0_UT_ASSERT(item->ri_error == 0 && item->ri_reply != NULL);
 	reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
-	if (reply->csr_rc != count)
-		m0_console_printf("ERROR: expected %d received %d\n", count,
-				  reply->csr_rc);
-	M0_UT_ASSERT(reply->csr_rc == count);
-	++count;
-	if (count == NR_ITEMS)
+	M0_UT_ASSERT(reply->csr_rc == expected);
+	++expected;
+	if (expected == NR_ITEMS)
 		m0_semaphore_up(&done_sem);
 }
 
@@ -506,7 +503,7 @@ static void test_bound_items(void)
 		item->ri_session  = session;
 		item->ri_deadline = 0;
 		item->ri_ops      = &bound_item_ops;
-		rc = m0_rpc_post(item, session->s_slot_table[0]);
+		rc = m0_rpc_post_slot(item, session->s_slot_table[0]);
 		M0_UT_ASSERT(rc == 0);
 		m0_fop_put(fop);
 	}

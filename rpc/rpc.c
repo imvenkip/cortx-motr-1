@@ -150,8 +150,13 @@ M0_INTERNAL void m0_rpc_fini(void)
 	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item,
-			    struct m0_rpc_slot *slot)
+M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item)
+{
+	return m0_rpc_post_slot(item, NULL);
+}
+
+M0_INTERNAL int m0_rpc_post_slot(struct m0_rpc_item *item,
+				 struct m0_rpc_slot *slot)
 {
 	int                    rc;
 	uint64_t               size;
@@ -194,11 +199,11 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item,
 	item->ri_rpc_time = m0_time_now();
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
 
-	if (slot != NULL) {
-		m0_rpc_slot_item_add(slot, item);
-	} else {
+	if (slot == NULL) {
 		item->ri_stage = RPC_ITEM_STAGE_FUTURE;
 		m0_rpc_item_send(item);
+	} else {
+		m0_rpc_slot_item_add(slot, item);
 	}
 	M0_RETURN(item->ri_error);
 }

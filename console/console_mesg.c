@@ -47,7 +47,7 @@ M0_INTERNAL int m0_cons_fop_send(struct m0_fop *fop,
 	item->ri_nr_sent_max     = nr_sent_max;
 	item->ri_resend_interval = resend_interval;
 
-        rc = m0_rpc_post(item, NULL);
+        rc = m0_rpc_post(item);
 	if (rc == 0) {
 		rc = m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER);
 		if (rc != 0)
