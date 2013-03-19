@@ -34,6 +34,7 @@
 #include "net/net.h"
 #include "net/lnet/lnet.h"
 #include "fop/fop.h"
+#include "fop/fom_generic.h" /* m0_rpc_item_generic_reply_rc */
 #include "rpc/rpclib.h"
 
 #ifndef __KERNEL__
@@ -221,11 +222,12 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 	M0_RETURN(rc0 ?: rc1);
 }
 
-int m0_rpc_client_call(struct m0_fop *fop,
-		       struct m0_rpc_session *session,
+int m0_rpc_client_call(struct m0_fop                *fop,
+		       struct m0_rpc_session        *session,
 		       const struct m0_rpc_item_ops *ri_ops,
-		       m0_time_t deadline)
+		       m0_time_t                     deadline)
 {
+	int                 rc;
 	struct m0_rpc_item *item;
 
 	M0_ENTRY("fop: %p, session: %p", fop, session);
@@ -238,8 +240,11 @@ int m0_rpc_client_call(struct m0_fop *fop,
 	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline = deadline;
 
-	M0_RETURN(m0_rpc_post(item) ?:
-		  m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER));
+	rc = m0_rpc_post(item) ?:
+		m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER) ?:
+		m0_rpc_item_generic_reply_rc(item->ri_reply);
+
+	M0_RETURN(rc);
 }
 M0_EXPORTED(m0_rpc_client_call);
 
