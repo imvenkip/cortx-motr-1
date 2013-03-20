@@ -18,6 +18,7 @@ main()
 	fi
 
 	m0t1fs_system_tests
+	rc=$?
 
 	mero_service stop
 	if [ $? -ne "0" ]
@@ -28,7 +29,7 @@ main()
 
 	echo "Test log available at $MERO_TEST_LOGFILE."
 
-	return 0
+	return $rc
 }
 
 trap unprepare EXIT
