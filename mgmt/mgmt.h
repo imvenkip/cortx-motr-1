@@ -21,6 +21,8 @@
 #ifndef __MERO_MGMT_MGMT_H__
 #define __MERO_MGMT_MGMT_H__
 
+struct m0_reqh_service;
+
 /**
    @defgroup mgmt Management Interfaces
    This module provides interfaces to manage Mero.

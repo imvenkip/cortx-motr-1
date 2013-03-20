@@ -270,7 +270,6 @@ static void reqh_state_set(struct m0_reqh *reqh,
 	m0_sm_group_unlock(&reqh->rh_sm_grp);
 }
 
-/** @todo: static or otherwise private? */
 M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 {
 	int                     rh_st;
@@ -283,7 +282,7 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 	rh_st = m0_reqh_state_get(reqh);
 	if (rh_st == M0_REQH_ST_INIT)
 		return -EAGAIN;
-	if (rh_st == M0_REQH_ST_MGMT_START || rh_st == M0_REQH_ST_STOPPED)
+	if (rh_st == M0_REQH_ST_MGMT_STOP || rh_st == M0_REQH_ST_STOPPED)
 		return -ESHUTDOWN;
 
 	svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);

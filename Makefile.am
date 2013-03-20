@@ -226,6 +226,7 @@ include $(top_srcdir)/layout/ut/Makefile.sub
 include $(top_srcdir)/lib/ut/Makefile.sub
 include $(top_srcdir)/mdservice/ut/Makefile.sub
 include $(top_srcdir)/mero/ut/Makefile.sub
+include $(top_srcdir)/mgmt/svc/ut/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/ut/Makefile.sub
 include $(top_srcdir)/net/lnet/ut/Makefile.sub
 include $(top_srcdir)/net/test/ut/Makefile.sub

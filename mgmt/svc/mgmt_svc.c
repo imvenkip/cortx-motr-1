@@ -596,6 +596,9 @@ static int mgmt_svc_rso_fop_accept(struct m0_reqh_service *service,
 	svc = bob_of(service, struct mgmt_svc, ms_reqhs, &mgmt_svc_bob);
 	M0_PRE(fop != NULL);
 
+	if (service->rs_state != M0_RST_STARTED)
+		return -ESHUTDOWN;
+
 	if (fop->f_type == &m0_fop_mgmt_service_state_req_fopt)
 		return 0;
 
