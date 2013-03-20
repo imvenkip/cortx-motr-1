@@ -130,7 +130,7 @@ static const struct m0_sm_state_descr mgmt_fop_ss_descr[] = {
                 .sd_name        = "ReadUnlock",
                 .sd_allowed     = M0_BITS(MGMT_FOP_SS_PHASE_FINI)
         },
-        [MGMT_FOP_SS_PHASE_R_UNLOCK] = {
+        [MGMT_FOP_SS_PHASE_FINI] = {
                 .sd_flags       = M0_SDF_TERMINAL,
                 .sd_name        = "Fini",
                 .sd_allowed     = 0
@@ -201,6 +201,9 @@ static int mgmt_fop_ss_fo_tick(struct m0_fom *fom)
 		break;
 
 	case MGMT_FOP_SS_PHASE_FINI:
+		rc = m0_rpc_reply_post(&fom->fo_fop->f_item,
+				       &fom->fo_rep_fop->f_item);
+		M0_ASSERT(rc == 0);
 		rc = M0_FSO_WAIT;
 		break;
 	}

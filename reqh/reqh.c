@@ -270,9 +270,54 @@ static void reqh_state_set(struct m0_reqh *reqh,
 	m0_sm_group_unlock(&reqh->rh_sm_grp);
 }
 
-M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh,
-				  struct m0_fop *fop)
+/** @todo: static or otherwise private? */
+M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 {
+	int                     rh_st;
+	int                     svc_st;
+	struct m0_reqh_service *svc;
+
+	M0_PRE(reqh != NULL);
+	M0_PRE(fop != NULL && fop->f_type != NULL);
+
+	rh_st = m0_reqh_state_get(reqh);
+	if (rh_st == M0_REQH_ST_INIT)
+		return -EAGAIN;
+	if (rh_st == M0_REQH_ST_MGMT_START || rh_st == M0_REQH_ST_STOPPED)
+		return -ESHUTDOWN;
+
+	svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);
+	if (svc == NULL)
+		return -ECONNREFUSED;
+	M0_ASSERT(svc->rs_ops != NULL);
+	svc_st = svc->rs_state;
+
+	if (rh_st == M0_REQH_ST_NORMAL) {
+		if (svc_st == M0_RST_STARTED)
+			return 0;
+		if (svc_st == M0_RST_STOPPING) {
+			if (svc->rs_ops->rso_fop_accept != NULL)
+				return (*svc->rs_ops->rso_fop_accept)(svc, fop);
+			return -ESHUTDOWN;
+		}
+		if (svc_st == M0_RST_STARTING)
+			return -EBUSY;
+		return -ESHUTDOWN;
+	}
+	if (rh_st == M0_REQH_ST_DRAIN) {
+		if (svc->rs_ops->rso_fop_accept != NULL &&
+		    (svc_st == M0_RST_STARTED || svc_st == M0_RST_STOPPING))
+			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
+		return -ESHUTDOWN;
+	}
+	if (rh_st == M0_REQH_ST_MGMT_START || rh_st == M0_REQH_ST_SVCS_STOP) {
+		if (svc == reqh->rh_mgmt_svc) {
+			M0_ASSERT(svc->rs_ops->rso_fop_accept != NULL);
+			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
+		}
+		return -ESHUTDOWN;
+	}
+
 	return -ENOSYS;
 }
 

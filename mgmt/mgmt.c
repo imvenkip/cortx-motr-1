@@ -422,6 +422,7 @@ Mero-WOMO Productization Planning</a>
 #include "lib/trace.h"  /* M0_LOG() */
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
+#include "rpc/rpc.h"
 #include "rpc/rpc_opcodes.h"
 #include "mero/magic.h"
 

@@ -587,11 +587,27 @@ static void mgmt_svc_rso_fini(struct m0_reqh_service *service)
 	m0_free(svc);
 }
 
+static int mgmt_svc_rso_fop_accept(struct m0_reqh_service *service,
+				   struct m0_fop *fop)
+{
+	struct mgmt_svc *svc;
+
+	M0_LOG(M0_DEBUG, "fop_accept");
+	svc = bob_of(service, struct mgmt_svc, ms_reqhs, &mgmt_svc_bob);
+	M0_PRE(fop != NULL);
+
+	if (fop->f_type == &m0_fop_mgmt_service_state_req_fopt)
+		return 0;
+
+	return -ESHUTDOWN;
+}
+
 static const struct m0_reqh_service_ops mgmt_service_ops = {
 	.rso_start           = mgmt_svc_rso_start,
 	.rso_prepare_to_stop = mgmt_svc_rso_prepare_to_stop,
 	.rso_stop            = mgmt_svc_rso_stop,
-	.rso_fini            = mgmt_svc_rso_fini
+	.rso_fini            = mgmt_svc_rso_fini,
+	.rso_fop_accept      = mgmt_svc_rso_fop_accept
 };
 
 /*

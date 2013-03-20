@@ -243,6 +243,8 @@ M0_INTERNAL int m0_reqh_state_get(struct m0_reqh *reqh);
 
    See @ref MGMT-SVC-DLD-lspec-rh-sm "Request Handler State Machine".
    <!-- mgmt/svc/mgmt_svc.c -->
+
+   @pre m0_rewlock_read_lock(&reqh->rh_rwlock)
  */
 M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop);
 
