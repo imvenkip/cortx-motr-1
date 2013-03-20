@@ -47,6 +47,11 @@ static void conn_establish_fop_release(struct m0_ref *ref)
 	fop = container_of(ref, struct m0_fop, f_ref);
 	ctx = container_of(fop, struct m0_rpc_fop_conn_establish_ctx, cec_fop);
 	m0_fop_fini(fop);
+	if (ctx->cec_sender_ep != NULL)
+		/* For all conn-establish items a reference to sender_ep
+		   is taken during m0_rpc_fop_conn_establish_ctx_init()
+		 */
+		m0_net_end_point_put(ctx->cec_sender_ep);
 	m0_free(ctx);
 }
 
@@ -221,6 +226,9 @@ M0_INTERNAL void m0_rpc_fop_conn_establish_ctx_init(struct m0_rpc_item *item,
 
 	ctx = container_of(item, struct m0_rpc_fop_conn_establish_ctx,
 				cec_fop.f_item);
+	/* This reference will be dropped when the item is getting freed i.e.
+	   conn_establish_fop_release()
+	 */
 	m0_net_end_point_get(ep);
 	ctx->cec_sender_ep = ep;
 	M0_LEAVE();

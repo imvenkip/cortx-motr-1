@@ -26,6 +26,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/bitstring.h"
+#include "lib/finject.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "lib/arith.h"
@@ -958,6 +959,8 @@ M0_INTERNAL int m0_rpc_slot_cob_create(const struct m0_cob *session_cob,
 	M0_ENTRY("session_cob: %p, slot_id: %u, slot_generation: %llu",
 		 session_cob, slot_id, (unsigned long long)slot_generation);
 	M0_PRE(session_cob != NULL && slot_cob != NULL);
+
+	if (M0_FI_ENABLED("failed")) return -EINVAL;
 
 	sprintf(name, "SLOT_%u:%lu", slot_id, (unsigned long)slot_generation);
 	rc = m0_rpc_cob_create_helper(session_cob->co_dom, session_cob, name,

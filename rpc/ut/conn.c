@@ -323,11 +323,11 @@ const struct m0_test_suite conn_ut = {
 	.ts_init = conn_ut_init,
 	.ts_fini = conn_ut_fini,
 	.ts_tests = {
-		{ "conn-init-fini", conn_init_fini_test},
-		{ "conn-check", conn_check},
-		{ "conn-init-fail", conn_init_fail_test},
-		{ "conn-establish-fail", conn_establish_fail_test},
-		{ "conn-terminate-fail", conn_terminate_fail_test},
+		{ "conn-init-fini",            conn_init_fini_test           },
+		{ "conn-check",                conn_check                    },
+		{ "conn-init-fail",            conn_init_fail_test           },
+		{ "conn-establish-fail",       conn_establish_fail_test      },
+		{ "conn-terminate-fail",       conn_terminate_fail_test      },
 		{ "conn-establish-reply-fail", conn_establish_reply_fail_test},
 		{ "conn-terminate_reply-fail", conn_terminate_reply_fail_test},
 		{ NULL, NULL}

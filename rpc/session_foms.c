@@ -25,6 +25,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/trace.h"
+#include "lib/finject.h"
 #include "stob/stob.h"
 #include "net/net.h"
 #include "rpc/rpc_internal.h"
@@ -63,41 +64,37 @@ static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	struct m0_fop_type		     *reply_fopt;
 	struct m0_fop			     *reply_fop;
 	int				      rc;
-	struct m0_rpc_fop_conn_establish_ctx *ctx;
 
 	M0_ENTRY("fop: %p", fop);
 
-	ctx = container_of(fop, struct m0_rpc_fop_conn_establish_ctx, cec_fop);
-	M0_ASSERT(ctx != NULL);
-
-	RPC_ALLOC_PTR(fom, SESSION_GEN_FOM_CREATE,
-		      &m0_rpc_addb_ctx);
-	if (fom == NULL)
-		M0_RETURN(-ENOMEM);
-
+	RPC_ALLOC_PTR(fom, SESSION_GEN_FOM_CREATE, &m0_rpc_addb_ctx);
+	if (fom == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
 	if (fop->f_type == &m0_rpc_fop_conn_establish_fopt) {
 
 		reply_fopt = &m0_rpc_fop_conn_establish_rep_fopt;
-		fom_ops = &m0_rpc_fom_conn_establish_ops;
+		fom_ops    = &m0_rpc_fom_conn_establish_ops;
 
 	} else if (fop->f_type == &m0_rpc_fop_conn_terminate_fopt) {
 
 		reply_fopt = &m0_rpc_fop_conn_terminate_rep_fopt;
-		fom_ops = &m0_rpc_fom_conn_terminate_ops;
+		fom_ops    = &m0_rpc_fom_conn_terminate_ops;
 
 	} else if (fop->f_type == &m0_rpc_fop_session_establish_fopt) {
 
 		reply_fopt = &m0_rpc_fop_session_establish_rep_fopt;
-		fom_ops = &m0_rpc_fom_session_establish_ops;
+		fom_ops    = &m0_rpc_fom_session_establish_ops;
 
 	} else if (fop->f_type == &m0_rpc_fop_session_terminate_fopt) {
 
 		reply_fopt = &m0_rpc_fop_session_terminate_rep_fopt;
-		fom_ops = &m0_rpc_fom_session_terminate_ops;
+		fom_ops    = &m0_rpc_fom_session_terminate_ops;
 
 	} else {
 		reply_fopt = NULL;
-		fom_ops = NULL;
+		fom_ops    = NULL;
 	}
 
 	if (reply_fopt == NULL || fom_ops == NULL) {
@@ -106,11 +103,15 @@ static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	}
 
 	reply_fop = m0_fop_alloc(reply_fopt, NULL);
+	if (M0_FI_ENABLED("reply_fop_alloc_failed")) {
+		m0_fop_put(reply_fop);
+		reply_fop = NULL;
+	}
 	if (reply_fop == NULL) {
 		rc = -ENOMEM;
 		goto out;
 	}
-
+	reply_fop->f_item.ri_rmachine = fop->f_item.ri_rmachine;
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop,
 		    reqh, fop->f_type->ft_fom_type.ft_rstype);
 	*m = fom;
@@ -122,15 +123,14 @@ out:
 		m0_free(fom);
 		*m = NULL;
 	}
-
 	M0_RETURN(rc);
 }
 
 const struct m0_fom_ops m0_rpc_fom_conn_establish_ops = {
-	.fo_fini = session_gen_fom_fini,
-	.fo_tick = m0_rpc_fom_conn_establish_tick,
+	.fo_fini          = session_gen_fom_fini,
+	.fo_tick          = m0_rpc_fom_conn_establish_tick,
 	.fo_home_locality = m0_rpc_session_default_home_locality,
-	.fo_addb_init = m0_rpc_fom_conn_establish_addb_init
+	.fo_addb_init     = m0_rpc_fom_conn_establish_addb_init
 };
 
 struct m0_fom_type_ops m0_rpc_fom_conn_establish_type_ops = {
@@ -185,8 +185,12 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 
 	RPC_ALLOC_PTR(conn, SESSION_FOM_CONN_ESTABLISH_TICK,
 		      &m0_rpc_addb_ctx);
+	if (M0_FI_ENABLED("conn-alloc-failed")) {
+		m0_free(conn);
+		conn = NULL;
+	}
 	if (conn == NULL) {
-		M0_RETURN(-ENOMEM);
+		goto ret;
 		/* no reply if conn establish failed.
 		   See [4] at end of this function. */
 	}
@@ -195,8 +199,6 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	m0_rpc_machine_lock(machine);
 	rc = m0_rpc_rcv_conn_init(conn, ctx->cec_sender_ep, machine,
 				  &item->ri_slot_refs[0].sr_ow.osr_uuid);
-	/* we won't need ctx->cec_sender_ep after this point */
-	m0_net_end_point_put(ctx->cec_sender_ep);
 	if (rc == 0) {
 		session0 = m0_rpc_conn_session0(conn);
 		if (ow_sref->osr_slot_id >= session0->s_nr_slots) {
@@ -236,6 +238,7 @@ out:
 		M0_LOG(M0_ERROR, "Conn establish failed: rc [%d]\n", rc);
 	}
 
+ret:
 	m0_fom_phase_set(fom, M0_FOPH_FINISH);
 	M0_LEAVE();
 	return M0_FSO_WAIT;

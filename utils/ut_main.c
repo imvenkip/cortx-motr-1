@@ -80,6 +80,7 @@ extern const struct m0_test_suite reqh_ut;
 extern const struct m0_test_suite reqh_service_ut;
 extern const struct m0_test_suite rm_ut;
 extern const struct m0_test_suite rpc_mc_ut;
+extern const struct m0_test_suite rpc_rcv_session_ut;
 extern const struct m0_test_suite rpc_service_ut;
 extern const struct m0_test_suite rpclib_ut;
 extern const struct m0_test_suite session_ut;
@@ -141,6 +142,7 @@ void add_uts(void)
 	m0_ut_add(&reqh_service_ut);
 	m0_ut_add(&rm_ut);
 	m0_ut_add(&rpc_mc_ut);
+	m0_ut_add(&rpc_rcv_session_ut);
 	m0_ut_add(&rpc_service_ut);
 	m0_ut_add(&rpclib_ut);
 	m0_ut_add(&session_ut);

@@ -341,6 +341,8 @@ static int session_zero_attach(struct m0_rpc_conn *conn)
 	M0_ENTRY("conn: %p", conn);
 	M0_PRE(conn != NULL && m0_rpc_machine_is_locked(conn->c_rpc_machine));
 
+	if (M0_FI_ENABLED("out-of-memory")) return -ENOMEM;
+
 	RPC_ALLOC_PTR(session, CONN_SESSION_ZERO_ATTACH, &m0_rpc_addb_ctx);
 	if (session == NULL)
 		M0_RETURN(-ENOMEM);
