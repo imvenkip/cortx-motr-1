@@ -25,6 +25,7 @@
 
 #include "lib/misc.h"              /* M0_SET0 */
 #include "lib/errno.h"             /* ENOMEM */
+#include "dtm/nucleus.h"
 #include "dtm/dtm.h"
 #include "dtm/dtm_update_xc.h"
 
@@ -101,6 +102,17 @@ M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_DONE)));
 	m0_be_tx_fini(&tx->tx_betx);
 	m0_fol_rec_fini(&tx->tx_fol_rec);
+}
+
+M0_INTERNAL int m0_dtm_global_init(void)
+{
+	m0_dtm_nuclei_init();
+	return 0;
+}
+
+M0_INTERNAL void m0_dtm_global_fini(void)
+{
+	m0_dtm_nuclei_fini();
 }
 
 /** @} end of dtm group */
