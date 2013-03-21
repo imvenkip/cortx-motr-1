@@ -164,6 +164,9 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
+	if (M0_FI_ENABLED("sleep_for_2sec"))
+		m0_nanosleep(m0_time(2, 0), NULL);
+
 	fop     = fom->fo_fop;
 	request = m0_fop_data(fop);
 	M0_ASSERT(request != NULL);
@@ -197,8 +200,20 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 
 	machine = item->ri_rmachine;
 	m0_rpc_machine_lock(machine);
+	if (m0_rpc_machine_find_conn(machine, item) != NULL) {
+		/* This is a duplicate request that was accepted
+		   after original conn-establish request was accepted but
+		   before the conn-establish operation completed.
+
+		   Ignore this item.
+		 */
+		M0_LOG(M0_INFO, "Duplicate conn-establish request %p", item);
+		m0_rpc_machine_unlock(machine);
+		m0_free(conn);
+		goto ret;
+	}
 	rc = m0_rpc_rcv_conn_init(conn, ctx->cec_sender_ep, machine,
-				  &item->ri_slot_refs[0].sr_ow.osr_uuid);
+				  &ow_sref->osr_uuid);
 	if (rc == 0) {
 		session0 = m0_rpc_conn_session0(conn);
 		if (ow_sref->osr_slot_id >= session0->s_nr_slots) {

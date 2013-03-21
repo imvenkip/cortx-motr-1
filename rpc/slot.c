@@ -800,8 +800,9 @@ M0_INTERNAL void m0_rpc_slot_reset(struct m0_rpc_slot *slot,
 	M0_LEAVE();
 }
 
-static struct m0_rpc_conn *find_conn(const struct m0_rpc_machine *machine,
-				     const struct m0_rpc_item    *item)
+M0_INTERNAL struct m0_rpc_conn *
+m0_rpc_machine_find_conn(const struct m0_rpc_machine *machine,
+			 const struct m0_rpc_item    *item)
 {
 	const struct m0_rpc_onwire_slot_ref *sref;
 	const struct m0_tl                  *conn_list;
@@ -845,7 +846,7 @@ static int associate_session_and_slot(struct m0_rpc_item    *item,
 	if (sref->sr_ow.osr_session_id > SESSION_ID_MAX)
 		M0_RETERR(-EINVAL, "rpc_session_id");
 
-	conn = find_conn(machine, item);
+	conn = m0_rpc_machine_find_conn(machine, item);
 	if (conn == NULL)
 		M0_RETURN(-ENOENT);
 

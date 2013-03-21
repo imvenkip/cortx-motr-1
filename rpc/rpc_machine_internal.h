@@ -79,6 +79,10 @@ m0_rpc_machine_is_not_locked(const struct m0_rpc_machine *machine);
 M0_INTERNAL void m0_rpc_machine_add_conn(struct m0_rpc_machine *rmach,
 					 struct m0_rpc_conn    *conn);
 
+M0_INTERNAL struct m0_rpc_conn *
+m0_rpc_machine_find_conn(const struct m0_rpc_machine *machine,
+			 const struct m0_rpc_item    *item);
+
 M0_TL_DESCR_DECLARE(rpc_conn, M0_EXTERN);
 M0_TL_DECLARE(rpc_conn, M0_INTERNAL, struct m0_rpc_conn);
 

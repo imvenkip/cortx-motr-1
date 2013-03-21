@@ -73,13 +73,13 @@ static void test_conn_establish_error(void)
 	int                      rc;
 	int                      i;
 	struct fp fps1[] = {
-		{"session_gen_fom_create", "reply_fop_alloc_failed"},
-		{"m0_rpc_fom_conn_establish_tick", "conn-alloc-failed"},
-		{"m0_db_tx_init", "failed"},
-		{"m0_rpc_slot_cob_create", "failed"},
+		{"session_gen_fom_create",         "reply_fop_alloc_failed"},
+		{"m0_rpc_fom_conn_establish_tick", "conn-alloc-failed"     },
+		{"m0_db_tx_init",                  "failed"                },
+		{"m0_rpc_slot_cob_create",         "failed"                },
 	};
 	struct fp fps2[] = {
-		{"rpc_chan_get", "fake_error"},
+		{"rpc_chan_get",        "fake_error"   },
 		{"session_zero_attach", "out-of-memory"},
 	};
 
@@ -89,6 +89,13 @@ static void test_conn_establish_error(void)
 	/* TEST1: Connection established successfully */
 	rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
 				m0_time_from_now(TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_conn_destroy(&conn, m0_time_from_now(TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0);
+
+	m0_fi_enable_once("m0_rpc_fom_conn_establish_tick", "sleep_for_2sec");
+	rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
+				m0_time_from_now(2 * TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_conn_destroy(&conn, m0_time_from_now(TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0);
