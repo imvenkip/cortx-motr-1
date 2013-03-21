@@ -56,6 +56,7 @@ static int ts_rcv_session_fini(void)
 struct fp {
 	const char *fn;
 	const char *pt;
+	int         erc; /* expected rc */
 };
 
 static bool enable_for_all_but_first_call(void *data)
@@ -65,7 +66,7 @@ static bool enable_for_all_but_first_call(void *data)
 	return ++*pcount > 1;
 }
 
-static void test_conn_establish_error(void)
+static void test_conn_establish(void)
 {
 	struct m0_net_end_point *ep;
 	struct m0_rpc_conn       conn;
@@ -86,13 +87,16 @@ static void test_conn_establish_error(void)
 	rc = m0_net_end_point_create(&ep, &machine->rm_tm, remote_addr);
 	M0_UT_ASSERT(rc == 0);
 
-	/* TEST1: Connection established successfully */
+	/* TEST: Connection established successfully */
 	rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
 				m0_time_from_now(TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_conn_destroy(&conn, m0_time_from_now(TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0);
 
+	/* TEST: Duplicate conn-establish requests are accepted but only
+	         one of them gets executed and rest of them are ignored.
+	 */
 	m0_fi_enable_once("m0_rpc_fom_conn_establish_tick", "sleep_for_2sec");
 	rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
 				m0_time_from_now(2 * TIMEOUT, 0));
@@ -120,12 +124,64 @@ static void test_conn_establish_error(void)
 	m0_net_end_point_put(ep);
 }
 
+static void test_session_establish(void)
+{
+	struct m0_net_end_point *ep;
+	struct m0_rpc_session    session;
+	struct m0_rpc_conn       conn;
+	int                      count;
+	int                      rc;
+	int                      i;
+	struct fp fps[] = {
+		//{"session_gen_fom_create",         "reply_fop_alloc_failed"},
+		{"m0_rpc_fom_session_establish_tick",
+		                           "session-alloc-failed", -ENOMEM},
+		{"m0_db_tx_init",          "failed",               -EINVAL},
+		{"m0_rpc_slot_cob_create", "failed",               -EINVAL},
+	};
+	rc = m0_net_end_point_create(&ep, &machine->rm_tm, remote_addr);
+	M0_UT_ASSERT(rc == 0);
+
+	/* TEST1: Connection established successfully */
+	rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
+				m0_time_from_now(TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_session_create(&session, &conn, NR_SLOTS,
+				   m0_time_from_now(TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_session_destroy(&session, m0_time_from_now(TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0);
+
+	for (i = 0; i < ARRAY_SIZE(fps); ++i) {
+		FATAL("<%s, %s>", fps[i].fn, fps[i].pt);
+		m0_fi_enable(fps[i].fn, fps[i].pt);
+		rc = m0_rpc_session_create(&session, &conn, NR_SLOTS,
+					   m0_time_from_now(TIMEOUT, 0));
+		M0_UT_ASSERT(rc == fps[i].erc);
+		m0_fi_disable(fps[i].fn, fps[i].pt);
+	}
+
+	count = 0;
+	m0_fi_enable_func("slot_table_alloc_and_init", "failed",
+			  enable_for_all_but_first_call, &count);
+	rc = m0_rpc_session_create(&session, &conn, NR_SLOTS,
+				   m0_time_from_now(TIMEOUT, 0));
+	M0_UT_ASSERT(rc == -ENOMEM);
+	m0_fi_disable("slot_table_alloc_and_init", "failed");
+
+	rc = m0_rpc_conn_destroy(&conn, m0_time_from_now(TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0);
+
+	m0_net_end_point_put(ep);
+}
+
 const struct m0_test_suite rpc_rcv_session_ut = {
 	.ts_name = "rpc-rcv-session-ut",
 	.ts_init = ts_rcv_session_init,
 	.ts_fini = ts_rcv_session_fini,
 	.ts_tests = {
-		{ "conn-establish-error", test_conn_establish_error},
+		{ "conn-establish",    test_conn_establish},
+		{ "session-establish", test_session_establish},
 		{ NULL, NULL },
 	}
 };

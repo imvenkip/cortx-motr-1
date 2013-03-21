@@ -313,10 +313,10 @@ M0_INTERNAL void m0_rpc_fom_conn_establish_addb_init(struct m0_fom *fom,
  */
 
 const struct m0_fom_ops m0_rpc_fom_session_establish_ops = {
-	.fo_fini = session_gen_fom_fini,
-	.fo_tick = m0_rpc_fom_session_establish_tick,
+	.fo_fini          = session_gen_fom_fini,
+	.fo_tick          = m0_rpc_fom_session_establish_tick,
 	.fo_home_locality = m0_rpc_session_default_home_locality,
-	.fo_addb_init = m0_rpc_fom_session_establish_addb_init
+	.fo_addb_init     = m0_rpc_fom_session_establish_addb_init
 };
 
 struct m0_fom_type_ops m0_rpc_fom_session_establish_type_ops = {
@@ -366,6 +366,10 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 
 	RPC_ALLOC_PTR(session, SESSION_FOM_SESSION_ESTABLISH_TICK,
 		      &m0_rpc_addb_ctx);
+	if (M0_FI_ENABLED("session-alloc-failed")) {
+		m0_free(session);
+		session = NULL;
+	}
 	if (session == NULL) {
 		rc = -ENOMEM;
 		goto out;

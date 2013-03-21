@@ -387,6 +387,8 @@ static int slot_table_alloc_and_init(struct m0_rpc_session *session)
 
 		session->s_slot_table[i] = slot;
 	}
+	if (M0_FI_ENABLED("failed"))
+		M0_RETURN(-ENOMEM);
 	M0_RETURN(0);
 }
 
