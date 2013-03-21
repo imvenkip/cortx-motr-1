@@ -419,10 +419,10 @@ M0_INTERNAL void m0_rpc_fom_session_establish_addb_init(struct m0_fom *fom,
  */
 
 const struct m0_fom_ops m0_rpc_fom_session_terminate_ops = {
-	.fo_fini = session_gen_fom_fini,
-	.fo_tick = m0_rpc_fom_session_terminate_tick,
+	.fo_fini          = session_gen_fom_fini,
+	.fo_tick          = m0_rpc_fom_session_terminate_tick,
 	.fo_home_locality = m0_rpc_session_default_home_locality,
-	.fo_addb_init = m0_rpc_fom_session_terminate_addb_init
+	.fo_addb_init     = m0_rpc_fom_session_terminate_addb_init
 };
 
 struct m0_fom_type_ops m0_rpc_fom_session_terminate_type_ops = {

@@ -133,7 +133,7 @@ static void test_session_establish(void)
 	int                      rc;
 	int                      i;
 	struct fp fps[] = {
-		//{"session_gen_fom_create",         "reply_fop_alloc_failed"},
+		//{"session_gen_fom_create", "reply_fop_alloc_failed"},
 		{"m0_rpc_fom_session_establish_tick",
 		                           "session-alloc-failed", -ENOMEM},
 		{"m0_db_tx_init",          "failed",               -EINVAL},
@@ -153,7 +153,6 @@ static void test_session_establish(void)
 	M0_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < ARRAY_SIZE(fps); ++i) {
-		FATAL("<%s, %s>", fps[i].fn, fps[i].pt);
 		m0_fi_enable(fps[i].fn, fps[i].pt);
 		rc = m0_rpc_session_create(&session, &conn, NR_SLOTS,
 					   m0_time_from_now(TIMEOUT, 0));
@@ -175,6 +174,43 @@ static void test_session_establish(void)
 	m0_net_end_point_put(ep);
 }
 
+static void test_session_terminate(void)
+{
+	struct m0_net_end_point *ep;
+	struct m0_rpc_session    session;
+	struct m0_rpc_conn       conn;
+	int                      rc;
+	int                      i;
+	struct fp fps[] = {
+		//{"session_gen_fom_create", "reply_fop_alloc_failed"},
+		{"m0_db_tx_init", "failed", -EINVAL},
+	};
+	rc = m0_net_end_point_create(&ep, &machine->rm_tm, remote_addr);
+	M0_UT_ASSERT(rc == 0);
+
+	/* TEST1: Connection established successfully */
+	rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
+				m0_time_from_now(TIMEOUT, 0));
+	for (i = 0; i < ARRAY_SIZE(fps); ++i) {
+		rc = m0_rpc_session_create(&session, &conn, NR_SLOTS,
+					   m0_time_from_now(TIMEOUT, 0));
+		M0_UT_ASSERT(rc == 0);
+
+		m0_fi_enable(fps[i].fn, fps[i].pt);
+		rc = m0_rpc_session_destroy(&session,
+					    m0_time_from_now(TIMEOUT, 0));
+		FATAL("rc: %d", rc);
+		M0_UT_ASSERT(rc == fps[i].erc);
+		m0_fi_disable(fps[i].fn, fps[i].pt);
+	}
+
+	rc = m0_rpc_conn_destroy(&conn, m0_time_from_now(TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0);
+
+	m0_net_end_point_put(ep);
+
+}
+
 const struct m0_test_suite rpc_rcv_session_ut = {
 	.ts_name = "rpc-rcv-session-ut",
 	.ts_init = ts_rcv_session_init,
@@ -182,6 +218,7 @@ const struct m0_test_suite rpc_rcv_session_ut = {
 	.ts_tests = {
 		{ "conn-establish",    test_conn_establish},
 		{ "session-establish", test_session_establish},
+		{ "session-terminate", test_session_terminate},
 		{ NULL, NULL },
 	}
 };
