@@ -25,7 +25,11 @@
  * @{
  */
 
+#include "lib/cdefs.h"              /* IS_IN_ARRAY */
+#include "lib/assert.h"
 
+#include "dtm/update.h"             /* M0_DTM_USER_UPDATE_BASE */
+#include "dtm/object.h"
 
 /** @} end of dtm group */
 

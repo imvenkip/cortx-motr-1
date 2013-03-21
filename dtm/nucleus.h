@@ -72,7 +72,8 @@ M0_INTERNAL bool m0_dtm_hi_invariant(const struct m0_dtm_hi *hi);
 enum m0_dtm_hi_flags {
 	M0_DHF_SHARED = 1ULL << 0,
 	M0_DHF_FULL   = 1ULL << 1,
-	M0_DHF_OWNED  = 1ULL << 2
+	M0_DHF_OWNED  = 1ULL << 2,
+	M0_DHF_LAST   = 1ULL << 3
 };
 
 struct m0_dtm_hi_ops {
@@ -124,7 +125,7 @@ M0_INTERNAL void m0_dtm_op_init      (struct m0_dtm_op *op,
 				      struct m0_dtm_nu *nu);
 M0_INTERNAL void m0_dtm_op_prepared  (struct m0_dtm_op *op);
 M0_INTERNAL void m0_dtm_op_done      (struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_add       (struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_close     (struct m0_dtm_op *op);
 M0_INTERNAL void m0_dtm_op_del       (struct m0_dtm_op *op);
 M0_INTERNAL void m0_dtm_op_fini      (struct m0_dtm_op *op);
 M0_INTERNAL void m0_dtm_op_persistent(struct m0_dtm_op *op);

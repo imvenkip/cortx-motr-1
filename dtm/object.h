@@ -32,19 +32,19 @@
  */
 
 /* import */
-#include "dtm/nucleus.h"
-struct m0_dtm_update;
+#include "dtm/history.h"
 
 /* export */
 struct m0_dtm_object;
+struct m0_dtm_cobject_type;
+struct m0_dtm_cobject_type_ops;
 
 struct m0_dtm_object {
-	struct m0_dtm_hi      obj_hi;
-	struct m0_dtm_update *obj_point;
+	struct m0_dtm_history obj_hi;
 };
 
-void m0_dtm_object_init(struct m0_dtm_object *obj);
-void m0_dtm_object_fini(struct m0_dtm_object *obj);
+M0_INTERNAL void m0_dtm_object_init(struct m0_dtm_object *obj);
+M0_INTERNAL void m0_dtm_object_fini(struct m0_dtm_object *obj);
 
 /** @} end of dtm group */
 

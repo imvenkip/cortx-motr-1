@@ -33,26 +33,51 @@
 
 /* import */
 #include "dtm/nucleus.h"
-struct m0_dtm_update;
-struct m0_dtm_object;
+#include "dtm/update.h"
+struct m0_dtm_remote;
 
 /* export */
-struct m0_dtm_operation;
+struct m0_dtm_oper;
+struct m0_dtm_oper_ops;
 
-struct m0_dtm_operation {
-	struct m0_dtm_op      oprt_op;
-	unsigned              oprt_nr;
-	unsigned              oprt_idx;
-	struct m0_dtm_update *oprt_up;
+struct m0_dtm_oper {
+	struct m0_dtm_op              oprt_op;
+	const struct m0_dtm_oper_ops *oprt_ops;
 };
 
-M0_INTERNAL int  m0_dtm_operation_init(struct m0_dtm_operation *oper,
-				       unsigned nr);
-M0_INTERNAL void m0_dtm_operation_fini(struct m0_dtm_operation *oper);
-M0_INTERNAL void m0_dtm_operation_add (struct m0_dtm_operation *oper,
-				       struct m0_dtm_object *obj,
-				       enum m0_dtm_up_rule rule,
-				       m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver);
+struct m0_dtm_oper_ops {
+	void (*oprto_persistent)(struct m0_dtm_oper *oprt);
+};
+
+struct m0_dtm_oper_descr {
+	uint32_t                    od_nr;
+	struct m0_dtm_update_descr *od_update;
+} M0_XCA_SEQUENCE;
+
+M0_INTERNAL void m0_dtm_oper_init(struct m0_dtm_oper *oper);
+M0_INTERNAL void m0_dtm_oper_fini(struct m0_dtm_oper *oper);
+M0_INTERNAL void m0_dtm_oper_add(struct m0_dtm_oper *oper,
+				 struct m0_dtm_update *update);
+M0_INTERNAL void m0_dtm_oper_close(struct m0_dtm_oper *oper);
+M0_INTERNAL void m0_dtm_oper_done(struct m0_dtm_oper *oper,
+				  const struct m0_dtm_remote *dtm);
+M0_INTERNAL void m0_dtm_oper_pack(const struct m0_dtm_oper *oper,
+				  const struct m0_dtm_remote *dtm,
+				  struct m0_dtm_oper_descr *ode);
+M0_INTERNAL void m0_dtm_oper_unpack(struct m0_dtm_oper *oper,
+				    const struct m0_dtm_oper_descr *ode);
+M0_INTERNAL int  m0_dtm_oper_build(struct m0_dtm_oper *oper,
+				   struct m0_tlist *uu,
+				   const struct m0_dtm_oper_descr *ode);
+M0_INTERNAL void m0_dtm_reply_pack(const struct m0_dtm_oper *oper,
+				   const struct m0_dtm_oper_descr *request,
+				   struct m0_dtm_oper_descr *reply);
+M0_INTERNAL void m0_dtm_reply_unpack(struct m0_dtm_oper *oper,
+				     const struct m0_dtm_oper_descr *reply);
+
+M0_INTERNAL struct m0_dtm_update *m0_dtm_oper_get(struct m0_dtm_oper *oper,
+						  uint32_t label);
+
 /** @} end of dtm group */
 
 #endif /* __MERO_DTM_OPERATION_H__ */

@@ -31,18 +31,22 @@
  * @{
  */
 
-#include "dtm/nucleus.h"
+#include "lib/tlist.h"
+#include "dtm/history.h"
 
 /* export */
 struct m0_dtm_dtx;
 
 struct m0_dtm_dtx {
-	struct m0_dtm_hi dx_hi;
+	struct m0_dtm_history  dx_history;
 };
 
-M0_INTERNAL int  m0_dtm_dtx_init(struct m0_dtm_dtx *dtx);
+M0_INTERNAL int  m0_dtm_dtx_init(struct m0_dtm_dtx *dtx, uint32_t nr);
 M0_INTERNAL void m0_dtm_dtx_fini(struct m0_dtm_dtx *dtx);
 
+M0_INTERNAL void m0_dtm_dtx_add(struct m0_dtm_dtx *dtx,
+				struct m0_dtm_oper *oper);
+M0_INTERNAL void m0_dtm_dtx_close(struct m0_dtm_dtx *dtx);
 
 /** @} end of dtm group */
 

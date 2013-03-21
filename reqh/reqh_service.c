@@ -503,8 +503,8 @@ M0_INTERNAL void m0_reqh_service_list_print(void)
 
 M0_INTERNAL bool m0_reqh_service_is_registered(const char *sname)
 {
-        return !m0_tl_forall(rstypes, stype, &rstypes,
-                                strcasecmp(stype->rst_name, sname) != 0);
+        return m0_tl_exists(rstypes, stype, &rstypes,
+			    strcasecmp(stype->rst_name, sname) == 0);
 }
 
 M0_INTERNAL int m0_reqh_service_types_init(void)

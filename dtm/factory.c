@@ -15,41 +15,19 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 27-Jan-2013
+ * Original creation date: 15-Mar-2013
  */
 
 
-#pragma once
-
-#ifndef __MERO_DTM_LTX_H__
-#define __MERO_DTM_LTX_H__
-
-
 /**
- * @defgroup dtm
+ * @addtogroup XXX
  *
  * @{
  */
 
-#include "db/db.h"
-#include "dtm/history.h"
-
-/* export */
-struct m0_dtm_ltx;
-
-struct m0_dtm_ltx {
-	struct m0_dtm_history  lx_hi;
-	struct m0_db_tx        lx_tx;
-	struct m0_db_tx_waiter lx_waiter;
-};
-
-M0_INTERNAL int  m0_dtm_ltx_init(struct m0_dtm_ltx *ltx, struct m0_dbenv *env);
-M0_INTERNAL void m0_dtm_ltx_fini(struct m0_dtm_ltx *ltx);
 
 
-/** @} end of dtm group */
-
-#endif /* __MERO_DTM_LTX_H__ */
+/** @} end of XXX group */
 
 
 /*

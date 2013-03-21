@@ -236,8 +236,8 @@ M0_INTERNAL bool m0_long_is_read_locked(struct m0_long_lock *lock,
 	m0_mutex_lock(&lock->l_lock);
 	M0_ASSERT(lock_invariant(lock));
 	ret = lock->l_state == M0_LONG_LOCK_RD_LOCKED &&
-		!m0_tl_forall(m0_lll, link, &lock->l_owners,
-			      link->lll_fom != fom);
+		m0_tl_exists(m0_lll, link, &lock->l_owners,
+			     link->lll_fom == fom);
 	m0_mutex_unlock(&lock->l_lock);
 	return ret;
 }

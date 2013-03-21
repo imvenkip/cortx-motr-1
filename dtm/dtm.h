@@ -26,6 +26,7 @@
 #include "db/db.h"
 #include "be/be.h"
 #include "fol/fol.h"
+#include "dtm/history.h"
 
 /**
    @defgroup dtm Distributed transaction manager
@@ -73,9 +74,6 @@ M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx);
 
 M0_INTERNAL int m0_dtm_init(void);
 M0_INTERNAL void m0_dtm_fini(void);
-
-M0_INTERNAL int  m0_dtm_global_init(void);
-M0_INTERNAL void m0_dtm_global_fini(void);
 
 M0_INTERNAL int  m0_dtm_global_init(void);
 M0_INTERNAL void m0_dtm_global_fini(void);

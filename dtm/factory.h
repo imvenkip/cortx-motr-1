@@ -15,14 +15,14 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 27-Jan-2013
+ * Original creation date: 15-Mar-2013
  */
 
 
 #pragma once
 
-#ifndef __MERO_DTM_LTX_H__
-#define __MERO_DTM_LTX_H__
+#ifndef __MERO_DTM_FACTORY_H__
+#define __MERO_DTM_FACTORY_H__
 
 
 /**
@@ -31,25 +31,34 @@
  * @{
  */
 
-#include "db/db.h"
-#include "dtm/history.h"
-
 /* export */
-struct m0_dtm_ltx;
+struct m0_dtm_factory;
+struct m0_dtm_factory_ops;
+struct m0_dtm_factory_type;
 
-struct m0_dtm_ltx {
-	struct m0_dtm_history  lx_hi;
-	struct m0_db_tx        lx_tx;
-	struct m0_db_tx_waiter lx_waiter;
+/* import */
+struct m0_dtm_dtx;
+struct m0_dtm_oper;
+
+struct m0_dtm_factory {
+	const struct m0_dtm_factory_ops *fa_ops;
 };
 
-M0_INTERNAL int  m0_dtm_ltx_init(struct m0_dtm_ltx *ltx, struct m0_dbenv *env);
-M0_INTERNAL void m0_dtm_ltx_fini(struct m0_dtm_ltx *ltx);
+struct m0_dtm_factory_ops {
+	const struct m0_dtm_factory_type *fao_type;
 
+	int (*fao_dtx_make) (struct m0_dtm_factory *fa, struct m0_dtm_dtx *dt);
+	int (*fao_oper_make)(struct m0_dtm_factory *fa,
+			     struct m0_dtm_oper *oper);
+};
+
+struct m0_dtm_factory_type {
+	const char *fat_name;
+};
 
 /** @} end of dtm group */
 
-#endif /* __MERO_DTM_LTX_H__ */
+#endif /* __MERO_DTM_FACTORY_H__ */
 
 
 /*

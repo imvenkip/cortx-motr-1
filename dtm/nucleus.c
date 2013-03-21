@@ -36,16 +36,17 @@
 
 #include "mero/magic.h"
 #include "dtm/nucleus.h"
+#include "dtm/dtm_internal.h"
 
-M0_TL_DESCR_DEFINE(hi, "dtm history updates", static, struct m0_dtm_up,
+M0_TL_DESCR_DEFINE(hi, "nucleus hi updates", M0_INTERNAL, struct m0_dtm_up,
 		   up_hi_linkage, up_magix,
 		   M0_DTM_UP_MAGIX, M0_DTM_HI_MAGIX);
-M0_TL_DEFINE(hi, static, struct m0_dtm_up);
+M0_TL_DEFINE(hi, M0_INTERNAL, struct m0_dtm_up);
 
-M0_TL_DESCR_DEFINE(op, "dtm operation updates", static, struct m0_dtm_up,
+M0_TL_DESCR_DEFINE(op, "nucleus operation updates", M0_INTERNAL, struct m0_dtm_up,
 		   up_op_linkage, up_magix,
 		   M0_DTM_UP_MAGIX, M0_DTM_OP_MAGIX);
-M0_TL_DEFINE(op, static, struct m0_dtm_up);
+M0_TL_DEFINE(op, M0_INTERNAL, struct m0_dtm_up);
 
 const static struct m0_bob_type hi_bob;
 const static struct m0_bob_type op_bob;
@@ -71,26 +72,6 @@ static void op_persist(struct m0_dtm_op *op);
 /* clandestinely exported to UT */
 M0_INTERNAL bool op_state(struct m0_dtm_op *op, enum m0_dtm_state state);
 
-#define up_for(op, up)				\
-do {						\
-	struct m0_dtm_up *up;			\
-						\
-	m0_tl_for(op, &op->op_ups, up)
-
-#define up_endfor				\
-	m0_tl_endfor;				\
-} while (0)
-
-#define hi_for(hi, up)				\
-do {						\
-	struct m0_dtm_up *up;			\
-						\
-	m0_tl_for(hi, &hi->hi_ups, up)
-
-#define hi_endfor				\
-	m0_tl_endfor;				\
-} while (0)
-
 enum m0_dtm_ver_cmp {
 	LATE  = -1,
 	READY =  0,
@@ -105,7 +86,7 @@ M0_INTERNAL void m0_dtm_op_init(struct m0_dtm_op *op, struct m0_dtm_nu *nu)
 	op_tlist_init(&op->op_ups);
 }
 
-M0_INTERNAL void m0_dtm_op_add(struct m0_dtm_op *op)
+M0_INTERNAL void m0_dtm_op_close(struct m0_dtm_op *op)
 {
 	op_lock(op);
 	M0_PRE(m0_dtm_op_invariant(op));
@@ -161,7 +142,7 @@ static void op_del(struct m0_dtm_op *op)
 	} up_endfor;
 }
 
-static void op_del(struct m0_dtm_op *op)
+M0_INTERNAL void m0_dtm_op_del(struct m0_dtm_op *op)
 {
 	op_lock(op);
 	M0_PRE(m0_dtm_op_invariant(op));
@@ -353,33 +334,6 @@ static void up_del(struct m0_dtm_up *up)
 
 	if (up->up_state == M0_DOS_FUTURE)
 		hi_tlist_del(up);
-}
-
-static int up_cmp(const struct m0_dtm_up *up, m0_dtm_ver_t hver)
-{
-	m0_dtm_ver_t uver = up->up_ver;
-	/*
-	 * Possible invariant violations on entry: the update is not in the
-	 * history, even when the operation is not in LIMBO.
-	 */
-	M0_PRE(hver != 0);
-
-	if (uver == 0)
-		return READY;
-	if (up->up_orig_ver != 0)
-		return M0_3WAY(up->up_orig_ver, hver);
-
-	switch (up->up_rule) {
-	case M0_DUR_INC:
-		return M0_3WAY(uver, hver + 1);
-	case M0_DUR_SET:
-		return uver <= hver ? LATE : READY;
-	case M0_DUR_NOT:
-		return M0_3WAY(uver, hver);
-	case M0_DUR_APP:
-	default:
-		M0_IMPOSSIBLE("Impossible rule.");
-	}
 }
 
 static int up_cmp(const struct m0_dtm_up *up, m0_dtm_ver_t hver)

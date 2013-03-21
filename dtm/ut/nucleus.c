@@ -109,11 +109,6 @@ static void nu(void)
 	m0_dtm_nu_fini(&c.c_nu);
 }
 
-static const struct m0_dtm_hi_ops hi_ops = {
-	.dho_release    = release,
-	.dho_persistent = persistent
-};
-
 static void hi(void)
 {
 	struct m0_dtm_hi hi;
@@ -209,7 +204,7 @@ static void fail(struct m0_dtm_op *op)
 static void ctx_op_add(int i)
 {
 	c_late = c_miser = fail;
-	m0_dtm_op_add(&c.c_op[i]);
+	m0_dtm_op_close(&c.c_op[i]);
 	c_late = c_miser = NULL;
 }
 
@@ -299,7 +294,7 @@ static void op_late(void)
 	ctx_add(0, 1, M0_DUR_INC, 2, 1);
 	c_late = set_flag;
 	flag = false;
-	m0_dtm_op_add(&c.c_op[1]);
+	m0_dtm_op_close(&c.c_op[1]);
 	M0_UT_ASSERT(flag);
 	c_late = NULL;
 	ctx_check();
@@ -320,7 +315,7 @@ static void op_miser(void)
 	ctx_add(1, 1, M0_DUR_SET, 3, 2);
 	c_miser = set_flag;
 	flag = false;
-	m0_dtm_op_add(&c.c_op[1]);
+	m0_dtm_op_close(&c.c_op[1]);
 	M0_UT_ASSERT(flag);
 	c_miser = NULL;
 	ctx_check();

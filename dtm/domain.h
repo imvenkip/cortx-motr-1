@@ -32,23 +32,29 @@
  */
 
 #include "lib/tlist.h"
-#include "sm/sm.h"
-#include "dtm/nucleus.h"
+#include "fid/fid.h"
+
+#include "dtm/nucleus.h"             /* m0_dtm_ver_t */
+#include "dtm/history.h"             /* m0_dtm_remote */
+
 
 /* export */
 struct m0_dtm_domain;
-struct m0_dtm_domain_dest;
 
 struct m0_dtm_domain {
-	struct m0_dtm_hi dom_hi;
-	struct m0_tlist  dom_dest;
+	struct m0_dtm_history  dom_hi;
+	struct m0_fid          dom_fid;
+	m0_dtm_ver_t           dom_ver;
+	uint32_t               dom_cohort_nr;
+	struct m0_dtm_remote **dom_cohort;
 };
 
-struct m0_dtm_domain_dest {
-	struct m0_rpc_service *ddd_ser;
+struct m0_dtm_domain_cohort {
+	struct m0_dtm_object  dco_object;
+	struct m0_dtm_remote *dco_owner;
 };
 
-M0_INTERNAL void m0_dtm_domain_init(struct m0_dtm_domain *dom);
+M0_INTERNAL int  m0_dtm_domain_init(struct m0_dtm_domain *dom, uint32_t nr);
 M0_INTERNAL void m0_dtm_domain_fini(struct m0_dtm_domain *dom);
 
 M0_INTERNAL void m0_dtm_domain_add(struct m0_dtm_domain *dom,
@@ -58,6 +64,10 @@ M0_INTERNAL void m0_dtm_domain_close(struct m0_dtm_domain *dom);
 M0_INTERNAL void m0_dtm_domain_connect(struct m0_dtm_domain *dom);
 M0_INTERNAL void m0_dtm_domain_disconnect(struct m0_dtm_domain *dom);
 
+M0_INTERNAL void m0_dtm_domain_cohort_init(struct m0_dtm_domain_cohort *coh);
+M0_INTERNAL void m0_dtm_domain_cohort_fini(struct m0_dtm_domain_cohort *coh);
+M0_INTERNAL int  m0_dtm_domain_cohort_open(struct m0_dtm_domain_cohort *coh);
+M0_INTERNAL int  m0_dtm_domain_cohort_restart(struct m0_dtm_domain_cohort *coh);
 
 /** @} end of dtm group */
 
