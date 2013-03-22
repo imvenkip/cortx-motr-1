@@ -742,22 +742,23 @@ static void addbdump_help(FILE *out)
 		"Usage: m0addbdump [-h]\n"
 		"   or  m0addbdump -T StobType [-D DBPath] [-c][-e][-u][-y]"
 		" -A ADDBStobPath\n"
-		"                  [-o path]\n"
-		"   or  m0addbdump -f path [-c][-e][-u][-y] [-o path]\n"
-		"   or  m0addbdump -b -T StobType [-D DBPath]"
-		" -A ADDBStobPath [-o path]\n\n");
+		"                  [-s segID] [-o path]\n"
+		"   or  m0addbdump -f path [-c][-e][-u][-y]"
+		" [-s segID] [-o path]\n"
+		"   or  m0addbdump -b -T StobType [-D DBPath] -A ADDBStobPath\n"
+		"                  [-s segID] [-o path]\n");
 	fprintf(out,
 		"  -b       Dump binary data.  All valid segments are dumped.\n"
 		"           The output can be inspected later using -f.\n"
 		"  -c       Dump only context records.\n"
 		"  -e       Dump only event records.\n"
+		"  -f path  Read data from a binary file created using -b\n"
+		"           rather than reading from the ADDB repository.\n"
+		"  -o path  Write output to a file rather than stdout.\n"
+		"  -s segID Dump only contents of segments with ID of"
+		" `segID' or greater.\n"
 		"  -u       Output timestamps in UTC.\n"
 		"  -y       Dump YAML output.\n");
-	fprintf(out,
-		"  -f path  Read data from a binary file created using -b\n"
-		"           rather than reading from the ADDB repository.\n");
-	fprintf(out,
-		"  -o path  Write output to a file rather than stdout.\n");
 	fprintf(out, "\nSupported stob types:");
 	for (i = 0; i < ARRAY_SIZE(m0_cs_stypes); ++i)
 		fprintf(out, " %s", m0_cs_stypes[i]);
