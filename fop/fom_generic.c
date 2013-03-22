@@ -308,7 +308,8 @@ static int fom_success(struct m0_fom *fom)
 
 static int fom_fop_fol_rec_part_add(struct m0_fom *fom)
 {
-	m0_fop_fol_add(fom->fo_fop, fom->fo_rep_fop, &fom->fo_tx);
+	if (!fom->fo_local)
+		m0_fop_fol_add(fom->fo_fop, fom->fo_rep_fop, &fom->fo_tx);
 
 	return M0_FSO_AGAIN;
 }
@@ -319,11 +320,14 @@ static int fom_fop_fol_rec_part_add(struct m0_fom *fom)
 static int fom_fol_rec_add(struct m0_fom *fom)
 {
 	int rc;
-	m0_fom_block_enter(fom);
-	rc = m0_fom_fol_rec_add(fom);
-	m0_fom_block_leave(fom);
-	if (rc < 0)
-		return rc;
+
+	if (!fom->fo_local) {
+		m0_fom_block_enter(fom);
+		rc = m0_fom_fol_rec_add(fom);
+		m0_fom_block_leave(fom);
+		if (rc < 0)
+			return rc;
+	}
 
 	return M0_FSO_AGAIN;
 }
@@ -370,8 +374,9 @@ static int fom_queue_reply(struct m0_fom *fom)
 {
 	M0_PRE(fom->fo_rep_fop != NULL);
 
-        m0_rpc_reply_post(&fom->fo_fop->f_item,
-			  m0_fop_to_rpc_item(fom->fo_rep_fop));
+	if (!fom->fo_local)
+		m0_rpc_reply_post(&fom->fo_fop->f_item,
+				  m0_fop_to_rpc_item(fom->fo_rep_fop));
 	return M0_FSO_AGAIN;
 }
 

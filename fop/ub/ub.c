@@ -28,6 +28,7 @@
 #include "lib/ub.h"            /* M0_UB_ASSERT */
 
 static struct m0_reqh          g_reqh;
+static struct m0_fol	       g_fol;
 static struct m0_reqh_service *g_svc;
 /* 8 MB --- approximately twice the size of L3 cache on Mero team VMs. */
 static char                    g_mem[8 * (1 << 20)];
@@ -436,7 +437,7 @@ static int _init(const char *opts M0_UNUSED)
 			  .rhia_dtm       = (void *)1,
 			  .rhia_db        = &dbenv,
 			  .rhia_mdstore   = (void *)1,
-			  .rhia_fol       = (void *)1,
+			  .rhia_fol       = &g_fol,
 			  .rhia_svc       = NULL,
 			  .rhia_addb_stob = NULL);
 	M0_UB_ASSERT(rc == 0);

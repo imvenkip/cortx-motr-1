@@ -152,8 +152,10 @@ static int io_fol_cd_rec_part_undo(struct m0_fop_fol_rec_part *fpart,
 		break;
 	}
 	result = m0_cob_fom_create(fop, &fom, reqh);
-	if (result == 0)
+	if (result == 0) {
+		fom->fo_local = true;
 		 m0_fom_queue(fom, reqh);
+	}
 #endif
 	return result;
 }

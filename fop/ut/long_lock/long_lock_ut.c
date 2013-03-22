@@ -49,7 +49,6 @@ static struct m0_reqh_service       *service[REQH_IN_UT_MAX];
 extern struct m0_fom_type            rdwr_fom_type;
 extern const struct m0_fom_type_ops  fom_rdwr_type_ops;
 
-
 static void test_long_lock_n(void)
 {
 	static struct m0_reqh *r[REQH_IN_UT_MAX] = { &rmach_ctx[0].rmc_reqh,

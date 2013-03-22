@@ -926,16 +926,19 @@ M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
 			 dom->fd_localities[i].fl_foms == 0);
 }
 
-static void fop_fini(struct m0_fop *fop)
+static void fop_fini(struct m0_fop *fop, bool local)
 {
 	struct m0_rpc_machine  *rmachine;
 
 	if (fop != NULL) {
-		rmachine = fop->f_item.ri_rmachine;
-		M0_ASSERT(rmachine != NULL);
-		m0_sm_group_lock(&rmachine->rm_sm_grp);
-		m0_fop_put(fop);
-		m0_sm_group_unlock(&rmachine->rm_sm_grp);
+		if (!local) {
+			rmachine = fop->f_item.ri_rmachine;
+			M0_ASSERT(rmachine != NULL);
+			m0_sm_group_lock(&rmachine->rm_sm_grp);
+			m0_fop_put(fop);
+			m0_sm_group_unlock(&rmachine->rm_sm_grp);
+		} else
+			m0_fop_put(fop);
 	}
 }
 
@@ -967,8 +970,8 @@ void m0_fom_fini(struct m0_fom *fom)
 	runq_tlink_fini(fom);
 	m0_fom_callback_init(&fom->fo_cb);
 
-	fop_fini(fom->fo_fop);
-	fop_fini(fom->fo_rep_fop);
+	fop_fini(fom->fo_fop, fom->fo_local);
+	fop_fini(fom->fo_rep_fop, fom->fo_local);
 
 	M0_CNT_DEC(loc->fl_foms);
 	if (loc->fl_foms == 0)
@@ -989,6 +992,7 @@ void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
 	fom->fo_type	    = fom_type;
 	fom->fo_ops	    = ops;
 	fom->fo_transitions = 0;
+	fom->fo_local	    = false;
 	m0_fom_callback_init(&fom->fo_cb);
 	runq_tlink_init(fom);
 
