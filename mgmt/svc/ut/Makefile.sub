@@ -1,0 +1,2 @@
+ut_libmero_ut_la_SOURCES += mgmt/svc/ut/mgmt_svc_ut.c
+

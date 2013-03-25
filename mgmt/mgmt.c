@@ -416,6 +416,7 @@ Mero-WOMO Productization Planning</a>
 #include "fop/fop.h"
 #include "fop/fom.h"
 #include "lib/errno.h"
+#include "lib/finject.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MGMT
@@ -491,6 +492,8 @@ M0_INTERNAL void m0_mgmt_fini(void)
 
 M0_INTERNAL int m0_mgmt_service_allocate(struct m0_reqh_service **service)
 {
+	if (M0_FI_ENABLED("-EFAULT"))
+		return -EFAULT;
 #ifdef M0_MGMT_SERVICE_PRESENT
 	return m0_reqh_service_allocate(service, &m0_mgmt_svc_type, NULL);
 #else

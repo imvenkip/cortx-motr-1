@@ -195,7 +195,7 @@ struct cs_reqh_context {
        edge [fontsize=12]
        before [label="", shape="plaintext", layer=""]
        init   [label="M0_REQH_ST_INIT"]
-       mstart [label="M0_REQH_ST_MGMT_START"]
+       mstart [label="M0_REQH_ST_MGMT_STARTED"]
        normal [label="M0_REQH_ST_NORMAL"]
        sdrain [label="M0_REQH_ST_DRAIN"]
        sstop  [label="M0_REQH_ST_SVCS_STOP"]
@@ -210,6 +210,7 @@ struct cs_reqh_context {
        mstart -> mstart [label="service_start()\nservice_stop()"]
        mstart -> normal [label="start()"]
        mstart -> sstop [label="services_terminate()"]
+       mstart -> fini [label="mgmt failed"]
        normal -> normal [label="service_start()\nservice_stop()"]
        normal -> sdrain [label="shutdown_wait()"]
        normal -> sstop [label="services_terminate()"]
@@ -224,7 +225,7 @@ struct cs_reqh_context {
    - @b M0_REQH_ST_INIT The initial state when the request handler object has
      been initialized by m0_reqh_init().
      Services can be started and stopped but no FOPs are accepted in this state.
-   - @b M0_REQH_ST_MGMT_START A management service is available in this state.
+   - @b M0_REQH_ST_MGMT_STARTED A management service is available in this state.
      Services can be started and stopped.
      Incoming management status query FOPs are accepted, but all other FOPs are
      rejected, as explained in the algorithm below.
@@ -262,7 +263,7 @@ struct cs_reqh_context {
    to transition to the NORMAL state even without a management service. This
    is provided mainly for unit tests.
    - m0_reqh_mgmt_service_start() starts the management service and transitions
-   the state to MGMT_START.
+   the state to MGMT_STARTED.
    - m0_reqh_mgmt_service_stop() terminates the management service and
    transitions the state machine from MGMT_STOP to STOPPED.
 
@@ -320,7 +321,7 @@ struct cs_reqh_context {
 	    svc->rs_state == M0_RST_STOPPING))
 	   return (*svc->rs_ops->rso_fop_accept)(svc, fop); // case D
        return -ESHUTDOWN;
-   } else if (reqh state is MGMT_START or SVCS_STOP &&
+   } else if (reqh state is MGMT_STARTED or SVCS_STOP &&
               svc is the management service)
        return (*svc->rs_ops->rso_fop_accept)(svc, fop); // case E
    return -ESHUTDOWN;
@@ -542,9 +543,12 @@ static int mgmt_svc_rso_start(struct m0_reqh_service *service)
 	   and it is special!
 	 */
 	reqh = service->rs_reqh;
-	if (m0_reqh_state_get(reqh) != M0_REQH_ST_MGMT_START ||
+	if (m0_reqh_state_get(reqh) != M0_REQH_ST_MGMT_STARTED ||
 	    reqh->rh_mgmt_svc != service)
 		return -EPROTO;
+
+	if (M0_FI_ENABLED("-ECANCELED"))
+		return -ECANCELED;
 
 	the_mgmt_svc = svc; /* UT */
 	return 0;

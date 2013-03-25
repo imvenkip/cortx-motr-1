@@ -80,7 +80,7 @@ struct m0_local_service_ops {
  */
 enum m0_reqh_states {
 	M0_REQH_ST_INIT = 0,
-	M0_REQH_ST_MGMT_START,
+	M0_REQH_ST_MGMT_STARTED,
 	M0_REQH_ST_NORMAL,
 	M0_REQH_ST_DRAIN,
 	M0_REQH_ST_SVCS_STOP,
@@ -286,9 +286,9 @@ M0_INTERNAL void m0_reqh_fom_domain_idle_wait(struct m0_reqh *reqh);
 
    @pre m0_reqh_state_get(reqh) == M0_REQH_ST_INIT
    @pre reqh->rh_mgmt_svc == NULL
-   @post m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_START ||
+   @post m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
          m0_reqh_state_get(reqh) == M0_REQH_ST_INIT
-   @post ergo(m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_START,
+   @post ergo(m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED,
               reqh->rh_mgmt_svc != NULL)
    @post ergo(m0_reqh_state_get(reqh) == M0_REQH_ST_INIT,
               reqh->rh_mgmt_svc == NULL)
@@ -301,7 +301,7 @@ M0_INTERNAL int m0_reqh_mgmt_service_start(struct m0_reqh *reqh);
    The subroutine does not enforce that a management service is
    configured because UTs frequently do not require this.
 
-   @pre m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_START ||
+   @pre m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
         m0_reqh_state_get(reqh) == M0_REQH_ST_INIT
    @post m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL
  */
@@ -323,7 +323,7 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh);
    but not the management service.
 
    @pre m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
-        m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_START ||
+        m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
         m0_reqh_state_get(reqh) == M0_REQH_ST_INIT
    @post m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP ||
          m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED
