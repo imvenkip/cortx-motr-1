@@ -534,13 +534,8 @@ AS_IF([test x$enable_coverage = xyes],
         # Remove -O<digit> flag from $M0_CFLAGS
         M0_CFLAGS="$(echo $M0_CFLAGS | sed 's/-O[[0-9]]//g') --coverage"
         M0_LDFLAGS="-lgcov $M0_LDFLAGS"
-        K_ENABLE_COVERAGE=y
-      ],
-      [K_ENABLE_COVERAGE=n]
+      ]
 )
-# TODO: check if K_ENABLE_COVERAGE really requires y/n value or it's OK to use
-# yes/no ?
-AC_SUBST([K_ENABLE_COVERAGE])
 
 AS_IF([test x$enable_mcheck = xyes],
       [M0_LDFLAGS="-lmcheck $M0_LDFLAGS"]
