@@ -20,7 +20,7 @@
 
 #include "lib/string.h"
 #include "lib/uuid.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 static char *nil_uuid = "00000000-0000-0000-0000-000000000000"; /* nil UUID */
 static char *uuid1    = "abcdef01-2345-6789-abcd-ef0123456789"; /* lc */

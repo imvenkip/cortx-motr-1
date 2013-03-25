@@ -21,7 +21,7 @@
 #include <stdio.h>                          /* printf, stdout */
 
 #include "lib/misc.h"                       /* M0_SET0 */
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 #include "xcode/ff2c/lex.h"
 #include "xcode/ff2c/parser.h"

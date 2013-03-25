@@ -20,7 +20,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/finject.h"
 #include "lib/misc.h"              /* M0_BITS */
 #include "lib/semaphore.h"

@@ -18,7 +18,7 @@
  * Original creation date: 05/30/2010
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/thread.h"
 #include "lib/rwlock.h"
 #include "lib/assert.h"

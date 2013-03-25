@@ -20,7 +20,7 @@
 
 #include "lib/misc.h"   /* M0_SET0 */
 #include "lib/ub.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/thread.h"
 #include "lib/assert.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT

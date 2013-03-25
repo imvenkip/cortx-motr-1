@@ -19,7 +19,7 @@
  * Original creation date: 03/07/2012
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/memory.h"
 #include "lib/finject.h"
 #include "net/lnet/lnet.h"

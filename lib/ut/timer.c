@@ -19,7 +19,7 @@
  * Original creation date: 03/04/2011
  */
 
-#include "lib/ut.h"		/* M0_UT_ASSERT */
+#include "ut/ut.h"		/* M0_UT_ASSERT */
 #include "lib/time.h"		/* m0_time_t */
 #include "lib/timer.h"		/* m0_timer */
 #include "lib/assert.h"		/* M0_ASSERT */

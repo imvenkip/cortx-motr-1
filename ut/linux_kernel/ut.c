@@ -19,14 +19,14 @@
 
 #include <linux/string.h>  /* strlen */
 #include <linux/time.h>
+
 #include "lib/arith.h"     /* max_check */
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/list.h"
 #include "lib/time.h"
-#include "lib/ut.h"
-
 #include "ut/ut.h"
+#include "ut/cs_service.h"
 
 /**
    @addtogroup ut
@@ -51,14 +51,14 @@ enum {
 	ONE_MILLION = 1000000ULL
 };
 
-M0_INTERNAL int m0_uts_init(void)
+M0_INTERNAL int m0_ut_init(void)
 {
 	m0_list_init(&suites);
-	return m0_ut_init();
+	return m0_cs_default_stypes_init();
 }
-M0_EXPORTED(m0_uts_init);
+M0_EXPORTED(m0_ut_init);
 
-M0_INTERNAL void m0_uts_fini(void)
+M0_INTERNAL void m0_ut_fini(void)
 {
 	struct m0_list_link *link;
 	struct test_suite_elem *ts;
@@ -68,10 +68,10 @@ M0_INTERNAL void m0_uts_fini(void)
 		m0_list_del(&ts->tse_link);
 		m0_free(ts);
 	}
-	m0_ut_fini();
+	m0_cs_default_stypes_fini();
 	m0_list_fini(&suites);
 }
-M0_EXPORTED(m0_uts_fini);
+M0_EXPORTED(m0_ut_fini);
 
 M0_INTERNAL void m0_ut_add(const struct m0_test_suite *ts)
 {

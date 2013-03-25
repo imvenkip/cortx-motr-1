@@ -1,4 +1,5 @@
 m0ut_objects += ut/cs_fop_foms.o \
                 ut/cs_fop_foms_xc.o \
                 ut/cs_service.o \
-                ut/ut.o
+                ut/ut.o \
+                ut/linux_kernel/ut.o

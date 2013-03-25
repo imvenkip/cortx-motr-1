@@ -18,7 +18,7 @@
  * Original creation date: 09/03/2012
  */
 
-#include "lib/ut.h"		/* M0_UT_ASSERT */
+#include "ut/ut.h"		/* M0_UT_ASSERT */
 #include "lib/vec.h"		/* m0_bufvec */
 
 #include "net/test/str.h"

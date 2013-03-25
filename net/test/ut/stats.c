@@ -27,7 +27,7 @@
 
 #include "lib/cdefs.h"		/* ARRAY_SIZE */
 #include "lib/misc.h"		/* M0_SET0 */
-#include "lib/ut.h"		/* M0_UT_ASSERT */
+#include "ut/ut.h"		/* M0_UT_ASSERT */
 
 #include "mero/magic.h"	/* M0_NET_TEST_TIMESTAMP_MAGIC */
 

@@ -19,7 +19,7 @@
  */
 
 #include "lib/ub.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/types.h"                /* uint64_t */
 #include "lib/tlist.h"
 

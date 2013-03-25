@@ -24,7 +24,7 @@
 #include "conf/obj.h"      /* m0_conf_objtype */
 #include "conf/preload.h"  /* m0_confstr_parse, m0_confx_free */
 #include "conf/ut/file_helpers.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 #define _CONFDB_PATH "_conf.db"
 #define _BUF(str) (const struct m0_buf)M0_BUF_INITS(str)

@@ -20,7 +20,7 @@
 
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/ub.h"
 #include "rm/rm.h"
 #include "rm/ut/rings.h"

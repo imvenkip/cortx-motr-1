@@ -23,7 +23,7 @@
 #include "lib/arith.h"    /* M0_3WAY, m0_uint128 */
 #include "lib/vec.h"
 #include "lib/types.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/ub.h"
 #include "db/extmap.h"
 

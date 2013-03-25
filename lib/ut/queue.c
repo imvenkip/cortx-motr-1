@@ -18,7 +18,7 @@
  * Original creation date: 05/07/2010
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/queue.h"
 #include "lib/assert.h"
 

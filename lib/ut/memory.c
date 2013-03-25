@@ -20,7 +20,7 @@
 
 #include "lib/misc.h"   /* M0_SET0 */
 #include "lib/ub.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/vec.h"    /* M0_SEG_SIZE & M0_SEG_SHIFT */
 #include "lib/memory.h"
 

@@ -32,7 +32,7 @@
 #include "lib/thread.h"
 #include "lib/getopts.h"
 #include "db/db.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "balloc/balloc.h"
 
 const int MAX = 1000 * 1000;

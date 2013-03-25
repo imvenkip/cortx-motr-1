@@ -24,7 +24,7 @@
 #include "lib/cdefs.h"
 #include "lib/misc.h"
 #include "lib/thread.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 #include "net/bulk_emulation/mem_xprt_xo.c"
 #include "net/bulk_emulation/st/ping.c"

@@ -530,8 +530,7 @@ void s_m_recv_cb(const struct m0_net_buffer_event *ev)
 		  ev->nbe_buffer->nb_qtype == M0_NET_QT_MSG_RECV);
 	server_event_ident(idbuf, ctx->pc_ident, ev);
 	count = m0_atomic64_add_return(&s_msg_recv_counter, 1);
-	ctx->pc_ops->pf("%s: Msg Recv CB %" PRId64 "\n", idbuf,
-			(long long int) count);
+	ctx->pc_ops->pf("%s: Msg Recv CB %" PRId64 "\n", idbuf, count);
 	if (ev->nbe_status < 0) {
 		if (ev->nbe_status == -ECANCELED && server_stop)
 			ctx->pc_ops->pf("%s: msg recv canceled on shutdown\n",

@@ -27,7 +27,7 @@
 #include "lib/types.h"		/* UINT32_MAX */
 
 #include "lib/misc.h"		/* M0_SET0 */
-#include "lib/ut.h"		/* M0_UT_ASSERT */
+#include "ut/ut.h"		/* M0_UT_ASSERT */
 #include "lib/vec.h"		/* m0_bufvec */
 
 #include "net/test/serialize.h"

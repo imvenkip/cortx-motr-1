@@ -19,7 +19,7 @@
  */
 
 #include "lib/memory.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/finject.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpc.h"

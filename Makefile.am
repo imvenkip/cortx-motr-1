@@ -148,11 +148,7 @@ lib_LTLIBRARIES          += mero/libmero.la
 mero_libmero_la_CPPFLAGS  = -DM0_TARGET='libmero' $(AM_CPPFLAGS)
 mero_libmero_la_LDFLAGS   = -release @LT_RELEASE@ -pthread $(AM_LDFLAGS)
 mero_libmero_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
-                            @DB_LIBS@ @GALOIS_LIBS@ @YAML_LIBS@ @CUNIT_LIBS@ \
-                            @PROFILER_LIBS@
-
-# TODO: remove CUnit dependency from libmero, move lib/ut.c to ut/ and
-# libmero-ut
+                            @DB_LIBS@ @GALOIS_LIBS@ @YAML_LIBS@ @PROFILER_LIBS@
 
 # install directory for public libmero headers
 mero_includedir             = $(includedir)/mero
@@ -206,6 +202,7 @@ include $(top_srcdir)/yaml2db/Makefile.sub
 
 noinst_LTLIBRARIES        += ut/libmero-ut.la
 ut_libmero_ut_la_CPPFLAGS  = -DM0_TARGET='libmero-ut' $(AM_CPPFLAGS)
+ut_libmero_ut_la_LIBADD    = @CUNIT_LIBS@
 
 ut_libmero_ut_la_SOURCES   =
 

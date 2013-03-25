@@ -18,7 +18,7 @@
  * Original creation date: 01/06/2012
  */
 
-#include "lib/ut.h"                /* M0_UT_ASSERT */
+#include "ut/ut.h"                /* M0_UT_ASSERT */
 #include "lib/errno.h"
 #include "lib/tlist.h"
 

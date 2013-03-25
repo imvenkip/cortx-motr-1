@@ -155,6 +155,28 @@ static void ds_service_fini(struct m0_reqh_service *service)
         m0_free(service);
 }
 
+int m0_cs_default_stypes_init(void)
+{
+	int i;
+	int rc = 0;
+
+	for (i = 0; i < m0_cs_default_stypes_nr; ++i) {
+		rc = m0_reqh_service_type_register(m0_cs_default_stypes[i]);
+		if (rc != 0)
+			break;
+	}
+
+	return rc;
+}
+
+void m0_cs_default_stypes_fini(void)
+{
+	int i;
+
+	for (i = 0; i < m0_cs_default_stypes_nr; ++i)
+		m0_reqh_service_type_unregister(m0_cs_default_stypes[i]);
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

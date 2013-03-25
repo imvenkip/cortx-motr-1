@@ -24,7 +24,7 @@
 #include <err.h>
 
 #include "lib/memory.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 #include "net/net.h"
 #include "fop/fop.h"

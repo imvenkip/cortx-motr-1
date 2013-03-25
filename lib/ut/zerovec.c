@@ -18,7 +18,7 @@
  * Original creation date: 09/27/2011
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/vec.h"
 #include "lib/memory.h"
 #include "lib/arith.h"

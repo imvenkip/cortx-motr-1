@@ -18,7 +18,7 @@
  * Original creation date: 12/10/2011
  */
 
-#include "lib/ut.h"    /* M0_UT_ASSERT */
+#include "ut/ut.h"    /* M0_UT_ASSERT */
 #include "lib/misc.h"  /* M0_SET_ARR0 */
 #include "lib/errno.h"
 #include "lib/memory.h"

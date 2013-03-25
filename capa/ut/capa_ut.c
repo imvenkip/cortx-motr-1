@@ -19,7 +19,7 @@
 
 #include "lib/cdefs.h"
 #include "lib/types.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/misc.h" /* M0_SET0() */
 
 #include "capa/capa.h"

@@ -21,7 +21,7 @@
 #include "lib/memory.h"		/* M0_ALLOC_ARR */
 #include "lib/misc.h"
 #include "lib/arith.h"          /* m0_align() */
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "mero/init.h"
 #include "mero/magic.h"
 #include "fop/fop.h"

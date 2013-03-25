@@ -18,7 +18,7 @@
  * Original creation date: 10/12/2011
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/memory.h"/* M0_ALLOC_PTR */
 #include "lib/misc.h"  /* M0_SET0 */
 #include "lib/thread.h"/* M0_THREAD_INIT */

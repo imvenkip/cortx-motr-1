@@ -207,7 +207,7 @@ To add a collection of unit tests ("test suite") for a module foo:
 
 In a file foo/ut/foo.c do something like:
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 static void test_foo0(void)
 {

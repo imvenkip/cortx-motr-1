@@ -37,7 +37,7 @@
 #include "lib/types.h"
 #include "lib/errno.h" /* -EPROTO */
 #include "lib/cookie.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/memory.h" /* M0_ALLOC_PTR */
 #include "lib/arith.h" /* M0_IS_8ALIGNED */
 

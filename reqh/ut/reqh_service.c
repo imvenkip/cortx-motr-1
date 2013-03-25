@@ -19,7 +19,7 @@
 
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 #include "fop/fop.h"
 #include "fop/fom_generic.h"

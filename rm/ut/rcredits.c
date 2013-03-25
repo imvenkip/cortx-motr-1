@@ -22,7 +22,7 @@
 #include "lib/misc.h"
 #include "lib/memory.h"
 #include "lib/time.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "db/db.h"
 #include "cob/cob.h"
 #include "net/lnet/lnet.h"

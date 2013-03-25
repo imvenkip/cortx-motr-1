@@ -20,7 +20,7 @@
 
 #include "lib/arith.h"    /* M0_3WAY */
 #include "lib/types.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/ub.h"
 #include "db/db.h"
 

@@ -18,7 +18,7 @@
  * Original creation date: 09/03/2012
  */
 
-#include "lib/ut.h"			/* M0_UT_ASSERT */
+#include "ut/ut.h"			/* M0_UT_ASSERT */
 #include "lib/arith.h"			/* m0_rnd */
 #include "lib/misc.h"			/* M0_SET0 */
 

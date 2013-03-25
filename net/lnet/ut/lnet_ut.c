@@ -22,7 +22,7 @@
 #include "net/lnet/lnet_main.c"
 #include "lib/arith.h" /* max64u */
 #include "lib/thread.h" /* m0_thread_self, m0_thread_handle_eq */
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 #include "db/db.h" /* m0_dbenv, m0_table */
 

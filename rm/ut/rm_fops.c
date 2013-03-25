@@ -25,7 +25,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "rm/rm.h"
 #include "rm/rm_fops.h"
 #include "rm/ut/rmut.h"

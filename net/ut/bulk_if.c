@@ -26,7 +26,7 @@
 #include "lib/misc.h"
 #include "lib/memory.h"
 #include "lib/mutex.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 #include "net/net_internal.h"
 

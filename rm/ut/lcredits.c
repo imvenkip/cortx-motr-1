@@ -20,7 +20,7 @@
 #include "lib/types.h"            /* uint64_t */
 #include "lib/chan.h"
 #include "lib/misc.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/ub.h"
 
 #include "rm/rm.h"

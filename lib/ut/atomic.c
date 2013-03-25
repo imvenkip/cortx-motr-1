@@ -24,7 +24,7 @@
 #include <pthread.h> /* barrier */
 
 #include "lib/misc.h"   /* M0_SET0 */
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/ub.h"
 #include "lib/thread.h"
 #include "lib/atomic.h"

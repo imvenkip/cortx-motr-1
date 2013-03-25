@@ -37,7 +37,6 @@
 #include "rpc/it/ping_fop_xc.h"
 #include "rpc/it/ping_fom.h"
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
-#include "ut/ut.h"
 #include "fop/fop.h"            /* m0_fop_default_item_ops */
 #include "fop/fom_generic.h"    /* m0_rpc_item_generic_reply_rc */
 #include "reqh/reqh.h"          /* m0_reqh_rpc_mach_tl */
@@ -457,7 +456,7 @@ static int run_server(void)
 	if (rc != 0)
 		return rc;
 
-	rc = m0_ut_init();
+	rc = m0_cs_default_stypes_init();
 	if (rc != 0)
 		goto m0_fini;
 
@@ -504,7 +503,7 @@ static int run_server(void)
 fop_fini:
 	m0_ping_fop_fini();
 ut_fini:
-	m0_ut_fini();
+	m0_cs_default_stypes_fini();
 m0_fini:
 	m0_fini();
 	return rc;

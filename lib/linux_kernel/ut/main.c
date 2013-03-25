@@ -22,7 +22,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/cdefs.h" /* for M0_EXPORTED */
 
 /* These unit tests are done in the kernel */

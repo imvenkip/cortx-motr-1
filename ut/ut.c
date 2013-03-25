@@ -20,30 +20,9 @@
 
 #include "ut/ut.h"
 #include "ut/cs_service.h"
-#include "reqh/reqh_service.h"
 #include "fop/fom_generic.h"
 #include "lib/misc.h"		/* M0_IN() */
-int m0_ut_init(void)
-{
-	int i;
-	int rc = 0;
 
-	for (i = 0; i < m0_cs_default_stypes_nr; ++i) {
-		rc = m0_reqh_service_type_register(m0_cs_default_stypes[i]);
-		if (rc != 0)
-			break;
-	}
-
-	return rc;
-}
-
-void m0_ut_fini(void)
-{
-	int i;
-
-	for (i = 0; i < m0_cs_default_stypes_nr; ++i)
-		m0_reqh_service_type_unregister(m0_cs_default_stypes[i]);
-}
 
 void m0_ut_fom_phase_set(struct m0_fom *fom, int phase)
 {

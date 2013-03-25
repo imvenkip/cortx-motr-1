@@ -25,7 +25,7 @@
  * @{
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/memory.h"
 #include "lib/finject.h"
 #include "lib/misc.h"              /* M0_BITS */

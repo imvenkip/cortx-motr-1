@@ -1,5 +1,6 @@
+/* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,7 +16,13 @@
  *
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 07/09/2010
+ * Modified by: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
+ * Modification date: 25-Mar-2013
  */
+
+#include <stdlib.h>                /* system */
+#include <stdio.h>                 /* asprintf */
+#include <unistd.h>                /* dup, dup2 */
 
 #include <CUnit/Basic.h>
 #include <CUnit/Automated.h>
@@ -23,29 +30,33 @@
 #include <CUnit/TestDB.h>
 #include <CUnit/TestRun.h>
 
-#include <stdlib.h>                /* system */
-#include <stdio.h>                 /* asprintf */
-#include <unistd.h>                /* dup, dup2 */
-
 #include "lib/assert.h"            /* M0_ASSERT */
 #include "lib/thread.h"            /* LAMBDA */
 #include "lib/memory.h"            /* m0_allocated */
 #include "lib/atomic.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
+#include "ut/cs_service.h"
+
 
 /**
-   @addtogroup ut
-   @{
+ * @addtogroup ut
+ *
+ * @{
  */
 
-M0_INTERNAL int m0_uts_init(void)
+int m0_ut_init(void)
 {
+	int rc;
+
 	M0_CASSERT(CUE_SUCCESS == 0);
-	return -CU_initialize_registry();
+	rc = -CU_initialize_registry();
+
+	return rc ?: m0_cs_default_stypes_init();
 }
 
-M0_INTERNAL void m0_uts_fini(void)
+void m0_ut_fini(void)
 {
+	m0_cs_default_stypes_fini();
 	CU_cleanup_registry();
 	M0_ASSERT(CU_get_error() == 0);
 }
@@ -322,7 +333,7 @@ M0_INTERNAL bool m0_error_mesg_match(FILE * fp, const char *mesg)
 	return false;
 }
 
-/** @} end of ut group. */
+/** @} end of ut group */
 
 /*
  *  Local variables:
@@ -332,4 +343,7 @@ M0_INTERNAL bool m0_error_mesg_match(FILE * fp, const char *mesg)
  *  fill-column: 80
  *  scroll-step: 1
  *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
  */

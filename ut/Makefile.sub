@@ -4,7 +4,8 @@ ut_libmero_ut_la_SOURCES += ut/cs_fop_foms.c \
                             ut/cs_service.c \
                             ut/cs_service.h \
                             ut/ut.c \
-                            ut/ut.h
+                            ut/ut.h \
+                            ut/user_space/ut.c
 
 XC_FILES   += ut/cs_fop_foms_xc.h
 
@@ -12,4 +13,5 @@ CLEANFILES += ut/cs_fop_foms_xc.h \
 	      ut/cs_fop_foms_xc.c \
 	      ut/cs_fop_foms.gccxml
 
-EXTRA_DIST += ut/linux_kernel/ut_init_stub.c
+EXTRA_DIST += ut/linux_kernel/ut_init_stub.c \
+              ut/linux_kernel/ut.c

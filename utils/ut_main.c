@@ -21,7 +21,7 @@
 #include <stdlib.h>  /* exit */
 #include <CUnit/CUnit.h>
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/trace.h"
 #include "lib/user_space/trace.h" /* m0_trace_set_print_context */
 #include "lib/thread.h"           /* LAMBDA */

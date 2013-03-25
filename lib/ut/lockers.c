@@ -19,7 +19,7 @@
  */
 
 #include "lib/lockers.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 M0_LOCKERS_DECLARE(M0_INTERNAL, bank, 2);
 

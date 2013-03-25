@@ -19,7 +19,7 @@
  */
 
 #include "lib/misc.h"  /* M0_SET_ARR0 */
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/ub.h"
 #include "lib/thread.h"
 #include "lib/bitmap.h"

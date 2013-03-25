@@ -32,7 +32,7 @@
 #include "lib/misc.h"
 #include "lib/finject.h"
 #include "lib/memory.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 

@@ -31,7 +31,7 @@
  */
 #include "m0t1fs/linux_kernel/file.c"
 
-#include "lib/ut.h"     /* m0_test_suite */
+#include "ut/ut.h"     /* m0_test_suite */
 #include "lib/cdefs.h"  /* M0_EXPORTED */
 #include "lib/chan.h"   /* m0_chan */
 #include "lib/vec.h"    /* m0_indexvec */

@@ -18,7 +18,7 @@
  * Original creation date: 08/20/2012
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/buf.h"
 #include "lib/assert.h"
 #include "lib/cdefs.h"

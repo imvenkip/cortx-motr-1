@@ -33,7 +33,6 @@
 #include "rpc/rpc.h"
 #include "addb/addb.h"
 #include "lib/finject.h"
-#include "lib/ut.h"
 #include "layout/layout.h"
 #include "pool/pool.h"
 #include "lib/processor.h"
@@ -112,7 +111,6 @@ struct init_fini_call subsystem[] = {
 	{ &m0_net_test_init,    &m0_net_test_fini,    "net-test" },
 #endif
 	{ &m0_reqhs_init,       &m0_reqhs_fini,       "reqhs" },
-	{ &m0_uts_init,         &m0_uts_fini,         "ut" },
 	{ &m0_rpc_init,         &m0_rpc_fini,         "rpc" },
 	/* fom generic must be after rpc, because it initialises rpc item
 	   type for generic error reply. */

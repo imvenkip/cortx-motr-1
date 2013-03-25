@@ -26,7 +26,7 @@
 #include "lib/memory.h"
 
 #include "lib/ub.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "sns/parity_math.h"
 
 enum {

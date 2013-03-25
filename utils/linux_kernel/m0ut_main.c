@@ -23,7 +23,7 @@
 
 #include "lib/assert.h"
 #include "lib/thread.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "mero/init.h"
 
 MODULE_AUTHOR("Xyratex International");
@@ -93,6 +93,9 @@ static int __init m0_ut_module_init(void)
 	rc = m0_init();
 	M0_ASSERT(rc == 0);
 
+	rc = m0_ut_init();
+	M0_ASSERT(rc == 0);
+
 	rc = M0_THREAD_INIT(&ut_thread, int, NULL,
 		            &run_kernel_ut, 0, "run_kernel_ut");
 	M0_ASSERT(rc == 0);
@@ -103,6 +106,7 @@ static int __init m0_ut_module_init(void)
 static void __exit m0_ut_module_fini(void)
 {
 	m0_thread_join(&ut_thread);
+	m0_ut_fini();
 	m0_fini();
 }
 

@@ -19,7 +19,7 @@
  */
 
 #include "lib/misc.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "cfg/cfg.h"
 #include "yaml2db/yaml2db.h"
 
