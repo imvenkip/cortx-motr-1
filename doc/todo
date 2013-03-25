@@ -93,24 +93,6 @@ struct m0_xcode_enum {
 
                           ***** IN-PROGRESS *****
 
-2012-Sep-04 External lock in m0_chan.
-
-    m0_chan::ch_guard is used to protect list of channel waiters
-    (m0_chan::ch_links). However, in majority of cases, this list is accessed
-    when some other lock is already held. This results in taking and releasing
-    lock for no actual reason.
-
-    Remove ->ch_guard and modify m0_chan interface to take a pointer to an
-    external lock as a parameter to m0_chan_init(). Check that this lock is held
-    when m0_clink_{add,del}(), m0_chan_{signal,broadcast}(), &c. are
-    called. m0_chan_wait() and m0_clink_signal() do not need the lock.
-
-    The same lock protects the lock invariant and it should be temporarily taken
-    to check the invariant, if necessary.
-
-    Identify locks protecting existing channels and add such locks when there is
-    none.
-
 2012-Sep-05 Usage of m0_*_awkward() with signal handler and intrupt handler.
 
                           ***** DONE *****
@@ -230,3 +212,21 @@ struct m0_xcode_enum {
 
 Outcome: not possible, because proposed M0_HAS_SIDE_EFFECTS() is conservative
 and returns true for a function from another compilation unit.
+
+2012-Sep-04 External lock in m0_chan.
+
+    m0_chan::ch_guard is used to protect list of channel waiters
+    (m0_chan::ch_links). However, in majority of cases, this list is accessed
+    when some other lock is already held. This results in taking and releasing
+    lock for no actual reason.
+
+    Remove ->ch_guard and modify m0_chan interface to take a pointer to an
+    external lock as a parameter to m0_chan_init(). Check that this lock is held
+    when m0_clink_{add,del}(), m0_chan_{signal,broadcast}(), &c. are
+    called. m0_chan_wait() and m0_clink_signal() do not need the lock.
+
+    The same lock protects the lock invariant and it should be temporarily taken
+    to check the invariant, if necessary.
+
+    Identify locks protecting existing channels and add such locks when there is
+    none.
