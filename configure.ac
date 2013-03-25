@@ -21,9 +21,20 @@ AC_CONFIG_HEADERS([config.h])
 # it's "version" argument
 AC_SUBST([LT_RELEASE], [$PACKAGE_VERSION])
 
-AC_SUBST([SRCDIR], [$srcdir])
-AC_SUBST([ABS_SRCDIR], [$(cd $srcdir; pwd)])
-AC_SUBST([ABS_BUILDDIR], [$(pwd)])
+# the following variables are only for internal use within this configure script
+# external scripts should use collection of variables, which is automatically
+# provided by autoconf:
+#
+#    @srcdir@
+#    @top_srcdir@
+#    @abs_top_srcdir@
+#    @builddir@
+#    @top_builddir@
+#    @abs_top_builddir@
+#
+SRCDIR="$srcdir"
+ABS_SRCDIR="$(cd $srcdir; pwd)"
+ABS_BUILDDIR="$(pwd)"
 
 #
 # Checking for OS support
@@ -341,7 +352,7 @@ MERO_LINUX_SENDFILE
 
 AC_MSG_CHECKING([for LNet header dir])
 AS_IF([! test -d $LUSTRE/lnet/include],
-      [AC_MSG_ERROR([lnet/include not found in '$LUSTRE', please provide a
+      [AC_MSG_ERROR([lnet/include not found in '$LUSTRE', please provide a \
 correct path to Lustre headers using --with-lustre option])]
 )
 AC_MSG_RESULT([$LUSTRE/lnet/include])

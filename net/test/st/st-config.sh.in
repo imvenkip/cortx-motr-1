@@ -5,10 +5,10 @@
 NODE_UUID="abcdef01-2345-6789-0123-456789ABCDEF"
 
 # Path to binaries
-MOD_M0NETTESTD=@ABS_SRCDIR@/net/test/linux_kernel/m0nettestd.ko
-CMD_M0NETTESTD=@ABS_SRCDIR@/net/test/user_space/m0nettestd
-CMD_M0NETTEST=@ABS_SRCDIR@/net/test/user_space/m0nettest
-ST_COMMON=@ABS_SRCDIR@/m0t1fs/linux_kernel/st/common.sh
+MOD_M0NETTESTD=@abs_top_srcdir@/net/test/linux_kernel/m0nettestd.ko
+CMD_M0NETTESTD=@abs_top_srcdir@/net/test/user_space/m0nettestd
+CMD_M0NETTEST=@abs_top_srcdir@/net/test/user_space/m0nettest
+ST_COMMON=@abs_top_srcdir@/m0t1fs/linux_kernel/st/common.sh
 
 # Time to wait for node loading.
 # Timeout is used here because there is no way to check for node readiness
