@@ -447,14 +447,17 @@ else # non-rpm setup
 
 # Check for galois
 
-GALOIS_SRC=$ABS_SRCDIR/extra-libs/galois
+GALOIS_REL_PATH="extra-libs/galois"
+GALOIS_SRC="$SRCDIR/$GALOIS_REL_PATH"
+GALOIS_ABS_SRC="$ABS_SRCDIR/$GALOIS_REL_PATH"
 GALOIS_INCLUDES="-I$GALOIS_SRC/include"
+KGALOIS_INCLUDES="-I$GALOIS_ABS_SRC/include"
 GALOIS_LIBS="$GALOIS_SRC/src/libgalois.la"
 AC_MSG_CHECKING([for galois libs])
 MERO_BUILD_LIB([galois], [$GALOIS_SRC], [$GALOIS_LIBS], [.],
                   ["--with-linux-obj=$LINUX_OBJ"])
 
-GALOIS_SYMVERS="$GALOIS_SRC/src/linux_kernel/Module.symvers"
+GALOIS_SYMVERS="$GALOIS_ABS_SRC/src/linux_kernel/Module.symvers"
 AC_MSG_CHECKING([galois symvers])
 AS_IF([! test -f $GALOIS_SYMVERS],
         AC_MSG_ERROR([Cant find ${GALOIS_SYMVERS}! Make sure that galois is built correctly.])
@@ -492,6 +495,7 @@ LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
 AC_SUBST([GALOIS_SRC])
+AC_SUBST([GALOIS_ABS_SRC])
 AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
 AC_SUBST([CUNIT_LIBS])
@@ -568,7 +572,7 @@ M0_LDFLAGS="-rdynamic $M0_LDFLAGS"
 M0_KCPPFLAGS="-DM0_INTERNAL='' -DM0_EXTERN=extern \
               -include $ABS_BUILDDIR/config.h -iquote $ABS_BUILDDIR -iquote $ABS_SRCDIR \
               -I $LUSTRE/lnet/include -I$LUSTRE/libcfs/include -I$LUSTRE/lustre/include \
-              $GALOIS_INCLUDES $M0_KCPPFLAGS"
+              $KGALOIS_INCLUDES $M0_KCPPFLAGS"
 
 M0_KCFLAGS="-Wall -Werror -Wno-attributes $M0_KCFLAGS"
 

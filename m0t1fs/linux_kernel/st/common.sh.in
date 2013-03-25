@@ -28,7 +28,7 @@ modprobe_lnet()
 
 modload_galois()
 {
-	BASE=@GALOIS_SRC@
+	BASE=@GALOIS_ABS_SRC@
 	if test "x$BASE" = "x"; then
 		modprobe galois
 	else
