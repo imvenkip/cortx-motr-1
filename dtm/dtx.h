@@ -32,21 +32,26 @@
  */
 
 #include "lib/tlist.h"
+
 #include "dtm/history.h"
+#include "dtm/operation.h"
+
+/* import */
+struct m0_dtm;
 
 /* export */
 struct m0_dtm_dtx;
 
 struct m0_dtm_dtx {
 	struct m0_dtm_history  dx_history;
+	struct m0_dtm_oper     dx_close;
 };
 
-M0_INTERNAL int  m0_dtm_dtx_init(struct m0_dtm_dtx *dtx, uint32_t nr);
+M0_INTERNAL void m0_dtm_dtx_init(struct m0_dtm_dtx *dtx, struct m0_dtm *dtm);
 M0_INTERNAL void m0_dtm_dtx_fini(struct m0_dtm_dtx *dtx);
 
-M0_INTERNAL void m0_dtm_dtx_add(struct m0_dtm_dtx *dtx,
-				struct m0_dtm_oper *oper);
-M0_INTERNAL void m0_dtm_dtx_close(struct m0_dtm_dtx *dtx);
+M0_INTERNAL int m0_dtm_dtx_add(struct m0_dtm_dtx *dtx, struct m0_dtm_oper *oper);
+M0_INTERNAL int m0_dtm_dtx_close(struct m0_dtm_dtx *dtx);
 
 /** @} end of dtm group */
 

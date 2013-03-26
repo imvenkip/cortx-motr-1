@@ -35,6 +35,8 @@
 #include "dtm/nucleus.h"
 #include "dtm/update.h"
 struct m0_dtm_remote;
+struct m0_dtm;
+struct m0_tl;
 
 /* export */
 struct m0_dtm_oper;
@@ -44,6 +46,7 @@ struct m0_dtm_oper {
 	struct m0_dtm_op              oprt_op;
 	const struct m0_dtm_oper_ops *oprt_ops;
 };
+M0_INTERNAL bool m0_dtm_oper_invariant(const struct m0_dtm_oper *oper);
 
 struct m0_dtm_oper_ops {
 	void (*oprto_persistent)(struct m0_dtm_oper *oprt);
@@ -54,11 +57,10 @@ struct m0_dtm_oper_descr {
 	struct m0_dtm_update_descr *od_update;
 } M0_XCA_SEQUENCE;
 
-M0_INTERNAL void m0_dtm_oper_init(struct m0_dtm_oper *oper);
+M0_INTERNAL void m0_dtm_oper_init(struct m0_dtm_oper *oper, struct m0_dtm *dtm);
 M0_INTERNAL void m0_dtm_oper_fini(struct m0_dtm_oper *oper);
-M0_INTERNAL void m0_dtm_oper_add(struct m0_dtm_oper *oper,
-				 struct m0_dtm_update *update);
 M0_INTERNAL void m0_dtm_oper_close(struct m0_dtm_oper *oper);
+M0_INTERNAL void m0_dtm_oper_prepared(struct m0_dtm_oper *oper);
 M0_INTERNAL void m0_dtm_oper_done(struct m0_dtm_oper *oper,
 				  const struct m0_dtm_remote *dtm);
 M0_INTERNAL void m0_dtm_oper_pack(const struct m0_dtm_oper *oper,
@@ -66,10 +68,9 @@ M0_INTERNAL void m0_dtm_oper_pack(const struct m0_dtm_oper *oper,
 				  struct m0_dtm_oper_descr *ode);
 M0_INTERNAL void m0_dtm_oper_unpack(struct m0_dtm_oper *oper,
 				    const struct m0_dtm_oper_descr *ode);
-M0_INTERNAL int  m0_dtm_oper_build(struct m0_dtm_oper *oper,
-				   struct m0_tlist *uu,
+M0_INTERNAL int  m0_dtm_oper_build(struct m0_dtm_oper *oper, struct m0_tl *uu,
 				   const struct m0_dtm_oper_descr *ode);
-M0_INTERNAL void m0_dtm_reply_pack(const struct m0_dtm_oper *oper,
+M0_INTERNAL void m0_dtm_reply_pack(struct m0_dtm_oper *oper,
 				   const struct m0_dtm_oper_descr *request,
 				   struct m0_dtm_oper_descr *reply);
 M0_INTERNAL void m0_dtm_reply_unpack(struct m0_dtm_oper *oper,

@@ -42,6 +42,7 @@ extern const struct m0_test_suite m0_net_test_ut;
 extern const struct m0_test_suite m0_net_tm_prov_ut;
 extern const struct m0_test_suite conn_ut;
 extern const struct m0_test_suite dtm_nucleus_ut;
+extern const struct m0_test_suite dtm_transmit_ut;
 extern const struct m0_test_suite file_io_ut;
 extern const struct m0_test_suite frm_ut;
 extern const struct m0_test_suite layout_ut;
@@ -76,6 +77,7 @@ static void run_kernel_ut(int ignored)
 	m0_ut_add(&m0_net_tm_prov_ut);
 	m0_ut_add(&conn_ut);
 	m0_ut_add(&dtm_nucleus_ut);
+	m0_ut_add(&dtm_transmit_ut);
 	m0_ut_add(&frm_ut);
 	m0_ut_add(&layout_ut);
 	m0_ut_add(&packet_encdec_ut);

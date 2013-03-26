@@ -29,17 +29,14 @@
 #include "dtm/dtm.h"
 #include "dtm/dtm_update_xc.h"
 
-M0_INTERNAL int m0_dtm_init(void)
+M0_INTERNAL void m0_dtm_init(struct m0_dtm *dtm)
 {
-	m0_xc_dtm_update_init();
-	m0_xc_verno_init();
-	return 0;
+	m0_dtm_nu_init(&dtm->d_nu);
 }
 
-M0_INTERNAL void m0_dtm_fini(void)
+M0_INTERNAL void m0_dtm_fini(struct m0_dtm *dtm)
 {
-	m0_xc_dtm_update_fini();
-	m0_xc_verno_fini();
+	m0_dtm_nu_fini(&dtm->d_nu);
 }
 
 M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
@@ -106,13 +103,24 @@ M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)
 
 M0_INTERNAL int m0_dtm_global_init(void)
 {
+	m0_xc_dtm_update_init();
+	m0_xc_verno_init();
 	m0_dtm_nuclei_init();
+	m0_dtm_history_global_init();
 	return 0;
 }
 
 M0_INTERNAL void m0_dtm_global_fini(void)
 {
 	m0_dtm_nuclei_fini();
+	m0_dtm_history_global_fini();
+	m0_xc_dtm_update_fini();
+	m0_xc_verno_fini();
+}
+
+M0_INTERNAL struct m0_dtm *nu_dtm(struct m0_dtm_nu *nu)
+{
+	return container_of(nu, struct m0_dtm, d_nu);
 }
 
 /** @} end of dtm group */

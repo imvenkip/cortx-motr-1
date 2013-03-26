@@ -44,12 +44,15 @@ struct m0_dtm_cupdate_descr;
 
 /* import */
 struct m0_dtm_history_type;
+struct m0_dtm_oper;
+struct m0_dtm_history;
 
 struct m0_dtm_update {
 	struct m0_dtm_up                upd_up;
 	uint32_t                        upd_label;
 	const struct m0_dtm_update_ops *upd_ops;
 };
+M0_INTERNAL bool m0_dtm_update_invariant(const struct m0_dtm_update *update);
 
 enum {
 	M0_DTM_USER_UPDATE_BASE = 0x1000
@@ -78,7 +81,7 @@ struct m0_dtm_update_descr {
 M0_INTERNAL void m0_dtm_update_init(struct m0_dtm_update *update,
 				    struct m0_dtm_history *history,
 				    struct m0_dtm_oper *oper,
-				    enum m0_dtm_up_rule rule,
+				    uint32_t label, enum m0_dtm_up_rule rule,
 				    m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver);
 M0_INTERNAL bool m0_dtm_update_is_user(const struct m0_dtm_update *update);
 M0_INTERNAL void m0_dtm_update_pack(const struct m0_dtm_update *update,
@@ -88,6 +91,16 @@ M0_INTERNAL void m0_dtm_update_unpack(struct m0_dtm_update *update,
 M0_INTERNAL int m0_dtm_update_build(struct m0_dtm_update *update,
 				    struct m0_dtm_oper *oper,
 				    const struct m0_dtm_update_descr *updd);
+M0_INTERNAL bool
+m0_dtm_update_matches_descr(const struct m0_dtm_update *update,
+			    const struct m0_dtm_update_descr *updd);
+M0_INTERNAL bool
+m0_dtm_descr_matches_update(const struct m0_dtm_update *update,
+			    const struct m0_dtm_update_descr *updd);
+M0_INTERNAL void m0_dtm_update_list_init(struct m0_tl *list);
+M0_INTERNAL void m0_dtm_update_list_fini(struct m0_tl *list);
+M0_INTERNAL void m0_dtm_update_link(struct m0_tl *list,
+				    struct m0_dtm_update *update, uint32_t nr);
 
 /** @} end of dtm group */
 

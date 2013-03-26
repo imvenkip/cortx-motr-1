@@ -27,21 +27,27 @@
 #include "be/be.h"
 #include "fol/fol.h"
 #include "dtm/history.h"
+#include "dtm/nucleus.h"
 
 /**
    @defgroup dtm Distributed transaction manager
    @{
 */
 
+/* import */
+struct m0_dtm_history_type;
+
 /* export */
 struct m0_dtm;
 struct m0_dtx;
 
-struct m0_dtm {
+enum {
+	M0_DTM_HISTORY_TYPE_NR = 256
 };
 
-struct m0_dtm_remote {
-	struct m0_dtm_history drm_fol;
+struct m0_dtm {
+	struct m0_dtm_nu                  d_nu;
+	const struct m0_dtm_history_type *d_htype[M0_DTM_HISTORY_TYPE_NR];
 };
 
 enum m0_dtx_state {
@@ -72,8 +78,8 @@ M0_INTERNAL int m0_dtx_open_sync(struct m0_dtx *tx);
 M0_INTERNAL int m0_dtx_done_sync(struct m0_dtx *tx);
 M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx);
 
-M0_INTERNAL int m0_dtm_init(void);
-M0_INTERNAL void m0_dtm_fini(void);
+M0_INTERNAL void m0_dtm_init(struct m0_dtm *dtm);
+M0_INTERNAL void m0_dtm_fini(struct m0_dtm *dtm);
 
 M0_INTERNAL int  m0_dtm_global_init(void);
 M0_INTERNAL void m0_dtm_global_fini(void);

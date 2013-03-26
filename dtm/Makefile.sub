@@ -1,11 +1,32 @@
-nobase_mero_include_HEADERS += dtm/dtm.h \
+nobase_mero_include_HEADERS += \
+                                  dtm/domain.h \
+                                  dtm/dtm.h \
+                                  dtm/dtm_internal.h \
                                   dtm/dtm_update.h \
                                   dtm/dtm_update_xc.h \
+                                  dtm/dtx.h \
+                                  dtm/factory.h \
+                                  dtm/history.h \
+                                  dtm/ltx.h \
+                                  dtm/nucleus.h \
+                                  dtm/object.h \
+                                  dtm/operation.h \
+                                  dtm/update.h \
                                   dtm/verno.h \
                                   dtm/verno_xc.h
 
-mero_libmero_la_SOURCES  += dtm/dtm.c \
+mero_libmero_la_SOURCES  += \
+                                  dtm/domain.c \
+                                  dtm/dtm.c \
                                   dtm/dtm_update_xc.c \
+                                  dtm/dtx.c \
+                                  dtm/factory.c \
+                                  dtm/history.c \
+                                  dtm/ltx.c \
+                                  dtm/nucleus.c \
+                                  dtm/object.c \
+                                  dtm/operation.c \
+                                  dtm/update.c \
                                   dtm/verno.c \
                                   dtm/verno_xc.c
 

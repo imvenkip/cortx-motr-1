@@ -27,6 +27,8 @@
 
 #include "lib/assert.h"
 #include "lib/errno.h"                  /* EPROTO */
+#include "lib/misc.h"                   /* M0_IN */
+#include "mero/magic.h"
 
 #include "dtm/dtm_internal.h"
 #include "dtm/nucleus.h"
@@ -37,31 +39,44 @@
 M0_INTERNAL void m0_dtm_update_init(struct m0_dtm_update *update,
 				    struct m0_dtm_history *history,
 				    struct m0_dtm_oper *oper,
-				    enum m0_dtm_up_rule rule,
+				    uint32_t label, enum m0_dtm_up_rule rule,
 				    m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver)
 {
-	M0_PRE(m0_tl_forall(update, upd, &oper->oprt_op.op_ups,
+	M0_PRE(m0_tl_forall(oper, upd, &oper->oprt_op.op_ups,
+			    upd->upd_up.up_state == M0_DOS_LIMBO &&
 			    upd->upd_label != update->upd_label));
+	M0_PRE(!(history->h_hi.hi_flags & M0_DHF_CLOSED));
 	m0_dtm_up_init(&update->upd_up, &history->h_hi, &oper->oprt_op,
 		       rule, ver, orig_ver);
+	update->upd_label = label;
+	M0_POST(m0_dtm_update_invariant(update));
+}
+
+M0_INTERNAL bool m0_dtm_update_invariant(const struct m0_dtm_update *update)
+{
+	return m0_dtm_up_invariant(&update->upd_up);
 }
 
 M0_INTERNAL bool m0_dtm_update_is_user(const struct m0_dtm_update *update)
 {
+	M0_PRE(m0_dtm_update_invariant(update));
 	return update->upd_label >= M0_DTM_USER_UPDATE_BASE;
 }
 
 M0_INTERNAL void m0_dtm_update_pack(const struct m0_dtm_update *update,
 				    struct m0_dtm_update_descr *updd)
 {
-	struct m0_dtm_up      *up      = &update->upd_up;
-	struct m0_dtm_history *history = hi_history(update->upd_up.up_hi);
+	const struct m0_dtm_up *up      = &update->upd_up;
+	struct m0_dtm_history  *history = hi_history(update->upd_up.up_hi);
 
+	M0_PRE(m0_dtm_update_invariant(update));
+	M0_PRE(update->upd_up.up_state >= M0_DOS_FUTURE);
 	*updd = (struct m0_dtm_update_descr) {
+		.udd_htype    = history->h_ops->hio_type->hit_id,
 		.udd_label    = update->upd_label,
 		.udd_rule     = up->up_rule,
 		.udd_ver      = up->up_ver,
-		.udd_orig_ver = up->up_origver
+		.udd_orig_ver = up->up_orig_ver
 	};
 	history->h_ops->hio_id(history, &updd->udd_id);
 }
@@ -71,11 +86,17 @@ M0_INTERNAL void m0_dtm_update_unpack(struct m0_dtm_update *update,
 {
 	struct m0_dtm_up *up = &update->upd_up;
 
-	M0_PRE(m0_uint128_eq(update->upd_label, &updd->udd_label));
+	M0_PRE(update->upd_label == updd->udd_label);
+	M0_PRE(update->upd_up.up_state == M0_DOS_INPROGRESS);
+	M0_PRE(hi_history(update->upd_up.up_hi)->h_ops->hio_type->hit_id ==
+	       updd->udd_htype);
+	M0_PRE(m0_dtm_update_matches_descr(update, updd));
 
 	up->up_rule     = updd->udd_rule;
 	up->up_ver      = updd->udd_ver;
 	up->up_orig_ver = updd->udd_orig_ver;
+
+	M0_POST(m0_dtm_update_invariant(update));
 }
 
 M0_INTERNAL int m0_dtm_update_build(struct m0_dtm_update *update,
@@ -86,21 +107,75 @@ M0_INTERNAL int m0_dtm_update_build(struct m0_dtm_update *update,
 	struct m0_dtm_history            *history;
 	int                               result;
 
-	if (m0_tl_exists(update, scan, &oper->oprt_op.op_ups,
+	if (m0_tl_exists(oper, scan, &oper->oprt_op.op_ups,
 			 scan->upd_label == update->upd_label))
 		return -EPROTO;
 
-	htype = m0_dtm_history_type_find(updd->udd_htype);
+	htype = m0_dtm_history_type_find(nu_dtm(oper->oprt_op.op_nu),
+					 updd->udd_htype);
 	if (htype == NULL)
 		return -EPROTO;
 
 	result = htype->hit_ops->hito_find(htype, &updd->udd_id, &history);
 	if (result == 0) {
 		update->upd_label = updd->udd_label;
-		m0_dtm_update_init(update, history, oper, updd->udd_rule,
+		m0_dtm_update_init(update, history, oper,
+				   updd->udd_label, updd->udd_rule,
 				   updd->udd_ver, updd->udd_orig_ver);
 	}
+	M0_POST(ergo(result == 0, m0_dtm_update_invariant(update)));
 	return result;
+}
+
+M0_INTERNAL bool
+m0_dtm_update_matches_descr(const struct m0_dtm_update *update,
+			    const struct m0_dtm_update_descr *updd)
+{
+	const struct m0_dtm_up *up = &update->upd_up;
+
+	return
+		up->up_rule == updd->udd_rule &&
+		M0_IN(up->up_ver,      (0, updd->udd_ver)) &&
+		M0_IN(up->up_orig_ver, (0, updd->udd_orig_ver));
+}
+
+M0_INTERNAL bool
+m0_dtm_descr_matches_update(const struct m0_dtm_update *update,
+			    const struct m0_dtm_update_descr *updd)
+{
+	const struct m0_dtm_up *up = &update->upd_up;
+
+	return
+		up->up_rule == updd->udd_rule &&
+		M0_IN(updd->udd_ver,      (0, up->up_ver)) &&
+		M0_IN(updd->udd_orig_ver, (0, up->up_orig_ver));
+}
+
+M0_INTERNAL void m0_dtm_update_list_init(struct m0_tl *list)
+{
+	oper_tlist_init(list);
+}
+
+M0_INTERNAL void m0_dtm_update_list_fini(struct m0_tl *list)
+{
+	struct m0_dtm_update *leftover;
+
+	m0_tl_for(oper, list, leftover) {
+		oper_tlist_del(leftover);
+	} m0_tl_endfor;
+	oper_tlist_fini(list);
+}
+
+M0_INTERNAL void m0_dtm_update_link(struct m0_tl *list,
+				    struct m0_dtm_update *update, uint32_t nr)
+{
+	while (nr-- != 0)
+		oper_tlink_init_at(update++, list);
+}
+
+M0_INTERNAL struct m0_dtm_update *up_update(struct m0_dtm_up *up)
+{
+	return container_of(up, struct m0_dtm_update, upd_up);
 }
 
 M0_TL_DESCR_DEFINE(history, "dtm history updates", M0_INTERNAL,
@@ -113,9 +188,7 @@ M0_TL_DESCR_DEFINE(oper, "dtm operation updates", M0_INTERNAL,
 		   struct m0_dtm_update,
 		   upd_up.up_op_linkage, upd_up.up_magix,
 		   M0_DTM_UP_MAGIX, M0_DTM_OP_MAGIX);
-M0_TL_DEFINE(oper, M0_INTERNAL, struct m0_dtm_up);
-
-
+M0_TL_DEFINE(oper, M0_INTERNAL, struct m0_dtm_update);
 
 /** @} end of dtm group */
 

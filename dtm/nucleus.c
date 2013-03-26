@@ -451,9 +451,8 @@ M0_INTERNAL bool m0_dtm_hi_invariant(const struct m0_dtm_hi *hi)
 	return
 		_0C(m0_dtm_hi_bob_check(hi)) &&
 		m0_tl_forall(hi, up, &hi->hi_ups,
-		      _0C(m0_dtm_up_invariant(up)) &&
-		      _0C(up_pair_invariant(up, hi_tlist_next(&hi->hi_ups, up)))
-		);
+		      m0_dtm_up_invariant(up) &&
+		      up_pair_invariant(up, hi_tlist_next(&hi->hi_ups, up)));
 }
 
 M0_INTERNAL bool m0_dtm_up_invariant(const struct m0_dtm_up *up)
@@ -482,10 +481,10 @@ M0_INTERNAL bool m0_dtm_op_invariant(const struct m0_dtm_op *op)
 {
 	return
 		_0C(m0_dtm_op_bob_check(op)) &&
-		_0C(m0_tl_forall(op, up, &op->op_ups,
-				 m0_dtm_up_invariant(up) && up->up_op == op &&
-				 up->up_hi->hi_nu == op->op_nu &&
-				 m0_dtm_hi_invariant(up->up_hi))) &&
+		m0_tl_forall(op, up, &op->op_ups,
+			     m0_dtm_up_invariant(up) && _0C(up->up_op == op) &&
+			     _0C(up->up_hi->hi_nu == op->op_nu) &&
+			     m0_dtm_hi_invariant(up->up_hi)) &&
 		_0C(({
 			enum m0_dtm_state min = M0_DOS_NR;
 			enum m0_dtm_state max = 0;
@@ -510,9 +509,11 @@ static bool up_pair_invariant(const struct m0_dtm_up *up,
 {
 	return earlier == NULL || up->up_state < M0_DOS_PREPARE ||
 		(_0C(up->up_state <= earlier->up_state) &&
-		 _0C(up->up_orig_ver != 0) &&
-		 _0C(up->up_ver != 0) &&
-		 _0C(up->up_orig_ver >= earlier->up_ver) &&
+		 _0C(ergo((up->up_hi->hi_flags & M0_DHF_OWNED) ||
+			  up->up_state > M0_DOS_INPROGRESS,
+			  up->up_orig_ver != 0 &&
+			  up->up_ver != 0 &&
+			  up->up_orig_ver >= earlier->up_ver)) &&
 		 _0C(ergo(up->up_hi->hi_flags & M0_DHF_FULL,
 			  up->up_orig_ver == earlier->up_ver)));
 }

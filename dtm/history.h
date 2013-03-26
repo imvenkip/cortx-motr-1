@@ -35,6 +35,10 @@
  * @{
  */
 
+/* import */
+struct m0_dtm_oper;
+struct m0_dtm;
+
 /* export */
 struct m0_dtm_history;
 struct m0_dtm_history_remote;
@@ -43,18 +47,6 @@ struct m0_dtm_remote_ops;
 struct m0_dtm_history_ops;
 struct m0_dtm_history_type;
 struct m0_dtm_history_type_ops;
-
-struct m0_dtm_history {
-	struct m0_dtm_hi                 h_hi;
-	struct m0_queue_link             h_pending;
-	struct m0_tlist                  h_remote;
-	struct m0_dtm_history_remote     h_rem0;
-	const struct m0_dtm_history_ops *h_ops;
-};
-
-enum m0_dtm_history_flags {
-	M0_DHF_CLOSED = M0_DHF_LAST
-};
 
 struct m0_dtm_history_remote {
 	struct m0_dtm_history *hr_history;
@@ -65,13 +57,25 @@ struct m0_dtm_history_remote {
 	uint64_t               hr_magix;
 };
 
+struct m0_dtm_history {
+	struct m0_dtm_hi                 h_hi;
+	struct m0_queue_link             h_pending;
+	struct m0_tl                     h_remote;
+	struct m0_dtm_history_remote     h_rem0;
+	const struct m0_dtm_history_ops *h_ops;
+};
+M0_INTERNAL bool m0_dtm_history_invariant(const struct m0_dtm_history *history);
+
+enum m0_dtm_history_flags {
+	M0_DHF_CLOSED = M0_DHF_LAST
+};
+
 struct m0_dtm_remote {
 	const struct m0_dtm_remote_ops *re_ops;
 };
 
 struct m0_dtm_remote_ops {
-	int (*reo_send)(struct m0_dtm_history_remote *rem,
-			struct m0_dtm_update *update);
+	int (*reo_send)(struct m0_dtm_remote *dtm, struct m0_dtm_oper *oper);
 };
 
 struct m0_dtm_history_ops {
@@ -87,18 +91,40 @@ struct m0_dtm_history_type {
 };
 
 struct m0_dtm_history_type_ops {
-	int (*hito_find)(struct m0_dtm_history_type *ht,
+	int (*hito_find)(const struct m0_dtm_history_type *ht,
 			 const struct m0_uint128 *id,
 			 struct m0_dtm_history **out);
 };
 
+M0_INTERNAL void m0_dtm_history_init(struct m0_dtm_history *history,
+				     struct m0_dtm *dtm);
+M0_INTERNAL void m0_dtm_history_fini(struct m0_dtm_history *history);
+
 M0_INTERNAL void m0_dtm_history_persistent(struct m0_dtm_history *history);
 M0_INTERNAL void m0_dtm_history_close(struct m0_dtm_history *history);
 
-M0_INTERNAL void m0_dtm_history_type_register(struct m0_dtm_history_type *ht);
-M0_INTERNAL void m0_dtm_history_type_deregister(struct m0_dtm_history_type *ht);
+M0_INTERNAL void
+m0_dtm_history_type_register(struct m0_dtm *dtm,
+			     const struct m0_dtm_history_type *ht);
+M0_INTERNAL void
+m0_dtm_history_type_deregister(struct m0_dtm *dtm,
+			       const struct m0_dtm_history_type *ht);
 M0_INTERNAL const struct m0_dtm_history_type *
-m0_dtm_history_type_find(uint32_t id);
+m0_dtm_history_type_find(struct m0_dtm *dtm, uint32_t id);
+
+M0_INTERNAL int m0_dtm_history_add_nop(struct m0_dtm_history *history,
+				       struct m0_dtm_oper *oper);
+M0_INTERNAL int m0_dtm_history_add_close(struct m0_dtm_history *history,
+					 struct m0_dtm_oper *oper);
+
+
+M0_INTERNAL void m0_dtm_history_remote_init(struct m0_dtm_history_remote *rem);
+M0_INTERNAL void m0_dtm_history_remote_fini(struct m0_dtm_history_remote *rem);
+M0_INTERNAL void m0_dtm_history_add_remote(struct m0_dtm_history *history,
+					   struct m0_dtm_history_remote *rem);
+
+M0_INTERNAL void m0_dtm_history_global_init(void);
+M0_INTERNAL void m0_dtm_history_global_fini(void);
 
 /** @} end of dtm group */
 
