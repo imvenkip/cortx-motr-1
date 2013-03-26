@@ -63,6 +63,7 @@ AH_TEMPLATE([ENABLE_PROFILER],        [Enable profile samples gathering.])
 AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
 AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([ENABLE_EXPENSIVE_CHECKS],[Enable expensive checks.])
+AH_TEMPLATE([ENABLE_SYTEM_LIBS],      [Enable use of system wide db4 and yaml libraries.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT],     [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV],        [Have fops->readv function])
@@ -144,9 +145,9 @@ AC_ARG_ENABLE([altogether-mode],
 AM_CONDITIONAL([ENABLE_MERO_ALTOGETHER],
                [test "x$enable_altogether_mode" = xyes])
 
-AC_ARG_ENABLE([rpm],
-        [AS_HELP_STRING([--enable-rpm],[enable rpm build mode])], [],
-        [enable_rpm=no]
+AC_ARG_ENABLE([system-libs],
+        [AS_HELP_STRING([--disable-system-libs],[disable use of system wide db4 and yaml libaries])],
+        [], [enable_system_libs=yes]
 )
 
 AC_ARG_WITH([linux],
@@ -387,63 +388,39 @@ OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
-if test x$enable_rpm = xyes; then
+AS_IF([test x$enable_system_libs = xyes],
+      [
+          # Check for yaml
+          MERO_SEARCH_LIBS([yaml_parser_initialize], [yaml], [YAML_LIBS],
+                  [yaml_parser_initialize cannot be found! Try install yaml package]
+          )
+          AC_CHECK_HEADERS([yaml.h], [],
+                           AC_MSG_ERROR([yaml.h is not found. Try to install libyaml-devel package])
+          )
 
-# Check for galois
+          # Check for berkeley db
+          MERO_SEARCH_LIBS([db_env_create], [db], [DB_LIBS],
+                  [db_env_create cannot be found! Try install db4 package]
+          )
+          AC_CHECK_HEADERS([db.h], [],
+                           AC_MSG_ERROR([db.h is not found. Try to install db4-devel package])
+          )
+      ],[
+          # Check for yaml
+          YAML_SRC=$SRCDIR/extra-libs/yaml
+          YAML_INCLUDES="-I$YAML_SRC/include"
+          YAML_LIBS="$YAML_SRC/src/libyaml.la"
+          AC_MSG_CHECKING([for yaml libs])
+          MERO_BUILD_LIB([yaml], [$YAML_SRC], [$YAML_LIBS])
 
-GALOIS_SRC=""
-
-MERO_SEARCH_LIBS([galois_create_mult_tables], [galois], [GALOIS_LIBS],
-        [libgalois cannot be found! Try install galois package from \
-$SRCDIR/extra-libs/galois or from rpm]
+          # Check for berkeley db
+          DB_SRC="$SRCDIR/extra-libs/db4/build_unix"
+          DB_INCLUDES="-I$DB_SRC/build_unix -I$DB_SRC"
+          DB_LIBS="$DB_SRC/libdb-4.8.la"
+          AC_MSG_CHECKING([for db libs])
+          MERO_BUILD_LIB([db], [$DB_SRC], [$DB_LIBS], ["../dist"], ["--with-pic"])
+      ]
 )
-
-AC_CHECK_HEADERS([galois/galois.h], [],
-                 AC_MSG_ERROR([galois/galois.h is not found. Try install \
-galois from $SRCDIR/extra-libs/galois or from rpm])
-)
-
-galois_locations="{/usr,/usr/local,/opt,/opt/local}"
-GALOIS_SYMVERS=$(ls $(echo $ECHO_N $galois_locations)/share/galois/symvers/Module.symvers \
-                 2>/dev/null | head -n1)
-AC_MSG_CHECKING([galois symvers])
-AS_IF([test x$GALOIS_SYMVERS = x],
-      AC_MSG_ERROR([Galois Module.symvers is not found in the following \
-locations: $(echo $ECHO_N $galois_locations)])
-)
-AC_MSG_RESULT([$GALOIS_SYMVERS])
-AC_SUBST([GALOIS_SYMVERS])
-
-# Check for yaml
-
-MERO_SEARCH_LIBS([yaml_parser_initialize], [yaml], [YAML_LIBS],
-        [yaml_parser_initialize cannot be found! Try install yaml package from \
-$SRCDIR/extra-libs/yaml or from rpm]
-)
-
-# Check for CUnit
-
-MERO_SEARCH_LIBS([CU_add_suite], [cunit], [CUNIT_LIBS],
-        [CU_add_suite cannot be found! Try install CUnit package from \
-$SRCDIR/extra-libs/cunit or from rpm]
-)
-
-AC_CHECK_HEADERS([CUnit/Basic.h], [],
-                 AC_MSG_ERROR([CUnit/Basic.h is not found. Try install CUnit \
-from $SRCDIR/extra-libs/cunit or CUnit-devel rpm package])
-)
-
-# Check for berkeley db
-
-MERO_SEARCH_LIBS([db_env_create], [db], [DB_LIBS],
-        [db_env_create cannot be found! Try install db4-devel package]
-)
-
-AC_CHECK_HEADERS([db.h], [],
-                 AC_MSG_ERROR([db.h is not found. Try install db4-devel package])
-)
-
-else # non-rpm setup
 
 # Check for galois
 
@@ -465,14 +442,6 @@ AS_IF([! test -f $GALOIS_SYMVERS],
 AC_MSG_RESULT([$GALOIS_SYMVERS])
 AC_SUBST([GALOIS_SYMVERS])
 
-# Check for yaml
-
-YAML_SRC=$SRCDIR/extra-libs/yaml
-YAML_INCLUDES="-I$YAML_SRC/include"
-YAML_LIBS="$YAML_SRC/src/libyaml.la"
-AC_MSG_CHECKING([for yaml libs])
-MERO_BUILD_LIB([yaml], [$YAML_SRC], [$YAML_LIBS])
-
 # Check for CUnit
 
 CUNIT_SRC=$SRCDIR/extra-libs/cunit
@@ -481,27 +450,16 @@ CUNIT_INCLUDES="-I$CUNIT_SRC/CUnit/Headers"
 AC_MSG_CHECKING([for cunit libs])
 MERO_BUILD_LIB([cunit], [$CUNIT_SRC], [$CUNIT_LIBS])
 
-# Check for berkeley db
-
-DB_SRC="$SRCDIR/extra-libs/db4/build_unix"
-DB_INCLUDES="-I$DB_SRC/build_unix -I$DB_SRC"
-DB_LIBS="$DB_SRC/libdb-4.8.la"
-AC_MSG_CHECKING([for db libs])
-MERO_BUILD_LIB([db], [$DB_SRC], [$DB_LIBS], ["../dist"], ["--with-pic"])
-
-fi
 
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
-AC_SUBST([GALOIS_SRC])
 AC_SUBST([GALOIS_ABS_SRC])
 AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
 AC_SUBST([CUNIT_LIBS])
-AC_SUBST([DB_SRC])
-AC_SUBST([DB_INCLUDES])
 AC_SUBST([DB_LIBS])
+
 
 #
 # Handle configuration options
@@ -541,10 +499,8 @@ AS_IF([test x$enable_mcheck = xyes],
       [M0_LDFLAGS="-lmcheck $M0_LDFLAGS"]
 )
 
-AS_IF([test x$enable_rpm != xyes],
-      [M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $CUNIT_INCLUDES \
-                    $DB_INCLUDES $M0_CPPFLAGS"]
-)
+# TODO: merge and remove unused vars
+M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $CUNIT_INCLUDES $DB_INCLUDES $M0_CPPFLAGS"
 
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
