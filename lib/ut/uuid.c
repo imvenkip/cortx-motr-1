@@ -18,6 +18,7 @@
  * Original creation date: 10/04/2012
  */
 
+#include "lib/cdefs.h"
 #include "lib/string.h"
 #include "lib/uuid.h"
 #include "ut/ut.h"
@@ -49,6 +50,23 @@ static char *bad_uuids_long[] = { /* long in one field */
 	"abcdef01-2345-6789-abcd-ef0123456789a",
 };
 
+static bool test_identity_op(const char *str)
+{
+	struct m0_uint128 u1;
+	struct m0_uint128 u2;
+	char buf[M0_UUID_STRLEN+1];
+	int rc;
+
+	rc = m0_uuid_parse(str, &u1);
+	if (rc != 0)
+		return false;
+	m0_uuid_format(&u1, buf, ARRAY_SIZE(buf));
+	rc = m0_uuid_parse(buf, &u2);
+	if (rc != 0)
+		return false;
+	return (u1.u_hi == u2.u_hi) && (u1.u_lo == u2.u_lo);
+}
+
 void m0_test_lib_uuid(void)
 {
 	struct m0_uint128 u;
@@ -59,16 +77,19 @@ void m0_test_lib_uuid(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(u.u_hi == 0);
 	M0_UT_ASSERT(u.u_lo == 0);
+	M0_UT_ASSERT(test_identity_op(nil_uuid));
 
 	rc = m0_uuid_parse(uuid1, &u);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(u.u_hi == 0xabcdef0123456789);
 	M0_UT_ASSERT(u.u_lo == 0xabcdef0123456789);
+	M0_UT_ASSERT(test_identity_op(uuid1));
 
 	rc = m0_uuid_parse(uuid2, &u);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(u.u_hi == 0x9876543210abcdef);
 	M0_UT_ASSERT(u.u_lo == 0xfedcba0123456789);
+	M0_UT_ASSERT(test_identity_op(uuid2));
 
 	rc = m0_uuid_parse(bad1, &u);
 	M0_UT_ASSERT(rc == -EINVAL);

@@ -77,6 +77,25 @@ M0_INTERNAL int m0_uuid_parse(const char *str, struct m0_uint128 *val)
 }
 M0_EXPORTED(m0_uuid_parse);
 
+M0_INTERNAL void m0_uuid_format(const struct m0_uint128 *val,
+				char *buf, size_t len)
+{
+	static const char *fmt = "%08x-%04x-%04x-%04x-%012lx";
+	uint32_t h1;
+	uint32_t h2;
+	uint32_t h3;
+	uint32_t h4;
+	uint64_t h5;
+
+	M0_ASSERT(len > M0_UUID_STRLEN);
+	h1 = val->u_hi >> 32;
+	h2 = (val->u_hi >> 16) & 0xffff;
+	h3 = val->u_hi & 0xffff;
+	h4 = val->u_lo >> 48;
+	h5 = val->u_lo & 0xffffffffffff;
+	sprintf(buf, fmt, h1, h2, h3, h4, h5);
+}
+
 M0_INTERNAL uint64_t m0_uuid_generate(void)
 {
 	static struct m0_atomic64 cnt;

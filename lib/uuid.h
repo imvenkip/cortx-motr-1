@@ -42,6 +42,19 @@ enum {
  */
 M0_INTERNAL int m0_uuid_parse(const char *str, struct m0_uint128 *val);
 
+/**
+   Produce the 8-4-4-4-12 hexadecimal string representation of a UUID
+   from its numerical form.
+   See <a href="http://en.wikipedia.org/wiki/Universally_unique_identifier">
+   Universally unique identifier</a> for more details.
+   @param val The numerical UUID.
+   @param buf String buffer.
+   @param len Length of the buffer.
+              It must be at least M0_UUID_STRLEN+1 bytes long.
+ */
+M0_INTERNAL void m0_uuid_format(const struct m0_uint128 *val,
+				char *buf, size_t len);
+
 /** Generate unique UUID. */
 M0_INTERNAL uint64_t m0_uuid_generate(void);
 
