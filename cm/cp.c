@@ -554,7 +554,7 @@ M0_INTERNAL void m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp)
         struct m0_reqh *reqh = cm->cm_service.rs_reqh;
 
         M0_PRE(reqh != NULL);
-        M0_PRE(!reqh->rh_shutdown);
+        M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
         M0_PRE(m0_fom_phase(fom) == M0_CCP_INIT);
         M0_PRE(m0_cm_cp_invariant(cp));
 

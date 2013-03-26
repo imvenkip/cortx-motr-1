@@ -485,11 +485,19 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
      control.
    <hr>
    @section MGMT-SVC-DLD-ut Unit Tests
-   @todo Define unit tests
+   - Test the m0_reqh_fop_allow() subroutine in isolation.
+   - Test the request handler state machine with management service
+   startup failure situations.
+   - Test the management service query RPC interface using the internal
+   setup used by m0d for the service, and the rpclib client support.
+   Provide a fake service with a UUID for the test.
+   - Existing unit tests must pass with the m0_reqh_fop_allow() subroutine
+   in use.
 
    <hr>
    @section MGMT-SVC-DLD-st System Tests
-   @todo Define system tests
+   The m0t1fs/linux_kernel/st/m0t1fs_test.sh must pass.  It uses the m0d
+   command.
 
    <hr>
    @section MGMT-SVC-DLD-O Analysis

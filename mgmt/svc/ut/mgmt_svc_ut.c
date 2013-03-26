@@ -65,7 +65,7 @@ static int mgmt_svc_ut_rso_fop_accept(struct m0_reqh_service *service,
 	++mgmt_svc_rso_fop_accept_called;
 	mgmt_svc_rso_fop_accept_rc =
 		(*mgmt_svc_ops->rso_fop_accept)(service, fop);
-	return 	mgmt_svc_rso_fop_accept_rc;
+	return mgmt_svc_rso_fop_accept_rc;
 }
 
 static void mgmt_svc_ut_rso_fop_accept_intercept(struct m0_reqh *reqh)

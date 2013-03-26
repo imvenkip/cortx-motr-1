@@ -143,14 +143,6 @@ struct m0_reqh {
 	struct m0_rwlock         rh_rwlock;
 
 	/**
-	   @deprecated
-	    True if request handler received a shutdown signal.
-	    Request handler should not process any further requests
-	    if this flag is set.
-	 */
-	bool                     rh_shutdown;
-
-	/**
 	   Private, fully configured, ADDB machine for the request handler.
 	   The first such machine created is used to configure the global
 	   machine, ::m0_addb_gmc.
