@@ -51,11 +51,12 @@ static struct m0_rpc_client_ctx mgmt_svc_ut_cctx = {
 	.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN,
 };
 
+#define MGMT_SVC_UT_SVC M0_MGMT_SVC_UT_SVC_TYPE_NAME ":" M0_MGMT_SVC_UT_SVC_UUID
 static char *mgmt_svc_ut_setup_args[] = { "m0d", "-r", "-p", "-T", "linux",
 					  "-D", "ms.db", "-S", "ms.stob",
 					  "-A", "ms.addb_stob",
 					  "-e", MGMT_SVC_UT_SERVER_ENDPOINT,
-					  "-s", M0_MGMT_SVC_UT_SVC_TYPE_NAME
+					  "-s", MGMT_SVC_UT_SVC
 };
 static struct m0_net_xprt *mgmt_svc_ut_setup_xprts[] = {
 	&m0_net_lnet_xprt

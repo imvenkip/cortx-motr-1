@@ -163,7 +163,7 @@ static void test_service(void)
 	rc = m0_reqh_service_allocate(&reqh_svc, svct, NULL);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_reqh_service_init(reqh_svc, &reqh);
+	m0_reqh_service_init(reqh_svc, &reqh, NULL);
 
 	rc = m0_reqh_service_start(reqh_svc);
 	M0_UT_ASSERT(rc == 0);

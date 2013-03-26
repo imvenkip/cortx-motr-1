@@ -270,7 +270,7 @@ static int server_init(const char             *stob_path,
 
 	rc = m0_reqh_service_allocate(&reqh_ut_service, stype, NULL);
 	M0_UT_ASSERT(rc == 0);
-	m0_reqh_service_init(reqh_ut_service, &reqh);
+	m0_reqh_service_init(reqh_ut_service, &reqh, NULL);
 	rc = m0_reqh_service_start(reqh_ut_service);
 	M0_UT_ASSERT(rc == 0);
 	return rc;

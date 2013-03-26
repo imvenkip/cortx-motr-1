@@ -136,7 +136,7 @@ static int test_long_lock_init(void)
 		rc = m0_reqh_service_allocate(&service[i],
 					      &ut_long_lock_service_type, NULL);
 		M0_ASSERT(rc == 0);
-		m0_reqh_service_init(service[i], &reqh[i]);
+		m0_reqh_service_init(service[i], &reqh[i], NULL);
 		rc = m0_reqh_service_start(service[i]);
 		M0_ASSERT(rc == 0);
 	}

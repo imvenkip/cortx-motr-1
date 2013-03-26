@@ -360,7 +360,7 @@ struct m0_reqh_context {
 	int                          rc_prepare_storage;
 
 	/** Services running in request handler context. */
-	const char                 **rc_services;
+	char                       **rc_services;
 
 	/** Service UUIDs */
 	struct m0_uint128           *rc_service_uuids;

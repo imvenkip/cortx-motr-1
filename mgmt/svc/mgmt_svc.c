@@ -111,13 +111,22 @@
 @code
 struct cs_reqh_context {
 	...
-	const char                 **rc_services;      // existing, malloc'd
-	struct m0_uint128           *rc_service_uuids; // new, malloc'd
+	char                 **rc_services;      // existing, malloc'd, !const
+	struct m0_uint128     *rc_service_uuids; // new, malloc'd
 	...
 };
 @endcode
+   The rc_services field is no longer const, as it will be filled with malloc'd
+   strings which must be freed in cs_reqh_ctx_free().
    The array must be allocated along with rc_services in cs_reqh_ctx_alloc(),
    and freed in cs_reqh_ctx_free().
+   - The m0_reqh_service_init() subroutine is extended to accept a pointer to
+   the service UUID.  The pointer is optional to support unit tests.
+@code
+M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
+				      struct m0_reqh *reqh,
+				      struct m0_uint128 *uuid);
+@endcode
 
    <hr>
    @section MGMT-SVC-DLD-highlights Design Highlights

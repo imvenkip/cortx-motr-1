@@ -444,7 +444,7 @@ static int _init(const char *opts M0_UNUSED)
 
 	rc = m0_reqh_service_allocate(&g_svc, &ub_fom_stype, NULL);
 	M0_UB_ASSERT(rc == 0);
-	m0_reqh_service_init(g_svc, &g_reqh);
+	m0_reqh_service_init(g_svc, &g_reqh, NULL);
 
 	rc = m0_reqh_service_start(g_svc);
 	M0_UB_ASSERT(rc == 0);

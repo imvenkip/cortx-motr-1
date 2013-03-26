@@ -484,7 +484,7 @@ M0_INTERNAL int m0_reqh_mgmt_service_start(struct m0_reqh *reqh)
 	rc = m0_mgmt_service_allocate(&service);
 	if (rc != 0)
 		goto allocate_failed;
-	m0_reqh_service_init(service, reqh);
+	m0_reqh_service_init(service, reqh, NULL);
 	reqh->rh_mgmt_svc = service;
 
         m0_rwlock_write_unlock(&reqh->rh_rwlock);

@@ -159,7 +159,7 @@ void cm_ut_service_alloc_init()
 	rc = m0_reqh_service_allocate(&cm_ut_service, &cm_ut_cmt.ct_stype,
 	                              &rctx);
 	M0_ASSERT(rc == 0);
-	m0_reqh_service_init(cm_ut_service, &cm_ut_reqh);
+	m0_reqh_service_init(cm_ut_service, &cm_ut_reqh, NULL);
 }
 
 void cm_ut_service_cleanup()

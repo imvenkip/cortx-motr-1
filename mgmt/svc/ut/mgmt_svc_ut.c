@@ -275,6 +275,7 @@ static void test_status_query(void)
 	struct m0_rpc_item *item;
 	struct m0_fop_mgmt_service_state_res *ssr;
 	char uuid[M0_UUID_STRLEN+1];
+	bool foundFakeService = false;
 
 	M0_UT_ASSERT(mgmt_svc_ut_setup_start() == 0);
 
@@ -304,7 +305,10 @@ static void test_status_query(void)
 		m0_uuid_format(&ss->mss_uuid, uuid, ARRAY_SIZE(uuid));
 		M0_LOG(M0_DEBUG, "\t%s %d", &uuid[0], ss->mss_state);
 		M0_UT_ASSERT(ss->mss_state == M0_RST_STARTED);
+		if (strcasecmp(uuid, M0_MGMT_SVC_UT_SVC_UUID) == 0)
+			foundFakeService = true;
 	}
+	M0_UT_ASSERT(foundFakeService);
 
 	m0_fop_put(ss_fop);
 	mgmt_svc_ut_setup_stop();

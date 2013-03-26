@@ -27,6 +27,7 @@
 #include "lib/tlist.h"
 #include "lib/bob.h"
 #include "lib/mutex.h"
+#include "lib/types.h"
 #include "addb/addb.h"
 
 struct m0_fop;
@@ -484,6 +485,8 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service);
    This is invoked after the service specific init routine returns successfully.
 
    @param service service to be initialised
+   @param reqh Request handler
+   @param uuid Pointer to service UUID or NULL if not known.
 
    @pre service != NULL && reqh != NULL &&
         service->rs_state == M0_RST_INITIALISING
@@ -492,7 +495,8 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service);
    @see cs_service_init()
  */
 M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
-				      struct m0_reqh *reqh);
+				      struct m0_reqh *reqh,
+				      struct m0_uint128 *uuid);
 
 /**
    Performs generic part of service finalisation.

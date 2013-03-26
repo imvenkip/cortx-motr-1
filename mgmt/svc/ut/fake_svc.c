@@ -104,6 +104,7 @@ static struct m0_reqh_service_type_ops mgmt_svc_ut_svc_type_ops = {
 };
 
 #define M0_MGMT_SVC_UT_SVC_TYPE_NAME "mgmt-ut-svc"
+#define M0_MGMT_SVC_UT_SVC_UUID "abcdef01-2345-6789-abcd-ef0123456789"
 M0_REQH_SERVICE_TYPE_DEFINE(m0_mgmt_svc_ut_svc_type, &mgmt_svc_ut_svc_type_ops,
                             M0_MGMT_SVC_UT_SVC_TYPE_NAME,
 			    &m0_addb_ct_mgmt_service); /* reuse mgmt svc ct */
@@ -113,6 +114,7 @@ static int mgmt_svc_ut_svc_start(struct m0_reqh *rh)
 	int                          rc;
 	struct m0_reqh_service_type *svct;
 	struct m0_reqh_service      *svc;
+	struct m0_uint128            uuid;
 
 	svct = m0_reqh_service_type_find(M0_MGMT_SVC_UT_SVC_TYPE_NAME);
 	M0_UT_ASSERT(svct != NULL);
@@ -120,7 +122,8 @@ static int mgmt_svc_ut_svc_start(struct m0_reqh *rh)
 	rc = m0_reqh_service_allocate(&svc, svct, NULL);
 	if (rc != 0)
 		return rc;
-	m0_reqh_service_init(svc, rh);
+	m0_uuid_parse(M0_MGMT_SVC_UT_SVC_UUID, &uuid);
+	m0_reqh_service_init(svc, rh, &uuid);
 	rc = m0_reqh_service_start(svc);
 	if (rc != 0)
 		m0_reqh_service_fini(svc);

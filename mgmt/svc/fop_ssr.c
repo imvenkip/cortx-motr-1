@@ -27,7 +27,10 @@
    This FOP is used as the response FOP for a number of different request FOPs.
 
    The mgmt_fop_ssr_fill() subroutine is provided for use in the management
-   service. It will fill in the FOP with the status of the indicated services.
+   service. It will fill in the FOP with the status of the indicated services
+   or of all configured services.
+
+   @note Only services with non-null UUIDs are returned.
  */
 
 
@@ -73,9 +76,6 @@ static void mgmt_fop_ssr_fill(struct m0_fom *fom,
 
 	ssrfop->msr_reqh_state = reqh->rh_sm.sm_state;
 
-	/**
-	   @todo Where are embedded sequences in reply fops freed?
-	 */
 	nr_rh_services = m0_reqh_svc_tlist_length(&reqh->rh_services);
 	M0_ASSERT(nr_rh_services > 0);
 	M0_ALLOC_ARR_ADDB(ssrfop->msr_ss.msss_state, nr_rh_services,
@@ -89,11 +89,18 @@ static void mgmt_fop_ssr_fill(struct m0_fom *fom,
 	i = 0;
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, svc) {
 		M0_ASSERT(i < nr_rh_services);
+		if (svc->rs_service_uuid.u_hi == 0 &&
+		    svc->rs_service_uuid.u_lo == 0)
+			continue;
 		ssrfop->msr_ss.msss_state[i].mss_uuid = svc->rs_service_uuid;
 		ssrfop->msr_ss.msss_state[i].mss_state = svc->rs_state;
 		++i;
 	} m0_tl_endfor;
 	ssrfop->msr_ss.msss_nr = i;
+	if (i == 0) {
+		m0_free(ssrfop->msr_ss.msss_state);
+		ssrfop->msr_ss.msss_state = NULL;
+	}
 }
 
 #endif /* M0_MGMT_SERVICE_PRESENT */

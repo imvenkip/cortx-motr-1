@@ -30,6 +30,7 @@
 #include "lib/getopts.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
+#include "lib/uuid.h"
 #include "balloc/balloc.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
@@ -421,6 +422,11 @@ static struct m0_reqh_context *cs_reqh_ctx_alloc(struct m0_mero *cctx)
 		M0_LOG(M0_ERROR, "malloc failed");
 		goto err;
 	}
+	M0_ALLOC_ARR(rctx->rc_service_uuids, rctx->rc_max_services);
+	if (rctx->rc_service_uuids == NULL) {
+		M0_LOG(M0_ERROR, "malloc failed");
+		goto err;
+	}
 
 	m0_reqh_context_bob_init(rctx);
 	cs_eps_tlist_init(&rctx->rc_eps);
@@ -429,6 +435,8 @@ static struct m0_reqh_context *cs_reqh_ctx_alloc(struct m0_mero *cctx)
 
 	return rctx;
 err:
+	if (rctx->rc_services)
+		m0_free(rctx->rc_services);
 	m0_free(rctx);
 	return NULL;
 }
@@ -436,6 +444,7 @@ err:
 static void cs_reqh_ctx_free(struct m0_reqh_context *rctx)
 {
 	struct cs_endpoint_and_xprt *ep;
+	int                          i;
 
 	M0_PRE(rctx != NULL);
 
@@ -449,7 +458,10 @@ static void cs_reqh_ctx_free(struct m0_reqh_context *rctx)
 	} m0_tl_endfor;
 
 	cs_eps_tlist_fini(&rctx->rc_eps);
+	for (i = 0; i < rctx->rc_max_services; ++i)
+		m0_free(rctx->rc_services[i]);
 	m0_free(rctx->rc_services);
+	m0_free(rctx->rc_service_uuids);
 	rhctx_tlink_del_fini(rctx);
 	m0_reqh_context_bob_fini(rctx);
 	m0_free(rctx);
@@ -1012,7 +1024,7 @@ static void cs_storage_fini(struct cs_stobs *stob)
  */
 static int
 cs_service_init(const char *name, struct m0_reqh_context *rctx,
-		struct m0_reqh *reqh)
+		struct m0_reqh *reqh, struct m0_uint128 *uuid)
 {
 	struct m0_reqh_service_type *stype;
 	struct m0_reqh_service      *service;
@@ -1029,7 +1041,7 @@ cs_service_init(const char *name, struct m0_reqh_context *rctx,
 	if (rc != 0)
 		M0_RETURN(rc);
 
-	m0_reqh_service_init(service, reqh);
+	m0_reqh_service_init(service, reqh, uuid);
 
 	rc = m0_reqh_service_start(service);
 	if (rc != 0)
@@ -1050,7 +1062,8 @@ static int reqh_services_init(struct m0_reqh_context *rctx)
 
 	for (i = 0, rc = 0; i < rctx->rc_nr_services && rc == 0; ++i) {
 		name = rctx->rc_services[i];
-		rc = cs_service_init(name, rctx, &rctx->rc_reqh);
+		rc = cs_service_init(name, rctx, &rctx->rc_reqh,
+				     &rctx->rc_service_uuids[i]);
 	}
 	if (rc != 0)
 		m0_reqh_services_terminate(&rctx->rc_reqh);
@@ -1074,7 +1087,8 @@ static int cs_services_init(struct m0_mero *cctx)
 
 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
 		rc = m0_reqh_mgmt_service_start(&rctx->rc_reqh) ?:
-			cs_service_init("rpcservice", NULL, &rctx->rc_reqh) ?:
+			cs_service_init("rpcservice", NULL, &rctx->rc_reqh,
+					NULL) ?:
 			reqh_services_init(rctx);
 		if (rc != 0)
 			break;
@@ -1620,10 +1634,15 @@ static void cs_help(FILE *out)
 "           options.  In this case network transport will have several\n"
 "           endpoints, distinguished by transfer machine id (the 4th\n"
 "           component of 4-tuple endpoint address in lnet).\n"
-"  -s str   Service to be started in given request handler context.\n"
+"  -s str   Service (type) to be started in given request handler context.\n"
+"           The string is of one of the following forms:"
+"              ServiceTypeName : ServiceInstanceUUID"
+"              ServiceTypeName"
+"           with the UUID expressed in the standard 8-4-4-4-12 hexadecimal"
+"           string form.  The non-UUID form is permitted for testing purposes."
 "           There may be several '-s' options in one set of request handler\n"
-"           options. Duplicated service names are not allowed.\n"
-"           Use '-l' to get a list of registered services.\n"
+"           options. Duplicated service type names are not allowed.\n"
+"           Use '-l' to get a list of registered service types.\n"
 "  -q num   [optional] Minimum length of TM receive queue.\n"
 "           Defaults to the value set with '-Q' option.\n"
 "  -m num   [optional] Maximum RPC message size.\n"
@@ -1723,6 +1742,46 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 		M0_RETURN(-EINVAL);
 	}
 	M0_RETURN(rc);
+}
+
+/**
+   Parses a service string of the following forms:
+   - service-type
+   - service-type : uuid-str
+
+   In the latter case it isolates and parses the UUID string, and returns it
+   in the uuid parameter.
+
+   @param str Input string
+   @param svc Malloc'd service type name
+   @param uuid Numerical UUID value if present and valid, or zero.
+ */
+static void parse_service_string(const char *str, char **svc,
+				 struct m0_uint128 *uuid)
+{
+	const char *colon;
+	size_t      len;
+
+	uuid->u_lo = uuid->u_hi = 0;
+	colon = strstr(str, ":");
+	if (colon == NULL) {
+		*svc = strdup(str);
+		return;
+	}
+
+	/* isolate and copy the service type */
+	len = colon - str;
+	*svc = m0_alloc(len + 1);
+	M0_ASSERT(*svc != NULL);
+	strncpy(*svc, str, len);
+	*(*svc + len) = '\0';
+
+	/* check if UUID string length is valid */
+	if (strlen(++colon) != M0_UUID_STRLEN)
+		return;
+
+	/* parse the UUID */
+	m0_uuid_parse(colon, uuid);
 }
 
 /** Parses CLI arguments, filling m0_mero structure. */
@@ -1895,6 +1954,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 			M0_STRINGARG('s', "Services to be configured",
 				LAMBDA(void, (const char *s)
 				{
+					int i;
 					_RETURN_EINVAL_UNLESS(rctx);
 					if (rctx->rc_nr_services >=
 					    rctx->rc_max_services) {
@@ -1903,8 +1963,10 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 						       "Too many services");
 						return;
 					}
-					rctx->rc_services[rctx->rc_nr_services]
-						= s;
+					i = rctx->rc_nr_services;
+					parse_service_string(s,
+						   &rctx->rc_services[i],
+						   &rctx->rc_service_uuids[i]);
 					M0_CNT_INC(rctx->rc_nr_services);
 				})));
 #undef _RETURN_EINVAL_UNLESS

@@ -186,7 +186,8 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 }
 
 M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
-				      struct m0_reqh *reqh)
+				      struct m0_reqh *reqh,
+				      struct m0_uint128 *uuid)
 {
 	struct m0_addb_ctx_type *serv_addb_ct;
 
@@ -202,6 +203,8 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 	 */
 	M0_ASSERT(serv_addb_ct->act_cf_nr == 2);
 
+	if (uuid != NULL)
+		service->rs_service_uuid = *uuid;
 	service->rs_uuid = m0_uuid_generate();
 	service->rs_state = M0_RST_INITIALISED;
 	service->rs_reqh  = reqh;
