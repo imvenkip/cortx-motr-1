@@ -649,7 +649,7 @@ M0_INTERNAL void m0_layout__log(const char         *fn_name,
 				  &m0_layout_mod_ctx, addb_ctx);
 
 	/* Trace record logging. */
-	M0_LOG(M0_ERROR, "%s(): lid %llu, %s, rc %d",
+	M0_LOG(M0_DEBUG, "%s(): lid %llu, %s, rc %d",
 	       (const char *)fn_name, (unsigned long long)lid,
 	       (const char *)err_msg, rc);
 }

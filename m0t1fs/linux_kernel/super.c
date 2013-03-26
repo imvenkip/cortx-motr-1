@@ -579,13 +579,6 @@ out:
 
 static void ast_thread(struct m0t1fs_sb *csb);
 static void ast_thread_stop(struct m0t1fs_sb *csb);
-static int m0t1fs_poolmach_create(struct m0_poolmach **out, uint32_t pool_width,
-				  uint32_t nr_parity_units);
-static void m0t1fs_poolmach_destroy(struct m0_poolmach *mach);
-static int m0t1fs_sb_layout_init(struct m0t1fs_sb *csb,
-				 const struct fs_params *fs_params);
-static void m0t1fs_sb_layout_fini(struct m0t1fs_sb *csb);
-static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios);
 
 static void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 {
@@ -617,6 +610,242 @@ static void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
 	svc_ctx_tlist_fini(&csb->csb_service_contexts);
 	m0_mutex_fini(&csb->csb_mutex);
 	csb->csb_next_key = 0;
+
+	M0_LEAVE();
+}
+
+static int m0t1fs_poolmach_create(struct m0_poolmach **out, uint32_t pool_width,
+				  uint32_t nr_parity_units)
+{
+	struct m0_poolmach *m;
+	int                 rc;
+
+	M0_ALLOC_PTR(m);
+	if (m == NULL)
+		return -ENOMEM;
+
+	rc = m0_poolmach_init(m, NULL, 1, pool_width, 1, nr_parity_units);
+	if (rc == 0)
+		*out = m;
+	else
+		m0_free(m);
+	return rc;
+}
+
+static void m0t1fs_poolmach_destroy(struct m0_poolmach *mach)
+{
+	m0_poolmach_fini(mach);
+	m0_free(mach);
+}
+
+static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
+			const struct fs_params *fs_params)
+{
+	struct m0t1fs_service_context        *ctx;
+	int                                   nr_cont_per_svc;
+	int                                   cur;
+	int                                   i;
+	uint32_t                              nr_data_containers;
+	struct m0t1fs_container_location_map *map = &csb->csb_cl_map;
+
+	M0_ENTRY();
+	M0_PRE(nr_ios > 0);
+
+	/* See "Containers and component objects" section in m0t1fs.h
+	 * for more information on following line */
+	csb->csb_nr_containers = fs_params->fs_pool_width + 1;
+	csb->csb_pool_width    = fs_params->fs_pool_width;
+
+	if (fs_params->fs_pool_width < fs_params->fs_nr_data_units +
+	    2 * fs_params->fs_nr_parity_units ||
+	    csb->csb_nr_containers > M0T1FS_MAX_NR_CONTAINERS)
+		M0_RETURN(-EINVAL);
+
+	/* One of containers is for MD, the rest are data containers. */
+	nr_data_containers = csb->csb_nr_containers - 1;
+
+	nr_cont_per_svc = nr_data_containers / nr_ios;
+	if (nr_data_containers % nr_ios != 0)
+		++nr_cont_per_svc;
+	M0_LOG(M0_DEBUG, "nr_cont_per_svc = %d", nr_cont_per_svc);
+
+	M0_SET0(map);
+
+	cur = 1;
+	m0_tl_for(svc_ctx, &csb->csb_service_contexts, ctx) {
+		switch (ctx->sc_type) {
+		case M0_CST_MDS:
+			/* Currently assuming only one MDS, which will serve
+			   container 0 */
+			map->clm_map[0] = ctx;
+			break;
+
+		case M0_CST_IOS:
+			for (i = 0;
+			     i < nr_cont_per_svc && cur <= nr_data_containers;
+			     ++i, ++cur)
+				map->clm_map[cur] = ctx;
+			break;
+
+		case M0_CST_MGS:
+			break;
+
+		default:
+			M0_IMPOSSIBLE("Invalid service type");
+		}
+	} m0_tl_endfor;
+
+	M0_RETURN(0);
+}
+
+/* ----------------------------------------------------------------
+ * Layout
+ * ---------------------------------------------------------------- */
+static int m0t1fs_layout_build(const uint64_t         layout_id,
+			       const uint32_t         N,
+			       const uint32_t         K,
+			       const uint32_t         pool_width,
+			       const uint64_t         unit_size,
+			       struct m0_layout_enum *le,
+			       struct m0_layout     **layout)
+{
+	struct m0_pdclust_attr    pl_attr;
+	struct m0_pdclust_layout *pdlayout;
+	int                       rc;
+
+	M0_ENTRY();
+	M0_PRE(pool_width > 0);
+	M0_PRE(le != NULL && layout != NULL);
+
+	pl_attr = (struct m0_pdclust_attr){
+		.pa_N         = N,
+		.pa_K         = K,
+		.pa_P         = pool_width,
+		.pa_unit_size = unit_size,
+	};
+	m0_uint128_init(&pl_attr.pa_seed, "upjumpandpumpim,");
+
+	*layout = NULL;
+	rc = m0_pdclust_build(&m0t1fs_globals.g_layout_dom,
+			      layout_id, &pl_attr, le,
+			      &pdlayout);
+	if (rc == 0)
+		*layout = m0_pdl_to_layout(pdlayout);
+
+	M0_RETURN(rc);
+}
+
+static int m0t1fs_cob_id_enum_build(const uint32_t pool_width,
+				    struct m0_layout_enum **lay_enum)
+{
+	struct m0_layout_linear_attr  lin_attr;
+	struct m0_layout_linear_enum *lle;
+	int                           rc;
+
+	M0_ENTRY();
+	M0_PRE(pool_width > 0 && lay_enum != NULL);
+	/*
+	 * cob_fid = fid { B * idx + A, gob_fid.key }
+	 * where idx is in [0, pool_width)
+	 */
+	lin_attr = (struct m0_layout_linear_attr){
+		.lla_nr = pool_width,
+		.lla_A  = 1,
+		.lla_B  = 1
+	};
+
+	*lay_enum = NULL;
+	rc = m0_linear_enum_build(&m0t1fs_globals.g_layout_dom,
+				  &lin_attr, &lle);
+	if (rc == 0)
+		*lay_enum = &lle->lle_base;
+
+	M0_RETURN(rc);
+}
+
+static int
+m0t1fs_sb_layout_init(struct m0t1fs_sb *csb, const struct fs_params *fs_params)
+{
+	struct m0_layout_enum *layout_enum;
+	int                    rc;
+
+	M0_ENTRY();
+
+	M0_PRE(fs_params->fs_pool_width != 0);
+	M0_PRE(fs_params->fs_nr_data_units != 0);
+	M0_PRE(fs_params->fs_nr_parity_units != 0);
+	M0_PRE(fs_params->fs_unit_size != 0);
+
+try_again:
+	do {
+		uint64_t          random = m0_time_nanoseconds(m0_time_now());
+		uint64_t          unique_lid;
+		struct m0_layout *unique_layout = NULL;
+
+		/* Generate a random layout id and make sure it doesn't exist */
+		do {
+			unique_lid = m0_rnd(~0ULL >> 16, &random);
+		} while (unique_lid == 0);
+
+		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP,
+				      unique_lid, &unique_layout);
+		if (rc == 0) {
+			m0_layout_put(unique_layout);
+			M0_LOG(M0_DEBUG, "lid %lld is duplicated, try again.",
+					 (unsigned long long)unique_lid);
+			continue;
+		}
+		if (rc != -ENOENT) {
+			M0_LOG(M0_ERROR, "lid %lld layout lookup error: %d",
+					 (unsigned long long)unique_lid, rc);
+			M0_RETURN(rc);
+		}
+		M0_LOG(M0_DEBUG, "lid %llu not found. It's a unique lid",
+				  (unsigned long long)unique_lid);
+		csb->csb_layout_id = unique_lid;
+		break;
+	} while (1);
+
+	rc = m0t1fs_cob_id_enum_build(fs_params->fs_pool_width, &layout_enum);
+	if (rc == 0) {
+		rc = m0t1fs_layout_build(csb->csb_layout_id,
+					 fs_params->fs_nr_data_units,
+					 fs_params->fs_nr_parity_units,
+					 fs_params->fs_pool_width,
+					 fs_params->fs_unit_size, layout_enum,
+					 &csb->csb_file_layout);
+		if (rc == 0) {
+			/* create the new layout on mds: detect -EEXIST.
+			 * Other client may already have created this since
+			 * last lookup.
+			 */
+			rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_ADD,
+					      csb->csb_layout_id, NULL);
+			if (rc != 0) {
+				/* layout_enum will be released along
+				 * with this layout */
+				m0_layout_put(csb->csb_file_layout);
+				csb->csb_file_layout = NULL;
+				if (rc == -EEXIST) {
+					M0_LOG(M0_DEBUG, "layout duplicated,"
+							 " try again.");
+					goto try_again;
+				}
+			}
+		} else
+			m0_layout_enum_fini(layout_enum);
+	}
+
+	M0_RETURN(rc);
+}
+
+static void m0t1fs_sb_layout_fini(struct m0t1fs_sb *csb)
+{
+	M0_ENTRY();
+
+	if (csb->csb_file_layout != NULL)
+		m0_layout_put(csb->csb_file_layout);
+	csb->csb_file_layout = NULL;
 
 	M0_LEAVE();
 }
@@ -660,11 +889,11 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_pool_fini;
 
-	rc = m0t1fs_sb_layout_init(csb, &fs_params);
+	rc = cl_map_build(csb, nr_ios, &fs_params);
 	if (rc != 0)
 		goto err_poolmach_destroy;
 
-	rc = cl_map_build(csb, nr_ios);
+	rc = m0t1fs_sb_layout_init(csb, &fs_params);
 	if (rc == 0)
 		goto end;
 
@@ -700,12 +929,6 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 
 	rc = m0t1fs_mds_statfs(csb, &rep);
 	if (rc != 0)
-		M0_RETURN(rc);
-
-	/* create the new layout on mds: -EEXIST is OK */
-	rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_ADD, csb->csb_layout_id,
-			      NULL);
-	if (rc != 0 && rc != -EEXIST)
 		M0_RETURN(rc);
 
 	sb->s_magic = rep->f_type;
@@ -828,131 +1051,7 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 
 	M0_LEAVE();
 }
-
-/* ----------------------------------------------------------------
- * Layout
- * ---------------------------------------------------------------- */
 
-static int m0t1fs_layout_build(const uint64_t         layout_id,
-			       const uint32_t         N,
-			       const uint32_t         K,
-			       const uint32_t         pool_width,
-			       const uint64_t         unit_size,
-			       struct m0_layout_enum *le,
-			       struct m0_layout     **layout)
-{
-	struct m0_pdclust_attr    pl_attr;
-	struct m0_pdclust_layout *pdlayout;
-	int                       rc;
-
-	M0_ENTRY();
-	M0_PRE(pool_width > 0);
-	M0_PRE(le != NULL && layout != NULL);
-
-	pl_attr = (struct m0_pdclust_attr){
-		.pa_N         = N,
-		.pa_K         = K,
-		.pa_P         = pool_width,
-		.pa_unit_size = unit_size,
-	};
-	m0_uint128_init(&pl_attr.pa_seed, "upjumpandpumpim,");
-
-	*layout = NULL;
-	rc = m0_pdclust_build(&m0t1fs_globals.g_layout_dom,
-			      layout_id, &pl_attr, le,
-			      &pdlayout);
-	if (rc == 0)
-		*layout = m0_pdl_to_layout(pdlayout);
-
-	M0_RETURN(rc);
-}
-
-static int m0t1fs_cob_id_enum_build(const uint32_t pool_width,
-				    struct m0_layout_enum **lay_enum)
-{
-	struct m0_layout_linear_attr  lin_attr;
-	struct m0_layout_linear_enum *lle;
-	int                           rc;
-
-	M0_ENTRY();
-	M0_PRE(pool_width > 0 && lay_enum != NULL);
-	/*
-	 * cob_fid = fid { B * idx + A, gob_fid.key }
-	 * where idx is in [0, pool_width)
-	 */
-	lin_attr = (struct m0_layout_linear_attr){
-		.lla_nr = pool_width,
-		.lla_A  = 1,
-		.lla_B  = 1
-	};
-
-	*lay_enum = NULL;
-	rc = m0_linear_enum_build(&m0t1fs_globals.g_layout_dom,
-				  &lin_attr, &lle);
-	if (rc == 0)
-		*lay_enum = &lle->lle_base;
-
-	M0_RETURN(rc);
-}
-
-static int
-m0t1fs_sb_layout_init(struct m0t1fs_sb *csb, const struct fs_params *fs_params)
-{
-	struct m0_layout_enum *layout_enum;
-	int                    rc;
-
-	M0_ENTRY();
-
-	M0_PRE(fs_params->fs_pool_width != 0);
-	M0_PRE(fs_params->fs_nr_data_units != 0);
-	M0_PRE(fs_params->fs_nr_parity_units != 0);
-	M0_PRE(fs_params->fs_unit_size != 0);
-
-	/* See "Containers and component objects" section in m0t1fs.h
-	 * for more information on following line */
-	csb->csb_nr_containers = fs_params->fs_pool_width + 1;
-	csb->csb_pool_width    = fs_params->fs_pool_width;
-
-	if (fs_params->fs_pool_width < fs_params->fs_nr_data_units +
-	    2 * fs_params->fs_nr_parity_units ||
-	    csb->csb_nr_containers > M0T1FS_MAX_NR_CONTAINERS)
-		M0_RETURN(-EINVAL);
-
-	rc = m0t1fs_cob_id_enum_build(fs_params->fs_pool_width, &layout_enum);
-	if (rc == 0) {
-		uint64_t random = m0_time_nanoseconds(m0_time_now());
-
-		/* A new and unique layout id is needed here. The uniqueness
-		 * in cluster, and in history. FIXME later.
-		 */
-		do {
-			csb->csb_layout_id = m0_rnd(~0ULL >> 16, &random);
-		} while (csb->csb_layout_id == 0);
-
-		rc = m0t1fs_layout_build(csb->csb_layout_id,
-					 fs_params->fs_nr_data_units,
-					 fs_params->fs_nr_parity_units,
-					 fs_params->fs_pool_width,
-					 fs_params->fs_unit_size, layout_enum,
-					 &csb->csb_file_layout);
-		if (rc != 0)
-			m0_layout_enum_fini(layout_enum);
-	}
-
-	M0_POST(ergo(rc == 0, csb->csb_file_layout != NULL));
-	M0_RETURN(rc);
-}
-
-static void m0t1fs_sb_layout_fini(struct m0t1fs_sb *csb)
-{
-	M0_ENTRY();
-
-	if (csb->csb_file_layout != NULL)
-		m0_layout_put(csb->csb_file_layout);
-	csb->csb_file_layout = NULL;
-
-	M0_LEAVE();
-}
 
 /* ----------------------------------------------------------------
  * Misc.
@@ -990,79 +1089,6 @@ static void ast_thread_stop(struct m0t1fs_sb *csb)
 
 	m0_clink_del_lock(&w);
 	m0_clink_fini(&w);
-}
-
-static int m0t1fs_poolmach_create(struct m0_poolmach **out, uint32_t pool_width,
-				  uint32_t nr_parity_units)
-{
-	struct m0_poolmach *m;
-	int                 rc;
-
-	M0_ALLOC_PTR(m);
-	if (m == NULL)
-		return -ENOMEM;
-
-	rc = m0_poolmach_init(m, NULL, 1, pool_width, 1, nr_parity_units);
-	if (rc == 0)
-		*out = m;
-	else
-		m0_free(m);
-	return rc;
-}
-
-static void m0t1fs_poolmach_destroy(struct m0_poolmach *mach)
-{
-	m0_poolmach_fini(mach);
-	m0_free(mach);
-}
-
-static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios)
-{
-	struct m0t1fs_service_context        *ctx;
-	int                                   nr_cont_per_svc;
-	int                                   cur;
-	int                                   i;
-	uint32_t                              nr_data_containers;
-	struct m0t1fs_container_location_map *map = &csb->csb_cl_map;
-
-	M0_ENTRY();
-	M0_PRE(nr_ios > 0);
-	M0_PRE(csb->csb_nr_containers > 1);
-	/* One of containers is for MD, the rest are data containers. */
-	nr_data_containers = csb->csb_nr_containers - 1;
-
-	nr_cont_per_svc = nr_data_containers / nr_ios;
-	if (nr_data_containers % nr_ios != 0)
-		++nr_cont_per_svc;
-	M0_LOG(M0_DEBUG, "nr_cont_per_svc = %d", nr_cont_per_svc);
-
-	M0_SET0(map);
-
-	cur = 1;
-	m0_tl_for(svc_ctx, &csb->csb_service_contexts, ctx) {
-		switch (ctx->sc_type) {
-		case M0_CST_MDS:
-			/* Currently assuming only one MDS, which will serve
-			   container 0 */
-			map->clm_map[0] = ctx;
-			break;
-
-		case M0_CST_IOS:
-			for (i = 0;
-			     i < nr_cont_per_svc && cur <= nr_data_containers;
-			     i++, cur++)
-				map->clm_map[cur] = ctx;
-			break;
-
-		case M0_CST_MGS:
-			break;
-
-		default:
-			M0_IMPOSSIBLE("Invalid service type");
-		}
-	} m0_tl_endfor;
-
-	M0_RETURN(0);
 }
 
 #undef M0_TRACE_SUBSYSTEM
