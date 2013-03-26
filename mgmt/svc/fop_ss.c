@@ -29,7 +29,8 @@
    digraph ss_fop_phases {
 	R_LOCK     -> GET_STATUS
 	GET_STATUS -> R_UNLOCK
-	R_UNLOCK   -> FINI
+	R_UNLOCK   -> REPLY
+	REPLY      -> FINI
    }
    @enddot
    The states are:
@@ -41,6 +42,8 @@
    - @b R_UNLOCK The request handler read lock is released.
    This is not considered to be blocking because the lock is currently held
    by the FOM.
+   - @b REPLY The response FOP is sent back.
+   - @b FINI The final state.
 
    @todo This FOM does not need the standard FOM phases defined in
    m0_generic_conf.  Re-address this when support for security phases become
@@ -110,6 +113,7 @@ enum mgmt_fop_ss_phases {
 	MGMT_FOP_SS_PHASE_FINI       = M0_FOM_PHASE_FINISH,
 	MGMT_FOP_SS_PHASE_GET_STATUS = M0_FOM_PHASE_NR,
 	MGMT_FOP_SS_PHASE_R_UNLOCK,
+	MGMT_FOP_SS_PHASE_REPLY,
 
 	MGMT_FOP_SS_PHASE_NR
 };
@@ -128,6 +132,11 @@ static const struct m0_sm_state_descr mgmt_fop_ss_descr[] = {
         [MGMT_FOP_SS_PHASE_R_UNLOCK] = {
                 .sd_flags       = 0,
                 .sd_name        = "ReadUnlock",
+                .sd_allowed     = M0_BITS(MGMT_FOP_SS_PHASE_REPLY)
+        },
+        [MGMT_FOP_SS_PHASE_REPLY] = {
+                .sd_flags       = 0,
+                .sd_name        = "Reply",
                 .sd_allowed     = M0_BITS(MGMT_FOP_SS_PHASE_FINI)
         },
         [MGMT_FOP_SS_PHASE_FINI] = {
@@ -157,6 +166,7 @@ static void mgmt_fop_ss_fo_fini(struct m0_fom *fom)
 
 	mgmt_fop_ss_fom_bob_fini(ssfom);
 	m0_fom_fini(fom);
+	m0_free(ssfom);
 }
 
 static size_t mgmt_fop_ss_fo_locality(const struct m0_fom *fom)
@@ -197,15 +207,18 @@ static int mgmt_fop_ss_fo_tick(struct m0_fom *fom)
 
 	case MGMT_FOP_SS_PHASE_R_UNLOCK:
 		m0_rwlock_read_unlock(&m0_fom_reqh(fom)->rh_rwlock);
-		m0_fom_phase_set(fom, MGMT_FOP_SS_PHASE_FINI);
+		m0_fom_phase_set(fom, MGMT_FOP_SS_PHASE_REPLY);
 		break;
 
-	case MGMT_FOP_SS_PHASE_FINI:
+	case MGMT_FOP_SS_PHASE_REPLY:
 		rc = m0_rpc_reply_post(&fom->fo_fop->f_item,
 				       &fom->fo_rep_fop->f_item);
 		M0_ASSERT(rc == 0);
+		m0_fom_phase_set(fom, MGMT_FOP_SS_PHASE_FINI);
 		rc = M0_FSO_WAIT;
 		break;
+	default:
+		M0_ASSERT(m0_fom_phase(fom) < MGMT_FOP_SS_PHASE_FINI);
 	}
 
 	M0_RETURN(rc);
@@ -298,6 +311,7 @@ static const struct m0_fom_type_ops mgmt_fop_ss_fom_type_ops = {
 
 static int mgmt_fop_ss_init(void)
 {
+	m0_addb_ctx_type_register(&m0_addb_ct_mgmt_fom_ss);
 	return
 	   M0_FOP_TYPE_INIT(&m0_fop_mgmt_service_state_req_fopt,
 			    .name      = "Mgmt Service Status Request",

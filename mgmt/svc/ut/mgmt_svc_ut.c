@@ -23,12 +23,20 @@
 #include "lib/finject.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
+#include "lib/time.h"
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MGMT
+#include "lib/trace.h"  /* M0_LOG() */
 #include "lib/ut.h"
+#include "lib/uuid.h"
 #include "mgmt/mgmt.h"
 #include "mgmt/mgmt_addb.h"
 #include "mgmt/mgmt_fops.h"
+#include "net/lnet/lnet.h"
 #include "reqh/reqh.h"
 #include "rpc/rpc_opcodes.h"
+#include "ut/rpc.h"
+
+#include <stdio.h>
 
 extern struct m0_addb_ctx m0_mgmt_addb_ctx;
 
@@ -36,6 +44,7 @@ extern struct m0_addb_ctx m0_mgmt_addb_ctx;
 #include "mgmt/svc/ut/mgmt_svc_ut_xc.h"
 #include "mgmt/svc/ut/fake_svc.c"
 #include "mgmt/svc/ut/fake_fom.c"
+#include "mgmt/svc/ut/mgmt_svc_setup.c"
 
 /*
  ******************************************************************************
@@ -110,6 +119,7 @@ static struct m0_fop *mgmt_svc_ut_ss_fop_alloc(void)
  * Tests
  ******************************************************************************
  */
+#ifdef ENABLE_FAULT_INJECTION
 static void test_mgmt_svc_fail(void)
 {
 	int             rc;
@@ -145,6 +155,7 @@ static void test_mgmt_svc_fail(void)
 	m0_reqh_fini(rh);
 	m0_free(rh);
 }
+#endif /* ENABLE_FAULT_INJECTION */
 
 static void test_reqh_fop_allow(void)
 {
@@ -255,6 +266,50 @@ static void test_reqh_fop_allow(void)
 	m0_free(rh);
 }
 
+static void test_status_query(void)
+{
+	int rc;
+	int i;
+	struct m0_fop *ss_fop;
+	struct m0_fop *ssr_fop;
+	struct m0_rpc_item *item;
+	struct m0_fop_mgmt_service_state_res *ssr;
+	char uuid[M0_UUID_STRLEN+1];
+
+	M0_UT_ASSERT(mgmt_svc_ut_setup_start() == 0);
+
+	ss_fop = mgmt_svc_ut_ss_fop_alloc();
+	M0_UT_ASSERT(ss_fop != NULL);
+	/** @todo figure out how to ensure that the server is ready.
+	    Retry handles this for now.
+	 */
+	M0_LOG(M0_DEBUG, "Sending SS FOP");
+	ss_fop->f_item.ri_nr_sent_max = 10;
+	rc = m0_rpc_client_call(ss_fop, &mgmt_svc_ut_cctx.rcx_session, NULL, 0);
+	M0_LOG(M0_DEBUG, "rpc_client_call: %d", rc);
+	M0_UT_ASSERT(rc == 0);
+
+	item = &ss_fop->f_item;
+	M0_UT_ASSERT(item->ri_error == 0);
+	ssr_fop = m0_rpc_item_to_fop(item->ri_reply);
+	M0_UT_ASSERT(ssr_fop != NULL);
+	ssr = m0_fop_data(ssr_fop);
+	M0_LOG(M0_DEBUG, "msr_rc: %d", ssr->msr_rc);
+	M0_LOG(M0_DEBUG, "msr_reqh_state: %d", ssr->msr_reqh_state);
+	M0_UT_ASSERT(ssr->msr_rc == 0);
+	M0_UT_ASSERT(ssr->msr_reqh_state == M0_REQH_ST_NORMAL);
+	for (i = 0; i < ssr->msr_ss.msss_nr; ++i) {
+		struct m0_mgmt_service_state *ss = &ssr->msr_ss.msss_state[i];
+
+		m0_uuid_format(&ss->mss_uuid, uuid, ARRAY_SIZE(uuid));
+		M0_LOG(M0_DEBUG, "\t%s %d", &uuid[0], ss->mss_state);
+		M0_UT_ASSERT(ss->mss_state == M0_RST_STARTED);
+	}
+
+	m0_fop_put(ss_fop);
+	mgmt_svc_ut_setup_stop();
+}
+
 static int test_init(void)
 {
 	m0_xc_mgmt_svc_ut_init();
@@ -276,11 +331,16 @@ const struct m0_test_suite m0_mgmt_svc_ut = {
 	.ts_fini = test_fini,
 	.ts_tests = {
 		{ "reqh-fop-allow",           test_reqh_fop_allow },
+#ifdef ENABLE_FAULT_INJECTION
 		{ "mgmt-svc-startup-failure", test_mgmt_svc_fail },
+#endif
+		{ "status-query",             test_status_query },
 		{ NULL, NULL }
 	}
 };
 M0_EXPORTED(m0_mgmt_svc_ut);
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:
