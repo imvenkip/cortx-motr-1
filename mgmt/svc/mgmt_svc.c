@@ -303,8 +303,11 @@ struct cs_reqh_context {
    if (reqh state is MGMT_STOP or STOPPED)
       return -ESHUTDOWN;
    svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);
-   if (svc == NULL)
-      return -ECONNREFUSED;
+   if (svc == NULL) {                        // case F
+       if (reqh state is MGMT_STARTED)
+          return -EAGAIN;
+       return -ECONNREFUSED;
+   }
    if (reqh state is NORMAL) {
        if (svc->rs_state == M0_RST_STARTED)
           return 0; // case A
@@ -324,6 +327,8 @@ struct cs_reqh_context {
    } else if (reqh state is MGMT_STARTED or SVCS_STOP &&
               svc is the management service)
        return (*svc->rs_ops->rso_fop_accept)(svc, fop); // case E
+   else if (reqh state is MGMT_STARTED)
+       return -EAGAIN;
    return -ESHUTDOWN;
 @endcode
    The interesting cases have been flagged:
@@ -347,6 +352,11 @@ struct cs_reqh_context {
    - @b E In this case the request handler is either starting or stopping
    services. Only management service query operations are permitted, and
    the management service is consulted on whether to accept the FOP or not.
+   - @b F In the case where no service can be found for the FOP, the return
+   code depends on whether the request handler is still starting services,
+   or has reached or passed the normal state.  If the former, -EAGAIN
+   is returned because there is a potential that the appropriate service may
+   yet be started, otherwise -ECONNREFUSED is returned.
 
    The m0_reqh_service_find() subroutine is used to locate the service for
    the incoming FOP based on the service type.  This copies similar logic in the

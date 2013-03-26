@@ -1,2 +1,12 @@
-ut_libmero_ut_la_SOURCES += mgmt/svc/ut/mgmt_svc_ut.c
+ut_libmero_ut_la_SOURCES += mgmt/svc/ut/mgmt_svc_ut.c \
+			    mgmt/svc/ut/mgmt_svc_ut_xc.c \
+			    mgmt/svc/ut/mgmt_svc_ut_xc.h
+
+XC_FILES   += mgmt/svc/ut/mgmt_svc_ut_xc.h
+
+CLEANFILES += mgmt/svc/ut/mgmt_svc_ut_xc.c \
+	      mgmt/svc/ut/mgmt_svc_ut_xc.h
+
+EXTRA_DIST += mgmt/svc/ut/fake_fom.c \
+	      mgmt/svc/ut/fake_svc.c
 

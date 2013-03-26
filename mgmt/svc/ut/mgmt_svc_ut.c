@@ -19,37 +19,29 @@
  */
 
 #include "fop/fop.h"
+#include "fop/fom.h"
 #include "lib/finject.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/ut.h"
 #include "mgmt/mgmt.h"
+#include "mgmt/mgmt_addb.h"
 #include "mgmt/mgmt_fops.h"
 #include "reqh/reqh.h"
+#include "rpc/rpc_opcodes.h"
 
 extern struct m0_addb_ctx m0_mgmt_addb_ctx;
-static struct m0_reqh reqh;
 
-static struct m0_fop *msut_ss_fop_alloc()
-{
-	struct m0_fop *fop;
+#include "mgmt/svc/ut/mgmt_svc_ut.h"
+#include "mgmt/svc/ut/mgmt_svc_ut_xc.h"
+#include "mgmt/svc/ut/fake_svc.c"
+#include "mgmt/svc/ut/fake_fom.c"
 
-	fop = m0_fop_alloc(&m0_fop_mgmt_service_state_req_fopt, NULL);
-	if (fop != NULL) {
-		int                                       rc;
-		struct m0_fop_mgmt_service_terminate_req *ssfop;
-
-		ssfop = m0_fop_data(fop);
-		rc = m0_addb_ctx_export(&m0_mgmt_addb_ctx,
-					&ssfop->mstrq_addb_ctx_id);
-		if (rc != 0) {
-			m0_addb_ctx_id_free(&ssfop->mstrq_addb_ctx_id);
-			m0_fop_put(fop);
-			fop = NULL;
-		}
-	}
-	return fop;
-}
+/*
+ ******************************************************************************
+ * Mgmt service tweaks
+ ******************************************************************************
+ */
 
 /* intercept for the rso_fop_accept method */
 static struct m0_reqh_service *mgmt_svc;
@@ -92,9 +84,35 @@ static void mgmt_svc_ut_rso_fop_restore()
 	mgmt_svc = NULL;
 }
 
+static struct m0_fop *mgmt_svc_ut_ss_fop_alloc(void)
+{
+	struct m0_fop *fop;
+
+	fop = m0_fop_alloc(&m0_fop_mgmt_service_state_req_fopt, NULL);
+	if (fop != NULL) {
+		int                                       rc;
+		struct m0_fop_mgmt_service_terminate_req *ssfop;
+
+		ssfop = m0_fop_data(fop);
+		rc = m0_addb_ctx_export(&m0_mgmt_addb_ctx,
+					&ssfop->mstrq_addb_ctx_id);
+		if (rc != 0) {
+			m0_addb_ctx_id_free(&ssfop->mstrq_addb_ctx_id);
+			m0_fop_put(fop);
+			fop = NULL;
+		}
+	}
+	return fop;
+}
+
+/*
+ ******************************************************************************
+ * Tests
+ ******************************************************************************
+ */
 static void test_mgmt_svc_fail(void)
 {
-	int rc;
+	int             rc;
 	struct m0_reqh *rh;
 
 	/* Force failure during allocate */
@@ -130,9 +148,10 @@ static void test_mgmt_svc_fail(void)
 
 static void test_reqh_fop_allow(void)
 {
-	int rc;
-	struct m0_fop *ss_fop;
-	int rfp_cnt;
+	int             rc;
+	struct m0_fop  *ss_fop;
+	struct m0_fop  *f_fop;
+	int             rfp_cnt;
 	struct m0_reqh *rh;
 
 	M0_ALLOC_PTR(rh);
@@ -144,14 +163,18 @@ static void test_reqh_fop_allow(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_INIT);
 
-	ss_fop = msut_ss_fop_alloc();
+	ss_fop = mgmt_svc_ut_ss_fop_alloc();
 	M0_UT_ASSERT(ss_fop != NULL);
+	f_fop = mgmt_svc_ut_fake_fop_alloc();
+	M0_UT_ASSERT(f_fop != NULL);
 
 	M0_UT_ASSERT(m0_reqh_fop_allow(rh, ss_fop) == -EAGAIN);
+	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == -EAGAIN);
 
 	M0_UT_ASSERT(m0_reqh_mgmt_service_start(rh) == 0);
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_MGMT_STARTED);
 	M0_UT_ASSERT(m0_reqh_fop_allow(rh, ss_fop) == 0);
+	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == -EAGAIN);
 
 	mgmt_svc_ut_rso_fop_accept_intercept(rh);
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_called == 0);
@@ -162,52 +185,98 @@ static void test_reqh_fop_allow(void)
 	M0_UT_ASSERT(m0_reqh_fop_allow(rh, ss_fop) == 0);
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_called == ++rfp_cnt);
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_rc == 0);
+	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_called == rfp_cnt);
 
+	/* start our fake service */
+	M0_UT_ASSERT(mgmt_svc_ut_svc_start(rh) == 0);
+	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == -EAGAIN); /* no delivery */
+
+	/* normal mode */
 	m0_reqh_start(rh);
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_NORMAL);
 	M0_UT_ASSERT(m0_reqh_fop_allow(rh, ss_fop) == 0);
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_called == rfp_cnt); /* no call */
+	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == 0); /* normal delivery */
+
+	/* stop our fake service */
+	m0_reqh_service_stop(&mgmt_svc_ut_fake_svc->msus_reqhs);
+	m0_reqh_service_fini(&mgmt_svc_ut_fake_svc->msus_reqhs);
+	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == -ECONNREFUSED);
+
+	/* restart our fake service */
+	M0_UT_ASSERT(mgmt_svc_ut_svc_start(rh) == 0);
+	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == 0); /* normal delivery */
 
 	m0_reqh_shutdown_wait(rh);
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_DRAIN);
-	M0_UT_ASSERT(m0_reqh_fop_allow(rh, ss_fop) == 0);
+	M0_UT_ASSERT(m0_reqh_fop_allow(rh, ss_fop) == 0); /* mgmt fop passes */
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_called == ++rfp_cnt);
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_rc == 0);
+
+	M0_UT_ASSERT(mgmt_svc_ut_fake_svc->msus_reqhs.rs_state
+		     == M0_RST_STOPPING);
+	M0_UT_ASSERT(mgmt_svc_ut_svc_ops.rso_fop_accept != NULL); /* has mthd */
+	mgmt_svc_ut_svc_rso_fop_accept_rc = -ESHUTDOWN;
+	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == -ESHUTDOWN); /* blocked */
+	mgmt_svc_ut_svc_rso_fop_accept_rc = 0;
+	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == 0);        /* permitted */
+	mgmt_svc_ut_svc_ops.rso_fop_accept = NULL;                /* no mthd */
+	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == -ESHUTDOWN); /* default */
+	mgmt_svc_ut_svc_restore_defaults();
 
 	/* Temporarily fake the reqh state to M0_REQH_ST_SVCS_STOP to test that
 	   the management service's rso_fop_accept method works in this state.
 	 */
-	reqh.rh_sm.sm_state = M0_REQH_ST_SVCS_STOP; /* HACK */
+	rh->rh_sm.sm_state = M0_REQH_ST_SVCS_STOP; /* HACK */
 	M0_UT_ASSERT(mgmt_svc->rs_state == M0_RST_STARTED);
 	M0_UT_ASSERT(m0_reqh_fop_allow(rh, ss_fop) == 0);
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_called == ++rfp_cnt);
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_rc == 0);
-	reqh.rh_sm.sm_state = M0_REQH_ST_DRAIN; /* HACK to undo prev HACK */
+	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == -ESHUTDOWN); /* blocked */
+	rh->rh_sm.sm_state = M0_REQH_ST_DRAIN; /* HACK to undo prev HACK */
 
 	/* Real M0_REQH_ST_SVCS_STOP traversed below */
 	m0_reqh_services_terminate(rh);
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_MGMT_STOP);
 	M0_UT_ASSERT(m0_reqh_fop_allow(rh, ss_fop) == -ESHUTDOWN);
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_called == rfp_cnt); /* no call */
+	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == -ESHUTDOWN);
 
 	mgmt_svc_ut_rso_fop_restore();
 
 	m0_reqh_mgmt_service_stop(rh);
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_STOPPED);
 	M0_UT_ASSERT(m0_reqh_fop_allow(rh, ss_fop) == -ESHUTDOWN);
+	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == -ESHUTDOWN);
 
 	m0_fop_put(ss_fop);
+	m0_fop_put(f_fop);
 	m0_reqh_fini(rh);
 	m0_free(rh);
 }
 
+static int test_init(void)
+{
+	m0_xc_mgmt_svc_ut_init();
+	return m0_reqh_service_type_register(&m0_mgmt_svc_ut_svc_type) ?:
+		mgmt_svc_ut_fake_fop_init();
+}
+
+static int test_fini(void)
+{
+	mgmt_svc_ut_fake_fop_fini();
+        m0_reqh_service_type_unregister(&m0_mgmt_svc_ut_svc_type);
+	m0_xc_mgmt_svc_ut_fini();
+	return 0;
+}
+
 const struct m0_test_suite m0_mgmt_svc_ut = {
 	.ts_name = "mgmt-svc-ut",
-	.ts_init = NULL,
-	.ts_fini = NULL,
+	.ts_init = test_init,
+	.ts_fini = test_fini,
 	.ts_tests = {
-		{ "reqh-fop-allow",            test_reqh_fop_allow },
-		{ "mgmt-svc-startup-failure",  test_mgmt_svc_fail },
+		{ "reqh-fop-allow",           test_reqh_fop_allow },
+		{ "mgmt-svc-startup-failure", test_mgmt_svc_fail },
 		{ NULL, NULL }
 	}
 };

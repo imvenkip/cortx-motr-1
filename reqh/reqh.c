@@ -287,8 +287,11 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 		return -ESHUTDOWN;
 
 	svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);
-	if (svc == NULL)
+	if (svc == NULL) {
+		if (rh_st == M0_REQH_ST_MGMT_STARTED)
+			return -EAGAIN;
 		return -ECONNREFUSED;
+	}
 	M0_ASSERT(svc->rs_ops != NULL);
 	svc_st = svc->rs_state;
 
@@ -310,7 +313,14 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
 		return -ESHUTDOWN;
 	}
-	if (rh_st == M0_REQH_ST_MGMT_STARTED || rh_st == M0_REQH_ST_SVCS_STOP) {
+	if (rh_st == M0_REQH_ST_MGMT_STARTED) {
+		if (svc == reqh->rh_mgmt_svc) {
+			M0_ASSERT(svc->rs_ops->rso_fop_accept != NULL);
+			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
+		}
+		return -EAGAIN;
+	}
+	if (rh_st == M0_REQH_ST_SVCS_STOP) {
 		if (svc == reqh->rh_mgmt_svc) {
 			M0_ASSERT(svc->rs_ops->rso_fop_accept != NULL);
 			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
