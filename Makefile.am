@@ -78,6 +78,8 @@ AM_CPPFLAGS  = @M0_CPPFLAGS@
 AM_CFLAGS    = @M0_CFLAGS@
 AM_LDFLAGS   = @M0_LDFLAGS@
 
+SUBDIRS = extra-libs/galois
+
 
 ################################################################################
 #                               Global variables
@@ -805,6 +807,14 @@ libmero-ut: pre-all
 
 .PHONY: __libmero-ut
 __libmero-ut: config.h Makefile ut/libmero-ut.la $(HEADERS)
+
+#
+# Install targets
+#
+
+install-exec-local:
+	@$(MAKE) INSTALL_MOD_PATH=$(DESTDIR) INSTALL_MOD_DIR=kernel/fs/mero \
+			 -C $(KDIR) M=$(abs_top_builddir) modules_install
 
 #
 # Clean targets

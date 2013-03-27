@@ -6,18 +6,21 @@ KBUILD_EXTRA_SYMBOLS := @LUSTRE_SYMVERS@ @GALOIS_SYMVERS@
 
 ccflags-y := -DHAVE_CONFIG_H -iquote . @M0_KCPPFLAGS@ @M0_KCFLAGS@ @KCFLAGS@
 
+enable_test_modules := @ENABLE_KERNEL_UNIT_TESTS@
+
 #
 # kernel modules we build:
 #
 
 obj-m := mero/linux_kernel/m0mero.o
-obj-m += utils/linux_kernel/m0ut.o
-obj-m += utils/linux_kernel/m0ctl.o
 obj-m += m0t1fs/linux_kernel/m0loop.o
-obj-m += m0t1fs/linux_kernel/m0loop-ut.o
-obj-m += net/lnet/st/linux_kernel/m0lnetping.o
-obj-m += rpc/it/linux_kernel/m0rpcping.o
-obj-m += net/test/linux_kernel/m0nettestd.o
+obj-m += utils/linux_kernel/m0ctl.o
+
+obj-$(enable_test_modules) += utils/linux_kernel/m0ut.o
+obj-$(enable_test_modules) += m0t1fs/linux_kernel/m0loop-ut.o
+obj-$(enable_test_modules) += net/lnet/st/linux_kernel/m0lnetping.o
+obj-$(enable_test_modules) += rpc/it/linux_kernel/m0rpcping.o
+obj-$(enable_test_modules) += net/test/linux_kernel/m0nettestd.o
 
 
 #

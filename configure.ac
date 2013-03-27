@@ -155,6 +155,8 @@ AC_ARG_ENABLE([unit-tests],
 )
 AM_CONDITIONAL([ENABLE_UNIT_TESTS],
                [test "x$enable_unit_tests" = xyes])
+AS_IF([test x$enable_unit_tests = xyes],
+      AC_SUBST([ENABLE_KERNEL_UNIT_TESTS], [m]))
 
 AC_ARG_WITH([linux],
         [AS_HELP_STRING([--with-linux=path],
