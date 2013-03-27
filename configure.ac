@@ -10,7 +10,7 @@ CFLAGS=${CFLAGS:=""}
 AM_INIT_AUTOMAKE([-Wall -Werror nostdinc foreign subdir-objects silent-rules])
 AM_SILENT_RULES([yes])
 
-LT_INIT
+LT_INIT([disable-static])
 
 AC_CONFIG_SRCDIR([mero/init.c])
 AC_CONFIG_MACRO_DIR([m4])
