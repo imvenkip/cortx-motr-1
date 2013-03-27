@@ -81,7 +81,7 @@ insmod ../galois/src/linux_kernel/galois.ko
 
 # Immediate trace is heavy, use sparingly
 # KTRACE_FLAGS='trace_print_context=func trace_level=call+ trace_immediate_mask=8'
-insmod mero/linux_kernel/m0mero.ko local_addr=$MEP max_rpc_msg_size=163840 tm_recv_queue_min_len=16 $KTRACE_FLAGS
+insmod mero/m0mero.ko local_addr=$MEP max_rpc_msg_size=163840 tm_recv_queue_min_len=16 $KTRACE_FLAGS
 
 IOS=
 HERE=$PWD

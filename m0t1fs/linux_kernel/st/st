@@ -67,7 +67,7 @@ modules_insert() {
     insmod $M0_CORE_DIR/extra-libs/galois/src/linux_kernel/galois.ko || \
 	die 'Inserting galois.ko failed'
 
-    insmod $M0_CORE_DIR/mero/linux_kernel/m0mero.ko \
+    insmod $M0_CORE_DIR/mero/m0mero.ko \
 	local_addr=$M0T1FS_ENDPOINT \
 	max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
 	tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \

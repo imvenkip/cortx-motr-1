@@ -94,10 +94,6 @@ lib_LTLIBRARIES    =
 noinst_PROGRAMS    =
 noinst_LTLIBRARIES =
 
-# FIXME: does anyone needs this or it can be removed completely?
-#ETAGS_ARGS = automake.in --lang=none \
-#             --regex=’/^@node[ \t]+\([^,]+\)/\1/’ automake.texi
-
 EXTRA_DIST = autogen.sh mero.spec.in LICENCE .gdbinit extra-libs/.gitignore
 CLEANFILES =
 DISTCLEANFILES = @LUSTRE_CONFIG_LINK@ utils/ub.sh
@@ -809,14 +805,6 @@ libmero-ut: pre-all
 __libmero-ut: config.h Makefile ut/libmero-ut.la $(HEADERS)
 
 #
-# Install targets
-#
-
-install-exec-local:
-	@$(MAKE) INSTALL_MOD_PATH=$(DESTDIR) INSTALL_MOD_DIR=kernel/fs/mero \
-			 -C $(KDIR) M=$(abs_top_builddir) modules_install
-
-#
 # Clean targets
 #
 
@@ -850,6 +838,21 @@ clean-kernel-modules:
 .PHONY: clean-doc
 clean-doc:
 	rm -fr doc/html
+
+
+#
+# Install targets
+#
+
+# we want to install mero kernel modules in kernel/fs/mero directory under
+# base kernel modules dir, and since our "installable" kernel modules already
+# built in mero/ directory, Kbuild will append it to install path, so we use
+# INSTALL_MOD_DIR=kernel/fs to avoid duplication of mero/ part in our module's
+# installation path
+
+install-exec-local:
+	@$(MAKE) INSTALL_MOD_PATH=$(DESTDIR) INSTALL_MOD_DIR=kernel/fs \
+			 -C $(KDIR) M=$(abs_top_builddir) modules_install
 
 
 #

@@ -1,6 +1,6 @@
 #! /bin/sh
 
-MODLIST="mero/linux_kernel/m0mero.ko"
+MODLIST="mero/m0mero.ko"
 
 abort()
 {
