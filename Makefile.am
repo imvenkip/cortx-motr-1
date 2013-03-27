@@ -200,7 +200,9 @@ include $(top_srcdir)/yaml2db/Makefile.sub
 # libmero-ut.so
 #
 
+if ENABLE_UNIT_TESTS
 noinst_LTLIBRARIES        += ut/libmero-ut.la
+endif
 ut_libmero_ut_la_CPPFLAGS  = -DM0_TARGET='libmero-ut' $(AM_CPPFLAGS)
 ut_libmero_ut_la_LIBADD    = @CUNIT_LIBS@
 
@@ -243,7 +245,9 @@ include $(top_srcdir)/yaml2db/ut/Makefile.sub
 # libmero-net-test.so
 #
 
+if ENABLE_UNIT_TESTS
 noinst_LTLIBRARIES += net/test/libmero-net-test.la
+endif
 net_test_libmero_net_test_la_CPPFLAGS = -DM0_TARGET='libmero-net-test' $(AM_CPPFLAGS)
 
 net_test_libmero_net_test_la_SOURCES =
@@ -294,27 +298,37 @@ CLEANFILES += $(MERO_ALTOGETHER_USER_C)
 # balloc/ut
 #
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                  += balloc/ut/m0blkformat
+endif
 balloc_ut_m0blkformat_CPPFLAGS    = -DM0_TARGET='m0blkformat' $(AM_CPPFLAGS)
 balloc_ut_m0blkformat_LDADD       = $(top_builddir)/mero/libmero.la \
                                     $(top_builddir)/ut/libmero-ut.la
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                  += balloc/ut/m0blkfree
+endif
 balloc_ut_m0blkfree_CPPFLAGS      = -DM0_TARGET='m0blkfree' $(AM_CPPFLAGS)
 balloc_ut_m0blkfree_LDADD         = $(top_builddir)/mero/libmero.la \
                                     $(top_builddir)/ut/libmero-ut.la
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                  += balloc/ut/m0blkdump
+endif
 balloc_ut_m0blkdump_CPPFLAGS      = -DM0_TARGET='m0blkdump' $(AM_CPPFLAGS)
 balloc_ut_m0blkdump_LDADD         = $(top_builddir)/mero/libmero.la \
                                     $(top_builddir)/ut/libmero-ut.la
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                  += balloc/ut/perf
+endif
 balloc_ut_perf_CPPFLAGS           = -DM0_TARGET='balloc-perf' $(AM_CPPFLAGS)
 balloc_ut_perf_LDADD              = $(top_builddir)/mero/libmero.la \
                                     $(top_builddir)/ut/libmero-ut.la
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                  += balloc/ut/mperf
+endif
 balloc_ut_mperf_CPPFLAGS          = -DM0_TARGET='mperf' $(AM_CPPFLAGS)
 balloc_ut_mperf_LDADD             = $(top_builddir)/mero/libmero.la \
                                     $(top_builddir)/ut/libmero-ut.la
@@ -329,7 +343,9 @@ include $(top_srcdir)/m0t1fs/linux_kernel/ut/Makefile.sub
 # db/ut
 #
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS      += db/ut/elist
+endif
 db_ut_elist_CPPFLAGS  = -DM0_TARGET='elist' $(AM_CPPFLAGS)
 db_ut_elist_LDADD     = $(top_builddir)/mero/libmero.la \
                         $(top_builddir)/ut/libmero-ut.la
@@ -338,17 +354,23 @@ db_ut_elist_LDADD     = $(top_builddir)/mero/libmero.la \
 # desim/ut
 #
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS            += desim/ut/net_test
+endif
 desim_ut_net_test_CPPFLAGS  = -DM0_TARGET='net_test' $(AM_CPPFLAGS)
 desim_ut_net_test_LDADD     = $(top_builddir)/mero/libmero.la \
                               $(top_builddir)/ut/libmero-ut.la
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS            += desim/ut/chs_test
+endif
 desim_ut_chs_test_CPPFLAGS  = -DM0_TARGET='chs_test' $(AM_CPPFLAGS)
 desim_ut_chs_test_LDADD     = $(top_builddir)/mero/libmero.la \
                               $(top_builddir)/ut/libmero-ut.la
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS               += desim/ut/m0t1fs_test
+endif
 desim_ut_m0t1fs_test_CPPFLAGS  = -DM0_TARGET='m0t1fs_test' $(AM_CPPFLAGS)
 desim_ut_m0t1fs_test_LDADD     = $(top_builddir)/mero/libmero.la \
                                  $(top_builddir)/ut/libmero-ut.la
@@ -357,7 +379,9 @@ desim_ut_m0t1fs_test_LDADD     = $(top_builddir)/mero/libmero.la \
 # layout/ut
 #
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS             += layout/ut/m0layout
+endif
 layout_ut_m0layout_CPPFLAGS  = -DM0_TARGET='m0layout' $(AM_CPPFLAGS)
 layout_ut_m0layout_LDADD     = $(top_builddir)/mero/libmero.la \
                                $(top_builddir)/ut/libmero-ut.la
@@ -366,7 +390,9 @@ layout_ut_m0layout_LDADD     = $(top_builddir)/mero/libmero.la \
 # net/lnet/ut
 #
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                 += net/lnet/ut/lut_helper
+endif
 net_lnet_ut_lut_helper_CPPFLAGS  = -DM0_TARGET='lut_helper' $(AM_CPPFLAGS)
 net_lnet_ut_lut_helper_LDADD     = $(top_builddir)/mero/libmero.la \
                                    $(top_builddir)/ut/libmero-ut.la
@@ -375,14 +401,18 @@ net_lnet_ut_lut_helper_LDADD     = $(top_builddir)/mero/libmero.la \
 # utils/ut and utils/ub
 #
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS   += utils/ut
+endif
 utils_ut_CPPFLAGS  = -DM0_TARGET='ut' $(AM_CPPFLAGS)
 utils_ut_LDADD     = $(top_builddir)/ut/libmero-ut.la \
                      $(top_builddir)/mero/libmero.la \
                      $(top_builddir)/net/test/libmero-net-test.la \
                      $(top_builddir)/xcode/ff2c/libmero-xcode-ff2c.la
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS   += utils/ub
+endif
 utils_ub_CPPFLAGS  = -DM0_TARGET='ub' $(AM_CPPFLAGS)
 utils_ub_LDADD     = $(top_builddir)/mero/libmero.la \
                      $(top_builddir)/ut/libmero-ut.la
@@ -398,13 +428,17 @@ include $(top_srcdir)/utils/Makefile.sub
 # rpc/it/m0rpcping
 #
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS           += rpc/it/m0rpcping
+endif
 rpc_it_m0rpcping_CPPFLAGS  = -DM0_TARGET='m0rpcping' $(AM_CPPFLAGS)
 rpc_it_m0rpcping_LDADD     = $(top_builddir)/mero/libmero.la  \
                              $(top_builddir)/ut/libmero-ut.la
 
+if ENABLE_UNIT_TESTS
 if ENABLE_MERO_ALTOGETHER
 noinst_PROGRAMS                     += rpc/it/m0rpcping-altogether
+endif
 endif
 
 rpc_it_m0rpcping_altogether_CPPFLAGS = -DM0_TARGET='m0rpcping-altogether' $(AM_CPPFLAGS)
@@ -422,7 +456,9 @@ include $(top_srcdir)/rpc/it/Makefile.sub
 # console/st
 #
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS            += console/st/server
+endif
 console_st_server_CPPFLAGS  = -DM0_TARGET='console-st-server' $(AM_CPPFLAGS)
 console_st_server_LDADD     = $(top_builddir)/mero/libmero.la \
                               $(top_builddir)/ut/libmero-ut.la
@@ -431,7 +467,9 @@ console_st_server_LDADD     = $(top_builddir)/mero/libmero.la \
 # net/bulk_emulation/st
 #
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                           += net/bulk_emulation/st/m0bulkping
+endif
 net_bulk_emulation_st_m0bulkping_CPPFLAGS  = -DM0_TARGET='m0bulkping' $(AM_CPPFLAGS)
 net_bulk_emulation_st_m0bulkping_LDADD     = $(top_builddir)/mero/libmero.la \
                                              $(top_builddir)/ut/libmero-ut.la
@@ -442,7 +480,9 @@ include $(top_srcdir)/net/bulk_emulation/st/Makefile.sub
 # net/lnet/st
 #
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                 += net/lnet/st/m0lnetping
+endif
 net_lnet_st_m0lnetping_CPPFLAGS  = -DM0_TARGET='m0lnetping' $(AM_CPPFLAGS)
 net_lnet_st_m0lnetping_LDADD     = $(top_builddir)/mero/libmero.la \
                                    $(top_builddir)/ut/libmero-ut.la
@@ -454,12 +494,16 @@ include $(top_srcdir)/net/lnet/st/Makefile.sub
 # net/test
 #
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                         += net/test/user_space/m0nettest
+endif
 net_test_user_space_m0nettest_CPPFLAGS   = -DM0_TARGET='m0nettest' $(AM_CPPFLAGS)
 net_test_user_space_m0nettest_LDADD      = $(top_builddir)/mero/libmero.la \
                                            $(top_builddir)/net/test/libmero-net-test.la
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                         += net/test/user_space/m0nettestd
+endif
 net_test_user_space_m0nettestd_CPPFLAGS  = -DM0_TARGET='m0nettestd' $(AM_CPPFLAGS)
 net_test_user_space_m0nettestd_LDADD     = $(top_builddir)/mero/libmero.la \
                                            $(top_builddir)/net/test/libmero-net-test.la
@@ -470,7 +514,9 @@ include $(top_srcdir)/net/test/user_space/Makefile.sub
 # sns/cm/st
 #
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS             += sns/cm/st/m0repair
+endif
 sns_cm_st_m0repair_CPPFLAGS  = -DM0_TARGET='m0repair' $(AM_CPPFLAGS)
 sns_cm_st_m0repair_LDADD     = $(top_builddir)/mero/libmero.la \
                                $(top_builddir)/ut/libmero-ut.la
@@ -481,7 +527,9 @@ include $(top_srcdir)/sns/cm/st/Makefile.sub
 # yaml2db/st
 #
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                += yaml2db/st/m0yamltodb
+endif
 yaml2db_st_m0yamltodb_CPPFLAGS  = -DM0_TARGET='m0yamltodb' $(AM_CPPFLAGS)
 yaml2db_st_m0yamltodb_LDADD     = $(top_builddir)/mero/libmero.la \
                                   $(top_builddir)/ut/libmero-ut.la
@@ -492,10 +540,14 @@ include $(top_srcdir)/yaml2db/st/Makefile.sub
 # utils/ploss
 #
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS               += utils/ploss/m0plossd
+endif
 utils_ploss_m0plossd_CPPFLAGS  = -DM0_TARGET='m0plossd' $(AM_CPPFLAGS)
 
+if ENABLE_UNIT_TESTS
 noinst_PROGRAMS               += utils/ploss/m0ploss
+endif
 utils_ploss_m0ploss_CPPFLAGS   = -DM0_TARGET='m0ploss' $(AM_CPPFLAGS)
 
 include $(top_srcdir)/utils/ploss/Makefile.sub
@@ -515,7 +567,7 @@ include $(top_srcdir)/m0t1fs/linux_kernel/st/Makefile.sub
 # mero/m0d
 #
 
-sbin_PROGRAMS     += mero/m0d
+bin_PROGRAMS     += mero/m0d
 mero_m0d_CPPFLAGS  = -DM0_TARGET='m0d' $(AM_CPPFLAGS)
 mero_m0d_LDADD     = $(top_builddir)/mero/libmero.la
 
@@ -524,7 +576,7 @@ mero_m0d_LDADD     = $(top_builddir)/mero/libmero.la
 #
 
 if ENABLE_MERO_ALTOGETHER
-sbin_PROGRAMS  += mero/m0d-altogether
+bin_PROGRAMS  += mero/m0d-altogether
 endif
 
 mero_m0d_altogether_CPPFLAGS = -DM0_TARGET='m0d-altogether' $(AM_CPPFLAGS)
@@ -535,10 +587,9 @@ mero_m0d_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la
 # console/bin/m0console
 #
 
-bin_PROGRAMS                   += console/bin/m0console
+sbin_PROGRAMS                  += console/bin/m0console
 console_bin_m0console_CPPFLAGS  = -DM0_TARGET='m0console' $(AM_CPPFLAGS)
-console_bin_m0console_LDADD     = $(top_builddir)/mero/libmero.la \
-                                  $(top_builddir)/ut/libmero-ut.la
+console_bin_m0console_LDADD     = $(top_builddir)/mero/libmero.la
 
 include $(top_srcdir)/console/bin/Makefile.sub
 
@@ -546,7 +597,7 @@ include $(top_srcdir)/console/bin/Makefile.sub
 # addb/dump
 #
 
-bin_PROGRAMS                  += addb/dump/m0addbdump
+sbin_PROGRAMS                 += addb/dump/m0addbdump
 addb_dump_m0addbdump_CPPFLAGS  = -DM0_TARGET='m0addbdump' $(AM_CPPFLAGS)
 addb_dump_m0addbdump_LDADD     = $(top_builddir)/mero/libmero.la
 

@@ -64,6 +64,7 @@ AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
 AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([ENABLE_EXPENSIVE_CHECKS],[Enable expensive checks.])
 AH_TEMPLATE([ENABLE_SYTEM_LIBS],      [Enable use of system wide db4 and yaml libraries.])
+AH_TEMPLATE([ENABLE_UNIT_TESTS],      [Enable unit tests.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT],     [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV],        [Have fops->readv function])
@@ -87,8 +88,6 @@ AC_ARG_ENABLE([profiler],
                        [enable gperftools profiling information])],
         [], [enable_profiler=no]
 )
-AM_CONDITIONAL([ENABLE_PROFILER],
-               [test "x$enable_profiler" = xyes])
 
 AC_ARG_ENABLE([coverage],
         [AS_HELP_STRING([--enable-coverage], [build for test coverage analysis])],
@@ -149,6 +148,13 @@ AC_ARG_ENABLE([system-libs],
         [AS_HELP_STRING([--disable-system-libs],[disable use of system wide db4 and yaml libaries])],
         [], [enable_system_libs=yes]
 )
+
+AC_ARG_ENABLE([unit-tests],
+        [AS_HELP_STRING([--disable-unit-tests], [disable unit tests])],
+        [], [enable_unit_tests=yes]
+)
+AM_CONDITIONAL([ENABLE_UNIT_TESTS],
+               [test "x$enable_unit_tests" = xyes])
 
 AC_ARG_WITH([linux],
         [AS_HELP_STRING([--with-linux=path],
@@ -432,7 +438,7 @@ KGALOIS_INCLUDES="-I$GALOIS_ABS_SRC/include"
 GALOIS_LIBS="$GALOIS_SRC/src/libgalois.la"
 AC_MSG_CHECKING([for galois libs])
 MERO_BUILD_LIB([galois], [$GALOIS_SRC], [$GALOIS_LIBS], [.],
-                  ["--with-linux-obj=$LINUX_OBJ"])
+                  ["--prefix=${prefix} --with-linux-obj=$LINUX_OBJ"])
 
 GALOIS_SYMVERS="$GALOIS_ABS_SRC/src/linux_kernel/Module.symvers"
 AC_MSG_CHECKING([galois symvers])
@@ -444,12 +450,15 @@ AC_SUBST([GALOIS_SYMVERS])
 
 # Check for CUnit
 
-CUNIT_SRC=$SRCDIR/extra-libs/cunit
-CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/libcunit.la"
-CUNIT_INCLUDES="-I$CUNIT_SRC/CUnit/Headers"
-AC_MSG_CHECKING([for cunit libs])
-MERO_BUILD_LIB([cunit], [$CUNIT_SRC], [$CUNIT_LIBS])
-
+AS_IF([test "x$enable_unit_tests" = xyes],
+      [
+          CUNIT_SRC=$SRCDIR/extra-libs/cunit
+          CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/libcunit.la"
+          CUNIT_INCLUDES="-I$CUNIT_SRC/CUnit/Headers"
+          AC_MSG_CHECKING([for cunit libs])
+          MERO_BUILD_LIB([cunit], [$CUNIT_SRC], [$CUNIT_LIBS])
+      ]
+)
 
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
