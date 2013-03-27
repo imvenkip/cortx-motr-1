@@ -114,11 +114,17 @@ static int io_fol_rec_part_undo(struct m0_fop_fol_rec_part *fpart,
 	return 0;
 }
 
-static int io_fol_cd_rec_part_undo(struct m0_fop_fol_rec_part *fpart,
-				   struct m0_fol *fol)
+static int io_fol_rec_part_redo(struct m0_fop_fol_rec_part *fpart,
+				struct m0_fol *fol)
+{
+	return 0;
+}
+
+#ifndef __KERNEL__
+static int io_fol_cd_rec_part_op(struct m0_fop_fol_rec_part *fpart,
+				 struct m0_fol *fol, bool undo)
 {
 	int			  result = 0;
-#ifndef __KERNEL__
 	struct m0_fop		 *fop;
 	struct m0_fop_cob_create *cc;
 	struct m0_fop_cob_delete *cd;
@@ -126,6 +132,7 @@ static int io_fol_cd_rec_part_undo(struct m0_fop_fol_rec_part *fpart,
 	struct m0_fom		 *fom;
 
 	M0_PRE(fpart != NULL);
+	M0_PRE(fol != NULL);
 
 	reqh = fol->f_reqh;
 
@@ -133,41 +140,55 @@ static int io_fol_cd_rec_part_undo(struct m0_fop_fol_rec_part *fpart,
 	case M0_IOSERVICE_COB_CREATE_OPCODE:
 		cc = fpart->ffrp_fop;
 
-		M0_ALLOC_PTR(cd);
-		if (cd == NULL)
-			return -ENOMEM;
-		cd->cd_common = cc->cc_common;
+		if (undo) {
+			M0_ALLOC_PTR(cd);
+			if (cd == NULL)
+				return -ENOMEM;
+			cd->cd_common = cc->cc_common;
+		}
 
-		fop = m0_fop_alloc(&m0_fop_cob_delete_fopt, cd);
+		fop = undo ? m0_fop_alloc(&m0_fop_cob_delete_fopt, cd) :
+			     m0_fop_alloc(&m0_fop_cob_create_fopt, cc);
 		break;
 	case M0_IOSERVICE_COB_DELETE_OPCODE:
 		cd = fpart->ffrp_fop;
 
-		M0_ALLOC_PTR(cc);
-		if (cc == NULL)
-			return -ENOMEM;
-		cc->cc_common = cd->cd_common;
+		if (undo) {
+			M0_ALLOC_PTR(cc);
+			if (cc == NULL)
+				return -ENOMEM;
+			cc->cc_common = cd->cd_common;
+		}
 
-		fop = m0_fop_alloc(&m0_fop_cob_create_fopt, cc);
+		fop = undo ? m0_fop_alloc(&m0_fop_cob_create_fopt, cc) :
+			     m0_fop_alloc(&m0_fop_cob_delete_fopt, cd);
 		break;
 	}
 	result = m0_cob_fom_create(fop, &fom, reqh);
 	if (result == 0) {
 		fom->fo_local = true;
-		 m0_fom_queue(fom, reqh);
+		m0_fom_queue(fom, reqh);
 	}
-#endif
 	return result;
 }
-
-static int io_fol_rec_part_redo(struct m0_fop_fol_rec_part *fpart,
-				struct m0_fol *fol)
+#else
+static int io_fol_cd_rec_part_op(struct m0_fop_fol_rec_part *fpart,
+				 struct m0_fol *fol, bool undo)
 {
-	/**
-	 * @todo Perform the redo operation for write, create and delete
-	 * updates using the generic fop fol record part.
-	 */
 	return 0;
+}
+#endif
+
+static int io_fol_cd_rec_part_undo(struct m0_fop_fol_rec_part *fpart,
+				   struct m0_fol *fol)
+{
+	return io_fol_cd_rec_part_op(fpart, fol, true);
+}
+
+static int io_fol_cd_rec_part_redo(struct m0_fop_fol_rec_part *fpart,
+				   struct m0_fol *fol)
+{
+	return io_fol_cd_rec_part_op(fpart, fol, false);
 }
 
 const struct m0_fop_type_ops io_fop_rwv_ops = {
@@ -180,7 +201,7 @@ const struct m0_fop_type_ops io_fop_rwv_ops = {
 
 const struct m0_fop_type_ops io_fop_cd_ops = {
 	.fto_undo = io_fol_cd_rec_part_undo,
-	.fto_redo = io_fol_rec_part_redo,
+	.fto_redo = io_fol_cd_rec_part_redo,
 };
 
 M0_INTERNAL void m0_ioservice_fop_fini(void)

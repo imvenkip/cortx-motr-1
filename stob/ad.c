@@ -152,7 +152,7 @@ enum ad_stob_allocation_extent_type {
 	AET_HOLE
 };
 
-static int ad_rec_part_undo(struct m0_fol_rec_part *part)
+static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part)
 {
 	struct ad_rec_part    *arp;
 	struct m0_stob_domain *dom;
@@ -171,6 +171,8 @@ static int ad_rec_part_undo(struct m0_fol_rec_part *part)
 	dom = m0_stob_domain_lookup(&m0_ad_stob_type, arp->arp_dom_id);
 	adom = domain2ad(dom);
 	rc = m0_db_tx_init(&tx, adom->ad_dbenv, 0);
+	if (rc != 0)
+		return rc;
 
 	for (i = 0; rc == 0 && i < arp->arp_seg.ps_segments; ++i) {
 		rc = m0_emap_lookup(&adom->ad_adata, &tx,
@@ -180,23 +182,11 @@ static int ad_rec_part_undo(struct m0_fol_rec_part *part)
 		     m0_emap_extent_update(&it, &old_data[i]);
 		m0_emap_close(&it);
 	}
-	rc = m0_db_tx_commit(&tx);
-	/**
-	 * @todo Perform the undo operation based on FOL record part type.
-	 */
-	return rc;
+	return rc == 0 ? m0_db_tx_commit(&tx) : rc;
 }
 
-static int ad_rec_part_redo(struct m0_fol_rec_part *part)
-{
-	/**
-	 * @todo Perform the redo operation based on FOL record part type.
-	 */
-	return 0;
-}
-
-M0_FOL_REC_PART_TYPE_DECLARE(ad_rec_part, static, ad_rec_part_undo,
-			     ad_rec_part_redo);
+M0_FOL_REC_PART_TYPE_DECLARE(ad_rec_part, static, ad_rec_part_undo_redo_op,
+			     ad_rec_part_undo_redo_op);
 /**
    Implementation of m0_stob_type_op::sto_init().
  */
