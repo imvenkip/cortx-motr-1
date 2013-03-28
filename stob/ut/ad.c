@@ -384,6 +384,8 @@ static void test_ad_undo(void)
 	/* Write new data in stob */
 	memset(user_buf[0], 'b', buf_size);
 	test_write(1);
+
+	/* Do the undo operation. */
 	result = rpart->rp_ops->rpo_undo(rpart);
 	M0_UT_ASSERT(result == 0);
 	test_read(1);

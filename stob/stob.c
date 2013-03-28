@@ -88,8 +88,7 @@ M0_INTERNAL int m0_stob_domain_locate(struct m0_stob_type *type,
 }
 
 M0_INTERNAL struct m0_stob_domain *
-m0_stob_domain_lookup(struct m0_stob_type *type,
-		      uint32_t domain_id)
+m0_stob_domain_lookup(struct m0_stob_type *type, uint32_t domain_id)
 {
 	struct m0_stob_domain *domain;
 

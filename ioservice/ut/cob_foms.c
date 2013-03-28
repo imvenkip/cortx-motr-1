@@ -1109,7 +1109,7 @@ static void cob_delete_api_test(void)
 	m0_sm_group_unlock(&dummy_loc.fl_group);
 }
 
-static inline void cobfoms_fv_updates(void)
+static void cobfoms_fv_updates(void)
 {
 	struct m0_reqh      *reqh;
 	struct m0_poolmach  *pm;
@@ -1168,8 +1168,9 @@ static int cob_cd_op(struct m0_fol_rec *rec, struct m0_fop *fop, bool undo) {
 			M0_UT_ASSERT(ftype != NULL);
 			M0_UT_ASSERT(ftype->ft_ops->fto_undo != NULL &&
 				     ftype->ft_ops->fto_redo != NULL);
-			result = undo ? ftype->ft_ops->fto_undo(fp_part, rec->fr_fol) :
-					ftype->ft_ops->fto_redo(fp_part, rec->fr_fol);
+			result = undo ?
+				 ftype->ft_ops->fto_undo(fp_part, rec->fr_fol) :
+				 ftype->ft_ops->fto_redo(fp_part, rec->fr_fol);
 			M0_UT_ASSERT(result == 0);
 			m0_reqh_fom_domain_idle_wait(rec->fr_fol->f_reqh);
 		}

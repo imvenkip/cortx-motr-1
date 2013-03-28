@@ -113,7 +113,7 @@ M0_INTERNAL int m0_stob_domain_locate(struct m0_stob_type *type,
    generic level.
 */
 struct m0_stob_domain {
-	const char 		       *sd_name;
+	const char		       *sd_name;
 	const struct m0_stob_domain_op *sd_ops;
 	struct m0_stob_type            *sd_type;
 	uint32_t			sd_dom_id;
@@ -758,8 +758,7 @@ M0_INTERNAL void *m0_stob_addr_open(const void *buf, uint32_t shift);
 M0_INTERNAL void m0_stob_iovec_sort(struct m0_stob_io *stob);
 
 M0_INTERNAL struct m0_stob_domain *
-m0_stob_domain_lookup(struct m0_stob_type *type,
-		      uint32_t domain_id);
+m0_stob_domain_lookup(struct m0_stob_type *type, uint32_t domain_id);
 
 /** @} end member group adieu */
 

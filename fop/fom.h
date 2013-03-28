@@ -494,7 +494,7 @@ struct m0_fom {
 	struct m0_fop		 *fo_rep_fop;
 	/** Transaction object to be used by this fom */
 	struct m0_dtx		  fo_tx;
-	/** Set when fom is used to perfrom undo/redo operations. */
+	/** Set when fom is used to perform undo/redo operations. */
 	bool			  fo_local;
 	/** Pointer to service instance. */
 	struct m0_reqh_service   *fo_service;

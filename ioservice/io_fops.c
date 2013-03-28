@@ -98,13 +98,14 @@ static const struct m0_rpc_item_type_ops io_item_type_ops = {
         .rito_io_coalesce    = item_io_coalesce,
 };
 
-static int io_fol_rec_part_undo(struct m0_fop_fol_rec_part *fpart,
-				struct m0_fol *fol)
+static int io_fol_rec_part_undo_redo_op(struct m0_fop_fol_rec_part *fpart,
+					struct m0_fol *fol)
 {
-	struct m0_fop_cob_writev_rep *wfop = fpart->ffrp_rep;
+	struct m0_fop_cob_writev_rep *wfop;
 
 	M0_PRE(fpart != NULL);
 
+	wfop = fpart->ffrp_rep;
 	switch(fpart->ffrp_fop_code) {
 	case M0_IOSERVICE_WRITEV_OPCODE:
 		wfop = fpart->ffrp_rep;
@@ -114,17 +115,11 @@ static int io_fol_rec_part_undo(struct m0_fop_fol_rec_part *fpart,
 	return 0;
 }
 
-static int io_fol_rec_part_redo(struct m0_fop_fol_rec_part *fpart,
-				struct m0_fol *fol)
-{
-	return 0;
-}
-
 #ifndef __KERNEL__
 static int io_fol_cd_rec_part_op(struct m0_fop_fol_rec_part *fpart,
 				 struct m0_fol *fol, bool undo)
 {
-	int			  result = 0;
+	int			  result;
 	struct m0_fop		 *fop;
 	struct m0_fop_cob_create *cc;
 	struct m0_fop_cob_delete *cd;
@@ -145,10 +140,9 @@ static int io_fol_cd_rec_part_op(struct m0_fop_fol_rec_part *fpart,
 			if (cd == NULL)
 				return -ENOMEM;
 			cd->cd_common = cc->cc_common;
-		}
-
-		fop = undo ? m0_fop_alloc(&m0_fop_cob_delete_fopt, cd) :
-			     m0_fop_alloc(&m0_fop_cob_create_fopt, cc);
+			fop = m0_fop_alloc(&m0_fop_cob_delete_fopt, cd);
+		} else
+			fop = m0_fop_alloc(&m0_fop_cob_create_fopt, cc);
 		break;
 	case M0_IOSERVICE_COB_DELETE_OPCODE:
 		cd = fpart->ffrp_fop;
@@ -158,10 +152,9 @@ static int io_fol_cd_rec_part_op(struct m0_fop_fol_rec_part *fpart,
 			if (cc == NULL)
 				return -ENOMEM;
 			cc->cc_common = cd->cd_common;
-		}
-
-		fop = undo ? m0_fop_alloc(&m0_fop_cob_create_fopt, cc) :
-			     m0_fop_alloc(&m0_fop_cob_delete_fopt, cd);
+			fop = m0_fop_alloc(&m0_fop_cob_create_fopt, cc);
+		} else
+			fop = m0_fop_alloc(&m0_fop_cob_delete_fopt, cd);
 		break;
 	}
 	result = m0_cob_fom_create(fop, &fom, reqh);
@@ -195,8 +188,8 @@ const struct m0_fop_type_ops io_fop_rwv_ops = {
 	.fto_fop_replied = io_fop_replied,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
-	.fto_undo        = io_fol_rec_part_undo,
-	.fto_redo        = io_fol_rec_part_redo,
+	.fto_undo        = io_fol_rec_part_undo_redo_op,
+	.fto_redo        = io_fol_rec_part_redo_redo_op,
 };
 
 const struct m0_fop_type_ops io_fop_cd_ops = {
