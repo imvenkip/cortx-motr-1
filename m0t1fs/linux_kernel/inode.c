@@ -167,7 +167,6 @@ M0_INTERNAL struct inode *m0t1fs_root_iget(struct super_block *sb,
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *root_fid;
 	M0T1FS_SB(sb)->csb_root_fid = *root_fid;
-	M0T1FS_SB(sb)->csb_next_key = root_fid->f_key + 1;
 
 	rc = m0t1fs_mds_cob_getattr(M0T1FS_SB(sb), &mo, &rep);
 	if (rc != 0) {
