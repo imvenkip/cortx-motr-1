@@ -28,6 +28,7 @@
 #include "lib/misc.h"         /* M0_SET0 */
 #include "lib/cdefs.h"        /* ARRAY_SIZE */
 
+#include "dtm/dtm_internal.h"
 #include "dtm/nucleus.h"
 
 enum {
@@ -47,8 +48,6 @@ static struct ctx {
 static void (*c_ready) (struct m0_dtm_op *op);
 static void (*c_miser) (struct m0_dtm_op *op);
 static void (*c_late)  (struct m0_dtm_op *op);
-static void (*c_stable)(struct m0_dtm_op *op);
-static void (*c_persistent)(struct m0_dtm_op *op);
 
 static void ready(struct m0_dtm_op *op)
 {
@@ -68,37 +67,18 @@ static void late(struct m0_dtm_op *op)
 		c_late(op);
 }
 
-static void stable(struct m0_dtm_op *op)
-{
-	if (c_stable != NULL)
-		c_stable(op);
-}
-
-static void persistent(struct m0_dtm_op *op)
-{
-	if (c_persistent != NULL)
-		c_persistent(op);
-}
-
 static const struct m0_dtm_op_ops op_ops = {
 	.doo_ready      = ready,
 	.doo_late       = late,
-	.doo_miser      = miser,
-	.doo_stable     = stable,
-	.doo_persistent = persistent
+	.doo_miser      = miser
 };
 
 static void h_release(struct m0_dtm_hi *hi)
 {
 }
 
-static void h_persistent(struct m0_dtm_hi *hi, struct m0_dtm_up *up)
-{
-}
-
 static const struct m0_dtm_hi_ops hi_ops = {
-	.dho_release    = h_release,
-	.dho_persistent = h_persistent
+	.dho_release    = h_release
 };
 
 
@@ -113,8 +93,10 @@ static void hi(void)
 	struct m0_dtm_hi hi;
 
 	m0_dtm_nu_init(&c.c_nu);
+	nu_lock(&c.c_nu);
 	m0_dtm_hi_init(&hi, &c.c_nu);
 	m0_dtm_hi_fini(&hi);
+	nu_unlock(&c.c_nu);
 	m0_dtm_nu_fini(&c.c_nu);
 }
 
@@ -123,8 +105,10 @@ static void op(void)
 	struct m0_dtm_op op;
 
 	m0_dtm_nu_init(&c.c_nu);
+	nu_lock(&c.c_nu);
 	m0_dtm_op_init(&op, &c.c_nu);
 	m0_dtm_op_fini(&op);
+	nu_unlock(&c.c_nu);
 	m0_dtm_nu_fini(&c.c_nu);
 }
 
@@ -133,6 +117,7 @@ static void ctx_init(void)
 	int i;
 
 	m0_dtm_nu_init(&c.c_nu);
+	nu_lock(&c.c_nu);
 	for (i = 0; i < ARRAY_SIZE(c.c_hi); ++i) {
 		m0_dtm_hi_init(&c.c_hi[i], &c.c_nu);
 		c.c_hi[i].hi_ver = 1;
@@ -154,6 +139,7 @@ static void ctx_fini(void)
 		m0_dtm_op_fini(&c.c_op[i]);
 	for (i = 0; i < ARRAY_SIZE(c.c_hi); ++i)
 		m0_dtm_hi_fini(&c.c_hi[i]);
+	nu_unlock(&c.c_nu);
 	m0_dtm_nu_fini(&c.c_nu);
 }
 
@@ -206,8 +192,6 @@ static void ctx_op_add(int i)
 	m0_dtm_op_close(&c.c_op[i]);
 	c_late = c_miser = NULL;
 }
-
-M0_INTERNAL bool op_state(struct m0_dtm_op *op, enum m0_dtm_state state);
 
 static void ctx_state(int i, enum m0_dtm_state state)
 {
@@ -384,46 +368,6 @@ static void op_done(void)
 	ctx_fini();
 }
 
-static void op_persistent(void)
-{
-	ctx_init();
-	ctx_add(0, 0, M0_DUR_INC, 2, 1);
-	ctx_add(1, 0, M0_DUR_INC, 0, 0);
-	ctx_add(2, 0, M0_DUR_NOT, 0, 0); /* ltx */
-
-	ctx_add(0, 1, M0_DUR_INC, 3, 2);
-	ctx_add(1, 1, M0_DUR_INC, 0, 0);
-	ctx_add(2, 1, M0_DUR_NOT, 0, 0); /* ltx */
-
-	ctx_add(2, 2, M0_DUR_INC, 2, 1); /* close */
-
-	ctx_op_add(0);
-	m0_dtm_op_prepared(&c.c_op[0]);
-	ctx_op_add(1);
-	m0_dtm_op_prepared(&c.c_op[1]);
-	ctx_state(0, M0_DOS_INPROGRESS);
-	ctx_state(1, M0_DOS_INPROGRESS);
-
-	m0_dtm_op_done(&c.c_op[0]);
-	m0_dtm_op_done(&c.c_op[1]);
-	ctx_state(0, M0_DOS_VOLATILE);
-	ctx_state(1, M0_DOS_VOLATILE);
-	ctx_op_add(2);
-	m0_dtm_op_prepared(&c.c_op[2]);
-	m0_dtm_op_done(&c.c_op[2]);
-	ctx_state(2, M0_DOS_VOLATILE);
-
-	m0_dtm_op_persistent(&c.c_op[0]);
-	m0_dtm_op_persistent(&c.c_op[1]);
-	m0_dtm_op_persistent(&c.c_op[2]);
-	ctx_state(0, M0_DOS_PERSISTENT);
-	ctx_state(1, M0_DOS_PERSISTENT);
-	ctx_state(2, M0_DOS_PERSISTENT);
-
-	ctx_check();
-	ctx_fini();
-}
-
 const struct m0_test_suite dtm_nucleus_ut = {
 	.ts_name = "dtm-nucleus-ut",
 	.ts_tests = {
@@ -437,7 +381,6 @@ const struct m0_test_suite dtm_nucleus_ut = {
 		{ "miser",         op_miser },
 		{ "miser-delayed", op_miser_delayed },
 		{ "done",          op_done },
-		{ "persistent",    op_persistent },
 		{ NULL, NULL }
 	}
 };

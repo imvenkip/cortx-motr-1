@@ -336,6 +336,7 @@ struct m0_db_tx_waiter {
 	struct m0_tlink             tw_tx;
 	struct m0_db_tx_waiter_impl tw_i;
 	uint64_t                    tw_magix;
+	bool                        tw_committed;
 };
 
 M0_TL_DESCR_DECLARE(txw, M0_EXTERN);

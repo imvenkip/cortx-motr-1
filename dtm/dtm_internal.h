@@ -33,6 +33,7 @@
 /* import */
 #include "lib/tlist.h"
 #include "dtm/nucleus.h"
+struct m0_dtm_oper;
 struct m0_dtm_update;
 struct m0_dtm_history;
 struct m0_dtm_remote;
@@ -97,6 +98,16 @@ M0_INTERNAL struct m0_dtm *nu_dtm(struct m0_dtm_nu *nu);
 M0_INTERNAL struct m0_dtm_history *hi_history(struct m0_dtm_hi *hi);
 M0_INTERNAL struct m0_dtm_update *up_update(struct m0_dtm_up *up);
 M0_INTERNAL bool op_state(struct m0_dtm_op *op, enum m0_dtm_state state);
+
+M0_INTERNAL void nu_lock(struct m0_dtm_nu *nu);
+M0_INTERNAL void nu_unlock(struct m0_dtm_nu *nu);
+M0_INTERNAL void dtm_lock(struct m0_dtm *dtm);
+M0_INTERNAL void dtm_unlock(struct m0_dtm *dtm);
+M0_INTERNAL void oper_lock(const struct m0_dtm_oper *oper);
+M0_INTERNAL void oper_unlock(const struct m0_dtm_oper *oper);
+M0_INTERNAL void history_lock(const struct m0_dtm_history *history);
+M0_INTERNAL void history_unlock(const struct m0_dtm_history *history);
+
 
 /** @} end of dtm group */
 

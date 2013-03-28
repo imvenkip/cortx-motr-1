@@ -37,13 +37,16 @@
 M0_INTERNAL void m0_dtm_oper_init(struct m0_dtm_oper *oper, struct m0_dtm *dtm)
 {
 	m0_dtm_op_init(&oper->oprt_op, &dtm->d_nu);
-	M0_POST(m0_dtm_oper_invariant(oper));
 }
 
 M0_INTERNAL void m0_dtm_oper_fini(struct m0_dtm_oper *oper)
 {
+	struct m0_dtm *dtm = nu_dtm(oper->oprt_op.op_nu);
+
+	dtm_lock(dtm);
 	M0_PRE(m0_dtm_oper_invariant(oper));
 	m0_dtm_op_fini(&oper->oprt_op);
+	dtm_unlock(dtm);
 }
 
 M0_INTERNAL bool m0_dtm_oper_invariant(const struct m0_dtm_oper *oper)
@@ -58,29 +61,28 @@ M0_INTERNAL bool m0_dtm_oper_invariant(const struct m0_dtm_oper *oper)
 
 M0_INTERNAL void m0_dtm_oper_close(struct m0_dtm_oper *oper)
 {
+	oper_lock(oper);
 	M0_PRE(m0_dtm_oper_invariant(oper));
 	m0_dtm_op_close(&oper->oprt_op);
+	oper_unlock(oper);
 }
 
 M0_INTERNAL void m0_dtm_oper_prepared(struct m0_dtm_oper *oper)
 {
+	oper_lock(oper);
 	M0_PRE(m0_dtm_oper_invariant(oper));
 	m0_dtm_op_prepared(&oper->oprt_op);
+	oper_unlock(oper);
 }
 
 M0_INTERNAL void m0_dtm_oper_done(struct m0_dtm_oper *oper,
 				  const struct m0_dtm_remote *dtm)
 {
+	oper_lock(oper);
 	M0_PRE(m0_dtm_oper_invariant(oper));
-	up_for(&oper->oprt_op, up) {
-		struct m0_dtm_history *history;
-
-		history = hi_history(up->up_hi);
-		if (history->h_dtm == dtm)
-			history->h_known = up_update(up);
-	} up_endfor;
 	m0_dtm_op_done(&oper->oprt_op);
 	M0_POST(m0_dtm_oper_invariant(oper));
+	oper_unlock(oper);
 }
 
 M0_INTERNAL void m0_dtm_oper_pack(const struct m0_dtm_oper *oper,
@@ -89,6 +91,7 @@ M0_INTERNAL void m0_dtm_oper_pack(const struct m0_dtm_oper *oper,
 {
 	uint32_t idx = 0;
 
+	oper_lock(oper);
 	M0_PRE(m0_dtm_oper_invariant(oper));
 	oper_for(oper, update) {
 		if (hi_history(update->upd_up.up_hi)->h_dtm == dtm) {
@@ -97,6 +100,7 @@ M0_INTERNAL void m0_dtm_oper_pack(const struct m0_dtm_oper *oper,
 		}
 	} oper_endfor;
 	ode->od_nr = idx;
+	oper_unlock(oper);
 }
 
 M0_INTERNAL int m0_dtm_oper_build(struct m0_dtm_oper *oper, struct m0_tl *uu,
@@ -105,22 +109,23 @@ M0_INTERNAL int m0_dtm_oper_build(struct m0_dtm_oper *oper, struct m0_tl *uu,
 	uint32_t i;
 	int      result;
 
+	oper_lock(oper);
 	M0_PRE(m0_dtm_oper_invariant(oper));
 	for (result = 0, i = 0; i < ode->od_nr; ++i) {
 		struct m0_dtm_update_descr *ud = &ode->od_update[i];
 		struct m0_dtm_update       *update;
 
-		update = oper_tlist_head(uu);
+		update = oper_tlist_pop(uu);
 		M0_ASSERT(update != NULL);
-		oper_tlist_del(update);
 		result = m0_dtm_update_build(update, oper, ud);
 		if (result != 0)
 			break;
 	}
-	if (result != 0)
-		m0_dtm_oper_fini(oper);
 	M0_POST(ergo(result == 0, oper_tlist_is_empty(uu)));
 	M0_POST(ergo(result == 0, m0_dtm_oper_invariant(oper)));
+	oper_unlock(oper);
+	if (result != 0)
+		m0_dtm_oper_fini(oper);
 	return result;
 }
 
@@ -131,6 +136,7 @@ M0_INTERNAL void m0_dtm_reply_pack(struct m0_dtm_oper *oper,
 	uint32_t i;
 	uint32_t j;
 
+	oper_lock(oper);
 	M0_PRE(m0_dtm_oper_invariant(oper));
 	for (j = 0, i = 0; i < request->od_nr; ++i) {
 		struct m0_dtm_update_descr *ud = &request->od_update[i];
@@ -145,6 +151,7 @@ M0_INTERNAL void m0_dtm_reply_pack(struct m0_dtm_oper *oper,
 	}
 	reply->od_nr = j;
 	M0_POST(m0_dtm_oper_invariant(oper));
+	oper_unlock(oper);
 }
 
 M0_INTERNAL void m0_dtm_reply_unpack(struct m0_dtm_oper *oper,
@@ -152,6 +159,7 @@ M0_INTERNAL void m0_dtm_reply_unpack(struct m0_dtm_oper *oper,
 {
 	uint32_t i;
 
+	oper_lock(oper);
 	M0_PRE(m0_dtm_oper_invariant(oper));
 	for (i = 0; i < reply->od_nr; ++i) {
 		struct m0_dtm_update_descr *ud = &reply->od_update[i];
@@ -163,6 +171,7 @@ M0_INTERNAL void m0_dtm_reply_unpack(struct m0_dtm_oper *oper,
 		m0_dtm_update_unpack(update, ud);
 	}
 	M0_POST(m0_dtm_oper_invariant(oper));
+	oper_unlock(oper);
 }
 
 M0_INTERNAL struct m0_dtm_update *m0_dtm_oper_get(struct m0_dtm_oper *oper,
@@ -176,8 +185,17 @@ M0_INTERNAL struct m0_dtm_update *m0_dtm_oper_get(struct m0_dtm_oper *oper,
 	return NULL;
 }
 
-/** @} end of dtm group */
+M0_INTERNAL void oper_lock(const struct m0_dtm_oper *oper)
+{
+	nu_lock(oper->oprt_op.op_nu);
+}
 
+M0_INTERNAL void oper_unlock(const struct m0_dtm_oper *oper)
+{
+	nu_unlock(oper->oprt_op.op_nu);
+}
+
+/** @} end of dtm group */
 
 /*
  *  Local variables:

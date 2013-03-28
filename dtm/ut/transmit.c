@@ -30,6 +30,7 @@
 #include "lib/errno.h"        /* EPROTO */
 #include "lib/assert.h"
 
+#include "dtm/dtm_internal.h"
 #include "dtm/operation.h"
 #include "dtm/history.h"
 #include "dtm/update.h"
@@ -69,15 +70,15 @@ static struct m0_dtm_oper_descr   reply = {
 };
 
 static void noop(struct m0_dtm_op *op)
-{
-}
+{}
+
+static void test_persistent(struct m0_dtm_history *history)
+{}
 
 static const struct m0_dtm_op_ops op_ops = {
 	.doo_ready      = noop,
 	.doo_late       = noop,
-	.doo_miser      = noop,
-	.doo_stable     = noop,
-	.doo_persistent = noop
+	.doo_miser      = noop
 };
 
 static int src_find(const struct m0_dtm_history_type *ht,
@@ -109,8 +110,9 @@ static void src_id(const struct m0_dtm_history *history, struct m0_uint128 *id)
 }
 
 static const struct m0_dtm_history_ops src_ops = {
-	.hio_type = &src_htype,
-	.hio_id   = src_id
+	.hio_type       = &src_htype,
+	.hio_id         = &src_id,
+	.hio_persistent = &test_persistent
 };
 
 static int tgt_find(const struct m0_dtm_history_type *ht,
@@ -142,11 +144,12 @@ static void tgt_id(const struct m0_dtm_history *history, struct m0_uint128 *id)
 }
 
 static const struct m0_dtm_history_ops tgt_ops = {
-	.hio_type = &tgt_htype,
-	.hio_id   = tgt_id
+	.hio_type       = &tgt_htype,
+	.hio_id         = &tgt_id,
+	.hio_persistent = &test_persistent
 };
 
-static void src_init(void)
+static void src_init(struct m0_dtm_remote *dtm)
 {
 	int i;
 
@@ -157,7 +160,7 @@ static void src_init(void)
 		m0_dtm_history_init(&history_src[i], &dtm_src);
 		history_src[i].h_hi.hi_ver = 1;
 		history_src[i].h_ops = &src_ops;
-		history_src[i].h_dtm = &tgt;
+		history_src[i].h_dtm = dtm;
 	}
 	for (i = 0; i < ARRAY_SIZE(oper_src); ++i) {
 		m0_dtm_oper_init(&oper_src[i], &dtm_src);
@@ -214,19 +217,19 @@ static void oper_populate(int i, unsigned nr)
 {
 	int j;
 
+	dtm_lock(&dtm_src);
 	for (j = 0; j < nr; ++j) {
 		m0_dtm_update_init(&update_src[i][j], &history_src[j],
 				   &oper_src[i],
 			   &M0_DTM_UPDATE_DATA(M0_DTM_USER_UPDATE_BASE + 1 + j,
 					       M0_DUR_SET, 3 + j + i, 0));
 	}
+	dtm_unlock(&dtm_src);
 	m0_dtm_oper_close(&oper_src[i]);
 	m0_dtm_oper_prepared(&oper_src[i]);
 
 	ode.od_nr   = nr;
 	reply.od_nr = nr;
-
-	m0_dtm_oper_pack(&oper_src[i], &tgt, &ode);
 }
 
 static void transmit_test(void)
@@ -234,11 +237,13 @@ static void transmit_test(void)
 	int i;
 	int result;
 
-	src_init();
+	src_init(&tgt);
 	tgt_init();
 	for (i = 0; i < ARRAY_SIZE(oper_src); ++i) {
 		unsigned nr = (i%UPDATE_NR) + 1;
 		oper_populate(i, nr);
+		m0_dtm_oper_pack(&oper_src[i], &tgt, &ode);
+
 		m0_dtm_update_list_init(&uu);
 		m0_dtm_update_link(&uu, update_tgt[i], nr);
 
@@ -256,28 +261,43 @@ static void transmit_test(void)
 	src_fini();
 }
 
-/* static struct m0_dtm_ltx ltx; */
+#include "db/extmap.h"
+
+static struct m0_dtm_ltx ltx;
 static struct m0_dbenv   db;
 static const char        db_name[] = "ut-dtm";
+static struct m0_emap    emap;
 
 static void ltx_test(void)
 {
 	int result;
 
-	src_init();
+	src_init(NULL);
 	m0_dtm_history_type_register(&dtm_src, &m0_dtm_ltx_htype);
+
 	result = m0_dbenv_init(&db, db_name, 0);
 	M0_UT_ASSERT(result == 0);
-/*
+	result = m0_emap_init(&emap, &db, "nonce");
+	M0_UT_ASSERT(result == 0);
 
 	m0_dtm_update_list_init(&uu);
-	m0_dtm_update_link(&uu, update_tgt[0][UPDATE_NR], 1);
-	m0_dtm_update_link(&uu, update_tgt[1][UPDATE_NR], 1);
+	m0_dtm_update_link(&uu, &update_tgt[0][UPDATE_NR], 1);
+	m0_dtm_update_link(&uu, &update_tgt[1][UPDATE_NR], 1);
 
 	m0_dtm_ltx_init(&ltx, &dtm_src, &db, &uu);
 	result = m0_dtm_ltx_open(&ltx);
 	M0_UT_ASSERT(result == 0);
-*/
+
+	m0_dtm_ltx_add(&ltx, &oper_src[0]);
+	oper_populate(0, UPDATE_NR);
+
+	result = m0_emap_obj_insert(&emap, &ltx.lx_tx,
+				    &(const struct m0_uint128) { 7, 8 }, 9);
+	M0_UT_ASSERT(result == 0);
+	m0_dtm_ltx_close(&ltx);
+	m0_emap_fini(&emap);
+	m0_dbenv_fini(&db);
+	M0_UT_ASSERT(op_state(&oper_src[0].oprt_op, M0_DOS_PERSISTENT));
 	src_fini();
 }
 

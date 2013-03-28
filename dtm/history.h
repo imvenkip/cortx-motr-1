@@ -51,7 +51,6 @@ struct m0_dtm_history {
 	struct m0_dtm_hi                 h_hi;
 	struct m0_queue_link             h_pending;
 	struct m0_dtm_remote            *h_dtm;
-	struct m0_dtm_update            *h_known;
 	struct m0_dtm_update            *h_persistent;
 	const struct m0_dtm_history_ops *h_ops;
 };
@@ -73,6 +72,7 @@ struct m0_dtm_history_ops {
 	const struct m0_dtm_history_type *hio_type;
 	void (*hio_id)(const struct m0_dtm_history *history,
 		       struct m0_uint128 *id);
+	void (*hio_persistent)(struct m0_dtm_history *history);
 };
 
 struct m0_dtm_history_type {
@@ -97,7 +97,8 @@ M0_INTERNAL void m0_dtm_history_init(struct m0_dtm_history *history,
 				     struct m0_dtm *dtm);
 M0_INTERNAL void m0_dtm_history_fini(struct m0_dtm_history *history);
 
-M0_INTERNAL void m0_dtm_history_persistent(struct m0_dtm_history *history);
+M0_INTERNAL void m0_dtm_history_persistent(struct m0_dtm_history *history,
+					   m0_dtm_ver_t upto);
 M0_INTERNAL void m0_dtm_history_close(struct m0_dtm_history *history);
 
 M0_INTERNAL void
@@ -109,14 +110,15 @@ m0_dtm_history_type_deregister(struct m0_dtm *dtm,
 M0_INTERNAL const struct m0_dtm_history_type *
 m0_dtm_history_type_find(struct m0_dtm *dtm, uint32_t id);
 
-M0_INTERNAL int m0_dtm_history_add_nop(struct m0_dtm_history *history,
-				       struct m0_dtm_oper *oper);
-M0_INTERNAL int m0_dtm_history_add_close(struct m0_dtm_history *history,
-					 struct m0_dtm_oper *oper);
+M0_INTERNAL void m0_dtm_history_add_nop(struct m0_dtm_history *history,
+					struct m0_dtm_oper *oper,
+					struct m0_dtm_update *cupdate);
+M0_INTERNAL void m0_dtm_history_add_close(struct m0_dtm_history *history,
+					  struct m0_dtm_oper *oper,
+					  struct m0_dtm_update *cupdate);
 
 M0_INTERNAL void m0_dtm_controlh_init(struct m0_dtm_controlh *ch,
-				      struct m0_dtm *dtm,
-				      struct m0_tl *uu);
+				      struct m0_dtm *dtm, struct m0_tl *uu);
 M0_INTERNAL void m0_dtm_controlh_fini(struct m0_dtm_controlh *ch);
 M0_INTERNAL void m0_dtm_controlh_add(struct m0_dtm_controlh *ch,
 				     struct m0_dtm_oper *oper);

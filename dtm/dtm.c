@@ -24,9 +24,10 @@
  */
 
 #include "lib/misc.h"              /* M0_SET0 */
-#include "lib/errno.h"             /* ENOMEM */
+
 #include "dtm/nucleus.h"
 #include "dtm/dtm.h"
+#include "dtm/dtm_internal.h"
 #include "dtm/dtm_update_xc.h"
 
 M0_INTERNAL void m0_dtm_init(struct m0_dtm *dtm)
@@ -119,6 +120,16 @@ M0_INTERNAL void m0_dtm_global_fini(void)
 M0_INTERNAL struct m0_dtm *nu_dtm(struct m0_dtm_nu *nu)
 {
 	return container_of(nu, struct m0_dtm, d_nu);
+}
+
+M0_INTERNAL void dtm_lock(struct m0_dtm *dtm)
+{
+	nu_lock(&dtm->d_nu);
+}
+
+M0_INTERNAL void dtm_unlock(struct m0_dtm *dtm)
+{
+	nu_unlock(&dtm->d_nu);
 }
 
 /** @} end of dtm group */

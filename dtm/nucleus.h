@@ -78,7 +78,6 @@ enum m0_dtm_hi_flags {
 
 struct m0_dtm_hi_ops {
 	void (*dho_release)   (struct m0_dtm_hi *hi);
-	void (*dho_persistent)(struct m0_dtm_hi *hi, struct m0_dtm_up *up);
 };
 
 enum m0_dtm_up_rule {
@@ -110,11 +109,9 @@ struct m0_dtm_op {
 M0_INTERNAL bool m0_dtm_op_invariant(const struct m0_dtm_op *op);
 
 struct m0_dtm_op_ops {
-	void (*doo_ready)     (struct m0_dtm_op *op);
-	void (*doo_late)      (struct m0_dtm_op *op);
-	void (*doo_miser)     (struct m0_dtm_op *op);
-	void (*doo_persistent)(struct m0_dtm_op *op);
-	void (*doo_stable)    (struct m0_dtm_op *op);
+	void (*doo_ready)(struct m0_dtm_op *op);
+	void (*doo_late) (struct m0_dtm_op *op);
+	void (*doo_miser)(struct m0_dtm_op *op);
 };
 
 struct m0_dtm_nu {

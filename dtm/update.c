@@ -45,9 +45,11 @@ M0_INTERNAL void m0_dtm_update_init(struct m0_dtm_update *update,
 			    upd->upd_up.up_state == M0_DOS_LIMBO &&
 			    upd->upd_label != update->upd_label));
 	M0_PRE(!(history->h_hi.hi_flags & M0_DHF_CLOSED));
+	M0_PRE(m0_dtm_oper_invariant(oper));
 	m0_dtm_up_init(&update->upd_up, &history->h_hi, &oper->oprt_op,
 		       data->da_rule, data->da_ver, data->da_orig_ver);
 	update->upd_label = data->da_label;
+	M0_PRE(m0_dtm_oper_invariant(oper));
 	M0_POST(m0_dtm_update_invariant(update));
 }
 
@@ -172,7 +174,8 @@ M0_INTERNAL void m0_dtm_update_link(struct m0_tl *list,
 
 M0_INTERNAL struct m0_dtm_update *up_update(struct m0_dtm_up *up)
 {
-	return container_of(up, struct m0_dtm_update, upd_up);
+	return up != NULL ?
+		container_of(up, struct m0_dtm_update, upd_up) : NULL;
 }
 
 M0_TL_DESCR_DEFINE(history, "dtm history updates", M0_INTERNAL,
