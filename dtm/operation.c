@@ -73,11 +73,11 @@ M0_INTERNAL void m0_dtm_oper_done(struct m0_dtm_oper *oper,
 {
 	M0_PRE(m0_dtm_oper_invariant(oper));
 	up_for(&oper->oprt_op, up) {
-		struct m0_dtm_history_remote *rem;
+		struct m0_dtm_history *history;
 
-		rem = history_remote(hi_history(up->up_hi), dtm);
-		M0_ASSERT(rem != NULL);
-		rem->hr_known = up_update(up);
+		history = hi_history(up->up_hi);
+		if (history->h_dtm == dtm)
+			history->h_known = up_update(up);
 	} up_endfor;
 	m0_dtm_op_done(&oper->oprt_op);
 	M0_POST(m0_dtm_oper_invariant(oper));
@@ -91,8 +91,7 @@ M0_INTERNAL void m0_dtm_oper_pack(const struct m0_dtm_oper *oper,
 
 	M0_PRE(m0_dtm_oper_invariant(oper));
 	oper_for(oper, update) {
-		if (history_remote(hi_history(update->upd_up.up_hi),
-				   dtm) != NULL) {
+		if (hi_history(update->upd_up.up_hi)->h_dtm == dtm) {
 			M0_ASSERT(idx < ode->od_nr);
 			m0_dtm_update_pack(update, &ode->od_update[idx++]);
 		}

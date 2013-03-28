@@ -106,14 +106,12 @@ M0_INTERNAL int m0_dtm_global_init(void)
 	m0_xc_dtm_update_init();
 	m0_xc_verno_init();
 	m0_dtm_nuclei_init();
-	m0_dtm_history_global_init();
 	return 0;
 }
 
 M0_INTERNAL void m0_dtm_global_fini(void)
 {
 	m0_dtm_nuclei_fini();
-	m0_dtm_history_global_fini();
 	m0_xc_dtm_update_fini();
 	m0_xc_verno_fini();
 }

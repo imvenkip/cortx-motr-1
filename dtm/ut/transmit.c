@@ -157,9 +157,7 @@ static void src_init(void)
 		m0_dtm_history_init(&history_src[i], &dtm_src);
 		history_src[i].h_hi.hi_ver = 1;
 		history_src[i].h_ops = &src_ops;
-		history_src[i].h_rem0.hr_dtm = &tgt;
-		m0_dtm_history_add_remote(&history_src[i],
-					  &history_src[i].h_rem0);
+		history_src[i].h_dtm = &tgt;
 	}
 	for (i = 0; i < ARRAY_SIZE(oper_src); ++i) {
 		m0_dtm_oper_init(&oper_src[i], &dtm_src);
@@ -191,9 +189,7 @@ static void tgt_init(void)
 		history_tgt[i].h_hi.hi_ver = 1;
 		history_tgt[i].h_hi.hi_flags |= M0_DHF_OWNED;
 		history_tgt[i].h_ops = &tgt_ops;
-		history_tgt[i].h_rem0.hr_dtm = &local;
-		m0_dtm_history_add_remote(&history_tgt[i],
-					  &history_tgt[i].h_rem0);
+		history_tgt[i].h_dtm = &local;
 	}
 	for (i = 0; i < ARRAY_SIZE(oper_tgt); ++i) {
 		m0_dtm_oper_init(&oper_tgt[i], &dtm_tgt);

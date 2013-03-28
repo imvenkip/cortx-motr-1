@@ -765,10 +765,6 @@ enum m0_magic_satchel {
 	M0_DTM_HI_MAGIX = 0x33b1b11ca1f00d77,
 	/* m0_dtm_op::op_ups::t_magic (feeble fiddle) */
 	M0_DTM_OP_MAGIX = 0x33feeb1ef1dd1e77,
-	/* m0_dtm_history_remote list head magic (Defoe ballade) */
-	M0_DTM_HISTORY_REMOTE_MAGIX = 0x33def0eba11ade77,
-	/* m0_dtm_history_remote list link magic (Balzac decade) */
-	M0_DTM_REMOTE_MAGIX         = 0x33ba12acdecade77
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */

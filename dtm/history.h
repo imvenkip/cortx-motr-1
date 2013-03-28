@@ -41,27 +41,18 @@ struct m0_dtm;
 
 /* export */
 struct m0_dtm_history;
-struct m0_dtm_history_remote;
 struct m0_dtm_remote;
 struct m0_dtm_remote_ops;
 struct m0_dtm_history_ops;
 struct m0_dtm_history_type;
 struct m0_dtm_history_type_ops;
 
-struct m0_dtm_history_remote {
-	struct m0_dtm_history *hr_history;
-	struct m0_dtm_remote  *hr_dtm;
-	struct m0_dtm_update  *hr_known;
-	struct m0_dtm_update  *hr_persistent;
-	struct m0_tlink        hr_linkage;
-	uint64_t               hr_magix;
-};
-
 struct m0_dtm_history {
 	struct m0_dtm_hi                 h_hi;
 	struct m0_queue_link             h_pending;
-	struct m0_tl                     h_remote;
-	struct m0_dtm_history_remote     h_rem0;
+	struct m0_dtm_remote            *h_dtm;
+	struct m0_dtm_update            *h_known;
+	struct m0_dtm_update            *h_persistent;
 	const struct m0_dtm_history_ops *h_ops;
 };
 M0_INTERNAL bool m0_dtm_history_invariant(const struct m0_dtm_history *history);
@@ -123,11 +114,6 @@ M0_INTERNAL int m0_dtm_history_add_nop(struct m0_dtm_history *history,
 M0_INTERNAL int m0_dtm_history_add_close(struct m0_dtm_history *history,
 					 struct m0_dtm_oper *oper);
 
-M0_INTERNAL void m0_dtm_history_remote_init(struct m0_dtm_history_remote *rem);
-M0_INTERNAL void m0_dtm_history_remote_fini(struct m0_dtm_history_remote *rem);
-M0_INTERNAL void m0_dtm_history_add_remote(struct m0_dtm_history *history,
-					   struct m0_dtm_history_remote *rem);
-
 M0_INTERNAL void m0_dtm_controlh_init(struct m0_dtm_controlh *ch,
 				      struct m0_dtm *dtm,
 				      struct m0_tl *uu);
@@ -135,9 +121,6 @@ M0_INTERNAL void m0_dtm_controlh_fini(struct m0_dtm_controlh *ch);
 M0_INTERNAL void m0_dtm_controlh_add(struct m0_dtm_controlh *ch,
 				     struct m0_dtm_oper *oper);
 M0_INTERNAL void m0_dtm_controlh_close(struct m0_dtm_controlh *ch);
-
-M0_INTERNAL void m0_dtm_history_global_init(void);
-M0_INTERNAL void m0_dtm_history_global_fini(void);
 
 /** @} end of dtm group */
 
