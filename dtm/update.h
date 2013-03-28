@@ -69,20 +69,35 @@ struct m0_dtm_update_type {
 	const struct m0_dtm_history_type *updtt_htype;
 };
 
+struct m0_dtm_update_data {
+	uint32_t da_label;
+	uint32_t da_rule;
+	uint64_t da_ver;
+	uint64_t da_orig_ver;
+} M0_XCA_RECORD;
+
+#define M0_DTM_UPDATE_DATA(label, rule, ver, orig_ver)	\
+(struct m0_dtm_update_data) {				\
+	.da_label    = (label),				\
+	.da_rule     = (rule),				\
+	.da_ver      = (ver),				\
+	.da_orig_ver = (orig_ver)			\
+}
+
 struct m0_dtm_update_descr {
-	uint32_t          udd_htype;
+	uint32_t                  udd_htype;
+	struct m0_dtm_update_data udd_data;
 	uint32_t          udd_label;
-	uint64_t          udd_rule;
+	uint32_t          udd_rule;
 	uint64_t          udd_ver;
 	uint64_t          udd_orig_ver;
-	struct m0_uint128 udd_id;
+	struct m0_uint128         udd_id;
 } M0_XCA_RECORD;
 
 M0_INTERNAL void m0_dtm_update_init(struct m0_dtm_update *update,
 				    struct m0_dtm_history *history,
 				    struct m0_dtm_oper *oper,
-				    uint32_t label, enum m0_dtm_up_rule rule,
-				    m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver);
+				    const struct m0_dtm_update_data *data);
 M0_INTERNAL bool m0_dtm_update_is_user(const struct m0_dtm_update *update);
 M0_INTERNAL void m0_dtm_update_pack(const struct m0_dtm_update *update,
 				    struct m0_dtm_update_descr *updd);

@@ -69,9 +69,6 @@ static void op_lock   (struct m0_dtm_op *op);
 static void op_unlock (struct m0_dtm_op *op);
 static void op_persist(struct m0_dtm_op *op);
 
-/* clandestinely exported to UT */
-M0_INTERNAL bool op_state(struct m0_dtm_op *op, enum m0_dtm_state state);
-
 enum m0_dtm_ver_cmp {
 	LATE  = -1,
 	READY =  0,

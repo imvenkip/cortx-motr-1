@@ -137,7 +137,7 @@ M0_INTERNAL void m0_dtm_reply_pack(struct m0_dtm_oper *oper,
 		struct m0_dtm_update_descr *ud = &request->od_update[i];
 		const struct m0_dtm_update *update;
 
-		update = m0_dtm_oper_get(oper, ud->udd_label);
+		update = m0_dtm_oper_get(oper, ud->udd_data.da_label);
 		M0_ASSERT(update != NULL);
 		M0_ASSERT(update->upd_up.up_state >= M0_DOS_VOLATILE);
 		M0_ASSERT(m0_dtm_descr_matches_update(update, ud));
@@ -158,7 +158,7 @@ M0_INTERNAL void m0_dtm_reply_unpack(struct m0_dtm_oper *oper,
 		struct m0_dtm_update_descr *ud = &reply->od_update[i];
 		struct m0_dtm_update       *update;
 
-		update = m0_dtm_oper_get(oper, ud->udd_label);
+		update = m0_dtm_oper_get(oper, ud->udd_data.da_label);
 		M0_ASSERT(update != NULL);
 		M0_ASSERT(update->upd_up.up_state == M0_DOS_INPROGRESS);
 		m0_dtm_update_unpack(update, ud);

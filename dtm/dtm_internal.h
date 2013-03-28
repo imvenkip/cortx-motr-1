@@ -32,10 +32,8 @@
 
 /* import */
 #include "lib/tlist.h"
-struct m0_dtm_up;
+#include "dtm/nucleus.h"
 struct m0_dtm_update;
-struct m0_dtm_hi;
-struct m0_dtm_nu;
 struct m0_dtm_history;
 struct m0_dtm_remote;
 
@@ -101,6 +99,7 @@ M0_INTERNAL struct m0_dtm_update *up_update(struct m0_dtm_up *up);
 M0_INTERNAL struct m0_dtm_history_remote *
 history_remote(const struct m0_dtm_history *history,
 	       const struct m0_dtm_remote  *dtm);
+M0_INTERNAL bool op_state(struct m0_dtm_op *op, enum m0_dtm_state state);
 
 /** @} end of dtm group */
 

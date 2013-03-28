@@ -33,6 +33,7 @@
 #include "dtm/operation.h"
 #include "dtm/history.h"
 #include "dtm/update.h"
+#include "dtm/ltx.h"
 #include "dtm/dtm.h"
 
 M0_INTERNAL void up_print(const struct m0_dtm_up *up);
@@ -41,7 +42,8 @@ M0_INTERNAL void hi_print(const struct m0_dtm_hi *hi);
 
 enum {
 	OPER_NR   = 64,
-	UPDATE_NR = 6
+	UPDATE_NR = 6,
+	TGT_DELTA = 4
 };
 
 static struct m0_tl               uu;
@@ -52,7 +54,7 @@ static struct m0_dtm_remote       local;
 static struct m0_dtm_oper         oper_src[OPER_NR];
 static struct m0_dtm_oper         oper_tgt[OPER_NR];
 static struct m0_dtm_update       update_src[OPER_NR][UPDATE_NR];
-static struct m0_dtm_update       update_tgt[OPER_NR][UPDATE_NR];
+static struct m0_dtm_update       update_tgt[OPER_NR][UPDATE_NR + TGT_DELTA];
 static struct m0_dtm_history      history_src[UPDATE_NR];
 static struct m0_dtm_history      history_tgt[UPDATE_NR];
 static struct m0_dtm_update_descr udescr[UPDATE_NR];
@@ -144,15 +146,13 @@ static const struct m0_dtm_history_ops tgt_ops = {
 	.hio_id   = tgt_id
 };
 
-static void transmit_test(void)
+static void src_init(void)
 {
 	int i;
-	int result;
 
 	m0_dtm_init(&dtm_src);
-	m0_dtm_init(&dtm_tgt);
 	m0_dtm_history_type_register(&dtm_src, &src_htype);
-	m0_dtm_history_type_register(&dtm_tgt, &tgt_htype);
+
 	for (i = 0; i < ARRAY_SIZE(history_src); ++i) {
 		m0_dtm_history_init(&history_src[i], &dtm_src);
 		history_src[i].h_hi.hi_ver = 1;
@@ -161,6 +161,31 @@ static void transmit_test(void)
 		m0_dtm_history_add_remote(&history_src[i],
 					  &history_src[i].h_rem0);
 	}
+	for (i = 0; i < ARRAY_SIZE(oper_src); ++i) {
+		m0_dtm_oper_init(&oper_src[i], &dtm_src);
+		oper_src[i].oprt_op.op_ops = &op_ops;
+	}
+}
+
+static void src_fini(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(oper_src); ++i)
+		m0_dtm_oper_fini(&oper_src[i]);
+	for (i = 0; i < ARRAY_SIZE(history_src); ++i)
+		m0_dtm_history_fini(&history_src[i]);
+	m0_dtm_history_type_deregister(&dtm_src, &src_htype);
+	m0_dtm_fini(&dtm_src);
+}
+
+static void tgt_init(void)
+{
+	int i;
+
+	m0_dtm_init(&dtm_tgt);
+	m0_dtm_history_type_register(&dtm_tgt, &tgt_htype);
+
 	for (i = 0; i < ARRAY_SIZE(history_tgt); ++i) {
 		m0_dtm_history_init(&history_tgt[i], &dtm_tgt);
 		history_tgt[i].h_hi.hi_ver = 1;
@@ -170,33 +195,54 @@ static void transmit_test(void)
 		m0_dtm_history_add_remote(&history_tgt[i],
 					  &history_tgt[i].h_rem0);
 	}
-	for (i = 0; i < ARRAY_SIZE(oper_src); ++i) {
-		m0_dtm_oper_init(&oper_src[i], &dtm_src);
-		oper_src[i].oprt_op.op_ops = &op_ops;
-	}
 	for (i = 0; i < ARRAY_SIZE(oper_tgt); ++i) {
 		m0_dtm_oper_init(&oper_tgt[i], &dtm_tgt);
 		oper_tgt[i].oprt_op.op_ops = &op_ops;
 	}
+}
 
+static void tgt_fini(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(oper_tgt); ++i)
+		m0_dtm_oper_fini(&oper_tgt[i]);
+	m0_dtm_update_list_fini(&uu);
+	for (i = 0; i < ARRAY_SIZE(history_tgt); ++i)
+		m0_dtm_history_fini(&history_tgt[i]);
+	m0_dtm_history_type_deregister(&dtm_tgt, &tgt_htype);
+	m0_dtm_fini(&dtm_tgt);
+}
+
+static void oper_populate(int i, unsigned nr)
+{
+	int j;
+
+	for (j = 0; j < nr; ++j) {
+		m0_dtm_update_init(&update_src[i][j], &history_src[j],
+				   &oper_src[i],
+			   &M0_DTM_UPDATE_DATA(M0_DTM_USER_UPDATE_BASE + 1 + j,
+					       M0_DUR_SET, 3 + j + i, 0));
+	}
+	m0_dtm_oper_close(&oper_src[i]);
+	m0_dtm_oper_prepared(&oper_src[i]);
+
+	ode.od_nr   = nr;
+	reply.od_nr = nr;
+
+	m0_dtm_oper_pack(&oper_src[i], &tgt, &ode);
+}
+
+static void transmit_test(void)
+{
+	int i;
+	int result;
+
+	src_init();
+	tgt_init();
 	for (i = 0; i < ARRAY_SIZE(oper_src); ++i) {
 		unsigned nr = (i%UPDATE_NR) + 1;
-		int      j;
-
-		for (j = 0; j < nr; ++j) {
-			m0_dtm_update_init(&update_src[i][j], &history_src[j],
-					   &oper_src[i],
-					   M0_DTM_USER_UPDATE_BASE + 1 + j,
-					   M0_DUR_SET, 3 + j + i, 0);
-		}
-		m0_dtm_oper_close(&oper_src[i]);
-		m0_dtm_oper_prepared(&oper_src[i]);
-
-		ode.od_nr   = nr;
-		reply.od_nr = nr;
-
-		m0_dtm_oper_pack(&oper_src[i], &tgt, &ode);
-
+		oper_populate(i, nr);
 		m0_dtm_update_list_init(&uu);
 		m0_dtm_update_link(&uu, update_tgt[i], nr);
 
@@ -210,26 +256,40 @@ static void transmit_test(void)
 		m0_dtm_reply_unpack(&oper_src[i], &reply);
 		m0_dtm_oper_done(&oper_src[i], &tgt);
 	}
+	tgt_fini();
+	src_fini();
+}
 
-	for (i = 0; i < ARRAY_SIZE(oper_src); ++i)
-		m0_dtm_oper_fini(&oper_src[i]);
-	for (i = 0; i < ARRAY_SIZE(oper_tgt); ++i)
-		m0_dtm_oper_fini(&oper_tgt[i]);
-	m0_dtm_update_list_fini(&uu);
-	for (i = 0; i < ARRAY_SIZE(history_tgt); ++i)
-		m0_dtm_history_fini(&history_tgt[i]);
-	for (i = 0; i < ARRAY_SIZE(history_src); ++i)
-		m0_dtm_history_fini(&history_src[i]);
-	m0_dtm_history_type_deregister(&dtm_tgt, &tgt_htype);
-	m0_dtm_history_type_deregister(&dtm_src, &src_htype);
-	m0_dtm_fini(&dtm_src);
-	m0_dtm_fini(&dtm_tgt);
+/* static struct m0_dtm_ltx ltx; */
+static struct m0_dbenv   db;
+static const char        db_name[] = "ut-dtm";
+
+static void ltx_test(void)
+{
+	int result;
+
+	src_init();
+	m0_dtm_history_type_register(&dtm_src, &m0_dtm_ltx_htype);
+	result = m0_dbenv_init(&db, db_name, 0);
+	M0_UT_ASSERT(result == 0);
+/*
+
+	m0_dtm_update_list_init(&uu);
+	m0_dtm_update_link(&uu, update_tgt[0][UPDATE_NR], 1);
+	m0_dtm_update_link(&uu, update_tgt[1][UPDATE_NR], 1);
+
+	m0_dtm_ltx_init(&ltx, &dtm_src, &db, &uu);
+	result = m0_dtm_ltx_open(&ltx);
+	M0_UT_ASSERT(result == 0);
+*/
+	src_fini();
 }
 
 const struct m0_test_suite dtm_transmit_ut = {
 	.ts_name = "dtm-transmit-ut",
 	.ts_tests = {
 		{ "transmit",    transmit_test  },
+		{ "ltx",         ltx_test       },
 		{ NULL, NULL }
 	}
 };

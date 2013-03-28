@@ -36,7 +36,7 @@
  */
 
 /* import */
-struct m0_dtm_oper;
+#include "dtm/operation.h"
 struct m0_dtm;
 
 /* export */
@@ -96,6 +96,12 @@ struct m0_dtm_history_type_ops {
 			 struct m0_dtm_history **out);
 };
 
+struct m0_dtm_controlh {
+	struct m0_dtm_history ch_history;
+	struct m0_dtm_oper    ch_clop;
+	struct m0_tl          ch_uu;
+};
+
 M0_INTERNAL void m0_dtm_history_init(struct m0_dtm_history *history,
 				     struct m0_dtm *dtm);
 M0_INTERNAL void m0_dtm_history_fini(struct m0_dtm_history *history);
@@ -117,11 +123,18 @@ M0_INTERNAL int m0_dtm_history_add_nop(struct m0_dtm_history *history,
 M0_INTERNAL int m0_dtm_history_add_close(struct m0_dtm_history *history,
 					 struct m0_dtm_oper *oper);
 
-
 M0_INTERNAL void m0_dtm_history_remote_init(struct m0_dtm_history_remote *rem);
 M0_INTERNAL void m0_dtm_history_remote_fini(struct m0_dtm_history_remote *rem);
 M0_INTERNAL void m0_dtm_history_add_remote(struct m0_dtm_history *history,
 					   struct m0_dtm_history_remote *rem);
+
+M0_INTERNAL void m0_dtm_controlh_init(struct m0_dtm_controlh *ch,
+				      struct m0_dtm *dtm,
+				      struct m0_tl *uu);
+M0_INTERNAL void m0_dtm_controlh_fini(struct m0_dtm_controlh *ch);
+M0_INTERNAL void m0_dtm_controlh_add(struct m0_dtm_controlh *ch,
+				     struct m0_dtm_oper *oper);
+M0_INTERNAL void m0_dtm_controlh_close(struct m0_dtm_controlh *ch);
 
 M0_INTERNAL void m0_dtm_history_global_init(void);
 M0_INTERNAL void m0_dtm_history_global_fini(void);

@@ -44,13 +44,8 @@ struct m0_dtm_oper_ops;
 
 struct m0_dtm_oper {
 	struct m0_dtm_op              oprt_op;
-	const struct m0_dtm_oper_ops *oprt_ops;
 };
 M0_INTERNAL bool m0_dtm_oper_invariant(const struct m0_dtm_oper *oper);
-
-struct m0_dtm_oper_ops {
-	void (*oprto_persistent)(struct m0_dtm_oper *oprt);
-};
 
 struct m0_dtm_oper_descr {
 	uint32_t                    od_nr;

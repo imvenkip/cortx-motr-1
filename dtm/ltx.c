@@ -25,10 +25,91 @@
  * @{
  */
 
+#include "lib/assert.h"
+
+#include "dtm/update.h"
+#include "dtm/ltx.h"
+
+static void persistent_hook(struct m0_db_tx_waiter *w);
+static const struct m0_dtm_history_ops ltx_ops;
+
+M0_INTERNAL void m0_dtm_ltx_init(struct m0_dtm_ltx *ltx, struct m0_dtm *dtm,
+				 struct m0_dbenv *env, struct m0_tl *uu)
+{
+	m0_dtm_controlh_init(&ltx->lx_ch, dtm, uu);
+	ltx->lx_ch.ch_history.h_ops = &ltx_ops;
+	ltx->lx_env = env;
+}
+
+M0_INTERNAL int m0_dtm_ltx_open(struct m0_dtm_ltx *ltx)
+{
+	int result;
+
+	result = m0_db_tx_init(&ltx->lx_tx, ltx->lx_env, 0);
+	if (result == 0) {
+		ltx->lx_waiter.tw_persistent = &persistent_hook;
+		m0_db_tx_waiter_add(&ltx->lx_tx, &ltx->lx_waiter);
+	}
+	return result;
+}
+
+M0_INTERNAL int m0_dtm_ltx_close(struct m0_dtm_ltx *ltx)
+{
+	m0_dtm_controlh_close(&ltx->lx_ch);
+	return m0_db_tx_commit(&ltx->lx_tx);
+}
+
+M0_INTERNAL void m0_dtm_ltx_fini(struct m0_dtm_ltx *ltx)
+{
+	m0_dtm_controlh_fini(&ltx->lx_ch);
+}
+
+M0_INTERNAL void m0_dtm_ltx_add(struct m0_dtm_ltx *ltx,
+				struct m0_dtm_oper *oper)
+{
+	m0_dtm_controlh_add(&ltx->lx_ch, oper);
+}
+
+static void persistent_hook(struct m0_db_tx_waiter *w)
+{
+	struct m0_dtm_ltx *ltx = container_of(w, struct m0_dtm_ltx, lx_waiter);
+	M0_ASSERT(ltx->lx_ch.ch_history.h_hi.hi_flags & M0_DHF_CLOSED);
+	m0_dtm_history_persistent(&ltx->lx_ch.ch_history);
+}
+
+static int ltx_find(const struct m0_dtm_history_type *ht,
+		    const struct m0_uint128 *id,
+		    struct m0_dtm_history **out)
+{
+	M0_IMPOSSIBLE("Looking for ltx?");
+}
+
+static const struct m0_dtm_history_type_ops ltx_htype_ops = {
+	.hito_find = ltx_find
+};
+
+enum {
+	M0_DTM_HTYPE_LTX = 7
+};
+
+M0_INTERNAL const struct m0_dtm_history_type m0_dtm_ltx_htype = {
+	.hit_id   = M0_DTM_HTYPE_LTX,
+	.hit_name = "local transaction",
+	.hit_ops  = &ltx_htype_ops
+};
+
+static void ltx_id(const struct m0_dtm_history *history, struct m0_uint128 *id)
+{
+	M0_IMPOSSIBLE("Encoding ltx?");
+}
+
+static const struct m0_dtm_history_ops ltx_ops = {
+	.hio_type = &m0_dtm_ltx_htype,
+	.hio_id   = ltx_id
+};
 
 
 /** @} end of dtm group */
-
 
 /*
  *  Local variables:

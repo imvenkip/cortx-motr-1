@@ -239,23 +239,24 @@ static m0_dtm_ver_t history_ver(const struct m0_dtm_history *history)
 
 static int control_update_add(struct m0_dtm_history *history,
 			      struct m0_dtm_oper *oper,
+			      struct m0_dtm_update *cupdate,
 			      enum m0_dtm_up_rule rule)
 {
-	int                   result;
-	struct m0_dtm_update *cupdate;
+	int result;
 
 	M0_PRE(M0_IN(rule, (M0_DUR_NOT, M0_DUR_INC)));
 
-	M0_ALLOC_PTR(cupdate);
+	if (cupdate == NULL)
+		M0_ALLOC_PTR(cupdate);
 	if (cupdate != NULL) {
-		m0_dtm_ver_t orig_ver;
-		m0_dtm_ver_t ver;
+		m0_dtm_ver_t              orig_ver;
+		m0_dtm_ver_t              ver;
 
 		orig_ver = history_ver(history);
 		ver = rule == M0_DUR_NOT ? orig_ver : orig_ver + 1;
 		m0_dtm_update_init(cupdate, history, oper,
-				   history->h_ops->hio_type->hit_id,
-				   rule, ver, orig_ver);
+			  &M0_DTM_UPDATE_DATA(history->h_ops->hio_type->hit_id,
+					      rule, ver, orig_ver));
 		result = 0;
 	} else
 		result = -ENOMEM;
@@ -266,7 +267,7 @@ M0_INTERNAL int m0_dtm_history_add_nop(struct m0_dtm_history *history,
 				       struct m0_dtm_oper *oper)
 {
 	M0_PRE(m0_dtm_history_invariant(history));
-	return control_update_add(history, oper, M0_DUR_NOT);
+	return control_update_add(history, oper, NULL, M0_DUR_NOT);
 }
 
 M0_INTERNAL int m0_dtm_history_add_close(struct m0_dtm_history *history,
@@ -274,7 +275,7 @@ M0_INTERNAL int m0_dtm_history_add_close(struct m0_dtm_history *history,
 {
 	M0_PRE(m0_dtm_history_invariant(history));
 	m0_dtm_history_close(history);
-	return control_update_add(history, oper, M0_DUR_INC);
+	return control_update_add(history, oper, NULL, M0_DUR_INC);
 }
 
 M0_INTERNAL void m0_dtm_history_remote_init(struct m0_dtm_history_remote *rem)
@@ -298,6 +299,50 @@ M0_INTERNAL void m0_dtm_history_add_remote(struct m0_dtm_history *history,
 	rem_tlist_add(&history->h_remote, rem);
 	rem->hr_history = history;
 	M0_POST(m0_dtm_history_invariant(history));
+}
+
+M0_INTERNAL void m0_dtm_controlh_init(struct m0_dtm_controlh *ch,
+				      struct m0_dtm *dtm, struct m0_tl *uu)
+{
+	struct m0_dtm_update *update;
+
+	m0_dtm_update_list_init(&ch->ch_uu);
+	m0_dtm_history_init(&ch->ch_history, dtm);
+	m0_dtm_oper_init(&ch->ch_clop, dtm);
+	m0_tl_for(oper, uu, update) {
+		oper_tlist_move_tail(&ch->ch_uu, update);
+	} m0_tl_endfor;
+
+}
+
+M0_INTERNAL void m0_dtm_controlh_fini(struct m0_dtm_controlh *ch)
+{
+	m0_dtm_oper_fini(&ch->ch_clop);
+	m0_dtm_history_fini(&ch->ch_history);
+	m0_dtm_update_list_fini(&ch->ch_uu);
+}
+
+M0_INTERNAL void m0_dtm_controlh_close(struct m0_dtm_controlh *ch)
+{
+	struct m0_dtm_update *update = oper_tlist_head(&ch->ch_uu);
+
+	M0_PRE(update != NULL);
+
+	m0_dtm_history_close(&ch->ch_history);
+	(void)control_update_add(&ch->ch_history,
+				 &ch->ch_clop, update, M0_DUR_INC);
+}
+
+M0_INTERNAL void m0_dtm_controlh_add(struct m0_dtm_controlh *ch,
+				     struct m0_dtm_oper *oper)
+{
+	struct m0_dtm_update *update = oper_tlist_head(&ch->ch_uu);
+
+	update = oper_tlist_head(&ch->ch_uu);
+	M0_PRE(update != NULL);
+
+	(void)control_update_add(&ch->ch_history,
+				 &ch->ch_clop, update, M0_DUR_NOT);
 }
 
 M0_INTERNAL void m0_dtm_history_global_init(void)
