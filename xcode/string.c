@@ -159,9 +159,7 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 				if (result != 0)
 					return result;
 			}
-			if (xt->xct_aggr == M0_XA_SEQUENCE &&
-			    xt->xct_child[1].xf_type == &M0_XT_U8 &&
-			    *str == '"') {
+			if (m0_xcode_is_byte_array(xt) && *str == '"') {
 				/* string literal */
 				result = string_literal(cur, ++str);
 				if (result < 0)
