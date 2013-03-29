@@ -27,7 +27,6 @@
    - @ref MGMT-DLD-fspec-sub
    - @ref MGMT-DLD-fspec-cli
    - @ref MGMT-DLD-fspec-usecases
-     - @ref MGMT-DLD-fspec-uc-m0mc
 
    <hr>
    @section MGMT-DLD-fspec-ds Data Structures
@@ -63,36 +62,44 @@
    <hr>
    @section MGMT-DLD-fspec-cli Command Usage
 
-   m0mc
+   m0ctl
 
    <hr>
    @section MGMT-DLD-fspec-usecases Recipes
 
-   @subsection MGMT-DLD-fspec-uc-m0mc-local Easy local invocation
-   @todo m0mc UC Local invocation requires no flags
+   @subsection MGMT-DLD-fspec-uc-m0ctl-local Easy local invocation
+   m0ctl will default to using /etc/mero/genders to determine configuration.
 
-   @subsection MGMT-DLD-fspec-uc-m0mc-local Easy remote invocation
-   @todo m0mc UC Remote invocation only requires (IP) hostname
+   @subsection MGMT-DLD-fspec-uc-m0ctl-local Easy remote invocation
+   @todo m0ctl UC Remote invocation only requires (IP) hostname
 
-   @subsection MGMT-DLD-fspec-uc-m0mc-sall Start all Mero services
-   @todo m0mc UC Start all Mero services (m0d)
+   @subsection MGMT-DLD-fspec-uc-m0ctl-sall Start all Mero services
+   At present, "service mero start" is the exposed interface to start all
+   services.
 
-   @subsection MGMT-DLD-fspec-uc-m0mc-Sall Stop all Mero services
-   @todo m0mc UC Stop all Mero services (m0d)
+   @todo m0ctl UC Start all Mero services (m0d)
 
-   @subsection MGMT-DLD-fspec-uc-m0mc-s Start individual Mero services
-   @todo m0mc UC Start a Mero service
+   @subsection MGMT-DLD-fspec-uc-m0ctl-Sall Stop all Mero services
+   At present, "service mero stop" is the exposed interface to start all
+   services.
 
-   @subsection MGMT-DLD-fspec-uc-m0mc-S Stop individual Mero services
-   @todo m0mc UC Stop a Mero service
+   @todo m0ctl UC Stop all Mero services (m0d)
 
-   @subsection MGMT-DLD-fspec-uc-m0mc-q Query individual Mero service status
-   @todo m0mc UC Query a Mero service
+   @subsection MGMT-DLD-fspec-uc-m0ctl-s Start individual Mero services
+   @todo m0ctl UC Start a Mero service
 
-   @subsection MGMT-DLD-fspec-uc-m0mc-Q Query all Mero service status
-   @todo m0mc UC Query all Mero services
+   @subsection MGMT-DLD-fspec-uc-m0ctl-S Stop individual Mero services
+   @todo m0ctl UC Stop a Mero service
+
+   @subsection MGMT-DLD-fspec-uc-m0ctl-q Query individual Mero service status
+   @todo m0ctl UC Query a Mero service
+
+   @subsection MGMT-DLD-fspec-uc-m0ctl-Q Query all Mero service status
+   Either "service mero status" can be used as a front-end to query status of
+   all mero services, or, alternatively "m0ctl query-all" can be used.
 
    @see @ref MGMT-DLD "Management Detailed Design"
+   @see @ref MGMT-CTL-DLD "Management CLI Design"
 
  */
 

@@ -50,6 +50,56 @@ M0_INTERNAL void m0_mgmt_fini(void);
  */
 M0_INTERNAL int m0_mgmt_service_allocate(struct m0_reqh_service **service);
 
+/**
+ * Properties of single mero servers.
+ * @todo use conf objects if possible once they are extended
+ */
+struct m0_mgmt_svc_conf {
+	/** Service name */
+	char           *msc_name;
+	/** Service UUID */
+	char           *msc_uuid;
+	/** Service options/arguments */
+	char          **msc_arg;
+	struct m0_tlink msc_linkage;
+};
+
+/**
+ * Properties of single mero server node.
+ * @todo use conf objects if possible once they are extended
+ */
+struct m0_mgmt_node_conf {
+	/** The node name */
+	char       *mnc_name;
+	/** String endpoint of m0d */
+	char       *mnc_m0d_ep;
+	/** String endpoint of client */
+	char       *mnc_client_ep;
+	/** The "var" directory, eg /var/mero */
+	char        *mnc_var;
+	/** The node UUID */
+	char        *mnc_uuid;
+	/** Max RPC message size */
+	m0_bcount_t  mnc_max_rpc_msg;
+	/** Minimum recv queue length */
+	uint32_t     mnc_recv_queue_min_length;
+	/** List of services on this node */
+	struct m0_tl mnv_svc;
+};
+
+/**
+ * Initialize a m0_mgmt_node_conf object using information in the given
+ * genders file.
+ * @retval -ENOENT Genders files does not exist
+ * @retval -ENODATA No data for this node found in genders
+ * @retval -EINVAL Node information is incomplete (e.g. missing node UUID)
+ * @note additional errors can be returned.
+ */
+M0_INTERNAL int m0_mgmt_node_conf_init(struct m0_mgmt_node_conf *conf,
+				       const char *genders);
+
+M0_INTERNAL void m0_mgmt_node_conf_fini(struct m0_mgmt_node_conf *conf);
+
 /** @} end mgmt group */
 #endif /* __MERO_MGMT_MGMT_H__ */
 /*

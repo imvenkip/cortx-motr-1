@@ -33,7 +33,7 @@
       - @ref MGMT-DLD-lspec-genders
       - @ref MGMT-DLD-lspec-hosts
       - @ref MGMT-SVC-DLD "Management Service Design"
-      - @ref MGMT-M0MC-DLD "The management command (m0mc)"
+      - @ref MGMT-CTL-DLD "The Management CLI (m0ctl)"
       - @ref MGMT-DLD-lspec-state
       - @ref MGMT-DLD-lspec-thread
       - @ref MGMT-DLD-lspec-numa
@@ -46,7 +46,8 @@
 
    Additional design details are found in component DLDs:
    - @subpage MGMT-SVC-DLD "Management Service Design"
-   - @subpage MGMT-M0MC-DLD "The m0mc Command Design"
+   - @subpage MGMT-CTL-DLD "The Management CLI Design"
+   - @subpage MGMT-CONF-DLD "Management Configuration"
 
    <hr>
    @section MGMT-DLD-ovw Overview
@@ -57,8 +58,8 @@
    command line utilities necessary for interaction with external
    subsystems such as the HA subsystem. @ref MGMT-DLD-ref-svc-plan "[0]".
 
-   The Management module provides @i mechanisms by which Mero is configured
-   and managed externally; it does not define external @i policy.
+   The Management module provides @a mechanisms by which Mero is configured
+   and managed externally; it does not define external @a policy.
    This DLD and associated documents should aid in the development of
    middle-ware required to successfully deploy a Mero based product such as
    @ref MGMT-DLD-ref-mw-prod-plan "WOMO [1]".
@@ -92,6 +93,10 @@
    some of the services even if some subset has failed.
    - @b R.cli.mgmt-api.services Provide support to manage local and remote Mero
    services through a CLI.  Should provide a timeout (default/configurable).
+   - @b R.cli.mgmt-api.query Provide support to query status of local and remote
+   Mero services through a CLI.
+   - @b R.cli.mgmt-api.start Provide support to start local and remote
+   Mero services through a CLI.
    - @b R.cli.mgmt-api.shutdown Provide support to shutdown local and remote
    Mero services through a CLI.
 
@@ -130,7 +135,7 @@
    shutdown.
    - Automatically insert a Management service in every request handler.
       - Interact with this service through Management FOPs.
-      - Provide the m0mc command line program.
+      - Provide the m0ctl command line program.
 
    <hr>
    @section MGMT-DLD-lspec Logical Specification
@@ -140,7 +145,8 @@
    - @ref MGMT-DLD-lspec-genders
    - @ref MGMT-DLD-lspec-hosts
    - @ref MGMT-SVC-DLD "The management service"
-   - @ref MGMT-M0MC-DLD "The management command (m0mc)"
+   - @ref MGMT-CTL-DLD "The Management CLI (m0ctl)"
+   - @ref MGMT-CONF-DLD "Management Configuration"
    - @ref MGMT-DLD-lspec-state
    - @ref MGMT-DLD-lspec-thread
    - @ref MGMT-DLD-lspec-numa
@@ -148,8 +154,9 @@
    @subsection MGMT-DLD-lspec-comps Component Overview
    The Management module consists of the following components:
    - @ref MGMT-DLD-lspec-osif
-   - @ref MGMT-DLD-lspec-svc "The management service"
-   - @ref MGMT-M0MC-DLD "The management command (m0mc)"
+   - @ref MGMT-SVC-DLD "The Management Service"
+   - @ref MGMT-CTL-DLD "The Management CLI (m0ctl)"
+   - @ref MGMT-CONF-DLD "Management Configuration"
 
    @subsection MGMT-DLD-lspec-osif Extensions for the service command
    Support will be provided to start and stop m0d with the "service" command.
@@ -165,10 +172,10 @@
      have only one network end point and will use a TMID of 0.
      - All services relevant to a node will be configured to run within this
      m0d process.
-   - Use of the /etc/hosts and /etc/genders databases to capture static
+   - Use of the /etc/hosts and /etc/mero/genders databases to capture static
      configuration data.  It is assumed that these files will have the same
      cluster related content on all nodes of the Mero cluster.
-   - A standard directory in the file system, /etc/sysconfig/mero, is specified
+   - A standard directory in the file system, /etc/mero, is specified
      for additional configuration, including information on the disks to be used
      on the node (STOB data).  Some of this information will eventually be
      obtained from the configuration database at run time, but this arena allows
@@ -177,8 +184,9 @@
      run time generated data.
      - This will be the run time directory of the m0d process.  Core files
        should end up in this directory.
-     - A subdirectory named "db" will be temporarily created and passed as
-       the argument to the '-D' m0d flag.
+     - A subdirectory named "db" will be created and passed as
+       the argument to the '-D' m0d flag (this specific behavior may change
+       when Mero converts to use of RVM instead of DB5).
      - The confd database will be in the /var/mero/confd directory on hosts that
        run the configuration database service.  It should not be under /etc
        because the size is proportional to both the number of physical and the
@@ -199,24 +207,27 @@
    the m0d process.
    - The "stop" directive will stop the m0d process and unload the kernel
    module.
-   - The "query" directive will use the m0mc command to query m0d and then
+   - The "query" directive will use the m0ctl command to query m0d and then
    return a summary status.
 
    See @ref service8 "service(8)" for more details.
 
-   The script will be driven by data from the /etc/hosts and /etc/genders file,
-   and information in the /etc/sysconfig/mero directory.
+   The script will be driven by data from the /etc/hosts and /etc/mero/genders
+   file, and other information in the /etc/mero directory.
 
-   @todo Define STOB data required under /etc/sysconfig/mero
+   @todo Define STOB data required under /etc/mero
    @todo Investigate other m0d flags such as '-p'.  This generalizes to handling
    one-time initialization issues.
    @todo Investigate other service startup needs.
 
-   @subsection MGMT-DLD-lspec-genders Use of the /etc/genders file
-   The @ref libgenders3 "/etc/genders" file is a common database used in
+   @subsection MGMT-DLD-lspec-genders Use of the /etc/mero/genders file
+   The @ref libgenders3 "/etc/mero/genders" file is a common database used in
    management of large clusters.
    It is expected that this file will be created by an external agency and
    replicated on each participating host in the Mero cluster.
+   Note that the location /etc/mero/genders was chosen to allow the Mero
+   genders database to be managed separately from the standard /etc/genders
+   database.
 
    The Mero management module stores relatively static configuration information
    for each node of the Mero cluster in this file.
@@ -244,70 +255,72 @@
 
    A genders file could look like this:
 @verbatim
-h[00-10]  all
-h[00-10]  lnet_if=o2ib0,lnet_pid=12345   # LNet common defaults
-h[00-10]  lnet_kernel_portal=34          # portal for the kernel
-h[00-10]  lnet_m0d_portal=35             # portal for m0d
-h[00-10]  lnet_client_portal=36          # portal for clients (dynamic TMID)
-h[00-10]  lnet_host=l%n                  # mapping of nodename to LNet hostname
-h[00-10]  var=/var/mero                  # Mero variable data directory
-h[00-10]  max_rpc_msg=163840             # max rpc message size
-h[00-10]  min_recv_q=2                   # minimum receive queue length
-h00,h01   s_confd=-c:/var/mero/confd/confdb.txt # confd hosts, db file
-h00,h01   s_rm                           # hosts running the resource manager
-h00,h01   s_mdservice                    # hosts running the meta-data service
-h[00-10]  s_addb=-A:/etc/sysconfig/mero/addb-stobs # ADDB service hosts; stobs
-h[00-10]  s_ioservice=-T:AD:-S:/etc/sysconfig/mero/stobs # IO service; stobs
-h[00-10]  s_sns                          # hosts running SNS
-h00       HA-PROXY                       # hosts running HA proxies
-h00       uuid=b47539c2-143e-44e8-9594-a8f6e09bfec0
-h00       u_confd=d2655b68-f578-45cb-bbb9-c1495e083074
-h01       uuid=6d5ddc53-b1b6-43ae-9c7c-16c227b2ea5a
-h02       uuid=26a17da7-d5f2-462d-960d-205334adb028
-h03       uuid=68b617e1-097a-4e46-8d16-3e202628c568
-h03       u_ioservice=f595564a-20ca-4b12-8f4b-0d2f82726d61
+h[00-10]  m0_all
+h[00-10]  m0_lnet_if=o2ib0,m0_lnet_pid=12345 # LNet common defaults
+h[00-10]  m0_lnet_kernel_portal=34          # portal for the kernel
+h[00-10]  m0_lnet_m0d_portal=35             # portal for m0d
+h[00-10]  m0_lnet_client_portal=36          # portal for clients (dynamic TMID)
+h[00-10]  m0_lnet_host=l%n                  # mapping of node to LNet hostname
+h[00-10]  m0_var=/var/mero                  # Mero variable data directory
+h[00-10]  m0_max_rpc_msg=163840             # max rpc message size
+h[00-10]  m0_min_recv_q=2                   # minimum receive queue length
+h00,h01   m0_s_confd=-c:/var/mero/confd/confdb.txt # confd hosts, db file
+h00,h01   m0_s_rm                           # hosts running the resource manager
+h00,h01   m0_s_mdservice=-p                 # hosts running the metadata service
+h[00-10]  m0_s_addb=-A:/etc/mero/stobs      # ADDB service hosts; stobs
+h[00-10]  m0_s_ioservice=-T:AD:-S:/etc/mero/stobs # IO service; stobs
+h[00-10]  m0_s_sns                          # hosts running SNS
+h00       m0_HA-PROXY                       # hosts running HA proxies
+h00       m0_uuid=b47539c2-143e-44e8-9594-a8f6e09bfec0
+h00       m0_u_confd=d2655b68-f578-45cb-bbb9-c1495e083074
+h01       m0_uuid=6d5ddc53-b1b6-43ae-9c7c-16c227b2ea5a
+h02       m0_uuid=26a17da7-d5f2-462d-960d-205334adb028
+h03       m0_uuid=68b617e1-097a-4e46-8d16-3e202628c568
+h03       m0_u_ioservice=f595564a-20ca-4b12-8f4b-0d2f82726d61
 @endverbatim
    Most of the attributes in the example above are self explanatory, but
    some need additional explanation:
-   - @a uuid is the Node UUID.  This value is passed as a parameter to the Mero
-   kernel module to uniquely identify the node.
-   - @a s_Name denotes a service (type) @em Name that needs to be started
+   - All attributes have an @a m0_ prefix.  This allows for the possibility of
+   merging the /etc/mero/genders with the standard /etc/genders in the future.
+   - @a m0_uuid is the Node UUID.  This value is passed as a parameter to the
+   Mero kernel module to uniquely identify the node.
+   - @a m0_s_Name denotes a service (type) @em Name that needs to be started
    on a node.
    The value of this attribute, if any, are a list of colon separated m0d
    arguments.
-   - @a u_Name specifies the UUID of the specified service (type).
+   - @a m0_u_Name specifies the UUID of the specified service (type).
    Every service instance in the cluster must have a UUID - the example above
    only illustrates a couple of service uuids.  Communication with
    @ref MGMT-SVC-DLD-lspec-mgmt-foms "Management FOPs" uses service UUIDs.
-   - @a lnet_host This attribute provides a mapping from a node name to the
+   - @a m0_lnet_host This attribute provides a mapping from a node name to the
    symbolic host name associated with the IP address to use for LNet on that
    node.
-   - @a var is the location of the variable data directory where run time Mero
-   data is stored.  This directory will be used as the "current" directory of
-   the m0d process
+   - @a m0_var is the location of the variable data directory where run time
+   Mero data is stored.  This directory will be used as the "current" directory
+   of the m0d process.
 
    The following illustrates some queries on the genders database above:
 @verbatim
-#  nodeattr -f /tmp/genders -s all
+#  nodeattr -f /etc/mero/genders -s m0_all
 h00 h01 h02 h03 h04 h05 h06 h07 h08 h09 h10
 
-# nodeattr -l h03
-all
-lnet_if=o2ib0
-lnet_pid=12345
-lnet_kernel_portal=34
-lnet_m0d_portal=35
-lnet_host=lh03
-var=/var/mero
-max_rpc_msg=163840
-min_recv_q=2
-s_addb=-A:/etc/sysconfig/mero/addb-stobs
-s_ioservice=-T:AD:-S:/etc/sysconfig/mero/stobs
-s_sns
-uuid=68b617e1-097a-4e46-8d16-3e202628c568
-u_ioservice=f595564a-20ca-4b12-8f4b-0d2f82726d61
+# nodeattr -f /etc/mero/genders -l h03
+m0_all
+m0_lnet_if=o2ib0
+m0_lnet_pid=12345
+m0_lnet_kernel_portal=34
+m0_lnet_m0d_portal=35
+m0_lnet_host=lh03
+m0_var=/var/mero
+m0_max_rpc_msg=163840
+m0_min_recv_q=2
+m0_s_addb=-A:/etc/mero/stobs
+m0_s_ioservice=-T:AD:-S:/etc/mero/stobs
+m0_s_sns
+m0_uuid=68b617e1-097a-4e46-8d16-3e202628c568
+m0_u_ioservice=f595564a-20ca-4b12-8f4b-0d2f82726d61
 
-# nodeattr -c s_confd
+# nodeattr -c m0_s_confd
 h00,h01
 @endverbatim
    Note that the "%n" token is automatically replaced by genders with the
@@ -324,19 +337,19 @@ h00,h01
    have the same set of mappings.
 
    The host names for Mero cluster servers must follow the pattern
-   defined for @ref libgenders3 "/etc/genders".  Genders refers to a
+   defined for @ref libgenders3 "/etc/mero/genders".  Genders refers to a
    cluster host name as its "node name".
 
    LNet end points are named with IP addresses assigned to local network
    interfaces.  This assignment is done by external agencies, not by Mero,
-   and can be seen in the /etc/modprobe.d/luster.conf file.
+   and can be seen in the /etc/modprobe.d/lustre.conf file.
    The IP addresses used for LNet should also be assigned symbolic host names in
    the hosts database.  There should be a straight forward mapping from node
-   name to LNet host name using just prefixes and suffixes.  See the "lnet_host"
-   attribute in the sample genders database above for an example.
+   name to LNet host name using just prefixes and suffixes.  See the
+   "m0_lnet_host" attribute in the sample genders database above for an example.
 
    To continue with the previous example, a hosts database for its Mero
-   cluster would have records like the following:
+   cluster could have records like the following:
 @verbatim
 h00      192.168.1.0
 h01      192.168.1.1

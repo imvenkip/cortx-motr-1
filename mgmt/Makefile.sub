@@ -5,6 +5,7 @@ nobase_mero_include_HEADERS += mgmt/mgmt.h \
 XC_FILES   += mgmt/mgmt_fops_xc.h
 
 mero_libmero_la_SOURCES  += mgmt/mgmt.c \
+			    mgmt/mgmt_conf.c \
 			    mgmt/mgmt_fops_xc.c
 
 EXTRA_DIST += mgmt/svc/fop_ss.c \

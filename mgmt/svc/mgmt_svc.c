@@ -135,7 +135,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
    - A special "management" request handler service is provided to
    expose a service management FOP interface.
      - It works in conjunction with the request handler state machine.
-     - The m0mc command will be its primary client.
+     - The m0ctl command will be its primary client.
      - It is extensible to additional management tasks.
 
    <hr>
