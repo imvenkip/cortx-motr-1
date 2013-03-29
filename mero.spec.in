@@ -1,51 +1,41 @@
-Name:    @PACKAGE@
-Version: @PACKAGE_VERSION@
-Release: 1
-Summary: Mero filesystem and development libraries
-Group: System Environment/Base
-License: Xyratex
-Source: %{name}-%{version}.tar.gz
-BuildRoot: %{_tmppath}/%{name}-%{version}
-Requires: CUnit = 2.1-2 libyaml galois db4 lustre-modules
-BuildRequires: CUnit = 2.1-2 libyaml-devel galois-devel db4-devel automake autoconf libtool lustre-source gccxml gcc-c++ perl perl-XML-LibXML perl-List-MoreUtils
+Name:           @PACKAGE@
+Version:        @PACKAGE_VERSION@
+# TODO: add kernel version to release string like in lustre
+Release:        1@GIT_REV_ID@%{?dist}
+Summary:        Mero filesystem and development libraries
+Group:          System Environment/Base
+License:        Xyratex
+Source:         %{name}-%{version}.tar.gz
+BuildArch:      x86_64
+ExcludeArch:    i686
+# TODO: specify exact lustre-modules version for which we build
+Requires:       lustre-modules db4 libyaml
+BuildRequires:  automake autoconf libtool make gcc gcc-c++ gccxml glibc-headers kernel-devel db4-devel libyaml-devel libaio-devel perl perl-XML-LibXML perl-List-MoreUtils perl-File-Find-Rule perl-IO-All lustre-source
 
 %description
 Mero filesystem runtime environment and servers.
 
-%package devel
-Summary:	%{name} development package
-Group:		Development/Libraries
-Requires:	%{name} = %{version} libyaml-devel galois-devel db4-devel lustre-source
-
-%description devel
-Mero filesystem development environment.
-
 %prep
-%setup  -q -n %{name}-%{version}
+%setup -q
 
 %build
-%configure --enable-rpm --program-prefix=%{?_program_prefix:%{_program_prefix}}
-make
+%configure --disable-unit-tests
+make %{?_smp_mflags}
 
 %install
-rm -rf $RPM_BUILD_ROOT
-export INSTALL_MOD_PATH=$RPM_BUILD_ROOT
-DESTDIR="$RPM_BUILD_ROOT" make install
+rm -rf %{buildroot}
+make DESTDIR=%{buildroot} install
+find %{buildroot} -name '*.la' -exec rm -f {} ';'
 
 %files
-%defattr(-,root,root)
-%doc AUTHORS README NEWS ChangeLog COPYING INSTALL
-%{_libdir}/libmero*.so*
+%doc AUTHORS README NEWS ChangeLog COPYING
+%{_bindir}/*
+%{_sbindir}/*
+%{_libdir}/*
 /lib/modules/*
-/usr/sbin/*
-/usr/bin/*
+%exclude %{_includedir}
 
 %post
 /sbin/depmod -a
 
-%files devel
-%defattr(-,root,root)
-%doc AUTHORS README NEWS ChangeLog COPYING INSTALL doc
-%{_includedir}/*
-%{_libdir}/libmero*.a*
-%{_libdir}/libmero*.la*
+%postun

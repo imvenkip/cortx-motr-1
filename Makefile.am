@@ -444,9 +444,7 @@ rpc_it_m0rpcping_altogether_SOURCES  = $(rpc_it_m0rpcping_SOURCES)
 rpc_it_m0rpcping_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la \
                                        ut/ut_libmero_ut_la-cs_service.lo \
                                        ut/ut_libmero_ut_la-cs_fop_foms.lo \
-                                       ut/ut_libmero_ut_la-cs_fop_foms_xc.lo \
-                                       ut/ut_libmero_ut_la-ut.lo
-# TODO: check if ut/ut_libmero_ut_la-ut.lo is really needed
+                                       ut/ut_libmero_ut_la-cs_fop_foms_xc.lo
 
 include $(top_srcdir)/rpc/it/Makefile.sub
 
@@ -854,6 +852,14 @@ install-exec-local:
 	@$(MAKE) INSTALL_MOD_PATH=$(DESTDIR) INSTALL_MOD_DIR=kernel/fs \
 			 -C $(KDIR) M=$(abs_top_builddir) modules_install
 
+# rpmbuild needs a dist archive with sources to build rpm, by default it
+# searches it in ~/rpmbuild/SOURCES/ directory, but we are telling rpmbuild to
+# look in the current dir first, where we create our mero-0.1.0.tar.gz dist
+# archive with `make dist` command
+.PHONY: rpms
+rpms:
+	$(MAKE) dist
+	rpmbuild --define "_sourcedir $$(pwd)" -bb mero.spec
 
 #
 # Documentation
@@ -917,6 +923,7 @@ help:
 	@echo '                    (this needs to be run from the same build tree that'
 	@echo '                     was installed)'
 	@echo '  dist            - recreate package-version.tar.gz from all source files'
+	@echo '  rpms            - build Mero rpm packages'
 	@echo ''
 	@echo 'Information:'
 	@echo '  list-programs   - list all executables built in mero'

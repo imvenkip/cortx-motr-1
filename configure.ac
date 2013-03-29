@@ -36,6 +36,11 @@ SRCDIR="$srcdir"
 ABS_SRCDIR="$(cd $srcdir; pwd)"
 ABS_BUILDDIR="$(pwd)"
 
+AS_IF([git rev-parse > /dev/null 2>&1],
+      [GIT_REV_ID=".git$(git rev-parse --short HEAD)"]
+)
+AC_SUBST([GIT_REV_ID])
+
 #
 # Checking for OS support
 #
@@ -63,8 +68,6 @@ AH_TEMPLATE([ENABLE_PROFILER],        [Enable profile samples gathering.])
 AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
 AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([ENABLE_EXPENSIVE_CHECKS],[Enable expensive checks.])
-AH_TEMPLATE([ENABLE_SYTEM_LIBS],      [Enable use of system wide db4 and yaml libraries.])
-AH_TEMPLATE([ENABLE_UNIT_TESTS],      [Enable unit tests.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT],     [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV],        [Have fops->readv function])
@@ -396,6 +399,35 @@ OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
+# Check for galois
+
+GALOIS_REL_PATH="extra-libs/galois"
+GALOIS_SRC="$SRCDIR/$GALOIS_REL_PATH"
+GALOIS_ABS_SRC="$ABS_SRCDIR/$GALOIS_REL_PATH"
+GALOIS_INCLUDES="-I$GALOIS_SRC/include"
+KGALOIS_INCLUDES="-I$GALOIS_ABS_SRC/include"
+GALOIS_LIBS="$GALOIS_SRC/src/libgalois.la"
+
+AC_SUBST([GALOIS_SYMVERS], [$GALOIS_ABS_SRC/src/linux_kernel/Module.symvers])
+
+AS_IF([! test -x $GALOIS_SRC/configure],
+      [ test -x $GALOIS_SRC/autogen.sh && ( cd $GALOIS_SRC; ./autogen.sh ) ]
+)
+
+# Check for CUnit
+
+AS_IF([test "x$enable_unit_tests" = xyes],
+      [
+          CUNIT_SRC=$SRCDIR/extra-libs/cunit
+          CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/libcunit.la"
+          CUNIT_INCLUDES="-I$CUNIT_SRC/CUnit/Headers"
+          AC_MSG_CHECKING([for cunit libs])
+          MERO_BUILD_LIB([cunit], [$CUNIT_SRC], [$CUNIT_LIBS])
+      ]
+)
+
+# Check for db4 and yaml
+
 AS_IF([test x$enable_system_libs = xyes],
       [
           # Check for yaml
@@ -430,37 +462,6 @@ AS_IF([test x$enable_system_libs = xyes],
       ]
 )
 
-# Check for galois
-
-GALOIS_REL_PATH="extra-libs/galois"
-GALOIS_SRC="$SRCDIR/$GALOIS_REL_PATH"
-GALOIS_ABS_SRC="$ABS_SRCDIR/$GALOIS_REL_PATH"
-GALOIS_INCLUDES="-I$GALOIS_SRC/include"
-KGALOIS_INCLUDES="-I$GALOIS_ABS_SRC/include"
-GALOIS_LIBS="$GALOIS_SRC/src/libgalois.la"
-AC_MSG_CHECKING([for galois libs])
-MERO_BUILD_LIB([galois], [$GALOIS_SRC], [$GALOIS_LIBS], [.],
-                  ["--prefix=${prefix} --with-linux-obj=$LINUX_OBJ"])
-
-GALOIS_SYMVERS="$GALOIS_ABS_SRC/src/linux_kernel/Module.symvers"
-AC_MSG_CHECKING([galois symvers])
-AS_IF([! test -f $GALOIS_SYMVERS],
-        AC_MSG_ERROR([Cant find ${GALOIS_SYMVERS}! Make sure that galois is built correctly.])
-)
-AC_MSG_RESULT([$GALOIS_SYMVERS])
-AC_SUBST([GALOIS_SYMVERS])
-
-# Check for CUnit
-
-AS_IF([test "x$enable_unit_tests" = xyes],
-      [
-          CUNIT_SRC=$SRCDIR/extra-libs/cunit
-          CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/libcunit.la"
-          CUNIT_INCLUDES="-I$CUNIT_SRC/CUnit/Headers"
-          AC_MSG_CHECKING([for cunit libs])
-          MERO_BUILD_LIB([cunit], [$CUNIT_SRC], [$CUNIT_LIBS])
-      ]
-)
 
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
@@ -510,7 +511,11 @@ AS_IF([test x$enable_mcheck = xyes],
       [M0_LDFLAGS="-lmcheck $M0_LDFLAGS"]
 )
 
-# TODO: merge and remove unused vars
+
+#
+# Set up build variables
+#
+
 M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $CUNIT_INCLUDES $DB_INCLUDES $M0_CPPFLAGS"
 
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
@@ -573,6 +578,8 @@ AC_CONFIG_FILES([utils/ut.sh], [chmod +x utils/ut.sh;
 			        (cd utils/ && ${LN_S} ut.sh ub.sh)])
 AC_CONFIG_FILES([utils/linux_kernel/ut.sh], [chmod +x utils/linux_kernel/ut.sh])
 
+AC_CONFIG_SUBDIRS([extra-libs/galois])
+
 AC_OUTPUT
 
 #
@@ -611,7 +618,7 @@ echo "CUNIT_LIBS   :  \"$CUNIT_LIBS\""
 echo "YAML_LIBS    :  \"$YAML_LIBS\""
 echo "DB_LIBS      :  \"$DB_LIBS\""
 echo ""
-echo "Linux Obj    :  \"$LINUX_OBJ\""
+echo "Linux kernel :  \"$LINUX_OBJ\""
 echo "Lustre       :  \"$LUSTRE\""
 echo ""
 
