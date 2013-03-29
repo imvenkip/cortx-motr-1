@@ -120,9 +120,9 @@ struct m0_dtm_nu {
 
 M0_INTERNAL void m0_dtm_op_init      (struct m0_dtm_op *op,
 				      struct m0_dtm_nu *nu);
-M0_INTERNAL void m0_dtm_op_prepared  (struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_done      (struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_close     (struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_prepared  (const struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_done      (const struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_close     (const struct m0_dtm_op *op);
 M0_INTERNAL void m0_dtm_op_del       (struct m0_dtm_op *op);
 M0_INTERNAL void m0_dtm_op_fini      (struct m0_dtm_op *op);
 M0_INTERNAL void m0_dtm_op_persistent(struct m0_dtm_op *op);

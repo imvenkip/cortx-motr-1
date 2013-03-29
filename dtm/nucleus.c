@@ -79,7 +79,7 @@ M0_INTERNAL void m0_dtm_op_init(struct m0_dtm_op *op, struct m0_dtm_nu *nu)
 	op_tlist_init(&op->op_ups);
 }
 
-M0_INTERNAL void m0_dtm_op_close(struct m0_dtm_op *op)
+M0_INTERNAL void m0_dtm_op_close(const struct m0_dtm_op *op)
 {
 	M0_PRE(m0_dtm_op_invariant(op));
 
@@ -94,7 +94,7 @@ M0_INTERNAL void m0_dtm_op_close(struct m0_dtm_op *op)
 	M0_POST(m0_dtm_op_invariant(op));
 }
 
-M0_INTERNAL void m0_dtm_op_prepared(struct m0_dtm_op *op)
+M0_INTERNAL void m0_dtm_op_prepared(const struct m0_dtm_op *op)
 {
 	M0_PRE(m0_dtm_op_invariant(op));
 
@@ -110,7 +110,7 @@ M0_INTERNAL void m0_dtm_op_prepared(struct m0_dtm_op *op)
 	M0_POST(m0_dtm_op_invariant(op));
 }
 
-M0_INTERNAL void m0_dtm_op_done(struct m0_dtm_op *op)
+M0_INTERNAL void m0_dtm_op_done(const struct m0_dtm_op *op)
 {
 	M0_PRE(m0_dtm_op_invariant(op));
 

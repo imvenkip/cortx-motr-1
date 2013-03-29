@@ -89,7 +89,7 @@ M0_INTERNAL void m0_dtm_history_persistent(struct m0_dtm_history *history,
 	}
 	history->h_persistent = up_update(up);
 	while (1) {
-		up0 = UPDATE_UP(history->h_persistent);
+		up = up0 = UPDATE_UP(history->h_persistent);
 		while (up != NULL) {
 			if (up->up_state >= M0_DOS_PERSISTENT)
 				break;
@@ -222,12 +222,16 @@ M0_INTERNAL void m0_dtm_history_add_nop(struct m0_dtm_history *history,
 	control_update_add(history, oper, cupdate, M0_DUR_NOT);
 }
 
+static void clop_nop(struct m0_dtm_op *op)
+{}
+
 static void clop_impossible(struct m0_dtm_op *op)
 {
 	M0_IMPOSSIBLE("Unexpected op.");
 }
 
 static const struct m0_dtm_op_ops clop_ops = {
+	.doo_ready = clop_nop,
 	.doo_late  = clop_impossible,
 	.doo_miser = clop_impossible
 };

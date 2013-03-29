@@ -59,7 +59,7 @@ M0_INTERNAL bool m0_dtm_oper_invariant(const struct m0_dtm_oper *oper)
 					       u0 == u1)));
 }
 
-M0_INTERNAL void m0_dtm_oper_close(struct m0_dtm_oper *oper)
+M0_INTERNAL void m0_dtm_oper_close(const struct m0_dtm_oper *oper)
 {
 	oper_lock(oper);
 	M0_PRE(m0_dtm_oper_invariant(oper));
@@ -67,7 +67,7 @@ M0_INTERNAL void m0_dtm_oper_close(struct m0_dtm_oper *oper)
 	oper_unlock(oper);
 }
 
-M0_INTERNAL void m0_dtm_oper_prepared(struct m0_dtm_oper *oper)
+M0_INTERNAL void m0_dtm_oper_prepared(const struct m0_dtm_oper *oper)
 {
 	oper_lock(oper);
 	M0_PRE(m0_dtm_oper_invariant(oper));
@@ -75,12 +75,16 @@ M0_INTERNAL void m0_dtm_oper_prepared(struct m0_dtm_oper *oper)
 	oper_unlock(oper);
 }
 
-M0_INTERNAL void m0_dtm_oper_done(struct m0_dtm_oper *oper,
+M0_INTERNAL void m0_dtm_oper_done(const struct m0_dtm_oper *oper,
 				  const struct m0_dtm_remote *dtm)
 {
 	oper_lock(oper);
 	M0_PRE(m0_dtm_oper_invariant(oper));
-	m0_dtm_op_done(&oper->oprt_op);
+	up_for(&oper->oprt_op, up) {
+		M0_PRE(up->up_state == M0_DOS_INPROGRESS);
+		if (hi_history(up->up_hi)->h_dtm == dtm)
+			up->up_state = M0_DOS_VOLATILE;
+	} up_endfor;
 	M0_POST(m0_dtm_oper_invariant(oper));
 	oper_unlock(oper);
 }
@@ -129,7 +133,7 @@ M0_INTERNAL int m0_dtm_oper_build(struct m0_dtm_oper *oper, struct m0_tl *uu,
 	return result;
 }
 
-M0_INTERNAL void m0_dtm_reply_pack(struct m0_dtm_oper *oper,
+M0_INTERNAL void m0_dtm_reply_pack(const struct m0_dtm_oper *oper,
 				   const struct m0_dtm_oper_descr *request,
 				   struct m0_dtm_oper_descr *reply)
 {
@@ -174,7 +178,7 @@ M0_INTERNAL void m0_dtm_reply_unpack(struct m0_dtm_oper *oper,
 	oper_unlock(oper);
 }
 
-M0_INTERNAL struct m0_dtm_update *m0_dtm_oper_get(struct m0_dtm_oper *oper,
+M0_INTERNAL struct m0_dtm_update *m0_dtm_oper_get(const struct m0_dtm_oper *oper,
 						  uint32_t label)
 {
 	M0_PRE(m0_dtm_oper_invariant(oper));

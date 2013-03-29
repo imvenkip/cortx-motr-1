@@ -62,6 +62,11 @@ void m0_backtrace(void)
 }
 M0_EXPORTED(m0_backtrace);
 
+M0_INTERNAL void m0__assertion_hook(void)
+{
+}
+M0_EXPORTED(m0__assertion_hook);
+
 /** @} end of assert group */
 #undef M0_TRACE_SUBSYSTEM
 

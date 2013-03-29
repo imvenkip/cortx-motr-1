@@ -40,6 +40,8 @@ M0_INTERNAL void m0_dtm_ltx_init(struct m0_dtm_ltx *ltx, struct m0_dtm *dtm,
 {
 	m0_dtm_controlh_init(&ltx->lx_ch, dtm, uu);
 	ltx->lx_ch.ch_history.h_ops = &ltx_ops;
+	ltx->lx_ch.ch_history.h_hi.hi_flags |= M0_DHF_OWNED;
+	ltx->lx_ch.ch_history.h_dtm = NULL;
 	ltx->lx_env = env;
 }
 
@@ -61,6 +63,8 @@ M0_INTERNAL int m0_dtm_ltx_open(struct m0_dtm_ltx *ltx)
 M0_INTERNAL int m0_dtm_ltx_close(struct m0_dtm_ltx *ltx)
 {
 	m0_dtm_controlh_close(&ltx->lx_ch);
+	m0_dtm_oper_prepared(&ltx->lx_ch.ch_clop);
+	m0_dtm_oper_done(&ltx->lx_ch.ch_clop, NULL);
 	return m0_db_tx_commit(&ltx->lx_tx);
 }
 

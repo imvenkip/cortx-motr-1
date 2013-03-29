@@ -25,6 +25,7 @@
  */
 
 #include "lib/ut.h"
+#include "lib/misc.h"         /* m0_forall */
 #include "lib/tlist.h"
 #include "lib/cdefs.h"        /* IS_IN_ARRAY */
 #include "lib/errno.h"        /* EPROTO */
@@ -149,7 +150,7 @@ static const struct m0_dtm_history_ops tgt_ops = {
 	.hio_persistent = &test_persistent
 };
 
-static void src_init(struct m0_dtm_remote *dtm)
+static void src_init(struct m0_dtm_remote *dtm, unsigned flags)
 {
 	int i;
 
@@ -159,6 +160,7 @@ static void src_init(struct m0_dtm_remote *dtm)
 	for (i = 0; i < ARRAY_SIZE(history_src); ++i) {
 		m0_dtm_history_init(&history_src[i], &dtm_src);
 		history_src[i].h_hi.hi_ver = 1;
+		history_src[i].h_hi.hi_flags |= flags;
 		history_src[i].h_ops = &src_ops;
 		history_src[i].h_dtm = dtm;
 	}
@@ -237,7 +239,7 @@ static void transmit_test(void)
 	int i;
 	int result;
 
-	src_init(&tgt);
+	src_init(&tgt, 0);
 	tgt_init();
 	for (i = 0; i < ARRAY_SIZE(oper_src); ++i) {
 		unsigned nr = (i%UPDATE_NR) + 1;
@@ -261,24 +263,55 @@ static void transmit_test(void)
 	src_fini();
 }
 
+#ifndef __KERNEL__
+
 #include "db/extmap.h"
 
 static struct m0_dtm_ltx ltx;
 static struct m0_dbenv   db;
 static const char        db_name[] = "ut-dtm";
 static struct m0_emap    emap;
+static uint64_t          hi = 7;
 
-static void ltx_test(void)
+static void ltx_init(void)
 {
 	int result;
 
-	src_init(NULL);
+	src_init(NULL, M0_DHF_OWNED);
 	m0_dtm_history_type_register(&dtm_src, &m0_dtm_ltx_htype);
 
 	result = m0_dbenv_init(&db, db_name, 0);
 	M0_UT_ASSERT(result == 0);
 	result = m0_emap_init(&emap, &db, "nonce");
 	M0_UT_ASSERT(result == 0);
+}
+
+static void ltx_fini(unsigned nr)
+{
+	int result;
+	int i;
+
+	result = m0_emap_obj_insert(&emap, &ltx.lx_tx,
+				    &(const struct m0_uint128) { hi++, 0 }, 9);
+	M0_UT_ASSERT(result == 0);
+	for (i = 0; i < nr; ++i)
+		m0_dtm_oper_done(&oper_src[i], NULL);
+	m0_dtm_ltx_close(&ltx);
+	m0_emap_fini(&emap);
+	m0_dbenv_fini(&db);
+	M0_UT_ASSERT(m0_forall(j, nr,
+		      _0C(op_state(&oper_src[j].oprt_op, M0_DOS_PERSISTENT))));
+	m0_dtm_history_type_deregister(&dtm_src, &m0_dtm_ltx_htype);
+	m0_dtm_update_list_fini(&uu);
+	src_fini();
+	M0_SET0(&ltx);
+}
+
+static void ltx_test_1_N(void)
+{
+	int result;
+
+	ltx_init();
 
 	m0_dtm_update_list_init(&uu);
 	m0_dtm_update_link(&uu, &update_tgt[0][UPDATE_NR], 1);
@@ -290,22 +323,42 @@ static void ltx_test(void)
 
 	m0_dtm_ltx_add(&ltx, &oper_src[0]);
 	oper_populate(0, UPDATE_NR);
-
-	result = m0_emap_obj_insert(&emap, &ltx.lx_tx,
-				    &(const struct m0_uint128) { 7, 8 }, 9);
-	M0_UT_ASSERT(result == 0);
-	m0_dtm_ltx_close(&ltx);
-	m0_emap_fini(&emap);
-	m0_dbenv_fini(&db);
-	M0_UT_ASSERT(op_state(&oper_src[0].oprt_op, M0_DOS_PERSISTENT));
-	src_fini();
+	ltx_fini(1);
 }
+
+static void ltx_test_N_N(void)
+{
+	int result;
+	int i;
+
+	ltx_init();
+
+	M0_CASSERT(UPDATE_NR + 1 < OPER_NR);
+
+	m0_dtm_update_list_init(&uu);
+	m0_dtm_update_link(&uu, &update_tgt[UPDATE_NR][0], UPDATE_NR);
+	m0_dtm_update_link(&uu, &update_tgt[UPDATE_NR + 1][0], UPDATE_NR);
+
+	m0_dtm_ltx_init(&ltx, &dtm_src, &db, &uu);
+	result = m0_dtm_ltx_open(&ltx);
+	M0_UT_ASSERT(result == 0);
+
+	for (i = 0; i < UPDATE_NR; ++i) {
+		m0_dtm_ltx_add(&ltx, &oper_src[i]);
+		oper_populate(i, ((i*3) % UPDATE_NR) + 1);
+	}
+	ltx_fini(UPDATE_NR);
+}
+#endif /* __KERNEL__ */
 
 const struct m0_test_suite dtm_transmit_ut = {
 	.ts_name = "dtm-transmit-ut",
 	.ts_tests = {
 		{ "transmit",    transmit_test  },
-		{ "ltx",         ltx_test       },
+#ifndef __KERNEL__
+		{ "ltx-1-N",     ltx_test_1_N   },
+		{ "ltx-N-N",     ltx_test_N_N   },
+#endif
 		{ NULL, NULL }
 	}
 };

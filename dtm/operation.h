@@ -54,9 +54,9 @@ struct m0_dtm_oper_descr {
 
 M0_INTERNAL void m0_dtm_oper_init(struct m0_dtm_oper *oper, struct m0_dtm *dtm);
 M0_INTERNAL void m0_dtm_oper_fini(struct m0_dtm_oper *oper);
-M0_INTERNAL void m0_dtm_oper_close(struct m0_dtm_oper *oper);
-M0_INTERNAL void m0_dtm_oper_prepared(struct m0_dtm_oper *oper);
-M0_INTERNAL void m0_dtm_oper_done(struct m0_dtm_oper *oper,
+M0_INTERNAL void m0_dtm_oper_close(const struct m0_dtm_oper *oper);
+M0_INTERNAL void m0_dtm_oper_prepared(const struct m0_dtm_oper *oper);
+M0_INTERNAL void m0_dtm_oper_done(const struct m0_dtm_oper *oper,
 				  const struct m0_dtm_remote *dtm);
 M0_INTERNAL void m0_dtm_oper_pack(const struct m0_dtm_oper *oper,
 				  const struct m0_dtm_remote *dtm,
@@ -65,13 +65,13 @@ M0_INTERNAL void m0_dtm_oper_unpack(struct m0_dtm_oper *oper,
 				    const struct m0_dtm_oper_descr *ode);
 M0_INTERNAL int  m0_dtm_oper_build(struct m0_dtm_oper *oper, struct m0_tl *uu,
 				   const struct m0_dtm_oper_descr *ode);
-M0_INTERNAL void m0_dtm_reply_pack(struct m0_dtm_oper *oper,
+M0_INTERNAL void m0_dtm_reply_pack(const struct m0_dtm_oper *oper,
 				   const struct m0_dtm_oper_descr *request,
 				   struct m0_dtm_oper_descr *reply);
 M0_INTERNAL void m0_dtm_reply_unpack(struct m0_dtm_oper *oper,
 				     const struct m0_dtm_oper_descr *reply);
 
-M0_INTERNAL struct m0_dtm_update *m0_dtm_oper_get(struct m0_dtm_oper *oper,
+M0_INTERNAL struct m0_dtm_update *m0_dtm_oper_get(const struct m0_dtm_oper *oper,
 						  uint32_t label);
 
 /** @} end of dtm group */

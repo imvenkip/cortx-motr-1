@@ -23,7 +23,7 @@
  * @{
  */
 
-#include "lib/misc.h"              /* M0_SET0 */
+#include "lib/misc.h"              /* M0_SET0, m0_forall */
 
 #include "dtm/nucleus.h"
 #include "dtm/dtm.h"
@@ -37,6 +37,7 @@ M0_INTERNAL void m0_dtm_init(struct m0_dtm *dtm)
 
 M0_INTERNAL void m0_dtm_fini(struct m0_dtm *dtm)
 {
+	M0_PRE(m0_forall(i, ARRAY_SIZE(dtm->d_htype), dtm->d_htype[i] == NULL));
 	m0_dtm_nu_fini(&dtm->d_nu);
 }
 
