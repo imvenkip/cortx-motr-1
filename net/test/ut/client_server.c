@@ -18,7 +18,7 @@
  * Original creation date: 05/19/2012
  */
 
-#include "lib/ut.h"			/* M0_UT_ASSERT */
+#include "ut/ut.h"			/* M0_UT_ASSERT */
 #include "lib/memory.h"			/* m0_free */
 #include "lib/thread.h"			/* M0_THREAD_INIT */
 #include "lib/semaphore.h"		/* m0_semaphore_down */

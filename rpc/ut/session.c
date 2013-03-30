@@ -18,7 +18,7 @@
  * Original creation date: 10/09/2012
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/mutex.h"
 #include "lib/finject.h"
 #include "fop/fop.h"

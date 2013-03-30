@@ -18,7 +18,7 @@
  * Original creation date: 05/23/2010
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 /* sort test suites in alphabetic order */
 extern void m0_test_lib_uuid(void);

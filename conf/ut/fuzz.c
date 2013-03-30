@@ -24,7 +24,7 @@
 #include "conf/ut/file_helpers.h"
 #include "lib/string.h"    /* strlen */
 #include "lib/memory.h"    /* m0_free */
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 extern void test_confdb(void);
 

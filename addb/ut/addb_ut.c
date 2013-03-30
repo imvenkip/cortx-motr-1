@@ -18,11 +18,17 @@
  * Original creation date: 09/25/2012
  */
 
+
+#undef M0_ADDB_CT_CREATE_DEFINITION
+#undef M0_ADDB_RT_CREATE_DEFINITION
+#define M0_ADDB_CT_CREATE_DEFINITION
+#define M0_ADDB_RT_CREATE_DEFINITION
+
 #include "lib/finject.h"
 #include "lib/misc.h" /* M0_SET0 */
 #include "lib/semaphore.h"
 #include "lib/thread.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 /* control symbol exposure by including .c files */
 #include "addb/addb.c" /* directly pick up internal static symbols */

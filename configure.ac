@@ -10,7 +10,7 @@ CFLAGS=${CFLAGS:=""}
 AM_INIT_AUTOMAKE([-Wall -Werror nostdinc foreign subdir-objects silent-rules])
 AM_SILENT_RULES([yes])
 
-LT_INIT
+LT_INIT([disable-static])
 
 AC_CONFIG_SRCDIR([mero/init.c])
 AC_CONFIG_MACRO_DIR([m4])
@@ -21,9 +21,25 @@ AC_CONFIG_HEADERS([config.h])
 # it's "version" argument
 AC_SUBST([LT_RELEASE], [$PACKAGE_VERSION])
 
-AC_SUBST([SRCDIR], [$srcdir])
-AC_SUBST([ABS_SRCDIR], [$(cd $srcdir; pwd)])
-AC_SUBST([ABS_BUILDDIR], [$(pwd)])
+# the following variables are only for internal use within this configure script
+# external scripts should use collection of variables, which is automatically
+# provided by autoconf:
+#
+#    @srcdir@
+#    @top_srcdir@
+#    @abs_top_srcdir@
+#    @builddir@
+#    @top_builddir@
+#    @abs_top_builddir@
+#
+SRCDIR="$srcdir"
+ABS_SRCDIR="$(cd $srcdir; pwd)"
+ABS_BUILDDIR="$(pwd)"
+
+AS_IF([git rev-parse > /dev/null 2>&1],
+      [GIT_REV_ID=".git$(git rev-parse --short HEAD)"]
+)
+AC_SUBST([GIT_REV_ID])
 
 #
 # Checking for OS support
@@ -75,8 +91,6 @@ AC_ARG_ENABLE([profiler],
                        [enable gperftools profiling information])],
         [], [enable_profiler=no]
 )
-AM_CONDITIONAL([ENABLE_PROFILER],
-               [test "x$enable_profiler" = xyes])
 
 AC_ARG_ENABLE([coverage],
         [AS_HELP_STRING([--enable-coverage], [build for test coverage analysis])],
@@ -133,10 +147,19 @@ AC_ARG_ENABLE([altogether-mode],
 AM_CONDITIONAL([ENABLE_MERO_ALTOGETHER],
                [test "x$enable_altogether_mode" = xyes])
 
-AC_ARG_ENABLE([rpm],
-        [AS_HELP_STRING([--enable-rpm],[enable rpm build mode])], [],
-        [enable_rpm=no]
+AC_ARG_ENABLE([system-libs],
+        [AS_HELP_STRING([--disable-system-libs],[disable use of system wide db4 and yaml libaries])],
+        [], [enable_system_libs=yes]
 )
+
+AC_ARG_ENABLE([unit-tests],
+        [AS_HELP_STRING([--disable-unit-tests], [disable unit tests])],
+        [], [enable_unit_tests=yes]
+)
+AM_CONDITIONAL([ENABLE_UNIT_TESTS],
+               [test "x$enable_unit_tests" = xyes])
+AS_IF([test x$enable_unit_tests = xyes],
+      AC_SUBST([ENABLE_KERNEL_UNIT_TESTS], [m]))
 
 AC_ARG_WITH([linux],
         [AS_HELP_STRING([--with-linux=path],
@@ -341,7 +364,7 @@ MERO_LINUX_SENDFILE
 
 AC_MSG_CHECKING([for LNet header dir])
 AS_IF([! test -d $LUSTRE/lnet/include],
-      [AC_MSG_ERROR([lnet/include not found in '$LUSTRE', please provide a
+      [AC_MSG_ERROR([lnet/include not found in '$LUSTRE', please provide a \
 correct path to Lustre headers using --with-lustre option])]
 )
 AC_MSG_RESULT([$LUSTRE/lnet/include])
@@ -376,117 +399,79 @@ OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
-if test x$enable_rpm = xyes; then
-
 # Check for galois
 
-GALOIS_SRC=""
-
-MERO_SEARCH_LIBS([galois_create_mult_tables], [galois], [GALOIS_LIBS],
-        [libgalois cannot be found! Try install galois package from \
-$SRCDIR/extra-libs/galois or from rpm]
-)
-
-AC_CHECK_HEADERS([galois/galois.h], [],
-                 AC_MSG_ERROR([galois/galois.h is not found. Try install \
-galois from $SRCDIR/extra-libs/galois or from rpm])
-)
-
-galois_locations="{/usr,/usr/local,/opt,/opt/local}"
-GALOIS_SYMVERS=$(ls $(echo $ECHO_N $galois_locations)/share/galois/symvers/Module.symvers \
-                 2>/dev/null | head -n1)
-AC_MSG_CHECKING([galois symvers])
-AS_IF([test x$GALOIS_SYMVERS = x],
-      AC_MSG_ERROR([Galois Module.symvers is not found in the following \
-locations: $(echo $ECHO_N $galois_locations)])
-)
-AC_MSG_RESULT([$GALOIS_SYMVERS])
-AC_SUBST([GALOIS_SYMVERS])
-
-# Check for yaml
-
-MERO_SEARCH_LIBS([yaml_parser_initialize], [yaml], [YAML_LIBS],
-        [yaml_parser_initialize cannot be found! Try install yaml package from \
-$SRCDIR/extra-libs/yaml or from rpm]
-)
-
-# Check for CUnit
-
-MERO_SEARCH_LIBS([CU_add_suite], [cunit], [CUNIT_LIBS],
-        [CU_add_suite cannot be found! Try install CUnit package from \
-$SRCDIR/extra-libs/cunit or from rpm]
-)
-
-AC_CHECK_HEADERS([CUnit/Basic.h], [],
-                 AC_MSG_ERROR([CUnit/Basic.h is not found. Try install CUnit \
-from $SRCDIR/extra-libs/cunit or CUnit-devel rpm package])
-)
-
-# Check for berkeley db
-
-MERO_SEARCH_LIBS([db_env_create], [db], [DB_LIBS],
-        [db_env_create cannot be found! Try install db4-devel package]
-)
-
-AC_CHECK_HEADERS([db.h], [],
-                 AC_MSG_ERROR([db.h is not found. Try install db4-devel package])
-)
-
-else # non-rpm setup
-
-# Check for galois
-
-GALOIS_SRC=$ABS_SRCDIR/extra-libs/galois
+GALOIS_REL_PATH="extra-libs/galois"
+GALOIS_SRC="$SRCDIR/$GALOIS_REL_PATH"
+GALOIS_ABS_SRC="$ABS_SRCDIR/$GALOIS_REL_PATH"
 GALOIS_INCLUDES="-I$GALOIS_SRC/include"
+KGALOIS_INCLUDES="-I$GALOIS_ABS_SRC/include"
 GALOIS_LIBS="$GALOIS_SRC/src/libgalois.la"
-AC_MSG_CHECKING([for galois libs])
-MERO_BUILD_LIB([galois], [$GALOIS_SRC], [$GALOIS_LIBS], [.],
-                  ["--with-linux-obj=$LINUX_OBJ"])
 
-GALOIS_SYMVERS="$GALOIS_SRC/src/linux_kernel/Module.symvers"
-AC_MSG_CHECKING([galois symvers])
-AS_IF([! test -f $GALOIS_SYMVERS],
-        AC_MSG_ERROR([Cant find ${GALOIS_SYMVERS}! Make sure that galois is built correctly.])
+AC_SUBST([GALOIS_SYMVERS], [$GALOIS_ABS_SRC/src/linux_kernel/Module.symvers])
+
+AS_IF([! test -x $GALOIS_SRC/configure],
+      [ test -x $GALOIS_SRC/autogen.sh && ( cd $GALOIS_SRC; ./autogen.sh ) ]
 )
-AC_MSG_RESULT([$GALOIS_SYMVERS])
-AC_SUBST([GALOIS_SYMVERS])
-
-# Check for yaml
-
-YAML_SRC=$SRCDIR/extra-libs/yaml
-YAML_INCLUDES="-I$YAML_SRC/include"
-YAML_LIBS="$YAML_SRC/src/libyaml.la"
-AC_MSG_CHECKING([for yaml libs])
-MERO_BUILD_LIB([yaml], [$YAML_SRC], [$YAML_LIBS])
 
 # Check for CUnit
 
-CUNIT_SRC=$SRCDIR/extra-libs/cunit
-CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/libcunit.la"
-CUNIT_INCLUDES="-I$CUNIT_SRC/CUnit/Headers"
-AC_MSG_CHECKING([for cunit libs])
-MERO_BUILD_LIB([cunit], [$CUNIT_SRC], [$CUNIT_LIBS])
+AS_IF([test "x$enable_unit_tests" = xyes],
+      [
+          CUNIT_SRC=$SRCDIR/extra-libs/cunit
+          CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/libcunit.la"
+          CUNIT_INCLUDES="-I$CUNIT_SRC/CUnit/Headers"
+          AC_MSG_CHECKING([for cunit libs])
+          MERO_BUILD_LIB([cunit], [$CUNIT_SRC], [$CUNIT_LIBS])
+      ]
+)
 
-# Check for berkeley db
+# Check for db4 and yaml
 
-DB_SRC="$SRCDIR/extra-libs/db4/build_unix"
-DB_INCLUDES="-I$DB_SRC/build_unix -I$DB_SRC"
-DB_LIBS="$DB_SRC/libdb-4.8.la"
-AC_MSG_CHECKING([for db libs])
-MERO_BUILD_LIB([db], [$DB_SRC], [$DB_LIBS], ["../dist"], ["--with-pic"])
+AS_IF([test x$enable_system_libs = xyes],
+      [
+          # Check for yaml
+          MERO_SEARCH_LIBS([yaml_parser_initialize], [yaml], [YAML_LIBS],
+                  [yaml_parser_initialize cannot be found! Try install yaml package]
+          )
+          AC_CHECK_HEADERS([yaml.h], [],
+                           AC_MSG_ERROR([yaml.h is not found. Try to install libyaml-devel package])
+          )
 
-fi
+          # Check for berkeley db
+          MERO_SEARCH_LIBS([db_env_create], [db], [DB_LIBS],
+                  [db_env_create cannot be found! Try install db4 package]
+          )
+          AC_CHECK_HEADERS([db.h], [],
+                           AC_MSG_ERROR([db.h is not found. Try to install db4-devel package])
+          )
+      ],[
+          # Check for yaml
+          YAML_SRC=$SRCDIR/extra-libs/yaml
+          YAML_INCLUDES="-I$YAML_SRC/include"
+          YAML_LIBS="$YAML_SRC/src/libyaml.la"
+          AC_MSG_CHECKING([for yaml libs])
+          MERO_BUILD_LIB([yaml], [$YAML_SRC], [$YAML_LIBS])
+
+          # Check for berkeley db
+          DB_SRC="$SRCDIR/extra-libs/db4/build_unix"
+          DB_INCLUDES="-I$DB_SRC/build_unix -I$DB_SRC"
+          DB_LIBS="$DB_SRC/libdb-4.8.la"
+          AC_MSG_CHECKING([for db libs])
+          MERO_BUILD_LIB([db], [$DB_SRC], [$DB_LIBS], ["../dist"], ["--with-pic"])
+      ]
+)
+
 
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
-AC_SUBST([GALOIS_SRC])
+AC_SUBST([GALOIS_ABS_SRC])
 AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
 AC_SUBST([CUNIT_LIBS])
-AC_SUBST([DB_SRC])
-AC_SUBST([DB_INCLUDES])
 AC_SUBST([DB_LIBS])
+
 
 #
 # Handle configuration options
@@ -519,22 +504,19 @@ AS_IF([test x$enable_coverage = xyes],
         # Remove -O<digit> flag from $M0_CFLAGS
         M0_CFLAGS="$(echo $M0_CFLAGS | sed 's/-O[[0-9]]//g') --coverage"
         M0_LDFLAGS="-lgcov $M0_LDFLAGS"
-        K_ENABLE_COVERAGE=y
-      ],
-      [K_ENABLE_COVERAGE=n]
+      ]
 )
-# TODO: check if K_ENABLE_COVERAGE really requires y/n value or it's OK to use
-# yes/no ?
-AC_SUBST([K_ENABLE_COVERAGE])
 
 AS_IF([test x$enable_mcheck = xyes],
       [M0_LDFLAGS="-lmcheck $M0_LDFLAGS"]
 )
 
-AS_IF([test x$enable_rpm != xyes],
-      [M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $CUNIT_INCLUDES \
-                    $DB_INCLUDES $M0_CPPFLAGS"]
-)
+
+#
+# Set up build variables
+#
+
+M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $CUNIT_INCLUDES $DB_INCLUDES $M0_CPPFLAGS"
 
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
@@ -557,7 +539,7 @@ M0_LDFLAGS="-rdynamic $M0_LDFLAGS"
 M0_KCPPFLAGS="-DM0_INTERNAL='' -DM0_EXTERN=extern \
               -include $ABS_BUILDDIR/config.h -iquote $ABS_BUILDDIR -iquote $ABS_SRCDIR \
               -I $LUSTRE/lnet/include -I$LUSTRE/libcfs/include -I$LUSTRE/lustre/include \
-              $GALOIS_INCLUDES $M0_KCPPFLAGS"
+              $KGALOIS_INCLUDES $M0_KCPPFLAGS"
 
 M0_KCFLAGS="-Wall -Werror -Wno-attributes $M0_KCFLAGS"
 
@@ -595,6 +577,8 @@ AC_CONFIG_FILES([net/test/demo/demo-config.sh], [chmod +x net/test/demo/demo-con
 AC_CONFIG_FILES([utils/ut.sh], [chmod +x utils/ut.sh;
 			        (cd utils/ && ${LN_S} ut.sh ub.sh)])
 AC_CONFIG_FILES([utils/linux_kernel/ut.sh], [chmod +x utils/linux_kernel/ut.sh])
+
+AC_CONFIG_SUBDIRS([extra-libs/galois])
 
 AC_OUTPUT
 
@@ -634,7 +618,7 @@ echo "CUNIT_LIBS   :  \"$CUNIT_LIBS\""
 echo "YAML_LIBS    :  \"$YAML_LIBS\""
 echo "DB_LIBS      :  \"$DB_LIBS\""
 echo ""
-echo "Linux Obj    :  \"$LINUX_OBJ\""
+echo "Linux kernel :  \"$LINUX_OBJ\""
 echo "Lustre       :  \"$LUSTRE\""
 echo ""
 

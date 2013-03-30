@@ -18,7 +18,7 @@
  * Original creation date: 02/28/2011
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/ub.h"
 #include "lib/bitmap.h"
 #include "lib/assert.h"

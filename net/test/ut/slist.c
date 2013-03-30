@@ -18,7 +18,7 @@
  * Original creation date: 06/06/2012
  */
 
-#include "lib/ut.h"		/* M0_UT_ASSERT */
+#include "ut/ut.h"		/* M0_UT_ASSERT */
 #include "lib/types.h"		/* m0_bcount_t */
 #include "lib/vec.h"		/* m0_bufvec */
 

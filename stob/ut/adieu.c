@@ -27,7 +27,7 @@
 #include "lib/memory.h" /* m0_alloc_align */
 #include "lib/errno.h"
 #include "lib/ub.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/assert.h"
 #include "lib/arith.h"
 #include "stob/stob.h"

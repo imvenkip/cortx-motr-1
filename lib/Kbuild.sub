@@ -42,5 +42,4 @@ m0mero_objects += lib/linux_kernel/finject_init.o \
                   lib/linux_kernel/processor.o \
                   lib/linux_kernel/rwlock.o \
                   lib/linux_kernel/semaphore.o \
-                  lib/linux_kernel/timer.o \
-                  lib/linux_kernel/ut.o
+                  lib/linux_kernel/timer.o

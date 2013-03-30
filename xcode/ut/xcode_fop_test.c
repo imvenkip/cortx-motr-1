@@ -23,7 +23,7 @@
 #include "lib/bitstring.h"
 #include "lib/misc.h"
 #include "lib/vec.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "mero/init.h"
 #include "fop/fop.h"
 #include "xcode/ut/xcode_fops_ff.h"

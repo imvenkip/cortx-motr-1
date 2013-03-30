@@ -19,7 +19,7 @@
  * Original creation date: 12/06/2010
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/time.h"
 #include "lib/assert.h"
 

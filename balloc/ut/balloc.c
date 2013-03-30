@@ -33,7 +33,7 @@
 #include "lib/getopts.h"
 #include "mero/magic.h"
 #include "db/db.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "balloc/balloc.h"
 
 #define BALLOC_DBNAME "./__balloc_db"

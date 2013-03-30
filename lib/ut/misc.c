@@ -22,17 +22,17 @@
 #  include "config.h"
 #endif
 
-#include "lib/ut.h"	/* M0_UT_ASSERT */
+#include "ut/ut.h"	/* M0_UT_ASSERT */
 #include "lib/types.h"	/* m0_uint128 */
 
 static const struct m0_uint128 zero    = M0_UINT128(0, 0);
 static const struct m0_uint128 one     = M0_UINT128(0, 1);
 static const struct m0_uint128 two     = M0_UINT128(0, 2);
 static const struct m0_uint128 three   = M0_UINT128(0, 3);
-static const struct m0_uint128 max64   = M0_UINT128(0,		UINT64_MAX);
-static const struct m0_uint128 max64_1 = M0_UINT128(1,	        0);
-static const struct m0_uint128 max64_2 = M0_UINT128(1,	        1);
-static const struct m0_uint128 max128  = M0_UINT128(UINT64_MAX, UINT64_MAX);
+static const struct m0_uint128 cmax64   = M0_UINT128(0,		UINT64_MAX);
+static const struct m0_uint128 cmax64_1 = M0_UINT128(1,	        0);
+static const struct m0_uint128 cmax64_2 = M0_UINT128(1,	        1);
+static const struct m0_uint128 cmax128  = M0_UINT128(UINT64_MAX, UINT64_MAX);
 
 /* a + b = c */
 static void uint128_add_check(const struct m0_uint128 a,
@@ -59,14 +59,14 @@ static void uint128_add_ut(void)
 	uint128_add_check1(zero,   one,     one);
 	uint128_add_check1(one,    one,     two);
 	uint128_add_check1(one,    two,     three);
-	uint128_add_check1(max64,  zero,    max64);
-	uint128_add_check1(max64,  one,	    max64_1);
-	uint128_add_check1(max64,  two,     max64_2);
-	uint128_add_check1(max128, one,     zero);
-	uint128_add_check1(max128, two,     one);
-	uint128_add_check1(max128, three,   two);
-	uint128_add_check1(max128, max64_1, max64);
-	uint128_add_check1(max128, max64_2, max64_1);
+	uint128_add_check1(cmax64,  zero,    cmax64);
+	uint128_add_check1(cmax64,  one,	    cmax64_1);
+	uint128_add_check1(cmax64,  two,     cmax64_2);
+	uint128_add_check1(cmax128, one,     zero);
+	uint128_add_check1(cmax128, two,     one);
+	uint128_add_check1(cmax128, three,   two);
+	uint128_add_check1(cmax128, cmax64_1, cmax64);
+	uint128_add_check1(cmax128, cmax64_2, cmax64_1);
 }
 
 /* a * b = c */
@@ -95,16 +95,16 @@ static void uint128_mul_ut(void)
 	uint128_mul_check1(0, UINT64_MAX, &zero);
 	uint128_mul_check1(1, 1, &one);
 	uint128_mul_check1(1, 2, &two);
-	uint128_mul_check1(1, UINT64_MAX, &max64);
+	uint128_mul_check1(1, UINT64_MAX, &cmax64);
 	uint128_mul_check1(2, UINT64_MAX, &M0_UINT128(1, UINT64_MAX - 1));
 	uint128_mul_check1(3, UINT64_MAX, &M0_UINT128(2, UINT64_MAX - 2));
 	uint128_mul_check1(UINT64_MAX, UINT64_MAX,
 			   &M0_UINT128(UINT64_MAX - 1, 1));
-	uint128_mul_check1(UINT32_MAX + 1ul, UINT32_MAX + 1ul, &max64_1);
+	uint128_mul_check1(UINT32_MAX + 1ul, UINT32_MAX + 1ul, &cmax64_1);
 	uint128_mul_check1(UINT32_MAX + 1ul, UINT64_MAX,
 			   &M0_UINT128(UINT32_MAX,
 				       (uint64_t) UINT32_MAX << 32));
-	uint128_mul_check1(UINT32_MAX + 2ul, UINT32_MAX, &max64);
+	uint128_mul_check1(UINT32_MAX + 2ul, UINT32_MAX, &cmax64);
 }
 
 void m0_test_misc(void)

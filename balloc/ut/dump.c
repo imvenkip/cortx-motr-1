@@ -36,7 +36,7 @@
 #include "lib/thread.h"
 #include "lib/getopts.h"
 #include "db/db.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "balloc/balloc.h"
 
 static int usage(const char *prog_name)

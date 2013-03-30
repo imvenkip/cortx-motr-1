@@ -32,7 +32,7 @@
 #include "lib/thread.h"
 #include "lib/getopts.h"
 #include "db/db.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "balloc/balloc.h"
 
 int main(int argc, char **argv)

@@ -18,7 +18,7 @@
  * Original creation date: 02/27/2012
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "rpc/rpc_internal.h"

@@ -29,7 +29,7 @@
 #include "lib/thread.h"
 
 #include "lib/ub.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 #include "sns/matvec.h"
 #include "sns/ls_solve.h"

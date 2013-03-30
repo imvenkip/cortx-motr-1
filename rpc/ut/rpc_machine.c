@@ -18,7 +18,7 @@
  * Original creation date: 10/04/2012
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/finject.h"
 #include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"

@@ -17,7 +17,7 @@
  * Original creation date: 08/06/2012
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
 #include "rpc/rpclib.h"

@@ -27,7 +27,7 @@
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/mutex.h"
 #include "lib/arith.h"
 

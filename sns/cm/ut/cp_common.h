@@ -23,7 +23,7 @@
 #ifndef __MERO_SNS_CM_UT_CP_COMMON_H__
 #define __MERO_SNS_CM_UT_CP_COMMON_H__
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/ag.h"
 

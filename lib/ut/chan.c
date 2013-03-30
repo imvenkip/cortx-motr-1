@@ -18,7 +18,7 @@
  * Original creation date: 05/13/2010
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/thread.h"
 #include "lib/mutex.h"
 #include "lib/chan.h"

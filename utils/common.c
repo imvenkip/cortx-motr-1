@@ -32,7 +32,7 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/list.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/finject.h"
 #include "lib/finject_internal.h"
 #include "ut/ut.h"

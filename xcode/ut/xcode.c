@@ -25,7 +25,7 @@
 #include "lib/memory.h"
 #include "lib/vec.h"                        /* m0_bufvec */
 #include "lib/misc.h"                       /* M0_SET0 */
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 #include "xcode/xcode.h"
 

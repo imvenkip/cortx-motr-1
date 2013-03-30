@@ -18,7 +18,7 @@
  * Original creation date: 07/05/2012
  */
 
-#include "lib/ut.h"		/* M0_UT_ASSERT */
+#include "ut/ut.h"		/* M0_UT_ASSERT */
 
 #include "net/test/ringbuf.h"
 

@@ -25,7 +25,7 @@
 #include <sysexits.h>
 
 #include "lib/types.h"        /* uint64_t */
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/errno.h"        /* ETIMEDOUT */

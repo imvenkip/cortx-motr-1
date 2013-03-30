@@ -39,7 +39,6 @@ nobase_mero_include_HEADERS += lib/adt.h \
                                lib/types.h \
                                lib/types_xc.h \
                                lib/ub.h \
-                               lib/ut.h \
                                lib/uuid.h \
                                lib/vec.h \
                                lib/vec_xc.h \
@@ -88,7 +87,6 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/trace_internal.h \
                            lib/types_xc.c \
                            lib/ub.c \
-                           lib/ut.c \
                            lib/uuid.c \
                            lib/vec.c \
                            lib/vec_xc.c \
@@ -136,7 +134,6 @@ EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/timer.c \
               lib/linux_kernel/timer.h \
               lib/linux_kernel/types.h \
-              lib/linux_kernel/ut.c \
               lib/linux_kernel/vec.h \
               lib/linux_kernel/ut/main.c
 

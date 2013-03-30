@@ -21,7 +21,7 @@
 #include "lib/types.h"            /* uint64_t */
 #include "lib/misc.h"
 #include "lib/misc.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/ub.h"
 #include "lib/finject.h"
 

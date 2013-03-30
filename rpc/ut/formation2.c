@@ -18,7 +18,7 @@
  * Original creation date: 05/25/2012
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/mutex.h"
 #include "lib/time.h"
 #include "lib/memory.h"

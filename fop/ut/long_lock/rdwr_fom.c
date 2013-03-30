@@ -19,7 +19,7 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "fop/fom_long_lock.h"
 
 struct test_request;

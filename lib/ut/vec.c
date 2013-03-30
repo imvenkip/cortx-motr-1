@@ -18,7 +18,7 @@
  * Original creation date: 05/12/2010
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/cdefs.h"     /* ARRAY_SIZE */
 #include "lib/vec.h"
 #include "lib/memory.h"

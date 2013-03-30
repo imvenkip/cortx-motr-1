@@ -24,7 +24,7 @@
 #include "conf/onwire.h"   /* m0_confx_obj, m0_confx */
 #include "conf/ut/file_helpers.h"
 #include "lib/buf.h"       /* m0_buf, M0_BUF_INITS */
-#include "lib/ut.h"
+#include "ut/ut.h"
 
 struct m0_mutex      g_lock;
 struct m0_conf_cache g_cache;

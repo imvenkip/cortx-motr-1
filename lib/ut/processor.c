@@ -23,7 +23,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <linux/limits.h>
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/ub.h"
 #include "lib/assert.h"
 #include "lib/processor.h"

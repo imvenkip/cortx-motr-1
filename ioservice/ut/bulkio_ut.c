@@ -22,7 +22,7 @@
 #include <sys/types.h>
 
 #include "lib/processor.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "bulkio_common.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpclib.h"

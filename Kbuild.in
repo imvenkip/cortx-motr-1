@@ -6,27 +6,38 @@ KBUILD_EXTRA_SYMBOLS := @LUSTRE_SYMVERS@ @GALOIS_SYMVERS@
 
 ccflags-y := -DHAVE_CONFIG_H -iquote . @M0_KCPPFLAGS@ @M0_KCFLAGS@ @KCFLAGS@
 
+enable_test_modules := @ENABLE_KERNEL_UNIT_TESTS@
+
 #
 # kernel modules we build:
 #
 
-obj-m := mero/linux_kernel/m0mero.o
-obj-m += utils/linux_kernel/m0ut.o
-obj-m += utils/linux_kernel/m0ctl.o
-obj-m += m0t1fs/linux_kernel/m0loop.o
-obj-m += m0t1fs/linux_kernel/m0loop-ut.o
-obj-m += net/lnet/st/linux_kernel/m0lnetping.o
-obj-m += rpc/it/linux_kernel/m0rpcping.o
-obj-m += net/test/linux_kernel/m0nettestd.o
+# these modules are installed system wide and included into rpm package, they
+# should be built in mero/ directory, so they could be installed into
+# "kernel/fs/mero" under base kernel modules dir, where "kernel/fs" part is
+# provided by INSTALL_MOD_DIR Kbuild variable and "mero" is taken from module's
+# build directory
+obj-m := mero/m0mero.o
+obj-m += mero/m0loop.o
+obj-m += mero/m0ctl.o
+
+# these modules are built unless '--disable-unit-tests' option of ./configure
+# script is used
+obj-$(enable_test_modules) += utils/linux_kernel/m0ut.o
+obj-$(enable_test_modules) += m0t1fs/linux_kernel/m0loop-ut.o
+obj-$(enable_test_modules) += net/lnet/st/linux_kernel/m0lnetping.o
+obj-$(enable_test_modules) += rpc/it/linux_kernel/m0rpcping.o
+obj-$(enable_test_modules) += net/test/linux_kernel/m0nettestd.o
 
 
 #
 # m0mero.ko
 #
 
-mero/linux_kernel/m0mero-y = mero/linux_kernel/m0mero_main.o \
-                             $(m0mero_objects) \
-                             ut/linux_kernel/ut_init_stub.o
+mero/m0mero-y = mero/linux_kernel/m0mero_main.o \
+                $(m0mero_objects) \
+                ut/linux_kernel/ut_init_stub.o
+
 m0mero_objects :=
 
 include $(src)/mero/Kbuild.sub
@@ -95,7 +106,7 @@ include $(src)/xcode/ut/Kbuild.sub
 # m0ctl.ko
 #
 
-utils/linux_kernel/m0ctl-y = $(m0ctl_objects)
+mero/m0ctl-y   = $(m0ctl_objects)
 m0ctl_objects :=
 
 include $(src)/utils/Kbuild.sub
@@ -105,7 +116,7 @@ include $(src)/utils/Kbuild.sub
 # m0loop.ko
 #
 
-m0t1fs/linux_kernel/m0loop-y = m0t1fs/linux_kernel/m0loop_main.o
+mero/m0loop-y = m0t1fs/linux_kernel/m0loop_main.o
 
 
 #

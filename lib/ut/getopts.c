@@ -18,7 +18,7 @@
  * Original creation date: 10/04/2010
  */
 
-#include "lib/ut.h"		/* M0_UT_ASSERT */
+#include "ut/ut.h"		/* M0_UT_ASSERT */
 #include "lib/cdefs.h"		/* ARRAY_SIZE */
 #include "lib/thread.h"		/* LAMBDA */
 #include "lib/getopts.h"	/* m0_bcount_get */

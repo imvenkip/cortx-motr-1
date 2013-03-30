@@ -29,7 +29,7 @@
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/ub.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/assert.h"
 
 #include "stob/stob.h"

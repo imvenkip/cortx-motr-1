@@ -18,7 +18,7 @@
  * Original creation date: 05/19/2012
  */
 
-#include "lib/ut.h"		/* m0_test_suite */
+#include "ut/ut.h"		/* m0_test_suite */
 
 #include "net/test/initfini.h"	/* m0_net_test_init */
 

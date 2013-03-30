@@ -22,7 +22,7 @@
 #include "lib/trace.h"
 #include "lib/finject.h"
 #include "lib/memory.h"
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/misc.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"

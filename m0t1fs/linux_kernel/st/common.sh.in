@@ -4,7 +4,7 @@
 # If you are modifying this file, please make the relevant changes
 # in above mentioned files also.
 
-MODLIST="@ABS_SRCDIR@/mero/linux_kernel/m0mero.ko"
+MODLIST="@abs_top_srcdir@/mero/m0mero.ko"
 
 # The following associative array carries the list of module parameters for
 # modules in MODLIST.
@@ -28,7 +28,7 @@ modprobe_lnet()
 
 modload_galois()
 {
-	BASE=@GALOIS_SRC@
+	BASE=@GALOIS_ABS_SRC@
 	if test "x$BASE" = "x"; then
 		modprobe galois
 	else

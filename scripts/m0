@@ -75,23 +75,18 @@ run_st() {
 
 dist_check() {
     local DIST=mero-0.1.0
-
-    ## `make dist' calls `cp -a', which will fail if $SRC is on NFS.
-    ## That is why we create archive directory in /tmp instead of $SRC.
-    local DISTDIR=/tmp/$DIST
-    local DISTFILE=$DISTDIR.tar.gz
+    local DISTFILE=$DIST.tar.gz
 
     cd "$SRC"
     [ -f Makefile ] || die "You need to \`$PROG rebuild' first."
 
-    make dist distdir=$DISTDIR $MAKE_OPTS
+    make dist
 
     ## Don't preserve files' ownership (if $SRC/.. is on NFS, it will fail).
-    ## And strip leading "tmp/" part.
-    tar --no-same-owner --strip-components=1 -xzf $DISTFILE
+    tar --no-same-owner -xzf $DISTFILE
 
     for lib in extra-libs/*; do
-	ln -s ../../$lib $DIST/extra-libs/
+	[ $lib != extra-libs/galois ] && ln -sf ../../$lib $DIST/extra-libs/
     done
 
     cd $DIST

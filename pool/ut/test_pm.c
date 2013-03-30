@@ -18,7 +18,7 @@
  * Original creation date: 08/15/2012
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/memory.h"
 #include "lib/cdefs.h"
 #include "lib/misc.h"
