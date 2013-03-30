@@ -54,7 +54,11 @@ global time[40960];
  */
 global timesum[40960];
 
+global profile[40960];
+global process_pid;
+
 probe begin {
+	process_pid = 0;
 	print ("Collecting data... Type <intr> to exit and display results.\n")
 }
 
@@ -65,46 +69,63 @@ probe begin {
 probe process(@1).syscall {
 	/* record the syscall entry time. */
 	in_time[tid()] = gettimeofday_us();
+	process_pid = pid();
 }
 
 /**
- * This probe is invoked when the process is about to return from a system call.
+ * This probe is invoked whenever any process takes a pagefault.
  */
-probe process(@1).syscall.return {
-	intime = in_time[tid()];
-	/*
-	 * intime can be 0 when a new thread is created: it returns from a
-	 * system call (clone(2)) which it never entered.
-	 */
-	if (intime != 0) {
-		delta = gettimeofday_us() - intime;
+probe vm.pagefault {
+	if (process_pid != 0 && process_pid == pid())
+		/* record the syscall entry time. */
+		in_time[tid()] = gettimeofday_us();
+}
+
+/**
+ * This probe is invoked when the process is about to return from a system call
+ * or when any process is about to return from a page fault.
+ */
+probe process(@1).syscall.return, vm.pagefault.return {
+	if (process_pid != 0 && process_pid == pid()) {
+		intime = in_time[tid()];
 		/*
-		 * Ignore small delays to reduce the probe overhead.
+		 * intime can be 0 when a new thread is created: it returns from
+		 * a system call (clone(2)) which it never entered.
 		 */
-		if (delta > 10) {
+		if (intime != 0) {
+			delta = gettimeofday_us() - intime;
 			/*
-			 * ubacktrace() is relatively expensive. To avoid
-			 * systemtap aborting the script due to excessive
-			 * overhead, slugabed.sh increases systap limits.
-			 *
-			 * Newer versions of systemtap have preferable
-			 * ucallers() function.
+			 * Ignore small delays to reduce the probe overhead.
 			 */
-			us = ubacktrace();
-			time[us] <<< delta;
-			/*
-			 * timesum[] duplicates time[]. Its only purpose is to
-			 * make sorted output by the "end" probe possible.
-			 *
-			 * Newer versions of systemtap allow sorting by
-			 * aggregates.
-			 */
-			timesum[us] += delta;
-			if (trace[us] == "")
-				trace[us] = sprint_ustack(us);
+			if (delta > 10) {
+				/*
+				 * ubacktrace() is relatively expensive. To
+				 * avoid systemtap aborting the script due to
+				 * excessive overhead, slugabed.sh increases
+				 * systap limits.
+				 *
+				 * Newer versions of systemtap have preferable
+				 * ucallers() function.
+				 */
+				stk = ubacktrace();
+				us = pp() . stk;
+				time[us] <<< delta;
+				/*
+				 * timesum[] duplicates time[]. Its only purpose
+				 * is to make sorted output by the "end" probe
+				 * possible.
+				 *
+				 * Newer versions of systemtap allow sorting by
+				 * aggregates.
+				 */
+				timesum[us] += delta;
+				if (trace[us] == "")
+					trace[us] = pp() . "\n" .
+						sprint_ustack(stk);
+			}
 		}
+		delete in_time[tid()];
 	}
-	delete in_time[tid()];
 }
 
 /**
@@ -115,19 +136,28 @@ probe process(@1).thread.end {
 	delete in_time[tid()];
 }
 
+probe timer.ms(10) {
+	if (process_pid != 0 && process_pid == pid())
+		profile[sprint_backtrace() . "\n" . sprint_ubacktrace()]++;
+	else
+		profile["\nnone"]++;
+}
+
 /**
  * This is called when the script finished.
  *
  * Print the accumulated data, longest waits first.
  */
 probe end {
-	foreach (us in timesum-) {
+	foreach (us in timesum- limit 1000) {
 		printf("\nsum: %d min: %d max: %d avg: %d num: %d\n%s\n",
 		       @sum(time[us]), @min(time[us]), @max(time[us]),
 		       @avg(time[us]), @count(time[us]), trace[us]);
-		entries++;
+		w_entries++;
 	}
-	printf("\ntotal of %d entries.\n", entries);
-	if (entries >= 40960)
-		printf("warning: some entries might have been overwritten.\n");
+	foreach (stk in profile- limit 1000) {
+		printf("\nhits: %d%s\n", profile[stk], stk);
+		p_entries++;
+	}
+	printf("total entries: %d %d.\n", w_entries, p_entries);
 }

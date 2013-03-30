@@ -36,6 +36,7 @@
 # interrupted. The output is a sequence of entries, like the following:
 #
 #     sum: 204029800 min: 11 max: 129181 avg: 4980 num: 40964
+#     process("/m/utils/.libs/lt-ut").syscall.return
 #     __lll_lock_wait+0x24 [libpthread-2.12.so]
 #     _L_lock_854+0xf [libpthread-2.12.so]
 #     __pthread_mutex_lock+0x37 [libpthread-2.12.so]
@@ -46,8 +47,9 @@
 #     start_thread+0xd1 [libpthread-2.12.so]
 #     __clone+0x6d [libc-2.12.so]
 # 
-# Each entry is the header line followed by backtrace. The header line
-# summarises the time spent in a system call entered from the given backtrace:
+# Each entry is the header line followed by the probe name, followed by the
+# backtrace. The header line summarises the time spent in a system call entered
+# from the given backtrace:
 #
 #     sum: the total time in microseconds,
 #     min: the minimal system call time,
@@ -57,6 +59,24 @@
 #
 # The output is sorted in the decreasing "sum" order.
 #
+# "Wait" entries are followed by "busy" entries of the form
+#
+#     hits: 17
+#     __pread_nocancel+0x2a [libpthread-2.12.so]
+#     __os_io+0x37b [libdb-4.8.so]
+#     __memp_pgread+0x77 [libdb-4.8.so]
+#     __memp_fget+0x1cbd [libdb-4.8.so]
+#     __bam_search+0x43a [libdb-4.8.so]
+#     __bamc_search+0x216 [libdb-4.8.so]
+#     __bamc_get+0xf7 [libdb-4.8.so]
+#     __dbc_iget+0x406 [libdb-4.8.so]
+#     __db_get+0xb0 [libdb-4.8.so]
+#     __db_get_pp+0x28b [libdb-4.8.so]
+#     m0_table_lookup+0x93 [libmero-0.1.0.so]
+#
+# Which indicate how many times a particular kernel+user stack was observed from
+# a periodic timer interrupt.
+#
 # Caveats:
 #
 # The script needs kernel debugging symbols (does it?).
@@ -65,18 +85,14 @@
 #
 # There should be a single running process matching the command line argument.
 #
-# Page faults are not measured (and they should,
-# http://sourceware.org/systemtap/tapsets/API-vm-pagefault.html).
-#
 # The script introduces significant overhead. E.g., the total mero UT time
 # increases by 30%.
-#
 #
 # Sometimes the script is aborted due to excessive probe cycle count. Backtrace
 # is expensive. Test newer systap versions.
 #
 # The "end" probe is after aborted, because it is too long. This is why the
-# output is sorted by the decreasing total time.
+# output restricted to top 100 entries.
 #
 #
 
