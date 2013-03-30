@@ -20,6 +20,11 @@ handle SIG34 pass
 handle SIG34 noprint
 
 #
+# Don't print "new thread" messages.
+#
+set print thread-events off
+
+#
 # Kernel debugging with kgdb
 #
 
