@@ -47,7 +47,7 @@ struct m0_dtm_ltx {
 };
 
 M0_INTERNAL void m0_dtm_ltx_init(struct m0_dtm_ltx *ltx, struct m0_dtm *dtm,
-				 struct m0_dbenv *env, struct m0_tl *uu);
+				 struct m0_dbenv *env);
 M0_INTERNAL int  m0_dtm_ltx_open(struct m0_dtm_ltx *ltx);
 M0_INTERNAL void m0_dtm_ltx_add(struct m0_dtm_ltx *ltx,
 				struct m0_dtm_oper *oper);

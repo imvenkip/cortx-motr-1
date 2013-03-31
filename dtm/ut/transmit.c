@@ -150,11 +150,14 @@ static const struct m0_dtm_history_ops tgt_ops = {
 	.hio_persistent = &test_persistent
 };
 
-static void src_init(struct m0_dtm_remote *dtm, unsigned flags)
+static void src_init(struct m0_dtm_remote *dtm, unsigned flags, int ctrl)
 {
 	int i;
 
+	M0_ASSERT(ctrl <= TGT_DELTA);
+
 	m0_dtm_init(&dtm_src);
+	m0_dtm_remote_init(&tgt, &dtm_src);
 	m0_dtm_history_type_register(&dtm_src, &src_htype);
 
 	for (i = 0; i < ARRAY_SIZE(history_src); ++i) {
@@ -165,7 +168,9 @@ static void src_init(struct m0_dtm_remote *dtm, unsigned flags)
 		history_src[i].h_dtm = dtm;
 	}
 	for (i = 0; i < ARRAY_SIZE(oper_src); ++i) {
-		m0_dtm_oper_init(&oper_src[i], &dtm_src);
+		m0_dtm_update_list_init(&uu);
+		m0_dtm_update_link(&uu, &update_tgt[i][UPDATE_NR], ctrl);
+		m0_dtm_oper_init(&oper_src[i], &dtm_src, &uu);
 		oper_src[i].oprt_op.op_ops = &op_ops;
 	}
 }
@@ -179,6 +184,7 @@ static void src_fini(void)
 	for (i = 0; i < ARRAY_SIZE(history_src); ++i)
 		m0_dtm_history_fini(&history_src[i]);
 	m0_dtm_history_type_deregister(&dtm_src, &src_htype);
+	m0_dtm_remote_fini(&tgt);
 	m0_dtm_fini(&dtm_src);
 }
 
@@ -187,6 +193,7 @@ static void tgt_init(void)
 	int i;
 
 	m0_dtm_init(&dtm_tgt);
+	m0_dtm_remote_init(&local, &dtm_tgt);
 	m0_dtm_history_type_register(&dtm_tgt, &tgt_htype);
 
 	for (i = 0; i < ARRAY_SIZE(history_tgt); ++i) {
@@ -197,7 +204,7 @@ static void tgt_init(void)
 		history_tgt[i].h_dtm = &local;
 	}
 	for (i = 0; i < ARRAY_SIZE(oper_tgt); ++i) {
-		m0_dtm_oper_init(&oper_tgt[i], &dtm_tgt);
+		m0_dtm_oper_init(&oper_tgt[i], &dtm_tgt, NULL);
 		oper_tgt[i].oprt_op.op_ops = &op_ops;
 	}
 }
@@ -212,6 +219,7 @@ static void tgt_fini(void)
 	for (i = 0; i < ARRAY_SIZE(history_tgt); ++i)
 		m0_dtm_history_fini(&history_tgt[i]);
 	m0_dtm_history_type_deregister(&dtm_tgt, &tgt_htype);
+	m0_dtm_remote_fini(&local);
 	m0_dtm_fini(&dtm_tgt);
 }
 
@@ -239,7 +247,7 @@ static void transmit_test(void)
 	int i;
 	int result;
 
-	src_init(&tgt, 0);
+	src_init(&tgt, 0, 0);
 	tgt_init();
 	for (i = 0; i < ARRAY_SIZE(oper_src); ++i) {
 		unsigned nr = (i%UPDATE_NR) + 1;
@@ -277,7 +285,7 @@ static void ltx_init(void)
 {
 	int result;
 
-	src_init(NULL, M0_DHF_OWNED);
+	src_init(NULL, M0_DHF_OWNED, 1);
 	m0_dtm_history_type_register(&dtm_src, &m0_dtm_ltx_htype);
 
 	result = m0_dbenv_init(&db, db_name, 0);
@@ -313,11 +321,7 @@ static void ltx_test_1_N(void)
 
 	ltx_init();
 
-	m0_dtm_update_list_init(&uu);
-	m0_dtm_update_link(&uu, &update_tgt[0][UPDATE_NR], 1);
-	m0_dtm_update_link(&uu, &update_tgt[1][UPDATE_NR], 1);
-
-	m0_dtm_ltx_init(&ltx, &dtm_src, &db, &uu);
+	m0_dtm_ltx_init(&ltx, &dtm_src, &db);
 	result = m0_dtm_ltx_open(&ltx);
 	M0_UT_ASSERT(result == 0);
 
@@ -335,11 +339,7 @@ static void ltx_test_N_N(void)
 
 	M0_CASSERT(UPDATE_NR + 1 < OPER_NR);
 
-	m0_dtm_update_list_init(&uu);
-	m0_dtm_update_link(&uu, &update_tgt[UPDATE_NR][0], UPDATE_NR);
-	m0_dtm_update_link(&uu, &update_tgt[UPDATE_NR + 1][0], UPDATE_NR);
-
-	m0_dtm_ltx_init(&ltx, &dtm_src, &db, &uu);
+	m0_dtm_ltx_init(&ltx, &dtm_src, &db);
 	result = m0_dtm_ltx_open(&ltx);
 	M0_UT_ASSERT(result == 0);
 

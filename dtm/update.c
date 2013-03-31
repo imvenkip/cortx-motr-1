@@ -68,7 +68,7 @@ M0_INTERNAL void m0_dtm_update_pack(const struct m0_dtm_update *update,
 				    struct m0_dtm_update_descr *updd)
 {
 	const struct m0_dtm_up *up      = &update->upd_up;
-	struct m0_dtm_history  *history = hi_history(update->upd_up.up_hi);
+	struct m0_dtm_history  *history = UPDATE_HISTORY(update);
 
 	M0_PRE(m0_dtm_update_invariant(update));
 	M0_PRE(update->upd_up.up_state >= M0_DOS_FUTURE);
@@ -91,7 +91,7 @@ M0_INTERNAL void m0_dtm_update_unpack(struct m0_dtm_update *update,
 
 	M0_PRE(update->upd_label == updd->udd_data.da_label);
 	M0_PRE(update->upd_up.up_state == M0_DOS_INPROGRESS);
-	M0_PRE(hi_history(update->upd_up.up_hi)->h_ops->hio_type->hit_id ==
+	M0_PRE(UPDATE_HISTORY(update)->h_ops->hio_type->hit_id ==
 	       updd->udd_htype);
 	M0_PRE(m0_dtm_update_matches_descr(update, updd));
 

@@ -31,32 +31,39 @@
  * @{
  */
 
-#include "lib/tlist.h"
-
-#include "dtm/history.h"
-#include "dtm/operation.h"
-
 /* import */
+#include "lib/types.h"                /* uint32_t, uint64_t */
+struct m0_dtm_dtx_party;
 struct m0_dtm;
 
 /* export */
 struct m0_dtm_dtx;
 
 struct m0_dtm_dtx {
-	struct m0_dtm_history  dx_history;
-	struct m0_dtm_oper     dx_close;
+	struct m0_dtm           *dt_dtm;
+	uint64_t                 dt_id;
+	uint32_t                 dt_nr;
+	uint32_t                 dt_nr_max;
+	uint32_t                 dt_nr_fixed;
+	struct m0_dtm_dtx_party *dt_party;
 };
 
-M0_INTERNAL void m0_dtm_dtx_init(struct m0_dtm_dtx *dtx, struct m0_dtm *dtm);
+struct m0_dtm_dtx_srv {
+};
+
+M0_INTERNAL int m0_dtm_dtx_init(struct m0_dtm_dtx *dtx, struct m0_dtm *dtm,
+				uint32_t nr_max);
 M0_INTERNAL void m0_dtm_dtx_fini(struct m0_dtm_dtx *dtx);
 
-M0_INTERNAL int m0_dtm_dtx_add(struct m0_dtm_dtx *dtx, struct m0_dtm_oper *oper);
-M0_INTERNAL int m0_dtm_dtx_close(struct m0_dtm_dtx *dtx);
+M0_INTERNAL void m0_dtm_dtx_add(struct m0_dtm_dtx *dtx,
+				struct m0_dtm_oper *oper);
+M0_INTERNAL void m0_dtm_dtx_close(struct m0_dtm_dtx *dtx);
+
+M0_EXTERN const struct m0_dtm_history_type m0_dtm_dtx_htype;
 
 /** @} end of dtm group */
 
 #endif /* __MERO_DTM_DTX_H__ */
-
 
 /*
  *  Local variables:

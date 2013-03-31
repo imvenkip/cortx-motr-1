@@ -60,19 +60,12 @@ enum m0_dtm_history_flags {
 	M0_DHF_CLOSED = M0_DHF_LAST
 };
 
-struct m0_dtm_remote {
-	const struct m0_dtm_remote_ops *re_ops;
-};
-
-struct m0_dtm_remote_ops {
-	int (*reo_send)(struct m0_dtm_remote *dtm, struct m0_dtm_oper *oper);
-};
-
 struct m0_dtm_history_ops {
 	const struct m0_dtm_history_type *hio_type;
-	void (*hio_id)(const struct m0_dtm_history *history,
-		       struct m0_uint128 *id);
+	void (*hio_id        )(const struct m0_dtm_history *history,
+			       struct m0_uint128 *id);
 	void (*hio_persistent)(struct m0_dtm_history *history);
+	void (*hio_fixed     )(struct m0_dtm_history *history);
 };
 
 struct m0_dtm_history_type {
@@ -90,7 +83,15 @@ struct m0_dtm_history_type_ops {
 struct m0_dtm_controlh {
 	struct m0_dtm_history ch_history;
 	struct m0_dtm_oper    ch_clop;
-	struct m0_tl          ch_uu;
+	struct m0_dtm_update  ch_clup;
+};
+
+struct m0_dtm_remote {
+	const struct m0_dtm_remote_ops *re_ops;
+	struct m0_dtm_controlh          re_fol;
+};
+
+struct m0_dtm_remote_ops {
 };
 
 M0_INTERNAL void m0_dtm_history_init(struct m0_dtm_history *history,
@@ -118,11 +119,20 @@ M0_INTERNAL void m0_dtm_history_add_close(struct m0_dtm_history *history,
 					  struct m0_dtm_update *cupdate);
 
 M0_INTERNAL void m0_dtm_controlh_init(struct m0_dtm_controlh *ch,
-				      struct m0_dtm *dtm, struct m0_tl *uu);
+				      struct m0_dtm *dtm);
 M0_INTERNAL void m0_dtm_controlh_fini(struct m0_dtm_controlh *ch);
 M0_INTERNAL void m0_dtm_controlh_add(struct m0_dtm_controlh *ch,
 				     struct m0_dtm_oper *oper);
 M0_INTERNAL void m0_dtm_controlh_close(struct m0_dtm_controlh *ch);
+
+M0_INTERNAL void m0_dtm_remote_add(struct m0_dtm_remote *dtm,
+				   struct m0_dtm_oper *oper,
+				   struct m0_dtm_history *history,
+				   struct m0_dtm_update *update);
+
+M0_INTERNAL void m0_dtm_remote_init(struct m0_dtm_remote *remote,
+				    struct m0_dtm *local);
+M0_INTERNAL void m0_dtm_remote_fini(struct m0_dtm_remote *remote);
 
 /** @} end of dtm group */
 

@@ -43,7 +43,8 @@ struct m0_dtm_oper;
 struct m0_dtm_oper_ops;
 
 struct m0_dtm_oper {
-	struct m0_dtm_op              oprt_op;
+	struct m0_dtm_op oprt_op;
+	struct m0_tl     oprt_uu;
 };
 M0_INTERNAL bool m0_dtm_oper_invariant(const struct m0_dtm_oper *oper);
 
@@ -52,8 +53,13 @@ struct m0_dtm_oper_descr {
 	struct m0_dtm_update_descr *od_update;
 } M0_XCA_SEQUENCE;
 
-M0_INTERNAL void m0_dtm_oper_init(struct m0_dtm_oper *oper, struct m0_dtm *dtm);
+M0_INTERNAL void m0_dtm_oper_init(struct m0_dtm_oper *oper, struct m0_dtm *dtm,
+				  struct m0_tl *uu);
 M0_INTERNAL void m0_dtm_oper_fini(struct m0_dtm_oper *oper);
+M0_INTERNAL void m0_dtm_oper_add(struct m0_dtm_oper *oper,
+				 struct m0_dtm_update *update,
+				 struct m0_dtm_history *history,
+				 const struct m0_dtm_update_data *data);
 M0_INTERNAL void m0_dtm_oper_close(const struct m0_dtm_oper *oper);
 M0_INTERNAL void m0_dtm_oper_prepared(const struct m0_dtm_oper *oper);
 M0_INTERNAL void m0_dtm_oper_done(const struct m0_dtm_oper *oper,

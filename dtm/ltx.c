@@ -36,9 +36,9 @@ static void ltx_abort(struct m0_db_tx_waiter *w);
 static const struct m0_dtm_history_ops ltx_ops;
 
 M0_INTERNAL void m0_dtm_ltx_init(struct m0_dtm_ltx *ltx, struct m0_dtm *dtm,
-				 struct m0_dbenv *env, struct m0_tl *uu)
+				 struct m0_dbenv *env)
 {
-	m0_dtm_controlh_init(&ltx->lx_ch, dtm, uu);
+	m0_dtm_controlh_init(&ltx->lx_ch, dtm);
 	ltx->lx_ch.ch_history.h_ops = &ltx_ops;
 	ltx->lx_ch.ch_history.h_hi.hi_flags |= M0_DHF_OWNED;
 	ltx->lx_ch.ch_history.h_dtm = NULL;
@@ -120,13 +120,11 @@ static void ltx_id(const struct m0_dtm_history *history, struct m0_uint128 *id)
 	M0_IMPOSSIBLE("Encoding ltx?");
 }
 
-static void ltx_persistent(struct m0_dtm_history *history)
-{}
-
 static const struct m0_dtm_history_ops ltx_ops = {
 	.hio_type       = &m0_dtm_ltx_htype,
 	.hio_id         = &ltx_id,
-	.hio_persistent = &ltx_persistent
+	.hio_persistent = (void *)&ltx_noop,
+	.hio_fixed      = (void *)&ltx_noop,
 };
 
 

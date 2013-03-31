@@ -97,8 +97,12 @@ M0_INTERNAL void m0_dtm_history_persistent(struct m0_dtm_history *history,
 			sibling_persistent(history, up->up_op, &queue);
 			up = m0_dtm_up_prior(up);
 		}
-		if (up_ver(up) != up_ver(up0))
+		if (up_ver(up) != up_ver(up0)) {
 			history->h_ops->hio_persistent(history);
+			if ((history->h_hi.hi_flags & M0_DHF_CLOSED) &&
+			    m0_dtm_up_later(up0) == NULL)
+				history->h_ops->hio_fixed(history);
+		}
 		next = m0_queue_get(&queue);
 		if (next == NULL)
 			break;
@@ -124,7 +128,7 @@ static void sibling_persistent(struct m0_dtm_history *history,
 	up_for(op, up) {
 		struct m0_dtm_history *other;
 
-		other = hi_history(up->up_hi);
+		other = UP_HISTORY(up);
 		if (up->up_state < M0_DOS_PERSISTENT && other != history &&
 		    other->h_dtm == history->h_dtm &&
 		    !m0_queue_link_is_in(&other->h_pending)) {
@@ -246,42 +250,50 @@ M0_INTERNAL void m0_dtm_history_add_close(struct m0_dtm_history *history,
 }
 
 M0_INTERNAL void m0_dtm_controlh_init(struct m0_dtm_controlh *ch,
-				      struct m0_dtm *dtm, struct m0_tl *uu)
+				      struct m0_dtm *dtm)
 {
-	struct m0_dtm_update *update;
-
-	m0_dtm_update_list_init(&ch->ch_uu);
 	m0_dtm_history_init(&ch->ch_history, dtm);
-	m0_dtm_oper_init(&ch->ch_clop, dtm);
-	m0_tl_for(oper, uu, update) {
-		oper_tlist_move_tail(&ch->ch_uu, update);
-	} m0_tl_endfor;
-
+	m0_dtm_oper_init(&ch->ch_clop, dtm, NULL);
 }
 
 M0_INTERNAL void m0_dtm_controlh_fini(struct m0_dtm_controlh *ch)
 {
 	m0_dtm_oper_fini(&ch->ch_clop);
 	m0_dtm_history_fini(&ch->ch_history);
-	m0_dtm_update_list_fini(&ch->ch_uu);
 }
 
 M0_INTERNAL void m0_dtm_controlh_close(struct m0_dtm_controlh *ch)
 {
-	struct m0_dtm_update *update = oper_tlist_pop(&ch->ch_uu);
-
-	M0_PRE(update != NULL);
-	m0_dtm_history_add_close(&ch->ch_history, &ch->ch_clop, update);
+	m0_dtm_history_add_close(&ch->ch_history, &ch->ch_clop, &ch->ch_clup);
 	m0_dtm_history_close(&ch->ch_history);
 }
 
 M0_INTERNAL void m0_dtm_controlh_add(struct m0_dtm_controlh *ch,
 				     struct m0_dtm_oper *oper)
 {
-	struct m0_dtm_update *update = oper_tlist_pop(&ch->ch_uu);
+	struct m0_dtm_update *update = oper_tlist_pop(&oper->oprt_uu);
 
 	M0_PRE(update != NULL);
 	m0_dtm_history_add_nop(&ch->ch_history, oper, update);
+}
+
+M0_INTERNAL void m0_dtm_remote_add(struct m0_dtm_remote *dtm,
+				   struct m0_dtm_oper *oper,
+				   struct m0_dtm_history *history,
+				   struct m0_dtm_update *update)
+{
+	m0_dtm_controlh_add(&dtm->re_fol, oper);
+}
+
+M0_INTERNAL void m0_dtm_remote_init(struct m0_dtm_remote *remote,
+				    struct m0_dtm *local)
+{
+	m0_dtm_controlh_init(&remote->re_fol, local);
+}
+
+M0_INTERNAL void m0_dtm_remote_fini(struct m0_dtm_remote *remote)
+{
+	m0_dtm_controlh_fini(&remote->re_fol);
 }
 
 /** @} end of dtm group */

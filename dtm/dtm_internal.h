@@ -94,6 +94,11 @@ do {							\
 	__update != NULL ? &__update->upd_up : NULL;	\
 })
 
+#define UP_HISTORY(up) hi_history((up)->up_hi)
+#define UPDATE_HISTORY(update) UP_HISTORY(&(update)->upd_up)
+#define UPDATE_DTM(update) (UPDATE_HISTORY(update)->h_dtm)
+
+
 M0_INTERNAL struct m0_dtm *nu_dtm(struct m0_dtm_nu *nu);
 M0_INTERNAL struct m0_dtm_history *hi_history(struct m0_dtm_hi *hi);
 M0_INTERNAL struct m0_dtm_update *up_update(struct m0_dtm_up *up);
