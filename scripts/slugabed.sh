@@ -25,10 +25,6 @@
 #
 #     slugabed.sh PATH_TO_BINARY
 #
-# or
-#
-#     slugabed.sh PID
-#
 # The script doesn't start the process. The process can be started after or
 # before the script.
 #
@@ -59,9 +55,13 @@
 #
 # The output is sorted in the decreasing "sum" order.
 #
-# "Wait" entries are followed by "busy" entries of the form
+# System call entries are followed by profiler entries of the form
 #
-#     hits: 17
+#     hits: 7
+#     __fsnotify_parent+0x1 [kernel]
+#     vfs_read+0x107 [kernel]
+#     sys_pread64+0x82 [kernel]
+#     tracesys+0xd9 [kernel]
 #     __pread_nocancel+0x2a [libpthread-2.12.so]
 #     __os_io+0x37b [libdb-4.8.so]
 #     __memp_pgread+0x77 [libdb-4.8.so]
@@ -91,13 +91,10 @@
 # Sometimes the script is aborted due to excessive probe cycle count. Backtrace
 # is expensive. Test newer systap versions.
 #
-# The "end" probe is after aborted, because it is too long. This is why the
-# output restricted to top 100 entries.
+# The "end" probe is often aborted, because it is too long. This is why the
+# output is restricted to the top 1000 entries.
 #
 #
-
-#set -x
-set -a
 
 proc="$1"
 
@@ -125,7 +122,7 @@ objs_opt="-d /lib64/ld-2.12.so -d /lib64/libpthread-2.12.so -d /lib64/libselinux
 #
 sudo stap -g $objs_opt -DMAXTRACE=10 -DSTP_NO_OVERLOAD \
                        -DMAXSKIPPED=1000000 -DMAXERRORS=1000 \
-    ./scripts/slugabed.stp $proc
+    ./scripts/slugabed.stp $proc 0 0
 
 
 

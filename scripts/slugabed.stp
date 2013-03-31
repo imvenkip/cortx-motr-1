@@ -31,6 +31,14 @@
  * the system call.
  */
 
+/*
+ * Synopsis:
+ *
+ *     slugabed.stp PATH_TO_BINARY FAULTS? PROFILE?
+ *
+ * Where each "?" parameter is either 1 or 0.
+ */
+
 /**
  * in_time[] is used to record syscall entry time. This array is indexed by
  * thread identifiers.
@@ -54,12 +62,24 @@ global time[40960];
  */
 global timesum[40960];
 
+%( @3 == "1" %?
+/**
+ * This associative array, indexed by symbolic kernel+user backtrace, counts
+ * number of times particular stack was observed from a periodic timer
+ * interrupt. Index "none" means that the target process wasn't running when the
+ * interrupt happened.
+ */
 global profile[40960];
+%)
+
+/**
+ * the pid of the target process.
+ */
 global process_pid;
 
 probe begin {
 	process_pid = 0;
-	print ("Collecting data... Type <intr> to exit and display results.\n")
+	print("Collecting data... Type <intr> to exit and display results.\n")
 }
 
 /**
@@ -72,6 +92,8 @@ probe process(@1).syscall {
 	process_pid = pid();
 }
 
+
+%( @2 == "1" %?
 /**
  * This probe is invoked whenever any process takes a pagefault.
  */
@@ -80,12 +102,17 @@ probe vm.pagefault {
 		/* record the syscall entry time. */
 		in_time[tid()] = gettimeofday_us();
 }
+%)
 
 /**
  * This probe is invoked when the process is about to return from a system call
  * or when any process is about to return from a page fault.
  */
-probe process(@1).syscall.return, vm.pagefault.return {
+probe process(@1).syscall.return
+%( @2 == "1" %?
+	,vm.pagefault.return
+%)
+{
 	if (process_pid != 0 && process_pid == pid()) {
 		intime = in_time[tid()];
 		/*
@@ -130,18 +157,21 @@ probe process(@1).syscall.return, vm.pagefault.return {
 
 /**
  * This probe is invoked when a thread in the process exits. In this case, the
- * thread enter a system call, but never returns from it.
+ * thread enters a system call, but never returns from it.
  */
 probe process(@1).thread.end {
 	delete in_time[tid()];
 }
 
-probe timer.ms(10) {
+%( @3 == "1" %?
+probe timer.profile {
 	if (process_pid != 0 && process_pid == pid())
-		profile[sprint_backtrace() . "\n" . sprint_ubacktrace()]++;
+		profile["\n" . sprint_backtrace() .
+			"\n" . sprint_ubacktrace()]++;
 	else
 		profile["\nnone"]++;
 }
+%)
 
 /**
  * This is called when the script finished.
@@ -149,15 +179,19 @@ probe timer.ms(10) {
  * Print the accumulated data, longest waits first.
  */
 probe end {
+	w_entries = 0;
+	p_entries = 0;
 	foreach (us in timesum- limit 1000) {
 		printf("\nsum: %d min: %d max: %d avg: %d num: %d\n%s\n",
 		       @sum(time[us]), @min(time[us]), @max(time[us]),
 		       @avg(time[us]), @count(time[us]), trace[us]);
 		w_entries++;
 	}
+%( @3 == "1" %?
 	foreach (stk in profile- limit 1000) {
 		printf("\nhits: %d%s\n", profile[stk], stk);
 		p_entries++;
 	}
+%)
 	printf("total entries: %d %d.\n", w_entries, p_entries);
 }
