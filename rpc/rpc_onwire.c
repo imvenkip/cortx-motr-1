@@ -15,15 +15,18 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Subhash Arya <subhash_arya@xyratex.com>
- * Original creation date: 06/25/2011
+ * Original creation date: 25-Jun-2011
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
+
 #include "lib/errno.h"
+#include "rpc/rpc_onwire.h"
 #include "rpc/rpc_onwire_xc.h"
+#include "rpc/item.h"          /* m0_rpc_slot_ref */
 #include "rpc/rpc_helpers.h"
-#include "xcode/xcode.h" /* M0_XCODE_OBJ */
+#include "xcode/xcode.h"       /* M0_XCODE_OBJ */
 
 /**
  * @addtogroup rpc
@@ -32,12 +35,6 @@
 
 #define ITEM_HEAD_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_onwire_header_xc, ptr)
 #define SLOT_REF_XCODE_OBJ(ptr)  M0_XCODE_OBJ(m0_rpc_onwire_slot_ref_xc, ptr)
-
-static int slot_ref_encode(struct m0_rpc_onwire_slot_ref *osr,
-			   struct m0_bufvec_cursor       *cur);
-
-static int slot_ref_decode(struct m0_bufvec_cursor       *cur,
-			   struct m0_rpc_onwire_slot_ref *osr);
 
 M0_INTERNAL int m0_rpc_item_header_encode(struct m0_rpc_item_onwire_header *ioh,
 					  struct m0_bufvec_cursor *cur)
@@ -82,29 +79,6 @@ M0_INTERNAL int m0_rpc_item_header_decode(struct m0_bufvec_cursor *cur,
 	M0_RETURN(rc);
 }
 
-M0_INTERNAL int m0_rpc_item_slot_ref_encdec(struct m0_bufvec_cursor *cur,
-					    struct m0_rpc_slot_ref *slot_ref,
-					    int nr_slot_refs,
-					    enum m0_bufvec_what what)
-{
-	struct m0_rpc_onwire_slot_ref *osr = NULL;
-	int                            rc;
-	int                            i;
-
-	M0_ENTRY();
-	M0_PRE(slot_ref != NULL);
-	M0_PRE(cur != NULL);
-
-	for (i = 0, rc = 0; rc == 0 && i < nr_slot_refs; ++i) {
-		osr = &slot_ref[i].sr_ow;
-		rc = what == M0_BUFVEC_ENCODE ?
-			slot_ref_encode(osr, cur) :
-			slot_ref_decode(cur, osr);
-	}
-
-	M0_RETURN(rc);
-}
-
 static int slot_ref_encode(struct m0_rpc_onwire_slot_ref *osr,
 			   struct m0_bufvec_cursor       *cur)
 
@@ -140,8 +114,30 @@ static int slot_ref_decode(struct m0_bufvec_cursor       *cur,
 	M0_RETURN(rc);
 }
 
-#undef M0_TRACE_SUBSYSTEM
+M0_INTERNAL int m0_rpc_slot_refs_encdec(struct m0_bufvec_cursor *cur,
+					struct m0_rpc_slot_ref *slot_refs,
+					int nr_slot_refs,
+					enum m0_bufvec_what what)
+{
+	int i;
+	int rc = 0;
+
+	M0_ENTRY();
+	M0_PRE(slot_refs != NULL);
+	M0_PRE(cur != NULL);
+
+	for (i = 0; i < nr_slot_refs; ++i) {
+		struct m0_rpc_onwire_slot_ref *x = &slot_refs[i].sr_ow;
+		rc = what == M0_BUFVEC_ENCODE ?
+			slot_ref_encode(x, cur) : slot_ref_decode(cur, x);
+		if (rc != 0)
+			break;
+	}
+	M0_RETURN(rc);
+}
+
 #undef SLOT_REF_XCODE_OBJ
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} */
 

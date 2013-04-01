@@ -21,6 +21,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
@@ -473,7 +474,7 @@ static void misordered_item_received(struct m0_rpc_slot *slot,
 M0_INTERNAL int m0_rpc_slot_item_apply(struct m0_rpc_slot *slot,
 				       struct m0_rpc_item *item)
 {
-	int rc;
+	int rc = -EPROTO;
 
 	M0_ENTRY("slot: %p, item: %p", slot, item);
 	M0_ASSERT(item != NULL);
@@ -487,13 +488,11 @@ M0_INTERNAL int m0_rpc_slot_item_apply(struct m0_rpc_slot *slot,
 		rc = 0;
 	} else if (item_xid(item, 0) < slot->sl_xid) {
 		duplicate_item_received(slot, item);
-		rc = -EPROTO;
 	} else {
 		/* neither duplicate nor in seq */
 		misordered_item_received(slot, item);
-		rc = -EPROTO;
 	}
-	M0_ASSERT(m0_rpc_slot_invariant(slot));
+	M0_POST(m0_rpc_slot_invariant(slot));
 	M0_RETURN(rc);
 }
 
@@ -538,6 +537,9 @@ static void duplicate_item_received(struct m0_rpc_slot *slot,
 	case RPC_ITEM_STAGE_TIMEDOUT:
 	case RPC_ITEM_STAGE_FAILED:
 		M0_IMPOSSIBLE("Original req in TIMEDOUT/FAILED stage");
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid value of m0_rpc_item::ri_stage");
 	}
 	/*
 	 * Irrespective of any of above cases, we're going to
@@ -797,37 +799,32 @@ M0_INTERNAL void m0_rpc_slot_reset(struct m0_rpc_slot *slot,
 	M0_LEAVE();
 }
 
-static struct m0_rpc_conn *
-find_conn(const struct m0_rpc_machine *machine,
-	  const struct m0_rpc_item    *item)
+static struct m0_rpc_conn *find_conn(const struct m0_rpc_machine *machine,
+				     const struct m0_rpc_item    *item)
 {
-	const struct m0_tl           *conn_list;
-	const struct m0_rpc_slot_ref *sref;
-	struct m0_rpc_conn           *conn;
-	bool                          use_uuid;
+	const struct m0_rpc_onwire_slot_ref *sref;
+	const struct m0_tl                  *conn_list;
+	struct m0_rpc_conn                  *conn;
+	bool                                 use_uuid;
 
 	M0_ENTRY("machine: %p, item: %p", machine, item);
 
+	sref = &item->ri_slot_refs[0].sr_ow;
+	use_uuid = (sref->osr_sender_id == SENDER_ID_INVALID);
 	conn_list = m0_rpc_item_is_request(item) ?
 			&machine->rm_incoming_conns :
 			&machine->rm_outgoing_conns;
 
-	sref = &item->ri_slot_refs[0];
-	use_uuid = (sref->sr_ow.osr_sender_id == SENDER_ID_INVALID);
 	m0_tl_for(rpc_conn, conn_list, conn) {
 		if (use_uuid) {
-			if (m0_rpc_sender_uuid_cmp(
-				    &conn->c_uuid,
-				    &sref->sr_ow.osr_uuid) == 0) {
+			if (m0_rpc_sender_uuid_cmp(&conn->c_uuid,
+						   &sref->osr_uuid) == 0)
 				break;
-			}
-		} else {
-			if (conn->c_sender_id == sref->sr_ow.osr_sender_id) {
-				M0_LEAVE("conn: %p", conn);
-				break;
-			}
+		} else if (conn->c_sender_id == sref->osr_sender_id) {
+			break;
 		}
 	} m0_tl_endfor;
+
 	M0_LEAVE("conn: %p", conn);
 	return conn;
 }
@@ -860,9 +857,9 @@ static int associate_session_and_slot(struct m0_rpc_item    *item,
 	M0_ASSERT(slot != NULL);
 	sref->sr_slot    = slot;
 	item->ri_session = session;
+
 	M0_POST(item->ri_session != NULL &&
 		item->ri_slot_refs[0].sr_slot != NULL);
-
 	M0_RETURN(0);
 }
 
@@ -872,37 +869,39 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 	int rc;
 
 	M0_ENTRY("item: %p, machine: %p", item, machine);
-	M0_ASSERT(item != NULL);
+	M0_PRE(item != NULL);
 	M0_PRE(m0_rpc_machine_is_locked(machine));
 
 	m0_addb_counter_update(&machine->rm_cntr_rcvd_item_sizes,
 			       (uint64_t)m0_rpc_item_size(item));
-	machine->rm_stats.rs_nr_rcvd_items++;
+	++machine->rm_stats.rs_nr_rcvd_items;
+
 	if (m0_rpc_item_is_oneway(item)) {
 		m0_rpc_item_dispatch(item);
-		rc = 0;
-	} else {
-		M0_ASSERT(m0_rpc_item_is_request(item) ||
-			  m0_rpc_item_is_reply(item));
-		rc = associate_session_and_slot(item, machine);
-		if (rc == 0) {
-			rc = m0_rpc_slot_item_received(item);
-		} else if (m0_rpc_item_is_conn_establish(item)) {
-			m0_rpc_item_dispatch(item);
-			rc = 0;
-		} else {
-			/*
-			 * If we cannot associate the item with its slot
-			 * then there is nothing that we can do with this
-			 * item except to discard it.
-			 * XXX generate ADDB record
-			 * At this point item has only 1 reference on it
-			 * which will be dropped in packet_received()
-			 * resulting in item getting deallocated.
-			 */
-		}
+		M0_RETURN(0);
 	}
-	return rc;
+
+	M0_ASSERT(m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item));
+	rc = associate_session_and_slot(item, machine);
+	if (rc == 0)
+		M0_RETURN(m0_rpc_slot_item_received(item));
+
+	if (m0_rpc_item_is_conn_establish(item)) {
+		m0_rpc_item_dispatch(item);
+		M0_RETURN(0);
+	}
+
+	/*
+	 * We cannot associate the item with its slot. The only thing
+	 * that we can do with this item is to discard it.
+	 *
+	 * XXX TODO: Generate ADDB record.
+	 *
+	 * At this point the item has only 1 reference on it. This
+	 * reference will be dropped in packet_received(), resulting
+	 * in the item getting deallocated.
+	 */
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL int m0_rpc_slot_item_received(struct m0_rpc_item *item)
@@ -1010,6 +1009,8 @@ int m0_rpc_slot_item_list_print(struct m0_rpc_slot *slot,
 #endif
 
 /** @} */
+#undef M0_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

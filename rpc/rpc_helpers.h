@@ -23,18 +23,25 @@
 #ifndef __MERO_RPC_HELPERS_H__
 #define __MERO_RPC_HELPERS_H__
 
-#include "lib/vec.h"
-#include "rpc/item.h"
+#include "lib/vec.h"  /* m0_bufvec_what */
+
+struct m0_rpc_slot_ref;
 
 /**
  * @addtogroup rpc
  * @{
  */
 
-M0_INTERNAL int m0_rpc_item_slot_ref_encdec(struct m0_bufvec_cursor *cur,
-					    struct m0_rpc_slot_ref *slot_ref,
-					    int nr_slot_refs,
-					    enum m0_bufvec_what what);
+/**
+ * Encodes or decodes onwire parts of m0_rpc_slot_refs.
+ *
+ * For every x in `slot_refs' array, encodes or decodes, depending on
+ * `what' argument, x->sr_ow.
+ */
+M0_INTERNAL int m0_rpc_slot_refs_encdec(struct m0_bufvec_cursor *cur,
+					struct m0_rpc_slot_ref *slot_refs,
+					int nr_slot_refs,
+					enum m0_bufvec_what what);
 
 /** @} */
 
