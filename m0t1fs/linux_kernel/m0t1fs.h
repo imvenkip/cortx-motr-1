@@ -79,6 +79,14 @@
       configuration string, containing data to pre-load configuration
       cache with (see @ref conf-fspec-preload).
 
+  - fid_start [value type: uint32_t, default: 4]
+      TEMPORARY option.
+      Client allocates fid for a file during its creation. It assigns
+      <0, $fid_start> for first file, <0, $fid_start+1> for second
+      and so on.
+      mdstore uses constant fid - M0_COB_SLASH_FID <1, 3> - for root.
+      Hence fid_start must be greater than 3.
+
    'device' argument of mount command is ignored.
 
    m0t1fs supports following operations:

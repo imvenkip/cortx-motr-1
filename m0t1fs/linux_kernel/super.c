@@ -134,22 +134,25 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
  * ---------------------------------------------------------------- */
 
 struct mount_opts {
-	char *mo_confd;
-	char *mo_profile;
-	char *mo_local_conf;
+	char     *mo_confd;
+	char     *mo_profile;
+	char     *mo_local_conf;
+	uint32_t  mo_fid_start;
 };
 
 enum m0t1fs_mntopts {
 	M0T1FS_MNTOPT_CONFD,
 	M0T1FS_MNTOPT_PROFILE,
 	M0T1FS_MNTOPT_LOCAL_CONF,
+	M0T1FS_MNTOPT_FID_START,
 	M0T1FS_MNTOPT_ERR
 };
 
 static const match_table_t m0t1fs_mntopt_tokens = {
-	{ M0T1FS_MNTOPT_CONFD,      "confd=%s" },
-	{ M0T1FS_MNTOPT_PROFILE,    "profile=%s" },
+	{ M0T1FS_MNTOPT_CONFD,      "confd=%s"      },
+	{ M0T1FS_MNTOPT_PROFILE,    "profile=%s"    },
 	{ M0T1FS_MNTOPT_LOCAL_CONF, "local_conf=%s" },
+	{ M0T1FS_MNTOPT_FID_START,  "fid_start=%s"  },
 	/* match_token() requires 2nd field of the last element to be NULL */
 	{ M0T1FS_MNTOPT_ERR, NULL }
 };
@@ -180,16 +183,21 @@ static int str_parse(char **dest, const substring_t *src)
 
 static int num_parse(uint32_t *dest, const substring_t *src)
 {
-	int           rc;
 	unsigned long n;
-	char         *s = match_strdup(src);
+	char         *s;
+	int           rc;
 
+	s = match_strdup(src);
 	if (s == NULL)
 		return -ENOMEM;
 
 	rc = strict_strtoul(s, 10, &n);
-	if (rc == 0)
-		*dest = (uint32_t)n; /* XXX FIXME range checking is required */
+	if (rc == 0) {
+		if (n > UINT32_MAX)
+			rc = -EINVAL;
+		else
+			*dest = (uint32_t)n;
+	}
 
 	kfree(s);
 	return rc;
@@ -247,6 +255,9 @@ static int mount_opts_validate(const struct mount_opts *mops)
 	if (is_empty(mops->mo_profile))
 		M0_RETERR(-EINVAL, "Mandatory parameter is missing: profile");
 
+	if (!ergo(mops->mo_fid_start != 0, mops->mo_fid_start > 3))
+		M0_RETERR(-EINVAL, "fid_start must be greater than 3");
+
 	M0_RETURN(0);
 }
 
@@ -263,6 +274,8 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 
 	M0_LOG(M0_INFO, "Mount options: `%s'", options);
 
+	M0_SET0(dest);
+	dest->mo_fid_start = 4;   /* Default value */
 	while ((op = strsep(&options, ",")) != NULL && *op != '\0') {
 		switch (match_token(op, m0t1fs_mntopt_tokens, args)) {
 		case M0T1FS_MNTOPT_CONFD:
@@ -277,6 +290,14 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 			if (rc != 0)
 				goto out;
 			M0_LOG(M0_INFO, "profile: %s", dest->mo_profile);
+			break;
+
+		case M0T1FS_MNTOPT_FID_START:
+			rc = num_parse(&dest->mo_fid_start, args);
+			if (rc != 0)
+				goto out;
+			M0_LOG(M0_INFO, "fid-start: %lu",
+				(unsigned long)dest->mo_fid_start);
 			break;
 
 		case M0T1FS_MNTOPT_LOCAL_CONF: {
@@ -860,6 +881,8 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	M0_ENTRY();
 	M0_PRE(csb->csb_astthread.t_state == TS_RUNNING);
+
+	csb->csb_next_key = mops->mo_fid_start;
 
 	rc = m0_confc_init(&confc, &csb->csb_iogroup,
 			   &(const struct m0_buf)M0_BUF_INITS(mops->mo_profile),

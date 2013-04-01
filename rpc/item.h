@@ -183,7 +183,6 @@ struct m0_rpc_item {
 	m0_time_t                        ri_resend_interval;
 	/** How many resending attempts to make (defaults to ~0). */
 	uint64_t                         ri_nr_sent_max;
-	/** Absolute time after which the RPC call is considered as failed */
 	struct m0_rpc_session		*ri_session;
 	/** item operations */
 	const struct m0_rpc_item_ops	*ri_ops;
