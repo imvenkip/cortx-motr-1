@@ -167,6 +167,8 @@ static struct m0_fid m0t1fs_fid_alloc(struct m0t1fs_sb *csb)
 	M0_PRE(m0t1fs_fs_is_locked(csb));
 	m0_fid_set(&fid, 0, csb->csb_next_key++);
 
+	M0_LOG(M0_INFO, "fid <%llu:%llu>", (unsigned long long)fid.f_container,
+					   (unsigned long long)fid.f_key);
 	return fid;
 }
 

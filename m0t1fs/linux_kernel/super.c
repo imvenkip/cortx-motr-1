@@ -137,7 +137,7 @@ struct mount_opts {
 	char     *mo_confd;
 	char     *mo_profile;
 	char     *mo_local_conf;
-	uint64_t  mo_fid_start;
+	uint32_t  mo_fid_start;
 };
 
 enum m0t1fs_mntopts {
@@ -192,28 +192,12 @@ static int num_parse(uint32_t *dest, const substring_t *src)
 		return -ENOMEM;
 
 	rc = strict_strtoul(s, 10, &n);
-	if (rc == 0)
-		*dest = (uint32_t)n; /* XXX FIXME range checking is required */
-
-	kfree(s);
-	return rc;
-}
-
-static int num_parse_ull(uint64_t *dest, const substring_t *src)
-{
-	unsigned long long  n;
-	char               *s;
-	int                 rc;
-
-	M0_CASSERT(sizeof *dest == sizeof n);
-
-	s = match_strdup(src);
-	if (s == NULL)
-		return -ENOMEM;
-
-	rc = strict_strtoull(s, 10, &n);
-	if (rc == 0)
-		*dest = (uint64_t)n;
+	if (rc == 0) {
+		if (n > UINT32_MAX)
+			rc = -EINVAL;
+		else
+			*dest = (uint32_t)n;
+	}
 
 	kfree(s);
 	return rc;
@@ -271,6 +255,9 @@ static int mount_opts_validate(const struct mount_opts *mops)
 	if (is_empty(mops->mo_profile))
 		M0_RETERR(-EINVAL, "Mandatory parameter is missing: profile");
 
+	if (!ergo(mops->mo_fid_start != 0, mops->mo_fid_start > 3))
+		M0_RETERR(-EINVAL, "fid_start must be greater than 3");
+
 	M0_RETURN(0);
 }
 
@@ -306,11 +293,11 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 			break;
 
 		case M0T1FS_MNTOPT_FID_START:
-			rc = num_parse_ull(&dest->mo_fid_start, args);
+			rc = num_parse(&dest->mo_fid_start, args);
 			if (rc != 0)
 				goto out;
-			M0_LOG(M0_FATAL, "fid-start: %llu",
-				(unsigned long long)dest->mo_fid_start);
+			M0_LOG(M0_INFO, "fid-start: %lu",
+				(unsigned long)dest->mo_fid_start);
 			break;
 
 		case M0T1FS_MNTOPT_LOCAL_CONF: {
