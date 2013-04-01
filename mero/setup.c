@@ -666,14 +666,13 @@ static int cs_buffer_pool_setup(struct m0_mero *cctx)
 		tms_nr		   = cs_domain_tms_nr(cctx, dom);
 		M0_ASSERT(max_recv_queue_len >= tms_nr);
 
-		bufs_nr  = m0_rpc_bufs_nr(max_recv_queue_len, tms_nr);
-
 		M0_ALLOC_PTR(cs_bp);
 		if (cs_bp == NULL) {
 			rc = -ENOMEM;
 			break;
 		}
 
+		bufs_nr = m0_rpc_bufs_nr(max_recv_queue_len, tms_nr);
 		rc = m0_rpc_net_buffer_pool_setup(dom, &cs_bp->cs_buffer_pool,
 						  bufs_nr, tms_nr);
 		if (rc != 0) {
@@ -1578,10 +1577,10 @@ static void cs_help(FILE *out)
 "  -M num   Maximum RPC message size.\n"
 "  -w num   Pool width.\n"
 "  -C addr  Endpoint address of confd service.\n"
-"  -G addr  Endpoint address of mdservice service.\n"
-"  -L addr  Client Endpoint address to mdservice service.\n"
-"  -i addr  ios endpoint list.\n"
 "  -P str   Configuration profile.\n"
+"  -G addr  Endpoint address of mdservice.\n"
+"  -L addr  Client endpoint address to mdservice.\n"
+"  -i addr  Add new entry to the list of ioservice endpoint addresses.\n"
 "\n"
 "Request handler options:\n"
 "  -r   Start new set of request handler options.\n"
@@ -1702,14 +1701,13 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 		}
 	} m0_tl_endfor;
 
-	if (cctx->cc_mds_epx.ex_endpoint == NULL) {
+	if (cctx->cc_mds_epx.ex_endpoint == NULL)
 		M0_LOG(M0_WARN, "Missing mdservice endpoint.\n"
 				 "Use -G to provide a valid one");
-	}
-	if (cctx->cc_cli2mds_epx.ex_endpoint == NULL) {
+
+	if (cctx->cc_cli2mds_epx.ex_endpoint == NULL)
 		M0_LOG(M0_WARN, "Missing client to mdservice endpoint.\n"
 				 "Use -L to provide a valid one");
-	}
 
 	if (cctx->cc_pool_width <= 0) {
 		M0_LOG(M0_ERROR, "Invalid pool width.\n"

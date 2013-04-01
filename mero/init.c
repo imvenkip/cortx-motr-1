@@ -152,16 +152,16 @@ static void fini_nr(int i)
 int m0_init(void)
 {
 	int i;
-	int result;
+	int rc = 0;
 
-	for (result = i = 0; i < ARRAY_SIZE(subsystem); ++i) {
-		result = subsystem[i].ifc_init();
-		if (result != 0) {
+	for (i = 0; i < ARRAY_SIZE(subsystem); ++i) {
+		rc = subsystem[i].ifc_init();
+		if (rc != 0) {
 			fini_nr(i);
 			break;
 		}
 	}
-	return result;
+	return rc;
 }
 
 void m0_fini()

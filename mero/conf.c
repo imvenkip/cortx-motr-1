@@ -168,28 +168,21 @@ end:
 M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 				const char *profile)
 {
-	static struct m0_net_domain     client_net_dom;
-	static struct m0_dbenv          client_dbenv;
-	static struct m0_cob_domain     client_cob_dom;
-	int                             rc;
-	/*
-	 * XXX FIXME: Don't use m0_rpc_client_ctx.
-	 *
-	 * See test_confc_net() in conf/ut/confc.c for example on how
-	 * to initialise confc without m0_rpc_client_ctx.
-	 */
-	static struct m0_rpc_client_ctx cctx;
-
-	static const char              *client_db_file_name = "mero_client.db";
-	static struct m0_net_xprt      *xprt = &m0_net_lnet_xprt;
-	static char client_ep[M0_NET_LNET_XEP_ADDR_LEN] = {0};
-	static char server_ep[M0_NET_LNET_XEP_ADDR_LEN] = {0};
 	enum {
 		MAX_RPCS_IN_FLIGHT = 32,
 		CLIENT_COB_DOM_ID  = 13,
 		CONNECT_TIMEOUT    = 20,
-		NR_SLOTS           = 1,
+		NR_SLOTS           = 1
 	};
+	static struct m0_net_domain     client_net_dom;
+	static struct m0_dbenv          client_dbenv;
+	static struct m0_cob_domain     client_cob_dom;
+	static struct m0_rpc_client_ctx cctx;
+	static char                     client_ep[M0_NET_LNET_XEP_ADDR_LEN];
+	static char                     server_ep[M0_NET_LNET_XEP_ADDR_LEN];
+	static const char              *client_db_file_name = "mero_client.db";
+	static struct m0_net_xprt      *xprt = &m0_net_lnet_xprt;
+	int                             rc;
 
 	M0_ENTRY();
 	M0_PRE(confd_addr != NULL && profile != NULL);
