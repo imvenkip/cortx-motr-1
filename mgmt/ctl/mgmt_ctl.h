@@ -40,7 +40,7 @@ enum {
  */
 struct m0_mgmt_ctl_ctx {
 	/** Path to genders file to use */
-	const char             *mcc_genders;
+	const char              *mcc_genders;
 	/** RPC timeout */
 	m0_time_t                mcc_timeout;
 	/** Output in YAML when true */

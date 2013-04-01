@@ -34,6 +34,7 @@
       - @ref MGMT-DLD-lspec-hosts
       - @ref MGMT-SVC-DLD "Management Service Design"
       - @ref MGMT-CTL-DLD "The Management CLI (m0ctl)"
+      - @ref MGMT-CONF-DLD "Management Configuration"
       - @ref MGMT-DLD-lspec-state
       - @ref MGMT-DLD-lspec-thread
       - @ref MGMT-DLD-lspec-numa

@@ -21,6 +21,7 @@
 #ifndef __MERO_MGMT_MGMT_H__
 #define __MERO_MGMT_MGMT_H__
 
+#include "lib/tlist.h"
 struct m0_reqh_service;
 
 /**

@@ -94,10 +94,23 @@
 
  */
 
+#include "lib/errno.h"
+#include "mgmt/mgmt.h"
+
 /**
    @addtogroup mgmt
    @{
  */
+
+M0_INTERNAL int m0_mgmt_node_conf_init(struct m0_mgmt_node_conf *conf,
+				       const char *genders)
+{
+	return -ENOSYS;
+}
+
+M0_INTERNAL void m0_mgmt_node_conf_fini(struct m0_mgmt_node_conf *conf)
+{
+}
 
 /** @} end of mgmt group */
 
