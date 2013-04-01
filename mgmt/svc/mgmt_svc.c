@@ -111,7 +111,7 @@
 @code
 struct cs_reqh_context {
 	...
-	char                 **rc_services;      // existing, malloc'd, !const
+	char                 **rc_services;      // existing, alloc'd, !const
 	struct m0_uint128     *rc_service_uuids; // new, malloc'd
 	...
 };
@@ -566,16 +566,17 @@ static int mgmt_svc_rso_start(struct m0_reqh_service *service)
 
 	svc = bob_of(service, struct mgmt_svc, ms_reqhs, &mgmt_svc_bob);
 
-	/* There is only one management service per request handler
-	   and it is special!
+	/*
+	  There is only one management service per request handler
+	  and it is special!
 	 */
 	reqh = service->rs_reqh;
 	if (m0_reqh_state_get(reqh) != M0_REQH_ST_MGMT_STARTED ||
 	    reqh->rh_mgmt_svc != service)
-		return -EPROTO;
+		M0_RETURN(-EPROTO);
 
 	if (M0_FI_ENABLED("-ECANCELED"))
-		return -ECANCELED;
+		M0_RETURN(-ECANCELED);
 
 	the_mgmt_svc = svc; /* UT */
 	return 0;
@@ -611,7 +612,7 @@ static void mgmt_svc_rso_fini(struct m0_reqh_service *service)
 
 	M0_LOG(M0_DEBUG, "done");
 	M0_PRE(M0_IN(service->rs_state, (M0_RST_STOPPED, M0_RST_FAILED)));
-	/** @todo Should assert reqh state */
+
 	svc = bob_of(service, struct mgmt_svc, ms_reqhs, &mgmt_svc_bob);
 	mgmt_svc_bob_fini(svc);
 	the_mgmt_svc = NULL;
@@ -628,12 +629,12 @@ static int mgmt_svc_rso_fop_accept(struct m0_reqh_service *service,
 	M0_PRE(fop != NULL);
 
 	if (service->rs_state != M0_RST_STARTED)
-		return -ESHUTDOWN;
+		M0_RETURN(-ESHUTDOWN);
 
 	if (fop->f_type == &m0_fop_mgmt_service_state_req_fopt)
 		return 0;
 
-	return -ESHUTDOWN;
+	M0_RETURN(-ESHUTDOWN);
 }
 
 static const struct m0_reqh_service_ops mgmt_service_ops = {
@@ -660,10 +661,9 @@ static int mgmt_svc_rsto_service_allocate(struct m0_reqh_service **service,
 	struct mgmt_svc *svc;
 
 	M0_ALLOC_PTR(svc);
-	if (svc == NULL) {
-		M0_LOG(M0_ERROR, "Unable to allocate memory for MGMT service");
-		return -ENOMEM;
-	}
+	if (svc == NULL)
+		M0_RETERR(-ENOMEM, "Unable to allocate memory for MGMT svc");
+
 	*service = &svc->ms_reqhs;
 	(*service)->rs_type = stype;
 	(*service)->rs_ops = &mgmt_service_ops;

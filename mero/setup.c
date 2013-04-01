@@ -435,8 +435,7 @@ static struct m0_reqh_context *cs_reqh_ctx_alloc(struct m0_mero *cctx)
 
 	return rctx;
 err:
-	if (rctx->rc_services)
-		m0_free(rctx->rc_services);
+	m0_free(rctx->rc_services);
 	m0_free(rctx);
 	return NULL;
 }
@@ -1636,7 +1635,7 @@ static void cs_help(FILE *out)
 "           component of 4-tuple endpoint address in lnet).\n"
 "  -s str   Service (type) to be started in given request handler context.\n"
 "           The string is of one of the following forms:"
-"              ServiceTypeName : ServiceInstanceUUID"
+"              ServiceTypeName:ServiceInstanceUUID"
 "              ServiceTypeName"
 "           with the UUID expressed in the standard 8-4-4-4-12 hexadecimal"
 "           string form.  The non-UUID form is permitted for testing purposes."
@@ -1747,41 +1746,45 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 /**
    Parses a service string of the following forms:
    - service-type
-   - service-type : uuid-str
+   - service-type:uuid-str
 
    In the latter case it isolates and parses the UUID string, and returns it
    in the uuid parameter.
 
    @param str Input string
-   @param svc Malloc'd service type name
+   @param svc Allocated service type name
    @param uuid Numerical UUID value if present and valid, or zero.
  */
-static void parse_service_string(const char *str, char **svc,
-				 struct m0_uint128 *uuid)
+static int parse_service_string(const char *str, char **svc,
+				struct m0_uint128 *uuid)
 {
 	const char *colon;
 	size_t      len;
+	int         rc;
 
 	uuid->u_lo = uuid->u_hi = 0;
-	colon = strstr(str, ":");
+	colon = strchr(str, ':');
 	if (colon == NULL) {
+		/** @todo replace with m0_strdup() when available */
 		*svc = strdup(str);
-		return;
+		return *svc ? 0 : -ENOMEM;
 	}
 
 	/* isolate and copy the service type */
 	len = colon - str;
 	*svc = m0_alloc(len + 1);
-	M0_ASSERT(*svc != NULL);
+	if (*svc == NULL)
+		return -ENOMEM;
 	strncpy(*svc, str, len);
 	*(*svc + len) = '\0';
 
-	/* check if UUID string length is valid */
-	if (strlen(++colon) != M0_UUID_STRLEN)
-		return;
-
 	/* parse the UUID */
-	m0_uuid_parse(colon, uuid);
+	rc = m0_uuid_parse(++colon, uuid);
+	if (rc != 0) {
+		m0_free(*svc);
+		*svc = NULL;
+	}
+	return rc;
 }
 
 /** Parses CLI arguments, filling m0_mero structure. */
@@ -1964,10 +1967,12 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 						return;
 					}
 					i = rctx->rc_nr_services;
-					parse_service_string(s,
+					rc = parse_service_string(s,
 						   &rctx->rc_services[i],
 						   &rctx->rc_service_uuids[i]);
-					M0_CNT_INC(rctx->rc_nr_services);
+					if (rc == 0)
+						M0_CNT_INC(
+							  rctx->rc_nr_services);
 				})));
 #undef _RETURN_EINVAL_UNLESS
 
