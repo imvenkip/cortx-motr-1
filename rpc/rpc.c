@@ -164,6 +164,7 @@ M0_INTERNAL int m0_rpc_post_slot(struct m0_rpc_item *item,
 
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item->ri_session != NULL);
+	M0_PRE(m0_rpc_conn_is_snd(item->ri_session->s_conn));
 
 	machine = session_machine(item->ri_session);
 
@@ -221,6 +222,7 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 	M0_PRE(reply->ri_type != NULL);
 	M0_PRE(m0_rpc_item_size(reply) <=
 			m0_rpc_session_get_max_item_size(request->ri_session));
+	M0_PRE(m0_rpc_conn_is_rcv(request->ri_session->s_conn));
 
 	if (M0_FI_ENABLED("delay_reply")) {
 		M0_LOG(M0_DEBUG, "%p reply delayed", request);
