@@ -39,8 +39,9 @@
    @{
  */
 
-uint32_t timeout;
-bool     verbose;
+bool m0_console_verbose;
+
+static uint32_t timeout;
 
 /**
  * @brief Iterate over FOP and print names of its members.
@@ -205,7 +206,7 @@ int main(int argc, char **argv)
 		.rcx_max_rpcs_in_flight    = 1,
 	};
 
-	verbose = false;
+	m0_console_verbose = false;
 	yaml_support = false;
 	timeout = 10;
 
@@ -239,7 +240,7 @@ int main(int argc, char **argv)
 					 LAMBDA(void, (const char *fd) {
 							 fop_desc = fd;
 						 })),
-			    M0_FLAGARG('v', "verbose", &verbose));
+			    M0_FLAGARG('v', "verbose", &m0_console_verbose));
 	if (result != 0)
 		/*
 		 * No need to print "usage" here, M0_GETOPTS will automatically
@@ -247,14 +248,7 @@ int main(int argc, char **argv)
 		 */
 		return EX_USAGE;
 
-	/* If no argument provided */
-	if (argc == 1) {
-		usage();
-		return EX_USAGE;
-	}
-
-	/* Verbose is true but no other input is valid */
-	if (verbose && argc == 2) {
+	if (argc == 1 || (m0_console_verbose && argc == 2)) {
 		usage();
 		return EX_USAGE;
 	}

@@ -76,10 +76,10 @@ int main(int argc, char **argv)
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
 	};
 
-	verbose = false;
+	m0_console_verbose = false;
 
 	result = M0_GETOPTS("server", argc, argv,
-			    M0_FLAGARG('v', "verbose", &verbose),
+			    M0_FLAGARG('v', "verbose", &m0_console_verbose),
 			    M0_FORMATARG('q', "minimum TM receive queue length",
 					 "%i", &tm_recv_queue_len),
 			    M0_FORMATARG('m', "max rpc msg size", "%i",

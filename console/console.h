@@ -43,12 +43,10 @@
    @{
 */
 
-extern bool verbose;
+extern bool m0_console_verbose;
 
 /** @} end of console group */
-
-/* __MERO_CONSOLE_CONSOLE_H__ */
-#endif
+#endif /* __MERO_CONSOLE_CONSOLE_H__ */
 
 /*
  *  Local variables:

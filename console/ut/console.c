@@ -283,7 +283,7 @@ static void output_test(void)
         struct m0_fop *f;
 	int	       result;
 
-	verbose = true;
+	m0_console_verbose = true;
 	result = generate_yaml_file(yaml_file);
 	M0_UT_ASSERT(result == 0);
 	result = m0_cons_yaml_init(yaml_file);
@@ -300,7 +300,7 @@ static void output_test(void)
 	file_compare(in_file, out_file);
 	file_redirect_fini();
 
-	verbose = false;
+	m0_console_verbose = false;
         m0_fop_put(f);
 	m0_cons_yaml_fini();
 	result = remove(yaml_file);
