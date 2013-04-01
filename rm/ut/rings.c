@@ -54,11 +54,18 @@ void rings_resource_free(struct m0_rm_resource *resource)
 	m0_free(rings);
 }
 
+void rings_initial_credit(const struct m0_rm_resource *resource,
+			  struct m0_rm_credit         *credit)
+{
+	credit->cr_datum = ALLRINGS;
+}
+
 const struct m0_rm_resource_ops rings_ops = {
-	.rop_credit_decode = NULL,
-	.rop_policy	   = rings_policy,
-	.rop_credit_init   = rings_credit_init,
-	.rop_resource_free = rings_resource_free,
+	.rop_credit_decode  = NULL,
+	.rop_policy	    = rings_policy,
+	.rop_credit_init    = rings_credit_init,
+	.rop_resource_free  = rings_resource_free,
+	.rop_initial_credit = rings_initial_credit,
 };
 
 static bool rings_resources_are_equal(const struct m0_rm_resource *c0,
@@ -101,16 +108,19 @@ static int rings_resource_encode(struct m0_bufvec_cursor  *cur,
 static int rings_resource_decode(struct m0_bufvec_cursor  *cur,
 				 struct m0_rm_resource   **resource)
 {
-	static uint64_t  res_id;
-	struct m0_rings *rings;
+	static uint64_t             res_id;
+	struct m0_rings            *rings;
 
 	m0_bufvec_cursor_copyfrom(cur, &res_id, sizeof res_id);
 
 	M0_ALLOC_PTR(rings);
-	rings->rs_id                     = res_id;
-	rings->rs_resource.r_type        = &rings_resource_type;
+	if (rings == NULL)
+		return -ENOMEM;
+
+	rings->rs_id                      = res_id;
+	rings->rs_resource.r_type         = &rings_resource_type;
 	rings->rs_resource.r_type->rt_ops = &rings_rtype_ops;
-	rings->rs_resource.r_ops         = &rings_ops;
+	rings->rs_resource.r_ops          = &rings_ops;
 
 	*resource = &rings->rs_resource;
 	return 0;

@@ -65,7 +65,7 @@ struct m0_fop_type m0_rm_fop_borrow_fopt;
 struct m0_fop_type m0_rm_fop_borrow_rep_fopt;
 extern struct m0_sm_state_descr rm_req_phases[];
 extern struct m0_reqh_service_type m0_rpc_service_type;
-extern struct m0_reqh_service_type m0_rm_svct;
+extern struct m0_reqh_service_type m0_rms_type;
 
 /**
  * FOP definitions for resource-credit revoke request and reply.
@@ -154,8 +154,7 @@ static int fop_common_fill(struct rm_out         *outreq,
 	m0_fop_init(fop, fopt, NULL, rm_fop_release);
 	rc = m0_fop_data_alloc(fop);
 	if (rc == 0) {
-		//struct m0_rm_resource_type *rtype;
-		struct m0_rm_resource      *resource;
+		struct m0_rm_resource *resource;
 
 		*data  = m0_fop_data(fop);
 		req = (struct m0_rm_fop_req *) (char *)*data + offset;
@@ -164,8 +163,6 @@ static int fop_common_fill(struct rm_out         *outreq,
 		req->rrq_owner.ow_cookie = *cookie;
 
 		resource = in->rin_want.cr_owner->ro_resource;
-		//rtype = &resource->r_type;
-		//req->rrq_owner->ow_rtype_id = rtype->rt_id;
 		rc = m0_rm_resource_encode(resource,
 					   &req->rrq_owner.ow_resource) ?:
 			m0_rm_credit_encode(credit, &req->rrq_credit.cr_opaque);
@@ -278,7 +275,8 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 			 outreq, session);
 	outreq->ou_fop.f_item.ri_session = session;
 	outreq->ou_fop.f_item.ri_ops = &rm_request_rpc_ops;
-	m0_rpc_post(&outreq->ou_fop.f_item);
+	rc = m0_rpc_post(&outreq->ou_fop.f_item);
+	M0_ASSERT(rc == 0);
 
 out:
 	M0_RETURN(rc);
@@ -457,7 +455,7 @@ M0_INTERNAL int m0_rm_fop_init(void)
 				 .sm	    = &borrow_sm_conf,
 				 .fom_ops   = &rm_borrow_fom_type_ops,
 #endif
-				 .svc_type  = &m0_rm_svct,
+				 .svc_type  = &m0_rms_type,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST) ?:
 		M0_FOP_TYPE_INIT(&m0_rm_fop_borrow_rep_fopt,
 				 .name      = "Credit Borrow Reply",
@@ -473,7 +471,7 @@ M0_INTERNAL int m0_rm_fop_init(void)
 				 .sm	    = &revoke_sm_conf,
 				 .fom_ops   = &rm_revoke_fom_type_ops,
 #endif
-				 .svc_type  = &m0_rm_svct,
+				 .svc_type  = &m0_rms_type,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
 }
 M0_EXPORTED(m0_rm_fop_init);

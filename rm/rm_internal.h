@@ -206,6 +206,9 @@ M0_TL_DECLARE(res, M0_INTERNAL, struct m0_rm_resource);
 M0_TL_DESCR_DECLARE(m0_rm_ur, extern);
 M0_TL_DECLARE(m0_rm_ur, M0_INTERNAL, struct m0_rm_credit);
 
+M0_TL_DESCR_DECLARE(m0_remotes, extern);
+M0_TL_DECLARE(m0_remotes, M0_INTERNAL, struct m0_rm_remote);
+
 M0_TL_DESCR_DECLARE(pr, extern);
 M0_TL_DECLARE(pr, M0_INTERNAL, struct m0_rm_pin);
 

@@ -37,10 +37,17 @@
 #include "mero/magic.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
+#include "rm/rm.h"
+#include "rm/rm_internal.h"
 #include "rm/rm_service.h"
 #include "rm/rm_fops.h"
 #include "rm/ut/rings.h"
 #include "rm/ut/rings.c"
+
+M0_TL_DESCR_DEFINE(rmsvc_owner, "RM Service Owners", static, struct m0_rm_owner,
+		   ro_owner_linkage, ro_magix,
+		   M0_RM_OWNER_LIST_MAGIC, M0_RM_OWNER_LIST_HEAD_MAGIC);
+M0_TL_DEFINE(rmsvc_owner, static, struct m0_rm_owner);
 
 static struct m0_addb_ctx m0_rms_mod_ctx;
 
@@ -67,7 +74,7 @@ static const struct m0_reqh_service_ops rms_ops = {
 	.rso_fini = rms_fini
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(m0_rm_svct, &rms_type_ops, "rmservice",
+M0_REQH_SERVICE_TYPE_DEFINE(m0_rms_type, &rms_type_ops, "rmservice",
 			    &m0_addb_ct_rms_serv);
 
 static const struct m0_bob_type rms_bob = {
@@ -90,8 +97,7 @@ M0_INTERNAL int m0_rms_register(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_rms_serv);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_rms_mod_ctx,
 			 &m0_addb_ct_rms_mod, &m0_addb_proc_ctx);
-	m0_reqh_service_type_register(&m0_rm_svct);
-
+	m0_reqh_service_type_register(&m0_rms_type);
 	/**
 	 * @todo Contact confd and take list of resource types for this resource
 	 * manager.
@@ -108,7 +114,7 @@ M0_INTERNAL void m0_rms_unregister(void)
 	M0_ENTRY();
 
 	m0_rm_fop_fini();
-	m0_reqh_service_type_unregister(&m0_rm_svct);
+	m0_reqh_service_type_unregister(&m0_rms_type);
 	m0_addb_ctx_fini(&m0_rms_mod_ctx);
 
 	M0_LEAVE();
@@ -133,7 +139,7 @@ static int rms_allocate(struct m0_reqh_service      **service,
 
 	*service = &rms->rms_svc;
 	(*service)->rs_ops = &rms_ops;
-
+	rmsvc_owner_tlist_init(&rms->rms_owners);
 	M0_RETURN(0);
 }
 
@@ -145,6 +151,7 @@ static void rms_fini(struct m0_reqh_service *service)
 	M0_PRE(service != NULL);
 
 	rms = bob_of(service, struct m0_reqh_rm_service, rms_svc, &rms_bob);
+	rmsvc_owner_tlist_fini(&rms->rms_owners);
 	m0_reqh_rm_service_bob_fini(rms);
 	m0_free(rms);
 
@@ -153,28 +160,45 @@ static void rms_fini(struct m0_reqh_service *service)
 
 static int rms_start(struct m0_reqh_service *service)
 {
-	int                        rc;
+	int                        rc = 0;
 	struct m0_reqh_rm_service *rms;
 
 	M0_PRE(service != NULL);
 	M0_ENTRY();
 
 	rms = bob_of(service, struct m0_reqh_rm_service, rms_svc, &rms_bob);
-	m0_rm_domain_init(&rms->rms_dom);
 
+	m0_rm_domain_init(&rms->rms_dom);
 	rc = m0_rm_type_register(&rms->rms_dom, &rings_resource_type);
 	rings_resource_type.rt_ops = &rings_rtype_ops;
+
 	M0_RETURN(rc);
 }
 
 static void rms_stop(struct m0_reqh_service *service)
 {
 	struct m0_reqh_rm_service *rms;
+	struct m0_rm_owner        *owner;
+	struct m0_rm_remote       *remote;
 
 	M0_PRE(service != NULL);
 	M0_ENTRY();
 
 	rms = bob_of(service, struct m0_reqh_rm_service, rms_svc, &rms_bob);
+
+	m0_tl_for(rmsvc_owner, &rms->rms_owners, owner) {
+		M0_ASSERT(owner != NULL);
+		m0_tl_for(m0_remotes, &owner->ro_resource->r_remote, remote) {
+			M0_ASSERT(remote != NULL);
+			m0_remotes_tlist_del(remote);
+			m0_rm_remote_fini(remote);
+		} m0_tl_endfor;
+		m0_rm_owner_windup(owner);
+		m0_rm_owner_timedwait(owner, ROS_FINAL, M0_TIME_NEVER);
+		m0_rm_owner_fini(owner);
+		rmsvc_owner_tlink_del_fini(owner);
+		m0_rm_resource_del(owner->ro_resource);
+	} m0_tl_endfor;
 
 	m0_rm_type_deregister(&rings_resource_type);
 	m0_rm_domain_fini(&rms->rms_dom);
@@ -187,22 +211,24 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 				       struct m0_buf          *resbuf)
 {
 	int                         rc;
+	struct m0_reqh_rm_service  *rms;
 	uint64_t                    rtype_id;
 	struct m0_rm_resource      *resource;
 	struct m0_rm_resource_type *rtype;
-	struct m0_reqh_rm_service  *rms;
 	struct m0_bufvec_cursor     cursor;
+	struct m0_rm_credit        *owner_credit = NULL;
 	struct m0_bufvec            datum_buf =
-					M0_BUFVEC_INIT_BUF(&resbuf->b_addr,
-							   &resbuf->b_nob);
+		M0_BUFVEC_INIT_BUF(&resbuf->b_addr,
+				   &resbuf->b_nob);
 
 	M0_PRE(service != NULL);
 	M0_PRE(*owner != NULL);
-	M0_PRE(resbuf != NULL);
+
 	M0_ENTRY();
 
 	rms = bob_of(service, struct m0_reqh_rm_service, rms_svc, &rms_bob);
 
+	/* Find resource type id */
 	m0_bufvec_cursor_init(&cursor, &datum_buf);
 	rc = m0_bufvec_cursor_copyfrom(&cursor, &rtype_id, sizeof rtype_id);
 	if (rc < 0)
@@ -213,8 +239,31 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 		return -EINVAL;
 	M0_ASSERT(rtype->rt_ops != NULL);
 	rc = rtype->rt_ops->rto_decode(&cursor, &resource);
-	if (rc == 0)
+	if (rc == 0) {
+		m0_rm_resource_add(rtype, resource);
 		m0_rm_owner_init(*owner, resource, NULL);
+		M0_ALLOC_PTR(owner_credit);
+		if (owner_credit == NULL) {
+			rc = -ENOMEM;
+			goto err_owner;
+		}
+		m0_rm_credit_init(owner_credit, *owner);
+		/* Initialise owner_credit->cr_datum */
+		m0_rm_resource_initial_credit(resource, owner_credit);
+		rc = m0_rm_owner_selfadd(*owner, owner_credit);
+		if (rc != 0)
+			goto err_credit;
+		rmsvc_owner_tlink_init_at_tail(*owner, &rms->rms_owners);
+	}
+
+	M0_RETURN(rc);
+
+err_credit:
+	m0_rm_credit_fini(owner_credit);
+	m0_free(owner_credit);
+err_owner:
+	m0_rm_owner_fini(*owner);
+	m0_rm_resource_del(resource);
 
 	M0_RETURN(rc);
 }

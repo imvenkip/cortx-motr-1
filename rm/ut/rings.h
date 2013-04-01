@@ -40,7 +40,7 @@ enum {
 	/* Seven for the Dwarf-lords in their halls of stone... */
 	/* Ring of Durin */
 	DURIN = 1 << 3,
-	/*Ring of Thror */
+	/* Ring of Thror */
 	THROR = 1 << 4,
 	/* Unnamed gnome rings... */
 	GR_2  = 1 << 5,

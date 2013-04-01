@@ -23,10 +23,11 @@
 #include "ut/ut.h"
 #include "lib/ub.h"
 #include "rm/rm.h"
+#include "rm/rm_internal.h"
 #include "rm/ut/rings.h"
 #include "rm/ut/rmut.h"
 
-extern const struct m0_tl_descr remotes_tl;
+extern const struct m0_tl_descr m0_remotes_tl;
 
 /*
  * Test variable(s)
@@ -39,7 +40,7 @@ extern void remote_credits_test(void);
 extern void rm_fom_funcs_test(void);
 extern void rm_fop_funcs_test(void);
 extern bool m0_rm_ur_tlist_is_empty(const struct m0_tl *list);
-extern void remotes_tlist_del(struct m0_rm_remote *other);
+extern void m0_remotes_tlist_del(struct m0_rm_remote *other);
 extern void rmsvc(void);
 
 struct rm_ut_data test_data;
@@ -99,6 +100,7 @@ void rm_utdata_init(struct rm_ut_data *data, enum obj_type type)
 void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
 {
 	struct m0_rm_remote *other;
+	struct m0_rm_credit *credit;
 
 	M0_UT_ASSERT(data != NULL);
 
@@ -113,9 +115,9 @@ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
 			rm_utdata_fini(data, OBJ_DOMAIN);
 			break;
 		case OBJ_RES:
-			m0_tl_for(remotes, &data->rd_res.rs_resource.r_remote,
+			m0_tl_for(m0_remotes, &data->rd_res.rs_resource.r_remote,
 				  other) {
-				remotes_tlist_del(other);
+				m0_remotes_tlist_del(other);
 				m0_rm_remote_fini(other);
 				m0_free(other);
 			} m0_tl_endfor;
@@ -124,6 +126,11 @@ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
 			break;
 		case OBJ_OWNER:
 			m0_rm_owner_windup(&data->rd_owner);
+
+			data->rd_owner.ro_creditor = NULL;
+			m0_tl_for(m0_rm_ur, &data->rd_owner.ro_borrowed, credit) {
+				m0_rm_ur_tlist_del(credit);
+			} m0_tl_endfor;
 			m0_rm_owner_fini(&data->rd_owner);
 			rm_utdata_fini(data, OBJ_RES);
 			break;

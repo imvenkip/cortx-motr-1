@@ -73,6 +73,8 @@ struct m0_reqh_rm_service {
 	struct m0_reqh_service rms_svc;
 	/** Resource manager domain */
 	struct m0_rm_domain    rms_dom;
+	/** Owners this service has created. */
+	struct m0_tl           rms_owners;
 	/** rms_magic == M0_RM_SERVICE_MAGIC */
 	uint64_t               rms_magic;
 };
@@ -81,8 +83,8 @@ M0_INTERNAL int m0_rms_register(void);
 M0_INTERNAL void m0_rms_unregister(void);
 
 /**
- * Create an owner for resource type description from @resbuf.
- * Adds the resource to domain of resource manager domain.
+ * Creates an owner for resource type description from @param resbuf.
+ * Adds the resource to the domain maintained by m0_reqh_rm_service.
  *
  * @pre service != NULL
  * @pre resbuf != NULL
@@ -90,7 +92,6 @@ M0_INTERNAL void m0_rms_unregister(void);
 M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 				       struct m0_rm_owner    **owner,
 				       struct m0_buf          *resbuf);
-
 /** @} end of rm_service group */
 
 #endif /* __MERO_RM_RM_SERVICE_H__ */

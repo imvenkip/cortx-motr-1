@@ -579,6 +579,12 @@ enum m0_magic_satchel {
 	/* m0_reqh_rm_service::rms_magix (seidel afield) */
 	M0_RM_SERVICE_MAGIC = 0x335e1de1af1e1d77,
 
+	/* rmsvc_owner_tl::ro_owner_linkage () */
+	M0_RM_OWNER_LIST_MAGIC = 0x100100,
+
+	/* rmsvc_owner_tl::td_head_magic () */
+	M0_RM_OWNER_LIST_HEAD_MAGIC = 0x1001001,
+
 /* RPC */
 	/* m0_rpc_service_type::svt_magix (seedless seel) */
 	M0_RPC_SERVICE_TYPE_MAGIC = 0x335eed1e555ee177,

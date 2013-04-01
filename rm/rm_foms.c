@@ -29,7 +29,7 @@
 #include "rm/rm_fops.h"
 #include "rm/rm_foms.h"
 #include "rm/rm_service.h"
-
+#include "rm/ut/rings.h"
 /**
    @addtogroup rm
 
@@ -328,7 +328,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 	struct m0_buf		    *buf;
 	enum m0_rm_incoming_policy   policy;
 	uint64_t		     flags;
-	int			     rc;
+	int			     rc = 0;
 
 	M0_ENTRY("prepare remote incoming request for fom: %p request: %d",
 		 fom, type);
@@ -376,39 +376,33 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 	policy = basefop->rrq_policy;
 	flags = basefop->rrq_flags;
 	buf = &basefop->rrq_credit.cr_opaque;
-	owner = m0_cookie_of(&rfom->rf_in.ri_owner_cookie, struct m0_rm_owner,
-			     ro_id);
 	in = &rfom->rf_in.ri_incoming;
+	owner = m0_cookie_of(&rfom->rf_in.ri_owner_cookie,
+			     struct m0_rm_owner, ro_id);
 	/*
-	 * Owner is NULL, add the resource to system
-	 * m0_rm_resource_add
-	 * m0_rm_owner_init
-	 * m0_rm_owner_self_add
-	 *
-	 * Pass above owner to incoming init below.
+	 * Owner is NULL, create owner for given resource.
+	 * Resource description is provided in basefop->rrq_owner.ow_resource
 	 */
 	if (owner == NULL) {
-		struct m0_rm_credit *credit;
-
+		/* Owner cannot be NULL for a revoke request */
+		M0_ASSERT(type != M0_RIT_REVOKE);
 		M0_ALLOC_PTR(owner);
 		if (owner == NULL)
-			return -ENOMEM;
+			M0_RETURN(-ENOMEM);
 		rc = m0_rm_svc_owner_create(fom->fo_service, &owner,
 					    &basefop->rrq_owner.ow_resource);
-		if (rc != 0)
-			return rc;
-		M0_ALLOC_PTR(credit);
-		m0_rm_credit_init(credit, owner);
-		credit->cr_datum = in->rin_want.cr_datum;
-		rc = m0_rm_owner_selfadd(owner, credit);
+		if (rc != 0) {
+			m0_free(owner);
+			M0_RETURN(rc);
+		}
 	}
-	if (rc == 0) {
-		m0_rm_incoming_init(in, owner, type, policy, flags);
-		in->rin_ops = &remote_incoming_ops;
-		rc = m0_rm_credit_decode(&in->rin_want, buf);
-		if (rc != 0)
-			m0_rm_incoming_fini(in);
-	}
+
+	m0_rm_incoming_init(in, owner, type, policy, flags);
+	in->rin_ops = &remote_incoming_ops;
+	rc = m0_rm_credit_decode(&in->rin_want, buf);
+	if (rc != 0)
+		m0_rm_incoming_fini(in);
+
 	M0_RETURN(rc);
 }
 

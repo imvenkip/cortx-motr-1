@@ -79,9 +79,6 @@ static int  revoke_send            (struct m0_rm_incoming *in,
 				    struct m0_rm_credit *credit);
 static int  borrow_send            (struct m0_rm_incoming *in,
 				    struct m0_rm_credit *credit);
-
-static int credit_copy              (struct m0_rm_credit *dest,
-				     const struct m0_rm_credit *src);
 static bool credit_eq               (const struct m0_rm_credit *c0,
 				     const struct m0_rm_credit *c1);
 static bool credit_is_empty         (const struct m0_rm_credit *credit);
@@ -128,10 +125,10 @@ M0_TL_DESCR_DEFINE(m0_rm_ur, "usage credits", , struct m0_rm_credit,
 		   M0_RM_CREDIT_MAGIC, M0_RM_USAGE_CREDIT_HEAD_MAGIC);
 M0_TL_DEFINE(m0_rm_ur, M0_INTERNAL, struct m0_rm_credit);
 
-M0_TL_DESCR_DEFINE(remotes, "remote owners", , struct m0_rm_remote,
+M0_TL_DESCR_DEFINE(m0_remotes, "remote owners", , struct m0_rm_remote,
 		   rem_linkage, rem_magix,
 		   M0_RM_REMOTE_MAGIC, M0_RM_REMOTE_OWNER_HEAD_MAGIC);
-M0_TL_DEFINE(remotes, M0_INTERNAL, struct m0_rm_remote);
+M0_TL_DEFINE(m0_remotes, M0_INTERNAL, struct m0_rm_remote);
 
 static const struct m0_bob_type credit_bob = {
         .bt_name         = "credit",
@@ -329,7 +326,7 @@ M0_INTERNAL void m0_rm_resource_add(struct m0_rm_resource_type *rtype,
 	M0_PRE(resource_find(rtype, res) == NULL);
 	res->r_type = rtype;
 	res_tlink_init_at(res, &rtype->rt_resources);
-	remotes_tlist_init(&res->r_remote);
+	m0_remotes_tlist_init(&res->r_remote);
 	m0_rm_resource_bob_init(res);
 	M0_CNT_INC(rtype->rt_nr_resources);
 	M0_POST(res_tlist_contains(&rtype->rt_resources, res));
@@ -347,7 +344,7 @@ M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res)
 	M0_ENTRY("resource : %p", res);
 	m0_mutex_lock(&rtype->rt_lock);
 	M0_PRE(res_tlist_contains(&rtype->rt_resources, res));
-	M0_PRE(remotes_tlist_is_empty(&res->r_remote));
+	M0_PRE(m0_remotes_tlist_is_empty(&res->r_remote));
 	M0_PRE(resource_type_invariant(rtype));
 
 	res_tlink_del_fini(res);
@@ -386,6 +383,18 @@ M0_INTERNAL int m0_rm_resource_encode(struct m0_rm_resource *res,
 	M0_RETURN(res->r_type->rt_ops->rto_encode(&cursor, res));
 }
 M0_EXPORTED(m0_rm_resource_encode);
+
+M0_INTERNAL void
+m0_rm_resource_initial_credit(const struct m0_rm_resource *resource,
+			      struct m0_rm_credit         *credit)
+{
+	M0_PRE(resource != NULL);
+	M0_PRE(credit != NULL);
+	M0_PRE(resource->r_ops != NULL);
+	M0_PRE(resource->r_ops->rop_initial_credit != NULL);
+
+	resource->r_ops->rop_initial_credit(resource, credit);
+}
 
 static void resource_get(struct m0_rm_resource *res)
 {
@@ -610,7 +619,7 @@ M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner  *owner,
 			return -ENOMEM;
 		}
 		m0_rm_credit_init(credit_transfer, owner);
-		rc = credit_copy(credit_transfer, r) ?:
+		rc = m0_rm_credit_copy(credit_transfer, r) ?:
 		     m0_rm_loan_init(nominal_capital, r, NULL);
 		if (rc == 0) {
 			nominal_capital->rl_other = owner->ro_creditor;
@@ -671,7 +680,7 @@ static void owner_liquidate(struct m0_rm_owner *owner)
 		 * state.
 		 */
 		M0_ASSERT(m0_rm_credit_bob_check(credit));
-		rc = credit_copy(&in->rin_want, credit);
+		rc = m0_rm_credit_copy(&in->rin_want, credit);
 		if (rc == 0) {
 			m0_rm_ur_tlist_add(
 			    &owner->ro_incoming[in->rin_priority][OQS_EXCITED],
@@ -997,7 +1006,7 @@ M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan         *loan,
 		resource_get(loan->rl_other->rem_resource);
 
 	M0_LEAVE();
-	return credit_copy(&loan->rl_credit, credit);
+	return m0_rm_credit_copy(&loan->rl_credit, credit);
 }
 M0_EXPORTED(m0_rm_loan_init);
 
@@ -1028,7 +1037,7 @@ static int remote_find(struct m0_rm_remote   **rem,
 	M0_PRE(res != NULL);
 	M0_PRE(cookie != NULL);
 
-	m0_tl_for(remotes, &res->r_remote, other) {
+	m0_tl_for(m0_remotes, &res->r_remote, other) {
 		M0_ASSERT(other->rem_resource == res &&
 			  m0_rm_remote_bob_check(other));
 		if (other->rem_cookie.co_addr == cookie->co_addr &&
@@ -1045,7 +1054,7 @@ static int remote_find(struct m0_rm_remote   **rem,
 			other->rem_cookie = *cookie;
 			/* @todo - Figure this out */
 			/* other->rem_id = 0; */
-			remotes_tlist_add(&res->r_remote, other);
+			m0_remotes_tlist_add(&res->r_remote, other);
 		} else
 			rc = -ENOMEM;
 	}
@@ -1062,7 +1071,7 @@ M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote   *rem,
 	rem->rem_state = REM_INITIALISED;
 	rem->rem_resource = res;
 	m0_chan_init(&rem->rem_signal, &res->r_type->rt_lock);
-	remotes_tlink_init(rem);
+	m0_remotes_tlink_init(rem);
 	m0_rm_remote_bob_init(rem);
 	resource_get(res);
 	M0_LEAVE();
@@ -1078,7 +1087,7 @@ M0_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem)
 				      REM_OWNER_LOCATED)));
 	rem->rem_state = REM_FREED;
 	m0_chan_fini_lock(&rem->rem_signal);
-	remotes_tlink_fini(rem);
+	m0_remotes_tlink_fini(rem);
 	resource_put(rem->rem_resource);
 	m0_rm_remote_bob_fini(rem);
 	M0_LEAVE();
@@ -1186,6 +1195,7 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
 	 * Clear the credits cache and remove incoming credits from the cache.
 	 * If everything succeeds add loan to the sublet list.
 	 */
+
 	rc = remote_find(&debtor, rem_in->ri_rem_session,
 			 owner->ro_resource, &rem_in->ri_rem_owner_cookie) ?:
 	     m0_rm_loan_alloc(&loan, &in->rin_want, debtor);
@@ -1412,7 +1422,7 @@ static int cached_credits_hold(struct m0_rm_incoming *in)
 	M0_PRE(in->rin_type == M0_RIT_LOCAL);
 
 	m0_rm_credit_init(&rest, in->rin_want.cr_owner);
-	rc = credit_copy(&rest, &in->rin_want);
+	rc = m0_rm_credit_copy(&rest, &in->rin_want);
 	if (rc != 0)
 		goto out;
 
@@ -1586,7 +1596,7 @@ static void incoming_check(struct m0_rm_incoming *in)
 	 */
 	if (in->rin_rc == 0) {
 		m0_rm_credit_init(&rest, in->rin_want.cr_owner);
-		rc = credit_copy(&rest, &in->rin_want) ?:
+		rc = m0_rm_credit_copy(&rest, &in->rin_want) ?:
 			incoming_check_with(in, &rest);
 		m0_rm_credit_fini(&rest);
 	} else
@@ -2353,7 +2363,7 @@ static bool credit_eq(const struct m0_rm_credit *c0,
 	/* no apples and oranges comparison. */
 	M0_PRE(c0->cr_owner == c1->cr_owner);
 	m0_rm_credit_init(&credit, c0->cr_owner);
-	rc = credit_copy(&credit, c0);
+	rc = m0_rm_credit_copy(&credit, c0);
 	rc = rc ?: credit_diff(&credit, c1);
 
 	res = rc ? false : credit_is_empty(&credit);
@@ -2407,7 +2417,7 @@ M0_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
 	if (credit != NULL) {
 		m0_rm_credit_init(credit, src_credit->cr_owner);
 		credit->cr_ops = src_credit->cr_ops;
-		rc = credit_copy(credit, src_credit);
+		rc = m0_rm_credit_copy(credit, src_credit);
 		if (rc != 0) {
 			m0_rm_credit_fini(credit);
 			m0_free(credit);
@@ -2419,10 +2429,8 @@ M0_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
 }
 M0_EXPORTED(m0_rm_credit_dup);
 
-/**
- * Makes another copy of credit struct.
- */
-static int credit_copy(struct m0_rm_credit *dst, const struct m0_rm_credit *src)
+M0_INTERNAL int
+m0_rm_credit_copy(struct m0_rm_credit *dst, const struct m0_rm_credit *src)
 {
 	M0_PRE(src != NULL);
 	M0_PRE(dst->cr_datum == 0);

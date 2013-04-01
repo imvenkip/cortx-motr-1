@@ -193,8 +193,8 @@ M0_INTERNAL int session_state(const struct m0_rpc_session *session)
 	return session->s_sm.sm_state;
 }
 
-M0_INTERNAL struct m0_rpc_machine *session_machine(const struct m0_rpc_session
-						   *s)
+M0_INTERNAL struct m0_rpc_machine *
+session_machine(const struct m0_rpc_session *s)
 {
 	return s->s_conn->c_rpc_machine;
 }

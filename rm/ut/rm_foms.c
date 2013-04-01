@@ -44,9 +44,9 @@ static struct m0_rm_loan      *test_loan;
 struct m0_reqh		       reqh;
 static struct m0_dbenv         dbenv;
 
-extern void remotes_tlist_add(struct m0_tl *tl, struct m0_rm_remote *rem);
-extern void remotes_tlist_del(struct m0_rm_remote *rem);
-extern const struct m0_tl_descr remotes_tl;
+extern void m0_remotes_tlist_add(struct m0_tl *tl, struct m0_rm_remote *rem);
+extern void m0_remotes_tlist_del(struct m0_rm_remote *rem);
+extern const struct m0_tl_descr m0_remotes_tl;
 
 /*
  *****************
@@ -414,7 +414,7 @@ static void rvk_data_setup(enum test_type test)
 	m0_rm_remote_init(remote, test_data.rd_owner.ro_resource);
 	remote->rem_state = REM_OWNER_LOCATED;
 	m0_cookie_init(&remote->rem_cookie, &test_data.rd_owner.ro_id);
-	remotes_tlist_add(&test_data.rd_res.rs_resource.r_remote, remote);
+	m0_remotes_tlist_add(&test_data.rd_res.rs_resource.r_remote, remote);
 
 	m0_rm_loan_init(test_loan, credit, remote);
 	test_loan->rl_id = M0_RM_LOAN_SELF_ID + test;
@@ -475,8 +475,8 @@ static void rvk_test_cleanup(void)
 		m0_free(loan);
 	} m0_tl_endfor;
 
-	m0_tl_for(remotes, &test_data.rd_res.rs_resource.r_remote, remote) {
-		remotes_tlist_del(remote);
+	m0_tl_for(m0_remotes, &test_data.rd_res.rs_resource.r_remote, remote) {
+		m0_remotes_tlist_del(remote);
 		m0_rm_remote_fini(remote);
 		m0_free(remote);
 	} m0_tl_endfor;

@@ -38,7 +38,6 @@
 #include "rpc/rpc_internal.h"
 #include "rpc/rpc_machine.h"
 #include "fop/fom_generic.h"
-#include "fop/fom_generic.h"
 
 enum obj_type {
 	OBJ_DOMAIN = 1,

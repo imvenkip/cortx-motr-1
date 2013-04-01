@@ -294,6 +294,11 @@ struct m0_rm_resource_ops {
 			        struct m0_rm_credit *credit);
 
 	void (*rop_resource_free)(struct m0_rm_resource *resource);
+	/**
+	 * Setup initial value of credit
+	 */
+	void (*rop_initial_credit)(const struct m0_rm_resource *resource,
+				   struct m0_rm_credit         *credit);
 };
 
 /**
@@ -932,9 +937,17 @@ struct m0_rm_owner {
 	 */
 	struct m0_tl           ro_outgoing[OQS_NR];
 	/**
+	 * Linkage of an owner to a list hanging off m0_rms_type
+	 */
+	struct m0_tlink        ro_owner_linkage;
+	/**
 	 * Generation count associated with an owner cookie.
 	 */
 	uint64_t	       ro_id;
+	/**
+	 * Owner magic: Used when rm service handles owner list.
+	 */
+	uint64_t               ro_magix;
 };
 
 enum {
@@ -1532,6 +1545,14 @@ M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res);
  */
 M0_INTERNAL int m0_rm_resource_encode(struct m0_rm_resource *res,
 				      struct m0_buf         *buf);
+
+/**
+ * Assign initial value to credit
+ */
+M0_INTERNAL void
+m0_rm_resource_initial_credit(const struct m0_rm_resource *resource,
+			      struct m0_rm_credit *credit);
+
 /**
  * Initialises owner fields and increments resource reference counter.
  *
@@ -1633,6 +1654,12 @@ M0_INTERNAL void m0_rm_credit_fini(struct m0_rm_credit *credit);
  */
 M0_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
 				struct m0_rm_credit **dest_credit);
+
+/**
+ * Makes another copy of credit src.
+ */
+M0_INTERNAL int
+m0_rm_credit_copy(struct m0_rm_credit *dst, const struct m0_rm_credit *src);
 
 /**
  * Initialises the fields of incoming structure.
