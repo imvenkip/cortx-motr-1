@@ -173,7 +173,11 @@ enum M0_RPC_OPCODES {
 
 	/* SNS copy packet. */
 	M0_SNS_CM_CP_OPCODE                 = 96,
-	M0_SNS_CM_CP_REP_OPCODE             = 97
+	M0_SNS_CM_CP_REP_OPCODE             = 97,
+
+	/* RPC UB */
+	M0_RPC_UB_REQ_OPCODE                = 98,
+	M0_RPC_UB_RESP_OPCODE               = 99
 };
 /** @} endgroup rpc_layer_core */
 

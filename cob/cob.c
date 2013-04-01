@@ -29,7 +29,7 @@
 #include "cob/cob_addb.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
-#include "lib/trace.h"        /* M0_LOG and M0_ENTRY */
+#include "lib/trace.h"
 
 #define M0_COB_KEY_LOG(logger, fmt, key, fid_member, str_member, ...)      \
 	M0_ ## logger (fmt, (long)(key)->fid_member.f_container,           \
@@ -1048,7 +1048,7 @@ static bool m0_cob_is_valid(struct m0_cob *cob)
 }
 
 M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom,
-				   struct m0_db_tx *tx, uint64_t * omgid)
+				   struct m0_db_tx *tx, uint64_t *omgid)
 {
 	struct m0_db_pair     pair;
 	struct m0_cob_omgkey  omgkey;
@@ -1056,42 +1056,35 @@ M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom,
 	struct m0_db_cursor   cursor;
 	int                   rc;
 
-	rc = m0_db_cursor_init(&cursor,
-			       &dom->cd_fileattr_omg, tx, 0);
-	if (rc != 0)
-		return rc;
+	M0_ENTRY();
 
-	/**
-	   Lookup for ~0ULL terminator record and do step back to find last
-	   allocated omgid. Terminator record should be prepared in storage
-	   init time (mkfs or else).
+	rc = m0_db_cursor_init(&cursor, &dom->cd_fileattr_omg, tx, 0);
+	if (rc != 0)
+		M0_RETURN(rc);
+	/*
+	 * Look for ~0ULL terminator record and do a step back to find last
+	 * allocated omgid. Terminator record should be prepared in storage
+	 * init time (mkfs or else).
 	 */
 	omgkey.cok_omgid = ~0ULL;
 
-	m0_db_pair_setup(&pair, &dom->cd_fileattr_omg,
-			 &omgkey, sizeof omgkey, &omgrec,
-			 sizeof omgrec);
-
+	m0_db_pair_setup(&pair, &dom->cd_fileattr_omg, &omgkey, sizeof omgkey,
+			 &omgrec, sizeof omgrec);
 	rc = m0_db_cursor_get(&cursor, &pair);
-
-	/**
-	   In case of error, most probably no terminator record found,
-	   one needs to run mkfs.
+	/*
+	 * In case of error, most probably due to no terminator record found,
+	 * one needs to run mkfs.
 	 */
 	if (rc == 0) {
 		rc = m0_db_cursor_prev(&cursor, &pair);
-		if (omgid) {
+		if (omgid != NULL) {
 			if (rc == 0) {
-				/**
-				 * We found last allocated omgid. Bump it
-				 * by one.
-				 */
+				/* We found last allocated omgid.
+				 * Bump it by one. */
 				*omgid = ++omgkey.cok_omgid;
 			} else {
-				/**
-				 * No last allocated found, this first alloc
-				 * call.
-				 */
+				/* No last allocated found, this alloc call is
+				 * the first one. */
 				*omgid = 0;
 			}
 		}
@@ -1100,7 +1093,7 @@ M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom,
 	m0_db_pair_release(&pair);
 	m0_db_pair_fini(&pair);
 	m0_db_cursor_fini(&cursor);
-	return rc;
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
@@ -1115,6 +1108,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	struct m0_cob_fabkey  fabkey;
 	int                   rc;
 
+	M0_ENTRY();
 	M0_PRE(cob != NULL);
 	M0_PRE(nskey != NULL);
 	M0_PRE(nsrec != NULL);
@@ -1200,7 +1194,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 		cob->co_flags |= M0_CA_NSKEY_FREE | M0_CA_FABREC;
 out:
 	COB_FUNC_FAIL(CREATE, rc);
-	return rc;
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_db_tx *tx)

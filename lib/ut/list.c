@@ -142,13 +142,14 @@ enum {
 static struct test1 t[UB_ITER];
 static struct m0_list list;
 
-static void ub_init(void)
+static int ub_init(const char *opts M0_UNUSED)
 {
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i)
 		m0_list_link_init(&t[i].t_link);
 	m0_list_init(&list);
+	return 0;
 }
 
 static void ub_fini(void)

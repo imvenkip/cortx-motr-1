@@ -23,7 +23,7 @@
 #include "lib/memory.h"		  /* M0_ALLOC_ARR */
 #include "fop/fop.h"		  /* m0_fop */
 
-#include "console/console.h"	  /* verbose */
+#include "console/console.h"	  /* m0_console_verbose */
 #include "console/console_it.h"
 #include "console/console_yaml.h"
 
@@ -32,12 +32,12 @@
    @{
  */
 
-bool verbose;
+bool m0_console_verbose;
 
 void depth_print(int depth)
 {
 	static const char ruler[] = "\t\t\t\t\t\t\t\t\t\t";
-	if (verbose)
+	if (m0_console_verbose)
 		printf("%*.*s", depth, depth, ruler);
 }
 
@@ -60,7 +60,7 @@ static void void_set(const struct m0_xcode_type *xct,
 static void byte_get(const struct m0_xcode_type *xct,
 		     const char *name, void *data)
 {
-	if (verbose)
+	if (m0_console_verbose)
 		printf("%s(%s) = %s\n", name, xct->xct_name, (char *)data);
 }
 
@@ -74,7 +74,7 @@ static void byte_set(const struct m0_xcode_type *xct,
 		tmp_value = m0_cons_yaml_get_value(name);
 		M0_ASSERT(tmp_value != NULL);
 		strncpy(data, tmp_value, strlen(tmp_value));
-		if (verbose)
+		if (m0_console_verbose)
 			printf("%s(%s) = %s\n", name, xct->xct_name,
 			       (char *)data);
 	} else {
@@ -87,7 +87,7 @@ static void byte_set(const struct m0_xcode_type *xct,
 static void u32_get(const struct m0_xcode_type *xct,
 		    const char *name, void *data)
 {
-	if (verbose)
+	if (m0_console_verbose)
 		printf("%s(%s) = %d\n", name, xct->xct_name, *(uint32_t *)data);
 }
 
@@ -101,7 +101,7 @@ static void u32_set(const struct m0_xcode_type *xct,
 		tmp_value = m0_cons_yaml_get_value(name);
 		M0_ASSERT(tmp_value != NULL);
 		*(uint32_t *)data = atoi((const char *)tmp_value);
-		if (verbose)
+		if (m0_console_verbose)
 			printf("%s(%s) = %u\n", name, xct->xct_name,
 			       *(uint32_t *)data);
 	} else {
@@ -114,7 +114,7 @@ static void u32_set(const struct m0_xcode_type *xct,
 static void u64_get(const struct m0_xcode_type *xct,
 		    const char *name, void *data)
 {
-	if (verbose)
+	if (m0_console_verbose)
 		printf("%s(%s) = %ld\n", name, xct->xct_name,
 		       *(uint64_t *)data);
 }
@@ -129,7 +129,7 @@ static void u64_set(const struct m0_xcode_type *xct,
 		tmp_value = m0_cons_yaml_get_value(name);
 		M0_ASSERT(tmp_value != NULL);
 		*(uint64_t *)data = atol((const char *)tmp_value);
-		if (verbose)
+		if (m0_console_verbose)
 			printf("%s(%s) = %ld\n", name, xct->xct_name,
 			       *(uint64_t *)data);
 	} else {
@@ -231,7 +231,7 @@ m0_cons_fop_obj_input_output(struct m0_fop *fop,
 			++fop_depth;
 			depth_print(fop_depth);
 
-			if (gtype != M0_XA_ATOM && verbose)
+			if (gtype != M0_XA_ATOM && m0_console_verbose)
 				printf("%s\n", xt->xct_name);
 			else if (gtype == M0_XA_ATOM)
 				console_xc_atom_process(top, type);
@@ -275,10 +275,10 @@ M0_INTERNAL int m0_cons_fop_fields_show(struct m0_fop *fop)
 	bool vo;
 	int  rc;
 
-	vo = verbose;
-	verbose = true;
+	vo = m0_console_verbose;
+	m0_console_verbose = true;
 	rc = m0_cons_fop_obj_input_output(fop, CONS_IT_SHOW);
-	verbose = vo;
+	m0_console_verbose = vo;
 
 	return rc;
 }

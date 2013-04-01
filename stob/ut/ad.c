@@ -249,7 +249,7 @@ static void test_write(int i)
 	struct m0_fol_rec_part *fol_rec_part;
 
 	M0_ALLOC_PTR(fol_rec_part);
-	M0_UT_ASSERT(fol_rec_part != NULL);
+	M0_UB_ASSERT(fol_rec_part != NULL);
 
 	m0_stob_io_init(&io);
 
@@ -371,10 +371,6 @@ const struct m0_test_suite ad_ut = {
 	}
 };
 
-enum {
-	UB_ITER = 100
-};
-
 static void ub_write(int i)
 {
 	test_write(NR - 1);
@@ -385,10 +381,22 @@ static void ub_read(int i)
 	test_read(NR - 1);
 }
 
+static int ub_init(const char *opts M0_UNUSED)
+{
+	return test_ad_init();
+}
+
+static void ub_fini(void)
+{
+	(void)test_ad_fini();
+}
+
+enum { UB_ITER = 100 };
+
 struct m0_ub_set m0_ad_ub = {
 	.us_name = "ad-ub",
-	.us_init = (void *)test_ad_init,
-	.us_fini = (void *)test_ad_fini,
+	.us_init = ub_init,
+	.us_fini = ub_fini,
 	.us_run  = {
 		{ .ub_name = "write-prime",
 		  .ub_iter = 1,

@@ -132,6 +132,15 @@ enum xcode_op {
 	XO_NR
 };
 
+static bool at_array(const struct m0_xcode_cursor       *it,
+		     const struct m0_xcode_cursor_frame *prev,
+		     const struct m0_xcode_obj          *par)
+{
+	return it->xcu_depth > 0 && par->xo_type->xct_aggr == M0_XA_SEQUENCE &&
+		prev->s_fieldno == 1 && prev->s_elno == 0 &&
+		m0_xcode_tag(par) > 0;
+}
+
 static void **allocp(struct m0_xcode_cursor *it, size_t *out)
 {
 	const struct m0_xcode_cursor_frame *prev;
@@ -180,9 +189,7 @@ static void **allocp(struct m0_xcode_cursor *it, size_t *out)
 		nob = size;
 		slot = &obj->xo_ptr;
 	} else {
-		if (pt->xct_aggr == M0_XA_SEQUENCE &&
-		    prev->s_fieldno == 1 && prev->s_elno == 0 &&
-		    m0_xcode_tag(par) > 0)
+		if (at_array(it, prev, par))
 			/* allocate array */
 			nob = m0_xcode_tag(par) * size;
 		else if (pt->xct_child[prev->s_fieldno].xf_type == &M0_XT_OPAQUE)
@@ -196,6 +203,12 @@ static void **allocp(struct m0_xcode_cursor *it, size_t *out)
 	}
 	*out = nob;
 	return slot;
+}
+
+M0_INTERNAL bool m0_xcode_is_byte_array(const struct m0_xcode_type *xt)
+{
+	return xt->xct_aggr == M0_XA_SEQUENCE &&
+		xt->xct_child[1].xf_type == &M0_XT_U8;
 }
 
 M0_INTERNAL ssize_t
@@ -276,7 +289,14 @@ static int ctx_walk(struct m0_xcode_ctx *ctx, enum xcode_op op)
 			}
 			m0_xcode_skip(it);
 		} else if (xt->xct_aggr == M0_XA_ATOM) {
+			struct m0_xcode_cursor_frame *prev = top - 1;
+			struct m0_xcode_obj          *par  = &prev->s_obj;
+			bool array = at_array(it, prev, par) &&
+				m0_xcode_is_byte_array(par->xo_type);
+
 			size = xt->xct_sizeof;
+			if (array)
+				size *= m0_xcode_tag(par);
 
 			if (op == XO_LEN)
 				length += size;
@@ -303,6 +323,10 @@ static int ctx_walk(struct m0_xcode_ctx *ctx, enum xcode_op op)
 				if (m0_bufvec_cursor_copy(dst,
 							  src, size) != size)
 					result = -EPROTO;
+			}
+			if (array) {
+				it->xcu_depth--;
+				m0_xcode_skip(it);
 			}
 		}
 		if (result < 0)

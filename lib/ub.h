@@ -68,11 +68,22 @@ struct m0_ub_bench {
 struct m0_ub_set {
 	/** Name of a set, has to be unique. */
 	const char        *us_name;
-	/** Function to prepare tests in set. */
-	void             (*us_init)(void);
+
+	/**
+	 * Function to prepare tests in set.
+	 *
+	 * @param opts  Optional string with benchmark arguments,
+	 *              specified via `-o' CLI option.
+	 *
+	 * @see ub_args_parse()
+	 */
+	int              (*us_init)(const char *opts);
+
 	/** Function to free tests in set. */
 	void             (*us_fini)(void);
+
 	struct m0_ub_set  *us_prev;
+
 	/** Benchmarks in the set. */
 	struct m0_ub_bench us_run[];
 };
@@ -101,8 +112,12 @@ M0_INTERNAL void m0_ub_set_add(struct m0_ub_set *set);
  * Runs unit sets unit benchmark consists of.
  *
  * @param rounds Number of times every set in benchark has to be run.
+ * @param opts   Optional string with benchmark arguments, specified
+ *               via `-o' CLI option.
+ *
+ * @see ub_args_parse()
  */
-M0_INTERNAL void m0_ub_run(uint32_t rounds);
+M0_INTERNAL int m0_ub_run(uint32_t rounds, const char *opts);
 
 /** @} end of ub group. */
 #endif /* __MERO_LIB_UB_H__ */

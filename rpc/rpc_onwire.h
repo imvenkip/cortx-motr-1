@@ -49,11 +49,8 @@ struct m0_rpc_sender_uuid {
 } M0_XCA_RECORD;
 
 struct m0_rpc_onwire_slot_ref {
-
 	struct m0_rpc_sender_uuid  osr_uuid;
-
 	uint64_t                   osr_sender_id;
-
 	uint64_t                   osr_session_id;
 
 	/** Numeric id of slot. Used when encoding and decoding rpc item to

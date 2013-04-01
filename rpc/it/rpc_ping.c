@@ -71,7 +71,6 @@ enum ep_type { EP_SERVER, EP_CLIENT };
 
 enum {
 	BUF_LEN            = 128,
-	STRING_LEN         = 16,
 	M0_LNET_PORTAL     = 34,
 	MAX_RPCS_IN_FLIGHT = 32,
 	CLIENT_COB_DOM_ID  = 13,
@@ -424,33 +423,45 @@ static void quit_dialog(void)
 	char ch;
 
 	printf("\n########################################\n");
-	printf("\n\nType ^D to terminate\n\n");
+	printf("\n\nPress Enter to terminate\n\n");
 	printf("\n########################################\n");
 	read(0, &ch, sizeof ch);
 }
 
+static int int2str(char *dest, size_t size, int src, int defval)
+{
+	int rc = snprintf(dest, size, "%d", src > 0 ? src : defval);
+	return (rc < 0 || rc >= size) ? -EINVAL : 0;
+}
+
 static int run_server(void)
 {
-	int	    rc;
+	enum { STRING_LEN = 16 };
 	static char tm_len[STRING_LEN];
 	static char rpc_size[STRING_LEN];
-
-	char *server_argv[] = {
+	int	    rc;
+	char       *argv[] = {
 		"rpclib_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
 		"-A", SERVER_ADDB_STOB_FILE_NAME, "-w", "5",
 		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size,
 	};
+	struct m0_rpc_server_ctx sctx = {
+		.rsx_xprts            = &xprt,
+		.rsx_xprts_nr         = 1,
+		.rsx_argv             = argv,
+		.rsx_argc             = ARRAY_SIZE(argv),
+		.rsx_service_types    = m0_cs_default_stypes,
+		.rsx_service_types_nr = m0_cs_default_stypes_nr,
+		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
+	};
 
-	if (tm_recv_queue_len != 0)
-		sprintf(tm_len, "%d" , tm_recv_queue_len);
-
-	if (max_rpc_msg_size != 0)
-		sprintf(rpc_size, "%d" , max_rpc_msg_size);
-
-	M0_RPC_SERVER_CTX_DEFINE(sctx, &xprt, 1, server_argv,
-				 ARRAY_SIZE(server_argv), m0_cs_default_stypes,
-				 m0_cs_default_stypes_nr, SERVER_LOG_FILE_NAME);
+	rc = int2str(tm_len, sizeof tm_len, tm_recv_queue_len,
+		     M0_NET_TM_RECV_QUEUE_DEF_LEN) ?:
+	     int2str(rpc_size, sizeof rpc_size, max_rpc_msg_size,
+		     M0_RPC_DEF_MAX_RPC_MSG_SIZE);
+	if (rc != 0)
+		return rc;
 
 	rc = m0_init();
 	if (rc != 0)

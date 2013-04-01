@@ -14,30 +14,37 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
- * Original creation date: 09/27/2011
+ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
+ * Original creation date: 07-Mar-2013
  */
 
-#include "ut/ut.h"
-#include "ut/cs_service.h"
-#include "fop/fom_generic.h"
-#include "lib/misc.h"           /* M0_IN() */
+#pragma once
 
-void m0_ut_fom_phase_set(struct m0_fom *fom, int phase)
-{
-	switch (m0_fom_phase(fom)) {
-	case M0_FOPH_SUCCESS:
-		m0_fom_phase_set(fom, M0_FOPH_FOL_REC_PART_ADD);
-		m0_fom_phase_set(fom, M0_FOPH_FOL_REC_ADD);
-		/* fall through */
-	case M0_FOPH_FAILURE:
-		m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT);
-		m0_fom_phase_set(fom, M0_FOPH_QUEUE_REPLY);
-		/* fall through */
-	default:
-		m0_fom_phase_set(fom, phase);
-	}
-}
+#ifndef __MERO_RPC_UT_RPC_UB_FOPS_H__
+#define __MERO_RPC_UT_RPC_UB_FOPS_H__
+
+#include "xcode/xcode.h"
+#include "lib/buf_xc.h"
+
+/** RPC UB request. */
+struct ub_req {
+	uint64_t      uq_seqn; /**< Sequential number. */
+	struct m0_buf uq_data; /**< Data buffer. */
+} M0_XCA_RECORD;
+
+/** RPC UB response. */
+struct ub_resp {
+	uint64_t      ur_seqn; /**< Sequential number. */
+	struct m0_buf ur_data; /**< Data buffer. */
+} M0_XCA_RECORD;
+
+extern struct m0_fop_type m0_rpc_ub_req_fopt;
+extern struct m0_fop_type m0_rpc_ub_resp_fopt;
+
+M0_INTERNAL void m0_rpc_ub_fops_init(void);
+M0_INTERNAL void m0_rpc_ub_fops_fini(void);
+
+#endif /* __MERO_RPC_UT_RPC_UB_FOPS_H__ */
 
 /*
  *  Local variables:

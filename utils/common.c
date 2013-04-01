@@ -49,8 +49,8 @@ static int reset_sandbox(const char *sandbox)
 	if (rc != 0) {
 		/* cleanup might fail for innocent reasons, e.g., unreliable rm
 		   on an NFS mount. */
-		fprintf(stderr, "sandbox cleanup at \"%s\" failed: %i\n",
-			sandbox, rc);
+		fprintf(stderr, "*WARNING* sandbox cleanup at \"%s\" failed:"
+			" %i\n", sandbox, rc);
 	}
 
 	free(cmd);
@@ -59,26 +59,33 @@ static int reset_sandbox(const char *sandbox)
 
 int unit_start(const char *sandbox)
 {
-	int result;
+	int rc;
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
-	result = m0_init();
-	if (result == 0) {
-		result = reset_sandbox(sandbox);
-		if (result == 0) {
-			result = mkdir(sandbox, 0700);
-			if (result == 0)
-				result = chdir(sandbox);
-			if (result != 0)
-				result = -errno;
-		}
-	}
-	if (result == 0)
-		m0_ut_init();
+	rc = m0_init();
+	if (rc != 0)
+		return rc;
 
-	return result;
+	rc = reset_sandbox(sandbox);
+	if (rc != 0)
+		goto err;
+
+	rc = mkdir(sandbox, 0700) ?: chdir(sandbox);
+	if (rc != 0) {
+		rc = -errno;
+		goto err_box;
+	}
+
+	rc = m0_ut_init();
+	if (rc == 0)
+		return 0;
+err_box:
+	(void)reset_sandbox(sandbox);
+err:
+	m0_fini();
+	return rc;
 }
 
 void unit_end(const char *sandbox, bool keep_sandbox)

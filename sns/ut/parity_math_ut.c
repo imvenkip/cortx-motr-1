@@ -339,13 +339,10 @@ const struct m0_test_suite parity_math_ut = {
         }
 };
 
-enum {
-	UB_ITER = 1
-};
-
-static void ut_ub_init(void)
+static int ub_init(const char *opts M0_UNUSED)
 {
 	srand(1285360231);
+	return 0;
 }
 
 void parity_math_tb(void)
@@ -467,12 +464,13 @@ static void ub_large_32768(int iter)
 	parity_math_tb();
 }
 
+enum { UB_ITER = 1 };
+
 struct m0_ub_set m0_parity_math_ub = {
-        .us_name = "m0_parity_math-ub",
-        .us_init = ut_ub_init,
+        .us_name = "parity-math-ub",
+        .us_init = ub_init,
         .us_fini = NULL,
         .us_run  = {
-		/*             parity_math-: */
                 { .ub_name  = "s 10/05/ 4K",
                   .ub_iter  = UB_ITER,
                   .ub_round = ub_small_4096 },

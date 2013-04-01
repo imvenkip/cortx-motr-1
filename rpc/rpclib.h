@@ -49,7 +49,6 @@ struct m0_reqh_service_type;
  * using mero-setup API.
  */
 struct m0_rpc_server_ctx {
-
 	/** a pointer to array of transports, which can be used by server */
 	struct m0_net_xprt          **rsx_xprts;
 	/** number of transports in array */
@@ -80,19 +79,6 @@ struct m0_rpc_server_ctx {
 	FILE                         *rsx_log_file;
 };
 
-#define M0_RPC_SERVER_CTX_DEFINE(name, xprts, xprts_nr, server_argv, \
-				 server_argc, service_types,         \
-				 service_types_nr, log_file_name)    \
-	struct m0_rpc_server_ctx name = {                            \
-		.rsx_xprts            = (xprts),                     \
-		.rsx_xprts_nr         = (xprts_nr),                  \
-		.rsx_argv             = (server_argv),               \
-		.rsx_argc             = (server_argc),               \
-		.rsx_service_types    = (service_types),             \
-		.rsx_service_types_nr = (service_types_nr),          \
-		.rsx_log_file_name    = (log_file_name)              \
-	}
-
 /**
   Starts server's rpc machine.
 
@@ -120,12 +106,10 @@ m0_rpc_server_ctx_get_rmachine(struct m0_rpc_server_ctx *sctx);
  * Contains all required data to initialize an RPC client and connect to server.
  */
 struct m0_rpc_client_ctx {
-
-	/**
+	/*
 	 * Input parameters.
 	 *
-	 * They are initialized and filled in by a caller of
-	 * m0_rpc_client_start().
+	 * They are initialised and filled by a caller of m0_rpc_client_start().
 	 */
 
 	/**
@@ -169,10 +153,10 @@ struct m0_rpc_client_ctx {
 	 */
 	uint32_t		   rcx_timeout_s;
 
-	/**
+	/* -------------------------------------------------------------
 	 * Output parameters.
 	 *
-	 * They are initialized and filled in by m0_rpc_client_start().
+	 * They are initialised and filled by m0_rpc_client_start().
 	 */
 
 	struct m0_rpc_machine	   rcx_rpc_machine;

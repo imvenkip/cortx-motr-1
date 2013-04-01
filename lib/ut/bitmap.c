@@ -120,9 +120,9 @@ enum {
 
 static struct m0_bitmap ub_bm;
 
-static void ub_init(void)
+static int ub_init(const char *opts M0_UNUSED)
 {
-	m0_bitmap_init(&ub_bm, UT_BITMAP_SIZE);
+	return m0_bitmap_init(&ub_bm, UT_BITMAP_SIZE);
 }
 
 static void ub_fini(void)

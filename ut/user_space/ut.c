@@ -245,13 +245,12 @@ M0_INTERNAL void m0_ut_list(bool with_tests)
 		return;
 	}
 
-	printf("# YAML\n");
-	printf("---\n");
-
+	printf("Available unit tests:\n");
 	for (suite = registry->pSuite; suite != NULL; suite = suite->pNext)
 		if (with_tests && suite->uiNumberOfTests != 0) {
 			printf("%s:\n", suite->pName);
-			for (test = suite->pTest ; test != NULL; test = test->pNext)
+			for (test = suite->pTest; test != NULL;
+			     test = test->pNext)
 				printf("    - %s\n", test->pName);
 		} else {
 			printf("%s\n", suite->pName);

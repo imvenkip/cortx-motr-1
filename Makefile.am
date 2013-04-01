@@ -229,6 +229,7 @@ include $(top_srcdir)/net/ut/Makefile.sub
 include $(top_srcdir)/pool/ut/Makefile.sub
 include $(top_srcdir)/reqh/ut/Makefile.sub
 include $(top_srcdir)/rm/ut/Makefile.sub
+include $(top_srcdir)/rpc/ub/Makefile.sub
 include $(top_srcdir)/rpc/ut/Makefile.sub
 include $(top_srcdir)/sm/ut/Makefile.sub
 include $(top_srcdir)/sns/cm/ut/Makefile.sub

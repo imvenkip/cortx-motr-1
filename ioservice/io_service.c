@@ -604,23 +604,24 @@ static void ios_stats_post_addb(struct m0_reqh_service *service)
 
 M0_INTERNAL int m0_ios_mds_rpc_ctx_init(struct m0_reqh_service *service)
 {
-	struct m0_reqh             *reqh = service->rs_reqh;
-	struct m0_reqh_io_service  *serv_obj;
-	struct m0_rpc_client_ctx   *rpc_client_ctx;
-	int                         rc;
-	const char                 *dbname = "sr_cdb";
-	struct m0_net_domain       *cl_ndom;
-	struct m0_reqh_context     *reqh_ctx = service->rs_reqh_ctx;
-	const char                 *cli_ep_addr;
-	const char                 *srv_ep_addr;
 	enum {
-		RPC_TIMEOUT              = 8, /* seconds */
-		NR_SLOTS_PER_SESSION     = 2,
-		MAX_NR_RPC_IN_FLIGHT     = 5,
-		CLIENT_COB_DOM_ID        = 14,
+		RPC_TIMEOUT          = 8, /* seconds */
+		NR_SLOTS_PER_SESSION = 2,
+		MAX_NR_RPC_IN_FLIGHT = 5,
+		CLIENT_COB_DOM_ID    = 14
 	};
 	static struct m0_dbenv      client_dbenv;
 	static struct m0_cob_domain client_cob_dom;
+
+	struct m0_reqh             *reqh = service->rs_reqh;
+	struct m0_reqh_io_service  *serv_obj;
+	struct m0_rpc_client_ctx   *rpc_client_ctx;
+	struct m0_net_domain       *cl_ndom;
+	struct m0_reqh_context     *reqh_ctx = service->rs_reqh_ctx;
+	const char                 *dbname = "sr_cdb";
+	const char                 *cli_ep_addr;
+	const char                 *srv_ep_addr;
+	int                         rc;
 
 	srv_ep_addr = reqh_ctx->rc_mero->cc_mds_epx.ex_endpoint;
 	cli_ep_addr = reqh_ctx->rc_mero->cc_cli2mds_epx.ex_endpoint;
@@ -629,7 +630,7 @@ M0_INTERNAL int m0_ios_mds_rpc_ctx_init(struct m0_reqh_service *service)
 	M0_LOG(M0_DEBUG, "srv = %s", srv_ep_addr);
 
 	if (srv_ep_addr == NULL || cli_ep_addr == NULL) {
-		M0_LOG(M0_WARN, "No mdservice endpoint.");
+		M0_LOG(M0_WARN, "None of mdservice endpoints provided");
 		M0_RETURN(0);
 	}
 

@@ -117,7 +117,7 @@ out:
 
 static void test_rpclib(void)
 {
-	int                    rc;
+	int rc;
 
 	/*
 	 * There is no need to initialize xprt explicitly if client and server

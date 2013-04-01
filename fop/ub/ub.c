@@ -415,7 +415,7 @@ _UB_ROUND_DEFINE(ub_fom_block,         SC_BLOCK);
 
 /* ---------------------------------------------------------------- */
 
-static void _init(void)
+static int _init(const char *opts M0_UNUSED)
 {
 	size_t i;
 	int    rc;
@@ -455,6 +455,7 @@ static void _init(void)
 		m0_mutex_init(&g_mutexes[i]);
 
 	m0_long_lock_init(&g_long_lock);
+	return 0;
 }
 
 static void _fini(void)

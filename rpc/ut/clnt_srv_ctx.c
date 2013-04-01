@@ -25,15 +25,15 @@
 #include "ut/cs_fop_foms_xc.h"  /* cs_ds2_req_fop */
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
 
-#define CLIENT_ENDPOINT_ADDR       "0@lo:12345:34:*"
-#define CLIENT_DB_NAME             "rpclib_ut_client.db"
+#define CLIENT_DB_NAME       "rpc_ut_client.db"
+#define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"
 
-#define SERVER_ENDPOINT_ADDR       "0@lo:12345:34:1"
-#define SERVER_ENDPOINT            "lnet:" SERVER_ENDPOINT_ADDR
-#define SERVER_DB_FILE_NAME        "rpc_ut_server.db"
-#define SERVER_STOB_FILE_NAME      "rpc_ut_server.stob"
-#define SERVER_ADDB_STOB_FILE_NAME "rpc_ut_server.addb_stob"
-#define SERVER_LOG_FILE_NAME       "rpc_ut_server.log"
+#define SERVER_DB_NAME        "rpc_ut_server.db"
+#define SERVER_STOB_NAME      "rpc_ut_server.stob"
+#define SERVER_ADDB_STOB_NAME "rpc_ut_server.addb_stob"
+#define SERVER_LOG_NAME       "rpc_ut_server.log"
+#define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
+#define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
 
 enum {
 	CLIENT_COB_DOM_ID  = 16,
@@ -43,30 +43,30 @@ enum {
 	MAX_RETRIES        = 5,
 };
 
-static struct m0_net_xprt    *xprt = &m0_net_lnet_xprt;
-static struct m0_net_domain   client_net_dom = { };
+static struct m0_net_xprt  *xprt = &m0_net_lnet_xprt;
+static struct m0_net_domain client_net_dom;
 
 #ifndef __KERNEL__
-static struct m0_dbenv        client_dbenv;
-static struct m0_cob_domain   client_cob_dom;
+static struct m0_dbenv      client_dbenv;
+static struct m0_cob_domain client_cob_dom;
 
 static struct m0_rpc_client_ctx cctx = {
-	.rcx_net_dom		   = &client_net_dom,
+	.rcx_net_dom               = &client_net_dom,
 	.rcx_local_addr            = CLIENT_ENDPOINT_ADDR,
 	.rcx_remote_addr           = SERVER_ENDPOINT_ADDR,
-	.rcx_db_name		   = CLIENT_DB_NAME,
-	.rcx_dbenv		   = &client_dbenv,
-	.rcx_cob_dom_id		   = CLIENT_COB_DOM_ID,
-	.rcx_cob_dom		   = &client_cob_dom,
-	.rcx_nr_slots		   = SESSION_SLOTS,
-	.rcx_timeout_s		   = CONNECT_TIMEOUT,
-	.rcx_max_rpcs_in_flight	   = MAX_RPCS_IN_FLIGHT,
+	.rcx_db_name               = CLIENT_DB_NAME,
+	.rcx_dbenv                 = &client_dbenv,
+	.rcx_cob_dom_id            = CLIENT_COB_DOM_ID,
+	.rcx_cob_dom               = &client_cob_dom,
+	.rcx_nr_slots              = SESSION_SLOTS,
+	.rcx_timeout_s             = CONNECT_TIMEOUT,
+	.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
 	.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN,
 };
 
 static char *server_argv[] = {
-	"rpclib_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
-	"-S", SERVER_STOB_FILE_NAME, "-A", SERVER_ADDB_STOB_FILE_NAME,
+	"rpclib_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_NAME,
+	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
 	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2", "-w", "10"
 };
 
@@ -77,7 +77,7 @@ static struct m0_rpc_server_ctx sctx = {
 	.rsx_argc             = ARRAY_SIZE(server_argv),
 	.rsx_service_types    = m0_cs_default_stypes,
 	.rsx_service_types_nr = 2,
-	.rsx_log_file_name    = SERVER_LOG_FILE_NAME,
+	.rsx_log_file_name    = SERVER_LOG_NAME,
 };
 
 /* 'inline' is used, to avoid compiler warning if the function is not used
@@ -131,7 +131,7 @@ static inline struct m0_fop *fop_alloc(void)
 	return fop;
 }
 
-#endif /* __KERNEL__ */
+#endif /* !__KERNEL__ */
 
 /*
  *  Local variables:

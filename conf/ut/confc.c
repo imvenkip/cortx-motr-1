@@ -27,7 +27,7 @@
 #include "conf/ut/file_helpers.h"
 #include "conf/ut/rpc_helpers.h"
 #include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
-#include "rpc/rpclib.h"     /* m0_rpc_server_ctx, M0_RPC_SERVER_CTX_DEFINE */
+#include "rpc/rpclib.h"     /* m0_rpc_server_ctx */
 #include "ut/ut.h"
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
@@ -347,17 +347,24 @@ static void test_confc_local(void)
 
 static void test_confc_net(void)
 {
-	struct m0_rpc_machine mach;
-	int rc;
+	struct m0_rpc_machine    mach;
+	int                      rc;
 #define NAME(ext) "ut_confd" ext
-	char *argv[] = {
+	char                    *argv[] = {
 		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", NAME("-addb.stob"), "-w", "10",
 		"-e", SERVER_ENDPOINT, "-s", "confd",
 		"-c", M0_CONF_UT_PATH("conf-str.txt")
 	};
-	M0_RPC_SERVER_CTX_DEFINE(confd, &g_xprt, 1, argv, ARRAY_SIZE(argv),
-				 NULL, 0, NAME(".log"));
+	struct m0_rpc_server_ctx confd = {
+		.rsx_xprts            = &g_xprt,
+		.rsx_xprts_nr         = 1,
+		.rsx_argv             = argv,
+		.rsx_argc             = ARRAY_SIZE(argv),
+		.rsx_service_types    = NULL,
+		.rsx_service_types_nr = 0,
+		.rsx_log_file_name    = NAME(".log")
+	};
 #undef NAME
 
 	rc = service_start(&confd);
