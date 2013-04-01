@@ -86,7 +86,7 @@ void rm_utdata_init(struct rm_ut_data *data, enum obj_type type)
 			break;
 
 		default:
-			break;
+			M0_IMPOSSIBLE("Invalid value of obj_type");
 	}
 }
 
@@ -125,12 +125,12 @@ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
 			rm_utdata_fini(data, OBJ_RES);
 			break;
 		default:
-			break;
+			M0_IMPOSSIBLE("Invalid value of obj_type");
 	}
 }
 
 const struct m0_test_suite rm_ut = {
-	.ts_name = "librm",
+	.ts_name = "rm-ut",
 	.ts_tests = {
 		{ "api", rm_api_test },
 		{ "lcredits", local_credits_test },
@@ -138,31 +138,6 @@ const struct m0_test_suite rm_ut = {
 		{ "fop-funcs", rm_fop_funcs_test },
 		{ "rcredits", remote_credits_test },
 		{ NULL, NULL }
-	}
-};
-
-/*
- * UB
- */
-
-enum {
-	UB_ITER = 200000,
-};
-
-static void ub_init(void)
-{
-}
-
-static void ub_fini(void)
-{
-}
-
-struct m0_ub_set m0_rm_ub = {
-	.us_name = "rm-ub",
-	.us_init = ub_init,
-	.us_fini = ub_fini,
-	.us_run  = {
-		{ .ub_name = NULL }
 	}
 };
 
