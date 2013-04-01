@@ -41,7 +41,7 @@ static struct m0_ub_set *last = NULL;
 
 M0_INTERNAL void m0_ub_set_print(void)
 {
-	struct m0_ub_set *set;
+	const struct m0_ub_set *set;
 
 	printf("Available benchmarks:\n");
 	for (set = last; set != NULL; set = set->us_prev)
@@ -59,14 +59,13 @@ M0_INTERNAL int m0_ub_set_select(const char *name)
 			return 0;
 		}
 	}
-	printf("Given benchmark `%s' not found\n", name);
-
+	printf("No such benchmark: %s\n", name);
 	return -ENOENT;
 }
 
 M0_INTERNAL void m0_ub_set_add(struct m0_ub_set *set)
 {
-	M0_ASSERT(set->us_prev == NULL);
+	M0_PRE(set->us_prev == NULL);
 
 	set->us_prev = last;
 	last = set;
@@ -94,15 +93,6 @@ static void timeval_diff(const struct timeval *start, const struct timeval *end,
 	diff->tv_usec += end->tv_usec - start->tv_usec;
 	timeval_norm(diff);
 }
-
-#if 0
-static void timeval_add(struct timeval *sum, struct timeval *term)
-{
-	sum->tv_sec  += term->tv_sec;
-	sum->tv_usec += term->tv_usec;
-	timeval_norm(sum);
-}
-#endif
 
 double delay(const struct timeval *start, const struct timeval *end)
 {
@@ -136,14 +126,38 @@ static void ub_run_one(const struct m0_ub_set *set, struct m0_ub_bench *bench)
 	bench->ub_min = min_type(double, bench->ub_min, sec);
 }
 
-M0_INTERNAL void m0_ub_run(uint32_t rounds)
+static void results_print(uint32_t round)
 {
-	uint32_t            i;
+	const struct m0_ub_set   *set;
+	const struct m0_ub_bench *bench;
+	double                    avg;
+	double                    std;
+
+	printf("\t%12.12s: [%7s] %6s %6s %6s %5s %8s %8s\n",
+	       "bench", "iter", "min", "max", "avg", "std", "sec/op", "op/sec");
+	for (set = last; set != NULL; set = set->us_prev) {
+		printf("set: %s\n", set->us_name);
+		for (bench = &set->us_run[0]; bench->ub_name; ++bench) {
+			avg = bench->ub_total / round;
+			std = sqrt(bench->ub_square / round - avg * avg);
+			printf("\t%12.12s: [%7i] %6.2f %6.2f %6.2f %5.2f%%"
+			       " %8.3e/%8.3e\n", bench->ub_name, bench->ub_iter,
+			       bench->ub_min, bench->ub_max, avg,
+			       std * 100.0 / avg, avg / bench->ub_iter,
+			       bench->ub_iter / avg);
+		}
+	}
+}
+
+M0_INTERNAL int m0_ub_run(uint32_t rounds, const char *opts)
+{
 	struct m0_ub_set   *set;
 	struct m0_ub_bench *bench;
+	uint32_t            round;
+	int                 rc = 0;
 
 	for (set = last; set != NULL; set = set->us_prev) {
-		for (bench = &set->us_run[0]; bench->ub_name; bench++) {
+		for (bench = &set->us_run[0]; bench->ub_name; ++bench) {
 			bench->ub_total  = 0.0;
 			bench->ub_square = 0.0;
 			bench->ub_min    = INFINITY;
@@ -151,43 +165,32 @@ M0_INTERNAL void m0_ub_run(uint32_t rounds)
 		}
 	}
 
-	for (i = 1; i <= rounds; ++i) {
-		printf("round %2i ", i);
+	for (round = 1; round <= rounds; ++round) {
+		printf("-- round %2i ", round);
 		for (set = last; set != NULL; set = set->us_prev) {
 			printf("%s[", set->us_name);
-			if (set->us_init != NULL)
-				set->us_init();
-			for (bench = &set->us_run[0]; bench->ub_name; bench++)
+			if (set->us_init != NULL) {
+				rc = set->us_init(opts);
+				if (rc != 0)
+					goto end;
+			}
+			for (bench = &set->us_run[0]; bench->ub_name; ++bench)
 				ub_run_one(set, bench);
 			if (set->us_fini != NULL)
 				set->us_fini();
 			printf("]");
 		}
 		printf("\n");
-		printf("\t\t%12.12s: [%7s] %6s %6s %6s %5s %8s %8s\n",
-		       "bench", "iter", "min", "max", "avg", "std",
-		       "sec/op", "op/sec");
-		for (set = last; set != NULL; set = set->us_prev) {
-			printf("\tset: %12.12s\n", set->us_name);
-			for (bench = &set->us_run[0]; bench->ub_name; bench++) {
-				double avg;
-				double std;
-
-				avg = bench->ub_total/i;
-				std = sqrt(bench->ub_square/i - avg*avg);
-				printf("\t\t%12.12s: [%7i] %6.2f %6.2f "
-				       "%6.2f %5.2f%% %8.3e/%8.3e\n",
-				       bench->ub_name,
-				       bench->ub_iter,
-				       bench->ub_min, bench->ub_max,
-				       avg, std*100.0/avg,
-				       avg/bench->ub_iter, bench->ub_iter/avg);
-			}
-		}
+		results_print(round);
 	}
+end:
+	if (rc != 0)
+		fprintf(stderr, "Benchmark initialisation failed: `%s',"
+			" rc=%d\n", set->us_name, rc);
+	return rc;
 }
 
-/** @} end of ub group. */
+/** @} end of ub group */
 
 /*
  *  Local variables:

@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Rohan Puri<rohan_puri@xyratex.com>
- * Original creation date: 10/04/2012
+ * Original author: Rohan Puri <rohan_puri@xyratex.com>
+ * Original creation date: 04-Oct-2012
  */
 
 #include "ut/ut.h"
@@ -30,17 +30,14 @@
 #include "net/lnet/lnet.h"
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
 
-struct m0_rpc_machine            machine;
+static struct m0_rpc_machine     machine;
 static uint32_t                  max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 static const char               *ep_addr = "0@lo:12345:34:2";
 static struct m0_cob_domain      cdom;
-static struct m0_cob_domain_id   cdom_id = {
-	.id = 10000
-};
+static struct m0_cob_domain_id   cdom_id = { .id = 10000 };
 static struct m0_dbenv           dbenv;
 static const char               *dbname = "db";
 static struct m0_net_buffer_pool buf_pool;
-
 static uint32_t tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 
 static void cob_domain_init(void)

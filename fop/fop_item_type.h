@@ -25,6 +25,9 @@
 
 #include "rpc/rpc_helpers.h"
 
+struct m0_rpc_item;
+struct m0_rpc_item_type;
+
 /**
    @addtogroup fop
 

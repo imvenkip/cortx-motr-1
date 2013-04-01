@@ -47,18 +47,13 @@ struct tb_cfg {
 	uint8_t  *tc_fail;
 };
 
-enum {
-	UB_ITER = 1
-};
-
-static void ub_init(void)
+static int ub_init(const char *opts M0_UNUSED)
 {
 	srand(1285360231);
+	return 0;
 }
 
-void tb_cfg_init(struct tb_cfg *cfg,
-		 uint32_t data_count,
-		 uint32_t parity_count,
+void tb_cfg_init(struct tb_cfg *cfg, uint32_t data_count, uint32_t parity_count,
 		 uint32_t block_size)
 {
 	uint32_t i;
@@ -226,6 +221,8 @@ void ub_medium_32768() {
 void ub_large_32768() {
 	/* ub_mt_test(30, 8, 32768); */
 }
+
+enum { UB_ITER = 1 };
 
 struct m0_ub_set m0_parity_math_mt_ub = {
         .us_name = "m0_parity_math-ub",

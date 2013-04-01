@@ -206,7 +206,7 @@ enum {
 	UB_ITER = 100000
 };
 
-static void ub_init(void)
+static int ub_init(const char *opts M0_UNUSED)
 {
 	db_reset();
 	test_init();
@@ -215,6 +215,7 @@ static void ub_init(void)
 	M0_SET0(h);
 
 	h->rh_refcount = 1;
+	return 0;
 }
 
 static void ub_fini(void)

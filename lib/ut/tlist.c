@@ -299,13 +299,14 @@ static struct foo    t[UB_ITER];
 static struct m0_tl  list;
 static struct foo   *obj;
 
-static void ub_init(void)
+static int ub_init(const char *opts M0_UNUSED)
 {
 	int i;
 
 	for (i = 0, obj = t; i < ARRAY_SIZE(t); ++i, ++obj)
 		m0_tlink_init(&fl0, obj);
 	m0_tlist_init(&fl0, &list);
+	return 0;
 }
 
 static void ub_fini(void)

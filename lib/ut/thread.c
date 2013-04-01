@@ -25,9 +25,7 @@
 #include "lib/bitmap.h"
 #include "lib/assert.h"
 
-enum {
-	NR = 255
-};
+enum { NR = 255 };
 
 void test_is_awkward(void);
 
@@ -165,9 +163,15 @@ enum {
 
 static struct m0_thread ubt[UB_ITER];
 
-static void ub_init(void)
+static void threads_set0(void)
 {
 	M0_SET_ARR0(ubt);
+}
+
+static int ub_init(const char *opts M0_UNUSED)
+{
+	threads_set0();
+	return 0;
 }
 
 static void ub_fini(void)
@@ -213,7 +217,7 @@ static void ub_join_all(void)
 
 	for (i = 0; i < ARRAY_SIZE(ubt); ++i)
 		m0_thread_join(&ubt[i]);
-	ub_init();
+	threads_set0();
 }
 
 struct m0_ub_set m0_thread_ub = {
@@ -228,7 +232,7 @@ struct m0_ub_set m0_thread_ub = {
 		{ .ub_name  = "join",
 		  .ub_iter  = UB_ITER,
 		  .ub_round = ub_join,
-		  .ub_fini  = ub_init /* sic */ },
+		  .ub_fini  = threads_set0 },
 
 		{ .ub_name  = "spawn-init",
 		  .ub_iter  = UB_ITER,

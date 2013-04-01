@@ -443,32 +443,42 @@ static struct m0_db_cursor ub_cur;
 static uint64_t key;
 static uint64_t rec;
 
-static void ub_init(void)
+static int ub_init(const char *opts M0_UNUSED)
 {
-	int result;
+	int rc;
 
 	db_reset();
 
-	result = m0_dbenv_init(&ub_db, db_name, 0);
-	M0_ASSERT(result == 0);
+	rc = m0_dbenv_init(&ub_db, db_name, 0);
+	if (rc != 0)
+		return rc;
 
-	result = m0_table_init(&ub_table, &ub_db, test_table, 0,
-			       &test_table_ops);
-	M0_ASSERT(result == 0);
+	rc = m0_table_init(&ub_table, &ub_db, test_table, 0, &test_table_ops);
+	if (rc != 0)
+		goto dbenv_fini;
 
-	result = m0_db_tx_init(&ub_tx, &ub_db, 0);
-	M0_ASSERT(result == 0);
+	rc = m0_db_tx_init(&ub_tx, &ub_db, 0);
+	if (rc != 0)
+		goto table_fini;
 
-	m0_db_pair_setup(&ub_pair, &ub_table,
-			 &key, sizeof key, &rec, sizeof rec);
+	m0_db_pair_setup(&ub_pair, &ub_table, &key, sizeof key, &rec,
+			 sizeof rec);
+	return 0;
+
+table_fini:
+	m0_table_fini(&ub_table);
+dbenv_fini:
+	m0_dbenv_fini(&ub_db);
+	db_reset();
+	return rc;
 }
 
 static void ub_fini(void)
 {
-	int result;
+	int rc;
 
-	result = m0_db_tx_commit(&ub_tx);
-	M0_ASSERT(result == 0);
+	rc = m0_db_tx_commit(&ub_tx);
+	M0_ASSERT(rc == 0);
 
 	m0_db_pair_fini(&ub_pair);
 	m0_table_fini(&ub_table);
@@ -478,37 +488,37 @@ static void ub_fini(void)
 
 static void checkpoint()
 {
-	int result;
+	int rc;
 
-	result = m0_db_tx_commit(&ub_tx);
-	M0_ASSERT(result == 0);
+	rc = m0_db_tx_commit(&ub_tx);
+	M0_ASSERT(rc == 0);
 
-	result = m0_db_tx_init(&ub_tx, &ub_db, 0);
-	M0_ASSERT(result == 0);
+	rc = m0_db_tx_init(&ub_tx, &ub_db, 0);
+	M0_ASSERT(rc == 0);
 }
 
 static void ub_insert(int i)
 {
-	int      result;
+	int rc;
 
 	key = i;
-	rec = key*key;
+	rec = key * key;
 
-	result = m0_table_insert(&ub_tx, &ub_pair);
-	M0_ASSERT(result == 0);
+	rc = m0_table_insert(&ub_tx, &ub_pair);
+	M0_ASSERT(rc == 0);
 
-	if (i%1000)
+	if (i % 1000)
 		checkpoint();
 }
 
 static void ub_lookup(int i)
 {
-	int       result;
+	int rc;
 
 	key = i;
-	result = m0_table_lookup(&ub_tx, &ub_pair);
-	M0_ASSERT(result == 0);
-	M0_ASSERT(rec == key*key);
+	rc = m0_table_lookup(&ub_tx, &ub_pair);
+	M0_ASSERT(rc == 0);
+	M0_ASSERT(rec == key * key);
 	m0_db_pair_release(&ub_pair);
 
 	if (i%1000)
@@ -517,37 +527,37 @@ static void ub_lookup(int i)
 
 static void ub_delete(int i)
 {
-	int      result;
+	int rc;
 
 	key = i;
 
-	result = m0_table_delete(&ub_tx, &ub_pair);
-	M0_ASSERT(result == 0);
+	rc = m0_table_delete(&ub_tx, &ub_pair);
+	M0_ASSERT(rc == 0);
 
-	if (i%1000)
+	if (i % 1000)
 		checkpoint();
 }
 
 static void ub_iterate_init(void)
 {
-	int      result;
+	int rc;
 
-	result = m0_db_cursor_init(&ub_cur, &ub_table, &ub_tx, 0);
-	M0_ASSERT(result == 0);
+	rc = m0_db_cursor_init(&ub_cur, &ub_table, &ub_tx, 0);
+	M0_ASSERT(rc == 0);
 	key = 0;
-	result = m0_db_cursor_get(&ub_cur, &ub_pair);
-	M0_ASSERT(rec == 0*0);
+	rc = m0_db_cursor_get(&ub_cur, &ub_pair);
+	M0_ASSERT(rec == 0);
 }
 
 static void ub_iterate(int i)
 {
-	int result;
+	int rc;
 
-	result = m0_db_cursor_next(&ub_cur, &ub_pair);
-	M0_ASSERT((result ==       0) == (i != UB_ITER - 1));
-	M0_ASSERT((result == -ENOENT) == (i == UB_ITER - 1));
-	M0_ASSERT(ergo(result == 0, key == i + 1));
-	M0_ASSERT(ergo(result == 0, rec == key * key));
+	rc = m0_db_cursor_next(&ub_cur, &ub_pair);
+	M0_ASSERT((rc ==       0) == (i != UB_ITER - 1));
+	M0_ASSERT((rc == -ENOENT) == (i == UB_ITER - 1));
+	M0_ASSERT(ergo(rc == 0, key == i + 1));
+	M0_ASSERT(ergo(rc == 0, rec == key * key));
 }
 
 static void ub_iterate_fini(void)
@@ -557,25 +567,25 @@ static void ub_iterate_fini(void)
 
 static void ub_iterate_back_init(void)
 {
-	int      result;
+	int rc;
 
-	result = m0_db_cursor_init(&ub_cur, &ub_table, &ub_tx, 0);
-	M0_ASSERT(result == 0);
+	rc = m0_db_cursor_init(&ub_cur, &ub_table, &ub_tx, 0);
+	M0_ASSERT(rc == 0);
 	key = UB_ITER - 1;
-	result = m0_db_cursor_get(&ub_cur, &ub_pair);
+	rc = m0_db_cursor_get(&ub_cur, &ub_pair);
 	M0_ASSERT(key == UB_ITER - 1);
 	M0_ASSERT(rec == key * key);
 }
 
 static void ub_iterate_back(int i)
 {
-	int result;
+	int rc;
 
-	result = m0_db_cursor_prev(&ub_cur, &ub_pair);
-	M0_ASSERT((result ==       0) == (i != UB_ITER - 1));
-	M0_ASSERT((result == -ENOENT) == (i == UB_ITER - 1));
-	M0_ASSERT(ergo(result == 0, key == UB_ITER - 2 - i));
-	M0_ASSERT(ergo(result == 0, rec == key * key));
+	rc = m0_db_cursor_prev(&ub_cur, &ub_pair);
+	M0_ASSERT((rc ==       0) == (i != UB_ITER - 1));
+	M0_ASSERT((rc == -ENOENT) == (i == UB_ITER - 1));
+	M0_ASSERT(ergo(rc == 0, key == UB_ITER - 2 - i));
+	M0_ASSERT(ergo(rc == 0, rec == key * key));
 }
 
 static void ub_iterate_back_fini(void)

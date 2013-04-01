@@ -64,9 +64,10 @@ enum {
 
 static void *ubx[UB_ITER];
 
-static void ub_init(void)
+static int ub_init(const char *opts M0_UNUSED)
 {
 	M0_SET_ARR0(ubx);
+	return 0;
 }
 
 static void ub_free(int i)

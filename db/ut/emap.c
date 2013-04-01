@@ -216,10 +216,11 @@ enum {
 	UB_ITER_TX = 10000
 };
 
-static void ub_init(void)
+static int ub_init(const char *opts M0_UNUSED)
 {
 	db_reset();
 	test_init();
+	return 0;
 }
 
 static void ub_fini(void)

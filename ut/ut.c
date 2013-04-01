@@ -21,20 +21,22 @@
 #include "ut/ut.h"
 #include "ut/cs_service.h"
 #include "fop/fom_generic.h"
-#include "lib/misc.h"		/* M0_IN() */
-
+#include "lib/misc.h"           /* M0_IN() */
 
 void m0_ut_fom_phase_set(struct m0_fom *fom, int phase)
 {
-	if (M0_IN(m0_fom_phase(fom), (M0_FOPH_SUCCESS, M0_FOPH_FAILURE))) {
-		if (m0_fom_phase(fom) == M0_FOPH_SUCCESS) {
-			m0_fom_phase_set(fom, M0_FOPH_FOL_REC_PART_ADD);
-			m0_fom_phase_set(fom, M0_FOPH_FOL_REC_ADD);
-		}
+	switch (m0_fom_phase(fom)) {
+	case M0_FOPH_SUCCESS:
+		m0_fom_phase_set(fom, M0_FOPH_FOL_REC_PART_ADD);
+		m0_fom_phase_set(fom, M0_FOPH_FOL_REC_ADD);
+		/* fall through */
+	case M0_FOPH_FAILURE:
 		m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT);
 		m0_fom_phase_set(fom, M0_FOPH_QUEUE_REPLY);
+		/* fall through */
+	default:
+		m0_fom_phase_set(fom, phase);
 	}
-	m0_fom_phase_set(fom, phase);
 }
 
 /*

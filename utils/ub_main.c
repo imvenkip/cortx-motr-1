@@ -15,12 +15,10 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 07/19/2010
+ * Original creation date: 19-Jul-2010
  */
 
-#include <stdlib.h>             /* atoi */
 #include <string.h>             /* strdup */
-
 #include "lib/ub.h"
 #include "lib/memory.h"
 #include "lib/cdefs.h"          /* ARRAY_SIZE */
@@ -48,15 +46,15 @@ extern struct m0_ub_set m0_trace_ub;
 #define UB_SANDBOX "./ub-sandbox"
 
 struct ub_args {
-	bool        ua_ub_list;
-	uint32_t    ua_rounds;
-	char       *ua_name;
-	char       *ua_args;
+	uint32_t ua_rounds;
+	char    *ua_name;
+	char    *ua_opts;
+	bool     ua_ub_list;
 };
 
 static void ub_args_fini(struct ub_args *args)
 {
-	m0_free(args->ua_args);
+	m0_free(args->ua_opts);
 	m0_free(args->ua_name);
 }
 
@@ -64,66 +62,66 @@ static int ub_args_parse(int argc, char *argv[], struct ub_args *out)
 {
 	out->ua_rounds = 1;
 	out->ua_name = NULL;
-	out->ua_args = NULL;
+	out->ua_opts = NULL;
 	out->ua_ub_list = false;
 
 	return M0_GETOPTS("ub", argc, argv,
 		  M0_HELPARG('h'),
-		  M0_NUMBERARG('r', "Number of rounds UB has to be run",
-			       LAMBDA(void, (int64_t rounds) {
-					       out->ua_rounds = rounds;
-				       })),
-		  M0_VOIDARG('l', "List available benchmark tests",
+		  M0_VOIDARG('l', "List available benchmarks and exit",
 			     LAMBDA(void, (void) {
 					     out->ua_ub_list = true;
 				     })),
-		  M0_STRINGARG('t', "Benchmark test name to run",
+		  M0_NUMBERARG('r', "Number of rounds a benchmark has to run",
+			       LAMBDA(void, (int64_t rounds) {
+					       out->ua_rounds = rounds;
+				       })),
+		  M0_STRINGARG('t', "Benchmark to run",
 			       LAMBDA(void, (const char *str) {
 					       out->ua_name = strdup(str);
 				       })),
-		  M0_STRINGARG('a', "Benchmark test args",
+		  M0_STRINGARG('o', "Optional parameters (ignored by most"
+			       " benchmarks)",
 			       LAMBDA(void, (const char *str) {
-					       out->ua_args = strdup(str);
+					       out->ua_opts = strdup(str);
 				       }))
 		);
 }
 
 static void ub_add(const struct ub_args *args)
 {
-	/* Note these tests are run in reverse order from the way
-	   they are listed here */
-
-	m0_ub_set_add(&m0_ad_ub);
-	m0_ub_set_add(&m0_adieu_ub);
-	m0_ub_set_add(&m0_atomic_ub);
-	m0_ub_set_add(&m0_bitmap_ub);
-	m0_ub_set_add(&m0_cob_ub);
-	m0_ub_set_add(&m0_db_ub);
-	m0_ub_set_add(&m0_emap_ub);
-	m0_ub_set_add(&m0_fol_ub);
-	m0_ub_set_add(&m0_fom_ub);
-	m0_ub_set_add(&m0_list_ub);
-	m0_ub_set_add(&m0_memory_ub);
-	m0_ub_set_add(&m0_parity_math_ub);
-	m0_ub_set_add(&m0_rm_ub);
-	m0_ub_set_add(&m0_thread_ub);
-	m0_ub_set_add(&m0_tlist_ub);
+	/*
+	 * Please maintain _reversed_ sorting order.
+	 *
+	 * These benchmarks are executed in reverse order from the way
+	 * they are listed here.
+	 */
 	m0_ub_set_add(&m0_trace_ub);
+	m0_ub_set_add(&m0_tlist_ub);
+	m0_ub_set_add(&m0_thread_ub);
+	m0_ub_set_add(&m0_parity_math_ub);
+	m0_ub_set_add(&m0_memory_ub);
+	m0_ub_set_add(&m0_list_ub);
+	m0_ub_set_add(&m0_fom_ub);
+	m0_ub_set_add(&m0_fol_ub);
+	m0_ub_set_add(&m0_emap_ub);
+	m0_ub_set_add(&m0_db_ub);
+	m0_ub_set_add(&m0_cob_ub);
+	m0_ub_set_add(&m0_bitmap_ub);
+	m0_ub_set_add(&m0_atomic_ub);
+	m0_ub_set_add(&m0_adieu_ub);
+	m0_ub_set_add(&m0_ad_ub);
 }
 
-static void ub_run(const struct ub_args *args)
+static int ub_run(const struct ub_args *args)
 {
-	if (args->ua_ub_list) {
-		m0_ub_set_print();
-		return;
-	}
+	int rc = 0;
 
-	if (args->ua_name != NULL) {
-		if (m0_ub_set_select(args->ua_name) != 0)
-			return;
-	}
+	M0_PRE(!args->ua_ub_list);
 
-	m0_ub_run(args->ua_rounds);
+	if (args->ua_name != NULL)
+		rc = m0_ub_set_select(args->ua_name);
+
+	return rc ?: m0_ub_run(args->ua_rounds, args->ua_opts);
 }
 
 int main(int argc, char *argv[])
@@ -133,19 +131,20 @@ int main(int argc, char *argv[])
 
 	rc = unit_start(UB_SANDBOX);
 	if (rc != 0)
-		goto unit;
+		return rc;
 
 	rc = ub_args_parse(argc, argv, &args);
-	if (rc != 0)
-		goto parse;
+	if (rc == 0) {
+		ub_add(&args);
 
-	ub_add(&args);
-	ub_run(&args);
-
-parse:
+		if (args.ua_ub_list)
+			m0_ub_set_print();
+		else
+			rc = ub_run(&args);
+	}
 	ub_args_fini(&args);
-unit:
 	unit_end(UB_SANDBOX, false);
+
 	return rc;
 }
 

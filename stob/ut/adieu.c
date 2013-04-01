@@ -165,7 +165,7 @@ static void test_write(int i)
 	struct m0_fol_rec_part *fol_rec_part;
 
 	M0_ALLOC_PTR(fol_rec_part);
-	M0_UT_ASSERT(fol_rec_part != NULL);
+	M0_UB_ASSERT(fol_rec_part != NULL);
 
 	m0_stob_io_init(&io);
 
@@ -278,11 +278,6 @@ const struct m0_test_suite adieu_ut = {
 	}
 };
 
-enum {
-	UB_ITER = 100,
-	UB_ITER_SORT = 100000
-};
-
 static void ub_write(int i)
 {
 	test_write(NR - 1);
@@ -292,8 +287,6 @@ static void ub_read(int i)
 {
 	test_read(NR - 1);
 }
-
-
 
 static m0_bcount_t  user_vec1[NR_SORT];
 static char        *user_bufs1[NR_SORT];
@@ -350,10 +343,25 @@ static void ub_iovec_sort_invert()
 	m0_stob_iovec_sort(&io);
 }
 
+static int ub_init(const char *opts M0_UNUSED)
+{
+	return test_adieu_init();
+}
+
+static void ub_fini(void)
+{
+	(void)test_adieu_fini();
+}
+
+enum {
+	UB_ITER = 100,
+	UB_ITER_SORT = 100000
+};
+
 struct m0_ub_set m0_adieu_ub = {
 	.us_name = "adieu-ub",
-	.us_init = (void *)test_adieu_init,
-	.us_fini = (void *)test_adieu_fini,
+	.us_init = ub_init,
+	.us_fini = ub_fini,
 	.us_run  = {
 		{ .ub_name = "write-prime",
 		  .ub_iter = 1,

@@ -255,14 +255,13 @@ enum {
 
 char *processor_info_dirp;
 
-static void ub_init(void)
+static int ub_init(const char *opts M0_UNUSED)
 {
-	return;
+	return 0;
 }
 
 static void ub_fini(void)
 {
-	return;
 }
 
 static void ub_init1(int i)
