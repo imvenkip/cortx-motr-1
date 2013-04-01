@@ -68,8 +68,6 @@
  * Most important functions, confd depends on, are listed above:
  * - RPC layer:
  *   - m0_rpc_reply_post() used to send FOP-based reply to Confc;
- *   - M0_RPC_SERVER_CTX_DEFINE() used to create rpc server context.
- *     (XXX I'm not sure confd may use a definition from ut/ directory. --vvv)
  * - DB layer:
  *   - m0_db_pair_setup() and m0_table_lookup() used to access
  *     configuration values stored in db.

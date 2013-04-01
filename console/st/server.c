@@ -42,7 +42,6 @@
 #define SERVER_DB_FILE_NAME   "cons_server.db"
 #define SERVER_STOB_FILE_NAME "cons_server.stob"
 #define SERVER_LOG_FILE_NAME  "cons_server.log"
-#define CONSOLE_STR_LEN       16
 
 static int signaled = 0;
 
@@ -54,24 +53,28 @@ static void sig_handler(int num)
 /** @brief Test server for m0console */
 int main(int argc, char **argv)
 {
-	int                 result;
-	char                tm_len[CONSOLE_STR_LEN];
-	char                rpc_size[CONSOLE_STR_LEN];
-	uint32_t            tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
-	uint32_t            max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
-	struct m0_net_xprt *xprt              = &m0_net_lnet_xprt;
-
-	char *default_server_argv[] = {
+	enum { CONSOLE_STR_LEN = 16 };
+	char     tm_len[CONSOLE_STR_LEN];
+	char     rpc_size[CONSOLE_STR_LEN];
+	int      result;
+	uint32_t tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
+	uint32_t max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
+	char    *default_server_argv[] = {
 		argv[0], "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
 		"-s", "ds1", "-s", "ds2", "-s", "ioservice", "-q", tm_len,
 		"-m", rpc_size, "-A", "as_addb_stob"
 	};
-
-	M0_RPC_SERVER_CTX_DEFINE(sctx, &xprt, 1, default_server_argv,
-				 ARRAY_SIZE(default_server_argv),
-				 m0_cs_default_stypes, m0_cs_default_stypes_nr,
-				 SERVER_LOG_FILE_NAME);
+	struct m0_net_xprt      *xprt = &m0_net_lnet_xprt;
+	struct m0_rpc_server_ctx sctx = {
+		.rsx_xprts            = &xprt,
+		.rsx_xprts_nr         = 1,
+		.rsx_argv             = default_server_argv,
+		.rsx_argc             = ARRAY_SIZE(default_server_argv),
+		.rsx_service_types    = m0_cs_default_stypes,
+		.rsx_service_types_nr = m0_cs_default_stypes_nr,
+		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
+	};
 
 	verbose = false;
 

@@ -96,10 +96,15 @@ static int check_buffer_pool_per_domain(char *cs_argv[], int cs_argc, int nbp)
 {
 	int rc;
 	int bp_count;
-
-	M0_RPC_SERVER_CTX_DEFINE(sctx, cs_xprts, ARRAY_SIZE(cs_xprts),
-				 cs_argv, cs_argc, m0_cs_default_stypes,
-				 m0_cs_default_stypes_nr, SERVER_LOG_FILE_NAME);
+	struct m0_rpc_server_ctx sctx = {
+		.rsx_xprts            = cs_xprts,
+		.rsx_xprts_nr         = ARRAY_SIZE(cs_xprts),
+		.rsx_argv             = cs_argv,
+		.rsx_argc             = cs_argc,
+		.rsx_service_types    = m0_cs_default_stypes,
+		.rsx_service_types_nr = m0_cs_default_stypes_nr,
+		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
+	};
 
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
