@@ -423,7 +423,7 @@ static void quit_dialog(void)
 	char ch;
 
 	printf("\n########################################\n");
-	printf("\n\nType ^D to terminate\n\n");
+	printf("\n\nPress Enter to terminate\n\n");
 	printf("\n########################################\n");
 	read(0, &ch, sizeof ch);
 }
