@@ -140,6 +140,7 @@ static const struct m0_dtm_history_ops dtx_ops = {
 	.hio_id         = &dtx_id,
 	.hio_persistent = (void *)&dtx_noop,
 	.hio_fixed      = &dtx_fixed,
+	.hio_update     = &m0_dtm_controlh_update
 };
 
 static inline struct m0_dtm_history *pa_history(struct m0_dtm_dtx_party *pa)

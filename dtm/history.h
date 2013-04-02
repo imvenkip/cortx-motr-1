@@ -66,10 +66,12 @@ struct m0_dtm_history_ops {
 			       struct m0_uint128 *id);
 	void (*hio_persistent)(struct m0_dtm_history *history);
 	void (*hio_fixed     )(struct m0_dtm_history *history);
+	int  (*hio_update    )(struct m0_dtm_history *history, uint8_t id,
+			       struct m0_dtm_update *update);
 };
 
 struct m0_dtm_history_type {
-	uint32_t                              hit_id;
+	uint8_t                               hit_id;
 	const char                           *hit_name;
 	const struct m0_dtm_history_type_ops *hit_ops;
 };
@@ -109,7 +111,7 @@ M0_INTERNAL void
 m0_dtm_history_type_deregister(struct m0_dtm *dtm,
 			       const struct m0_dtm_history_type *ht);
 M0_INTERNAL const struct m0_dtm_history_type *
-m0_dtm_history_type_find(struct m0_dtm *dtm, uint32_t id);
+m0_dtm_history_type_find(struct m0_dtm *dtm, uint8_t id);
 
 M0_INTERNAL void m0_dtm_history_add_nop(struct m0_dtm_history *history,
 					struct m0_dtm_oper *oper,
@@ -124,6 +126,11 @@ M0_INTERNAL void m0_dtm_controlh_fini(struct m0_dtm_controlh *ch);
 M0_INTERNAL void m0_dtm_controlh_add(struct m0_dtm_controlh *ch,
 				     struct m0_dtm_oper *oper);
 M0_INTERNAL void m0_dtm_controlh_close(struct m0_dtm_controlh *ch);
+M0_INTERNAL int m0_dtm_controlh_update(struct m0_dtm_history *history,
+				       uint8_t id,
+				       struct m0_dtm_update *update);
+M0_INTERNAL bool
+m0_dtm_controlh_update_is_close(const struct m0_dtm_update *update);
 
 M0_INTERNAL void m0_dtm_remote_add(struct m0_dtm_remote *dtm,
 				   struct m0_dtm_oper *oper,

@@ -49,29 +49,29 @@ struct m0_dtm_history;
 
 struct m0_dtm_update {
 	struct m0_dtm_up                upd_up;
-	uint32_t                        upd_label;
+	uint8_t                         upd_label;
 	const struct m0_dtm_update_ops *upd_ops;
 };
 M0_INTERNAL bool m0_dtm_update_invariant(const struct m0_dtm_update *update);
 
 enum {
-	M0_DTM_USER_UPDATE_BASE = 0x1000
+	M0_DTM_USER_UPDATE_BASE = 0x10
 };
 
 struct m0_dtm_update_ops {
 	int (*updo_redo)(struct m0_dtm_update *updt);
 	int (*updo_undo)(struct m0_dtm_update *updt);
-	const struct m0_dtm_update_type *updto_type;
+	const struct m0_dtm_update_type *updo_type;
 };
 
 struct m0_dtm_update_type {
-	const char                       *updtt_name;
-	const struct m0_dtm_history_type *updtt_htype;
+	uint8_t     updtt_id;
+	const char *updtt_name;
 };
 
 struct m0_dtm_update_data {
-	uint32_t da_label;
-	uint32_t da_rule;
+	uint8_t  da_label;
+	uint8_t  da_rule;
 	uint64_t da_ver;
 	uint64_t da_orig_ver;
 } M0_XCA_RECORD;
@@ -85,12 +85,9 @@ struct m0_dtm_update_data {
 }
 
 struct m0_dtm_update_descr {
-	uint32_t                  udd_htype;
+	uint8_t                   udd_htype;
+	uint8_t                   udd_utype;
 	struct m0_dtm_update_data udd_data;
-	uint32_t                  udd_label;
-	uint32_t                  udd_rule;
-	uint64_t                  udd_ver;
-	uint64_t                  udd_orig_ver;
 	struct m0_uint128         udd_id;
 } M0_XCA_RECORD;
 

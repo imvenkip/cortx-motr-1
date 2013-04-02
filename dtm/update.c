@@ -43,7 +43,7 @@ M0_INTERNAL void m0_dtm_update_init(struct m0_dtm_update *update,
 {
 	M0_PRE(m0_tl_forall(oper, upd, &oper->oprt_op.op_ups,
 			    upd->upd_up.up_state == M0_DOS_LIMBO &&
-			    upd->upd_label != update->upd_label));
+			    upd->upd_label != data->da_label));
 	M0_PRE(!(history->h_hi.hi_flags & M0_DHF_CLOSED));
 	M0_PRE(m0_dtm_oper_invariant(oper));
 	m0_dtm_up_init(&update->upd_up, &history->h_hi, &oper->oprt_op,
@@ -74,6 +74,7 @@ M0_INTERNAL void m0_dtm_update_pack(const struct m0_dtm_update *update,
 	M0_PRE(update->upd_up.up_state >= M0_DOS_FUTURE);
 	*updd = (struct m0_dtm_update_descr) {
 		.udd_htype = history->h_ops->hio_type->hit_id,
+		.udd_utype = update->upd_ops->updo_type->updtt_id,
 		.udd_data  = {
 			.da_label    = update->upd_label,
 			.da_rule     = up->up_rule,
@@ -120,8 +121,13 @@ M0_INTERNAL int m0_dtm_update_build(struct m0_dtm_update *update,
 		return -EPROTO;
 
 	result = htype->hit_ops->hito_find(htype, &updd->udd_id, &history);
-	if (result == 0)
-		m0_dtm_update_init(update, history, oper, &updd->udd_data);
+	if (result == 0) {
+		result = history->h_ops->hio_update(history, updd->udd_utype,
+						    update);
+		if (result == 0)
+			m0_dtm_update_init(update, history, oper,
+					   &updd->udd_data);
+	}
 	M0_POST(ergo(result == 0, m0_dtm_update_invariant(update)));
 	return result;
 }

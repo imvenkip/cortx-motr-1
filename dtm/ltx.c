@@ -125,6 +125,7 @@ static const struct m0_dtm_history_ops ltx_ops = {
 	.hio_id         = &ltx_id,
 	.hio_persistent = (void *)&ltx_noop,
 	.hio_fixed      = (void *)&ltx_noop,
+	.hio_update     = &m0_dtm_controlh_update
 };
 
 

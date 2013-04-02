@@ -260,7 +260,6 @@ M0_INTERNAL void m0_dtm_up_init(struct m0_dtm_up *up, struct m0_dtm_hi *hi,
 	M0_PRE(m0_dtm_hi_invariant(hi));
 	M0_PRE(op_state(op, M0_DOS_LIMBO));
 
-	M0_SET0(up);
 	m0_dtm_up_bob_init(up);
 	op_tlink_init_at(up, &op->op_ups);
 	hi_tlink_init(up);

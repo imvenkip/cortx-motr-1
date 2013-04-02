@@ -116,6 +116,7 @@ static void ctx_init(void)
 {
 	int i;
 
+	M0_SET0(&c);
 	m0_dtm_nu_init(&c.c_nu);
 	nu_lock(&c.c_nu);
 	for (i = 0; i < ARRAY_SIZE(c.c_hi); ++i) {

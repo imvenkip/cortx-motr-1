@@ -200,7 +200,7 @@ M0_INTERNAL void m0_dtm_reply_unpack(struct m0_dtm_oper *oper,
 }
 
 M0_INTERNAL struct m0_dtm_update *m0_dtm_oper_get(const struct m0_dtm_oper *oper,
-						  uint32_t label)
+						  uint8_t label)
 {
 	M0_PRE(m0_dtm_oper_invariant(oper));
 	oper_for(oper, update) {

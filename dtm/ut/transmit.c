@@ -73,6 +73,30 @@ static struct m0_dtm_oper_descr   reply = {
 static void noop(struct m0_dtm_op *op)
 {}
 
+static int undo_redo(struct m0_dtm_update *updt)
+{
+	return 0;
+}
+
+static const struct m0_dtm_update_type test_utype = {
+	.updtt_id   = 0,
+	.updtt_name = "test update"
+};
+
+static const struct m0_dtm_update_ops test_ops = {
+	.updo_redo = &undo_redo,
+	.updo_undo = &undo_redo,
+	.updo_type = &test_utype
+};
+
+static int update_init(struct m0_dtm_history *history, uint8_t id,
+		       struct m0_dtm_update *update)
+{
+	M0_ASSERT(id == 0);
+	update->upd_ops = &test_ops;
+	return 0;
+}
+
 static void test_persistent(struct m0_dtm_history *history)
 {}
 
@@ -113,7 +137,8 @@ static void src_id(const struct m0_dtm_history *history, struct m0_uint128 *id)
 static const struct m0_dtm_history_ops src_ops = {
 	.hio_type       = &src_htype,
 	.hio_id         = &src_id,
-	.hio_persistent = &test_persistent
+	.hio_persistent = &test_persistent,
+	.hio_update     = &update_init
 };
 
 static int tgt_find(const struct m0_dtm_history_type *ht,
@@ -147,7 +172,8 @@ static void tgt_id(const struct m0_dtm_history *history, struct m0_uint128 *id)
 static const struct m0_dtm_history_ops tgt_ops = {
 	.hio_type       = &tgt_htype,
 	.hio_id         = &tgt_id,
-	.hio_persistent = &test_persistent
+	.hio_persistent = &test_persistent,
+	.hio_update     = &update_init
 };
 
 static void src_init(struct m0_dtm_remote *dtm, unsigned flags, int ctrl)
@@ -156,6 +182,11 @@ static void src_init(struct m0_dtm_remote *dtm, unsigned flags, int ctrl)
 
 	M0_ASSERT(ctrl <= TGT_DELTA);
 
+	memset(update_src, 0, sizeof update_src);
+	memset(update_tgt, 0, sizeof update_src);
+	memset(history_src, 0, sizeof history_src);
+	M0_SET0(&dtm_src);
+	M0_SET0(&tgt);
 	m0_dtm_init(&dtm_src);
 	m0_dtm_remote_init(&tgt, &dtm_src);
 	m0_dtm_history_type_register(&dtm_src, &src_htype);
@@ -192,6 +223,10 @@ static void tgt_init(void)
 {
 	int i;
 
+	memset(update_tgt, 0, sizeof update_tgt);
+	memset(history_tgt, 0, sizeof history_tgt);
+	M0_SET0(&dtm_tgt);
+	M0_SET0(&local);
 	m0_dtm_init(&dtm_tgt);
 	m0_dtm_remote_init(&local, &dtm_tgt);
 	m0_dtm_history_type_register(&dtm_tgt, &tgt_htype);
@@ -229,6 +264,7 @@ static void oper_populate(int i, unsigned nr)
 
 	dtm_lock(&dtm_src);
 	for (j = 0; j < nr; ++j) {
+		update_src[i][j].upd_ops = &test_ops;
 		m0_dtm_update_init(&update_src[i][j], &history_src[j],
 				   &oper_src[i],
 			   &M0_DTM_UPDATE_DATA(M0_DTM_USER_UPDATE_BASE + 1 + j,
@@ -285,6 +321,7 @@ static void ltx_init(void)
 {
 	int result;
 
+	M0_SET0(&ltx);
 	src_init(NULL, M0_DHF_OWNED, 1);
 	m0_dtm_history_type_register(&dtm_src, &m0_dtm_ltx_htype);
 

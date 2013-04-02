@@ -8,7 +8,7 @@ fi
 # Assign a node uuid for the user space UT (addb/ut/addb_ut.c)
 NODE_UUID="abcdef01-2345-6789-0123-456789ABCDEF"
 
-. /mnt/mu/home/nikita/p/m/m0t1fs/linux_kernel/st/common.sh
+. /home/nikita/p/m/m0t1fs/linux_kernel/st/common.sh
 
 unload_all() {
     modunload

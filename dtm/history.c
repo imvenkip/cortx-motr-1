@@ -175,7 +175,7 @@ m0_dtm_history_type_deregister(struct m0_dtm *dtm,
 }
 
 M0_INTERNAL const struct m0_dtm_history_type *
-m0_dtm_history_type_find(struct m0_dtm *dtm, uint32_t id)
+m0_dtm_history_type_find(struct m0_dtm *dtm, uint8_t id)
 {
 	return IS_IN_ARRAY(id, dtm->d_htype) ? dtm->d_htype[id] : NULL;
 }
@@ -275,6 +275,58 @@ M0_INTERNAL void m0_dtm_controlh_add(struct m0_dtm_controlh *ch,
 
 	M0_PRE(update != NULL);
 	m0_dtm_history_add_nop(&ch->ch_history, oper, update);
+}
+
+enum {
+	NOOP  = 1,
+	CLOSE = 2
+};
+
+static int ch_noop(struct m0_dtm_update *updt)
+{
+	return 0;
+}
+
+static const struct m0_dtm_update_type ch_noop_utype = {
+	.updtt_id   = NOOP,
+	.updtt_name = "noop update"
+};
+
+static const struct m0_dtm_update_ops ch_noop_ops = {
+	.updo_redo = &ch_noop,
+	.updo_undo = &ch_noop,
+	.updo_type = &ch_noop_utype
+};
+
+static const struct m0_dtm_update_type ch_close_utype = {
+	.updtt_id   = CLOSE,
+	.updtt_name = "close update"
+};
+
+static const struct m0_dtm_update_ops ch_close_ops = {
+	.updo_redo = &ch_noop,
+	.updo_undo = &ch_noop,
+	.updo_type = &ch_close_utype
+};
+
+M0_INTERNAL int m0_dtm_controlh_update(struct m0_dtm_history *history,
+				       uint8_t id,
+				       struct m0_dtm_update *update)
+{
+	if (id == NOOP)
+		update->upd_ops = &ch_noop_ops;
+	else if (id == CLOSE)
+		update->upd_ops = &ch_close_ops;
+	else
+		return -EPROTO;
+	return 0;
+}
+
+M0_INTERNAL bool
+m0_dtm_controlh_update_is_close(const struct m0_dtm_update *update)
+{
+	M0_PRE(M0_IN(update->upd_ops, (&ch_noop_ops, &ch_close_ops)));
+	return update->upd_ops == &ch_close_ops;
 }
 
 M0_INTERNAL void m0_dtm_remote_add(struct m0_dtm_remote *dtm,
