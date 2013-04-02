@@ -99,14 +99,13 @@ static struct m0_fop *mgmt_svc_ut_ss_fop_alloc(void)
 
 	fop = m0_fop_alloc(&m0_fop_mgmt_service_state_req_fopt, NULL);
 	if (fop != NULL) {
-		int                                       rc;
-		struct m0_fop_mgmt_service_terminate_req *ssfop;
+		int                                   rc;
+		struct m0_fop_mgmt_service_state_req *ssfop;
 
 		ssfop = m0_fop_data(fop);
 		rc = m0_addb_ctx_export(&m0_mgmt_addb_ctx,
-					&ssfop->mstrq_addb_ctx_id);
+					&ssfop->mssrq_addb_ctx_id);
 		if (rc != 0) {
-			m0_addb_ctx_id_free(&ssfop->mstrq_addb_ctx_id);
 			m0_fop_put(fop);
 			fop = NULL;
 		}
