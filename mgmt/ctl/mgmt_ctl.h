@@ -22,6 +22,8 @@
 #define __MERO_MGMT_CTL_H__
 
 #include "lib/time.h"
+#include "mgmt/mgmt.h"
+#include "rpc/rpclib.h"
 
 /**
    @defgroup mgmt_ctl_pvt Management Client Private
@@ -47,6 +49,15 @@ struct m0_mgmt_ctl_ctx {
 	bool                     mcc_yaml;
 	/** Configuration of the node, read from the genders file */
 	struct m0_mgmt_node_conf mcc_conf;
+
+	/** RPC client structure */
+	struct m0_rpc_client_ctx mcc_client;
+
+	/* m0_rpc_client_ctx related arguments */
+	struct m0_net_domain     mcc_net_dom;
+	struct m0_dbenv          mcc_dbenv;
+	struct m0_cob_domain     mcc_cob_dom;
+	char                     mcc_dbname[24];
 };
 
 /**

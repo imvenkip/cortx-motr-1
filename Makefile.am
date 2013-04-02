@@ -605,6 +605,16 @@ addb_dump_m0addbdump_LDADD     = $(top_builddir)/mero/libmero.la
 
 include $(top_srcdir)/addb/dump/Makefile.sub
 
+#
+# mgmt/ctl/m0ctl
+# (This is unrelated to utils/linux_kernel/ctl.c).
+#
+
+bin_PROGRAMS               += mgmt/ctl/m0ctl
+mgmt_ctl_m0ctl_LDADD        = $(top_builddir)/mero/libmero.la
+
+include $(top_srcdir)/mgmt/ctl/Makefile.sub
+
 
 ################################################################################
 #                                     Misc

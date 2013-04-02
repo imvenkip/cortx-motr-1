@@ -208,16 +208,154 @@
  */
 
 
+#include <stdio.h>
+
+#include "lib/errno.h"
+#include "lib/getopts.h"
+#include "lib/string.h"
+#include "lib/thread.h"
+#include "mero/init.h"
+#include "net/lnet/lnet.h"
+
+/* include local sources here */
+#include "mgmt/ctl/mgmt_ctl.h"
+#include "mgmt/ctl/utils.c"
+#include "mgmt/ctl/op_query_all.c"
+
+/**
+   @ingroup mgmt_ctl_pvt
+   @{
+ */
+
 /** An array of management operations */
 static struct m0_mgmt_ctl_op ops[] = {
-	{ .cto_op = "query-all", .ctl_main = query_all_main },
+	{ .cto_op = "query-all", .cto_main = op_qa_main },
 };
 
-static struct m0_mgmt_ctx ctx;
+static struct m0_mgmt_ctl_ctx ctx;
+
+static int usage()
+{
+	int i;
+
+	fprintf(stderr,
+"Usage: m0ctl CommandFlags Operation [OperationArgs]\n"
+"\n"
+"CommandFlags are defined as:\n"
+" [-h Hostname [-f GendersFile]] | [-e EndPoint] [-t TimeoutSecs] [-y]\n"
+"\n"
+"-h Hostname    Specify the remote host name.\n"
+"-f GendersFile Specify an alternate path to the genders file.\n"
+"-e EndPoint    Specify the raw transport end point address.\n"
+"-t TimeoutSecs Specify the amount of time that the command will wait for\n"
+"               a response.  The default is 30 seconds.\n"
+"-y             Specfify that the output must be emitted in YAML.\n"
+"\n"
+"With no command flags a connection to the local m0d will be established.\n"
+"\n"
+"Operation is one of:\n"
+		);
+	for (i = 0; i < ARRAY_SIZE(ops); ++i)
+		fprintf(stderr, "\t%s\n", ops[i].cto_op);
+	fprintf(stderr,
+"\nProvide '-?' as an argument to an operation for details.\n");
+	return 1;
+}
 
 int main(int argc, char *argv[])
 {
+	int i;
+	int rc;
+	char *cmd;
+	int cmd_argc;
+	struct m0_mgmt_ctl_op *op;
+
+	/*
+	  Parse command flags.
+	  Cannot use M0_GETOPTS because it looks at the operation flags too!
+	  Can use M0_GETOPTS in the individual operations.
+	*/
+	rc = 0;
+	ctx.mcc_timeout = 30; /* secs - convert to ns later */
+
+#define HAS_ARG(f)							\
+	if (i + 1 >= argc) {						\
+		fprintf(stderr, "Error: '%s' needs an argument\n", f);  \
+		return 1;						\
+	}
+#define SARG(f, func)				\
+	if (strcmp(f, argv[i]) == 0) {		\
+		HAS_ARG(f);			\
+		(*func)(argv[++i]);		\
+		continue;			\
+	}
+#define U64ARG(f, func)					\
+	if (strcmp(f, argv[i]) == 0) {			\
+		uint64_t ui;				\
+		HAS_ARG(f);				\
+		ui = strtoull(argv[++i], NULL, 0);	\
+		(*func)(ui);				\
+		continue;				\
+	}
+#define BOOLARG(f, func)			\
+	if (strcmp(f, argv[i]) == 0) {		\
+		(*func)();			\
+		continue;			\
+	}
+
+	for (i = 1; i < argc; ++i) {
+		SARG("-e", LAMBDA(void, (char *s) {
+					ctx.mcc_conf.mnc_m0d_ep = s;
+				}));
+		SARG("-f", LAMBDA(void, (char *s) {
+					ctx.mcc_genders = s;
+				}));
+		SARG("-h", LAMBDA(void, (char *s) {
+					ctx.mcc_conf.mnc_name = s;
+				}));
+		U64ARG("-t", LAMBDA(void, (uint64_t ui) {
+					ctx.mcc_timeout = ui;
+				}));
+		BOOLARG("-y", LAMBDA(void, (void) {
+					ctx.mcc_yaml = true;
+				}));
+		if (strcmp(argv[i], "-?") == 0)
+			return usage();
+		if (*argv[i] == '-') {
+			fprintf(stderr, "Invalid command flag '%s'\n"
+				"Use '-?' for help\n", argv[i]);
+			return 1;
+		} else
+			break; /* non-flag */
+	}
+	if (i >= argc)
+		return usage();
+#undef HAS_ARG
+#undef SARG
+#undef U64ARG
+#undef BOOLARG
+
+	/* find the command */
+	cmd_argc = i;
+	cmd = argv[cmd_argc];
+	for (i = 0, op = NULL; i < ARRAY_SIZE(ops); ++i)
+		if (strcmp(cmd, ops[i].cto_op) == 0) {
+			op = &ops[i];
+			break;
+		}
+	if (op == NULL)
+		return usage();
+
+	ctx.mcc_timeout = M0_MKTIME(ctx.mcc_timeout, 0);
+
+	/** @todo complete initialization of ctx.mcc_conf from genders */
+
+	rc = op->cto_main(argc - cmd_argc, &argv[cmd_argc], &ctx);
+
+	return rc;
 }
+
+/** @} end mgmt_ctl_pvt group */
 
 /*
  *  Local variables:

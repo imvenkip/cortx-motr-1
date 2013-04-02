@@ -1,0 +1,5 @@
+mgmt_ctl_m0ctl_SOURCES = mgmt/ctl/mgmt_ctl.c \
+                         mgmt/ctl/mgmt_ctl.h
+
+EXTRA_DIST += mgmt/ctl/op_query_all.c \
+	      mgmt/ctl/utils.c
