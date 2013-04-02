@@ -1,3 +1,6 @@
+# optional configure options
+%define with_linux %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
+
 Name:           @PACKAGE@
 Version:        @PACKAGE_VERSION@
 # TODO: add kernel version to release string like in lustre
@@ -19,7 +22,7 @@ Mero filesystem runtime environment and servers.
 %setup -q
 
 %build
-%configure --disable-unit-tests
+%configure %{with_linux} --disable-unit-tests
 make %{?_smp_mflags}
 
 %install
