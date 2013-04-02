@@ -45,18 +45,17 @@ struct m0_mgmt_ctl_ctx {
 	bool                     mcc_yaml;
 	/** Configuration of the node, read from the genders file */
 	struct m0_mgmt_node_conf mcc_conf;
-
+	/** name of temporary directory */
+	char                     mcc_tmpdir[24];
+	/** The ADDB context is a child of the proc context. */
+	struct m0_addb_ctx       mcc_addb_ctx;
 	/** RPC client structure */
 	struct m0_rpc_client_ctx mcc_client;
-
 	/* m0_rpc_client_ctx related arguments */
 	struct m0_net_domain     mcc_net_dom;
 	struct m0_dbenv          mcc_dbenv;
 	struct m0_cob_domain     mcc_cob_dom;
 	char                     mcc_dbname[24];
-
-	/** The ADDB context is a child of the proc context. */
-	struct m0_addb_ctx       mcc_addb_ctx;
 };
 
 /**

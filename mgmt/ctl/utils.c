@@ -40,17 +40,38 @@ static void emit_error(struct m0_mgmt_ctl_ctx *ctx, const char *msg, int rc)
 		fprintf(stderr, "Error: %s (%d)\n", msg, rc);
 }
 
-static int mgmt_ctl_client_init(struct m0_mgmt_ctl_ctx *ctx)
+/**
+  Create a private directory for the database and other
+  internal garbage.
+*/
+static int make_tmpdir(struct m0_mgmt_ctl_ctx *ctx)
+{
+	sprintf(ctx->mcc_tmpdir, "/tmp/m0ctlXXXXXX");
+	M0_ASSERT(strlen(ctx->mcc_tmpdir) < ARRAY_SIZE(ctx->mcc_tmpdir));
+	if (mkdtemp(ctx->mcc_tmpdir) == NULL) {
+		int rc = -errno;
+		emit_error(ctx, "Failed to create temporary directory", rc);
+		return rc;
+	}
+	return 0;
+}
+
+static void unlink_tmpdir(struct m0_mgmt_ctl_ctx *ctx)
+{
+	char cmd[64];
+
+	if (ctx->mcc_tmpdir[0] == '\0')
+		return;
+	M0_ASSERT(strcmp(ctx->mcc_tmpdir, "/") != 0);
+	sprintf(cmd, "/bin/rm -rf %s", ctx->mcc_tmpdir);
+	system(cmd);
+}
+
+static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 {
 	int rc;
 	struct m0_rpc_client_ctx *c;
 	struct m0_cob_domain_id   cob_dom_id;
-
-	rc = m0_init();
-	if (rc != 0) {
-		emit_error(ctx, "Failed to initialize library", rc);
-		return rc;
-	}
 
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &ctx->mcc_addb_ctx, &m0_addb_ct_mgmt_ctl,
 			 &m0_addb_proc_ctx);
@@ -58,10 +79,8 @@ static int mgmt_ctl_client_init(struct m0_mgmt_ctl_ctx *ctx)
 	c = &ctx->mcc_client;
 	M0_PRE(c->rcx_net_dom == NULL);
 
-	/* Create a private database. */
-	/** @todo Q: is this a file or a directory? */
-	sprintf(ctx->mcc_dbname, "/tmp/m0ctlXXXXXX.db");
-	mktemp(ctx->mcc_dbname);
+	M0_ASSERT(ctx->mcc_tmpdir[0] != '\0');
+	sprintf(ctx->mcc_dbname, "%s/db", ctx->mcc_tmpdir);
 	M0_ASSERT(strlen(ctx->mcc_dbname) < ARRAY_SIZE(ctx->mcc_dbname));
 
 	/*
@@ -69,8 +88,8 @@ static int mgmt_ctl_client_init(struct m0_mgmt_ctl_ctx *ctx)
 	  among others.
 	 */
 	c->rcx_net_dom               = &ctx->mcc_net_dom;
-	c->rcx_local_addr            = 0; /** @todo from genders */
-	c->rcx_remote_addr           = 0; /** @todo from genders */
+	c->rcx_local_addr            = ctx->mcc_conf.mnc_client_ep;
+	c->rcx_remote_addr           = ctx->mcc_conf.mnc_m0d_ep;
 	c->rcx_db_name               = ctx->mcc_dbname;
 	c->rcx_dbenv                 = &ctx->mcc_dbenv;
 	c->rcx_cob_dom_id            = 999; /* arbitrary */
@@ -120,19 +139,17 @@ static int mgmt_ctl_client_init(struct m0_mgmt_ctl_ctx *ctx)
 	m0_cob_domain_fini(c->rcx_cob_dom);
  cob_domain_fail:
 	m0_dbenv_fini(c->rcx_dbenv);
-	unlink(c->rcx_db_name); /** @todo rmdir? */
  dbenv_fail:
 	m0_net_domain_fini(c->rcx_net_dom);
  net_domain_fail:
 	m0_net_xprt_fini(&m0_net_lnet_xprt);
 	c->rcx_net_dom = NULL;
 	M0_ASSERT(rc != 0);
-	m0_fini();
 	fprintf(stderr, "Failed to initialize client\n");
 	return rc;
 }
 
-static void mgmt_ctl_client_fini(struct m0_mgmt_ctl_ctx *ctx)
+static void client_fini(struct m0_mgmt_ctl_ctx *ctx)
 {
 	int rc;
 	struct m0_rpc_client_ctx *c = &ctx->mcc_client;
@@ -141,12 +158,10 @@ static void mgmt_ctl_client_fini(struct m0_mgmt_ctl_ctx *ctx)
 	rc = m0_rpc_client_stop(c);
 	m0_cob_domain_fini(c->rcx_cob_dom);
 	m0_dbenv_fini(c->rcx_dbenv);
-	unlink(c->rcx_db_name); /** @todo rmdir? */
 	m0_net_domain_fini(c->rcx_net_dom);
 	m0_net_xprt_fini(&m0_net_lnet_xprt);
 	c->rcx_net_dom = NULL;
 	m0_addb_ctx_fini(&ctx->mcc_addb_ctx);
-	m0_fini();
 }
 
 /**
@@ -195,7 +210,12 @@ static const char *rs_to_string(int rs)
 static const char *uuid_to_stype(struct m0_mgmt_ctl_ctx *ctx,
 				 const char *uuid)
 {
-	/** @todo need genders data */
+	struct m0_mgmt_svc_conf *svc;
+
+	m0_tlist_for(&m0_mgmt_conf_tl, &ctx->mcc_conf.mnc_svc, svc) {
+		if (strcasecmp(svc->msc_uuid, uuid) == 0)
+			return svc->msc_name;
+	} m0_tlist_endfor;
 	return "unknown";
 }
 

@@ -131,7 +131,7 @@ static int op_qa_main(int argc, char *argv[],
 		return -EINVAL;
 	}
 
-	rc = mgmt_ctl_client_init(ctx);
+	rc = client_init(ctx);
 	if (rc != 0)
 		return rc;
 
@@ -141,7 +141,7 @@ static int op_qa_main(int argc, char *argv[],
 		rc = op_qa_run(ctx);
 	}
 
-	mgmt_ctl_client_fini(ctx);
+	client_fini(ctx);
 	return rc;
 }
 

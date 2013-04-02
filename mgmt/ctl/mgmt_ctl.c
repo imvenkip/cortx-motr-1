@@ -208,11 +208,15 @@
  */
 
 
+#include <signal.h>
 #include <stdio.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "fop/fop.h"
 #include "lib/errno.h"
 #include "lib/getopts.h"
+#include "lib/misc.h"
 #include "lib/string.h"
 #include "lib/thread.h"
 #include "lib/time.h"
@@ -251,16 +255,16 @@ static int usage()
 "Usage: m0ctl CommandFlags Operation [OperationArgs]\n"
 "\n"
 "CommandFlags are defined as:\n"
-" [-h Hostname [-f GendersFile]] | [-e EndPoint] [-t TimeoutSecs] [-y]\n"
+" [-h Hostname | -e EndPoint] [-f GendersFile] [-t TimeoutSecs] [-y]\n"
 "\n"
-"-h Hostname    Specify the remote host name.\n"
-"-f GendersFile Specify an alternate path to the genders file.\n"
 "-e EndPoint    Specify the raw transport end point address.\n"
+"-f GendersFile Specify an alternate path to the genders file.\n"
+"-h Hostname    Specify the remote host name.\n"
 "-t TimeoutSecs Specify the amount of time that the command will wait for\n"
 "               a response.  The default is 30 seconds.\n"
 "-y             Specfify that the output must be emitted in YAML.\n"
 "\n"
-"With no command flags a connection to the local m0d will be established.\n"
+"By default a connection to the local m0d will be established unless.\n"
 "\n"
 "Operation is one of:\n"
 		);
@@ -271,6 +275,16 @@ static int usage()
 	return 1;
 }
 
+/**
+   Signal handler to cleanup on interrup.
+ */
+static void sig_handler(int signum)
+{
+	m0_fini();
+	unlink_tmpdir(&ctx);
+	exit(2);
+}
+
 int main(int argc, char *argv[])
 {
 	int i;
@@ -278,6 +292,9 @@ int main(int argc, char *argv[])
 	char *cmd;
 	int cmd_argc;
 	struct m0_mgmt_ctl_op *op;
+	char *alt_ep = NULL;
+	char *alt_h = NULL;
+	struct sigaction sa;
 
 	/*
 	  Parse command flags.
@@ -313,15 +330,11 @@ int main(int argc, char *argv[])
 	}
 
 	for (i = 1; i < argc; ++i) {
-		SARG("-e", LAMBDA(void, (char *s) {
-					ctx.mcc_conf.mnc_m0d_ep = s;
-				}));
+		SARG("-e", LAMBDA(void, (char *s) { alt_ep = s; }));
 		SARG("-f", LAMBDA(void, (char *s) {
 					ctx.mcc_genders = s;
 				}));
-		SARG("-h", LAMBDA(void, (char *s) {
-					ctx.mcc_conf.mnc_name = s;
-				}));
+		SARG("-h", LAMBDA(void, (char *s) { alt_h = s; }));
 		U64ARG("-t", LAMBDA(void, (uint64_t ui) {
 					ctx.mcc_timeout = ui;
 				}));
@@ -355,18 +368,46 @@ int main(int argc, char *argv[])
 	if (op == NULL)
 		return usage();
 
+	/* initialize the library */
+	rc = m0_init();
+	if (rc != 0) {
+		emit_error(&ctx, "Failed to initialize library", rc);
+		return 1;
+	}
+
+	/* set up a signal handler to finalize */
+	M0_SET0(&sa);
+	sa.sa_handler = sig_handler;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	sigaction(SIGTERM, &sa, NULL);
+	sigaction(SIGINT,  &sa, NULL);
+	sigaction(SIGQUIT, &sa, NULL);
+
+	/* create work arena */
+	rc = make_tmpdir(&ctx);
+	if (rc != 0)
+		return 1;
+
+	/* load the configuration */
+	/** @todo specify alt_h override */
+	rc = m0_mgmt_node_conf_init(&ctx.mcc_conf, ctx.mcc_genders);
+	if (rc != 0) {
+		emit_error(&ctx, "Failed to load configuration", rc);
+		goto fail;
+	}
 	ctx.mcc_timeout = M0_MKTIME(ctx.mcc_timeout, 0);
+	if (alt_ep != NULL)
+		ctx.mcc_conf.mnc_m0d_ep = alt_ep;
 
-	/*
-	  NOTE: m0_init() is currently done in mgmt_ctl_client_init().
-	  Move it here if necessary.
-	 */
-
-	/** @todo complete initialization of ctx.mcc_conf from genders */
-
+	/* run the command */
 	rc = op->cto_main(argc - cmd_argc, &argv[cmd_argc], &ctx);
 
-	return rc;
+	m0_mgmt_node_conf_fini(&ctx.mcc_conf);
+ fail:
+	m0_fini();
+	unlink_tmpdir(&ctx);
+	return !(rc == 0);
 }
 
 /** @} end mgmt_ctl_pvt group */
