@@ -380,6 +380,12 @@ enum m0_magic_satchel {
 	/* mgmt_fop_ss_fom_bob (obese seafood) */
 	M0_MGMT_FOP_SS_FOM_MAGIC = 0x330be5e5eaf00d77,
 
+	/* m0_mgmt_svc_conf::msc_magic (calico saddle) */
+	M0_MGMT_SVC_CONF_MAGIC = 0x33ca11c05add1e77,
+
+	/* m0_mgmt_node_conf::mnc_svc magic (calico lilacs) */
+	M0_MGMT_NODE_CONF_MAGIC = 0x33ca11c0111ac577,
+
 /* Net */
 	/* m0_net_domain::nd_magix (acidic access) */
 	M0_NET_DOMAIN_MAGIC = 0x33ac1d1cacce5577,

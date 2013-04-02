@@ -95,12 +95,18 @@
  */
 
 #include "lib/errno.h"
+#include "mero/magic.h"
 #include "mgmt/mgmt.h"
 
 /**
    @addtogroup mgmt
    @{
  */
+
+M0_TL_DESCR_DEFINE(m0_mgmt_conf, "mgmt conf svcs", M0_INTERNAL,
+		   struct m0_mgmt_svc_conf, msc_link, msc_magic,
+		   M0_MGMT_SVC_CONF_MAGIC, M0_MGMT_NODE_CONF_MAGIC);
+M0_TL_DEFINE(m0_mgmt_conf, M0_INTERNAL, struct m0_mgmt_svc_conf);
 
 M0_INTERNAL int m0_mgmt_node_conf_init(struct m0_mgmt_node_conf *conf,
 				       const char *genders)

@@ -22,6 +22,7 @@
 #define __MERO_MGMT_MGMT_H__
 
 #include "lib/tlist.h"
+
 struct m0_reqh_service;
 
 /**
@@ -56,13 +57,14 @@ M0_INTERNAL int m0_mgmt_service_allocate(struct m0_reqh_service **service);
  * @todo use conf objects if possible once they are extended
  */
 struct m0_mgmt_svc_conf {
+	uint64_t        msc_magic;
 	/** Service name */
 	char           *msc_name;
 	/** Service UUID */
 	char           *msc_uuid;
 	/** Service options/arguments */
 	char          **msc_arg;
-	struct m0_tlink msc_linkage;
+	struct m0_tlink msc_link;
 };
 
 /**
@@ -71,11 +73,11 @@ struct m0_mgmt_svc_conf {
  */
 struct m0_mgmt_node_conf {
 	/** The node name */
-	char       *mnc_name;
+	char        *mnc_name;
 	/** String endpoint of m0d */
-	char       *mnc_m0d_ep;
+	char        *mnc_m0d_ep;
 	/** String endpoint of client */
-	char       *mnc_client_ep;
+	char        *mnc_client_ep;
 	/** The "var" directory, eg /var/mero */
 	char        *mnc_var;
 	/** The node UUID */
@@ -85,8 +87,11 @@ struct m0_mgmt_node_conf {
 	/** Minimum recv queue length */
 	uint32_t     mnc_recv_queue_min_length;
 	/** List of services on this node */
-	struct m0_tl mnv_svc;
+	struct m0_tl mnc_svc;
 };
+
+M0_TL_DESCR_DECLARE(m0_mgmt_conf, M0_EXTERN);
+M0_TL_DECLARE(m0_mgmt_conf, M0_INTERNAL, struct m0_mgmt_svc_conf);
 
 /**
  * Initialize a m0_mgmt_node_conf object using information in the given
