@@ -49,10 +49,11 @@ struct m0_dtm_dtx {
 };
 
 struct m0_dtm_dtx_srv {
+	struct m0_dtm_history ds_history;
 };
 
-M0_INTERNAL int m0_dtm_dtx_init(struct m0_dtm_dtx *dtx, struct m0_dtm *dtm,
-				uint32_t nr_max);
+M0_INTERNAL int m0_dtm_dtx_init(struct m0_dtm_dtx *dtx, uint64_t id,
+				struct m0_dtm *dtm, uint32_t nr_max);
 M0_INTERNAL void m0_dtm_dtx_fini(struct m0_dtm_dtx *dtx);
 
 M0_INTERNAL void m0_dtm_dtx_add(struct m0_dtm_dtx *dtx,

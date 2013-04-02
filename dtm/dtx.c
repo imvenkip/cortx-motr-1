@@ -41,9 +41,10 @@ struct m0_dtm_dtx_party {
 static struct m0_dtm_controlh *dtx_get(struct m0_dtm_dtx *dtx,
 				       struct m0_dtm_remote *dtm);
 
-M0_INTERNAL int m0_dtm_dtx_init(struct m0_dtm_dtx *dtx, struct m0_dtm *dtm,
-				 uint32_t nr_max)
+M0_INTERNAL int m0_dtm_dtx_init(struct m0_dtm_dtx *dtx, uint64_t id,
+				struct m0_dtm *dtm, uint32_t nr_max)
 {
+	dtx->dt_id = id;
 	dtx->dt_dtm = dtm;
 	dtx->dt_nr_max = nr_max;
 	dtx->dt_nr = dtx->dt_nr_fixed = 0;
@@ -125,8 +126,13 @@ static void dtx_id(const struct m0_dtm_history *history, struct m0_uint128 *id)
 static void dtx_fixed(struct m0_dtm_history *history)
 {
 	struct m0_dtm_dtx_party *pa;
+	struct m0_dtm_dtx       *dx;
 
 	pa = container_of(history, struct m0_dtm_dtx_party, pa_ch.ch_history);
+	dx = pa->pa_dtx;
+	M0_ASSERT(dx->dt_nr_fixed < dx->dt_nr);
+	if (++dx->dt_nr_fixed == dx->dt_nr) {
+	}
 }
 
 static const struct m0_dtm_history_ops dtx_ops = {

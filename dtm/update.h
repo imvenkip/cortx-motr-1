@@ -87,10 +87,10 @@ struct m0_dtm_update_data {
 struct m0_dtm_update_descr {
 	uint32_t                  udd_htype;
 	struct m0_dtm_update_data udd_data;
-	uint32_t          udd_label;
-	uint32_t          udd_rule;
-	uint64_t          udd_ver;
-	uint64_t          udd_orig_ver;
+	uint32_t                  udd_label;
+	uint32_t                  udd_rule;
+	uint64_t                  udd_ver;
+	uint64_t                  udd_orig_ver;
 	struct m0_uint128         udd_id;
 } M0_XCA_RECORD;
 
