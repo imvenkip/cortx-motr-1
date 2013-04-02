@@ -21,10 +21,6 @@
 #ifndef __MERO_MGMT_CTL_H__
 #define __MERO_MGMT_CTL_H__
 
-#include "lib/time.h"
-#include "mgmt/mgmt.h"
-#include "rpc/rpclib.h"
-
 /**
    @defgroup mgmt_ctl_pvt Management Client Private
    @ingroup mgmt_pvt
@@ -58,6 +54,9 @@ struct m0_mgmt_ctl_ctx {
 	struct m0_dbenv          mcc_dbenv;
 	struct m0_cob_domain     mcc_cob_dom;
 	char                     mcc_dbname[24];
+
+	/** The ADDB context is a child of the proc context. */
+	struct m0_addb_ctx       mcc_addb_ctx;
 };
 
 /**

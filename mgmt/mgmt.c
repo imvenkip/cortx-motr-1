@@ -481,6 +481,7 @@ M0_INTERNAL int m0_mgmt_init(void)
 	m0_xc_mgmt_fops_init();
 	m0_addb_ctx_type_register(&m0_addb_ct_mgmt_mod);
 	m0_addb_ctx_type_register(&m0_addb_ct_mgmt_service);
+	m0_addb_ctx_type_register(&m0_addb_ct_mgmt_ctl);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_mgmt_addb_ctx, &m0_addb_ct_mgmt_mod,
 			 &m0_addb_proc_ctx);
 

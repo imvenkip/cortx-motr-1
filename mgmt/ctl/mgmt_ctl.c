@@ -210,12 +210,21 @@
 
 #include <stdio.h>
 
+#include "fop/fop.h"
 #include "lib/errno.h"
 #include "lib/getopts.h"
 #include "lib/string.h"
 #include "lib/thread.h"
+#include "lib/time.h"
+#include "lib/uuid.h"
 #include "mero/init.h"
+#include "mgmt/mgmt.h"
+#include "mgmt/mgmt_addb.h"
+#include "mgmt/mgmt_fops.h"
 #include "net/lnet/lnet.h"
+#include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
+#include "rpc/rpclib.h"
 
 /* include local sources here */
 #include "mgmt/ctl/mgmt_ctl.h"
@@ -347,6 +356,11 @@ int main(int argc, char *argv[])
 		return usage();
 
 	ctx.mcc_timeout = M0_MKTIME(ctx.mcc_timeout, 0);
+
+	/*
+	  NOTE: m0_init() is currently done in mgmt_ctl_client_init().
+	  Move it here if necessary.
+	 */
 
 	/** @todo complete initialization of ctx.mcc_conf from genders */
 
