@@ -29,6 +29,7 @@
 static char mgmt_conf_hostname[HOST_NAME_MAX];
 
 static char *genders_proto[] = {
+	"h[00-10],%s  m0_all\n",
 	"h[00-10]     m0_lnet_if=o2ib0,m0_lnet_pid=12345\n",
 	"h[00-10],%s  m0_lnet_kernel_portal=34\n",
 	"h[00-10],%s  m0_lnet_m0d_portal=35\n",
@@ -107,8 +108,12 @@ static int mgmt_conf_ut_fini(void)
 
 static void test_genders_parse(void)
 {
-	struct m0_mgmt_conf conf;
-	int                 rc;
+	struct m0_mgmt_conf      conf;
+	struct m0_mgmt_svc_conf *svc;
+	int                      rc;
+	bool                     saw_addb = false;
+	bool                     saw_ioservice = false;
+	bool                     saw_sns = false;
 
 	rc = m0_mgmt_conf_init(&conf, "test-genders", NULL);
 	M0_UT_ASSERT(rc == 0);
@@ -121,6 +126,42 @@ static void test_genders_parse(void)
 	M0_UT_ASSERT(strcmp(conf.mnc_client_uuid, conf.mnc_uuid) == 0);
 	M0_UT_ASSERT(strcmp(conf.mnc_var, "var_mero") == 0);
 	M0_UT_ASSERT(m0_mgmt_conf_tlist_length(&conf.mnc_svc) == 3);
+	m0_tl_for(m0_mgmt_conf, &conf.mnc_svc, svc) {
+		if (strcmp(svc->msc_name, "addb") == 0) {
+			M0_UT_ASSERT(!saw_addb);
+			saw_addb = true;
+			M0_UT_ASSERT(strcmp(svc->msc_uuid,
+			    "a1c18e3c-76a5-482a-a52c-10f91f65f399") == 0);
+			M0_UT_ASSERT(svc->msc_argc == 2);
+			M0_UT_ASSERT(strcmp(svc->msc_argv[1],
+					    "/etc/mero/stobs") == 0);
+		} else if (strcmp(svc->msc_name, "ioservice") == 0) {
+			M0_UT_ASSERT(!saw_ioservice);
+			saw_ioservice = true;
+			M0_UT_ASSERT(strcmp(svc->msc_uuid,
+			    "f595564a-20ca-4b12-8f4b-0d2f82726d61") == 0);
+			M0_UT_ASSERT(svc->msc_argc == 4);
+			M0_UT_ASSERT(strcmp(svc->msc_argv[3],
+					    "/etc/mero/stobs") == 0);
+		} else {
+			M0_UT_ASSERT(strcmp(svc->msc_name, "sns") == 0);
+			M0_UT_ASSERT(!saw_sns);
+			saw_sns = true;
+			M0_UT_ASSERT(strcmp(svc->msc_uuid,
+			    "97b8a598-9377-4d8e-af1c-f1c74640df99") == 0);
+			M0_UT_ASSERT(svc->msc_argc == 0);
+			M0_UT_ASSERT(svc->msc_argv == NULL);
+		}
+	} m0_tlist_endfor;
+	m0_mgmt_conf_fini(&conf);
+
+	rc = m0_mgmt_conf_init(&conf, "test-genders", "h00");
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(strcmp(conf.mnc_m0d_ep,
+			    "192.168.1.2@o2ib0:12345:35:0") == 0);
+	M0_UT_ASSERT(strcmp(conf.mnc_client_ep,
+			    "127.0.0.1@tcp:12121:36:*") == 0);
+	M0_UT_ASSERT(m0_mgmt_conf_tlist_length(&conf.mnc_svc) == 6);
 	m0_mgmt_conf_fini(&conf);
 }
 

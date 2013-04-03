@@ -169,7 +169,7 @@ static int mgmt_svc_add(struct m0_mgmt_conf *conf, char *name, char *args)
 		if (svc == NULL)
 			return -ENOMEM;
 		m0_mgmt_conf_tlink_init(svc);
-		m0_mgmt_conf_tlist_add(&conf->mnc_svc, svc);
+		m0_mgmt_conf_tlist_add_tail(&conf->mnc_svc, svc);
 		svc->msc_argc = -1;
 		/** @todo use m0_strdup throughout this file when available */
 		svc->msc_name = strdup(name);
@@ -218,7 +218,7 @@ static int mgmt_uuid_add(struct m0_mgmt_conf *conf, char *name, char *uuid)
 		M0_ALLOC_PTR(svc);
 		if (svc == NULL)
 			return -ENOMEM;
-		m0_mgmt_conf_tlist_add(&conf->mnc_svc, svc);
+		m0_mgmt_conf_tlist_add_tail(&conf->mnc_svc, svc);
 		svc->msc_argc = -1;
 		svc->msc_name = strdup(name);
 		if (svc->msc_name == NULL)
