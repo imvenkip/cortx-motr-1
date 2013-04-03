@@ -70,6 +70,7 @@ static int mgmt_conf_ut_init(void)
 	char *ptr;
 	int   i;
 	int   rc;
+	int   rc2;
 
 	rc = mkdir("var_mero", 0777);
 	if (rc != 0)
@@ -94,15 +95,18 @@ static int mgmt_conf_ut_init(void)
 			break;
 		}
 	}
-	rc = fclose(g);
-	if (rc != 0)
-		rc = -errno;
+	rc2 = fclose(g);
+	if (rc2 != 0)
+		rc2 = -errno;
+	if (rc >= 0)
+		rc = rc2;
 
 	return rc;
 }
 
 static int mgmt_conf_ut_fini(void)
 {
+	/* do not delete directory or test-genders, sandbox handles this */
 	return 0;
 }
 
@@ -159,8 +163,12 @@ static void test_genders_parse(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(strcmp(conf.mnc_m0d_ep,
 			    "192.168.1.2@o2ib0:12345:35:0") == 0);
+	M0_UT_ASSERT(strcmp(conf.mnc_uuid,
+			    "b47539c2-143e-44e8-9594-a8f6e09bfec0") == 0);
 	M0_UT_ASSERT(strcmp(conf.mnc_client_ep,
 			    "127.0.0.1@tcp:12121:36:*") == 0);
+	M0_UT_ASSERT(strcmp(conf.mnc_client_uuid,
+			    "4b7539c2-143e-44e8-9594-a8f6e09bfec0") == 0);
 	M0_UT_ASSERT(m0_mgmt_conf_tlist_length(&conf.mnc_svc) == 6);
 	m0_mgmt_conf_fini(&conf);
 }
