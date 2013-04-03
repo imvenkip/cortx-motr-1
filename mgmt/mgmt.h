@@ -63,30 +63,34 @@ struct m0_mgmt_svc_conf {
 	/** Service UUID */
 	char           *msc_uuid;
 	/** Service options/arguments */
-	char          **msc_arg;
+	char          **msc_argv;
+	int             msc_argc;
 	struct m0_tlink msc_link;
 };
 
 /**
  * Properties of single mero server node.
  * @todo use conf objects if possible once they are extended
+ * @todo separate client information from server node information
  */
-struct m0_mgmt_node_conf {
-	/** The node name */
+struct m0_mgmt_conf {
+	/** The (remote) node name */
 	char        *mnc_name;
-	/** String endpoint of m0d */
-	char        *mnc_m0d_ep;
-	/** String endpoint of client */
-	char        *mnc_client_ep;
-	/** The "var" directory, eg /var/mero */
-	char        *mnc_var;
-	/** The node UUID */
+	/** The (remote) node UUID */
 	char        *mnc_uuid;
+	/** String endpoint of (remote) m0d */
+	char        *mnc_m0d_ep;
+	/** String endpoint of client, always for local node */
+	char        *mnc_client_ep;
+	/** The client node UUID */
+	char        *mnc_client_uuid;
+	/** The client "var" directory, eg /var/mero */
+	char        *mnc_var;
 	/** Max RPC message size */
 	m0_bcount_t  mnc_max_rpc_msg;
 	/** Minimum recv queue length */
 	uint32_t     mnc_recv_queue_min_length;
-	/** List of services on this node */
+	/** List of services on (remote) node */
 	struct m0_tl mnc_svc;
 };
 
@@ -94,17 +98,21 @@ M0_TL_DESCR_DECLARE(m0_mgmt_conf, M0_EXTERN);
 M0_TL_DECLARE(m0_mgmt_conf, M0_INTERNAL, struct m0_mgmt_svc_conf);
 
 /**
- * Initialize a m0_mgmt_node_conf object using information in the given
+ * Initialize a m0_mgmt_conf object using information in the given
  * genders file.
+ * @param conf Object to initialize.
+ * @param genders Path to genders file, defaults to /etc/mero/genders.
+ * @param nodename Node whose configuration is desired, NULL for localhost.
  * @retval -ENOENT Genders files does not exist
  * @retval -ENODATA No data for this node found in genders
  * @retval -EINVAL Node information is incomplete (e.g. missing node UUID)
  * @note additional errors can be returned.
  */
-M0_INTERNAL int m0_mgmt_node_conf_init(struct m0_mgmt_node_conf *conf,
-				       const char *genders);
+M0_INTERNAL int m0_mgmt_conf_init(struct m0_mgmt_conf *conf,
+				  const char *genders,
+				  const char *nodename);
 
-M0_INTERNAL void m0_mgmt_node_conf_fini(struct m0_mgmt_node_conf *conf);
+M0_INTERNAL void m0_mgmt_conf_fini(struct m0_mgmt_conf *conf);
 
 /** @} end mgmt group */
 #endif /* __MERO_MGMT_MGMT_H__ */

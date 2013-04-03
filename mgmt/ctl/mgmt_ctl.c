@@ -391,7 +391,7 @@ int main(int argc, char *argv[])
 
 	/* load the configuration */
 	/** @todo specify alt_h override */
-	rc = m0_mgmt_node_conf_init(&ctx.mcc_conf, ctx.mcc_genders);
+	rc = m0_mgmt_conf_init(&ctx.mcc_conf, ctx.mcc_genders, NULL);
 	if (rc != 0) {
 		emit_error(&ctx, "Failed to load configuration", rc);
 		goto fail;
@@ -403,7 +403,7 @@ int main(int argc, char *argv[])
 	/* run the command */
 	rc = op->cto_main(argc - cmd_argc, &argv[cmd_argc], &ctx);
 
-	m0_mgmt_node_conf_fini(&ctx.mcc_conf);
+	m0_mgmt_conf_fini(&ctx.mcc_conf);
  fail:
 	m0_fini();
 	unlink_tmpdir(&ctx);

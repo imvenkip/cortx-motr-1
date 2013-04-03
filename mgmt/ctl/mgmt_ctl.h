@@ -44,7 +44,7 @@ struct m0_mgmt_ctl_ctx {
 	/** Output in YAML when true */
 	bool                     mcc_yaml;
 	/** Configuration of the node, read from the genders file */
-	struct m0_mgmt_node_conf mcc_conf;
+	struct m0_mgmt_conf      mcc_conf;
 	/** name of temporary directory */
 	char                     mcc_tmpdir[24];
 	/** The ADDB context is a child of the proc context. */
