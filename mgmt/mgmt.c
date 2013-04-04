@@ -167,10 +167,10 @@
 
    A standard Mero deployment pattern is defined for this purpose:
    - The kernel module will use a well known portal number.  Its request
-     handler will use a TMID of 0.
+     handler will use a TMID of 1.
    - There will be only one m0d per node, with a well known portal number.
      - There will be only one request handler per m0d. The request handler will
-     have only one network end point and will use a TMID of 0.
+     have only one network end point and will use a TMID of 1.
      - All services relevant to a node will be configured to run within this
      m0d process.
    - Use of the /etc/hosts and /etc/mero/genders databases to capture static

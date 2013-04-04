@@ -124,7 +124,7 @@ static void test_genders_parse(void)
 	M0_UT_ASSERT(strcmp(conf.mnc_name, mgmt_conf_hostname) == 0);
 	M0_UT_ASSERT(strcmp(conf.mnc_uuid,
 			    "4b7539c2-143e-44e8-9594-a8f6e09bfec0") == 0);
-	M0_UT_ASSERT(strcmp(conf.mnc_m0d_ep, "127.0.0.1@tcp:12121:35:0") == 0);
+	M0_UT_ASSERT(strcmp(conf.mnc_m0d_ep, "127.0.0.1@tcp:12121:35:1") == 0);
 	M0_UT_ASSERT(strcmp(conf.mnc_client_ep,
 			    "127.0.0.1@tcp:12121:36:*") == 0);
 	M0_UT_ASSERT(strcmp(conf.mnc_client_uuid, conf.mnc_uuid) == 0);
@@ -162,7 +162,7 @@ static void test_genders_parse(void)
 	rc = m0_mgmt_conf_init(&conf, "test-genders", "h00");
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(strcmp(conf.mnc_m0d_ep,
-			    "192.168.1.2@o2ib0:12345:35:0") == 0);
+			    "192.168.1.2@o2ib0:12345:35:1") == 0);
 	M0_UT_ASSERT(strcmp(conf.mnc_uuid,
 			    "b47539c2-143e-44e8-9594-a8f6e09bfec0") == 0);
 	M0_UT_ASSERT(strcmp(conf.mnc_client_ep,

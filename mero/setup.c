@@ -1602,6 +1602,8 @@ static void cs_help(FILE *out)
 "  -G addr  Endpoint address of mdservice.\n"
 "  -L addr  Client endpoint address to mdservice.\n"
 "  -i addr  Add new entry to the list of ioservice endpoint addresses.\n"
+"  -f path  Path to genders file, defaults to /etc/mero/genders.\n"
+"  -g       Bootstrap configuration using genders.\n"
 "\n"
 "Request handler options:\n"
 "  -r   Start new set of request handler options.\n"
@@ -1619,8 +1621,7 @@ static void cs_help(FILE *out)
 "           corresponding device path.\n"
 "           E.g. id: 0,\n"
 "                filename: /dev/sda\n"
-"           Note, that only AD type stob domain can be configured over\n"
-"           device.\n"
+"           Note that only AD type stob domain can be configured over device.\n"
 "  -e addr  Network layer endpoint of a service.\n"
 "           Format: <transport>:<address>.\n"
 "           Currently supported transport is lnet.\n"
@@ -1634,11 +1635,11 @@ static void cs_help(FILE *out)
 "           endpoints, distinguished by transfer machine id (the 4th\n"
 "           component of 4-tuple endpoint address in lnet).\n"
 "  -s str   Service (type) to be started in given request handler context.\n"
-"           The string is of one of the following forms:"
-"              ServiceTypeName:ServiceInstanceUUID"
-"              ServiceTypeName"
-"           with the UUID expressed in the standard 8-4-4-4-12 hexadecimal"
-"           string form.  The non-UUID form is permitted for testing purposes."
+"           The string is of one of the following forms:\n"
+"              ServiceTypeName:ServiceInstanceUUID\n"
+"              ServiceTypeName\n"
+"           with the UUID expressed in the standard 8-4-4-4-12 hexadecimal\n"
+"           string form. The non-UUID form is permitted for testing purposes.\n"
 "           There may be several '-s' options in one set of request handler\n"
 "           options. Duplicated service type names are not allowed.\n"
 "           Use '-l' to get a list of registered service types.\n"
@@ -1755,7 +1756,7 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
    @param svc Allocated service type name
    @param uuid Numerical UUID value if present and valid, or zero.
  */
-static int parse_service_string(const char *str, char **svc,
+static int service_string_parse(const char *str, char **svc,
 				struct m0_uint128 *uuid)
 {
 	const char *colon;
@@ -1789,7 +1790,8 @@ static int parse_service_string(const char *str, char **svc,
 
 /** Parses CLI arguments, filling m0_mero structure. */
 static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
-		       const char **confd_addr, const char **profile)
+		       const char **confd_addr, const char **profile,
+		       const char **genders, bool *use_genders)
 {
 	int                     result;
 	struct m0_reqh_context *rctx = NULL;
@@ -1872,6 +1874,13 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 				})),
 			M0_FORMATARG('w', "Pool Width", "%i",
 				     &cctx->cc_pool_width),
+			M0_FLAGARG('g', "Bootstrap from genders", use_genders),
+			M0_STRINGARG('f', "Genders file",
+				LAMBDA(void, (const char *s)
+				{
+					M0_ASSERT(genders != NULL);
+					*genders = s;
+				})),
 
 			/* -------------------------------------------
 			 * Request handler options
@@ -1967,7 +1976,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 						return;
 					}
 					i = rctx->rc_nr_services;
-					rc = parse_service_string(s,
+					rc = service_string_parse(s,
 						   &rctx->rc_services[i],
 						   &rctx->rc_service_uuids[i]);
 					if (rc == 0)
@@ -1984,13 +1993,34 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 	int         rc;
 	const char *confd_addr = NULL;
 	const char *profile = NULL;
+	const char *genders = NULL;
+	bool        use_genders = false;
 
 	M0_ENTRY();
 
-	rc = _args_parse(cctx, argc, argv, &confd_addr, &profile);
+	rc = _args_parse(cctx, argc, argv, &confd_addr, &profile,
+			 &genders, &use_genders);
 	if (rc != 0)
 		M0_RETURN(rc);
 
+	if (genders != NULL && !use_genders)
+		M0_RETERR(-EPROTO, "-f genders file specified without -g");
+	/**
+	 * @todo allow bootstrap via genders and confd afterward, but currently
+	 * confd is only used for bootstrap, thus a conflict if both present.
+	 */
+	if (use_genders && profile != NULL)
+		M0_RETERR(-EPROTO, "genders use conflicts with confd profile");
+	if (use_genders) {
+		struct cs_args *args = &cctx->cc_args;
+
+		rc = cs_genders_to_args(args, argv[0], genders);
+		if (rc != 0)
+			M0_RETURN(rc);
+
+		rc = _args_parse(cctx, args->ca_argc, args->ca_argv,
+				 NULL, NULL, NULL, &use_genders);
+	}
 	if ((confd_addr == NULL) != (profile == NULL))
 		M0_RETERR(-EPROTO, "%s is not specified",
 			  (char *)(profile == NULL ? "configuration profile" :
@@ -2003,8 +2033,10 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 			M0_RETURN(rc);
 
 		rc = _args_parse(cctx, args->ca_argc, args->ca_argv,
-				 NULL, NULL);
+				 NULL, NULL, NULL, &use_genders);
 	}
+	if (rc == 0 && use_genders)
+		rc = -EINVAL;
 	M0_RETURN(rc);
 }
 

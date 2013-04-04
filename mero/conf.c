@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,6 +18,8 @@
  * Original creation date: 07-Dec-2012
  */
 
+#include "lib/errno.h"
+#include "lib/memory.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0D
 #include "lib/trace.h"
 
@@ -27,6 +29,7 @@
 #include "conf/buf_ext.h"         /* m0_buf_strdup */
 #include "conf/confc.h"           /* m0_confc */
 #include "conf/schema.h"          /* m0_conf_service_type */
+#include "mgmt/mgmt.h"            /* m0_mgmt_conf */
 
 /* ----------------------------------------------------------------
  * Mero options
@@ -161,7 +164,7 @@ end:
 	M0_RETURN(rc);
 }
 
-/**
+/*
  * Establishes network connection with confd, fills CLI arguments (`args'),
  * disconnects from confd.
  */
@@ -236,6 +239,70 @@ net_dom:
 xprt:
 	m0_net_xprt_fini(xprt);
 	M0_RETURN(rc);
+}
+
+M0_INTERNAL int cs_genders_to_args(struct cs_args *args, const char *argv0,
+				   const char *genders)
+{
+	struct m0_mgmt_conf      conf;
+	struct m0_mgmt_svc_conf *svc;
+	char                     nbuf[16];
+	char                    *bp;
+	size_t                   l;
+	int                      i;
+	int                      rc;
+
+	M0_PRE(args != NULL && args->ca_argc == 0);
+	rc = m0_mgmt_conf_init(&conf, genders, NULL);
+	if (rc != 0)
+		return rc;
+
+	/* NB: allocation failures checked at end */
+	/** @todo replace all strdup() with m0_strdup() when available */
+	option_add(args, strdup(argv0));
+	option_add(args, strdup("-r"));
+	l = strlen(conf.mnc_m0d_ep) + strlen(m0_net_lnet_xprt.nx_name) + 2;
+	bp = m0_alloc(l);
+	if (bp != NULL)
+		sprintf(bp, "%s:%s", m0_net_lnet_xprt.nx_name, conf.mnc_m0d_ep);
+	option_add(args, strdup("-e"));
+	option_add(args, bp);
+	if (conf.mnc_max_rpc_msg != 0) {
+		option_add(args, strdup("-m"));
+		i = snprintf(nbuf, sizeof nbuf, "%lu", conf.mnc_max_rpc_msg);
+		if (i >= sizeof nbuf) {
+			rc = -EINVAL;
+			goto done;
+		}
+		option_add(args, strdup(nbuf));
+	}
+	if (conf.mnc_recv_queue_min_length != 0) {
+		option_add(args, strdup("-q"));
+		i = snprintf(nbuf, sizeof nbuf, "%u",
+			      conf.mnc_recv_queue_min_length);
+		if (i >= sizeof nbuf) {
+			rc = -EINVAL;
+			goto done;
+		}
+		option_add(args, strdup(nbuf));
+	}
+	m0_tl_for(m0_mgmt_conf, &conf.mnc_svc, svc) {
+		option_add(args, strdup("-s"));
+		l = strlen(svc->msc_name) + strlen(svc->msc_uuid) + 2;
+		bp = m0_alloc(l);
+		if (bp != NULL)
+			sprintf(bp, "%s:%s", svc->msc_name, svc->msc_uuid);
+		option_add(args, bp);
+		for (i = 0; i < svc->msc_argc; ++i)
+			option_add(args, strdup(svc->msc_argv[i]));
+	} m0_tlist_endfor;
+	for (i = 0; i < args->ca_argc && rc == 0; ++i) {
+		if (args->ca_argv[i] == NULL)
+			rc = -ENOMEM;
+	}
+done:
+	m0_mgmt_conf_fini(&conf);
+	return rc;
 }
 
 /* ----------------------------------------------------------------

@@ -138,7 +138,7 @@ struct mgmt_conf_node {
 };
 
 enum {
-	MGMT_CONF_M0D_TMID = 0,
+	MGMT_CONF_M0D_TMID = 1,
 };
 
 static struct m0_mgmt_svc_conf *
