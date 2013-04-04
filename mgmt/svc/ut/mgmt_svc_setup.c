@@ -66,7 +66,10 @@ static FILE          *mgmt_svc_ut_setup_lfile;
 
 static void mgmt_svc_ut_setup_stop(void)
 {
-	m0_rpc_client_fini(&mgmt_svc_ut_cctx);
+	int rc;
+
+	rc = m0_rpc_client_stop(&mgmt_svc_ut_cctx);
+	M0_UT_ASSERT(rc == 0);
 	m0_cs_fini(&mgmt_svc_ut_setup_sctx);
 	m0_net_domain_fini(&mgmt_svc_ut_client_net_dom);
 	fclose(mgmt_svc_ut_setup_lfile);
@@ -101,7 +104,7 @@ static int mgmt_svc_ut_setup_start(void)
 	if (rc != 0)
 		goto done;
 
-	rc = m0_rpc_client_init(&mgmt_svc_ut_cctx);
+	rc = m0_rpc_client_start(&mgmt_svc_ut_cctx);
 	if (rc != 0)
 		goto stop_server;
 

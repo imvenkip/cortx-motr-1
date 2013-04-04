@@ -81,7 +81,7 @@ static void mgmt_svc_ut_svc_restore_defaults(void)
 
 static int mgmt_svc_ut_rsto_service_allocate(struct m0_reqh_service **service,
 					     struct m0_reqh_service_type *stype,
-				     const char *arg __attribute__((unused)))
+					     struct m0_reqh_context *rctx)
 {
 	struct mgmt_svc_ut_svc *svc;
 

@@ -19,8 +19,8 @@
  */
 
 #include "lib/misc.h"
-#include "lib/ut.h"
 #include "mgmt/mgmt.h"
+#include "ut/ut.h"
 
 #include <sys/stat.h> /* mkdir */
 #include <limits.h>   /* HOST_NAME_MAX */

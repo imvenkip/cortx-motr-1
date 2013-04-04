@@ -389,11 +389,12 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
 	struct m0_reqh_service *rpcservice = NULL;
 
 	M0_PRE(reqh != NULL);
+        m0_rwlock_write_lock(&reqh->rh_rwlock);
 	M0_PRE(m0_reqh_invariant(reqh));
 
-        m0_rwlock_write_lock(&reqh->rh_rwlock);
 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
 	reqh_state_set(reqh, M0_REQH_ST_DRAIN);
+
         m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
@@ -417,10 +418,6 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
 	/* shutdown rpcservice */
 	if (rpcservice != NULL)
 		m0_reqh_service_prepare_to_stop(rpcservice);
-
-        m0_rwlock_write_lock(&reqh->rh_rwlock);
-        reqh->rh_shutdown = true; /* deprecated */
-        m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	m0_reqh_fom_domain_idle_wait(reqh);
 }

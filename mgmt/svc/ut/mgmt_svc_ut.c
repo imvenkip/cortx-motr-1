@@ -26,7 +26,6 @@
 #include "lib/time.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MGMT
 #include "lib/trace.h"  /* M0_LOG() */
-#include "lib/ut.h"
 #include "lib/uuid.h"
 #include "mgmt/mgmt.h"
 #include "mgmt/mgmt_addb.h"
@@ -34,7 +33,8 @@
 #include "net/lnet/lnet.h"
 #include "reqh/reqh.h"
 #include "rpc/rpc_opcodes.h"
-#include "ut/rpc.h"
+#include "rpc/rpclib.h"
+#include "ut/ut.h"
 
 #include <stdio.h>
 

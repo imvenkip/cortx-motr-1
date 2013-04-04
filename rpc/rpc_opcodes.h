@@ -177,7 +177,7 @@ enum M0_RPC_OPCODES {
 
 	/* RPC UB */
 	M0_RPC_UB_REQ_OPCODE                = 98,
-	M0_RPC_UB_RESP_OPCODE               = 99
+	M0_RPC_UB_RESP_OPCODE               = 99,
 
 	/* Management service opcodes */
 	M0_MGMT_SERVICE_STATE_REPLY_OPCODE  = 100,

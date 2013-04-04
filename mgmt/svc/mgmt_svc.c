@@ -656,7 +656,7 @@ static const struct m0_reqh_service_ops mgmt_service_ops = {
  */
 static int mgmt_svc_rsto_service_allocate(struct m0_reqh_service **service,
 					  struct m0_reqh_service_type *stype,
-					const char *arg __attribute__((unused)))
+					  struct m0_reqh_context *rctx)
 {
 	struct mgmt_svc *svc;
 
