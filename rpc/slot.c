@@ -321,6 +321,7 @@ static void __slot_balance(struct m0_rpc_slot *slot,
 			   bool                allow_events)
 {
 	struct m0_rpc_item *item;
+	int                 rc;
 
 	M0_ENTRY("slot: %p", slot);
 	M0_PRE(m0_rpc_slot_invariant(slot));
@@ -353,8 +354,11 @@ static void __slot_balance(struct m0_rpc_slot *slot,
 		/*
 		 * Tell formation module that an item is ready to be put in rpc
 		 */
-		if (allow_events)
-			slot->sl_ops->so_item_consume(item);
+		if (allow_events) {
+			rc = slot->sl_ops->so_item_consume(item);
+			if (rc != 0)
+				m0_rpc_item_failed(item, rc);
+		}
 	}
 	M0_POST(m0_rpc_slot_invariant(slot));
 	M0_LEAVE();
@@ -535,8 +539,15 @@ static void duplicate_item_received(struct m0_rpc_slot *slot,
 		   processed yet. Ignore it*/
 		/* do nothing */;
 		break;
-	case RPC_ITEM_STAGE_TIMEDOUT:
 	case RPC_ITEM_STAGE_FAILED:
+		/* The request is failed, but receiver could not send reply.
+		   e.g. consider fom allocation failed during
+			m0_reqh_fop_handle()
+		   Ignore the request. Sender side request should TIMEOUT.
+		 */
+		M0_LOG(M0_FATAL, "Duplicate request of FAILED item rcvd");
+		break;
+	case RPC_ITEM_STAGE_TIMEDOUT:
 		M0_IMPOSSIBLE("Original req in TIMEDOUT/FAILED stage");
 		break;
 	default:

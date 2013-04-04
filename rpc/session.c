@@ -47,7 +47,7 @@
 static void snd_slot_idle(struct m0_rpc_slot *slot);
 static void snd_slot_busy(struct m0_rpc_slot *slot);
 
-static void snd_item_consume(struct m0_rpc_item *item);
+static int  snd_item_consume(struct m0_rpc_item *item);
 
 static void snd_reply_consume(struct m0_rpc_item *req,
 				 struct m0_rpc_item *reply);
@@ -55,7 +55,7 @@ static void snd_reply_consume(struct m0_rpc_item *req,
 static void rcv_slot_idle(struct m0_rpc_slot *slot);
 static void rcv_slot_busy(struct m0_rpc_slot *slot);
 
-static void rcv_item_consume(struct m0_rpc_item *item);
+static int  rcv_item_consume(struct m0_rpc_item *item);
 
 static void rcv_reply_consume(struct m0_rpc_item *req,
 			      struct m0_rpc_item *reply);
@@ -715,6 +715,9 @@ M0_INTERNAL int m0_rpc_session_terminate_sync(struct m0_rpc_session *session,
 	int rc;
 
 	M0_ENTRY("session: %p", session);
+	M0_PRE(M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
+					      M0_RPC_SESSION_BUSY,
+					      M0_RPC_SESSION_TERMINATING)));
 
 	/* Wait for session to become IDLE */
 	m0_rpc_session_timedwait(session, M0_BITS(M0_RPC_SESSION_IDLE),
@@ -1045,9 +1048,10 @@ M0_INTERNAL bool m0_rpc_session_bind_item(struct m0_rpc_item *item)
 	return true;
 }
 
-static void snd_item_consume(struct m0_rpc_item *item)
+static int snd_item_consume(struct m0_rpc_item *item)
 {
 	m0_rpc_item_send(item);
+	return 0;
 }
 
 static void snd_reply_consume(struct m0_rpc_item *req,
@@ -1071,9 +1075,9 @@ static void rcv_slot_busy(struct m0_rpc_slot *slot)
 	/* Do nothing on receiver */
 }
 
-static void rcv_item_consume(struct m0_rpc_item *item)
+static int rcv_item_consume(struct m0_rpc_item *item)
 {
-	m0_rpc_item_dispatch(item);
+	return m0_rpc_item_dispatch(item);
 }
 
 static void rcv_reply_consume(struct m0_rpc_item *req,

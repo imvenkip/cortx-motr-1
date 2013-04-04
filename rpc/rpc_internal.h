@@ -144,7 +144,7 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
    Temporary routine to place fop in a global queue, from where it can be
    selected for execution.
  */
-M0_INTERNAL void m0_rpc_item_dispatch(struct m0_rpc_item *item);
+M0_INTERNAL int m0_rpc_item_dispatch(struct m0_rpc_item *item);
 
 M0_INTERNAL bool m0_rpc_item_is_control_msg(const struct m0_rpc_item *item);
 

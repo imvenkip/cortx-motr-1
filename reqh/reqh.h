@@ -253,7 +253,7 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop);
    @pre reqh != null
    @pre fop != null
  */
-M0_INTERNAL void m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop);
+M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop);
 
 /**
    Subroutine to generate ADDB statistics on resources consumed and managed

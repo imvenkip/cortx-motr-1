@@ -20,11 +20,11 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
-#include "lib/ut.h"
 #include "lib/finject.h"
 #include "lib/misc.h"              /* M0_BITS */
 #include "lib/semaphore.h"
 #include "lib/memory.h"
+#include "ut/ut.h"
 #include "rpc/rpclib.h"
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
 #include "rpc/ut/rpc_test_fops.h"
@@ -33,7 +33,7 @@
 static struct m0_rpc_machine *machine;
 static const char            *remote_addr;
 enum {
-	TIMEOUT  = 2 /* second */,
+	TIMEOUT  = 4 /* second */,
 	NR_SLOTS = 5,
 };
 
@@ -133,7 +133,8 @@ static void test_session_establish(void)
 	int                      rc;
 	int                      i;
 	struct fp fps[] = {
-		//{"session_gen_fom_create", "reply_fop_alloc_failed"},
+		{"session_gen_fom_create", "reply_fop_alloc_failed",
+								   -ETIMEDOUT},
 		{"m0_rpc_fom_session_establish_tick",
 		                           "session-alloc-failed", -ENOMEM},
 		{"m0_db_tx_init",          "failed",               -EINVAL},
@@ -182,8 +183,9 @@ static void test_session_terminate(void)
 	int                      rc;
 	int                      i;
 	struct fp fps[] = {
-		//{"session_gen_fom_create", "reply_fop_alloc_failed"},
-		{"m0_db_tx_init", "failed", -EINVAL},
+		{"session_gen_fom_create", "reply_fop_alloc_failed",
+							-ETIMEDOUT},
+		{"m0_db_tx_init",          "failed",    -EINVAL},
 	};
 	rc = m0_net_end_point_create(&ep, &machine->rm_tm, remote_addr);
 	M0_UT_ASSERT(rc == 0);
@@ -202,10 +204,28 @@ static void test_session_terminate(void)
 		FATAL("rc: %d", rc);
 		M0_UT_ASSERT(rc == fps[i].erc);
 		m0_fi_disable(fps[i].fn, fps[i].pt);
+		/*
+		  Q: How to handle following scenario:
+		     - sender establishes one RPC connection with receiver
+		     - sender creates one RPC session
+		     - sender wants to terminate session:
+		       -- sender sends SESSION_TERMINATE request
+		       -- the request fails without any reply (consider
+			  because fom alloc failed)
+		     - sender side session moves to FAILED state, but
+		       receiver side session is still active
+		     - sender moves on to terminate conn
+		     - sender sends CONN_TERMINATE fop
+		     - the CONN_TERMINATE request gets accepted by receiver but
+		       conn cannot be terminated because there is still active
+		       session; reciever replies as -EBUSY
+		  A. One possible way is, while processing CONN_TERMINATE
+		     request, receiver simply aborts all sessions within it.
+		 */
 	}
 
 	rc = m0_rpc_conn_destroy(&conn, m0_time_from_now(TIMEOUT, 0));
-	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == -EBUSY);
 
 	m0_net_end_point_put(ep);
 

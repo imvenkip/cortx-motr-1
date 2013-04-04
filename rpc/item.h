@@ -298,8 +298,8 @@ struct m0_rpc_item_ops {
 	   @note rpcmach can be different from item_machine(item) for connection
 	   establishing items.
 	*/
-	void (*rio_deliver)(struct m0_rpc_machine *rpcmach,
-			    struct m0_rpc_item *item);
+	int (*rio_deliver)(struct m0_rpc_machine *rpcmach,
+			   struct m0_rpc_item *item);
 };
 
 void m0_rpc_item_init(struct m0_rpc_item *item,

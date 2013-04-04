@@ -264,19 +264,21 @@ int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
 /**
   XXX temporary routine that submits the fop inside item for execution.
  */
-M0_INTERNAL void m0_rpc_item_dispatch(struct m0_rpc_item *item)
+M0_INTERNAL int m0_rpc_item_dispatch(struct m0_rpc_item *item)
 {
+	int rc;
+
 	M0_ENTRY("item : %p", item);
 
 	if (item->ri_ops != NULL && item->ri_ops->rio_deliver != NULL)
-		item->ri_ops->rio_deliver(item->ri_rmachine, item);
+		rc = item->ri_ops->rio_deliver(item->ri_rmachine, item);
 	else
 		/**
 		 * @todo this assumes that the item is a fop.
 		 */
-		m0_reqh_fop_handle(item->ri_rmachine->rm_reqh,
-				   m0_rpc_item_to_fop(item));
-	M0_LEAVE();
+		rc = m0_reqh_fop_handle(item->ri_rmachine->rm_reqh,
+					m0_rpc_item_to_fop(item));
+	M0_RETURN(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

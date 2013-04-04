@@ -333,12 +333,13 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 	return -ENOSYS;
 }
 
-M0_INTERNAL void m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
+M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 {
 	struct m0_fom *fom;
 	int	       result;
 	int            rc;
 
+	M0_ENTRY();
 	M0_PRE(reqh != NULL);
 	M0_PRE(fop != NULL);
 
@@ -348,7 +349,7 @@ M0_INTERNAL void m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 	if (rc != 0) {
 		REQH_ADDB_FUNCFAIL(rc, FOP_HANDLE_2, &reqh->rh_addb_ctx);
 		m0_rwlock_read_unlock(&reqh->rh_rwlock);
-		return;
+		M0_RETURN(-ESHUTDOWN);
 	}
 
 	M0_ASSERT(fop->f_type != NULL);
@@ -363,6 +364,7 @@ M0_INTERNAL void m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
         }
 
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
+	M0_RETURN(result);
 }
 
 M0_INTERNAL void m0_reqh_fom_domain_idle_wait(struct m0_reqh *reqh)
