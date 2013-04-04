@@ -50,6 +50,7 @@ static void op_qa_output(struct m0_mgmt_ctl_ctx *ctx,
 			       rst_to_string(ss->mss_state));
 			printf("     stype: %s\n", uuid_to_stype(ctx, uuid));
 		}
+		printf("timestamp: %lu\n", m0_time_now());
 	} else {
 		/*
 		  ugly:

@@ -35,6 +35,8 @@ static void emit_error(struct m0_mgmt_ctl_ctx *ctx, const char *msg, int rc)
 		printf("error:\n");
 		printf("  msg: %s\n", msg);
 		printf("  rc: %d\n", rc);
+		printf("timestamp: %lu\n", m0_time_now());
+
 	} else
 		fprintf(stderr, "Error: %s (%d)\n", msg, rc);
 }
