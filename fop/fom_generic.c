@@ -493,7 +493,7 @@ static const struct fom_phase_desc fpd_table[] = {
  * are assigned to a state machine descriptor.
  * State name is used to log addb event.
  */
-static const struct m0_sm_state_descr generic_phases[] = {
+static struct m0_sm_state_descr generic_phases[] = {
 	[M0_FOPH_INIT] = {
 		.sd_flags     = M0_SDF_INITIAL,
 		.sd_name      = "Init",
@@ -614,7 +614,7 @@ static const struct m0_sm_state_descr generic_phases[] = {
 	}
 };
 
-const struct m0_sm_conf m0_generic_conf = {
+struct m0_sm_conf m0_generic_conf = {
 	.scf_name      = "FOM standard phases",
 	.scf_nr_states = ARRAY_SIZE(generic_phases),
 	.scf_state     = generic_phases

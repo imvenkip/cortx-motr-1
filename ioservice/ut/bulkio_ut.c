@@ -306,8 +306,7 @@ static void fom_phase_set(struct m0_fom *fom, int phase)
 
 		m0_sm_fini(&fom->fo_sm_phase);
 		m0_sm_init(&fom->fo_sm_phase, fom->fo_type->ft_conf,
-			   M0_FOM_PHASE_INIT, &fom->fo_loc->fl_group,
-			   &fom->fo_loc->fl_dom->fd_addb_ctx);
+			   M0_FOM_PHASE_INIT, &fom->fo_loc->fl_group);
 
 		while (m0_fom_phase(fom) != M0_FOPH_TYPE_SPECIFIC) {
 			fpd_phase = &fpd_table[m0_fom_phase(fom)];

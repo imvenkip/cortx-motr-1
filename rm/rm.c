@@ -376,7 +376,7 @@ static void resource_put(struct m0_rm_resource *res)
 	M0_LEAVE();
 }
 
-static const struct m0_sm_state_descr owner_states[] = {
+static struct m0_sm_state_descr owner_states[] = {
 	[ROS_INITIAL] = {
 		.sd_flags     = M0_SDF_INITIAL,
 		.sd_name      = "Init",
@@ -507,8 +507,7 @@ M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner *owner,
 	M0_ENTRY("owner: %p resource: %p creditor: %p",
 		 owner, res, creditor);
 	owner->ro_resource = res;
-	m0_sm_init(&owner->ro_sm, &owner_conf, ROS_INITIAL,
-		   owner_grp(owner), NULL);
+	m0_sm_init(&owner->ro_sm, &owner_conf, ROS_INITIAL, owner_grp(owner));
 	m0_rm_owner_lock(owner);
 	owner_state_set(owner, ROS_INITIALISING);
 	m0_rm_owner_unlock(owner);
@@ -737,7 +736,7 @@ M0_INTERNAL void m0_rm_credit_fini(struct m0_rm_credit *credit)
 }
 M0_EXPORTED(m0_rm_credit_fini);
 
-static const struct m0_sm_state_descr inc_states[] = {
+static struct m0_sm_state_descr inc_states[] = {
 	[RI_INITIALISED] = {
 		.sd_flags     = M0_SDF_INITIAL,
 		.sd_name      = "Initialised",
@@ -795,8 +794,7 @@ M0_INTERNAL void m0_rm_incoming_init(struct m0_rm_incoming *in,
 	M0_PRE(in != NULL);
 
 	M0_SET0(in);
-	m0_sm_init(&in->rin_sm, &inc_conf, RI_INITIALISED,
-		   owner_grp(owner), NULL);
+	m0_sm_init(&in->rin_sm, &inc_conf, RI_INITIALISED, owner_grp(owner));
 	in->rin_type   = type;
 	in->rin_policy = policy;
 	in->rin_flags  = flags;

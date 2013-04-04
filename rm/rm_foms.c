@@ -116,13 +116,13 @@ struct m0_sm_state_descr rm_req_phases[] = {
 	},
 };
 
-const struct m0_sm_conf borrow_sm_conf = {
+struct m0_sm_conf borrow_sm_conf = {
 	.scf_name      = "Borrow FOM conf",
 	.scf_nr_states = ARRAY_SIZE(rm_req_phases),
 	.scf_state     = rm_req_phases
 };
 
-const struct m0_sm_conf revoke_sm_conf = {
+struct m0_sm_conf revoke_sm_conf = {
 	.scf_name      = "Revoke FOM conf",
 	.scf_nr_states = ARRAY_SIZE(rm_req_phases),
 	.scf_state     = rm_req_phases

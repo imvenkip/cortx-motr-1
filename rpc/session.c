@@ -129,7 +129,7 @@ M0_TL_DESCR_DEFINE(rpc_session, "rpc-sessions", M0_INTERNAL,
 		   M0_RPC_SESSION_HEAD_MAGIC);
 M0_TL_DEFINE(rpc_session, M0_INTERNAL, struct m0_rpc_session);
 
-static const struct m0_sm_state_descr session_states[] = {
+static struct m0_sm_state_descr session_states[] = {
 	[M0_RPC_SESSION_INITIALISED] = {
 		.sd_flags     = M0_SDF_INITIAL,
 		.sd_name      = "Initialised",
@@ -340,8 +340,7 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 	if (rc == 0) {
 		m0_sm_init(&session->s_sm, &session_conf,
 			   M0_RPC_SESSION_INITIALISED,
-			   &conn->c_rpc_machine->rm_sm_grp,
-			   &conn->c_rpc_machine->rm_addb_ctx);
+			   &conn->c_rpc_machine->rm_sm_grp);
 		M0_LOG(M0_INFO, "Session %p INITIALISED \n", session);
 		m0_rpc_conn_add_session(conn, session);
 		M0_ASSERT(m0_rpc_session_invariant(session));

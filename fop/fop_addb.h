@@ -24,6 +24,7 @@
 #define __MERO_FOP_FOP_ADDB_H__
 
 #include "addb/addb.h"
+#include "fop/fom.h"   /* FOM_STATE_STATS_HIST_ARGS */
 
 /**
    @addtogroup fop
@@ -38,9 +39,11 @@
  */
 enum {
 	M0_ADDB_CTXID_FOP_MOD = 1400,
+	M0_ADDB_CTXID_FOM_LOCALITY = 1420,
 };
 
 M0_ADDB_CT(m0_addb_ct_fop_mod, M0_ADDB_CTXID_FOP_MOD);
+M0_ADDB_CT(m0_addb_ct_fom_locality, M0_ADDB_CTXID_FOM_LOCALITY, "cpu_id");
 
 /**
    fop/fom function failure macro using the global ADDB machine to post.
@@ -77,25 +80,56 @@ extern struct m0_addb_ctx m0_fop_addb_ctx;
  * @{
  */
 
+/**
+ * ADDB record types
+ * Do not change the numbering.
+ */
 enum {
 	M0_ADDB_RECID_FOM_INIT = 60,
 	M0_ADDB_RECID_FOM_FINI = 61,
+	M0_ADDB_RECID_FOM_STATE_STATS = 62,
+	M0_ADDB_RECID_FL_RUN_TIMES = 65,
+	M0_ADDB_RECID_FL_SCHED_WAIT_TIMES = 66,
+	M0_ADDB_RECID_FL_RUNQ_NR = 67,
+	M0_ADDB_RECID_FL_WAIL_NR = 68,
 };
 
 /**
  * FOM init datapoint record
  */
-M0_ADDB_RT_DP(m0_addb_rt_fom_init,
-	      M0_ADDB_RECID_FOM_INIT);
+M0_ADDB_RT_DP(m0_addb_rt_fom_init, M0_ADDB_RECID_FOM_INIT);
+
 /**
  * FOM fini datapoint record
  *
  * @param transitions FOM transitions number
- * @param lifetime FOM total life time (in usec)
- * @param exectime FOM execution time (in usec)
  */
-M0_ADDB_RT_DP(m0_addb_rt_fom_fini,
-	      M0_ADDB_RECID_FOM_FINI, "transitions", "lifetime", "exectime");
+M0_ADDB_RT_DP(m0_addb_rt_fom_fini, M0_ADDB_RECID_FOM_FINI, "transitions");
+
+extern struct m0_sm_conf fom_states_conf;
+
+#ifdef FOM_STATE_STATS_HIST_ARGS
+/** FOM state statistics counter */
+M0_ADDB_RT_SM_CNTR(m0_addb_rt_fom_state_stats, M0_ADDB_RECID_FOM_STATE_STATS,
+		   &fom_states_conf, FOM_STATE_STATS_HIST_ARGS);
+#else
+M0_ADDB_RT_SM_CNTR(m0_addb_rt_fom_state_stats, M0_ADDB_RECID_FOM_STATE_STATS,
+		   &fom_states_conf);
+#endif
+
+/**
+ * Accumulated run time of all locality foms (in "binary" usec).
+ * "Binary usec" == (nsec >> 10).
+ */
+M0_ADDB_RT_CNTR(m0_addb_rt_fl_run_times, M0_ADDB_RECID_FL_RUN_TIMES);
+/** Accumulated scheduling overhead of all locality foms (in binary usec). */
+M0_ADDB_RT_CNTR(m0_addb_rt_fl_sched_wait_times,
+		M0_ADDB_RECID_FL_SCHED_WAIT_TIMES);
+
+/** Locality run queue length */
+M0_ADDB_RT_DP(m0_addb_rt_fl_runq_nr, M0_ADDB_RECID_FL_RUNQ_NR, "runq_nr");
+/** Locality wait queue (list) length */
+M0_ADDB_RT_DP(m0_addb_rt_fl_wail_nr, M0_ADDB_RECID_FL_WAIL_NR, "wail_nr");
 
 /** @} end of fom group */
 

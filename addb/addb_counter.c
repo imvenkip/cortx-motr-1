@@ -19,6 +19,8 @@
  * Original creation: 10/11/2012
  */
 
+#include "sm/sm.h"
+
 /**
    @page ADDB-DLD-CNTR Counter Detailed Design
 
@@ -49,6 +51,7 @@
    @section ADDB-DLD-CNTR-lspec Logical Specification
    - @ref ADDB-DLD-CNTR-lspec-usage
    - @ref ADDB-DLD-CNTR-lspec-rec
+   - @ref ADDB-DLD-CNTR-lspec-sm_counter
    - @ref ADDB-DLD-CNTR-lspec-thread
 
    @subsection ADDB-DLD-CNTR-lspec-usage Counter Behavior
@@ -124,6 +127,30 @@
    Note that if the record type specifies no histogram, no histogram
    information will be included in the record.
 
+   @subsection ADDB-DLD-CNTR-lspec-sm_counter State Machine Counter
+
+   State machine counter (m0_addb_sm_counter) is the slight extension
+   of ordinary counter (m0_addb_counter) to efficiently support an
+   array of counters data for state machines transitions.
+
+   State machine counter record type references the static state
+   machine configuration which describes its transitions. Each
+   transition in state machine counter has its own counter data
+   element in the array (m0_addb_sm_counter::asc_data).  The size
+   of counter data element is determined from counter record type
+   (in the same way as for ordinary counter). The number of elements
+   in the array correspondent to the number of transitions in the
+   state machine configuration.
+
+   There is one essential difference between ordinary counter and
+   state machine counter in respect to memory allocation: sm counter
+   do not allocate the memory for its data. sm counter user should
+   provide sufficient amount of memory via m0_addb_sm_counter()
+   routine. m0_addb_sm_counter_data_size() routine can be used by
+   user to determine the amount of needed memory.
+
+   @see <a href="http://goo.gl/vlrJ5">ADDB Implementation Plan</a> document.
+
    @subsection ADDB-DLD-CNTR-lspec-thread Threading and Concurrency Model
 
    It is incumbent on the application to serialize calls to the ADDB counter
@@ -147,22 +174,39 @@ static bool addb_counter_invariant(const struct m0_addb_counter *c)
 	    c->acn_data != NULL;
 }
 
+static bool addb_sm_counter_invariant(const struct m0_addb_sm_counter *c)
+{
+	return c != NULL &&
+	    c->asc_magic == M0_ADDB_CNTR_MAGIC &&
+	    c->asc_rt != NULL && addb_rec_type_invariant(c->asc_rt) &&
+	    c->asc_rt->art_base_type == M0_ADDB_BRT_SM_CNTR &&
+	    c->asc_data != NULL &&
+	    c->asc_cntr_data_sz > 0 &&
+	    c->asc_rt->art_sm_conf != NULL &&
+	    c->asc_rt->art_sm_conf->scf_trans != NULL &&
+	    c->asc_rt->art_sm_conf->scf_trans_nr > 0;
+}
+
+static size_t counter_data_sz(const struct m0_addb_rec_type *rt)
+{
+	return (sizeof(struct m0_addb_counter_data) +
+	        ((rt->art_rf_nr > 0) ?
+		 (rt->art_rf_nr + 1) * sizeof(uint64_t) : 0));
+}
+
 /* public interfaces */
 M0_INTERNAL int m0_addb_counter_init(struct m0_addb_counter *c,
 				     const struct m0_addb_rec_type *rt)
 {
-	size_t len;
-
 	M0_ENTRY();
 	M0_PRE(c != NULL);
 	M0_PRE(c->acn_data == NULL);
 	M0_PRE(c->acn_magic == 0);
 	M0_PRE(addb_rec_type_invariant(rt));
+	M0_PRE(rt->art_base_type == M0_ADDB_BRT_CNTR);
 
 	c->acn_rt = rt;
-	len = sizeof *c->acn_data +
-	      (c->acn_rt->art_rf_nr + 1) * sizeof(uint64_t);
-	c->acn_data = m0_alloc(len);
+	c->acn_data = m0_alloc(counter_data_sz(rt));
 	if (c->acn_data == NULL)
 		M0_RETERR(-ENOMEM, "counter_init");
 	c->acn_magic = M0_ADDB_CNTR_MAGIC;
@@ -186,35 +230,49 @@ M0_INTERNAL void m0_addb_counter_fini(struct m0_addb_counter *c)
 }
 M0_EXPORTED(m0_addb_counter_fini);
 
-M0_INTERNAL int m0_addb_counter_update(struct m0_addb_counter *c,
-				       uint64_t datum)
+static int counter_data_update(struct m0_addb_counter_data *data,
+			       const struct m0_addb_rec_type *rt,
+			       uint64_t datum)
 {
-	M0_ENTRY();
-	M0_PRE(addb_counter_invariant(c));
-
-	if (m0_addu64_will_overflow(c->acn_data->acd_sum_sq, datum * datum))
-		M0_RETERR(-EOVERFLOW, "counter's sum of samples square");
-	++c->acn_data->acd_nr;
-	c->acn_data->acd_total += datum;
-	if (c->acn_data->acd_nr > 1) {
-		c->acn_data->acd_min = min64u(c->acn_data->acd_min, datum);
-		c->acn_data->acd_max = max64u(c->acn_data->acd_max, datum);
+	if (m0_addu64_will_overflow(data->acd_sum_sq, datum * datum))
+		M0_RETERR(-EOVERFLOW, "%s: counter's sum of samples square "
+			"overflow: datum=%llu",
+			rt->art_name, (unsigned long long)datum);
+	++data->acd_nr;
+	data->acd_total += datum;
+	if (data->acd_nr > 1) {
+		data->acd_min = min64u(data->acd_min, datum);
+		data->acd_max = max64u(data->acd_max, datum);
 	} else {
-		c->acn_data->acd_min = datum;
-		c->acn_data->acd_max = datum;
+		data->acd_min = datum;
+		data->acd_max = datum;
 	}
-	c->acn_data->acd_sum_sq += datum * datum;
+	data->acd_sum_sq += datum * datum;
 
 	/*
 	 * Update histogram values
 	 */
-	if (c->acn_rt->art_rf_nr != 0) {
+	if (rt->art_rf_nr != 0) {
 		int i;
-		for (i = 0; i < c->acn_rt->art_rf_nr; ++i)
-			if (datum < c->acn_rt->art_rf[i].arfu_lower)
+		for (i = 0; i < rt->art_rf_nr; ++i)
+			if (datum < rt->art_rf[i].arfu_lower)
 				break;
-		++c->acn_data->acd_hist[i];
+		++data->acd_hist[i];
 	}
+	return 0;
+}
+
+M0_INTERNAL int m0_addb_counter_update(struct m0_addb_counter *c,
+				       uint64_t datum)
+{
+	int res;
+
+	M0_ENTRY();
+	M0_PRE(addb_counter_invariant(c));
+
+	res = counter_data_update(c->acn_data, c->acn_rt, datum);
+	if (res != 0)
+		M0_RETURN(res);
 
 	M0_POST(addb_counter_invariant(c));
 	M0_RETURN(0);
@@ -228,24 +286,118 @@ M0_INTERNAL uint64_t m0_addb_counter_nr(const struct m0_addb_counter *c)
 }
 M0_EXPORTED(m0_addb_counter_nr);
 
+static void counter_data_reset(struct m0_addb_counter_data *cd, size_t sz)
+{
+	uint64_t seq = cd->acd_seq + 1;
+
+	memset(cd, 0, sz);
+	cd->acd_seq = seq;
+}
+
 M0_INTERNAL void m0__addb_counter_reset(struct m0_addb_counter *c)
 {
-	uint64_t seq;
-	size_t   len;
-
 	M0_ENTRY();
 	M0_PRE(addb_counter_invariant(c));
 
-	seq = c->acn_data->acd_seq + 1;
-	len = sizeof *c->acn_data +
-	      (c->acn_rt->art_rf_nr + 1) * sizeof(uint64_t);
-	memset(c->acn_data, 0, len);
-	c->acn_data->acd_seq = seq;
+	counter_data_reset(c->acn_data, counter_data_sz(c->acn_rt));
 
 	M0_POST(addb_counter_invariant(c));
 	M0_LEAVE();
 }
 M0_EXPORTED(m0__addb_counter_reset);
+
+M0_INTERNAL void m0_addb_sm_counter_init(struct m0_addb_sm_counter *c,
+					 const struct m0_addb_rec_type *rt,
+					 void *data, size_t data_sz)
+{
+	M0_ENTRY();
+	M0_PRE(c != NULL);
+	M0_PRE(c->asc_data == NULL);
+	M0_PRE(c->asc_magic == 0);
+	M0_PRE(addb_rec_type_invariant(rt));
+	M0_PRE(rt->art_base_type == M0_ADDB_BRT_SM_CNTR);
+	M0_PRE(data != NULL);
+	M0_PRE(data_sz >= m0_addb_sm_counter_data_size(rt));
+
+	c->asc_rt = rt;
+	c->asc_data = data;
+	c->asc_cntr_data_sz = counter_data_sz(rt);
+	c->asc_magic = M0_ADDB_CNTR_MAGIC;
+	c->asc_nr = 0;
+
+	M0_POST(addb_sm_counter_invariant(c));
+}
+M0_EXPORTED(m0_addb_sm_counter_init);
+
+M0_INTERNAL void m0_addb_sm_counter_fini(struct m0_addb_sm_counter *c)
+{
+	M0_ENTRY();
+	if (c->asc_magic != 0) {
+		M0_PRE(addb_sm_counter_invariant(c));
+		c->asc_magic = 0;
+		c->asc_rt    = NULL;
+		c->asc_data  = NULL;
+		c->asc_nr    = 0;
+	}
+	M0_LEAVE();
+}
+M0_EXPORTED(m0_addb_sm_counter_fini);
+
+M0_INTERNAL int m0_addb_sm_counter_update(struct m0_addb_sm_counter *c,
+					  uint32_t idx,
+					  uint64_t datum)
+{
+	int res;
+
+	M0_ENTRY();
+	M0_PRE(addb_sm_counter_invariant(c));
+	M0_PRE(idx < c->asc_rt->art_sm_conf->scf_trans_nr);
+
+	res = counter_data_update((void*)c->asc_data +
+				  c->asc_cntr_data_sz * idx,
+				  c->asc_rt, datum);
+	if (res != 0)
+		M0_RETURN(res);
+
+	++c->asc_nr;
+
+	M0_POST(addb_sm_counter_invariant(c));
+	M0_RETURN(0);
+}
+M0_EXPORTED(m0_addb_sm_counter_update);
+
+M0_INTERNAL uint64_t m0_addb_sm_counter_nr(const struct m0_addb_sm_counter *c)
+{
+	return c->asc_nr;
+}
+M0_EXPORTED(m0_addb_sm_counter_nr);
+
+M0_INTERNAL void m0__addb_sm_counter_reset(struct m0_addb_sm_counter *c)
+{
+	int i;
+
+	M0_ENTRY();
+	M0_PRE(addb_sm_counter_invariant(c));
+
+	for (i = 0; i < c->asc_rt->art_sm_conf->scf_trans_nr; ++i)
+		counter_data_reset((void*)c->asc_data + c->asc_cntr_data_sz * i,
+		                   c->asc_cntr_data_sz);
+	c->asc_nr = 0;
+
+	M0_POST(addb_sm_counter_invariant(c));
+	M0_LEAVE();
+}
+M0_EXPORTED(m0__addb_sm_counter_reset);
+
+M0_INTERNAL size_t
+m0_addb_sm_counter_data_size(const struct m0_addb_rec_type *rt)
+{
+	M0_PRE(addb_rec_type_invariant(rt) &&
+	       rt->art_base_type == M0_ADDB_BRT_SM_CNTR);
+
+	return counter_data_sz(rt) * rt->art_sm_conf->scf_trans_nr;
+}
+M0_EXPORTED(m0_addb_sm_counter_data_size);
 
 /** @} addb_pvt */
 /*

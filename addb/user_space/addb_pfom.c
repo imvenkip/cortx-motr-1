@@ -100,7 +100,7 @@ enum addb_pfom_phase {
 	ADDB_PFOM_PHASE_POST,
 };
 
-static const struct m0_sm_state_descr addb_pfom_state_descr[] = {
+static struct m0_sm_state_descr addb_pfom_state_descr[] = {
         [ADDB_PFOM_PHASE_INIT] = {
                 .sd_flags       = M0_SDF_INITIAL,
                 .sd_name        = "Init",
@@ -130,7 +130,7 @@ static const struct m0_sm_state_descr addb_pfom_state_descr[] = {
         },
 };
 
-static const struct m0_sm_conf addb_pfom_sm_conf = {
+static struct m0_sm_conf addb_pfom_sm_conf = {
 	.scf_name = "addb-pfom-sm",
 	.scf_nr_states = ARRAY_SIZE(addb_pfom_state_descr),
 	.scf_state = addb_pfom_state_descr

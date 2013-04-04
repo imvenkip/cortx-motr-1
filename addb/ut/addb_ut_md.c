@@ -421,6 +421,113 @@ static void addb_ut_rt_cntr_test(void)
 			M0_UT_ASSERT(cntrrtp[i]->art_id == i + 40);
 			M0_UT_ASSERT(cntrrtp[i]->art_rf_nr == i);
 			M0_UT_ASSERT(cntrrtp[i]->art_magic == 0);
+			M0_UT_ASSERT(cntrrtp[i]->art_base_type ==
+			             M0_ADDB_BRT_CNTR);
+			for (j = 0; j < i; ++j) {
+				M0_UT_ASSERT(j < ARRAY_SIZE(b));
+				M0_UT_ASSERT(cntrrtp[i]->art_rf[j].arfu_lower
+					     == b[j]);
+			}
+		}
+	}
+}
+
+/*
+ ****************************************************************************
+ * addb_ut_rt_smcntr_test
+ ****************************************************************************
+ */
+
+/*
+ * fake SM_CNTR record types,
+ * static ids overridden when temporarily registered
+ */
+#include "sm/sm.h"
+
+enum state {
+	ST_INIT,
+	ST_RUN,
+	ST_SLEEP,
+	ST_FINI
+};
+
+static struct m0_sm_state_descr states[] = {
+	[ST_INIT] = {
+		.sd_flags     = M0_SDF_INITIAL,
+		.sd_name      = "Init",
+		.sd_allowed   = M0_BITS(ST_RUN, ST_FINI)
+	},
+	[ST_RUN] = {
+		.sd_name      = "Running",
+		.sd_allowed   = M0_BITS(ST_SLEEP, ST_FINI)
+	},
+	[ST_SLEEP] = {
+		.sd_name      = "Sleeping",
+		.sd_allowed   = M0_BITS(ST_RUN)
+	},
+	[ST_FINI] = {
+		.sd_flags     = M0_SDF_TERMINAL,
+		.sd_name      = "Finished",
+	}
+};
+
+static struct m0_sm_trans_descr trans[] = {
+	{ "Start",   ST_INIT,  ST_RUN },
+	{ "Fail",    ST_INIT,  ST_FINI },
+	{ "Suspend", ST_RUN,   ST_SLEEP },
+	{ "Finish",  ST_RUN,   ST_FINI },
+	{ "Resume",  ST_SLEEP, ST_RUN },
+};
+
+static struct m0_sm_conf sm_conf = {
+	.scf_name      = "sm conf",
+	.scf_nr_states = ARRAY_SIZE(states),
+	.scf_state     = states,
+	.scf_trans_nr  = ARRAY_SIZE(trans),
+	.scf_trans     = trans
+};
+
+M0_ADDB_RT_SM_CNTR(m0__addb_ut_rt_smcntr0, 400, &sm_conf);
+M0_ADDB_RT_SM_CNTR(m0__addb_ut_rt_smcntr1, 401, &sm_conf, 10);
+M0_ADDB_RT_SM_CNTR(m0__addb_ut_rt_smcntr2, 402, &sm_conf, 10, 20);
+M0_ADDB_RT_SM_CNTR(m0__addb_ut_rt_smcntr3, 403, &sm_conf, 10, 20, 30);
+
+static void addb_ut_rt_smcntr_test(void)
+{
+	/*
+	 * TEST
+	 * Verify that the UT context types are initialized as expected.
+	 */
+
+	/* verify their names */
+#undef ASSERT_CNTRNAME
+#define ASSERT_CNTRNAME(n) M0_UT_ASSERT(strcmp(n.art_name, #n) == 0)
+	ASSERT_CNTRNAME(m0__addb_ut_rt_smcntr0);
+	ASSERT_CNTRNAME(m0__addb_ut_rt_smcntr1);
+	ASSERT_CNTRNAME(m0__addb_ut_rt_smcntr2);
+	ASSERT_CNTRNAME(m0__addb_ut_rt_smcntr3);
+#undef ASSERT_CNTRNAME
+
+	/* verify their ids, number of fields, and field names */
+	{
+		struct m0_addb_rec_type *cntrrtp[] = {
+#undef CNTRRTP
+#define CNTRRTP(n) &m0__addb_ut_rt_smcntr ## n
+			CNTRRTP(0), CNTRRTP(1), CNTRRTP(2), CNTRRTP(3),
+#undef CNTRRTP
+		};
+		uint64_t b[] = {
+			10, 20, 30,
+		};
+		int i, j;
+
+		for (i = 0; i < ARRAY_SIZE(cntrrtp); ++i) {
+			M0_UT_ASSERT(cntrrtp[i]->art_id == i + 400);
+			M0_UT_ASSERT(cntrrtp[i]->art_rf_nr == i);
+			M0_UT_ASSERT(cntrrtp[i]->art_magic == 0);
+			M0_UT_ASSERT(cntrrtp[i]->art_base_type ==
+			             M0_ADDB_BRT_SM_CNTR);
+			M0_UT_ASSERT(cntrrtp[i]->art_sm_conf != NULL);
 			for (j = 0; j < i; ++j) {
 				M0_UT_ASSERT(j < ARRAY_SIZE(b));
 				M0_UT_ASSERT(cntrrtp[i]->art_rf[j].arfu_lower
@@ -487,6 +594,7 @@ static void addb_ut_rt_test(void)
 	addb_ut_rt_ex_test();
 	addb_ut_rt_dp_test();
 	addb_ut_rt_cntr_test();
+	addb_ut_rt_smcntr_test();
 	addb_ut_rt_seq_test();
 
 	/*

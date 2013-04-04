@@ -48,6 +48,8 @@ struct m0_addb_uint64_seq;
 
 struct m0_rpc_machine;
 struct m0_stob;
+struct m0_sm;
+struct m0_sm_conf;
 
 #include "addb/addb_wire.h"
 #include "addb/addb_macros.h"
@@ -101,6 +103,7 @@ enum m0_addb_base_rec_type {
 	M0_ADDB_BRT_EX = 1,   /**< Exception record */
 	M0_ADDB_BRT_DP,       /**< Data point record */
 	M0_ADDB_BRT_CNTR,     /**< Counter record */
+	M0_ADDB_BRT_SM_CNTR,  /**< SM Counter record */
 	M0_ADDB_BRT_SEQ,      /**< Sequence record */
 
 	/* internal base record types */
@@ -139,6 +142,8 @@ struct m0_addb_rec_type {
 	   identifier range for internal use.
 	 */
 	uint32_t                   art_id;
+	/** State machine configuration (if any). */
+	const struct m0_sm_conf   *art_sm_conf;
 	/**
 	   The interpretation of this element depends on the base
 	   record type:
@@ -225,6 +230,29 @@ struct m0_addb_rec_type {
 /**
    This macro expands in two different ways based on the existence of the
    ::M0_ADDB_RT_CREATE_DEFINITION predicate macro.
+   If the predicate macro is defined then an ADDB counter record type C
+   structure gets defined.
+   If the predicate macro is not defined, then an ADDB counter record type
+   C structure gets declared as an extern.
+   @param name   Specify the abbreviated record type name.
+                 This is a globally visible identifier.
+   @param id     Specify the unique record type identity.
+   @param smconf Specify the state machine configuration (m0_sm_conf) pointer.
+   @param ...    Specify the inclusive lower bound of the second histogram
+                 bucket, followed by the third bucket, and so on.  The first
+		 (0th) bucket has an implicit lower bound of 0.  There is an
+                 implementation limit of at most 9 such bounds, for a maximum of
+                 10 buckets in all.  Not specifying any bounds disables use of
+                 the histogram feature.
+   @pre id > 0
+   @post name.art_magic == 0
+ */
+#define M0_ADDB_RT_SM_CNTR(name, id, smconf, ...) \
+	extern struct m0_addb_rec_type name
+
+/**
+   This macro expands in two different ways based on the existence of the
+   ::M0_ADDB_RT_CREATE_DEFINITION predicate macro.
    If the predicate macro is defined then an ADDB sequence record type C
    structure gets defined.
    If the predicate macro is not defined, then an ADDB sequence record type
@@ -250,7 +278,12 @@ M0_CAT(M0__ADDB_RT_N, M0_COUNT_PARAMS(id, ## __VA_ARGS__))	\
 
 #define M0_ADDB_RT_CNTR(name, id, ...)				\
 M0_CAT(M0__ADDB_RT_L, M0_COUNT_PARAMS(id, ## __VA_ARGS__))	\
- (name, id, ## __VA_ARGS__)
+ (name, CNTR, id, NULL, ## __VA_ARGS__)
+
+#define M0_ADDB_RT_SM_CNTR(name, id, smconf, ...)		\
+M0_BASSERT((smconf) != NULL);					\
+M0_CAT(M0__ADDB_RT_L, M0_COUNT_PARAMS(smconf, ## __VA_ARGS__))	\
+ (name, SM_CNTR, id, smconf, ## __VA_ARGS__)
 
 #define M0_ADDB_RT_SEQ(name, id)		\
 M0_BASSERT(M0_HAS_TYPE(id, int) && (id) > 0);	\
@@ -271,15 +304,16 @@ struct m0_addb_rec_type name = {		\
    @param rt Pointer to the record type structure.
    @pre m0_addb_rec_type_lookup(rt->art_id) == NULL
    @post m0_addb_rec_type_lookup(rt->art_id) == rt
-   @see M0_ADDB_RT_EX(), M0_ADDB_RT_DP(), M0_ADDB_RT_CNTR(), M0_ADDB_RT_SEQ()
+   @see M0_ADDB_RT_EX(), M0_ADDB_RT_DP(), M0_ADDB_RT_CNTR(),
+        M0_ADDB_RT_SM_CNTR(), M0_ADDB_RT_SEQ()
  */
 M0_INTERNAL void m0_addb_rec_type_register(struct m0_addb_rec_type *rt);
 
 /**
    Look up a record type by record type identifier.
    @param id Specify the record type identifier.
-   @return NULL Not found
-   @return Pointer if found
+   @retval NULL Not found
+   @retval Pointer if found
    @see m0_addb_cursor_next()
  */
 M0_INTERNAL const struct m0_addb_rec_type *m0_addb_rec_type_lookup(uint32_t id);
@@ -417,8 +451,8 @@ M0_INTERNAL void m0_addb_ctx_type_register(struct m0_addb_ctx_type *ct);
 /**
    Look up a context type by context type identifier.
    @param id Specify the context type identifier.
-   @return NULL Not found
-   @return Pointer if found
+   @retval NULL Not found
+   @retval Pointer if found
    @see m0_addb_cursor_next()
  */
 M0_INTERNAL const struct m0_addb_ctx_type *m0_addb_ctx_type_lookup(uint32_t id);
@@ -611,6 +645,113 @@ M0_INTERNAL uint64_t m0_addb_counter_nr(const struct m0_addb_counter *c);
    @see M0_ADDB_POST_CNTR()
  */
 M0_INTERNAL void m0__addb_counter_reset(struct m0_addb_counter *c);
+
+/**
+ * State machine counter data object
+ *
+ * This object efficiently maintains the equivalent of an array
+ * of simple ADDB counters, one for each possible state transition
+ * in the state machine.
+ *
+ * @see m0_addb_sm_counter_init()
+ */
+struct m0_addb_sm_counter {
+	uint64_t                       asc_magic;
+	/** the counter's record type */
+	const struct m0_addb_rec_type *asc_rt;
+	/** the array of counters data per each sm transition */
+	struct m0_addb_counter_data   *asc_data;
+	/** counter data size per transition (in bytes) */
+	size_t                         asc_cntr_data_sz;
+	/** total number of samples in all transitions counter data */
+	uint64_t                       asc_nr;
+};
+
+/**
+   Initialize a state machine (SM) counter.
+
+   Unlike m0_addb_counter_init(), this routine does not allocate
+   the memory required for the counter data. Instead, user should
+   provide it via data argument. The amount of counter data memory
+   needed can be determined with help of the m0_addb_sm_counter_data_size()
+   routine. The routine verifies that the state machine is instrumented
+   for statistics, and that the data provided is sufficiently large
+   to accommodate one ADDB counter per sm transition (scf_trans_nr).
+
+   @param c  Specify the counter to initialize.
+   @param rt Specify the counter record type.
+   @param data Specify the counter data memory allocated externally.
+               The memory should not be referenced by the invoker until
+               after m0_addb_sm_counter_fini() is called.
+   @param data_sz Specify the size of counter data memory.
+
+   @retval 0 success.
+   @retval -EINVAL data_sz is not sufficiently large.
+
+   @pre rt->art_base_type == M0_ADDB_BRT_SM_CNTR
+   @see M0_ADDB_RT_SM_CNTR()
+   @see m0_addb_sm_counter_update() m0_addb_sm_counter_fini()
+   @see m0_addb_sm_counter_data_size()
+ */
+M0_INTERNAL void m0_addb_sm_counter_init(struct m0_addb_sm_counter *c,
+					 const struct m0_addb_rec_type *rt,
+					 void *data, size_t data_sz);
+
+/**
+   Finalize the state machine counter.
+ */
+M0_INTERNAL void m0_addb_sm_counter_fini(struct m0_addb_sm_counter *c);
+
+/**
+   Update the state machine counter with a new sample.
+
+   @param idx Specify state machine transition index in
+              m0_sm_conf::scf_trans array. The ADDB counter corresponding
+              to this transition will be updated.
+
+   @pre addb_sm_counter_invariant(c) && datum <= UINT_MAX
+   @return -EOVERFLOW The new datum would cause the counter to overflow.  The
+   datum is not applied to the counter.  In this situation, the caller should
+   post the counter and re-attempt the update.
+
+   @see M0_ADDB_POST_SM_CNTR()
+ */
+M0_INTERNAL int m0_addb_sm_counter_update(struct m0_addb_sm_counter *c,
+					  uint32_t idx,
+					  uint64_t datum);
+
+/**
+   Returns the total number of samples in the state machine counter.
+ */
+M0_INTERNAL uint64_t m0_addb_sm_counter_nr(const struct m0_addb_sm_counter *c);
+
+/**
+   Returns the total size (in bytes) of the data array needed for
+   the state machine counter. The correspondent state machine
+   configuration is determined from the record type.
+
+   The size of ADDB counter data element (m0_addb_counter_data) for
+   each state machine transition is taken into account along with
+   histogram size.
+
+   User should call this routine to determine the amount of memory
+   needed for state machine counter data allocation, allocate the
+   memory, and eventually pass it to m0_addb_sm_counter_init().
+
+   @pre rt->art_base_type == M0_ADDB_BRT_SM_CNTR
+
+   @see m0_addb_sm_counter_init()
+ */
+M0_INTERNAL size_t
+m0_addb_sm_counter_data_size(const struct m0_addb_rec_type *rt);
+
+/**
+   Low level subroutine used to reset the counter after it has been posted.
+   The statistical fields are set to 0.
+
+   @see M0_ADDB_POST_SM_CNTR()
+ */
+M0_INTERNAL void m0__addb_sm_counter_reset(struct m0_addb_sm_counter *c);
 
 /** @} end group addb_counter */
 
@@ -991,6 +1132,8 @@ struct m0_addb_post_data {
 	union {
 		/** counter */
 		struct m0_addb_counter     *apd_cntr;
+		/** sm counter */
+		struct m0_addb_sm_counter  *apd_sm_cntr;
 		/** sequence */
 		struct m0_addb_uint64_seq  *apd_seq;
 		/** argument array (count via apd_rt) */
@@ -1042,6 +1185,28 @@ do {									\
 	M0_ASSERT(pd.apd_rt->art_base_type == M0_ADDB_BRT_CNTR);	\
 	m0__addb_post(mc, &pd);						\
 	m0__addb_counter_reset(pd.u.apd_cntr);				\
+} while (0)
+
+/**
+   Macro to post an ADDB state machine counter record.
+   @param mc   Specify the ADDB machine.
+   @param cv   Specify the context vector, a null terminated array of one or
+   more context object pointers.
+   @param cntr Specify the pointer to the counter. A side effect of posting
+   the counter is that it is reset and its sequence number incremented.
+   @pre m0_addb_mc_has_evmgr(mc)
+   @see M0_ADDB_CTX_VEC(), M0_ADDB_POST(), M0_ADDB_POST_SEQ()
+ */
+#define M0_ADDB_POST_SM_CNTR(mc, cv, cntr)				\
+do {									\
+	struct m0_addb_post_data pd;					\
+	M0_ASSERT(cntr != NULL);					\
+	pd.u.apd_sm_cntr = cntr;					\
+	pd.apd_rt     = (cntr)->asc_rt;					\
+	pd.apd_cv     = cv;						\
+	M0_ASSERT(pd.apd_rt->art_base_type == M0_ADDB_BRT_SM_CNTR);	\
+	m0__addb_post(mc, &pd);						\
+	m0__addb_sm_counter_reset(cntr);				\
 } while (0)
 
 /**

@@ -283,6 +283,21 @@ struct m0_fom_locality {
 	/** Resources allotted to the partition */
 	struct m0_bitmap	     fl_processors;
 
+	struct m0_addb_ctx           fl_addb_ctx;
+	/**
+	   Accumulated run time of all foms. Is is updated from fom_exec()
+	   along with m0_fom::fo_exec_time.
+	 */
+	struct m0_addb_counter       fl_stat_run_times;
+	/**
+	   Accumulated scheduling overhead of all foms. It is updated from
+	   fom_dequeue() counting by m0_fom::fo_sched_epoch.
+	 */
+	struct m0_addb_counter       fl_stat_sched_wait_times;
+
+	/** AST which triggers the posting of statistics */
+	struct m0_sm_ast             fl_post_stats_ast;
+
 	/** Something for memory, see set_mempolicy(2). */
 };
 
@@ -293,6 +308,11 @@ struct m0_fom_locality {
  * mutex held.
  */
 M0_INTERNAL bool m0_locality_invariant(const struct m0_fom_locality *loc);
+
+/**
+ * Triggers the posting of statistics
+ */
+M0_INTERNAL void m0_fom_locality_post_stats(struct m0_fom_locality *loc);
 
 /**
  * Domain is a collection of localities that compete for the resources.
@@ -341,6 +361,30 @@ enum m0_fom_state {
 	/** FOM is enqueued into a locality wait list. */
 	M0_FOS_WAITING,
 	M0_FOS_FINISH,
+};
+
+/** The number of fom state transitions (see fom_trans[] at fom.c). */
+enum { M0_FOS_TRANS_NR = 8 };
+
+/**
+ * Histogram arguments for m0_addb_rt_fom_state_stats.
+ * Define the macro with histogram arguments if desired.
+ * e.g. #define M0_FOM_STATE_STATS_HIST_ARGS 100, 200, 500
+ */
+#undef M0_FOM_STATE_STATS_HIST_ARGS
+
+#ifdef M0_FOM_STATE_STATS_HIST_ARGS
+#define M0_FOM_STATE_STATS_HIST_ARGS2 0, M0_FOM_STATE_STATS_HIST_ARGS
+#else
+#define M0_FOM_STATE_STATS_HIST_ARGS2
+#endif
+enum {
+	FOM_STATE_STATS_DATA_SZ =
+		(sizeof(struct m0_addb_counter_data) +
+		  ((M0_COUNT_PARAMS(M0_FOM_STATE_STATS_HIST_ARGS2) > 0 ?
+		    M0_COUNT_PARAMS(M0_FOM_STATE_STATS_HIST_ARGS2) + 1 : 0) *
+                   sizeof(uint64_t))) *
+		M0_FOS_TRANS_NR
 };
 
 enum m0_fom_phase {
@@ -480,9 +524,15 @@ struct m0_fom {
 	/** State machine for generic and specfic FOM phases.
 	    sm_rc contains result of fom execution, -errno on failure.
 	 */
-	struct m0_sm		 fo_sm_phase;
+	struct m0_sm		  fo_sm_phase;
 	/** State machine for FOM states. */
-	struct m0_sm		 fo_sm_state;
+	struct m0_sm		  fo_sm_state;
+
+	/** addb sm counter for states statistics */
+	struct m0_addb_sm_counter fo_sm_state_stats;
+	/** counter data for states statistics */
+	uint8_t fo_fos_stats_data[FOM_STATE_STATS_DATA_SZ];
+
 	/** Thread executing current phase transition. */
 	struct m0_loc_thread     *fo_thread;
 	/**
@@ -490,10 +540,8 @@ struct m0_fom {
 	 */
 	struct m0_fom_callback   *fo_pending;
 
-	/** FOM create time (used to calculate lifetime) */
-	m0_time_t		  fo_ctime;
-	/** Accumulated execution time of the FOM */
-	m0_time_t		  fo_etime;
+	/** Schedule start epoch (used to calculate scheduling overhead). */
+	m0_time_t		  fo_sched_epoch;
 
 	uint64_t		  fo_magic;
 };
@@ -556,6 +604,28 @@ void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
  * @pre m0_fom_phase(fom) == M0_FOM_PHASE_FINISH
 */
 void m0_fom_fini(struct m0_fom *fom);
+
+/**
+ * Enables m0_sm state statistics for the fom's phases.
+ * Must be called between m0_fom_init() and m0_fom_queue()
+ * (which calls m0_fom_sm_init() inside).
+ * It is caller's responsibility to:
+ *
+ *  - initialize the counter;
+ *
+ *  - serialize access to the counter between different state machines
+ *    along with posting; for this reason it is encouraged that the counter
+ *    is shared only among the state machines of the same group;
+ *
+ *  - finalize the counter.
+ *
+ * @param c counter initialized by caller.
+ *
+ * @pre fom != NULL
+ * @pre fom->fo_sm_phase.sm_state_epoch == 0
+ */
+M0_INTERNAL void m0_fom_phase_stats_enable(struct m0_fom *fom,
+					   struct m0_addb_sm_counter *c);
 
 /**
  * Iterates over m0_fom members and check if they are consistent,
@@ -799,7 +869,7 @@ M0_INTERNAL bool m0_fom_is_waiting(const struct m0_fom *fom);
 M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type,
 				  const struct m0_fom_type_ops *ops,
 				  const struct m0_reqh_service_type *svc_type,
-				  const struct m0_sm_conf *sm);
+				  struct m0_sm_conf *sm);
 
 /**
  * Associate an operational context with the FOM.
@@ -815,18 +885,16 @@ M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type,
 M0_INTERNAL int m0_fom_op_addb_ctx_import(struct m0_fom *fom,
 					const struct m0_addb_uint64_seq *id);
 
+#define M0_FOM_ADDB_CTX_VEC(fom) ({					\
+	typeof(fom) __fom = fom;					\
+	M0_ADDB_CTX_VEC(&__fom->fo_addb_ctx, __fom->fo_op_addb_ctx);	\
+})
+
 /**
  * Helper macro for ADDB posting.
  */
-#define M0_FOM_ADDB_POST(fom, addb_mc, recid, ...)			\
-do {									\
-	struct m0_addb_ctx *cv[3];					\
-									\
-	cv[0]   = &fom->fo_addb_ctx;					\
-	cv[1]   =  fom->fo_op_addb_ctx;					\
-	cv[2]   = NULL;							\
-	M0_ADDB_POST(addb_mc, recid, cv, ## __VA_ARGS__);		\
-} while(0)
+#define M0_FOM_ADDB_POST(fom, addb_mc, recid, ...) \
+	M0_ADDB_POST(addb_mc, recid, M0_FOM_ADDB_CTX_VEC(fom), ## __VA_ARGS__);
 
 /** @} end of fom group */
 /* __MERO_FOP_FOM_H__ */

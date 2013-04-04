@@ -85,8 +85,8 @@ M0_ADDB_RT_CNTR(m0_addb_rt_ios_wfom_sizes,  M0_ADDB_RECID_IOS_WFOM_SIZES,
 #undef KB
 
 #undef uS
-#define uS(us) us
 #undef mS
+#define uS(us) us
 #define mS(ms) uS(1000 * (ms))
 M0_ADDB_RT_CNTR(m0_addb_rt_ios_rfom_times,  M0_ADDB_RECID_IOS_RFOM_TIMES,
 		uS(250), uS(500), uS(750), mS(1), mS(10), mS(50),

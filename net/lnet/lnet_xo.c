@@ -116,8 +116,9 @@ static int nlx_xo_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	if (rc != 0) {
 		NLX_FREE_ALIGNED_PTR(dp);
 		dom->nd_xprt_private = NULL;
-	}
-	nlx_core_dom_set_debug(&dp->xd_core, dp->_debug_);
+	} else
+		nlx_core_dom_set_debug(&dp->xd_core, dp->_debug_);
+
 	M0_POST(ergo(rc == 0, nlx_dom_invariant(dom)));
 	return rc;
 }

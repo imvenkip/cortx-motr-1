@@ -317,9 +317,15 @@ M0_INTERNAL void m0__addb_post(struct m0_addb_mc *mc,
 		M0_PRE(pd->apd_rt == pd->u.apd_cntr->acn_rt);
 		fields_nr = sizeof(*pd->u.apd_cntr->acn_data) /
 			    sizeof(uint64_t);
-		if (pd->u.apd_cntr->acn_rt->art_rf_nr > 0)
-			fields_nr += pd->u.apd_cntr->acn_rt->art_rf_nr + 1;
+		if (pd->apd_rt->art_rf_nr > 0)
+			fields_nr += pd->apd_rt->art_rf_nr + 1;
 		fields = (uint64_t *)pd->u.apd_cntr->acn_data;
+		break;
+	case M0_ADDB_BRT_SM_CNTR:
+		M0_PRE(pd->apd_rt == pd->u.apd_sm_cntr->asc_rt);
+		fields_nr = m0_addb_sm_counter_data_size(pd->apd_rt) /
+			    sizeof(uint64_t);
+		fields = (uint64_t *)pd->u.apd_sm_cntr->asc_data;
 		break;
 	case M0_ADDB_BRT_SEQ:
 		fields_nr = pd->u.apd_seq->au64s_nr;

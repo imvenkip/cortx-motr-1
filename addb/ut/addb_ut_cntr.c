@@ -113,6 +113,7 @@ static void addb_ut_cntr_test(void)
 	 * counter_reset(): success case
 	 */
 	m0__addb_counter_reset(&c[1]);
+	M0_UT_ASSERT(m0_addb_counter_nr(&c[1]) == 0);
 	M0_UT_ASSERT(c[1].acn_magic == M0_ADDB_CNTR_MAGIC);
 	M0_UT_ASSERT(c[1].acn_rt == cntrrtp[1]);
 	M0_UT_ASSERT(c[1].acn_data->acd_seq == 1);

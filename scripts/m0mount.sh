@@ -155,7 +155,8 @@ XPT_PARAM_L="max_rpc_msg_size=163840 tm_recv_queue_min_len=48"	# local host
 
 #KTRACE_FLAGS=m0_trace_immediate_mask=8
 
-BROOT=${PWD}   # globally visible build root
+BROOT=$PWD   # globally visible build root
+
 # track hosts that have been initialized in an associative array
 declare -A SETUP
 

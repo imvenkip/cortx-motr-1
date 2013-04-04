@@ -30,7 +30,6 @@
 #include "sm/sm.h"
 
 static struct m0_sm_group G;
-static struct m0_addb_ctx actx;
 static struct m0_sm       m;
 static struct m0_sm_ast   ast;
 static bool               more = true;
@@ -74,7 +73,7 @@ static int fini(void) {
 static void transition(void)
 {
 	enum { S_INITIAL, S_TERMINAL, S_FAILURE, S_NR };
-	const struct m0_sm_state_descr states[S_NR] = {
+	struct m0_sm_state_descr states[S_NR] = {
 		[S_INITIAL] = {
 			.sd_flags     = M0_SDF_INITIAL,
 			.sd_name      = "initial",
@@ -100,26 +99,44 @@ static void transition(void)
 			.sd_allowed   = 0
 		}
 	};
-	const struct m0_sm_conf        conf = {
+	struct m0_sm_trans_descr trans[] = {
+		{ "Step", S_INITIAL, S_TERMINAL },
+		{ "Fail", S_INITIAL, S_FAILURE },
+		{ "Fini", S_FAILURE, S_TERMINAL },
+	};
+	struct m0_sm_conf        conf = {
 		.scf_name      = "test drive: transition",
 		.scf_nr_states = S_NR,
-		.scf_state     = states
+		.scf_state     = states,
+		.scf_trans_nr  = ARRAY_SIZE(trans),
+		.scf_trans     = trans
 	};
 
+	m0_sm_conf_init(&conf);
+	M0_UT_ASSERT(states[S_INITIAL].sd_trans[S_INITIAL] == ~0);
+	M0_UT_ASSERT(states[S_INITIAL].sd_trans[S_TERMINAL] == 0);
+	M0_UT_ASSERT(states[S_INITIAL].sd_trans[S_FAILURE] == 1);
+	M0_UT_ASSERT(states[S_FAILURE].sd_trans[S_INITIAL] == ~0);
+	M0_UT_ASSERT(states[S_FAILURE].sd_trans[S_FAILURE] == ~0);
+	M0_UT_ASSERT(states[S_FAILURE].sd_trans[S_TERMINAL] == 2);
+	M0_UT_ASSERT(states[S_TERMINAL].sd_trans[S_INITIAL] == ~0);
+	M0_UT_ASSERT(states[S_TERMINAL].sd_trans[S_FAILURE] == ~0);
+	M0_UT_ASSERT(states[S_TERMINAL].sd_trans[S_TERMINAL] == ~0);
+
 	m0_sm_group_lock(&G);
-	m0_sm_init(&m, &conf, S_INITIAL, &G, &actx);
+	m0_sm_init(&m, &conf, S_INITIAL, &G);
 	M0_UT_ASSERT(m.sm_state == S_INITIAL);
 	m0_sm_state_set(&m, S_TERMINAL);
 	M0_UT_ASSERT(m.sm_state == S_TERMINAL);
 	m0_sm_fini(&m);
 
-	m0_sm_init(&m, &conf, S_INITIAL, &G, &actx);
+	m0_sm_init(&m, &conf, S_INITIAL, &G);
 	M0_UT_ASSERT(m.sm_state == S_INITIAL);
 	m0_sm_move(&m, 0, S_TERMINAL);
 	M0_UT_ASSERT(m.sm_state == S_TERMINAL);
 	m0_sm_fini(&m);
 
-	m0_sm_init(&m, &conf, S_INITIAL, &G, &actx);
+	m0_sm_init(&m, &conf, S_INITIAL, &G);
 	M0_UT_ASSERT(m.sm_state == S_INITIAL);
 	m0_sm_move(&m, -EINVAL, S_FAILURE);
 	M0_UT_ASSERT(m.sm_state == S_FAILURE);
@@ -197,56 +214,59 @@ static void ast_test(void)
    }
    @enddot
  */
+enum { S_TMO_INITIAL, S_TMO_0, S_TMO_1, S_TMO_2, S_TMO_TERMINAL, S_TMO_NR };
+
+static struct m0_sm_state_descr tmo_states[S_TMO_NR] = {
+	[S_TMO_INITIAL] = {
+		.sd_flags     = M0_SDF_INITIAL,
+		.sd_name      = "initial",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = M0_BITS(S_TMO_0)
+	},
+	[S_TMO_0] = {
+		.sd_flags     = 0,
+		.sd_name      = "0",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = M0_BITS(S_TMO_1, S_TMO_2)
+	},
+	[S_TMO_1] = {
+		.sd_flags     = 0,
+		.sd_name      = "0",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = M0_BITS(S_TMO_2, S_TMO_TERMINAL)
+	},
+	[S_TMO_2] = {
+		.sd_flags     = 0,
+		.sd_name      = "0",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = M0_BITS(S_TMO_0, S_TMO_TERMINAL)
+	},
+	[S_TMO_TERMINAL] = {
+		.sd_flags     = M0_SDF_TERMINAL,
+		.sd_name      = "terminal",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = 0
+	}
+};
+
+static const struct m0_sm_conf tmo_sm_conf = {
+	.scf_name      = "test drive: timeout",
+	.scf_nr_states = S_TMO_NR,
+	.scf_state     = tmo_states
+};
+
 static void timeout(void)
 {
-	enum { S_INITIAL, S_0, S_1, S_2, S_TERMINAL, S_NR };
-	const struct m0_sm_state_descr states[S_NR] = {
-		[S_INITIAL] = {
-			.sd_flags     = M0_SDF_INITIAL,
-			.sd_name      = "initial",
-			.sd_in        = NULL,
-			.sd_ex        = NULL,
-			.sd_invariant = NULL,
-			.sd_allowed   = M0_BITS(S_0)
-		},
-		[S_0] = {
-			.sd_flags     = 0,
-			.sd_name      = "0",
-			.sd_in        = NULL,
-			.sd_ex        = NULL,
-			.sd_invariant = NULL,
-			.sd_allowed   = M0_BITS(S_1, S_2)
-		},
-		[S_1] = {
-			.sd_flags     = 0,
-			.sd_name      = "0",
-			.sd_in        = NULL,
-			.sd_ex        = NULL,
-			.sd_invariant = NULL,
-			.sd_allowed   = M0_BITS(S_2, S_TERMINAL)
-		},
-		[S_2] = {
-			.sd_flags     = 0,
-			.sd_name      = "0",
-			.sd_in        = NULL,
-			.sd_ex        = NULL,
-			.sd_invariant = NULL,
-			.sd_allowed   = M0_BITS(S_0, S_TERMINAL)
-		},
-		[S_TERMINAL] = {
-			.sd_flags     = M0_SDF_TERMINAL,
-			.sd_name      = "terminal",
-			.sd_in        = NULL,
-			.sd_ex        = NULL,
-			.sd_invariant = NULL,
-			.sd_allowed   = 0
-		}
-	};
-	const struct m0_sm_conf        conf = {
-		.scf_name      = "test drive: timeout",
-		.scf_nr_states = S_NR,
-		.scf_state     = states
-	};
 	struct m0_sm_timeout t0;
 	struct m0_sm_timeout t1;
 	const long           delta = M0_TIME_ONE_BILLION/100;
@@ -256,7 +276,7 @@ static void timeout(void)
 	M0_UT_ASSERT(result == 0);
 
 	m0_sm_group_lock(&G);
-	m0_sm_init(&m, &conf, S_INITIAL, &G, &actx);
+	m0_sm_init(&m, &tmo_sm_conf, S_TMO_INITIAL, &G);
 
 	/* check that timeout initialisation and finalisation work. */
 	m0_sm_timeout_init(&t1);
@@ -265,49 +285,49 @@ static void timeout(void)
 	m0_sm_timeout_init(&t0);
 
 	/* check that timeout works */
-	result = m0_sm_timeout_arm(&m, &t0, m0_time_from_now(0, delta), S_0, 0);
+	result = m0_sm_timeout_arm(&m, &t0, m0_time_from_now(0, delta), S_TMO_0, 0);
 	M0_UT_ASSERT(result == 0);
 
-	result = m0_sm_timedwait(&m, ~M0_BITS(S_INITIAL), M0_TIME_NEVER);
+	result = m0_sm_timedwait(&m, ~M0_BITS(S_TMO_INITIAL), M0_TIME_NEVER);
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(m.sm_state == S_0);
+	M0_UT_ASSERT(m.sm_state == S_TMO_0);
 
 	m0_sm_timeout_fini(&t0);
 	m0_sm_timeout_init(&t1);
 
 	/* check that state transition cancels the timeout */
-	result = m0_sm_timeout_arm(&m, &t1, m0_time_from_now(0, delta), S_1, 0);
+	result = m0_sm_timeout_arm(&m, &t1, m0_time_from_now(0, delta), S_TMO_1, 0);
 	M0_UT_ASSERT(result == 0);
 
-	m0_sm_state_set(&m, S_2);
-	M0_UT_ASSERT(m.sm_state == S_2);
+	m0_sm_state_set(&m, S_TMO_2);
+	M0_UT_ASSERT(m.sm_state == S_TMO_2);
 
-	result = m0_sm_timedwait(&m, ~M0_BITS(S_2), m0_time_from_now(0,
+	result = m0_sm_timedwait(&m, ~M0_BITS(S_TMO_2), m0_time_from_now(0,
 								   2 * delta));
 	M0_UT_ASSERT(result == -ETIMEDOUT);
-	M0_UT_ASSERT(m.sm_state == S_2);
+	M0_UT_ASSERT(m.sm_state == S_TMO_2);
 
 	m0_sm_timeout_fini(&t1);
 	m0_sm_timeout_init(&t1);
 
 	/* check that timeout with a bitmask is not cancelled by a state
 	   transition */
-	m0_sm_state_set(&m, S_0);
-	result = m0_sm_timeout_arm(&m, &t1, m0_time_from_now(0, delta), S_2,
-				   M0_BITS(S_1));
+	m0_sm_state_set(&m, S_TMO_0);
+	result = m0_sm_timeout_arm(&m, &t1, m0_time_from_now(0, delta), S_TMO_2,
+				   M0_BITS(S_TMO_1));
 	M0_UT_ASSERT(result == 0);
 
-	m0_sm_state_set(&m, S_1);
-	M0_UT_ASSERT(m.sm_state == S_1);
+	m0_sm_state_set(&m, S_TMO_1);
+	M0_UT_ASSERT(m.sm_state == S_TMO_1);
 
-	result = m0_sm_timedwait(&m, M0_BITS(S_2), M0_TIME_NEVER);
+	result = m0_sm_timedwait(&m, M0_BITS(S_TMO_2), M0_TIME_NEVER);
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(m.sm_state == S_2);
+	M0_UT_ASSERT(m.sm_state == S_TMO_2);
 
 	m0_sm_timeout_fini(&t1);
 
-	m0_sm_state_set(&m, S_TERMINAL);
-	M0_UT_ASSERT(m.sm_state == S_TERMINAL);
+	m0_sm_state_set(&m, S_TMO_TERMINAL);
+	M0_UT_ASSERT(m.sm_state == S_TMO_TERMINAL);
 
 	m0_sm_fini(&m);
 	m0_sm_group_unlock(&G);
@@ -344,7 +364,7 @@ static int genesis_4_8(struct m0_sm *mach)
  */
 static void group(void)
 {
-	const struct m0_sm_state_descr states[S_NR] = {
+	struct m0_sm_state_descr states[S_NR] = {
 		[S_INITIAL] = {
 			.sd_flags     = M0_SDF_INITIAL,
 			.sd_name      = "initial",
@@ -389,8 +409,8 @@ static void group(void)
 	int                  result;
 
 	m0_sm_group_lock(&G);
-	m0_sm_init(&s.cain, &conf, S_INITIAL, &G, &actx);
-	m0_sm_init(&s.abel, &conf, S_INITIAL, &G, &actx);
+	m0_sm_init(&s.cain, &conf, S_INITIAL, &G);
+	m0_sm_init(&s.abel, &conf, S_INITIAL, &G);
 
 	/* check that timeout works */
 	m0_sm_timeout_init(&to);
@@ -473,92 +493,96 @@ static int over(struct m0_sm *mach)
  * }
  *  @enddot
  */
+
+static struct m0_sm_state_descr states[C_NR] = {
+	[C_INIT] = {
+		.sd_flags     = M0_SDF_INITIAL,
+		.sd_name      = "initial",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = M0_BITS(C_FLIP)
+	},
+	[C_FLIP] = {
+		.sd_flags     = 0,
+		.sd_name      = "flip a coin",
+		.sd_in        = flip,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = M0_BITS(C_HEAD, C_TAIL)
+	},
+	[C_HEAD] = {
+		.sd_flags     = 0,
+		.sd_name      = "Head, I win!",
+		.sd_in        = head,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = M0_BITS(C_DONE)
+	},
+	[C_TAIL] = {
+		.sd_flags     = 0,
+		.sd_name      = "Tail, you lose!",
+		.sd_in        = tail,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = M0_BITS(C_DONE)
+	},
+	[C_DONE] = {
+		.sd_flags     = 0,
+		.sd_name      = "round done",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = M0_BITS(C_OVER, C_FLIP)
+	},
+	[C_OVER] = {
+		.sd_flags     = 0,
+		.sd_name      = "game over",
+		.sd_in        = over,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = M0_BITS(C_WIN, C_LOSE, C_TIE)
+	},
+	[C_WIN] = {
+		.sd_flags     = M0_SDF_TERMINAL,
+		.sd_name      = "tails win",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = 0
+	},
+	[C_LOSE] = {
+		.sd_flags     = M0_SDF_TERMINAL|M0_SDF_FAILURE,
+		.sd_name      = "tails lose",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = 0
+	},
+	[C_TIE] = {
+		.sd_flags     = M0_SDF_TERMINAL,
+		.sd_name      = "tie",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = 0
+	},
+};
+
+enum { NR_RUNS = 20 };
+
+static const struct m0_sm_conf conf = {
+	.scf_name      = "test drive: chain",
+	.scf_nr_states = C_NR,
+	.scf_state     = states
+};
+
 static void chain(void)
 {
-	enum { NR_RUNS = 20 };
-	const struct m0_sm_state_descr states[C_NR] = {
-		[C_INIT] = {
-			.sd_flags     = M0_SDF_INITIAL,
-			.sd_name      = "initial",
-			.sd_in        = NULL,
-			.sd_ex        = NULL,
-			.sd_invariant = NULL,
-			.sd_allowed   = M0_BITS(C_FLIP)
-		},
-		[C_FLIP] = {
-			.sd_flags     = 0,
-			.sd_name      = "flip a coin",
-			.sd_in        = flip,
-			.sd_ex        = NULL,
-			.sd_invariant = NULL,
-			.sd_allowed   = M0_BITS(C_HEAD, C_TAIL)
-		},
-		[C_HEAD] = {
-			.sd_flags     = 0,
-			.sd_name      = "Head, I win!",
-			.sd_in        = head,
-			.sd_ex        = NULL,
-			.sd_invariant = NULL,
-			.sd_allowed   = M0_BITS(C_DONE)
-		},
-		[C_TAIL] = {
-			.sd_flags     = 0,
-			.sd_name      = "Tail, you lose!",
-			.sd_in        = tail,
-			.sd_ex        = NULL,
-			.sd_invariant = NULL,
-			.sd_allowed   = M0_BITS(C_DONE)
-		},
-		[C_DONE] = {
-			.sd_flags     = 0,
-			.sd_name      = "round done",
-			.sd_in        = NULL,
-			.sd_ex        = NULL,
-			.sd_invariant = NULL,
-			.sd_allowed   = M0_BITS(C_OVER, C_FLIP)
-		},
-		[C_OVER] = {
-			.sd_flags     = 0,
-			.sd_name      = "game over",
-			.sd_in        = over,
-			.sd_ex        = NULL,
-			.sd_invariant = NULL,
-			.sd_allowed   = M0_BITS(C_WIN, C_LOSE, C_TIE)
-		},
-		[C_WIN] = {
-			.sd_flags     = M0_SDF_TERMINAL,
-			.sd_name      = "tails win",
-			.sd_in        = NULL,
-			.sd_ex        = NULL,
-			.sd_invariant = NULL,
-			.sd_allowed   = 0
-		},
-		[C_LOSE] = {
-			.sd_flags     = M0_SDF_TERMINAL|M0_SDF_FAILURE,
-			.sd_name      = "tails lose",
-			.sd_in        = NULL,
-			.sd_ex        = NULL,
-			.sd_invariant = NULL,
-			.sd_allowed   = 0
-		},
-		[C_TIE] = {
-			.sd_flags     = M0_SDF_TERMINAL,
-			.sd_name      = "tie",
-			.sd_in        = NULL,
-			.sd_ex        = NULL,
-			.sd_invariant = NULL,
-			.sd_allowed   = 0
-		},
-	};
-	const struct m0_sm_conf conf = {
-		.scf_name      = "test drive: chain",
-		.scf_nr_states = C_NR,
-		.scf_state     = states
-	};
 	int i;
 
 	m0_sm_group_lock(&G);
-	m0_sm_init(&m, &conf, C_INIT, &G, &actx);
+	m0_sm_init(&m, &conf, C_INIT, &G);
 	M0_UT_ASSERT(m.sm_state == C_INIT);
 
 	for (i = 0; i < NR_RUNS; ++i) {

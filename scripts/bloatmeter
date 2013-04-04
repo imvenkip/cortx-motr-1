@@ -24,9 +24,12 @@ awk '{ \
         }                                 \
 } \
 END { \
+        print "Bloated-by:";                                                  \
+        print "<size>";                                                       \
         printf("    text     data      bss    total filename\n");             \
         for (name in total) {                                                 \
                 printf("%8d %8d %8d %8d %s\n",                                \
                        text[name], data[name], bss[name], total[name], name); \
         }                                                                     \
+        print "</size>";                                                      \
 }'

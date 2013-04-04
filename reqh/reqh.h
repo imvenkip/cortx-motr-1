@@ -124,9 +124,6 @@ struct m0_reqh {
 	 */
 	struct m0_addb_mc        rh_addb_mc;
 
-	/** @deprecated */
-	struct m0_addb_ctx       rh_addb;
-
 	struct m0_addb_ctx       rh_addb_ctx;
 
 	/**

@@ -247,9 +247,16 @@ M0_FOL_REC_PART_TYPE_DECLARE(m0_fop_fol_rec_part, , NULL, NULL);
 M0_INTERNAL int m0_fops_init(void)
 {
 	m0_xc_fop_init();
+	m0_sm_conf_init(&fom_states_conf);
 	m0_addb_ctx_type_register(&m0_addb_ct_fop_mod);
+	m0_addb_ctx_type_register(&m0_addb_ct_fom_locality);
 	m0_addb_rec_type_register(&m0_addb_rt_fom_init);
 	m0_addb_rec_type_register(&m0_addb_rt_fom_fini);
+	m0_addb_rec_type_register(&m0_addb_rt_fom_state_stats);
+	m0_addb_rec_type_register(&m0_addb_rt_fl_run_times);
+	m0_addb_rec_type_register(&m0_addb_rt_fl_sched_wait_times);
+	m0_addb_rec_type_register(&m0_addb_rt_fl_runq_nr);
+	m0_addb_rec_type_register(&m0_addb_rt_fl_wail_nr);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_fop_addb_ctx, &m0_addb_ct_fop_mod,
 			 &m0_addb_proc_ctx);
 	ft_tlist_init(&fop_types_list);

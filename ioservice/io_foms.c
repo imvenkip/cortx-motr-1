@@ -733,7 +733,7 @@ struct m0_sm_state_descr io_phases[] = {
 	},
 };
 
-const struct m0_sm_conf io_conf = {
+struct m0_sm_conf io_conf = {
 	.scf_name      = "IO phases",
 	.scf_nr_states = ARRAY_SIZE(io_phases),
 	.scf_state     = io_phases

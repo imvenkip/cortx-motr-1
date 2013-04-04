@@ -143,6 +143,14 @@ try to adhere to some higher level idioms.
 
       Specifically, never use if (r == true);
 
+      In ?: operator of the following gcc-extension form it is Ok
+      to use any scalar type expressions:
+
+        a ?: b ?: c ?: ...
+
+      This operator means "return first non-zero value among a, b, c",
+      that's why "a" there can have any suitable type.
+
     * simplify:
 
               return q != 0;            to     return q;

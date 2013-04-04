@@ -459,7 +459,7 @@ static const struct m0_fom_ops cp_fom_ops = {
    @{
  */
 
-static const struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
+static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
         [M0_CCP_INIT] = {
                 .sd_flags       = M0_SDF_INITIAL,
                 .sd_name        = "Init",
@@ -505,7 +505,7 @@ static const struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
         },
 };
 
-static const struct m0_sm_conf m0_cm_cp_sm_conf = {
+static struct m0_sm_conf m0_cm_cp_sm_conf = {
 	.scf_name = "sm:cp conf",
 	.scf_nr_states = ARRAY_SIZE(m0_cm_cp_state_descr),
 	.scf_state = m0_cm_cp_state_descr

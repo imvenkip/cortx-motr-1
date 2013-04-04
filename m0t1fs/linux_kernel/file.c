@@ -804,7 +804,7 @@ static void ioreq_sm_failed(struct io_request *req, int rc)
 	m0_mutex_unlock(&req->ir_sm.sm_grp->s_lock);
 }
 
-static const struct m0_sm_state_descr io_states[] = {
+static struct m0_sm_state_descr io_states[] = {
 	[IRS_INITIALIZED]      = {
 		.sd_flags      = M0_SDF_INITIAL,
 		.sd_name       = "IO_initial",
@@ -3172,7 +3172,7 @@ static int io_request_init(struct io_request  *req,
 	nw_xfer_request_init(&req->ir_nwxfer);
 
 	m0_sm_init(&req->ir_sm, &io_sm_conf, IRS_INITIALIZED,
-		   file_to_smgroup(req->ir_file), &m0t1fs_addb_ctx);
+		   file_to_smgroup(req->ir_file));
 
 	rc = m0_indexvec_alloc(&req->ir_ivec, ivec->iv_vec.v_nr,
 	                       &m0t1fs_addb_ctx,

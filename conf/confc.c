@@ -278,7 +278,7 @@ static bool terminal_st_invariant(const struct m0_sm *mach); /* S_TERMINAL */
 enum confc_ctx_state { S_INITIAL, S_CHECK, S_WAIT_REPLY, S_WAIT_STATUS,
 		       S_GROW_CACHE, S_FAILURE, S_TERMINAL, S_NR };
 
-static const struct m0_sm_state_descr confc_ctx_states[S_NR] = {
+static struct m0_sm_state_descr confc_ctx_states[S_NR] = {
 	[S_INITIAL] = {
 		.sd_flags     = M0_SDF_INITIAL | M0_SDF_FINAL,
 		.sd_name      = "S_INITIAL",
@@ -527,7 +527,7 @@ m0_confc_ctx_init(struct m0_confc_ctx *ctx, struct m0_confc *confc)
 
 	confc_group_lock(confc); /* needed for m0_sm_init() */
 	m0_sm_init(&ctx->fc_mach, &confc_ctx_states_conf, S_INITIAL,
-		   confc->cc_group, NULL /* XXX TODO m0_addb_ctx */);
+		   confc->cc_group);
 
 	confc_lock(confc);
 	M0_CNT_INC(confc->cc_nr_ctx); /* attach to m0_confc */

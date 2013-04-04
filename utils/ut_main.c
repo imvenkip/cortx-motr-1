@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -63,6 +63,7 @@ extern const struct m0_test_suite item_source_ut;
 extern const struct m0_test_suite layout_ut;
 extern const struct m0_test_suite m0_addb_ut;
 extern const struct m0_test_suite m0_fop_lock_ut;
+extern const struct m0_test_suite m0_fom_stats_ut;
 extern const struct m0_test_suite m0_net_bulk_if_ut;
 extern const struct m0_test_suite m0_net_bulk_mem_ut;
 extern const struct m0_test_suite m0_net_lnet_ut;
@@ -121,6 +122,7 @@ void add_uts(void)
 	m0_ut_add(&layout_ut);
 	m0_ut_add(&m0_addb_ut);
 	m0_ut_add(&m0_fop_lock_ut);
+	m0_ut_add(&m0_fom_stats_ut);
 	m0_ut_add(&m0_net_bulk_if_ut);
 	m0_ut_add(&m0_net_bulk_mem_ut);
 	m0_ut_add(&m0_net_lnet_ut);

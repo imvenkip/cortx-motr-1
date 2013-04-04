@@ -104,7 +104,7 @@ static const struct m0_rpc_item_ops conn_terminate_item_ops = {
 	.rio_replied = m0_rpc_conn_terminate_reply_received,
 };
 
-static const struct m0_sm_state_descr conn_states[] = {
+static struct m0_sm_state_descr conn_states[] = {
 	[M0_RPC_CONN_INITIALISED] = {
 		.sd_flags     = M0_SDF_INITIAL,
 		.sd_name      = "Initialised",
@@ -280,7 +280,7 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
 	rc = __conn_init(conn, ep, machine, max_rpcs_in_flight);
 	if (rc == 0) {
 		m0_sm_init(&conn->c_sm, &conn_conf, M0_RPC_CONN_INITIALISED,
-			   &machine->rm_sm_grp, NULL /* addb context */);
+			   &machine->rm_sm_grp);
 		m0_rpc_machine_add_conn(machine, conn);
 		M0_LOG(M0_INFO, "%p INITIALISED \n", conn);
 	}
@@ -404,7 +404,7 @@ M0_INTERNAL int m0_rpc_rcv_conn_init(struct m0_rpc_conn *conn,
 	rc = __conn_init(conn, ep, machine, 8 /* max packets in flight */);
 	if (rc == 0) {
 		m0_sm_init(&conn->c_sm, &conn_conf, M0_RPC_CONN_INITIALISED,
-			   &machine->rm_sm_grp, NULL /* addb context */);
+			   &machine->rm_sm_grp);
 		m0_rpc_machine_add_conn(machine, conn);
 		M0_LOG(M0_INFO, "%p INITIALISED \n", conn);
 	}

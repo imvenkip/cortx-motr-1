@@ -295,7 +295,7 @@ struct m0_addb_ctx m0_cm_mod_ctx;
 static void cm_move(struct m0_cm *cm, int rc, enum m0_cm_state state,
 		    enum m0_cm_failure failure);
 
-static const struct m0_sm_state_descr cm_state_descr[M0_CMS_NR] = {
+static struct m0_sm_state_descr cm_state_descr[M0_CMS_NR] = {
 	[M0_CMS_INIT] = {
 		.sd_flags	= M0_SDF_INITIAL,
 		.sd_name	= "cm_init",
@@ -606,7 +606,7 @@ M0_INTERNAL int m0_cm_init(struct m0_cm *cm, struct m0_cm_type *cm_type,
 	m0_sm_group_init(&cm->cm_sm_group);
 	/* Note: ADDB context not initialized until m0_reqh_service_start() */
 	m0_sm_init(&cm->cm_mach, &cm_sm_conf, M0_CMS_INIT,
-		   &cm->cm_sm_group, &cm->cm_service.rs_addb_ctx);
+		   &cm->cm_sm_group);
 	/*
 	 * We lock the copy machine here just to satisfy the
 	 * pre-condition of m0_cm_state_get and not to control

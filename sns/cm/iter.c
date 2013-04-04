@@ -798,7 +798,7 @@ M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 	return rc;
 }
 
-static const struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {
+static struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {
 	[ITPH_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "iter init",
@@ -962,8 +962,7 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 	if (rc != 0)
 		return rc;
 
-	m0_sm_init(&it->si_sm, &cm_iter_sm_conf, ITPH_INIT,
-		   &cm->cm_sm_group, &cm->cm_service.rs_addb_ctx);
+	m0_sm_init(&it->si_sm, &cm_iter_sm_conf, ITPH_INIT, &cm->cm_sm_group);
 	m0_sns_cm_iter_bob_init(it);
 	rc = m0_cob_ns_iter_init(&it->si_cns_it, &gfid, it->si_dbenv, it->si_cob_dom);
 

@@ -32,7 +32,7 @@
 
 /*
  *****************************************************************************
- * Record type varargs expansion macro family with name fields in the union.
+ * Record type va_args expansion macro family with name fields in the union.
  *****************************************************************************
  */
 #define M0__ADDB_RT_N_BEGIN(name, bt, id, nr)		\
@@ -144,66 +144,67 @@ M0__ADDB_RT_N_END()
 #define M0__ADDB_IS_INT64(num) \
 (M0_HAS_TYPE((num), int) || M0_HAS_TYPE((num), long int))
 
-#define M0__ADDB_RT_L_BEGIN(name, id, nr)	\
+#define M0__ADDB_RT_L_BEGIN(name, bt, id, smconf, nr) \
 M0_BASSERT(M0_HAS_TYPE((id), int) && (id) > 0);	\
 struct m0_addb_rec_type name = {		\
 	.art_magic = 0,				\
-	.art_base_type = M0_ADDB_BRT_CNTR,	\
+	.art_base_type = M0_ADDB_BRT_##bt,	\
 	.art_name = #name,			\
 	.art_id = (id),				\
+	.art_sm_conf = (smconf),		\
 	.art_rf_nr = nr,			\
         .art_rf = {
 #define M0__ADDB_RT_L_END()			\
         }					\
 }
 
-#define M0__ADDB_RT_L0(name, id)		\
-M0__ADDB_RT_L_BEGIN(name, id, 0)		\
+#define M0__ADDB_RT_L0(name, bt, id, smconf)	\
+M0__ADDB_RT_L_BEGIN(name, bt, id, smconf, 0)	\
 M0__ADDB_RT_L_END()
 
-#define M0__ADDB_RT_L1(name, id, b1)		\
+#define M0__ADDB_RT_L1(name, bt, id, smconf, b1) \
 M0_BASSERT(M0__ADDB_IS_INT64(b1) && (b1) > 0);	\
-M0__ADDB_RT_L_BEGIN(name, id, 1)		\
+M0__ADDB_RT_L_BEGIN(name, bt, id, smconf, 1)	\
 	{ .arfu_lower = (b1) },			\
 M0__ADDB_RT_L_END()
 
-#define M0__ADDB_RT_L2(name, id, b1, b2)		\
+#define M0__ADDB_RT_L2(name, bt, id, smconf, b1, b2)	\
 M0_BASSERT(M0__ADDB_IS_INT64(b1) && (b1) > 0);		\
 M0_BASSERT(M0__ADDB_IS_INT64(b2) && (b2) > (b1));	\
-M0__ADDB_RT_L_BEGIN(name, id, 2)			\
+M0__ADDB_RT_L_BEGIN(name, bt, id, smconf, 2)		\
 	{ .arfu_lower = (b1) },				\
 	{ .arfu_lower = (b2) },				\
 M0__ADDB_RT_L_END()
 
-#define M0__ADDB_RT_L3(name, id, b1, b2, b3)		\
+#define M0__ADDB_RT_L3(name, bt, id, smconf, b1, b2, b3) \
 M0_BASSERT(M0__ADDB_IS_INT64(b1) && (b1) > 0);		\
 M0_BASSERT(M0__ADDB_IS_INT64(b2) && (b2) > (b1));	\
 M0_BASSERT(M0__ADDB_IS_INT64(b3) && (b3) > (b2));	\
-M0__ADDB_RT_L_BEGIN(name, id, 3)			\
+M0__ADDB_RT_L_BEGIN(name, bt, id, smconf, 3)		\
 	{ .arfu_lower = (b1) },				\
 	{ .arfu_lower = (b2) },				\
 	{ .arfu_lower = (b3) },				\
 M0__ADDB_RT_L_END()
 
-#define M0__ADDB_RT_L4(name, id, b1, b2, b3, b4)	\
+#define M0__ADDB_RT_L4(name, bt, id, smconf, b1, b2, b3, b4) \
 M0_BASSERT(M0__ADDB_IS_INT64(b1) && (b1) > 0);		\
 M0_BASSERT(M0__ADDB_IS_INT64(b2) && (b2) > (b1));	\
 M0_BASSERT(M0__ADDB_IS_INT64(b3) && (b3) > (b2));	\
 M0_BASSERT(M0__ADDB_IS_INT64(b4) && (b4) > (b3));	\
-M0__ADDB_RT_L_BEGIN(name, id, 4)			\
+M0__ADDB_RT_L_BEGIN(name, bt, id, smconf, 4)		\
 	{ .arfu_lower = (b1) },				\
 	{ .arfu_lower = (b2) },				\
 	{ .arfu_lower = (b3) },				\
 	{ .arfu_lower = (b4) },				\
 M0__ADDB_RT_L_END()
 
-#define M0__ADDB_RT_L5(name, id, b1, b2, b3, b4, b5)	\
+#define M0__ADDB_RT_L5(name, bt, id, smconf, b1, b2, b3, b4, b5) \
 M0_BASSERT(M0__ADDB_IS_INT64(b1) && (b1) > 0);		\
 M0_BASSERT(M0__ADDB_IS_INT64(b2) && (b2) > (b1));	\
 M0_BASSERT(M0__ADDB_IS_INT64(b3) && (b3) > (b2));	\
 M0_BASSERT(M0__ADDB_IS_INT64(b4) && (b4) > (b3));	\
 M0_BASSERT(M0__ADDB_IS_INT64(b5) && (b5) > (b4));	\
-M0__ADDB_RT_L_BEGIN(name, id, 5)			\
+M0__ADDB_RT_L_BEGIN(name, bt, id, smconf, 5)		\
 	{ .arfu_lower = (b1) },				\
 	{ .arfu_lower = (b2) },				\
 	{ .arfu_lower = (b3) },				\
@@ -211,14 +212,14 @@ M0__ADDB_RT_L_BEGIN(name, id, 5)			\
 	{ .arfu_lower = (b5) },				\
 M0__ADDB_RT_L_END()
 
-#define M0__ADDB_RT_L6(name, id, b1, b2, b3, b4, b5, b6)	\
+#define M0__ADDB_RT_L6(name, bt, id, smconf, b1, b2, b3, b4, b5, b6) \
 M0_BASSERT(M0__ADDB_IS_INT64(b1) && (b1) > 0);			\
 M0_BASSERT(M0__ADDB_IS_INT64(b2) && (b2) > (b1));		\
 M0_BASSERT(M0__ADDB_IS_INT64(b3) && (b3) > (b2));		\
 M0_BASSERT(M0__ADDB_IS_INT64(b4) && (b4) > (b3));		\
 M0_BASSERT(M0__ADDB_IS_INT64(b5) && (b5) > (b4));		\
 M0_BASSERT(M0__ADDB_IS_INT64(b6) && (b6) > (b5));		\
-M0__ADDB_RT_L_BEGIN(name, id, 6)				\
+M0__ADDB_RT_L_BEGIN(name, bt, id, smconf, 6)			\
 	{ .arfu_lower = (b1) },					\
 	{ .arfu_lower = (b2) },					\
 	{ .arfu_lower = (b3) },					\
@@ -227,7 +228,7 @@ M0__ADDB_RT_L_BEGIN(name, id, 6)				\
 	{ .arfu_lower = (b6) },					\
 M0__ADDB_RT_L_END()
 
-#define M0__ADDB_RT_L7(name, id, b1, b2, b3, b4, b5, b6, b7)	\
+#define M0__ADDB_RT_L7(name, bt, id, smconf, b1, b2, b3, b4, b5, b6, b7) \
 M0_BASSERT(M0__ADDB_IS_INT64(b1) && (b1) > 0);			\
 M0_BASSERT(M0__ADDB_IS_INT64(b2) && (b2) > (b1));		\
 M0_BASSERT(M0__ADDB_IS_INT64(b3) && (b3) > (b2));		\
@@ -235,7 +236,7 @@ M0_BASSERT(M0__ADDB_IS_INT64(b4) && (b4) > (b3));		\
 M0_BASSERT(M0__ADDB_IS_INT64(b5) && (b5) > (b4));		\
 M0_BASSERT(M0__ADDB_IS_INT64(b6) && (b6) > (b5));		\
 M0_BASSERT(M0__ADDB_IS_INT64(b7) && (b7) > (b6));		\
-M0__ADDB_RT_L_BEGIN(name, id, 7)				\
+M0__ADDB_RT_L_BEGIN(name, bt, id, smconf, 7)			\
 	{ .arfu_lower = (b1) },					\
 	{ .arfu_lower = (b2) },					\
 	{ .arfu_lower = (b3) },					\
@@ -245,7 +246,7 @@ M0__ADDB_RT_L_BEGIN(name, id, 7)				\
 	{ .arfu_lower = (b7) },					\
 M0__ADDB_RT_L_END()
 
-#define M0__ADDB_RT_L8(name, id, b1, b2, b3, b4, b5, b6, b7, b8)	\
+#define M0__ADDB_RT_L8(name, bt, id, smconf, b1, b2, b3, b4, b5, b6, b7, b8) \
 M0_BASSERT(M0__ADDB_IS_INT64(b1) && (b1) > 0);				\
 M0_BASSERT(M0__ADDB_IS_INT64(b2) && (b2) > (b1));			\
 M0_BASSERT(M0__ADDB_IS_INT64(b3) && (b3) > (b2));			\
@@ -254,7 +255,7 @@ M0_BASSERT(M0__ADDB_IS_INT64(b5) && (b5) > (b4));			\
 M0_BASSERT(M0__ADDB_IS_INT64(b6) && (b6) > (b5));			\
 M0_BASSERT(M0__ADDB_IS_INT64(b7) && (b7) > (b6));			\
 M0_BASSERT(M0__ADDB_IS_INT64(b8) && (b8) > (b7));			\
-M0__ADDB_RT_L_BEGIN(name, id, 8)					\
+M0__ADDB_RT_L_BEGIN(name, bt, id, smconf, 8)				\
 	{ .arfu_lower = (b1) },						\
 	{ .arfu_lower = (b2) },						\
 	{ .arfu_lower = (b3) },						\
@@ -265,7 +266,8 @@ M0__ADDB_RT_L_BEGIN(name, id, 8)					\
 	{ .arfu_lower = (b8) },						\
 M0__ADDB_RT_L_END()
 
-#define M0__ADDB_RT_L9(name, id, b1, b2, b3, b4, b5, b6, b7, b8, b9)	\
+#define M0__ADDB_RT_L9(name, bt, id, smconf,				\
+                       b1, b2, b3, b4, b5, b6, b7, b8, b9)		\
 M0_BASSERT(M0__ADDB_IS_INT64(b1) && (b1) > 0);				\
 M0_BASSERT(M0__ADDB_IS_INT64(b2) && (b2) > (b1));			\
 M0_BASSERT(M0__ADDB_IS_INT64(b3) && (b3) > (b2));			\
@@ -275,7 +277,7 @@ M0_BASSERT(M0__ADDB_IS_INT64(b6) && (b6) > (b5));			\
 M0_BASSERT(M0__ADDB_IS_INT64(b7) && (b7) > (b6));			\
 M0_BASSERT(M0__ADDB_IS_INT64(b8) && (b8) > (b7));			\
 M0_BASSERT(M0__ADDB_IS_INT64(b9) && (b9) > (b8));			\
-M0__ADDB_RT_L_BEGIN(name, id, 9)					\
+M0__ADDB_RT_L_BEGIN(name, bt, id, smconf, 9)				\
 	{ .arfu_lower = (b1) },						\
 	{ .arfu_lower = (b2) },						\
 	{ .arfu_lower = (b3) },						\
@@ -289,7 +291,7 @@ M0__ADDB_RT_L_END()
 
 /*
  *****************************************************************************
- * Context init varags expansion macros
+ * Context init va_args expansion macros
  *****************************************************************************
  */
 #define M0__ADDB_CTX_FVEC(...) (uint64_t []){__VA_ARGS__}

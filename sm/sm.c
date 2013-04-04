@@ -24,7 +24,7 @@
 #include "lib/mutex.h"
 #include "lib/arith.h"              /* m0_is_po2 */
 #include "lib/trace.h"
-#include "addb/addb.h"
+#include "lib/memory.h"
 #include "sm/sm.h"
 #include "lib/finject.h"
 
@@ -232,8 +232,7 @@ static bool conf_invariant(const struct m0_sm_conf *conf)
 }
 
 M0_INTERNAL void m0_sm_init(struct m0_sm *mach, const struct m0_sm_conf *conf,
-			    uint32_t state, struct m0_sm_group *grp,
-			    struct m0_addb_ctx *ctx)
+			    uint32_t state, struct m0_sm_group *grp)
 {
 	M0_PRE(conf_invariant(conf));
 	M0_PRE(conf->scf_state[state].sd_flags & M0_SDF_INITIAL);
@@ -241,8 +240,8 @@ M0_INTERNAL void m0_sm_init(struct m0_sm *mach, const struct m0_sm_conf *conf,
 	mach->sm_state = state;
 	mach->sm_conf  = conf;
 	mach->sm_grp   = grp;
-	mach->sm_addb  = ctx;
 	mach->sm_rc    = 0;
+	mach->sm_state_epoch = 0;
 	m0_chan_init(&mach->sm_chan, &grp->s_lock);
 	M0_POST(sm_invariant0(mach));
 }
@@ -252,6 +251,68 @@ M0_INTERNAL void m0_sm_fini(struct m0_sm *mach)
 	M0_ASSERT(sm_invariant0(mach));
 	M0_PRE(sm_state(mach)->sd_flags & (M0_SDF_TERMINAL | M0_SDF_FINAL));
 	m0_chan_fini(&mach->sm_chan);
+}
+
+M0_INTERNAL void m0_sm_conf_init(struct m0_sm_conf *conf)
+{
+	uint32_t i;
+	uint32_t from;
+	uint32_t to;
+
+	M0_PRE(!m0_sm_conf_is_initialized(conf));
+	M0_PRE(conf->scf_trans_nr > 0);
+
+	M0_ASSERT(conf->scf_nr_states < M0_SM_MAX_STATES);
+
+	for (i = 0; i < conf->scf_nr_states; ++i)
+		for (to = 0; to < conf->scf_nr_states; ++to)
+			conf->scf_state[i].sd_trans[to] = ~0;
+
+	for (i = 0; i < conf->scf_trans_nr; ++i) {
+		from = conf->scf_trans[i].td_src;
+		to = conf->scf_trans[i].td_tgt;
+		M0_ASSERT(conf->scf_state[from].sd_allowed & M0_BITS(to));
+		conf->scf_state[from].sd_trans[to] = i;
+	}
+
+	for (i = 0; i < conf->scf_nr_states; ++i)
+		for (to = 0; to < conf->scf_nr_states; ++to)
+			M0_ASSERT(ergo(conf->scf_state[i].sd_allowed &
+			               M0_BITS(to),
+			               conf->scf_state[i].sd_trans[to] != ~0));
+
+	conf->scf_magic = M0_SM_CONF_MAGIC;
+
+	M0_POST(m0_sm_conf_is_initialized(conf));
+}
+
+M0_INTERNAL bool m0_sm_conf_is_initialized(const struct m0_sm_conf *conf)
+{
+	return conf->scf_magic == M0_SM_CONF_MAGIC;
+}
+
+M0_INTERNAL void m0_sm_stats_enable(struct m0_sm *mach,
+				    struct m0_addb_sm_counter *c)
+{
+	M0_PRE(m0_sm_conf_is_initialized(mach->sm_conf));
+	M0_PRE(c->asc_magic == M0_ADDB_CNTR_MAGIC);
+	M0_PRE(c->asc_rt->art_sm_conf == mach->sm_conf);
+
+	mach->sm_addb_stats = c;
+	mach->sm_state_epoch = m0_time_now();
+}
+
+M0_INTERNAL void m0_sm_stats_post(struct m0_sm *mach,
+				  struct m0_addb_mc *addb_mc,
+				  struct m0_addb_ctx **cv)
+{
+	if (mach->sm_state_epoch == 0)
+		return;
+
+	M0_ASSERT(m0_sm_invariant(mach));
+
+	if (m0_addb_sm_counter_nr(mach->sm_addb_stats) > 0)
+		M0_ADDB_POST_SM_CNTR(addb_mc, cv, mach->sm_addb_stats);
 }
 
 M0_INTERNAL int m0_sm_timedwait(struct m0_sm *mach, uint64_t states,
@@ -302,12 +363,23 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 		M0_ASSERT(sd->sd_allowed & M0_BITS(state));
 		if (sd->sd_ex != NULL)
 			sd->sd_ex(mach);
+
+		/* Update statistics (if enabled) */
+		if (mach->sm_state_epoch != 0) {
+			m0_time_t now = m0_time_now();
+			m0_addb_sm_counter_update(mach->sm_addb_stats,
+			    sd->sd_trans[state],
+			    m0_time_sub(now, mach->sm_state_epoch) >> 10);
+			mach->sm_state_epoch = now;
+		}
+
 		mach->sm_state = state;
 		M0_ASSERT(m0_sm_invariant(mach));
 		sd = sm_state(mach);
 		state = sd->sd_in != NULL ? sd->sd_in(mach) : -1;
 		m0_chan_broadcast(&mach->sm_chan);
 	} while (state >= 0);
+
 	M0_POST(m0_sm_invariant(mach));
 }
 

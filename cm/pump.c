@@ -206,7 +206,7 @@ static int cpp_fail(struct m0_cm_cp_pump *cp_pump)
 	return M0_FSO_WAIT;
 }
 
-static const struct m0_sm_state_descr cm_cp_pump_sd[CPP_NR] = {
+static struct m0_sm_state_descr cm_cp_pump_sd[CPP_NR] = {
 	[CPP_ALLOC] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "copy packet allocate",
@@ -240,7 +240,7 @@ static const struct m0_sm_state_descr cm_cp_pump_sd[CPP_NR] = {
 	},
 };
 
-static const struct m0_sm_conf cm_cp_pump_conf = {
+static struct m0_sm_conf cm_cp_pump_conf = {
 	.scf_name      = "sm: cp pump conf",
 	.scf_nr_states = ARRAY_SIZE(cm_cp_pump_sd),
 	.scf_state     = cm_cp_pump_sd

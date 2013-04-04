@@ -199,7 +199,7 @@ int m0_fom_tick_generic(struct m0_fom *fom);
 M0_INTERNAL void m0_fom_generic_fini(void);
 M0_INTERNAL int m0_fom_generic_init(void);
 
-extern const struct m0_sm_conf m0_generic_conf;
+extern struct m0_sm_conf m0_generic_conf;
 
 /**
    Generic reply.

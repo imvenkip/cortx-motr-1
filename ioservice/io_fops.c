@@ -142,7 +142,7 @@ extern struct m0_reqh_service_type m0_ios_type;
 extern const struct m0_fom_type_ops cob_fom_type_ops;
 extern const struct m0_fom_type_ops io_fom_type_ops;
 
-extern const struct m0_sm_conf io_conf;
+extern struct m0_sm_conf io_conf;
 extern struct m0_sm_state_descr io_phases[];
 
 M0_INTERNAL int m0_ioservice_fop_init(void)

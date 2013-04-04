@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -37,6 +37,7 @@
 #include "addb/ut/addb_ut_ctx.c"
 #include "addb/ut/addb_ut_evmgr_pt.c"
 #include "addb/ut/addb_ut_cntr.c"
+#include "addb/ut/addb_ut_smcntr.c"
 #ifndef __KERNEL__
 #include "addb/ut/addb_ut_stobsink.c"
 #include "addb/ut/addb_ut_svc.c"
@@ -93,6 +94,7 @@ const struct m0_test_suite m0_addb_ut = {
 		{ "addb-evmgr-pt-config",    addb_ut_evmgr_pt_config_test },
 		{ "addb-evmgr-pt-post",      addb_ut_evmgr_pt_post_test },
 		{ "addb-cntr",               addb_ut_cntr_test },
+		{ "addb-smcntr",             addb_ut_smcntr_test },
 #ifndef __KERNEL__
 		{ "addb-stobsink-search",    addb_ut_stobsink_search },
 		{ "addb-stob-post-retrieve", addb_ut_stob },

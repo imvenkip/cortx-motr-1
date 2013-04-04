@@ -214,7 +214,7 @@ M0_ADDB_RT_EX(m0_mod_ex, 12344, "rc");
 M0_ADDB_RT_DP(m0_mod_dp, 12345, "num");
 M0_ADDB_RT_CNTR(m0_mod_cntr_nh, 12346);  // no histogram
 M0_ADDB_RT_CNTR(m0_mod_cntr_h, 12347, 10, 20, 30, 40); // 5 histogram buckets
-
+                                  // (there is an implicit 0th histogram bucket)
 M0_ADDB_CT(m0_mod_ct, 67890);
 #endif
 @endcode

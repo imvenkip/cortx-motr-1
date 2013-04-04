@@ -275,7 +275,7 @@ struct __m0_fop_type_init_args {
 	const struct m0_fop_type_ops      *fop_ops;
 	const struct m0_fom_type_ops      *fom_ops;
 	const struct m0_rpc_item_type_ops *rpc_ops;
-	const struct m0_sm_conf		  *sm;
+	      struct m0_sm_conf		  *sm;
 	const struct m0_reqh_service_type *svc_type;
 };
 

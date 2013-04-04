@@ -83,17 +83,6 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 
 	M0_PRE(reqh != NULL);
 
-	result = m0_fom_domain_init(&reqh->rh_fom_dom);
-	if (result != 0)
-		return result;
-	reqh->rh_dtm             = reqh_args->rhia_dtm;
-	reqh->rh_dbenv           = reqh_args->rhia_db;
-	reqh->rh_svc             = reqh_args->rhia_svc;
-	reqh->rh_mdstore         = reqh_args->rhia_mdstore;
-	reqh->rh_fol             = reqh_args->rhia_fol;
-	reqh->rh_shutdown        = false;
-	reqh->rh_fom_dom.fd_reqh = reqh;
-
 	m0_addb_mc_init(&reqh->rh_addb_mc);
 
 	/** @todo Currently passing dbenv to this api, the duty of the
@@ -133,6 +122,17 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 		M0_ADDB_CTX_INIT(&m0_addb_gmc, &reqh->rh_addb_ctx,
 				 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
 	}
+
+	reqh->rh_fom_dom.fd_reqh = reqh;
+	result = m0_fom_domain_init(&reqh->rh_fom_dom);
+	if (result != 0)
+		return result;
+	reqh->rh_dtm             = reqh_args->rhia_dtm;
+	reqh->rh_dbenv           = reqh_args->rhia_db;
+	reqh->rh_svc             = reqh_args->rhia_svc;
+	reqh->rh_mdstore         = reqh_args->rhia_mdstore;
+	reqh->rh_fol             = reqh_args->rhia_fol;
+	reqh->rh_shutdown        = false;
 
 	m0_reqh_svc_tlist_init(&reqh->rh_services);
 	m0_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
@@ -272,6 +272,7 @@ M0_INTERNAL void m0_reqh_services_terminate(struct m0_reqh *reqh)
 
 M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh)
 {
+	int                     i;
 	struct m0_reqh_service *service;
 	struct m0_rpc_machine  *rpcmach;
 
@@ -291,6 +292,9 @@ M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh)
 	} m0_tl_endfor;
 
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
+
+	for (i = 0; i < m0_reqh_nr_localities(reqh); i++)
+		m0_fom_locality_post_stats(&reqh->rh_fom_dom.fd_localities[i]);
 }
 
 M0_INTERNAL uint64_t m0_reqh_nr_localities(const struct m0_reqh *reqh)

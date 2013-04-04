@@ -31,6 +31,7 @@
 #include "lib/chan.h"
 #include "lib/mutex.h"
 #include "lib/tlist.h"
+#include "addb/addb.h"
 
 /**
    @defgroup sm State machine
@@ -159,12 +160,12 @@ int X_in(struct m0_sm *mach)
 	return NEXT_STATE;
 }
 
-const struct m0_sm_conf foo_sm_conf = {
+struct m0_sm_conf foo_sm_conf = {
 	...
 	.scf_state = foo_sm_states
 };
 
-const struct m0_sm_state_descr foo_sm_states[] = {
+struct m0_sm_state_descr foo_sm_states[] = {
 	...
 	[STATE_X] = {
 		...
@@ -269,12 +270,12 @@ void event_X(struct foo *f)
 /* export */
 struct m0_sm;
 struct m0_sm_state_descr;
+struct m0_sm_state_stats;
 struct m0_sm_conf;
 struct m0_sm_group;
 struct m0_sm_ast;
 
 /* import */
-struct m0_addb_ctx;
 struct m0_timer;
 struct m0_mutex;
 
@@ -313,10 +314,14 @@ struct m0_sm {
 	const struct m0_sm_conf *sm_conf;
 	struct m0_sm_group      *sm_grp;
 	/**
-	   addb context in which state machine related events and statistics are
-	   reported. This is included by reference for flexibility.
+	   State machine transitions statistics
 	 */
-	struct m0_addb_ctx      *sm_addb;
+	struct m0_addb_sm_counter *sm_addb_stats;
+	/**
+	   The time entered to current state. Used to calculate how long
+	   we were in a state (counted at m0_sm_state_stats::smss_times).
+	 */
+	m0_time_t                sm_state_epoch;
 	/**
 	   Channel on which state transitions are announced.
 	 */
@@ -336,11 +341,20 @@ struct m0_sm {
    @invariant m0_sm_desc_invariant()
  */
 struct m0_sm_conf {
+	uint64_t                        scf_magic;
 	const char                     *scf_name;
 	/** Number of states in this state machine. */
 	uint32_t                        scf_nr_states;
 	/** Array of state descriptions. */
-	const struct m0_sm_state_descr *scf_state;
+	struct m0_sm_state_descr       *scf_state;
+	/** Number of state transitions in this state machine. */
+	uint32_t                        scf_trans_nr;
+	/** Array of state transitions descriptions. */
+	const struct m0_sm_trans_descr *scf_trans;
+};
+
+enum {
+	M0_SM_MAX_STATES = 64
 };
 
 /**
@@ -396,6 +410,17 @@ struct m0_sm_state_descr {
 	   m0_sm_state_descr more complicated.
 	 */
 	uint64_t    sd_allowed;
+	/**
+	   An index map of allowed transitions from this state.
+	   The index here is the state to which transition is allowed.
+	   The value maps to the index in transitions array
+	   (m0_sm_conf::scf_trans). The value of ~0 means that
+	   transition is not allowed.  This field is constructed
+	   at run-time in m0_sm_conf_init() routine, which must
+	   be called before state machine with this configuration
+	   can be constructed.
+	 */
+	uint32_t    sd_trans[M0_SM_MAX_STATES];
 };
 
 /**
@@ -446,6 +471,15 @@ enum m0_sm_state_descr_flags {
 };
 
 /**
+   State transition description
+ */
+struct m0_sm_trans_descr {
+	const char *td_cause;	/**< Cause of transition */
+	uint32_t    td_src;	/**< Source state index */
+	uint32_t    td_tgt;	/**< Target state index */
+};
+
+/**
    Asynchronous system trap.
 
    A request to execute a call-back under group mutex. An ast can be posted by a
@@ -479,8 +513,7 @@ struct m0_sm_group {
    @pre conf->scf_state[state].sd_flags & M0_SDF_INITIAL
  */
 M0_INTERNAL void m0_sm_init(struct m0_sm *mach, const struct m0_sm_conf *conf,
-			    uint32_t state, struct m0_sm_group *grp,
-			    struct m0_addb_ctx *ctx);
+			    uint32_t state, struct m0_sm_group *grp);
 /**
    Finalises a state machine.
 
@@ -542,6 +575,9 @@ M0_INTERNAL void m0_sm_move(struct m0_sm *mach, int32_t rc, int state);
    The (mach->sm_state == state) post-condition cannot be asserted, because of
    chained state transitions.
 
+   Updates m0_sm_state_stats::smss_times statistics for the current state and
+   sets the m0_sm::sm_state_epoch for the next state.
+
    @pre m0_mutex_is_locked(&mach->sm_grp->s_lock)
    @post m0_mutex_is_locked(&mach->sm_grp->s_lock)
  */
@@ -567,6 +603,7 @@ struct m0_sm_timer {
 
 M0_INTERNAL void m0_sm_timer_init(struct m0_sm_timer *timer);
 M0_INTERNAL void m0_sm_timer_fini(struct m0_sm_timer *timer);
+
 /**
  * Starts the timer.
  *
@@ -662,7 +699,8 @@ M0_INTERNAL void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast);
  *
  * @post ast->sa_next == NULL
  */
-M0_INTERNAL void m0_sm_ast_cancel(struct m0_sm_group *grp, struct m0_sm_ast *ast);
+M0_INTERNAL void m0_sm_ast_cancel(struct m0_sm_group *grp,
+				  struct m0_sm_ast   *ast);
 
 /**
    Runs posted, but not yet executed ASTs.
@@ -690,6 +728,75 @@ M0_INTERNAL void m0_sm_conf_extend(const struct m0_sm_state_descr *base,
 				   struct m0_sm_state_descr *sub, uint32_t nr);
 
 M0_INTERNAL bool m0_sm_invariant(const struct m0_sm *mach);
+
+
+/**
+ * Initialises state machine configuration.
+ *
+ * Traverses transitions description array and constructs
+ * m0_sm_state_descr::sd_trans transitions map array for each state.
+ * It also makes sure (asserts) that transitions configuration in
+ * transitions description array matches with the same at states
+ * description array according to m0_sm_state_descr::sd_allowed flags.
+ *
+ * Note, the routine is designed to be called from Mero initialization
+ * code (like m0_fops_init()). A state machine configuration should be
+ * initialized before an ADDB state machine counter that references the
+ * state machine configuration gets registered. That's why it asserts
+ * rather than returning an error code.
+ *
+ * @see m0_addb_rec_type_register()
+ *
+ * @pre !m0_sm_conf_is_initialized(conf)
+ * @pre conf->scf_trans_nr > 0
+ */
+M0_INTERNAL void m0_sm_conf_init(struct m0_sm_conf *conf);
+
+/**
+ * Returns true if sm configuration was initialized already.
+ */
+M0_INTERNAL bool m0_sm_conf_is_initialized(const struct m0_sm_conf *conf);
+
+/**
+ * Enables time statistics for each of the state transitions.
+ *
+ * The subroutine returns an error if the state machine configuration
+ * was not initialized with the m0_sm_conf_init() subroutine. The caller
+ * provides the pointer to m0_addb_sm_counter.
+ * It is caller's responsibility to:
+ *
+ *  - initialize the counter;
+ *
+ *  - serialize access to the counter between different state machines
+ *    along with posting; for this reason it is encouraged that the counter
+ *    is shared only among the state machines of the same group;
+ *
+ *  - finalize the counter.
+ *
+ * Statistics is calculated in "binary" usecs.
+ * (Binary usec == nsec >> 10.)
+ *
+ * @param c m0_addb_sm_counter initialized by caller.
+ *
+ * @pre m0_sm_conf_is_initialized(mach->sm_conf)
+ * @pre c->asc_magic == M0_ADDB_CNTR_MAGIC
+ * @pre c->asc_rt->art_sm_conf == mach->sm_conf
+ */
+M0_INTERNAL void m0_sm_stats_enable(struct m0_sm *mach,
+				    struct m0_addb_sm_counter *c);
+
+/**
+ * Posts statistics for each state transition happened.
+ *
+ * This routine does nothing if m0_sm_stats_enable() was not
+ * successfully invoked for the state machine.
+ *
+ * @param addb_mc addb machine to post statistics to.
+ * @param cv addb context vector at which to post.
+ */
+M0_INTERNAL void m0_sm_stats_post(struct m0_sm *mach,
+				  struct m0_addb_mc *addb_mc,
+				  struct m0_addb_ctx **cv);
 
 /** @} end of sm group */
 

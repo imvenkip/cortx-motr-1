@@ -305,6 +305,7 @@ static void fom_ready(struct m0_fom *fom)
 	bool                    empty;
 
 	fom_state_set(fom, M0_FOS_READY);
+	fom->fo_sched_epoch = fom->fo_sm_state.sm_state_epoch ?: m0_time_now();
 	loc = fom->fo_loc;
 	empty = runq_tlist_is_empty(&loc->fl_runq);
 	runq_tlist_add_tail(&loc->fl_runq, fom);
@@ -430,8 +431,7 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh)
 	M0_ASSERT(reqh->rh_svc != NULL || fom->fo_service != NULL);
 
 	dom = &reqh->rh_fom_dom;
-	loc_idx = fom->fo_ops->fo_home_locality(fom) %
-		dom->fd_localities_nr;
+	loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
 	M0_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
 	fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
 	m0_fom_sm_init(fom);
@@ -503,12 +503,12 @@ static void fom_exec(struct m0_fom *fom)
 {
 	int			rc;
 	struct m0_fom_locality *loc;
-	m0_time_t               start;
+	m0_time_t               exec_time;
 
-	start = m0_time_now();
 	loc = fom->fo_loc;
 	fom->fo_thread = loc->fl_handler;
 	fom_state_set(fom, M0_FOS_RUNNING);
+	exec_time = fom->fo_sm_state.sm_state_epoch ?: m0_time_now();
 	do {
 		M0_ASSERT(m0_fom_invariant(fom));
 		M0_ASSERT(m0_fom_phase(fom) != M0_FOM_PHASE_FINISH);
@@ -527,7 +527,9 @@ static void fom_exec(struct m0_fom *fom)
 	M0_ASSERT(rc == M0_FSO_WAIT);
 	M0_ASSERT(m0_fom_group_is_locked(fom));
 
-	fom->fo_etime += m0_time_sub(m0_time_now(), start);
+	exec_time = m0_time_sub(m0_time_now(), exec_time);
+	m0_addb_counter_update(&loc->fl_stat_run_times,
+				exec_time >> 10); /* ~usec */
 
 	if (m0_fom_phase(fom) == M0_FOM_PHASE_FINISH) {
                 /*
@@ -569,13 +571,17 @@ static void fom_exec(struct m0_fom *fom)
  */
 static struct m0_fom *fom_dequeue(struct m0_fom_locality *loc)
 {
-	struct m0_fom *fom;
+	struct m0_fom  *fom;
 
 	fom = runq_tlist_head(&loc->fl_runq);
-	if (fom != NULL) {
-		runq_tlist_del(fom);
-		M0_CNT_DEC(loc->fl_runq_nr);
-	}
+	if (fom == NULL)
+		return NULL;
+
+	runq_tlist_del(fom);
+	M0_CNT_DEC(loc->fl_runq_nr);
+
+	m0_addb_counter_update(&loc->fl_stat_sched_wait_times, /* ~usec */
+		m0_time_sub(m0_time_now(), fom->fo_sched_epoch) >> 10);
 
 	return fom;
 }
@@ -743,6 +749,10 @@ static void loc_fini(struct m0_fom_locality *loc)
 	m0_sm_group_fini(&loc->fl_group);
 
 	m0_bitmap_fini(&loc->fl_processors);
+
+	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
+	m0_addb_counter_fini(&loc->fl_stat_run_times);
+	m0_addb_ctx_fini(&loc->fl_addb_ctx);
 }
 
 /**
@@ -762,9 +772,34 @@ static void loc_fini(struct m0_fom_locality *loc)
  */
 static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 {
-	int result;
+	int                result;
+	struct m0_addb_mc *addb_mc;
 
 	M0_PRE(loc != NULL);
+
+	/**
+	 * @todo Need a locality specific ADDB machine
+	 * with a caching event manager.
+	 */
+	addb_mc = &loc->fl_dom->fd_reqh->rh_addb_mc;
+	if (!m0_addb_mc_is_configured(addb_mc)) /* happens in UTs */
+		addb_mc = &m0_addb_gmc;
+	M0_ADDB_CTX_INIT(addb_mc, &loc->fl_addb_ctx, &m0_addb_ct_fom_locality,
+			 &loc->fl_dom->fd_reqh->rh_addb_ctx, cpu);
+
+	result = m0_addb_counter_init(&loc->fl_stat_run_times,
+				      &m0_addb_rt_fl_run_times);
+	if (result != 0) {
+		m0_addb_ctx_fini(&loc->fl_addb_ctx);
+		return result;
+	}
+	result = m0_addb_counter_init(&loc->fl_stat_sched_wait_times,
+				      &m0_addb_rt_fl_sched_wait_times);
+	if (result != 0) {
+		m0_addb_counter_fini(&loc->fl_stat_run_times);
+		m0_addb_ctx_fini(&loc->fl_addb_ctx);
+		return result;
+	}
 
 	runq_tlist_init(&loc->fl_runq);
 	loc->fl_runq_nr = 0;
@@ -799,6 +834,32 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 		loc_fini(loc);
 
 	return result;
+}
+
+static void loc_ast_post_stats(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_fom_locality *loc = container_of(ast, struct m0_fom_locality,
+						   fl_post_stats_ast);
+	struct m0_addb_ctx *cv[] = {&loc->fl_addb_ctx, NULL};
+
+	if (m0_addb_counter_nr(&loc->fl_stat_run_times) > 0)
+		M0_ADDB_POST_CNTR(&loc->fl_dom->fd_reqh->rh_addb_mc, cv,
+				  &loc->fl_stat_run_times);
+	if (m0_addb_counter_nr(&loc->fl_stat_sched_wait_times) > 0)
+		M0_ADDB_POST_CNTR(&loc->fl_dom->fd_reqh->rh_addb_mc, cv,
+				  &loc->fl_stat_sched_wait_times);
+	M0_ADDB_POST(&loc->fl_dom->fd_reqh->rh_addb_mc, &m0_addb_rt_fl_runq_nr,
+		     cv, loc->fl_runq_nr);
+	M0_ADDB_POST(&loc->fl_dom->fd_reqh->rh_addb_mc, &m0_addb_rt_fl_wail_nr,
+		     cv, loc->fl_wail_nr);
+}
+
+M0_INTERNAL void m0_fom_locality_post_stats(struct m0_fom_locality *loc)
+{
+	if (loc->fl_post_stats_ast.sa_next == NULL) {
+		loc->fl_post_stats_ast.sa_cb = loc_ast_post_stats;
+		m0_sm_ast_post(&loc->fl_group, &loc->fl_post_stats_ast);
+	}
 }
 
 M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
@@ -880,7 +941,6 @@ static void fop_fini(struct m0_fop *fop)
 
 void m0_fom_fini(struct m0_fom *fom)
 {
-	struct m0_fom_domain   *fdom;
 	struct m0_fom_locality *loc;
 	struct m0_reqh         *reqh;
 
@@ -888,21 +948,22 @@ void m0_fom_fini(struct m0_fom *fom)
         M0_PRE(!m0_db_tx_is_active(&fom->fo_tx.tx_dbtx));
 
 	loc  = fom->fo_loc;
-	fdom = loc->fl_dom;
-	reqh = fdom->fd_reqh;
+	reqh = loc->fl_dom->fd_reqh;
 	fom_state_set(fom, M0_FOS_FINISH);
-	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx))
-		M0_FOM_ADDB_POST(fom, &reqh->rh_addb_mc, &m0_addb_rt_fom_fini,
-				 fom->fo_transitions,
-			       m0_time_sub(m0_time_now(), fom->fo_ctime) / 1000,
-				 fom->fo_etime / 1000);
+	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx)) {
+		m0_sm_stats_post(&fom->fo_sm_phase, &reqh->rh_addb_mc,
+				M0_FOM_ADDB_CTX_VEC(fom));
+		m0_sm_stats_post(&fom->fo_sm_state, &reqh->rh_addb_mc,
+				M0_FOM_ADDB_CTX_VEC(fom));
+		m0_addb_sm_counter_fini(&fom->fo_sm_state_stats);
+	}
+	m0_sm_fini(&fom->fo_sm_phase);
+	m0_sm_fini(&fom->fo_sm_state);
 	m0_addb_ctx_fini(&fom->fo_addb_ctx);
 	if (fom->fo_op_addb_ctx != NULL) {
 		m0_addb_ctx_fini(fom->fo_op_addb_ctx);
 		fom->fo_op_addb_ctx = NULL;
 	}
-	m0_sm_fini(&fom->fo_sm_phase);
-	m0_sm_fini(&fom->fo_sm_state);
 	runq_tlink_fini(fom);
 	m0_fom_callback_init(&fom->fo_cb);
 
@@ -964,9 +1025,19 @@ void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
 	}
 	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx))
 		M0_FOM_ADDB_POST(fom, &reqh->rh_addb_mc, &m0_addb_rt_fom_init);
-	fom->fo_ctime = m0_time_now();
+	fom->fo_sm_phase.sm_state_epoch = 0;
 }
 M0_EXPORTED(m0_fom_init);
+
+M0_INTERNAL void m0_fom_phase_stats_enable(struct m0_fom *fom,
+					   struct m0_addb_sm_counter *c)
+{
+	M0_PRE(fom != NULL);
+	M0_PRE(fom->fo_sm_phase.sm_state_epoch == 0);
+
+	fom->fo_sm_phase.sm_state_epoch = 1;
+	fom->fo_sm_phase.sm_addb_stats = c;
+}
 
 static bool fom_clink_cb(struct m0_clink *link)
 {
@@ -1135,14 +1206,14 @@ M0_INTERNAL void m0_fom_timeout_cancel(struct m0_fom_timeout *to)
 M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type,
 				  const struct m0_fom_type_ops *ops,
 				  const struct m0_reqh_service_type *svc_type,
-				  const struct m0_sm_conf *sm)
+				  struct m0_sm_conf *sm)
 {
 	type->ft_ops    = ops;
 	type->ft_conf   = sm;
 	type->ft_rstype = svc_type;
 }
 
-static const struct m0_sm_state_descr fom_states[] = {
+static struct m0_sm_state_descr fom_states[] = {
 	[M0_FOS_INIT] = {
 		.sd_flags     = M0_SDF_INITIAL,
 		.sd_name      = "Init",
@@ -1154,12 +1225,12 @@ static const struct m0_sm_state_descr fom_states[] = {
 	},
 	[M0_FOS_RUNNING] = {
 		.sd_name      = "Running",
-		.sd_allowed   = M0_BITS(M0_FOS_WAITING, M0_FOS_READY,
+		.sd_allowed   = M0_BITS(M0_FOS_READY, M0_FOS_WAITING,
 					M0_FOS_FINISH)
 	},
 	[M0_FOS_WAITING] = {
-		.sd_name      = "Wait",
-		.sd_allowed   = M0_BITS(M0_FOS_FINISH, M0_FOS_READY)
+		.sd_name      = "Waiting",
+		.sd_allowed   = M0_BITS(M0_FOS_READY, M0_FOS_FINISH)
 	},
 	[M0_FOS_FINISH] = {
 		.sd_flags     = M0_SDF_TERMINAL,
@@ -1167,17 +1238,32 @@ static const struct m0_sm_state_descr fom_states[] = {
 	}
 };
 
-static const struct m0_sm_conf	fom_conf = {
+static struct m0_sm_trans_descr fom_trans[M0_FOS_TRANS_NR] = {
+	{ "Schedule",  M0_FOS_INIT,     M0_FOS_READY },
+	{ "Failed",    M0_FOS_INIT,     M0_FOS_FINISH },
+	{ "Run",       M0_FOS_READY,    M0_FOS_RUNNING },
+	{ "Yield",     M0_FOS_RUNNING,  M0_FOS_READY },
+	{ "Sleep",     M0_FOS_RUNNING,  M0_FOS_WAITING },
+	{ "Done",      M0_FOS_RUNNING,  M0_FOS_FINISH },
+	{ "Wakeup",    M0_FOS_WAITING,  M0_FOS_READY },
+	{ "Terminate", M0_FOS_WAITING,  M0_FOS_FINISH }
+};
+
+struct m0_sm_conf fom_states_conf = {
 	.scf_name      = "FOM states",
 	.scf_nr_states = ARRAY_SIZE(fom_states),
-	.scf_state     = fom_states
+	.scf_state     = fom_states,
+	.scf_trans_nr  = ARRAY_SIZE(fom_trans),
+	.scf_trans     = fom_trans
 };
 
 M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 {
-	struct m0_sm_group	*fom_group;
-	struct m0_addb_ctx	*fom_addb_ctx = NULL;
-	const struct m0_sm_conf	*conf;
+	struct m0_sm_group             *fom_group;
+	struct m0_addb_ctx             *fom_addb_ctx = NULL;
+	const struct m0_sm_conf        *conf;
+	struct m0_addb_sm_counter      *phase_cntr;
+	bool                            phase_stats_enabled;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_loc != NULL);
@@ -1194,10 +1280,23 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 	if (fom->fo_service != NULL && fom->fo_service->rs_reqh != NULL)
 		fom_addb_ctx = &fom->fo_service->rs_reqh->rh_addb_ctx;
 
-	m0_sm_init(&fom->fo_sm_phase, conf, M0_FOM_PHASE_INIT, fom_group,
-		    fom_addb_ctx);
-	m0_sm_init(&fom->fo_sm_state, &fom_conf, M0_FOS_INIT, fom_group,
-		    fom_addb_ctx);
+	/* Preserve these across the call to m0_sm_init(). */
+	phase_stats_enabled = fom->fo_sm_phase.sm_state_epoch != 0;
+	phase_cntr = fom->fo_sm_phase.sm_addb_stats;
+
+	m0_sm_init(&fom->fo_sm_phase, conf, M0_FOM_PHASE_INIT, fom_group);
+	m0_sm_init(&fom->fo_sm_state, &fom_states_conf, M0_FOS_INIT, fom_group);
+
+	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx)) {
+		m0_addb_sm_counter_init(&fom->fo_sm_state_stats,
+					&m0_addb_rt_fom_state_stats,
+					fom->fo_fos_stats_data,
+					sizeof(fom->fo_fos_stats_data));
+		m0_sm_stats_enable(&fom->fo_sm_state,
+				   &fom->fo_sm_state_stats);
+		if (phase_stats_enabled)
+			m0_sm_stats_enable(&fom->fo_sm_phase, phase_cntr);
+	}
 }
 
 void m0_fom_phase_set(struct m0_fom *fom, int phase)

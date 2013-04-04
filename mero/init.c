@@ -37,6 +37,7 @@
 #include "pool/pool.h"
 #include "lib/processor.h"
 #include "db/db.h"
+#include "sm/sm.h"
 #include "stob/linux.h"
 #include "stob/ad.h"
 #include "fol/fol.h"

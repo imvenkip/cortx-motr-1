@@ -359,6 +359,29 @@ static void dump_ctx_rec_print(struct addb_dump_ctl *ctl,
 	fprintf(out, "\n");
 }
 
+static int dump_cntr_print(FILE *out, uint64_t *data,
+			   const struct m0_addb_rec_type *rt)
+{
+	int i;
+	uint64_t *dp = data;
+
+	fprintf(out, " seq=%lu", *dp++);
+	fprintf(out, " num=%lu", *dp++);
+	fprintf(out, " tot=%lu", *dp++);
+	fprintf(out, " min=%lu", *dp++);
+	fprintf(out, " max=%lu", *dp++);
+	fprintf(out, " sumSQ=%lu", *dp++);
+	if (rt->art_rf_nr > 0) {
+		fprintf(out, " [0]=%lu", *dp++);
+		for (i = 0; i < rt->art_rf_nr; ++i)
+			fprintf(out, " [%ld]=%lu",
+				rt->art_rf[i].arfu_lower,
+				*dp++);
+	}
+
+	return dp - data;
+}
+
 static void dump_event_rec_print(struct addb_dump_ctl *ctl,
 				 const struct m0_addb_rec *r)
 {
@@ -366,6 +389,7 @@ static void dump_event_rec_print(struct addb_dump_ctl *ctl,
 	const struct m0_addb_rec_type *rt;
 	int                            fields_nr;
 	int                            i;
+	uint64_t                      *data;
 
 	/*
 	 * TS Type CTX Data
@@ -401,16 +425,31 @@ static void dump_event_rec_print(struct addb_dump_ctl *ctl,
 		}
 
 		dump_ts_print(ctl, r);
-		fprintf(out, " seq=%lu", r->ar_data.au64s_data[0]);
-		fprintf(out, " num=%lu", r->ar_data.au64s_data[1]);
-		fprintf(out, " tot=%lu", r->ar_data.au64s_data[2]);
-		fprintf(out, " min=%lu", r->ar_data.au64s_data[3]);
-		fprintf(out, " max=%lu", r->ar_data.au64s_data[4]);
-		fprintf(out, " sumSQ=%lu", r->ar_data.au64s_data[5]);
-		for (i = 6; i < r->ar_data.au64s_nr; ++i)
-			fprintf(out, " [%ld]=%lu",
-				i == 6 ? 0UL : rt->art_rf[i - 7].arfu_lower,
-				r->ar_data.au64s_data[i]);
+		dump_cntr_print(out, r->ar_data.au64s_data, rt);
+		break;
+	case M0_ADDB_BRT_SM_CNTR:
+		fprintf(out, "sm_counter %s", rt->art_name);
+		fields_nr = m0_addb_sm_counter_data_size(rt) / sizeof(uint64_t);
+		if (r->ar_data.au64s_nr != fields_nr) {
+			fprintf(out, " !MISMATCH!");
+			goto rawfields;
+		}
+
+		dump_ts_print(ctl, r);
+
+		data = r->ar_data.au64s_data;
+		for (i = 0; i < rt->art_sm_conf->scf_trans_nr; ++i) {
+			const struct m0_sm_conf *scf = rt->art_sm_conf;
+			const struct m0_sm_trans_descr *t = &scf->scf_trans[i];
+
+			if (i > 0)
+				fprintf(out, "\n     ");
+			fprintf(out, " %s -%s-> %s",
+				scf->scf_state[t->td_src].sd_name,
+				t->td_cause,
+				scf->scf_state[t->td_tgt].sd_name);
+			data += dump_cntr_print(out, data, rt);
+		}
 		break;
 	case M0_ADDB_BRT_SEQ:
 		fprintf(out, "sequence %s", rt->art_name);
@@ -551,6 +590,33 @@ static void dump_ctx_rec_yaml(struct addb_dump_ctl *ctl, uint64_t nr,
 	}
 }
 
+static int dump_cntr_yaml(FILE *out, uint64_t *data,
+			  const struct m0_addb_rec_type *rt)
+{
+	int i;
+	uint64_t *dp = data;
+
+	fprintf(out, " seq %lu\n", *dp++);
+	fprintf(out, " num %lu\n", *dp++);
+	fprintf(out, " tot %lu\n", *dp++);
+	fprintf(out, " min %lu\n", *dp++);
+	fprintf(out, " max %lu\n", *dp++);
+	fprintf(out, " sumSQ %lu\n", *dp++);
+	if (rt->art_rf_nr > 0) {
+		fprintf(out, " histogram: [ 0");
+		for (i = 0; i < rt->art_rf_nr; ++i)
+			fprintf(out, ", %lu",
+				rt->art_rf[i].arfu_lower);
+		fprintf(out, " ]\n");
+		fprintf(out, " counts: [ %lu", *dp++);
+		for (i = 0; i < rt->art_rf_nr; ++i)
+			fprintf(out, ", %lu", *dp++);
+		fprintf(out, " ]\n");
+	}
+
+	return dp - data;
+}
+
 static void dump_event_rec_yaml(struct addb_dump_ctl *ctl, uint64_t nr,
 				const struct m0_addb_rec *r)
 {
@@ -558,6 +624,7 @@ static void dump_event_rec_yaml(struct addb_dump_ctl *ctl, uint64_t nr,
 	const struct m0_addb_rec_type *rt;
 	int                            fields_nr;
 	int                            i;
+	uint64_t                      *data;
 
 	rt = m0_addb_rec_type_lookup(m0_addb_rec_rid_to_id(r->ar_rid));
 	switch (rt != NULL ? rt->art_base_type : M0_ADDB_BRT_NR) {
@@ -590,25 +657,27 @@ static void dump_event_rec_yaml(struct addb_dump_ctl *ctl, uint64_t nr,
 			goto rawfields;
 
 		dump_ts_yaml(ctl, r);
-		fprintf(out, " seq: %lu\n", r->ar_data.au64s_data[0]);
-		fprintf(out, " num: %lu\n", r->ar_data.au64s_data[1]);
-		fprintf(out, " tot: %lu\n", r->ar_data.au64s_data[2]);
-		fprintf(out, " min: %lu\n", r->ar_data.au64s_data[3]);
-		fprintf(out, " max: %lu\n", r->ar_data.au64s_data[4]);
-		fprintf(out, " sumSQ: %lu\n", r->ar_data.au64s_data[5]);
-		if (r->ar_data.au64s_nr > 6) {
-			fprintf(out, " histogram: [ 0");
-			for (i = 7; i < r->ar_data.au64s_nr; ++i)
-				fprintf(out, ", %lu",
-					rt->art_rf[i - 7].arfu_lower);
-			fprintf(out, " ]\n");
-			fprintf(out, " counts: [ ");
-			for (i = 6; i < r->ar_data.au64s_nr; ++i) {
-				if (i > 6)
-					fprintf(out, ", ");
-				fprintf(out, "%lu", r->ar_data.au64s_data[i]);
-			}
-			fprintf(out, " ]\n");
+		dump_cntr_yaml(out, r->ar_data.au64s_data, rt);
+		break;
+	case M0_ADDB_BRT_SM_CNTR:
+		fprintf(out, "sm_counter: # %lu\n", nr);
+		fprintf(out, " name: %s\n", rt->art_name);
+		fields_nr = m0_addb_sm_counter_data_size(rt) / sizeof(uint64_t);
+		if (r->ar_data.au64s_nr != fields_nr)
+			goto rawfields;
+
+		dump_ts_yaml(ctl, r);
+
+		data = r->ar_data.au64s_data;
+		for (i = 0; i < rt->art_sm_conf->scf_trans_nr; ++i) {
+			const struct m0_sm_conf *scf = rt->art_sm_conf;
+			const struct m0_sm_trans_descr *t = scf->scf_trans;
+
+			fprintf(out, " transition: %s -%s-> %s\n",
+				scf->scf_state[t->td_src].sd_name,
+				t->td_cause,
+				scf->scf_state[t->td_tgt].sd_name);
+			data += dump_cntr_yaml(out, data, rt);
 		}
 		break;
 	case M0_ADDB_BRT_SEQ:

@@ -172,7 +172,7 @@ M0_INTERNAL struct m0_rpc_item_type *m0_rpc_item_type_lookup(uint32_t opcode)
 	return item_type;
 }
 
-static const struct m0_sm_state_descr outgoing_item_states[] = {
+static struct m0_sm_state_descr outgoing_item_states[] = {
 	[M0_RPC_ITEM_UNINITIALISED] = {
 		.sd_flags   = M0_SDF_TERMINAL,
 		.sd_name    = "UNINITIALISED",
@@ -247,7 +247,7 @@ static const struct m0_sm_conf outgoing_item_sm_conf = {
 	.scf_state     = outgoing_item_states,
 };
 
-static const struct m0_sm_state_descr incoming_item_states[] = {
+static struct m0_sm_state_descr incoming_item_states[] = {
 	[M0_RPC_ITEM_UNINITIALISED] = {
 		.sd_flags   = M0_SDF_TERMINAL,
 		.sd_name    = "UNINITIALISED",
@@ -537,7 +537,7 @@ M0_INTERNAL void m0_rpc_item_sm_init(struct m0_rpc_item *item,
 
 	M0_LOG(M0_DEBUG, "%p UNINITIALISED -> INITIALISED", item);
 	m0_sm_init(&item->ri_sm, conf, M0_RPC_ITEM_INITIALISED,
-		   &item->ri_rmachine->rm_sm_grp, NULL /* addb ctx */);
+		   &item->ri_rmachine->rm_sm_grp);
 }
 
 M0_INTERNAL void m0_rpc_item_sm_fini(struct m0_rpc_item *item)
