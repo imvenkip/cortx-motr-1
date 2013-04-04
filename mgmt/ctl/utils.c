@@ -37,20 +37,22 @@ static void emit_error(struct m0_mgmt_ctl_ctx *ctx, const char *msg, int rc)
 		printf("  rc: %d\n", rc);
 		printf("timestamp: %lu\n", m0_time_now());
 
-	} else
+	} else {
 		fprintf(stderr, "Error: %s (%d)\n", msg, rc);
+	}
 }
 
 /**
   Create a private directory for the database and other
   internal garbage.
-*/
+ */
 static int make_tmpdir(struct m0_mgmt_ctl_ctx *ctx)
 {
 	sprintf(ctx->mcc_tmpdir, "/tmp/m0ctlXXXXXX");
 	M0_ASSERT(strlen(ctx->mcc_tmpdir) < ARRAY_SIZE(ctx->mcc_tmpdir));
 	if (mkdtemp(ctx->mcc_tmpdir) == NULL) {
 		int rc = -errno;
+
 		emit_error(ctx, "Failed to create temporary directory", rc);
 		return rc;
 	}
@@ -74,7 +76,7 @@ static void unlink_tmpdir(struct m0_mgmt_ctl_ctx *ctx)
  */
 static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 {
-	int rc;
+	int                       rc;
 	struct m0_rpc_client_ctx *c;
 	struct m0_cob_domain_id   cob_dom_id;
 
@@ -86,8 +88,8 @@ static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 	M0_ASSERT(strlen(ctx->mcc_dbname) < ARRAY_SIZE(ctx->mcc_dbname));
 
 	/*
-	  Following based on ut/rpc.c and mgmt/svc/ut/mgmt_svc_setup.c
-	  among others.
+	 * Following based on ut/rpc.c and mgmt/svc/ut/mgmt_svc_setup.c
+	 * among others.
 	 */
 	c->rcx_net_dom               = &ctx->mcc_net_dom;
 	c->rcx_local_addr            = ctx->mcc_conf.mnc_client_ep;
@@ -134,9 +136,9 @@ static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 	}
 
 	/*
-	   Note that it is not strictly necessary to register the ADDB
-	   item source as the context is created mainly for conveyance
-	   in requests.
+	 * Note that it is not strictly necessary to register the ADDB
+	 * item source as the context is created mainly for conveyance
+	 * in requests.
 	 */
 
 	return 0;
@@ -160,7 +162,7 @@ static int client_init(struct m0_mgmt_ctl_ctx *ctx)
  */
 static void client_fini(struct m0_mgmt_ctl_ctx *ctx)
 {
-	int rc;
+	int                       rc;
 	struct m0_rpc_client_ctx *c = &ctx->mcc_client;
 
 	M0_PRE(c->rcx_net_dom != NULL);
@@ -220,10 +222,10 @@ static const char *uuid_to_stype(struct m0_mgmt_ctl_ctx *ctx,
 {
 	struct m0_mgmt_svc_conf *svc;
 
-	m0_tlist_for(&m0_mgmt_conf_tl, &ctx->mcc_conf.mnc_svc, svc) {
+	m0_tl_for(m0_mgmt_conf, &ctx->mcc_conf.mnc_svc, svc) {
 		if (strcasecmp(svc->msc_uuid, uuid) == 0)
 			return svc->msc_name;
-	} m0_tlist_endfor;
+	} m0_tl_endfor;
 	return "unknown";
 }
 

@@ -28,9 +28,9 @@
 static void op_qa_output(struct m0_mgmt_ctl_ctx *ctx,
 			 struct m0_fop_mgmt_service_state_res *ssr)
 {
-	int i;
+	int                           i;
 	struct m0_mgmt_service_state *ss;
-	char uuid[M0_UUID_STRLEN+1];
+	char                          uuid[M0_UUID_STRLEN+1];
 
 	if (ssr->msr_rc != 0) {
 		emit_error(ctx, "Request failed", ssr->msr_rc);
@@ -53,8 +53,8 @@ static void op_qa_output(struct m0_mgmt_ctl_ctx *ctx,
 		printf("timestamp: %lu\n", m0_time_now());
 	} else {
 		/*
-		  ugly:
-		  printf("REQH %s\n", rs_to_string(ssr->msr_reqh_state));
+		 * Ugly:
+		 * printf("REQH %s\n", rs_to_string(ssr->msr_reqh_state));
 		 */
 		for (i = 0; i < ssr->msr_ss.msss_nr; ++i) {
 			ss = &ssr->msr_ss.msss_state[i];
@@ -67,11 +67,11 @@ static void op_qa_output(struct m0_mgmt_ctl_ctx *ctx,
 
 static int op_qa_run(struct m0_mgmt_ctl_ctx *ctx)
 {
-	int rc;
-	struct m0_fop *fop;
+	int                                   rc;
+	struct m0_fop                        *fop;
 	struct m0_fop_mgmt_service_state_req *ssfop;
-	struct m0_rpc_item *item;
-	struct m0_fop *rfop;
+	struct m0_rpc_item                   *item;
+	struct m0_fop                        *rfop;
 	struct m0_fop_mgmt_service_state_res *ssr;
 
 	/* allocate and initialize */
@@ -119,7 +119,7 @@ static int op_qa_main(int argc, char *argv[],
 		      struct m0_mgmt_ctl_ctx *ctx)
 {
 	int64_t repeat = 0;
-	int rc;
+	int     rc;
 
 	rc = M0_GETOPTS("query-all", argc, argv,
 			M0_NUMBERARG('r', "Repeat rate in seconds",
@@ -144,6 +144,9 @@ static int op_qa_main(int argc, char *argv[],
 		if (rc != 0 && repeat > 0)
 			goto retry;
 
+		/**
+		 * @todo Warning: RPC finalization can panic arbitrarily.
+		 */
 		client_fini(ctx);
 		if (repeat == 0)
 			break;

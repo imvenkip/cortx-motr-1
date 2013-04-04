@@ -210,7 +210,6 @@
 
 #include <signal.h>
 #include <stdio.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #include "fop/fop.h"
@@ -280,37 +279,34 @@ static int usage()
 }
 
 /**
-   Signal handler to cleanup on interrup.
+   Signal handler to cleanup on interrupt.
  */
 static void sig_handler(int signum)
 {
-	/*
-	  DO NOT CALL
-	     m0_fini();
-	  HERE!
-	  FORGET ABOUT A CLEAN SHUTDOWN!
-	  IT CAN PANIC IF AN RPC CONNECTION IS OPEN.
-	*/
+	/**
+	 * @todo FIX ME! DO NOT CALL m0_fini() HERE! TRYING TO MAKE A CLEAN
+	 *       SHUTDOWN CAN PANIC IF AN RPC CONNECTION IS OPEN.
+	 */
 	unlink_tmpdir(&ctx);
 	exit(2);
 }
 
 int main(int argc, char *argv[])
 {
-	int i;
-	int rc;
-	char *cmd;
-	int cmd_argc;
+	int                    i;
+	int                    rc;
+	char                  *cmd;
+	int                    cmd_argc;
 	struct m0_mgmt_ctl_op *op;
-	char *alt_ep = NULL;
-	char *alt_h = NULL;
-	struct sigaction sa;
+	char                  *alt_ep = NULL;
+	char                  *alt_h = NULL;
+	struct sigaction       sa;
 
 	/*
-	  Parse command flags.
-	  Cannot use M0_GETOPTS because it looks at the operation flags too!
-	  Can use M0_GETOPTS in the individual operations.
-	*/
+	 * Parse command flags.
+	 * Cannot use M0_GETOPTS because it looks at the operation flags too!
+	 * Can use M0_GETOPTS in the individual operations.
+	 */
 	rc = 0;
 	ctx.mcc_timeout = RPC_TIMEOUT; /* secs - convert to ns later */
 
@@ -357,8 +353,8 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "Invalid command flag '%s'\n"
 				"Use '-?' for help\n", argv[i]);
 			return 1;
-		} else
-			break; /* non-flag */
+		}
+		break; /* non-flag */
 	}
 	if (i >= argc)
 		return usage();
