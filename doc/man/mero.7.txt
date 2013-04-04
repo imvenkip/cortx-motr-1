@@ -1,0 +1,61 @@
+MERO(7)
+=======
+include::asciidoc.conf[]
+
+
+NAME
+----
+mero - Mero file system
+
+
+DESCRIPTION
+-----------
+Mero file system ['...to be filled']
+
+Mero utilities
+~~~~~~~~~~~~~~
+
+*m0d*::
+  Mero file system service daemon.
+
+*m0addbdump*::
+  Blah blah...
+
+*m0console*::
+  Blah blah...
+
+
+AUTHORS
+-------
+See the Mero distribution AUTHORS file.
+
+
+BUGS
+----
+All bugs are added by Mero Team ;)
+
+
+RESOURCES
+---------
+Main web site: <http://xyratex.com/>
+
+
+COPYING
+-------
+Copyright \(C) 2013 Xyratex Technology Limited
+
+You should have received a copy of Xyratex's license along with
+this release. If not please contact a Xyratex representative.
+
+
+SEE ALSO
+--------
+*m0d*(1) *m0console*(8)
+
+
+MERO
+----
+Part of the *mero*(7) suite
+
+
+// vim: syntax=asciidoc

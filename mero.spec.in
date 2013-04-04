@@ -35,6 +35,7 @@ find %{buildroot} -name '*.la' -exec rm -f {} ';'
 %{_bindir}/*
 %{_sbindir}/*
 %{_libdir}/*
+%{_mandir}/*
 /lib/modules/*
 %exclude %{_includedir}
 

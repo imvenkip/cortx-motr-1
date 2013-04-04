@@ -10,9 +10,15 @@ EXTRA_DIST += doc/Doxyfile \
               doc/gdb-commands-for-mero \
               doc/git-policy \
               doc/logging-and-tracing \
+              doc/man/manpage-template.1.txt \
               doc/profiling \
               doc/reading-list.html \
               doc/source-structure \
               doc/test-coverage \
               doc/todo \
               doc/trace
+
+MAN_PAGES += doc/man/m0d.1.txt \
+             doc/man/mero.7.txt
+
+EXTRA_DIST += $(MAN_PAGES)

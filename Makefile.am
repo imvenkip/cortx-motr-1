@@ -94,9 +94,12 @@ lib_LTLIBRARIES    =
 noinst_PROGRAMS    =
 noinst_LTLIBRARIES =
 
+man_MANS   =
+
 EXTRA_DIST = autogen.sh mero.spec.in LICENCE .gdbinit extra-libs/.gitignore
 CLEANFILES =
 DISTCLEANFILES = @LUSTRE_CONFIG_LINK@ utils/ub.sh
+MAN_PAGES  =
 
 # a list of auto-generated *_ff.[hc] files
 FF_FILES =
@@ -807,7 +810,7 @@ __libmero-ut: config.h Makefile ut/libmero-ut.la $(HEADERS)
 # Clean targets
 #
 
-clean-local: clean-kernel-modules
+clean-local: clean-kernel-modules clean-doc
 	@rm -vf $(XC_DEPS_FILE)
 	@rm -vf m0.trace.*
 	@if test x@ENABLE_COVERAGE@ = xyes; then \
@@ -837,6 +840,8 @@ clean-kernel-modules:
 .PHONY: clean-doc
 clean-doc:
 	rm -fr doc/html
+	rm -f  doc/man/*.[1-8].xml
+	rm -f  doc/man/*.[1-8]
 
 
 #
@@ -870,8 +875,18 @@ rpms:
 doc-doxygen:
 	@$(DOXYGEN) doc/Doxyfile
 
+MAN_PAGES_RAW = $(MAN_PAGES:.txt=)
+
+man_MANS += $(MAN_PAGES_RAW)
+
+$(MAN_PAGES_RAW):
+	$(A2X) --format=manpage $@.txt
+
+.PHONY: doc-manpages
+doc-manpages: $(MAN_PAGES_RAW)
+
 .PHONY: doc
-doc: doc-doxygen
+doc: doc-doxygen doc-manpages
 
 #
 # Misc targets
@@ -916,6 +931,7 @@ help:
 	@echo 'Documentation:'
 	@echo '  doc             - generate all documentation'
 	@echo '  doc-doxygen     - generate doxygen documentation'
+	@echo '  doc-manpages    - generate Mero manpages'
 	@echo ''
 	@echo 'Distribution targets:'
 	@echo '  install         - install what needs to be installed, copying the'

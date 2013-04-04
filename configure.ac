@@ -232,7 +232,10 @@ perl-IO-All package on Red Hat based systems])
 )
 
 AC_CHECK_PROG(DOXYGEN, doxygen, doxygen,
-              [echo doxygen is not found please install it])
+              [doxygen is not found please install it])
+
+AC_CHECK_PROG(A2X, a2x, a2x,
+              [a2x is not found please install asciidoc])
 
 # BASH variable is already set by configure to /bin/sh, so we need to unset it
 # first to prevent AC_CHECK_PROG from using cached value
@@ -564,6 +567,7 @@ AC_CONFIG_FILES([
                  Makefile
                  Kbuild
                 ])
+AC_CONFIG_FILES([doc/man/asciidoc.conf])
 AC_CONFIG_FILES([mdservice/ut/mdstore.h])
 AC_CONFIG_FILES([mero.spec])
 AC_CONFIG_FILES([addb/dump/m0addbdump.sh], [chmod +x addb/dump/m0addbdump.sh])
