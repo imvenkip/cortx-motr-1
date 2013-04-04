@@ -35,7 +35,6 @@ static void emit_error(struct m0_mgmt_ctl_ctx *ctx, const char *msg, int rc)
 		printf("error:\n");
 		printf("  msg: %s\n", msg);
 		printf("  rc: %d\n", rc);
-		printf("---\n");
 	} else
 		fprintf(stderr, "Error: %s (%d)\n", msg, rc);
 }
@@ -67,14 +66,15 @@ static void unlink_tmpdir(struct m0_mgmt_ctl_ctx *ctx)
 	system(cmd);
 }
 
+/**
+   Initialize the RPC client interfaces.
+   Must be callable again in case of failure.
+ */
 static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 {
 	int rc;
 	struct m0_rpc_client_ctx *c;
 	struct m0_cob_domain_id   cob_dom_id;
-
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &ctx->mcc_addb_ctx, &m0_addb_ct_mgmt_ctl,
-			 &m0_addb_proc_ctx);
 
 	c = &ctx->mcc_client;
 	M0_PRE(c->rcx_net_dom == NULL);
@@ -97,7 +97,11 @@ static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 	c->rcx_nr_slots              = 1;
 	c->rcx_timeout_s             = m0_time_seconds(ctx->mcc_timeout);
 	c->rcx_max_rpcs_in_flight    = 1;
-	c->rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
+	if (ctx->mcc_conf.mnc_recv_queue_min_length != 0)
+		c->rcx_recv_queue_min_length =
+			ctx->mcc_conf.mnc_recv_queue_min_length;
+	if (ctx->mcc_conf.mnc_max_rpc_msg != 0)
+		c->rcx_max_rpc_msg_size      = ctx->mcc_conf.mnc_max_rpc_msg;
 
 	rc = m0_net_xprt_init(&m0_net_lnet_xprt);
 	if (rc != 0) {
@@ -145,10 +149,13 @@ static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 	m0_net_xprt_fini(&m0_net_lnet_xprt);
 	c->rcx_net_dom = NULL;
 	M0_ASSERT(rc != 0);
-	fprintf(stderr, "Failed to initialize client\n");
 	return rc;
 }
 
+/**
+   Teardown RPC client interfaces.
+   Must be initializable again.
+ */
 static void client_fini(struct m0_mgmt_ctl_ctx *ctx)
 {
 	int rc;
@@ -160,8 +167,7 @@ static void client_fini(struct m0_mgmt_ctl_ctx *ctx)
 	m0_dbenv_fini(c->rcx_dbenv);
 	m0_net_domain_fini(c->rcx_net_dom);
 	m0_net_xprt_fini(&m0_net_lnet_xprt);
-	c->rcx_net_dom = NULL;
-	m0_addb_ctx_fini(&ctx->mcc_addb_ctx);
+	M0_SET0(c);
 }
 
 /**

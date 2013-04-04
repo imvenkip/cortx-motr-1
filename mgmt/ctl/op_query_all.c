@@ -41,6 +41,7 @@ static void op_qa_output(struct m0_mgmt_ctl_ctx *ctx,
 		printf("---\n");
 		printf("msr_reqh_state: %s\n",
 		       rs_to_string(ssr->msr_reqh_state));
+		printf("msr_ss:\n");
 		for (i = 0; i < ssr->msr_ss.msss_nr; ++i) {
 			ss = &ssr->msr_ss.msss_state[i];
 			m0_uuid_format(&ss->mss_uuid, uuid, ARRAY_SIZE(uuid));
@@ -49,9 +50,11 @@ static void op_qa_output(struct m0_mgmt_ctl_ctx *ctx,
 			       rst_to_string(ss->mss_state));
 			printf("     stype: %s\n", uuid_to_stype(ctx, uuid));
 		}
-		printf("---\n");
 	} else {
-		printf("REQH %s\n", rs_to_string(ssr->msr_reqh_state));
+		/*
+		  ugly:
+		  printf("REQH %s\n", rs_to_string(ssr->msr_reqh_state));
+		 */
 		for (i = 0; i < ssr->msr_ss.msss_nr; ++i) {
 			ss = &ssr->msr_ss.msss_state[i];
 			m0_uuid_format(&ss->mss_uuid, uuid, ARRAY_SIZE(uuid));
@@ -131,17 +134,22 @@ static int op_qa_main(int argc, char *argv[],
 		return -EINVAL;
 	}
 
-	rc = client_init(ctx);
-	if (rc != 0)
-		return rc;
+	while (1) {  /* infinite if repeating */
+		rc = client_init(ctx);
+		if (rc != 0 && repeat > 0)
+			goto retry;
 
-	rc = op_qa_run(ctx);
-	while (repeat > 0) { /* infinite if repetitive */
-		sleep(repeat);
 		rc = op_qa_run(ctx);
+		if (rc != 0 && repeat > 0)
+			goto retry;
+
+		client_fini(ctx);
+		if (repeat == 0)
+			break;
+	retry:
+		sleep(repeat);
 	}
 
-	client_fini(ctx);
 	return rc;
 }
 

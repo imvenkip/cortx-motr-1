@@ -247,6 +247,10 @@ static struct m0_mgmt_ctl_op ops[] = {
 
 static struct m0_mgmt_ctl_ctx ctx;
 
+enum {
+	RPC_TIMEOUT = 2
+};
+
 static int usage()
 {
 	int i;
@@ -261,13 +265,13 @@ static int usage()
 "-f GendersFile Specify an alternate path to the genders file.\n"
 "-h Hostname    Specify the remote host name.\n"
 "-t TimeoutSecs Specify the amount of time that the command will wait for\n"
-"               a response.  The default is 30 seconds.\n"
+"               a response.  The default is %d seconds.\n"
 "-y             Specfify that the output must be emitted in YAML.\n"
 "\n"
 "By default a connection to the local m0d will be established unless.\n"
 "\n"
-"Operation is one of:\n"
-		);
+"Operation is one of:\n",
+		RPC_TIMEOUT);
 	for (i = 0; i < ARRAY_SIZE(ops); ++i)
 		fprintf(stderr, "\t%s\n", ops[i].cto_op);
 	fprintf(stderr,
@@ -280,7 +284,13 @@ static int usage()
  */
 static void sig_handler(int signum)
 {
-	m0_fini();
+	/*
+	  DO NOT CALL
+	     m0_fini();
+	  HERE!
+	  FORGET ABOUT A CLEAN SHUTDOWN!
+	  IT CAN PANIC IF AN RPC CONNECTION IS OPEN.
+	*/
 	unlink_tmpdir(&ctx);
 	exit(2);
 }
@@ -302,7 +312,7 @@ int main(int argc, char *argv[])
 	  Can use M0_GETOPTS in the individual operations.
 	*/
 	rc = 0;
-	ctx.mcc_timeout = 30; /* secs - convert to ns later */
+	ctx.mcc_timeout = RPC_TIMEOUT; /* secs - convert to ns later */
 
 #define HAS_ARG(f)							\
 	if (i + 1 >= argc) {						\
@@ -375,23 +385,29 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	/* set up a signal handler to finalize */
+	/* set up a signal handler to remove work arena */
 	M0_SET0(&sa);
+	sigaddset(&sa.sa_mask, SIGTERM);
+	sigaddset(&sa.sa_mask, SIGINT);
+	sigaddset(&sa.sa_mask, SIGQUIT);
+	sigaddset(&sa.sa_mask, SIGPIPE);
 	sa.sa_handler = sig_handler;
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = 0;
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGINT,  &sa, NULL);
 	sigaction(SIGQUIT, &sa, NULL);
+	sigaction(SIGPIPE, &sa, NULL);
 
 	/* create work arena */
 	rc = make_tmpdir(&ctx);
 	if (rc != 0)
 		return 1;
 
+	/* addb context for conveyance */
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &ctx.mcc_addb_ctx, &m0_addb_ct_mgmt_ctl,
+			 &m0_addb_proc_ctx);
+
 	/* load the configuration */
-	/** @todo specify alt_h override */
-	rc = m0_mgmt_conf_init(&ctx.mcc_conf, ctx.mcc_genders, NULL);
+	rc = m0_mgmt_conf_init(&ctx.mcc_conf, ctx.mcc_genders, alt_h);
 	if (rc != 0) {
 		emit_error(&ctx, "Failed to load configuration", rc);
 		goto fail;
@@ -405,6 +421,7 @@ int main(int argc, char *argv[])
 
 	m0_mgmt_conf_fini(&ctx.mcc_conf);
  fail:
+	m0_addb_ctx_fini(&ctx.mcc_addb_ctx);
 	m0_fini();
 	unlink_tmpdir(&ctx);
 	return !(rc == 0);
