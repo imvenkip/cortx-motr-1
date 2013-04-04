@@ -173,7 +173,7 @@ static void test_genders_parse(void)
 	m0_mgmt_conf_fini(&conf);
 }
 
-const struct m0_test_suite m0_mgmt_svc_ut = {
+const struct m0_test_suite m0_mgmt_conf_ut = {
 	.ts_name = "mgmt-conf-ut",
 	.ts_init = mgmt_conf_ut_init,
 	.ts_fini = mgmt_conf_ut_fini,
@@ -182,7 +182,7 @@ const struct m0_test_suite m0_mgmt_svc_ut = {
 		{ NULL, NULL }
 	}
 };
-M0_EXPORTED(m0_mgmt_svc_ut);
+M0_EXPORTED(m0_mgmt_conf_ut);
 
 /*
  *  Local variables:
