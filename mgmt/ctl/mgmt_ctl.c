@@ -266,7 +266,7 @@ static int usage()
 "-h Hostname    Specify the remote host name.\n"
 "-t TimeoutSecs Specify the amount of time that the command will wait for\n"
 "               a response.  The default is %d seconds.\n"
-"-y             Specfify that the output must be emitted in YAML.\n"
+"-y             Specify that the output must be emitted in YAML.\n"
 "\n"
 "By default a connection to the local m0d will be established unless.\n"
 "\n"
