@@ -267,7 +267,8 @@ static int usage()
 "               a response.  The default is %d seconds.\n"
 "-y             Specify that the output must be emitted in YAML.\n"
 "\n"
-"By default a connection to the local m0d will be established unless.\n"
+"By default a connection to the local m0d will be established if no command\n"
+"flags are specified.\n"
 "\n"
 "Operation is one of:\n",
 		RPC_TIMEOUT);
