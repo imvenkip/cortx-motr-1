@@ -365,9 +365,10 @@ EOF
 
 function start_server () {
 	H=$1
-	EP=$2
-	I=$3
-	local dcf_id=$4
+	CEP=$2
+	EP=$3
+	I=$4
+	local dcf_id=$5
 
 	echo Starting server with end point $EP on host $H
 	local RUN
@@ -427,7 +428,8 @@ M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
 $BROOT/mero/m0d -r -p \
 $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A $DDIR/stobs \
--e $XPT:$EP $SNAME $XPT_SETUP" > ${SLOG}$I.log &
+-w $POOL_WIDTH -G $XPT:$MDS_EP
+-e $XPT:$EP $IOS_EPs -L $XPT:$CEP $SNAME $XPT_SETUP" > ${SLOG}$I.log &
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to start remote server on $H
 		return 1
@@ -446,14 +448,25 @@ function start_servers () {
 			$RUN rm -f $WORK_ARENA/disks*.conf
 		done
 	fi
+
+	MDS_EP=${SERVICES[1]}
+	IOS_EPs=" -i $XPT:$MDS_EP"
+	for i in `seq 3 2 ${#SERVICES[*]}`; do
+		IOS_EPs="$IOS_EPs -i $XPT:${SERVICES[$i]}"
+	done
+
 	SLOG=$WORK_ARENA/server
 	for ((i=0; i < ${#SERVICES[*]}; i += 2)); do
 		H=${SERVICES[$i]}
-		EP=${SERVICES[((i+1))]}
+		SEP=${SERVICES[((i+1))]}	# server EP
+		SEP1=${SEP%:*}
+		TM=${SEP##*:}
+		TM=$((TM + 100))
+		CEP=$SEP1:$TM			# client EP
 		# new Titan couple?
 		[ $i -gt 0 ] && [ ${H%-*} != ${SERVICES[((i-2))]%-*} ] && \
 			devs_conf_cnt=0
-		start_server $H $EP $((i / 2)) $devs_conf_cnt
+		start_server $H $CEP $SEP $((i / 2)) $devs_conf_cnt
 		if [ $? -ne 0 ]; then
 			return 1
 		fi
