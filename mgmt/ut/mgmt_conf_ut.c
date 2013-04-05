@@ -144,7 +144,7 @@ static void test_genders_parse(void)
 			saw_ioservice = true;
 			M0_UT_ASSERT(strcmp(svc->msc_uuid,
 			    "f595564a-20ca-4b12-8f4b-0d2f82726d61") == 0);
-			M0_UT_ASSERT(svc->msc_argc == 4);
+			M0_UT_ASSERT(svc->msc_argc == 6);
 			M0_UT_ASSERT(strcmp(svc->msc_argv[3],
 					    "/etc/mero/stobs") == 0);
 		} else {
