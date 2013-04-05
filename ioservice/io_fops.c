@@ -120,7 +120,7 @@ static int io_fol_cd_rec_part_op(struct m0_fop_fol_rec_part *fpart,
 				 struct m0_fol *fol, bool undo)
 {
 	int			  result;
-	struct m0_fop		 *fop;
+	struct m0_fop		 *fop = NULL;
 	struct m0_fop_cob_create *cc;
 	struct m0_fop_cob_delete *cd;
 	struct m0_reqh		 *reqh;
@@ -157,7 +157,7 @@ static int io_fol_cd_rec_part_op(struct m0_fop_fol_rec_part *fpart,
 			fop = m0_fop_alloc(&m0_fop_cob_delete_fopt, cd);
 		break;
 	}
-	result = m0_cob_fom_create(fop, &fom, reqh);
+	result = fop != NULL ? m0_cob_fom_create(fop, &fom, reqh) : -ENOMEM;
 	if (result == 0) {
 		fom->fo_local = true;
 		m0_fom_queue(fom, reqh);
@@ -189,7 +189,7 @@ const struct m0_fop_type_ops io_fop_rwv_ops = {
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 	.fto_undo        = io_fol_rec_part_undo_redo_op,
-	.fto_redo        = io_fol_rec_part_redo_redo_op,
+	.fto_redo        = io_fol_rec_part_undo_redo_op,
 };
 
 const struct m0_fop_type_ops io_fop_cd_ops = {

@@ -1140,7 +1140,7 @@ static void cobfoms_fv_updates(void)
 static int cob_cd_op(struct m0_fol_rec *rec, struct m0_fop *fop, bool undo) {
 	struct m0_fol_rec_part   *dec_part;
 	struct m0_fop_cob_common *cob_cmn;
-	int			  result;
+	int			  result = 0;
 
 	cob_cmn =  m0_cobfop_common_get(fop);
 	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, dec_part) {
