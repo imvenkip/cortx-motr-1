@@ -673,10 +673,11 @@ gccxml2xcode_verbose_0 = @echo " GCCXML2XC " $@;
 # gccxml doesn't like -Werror and --coverage options so we need to remove them
 # from CFLAGS
 
+GCCXML_UNSUPPORTED_CFLAGS := -Werror --coverage -pipe -Wp,-D_FORTIFY_SOURCE=2 --param=ssp-buffer-size=4
+GCCXML_CFLAGS := $(filter-out $(GCCXML_UNSUPPORTED_CFLAGS), $(CPPFLAGS) $(CFLAGS) $(AM_CPPFLAGS) $(AM_CFLAGS))
+
 %_xc.h %_xc.c: %.h
-	$(gccxml_verbose)$(GCCXML) \
-		$(filter-out -Werror --coverage, $(CPPFLAGS) $(CFLAGS) $(AM_CPPFLAGS) $(AM_CFLAGS)) \
-		-fxml=$(<:.h=.gccxml) $<
+	$(gccxml_verbose)$(GCCXML) $(GCCXML_CFLAGS) -fxml=$(<:.h=.gccxml) $<
 	$(gccxml2xcode_verbose)$(top_srcdir)/xcode/gccxml2xcode -i $(<:.h=.gccxml)
 
 
