@@ -56,7 +56,8 @@ static char *mgmt_svc_ut_setup_args[] = { "m0d", "-r", "-p", "-T", "linux",
 					  "-D", "ms.db", "-S", "ms.stob",
 					  "-A", "ms.addb_stob",
 					  "-e", MGMT_SVC_UT_SERVER_ENDPOINT,
-					  "-s", MGMT_SVC_UT_SVC
+					  "-s", MGMT_SVC_UT_SVC,
+					  "-w", "10",
 };
 static struct m0_net_xprt *mgmt_svc_ut_setup_xprts[] = {
 	&m0_net_lnet_xprt

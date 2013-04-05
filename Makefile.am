@@ -984,6 +984,7 @@ EXTRA_DIST += addb/Kbuild.sub \
               m0t1fs/linux_kernel/ut/Kbuild.sub \
               mdservice/Kbuild.sub \
               mero/Kbuild.sub \
+              mgmt/Kbuild.sub \
               net/Kbuild.sub \
               net/bulk_emulation/Kbuild.sub \
               net/bulk_emulation/ut/Kbuild.sub \

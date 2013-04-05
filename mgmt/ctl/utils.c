@@ -78,7 +78,6 @@ static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 {
 	int                       rc;
 	struct m0_rpc_client_ctx *c;
-	struct m0_cob_domain_id   cob_dom_id;
 
 	c = &ctx->mcc_client;
 	M0_PRE(c->rcx_net_dom == NULL);
@@ -118,17 +117,6 @@ static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 		emit_error(ctx, "Failed to initialize network domain", rc);
 		goto net_domain_fail;
 	}
-	rc = m0_dbenv_init(c->rcx_dbenv, c->rcx_db_name, 0);
-	if (rc != 0) {
-		emit_error(ctx, "Failed to initialize dbenv", rc);
-		goto dbenv_fail;
-	}
-	cob_dom_id.id = c->rcx_cob_dom_id;
-	rc = m0_cob_domain_init(c->rcx_cob_dom, c->rcx_dbenv, &cob_dom_id);
-	if (rc != 0) {
-		emit_error(ctx, "Failed to initialize cob domain", rc);
-		goto cob_domain_fail;
-	}
 	rc = m0_rpc_client_start(c);
 	if (rc != 0) {
 		emit_error(ctx, "Failed to start RPC client", rc);
@@ -144,10 +132,6 @@ static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 	return 0;
 
  client_fail:
-	m0_cob_domain_fini(c->rcx_cob_dom);
- cob_domain_fail:
-	m0_dbenv_fini(c->rcx_dbenv);
- dbenv_fail:
 	m0_net_domain_fini(c->rcx_net_dom);
  net_domain_fail:
 	m0_net_xprt_fini(&m0_net_lnet_xprt);
@@ -167,8 +151,6 @@ static void client_fini(struct m0_mgmt_ctl_ctx *ctx)
 
 	M0_PRE(c->rcx_net_dom != NULL);
 	rc = m0_rpc_client_stop(c);
-	m0_cob_domain_fini(c->rcx_cob_dom);
-	m0_dbenv_fini(c->rcx_dbenv);
 	m0_net_domain_fini(c->rcx_net_dom);
 	m0_net_xprt_fini(&m0_net_lnet_xprt);
 	M0_SET0(c);

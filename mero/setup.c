@@ -1728,6 +1728,8 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 		}
 	} m0_tl_endfor;
 
+#if 0
+	/** @todo FIX ME */
 	if (cctx->cc_mds_epx.ex_endpoint == NULL)
 		M0_LOG(M0_WARN, "Missing mdservice endpoint.\n"
 				 "Use -G to provide a valid one");
@@ -1735,6 +1737,7 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 	if (cctx->cc_cli2mds_epx.ex_endpoint == NULL)
 		M0_LOG(M0_WARN, "Missing client to mdservice endpoint.\n"
 				 "Use -L to provide a valid one");
+#endif
 
 	if (cctx->cc_pool_width <= 0) {
 		M0_LOG(M0_ERROR, "Invalid pool width.\n"
@@ -1858,7 +1861,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 					rc = ep_and_xprt_extract(&cctx->
 								 cc_mds_epx, s);
 				})),
-			M0_STRINGARG('L', "client endpoint address to mdservice",
+			M0_STRINGARG('L',"client endpoint address to mdservice",
 				LAMBDA(void, (const char *s)
 				{
 					rc = ep_and_xprt_extract(&cctx->
@@ -1960,8 +1963,8 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 				     " e.g. transport:address",
 				LAMBDA(void, (const char *s)
 				{
-					_RETURN_EINVAL_UNLESS(rctx);
-					rc = ep_and_xprt_append(&rctx->rc_eps, s);
+				      _RETURN_EINVAL_UNLESS(rctx);
+				      rc = ep_and_xprt_append(&rctx->rc_eps, s);
 				})),
 			M0_STRINGARG('s', "Services to be configured",
 				LAMBDA(void, (const char *s)

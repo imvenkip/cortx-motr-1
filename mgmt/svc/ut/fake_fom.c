@@ -36,7 +36,7 @@ enum mgmt_svc_ut_fake_fop_phases {
 	MGMT_SVC_UT_FAKE_FOP_FINI = M0_FOM_PHASE_FINISH
 };
 
-static const struct m0_sm_state_descr mgmt_svc_ut_fake_fop_descr[] = {
+static struct m0_sm_state_descr mgmt_svc_ut_fake_fop_descr[] = {
         [MGMT_SVC_UT_FAKE_FOP_INIT] = {
                 .sd_flags       = M0_SDF_INITIAL,
                 .sd_name        = "Init",

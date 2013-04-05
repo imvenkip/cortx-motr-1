@@ -118,7 +118,7 @@ enum mgmt_fop_ss_phases {
 	MGMT_FOP_SS_PHASE_NR
 };
 
-static const struct m0_sm_state_descr mgmt_fop_ss_descr[] = {
+static struct m0_sm_state_descr mgmt_fop_ss_descr[] = {
         [MGMT_FOP_SS_PHASE_R_LOCK] = {
                 .sd_flags       = M0_SDF_INITIAL,
                 .sd_name        = "ReadLock",

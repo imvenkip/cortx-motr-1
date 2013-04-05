@@ -45,7 +45,7 @@ static char *genders_proto[] = {
 	"h00          m0_s_rm\n",
 	"h00          m0_s_mdservice=-p\n",
 	"h[00-10],%s  m0_s_addb=-A:/etc/mero/stobs\n",
-	"h[00-10],%s  m0_s_ioservice=-T:AD:-S:/etc/mero/stobs\n",
+	"h[00-10],%s  m0_s_ioservice=-T:AD:-S:/etc/mero/stobs:-w:10\n",
 	"h[00-10],%s  m0_s_sns\n",
 	"h00 m0_uuid=b47539c2-143e-44e8-9594-a8f6e09bfec0\n",
 	"h01 m0_uuid=6d5ddc53-b1b6-43ae-9c7c-16c227b2ea5a\n",

@@ -105,10 +105,10 @@
     Failure handling for m0d is done as follows,
     - As mentioned above, user must follow the sequence of m0_cs_init(),
       m0_cs_setup_env(), and m0_cs_start() in-order to setup m0_mero instance
-      programmatically. If m0_cs_init() fails, user need not invoke m0_cs_fini(),
-      although if m0_cs_init() succeeds and if further calls to m0d
-      routines fail i.e m0_cs_setup_env() or cs_cs_start(), then user must invoke
-      m0_cs_fini() corresponding to m0_cs_init().
+      programmatically. If m0_cs_init() fails, user need not invoke
+      m0_cs_fini(), although if m0_cs_init() succeeds and if further calls to
+      m0d routines fail i.e m0_cs_setup_env() or cs_cs_start(), then user must
+      invoke m0_cs_fini() corresponding to m0_cs_init().
 
     Similarly, to setup mero externally, using m0d program along
     with parameters specified as above.
@@ -123,6 +123,10 @@
 
    @{
  */
+
+enum {
+	M0_SETUP_DEFAULT_POOL_WIDTH = 10,
+};
 
 enum {
 	M0_AD_STOB_ID_DEFAULT = 0x0,

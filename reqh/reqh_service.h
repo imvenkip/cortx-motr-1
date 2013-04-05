@@ -261,6 +261,7 @@ struct m0_reqh_service {
 	struct m0_reqh_context           *rs_reqh_ctx;
 
 	/**
+	   @todo Implement this.
 	   Count of outstanding FOMs created by this service.
 	   @see m0_fom_init(), m0_fom_fini()
 	 */

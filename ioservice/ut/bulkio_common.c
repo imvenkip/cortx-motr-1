@@ -104,16 +104,18 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 	strcpy(server_args[16], tm_len);
 	strcpy(server_args[17], "-m");
 	strcpy(server_args[18], rpc_size);
-	strcpy(server_args[19], "-G");
-	strcat(server_args[20], xprt);
-	strcat(server_args[20], saddr);
-	strcpy(server_args[21], "-L");
+	strcpy(server_args[19], "-w");
+	strcpy(server_args[20], "10");
+#if 0
+	/** @todo FIX ME */
+	strcpy(server_args[21], "-G");
 	strcat(server_args[22], xprt);
 	strcat(server_args[22], saddr);
-	strcat(server_args[22], "01");
-	strcpy(server_args[23], "-w");
-	strcpy(server_args[24], "10");
-
+	strcpy(server_args[23], "-L");
+	strcat(server_args[24], xprt);
+	strcat(server_args[24], saddr);
+	strcat(server_args[24], "01");
+#endif
 
 	M0_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
 	M0_ASSERT(stypes != NULL);

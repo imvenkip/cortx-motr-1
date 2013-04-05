@@ -112,10 +112,11 @@ static int test_stats_init(void)
 			  .rhia_svc       = NULL,
 			  .rhia_addb_stob = NULL);
 	M0_ASSERT(rc == 0);
+	m0_reqh_start(&reqh);
 
 	rc = m0_reqh_service_allocate(&service, &ut_stats_service_type, NULL);
 	M0_ASSERT(rc == 0);
-	m0_reqh_service_init(service, &reqh);
+	m0_reqh_service_init(service, &reqh, NULL);
 	rc = m0_reqh_service_start(service);
 	M0_ASSERT(rc == 0);
 
@@ -126,6 +127,7 @@ static int test_stats_fini(void)
 {
 	m0_reqh_service_stop(service);
 	m0_reqh_service_fini(service);
+	m0_reqh_services_terminate(&reqh);
 	m0_reqh_fini(&reqh);
 
 	m0_reqh_service_type_unregister(&ut_stats_service_type);

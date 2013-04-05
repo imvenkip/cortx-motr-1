@@ -73,7 +73,7 @@ M0_LOCKERS_DEFINE(M0_INTERNAL, m0_reqh, rh_lockers);
 /**
    Request handler state machine description
  */
-static const struct m0_sm_state_descr m0_reqh_sm_descr[] = {
+static struct m0_sm_state_descr m0_reqh_sm_descr[] = {
         [M0_REQH_ST_INIT] = {
                 .sd_flags       = M0_SDF_INITIAL,
                 .sd_name        = "Init",
@@ -215,7 +215,7 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 	m0_chan_init(&reqh->rh_sd_signal, &reqh->rh_mutex); /* deprecated */
 	m0_rwlock_init(&reqh->rh_rwlock);
 	m0_sm_init(&reqh->rh_sm, &m0_reqh_sm_conf, M0_REQH_ST_INIT,
-		   &reqh->rh_sm_grp, &reqh->rh_addb_ctx);
+		   &reqh->rh_sm_grp);
 	m0_reqh_lockers_init(reqh);
 	M0_POST(m0_reqh_invariant(reqh));
 
@@ -412,10 +412,10 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
 		m0_reqh_service_prepare_to_stop(service);
 	} m0_tl_endfor;
 
-	/* shutdown mdservice */
+	/* notify mdservice */
 	if (mdservice != NULL)
 		m0_reqh_service_prepare_to_stop(mdservice);
-	/* shutdown rpcservice */
+	/* notify rpcservice */
 	if (rpcservice != NULL)
 		m0_reqh_service_prepare_to_stop(rpcservice);
 
