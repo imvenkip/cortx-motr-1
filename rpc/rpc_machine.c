@@ -282,7 +282,7 @@ void m0_rpc_machine_fini(struct m0_rpc_machine *machine)
 M0_EXPORTED(m0_rpc_machine_fini);
 
 /**
-   [TEMPORARY]
+   XXX [TEMPORARY]
    Terminates all active incoming sessions and connections.
 
    Such cleanup is required to handle case where receiver is terminated
@@ -293,33 +293,18 @@ M0_EXPORTED(m0_rpc_machine_fini);
  */
 static void cleanup_incoming_connections(struct m0_rpc_machine *machine)
 {
-	struct m0_rpc_conn    *conn;
-	struct m0_rpc_session *session;
-	int                    rc;
+	struct m0_rpc_conn *conn;
 
 	M0_PRE(m0_rpc_machine_is_locked(machine));
 
 	m0_tl_for(rpc_conn, &machine->rm_incoming_conns, conn) {
-		m0_tl_for(rpc_session, &conn->c_sessions, session) {
-			if (session->s_session_id == SESSION_ID_0)
-				continue;
-			M0_LOG(M0_WARN, "Aborting session %llu",
-				(unsigned long long)session->s_session_id);
-			m0_sm_timedwait(&session->s_sm,
-					M0_BITS(M0_RPC_SESSION_IDLE),
-					M0_TIME_NEVER);
-			(void)m0_rpc_rcv_session_terminate(session);
-			m0_rpc_session_fini_locked(session);
-			m0_free(session);
-		} m0_tl_endfor;
-		M0_ASSERT(rpc_session_tlist_length(&conn->c_sessions) == 1);
+		m0_rpc_conn_cleanup_all_sessions(conn);
 		M0_LOG(M0_WARN, "Aborting conn %llu",
 			(unsigned long long)conn->c_sender_id);
-		rc = m0_rpc_rcv_conn_terminate(conn);
-		M0_ASSERT(ergo(rc == 0,
-			       conn_state(conn) == M0_RPC_CONN_TERMINATING));
+		(void)m0_rpc_rcv_conn_terminate(conn);
 		m0_rpc_conn_terminate_reply_sent(conn);
 	} m0_tl_endfor;
+
 	M0_POST(rpc_conn_tlist_is_empty(&machine->rm_incoming_conns));
 }
 

@@ -194,5 +194,7 @@ M0_INTERNAL void m0_rpc_conn_add_session(struct m0_rpc_conn *conn,
 					 struct m0_rpc_session *session);
 M0_INTERNAL void m0_rpc_conn_remove_session(struct m0_rpc_session *session);
 
+M0_INTERNAL void m0_rpc_conn_cleanup_all_sessions(struct m0_rpc_conn *conn);
+
 /** @}  End of rpc_session group */
 #endif /* __MERO_RPC_CONN_INT_H__ */

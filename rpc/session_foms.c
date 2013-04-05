@@ -544,7 +544,6 @@ static void conn_terminate_reply_sent_cb(struct m0_rpc_item *item)
 	       item->ri_session->s_conn != NULL);
 
 	conn = item->ri_session->s_conn;
-	M0_PRE(conn_state(conn) == M0_RPC_CONN_TERMINATING);
 	M0_LOG(M0_DEBUG, "conn: %p\n", conn);
 	conn->c_ast.sa_cb = conn_cleanup_ast;
 	m0_sm_ast_post(&conn->c_rpc_machine->rm_sm_grp, &conn->c_ast);
@@ -564,71 +563,36 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 	struct m0_fop                        *fop_rep;
 	struct m0_rpc_conn                   *conn;
 	struct m0_rpc_machine                *machine;
-	int                                   rc;
 
 	M0_ENTRY("fom: %p", fom);
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
-	fop = fom->fo_fop;
-	request = m0_fop_data(fop);
-	M0_ASSERT(request != NULL);
-
+	fop     = fom->fo_fop;
 	fop_rep = fom->fo_rep_fop;
-	reply = m0_fop_data(fop_rep);
-	M0_ASSERT(reply != NULL);
+	request = m0_fop_data(fop);
+	reply   = m0_fop_data(fop_rep);
 
-	reply->ctr_sender_id = request->ct_sender_id;
-
-	item = &fop->f_item;
-	M0_ASSERT(item->ri_session != NULL);
-
-	conn = item->ri_session->s_conn;
-	M0_ASSERT(conn != NULL);
-
+	item    = &fop->f_item;
+	conn    = item->ri_session->s_conn;
 	machine = conn->c_rpc_machine;
 
 	m0_rpc_machine_lock(machine);
+	reply->ctr_sender_id = request->ct_sender_id;
+	reply->ctr_rc        = m0_rpc_rcv_conn_terminate(conn);
+	m0_rpc_machine_unlock(machine);
 
-	rc = m0_rpc_rcv_conn_terminate(conn);
-
-	if (conn_state(conn) == M0_RPC_CONN_FAILED) {
-		/*
-		 * conn has been moved to FAILED state. fini() and free() it.
-		 * Cannot send reply back to sender. Sender will time-out and
-		 * set sender side conn to FAILED state.
-		 * XXX generate ADDB record here.
-		 */
-		M0_LOG(M0_DEBUG, "Conn terminate failed: conn [%p]", conn);
-		m0_rpc_conn_fini_locked(conn);
-
-		m0_rpc_machine_unlock(machine);
-
-		m0_free(conn);
-		m0_fom_phase_set(fom, M0_FOPH_FINISH);
-		M0_LEAVE();
-		return M0_FSO_WAIT;
-	} else {
-		M0_ASSERT(M0_IN(conn_state(conn),
-				(M0_RPC_CONN_ACTIVE, M0_RPC_CONN_TERMINATING)));
-
-		m0_rpc_machine_unlock(machine);
-		/*
-		 * In memory state of conn is not cleaned up, at this point.
-		 * conn will be finalised and freed in the ->rio_sent()
-		 * callback of &fop_rep->f_item item.
-		 * see: conn_terminate_reply_sent_cb, conn_cleanup_ast()
-		 */
-		reply->ctr_rc = rc; /* rc can be -EBUSY */
-		if (rc == 0) /* connection is successfully terminated */
-			fop_rep->f_item.ri_ops = &conn_terminate_reply_item_ops;
-		m0_fom_phase_set(fom, M0_FOPH_FINISH);
-		M0_LOG(M0_DEBUG, "Conn terminate successful: conn [%p] %d",
-			conn, rc);
-		m0_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-		M0_LEAVE();
-		return M0_FSO_WAIT;
-	}
+	fop_rep->f_item.ri_ops = &conn_terminate_reply_item_ops;
+	m0_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
+	/*
+	 * In memory state of conn is not cleaned up, at this point.
+	 * conn will be finalised and freed in the ->rio_sent()
+	 * callback of &fop_rep->f_item item.
+	 * see: conn_terminate_reply_sent_cb, conn_cleanup_ast()
+	 */
+	m0_fom_phase_set(fom, M0_FOPH_FINISH);
+	M0_LEAVE();
+	return M0_FSO_WAIT;
 }
 
 M0_INTERNAL void m0_rpc_fom_conn_terminate_addb_init(struct m0_fom *fom,

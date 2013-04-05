@@ -506,10 +506,12 @@ static void duplicate_item_received(struct m0_rpc_slot *slot,
 {
 	struct m0_rpc_item *req;
 
+	M0_ENTRY("slot: %p item: %p", slot, item);
 	/* item is a duplicate request. Find originial. */
 	req = item_find(slot, item_xid(item, 0));
 	if (req == NULL) {
 		misordered_item_received(slot, item);
+		M0_LEAVE();
 		return;
 	}
 	/*
@@ -545,7 +547,7 @@ static void duplicate_item_received(struct m0_rpc_slot *slot,
 			m0_reqh_fop_handle()
 		   Ignore the request. Sender side request should TIMEOUT.
 		 */
-		M0_LOG(M0_FATAL, "Duplicate request of FAILED item rcvd");
+		M0_LOG(M0_INFO, "Duplicate request of FAILED item rcvd");
 		break;
 	case RPC_ITEM_STAGE_TIMEDOUT:
 		M0_IMPOSSIBLE("Original req in TIMEDOUT/FAILED stage");
@@ -557,6 +559,7 @@ static void duplicate_item_received(struct m0_rpc_slot *slot,
 	 * Irrespective of any of above cases, we're going to
 	 * ignore this _duplicate_ item.
 	 */
+	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_rpc_slot_reply_received(struct m0_rpc_slot *slot,

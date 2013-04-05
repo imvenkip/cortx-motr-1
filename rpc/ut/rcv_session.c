@@ -51,8 +51,6 @@ static int ts_rcv_session_fini(void)
 	return 0;
 }
 
-#define FATAL(...) M0_LOG(M0_FATAL, __VA_ARGS__)
-
 struct fp {
 	const char *fn;
 	const char *pt;
@@ -105,7 +103,6 @@ static void test_conn_establish(void)
 	M0_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < ARRAY_SIZE(fps1); ++i) {
-		FATAL("<%s, %s>", fps1[i].fn, fps1[i].pt);
 		m0_fi_enable(fps1[i].fn, fps1[i].pt);
 		rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
 					m0_time_from_now(TIMEOUT, 0));
@@ -201,7 +198,6 @@ static void test_session_terminate(void)
 		m0_fi_enable(fps[i].fn, fps[i].pt);
 		rc = m0_rpc_session_destroy(&session,
 					    m0_time_from_now(TIMEOUT, 0));
-		FATAL("rc: %d", rc);
 		M0_UT_ASSERT(rc == fps[i].erc);
 		m0_fi_disable(fps[i].fn, fps[i].pt);
 		/*
@@ -221,14 +217,41 @@ static void test_session_terminate(void)
 		       session; reciever replies as -EBUSY
 		  A. One possible way is, while processing CONN_TERMINATE
 		     request, receiver simply aborts all sessions within it.
+		     Temporarily implemented this behavior.
 		 */
 	}
 
 	rc = m0_rpc_conn_destroy(&conn, m0_time_from_now(TIMEOUT, 0));
-	M0_UT_ASSERT(rc == -EBUSY);
+	M0_UT_ASSERT(rc == 0);
 
 	m0_net_end_point_put(ep);
+}
 
+static void test_conn_terminate(void)
+{
+	struct m0_net_end_point *ep;
+	struct m0_rpc_conn       conn;
+	int                      rc;
+	int                      i;
+	struct fp fps[] = {
+		{"session_gen_fom_create", "reply_fop_alloc_failed",
+							-ETIMEDOUT},
+		{"m0_db_tx_init",          "failed",    -EINVAL},
+	};
+
+	rc = m0_net_end_point_create(&ep, &machine->rm_tm, remote_addr);
+	M0_UT_ASSERT(rc == 0);
+
+	for (i = 0; i < ARRAY_SIZE(fps); ++i) {
+		rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
+					m0_time_from_now(TIMEOUT, 0));
+		M0_UT_ASSERT(rc == 0);
+		m0_fi_enable(fps[i].fn, fps[i].pt);
+		rc = m0_rpc_conn_destroy(&conn, m0_time_from_now(TIMEOUT, 0));
+		M0_UT_ASSERT(rc == fps[i].erc);
+		m0_fi_disable(fps[i].fn, fps[i].pt);
+	}
+	m0_net_end_point_put(ep);
 }
 
 const struct m0_test_suite rpc_rcv_session_ut = {
@@ -236,9 +259,10 @@ const struct m0_test_suite rpc_rcv_session_ut = {
 	.ts_init = ts_rcv_session_init,
 	.ts_fini = ts_rcv_session_fini,
 	.ts_tests = {
-		{ "conn-establish",    test_conn_establish},
+		{ "conn-establish",    test_conn_establish   },
 		{ "session-establish", test_session_establish},
 		{ "session-terminate", test_session_terminate},
+		{ "conn-terminate",    test_conn_terminate   },
 		{ NULL, NULL },
 	}
 };
