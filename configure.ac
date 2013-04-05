@@ -231,11 +231,12 @@ AX_PROG_PERL_MODULES([IO::All], ,
 perl-IO-All package on Red Hat based systems])
 )
 
-AC_CHECK_PROG(DOXYGEN, doxygen, doxygen,
-              [doxygen is not found please install it])
+AC_CHECK_PROG(DOXYGEN, doxygen, doxygen, doxygen)
 
-AC_CHECK_PROG(A2X, a2x, a2x,
-              [a2x is not found please install asciidoc])
+AC_CHECK_PROG(A2X, a2x, a2x)
+AS_IF([test -z $A2X],
+      AC_MSG_ERROR([a2x is not found please install asciidoc])
+)
 
 # BASH variable is already set by configure to /bin/sh, so we need to unset it
 # first to prevent AC_CHECK_PROG from using cached value
