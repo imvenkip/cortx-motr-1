@@ -136,26 +136,29 @@ static void test_service(void)
 {
 	int                           i;
 	int                           rc;
-	struct m0_reqh                reqh;
+	struct m0_reqh               *reqh;
 	struct m0_reqh_service_type  *svct;
 	struct m0_reqh_service       *reqh_svc;
 	struct m0_fop                *fop;
 	static struct m0_dbenv        dbenv;
 
+	M0_ALLOC_PTR(reqh);
+	M0_UT_ASSERT(reqh != NULL);
+
 	rc = m0_dbenv_init(&dbenv, "something", 0);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_SET0(&reqh);
+	M0_SET0(reqh);
 
 	rc = m0_reqhut_fop_init();
 	M0_UT_ASSERT(rc == 0);
 
-	rc = M0_REQH_INIT(&reqh,
+	rc = M0_REQH_INIT(reqh,
 			  .rhia_db        = &dbenv,
 			  .rhia_mdstore   = (void *)1,
 			  .rhia_fol       = (void *)1);
 	M0_UT_ASSERT(rc == 0);
-	m0_reqh_start(&reqh);
+	m0_reqh_start(reqh);
 
 	svct = m0_reqh_service_type_find("ds1");
 	M0_UT_ASSERT(svct != NULL);
@@ -163,7 +166,7 @@ static void test_service(void)
 	rc = m0_reqh_service_allocate(&reqh_svc, svct, NULL);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_reqh_service_init(reqh_svc, &reqh, NULL);
+	m0_reqh_service_init(reqh_svc, reqh, NULL);
 
 	rc = m0_reqh_service_start(reqh_svc);
 	M0_UT_ASSERT(rc == 0);
@@ -172,19 +175,20 @@ static void test_service(void)
 	M0_UT_ASSERT(fop != NULL);
 
 	for (i = 0; i < MAX_REQH_UT_FOP; ++i)
-		m0_reqh_fop_handle(&reqh, fop);
+		m0_reqh_fop_handle(reqh, fop);
 
-	m0_reqh_shutdown_wait(&reqh);
+	m0_reqh_shutdown_wait(reqh);
 
 	m0_fop_put(fop);
 
 	m0_reqh_service_stop(reqh_svc);
 	m0_reqh_service_fini(reqh_svc);
-	m0_reqh_services_terminate(&reqh);
-	m0_reqh_fini(&reqh);
+	m0_reqh_services_terminate(reqh);
+	m0_reqh_fini(reqh);
 	m0_dbenv_fini(&dbenv);
 
 	m0_reqhut_fop_fini();
+	m0_free(reqh);
 }
 
 const struct m0_test_suite reqh_service_ut = {
