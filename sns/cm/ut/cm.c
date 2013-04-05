@@ -123,10 +123,6 @@ static void iter_setup(uint32_t N, uint32_t K, uint32_t P, uint64_t unit_size)
 	M0_UT_ASSERT(bufs_nr != 0);
 	bufs_nr = cm_buffer_pool_provision(&scm->sc_obp, ITER_UT_BUF_NR);
 	M0_UT_ASSERT(bufs_nr != 0);
-        scm->sc_it.si_pl.spl_N = N;
-        scm->sc_it.si_pl.spl_K = K;
-        scm->sc_it.si_pl.spl_P = P;
-	scm->sc_it.si_pl.spl_unit_size = unit_size;
 	rc = m0_sns_cm_iter_init(&scm->sc_it);
 	M0_UT_ASSERT(rc == 0);
 }
@@ -306,7 +302,9 @@ static void iter_repair_single_file(void)
 	uint64_t  fsizes[] = {ITER_64K};
 
 	iter_setup(3, 1, 5, 4096);
+	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
 	rc = iter_run(5, ARRAY_SIZE(fsizes), fsizes, 3, SNS_REPAIR);
+	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(ARRAY_SIZE(fsizes), 5);
 }
@@ -317,7 +315,9 @@ static void iter_repair_multi_file(void)
 	uint64_t  fsizes[] = {ITER_64K, ITER_1M};
 
 	iter_setup(8, 1, 10, 4096);
+	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
 	rc = iter_run(10, ARRAY_SIZE(fsizes), fsizes, 4, SNS_REPAIR);
+	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(ARRAY_SIZE(fsizes), 10);
 }
@@ -328,7 +328,9 @@ static void iter_repair_large_file_with_large_unit_size(void)
 	uint64_t  fsizes[] = {ITER_1G};
 
 	iter_setup(8, 1, 10, 10485760);
+	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
 	rc = iter_run(10, ARRAY_SIZE(fsizes), fsizes, 4, SNS_REPAIR);
+	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(ARRAY_SIZE(fsizes), 10);
 }
@@ -339,7 +341,9 @@ static void iter_rebalance_single_file(void)
 	uint64_t  fsizes[] = {ITER_64K};
 
 	iter_setup(3, 1, 5, 4096);
+	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
 	rc = iter_run(5, ARRAY_SIZE(fsizes), fsizes, 3, SNS_REBALANCE);
+	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(ARRAY_SIZE(fsizes), 5);
 }
@@ -350,7 +354,9 @@ static void iter_rebalance_multi_file(void)
 	uint64_t  fsizes[] = {ITER_64K, ITER_1M};
 
 	iter_setup(8, 1, 10, 4096);
+	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
 	rc = iter_run(10, ARRAY_SIZE(fsizes), fsizes, 4, SNS_REBALANCE);
+	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(ARRAY_SIZE(fsizes), 10);
 }
@@ -360,7 +366,9 @@ static void iter_rebalance_large_file_with_large_unit_size(void)
 	uint64_t  fsizes[] = {ITER_1G};
 
 	iter_setup(8, 1, 10, 10485760);
+	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
 	rc = iter_run(10, ARRAY_SIZE(fsizes), fsizes, 4, SNS_REBALANCE);
+	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(ARRAY_SIZE(fsizes), 10);
 }
@@ -371,7 +379,9 @@ static void iter_invalid_nr_cobs(void)
 	uint64_t fsizes[] = {ITER_64K};
 
 	iter_setup(3, 1, 5, 4096);
+	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
 	rc = iter_run(3, ARRAY_SIZE(fsizes), fsizes, 2, SNS_REPAIR);
+	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(ARRAY_SIZE(fsizes), 3);
 }

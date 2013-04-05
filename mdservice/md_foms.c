@@ -1265,8 +1265,8 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 	struct m0_bufvec_cursor        cur;
 	struct m0_layout              *l;
 	struct m0_layout_type         *lt;
-	struct m0_reqh_md_service     *serv_obj;
 	struct m0_db_pair              pair;
+	struct m0_reqh                *reqh;
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
@@ -1287,8 +1287,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 	M0_LOG(M0_DEBUG, "This is a layout fop op = %u, lid = %llu",
 		req->l_op, (unsigned long long)req->l_lid);
 
-	serv_obj = container_of(fom->fo_service, struct m0_reqh_md_service,
-				rmds_gen);
+	reqh = fom->fo_service->rs_reqh;
 
 	m0_fom_block_enter(fom);
 	switch (req->l_op) {
@@ -1300,7 +1299,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 		m0_bufvec_cursor_init(&cur, &bv);
 		lt = &m0_pdclust_layout_type;
 
-		rc = lt->lt_ops->lto_allocate(&serv_obj->rmds_layout_dom,
+		rc = lt->lt_ops->lto_allocate(&reqh->rh_ldom,
 					      req->l_lid, &l);
 		if (rc != 0)
 			break;
@@ -1327,7 +1326,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 		M0_LOG(M0_DEBUG, "Lookup Start");
 
 		rep->lr_buf.b_count = m0_layout_max_recsize(
-					&serv_obj->rmds_layout_dom);
+					&reqh->rh_ldom);
 		rep->lr_buf.b_addr = m0_alloc(rep->lr_buf.b_count);
 		if (rep->lr_buf.b_addr == NULL) {
 			rc = -ENOMEM;
@@ -1338,7 +1337,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 				rep->lr_buf.b_addr,
 				rep->lr_buf.b_count);
 		/* lookup from db and encode into pair */
-		rc = m0_layout_lookup(&serv_obj->rmds_layout_dom, req->l_lid,
+		rc = m0_layout_lookup(&reqh->rh_ldom, req->l_lid,
 				      &m0_pdclust_layout_type,
 				      &fom->fo_tx.tx_dbtx, &pair, &l);
 		if (rc == 0)

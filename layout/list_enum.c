@@ -724,7 +724,6 @@ struct m0_layout_enum_type m0_list_enum_type = {
 	.let_name      = "list",
 	.let_id        = 0,
 	.let_ref_count = 0,
-	.let_domain    = NULL,
 	.let_ops       = &list_type_ops
 };
 

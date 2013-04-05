@@ -103,7 +103,8 @@ int main(int argc, char *argv[])
 	uint32_t            unit_size;
 	uint64_t            fdata;
 	uint64_t            total_size = 0;
-	uint64_t            throughput;
+	double              total_time;
+	double              throughput;
 	uint64_t            fsize[MAX_FILES_NR];
 	uint64_t            N = 0;
 	uint64_t            K = 0;
@@ -171,9 +172,10 @@ int main(int argc, char *argv[])
 	printf("Time: %lu.%2.2lu sec,", (unsigned long)m0_time_seconds(delta),
 	       (unsigned long)m0_time_nanoseconds(delta) * 100 /
 	       M0_TIME_ONE_BILLION);
-	throughput = total_size / (unsigned long)m0_time_seconds(delta);
-	printf(" %lu.%2.2lu MB/s\n", throughput / (1024 *1024),
-	       (throughput % (1024 * 1024)) / (1024 * 100));
+	total_time = (double)m0_time_seconds(delta) +
+		     (double)m0_time_nanoseconds(delta) / M0_TIME_ONE_BILLION;
+	throughput = (double)total_size / total_time;
+	printf(" %2.2f MB/s\n", throughput / (1024 *1024));
 	m0_fop_put(fop);
 	client_fini();
 	m0_sns_repair_trigger_fop_fini();

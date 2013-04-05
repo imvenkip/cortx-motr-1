@@ -200,7 +200,6 @@ static const struct m0_layout_type_ops test_layout_type_ops = {
 struct m0_layout_type test_layout_type = {
 	.lt_name     = "test",
 	.lt_id       = 2,
-	.lt_domain   = NULL,
 	.lt_ops      = &test_layout_type_ops
 };
 
@@ -2955,7 +2954,6 @@ static void test_lookup_failure(void)
 	struct m0_layout_type test_layout_type = {
 		.lt_name     = "test",
 		.lt_id       = 1,
-		.lt_domain   = NULL,
 		.lt_ops      = NULL
 	};
 	lid = 15005;

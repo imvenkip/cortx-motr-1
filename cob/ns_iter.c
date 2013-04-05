@@ -21,7 +21,9 @@
 #include "lib/memory.h"
 #include "lib/misc.h"  /* SET0 */
 #include "cob/ns_iter.h"
-
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
+#include "lib/trace.h"
+#
 /**
  * @addtogroup cob_fid_ns_iter
  */
@@ -84,6 +86,9 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 	key_fid.f_container = iter->cni_last_fid.f_container;
 	key_fid.f_key = iter->cni_last_fid.f_key;
 
+	M0_LOG(M0_DEBUG, "last fid = %llu:%llu",
+			(unsigned long long)key_fid.f_container,
+			(unsigned long long)key_fid.f_key);
         rc = m0_cob_nskey_make(&key, &key_fid, (char *)nskey_bs,
 			       nskey_bs_len);
         if (rc != 0) {
@@ -105,11 +110,17 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 	 */
 	gfid->f_container = key->cnk_pfid.f_container;
 	gfid->f_key = key->cnk_pfid.f_key;
+	M0_LOG(M0_DEBUG, "returned fid = %llu:%llu",
+			(unsigned long long)gfid->f_container,
+			(unsigned long long)gfid->f_key);
 
 	/* Container (f_container) value remains same, typically 0. */
 	iter->cni_last_fid.f_container = key->cnk_pfid.f_container;
 	/* Increment the f_key by 1, to exploit m0_db_cursor_get() property. */
 	iter->cni_last_fid.f_key = key->cnk_pfid.f_key + 1;
+	M0_LOG(M0_DEBUG, "updated last fid = %llu:%llu",
+			(unsigned long long)iter->cni_last_fid.f_container,
+			(unsigned long long)iter->cni_last_fid.f_key);
 
 cleanup:
 	m0_free(key);
@@ -126,6 +137,7 @@ M0_INTERNAL void m0_cob_ns_iter_fini(struct m0_cob_fid_ns_iter *iter)
 	M0_SET0(iter);
 }
 
+#undef M0_TRACE_SUBSYSTEM
 /** @} end cob_fid_ns_iter */
 
 /*

@@ -702,6 +702,7 @@ M0_INTERNAL void m0_ios_mds_rpc_ctx_fini(struct m0_reqh_service *service)
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	rpc_client_ctx = m0_reqh_lockers_get(reqh, ios_mds_rpc_ctx_key);
 	m0_reqh_lockers_clear(reqh, ios_mds_rpc_ctx_key);
+	ios_mds_rpc_ctx_key = 0;
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	m0_rpc_client_stop(rpc_client_ctx);
@@ -760,54 +761,6 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
  @param ldom the layout domain in which the layout will be created.
  @param lid  the layout id to query.
  @param l_out returned layout will be stored here.
-
- The sample code to use m0_ios_mds_getattr() and m0_ios_mds_layout_get() in
- services such as ioservice and copy machine is as following:
- @code
-        struct m0_fid      gfid = cc->fco_gfid;
-        struct m0_cob_attr attr = { {0} };
-	struct m0_layout_domain dom;
-	struct m0_layout_domain *ldom = &dom;
-	int new;
-	struct m0_pdclust_layout *pdl = NULL;
-	struct m0_layout *layout = NULL;
-
-	M0_LOG(M0_FATAL, "getattr");
-	rc = m0_ios_mds_getattr(fom->fo_service->rs_reqh, &gfid, &attr);
-	M0_LOG(M0_FATAL, "rc = %d lid = %lld", rc, (unsigned long long)attr.ca_lid);
-	M0_ASSERT(rc == 0);
-	M0_ASSERT(attr.ca_valid | M0_COB_LID);
-
-	if (m0_pdclust_layout_type.lt_domain == NULL) {
-		rc = m0_layout_domain_init(ldom, fom->fo_service->rs_reqh->rh_dbenv);
-		M0_ASSERT(rc == 0);
-		rc = m0_layout_standard_types_register(ldom);
-		M0_ASSERT(rc == 0);
-		new  = 1;
-	} else {
-		ldom = m0_pdclust_layout_type.lt_domain;
-		new = 0;
-	}
-
-	M0_LOG(M0_FATAL, "getlayout new = %d", new);
-	rc = m0_ios_mds_layout_get(fom->fo_service->rs_reqh, ldom, attr.ca_lid, &layout);
-	M0_LOG(M0_FATAL, "getlayout rc = %d", rc);
-	if (rc == 0) {
-		pdl = m0_layout_to_pdl(layout);
-		M0_LOG(M0_FATAL, "pdl N=%d,K=%d,P=%d,unit_size=%llu",
-				 m0_pdclust_N(pdl),
-				 m0_pdclust_K(pdl),
-				 m0_pdclust_P(pdl),
-				 (unsigned long long)m0_pdclust_unit_size(pdl));
-
-		m0_layout_put(layout);
-	}
-
-	if (new) {
-		m0_layout_standard_types_unregister(ldom);
-		m0_layout_domain_fini(ldom);
-	}
- @endcode
 */
 M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 				      struct m0_layout_domain *ldom,
@@ -819,8 +772,15 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 	struct m0_fop             *rep;
 	struct m0_fop_layout      *layout;
 	struct m0_fop_layout_rep  *layout_rep;
+	struct m0_layout          *l;
 	int                        rc;
 	M0_ENTRY();
+
+	l = m0_layout_find(ldom, lid);
+	if (l != NULL) {
+		*l_out = l;
+		return 0;
+	}
 
 	rpc_client_ctx = m0_ios_mds_rpc_ctx_get(reqh);
 	if (rpc_client_ctx == NULL)
@@ -838,7 +798,6 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 	if (rc == 0) {
 		struct m0_bufvec               bv;
 		struct m0_bufvec_cursor        cur;
-		struct m0_layout              *l;
 		struct m0_layout_type         *lt;
 		M0_ASSERT(l_out != NULL);
 

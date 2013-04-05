@@ -900,7 +900,6 @@ struct m0_layout_type m0_pdclust_layout_type = {
 	.lt_name      = "pdclust",
 	.lt_id        = 0,
 	.lt_ref_count = 0,
-	.lt_domain    = NULL,
 	.lt_ops       = &pdclust_type_ops
 };
 

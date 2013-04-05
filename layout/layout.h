@@ -162,7 +162,6 @@ enum {
  * related parameters. ld_type_data[] and ld_enum_data[] store pointers to
  * the auxiliary tables applicable, if any, for the various layout types and
  * enum types.
- * There is one instance of layout domain object per address space.
  */
 struct m0_layout_domain {
 	/** Layout types array. */
@@ -353,9 +352,6 @@ struct m0_layout_type {
 	/** Layout type id. */
 	uint32_t                         lt_id;
 
-	/** Layout domain with which the layout type is registered. */
-	struct m0_layout_domain         *lt_domain;
-
 	/**
 	 * Layout type reference count, indicating 'how many in-memory layout
 	 * objects using this layout type' exist in 'the domain the layout type
@@ -405,6 +401,8 @@ struct m0_layout_enum {
 	/** Layout enumeration type. */
 	struct m0_layout_enum_type      *le_type;
 
+	/** Layout domain */
+	struct m0_layout_domain         *le_dom;
 	/**
 	 * Flag indicating if this enum object is associated with any striped
 	 * layout object. This flag is used in invariants only.
@@ -523,9 +521,6 @@ struct m0_layout_enum_type {
 
 	/** Layout enumeration type id. */
 	uint32_t                              let_id;
-
-	/** Layout domain with which the enum type is registered. */
-	struct m0_layout_domain              *let_domain;
 
 	/**
 	 * Enum type reference count, indicating 'how many in-memory enum

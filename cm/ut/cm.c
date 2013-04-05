@@ -34,12 +34,15 @@
 #include "addb/addb.h"
 #include "cm/ut/common_service.h"
 
+static struct m0_dbenv           dbenv;
 static int cm_ut_init(void)
 {
 	int	rc;
+	rc = m0_dbenv_init(&dbenv, "something", 0);
+	M0_ASSERT(rc == 0);
 	M0_REQH_INIT(&cm_ut_reqh,
 		     .rhia_dtm       = NULL,
-		     .rhia_db        = (void *)1,
+		     .rhia_db        = &dbenv,
 		     .rhia_mdstore   = (void *)1,
 		     .rhia_fol       = (void *)1,
 		     .rhia_svc       = (void *)1,
@@ -53,8 +56,9 @@ static int cm_ut_init(void)
 static int cm_ut_fini(void)
 {
 	m0_cm_type_deregister(&cm_ut_cmt);
-        m0_reqh_fini(&cm_ut_reqh);
-        return 0;
+	m0_reqh_fini(&cm_ut_reqh);
+	m0_dbenv_fini(&dbenv);
+	return 0;
 }
 
 static void cm_setup_ut(void)

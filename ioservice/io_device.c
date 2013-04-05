@@ -294,7 +294,9 @@ M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(struct m0_reqh *reqh)
 	M0_PRE(reqh != NULL);
 	M0_PRE(!m0_reqh_lockers_is_empty(reqh, poolmach_key));
 
+	m0_rwlock_read_lock(&reqh->rh_rwlock);
 	pm = m0_reqh_lockers_get(reqh, poolmach_key);
+	m0_rwlock_read_unlock(&reqh->rh_rwlock);
 	M0_POST(pm != NULL);
 	return pm;
 }
@@ -339,12 +341,13 @@ m0_ios_poolmach_version_updates_pack(struct m0_poolmach         *pm,
 	m0_poolmach_current_version_get(pm, &curr);
 	verp = (struct m0_pool_version_numbers*)version;
 	*verp = curr;
+	if (!m0_poolmach_version_before((struct m0_pool_version_numbers *)cli,
+					&curr))
+		return 0;
 
 	poolmach_events_tlist_init(&events_list);
-	rc = m0_poolmach_state_query(pm,
-				  (const struct m0_pool_version_numbers *)cli,
-				  (const struct m0_pool_version_numbers *)&curr,
-				   &events_list);
+	rc = m0_poolmach_state_query(pm, (struct m0_pool_version_numbers *)cli,
+				     &curr, &events_list);
 	if (rc != 0)
 		goto out;
 

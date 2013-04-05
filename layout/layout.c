@@ -211,47 +211,55 @@ M0_INTERNAL bool m0_layout__instance_invariant(const struct m0_layout_instance
 }
 
 /** Adds a reference to the layout type. */
-static void layout_type_get(struct m0_layout_type *lt)
+static void layout_type_get(struct m0_layout_domain *ldom,
+			    struct m0_layout_type *lt)
 {
+	M0_PRE(ldom != NULL);
 	M0_PRE(lt != NULL);
 
-	m0_mutex_lock(&lt->lt_domain->ld_lock);
-	M0_PRE(lt == lt->lt_domain->ld_type[lt->lt_id]);
+	m0_mutex_lock(&ldom->ld_lock);
+	M0_PRE(lt == ldom->ld_type[lt->lt_id]);
 	M0_CNT_INC(lt->lt_ref_count);
-	m0_mutex_unlock(&lt->lt_domain->ld_lock);
+	m0_mutex_unlock(&ldom->ld_lock);
 }
 
 /** Releases a reference on the layout type. */
-static void layout_type_put(struct m0_layout_type *lt)
+static void layout_type_put(struct m0_layout_domain *ldom,
+			    struct m0_layout_type *lt)
 {
+	M0_PRE(ldom != NULL);
 	M0_PRE(lt != NULL);
 
-	m0_mutex_lock(&lt->lt_domain->ld_lock);
-	M0_PRE(lt == lt->lt_domain->ld_type[lt->lt_id]);
+	m0_mutex_lock(&ldom->ld_lock);
+	M0_PRE(lt == ldom->ld_type[lt->lt_id]);
 	M0_CNT_DEC(lt->lt_ref_count);
-	m0_mutex_unlock(&lt->lt_domain->ld_lock);
+	m0_mutex_unlock(&ldom->ld_lock);
 }
 
 /** Adds a reference on the enum type. */
-static void enum_type_get(struct m0_layout_enum_type *let)
+static void enum_type_get(struct m0_layout_domain *ldom,
+			  struct m0_layout_enum_type *let)
 {
+	M0_PRE(ldom != NULL);
 	M0_PRE(let != NULL);
 
-	m0_mutex_lock(&let->let_domain->ld_lock);
-	M0_PRE(let == let->let_domain->ld_enum[let->let_id]);
+	m0_mutex_lock(&ldom->ld_lock);
+	M0_PRE(let == ldom->ld_enum[let->let_id]);
 	M0_CNT_INC(let->let_ref_count);
-	m0_mutex_unlock(&let->let_domain->ld_lock);
+	m0_mutex_unlock(&ldom->ld_lock);
 }
 
 /** Releases a reference on the enum type. */
-static void enum_type_put(struct m0_layout_enum_type *let)
+static void enum_type_put(struct m0_layout_domain *ldom,
+			  struct m0_layout_enum_type *let)
 {
+	M0_PRE(ldom != NULL);
 	M0_PRE(let != NULL);
 
-	m0_mutex_lock(&let->let_domain->ld_lock);
-	M0_PRE(let == let->let_domain->ld_enum[let->let_id]);
+	m0_mutex_lock(&ldom->ld_lock);
+	M0_PRE(let == ldom->ld_enum[let->let_id]);
 	M0_CNT_DEC(let->let_ref_count);
-	m0_mutex_unlock(&let->let_domain->ld_lock);
+	m0_mutex_unlock(&ldom->ld_lock);
 }
 
 /**
@@ -331,7 +339,6 @@ M0_INTERNAL void m0_layout__init(struct m0_layout *l,
 	M0_PRE(m0_layout__domain_invariant(dom));
 	M0_PRE(lid > 0);
 	M0_PRE(lt != NULL);
-	M0_PRE(lt->lt_domain == dom);
 	M0_PRE(lt == dom->ld_type[lt->lt_id]);
 	M0_PRE(ops != NULL);
 
@@ -345,7 +352,7 @@ M0_INTERNAL void m0_layout__init(struct m0_layout *l,
 	l->l_type       = lt;
 
 	m0_ref_init(&l->l_ref, 1, l->l_ops->lo_fini);
-	layout_type_get(lt);
+	layout_type_get(dom, lt);
 	m0_mutex_init(&l->l_lock);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &l->l_addb_ctx, &m0_addb_ct_layout_obj,
 			 &m0_addb_proc_ctx, lid, lt->lt_id);
@@ -375,7 +382,7 @@ M0_INTERNAL void m0_layout__fini_internal(struct m0_layout *l)
 	M0_PRE(m0_mutex_is_not_locked(&l->l_lock));
 	m0_addb_ctx_fini(&l->l_addb_ctx);
 	m0_mutex_fini(&l->l_lock);
-	layout_type_put(l->l_type);
+	layout_type_put(l->l_dom, l->l_type);
 	l->l_type = NULL;
 	m0_layout_bob_fini(l);
 }
@@ -493,7 +500,6 @@ M0_INTERNAL void m0_layout__enum_init(struct m0_layout_domain *dom,
 	M0_PRE(m0_layout__domain_invariant(dom));
 	M0_PRE(le != NULL);
 	M0_PRE(let != NULL);
-	M0_PRE(let->let_domain == dom);
 	M0_PRE(let == dom->ld_enum[let->let_id]);
 	M0_PRE(ops != NULL);
 
@@ -502,7 +508,8 @@ M0_INTERNAL void m0_layout__enum_init(struct m0_layout_domain *dom,
 	le->le_sl_is_set = false;
 	le->le_sl = NULL;
 	le->le_ops = ops;
-	enum_type_get(let);
+	le->le_dom = dom;
+	enum_type_get(dom, let);
 	le->le_type = let;
 	m0_layout_enum_bob_init(le);
 	M0_LEAVE("Enum-type-id %lu", (unsigned long)let->let_id);
@@ -517,7 +524,7 @@ M0_INTERNAL void m0_layout__enum_fini(struct m0_layout_enum *le)
 	M0_PRE(m0_layout__enum_invariant(le));
 
 	M0_ENTRY("Enum-type-id %lu", (unsigned long)le->le_type->let_id);
-	enum_type_put(le->le_type);
+	enum_type_put(le->le_dom, le->le_type);
 	le->le_type = NULL;
 	m0_layout_enum_bob_fini(le);
 	M0_LEAVE();
@@ -765,7 +772,6 @@ M0_INTERNAL int m0_layout_type_register(struct m0_layout_domain *dom,
 	M0_PRE(m0_layout__domain_invariant(dom));
 	M0_PRE(lt != NULL);
 	M0_PRE(IS_IN_ARRAY(lt->lt_id, dom->ld_type));
-	M0_PRE(lt->lt_domain == NULL);
 	M0_PRE(lt->lt_ref_count == 0);
 	M0_PRE(lt->lt_ops != NULL);
 
@@ -782,7 +788,6 @@ M0_INTERNAL int m0_layout_type_register(struct m0_layout_domain *dom,
 err1_injected:
 	if (rc == 0) {
 		max_recsize_update(dom);
-		lt->lt_domain = dom;
 	} else {
 		m0_layout__log("m0_layout_type_register",
 			       "lto_register() failed",
@@ -801,17 +806,15 @@ M0_INTERNAL void m0_layout_type_unregister(struct m0_layout_domain *dom,
 	M0_PRE(m0_layout__domain_invariant(dom));
 	M0_PRE(lt != NULL);
 	M0_PRE(dom->ld_type[lt->lt_id] == lt); /* Registered layout type */
-	M0_PRE(lt->lt_domain == dom);
 	M0_PRE(lt->lt_ops != NULL);
 
-	M0_ENTRY("Layout-type-id %lu, lt_domain %p",
-		 (unsigned long)lt->lt_id, lt->lt_domain);
+	M0_ENTRY("Layout-type-id %lu, domain %p",
+		 (unsigned long)lt->lt_id, dom);
 	m0_mutex_lock(&dom->ld_lock);
 	M0_PRE(lt->lt_ref_count == 0);
 	lt->lt_ops->lto_unregister(dom, lt);
 	dom->ld_type[lt->lt_id] = NULL;
 	max_recsize_update(dom);
-	lt->lt_domain = NULL;
 	m0_mutex_unlock(&dom->ld_lock);
 	M0_LEAVE("Layout-type-id %lu", (unsigned long)lt->lt_id);
 }
@@ -824,7 +827,6 @@ M0_INTERNAL int m0_layout_enum_type_register(struct m0_layout_domain *dom,
 	M0_PRE(m0_layout__domain_invariant(dom));
 	M0_PRE(let != NULL);
 	M0_PRE(IS_IN_ARRAY(let->let_id, dom->ld_enum));
-	M0_PRE(let->let_domain == NULL);
 	M0_PRE(let->let_ref_count == 0);
 	M0_PRE(let->let_ops != NULL);
 
@@ -841,7 +843,6 @@ M0_INTERNAL int m0_layout_enum_type_register(struct m0_layout_domain *dom,
 err1_injected:
 	if (rc == 0) {
 		max_recsize_update(dom);
-		let->let_domain = dom;
 	} else {
 		m0_layout__log("m0_layout_enum_type_register",
 			       "leto_register() failed",
@@ -860,16 +861,14 @@ M0_INTERNAL void m0_layout_enum_type_unregister(struct m0_layout_domain *dom,
 	M0_PRE(m0_layout__domain_invariant(dom));
 	M0_PRE(let != NULL);
 	M0_PRE(dom->ld_enum[let->let_id] == let); /* Registered enum type */
-	M0_PRE(let->let_domain != NULL);
 
-	M0_ENTRY("Enum_type_id %lu, let_domain %p",
-		 (unsigned long)let->let_id, let->let_domain);
+	M0_ENTRY("Enum_type_id %lu, domain %p",
+		 (unsigned long)let->let_id, dom);
 	m0_mutex_lock(&dom->ld_lock);
 	M0_PRE(let->let_ref_count == 0);
 	let->let_ops->leto_unregister(dom, let);
 	dom->ld_enum[let->let_id] = NULL;
 	max_recsize_update(dom);
-	let->let_domain = NULL;
 	m0_mutex_unlock(&dom->ld_lock);
 	M0_LEAVE("Enum_type_id %lu", (unsigned long)let->let_id);
 }

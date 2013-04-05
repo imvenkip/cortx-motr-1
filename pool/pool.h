@@ -313,6 +313,14 @@ M0_INTERNAL bool m0_poolmach_version_equal(const struct m0_pool_version_numbers
 					   *v1,
 					   const struct m0_pool_version_numbers
 					   *v2);
+/**
+ * Pool Machine version numbers are incremented upon event.
+ * v1 before v2 means v2's version number is greater than v1's.
+ */
+M0_INTERNAL bool m0_poolmach_version_before(const struct m0_pool_version_numbers
+					    *v1,
+					    const struct m0_pool_version_numbers
+					    *v2);
 
 M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 				 struct m0_dtm *dtm,
@@ -469,7 +477,8 @@ M0_INTERNAL int m0_poolserver_device_leave(struct m0_poolserver *srv,
 
 M0_INTERNAL void m0_poolmach_version_dump(struct m0_pool_version_numbers *v);
 M0_INTERNAL void m0_poolmach_event_dump(struct m0_pool_event *e);
-M0_INTERNAL void m0_poolmach_event_list_dump(struct m0_tl *head);
+M0_INTERNAL void m0_poolmach_event_list_dump(struct m0_poolmach *pm);
+M0_INTERNAL void m0_poolmach_device_state_dump(struct m0_poolmach *pm);
 
 /** @} end of servermachine group */
 

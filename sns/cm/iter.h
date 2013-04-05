@@ -37,68 +37,55 @@ struct m0_sns_cm;
 struct m0_sns_cm_ag;
 
 /**
- * PDclust Layout details for a GOB (file).
+ * File context in copy machine.
  * This maintains details like, the pdclust layout of the GOB, its corresponding
  * parity group, unit in the parity group which is being processed. Also few
  * more details regarding the current file size, number of units per group, etc.
  */
-struct m0_sns_cm_pdclust_layout {
+struct m0_sns_cm_file_context {
 	/** GOB being re-structured. */
-	struct m0_fid                 spl_gob_fid;
+	struct m0_fid                 sfc_gob_fid;
 
-	size_t                        spl_fsize;
+	size_t                        sfc_fsize;
 
 	/** GOB layout. */
-	struct m0_pdclust_layout     *spl_base;
-
-	struct m0_layout_linear_enum *spl_le;
+	struct m0_pdclust_layout     *sfc_pdlayout;
 
 	/** pdclust instance for a particular GOB. */
-	struct m0_pdclust_instance   *spl_pi;
+	struct m0_pdclust_instance   *sfc_pi;
 
 	/** Total number of units (i.e. N + 2K) in a parity group. */
-	uint32_t                      spl_upg;
-
-	/** Number of data units in the parity group. */
-	uint32_t                      spl_N;
-
-	/** Number of parity units in the parity group. */
-	uint32_t                      spl_K;
-
-	/** Total pool width. */
-	uint32_t                      spl_P;
-
-	uint32_t                      spl_unit_size;
+	uint32_t                      sfc_upg;
 
 	/** Total number of data and parity units in a parity group. */
-	uint32_t                      spl_dpupg;
+	uint32_t                      sfc_dpupg;
 
 	/** Total number of parity groups in file. */
-	uint64_t                      spl_groups_nr;
+	uint64_t                      sfc_groups_nr;
 
 	/**
 	 * Unit within a particular parity group corresponding to
 	 * m0_sns_cm_iter::si_gob_fid, of which the data is to be read or
 	 * written.
 	 */
-	struct m0_pdclust_src_addr    spl_sa;
+	struct m0_pdclust_src_addr    sfc_sa;
 
 	/**
 	 * COB index and frame number in the COB, corresponding to
-	 * m0_sns_cm_pdclust_layout::spl_sa.
+	 * m0_sns_cm_file_context::sfc_sa.
 	 */
-	struct m0_pdclust_tgt_addr    spl_ta;
+	struct m0_pdclust_tgt_addr    sfc_ta;
 
 	/**
 	 * Total number of failed units in an aggregation group represented by
-	 * m0_sns_cm_pdclust_layout::spl_sa.sa_group
+	 * m0_sns_cm_file_context::sfc_sa.sa_group
 	 */
-	uint64_t                      spl_group_nr_fail_units;
+	uint64_t                      sfc_group_nr_fail_units;
 
-	/** COB fid corresponding to m0_sns_cm_pdclust_layout::spl_ta. */
-	struct m0_fid                 spl_cob_fid;
+	/** COB fid corresponding to m0_sns_cm_file_context::sfc_ta. */
+	struct m0_fid                 sfc_cob_fid;
 
-	bool                          spl_cob_is_spare_unit;
+	bool                          sfc_cob_is_spare_unit;
 };
 
 /**
@@ -126,14 +113,8 @@ struct m0_sns_cm_iter {
 
 	struct m0_cob_domain            *si_cob_dom;
 
-        /*
-         * XXX Temporary location for layout domain required to build pdclust
-         * layout.
-         */
-        struct m0_layout_domain          si_lay_dom;
-
 	/** Layout details of a file. */
-	struct m0_sns_cm_pdclust_layout  si_pl;
+	struct m0_sns_cm_file_context    si_fc;
 
 	/**
 	 * Saved pre allocated copy packet, which needs to be configured.

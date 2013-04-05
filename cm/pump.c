@@ -19,6 +19,7 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
+#include "lib/trace.h"
 
 #include "lib/bob.h"
 #include "lib/misc.h"  /* M0_BITS */
@@ -201,8 +202,10 @@ static int cpp_fail(struct m0_cm_cp_pump *cp_pump)
 	M0_PRE(cp_pump != NULL);
 
 	cm = pump2cm(cp_pump);
+	m0_cm_lock(cm);
 	m0_cm_fail(cm, M0_CM_ERR_START, m0_fom_rc(&cp_pump->p_fom));
 
+	m0_cm_unlock(cm);
 	return M0_FSO_WAIT;
 }
 

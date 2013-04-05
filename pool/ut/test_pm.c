@@ -116,7 +116,7 @@ static void pm_test_transit(void)
 	M0_UT_ASSERT(!equal);
 	equal = m0_poolmach_version_equal(&v1, &v2);
 	M0_UT_ASSERT(!equal);
-	m0_poolmach_event_list_dump(&pm.pm_state.pst_events_list);
+	m0_poolmach_event_list_dump(&pm);
 	m0_poolmach_version_dump(&v0);
 	m0_poolmach_version_dump(&v1);
 	m0_poolmach_version_dump(&v2);

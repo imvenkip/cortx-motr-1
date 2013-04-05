@@ -388,15 +388,15 @@ M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, enum m0_cm_failure failure,
 		 */
 		M0_ADDB_FUNC_FAIL(addb_mc, M0_CM_ADDB_LOC_START_FAIL, rc,
 				  &m0_cm_mod_ctx, &cm->cm_service.rs_addb_ctx);
-		cm->cm_mach.sm_rc = 0;
 		m0_cm_state_set(cm, M0_CMS_IDLE);
+		cm->cm_mach.sm_rc = 0;
 		break;
 
 	case M0_CM_ERR_STOP:
 		M0_ADDB_FUNC_FAIL(addb_mc, M0_CM_ADDB_LOC_STOP_FAIL, rc,
 				  &m0_cm_mod_ctx, &cm->cm_service.rs_addb_ctx);
-		cm->cm_mach.sm_rc = 0;
 		m0_cm_state_set(cm, M0_CMS_IDLE);
+		cm->cm_mach.sm_rc = 0;
 		break;
 
 	default:

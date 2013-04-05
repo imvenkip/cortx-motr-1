@@ -339,7 +339,6 @@ struct m0_layout_enum_type m0_linear_enum_type = {
 	.let_name      = "linear",
 	.let_id        = 1,
 	.let_ref_count = 0,
-	.let_domain    = NULL,
 	.let_ops       = &linear_type_ops
 };
 

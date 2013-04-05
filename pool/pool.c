@@ -87,6 +87,16 @@ M0_INTERNAL bool m0_poolmach_version_equal(const struct m0_pool_version_numbers
 	return !memcmp(v1, v2, sizeof *v1);
 }
 
+M0_INTERNAL bool m0_poolmach_version_before(const struct m0_pool_version_numbers
+					    *v1,
+					    const struct m0_pool_version_numbers
+					    *v2)
+{
+	return
+		v1->pvn_version[PVE_READ]  < v2->pvn_version[PVE_READ] ||
+		v1->pvn_version[PVE_WRITE] < v2->pvn_version[PVE_WRITE];
+}
+
 M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 				 struct m0_dtm *dtm,
 				 uint32_t nr_nodes,
@@ -566,34 +576,48 @@ static int lno = 0;
 
 M0_INTERNAL void m0_poolmach_version_dump(struct m0_pool_version_numbers *v)
 {
-	M0_LOG(dump_level, "%4d:readv = %llx writev = %llx\n", lno++,
+	M0_LOG(dump_level, "%4d:readv = %llx writev = %llx", lno,
 		(unsigned long long)v->pvn_version[PVE_READ],
 		(unsigned long long)v->pvn_version[PVE_WRITE]);
+	lno++;
 }
 
 M0_INTERNAL void m0_poolmach_event_dump(struct m0_pool_event *e)
 {
-	M0_LOG(dump_level, "%4d:pe_type  = %10s pe_index = %2x pe_state=%10s\n",
-		lno++,
+	M0_LOG(dump_level, "%4d:pe_type = %6s, pe_index = %x, pe_state=%10d",
+		lno,
 		e->pe_type == M0_POOL_DEVICE ? "device":"node",
-		e->pe_index,
-		e->pe_state == M0_PNDS_ONLINE? "ONLINE" :
-		    e->pe_state == M0_PNDS_FAILED? "FAILED" :
-			e->pe_state == M0_PNDS_OFFLINE? "OFFLINE" :
-				"RECOVERING"
-	);
+		e->pe_index, e->pe_state);
+	lno++;
 }
 
-M0_INTERNAL void m0_poolmach_event_list_dump(struct m0_tl *head)
+M0_INTERNAL void m0_poolmach_event_list_dump(struct m0_poolmach *pm)
 {
+	struct m0_tl *head = &pm->pm_state.pst_events_list;
 	struct m0_pool_event_link *scan;
 
+	M0_LOG(dump_level, ">>>>>");
+	m0_rwlock_read_lock(&pm->pm_lock);
 	m0_tl_for(poolmach_events, head, scan) {
 		m0_poolmach_event_dump(&scan->pel_event);
 		m0_poolmach_version_dump(&scan->pel_new_version);
 	} m0_tl_endfor;
-	M0_LOG(dump_level, "=====\n");
+	m0_rwlock_read_unlock(&pm->pm_lock);
+	M0_LOG(dump_level, "=====");
 }
+
+M0_INTERNAL void m0_poolmach_device_state_dump(struct m0_poolmach *pm)
+{
+	int i;
+	M0_LOG(dump_level, ">>>>>");
+	for (i = 1; i < pm->pm_state.pst_nr_devices; i++) {
+		M0_LOG(dump_level, "%04d:device[%d] state: %d",
+			lno, i, pm->pm_state.pst_devices_array[i].pd_state);
+		lno++;
+	}
+	M0_LOG(dump_level, "=====");
+}
+
 #undef dump_level
 
 #undef M0_TRACE_SUBSYSTEM

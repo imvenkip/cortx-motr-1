@@ -1589,9 +1589,6 @@ static int io_finish(struct m0_fom *fom)
 
         m0_stob_put(fom_obj->fcrw_stob);
 
-        M0_ASSERT(ergo(rc == 0,
-		       fom_obj->fcrw_req_count == fom_obj->fcrw_count));
-
 	rc = fom_obj->fcrw_rc ?: rc;
         if (rc != 0) {
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
@@ -1622,7 +1619,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 							 M0_FOPH_FAILURE};
 	struct m0_poolmach                       *poolmach;
 	struct m0_reqh                           *reqh;
-	struct m0_pool_version_numbers           *verp;
+	struct m0_pool_version_numbers           *cliv;
 	struct m0_pool_version_numbers            curr;
 
 	M0_PRE(fom != NULL);
@@ -1639,17 +1636,19 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	poolmach = m0_ios_poolmach_get(reqh);
 	m0_poolmach_current_version_get(poolmach, &curr);
 	rwfop = io_rw_get(fom->fo_fop);
-	verp = (struct m0_pool_version_numbers*)(&rwfop->crw_version);
+	cliv = (struct m0_pool_version_numbers*)(&rwfop->crw_version);
 
-	m0_poolmach_version_dump(verp);
-	m0_poolmach_version_dump(&curr);
 	/* Check the client version and server version before any processing */
-	if (!m0_poolmach_version_equal(verp, &curr)) {
+	if (m0_poolmach_version_before(cliv, &curr)) {
 		rc = M0_FSO_AGAIN;
 		m0_fom_phase_move(fom,
 				  M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
 				  M0_FOPH_FAILURE);
-		M0_LOG(M0_DEBUG, "VERSION MISMATCH!");
+		M0_LOG(M0_DEBUG, "VERSION MISMATCH! poolmach = %p", poolmach);
+		m0_poolmach_version_dump(cliv);
+		m0_poolmach_version_dump(&curr);
+		m0_poolmach_event_list_dump(poolmach);
+		m0_poolmach_device_state_dump(poolmach);
 	} else {
 
 		st = m0_is_read_fop(fom->fo_fop) ?

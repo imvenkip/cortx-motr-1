@@ -210,7 +210,7 @@ static int cc_fom_tick(struct m0_fom *fom)
 	struct m0_fop_cob_op_reply     *reply;
 	struct m0_poolmach             *poolmach;
 	struct m0_reqh                 *reqh;
-	struct m0_pool_version_numbers *verp;
+	struct m0_pool_version_numbers *cliv;
 	struct m0_pool_version_numbers  curr;
 	struct m0_fop_cob_create       *fop;
 
@@ -227,14 +227,16 @@ static int cc_fom_tick(struct m0_fom *fom)
 	reqh = m0_fom_reqh(fom);
 	poolmach = m0_ios_poolmach_get(reqh);
 	m0_poolmach_current_version_get(poolmach, &curr);
-	verp = (struct m0_pool_version_numbers*)&fop->cc_common.c_version;
+	cliv = (struct m0_pool_version_numbers*)&fop->cc_common.c_version;
 
-	m0_poolmach_version_dump(verp);
-	m0_poolmach_version_dump(&curr);
 	/* Check the client version and server version before any processing */
-	if (!m0_poolmach_version_equal(verp, &curr)) {
+	if (m0_poolmach_version_before(cliv, &curr)) {
 		rc = M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
 		M0_LOG(M0_DEBUG, "VERSION MISMATCH!");
+		m0_poolmach_version_dump(cliv);
+		m0_poolmach_version_dump(&curr);
+		m0_poolmach_event_list_dump(poolmach);
+		m0_poolmach_device_state_dump(poolmach);
 		goto out;
 	}
 
@@ -424,7 +426,7 @@ static int cd_fom_tick(struct m0_fom *fom)
 	struct m0_fop_cob_op_reply     *reply;
 	struct m0_poolmach             *poolmach;
 	struct m0_reqh                 *reqh;
-	struct m0_pool_version_numbers *verp;
+	struct m0_pool_version_numbers *cliv;
 	struct m0_pool_version_numbers  curr;
 	struct m0_fop_cob_delete       *fop;
 
@@ -441,14 +443,16 @@ static int cd_fom_tick(struct m0_fom *fom)
 	reqh = m0_fom_reqh(fom);
 	poolmach = m0_ios_poolmach_get(reqh);
 	m0_poolmach_current_version_get(poolmach, &curr);
-	verp = (struct m0_pool_version_numbers*)&fop->cd_common.c_version;
+	cliv = (struct m0_pool_version_numbers*)&fop->cd_common.c_version;
 
-	m0_poolmach_version_dump(verp);
-	m0_poolmach_version_dump(&curr);
 	/* Check the client version and server version before any processing */
-	if (!m0_poolmach_version_equal(verp, &curr)) {
+	if (m0_poolmach_version_before(cliv, &curr)) {
 		rc = M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
 		M0_LOG(M0_DEBUG, "VERSION MISMATCH!");
+		m0_poolmach_version_dump(cliv);
+		m0_poolmach_version_dump(&curr);
+		m0_poolmach_event_list_dump(poolmach);
+		m0_poolmach_device_state_dump(poolmach);
 		goto out;
 	}
 

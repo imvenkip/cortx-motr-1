@@ -101,11 +101,14 @@ M0_REQH_SERVICE_TYPE_DEFINE(ut_long_lock_service_type,
 			    &ut_long_lock_service_type_ops,
 			    "ut-long-lock-service",
                             &m0_addb_ct_ut_service);
+static struct m0_dbenv dbenv;
 
 static int test_long_lock_init(void)
 {
 	int rc;
 	int i;
+	rc = m0_dbenv_init(&dbenv, "something", 0);
+	M0_ASSERT(rc == 0);
 
 	rc = m0_reqh_service_type_register(&ut_long_lock_service_type);
 	M0_ASSERT(rc == 0);
@@ -121,7 +124,7 @@ static int test_long_lock_init(void)
 	for (i = 0; i < REQH_IN_UT_MAX; ++i) {
 		rc = M0_REQH_INIT(&reqh[i],
 				  .rhia_dtm       = (void *)1,
-				  .rhia_db        = (void *)1,
+				  .rhia_db        = &dbenv,
 				  .rhia_mdstore   = (void *)1,
 				  .rhia_fol       = (void *)1,
 				  .rhia_svc       = NULL,
@@ -149,6 +152,7 @@ static int test_long_lock_fini(void)
 		m0_reqh_fini(&reqh[i]);
 	}
 	m0_reqh_service_type_unregister(&ut_long_lock_service_type);
+	m0_dbenv_fini(&dbenv);
 
 	return 0;
 }

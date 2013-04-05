@@ -34,6 +34,8 @@
 #include "rpc/rpc_opcodes.h"
 
 #include "sns/cm/cm.h"
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
+#include "lib/trace.h"
 
 /*
  * Implements a simplistic sns repair trigger FOM for corresponding trigger FOP.
@@ -225,14 +227,11 @@ static int trigger_fom_tick(struct m0_fom *fom)
 		scm = cm2sns(cm);
 		switch(m0_fom_phase(fom)) {
 			case TPH_START:
+				M0_LOG(M0_DEBUG, "got trigger: start");
 				treq = m0_fop_data(fom->fo_fop);
 				scm->sc_it.si_fdata = &treq->fdata;
 				m0_trigger_file_sizes_save(treq->fsize.f_nr,
 							   treq->fsize.f_size);
-				scm->sc_it.si_pl.spl_N = treq->N;
-				scm->sc_it.si_pl.spl_K = treq->K;
-				scm->sc_it.si_pl.spl_P = treq->P;
-				scm->sc_it.si_pl.spl_unit_size = treq->unit_size;
 				scm->sc_op             = treq->op;
 				rc = m0_cm_start(cm);
 				M0_ASSERT(rc == 0);
@@ -242,8 +241,10 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				m0_mutex_unlock(&scm->sc_stop_wait_mutex);
 				m0_fom_phase_set(fom, TPH_WAIT);
 				rc = M0_FSO_WAIT;
+				M0_LOG(M0_DEBUG, "got trigger: start done");
 				break;
 			case TPH_WAIT:
+				M0_LOG(M0_DEBUG, "got trigger: wait");
 				rfop = m0_fop_alloc(&trigger_rep_fop_fopt,
 						    NULL);
 				if (rfop == NULL) {
@@ -256,6 +257,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				m0_cm_stop(&scm->sc_base);
 				m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 				rc = M0_FSO_AGAIN;
+				M0_LOG(M0_DEBUG, "got trigger: wait done");
 				break;
 			default:
 				M0_IMPOSSIBLE("Invalid fop");
@@ -276,6 +278,7 @@ static void trigger_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
+#undef M0_TRACE_SUBSYSTEM
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

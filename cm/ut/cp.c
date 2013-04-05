@@ -37,6 +37,7 @@ static struct m0_sns_cm_cp       s_sns_cp;
 struct m0_net_buffer             s_nb;
 static struct m0_net_buffer_pool nbp;
 static struct m0_cm_aggr_group   s_ag;
+static struct m0_dbenv           dbenv;
 
 enum {
 	THREADS_NR = 17,
@@ -269,10 +270,12 @@ static void test_cp_multi_thread(void)
 static int cm_cp_init(void)
 {
 	int rc;
+	rc = m0_dbenv_init(&dbenv, "something", 0);
+	M0_ASSERT(rc == 0);
 
 	rc = M0_REQH_INIT(&cm_ut_reqh,
 			  .rhia_dtm       = NULL,
-			  .rhia_db        = (void *)1,
+			  .rhia_db        = &dbenv,
 			  .rhia_mdstore   = (void *)1,
 			  .rhia_fol       = (void *)1,
 			  .rhia_svc       = (void *)1,
@@ -295,9 +298,10 @@ static int cm_cp_fini(void)
 	m0_ios_poolmach_fini(cm_ut_service);
 	cm_ut_service_cleanup();
 	m0_cm_type_deregister(&cm_ut_cmt);
-        m0_reqh_fini(&cm_ut_reqh);
+	m0_reqh_fini(&cm_ut_reqh);
 	M0_SET0(&cm_ut_reqh);
-        return 0;
+	m0_dbenv_fini(&dbenv);
+	return 0;
 }
 
 const struct m0_test_suite cm_cp_ut = {

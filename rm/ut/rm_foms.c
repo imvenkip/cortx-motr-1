@@ -42,6 +42,7 @@ enum test_type {
 static struct m0_fom_locality  dummy_loc;
 static struct m0_rm_loan      *test_loan;
 struct m0_reqh		       reqh;
+static struct m0_dbenv         dbenv;
 
 extern void remotes_tlist_add(struct m0_tl *tl, struct m0_rm_remote *rem);
 extern void remotes_tlist_del(struct m0_rm_remote *rem);
@@ -55,11 +56,13 @@ extern const struct m0_tl_descr remotes_tl;
 static void rmfoms_utinit(void)
 {
 	int rc;
+	rc = m0_dbenv_init(&dbenv, "something", 0);
+	M0_UT_ASSERT(rc == 0);
 
 	m0_rm_fop_init();
 	rc = M0_REQH_INIT(&reqh,
 			.rhia_dtm       = (void*)1,
-			.rhia_db        = (void*)1,
+			.rhia_db        = &dbenv,
 			.rhia_mdstore   = (void*)1,
 			.rhia_fol       = (void*)1,
 			.rhia_svc       = (void*)1,
@@ -74,6 +77,7 @@ static void rmfoms_utfini(void)
         m0_sm_group_fini(&dummy_loc.fl_group);
 	m0_reqh_fini(&reqh);
 	m0_rm_fop_fini();
+	m0_dbenv_fini(&dbenv);
 }
 
 /*

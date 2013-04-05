@@ -140,6 +140,10 @@ static void test_service(void)
 	struct m0_reqh_service_type  *svct;
 	struct m0_reqh_service       *reqh_svc;
 	struct m0_fop                *fop;
+	static struct m0_dbenv        dbenv;
+
+	rc = m0_dbenv_init(&dbenv, "something", 0);
+	M0_UT_ASSERT(rc == 0);
 
 	M0_SET0(&reqh);
 
@@ -147,7 +151,7 @@ static void test_service(void)
 	M0_UT_ASSERT(rc == 0);
 
 	rc = M0_REQH_INIT(&reqh,
-			  .rhia_db        = (void *)1,
+			  .rhia_db        = &dbenv,
 			  .rhia_mdstore   = (void *)1,
 			  .rhia_fol       = (void *)1);
 	M0_UT_ASSERT(rc == 0);
@@ -176,6 +180,7 @@ static void test_service(void)
 	m0_reqh_service_stop(reqh_svc);
 	m0_reqh_service_fini(reqh_svc);
 	m0_reqh_fini(&reqh);
+	m0_dbenv_fini(&dbenv);
 
 	m0_reqhut_fop_fini();
 }

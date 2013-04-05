@@ -324,8 +324,8 @@ enum {
 	 * Minimum number of buffers to provision m0_sns_cm::sc_ibp
 	 * and m0_sns_cm::sc_obp buffer pools.
 	 */
-	SNS_INCOMING_BUF_NR = 1 << 12,
-	SNS_OUTGOING_BUF_NR = 1 << 12
+	SNS_INCOMING_BUF_NR = 1 << 8,
+	SNS_OUTGOING_BUF_NR = 1 << 8
 };
 
 extern struct m0_net_xprt m0_net_lnet_xprt;
@@ -573,15 +573,15 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_sns_cm *scm, struct m0_cm_cp *cp)
 
 M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm)
 {
-	struct m0_sns_cm_pdclust_layout *spl = &scm->sc_it.si_pl;
+	struct m0_sns_cm_file_context *sfc = &scm->sc_it.si_fc;
 
 	M0_PRE(scm != NULL);
 
-	return m0_pdclust_unit_size(spl->spl_base) %
+	return m0_pdclust_unit_size(sfc->sfc_pdlayout) %
 	       scm->sc_obp.nbp_seg_size ?
-	       m0_pdclust_unit_size(spl->spl_base) /
+	       m0_pdclust_unit_size(sfc->sfc_pdlayout) /
 	       scm->sc_obp.nbp_seg_size + 1 :
-	       m0_pdclust_unit_size(spl->spl_base) /
+	       m0_pdclust_unit_size(sfc->sfc_pdlayout) /
 	       scm->sc_obp.nbp_seg_size;
 }
 

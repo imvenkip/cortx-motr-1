@@ -66,6 +66,7 @@ EPC2M=(
     12345:33:204
 )
 
+SNS_CLI_EP="12345:33:301"
 
 unload_kernel_module()
 {

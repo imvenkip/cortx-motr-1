@@ -2890,9 +2890,12 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	 * Ergo, returning -EAGAIN from here which will create new
 	 * io_request and will try to do IO once again.
 	 */
-	if (st_cnt == 0)
+	if (st_cnt == 0) {
+		m0_poolmach_event_list_dump(csb->csb_pool.po_mach);
+		m0_poolmach_device_state_dump(csb->csb_pool.po_mach);
 		M0_RETERR(-EAGAIN, "Failed to trigger degraded mode since"
-			  "no target device is in required state.");
+			  " no target device is in required state.");
+	}
 
 	m0_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
 		rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
@@ -4086,10 +4089,9 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 	struct m0_fop_cob_rw_reply     *rw_reply;
 	struct m0_fv_version           *reply_version;
 	struct m0_fv_updates           *reply_updates;
-	struct m0_fv_event             *event;
+	struct m0_pool_event           *event;
 	struct io_request              *req;
 	uint32_t                        i = 0;
-	uint32_t                        j = 0;
 
 	M0_PRE(irfop != NULL);
 
@@ -4104,29 +4106,22 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 	reply_updates = &rw_reply->rwr_fv_updates;
 	srv = (struct m0_pool_version_numbers *)reply_version;
 	cli = &csb->csb_pool.po_mach->pm_state.pst_version;
+	M0_LOG(M0_DEBUG, ">>>VERSION MISMATCH!");
 	m0_poolmach_version_dump(cli);
 	m0_poolmach_version_dump(srv);
-	M0_LOG(M0_DEBUG, "VERSION MISMATCH!");
-	for (j = 0; j < reply_updates->fvu_count; ++j)
-		M0_LOG(M0_INFO, "reply_updates:%u:type = %u, index = %u,"
-		       "state = %u\n", j,
-		       reply_updates->fvu_events[j].fve_type,
-		       reply_updates->fvu_events[j].fve_index,
-		       reply_updates->fvu_events[j].fve_state);
 	/*
 	 * Retrieve the latest server version and
 	 * updates and apply to the client's copy.
 	 * When -EAGAIN is return, this system
 	 * call will be restarted.
 	 */
-	*cli = *srv;
-
 	while (i < reply_updates->fvu_count) {
-		event = &reply_updates->fvu_events[i];
-		m0_poolmach_state_transit(csb->csb_pool.po_mach,
-				(struct m0_pool_event*)event);
+		event = (struct m0_pool_event*)&reply_updates->fvu_events[i];
+		m0_poolmach_event_dump(event);
+		m0_poolmach_state_transit(csb->csb_pool.po_mach, event);
 		i++;
 	}
+	M0_LOG(M0_DEBUG, "<<<VERSION MISMATCH!");
 }
 
 static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
@@ -4169,6 +4164,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		M0_LOG(M0_INFO, "VERSION_MISMATCH received on fid %llu:%llu\n",
 		       tioreq->ti_fid.f_container, tioreq->ti_fid.f_key);
 		failure_vector_mismatch(irfop);
+		rc = -EAGAIN;
 		irfop->irf_reply_rc = rc;
 	}
 

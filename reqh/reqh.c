@@ -39,7 +39,7 @@
 #include "rpc/rpc.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
-
+#include "layout/pdclust.h"
 
 /**
    @addtogroup reqh
@@ -83,6 +83,23 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 
 	M0_PRE(reqh != NULL);
 
+	reqh->rh_dtm             = reqh_args->rhia_dtm;
+	reqh->rh_dbenv           = reqh_args->rhia_db;
+	reqh->rh_svc             = reqh_args->rhia_svc;
+	reqh->rh_mdstore         = reqh_args->rhia_mdstore;
+	reqh->rh_fol             = reqh_args->rhia_fol;
+	reqh->rh_shutdown        = false;
+
+	result = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
+	if (result != 0)
+		return result;
+
+	result = m0_layout_standard_types_register(&reqh->rh_ldom);
+	if (result != 0) {
+		m0_layout_domain_fini(&reqh->rh_ldom);
+		return result;
+	}
+
 	m0_addb_mc_init(&reqh->rh_addb_mc);
 
 	/** @todo Currently passing dbenv to this api, the duty of the
@@ -107,8 +124,11 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 						addb_stob_seg_size,
 						addb_stob_size,
 						addb_stob_timeout);
-		if (result != 0)
+		if (result != 0) {
+			m0_layout_standard_types_unregister(&reqh->rh_ldom);
+			m0_layout_domain_fini(&reqh->rh_ldom);
 			return result;
+		}
 
 		m0_addb_mc_configure_pt_evmgr(&reqh->rh_addb_mc);
 		if (!m0_addb_mc_is_fully_configured(&m0_addb_gmc))
@@ -125,14 +145,11 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 
 	reqh->rh_fom_dom.fd_reqh = reqh;
 	result = m0_fom_domain_init(&reqh->rh_fom_dom);
-	if (result != 0)
+	if (result != 0) {
+		m0_layout_standard_types_unregister(&reqh->rh_ldom);
+		m0_layout_domain_fini(&reqh->rh_ldom);
 		return result;
-	reqh->rh_dtm             = reqh_args->rhia_dtm;
-	reqh->rh_dbenv           = reqh_args->rhia_db;
-	reqh->rh_svc             = reqh_args->rhia_svc;
-	reqh->rh_mdstore         = reqh_args->rhia_mdstore;
-	reqh->rh_fol             = reqh_args->rhia_fol;
-	reqh->rh_shutdown        = false;
+	}
 
 	m0_reqh_svc_tlist_init(&reqh->rh_services);
 	m0_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
@@ -147,7 +164,10 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 {
-        M0_PRE(reqh != NULL);
+	M0_PRE(reqh != NULL);
+	m0_layout_standard_types_unregister(&reqh->rh_ldom);
+	m0_layout_domain_fini(&reqh->rh_ldom);
+
 	m0_addb_ctx_fini(&reqh->rh_addb_ctx);
 	m0_addb_mc_fini(&reqh->rh_addb_mc);
         m0_fom_domain_fini(&reqh->rh_fom_dom);

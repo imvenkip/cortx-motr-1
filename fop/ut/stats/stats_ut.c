@@ -84,11 +84,13 @@ M0_REQH_SERVICE_TYPE_DEFINE(ut_stats_service_type,
 			    &ut_stats_service_type_ops,
 			    "ut-stats-service",
                             &m0_addb_ct_ut_service);
-
+static struct m0_dbenv dbenv;
 static int test_stats_init(void)
 {
 	int rc;
 
+	rc = m0_dbenv_init(&dbenv, "something", 0);
+	M0_ASSERT(rc == 0);
 	m0_sm_conf_init(&fom_phases_conf);
 	m0_addb_rec_type_register(&addb_rt_fom_phase_stats);
 	rc = m0_reqh_service_type_register(&ut_stats_service_type);
@@ -104,7 +106,7 @@ static int test_stats_init(void)
 	 */
 	rc = M0_REQH_INIT(&reqh,
 			  .rhia_dtm       = (void *)1,
-			  .rhia_db        = (void *)1,
+			  .rhia_db        = &dbenv,
 			  .rhia_mdstore   = (void *)1,
 			  .rhia_fol       = (void *)1,
 			  .rhia_svc       = NULL,
@@ -127,7 +129,7 @@ static int test_stats_fini(void)
 	m0_reqh_fini(&reqh);
 
 	m0_reqh_service_type_unregister(&ut_stats_service_type);
-
+	m0_dbenv_fini(&dbenv);
 	return 0;
 }
 

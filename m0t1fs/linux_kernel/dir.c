@@ -969,7 +969,13 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 		cob_fid = m0t1fs_ios_cob_fid(ci, i);
 		cob_idx = m0t1fs_ios_cob_idx(ci, &ci->ci_fid, &cob_fid);
 		M0_ASSERT(cob_idx != ~0);
-		rc      = func(csb, &cob_fid, &ci->ci_fid, cob_idx);
+again:
+		rc = func(csb, &cob_fid, &ci->ci_fid, cob_idx);
+		if (rc == -EAGAIN) {
+			M0_LOG(M0_NOTICE, "Failure vector updated. Do this"
+					  " operation again");
+			goto again;
+		}
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Cob %s [%lu:%lu] failed with %d",
 				func == m0t1fs_ios_cob_create ? "create" : "delete",

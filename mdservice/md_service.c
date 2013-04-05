@@ -131,21 +131,9 @@ static void mds_fini(struct m0_reqh_service *service)
  */
 static int mds_start(struct m0_reqh_service *service)
 {
-        struct m0_reqh_md_service *serv_obj;
-        int rc;
         M0_PRE(service != NULL);
 
-        serv_obj = container_of(service, struct m0_reqh_md_service, rmds_gen);
-        rc = m0_layout_domain_init(&serv_obj->rmds_layout_dom,
-				   service->rs_reqh->rh_dbenv);
-        if (rc == 0) {
-                rc = m0_layout_standard_types_register(
-					&serv_obj->rmds_layout_dom);
-		if (rc != 0)
-			m0_layout_domain_fini(&serv_obj->rmds_layout_dom);
-	}
-
-       return rc;
+        return 0;
 }
 
 /**
@@ -156,12 +144,7 @@ static int mds_start(struct m0_reqh_service *service)
  */
 static void mds_stop(struct m0_reqh_service *service)
 {
-        struct m0_reqh_md_service *serv_obj;
         M0_PRE(service != NULL);
-
-        serv_obj = container_of(service, struct m0_reqh_md_service, rmds_gen);
-        m0_layout_standard_types_unregister(&serv_obj->rmds_layout_dom);
-        m0_layout_domain_fini(&serv_obj->rmds_layout_dom);
 }
 
 /** @} endgroup mdservice */

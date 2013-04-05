@@ -30,6 +30,7 @@
 
 #include "sm/sm.h"
 #include "fop/fom.h"
+#include "layout/layout.h"
 
 /**
    @defgroup reqh Request handler
@@ -143,6 +144,11 @@ struct m0_reqh {
 	    refer <http://gcc.gnu.org/onlinedocs/gcc/Zero-Length.html>
 	 */
 	struct m0_reqh_lockers   rh_lockers;
+
+	/**
+	 * Layout domain for this request handler.
+	 */
+	struct m0_layout_domain  rh_ldom;
 };
 
 /**
