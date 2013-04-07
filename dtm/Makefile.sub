@@ -1,4 +1,5 @@
 nobase_mero_include_HEADERS += \
+                                  dtm/catalogue.h \
                                   dtm/domain.h \
                                   dtm/dtm.h \
                                   dtm/dtm_internal.h \
@@ -16,6 +17,7 @@ nobase_mero_include_HEADERS += \
                                   dtm/verno_xc.h
 
 mero_libmero_la_SOURCES  += \
+                                  dtm/catalogue.c \
                                   dtm/domain.c \
                                   dtm/dtm.c \
                                   dtm/dtm_update_xc.c \
