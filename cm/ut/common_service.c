@@ -112,9 +112,8 @@ static const struct m0_cm_ops cm_ut_ops = {
 	.cmo_fini      = cm_ut_fini
 };
 
-static int cm_ag_ut_fini(struct m0_cm_aggr_group *ag)
+static void cm_ag_ut_fini(struct m0_cm_aggr_group *ag)
 {
-	return 0;
 }
 
 static uint64_t cm_ag_ut_local_cp_nr(const struct m0_cm_aggr_group *ag)

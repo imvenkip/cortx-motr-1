@@ -85,7 +85,7 @@ struct m0_cm_aggr_group {
 
 struct m0_cm_aggr_group_ops {
 	/** Performs aggregation group completion processing. */
-	int (*cago_fini)(struct m0_cm_aggr_group *ag);
+	void (*cago_fini)(struct m0_cm_aggr_group *ag);
 
 	/**
 	 * Returns number of copy packets corresponding to the aggregation

@@ -23,6 +23,8 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
 
 #include "lib/misc.h"   /* m0_forall */
+#include "lib/memory.h"
+#include "lib/errno.h"
 #include "mero/magic.h"
 #include "reqh/reqh.h"
 #include "net/buffer_pool.h"
@@ -30,6 +32,9 @@
 #include "cm/cp.h"
 #include "cm/ag.h"
 #include "cm/cm.h"
+
+#include "fop/fop.h"
+#include "fop/fom.h"
 
 /**
  * @page CPDLD Copy Packet DLD
@@ -234,11 +239,17 @@
  *                    transfer are used for sending copy packet.
  *		      (m0_cm_cp_phase::M0_CCP_SEND)
  *
- *   - @b RECV        Copy packet data is received from network. On receipt of
- *		      control FOP, copy packet is created and FOM is submitted
- *		      for execution and phase is set RECV, which will eventually
- *		      receive data using rpc bulk.
- *		      (m0_cm_cp_phase::M0_CCP_RECV)
+ *   - @b SEND_WAIT   Waits till the acknowledgement is received that copy
+ *                    packet has been reached to the destination.
+ *
+ *   - @b BUF_ACQ     Acquire the buffers based on the control fop information.
+ *
+ *   - @b RECV_INIT   After acquiring required number of buffers, copy packet
+ *                    FOM transitions to m0_cm_cp_phase::M0_CCP_RECV_INIT phase
+ *                    and initiates zero copy using rpc_bulk.
+ *
+ *   - @b RECV_WAIT   Zero copy is completed. Any cleanup, if is done in this
+ *                    phase.
  *
  *   - @b FINI        Finalises copy packet.
  *
@@ -263,13 +274,13 @@
  *	   size = "4,4"
  *	   node [shape=ellipse, fontsize=12]
  *	   start -> INIT
- *	   INIT  -> READ -> IOWAIT -> SEND -> FINI
- *	   INIT  -> RECV -> WRITE -> IOWAIT -> FINI
+ *	   INIT  -> READ -> IOWAIT -> SEND -> SEND_WAIT -> FINI
+ *	   INIT  -> BUF_ACQ -> RECV_INIT -> RECV_WAIT -> XFORM
+ *	   XFORM -> WRITE -> IOWAIT -> FINI
  *	   INIT  -> XFORM -> FINI
  *	   INIT  -> WRITE
  *	   INIT  -> SEND
- *	   IOWAIT -> XFORM -> SEND
- *	   RECV  -> XFORM -> WRITE
+ *	   IOWAIT -> XFORM -> SEND -> SEND_WAIT -> FINI
  *	   FINI  -> end
  *	}
  *   }
@@ -382,10 +393,19 @@ static const struct m0_bob_type cp_bob = {
 	.bt_check = NULL
 };
 
+M0_TL_DESCR_DEFINE(proxy_cps, "copy packets in proxy", M0_INTERNAL,
+		   struct m0_cm_cp, c_cm_proxy_linkage, c_magix,
+		   CM_CP_LINK_MAGIX, CM_CP_HEAD_MAGIX);
+M0_TL_DEFINE(proxy_cps, M0_INTERNAL, struct m0_cm_cp);
+
+
 M0_BOB_DEFINE(static, &cp_bob, m0_cm_cp);
 
+static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
+			 struct m0_reqh *reqh);
+
 const struct m0_fom_type_ops cp_fom_type_ops = {
-        .fto_create = NULL
+        .fto_create = cp_fom_create
 };
 
 static struct m0_fom_type cp_fom_type;
@@ -419,8 +439,6 @@ static uint64_t cp_fom_locality(const struct m0_fom *fom)
 {
         struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
 
-        M0_PRE(m0_cm_cp_invariant(cp));
-
 	return cp->c_ops->co_home_loc_helper(cp);
 }
 
@@ -430,7 +448,6 @@ static int cp_fom_tick(struct m0_fom *fom)
 	int		 phase = m0_fom_phase(fom);
 
 	M0_PRE(phase < cp->c_ops->co_action_nr);
-        M0_PRE(m0_cm_cp_invariant(cp));
 
 	return cp->c_ops->co_action[phase](cp);
 }
@@ -452,6 +469,33 @@ static const struct m0_fom_ops cp_fom_ops = {
 	.fo_addb_init     = cp_fom_addb_init
 };
 
+static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
+			 struct m0_reqh *reqh)
+{
+	struct m0_cm_cp        *cp;
+	struct m0_cm           *cm;
+	struct m0_reqh_service *service;
+
+        M0_PRE(fop != NULL);
+        M0_PRE(m != NULL);
+
+	service = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype,
+				       reqh);
+	M0_PRE(service != NULL);
+	cm = container_of(service, struct m0_cm, cm_service);
+	M0_PRE(cm != NULL);
+	cp = cm->cm_ops->cmo_cp_alloc(cm);
+        if (cp == NULL)
+                return -ENOMEM;
+
+	m0_cm_cp_init(cm, cp);
+	cp->c_fom.fo_addb_ctx.ac_magic = 0;
+        m0_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, fop,
+                    NULL, reqh, service->rs_type);
+        *m = &cp->c_fom;
+        return 0;
+}
+
 /** @} end internal */
 
 /**
@@ -464,7 +508,8 @@ static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
                 .sd_flags       = M0_SDF_INITIAL,
                 .sd_name        = "Init",
                 .sd_allowed     = M0_BITS(M0_CCP_READ, M0_CCP_WRITE,
-					  M0_CCP_RECV, M0_CCP_XFORM)
+					  M0_CCP_BUF_ACQUIRE, M0_CCP_XFORM,
+					  M0_CCP_SEND)
         },
         [M0_CCP_READ] = {
                 .sd_flags       = 0,
@@ -491,12 +536,28 @@ static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
         [M0_CCP_SEND] = {
                 .sd_flags       = 0,
                 .sd_name        = "Send",
+                .sd_allowed     = M0_BITS(M0_CCP_FINI, M0_CCP_BUF_ACQUIRE,
+					  M0_CCP_SEND_WAIT)
+        },
+        [M0_CCP_SEND_WAIT] = {
+                .sd_flags       = 0,
+                .sd_name        = "Send Wait",
                 .sd_allowed     = M0_BITS(M0_CCP_FINI)
         },
-        [M0_CCP_RECV] = {
+        [M0_CCP_BUF_ACQUIRE] = {
                 .sd_flags       = 0,
-                .sd_name        = "Recv",
-                .sd_allowed     = M0_BITS(M0_CCP_WRITE, M0_CCP_XFORM)
+                .sd_name        = "Buffer Acquire",
+                .sd_allowed     = M0_BITS(M0_CCP_RECV_INIT)
+        },
+        [M0_CCP_RECV_INIT] = {
+                .sd_flags       = 0,
+                .sd_name        = "Recv Init",
+                .sd_allowed     = M0_BITS(M0_CCP_RECV_WAIT)
+        },
+        [M0_CCP_RECV_WAIT] = {
+                .sd_flags       = 0,
+                .sd_name        = "Recv Wait",
+                .sd_allowed     = M0_BITS(M0_CCP_XFORM)
         },
         [M0_CCP_FINI] = {
                 .sd_flags       = M0_SDF_TERMINAL,
@@ -540,10 +601,23 @@ M0_INTERNAL void m0_cm_cp_init(struct m0_cm *cm, struct m0_cm_cp *cp)
 	service = &cm->cm_service;
 	m0_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL,
 		    service->rs_reqh, service->rs_type);
+	m0_rpc_bulk_init(&cp->c_bulk);
+	m0_mutex_init(&cp->c_reply_wait_mutex);
+	m0_chan_init(&cp->c_reply_wait, &cp->c_reply_wait_mutex);
 }
 
 M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp)
 {
+	/*
+	 * If the copy packet is not an accumulator copy packet, it will get
+	 * finalised after transformation. For such copy packets, finalise the
+	 * bitmap.
+	 */
+	if (cp->c_xform_cp_indices.b_nr > 0)
+		m0_bitmap_fini(&cp->c_xform_cp_indices);
+	m0_chan_fini_lock(&cp->c_reply_wait);
+	m0_mutex_fini(&cp->c_reply_wait_mutex);
+	m0_rpc_bulk_fini(&cp->c_bulk);
 	m0_fom_fini(&cp->c_fom);
 	m0_cm_cp_bob_fini(cp);
 }
@@ -567,7 +641,7 @@ M0_INTERNAL void m0_cm_cp_buf_add(struct m0_cm_cp *cp, struct m0_net_buffer *nb)
 	M0_PRE(nb != NULL);
 
 	cp_data_buf_tlink_init(nb);
-	cp_data_buf_tlist_add(&cp->c_buffers, nb);
+	cp_data_buf_tlist_add_tail(&cp->c_buffers, nb);
 	M0_CNT_INC(cp->c_buf_nr);
 }
 

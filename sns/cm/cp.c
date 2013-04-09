@@ -31,6 +31,7 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/ag.h"
+#include "sns/cm/sns_cp_onwire.h"
 
 /**
   @addtogroup SNSCMCP
@@ -69,26 +70,28 @@ M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp)
 
 M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp)
 {
+	struct m0_sns_cpx *sns_cpx;
+
 	M0_PRE(m0_fom_phase(&cp->c_fom) == M0_CCP_INIT);
+
+	if (cp->c_fom.fo_fop != NULL) {
+		sns_cpx = m0_fop_data(cp->c_fom.fo_fop);
+		m0_fom_phase_set(&cp->c_fom, sns_cpx->scx_phase);
+	}
 	return cp->c_ops->co_phase_next(cp);
 }
 
-M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
-{
-	return M0_FSO_AGAIN;
-}
-
-M0_INTERNAL int m0_sns_cm_cp_recv(struct m0_cm_cp *cp)
-{
-	return M0_FSO_AGAIN;
-}
-
 static int next[] = {
-	[M0_CCP_INIT]       = M0_CCP_READ,
-	[M0_CCP_READ]       = M0_CCP_IO_WAIT,
-	[M0_CCP_XFORM]      = M0_CCP_WRITE,
-	[M0_CCP_WRITE]      = M0_CCP_IO_WAIT,
-	[M0_CCP_IO_WAIT]    = M0_CCP_XFORM
+	[M0_CCP_INIT]        = M0_CCP_READ,
+	[M0_CCP_READ]        = M0_CCP_IO_WAIT,
+	[M0_CCP_XFORM]       = M0_CCP_WRITE,
+	[M0_CCP_WRITE]       = M0_CCP_IO_WAIT,
+	[M0_CCP_IO_WAIT]     = M0_CCP_XFORM,
+	[M0_CCP_SEND]        = M0_CCP_BUF_ACQUIRE,
+	[M0_CCP_SEND_WAIT]   = M0_CCP_FINI,
+	[M0_CCP_BUF_ACQUIRE] = M0_CCP_RECV_INIT,
+	[M0_CCP_RECV_INIT]   = M0_CCP_RECV_WAIT,
+	[M0_CCP_RECV_WAIT]   = M0_CCP_XFORM
 };
 
 M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp)
@@ -158,7 +161,7 @@ M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
 	scp->sc_index = stob_offset;
 	scp->sc_base.c_ag_cp_idx = ag_cp_idx;
 
-	return m0_sns_cm_buf_attach(scm, &scp->sc_base);
+	return m0_sns_cm_buf_attach(&scp->sc_base, &scm->sc_obp.sb_bp);
 }
 
 const struct m0_cm_cp_ops m0_sns_cm_cp_ops = {
@@ -169,7 +172,10 @@ const struct m0_cm_cp_ops m0_sns_cm_cp_ops = {
 		[M0_CCP_IO_WAIT]      = &m0_sns_cm_cp_io_wait,
 		[M0_CCP_XFORM]        = &m0_sns_cm_cp_xform,
 		[M0_CCP_SEND]         = &m0_sns_cm_cp_send,
-		[M0_CCP_RECV]         = &m0_sns_cm_cp_recv,
+		[M0_CCP_SEND_WAIT]    = &m0_sns_cm_cp_send_wait,
+		[M0_CCP_RECV_INIT]    = &m0_sns_cm_cp_recv_init,
+		[M0_CCP_RECV_WAIT]    = &m0_sns_cm_cp_recv_wait,
+		[M0_CCP_BUF_ACQUIRE]  = &m0_sns_cm_cp_buf_acquire,
 		/* To satisfy the m0_cm_cp_invariant() */
 		[M0_CCP_FINI]         = &m0_sns_cm_cp_fini,
 	},

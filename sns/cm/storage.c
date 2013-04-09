@@ -37,8 +37,7 @@
 
 static int ivec_prepare(struct m0_indexvec *iv, m0_bindex_t idx,
 			uint32_t seg_nr, size_t seg_size,
-			struct m0_addb_ctx *ctx,
-			uint32_t bshift)
+			struct m0_addb_ctx *ctx, uint32_t bshift)
 {
 	int rc;
 	int i;

@@ -27,9 +27,11 @@
 #include "lib/vec.h"
 #include "lib/tlist.h"
 #include "net/net.h"
+#include "net/buffer_pool.h"
 
 #include "fop/fom_generic.h"
 #include "rpc/bulk.h"
+#include "fop/fop.h"
 
 /**
  * @page CPDLD-fspec Copy Packet Functional Specification
@@ -123,8 +125,20 @@ enum m0_cm_cp_phase {
 	/** Send packet over network. */
 	M0_CCP_SEND,
 
-	/** Received packet from network. */
-	M0_CCP_RECV,
+	/** Wait for copy packet to be sent and ack to be received. */
+	M0_CCP_SEND_WAIT,
+
+	/**
+	 * Acquire necessary buffers on receiver side, when control fop arrives,
+	 * after which rpc bulk load can be invoked.
+	 */
+	M0_CCP_BUF_ACQUIRE,
+
+	/** Received packet from network. Initialise zero copy. */
+	M0_CCP_RECV_INIT,
+
+	/** Wait for zero copy to be completed. */
+	M0_CCP_RECV_WAIT,
 
 	M0_CCP_NR
 };
@@ -135,6 +149,9 @@ struct m0_cm_cp {
 	enum m0_cm_cp_priority	   c_prio;
 
 	struct m0_fom		   c_fom;
+
+	/** Fop corresponding to the copy packet. */
+	struct m0_fop              c_fop;
 
 	/** Copy packet operations */
 	const struct m0_cm_cp_ops *c_ops;
@@ -165,6 +182,21 @@ struct m0_cm_cp {
 
 	/** Distinguishes IO operation. */
 	enum m0_cm_cp_io_op        c_io_op;
+
+	/** Link to struct m0_cm_aggr_group::cag_cm_linkage */
+	struct m0_tlink            c_cm_proxy_linkage;
+
+	/** Proxy to which this copy packet belongs. */
+	struct m0_cm_proxy        *c_cm_proxy;
+
+	/**
+	 * Channel to wait for reply of copy packet fop. This is used in
+	 * send phase of copy packet fom.
+	 * This channel is signalled by cp_reply_received() when reply is
+	 * received for copy packet.
+	 */
+	struct m0_chan            c_reply_wait;
+	struct m0_mutex           c_reply_wait_mutex;
 
 	uint64_t		   c_magix;
 };

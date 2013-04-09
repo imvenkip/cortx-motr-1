@@ -119,9 +119,9 @@ static void iter_setup(uint32_t N, uint32_t K, uint32_t P, uint64_t unit_size)
 	cm = container_of(service, struct m0_cm, cm_service);
 	scm = cm2sns(cm);
 
-	bufs_nr = cm_buffer_pool_provision(&scm->sc_ibp, ITER_UT_BUF_NR);
+	bufs_nr = cm_buffer_pool_provision(&scm->sc_ibp.sb_bp, ITER_UT_BUF_NR);
 	M0_UT_ASSERT(bufs_nr != 0);
-	bufs_nr = cm_buffer_pool_provision(&scm->sc_obp, ITER_UT_BUF_NR);
+	bufs_nr = cm_buffer_pool_provision(&scm->sc_obp.sb_bp, ITER_UT_BUF_NR);
 	M0_UT_ASSERT(bufs_nr != 0);
 	rc = m0_sns_cm_iter_init(&scm->sc_it);
 	M0_UT_ASSERT(rc == 0);

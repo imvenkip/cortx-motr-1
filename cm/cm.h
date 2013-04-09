@@ -254,17 +254,21 @@ struct m0_cm_ops {
  */
 struct m0_cm_proxy {
 	/** Remote replica's identifier. */
-	uint64_t           px_id;
+	uint64_t               px_id;
 
 	/** Remote replica's sliding window. */
-	struct m0_cm_ag_id px_sw_lo;
-	struct m0_cm_ag_id px_sw_hi;
+	struct m0_cm_ag_id     px_sw_lo;
+	struct m0_cm_ag_id     px_sw_hi;
 
 	/**
 	 * Pending list of copy packets to be forwarded to the remote
 	 * replica.
 	 **/
-	struct m0_tl       px_pending_cps;
+	struct m0_tl           px_pending_cps;
+
+	/** RPC session corresponding to copy machine replica of this proxy. */
+	struct m0_rpc_session *px_session;
+
 };
 
 M0_INTERNAL int m0_cm_type_register(struct m0_cm_type *cmt);

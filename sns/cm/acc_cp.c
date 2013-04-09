@@ -73,15 +73,18 @@ static int acc_cp_phase_next(struct m0_cm_cp *cp)
 
 const struct m0_cm_cp_ops m0_sns_cm_acc_cp_ops = {
 	.co_action = {
-		[M0_CCP_INIT]         = &m0_sns_cm_cp_init,
-		[M0_CCP_READ]         = &m0_sns_cm_cp_read,
-		[M0_CCP_WRITE]        = &m0_sns_cm_cp_write,
-		[M0_CCP_IO_WAIT]      = &m0_sns_cm_cp_io_wait,
-		[M0_CCP_XFORM]        = &m0_sns_cm_cp_xform,
-		[M0_CCP_SEND]         = &m0_sns_cm_cp_send,
-		[M0_CCP_RECV]         = &m0_sns_cm_cp_recv,
+		[M0_CCP_INIT]          = &m0_sns_cm_cp_init,
+		[M0_CCP_READ]          = &m0_sns_cm_cp_read,
+		[M0_CCP_WRITE]         = &m0_sns_cm_cp_write,
+		[M0_CCP_IO_WAIT]       = &m0_sns_cm_cp_io_wait,
+		[M0_CCP_XFORM]         = &m0_sns_cm_cp_xform,
+		[M0_CCP_SEND]          = &m0_sns_cm_cp_send,
+		[M0_CCP_SEND_WAIT]     = &m0_sns_cm_cp_send_wait,
+		[M0_CCP_BUF_ACQUIRE]   = &m0_sns_cm_cp_buf_acquire,
+		[M0_CCP_RECV_INIT]     = &m0_sns_cm_cp_recv_init,
+		[M0_CCP_RECV_WAIT]     = &m0_sns_cm_cp_recv_wait,
 		/* To satisfy the m0_cm_cp_invariant() */
-		[M0_CCP_FINI]         = &m0_sns_cm_cp_fini,
+		[M0_CCP_FINI]          = &m0_sns_cm_cp_fini,
 	},
 	.co_action_nr            = M0_CCP_NR,
 	.co_phase_next           = &acc_cp_phase_next,

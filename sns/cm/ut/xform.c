@@ -198,9 +198,9 @@ static void test_single_cp(void)
 	s_acc_buf.nb_pool = &nbp;
 	s_buf.nb_pool = &nbp;
 	cp_prepare(&s_cp, &s_buf, SEG_NR, SEG_SIZE, &s_sag, 'e',
-		   &single_cp_fom_ops, reqh, 0, false);
+		   &single_cp_fom_ops, reqh, 0, false, NULL);
 	cp_prepare(&s_fc.fc_tgt_acc_cp.sc_base, &s_acc_buf, SEG_NR, SEG_SIZE,
-		   &s_sag, 0, &acc_cp_fom_ops, reqh, 0, true);
+		   &s_sag, 0, &acc_cp_fom_ops, reqh, 0, true, NULL);
 	m0_bitmap_init(&s_fc.fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
 		       s_sag.sag_base.cag_cp_global_nr);
 	s_sag.sag_fc = &s_fc;
@@ -242,14 +242,14 @@ static void test_multiple_cp(void)
 					  FAIL_NR;
 	m_acc_buf.nb_pool = &nbp;
 	cp_prepare(&m_fc.fc_tgt_acc_cp.sc_base, &m_acc_buf, SEG_NR, SEG_SIZE,
-		   &m_sag, 0, &acc_cp_fom_ops, reqh, 0, true);
+		   &m_sag, 0, &acc_cp_fom_ops, reqh, 0, true, NULL);
 	m0_bitmap_init(&m_fc.fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
 		       m_sag.sag_base.cag_cp_global_nr);
 	m_sag.sag_fc = &m_fc;
 	for (i = 0; i < CP_MULTI; ++i) {
 		m_buf[i].nb_pool = &nbp;
 		cp_prepare(&m_cp[i], &m_buf[i], SEG_NR, SEG_SIZE, &m_sag, 'r',
-			   &multiple_cp_fom_ops, reqh, i, false);
+			   &multiple_cp_fom_ops, reqh, i, false, NULL);
 		m0_fom_queue(&m_cp[i].c_fom, reqh);
 		m0_semaphore_down(&sem);
 	}

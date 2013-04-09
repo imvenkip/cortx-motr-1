@@ -48,7 +48,7 @@ M0_INTERNAL struct m0_sns_cm_ag *ag2snsag(const struct m0_cm_aggr_group *ag)
 	return container_of(ag, struct m0_sns_cm_ag, sag_base);
 }
 
-static int ag_fini(struct m0_cm_aggr_group *ag)
+static void ag_fini(struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_ag *sag;
 
@@ -60,7 +60,6 @@ static int ag_fini(struct m0_cm_aggr_group *ag)
 	m0_free(sag->sag_fc);
 	m0_free(sag);
 	M0_LEAVE();
-	return 0;
 }
 
 M0_INTERNAL void agid2fid(const struct m0_cm_aggr_group *ag, struct m0_fid *fid)

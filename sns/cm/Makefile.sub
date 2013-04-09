@@ -16,6 +16,7 @@ mero_libmero_la_SOURCES  += sns/cm/ag.c \
                                   sns/cm/service.c \
                                   sns/cm/xform.c \
                                   sns/cm/storage.c \
+				  sns/cm/net.c \
 				  sns/cm/sns_cp_onwire.c \
 				  sns/cm/sns_cp_onwire_xc.c
 

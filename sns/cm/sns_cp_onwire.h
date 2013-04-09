@@ -38,18 +38,22 @@ struct m0_sns_cpx {
 
         /** Destination stob id. */
         struct m0_fid             scx_sid;
+
+	/** Copy packet fom phase before sending it onwire. */
+	uint32_t                  scx_phase;
 } M0_XCA_RECORD;
 
 /** SNS specific onwire copy packet reply structure. */
 struct m0_sns_cpx_reply {
         /** Base copy packet reply fields. */
         struct m0_cpx_reply scr_cp_rep;
-        /** Number of bytes written. */
-        uint64_t            scr_count;
 } M0_XCA_RECORD;
 
 M0_INTERNAL int m0_sns_cpx_init(void);
 M0_INTERNAL void m0_sns_cpx_fini(void);
+
+extern struct m0_fop_type m0_sns_cpx_fopt;
+extern struct m0_fop_type m0_sns_cpx_reply_fopt;
 
 #endif /* __MERO_SNS_CM_CP_ONWIRE_H__ */
 /*

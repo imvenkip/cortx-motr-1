@@ -26,7 +26,6 @@
 #include "cm/cp.h"
 #include "cm/cp.c"
 #include "sns/cm/cp.h"
-//#include "sns/cm/cp.c"
 #include "cm/ag.h"
 #include "cm/ut/common_service.h"
 
@@ -111,12 +110,7 @@ static int dummy_cp_write(struct m0_cm_cp *cp)
 	return M0_FSO_AGAIN;
 }
 
-static int dummy_cp_io_wait(struct m0_cm_cp *cp)
-{
-	return cp->c_ops->co_phase_next(cp);
-}
-
-static int dummy_cp_xform(struct m0_cm_cp *cp)
+static int dummy_cp_phase(struct m0_cm_cp *cp)
 {
 	return cp->c_ops->co_phase_next(cp);
 }
@@ -131,14 +125,17 @@ static int dummy_cp_init(struct m0_cm_cp *cp)
 
 const struct m0_cm_cp_ops m0_sns_cm_cp_dummy_ops = {
         .co_action = {
-                [M0_CCP_INIT]       = &dummy_cp_init,
-                [M0_CCP_READ]       = &dummy_cp_read,
-                [M0_CCP_WRITE]      = &dummy_cp_write,
-                [M0_CCP_IO_WAIT]    = &dummy_cp_io_wait,
-                [M0_CCP_XFORM]      = &dummy_cp_xform,
-                [M0_CCP_SEND]       = &m0_sns_cm_cp_send,
-                [M0_CCP_RECV]       = &m0_sns_cm_cp_recv,
-                [M0_CCP_FINI]       = &m0_sns_cm_cp_fini,
+                [M0_CCP_INIT]         = &dummy_cp_init,
+                [M0_CCP_READ]         = &dummy_cp_read,
+                [M0_CCP_WRITE]        = &dummy_cp_write,
+                [M0_CCP_IO_WAIT]      = &dummy_cp_phase,
+                [M0_CCP_XFORM]        = &dummy_cp_phase,
+                [M0_CCP_SEND]         = &dummy_cp_phase,
+		[M0_CCP_SEND_WAIT]    = &dummy_cp_phase,
+		[M0_CCP_RECV_INIT]    = &dummy_cp_phase,
+		[M0_CCP_RECV_WAIT]    = &dummy_cp_phase,
+		[M0_CCP_BUF_ACQUIRE]  = &dummy_cp_phase,
+                [M0_CCP_FINI]         = &m0_sns_cm_cp_fini,
         },
         .co_action_nr          = M0_CCP_NR,
         .co_phase_next         = &m0_sns_cm_cp_phase_next,

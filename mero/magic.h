@@ -230,6 +230,12 @@ enum m0_magic_satchel {
 	/* m0_cm_cp::c_buffers (deadfoodbaad) */
 	CM_CP_DATA_BUF_HEAD_MAGIX = 0x33DEADF00DBAAD77,
 
+	/* m0_cm_cp::c_cm_proxy_linkage (foodless bias) */
+	CM_CP_LINK_MAGIX = 0x33f00d1e55b1a577,
+
+	/* m0_cm::cm_proxies::td_head_magic (ecobabble del) */
+	CM_CP_HEAD_MAGIX = 0x33ec0babb1ede177,
+
 /* desim */
 	/* client_write_ext::cwe_magic (abasic access) */
 	M0_DESIM_CLIENT_WRITE_EXT_MAGIC = 0x33aba51cacce5577,

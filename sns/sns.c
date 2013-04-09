@@ -22,18 +22,16 @@
 #include "sns/sns_addb.h"
 #include "sns/sns.h"
 #include "sns/cm/cm.h"
-#include "sns/cm/sns_cp_onwire.h"
 
 M0_INTERNAL int m0_sns_init()
 {
 	m0_addb_ctx_type_register(&m0_addb_ct_sns_mod);
 	m0_addb_ctx_type_register(&m0_addb_ct_sns_repair_serv);
-	return m0_sns_cpx_init() ?: m0_sns_cm_type_register();
+	return m0_sns_cm_type_register();
 }
 
 M0_INTERNAL void m0_sns_fini()
 {
-	m0_sns_cpx_fini();
 	m0_sns_cm_type_deregister();
 }
 

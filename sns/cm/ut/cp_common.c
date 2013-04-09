@@ -51,7 +51,8 @@ void bv_populate(struct m0_bufvec *b, char data, uint32_t seg_nr,
         int i;
 
         M0_UT_ASSERT(b != NULL);
-        M0_UT_ASSERT(m0_bufvec_alloc(b, seg_nr, seg_size) == 0);
+        M0_UT_ASSERT(m0_bufvec_alloc_aligned(b, seg_nr, seg_size,
+					     M0_0VEC_SHIFT) == 0);
         M0_UT_ASSERT(b->ov_vec.v_nr == seg_nr);
         for (i = 0; i < seg_nr; ++i) {
                 M0_UT_ASSERT(b->ov_vec.v_count[i] == seg_size);
@@ -90,7 +91,8 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 		uint32_t bv_seg_nr, uint32_t bv_seg_size,
 		struct m0_sns_cm_ag *sns_ag,
 		char data, struct m0_fom_ops *cp_fom_ops,
-		struct m0_reqh *reqh, uint64_t cp_ag_idx, bool is_acc_cp)
+		struct m0_reqh *reqh, uint64_t cp_ag_idx, bool is_acc_cp,
+		struct m0_cm *scm)
 {
 	struct m0_reqh_service *service;
 	struct m0_cm           *cm;
@@ -101,10 +103,13 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 
         bv_populate(&buf->nb_buffer, data, bv_seg_nr, bv_seg_size);
         cp->c_ag = &sns_ag->sag_base;
+	if (scm == NULL) {
 	service = m0_reqh_service_find(&sns_cmt.ct_stype, reqh);
 	M0_UT_ASSERT(service != NULL);
 	cm = container_of(service, struct m0_cm, cm_service);
 	M0_UT_ASSERT(cm != NULL);
+	} else
+		cm = scm;
 	cp->c_ag->cag_cm = cm;
 	if (!is_acc_cp)
 		cp->c_ops = &m0_sns_cm_cp_ops;

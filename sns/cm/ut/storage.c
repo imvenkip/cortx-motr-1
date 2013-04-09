@@ -133,7 +133,7 @@ static int dummy_cp_write(struct m0_cm_cp *cp)
 }
 
 /* Passthorugh phase for testing purpose. */
-static int dummy_cp_xform(struct m0_cm_cp *cp)
+static int dummy_cp_phase(struct m0_cm_cp *cp)
 {
 	return cp->c_ops->co_phase_next(cp);
 }
@@ -175,14 +175,17 @@ static int dummy_cp_write_io_wait(struct m0_cm_cp *cp)
 
 const struct m0_cm_cp_ops write_cp_dummy_ops = {
 	.co_action = {
-		[M0_CCP_INIT]       = &dummy_cp_init,
-		[M0_CCP_READ]       = &dummy_cp_read,
-		[M0_CCP_WRITE]      = &m0_sns_cm_cp_write,
-		[M0_CCP_IO_WAIT]    = &dummy_cp_read_io_wait,
-		[M0_CCP_XFORM]      = &dummy_cp_xform,
-                [M0_CCP_SEND]       = &m0_sns_cm_cp_send,
-                [M0_CCP_RECV]       = &m0_sns_cm_cp_recv,
-		[M0_CCP_FINI]       = &dummy_cp_fini,
+		[M0_CCP_INIT]        = &dummy_cp_init,
+		[M0_CCP_READ]        = &dummy_cp_read,
+		[M0_CCP_WRITE]       = &m0_sns_cm_cp_write,
+		[M0_CCP_IO_WAIT]     = &dummy_cp_read_io_wait,
+		[M0_CCP_XFORM]       = &dummy_cp_phase,
+                [M0_CCP_SEND]        = &dummy_cp_phase,
+		[M0_CCP_SEND_WAIT]   = &dummy_cp_phase,
+		[M0_CCP_RECV_INIT]   = &dummy_cp_phase,
+		[M0_CCP_RECV_WAIT]   = &dummy_cp_phase,
+		[M0_CCP_BUF_ACQUIRE] = &dummy_cp_phase,
+		[M0_CCP_FINI]        = &dummy_cp_fini,
 	},
 	.co_action_nr               = M0_CCP_NR,
 	.co_phase_next              = &m0_sns_cm_cp_phase_next,
@@ -198,7 +201,7 @@ void write_post(void)
 	m0_semaphore_init(&sem, 0);
 	w_buf.nb_pool = &nbp;
 	cp_prepare(&w_sns_cp.sc_base, &w_buf, SEG_NR, SEG_SIZE,
-		   &w_sag, 'e', &dummy_cp_fom_ops, reqh, 0, false);
+		   &w_sag, 'e', &dummy_cp_fom_ops, reqh, 0, false, NULL);
 	w_sns_cp.sc_base.c_ops = &write_cp_dummy_ops;
 	w_sns_cp.sc_sid = sid;
 	w_sag.sag_base.cag_cp_local_nr = 1;
@@ -234,14 +237,17 @@ void write_post(void)
 
 const struct m0_cm_cp_ops read_cp_dummy_ops = {
 	.co_action = {
-		[M0_CCP_INIT]       = &dummy_cp_init,
-		[M0_CCP_READ]       = &m0_sns_cm_cp_read,
-		[M0_CCP_WRITE]      = &dummy_cp_write,
-		[M0_CCP_IO_WAIT]    = &dummy_cp_write_io_wait,
-		[M0_CCP_XFORM]      = &dummy_cp_xform,
-                [M0_CCP_SEND]       = &m0_sns_cm_cp_send,
-                [M0_CCP_RECV]       = &m0_sns_cm_cp_recv,
-		[M0_CCP_FINI]       = &dummy_cp_fini,
+		[M0_CCP_INIT]        = &dummy_cp_init,
+		[M0_CCP_READ]        = &m0_sns_cm_cp_read,
+		[M0_CCP_WRITE]       = &dummy_cp_write,
+		[M0_CCP_IO_WAIT]     = &dummy_cp_write_io_wait,
+		[M0_CCP_XFORM]       = &dummy_cp_phase,
+                [M0_CCP_SEND]        = &dummy_cp_phase,
+		[M0_CCP_SEND_WAIT]   = &dummy_cp_phase,
+		[M0_CCP_RECV_INIT]   = &dummy_cp_phase,
+		[M0_CCP_RECV_WAIT]   = &dummy_cp_phase,
+		[M0_CCP_BUF_ACQUIRE] = &dummy_cp_phase,
+		[M0_CCP_FINI]        = &dummy_cp_fini,
 	},
 	.co_action_nr               = M0_CCP_NR,
 	.co_phase_next              = &m0_sns_cm_cp_phase_next,
@@ -260,7 +266,7 @@ static void read_post(void)
 	 * that write operation is writing 'e' to the bv.
 	 */
 	cp_prepare(&r_sns_cp.sc_base, &r_buf, SEG_NR, SEG_SIZE,
-		   &r_sag, ' ', &dummy_cp_fom_ops, reqh, 0, false);
+		   &r_sag, ' ', &dummy_cp_fom_ops, reqh, 0, false, NULL);
 	r_sns_cp.sc_base.c_ops = &read_cp_dummy_ops;
 	r_sag.sag_base.cag_cp_local_nr = 1;
 	r_sag.sag_fnr = 1;
