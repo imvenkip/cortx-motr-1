@@ -28,6 +28,8 @@
 #include <linux/limits.h>
 #include <sched.h> /* sched_getcpu() */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_OTHER
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/processor.h"
@@ -815,28 +817,38 @@ static int processors_summary_get()
 
 	processor_maxsz_get();
 	if (sys_cpus.pss_max == M0_PROCESSORS_INVALID_ID) {
-		chdir(cwd);
+		rc = chdir(cwd);
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "failed to chdir to '%s'", (char*)cwd);
 		return -EINVAL;
 	}
 
 	rc = processor_map_type_set(PROCESSORS_POSS_MAP);
 	if (rc != 0) {
-		chdir(cwd);
+		int rc2 = chdir(cwd);
+		if (rc2 != 0)
+			M0_LOG(M0_ERROR, "failed to chdir to '%s'", (char*)cwd);
 		return rc;
 	}
 
 	rc = processor_map_type_set(PROCESSORS_AVAIL_MAP);
 	if (rc != 0) {
+		int rc2;
 		m0_bitmap_fini(&sys_cpus.pss_poss_map);
-		chdir(cwd);
+		rc2 = chdir(cwd);
+		if (rc2 != 0)
+			M0_LOG(M0_ERROR, "failed to chdir to '%s'", (char*)cwd);
 		return rc;
 	}
 
 	rc = processor_map_type_set(PROCESSORS_ONLN_MAP);
 	if (rc != 0) {
+		int rc2;
 		m0_bitmap_fini(&sys_cpus.pss_poss_map);
 		m0_bitmap_fini(&sys_cpus.pss_avail_map);
-		chdir(cwd);
+		rc2 = chdir(cwd);
+		if (rc2 != 0)
+			M0_LOG(M0_ERROR, "failed to chdir to '%s'", (char*)cwd);
 		return rc;
 	}
 
@@ -864,7 +876,9 @@ static int processors_summary_get()
 
 	if (m0_list_is_empty(&sys_cpus.pss_head)) {
 		processor_cache_destroy();
-		chdir(cwd);
+		rc = chdir(cwd);
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "failed to chdir to '%s'", (char*)cwd);
 		return -ENODATA;
 	}
 
@@ -959,6 +973,8 @@ M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 {
 	return sched_getcpu();
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of processor group */
 

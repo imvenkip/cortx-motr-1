@@ -162,7 +162,8 @@ static void stob_dev_fini(const struct stobio_test *test)
 	if(strcmp(test->st_dev_path, test_blkdev))
 		return;
 
-	system("sleep 1");
+	result = system("sleep 1");
+	M0_UT_ASSERT(result == 0);
 	sprintf(sysbuf, "losetup -d %s", test->st_dev_path);
 	result = system(sysbuf);
 	M0_UT_ASSERT(result == 0);

@@ -62,12 +62,13 @@ static int make_tmpdir(struct m0_mgmt_ctl_ctx *ctx)
 static void unlink_tmpdir(struct m0_mgmt_ctl_ctx *ctx)
 {
 	char cmd[64];
+	int  rc;
 
 	if (ctx->mcc_tmpdir[0] == '\0')
 		return;
 	M0_ASSERT(strcmp(ctx->mcc_tmpdir, "/") != 0);
 	sprintf(cmd, "/bin/rm -rf %s", ctx->mcc_tmpdir);
-	system(cmd);
+	rc = system(cmd);
 }
 
 /**
