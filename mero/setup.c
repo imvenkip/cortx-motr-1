@@ -44,6 +44,7 @@
 #include "mero/setup.h"
 #include "mero/setup_internal.h"
 #include "mero/magic.h"
+#include "mero/version.h"
 #include "rpc/rpclib.h"
 #include "rpc/rpc_internal.h"
 
@@ -1994,7 +1995,14 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 					if (rc == 0)
 						M0_CNT_INC(
 							  rctx->rc_nr_services);
-				})));
+				})),
+			M0_VOIDARG('v', "Print version and exit",
+				LAMBDA(void, (void)
+				{
+					m0_build_info_print();
+					rc = 1;
+				})),
+			);
 #undef _RETURN_EINVAL_UNLESS
 
 	M0_RETURN(result ?: rc);

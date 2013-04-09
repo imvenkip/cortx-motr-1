@@ -20,8 +20,10 @@
 
 #include <linux/module.h>
 #include <linux/init.h>
+
 #include "lib/list.h"
 #include "mero/init.h"
+#include "mero/version.h"
 
 MODULE_AUTHOR("Xyratex International");
 MODULE_DESCRIPTION("Mero Library");
@@ -31,6 +33,7 @@ MODULE_LICENSE("GPL");
 M0_INTERNAL int init_module(void)
 {
         printk("Mero init\n");
+	m0_build_info_print();
 	return m0_init();
 }
 

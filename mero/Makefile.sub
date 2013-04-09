@@ -1,10 +1,13 @@
 nobase_mero_include_HEADERS += mero/init.h  \
                                mero/setup.h \
-                               mero/magic.h
+                               mero/magic.h \
+                               mero/version.h \
+                               mero/version_macros.h
 
 mero_libmero_la_SOURCES += mero/init.c  \
                            mero/setup.c \
-                           mero/conf.c
+                           mero/conf.c \
+                           mero/version.c
 
 mero_m0d_SOURCES = mero/m0d.c \
                    mero/setup_internal.h

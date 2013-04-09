@@ -28,6 +28,7 @@
 
 #include "mero/setup.h"
 #include "mero/init.h"
+#include "mero/version.h"
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 
@@ -75,8 +76,13 @@ static void cs_wait_for_termination(void)
 
 M0_INTERNAL int main(int argc, char **argv)
 {
-	int               rc;
+	int            rc;
 	struct m0_mero mero_ctx;
+
+	if (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0) {
+		m0_build_info_print();
+		exit(EXIT_SUCCESS);
+	}
 
 	errno = 0;
 	M0_SET0(&mero_ctx);
