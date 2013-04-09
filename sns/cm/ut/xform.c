@@ -181,6 +181,20 @@ static struct m0_fom_ops multiple_cp_fom_ops = {
 	.fo_addb_init     = dummy_fom_addb_init
 };
 
+static void cp_buf_free(struct m0_sns_cm_ag *sag)
+{
+	struct m0_cm_cp      *acc_cp;
+	struct m0_net_buffer *nbuf;
+	int                   i;
+
+	for (i = 0; i < sag->sag_fnr; ++i) {
+		acc_cp = &sag->sag_fc[i].fc_tgt_acc_cp.sc_base;
+		m0_tl_for(cp_data_buf, &acc_cp->c_buffers, nbuf) {
+			m0_bufvec_free(&nbuf->nb_buffer);
+		} m0_tl_endfor;
+	}
+}
+
 /*
  * Test to check that single copy packet is treated as passthrough by the
  * transformation function.
@@ -192,7 +206,7 @@ static void test_single_cp(void)
 	s_sag.sag_fnr = 1;
 	s_sag.sag_base.cag_ops = &group_single_ops;
 	s_sag.sag_base.cag_cp_local_nr =
-			s_sag.sag_base.cag_ops->cago_local_cp_nr(&s_sag.sag_base);
+		s_sag.sag_base.cag_ops->cago_local_cp_nr(&s_sag.sag_base);
 	s_sag.sag_base.cag_cp_global_nr = s_sag.sag_base.cag_cp_local_nr +
 					  FAIL_NR;
 	s_acc_buf.nb_pool = &nbp;
@@ -222,6 +236,7 @@ static void test_single_cp(void)
 	M0_UT_ASSERT(s_sag.sag_base.cag_cp_local_nr == 1);
 	m0_semaphore_fini(&sem);
 	bv_free(&s_buf.nb_buffer);
+	cp_buf_free(&s_sag);
 }
 
 /*
@@ -269,6 +284,8 @@ static void test_multiple_cp(void)
 	m0_semaphore_fini(&sem);
 	for (i = 0; i < CP_MULTI; ++i)
 		bv_free(&m_buf[i].nb_buffer);
+
+	cp_buf_free(&m_sag);
 }
 
 /*
