@@ -134,16 +134,16 @@ alphabetic order).
 How to add a new Mero module?
 --------------------------------
 
-It's almost the same as adding a new internal library (see previous
-section), but instead of using new _HEADERS and _SOURCES
-library variables, one need to use the existing
-mero_libmero_la_{SOURCES,HEADERS} variables in foo/Makefile.sub:
+Set nobase_mero_include_HEADERS and mero_libmero_la_SOURCES variables
+in foo/Makefile.sub:
+
+    nobase_mero_include_HEADERS += foo/foo.h
 
     mero_libmero_la_SOURCES += foo/foo.c
 
-And include this foo/Makefile.sub into the top-levevl Makefile.am
-in appropriate place in alphabetic order (search where other
-makefiles, which are part of libmero.la library, are included).
+Include foo/Makefile.sub in the top-level Makefile.am in appropriate
+place in alphabetic order (search where other makefiles, which are
+part of libmero.la library, are included).
 
 How to add a new executable?
 ----------------------------
