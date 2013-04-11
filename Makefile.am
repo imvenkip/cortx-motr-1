@@ -161,13 +161,10 @@ mero_libmero_la_SOURCES  =
 
 include $(top_srcdir)/addb/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
-include $(top_srcdir)/m0t1fs/Makefile.sub
 include $(top_srcdir)/capa/Makefile.sub
 include $(top_srcdir)/cfg/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
 include $(top_srcdir)/cob/Makefile.sub
-include $(top_srcdir)/mero/Makefile.sub
-include $(top_srcdir)/mgmt/Makefile.sub
 include $(top_srcdir)/conf/Makefile.sub
 include $(top_srcdir)/conf/objs/Makefile.sub
 include $(top_srcdir)/console/Makefile.sub
@@ -180,8 +177,11 @@ include $(top_srcdir)/fop/Makefile.sub
 include $(top_srcdir)/ioservice/Makefile.sub
 include $(top_srcdir)/layout/Makefile.sub
 include $(top_srcdir)/lib/Makefile.sub
+include $(top_srcdir)/m0t1fs/Makefile.sub
 include $(top_srcdir)/mdservice/Makefile.sub
 include $(top_srcdir)/mdstore/Makefile.sub
+include $(top_srcdir)/mero/Makefile.sub
+include $(top_srcdir)/mgmt/Makefile.sub
 include $(top_srcdir)/mw/Makefile.sub
 include $(top_srcdir)/net/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/Makefile.sub
@@ -226,8 +226,8 @@ include $(top_srcdir)/layout/ut/Makefile.sub
 include $(top_srcdir)/lib/ut/Makefile.sub
 include $(top_srcdir)/mdservice/ut/Makefile.sub
 include $(top_srcdir)/mero/ut/Makefile.sub
-include $(top_srcdir)/mgmt/ut/Makefile.sub
 include $(top_srcdir)/mgmt/svc/ut/Makefile.sub
+include $(top_srcdir)/mgmt/ut/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/ut/Makefile.sub
 include $(top_srcdir)/net/lnet/ut/Makefile.sub
 include $(top_srcdir)/net/test/ut/Makefile.sub
