@@ -509,7 +509,7 @@ static void pargrp_iomap_test(void)
 	M0_UT_ASSERT(map.pi_ivec.iv_vec.v_nr == 4);
 
 	M0_UT_ASSERT(map.pi_ivec.iv_index[0] == 0);
-	M0_UT_ASSERT(map.pi_ivec.iv_vec.v_count[0] = 2 * PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(map.pi_ivec.iv_vec.v_count[0] == 2 * PAGE_CACHE_SIZE);
 	M0_UT_ASSERT(map.pi_databufs[0][0] != NULL);
 	M0_UT_ASSERT(map.pi_databufs[1][0] != NULL);
 

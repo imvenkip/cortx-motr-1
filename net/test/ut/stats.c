@@ -301,7 +301,7 @@ void m0_net_test_timestamp_ut(void)
 	M0_SET0(&ts1);
 	len = m0_net_test_timestamp_serialize(M0_NET_TEST_DESERIALIZE,
 					      &ts1, &bv, 0);
-	M0_UT_ASSERT(serialized_len = len);
+	M0_UT_ASSERT(serialized_len == len);
 	M0_UT_ASSERT(ts.ntt_time == ts1.ntt_time);
 	M0_UT_ASSERT(ts1.ntt_magic == ts.ntt_magic);
 	M0_UT_ASSERT(ts1.ntt_seq == ts.ntt_seq);
