@@ -3980,6 +3980,7 @@ const struct file_operations m0t1fs_reg_file_operations = {
 	.aio_write = file_aio_write,
 	.read	   = do_sync_read,
 	.write	   = do_sync_write,
+	.fsync     = simple_fsync,  /* XXX: just to prevent -EINVAL */
 };
 
 static int io_fops_async_submit(struct m0_io_fop      *iofop,
