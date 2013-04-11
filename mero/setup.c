@@ -20,6 +20,7 @@
 
 #include <stdio.h>     /* fprintf */
 #include <sys/stat.h>  /* mkdir */
+#include <unistd.h>    /* daemon */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0D
 #include "lib/trace.h"
@@ -1604,6 +1605,7 @@ static void cs_help(FILE *out)
 "  -i addr  Add new entry to the list of ioservice endpoint addresses.\n"
 "  -f path  Path to genders file, defaults to /etc/mero/genders.\n"
 "  -g       Bootstrap configuration using genders.\n"
+"  -Z       Run as a daemon.\n"
 "\n"
 "Request handler options:\n"
 "  -r   Start new set of request handler options.\n"
@@ -1748,6 +1750,30 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 }
 
 /**
+   Causes the process to run as a daemon if appropriate context flag is set.
+   This involves forking, detaching from the keyboard if any, and ensuring
+   SIGHUP will not affect the process.
+   @note Must be called before any long-lived threads are created (i.e. at the
+   time of calling, only the main thread should exist, although it is acceptable
+   if threads are created and destroyed before going into daemon mode).  There
+   is no Linux API to enforce this requirement.
+   @note A trace log file opened before this function is called has a different
+   process ID in the name than the process that continues to write to the file.
+ */
+static int cs_daemonize(struct m0_mero *cctx)
+{
+	int rc = 0;
+	struct sigaction hup_act = {
+		.sa_handler = SIG_IGN,
+	};
+
+	if (cctx->cc_daemon)
+		rc = daemon(1 /* nochdir */, 0 /* redirect stdio */) ?:
+		    sigaction(SIGHUP, &hup_act, NULL);
+	return rc;
+}
+
+/**
    Parses a service string of the following forms:
    - service-type
    - service-type:uuid-str
@@ -1884,6 +1910,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 					M0_ASSERT(genders != NULL);
 					*genders = s;
 				})),
+			M0_FLAGARG('Z', "Run as a daemon", &cctx->cc_daemon),
 
 			/* -------------------------------------------
 			 * Request handler options
@@ -2016,6 +2043,7 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 		M0_RETERR(-EPROTO, "genders use conflicts with confd profile");
 	if (use_genders) {
 		struct cs_args *args = &cctx->cc_args;
+		bool global_daemonize = cctx->cc_daemon;
 
 		rc = cs_genders_to_args(args, argv[0], genders);
 		if (rc != 0)
@@ -2023,6 +2051,7 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 
 		rc = _args_parse(cctx, args->ca_argc, args->ca_argv,
 				 NULL, NULL, NULL, &use_genders);
+		cctx->cc_daemon |= global_daemonize;
 	}
 	if ((confd_addr == NULL) != (profile == NULL))
 		M0_RETERR(-EPROTO, "%s is not specified",
@@ -2055,6 +2084,7 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 	m0_rwlock_write_lock(&cctx->cc_rwlock);
 	rc = cs_args_parse(cctx, argc, argv) ?:
 		reqh_ctxs_are_valid(cctx) ?:
+		cs_daemonize(cctx) ?:
 		cs_net_domains_init(cctx) ?:
 		cs_buffer_pool_setup(cctx) ?:
 		cs_request_handlers_start(cctx) ?:

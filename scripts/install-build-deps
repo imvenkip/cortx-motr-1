@@ -35,6 +35,7 @@ declare -rA RPM_PACKAGE=(
     [yaml-dev]='libyaml-devel'
     [lustre]='lustre-source'
     [asciidoc]='asciidoc'
+    [genders]='genders'
 )
 
 declare -rA DEB_PACKAGE=(
@@ -61,6 +62,7 @@ declare -rA DEB_PACKAGE=(
     [yaml-dev]='libyaml-dev'
     [lustre]='lustre-source'
     [asciidoc]='asciidoc'
+    [genders]='genders'
 )
 
 # variables

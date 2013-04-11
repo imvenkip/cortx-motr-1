@@ -12,8 +12,8 @@ Source:         %{name}-%{version}.tar.gz
 BuildArch:      x86_64
 ExcludeArch:    i686
 # TODO: specify exact lustre-modules version for which we build
-Requires:       lustre-modules db4 libyaml
-BuildRequires:  automake autoconf libtool make gcc gcc-c++ gccxml glibc-headers kernel-devel db4-devel libyaml-devel libaio-devel perl perl-XML-LibXML perl-List-MoreUtils perl-File-Find-Rule perl-IO-All lustre-source
+Requires:       lustre-modules db4 libyaml genders sysvinit-tools
+BuildRequires:  automake autoconf libtool make gcc gcc-c++ gccxml glibc-headers kernel-devel asciidoc db4-devel libyaml-devel libaio-devel perl perl-XML-LibXML perl-List-MoreUtils perl-File-Find-Rule perl-IO-All lustre-source
 
 %description
 Mero filesystem runtime environment and servers.
@@ -35,6 +35,7 @@ find %{buildroot} -name '*.la' -exec rm -f {} ';'
 %{_bindir}/*
 %{_sbindir}/*
 %{_libdir}/*
+%{_sysconfdir}/*
 %{_mandir}/*
 /lib/modules/*
 %exclude %{_includedir}
@@ -43,3 +44,5 @@ find %{buildroot} -name '*.la' -exec rm -f {} ';'
 /sbin/depmod -a
 
 %postun
+/sbin/depmod -a
+

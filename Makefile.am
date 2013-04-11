@@ -616,6 +616,12 @@ mgmt_ctl_m0ctl_LDADD        = $(top_builddir)/mero/libmero.la
 
 include $(top_srcdir)/mgmt/ctl/Makefile.sub
 
+################################################################################
+#                        Init scripts and config files
+################################################################################
+
+initddir = $(sysconfdir)/rc.d/init.d
+initd_SCRIPTS = mero/mero
 
 ################################################################################
 #                                     Misc

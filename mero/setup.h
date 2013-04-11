@@ -261,6 +261,9 @@ struct m0_mero {
 	/** Pool width */
 	uint32_t                    cc_pool_width;
 
+	/** Run as a daemon */
+	bool                        cc_daemon;
+
 	/** command line arguments */
 	struct cs_args		    cc_args;
 };
