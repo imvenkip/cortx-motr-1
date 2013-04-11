@@ -32,23 +32,24 @@ static struct mgmt_svc_ut_svc *mgmt_svc_ut_fake_svc;
 
 static int mgmt_svc_ut_svc_rso_start(struct m0_reqh_service *service)
 {
-	M0_UT_ASSERT(service->rs_state == M0_RST_STARTING);
+	M0_UT_ASSERT(m0_reqh_service_state_get(service) == M0_RST_STARTING);
 	return 0;
 }
 
 static void mgmt_svc_ut_svc_rso_prepare_to_stop(struct m0_reqh_service *service)
 {
-	M0_UT_ASSERT(service->rs_state == M0_RST_STARTED);
+	M0_UT_ASSERT(m0_reqh_service_state_get(service) == M0_RST_STARTED);
 }
 
 static void mgmt_svc_ut_svc_rso_stop(struct m0_reqh_service *service)
 {
-	M0_UT_ASSERT(service->rs_state == M0_RST_STOPPING);
+	M0_UT_ASSERT(m0_reqh_service_state_get(service) == M0_RST_STOPPING);
 }
 
 static void mgmt_svc_ut_svc_rso_fini(struct m0_reqh_service *service)
 {
-	M0_UT_ASSERT(M0_IN(service->rs_state, (M0_RST_STOPPED, M0_RST_FAILED)));
+	M0_UT_ASSERT(M0_IN(m0_reqh_service_state_get(service),
+	                   (M0_RST_STOPPED, M0_RST_FAILED)));
 	m0_free(service);
 	mgmt_svc_ut_fake_svc = NULL;
 }
@@ -57,8 +58,8 @@ static int mgmt_svc_ut_svc_rso_fop_accept_rc;
 static int mgmt_svc_ut_svc_rso_fop_accept(struct m0_reqh_service *service,
 					  struct m0_fop *fop)
 {
-	M0_UT_ASSERT(service->rs_state == M0_RST_STOPPING ||
-		     service->rs_state == M0_RST_STARTED);
+	M0_UT_ASSERT(M0_IN(m0_reqh_service_state_get(service),
+	                   (M0_RST_STOPPING, M0_RST_STARTED)));
 	M0_UT_ASSERT(m0_reqh_state_get(service->rs_reqh) == M0_REQH_ST_NORMAL ||
 		     m0_reqh_state_get(service->rs_reqh) == M0_REQH_ST_DRAIN);
 	return mgmt_svc_ut_svc_rso_fop_accept_rc;

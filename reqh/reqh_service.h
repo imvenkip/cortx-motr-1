@@ -28,6 +28,7 @@
 #include "lib/bob.h"
 #include "lib/mutex.h"
 #include "lib/types.h"
+#include "sm/sm.h"
 #include "addb/addb.h"
 
 struct m0_fop;
@@ -222,11 +223,11 @@ struct m0_reqh_service {
 	struct m0_reqh_service_type      *rs_type;
 
 	/**
-	   Current state of a service.
+	   Service state machine.
 
 	   @see m0_reqh_service_state
 	 */
-	enum m0_reqh_service_state        rs_state;
+	struct m0_sm                      rs_sm;
 
 	/**
 	   Protects service state transitions.
@@ -458,8 +459,8 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service);
    Transitions the service to the M0_RST_STOPPING state and invoke its
    rso_prepare_to_stop() method if it is defined.
    @pre service != NULL
-   @pre service->rs_state == M0_RST_STARTED
-   @post service->rs_state == M0_RST_STOPPING
+   @pre m0_reqh_service_state_get(service) == M0_RST_STARTED
+   @post m0_reqh_service_state_get(service) == M0_RST_STOPPING
  */
 M0_INTERNAL void m0_reqh_service_prepare_to_stop(struct m0_reqh_service
 						 *service);
@@ -490,7 +491,7 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service);
    @param uuid Pointer to service UUID or NULL if not known.
 
    @pre service != NULL && reqh != NULL &&
-        service->rs_state == M0_RST_INITIALISING
+        service->rs_sm.sm_state == M0_RST_INITIALISING
 
    @see struct m0_reqh_service_type_ops
    @see cs_service_init()
@@ -505,7 +506,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 
    @param service Service to be finalised
 
-   @pre service != NULL && service->rs_state == M0_RST_STOPPED
+   @pre service != NULL
 
    @see struct m0_reqh_service_ops
    @see m0_reqh_services_terminate()
@@ -567,6 +568,7 @@ m0_reqh_service_find(const struct m0_reqh_service_type *st,
 M0_INTERNAL int m0_reqh_service_types_length(void);
 M0_INTERNAL bool m0_reqh_service_is_registered(const char *sname);
 M0_INTERNAL void m0_reqh_service_list_print(void);
+M0_INTERNAL int m0_reqh_service_state_get(const struct m0_reqh_service *s);
 
 /** @} endgroup reqhservice */
 

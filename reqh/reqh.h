@@ -100,7 +100,8 @@ struct m0_reqh {
 	struct m0_sm             rh_sm;
 
 	/**
-	   State machine group
+	   State machine group.
+	   Services state machines (->rs_sm) belongs to this group also.
 	   @todo Replace rh_mutex and rh_sd_signal
 	 */
 	struct m0_sm_group       rh_sm_grp;
@@ -130,7 +131,7 @@ struct m0_reqh {
 	struct m0_reqh_service  *rh_mgmt_svc;
 
         /**
-	    RPC machines running in this request handler
+	    RPC machines running in this request handler.
 	    There is one rpc machine per request handler
 	    end point.
 

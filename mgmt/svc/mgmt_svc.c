@@ -318,19 +318,19 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
        return -ECONNREFUSED;
    }
    if (reqh state is NORMAL) {
-       if (svc->rs_state == M0_RST_STARTED)
+       if (m0_reqh_service_state_get(svc) == M0_RST_STARTED)
           return 0; // case A
-       if (svc->rs_state == M0_RST_STOPPING) {
+       if (m0_reqh_service_state_get(svc) == M0_RST_STOPPING) {
           if (svc->rs_ops->rso_fop_accept != NULL)
              return (*svc->rs_ops->rso_fop_accept)(svc, fop); // case B
 	  return -ESHUTDOWN;
-       } else if (svc->rs_state == M0_RST_STARTING)
+       } else if (m0_reqh_service_state_get(svc) == M0_RST_STARTING)
              return -EBUSY;  // case C
        return -ESHUTDOWN;
    } else if (reqh state is DRAIN) {
        if (svc->rs_ops->rso_fop_accept != NULL &&
-           (svc->rs_state == M0_RST_STARTED ||
-	    svc->rs_state == M0_RST_STOPPING))
+           (M0_IN(m0_reqh_service_state_get(svc), (M0_RST_STARTED,
+                                                   M0_RST_STOPPING)))
 	   return (*svc->rs_ops->rso_fop_accept)(svc, fop); // case D
        return -ESHUTDOWN;
    } else if (reqh state is MGMT_STARTED or SVCS_STOP &&
@@ -562,7 +562,7 @@ static int mgmt_svc_rso_start(struct m0_reqh_service *service)
 	struct m0_reqh  *reqh;
 
 	M0_LOG(M0_DEBUG, "starting");
-	M0_PRE(service->rs_state == M0_RST_STARTING);
+	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTING);
 
 	svc = bob_of(service, struct mgmt_svc, ms_reqhs, &mgmt_svc_bob);
 
@@ -590,7 +590,7 @@ static void mgmt_svc_rso_prepare_to_stop(struct m0_reqh_service *service)
 	struct mgmt_svc *svc;
 
 	M0_LOG(M0_DEBUG, "preparing to stop");
-	M0_PRE(service->rs_state == M0_RST_STARTED);
+	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTED);
 	svc = bob_of(service, struct mgmt_svc, ms_reqhs, &mgmt_svc_bob);
 }
 
@@ -600,7 +600,7 @@ static void mgmt_svc_rso_prepare_to_stop(struct m0_reqh_service *service)
 static void mgmt_svc_rso_stop(struct m0_reqh_service *service)
 {
 	M0_LOG(M0_DEBUG, "stopping");
-	M0_PRE(service->rs_state == M0_RST_STOPPING);
+	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STOPPING);
 }
 
 /**
@@ -611,7 +611,8 @@ static void mgmt_svc_rso_fini(struct m0_reqh_service *service)
 	struct mgmt_svc *svc;
 
 	M0_LOG(M0_DEBUG, "done");
-	M0_PRE(M0_IN(service->rs_state, (M0_RST_STOPPED, M0_RST_FAILED)));
+	M0_PRE(M0_IN(m0_reqh_service_state_get(service), (M0_RST_STOPPED,
+	                                                  M0_RST_FAILED)));
 
 	svc = bob_of(service, struct mgmt_svc, ms_reqhs, &mgmt_svc_bob);
 	mgmt_svc_bob_fini(svc);
@@ -628,7 +629,7 @@ static int mgmt_svc_rso_fop_accept(struct m0_reqh_service *service,
 	svc = bob_of(service, struct mgmt_svc, ms_reqhs, &mgmt_svc_bob);
 	M0_PRE(fop != NULL);
 
-	if (service->rs_state != M0_RST_STARTED)
+	if (m0_reqh_service_state_get(service) != M0_RST_STARTED)
 		M0_RETURN(-ESHUTDOWN);
 
 	if (fop->f_type == &m0_fop_mgmt_service_state_req_fopt)

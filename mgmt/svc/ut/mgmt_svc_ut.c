@@ -192,7 +192,7 @@ static void test_reqh_fop_allow(void)
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_called == 0);
 	rfp_cnt = 0;
 	M0_UT_ASSERT(mgmt_svc != NULL);
-	M0_UT_ASSERT(mgmt_svc->rs_state == M0_RST_STARTED);
+	M0_UT_ASSERT(m0_reqh_service_state_get(mgmt_svc) == M0_RST_STARTED);
 
 	M0_UT_ASSERT(m0_reqh_fop_allow(rh, ss_fop) == 0);
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_called == ++rfp_cnt);
@@ -225,8 +225,8 @@ static void test_reqh_fop_allow(void)
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_called == ++rfp_cnt);
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_rc == 0);
 
-	M0_UT_ASSERT(mgmt_svc_ut_fake_svc->msus_reqhs.rs_state
-		     == M0_RST_STOPPING);
+	M0_UT_ASSERT(m0_reqh_service_state_get(&mgmt_svc_ut_fake_svc->msus_reqhs
+	                                      ) == M0_RST_STOPPING);
 	M0_UT_ASSERT(mgmt_svc_ut_svc_ops.rso_fop_accept != NULL); /* has mthd */
 	mgmt_svc_ut_svc_rso_fop_accept_rc = -ESHUTDOWN;
 	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == -ESHUTDOWN); /* blocked */
@@ -240,7 +240,7 @@ static void test_reqh_fop_allow(void)
 	   the management service's rso_fop_accept method works in this state.
 	 */
 	rh->rh_sm.sm_state = M0_REQH_ST_SVCS_STOP; /* HACK */
-	M0_UT_ASSERT(mgmt_svc->rs_state == M0_RST_STARTED);
+	M0_UT_ASSERT(m0_reqh_service_state_get(mgmt_svc) == M0_RST_STARTED);
 	M0_UT_ASSERT(m0_reqh_fop_allow(rh, ss_fop) == 0);
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_called == ++rfp_cnt);
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_rc == 0);

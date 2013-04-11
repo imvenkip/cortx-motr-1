@@ -101,7 +101,7 @@ static int addb_svc_rso_start(struct m0_reqh_service *service)
 	struct addb_svc *svc;
 
 	M0_LOG(M0_DEBUG, "starting");
-	M0_PRE(service->rs_state == M0_RST_STARTING);
+	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTING);
 	svc = bob_of(service, struct addb_svc, as_reqhs, &addb_svc_bob);
 	if (addb_svc_start_pfom)
 		addb_pfom_start(svc);
@@ -117,7 +117,7 @@ static void addb_svc_rso_prepare_to_stop(struct m0_reqh_service *service)
 	struct addb_svc *svc;
 
 	M0_LOG(M0_DEBUG, "preparing to stop");
-	M0_PRE(service->rs_state == M0_RST_STARTED);
+	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTED);
 	svc = bob_of(service, struct addb_svc, as_reqhs, &addb_svc_bob);
 	if (addb_svc_start_pfom)
 		addb_pfom_stop(svc);
@@ -129,7 +129,7 @@ static void addb_svc_rso_prepare_to_stop(struct m0_reqh_service *service)
 static void addb_svc_rso_stop(struct m0_reqh_service *service)
 {
 	M0_LOG(M0_DEBUG, "stopping");
-	M0_PRE(service->rs_state == M0_RST_STOPPING);
+	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STOPPING);
 }
 
 /**
@@ -140,7 +140,8 @@ static void addb_svc_rso_fini(struct m0_reqh_service *service)
 	struct addb_svc *svc;
 
 	M0_LOG(M0_DEBUG, "done");
-	M0_PRE(M0_IN(service->rs_state, (M0_RST_STOPPED, M0_RST_FAILED)));
+	M0_PRE(M0_IN(m0_reqh_service_state_get(service), (M0_RST_STOPPED,
+	                                                  M0_RST_FAILED)));
 	svc = bob_of(service, struct addb_svc, as_reqhs, &addb_svc_bob);
 	m0_cond_fini(&svc->as_cond);
 	addb_svc_bob_fini(svc);

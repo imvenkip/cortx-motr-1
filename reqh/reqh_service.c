@@ -58,17 +58,55 @@ M0_TL_DEFINE(rstypes, static, struct m0_reqh_service_type);
 static struct m0_bob_type rstypes_bob;
 M0_BOB_DEFINE(static, &rstypes_bob, m0_reqh_service_type);
 
+static struct m0_sm_state_descr service_states[] = {
+	[M0_RST_INITIALISING] = {
+		.sd_flags     = M0_SDF_INITIAL,
+		.sd_name      = "Initializing",
+		.sd_allowed   = M0_BITS(M0_RST_INITIALISED)
+	},
+	[M0_RST_INITIALISED] = {
+		.sd_name      = "Initialized",
+		.sd_allowed   = M0_BITS(M0_RST_STARTING)
+	},
+	[M0_RST_STARTING] = {
+		.sd_name      = "Starting",
+		.sd_allowed   = M0_BITS(M0_RST_STARTED, M0_RST_FAILED)
+	},
+	[M0_RST_STARTED] = {
+		.sd_name      = "Started",
+		.sd_allowed   = M0_BITS(M0_RST_STOPPING)
+	},
+	[M0_RST_STOPPING] = {
+		.sd_name      = "Stopping",
+		.sd_allowed   = M0_BITS(M0_RST_STOPPED)
+	},
+	[M0_RST_STOPPED] = {
+		.sd_flags     = M0_SDF_TERMINAL,
+		.sd_name      = "Stopped",
+	},
+	[M0_RST_FAILED] = {
+		.sd_flags     = M0_SDF_TERMINAL,
+		.sd_name      = "Failed",
+	},
+};
+
+struct m0_sm_conf service_states_conf = {
+	.scf_name      = "Service states",
+	.scf_nr_states = ARRAY_SIZE(service_states),
+	.scf_state     = service_states
+};
+
 M0_INTERNAL bool m0_reqh_service_invariant(const struct m0_reqh_service *svc)
 {
 	return m0_reqh_service_bob_check(svc) &&
-	M0_IN(svc->rs_state, (M0_RST_INITIALISING, M0_RST_INITIALISED,
-				M0_RST_STARTING, M0_RST_STARTED,
-				M0_RST_STOPPING)) &&
+	M0_IN(svc->rs_sm.sm_state, (M0_RST_INITIALISING, M0_RST_INITIALISED,
+				    M0_RST_STARTING, M0_RST_STARTED,
+				    M0_RST_STOPPING)) &&
 	svc->rs_type != NULL && svc->rs_ops != NULL &&
-	ergo(M0_IN(svc->rs_state, (M0_RST_INITIALISED, M0_RST_STARTING,
-				   M0_RST_STARTED, M0_RST_STOPPING)),
+	ergo(M0_IN(svc->rs_sm.sm_state, (M0_RST_INITIALISED, M0_RST_STARTING,
+					 M0_RST_STARTED, M0_RST_STOPPING)),
 	     svc->rs_uuid != 0 && svc->rs_reqh != NULL) &&
-	ergo(M0_IN(svc->rs_state, (M0_RST_STARTED, M0_RST_STOPPING)),
+	ergo(M0_IN(svc->rs_sm.sm_state, (M0_RST_STARTED, M0_RST_STOPPING)),
 	     m0_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc) ||
 	     svc->rs_reqh->rh_mgmt_svc == svc);
 }
@@ -110,6 +148,14 @@ M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **service,
 	return rc;
 }
 
+static void reqh_service_state_set(struct m0_reqh_service *service,
+                                   enum m0_reqh_service_state state)
+{
+	m0_sm_group_lock(&service->rs_reqh->rh_sm_grp);
+	m0_sm_state_set(&service->rs_sm, state);
+	m0_sm_group_unlock(&service->rs_reqh->rh_sm_grp);
+}
+
 M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 {
 	int             rc;
@@ -119,7 +165,7 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 	M0_PRE(m0_reqh_service_invariant(service));
 
 	reqh = service->rs_reqh;
-	service->rs_state = M0_RST_STARTING;
+	reqh_service_state_set(service, M0_RST_STARTING);
 
 	/**
 	 * NOTE: The key is required to be set before 'rso_start'
@@ -139,12 +185,12 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 	if (rc == 0) {
 		if (service != reqh->rh_mgmt_svc)
 			m0_reqh_svc_tlist_add_tail(&reqh->rh_services, service);
-		service->rs_state = M0_RST_STARTED;
+		reqh_service_state_set(service, M0_RST_STARTED);
 		M0_ASSERT(m0_reqh_service_invariant(service));
         } else {
 		M0_ASSERT(m0_reqh_lockers_get(reqh, key) == service);
 		m0_reqh_lockers_clear(reqh, key);
-		service->rs_state = M0_RST_FAILED;
+		reqh_service_state_set(service, M0_RST_FAILED);
 	}
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
@@ -155,11 +201,11 @@ M0_INTERNAL void
 m0_reqh_service_prepare_to_stop(struct m0_reqh_service *service)
 {
 	M0_PRE(m0_reqh_service_invariant(service));
-	M0_PRE(service->rs_state == M0_RST_STARTED);
+	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTED);
 
 	if (service->rs_ops->rso_prepare_to_stop != NULL)
 		service->rs_ops->rso_prepare_to_stop(service);
-	service->rs_state = M0_RST_STOPPING;
+	reqh_service_state_set(service, M0_RST_STOPPING);
 }
 
 M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
@@ -168,9 +214,10 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	unsigned        key;
 
 	M0_ASSERT(m0_reqh_service_invariant(service));
-	M0_ASSERT(M0_IN(service->rs_state, (M0_RST_STARTED, M0_RST_STOPPING)));
+	M0_ASSERT(M0_IN(service->rs_sm.sm_state, (M0_RST_STARTED,
+	                                          M0_RST_STOPPING)));
 
-	if (service->rs_state != M0_RST_STOPPING)
+	if (service->rs_sm.sm_state != M0_RST_STOPPING)
 		m0_reqh_service_prepare_to_stop(service);
 
 	reqh = service->rs_reqh;
@@ -178,7 +225,7 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	if (service != reqh->rh_mgmt_svc)
 		m0_reqh_svc_tlist_del(service);
-	service->rs_state = M0_RST_STOPPED;
+	reqh_service_state_set(service, M0_RST_STOPPED);
 	key = service->rs_type->rst_key;
 	M0_ASSERT(m0_reqh_lockers_get(reqh, key) == service);
 	m0_reqh_lockers_clear(reqh, key);
@@ -192,7 +239,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 	struct m0_addb_ctx_type *serv_addb_ct;
 
 	M0_PRE(service != NULL && reqh != NULL &&
-		service->rs_state == M0_RST_INITIALISING);
+		service->rs_sm.sm_state == M0_RST_INITIALISING);
 
 	serv_addb_ct = service->rs_type->rst_addb_ct;
 	M0_ASSERT(m0_addb_ctx_type_lookup(serv_addb_ct->act_id) != NULL);
@@ -203,13 +250,17 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 	 */
 	M0_ASSERT(serv_addb_ct->act_cf_nr == 2);
 
+	m0_sm_init(&service->rs_sm, &service_states_conf, M0_RST_INITIALISING,
+	           &reqh->rh_sm_grp);
+
 	if (uuid != NULL)
 		service->rs_service_uuid = *uuid;
 	service->rs_uuid = m0_uuid_generate();
-	service->rs_state = M0_RST_INITIALISED;
-	service->rs_reqh  = reqh;
+	service->rs_reqh = reqh;
 	m0_reqh_svc_tlink_init(service);
 	m0_mutex_init(&service->rs_mutex);
+
+	reqh_service_state_set(service, M0_RST_INITIALISED);
 
 	/** @todo: Need to pass the service uuid "hi" & "low"
 	   once available
@@ -230,14 +281,15 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 
 M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service)
 {
-	M0_PRE(service != NULL && (service->rs_state == M0_RST_STOPPED ||
-		service->rs_state == M0_RST_FAILED) &&
-		m0_reqh_service_bob_check(service));
+	M0_PRE(service != NULL && m0_reqh_service_bob_check(service));
 
 	m0_addb_ctx_fini(&service->rs_addb_ctx);
 	m0_reqh_service_bob_fini(service);
 	m0_reqh_svc_tlink_fini(service);
 	m0_mutex_fini(&service->rs_mutex);
+	m0_sm_group_lock(&service->rs_reqh->rh_sm_grp);
+	m0_sm_fini(&service->rs_sm);
+	m0_sm_group_unlock(&service->rs_reqh->rh_sm_grp);
 	service->rs_ops->rso_fini(service);
 }
 
@@ -314,6 +366,11 @@ m0_reqh_service_find(const struct m0_reqh_service_type *st,
 	return m0_reqh_lockers_get(reqh, st->rst_key);
 }
 M0_EXPORTED(m0_reqh_service_find);
+
+M0_INTERNAL int m0_reqh_service_state_get(const struct m0_reqh_service *s)
+{
+	return s->rs_sm.sm_state;
+}
 
 #undef M0_TRACE_SUBSYSTEM
 

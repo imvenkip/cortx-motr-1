@@ -134,7 +134,7 @@ static int cm_ut_service_allocate(struct m0_reqh_service **service,
 
 	*service = &cm->cm_service;
 	(*service)->rs_ops = &cm_ut_service_ops;
-	(*service)->rs_state = M0_RST_INITIALISING;
+	(*service)->rs_sm.sm_state = M0_RST_INITIALISING;
 
 	return m0_cm_init(cm, container_of(stype, struct m0_cm_type, ct_stype),
 			  &cm_ut_ops);

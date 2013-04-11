@@ -93,7 +93,8 @@ static void mgmt_fop_ssr_fill(struct m0_fom *fom,
 		    svc->rs_service_uuid.u_lo == 0)
 			continue;
 		ssrfop->msr_ss.msss_state[i].mss_uuid = svc->rs_service_uuid;
-		ssrfop->msr_ss.msss_state[i].mss_state = svc->rs_state;
+		ssrfop->msr_ss.msss_state[i].mss_state =
+			m0_reqh_service_state_get(svc);
 		++i;
 	} m0_tl_endfor;
 	ssrfop->msr_ss.msss_nr = i;
