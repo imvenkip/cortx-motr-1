@@ -139,7 +139,12 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 	cm = pump2cm(cp_pump);
 	M0_ASSERT(cp != NULL);
 	m0_cm_lock(cm);
+
+	/* This operation might block. */
+	m0_fom_block_enter(&cp_pump->p_fom);
 	rc = m0_cm_data_next(cm, cp);
+	m0_fom_block_leave(&cp_pump->p_fom);
+
 	if (rc < 0) {
 		if (rc == -ENOBUFS || rc == -ENODATA) {
 			if (rc == -ENODATA) {

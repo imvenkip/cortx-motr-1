@@ -58,14 +58,6 @@ EP=(
     12345:33:104
 )
 
-# list of client endpoints to mdservice
-EPC2M=(
-    12345:33:201
-    12345:33:202
-    12345:33:203
-    12345:33:204
-)
-
 SNS_CLI_EP="12345:33:301"
 
 unload_kernel_module()

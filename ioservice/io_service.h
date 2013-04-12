@@ -55,6 +55,8 @@
 #include "cob/cob.h"
 #include "layout/layout.h"
 #include "ioservice/io_service_addb.h"
+#include "rpc/conn.h"
+#include "rpc/session.h"
 
 M0_INTERNAL int m0_ios_register(void);
 M0_INTERNAL void m0_ios_unregister(void);
@@ -119,11 +121,16 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 
 M0_INTERNAL void m0_ios_cdom_fini(struct m0_reqh *reqh);
 
-M0_INTERNAL int m0_ios_mds_rpc_ctx_init(struct m0_reqh_service *service);
-M0_INTERNAL struct m0_rpc_client_ctx
-*m0_ios_mds_rpc_ctx_get(struct m0_reqh *reqh);
+struct m0_ios_mds_conn {
+	struct m0_rpc_conn    imc_conn;
+	struct m0_rpc_session imc_session;
+	bool                  imc_connected;
+};
 
-M0_INTERNAL void m0_ios_mds_rpc_ctx_fini(struct m0_reqh_service *service);
+M0_INTERNAL int m0_ios_mds_conn_get(struct m0_reqh *reqh,
+				    struct m0_ios_mds_conn **out_conn);
+
+M0_INTERNAL void m0_ios_mds_conn_fini(struct m0_reqh *reqh);
 
 M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 				   const struct m0_fid *gfid,

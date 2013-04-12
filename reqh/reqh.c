@@ -145,7 +145,6 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 	reqh->rh_svc             = reqh_args->rhia_svc;
 	reqh->rh_mdstore         = reqh_args->rhia_mdstore;
 	reqh->rh_fol             = reqh_args->rhia_fol;
-	reqh->rh_shutdown        = false; /** @deprecated */
 
 	result = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
 	if (result != 0)
@@ -346,23 +345,12 @@ M0_INTERNAL void m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 
 	m0_rwlock_read_lock(&reqh->rh_rwlock);
 
-#if 0
 	rc = m0_reqh_fop_allow(reqh, fop);
 	if (rc != 0) {
 		REQH_ADDB_FUNCFAIL(rc, FOP_HANDLE_2, &reqh->rh_addb_ctx);
 		m0_rwlock_read_unlock(&reqh->rh_rwlock);
 		return;
 	}
-#else
-	/** @todo THIS IS A HACK - REMOVE ME ONCE I/O SERVICE -L is fixed */
-	rc = reqh->rh_shutdown;
-	if (rc != 0) {
-		REQH_ADDB_FUNCFAIL(-ESHUTDOWN, FOP_HANDLE_2,
-				   &reqh->rh_addb_ctx);
-		m0_rwlock_read_unlock(&reqh->rh_rwlock);
-		return;
-	}
-#endif
 
 	M0_ASSERT(fop->f_type != NULL);
 	M0_ASSERT(fop->f_type->ft_fom_type.ft_ops != NULL);
@@ -400,15 +388,11 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
 	struct m0_reqh_service *rpcservice = NULL;
 
 	M0_PRE(reqh != NULL);
-        m0_rwlock_write_lock(&reqh->rh_rwlock);
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	M0_PRE(m0_reqh_invariant(reqh));
-
-	reqh->rh_shutdown = true; /** @deprecated */
-
 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
 	reqh_state_set(reqh, M0_REQH_ST_DRAIN);
-
-        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
 		M0_ASSERT(m0_reqh_service_invariant(service));

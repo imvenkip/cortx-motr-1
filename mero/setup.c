@@ -1601,7 +1601,6 @@ static void cs_help(FILE *out)
 "  -C addr  Endpoint address of confd service.\n"
 "  -P str   Configuration profile.\n"
 "  -G addr  Endpoint address of mdservice.\n"
-"  -L addr  Client endpoint address to mdservice.\n"
 "  -i addr  Add new entry to the list of ioservice endpoint addresses.\n"
 "  -f path  Path to genders file, defaults to /etc/mero/genders.\n"
 "  -g       Bootstrap configuration using genders.\n"
@@ -1729,17 +1728,6 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 			}
 		}
 	} m0_tl_endfor;
-
-#if 0
-	/** @todo FIX ME */
-	if (cctx->cc_mds_epx.ex_endpoint == NULL)
-		M0_LOG(M0_WARN, "Missing mdservice endpoint.\n"
-				 "Use -G to provide a valid one");
-
-	if (cctx->cc_cli2mds_epx.ex_endpoint == NULL)
-		M0_LOG(M0_WARN, "Missing client to mdservice endpoint.\n"
-				 "Use -L to provide a valid one");
-#endif
 
 	if (cctx->cc_pool_width <= 0) {
 		M0_LOG(M0_ERROR, "Invalid pool width.\n"
@@ -1886,12 +1874,6 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 				{
 					rc = ep_and_xprt_extract(&cctx->
 								 cc_mds_epx, s);
-				})),
-			M0_STRINGARG('L',"client endpoint address to mdservice",
-				LAMBDA(void, (const char *s)
-				{
-					rc = ep_and_xprt_extract(&cctx->
-							 cc_cli2mds_epx, s);
 				})),
 			M0_STRINGARG('i', "ioservice endpoints list",
 				LAMBDA(void, (const char *s)

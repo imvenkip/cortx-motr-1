@@ -60,10 +60,16 @@ static void rpc_service_fini(struct m0_reqh_service *service)
 	m0_free(service);
 }
 
+static int rpc_service_fop_accept(struct m0_reqh_service *service,
+				  struct m0_fop *fop)
+{
+	return 0;
+}
 static const struct m0_reqh_service_ops rpc_ops = {
-	.rso_start = rpc_service_start,
-	.rso_stop = rpc_service_stop,
-	.rso_fini = rpc_service_fini
+	.rso_start      = rpc_service_start,
+	.rso_stop       = rpc_service_stop,
+	.rso_fini       = rpc_service_fini,
+	.rso_fop_accept = rpc_service_fop_accept
 };
 
 static int rpc_service_allocate(struct m0_reqh_service **service,

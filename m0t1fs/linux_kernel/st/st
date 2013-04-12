@@ -1,6 +1,5 @@
 #!/bin/bash
-set -e
-set -u
+set -eu
 
 ## CAUTION: This path will be removed by superuser.
 SANDBOX_DIR=${SANDBOX_DIR:-~devvm/_m0-sandbox}
@@ -117,7 +116,8 @@ services_start() {
 
   ("prof-ac", {1| ("fs-1")}),
   ("fs-1", {2| ((11, 22),
-                [12: "-r", "-p", "-T", "linux", "-D", "db", "-S", "stobs", "-A", "addb-stobs", "-w", "3"],
+                [12: "-r", "-p", "-T", "linux", "-D", "db", "-S", "stobs",
+                     "-A", "addb-stobs", "-w", "3"],
                 [1: "ios-1"])}),
   ("ios-1", {3| (2, [1: "lnet:$IOS1_ENDPOINT"], "node-1")}),
   ("node-1", {4| (163840, 0, 0, 16, 0, [0], [0])})]
@@ -150,7 +150,8 @@ EOF`"
 }
 
 services_stop() {
-    killall -q lt-m0d && sleep 5
+    killall -q lt-m0d && sleep 4
+    killall -q -KILL lt-m0d && sleep 1 || true
 }
 
 _mount() {
@@ -201,7 +202,6 @@ _init() {
 _fini() {
     services_stop
     sandbox_fini
-    lsmod | grep m0mero
     modules_remove
     exit ${1:-$?}
 }
@@ -257,32 +257,28 @@ for c in garbage premature_eof duplicated_ids no_fs_data bad_fs_params; do
     _mount local $c 2>/dev/null && error 'Failed to fail'
 done
 
-say "  Test: no network"
+say '  Test: no network'
 services_stop
 _mount net 2>/dev/null && error 'Failed to fail'
 
-say "  Test: no confd"
+say '  Test: no confd'
 services_start noconfd
 _mount net 2>/dev/null && error 'Failed to fail'
-##
-## m0d has aborted at this point, because the confc of m0t1fs has sent
-## unsupported request to m0d's endpoint.  As there is no confd service
-## registered at reqh to handle this request, reqh fails. So does m0d.
-##
-killall -q -0 lt-m0d && error 'm0d was expected to be dead'
 
+# Restart services in order for confd to appear.
+services_stop
 services_start
 
 ## -------------------------------------------------------------------
-say Suite: successes
+say 'Suite: successes'
 
 echo 8 >/proc/sys/kernel/printk  # Print kernel messages to the console.
 
-say "  Test: m0t1fs local_conf"
+say '  Test: m0t1fs local_conf'
 _mount local || _fini $?
 umount $SANDBOX_DIR/mnt
 
-say "  Test: m0t1fs confd"
+say '  Test: m0t1fs confd'
 _mount net || _fini $?
 umount $SANDBOX_DIR/mnt
 

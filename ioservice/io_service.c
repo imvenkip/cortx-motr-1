@@ -74,9 +74,9 @@ M0_INTERNAL unsigned poolmach_key;
 static unsigned ios_cdom_key;
 
 /**
- * Key for rpc_ctx to mds.
+ * Key for ios mds connection.
  */
-static unsigned ios_mds_rpc_ctx_key = 0;
+static unsigned ios_mds_conn_key = 0;
 
 static int ios_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
@@ -203,6 +203,7 @@ M0_INTERNAL int m0_ios_register(void)
 	m0_reqh_service_type_register(&m0_ios_type);
 	ios_cdom_key = m0_reqh_lockers_allot();
 	poolmach_key = m0_reqh_lockers_allot();
+	ios_mds_conn_key = m0_reqh_lockers_allot();
 	return m0_ioservice_fop_init();
 }
 
@@ -458,17 +459,10 @@ static int ios_start(struct m0_reqh_service *service)
 	if (rc != 0)
 		return rc;
 
-	rc = m0_ios_mds_rpc_ctx_init(service);
-	if (rc != 0) {
-		m0_ios_cdom_fini(service->rs_reqh);
-		return rc;
-	}
-
 	rc = ios_create_buffer_pool(service);
 	if (rc != 0) {
 		/* Cleanup required for already created buffer pools. */
 		ios_delete_buffer_pool(service);
-		m0_ios_mds_rpc_ctx_fini(service);
 		m0_ios_cdom_fini(service->rs_reqh);
 		return rc;
 	}
@@ -476,7 +470,6 @@ static int ios_start(struct m0_reqh_service *service)
 	rc = m0_ios_poolmach_init(service);
 	if (rc != 0) {
 		ios_delete_buffer_pool(service);
-		m0_ios_mds_rpc_ctx_fini(service);
 		m0_ios_cdom_fini(service->rs_reqh);
 	}
 	return rc;
@@ -485,7 +478,7 @@ static int ios_start(struct m0_reqh_service *service)
 void ios_prepare_to_stop(struct m0_reqh_service *service)
 {
 	M0_LOG(M0_DEBUG, "ioservice PREPARE ......");
-	m0_ios_mds_rpc_ctx_fini(service);
+	m0_ios_mds_conn_fini(service->rs_reqh);
 	M0_LOG(M0_DEBUG, "ioservice PREPARE STOPPED");
 }
 
@@ -602,112 +595,133 @@ static void ios_stats_post_addb(struct m0_reqh_service *service)
 	}
 }
 
-M0_INTERNAL int m0_ios_mds_rpc_ctx_init(struct m0_reqh_service *service)
+enum {
+	RPC_TIMEOUT          = 8, /* seconds */
+	NR_SLOTS_PER_SESSION = 2,
+	MAX_NR_RPC_IN_FLIGHT = 5,
+};
+
+static int m0_ios_mds_conn_init(struct m0_reqh *reqh,
+				struct m0_ios_mds_conn *conn)
 {
-	enum {
-		RPC_TIMEOUT          = 8, /* seconds */
-		NR_SLOTS_PER_SESSION = 2,
-		MAX_NR_RPC_IN_FLIGHT = 5,
-		CLIENT_COB_DOM_ID    = 14
-	};
-	static struct m0_dbenv      client_dbenv;
-	static struct m0_cob_domain client_cob_dom;
+	struct m0_mero        *mero;
+	struct m0_rpc_machine *rpc_machine;
+	const char            *srv_ep_addr;
+	int                    rc;
+	M0_ENTRY();
 
-	struct m0_reqh             *reqh = service->rs_reqh;
-	struct m0_reqh_io_service  *serv_obj;
-	struct m0_rpc_client_ctx   *rpc_client_ctx;
-	struct m0_net_domain       *cl_ndom;
-	struct m0_reqh_context     *reqh_ctx = service->rs_reqh_ctx;
-	const char                 *dbname = "sr_cdb";
-	const char                 *cli_ep_addr;
-	const char                 *srv_ep_addr;
-	int                         rc;
+	M0_PRE(reqh != NULL);
+	mero = m0_cs_ctx_get(reqh);
+	rpc_machine = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
+	M0_ASSERT(mero != NULL);
+	M0_ASSERT(rpc_machine != NULL);
 
-	srv_ep_addr = reqh_ctx->rc_mero->cc_mds_epx.ex_endpoint;
-	cli_ep_addr = reqh_ctx->rc_mero->cc_cli2mds_epx.ex_endpoint;
+	srv_ep_addr = mero->cc_mds_epx.ex_endpoint;
 
-	M0_LOG(M0_DEBUG, "cli = %s", cli_ep_addr);
 	M0_LOG(M0_DEBUG, "srv = %s", srv_ep_addr);
 
-	if (srv_ep_addr == NULL || cli_ep_addr == NULL) {
+	if (srv_ep_addr == NULL) {
 		M0_LOG(M0_WARN, "None of mdservice endpoints provided");
 		M0_RETURN(0);
 	}
 
-	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
-	M0_ALLOC_PTR(rpc_client_ctx);
-	if (rpc_client_ctx == NULL)
-		M0_RETURN(-ENOMEM);
-
-	cl_ndom = &serv_obj->rios_cl_ndom;
-	rc = m0_net_domain_init(cl_ndom, &m0_net_lnet_xprt,
-				&service->rs_addb_ctx);
-	if (rc != 0) {
-		m0_free(rpc_client_ctx);
-		M0_RETURN(rc);
+	M0_LOG(M0_DEBUG, "Ios connecting to mds %s", srv_ep_addr);
+	rc = m0_rpc_client_connect(&conn->imc_conn, &conn->imc_session,
+				   rpc_machine, srv_ep_addr,
+				   MAX_NR_RPC_IN_FLIGHT, NR_SLOTS_PER_SESSION,
+				   RPC_TIMEOUT);
+	if (rc == 0) {
+		conn->imc_connected = true;
+		M0_LOG(M0_DEBUG, "Ios connected to mds %s", srv_ep_addr);
+	} else {
+		conn->imc_connected = false;
+		M0_LOG(M0_ERROR, "Ios could not connect to mds %s: rc = %d",
+				 srv_ep_addr, rc);
 	}
-	rpc_client_ctx->rcx_net_dom            = cl_ndom;
-	rpc_client_ctx->rcx_local_addr         = cli_ep_addr;
-	rpc_client_ctx->rcx_remote_addr        = srv_ep_addr;
-	rpc_client_ctx->rcx_db_name            = dbname;
-	rpc_client_ctx->rcx_dbenv              = &client_dbenv;
-	rpc_client_ctx->rcx_cob_dom_id         = CLIENT_COB_DOM_ID;
-	rpc_client_ctx->rcx_cob_dom            = &client_cob_dom;
-	rpc_client_ctx->rcx_nr_slots           = NR_SLOTS_PER_SESSION;
-	rpc_client_ctx->rcx_timeout_s          = RPC_TIMEOUT;
-	rpc_client_ctx->rcx_max_rpcs_in_flight = MAX_NR_RPC_IN_FLIGHT;
-
-	rc = m0_rpc_client_start(rpc_client_ctx);
-	if (rc != 0) {
-		m0_net_domain_fini(cl_ndom);
-		m0_free(rpc_client_ctx);
-		M0_RETURN(rc);
-	}
-
-	ios_mds_rpc_ctx_key = m0_reqh_lockers_allot();
-	M0_PRE(m0_reqh_lockers_is_empty(reqh, ios_mds_rpc_ctx_key));
-	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	m0_reqh_lockers_set(reqh, ios_mds_rpc_ctx_key, rpc_client_ctx);
-	serv_obj->rios_mds_rpc_ctx = rpc_client_ctx;
-	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-
-	M0_RETURN(0);
+	M0_RETURN(rc);
 }
 
-M0_INTERNAL
-struct m0_rpc_client_ctx *m0_ios_mds_rpc_ctx_get(struct m0_reqh *reqh)
+/* Assumes that reqh->rh_rwlock is locked for writing. */
+static int ios_mds_conn_get_locked(struct m0_reqh *reqh,
+				   struct m0_ios_mds_conn **out,
+				   bool *new)
 {
-	struct m0_rpc_client_ctx *rpc_client_ctx;
+	M0_PRE(ios_mds_conn_key != 0);
+
+	*new = false;
+	*out = m0_reqh_lockers_get(reqh, ios_mds_conn_key);
+	if (*out != NULL)
+		return 0;
+
+	M0_ALLOC_PTR(*out);
+	if (*out == NULL)
+		return -ENOMEM;
+	*new = true;
+
+	m0_reqh_lockers_set(reqh, ios_mds_conn_key, *out);
+	return 0;
+}
+
+/**
+ * Gets ioservice to mdservice connection. If it is newly allocated, establish
+ * the connection.
+ *
+ * @param out the connection is returned here.
+ *
+ * @note This is a block operation in service.
+ *       m0_fom_block_enter()/m0_fom_block_leave() must be used to notify fom.
+ */
+M0_INTERNAL int m0_ios_mds_conn_get(struct m0_reqh *reqh,
+				    struct m0_ios_mds_conn **out)
+{
+	int  rc;
+	bool new;
+
+	M0_ENTRY("reqh %p", reqh);
 	M0_PRE(reqh != NULL);
 
-	if (ios_mds_rpc_ctx_key != 0) {
-		rpc_client_ctx = m0_reqh_lockers_get(reqh, ios_mds_rpc_ctx_key);
-		M0_POST(rpc_client_ctx != NULL);
-	} else
-		rpc_client_ctx = NULL;
-	return rpc_client_ctx;
-}
-
-M0_INTERNAL void m0_ios_mds_rpc_ctx_fini(struct m0_reqh_service *service)
-{
-	struct m0_reqh            *reqh = service->rs_reqh;
-	struct m0_reqh_io_service *serv_obj;
-	struct m0_rpc_client_ctx  *rpc_client_ctx;
-	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
-
-	if (service->rs_reqh_ctx->rc_mero->cc_mds_epx.ex_endpoint == NULL ||
-	    service->rs_reqh_ctx->rc_mero->cc_cli2mds_epx.ex_endpoint == NULL)
-		return;
-
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	rpc_client_ctx = m0_reqh_lockers_get(reqh, ios_mds_rpc_ctx_key);
-	m0_reqh_lockers_clear(reqh, ios_mds_rpc_ctx_key);
-	ios_mds_rpc_ctx_key = 0;
+	rc = ios_mds_conn_get_locked(reqh, out, &new);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
-	m0_rpc_client_stop(rpc_client_ctx);
-	m0_net_domain_fini(&serv_obj->rios_cl_ndom);
-	m0_free(rpc_client_ctx);
+	if (new) {
+		M0_ASSERT(rc == 0);
+		rc = m0_ios_mds_conn_init(reqh, *out);
+	}
+	M0_RETURN(rc);
+}
+
+/**
+ * Terminates and clears the ioservice to mdservice connection.
+ */
+M0_INTERNAL void m0_ios_mds_conn_fini(struct m0_reqh *reqh)
+{
+	struct m0_ios_mds_conn *imc;
+	int                     rc;
+	M0_PRE(reqh != NULL);
+	M0_PRE(ios_mds_conn_key != 0);
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	imc = m0_reqh_lockers_get(reqh, ios_mds_conn_key);
+	if (imc != NULL)
+		m0_reqh_lockers_clear(reqh, ios_mds_conn_key);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
+	M0_LOG(M0_DEBUG, "imc conn fini in reqh = %p, imc = %p", reqh, imc);
+	if (imc != NULL && imc->imc_connected) {
+		M0_LOG(M0_DEBUG, "destroy session for %p", imc);
+		rc = m0_rpc_session_destroy(&imc->imc_session,
+					    m0_time_from_now(RPC_TIMEOUT, 0));
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "Failed to terminate session %d", rc);
+
+		M0_LOG(M0_DEBUG, "destroy conn for %p", imc);
+		rc = m0_rpc_conn_destroy(&imc->imc_conn,
+					 m0_time_from_now(RPC_TIMEOUT, 0));
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "Failed to terminate connection %d", rc);
+	}
+	m0_free(imc); /* free(NULL) is OK */
 }
 
 /**
@@ -715,12 +729,15 @@ M0_INTERNAL void m0_ios_mds_rpc_ctx_fini(struct m0_reqh_service *service)
  * @param reqh the request handler.
  * @param gfid the global fid of the file.
  * @param attr the returned attributes will be stored here.
+ *
+ * @note This is a block operation in service.
+ *       m0_fom_block_enter()/m0_fom_block_leave() must be used to notify fom.
  */
 M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 				   const struct m0_fid *gfid,
 				   struct m0_cob_attr *attr)
 {
-	struct m0_rpc_client_ctx  *rpc_client_ctx;
+	struct m0_ios_mds_conn    *imc;
 	struct m0_fop             *req;
 	struct m0_fop             *rep;
 	struct m0_fop_getattr     *getattr;
@@ -729,8 +746,10 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 	struct m0_fop_cob         *rep_fop_cob;
 	int                        rc;
 
-	rpc_client_ctx = m0_ios_mds_rpc_ctx_get(reqh);
-	if (rpc_client_ctx == NULL)
+	rc = m0_ios_mds_conn_get(reqh, &imc);
+	if (rc != 0)
+		return rc;
+	if (!imc->imc_connected)
 		return -ENODEV;
 
 	req = m0_fop_alloc(&m0_fop_getattr_fopt, NULL);
@@ -741,7 +760,7 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 	req_fop_cob = &getattr->g_body;
 	req_fop_cob->b_tfid = *gfid;
 
-	rc = m0_rpc_client_call(req, &rpc_client_ctx->rcx_session, NULL, 0);
+	rc = m0_rpc_client_call(req, &imc->imc_session, NULL, 0);
 	if (rc == 0) {
 		rep = m0_rpc_item_to_fop(req->f_item.ri_reply);
 		getattr_rep = m0_fop_data(rep);
@@ -756,18 +775,21 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 }
 
 /**
- Gets layout from mdservice with specified layout id.
- @param reqh the request handler.
- @param ldom the layout domain in which the layout will be created.
- @param lid  the layout id to query.
- @param l_out returned layout will be stored here.
+ * Gets layout from mdservice with specified layout id.
+ * @param reqh the request handler.
+ * @param ldom the layout domain in which the layout will be created.
+ * @param lid  the layout id to query.
+ * @param l_out returned layout will be stored here.
+ *
+ * @note This is a block operation in service.
+ *       m0_fom_block_enter()/m0_fom_block_leave() must be used to notify fom.
 */
 M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 				      struct m0_layout_domain *ldom,
 				      uint64_t lid,
 				      struct m0_layout **l_out)
 {
-	struct m0_rpc_client_ctx  *rpc_client_ctx;
+	struct m0_ios_mds_conn    *imc;
 	struct m0_fop             *req;
 	struct m0_fop             *rep;
 	struct m0_fop_layout      *layout;
@@ -782,8 +804,10 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 		return 0;
 	}
 
-	rpc_client_ctx = m0_ios_mds_rpc_ctx_get(reqh);
-	if (rpc_client_ctx == NULL)
+	rc = m0_ios_mds_conn_get(reqh, &imc);
+	if (rc != 0)
+		return rc;
+	if (!imc->imc_connected)
 		return -ENODEV;
 
 	req = m0_fop_alloc(&m0_fop_layout_fopt, NULL);
@@ -794,7 +818,7 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 	layout->l_op  = M0_LAYOUT_OP_LOOKUP;
 	layout->l_lid = lid;
 
-	rc = m0_rpc_client_call(req, &rpc_client_ctx->rcx_session, NULL, 0);
+	rc = m0_rpc_client_call(req, &imc->imc_session, NULL, 0);
 	if (rc == 0) {
 		struct m0_bufvec               bv;
 		struct m0_bufvec_cursor        cur;

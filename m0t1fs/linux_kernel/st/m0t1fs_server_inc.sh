@@ -35,7 +35,6 @@ mero_service()
 			 -G $XPT:${lnet_nid}:${EP[0]} \
 			 -e $XPT:${lnet_nid}:${EP[$i]} \
 			 $ios_eps \
-			 -L $XPT:${lnet_nid}:${EPC2M[$i]} \
 			 $SNAME -m $MAX_RPC_MSG_SIZE \
 			 -q $TM_MIN_RECV_QUEUE_LEN"
 			echo $cmd

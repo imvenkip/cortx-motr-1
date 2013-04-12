@@ -252,9 +252,6 @@ struct m0_mero {
 	/** mdservice endpoint */
 	struct cs_endpoint_and_xprt cc_mds_epx;
 
-	/** client endpoint to mdservice*/
-	struct cs_endpoint_and_xprt cc_cli2mds_epx;
-
 	/** list of ioservice end points */
 	struct m0_tl                cc_ios_eps;
 
