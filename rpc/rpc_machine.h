@@ -192,8 +192,10 @@ void m0_rpc_machine_get_stats(struct m0_rpc_machine *machine,
  */
 M0_INTERNAL void m0_rpc_machine_stats_post_addb(struct m0_rpc_machine *machine);
 
-M0_INTERNAL void m0_rpc_machine_drain_item_sources(struct m0_rpc_machine
-						   *machine);
+M0_INTERNAL void
+m0_rpc_machine_drain_item_sources(struct m0_rpc_machine *machine);
+
+M0_INTERNAL const char *m0_rpc_machine_ep(const struct m0_rpc_machine *rmach);
 
 M0_BOB_DECLARE(extern, m0_rpc_machine);
 

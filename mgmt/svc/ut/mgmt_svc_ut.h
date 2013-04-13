@@ -27,6 +27,10 @@
 #include "xcode/xcode.h"
 #include "xcode/xcode_attr.h"
 
+#define DUMMY_DBNAME      "dummy-db"
+#define DUMMY_COB_ID      20
+#define DUMMY_SERVER_ADDR "0@lo:12345:34:10"
+
 struct m0_mgmt_svc_ut_fake_fop {
 	int32_t msuff_unused;
 } M0_XCA_RECORD;

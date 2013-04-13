@@ -51,8 +51,9 @@ M0_TL_DEFINE(rmsvc_owner, static, struct m0_rm_owner);
 
 static struct m0_addb_ctx m0_rms_mod_ctx;
 
-static int rms_allocate(struct m0_reqh_service **service,
-			struct m0_reqh_service_type *stype, const char *arg);
+static int rms_allocate(struct m0_reqh_service      **service,
+			struct m0_reqh_service_type  *stype,
+			struct m0_reqh_context       *rctx);
 static void rms_fini(struct m0_reqh_service *service);
 
 static int rms_start(struct m0_reqh_service *service);
@@ -122,7 +123,7 @@ M0_INTERNAL void m0_rms_unregister(void)
 
 static int rms_allocate(struct m0_reqh_service      **service,
 			struct m0_reqh_service_type  *stype,
-			const char                   *arg)
+			struct m0_reqh_context       *rctx)
 {
 	struct m0_reqh_rm_service *rms;
 
@@ -160,8 +161,9 @@ static void rms_fini(struct m0_reqh_service *service)
 
 static int rms_start(struct m0_reqh_service *service)
 {
-	int                        rc = 0;
-	struct m0_reqh_rm_service *rms;
+	int                         rc = 0;
+	struct m0_reqh_rm_service  *rms;
+	struct m0_rm_resource_type *rtype;
 
 	M0_PRE(service != NULL);
 	M0_ENTRY();
@@ -169,14 +171,22 @@ static int rms_start(struct m0_reqh_service *service)
 	rms = bob_of(service, struct m0_reqh_rm_service, rms_svc, &rms_bob);
 
 	m0_rm_domain_init(&rms->rms_dom);
-	rc = m0_rm_type_register(&rms->rms_dom, &rings_resource_type);
-	rings_resource_type.rt_ops = &rings_rtype_ops;
-
+	M0_ALLOC_PTR(rtype);
+	if (rtype == NULL) {
+		rc = -ENOMEM;
+		goto err;
+	}
+	rc = m0_rm_type_register(&rms->rms_dom, rtype);
+	rtype->rt_ops = &rings_rtype_ops;
+	M0_RETURN(0);
+err:
+	m0_rm_domain_fini(&rms->rms_dom);
 	M0_RETURN(rc);
 }
 
 static void rms_stop(struct m0_reqh_service *service)
 {
+	int                        i;
 	struct m0_reqh_rm_service *rms;
 	struct m0_rm_owner        *owner;
 	struct m0_rm_remote       *remote;
@@ -186,7 +196,7 @@ static void rms_stop(struct m0_reqh_service *service)
 
 	rms = bob_of(service, struct m0_reqh_rm_service, rms_svc, &rms_bob);
 
-	m0_tl_for(rmsvc_owner, &rms->rms_owners, owner) {
+	m0_tl_for (rmsvc_owner, &rms->rms_owners, owner) {
 		M0_ASSERT(owner != NULL);
 		m0_tl_for(m0_remotes, &owner->ro_resource->r_remote, remote) {
 			M0_ASSERT(remote != NULL);
@@ -195,12 +205,20 @@ static void rms_stop(struct m0_reqh_service *service)
 		} m0_tl_endfor;
 		m0_rm_owner_windup(owner);
 		m0_rm_owner_timedwait(owner, ROS_FINAL, M0_TIME_NEVER);
+		m0_rm_resource_del(owner->ro_resource);
 		m0_rm_owner_fini(owner);
 		rmsvc_owner_tlink_del_fini(owner);
-		m0_rm_resource_del(owner->ro_resource);
+		m0_free(owner);
 	} m0_tl_endfor;
 
-	m0_rm_type_deregister(&rings_resource_type);
+	for (i = 0; i < ARRAY_SIZE(rms->rms_dom.rd_types); ++i) {
+		struct m0_rm_resource_type *rtype = rms->rms_dom.rd_types[i];
+
+		if (rtype != NULL) {
+			m0_rm_type_deregister(rtype);
+			m0_free(rtype);
+		}
+	}
 	m0_rm_domain_fini(&rms->rms_dom);
 
 	M0_LEAVE();
@@ -251,6 +269,7 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 		/* Initialise owner_credit->cr_datum */
 		m0_rm_resource_initial_credit(resource, owner_credit);
 		rc = m0_rm_owner_selfadd(*owner, owner_credit);
+		m0_free(owner_credit);
 		if (rc != 0)
 			goto err_credit;
 		rmsvc_owner_tlink_init_at_tail(*owner, &rms->rms_owners);

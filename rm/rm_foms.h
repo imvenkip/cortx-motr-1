@@ -23,6 +23,7 @@
 #ifndef __MERO_RM_FOMS_H__
 #define __MERO_RM_FOMS_H__
 
+#include "lib/chan.h"
 #include "fop/fop.h"
 #include "rm/rm.h"
 #include "rm/rm_internal.h"

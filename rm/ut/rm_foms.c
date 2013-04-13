@@ -33,7 +33,7 @@
 #include "ut/ut.h"		/* m0_ut_fom_phase_set() */
 
 enum test_type {
-	RM_UT_FULL_CREDITS_TEST=1,
+	RM_UT_FULL_CREDITS_TEST = 1,
 	RM_UT_PARTIAL_CREDITS_TEST,
 	RM_UT_INVALID_CREDITS_TEST,
 	RM_UT_MEMFAIL_TEST,
@@ -42,7 +42,7 @@ enum test_type {
 static struct m0_fom_locality  dummy_loc;
 static struct m0_rm_loan      *test_loan;
 struct m0_reqh		       reqh;
-static struct m0_dbenv         dbenv;
+struct m0_reqh_service        *reqh_svc;
 
 extern void m0_remotes_tlist_add(struct m0_tl *tl, struct m0_rm_remote *rem);
 extern void m0_remotes_tlist_del(struct m0_rm_remote *rem);
@@ -55,28 +55,20 @@ extern const struct m0_tl_descr m0_remotes_tl;
  */
 static void rmfoms_utinit(void)
 {
-	int rc;
-	rc = m0_dbenv_init(&dbenv, "something", 0);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = M0_REQH_INIT(&reqh,
-			.rhia_dtm       = (void*)1,
-			.rhia_db        = &dbenv,
-			.rhia_mdstore   = (void*)1,
-			.rhia_fol       = (void*)1,
-			.rhia_svc       = (void*)1,
-			.rhia_addb_stob = NULL);
-	M0_UT_ASSERT(rc == 0);
-	m0_reqh_start(&reqh);
-	dummy_loc.fl_dom = &reqh.rh_fom_dom;
+	M0_SET0(&rm_ctx[SERVER_1]);
+	rm_ctx[SERVER_1].rc_id = SERVER_1;
+	rm_ctx[SERVER_1].rc_rmach_ctx.rmc_ep_addr = serv_addr[SERVER_1];
+	rm_ctx[SERVER_1].rc_rmach_ctx.rmc_cob_id.id = cob_ids[SERVER_1];
+	rm_ctx[SERVER_1].rc_rmach_ctx.rmc_dbname = db_name[SERVER_1];
+	rm_ctx_init(&rm_ctx[SERVER_1]);
+	dummy_loc.fl_dom = &rm_ctx[SERVER_1].rc_rmach_ctx.rmc_reqh.rh_fom_dom;
         m0_sm_group_init(&dummy_loc.fl_group);
 }
 
 static void rmfoms_utfini(void)
 {
         m0_sm_group_fini(&dummy_loc.fl_group);
-	m0_reqh_services_terminate(&reqh);
-	m0_reqh_fini(&reqh);
+	rm_ctx_fini(&rm_ctx[SERVER_1]);
 }
 
 /*
@@ -128,10 +120,12 @@ static void fom_create(enum m0_rm_incoming_type fomtype,
 
 	switch (fomtype) {
 	case M0_RIT_BORROW:
-		rc = borrow_fom_create(fop, fom, &reqh);
+		rc = borrow_fom_create(fop, fom,
+				       &rm_ctx[SERVER_1].rc_rmach_ctx.rmc_reqh);
 		break;
 	case M0_RIT_REVOKE:
-		rc = revoke_fom_create(fop, fom, &reqh);
+		rc = revoke_fom_create(fop, fom,
+				       &rm_ctx[SERVER_1].rc_rmach_ctx.rmc_reqh);
 		break;
 	default:
 		M0_IMPOSSIBLE("Invalid RM-FOM type");
@@ -144,9 +138,11 @@ static void fom_create(enum m0_rm_incoming_type fomtype,
 		base_fom->fo_fop = fop;
 
 		base_fom->fo_loc = &dummy_loc;
-		base_fom->fo_loc->fl_dom->fd_reqh = &reqh;
+		base_fom->fo_loc->fl_dom->fd_reqh =
+			&rm_ctx[SERVER_1].rc_rmach_ctx.rmc_reqh;
 		M0_CNT_INC(base_fom->fo_loc->fl_foms);
 		m0_fom_sm_init(base_fom);
+		base_fom->fo_service = rm_ctx[SERVER_1].rc_reqh_svc;
 	}
 }
 
@@ -168,7 +164,7 @@ static void fom_fini(struct m0_fom *fom, enum m0_rm_incoming_type fomtype)
 	default:
 		M0_IMPOSSIBLE("Invalid RM-FOM type");
 	}
-	/* xxx_fom_fini() releases fom. Hence fop pointers are stroed */
+	/* xxx_fom_fini() releases fom. Hence fop pointers are stored */
 	fop_dealloc(fop);
 }
 

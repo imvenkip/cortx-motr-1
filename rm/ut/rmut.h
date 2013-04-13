@@ -27,17 +27,9 @@
 #include "lib/misc.h"
 #include "lib/memory.h"
 #include "lib/time.h"
-#include "lib/ut.h"
-#include "db/db.h"
-#include "cob/cob.h"
-#include "net/lnet/lnet.h"
-#include "net/buffer_pool.h"
-#include "mdstore/mdstore.h"
-#include "reqh/reqh.h"
-#include "rpc/rpc.h"
-#include "rpc/rpc_internal.h"
-#include "rpc/rpc_machine.h"
+#include "ut/ut.h"
 #include "fop/fom_generic.h"
+#include "ut/ut_rpc_machine.h"
 
 enum obj_type {
 	OBJ_DOMAIN = 1,
@@ -78,38 +70,37 @@ struct rm_ut_data {
  * RM server context. It lives inside a thread in this test.
  */
 struct rm_context {
-	enum rm_server		  rc_id;
-	const char		 *rc_ep_addr;
-	struct m0_thread	  rc_thr;
-	struct m0_chan		  rc_chan;
-	struct m0_clink		  rc_clink;
-	struct m0_rpc_machine	  rc_rpc;
-	struct m0_dbenv		  rc_dbenv;
-	struct m0_fol		  rc_fol;
-	struct m0_cob_domain_id	  rc_cob_id;
-	struct m0_mdstore	  rc_mdstore;
-	struct m0_cob_domain	  rc_cob_dom;
-	struct m0_net_domain	  rc_net_dom;
-	struct m0_net_buffer_pool rc_bufpool;
-	struct m0_net_xprt	 *rc_xprt;
-	struct m0_reqh		  rc_reqh;
-	struct m0_net_end_point	 *rc_ep[SERVER_NR];
-	struct m0_rpc_conn	  rc_conn[SERVER_NR];
-	struct m0_rpc_session	  rc_sess[SERVER_NR];
-	struct rm_ut_data	  rc_test_data;
-	enum rm_server		  creditor_id;
-	enum rm_server		  debtor_id;
+	enum rm_server             rc_id;
+	struct m0_thread           rc_thr;
+	struct m0_chan             rc_chan;
+	struct m0_clink            rc_clink;
+	struct m0_mutex            rc_mutex;
+	struct m0_ut_rpc_mach_ctx  rc_rmach_ctx;
+	struct m0_reqh_service    *rc_reqh_svc;
+	struct m0_net_end_point   *rc_ep[SERVER_NR];
+	struct m0_rpc_conn         rc_conn[SERVER_NR];
+	struct m0_rpc_session      rc_sess[SERVER_NR];
+	struct m0_clink           *rc_rev_sess_wait;
+	struct rm_ut_data          rc_test_data;
+	enum rm_server             creditor_id;
+	enum rm_server             debtor_id;
 };
 
 /*
  * Test variable(s)
  */
-M0_EXTERN struct rm_ut_data test_data;
+M0_EXTERN struct rm_ut_data  test_data;
+M0_EXTERN struct rm_context  rm_ctx[];
+M0_EXTERN const char        *serv_addr[];
+M0_EXTERN const int          cob_ids[];
+M0_EXTERN const char        *db_name[];
 
 void rm_utdata_init(struct rm_ut_data *data, enum obj_type type);
 void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type);
 void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
 				 struct m0_rm_credit *credit);
+void rm_ctx_init(struct rm_context *rmctx);
+void rm_ctx_fini(struct rm_context *rmctx);
 
 /* __MERO_RM_UT_RMUT_H__ */
 #endif

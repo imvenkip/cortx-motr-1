@@ -466,6 +466,12 @@ M0_INTERNAL void m0_rpc_item_type_deregister(struct m0_rpc_item_type
 */
 M0_INTERNAL struct m0_rpc_item_type *m0_rpc_item_type_lookup(uint32_t opcode);
 
+/**
+   Extract remote endpoint address from given item
+ */
+M0_INTERNAL const char *
+m0_rpc_item_remote_ep_addr(const struct m0_rpc_item *item);
+
 #endif
 
 /** @} end of rpc group */

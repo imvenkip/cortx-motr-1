@@ -18,14 +18,12 @@
  * Original creation date: 20-Mar-2013
  */
 
-#include "net/lnet/lnet.h"
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
 #include "rm/rm_service.h"
 #include "rm/ut/rmut.h"
 #include "rpc/rpclib.h"
 #include "ut/cs_service.h"
-#include "lib/ut.h"
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
 #define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
@@ -37,7 +35,7 @@
 static char *server_argv[] = {
 	"rm-ut", "-r", "-p", "-T", "linux", "-D", SERVER_DB,
 	"-S", SERVER_STOB, "-A", SERVER_ADDB_STOB, "-e", SERVER_ENDPOINT,
-	"-s", "rmservice"
+	"-w", "10", "-s", "rmservice"
 };
 
 extern struct m0_reqh_service_type      m0_rms_type;
@@ -46,6 +44,7 @@ extern const char                      *serv_addr[];
 extern const int                        cob_ids[];
 extern const struct m0_rm_incoming_ops  server2_incoming_ops;
 extern struct m0_chan                   rr_tests_chan;
+extern struct m0_mutex                  rr_tests_chan_mutex;
 extern struct m0_clink                  tests_clink[];
 
 static struct m0_net_xprt *xprt        = &m0_net_lnet_xprt;
@@ -96,13 +95,13 @@ static void rm_svc_server(const int tid)
 	rm_service_start(&sctx);
 
 	/* Signal client that server is now up and running */
-	m0_chan_signal(&rr_tests_chan);
+	m0_chan_signal_lock(&rr_tests_chan);
 	/* Stay alive till client runs its test cases */
 	m0_chan_wait(&tests_clink[SERVER_2]);
 
 	rm_service_stop(&sctx);
 	/* Tell client that I am done */
-	m0_chan_signal(&rr_tests_chan);
+	m0_chan_signal_lock(&rr_tests_chan);
 }
 
 static void rm_client(const int tid)
@@ -138,19 +137,19 @@ static void rm_client(const int tid)
 	in.rin_want.cr_datum = NENYA | DURIN;
 	in.rin_ops = &server2_incoming_ops;
 
-	m0_clink_add(&client_ctx->rc_chan, &client_ctx->rc_clink);
+	m0_clink_add_lock(&client_ctx->rc_chan, &client_ctx->rc_clink);
 	m0_rm_credit_get(&in);
 	if (incoming_state(&in) == RI_WAIT)
 		m0_chan_wait(&client_ctx->rc_clink);
 	M0_UT_ASSERT(incoming_state(&in) == RI_SUCCESS);
 	M0_UT_ASSERT(in.rin_rc == 0);
-	m0_clink_del(&client_ctx->rc_clink);
+	m0_clink_del_lock(&client_ctx->rc_clink);
 	m0_rm_credit_put(&in);
 	m0_rm_incoming_fini(&in);
 	rm_disconnect(client_ctx, server_ctx);
 
 	/* Tell server to stop */
-	m0_chan_signal(&rr_tests_chan);
+	m0_chan_signal_lock(&rr_tests_chan);
 	/* Wait for server to stop */
 	m0_chan_wait(&tests_clink[SERVER_1]);
 	rm_utdata_fini(&test_data, OBJ_OWNER);
@@ -179,15 +178,17 @@ void rmsvc(void)
 {
 	int rc;
 
-	m0_chan_init(&rr_tests_chan);
+	m0_mutex_init(&rr_tests_chan_mutex);
+	m0_chan_init(&rr_tests_chan, &rr_tests_chan_mutex);
 
 	for (rc = 0; rc <= 1; ++rc) {
 		M0_SET0(&rm_ctx[rc]);
-		rm_ctx[rc].rc_ep_addr = serv_addr[rc];
 		rm_ctx[rc].rc_id = rc;
-		rm_ctx[rc].rc_cob_id.id = cob_ids[rc];
+		rm_ctx[rc].rc_rmach_ctx.rmc_cob_id.id = cob_ids[rc];
+		rm_ctx[rc].rc_rmach_ctx.rmc_dbname = db_name[rc];
+		rm_ctx[rc].rc_rmach_ctx.rmc_ep_addr = serv_addr[rc];
 		m0_clink_init(&tests_clink[rc], NULL);
-		m0_clink_add(&rr_tests_chan, &tests_clink[rc]);
+		m0_clink_add_lock(&rr_tests_chan, &tests_clink[rc]);
 	}
 
 	/* Start the server */
@@ -206,11 +207,12 @@ void rmsvc(void)
 	m0_thread_fini(&client_ctx->rc_thr);
 
 	for (rc = 0; rc <= 1; ++rc) {
-		m0_clink_del(&tests_clink[rc]);
+		m0_clink_del_lock(&tests_clink[rc]);
 		m0_clink_fini(&tests_clink[rc]);
 	}
 
-	m0_chan_fini(&rr_tests_chan);
+	m0_chan_fini_lock(&rr_tests_chan);
+	m0_mutex_fini(&rr_tests_chan_mutex);
 }
 
 /*

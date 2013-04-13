@@ -83,7 +83,7 @@ M0_INTERNAL int m0_rms_register(void);
 M0_INTERNAL void m0_rms_unregister(void);
 
 /**
- * Creates an owner for resource type description from @param resbuf.
+ * Creates an owner for resource type description from resbuf.
  * Adds the resource to the domain maintained by m0_reqh_rm_service.
  *
  * @pre service != NULL

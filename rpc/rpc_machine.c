@@ -218,7 +218,6 @@ static int __rpc_machine_init(struct m0_rpc_machine *machine)
 	m0_sm_group_init(&machine->rm_sm_grp);
 	m0_rpc_machine_bob_init(machine);
 	m0_sm_group_init(&machine->rm_sm_grp);
-	M0_LEAVE();
 	M0_RETURN(0);
 
 cntr_fini:
@@ -594,6 +593,11 @@ M0_INTERNAL void m0_rpc_machine_stats_post_addb(struct m0_rpc_machine *machine)
 	m0_rpc_machine_unlock(machine);
 }
 M0_EXPORTED(m0_rpc_machine_stats_post_addb);
+
+M0_INTERNAL const char *m0_rpc_machine_ep(const struct m0_rpc_machine *rmach)
+{
+	return rmach->rm_tm.ntm_ep->nep_addr;
+}
 
 M0_INTERNAL void m0_rpc_machine_add_conn(struct m0_rpc_machine *rmach,
 					 struct m0_rpc_conn    *conn)

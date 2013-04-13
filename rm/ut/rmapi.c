@@ -193,7 +193,8 @@ static void dom_api_test(void)
 
 	/* Make sure that all resource entries are NULL */
 	M0_UT_ASSERT(m0_forall(i, ARRAY_SIZE(test_data.rd_dom.rd_types),
-                         test_data.rd_dom.rd_types[i] == NULL));
+			       test_data.rd_dom.rd_types[i] == NULL));
+	M0_UT_ASSERT(test_data.rd_dom.rd_lock.m_owner == 0);
 
 	/* Finalise domain - Nothing to test - make sure it does not crash */
 	m0_rm_domain_fini(&test_data.rd_dom);

@@ -85,7 +85,7 @@ static bool rings_resource_is(const struct m0_rm_resource *res, uint64_t res_id)
 
 static m0_bcount_t rings_resource_len(const struct m0_rm_resource *resource)
 {
-	/* Resource type id + resource id*/
+	/* Resource type id + resource id */
 	return (m0_bcount_t) sizeof(uint64_t) + sizeof(uint64_t);
 }
 

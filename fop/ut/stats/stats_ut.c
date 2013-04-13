@@ -24,15 +24,20 @@
 #include "reqh/reqh.h"
 
 #include "fop/ut/stats/stats_fom.c"
+#include "ut/ut_rpc_machine.h"
 
-extern struct m0_fom_type stats_fom_type;
-extern const struct m0_fom_type_ops fom_stats_type_ops;
-static struct m0_reqh reqh;
-static struct m0_reqh_service *service;
+#define DUMMY_DBNAME      "dummy-db"
+#define DUMMY_COB_ID      20
+#define DUMMY_SERVER_ADDR "0@lo:12345:34:10"
+
+extern struct m0_fom_type            stats_fom_type;
+extern const struct m0_fom_type_ops  fom_stats_type_ops;
+static struct m0_ut_rpc_mach_ctx     rmach_ctx;
+static struct m0_reqh_service       *service;
 
 static void test_stats(void)
 {
-	test_stats_req_handle(&reqh);
+	test_stats_req_handle(&rmach_ctx.rmc_reqh);
 }
 
 static int ut_stats_service_start(struct m0_reqh_service *service)
@@ -84,13 +89,11 @@ M0_REQH_SERVICE_TYPE_DEFINE(ut_stats_service_type,
 			    &ut_stats_service_type_ops,
 			    "ut-stats-service",
                             &m0_addb_ct_ut_service);
-static struct m0_dbenv dbenv;
+
 static int test_stats_init(void)
 {
 	int rc;
 
-	rc = m0_dbenv_init(&dbenv, "something", 0);
-	M0_ASSERT(rc == 0);
 	m0_sm_conf_init(&fom_phases_conf);
 	m0_addb_rec_type_register(&addb_rt_fom_phase_stats);
 	rc = m0_reqh_service_type_register(&ut_stats_service_type);
@@ -98,25 +101,16 @@ static int test_stats_init(void)
 	m0_fom_type_init(&stats_fom_type, &fom_stats_type_ops,
 			 &ut_stats_service_type,
 			 &fom_phases_conf);
-	/*
-	 * Instead of using m0d and dealing with network, database and
-	 * other subsystems, request handler is initialised in a 'special way'.
-	 * This allows it to operate in a 'limited mode' which is enough for
-	 * this test.
-	 */
-	rc = M0_REQH_INIT(&reqh,
-			  .rhia_dtm       = (void *)1,
-			  .rhia_db        = &dbenv,
-			  .rhia_mdstore   = (void *)1,
-			  .rhia_fol       = (void *)1,
-			  .rhia_svc       = NULL,
-			  .rhia_addb_stob = NULL);
-	M0_ASSERT(rc == 0);
-	m0_reqh_start(&reqh);
+
+	M0_SET0(&rmach_ctx);
+	rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
+	rmach_ctx.rmc_dbname    = DUMMY_DBNAME;
+	rmach_ctx.rmc_ep_addr   = DUMMY_SERVER_ADDR;
+	m0_ut_rpc_mach_init_and_add(&rmach_ctx);
 
 	rc = m0_reqh_service_allocate(&service, &ut_stats_service_type, NULL);
 	M0_ASSERT(rc == 0);
-	m0_reqh_service_init(service, &reqh, NULL);
+	m0_reqh_service_init(service, &rmach_ctx.rmc_reqh, NULL);
 	rc = m0_reqh_service_start(service);
 	M0_ASSERT(rc == 0);
 
@@ -125,13 +119,8 @@ static int test_stats_init(void)
 
 static int test_stats_fini(void)
 {
-	m0_reqh_service_stop(service);
-	m0_reqh_service_fini(service);
-	m0_reqh_services_terminate(&reqh);
-	m0_reqh_fini(&reqh);
-
+	m0_ut_rpc_mach_fini(&rmach_ctx);
 	m0_reqh_service_type_unregister(&ut_stats_service_type);
-	m0_dbenv_fini(&dbenv);
 	return 0;
 }
 

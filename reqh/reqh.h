@@ -162,6 +162,11 @@ struct m0_reqh {
 	struct m0_local_service *rh_svc;
 
 	/**
+	 * Layout domain for this request handler.
+	 */
+	struct m0_layout_domain  rh_ldom;
+
+	/**
 	    Lockers to store private data
 
 	    Since this variable has a zero length array, this should be
@@ -169,11 +174,6 @@ struct m0_reqh {
 	    refer <http://gcc.gnu.org/onlinedocs/gcc/Zero-Length.html>
 	 */
 	struct m0_reqh_lockers   rh_lockers;
-
-	/**
-	 * Layout domain for this request handler.
-	 */
-	struct m0_layout_domain  rh_ldom;
 };
 
 /**

@@ -32,6 +32,8 @@
 #include "lib/tlist.h"
 #include "lib/bob.h"
 #include "mero/magic.h"
+#include "rpc/session.h"
+#include "rpc/item.h"
 
 /* Imports */
 struct m0_rpc_conn;
@@ -71,7 +73,7 @@ struct m0_rpc_service_type {
 
 struct m0_rpc_service_type_ops {
         /**
-         * Allocates and initalises m0_rpc_service instance.
+         * Allocates and initialises m0_rpc_service instance.
          * Values pointed by ep_addr and uuid are copied in
          * m0_rpc_service instance.
          *
@@ -201,6 +203,9 @@ struct m0_rpc_service {
          */
 	struct m0_tlink                  svc_tlink;
 
+	/** List maintaining reverse connections to clients */
+	struct m0_tl                     svc_rev_conn;
+
 	/** magic == M0_RPC_SERVICE_MAGIC */
 	uint64_t                         svc_magix;
 };
@@ -313,6 +318,24 @@ M0_INTERNAL int m0_rpc__service_init(struct m0_rpc_service *service,
  * Will be usable for implementation of service->svc_ops->rso_fini_and_free()
  */
 M0_INTERNAL void m0_rpc__service_fini(struct m0_rpc_service *service);
+
+/**
+ * Return reverse session to given item.
+ *
+ * @pre svc != NULL
+ * @pre item != NULL && session != NULL
+ */
+M0_INTERNAL int
+m0_rpc_service_reverse_session_get(struct m0_rpc_service    *svc,
+				   const struct m0_rpc_item *item,
+				   struct m0_rpc_session   **session);
+
+M0_INTERNAL void
+m0_rpc_service_reverse_session_put(struct m0_rpc_service *svc);
+
+M0_INTERNAL struct m0_rpc_session *
+m0_rpc_service_reverse_session_lookup(struct m0_rpc_service    *svc,
+				      const struct m0_rpc_item *item);
 
 /**
    @} end of rpc_service group

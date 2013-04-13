@@ -28,6 +28,11 @@
 #include "ioservice/io_device.h"
 #include "reqh/reqh_service.h"
 #include "cm/proxy.h"
+#include "ut/ut_rpc_machine.h"
+
+#define DUMMY_DBNAME      "dummy-db"
+#define DUMMY_COB_ID      20
+#define DUMMY_SERVER_ADDR "0@lo:12345:34:10"
 
 /* Receiver side. */
 static struct m0_reqh   *s0_reqh;
@@ -69,7 +74,6 @@ static struct m0_net_domain  client_net_dom;
 static struct m0_dbenv       client_dbenv;
 static struct m0_cob_domain  client_cob_dom;
 static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
-static struct m0_dbenv       db;
 static struct m0_semaphore   sem;
 static struct m0_semaphore   cp_sem;
 static struct m0_semaphore   read_cp_sem;
@@ -92,13 +96,13 @@ static struct m0_rpc_client_ctx cctx = {
         .rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 };
 
-struct m0_reqh           sender_reqh;
-struct m0_cm             sender_cm;
-struct m0_reqh_service  *sender_cm_service;
-extern struct m0_cm_type sender_cm_cmt;
-struct m0_cm_cp          sender_cm_cp;
-struct m0_mero           sender_mero = { .cc_pool_width = 3 };
-struct m0_reqh_context   sender_rctx = { .rc_mero = &sender_mero };
+static struct m0_ut_rpc_mach_ctx  rmach_ctx;
+struct m0_cm                      sender_cm;
+struct m0_reqh_service           *sender_cm_service;
+extern struct m0_cm_type          sender_cm_cmt;
+struct m0_cm_cp                   sender_cm_cp;
+struct m0_mero                    sender_mero = { .cc_pool_width = 3 };
+struct m0_reqh_context            sender_rctx = { .rc_mero = &sender_mero };
 
 /* Global structures for copy packet to be sent (Sender side). */
 static struct m0_sns_cm_ag        s_sag;
@@ -622,7 +626,7 @@ void sender_service_alloc_init()
 				      &sender_cm_cmt.ct_stype,
                                       &sender_rctx);
         M0_ASSERT(rc == 0);
-        m0_reqh_service_init(sender_cm_service, &sender_reqh, NULL);
+        m0_reqh_service_init(sender_cm_service, &rmach_ctx.rmc_reqh, NULL);
 }
 
 M0_TL_DECLARE(proxy_cp, M0_EXTERN, struct m0_cm_cp);
@@ -641,17 +645,12 @@ static void sender_init()
 {
         int rc;
 
-	rc = m0_dbenv_init(&db, send_db, 0);
-	M0_UT_ASSERT(rc == 0);
-        rc = M0_REQH_INIT(&sender_reqh,
-                          .rhia_dtm       = NULL,
-                          .rhia_db        = &db,
-                          .rhia_mdstore   = (void *)1,
-                          .rhia_fol       = (void *)1,
-                          .rhia_svc       = (void *)1,
-                          .rhia_addb_stob = NULL);
-        M0_UT_ASSERT(rc == 0);
-	m0_reqh_start(&sender_reqh);
+	M0_SET0(&rmach_ctx);
+	rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
+	rmach_ctx.rmc_dbname    = DUMMY_DBNAME;
+	rmach_ctx.rmc_ep_addr   = DUMMY_SERVER_ADDR;
+	m0_ut_rpc_mach_init_and_add(&rmach_ctx);
+
         rc = m0_cm_type_register(&sender_cm_cmt);
         M0_UT_ASSERT(rc == 0);
         sender_service_alloc_init();
@@ -663,7 +662,7 @@ static void sender_init()
         rc = m0_cm_start(&sender_cm);
         M0_UT_ASSERT(rc == 0);
 
-        while (m0_fom_domain_is_idle(&sender_reqh.rh_fom_dom) ||
+        while (m0_fom_domain_is_idle(&rmach_ctx.rmc_reqh.rh_fom_dom) ||
                         !m0_cm_cp_pump_is_complete(&sender_cm.cm_cp_pump))
                 usleep(200);
 
@@ -713,15 +712,12 @@ static void sender_fini()
         m0_net_domain_fini(&client_net_dom);
         rc = m0_cm_stop(&sender_cm);
         M0_UT_ASSERT(rc == 0);
-	m0_reqh_fom_domain_idle_wait(&sender_reqh);
+	m0_reqh_fom_domain_idle_wait(&rmach_ctx.rmc_reqh);
         m0_ios_poolmach_fini(sender_cm_service);
         m0_reqh_service_stop(sender_cm_service);
         m0_reqh_service_fini(sender_cm_service);
         m0_cm_type_deregister(&sender_cm_cmt);
-	m0_reqh_services_terminate(&sender_reqh);
-        m0_reqh_fini(&sender_reqh);
-        M0_SET0(&sender_reqh);
-	m0_dbenv_fini(&db);
+	m0_ut_rpc_mach_fini(&rmach_ctx);
 
         for (i = 0; i < BUF_NR; ++i)
                 bv_free(&s_buf[i].nb_buffer);
@@ -789,7 +785,7 @@ static void test_cp_send_recv_verify()
 	m0_cm_aggr_group_add(&sender_cm, &s_sag.sag_base, true);
 	m0_cm_unlock(&sender_cm);
 
-        m0_fom_queue(&s_sns_cp.sc_base.c_fom, &sender_reqh);
+        m0_fom_queue(&s_sns_cp.sc_base.c_fom, &rmach_ctx.rmc_reqh);
 
         /* Wait till ast gets posted. */
         m0_semaphore_down(&sem);

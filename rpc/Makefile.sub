@@ -22,7 +22,8 @@ nobase_mero_include_HEADERS += rpc/session.h \
                                   rpc/slot_internal.h \
                                   rpc/rpc_internal.h \
                                   rpc/session_fops_xc.h \
-				  rpc/rpc_addb.h
+				  rpc/rpc_addb.h \
+                                  rpc/rev_conn.h
 
 mero_libmero_la_SOURCES  += rpc/session.c \
                                   rpc/slot.c \
@@ -43,7 +44,8 @@ mero_libmero_la_SOURCES  += rpc/session.c \
                                   rpc/service.c \
                                   rpc/rpc_onwire_xc.c \
                                   rpc/session_fops_xc.c \
-				  rpc/rpc_addb.c
+				  rpc/rpc_addb.c \
+                                  rpc/rev_conn.c
 
 XC_FILES   += rpc/rpc_onwire_xc.h \
               rpc/session_fops_xc.h

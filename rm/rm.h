@@ -649,7 +649,7 @@ struct m0_rm_remote {
 	 * A resource for which the remote owner is represented.
 	 */
 	struct m0_rm_resource  *rem_resource;
-
+	struct m0_clink        *rem_rev_sess_wait;
 	struct m0_rpc_session  *rem_session;
 	/** A channel to signal state changes. */
 	struct m0_chan          rem_signal;

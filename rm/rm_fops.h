@@ -98,10 +98,10 @@ struct m0_rm_fop_borrow {
 } M0_XCA_RECORD;
 
 struct m0_rm_fop_borrow_rep {
-	struct m0_fom_error_rep br_rc;
-	struct m0_rm_fop_loan   br_loan;
-	struct m0_rm_fop_credit br_credit;
-	struct m0_buf           br_lvb;
+	struct m0_fop_generic_reply br_rc;
+	struct m0_rm_fop_loan       br_loan;
+	struct m0_rm_fop_credit     br_credit;
+	struct m0_buf               br_lvb;
 } M0_XCA_RECORD;
 
 struct m0_rm_fop_revoke {

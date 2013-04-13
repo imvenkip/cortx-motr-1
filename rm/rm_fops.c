@@ -28,6 +28,7 @@
 #include "lib/finject.h"
 
 #include "rm/rm_fops.h"
+#include "rm/rm_foms.h"
 #include "rm/rm_fops_xc.h"
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
@@ -237,23 +238,32 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 	switch (otype) {
 	case M0_ROT_BORROW:
 		rc = borrow_fop_fill(outreq, in, credit);
-		/* This should be as discussed:
-		 *	take rm service end point from confd
-		 *	for this simple case, it should be stored
-		 *	in some variable, a rpc session must be
-		 *	created and this created session is assigned
-		 *	below.
-		 */
 		session = in->rin_want.cr_owner->ro_creditor->rem_session;
 		outreq->ou_ast.sa_cb = &borrow_ast;
 		break;
-	case M0_ROT_REVOKE:
+	case M0_ROT_REVOKE: {
 		M0_ASSERT(loan != NULL);
 		M0_ASSERT(loan->rl_other != NULL);
+		/*
+		 * Check whether remote session is established or not.
+		 * If a situation comes when we have to send revoke
+		 * request even before the session is established,
+		 * we need to wait till the session is established.
+		 */
+		if (loan->rl_other->rem_rev_sess_wait != NULL) {
+			struct m0_chan *chan;
+			m0_chan_wait(loan->rl_other->rem_rev_sess_wait);
+			chan = loan->rl_other->rem_rev_sess_wait->cl_chan;
+			m0_clink_del_lock(loan->rl_other->rem_rev_sess_wait);
+			m0_clink_fini(loan->rl_other->rem_rev_sess_wait);
+			m0_free(loan->rl_other->rem_rev_sess_wait);
+			loan->rl_other->rem_rev_sess_wait = NULL;
+		}
 		rc = revoke_fop_fill(outreq, in, loan, credit);
 		session = loan->rl_other->rem_session;
 		outreq->ou_ast.sa_cb = &revoke_ast;
 		break;
+	}
 	default:
 		M0_IMPOSSIBLE("No such RM outgoing request type");
 		break;

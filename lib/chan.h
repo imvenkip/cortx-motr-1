@@ -177,7 +177,7 @@ typedef bool (*m0_chan_cb_t)(struct m0_clink *link);
 
    <b>Concurrency control</b>
 
-   There are tree groups of channel functions with different serialization
+   There are three groups of channel functions with different serialization
    requirements:
 
    - (A) caller holds the ch_guard lock:

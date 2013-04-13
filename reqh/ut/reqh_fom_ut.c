@@ -270,7 +270,10 @@ static int server_init(const char             *stob_path,
 
 	rc = m0_reqh_service_allocate(&reqh_ut_service, stype, NULL);
 	M0_UT_ASSERT(rc == 0);
+	m0_reqh_rpc_mach_tlink_init_at_tail(rpc_machine,
+					    &reqh.rh_rpc_machines);
 	m0_reqh_service_init(reqh_ut_service, &reqh, NULL);
+
 	rc = m0_reqh_service_start(reqh_ut_service);
 	M0_UT_ASSERT(rc == 0);
 	return rc;
@@ -280,6 +283,7 @@ static int server_init(const char             *stob_path,
 static void server_fini(struct m0_stob_domain *bdom,
 			struct m0_stob        *reqh_addb_stob)
 {
+	m0_reqh_rpc_mach_tlink_del_fini(&srv_rpc_mach);
         /* Fini the rpc_machine */
         m0_rpc_machine_fini(&srv_rpc_mach);
 
@@ -289,7 +293,6 @@ static void server_fini(struct m0_stob_domain *bdom,
         m0_mdstore_fini(&srv_mdstore);
 
 	m0_stob_put(reqh_addb_stob);
-
 	m0_reqh_service_stop(reqh_ut_service);
 	m0_reqh_service_fini(reqh_ut_service);
 	m0_reqh_services_terminate(&reqh);

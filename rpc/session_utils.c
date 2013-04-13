@@ -230,7 +230,7 @@ M0_INTERNAL int m0_rpc_root_session_cob_get(struct m0_cob_domain *dom,
 					    struct m0_db_tx *tx)
 {
 	return m0_rpc_cob_lookup_helper(dom, NULL, M0_COB_SESSIONS_NAME,
-						out, tx);
+					out, tx);
 }
 
 #ifdef __KERNEL__
@@ -251,7 +251,8 @@ int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
 	if (M0_FI_ENABLED("fake_error"))
 		M0_RETURN(-EINVAL);
 
-	rc = m0_cob_domain_mkfs(dom, &M0_COB_SLASH_FID, &M0_COB_SESSIONS_FID, tx);
+	rc = m0_cob_domain_mkfs(dom, &M0_COB_SLASH_FID,
+				&M0_COB_SESSIONS_FID, tx);
 	if (rc == -EEXIST)
 		rc = 0;
 

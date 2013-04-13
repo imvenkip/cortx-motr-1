@@ -38,6 +38,15 @@
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "mero/setup.h"
+#include "ut/ut_rpc_machine.h"
+
+#define DUMMY_DBNAME      "dummy-db"
+#define DUMMY_COB_ID      20
+#define DUMMY_SERVER_ADDR "0@lo:12345:34:10"
+
+extern struct m0_cm_cp            cm_ut_cp;
+extern struct m0_reqh_service    *cm_ut_service;
+extern struct m0_ut_rpc_mach_ctx  cmut_rmach_ctx;
 
 enum {
 	AG_ID_NR = 4096,
@@ -59,10 +68,10 @@ extern struct m0_reqh_service  *cm_ut_service;
 extern struct m0_mutex          cm_wait_mutex;
 extern struct m0_chan           cm_wait;
 
-extern struct m0_cm_type cm_ut_cmt;
+extern struct m0_cm_type                 cm_ut_cmt;
 extern const struct m0_cm_aggr_group_ops cm_ag_ut_ops;
-extern uint64_t ut_cm_id;
-extern bool test_ready_fop;
+extern uint64_t                          ut_cm_id;
+extern bool                              test_ready_fop;
 
 int cm_ut_server_start(struct m0_mero *mero_ctx, struct m0_net_xprt **xprts,
 		       int xprts_len, int argc, char **argv);

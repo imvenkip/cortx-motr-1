@@ -115,8 +115,8 @@ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
 			rm_utdata_fini(data, OBJ_DOMAIN);
 			break;
 		case OBJ_RES:
-			m0_tl_for(m0_remotes, &data->rd_res.rs_resource.r_remote,
-				  other) {
+			m0_tl_for(m0_remotes,
+				  &data->rd_res.rs_resource.r_remote, other) {
 				m0_remotes_tlist_del(other);
 				m0_rm_remote_fini(other);
 				m0_free(other);
@@ -128,7 +128,8 @@ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
 			m0_rm_owner_windup(&data->rd_owner);
 
 			data->rd_owner.ro_creditor = NULL;
-			m0_tl_for(m0_rm_ur, &data->rd_owner.ro_borrowed, credit) {
+			m0_tl_for(m0_rm_ur, &data->rd_owner.ro_borrowed,
+				  credit) {
 				m0_rm_ur_tlist_del(credit);
 			} m0_tl_endfor;
 			m0_rm_owner_fini(&data->rd_owner);

@@ -535,6 +535,12 @@ enum m0_magic_satchel {
 	/* m0_reqh_rpc_mach_tl::td_head_magic (laissez eifel) */
 	M0_REQH_RPC_MACH_HEAD_MAGIC = 0x331a155e2e1fe177,
 
+	/* rev_conn_tl::rcf_link (abless ablaze) */
+	M0_RM_REV_CONN_LIST_MAGIC = 0x33AB1E55AB1A2E77,
+
+	/* rev_conn_tl::td_head_magic (belief abelia) */
+	M0_RM_REV_CONN_LIST_HEAD_MAGIC = 0x33BE11EFABE11A77,
+
 /* State Machine */
 	/* m0_sm_conf::scf_magic (falsie zodiac) */
 	M0_SM_CONF_MAGIC = 0x33FA151E20D1AC77,
@@ -579,11 +585,11 @@ enum m0_magic_satchel {
 	/* m0_reqh_rm_service::rms_magix (seidel afield) */
 	M0_RM_SERVICE_MAGIC = 0x335e1de1af1e1d77,
 
-	/* rmsvc_owner_tl::ro_owner_linkage () */
-	M0_RM_OWNER_LIST_MAGIC = 0x100100,
+	/* rmsvc_owner_tl::ro_owner_linkage (eiffel doodle) */
+	M0_RM_OWNER_LIST_MAGIC = 0x33E1FFE1D00D1E77,
 
-	/* rmsvc_owner_tl::td_head_magic () */
-	M0_RM_OWNER_LIST_HEAD_MAGIC = 0x1001001,
+	/* rmsvc_owner_tl::td_head_magic (scalic seabed) */
+	M0_RM_OWNER_LIST_HEAD_MAGIC = 0x335CA11C5EABED77,
 
 /* RPC */
 	/* m0_rpc_service_type::svt_magix (seedless seel) */

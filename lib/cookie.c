@@ -54,9 +54,9 @@
 
 static uint64_t cookie_generation;
 
-const struct m0_cookie M0_COOKIE_NULL = {
+M0_INTERNAL const struct m0_cookie M0_COOKIE_NULL = {
 	.co_generation = 0xffff,
-	.co_addr       = 0,
+	.co_addr       = 7,
 };
 
 M0_INTERNAL bool m0_arch_addr_is_sane(const void *addr);
@@ -107,7 +107,7 @@ M0_INTERNAL int m0_cookie_dereference(const struct m0_cookie *cookie,
 		return -EPROTO;
 }
 
-M0_INTERNAL bool m0_cookie_is_null(struct m0_cookie cookie)
+M0_INTERNAL bool m0_cookie_is_null(const struct m0_cookie cookie)
 {
 	return cookie.co_generation == M0_COOKIE_NULL.co_generation &&
 		cookie.co_addr == M0_COOKIE_NULL.co_addr;

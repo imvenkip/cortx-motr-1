@@ -21,11 +21,15 @@
 #include <linux/string.h>
 #include <linux/errno.h>
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/tlist.h"
 #include "lib/bob.h"
 #include "lib/rwlock.h"
 #include "lib/memory.h"   /* m0_alloc() */
 #include "rpc/rpc_internal.h"
+#include "rpc/rev_conn.h"
+#include "reqh/reqh.h"
 
 /**
    @addtogroup rpc_service
@@ -49,6 +53,11 @@ M0_TL_DESCR_DEFINE(service_type, "rpc_service_type", static,
 
 M0_TL_DEFINE(service_type, static, struct m0_rpc_service_type);
 
+M0_TL_DESCR_DEFINE(rev_conn, "Reverse Connections", static,
+		   struct m0_reverse_connection, rcf_link, rcf_magic,
+		   M0_RM_REV_CONN_LIST_MAGIC, M0_RM_REV_CONN_LIST_HEAD_MAGIC);
+M0_TL_DEFINE(rev_conn, static, struct m0_reverse_connection);
+
 static struct m0_tl     service_type_tlist;
 static struct m0_rwlock service_type_tlist_lock;
 
@@ -70,6 +79,7 @@ M0_INTERNAL int m0_rpc_service_module_init(void)
 
 	service_type_tlist_init(&service_type_tlist);
 	m0_rwlock_init(&service_type_tlist_lock);
+	m0_rev_conn_fom_type_init();
 	return 0;
 }
 
@@ -169,7 +179,6 @@ M0_INTERNAL int m0_rpc_service_alloc_and_init(struct m0_rpc_service_type
 	       service_type->svt_ops->rsto_alloc_and_init != NULL &&
 	       out != NULL);
 
-	*out = NULL;
 	rc = service_type->svt_ops->rsto_alloc_and_init(service_type,
 							ep_addr, uuid, out);
 
@@ -219,6 +228,7 @@ M0_INTERNAL int m0_rpc__service_init(struct m0_rpc_service *service,
 
 	m0_rpc_services_tlink_init(service);
 	m0_rpc_service_bob_init(service);
+	rev_conn_tlist_init(&service->svc_rev_conn);
 
 	rc = 0;
 
@@ -240,7 +250,7 @@ M0_INTERNAL void m0_rpc__service_fini(struct m0_rpc_service *service)
 	m0_free(service->svc_ep_addr);
 
 	service->svc_type = NULL;
-
+	rev_conn_tlist_fini(&service->svc_rev_conn);
 	m0_rpc_services_tlink_fini(service);
 	m0_rpc_service_bob_fini(service);
 
@@ -255,9 +265,8 @@ M0_INTERNAL const char *m0_rpc_service_get_ep_addr(const struct m0_rpc_service
 	return service->svc_ep_addr;
 }
 
-M0_INTERNAL const struct m0_uuid *m0_rpc_service_get_uuid(const struct
-							  m0_rpc_service
-							  *service)
+M0_INTERNAL const struct m0_uuid *
+m0_rpc_service_get_uuid(const struct m0_rpc_service *service)
 {
 	M0_PRE(m0_rpc_service_invariant(service));
 
@@ -318,6 +327,104 @@ M0_INTERNAL void m0_rpc_service_conn_detach(struct m0_rpc_service *service)
 
 	m0_rpc_machine_unlock(machine);
 }
+
+M0_INTERNAL struct m0_rpc_session *
+m0_rpc_service_reverse_session_lookup(struct m0_rpc_service    *svc,
+				      const struct m0_rpc_item *item)
+{
+	const char                   *rem_ep;
+	struct m0_reverse_connection *revc;
+
+	M0_PRE(svc != NULL && item != NULL);
+
+	rem_ep = m0_rpc_item_remote_ep_addr(item);
+
+	m0_tl_for (rev_conn, &svc->svc_rev_conn, revc) {
+		if (strcmp(rem_ep, revc->rcf_rem_ep) == 0)
+			return *revc->rcf_sess;
+	} m0_tl_endfor;
+
+	return NULL;
+}
+
+M0_INTERNAL int
+m0_rpc_service_reverse_session_get(struct m0_rpc_service    *svc,
+				   const struct m0_rpc_item *item,
+				   struct m0_rpc_session   **session)
+{
+	int                           rc;
+	const char                   *rem_ep;
+	struct m0_reverse_connection *revc;
+	struct m0_reqh_service       *reqhsvc;
+
+	M0_PRE(svc != NULL && item != NULL);
+
+	rem_ep = m0_rpc_item_remote_ep_addr(item);
+
+	M0_ALLOC_PTR(revc);
+	if (revc == NULL) {
+		rc = -ENOMEM;
+		goto err_revc;
+	}
+	reqhsvc = container_of(svc, struct m0_reqh_service, rs_rpc_svc);
+	revc->rcf_rem_ep = m0_alloc(strlen(rem_ep) + 1);
+	if (revc->rcf_rem_ep == NULL) {
+		rc = -ENOMEM;
+		goto err_ep;
+	}
+	strcpy(revc->rcf_rem_ep, rem_ep);
+	M0_ALLOC_PTR(revc->rcf_sess);
+	if (revc->rcf_sess == NULL) {
+		rc = -ENOMEM;
+		goto err_ep;
+	}
+	*revc->rcf_sess = *session;
+
+	revc->rcf_rpcmach = item->ri_rmachine;
+	revc->rcf_ft = M0_REV_CONNECT;
+	m0_fom_init(&revc->rcf_fom, &rev_conn_fom_type, &rev_conn_fom_ops,
+		    NULL, NULL, reqhsvc->rs_reqh, reqhsvc->rs_type);
+
+	m0_fom_queue(&revc->rcf_fom, reqhsvc->rs_reqh);
+	rev_conn_tlink_init_at_tail(revc, &svc->svc_rev_conn);
+	M0_RETURN(0);
+
+err_ep:
+	m0_free(revc->rcf_rem_ep);
+err_revc:
+	m0_free(revc);
+	M0_RETURN(rc);
+}
+
+M0_INTERNAL void
+m0_rpc_service_reverse_session_put(struct m0_rpc_service *svc)
+{
+	struct m0_reqh_service       *reqhsvc;
+	struct m0_reverse_connection *revc;
+	m0_time_t                     rpc_timeout =
+		m0_time_from_now(M0_REV_CONN_TIMEOUT, 0);
+
+	M0_PRE(svc != NULL);
+
+	reqhsvc = container_of(svc, struct m0_reqh_service, rs_rpc_svc);
+
+	/*
+	 * It is assumed that following functions log errors internally
+	 * and hence their return value is ignored.
+	 */
+	m0_tl_for (rev_conn, &svc->svc_rev_conn, revc) {
+		m0_rpc_session_destroy(*revc->rcf_sess, rpc_timeout);
+		m0_rpc_conn_destroy(revc->rcf_conn, rpc_timeout);
+		rev_conn_tlink_del_fini(revc);
+		m0_free(*revc->rcf_sess);
+		m0_free(revc->rcf_sess);
+		m0_free(revc->rcf_rem_ep);
+		m0_free(revc->rcf_conn);
+		m0_free(revc);
+	} m0_tl_endfor;
+}
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of rpc_service group */
 /*

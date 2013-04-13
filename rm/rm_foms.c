@@ -30,6 +30,8 @@
 #include "rm/rm_foms.h"
 #include "rm/rm_service.h"
 #include "rm/ut/rings.h"
+#include "rpc/service.h"
+
 /**
    @addtogroup rm
 
@@ -211,6 +213,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	m0_fom_init(&rqfom->rf_fom, &fop->f_type->ft_fom_type,
 		    fom_ops, fop, reply_fop, reqh,
 		    fop->f_type->ft_fom_type.ft_rstype);
+
 	/*
 	 * m0_fop_alloc() holds a reference. m0_fom_init() holds additional
 	 * reference to reply_fop. Hence use m0_fop_put() to release extra
@@ -292,7 +295,7 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
 static void reply_err_set(enum m0_rm_incoming_type type,
 			 struct m0_fom *fom, int rc)
 {
-	struct m0_fop_rm_borrow_rep *bfop;
+	struct m0_rm_fop_borrow_rep *bfop;
 	struct m0_fop_generic_reply *rfop = NULL;
 
 	M0_ENTRY("reply for fom: %p type: %d error: %d", fom, type, rc);
@@ -313,6 +316,38 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 	m0_fom_phase_move(fom, rc, rc ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
 	M0_LEAVE();
 }
+
+static int remote_incoming_reverser_session_get(struct rm_request_fom *rfom)
+{
+	struct m0_fom *fom = &rfom->rf_fom;
+
+	if (fom->fo_fop->f_item.ri_session != NULL) {
+		rfom->rf_in.ri_rem_session =
+			m0_rpc_service_reverse_session_lookup(
+				&fom->fo_service->rs_rpc_svc,
+				&fom->fo_fop->f_item);
+		if (rfom->rf_in.ri_rem_session == NULL) {
+			M0_ALLOC_PTR(rfom->rf_in.ri_rev_sess_wait);
+			if (rfom->rf_in.ri_rev_sess_wait == NULL)
+				M0_RETURN(-ENOMEM);
+			else
+				m0_clink_init(rfom->rf_in.ri_rev_sess_wait,
+					      NULL);
+			m0_clink_add_lock(
+				&rfom->rf_fom.fo_service->rs_rev_conn_wait,
+				rfom->rf_in.ri_rev_sess_wait);
+			M0_ALLOC_PTR(rfom->rf_in.ri_rem_session);
+			if (rfom->rf_in.ri_rem_session == NULL)
+				M0_RETURN(-ENOMEM);
+			m0_rpc_service_reverse_session_get(
+				&fom->fo_service->rs_rpc_svc,
+				&fom->fo_fop->f_item,
+				&rfom->rf_in.ri_rem_session);
+		}
+	}
+	M0_RETURN(0);
+}
+
 
 /*
  * Build an remote-incoming structure using remote request information.
@@ -341,10 +376,15 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 		/* Remote owner (requester) cookie */
 		rfom->rf_in.ri_rem_owner_cookie = basefop->rrq_owner.ow_cookie;
 		/*
-		 * @todo Figure out how to find local session that can
-		 * send RPC back to the debtor.
-		 * rfom->rf_in.ri_rem_session = NULL;
+		 * At this point call m0_rpc_reverse_session_get()
+		 * if Session exists, assign rfom->rf_in.ri_rem_session
+		 * else post a fom for creating a session asynchronously
+		 * m0_rpc_reverse_session_get(fom->fo_fop->ri_item,
+		 *                            &rfom->rf_in.ri_rem_session)
 		 */
+		rc = remote_incoming_reverser_session_get(rfom);
+		if (rc != 0)
+			M0_RETURN(rc);
 		/*
 		 * Populate the owner cookie for creditor (local)
 		 * This is used later by locality().

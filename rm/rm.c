@@ -1027,6 +1027,7 @@ M0_EXPORTED(m0_rm_loan_fini);
 
 static int remote_find(struct m0_rm_remote   **rem,
 		       struct m0_rpc_session  *session,
+		       struct m0_clink        *sess_wait_link,
 		       struct m0_rm_resource  *res,
 		       struct m0_cookie       *cookie)
 {
@@ -1050,6 +1051,7 @@ static int remote_find(struct m0_rm_remote   **rem,
 		if (other != NULL) {
 			m0_rm_remote_init(other, res);
 			other->rem_session = session;
+			other->rem_rev_sess_wait = sess_wait_link;
 			other->rem_state = REM_SERVICE_LOCATED;
 			other->rem_cookie = *cookie;
 			/* @todo - Figure this out */
@@ -1197,7 +1199,8 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
 	 */
 
 	rc = remote_find(&debtor, rem_in->ri_rem_session,
-			 owner->ro_resource, &rem_in->ri_rem_owner_cookie) ?:
+			 rem_in->ri_rev_sess_wait, owner->ro_resource,
+			 &rem_in->ri_rem_owner_cookie) ?:
 	     m0_rm_loan_alloc(&loan, &in->rin_want, debtor);
 	rc = rc ?: cached_credits_remove(in);
 	if (rc == 0) {

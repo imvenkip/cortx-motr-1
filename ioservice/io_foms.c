@@ -800,7 +800,7 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
         if (fom_obj->fcrw_num_stobio_launched == 0) {
                 m0_fom_ready(fom);
         }
-};
+}
 
 /**
  * Function to map given fid to corresponding Component object id(in turn,

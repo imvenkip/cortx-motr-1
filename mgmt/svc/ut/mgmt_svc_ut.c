@@ -35,6 +35,7 @@
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpclib.h"
 #include "ut/ut.h"
+#include "ut/ut_rpc_machine.h"
 
 #include <stdio.h>
 
@@ -123,8 +124,9 @@ static struct m0_fop *mgmt_svc_ut_ss_fop_alloc(void)
 #ifdef ENABLE_FAULT_INJECTION
 static void test_mgmt_svc_fail(void)
 {
-	int             rc;
-	struct m0_reqh *rh;
+	int                        rc;
+	struct m0_reqh            *rh;
+	struct m0_ut_rpc_mach_ctx  rmach_ctx;
 
 	/* Force failure during allocate */
 	M0_ALLOC_PTR(rh);
@@ -136,8 +138,20 @@ static void test_mgmt_svc_fail(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_INIT);
 	m0_fi_enable_once("m0_mgmt_service_allocate", "-EFAULT");
+
+	/* Hack */
+	M0_SET0(&rmach_ctx);
+	rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
+	rmach_ctx.rmc_dbname    = DUMMY_DBNAME;
+	rmach_ctx.rmc_ep_addr   = DUMMY_SERVER_ADDR;
+	m0_ut_rpc_mach_init_and_add(&rmach_ctx);
+	m0_reqh_rpc_mach_tlink_del_fini(&rmach_ctx.rmc_rpc);
+	m0_reqh_rpc_mach_tlink_init_at_tail(&rmach_ctx.rmc_rpc,
+					    &rh->rh_rpc_machines);
+
 	M0_UT_ASSERT(m0_reqh_mgmt_service_start(rh) == -EFAULT);
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_STOPPED);
+	m0_ut_rpc_mach_fini(&rmach_ctx);
 	m0_reqh_fini(rh);
 	m0_free(rh);
 
@@ -151,8 +165,19 @@ static void test_mgmt_svc_fail(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_INIT);
 	m0_fi_enable_once("mgmt_svc_rso_start", "-ECANCELED");
+
+	/* Hack */
+	M0_SET0(&rmach_ctx);
+	rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
+	rmach_ctx.rmc_dbname    = DUMMY_DBNAME;
+	rmach_ctx.rmc_ep_addr   = DUMMY_SERVER_ADDR;
+	m0_ut_rpc_mach_init_and_add(&rmach_ctx);
+	m0_reqh_rpc_mach_tlink_del_fini(&rmach_ctx.rmc_rpc);
+	m0_reqh_rpc_mach_tlink_init_at_tail(&rmach_ctx.rmc_rpc,
+					    &rh->rh_rpc_machines);
 	M0_UT_ASSERT(m0_reqh_mgmt_service_start(rh) == -ECANCELED);
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_STOPPED);
+	m0_ut_rpc_mach_fini(&rmach_ctx);
 	m0_reqh_fini(rh);
 	m0_free(rh);
 }
@@ -160,11 +185,12 @@ static void test_mgmt_svc_fail(void)
 
 static void test_reqh_fop_allow(void)
 {
-	int             rc;
-	struct m0_fop  *ss_fop;
-	struct m0_fop  *f_fop;
-	int             rfp_cnt;
-	struct m0_reqh *rh;
+	int                        rc;
+	struct m0_fop             *ss_fop;
+	struct m0_fop             *f_fop;
+	int                        rfp_cnt;
+	struct m0_reqh            *rh;
+	struct m0_ut_rpc_mach_ctx  rmach_ctx;
 
 	M0_ALLOC_PTR(rh);
 	M0_UT_ASSERT(rh != NULL);
@@ -175,6 +201,15 @@ static void test_reqh_fop_allow(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_INIT);
 
+	/* Hack */
+	M0_SET0(&rmach_ctx);
+	rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
+	rmach_ctx.rmc_dbname    = DUMMY_DBNAME;
+	rmach_ctx.rmc_ep_addr   = DUMMY_SERVER_ADDR;
+	m0_ut_rpc_mach_init_and_add(&rmach_ctx);
+	m0_reqh_rpc_mach_tlink_del_fini(&rmach_ctx.rmc_rpc);
+	m0_reqh_rpc_mach_tlink_init_at_tail(&rmach_ctx.rmc_rpc,
+					    &rh->rh_rpc_machines);
 	ss_fop = mgmt_svc_ut_ss_fop_alloc();
 	M0_UT_ASSERT(ss_fop != NULL);
 	f_fop = mgmt_svc_ut_fake_fop_alloc();
@@ -263,6 +298,7 @@ static void test_reqh_fop_allow(void)
 
 	m0_fop_put(ss_fop);
 	m0_fop_put(f_fop);
+	m0_ut_rpc_mach_fini(&rmach_ctx);
 	m0_reqh_fini(rh);
 	m0_free(rh);
 }

@@ -30,6 +30,7 @@
 #include "lib/lockers.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
+#include "rpc/rpc_machine.h"
 #include "mero/magic.h"
 
 /**
@@ -45,6 +46,10 @@
    @see struct m0_reqh_service_type
  */
 static struct m0_tl rstypes;
+
+enum {
+	M0_REQH_SVC_RPC_SERVICE_TYPE
+};
 
 /** Protects access to list rstypes. */
 static struct m0_rwlock rstypes_rwlock;
@@ -222,6 +227,7 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 
 	reqh = service->rs_reqh;
 	service->rs_ops->rso_stop(service);
+	m0_rpc_service_reverse_session_put(&service->rs_rpc_svc);
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	if (service != reqh->rh_mgmt_svc)
 		m0_reqh_svc_tlist_del(service);
@@ -232,11 +238,46 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
+static void reqh_rpc_svc_fini_and_free(struct m0_rpc_service *service)
+{
+	m0_rpc__service_fini(service);
+	service->svc_state = M0_RPC_SERVICE_STATE_UNDEFINED;
+}
+
+static const struct m0_rpc_service_ops reqh_rpc_svc_ops = {
+	.rso_fini_and_free = reqh_rpc_svc_fini_and_free,
+};
+
+static int
+reqh_rpc_svc_alloc_and_init(struct m0_rpc_service_type *service_type,
+			    const char                 *ep_addr,
+			    const struct m0_uuid       *uuid,
+			    struct m0_rpc_service     **out)
+{
+	int rc;
+
+	rc = m0_rpc__service_init(*out, service_type, ep_addr, uuid,
+				  &reqh_rpc_svc_ops);
+	(*out)->svc_state = M0_RPC_SERVICE_STATE_INITIALISED;
+	return rc;
+}
+
+static const struct m0_rpc_service_type_ops reqh_rpc_svct_ops = {
+	.rsto_alloc_and_init = reqh_rpc_svc_alloc_and_init,
+};
+
+M0_RPC_SERVICE_TYPE_DEFINE(static, reqh_rpc_svct, "Reqh service rpc svc",
+			   M0_REQH_SVC_RPC_SERVICE_TYPE, &reqh_rpc_svct_ops);
+
 M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
-				      struct m0_reqh *reqh,
-				      struct m0_uint128 *uuid)
+				      struct m0_reqh         *reqh,
+				      struct m0_uint128      *uuid)
 {
 	struct m0_addb_ctx_type *serv_addb_ct;
+	struct m0_rpc_service   *rpcsvc = &service->rs_rpc_svc;
+	struct m0_rpc_machine   *rmach;
+	const char              *ep;
+	struct m0_uuid           uuid1;
 
 	M0_PRE(service != NULL && reqh != NULL &&
 		service->rs_sm.sm_state == M0_RST_INITIALISING);
@@ -259,7 +300,11 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 	service->rs_reqh = reqh;
 	m0_reqh_svc_tlink_init(service);
 	m0_mutex_init(&service->rs_mutex);
-
+	m0_chan_init(&service->rs_rev_conn_wait, &service->rs_mutex);
+	rmach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
+	M0_ASSERT(rmach != NULL);
+	ep = m0_rpc_machine_ep(rmach);
+	m0_rpc_service_alloc_and_init(&reqh_rpc_svct, ep, &uuid1, &rpcsvc);
 	reqh_service_state_set(service, M0_RST_INITIALISED);
 
 	/** @todo: Need to pass the service uuid "hi" & "low"
@@ -286,10 +331,12 @@ M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service)
 	m0_addb_ctx_fini(&service->rs_addb_ctx);
 	m0_reqh_service_bob_fini(service);
 	m0_reqh_svc_tlink_fini(service);
-	m0_mutex_fini(&service->rs_mutex);
 	m0_sm_group_lock(&service->rs_reqh->rh_sm_grp);
 	m0_sm_fini(&service->rs_sm);
 	m0_sm_group_unlock(&service->rs_reqh->rh_sm_grp);
+	m0_rpc_service_fini_and_free(&service->rs_rpc_svc);
+	m0_chan_fini_lock(&service->rs_rev_conn_wait);
+	m0_mutex_fini(&service->rs_mutex);
 	service->rs_ops->rso_fini(service);
 }
 

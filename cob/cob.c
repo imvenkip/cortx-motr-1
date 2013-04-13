@@ -504,9 +504,9 @@ M0_EXPORTED(m0_cob_domain_fini);
 #define MKFS_ROOT_BLOCKS        16
 
 /**
- * Create intial files system structures, such as: entire storage root, root cob
- * for sessions and root cob for hierarchy. Latter is only one of them visible
- * to user on client.
+ * Create initial files system structures, such as: entire storage root, root
+ * cob for sessions and root cob for hierarchy. Latter is only one of them
+ * visible to user on client.
  */
 M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 				   const struct m0_fid *rootfid,

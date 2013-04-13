@@ -45,6 +45,7 @@ struct m0_rm_remote_incoming {
 	 */
 	struct m0_cookie       ri_rem_owner_cookie;
 	struct m0_cookie       ri_loan_cookie;
+	struct m0_clink       *ri_rev_sess_wait;
 	/**
 	 * Session pointer to the remote end.
 	 */

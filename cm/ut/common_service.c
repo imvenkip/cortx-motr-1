@@ -25,10 +25,10 @@
 #include "cm/ut/common_service.h"
 #include "mero/setup.h"
 
-struct m0_reqh           cm_ut_reqh;
-struct m0_cm_cp          cm_ut_cp;
-struct m0_ut_cm          cm_ut[MAX_CM_NR];
-struct m0_reqh_service  *cm_ut_service;
+struct m0_cm_cp            cm_ut_cp;
+struct m0_ut_cm            cm_ut[MAX_CM_NR];
+struct m0_reqh_service    *cm_ut_service;
+struct m0_ut_rpc_mach_ctx  cmut_rmach_ctx;
 
 const char  lfname[] = "cm_ut.errlog";
 FILE       *lf;
@@ -242,7 +242,7 @@ void cm_ut_service_alloc_init()
 	rc = m0_reqh_service_allocate(&cm_ut_service, &cm_ut_cmt.ct_stype,
 	                              &rctx);
 	M0_ASSERT(rc == 0);
-	m0_reqh_service_init(cm_ut_service, &cm_ut_reqh, NULL);
+	m0_reqh_service_init(cm_ut_service, &cmut_rmach_ctx.rmc_reqh, NULL);
 }
 
 void cm_ut_service_cleanup()

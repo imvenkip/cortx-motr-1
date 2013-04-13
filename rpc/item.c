@@ -795,6 +795,14 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 	M0_LEAVE();
 }
 
+M0_INTERNAL const char *
+m0_rpc_item_remote_ep_addr(const struct m0_rpc_item *item)
+{
+	M0_PRE(item != NULL && item->ri_session != NULL);
+
+	return item->ri_session->s_conn->c_rpcchan->rc_destep->nep_addr;
+}
+
 #undef SLOT_REF_XCODE_OBJ
 
 /** @} end of rpc group */

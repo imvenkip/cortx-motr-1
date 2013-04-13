@@ -97,7 +97,7 @@ M0_INTERNAL bool m0_addr_is_sane(const uint64_t * addr);
 /**
  * Returns 'true' when cookie is NULL.
  */
-M0_INTERNAL bool m0_cookie_is_null(struct m0_cookie cookie);
+M0_INTERNAL bool m0_cookie_is_null(const struct m0_cookie cookie);
 
 /**
  * A macro to retrive address of a parent structure, associated with an object
@@ -115,7 +115,7 @@ M0_INTERNAL bool m0_cookie_is_null(struct m0_cookie cookie);
 /*__M0_LIB_COOKIE_H__*/
 #endif
 
-extern const struct m0_cookie M0_COOKIE_NULL;
+M0_EXTERN const struct m0_cookie M0_COOKIE_NULL;
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

@@ -24,6 +24,7 @@
 #include "net/lnet/lnet.h"
 #include "fop/fom_generic.h"  /* m0_generic_conf */
 #include "addb/addb.h"
+#include "ut/ut_rpc_machine.h"
 
 enum {
 	RDWR_REQUEST_MAX = 48,
@@ -33,21 +34,33 @@ enum {
 #include "fop/ut/long_lock/rdwr_fom.c"
 #include "fop/ut/long_lock/rdwr_test_bench.c"
 
-extern struct m0_fom_type rdwr_fom_type;
-extern const struct m0_fom_type_ops fom_rdwr_type_ops;
-static struct m0_reqh reqh[REQH_IN_UT_MAX];
-static struct m0_reqh_service *service[REQH_IN_UT_MAX];
+static const char *ll_db_name[] = {"ut-cob_1",
+				   "ut-cob_2"
+};
+
+static const char *ll_serv_addr[] = { "0@lo:12345:34:1",
+				      "0@lo:12345:34:2"
+};
+
+static const int ll_cob_ids[] = { 20, 30 };
+
+static struct m0_ut_rpc_mach_ctx     rmach_ctx[REQH_IN_UT_MAX];
+static struct m0_reqh_service       *service[REQH_IN_UT_MAX];
+extern struct m0_fom_type            rdwr_fom_type;
+extern const struct m0_fom_type_ops  fom_rdwr_type_ops;
+
 
 static void test_long_lock_n(void)
 {
-	static struct m0_reqh *r[REQH_IN_UT_MAX] = { &reqh[0], &reqh[1] };
+	static struct m0_reqh *r[REQH_IN_UT_MAX] = { &rmach_ctx[0].rmc_reqh,
+						     &rmach_ctx[1].rmc_reqh };
 
 	rdwr_send_fop(r, REQH_IN_UT_MAX);
 }
 
 static void test_long_lock_1(void)
 {
-	static struct m0_reqh *r[1] = { &reqh[0] };
+	static struct m0_reqh *r[1] = { &rmach_ctx[0].rmc_reqh };
 
 	rdwr_send_fop(r, 1);
 }
@@ -101,14 +114,11 @@ M0_REQH_SERVICE_TYPE_DEFINE(ut_long_lock_service_type,
 			    &ut_long_lock_service_type_ops,
 			    "ut-long-lock-service",
                             &m0_addb_ct_ut_service);
-static struct m0_dbenv dbenv;
 
 static int test_long_lock_init(void)
 {
 	int rc;
 	int i;
-	rc = m0_dbenv_init(&dbenv, "something", 0);
-	M0_ASSERT(rc == 0);
 
 	rc = m0_reqh_service_type_register(&ut_long_lock_service_type);
 	M0_ASSERT(rc == 0);
@@ -122,24 +132,21 @@ static int test_long_lock_init(void)
 	 * this test.
 	 */
 	for (i = 0; i < REQH_IN_UT_MAX; ++i) {
-		rc = M0_REQH_INIT(&reqh[i],
-				  .rhia_dtm       = (void *)1,
-				  .rhia_db        = &dbenv,
-				  .rhia_mdstore   = (void *)1,
-				  .rhia_fol       = (void *)1,
-				  .rhia_svc       = NULL,
-				  .rhia_addb_stob = NULL);
-		M0_ASSERT(rc == 0);
-		m0_reqh_start(&reqh[i]);
+		M0_SET0(&rmach_ctx[i]);
+		rmach_ctx[i].rmc_cob_id.id = ll_cob_ids[i];
+		rmach_ctx[i].rmc_dbname    = ll_db_name[i];
+		rmach_ctx[i].rmc_ep_addr   = ll_serv_addr[i];
+		m0_ut_rpc_mach_init_and_add(&rmach_ctx[i]);
 	}
 	for (i = 0; i < REQH_IN_UT_MAX; ++i) {
 		rc = m0_reqh_service_allocate(&service[i],
 					      &ut_long_lock_service_type, NULL);
 		M0_ASSERT(rc == 0);
-		m0_reqh_service_init(service[i], &reqh[i], NULL);
+		m0_reqh_service_init(service[i], &rmach_ctx[i].rmc_reqh, NULL);
 		rc = m0_reqh_service_start(service[i]);
 		M0_ASSERT(rc == 0);
 	}
+
 	return rc;
 }
 
@@ -147,14 +154,10 @@ static int test_long_lock_fini(void)
 {
 	int i;
 
-	for (i = 0; i < REQH_IN_UT_MAX; ++i) {
-		m0_reqh_service_stop(service[i]);
-		m0_reqh_service_fini(service[i]);
-		m0_reqh_services_terminate(&reqh[i]);
-		m0_reqh_fini(&reqh[i]);
-	}
+	for (i = 0; i < REQH_IN_UT_MAX; ++i)
+		m0_ut_rpc_mach_fini(&rmach_ctx[i]);
+
 	m0_reqh_service_type_unregister(&ut_long_lock_service_type);
-	m0_dbenv_fini(&dbenv);
 
 	return 0;
 }

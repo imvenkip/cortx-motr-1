@@ -32,8 +32,14 @@
 #include "ut/ut.h"
 #include "ut/cs_service.h"
 #include "ut/cs_fop_foms.h"
+#include "ut/ut_rpc_machine.h"
 
-static struct m0_fop_type m0_reqhut_dummy_fopt;
+#define DUMMY_DBNAME      "dummy-db"
+#define DUMMY_COB_ID      20
+#define DUMMY_SERVER_ADDR "0@lo:12345:34:10"
+
+static struct m0_fop_type        m0_reqhut_dummy_fopt;
+static struct m0_ut_rpc_mach_ctx rmach_ctx;
 
 static int reqhut_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			     struct m0_reqh *reqh);
@@ -134,32 +140,24 @@ void m0_reqhut_fop_fini(void)
 
 static void test_service(void)
 {
-	int                           i;
-	int                           rc;
-	struct m0_reqh               *reqh;
-	struct m0_reqh_service_type  *svct;
-	struct m0_reqh_service       *reqh_svc;
-	struct m0_fop                *fop;
-	static struct m0_dbenv        dbenv;
-
-	M0_ALLOC_PTR(reqh);
-	M0_UT_ASSERT(reqh != NULL);
-
-	rc = m0_dbenv_init(&dbenv, "something", 0);
-	M0_UT_ASSERT(rc == 0);
-
-	M0_SET0(reqh);
+	int                          i;
+	int                          rc;
+	struct m0_reqh              *reqh;
+	struct m0_reqh_service_type *svct;
+	struct m0_reqh_service      *reqh_svc;
+	struct m0_fop               *fop;
 
 	rc = m0_reqhut_fop_init();
 	M0_UT_ASSERT(rc == 0);
 
-	rc = M0_REQH_INIT(reqh,
-			  .rhia_db        = &dbenv,
-			  .rhia_mdstore   = (void *)1,
-			  .rhia_fol       = (void *)1);
-	M0_UT_ASSERT(rc == 0);
-	m0_reqh_start(reqh);
+	/* Hack */
+	M0_SET0(&rmach_ctx);
+	rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
+	rmach_ctx.rmc_dbname    = DUMMY_DBNAME;
+	rmach_ctx.rmc_ep_addr   = DUMMY_SERVER_ADDR;
+	m0_ut_rpc_mach_init_and_add(&rmach_ctx);
 
+	reqh = &rmach_ctx.rmc_reqh;
 	svct = m0_reqh_service_type_find("ds1");
 	M0_UT_ASSERT(svct != NULL);
 
@@ -183,12 +181,9 @@ static void test_service(void)
 
 	m0_reqh_service_stop(reqh_svc);
 	m0_reqh_service_fini(reqh_svc);
-	m0_reqh_services_terminate(reqh);
-	m0_reqh_fini(reqh);
-	m0_dbenv_fini(&dbenv);
+	m0_ut_rpc_mach_fini(&rmach_ctx);
 
 	m0_reqhut_fop_fini();
-	m0_free(reqh);
 }
 
 const struct m0_test_suite reqh_service_ut = {

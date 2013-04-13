@@ -37,20 +37,16 @@
 #include "addb/addb.h"
 #include "cm/ut/common_service.h"
 
-static struct m0_dbenv           dbenv;
 static int cm_ut_init(void)
 {
-	int	rc;
-	rc = m0_dbenv_init(&dbenv, "something", 0);
-	M0_ASSERT(rc == 0);
-	M0_REQH_INIT(&cm_ut_reqh,
-		     .rhia_dtm       = NULL,
-		     .rhia_db        = &dbenv,
-		     .rhia_mdstore   = (void *)1,
-		     .rhia_fol       = (void *)1,
-		     .rhia_svc       = (void *)1,
-		     .rhia_addb_stob = NULL);
-	m0_reqh_start(&cm_ut_reqh);
+	int rc;
+
+	M0_SET0(&cmut_rmach_ctx);
+	cmut_rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
+	cmut_rmach_ctx.rmc_dbname    = DUMMY_DBNAME;
+	cmut_rmach_ctx.rmc_ep_addr   = DUMMY_SERVER_ADDR;
+	m0_ut_rpc_mach_init_and_add(&cmut_rmach_ctx);
+
 	rc = m0_cm_type_register(&cm_ut_cmt);
 	M0_ASSERT(rc == 0);
 
@@ -60,9 +56,8 @@ static int cm_ut_init(void)
 static int cm_ut_fini(void)
 {
 	m0_cm_type_deregister(&cm_ut_cmt);
-	m0_reqh_services_terminate(&cm_ut_reqh);
-	m0_reqh_fini(&cm_ut_reqh);
-	m0_dbenv_fini(&dbenv);
+	m0_ut_rpc_mach_fini(&cmut_rmach_ctx);
+
 	return 0;
 }
 
@@ -87,13 +82,13 @@ static void cm_setup_ut(void)
 	rc = m0_cm_start(cm);
 	M0_UT_ASSERT(rc == 0);
 
-	while (m0_fom_domain_is_idle(&cm_ut_reqh.rh_fom_dom) ||
+	while (m0_fom_domain_is_idle(&cmut_rmach_ctx.rmc_reqh.rh_fom_dom) ||
 	       !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump))
 		usleep(200);
 
 	rc = m0_cm_stop(cm);
 	M0_UT_ASSERT(rc == 0);
-	m0_reqh_shutdown_wait(&cm_ut_reqh);
+	m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);
 	m0_ios_poolmach_fini(cm_ut_service);
 	cm_ut_service_cleanup();
 }
