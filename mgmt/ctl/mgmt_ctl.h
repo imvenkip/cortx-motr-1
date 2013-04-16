@@ -38,24 +38,27 @@ enum {
  */
 struct m0_mgmt_ctl_ctx {
 	/** Path to genders file to use */
-	const char              *mcc_genders;
+	const char                *mcc_genders;
 	/** RPC timeout */
-	m0_time_t                mcc_timeout;
+	m0_time_t                  mcc_timeout;
 	/** Output in YAML when true */
-	bool                     mcc_yaml;
+	bool                       mcc_yaml;
+	struct m0_mgmt_conf        mcc_conf;
 	/** Configuration of the node, read from the genders file */
-	struct m0_mgmt_conf      mcc_conf;
+	struct m0_mgmt_node_conf   mcc_node;
+	/** Configuration of the client, read from the genders file */
+	struct m0_mgmt_client_conf mcc_client;
 	/** name of temporary directory */
-	char                     mcc_tmpdir[24];
+	char                       mcc_tmpdir[24];
 	/** The ADDB context is a child of the proc context. */
-	struct m0_addb_ctx       mcc_addb_ctx;
+	struct m0_addb_ctx         mcc_addb_ctx;
 	/** RPC client structure */
-	struct m0_rpc_client_ctx mcc_client;
+	struct m0_rpc_client_ctx   mcc_rpc_client;
 	/* m0_rpc_client_ctx related arguments */
-	struct m0_net_domain     mcc_net_dom;
-	struct m0_dbenv          mcc_dbenv;
-	struct m0_cob_domain     mcc_cob_dom;
-	char                     mcc_dbname[24];
+	struct m0_net_domain       mcc_net_dom;
+	struct m0_dbenv            mcc_dbenv;
+	struct m0_cob_domain       mcc_cob_dom;
+	char                       mcc_dbname[24];
 };
 
 /**

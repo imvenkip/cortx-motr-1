@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -416,7 +416,8 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 		cepa->cepa_tmid = M0_NET_LNET_TMID_INVALID;
 	} else {
 		cepa->cepa_tmid = strtoul(cp, &endp, 10);
-		if (*endp != 0 || cepa->cepa_tmid > M0_NET_LNET_TMID_MAX)
+		if (*endp != 0 || cepa->cepa_tmid > M0_NET_LNET_TMID_MAX ||
+		    cepa->cepa_tmid == 0)
 			return -EINVAL;
 	}
 	return 0;

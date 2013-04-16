@@ -629,6 +629,8 @@ static void test_fail(void)
 					     &cepa) == -EINVAL);
 	M0_UT_ASSERT(nlx_core_ep_addr_decode(&dp->xd_core, "0@lo:12345:33:xtm",
 					     &cepa) == -EINVAL);
+	M0_UT_ASSERT(nlx_core_ep_addr_decode(&dp->xd_core, "0@lo:12345:33:0",
+					     &cepa) == -EINVAL);
 	M0_UT_ASSERT(nlx_core_ep_addr_decode(&dp->xd_core, "0@lo:12345:33:1",
 					     &cepa) == 0);
 	m0_net_domain_fini(&dom);

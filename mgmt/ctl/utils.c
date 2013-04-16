@@ -80,7 +80,7 @@ static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 	int                       rc;
 	struct m0_rpc_client_ctx *c;
 
-	c = &ctx->mcc_client;
+	c = &ctx->mcc_rpc_client;
 	M0_PRE(c->rcx_net_dom == NULL);
 
 	M0_ASSERT(ctx->mcc_tmpdir[0] != '\0');
@@ -92,8 +92,8 @@ static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 	 * among others.
 	 */
 	c->rcx_net_dom               = &ctx->mcc_net_dom;
-	c->rcx_local_addr            = ctx->mcc_conf.mnc_client_ep;
-	c->rcx_remote_addr           = ctx->mcc_conf.mnc_m0d_ep;
+	c->rcx_local_addr            = ctx->mcc_client.mcc_mgmt_ep;
+	c->rcx_remote_addr           = ctx->mcc_node.mnc_m0d_ep;
 	c->rcx_db_name               = ctx->mcc_dbname;
 	c->rcx_dbenv                 = &ctx->mcc_dbenv;
 	c->rcx_cob_dom_id            = 999; /* arbitrary */
@@ -101,11 +101,11 @@ static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 	c->rcx_nr_slots              = 1;
 	c->rcx_timeout_s             = m0_time_seconds(ctx->mcc_timeout);
 	c->rcx_max_rpcs_in_flight    = 1;
-	if (ctx->mcc_conf.mnc_recv_queue_min_length != 0)
+	if (ctx->mcc_client.mcc_recvq_min_len != 0)
 		c->rcx_recv_queue_min_length =
-			ctx->mcc_conf.mnc_recv_queue_min_length;
-	if (ctx->mcc_conf.mnc_max_rpc_msg != 0)
-		c->rcx_max_rpc_msg_size      = ctx->mcc_conf.mnc_max_rpc_msg;
+			ctx->mcc_client.mcc_recvq_min_len;
+	if (ctx->mcc_client.mcc_max_rpc_msg != 0)
+		c->rcx_max_rpc_msg_size      = ctx->mcc_client.mcc_max_rpc_msg;
 
 	rc = m0_net_xprt_init(&m0_net_lnet_xprt);
 	if (rc != 0) {
@@ -148,7 +148,7 @@ static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 static void client_fini(struct m0_mgmt_ctl_ctx *ctx)
 {
 	int                       rc;
-	struct m0_rpc_client_ctx *c = &ctx->mcc_client;
+	struct m0_rpc_client_ctx *c = &ctx->mcc_rpc_client;
 
 	M0_PRE(c->rcx_net_dom != NULL);
 	rc = m0_rpc_client_stop(c);
@@ -205,7 +205,7 @@ static const char *uuid_to_stype(struct m0_mgmt_ctl_ctx *ctx,
 {
 	struct m0_mgmt_svc_conf *svc;
 
-	m0_tl_for(m0_mgmt_conf, &ctx->mcc_conf.mnc_svc, svc) {
+	m0_tl_for(m0_mgmt_conf, &ctx->mcc_node.mnc_svc, svc) {
 		if (strcasecmp(svc->msc_uuid, uuid) == 0)
 			return svc->msc_name;
 	} m0_tl_endfor;

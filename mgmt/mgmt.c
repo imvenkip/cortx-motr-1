@@ -265,11 +265,11 @@ h[00-10]  m0_lnet_host=l%n                  # mapping of node to LNet hostname
 h[00-10]  m0_var=/var/mero                  # Mero variable data directory
 h[00-10]  m0_max_rpc_msg=163840             # max rpc message size
 h[00-10]  m0_min_recv_q=2                   # minimum receive queue length
-h00,h01   m0_s_confd=-c:/var/mero/confd/confdb.txt # confd hosts, db file
+h00,h01   m0_s_confd=-c;/var/mero/confd/confdb.txt # confd hosts, db file
 h00,h01   m0_s_rm                           # hosts running the resource manager
 h00,h01   m0_s_mdservice=-p                 # hosts running the metadata service
-h[00-10]  m0_s_addb=-A:/etc/mero/stobs      # ADDB service hosts; stobs
-h[00-10]  m0_s_ioservice=-T:AD:-S:/etc/mero/stobs # IO service; stobs
+h[00-10]  m0_s_addb=-A;/etc/mero/stobs      # ADDB service hosts; stobs
+h[00-10]  m0_s_ioservice=-T;AD;-S;/etc/mero/stobs # IO service; stobs
 h[00-10]  m0_s_sns                          # hosts running SNS
 h00       m0_HA-PROXY                       # hosts running HA proxies
 h00       m0_uuid=b47539c2-143e-44e8-9594-a8f6e09bfec0
@@ -287,7 +287,7 @@ h03       m0_u_ioservice=f595564a-20ca-4b12-8f4b-0d2f82726d61
    Mero kernel module to uniquely identify the node.
    - @a m0_s_Name denotes a service (type) @em Name that needs to be started
    on a node.
-   The value of this attribute, if any, are a list of colon separated m0d
+   The value of this attribute, if any, are a list of semicolon separated m0d
    arguments.
    - @a m0_u_Name specifies the UUID of the specified service (type).
    Every service instance in the cluster must have a UUID - the example above
@@ -315,8 +315,8 @@ m0_lnet_host=lh03
 m0_var=/var/mero
 m0_max_rpc_msg=163840
 m0_min_recv_q=2
-m0_s_addb=-A:/etc/mero/stobs
-m0_s_ioservice=-T:AD:-S:/etc/mero/stobs
+m0_s_addb=-A;/etc/mero/stobs
+m0_s_ioservice=-T;AD;-S;/etc/mero/stobs
 m0_s_sns
 m0_uuid=68b617e1-097a-4e46-8d16-3e202628c568
 m0_u_ioservice=f595564a-20ca-4b12-8f4b-0d2f82726d61

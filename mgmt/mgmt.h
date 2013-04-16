@@ -71,51 +71,120 @@ struct m0_mgmt_svc_conf {
 /**
  * Properties of single mero server node.
  * @todo use conf objects if possible once they are extended
- * @todo separate client information from server node information
  */
-struct m0_mgmt_conf {
-	/** The (remote) node name */
-	char        *mnc_name;
+struct m0_mgmt_node_conf {
 	/** The (remote) node UUID */
 	char        *mnc_uuid;
-	/** String endpoint of (remote) m0d */
+	/** String endpoint of node m0d */
 	char        *mnc_m0d_ep;
-	/** String endpoint of client, always for local node */
-	char        *mnc_client_ep;
-	/** The client node UUID */
-	char        *mnc_client_uuid;
-	/** The client "var" directory, eg /var/mero */
+	/** The node "var" directory, eg /var/mero */
 	char        *mnc_var;
 	/** Max RPC message size */
 	m0_bcount_t  mnc_max_rpc_msg;
 	/** Minimum recv queue length */
-	uint32_t     mnc_recv_queue_min_length;
+	uint32_t     mnc_recvq_min_len;
 	/** List of services on (remote) node */
 	struct m0_tl mnc_svc;
+};
+
+/**
+ * Properties of mero client on current node.
+ */
+struct m0_mgmt_client_conf {
+	/** String endpoint of mgmt client, always for local node */
+	char        *mcc_mgmt_ep;
+	/** The client node UUID */
+	char        *mcc_uuid;
+	/** Max RPC message size */
+	m0_bcount_t  mcc_max_rpc_msg;
+	/** Minimum recv queue length */
+	uint32_t     mcc_recvq_min_len;
+};
+
+/**
+ * Endpoints of mero service type.
+ */
+struct m0_mgmt_service_ep_conf {
+	int    mse_ep_nr;
+	/** String end points for this service type */
+	char **mse_ep;
+};
+
+struct m0_mgmt_conf_private;
+
+/**
+ * Management Configuration information.
+ */
+struct m0_mgmt_conf {
+	struct m0_mgmt_conf_private *mc_private;
 };
 
 M0_TL_DESCR_DECLARE(m0_mgmt_conf, M0_EXTERN);
 M0_TL_DECLARE(m0_mgmt_conf, M0_INTERNAL, struct m0_mgmt_svc_conf);
 
 /**
- * Initialize a m0_mgmt_conf object using information in the given
- * genders file.
+ * Initialize a m0_mgmt_conf object.
  * @param conf Object to initialize.
  * @param genders Path to genders file, defaults to /etc/mero/genders.
- * @param nodename Node whose configuration is desired, NULL for localhost.
- * @retval -ENOENT Genders files does not exist
- * @retval -ENODATA No data for this node found in genders
- * @retval -EINVAL Node information is incomplete (e.g. missing node UUID)
+ * @retval -ENOENT Genders files does not exist.
  * @note additional errors can be returned.
  */
 M0_INTERNAL int m0_mgmt_conf_init(struct m0_mgmt_conf *conf,
-				  const char *genders,
-				  const char *nodename);
+				  const char *genders);
 
 M0_INTERNAL void m0_mgmt_conf_fini(struct m0_mgmt_conf *conf);
 
+/**
+ * Query genders for information about a specific server node.
+ * @param conf Configuration object.
+ * @param nodename Node whose configuration is desired, NULL for localhost.
+ * @param node On success, node information is returned here.  It must
+ * be released using m0_mgmt_node_free().
+ * @retval -EINVAL Node information is incomplete (e.g. missing node UUID).
+ * @note additional errors can be returned.
+ */
+M0_INTERNAL int m0_mgmt_node_get(struct m0_mgmt_conf *conf,
+				 const char *nodename,
+				 struct m0_mgmt_node_conf *node);
+
+M0_INTERNAL void m0_mgmt_node_free(struct m0_mgmt_node_conf *node);
+
+/**
+ * Query genders for information relevant to a client on the current node.
+ * @param conf Configuration object.
+ * @param client On success, client information is returned here.  It must
+ * be released using m0_mgmt_client_free().
+ * @retval -EINVAL Client information is incomplete (e.g. missing node UUID).
+ * @note additional errors can be returned.
+ */
+M0_INTERNAL int m0_mgmt_client_get(struct m0_mgmt_conf *conf,
+				   struct m0_mgmt_client_conf *client);
+
+M0_INTERNAL void m0_mgmt_client_free(struct m0_mgmt_client_conf *client);
+
+/**
+ * Query genders for information about a specific server type.
+ * Returns all of the configured endpoints for services of this type.
+ * The caller must use HA or some other mechanism to determine the active
+ * instance for service types such as confd.
+ * @param conf Configuration object.
+ * @param service_type Service type whose endpoints are desired.
+ * @param svc On success, service information is returned here.  It must
+ * be released using m0_mgmt_service_free().
+ * @retval -ENOENT No data for this service type found in genders.
+ * @retval -EINVAL Genders information is incomplete (e.g. missing node UUID).
+ * @note additional errors can be returned.
+ */
+M0_INTERNAL int m0_mgmt_service_ep_get(struct m0_mgmt_conf *conf,
+				       const char *service_type,
+				       struct m0_mgmt_service_ep_conf *svc);
+
+M0_INTERNAL void m0_mgmt_service_ep_free(struct m0_mgmt_service_ep_conf *svc);
+
 /** @} end mgmt group */
+
 #endif /* __MERO_MGMT_MGMT_H__ */
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

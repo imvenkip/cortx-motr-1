@@ -299,6 +299,7 @@ int main(int argc, char *argv[])
 	char                  *cmd;
 	int                    cmd_argc;
 	struct m0_mgmt_ctl_op *op;
+	char                  *orig_ep = NULL;
 	char                  *alt_ep = NULL;
 	char                  *alt_h = NULL;
 	struct sigaction       sa;
@@ -404,18 +405,37 @@ int main(int argc, char *argv[])
 			 &m0_addb_proc_ctx);
 
 	/* load the configuration */
-	rc = m0_mgmt_conf_init(&ctx.mcc_conf, ctx.mcc_genders, alt_h);
+	rc = m0_mgmt_conf_init(&ctx.mcc_conf, ctx.mcc_genders);
 	if (rc != 0) {
 		emit_error(&ctx, "Failed to load configuration", rc);
 		goto fail;
 	}
+	rc = m0_mgmt_node_get(&ctx.mcc_conf, alt_h, &ctx.mcc_node);
+	if (rc != 0) {
+		emit_error(&ctx, "Failed to load node configuration", rc);
+		goto fail_node;
+	}
+	rc = m0_mgmt_client_get(&ctx.mcc_conf, &ctx.mcc_client);
+	if (rc != 0) {
+		emit_error(&ctx, "Failed to load client configuration", rc);
+		goto fail_client;
+	}
+
 	ctx.mcc_timeout = M0_MKTIME(ctx.mcc_timeout, 0);
-	if (alt_ep != NULL)
-		ctx.mcc_conf.mnc_m0d_ep = alt_ep;
+	if (alt_ep != NULL) {
+		orig_ep = ctx.mcc_node.mnc_m0d_ep;
+		ctx.mcc_node.mnc_m0d_ep = alt_ep;
+	}
 
 	/* run the command */
 	rc = op->cto_main(argc - cmd_argc, &argv[cmd_argc], &ctx);
 
+	if (orig_ep != NULL)
+		ctx.mcc_node.mnc_m0d_ep = orig_ep;
+	m0_mgmt_client_free(&ctx.mcc_client);
+ fail_client:
+	m0_mgmt_node_free(&ctx.mcc_node);
+ fail_node:
 	m0_mgmt_conf_fini(&ctx.mcc_conf);
  fail:
 	m0_addb_ctx_fini(&ctx.mcc_addb_ctx);

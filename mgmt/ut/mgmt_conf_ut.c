@@ -35,22 +35,38 @@ static char *genders_proto[] = {
 	"h[00-10],%s  m0_lnet_m0d_portal=35\n",
 	"h[00-10],%s  m0_lnet_client_portal=36\n",
 	"h00          m0_lnet_host=192.168.1.2\n",
-	"h[01-10]     m0_lnet_host=l%%n\n",
+	"h01          m0_lnet_host=192.168.1.3\n",
+	"h02          m0_lnet_host=192.168.1.4\n",
+	"h03          m0_lnet_host=192.168.1.5\n",
+	"h04          m0_lnet_host=192.168.1.6\n",
+	"h05          m0_lnet_host=192.168.1.7\n",
+	"h06          m0_lnet_host=192.168.1.8\n",
+	"h07          m0_lnet_host=192.168.1.9\n",
+	"h08          m0_lnet_host=192.168.1.10\n",
+	"h09          m0_lnet_host=192.168.1.11\n",
+	"h10          m0_lnet_host=192.168.1.12\n",
 	"%s           m0_lnet_if=tcp,m0_lnet_pid=12121\n",
 	"%s           m0_lnet_host=localhost\n",
 	"h[00-10],%s  m0_var=var_mero\n",
 	"h[00-10],%s  m0_max_rpc_msg=163840\n",
 	"h[00-10],%s  m0_min_recv_q=2\n",
-	"h00          m0_s_confd=-c:/var/mero/confd/confdb.txt\n",
+	"h00          m0_s_confd=-c;/var/mero/confd/confdb.txt\n",
 	"h00          m0_s_rm\n",
 	"h00          m0_s_mdservice=-p\n",
-	"h[00-10],%s  m0_s_addb=-A:/etc/mero/stobs\n",
-	"h[00-10],%s  m0_s_ioservice=-T:AD:-S:/etc/mero/stobs:-w:10\n",
-	"h[00-10],%s  m0_s_sns\n",
+	"h00,%s  m0_s_addb=-A;/etc/mero/stobs\n",
+	"h[00-10],%s  m0_s_ioservice=-T;AD;-S;/etc/mero/stobs;-w;10\n",
+	"h00,%s  m0_s_sns\n",
 	"h00 m0_uuid=b47539c2-143e-44e8-9594-a8f6e09bfec0\n",
 	"h01 m0_uuid=6d5ddc53-b1b6-43ae-9c7c-16c227b2ea5a\n",
 	"h02 m0_uuid=26a17da7-d5f2-462d-960d-205334adb028\n",
-	"h03 m0_uuid=68b617e1-097a-4e46-8d16-3e202628c568\n",
+	"h03 m0_uuid=68b617e1-097a-4e46-8d16-3e202628c563\n",
+	"h04 m0_uuid=68b617e1-097a-4e46-8d16-3e202628c564\n",
+	"h05 m0_uuid=68b617e1-097a-4e46-8d16-3e202628c565\n",
+	"h06 m0_uuid=68b617e1-097a-4e46-8d16-3e202628c566\n",
+	"h07 m0_uuid=68b617e1-097a-4e46-8d16-3e202628c567\n",
+	"h08 m0_uuid=68b617e1-097a-4e46-8d16-3e202628c568\n",
+	"h09 m0_uuid=68b617e1-097a-4e46-8d16-3e202628c569\n",
+	"h10 m0_uuid=68b617e1-097a-4e46-8d16-3e202628c570\n",
 	"%s  m0_uuid=4b7539c2-143e-44e8-9594-a8f6e09bfec0\n",
 	"h00 m0_HA-PROXY\n",
 	"h00 m0_u_confd=d2655b68-f578-45cb-bbb9-c1495e083074\n",
@@ -59,6 +75,16 @@ static char *genders_proto[] = {
 	"h00 m0_u_addb=c228f8fc-356a-4963-9b56-34b7773ba09d\n",
 	"h00 m0_u_ioservice=00ca6771-757e-4824-8059-88151a1ed996\n",
 	"h00 m0_u_sns=44e35d39-18d8-4a9a-a975-40645a7b7ec2\n",
+	"h01 m0_u_ioservice=00ca6771-757e-4824-8059-88151a1ed816\n",
+	"h02 m0_u_ioservice=00ca6771-757e-4824-8059-88151a1ed826\n",
+	"h03 m0_u_ioservice=00ca6771-757e-4824-8059-88151a1ed836\n",
+	"h04 m0_u_ioservice=00ca6771-757e-4824-8059-88151a1ed846\n",
+	"h05 m0_u_ioservice=00ca6771-757e-4824-8059-88151a1ed856\n",
+	"h06 m0_u_ioservice=00ca6771-757e-4824-8059-88151a1ed866\n",
+	"h07 m0_u_ioservice=00ca6771-757e-4824-8059-88151a1ed876\n",
+	"h08 m0_u_ioservice=00ca6771-757e-4824-8059-88151a1ed886\n",
+	"h09 m0_u_ioservice=00ca6771-757e-4824-8059-88151a1ed896\n",
+	"h10 m0_u_ioservice=00ca6771-757e-4824-8059-88151a1ed906\n",
 	"%s  m0_u_addb=a1c18e3c-76a5-482a-a52c-10f91f65f399\n",
 	"%s  m0_u_ioservice=f595564a-20ca-4b12-8f4b-0d2f82726d61\n",
 	"%s  m0_u_sns=97b8a598-9377-4d8e-af1c-f1c74640df99\n",
@@ -112,25 +138,33 @@ static int mgmt_conf_ut_fini(void)
 
 static void test_genders_parse(void)
 {
-	struct m0_mgmt_conf      conf;
-	struct m0_mgmt_svc_conf *svc;
-	int                      rc;
-	bool                     saw_addb = false;
-	bool                     saw_ioservice = false;
-	bool                     saw_sns = false;
+	struct m0_mgmt_conf            conf;
+	struct m0_mgmt_node_conf       node;
+	struct m0_mgmt_client_conf     client;
+	struct m0_mgmt_service_ep_conf sep;
+	struct m0_mgmt_svc_conf       *svc;
+        int                            i;
+	int                            rc;
+	bool                           saw_addb = false;
+	bool                           saw_ioservice = false;
+	bool                           saw_sns = false;
 
-	rc = m0_mgmt_conf_init(&conf, "test-genders", NULL);
+	rc = m0_mgmt_conf_init(&conf, "test-genders");
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(strcmp(conf.mnc_name, mgmt_conf_hostname) == 0);
-	M0_UT_ASSERT(strcmp(conf.mnc_uuid,
+	rc = m0_mgmt_node_get(&conf, NULL, &node);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_mgmt_client_get(&conf, &client);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_UT_ASSERT(strcmp(node.mnc_uuid,
 			    "4b7539c2-143e-44e8-9594-a8f6e09bfec0") == 0);
-	M0_UT_ASSERT(strcmp(conf.mnc_m0d_ep, "127.0.0.1@tcp:12121:35:1") == 0);
-	M0_UT_ASSERT(strcmp(conf.mnc_client_ep,
+	M0_UT_ASSERT(strcmp(node.mnc_m0d_ep, "127.0.0.1@tcp:12121:35:1") == 0);
+	M0_UT_ASSERT(strcmp(client.mcc_mgmt_ep,
 			    "127.0.0.1@tcp:12121:36:*") == 0);
-	M0_UT_ASSERT(strcmp(conf.mnc_client_uuid, conf.mnc_uuid) == 0);
-	M0_UT_ASSERT(strcmp(conf.mnc_var, "var_mero") == 0);
-	M0_UT_ASSERT(m0_mgmt_conf_tlist_length(&conf.mnc_svc) == 3);
-	m0_tl_for(m0_mgmt_conf, &conf.mnc_svc, svc) {
+	M0_UT_ASSERT(strcmp(client.mcc_uuid, node.mnc_uuid) == 0);
+	M0_UT_ASSERT(strcmp(node.mnc_var, "var_mero") == 0);
+	M0_UT_ASSERT(m0_mgmt_conf_tlist_length(&node.mnc_svc) == 3);
+	m0_tl_for(m0_mgmt_conf, &node.mnc_svc, svc) {
 		if (strcmp(svc->msc_name, "addb") == 0) {
 			M0_UT_ASSERT(!saw_addb);
 			saw_addb = true;
@@ -157,19 +191,38 @@ static void test_genders_parse(void)
 			M0_UT_ASSERT(svc->msc_argv == NULL);
 		}
 	} m0_tlist_endfor;
-	m0_mgmt_conf_fini(&conf);
+	m0_mgmt_node_free(&node);
+	m0_mgmt_client_free(&client);
+	M0_UT_ASSERT(saw_addb);
+	M0_UT_ASSERT(saw_ioservice);
+	M0_UT_ASSERT(saw_sns);
 
-	rc = m0_mgmt_conf_init(&conf, "test-genders", "h00");
+	rc = m0_mgmt_node_get(&conf, "h00", &node);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(strcmp(conf.mnc_m0d_ep,
+	M0_UT_ASSERT(strcmp(node.mnc_m0d_ep,
 			    "192.168.1.2@o2ib0:12345:35:1") == 0);
-	M0_UT_ASSERT(strcmp(conf.mnc_uuid,
+	M0_UT_ASSERT(strcmp(node.mnc_uuid,
 			    "b47539c2-143e-44e8-9594-a8f6e09bfec0") == 0);
-	M0_UT_ASSERT(strcmp(conf.mnc_client_ep,
-			    "127.0.0.1@tcp:12121:36:*") == 0);
-	M0_UT_ASSERT(strcmp(conf.mnc_client_uuid,
-			    "4b7539c2-143e-44e8-9594-a8f6e09bfec0") == 0);
-	M0_UT_ASSERT(m0_mgmt_conf_tlist_length(&conf.mnc_svc) == 6);
+	M0_UT_ASSERT(m0_mgmt_conf_tlist_length(&node.mnc_svc) == 6);
+	m0_mgmt_node_free(&node);
+
+	rc = m0_mgmt_service_ep_get(&conf, "nonservice", &sep);
+	M0_UT_ASSERT(rc == -ENOENT);
+	rc = m0_mgmt_service_ep_get(&conf, "ioservice", &sep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(sep.mse_ep_nr == 12);
+	saw_ioservice = false;
+	for (i = 0; i < sep.mse_ep_nr; ++i) {
+		if (i != 0)
+			M0_UT_ASSERT(strcmp(sep.mse_ep[i],
+					    sep.mse_ep[i - 1]) != 0);
+		if (strcmp(sep.mse_ep[i], "127.0.0.1@tcp:12121:35:1") == 0) {
+			M0_UT_ASSERT(!saw_ioservice);
+			saw_ioservice = true;
+		}
+	}
+	M0_UT_ASSERT(saw_ioservice);
+	m0_mgmt_service_ep_free(&sep);
 	m0_mgmt_conf_fini(&conf);
 }
 

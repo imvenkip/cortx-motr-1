@@ -31,6 +31,9 @@
 #include "conf/schema.h"          /* m0_conf_service_type */
 #include "mgmt/mgmt.h"            /* m0_mgmt_conf */
 
+/** @todo use real m0_strdup once it exists */
+#define m0_strdup(x) strdup(x)
+
 /* ----------------------------------------------------------------
  * Mero options
  * ---------------------------------------------------------------- */
@@ -52,21 +55,21 @@ fs_options_add(struct cs_args *args, const struct m0_conf_filesystem *fs)
 {
 	int i;
 	for (i = 0; fs->cf_params[i] != NULL; ++i)
-		option_add(args, strdup(fs->cf_params[i]));
+		option_add(args, m0_strdup(fs->cf_params[i]));
 }
+
+static const char *service_name[] = {
+	[0]          = NULL,/* unused, enum declarations start from 1 */
+	[M0_CST_MDS] = "mdservice",  /* Meta-data service. */
+	[M0_CST_IOS] = "ioservice",  /* IO/data service. */
+	[M0_CST_MGS] = "confd",      /* Management service (confd). */
+	[M0_CST_DLM] = "dlm"         /* DLM service. */
+};
 
 static char *service_name_dup(const struct m0_conf_service *svc)
 {
-	static const char *service_name[] = {
-		[0]          = NULL,/* unused, enum declarations start from 1 */
-		[M0_CST_MDS] = "mdservice",  /* Meta-data service. */
-		[M0_CST_IOS] = "ioservice",  /* IO/data service. */
-		[M0_CST_MGS] = "confd",      /* Management service (confd). */
-		[M0_CST_DLM] = "dlm"         /* DLM service. */
-	};
-
 	M0_ASSERT(svc->cs_type > 0 && svc->cs_type < ARRAY_SIZE(service_name));
-	return strdup(service_name[svc->cs_type]);
+	return m0_strdup(service_name[svc->cs_type]);
 }
 
 static void
@@ -78,11 +81,11 @@ service_options_add(struct cs_args *args, const struct m0_conf_service *svc)
 	M0_ASSERT(id != NULL); /* XXX TODO: error checking */
 	for (i = 0; svc->cs_endpoints != NULL && svc->cs_endpoints[i] != NULL;
 	     ++i) {
-		option_add(args, strdup("-e"));
-		option_add(args, strdup(svc->cs_endpoints[i]));
+		option_add(args, m0_strdup("-e"));
+		option_add(args, m0_strdup(svc->cs_endpoints[i]));
 	}
 
-	option_add(args, strdup("-s"));
+	option_add(args, m0_strdup("-s"));
 	option_add(args, id);
 }
 
@@ -91,13 +94,13 @@ node_options_add(struct cs_args *args, const struct m0_conf_node *node)
 {
 	char buf[64] = {0};
 
-	option_add(args, strdup("-m"));
+	option_add(args, m0_strdup("-m"));
 	(void)snprintf(buf, ARRAY_SIZE(buf) - 1, "%u", node->cn_memsize);
-	option_add(args, strdup(buf));
+	option_add(args, m0_strdup(buf));
 
-	option_add(args, strdup("-q"));
+	option_add(args, m0_strdup("-q"));
 	(void)snprintf(buf, ARRAY_SIZE(buf) - 1, "%lu", node->cn_flags);
-	option_add(args, strdup(buf));
+	option_add(args, m0_strdup(buf));
 }
 
 /** Uses confc API to generate CLI arguments. */
@@ -119,7 +122,7 @@ static int conf_to_args(struct cs_args *dest, const char *confd_addr,
 	if (rc != 0)
 		goto end;
 
-	option_add(dest, strdup("lt-m0d")); /* XXX Does the value matter? */
+	option_add(dest, m0_strdup("lt-m0d")); /* XXX Does the value matter? */
 
 	rc = m0_confc_open_sync(&fs, confc.cc_root, M0_BUF_INITS("filesystem"));
 	if (rc != 0)
@@ -244,63 +247,87 @@ xprt:
 M0_INTERNAL int cs_genders_to_args(struct cs_args *args, const char *argv0,
 				   const char *genders)
 {
-	struct m0_mgmt_conf      conf;
-	struct m0_mgmt_svc_conf *svc;
-	char                     nbuf[16];
-	char                    *bp;
-	size_t                   l;
-	int                      i;
-	int                      rc;
+	struct m0_mgmt_conf            conf;
+	struct m0_mgmt_node_conf       node;
+	struct m0_mgmt_svc_conf       *svc;
+	struct m0_mgmt_service_ep_conf sep;
+	char                           nbuf[16];
+	char                          *bp;
+	size_t                         l;
+	int                            i;
+	int                            rc;
 
 	M0_PRE(args != NULL && args->ca_argc == 0);
-	rc = m0_mgmt_conf_init(&conf, genders, NULL);
+	rc = m0_mgmt_conf_init(&conf, genders);
+	if (rc != 0)
+		return rc;
+	rc = m0_mgmt_node_get(&conf, NULL, &node);
 	if (rc != 0)
 		return rc;
 
-	/* NB: allocation failures checked at end */
-	/** @todo replace all strdup() with m0_strdup() when available */
-	option_add(args, strdup(argv0));
-	option_add(args, strdup("-r"));
-	l = strlen(conf.mnc_m0d_ep) + strlen(m0_net_lnet_xprt.nx_name) + 2;
+	/* NB: allocation failures checked at end of block */
+	option_add(args, m0_strdup(argv0));
+	option_add(args, m0_strdup("-r"));
+	l = strlen(node.mnc_m0d_ep) + strlen(m0_net_lnet_xprt.nx_name) + 2;
 	bp = m0_alloc(l);
 	if (bp != NULL)
-		sprintf(bp, "%s:%s", m0_net_lnet_xprt.nx_name, conf.mnc_m0d_ep);
-	option_add(args, strdup("-e"));
+		sprintf(bp, "%s:%s", m0_net_lnet_xprt.nx_name, node.mnc_m0d_ep);
+	option_add(args, m0_strdup("-e"));
 	option_add(args, bp);
-	if (conf.mnc_max_rpc_msg != 0) {
-		option_add(args, strdup("-m"));
-		i = snprintf(nbuf, sizeof nbuf, "%lu", conf.mnc_max_rpc_msg);
+	if (node.mnc_max_rpc_msg != 0) {
+		option_add(args, m0_strdup("-m"));
+		i = snprintf(nbuf, sizeof nbuf, "%lu", node.mnc_max_rpc_msg);
 		if (i >= sizeof nbuf) {
 			rc = -EINVAL;
 			goto done;
 		}
-		option_add(args, strdup(nbuf));
+		option_add(args, m0_strdup(nbuf));
 	}
-	if (conf.mnc_recv_queue_min_length != 0) {
-		option_add(args, strdup("-q"));
-		i = snprintf(nbuf, sizeof nbuf, "%u",
-			      conf.mnc_recv_queue_min_length);
+	if (node.mnc_recvq_min_len != 0) {
+		option_add(args, m0_strdup("-q"));
+		i = snprintf(nbuf, sizeof nbuf, "%u", node.mnc_recvq_min_len);
 		if (i >= sizeof nbuf) {
 			rc = -EINVAL;
 			goto done;
 		}
-		option_add(args, strdup(nbuf));
+		option_add(args, m0_strdup(nbuf));
 	}
-	m0_tl_for(m0_mgmt_conf, &conf.mnc_svc, svc) {
-		option_add(args, strdup("-s"));
+
+	rc = m0_mgmt_service_ep_get(&conf, service_name[M0_CST_MDS], &sep);
+	if (rc == -ENOENT) {
+		rc = 0;
+	} else if (rc != 0) {
+		goto done;
+	} else {
+		M0_ASSERT(sep.mse_ep_nr > 0);
+		/** @todo use HA or something to determine correct instance */
+		option_add(args, m0_strdup("-G"));
+		l = strlen(sep.mse_ep[0]) +
+		    strlen(m0_net_lnet_xprt.nx_name) + 2;
+		bp = m0_alloc(l);
+		if (bp != NULL)
+			sprintf(bp, "%s:%s",
+				m0_net_lnet_xprt.nx_name, sep.mse_ep[0]);
+		option_add(args, bp);
+		m0_mgmt_service_ep_free(&sep);
+	}
+	m0_tl_for(m0_mgmt_conf, &node.mnc_svc, svc) {
+		option_add(args, m0_strdup("-s"));
 		l = strlen(svc->msc_name) + strlen(svc->msc_uuid) + 2;
 		bp = m0_alloc(l);
 		if (bp != NULL)
 			sprintf(bp, "%s:%s", svc->msc_name, svc->msc_uuid);
 		option_add(args, bp);
 		for (i = 0; i < svc->msc_argc; ++i)
-			option_add(args, strdup(svc->msc_argv[i]));
+			option_add(args, m0_strdup(svc->msc_argv[i]));
 	} m0_tlist_endfor;
+	/* detect any earlier memory allocation failures */
 	for (i = 0; i < args->ca_argc && rc == 0; ++i) {
 		if (args->ca_argv[i] == NULL)
 			rc = -ENOMEM;
 	}
 done:
+	m0_mgmt_node_free(&node);
 	m0_mgmt_conf_fini(&conf);
 	return rc;
 }
@@ -340,4 +367,16 @@ static void ast_thread_fini(void)
 	m0_sm_group_fini(&g_grp);
 }
 
+#undef m0_strdup
+
 #undef M0_TRACE_SUBSYSTEM
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
