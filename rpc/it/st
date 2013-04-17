@@ -18,7 +18,7 @@ proc wait_for {sid name} {
     if {$rc != 0} {die "$name exitcode $rc"}
 }
 
-set timeout 20
+set timeout 30
 set prog [file join [file dirname $argv0] m0rpcping]
 
 # Start server:
