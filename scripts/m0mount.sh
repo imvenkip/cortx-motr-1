@@ -429,7 +429,7 @@ M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
 $BROOT/mero/m0d -r -p \
 $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A $DDIR/stobs \
 -w $POOL_WIDTH -G $XPT:$MDS_EP
--e $XPT:$EP $IOS_EPs -L $XPT:$CEP $SNAME $XPT_SETUP" > ${SLOG}$I.log &
+-e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" > ${SLOG}$I.log &
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to start remote server on $H
 		return 1
