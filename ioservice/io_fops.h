@@ -377,6 +377,8 @@ struct m0_fop_cob_rw_reply {
 	 * rwr_repair_done == -1 indicates SNS repair has not started at all.
 	 * rwr_repair_done == 0 indicates file is still be to be repaired.
 	 * rwr_repair_done == 1 indicates file has been repaired.
+	 * rwr_repair_done == 1 indicates file has been repaired.
+	 * rwr_repair_done == 0 indicates file is still be to be repaired.
 	 */
 	uint32_t             rwr_repair_done;
 } M0_XCA_RECORD;

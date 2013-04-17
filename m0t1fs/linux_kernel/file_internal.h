@@ -493,11 +493,6 @@
 	Swriting   -> Swritedone [ label = "write_complete()", fontsize=9 ],
 	Swritedone -> Sdgwriting [ label = "writeIO failed", fontsize = 9 ]
 	Sdgwriting -> Swritedone [ label = "writeIO successful", fontsize=9,
-	Sreading   -> Sdgreading [ label = "readIO failed", fontsize=9 ],
-	Sdgreading -> Sreaddone  [ label = "read_complete()", fontsize=9 ],
-	Swriting   -> Sdgwriting [ label = "writeIO failed", fontsize=9 ],
-	Sdgwriting -> Swritedone [ label = "write_complete()", fontsize = 9 ]
-	Swriting   -> Swritedone [ label = "write_complete()", fontsize=9,
 			           weight=4 ]
 	Swriting   -> Sreading   [ label = "is_rmw()", fontsize=9 ]
 	Sreaddone  -> Slockrel   [ label = "io == read()", fontsize=9 ]
@@ -1216,12 +1211,8 @@ struct nw_xfer_request {
  * The next 2 states are used during degraded mode write IO.
  */
 enum sns_repair_state {
-	/**
-	 * Used by IO requests done during healthy state of storage pool.
-	 * Initialized to -1 in order to sync it with output of API
-	 * m0_sns_cm_fid_repair_done().
-	 * */
-	SRS_UNINITIALIZED = -1,
+	/** Used by IO requests done during healthy state of storage pool. */
+	SRS_UNINITIALIZED,
 
 	/**
 	 * Assumes a distributed lock has been acquired on the associated

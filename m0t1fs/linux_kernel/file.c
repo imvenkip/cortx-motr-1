@@ -835,18 +835,18 @@ static struct m0_sm_state_descr io_states[] = {
 		.sd_name        = "IO_degraded_read",
 		.sd_allowed     = M0_BITS(IRS_READ_COMPLETE, IRS_FAILED)
 	},
-	[IRS_DEGRADED_WRITING] = {
-		.sd_name       = "IO_degraded_write",
-		.sd_allowed    = M0_BITS(IRS_WRITE_COMPLETE, IRS_FAILED)
+	[IRS_DEGRADED_WRITING]  = {
+		.sd_name        = "IO_degraded_write",
+		.sd_allowed     = M0_BITS(IRS_WRITE_COMPLETE, IRS_FAILED)
 	},
-	[IRS_WRITING]          = {
-		.sd_name       = "IO_writing",
-		.sd_allowed    = M0_BITS(IRS_WRITE_COMPLETE, IRS_FAILED)
+	[IRS_WRITING]           = {
+		.sd_name        = "IO_writing",
+		.sd_allowed     = M0_BITS(IRS_WRITE_COMPLETE, IRS_FAILED)
 	},
-	[IRS_WRITE_COMPLETE]   = {
-		.sd_name       = "IO_write_complete",
-		.sd_allowed    = M0_BITS(IRS_REQ_COMPLETE, IRS_FAILED,
-				         IRS_DEGRADED_WRITING)
+	[IRS_WRITE_COMPLETE]    = {
+		.sd_name        = "IO_write_complete",
+		.sd_allowed     = M0_BITS(IRS_REQ_COMPLETE, IRS_FAILED,
+				          IRS_DEGRADED_WRITING)
 	},
 	[IRS_LOCK_RELINQUISHED] = {
 		.sd_name        = "IO_dist_lock_relinquished",
@@ -2359,15 +2359,12 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 
 	/*
 	 * Populates the index vector if original
-	 * read IO request did not span it.
+	 * read IO request did not span it. Since recovery is needed
+	 * using parity algorithms, whole parity group needs to be
+	 * read (subject to file size limitation).
+	 * Ergo, parity group index vector contains only one segment
+	 * worth the parity group in size.
 	 */
-	/*if (!map->pi_ops->pi_spans_seg(map, start, PAGE_CACHE_SIZE)) {
-		id = SEG_NR(&map->pi_ivec);
-		INDEX(&map->pi_ivec, id) = start;
-		COUNT(&map->pi_ivec, id) = PAGE_CACHE_SIZE;
-		++SEG_NR(&map->pi_ivec);
-		M0_LOG(M0_DEBUG, "Index vector increased, new index = %llu, seg_nr = %u", start, map->pi_ivec.iv_vec.v_nr);
-	}*/
 	INDEX(&map->pi_ivec, 0) = map->pi_grpid * data_size(play);
 	COUNT(&map->pi_ivec, 0) = min64u(INDEX(&map->pi_ivec, 0) +
 					 data_size(play),
@@ -2378,23 +2375,12 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 	if (rc != 0)
 		M0_RETERR(rc, "Failed to allocate data buffer");
 
-	/* If parity group is healthy, there is no need to read parity. */
+	/*
+	 * If current parity group is not degraded, there is no need to
+	 * read parity.
+	 */
 	if (map->pi_state != PI_DEGRADED)
 		M0_RETURN(0);
-
-	/*
-	 * Populates the index vector if original read IO request did not
-	 * span it. Since recovery is needed using parity algorithms,
-	 * whole parity group needs to be read subject to file size limitation.
-	 * Ergo, parity group index vector contains only one segment
-	 * worth the parity group in size.
-	 */
-	INDEX(&map->pi_ivec, 0) = map->pi_grpid * data_size(play);
-	COUNT(&map->pi_ivec, 0) = min64u(INDEX(&map->pi_ivec, 0) +
-					 data_size(play),
-					 inode->i_size) -
-				  INDEX(&map->pi_ivec, 0);
-	SEG_NR(&map->pi_ivec)   = 1;
 
 	/* parity matrix from parity group. */
 	for (row = 0; row < parity_row_nr(play); ++row) {
@@ -4419,6 +4405,15 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		failure_vector_mismatch(irfop);
 		rc = -EAGAIN;
 		irfop->irf_reply_rc = rc;
+		sns_state           = rw_reply->rwr_repair_done == 0 ? 
+			              SRS_REPAIR_NOTDONE : SRS_REPAIR_DONE;
+		/*
+		 * If io_request::ir_sns_state holds a valid sns state,
+		 * same state must be confirmed by every other
+		 * IO reply fop.
+		 */
+		M0_ASSERT(ergo(req->ir_sns_state != SRS_UNINITIALIZED,
+			       req->ir_sns_state == sns_state));
 	}
 
 	if (tioreq->ti_rc == 0) {
