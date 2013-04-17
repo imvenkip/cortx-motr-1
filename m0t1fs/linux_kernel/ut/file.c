@@ -630,8 +630,8 @@ static void nw_xfer_ops_test(void)
 	M0_UT_ASSERT(ti->ti_bufvec.ov_buf != NULL);
 	M0_UT_ASSERT(ti->ti_pageattrs != NULL);
 
-	/* Test for nw_xfer_io_prepare. */
-	rc = nw_xfer_io_prepare(&req.ir_nwxfer);
+	/* Test for nw_xfer_io_distribute. */
+	rc = nw_xfer_io_distribute(&req.ir_nwxfer);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(tioreqs_tlist_length(&req.ir_nwxfer.nxr_tioreqs) == LAY_P);
 	m0_tl_for (tioreqs, &req.ir_nwxfer.nxr_tioreqs, ti) {
@@ -847,7 +847,7 @@ static void dgmode_readio_test(void)
 	struct target_ioreq        *ti;
 	struct m0_rpc_session      *session;
 	struct m0_layout_enum      *le;
-	struct dgmode_readvec       dgvec_tmp;
+	struct dgmode_rwvec         dgvec_tmp;
 	struct m0_rpc_bulk_buf     *rbuf;
 	struct m0_pdclust_layout   *play;
 	struct m0_pdclust_src_addr  src;
@@ -879,7 +879,7 @@ static void dgmode_readio_test(void)
 	M0_UT_ASSERT(req->ir_iomap_nr == DGMODE_IOVEC_NR);
 
 	/* Spawns and initialises all target_ioreq objects. */
-	rc = req->ir_nwxfer.nxr_ops->nxo_prepare(&req->ir_nwxfer);
+	rc = req->ir_nwxfer.nxr_ops->nxo_distribute(&req->ir_nwxfer);
 	M0_UT_ASSERT(rc == 0);
 
 	ioreq_sm_state_set(req, IRS_READING);
@@ -1016,7 +1016,7 @@ static void dgmode_readio_test(void)
 	}
 
 	ti->ti_dgvec = NULL;
-	rc = dgmode_readvec_alloc_init(ti);
+	rc = dgmode_rwvec_alloc_init(ti);
 	M0_UT_ASSERT(ti->ti_dgvec->dr_tioreq == ti);
 	M0_UT_ASSERT(ti->ti_dgvec->dr_ivec.iv_index != NULL);
 	M0_UT_ASSERT(ti->ti_dgvec->dr_ivec.iv_vec.v_count != NULL);
@@ -1026,7 +1026,7 @@ static void dgmode_readio_test(void)
 
 	ti->ti_dgvec->dr_ivec.iv_vec.v_nr = page_nr(layout_unit_size(play) *
 			                    layout_k(play));
-	dgmode_readvec_dealloc_fini(ti->ti_dgvec);
+	dgmode_rwvec_dealloc_fini(ti->ti_dgvec);
 
 	/* Cleanup */
 	m0_rpc_bulk_buflist_empty(rbulk);

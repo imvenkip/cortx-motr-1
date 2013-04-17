@@ -44,7 +44,6 @@
       - @ref rmw-dgreadIO-limitations
       - @ref rmw-dgreadIO-conformance
       - @ref rmw-dgreadIO-ut
-      - @ref rmw-dgreadIO-impl-plan
    - @ref rmw-degraded-writeIO
       - @ref rmw-dgwriteIO-req
       - @ref rmw-dgwriteIO-highlights
@@ -59,7 +58,6 @@
    - @ref rmw-st
    - @ref rmw-O
    - @ref rmw-ref
-   - @ref rmw-impl-plan
 
    <hr>
    @section rmw-ovw Overview
@@ -460,18 +458,21 @@
 
    @dot
    digraph io_req_st {
-	size     = "8,6"
+	size     = "10,10"
+	ranksep  = equally;
 	label    = "States of IO request"
 	node       [ shape=record, fontsize=9 ]
 	Start      [ label = "", shape="plaintext" ]
 	Suninit    [ label = "IRS_UNINITIALIZED" ]
 	Sinit      [ label = "IRS_INITIALIZED" ]
+	Slockacq   [ label = "IRS_LOCK_ACQUIRED" ]
 	Sreading   [ label = "IRS_READING" ]
 	Swriting   [ label = "IRS_WRITING" ]
 	Sreaddone  [ label = "IRS_READ_COMPLETE" ]
 	Swritedone [ label = "IRS_WRITE_COMPLETE" ]
 	Sdgreading [ label = "IRS_DG_READING"]
 	Sdgwriting [ label = "IRS_DG_WRITING" ]
+	Slockrel   [ label = "IRS_LOCK_RELINQUISHED" ]
 	Sreqdone   [ label = "IRS_REQ_COMPLETE" ]
 
 	Start      -> Suninit    [ label = "allocate", fontsize=10, weight=8 ]
@@ -479,26 +480,26 @@
 	{
 	    rank = same; Swriting; Sreading;
 	};
-	Sinit      -> Swriting   [ label = "io == write()", fontsize=9 ]
-	Sinit      -> Sreading   [ label = "io == read()", fontsize=9 ]
-	Sreading   -> Sreading   [ label = "! is_rmw()",
-				   fontsize=9 ]
+	Sinit      -> Slockacq   [ label = "Send async lock acquire request",
+		                   fontsize=9 ]
+	Slockacq   -> Swriting   [ label = "io == write()", fontsize=9 ]
+	Slockacq   -> Sreading   [ label = "io == read()", fontsize=9 ]
+	Sreading   -> Sreading   [ label = "! is_rmw()", fontsize=9 ]
 	{
 	    rank = same; Swritedone; Sreaddone;
 	};
-	Sreading   -> Sdgreading [ label = "readIO failed", fontsize=9 ],
-	Sdgreading -> Sreaddone  [ label = "read_complete()", fontsize=9 ],
-	Swriting   -> Sdgwriting [ label = "writeIO failed", fontsize=9 ],
-	Sdgwriting -> Swritedone [ label = "write_complete()", fontsize = 9 ]
-	Swriting   -> Swritedone [ label = "write_complete()", fontsize=9,
+	Sreading   -> Sreaddone  [ label = "read_complete()", fontsize=9 ],
+	Sreaddone  -> Sdgreading [ label = "readIO failed", fontsize=9 ],
+	Sdgreading -> Sreaddone  [ label = "readIO succesful", fontsize=9]
+	Swriting   -> Swritedone [ label = "write_complete()", fontsize=9 ],
+	Swritedone -> Sdgwriting [ label = "writeIO failed", fontsize = 9 ]
+	Sdgwriting -> Swritedone [ label = "writeIO successful", fontsize=9,
 			           weight=4 ]
-	Sreading   -> Sreaddone  [ label = "read_complete()", fontsize=9,
-			           weight=4 ]
-	Swriting   -> Sreading   [ label = "is_rmw()",
-				   fontsize=9 ]
-	Sreaddone  -> Sreqdone   [ label = "io == read()", fontsize=9 ]
+	Swriting   -> Sreading   [ label = "is_rmw()", fontsize=9 ]
+	Sreaddone  -> Slockrel   [ label = "io == read()", fontsize=9 ]
 	Sreaddone  -> Swriting   [ label = "io == write()", fontsize=9 ]
-	Swritedone -> Sreqdone   [ label = "io == write()", fontsize=9 ]
+	Swritedone -> Slockrel   [ label = "io == write()", fontsize=9 ]
+	Slockrel   -> Sreqdone   [ label = "IO req complete", fontsize = 9 ]
    }
    @enddot
 
@@ -690,25 +691,6 @@
    verify contents of read buffers after degraded mode read IO completes.
    The contents of read buffers should match the expected data pattern.
 
-   @subsection rmw-dgreadIO-impl-plan
-
-   Appropriate amount of unit testing will be done before proceeding with
-   any subsequent changes in production code. This helps to ensure that
-   written code works as expected.
-
-   - The implementation shall implement the changes in struct pargrp_iomap
-   so that routines for simple read, read_old and read_rest approach are
-   tested with appropriate test cases. This will form the basis of further
-   coding task.
-
-   - Next set of changes shall implement modified target_ioreq structure
-   and its routines along with state machine changes in struct io_request.
-   Subsequent UT code will be written to ensure that all these changes
-   actually work before proceeding with full-scale testing.
-
-   - At last, all the invariants will be changed as part of addition of new
-   members in existing data structures.
-
    @section rmw-degraded-writeIO
 
    This section describes the internals of degraded mode write IO, an update
@@ -745,7 +727,10 @@
    A new state will be introduced in IO request state machine to handle
    all details of degraded mode write IO.
    The IO request shall try to acquire a distributed lock on the given
-   file and will block until lock is granted.
+   file and will block until lock is granted. All compute operations
+   like processing parity groups involved and distributing file data
+   amongst different target objects shall be done. Issuing of actual
+   IO fops is not done until distributed lock is not granted.
    The degraded mode write IO request will find out the current window
    of SNS repair process in order to find out whether repair process has
    repaired given file or not.
@@ -820,6 +805,8 @@
      The SNS repair subsystem will invoke an API @see @ref rmw-dgwriteIO-depends
      which will return either a boolean value indicating whether repair has
      completed for given file or not.
+     Structure io_req_fop will be incorporated with a boolean field to
+     indicate whether SNS repair has completed for given global fid or not.
 
    - Use-case 1: If SNS repair is yet to start on given file, the write
      IO fops for the failed device can be completely ommitted since there
@@ -1056,26 +1043,6 @@ Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US">
 Detailed level design HOWTO</a>,
    an older document on which this style guide is partially based.
 
-   <hr>
-   @section rmw-impl-plan Implementation Plan
-
-   - The task can be decomposed into 2 subtasks as follows.
-     - implementation of primary data structures and interfaces needed to
-       support read-modify-write along with core logic to map global file
-       io requests into target io requests. Referred to as rmw-core henceforth.
-
-     - implementation of io fops, m0_sm and all state entry and exit functions.
-       Referred to as nwio-sm henceforth.
-
-   - New interfaces are consumed by same module (m0t1fs). The primary
-   data structures and interfaces have been identified and defined.
-
-   - The subtasks rwm-support and nwio-sm will commence parallely.
-
-   - The subtask rmw-core can be tested independently of other subtask. Once,
-   all it is found to be working properly, it can be integrated with nwio-sm
-   subtask.
-
  */
 
 /* export */
@@ -1174,12 +1141,12 @@ enum nw_xfer_state {
 /** Operation vector for struct nw_xfer_request. */
 struct nw_xfer_ops {
         /**
-         * Prepares subsequent target_ioreq objects as needed and populates
-         * target_ioreq::ir_ivec and target_ioreq::ti_bufvec.
+         * Distributes file data between target_ioreq objects as needed and
+	 * populates target_ioreq::ir_ivec and target_ioreq::ti_bufvec.
 	 * @pre   nw_xfer_request_invariant(xfer).
 	 * @post  !tioreqs_list_is_empty(xfer->nxr_tioreqs).
          */
-        int  (*nxo_prepare)    (struct nw_xfer_request  *xfer);
+        int  (*nxo_distribute) (struct nw_xfer_request  *xfer);
 
         /**
          * Does post processing of a network transfer request.
@@ -1252,6 +1219,31 @@ struct nw_xfer_request {
 };
 
 /**
+ * State of SNS repair with respect to given global fid.
+ * Especially used during degraded mode write IO.
+ * During normal IO, the UNINITIALIZED enum value is used.
+ * The next 2 states are used during degraded mode write IO.
+ */
+enum sns_repair_state {
+	/** Used by IO requests done during healthy state of storage pool. */
+	SRS_UNINITIALIZED,
+
+	/**
+	 * Assumes a distributed lock has been acquired on the associated
+	 * global fid and SNS repair is yet to start on given global fid.
+	 */
+	SRS_REPAIR_NOTDONE,
+
+	/**
+	 * Assumes a distributed lock has been acquired on associated
+	 * global fid and SNS repair has completed for given fid.
+	 */
+	SRS_REPAIR_DONE,
+
+	SRS_NR,
+};
+
+/**
  * Represents state of IO request call.
  * m0_sm_state_descr structure will be defined for description of all
  * states mentioned below.
@@ -1259,12 +1251,14 @@ struct nw_xfer_request {
 enum io_req_state {
         IRS_UNINITIALIZED,
         IRS_INITIALIZED,
+	IRS_LOCK_ACQUIRED,
         IRS_READING,
         IRS_WRITING,
         IRS_READ_COMPLETE,
         IRS_WRITE_COMPLETE,
 	IRS_DEGRADED_READING,
 	IRS_DEGRADED_WRITING,
+	IRS_LOCK_RELINQUISHED,
         IRS_REQ_COMPLETE,
 	IRS_FAILED,
 };
@@ -1340,6 +1334,33 @@ struct io_request_ops {
 	 * @post io_request_invariant(req).
 	 */
 	int (*iro_dgmode_recover) (struct io_request *req);
+
+	/**
+	 * Handles degraded mode write IO. Finds out whether SNS repair
+	 * has finished on given global fid or is still due.
+	 * This is done in context of a distributed lock on the given global
+	 * file.
+	 * @param rmw Tells whether current io request is rmw or not.
+	 * @pre  req->ir_state == IRS_WRITE_COMPLETE.
+	 * @pre  io_request_invariant(req).
+	 * @post req->ir_state == IRS_DEGRADED_READING.
+	 */
+	int (*iro_dgmode_write)   (struct io_request *req, bool rmw);
+
+	/**
+	 * Requests distributed lock on whole file.
+	 * @pre  req->ir_state == IRS_INITIALIZED.
+	 * @post req->ir_state == IRS_LOCK_ACQUIRED.
+	 */
+	void (*iro_file_lock)     (struct io_request *req);
+
+	/**
+	 * Relinquishes the distributed lock on whole file.
+	 * @pre  req->ir_state == IRS_READ_COMPLETE ||
+	 *       req->ir_state == IRS_WRITE_COMPLETE.
+	 * @post req->ir_state == IRS_LOCK_RELINQUISHED.
+	 */
+	void (*iro_file_unlock)   (struct io_request *req);
 };
 
 /**
@@ -1399,6 +1420,16 @@ struct io_request {
 
         /** Run-time addb context of the operation */
         struct m0_addb_ctx           ir_addb_ctx;
+
+	/**
+	 * State of SNS repair process with respect to
+	 * file_to_fid(io_request::ir_file).
+	 * There are only 2 states possible since Mero client IO path
+	 * involves a file-level distributed lock on global fid.
+	 *  - either SNS repair is still due on associated global fid.
+	 *  - or SNS repair has completed on associated global fid.
+	 */
+	enum sns_repair_state        ir_sns_state;
 };
 
 /**
@@ -1658,19 +1689,19 @@ struct target_ioreq_ops {
 };
 
 /**
- * IO vector for degraded mode read.
+ * IO vector for degraded mode read or write.
  * This is not used when pool state is healthy.
  */
-struct dgmode_readvec {
+struct dgmode_rwvec {
 	/**
 	 * Index vector to hold page indices during degraded mode
-	 * read IO.
+	 * read/write IO.
 	 */
 	struct m0_indexvec   dr_ivec;
 
 	/**
 	 * Buffer vector to hold page addresses during degraded mode
-	 * read IO.
+	 * read/write IO.
 	 */
 	struct m0_bufvec     dr_bufvec;
 
@@ -1727,11 +1758,11 @@ struct target_ioreq {
         struct m0_bufvec               ti_bufvec;
 
 	/**
-	 * Degraded mode read IO vector.
+	 * Degraded mode read/write IO vector.
 	 * This is intentionally kept as a pointer so that it
 	 * won't consume memory when pool state is healthy.
 	 */
-	struct dgmode_readvec         *ti_dgvec;
+	struct dgmode_rwvec           *ti_dgvec;
 
         /**
 	 * Array of page attributes.
@@ -1742,8 +1773,11 @@ struct target_ioreq {
         /** target_ioreq operation vector. */
         const struct target_ioreq_ops *ti_ops;
 
-        /* Backlink to parent structure nw_xfer_request. */
+        /** Backlink to parent structure nw_xfer_request. */
         struct nw_xfer_request        *ti_nwxfer;
+
+	/** State of target device in the storage pool. */
+	enum m0_pool_nd_state          ti_state;
 };
 
 /** Operations vector for struct io_req_fop. */

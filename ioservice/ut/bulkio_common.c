@@ -280,7 +280,7 @@ void io_fops_create(struct bulkio_params *bp, enum M0_RPC_OPCODES op,
 	for (i = 0; i < fops_nr; ++i) {
 		M0_ALLOC_PTR(io_fops[i]);
 		M0_ASSERT(io_fops[i] != NULL);
-		rc = m0_io_fop_init(io_fops[i], fopt, NULL);
+		rc = m0_io_fop_init(io_fops[i], &bp->bp_fids[0], fopt, NULL);
 		M0_ASSERT(rc == 0);
 	}
 
