@@ -163,7 +163,7 @@ M0_INTERNAL int m0_mgmt_client_get(struct m0_mgmt_conf *conf,
 M0_INTERNAL void m0_mgmt_client_free(struct m0_mgmt_client_conf *client);
 
 /**
- * Query genders for information about a specific server type.
+ * Query genders for information about a specific service type.
  * Returns all of the configured endpoints for services of this type.
  * The caller must use HA or some other mechanism to determine the active
  * instance for service types such as confd.

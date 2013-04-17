@@ -263,7 +263,7 @@ M0_INTERNAL int cs_genders_to_args(struct cs_args *args, const char *argv0,
 		return rc;
 	rc = m0_mgmt_node_get(&conf, NULL, &node);
 	if (rc != 0)
-		return rc;
+		goto error;
 
 	/* NB: allocation failures checked at end of block */
 	option_add(args, m0_strdup(argv0));
@@ -328,6 +328,7 @@ M0_INTERNAL int cs_genders_to_args(struct cs_args *args, const char *argv0,
 	}
 done:
 	m0_mgmt_node_free(&node);
+error:
 	m0_mgmt_conf_fini(&conf);
 	return rc;
 }
