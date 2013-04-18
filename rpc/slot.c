@@ -74,10 +74,10 @@ M0_INTERNAL bool m0_rpc_slot_invariant(const struct m0_rpc_slot *slot)
 	struct m0_verno    *v2;
 	bool                ok;
 
-	ok = slot != NULL &&
-	     slot->sl_in_flight <= slot->sl_max_in_flight &&
-	     M0_CHECK_EX(m0_tlist_invariant(&slot_item_tl, &slot->sl_item_list));
-
+	ok = _0C(slot != NULL) &&
+	     _0C(slot->sl_in_flight <= slot->sl_max_in_flight) &&
+	     M0_CHECK_EX(m0_tlist_invariant(&slot_item_tl,
+					    &slot->sl_item_list));
 	if (!ok)
 		return false;
 
@@ -95,14 +95,14 @@ M0_INTERNAL bool m0_rpc_slot_invariant(const struct m0_rpc_slot *slot)
 			item1 = item2;
 			continue;
 		}
-		ok = ergo(M0_IN(item2->ri_stage,
+		ok = _0C(ergo(M0_IN(item2->ri_stage,
 				(RPC_ITEM_STAGE_PAST_VOLATILE,
 				 RPC_ITEM_STAGE_PAST_COMMITTED)),
-			  item2->ri_reply != NULL);
+			  item2->ri_reply != NULL));
 		if (!ok)
 			return false;
 
-		ok = (item1->ri_stage <= item2->ri_stage);
+		ok = _0C(item1->ri_stage <= item2->ri_stage);
 		if (!ok)
 			return false;
 
@@ -114,12 +114,12 @@ M0_INTERNAL bool m0_rpc_slot_invariant(const struct m0_rpc_slot *slot)
 		 * the version number of slot is advanced
 		 */
 		ok = m0_rpc_item_is_update(item1) ?
-			v1->vn_vc + 1 == v2->vn_vc :
-			v1->vn_vc == v2->vn_vc;
+			_0C(v1->vn_vc + 1 == v2->vn_vc) :
+			_0C(v1->vn_vc == v2->vn_vc);
 		if (!ok)
 			return false;
 
-		ok = (item_xid(item1, 0) + 1 == item_xid(item2, 0));
+		ok = _0C(item_xid(item1, 0) + 1 == item_xid(item2, 0));
 		if (!ok)
 			return false;
 

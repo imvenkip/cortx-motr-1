@@ -1204,7 +1204,6 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 	M0_LOG(M0_DEBUG, "Send md operation %u to session %lu",
 		m0_fop_opcode(fop), (unsigned long)session->s_session_id);
 
-	fop->f_item.ri_nr_sent_max = M0T1FS_RPC_MAX_RETRIES;
 	rc = m0_rpc_client_call(fop, session, NULL, 0 /* deadline */);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "m0_rpc_client_call(%x) failed with %d",
@@ -1505,7 +1504,6 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 		(unsigned long)cob_fid->f_key,
 		(unsigned long)session->s_session_id);
 
-	fop->f_item.ri_nr_sent_max = M0T1FS_RPC_MAX_RETRIES;
 	rc = m0_rpc_client_call(fop, session, NULL, 0 /* deadline */);
 	if (rc != 0)
 		goto fop_put;

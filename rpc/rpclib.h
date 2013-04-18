@@ -147,12 +147,6 @@ struct m0_rpc_client_ctx {
 
 	uint64_t		   rcx_max_rpcs_in_flight;
 
-	/**
-	 * Time in seconds after which connection/session
-	 * establishment is aborted.
-	 */
-	uint32_t		   rcx_timeout_s;
-
 	/* -------------------------------------------------------------
 	 * Output parameters.
 	 *
@@ -188,8 +182,7 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 				      struct m0_rpc_machine *rpc_mach,
 				      const char            *remote_addr,
 				      uint64_t               max_rpcs_in_flight,
-				      uint32_t               nr_slots,
-				      uint32_t               rpc_timeout_sec);
+				      uint32_t               nr_slots);
 
 /**
  * Starts client's rpc machine.

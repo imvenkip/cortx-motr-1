@@ -59,7 +59,6 @@ M0_INTERNAL void repair_client_init(void)
 	cl_ctx.rcx_cob_dom_id         = cl_cdom_id;
 	cl_ctx.rcx_cob_dom            = &cl_cdom;
 	cl_ctx.rcx_nr_slots           = MAX_RPC_SLOTS_NR;
-	cl_ctx.rcx_timeout_s          = RPC_TIMEOUTS;
 	cl_ctx.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
 
 	rc = m0_rpc_client_start(&cl_ctx);

@@ -59,7 +59,6 @@ enum {
         CLIENT_COB_DOM_ID  = 44,
         SESSION_SLOTS      = 2,
         MAX_RPCS_IN_FLIGHT = 5,
-        CONNECT_TIMEOUT    = 5,
         STOB_UPDATE_DELAY  = 1,
         MAX_RETRIES        = 5,
         CP_SINGLE          = 1,
@@ -92,7 +91,6 @@ static struct m0_rpc_client_ctx cctx = {
         .rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
         .rcx_cob_dom            = &client_cob_dom,
         .rcx_nr_slots           = SESSION_SLOTS,
-        .rcx_timeout_s          = CONNECT_TIMEOUT,
         .rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 };
 

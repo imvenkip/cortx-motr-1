@@ -28,7 +28,6 @@
 enum {
 	MAX_RPCS_IN_FLIGHT = 10,
 	MAX_RPC_SLOTS_NR   = 10,
-	RPC_TIMEOUTS       = 5,
 	MAX_FILES_NR       = 10,
 	MAX_SERVERS        = 1024
 };

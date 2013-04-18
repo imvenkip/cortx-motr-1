@@ -223,7 +223,7 @@ M0_INTERNAL bool m0_rpc_session_invariant(const struct m0_rpc_session *session)
 
 	for (i = 0; i < session->s_nr_slots; i++) {
 		slot = session->s_slot_table[i];
-		ok = _0C(m0_rpc_slot_invariant(slot)) &&
+		ok = m0_rpc_slot_invariant(slot) &&
 		     _0C(ergo(M0_IN(session_state(session),
 				(M0_RPC_SESSION_INITIALISED,
 				 M0_RPC_SESSION_ESTABLISHING,

@@ -137,7 +137,6 @@ static int args_parse(const char *src, struct args *dest)
 enum {
 	CLIENT_COB_DOM_ID  = 16,
 	MAX_RPCS_IN_FLIGHT = 10, /* XXX CONFIGUREME */
-	CONNECT_TIMEOUT    = 50,
 	MAX_RETRIES        = 500,
 	MIN_RECV_QUEUE_LEN = 200
 };
@@ -211,7 +210,6 @@ static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
 		.rcx_nr_slots              = g_args.a_nr_slots,
 		.rcx_local_addr            = strdup(ep),
 		.rcx_remote_addr           = SERVER_ENDPOINT_ADDR,
-		.rcx_timeout_s             = CONNECT_TIMEOUT,
 		.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
 		.rcx_recv_queue_min_length = MIN_RECV_QUEUE_LEN
 	};

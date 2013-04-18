@@ -103,7 +103,6 @@ static int send_fop(struct m0_rpc_session *session)
 	cs_ds2_fop = m0_fop_data(fop);
 	cs_ds2_fop->csr_value = 0xaaf5;
 
-	fop->f_item.ri_nr_sent_max = MAX_RETRIES;
 	rc = m0_rpc_client_call(fop, session, &cs_ds_req_fop_rpc_item_ops,
 				0 /* deadline */);
 	M0_UT_ASSERT(rc == 0);

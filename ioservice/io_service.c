@@ -628,8 +628,7 @@ static int m0_ios_mds_conn_init(struct m0_reqh *reqh,
 	M0_LOG(M0_DEBUG, "Ios connecting to mds %s", srv_ep_addr);
 	rc = m0_rpc_client_connect(&conn->imc_conn, &conn->imc_session,
 				   rpc_machine, srv_ep_addr,
-				   MAX_NR_RPC_IN_FLIGHT, NR_SLOTS_PER_SESSION,
-				   RPC_TIMEOUT);
+				   MAX_NR_RPC_IN_FLIGHT, NR_SLOTS_PER_SESSION);
 	if (rc == 0) {
 		conn->imc_connected = true;
 		M0_LOG(M0_DEBUG, "Ios connected to mds %s", srv_ep_addr);
@@ -710,14 +709,12 @@ M0_INTERNAL void m0_ios_mds_conn_fini(struct m0_reqh *reqh)
 	M0_LOG(M0_DEBUG, "imc conn fini in reqh = %p, imc = %p", reqh, imc);
 	if (imc != NULL && imc->imc_connected) {
 		M0_LOG(M0_DEBUG, "destroy session for %p", imc);
-		rc = m0_rpc_session_destroy(&imc->imc_session,
-					    m0_time_from_now(RPC_TIMEOUT, 0));
+		rc = m0_rpc_session_destroy(&imc->imc_session, M0_TIME_NEVER);
 		if (rc != 0)
 			M0_LOG(M0_ERROR, "Failed to terminate session %d", rc);
 
 		M0_LOG(M0_DEBUG, "destroy conn for %p", imc);
-		rc = m0_rpc_conn_destroy(&imc->imc_conn,
-					 m0_time_from_now(RPC_TIMEOUT, 0));
+		rc = m0_rpc_conn_destroy(&imc->imc_conn, M0_TIME_NEVER);
 		if (rc != 0)
 			M0_LOG(M0_ERROR, "Failed to terminate connection %d", rc);
 	}

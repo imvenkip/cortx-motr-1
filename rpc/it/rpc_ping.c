@@ -74,7 +74,6 @@ enum {
 	M0_LNET_PORTAL     = 34,
 	MAX_RPCS_IN_FLIGHT = 32,
 	CLIENT_COB_DOM_ID  = 13,
-	CONNECT_TIMEOUT    = 20,
 	MAX_RETRIES        = 10
 };
 
@@ -265,7 +264,6 @@ static void send_ping_fop(struct m0_rpc_session *session)
 	M0_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
 	M0_ASSERT(ping_fop->fp_arr.f_data != NULL);
 
-	fop->f_item.ri_nr_sent_max = MAX_RETRIES;
 	rc = m0_rpc_client_call(fop, session, &ping_item_ops,
 				m0_time_from_now(0, 20 * 1000 * 1000));
 	M0_ASSERT(rc == 0);
@@ -294,10 +292,8 @@ static int client_fini(struct m0_rpc_client_ctx *cctx)
 	int rc0;
 	int rc1;
 
-	rc0 = m0_rpc_session_destroy(&cctx->rcx_session,
-				     m0_time_from_now(cctx->rcx_timeout_s, 0));
-	rc1 = m0_rpc_conn_destroy(&cctx->rcx_connection,
-				     m0_time_from_now(cctx->rcx_timeout_s, 0));
+	rc0 = m0_rpc_session_destroy(&cctx->rcx_session, M0_TIME_NEVER);
+	rc1 = m0_rpc_conn_destroy(&cctx->rcx_connection, M0_TIME_NEVER);
 	if (verbose)
 		__print_stats(&cctx->rcx_rpc_machine);
 	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
@@ -336,7 +332,6 @@ static int run_client(void)
 	cctx.rcx_cob_dom_id            = CLIENT_COB_DOM_ID;
 	cctx.rcx_cob_dom               = &client_cob_dom;
 	cctx.rcx_nr_slots              = nr_slots;
-	cctx.rcx_timeout_s             = CONNECT_TIMEOUT;
 	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT;
 	cctx.rcx_recv_queue_min_length = tm_recv_queue_len;
 	cctx.rcx_max_rpc_msg_size      = max_rpc_msg_size,
