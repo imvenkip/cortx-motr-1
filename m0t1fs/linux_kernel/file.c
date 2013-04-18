@@ -2320,13 +2320,25 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 				    PA_READ_FAILED)
 					continue;
 
-			} else if (within_eof) {
-				map->pi_databufs[row][col] =
-					data_buf_alloc_init(0);
-				if (map->pi_databufs[row][col] == NULL) {
-					rc = -ENOMEM;
-					break;
+			} else {
+				/*
+				 * If current parity group map is degraded,
+				 * then recovery is needed and a new
+				 * data buffer needs to be allocated subject to
+				 * limitation of file size.
+				 */
+				if (map->pi_state == PI_DEGRADED &&
+				    within_eof) {
+					map->pi_databufs[row][col] =
+						data_buf_alloc_init(0);
+					if (map->pi_databufs[row][col] ==
+					    NULL) {
+						rc = -ENOMEM;
+						break;
+					}
 				}
+				if (map->pi_state == PI_HEALTHY)
+					continue;
 			}
 			dbuf = map->pi_databufs[row][col];
 
@@ -2345,11 +2357,17 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 		}
 	}
 
+	if (rc != 0)
+		M0_RETERR(rc, "Failed to allocate data buffer");
+
+	/* If parity group is healthy, there is no need to read parity. */
+	if (map->pi_state != PI_DEGRADED)
+		M0_RETURN(0);
+
 	/*
-	 * Populates the index vector if original
-	 * read IO request did not span it. Since recovery is needed
-	 * using parity algorithms, whole parity group needs to be
-	 * read (subject to file size limitation).
+	 * Populates the index vector if original read IO request did not
+	 * span it. Since recovery is needed using parity algorithms,
+	 * whole parity group needs to be read subject to file size limitation.
 	 * Ergo, parity group index vector contains only one segment
 	 * worth the parity group in size.
 	 */
@@ -2359,16 +2377,6 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 					 inode->i_size) - 
 				  INDEX(&map->pi_ivec, 0);
 	SEG_NR(&map->pi_ivec)   = 1;
-
-	if (rc != 0)
-		M0_RETERR(rc, "Failed to allocate data buffer");
-
-	/*
-	 * If current parity group is not degraded, there is no need to
-	 * read parity.
-	 */
-	if (map->pi_state != PI_DEGRADED)
-		M0_RETURN(0);
 
 	/* parity matrix from parity group. */
 	for (row = 0; row < parity_row_nr(play); ++row) {
