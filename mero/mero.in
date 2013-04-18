@@ -11,6 +11,7 @@
 . @sysconfdir@/rc.d/init.d/functions
 
 # pull in sysconfig settings
+# M0D_OPTIONS and extra M0MERO_OPTIONS can be set in in sysconfig
 [ -f @sysconfdir@/sysconfig/mero ] && . @sysconfdir@/sysconfig/mero
 
 RETVAL=0
@@ -36,11 +37,12 @@ rh_status_q() {
 probe_kmod() {
 	uuid=$(nodeattr -f $GENDERS -v m0_uuid)
 	[ -z "$uuid" ] && echo "$GENDERS: m0_uuid is missing" && return 1
-	# @todo support additional kernel module parameters, especially
+	# @todo fully support additional kernel module parameters, especially
 	# support m0t1fs on same node as m0d.  May require a mechanism to
 	# resolve m0_lnet_host to IP address.
+	# Can set M0MERO_OPTIONS in sysconfig.
 
-	modprobe $M0MERO node_uuid=$uuid || return 2
+	modprobe $M0MERO node_uuid=$uuid $M0MERO_OPTIONS || return 2
 
 	return 0
 }
