@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -79,7 +79,8 @@ M0_INTERNAL int main(int argc, char **argv)
 	int            rc;
 	struct m0_mero mero_ctx;
 
-	if (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0) {
+	if (argc > 1 &&
+	    (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0)) {
 		m0_build_info_print();
 		exit(EXIT_SUCCESS);
 	}

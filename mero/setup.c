@@ -2082,7 +2082,7 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
 
 	if (rc < 0) {
-		M0_LOG(M0_ERROR, "m0_cs_setup_env");
+		M0_LOG(M0_ERROR, "m0_cs_setup_env: %d", rc);
 		cs_usage(cctx->cc_outfile);
 	}
 
