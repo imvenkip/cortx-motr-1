@@ -1262,7 +1262,7 @@ static void bulkio_server_single_read_write(void)
 
 #define WRITE_FOP_DATA(fop) M0_XCODE_OBJ(m0_fop_cob_writev_xc, fop)
 
-static inline void bulkio_server_write_fol_rec_verify(void)
+static void bulkio_server_write_fol_rec_verify(void)
 {
 	struct m0_reqh		 *reqh;
 	struct m0_fol_rec	  dec_rec;
@@ -1364,16 +1364,15 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 				     ftype->ft_ops->fto_redo != NULL);
 			result = ftype->ft_ops->fto_undo(fp_part, reqh->rh_fol);
 		} else
-			result = dec_part->rp_ops->rpo_undo(dec_part);
+			result = dec_part->rp_ops->rpo_undo(dec_part, &dtx.tx_dbtx);
 		M0_UT_ASSERT(result == 0);
 	} m0_tl_endfor;
+	m0_fol_lookup_rec_fini(&dec_rec);
+	m0_dtx_done(&dtx);
 
 	/* Read that data from file and compare it with data "b". */
 	io_single_fop_submit(M0_IOSERVICE_READV_OPCODE);
 	io_fops_destroy(bp);
-
-	m0_fol_lookup_rec_fini(&dec_rec);
-	m0_dtx_done(&dtx);
 }
 
 /*

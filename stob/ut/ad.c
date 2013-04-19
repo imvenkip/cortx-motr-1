@@ -386,7 +386,12 @@ static void test_ad_undo(void)
 	test_write(1);
 
 	/* Do the undo operation. */
-	result = rpart->rp_ops->rpo_undo(rpart);
+	result = rpart->rp_ops->rpo_undo(rpart, &tx.tx_dbtx);
+	M0_UT_ASSERT(result == 0);
+	m0_dtx_done(&tx);
+
+	m0_dtx_init(&tx);
+	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
 	test_read(1);
 

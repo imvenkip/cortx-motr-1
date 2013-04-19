@@ -519,9 +519,12 @@ M0_INTERNAL int m0_emap_merge(struct m0_emap_cursor *it, m0_bindex_t delta)
 M0_INTERNAL int m0_emap_extent_update(struct m0_emap_cursor *it,
 				      struct m0_emap_seg *es)
 {
+	int result;
+
 	M0_PRE(it != NULL);
 	M0_PRE(es != NULL);
 	M0_PRE(m0_uint128_eq(&it->ec_seg.ee_pre, &es->ee_pre));
+	M0_INVARIANT_EX(emap_invariant(it));
 
 	it->ec_seg = (struct m0_emap_seg) {
 		.ee_ext = {
@@ -531,7 +534,9 @@ M0_INTERNAL int m0_emap_extent_update(struct m0_emap_cursor *it,
 		.ee_val = es->ee_val
 	};
 
-	return IT_DO_PACK(it, m0_db_cursor_set);
+	result = IT_DO_PACK(it, m0_db_cursor_set);
+	M0_ASSERT_EX(ergo(result == 0, emap_invariant(it)));
+	return result;
 }
 
 M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *emap, struct m0_db_tx *tx,

@@ -429,8 +429,8 @@ struct m0_fol_rec_part_type_ops {
  */
 struct m0_fol_rec_part_ops {
 	const struct m0_fol_rec_part_type *rpo_type;
-	int (*rpo_undo)(struct m0_fol_rec_part *part);
-	int (*rpo_redo)(struct m0_fol_rec_part *part);
+	int (*rpo_undo)(struct m0_fol_rec_part *part, struct m0_db_tx *tx);
+	int (*rpo_redo)(struct m0_fol_rec_part *part, struct m0_db_tx *tx);
 };
 
 struct m0_fol_rec_part_header {

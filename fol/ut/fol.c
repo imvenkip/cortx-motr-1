@@ -46,7 +46,7 @@ static struct m0_buf             buf;
 
 static int result;
 
-static int verify_part_data(struct m0_fol_rec_part *part);
+static int verify_part_data(struct m0_fol_rec_part *part, struct m0_db_tx *tx);
 M0_FOL_REC_PART_TYPE_DECLARE(ut_part, static, verify_part_data, NULL);
 
 static void test_init(void)
@@ -130,7 +130,7 @@ static void test_lookup(void)
 	M0_ASSERT(result == -ENOENT);
 }
 
-static int verify_part_data(struct m0_fol_rec_part *part)
+static int verify_part_data(struct m0_fol_rec_part *part, struct m0_db_tx *tx)
 {
 	struct m0_fid *dec_rec;
 
@@ -176,7 +176,7 @@ static void test_fol_rec_part_encdec(void)
 	M0_ASSERT(result == 0);
 
 	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part) {
-		dec_part->rp_ops->rpo_undo(dec_part);
+		dec_part->rp_ops->rpo_undo(dec_part, &tx);
 	} m0_tl_endfor;
 
 	m0_fol_lookup_rec_fini(&dec_rec);

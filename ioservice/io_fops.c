@@ -26,6 +26,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/vec.h"	/* m0_0vec */
+#include "lib/misc.h"	/* M0_IN */
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
 #include "lib/trace.h"
 #include "lib/tlist.h"
@@ -119,44 +120,26 @@ static int io_fol_rec_part_undo_redo_op(struct m0_fop_fol_rec_part *fpart,
 static int io_fol_cd_rec_part_op(struct m0_fop_fol_rec_part *fpart,
 				 struct m0_fol *fol, bool undo)
 {
-	int			  result;
-	struct m0_fop		 *fop = NULL;
-	struct m0_fop_cob_create *cc;
-	struct m0_fop_cob_delete *cd;
-	struct m0_reqh		 *reqh;
-	struct m0_fom		 *fom;
+	int		result;
+	struct m0_fop  *fop;
+	struct m0_reqh *reqh = fol->f_reqh;
+	struct m0_fom  *fom;
+	int	        delete;
 
 	M0_PRE(fpart != NULL);
-	M0_PRE(fol != NULL);
+	M0_PRE(M0_IN(fpart->ffrp_fop_code, (M0_IOSERVICE_COB_CREATE_OPCODE,
+					    M0_IOSERVICE_COB_DELETE_OPCODE)));
+	M0_CASSERT(M0_IOSERVICE_COB_DELETE_OPCODE ==
+		   M0_IOSERVICE_COB_CREATE_OPCODE + 1);
+	M0_CASSERT(sizeof(struct m0_fop_cob_create) ==
+		   sizeof(struct m0_fop_cob_delete));
 
-	reqh = fol->f_reqh;
-
-	switch(fpart->ffrp_fop_code) {
-	case M0_IOSERVICE_COB_CREATE_OPCODE:
-		cc = fpart->ffrp_fop;
-
-		if (undo) {
-			M0_ALLOC_PTR(cd);
-			if (cd == NULL)
-				return -ENOMEM;
-			cd->cd_common = cc->cc_common;
-			fop = m0_fop_alloc(&m0_fop_cob_delete_fopt, cd);
-		} else
-			fop = m0_fop_alloc(&m0_fop_cob_create_fopt, cc);
-		break;
-	case M0_IOSERVICE_COB_DELETE_OPCODE:
-		cd = fpart->ffrp_fop;
-
-		if (undo) {
-			M0_ALLOC_PTR(cc);
-			if (cc == NULL)
-				return -ENOMEM;
-			cc->cc_common = cd->cd_common;
-			fop = m0_fop_alloc(&m0_fop_cob_create_fopt, cc);
-		} else
-			fop = m0_fop_alloc(&m0_fop_cob_delete_fopt, cd);
-		break;
-	}
+	delete = fpart->ffrp_fop_code - M0_IOSERVICE_COB_CREATE_OPCODE;
+	if (undo)
+		delete = 1 - delete;
+	fop = m0_fop_alloc(delete ?
+			   &m0_fop_cob_delete_fopt : &m0_fop_cob_create_fopt,
+			   fpart->ffrp_fop);
 	result = fop != NULL ? m0_cob_fom_create(fop, &fom, reqh) : -ENOMEM;
 	if (result == 0) {
 		fom->fo_local = true;

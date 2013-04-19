@@ -152,15 +152,15 @@ enum ad_stob_allocation_extent_type {
 	AET_HOLE
 };
 
-static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part)
+static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
+				    struct m0_db_tx	   *tx)
 {
 	struct ad_rec_part    *arp;
 	struct m0_stob_domain *dom;
 	struct ad_domain      *adom;
 	struct m0_emap_cursor  it;
 	int		       i;
-	int		       rc;
-	struct m0_db_tx	       tx;
+	int		       rc = 0;
 	struct m0_emap_seg    *old_data;
 
 	M0_PRE(part != NULL);
@@ -170,19 +170,16 @@ static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part)
 
 	dom = m0_stob_domain_lookup(&m0_ad_stob_type, arp->arp_dom_id);
 	adom = domain2ad(dom);
-	rc = m0_db_tx_init(&tx, adom->ad_dbenv, 0);
-	if (rc != 0)
-		return rc;
 
 	for (i = 0; rc == 0 && i < arp->arp_seg.ps_segments; ++i) {
-		rc = m0_emap_lookup(&adom->ad_adata, &tx,
+		rc = m0_emap_lookup(&adom->ad_adata, tx,
 				    &old_data[i].ee_pre,
 				    old_data[i].ee_ext.e_start,
 				    &it) ?:
 		     m0_emap_extent_update(&it, &old_data[i]);
 		m0_emap_close(&it);
 	}
-	return rc == 0 ? m0_db_tx_commit(&tx) : rc;
+	return rc;
 }
 
 M0_FOL_REC_PART_TYPE_DECLARE(ad_rec_part, static, ad_rec_part_undo_redo_op,
@@ -1138,6 +1135,7 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
 		todo.e_end   = todo.e_start + frag_size;
 
+		M0_ASSERT(i < frags);
 		arp->arp_seg.ps_old_data[i] = (struct m0_emap_seg ) {
 			.ee_ext = {
 				.e_start = offset,
