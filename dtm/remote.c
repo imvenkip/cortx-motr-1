@@ -67,7 +67,7 @@ M0_INTERNAL void m0_dtm_remote_add(struct m0_dtm_remote *dtm,
 M0_INTERNAL void m0_dtm_remote_init(struct m0_dtm_remote *remote,
 				    struct m0_dtm *local)
 {
-	m0_dtm_controlh_init(&remote->re_fol, local);
+	m0_dtm_remote_fol_init(&remote->re_fol, local, remote);
 }
 
 M0_INTERNAL void m0_dtm_remote_fini(struct m0_dtm_remote *remote)
@@ -193,7 +193,8 @@ static void rem_rpc_deliver(struct m0_rpc_machine *mach,
 		default:
 			M0_LOG(M0_ERROR, "DTM notice: %i.", notice->dno_opcode);
 		}
-	}
+	} else
+		M0_LOG(M0_ERROR, "DTM history: %i.", result);
 }
 
 static const struct m0_fop_type_ops rem_rpc_ftype_ops = {

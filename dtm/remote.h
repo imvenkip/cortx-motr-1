@@ -36,10 +36,11 @@
 #include "dtm/update_xc.h"           /* m0_dtm_history_id_xc */
 
 /* import */
-#include "dtm/history.h"
+#include "dtm/fol.h"
 struct m0_dtm_oper;
 struct m0_dtm_update;
 struct m0_rpc_conn;
+struct m0_dtm_remote;
 
 /* export */
 struct m0_dtm_remote;
@@ -48,7 +49,7 @@ struct m0_dtm_remote_ops;
 
 struct m0_dtm_remote {
 	const struct m0_dtm_remote_ops *re_ops;
-	struct m0_dtm_controlh          re_fol;
+	struct m0_dtm_remote_fol        re_fol;
 };
 
 struct m0_dtm_remote_ops {
