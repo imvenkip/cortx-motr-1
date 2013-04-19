@@ -24,7 +24,7 @@
  * @{
  */
 
-#include "lib/ut.h"
+#include "ut/ut.h"
 #include "lib/misc.h"         /* m0_forall */
 #include "lib/tlist.h"
 #include "lib/cdefs.h"        /* IS_IN_ARRAY */
@@ -34,6 +34,7 @@
 #include "dtm/dtm_internal.h"
 #include "dtm/operation.h"
 #include "dtm/history.h"
+#include "dtm/remote.h"
 #include "dtm/update.h"
 #include "dtm/ltx.h"
 #include "dtm/dtm.h"
@@ -59,6 +60,8 @@ static struct m0_dtm_update       update_src[OPER_NR][UPDATE_NR];
 static struct m0_dtm_update       update_tgt[OPER_NR][UPDATE_NR + TGT_DELTA];
 static struct m0_dtm_history      history_src[UPDATE_NR];
 static struct m0_dtm_history      history_tgt[UPDATE_NR];
+static struct m0_uint128          id_src[UPDATE_NR];
+static struct m0_uint128          id_tgt[UPDATE_NR];
 static struct m0_dtm_update_descr udescr[UPDATE_NR];
 static struct m0_dtm_update_descr udescr_reply[UPDATE_NR];
 static struct m0_dtm_oper_descr   ode = {
@@ -106,7 +109,8 @@ static const struct m0_dtm_op_ops op_ops = {
 	.doo_miser      = noop
 };
 
-static int src_find(const struct m0_dtm_history_type *ht,
+static int src_find(struct m0_dtm *dtm,
+		    const struct m0_dtm_history_type *ht,
 		    const struct m0_uint128 *id,
 		    struct m0_dtm_history **out)
 {
@@ -122,16 +126,20 @@ static const struct m0_dtm_history_type_ops src_htype_ops = {
 };
 
 static const struct m0_dtm_history_type src_htype = {
-	.hit_id   = 2,
-	.hit_name = "source histories",
-	.hit_ops  = &src_htype_ops
+	.hit_id     = 2,
+	.hit_rem_id = 2,
+	.hit_name   = "source histories",
+	.hit_ops    = &src_htype_ops
 };
 
-static void src_id(const struct m0_dtm_history *history, struct m0_uint128 *id)
+static const struct m0_uint128 *src_id(const struct m0_dtm_history *history)
 {
-	id->u_hi = 0;
-	id->u_lo = history - history_src;
-	M0_ASSERT(IS_IN_ARRAY(id->u_lo, history_src));
+	int idx = history - history_src;
+
+	M0_PRE(IS_IN_ARRAY(idx, id_src));
+	id_src[idx].u_hi = 0;
+	id_src[idx].u_lo = idx;
+	return &id_src[idx];
 }
 
 static const struct m0_dtm_history_ops src_ops = {
@@ -141,7 +149,8 @@ static const struct m0_dtm_history_ops src_ops = {
 	.hio_update     = &update_init
 };
 
-static int tgt_find(const struct m0_dtm_history_type *ht,
+static int tgt_find(struct m0_dtm *dtm,
+		    const struct m0_dtm_history_type *ht,
 		    const struct m0_uint128 *id,
 		    struct m0_dtm_history **out)
 {
@@ -157,16 +166,20 @@ static const struct m0_dtm_history_type_ops tgt_htype_ops = {
 };
 
 static const struct m0_dtm_history_type tgt_htype = {
-	.hit_id   = 2,
-	.hit_name = "target histories",
-	.hit_ops  = &tgt_htype_ops
+	.hit_id     = 2,
+	.hit_rem_id = 2,
+	.hit_name   = "target histories",
+	.hit_ops    = &tgt_htype_ops
 };
 
-static void tgt_id(const struct m0_dtm_history *history, struct m0_uint128 *id)
+static const struct m0_uint128 *tgt_id(const struct m0_dtm_history *history)
 {
-	id->u_hi = 0;
-	id->u_lo = history - history_tgt;
-	M0_ASSERT(IS_IN_ARRAY(id->u_lo, history_tgt));
+	int idx = history - history_tgt;
+
+	M0_PRE(IS_IN_ARRAY(idx, id_tgt));
+	id_tgt[idx].u_hi = 0;
+	id_tgt[idx].u_lo = idx;
+	return &id_tgt[idx];
 }
 
 static const struct m0_dtm_history_ops tgt_ops = {

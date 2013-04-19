@@ -113,6 +113,11 @@ M0_INTERNAL void oper_unlock(const struct m0_dtm_oper *oper);
 M0_INTERNAL void history_lock(const struct m0_dtm_history *history);
 M0_INTERNAL void history_unlock(const struct m0_dtm_history *history);
 
+M0_INTERNAL m0_dtm_ver_t update_ver(const struct m0_dtm_update *update);
+
+M0_INTERNAL int m0_dtm_remote_global_init(void);
+M0_INTERNAL void m0_dtm_remote_global_fini(void);
+
 /** @} end of dtm group */
 
 #endif /* __MERO_DTM_DTM_INTERNAL_H__ */

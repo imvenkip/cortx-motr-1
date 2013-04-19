@@ -26,6 +26,7 @@
 
 #include "lib/tlist.h"
 #include "lib/queue.h"
+#include "lib/cookie.h"
 
 #include "dtm/nucleus.h"
 
@@ -38,11 +39,10 @@
 /* import */
 #include "dtm/operation.h"
 struct m0_dtm;
+struct m0_dtm_remote;
 
 /* export */
 struct m0_dtm_history;
-struct m0_dtm_remote;
-struct m0_dtm_remote_ops;
 struct m0_dtm_history_ops;
 struct m0_dtm_history_type;
 struct m0_dtm_history_type_ops;
@@ -54,6 +54,8 @@ struct m0_dtm_history {
 	struct m0_dtm_remote            *h_dtm;
 	struct m0_dtm_update            *h_persistent;
 	const struct m0_dtm_history_ops *h_ops;
+	uint64_t                         h_gen;
+	struct m0_cookie                 h_rem;
 };
 M0_INTERNAL bool m0_dtm_history_invariant(const struct m0_dtm_history *history);
 
@@ -63,8 +65,7 @@ enum m0_dtm_history_flags {
 
 struct m0_dtm_history_ops {
 	const struct m0_dtm_history_type *hio_type;
-	void (*hio_id        )(const struct m0_dtm_history *history,
-			       struct m0_uint128 *id);
+	const struct m0_uint128 *(*hio_id)(const struct m0_dtm_history *history);
 	void (*hio_persistent)(struct m0_dtm_history *history);
 	void (*hio_fixed     )(struct m0_dtm_history *history);
 	int  (*hio_update    )(struct m0_dtm_history *history, uint8_t id,
@@ -73,12 +74,14 @@ struct m0_dtm_history_ops {
 
 struct m0_dtm_history_type {
 	uint8_t                               hit_id;
+	uint8_t                               hit_rem_id;
 	const char                           *hit_name;
 	const struct m0_dtm_history_type_ops *hit_ops;
 };
 
 struct m0_dtm_history_type_ops {
-	int (*hito_find)(const struct m0_dtm_history_type *ht,
+	int (*hito_find)(struct m0_dtm *dtm,
+			 const struct m0_dtm_history_type *ht,
 			 const struct m0_uint128 *id,
 			 struct m0_dtm_history **out);
 };
@@ -87,14 +90,6 @@ struct m0_dtm_controlh {
 	struct m0_dtm_history ch_history;
 	struct m0_dtm_oper    ch_clop;
 	struct m0_dtm_update  ch_clup;
-};
-
-struct m0_dtm_remote {
-	const struct m0_dtm_remote_ops *re_ops;
-	struct m0_dtm_controlh          re_fol;
-};
-
-struct m0_dtm_remote_ops {
 };
 
 M0_INTERNAL void m0_dtm_history_init(struct m0_dtm_history *history,
@@ -114,6 +109,13 @@ m0_dtm_history_type_deregister(struct m0_dtm *dtm,
 M0_INTERNAL const struct m0_dtm_history_type *
 m0_dtm_history_type_find(struct m0_dtm *dtm, uint8_t id);
 
+M0_INTERNAL void m0_dtm_history_pack(const struct m0_dtm_history *history,
+				     struct m0_dtm_history_id *id);
+
+M0_INTERNAL int m0_dtm_history_unpack(struct m0_dtm *dtm,
+				      const struct m0_dtm_history_id *id,
+				      struct m0_dtm_history **out);
+
 M0_INTERNAL void m0_dtm_history_add_nop(struct m0_dtm_history *history,
 					struct m0_dtm_oper *oper,
 					struct m0_dtm_update *cupdate);
@@ -132,15 +134,6 @@ M0_INTERNAL int m0_dtm_controlh_update(struct m0_dtm_history *history,
 				       struct m0_dtm_update *update);
 M0_INTERNAL bool
 m0_dtm_controlh_update_is_close(const struct m0_dtm_update *update);
-
-M0_INTERNAL void m0_dtm_remote_add(struct m0_dtm_remote *dtm,
-				   struct m0_dtm_oper *oper,
-				   struct m0_dtm_history *history,
-				   struct m0_dtm_update *update);
-
-M0_INTERNAL void m0_dtm_remote_init(struct m0_dtm_remote *remote,
-				    struct m0_dtm *local);
-M0_INTERNAL void m0_dtm_remote_fini(struct m0_dtm_remote *remote);
 
 /** @} end of dtm group */
 

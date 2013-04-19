@@ -10,6 +10,9 @@ m0mero_objects += \
                   dtm/nucleus.o \
                   dtm/object.o \
                   dtm/operation.o \
+                  dtm/remote.o \
+                  dtm/remote_xc.o \
                   dtm/update.o \
+                  dtm/update_xc.o \
                   dtm/verno.o \
                   dtm/verno_xc.o

@@ -32,7 +32,7 @@
  */
 
 /* import */
-#include "lib/types.h"                /* uint32_t, uint64_t */
+#include "lib/types.h"                /* m0_uint128, uint32_t, uint64_t */
 struct m0_dtm_dtx_party;
 struct m0_dtm;
 
@@ -41,7 +41,7 @@ struct m0_dtm_dtx;
 
 struct m0_dtm_dtx {
 	struct m0_dtm           *dt_dtm;
-	uint64_t                 dt_id;
+	struct m0_uint128        dt_id;
 	uint32_t                 dt_nr;
 	uint32_t                 dt_nr_max;
 	uint32_t                 dt_nr_fixed;
@@ -49,10 +49,12 @@ struct m0_dtm_dtx {
 };
 
 struct m0_dtm_dtx_srv {
+	struct m0_uint128     ds_id;
 	struct m0_dtm_history ds_history;
 };
 
-M0_INTERNAL int m0_dtm_dtx_init(struct m0_dtm_dtx *dtx, uint64_t id,
+M0_INTERNAL int m0_dtm_dtx_init(struct m0_dtm_dtx *dtx,
+				const struct m0_uint128 *id,
 				struct m0_dtm *dtm, uint32_t nr_max);
 M0_INTERNAL void m0_dtm_dtx_fini(struct m0_dtm_dtx *dtx);
 
@@ -61,6 +63,7 @@ M0_INTERNAL void m0_dtm_dtx_add(struct m0_dtm_dtx *dtx,
 M0_INTERNAL void m0_dtm_dtx_close(struct m0_dtm_dtx *dtx);
 
 M0_EXTERN const struct m0_dtm_history_type m0_dtm_dtx_htype;
+M0_EXTERN const struct m0_dtm_history_type m0_dtm_dtx_srv_htype;
 
 /** @} end of dtm group */
 

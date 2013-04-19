@@ -27,10 +27,12 @@
 
 #include "lib/assert.h"
 #include "lib/memory.h"
-#include "lib/errno.h"              /* ENOMEM */
+#include "lib/errno.h"              /* ENOMEM, ENOSYS */
 
+#include "dtm/catalogue.h"
 #include "dtm/dtm_internal.h"
 #include "dtm/history.h"
+#include "dtm/dtm.h"
 #include "dtm/dtx.h"
 
 struct m0_dtm_dtx_party {
@@ -38,13 +40,19 @@ struct m0_dtm_dtx_party {
 	struct m0_dtm_controlh pa_ch;
 };
 
+static const struct m0_dtm_history_ops dtx_ops;
+static const struct m0_dtm_history_ops dtx_srv_ops;
 static struct m0_dtm_controlh *dtx_get(struct m0_dtm_dtx *dtx,
 				       struct m0_dtm_remote *dtm);
+static struct m0_dtm_history *dtx_srv_alloc(struct m0_dtm *dtm,
+					    const struct m0_uint128 *id,
+					    void *datum);
 
-M0_INTERNAL int m0_dtm_dtx_init(struct m0_dtm_dtx *dtx, uint64_t id,
+M0_INTERNAL int m0_dtm_dtx_init(struct m0_dtm_dtx *dtx,
+				const struct m0_uint128 *id,
 				struct m0_dtm *dtm, uint32_t nr_max)
 {
-	dtx->dt_id = id;
+	dtx->dt_id = *id;
 	dtx->dt_dtm = dtm;
 	dtx->dt_nr_max = nr_max;
 	dtx->dt_nr = dtx->dt_nr_fixed = 0;
@@ -93,34 +101,36 @@ M0_INTERNAL void m0_dtm_dtx_close(struct m0_dtm_dtx *dtx)
 static void dtx_noop(void *unused)
 {}
 
-static int dtx_find(const struct m0_dtm_history_type *ht,
+static int dtx_find(struct m0_dtm *dtm, const struct m0_dtm_history_type *ht,
 		    const struct m0_uint128 *id,
 		    struct m0_dtm_history **out)
 {
 	M0_IMPOSSIBLE("Looking for dtx?");
+	return -ENOSYS;
 }
 
 static const struct m0_dtm_history_type_ops dtx_htype_ops = {
-	.hito_find = dtx_find
+	.hito_find = &dtx_find
 };
 
 enum {
-	M0_DTM_HTYPE_DTX = 8
+	M0_DTM_HTYPE_DTX     = 8,
+	M0_DTM_HTYPE_DTX_SRV = 9
 };
 
 M0_INTERNAL const struct m0_dtm_history_type m0_dtm_dtx_htype = {
-	.hit_id   = M0_DTM_HTYPE_DTX,
-	.hit_name = "distributed transaction",
-	.hit_ops  = &dtx_htype_ops
+	.hit_id     = M0_DTM_HTYPE_DTX,
+	.hit_rem_id = M0_DTM_HTYPE_DTX_SRV,
+	.hit_name   = "distributed transaction",
+	.hit_ops    = &dtx_htype_ops
 };
 
-static void dtx_id(const struct m0_dtm_history *history, struct m0_uint128 *id)
+static const struct m0_uint128 *dtx_id(const struct m0_dtm_history *history)
 {
 	struct m0_dtm_dtx_party *pa;
 
 	pa = container_of(history, struct m0_dtm_dtx_party, pa_ch.ch_history);
-	id->u_hi = 0;
-	id->u_lo = pa->pa_dtx->dt_id;
+	return &pa->pa_dtx->dt_id;
 }
 
 static void dtx_fixed(struct m0_dtm_history *history)
@@ -165,6 +175,60 @@ static struct m0_dtm_controlh *dtx_get(struct m0_dtm_dtx *dtx,
 	pa->pa_dtx = dtx;
 	dtx->dt_nr++;
 	return &pa->pa_ch;
+}
+
+static int dtx_srv_find(struct m0_dtm *dtm, const struct m0_dtm_history_type *ht,
+			const struct m0_uint128 *id,
+			struct m0_dtm_history **out)
+{
+	return m0_dtm_catalogue_find(&dtm->d_dtx_cat, dtm,
+				     id, &dtx_srv_alloc, NULL, out);
+}
+
+static const struct m0_dtm_history_type_ops dtx_srv_htype_ops = {
+	.hito_find = &dtx_srv_find
+};
+
+M0_INTERNAL const struct m0_dtm_history_type m0_dtm_dtx_srv_htype = {
+	.hit_id     = M0_DTM_HTYPE_DTX_SRV,
+	.hit_rem_id = M0_DTM_HTYPE_DTX,
+	.hit_name   = "distributed transaction service side",
+	.hit_ops    = &dtx_srv_htype_ops
+};
+
+static const struct m0_uint128 *dtx_srv_id(const struct m0_dtm_history *history)
+{
+	struct m0_dtm_dtx_srv *dtx;
+
+	dtx = container_of(history, struct m0_dtm_dtx_srv, ds_history);
+	return &dtx->ds_id;
+}
+
+static const struct m0_dtm_history_ops dtx_srv_ops = {
+	.hio_type       = &m0_dtm_dtx_srv_htype,
+	.hio_id         = &dtx_srv_id,
+	.hio_persistent = (void *)&dtx_noop,
+	.hio_fixed      = (void *)&dtx_noop,
+	.hio_update     = &m0_dtm_controlh_update
+};
+
+static struct m0_dtm_history *dtx_srv_alloc(struct m0_dtm *dtm,
+					    const struct m0_uint128 *id,
+					    void *datum)
+{
+	struct m0_dtm_dtx_srv *dtx;
+	struct m0_dtm_history *history;
+
+	M0_ALLOC_PTR(dtx);
+	if (dtx != NULL) {
+		history = &dtx->ds_history;
+		dtx->ds_id = *id;
+		m0_dtm_history_init(&dtx->ds_history, dtm);
+		history->h_ops = &dtx_srv_ops;
+
+	} else
+		history = NULL;
+	return history;
 }
 
 /** @} end of dtm group */

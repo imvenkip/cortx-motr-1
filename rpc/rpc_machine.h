@@ -43,6 +43,7 @@ struct m0_cob_domain;
 struct m0_rpc_conn;
 struct m0_rpc_session;
 struct m0_reqh;
+struct m0_dtm;
 
 enum {
 	/** Default Maximum RPC message size is taken as 128k */
@@ -104,7 +105,7 @@ struct m0_rpc_machine {
 		e.g. m0_reqh_fop_handle(), in case of reqh.
 	*/
 	struct m0_reqh                   *rm_reqh;
-
+	struct m0_dtm                    *rm_dtm;
         /**
 	    Linkage into request handler's list of rpc machines.
 	    m0_reqh::rh_rpc_machines

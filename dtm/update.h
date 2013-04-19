@@ -46,6 +46,9 @@ struct m0_dtm_cupdate_descr;
 struct m0_dtm_history_type;
 struct m0_dtm_oper;
 struct m0_dtm_history;
+#include "lib/cookie.h"
+#include "lib/types_xc.h"             /* m0_uint128_xc */
+#include "lib/cookie_xc.h"
 
 struct m0_dtm_update {
 	struct m0_dtm_up                upd_up;
@@ -84,11 +87,17 @@ struct m0_dtm_update_data {
 	.da_orig_ver = (orig_ver)			\
 }
 
+struct m0_dtm_history_id {
+	struct m0_uint128 hid_id;
+	struct m0_cookie  hid_sender;
+	struct m0_cookie  hid_receiver;
+	uint8_t           hid_htype;
+} M0_XCA_RECORD;
+
 struct m0_dtm_update_descr {
-	uint8_t                   udd_htype;
-	uint8_t                   udd_utype;
 	struct m0_dtm_update_data udd_data;
-	struct m0_uint128         udd_id;
+	struct m0_dtm_history_id  udd_id;
+	uint8_t                   udd_utype;
 } M0_XCA_RECORD;
 
 M0_INTERNAL void m0_dtm_update_init(struct m0_dtm_update *update,

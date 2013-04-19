@@ -156,7 +156,7 @@ struct m0_fop *m0_fop_alloc(struct m0_fop_type *fopt, void *data);
  * m0_fop_init() when fop is not embedded in any other object.
  */
 M0_INTERNAL void m0_fop_release(struct m0_ref *ref);
-void *m0_fop_data(struct m0_fop *fop);
+void *m0_fop_data(const struct m0_fop *fop);
 
 /**
    Allocate top level fop data

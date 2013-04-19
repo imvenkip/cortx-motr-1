@@ -57,15 +57,13 @@ M0_INTERNAL int m0_dtm_catalogue_delete(struct m0_dtm_catalogue *cat)
 }
 
 M0_INTERNAL int m0_dtm_catalogue_lookup(struct m0_dtm_catalogue *cat,
-					struct m0_uint128 *id,
+					const struct m0_uint128 *id,
 					struct m0_dtm_history **out)
 {
 	struct m0_dtm_history *history;
 
 	m0_tl_for(cat, &cat->ca_el, history) {
-		struct m0_uint128 scan;
-		history->h_ops->hio_id(history, &scan);
-		if (m0_uint128_eq(&scan, id))
+		if (m0_uint128_eq(history->h_ops->hio_id(history), id))
 			break;
 	} m0_tl_endfor;
 	*out = history;
@@ -87,8 +85,9 @@ M0_INTERNAL int m0_dtm_catalogue_del(struct m0_dtm_catalogue *cat,
 }
 
 M0_INTERNAL int m0_dtm_catalogue_find(struct m0_dtm_catalogue *cat,
-				      struct m0_uint128 *id,
-				      struct m0_dtm_history *(*alloc)(void *),
+				      struct m0_dtm *dtm,
+				      const struct m0_uint128 *id,
+				      m0_dtm_catalogue_alloc_t *alloc,
 				      void *datum,
 				      struct m0_dtm_history **out)
 {
@@ -96,7 +95,7 @@ M0_INTERNAL int m0_dtm_catalogue_find(struct m0_dtm_catalogue *cat,
 
 	result = m0_dtm_catalogue_lookup(cat, id, out);
 	if (result == -ENOENT) {
-		*out = alloc(datum);
+		*out = alloc(dtm, id, datum);
 		if (*out != NULL)
 			m0_dtm_catalogue_add(cat, *out);
 		else

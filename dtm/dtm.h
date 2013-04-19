@@ -23,11 +23,15 @@
 #ifndef __MERO_DTM_DTM_H__
 #define __MERO_DTM_DTM_H__
 
+#include "lib/cdefs.h"
+#include "lib/assert.h"
+
 #include "db/db.h"
 #include "be/be.h"
 #include "fol/fol.h"
 #include "dtm/history.h"
 #include "dtm/nucleus.h"
+#include "dtm/catalogue.h"
 
 /**
    @defgroup dtm Distributed transaction manager
@@ -44,9 +48,12 @@ struct m0_dtx;
 enum {
 	M0_DTM_HISTORY_TYPE_NR = 256
 };
+M0_BASSERT(M0_DTM_HISTORY_TYPE_NR <=
+	   (1 << 8*sizeof M0_FIELD_VALUE(struct m0_dtm_history_type, hit_id)));
 
 struct m0_dtm {
 	struct m0_dtm_nu                  d_nu;
+	struct m0_dtm_catalogue           d_dtx_cat;
 	const struct m0_dtm_history_type *d_htype[M0_DTM_HISTORY_TYPE_NR];
 };
 

@@ -198,6 +198,10 @@ enum M0_RPC_OPCODES {
 	M0_POOLMACHINE_QUERY_REP_OPCODE     = 112,
 	M0_POOLMACHINE_SET_OPCODE           = 113,
 	M0_POOLMACHINE_SET_REP_OPCODE       = 114,
+
+	/* DTM */
+	M0_DTM_NOTIFICATION_OPCODE          = 120
+>>>>>>> dtm: prototype code.
 };
 /** @} endgroup rpc_layer_core */
 

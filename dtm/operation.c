@@ -31,6 +31,7 @@
 #include "dtm/dtm_internal.h"
 #include "dtm/history.h"
 #include "dtm/update.h"
+#include "dtm/remote.h"
 #include "dtm/operation.h"
 #include "dtm/dtm.h"
 

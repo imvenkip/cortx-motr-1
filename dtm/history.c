@@ -27,9 +27,10 @@
 
 #include "lib/bob.h"
 #include "lib/assert.h"
-#include "lib/misc.h"                 /* M0_IN */
+#include "lib/misc.h"                 /* M0_IN, M0_SET0 */
 #include "lib/memory.h"
 #include "lib/errno.h"                /* ENOMEM */
+#include "lib/cookie.h"
 
 #include "dtm/dtm_internal.h"
 #include "dtm/nucleus.h"
@@ -38,7 +39,6 @@
 #include "dtm/dtm.h"
 
 static m0_dtm_ver_t up_ver    (const struct m0_dtm_up *up);
-static m0_dtm_ver_t update_ver(const struct m0_dtm_update *update);
 static void sibling_persistent(struct m0_dtm_history *history,
 			       struct m0_dtm_op *op, struct m0_queue *queue);
 
@@ -47,6 +47,8 @@ M0_INTERNAL void m0_dtm_history_init(struct m0_dtm_history *history,
 {
 	m0_dtm_hi_init(&history->h_hi, &dtm->d_nu);
 	m0_queue_link_init(&history->h_pending);
+	m0_cookie_new(&history->h_gen);
+	M0_SET0(&history->h_rem);
 	M0_POST(m0_dtm_history_invariant(history));
 }
 
@@ -145,7 +147,7 @@ static m0_dtm_ver_t up_ver(const struct m0_dtm_up *up)
 	return up != NULL ? up->up_ver : 0;
 }
 
-static m0_dtm_ver_t update_ver(const struct m0_dtm_update *update)
+M0_INTERNAL m0_dtm_ver_t update_ver(const struct m0_dtm_update *update)
 {
 	return up_ver(UPDATE_UP(update));
 }
@@ -178,6 +180,35 @@ M0_INTERNAL const struct m0_dtm_history_type *
 m0_dtm_history_type_find(struct m0_dtm *dtm, uint8_t id)
 {
 	return IS_IN_ARRAY(id, dtm->d_htype) ? dtm->d_htype[id] : NULL;
+}
+
+M0_INTERNAL void m0_dtm_history_pack(const struct m0_dtm_history *history,
+				     struct m0_dtm_history_id *id)
+{
+	id->hid_id       = *history->h_ops->hio_id(history);
+	id->hid_htype    =  history->h_ops->hio_type->hit_rem_id;
+	id->hid_receiver =  history->h_rem;
+	m0_cookie_init(&id->hid_sender, &history->h_gen);
+}
+
+M0_INTERNAL int m0_dtm_history_unpack(struct m0_dtm *dtm,
+				      const struct m0_dtm_history_id *id,
+				      struct m0_dtm_history **out)
+{
+	const struct m0_dtm_history_type *htype;
+	int                               result;
+
+	htype = m0_dtm_history_type_find(dtm, id->hid_htype);
+	if (htype == NULL)
+		return -EPROTO;
+
+	/* !m0_cookie_is_null() && */
+	*out = m0_cookie_of(&id->hid_receiver, struct m0_dtm_history, h_gen);
+	result = *out != NULL ? 0 :
+		htype->hit_ops->hito_find(dtm, htype, &id->hid_id, out);
+	if (result == 0)
+		(*out)->h_rem = id->hid_sender;
+	return result;
 }
 
 static m0_dtm_ver_t history_ver(const struct m0_dtm_history *history)
@@ -327,25 +358,6 @@ m0_dtm_controlh_update_is_close(const struct m0_dtm_update *update)
 {
 	M0_PRE(M0_IN(update->upd_ops, (&ch_noop_ops, &ch_close_ops)));
 	return update->upd_ops == &ch_close_ops;
-}
-
-M0_INTERNAL void m0_dtm_remote_add(struct m0_dtm_remote *dtm,
-				   struct m0_dtm_oper *oper,
-				   struct m0_dtm_history *history,
-				   struct m0_dtm_update *update)
-{
-	m0_dtm_controlh_add(&dtm->re_fol, oper);
-}
-
-M0_INTERNAL void m0_dtm_remote_init(struct m0_dtm_remote *remote,
-				    struct m0_dtm *local)
-{
-	m0_dtm_controlh_init(&remote->re_fol, local);
-}
-
-M0_INTERNAL void m0_dtm_remote_fini(struct m0_dtm_remote *remote)
-{
-	m0_dtm_controlh_fini(&remote->re_fol);
 }
 
 /** @} end of dtm group */

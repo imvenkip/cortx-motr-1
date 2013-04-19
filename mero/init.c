@@ -117,7 +117,6 @@ struct init_fini_call subsystem[] = {
 	{ &m0_timers_init,      &m0_timers_fini,      "timer" },
 	{ &m0_addb_init,        &m0_addb_fini,        "addb" },
 	{ &m0_db_init,          &m0_db_fini,          "db" },
-	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" },
 	{ &m0_fols_init,        &m0_fols_fini,        "fol" },
 	{ &m0_layouts_init,     &m0_layouts_fini,     "layout" },
 	/* fops must be initialised before network, because network build fop
@@ -161,6 +160,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },
 	{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },
 	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
+	{ &m0_yaml2db_mod_init, &m0_yaml2db_mod_fini, "yaml2db" },
 #endif /* __KERNEL__ */
 	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },

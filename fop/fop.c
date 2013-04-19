@@ -162,7 +162,7 @@ void m0_fop_put(struct m0_fop *fop)
 }
 M0_EXPORTED(m0_fop_put);
 
-void *m0_fop_data(struct m0_fop *fop)
+void *m0_fop_data(const struct m0_fop *fop)
 {
 	return fop->f_data.fd_data;
 }

@@ -94,7 +94,7 @@ static void ltx_abort(struct m0_db_tx_waiter *w)
 	M0_IMPOSSIBLE("Aborting ltx?");
 }
 
-static int ltx_find(const struct m0_dtm_history_type *ht,
+static int ltx_find(struct m0_dtm *dtm, const struct m0_dtm_history_type *ht,
 		    const struct m0_uint128 *id,
 		    struct m0_dtm_history **out)
 {
@@ -115,9 +115,10 @@ M0_INTERNAL const struct m0_dtm_history_type m0_dtm_ltx_htype = {
 	.hit_ops  = &ltx_htype_ops
 };
 
-static void ltx_id(const struct m0_dtm_history *history, struct m0_uint128 *id)
+static const struct m0_uint128 *ltx_id(const struct m0_dtm_history *history)
 {
 	M0_IMPOSSIBLE("Encoding ltx?");
+	return NULL;
 }
 
 static const struct m0_dtm_history_ops ltx_ops = {
