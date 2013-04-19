@@ -66,6 +66,7 @@
 #include "mdservice/md_service.h"
 #include "sns/sns.h"
 #include "cm/cm.h"
+#include "addb/addb_fops.h"
 #include "mgmt/mgmt.h"
 
 M0_INTERNAL int m0_memory_init(void);
@@ -129,6 +130,7 @@ struct init_fini_call subsystem[] = {
 #endif
 	{ &m0_confx_types_init, &m0_confx_types_fini, "conf-xtypes" },
 	{ &m0_conf_fops_init,   &m0_conf_fops_fini,   "conf-fops" },
+	{ &m0_addb_service_fop_init, &m0_addb_service_fop_fini, "addb_fops" },
 #ifdef __KERNEL__
 	{ &m0t1fs_init,         &m0t1fs_fini,         "m0t1fs" },
 #else

@@ -137,8 +137,8 @@ static bool at_array(const struct m0_xcode_cursor       *it,
 		     const struct m0_xcode_obj          *par)
 {
 	return it->xcu_depth > 0 && par->xo_type->xct_aggr == M0_XA_SEQUENCE &&
-		prev->s_fieldno == 1 && prev->s_elno == 0 &&
-		m0_xcode_tag(par) > 0;
+	       prev->s_fieldno == 1 && prev->s_elno == 0 &&
+	       m0_xcode_tag(par) > 0;
 }
 
 static void **allocp(struct m0_xcode_cursor *it, size_t *out)
@@ -398,20 +398,29 @@ M0_INTERNAL void *m0_xcode_alloc(struct m0_xcode_cursor *it, size_t nob)
 
 M0_INTERNAL void m0_xcode_free(struct m0_xcode_obj *obj)
 {
-	int                    result;
 	struct m0_xcode_cursor it;
 
 	M0_SET0(&it);
 	m0_xcode_cursor_top(&it)->s_obj = *obj;
 
-	while ((result = m0_xcode_next(&it)) > 0) {
+	while (m0_xcode_next(&it) > 0) {
 		struct m0_xcode_cursor_frame *top = m0_xcode_cursor_top(&it);
 		size_t                        nob = 0;
 		void                        **slot;
 
 		if (top->s_flag == M0_XCODE_CURSOR_POST) {
+			struct m0_xcode_cursor_frame *prev =  top -1;
+			struct m0_xcode_obj          *par  = &prev->s_obj;
+
 			slot = allocp(&it, &nob);
-			if (nob != 0 && *slot != NULL)
+			if (top->s_datum != 0) {
+				m0_free((void *) top->s_datum);
+				top->s_datum = 0;
+			}
+
+			if (at_array(&it, prev, par))
+				prev->s_datum = (uint64_t)*slot;
+			else if (nob != 0)
 				m0_free(*slot);
 		}
 	}

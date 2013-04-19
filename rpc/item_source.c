@@ -116,6 +116,15 @@ void m0_rpc_item_source_deregister(struct m0_rpc_item_source *ris)
 	m0_rpc_machine_unlock(machine);
 }
 
+M0_INTERNAL void m0_rpc_item_drain_sources_locked(struct m0_rpc_machine *rm)
+{
+	M0_PRE(rm != NULL);
+
+	m0_rpc_machine_lock(rm);
+	m0_rpc_machine_drain_item_sources(rm);
+	m0_rpc_machine_unlock(rm);
+}
+
 /** @} end of rpc group */
 
 /*

@@ -40,6 +40,7 @@
 #include "mdservice/md_fops.h"    /* m0_fop_create_fopt */
 #include "mdservice/md_fops_xc.h" /* m0_fop_create */
 #include "conf/schema.h"          /* m0_conf_service_type */
+#include "m0t1fs/m0t1fs_addb.h"
 
 /**
   @defgroup m0t1fs m0t1fs
@@ -380,64 +381,6 @@
   tests may load client node so much that connection problems can occur.
 
  */
-
-/*
- ******************************************************************************
- * Kernel client ADDB context types.
- * Do not change the numbering.
- ******************************************************************************
- */
-enum {
-	M0_ADDB_CTXID_M0T1FS_MOD	= 500,
-	M0_ADDB_CTXID_M0T1FS_MOUNTP	= 501,
-	M0_ADDB_CTXID_M0T1FS_OP_READ	= 502,
-	M0_ADDB_CTXID_M0T1FS_OP_WRITE	= 503,
-};
-
-M0_ADDB_CT(m0_addb_ct_m0t1fs_mod,	M0_ADDB_CTXID_M0T1FS_MOD);
-M0_ADDB_CT(m0_addb_ct_m0t1fs_mountp,	M0_ADDB_CTXID_M0T1FS_MOUNTP);
-M0_ADDB_CT(m0_addb_ct_m0t1fs_op_read,	M0_ADDB_CTXID_M0T1FS_OP_READ);
-M0_ADDB_CT(m0_addb_ct_m0t1fs_op_write,	M0_ADDB_CTXID_M0T1FS_OP_WRITE);
-
-extern struct m0_addb_ctx m0t1fs_addb_ctx;
-
-enum {
-	M0T1FS_ADDB_LOC_AIO_READ		= 10,
-	M0T1FS_ADDB_LOC_AIO_WRITE		= 20,
-	M0T1FS_ADDB_LOC_AIO_REQ			= 30,
-	M0T1FS_ADDB_LOC_DBUF_ALLOI_BUF		= 40,
-	M0T1FS_ADDB_LOC_IOMAPS_PREP_GRPARR	= 50,
-	M0T1FS_ADDB_LOC_IOMAPS_PREP_MAP		= 60,
-	M0T1FS_ADDB_LOC_IOMAPS_PREP_MAPS	= 70,
-	M0T1FS_ADDB_LOC_IOMAP_INIT_DBUFS_COL	= 80,
-	M0T1FS_ADDB_LOC_IOMAP_INIT_DBUFS_ROW	= 90,
-	M0T1FS_ADDB_LOC_IOMAP_INIT_IV		= 100,
-	M0T1FS_ADDB_LOC_IOMAP_INIT_PBUFS_COL	= 110,
-	M0T1FS_ADDB_LOC_IOMAP_INIT_PBUFS_ROW	= 120,
-	M0T1FS_ADDB_LOC_IOREQ_INIT_BVECB	= 130,
-	M0T1FS_ADDB_LOC_IOREQ_INIT_BVECC	= 140,
-	M0T1FS_ADDB_LOC_IOREQ_INIT_IV		= 150,
-	M0T1FS_ADDB_LOC_IOREQ_INIT_PGATTRS	= 160,
-	M0T1FS_ADDB_LOC_IVEC_CREAT_IV		= 170,
-	M0T1FS_ADDB_LOC_PARITY_RECALC_DBUFS	= 180,
-	M0T1FS_ADDB_LOC_PARITY_RECALC_PBUFS	= 190,
-	M0T1FS_ADDB_LOC_PARITY_RECALC_OLD_BUFS	= 200,
-	M0T1FS_ADDB_LOC_TIOREQ_GET_TI		= 210,
-	M0T1FS_ADDB_LOC_TIOREQ_MAP_QDEVST	= 215,
-	M0T1FS_ADDB_LOC_TIOREQ_MAP_QSPSLOT	= 217,
-	M0T1FS_ADDB_LOC_TI_FOP_PREP		= 220,
-	M0T1FS_ADDB_LOC_TI_REQ_INIT_IV		= 230,
-	M0T1FS_ADDB_LOC_DGMODE_PROCESS_1        = 240,
-	M0T1FS_ADDB_LOC_DGMODE_PROCESS_2        = 250,
-	M0T1FS_ADDB_LOC_DGMODE_RECOV_DATA       = 260,
-	M0T1FS_ADDB_LOC_DGMODE_RECOV_PARITY     = 270,
-	M0T1FS_ADDB_LOC_DGMODE_RECOV_FAILVEC    = 280,
-	M0T1FS_ADDB_LOC_READVEC_ALLOC_INIT      = 290,
-	M0T1FS_ADDB_LOC_READVEC_ALLOC_BVEC      = 300,
-	M0T1FS_ADDB_LOC_READVEC_ALLOC_BVEC_CNT  = 310,
-	M0T1FS_ADDB_LOC_READVEC_ALLOC_PAGEATTR  = 320,
-	M0T1FS_ADDB_LOC_READVEC_ALLOC_IVEC_FAIL = 330,
-};
 
 struct m0_pdclust_layout;
 

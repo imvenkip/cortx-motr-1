@@ -17,6 +17,7 @@ value          enum                    variable  name              file
      5 M0_ADDB_CTXID_UT_SERVICE        m0_addb_ct_ut_service
      6 M0_ADDB_CTXID_ADDB_SERVICE      m0_addb_ct_addb_service
      7 M0_ADDB_CTXID_ADDB_PFOM         m0_addb_ct_addb_pfom
+     8 M0_ADDB_CTXID_ADDB_FOM          m0_addb_ct_addb_fom
 20-39							           net/net_addb.h
     20 M0_ADDB_CTXID_NET_MOD	       m0_addb_ct_net_mod
     21 M0_ADDB_CTXID_NET_DOM	       m0_addb_ct_net_dom

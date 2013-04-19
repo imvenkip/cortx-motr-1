@@ -37,7 +37,7 @@
 enum M0_RPC_OPCODES {
 	/** ADDB */
 	M0_ADDB_REPLY_OPCODE                = 1, /* obsolete */
-	M0_ADDB_RECORD_REQUEST_OPCODE       = 2, /* obsolete */
+	M0_ADDB_RPC_SINK_FOP_OPCODE         = 2,
 
 	/** Mero setup rpc */
 	M0_CS_DS1_REQ_OPCODE                = 3,

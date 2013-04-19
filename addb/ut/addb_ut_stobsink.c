@@ -362,27 +362,6 @@ static void addb_ut_stobsink_search(void)
 	stobsink_mock_stobs_fini();
 }
 
-static int addb_ut_rec_seq_enc(struct m0_addb_rec_seq  *rs,
-			       struct m0_bufvec_cursor *cur)
-{
-	struct m0_xcode_ctx ctx;
-	struct m0_xcode_obj obj = {
-		.xo_type = m0_addb_rec_seq_xc
-	};
-	int rc;
-
-	M0_UT_ASSERT(rs != NULL && cur != NULL);
-
-	obj.xo_ptr = rs;
-	m0_xcode_ctx_init(&ctx, &obj);
-	ctx.xcx_buf   = *cur;
-	ctx.xcx_alloc = m0_xcode_alloc;
-
-	rc = m0_xcode_encode(&ctx);
-	if (rc == 0)
-		*cur = ctx.xcx_buf;
-	return rc;
-}
 
 /*
  * Verify all segments are valid and can decode all records.
@@ -561,12 +540,31 @@ static void addb_ut_file_cursor(uint32_t flags, int expected)
 	addb_ut_cursor(iter, flags, expected);
 	m0_addb_segment_iter_free(iter);
 }
+static struct m0_stob *addb_ut_retrieval_stob_setup(const char *domain_name,
+						    const struct m0_stob_id *id)
+{
+	struct m0_stob_domain *dom;
+	struct m0_stob        *stob = NULL;
+	int                    rc;
+
+	M0_UT_ASSERT(id != NULL);
+	rc = m0_stob_domain_locate(&m0_linux_stob_type, domain_name, &dom);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_stob_find(dom, id, &stob);
+	M0_UT_ASSERT(rc == 0 && stob != NULL);
+	M0_UT_ASSERT(stob->so_state == CSS_UNKNOWN);
+	rc = m0_stob_create(stob, NULL);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(stob->so_state == CSS_EXISTS);
+
+	return stob;
+}
 
 static void addb_ut_retrieval(void)
 {
-	struct m0_stob_domain       *dom;
 	struct m0_stob              *stob;
 	struct m0_addb_segment_iter *iter;
+	struct m0_stob_domain       *dom;
 	struct addb_segment_iter    *ai;
 	struct m0_bufvec_cursor      cur;
 	const struct m0_bufvec      *bv;
@@ -574,14 +572,10 @@ static void addb_ut_retrieval(void)
 	int                          count;
 	int                          rc;
 
-	rc = m0_stob_domain_locate(&m0_linux_stob_type, "./_addb", &dom);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_stob_find(dom, &stobsink_stobid, &stob);
-	M0_UT_ASSERT(rc == 0 && stob != NULL);
-	M0_UT_ASSERT(stob->so_state == CSS_UNKNOWN);
-	rc = m0_stob_create(stob, NULL);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(stob->so_state == CSS_EXISTS);
+
+	stob = addb_ut_retrieval_stob_setup("./_addb", &stobsink_stobid);
+	M0_UT_ASSERT(stob != NULL);
+	dom = stob->so_domain;
 
 	/* Test: segment size written to stob is retreived */
 	rc = stob_retrieval_segsize_get(stob);
@@ -760,6 +754,8 @@ static void addb_ut_stob(void)
 	bool                      stob_wrapped;
 	bool                      bp_wrapped;
 
+	/* Skip rec_post UT hooks, only for validation of posting rec's data */
+	addb_rec_post_ut_data_enabled = false;
 	rc = system("rm -fr ./_addb");
 	M0_UT_ASSERT(rc == 0);
 	rc = mkdir("./_addb", 0700);
@@ -893,7 +889,7 @@ static void addb_ut_stob(void)
 	rc = m0_bufvec_alloc(&bv, 1, sink->ss_segsize);
 	M0_UT_ASSERT(rc == 0);
 	m0_bufvec_cursor_init(&cur, &bv);
-	rc = addb_ut_rec_seq_enc(&rs, &cur);
+	rc = addb_rec_seq_enc(&rs, &cur, m0_addb_rec_seq_xc);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cur.bc_vc.vc_seg == 0 && cur.bc_vc.vc_offset > 0);
 	len = cur.bc_vc.vc_offset;
@@ -991,6 +987,8 @@ static void addb_ut_stob(void)
 	 * Retrieval tests.  Re-uses the just-written stob.
 	 */
 	addb_ut_retrieval();
+	/* Reset to default */
+	addb_rec_post_ut_data_enabled = true;
 }
 
 /*

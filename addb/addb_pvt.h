@@ -25,6 +25,9 @@
 #define __MERO_ADDB_ADDB_PVT_H__
 
 #include "addb/addb.h"
+#include "lib/vec.h"
+#include "lib/bitmap.h"
+
 /**
  * @todo REMOVE this comment, when this file included in addb.h
  * is removed
@@ -375,7 +378,6 @@ mod_runtime_sub(const struct m0_addb_uint64_seq *impctx_data) {
    @todo Record retrieval examples will be provided by the addb.api.retrieval
    task.
  */
-
 
 #include "lib/mutex.h"
 #include "lib/refs.h"
@@ -436,6 +438,14 @@ struct m0_addb_mc_evmgr {
 };
 
 /**
+ * This enum contains type of serialized addb records sequence.
+ */
+enum {
+	ADDB_REC_SEQ_XC = 1,
+	ADDB_RPC_SINK_FOP_XC
+};
+
+/**
    Abstract record sink component of an ADDB machine.
  */
 struct m0_addb_mc_recsink {
@@ -480,11 +490,104 @@ struct m0_addb_mc_recsink {
 };
 
 /**
+ * Transient store.
+ */
+struct m0_addb_ts {
+	/** Transient store pre-allocated pages */
+	struct m0_bufvec   at_pages;
+	/** Bitmaps for all the TS pages */
+	struct m0_bitmap **at_bitmaps;
+	/** Current page index for record allocation */
+	int32_t	           at_curr_pidx;
+	/** Current word index for record allocation */
+	int32_t	           at_curr_widx;
+	/** Maximum size of transient store in terms of no of pages */
+	int32_t	           at_max_pages;
+	/** Page size in bytes */
+	m0_bcount_t        at_page_size;
+	/** List of transient record headers */
+	struct m0_tl	   at_rec_queue;
+};
+
+/**
+ * Transient store page.
+ */
+struct m0_addb_ts_page {
+	/** Array of 64bit words */
+	uint64_t	 atp_words[0];
+};
+
+/**
+ * Transient store record header.
+ */
+struct m0_addb_ts_rec_header {
+	uint64_t	    atrh_magic;
+	/** page index of transient record */
+	uint32_t	    atrh_pg_idx;
+	/** word index of transient record */
+	uint32_t	    atrh_widx;
+	/** Record len (no. of 64bit words) */
+	uint32_t	    atrh_nr;
+	/** Linkage to transient record headers list */
+	struct m0_tlink	    atrh_linkage;
+};
+
+/**
+ * Transient store record.
+ */
+struct m0_addb_ts_rec {
+	uint64_t		     atr_magic;
+	/** transient record header */
+	struct m0_addb_ts_rec_header atr_header;
+	/** transient record data */
+	uint64_t		     atr_data[0];
+};
+
+enum {
+	WORD_SIZE = 8
+};
+
+/**
+ * Interfaces to Transient Store
+ */
+#define ADDB_TS_PAGE(ts, pageindex) \
+	(struct m0_addb_ts_page *)((ts)->at_pages.ov_buf[pageindex])
+
+#define ADDB_TS_CUR_PAGES(ts) ((ts)->at_pages.ov_vec.v_nr)
+
+#define ADDB_TS_GET_REC_SIZE(tsrh) (((tsrh)->atrh_nr * WORD_SIZE) - \
+		sizeof(struct m0_addb_ts_rec))
+
+static int		      addb_ts_init(struct m0_addb_ts *ts,
+					   uint32_t npages_init,
+					   uint32_t npages_max,
+					   m0_bcount_t pgsize);
+static void		      addb_ts_fini(struct m0_addb_ts *ts);
+static int		      addb_ts_extend(struct m0_addb_ts *ts,
+					     uint32_t nsegs);
+static void		      addb_ts_free(struct m0_addb_ts *ts,
+					   struct m0_addb_ts_rec *rec);
+static struct m0_addb_ts_rec *addb_ts_alloc(struct m0_addb_ts *ts,
+					    m0_bcount_t len);
+static void addb_ts_save(struct m0_addb_ts *ts, struct m0_addb_ts_rec *rec);
+static struct m0_addb_ts_rec *addb_ts_get(struct m0_addb_ts *ts,
+					  m0_bcount_t reclen);
+
+/**
    Passthrough event manager structure.
  */
 struct addb_pt_evmgr {
 	struct m0_addb_mc_evmgr ape_evmgr;
 	struct m0_ref           ape_ref;
+};
+
+/**
+   Caching event manager structure.
+ */
+struct addb_cache_evmgr {
+	struct m0_addb_mc_evmgr ace_evmgr;
+	struct m0_addb_ts       ace_ts;
+	struct m0_ref           ace_ref;
 };
 
 static void   addb_ctx_init(void);

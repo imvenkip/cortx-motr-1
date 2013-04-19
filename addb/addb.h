@@ -48,6 +48,8 @@ struct m0_addb_uint64_seq;
 
 struct m0_rpc_machine;
 struct m0_stob;
+struct m0_rpc_item_source;
+struct m0_rpc_conn;
 struct m0_sm;
 struct m0_sm_conf;
 
@@ -472,6 +474,8 @@ enum {
 	M0_ADDB_CTXID_ADDB_SERVICE = 6,
 	/** Context type identifier for the ADDB statistics posting FOM */
 	M0_ADDB_CTXID_ADDB_PFOM = 7,
+	/** Context type identifier for the ADDB fop FOM */
+	M0_ADDB_CTXID_ADDB_FOM = 8,
 };
 
 /**
@@ -551,6 +555,16 @@ M0_ADDB_CT(m0_addb_ct_addb_pfom, M0_ADDB_CTXID_ADDB_PFOM);
    @see M0_ADDB_CT(), ::m0_addb_ct_pfom
  */
 extern struct m0_addb_ctx_type m0_addb_ct_addb_pfom;
+
+/**
+   Context type for the ADDB FOM.
+   It is the context type of the ::m0_addb_ct_addb_fom context object.
+@code
+M0_ADDB_CT(m0_addb_ct_addb_fom, M0_ADDB_CTXID_ADDB_FOM);
+@endcode
+   @see M0_ADDB_CT(), ::m0_addb_ct_fom
+ */
+extern struct m0_addb_ctx_type m0_addb_ct_addb_fom;
 
 /** @} end group addb_meta_data */
 
@@ -857,14 +871,16 @@ M0_INTERNAL void m0_addb_mc_configure_pt_evmgr(struct m0_addb_mc *mc);
 
 /**
    Configure a caching event manager.
-   @param mc   The ADDB machine.
-   @param size The size of the cache in 64 bit words.
+   @param mc     The ADDB machine.
+   @param npages No. of cache pages
+   @param pgsize The size of the cache page in bytes, should be 8 bytes aligned.
    @pre m0_addb_mc_is_initialized(mc)
    @pre !m0_addb_mc_has_evmgr(mc)
    @post m0_addb_mc_can_post_awkward(mc)
  */
-M0_INTERNAL void m0_addb_mc_configure_cache_evmgr(struct m0_addb_mc *mc,
-						  size_t size);
+M0_INTERNAL int m0_addb_mc_configure_cache_evmgr(struct m0_addb_mc *mc,
+						  uint32_t           npages,
+						  m0_bcount_t        pgsize);
 
 /**
    Flush cached records saved in a caching event manager to an ADDB machine with
@@ -879,16 +895,53 @@ M0_INTERNAL void m0_addb_mc_cache_evmgr_flush(struct m0_addb_mc *cache_mc,
 					      struct m0_addb_mc *sink_mc);
 
 /**
+ * @todo These values should come from configuration.
+ */
+enum {
+	M0_ADDB_RPCSINK_TS_INIT_PAGES = 16,
+	M0_ADDB_RPCSINK_TS_MAX_PAGES  = 64,
+	M0_ADDB_RPCSINK_TS_PAGE_SIZE  = 4096,
+};
+
+/**
    Configure an RPC sink.
    Configuring a record sink for the global ADDB machine will trigger posting
    of the global context definition records.
    @pre m0_addb_mc_is_initialized(mc)
    @pre !m0_addb_mc_has_recsink(mc)
  */
-M0_INTERNAL int m0_addb_mc_configure_rpc_sink(struct m0_addb_mc *mc,
-					      struct m0_rpc_machine
-					      *rpc_machine);
+M0_INTERNAL int m0_addb_mc_configure_rpc_sink(struct m0_addb_mc     *mc,
+					      struct m0_rpc_machine *rm,
+					      uint32_t               npgs_init,
+					      uint32_t               npgs_max,
+					      m0_bcount_t            pg_size);
 
+/**
+ * Predicate to determine if an RPC record sink has been configured.
+ * @pre m0_addb_mc_has_recsink(mc);
+ */
+M0_INTERNAL bool m0_addb_mc_has_rpc_sink(struct m0_addb_mc *mc);
+
+/**
+ * Source items for the specified RPC connection.
+ * There should only be one such call made per connection.
+ * The source is removed automatically when the RPC connection
+ * is closed, or when the ADDB machine is finalized.
+ * The source can also be explicitly removed with
+ * m0_addb_mc_rpc_sink_source_del().
+ * @pre m0_addb_mc_has_rpc_sink(mc);
+ */
+M0_INTERNAL int m0_addb_mc_rpc_sink_source_add(struct m0_addb_mc  *mc,
+                                               struct m0_rpc_conn *conn);
+
+/**
+ * Stop sourcing items for the specified connection.
+ * By default this would happen automatically when the
+ * connection is closed, but this can be used to force
+ * this behavior without closing the connection.
+ * @pre m0_addb_mc_has_rpc_sink(mc);
+ */
+M0_INTERNAL void m0_addb_mc_rpc_sink_source_del(struct m0_rpc_item_source *src);
 #ifndef __KERNEL__
 /**
    Configure a stob sink.  The reference count of the stob is incremented.

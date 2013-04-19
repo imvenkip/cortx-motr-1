@@ -78,7 +78,6 @@ static void packet_received(struct m0_rpc_packet    *p,
 static void item_received(struct m0_rpc_item      *item,
 			  struct m0_net_end_point *from_ep);
 static void net_buf_err(struct m0_net_buffer *nb, int32_t status);
-static void drain_item_sources(struct m0_rpc_machine *machine);
 
 static const struct m0_bob_type rpc_machine_bob_type = {
 	.bt_name         = "rpc_machine",
@@ -339,14 +338,15 @@ M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine)
 			return;
 		}
 		m0_sm_asts_run(&machine->rm_sm_grp);
-		drain_item_sources(machine);
+		m0_rpc_machine_drain_item_sources(machine);
 		m0_rpc_machine_unlock(machine);
 		m0_chan_timedwait(&machine->rm_sm_grp.s_clink,
 				  m0_time_from_now(60, 0));
 	}
 }
 
-static void drain_item_sources(struct m0_rpc_machine *machine)
+M0_INTERNAL void m0_rpc_machine_drain_item_sources(struct m0_rpc_machine
+						   *machine)
 {
 	struct m0_rpc_item_source *source;
 	struct m0_rpc_conn        *conn;
@@ -367,6 +367,7 @@ static void drain_item_sources(struct m0_rpc_machine *machine)
 					break;
 				M0_LOG(M0_DEBUG, "item: %p", item);
 				m0_rpc_oneway_item_post_locked(conn, item);
+				m0_rpc_item_put(item);
 			}
 		} m0_tl_endfor;
 	} m0_tl_endfor;

@@ -76,6 +76,15 @@ mero_service()
 		       echo ----- $pid stopped --------
 		done
 
+		# ADDB RPC sink ST usage ADDB client records generated
+		# by IO done by "m0t1fs_system_tests".
+		# It collects ADDB records from addb_stobs from all services
+		# to $ADDB_DUMP_FILE and later used by RPC sink ST.
+		if [ "$1" = "--collect-addb" ]
+		then
+			collect_addb_from_all_services
+		fi
+
 		unprepare
 	}
 
@@ -84,11 +93,13 @@ mero_service()
 		$1
 		;;
 	    stop)
-		$1
+		function=$1
+		shift
+		$function $@
 		echo "Mero services stopped."
 		;;
 	    *)
-		echo "Usage: $0 {start|stop}"
+		echo "Usage: $0 {start|stop [--collect-addb]}"
 		return 2
 	esac
 	return $?

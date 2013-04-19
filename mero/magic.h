@@ -43,6 +43,14 @@ enum m0_magic_satchel {
 	/* CT list head magic (addb addb casa) */
 	M0_ADDB_CT_HEAD_MAGIC = 0x33addbaddbca5a77,
 
+	/* TS header tlist head magic (addb addb sail) */
+	M0_ADDB_TS_HEAD_MAGIC = 0x33addbaddb5a1177,
+
+	/* TS header tlist link magic (addb addb seal) */
+	M0_ADDB_TS_LINK_MAGIC = 0x33addbaddb5ea177,
+
+	/* m0_addb_ts_rec:atr_magic (addb addb seel) */
+	M0_ADDB_TS_REC_MAGIC = 0x33addbaddb5ee177,
 	/* caching m0_addb_mc_evmgr::evm_magic (addb coccidae) */
 	M0_ADDB_CACHE_EVMGR_MAGIC = 0x33addbc0cc1dae77,
 
@@ -87,6 +95,24 @@ enum m0_magic_satchel {
 
 	/* file_segment_iter magic (addb file sale) */
 	M0_ADDB_FILERET_MAGIC = 0x33addbf11e5a1e77,
+
+	/* rpcsink::rs_magic (addb safe safe) */
+	M0_ADDB_RPCSINK_MAGIC = 0x33addb5afe5afe77,
+
+	/* rpcsink_fop::rf_magic (addb safe foil) */
+	M0_ADDB_RPCSINK_FOP_MAGIC = 0x33addb5afef01177,
+
+	/* rpcsink_item_source::ris_magic (addb safe ie so) */
+	M0_ADDB_RPCSINK_ITEM_SOURCE_MAGIC = 0x33addb5afe1e5077,
+
+	/* rpcsink records submitted list head (addb safe slab) */
+	M0_ADDB_RPCSINK_TS_HEAD_MAGIC1 =0x33addb5afe51ab77,
+
+	/* rpcsink records ready to send list head (addb safe sled) */
+	M0_ADDB_RPCSINK_TS_HEAD_MAGIC2 =0x33addb5afe51ed77,
+
+	/* rpcsink item source list head (addb safe sloe) */
+	M0_ADDB_RPCSINK_IS_HEAD_MAGIC =0x33addb5afe510e77,
 
 /* balloc */
 	/* m0_balloc_super_block::bsb_magic (blessed baloc) */

@@ -6,4 +6,5 @@ EXTRA_DIST += m0t1fs/linux_kernel/m0loop_main.c \
               m0t1fs/linux_kernel/file.c \
               m0t1fs/linux_kernel/inode.c \
               m0t1fs/linux_kernel/super.c \
-	      m0t1fs/linux_kernel/file_internal.h
+              m0t1fs/linux_kernel/file_internal.h \
+              m0t1fs/m0t1fs_addb.h

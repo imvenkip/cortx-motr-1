@@ -37,10 +37,13 @@
 #include "addb/ut/addb_ut_ctx.c"
 #include "addb/ut/addb_ut_evmgr_pt.c"
 #include "addb/ut/addb_ut_cntr.c"
+#include "addb/ut/addb_ut_ts.c"
+#include "addb/ut/addb_ut_rpcsink.c"
 #include "addb/ut/addb_ut_smcntr.c"
 #ifndef __KERNEL__
 #include "addb/ut/addb_ut_stobsink.c"
 #include "addb/ut/addb_ut_svc.c"
+#include "addb/ut/addb_ut_fom.c"
 #endif
 
 /*
@@ -63,8 +66,14 @@ static void addb_ut_node_uuid(void)
 
 static int addb_ut_init(void)
 {
+	int i;
+
 	m0_mutex_init(&addb_ut_mc_rs_mutex);
 	addb_rec_post_ut_data_enabled = true;
+	addb_ut_pt_evmgr = true;
+	for (i = 0; i < ARRAY_SIZE(addb_rec_post_ut_data); ++i)
+		addb_rec_post_ut_data[i].brt = M0_ADDB_BRT_NR;
+
 	return 0;
 }
 
@@ -93,12 +102,18 @@ const struct m0_test_suite m0_addb_ut = {
 		{ "addb-ctx-import-export",  addb_ut_ctx_import_export },
 		{ "addb-evmgr-pt-config",    addb_ut_evmgr_pt_config_test },
 		{ "addb-evmgr-pt-post",      addb_ut_evmgr_pt_post_test },
+		{ "addb-evmgr-cache-config", addb_ut_evmgr_cache_config_test },
+		{ "addb-evmgr-cache-post",   addb_ut_evmgr_cache_post_test },
 		{ "addb-cntr",               addb_ut_cntr_test },
+		{ "addb-ts",                 addb_ut_ts_test },
+		{ "addb-rpc-sink",	     addb_ut_rpcsink_test },
 		{ "addb-smcntr",             addb_ut_smcntr_test },
 #ifndef __KERNEL__
+		{ "addb-rpc-sink-shutdown",  addb_ut_rpcsink_shutdown_test },
 		{ "addb-stobsink-search",    addb_ut_stobsink_search },
 		{ "addb-stob-post-retrieve", addb_ut_stob },
 		{ "addb-svc",                addb_ut_svc_test },
+		{ "addb-fom",                addb_ut_fom_test },
 #endif
 		{ NULL, NULL }
         }

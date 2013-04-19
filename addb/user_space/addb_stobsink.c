@@ -1073,10 +1073,10 @@ static void stobsink_save_seq(struct m0_addb_mc       *mc,
 	/* Extract sequence length, add to total, copy the records only */
 	nr = m0_bufvec_cursor_copyfrom(cur, &rec_nr, sizeof rec_nr);
 	M0_ASSERT(nr == sizeof rec_nr);
+	len  -= sizeof rec_nr;
 	stobsink_buf_locate(sink, len);
 	if (sink->ss_current->spb_busy)
 		goto ret;
-
 	nr = m0_bufvec_cursor_copy(&sink->ss_cur, cur, len);
 	M0_ASSERT(nr == len);
 	sink->ss_record_nr += rec_nr;

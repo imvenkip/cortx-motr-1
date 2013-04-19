@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -137,7 +137,6 @@ static int m0__bufvec_alloc(struct m0_bufvec *bufvec,
 			goto fail;
 		bufvec->ov_vec.v_count[i] = seg_size;
 	}
-
 	return 0;
 
 fail:
@@ -151,6 +150,59 @@ M0_INTERNAL int m0_bufvec_alloc(struct m0_bufvec *bufvec,
 	return m0__bufvec_alloc(bufvec, num_segs, seg_size, 0);
 }
 M0_EXPORTED(m0_bufvec_alloc);
+
+M0_INTERNAL int m0_bufvec_extend(struct m0_bufvec *bufvec,
+				 uint32_t num_segs)
+{
+	int          i = 0;
+	void       **new_buf_arr = NULL;
+	uint32_t     new_num_segs;
+	m0_bcount_t  seg_size;
+	m0_bcount_t *new_seg_count_arr;
+
+	M0_PRE(num_segs > 0);
+	M0_PRE(bufvec != NULL);
+	M0_PRE(bufvec->ov_buf != NULL);
+	M0_PRE(bufvec->ov_vec.v_nr > 0);
+
+	/* Based on assumption that all segment sizes are equal */
+	seg_size = bufvec->ov_vec.v_count[0];
+	new_num_segs = bufvec->ov_vec.v_nr + num_segs;
+	M0_ALLOC_ARR(new_seg_count_arr, new_num_segs);
+	if (new_seg_count_arr == NULL)
+		goto fail;
+	memcpy(new_seg_count_arr,
+		bufvec->ov_vec.v_count,
+		bufvec->ov_vec.v_nr * sizeof(new_seg_count_arr[0]));
+	M0_ALLOC_ARR(new_buf_arr, new_num_segs);
+	if (new_buf_arr == NULL)
+		goto fail;
+	memcpy(new_buf_arr,
+		bufvec->ov_buf,
+		bufvec->ov_vec.v_nr * sizeof(new_buf_arr[0]));
+	for (i = bufvec->ov_vec.v_nr; i < new_num_segs; ++i) {
+		new_buf_arr[i] = m0_alloc(seg_size);
+		if (new_buf_arr[i] == NULL)
+			goto fail;
+		new_seg_count_arr[i] = seg_size;
+	}
+	m0_free(bufvec->ov_vec.v_count);
+	m0_free(bufvec->ov_buf);
+	bufvec->ov_vec.v_count = new_seg_count_arr;
+	bufvec->ov_buf = new_buf_arr;
+	bufvec->ov_vec.v_nr = new_num_segs;
+
+	return 0;
+fail:
+	m0_free(new_seg_count_arr);
+	while (i > 0) {
+		--i;
+		m0_free(new_buf_arr[i]);
+	}
+	m0_free(new_buf_arr);
+
+	return -ENOMEM;
+}
 
 M0_INTERNAL int m0_bufvec_alloc_aligned(struct m0_bufvec *bufvec,
 					uint32_t num_segs,

@@ -159,7 +159,6 @@ mero_includedir             = $(includedir)/mero
 nobase_mero_include_HEADERS =
 mero_libmero_la_SOURCES  =
 
-include $(top_srcdir)/addb/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/capa/Makefile.sub
 include $(top_srcdir)/cfg/Makefile.sub
@@ -174,6 +173,7 @@ include $(top_srcdir)/dtm/Makefile.sub
 include $(top_srcdir)/fid/Makefile.sub
 include $(top_srcdir)/fol/Makefile.sub
 include $(top_srcdir)/fop/Makefile.sub
+include $(top_srcdir)/addb/Makefile.sub
 include $(top_srcdir)/ioservice/Makefile.sub
 include $(top_srcdir)/layout/Makefile.sub
 include $(top_srcdir)/lib/Makefile.sub

@@ -30,8 +30,9 @@ static void test_bufvec_cursor(void);
 static void test_bufvec_cursor_copyto_copyfrom(void);
 
 enum {
-	NR = 255,
-	IT = 6,
+	NR  = 255,
+	IT  = 6,
+	NR2 = 127
 };
 
 static m0_bcount_t segs[NR * IT];
@@ -43,13 +44,14 @@ static struct m0_vec t = {
 
 void test_vec(void)
 {
-	int         i;
-	int         it;
-	m0_bcount_t count;
-	m0_bcount_t sum0;
-	m0_bcount_t sum1;
-	m0_bcount_t step;
-	bool        eov;
+	int          i;
+	int          it;
+	m0_bcount_t  count;
+	m0_bcount_t  sum0;
+	m0_bcount_t  sum1;
+	m0_bcount_t  step;
+	bool         eov;
+	void        *buf[NR2] = {};
 
 	struct m0_vec_cursor c;
 	struct m0_bufvec     bv;
@@ -102,6 +104,20 @@ void test_vec(void)
 	M0_UT_ASSERT(bv.ov_vec.v_nr == 0);
 	M0_UT_ASSERT(bv.ov_buf == NULL);
 	m0_bufvec_free(&bv);    /* no-op */
+	M0_UT_ASSERT(m0_bufvec_alloc(&bv, NR2, M0_SEG_SIZE) == 0);
+	M0_UT_ASSERT(bv.ov_vec.v_nr == NR2);
+	for (i = 0; i < NR2; ++i)
+		buf[i] = bv.ov_buf[i];
+	M0_UT_ASSERT(m0_bufvec_extend(&bv, NR2) == 0);
+	M0_UT_ASSERT(bv.ov_vec.v_nr == 2 * NR2);
+	for (i = 0; i < 2 * NR2; ++i) {
+		M0_UT_ASSERT(bv.ov_vec.v_count[i] == M0_SEG_SIZE);
+		M0_UT_ASSERT(bv.ov_buf[i] != NULL);
+	}
+	for (i = 0; i < NR2; ++i)
+		M0_UT_ASSERT(bv.ov_buf[i] == buf[i]);
+
+	m0_bufvec_free(&bv);
 
 	M0_UT_ASSERT(m0_bufvec_alloc_aligned(&bv, NR, M0_SEG_SIZE,
 					      M0_SEG_SHIFT) == 0);

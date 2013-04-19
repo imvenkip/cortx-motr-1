@@ -53,6 +53,7 @@ static void addb_ct_init(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_ut_service);
 	m0_addb_ctx_type_register(&m0_addb_ct_addb_service);
 	m0_addb_ctx_type_register(&m0_addb_ct_addb_pfom);
+	m0_addb_ctx_type_register(&m0_addb_ct_addb_fom);
 }
 
 /** Finalize the context type hash */
@@ -99,6 +100,7 @@ M0_ADDB_CT(m0_addb_ct_process, M0_ADDB_CTXID_PROCESS, "ts", "procid");
 M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE,   "hi", "low");
 M0_ADDB_CT(m0_addb_ct_addb_service, M0_ADDB_CTXID_ADDB_SERVICE, "hi", "low");
 M0_ADDB_CT(m0_addb_ct_addb_pfom, M0_ADDB_CTXID_ADDB_PFOM);
+M0_ADDB_CT(m0_addb_ct_addb_fom, M0_ADDB_CTXID_ADDB_FOM);
 
 M0_INTERNAL void m0_addb_ctx_type_register(struct m0_addb_ctx_type *ct)
 {

@@ -24,7 +24,6 @@
 #include "lib/memory.h"
 #include "lib/misc.h" /* M0_SET0 */
 #include "lib/thread.h" /* LAMBDA */
-#include "addb/addb.h"
 #include "balloc/balloc.h"
 #include "dtm/dtm.h"
 #include "mero/init.h"
@@ -860,6 +859,7 @@ int main(int argc, char *argv[])
 		M0_ASSERT(rc < 0);
 		return -rc;
 	}
+
 	M0_SET0(&ctl);
 
 	r2 = M0_GETOPTS(m0addbdump, argc, argv,

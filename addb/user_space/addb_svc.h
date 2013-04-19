@@ -67,6 +67,14 @@ struct addb_post_fom {
 };
 
 /**
+ * ADDB fom created for ADDB fop
+ */
+struct addb_fom {
+	uint64_t       af_magic;
+	struct m0_fom  af_fom;
+};
+
+/**
    ADDB request handler service
  */
 struct addb_svc {

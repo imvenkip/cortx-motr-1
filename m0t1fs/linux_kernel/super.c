@@ -35,6 +35,7 @@
 #include "layout/pdclust.h"
 #include "conf/confc.h"    /* m0_confc */
 #include "rpc/rpclib.h"    /* m0_rcp_client_connect */
+#include "addb/addb.h"
 
 static int m0t1fs_layout_build(const uint64_t         layout_id,
 			       const uint32_t         N,
@@ -593,6 +594,25 @@ out:
 		disconnect_from_services(csb);
 	M0_RETURN(rc);
 }
+
+static int configure_addb_rpc_sink(struct m0_addb_mc *addb_mc)
+{
+
+	if (!m0_addb_mc_has_rpc_sink(addb_mc)) {
+		int rc = m0_addb_mc_configure_rpc_sink(addb_mc,
+						&m0t1fs_globals.g_rpc_machine,
+						M0_ADDB_RPCSINK_TS_INIT_PAGES,
+						M0_ADDB_RPCSINK_TS_MAX_PAGES,
+						M0_ADDB_RPCSINK_TS_PAGE_SIZE);
+		if (rc != 0)
+			return rc;
+
+		m0_addb_mc_configure_pt_evmgr(addb_mc);
+	}
+
+	return 0;
+}
+
 
 /* ----------------------------------------------------------------
  * Superblock
@@ -902,9 +922,13 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto end;
 
-	rc = m0_pool_init(&csb->csb_pool, fs_params.fs_pool_width);
+	rc = configure_addb_rpc_sink(&m0_addb_gmc);
 	if (rc != 0)
 		goto err_disconnect;
+
+	rc = m0_pool_init(&csb->csb_pool, fs_params.fs_pool_width);
+	if (rc != 0)
+		goto addb_mc_unconf;
 
 	rc = m0t1fs_poolmach_create(&csb->csb_pool.po_mach,
 				    fs_params.fs_pool_width,
@@ -925,6 +949,10 @@ err_poolmach_destroy:
 	m0t1fs_poolmach_destroy(csb->csb_pool.po_mach);
 err_pool_fini:
 	m0_pool_fini(&csb->csb_pool);
+addb_mc_unconf:
+	/* @todo Make a separate unconfigure api and do this in that */
+	m0_addb_mc_fini(&m0_addb_gmc);
+	m0_addb_mc_init(&m0_addb_gmc);
 err_disconnect:
 	disconnect_from_services(csb);
 
@@ -938,6 +966,9 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0t1fs_sb_layout_fini(csb);
 	m0t1fs_poolmach_destroy(csb->csb_pool.po_mach);
 	m0_pool_fini(&csb->csb_pool);
+	/* @todo Make a separate unconfigure api and do this in that */
+	m0_addb_mc_fini(&m0_addb_gmc);
+	m0_addb_mc_init(&m0_addb_gmc);
 	disconnect_from_services(csb);
 }
 

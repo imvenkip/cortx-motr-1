@@ -44,12 +44,12 @@ static char *addb_ut_svc[] = { "m0d", "-r", "-p", "-T", "linux",
 static struct m0_net_xprt *as_xprts[] = {
         &m0_net_lnet_xprt,
 };
-static struct m0_mero   sctx;
+static struct m0_mero   sctx2;
 static FILE               *lfile;
 
 static void server_stop(void)
 {
-	m0_cs_fini(&sctx);
+	m0_cs_fini(&sctx2);
 	fclose(lfile);
 }
 
@@ -57,17 +57,17 @@ static int server_start(void)
 {
 	int rc;
 
-	M0_SET0(&sctx);
+	M0_SET0(&sctx2);
 	lfile = fopen(LOG_FILE_NAME, "w+");
 	M0_UT_ASSERT(lfile != NULL);
 
-        rc = m0_cs_init(&sctx, as_xprts, ARRAY_SIZE(as_xprts), lfile);
+        rc = m0_cs_init(&sctx2, as_xprts, ARRAY_SIZE(as_xprts), lfile);
         if (rc != 0)
 		return rc;
 
-        rc = m0_cs_setup_env(&sctx, ARRAY_SIZE(addb_ut_svc), addb_ut_svc);
+        rc = m0_cs_setup_env(&sctx2, ARRAY_SIZE(addb_ut_svc), addb_ut_svc);
 	if (rc == 0)
-		rc = m0_cs_start(&sctx);
+		rc = m0_cs_start(&sctx2);
         if (rc != 0)
 		server_stop();
 
@@ -88,6 +88,8 @@ void addb_ut_svc_test(void)
 	struct addb_post_fom *pfom;
 	struct m0_fom        *fom;
 
+	/* Skip rec_post UT hooks, only for validation of posting rec's data */
+	addb_rec_post_ut_data_enabled = false;
 	/*
 	 * Test: Service type should be registered during initialization.
 	 */
@@ -173,6 +175,8 @@ void addb_ut_svc_test(void)
 	M0_UT_ASSERT(the_addb_svc == NULL);
 #undef MS
 	addb_pfom_period = saved_period;
+	/* Reset to default */
+	addb_rec_post_ut_data_enabled = true;
 }
 
 #undef M0_TRACE_SUBSYSTEM

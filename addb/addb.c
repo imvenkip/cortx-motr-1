@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -688,6 +688,9 @@ Plan</a> for details.
 #undef M0_ADDB_RT_CREATE_DEFINITION
 #define M0_ADDB_RT_CREATE_DEFINITION
 #include "addb/addb_pvt.h"
+#ifndef __KERNEL__
+#include "m0t1fs/m0t1fs_addb.h"
+#endif
 
 #include "mero/magic.h"
 #include "lib/arith.h"  /* max_check */
@@ -696,10 +699,14 @@ Plan</a> for details.
 #include "lib/misc.h"
 #include "lib/rwlock.h"
 #include "lib/time.h"
+#ifndef __KERNEL__
+#include "fop/fom_generic.h"
+#endif
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADDB
 #include "lib/trace.h"  /* M0_LOG() */
 
 #include "addb/addb_wire_xc.h"
+#include "addb/addb_fops_xc.h"
 
 struct m0_uint128 m0_node_uuid; /* globally visible uuid */
 
@@ -752,20 +759,35 @@ static int addb_node_uuid_init(void)
 
 /* Include subordinate C files to control external symbols */
 #include "addb/addb_ct.c"
+#include "addb/addb_fops_xc.c"
 #include "addb/addb_rt.c"
 #include "addb/addb_rec.c"
 #include "addb/addb_ctxobj.c"
 #include "addb/addb_mc.c"
 #include "addb/addb_evmgr.c"
 #include "addb/addb_counter.c"
+#include "addb/addb_ts.c"
+#include "addb/addb_rpcsink.c"
 #ifdef __KERNEL__
 #include "addb/linux_kernel/kctx.c"
 #else
 #include "addb/user_space/addb_svc.c"
+#include "addb/user_space/addb_fom.c"
 #include "addb/user_space/addb_pfom.c"
 #include "addb/user_space/uctx.c"
 #include "addb/user_space/addb_stobsink.c"
 #include "addb/user_space/addb_retrieval.c"
+#endif
+#include "addb/addb_fops.c"
+
+#ifndef __KERNEL__
+static void addb_register_kernel_ctx_and_rec_types(void)
+{
+	m0_addb_ctx_type_register(&m0_addb_ct_m0t1fs_mod);
+	m0_addb_ctx_type_register(&m0_addb_ct_m0t1fs_mountp);
+	m0_addb_ctx_type_register(&m0_addb_ct_m0t1fs_op_read);
+	m0_addb_ctx_type_register(&m0_addb_ct_m0t1fs_op_write);
+}
 #endif
 
 M0_INTERNAL int m0_addb_init(void)
@@ -784,6 +806,9 @@ M0_INTERNAL int m0_addb_init(void)
 
 	m0_addb_mc_init(&m0_addb_gmc);
 
+#ifndef __KERNEL__
+	addb_register_kernel_ctx_and_rec_types();
+#endif
 	return 0;
 }
 

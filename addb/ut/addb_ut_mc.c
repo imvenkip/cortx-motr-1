@@ -136,7 +136,8 @@ static struct m0_addb_rec *addb_ut_mc_rs_rec_alloc(struct m0_addb_mc *mc,
 static void addb_ut_mc_rs_save(struct m0_addb_mc  *mc, struct m0_addb_rec *rec)
 {
 	M0_UT_ASSERT(m0_mutex_is_locked(&addb_ut_mc_rs_mutex));
-	M0_UT_ASSERT(rec == addb_ut_mc_rs_rec_mem);
+	if (ut_cache_evmgr_idx == 0)
+		M0_UT_ASSERT(rec == addb_ut_mc_rs_rec_mem);
 	if (addb_ut_mc_rs_save_cb)
 		(*addb_ut_mc_rs_save_cb)(rec);
 	m0_free(rec);

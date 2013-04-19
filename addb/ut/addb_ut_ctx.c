@@ -90,7 +90,7 @@ static void addb_ut_ctx_gpt_cb(const struct m0_addb_rec *rec)
 	uint32_t ctxid = 0;
 	uint64_t f[10];
 	uint64_t ctxpath[3];
-	int i;
+	int      i;
 
 	if (addb_ut_ctx_gpt_cb_num == 0) {
 		/* node context (hi) */
@@ -369,17 +369,18 @@ static void addb_ut_ctx_gci_thread(struct addb_ut_ctx_gci_thread_arg *ta)
 static int addb_ut_ctx_gci_cb_num;
 static void addb_ut_ctx_gci_cb(const struct m0_addb_rec *rec)
 {
-	uint32_t ctxpathlen = 0;
-	uint64_t ctxpath[4];
-	int i;
-	uint32_t fields_nr = 0;
-	uint64_t *fields;
 	struct addb_ut_ctx_gci_thread_arg *ta;
+	uint32_t                           ctxpathlen = 0;
+	uint64_t                           ctxpath[4];
+	uint32_t                           fields_nr = 0;
+	uint64_t                          *fields;
+	int                                i;
+	int                                idx = ut_cache_evmgr_idx;
 
-	if (addb_rec_post_ut_data.brt != M0_ADDB_BRT_CTXDEF)
+	if (addb_rec_post_ut_data[idx].brt != M0_ADDB_BRT_CTXDEF)
 		return;
-	M0_UT_ASSERT(addb_rec_post_ut_data.cv_nr == 1);
-	ta = container_of(addb_rec_post_ut_data.cv[0],
+	M0_UT_ASSERT(addb_rec_post_ut_data[idx].cv_nr == 1);
+	ta = container_of(addb_rec_post_ut_data[idx].cv[0],
 			  struct addb_ut_ctx_gci_thread_arg, ctx);
 
 	M0_UT_ASSERT(ta->n < ARRAY_SIZE(addb_ut_ctx_gci_ta));
@@ -389,15 +390,15 @@ static void addb_ut_ctx_gci_cb(const struct m0_addb_rec *rec)
 	ctxpath[0] = m0_node_uuid.u_hi;
 	ctxpath[1] = m0_node_uuid.u_lo;
 	ctxpath[2] = m0_addb_proc_ctx.ac_id;
-	ctxpath[3] = addb_rec_post_ut_data.cv[0]->ac_id;
+	ctxpath[3] = addb_rec_post_ut_data[idx].cv[0]->ac_id;
 
-	fields_nr = addb_rec_post_ut_data.fields_nr;
-	fields    = addb_rec_post_ut_data.fields;
+	fields_nr = addb_rec_post_ut_data[idx].fields_nr;
+	fields    = addb_rec_post_ut_data[idx].fields;
 
-	M0_UT_ASSERT(rec->ar_rid == addb_rec_post_ut_data.rid);
+	M0_UT_ASSERT(rec->ar_rid == addb_rec_post_ut_data[idx].rid);
 	M0_UT_ASSERT(m0_addb_rec_rid_to_brt(rec->ar_rid) == M0_ADDB_BRT_CTXDEF);
 	M0_UT_ASSERT(m0_addb_rec_rid_to_id(rec->ar_rid) ==
-		     addb_rec_post_ut_data.cv[0]->ac_type->act_id);
+		     addb_rec_post_ut_data[idx].cv[0]->ac_type->act_id);
 	M0_UT_ASSERT(rec->ar_ctxids.acis_nr == 1);
 	for (i = 0; i < ctxpathlen; ++i)
 		M0_UT_ASSERT(rec->ar_ctxids.acis_data->au64s_data[i]
@@ -406,23 +407,23 @@ static void addb_ut_ctx_gci_cb(const struct m0_addb_rec *rec)
 	for (i = 0; i < fields_nr; ++i)
 		M0_UT_ASSERT(rec->ar_data.au64s_data[i] == fields[i]);
 
-	M0_UT_ASSERT(addb_ut_mc_rs_rec_len == addb_rec_post_ut_data.reclen);
+	M0_UT_ASSERT(addb_ut_mc_rs_rec_len == addb_rec_post_ut_data[idx].reclen);
 	ta->reclen = addb_ut_mc_rs_rec_len;
 
 	++addb_ut_ctx_gci_cb_num;
 
-	addb_rec_post_ut_data.brt = M0_ADDB_BRT_NR; /* reset */
+	addb_rec_post_ut_data[idx].brt = M0_ADDB_BRT_NR; /* reset */
 }
 
 static void addb_ut_ctx_init_test(void)
 {
 	struct m0_semaphore sem;
-	struct m0_addb_mc mc = { 0 };
+	struct m0_addb_mc   mc = { 0 };
 	struct m0_addb_ctx *pctx = &m0_addb_proc_ctx;
-	struct m0_addb_ctx ctx;
-	int i;
-	int rc;
-	uint64_t cntr;
+	struct m0_addb_ctx  ctx;
+	uint64_t            cntr;
+	int                 i;
+	int                 rc;
 
 	rc = m0_semaphore_init(&sem, 0);
 	M0_UT_ASSERT(rc == 0);
@@ -576,15 +577,16 @@ static int addb_ut_ctx_impexp_cb_num;
 static void addb_ut_ctx_impexp_cb(const struct m0_addb_rec *rec)
 {
 	uint64_t ctxpath[3];
-	int i;
+	int      i;
+	int      idx = ut_cache_evmgr_idx;
 
-	M0_UT_ASSERT(addb_rec_post_ut_data.cv_nr == 1);
+	M0_UT_ASSERT(addb_rec_post_ut_data[idx].cv_nr == 1);
 
 	ctxpath[0] = m0_node_uuid.u_hi;
 	ctxpath[1] = m0_node_uuid.u_lo;
 	ctxpath[2] = m0_addb_proc_ctx.ac_id;
 
-	M0_UT_ASSERT(rec->ar_rid == addb_rec_post_ut_data.rid);
+	M0_UT_ASSERT(rec->ar_rid == addb_rec_post_ut_data[idx].rid);
 	M0_UT_ASSERT(rec->ar_ctxids.acis_nr == 1);
 	for (i = 0; i < ARRAY_SIZE(ctxpath); ++i)
 		M0_UT_ASSERT(rec->ar_ctxids.acis_data->au64s_data[i]
@@ -592,17 +594,17 @@ static void addb_ut_ctx_impexp_cb(const struct m0_addb_rec *rec)
 
 	++addb_ut_ctx_impexp_cb_num;
 
-	addb_rec_post_ut_data.brt = M0_ADDB_BRT_NR; /* reset */
+	addb_rec_post_ut_data[idx].brt = M0_ADDB_BRT_NR; /* reset */
 }
 
 static void addb_ut_ctx_import_export(void)
 {
-	struct m0_addb_mc mc = { 0 };
-	struct m0_addb_ctx ctx;
-	struct m0_addb_ctx *cp;
-	struct m0_addb_uint64_seq id1 = { 0 };
-	struct m0_addb_uint64_seq id2 = { 0 };
-	int i;
+	struct m0_addb_uint64_seq  id1 = { 0 };
+	struct m0_addb_uint64_seq  id2 = { 0 };
+	struct m0_addb_mc          mc = { 0 };
+	struct m0_addb_ctx         ctx;
+	struct m0_addb_ctx        *cp;
+	int                        i;
 
 	addb_ut_mc_reset();
 	m0_addb_mc_init(&mc);

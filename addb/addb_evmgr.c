@@ -49,9 +49,6 @@
    - M0_ADDB_POST_SEQ()
    - m0__addb_post()
 
-   @todo m0_addb_mc_configure_cache_evmgr() and m0_addb_mc_cache_evmgr_flush()
-   to be defined and implemented in addb.machine.event-mgr.awkward task.
-
    <hr>
    @section ADDB-DLD-EVMGR-lspec Logical Specification
 
@@ -86,9 +83,44 @@
 
    @subsection ADDB-DLD-EVMGR-cache The Caching Event Manager
 
-   @todo To be documented as part of addb.machine.event-mgr.awkward task.
-   This includes the m0_addb_mc_configure_cache_evmgr() and
-   m0_addb_mc_cache_evmgr_flush() functions.
+   The caching event manager holds the cache for ADDB records. This cache
+   is implemented using transient store @see @ref ADDB-DLD-TS "Transient Store".
+
+   The caching event manager is used for posting of addb records in awkward
+   contexts. The m0_addb_mc_configure_cache_evmgr() configures a caching event
+   manager. It verifies that the ADDB machine is valid and does not have a
+   Record-Sink & event manager configured.  It performs several operations:
+   - It initializes the transient store embedded in addb_cache_evmgr with valid
+   arguments like pg_size, no_of_pages.
+   - It allocates an addb_cache_evmgr object, assigned the address of its
+   addb_cache_evmgr::ace_evmgr to the supplied m0_addb_mc::am_evmgr.
+   - It sets the m0_addb_mc_evmgr::evm_magic field to
+   #M0_ADDB_CACHE_EVMGR_MAGIC.
+   - It sets the m0_addb_mc_evmgr::evm_post_awkward to true.
+   - It sets the m0_addb_mc_evmgr::evm_rec_alloc and m0_addb_mc_evmgr::evm_post
+   function pointers to addb_cache_evmgr_rec_alloc() and
+   addb_cache_evmgr_rec_save() respectively.
+   (addb_cache_evmgr_rec_alloc() allocates the memory for the rec of size
+    rec_len from the initialized transient store
+    addb_cache_evmgr_rec_save() adds the transient store addb record to the
+    transient stores headers list)
+   - It initializes the addb_cache_evmgr::ace_ref with an initial value of 1.
+   - It assigns the m0_addb_mc_evmgr::evm_get() and m0_addb_mc_evmgr::evm_put()
+   function pointers.
+   - It sets the m0_addb_mc_evmgr::evm_copy() function pointer to
+   addb_cache_evmgr_flush(). This method gets all the transient store's
+   addb rec from the source addb_machine in FIFO & post them on destination
+   addb machine. This posting includes invocation of evm_rec_alloc() &
+   evm_post() of the destination machines evmgr.
+   - It sets the m0_addb_mc_evmgr::evm_log() to NULL.
+
+   The addb_cache_evmgr_get() increments the reference count of the
+   addb_cache_evmgr::ace_ref.
+
+   The addb_cache_evmgr_put() decrements the reference count of the
+   addb_cache_evmgr::ace_ref, on last ref put, addb_cache_release() is called,
+   this function finalizes the cache evmgrs transient store and then frees
+   addb_cache_evmgr object.
 
    @subsection ADDB-DLD-EVMGR-post Event Posting
 
@@ -200,7 +232,6 @@
    performs no serialization of its own, depending on the Record-Sink to
    perform any necessary synchronization while posting.
  */
-
 
 /**
    @addtogroup addb_pvt
@@ -251,8 +282,8 @@ static void addb_pt_evmgr_put(struct m0_addb_mc *mc,
 static void addb_pt_release(struct m0_ref *ref)
 {
 	struct m0_addb_mc_evmgr *evmgr;
-	struct addb_pt_evmgr *pt = container_of(ref, struct addb_pt_evmgr,
-						ape_ref);
+	struct addb_pt_evmgr    *pt = container_of(ref, struct addb_pt_evmgr,
+						   ape_ref);
 
 	M0_PRE(addb_pt_evmgr_invariant(pt));
 	evmgr = &pt->ape_evmgr;
@@ -265,13 +296,120 @@ static void addb_pt_log(struct m0_addb_mc *mc, struct m0_addb_post_data *pd)
 	/** @todo implement */
 }
 
+static bool addb_cache_evmgr_invariant(struct addb_cache_evmgr *mgr)
+{
+	return mgr != NULL && addb_evmgr_invariant(&mgr->ace_evmgr) &&
+	    mgr->ace_evmgr.evm_magic == M0_ADDB_CACHE_EVMGR_MAGIC;
+}
+
+static void addb_cache_evmgr_get(struct m0_addb_mc *mc,
+				 struct m0_addb_mc_evmgr *mgr)
+{
+	struct addb_cache_evmgr *cache =
+		container_of(mgr, struct addb_cache_evmgr, ace_evmgr);
+
+	M0_PRE(addb_cache_evmgr_invariant(cache));
+	m0_ref_get(&cache->ace_ref);
+}
+
+static void addb_cache_evmgr_put(struct m0_addb_mc *mc,
+			      struct m0_addb_mc_evmgr *mgr)
+{
+	struct addb_cache_evmgr *cache =
+		container_of(mgr, struct addb_cache_evmgr, ace_evmgr);
+
+	M0_PRE(addb_cache_evmgr_invariant(cache));
+	m0_ref_put(&cache->ace_ref);
+}
+
+/**
+ * Frees the addb_cache_evmgr object associated with the reference.
+ */
+static void addb_cache_release(struct m0_ref *ref)
+{
+	struct m0_addb_mc_evmgr *evmgr;
+	struct addb_cache_evmgr *cache =
+		container_of(ref, struct addb_cache_evmgr, ace_ref);
+
+	M0_PRE(addb_cache_evmgr_invariant(cache));
+
+	evmgr = &cache->ace_evmgr;
+	evmgr->evm_magic = 0;
+	addb_ts_fini(&cache->ace_ts);
+	m0_free(cache);
+}
+
+static struct m0_addb_rec *addb_cache_evmgr_rec_alloc(struct m0_addb_mc *mc,
+						      size_t len)
+{
+	struct m0_addb_ts_rec   *ts_rec;
+	struct addb_cache_evmgr *cache =
+		container_of(mc->am_evmgr, struct addb_cache_evmgr, ace_evmgr);
+
+	M0_PRE(M0_IS_8ALIGNED(len));
+	ts_rec = addb_ts_alloc(&cache->ace_ts, len);
+
+	return (struct m0_addb_rec *)(ts_rec != NULL ? ts_rec->atr_data : NULL);
+}
+
+static void addb_cache_evmgr_rec_save(struct m0_addb_mc *mc,
+				      struct m0_addb_rec *rec)
+{
+	struct m0_addb_ts_rec    *ts_rec;
+	struct addb_cache_evmgr  *cache =
+		container_of(mc->am_evmgr, struct addb_cache_evmgr, ace_evmgr);
+
+	M0_PRE(rec != NULL && M0_IS_8ALIGNED(rec));
+
+	M0_ASSERT(cache != NULL);
+	ts_rec = container_of((uint64_t *)rec, struct m0_addb_ts_rec,
+			      atr_data[0]);
+	addb_ts_save(&cache->ace_ts, ts_rec);
+}
+
+static int addb_cache_evmgr_flush(struct m0_addb_mc *src_mc,
+				  struct m0_addb_mc *dest_mc)
+{
+	struct m0_addb_ts_rec    *ts_rec = NULL;
+	struct addb_cache_evmgr  *cache =
+		container_of(src_mc->am_evmgr, struct addb_cache_evmgr,
+			     ace_evmgr);
+	struct m0_addb_rec       *addb_rec;
+	uint32_t                  rec_len;
+
+	M0_PRE(ergo(src_mc != NULL, addb_mc_invariant(src_mc)));
+	M0_PRE(ergo(dest_mc != NULL, addb_mc_invariant(dest_mc)));
+
+	ts_rec = addb_ts_get(&cache->ace_ts, cache->ace_ts.at_page_size);
+	rec_len = ADDB_TS_GET_REC_SIZE(&ts_rec->atr_header);
+	M0_ASSERT(rec_len != 0);
+
+	while (ts_rec != NULL) {
+		addb_rec = dest_mc->am_evmgr->evm_rec_alloc(dest_mc, rec_len);
+
+		if (addb_rec == NULL) {
+			/* Add addb rec back to cache evmgr's TS headers list */
+			addb_ts_save(&cache->ace_ts, ts_rec);
+			M0_RETERR(-ENOMEM, "Dest addb mc's rec alloc");
+		}
+
+		memcpy(addb_rec, ts_rec->atr_data, rec_len);
+		dest_mc->am_evmgr->evm_post(dest_mc, addb_rec);
+		addb_ts_free(&cache->ace_ts, ts_rec);
+		ts_rec = addb_ts_get(&cache->ace_ts,
+				     cache->ace_ts.at_page_size);
+	}
+
+	return 0;
+}
+
 /** @} addb_pvt */
 
 /* Public interfaces */
 
 M0_INTERNAL void m0_addb_mc_configure_pt_evmgr(struct m0_addb_mc *mc)
 {
-	struct addb_pt_evmgr *pt;
+	struct addb_pt_evmgr    *pt;
 	struct m0_addb_mc_evmgr *evmgr;
 
 	M0_PRE(!m0_addb_mc_has_evmgr(mc));
@@ -293,6 +431,46 @@ M0_INTERNAL void m0_addb_mc_configure_pt_evmgr(struct m0_addb_mc *mc)
 	evmgr->evm_magic = M0_ADDB_PT_EVMGR_MAGIC;
 	mc->am_evmgr = evmgr;
 	(*evmgr->evm_get)(mc, evmgr); /* also checks the pt invariant */
+}
+
+M0_INTERNAL int m0_addb_mc_configure_cache_evmgr(struct m0_addb_mc *mc,
+						 uint32_t           npages,
+						 m0_bcount_t        pgsize)
+{
+	struct addb_cache_evmgr *cache;
+	struct m0_addb_mc_evmgr *evmgr;
+	int                      rc;
+
+	M0_PRE(mc != NULL);
+	M0_PRE(npages != 0);
+	M0_PRE(M0_IS_8ALIGNED(pgsize));
+	M0_PRE(!m0_addb_mc_has_evmgr(mc));
+	M0_PRE(!m0_addb_mc_has_recsink(mc));
+
+	M0_ALLOC_PTR(cache);
+	if (cache == NULL)
+		M0_RETERR(-ENOMEM, "Unable to allocate memory for cache evmgr");
+
+	rc = addb_ts_init(&cache->ace_ts, npages, npages, pgsize);
+	if (rc != 0) {
+		m0_free(cache);
+		M0_RETERR(rc, "Cannot initialize addb transient store");
+	}
+
+	evmgr = &cache->ace_evmgr;
+	evmgr->evm_post_awkward = true;
+	evmgr->evm_get = addb_cache_evmgr_get;
+	evmgr->evm_put = addb_cache_evmgr_put;
+	evmgr->evm_rec_alloc = addb_cache_evmgr_rec_alloc;
+	evmgr->evm_post = addb_cache_evmgr_rec_save;
+	evmgr->evm_copy = addb_cache_evmgr_flush;
+	evmgr->evm_log = NULL;
+	m0_ref_init(&cache->ace_ref, 0, addb_cache_release);
+	evmgr->evm_magic = M0_ADDB_CACHE_EVMGR_MAGIC;
+	mc->am_evmgr = evmgr;
+	(*evmgr->evm_get)(mc, evmgr);
+
+	return rc;
 }
 
 M0_INTERNAL void m0__addb_post(struct m0_addb_mc *mc,

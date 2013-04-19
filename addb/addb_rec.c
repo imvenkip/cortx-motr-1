@@ -36,13 +36,25 @@ struct addb_rec_post_ut_data {
 	uint64_t                   rid;
 	enum m0_addb_base_rec_type brt;
 };
-/** UT global for use with a serialized rs alloc/save */
-static struct addb_rec_post_ut_data addb_rec_post_ut_data = {
-	.brt = M0_ADDB_BRT_NR
-};
+
+/** UT global array for use with a serialized rs alloc/save */
+static struct addb_rec_post_ut_data addb_rec_post_ut_data[50];
 
 /** Enables UT data */
 static bool addb_rec_post_ut_data_enabled;
+
+/**
+ * false only for cache evmgr posting ut test case, where we need
+ * to do memory allocations
+ */
+static bool addb_ut_pt_evmgr;
+
+/**
+ * Indicates the idx of the addb_rec_post_ut_data array
+ * for cache evmgr's post UT is goes uptill 0-49 (as 50 recs are posted)
+ * for all UTs its zero. incremented in cache evmgrs rec_alloc
+ */
+static int ut_cache_evmgr_idx;
 
 /**
    Low level record post subroutine.
@@ -103,13 +115,28 @@ static void addb_rec_post(struct m0_addb_mc *mc,
 
 	/* Save context for UT if required (serialized by sink alloc/save) */
 	if (addb_rec_post_ut_data_enabled) {
-		addb_rec_post_ut_data.cv        = cv;
-		addb_rec_post_ut_data.cv_nr     = rec->ar_ctxids.acis_nr;
-		addb_rec_post_ut_data.fields    = fields;
-		addb_rec_post_ut_data.fields_nr = fields_nr;
-		addb_rec_post_ut_data.reclen    = len;
-		addb_rec_post_ut_data.rid       = rid;
-		addb_rec_post_ut_data.brt       = m0_addb_rec_rid_to_brt(rid);
+		int tmp;
+
+		tmp = ut_cache_evmgr_idx ? ut_cache_evmgr_idx - 1: 0;
+		addb_rec_post_ut_data[tmp].cv_nr = rec->ar_ctxids.acis_nr;
+		if (!addb_ut_pt_evmgr) {
+			M0_ALLOC_ARR(addb_rec_post_ut_data[tmp].cv,
+				     rec->ar_ctxids.acis_nr);
+			M0_ASSERT(addb_rec_post_ut_data[tmp].cv != NULL);
+			for (i = 0; i < rec->ar_ctxids.acis_nr; ++i)
+				addb_rec_post_ut_data[tmp].cv[i] = cv[i];
+			M0_ALLOC_ARR(addb_rec_post_ut_data[tmp].fields, fields_nr);
+			M0_ASSERT(addb_rec_post_ut_data[tmp].fields != NULL);
+			for (i = 0; i < fields_nr; ++i)
+				addb_rec_post_ut_data[tmp].fields[i] = fields[i];
+		} else {
+			addb_rec_post_ut_data[tmp].cv = cv;
+			addb_rec_post_ut_data[tmp].fields = fields;
+		}
+		addb_rec_post_ut_data[tmp].fields_nr = fields_nr;
+		addb_rec_post_ut_data[tmp].reclen = len;
+		addb_rec_post_ut_data[tmp].rid = rid;
+		addb_rec_post_ut_data[tmp].brt = m0_addb_rec_rid_to_brt(rid);
 	}
 
 	/*
@@ -137,6 +164,28 @@ static m0_bcount_t addb_rec_payload_size(struct m0_addb_rec *rec)
 
 	m0_xcode_ctx_init(&ctx, &obj);
 	return m0_xcode_length(&ctx);
+}
+
+static int addb_rec_seq_enc(void  *rs,
+			    struct m0_bufvec_cursor *cur,
+			    const struct m0_xcode_type *xtype)
+{
+	struct m0_xcode_ctx ctx;
+	struct m0_xcode_obj obj;
+	int                 rc;
+
+	M0_ASSERT(rs != NULL && cur != NULL && xtype != NULL);
+
+	obj.xo_type = xtype;
+	obj.xo_ptr = rs;
+	m0_xcode_ctx_init(&ctx, &obj);
+	ctx.xcx_buf   = *cur;
+	ctx.xcx_alloc = m0_xcode_alloc;
+
+	rc = m0_xcode_encode(&ctx);
+	if (rc == 0)
+		*cur = ctx.xcx_buf;
+	return rc;
 }
 
 static typeof (m0_xcode_encode) * const addb_encdec_op[] = {
