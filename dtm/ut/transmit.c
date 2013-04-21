@@ -49,6 +49,8 @@ enum {
 	TGT_DELTA = 4
 };
 
+static struct m0_uint128          dtm_id_src = { 1, 1 };
+static struct m0_uint128          dtm_id_tgt = { 2, 2 };
 static struct m0_tl               uu;
 static struct m0_dtm              dtm_src;
 static struct m0_dtm              dtm_tgt;
@@ -200,8 +202,8 @@ static void src_init(struct m0_dtm_remote *dtm, unsigned flags, int ctrl)
 	memset(history_src, 0, sizeof history_src);
 	M0_SET0(&dtm_src);
 	M0_SET0(&tgt);
-	m0_dtm_init(&dtm_src);
-	m0_dtm_remote_init(&tgt, &dtm_src);
+	m0_dtm_init(&dtm_src, &dtm_id_src);
+	m0_dtm_remote_init(&tgt, &dtm_id_tgt, &dtm_src);
 	m0_dtm_history_type_register(&dtm_src, &src_htype);
 
 	for (i = 0; i < ARRAY_SIZE(history_src); ++i) {
@@ -240,8 +242,8 @@ static void tgt_init(void)
 	memset(history_tgt, 0, sizeof history_tgt);
 	M0_SET0(&dtm_tgt);
 	M0_SET0(&local);
-	m0_dtm_init(&dtm_tgt);
-	m0_dtm_remote_init(&local, &dtm_tgt);
+	m0_dtm_init(&dtm_tgt, &dtm_id_tgt);
+	m0_dtm_remote_init(&local, &dtm_id_src, &dtm_tgt);
 	m0_dtm_history_type_register(&dtm_tgt, &tgt_htype);
 
 	for (i = 0; i < ARRAY_SIZE(history_tgt); ++i) {

@@ -47,6 +47,7 @@ M0_INTERNAL void m0_dtm_history_init(struct m0_dtm_history *history,
 {
 	m0_dtm_hi_init(&history->h_hi, &dtm->d_nu);
 	m0_queue_link_init(&history->h_pending);
+	cat_tlink_init(history);
 	m0_cookie_new(&history->h_gen);
 	M0_SET0(&history->h_rem);
 	M0_POST(m0_dtm_history_invariant(history));
@@ -56,6 +57,7 @@ M0_INTERNAL void m0_dtm_history_fini(struct m0_dtm_history *history)
 {
 	M0_PRE(m0_dtm_history_invariant(history));
 	m0_queue_link_fini(&history->h_pending);
+	cat_tlink_fini(history);
 	m0_dtm_hi_fini(&history->h_hi);
 }
 

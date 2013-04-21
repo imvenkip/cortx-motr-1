@@ -43,20 +43,20 @@ struct m0_dtm_fol {
 	struct m0_dtm_controlh fo_ch;
 };
 
-M0_INTERNAL int m0_dtm_fol_init(struct m0_dtm_fol *fol, struct m0_dtm *dtm);
+M0_INTERNAL void m0_dtm_fol_init(struct m0_dtm_fol *fol, struct m0_dtm *dtm);
 M0_INTERNAL void m0_dtm_fol_fini(struct m0_dtm_fol *fol);
 M0_INTERNAL void m0_dtm_fol_add(struct m0_dtm_fol *fol,
 				struct m0_dtm_oper *oper);
 
 M0_EXTERN const struct m0_dtm_history_type m0_dtm_fol_htype;
 
-struct m0_dtm_remote_fol {
+struct m0_dtm_fol_remote {
 	struct m0_dtm_controlh rfo_ch;
 };
 
-M0_INTERNAL int m0_dtm_fol_remote_init(struct m0_dtm_fol_remote *frem,
-				       struct m0_dtm *dtm,
-				       struct m0_dtm_remote *remote);
+M0_INTERNAL void m0_dtm_fol_remote_init(struct m0_dtm_fol_remote *frem,
+					struct m0_dtm *dtm,
+					struct m0_dtm_remote *remote);
 M0_INTERNAL void m0_dtm_fol_remote_fini(struct m0_dtm_fol_remote *frem);
 M0_INTERNAL void m0_dtm_fol_remote_add(struct m0_dtm_fol_remote *frem,
 				       struct m0_dtm_oper *oper);

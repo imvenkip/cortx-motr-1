@@ -61,25 +61,29 @@ M0_INTERNAL void m0_dtm_remote_add(struct m0_dtm_remote *dtm,
 				   struct m0_dtm_history *history,
 				   struct m0_dtm_update *update)
 {
-	m0_dtm_controlh_add(&dtm->re_fol, oper);
+	m0_dtm_fol_remote_add(&dtm->re_fol, oper);
 }
 
 M0_INTERNAL void m0_dtm_remote_init(struct m0_dtm_remote *remote,
+				    struct m0_uint128 *id,
 				    struct m0_dtm *local)
 {
-	m0_dtm_remote_fol_init(&remote->re_fol, local, remote);
+	M0_PRE(!m0_uint128_eq(id, &local->d_id));
+	remote->re_id = *id;
+	m0_dtm_fol_remote_init(&remote->re_fol, local, remote);
 }
 
 M0_INTERNAL void m0_dtm_remote_fini(struct m0_dtm_remote *remote)
 {
-	m0_dtm_controlh_fini(&remote->re_fol);
+	m0_dtm_fol_remote_fini(&remote->re_fol);
 }
 
 M0_INTERNAL void m0_dtm_rpc_remote_init(struct m0_dtm_rpc_remote *remote,
+					struct m0_uint128 *id,
 					struct m0_dtm *local,
 					struct m0_rpc_conn *conn)
 {
-	m0_dtm_remote_init(&remote->rpr_dtm, local);
+	m0_dtm_remote_init(&remote->rpr_dtm, id, local);
 	remote->rpr_conn       = conn;
 	remote->rpr_dtm.re_ops = &rem_rpc_ops;
 }

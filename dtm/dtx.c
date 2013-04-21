@@ -181,7 +181,7 @@ static int dtx_srv_find(struct m0_dtm *dtm, const struct m0_dtm_history_type *ht
 			const struct m0_uint128 *id,
 			struct m0_dtm_history **out)
 {
-	return m0_dtm_catalogue_find(&dtm->d_dtx_cat, dtm,
+	return m0_dtm_catalogue_find(&dtm->d_cat[M0_DTM_HTYPE_DTX_SRV], dtm,
 				     id, &dtx_srv_alloc, NULL, out);
 }
 
@@ -225,7 +225,6 @@ static struct m0_dtm_history *dtx_srv_alloc(struct m0_dtm *dtm,
 		dtx->ds_id = *id;
 		m0_dtm_history_init(&dtx->ds_history, dtm);
 		history->h_ops = &dtx_srv_ops;
-
 	} else
 		history = NULL;
 	return history;

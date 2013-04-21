@@ -145,7 +145,7 @@ static int lsn_cmp(struct m0_table *table, const void *key0, const void *key1)
 	return m0_lsn_cmp(*lsn0, *lsn1);
 }
 
-static const struct m0_table_ops fol_ops = {
+static const struct m0_table_ops fol_db_ops = {
 	.to = {
 		[TO_KEY] = {
 			.max_size = FOL_KEY_SIZE
@@ -211,7 +211,7 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 	M0_CASSERT(M0_LSN_ANCHOR > M0_LSN_RESERVED_NR);
 
 	m0_mutex_init(&fol->f_lock);
-	result = m0_table_init(&fol->f_table, env, "fol", 0, &fol_ops);
+	result = m0_table_init(&fol->f_table, env, "fol", 0, &fol_db_ops);
 	if (result == 0) {
 		struct m0_fol_rec       r;
 		struct m0_fol_rec_desc *d;

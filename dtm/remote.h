@@ -31,6 +31,7 @@
  * @{
  */
 
+#include "lib/types.h"               /* m0_uint128 */
 #include "xcode/xcode_attr.h"
 #include "dtm/update.h"              /* m0_dtm_history_id */
 #include "dtm/update_xc.h"           /* m0_dtm_history_id_xc */
@@ -48,8 +49,9 @@ struct m0_dtm_rpc_remote;
 struct m0_dtm_remote_ops;
 
 struct m0_dtm_remote {
+	struct m0_uint128               re_id;
 	const struct m0_dtm_remote_ops *re_ops;
-	struct m0_dtm_remote_fol        re_fol;
+	struct m0_dtm_fol_remote        re_fol;
 };
 
 struct m0_dtm_remote_ops {
@@ -62,6 +64,7 @@ struct m0_dtm_remote_ops {
 };
 
 M0_INTERNAL void m0_dtm_remote_init(struct m0_dtm_remote *remote,
+				    struct m0_uint128 *id,
 				    struct m0_dtm *local);
 M0_INTERNAL void m0_dtm_remote_fini(struct m0_dtm_remote *remote);
 
@@ -76,6 +79,7 @@ struct m0_dtm_rpc_remote {
 };
 
 M0_INTERNAL void m0_dtm_rpc_remote_init(struct m0_dtm_rpc_remote *remote,
+					struct m0_uint128 *id,
 					struct m0_dtm *local,
 					struct m0_rpc_conn *conn);
 M0_INTERNAL void m0_dtm_rpc_remote_fini(struct m0_dtm_rpc_remote *remote);

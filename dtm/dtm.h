@@ -23,8 +23,7 @@
 #ifndef __MERO_DTM_DTM_H__
 #define __MERO_DTM_DTM_H__
 
-#include "lib/cdefs.h"
-#include "lib/assert.h"
+#include "lib/types.h"           /* m0_uint128 */
 
 #include "db/db.h"
 #include "be/be.h"
@@ -49,12 +48,11 @@ struct m0_dtx;
 enum {
 	M0_DTM_HISTORY_TYPE_NR = 256
 };
-M0_BASSERT(M0_DTM_HISTORY_TYPE_NR <=
-	   (1 << 8*sizeof M0_FIELD_VALUE(struct m0_dtm_history_type, hit_id)));
 
 struct m0_dtm {
+	struct m0_uint128                 d_id;
 	struct m0_dtm_nu                  d_nu;
-	struct m0_dtm_catalogue           d_dtx_cat;
+	struct m0_dtm_catalogue           d_cat[M0_DTM_HISTORY_TYPE_NR];
 	struct m0_dtm_fol                 d_fol;
 	const struct m0_dtm_history_type *d_htype[M0_DTM_HISTORY_TYPE_NR];
 };
@@ -87,7 +85,7 @@ M0_INTERNAL int m0_dtx_open_sync(struct m0_dtx *tx);
 M0_INTERNAL int m0_dtx_done_sync(struct m0_dtx *tx);
 M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx);
 
-M0_INTERNAL void m0_dtm_init(struct m0_dtm *dtm);
+M0_INTERNAL void m0_dtm_init(struct m0_dtm *dtm, struct m0_uint128 *id);
 M0_INTERNAL void m0_dtm_fini(struct m0_dtm *dtm);
 
 M0_INTERNAL int  m0_dtm_global_init(void);

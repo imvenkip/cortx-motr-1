@@ -24,22 +24,29 @@
  */
 
 #include "lib/misc.h"              /* M0_SET0, m0_forall */
+#include "lib/cdefs.h"             /* ARRAY_SIZE */
 
 #include "dtm/nucleus.h"
 #include "dtm/dtm.h"
 #include "dtm/dtm_internal.h"
 #include "dtm/dtm_update_xc.h"
 
-M0_INTERNAL void m0_dtm_init(struct m0_dtm *dtm)
+M0_INTERNAL void m0_dtm_init(struct m0_dtm *dtm, struct m0_uint128 *id)
 {
+	int i;
+
+	dtm->d_id = *id;
 	m0_dtm_nu_init(&dtm->d_nu);
-	m0_dtm_catalogue_init(&dtm->d_dtx_cat);
+	for (i = 0; i < ARRAY_SIZE(dtm->d_cat); ++i)
+		m0_dtm_catalogue_init(&dtm->d_cat[i]);
 }
 
 M0_INTERNAL void m0_dtm_fini(struct m0_dtm *dtm)
 {
+	int i;
 	M0_PRE(m0_forall(i, ARRAY_SIZE(dtm->d_htype), dtm->d_htype[i] == NULL));
-	m0_dtm_catalogue_fini(&dtm->d_dtx_cat);
+	for (i = 0; i < ARRAY_SIZE(dtm->d_cat); ++i)
+		m0_dtm_catalogue_fini(&dtm->d_cat[i]);
 	m0_dtm_nu_fini(&dtm->d_nu);
 }
 

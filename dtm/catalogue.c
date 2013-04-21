@@ -32,9 +32,10 @@
 #include "dtm/history.h"
 #include "dtm/catalogue.h"
 
-M0_TL_DESCR_DEFINE(cat, "catalogue", static, struct m0_dtm_history, h_catlink,
+M0_TL_DESCR_DEFINE(cat, "catalogue", M0_INTERNAL,
+		   struct m0_dtm_history, h_catlink,
 		   h_hi.hi_ups.t_magic, M0_DTM_HI_MAGIX, M0_DTM_CAT_MAGIX);
-M0_TL_DEFINE(cat, static, struct m0_dtm_history);
+M0_TL_DEFINE(cat, M0_INTERNAL, struct m0_dtm_history);
 
 M0_INTERNAL void m0_dtm_catalogue_init(struct m0_dtm_catalogue *cat)
 {
