@@ -1,0 +1,152 @@
+conf2: configuration revisited
+==============================
+
+Configuration subsystem is represented by the following layers:
+
+conf-app::
+
+	the application, that works with configuration data;
+
+conf::
+
+	configuration layer, that provides API for accessing and
+	manipulating configuration data;
+
+stage::
+
+	the interfaces, similar to those of a file system, for
+	accessing and modification generic (i.e.,
+	configuration-oblivious) data;
+
+pit::
+
+	content-addressable storage of immutable objects.
+
+
+Glossary
+--------
+
+revision::
+
+	A particular state of trees and blobs which was stored in a
+	pit object database. It is referenced by a commit object.
+
+unreachable object::
+
+	An object which is not reachable from a commit object.
+
+XXX TODO
+
+
+Pit
+---
+
+Pit ('plagiarised information tracker') is modelled after Git source
+code management tool.
+
+**********************************************************************
+XXX Kindly start with reading
+http://git-scm.com/book/en/Git-Internals-Git-Objects[Git Objects]
+chapter of ``Pro Git'' book.
+**********************************************************************
+
+The unit of storage in Pit is an object. It is uniquely identified by
+the SHA-1 digest of its contents. Consequently, an object cannot be
+changed. Pit objects are created in memory.
+
+There are three types of pit objects --- "tree", "blob", and
+"commit". A blob object is untyped. A tree object contains a list of
+file names and modes along with identifiers (SHA-1) of the associated
+blob and/or tree objects. A tree is equivalent to a directory.
+A commit is an object containing information about a particular
+revision, such as parent commit and the tree object which corresponds
+to the top directory of the stored revision.
+
+......................................................................
+ tree                        blob       blob
++-----------------+         +-----+    +------------+
+| R "add"  9b26e9 |-------->| "+" |    | "multiply" |      blob
+| D "expr" 366988 |-----.   +-----+    +------------+     +-----+
+| R "four" bf0d87 |--.  |                         ^   ,-->| "3" |
++-----------------+  |  |    tree                 |   |   +-----+
+                     |  |   +------------------+  |   |
+       blob          |  `-->| R "mult"  59c635 |--'   |    blob
+      +--------+     |      | R "three" e440e5 |------'   +-------+
+      | "four" |<----'      | R "two"   64c5e5 |--------->| "two" |
+      +--------+            +------------------+          +-------+
+......................................................................
+
+Pit index
+~~~~~~~~~
+
+----------------------------------------------------------------------
+struct m0_pit_bucket {
+	struct hlist_head pb_items;
+	struct hlist_node pb_hl;
+};
+
+/** Reference to a pit object. */
+struct m0_pit_ref {
+	/** SHA-1 of the object. */
+	unsigned char     pr_sha1[20];
+
+	/** Object address. */
+	uint8_t          *pr_buf;
+
+	/** Object size. */
+	size_t            pr_size;
+
+	struct hlist_node pr_hl;
+};
+----------------------------------------------------------------------
+
+References `x` and `y` belong the same bucket iff two most significant
+bytes of `x->pr_sha1` are equal to those of `y`, i.e.
+----------------------------------------------------------------------
+x->pr_sha1[0] == y->pr_sha1[0] && x->pr_sha1[1] == y->pr_sha1[1]
+----------------------------------------------------------------------
+
+References within a bucket are sorted by `m0_pit_ref::pr_sha1` field.
+Buckets are sorted by the 2-byte SHA-1 prefix.
+
+
+Concurrency
+-----------
+
+* Pit objects are immutable.
+* The index of pit object database is protected by a reader-writer lock.
+* Callers must ensure that m0_stage API is used sequentially.
+
+
+Selling points
+--------------
+
+. The "immutable objects" model is friendly to concurrent programming.
+
+. If the data structure, used for pit odb backend, becomes a
+  bottleneck, it can be easily replaced with the better performing
+  one.
+
+. The design resembles one of Git. We can borrow ideas from Git and
+  http://libgit2.github.com/[libgit2]. For example, we may want to
+  imitate
+  https://github.com/git/git/blob/master/Documentation/technical/pack-protocol.txt[Git's
+  packfile transfer protocols].
+
+. A network of decentralised pit peers scales nicely (think BitTorrent).
+
+. Undo/redo of configuration modifications is trivial.
+
+
+Caveats
+-------
+
+. Names of directory entries are NUL-terminated strings.
+
+. Pit database keeps the complete set of pit objects.
+
+. Pit object database grows in size with every successful commit,
+  reducing the available amount of memory. If we are not interested in
+  the ability to restore one of the previous revisions of the DAG, we
+  may need to implement a garbage collecting mechanism, that would
+  free pit objects that are unreachable from the DAG's head.
