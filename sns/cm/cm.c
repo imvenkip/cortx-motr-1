@@ -902,6 +902,7 @@ static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id *id_curr,
 
 	return rc;
 }
+
 M0_INTERNAL bool m0_sns_cm_fid_repair_done(struct m0_fid *gfid,
 					   struct m0_reqh *reqh)
 {
