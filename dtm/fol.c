@@ -45,7 +45,7 @@ M0_INTERNAL void m0_dtm_fol_init(struct m0_dtm_fol *fol, struct m0_dtm *dtm)
 	m0_dtm_controlh_init(&fol->fo_ch, dtm);
 	history->h_hi.hi_flags |= M0_DHF_OWNED;
 	history->h_ops = &fol_ops;
-	history->h_dtm = NULL;
+	history->h_rem = NULL;
 }
 
 M0_INTERNAL void m0_dtm_fol_fini(struct m0_dtm_fol *fol)
@@ -61,10 +61,7 @@ M0_INTERNAL void m0_dtm_fol_add(struct m0_dtm_fol *fol,
 
 static const struct m0_uint128 *fol_id(const struct m0_dtm_history *history)
 {
-	struct m0_dtm_fol *fol;
-
-	fol = container_of(history, struct m0_dtm_fol, fo_ch.ch_history);
-	return &nu_dtm(history->h_hi.hi_nu)->d_id;
+	return &HISTORY_DTM(history)->d_id;
 }
 
 enum {
@@ -79,12 +76,11 @@ static struct m0_dtm_catalogue *rem_fol_cat(struct m0_dtm *dtm)
 
 static void fol_persistent(struct m0_dtm_history *history)
 {
-	struct m0_dtm           *dtm = nu_dtm(history->h_hi.hi_nu);
-	struct m0_dtm_catalogue *cat = rem_fol_cat(dtm);
+	struct m0_dtm_catalogue *cat = rem_fol_cat(HISTORY_DTM(history));
 	struct m0_dtm_history   *scan;
 
 	m0_tl_for(cat, &cat->ca_el, scan) {
-		scan->h_dtm->re_ops->reo_persistent(scan->h_dtm, history);
+		scan->h_rem->re_ops->reo_persistent(scan->h_rem, history);
 	} m0_tl_endfor;
 }
 
@@ -130,16 +126,15 @@ M0_INTERNAL void m0_dtm_fol_remote_init(struct m0_dtm_fol_remote *frem,
 
 	m0_dtm_controlh_init(&frem->rfo_ch, dtm);
 	history->h_ops = &fol_remote_ops;
-	history->h_dtm = remote;
+	history->h_rem = remote;
 	m0_dtm_catalogue_add(rem_fol_cat(dtm), history);
 }
 
 M0_INTERNAL void m0_dtm_fol_remote_fini(struct m0_dtm_fol_remote *frem)
 {
 	struct m0_dtm_history *history = &frem->rfo_ch.ch_history;
-	struct m0_dtm         *dtm     = nu_dtm(history->h_hi.hi_nu);
 
-	m0_dtm_catalogue_del(rem_fol_cat(dtm), history);
+	m0_dtm_catalogue_del(rem_fol_cat(HISTORY_DTM(history)), history);
 	m0_dtm_controlh_fini(&frem->rfo_ch);
 }
 
@@ -147,6 +142,12 @@ M0_INTERNAL void m0_dtm_fol_remote_add(struct m0_dtm_fol_remote *frem,
 				       struct m0_dtm_oper *oper)
 {
 	m0_dtm_controlh_add(&frem->rfo_ch, oper);
+}
+
+static const struct m0_uint128 *
+fol_remote_id(const struct m0_dtm_history *history)
+{
+	return &history->h_rem->re_id;
 }
 
 static void fol_remote_persistent(struct m0_dtm_history *history)
@@ -173,6 +174,7 @@ M0_INTERNAL const struct m0_dtm_history_type m0_dtm_fol_remote_htype = {
 
 static const struct m0_dtm_history_ops fol_remote_ops = {
 	.hio_type       = &m0_dtm_fol_remote_htype,
+	.hio_id         = &fol_remote_id,
 	.hio_persistent = &fol_remote_persistent,
 	.hio_update     = &m0_dtm_controlh_update
 };

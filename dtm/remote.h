@@ -55,11 +55,11 @@ struct m0_dtm_remote {
 };
 
 struct m0_dtm_remote_ops {
-	void (*reo_persistent)(struct m0_dtm_remote *dtm,
+	void (*reo_persistent)(struct m0_dtm_remote *rem,
 			       struct m0_dtm_history *history);
-	void (*reo_fixed)(struct m0_dtm_remote *dtm,
+	void (*reo_fixed)(struct m0_dtm_remote *rem,
 			  struct m0_dtm_history *history);
-	void (*reo_known)(struct m0_dtm_remote *dtm,
+	void (*reo_known)(struct m0_dtm_remote *rem,
 			  struct m0_dtm_history *history);
 };
 
@@ -68,13 +68,13 @@ M0_INTERNAL void m0_dtm_remote_init(struct m0_dtm_remote *remote,
 				    struct m0_dtm *local);
 M0_INTERNAL void m0_dtm_remote_fini(struct m0_dtm_remote *remote);
 
-M0_INTERNAL void m0_dtm_remote_add(struct m0_dtm_remote *dtm,
+M0_INTERNAL void m0_dtm_remote_add(struct m0_dtm_remote *rem,
 				   struct m0_dtm_oper *oper,
 				   struct m0_dtm_history *history,
 				   struct m0_dtm_update *update);
 
 struct m0_dtm_rpc_remote {
-	struct m0_dtm_remote  rpr_dtm;
+	struct m0_dtm_remote  rpr_rem;
 	struct m0_rpc_conn   *rpr_conn;
 };
 
@@ -89,6 +89,11 @@ struct m0_dtm_notice {
 	uint64_t                 dno_ver;
 	uint8_t                  dno_opcode;
 } M0_XCA_RECORD;
+
+M0_INTERNAL void m0_dtm_local_remote_init(struct m0_dtm_remote *remote,
+					  struct m0_uint128 *id,
+					  struct m0_dtm *local);
+M0_INTERNAL void m0_dtm_local_remote_fini(struct m0_dtm_remote *remote);
 
 /** @} end of dtm group */
 

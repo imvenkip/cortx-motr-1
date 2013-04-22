@@ -25,6 +25,9 @@
  * @{
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM
+
+#include "lib/trace.h"
 #include "lib/bob.h"
 #include "lib/assert.h"
 #include "lib/misc.h"                 /* M0_IN, M0_SET0 */
@@ -33,6 +36,7 @@
 #include "lib/cookie.h"
 
 #include "dtm/dtm_internal.h"
+#include "dtm/remote.h"
 #include "dtm/nucleus.h"
 #include "dtm/history.h"
 #include "dtm/update.h"
@@ -41,6 +45,8 @@
 static m0_dtm_ver_t up_ver    (const struct m0_dtm_up *up);
 static void sibling_persistent(struct m0_dtm_history *history,
 			       struct m0_dtm_op *op, struct m0_queue *queue);
+static const struct m0_dtm_update_ops ch_close_ops;
+static const struct m0_dtm_update_ops ch_noop_ops;
 
 M0_INTERNAL void m0_dtm_history_init(struct m0_dtm_history *history,
 				     struct m0_dtm *dtm)
@@ -49,7 +55,7 @@ M0_INTERNAL void m0_dtm_history_init(struct m0_dtm_history *history,
 	m0_queue_link_init(&history->h_pending);
 	cat_tlink_init(history);
 	m0_cookie_new(&history->h_gen);
-	M0_SET0(&history->h_rem);
+	M0_SET0(&history->h_remcookie);
 	M0_POST(m0_dtm_history_invariant(history));
 }
 
@@ -63,8 +69,12 @@ M0_INTERNAL void m0_dtm_history_fini(struct m0_dtm_history *history)
 
 M0_INTERNAL bool m0_dtm_history_invariant(const struct m0_dtm_history *history)
 {
+	const struct m0_dtm_history_type *htype =
+		history->h_ops != NULL ? history->h_ops->hio_type : NULL;
 	return
 		m0_dtm_hi_invariant(&history->h_hi) &&
+		_0C(ergo(htype != NULL,
+		      HISTORY_DTM(history)->d_htype[htype->hit_id] == htype)) &&
 		_0C(ergo(history->h_persistent != NULL,
 		  history->h_persistent->upd_up.up_state >= M0_DOS_PERSISTENT));
 }
@@ -134,7 +144,7 @@ static void sibling_persistent(struct m0_dtm_history *history,
 
 		other = UP_HISTORY(up);
 		if (up->up_state < M0_DOS_PERSISTENT && other != history &&
-		    other->h_dtm == history->h_dtm &&
+		    other->h_rem == history->h_rem &&
 		    !m0_queue_link_is_in(&other->h_pending)) {
 			M0_ASSERT(up_ver(up) >=
 				  update_ver(other->h_persistent));
@@ -189,7 +199,7 @@ M0_INTERNAL void m0_dtm_history_pack(const struct m0_dtm_history *history,
 {
 	id->hid_id       = *history->h_ops->hio_id(history);
 	id->hid_htype    =  history->h_ops->hio_type->hit_rem_id;
-	id->hid_receiver =  history->h_rem;
+	id->hid_receiver =  history->h_remcookie;
 	m0_cookie_init(&id->hid_sender, &history->h_gen);
 }
 
@@ -209,7 +219,7 @@ M0_INTERNAL int m0_dtm_history_unpack(struct m0_dtm *dtm,
 	result = *out != NULL ? 0 :
 		htype->hit_ops->hito_find(dtm, htype, &id->hid_id, out);
 	if (result == 0)
-		(*out)->h_rem = id->hid_sender;
+		(*out)->h_remcookie = id->hid_sender;
 	return result;
 }
 
@@ -224,39 +234,48 @@ static m0_dtm_ver_t history_ver(const struct m0_dtm_history *history)
 static void control_update_add(struct m0_dtm_history *history,
 			       struct m0_dtm_oper *oper,
 			       struct m0_dtm_update *cupdate,
-			       enum m0_dtm_up_rule rule)
+			       enum m0_dtm_up_rule rule,
+			       const struct m0_dtm_update_ops *ops)
 {
 	m0_dtm_ver_t orig_ver;
 	m0_dtm_ver_t ver;
+	uint32_t     max_label = 0;
 
 	oper_lock(oper);
 
 	M0_PRE(m0_dtm_history_invariant(history));
 	M0_PRE(M0_IN(rule, (M0_DUR_NOT, M0_DUR_INC)));
 
+	oper_for(oper, update) {
+		if (update->upd_label < M0_DTM_USER_UPDATE_BASE)
+			max_label = max32u(max_label, update->upd_label);
+	} oper_endfor;
+	max_label++;
+	M0_ASSERT(max_label < M0_DTM_USER_UPDATE_BASE);
+
 	orig_ver = history_ver(history);
 	ver = rule == M0_DUR_NOT ? orig_ver : orig_ver + 1;
 	m0_dtm_update_init(cupdate, history, oper,
-			   &M0_DTM_UPDATE_DATA(history->h_ops->hio_type->hit_id,
-					       rule, ver, orig_ver));
+			   &M0_DTM_UPDATE_DATA(max_label, rule, ver, orig_ver));
+	cupdate->upd_ops = ops;
 	oper_unlock(oper);
 }
 
 M0_INTERNAL void history_lock(const struct m0_dtm_history *history)
 {
-	dtm_lock(nu_dtm(history->h_hi.hi_nu));
+	dtm_lock(HISTORY_DTM(history));
 }
 
 M0_INTERNAL void history_unlock(const struct m0_dtm_history *history)
 {
-	dtm_unlock(nu_dtm(history->h_hi.hi_nu));
+	dtm_unlock(HISTORY_DTM(history));
 }
 
 M0_INTERNAL void m0_dtm_history_add_nop(struct m0_dtm_history *history,
 					struct m0_dtm_oper *oper,
 					struct m0_dtm_update *cupdate)
 {
-	control_update_add(history, oper, cupdate, M0_DUR_NOT);
+	control_update_add(history, oper, cupdate, M0_DUR_NOT, &ch_noop_ops);
 }
 
 static void clop_nop(struct m0_dtm_op *op)
@@ -277,7 +296,7 @@ M0_INTERNAL void m0_dtm_history_add_close(struct m0_dtm_history *history,
 					  struct m0_dtm_oper *oper,
 					  struct m0_dtm_update *cupdate)
 {
-	control_update_add(history, oper, cupdate, M0_DUR_INC);
+	control_update_add(history, oper, cupdate, M0_DUR_INC, &ch_close_ops);
 	oper->oprt_op.op_ops = &clop_ops;
 	m0_dtm_oper_close(oper);
 }
@@ -285,8 +304,13 @@ M0_INTERNAL void m0_dtm_history_add_close(struct m0_dtm_history *history,
 M0_INTERNAL void m0_dtm_controlh_init(struct m0_dtm_controlh *ch,
 				      struct m0_dtm *dtm)
 {
+	struct m0_tl uu;
+
 	m0_dtm_history_init(&ch->ch_history, dtm);
-	m0_dtm_oper_init(&ch->ch_clop, dtm, NULL);
+	m0_dtm_update_list_init(&uu);
+	m0_dtm_update_link(&uu, &ch->ch_clup_rem, 1);
+	m0_dtm_oper_init(&ch->ch_clop, dtm, &uu);
+	m0_dtm_update_list_fini(&uu);
 }
 
 M0_INTERNAL void m0_dtm_controlh_fini(struct m0_dtm_controlh *ch)
@@ -322,7 +346,7 @@ static int ch_noop(struct m0_dtm_update *updt)
 
 static const struct m0_dtm_update_type ch_noop_utype = {
 	.updtt_id   = NOOP,
-	.updtt_name = "noop update"
+	.updtt_name = "noop"
 };
 
 static const struct m0_dtm_update_ops ch_noop_ops = {
@@ -333,7 +357,7 @@ static const struct m0_dtm_update_ops ch_noop_ops = {
 
 static const struct m0_dtm_update_type ch_close_utype = {
 	.updtt_id   = CLOSE,
-	.updtt_name = "close update"
+	.updtt_name = "close"
 };
 
 static const struct m0_dtm_update_ops ch_close_ops = {
@@ -362,8 +386,34 @@ m0_dtm_controlh_update_is_close(const struct m0_dtm_update *update)
 	return update->upd_ops == &ch_close_ops;
 }
 
-/** @} end of dtm group */
+M0_INTERNAL void history_print_header(const struct m0_dtm_history *history,
+				      char *buf)
+{
+	static struct m0_uint128 null_id = M0_UINT128(0xfe0f, 0xfe0d);
+	struct m0_uint128  hid = *history->h_ops->hio_id(history);
+	struct m0_uint128 *rid = history->h_rem != NULL ?
+		&history->h_rem->re_id : &null_id;
 
+	sprintf(buf, "%s[%lx:%lx]->[%lx:%lx]",
+	       history->h_ops->hio_type->hit_name,
+	       (unsigned long)hid.u_hi, (unsigned long)hid.u_lo,
+	       (unsigned long)rid->u_hi, (unsigned long)rid->u_lo);
+}
+
+M0_INTERNAL void history_print(const struct m0_dtm_history *history)
+{
+	char buf[100];
+
+	history_print_header(history, buf);
+	M0_LOG(M0_FATAL, "history %s", &buf[0]);
+	history_for(history, update) {
+		update_print(update);
+	} history_endfor;
+}
+
+#undef M0_TRACE_SUBSYSTEM
+
+/** @} end of dtm group */
 
 /*
  *  Local variables:

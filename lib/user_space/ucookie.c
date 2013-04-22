@@ -18,11 +18,12 @@
  * Original creation date: 19/07/2012
  */
 
-#include <setjmp.h>    /* setjmp() and longjmp() */
-#include <stdlib.h>    /* abort(3) */
+#include <setjmp.h>        /* setjmp() and longjmp() */
+
 #include "lib/thread.h"
-#include "lib/misc.h"  /* M0_SET0 */
-#include "lib/errno.h" /* errno */
+#include "lib/misc.h"      /* M0_SET0 */
+#include "lib/errno.h"     /* errno */
+#include "lib/assert.h"    /* m0_panic */
 
 /**
    @addtogroup cookie
@@ -42,7 +43,7 @@ static void sigsegv(int sig)
 	if (buf != NULL)
 		longjmp(*buf, 1);
 	else
-		abort();
+		m0_panic("sigsegv", "unknown", "unknown", 0);
 }
 
 /**

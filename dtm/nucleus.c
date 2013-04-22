@@ -248,6 +248,9 @@ M0_INTERNAL void m0_dtm_hi_init(struct m0_dtm_hi *hi, struct m0_dtm_nu *nu)
 
 M0_INTERNAL void m0_dtm_hi_fini(struct m0_dtm_hi *hi)
 {
+	hi_for(hi, up) {
+		up_fini(up);
+	} hi_endfor;
 	hi_tlist_fini(&hi->hi_ups);
 	m0_dtm_hi_bob_fini(hi);
 }

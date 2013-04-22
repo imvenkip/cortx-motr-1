@@ -43,7 +43,7 @@ struct m0_dtm_dtx_party {
 static const struct m0_dtm_history_ops dtx_ops;
 static const struct m0_dtm_history_ops dtx_srv_ops;
 static struct m0_dtm_controlh *dtx_get(struct m0_dtm_dtx *dtx,
-				       struct m0_dtm_remote *dtm);
+				       struct m0_dtm_remote *rem);
 static struct m0_dtm_history *dtx_srv_alloc(struct m0_dtm *dtm,
 					    const struct m0_uint128 *id,
 					    void *datum);
@@ -75,17 +75,8 @@ M0_INTERNAL void m0_dtm_dtx_add(struct m0_dtm_dtx *dtx,
 				struct m0_dtm_oper *oper)
 {
 	oper_for(oper, i) {
-		bool unique = true;
-		oper_for(oper, j) {
-			if (i == j)
-				break;
-			if (UPDATE_DTM(i) == UPDATE_DTM(j)) {
-				unique = false;
-				break;
-			}
-		} oper_endfor;
-		if (unique)
-			m0_dtm_controlh_add(dtx_get(dtx, UPDATE_DTM(i)),
+		if (oper_update_unique(oper, i))
+			m0_dtm_controlh_add(dtx_get(dtx, UPDATE_REM(i)),
 					    oper);
 	} oper_endfor;
 }
@@ -121,7 +112,7 @@ enum {
 M0_INTERNAL const struct m0_dtm_history_type m0_dtm_dtx_htype = {
 	.hit_id     = M0_DTM_HTYPE_DTX,
 	.hit_rem_id = M0_DTM_HTYPE_DTX_SRV,
-	.hit_name   = "distributed transaction",
+	.hit_name   = "dtx-party",
 	.hit_ops    = &dtx_htype_ops
 };
 
@@ -159,18 +150,18 @@ static inline struct m0_dtm_history *pa_history(struct m0_dtm_dtx_party *pa)
 }
 
 static struct m0_dtm_controlh *dtx_get(struct m0_dtm_dtx *dtx,
-				       struct m0_dtm_remote *dtm)
+				       struct m0_dtm_remote *rem)
 {
 	uint32_t                 i;
 	struct m0_dtm_dtx_party *pa;
 
 	for (i = 0, pa = dtx->dt_party; i < dtx->dt_nr; ++i, ++pa) {
-		if (pa_history(pa)->h_dtm == dtm)
+		if (pa_history(pa)->h_rem == rem)
 			return &pa->pa_ch;
 	}
 	M0_ASSERT(dtx->dt_nr < dtx->dt_nr_max);
 	m0_dtm_controlh_init(&pa->pa_ch, dtx->dt_dtm);
-	pa_history(pa)->h_dtm = dtm;
+	pa_history(pa)->h_rem = rem;
 	pa_history(pa)->h_ops = &dtx_ops;
 	pa->pa_dtx = dtx;
 	dtx->dt_nr++;

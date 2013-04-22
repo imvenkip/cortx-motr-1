@@ -27,6 +27,7 @@
 #include "lib/cdefs.h"             /* ARRAY_SIZE */
 
 #include "dtm/nucleus.h"
+#include "dtm/fol.h"
 #include "dtm/dtm.h"
 #include "dtm/dtm_internal.h"
 #include "dtm/dtm_update_xc.h"
@@ -37,6 +38,8 @@ M0_INTERNAL void m0_dtm_init(struct m0_dtm *dtm, struct m0_uint128 *id)
 
 	dtm->d_id = *id;
 	m0_dtm_nu_init(&dtm->d_nu);
+	m0_dtm_history_type_register(dtm, &m0_dtm_fol_htype);
+	m0_dtm_fol_init(&dtm->d_fol, dtm);
 	for (i = 0; i < ARRAY_SIZE(dtm->d_cat); ++i)
 		m0_dtm_catalogue_init(&dtm->d_cat[i]);
 }
@@ -44,9 +47,12 @@ M0_INTERNAL void m0_dtm_init(struct m0_dtm *dtm, struct m0_uint128 *id)
 M0_INTERNAL void m0_dtm_fini(struct m0_dtm *dtm)
 {
 	int i;
-	M0_PRE(m0_forall(i, ARRAY_SIZE(dtm->d_htype), dtm->d_htype[i] == NULL));
+
 	for (i = 0; i < ARRAY_SIZE(dtm->d_cat); ++i)
 		m0_dtm_catalogue_fini(&dtm->d_cat[i]);
+	m0_dtm_fol_fini(&dtm->d_fol);
+	m0_dtm_history_type_deregister(dtm, &m0_dtm_fol_htype);
+	M0_PRE(m0_forall(i, ARRAY_SIZE(dtm->d_htype), dtm->d_htype[i] == NULL));
 	m0_dtm_nu_fini(&dtm->d_nu);
 }
 

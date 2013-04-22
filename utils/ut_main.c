@@ -54,6 +54,7 @@ extern const struct m0_test_suite conn_ut;
 extern const struct m0_test_suite console_ut;
 extern const struct m0_test_suite db_cursor_ut;
 extern const struct m0_test_suite db_ut;
+extern const struct m0_test_suite dtm_dtx_ut;
 extern const struct m0_test_suite dtm_nucleus_ut;
 extern const struct m0_test_suite dtm_transmit_ut;
 extern const struct m0_test_suite emap_ut;
@@ -121,6 +122,7 @@ void add_uts(void)
 	m0_ut_add(&db_ut);
 	m0_ut_add(&dtm_nucleus_ut);
 	m0_ut_add(&dtm_transmit_ut);
+	m0_ut_add(&dtm_dtx_ut);
 	m0_ut_add(&emap_ut);
 	m0_ut_add(&fit_ut);
 	m0_ut_add(&fol_ut);

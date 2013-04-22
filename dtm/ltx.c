@@ -41,7 +41,7 @@ M0_INTERNAL void m0_dtm_ltx_init(struct m0_dtm_ltx *ltx, struct m0_dtm *dtm,
 	m0_dtm_controlh_init(&ltx->lx_ch, dtm);
 	ltx->lx_ch.ch_history.h_ops = &ltx_ops;
 	ltx->lx_ch.ch_history.h_hi.hi_flags |= M0_DHF_OWNED;
-	ltx->lx_ch.ch_history.h_dtm = NULL;
+	ltx->lx_ch.ch_history.h_rem = NULL;
 	ltx->lx_env = env;
 }
 

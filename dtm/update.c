@@ -25,6 +25,9 @@
  * @{
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM
+
+#include "lib/trace.h"
 #include "lib/assert.h"
 #include "lib/errno.h"                  /* EPROTO */
 #include "lib/misc.h"                   /* M0_IN */
@@ -34,6 +37,7 @@
 #include "dtm/nucleus.h"
 #include "dtm/operation.h"
 #include "dtm/history.h"
+#include "dtm/remote.h"
 #include "dtm/update.h"
 
 M0_INTERNAL void m0_dtm_update_init(struct m0_dtm_update *update,
@@ -110,12 +114,11 @@ M0_INTERNAL int m0_dtm_update_build(struct m0_dtm_update *update,
 	struct m0_dtm                    *dtm = nu_dtm(oper->oprt_op.op_nu);
 	int                               result;
 
-	if (m0_tl_exists(oper, scan, &oper->oprt_op.op_ups,
-			 scan->upd_label == update->upd_label))
-		return -EPROTO;
-
 	result = m0_dtm_history_unpack(dtm, &updd->udd_id, &history);
 	if (result == 0) {
+		if (m0_tl_exists(oper, scan, &oper->oprt_op.op_ups,
+				 scan->upd_label == updd->udd_data.da_label))
+			return -EPROTO;
 		result = history->h_ops->hio_update(history, updd->udd_utype,
 						    update);
 		if (result == 0)
@@ -189,6 +192,26 @@ M0_TL_DESCR_DEFINE(oper, "dtm operation updates", M0_INTERNAL,
 		   upd_up.up_op_linkage, upd_up.up_magix,
 		   M0_DTM_UP_MAGIX, M0_DTM_OP_MAGIX);
 M0_TL_DEFINE(oper, M0_INTERNAL, struct m0_dtm_update);
+
+M0_INTERNAL void update_print(const struct m0_dtm_update *update)
+{
+	static const char state_name[] = "LFpIVPS??????????????????";
+	static const char rule_name[] = "ISNA?????????????????????";
+	char buf[100];
+
+	history_print_header(UPDATE_HISTORY(update), buf);
+	M0_LOG(M0_FATAL, "\tupdate: %s@%s",
+	       update->upd_ops->updo_type->updtt_name, &buf[0]);
+	M0_LOG(M0_FATAL, "\t\tstate: %c label: %lx "
+	       "rule: %c ver: %lu orig: %lu",
+	       state_name[update->upd_up.up_state],
+	       (unsigned long)update->upd_label,
+	       rule_name[update->upd_up.up_rule],
+	       (unsigned long)update->upd_up.up_ver,
+	       (unsigned long)update->upd_up.up_orig_ver);
+}
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of dtm group */
 

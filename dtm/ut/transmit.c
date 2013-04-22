@@ -36,6 +36,7 @@
 #include "dtm/history.h"
 #include "dtm/remote.h"
 #include "dtm/update.h"
+#include "dtm/fol.h"
 #include "dtm/ltx.h"
 #include "dtm/dtm.h"
 
@@ -203,15 +204,16 @@ static void src_init(struct m0_dtm_remote *dtm, unsigned flags, int ctrl)
 	M0_SET0(&dtm_src);
 	M0_SET0(&tgt);
 	m0_dtm_init(&dtm_src, &dtm_id_src);
-	m0_dtm_remote_init(&tgt, &dtm_id_tgt, &dtm_src);
 	m0_dtm_history_type_register(&dtm_src, &src_htype);
+	m0_dtm_history_type_register(&dtm_src, &m0_dtm_fol_remote_htype);
+	m0_dtm_remote_init(&tgt, &dtm_id_tgt, &dtm_src);
 
 	for (i = 0; i < ARRAY_SIZE(history_src); ++i) {
 		m0_dtm_history_init(&history_src[i], &dtm_src);
 		history_src[i].h_hi.hi_ver = 1;
 		history_src[i].h_hi.hi_flags |= flags;
 		history_src[i].h_ops = &src_ops;
-		history_src[i].h_dtm = dtm;
+		history_src[i].h_rem = dtm;
 	}
 	for (i = 0; i < ARRAY_SIZE(oper_src); ++i) {
 		m0_dtm_update_list_init(&uu);
@@ -229,8 +231,9 @@ static void src_fini(void)
 		m0_dtm_oper_fini(&oper_src[i]);
 	for (i = 0; i < ARRAY_SIZE(history_src); ++i)
 		m0_dtm_history_fini(&history_src[i]);
-	m0_dtm_history_type_deregister(&dtm_src, &src_htype);
 	m0_dtm_remote_fini(&tgt);
+	m0_dtm_history_type_deregister(&dtm_src, &src_htype);
+	m0_dtm_history_type_deregister(&dtm_src, &m0_dtm_fol_remote_htype);
 	m0_dtm_fini(&dtm_src);
 }
 
@@ -243,15 +246,16 @@ static void tgt_init(void)
 	M0_SET0(&dtm_tgt);
 	M0_SET0(&local);
 	m0_dtm_init(&dtm_tgt, &dtm_id_tgt);
-	m0_dtm_remote_init(&local, &dtm_id_src, &dtm_tgt);
 	m0_dtm_history_type_register(&dtm_tgt, &tgt_htype);
+	m0_dtm_history_type_register(&dtm_tgt, &m0_dtm_fol_remote_htype);
+	m0_dtm_remote_init(&local, &dtm_id_src, &dtm_tgt);
 
 	for (i = 0; i < ARRAY_SIZE(history_tgt); ++i) {
 		m0_dtm_history_init(&history_tgt[i], &dtm_tgt);
 		history_tgt[i].h_hi.hi_ver = 1;
 		history_tgt[i].h_hi.hi_flags |= M0_DHF_OWNED;
 		history_tgt[i].h_ops = &tgt_ops;
-		history_tgt[i].h_dtm = &local;
+		history_tgt[i].h_rem = &local;
 	}
 	for (i = 0; i < ARRAY_SIZE(oper_tgt); ++i) {
 		m0_dtm_oper_init(&oper_tgt[i], &dtm_tgt, NULL);
@@ -268,8 +272,9 @@ static void tgt_fini(void)
 	m0_dtm_update_list_fini(&uu);
 	for (i = 0; i < ARRAY_SIZE(history_tgt); ++i)
 		m0_dtm_history_fini(&history_tgt[i]);
-	m0_dtm_history_type_deregister(&dtm_tgt, &tgt_htype);
 	m0_dtm_remote_fini(&local);
+	m0_dtm_history_type_deregister(&dtm_tgt, &tgt_htype);
+	m0_dtm_history_type_deregister(&dtm_tgt, &m0_dtm_fol_remote_htype);
 	m0_dtm_fini(&dtm_tgt);
 }
 
@@ -351,8 +356,7 @@ static void ltx_fini(unsigned nr)
 	int result;
 	int i;
 
-	result = m0_emap_obj_insert(&emap, &ltx.lx_tx,
-				    &(const struct m0_uint128) { hi++, 0 }, 9);
+	result = m0_emap_obj_insert(&emap, &ltx.lx_tx, &M0_UINT128(hi++, 0), 9);
 	M0_UT_ASSERT(result == 0);
 	for (i = 0; i < nr; ++i)
 		m0_dtm_oper_done(&oper_src[i], NULL);

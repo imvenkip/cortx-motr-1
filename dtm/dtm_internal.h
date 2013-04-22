@@ -98,9 +98,11 @@ do {							\
 
 #define UP_HISTORY(up) hi_history((up)->up_hi)
 #define UPDATE_HISTORY(update) UP_HISTORY(&(update)->upd_up)
-#define UPDATE_DTM(update) (UPDATE_HISTORY(update)->h_dtm)
+#define UPDATE_REM(update) (UPDATE_HISTORY(update)->h_rem)
+#define HISTORY_DTM(history) (nu_dtm((history)->h_hi.hi_nu))
 
 M0_INTERNAL struct m0_dtm *nu_dtm(struct m0_dtm_nu *nu);
+M0_INTERNAL struct m0_dtm *history_dtm(struct m0_dtm_history *history);
 M0_INTERNAL struct m0_dtm_history *hi_history(struct m0_dtm_hi *hi);
 M0_INTERNAL struct m0_dtm_update *up_update(struct m0_dtm_up *up);
 M0_INTERNAL bool op_state(struct m0_dtm_op *op, enum m0_dtm_state state);
@@ -118,6 +120,15 @@ M0_INTERNAL m0_dtm_ver_t update_ver(const struct m0_dtm_update *update);
 
 M0_INTERNAL int m0_dtm_remote_global_init(void);
 M0_INTERNAL void m0_dtm_remote_global_fini(void);
+
+M0_INTERNAL void oper_print(const struct m0_dtm_oper *oper);
+M0_INTERNAL void update_print(const struct m0_dtm_update *update);
+M0_INTERNAL void history_print(const struct m0_dtm_history *history);
+M0_INTERNAL void history_print_header(const struct m0_dtm_history *history,
+				      char *buf);
+
+M0_INTERNAL bool oper_update_unique(const struct m0_dtm_oper *oper,
+				    const struct m0_dtm_update *update);
 
 /** @} end of dtm group */
 

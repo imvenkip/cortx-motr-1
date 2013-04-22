@@ -51,11 +51,11 @@ struct m0_dtm_history {
 	struct m0_dtm_hi                 h_hi;
 	struct m0_queue_link             h_pending;
 	struct m0_tlink                  h_catlink;
-	struct m0_dtm_remote            *h_dtm;
+	struct m0_dtm_remote            *h_rem;
 	struct m0_dtm_update            *h_persistent;
 	const struct m0_dtm_history_ops *h_ops;
 	uint64_t                         h_gen;
-	struct m0_cookie                 h_rem;
+	struct m0_cookie                 h_remcookie;
 };
 M0_INTERNAL bool m0_dtm_history_invariant(const struct m0_dtm_history *history);
 
@@ -90,6 +90,7 @@ struct m0_dtm_controlh {
 	struct m0_dtm_history ch_history;
 	struct m0_dtm_oper    ch_clop;
 	struct m0_dtm_update  ch_clup;
+	struct m0_dtm_update  ch_clup_rem;
 };
 
 M0_INTERNAL void m0_dtm_history_init(struct m0_dtm_history *history,

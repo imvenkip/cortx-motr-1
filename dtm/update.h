@@ -52,13 +52,13 @@ struct m0_dtm_history;
 
 struct m0_dtm_update {
 	struct m0_dtm_up                upd_up;
-	uint8_t                         upd_label;
+	uint32_t                        upd_label;
 	const struct m0_dtm_update_ops *upd_ops;
 };
 M0_INTERNAL bool m0_dtm_update_invariant(const struct m0_dtm_update *update);
 
 enum {
-	M0_DTM_USER_UPDATE_BASE = 0x10
+	M0_DTM_USER_UPDATE_BASE = 0xffff - 100
 };
 
 struct m0_dtm_update_ops {
@@ -73,10 +73,10 @@ struct m0_dtm_update_type {
 };
 
 struct m0_dtm_update_data {
-	uint8_t  da_label;
-	uint8_t  da_rule;
 	uint64_t da_ver;
 	uint64_t da_orig_ver;
+	uint32_t da_label;
+	uint8_t  da_rule;
 } M0_XCA_RECORD;
 
 #define M0_DTM_UPDATE_DATA(label, rule, ver, orig_ver)	\
