@@ -2374,7 +2374,7 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 	INDEX(&map->pi_ivec, 0) = map->pi_grpid * data_size(play);
 	COUNT(&map->pi_ivec, 0) = min64u(INDEX(&map->pi_ivec, 0) +
 					 data_size(play),
-					 inode->i_size) - 
+					 inode->i_size) -
 				  INDEX(&map->pi_ivec, 0);
 	SEG_NR(&map->pi_ivec)   = 1;
 
@@ -3154,7 +3154,6 @@ static int ioreq_iosm_handle(struct io_request *req)
 		*/
 
 	/* @todo Do error handling based on m0_sm::sm_rc. */
-	
 	/*
 	 * Since m0_sm is part of io_request, for any parity group
 	 * which is partial, read-modify-write state transition is followed
@@ -4394,7 +4393,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		failure_vector_mismatch(irfop);
 		rc = -EAGAIN;
 		irfop->irf_reply_rc = rc;
-		sns_state           = rw_reply->rwr_repair_done == 0 ? 
+		sns_state           = rw_reply->rwr_repair_done == 0 ?
 			              SRS_REPAIR_NOTDONE : SRS_REPAIR_DONE;
 		/*
 		 * If io_request::ir_sns_state holds a valid sns state,
