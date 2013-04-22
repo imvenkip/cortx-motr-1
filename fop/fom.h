@@ -495,7 +495,7 @@ struct m0_fom {
 	/** Transaction object to be used by this fom */
 	struct m0_dtx		  fo_tx;
 	/**
-	 *  Set when the fom is used to execute local opearation,
+	 *  Set when the fom is used to execute local operation,
 	 *  e.g., undo or redo during recovery.
 	 */
 	bool			  fo_local;

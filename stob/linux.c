@@ -266,7 +266,7 @@ static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
 }
 
 /**
-   Helper function returns inode number of the linux stob object.
+   Helper function returns inode number of the linux stob object directory.
  */
 M0_INTERNAL int m0_linux_stob_ino(struct m0_stob *obj)
 {
