@@ -547,7 +547,7 @@ main()
 
 	SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
 
-	DISKS_SH_NR=`expr $POOL_WIDTH + 1`
+	DISKS_SH_NR=`expr $POOL_WIDTH / $LOCAL_SERVICES_NR + 1`
 
 	if [ ! $BROOT -ef $PWD ]; then
 		echo ERROR: Run this script in the top of the Mero source directory

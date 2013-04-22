@@ -33,21 +33,40 @@
 #include "lib/finject.h"
 #include "lib/memory.h"
 #include "ut/ut.h"
+#include "lib/chan.h"
+
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
-
-extern struct m0_reqh           cm_ut_reqh;
-extern struct m0_cm_cp          cm_ut_cp;
-extern struct m0_cm             cm_ut;
-extern struct m0_reqh_service  *cm_ut_service;
+#include "mero/setup.h"
 
 enum {
 	AG_ID_NR = 4096,
-	CM_UT_LOCAL_CP_NR = 4
+	CM_UT_LOCAL_CP_NR = 4,
+        MAX_CM_NR = 2,
 };
+
+struct m0_ut_cm {
+	uint64_t        ut_cm_id;
+	struct m0_cm    ut_cm;
+	struct m0_chan  ut_cm_wait;
+	struct m0_mutex ut_cm_wait_mutex;
+};
+
+extern struct m0_reqh           cm_ut_reqh;
+extern struct m0_cm_cp          cm_ut_cp;
+extern struct m0_ut_cm          cm_ut[MAX_CM_NR];
+extern struct m0_reqh_service  *cm_ut_service;
+extern struct m0_mutex          cm_wait_mutex;
+extern struct m0_chan           cm_wait;
 
 extern struct m0_cm_type cm_ut_cmt;
 extern const struct m0_cm_aggr_group_ops cm_ag_ut_ops;
+extern uint64_t ut_cm_id;
+extern bool test_ready_fop;
+
+int cm_ut_server_start(struct m0_mero *mero_ctx, struct m0_net_xprt **xprts,
+		       int xprts_len, int argc, char **argv);
+void cm_ut_server_stop(struct m0_mero *mero_ctx);
 
 void cm_ut_service_alloc_init();
 void cm_ut_service_cleanup();

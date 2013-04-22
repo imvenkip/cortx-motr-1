@@ -50,7 +50,7 @@
 #include "sns/cm/ag.h"
 
 enum {
-	ITER_UT_BUF_NR     = 1 << 5,
+	ITER_UT_BUF_NR     = 1 << 8,
 	ITER_GOB_KEY_START = 4,
 	ITER_64K           = 65536,
 	ITER_1M            = 1048576,
@@ -89,23 +89,10 @@ static void service_start_failure(void)
 	M0_UT_ASSERT(rc != 0);
 }
 
-static size_t cm_buffer_pool_provision(struct m0_net_buffer_pool *bp,
-                                       size_t bufs_nr)
-{
-	size_t bnr;
-
-	m0_net_buffer_pool_lock(bp);
-	M0_PRE(m0_net_buffer_pool_invariant(bp));
-	bnr = m0_net_buffer_pool_provision(bp, bufs_nr);
-	m0_net_buffer_pool_unlock(bp);
-
-	return bnr;
-}
-
 static void iter_setup(uint32_t N, uint32_t K, uint32_t P, uint64_t unit_size)
 {
-	size_t bufs_nr;
-	int    rc;
+	int         rc;
+	uint64_t    fdata = 0;
 
 	rc = sns_cm_ut_server_start();
 	M0_UT_ASSERT(rc == 0);
@@ -118,15 +105,11 @@ static void iter_setup(uint32_t N, uint32_t K, uint32_t P, uint64_t unit_size)
 
 	cm = container_of(service, struct m0_cm, cm_service);
 	scm = cm2sns(cm);
-
-	bufs_nr = cm_buffer_pool_provision(&scm->sc_ibp.sb_bp, ITER_UT_BUF_NR);
-	M0_UT_ASSERT(bufs_nr != 0);
-	bufs_nr = cm_buffer_pool_provision(&scm->sc_obp.sb_bp, ITER_UT_BUF_NR);
-	M0_UT_ASSERT(bufs_nr != 0);
-	rc = m0_sns_cm_iter_init(&scm->sc_it);
+	scm->sc_op = SNS_REPAIR;
+	scm->sc_it.si_fdata = &fdata;
+	rc = m0_cm_ready(cm);
 	M0_UT_ASSERT(rc == 0);
 }
-
 
 static bool cp_verify(struct m0_sns_cm_cp *scp)
 {
@@ -142,13 +125,12 @@ static void dbenv_cob_domain_get(struct m0_dbenv **dbenv,
 	M0_UT_ASSERT(m0_ios_cdom_get(cm->cm_service.rs_reqh, cdom, 0) == 0);
 }
 
-static void cob_create(uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx)
+M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
+			    uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx)
 {
 	struct m0_cob        *cob;
-	struct m0_cob_domain *cdom;
 	struct m0_fid         cob_fid;
 	struct m0_dtx         tx;
-	struct m0_dbenv      *dbenv;
 	struct m0_cob_nskey  *nskey;
 	struct m0_cob_nsrec   nsrec;
 	struct m0_cob_fabrec *fabrec;
@@ -159,9 +141,8 @@ static void cob_create(uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx)
 
 	M0_SET0(&nsrec);
 	M0_SET0(&omgrec);
-	dbenv_cob_domain_get(&dbenv, &cdom);
 	rc = m0_cob_alloc(cdom, &cob);
-	M0_UT_ASSERT(rc == 0 && cob != NULL);
+	M0_ASSERT(rc == 0 && cob != NULL);
 	m0_fid_set(&cob_fid, cont, gfid->f_key);
 
 	M0_SET_ARR0(nskey_bs);
@@ -170,16 +151,16 @@ static void cob_create(uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx)
         nskey_bs_len = strlen(nskey_bs);
 
 	rc = m0_cob_nskey_make(&nskey, gfid, (char *)nskey_bs, nskey_bs_len);
-	M0_UT_ASSERT(rc == 0 && nskey != NULL);
+	M0_ASSERT(rc == 0 && nskey != NULL);
 	nsrec.cnr_fid = cob_fid;
 	nsrec.cnr_nlink = 1;
 
 	rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
-	M0_UT_ASSERT(rc == 0 && fabrec != NULL);
+	M0_ASSERT(rc == 0 && fabrec != NULL);
 	rc = m0_db_tx_init(&tx.tx_dbtx, dbenv, 0);
-	M0_UT_ASSERT(rc == 0);
+	M0_ASSERT(rc == 0);
 	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, &tx.tx_dbtx);
-	M0_UT_ASSERT(rc == 0);
+	M0_ASSERT(rc == 0);
 	m0_db_tx_commit(&tx.tx_dbtx);
 	m0_cob_put(cob);
 }
@@ -211,28 +192,37 @@ static void buf_put(struct m0_sns_cm_cp *scp)
 	m0_cm_cp_buf_release(&scp->sc_base);
 }
 
-static void ag_destroy(void)
+static void __ag_destroy(const struct m0_tl_descr *descr, struct m0_tl *head)
 {
 	struct m0_cm_aggr_group *ag;
 
-	m0_tl_for(aggr_grps, &cm->cm_aggr_grps, ag) {
+	m0_tlist_for(descr, head, ag) {
 		ag->cag_ops->cago_fini(ag);
-	} m0_tl_endfor;
+	} m0_tlist_endfor;
+}
+
+static void ag_destroy(void)
+{
+	__ag_destroy(&aggr_grps_in_tl, &cm->cm_aggr_grps_in);
+	__ag_destroy(&aggr_grps_out_tl, &cm->cm_aggr_grps_out);
 }
 
 static void cobs_create(uint64_t nr_files, uint64_t nr_cobs)
 {
-	struct m0_fid gfid;
-	uint32_t      cob_idx;
-	int           i;
-	int           j;
+	struct m0_cob_domain *cdom;
+	struct m0_dbenv      *dbenv;
+	struct m0_fid         gfid;
+	uint32_t              cob_idx;
+	int                   i;
+	int                   j;
 
+	dbenv_cob_domain_get(&dbenv, &cdom);
 	gfid.f_container = 0;
 	for (i = 0; i < nr_files; ++i) {
 		gfid.f_key = ITER_GOB_KEY_START + i;
 		cob_idx = 0;
 		for (j = 1; j <= nr_cobs; ++j) {
-			cob_create(j, &gfid, cob_idx);
+			cob_create(dbenv, cdom, j, &gfid, cob_idx);
 			cob_idx++;
 		}
 	}
@@ -287,12 +277,12 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files, uint64_t *fsizes,
 
 static void iter_stop(uint64_t nr_files, uint64_t pool_width)
 {
-	cobs_delete(nr_files, pool_width);
 	m0_cm_lock(cm);
+	ag_destroy();
 	m0_sns_cm_iter_fini(&scm->sc_it);
 	/* Destroy previously created aggregation groups manually. */
-	ag_destroy();
 	m0_cm_unlock(cm);
+	cobs_delete(nr_files, pool_width);
 	sns_cm_ut_server_stop();
 }
 

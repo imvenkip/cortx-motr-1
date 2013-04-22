@@ -288,7 +288,6 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 	/** @deprecated HACK: honor the presence of a local service */
 	if (reqh->rh_svc != NULL)
 		return 0;
-
 	svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);
 	if (svc == NULL) {
 		if (rh_st == M0_REQH_ST_MGMT_STARTED)

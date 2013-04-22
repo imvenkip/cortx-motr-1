@@ -124,17 +124,21 @@ struct m0_sns_cm {
 	 */
 	struct m0_sns_cm_buf_pool  sc_ibp;
 
+	uint64_t                   sc_ibp_reserved_buf_nr;
+
 	/** Buffer pool for outgoing copy packets. */
 	struct m0_sns_cm_buf_pool  sc_obp;
 
 	/**
-	 * Channel to wait upon before invoking m0_cm_stop() for the caller of
-	 * m0_cm_start(). This channel is signalled from struct m0_cm_ops::
-	 * cmo_complete() routine, which is invoked after all the aggregation
-	 * groups are processed and struct m0_cm::cm_aggr_grps list is empty.
+	 * Channel to wait upon before invoking m0_cm_start()/m0_cm_stop()
+	 * for the caller of m0_cm_ready()/m0_cm_start(). This channel is
+	 * signalled from struct m0_cm_ops::cmo_complete() routine, which is
+	 * invoked after all the ready fops from other replicas are recevied or
+	 * after all the aggregation groups are processed and struct m0_cm::
+	 * cm_aggr_grps_in & m0_cm::cm_aggr_grps_out lists are empty.
 	 */
-	struct m0_chan             sc_stop_wait;
-	struct m0_mutex            sc_stop_wait_mutex;
+	struct m0_chan             sc_wait;
+	struct m0_mutex            sc_wait_mutex;
 };
 
 M0_INTERNAL int m0_sns_cm_type_register(void);
@@ -146,14 +150,26 @@ M0_INTERNAL void m0_sns_cm_buffer_put(struct m0_net_buffer_pool *bp,
 					  struct m0_net_buffer *buf,
 					  uint64_t colour);
 
-M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_cm_cp *cp,
-				     struct m0_net_buffer_pool *bp);
+M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp, struct m0_cm_cp *cp);
 
 M0_INTERNAL struct m0_sns_cm *cm2sns(struct m0_cm *cm);
 
-M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm);
+M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
+					   struct m0_pdclust_layout *pl);
 
 M0_INTERNAL void m0_sns_cm_buf_available(struct m0_net_buffer_pool *pool);
+
+M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
+                                          struct m0_pdclust_layout *pl,
+                                          const struct m0_cm_ag_id *id);
+
+/**
+ * Returns true if the passed global fid has been repaired.
+ * This function should only be invoked when a sns repair operation is in
+ * progress.
+ */
+M0_INTERNAL bool m0_sns_cm_fid_repair_done(struct m0_fid *gfid,
+                                           struct m0_reqh *reqh);
 
 /** @} SNSCM */
 #endif /* __MERO_SNS_CM_CM_H__ */

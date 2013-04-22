@@ -33,8 +33,10 @@
   @{
 */
 
+struct m0_cm;
 struct m0_sns_cm;
 struct m0_sns_cm_ag;
+struct m0_cm_cp;
 
 /**
  * File context in copy machine.
@@ -143,18 +145,6 @@ M0_INTERNAL void m0_sns_cm_iter_fini(struct m0_sns_cm_iter *it);
 M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp);
 
 /**
- * Calculates number of local data units for a given parity group.
- * This is invoked when new struct m0_sns_cm_ag instance is allocated, from
- * m0_cm_aggr_group_alloc(). This is done in context of sns copy machine data
- * iterator during the latter's ITPH_CP_SETUP phase. Thus we need not calculate
- * the new GOB layout and corresponding pdclust instance, instead used the ones
- * already calculated and save in the iterator, but we take GOB fid and group
- * number as the parameters to this function in-order to perform sanity checks.
- */
-M0_INTERNAL uint64_t nr_local_units(struct m0_sns_cm *scm,
-				    const struct m0_fid *fid, uint64_t group);
-
-/**
  * Calculates fid of the COB containing the spare unit, and its index into the
  * COB for the given failure index in the aggregation group.
  *
@@ -166,6 +156,8 @@ M0_INTERNAL void m0_sns_cm_iter_tgt_unit_to_cob(struct m0_sns_cm_ag *rag);
 
 M0_INTERNAL uint64_t
 m0_sns_cm_iter_failures_nr(const struct m0_sns_cm_iter *it);
+
+M0_INTERNAL ssize_t m0_sns_cm_iter_file_size(struct m0_fid *gfid);
 
 /** @} SNSCM */
 #endif /* __MERO_SNS_CM_ITER_H__ */

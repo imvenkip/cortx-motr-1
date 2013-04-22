@@ -26,6 +26,7 @@
 #include "mero/setup.h"
 #include "sns/cm/xform.c"
 #include "sns/cm/ut/cp_common.h"
+#include "ioservice/io_service.h"
 
 enum {
 	CP_SINGLE = 1,
@@ -58,6 +59,26 @@ static struct m0_net_buffer            m_acc_buf;
 struct m0_bufvec src;
 struct m0_bufvec dst;
 struct m0_bufvec xor;
+
+struct m0_stob_domain   *stob_dom;
+static struct m0_dtx     tx;
+static struct m0_stob   *stob;
+static struct m0_cob_domain *cdom;
+
+static struct m0_cm            *cm;
+static struct m0_sns_cm        *scm;
+static struct m0_reqh_service  *scm_service;
+
+
+static struct m0_stob_id sid = {
+        .si_bits = {
+                .u_hi = 0,
+                .u_lo = 4
+        }
+};
+
+M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
+                            uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx);
 
 static uint64_t cp_single_get(const struct m0_cm_aggr_group *ag)
 {
@@ -152,7 +173,7 @@ static void multiple_cp_fom_fini(struct m0_fom *fom)
 	 * is full.
 	 */
 	if (cp_fini_nr == CP_MULTI + 1)
-		M0_UT_ASSERT(res_cp_bitmap_is_full(acc_cp));
+		M0_UT_ASSERT(res_cp_bitmap_is_full(acc_cp, 1));
 	m0_cm_cp_fini(cp);
 	M0_CNT_INC(cp_fini_nr);
 }
@@ -195,6 +216,30 @@ static void cp_buf_free(struct m0_sns_cm_ag *sag)
 	}
 }
 
+static void tgt_fid_cob_create()
+{
+        struct m0_dbenv      *dbenv;
+        struct m0_fid         gfid = {0, 4};
+        int                   rc;
+
+        M0_ASSERT(m0_ios_cdom_get(reqh, &cdom, 0) == 0);
+        dbenv = reqh->rh_dbenv;
+
+        cob_create(dbenv, cdom, 0, &gfid, 0);
+        stob_dom = m0_cs_stob_domain_find(reqh, &sid);
+        M0_ASSERT(stob_dom != NULL);
+
+        m0_dtx_init(&tx);
+        rc = stob_dom->sd_ops->sdo_tx_make(stob_dom, &tx);
+        M0_ASSERT(rc == 0);
+
+        rc = m0_stob_create_helper(stob_dom, &tx, &sid, &stob);
+        M0_ASSERT(rc == 0);
+
+        m0_stob_put(stob);
+        m0_dtx_done(&tx);
+}
+
 /*
  * Test to check that single copy packet is treated as passthrough by the
  * transformation function.
@@ -217,6 +262,8 @@ static void test_single_cp(void)
 		   &s_sag, 0, &acc_cp_fom_ops, reqh, 0, true, NULL);
 	m0_bitmap_init(&s_fc.fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
 		       s_sag.sag_base.cag_cp_global_nr);
+	s_fc.fc_tgt_cobfid.f_container = sid.si_bits.u_hi;
+	s_fc.fc_tgt_cobfid.f_key = sid.si_bits.u_lo;
 	s_sag.sag_fc = &s_fc;
 	m0_fom_queue(&s_cp.c_fom, reqh);
 
@@ -260,6 +307,8 @@ static void test_multiple_cp(void)
 		   &m_sag, 0, &acc_cp_fom_ops, reqh, 0, true, NULL);
 	m0_bitmap_init(&m_fc.fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
 		       m_sag.sag_base.cag_cp_global_nr);
+	m_fc.fc_tgt_cobfid.f_container = sid.si_bits.u_hi;
+	m_fc.fc_tgt_cobfid.f_key = sid.si_bits.u_lo;
 	m_sag.sag_fc = &m_fc;
 	for (i = 0; i < CP_MULTI; ++i) {
 		m_buf[i].nb_pool = &nbp;
@@ -301,6 +350,16 @@ static int xform_init(void)
 
 	reqh = m0_cs_reqh_get(&sctx, "sns_cm");
 	M0_ASSERT(reqh != NULL);
+
+	tgt_fid_cob_create();
+	scm_service = m0_reqh_service_find(m0_reqh_service_type_find("sns_cm"),
+                                           reqh);
+        M0_ASSERT(scm_service != NULL);
+        cm = container_of(scm_service, struct m0_cm, cm_service);
+        M0_ASSERT(cm != NULL);
+        scm = cm2sns(cm);
+	scm->sc_it.si_cob_dom = cdom;
+
 	return 0;
 }
 

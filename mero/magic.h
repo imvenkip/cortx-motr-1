@@ -256,11 +256,15 @@ enum m0_magic_satchel {
 	/* m0_cm_cp::c_buffers (deadfoodbaad) */
 	CM_CP_DATA_BUF_HEAD_MAGIX = 0x33DEADF00DBAAD77,
 
-	/* m0_cm_cp::c_cm_proxy_linkage (foodless bias) */
-	CM_CP_LINK_MAGIX = 0x33f00d1e55b1a577,
+	/* px_pending_cps::td_head_magic () */
+	CM_PROXY_CP_HEAD_MAGIX = 0x33C001F001B00177,
 
-	/* m0_cm::cm_proxies::td_head_magic (ecobabble del) */
-	CM_CP_HEAD_MAGIX = 0x33ec0babb1ede177,
+/* Copy machine proxy */
+        /* m0_cm_proxy_tl::td_head_magic (caadbaadfaad) */
+	CM_PROXY_HEAD_MAGIC = 0x33CAADBAADFAAD77,
+
+	/* m0_cm_proxy::px_magic (C001D00DF00D) */
+	CM_PROXY_LINK_MAGIC = 0x33C001D00DF00D77,
 
 /* desim */
 	/* client_write_ext::cwe_magic (abasic access) */

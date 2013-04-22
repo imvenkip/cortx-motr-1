@@ -122,17 +122,17 @@ enum m0_cm_cp_phase {
 	/** Transform the packet. */
 	M0_CCP_XFORM,
 
+	/**
+	 * Checks if the copy packet is in sliding window. If it is not,
+	 * then waits in this phase till it fits in the sliding window.
+	 */
+	M0_CCP_SW_CHECK,
+
 	/** Send packet over network. */
 	M0_CCP_SEND,
 
 	/** Wait for copy packet to be sent and ack to be received. */
 	M0_CCP_SEND_WAIT,
-
-	/**
-	 * Acquire necessary buffers on receiver side, when control fop arrives,
-	 * after which rpc bulk load can be invoked.
-	 */
-	M0_CCP_BUF_ACQUIRE,
 
 	/** Received packet from network. Initialise zero copy. */
 	M0_CCP_RECV_INIT,
@@ -143,15 +143,16 @@ enum m0_cm_cp_phase {
 	M0_CCP_NR
 };
 
+struct m0_cm_cp_fop {
+	struct m0_fop    cf_fop;
+	struct m0_cm_cp *cf_cp;
+};
+
 /** Generic copy packet structure.*/
 struct m0_cm_cp {
+	struct m0_fom		   c_fom;
 	/** Copy packet priority.*/
 	enum m0_cm_cp_priority	   c_prio;
-
-	struct m0_fom		   c_fom;
-
-	/** Fop corresponding to the copy packet. */
-	struct m0_fop              c_fop;
 
 	/** Copy packet operations */
 	const struct m0_cm_cp_ops *c_ops;
@@ -183,7 +184,12 @@ struct m0_cm_cp {
 	/** Distinguishes IO operation. */
 	enum m0_cm_cp_io_op        c_io_op;
 
-	/** Link to struct m0_cm_aggr_group::cag_cm_linkage */
+	/**
+	 * Linkage to list of pending copy packets list in the proxy
+	 * representing the remote replica.
+	 * @see m0_cm_proxy::px_pending_cps
+	 * @see m0_cm::cm_proxies
+	 */
 	struct m0_tlink            c_cm_proxy_linkage;
 
 	/** Proxy to which this copy packet belongs. */
@@ -199,6 +205,7 @@ struct m0_cm_cp {
 	struct m0_mutex           c_reply_wait_mutex;
 
 	uint64_t		   c_magix;
+
 };
 
 /**
@@ -266,6 +273,8 @@ M0_INTERNAL void m0_cm_cp_buf_add(struct m0_cm_cp *cp,
 				  struct m0_net_buffer *nb);
 
 M0_INTERNAL void m0_cm_cp_buf_release(struct m0_cm_cp *cp);
+
+M0_INTERNAL uint64_t m0_cm_cp_nr(struct m0_cm_cp *cp);
 
 M0_TL_DESCR_DECLARE(cp_data_buf, M0_EXTERN);
 M0_TL_DECLARE(cp_data_buf, M0_INTERNAL, struct m0_net_buffer);

@@ -133,14 +133,27 @@ enum m0_cm_failure {
 	/** Copy machine setup failure */
 	M0_CM_ERR_SETUP = 1,
 	/** Copy machine start failure */
+	M0_CM_ERR_READY,
 	M0_CM_ERR_START,
 	/** Copy machine stop failure */
 	M0_CM_ERR_STOP,
 	M0_CM_ERR_NR
 };
 
+enum {
+	CM_RPC_TIMEOUT              = 30, /* seconds */
+	CM_NR_SLOTS_PER_SESSION     = 20,
+	CM_MAX_NR_RPC_IN_FLIGHT     = 200,
+};
+
 /** Copy Machine type, implemented as a request handler service. */
 struct m0_cm_type {
+	/**
+	 * Uniquely identifies a copy machine type.
+	 * This is used to associate the generic READY fop to a particular copy
+	 * machine type.
+	 */
+	uint64_t                      ct_id;
 	/** Service type corresponding to this copy machine type. */
 	struct m0_reqh_service_type   ct_stype;
 	/** ADDB ct for this cm type */
@@ -182,14 +195,33 @@ struct m0_cm {
 	const struct m0_cm_type         *cm_type;
 
 	/**
-	 * List of aggregation groups in process.
+	 * List of aggregation groups having incoming copy packets for this copy
+	 * machine replica.
 	 * Copy machine provides various interfaces over this list to implement
 	 * sliding window.
-	 * @see struct m0_cm_aggr_group::cag_cm_linkage
+	 * @see struct m0_cm_aggr_group::cag_cm_out_linkage
 	 */
-	struct m0_tl                     cm_aggr_grps;
+	struct m0_tl                     cm_aggr_grps_in;
 
-	/** List of m0_cm_proxy objects representing remote replicas. */
+	/**
+	 * List of aggregation groups having outgoing copy packets from this
+	 * copy machine replica.
+	 * @see struct m0_cm_aggr_group::cag_cm_out_linkage
+	 */
+	struct m0_tl                     cm_aggr_grps_out;
+
+	/**
+	 * Counter to track number of ready fops received from other replicas.
+	 * Once the m0_cm::cm_ready_fops_recvd ==
+	 * proxy_tlist_length(m0_cm::cm_proxies), then the copy machine
+	 * transitions to next phase, i.e. M0_CMS_ACTIVE.
+	 */
+	uint64_t                         cm_ready_fops_recvd;
+
+	/**
+	 * List of m0_cm_proxy objects representing remote replicas.
+	 * @see struct m0_cm_proxy::px_linkage
+	 */
 	struct m0_tl                     cm_proxies;
 	struct m0_cm_cp_pump             cm_cp_pump;
 };
@@ -203,6 +235,8 @@ struct m0_cm_ops {
 	 */
 	int (*cmo_setup)(struct m0_cm *cm);
 
+	int (*cmo_ready)(struct m0_cm *cm);
+
 	/**
 	 * Starts copy machine operation. Acquires copy machine specific
 	 * resources, broadcasts READY FOPs and starts copy machine operation
@@ -213,8 +247,8 @@ struct m0_cm_ops {
 	/** Invoked from m0_cm_stop(). */
 	int (*cmo_stop)(struct m0_cm *cm);
 
-	int (*cmo_ag_alloc) (struct m0_cm *cm, const struct m0_cm_ag_id *id,
-			     struct m0_cm_aggr_group **out);
+	int (*cmo_ag_alloc)(struct m0_cm *cm, const struct m0_cm_ag_id *id,
+			    bool has_incoming, struct m0_cm_aggr_group **out);
 
 	/** Creates copy packets only if resources permit. */
 	struct m0_cm_cp *(*cmo_cp_alloc)(struct m0_cm *cm);
@@ -227,48 +261,18 @@ struct m0_cm_ops {
 	 */
 	int (*cmo_data_next)(struct m0_cm *cm, struct m0_cm_cp *cp);
 
-	/** Returns next relevant aggregation group id after "id_curr". */
-	int (*cmo_ag_next)(const struct m0_cm *cm,
+	/**
+	 * Calculates next relevant aggregation group id and returns it in
+	 * the "id_next".
+	 */
+	int (*cmo_ag_next)(struct m0_cm *cm,
 			   const struct m0_cm_ag_id *id_curr,
 			   struct m0_cm_ag_id *id_next);
-
-	/**
-	 * Returns true iff the copy machine has enough space to receive all
-	 * the copy packets from the given relevant group "id".
-	 * e.g. sns repair copy machine checks if the incoming buffer pool has
-	 * enough free buffers to receive all the remote units corresponding
-	 * to a parity group.
-	 */
-	bool (*cmo_has_space)(const struct m0_cm *cm,
-			      const struct m0_cm_ag_id *id);
 
 	void (*cmo_complete) (struct m0_cm *cm);
 
 	/** Copy machine specific finalisation routine. */
 	void (*cmo_fini)(struct m0_cm *cm);
-};
-
-/**
- * Represents remote replica and stores its details including its sliding
- * window.
- */
-struct m0_cm_proxy {
-	/** Remote replica's identifier. */
-	uint64_t               px_id;
-
-	/** Remote replica's sliding window. */
-	struct m0_cm_ag_id     px_sw_lo;
-	struct m0_cm_ag_id     px_sw_hi;
-
-	/**
-	 * Pending list of copy packets to be forwarded to the remote
-	 * replica.
-	 **/
-	struct m0_tl           px_pending_cps;
-
-	/** RPC session corresponding to copy machine replica of this proxy. */
-	struct m0_rpc_session *px_session;
-
 };
 
 M0_INTERNAL int m0_cm_type_register(struct m0_cm_type *cmt);
@@ -322,6 +326,8 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm);
  */
 M0_INTERNAL int m0_cm_setup(struct m0_cm *cm);
 
+M0_INTERNAL int m0_cm_ready(struct m0_cm *cm);
+
 /**
  * Starts the copy machine data restructuring process on receiving the "POST"
  * fop. Internally invokes copy machine specific start routine.
@@ -369,8 +375,9 @@ M0_INTERNAL int m0_cm_configure(struct m0_cm *cm, struct m0_fop *fop);
 M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, enum m0_cm_failure failure,
 			    int rc);
 
-#define M0_CM_TYPE_DECLARE(cmtype, ops, name, ct)     \
+#define M0_CM_TYPE_DECLARE(cmtype, id, ops, name, ct) \
 struct m0_cm_type cmtype ## _cmt = {                  \
+	.ct_id    = (id),                             \
 	.ct_stype = {                                 \
 		.rst_name    = (name),                \
 		.rst_ops     = (ops),                 \
@@ -385,11 +392,13 @@ M0_INTERNAL bool m0_cm_invariant(const struct m0_cm *cm);
 M0_INTERNAL void m0_cm_state_set(struct m0_cm *cm, enum m0_cm_state state);
 M0_INTERNAL enum m0_cm_state m0_cm_state_get(const struct m0_cm *cm);
 
+M0_INTERNAL int m0_cm_sw_update(struct m0_cm *cm);
+
 /**
  * Creates copy packets and adds aggregation groups to m0_cm::cm_aggr_grps,
  * if required.
  */
-M0_INTERNAL void m0_cm_sw_fill(struct m0_cm *cm);
+M0_INTERNAL void m0_cm_continue(struct m0_cm *cm);
 
 /**
  * Iterates over data to be re-structured.
@@ -416,6 +425,17 @@ M0_INTERNAL struct m0_net_buffer *m0_cm_buffer_get(struct m0_net_buffer_pool
 M0_INTERNAL void m0_cm_buffer_put(struct m0_net_buffer_pool *bp,
 				  struct m0_net_buffer *buf,
 				  uint64_t colour);
+
+M0_INTERNAL struct m0_cm *m0_cmtype_id2cm(uint64_t cmtype_id,
+					  struct m0_reqh *reqh);
+
+M0_INTERNAL struct m0_cm *m0_cmsvc2cm(struct m0_reqh_service *cmsvc);
+
+M0_INTERNAL int m0_replicas_connect(struct m0_cm *cm,
+				    struct m0_rpc_machine *rmach,
+				    struct m0_reqh *reqh);
+
+M0_INTERNAL void m0_cm_proxies_fini(struct m0_cm *cm);
 
 /** @} endgroup CM */
 

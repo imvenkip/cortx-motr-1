@@ -35,7 +35,9 @@ char      *sns_cm_ut_svc[] = { "m0d", "-r", "-p", "-T", "LINUX",
 				"-w", "10",
                                "-e", "lnet:0@lo:12345:34:1",
                                "-s", "sns_cm",
-                               "-s", "ioservice"};
+                               "-s", "ioservice",
+			       "-s", "mdservice",
+			        "-G", "lnet:0@lo:12345:34:1"};
 
 struct m0_net_xprt *sr_xprts[] = {
         &m0_net_lnet_xprt,

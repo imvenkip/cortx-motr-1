@@ -81,6 +81,11 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 				    struct m0_db_tx *tx,
 				    struct m0_fid *gfid);
 
+M0_INTERNAL int m0_cob_ns_next_of(struct m0_table *cob_namespace,
+				  struct m0_db_tx *tx,
+				  const struct m0_fid *key_gfid,
+				  struct m0_fid *next_gfid);
+
 /**
  * Finalises the namespace iterator.
  * @param iter - Namespace iterator that is to be finalised.

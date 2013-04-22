@@ -23,31 +23,16 @@
 #include "config.h"
 #endif
 
-#include <sys/stat.h>
-#include <stdlib.h>
-
-#include "lib/errno.h"
 #include "lib/assert.h"
-#include "lib/getopts.h"
 #include "lib/misc.h"        /* M0_IN() */
 #include "lib/memory.h"
-#include "lib/time.h"
+
 #include "fop/fop.h"
 #include "net/lnet/lnet.h"
-#include "mero/init.h"
 
 #include "rpc/rpc.h"
 #include "rpc/rpclib.h"
-
-#include "trigger_fop.h"
-#include "trigger_fop_xc.h"
-
-enum {
-	MAX_RPCS_IN_FLIGHT = 10,
-	MAX_RPC_SLOTS_NR   = 2,
-	RPC_TIMEOUTS       = 5,
-	MAX_FILES_NR       = 10
-};
+#include "repair_cli.h"
 
 struct m0_net_domain     cl_ndom;
 struct m0_dbenv          cl_dbenv;
@@ -55,23 +40,20 @@ struct m0_cob_domain     cl_cdom;
 struct m0_rpc_client_ctx cl_ctx;
 
 const char *cl_ep_addr;
-const char *srv_ep_addr;
+const char *srv_ep_addr[MAX_SERVERS];
 const char *dbname = "sr_cdb";
 static int cl_cdom_id = 10001;
 
-const struct m0_rpc_item_ops trigger_fop_rpc_item_ops;
-extern struct m0_fop_type trigger_fop_fopt;
-
-static void client_init(void)
+M0_INTERNAL void repair_client_init(void)
 {
-	int rc;
+	int    rc;
 
 	rc = m0_net_domain_init(&cl_ndom, &m0_net_lnet_xprt, &m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
 
 	cl_ctx.rcx_net_dom            = &cl_ndom;
 	cl_ctx.rcx_local_addr         = cl_ep_addr;
-	cl_ctx.rcx_remote_addr        = srv_ep_addr;
+	cl_ctx.rcx_remote_addr        = srv_ep_addr[0];
 	cl_ctx.rcx_db_name            = dbname;
 	cl_ctx.rcx_dbenv              = &cl_dbenv;
 	cl_ctx.rcx_cob_dom_id         = cl_cdom_id;
@@ -84,7 +66,7 @@ static void client_init(void)
 	M0_ASSERT(rc == 0);
 }
 
-static void client_fini(void)
+M0_INTERNAL void repair_client_fini(void)
 {
 	int rc;
 
@@ -94,94 +76,46 @@ static void client_fini(void)
 	m0_net_domain_fini(&cl_ndom);
 }
 
-int main(int argc, char *argv[])
+M0_INTERNAL int repair_rpc_ctx_init(struct rpc_ctx *ctx, const char *sep)
 {
-	struct m0_fop      *fop;
-	struct trigger_fop *treq;
-	int32_t             n = 0;
-	uint32_t            op;
-	uint32_t            unit_size;
-	uint64_t            fdata;
-	uint64_t            total_size = 0;
-	double              total_time;
-	double              throughput;
-	uint64_t            fsize[MAX_FILES_NR];
-	uint64_t            N = 0;
-	uint64_t            K = 0;
-	uint64_t            P = 0;
-	m0_time_t           start;
-	m0_time_t           delta;
-	int                 file_cnt = 0;
-	int                 rc;
-	int                 i;
+	return m0_rpc_client_connect(&ctx->ctx_conn,
+				     &ctx->ctx_session,
+				     &cl_ctx.rcx_rpc_machine, sep,
+				     MAX_RPCS_IN_FLIGHT,
+				     MAX_RPC_SLOTS_NR,
+				     RPC_TIMEOUTS);
+}
 
-	rc = M0_GETOPTS("repair", argc, argv,
-			M0_FORMATARG('O', "Operation, i.e. SNS_REPAIR = 2 or SNS_REBALANCE = 4", "%u", &op),
-			M0_FORMATARG('U', "Unit size", "%u", &unit_size),
-			M0_FORMATARG('F', "Failure device", "%lu", &fdata),
-			M0_FORMATARG('n', "Number of files", "%d", &n),
-			M0_NUMBERARG('s', "File size",
-				     LAMBDA(void, (int64_t fsz)
-				     {
-					fsize[file_cnt] = fsz;
-					file_cnt++;
-				     })),
-			M0_FORMATARG('N', "Number of data units", "%lu", &N),
-			M0_FORMATARG('K', "Number of parity units", "%lu", &K),
-			M0_FORMATARG('P', "Total pool width", "%lu", &P),
-			M0_STRINGARG('C', "Client endpoint",
-				     LAMBDA(void, (const char *str){
-						cl_ep_addr = str;
-				     })),
-			M0_STRINGARG('S', "Server endpoint",
-				     LAMBDA(void, (const char *str){
-						srv_ep_addr = str;
-				     })),
-		       );
-	if (rc != 0)
-		return rc;
+M0_INTERNAL void repair_rpc_ctx_fini(struct rpc_ctx *ctx)
+{
+	int rc;
 
-	M0_ASSERT(P >= N + 2 * K);
-	rc = m0_init();
+	rc = m0_rpc_session_destroy(&ctx->ctx_session,
+			m0_time_from_now(RPC_TIMEOUTS, 0));
 	M0_ASSERT(rc == 0);
-	rc = m0_sns_repair_trigger_fop_init();
+	rc = m0_rpc_conn_destroy(&ctx->ctx_conn,
+			m0_time_from_now(RPC_TIMEOUTS, 0));
 	M0_ASSERT(rc == 0);
-	client_init();
+}
 
-	fop = m0_fop_alloc(&trigger_fop_fopt, NULL);
-	treq = m0_fop_data(fop);
-	treq->fdata = fdata;
-	M0_ASSERT(n == file_cnt);
-	M0_ALLOC_ARR(treq->fsize.f_size, file_cnt);
-	M0_ASSERT(treq->fsize.f_size != NULL);
-	for (i = 0; i < file_cnt; ++i)
-		total_size += treq->fsize.f_size[i] = fsize[i];
-	treq->fsize.f_nr = file_cnt;
+M0_INTERNAL int repair_rpc_post(struct m0_fop *fop,
+				struct m0_rpc_session *session,
+				const struct m0_rpc_item_ops *ri_ops,
+				m0_time_t  deadline)
+{
+	struct m0_rpc_item *item;
 
-	treq->N = N;
-	treq->K = K;
-	treq->P = P;
-	treq->unit_size = unit_size;
-	treq->op = op;
-	start = m0_time_now();
-	rc = m0_rpc_client_call(fop, &cl_ctx.rcx_session,
-				&trigger_fop_rpc_item_ops,
-				0 /* deadline */);
-	M0_ASSERT(rc == 0);
-	delta = m0_time_sub(m0_time_now(), start);
-	printf("Time: %lu.%2.2lu sec,", (unsigned long)m0_time_seconds(delta),
-	       (unsigned long)m0_time_nanoseconds(delta) * 100 /
-	       M0_TIME_ONE_BILLION);
-	total_time = (double)m0_time_seconds(delta) +
-		     (double)m0_time_nanoseconds(delta) / M0_TIME_ONE_BILLION;
-	throughput = (double)total_size / total_time;
-	printf(" %2.2f MB/s\n", throughput / (1024 *1024));
-	m0_fop_put(fop);
-	client_fini();
-	m0_sns_repair_trigger_fop_fini();
-	m0_fini();
+	M0_PRE(fop != NULL);
+	M0_PRE(session != NULL);
 
-	return rc;
+	item              = &fop->f_item;
+	item->ri_ops      = ri_ops;
+	item->ri_session  = session;
+	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
+	item->ri_deadline = deadline;
+	item->ri_resend_interval = M0_TIME_NEVER;
+
+	return m0_rpc_post(item);
 }
 
 /*

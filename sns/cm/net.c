@@ -21,9 +21,19 @@
 #include "lib/memory.h"
 #include "rpc/rpclib.h"
 
+#include "cm/proxy.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/sns_cp_onwire.h"
+#include "sns/cm/cm_utils.h"
+
+#include "fop/fop.h"
+#include "fop/fom.h"
+#include "net/net.h"
+#include "rpc/item.h"
+#include "rpc/session.h"
+#include "rpc/conn.h"
+#include "rpc/rpc_machine_internal.h"
 
 /**
  * @addtogroup SNSCMCP
@@ -93,6 +103,23 @@ static void ag_id_copy(struct m0_cm_ag_id *dst, const struct m0_cm_ag_id *src)
         dst->ai_lo.u_lo = src->ai_lo.u_lo;
 }
 
+static void sw_update(struct m0_cm_ag_sw *sw, struct m0_cm_cp *cp,
+		      struct m0_net_end_point *ep)
+{
+	struct m0_cm_proxy      *proxy;
+	struct m0_cm            *cm;
+	struct m0_fom           *fom;
+
+	fom = &cp->c_fom;
+	cm = cm_get(fom);
+	m0_cm_lock(cm);
+	proxy = m0_cm_proxy_locate(cm, ep->nep_addr);
+	m0_cm_unlock(cm);
+	M0_PRE(proxy != NULL);
+	m0_cm_proxy_update(proxy, &sw->sw_lo, &sw->sw_hi);
+	cp->c_cm_proxy = proxy;
+}
+
 /* Converts onwire copy packet structure to in-memory copy packet structure. */
 static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
                             struct m0_sns_cm_cp *sns_cp)
@@ -100,6 +127,9 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
         struct m0_cm_ag_id       ag_id;
         struct m0_cm            *cm;
         struct m0_cm_aggr_group *ag;
+	struct m0_cm_ag_sw       sw;
+	struct m0_rpc_item      *item;
+	struct m0_net_end_point *ep;
 
         M0_PRE(sns_cp != NULL);
         M0_PRE(sns_cpx != NULL);
@@ -116,7 +146,8 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
 
         cm = cm_get(&sns_cp->sc_base.c_fom);
         m0_cm_lock(cm);
-        ag = m0_cm_aggr_group_locate(cm, &ag_id);
+        ag = m0_cm_aggr_group_locate(cm, &ag_id, true);
+	M0_ASSERT(ag != NULL);
         m0_cm_unlock(cm);
         sns_cp->sc_base.c_ag = ag;
 
@@ -129,19 +160,29 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
         sns_cp->sc_base.c_buf_nr = 0;
         sns_cp->sc_base.c_data_seg_nr = seg_nr_get(sns_cpx,
                                                    sns_cpx->scx_ivecs.cis_nr);
+	/* Add sliding window information. */
+        ag_id_copy(&sw.sw_lo, &sns_cpx->scx_cp.cpx_sw.sw_lo);
+        ag_id_copy(&sw.sw_hi, &sns_cpx->scx_cp.cpx_sw.sw_hi);
+
+	item = m0_fop_to_rpc_item(sns_cp->sc_base.c_fom.fo_fop);
+	ep = item->ri_session->s_conn->c_rpcchan->rc_destep;
+	sw_update(&sw, &sns_cp->sc_base, ep);
 }
 
 /* Converts in-memory copy packet structure to onwire copy packet structure. */
 static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
                            struct m0_sns_cpx *sns_cpx)
 {
-        struct m0_net_buffer *nbuf;
-        struct m0_cm_cp      *cp;
-        uint32_t              nb_idx = 0;
-        uint32_t              nb_cnt;
-        uint64_t              offset;
-        int                   rc;
-        int                   i;
+        struct m0_net_buffer    *nbuf;
+        struct m0_cm_cp         *cp;
+        struct m0_cm            *cm;
+	struct m0_cm_aggr_group *sw_lo_ag;
+	struct m0_cm_aggr_group *sw_hi_ag;
+        uint32_t                 nb_idx = 0;
+        uint32_t                 nb_cnt;
+        uint64_t                 offset;
+        int                      rc;
+        int                      i;
 
         M0_PRE(sns_cp != NULL);
         M0_PRE(sns_cpx != NULL);
@@ -170,12 +211,12 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
                 rc = indexvec_prepare(&sns_cpx->scx_ivecs.
                                                cis_ivecs[nb_idx],
                                                offset,
-                                               nbuf->nb_buffer.ov_vec.v_nr,
+                                               cp->c_data_seg_nr,
                                                nbuf->nb_pool->nbp_seg_size);
                 if (rc != 0 )
                         goto cleanup;
 
-                offset += nbuf->nb_buffer.ov_vec.v_nr *
+                offset += cp->c_data_seg_nr *
                           nbuf->nb_pool->nbp_seg_size;
                 M0_CNT_INC(nb_idx);
         } m0_tl_endfor;
@@ -189,6 +230,15 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
                 goto cleanup;
         }
 
+	/* Add sliding window information. */
+	cm = cm_get(&cp->c_fom);
+	m0_cm_lock(cm);
+	sw_lo_ag = m0_cm_ag_lo(cm);
+	sw_hi_ag = m0_cm_ag_hi(cm);
+	m0_cm_unlock(cm);
+	ag_id_copy(&sns_cpx->scx_cp.cpx_sw.sw_lo, &sw_lo_ag->cag_id);
+	ag_id_copy(&sns_cpx->scx_cp.cpx_sw.sw_hi, &sw_hi_ag->cag_id);
+
         goto out;
 
 cleanup:
@@ -200,20 +250,41 @@ out:
         return rc;
 }
 
-static void cp_reply_received(struct m0_rpc_item *item)
+static void cp_reply_received(struct m0_rpc_item *req_item)
 {
-        struct m0_fop   *fop;
-        struct m0_cm_cp *cp;
+        struct m0_fop           *req_fop;
+        struct m0_cm_cp         *cp;
+	struct m0_rpc_item      *rep_item;
+	struct m0_cm_cp_fop     *cp_fop;
+	struct m0_fop           *rep_fop;
+	struct m0_sns_cpx_reply *sns_cpx_rep;
+	struct m0_cm_ag_sw       sw;
+	struct m0_net_end_point *ep;
 
-        fop = m0_rpc_item_to_fop(item);
-        cp = container_of(fop, struct m0_cm_cp, c_fop);
-        m0_chan_signal_lock(&cp->c_reply_wait);
+        rep_item = req_item->ri_reply;
+        ep = rep_item->ri_session->s_conn->c_rpcchan->rc_destep;
+	rep_fop = m0_rpc_item_to_fop(rep_item);
+	sns_cpx_rep = m0_fop_data(rep_fop);
+	if (sns_cpx_rep->scr_cp_rep.cr_rc == 0) {
+		ag_id_copy(&sw.sw_lo, &sns_cpx_rep->scr_cp_rep.cr_sw.sw_lo);
+		ag_id_copy(&sw.sw_hi, &sns_cpx_rep->scr_cp_rep.cr_sw.sw_hi);
+		req_fop = m0_rpc_item_to_fop(req_item);
+		cp_fop = container_of(req_fop, struct m0_cm_cp_fop, cf_fop);
+		cp = cp_fop->cf_cp;
+		sw_update(&sw, cp, ep);
+		m0_chan_signal_lock(&cp->c_reply_wait);
+	}
 }
 
 static void cp_fop_release(struct m0_ref *ref)
 {
-        struct m0_fop *fop = container_of(ref, struct m0_fop, f_ref);
+	struct m0_cm_cp_fop  *cp_fop;
+        struct m0_fop        *fop = container_of(ref, struct m0_fop, f_ref);
+
+	cp_fop = container_of(fop, struct m0_cm_cp_fop, cf_fop);
+	M0_ASSERT(cp_fop != NULL);
         m0_fop_fini(fop);
+	m0_free(cp_fop);
 }
 
 M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
@@ -224,6 +295,7 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
         struct m0_net_domain   *ndom;
         struct m0_net_buffer   *nbuf;
         struct m0_rpc_session  *session;
+	struct m0_cm_cp_fop    *cp_fop;
         struct m0_fop          *fop;
         struct m0_rpc_item     *item;
         uint64_t                offset;
@@ -233,8 +305,13 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
         M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_SEND);
         M0_PRE(cp->c_cm_proxy != NULL);
 
+	M0_ALLOC_PTR(cp_fop);
+	if (cp_fop == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
         sns_cp = cp2snscp(cp);
-        fop = &cp->c_fop;
+        fop = &cp_fop->cf_fop;
         m0_fop_init(fop, &m0_sns_cpx_fopt, NULL, cp_fop_release);
         rc = m0_fop_data_alloc(fop);
         if (rc  != 0)
@@ -242,18 +319,20 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
 
         sns_cpx = m0_fop_data(fop);
         M0_PRE(sns_cpx != NULL);
-
+	cp_fop->cf_cp = cp;
         rc = snscp_to_snscpx(sns_cp, sns_cpx);
         if (rc != 0)
                 goto out;
 
-        session = cp->c_cm_proxy->px_session;
+	m0_mutex_lock(&cp->c_cm_proxy->px_mutex);
+        session = &cp->c_cm_proxy->px_session;
         ndom = session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
+	m0_mutex_unlock(&cp->c_cm_proxy->px_mutex);
 
         offset = sns_cp->sc_index;
         m0_tl_for(cp_data_buf, &cp->c_buffers, nbuf) {
                 rc = m0_rpc_bulk_buf_add(&cp->c_bulk,
-                                         nbuf->nb_buffer.ov_vec.v_nr,
+                                         cp->c_data_seg_nr,
                                          ndom, NULL, &rbuf);
                 if (rc != 0 || rbuf == NULL)
                         goto out;
@@ -289,7 +368,7 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
         item->ri_deadline = 0;
 
         rc = m0_rpc_post(item);
-
+	m0_fop_put(fop);
 out:
         if (rc != 0) {
                 if (&cp->c_bulk != NULL)
@@ -315,15 +394,14 @@ M0_INTERNAL void m0_sns_cm_buf_available(struct m0_net_buffer_pool *pool)
         m0_chan_broadcast_lock(&sns_bp->sb_wait);
 }
 
-M0_INTERNAL int m0_sns_cm_cp_buf_acquire(struct m0_cm_cp *cp)
+static int cp_buf_acquire(struct m0_cm_cp *cp)
 {
         struct m0_sns_cm_cp *sns_cp;
         struct m0_sns_cpx   *sns_cpx;
         struct m0_cm        *cm;
         struct m0_sns_cm    *sns_cm;
-        int                  rc;
 
-        M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_BUF_ACQUIRE);
+        M0_PRE(cp != NULL);
 
         sns_cpx = m0_fop_data(cp->c_fom.fo_fop);
         sns_cp = cp2snscp(cp);
@@ -331,16 +409,7 @@ M0_INTERNAL int m0_sns_cm_cp_buf_acquire(struct m0_cm_cp *cp)
         cm = cm_get(&cp->c_fom);
         sns_cm = cm2sns(cm);
 
-        rc = m0_sns_cm_buf_attach(cp, &sns_cm->sc_ibp.sb_bp);
-        if (rc == -ENOBUFS) {
-                m0_mutex_lock(&sns_cm->sc_ibp.sb_wait_mutex);
-                m0_fom_wait_on(&cp->c_fom, &sns_cm->sc_ibp.sb_wait,
-                               &cp->c_fom.fo_cb);
-                m0_mutex_unlock(&sns_cm->sc_ibp.sb_wait_mutex);
-
-                return M0_FSO_WAIT;
-        }
-        return cp->c_ops->co_phase_next(cp);
+        return  m0_sns_cm_buf_attach(&sns_cm->sc_ibp.sb_bp, cp);
 }
 
 M0_INTERNAL int m0_sns_cm_cp_recv_init(struct m0_cm_cp *cp)
@@ -355,6 +424,10 @@ M0_INTERNAL int m0_sns_cm_cp_recv_init(struct m0_cm_cp *cp)
         int                     rc;
 
         M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_RECV_INIT);
+
+	rc = cp_buf_acquire(cp);
+	if (rc != 0)
+		goto out;
 
         sns_cpx = m0_fop_data(cp->c_fom.fo_fop);
         M0_PRE(sns_cpx != NULL);
@@ -403,6 +476,9 @@ M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp)
         struct m0_rpc_bulk      *rbulk;
         struct m0_fop           *fop;
         struct m0_sns_cpx_reply *sns_cpx_rep;
+	struct m0_cm_aggr_group *sw_lo_ag;
+	struct m0_cm_aggr_group *sw_hi_ag;
+	struct m0_cm            *cm;
         int                      rc;
 
         M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_RECV_WAIT);
@@ -422,6 +498,15 @@ M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp)
                 rc = 0;
         sns_cpx_rep = m0_fop_data(fop);
         sns_cpx_rep->scr_cp_rep.cr_rc = rbulk->rb_rc;
+
+	cm = cm_get(&cp->c_fom);
+	m0_cm_lock(cm);
+	sw_lo_ag = m0_cm_ag_lo(cm);
+	sw_hi_ag = m0_cm_ag_hi(cm);
+	m0_cm_unlock(cm);
+	ag_id_copy(&sns_cpx_rep->scr_cp_rep.cr_sw.sw_lo, &sw_lo_ag->cag_id);
+	ag_id_copy(&sns_cpx_rep->scr_cp_rep.cr_sw.sw_hi, &sw_hi_ag->cag_id);
+
         rc = m0_rpc_reply_post(&cp->c_fom.fo_fop->f_item, &fop->f_item);
         m0_fop_put(fop);
 
@@ -431,6 +516,41 @@ out:
                 return M0_FSO_WAIT;
         }
         return cp->c_ops->co_phase_next(cp);
+}
+
+M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
+{
+	struct m0_sns_cm_cp *scp         = cp2snscp(cp);
+	struct m0_fid        fid;
+	struct m0_cm        *cm          = cm_get(&cp->c_fom);
+	struct m0_cm_proxy  *cm_proxy;
+	const char          *remote_rep;
+	int                  rc;
+
+	M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_SW_CHECK);
+
+	fid.f_container = scp->sc_sid.si_bits.u_hi;
+	fid.f_key       = scp->sc_sid.si_bits.u_lo;
+	remote_rep = m0_sns_cm_tgt_ep(cm, &fid);
+	M0_ASSERT(remote_rep != NULL);
+	if (cp->c_cm_proxy == NULL) {
+		m0_cm_lock(cm);
+		cm_proxy = m0_cm_proxy_locate(cm, remote_rep);
+		m0_cm_unlock(cm);
+		M0_ASSERT(cm_proxy != NULL);
+		cp->c_cm_proxy = cm_proxy;
+	} else
+		cm_proxy = cp->c_cm_proxy;
+
+	if (m0_cm_proxy_agid_is_in_sw(cm_proxy, &cp->c_ag->cag_id)) {
+		m0_fom_phase_set(&cp->c_fom, M0_CCP_SEND);
+		rc = M0_FSO_AGAIN;
+	} else {
+		m0_cm_proxy_cp_add(cm_proxy, cp);
+		rc = M0_FSO_WAIT;
+	}
+
+	return rc;
 }
 
 /** @} SNSCMCP */

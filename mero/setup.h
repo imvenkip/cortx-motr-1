@@ -470,7 +470,8 @@ int m0_cs_start(struct m0_mero *cs_mero);
 M0_INTERNAL struct m0_rpc_machine *m0_mero_to_rmach(struct m0_mero *mero);
 
 M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
-					      const struct m0_stob_id *stob_id);
+							  const struct m0_stob_id
+							  *stob_id);
 
 /**
    Find a request handler service within a given Mero instance.

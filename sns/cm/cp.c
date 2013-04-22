@@ -60,12 +60,18 @@ M0_INTERNAL bool m0_sns_cm_cp_invariant(const struct m0_cm_cp *cp)
 M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
+	struct m0_fop       *fop = cp->c_fom.fo_fop;
+	struct m0_sns_cpx   *sns_cpx;
 
 	/*
          * Serialize read on a particular stob by returning target
          * container id to assign a reqh locality to the cp fom.
          */
-	return sns_cp->sc_sid.si_bits.u_hi;
+	if (fop != NULL) {
+		sns_cpx = m0_fop_data(fop);
+		return sns_cpx->scx_sid.f_container;
+	} else
+		return sns_cp->sc_sid.si_bits.u_hi;
 }
 
 M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp)
@@ -87,9 +93,8 @@ static int next[] = {
 	[M0_CCP_XFORM]       = M0_CCP_WRITE,
 	[M0_CCP_WRITE]       = M0_CCP_IO_WAIT,
 	[M0_CCP_IO_WAIT]     = M0_CCP_XFORM,
-	[M0_CCP_SEND]        = M0_CCP_BUF_ACQUIRE,
+	[M0_CCP_SEND]        = M0_CCP_RECV_INIT,
 	[M0_CCP_SEND_WAIT]   = M0_CCP_FINI,
-	[M0_CCP_BUF_ACQUIRE] = M0_CCP_RECV_INIT,
 	[M0_CCP_RECV_INIT]   = M0_CCP_RECV_WAIT,
 	[M0_CCP_RECV_WAIT]   = M0_CCP_XFORM
 };
@@ -149,19 +154,24 @@ M0_INTERNAL int m0_sns_cm_cp_fini(struct m0_cm_cp *cp)
 M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
 				   const struct m0_fid *cob_fid,
 				   uint64_t stob_offset,
+				   uint64_t data_seg_nr,
 				   uint64_t ag_cp_idx)
 {
 	struct m0_sns_cm *scm = cm2sns(scp->sc_base.c_ag->cag_cm);
+	struct m0_cm_aggr_group *ag = scp->sc_base.c_ag;
+	struct m0_net_buffer_pool *bp;
 
 	M0_PRE(scp != NULL && scp->sc_base.c_ag != NULL);
 
-	scp->sc_base.c_data_seg_nr = m0_sns_cm_data_seg_nr(scm);
+	scp->sc_base.c_data_seg_nr = data_seg_nr;
 	scp->sc_sid.si_bits.u_hi = cob_fid->f_container;
 	scp->sc_sid.si_bits.u_lo = cob_fid->f_key;
 	scp->sc_index = stob_offset;
 	scp->sc_base.c_ag_cp_idx = ag_cp_idx;
 
-	return m0_sns_cm_buf_attach(&scp->sc_base, &scm->sc_obp.sb_bp);
+	bp = ag->cag_has_incoming ? &scm->sc_ibp.sb_bp : &scm->sc_obp.sb_bp;
+
+	return m0_sns_cm_buf_attach(bp, &scp->sc_base);
 }
 
 const struct m0_cm_cp_ops m0_sns_cm_cp_ops = {
@@ -171,11 +181,11 @@ const struct m0_cm_cp_ops m0_sns_cm_cp_ops = {
 		[M0_CCP_WRITE]        = &m0_sns_cm_cp_write,
 		[M0_CCP_IO_WAIT]      = &m0_sns_cm_cp_io_wait,
 		[M0_CCP_XFORM]        = &m0_sns_cm_cp_xform,
+		[M0_CCP_SW_CHECK]     = &m0_sns_cm_cp_sw_check,
 		[M0_CCP_SEND]         = &m0_sns_cm_cp_send,
 		[M0_CCP_SEND_WAIT]    = &m0_sns_cm_cp_send_wait,
 		[M0_CCP_RECV_INIT]    = &m0_sns_cm_cp_recv_init,
 		[M0_CCP_RECV_WAIT]    = &m0_sns_cm_cp_recv_wait,
-		[M0_CCP_BUF_ACQUIRE]  = &m0_sns_cm_cp_buf_acquire,
 		/* To satisfy the m0_cm_cp_invariant() */
 		[M0_CCP_FINI]         = &m0_sns_cm_cp_fini,
 	},

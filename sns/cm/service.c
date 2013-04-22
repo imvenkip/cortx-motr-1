@@ -31,11 +31,13 @@
 #include "lib/finject.h"
 
 #include "reqh/reqh_service.h"
+#include "cm/cm_types.h"
 #include "sns/sns_addb.h"
 #include "sns/cm/st/trigger_fop.h"
 #include "sns/cm/cm.h"
 #include "mero/setup.h"
 #include "sns/cm/sns_cp_onwire.h"
+#include "sns/cm/sns_ready_fop.h"
 
 /**
   @defgroup SNSCMSVC SNS copy machine service
@@ -64,7 +66,8 @@ static const struct m0_reqh_service_ops svc_ops = {
 	.rso_fini  = svc_fini
 };
 
-M0_CM_TYPE_DECLARE(sns, &svc_type_ops, "sns_cm", &m0_addb_ct_sns_repair_serv);
+M0_CM_TYPE_DECLARE(sns, M0_SNS_CM, &svc_type_ops, "sns_cm",
+		   &m0_addb_ct_sns_repair_serv);
 
 extern const struct m0_cm_ops cm_ops;
 
@@ -118,7 +121,7 @@ static int svc_start(struct m0_reqh_service *service)
 
 	cm = container_of(service, struct m0_cm, cm_service);
 	rc = m0_cm_setup(cm) ?: m0_sns_repair_trigger_fop_init() ?:
-	     m0_sns_cpx_init();
+	     m0_sns_cpx_init() ?: m0_sns_cm_ready_fop_init();
 
 	/* The following shows how to retrieve ioservice endpoints list.
 	 * Copy machine can establish connections to all ioservices,
@@ -157,6 +160,7 @@ static void svc_stop(struct m0_reqh_service *service)
 	m0_cm_fini(cm);
 	m0_sns_repair_trigger_fop_fini();
 	m0_sns_cpx_fini();
+	m0_sns_cm_ready_fop_fini();
 
 	M0_LEAVE();
 }

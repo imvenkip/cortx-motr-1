@@ -25,9 +25,13 @@
 #include "lib/misc.h"
 
 #include "fop/fom.h"
+#include "cob/cob.h"
+#include "reqh/reqh.h"
+
 #include "sns/cm/cp.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/ag.h"
+#include "sns/cm/cm_utils.h"
 
 /**
   Implements accumulator copy packet for an aggregation group.
@@ -45,30 +49,52 @@
 
 M0_INTERNAL bool m0_sns_cm_cp_invariant(const struct m0_cm_cp *cp);
 M0_INTERNAL void m0_sns_cm_cp_complete(struct m0_cm_cp *cp);
-M0_INTERNAL void m0_sns_cm_cp_free(struct m0_cm_cp *cp);
 M0_INTERNAL int m0_sns_cm_cp_fini(struct m0_cm_cp *cp);
 
 static int acc_cp_next[] = {
-	[M0_CCP_INIT]       = M0_CCP_WRITE,
 	[M0_CCP_WRITE]      = M0_CCP_IO_WAIT,
-	[M0_CCP_IO_WAIT]    = M0_CCP_FINI
+	[M0_CCP_IO_WAIT]    = M0_CCP_FINI,
+        [M0_CCP_SEND_WAIT]  = M0_CCP_FINI,
+        [M0_CCP_SW_CHECK]   = M0_CCP_SEND
 };
 
 static int acc_cp_phase_next(struct m0_cm_cp *cp)
 {
-	int phase = m0_fom_phase(&cp->c_fom);
+	struct m0_sns_cm_ag  *sag = ag2snsag(cp->c_ag);
+	struct m0_sns_cm     *scm = cm2sns(cp->c_ag->cag_cm);
+	struct m0_fid        *fid = &sag->sag_fc[0].fc_tgt_cobfid;
+	struct m0_dbenv      *dbenv;
+	struct m0_cob_domain *cdom;
+	int                   phase = m0_fom_phase(&cp->c_fom);
+	int                   rc;
 
-	M0_PRE(M0_IN(phase, (M0_CCP_INIT, M0_CCP_WRITE, M0_CCP_IO_WAIT)));
+	M0_PRE(M0_IN(phase, (M0_CCP_INIT, M0_CCP_WRITE, M0_CCP_IO_WAIT,
+			     M0_CCP_SEND, M0_CCP_SEND_WAIT)));
 
-	/**
-	 * @todo If the target unit is not local then do M0_CCP_INIT ->
-	 * M0_CCP_SEND.
-	 */
-	m0_fom_phase_set(&cp->c_fom, acc_cp_next[phase]);
+	dbenv = scm->sc_base.cm_service.rs_reqh->rh_dbenv;
+	cdom  = scm->sc_it.si_cob_dom;
+
+	if (phase == M0_CCP_INIT) {
+		rc = m0_sns_cm_cob_is_local(fid, dbenv, cdom);
+		if (rc == 0)
+			m0_fom_phase_set(&cp->c_fom, M0_CCP_WRITE);
+		else if (rc == -ENOENT)
+			m0_fom_phase_set(&cp->c_fom, M0_CCP_SW_CHECK);
+		else
+			m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
+	} else
+		m0_fom_phase_set(&cp->c_fom, acc_cp_next[phase]);
 
         return M0_IN(m0_fom_phase(&cp->c_fom), (M0_CCP_IO_WAIT, M0_CCP_FINI)) ?
                M0_FSO_WAIT : M0_FSO_AGAIN;
 
+}
+
+static void acc_cp_free(struct m0_cm_cp *cp)
+{
+	M0_PRE(cp != NULL);
+
+	m0_cm_cp_buf_release(cp);
 }
 
 const struct m0_cm_cp_ops m0_sns_cm_acc_cp_ops = {
@@ -78,9 +104,9 @@ const struct m0_cm_cp_ops m0_sns_cm_acc_cp_ops = {
 		[M0_CCP_WRITE]         = &m0_sns_cm_cp_write,
 		[M0_CCP_IO_WAIT]       = &m0_sns_cm_cp_io_wait,
 		[M0_CCP_XFORM]         = &m0_sns_cm_cp_xform,
+		[M0_CCP_SW_CHECK]      = &m0_sns_cm_cp_sw_check,
 		[M0_CCP_SEND]          = &m0_sns_cm_cp_send,
 		[M0_CCP_SEND_WAIT]     = &m0_sns_cm_cp_send_wait,
-		[M0_CCP_BUF_ACQUIRE]   = &m0_sns_cm_cp_buf_acquire,
 		[M0_CCP_RECV_INIT]     = &m0_sns_cm_cp_recv_init,
 		[M0_CCP_RECV_WAIT]     = &m0_sns_cm_cp_recv_wait,
 		/* To satisfy the m0_cm_cp_invariant() */
@@ -91,7 +117,7 @@ const struct m0_cm_cp_ops m0_sns_cm_acc_cp_ops = {
 	.co_invariant            = &m0_sns_cm_cp_invariant,
 	.co_home_loc_helper      = &cp_home_loc_helper,
 	.co_complete             = &m0_sns_cm_cp_complete,
-	.co_free                 = &m0_sns_cm_cp_free,
+	.co_free                 = &acc_cp_free,
 };
 
 /**
@@ -121,7 +147,8 @@ M0_INTERNAL void m0_sns_cm_acc_cp_init(struct m0_sns_cm_cp *scp,
  */
 M0_INTERNAL int m0_sns_cm_acc_cp_setup(struct m0_sns_cm_cp *scp,
 				       struct m0_fid *tgt_cobfid,
-				       uint64_t tgt_cob_index)
+				       uint64_t tgt_cob_index,
+				       uint64_t data_seg_nr)
 {
 	struct m0_sns_cm_ag *sag = ag2snsag(scp->sc_base.c_ag);
 	struct m0_cm *cm = sag->sag_base.cag_cm;
@@ -129,7 +156,8 @@ M0_INTERNAL int m0_sns_cm_acc_cp_setup(struct m0_sns_cm_cp *scp,
         M0_PRE(scp != NULL && sag != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	return m0_sns_cm_cp_setup(scp, tgt_cobfid, tgt_cob_index, ~0);
+	return m0_sns_cm_cp_setup(scp, tgt_cobfid, tgt_cob_index, data_seg_nr,
+				  ~0);
 }
 
 /** @} SNSCMCP */

@@ -61,6 +61,15 @@ struct m0_sns_cm_ag {
 	/** Total number of failure units in this aggregation group. */
 	uint64_t                         sag_fnr;
 
+	/**
+	 * Number of accumulator copy packets finalised.
+	 * This should be equal to sag_fnr.
+	 */
+	uint64_t                         sag_acc_freed;
+
+	/** If this aggregation group has local spare units on the replica. */
+	bool                             sag_is_relevant;
+
 	/*
 	 * Accumulator copy packet, target unit cob id offset within the cob.
 	 * Number of failure contexts are equivalent to number of failures in
@@ -81,6 +90,7 @@ struct m0_sns_cm_ag {
  */
 M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 				   const struct m0_cm_ag_id *id,
+				   bool has_incoming,
 				   struct m0_cm_aggr_group **out);
 
 /*
@@ -92,13 +102,17 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
  *
  * @see m0_sns_cm_acc_cp_setup()
  */
-M0_INTERNAL int m0_sns_cm_ag_setup(struct m0_sns_cm_ag *ag);
+M0_INTERNAL int m0_sns_cm_ag_setup(struct m0_sns_cm_ag *ag,
+				   struct m0_pdclust_layout *pl);
 
 M0_INTERNAL struct m0_sns_cm_ag *ag2snsag(const struct m0_cm_aggr_group *ag);
 
-M0_INTERNAL void agid2fid(const struct m0_cm_aggr_group *ag,
+M0_INTERNAL void agid2fid(const struct m0_cm_ag_id *id,
 			  struct m0_fid *fid);
-M0_INTERNAL uint64_t agid2group(const struct m0_cm_aggr_group *ag);
+M0_INTERNAL uint64_t agid2group(const struct m0_cm_ag_id *id);
+
+M0_INTERNAL void m0_sns_cm_ag_agid_setup(const struct m0_fid *gob_fid, uint64_t group,
+					 struct m0_cm_ag_id *agid);
 
 /** @} SNSCMAG */
 

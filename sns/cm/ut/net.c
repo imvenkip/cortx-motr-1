@@ -24,8 +24,10 @@
 #include "sns/cm/net.c"
 #include "sns/cm/ag.c"
 #include "sns/cm/ut/cp_common.h"
+#include "ioservice/io_service.h"
 #include "ioservice/io_device.h"
 #include "reqh/reqh_service.h"
+#include "cm/proxy.h"
 
 /* Receiver side. */
 static struct m0_reqh   *s0_reqh;
@@ -103,12 +105,13 @@ static struct m0_sns_cm_ag        s_sag;
 static struct m0_sns_cm_cp        s_sns_cp;
 static struct m0_net_buffer       s_buf[BUF_NR];
 static struct m0_net_buffer_pool  nbp;
-static struct m0_cm_proxy         cm_proxy;
+static struct m0_cm_proxy         sender_cm_proxy;
+static struct m0_cm_proxy         recv_cm_proxy;
 
 static struct m0_stob_id sid = {
         .si_bits = {
-                .u_hi = 1,
-                .u_lo = 1
+                .u_hi = 0,
+                .u_lo = 4
         }
 };
 
@@ -118,11 +121,14 @@ static struct m0_cm_ag_id ag_id = {
                 .u_lo = 1
         },
         .ai_lo = {
-                .u_hi = 1,
+                .u_hi = 0,
                 .u_lo = 1
         }
 };
 
+static void cp_cm_proxy_init(struct m0_cm_proxy *proxy, const char *endpoint);
+M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
+			    uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx);
 static uint64_t cp_single_get(const struct m0_cm_aggr_group *ag)
 {
         return CP_SINGLE;
@@ -135,9 +141,24 @@ static void cp_ag_fini(struct m0_cm_aggr_group *ag)
         m0_cm_aggr_group_fini(ag);
 }
 
+static bool cp_ag_can_fini(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
+{
+        struct m0_sns_cm_ag *sag = ag2snsag(ag);
+        uint64_t             nr_cps;
+
+        M0_PRE(ag != NULL && cp != NULL);
+
+        if (ag->cag_has_incoming) {
+                nr_cps = m0_cm_cp_nr(cp);
+                return nr_cps == ag->cag_cp_global_nr - sag->sag_fnr;
+        } else
+                return ag->cag_freed_cp_nr == ag->cag_cp_local_nr + sag->sag_fnr;
+}
+
 static const struct m0_cm_aggr_group_ops group_ops = {
         .cago_local_cp_nr = &cp_single_get,
         .cago_fini        = &cp_ag_fini,
+	.cago_ag_can_fini = &cp_ag_can_fini,
 };
 
 /* Over-ridden copy packet FOM fini. */
@@ -219,11 +240,11 @@ const struct m0_cm_cp_ops cp_dummy_ops = {
                 [M0_CCP_WRITE]         = &dummy_cp_phase,
                 [M0_CCP_IO_WAIT]       = &dummy_cp_phase,
                 [M0_CCP_XFORM]         = &dummy_cp_phase,
+                [M0_CCP_SW_CHECK]      = &dummy_cp_phase,
                 [M0_CCP_SEND]          = &m0_sns_cm_cp_send,
                 [M0_CCP_SEND_WAIT]     = &m0_sns_cm_cp_send_wait,
                 [M0_CCP_RECV_INIT]     = &dummy_cp_phase,
                 [M0_CCP_RECV_WAIT]     = &dummy_cp_phase,
-                [M0_CCP_BUF_ACQUIRE]   = &dummy_cp_phase,
                 [M0_CCP_FINI]          = &dummy_cp_phase,
         },
         .co_action_nr                  = M0_CCP_NR,
@@ -324,11 +345,11 @@ const struct m0_cm_cp_ops read_cp_ops = {
                 [M0_CCP_WRITE]         = &dummy_cp_write,
                 [M0_CCP_IO_WAIT]       = &dummy_cp_write_io_wait,
                 [M0_CCP_XFORM]         = &dummy_read_cp_xform,
+		[M0_CCP_SW_CHECK]      = &dummy_read_cp_phase,
                 [M0_CCP_SEND]          = &dummy_read_cp_phase,
                 [M0_CCP_SEND_WAIT]     = &dummy_read_cp_phase,
                 [M0_CCP_RECV_INIT]     = &dummy_read_cp_phase,
                 [M0_CCP_RECV_WAIT]     = &dummy_read_cp_phase,
-                [M0_CCP_BUF_ACQUIRE]   = &dummy_read_cp_phase,
                 [M0_CCP_FINI]          = &dummy_read_cp_phase,
         },
         .co_action_nr                  = M0_CCP_NR,
@@ -347,6 +368,8 @@ static void ag_setup(struct m0_sns_cm_ag *sag)
                       sag->sag_base.cag_ops->cago_local_cp_nr(&sag->sag_base);
         sag->sag_base.cag_cp_global_nr = sag->sag_base.cag_cp_local_nr +
                                           FAIL_NR;
+	aggr_grps_in_tlink_init(&sag->sag_base);
+        aggr_grps_out_tlink_init(&sag->sag_base);
 }
 
 /*
@@ -388,29 +411,39 @@ static void receiver_ag_create()
         ag_setup(&sns_ag);
         sns_ag.sag_base.cag_cm = cm;
         m0_mutex_init(&sns_ag.sag_base.cag_mutex);
-        aggr_grps_tlink_init(&sns_ag.sag_base);
+        aggr_grps_in_tlink_init(&sns_ag.sag_base);
+        aggr_grps_out_tlink_init(&sns_ag.sag_base);
         M0_ALLOC_ARR(sns_ag.sag_fc, FAIL_NR);
         M0_UT_ASSERT(sns_ag.sag_fc != NULL);
         for (i = 0; i < sns_ag.sag_fnr; ++i) {
+		sns_ag.sag_fc[i].fc_tgt_cobfid.f_container = sid.si_bits.u_hi;
+		sns_ag.sag_fc[i].fc_tgt_cobfid.f_key = sid.si_bits.u_lo;
                 sns_cp = &sns_ag.sag_fc[i].fc_tgt_acc_cp;
                 m0_sns_cm_acc_cp_init(sns_cp, &sns_ag);
                 sns_cp->sc_base.c_data_seg_nr = SEG_NR * BUF_NR;
                 sns_cp->sc_sid = sid;
-                M0_UT_ASSERT(m0_sns_cm_buf_attach(&sns_cp->sc_base,
-                                                  &scm->sc_obp.sb_bp) == 0);
+                M0_UT_ASSERT(m0_sns_cm_buf_attach(&scm->sc_obp.sb_bp,
+						  &sns_cp->sc_base) == 0);
         }
 
         m0_cm_lock(cm);
-        m0_cm_aggr_group_add(cm, &sns_ag.sag_base);
-        ag_cpy = m0_cm_aggr_group_locate(cm, &ag_id);
+        m0_cm_aggr_group_add(cm, &sns_ag.sag_base, true);
+        ag_cpy = m0_cm_aggr_group_locate(cm, &ag_id, true);
         m0_cm_unlock(cm);
         M0_UT_ASSERT(&sns_ag.sag_base == ag_cpy);
 }
 
 static void receiver_stob_create()
 {
-        int rc;
+        struct m0_cob_domain *cdom;
+        struct m0_dbenv      *dbenv;
+	struct m0_fid         gfid = {0, 4};
+        int                   rc;
 
+	M0_UT_ASSERT(m0_ios_cdom_get(s0_reqh, &cdom, 0) == 0);
+	dbenv = s0_reqh->rh_dbenv;
+
+	cob_create(dbenv, cdom, 0, &gfid, 0);
         sdom = m0_cs_stob_domain_find(s0_reqh, &sid);
         M0_UT_ASSERT(sdom != NULL);
 
@@ -426,6 +459,13 @@ static void receiver_stob_create()
 
         m0_stob_put(stob);
         m0_dtx_done(&tx);
+}
+
+static void cm_ready(struct m0_cm *cm)
+{
+	m0_cm_lock(cm);
+	m0_cm_state_set(cm, M0_CMS_READY);
+	m0_cm_unlock(cm);
 }
 
 static void receiver_init()
@@ -444,6 +484,12 @@ static void receiver_init()
         M0_ALLOC_ARR(scm->sc_it.si_fdata, FAIL_NR);
         M0_UT_ASSERT(scm->sc_it.si_fdata != NULL);
         scm->sc_it.si_fdata[0] = 1;
+	cm->cm_pm = m0_ios_poolmach_get(cm->cm_service.rs_reqh);
+	M0_UT_ASSERT(cm->cm_pm != NULL);
+	m0_cm_lock(cm);
+	cm->cm_ops->cmo_ready(cm);
+	m0_cm_unlock(cm);
+	cm_ready(cm);
         M0_UT_ASSERT(m0_cm_start(cm) == 0);
 
         while (m0_fom_domain_is_idle(&s0_reqh->rh_fom_dom) ||
@@ -452,6 +498,10 @@ static void receiver_init()
 
         receiver_ag_create();
         receiver_stob_create();
+        cp_cm_proxy_init(&recv_cm_proxy, client_addr);
+        m0_cm_lock(cm);
+        m0_cm_proxy_add(cm, &recv_cm_proxy);
+        m0_cm_unlock(cm);
 }
 
 static void sender_cm_cp_free(struct m0_cm_cp *cp)
@@ -556,7 +606,11 @@ static const struct m0_reqh_service_type_ops sender_cm_service_type_ops = {
         .rsto_service_allocate = sender_cm_service_allocate,
 };
 
-M0_CM_TYPE_DECLARE(sender_cm, &sender_cm_service_type_ops, "sender_cm",
+enum {
+	UT_CM = 1111
+};
+
+M0_CM_TYPE_DECLARE(sender_cm, UT_CM, &sender_cm_service_type_ops, "sender_cm",
                    &m0_addb_ct_ut_service);
 
 void sender_service_alloc_init()
@@ -569,6 +623,18 @@ void sender_service_alloc_init()
                                       &sender_rctx);
         M0_ASSERT(rc == 0);
         m0_reqh_service_init(sender_cm_service, &sender_reqh, NULL);
+}
+
+M0_TL_DECLARE(proxy_cp, M0_EXTERN, struct m0_cm_cp);
+
+static void cp_cm_proxy_init(struct m0_cm_proxy *proxy, const char *endpoint)
+{
+	proxy->px_sw.sw_lo = ag_id;
+	proxy->px_sw.sw_hi = ag_id;
+	proxy->px_endpoint = endpoint;
+	proxy_tlink_init(proxy);
+	proxy_cp_tlist_init(&proxy->px_pending_cps);
+	m0_mutex_init(&proxy->px_mutex);
 }
 
 static void sender_init()
@@ -593,6 +659,7 @@ static void sender_init()
         M0_UT_ASSERT(rc == 0);
         rc = m0_ios_poolmach_init(sender_cm_service);
         M0_UT_ASSERT(rc == 0);
+	cm_ready(&sender_cm);
         rc = m0_cm_start(&sender_cm);
         M0_UT_ASSERT(rc == 0);
 
@@ -605,12 +672,28 @@ static void sender_init()
 
         rc = m0_rpc_client_start(&cctx);
         M0_UT_ASSERT(rc == 0);
-        cm_proxy.px_session = &cctx.rcx_session;
+        rc = m0_rpc_client_connect(&sender_cm_proxy.px_conn,
+				   &sender_cm_proxy.px_session,
+                                   &cctx.rcx_rpc_machine,
+                                   cctx.rcx_remote_addr,
+                                   cctx.rcx_max_rpcs_in_flight,
+                                   cctx.rcx_nr_slots,
+                                   cctx.rcx_timeout_s);
+	M0_UT_ASSERT(rc == 0);
+	cp_cm_proxy_init(&sender_cm_proxy,
+		sender_cm_proxy.px_conn.c_rpcchan->rc_destep->nep_addr);
+        m0_cm_lock(&sender_cm);
+	m0_cm_proxy_add(&sender_cm, &sender_cm_proxy);
+        m0_cm_unlock(&sender_cm);
 }
 
 static void receiver_fini()
 {
+        m0_cm_lock(cm);
+        m0_cm_proxy_del(cm, &recv_cm_proxy);
+        m0_cm_unlock(cm);
         m0_free(scm->sc_it.si_fdata);
+	m0_free(sns_ag.sag_fc);
         m0_cm_stop(cm);
         cs_fini(&sctx);
 }
@@ -620,6 +703,10 @@ static void sender_fini()
         int rc;
         int i;
 
+        m0_cm_lock(&sender_cm);
+	m0_cm_proxy_del(&sender_cm, &sender_cm_proxy);
+        m0_cm_unlock(&sender_cm);
+	m0_cm_proxy_rpc_conn_close(&sender_cm_proxy);
         /* Fini the sender side. */
         rc = m0_rpc_client_stop(&cctx);
         M0_UT_ASSERT(rc == 0);
@@ -693,9 +780,15 @@ static void test_cp_send_recv_verify()
         s_sns_cp.sc_base.c_ops = &cp_dummy_ops;
         /* Set some bit to true. */
         m0_bitmap_set(&s_sns_cp.sc_base.c_xform_cp_indices, 1, true);
-        s_sns_cp.sc_base.c_cm_proxy = &cm_proxy;
+        s_sns_cp.sc_base.c_cm_proxy = &sender_cm_proxy;
         s_sns_cp.sc_sid = sid;
         s_sns_cp.sc_index = 0;
+	/* Assume this as accumulator copy packet to be sent on remote side. */
+	s_sns_cp.sc_base.c_ag_cp_idx = ~0;
+	m0_cm_lock(&sender_cm);
+	m0_cm_aggr_group_add(&sender_cm, &s_sag.sag_base, true);
+	m0_cm_unlock(&sender_cm);
+
         m0_fom_queue(&s_sns_cp.sc_base.c_fom, &sender_reqh);
 
         /* Wait till ast gets posted. */

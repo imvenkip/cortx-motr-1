@@ -81,6 +81,8 @@ M0_INTERNAL int m0_sns_cm_cp_write(struct m0_cm_cp *cp);
 /** Copy packet IO wait phase function. */
 M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp);
 
+M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp);
+
 M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp);
 
 M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp);
@@ -104,6 +106,7 @@ M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp);
 M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
 				   const struct m0_fid *cob_fid,
 				   uint64_t stob_offset,
+				   uint64_t data_seg_nr,
 				   uint64_t ag_cp_idx);
 
 /** @} SNSCMCP */

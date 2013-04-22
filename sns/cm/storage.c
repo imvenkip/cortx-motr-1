@@ -220,17 +220,6 @@ M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp)
 M0_INTERNAL int m0_sns_cm_cp_write(struct m0_cm_cp *cp)
 {
 	cp->c_io_op = M0_CM_CP_WRITE;
-	/*
-	 * Finalise the bitmap representing the transformed copy packets.
-	 * It is not needed after this point.
-	 * Note: Some copy packets may not have this bitmap initialised as they
-	 * may not be resultant copy packets created after transformation.
-	 * Hence a check is needed to see if number of indices in the bitmap
-	 * is greater than 0, before finalising it.
-	 */
-	if (cp->c_xform_cp_indices.b_nr > 0)
-		m0_bitmap_fini(&cp->c_xform_cp_indices);
-
 	return cp_io(cp, SIO_WRITE);
 }
 
@@ -248,9 +237,9 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 	m0_stob_io_fini(&sns_cp->sc_stio);
 	m0_stob_put(sns_cp->sc_stob);
 
+	m0_dtx_done(&cp->c_fom.fo_tx);
 	if (rc != 0) {
 		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
-		m0_dtx_done(&cp->c_fom.fo_tx);
 		return M0_FSO_WAIT;
 	}
 	return cp->c_ops->co_phase_next(cp);

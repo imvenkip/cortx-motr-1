@@ -130,11 +130,11 @@ const struct m0_cm_cp_ops m0_sns_cm_cp_dummy_ops = {
                 [M0_CCP_WRITE]        = &dummy_cp_write,
                 [M0_CCP_IO_WAIT]      = &dummy_cp_phase,
                 [M0_CCP_XFORM]        = &dummy_cp_phase,
+                [M0_CCP_SW_CHECK]     = &dummy_cp_phase,
                 [M0_CCP_SEND]         = &dummy_cp_phase,
 		[M0_CCP_SEND_WAIT]    = &dummy_cp_phase,
 		[M0_CCP_RECV_INIT]    = &dummy_cp_phase,
 		[M0_CCP_RECV_WAIT]    = &dummy_cp_phase,
-		[M0_CCP_BUF_ACQUIRE]  = &dummy_cp_phase,
                 [M0_CCP_FINI]         = &m0_sns_cm_cp_fini,
         },
         .co_action_nr          = M0_CCP_NR,
@@ -210,7 +210,7 @@ static void cp_post(struct m0_sns_cm_cp *sns_cp, struct m0_cm_aggr_group *ag,
 static void test_cp_single_thread(void)
 {
 	m0_semaphore_init(&sem, 0);
-	s_ag.cag_cm = &cm_ut;
+	s_ag.cag_cm = &cm_ut[0].ut_cm;
 	s_ag.cag_cp_local_nr = 1;
 	s_nb.nb_pool = &nbp;
 	cp_post(&s_sns_cp, &s_ag, &s_nb);
@@ -225,7 +225,7 @@ static void test_cp_single_thread(void)
 
 static void cp_op(const int tid)
 {
-	m_ag[tid].cag_cm = &cm_ut;
+	m_ag[tid].cag_cm = &cm_ut[0].ut_cm;
 	m_ag[tid].cag_cp_local_nr = 1;
 	m_nb[tid].nb_pool = &nbp;
 	cp_post(&m_sns_cp[tid], &m_ag[tid], &m_nb[tid]);

@@ -18,16 +18,19 @@
  * Original creation date: 09/25/2012
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
 #include "lib/trace.h"
 #include "lib/finject.h"
 #include "lib/memory.h"
 #include "ut/ut.h"
 #include "lib/misc.h"
+#include "lib/thread.h"
+
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
+
 #include "cm/cm.h"
 #include "cm/cp.h"
 #include "cm/ag.h"
@@ -65,7 +68,8 @@ static int cm_ut_fini(void)
 
 static void cm_setup_ut(void)
 {
-	int rc;
+	struct m0_cm *cm = &cm_ut[0].ut_cm;
+	int           rc;
 
 	cm_ut_service_alloc_init();
 
@@ -76,20 +80,24 @@ static void cm_setup_ut(void)
 	rc = m0_ios_poolmach_init(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
 
+	m0_cm_lock(cm);
+	m0_cm_state_set(cm, M0_CMS_READY);
+	m0_cm_unlock(cm);
 	/* Checks if the restructuring process is started successfully. */
-	rc = m0_cm_start(&cm_ut);
+	rc = m0_cm_start(cm);
 	M0_UT_ASSERT(rc == 0);
 
 	while (m0_fom_domain_is_idle(&cm_ut_reqh.rh_fom_dom) ||
-	       !m0_cm_cp_pump_is_complete(&cm_ut.cm_cp_pump))
+	       !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump))
 		usleep(200);
 
-	rc = m0_cm_stop(&cm_ut);
+	rc = m0_cm_stop(cm);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_shutdown_wait(&cm_ut_reqh);
 	m0_ios_poolmach_fini(cm_ut_service);
 	cm_ut_service_cleanup();
 }
+
 static void cm_init_failure_ut(void)
 {
 	int rc;
@@ -99,7 +107,8 @@ static void cm_init_failure_ut(void)
 				      NULL);
 	/* Set the global cm_ut_service pointer to NULL */
 	cm_ut_service = NULL;
-	M0_SET0(&cm_ut);
+	ut_cm_id = 0;
+	M0_SET0(&cm_ut[0].ut_cm);
 	M0_UT_ASSERT(rc != 0);
 }
 
@@ -147,16 +156,17 @@ static void ag_id_test_find()
 	int			 i;
 	int			 rc;
 	struct m0_cm_aggr_group *ag;
+	struct m0_cm            *cm = &cm_ut[0].ut_cm;
 
 	for (i = AG_ID_NR - 1; i >= 0; --i) {
 		ag_id_assign(&id, i, i, i, i);
-		ag = m0_cm_aggr_group_locate(&cm_ut, &id);
+		ag = m0_cm_aggr_group_locate(cm, &id, false);
 		M0_UT_ASSERT(ag != NULL);
 		rc = m0_cm_ag_id_cmp(&id, &ag->cag_id);
 		M0_UT_ASSERT(rc == 0);
 	}
 	ag_id_assign(&id, 10, 35, 2, 3);
-	ag = m0_cm_aggr_group_locate(&cm_ut, &id);
+	ag = m0_cm_aggr_group_locate(cm, &id, false);
 	M0_UT_ASSERT(ag == NULL);
 }
 
@@ -164,9 +174,10 @@ static void ag_list_test_sort()
 {
 	struct m0_cm_aggr_group *found;
 	struct m0_cm_aggr_group *prev_ag;
+	struct m0_cm            *cm = &cm_ut[0].ut_cm;
 
-	prev_ag = aggr_grps_tlist_head(&cm_ut.cm_aggr_grps);
-	m0_tl_for(aggr_grps, &cm_ut.cm_aggr_grps, found) {
+	prev_ag = aggr_grps_out_tlist_head(&cm->cm_aggr_grps_out);
+	m0_tl_for(aggr_grps_out, &cm->cm_aggr_grps_out, found) {
 		M0_UT_ASSERT(m0_cm_ag_id_cmp(&prev_ag->cag_id,
 					     &found->cag_id) <= 0);
 		prev_ag = found;
@@ -175,24 +186,27 @@ static void ag_list_test_sort()
 }
 static void cm_ag_ut(void)
 {
-	int		        i;
-	int		        j;
-	int			rc;
-	struct m0_cm_ag_id      ag_ids[AG_ID_NR];
-	struct m0_cm_aggr_group ags[AG_ID_NR];
+	int		         i;
+	int		         j;
+	int			 rc;
+	struct m0_cm_ag_id       ag_ids[AG_ID_NR];
+	struct m0_cm_aggr_group  ags[AG_ID_NR];
+	struct m0_cm            *cm;
 
-
+	test_ready_fop = false;
+	M0_UT_ASSERT(ut_cm_id == 0);
+	cm = &cm_ut[ut_cm_id].ut_cm;
 	cm_ut_service_alloc_init();
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_cm_lock(&cm_ut);
+	m0_cm_lock(cm);
 	/* Populate ag & ag ids with test values. */
 	for(i = AG_ID_NR - 1, j = 0; i >= 0 ; --i, ++j) {
 		ag_id_assign(&ag_ids[j], i, i, i, i);
-		m0_cm_aggr_group_init(&ags[j], &cm_ut, &ag_ids[j],
-				      &cm_ag_ut_ops);
-		m0_cm_aggr_group_add(&cm_ut, &ags[j]);
+		m0_cm_aggr_group_init(&ags[j], cm, &ag_ids[j],
+				      false, &cm_ag_ut_ops);
+		m0_cm_aggr_group_add(cm, &ags[j], false);
 	}
 
 	/* Test 3-way comparision. */
@@ -206,8 +220,8 @@ static void cm_ag_ut(void)
 
 	/* Cleanup. */
 	for(i = 0; i < AG_ID_NR; i++)
-		m0_cm_aggr_group_fini(&ags[i]);
-	m0_cm_unlock(&cm_ut);
+		m0_cm_aggr_group_fini_and_progress(&ags[i]);
+	m0_cm_unlock(cm);
 
 	cm_ut_service_cleanup();
 }

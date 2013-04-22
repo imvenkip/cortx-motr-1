@@ -1,14 +1,20 @@
 nobase_mero_include_HEADERS += sns/cm/ag.h \
                                   sns/cm/cm.h \
+                                  sns/cm/sns_ready_fop.h \
+                                  sns/cm/sns_ready_fom.h \
                                   sns/cm/cp.h \
                                   sns/cm/iter.h \
-				  sns/cm/sns_cp_onwire.h
+				  sns/cm/sns_cp_onwire.h \
+                                  sns/cm/cm_utils.h
 
 mero_libmero_la_SOURCES  += sns/cm/ag.c \
                                   sns/cm/ag.h \
                                   sns/cm/acc_cp.c \
                                   sns/cm/cm.c \
                                   sns/cm/cm.h \
+                                  sns/cm/sns_ready_fop.c \
+                                  sns/cm/sns_ready_fom.c \
+                                  sns/cm/sns_ready_fop_xc.c \
                                   sns/cm/cp.c \
                                   sns/cm/cp.h \
                                   sns/cm/iter.c \
@@ -18,16 +24,22 @@ mero_libmero_la_SOURCES  += sns/cm/ag.c \
                                   sns/cm/storage.c \
 				  sns/cm/net.c \
 				  sns/cm/sns_cp_onwire.c \
-				  sns/cm/sns_cp_onwire_xc.c
+				  sns/cm/sns_cp_onwire_xc.c \
+                                  sns/cm/cm_utils.c
 
-XC_FILES += sns/cm/sns_cp_onwire_xc.h
+XC_FILES += sns/cm/sns_cp_onwire_xc.h sns/cm/sns_ready_fop_xc.h
 
 sns/cm/sns_cp_onwire_xc.h: ioservice/io_fops_xc.h \
                             cm/ag_xc.h \
                             cm/cp_onwire_xc.h
 
+sns/cm/sns_cm_ready_fop_xc.h: cm/ready_fop_xc.h
+
 EXTRA_DIST += sns/poolmach.c
 
 CLEANFILES += sns/cm/sns_cp_onwire_xc.h \
 	      sns/cm/sns_cp_onwire_xc.c \
-	      sns/cm/sns_cp_onwire.gccxml
+	      sns/cm/sns_cp_onwire.gccxml \
+	      sns/cm/sns_ready_fop_xc.h \
+	      sns/cm/sns_ready_fop_xc.c \
+	      sns/cm/sns_ready_fop_xc.gccxml

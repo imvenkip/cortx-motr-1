@@ -22,12 +22,15 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/misc.h"           /* M0_IN() */
+
 #include "fop/fop.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"
 
 #include "rpc/rpc.h"
 #include "fop/fop_item_type.h"
+
+#include "cm/proxy.h"
 
 #include "sns/cm/st/trigger_fop.h"
 #include "sns/cm/st/trigger_fop_xc.h"
@@ -65,23 +68,6 @@ static const struct m0_fom_type_ops trigger_fom_type_ops = {
 	.fto_create = trigger_fom_create,
 };
 
-static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
-{
-	struct m0_fop *rep_fop;
-
-	M0_PRE(item != NULL);
-
-	if (item->ri_error == 0) {
-		rep_fop = m0_rpc_item_to_fop(item->ri_reply);
-		M0_ASSERT(M0_IN(m0_fop_opcode(rep_fop),
-				(M0_SNS_REPAIR_TRIGGER_REP_OPCODE)));
-	}
-}
-
-const struct m0_rpc_item_ops trigger_fop_rpc_item_ops = {
-	.rio_replied = trigger_rpc_item_reply_cb,
-};
-
 void m0_sns_repair_trigger_fop_fini(void)
 {
 	m0_fop_type_fini(&trigger_fop_fopt);
@@ -90,17 +76,22 @@ void m0_sns_repair_trigger_fop_fini(void)
 }
 
 enum trigger_phases {
-	TPH_START = M0_FOPH_NR + 1,
-	TPH_WAIT
+	TPH_READY = M0_FOPH_NR + 1,
+	TPH_START_WAIT,
+	TPH_STOP_WAIT
 };
 
 static struct m0_sm_state_descr trigger_phases[] = {
-	[TPH_START] = {
-		.sd_name      = "Start sns repair",
-		.sd_allowed   = M0_BITS(TPH_WAIT)
+	[TPH_READY] = {
+		.sd_name      = "Send ready fops",
+		.sd_allowed   = M0_BITS(TPH_START_WAIT)
 	},
-	[TPH_WAIT] = {
-		.sd_name      = "Wait for completion",
+	[TPH_START_WAIT] = {
+		.sd_name      = "Start sns repair",
+		.sd_allowed   = M0_BITS(TPH_STOP_WAIT)
+	},
+	[TPH_STOP_WAIT] = {
+		.sd_name      = "Stop sns repair",
 		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS)
 	}
 };
@@ -215,6 +206,8 @@ static int trigger_fom_tick(struct m0_fom *fom)
 	struct m0_fop               *rfop;
 	struct trigger_fop          *treq;
 	struct trigger_rep_fop      *trep;
+	struct m0_clink              tclink;
+	uint64_t                     proxy_nr;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		rc = m0_fom_tick_generic(fom);
@@ -226,25 +219,46 @@ static int trigger_fom_tick(struct m0_fom *fom)
 		cm = container_of(service, struct m0_cm, cm_service);
 		scm = cm2sns(cm);
 		switch(m0_fom_phase(fom)) {
-			case TPH_START:
-				M0_LOG(M0_DEBUG, "got trigger: start");
+			case TPH_READY:
 				treq = m0_fop_data(fom->fo_fop);
 				scm->sc_it.si_fdata = &treq->fdata;
 				m0_trigger_file_sizes_save(treq->fsize.f_nr,
 							   treq->fsize.f_size);
 				scm->sc_op             = treq->op;
+				m0_mutex_lock(&scm->sc_wait_mutex);
+				m0_clink_init(&tclink, NULL);
+				m0_clink_add(&scm->sc_wait, &tclink);
+				m0_mutex_unlock(&scm->sc_wait_mutex);
+				m0_fom_block_enter(fom);
+				rc = m0_cm_ready(cm);
+				M0_ASSERT(rc == 0);
+				m0_cm_lock(cm);
+				proxy_nr = m0_cm_proxy_nr(cm);
+				m0_cm_unlock(cm);
+				if (proxy_nr > 0)
+					/* Wait for READY phase to complete. */
+					m0_chan_wait(&tclink);
+
+				m0_fom_block_leave(fom);
+				m0_mutex_lock(&scm->sc_wait_mutex);
+				m0_clink_del(&tclink);
+				m0_mutex_unlock(&scm->sc_wait_mutex);
+				m0_fom_phase_set(fom, TPH_START_WAIT);
+				rc = M0_FSO_AGAIN;
+				break;
+			case TPH_START_WAIT:
+				m0_mutex_lock(&scm->sc_wait_mutex);
+				m0_fom_wait_on(fom, &scm->sc_wait,
+					       &fom->fo_cb);
+				m0_mutex_unlock(&scm->sc_wait_mutex);
 				rc = m0_cm_start(cm);
 				M0_ASSERT(rc == 0);
-				m0_mutex_lock(&scm->sc_stop_wait_mutex);
-				m0_fom_wait_on(fom, &scm->sc_stop_wait,
-					       &fom->fo_cb);
-				m0_mutex_unlock(&scm->sc_stop_wait_mutex);
-				m0_fom_phase_set(fom, TPH_WAIT);
+				m0_fom_phase_set(fom, TPH_STOP_WAIT);
 				rc = M0_FSO_WAIT;
 				M0_LOG(M0_DEBUG, "got trigger: start done");
 				break;
-			case TPH_WAIT:
-				M0_LOG(M0_DEBUG, "got trigger: wait");
+			case TPH_STOP_WAIT:
+				m0_fom_block_enter(fom);
 				rfop = m0_fop_alloc(&trigger_rep_fop_fopt,
 						    NULL);
 				if (rfop == NULL) {
@@ -255,6 +269,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				trep->rc = m0_fom_rc(fom);
 				fom->fo_rep_fop = rfop;
 				m0_cm_stop(&scm->sc_base);
+				m0_fom_block_leave(fom);
 				m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 				rc = M0_FSO_AGAIN;
 				M0_LOG(M0_DEBUG, "got trigger: wait done");

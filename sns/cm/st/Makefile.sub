@@ -3,9 +3,12 @@ nobase_mero_include_HEADERS += sns/cm/st/trigger_fop.h
 mero_libmero_la_SOURCES  += sns/cm/st/trigger_fop.h \
                             sns/cm/st/trigger_fom.h \
                             sns/cm/st/trigger_fom.c \
-                            sns/cm/st/trigger_fop_xc.c
+                            sns/cm/st/trigger_fop_xc.c \
+                            sns/cm/st/repair_cli.c
 
-sns_cm_st_m0repair_SOURCES = sns/cm/st/repair_cli.c
+sns_cm_st_m0repair_SOURCES = sns/cm/st/repair_cli.h \
+                             sns/cm/st/repair_cli.c \
+                             sns/cm/st/repair_main.c
 
 XC_FILES   += sns/cm/st/trigger_fop_xc.h
 

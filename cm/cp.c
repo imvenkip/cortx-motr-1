@@ -31,6 +31,7 @@
 
 #include "cm/cp.h"
 #include "cm/ag.h"
+#include "cm/proxy.h"
 #include "cm/cm.h"
 
 #include "fop/fop.h"
@@ -235,6 +236,10 @@
  *
  *   - @b IOWAIT      Waits for IO to complete. (m0_cm_cp_phase::M0_CCP_IO_WAIT)
  *
+ *   - @b SW_CHECK    Checks if the copy packet is in sliding window.
+ *                    If it is not, then waits in this phase till it fits in
+ *                    the sliding window.
+ *
  *   - @b SEND        Send copy packet over network. Control FOP and bulk
  *                    transfer are used for sending copy packet.
  *		      (m0_cm_cp_phase::M0_CCP_SEND)
@@ -274,13 +279,13 @@
  *	   size = "4,4"
  *	   node [shape=ellipse, fontsize=12]
  *	   start -> INIT
- *	   INIT  -> READ -> IOWAIT -> SEND -> SEND_WAIT -> FINI
+ *	   INIT  -> READ -> IOWAIT -> SW_CHECK -> SEND -> SEND_WAIT -> FINI
  *	   INIT  -> BUF_ACQ -> RECV_INIT -> RECV_WAIT -> XFORM
  *	   XFORM -> WRITE -> IOWAIT -> FINI
  *	   INIT  -> XFORM -> FINI
  *	   INIT  -> WRITE
  *	   INIT  -> SEND
- *	   IOWAIT -> XFORM -> SEND -> SEND_WAIT -> FINI
+ *	   IOWAIT -> XFORM ->SW_CHECK -> SEND -> SEND_WAIT -> FINI
  *	   FINI  -> end
  *	}
  *   }
@@ -395,7 +400,7 @@ static const struct m0_bob_type cp_bob = {
 
 M0_TL_DESCR_DEFINE(proxy_cps, "copy packets in proxy", M0_INTERNAL,
 		   struct m0_cm_cp, c_cm_proxy_linkage, c_magix,
-		   CM_CP_LINK_MAGIX, CM_CP_HEAD_MAGIX);
+		   CM_CP_MAGIX, CM_PROXY_CP_HEAD_MAGIX);
 M0_TL_DEFINE(proxy_cps, M0_INTERNAL, struct m0_cm_cp);
 
 
@@ -415,7 +420,10 @@ static void cp_fom_fini(struct m0_fom *fom)
         struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
 	struct m0_cm_aggr_group *ag = cp->c_ag;
 	struct m0_cm            *cm = ag->cag_cm;
+	bool                     ag_fini;
 
+	M0_CNT_INC(ag->cag_freed_cp_nr);
+	ag_fini = ag->cag_ops->cago_ag_can_fini(ag, cp);
 	m0_cm_cp_fini(cp);
 	cp->c_ops->co_free(cp);
 	/**
@@ -423,15 +431,10 @@ static void cp_fom_fini(struct m0_fom *fom)
 	 * making way for new copy packets in sliding window.
 	 */
 	m0_cm_lock(cm);
-	M0_CNT_INC(ag->cag_freed_cp_nr);
+        if (ag_fini)
+                ag->cag_ops->cago_fini(ag);
 	if (m0_cm_has_more_data(cm))
-		m0_cm_sw_fill(cm);
-	/**
-	 * Free the aggregation group if this is the last copy packet
-	 * being finalised for a given aggregation group.
-	 */
-	if(ag->cag_freed_cp_nr == ag->cag_cp_local_nr)
-		ag->cag_ops->cago_fini(ag);
+		m0_cm_continue(cm);
 	m0_cm_unlock(cm);
 }
 
@@ -508,8 +511,8 @@ static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
                 .sd_flags       = M0_SDF_INITIAL,
                 .sd_name        = "Init",
                 .sd_allowed     = M0_BITS(M0_CCP_READ, M0_CCP_WRITE,
-					  M0_CCP_BUF_ACQUIRE, M0_CCP_XFORM,
-					  M0_CCP_SEND)
+					  M0_CCP_XFORM, M0_CCP_SEND,
+					  M0_CCP_SW_CHECK)
         },
         [M0_CCP_READ] = {
                 .sd_flags       = 0,
@@ -531,23 +534,23 @@ static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
                 .sd_flags       = 0,
                 .sd_name        = "Xform",
                 .sd_allowed     = M0_BITS(M0_CCP_FINI, M0_CCP_WRITE,
-					  M0_CCP_SEND)
+					  M0_CCP_SEND, M0_CCP_SW_CHECK)
+        },
+        [M0_CCP_SW_CHECK] = {
+                .sd_flags       = 0,
+                .sd_name        = "Sliding window check",
+                .sd_allowed     = M0_BITS(M0_CCP_SEND)
         },
         [M0_CCP_SEND] = {
                 .sd_flags       = 0,
                 .sd_name        = "Send",
-                .sd_allowed     = M0_BITS(M0_CCP_FINI, M0_CCP_BUF_ACQUIRE,
+                .sd_allowed     = M0_BITS(M0_CCP_FINI, M0_CCP_RECV_INIT,
 					  M0_CCP_SEND_WAIT)
         },
         [M0_CCP_SEND_WAIT] = {
                 .sd_flags       = 0,
                 .sd_name        = "Send Wait",
                 .sd_allowed     = M0_BITS(M0_CCP_FINI)
-        },
-        [M0_CCP_BUF_ACQUIRE] = {
-                .sd_flags       = 0,
-                .sd_name        = "Buffer Acquire",
-                .sd_allowed     = M0_BITS(M0_CCP_RECV_INIT)
         },
         [M0_CCP_RECV_INIT] = {
                 .sd_flags       = 0,
@@ -604,6 +607,7 @@ M0_INTERNAL void m0_cm_cp_init(struct m0_cm *cm, struct m0_cm_cp *cp)
 	m0_rpc_bulk_init(&cp->c_bulk);
 	m0_mutex_init(&cp->c_reply_wait_mutex);
 	m0_chan_init(&cp->c_reply_wait, &cp->c_reply_wait_mutex);
+	proxy_cp_tlink_init(cp);
 }
 
 M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp)
@@ -629,7 +633,6 @@ M0_INTERNAL void m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp)
 
         M0_PRE(reqh != NULL);
         M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
-        M0_PRE(m0_fom_phase(fom) == M0_CCP_INIT);
         M0_PRE(m0_cm_cp_invariant(cp));
 
         m0_fom_queue(fom, reqh);
@@ -659,6 +662,20 @@ M0_INTERNAL void m0_cm_cp_buf_release(struct m0_cm_cp *cp)
 		cp_data_buf_tlink_del_fini(nbuf);
 	} m0_tl_endfor;
 	cp_data_buf_tlist_fini(&cp->c_buffers);
+}
+
+M0_INTERNAL uint64_t m0_cm_cp_nr(struct m0_cm_cp *cp)
+{
+	struct m0_bitmap *bm = &cp->c_xform_cp_indices;
+	int               i;
+	uint64_t          cnt = 0;
+
+	for (i = 0; i < bm->b_nr; ++i) {
+		if (m0_bitmap_get(bm, i))
+			M0_CNT_INC(cnt);
+	}
+
+	return cnt;
 }
 
 /** @} end-of-CPDLD */

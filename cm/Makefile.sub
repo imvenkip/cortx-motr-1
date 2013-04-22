@@ -1,22 +1,34 @@
 nobase_mero_include_HEADERS += cm/ag.h \
                                cm/cm.h \
+                               cm/cm_types.h \
                                cm/cm_addb.h \
                                cm/cp.h \
                                cm/cp_onwire.h \
-                               cm/pump.h
+                               cm/pump.h \
+                               cm/proxy.h \
+                               cm/ready_fop.h
+
 
 mero_libmero_la_SOURCES += cm/ag.c \
                            cm/ag_xc.c \
                            cm/cm.c \
+                           cm/ready_fop.c \
+                           cm/ready_fop_xc.c \
                            cm/cp.c \
                            cm/cp_onwire_xc.c \
-                           cm/pump.c
+                           cm/pump.c \
+                           cm/proxy.c
 
-XC_FILES += cm/ag_xc.h cm/cp_onwire_xc.h
+
+XC_FILES += cm/ag_xc.h cm/cp_onwire_xc.h cm/ready_fop_xc.h
+
 
 CLEANFILES += cm/ag_xc.h \
               cm/ag_xc.c \
               cm/ag.gccxml \
               cm/cp_onwire_xc.h \
               cm/cp_onwire_xc.c \
-              cm/cp_onwire.gccxml
+              cm/cp_onwire.gccxml \
+              cm/ready_fop_xc.h \
+              cm/ready_fop_xc.c \
+              cm/ready_fop_xc.gccxml

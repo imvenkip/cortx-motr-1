@@ -597,8 +597,8 @@ static void ios_stats_post_addb(struct m0_reqh_service *service)
 
 enum {
 	RPC_TIMEOUT          = 8, /* seconds */
-	NR_SLOTS_PER_SESSION = 2,
-	MAX_NR_RPC_IN_FLIGHT = 5,
+	NR_SLOTS_PER_SESSION = 10,
+	MAX_NR_RPC_IN_FLIGHT = 100,
 };
 
 static int m0_ios_mds_conn_init(struct m0_reqh *reqh,

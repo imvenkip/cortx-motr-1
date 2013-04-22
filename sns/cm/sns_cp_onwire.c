@@ -44,7 +44,7 @@ M0_INTERNAL int m0_sns_cpx_init(void)
                 M0_FOP_TYPE_INIT(&m0_sns_cpx_reply_fopt,
                                 .name      = "SNS copy packet reply",
                                 .opcode    = M0_SNS_CM_CP_REP_OPCODE,
-                                .xt        = m0_sns_cpx_xc,
+                                .xt        = m0_sns_cpx_reply_xc,
                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
                                 .svc_type  = m0_reqh_service_type_find(
                                                 "sns_cm"));

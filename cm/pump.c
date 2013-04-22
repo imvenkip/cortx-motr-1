@@ -141,9 +141,7 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 	m0_cm_lock(cm);
 
 	/* This operation might block. */
-	m0_fom_block_enter(&cp_pump->p_fom);
 	rc = m0_cm_data_next(cm, cp);
-	m0_fom_block_leave(&cp_pump->p_fom);
 
 	if (rc < 0) {
 		if (rc == -ENOBUFS || rc == -ENODATA) {
@@ -158,7 +156,7 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 				 * No local data found corresponding to the
 				 * failure. So mark the operation as complete.
 				 */
-				if (aggr_grps_tlist_is_empty(&cm->cm_aggr_grps))
+				if (m0_cm_aggr_group_tlists_are_empty(cm))
 					cm->cm_ops->cmo_complete(cm);
 				pump_move(cp_pump, 0, CPP_COMPLETE);
 			} else
