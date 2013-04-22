@@ -811,7 +811,7 @@ static void ioreq_sm_failed(struct io_request *req, int rc)
 	m0_mutex_unlock(&req->ir_sm.sm_grp->s_lock);
 }
 
-static const struct m0_sm_state_descr io_states[] = {
+static struct m0_sm_state_descr io_states[] = {
 	[IRS_INITIALIZED]       = {
 		.sd_flags       = M0_SDF_INITIAL,
 		.sd_name        = "IO_initial",
@@ -3039,7 +3039,6 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 
 	M0_ENTRY();
 	M0_PRE(io_request_invariant(req));
->>>>>>> Degraded mode write IO:
 
 	ioreq_sm_state_set(req, IRS_DEGRADED_READING);
 	rc = dgmode_check(req);
