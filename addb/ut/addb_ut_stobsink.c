@@ -105,7 +105,7 @@ static int stobsink_mock_stob_type_domain_locate(struct m0_stob_type *type,
 	if (sdom != NULL) {
 		dom = &sdom->ssd_dom;
 		dom->sd_ops = &stobsink_mock_stob_domain_op;
-		m0_stob_domain_init(dom, type);
+		m0_stob_domain_init(dom, type, dom_id);
 		*out = dom;
 		strcpy(sdom->ssd_buf, domain_name);
 		dom->sd_name = sdom->ssd_buf;

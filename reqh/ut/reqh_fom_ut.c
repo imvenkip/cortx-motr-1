@@ -174,6 +174,7 @@ static int server_init(const char             *stob_path,
 	uint32_t		     tms_nr;
 	struct m0_reqh_service_type *stype;
 	struct stat		     info;
+	int			     ino;
 
         srv_cob_dom_id.id = 102;
 
@@ -204,8 +205,9 @@ static int server_init(const char             *stob_path,
 	/*
 	 * Create AD domain over backing store object.
 	 */
-	rc = m0_stob_domain_locate(&m0_ad_stob_type, "", &sdom,
-				   info.st_ino + 1);
+	ino = m0_linux_stob_ino(*bstore);
+	M0_ASSERT(ino != 0);
+	rc = m0_stob_domain_locate(&m0_ad_stob_type, "", &sdom, ino);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_ad_stob_setup(sdom, &srv_db, *bstore, &rb.rb_ballroom,

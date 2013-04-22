@@ -154,7 +154,8 @@ struct m0_stob_domain_op {
 };
 
 M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
-				     struct m0_stob_type *t);
+				     struct m0_stob_type *t,
+				     uint64_t dom_id);
 M0_INTERNAL void m0_stob_domain_fini(struct m0_stob_domain *dom);
 
 /**

@@ -252,7 +252,7 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
 		adom->ad_setup = false;
 		dom = &adom->ad_base;
 		dom->sd_ops = &ad_stob_domain_op;
-		m0_stob_domain_init(dom, type);
+		m0_stob_domain_init(dom, type, dom_id);
 		m0_stob_cache_init(&adom->ad_cache);
 		sprintf(adom->ad_path, "%s%s", prefix, domain_name);
 		dom->sd_name = adom->ad_path + ARRAY_SIZE(prefix) - 1;

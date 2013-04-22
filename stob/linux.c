@@ -136,7 +136,7 @@ static int linux_stob_type_domain_locate(struct m0_stob_type *type,
 		strcpy(ldom->sdl_path, domain_name);
 		dom = &ldom->sdl_base;
 		dom->sd_ops = &linux_stob_domain_op;
-		m0_stob_domain_init(dom, type);
+		m0_stob_domain_init(dom, type, dom_id);
 		m0_stob_cache_init(&ldom->sdl_cache);
 		result = linux_domain_io_init(dom);
 		if (result == 0)

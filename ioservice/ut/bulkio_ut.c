@@ -1364,7 +1364,8 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 				     ftype->ft_ops->fto_redo != NULL);
 			result = ftype->ft_ops->fto_undo(fp_part, reqh->rh_fol);
 		} else
-			result = dec_part->rp_ops->rpo_undo(dec_part, &dtx.tx_dbtx);
+			result = dec_part->rp_ops->rpo_undo(dec_part,
+							    &dtx.tx_dbtx);
 		M0_UT_ASSERT(result == 0);
 	} m0_tl_endfor;
 	m0_fol_lookup_rec_fini(&dec_rec);
