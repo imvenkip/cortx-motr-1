@@ -778,6 +778,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	struct m0_stob    **bstob;
 	struct m0_balloc   *cb;
 	struct cs_ad_stob  *adstob;
+	int		    ino;
 
 	M0_ALLOC_PTR(adstob);
 	if (adstob == NULL) {
@@ -807,29 +808,29 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	if (rc == 0) {
 		sprintf(ad_dname, "%lx%lx", bstob_id->si_bits.u_hi,
 			bstob_id->si_bits.u_lo);
-		rc = m0_stob_domain_locate(&m0_ad_stob_type, ad_dname,
-					   &adstob->as_dom);
+		ino = m0_linux_stob_ino(*bstob);
+		M0_ASSERT(ino != 0);
+		rc = ino > 0 ? m0_stob_domain_locate(&m0_ad_stob_type, ad_dname,
+						     &adstob->as_dom, ino) :
+			       ino;
 	}
 
 	if (rc != 0) {
 		m0_stob_put(*bstob);
 		m0_free(adstob);
+		return rc;
 	}
 
-	if (rc == 0) {
-		cs_ad_stob_bob_init(adstob);
-		astob_tlink_init_at_tail(adstob, &stob->s_adoms);
-	}
+	cs_ad_stob_bob_init(adstob);
+	astob_tlink_init_at_tail(adstob, &stob->s_adoms);
 
-	if (rc == 0)
-		rc = m0_balloc_allocate(cid, &cb);
-	if (rc == 0)
-		rc = m0_ad_stob_setup(adstob->as_dom, db,
-				      *bstob, &cb->cb_ballroom,
-				      BALLOC_DEF_CONTAINER_SIZE,
-				      BALLOC_DEF_BLOCK_SHIFT,
-				      BALLOC_DEF_BLOCKS_PER_GROUP,
-				      BALLOC_DEF_RESERVED_GROUPS);
+	rc = m0_balloc_allocate(cid, &cb) ?:
+		m0_ad_stob_setup(adstob->as_dom, db,
+				 *bstob, &cb->cb_ballroom,
+				 BALLOC_DEF_CONTAINER_SIZE,
+				 BALLOC_DEF_BLOCK_SHIFT,
+				 BALLOC_DEF_BLOCKS_PER_GROUP,
+				 BALLOC_DEF_RESERVED_GROUPS);
 
 	if (rc == 0 && M0_FI_ENABLED("ad_stob_setup_fail"))
 		rc = -EINVAL;
@@ -884,17 +885,13 @@ static int cs_ad_stob_init(struct cs_stobs *stob,
  */
 static int cs_linux_stob_init(const char *stob_path, struct cs_stobs *stob)
 {
-	int                    rc;
-	struct m0_stob_domain *sdom;
+	struct stat info;
 
-	rc = m0_stob_domain_locate(&m0_linux_stob_type, stob_path,
-				   &stob->s_ldom);
-	if (rc == 0) {
-		sdom = stob->s_ldom;
-		rc = m0_linux_stob_setup(sdom, false);
-	}
+	return lstat(stob_path, &info) ?:
+	       m0_stob_domain_locate(&m0_linux_stob_type, stob_path,
+				     &stob->s_ldom, info.st_ino) ?:
+	       m0_linux_stob_setup(stob->s_ldom, false);
 
-	return rc;
 }
 
 static void cs_ad_stob_fini(struct cs_stobs *stob)

@@ -121,7 +121,8 @@ static void linux_domain_fini(struct m0_stob_domain *self)
  */
 static int linux_stob_type_domain_locate(struct m0_stob_type *type,
 					 const char *domain_name,
-					 struct m0_stob_domain **out)
+					 struct m0_stob_domain **out,
+					 uint64_t dom_id)
 {
 	struct linux_domain   *ldom;
 	struct m0_stob_domain *dom;
@@ -262,6 +263,27 @@ static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
 	nob = snprintf(path, nr, "%s/o/%016lx.%016lx", ldom->sdl_path,
 		       stob->so_id.si_bits.u_hi, stob->so_id.si_bits.u_lo);
 	return nob < nr ? 0 : -EOVERFLOW;
+}
+
+/**
+   Helper function returns inode number of the linux stob object.
+ */
+M0_INTERNAL int m0_linux_stob_ino(struct m0_stob *obj)
+{
+	char		   pathname[MAXPATHLEN];
+	int		   result;
+	struct stat	   statbuf;
+	struct linux_stob *lstob;
+
+	M0_PRE(obj != NULL);
+
+	lstob = stob2linux(obj);
+
+	M0_ASSERT(linux_stob_invariant(lstob));
+
+	result = linux_stob_path(lstob, ARRAY_SIZE(pathname), pathname) ?:
+		 lstat(pathname, &statbuf);
+	return result == 0 ? statbuf.st_ino : result;
 }
 
 /**

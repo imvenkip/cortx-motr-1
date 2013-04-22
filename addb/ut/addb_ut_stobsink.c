@@ -93,7 +93,8 @@ static void stobsink_mock_stob_type_fini(struct m0_stob_type *stype)
 
 static int stobsink_mock_stob_type_domain_locate(struct m0_stob_type *type,
 						 const char *domain_name,
-						 struct m0_stob_domain **out)
+						 struct m0_stob_domain **out,
+						 uint64_t dom_id)
 {
 	struct stobsink_domain *sdom;
 	struct m0_stob_domain  *dom;
@@ -301,7 +302,8 @@ static void addb_ut_stobsink_search(void)
 	m0_addb_mc_init(&mc);
 
 	/* must jump thru hoops to make mock stob usable */
-	rc = m0_stob_domain_locate(&stobsink_mock_stob_type, "mock", &dom);
+	rc = m0_stob_domain_locate(&stobsink_mock_stob_type, "mock", &dom,
+				   0);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_find(dom, &stobsink_stobid, &stob);
 	M0_UT_ASSERT(rc == 0 && stob != NULL);
@@ -546,9 +548,13 @@ static struct m0_stob *addb_ut_retrieval_stob_setup(const char *domain_name,
 	struct m0_stob_domain *dom;
 	struct m0_stob        *stob = NULL;
 	int                    rc;
+	struct stat	       info;
 
 	M0_UT_ASSERT(id != NULL);
-	rc = m0_stob_domain_locate(&m0_linux_stob_type, domain_name, &dom);
+	rc = lstat(domain_name, &info);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_stob_domain_locate(&m0_linux_stob_type, domain_name, &dom,
+				   info.st_ino);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_find(dom, id, &stob);
 	M0_UT_ASSERT(rc == 0 && stob != NULL);
@@ -571,7 +577,6 @@ static void addb_ut_retrieval(void)
 	FILE                        *f;
 	int                          count;
 	int                          rc;
-
 
 	stob = addb_ut_retrieval_stob_setup("./_addb", &stobsink_stobid);
 	M0_UT_ASSERT(stob != NULL);
@@ -753,6 +758,7 @@ static void addb_ut_stob(void)
 	void                     *vp;
 	bool                      stob_wrapped;
 	bool                      bp_wrapped;
+	struct stat		  info;
 
 	/* Skip rec_post UT hooks, only for validation of posting rec's data */
 	addb_rec_post_ut_data_enabled = false;
@@ -763,7 +769,10 @@ static void addb_ut_stob(void)
 	rc = mkdir("./_addb/o", 0700);
 	M0_UT_ASSERT(rc == 0 || (rc == -1 && errno == EEXIST));
 
-	rc = m0_stob_domain_locate(&m0_linux_stob_type, "./_addb", &dom);
+	rc = lstat("./_addb", &info);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_stob_domain_locate(&m0_linux_stob_type, "./_addb", &dom,
+				   info.st_ino);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_find(dom, &stobsink_stobid, &stob);
 	M0_UT_ASSERT(rc == 0 && stob != NULL);

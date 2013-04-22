@@ -144,8 +144,10 @@ struct mock_balloc mb = {
 
 static int test_ad_init(void)
 {
-	int i;
-	int result;
+	int	    i;
+	int	    result;
+	struct stat info;
+	int	    ino;
 
 	result = system("rm -fr ./__s");
 	M0_ASSERT(result == 0);
@@ -159,7 +161,10 @@ static int test_ad_init(void)
 	result = m0_dbenv_init(&db, db_name, 0);
 	M0_ASSERT(result == 0);
 
-	result = m0_stob_domain_locate(&m0_linux_stob_type, "./__s", &dom_back);
+	result = lstat("./__s", &info);
+	M0_ASSERT(result == 0);
+	result = m0_stob_domain_locate(&m0_linux_stob_type, "./__s", &dom_back,
+				       info.st_ino);
 	M0_ASSERT(result == 0);
 
 	result = m0_stob_find(dom_back, &id_back, &obj_back);
@@ -170,7 +175,10 @@ static int test_ad_init(void)
 	M0_ASSERT(result == 0);
 	M0_ASSERT(obj_back->so_state == CSS_EXISTS);
 
-	result = m0_stob_domain_locate(&m0_ad_stob_type, "", &dom_fore);
+	ino = m0_linux_stob_ino(obj_back);
+	M0_ASSERT(ino > 0);
+	result = m0_stob_domain_locate(&m0_ad_stob_type, "", &dom_fore,
+				       ino);
 	M0_ASSERT(result == 0);
 
 	result = m0_ad_stob_setup(dom_fore, &db, obj_back, &mb.mb_ballroom,

@@ -70,8 +70,9 @@ static uint32_t buf_size;
 
 static int test_adieu_init(void)
 {
-	int i;
-	int result;
+	int	    i;
+	int	    result;
+	struct stat info;
 
 	result = system("rm -fr ./__s");
 	M0_ASSERT(result == 0);
@@ -82,7 +83,10 @@ static int test_adieu_init(void)
 	result = mkdir("./__s/o", 0700);
 	M0_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
-	result = m0_stob_domain_locate(&m0_linux_stob_type, "./__s", &dom);
+	result = lstat("./__s", &info);
+	M0_ASSERT(result == 0);
+	result = m0_stob_domain_locate(&m0_linux_stob_type, "./__s", &dom,
+				       info.st_ino);
 	M0_ASSERT(result == 0);
 
 	result = m0_stob_find(dom, &id, &obj);

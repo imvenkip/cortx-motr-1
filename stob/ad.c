@@ -236,7 +236,8 @@ static const char prefix[] = "ad.";
  */
 static int ad_stob_type_domain_locate(struct m0_stob_type *type,
 				      const char *domain_name,
-				      struct m0_stob_domain **out)
+				      struct m0_stob_domain **out,
+				      uint64_t dom_id)
 {
 	struct ad_domain      *adom;
 	struct m0_stob_domain *dom;

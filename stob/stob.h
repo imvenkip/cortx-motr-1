@@ -89,7 +89,8 @@ struct m0_stob_type_op {
 	*/
 	int (*sto_domain_locate)(struct m0_stob_type *type,
 				 const char *domain_name,
-				 struct m0_stob_domain **dom);
+				 struct m0_stob_domain **dom,
+				 uint64_t dom_id);
 };
 
 M0_INTERNAL int m0_stob_type_init(struct m0_stob_type *kind);
@@ -99,7 +100,8 @@ M0_INTERNAL void m0_stob_type_fini(struct m0_stob_type *kind);
 
 M0_INTERNAL int m0_stob_domain_locate(struct m0_stob_type *type,
 				      const char *domain_name,
-				      struct m0_stob_domain **dom);
+				      struct m0_stob_domain **dom,
+				      uint64_t dom_id);
 /**
    stob domain
 

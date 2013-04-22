@@ -82,9 +82,11 @@ M0_INTERNAL void m0_stob_type_fini(struct m0_stob_type *kind)
 
 M0_INTERNAL int m0_stob_domain_locate(struct m0_stob_type *type,
 				      const char *domain_name,
-				      struct m0_stob_domain **dom)
+				      struct m0_stob_domain **dom,
+				      uint64_t dom_id)
 {
-	return M0_STOB_TYPE_OP(type, sto_domain_locate, domain_name, dom);
+	return M0_STOB_TYPE_OP(type, sto_domain_locate, domain_name, dom,
+			       dom_id);
 }
 
 M0_INTERNAL struct m0_stob_domain *

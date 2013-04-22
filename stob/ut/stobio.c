@@ -307,17 +307,22 @@ static int stobio_storage_init(void)
 static void stobio_storage_fini(void)
 {
 	int result;
+
 	result = system("rm -fr ./__s");
 	M0_UT_ASSERT(result == 0);
 }
 
 static int stobio_init(struct stobio_test *test)
 {
-	int result;
+	int		   result;
 	struct linux_stob *lstob;
+	struct stat	   info;
 
+	result = lstat("./__s", &info);
+	M0_UT_ASSERT(result == 0);
 	result = m0_stob_domain_locate(&m0_linux_stob_type,
-				       "./__s", &test->st_dom);
+				       "./__s", &test->st_dom,
+				       info.st_ino);
 	M0_UT_ASSERT(result == 0);
 
 	result = m0_linux_stob_setup(test->st_dom, test->st_directio);
