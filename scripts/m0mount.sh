@@ -51,6 +51,10 @@
 # IMPORTANT! Keep the same nodes together in the list
 # (the code depends on this).
 #
+# When using AD stobs and local configuration, please perform following steps
+# to control how AD devices are actually used.
+# for i in `seq 0 7`; do sudo dd if=/dev/zero of=disk$i bs=1M count=400; done
+# for i in `seq 0 7`; do sudo losetup /dev/loop$i disk$i; done
 
 usage()
 {
