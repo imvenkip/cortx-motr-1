@@ -42,4 +42,4 @@ CLEANFILES += sns/cm/sns_cp_onwire_xc.h \
 	      sns/cm/sns_cp_onwire.gccxml \
 	      sns/cm/sns_ready_fop_xc.h \
 	      sns/cm/sns_ready_fop_xc.c \
-	      sns/cm/sns_ready_fop_xc.gccxml
+	      sns/cm/sns_ready_fop.gccxml

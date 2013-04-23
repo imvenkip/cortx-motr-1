@@ -31,4 +31,4 @@ CLEANFILES += cm/ag_xc.h \
               cm/cp_onwire.gccxml \
               cm/ready_fop_xc.h \
               cm/ready_fop_xc.c \
-              cm/ready_fop_xc.gccxml
+              cm/ready_fop.gccxml
