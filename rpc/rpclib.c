@@ -103,8 +103,7 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 				      struct m0_rpc_machine *rpc_mach,
 				      const char            *remote_addr,
 				      uint64_t               max_rpcs_in_flight,
-				      uint32_t               nr_slots,
-				      uint32_t               rpc_timeout_sec)
+				      uint32_t               nr_slots)
 {
 	struct m0_net_end_point *ep;
 	int                      rc;
@@ -116,16 +115,14 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 		M0_RETURN(rc);
 
 	rc = m0_rpc_conn_create(conn, ep, rpc_mach, max_rpcs_in_flight,
-				m0_time_from_now(rpc_timeout_sec, 0));
+				M0_TIME_NEVER);
 	m0_net_end_point_put(ep);
 	if (rc != 0)
 		M0_RETURN(rc);
 
-	rc = m0_rpc_session_create(session, conn, nr_slots,
-				   m0_time_from_now(rpc_timeout_sec, 0));
+	rc = m0_rpc_session_create(session, conn, nr_slots, M0_TIME_NEVER);
 	if (rc != 0)
-		(void)m0_rpc_conn_destroy(conn,
-					 m0_time_from_now(rpc_timeout_sec, 0));
+		(void)m0_rpc_conn_destroy(conn, M0_TIME_NEVER);
 
 	M0_RETURN(rc);
 }
@@ -185,8 +182,7 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 				   &cctx->rcx_rpc_machine,
 				   cctx->rcx_remote_addr,
 				   cctx->rcx_max_rpcs_in_flight,
-				   cctx->rcx_nr_slots,
-				   cctx->rcx_timeout_s);
+				   cctx->rcx_nr_slots);
 	if (rc == 0)
 		M0_RETURN(rc);
 
@@ -205,13 +201,11 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 
 	M0_ENTRY("client_ctx: %p", cctx);
 
-	rc0 = m0_rpc_session_destroy(&cctx->rcx_session,
-				     m0_time_from_now(cctx->rcx_timeout_s, 0));
+	rc0 = m0_rpc_session_destroy(&cctx->rcx_session, M0_TIME_NEVER);
 	if (rc0 != 0)
 		M0_LOG(M0_ERROR, "Failed to terminate session %d", rc0);
 
-	rc1 = m0_rpc_conn_destroy(&cctx->rcx_connection,
-				  m0_time_from_now(cctx->rcx_timeout_s, 0));
+	rc1 = m0_rpc_conn_destroy(&cctx->rcx_connection, M0_TIME_NEVER);
 	if (rc1 != 0)
 		M0_LOG(M0_ERROR, "Failed to terminate connection %d", rc1);
 

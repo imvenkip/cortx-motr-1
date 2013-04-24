@@ -257,14 +257,6 @@ for c in garbage premature_eof duplicated_ids no_fs_data bad_fs_params; do
     _mount local $c 2>/dev/null && error 'Failed to fail'
 done
 
-say '  Test: no network'
-services_stop
-_mount net 2>/dev/null && error 'Failed to fail'
-
-say '  Test: no confd'
-services_start noconfd
-_mount net 2>/dev/null && error 'Failed to fail'
-
 # Restart services in order for confd to appear.
 services_stop
 services_start

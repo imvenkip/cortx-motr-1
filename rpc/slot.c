@@ -26,6 +26,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/bitstring.h"
+#include "lib/finject.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "lib/arith.h"
@@ -73,10 +74,10 @@ M0_INTERNAL bool m0_rpc_slot_invariant(const struct m0_rpc_slot *slot)
 	struct m0_verno    *v2;
 	bool                ok;
 
-	ok = slot != NULL &&
-	     slot->sl_in_flight <= slot->sl_max_in_flight &&
-	     M0_CHECK_EX(m0_tlist_invariant(&slot_item_tl, &slot->sl_item_list));
-
+	ok = _0C(slot != NULL) &&
+	     _0C(slot->sl_in_flight <= slot->sl_max_in_flight) &&
+	     M0_CHECK_EX(m0_tlist_invariant(&slot_item_tl,
+					    &slot->sl_item_list));
 	if (!ok)
 		return false;
 
@@ -94,14 +95,14 @@ M0_INTERNAL bool m0_rpc_slot_invariant(const struct m0_rpc_slot *slot)
 			item1 = item2;
 			continue;
 		}
-		ok = ergo(M0_IN(item2->ri_stage,
+		ok = _0C(ergo(M0_IN(item2->ri_stage,
 				(RPC_ITEM_STAGE_PAST_VOLATILE,
 				 RPC_ITEM_STAGE_PAST_COMMITTED)),
-			  item2->ri_reply != NULL);
+			  item2->ri_reply != NULL));
 		if (!ok)
 			return false;
 
-		ok = (item1->ri_stage <= item2->ri_stage);
+		ok = _0C(item1->ri_stage <= item2->ri_stage);
 		if (!ok)
 			return false;
 
@@ -113,12 +114,12 @@ M0_INTERNAL bool m0_rpc_slot_invariant(const struct m0_rpc_slot *slot)
 		 * the version number of slot is advanced
 		 */
 		ok = m0_rpc_item_is_update(item1) ?
-			v1->vn_vc + 1 == v2->vn_vc :
-			v1->vn_vc == v2->vn_vc;
+			_0C(v1->vn_vc + 1 == v2->vn_vc) :
+			_0C(v1->vn_vc == v2->vn_vc);
 		if (!ok)
 			return false;
 
-		ok = (item_xid(item1, 0) + 1 == item_xid(item2, 0));
+		ok = _0C(item_xid(item1, 0) + 1 == item_xid(item2, 0));
 		if (!ok)
 			return false;
 
@@ -320,6 +321,7 @@ static void __slot_balance(struct m0_rpc_slot *slot,
 			   bool                allow_events)
 {
 	struct m0_rpc_item *item;
+	int                 rc;
 
 	M0_ENTRY("slot: %p", slot);
 	M0_PRE(m0_rpc_slot_invariant(slot));
@@ -352,8 +354,11 @@ static void __slot_balance(struct m0_rpc_slot *slot,
 		/*
 		 * Tell formation module that an item is ready to be put in rpc
 		 */
-		if (allow_events)
-			slot->sl_ops->so_item_consume(item);
+		if (allow_events) {
+			rc = slot->sl_ops->so_item_consume(item);
+			if (rc != 0)
+				m0_rpc_item_failed(item, rc);
+		}
 	}
 	M0_POST(m0_rpc_slot_invariant(slot));
 	M0_LEAVE();
@@ -501,10 +506,12 @@ static void duplicate_item_received(struct m0_rpc_slot *slot,
 {
 	struct m0_rpc_item *req;
 
+	M0_ENTRY("slot: %p item: %p", slot, item);
 	/* item is a duplicate request. Find originial. */
 	req = item_find(slot, item_xid(item, 0));
 	if (req == NULL) {
 		misordered_item_received(slot, item);
+		M0_LEAVE();
 		return;
 	}
 	/*
@@ -534,8 +541,15 @@ static void duplicate_item_received(struct m0_rpc_slot *slot,
 		   processed yet. Ignore it*/
 		/* do nothing */;
 		break;
-	case RPC_ITEM_STAGE_TIMEDOUT:
 	case RPC_ITEM_STAGE_FAILED:
+		/* The request is failed, but receiver could not send reply.
+		   e.g. consider fom allocation failed during
+			m0_reqh_fop_handle()
+		   Ignore the request. Sender side request should TIMEOUT.
+		 */
+		M0_LOG(M0_INFO, "Duplicate request of FAILED item rcvd");
+		break;
+	case RPC_ITEM_STAGE_TIMEDOUT:
 		M0_IMPOSSIBLE("Original req in TIMEDOUT/FAILED stage");
 		break;
 	default:
@@ -545,6 +559,7 @@ static void duplicate_item_received(struct m0_rpc_slot *slot,
 	 * Irrespective of any of above cases, we're going to
 	 * ignore this _duplicate_ item.
 	 */
+	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_rpc_slot_reply_received(struct m0_rpc_slot *slot,
@@ -799,8 +814,9 @@ M0_INTERNAL void m0_rpc_slot_reset(struct m0_rpc_slot *slot,
 	M0_LEAVE();
 }
 
-static struct m0_rpc_conn *find_conn(const struct m0_rpc_machine *machine,
-				     const struct m0_rpc_item    *item)
+M0_INTERNAL struct m0_rpc_conn *
+m0_rpc_machine_find_conn(const struct m0_rpc_machine *machine,
+			 const struct m0_rpc_item    *item)
 {
 	const struct m0_rpc_onwire_slot_ref *sref;
 	const struct m0_tl                  *conn_list;
@@ -844,7 +860,7 @@ static int associate_session_and_slot(struct m0_rpc_item    *item,
 	if (sref->sr_ow.osr_session_id > SESSION_ID_MAX)
 		M0_RETERR(-EINVAL, "rpc_session_id");
 
-	conn = find_conn(machine, item);
+	conn = m0_rpc_machine_find_conn(machine, item);
 	if (conn == NULL)
 		M0_RETURN(-ENOENT);
 
@@ -958,6 +974,8 @@ M0_INTERNAL int m0_rpc_slot_cob_create(const struct m0_cob *session_cob,
 	M0_ENTRY("session_cob: %p, slot_id: %u, slot_generation: %llu",
 		 session_cob, slot_id, (unsigned long long)slot_generation);
 	M0_PRE(session_cob != NULL && slot_cob != NULL);
+
+	if (M0_FI_ENABLED("failed")) return -EINVAL;
 
 	sprintf(name, "SLOT_%u:%lu", slot_id, (unsigned long)slot_generation);
 	rc = m0_rpc_cob_create_helper(session_cob->co_dom, session_cob, name,

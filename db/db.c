@@ -37,6 +37,7 @@
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
+#include "lib/finject.h"
 
 #include "mero/magic.h"
 #include "db/db.h"
@@ -514,6 +515,8 @@ M0_INTERNAL int m0_db_tx_init(struct m0_db_tx *tx, struct m0_dbenv *env,
 {
 	int result;
 	DB_TXN *txn;
+
+	if (M0_FI_ENABLED("failed")) return -EINVAL;
 
 	m0_db_common_tx_init(tx, env);
 	if (flags == 0)

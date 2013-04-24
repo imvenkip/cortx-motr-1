@@ -59,7 +59,6 @@ static struct m0_rpc_client_ctx cctx = {
 	.rcx_cob_dom_id            = CLIENT_COB_DOM_ID,
 	.rcx_cob_dom               = &client_cob_dom,
 	.rcx_nr_slots              = SESSION_SLOTS,
-	.rcx_timeout_s             = CONNECT_TIMEOUT,
 	.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
 	.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN,
 };

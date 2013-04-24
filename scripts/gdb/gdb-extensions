@@ -46,3 +46,16 @@ end
 define m0-rpc-frm-itemq-print
 	m0-list-print $arg0 struct m0_rpc_item ri_iq_link frm-item
 end
+
+define m0-sm-state
+	set $sm = (struct m0_sm *)$arg0
+	print $sm->sm_conf->scf_state[$sm->sm_state].sd_name
+end
+document m0-sm-state
+	Prints current state of supplied sm, in human readable form
+
+	Example:
+	(gdb) m0-sm-state &session.s_sm
+	$3 = 0x7ffff75ee5fa "Finalised"
+
+end

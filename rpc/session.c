@@ -47,7 +47,7 @@
 static void snd_slot_idle(struct m0_rpc_slot *slot);
 static void snd_slot_busy(struct m0_rpc_slot *slot);
 
-static void snd_item_consume(struct m0_rpc_item *item);
+static int  snd_item_consume(struct m0_rpc_item *item);
 
 static void snd_reply_consume(struct m0_rpc_item *req,
 				 struct m0_rpc_item *reply);
@@ -55,7 +55,7 @@ static void snd_reply_consume(struct m0_rpc_item *req,
 static void rcv_slot_idle(struct m0_rpc_slot *slot);
 static void rcv_slot_busy(struct m0_rpc_slot *slot);
 
-static void rcv_item_consume(struct m0_rpc_item *item);
+static int  rcv_item_consume(struct m0_rpc_item *item);
 
 static void rcv_reply_consume(struct m0_rpc_item *req,
 			      struct m0_rpc_item *reply);
@@ -208,14 +208,15 @@ M0_INTERNAL bool m0_rpc_session_invariant(const struct m0_rpc_session *session)
 	bool                ok;
 	int                 i;
 
-	ok = session != NULL &&
-	     session->s_conn != NULL &&
-	     session->s_nr_slots > 0 &&
-	     nr_active_items_count(session) == session->s_nr_active_items &&
-	     rpc_session_tlist_contains(&session->s_conn->c_sessions,
-			             session) &&
-	     ergo(session->s_session_id != SESSION_ID_0,
-		  session->s_conn->c_nr_sessions > 0);
+	ok = _0C(session != NULL) &&
+	     _0C(session->s_conn != NULL) &&
+	     _0C(session->s_nr_slots > 0) &&
+	     _0C(nr_active_items_count(session) ==
+			session->s_nr_active_items) &&
+	     _0C(rpc_session_tlist_contains(&session->s_conn->c_sessions,
+			             session)) &&
+	     _0C(ergo(session->s_session_id != SESSION_ID_0,
+		  session->s_conn->c_nr_sessions > 0));
 
 	if (!ok)
 		return false;
@@ -223,13 +224,13 @@ M0_INTERNAL bool m0_rpc_session_invariant(const struct m0_rpc_session *session)
 	for (i = 0; i < session->s_nr_slots; i++) {
 		slot = session->s_slot_table[i];
 		ok = m0_rpc_slot_invariant(slot) &&
-		     ergo(M0_IN(session_state(session),
+		     _0C(ergo(M0_IN(session_state(session),
 				(M0_RPC_SESSION_INITIALISED,
 				 M0_RPC_SESSION_ESTABLISHING,
 				 M0_RPC_SESSION_TERMINATING,
 				 M0_RPC_SESSION_TERMINATED,
 				 M0_RPC_SESSION_FAILED)),
-		          !ready_slot_tlink_is_in(slot));
+		          !ready_slot_tlink_is_in(slot)));
 		    /* A slot cannot be on ready slots list if session is
 		       in one of above states */
 		if (!ok)
@@ -239,28 +240,28 @@ M0_INTERNAL bool m0_rpc_session_invariant(const struct m0_rpc_session *session)
 	switch (session_state(session)) {
 	case M0_RPC_SESSION_INITIALISED:
 	case M0_RPC_SESSION_ESTABLISHING:
-		return session->s_session_id == SESSION_ID_INVALID &&
-		       m0_rpc_session_is_idle(session);
+		return _0C(session->s_session_id == SESSION_ID_INVALID) &&
+		       _0C(m0_rpc_session_is_idle(session));
 
 	case M0_RPC_SESSION_TERMINATED:
-		return  session->s_cob == NULL &&
-			session->s_session_id <= SESSION_ID_MAX &&
-			m0_rpc_session_is_idle(session);
+		return  _0C(session->s_cob == NULL) &&
+			_0C(session->s_session_id <= SESSION_ID_MAX) &&
+			_0C(m0_rpc_session_is_idle(session));
 
 	case M0_RPC_SESSION_IDLE:
 	case M0_RPC_SESSION_TERMINATING:
-		return m0_rpc_session_is_idle(session) &&
-		       session->s_session_id <= SESSION_ID_MAX;
+		return _0C(m0_rpc_session_is_idle(session)) &&
+		       _0C(session->s_session_id <= SESSION_ID_MAX);
 
 	case M0_RPC_SESSION_BUSY:
-		return !m0_rpc_session_is_idle(session) &&
-		       session->s_session_id <= SESSION_ID_MAX;
+		return _0C(!m0_rpc_session_is_idle(session)) &&
+		       _0C(session->s_session_id <= SESSION_ID_MAX);
 
 	case M0_RPC_SESSION_FAILED:
-		return session->s_sm.sm_rc != 0;
+		return _0C(session->s_sm.sm_rc != 0);
 
 	default:
-		return false;
+		return _0C(false);
 	}
 	/* Should never reach here */
 	M0_ASSERT(0);
@@ -387,6 +388,8 @@ static int slot_table_alloc_and_init(struct m0_rpc_session *session)
 
 		session->s_slot_table[i] = slot;
 	}
+	if (M0_FI_ENABLED("failed"))
+		M0_RETURN(-ENOMEM);
 	M0_RETURN(0);
 }
 
@@ -713,6 +716,9 @@ M0_INTERNAL int m0_rpc_session_terminate_sync(struct m0_rpc_session *session,
 	int rc;
 
 	M0_ENTRY("session: %p", session);
+	M0_PRE(M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
+					      M0_RPC_SESSION_BUSY,
+					      M0_RPC_SESSION_TERMINATING)));
 
 	/* Wait for session to become IDLE */
 	m0_rpc_session_timedwait(session, M0_BITS(M0_RPC_SESSION_IDLE),
@@ -1043,9 +1049,10 @@ M0_INTERNAL bool m0_rpc_session_bind_item(struct m0_rpc_item *item)
 	return true;
 }
 
-static void snd_item_consume(struct m0_rpc_item *item)
+static int snd_item_consume(struct m0_rpc_item *item)
 {
 	m0_rpc_item_send(item);
+	return 0;
 }
 
 static void snd_reply_consume(struct m0_rpc_item *req,
@@ -1069,9 +1076,9 @@ static void rcv_slot_busy(struct m0_rpc_slot *slot)
 	/* Do nothing on receiver */
 }
 
-static void rcv_item_consume(struct m0_rpc_item *item)
+static int rcv_item_consume(struct m0_rpc_item *item)
 {
-	m0_rpc_item_dispatch(item);
+	return m0_rpc_item_dispatch(item);
 }
 
 static void rcv_reply_consume(struct m0_rpc_item *req,

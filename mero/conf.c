@@ -177,7 +177,6 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 	enum {
 		MAX_RPCS_IN_FLIGHT = 32,
 		CLIENT_COB_DOM_ID  = 13,
-		CONNECT_TIMEOUT    = 20,
 		NR_SLOTS           = 1
 	};
 	static struct m0_net_domain     client_net_dom;
@@ -203,7 +202,6 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 	cctx.rcx_cob_dom_id            = CLIENT_COB_DOM_ID;
 	cctx.rcx_cob_dom               = &client_cob_dom;
 	cctx.rcx_nr_slots              = NR_SLOTS;
-	cctx.rcx_timeout_s             = CONNECT_TIMEOUT;
 	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT;
 	cctx.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	cctx.rcx_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;

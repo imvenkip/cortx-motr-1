@@ -902,14 +902,12 @@ static int check_st_in(struct m0_sm *mach)
 /** Actions to perform on entering S_WAIT_REPLY state. */
 static int wait_reply_st_in(struct m0_sm *mach)
 {
-	enum { MAX_RETRIES = 5 };
-	int                  rc;
 	struct m0_confc_ctx *ctx = mach_to_ctx(mach);
+	int                  rc;
 
 	M0_ENTRY("mach=%p ctx=%p", mach, ctx);
 	M0_PRE(ctx->fc_rpc_item != NULL);
 
-	ctx->fc_rpc_item->ri_nr_sent_max = MAX_RETRIES;
 	rc = m0_rpc_post(ctx->fc_rpc_item);
 	if (rc == 0) {
 		M0_LEAVE("retval=-1");
@@ -1337,7 +1335,7 @@ static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 
 	rc = m0_rpc_client_connect(&confc->cc_rpc_conn, &confc->cc_rpc_session,
 				   rpc_mach, confd_addr, MAX_RPCS_IN_FLIGHT,
-				   NR_SLOTS, 30 /*seconds*/);
+				   NR_SLOTS);
 	M0_POST((rc == 0) == confc_is_online(confc));
 	M0_RETURN(rc);
 }
@@ -1345,13 +1343,13 @@ static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 static void disconnect_from_confd(struct m0_confc *confc)
 {
 	M0_ENTRY();
+
 	M0_PRE(confc_is_online(confc));
 	M0_PRE(confc->cc_rpc_session.s_conn == &confc->cc_rpc_conn);
 
-	(void)m0_rpc_session_destroy(&confc->cc_rpc_session,
-				     m0_time_from_now(30, 0));
-	(void)m0_rpc_conn_destroy(&confc->cc_rpc_conn,
-				  m0_time_from_now(30, 0));
+	(void)m0_rpc_session_destroy(&confc->cc_rpc_session, M0_TIME_NEVER);
+	(void)m0_rpc_conn_destroy(&confc->cc_rpc_conn, M0_TIME_NEVER);
+
 	M0_LEAVE();
 }
 

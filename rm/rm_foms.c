@@ -25,6 +25,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"   /* M0_IN */
 #include "lib/trace.h"
+#include "lib/finject.h"
 #include "fop/fom_generic.h"
 #include "rm/rm_fops.h"
 #include "rm/rm_foms.h"
@@ -187,6 +188,10 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	M0_PRE(out != NULL);
 
 	M0_ALLOC_PTR(rqfom);
+	if (M0_FI_ENABLED("fom_alloc_failure")) {
+		m0_free(rqfom);
+		rqfom = NULL;
+	}
 	if (rqfom == NULL)
 		M0_RETURN(-ENOMEM);
 

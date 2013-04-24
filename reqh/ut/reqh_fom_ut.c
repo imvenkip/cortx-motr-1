@@ -64,7 +64,6 @@ enum {
 	CLIENT_COB_DOM_ID  = 101,
 	SESSION_SLOTS      = 5,
 	MAX_RPCS_IN_FLIGHT = 32,
-	CONNECT_TIMEOUT    = 5,
 	MAX_RETRIES        = 5,
 };
 
@@ -308,7 +307,6 @@ static void fop_send(struct m0_fop *fop, struct m0_rpc_session *session)
 {
 	int rc;
 
-	fop->f_item.ri_nr_sent_max = MAX_RETRIES;
 	rc = m0_rpc_client_call(fop, session, NULL, 0 /* deadline */);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(fop->f_item.ri_error == 0);
@@ -405,7 +403,6 @@ void test_reqh(void)
 		.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
 		.rcx_cob_dom            = &client_cob_dom,
 		.rcx_nr_slots           = SESSION_SLOTS,
-		.rcx_timeout_s          = CONNECT_TIMEOUT,
 		.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 	};
 

@@ -322,7 +322,6 @@ static void test_status_query(void)
 	    Retry handles this for now.
 	 */
 	M0_LOG(M0_DEBUG, "Sending SS FOP");
-	ss_fop->f_item.ri_nr_sent_max = 10;
 	rc = m0_rpc_client_call(ss_fop, &mgmt_svc_ut_cctx.rcx_session, NULL, 0);
 	M0_LOG(M0_DEBUG, "rpc_client_call: %d", rc);
 	M0_UT_ASSERT(rc == 0);

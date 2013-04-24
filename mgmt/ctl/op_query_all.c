@@ -92,7 +92,6 @@ static int op_qa_run(struct m0_mgmt_ctl_ctx *ctx)
 
 	/* send */
 	item = &fop->f_item;
-	item->ri_nr_sent_max = 10;
 	rc = m0_rpc_client_call(fop, &ctx->mcc_rpc_client.rcx_session, NULL, 0);
 	if (rc != 0) {
 		emit_error(ctx, "Client call failed", rc);

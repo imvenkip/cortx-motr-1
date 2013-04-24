@@ -509,8 +509,7 @@ static int connect_to_service(const char *addr, enum m0_conf_service_type type,
 	rc = m0_rpc_client_connect(&ctx->sc_conn, &ctx->sc_session,
 				   &m0t1fs_globals.g_rpc_machine, addr,
 				   M0T1FS_MAX_NR_RPC_IN_FLIGHT,
-				   M0T1FS_NR_SLOTS_PER_SESSION,
-				   M0T1FS_RPC_TIMEOUT);
+				   M0T1FS_NR_SLOTS_PER_SESSION);
 	if (rc == 0) {
 		svc_ctx_tlist_add_tail(&csb->csb_service_contexts, ctx);
 		M0_CNT_INC(csb->csb_nr_active_contexts);
@@ -532,9 +531,9 @@ static void disconnect_from_services(struct m0t1fs_sb *csb)
 	m0_tl_for(svc_ctx, &csb->csb_service_contexts, ctx) {
 		if (csb->csb_nr_active_contexts > 0) {
 			(void)m0_rpc_session_destroy(&ctx->sc_session,
-				m0_time_from_now(M0T1FS_RPC_TIMEOUT, 0));
+						     M0_TIME_NEVER);
 			(void)m0_rpc_conn_destroy(&ctx->sc_conn,
-				m0_time_from_now(M0T1FS_RPC_TIMEOUT, 0));
+						  M0_TIME_NEVER);
 			M0_CNT_DEC(ctx->sc_csb->csb_nr_active_contexts);
 			M0_LOG(M0_INFO, "Disconnected from service."
 			       " %d active contexts",

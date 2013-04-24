@@ -257,17 +257,24 @@ static struct m0_sm_state_descr incoming_item_states[] = {
 		.sd_flags   = M0_SDF_INITIAL | M0_SDF_FINAL,
 		.sd_name    = "INITIALISED",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_ACCEPTED,
+				      M0_RPC_ITEM_FAILED,
 				      M0_RPC_ITEM_UNINITIALISED),
 	},
 	[M0_RPC_ITEM_ACCEPTED] = {
 		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "ACCEPTED",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_REPLIED,
+				      M0_RPC_ITEM_FAILED,
 				      M0_RPC_ITEM_UNINITIALISED),
 	},
 	[M0_RPC_ITEM_REPLIED] = {
 		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "REPLIED",
+		.sd_allowed = M0_BITS(M0_RPC_ITEM_UNINITIALISED),
+	},
+	[M0_RPC_ITEM_FAILED] = {
+		.sd_flags   = M0_SDF_FINAL,
+		.sd_name    = "FAILED",
 		.sd_allowed = M0_BITS(M0_RPC_ITEM_UNINITIALISED),
 	},
 };

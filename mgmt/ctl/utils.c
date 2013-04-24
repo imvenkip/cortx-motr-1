@@ -99,7 +99,6 @@ static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 	c->rcx_cob_dom_id            = 999; /* arbitrary */
 	c->rcx_cob_dom               = &ctx->mcc_cob_dom;
 	c->rcx_nr_slots              = 1;
-	c->rcx_timeout_s             = m0_time_seconds(ctx->mcc_timeout);
 	c->rcx_max_rpcs_in_flight    = 1;
 	if (ctx->mcc_client.mcc_recvq_min_len != 0)
 		c->rcx_recv_queue_min_length =

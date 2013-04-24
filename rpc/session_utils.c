@@ -93,13 +93,14 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 	item->ri_deadline   = 0;
 	item->ri_ops        = ops;
 
-	item->ri_nr_sent_max = 0;
-	if (abs_timeout > now)
-		item->ri_nr_sent_max = m0_time_sub(abs_timeout, now) /
-					item->ri_resend_interval;
-	if (item->ri_nr_sent_max == 0)
-		item->ri_nr_sent_max = 1;
-
+	if (abs_timeout != M0_TIME_NEVER) {
+		item->ri_nr_sent_max = 0;
+		if (abs_timeout > now)
+			item->ri_nr_sent_max = m0_time_sub(abs_timeout, now) /
+						item->ri_resend_interval;
+		if (item->ri_nr_sent_max == 0)
+			item->ri_nr_sent_max = 1;
+	}
 	rc = m0_rpc__post_locked(item, NULL);
 	M0_RETURN(rc);
 }
@@ -264,19 +265,21 @@ int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
 /**
   XXX temporary routine that submits the fop inside item for execution.
  */
-M0_INTERNAL void m0_rpc_item_dispatch(struct m0_rpc_item *item)
+M0_INTERNAL int m0_rpc_item_dispatch(struct m0_rpc_item *item)
 {
+	int rc;
+
 	M0_ENTRY("item : %p", item);
 
 	if (item->ri_ops != NULL && item->ri_ops->rio_deliver != NULL)
-		item->ri_ops->rio_deliver(item->ri_rmachine, item);
+		rc = item->ri_ops->rio_deliver(item->ri_rmachine, item);
 	else
 		/**
 		 * @todo this assumes that the item is a fop.
 		 */
-		m0_reqh_fop_handle(item->ri_rmachine->rm_reqh,
-				   m0_rpc_item_to_fop(item));
-	M0_LEAVE();
+		rc = m0_reqh_fop_handle(item->ri_rmachine->rm_reqh,
+					m0_rpc_item_to_fop(item));
+	M0_RETURN(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -202,7 +202,6 @@ int main(int argc, char **argv)
 		.rcx_cob_dom_id            = 14,
 		.rcx_cob_dom               = &client_cob_dom,
 		.rcx_nr_slots              = 1,
-		.rcx_timeout_s             = 5,
 		.rcx_max_rpcs_in_flight    = 1,
 	};
 

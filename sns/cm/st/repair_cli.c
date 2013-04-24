@@ -59,7 +59,6 @@ M0_INTERNAL void repair_client_init(void)
 	cl_ctx.rcx_cob_dom_id         = cl_cdom_id;
 	cl_ctx.rcx_cob_dom            = &cl_cdom;
 	cl_ctx.rcx_nr_slots           = MAX_RPC_SLOTS_NR;
-	cl_ctx.rcx_timeout_s          = RPC_TIMEOUTS;
 	cl_ctx.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
 
 	rc = m0_rpc_client_start(&cl_ctx);
@@ -82,19 +81,16 @@ M0_INTERNAL int repair_rpc_ctx_init(struct rpc_ctx *ctx, const char *sep)
 				     &ctx->ctx_session,
 				     &cl_ctx.rcx_rpc_machine, sep,
 				     MAX_RPCS_IN_FLIGHT,
-				     MAX_RPC_SLOTS_NR,
-				     RPC_TIMEOUTS);
+				     MAX_RPC_SLOTS_NR);
 }
 
 M0_INTERNAL void repair_rpc_ctx_fini(struct rpc_ctx *ctx)
 {
 	int rc;
 
-	rc = m0_rpc_session_destroy(&ctx->ctx_session,
-			m0_time_from_now(RPC_TIMEOUTS, 0));
+	rc = m0_rpc_session_destroy(&ctx->ctx_session, M0_TIME_NEVER);
 	M0_ASSERT(rc == 0);
-	rc = m0_rpc_conn_destroy(&ctx->ctx_conn,
-			m0_time_from_now(RPC_TIMEOUTS, 0));
+	rc = m0_rpc_conn_destroy(&ctx->ctx_conn, M0_TIME_NEVER);
 	M0_ASSERT(rc == 0);
 }
 

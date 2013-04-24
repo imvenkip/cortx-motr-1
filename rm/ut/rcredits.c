@@ -141,12 +141,12 @@ void rm_connect(struct rm_context *src, const struct rm_context *dest)
 
 	rc = m0_rpc_conn_create(&src->rc_conn[dest->rc_id],
 				ep, &src->rc_rmach_ctx.rmc_rpc, 15,
-				m0_time_from_now(10, 0));
+				M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_rpc_session_create(&src->rc_sess[dest->rc_id],
 				   &src->rc_conn[dest->rc_id], 1,
-				   m0_time_from_now(30, 0));
+				   M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -154,12 +154,10 @@ void rm_disconnect(struct rm_context *src, const struct rm_context *dest)
 {
 	int rc;
 
-	rc = m0_rpc_session_destroy(&src->rc_sess[dest->rc_id],
-				    m0_time_from_now(30, 0));
+	rc = m0_rpc_session_destroy(&src->rc_sess[dest->rc_id], M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_rpc_conn_destroy(&src->rc_conn[dest->rc_id],
-				 m0_time_from_now(30, 0));
+	rc = m0_rpc_conn_destroy(&src->rc_conn[dest->rc_id], M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_net_end_point_put(src->rc_ep[dest->rc_id]);

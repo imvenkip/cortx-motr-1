@@ -221,7 +221,6 @@ static int cl_cdom_id = 10001;
 enum {
 	MAX_RPCS_IN_FLIGHT = 10,
 	MAX_RPC_SLOTS_NR   = 2,
-	RPC_TIMEOUTS       = 5
 };
 
 #define SERVER_LOG_FILE_NAME	"cs_ut.errlog"
@@ -249,7 +248,6 @@ static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	cl_ctx->rcx_cob_dom_id         = ++cl_cdom_id;
 	cl_ctx->rcx_cob_dom            = &cctx->cl_cdom;
 	cl_ctx->rcx_nr_slots           = MAX_RPC_SLOTS_NR;
-	cl_ctx->rcx_timeout_s          = RPC_TIMEOUTS;
 	cl_ctx->rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
 
 	rc = m0_rpc_client_start(cl_ctx);
@@ -289,7 +287,6 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 			fop[i] = m0_fop_alloc(&cs_ds1_req_fop_fopt, NULL);
 			cs_ds1_fop = m0_fop_data(fop[i]);
 			cs_ds1_fop->csr_value = i;
-			fop[i]->f_item.ri_nr_sent_max = 60;
 			rc = m0_rpc_client_call(fop[i], cl_rpc_session,
 						&cs_ds_req_fop_rpc_item_ops,
 						0 /* deadline */);
@@ -302,7 +299,6 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 			fop[i] = m0_fop_alloc(&cs_ds2_req_fop_fopt, NULL);
 			cs_ds2_fop = m0_fop_data(fop[i]);
 			cs_ds2_fop->csr_value = i;
-			fop[i]->f_item.ri_nr_sent_max = 60;
 			rc = m0_rpc_client_call(fop[i], cl_rpc_session,
 						&cs_ds_req_fop_rpc_item_ops,
 						0 /* deadline */);

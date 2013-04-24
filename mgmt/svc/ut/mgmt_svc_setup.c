@@ -29,7 +29,6 @@ enum {
 	MGMT_SVC_UT_CLIENT_COB_DOM_ID  = 311,
 	MGMT_SVC_UT_SESSION_SLOTS      = 5,
 	MGMT_SVC_UT_MAX_RPCS_IN_FLIGHT = 32,
-	MGMT_SVC_UT_CONNECT_TIMEOUT    = 35,
 };
 
 static struct m0_net_xprt   *mgmt_svc_ut_xprt = &m0_net_lnet_xprt;
@@ -46,7 +45,6 @@ static struct m0_rpc_client_ctx mgmt_svc_ut_cctx = {
 	.rcx_cob_dom_id            = MGMT_SVC_UT_CLIENT_COB_DOM_ID,
 	.rcx_cob_dom               = &mgmt_svc_ut_client_cob_dom,
 	.rcx_nr_slots              = MGMT_SVC_UT_SESSION_SLOTS,
-	.rcx_timeout_s             = MGMT_SVC_UT_CONNECT_TIMEOUT,
 	.rcx_max_rpcs_in_flight    = MGMT_SVC_UT_MAX_RPCS_IN_FLIGHT,
 	.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN,
 };
