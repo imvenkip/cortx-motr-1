@@ -116,7 +116,7 @@ static void fom_create(enum m0_rm_incoming_type fomtype,
 	struct m0_fom *base_fom;
 
 	if (err_test)
-		m0_fi_enable_once("m0_alloc", "fail_allocation");
+		m0_fi_enable_once("request_fom_create", "fom_alloc_failure");
 
 	switch (fomtype) {
 	case M0_RIT_BORROW:

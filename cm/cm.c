@@ -526,8 +526,7 @@ M0_INTERNAL int m0_replicas_connect(struct m0_cm *cm,
 						   &pxy->px_session,
 						   rmach, ex->ex_endpoint,
 						   CM_MAX_NR_RPC_IN_FLIGHT,
-						   CM_NR_SLOTS_PER_SESSION,
-						   CM_RPC_TIMEOUT);
+						   CM_NR_SLOTS_PER_SESSION);
 			if (rc == 0)
 				proxy_tlist_add_tail(&cm->cm_proxies, pxy);
 			else
