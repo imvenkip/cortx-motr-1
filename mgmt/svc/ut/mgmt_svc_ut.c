@@ -61,6 +61,7 @@ static struct m0_reqh_service_ops mgmt_svc_ut_ops;
 static int mgmt_svc_rso_fop_accept_rc;
 static int mgmt_svc_rso_fop_accept_called;
 static struct m0_dbenv mgmt_svc_dbenv;
+static struct m0_fol s_fol;
 
 static int mgmt_svc_ut_rso_fop_accept(struct m0_reqh_service *service,
 				      struct m0_fop *fop)
@@ -117,6 +118,21 @@ static struct m0_fop *mgmt_svc_ut_ss_fop_alloc(void)
 	return fop;
 }
 
+static struct m0_reqh *reqh_init()
+{
+	int		rc;
+	struct m0_reqh *rh;
+
+	M0_ALLOC_PTR(rh);
+	M0_UT_ASSERT(rh != NULL);
+	rc = M0_REQH_INIT(rh,
+			  .rhia_db      = &mgmt_svc_dbenv,
+			  .rhia_mdstore = (void *)1,
+			  .rhia_fol     = &s_fol);
+	M0_UT_ASSERT(rc == 0);
+	return rh;
+}
+
 /*
  ******************************************************************************
  * Tests
@@ -125,18 +141,11 @@ static struct m0_fop *mgmt_svc_ut_ss_fop_alloc(void)
 #ifdef ENABLE_FAULT_INJECTION
 static void test_mgmt_svc_fail(void)
 {
-	int                        rc;
 	struct m0_reqh            *rh;
 	struct m0_ut_rpc_mach_ctx  rmach_ctx;
 
 	/* Force failure during allocate */
-	M0_ALLOC_PTR(rh);
-	M0_UT_ASSERT(rh != NULL);
-	rc = M0_REQH_INIT(rh,
-			  .rhia_db      = &mgmt_svc_dbenv,
-			  .rhia_mdstore = (void *)1,
-			  .rhia_fol     = (void *)1);
-	M0_UT_ASSERT(rc == 0);
+	rh = reqh_init();
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_INIT);
 	m0_fi_enable_once("m0_mgmt_service_allocate", "-EFAULT");
 
@@ -157,13 +166,7 @@ static void test_mgmt_svc_fail(void)
 	m0_free(rh);
 
 	/* force failure during start */
-	M0_ALLOC_PTR(rh);
-	M0_UT_ASSERT(rh != NULL);
-	rc = M0_REQH_INIT(rh,
-			  .rhia_db      = &mgmt_svc_dbenv,
-			  .rhia_mdstore = (void *)1,
-			  .rhia_fol     = (void *)1);
-	M0_UT_ASSERT(rc == 0);
+	rh = reqh_init();
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_INIT);
 	m0_fi_enable_once("mgmt_svc_rso_start", "-ECANCELED");
 
@@ -186,20 +189,13 @@ static void test_mgmt_svc_fail(void)
 
 static void test_reqh_fop_allow(void)
 {
-	int                        rc;
 	struct m0_fop             *ss_fop;
 	struct m0_fop             *f_fop;
 	int                        rfp_cnt;
 	struct m0_reqh            *rh;
 	struct m0_ut_rpc_mach_ctx  rmach_ctx;
 
-	M0_ALLOC_PTR(rh);
-	M0_UT_ASSERT(rh != NULL);
-	rc = M0_REQH_INIT(rh,
-			  .rhia_db      = &mgmt_svc_dbenv,
-			  .rhia_mdstore = (void *)1,
-			  .rhia_fol     = (void *)1);
-	M0_UT_ASSERT(rc == 0);
+	rh = reqh_init();
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_INIT);
 
 	/* Hack */
