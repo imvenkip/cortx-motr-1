@@ -1225,8 +1225,12 @@ struct nw_xfer_request {
  * The next 2 states are used during degraded mode write IO.
  */
 enum sns_repair_state {
-	/** Used by IO requests done during healthy state of storage pool. */
-	SRS_UNINITIALIZED,
+	/**
+	 * Used by IO requests done during healthy state of storage pool.
+	 * Initialized to -1 in order to sync it with output of API
+	 * m0_sns_cm_fid_repair_done().
+	 * */
+	SRS_UNINITIALIZED = -1,
 
 	/**
 	 * Assumes a distributed lock has been acquired on the associated

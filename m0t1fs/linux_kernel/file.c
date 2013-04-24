@@ -4385,6 +4385,14 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	rw_reply  = io_rw_rep_get(reply_fop);
 	rc        = rw_reply->rwr_rc;
 	M0_LOG(M0_INFO, "reply received = %d\n", rw_reply->rwr_rc);
+	sns_state = rw_reply->rwr_repair_done;
+	/*
+	 * If io_request::ir_sns_state holds a valid sns state,
+	 * same state must be confirmed by every other
+	 * IO reply fop.
+	 */
+	M0_ASSERT(ergo(req->ir_sns_state != SRS_UNINITIALIZED,
+		       req->ir_sns_state == sns_state));
 
 	if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 		M0_ASSERT(rw_reply != NULL);
@@ -4393,15 +4401,6 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		failure_vector_mismatch(irfop);
 		rc = -EAGAIN;
 		irfop->irf_reply_rc = rc;
-		sns_state           = rw_reply->rwr_repair_done == 0 ?
-			              SRS_REPAIR_NOTDONE : SRS_REPAIR_DONE;
-		/*
-		 * If io_request::ir_sns_state holds a valid sns state,
-		 * same state must be confirmed by every other
-		 * IO reply fop.
-		 */
-		M0_ASSERT(ergo(req->ir_sns_state != SRS_UNINITIALIZED,
-			       req->ir_sns_state == sns_state));
 	}
 
 	if (tioreq->ti_rc == 0) {

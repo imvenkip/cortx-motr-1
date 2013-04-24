@@ -1642,6 +1642,15 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	cliv = (struct m0_pool_version_numbers*)(&rwfop->crw_version);
 	rwrep = io_rw_rep_get(fom->fo_rep_fop);
 
+	/*
+	 * Dumps the state of SNS repair with respect to global fid
+	 * from IO fop.
+	 * The IO request has already acquired file level lock on
+	 * given global fid.
+	 */
+	rwrep->rwr_repair_done = m0_sns_cm_fid_repair_done(&rwfop->crw_gfid,
+							   reqh);
+
 	/* Check the client version and server version before any processing */
 	if (m0_poolmach_version_before(cliv, &curr)) {
 		rc = M0_FSO_AGAIN;
@@ -1650,14 +1659,6 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 				  M0_FOPH_FAILURE);
 		M0_LOG(M0_DEBUG, "VERSION MISMATCH! poolmach = %p", poolmach);
 
-		/*
-		 * Dumps the state of SNS repair with respect to global fid
-		 * from IO fop.
-		 * The IO request has already acquired file level lock on
-		 * given global fid.
-		 */
-		rwrep->rwr_repair_done = m0_sns_cm_fid_repair_done(&rwfop->
-				         crw_gfid, reqh);
 		m0_poolmach_version_dump(cliv);
 		m0_poolmach_version_dump(&curr);
 		m0_poolmach_event_list_dump(poolmach);
