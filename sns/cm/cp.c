@@ -158,7 +158,6 @@ M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
 				   uint64_t ag_cp_idx)
 {
 	struct m0_sns_cm *scm = cm2sns(scp->sc_base.c_ag->cag_cm);
-	struct m0_cm_aggr_group *ag = scp->sc_base.c_ag;
 	struct m0_net_buffer_pool *bp;
 
 	M0_PRE(scp != NULL && scp->sc_base.c_ag != NULL);
@@ -169,7 +168,7 @@ M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
 	scp->sc_index = stob_offset;
 	scp->sc_base.c_ag_cp_idx = ag_cp_idx;
 
-	bp = ag->cag_has_incoming ? &scm->sc_ibp.sb_bp : &scm->sc_obp.sb_bp;
+	bp = scp->sc_is_local ? &scm->sc_obp.sb_bp : &scm->sc_ibp.sb_bp;
 
 	return m0_sns_cm_buf_attach(bp, &scp->sc_base);
 }

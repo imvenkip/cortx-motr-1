@@ -129,6 +129,8 @@ struct m0_sns_cm {
 	/** Buffer pool for outgoing copy packets. */
 	struct m0_sns_cm_buf_pool  sc_obp;
 
+	uint64_t                   sc_obp_reserved_buf_nr;
+
 	/**
 	 * Channel to wait upon before invoking m0_cm_start()/m0_cm_stop()
 	 * for the caller of m0_cm_ready()/m0_cm_start(). This channel is
@@ -150,7 +152,8 @@ M0_INTERNAL void m0_sns_cm_buffer_put(struct m0_net_buffer_pool *bp,
 					  struct m0_net_buffer *buf,
 					  uint64_t colour);
 
-M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp, struct m0_cm_cp *cp);
+M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
+				     struct m0_cm_cp *cp);
 
 M0_INTERNAL struct m0_sns_cm *cm2sns(struct m0_cm *cm);
 
@@ -162,6 +165,11 @@ M0_INTERNAL void m0_sns_cm_buf_available(struct m0_net_buffer_pool *pool);
 M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
                                           struct m0_pdclust_layout *pl,
                                           const struct m0_cm_ag_id *id);
+
+M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm,
+				     const struct m0_cm_ag_id *id,
+                                     struct m0_pdclust_layout *pl,
+				     bool has_incoming);
 
 /**
  * Returns true if the passed global fid has been repaired.

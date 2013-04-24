@@ -236,9 +236,10 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
 	sw_lo_ag = m0_cm_ag_lo(cm);
 	sw_hi_ag = m0_cm_ag_hi(cm);
 	m0_cm_unlock(cm);
-	ag_id_copy(&sns_cpx->scx_cp.cpx_sw.sw_lo, &sw_lo_ag->cag_id);
-	ag_id_copy(&sns_cpx->scx_cp.cpx_sw.sw_hi, &sw_hi_ag->cag_id);
-
+	if (sw_lo_ag != NULL && sw_hi_ag != NULL) {
+		ag_id_copy(&sns_cpx->scx_cp.cpx_sw.sw_lo, &sw_lo_ag->cag_id);
+		ag_id_copy(&sns_cpx->scx_cp.cpx_sw.sw_hi, &sw_hi_ag->cag_id);
+	}
         goto out;
 
 cleanup:
@@ -272,7 +273,7 @@ static void cp_reply_received(struct m0_rpc_item *req_item)
 		cp_fop = container_of(req_fop, struct m0_cm_cp_fop, cf_fop);
 		cp = cp_fop->cf_cp;
 		sw_update(&sw, cp, ep);
-		m0_chan_signal_lock(&cp->c_reply_wait);
+		m0_fom_wakeup(&cp->c_fom);
 	}
 }
 
@@ -357,10 +358,6 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
         if (rc != 0)
                 goto out;
 
-        m0_mutex_lock(&cp->c_reply_wait_mutex);
-        m0_fom_wait_on(&cp->c_fom, &cp->c_reply_wait, &cp->c_fom.fo_cb);
-        m0_mutex_unlock(&cp->c_reply_wait_mutex);
-
         item  = m0_fop_to_rpc_item(fop);
         item->ri_ops = &cp_item_ops;
         item->ri_session = session;
@@ -400,6 +397,7 @@ static int cp_buf_acquire(struct m0_cm_cp *cp)
         struct m0_sns_cpx   *sns_cpx;
         struct m0_cm        *cm;
         struct m0_sns_cm    *sns_cm;
+	int                  rc;
 
         M0_PRE(cp != NULL);
 
@@ -409,7 +407,11 @@ static int cp_buf_acquire(struct m0_cm_cp *cp)
         cm = cm_get(&cp->c_fom);
         sns_cm = cm2sns(cm);
 
-        return  m0_sns_cm_buf_attach(&sns_cm->sc_ibp.sb_bp, cp);
+	m0_cm_lock(cm);
+        rc =  m0_sns_cm_buf_attach(&sns_cm->sc_ibp.sb_bp, cp);
+	m0_cm_unlock(cm);
+
+	return rc;
 }
 
 M0_INTERNAL int m0_sns_cm_cp_recv_init(struct m0_cm_cp *cp)

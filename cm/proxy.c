@@ -102,20 +102,18 @@ M0_INTERNAL int m0_cm_proxy_alloc(uint64_t px_id,
 M0_INTERNAL void m0_cm_proxy_add(struct m0_cm *cm, struct m0_cm_proxy *pxy)
 {
 	M0_PRE(m0_cm_is_locked(cm));
-	M0_PRE(!proxy_tlist_contains(&cm->cm_proxies, pxy));
+	M0_PRE(!proxy_tlink_is_in(pxy));
 	proxy_tlist_add_tail(&cm->cm_proxies, pxy);
 	M0_ASSERT(proxy_tlink_is_in(pxy));
-	M0_ASSERT(proxy_tlist_contains(&cm->cm_proxies, pxy));
 	M0_POST(cm_proxy_invariant(pxy));
 }
 
 M0_INTERNAL void m0_cm_proxy_del(struct m0_cm *cm, struct m0_cm_proxy *pxy)
 {
 	M0_PRE(m0_cm_is_locked(cm));
-	M0_PRE(proxy_tlist_contains(&cm->cm_proxies, pxy));
+	M0_PRE(proxy_tlink_is_in(pxy));
 	proxy_tlist_del(pxy);
 	M0_ASSERT(!proxy_tlink_is_in(pxy));
-	M0_ASSERT(!proxy_tlist_contains(&cm->cm_proxies, pxy));
 	M0_POST(cm_proxy_invariant(pxy));
 }
 
@@ -123,20 +121,19 @@ M0_INTERNAL void m0_cm_proxy_cp_add(struct m0_cm_proxy *pxy,
 				    struct m0_cm_cp *cp)
 {
 	m0_mutex_lock(&pxy->px_mutex);
-	M0_PRE(!proxy_cp_tlist_contains(&pxy->px_pending_cps, cp));
+	M0_PRE(!proxy_cp_tlink_is_in(cp));
 	proxy_cp_tlist_add_tail(&pxy->px_pending_cps, cp);
-	M0_POST(proxy_cp_tlist_contains(&pxy->px_pending_cps, cp));
+	M0_POST(proxy_cp_tlink_is_in(cp));
 	m0_mutex_unlock(&pxy->px_mutex);
 }
 
-M0_INTERNAL void m0_cm_proxy_cp_del(struct m0_cm_proxy *pxy,
-				    struct m0_cm_cp *cp)
+static void cm_proxy_cp_del(struct m0_cm_proxy *pxy,
+			    struct m0_cm_cp *cp)
 {
-	m0_mutex_lock(&pxy->px_mutex);
-	M0_PRE(proxy_cp_tlist_contains(&pxy->px_pending_cps, cp));
+	M0_PRE(m0_mutex_is_locked(&pxy->px_mutex));
+	M0_PRE(proxy_cp_tlink_is_in(cp));
 	proxy_cp_tlist_del(cp);
-	M0_POST(!proxy_cp_tlist_contains(&pxy->px_pending_cps, cp));
-	m0_mutex_unlock(&pxy->px_mutex);
+	M0_POST(!proxy_cp_tlink_is_in(cp));
 }
 
 M0_INTERNAL struct m0_cm_proxy *m0_cm_proxy_locate(struct m0_cm *cm,
@@ -161,6 +158,7 @@ static void __wake_up_pending_cps(struct m0_cm_proxy *pxy)
 	struct m0_cm_cp *cp;
 
 	m0_tl_for(proxy_cp, &pxy->px_pending_cps, cp) {
+		cm_proxy_cp_del(pxy, cp);
 		/* wakeup pending copy packet foms */
 		m0_fom_wakeup(&cp->c_fom);
 	} m0_tl_endfor;

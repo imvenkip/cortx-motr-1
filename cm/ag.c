@@ -310,6 +310,7 @@ M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm,
 			if (ag == NULL)
 				rc = m0_cm_aggr_group_alloc(cm, &next,
 							    true, &ag);
+				M0_ASSERT(rc == 0);
 			*curr = next;
 			M0_SET0(&next);
 		}

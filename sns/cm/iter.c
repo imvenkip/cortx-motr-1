@@ -507,6 +507,9 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	has_incoming = __has_incoming(scm, sfc->sfc_pdlayout, &agid);
 	ag = m0_cm_aggr_group_locate(&scm->sc_base, &agid, has_incoming);
 	if (ag == NULL) {
+		if (!m0_sns_cm_has_space(&scm->sc_base, &agid,
+					 sfc->sfc_pdlayout, has_incoming))
+			return -ENOBUFS;
 		rc = m0_cm_aggr_group_alloc(&scm->sc_base, &agid,
 					   has_incoming, &ag);
 		if (rc != 0) {
@@ -522,6 +525,7 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 			      m0_pdclust_unit_size(sfc->sfc_pdlayout);
 		scp = it->si_cp;
 		scp->sc_base.c_ag = ag;
+		scp->sc_is_local = true;
 		cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, sfc->sfc_pdlayout);
 		/*
 		 * sfc->sfc_sa.sa_unit has gotten one index ahead. Hence actual

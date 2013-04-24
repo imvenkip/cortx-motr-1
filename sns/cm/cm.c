@@ -665,6 +665,8 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 	uint32_t              seg_nr;
 	uint32_t              rem_bufs;
 
+	M0_PRE(m0_cm_is_locked(&scm->sc_base));
+
 	colour =  cp_home_loc_helper(cp) % bp->nbp_colours_nr;
 	seg_nr = cp->c_data_seg_nr;
 	rem_bufs = m0_sns_cm_cp_buf_nr(bp, seg_nr);
@@ -675,6 +677,11 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 			return -ENOBUFS;
 		m0_cm_cp_buf_add(cp, buf);
 		M0_CNT_DEC(rem_bufs);
+		if (!scp->sc_is_local) {
+			if (scm->sc_ibp_reserved_buf_nr > 0)
+				M0_CNT_DEC(scm->sc_ibp_reserved_buf_nr);
+		} else if (scm->sc_obp_reserved_buf_nr > 0)
+				M0_CNT_DEC(scm->sc_obp_reserved_buf_nr);
 	}
 
 	return 0;
@@ -746,15 +753,6 @@ static bool sns_cm_fid_is_valid(const struct m0_fid *fid)
 	return fid->f_container >= 0 && fid->f_key >= SNS_COB_FID_START;
 }
 
-static uint64_t cm_incoming_nr_cp(struct m0_sns_cm *scm, struct m0_fid *gfid,
-				  struct m0_pdclust_layout *pl, uint64_t group)
-{
-	uint64_t lu;
-
-	lu = m0_sns_cm_ag_nr_local_units(scm, gfid, pl, group);
-	return m0_pdclust_N(pl) + m0_pdclust_K(pl) - lu;
-}
-
 /**
  * Returns true iff the copy machine has enough space to receive all
  * the copy packets from the given relevant group "id".
@@ -762,34 +760,56 @@ static uint64_t cm_incoming_nr_cp(struct m0_sns_cm *scm, struct m0_fid *gfid,
  * enough free buffers to receive all the remote units corresponding
  * to a parity group.
  */
-static bool cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id *id,
-			 struct m0_pdclust_layout *pl)
+M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id *id,
+				     struct m0_pdclust_layout *pl, bool has_incoming)
 {
 	struct m0_sns_cm         *scm = cm2sns(cm);
 	struct m0_fid             gfid;
 	uint64_t                  group;
 	uint64_t                  nr_cp_bufs;
-	uint64_t                  total_bufs;
+	uint64_t                  total_inbufs = 0;
+	uint64_t                  total_outbufs = 0;
 	uint64_t                  cp_data_seg_nr;
 	uint64_t                  nr_acc_bufs;
-	uint64_t                  nr_incoming;
+	uint64_t                  nr_incoming = 0;
+	uint64_t                  nr_lu;
 	bool                      result = false;
 
 	M0_PRE(cm != NULL && id != NULL && pl != NULL);
+	M0_PRE(m0_cm_is_locked(cm));
 
 	agid2fid(id, &gfid);
 	group = agid2group(id);
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
 	nr_acc_bufs = nr_cp_bufs * m0_pdclust_K(pl);
-	nr_incoming = cm_incoming_nr_cp(scm, &gfid, pl, group);
-	M0_ASSERT(nr_incoming <= m0_pdclust_N(pl) + m0_pdclust_K(pl));
-	total_bufs = nr_acc_bufs + nr_cp_bufs * nr_incoming;
-	m0_net_buffer_pool_lock(&scm->sc_ibp.sb_bp);
-	if (scm->sc_ibp.sb_bp.nbp_free - scm->sc_ibp_reserved_buf_nr >= total_bufs) {
-		scm->sc_ibp_reserved_buf_nr += total_bufs;
-		result =  true;
+	nr_lu = m0_sns_cm_ag_nr_local_units(scm, &gfid, pl, group);
+	if (has_incoming) {
+		nr_incoming = (m0_pdclust_N(pl) + m0_pdclust_K(pl)) -
+				(nr_lu + scm->sc_failures_nr);
+		M0_ASSERT(nr_incoming <= m0_pdclust_N(pl) + m0_pdclust_K(pl));
+		total_inbufs = nr_cp_bufs * nr_incoming;
 	}
+	total_outbufs = nr_acc_bufs + (nr_lu * nr_cp_bufs);
+	m0_net_buffer_pool_lock(&scm->sc_obp.sb_bp);
+	m0_net_buffer_pool_lock(&scm->sc_ibp.sb_bp);
+	if (scm->sc_ibp.sb_bp.nbp_free > 0 && scm->sc_obp.sb_bp.nbp_free > 0) {
+		if (has_incoming && (scm->sc_ibp_reserved_buf_nr >
+				     scm->sc_ibp.sb_bp.nbp_free))
+			goto out;
+		if (scm->sc_ibp.sb_bp.nbp_free - (scm->sc_ibp_reserved_buf_nr +
+						total_inbufs) > 0 &&
+		    scm->sc_obp.sb_bp.nbp_free - (scm->sc_obp_reserved_buf_nr +
+						total_outbufs) > 0) {
+			if ((scm->sc_ibp_reserved_buf_nr + total_inbufs) <=
+			     scm->sc_ibp.sb_bp.nbp_free)
+				scm->sc_ibp_reserved_buf_nr += total_inbufs;
+			if ((scm->sc_obp_reserved_buf_nr + total_outbufs) <=
+			     scm->sc_obp.sb_bp.nbp_free)
+				scm->sc_obp_reserved_buf_nr += total_outbufs;
+			result = true;
+	}
+	m0_net_buffer_pool_unlock(&scm->sc_obp.sb_bp);
 	m0_net_buffer_pool_unlock(&scm->sc_ibp.sb_bp);
 
 	return result;
@@ -831,14 +851,14 @@ static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id *id_curr,
 				m0_sns_cm_ag_agid_setup(&fid_curr, i, &ag_id);
 				if (!m0_sns_cm_ag_is_relevant(scm, pl, &ag_id))
 					continue;
-				*id_next = ag_id;
-				if (!cm_has_space(cm, id_next, pl)) {
+				if (!m0_sns_cm_has_space(cm, id_next, pl, true)) {
 					M0_SET0(id_next);
 					m0_layout_put(m0_pdl_to_layout(pl));
 					return -ENOSPC;
 				}
 				if (pl != NULL)
 					m0_layout_put(m0_pdl_to_layout(pl));
+				*id_next = ag_id;
 				return rc;
 			}
 		}

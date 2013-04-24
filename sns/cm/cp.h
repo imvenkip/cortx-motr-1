@@ -41,6 +41,14 @@ struct m0_sns_cm_cp {
 	/** Read/write stob id. */
 	struct m0_stob_id      sc_sid;
 
+	/**
+	 * This is true if for the local/outgoing copy packet and false
+	 * for incoming copy packet.
+	 * This flag is also used to select the buffer pool to assign buffers
+	 * for a particular copy packet.
+	 */
+	bool                   sc_is_local;
+
 	/** Offset within the stob. */
 	m0_bindex_t            sc_index;
 
