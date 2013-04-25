@@ -142,7 +142,8 @@ static void fill_ping_fop_data(struct m0_fop_ping_arr *fp_arr)
 static void populate_item(struct m0_rpc_item *item)
 {
 	item->ri_slot_refs[0].sr_ow = (struct m0_rpc_onwire_slot_ref) {
-		.osr_uuid.su_uuid = 9876,
+		.osr_uuid.u_hi = 9876,
+		.osr_uuid.u_lo = 6789,
 		.osr_sender_id = 101,
 		.osr_session_id = 523,
 		.osr_slot_id = 23,

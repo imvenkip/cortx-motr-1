@@ -833,8 +833,8 @@ m0_rpc_machine_find_conn(const struct m0_rpc_machine *machine,
 
 	m0_tl_for(rpc_conn, conn_list, conn) {
 		if (use_uuid) {
-			if (m0_rpc_sender_uuid_cmp(&conn->c_uuid,
-						   &sref->osr_uuid) == 0)
+			if (m0_uint128_cmp(&conn->c_uuid,
+					   &sref->osr_uuid) == 0)
 				break;
 		} else if (conn->c_sender_id == sref->osr_sender_id) {
 			break;

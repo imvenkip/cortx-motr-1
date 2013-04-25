@@ -255,7 +255,7 @@ struct m0_rpc_conn {
 	uint64_t                  c_sender_id;
 
 	/** Globally unique ID of rpc connection */
-	struct m0_rpc_sender_uuid c_uuid;
+	struct m0_uint128         c_uuid;
 
 	/** @see m0_rpc_conn_flags for list of flags */
 	uint64_t                  c_flags;

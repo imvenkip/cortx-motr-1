@@ -114,7 +114,7 @@ M0_INTERNAL int m0_rpc_conn_cob_create(struct m0_cob_domain *dom,
 M0_INTERNAL int m0_rpc_rcv_conn_init(struct m0_rpc_conn *conn,
 				     struct m0_net_end_point *ep,
 				     struct m0_rpc_machine *machine,
-				     const struct m0_rpc_sender_uuid *uuid);
+				     const struct m0_uint128 *uuid);
 /**
    Creates a receiver end of conn.
 

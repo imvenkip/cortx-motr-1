@@ -23,9 +23,10 @@
 #ifndef __MERO_RPC_ONWIRE_H__
 #define __MERO_RPC_ONWIRE_H__
 
-#include "lib/types.h" /* uint64_t */
-#include "dtm/verno.h" /* m0_verno */
-#include "dtm/verno_xc.h" /* m0_verno_xc */
+#include "lib/types.h"        /* uint64_t */
+#include "lib/types_xc.h"     /* m0_uint128_xc */
+#include "dtm/verno.h"        /* m0_verno */
+#include "dtm/verno_xc.h"     /* m0_verno_xc */
 #include "xcode/xcode_attr.h" /* M0_XCA_RECORD */
 
 /**
@@ -49,7 +50,7 @@ struct m0_rpc_sender_uuid {
 } M0_XCA_RECORD;
 
 struct m0_rpc_onwire_slot_ref {
-	struct m0_rpc_sender_uuid  osr_uuid;
+	struct m0_uint128          osr_uuid;
 	uint64_t                   osr_sender_id;
 	uint64_t                   osr_session_id;
 

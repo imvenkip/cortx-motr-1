@@ -97,8 +97,8 @@ static void fop_set_session(struct m0_fop *fop)
 
 static void conn_init_fini_test(void)
 {
-	struct m0_rpc_sender_uuid uuid;
-	int			  rc;
+	struct m0_uint128 uuid;
+	int		  rc;
 
 	/* Checks for RPC connection initialisation and finalisation. */
 	conn_init();
@@ -114,7 +114,7 @@ static void conn_init_fini_test(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(conn_state(&conn) == M0_RPC_CONN_INITIALISED);
 	M0_UT_ASSERT(conn.c_rpc_machine == &machine);
-	M0_UT_ASSERT(conn.c_uuid.su_uuid == uuid.su_uuid);
+	M0_UT_ASSERT(m0_uint128_cmp(&conn.c_uuid, &uuid) == 0);
 
 	m0_rpc_conn_fini(&conn);
 }

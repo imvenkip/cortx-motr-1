@@ -263,7 +263,7 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
 	m0_rpc_machine_lock(machine);
 
 	conn->c_flags = RCF_SENDER_END;
-	m0_rpc_sender_uuid_get(&conn->c_uuid);
+	m0_uuid_generate2(&conn->c_uuid);
 
 	rc = __conn_init(conn, ep, machine, max_rpcs_in_flight);
 	if (rc == 0) {
@@ -376,13 +376,12 @@ static void __conn_fini(struct m0_rpc_conn *conn)
 M0_INTERNAL int m0_rpc_rcv_conn_init(struct m0_rpc_conn *conn,
 				     struct m0_net_end_point *ep,
 				     struct m0_rpc_machine *machine,
-				     const struct m0_rpc_sender_uuid *uuid)
+				     const struct m0_uint128 *uuid)
 {
 	int rc;
 
-	M0_ENTRY("conn: %p, ep_addr: %s, machine: %p,"
-		 " sender_uuid: %llu", conn, (char *)ep->nep_addr,
-		 machine, (unsigned long long)uuid->su_uuid);
+	M0_ENTRY("conn: %p, ep_addr: %s, machine: %p", conn,
+		 (char *)ep->nep_addr, machine);
 	M0_ASSERT(conn != NULL && ep != NULL);
 	M0_PRE(m0_rpc_machine_is_locked(machine));
 
