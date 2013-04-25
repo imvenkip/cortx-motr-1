@@ -58,6 +58,8 @@ M0_INTERNAL void m0_uuid_format(const struct m0_uint128 *val,
 /** Generate unique UUID. */
 M0_INTERNAL uint64_t m0_uuid_generate(void);
 
+M0_INTERNAL void m0_uuid_generate2(struct m0_uint128 *u);
+
 /** @} end uuid group */
 
 #endif /* __MERO_LIB_UUID_H__ */

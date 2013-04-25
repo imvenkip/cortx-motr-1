@@ -67,11 +67,13 @@ static bool test_identity_op(const char *str)
 	return (u1.u_hi == u2.u_hi) && (u1.u_lo == u2.u_lo);
 }
 
+struct m0_uint128 uuid[1000];
 void m0_test_lib_uuid(void)
 {
 	struct m0_uint128 u;
 	int rc;
 	int i;
+	int j;
 
 	rc = m0_uuid_parse(nil_uuid, &u);
 	M0_UT_ASSERT(rc == 0);
@@ -111,6 +113,12 @@ void m0_test_lib_uuid(void)
 		rc = m0_uuid_parse(bad_uuids_long[i], &u);
 		M0_UT_ASSERT(rc == -EINVAL);
 	}
+
+	for (i = 0; i < ARRAY_SIZE(uuid); ++i)
+		m0_uuid_generate2(&uuid[i]);
+	for (i = 0; i < ARRAY_SIZE(uuid); ++i)
+		for (j = i + 1; j < ARRAY_SIZE(uuid); ++j)
+			M0_UT_ASSERT(m0_uint128_cmp(&uuid[i], &uuid[j]) != 0);
 }
 M0_EXPORTED(m0_test_lib_uuid);
 

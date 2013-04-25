@@ -26,6 +26,26 @@
 #include "lib/time.h"
 #include "lib/uuid.h"
 
+#ifdef __KERNEL__
+#  include <linux/random.h>     /* get_random_uuid */
+#else
+#  include <uuid/uuid.h>        /* generate_uuid */
+#endif
+
+M0_BASSERT(sizeof (struct m0_uint128) == sizeof (char[16]));
+#ifndef __KERNEL__
+M0_BASSERT(sizeof (struct m0_uint128) == sizeof (uuid_t));
+#endif
+
+M0_INTERNAL void m0_uuid_generate2(struct m0_uint128 *u)
+{
+#ifdef __KERNEL__
+	generate_random_uuid((unsigned char *)u);
+#else
+	uuid_generate((unsigned char *)u);
+#endif
+}
+
 /**
    Convert the leading hex string of a specified length to binary.
    The length and characters are enforced.

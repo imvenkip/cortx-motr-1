@@ -327,6 +327,10 @@ MERO_SEARCH_LIBS([aio_read], [rt aio c], [RT_LIBS],
 )
 AC_SUBST([RT_LIBS])
 
+MERO_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
+	[uuid_generate cannot be found! Try to install libuuid.])
+AC_SUBST([UUID_LIBS])
+
 #
 # Checking for required header files
 #
@@ -679,6 +683,7 @@ echo "GALOIS_LIBS  :  \"$GALOIS_LIBS\""
 echo "CUNIT_LIBS   :  \"$CUNIT_LIBS\""
 echo "YAML_LIBS    :  \"$YAML_LIBS\""
 echo "DB_LIBS      :  \"$DB_LIBS\""
+echo "UUID_LIBS    :  \"$UUID_LIBS\""
 echo ""
 echo "Linux kernel :  \"$LINUX_OBJ\""
 echo "Lustre       :  \"$LUSTRE\""
