@@ -73,7 +73,8 @@ enum m0_dtm_hi_flags {
 	M0_DHF_SHARED = 1ULL << 0,
 	M0_DHF_FULL   = 1ULL << 1,
 	M0_DHF_OWNED  = 1ULL << 2,
-	M0_DHF_LAST   = 1ULL << 3
+	M0_DHF_BUSY   = 1ULL << 3,
+	M0_DHF_LAST   = 1ULL << 4
 };
 
 struct m0_dtm_hi_ops {

@@ -40,13 +40,17 @@ struct m0_tl;
 
 /* export */
 struct m0_dtm_oper;
-struct m0_dtm_oper_ops;
 
 struct m0_dtm_oper {
 	struct m0_dtm_op oprt_op;
 	struct m0_tl     oprt_uu;
+	uint64_t         oprt_flags;
 };
 M0_INTERNAL bool m0_dtm_oper_invariant(const struct m0_dtm_oper *oper);
+
+enum m0_dtm_oper_flags {
+	M0_DOF_CLOSED = 1 << 0
+};
 
 struct m0_dtm_oper_descr {
 	uint32_t                    od_nr;
@@ -57,7 +61,8 @@ M0_INTERNAL void m0_dtm_oper_init(struct m0_dtm_oper *oper, struct m0_dtm *dtm,
 				  struct m0_tl *uu);
 M0_INTERNAL void m0_dtm_oper_fini(struct m0_dtm_oper *oper);
 M0_INTERNAL void m0_dtm_oper_close(struct m0_dtm_oper *oper);
-M0_INTERNAL void m0_dtm_oper_prepared(const struct m0_dtm_oper *oper);
+M0_INTERNAL void m0_dtm_oper_prepared(const struct m0_dtm_oper *oper,
+				      const struct m0_dtm_remote *rem);
 M0_INTERNAL void m0_dtm_oper_done(const struct m0_dtm_oper *oper,
 				  const struct m0_dtm_remote *rem);
 M0_INTERNAL void m0_dtm_oper_pack(const struct m0_dtm_oper *oper,

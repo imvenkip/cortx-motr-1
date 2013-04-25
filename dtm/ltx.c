@@ -34,6 +34,7 @@ static void ltx_persistent_hook(struct m0_db_tx_waiter *w);
 static void ltx_noop(struct m0_db_tx_waiter *w);
 static void ltx_abort(struct m0_db_tx_waiter *w);
 static const struct m0_dtm_history_ops ltx_ops;
+static const struct m0_uint128 ltxid = M0_UINT128(0x10ca1, 0x10ca1);
 
 M0_INTERNAL void m0_dtm_ltx_init(struct m0_dtm_ltx *ltx, struct m0_dtm *dtm,
 				 struct m0_dbenv *env)
@@ -63,7 +64,6 @@ M0_INTERNAL int m0_dtm_ltx_open(struct m0_dtm_ltx *ltx)
 M0_INTERNAL int m0_dtm_ltx_close(struct m0_dtm_ltx *ltx)
 {
 	m0_dtm_controlh_close(&ltx->lx_ch);
-	m0_dtm_oper_prepared(&ltx->lx_ch.ch_clop);
 	m0_dtm_oper_done(&ltx->lx_ch.ch_clop, NULL);
 	return m0_db_tx_commit(&ltx->lx_tx);
 }
@@ -117,8 +117,7 @@ M0_INTERNAL const struct m0_dtm_history_type m0_dtm_ltx_htype = {
 
 static const struct m0_uint128 *ltx_id(const struct m0_dtm_history *history)
 {
-	M0_IMPOSSIBLE("Encoding ltx?");
-	return NULL;
+	return &ltxid;
 }
 
 static const struct m0_dtm_history_ops ltx_ops = {

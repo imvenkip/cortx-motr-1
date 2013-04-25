@@ -58,7 +58,7 @@ struct m0_dtm_update {
 M0_INTERNAL bool m0_dtm_update_invariant(const struct m0_dtm_update *update);
 
 enum {
-	M0_DTM_USER_UPDATE_BASE = 0xffff - 100
+	M0_DTM_USER_UPDATE_BASE = 0x100000
 };
 
 struct m0_dtm_update_ops {

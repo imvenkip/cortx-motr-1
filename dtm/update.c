@@ -45,9 +45,10 @@ M0_INTERNAL void m0_dtm_update_init(struct m0_dtm_update *update,
 				    struct m0_dtm_oper *oper,
 				    const struct m0_dtm_update_data *data)
 {
-	M0_PRE(m0_tl_forall(oper, upd, &oper->oprt_op.op_ups,
-			    upd->upd_up.up_state == M0_DOS_LIMBO &&
-			    upd->upd_label != data->da_label));
+	M0_PRE(ergo(data->da_label != 0,
+		    m0_tl_forall(oper, upd, &oper->oprt_op.op_ups,
+				 upd->upd_up.up_state == M0_DOS_LIMBO &&
+				 upd->upd_label != data->da_label)));
 	M0_PRE(!(history->h_hi.hi_flags & M0_DHF_CLOSED));
 	M0_PRE(m0_dtm_oper_invariant(oper));
 	m0_dtm_up_init(&update->upd_up, &history->h_hi, &oper->oprt_op,
@@ -94,7 +95,8 @@ M0_INTERNAL void m0_dtm_update_unpack(struct m0_dtm_update *update,
 	struct m0_dtm_up *up = &update->upd_up;
 
 	M0_PRE(update->upd_label == updd->udd_data.da_label);
-	M0_PRE(update->upd_up.up_state == M0_DOS_INPROGRESS);
+	M0_PRE(M0_IN(update->upd_up.up_state, (M0_DOS_INPROGRESS,
+					       M0_DOS_PREPARE)));
 	M0_PRE(UPDATE_HISTORY(update)->h_ops->hio_type->hit_id ==
 	       updd->udd_id.hid_htype);
 	M0_PRE(m0_dtm_update_matches_descr(update, updd));
@@ -200,7 +202,7 @@ M0_INTERNAL void update_print(const struct m0_dtm_update *update)
 	char buf[100];
 
 	history_print_header(UPDATE_HISTORY(update), buf);
-	M0_LOG(M0_FATAL, "\tupdate: %s@%s",
+	M0_LOG(M0_FATAL, "\tupdate: %s: %s",
 	       update->upd_ops->updo_type->updtt_name, &buf[0]);
 	M0_LOG(M0_FATAL, "\t\tstate: %c label: %lx "
 	       "rule: %c ver: %lu orig: %lu",

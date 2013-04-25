@@ -101,6 +101,10 @@ M0_INTERNAL void m0_dtm_history_persistent(struct m0_dtm_history *history,
 					   m0_dtm_ver_t upto);
 M0_INTERNAL void m0_dtm_history_close(struct m0_dtm_history *history);
 
+M0_INTERNAL void m0_dtm_history_update_get(const struct m0_dtm_history *history,
+					   enum m0_dtm_up_rule rule,
+					   struct m0_dtm_update_data *data);
+
 M0_INTERNAL void
 m0_dtm_history_type_register(struct m0_dtm *dtm,
 			     const struct m0_dtm_history_type *ht);

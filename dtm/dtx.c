@@ -154,6 +154,7 @@ static struct m0_dtm_controlh *dtx_get(struct m0_dtm_dtx *dtx,
 {
 	uint32_t                 i;
 	struct m0_dtm_dtx_party *pa;
+	struct m0_dtm_history   *history;
 
 	for (i = 0, pa = dtx->dt_party; i < dtx->dt_nr; ++i, ++pa) {
 		if (pa_history(pa)->h_rem == rem)
@@ -161,8 +162,10 @@ static struct m0_dtm_controlh *dtx_get(struct m0_dtm_dtx *dtx,
 	}
 	M0_ASSERT(dtx->dt_nr < dtx->dt_nr_max);
 	m0_dtm_controlh_init(&pa->pa_ch, dtx->dt_dtm);
-	pa_history(pa)->h_rem = rem;
-	pa_history(pa)->h_ops = &dtx_ops;
+	history = pa_history(pa);
+	history->h_rem = rem;
+	history->h_ops = &dtx_ops;
+	history->h_hi.hi_flags |= M0_DHF_OWNED;
 	pa->pa_dtx = dtx;
 	dtx->dt_nr++;
 	return &pa->pa_ch;

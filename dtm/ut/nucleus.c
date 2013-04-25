@@ -340,7 +340,7 @@ static void op_miser_delayed(void)
 	ctx_state(2, M0_DOS_LIMBO);
 	M0_UT_ASSERT(flag);
 	c_miser = NULL;
-
+	m0_dtm_op_prepared(&c.c_op[1]);
 	ctx_check();
 	ctx_fini();
 }

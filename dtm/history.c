@@ -45,6 +45,7 @@
 static m0_dtm_ver_t up_ver    (const struct m0_dtm_up *up);
 static void sibling_persistent(struct m0_dtm_history *history,
 			       struct m0_dtm_op *op, struct m0_queue *queue);
+static m0_dtm_ver_t history_ver(const struct m0_dtm_history *history);
 static const struct m0_dtm_update_ops ch_close_ops;
 static const struct m0_dtm_update_ops ch_noop_ops;
 
@@ -134,6 +135,24 @@ M0_INTERNAL void m0_dtm_history_close(struct m0_dtm_history *history)
 	M0_PRE(!(history->h_hi.hi_flags & M0_DHF_CLOSED));
 	history->h_hi.hi_flags |= M0_DHF_CLOSED;
 	history_unlock(history);
+}
+
+M0_INTERNAL void m0_dtm_history_update_get(const struct m0_dtm_history *history,
+					   enum m0_dtm_up_rule rule,
+					   struct m0_dtm_update_data *data)
+{
+	M0_PRE(M0_IN(rule, (M0_DUR_NOT, M0_DUR_INC, M0_DUR_SET)));
+
+	data->da_rule  = rule;
+	data->da_label = 0;
+	if (history->h_hi.hi_flags & M0_DHF_OWNED) {
+		data->da_orig_ver = history_ver(history);
+		data->da_ver = rule == M0_DUR_NOT ?
+			data->da_orig_ver : data->da_orig_ver + 1;
+	} else {
+		data->da_orig_ver = 0;
+		data->da_ver      = 0;
+	}
 }
 
 static void sibling_persistent(struct m0_dtm_history *history,
@@ -237,27 +256,17 @@ static void control_update_add(struct m0_dtm_history *history,
 			       enum m0_dtm_up_rule rule,
 			       const struct m0_dtm_update_ops *ops)
 {
-	m0_dtm_ver_t orig_ver;
-	m0_dtm_ver_t ver;
-	uint32_t     max_label = 0;
+	struct m0_dtm_update_data udata;
 
 	oper_lock(oper);
 
 	M0_PRE(m0_dtm_history_invariant(history));
 	M0_PRE(M0_IN(rule, (M0_DUR_NOT, M0_DUR_INC)));
 
-	oper_for(oper, update) {
-		if (update->upd_label < M0_DTM_USER_UPDATE_BASE)
-			max_label = max32u(max_label, update->upd_label);
-	} oper_endfor;
-	max_label++;
-	M0_ASSERT(max_label < M0_DTM_USER_UPDATE_BASE);
-
-	orig_ver = history_ver(history);
-	ver = rule == M0_DUR_NOT ? orig_ver : orig_ver + 1;
-	m0_dtm_update_init(cupdate, history, oper,
-			   &M0_DTM_UPDATE_DATA(max_label, rule, ver, orig_ver));
+	m0_dtm_history_update_get(history, rule, &udata);
+	m0_dtm_update_init(cupdate, history, oper, &udata);
 	cupdate->upd_ops = ops;
+	M0_PRE(m0_dtm_history_invariant(history));
 	oper_unlock(oper);
 }
 
@@ -321,8 +330,11 @@ M0_INTERNAL void m0_dtm_controlh_fini(struct m0_dtm_controlh *ch)
 
 M0_INTERNAL void m0_dtm_controlh_close(struct m0_dtm_controlh *ch)
 {
+	struct m0_dtm_remote *rem = ch->ch_history.h_rem;
+
 	m0_dtm_history_add_close(&ch->ch_history, &ch->ch_clop, &ch->ch_clup);
 	m0_dtm_history_close(&ch->ch_history);
+	m0_dtm_oper_prepared(&ch->ch_clop, rem);
 }
 
 M0_INTERNAL void m0_dtm_controlh_add(struct m0_dtm_controlh *ch,
@@ -394,10 +406,10 @@ M0_INTERNAL void history_print_header(const struct m0_dtm_history *history,
 	struct m0_uint128 *rid = history->h_rem != NULL ?
 		&history->h_rem->re_id : &null_id;
 
-	sprintf(buf, "%s[%lx:%lx]->[%lx:%lx]",
-	       history->h_ops->hio_type->hit_name,
-	       (unsigned long)hid.u_hi, (unsigned long)hid.u_lo,
-	       (unsigned long)rid->u_hi, (unsigned long)rid->u_lo);
+	sprintf(buf, "%s@%p[%lx:%lx]->[%lx:%lx]",
+		history->h_ops->hio_type->hit_name, history,
+		(unsigned long)hid.u_hi, (unsigned long)hid.u_lo,
+		(unsigned long)rid->u_hi, (unsigned long)rid->u_lo);
 }
 
 M0_INTERNAL void history_print(const struct m0_dtm_history *history)

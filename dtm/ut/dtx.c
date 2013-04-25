@@ -161,6 +161,8 @@ static void init0(void)
 	M0_SET0(&update_remote);
 	M0_SET0(&control_local);
 	M0_SET0(&control_remote);
+	M0_SET0(&oper_local);
+	M0_SET0(&oper_remote);
 	history_local = history0;
 	for (i = 0; i < REM_NR; ++i)
 		history_remote[i] = &history0[(i + 1) * UPDATE_NR];
@@ -269,12 +271,16 @@ static void init2(void)
 			m0_dtm_update_init(&update_local[i][j],
 					   &history_local[j], &oper_local[i],
 			   &M0_DTM_UPDATE_DATA(M0_DTM_USER_UPDATE_BASE + 2 * j,
-					       M0_DUR_SET, 3 + j + i, 0));
+					       M0_DUR_INC, 2 + i, 1 + i));
 		}
 		dtm_unlock(&dtm_local);
 		m0_dtm_dtx_add(&dx, &oper_local[i]);
 		m0_dtm_oper_close(&oper_local[i]);
-		m0_dtm_oper_prepared(&oper_local[i]);
+		M0_UT_ASSERT(op_state(&oper_local[i].oprt_op, M0_DOS_PREPARE));
+		for (j = 0; j < REM_NR; ++j)
+			m0_dtm_oper_prepared(&oper_local[i], &remote_local[j]);
+		M0_UT_ASSERT(op_state(&oper_local[i].oprt_op,
+				      M0_DOS_INPROGRESS));
 	}
 	m0_dtm_dtx_close(&dx);
 }
@@ -319,13 +325,6 @@ static void init4(void)
 	int  done = 0;
 
 	init3();
-	for (j = 0; j < REM_NR; ++j) {
-		for (i = 0; i < OPER_NR; ++i) {
-			M0_LOG(M0_FATAL, "%i %i", i, j);
-			oper_print(&oper_remote[j][i]);
-		}
-	}
-	M0_LOG(M0_FATAL, "--------------------------");
 	do {
 		progress = false;
 		for (i = 0; i < REM_NR; ++i) {
@@ -333,14 +332,12 @@ static void init4(void)
 				struct m0_dtm_oper *oper;
 
 				oper = &oper_remote[i][j];
-				M0_LOG(M0_FATAL, "%i %i", i, j);
-				oper_print(oper);
 				if (op_state(&oper->oprt_op, M0_DOS_LIMBO)) {
 					m0_dtm_oper_close(oper);
 					progress = true;
 				}
 				if (op_state(&oper->oprt_op, M0_DOS_PREPARE)) {
-					m0_dtm_oper_prepared(oper);
+					m0_dtm_oper_prepared(oper, NULL);
 					progress = true;
 				}
 				if (op_state(&oper->oprt_op, M0_DOS_INPROGRESS)) {
@@ -355,18 +352,21 @@ static void init4(void)
 	for (i = 0; i < REM_NR; ++i) {
 		for (j = 0; j < OPER_NR; ++j) {
 			struct m0_dtm_oper *oper = &oper_remote[i][j];
+			struct m0_dtm_oper *loper = &oper_local[j];
 
 			M0_UT_ASSERT(op_state(&oper->oprt_op, M0_DOS_VOLATILE));
 			ode_reply[i][j].od_nr = FAN_NR;
-			m0_dtm_oper_done(oper, NULL);
-			m0_dtm_oper_done(oper, &remote_remote[i]);
 			m0_dtm_reply_pack(oper, &ode[i][j], &ode_reply[i][j]);
-			m0_dtm_reply_unpack(&oper_local[j], &ode_reply[i][j]);
-			m0_dtm_oper_done(&oper_local[j], &remote_local[i]);
+			m0_dtm_reply_unpack(loper, &ode_reply[i][j]);
+			m0_dtm_oper_done(loper, &remote_local[i]);
 		}
 	}
 	M0_UT_ASSERT(m0_forall(i, OPER_NR,
 			 op_state(&oper_local[i].oprt_op, M0_DOS_VOLATILE)));
+	for (i = 0; i < OPER_NR; ++i) {
+		M0_LOG(M0_FATAL, "%i", i);
+		oper_print(&oper_local[i]);
+	}
 }
 
 static void fini4(void)

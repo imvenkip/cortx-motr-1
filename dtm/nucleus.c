@@ -88,9 +88,7 @@ M0_INTERNAL void m0_dtm_op_close(const struct m0_dtm_op *op)
 		hi_tlist_add(&up->up_hi->hi_ups, up);
 		up->up_state = M0_DOS_FUTURE;
 	} up_endfor;
-	up_for(op, up) {
-		advance_hi(up->up_hi);
-	} up_endfor;
+	advance_try(op);
 	M0_POST(m0_dtm_op_invariant(op));
 }
 
@@ -99,14 +97,9 @@ M0_INTERNAL void m0_dtm_op_prepared(const struct m0_dtm_op *op)
 	M0_PRE(m0_dtm_op_invariant(op));
 
 	up_for(op, up) {
-		M0_PRE(up->up_state == M0_DOS_PREPARE);
-		M0_ASSERT(up->up_ver != 0);
-		up->up_hi->hi_ver = up->up_ver;
-		up->up_state = M0_DOS_INPROGRESS;
+		up_prepared(up);
 	} up_endfor;
-	up_for(op, up) {
-		advance_hi(up->up_hi);
-	} up_endfor;
+	advance_try(op);
 	M0_POST(m0_dtm_op_invariant(op));
 }
 
@@ -147,13 +140,29 @@ M0_INTERNAL void m0_dtm_op_fini(struct m0_dtm_op *op)
 	m0_dtm_op_bob_fini(op);
 }
 
+M0_INTERNAL void advance_try(const struct m0_dtm_op *op)
+{
+	up_for(op, up) {
+		advance_hi(up->up_hi);
+	} up_endfor;
+}
+
 static void advance_hi(struct m0_dtm_hi *hi)
 {
+	struct m0_dtm_up *last = NULL;
 	hi_for(hi, up) {
 		if (up->up_state > M0_DOS_FUTURE)
 			break;
-		advance_op(up->up_op);
+		last = up;
 	} hi_endfor;
+	while (last != NULL) {
+		/* because advance_op() can call op_del(). */
+		struct m0_dtm_up *prev = hi_tlist_prev(&hi->hi_ups, last);
+
+		M0_ASSERT(last->up_state == M0_DOS_FUTURE);
+		advance_op(last->up_op);
+		last = prev;
+	}
 }
 
 static void advance_op(struct m0_dtm_op *op)
@@ -162,26 +171,30 @@ static void advance_op(struct m0_dtm_op *op)
 
 	M0_PRE(op_state(op, M0_DOS_FUTURE));
 
-	switch (op_cmp(op)) {
-	case READY:
-		up_for(op, up) {
-			up_ready(up);
-			up->up_state = M0_DOS_PREPARE;
-		} up_endfor;
-		op_ops->doo_ready(op);
-		break;
-	case EARLY:
-		break;
-	case LATE:
-		op_del(op);
-		op_ops->doo_late(op);
-		break;
-	case MISER:
-		op_del(op);
-		op_ops->doo_miser(op);
-		break;
-	default:
-		M0_IMPOSSIBLE("Wrong op_cmp().");
+	if (m0_tl_forall(op, up, &op->op_ups,
+			 !(up->up_hi->hi_flags & M0_DHF_BUSY))) {
+		switch (op_cmp(op)) {
+		case READY:
+			up_for(op, up) {
+				up_ready(up);
+				up->up_state = M0_DOS_PREPARE;
+				up->up_hi->hi_flags |= M0_DHF_BUSY;
+			} up_endfor;
+			op_ops->doo_ready(op);
+			break;
+		case EARLY:
+			break;
+		case LATE:
+			op_del(op);
+			op_ops->doo_late(op);
+			break;
+		case MISER:
+			op_del(op);
+			op_ops->doo_miser(op);
+			break;
+		default:
+			M0_IMPOSSIBLE("Wrong op_cmp().");
+		}
 	}
 }
 
@@ -202,6 +215,19 @@ static void up_ready(struct m0_dtm_up *up)
 	}
 	hi_tlist_del(up);
 	up_insert(up);
+}
+
+M0_INTERNAL void up_prepared(struct m0_dtm_up *up)
+{
+	struct m0_dtm_hi *hi = up->up_hi;
+
+	M0_PRE(up->up_state == M0_DOS_PREPARE);
+	M0_ASSERT(hi->hi_flags & M0_DHF_BUSY);
+	M0_ASSERT(ergo(hi->hi_flags & M0_DHF_OWNED, up->up_ver != 0));
+	if (up->up_ver != 0)
+		hi->hi_ver = up->up_ver;
+	hi->hi_flags &= ~M0_DHF_BUSY;
+	up->up_state = M0_DOS_INPROGRESS;
 }
 
 static int op_cmp(const struct m0_dtm_op *op)
@@ -288,8 +314,6 @@ static void up_insert(struct m0_dtm_up *up)
 {
 	struct m0_dtm_hi *hi = up->up_hi;
 
-	M0_PRE(up->up_ver != 0);
-
 	hi_for(hi, scan) {
 		if (scan->up_state > M0_DOS_FUTURE) {
 			hi_tlist_add_before(scan, up);
@@ -365,11 +389,14 @@ static bool up_pair_invariant(const struct m0_dtm_up *up,
 
 M0_INTERNAL bool m0_dtm_hi_invariant(const struct m0_dtm_hi *hi)
 {
+	unsigned prepare = 0;
 	return
 		_0C(m0_dtm_hi_bob_check(hi)) &&
 		m0_tl_forall(hi, up, &hi->hi_ups,
 		      m0_dtm_up_invariant(up) &&
-		      up_pair_invariant(up, hi_tlist_next(&hi->hi_ups, up)));
+		      up_pair_invariant(up, hi_tlist_next(&hi->hi_ups, up)) &&
+		      ergo(up->up_state == M0_DOS_PREPARE, ++prepare + 1)) &&
+		prepare == !!(hi->hi_flags & M0_DHF_BUSY);
 }
 
 M0_INTERNAL bool m0_dtm_up_invariant(const struct m0_dtm_up *up)
@@ -412,11 +439,10 @@ M0_INTERNAL bool m0_dtm_op_invariant(const struct m0_dtm_op *op)
 				max = max_check(max, up->up_state);
 			} up_endfor;
 			op_tlist_is_empty(&op->op_ups) ||
-			   (min == max) || ((min == M0_DOS_INPROGRESS) &&
+			   (min == max) || ((min >= M0_DOS_PREPARE) &&
 					    (max < M0_DOS_STABLE));
 		   })) &&
-		_0C(ergo(!m0_tl_forall(op, up, &op->op_ups,
-				       up->up_state == M0_DOS_LIMBO),
+		_0C(ergo(!op_state(op, M0_DOS_LIMBO),
 			 !m0_tl_forall(op, up, &op->op_ups,
 				       up->up_rule == M0_DUR_NOT ||
 				       up->up_ver == 0)));
@@ -436,7 +462,7 @@ static bool up_pair_invariant(const struct m0_dtm_up *up,
 			  up->up_orig_ver == earlier->up_ver)));
 }
 
-M0_INTERNAL bool op_state(struct m0_dtm_op *op, enum m0_dtm_state state)
+M0_INTERNAL bool op_state(const struct m0_dtm_op *op, enum m0_dtm_state state)
 {
 	return m0_tl_forall(op, up, &op->op_ups, up->up_state == state);
 }
