@@ -85,7 +85,7 @@ enum cm_data_iter_phase {
 	 * the iterator to first local data unit of a parity group from a GOB
 	 * (file) that needs repair.
 	 */
-	ITPH_INIT,
+	ITPH_IDLE,
 	/**
 	 * Iterator is in this phase until all the local data units of a
 	 * parity group are serviced (i.e. copy packets are created).
@@ -507,8 +507,8 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	has_incoming = __has_incoming(scm, sfc->sfc_pdlayout, &agid);
 	ag = m0_cm_aggr_group_locate(&scm->sc_base, &agid, has_incoming);
 	if (ag == NULL) {
-		if (!m0_sns_cm_has_space(&scm->sc_base, &agid,
-					 sfc->sfc_pdlayout, has_incoming))
+		if (has_incoming && !m0_sns_cm_has_space(&scm->sc_base, &agid,
+							 sfc->sfc_pdlayout))
 			return -ENOBUFS;
 		rc = m0_cm_aggr_group_alloc(&scm->sc_base, &agid,
 					   has_incoming, &ag);
@@ -595,14 +595,15 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
  * Transitions the data iterator (m0_sns_cm::sc_it) to ITPH_FID_NEXT
  * in-order to find the first GOB and parity group that needs repair.
  */
-M0_INTERNAL int iter_init(struct m0_sns_cm_iter *it)
+M0_INTERNAL int iter_idle(struct m0_sns_cm_iter *it)
 {
 	iter_phase_set(it, ITPH_FID_NEXT);
+
 	return 0;
 }
 
 static int (*iter_action[])(struct m0_sns_cm_iter *it) = {
-	[ITPH_INIT]            = iter_init,
+	[ITPH_IDLE]            = iter_idle,
 	[ITPH_COB_NEXT]        = iter_cob_next,
 	[ITPH_GROUP_NEXT]      = iter_group_next,
 	[ITPH_GROUP_NEXT_WAIT] = iter_group_next_wait,
@@ -634,15 +635,15 @@ M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 }
 
 static struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {
-	[ITPH_INIT] = {
+	[ITPH_IDLE] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "iter init",
-		.sd_allowed = M0_BITS(ITPH_FID_NEXT)
+		.sd_allowed = M0_BITS(ITPH_FID_NEXT, ITPH_FINI)
 	},
 	[ITPH_COB_NEXT] = {
 		.sd_flags   = 0,
 		.sd_name    = "COB next",
-		.sd_allowed = M0_BITS(ITPH_GROUP_NEXT, ITPH_CP_SETUP, ITPH_FINI)
+		.sd_allowed = M0_BITS(ITPH_GROUP_NEXT, ITPH_CP_SETUP, ITPH_IDLE)
 	},
 	[ITPH_GROUP_NEXT] = {
 		.sd_flags   = 0,
@@ -659,7 +660,7 @@ static struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {
 		.sd_flags   = 0,
 		.sd_name    = "FID next",
 		.sd_allowed = M0_BITS(ITPH_FID_NEXT_WAIT, ITPH_GROUP_NEXT,
-				      ITPH_FINI)
+				      ITPH_IDLE)
 	},
 	[ITPH_FID_NEXT_WAIT] = {
 		.sd_flags   = 0,
@@ -689,21 +690,6 @@ static const struct m0_sm_conf cm_iter_sm_conf = {
 	.scf_state     = cm_iter_sd
 };
 
-/**
- * Configures pdclust layout with default parameters, N = 1, K = 1 and
- * P = N + 2K. Eventually the layout for a particular file will be fetched as
- * part of the file attributes.
- * @note The default parameters and layout setup code are similar to that of
- * m0t1fs/linux_kernel/super.c used in m0t1fs client.
- * This also puts a temporary limitation on the client to mount m0t1fs with the
- * same default parameters.
- * @todo Fetch layout details dynamically.
- */
-static int layout_setup(struct m0_sns_cm_iter *it)
-{
-	return 0;
-}
-
 static void layout_fini(struct m0_sns_cm_iter *it)
 {
 	struct m0_sns_cm_file_context *sfc;
@@ -726,13 +712,7 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm     *scm = it2sns(it);
 	struct m0_cm         *cm;
 	int                   rc;
-	/*
-	 * Pick the best possible fid to initialise the namespace iter.
-	 * m0t1fs starts its fid space from {0,4}.
-	 * XXX This should be changed to {0, 0} once multiple cob domains
-	 * are added per service.
-	 */
-	struct m0_fid         gfid = {0, 4};
+
 
 	M0_PRE(it != NULL);
 
@@ -741,23 +721,45 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
         rc = m0_ios_cdom_get(cm->cm_service.rs_reqh, &it->si_cob_dom, 0);
         if (rc != 0)
                 return rc;
-	rc = layout_setup(it);
-	if (rc != 0)
-		return rc;
-
-	m0_sm_init(&it->si_sm, &cm_iter_sm_conf, ITPH_INIT, &cm->cm_sm_group);
+	m0_sm_init(&it->si_sm, &cm_iter_sm_conf, ITPH_IDLE, &cm->cm_sm_group);
 	m0_sns_cm_iter_bob_init(it);
-	rc = m0_cob_ns_iter_init(&it->si_cns_it, &gfid, it->si_dbenv, it->si_cob_dom);
 
 	return rc;
+}
+
+M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
+{
+	/*
+	 * Pick the best possible fid to initialise the namespace iter.
+	 * m0t1fs starts its fid space from {0,4}.
+	 * XXX This should be changed to {0, 0} once multiple cob domains
+	 * are added per service.
+	 */
+	struct m0_fid         gfid = {0, 4};
+	int                   rc;
+
+	M0_PRE(it != NULL);
+	M0_PRE(iter_phase(it) == ITPH_IDLE);
+
+	rc = m0_cob_ns_iter_init(&it->si_cns_it, &gfid, it->si_dbenv, it->si_cob_dom);
+	if (rc == 0)
+		M0_SET0(&it->si_fc.sfc_gob_fid);
+
+	return rc;
+}
+
+M0_INTERNAL void m0_sns_cm_iter_stop(struct m0_sns_cm_iter *it)
+{
+	iter_phase_set(it, ITPH_IDLE);
+	m0_cob_ns_iter_fini(&it->si_cns_it);
+	layout_fini(it);
 }
 
 M0_INTERNAL void m0_sns_cm_iter_fini(struct m0_sns_cm_iter *it)
 {
 	M0_PRE(it != NULL);
+	M0_PRE(iter_phase(it) == ITPH_IDLE);
 
-	m0_cob_ns_iter_fini(&it->si_cns_it);
-	layout_fini(it);
 	iter_phase_set(it, ITPH_FINI);
 	m0_sm_fini(&it->si_sm);
 	m0_sns_cm_iter_bob_fini(it);

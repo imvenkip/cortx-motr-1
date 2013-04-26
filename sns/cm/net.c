@@ -112,9 +112,7 @@ static void sw_update(struct m0_cm_ag_sw *sw, struct m0_cm_cp *cp,
 
 	fom = &cp->c_fom;
 	cm = cm_get(fom);
-	m0_cm_lock(cm);
 	proxy = m0_cm_proxy_locate(cm, ep->nep_addr);
-	m0_cm_unlock(cm);
 	M0_PRE(proxy != NULL);
 	m0_cm_proxy_update(proxy, &sw->sw_lo, &sw->sw_hi);
 	cp->c_cm_proxy = proxy;

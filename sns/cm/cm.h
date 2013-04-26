@@ -168,8 +168,7 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
 
 M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm,
 				     const struct m0_cm_ag_id *id,
-                                     struct m0_pdclust_layout *pl,
-				     bool has_incoming);
+                                     struct m0_pdclust_layout *pl);
 
 /**
  * Returns true if the passed global fid has been repaired.

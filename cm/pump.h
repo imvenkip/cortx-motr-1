@@ -45,7 +45,9 @@ struct m0_cm;
  */
 struct m0_cm_cp_pump {
 	/** pump FOM. */
-	struct m0_fom    p_fom;
+	struct m0_fom         p_fom;
+
+	struct m0_fom_timeout p_timeout;
 	/**
 	 * Every newly allocate Copy packet in CPP_ALLOC phase is saved for the
 	 * further references, until the CPP_DATA_NEXT phase is completed for

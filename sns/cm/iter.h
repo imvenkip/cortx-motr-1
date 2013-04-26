@@ -133,6 +133,9 @@ struct m0_sns_cm_iter {
 M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it);
 M0_INTERNAL void m0_sns_cm_iter_fini(struct m0_sns_cm_iter *it);
 
+M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it);
+M0_INTERNAL void m0_sns_cm_iter_stop(struct m0_sns_cm_iter *it);
+
 /**
  * Iterates over parity groups in global fid order, calculates next data or
  * parity unit from the parity group to be read, calculates cob fid for the

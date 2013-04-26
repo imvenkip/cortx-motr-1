@@ -301,7 +301,6 @@ M0_INTERNAL int m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
         M0_PRE(cm != NULL && gfid != NULL && layout != NULL && fsize != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	m0_cm_unlock(cm);
         ldom = &reqh->rh_ldom;
 
         M0_LOG(M0_DEBUG, "fetch file size and layout for %llu:%llu",
@@ -336,7 +335,6 @@ M0_INTERNAL int m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
                 M0_LOG(M0_ERROR, "getattr for %llu:%llu failed rc = %d",
                                  (unsigned long long)gfid->f_container,
                                  (unsigned long long)gfid->f_key, rc);
-	m0_cm_lock(cm);
         return rc;
 }
 

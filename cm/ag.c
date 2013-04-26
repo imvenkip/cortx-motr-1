@@ -193,7 +193,7 @@ m0_cm_aggr_group_locate(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 	M0_PRE(m0_cm_is_locked(cm));
 
 	M0_LOG(M0_DEBUG, "aggr group locate: id [%lu] [%lu] [%lu] [%lu] \
-	       has_incoming: %d", id->ai_hi.u_hi, id->ai_hi.u_lo,
+	       has_incoming: %c", id->ai_hi.u_hi, id->ai_hi.u_lo,
 	       id->ai_lo.u_hi, id->ai_lo.u_lo, has_incoming);
 	ag = __aggr_group_locate(id, &aggr_grps_in_tl,
 			&cm->cm_aggr_grps_in);
@@ -215,9 +215,12 @@ m0_cm_aggr_group_locate(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 	 * the m0_cm::cm_aggr_grps_in, it should also be added to m0_cm::
 	 * cm_aggr_grps_out list.
 	 */
-	if (ag != NULL && has_incoming)
+	if (ag != NULL && has_incoming) {
+	M0_LOG(M0_DEBUG, "aggr group locate: id [%lu] [%lu] [%lu] [%lu] \
+	       has_incoming: %d", id->ai_hi.u_hi, id->ai_hi.u_lo,
+	       id->ai_lo.u_hi, id->ai_lo.u_lo, has_incoming);
 		m0_cm_aggr_group_add(cm, ag, true);
-
+	}
 	return ag;
 }
 
