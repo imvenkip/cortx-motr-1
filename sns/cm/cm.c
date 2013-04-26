@@ -664,7 +664,6 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 {
 	struct m0_net_buffer *buf;
 	struct m0_sns_cm     *scm = cm2sns(cp->c_ag->cag_cm);
-	struct m0_sns_cm_cp  *scp = cp2snscp(cp);
 	size_t                colour;
 	uint32_t              seg_nr;
 	uint32_t              rem_bufs;
@@ -681,10 +680,6 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 			return -ENOBUFS;
 		m0_cm_cp_buf_add(cp, buf);
 		M0_CNT_DEC(rem_bufs);
-		if (!scp->sc_is_local) {
-			if (scm->sc_ibp_reserved_buf_nr > 0)
-				M0_CNT_DEC(scm->sc_ibp_reserved_buf_nr);
-		}
 	}
 
 	return 0;
@@ -793,10 +788,8 @@ M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id 
 	m0_net_buffer_pool_lock(&scm->sc_ibp.sb_bp);
 	if (total_inbufs + m0_pdclust_N(pl) > scm->sc_ibp.sb_bp.nbp_free)
 		goto out;
-	if (scm->sc_ibp.sb_bp.nbp_free - (total_inbufs + m0_pdclust_N(pl)) > 0) {
-		scm->sc_ibp_reserved_buf_nr += total_inbufs;
+	if (scm->sc_ibp.sb_bp.nbp_free - (total_inbufs + m0_pdclust_N(pl)) > 0)
 		result = true;
-	}
 out:
 	m0_net_buffer_pool_unlock(&scm->sc_ibp.sb_bp);
         M0_LOG(M0_DEBUG, "free buffers in: %u out: %u", scm->sc_ibp.sb_bp.nbp_free,

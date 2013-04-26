@@ -124,12 +124,8 @@ struct m0_sns_cm {
 	 */
 	struct m0_sns_cm_buf_pool  sc_ibp;
 
-	uint64_t                   sc_ibp_reserved_buf_nr;
-
 	/** Buffer pool for outgoing copy packets. */
 	struct m0_sns_cm_buf_pool  sc_obp;
-
-	uint64_t                   sc_obp_reserved_buf_nr;
 
 	/**
 	 * Channel to wait upon before invoking m0_cm_start()/m0_cm_stop()

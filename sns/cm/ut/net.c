@@ -424,8 +424,10 @@ static void receiver_ag_create()
                 m0_sns_cm_acc_cp_init(sns_cp, &sns_ag);
                 sns_cp->sc_base.c_data_seg_nr = SEG_NR * BUF_NR;
                 sns_cp->sc_sid = sid;
+		m0_cm_lock(cm);
                 M0_UT_ASSERT(m0_sns_cm_buf_attach(&scm->sc_obp.sb_bp,
 						  &sns_cp->sc_base) == 0);
+		m0_cm_unlock(cm);
         }
 
         m0_cm_lock(cm);
