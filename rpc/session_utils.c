@@ -54,17 +54,6 @@ M0_INTERNAL void m0_rpc_session_module_fini(void)
         m0_rpc_session_fop_fini();
 }
 
-M0_INTERNAL void m0_rpc_sender_uuid_get(struct m0_rpc_sender_uuid *u)
-{
-	u->su_uuid = m0_uuid_generate();
-}
-
-M0_INTERNAL int m0_rpc_sender_uuid_cmp(const struct m0_rpc_sender_uuid *u1,
-				       const struct m0_rpc_sender_uuid *u2)
-{
-	return M0_3WAY(u1->su_uuid, u2->su_uuid);
-}
-
 M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item,
 				    struct m0_rpc_slot *slot);
 /**

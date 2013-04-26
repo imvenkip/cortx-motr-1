@@ -38,31 +38,20 @@ enum {
 	M0_RPC_VERSION_1 = 1,
 };
 
-/**
-   Requirements:
-   * UUID must change whenever a storage-less client re-boots.
-   * for a client with persistent state (e.g., a disk) uuid
-     must survive reboots.
-*/
-struct m0_rpc_sender_uuid {
-	/** XXX Temporary */
-	uint64_t su_uuid;
-} M0_XCA_RECORD;
-
 struct m0_rpc_onwire_slot_ref {
-	struct m0_uint128          osr_uuid;
-	uint64_t                   osr_sender_id;
-	uint64_t                   osr_session_id;
+	struct m0_uint128 osr_uuid;
+	uint64_t          osr_sender_id;
+	uint64_t          osr_session_id;
 
 	/** Numeric id of slot. Used when encoding and decoding rpc item to
 	    and from wire-format
 	 */
-	uint32_t                   osr_slot_id;
+	uint32_t          osr_slot_id;
 
 	/** If slot has verno matching sr_verno, then only the item can be
 	    APPLIED to the slot
 	 */
-	struct m0_verno            osr_verno;
+	struct m0_verno   osr_verno;
 	/**
 	 * @todo These are temporary fields; there is no need to duplicate
 	 * this information with each and every reply. In the future, special
@@ -71,18 +60,18 @@ struct m0_rpc_onwire_slot_ref {
 	/** In each reply item, receiver reports to sender, verno of item
 	    whose effects have reached persistent storage, using this field
 	 */
-	struct m0_verno            osr_last_persistent_verno;
+	struct m0_verno   osr_last_persistent_verno;
 
 	/** Inform the sender about current slot version */
-	struct m0_verno            osr_last_seen_verno;
+	struct m0_verno   osr_last_seen_verno;
 
 	/** An identifier that uniquely identifies item within
 	    slot->item_list.
         */
-	uint64_t                   osr_xid;
+	uint64_t          osr_xid;
 
 	/** Generation number of slot */
-	uint64_t                   osr_slot_gen;
+	uint64_t          osr_slot_gen;
 } M0_XCA_RECORD;
 
 struct m0_rpc_packet_onwire_header {

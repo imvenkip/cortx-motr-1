@@ -75,14 +75,6 @@ M0_INTERNAL struct m0_rpc_session *m0_rpc_conn_session0(const struct m0_rpc_conn
 
 M0_INTERNAL void m0_rpc_conn_fini_locked(struct m0_rpc_conn *conn);
 
-M0_INTERNAL void m0_rpc_sender_uuid_get(struct m0_rpc_sender_uuid *u);
-
-/**
-   3WAY comparison function for UUID
- */
-M0_INTERNAL int m0_rpc_sender_uuid_cmp(const struct m0_rpc_sender_uuid *u1,
-				       const struct m0_rpc_sender_uuid *u2);
-
 /**
    Lookup for a cob that represents rpc connection with given @sender_id.
 
