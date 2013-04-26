@@ -121,9 +121,9 @@ static int dump_linux_stob_init(struct addb_dump_ctl *ctl)
 	struct stat info;
 
 	rc = lstat(ctl->adc_stpath, &info) ?:
-	     m0_stob_domain_locate(&m0_linux_stob_type, ctl->adc_stpath,
-				   &ctl->adc_stob.s_ldom, info.st_ino) ?:
-	    m0_linux_stob_setup(ctl->adc_stob.s_ldom, false);
+	     m0_linux_stob_domain_locate(ctl->adc_stpath, &ctl->adc_stob.s_ldom,
+					 info.st_ino) ?:
+	     m0_linux_stob_setup(ctl->adc_stob.s_ldom, false);
 	return rc;
 }
 
@@ -185,10 +185,9 @@ static int dump_ad_stob_init(struct dump_stob *stob, uint64_t cid,
 		sprintf(ad_dname, "%lx%lx",
 			bstob_id->si_bits.u_hi, bstob_id->si_bits.u_lo);
 		ino = m0_linux_stob_ino(*bstob);
-		M0_ASSERT(ino != 0);
-		rc = ino > 0 ? m0_stob_domain_locate(&m0_ad_stob_type, ad_dname,
-					             &adstob->as_dom, ino) :
-			       ino;
+		rc = ino > 0 ?
+		     m0_ad_stob_domain_locate(ad_dname, &adstob->as_dom, ino) :
+		     ino;
 	}
 	if (rc != 0) {
 		if (*bstob != NULL) {

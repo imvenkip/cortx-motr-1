@@ -190,8 +190,7 @@ static int server_init(const char             *stob_path,
 	 */
 	rc = lstat(stob_path, &info);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_stob_domain_locate(&m0_linux_stob_type, stob_path, bdom,
-				   info.st_ino);
+	rc = m0_linux_stob_domain_locate(stob_path, bdom, info.st_ino);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_stob_find(*bdom, backid, bstore);
@@ -206,8 +205,8 @@ static int server_init(const char             *stob_path,
 	 * Create AD domain over backing store object.
 	 */
 	ino = m0_linux_stob_ino(*bstore);
-	M0_ASSERT(ino != 0);
-	rc = m0_stob_domain_locate(&m0_ad_stob_type, "", &sdom, ino);
+	M0_UT_ASSERT(ino > 0);
+	rc = m0_ad_stob_domain_locate("", &sdom, ino);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_ad_stob_setup(sdom, &srv_db, *bstore, &rb.rb_ballroom,

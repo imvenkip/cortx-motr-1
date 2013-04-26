@@ -111,6 +111,10 @@ M0_INTERNAL int m0_ad_stob_setup(struct m0_stob_domain *adom,
 M0_INTERNAL int m0_ad_stobs_init(void);
 M0_INTERNAL void m0_ad_stobs_fini(void);
 
+M0_INTERNAL int m0_ad_stob_domain_locate(const char *domain_name,
+				         struct m0_stob_domain **dom,
+				         uint64_t dom_id);
+
 /** @} end group stobad */
 
 /* __MERO_STOB_AD_INTERNAL_H__ */

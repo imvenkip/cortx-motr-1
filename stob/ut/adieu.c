@@ -85,8 +85,7 @@ static int test_adieu_init(void)
 
 	result = lstat("./__s", &info);
 	M0_ASSERT(result == 0);
-	result = m0_stob_domain_locate(&m0_linux_stob_type, "./__s", &dom,
-				       info.st_ino);
+	result = m0_linux_stob_domain_locate("./__s", &dom, info.st_ino);
 	M0_ASSERT(result == 0);
 
 	result = m0_stob_find(dom, &id, &obj);

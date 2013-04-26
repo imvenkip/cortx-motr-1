@@ -265,6 +265,14 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
 	return result;
 }
 
+M0_INTERNAL int m0_ad_stob_domain_locate(const char *domain_name,
+				         struct m0_stob_domain **dom,
+				         uint64_t dom_id)
+{
+	return M0_STOB_TYPE_OP(&m0_ad_stob_type, sto_domain_locate, domain_name,
+			       dom, dom_id);
+}
+
 /**
    Block size shift for objects of this domain.
  */

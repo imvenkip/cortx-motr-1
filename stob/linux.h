@@ -45,6 +45,10 @@ M0_INTERNAL int m0_linux_stob_link(struct m0_stob_domain *dom,
 				   struct m0_stob *obj, const char *path,
 				   struct m0_dtx *tx);
 
+M0_INTERNAL int m0_linux_stob_domain_locate(const char *domain_name,
+				            struct m0_stob_domain **dom,
+				            uint64_t dom_id);
+
 M0_INTERNAL int m0_linux_stob_ino(struct m0_stob *stob);
 
 /** @} end group stoblinux */

@@ -809,10 +809,9 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 		sprintf(ad_dname, "%lx%lx", bstob_id->si_bits.u_hi,
 			bstob_id->si_bits.u_lo);
 		ino = m0_linux_stob_ino(*bstob);
-		M0_ASSERT(ino != 0);
-		rc = ino > 0 ? m0_stob_domain_locate(&m0_ad_stob_type, ad_dname,
-						     &adstob->as_dom, ino) :
-			       ino;
+		rc = ino > 0 ?
+		     m0_ad_stob_domain_locate(ad_dname, &adstob->as_dom, ino) :
+		     ino;
 	}
 
 	if (rc != 0) {
@@ -888,8 +887,8 @@ static int cs_linux_stob_init(const char *stob_path, struct cs_stobs *stob)
 	struct stat info;
 
 	return lstat(stob_path, &info) ?:
-	       m0_stob_domain_locate(&m0_linux_stob_type, stob_path,
-				     &stob->s_ldom, info.st_ino) ?:
+	       m0_linux_stob_domain_locate(stob_path, &stob->s_ldom,
+					   info.st_ino) ?:
 	       m0_linux_stob_setup(stob->s_ldom, false);
 
 }

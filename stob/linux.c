@@ -152,6 +152,15 @@ static int linux_stob_type_domain_locate(struct m0_stob_type *type,
 	return result;
 }
 
+M0_INTERNAL int m0_linux_stob_domain_locate(const char *domain_name,
+				            struct m0_stob_domain **dom,
+				            uint64_t dom_id)
+{
+	return M0_STOB_TYPE_OP(&m0_linux_stob_type, sto_domain_locate,
+			       domain_name, dom, dom_id);
+}
+
+
 M0_INTERNAL int m0_linux_stob_setup(struct m0_stob_domain *dom,
 				    bool use_directio)
 {
@@ -283,6 +292,8 @@ M0_INTERNAL int m0_linux_stob_ino(struct m0_stob *obj)
 
 	result = linux_stob_path(lstob, ARRAY_SIZE(pathname), pathname) ?:
 		 lstat(pathname, &statbuf);
+	if (statbuf.st_ino == 0 && result == 0)
+		 result = -ENOENT;
 	return result == 0 ? statbuf.st_ino : result;
 }
 

@@ -553,8 +553,7 @@ static struct m0_stob *addb_ut_retrieval_stob_setup(const char *domain_name,
 	M0_UT_ASSERT(id != NULL);
 	rc = lstat(domain_name, &info);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_stob_domain_locate(&m0_linux_stob_type, domain_name, &dom,
-				   info.st_ino);
+	rc = m0_linux_stob_domain_locate(domain_name, &dom, info.st_ino);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_find(dom, id, &stob);
 	M0_UT_ASSERT(rc == 0 && stob != NULL);
@@ -771,8 +770,7 @@ static void addb_ut_stob(void)
 
 	rc = lstat("./_addb", &info);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_stob_domain_locate(&m0_linux_stob_type, "./_addb", &dom,
-				   info.st_ino);
+	rc = m0_linux_stob_domain_locate("./_addb", &dom, info.st_ino);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_find(dom, &stobsink_stobid, &stob);
 	M0_UT_ASSERT(rc == 0 && stob != NULL);

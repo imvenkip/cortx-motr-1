@@ -320,9 +320,8 @@ static int stobio_init(struct stobio_test *test)
 
 	result = lstat("./__s", &info);
 	M0_UT_ASSERT(result == 0);
-	result = m0_stob_domain_locate(&m0_linux_stob_type,
-				       "./__s", &test->st_dom,
-				       info.st_ino);
+	result = m0_linux_stob_domain_locate("./__s", &test->st_dom,
+					     info.st_ino);
 	M0_UT_ASSERT(result == 0);
 
 	result = m0_linux_stob_setup(test->st_dom, test->st_directio);

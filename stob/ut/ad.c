@@ -163,8 +163,7 @@ static int test_ad_init(void)
 
 	result = lstat("./__s", &info);
 	M0_ASSERT(result == 0);
-	result = m0_stob_domain_locate(&m0_linux_stob_type, "./__s", &dom_back,
-				       info.st_ino);
+	result = m0_linux_stob_domain_locate("./__s", &dom_back, info.st_ino);
 	M0_ASSERT(result == 0);
 
 	result = m0_stob_find(dom_back, &id_back, &obj_back);
@@ -177,8 +176,7 @@ static int test_ad_init(void)
 
 	ino = m0_linux_stob_ino(obj_back);
 	M0_ASSERT(ino > 0);
-	result = m0_stob_domain_locate(&m0_ad_stob_type, "", &dom_fore,
-				       ino);
+	result = m0_ad_stob_domain_locate("", &dom_fore, ino);
 	M0_ASSERT(result == 0);
 
 	result = m0_ad_stob_setup(dom_fore, &db, obj_back, &mb.mb_ballroom,
