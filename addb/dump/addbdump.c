@@ -159,7 +159,6 @@ static int dump_ad_stob_init(struct dump_stob *stob, uint64_t cid,
 	struct m0_stob     **bstob;
 	struct m0_balloc    *cb;
 	int                  rc;
-	int64_t		     ino;
 
         M0_PRE(stob != NULL && db != NULL);
 	M0_ALLOC_PTR(adstob);
@@ -177,10 +176,8 @@ static int dump_ad_stob_init(struct dump_stob *stob, uint64_t cid,
 	if (rc == 0) {
 		sprintf(ad_dname, "%lx%lx",
 			bstob_id->si_bits.u_hi, bstob_id->si_bits.u_lo);
-		ino = m0_linux_stob_ino(*bstob);
-		rc = ino > 0 ?
-		     m0_ad_stob_domain_locate(ad_dname, &adstob->as_dom, ino) :
-		     ino;
+		rc = m0_ad_stob_domain_locate(ad_dname, &adstob->as_dom,
+					      *bstob);
 	}
 	if (rc != 0) {
 		if (*bstob != NULL) {

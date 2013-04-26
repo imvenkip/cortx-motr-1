@@ -146,7 +146,6 @@ static int test_ad_init(void)
 {
 	int	i;
 	int	result;
-	int64_t	ino;
 
 	result = system("rm -fr ./__s");
 	M0_ASSERT(result == 0);
@@ -171,9 +170,7 @@ static int test_ad_init(void)
 	M0_ASSERT(result == 0);
 	M0_ASSERT(obj_back->so_state == CSS_EXISTS);
 
-	ino = m0_linux_stob_ino(obj_back);
-	M0_ASSERT(ino > 0);
-	result = m0_ad_stob_domain_locate("", &dom_fore, ino);
+	result = m0_ad_stob_domain_locate("", &dom_fore, obj_back);
 	M0_ASSERT(result == 0);
 
 	result = m0_ad_stob_setup(dom_fore, &db, obj_back, &mb.mb_ballroom,

@@ -778,7 +778,6 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	struct m0_stob    **bstob;
 	struct m0_balloc   *cb;
 	struct cs_ad_stob  *adstob;
-	int64_t		    ino;
 
 	M0_ALLOC_PTR(adstob);
 	if (adstob == NULL) {
@@ -808,10 +807,8 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	if (rc == 0) {
 		sprintf(ad_dname, "%lx%lx", bstob_id->si_bits.u_hi,
 			bstob_id->si_bits.u_lo);
-		ino = m0_linux_stob_ino(*bstob);
-		rc = ino > 0 ?
-		     m0_ad_stob_domain_locate(ad_dname, &adstob->as_dom, ino) :
-		     ino;
+		rc = m0_ad_stob_domain_locate(ad_dname, &adstob->as_dom,
+					      *bstob);
 	}
 
 	if (rc != 0) {

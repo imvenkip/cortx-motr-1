@@ -33,6 +33,7 @@
 #include "stob/stob.h"
 #include "stob/cache.h"
 #include "stob/ad.h"
+#include "stob/linux.h"
 #include "stob/stob_addb.h"
 #include "stob/ad_private.h"
 #include "stob/ad_private_xc.h"
@@ -267,10 +268,16 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
 
 M0_INTERNAL int m0_ad_stob_domain_locate(const char *domain_name,
 				         struct m0_stob_domain **dom,
-				         uint64_t dom_id)
+				         struct m0_stob *stob)
 {
-	return M0_STOB_TYPE_OP(&m0_ad_stob_type, sto_domain_locate, domain_name,
-			       dom, dom_id);
+	int64_t ino;
+
+	M0_PRE(stob->so_domain->sd_type == &m0_linux_stob_type);
+
+	ino = m0_linux_stob_ino(stob);
+	return ino > 0 ? M0_STOB_TYPE_OP(&m0_ad_stob_type, sto_domain_locate,
+					 domain_name, dom, ino) :
+			 ino;
 }
 
 /**
