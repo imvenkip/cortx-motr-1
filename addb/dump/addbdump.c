@@ -18,8 +18,6 @@
  * Original creation date: 12/18/2012
  */
 
-#include <sys/stat.h>	/* mkdir */
-
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/getopts.h"
@@ -117,14 +115,9 @@ static int stype_parse(const char *stype)
 
 static int dump_linux_stob_init(struct addb_dump_ctl *ctl)
 {
-	int	    rc;
-	struct stat info;
-
-	rc = lstat(ctl->adc_stpath, &info) ?:
-	     m0_linux_stob_domain_locate(ctl->adc_stpath, &ctl->adc_stob.s_ldom,
-					 info.st_ino) ?:
-	     m0_linux_stob_setup(ctl->adc_stob.s_ldom, false);
-	return rc;
+	return m0_linux_stob_domain_locate(ctl->adc_stpath,
+					   &ctl->adc_stob.s_ldom) ?:
+	       m0_linux_stob_setup(ctl->adc_stob.s_ldom, false);
 }
 
 static int dump_stob_locate(struct m0_stob_domain *dom,
@@ -166,7 +159,7 @@ static int dump_ad_stob_init(struct dump_stob *stob, uint64_t cid,
 	struct m0_stob     **bstob;
 	struct m0_balloc    *cb;
 	int                  rc;
-	int		     ino;
+	int64_t		     ino;
 
         M0_PRE(stob != NULL && db != NULL);
 	M0_ALLOC_PTR(adstob);

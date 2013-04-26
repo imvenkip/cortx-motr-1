@@ -173,8 +173,7 @@ static int server_init(const char             *stob_path,
 	uint32_t		     bufs_nr;
 	uint32_t		     tms_nr;
 	struct m0_reqh_service_type *stype;
-	struct stat		     info;
-	int			     ino;
+	int64_t			     ino;
 
         srv_cob_dom_id.id = 102;
 
@@ -188,9 +187,7 @@ static int server_init(const char             *stob_path,
 	/*
 	 * Locate and create (if necessary) the backing store object.
 	 */
-	rc = lstat(stob_path, &info);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_linux_stob_domain_locate(stob_path, bdom, info.st_ino);
+	rc = m0_linux_stob_domain_locate(stob_path, bdom);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_stob_find(*bdom, backid, bstore);

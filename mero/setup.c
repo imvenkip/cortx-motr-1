@@ -778,7 +778,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	struct m0_stob    **bstob;
 	struct m0_balloc   *cb;
 	struct cs_ad_stob  *adstob;
-	int		    ino;
+	int64_t		    ino;
 
 	M0_ALLOC_PTR(adstob);
 	if (adstob == NULL) {
@@ -884,11 +884,7 @@ static int cs_ad_stob_init(struct cs_stobs *stob,
  */
 static int cs_linux_stob_init(const char *stob_path, struct cs_stobs *stob)
 {
-	struct stat info;
-
-	return lstat(stob_path, &info) ?:
-	       m0_linux_stob_domain_locate(stob_path, &stob->s_ldom,
-					   info.st_ino) ?:
+	return m0_linux_stob_domain_locate(stob_path, &stob->s_ldom) ?:
 	       m0_linux_stob_setup(stob->s_ldom, false);
 
 }

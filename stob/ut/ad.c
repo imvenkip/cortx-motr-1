@@ -144,10 +144,9 @@ struct mock_balloc mb = {
 
 static int test_ad_init(void)
 {
-	int	    i;
-	int	    result;
-	struct stat info;
-	int	    ino;
+	int	i;
+	int	result;
+	int64_t	ino;
 
 	result = system("rm -fr ./__s");
 	M0_ASSERT(result == 0);
@@ -161,9 +160,7 @@ static int test_ad_init(void)
 	result = m0_dbenv_init(&db, db_name, 0);
 	M0_ASSERT(result == 0);
 
-	result = lstat("./__s", &info);
-	M0_ASSERT(result == 0);
-	result = m0_linux_stob_domain_locate("./__s", &dom_back, info.st_ino);
+	result = m0_linux_stob_domain_locate("./__s", &dom_back);
 	M0_ASSERT(result == 0);
 
 	result = m0_stob_find(dom_back, &id_back, &obj_back);

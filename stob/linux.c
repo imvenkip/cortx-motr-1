@@ -153,11 +153,13 @@ static int linux_stob_type_domain_locate(struct m0_stob_type *type,
 }
 
 M0_INTERNAL int m0_linux_stob_domain_locate(const char *domain_name,
-				            struct m0_stob_domain **dom,
-				            uint64_t dom_id)
+				            struct m0_stob_domain **dom)
 {
-	return M0_STOB_TYPE_OP(&m0_linux_stob_type, sto_domain_locate,
-			       domain_name, dom, dom_id);
+	struct stat info;
+
+	return lstat(domain_name, &info) ?:
+	       M0_STOB_TYPE_OP(&m0_linux_stob_type, sto_domain_locate,
+			       domain_name, dom, info.st_ino);
 }
 
 
@@ -277,7 +279,7 @@ static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
 /**
    Helper function returns inode number of the linux stob object directory.
  */
-M0_INTERNAL int m0_linux_stob_ino(struct m0_stob *obj)
+M0_INTERNAL int64_t m0_linux_stob_ino(struct m0_stob *obj)
 {
 	char		   pathname[MAXPATHLEN];
 	int		   result;
