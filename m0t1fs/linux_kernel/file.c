@@ -2963,7 +2963,7 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	 * In first use-case, repair is yet to start on file. Hence,
 	 * rest of the file data which goes on healthy devices can be
 	 * written safely.
-	 * In this case, the fops meant for failed device(s) will not be sent 
+	 * In this case, the fops meant for failed device(s) will not be sent
 	 * on wire but will be used to recalculate parity and rest of the fops
 	 * will be sent to respective ioservice instances for writing data
 	 * to servers.
