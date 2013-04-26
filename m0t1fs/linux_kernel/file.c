@@ -2758,12 +2758,6 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 
 	for (map = 0; map < req->ir_iomap_nr; ++map) {
 
-		/*
-		if (ioreq_sm_state(req) == IRS_DEGRADED_READING &&
-		    req->ir_iomaps[map]->pi_state != PI_DEGRADED)
-			continue;
-			*/
-
 		count        = 0;
 		pgstart	     = data_size(play) *
 					req->ir_iomaps[map]->pi_grpid;
@@ -2969,9 +2963,10 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	 * In first use-case, repair is yet to start on file. Hence,
 	 * rest of the file data which goes on healthy devices can be
 	 * written safely.
-	 * In this case, the fops meant for failed device(s) will be simply
-	 * dropped and rest of the fops will be sent to respective ioservice
-	 * instances for writing data to servers.
+	 * In this case, the fops meant for failed device(s) will not be sent 
+	 * on wire but will be used to recalculate parity and rest of the fops
+	 * will be sent to respective ioservice instances for writing data
+	 * to servers.
 	 * Later when this IO request relinquishes the distributed lock on
 	 * associated global fid and SNS repair starts on the file, the lost
 	 * data will be regenerated using parity recovery algorithms.
@@ -2979,10 +2974,11 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	 * The second use-case implies completion of SNS repair for associated
 	 * global fid and the lost data is regenerated on distributed spare
 	 * units.
-	 * Ergo, all the file data meant for lost device(s) will be redirected
-	 * towards corresponding spare unit(s). Later when SNS rebalance phase
-	 * commences, it will migrate the data from spare to a new device, thus
-	 * making spare available for recovery again.
+	 * Ergo, all the file data and/or parity meant for lost device(s)
+	 * will be redirected towards corresponding spare unit(s).
+	 * Later when SNS rebalance phase commences, it will migrate the data
+	 * from spare to a new device, thus making spare available for
+	 * recovery again.
 	 * In this case, old fops will be discarded and all pages spanned by
 	 * IO request will be reshuffled by redirecting pages meant for
 	 * failed device(s) to its corresponding spare unit(s).

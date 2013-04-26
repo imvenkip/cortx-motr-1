@@ -172,9 +172,9 @@ M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm,
  *             be retrieved.
  * @param reqh Parent request handler object.
  * @pre   m0_fid_is_valid(gfid) && reqh != NULL.
- * @ret   -1 if SNS repair has not started at all.
- *         0 if SNS repair has started but not completed for @gfid.
- *         1 if SNS repair has started and completed for @gfid.
+ * @ret   1 if SNS repair has not started at all.
+ *        2 if SNS repair has started but not completed for @gfid.
+ *        3 if SNS repair has started and completed for @gfid.
  */
 M0_INTERNAL int m0_sns_cm_fid_repair_done(struct m0_fid *gfid,
                                           struct m0_reqh *reqh);

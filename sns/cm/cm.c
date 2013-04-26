@@ -928,9 +928,8 @@ M0_INTERNAL int m0_sns_cm_fid_repair_done(struct m0_fid *gfid,
 		curr_gfid = scm->sc_it.si_fc.sfc_gob_fid;
 	m0_cm_unlock(cm);
 	if (curr_gfid.f_container == 0 && curr_gfid.f_key == 0)
-		return -1;
-	/* ISO C standard equates true with 1 and false with 0. */
-	return m0_fid_cmp(gfid, &curr_gfid) < 0;
+		return 1;
+	return m0_fid_cmp(gfid, &curr_gfid) > 0 ? 2 : 3;
 }
 
 /** Copy machine operations. */

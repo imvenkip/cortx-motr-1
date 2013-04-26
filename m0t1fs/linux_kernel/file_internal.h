@@ -1216,7 +1216,7 @@ enum sns_repair_state {
 	 * Initialized to -1 in order to sync it with output of API
 	 * m0_sns_cm_fid_repair_done().
 	 * */
-	SRS_UNINITIALIZED = -1,
+	SRS_UNINITIALIZED = 1,
 
 	/**
 	 * Assumes a distributed lock has been acquired on the associated
