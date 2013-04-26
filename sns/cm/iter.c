@@ -37,7 +37,6 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/cm_utils.h"
-#include "sns/cm/st/trigger_fom.h"
 
 /**
   @addtogroup SNSCM
@@ -416,22 +415,6 @@ out:
 static int iter_group_next_wait(struct m0_sns_cm_iter *it)
 {
 	return __group_next(it);
-}
-
-/**
- * Fetches total size of a file corresponding to the given GOB fid
- * (m0_sns_cm::si_pl::sfc_gob_fid). This is used to calculate
- * total number of parity groups per GOB.
- * Returns 0 * @todo Currently the file size is hard coded, but eventually it would be
- * retrieved as part of file attributes.
- * @note Fetching file attributes may block.
- * @retval 0 on success, IT_WAIT for blocking operation
- */
-M0_INTERNAL ssize_t m0_sns_cm_iter_file_size(struct m0_fid *gfid)
-{
-	M0_PRE(gfid != NULL);
-
-	return m0_trigger_file_size_get(gfid);
 }
 
 /**

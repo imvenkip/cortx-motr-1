@@ -44,7 +44,6 @@
 
 #include "ioservice/io_service.h"
 #include "sns/cm/ut/cp_common.h"
-#include "sns/cm/st/trigger_fom.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/ag.h"
@@ -52,9 +51,6 @@
 enum {
 	ITER_UT_BUF_NR     = 1 << 8,
 	ITER_GOB_KEY_START = 4,
-	ITER_64K           = 65536,
-	ITER_1M            = 1048576,
-	ITER_1G            = 1073741824,
 };
 
 static struct m0_reqh   *reqh;
@@ -89,7 +85,7 @@ static void service_start_failure(void)
 	M0_UT_ASSERT(rc != 0);
 }
 
-static void iter_setup(uint32_t N, uint32_t K, uint32_t P, uint64_t unit_size)
+static void iter_setup(void)
 {
 	int         rc;
 	uint64_t    fdata = 0;
@@ -108,6 +104,8 @@ static void iter_setup(uint32_t N, uint32_t K, uint32_t P, uint64_t unit_size)
 	scm->sc_op = SNS_REPAIR;
 	scm->sc_it.si_fdata = &fdata;
 	rc = m0_cm_ready(cm);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_cm_start(cm);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -239,7 +237,7 @@ static void cobs_delete(uint64_t nr_files, uint64_t nr_cobs)
 	}
 }
 
-static int iter_run(uint64_t pool_width, uint64_t nr_files, uint64_t *fsizes,
+static int iter_run(uint64_t pool_width, uint64_t nr_files,
 		    uint64_t fdata, enum m0_sns_cm_op op)
 {
 	struct m0_sns_cm_cp  scp;
@@ -248,7 +246,6 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files, uint64_t *fsizes,
 	int                  i;
 
 	cobs_create(nr_files, pool_width);
-	m0_trigger_file_sizes_save(nr_files, fsizes);
 	/* Set fail device. */
 	scm->sc_it.si_fdata = &fdata;
 	scm->sc_op = op;
@@ -270,7 +267,6 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files, uint64_t *fsizes,
 		}
 	} while (rc == M0_FSO_AGAIN);
 	m0_cm_unlock(cm);
-	m0_trigger_file_sizes_delete();
 
 	return rc;
 }
@@ -278,10 +274,10 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files, uint64_t *fsizes,
 static void iter_stop(uint64_t nr_files, uint64_t pool_width)
 {
 	m0_cm_lock(cm);
-	ag_destroy();
-	m0_sns_cm_iter_fini(&scm->sc_it);
 	/* Destroy previously created aggregation groups manually. */
+	ag_destroy();
 	m0_cm_unlock(cm);
+	m0_cm_stop(cm);
 	cobs_delete(nr_files, pool_width);
 	sns_cm_ut_server_stop();
 }
@@ -289,91 +285,85 @@ static void iter_stop(uint64_t nr_files, uint64_t pool_width)
 static void iter_repair_single_file(void)
 {
 	int       rc;
-	uint64_t  fsizes[] = {ITER_64K};
 
-	iter_setup(3, 1, 5, 4096);
+	iter_setup();
 	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
-	rc = iter_run(5, ARRAY_SIZE(fsizes), fsizes, 3, SNS_REPAIR);
+	rc = iter_run(5, 1, 3, SNS_REPAIR);
 	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(ARRAY_SIZE(fsizes), 5);
+	iter_stop(1, 5);
 }
 
 static void iter_repair_multi_file(void)
 {
 	int       rc;
-	uint64_t  fsizes[] = {ITER_64K, ITER_1M};
 
-	iter_setup(8, 1, 10, 4096);
+	iter_setup();
 	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
-	rc = iter_run(10, ARRAY_SIZE(fsizes), fsizes, 4, SNS_REPAIR);
+	rc = iter_run(10, 2, 4, SNS_REPAIR);
 	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(ARRAY_SIZE(fsizes), 10);
+	iter_stop(2, 10);
 }
 
 static void iter_repair_large_file_with_large_unit_size(void)
 {
 	int       rc;
-	uint64_t  fsizes[] = {ITER_1G};
 
-	iter_setup(8, 1, 10, 10485760);
+	iter_setup();
 	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
-	rc = iter_run(10, ARRAY_SIZE(fsizes), fsizes, 4, SNS_REPAIR);
+	rc = iter_run(10, 1, 4, SNS_REPAIR);
 	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(ARRAY_SIZE(fsizes), 10);
+	iter_stop(1, 10);
 }
 
 static void iter_rebalance_single_file(void)
 {
 	int       rc;
-	uint64_t  fsizes[] = {ITER_64K};
 
-	iter_setup(3, 1, 5, 4096);
+	iter_setup();
 	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
-	rc = iter_run(5, ARRAY_SIZE(fsizes), fsizes, 3, SNS_REBALANCE);
+	rc = iter_run(5, 1, 3, SNS_REBALANCE);
 	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(ARRAY_SIZE(fsizes), 5);
+	iter_stop(1, 5);
 }
 
 static void iter_rebalance_multi_file(void)
 {
 	int       rc;
-	uint64_t  fsizes[] = {ITER_64K, ITER_1M};
 
-	iter_setup(8, 1, 10, 4096);
+	iter_setup();
 	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
-	rc = iter_run(10, ARRAY_SIZE(fsizes), fsizes, 4, SNS_REBALANCE);
+	rc = iter_run(10, 2, 4, SNS_REBALANCE);
 	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(ARRAY_SIZE(fsizes), 10);
+	iter_stop(2, 10);
 }
+
 static void iter_rebalance_large_file_with_large_unit_size(void)
 {
 	int       rc;
-	uint64_t  fsizes[] = {ITER_1G};
 
-	iter_setup(8, 1, 10, 10485760);
+	iter_setup();
 	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
-	rc = iter_run(10, ARRAY_SIZE(fsizes), fsizes, 4, SNS_REBALANCE);
+	rc = iter_run(10, 1, 4, SNS_REBALANCE);
 	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(ARRAY_SIZE(fsizes), 10);
+	iter_stop(1, 10);
 }
 
 static void iter_invalid_nr_cobs(void)
 {
 	int rc;
-	uint64_t fsizes[] = {ITER_64K};
 
-	iter_setup(3, 1, 5, 4096);
+	iter_setup();
 	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
-	rc = iter_run(3, ARRAY_SIZE(fsizes), fsizes, 2, SNS_REPAIR);
+	rc = iter_run(3, 1, 2, SNS_REPAIR);
 	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(ARRAY_SIZE(fsizes), 3);
+	iter_stop(1, 3);
 }
 
 const struct m0_test_suite sns_cm_ut = {

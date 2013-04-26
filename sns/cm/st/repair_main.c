@@ -85,38 +85,16 @@ int main(int argc, char *argv[])
 	struct rpc_ctx        *ctxs;
 	struct m0_rpc_session *session;
 	struct m0_clink        repair_clink;
-	int32_t                n = 0;
 	uint32_t               op;
-	uint32_t               unit_size;
 	uint64_t               fdata;
-	uint64_t               total_size = 0;
-	double                 total_time;
-	double                 throughput;
-	uint64_t               fsize[MAX_FILES_NR];
-	uint64_t               N = 0;
-	uint64_t               K = 0;
-	uint64_t               P = 0;
 	m0_time_t              start;
 	m0_time_t              delta;
-	int                    file_cnt = 0;
 	int                    rc;
 	int                    i;
-	int                    j;
 
 	rc = M0_GETOPTS("repair", argc, argv,
 			M0_FORMATARG('O', "Operation, i.e. SNS_REPAIR = 2 or SNS_REBALANCE = 4", "%u", &op),
-			M0_FORMATARG('U', "Unit size", "%u", &unit_size),
 			M0_FORMATARG('F', "Failure device", "%lu", &fdata),
-			M0_FORMATARG('n', "Number of files", "%d", &n),
-			M0_NUMBERARG('s', "File size",
-				LAMBDA(void, (int64_t fsz)
-					{
-						fsize[file_cnt] = fsz;
-						file_cnt++;
-					})),
-			M0_FORMATARG('N', "Number of data units", "%lu", &N),
-			M0_FORMATARG('K', "Number of parity units", "%lu", &K),
-			M0_FORMATARG('P', "Total pool width", "%lu", &P),
 			M0_STRINGARG('C', "Client endpoint",
 				LAMBDA(void, (const char *str){
 						cl_ep_addr = str;
@@ -130,7 +108,6 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		return rc;
 
-	M0_ASSERT(P >= N + 2 * K);
 	rc = m0_init();
 	M0_ASSERT(rc == 0);
 	rc = m0_sns_repair_trigger_fop_init();
@@ -156,16 +133,6 @@ int main(int argc, char *argv[])
 		fop = m0_fop_alloc(&trigger_fop_fopt, NULL);
 		treq = m0_fop_data(fop);
 		treq->fdata = fdata;
-		M0_ASSERT(n == file_cnt);
-		M0_ALLOC_ARR(treq->fsize.f_size, file_cnt);
-		M0_ASSERT(treq->fsize.f_size != NULL);
-		for (j = 0; j < file_cnt; ++j)
-			total_size += treq->fsize.f_size[j] = fsize[j];
-		treq->fsize.f_nr = file_cnt;
-		treq->N = N;
-		treq->K = K;
-		treq->P = P;
-		treq->unit_size = unit_size;
 		treq->op = op;
 		if (i == 0)
 			session = &cl_ctx.rcx_session;
@@ -179,13 +146,9 @@ int main(int argc, char *argv[])
 	}
 	m0_chan_wait(&repair_clink);
 	delta = m0_time_sub(m0_time_now(), start);
-	printf("Time: %lu.%2.2lu sec,", (unsigned long)m0_time_seconds(delta),
+	printf("Time: %lu.%2.2lu sec\n", (unsigned long)m0_time_seconds(delta),
 			(unsigned long)m0_time_nanoseconds(delta) * 100 /
 			M0_TIME_ONE_BILLION);
-	total_time = (double)m0_time_seconds(delta) +
-		(double)m0_time_nanoseconds(delta) / M0_TIME_ONE_BILLION;
-	throughput = (double)total_size / total_time;
-	printf(" %2.2f MB/s\n", throughput / (1024 *1024));
 	for (i = 0; i < srv_cnt - 1; ++i)
 		repair_rpc_ctx_fini(&ctxs[i]);
 	repair_client_fini();

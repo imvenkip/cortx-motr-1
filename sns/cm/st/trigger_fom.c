@@ -48,7 +48,6 @@
 
 struct m0_fop_type trigger_fop_fopt;
 struct m0_fop_type trigger_rep_fop_fopt;
-static struct file_sizes fs;
 
 static int trigger_fom_tick(struct m0_fom *fom);
 static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
@@ -102,38 +101,6 @@ struct m0_sm_conf trigger_conf = {
 	.scf_state     = trigger_phases
 };
 
-M0_INTERNAL uint64_t m0_trigger_file_size_get(struct m0_fid *gfid)
-{
-	/*
-	 * If trigger fom has not been initialised or if the incoming
-	 * gfid is M0_COB_ROOT_FID, then return the file size as 0,
-	 * so that iterator will simply iterate and come out by calculating
-	 * the number of groups as 0.
-	 */
-	if (fs.f_nr == 0 || (gfid->f_container == 1 && gfid->f_key == 1))
-		return 0;
-	/* m0tifs currently starts its key for gfid from 4. */
-	return fs.f_size[gfid->f_key - 4];
-}
-
-M0_INTERNAL void m0_trigger_file_sizes_save(uint64_t nr_files, uint64_t *fsizes)
-{
-	int i;
-	M0_PRE(fsizes != NULL);
-
-	fs.f_nr = nr_files;
-	M0_ALLOC_ARR(fs.f_size, fs.f_nr);
-	M0_ASSERT(fs.f_size != NULL);
-
-	for(i = 0; i < fs.f_nr; ++i)
-		fs.f_size[i] = fsizes[i];
-}
-
-M0_INTERNAL void m0_trigger_file_sizes_delete(void)
-{
-	m0_free(fs.f_size);
-}
-
 int m0_sns_repair_trigger_fop_init(void)
 {
 	struct m0_reqh_service_type *stype;
@@ -185,7 +152,6 @@ static void trigger_fom_fini(struct m0_fom *fom)
 
 	m0_fom_fini(fom);
 	m0_free(fom);
-	m0_trigger_file_sizes_delete();
 }
 
 static size_t trigger_fom_home_locality(const struct m0_fom *fom)
@@ -222,8 +188,6 @@ static int trigger_fom_tick(struct m0_fom *fom)
 			case TPH_READY:
 				treq = m0_fop_data(fom->fo_fop);
 				scm->sc_it.si_fdata = &treq->fdata;
-				m0_trigger_file_sizes_save(treq->fsize.f_nr,
-							   treq->fsize.f_size);
 				scm->sc_op             = treq->op;
 				m0_mutex_lock(&scm->sc_wait_mutex);
 				m0_clink_init(&tclink, NULL);
