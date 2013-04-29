@@ -504,9 +504,10 @@ M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp)
 	sw_lo_ag = m0_cm_ag_lo(cm);
 	sw_hi_ag = m0_cm_ag_hi(cm);
 	m0_cm_unlock(cm);
-	ag_id_copy(&sns_cpx_rep->scr_cp_rep.cr_sw.sw_lo, &sw_lo_ag->cag_id);
-	ag_id_copy(&sns_cpx_rep->scr_cp_rep.cr_sw.sw_hi, &sw_hi_ag->cag_id);
-
+	if (sw_lo_ag != NULL && sw_hi_ag != NULL) {
+		ag_id_copy(&sns_cpx_rep->scr_cp_rep.cr_sw.sw_lo, &sw_lo_ag->cag_id);
+		ag_id_copy(&sns_cpx_rep->scr_cp_rep.cr_sw.sw_hi, &sw_hi_ag->cag_id);
+	}
         rc = m0_rpc_reply_post(&cp->c_fom.fo_fop->f_item, &fop->f_item);
         m0_fop_put(fop);
 
