@@ -448,14 +448,15 @@ static int ios_start(struct m0_reqh_service *service)
 {
 	int			   rc;
 	struct m0_reqh_io_service *serv_obj;
+	static uint64_t            cdom_id = 37;   /* XXX temporary */
 
 	M0_PRE(service != NULL);
 	M0_PRE(m0_reqh_lockers_is_empty(service->rs_reqh, ios_cdom_key));
 
 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
-
-	rc = m0_ios_cdom_get(service->rs_reqh, &serv_obj->rios_cdom,
-			     service->rs_uuid);
+	/** @todo what should be cob dom id? */
+	cdom_id = m0_rnd(1ULL << 47, &cdom_id);
+	rc = m0_ios_cdom_get(service->rs_reqh, &serv_obj->rios_cdom, cdom_id);
 	if (rc != 0)
 		return rc;
 

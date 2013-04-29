@@ -116,21 +116,6 @@ M0_INTERNAL void m0_uuid_format(const struct m0_uint128 *val,
 	sprintf(buf, fmt, h1, h2, h3, h4, h5);
 }
 
-M0_INTERNAL uint64_t m0_uuid_generate(void)
-{
-	static struct m0_atomic64 cnt;
-	uint64_t                  uuid;
-	uint64_t                  millisec;
-
-	do {
-		m0_atomic64_inc(&cnt);
-		millisec = m0_time_nanoseconds(m0_time_now()) * 1000000;
-		uuid = (millisec << 10) | (m0_atomic64_get(&cnt) & 0x3FF);
-	} while (uuid == 0 || uuid == UINT64_MAX);
-
-	return uuid;
-}
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

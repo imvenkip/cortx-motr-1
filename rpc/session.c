@@ -996,7 +996,7 @@ M0_INTERNAL uint64_t session_id_allocate(void)
 	M0_ENTRY();
 
 	do {
-		session_id = m0_uuid_generate();
+		session_id = m0_rpc_id_generate();
 	} while (session_id <= SESSION_ID_MIN &&
 		 session_id >= SESSION_ID_MAX);
 

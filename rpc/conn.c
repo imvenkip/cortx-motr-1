@@ -992,7 +992,7 @@ M0_INTERNAL int m0_rpc_rcv_conn_establish(struct m0_rpc_conn *conn)
 	conn_state_set(conn, M0_RPC_CONN_CONNECTING);
 	rc = m0_db_tx_init(&tx, machine->rm_dom->cd_dbenv, 0);
 	if (rc == 0) {
-		sender_id = m0_uuid_generate();
+		sender_id = m0_rpc_id_generate();
 		rc = conn_persistent_state_attach(conn, sender_id, &tx);
 		if (rc == 0)
 			rc = m0_db_tx_commit(&tx);

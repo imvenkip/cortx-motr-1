@@ -111,6 +111,21 @@ static struct m0_uint128 stob_id_alloc(void)
         return id;
 }
 
+M0_INTERNAL uint64_t m0_rpc_id_generate(void)
+{
+	static struct m0_atomic64 cnt;
+	uint64_t                  id;
+	uint64_t                  millisec;
+
+	do {
+		m0_atomic64_inc(&cnt);
+		millisec = m0_time_nanoseconds(m0_time_now()) * 1000000;
+		id = (millisec << 10) | (m0_atomic64_get(&cnt) & 0x3FF);
+	} while (id == 0 || id == UINT64_MAX);
+
+	return id;
+}
+
 M0_INTERNAL int m0_rpc_cob_create_helper(struct m0_cob_domain *dom,
 					 const struct m0_cob *pcob,
 					 const char *name,

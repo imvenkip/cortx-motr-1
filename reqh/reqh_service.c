@@ -114,7 +114,7 @@ M0_INTERNAL bool m0_reqh_service_invariant(const struct m0_reqh_service *svc)
 	ergo(M0_IN(svc->rs_sm.sm_state, (M0_RST_INITIALISED, M0_RST_STARTING,
 					 M0_RST_STARTED, M0_RST_STOPPING,
 					 M0_RST_STOPPED, M0_RST_FAILED)),
-	     svc->rs_uuid != 0 && svc->rs_reqh != NULL) &&
+	     svc->rs_reqh != NULL) &&
 	ergo(M0_IN(svc->rs_sm.sm_state, (M0_RST_STARTED, M0_RST_STOPPING,
 					 M0_RST_STOPPED, M0_RST_FAILED)),
 	     m0_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc) ||
@@ -415,7 +415,6 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 
 	if (uuid != NULL)
 		service->rs_service_uuid = *uuid;
-	service->rs_uuid = m0_uuid_generate();
 	service->rs_reqh = reqh;
 	m0_reqh_svc_tlink_init(service);
 	m0_mutex_init(&service->rs_mutex);
