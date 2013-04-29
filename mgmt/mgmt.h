@@ -23,6 +23,7 @@
 
 #include "lib/tlist.h"
 
+struct m0_reqh;
 struct m0_reqh_service;
 
 /**
@@ -133,6 +134,49 @@ M0_INTERNAL int m0_mgmt_conf_init(struct m0_mgmt_conf *conf,
 				  const char *genders);
 
 M0_INTERNAL void m0_mgmt_conf_fini(struct m0_mgmt_conf *conf);
+
+/**
+   Launch a FOM in the management service to start a request handler service
+   asynchronously.  The FOM will use the rso_start_async() service operation if
+   available, or else the rso_start() service operation.
+
+   When the rso_start_async() operation is used, the FOM will block after the
+   call returns.  The operation should arrange to call m0_fom_wakeup() on
+   completion of the related service startup activities, either from within the
+   body of the method or from an entirely separate thread context.  The success
+   or failure of the startup activity should be recorded in the
+   m0_reqh_service_start_async_ctx::asc_rc field, which will trigger the FOM to
+   invoke either m0_reqh_service_started() or m0_reqh_service_failed() when it
+   regains control.
+
+   When the rso_start() operation is used the FOM wraps the call with
+   m0_fom_block_enter() and m0_fom_block_leave().  It is strongly recommended
+   that services provide an rso_start_async() operation if their startup is
+   non-trivial.
+
+   @param service The service object to start.
+
+   @pre m0_reqh_service_invariant(service)
+   @pre m0_reqh_service_state_get(service) == M0_RST_INITIALIZED
+   @pre M0_IN(m0_reqh_state_get(service->rs_reqh),
+              (M0_REQH_ST_MGMT_STARTED, M0_REQH_ST_NORMAL)
+   @pre service->rs_reqh != NULL
+   @post ergo(rc != 0, m0_reqh_service_state_get(service) == M0_RST_FAILED)
+
+   @see m0_mgmt_reqh_services_start_wait()
+ */
+M0_INTERNAL int m0_mgmt_reqh_service_start(struct m0_reqh_service *service);
+
+/**
+   Wait for starting service operations to complete.
+   @param reqh request handler
+   @pre M0_IN(m0_reqh_state_get(reqh),
+              (M0_REQH_ST_MGMT_STARTED, M0_REQH_ST_NORMAL,
+	       M0_REQH_ST_DRAIN, M0_REQH_ST_SVCS_STOP)
+   @pre reqh->rh_mgmt_svc != NULL
+   @see m0_reqh_service_start_async()
+ */
+M0_INTERNAL void m0_mgmt_reqh_services_start_wait(struct m0_reqh *reqh);
 
 /**
  * Query genders for information about a specific server node.

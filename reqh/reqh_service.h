@@ -34,6 +34,7 @@
 #include "rpc/service.h"
 
 struct m0_fop;
+struct m0_fom;
 
 /**
    @defgroup reqhservice Request handler service
@@ -110,6 +111,7 @@ struct m0_fop;
 
    - unregister service using m0_reqh_service_type_unregister().
 
+   @anchor reqhservice_state_dia <b>Request Handler Service State Diagram</b>
    A typical service transitions through its states as illustrated below.
    The triggering subroutine is identified, and the service method or
    service type method invoked is shown within square braces.
@@ -118,24 +120,24 @@ struct m0_fop;
        <<START>> ---------------------> M0_RST_INITIALISING
    [rsto_service_allocate()]                |
                                             | m0_reqh_service_init()
-                                            v
-                                        M0_RST_INITIALISED
-                                            |
-                                            | m0_reqh_service_start()
-                                            v
-        +------------------------------ M0_RST_STARTING [rso_start()]
-        |                       failure     | success
-        v                                   |
-   M0_RST_FAILED                            |
+             m0_reqh_service_failed()       v
+        +------------------------------ M0_RST_INITIALISED
+        |                                   | m0_reqh_service_start_async()/
+        |                                   |     m0_reqh_service_start()
+        v    m0_reqh_service_failed()       v
+        +------------------------------ M0_RST_STARTING [rso_start [_async]()]
+        |                                   | m0_reqh_service_started()/
+        v                                   |     m0_reqh_service_start()
+   M0_RST_FAILED                            v
         |                              M0_RST_STARTED
-        | m0_reqh_service_fini()            | m0_reqh_service_prepare_to_stop()
-        v                                   |  [rso_prepare_to_stop()]*
+        | m0_reqh_service_fini()            | m0_reqh_service_prepare_to_stop()/
+        v                                   |     m0_reqh_service_stop()
      <<END>> [rso_fini()]                   v
-        ^                               M0_RST_STOPPING
+        ^                               M0_RST_STOPPING [rso_prepare_to_stop()]
+        |                                   |
         |                                   | m0_reqh_service_stop()
-        |                                   | [rso_stop()]
         |     m0_reqh_service_fini()        v
-	+------------------------------ M0_RST_STOPPED
+	+------------------------------ M0_RST_STOPPED [rso_stop()]
    @endverbatim
 
    @{
@@ -164,13 +166,13 @@ enum m0_reqh_service_state {
 	   A service transitions to M0_RST_STARTING state before service
 	   specific start routine is invoked.
 
-	   @see m0_reqh_service_start()
+	   @see m0_reqh_service_start_async(), m0_reqh_service_start()
 	 */
 	M0_RST_STARTING,
 	/**
-	   A service transitions to M0_RST_STARTED state after completing
-	   generic part of service start up operations by
-	   m0_reqh_service_start().
+	   A service transitions to M0_RST_STARTED state when it is ready
+	   to process FOP requests.
+	   @see m0_reqh_service_started(), m0_reqh_service_start()
 	 */
 	M0_RST_STARTED,
 	/**
@@ -180,13 +182,14 @@ enum m0_reqh_service_state {
 	   when this state is entered.  This gives a service a chance
 	   to trigger FOM termination before its rso_stop() method is
 	   invoked.
-	   @see m0_reqh_shutdown_wait()
+	   @see m0_reqh_service_prepare_to_stop(), m0_reqh_service_stop()
 	 */
 	M0_RST_STOPPING,
 	/**
 	   A service transitions to M0_RST_STOPPED state, once service specific
            rso_stop() routine completes successfully and after it is
            unregistered from the request handler.
+	   @see m0_reqh_service_stop()
 	 */
 	M0_RST_STOPPED,
 	/**
@@ -282,16 +285,53 @@ struct m0_reqh_service {
 };
 
 /**
+   Asynchronous service startup context.
+ */
+struct m0_reqh_service_start_async_ctx {
+	/**
+	   Pointer to the service object.
+	 */
+	struct m0_reqh_service *sac_service;
+	/**
+	   Startup FOM.  Pass to m0_fom_wakeup() to awaken the FOM.
+	 */
+	struct m0_fom          *sac_fom;
+	/**
+	   Result of startup activity.
+	 */
+	int                     sac_rc;
+};
+
+/**
    Service specific operations vector.
  */
 struct m0_reqh_service_ops {
 	/**
-	   Performs service specific startup operations.
+	   Optional operation to asynchronously ready to transition a service
+	   to the M0_RST_STARTED state. Either this method or rso_start()
+	   must be provided, and this method takes precedence when the service
+	   is started by m0_mgmt_reqh_service_start().
+
+           This method is invoked by m0_reqh_service_start_async().
+
+	   @pre m0_reqh_service_state_get(asc->sac_service) == M0_RST_STARTING
+	   @see m0_reqh_service_start_async(), m0_reqh_service_started(),
+	   m0_mgmt_reqh_service_start_async()
+	 */
+	int (*rso_start_async)(struct m0_reqh_service_start_async_ctx *asc);
+
+	/**
+	   Optional operation to perform service specific startup operations
+	   synchronously.  Either this method or rso_start_async() must be
+	   provided, and this method is given lower precedence when the service
+	   is started by m0_mgmt_reqh_service_start().
+
 	   Once started, incoming requests related to this service are ready
 	   to be processed by the corresponding request handler.
 	   Service startup can involve operations like initialising service
 	   specific fops, &c which may fail due to whichever reason, in that
 	   case the service is finalised and appropriate error is returned.
+
            This is invoked from m0_reqh_service_start(). Once the service
            specific startup operations are performed, the service is registered
            with the request handler.
@@ -308,7 +348,7 @@ struct m0_reqh_service_ops {
 	   handler will block waiting for FOM termination, so any long
 	   lived service FOMs should notified that they should stop by this
 	   method.
-	   The service will be in the M0_RST_STARTED state when the method
+	   The service will be in the M0_RST_STOPPING state when the method
 	   is invoked.
 	 */
 	void (*rso_prepare_to_stop)(struct m0_reqh_service *service);
@@ -322,7 +362,9 @@ struct m0_reqh_service_ops {
            Once the service specific objects are finalised, the service is
            unregistered from request handler.
 
-	   @param service Service to be started
+	   The service will be in the M0_RST_STOPPED state when the method
+	   is invoked.
+	   @param service Service to be stopped
 
 	   @see m0_reqh_service_stop()
 	 */
@@ -448,15 +490,46 @@ M0_INTERNAL struct m0_reqh_service_type *
 m0_reqh_service_type_find(const char *sname);
 
 /**
-   Starts a particular service.
+   Transition a service into the starting state and initiate the
+   asynchrous initialization of the service with the rso_start_async()
+   operation.
+
+   @param asc Asynchronous service context, duly initialized.
+   @pre m0_reqh_service_state_get(service) == M0_RST_INITIALIZED
+   @pre asc->sac_service->rs_ops->rso_start_async != NULL
+   @post m0_reqh_service_state_get(service) == M0_RST_STARTING
+ */
+M0_INTERNAL int m0_reqh_service_start_async(struct
+					    m0_reqh_service_start_async_ctx
+					    *asc);
+
+/**
+   Complete the transition to the started state.
+   The service gets registered with the request handler.
+   @param service The service that has completed startup activities initiated
+   with m0_reqh_service_start_async().
+   @pre m0_reqh_service_state_get(service) == M0_RST_STARTING
+   @post m0_reqh_service_state_get(service) == M0_RST_STARTED
+ */
+M0_INTERNAL int m0_reqh_service_started(struct m0_reqh_service *service);
+
+/**
+   Fail the service because it could not initialize itself.
+   @pre m0_reqh_service_state_get(service) == M0_RST_STARTING
+   @post m0_reqh_service_state_get(service) == M0_RST_FAILED
+ */
+M0_INTERNAL int m0_reqh_service_failed(struct m0_reqh_service *service);
+
+/**
+   Starts a particular service synchronously.
    Invokes service specific start routine, if service specific startup completes
    Successfully then the service is registered with the request handler and
    transitioned into M0_RST_STARTED state.
 
    @param service Service to be started
 
-   @pre service != NULL
-   @post m0_reqh_service_invariant(service)
+   @pre m0_reqh_service_state_get(service) == M0_RST_INITIALIZED
+   @post m0_reqh_service_state_get(service) == M0_RST_STARTED
 
    @see struct m0_reqh_service_ops
  */
@@ -465,8 +538,10 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service);
 /**
    Transitions the service to the M0_RST_STOPPING state and invoke its
    rso_prepare_to_stop() method if it is defined.
+   It is a no-op if the state was M0_RST_STOPPING on entry.
    @pre service != NULL
-   @pre m0_reqh_service_state_get(service) == M0_RST_STARTED
+   @pre M0_IN(m0_reqh_service_state_get(service),
+                   (M0_RST_STARTED, M0_RST_STOPPING))
    @post m0_reqh_service_state_get(service) == M0_RST_STOPPING
  */
 M0_INTERNAL void m0_reqh_service_prepare_to_stop(struct m0_reqh_service
@@ -474,13 +549,15 @@ M0_INTERNAL void m0_reqh_service_prepare_to_stop(struct m0_reqh_service
 
 /**
    Stops a particular service.
-   Unregisters a service from the request handler and transitions service to
-   M0_RST_STOPPED state.
-   This is invoked after service specific stop routine returns successfully.
+   Transitions the service to M0_RST_STOPPED state.  The service is still
+   registered with the request handler.
 
    @param service Service to be stopped
 
    @pre service != NULL
+   @pre M0_IN(m0_reqh_service_state_get(service),
+                   (M0_RST_STARTED, M0_RST_STOPPING))
+   @post m0_reqh_service_state_get(service) == M0_RST_STOPPED
 
    @see struct m0_reqh_service_ops
    @see m0_reqh_service_prepare_to_stop()
@@ -508,7 +585,8 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 				      struct m0_uint128 *uuid);
 
 /**
-   Performs generic part of service finalisation.
+   Performs generic part of service finalisation, including deregistering
+   the service with its request handler.
    This is invoked before service specific finalisation routine.
 
    @param service Service to be finalised

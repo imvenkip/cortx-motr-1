@@ -169,7 +169,7 @@ enum m0_rpc_service_state {
  * Concurrency and Existence:
  *
  * - m0_rpc_service instance is NOT reference counted. So it is responsibility
- *   of user to ensure there are no threads refering the service instance,
+ *   of user to ensure there are no threads referring the service instance,
  *   before releasing the service instance.
  *
  * - Access to service instance in M0_RPC_SERVICE_STATE_CONN_ATTACHED state

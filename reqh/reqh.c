@@ -270,6 +270,26 @@ static void reqh_state_set(struct m0_reqh *reqh,
 	m0_sm_group_unlock(&reqh->rh_sm_grp);
 }
 
+M0_INTERNAL int m0_reqh_services_state_count(struct m0_reqh *reqh, int state)
+{
+	int                     cnt = 0;
+	struct m0_reqh_service *svc;
+
+	M0_PRE(reqh != NULL);
+	M0_PRE(M0_IN(m0_reqh_state_get(reqh),
+		     (M0_REQH_ST_MGMT_STARTED, M0_REQH_ST_NORMAL,
+		      M0_REQH_ST_DRAIN, M0_REQH_ST_SVCS_STOP)));
+
+	m0_rwlock_read_lock(&reqh->rh_rwlock);
+	m0_tl_for(m0_reqh_svc, &reqh->rh_services, svc) {
+		if (m0_reqh_service_state_get(svc) == state)
+			++cnt;
+	} m0_tl_endfor;
+	m0_rwlock_read_unlock(&reqh->rh_rwlock);
+
+	return cnt;
+}
+
 M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 {
 	int                     rh_st;
@@ -397,6 +417,9 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
 
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
 		M0_ASSERT(m0_reqh_service_invariant(service));
+		if (!M0_IN(m0_reqh_service_state_get(service),
+			   (M0_RST_STARTED, M0_RST_STOPPING)))
+			continue;
 		/* skip mdservice in first loop */
 		if ((strcmp(service->rs_type->rst_name, "mdservice") == 0)) {
 			mdservice = service;
@@ -411,10 +434,14 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
 	} m0_tl_endfor;
 
 	/* notify mdservice */
-	if (mdservice != NULL)
+	if (mdservice != NULL &&
+	    M0_IN(m0_reqh_service_state_get(mdservice),
+		  (M0_RST_STARTED, M0_RST_STOPPING)))
 		m0_reqh_service_prepare_to_stop(mdservice);
 	/* notify rpcservice */
-	if (rpcservice != NULL)
+	if (rpcservice != NULL &&
+	    M0_IN(m0_reqh_service_state_get(rpcservice),
+		  (M0_RST_STARTED, M0_RST_STOPPING)))
 		m0_reqh_service_prepare_to_stop(rpcservice);
 
 	m0_reqh_fom_domain_idle_wait(reqh);
@@ -438,7 +465,9 @@ M0_INTERNAL void m0_reqh_services_terminate(struct m0_reqh *reqh)
 
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
 		M0_ASSERT(m0_reqh_service_invariant(service));
-		m0_reqh_service_stop(service);
+		if (M0_IN(m0_reqh_service_state_get(service),
+			  (M0_RST_STARTED, M0_RST_STOPPING)))
+			m0_reqh_service_stop(service);
 		m0_reqh_service_fini(service);
 	} m0_tl_endfor;
 

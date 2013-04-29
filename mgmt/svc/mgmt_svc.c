@@ -40,8 +40,9 @@
    Individual FOPs are documented separately:
    - @subpage MGMT-SVC-DLD-FOP-SSR "Service Status Response FOP"
    - @subpage MGMT-SVC-DLD-FOP-SS "Service Status FOP"
-   - @todo MGMT-SVC-DLD-FOP-SR "Service Run FOP"
-   - @todo MGMT-SVC-DLD-FOP-ST "Service Terminate FOP"
+   - @subpage MGMT-SVC-DLD-FOP-SR "Service Run FOP"
+
+  @todo MGMT-SVC-DLD-FOP-ST "Service Terminate FOP"
 
    <hr>
    @section MGMT-SVC-DLD-ovw Overview
@@ -75,6 +76,10 @@
    - The m0_reqh_service_ops object is extended to define a new optional method
    to be used by the request handler under circumstances described in
    @ref MGMT-SVC-DLD-lspec-rh-sm.
+
+   - The m0_reqh_service_ops object is extended to define a new optional method
+   to be used to support proper asynchronous service startup, as described in
+   @ref MGMT-SVC-DLD-FOP-SR "Management Service Run FOP".
 
    - The m0_reqh_service object is extended to add a counter to track the number
    of outstanding FOMs of a service.  This is needed to implement the graceful
@@ -137,6 +142,11 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
      - It works in conjunction with the request handler state machine.
      - The m0ctl command will be its primary client.
      - It is extensible to additional management tasks.
+   - The m0_mgmt_reqh_service_start() subroutine is provided to asynchronously
+   start other services internally during system startup. If the request
+   handler is in or transitions to the ::M0_REQH_ST_NORMAL state at this time,
+   then starting services can communicate with services that have already
+   started, which permits non-cyclic startup dependencies between services.
 
    <hr>
    @section MGMT-SVC-DLD-lspec Logical Specification
@@ -405,9 +415,10 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
    @subsection MGMT-SVC-DLD-lspec-mgmt-foms Management FOPs and FOMs
    The management service defines FOPs for the following operations:
    - Query the state of services (m0_fop_mgmt_service_state_req)
+   - Start services with the internal m0_mgmt_reqh_service_start() API
 
-   @todo Start services (m0_fop_mgmt_service_run_req)
-   and Stop services (m0_fop_mgmt_service_terminate_req)
+   @todo External support to start services (m0_fop_mgmt_service_run_req)
+   @todo Stop services (m0_fop_mgmt_service_terminate_req)
 
    Additional FOPs can be added in the future to control run time tracing, etc.
 
@@ -493,6 +504,10 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
    Provide a fake service with a UUID for the test.
    - Existing unit tests must pass with the m0_reqh_fop_allow() subroutine
    in use.
+   - Test asynchronous service startup using both the existing rso_start()
+   method and the new rso_start_async() method.  Testing should involve
+   the use of the m0_cs_start() and m0_cs_fini() subroutines, and existing
+   unit tests that use these subroutines should pass without modification.
 
    <hr>
    @section MGMT-SVC-DLD-st System Tests
@@ -505,15 +520,6 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
    data it references is readily available and no major computation is involved.
    Service methods are invoked only in the rare cases of request handler or
    service state change while processing FOPs.
-
-   <hr>
-   @section MGMT-DLD-impl-plan Implementation Plan
-   - Implement support to query all services, and not individual services.
-   Do not implement support for individual service level control.
-   - Implement the state machine in the request handler, instrumenting the
-   existing startup and shutdown logic.
-
-   Other features as required by the shipping product.
 
  */
 
@@ -590,7 +596,7 @@ static void mgmt_svc_rso_prepare_to_stop(struct m0_reqh_service *service)
 	struct mgmt_svc *svc;
 
 	M0_LOG(M0_DEBUG, "preparing to stop");
-	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTED);
+	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STOPPING);
 	svc = bob_of(service, struct mgmt_svc, ms_reqhs, &mgmt_svc_bob);
 }
 
@@ -600,7 +606,7 @@ static void mgmt_svc_rso_prepare_to_stop(struct m0_reqh_service *service)
 static void mgmt_svc_rso_stop(struct m0_reqh_service *service)
 {
 	M0_LOG(M0_DEBUG, "stopping");
-	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STOPPING);
+	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STOPPED);
 }
 
 /**
@@ -668,6 +674,8 @@ static int mgmt_svc_rsto_service_allocate(struct m0_reqh_service **service,
 	*service = &svc->ms_reqhs;
 	(*service)->rs_type = stype;
 	(*service)->rs_ops = &mgmt_service_ops;
+
+	m0_atomic64_set(&svc->ms_run_foms, 0);
 	mgmt_svc_bob_init(svc);
 
 	M0_POST(mgmt_svc_invariant(svc));

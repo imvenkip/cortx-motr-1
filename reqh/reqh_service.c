@@ -71,7 +71,7 @@ static struct m0_sm_state_descr service_states[] = {
 	},
 	[M0_RST_INITIALISED] = {
 		.sd_name      = "Initialized",
-		.sd_allowed   = M0_BITS(M0_RST_STARTING)
+		.sd_allowed   = M0_BITS(M0_RST_STARTING, M0_RST_FAILED)
 	},
 	[M0_RST_STARTING] = {
 		.sd_name      = "Starting",
@@ -106,12 +106,17 @@ M0_INTERNAL bool m0_reqh_service_invariant(const struct m0_reqh_service *svc)
 	return m0_reqh_service_bob_check(svc) &&
 	M0_IN(svc->rs_sm.sm_state, (M0_RST_INITIALISING, M0_RST_INITIALISED,
 				    M0_RST_STARTING, M0_RST_STARTED,
-				    M0_RST_STOPPING)) &&
+				    M0_RST_STOPPING, M0_RST_STOPPED,
+				    M0_RST_FAILED)) &&
 	svc->rs_type != NULL && svc->rs_ops != NULL &&
+		(svc->rs_ops->rso_start_async != NULL ||
+		 svc->rs_ops->rso_start != NULL) &&
 	ergo(M0_IN(svc->rs_sm.sm_state, (M0_RST_INITIALISED, M0_RST_STARTING,
-					 M0_RST_STARTED, M0_RST_STOPPING)),
+					 M0_RST_STARTED, M0_RST_STOPPING,
+					 M0_RST_STOPPED, M0_RST_FAILED)),
 	     svc->rs_uuid != 0 && svc->rs_reqh != NULL) &&
-	ergo(M0_IN(svc->rs_sm.sm_state, (M0_RST_STARTED, M0_RST_STOPPING)),
+	ergo(M0_IN(svc->rs_sm.sm_state, (M0_RST_STARTED, M0_RST_STOPPING,
+					 M0_RST_STOPPED, M0_RST_FAILED)),
 	     m0_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc) ||
 	     svc->rs_reqh->rh_mgmt_svc == svc);
 }
@@ -161,41 +166,143 @@ static void reqh_service_state_set(struct m0_reqh_service *service,
 	m0_sm_group_unlock(&service->rs_reqh->rh_sm_grp);
 }
 
+static void reqh_service_starting_common(struct m0_reqh *reqh,
+					 struct m0_reqh_service *service,
+					 unsigned key)
+{
+	reqh_service_state_set(service, M0_RST_STARTING);
+	/*
+	 * We want to track these services externally so add them to the list
+	 * just as soon as they enter the STARTING state.
+	 * They will be left on the list until they get fini'd.
+	 */
+	if (service != reqh->rh_mgmt_svc)
+		m0_reqh_svc_tlist_add_tail(&reqh->rh_services, service);
+	/*
+	 * NOTE: The key is required to be set before 'rso_start'
+	 * as some services can call m0_fom_init() directly in
+	 * their service start, m0_fom_init() finds the service
+	 * given reqh, using this key
+	 */
+	M0_ASSERT(m0_reqh_lockers_is_empty(reqh, key));
+	m0_reqh_lockers_set(reqh, key, service);
+}
+
+static void reqh_service_failed_common(struct m0_reqh *reqh,
+				       struct m0_reqh_service *service,
+				       unsigned key)
+{
+	if (!m0_reqh_lockers_is_empty(reqh, key))
+		m0_reqh_lockers_clear(reqh, key);
+	reqh_service_state_set(service, M0_RST_FAILED);
+}
+
+M0_INTERNAL int m0_reqh_service_start_async(struct
+					    m0_reqh_service_start_async_ctx
+					    *asc)
+{
+	int                     rc;
+	unsigned                key;
+	struct m0_reqh         *reqh;
+	struct m0_reqh_service *service;
+
+	M0_PRE(asc != NULL && asc->sac_service != NULL && asc->sac_fom != NULL);
+	service = asc->sac_service;
+	M0_PRE(m0_reqh_service_bob_check(service));
+	reqh = service->rs_reqh;
+	key = service->rs_type->rst_key;
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	M0_PRE(m0_reqh_service_invariant(service));
+	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_INITIALISED);
+	M0_PRE(service->rs_ops->rso_start_async != NULL);
+	reqh_service_starting_common(reqh, service, key);
+	M0_POST(m0_reqh_service_invariant(service));
+	M0_POST(m0_reqh_lockers_get(reqh, key) == service);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
+	rc = service->rs_ops->rso_start_async(asc);
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	if (rc == 0) {
+		M0_POST(m0_reqh_service_invariant(service));
+		M0_POST(m0_reqh_service_state_get(service) == M0_RST_STARTING);
+	} else {
+		reqh_service_failed_common(reqh, service, key);
+	}
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
+	return rc;
+}
+
+static void reqh_service_started_common(struct m0_reqh *reqh,
+					struct m0_reqh_service *service)
+{
+	reqh_service_state_set(service, M0_RST_STARTED);
+}
+
+M0_INTERNAL int m0_reqh_service_started(struct m0_reqh_service *service)
+{
+	struct m0_reqh *reqh;
+
+	M0_PRE(m0_reqh_service_bob_check(service));
+	reqh = service->rs_reqh;
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	M0_PRE(m0_reqh_service_invariant(service));
+	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTING);
+	reqh_service_started_common(reqh, service);
+	M0_POST(m0_reqh_service_invariant(service));
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
+	return 0;
+}
+
+M0_INTERNAL int m0_reqh_service_failed(struct m0_reqh_service *service)
+{
+	unsigned        key;
+	struct m0_reqh *reqh;
+
+	M0_PRE(m0_reqh_service_bob_check(service));
+	reqh = service->rs_reqh;
+	key = service->rs_type->rst_key;
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	M0_PRE(m0_reqh_service_invariant(service));
+	M0_ASSERT(M0_IN(m0_reqh_service_state_get(service),
+			(M0_RST_STARTING, M0_RST_INITIALISED)));
+	reqh_service_failed_common(reqh, service, key);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
+	return 0;
+}
+
 M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 {
 	int             rc;
 	unsigned        key;
 	struct m0_reqh *reqh;
 
-	M0_PRE(m0_reqh_service_invariant(service));
-
+	M0_PRE(m0_reqh_service_bob_check(service));
 	reqh = service->rs_reqh;
-	reqh_service_state_set(service, M0_RST_STARTING);
-
-	/**
-	 * NOTE: The key is required to be set before 'rso_start'
-	 * as some services can call m0_fom_init() directly in
-	 * their service start, m0_fom_init() finds the service
-	 * given reqh, using this key
-	 */
-	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	key = service->rs_type->rst_key;
-	M0_ASSERT(m0_reqh_lockers_is_empty(reqh, key));
-	m0_reqh_lockers_set(reqh, key, service);
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	M0_PRE(m0_reqh_service_invariant(service));
+	M0_PRE(service->rs_ops->rso_start != NULL);
+	reqh_service_starting_common(reqh, service, key);
+	M0_POST(m0_reqh_service_invariant(service));
+	M0_POST(m0_reqh_lockers_get(reqh, key) == service);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	rc = service->rs_ops->rso_start(service);
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	if (rc == 0) {
-		if (service != reqh->rh_mgmt_svc)
-			m0_reqh_svc_tlist_add_tail(&reqh->rh_services, service);
-		reqh_service_state_set(service, M0_RST_STARTED);
+		reqh_service_started_common(reqh, service);
 		M0_ASSERT(m0_reqh_service_invariant(service));
         } else {
-		M0_ASSERT(m0_reqh_lockers_get(reqh, key) == service);
-		m0_reqh_lockers_clear(reqh, key);
-		reqh_service_state_set(service, M0_RST_FAILED);
+		reqh_service_failed_common(reqh, service, key);
 	}
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
@@ -205,12 +312,25 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 M0_INTERNAL void
 m0_reqh_service_prepare_to_stop(struct m0_reqh_service *service)
 {
-	M0_PRE(m0_reqh_service_invariant(service));
-	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTED);
+	struct m0_reqh *reqh;
+	bool            run_method = false;
 
-	if (service->rs_ops->rso_prepare_to_stop != NULL)
+	M0_PRE(m0_reqh_service_bob_check(service));
+	reqh = service->rs_reqh;
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	M0_PRE(m0_reqh_service_invariant(service));
+	M0_ASSERT(M0_IN(service->rs_sm.sm_state, (M0_RST_STARTED,
+	                                          M0_RST_STOPPING)));
+	if (service->rs_sm.sm_state == M0_RST_STARTED) {
+		reqh_service_state_set(service, M0_RST_STOPPING);
+		M0_ASSERT(m0_reqh_service_invariant(service));
+		run_method = true;
+	}
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
+	if (run_method && service->rs_ops->rso_prepare_to_stop != NULL)
 		service->rs_ops->rso_prepare_to_stop(service);
-	reqh_service_state_set(service, M0_RST_STOPPING);
 }
 
 M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
@@ -218,24 +338,23 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	struct m0_reqh *reqh;
 	unsigned        key;
 
-	M0_ASSERT(m0_reqh_service_invariant(service));
-	M0_ASSERT(M0_IN(service->rs_sm.sm_state, (M0_RST_STARTED,
-	                                          M0_RST_STOPPING)));
+	m0_reqh_service_prepare_to_stop(service);
 
-	if (service->rs_sm.sm_state != M0_RST_STOPPING)
-		m0_reqh_service_prepare_to_stop(service);
-
+	M0_PRE(m0_reqh_service_bob_check(service));
 	reqh = service->rs_reqh;
-	service->rs_ops->rso_stop(service);
-	m0_rpc_service_reverse_session_put(&service->rs_rpc_svc);
-	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	if (service != reqh->rh_mgmt_svc)
-		m0_reqh_svc_tlist_del(service);
-	reqh_service_state_set(service, M0_RST_STOPPED);
 	key = service->rs_type->rst_key;
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	M0_ASSERT(m0_reqh_service_invariant(service));
+	M0_ASSERT(service->rs_sm.sm_state == M0_RST_STOPPING);
+	reqh_service_state_set(service, M0_RST_STOPPED);
 	M0_ASSERT(m0_reqh_lockers_get(reqh, key) == service);
 	m0_reqh_lockers_clear(reqh, key);
+	M0_ASSERT(m0_reqh_service_invariant(service));
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
+	service->rs_ops->rso_stop(service);
+	m0_rpc_service_reverse_session_put(&service->rs_rpc_svc);
 }
 
 static void reqh_rpc_svc_fini_and_free(struct m0_rpc_service *service)
@@ -328,6 +447,8 @@ M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service)
 {
 	M0_PRE(service != NULL && m0_reqh_service_bob_check(service));
 
+	if (m0_reqh_svc_tlink_is_in(service))
+		m0_reqh_svc_tlist_del(service);
 	m0_addb_ctx_fini(&service->rs_addb_ctx);
 	m0_reqh_service_bob_fini(service);
 	m0_reqh_svc_tlink_fini(service);

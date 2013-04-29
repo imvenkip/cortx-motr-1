@@ -41,6 +41,7 @@ enum {
 	M0_ADDB_CTXID_MGMT_SERVICE = 1501,
 	M0_ADDB_CTXID_MGMT_FOM_SS  = 1502,
 	M0_ADDB_CTXID_MGMT_CTL     = 1503,
+	M0_ADDB_CTXID_MGMT_FOM_RUN = 1504,
 };
 
 M0_ADDB_CT(m0_addb_ct_mgmt_mod, M0_ADDB_CTXID_MGMT_MOD);
@@ -51,6 +52,14 @@ M0_ADDB_CT(m0_addb_ct_mgmt_service, M0_ADDB_CTXID_MGMT_SERVICE, "hi", "low");
    @param num  The number of services specified.
  */
 M0_ADDB_CT(m0_addb_ct_mgmt_fom_ss, M0_ADDB_CTXID_MGMT_FOM_SS, "num");
+
+/**
+   Service start FOP.
+   @param hi service uuid upper 32 bits
+   @param low service uuid lower 32 bits
+ */
+M0_ADDB_CT(m0_addb_ct_mgmt_fom_run, M0_ADDB_CTXID_MGMT_FOM_RUN,
+	   "hi", "low");
 
 /**
    Control program context.
@@ -72,9 +81,10 @@ M0_ADDB_CT(m0_addb_ct_mgmt_ctl, M0_ADDB_CTXID_MGMT_CTL);
  ******************************************************************************
  */
 enum {
-	M0_MGMT_ADDB_LOC_FOP_SSR_FILL  = 130,
-	M0_MGMT_ADDB_LOC_FOP_SS_FTOC_1 = 230,
-	M0_MGMT_ADDB_LOC_FOP_SS_FTOC_2 = 240,
+	M0_MGMT_ADDB_LOC_FOP_SSR_FILL   = 130,
+	M0_MGMT_ADDB_LOC_FOP_SS_FTOC_1  = 230,
+	M0_MGMT_ADDB_LOC_FOP_SS_FTOC_2  = 240,
+	M0_MGMT_ADDB_LOC_FOP_RUN_FTOC_1 = 300,
 };
 
 /** @} */ /* end of mgmt group */

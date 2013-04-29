@@ -24,6 +24,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/time.h"
+#include "lib/timer.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MGMT
 #include "lib/trace.h"  /* M0_LOG() */
 #include "lib/uuid.h"
@@ -235,7 +236,7 @@ static void test_reqh_fop_allow(void)
 	M0_UT_ASSERT(mgmt_svc_rso_fop_accept_called == rfp_cnt);
 
 	/* start our fake service */
-	M0_UT_ASSERT(mgmt_svc_ut_svc_start(rh) == 0);
+	M0_UT_ASSERT(mgmt_svc_ut_svc_start(rh, false) == 0);
 	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == -EAGAIN); /* no delivery */
 
 	/* normal mode */
@@ -251,7 +252,7 @@ static void test_reqh_fop_allow(void)
 	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == -ECONNREFUSED);
 
 	/* restart our fake service */
-	M0_UT_ASSERT(mgmt_svc_ut_svc_start(rh) == 0);
+	M0_UT_ASSERT(mgmt_svc_ut_svc_start(rh, false) == 0);
 	M0_UT_ASSERT(m0_reqh_fop_allow(rh, f_fop) == 0); /* normal delivery */
 
 	m0_reqh_shutdown_wait(rh);
@@ -298,6 +299,266 @@ static void test_reqh_fop_allow(void)
 
 	m0_fop_put(ss_fop);
 	m0_fop_put(f_fop);
+	m0_ut_rpc_mach_fini(&rmach_ctx);
+	m0_reqh_fini(rh);
+	m0_free(rh);
+}
+
+static void test_run_fom_rso_start_async(void)
+{
+	int                        rc;
+	struct m0_reqh            *rh;
+	struct m0_ut_rpc_mach_ctx  rmach_ctx;
+
+	mgmt_svc_ut_svc_restore_defaults_async();
+
+	M0_ALLOC_PTR(rh);
+	M0_UT_ASSERT(rh != NULL);
+	rc = M0_REQH_INIT(rh,
+			  .rhia_db      = &mgmt_svc_dbenv,
+			  .rhia_mdstore = (void *)1,
+			  .rhia_fol     = (void *)1);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_INIT);
+
+	/* Hack */
+	M0_SET0(&rmach_ctx);
+	rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
+	rmach_ctx.rmc_dbname    = DUMMY_DBNAME;
+	rmach_ctx.rmc_ep_addr   = DUMMY_SERVER_ADDR;
+	m0_ut_rpc_mach_init_and_add(&rmach_ctx);
+	m0_reqh_rpc_mach_tlink_del_fini(&rmach_ctx.rmc_rpc);
+	m0_reqh_rpc_mach_tlink_init_at_tail(&rmach_ctx.rmc_rpc,
+					    &rh->rh_rpc_machines);
+
+	M0_UT_ASSERT(m0_reqh_mgmt_service_start(rh) == 0);
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_MGMT_STARTED);
+	mgmt_svc = rh->rh_mgmt_svc;
+	M0_UT_ASSERT(mgmt_svc != NULL);
+	M0_UT_ASSERT(m0_reqh_service_state_get(mgmt_svc) == M0_RST_STARTED);
+
+	/* reqh in normal mode */
+	m0_reqh_start(rh);
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_NORMAL);
+
+	/*
+         ***************************************************************
+	 * Start our fake service asynchronously with rso_start_async().
+         ***************************************************************
+	 */
+	M0_LOG(M0_DEBUG, "Test: rso_start_async()/success");
+	M0_UT_ASSERT(mgmt_svc_ut_svc_ops.rso_start_async != NULL);
+	M0_UT_ASSERT(mgmt_svc_ut_svc_start(rh, true) == 0);
+
+	/* wait until the reqh services start */
+	M0_LOG(M0_DEBUG, "Waiting for startup with rso_start_async()");
+	m0_mgmt_reqh_services_start_wait(rh);
+	M0_LOG(M0_DEBUG, "Startup complete");
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_NORMAL);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_start_async_called == 1);
+	M0_UT_ASSERT(mgmt_svc_ut_start_timer_called == 1);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_start_called == 0);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_fini_called == 0);
+	M0_UT_ASSERT(m0_reqh_service_state_get(&mgmt_svc_ut_fake_svc->msus_reqhs
+					       ) == M0_RST_STARTED);
+
+	/* terminate the service */
+	m0_reqh_service_stop(&mgmt_svc_ut_fake_svc->msus_reqhs);
+	M0_UT_ASSERT(m0_reqh_service_state_get(&mgmt_svc_ut_fake_svc->msus_reqhs
+					       ) == M0_RST_STOPPED);
+	m0_reqh_service_fini(&mgmt_svc_ut_fake_svc->msus_reqhs);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_fini_called == 1);
+	M0_UT_ASSERT(mgmt_svc_ut_fake_svc == NULL);
+	mgmt_svc_ut_svc_restore_defaults_async();
+
+	/*
+         ***************************************************************
+	 * Repeat with rso_start_async() but force background failure
+         ***************************************************************
+	 */
+	M0_LOG(M0_DEBUG, "Test: rso_start_async()/init fail");
+	mgmt_svc_ut_start_async_result = -ENOSYS;
+	M0_UT_ASSERT(mgmt_svc_ut_svc_start(rh, true) == 0);
+
+	/* wait until the reqh services start */
+	M0_LOG(M0_DEBUG, "Waiting for startup with rso_start_async()");
+	m0_mgmt_reqh_services_start_wait(rh);
+	M0_LOG(M0_DEBUG, "Startup complete");
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_NORMAL);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_start_async_called == 1);
+	M0_UT_ASSERT(mgmt_svc_ut_start_timer_called == 1);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_start_called == 0);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_fini_called == 0);
+	M0_UT_ASSERT(m0_reqh_service_state_get(&mgmt_svc_ut_fake_svc->msus_reqhs
+					       ) == M0_RST_FAILED);
+	m0_reqh_service_fini(&mgmt_svc_ut_fake_svc->msus_reqhs);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_fini_called == 1);
+	M0_UT_ASSERT(mgmt_svc_ut_fake_svc == NULL);
+	mgmt_svc_ut_svc_restore_defaults_async();
+
+	/*
+         ***************************************************************
+	 * Repeat with rso_start_async() but force it to fail
+         ***************************************************************
+	 */
+	M0_LOG(M0_DEBUG, "Test: rso_start_async()/op fail");
+	mgmt_svc_ut_start_async_rc = -ENOSYS;
+	M0_UT_ASSERT(mgmt_svc_ut_svc_start(rh, true) == 0);
+
+	/* wait until the reqh services start */
+	M0_LOG(M0_DEBUG, "Waiting for startup with rso_start_async()");
+	m0_mgmt_reqh_services_start_wait(rh);
+	M0_LOG(M0_DEBUG, "Startup complete");
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_NORMAL);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_start_async_called == 1);
+	M0_UT_ASSERT(mgmt_svc_ut_start_timer_called == 0);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_start_called == 0);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_fini_called == 0);
+	M0_UT_ASSERT(m0_reqh_service_state_get(&mgmt_svc_ut_fake_svc->msus_reqhs
+					       ) == M0_RST_FAILED);
+	m0_reqh_service_fini(&mgmt_svc_ut_fake_svc->msus_reqhs);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_fini_called == 1);
+	M0_UT_ASSERT(mgmt_svc_ut_fake_svc == NULL);
+	mgmt_svc_ut_svc_restore_defaults_async();
+
+#ifdef ENABLE_FAULT_INJECTION
+	/*
+         ***************************************************************
+	 * Repeat with rso_start_async() but force FOP creation failure.
+	 * This exercises the INITIALIZED -> FAILED state transition.
+         ***************************************************************
+	 */
+	M0_LOG(M0_DEBUG, "Test: rso_start_async()/fop fail");
+	m0_fi_enable_once("mgmt_run_fom_create", "-ECANCELED");
+	M0_UT_ASSERT(mgmt_svc_ut_svc_start(rh, true) == -ECANCELED);
+
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_NORMAL);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_start_async_called == 0);
+	M0_UT_ASSERT(mgmt_svc_ut_start_timer_called == 0);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_start_called == 0);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_fini_called == 0);
+	M0_UT_ASSERT(mgmt_svc_ut_fake_svc != NULL);
+	M0_UT_ASSERT(m0_reqh_service_state_get(&mgmt_svc_ut_fake_svc->msus_reqhs
+					       ) == M0_RST_FAILED);
+	m0_reqh_service_fini(&mgmt_svc_ut_fake_svc->msus_reqhs);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_fini_called == 1);
+	M0_UT_ASSERT(mgmt_svc_ut_fake_svc == NULL);
+	mgmt_svc_ut_svc_restore_defaults_async();
+
+#endif /* ENABLE_FAULT_INJECTION */
+
+	/* finalize test */
+	m0_reqh_services_terminate(rh);
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_MGMT_STOP);
+
+	m0_reqh_mgmt_service_stop(rh);
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_STOPPED);
+
+	m0_ut_rpc_mach_fini(&rmach_ctx);
+	m0_reqh_fini(rh);
+	m0_free(rh);
+}
+
+static void test_run_fom_rso_start(void)
+{
+	int                        rc;
+	struct m0_reqh            *rh;
+	struct m0_ut_rpc_mach_ctx  rmach_ctx;
+
+	mgmt_svc_ut_svc_restore_defaults();
+
+	M0_ALLOC_PTR(rh);
+	M0_UT_ASSERT(rh != NULL);
+	rc = M0_REQH_INIT(rh,
+			  .rhia_db      = &mgmt_svc_dbenv,
+			  .rhia_mdstore = (void *)1,
+			  .rhia_fol     = (void *)1);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_INIT);
+
+	/* Hack */
+	M0_SET0(&rmach_ctx);
+	rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
+	rmach_ctx.rmc_dbname    = DUMMY_DBNAME;
+	rmach_ctx.rmc_ep_addr   = DUMMY_SERVER_ADDR;
+	m0_ut_rpc_mach_init_and_add(&rmach_ctx);
+	m0_reqh_rpc_mach_tlink_del_fini(&rmach_ctx.rmc_rpc);
+	m0_reqh_rpc_mach_tlink_init_at_tail(&rmach_ctx.rmc_rpc,
+					    &rh->rh_rpc_machines);
+
+	M0_UT_ASSERT(m0_reqh_mgmt_service_start(rh) == 0);
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_MGMT_STARTED);
+	mgmt_svc = rh->rh_mgmt_svc;
+	M0_UT_ASSERT(mgmt_svc != NULL);
+	M0_UT_ASSERT(m0_reqh_service_state_get(mgmt_svc) == M0_RST_STARTED);
+
+	/* reqh in normal mode */
+	m0_reqh_start(rh);
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_NORMAL);
+
+	/*
+         ***************************************************************
+	 * Start our fake service asynchronously with rso_start().
+         ***************************************************************
+	 */
+	M0_LOG(M0_DEBUG, "Test: rso_start()/success");
+	mgmt_svc_ut_svc_ops.rso_start_async = NULL;
+	M0_UT_ASSERT(mgmt_svc_ut_svc_start(rh, true) == 0);
+
+	/* wait until the reqh services start */
+	M0_LOG(M0_DEBUG, "Waiting for startup with rso_start()");
+	m0_mgmt_reqh_services_start_wait(rh);
+	M0_LOG(M0_DEBUG, "Startup complete");
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_NORMAL);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_start_async_called == 0);
+	M0_UT_ASSERT(mgmt_svc_ut_start_timer_called == 0);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_start_called == 1);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_fini_called == 0);
+	M0_UT_ASSERT(m0_reqh_service_state_get(&mgmt_svc_ut_fake_svc->msus_reqhs
+					       ) == M0_RST_STARTED);
+
+	/* terminate the service */
+	m0_reqh_service_stop(&mgmt_svc_ut_fake_svc->msus_reqhs);
+	M0_UT_ASSERT(m0_reqh_service_state_get(&mgmt_svc_ut_fake_svc->msus_reqhs
+					       ) == M0_RST_STOPPED);
+	m0_reqh_service_fini(&mgmt_svc_ut_fake_svc->msus_reqhs);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_fini_called == 1);
+	M0_UT_ASSERT(mgmt_svc_ut_fake_svc == NULL);
+	mgmt_svc_ut_svc_restore_defaults_async();
+
+	/*
+         ***************************************************************
+	 * Start asynchronously with rso_start() but force failure.
+         ***************************************************************
+	 */
+	M0_LOG(M0_DEBUG, "Test: rso_start()/op fail");
+	mgmt_svc_ut_svc_ops.rso_start_async = NULL;
+	mgmt_svc_ut_start_rc = -ENOSYS;
+	M0_UT_ASSERT(mgmt_svc_ut_svc_start(rh, true) == 0);
+
+	/* wait until the reqh services start */
+	M0_LOG(M0_DEBUG, "Waiting for startup with rso_start()");
+	m0_mgmt_reqh_services_start_wait(rh);
+	M0_LOG(M0_DEBUG, "Startup complete");
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_NORMAL);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_start_async_called == 0);
+	M0_UT_ASSERT(mgmt_svc_ut_start_timer_called == 0);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_start_called == 1);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_fini_called == 0);
+	M0_UT_ASSERT(m0_reqh_service_state_get(&mgmt_svc_ut_fake_svc->msus_reqhs
+					       ) == M0_RST_FAILED);
+	m0_reqh_service_fini(&mgmt_svc_ut_fake_svc->msus_reqhs);
+	M0_UT_ASSERT(mgmt_svc_ut_rso_fini_called == 1);
+	M0_UT_ASSERT(mgmt_svc_ut_fake_svc == NULL);
+	mgmt_svc_ut_svc_restore_defaults_async();
+
+	/* finalize test */
+	m0_reqh_services_terminate(rh);
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_MGMT_STOP);
+
+	m0_reqh_mgmt_service_stop(rh);
+	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_STOPPED);
+
 	m0_ut_rpc_mach_fini(&rmach_ctx);
 	m0_reqh_fini(rh);
 	m0_free(rh);
@@ -376,6 +637,8 @@ const struct m0_test_suite m0_mgmt_svc_ut = {
 	.ts_fini = test_fini,
 	.ts_tests = {
 		{ "reqh-fop-allow",           test_reqh_fop_allow },
+		{ "run-fom-rso-start-async",  test_run_fom_rso_start_async },
+		{ "run-fom-rso-start",        test_run_fom_rso_start },
 #ifdef ENABLE_FAULT_INJECTION
 		{ "mgmt-svc-startup-failure", test_mgmt_svc_fail },
 #endif

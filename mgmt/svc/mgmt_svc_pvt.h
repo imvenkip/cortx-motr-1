@@ -35,6 +35,11 @@ extern struct m0_reqh_service_type m0_mgmt_svc_type;
  */
 struct mgmt_svc {
 	uint64_t               ms_magic;
+	/**
+	   Tracks active RUN foms.
+	   Decrements signalled on the rh_sm_grp channel.
+	 */
+	struct m0_atomic64     ms_run_foms;
 	/** Embedded request handler service */
 	struct m0_reqh_service ms_reqhs;
 };

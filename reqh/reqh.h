@@ -101,7 +101,9 @@ struct m0_reqh {
 
 	/**
 	   State machine group.
-	   Services state machines (->rs_sm) belongs to this group also.
+	   Request handler services state machines (rs_sm) belong to this group.
+	   The management service broadcasts on the group channel to notify
+	   waiters of significant events.
 	   @todo Replace rh_mutex and rh_sd_signal
 	 */
 	struct m0_sm_group       rh_sm_grp;
@@ -298,6 +300,16 @@ M0_INTERNAL int m0_reqh_mgmt_service_start(struct m0_reqh *reqh);
    @post m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL
  */
 M0_INTERNAL void m0_reqh_start(struct m0_reqh *reqh);
+
+/**
+   Returns a count of services in a specified state.
+   @param reqh request handler
+   @param state Service state
+   @pre M0_IN(m0_reqh_state_get(reqh),
+              (M0_REQH_ST_MGMT_STARTED, M0_REQH_ST_NORMAL,
+	       M0_REQH_ST_DRAIN, M0_REQH_ST_SVCS_STOP)
+ */
+M0_INTERNAL int m0_reqh_services_state_count(struct m0_reqh *reqh, int state);
 
 /**
    Initiates the termination of services and then wait for FOMs to

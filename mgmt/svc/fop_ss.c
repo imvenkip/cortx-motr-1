@@ -19,7 +19,7 @@
  */
 
 /**
-   @page MGMT-SVC-DLD-FOP-SS Management Service Status FOM
+   @page MGMT-SVC-DLD-FOP-SS Management Service Status FOP
    This FOP, defined by m0_fop_mgmt_service_status_req, conveys a request to
    return the status of a specified list of services, or of all services.
    The response is through a @ref MGMT-SVC-DLD-FOP-SS "Service Status FOP".

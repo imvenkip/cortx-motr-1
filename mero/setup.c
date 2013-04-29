@@ -35,6 +35,7 @@
 #include "balloc/balloc.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
+#include "mgmt/mgmt.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpc.h"
@@ -1044,7 +1045,13 @@ cs_service_init(const char *name, struct m0_reqh_context *rctx,
 
 	m0_reqh_service_init(service, reqh, uuid);
 
+	/** @todo Remove the USE_MGMT_STARTUP macro later */
+#define USE_MGMT_STARTUP 1
+#if USE_MGMT_STARTUP
+	rc = m0_mgmt_reqh_service_start(service);
+#else
 	rc = m0_reqh_service_start(service);
+#endif
 	if (rc != 0)
 		m0_reqh_service_fini(service);
 
@@ -1066,8 +1073,12 @@ static int reqh_services_init(struct m0_reqh_context *rctx)
 		rc = cs_service_init(name, rctx, &rctx->rc_reqh,
 				     &rctx->rc_service_uuids[i]);
 	}
+#if USE_MGMT_STARTUP
+	/* Do not terminate on failure here as services start asynchronously. */
+#else
 	if (rc != 0)
 		m0_reqh_services_terminate(&rctx->rc_reqh);
+#endif
 	M0_RETURN(rc);
 }
 
@@ -1087,6 +1098,23 @@ static int cs_services_init(struct m0_mero *cctx)
 	M0_PRE(cctx != NULL);
 
 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+#if USE_MGMT_STARTUP
+		rc = m0_reqh_mgmt_service_start(&rctx->rc_reqh);
+		if (rc != 0)
+			break;
+		m0_reqh_start(&rctx->rc_reqh);
+		rc = cs_service_init("rpcservice", NULL, &rctx->rc_reqh,
+				     NULL) ?:
+			reqh_services_init(rctx);
+		m0_mgmt_reqh_services_start_wait(&rctx->rc_reqh);
+		/* return failure if any service has failed */
+		if (rc == 0 &&
+		    m0_reqh_services_state_count(&rctx->rc_reqh,
+						 M0_RST_FAILED) > 0)
+			rc = -ENOEXEC;
+		if (rc != 0)
+			break;
+#else
 		rc = m0_reqh_mgmt_service_start(&rctx->rc_reqh) ?:
 			cs_service_init("rpcservice", NULL, &rctx->rc_reqh,
 					NULL) ?:
@@ -1094,6 +1122,7 @@ static int cs_services_init(struct m0_mero *cctx)
 		if (rc != 0)
 			break;
 		m0_reqh_start(&rctx->rc_reqh);
+#endif
 	} m0_tl_endfor;
 
 	M0_RETURN(rc);

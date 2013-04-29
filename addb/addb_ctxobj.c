@@ -542,7 +542,8 @@ M0_INTERNAL void m0__addb_ctx_init(struct m0_addb_mc *mc,
 	}
 
 	/* post the context definition record */
-	addb_ctx_rec_post(mc, ctx, fields);
+	if (m0_addb_mc_is_configured(mc))
+		addb_ctx_rec_post(mc, ctx, fields);
 }
 
 M0_INTERNAL int m0_addb_ctx_export(struct m0_addb_ctx *ctx,

@@ -429,6 +429,7 @@ Mero-WOMO Productization Planning</a>
 
 #include "fop/fop.h"
 #include "fop/fom.h"
+#include "lib/atomic.h"
 #include "lib/errno.h"
 #include "lib/finject.h"
 #include "lib/memory.h"
@@ -468,6 +469,7 @@ struct m0_addb_ctx m0_mgmt_addb_ctx;
 #endif
 #include "mgmt/svc/fop_ssr.c"
 #include "mgmt/svc/fop_ss.c"
+#include "mgmt/svc/fop_run.c"
 
 /**
    @addtogroup mgmt
@@ -490,12 +492,14 @@ M0_INTERNAL int m0_mgmt_init(void)
 #endif
 	rc = rc ?:
 		mgmt_fop_ssr_init() ?:
-		mgmt_fop_ss_init();
+		mgmt_fop_ss_init() ?:
+		mgmt_fop_run_init();
 	return rc;
 }
 
 M0_INTERNAL void m0_mgmt_fini(void)
 {
+	mgmt_fop_run_fini();
 	mgmt_fop_ss_fini();
 	mgmt_fop_ssr_fini();
 #ifdef M0_MGMT_SERVICE_PRESENT

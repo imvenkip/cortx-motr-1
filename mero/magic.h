@@ -416,6 +416,9 @@ enum m0_magic_satchel {
 	/* mgmt_fop_ss_fom_bob (obese seafood) */
 	M0_MGMT_FOP_SS_FOM_MAGIC = 0x330be5e5eaf00d77,
 
+	/* mgmt_fop_run_fom_bob (obese caboose) */
+	M0_MGMT_FOP_RUN_FOM_MAGIC = 0x330be5ecab005e77,
+
 	/* m0_mgmt_svc_conf::msc_magic (calico saddle) */
 	M0_MGMT_SVC_CONF_MAGIC = 0x33ca11c05add1e77,
 
