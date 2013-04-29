@@ -115,7 +115,7 @@ void m0_test_lib_uuid(void)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(uuid); ++i)
-		m0_uuid_generate2(&uuid[i]);
+		m0_uuid_generate(&uuid[i]);
 	for (i = 0; i < ARRAY_SIZE(uuid); ++i)
 		for (j = i + 1; j < ARRAY_SIZE(uuid); ++j)
 			M0_UT_ASSERT(m0_uint128_cmp(&uuid[i], &uuid[j]) != 0);

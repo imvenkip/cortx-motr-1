@@ -37,7 +37,7 @@ M0_BASSERT(sizeof (struct m0_uint128) == sizeof (char[16]));
 M0_BASSERT(sizeof (struct m0_uint128) == sizeof (uuid_t));
 #endif
 
-M0_INTERNAL void m0_uuid_generate2(struct m0_uint128 *u)
+M0_INTERNAL void m0_uuid_generate(struct m0_uint128 *u)
 {
 #ifdef __KERNEL__
 	generate_random_uuid((unsigned char *)u);

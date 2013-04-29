@@ -55,7 +55,7 @@ M0_INTERNAL int m0_uuid_parse(const char *str, struct m0_uint128 *val);
 M0_INTERNAL void m0_uuid_format(const struct m0_uint128 *val,
 				char *buf, size_t len);
 
-M0_INTERNAL void m0_uuid_generate2(struct m0_uint128 *u);
+M0_INTERNAL void m0_uuid_generate(struct m0_uint128 *u);
 
 /** @} end uuid group */
 

@@ -263,7 +263,7 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
 	m0_rpc_machine_lock(machine);
 
 	conn->c_flags = RCF_SENDER_END;
-	m0_uuid_generate2(&conn->c_uuid);
+	m0_uuid_generate(&conn->c_uuid);
 
 	rc = __conn_init(conn, ep, machine, max_rpcs_in_flight);
 	if (rc == 0) {
