@@ -95,13 +95,21 @@ M0_INTERNAL void m0_dtm_oper_close(struct m0_dtm_oper *oper)
 	M0_PRE(!(oper->oprt_flags & M0_DOF_CLOSED));
 	M0_PRE(m0_dtm_oper_invariant(oper));
 	oper_for(oper, update) {
-		if (update->upd_label < M0_DTM_USER_UPDATE_BASE)
+		if (update->upd_label < M0_DTM_USER_UPDATE_BASE) {
 			max_label = max32u(max_label, update->upd_label);
+			if (m0_dtm_controlh_update_is_close(update))
+				history_close(UPDATE_HISTORY(update));
+		}
 	} oper_endfor;
 	oper_for(oper, update) {
+		struct m0_dtm_history *history;
+
+		history = UPDATE_HISTORY(update);
 		if (update->upd_label == 0)
 			update->upd_label = ++max_label;
 		M0_ASSERT(max_label < M0_DTM_USER_UPDATE_BASE);
+		history->h_max_ver = max64u(history->h_max_ver,
+					    update->upd_up.up_ver);
 	} oper_endfor;
 	m0_dtm_op_close(&oper->oprt_op);
 	oper->oprt_flags |= M0_DOF_CLOSED;
@@ -116,9 +124,15 @@ M0_INTERNAL void m0_dtm_oper_prepared(const struct m0_dtm_oper *oper,
 	oper_lock(oper);
 	M0_PRE(m0_dtm_oper_invariant(oper));
 	up_for(&oper->oprt_op, up) {
+		struct m0_dtm_history *history;
+
+		history = UP_HISTORY(up);
 		M0_PRE(up->up_state >= M0_DOS_PREPARE);
-		if (UP_HISTORY(up)->h_rem == rem)
+		if (history->h_rem == rem) {
 			up_prepared(up);
+			history->h_max_ver = max64u(history->h_max_ver,
+						    up->up_ver);
+		}
 	} up_endfor;
 	advance_try(&oper->oprt_op);
 	M0_POST(m0_dtm_oper_invariant(oper));
@@ -142,7 +156,7 @@ M0_INTERNAL void m0_dtm_oper_done(const struct m0_dtm_oper *oper,
 	oper_unlock(oper);
 }
 
-M0_INTERNAL void m0_dtm_oper_pack(const struct m0_dtm_oper *oper,
+M0_INTERNAL void m0_dtm_oper_pack(struct m0_dtm_oper *oper,
 				  const struct m0_dtm_remote *rem,
 				  struct m0_dtm_oper_descr *ode)
 {
@@ -155,11 +169,12 @@ M0_INTERNAL void m0_dtm_oper_pack(const struct m0_dtm_oper *oper,
 		M0_ASSERT(HISTORY_DTM(&rem->re_fol.rfo_ch.ch_history) ==
 			  HISTORY_DTM(UPDATE_HISTORY(update)));
 		if (UPDATE_REM(update) == rem) {
-			M0_ASSERT(idx < ode->od_nr);
-			m0_dtm_update_pack(update, &ode->od_update[idx++]);
+			M0_ASSERT(idx < ode->od_updates.ou_nr);
+			m0_dtm_update_pack(update,
+					   &ode->od_updates.ou_update[idx++]);
 		}
 	} oper_endfor;
-	ode->od_nr = idx;
+	ode->od_updates.ou_nr = idx;
 	oper_unlock(oper);
 }
 
@@ -172,8 +187,8 @@ M0_INTERNAL int m0_dtm_oper_build(struct m0_dtm_oper *oper, struct m0_tl *uu,
 	M0_PRE(!(oper->oprt_flags & M0_DOF_CLOSED));
 	oper_lock(oper);
 	M0_PRE(m0_dtm_oper_invariant(oper));
-	for (result = 0, i = 0; i < ode->od_nr; ++i) {
-		struct m0_dtm_update_descr *ud = &ode->od_update[i];
+	for (result = 0, i = 0; i < ode->od_updates.ou_nr; ++i) {
+		struct m0_dtm_update_descr *ud = &ode->od_updates.ou_update[i];
 		struct m0_dtm_update       *update;
 
 		update = oper_tlist_pop(uu);
@@ -199,18 +214,19 @@ M0_INTERNAL void m0_dtm_reply_pack(const struct m0_dtm_oper *oper,
 	M0_PRE(oper->oprt_flags & M0_DOF_CLOSED);
 	oper_lock(oper);
 	M0_PRE(m0_dtm_oper_invariant(oper));
-	for (j = 0, i = 0; i < request->od_nr; ++i) {
-		struct m0_dtm_update_descr *ud = &request->od_update[i];
+	for (j = 0, i = 0; i < request->od_updates.ou_nr; ++i) {
+		struct m0_dtm_update_descr *ud;
 		const struct m0_dtm_update *update;
 
+		ud = &request->od_updates.ou_update[i];
 		update = m0_dtm_oper_get(oper, ud->udd_data.da_label);
 		M0_ASSERT(update != NULL);
 		M0_ASSERT(update->upd_up.up_state >= M0_DOS_VOLATILE);
 		M0_ASSERT(m0_dtm_descr_matches_update(update, ud));
-		M0_ASSERT(j < reply->od_nr);
-		m0_dtm_update_pack(update, &reply->od_update[j++]);
+		M0_ASSERT(j < reply->od_updates.ou_nr);
+		m0_dtm_update_pack(update, &reply->od_updates.ou_update[j++]);
 	}
-	reply->od_nr = j;
+	reply->od_updates.ou_nr = j;
 	M0_POST(m0_dtm_oper_invariant(oper));
 	oper_unlock(oper);
 }
@@ -223,10 +239,11 @@ M0_INTERNAL void m0_dtm_reply_unpack(struct m0_dtm_oper *oper,
 	M0_PRE(oper->oprt_flags & M0_DOF_CLOSED);
 	oper_lock(oper);
 	M0_PRE(m0_dtm_oper_invariant(oper));
-	for (i = 0; i < reply->od_nr; ++i) {
-		struct m0_dtm_update_descr *ud = &reply->od_update[i];
+	for (i = 0; i < reply->od_updates.ou_nr; ++i) {
+		struct m0_dtm_update_descr *ud;
 		struct m0_dtm_update       *update;
 
+		ud = &reply->od_updates.ou_update[i];
 		update = m0_dtm_oper_get(oper, ud->udd_data.da_label);
 		M0_ASSERT(update != NULL); /* -EPROTO */
 		M0_PRE(M0_IN(update->upd_up.up_state, (M0_DOS_INPROGRESS,

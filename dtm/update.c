@@ -121,11 +121,9 @@ M0_INTERNAL int m0_dtm_update_build(struct m0_dtm_update *update,
 		if (m0_tl_exists(oper, scan, &oper->oprt_op.op_ups,
 				 scan->upd_label == updd->udd_data.da_label))
 			return -EPROTO;
+		m0_dtm_update_init(update, history, oper, &updd->udd_data);
 		result = history->h_ops->hio_update(history, updd->udd_utype,
 						    update);
-		if (result == 0)
-			m0_dtm_update_init(update, history, oper,
-					   &updd->udd_data);
 	}
 	M0_POST(ergo(result == 0, m0_dtm_update_invariant(update)));
 	return result;
@@ -195,15 +193,17 @@ M0_TL_DESCR_DEFINE(oper, "dtm operation updates", M0_INTERNAL,
 		   M0_DTM_UP_MAGIX, M0_DTM_OP_MAGIX);
 M0_TL_DEFINE(oper, M0_INTERNAL, struct m0_dtm_update);
 
-M0_INTERNAL void update_print(const struct m0_dtm_update *update)
+M0_INTERNAL void update_print_internal(const struct m0_dtm_update *update,
+				       bool history)
 {
 	static const char state_name[] = "LFpIVPS??????????????????";
 	static const char rule_name[] = "ISNA?????????????????????";
 	char buf[100];
 
 	history_print_header(UPDATE_HISTORY(update), buf);
-	M0_LOG(M0_FATAL, "\tupdate: %s: %s",
-	       update->upd_ops->updo_type->updtt_name, &buf[0]);
+	M0_LOG(M0_FATAL, "\tupdate: %s@%p/%p: %s",
+	       update->upd_ops->updo_type->updtt_name,
+	       update, update->upd_up.up_op, history ? &buf[0] : "");
 	M0_LOG(M0_FATAL, "\t\tstate: %c label: %lx "
 	       "rule: %c ver: %lu orig: %lu",
 	       state_name[update->upd_up.up_state],
@@ -211,6 +211,11 @@ M0_INTERNAL void update_print(const struct m0_dtm_update *update)
 	       rule_name[update->upd_up.up_rule],
 	       (unsigned long)update->upd_up.up_ver,
 	       (unsigned long)update->upd_up.up_orig_ver);
+}
+
+M0_INTERNAL void update_print(const struct m0_dtm_update *update)
+{
+	update_print_internal(update, true);
 }
 
 #undef M0_TRACE_SUBSYSTEM

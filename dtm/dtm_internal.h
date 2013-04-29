@@ -108,7 +108,7 @@ M0_INTERNAL struct m0_dtm_update *up_update(struct m0_dtm_up *up);
 M0_INTERNAL bool op_state(const struct m0_dtm_op *op, enum m0_dtm_state state);
 M0_INTERNAL void advance_try(const struct m0_dtm_op *op);
 M0_INTERNAL void up_prepared(struct m0_dtm_up *up);
-
+M0_INTERNAL void history_close(struct m0_dtm_history *history);
 M0_INTERNAL void nu_lock(struct m0_dtm_nu *nu);
 M0_INTERNAL void nu_unlock(struct m0_dtm_nu *nu);
 M0_INTERNAL void dtm_lock(struct m0_dtm *dtm);
@@ -128,6 +128,8 @@ M0_INTERNAL void update_print(const struct m0_dtm_update *update);
 M0_INTERNAL void history_print(const struct m0_dtm_history *history);
 M0_INTERNAL void history_print_header(const struct m0_dtm_history *history,
 				      char *buf);
+M0_INTERNAL void update_print_internal(const struct m0_dtm_update *update,
+				       bool history);
 
 M0_INTERNAL bool oper_update_unique(const struct m0_dtm_oper *oper,
 				    const struct m0_dtm_update *update);

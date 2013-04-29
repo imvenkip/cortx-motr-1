@@ -49,13 +49,19 @@ struct m0_dtm_oper {
 M0_INTERNAL bool m0_dtm_oper_invariant(const struct m0_dtm_oper *oper);
 
 enum m0_dtm_oper_flags {
-	M0_DOF_CLOSED = 1 << 0
+	M0_DOF_CLOSED = 1 << 0,
+	M0_DOF_LAST   = 1 << 1,
+	M0_DOF_SENT   = 1 << 2
 };
 
-struct m0_dtm_oper_descr {
-	uint32_t                    od_nr;
-	struct m0_dtm_update_descr *od_update;
+struct m0_dtm_oper_updates {
+	uint32_t                    ou_nr;
+	struct m0_dtm_update_descr *ou_update;
 } M0_XCA_SEQUENCE;
+
+struct m0_dtm_oper_descr {
+	struct m0_dtm_oper_updates od_updates;
+} M0_XCA_RECORD;
 
 M0_INTERNAL void m0_dtm_oper_init(struct m0_dtm_oper *oper, struct m0_dtm *dtm,
 				  struct m0_tl *uu);
@@ -65,7 +71,7 @@ M0_INTERNAL void m0_dtm_oper_prepared(const struct m0_dtm_oper *oper,
 				      const struct m0_dtm_remote *rem);
 M0_INTERNAL void m0_dtm_oper_done(const struct m0_dtm_oper *oper,
 				  const struct m0_dtm_remote *rem);
-M0_INTERNAL void m0_dtm_oper_pack(const struct m0_dtm_oper *oper,
+M0_INTERNAL void m0_dtm_oper_pack(struct m0_dtm_oper *oper,
 				  const struct m0_dtm_remote *rem,
 				  struct m0_dtm_oper_descr *ode);
 M0_INTERNAL void m0_dtm_oper_unpack(struct m0_dtm_oper *oper,

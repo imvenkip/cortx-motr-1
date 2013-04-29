@@ -45,7 +45,6 @@
 static m0_dtm_ver_t up_ver    (const struct m0_dtm_up *up);
 static void sibling_persistent(struct m0_dtm_history *history,
 			       struct m0_dtm_op *op, struct m0_queue *queue);
-static m0_dtm_ver_t history_ver(const struct m0_dtm_history *history);
 static const struct m0_dtm_update_ops ch_close_ops;
 static const struct m0_dtm_update_ops ch_noop_ops;
 
@@ -57,6 +56,7 @@ M0_INTERNAL void m0_dtm_history_init(struct m0_dtm_history *history,
 	cat_tlink_init(history);
 	m0_cookie_new(&history->h_gen);
 	M0_SET0(&history->h_remcookie);
+	history->h_max_ver = history->h_hi.hi_ver;
 	M0_POST(m0_dtm_history_invariant(history));
 }
 
@@ -72,10 +72,13 @@ M0_INTERNAL bool m0_dtm_history_invariant(const struct m0_dtm_history *history)
 {
 	const struct m0_dtm_history_type *htype =
 		history->h_ops != NULL ? history->h_ops->hio_type : NULL;
+	const struct m0_dtm_hi *hi = &history->h_hi;
 	return
-		m0_dtm_hi_invariant(&history->h_hi) &&
+		m0_dtm_hi_invariant(hi) &&
 		_0C(ergo(htype != NULL,
 		      HISTORY_DTM(history)->d_htype[htype->hit_id] == htype)) &&
+		_0C(m0_tl_forall(hi, up, &hi->hi_ups,
+				 up->up_ver <= history->h_max_ver)) &&
 		_0C(ergo(history->h_persistent != NULL,
 		  history->h_persistent->upd_up.up_state >= M0_DOS_PERSISTENT));
 }
@@ -131,10 +134,15 @@ M0_INTERNAL void m0_dtm_history_persistent(struct m0_dtm_history *history,
 M0_INTERNAL void m0_dtm_history_close(struct m0_dtm_history *history)
 {
 	history_lock(history);
+	history_close(history);
+	history_unlock(history);
+}
+
+M0_INTERNAL void history_close(struct m0_dtm_history *history)
+{
 	M0_PRE(m0_dtm_history_invariant(history));
 	M0_PRE(!(history->h_hi.hi_flags & M0_DHF_CLOSED));
 	history->h_hi.hi_flags |= M0_DHF_CLOSED;
-	history_unlock(history);
 }
 
 M0_INTERNAL void m0_dtm_history_update_get(const struct m0_dtm_history *history,
@@ -146,7 +154,7 @@ M0_INTERNAL void m0_dtm_history_update_get(const struct m0_dtm_history *history,
 	data->da_rule  = rule;
 	data->da_label = 0;
 	if (history->h_hi.hi_flags & M0_DHF_OWNED) {
-		data->da_orig_ver = history_ver(history);
+		data->da_orig_ver = history->h_max_ver;
 		data->da_ver = rule == M0_DUR_NOT ?
 			data->da_orig_ver : data->da_orig_ver + 1;
 	} else {
@@ -242,14 +250,6 @@ M0_INTERNAL int m0_dtm_history_unpack(struct m0_dtm *dtm,
 	return result;
 }
 
-static m0_dtm_ver_t history_ver(const struct m0_dtm_history *history)
-{
-	const struct m0_dtm_up *up;
-
-	up = hi_tlist_head(&history->h_hi.hi_ups);
-	return up != NULL ? up->up_ver : 1;
-}
-
 static void control_update_add(struct m0_dtm_history *history,
 			       struct m0_dtm_oper *oper,
 			       struct m0_dtm_update *cupdate,
@@ -284,7 +284,7 @@ M0_INTERNAL void m0_dtm_history_add_nop(struct m0_dtm_history *history,
 					struct m0_dtm_oper *oper,
 					struct m0_dtm_update *cupdate)
 {
-	control_update_add(history, oper, cupdate, M0_DUR_NOT, &ch_noop_ops);
+	control_update_add(history, oper, cupdate, M0_DUR_INC, &ch_noop_ops);
 }
 
 static void clop_nop(struct m0_dtm_op *op)
@@ -333,7 +333,6 @@ M0_INTERNAL void m0_dtm_controlh_close(struct m0_dtm_controlh *ch)
 	struct m0_dtm_remote *rem = ch->ch_history.h_rem;
 
 	m0_dtm_history_add_close(&ch->ch_history, &ch->ch_clop, &ch->ch_clup);
-	m0_dtm_history_close(&ch->ch_history);
 	m0_dtm_oper_prepared(&ch->ch_clop, rem);
 }
 
@@ -347,8 +346,8 @@ M0_INTERNAL void m0_dtm_controlh_add(struct m0_dtm_controlh *ch,
 }
 
 enum {
-	NOOP  = 1,
-	CLOSE = 2
+	H_NOOP  = 1,
+	H_CLOSE = 2
 };
 
 static int ch_noop(struct m0_dtm_update *updt)
@@ -357,7 +356,7 @@ static int ch_noop(struct m0_dtm_update *updt)
 }
 
 static const struct m0_dtm_update_type ch_noop_utype = {
-	.updtt_id   = NOOP,
+	.updtt_id   = H_NOOP,
 	.updtt_name = "noop"
 };
 
@@ -368,7 +367,7 @@ static const struct m0_dtm_update_ops ch_noop_ops = {
 };
 
 static const struct m0_dtm_update_type ch_close_utype = {
-	.updtt_id   = CLOSE,
+	.updtt_id   = H_CLOSE,
 	.updtt_name = "close"
 };
 
@@ -382,13 +381,20 @@ M0_INTERNAL int m0_dtm_controlh_update(struct m0_dtm_history *history,
 				       uint8_t id,
 				       struct m0_dtm_update *update)
 {
-	if (id == NOOP)
+	if (id == H_NOOP)
 		update->upd_ops = &ch_noop_ops;
-	else if (id == CLOSE)
+	else if (id == H_CLOSE)
 		update->upd_ops = &ch_close_ops;
 	else
 		return -EPROTO;
 	return 0;
+}
+
+M0_INTERNAL void m0_dtm_controlh_fuse_close(struct m0_dtm_update *update)
+{
+	M0_PRE(update->upd_ops == &ch_noop_ops);
+	update->upd_ops = &ch_close_ops;
+	m0_dtm_history_close(UPDATE_HISTORY(update));
 }
 
 M0_INTERNAL bool
@@ -419,7 +425,8 @@ M0_INTERNAL void history_print(const struct m0_dtm_history *history)
 	history_print_header(history, buf);
 	M0_LOG(M0_FATAL, "history %s", &buf[0]);
 	history_for(history, update) {
-		update_print(update);
+		update_print_internal(update,
+				      update->upd_up.up_hi != &history->h_hi);
 	} history_endfor;
 }
 

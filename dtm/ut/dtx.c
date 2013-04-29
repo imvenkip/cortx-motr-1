@@ -200,8 +200,8 @@ static void init0(void)
 	for (i = 0; i < REM_NR; ++i) {
 		m0_dtm_fol_init(&fol_remote[i], &dtm_remote[i]);
 		for (j = 0; j < OPER_NR; ++j) {
-			ode[i][j].od_update = udescr[i][j];
-			ode_reply[i][j].od_update = ureply[i][j];
+			ode[i][j].od_updates.ou_update = udescr[i][j];
+			ode_reply[i][j].od_updates.ou_update = ureply[i][j];
 			m0_dtm_update_list_init(&uu);
 			m0_dtm_update_link(&uu, control_remote[i][j], 1);
 			m0_dtm_oper_init(&oper_remote[i][j],
@@ -302,7 +302,7 @@ static void init3(void)
 			struct m0_dtm_oper       *oper = &oper_remote[j][i];
 			struct m0_dtm_oper_descr *o    = &ode[j][i];
 
-			o->od_nr = UPDATE_NR + 2 * REM_NR;
+			o->od_updates.ou_nr = UPDATE_NR + 2 * REM_NR;
 			m0_dtm_oper_pack(&oper_local[i], &remote_local[j], o);
 			m0_dtm_update_list_init(&uu);
 			m0_dtm_update_link(&uu, update_remote[j][i], FAN_NR);
@@ -315,6 +315,11 @@ static void init3(void)
 static void fini3(void)
 {
 	fini2();
+};
+
+struct m0_dtm_dtx_party {
+	struct m0_dtm_dtx     *pa_dtx;
+	struct m0_dtm_controlh pa_ch;
 };
 
 static void init4(void)
@@ -355,7 +360,7 @@ static void init4(void)
 			struct m0_dtm_oper *loper = &oper_local[j];
 
 			M0_UT_ASSERT(op_state(&oper->oprt_op, M0_DOS_VOLATILE));
-			ode_reply[i][j].od_nr = FAN_NR;
+			ode_reply[i][j].od_updates.ou_nr = FAN_NR;
 			m0_dtm_reply_pack(oper, &ode[i][j], &ode_reply[i][j]);
 			m0_dtm_reply_unpack(loper, &ode_reply[i][j]);
 			m0_dtm_oper_done(loper, &remote_local[i]);
@@ -363,10 +368,16 @@ static void init4(void)
 	}
 	M0_UT_ASSERT(m0_forall(i, OPER_NR,
 			 op_state(&oper_local[i].oprt_op, M0_DOS_VOLATILE)));
+/*
 	for (i = 0; i < OPER_NR; ++i) {
-		M0_LOG(M0_FATAL, "%i", i);
+		M0_LOG(M0_FATAL, "l%i", i);
 		oper_print(&oper_local[i]);
 	}
+	for (i = 0; i < REM_NR; ++i) {
+		M0_LOG(M0_FATAL, "d%i", i);
+		history_print(&dx.dt_party[i].pa_ch.ch_history);
+	}
+*/
 }
 
 static void fini4(void)

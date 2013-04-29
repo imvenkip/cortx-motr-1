@@ -70,12 +70,16 @@ static struct m0_uint128          id_tgt[UPDATE_NR];
 static struct m0_dtm_update_descr udescr[UPDATE_NR + TGT_DELTA];
 static struct m0_dtm_update_descr udescr_reply[UPDATE_NR + TGT_DELTA];
 static struct m0_dtm_oper_descr   ode = {
-	.od_nr     = UPDATE_NR + TGT_DELTA,
-	.od_update = udescr
+	.od_updates = {
+		.ou_nr     = UPDATE_NR + TGT_DELTA,
+		.ou_update = udescr
+	}
 };
 static struct m0_dtm_oper_descr   reply = {
-	.od_nr     = UPDATE_NR + TGT_DELTA,
-	.od_update = udescr_reply
+	.od_updates = {
+		.ou_nr     = UPDATE_NR + TGT_DELTA,
+		.ou_update = udescr_reply
+	}
 };
 static m0_dtm_ver_t last[UPDATE_NR];
 
@@ -304,8 +308,8 @@ static void oper_populate(int i, unsigned nr)
 	dtm_unlock(&dtm_src);
 	m0_dtm_oper_close(&oper_src[i]);
 
-	ode.od_nr   = nr + TGT_DELTA;
-	reply.od_nr = nr + TGT_DELTA;
+	ode.od_updates.ou_nr   = nr + TGT_DELTA;
+	reply.od_updates.ou_nr = nr + TGT_DELTA;
 }
 
 static void transmit_test(void)

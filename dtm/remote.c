@@ -38,9 +38,9 @@
 #include "dtm/remote_xc.h"
 
 enum rem_rpc_notification{
-	PERSISTENT = 1,
-	FIXED      = 2,
-	KNOWN      = 3
+	R_PERSISTENT = 1,
+	R_FIXED      = 2,
+	R_KNOWN      = 3
 };
 
 static const struct m0_dtm_remote_ops rem_rpc_ops;
@@ -97,25 +97,32 @@ M0_INTERNAL void m0_dtm_rpc_remote_fini(struct m0_dtm_rpc_remote *remote)
 static void rem_rpc_persistent(struct m0_dtm_remote *rem,
 			       struct m0_dtm_history *history)
 {
-	rem_rpc_notify(rem, history, PERSISTENT);
+	rem_rpc_notify(rem, history, R_PERSISTENT);
 }
 
 static void rem_rpc_fixed(struct m0_dtm_remote *rem,
 			  struct m0_dtm_history *history)
 {
-	rem_rpc_notify(rem, history, FIXED);
+	rem_rpc_notify(rem, history, R_FIXED);
 }
 
 static void rem_rpc_known(struct m0_dtm_remote *rem,
 			  struct m0_dtm_history *history)
 {
-	rem_rpc_notify(rem, history, KNOWN);
+	rem_rpc_notify(rem, history, R_KNOWN);
+}
+
+static void rem_rpc_close(struct m0_dtm_remote *rem,
+			  struct m0_dtm_history *history)
+{
+	M0_IMPOSSIBLE("Not yet.");
 }
 
 static const struct m0_dtm_remote_ops rem_rpc_ops = {
 	.reo_persistent = &rem_rpc_persistent,
 	.reo_fixed      = &rem_rpc_fixed,
 	.reo_known      = &rem_rpc_known,
+	.reo_close      = &rem_rpc_close
 };
 
 static void notice_pack(struct m0_dtm_notice *notice,
@@ -190,11 +197,11 @@ static void notice_deliver(struct m0_dtm_notice *notice, struct m0_dtm *dtm)
 	result = m0_dtm_history_unpack(dtm, &notice->dno_id, &history);
 	if (result == 0) {
 		switch (notice->dno_opcode) {
-		case PERSISTENT:
+		case R_PERSISTENT:
 			m0_dtm_history_persistent(history, notice->dno_ver);
 			break;
-		case FIXED:
-		case KNOWN:
+		case R_FIXED:
+		case R_KNOWN:
 			break;
 		default:
 			M0_LOG(M0_ERROR, "DTM notice: %i.", notice->dno_opcode);
@@ -253,19 +260,19 @@ static void rem_local_notify(struct m0_dtm_remote *rem,
 static void rem_local_persistent(struct m0_dtm_remote *rem,
 				 struct m0_dtm_history *history)
 {
-	rem_local_notify(rem, history, PERSISTENT);
+	rem_local_notify(rem, history, R_PERSISTENT);
 }
 
 static void rem_local_fixed(struct m0_dtm_remote *rem,
 			    struct m0_dtm_history *history)
 {
-	rem_local_notify(rem, history, FIXED);
+	rem_local_notify(rem, history, R_FIXED);
 }
 
 static void rem_local_known(struct m0_dtm_remote *rem,
 			    struct m0_dtm_history *history)
 {
-	rem_local_notify(rem, history, KNOWN);
+	rem_local_notify(rem, history, R_KNOWN);
 }
 
 static const struct m0_dtm_remote_ops rem_local_ops = {

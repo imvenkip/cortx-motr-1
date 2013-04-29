@@ -37,10 +37,7 @@
 struct m0_dtm_update;
 struct m0_dtm_update_ops;
 struct m0_dtm_update_type;
-struct m0_dtm_cupdate;
-struct m0_dtm_cupdate_ops;
 struct m0_dtm_update_descr;
-struct m0_dtm_cupdate_descr;
 
 /* import */
 struct m0_dtm_history_type;

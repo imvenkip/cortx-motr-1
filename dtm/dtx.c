@@ -47,6 +47,7 @@ static struct m0_dtm_controlh *dtx_get(struct m0_dtm_dtx *dtx,
 static struct m0_dtm_history *dtx_srv_alloc(struct m0_dtm *dtm,
 					    const struct m0_uint128 *id,
 					    void *datum);
+static struct m0_dtm_history *pa_history(struct m0_dtm_dtx_party *pa);
 
 M0_INTERNAL int m0_dtm_dtx_init(struct m0_dtm_dtx *dtx,
 				const struct m0_uint128 *id,
@@ -85,8 +86,15 @@ M0_INTERNAL void m0_dtm_dtx_close(struct m0_dtm_dtx *dtx)
 {
 	uint32_t i;
 
-	for (i = 0; i < dtx->dt_nr; ++i)
-		m0_dtm_controlh_close(&dtx->dt_party[i].pa_ch);
+	for (i = 0; i < dtx->dt_nr; ++i) {
+		struct m0_dtm_history *history = pa_history(&dtx->dt_party[i]);
+		struct m0_dtm_update  *update;
+
+		update = up_update(hi_tlist_head(&history->h_hi.hi_ups));
+		M0_ASSERT(update != NULL);
+		m0_dtm_controlh_fuse_close(update);
+		M0_ASSERT(m0_dtm_history_invariant(history));
+	}
 }
 
 static void dtx_noop(void *unused)
@@ -144,7 +152,7 @@ static const struct m0_dtm_history_ops dtx_ops = {
 	.hio_update     = &m0_dtm_controlh_update
 };
 
-static inline struct m0_dtm_history *pa_history(struct m0_dtm_dtx_party *pa)
+static struct m0_dtm_history *pa_history(struct m0_dtm_dtx_party *pa)
 {
 	return &pa->pa_ch.ch_history;
 }

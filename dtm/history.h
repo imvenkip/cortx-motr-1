@@ -56,6 +56,7 @@ struct m0_dtm_history {
 	const struct m0_dtm_history_ops *h_ops;
 	uint64_t                         h_gen;
 	struct m0_cookie                 h_remcookie;
+	m0_dtm_ver_t                     h_max_ver;
 };
 M0_INTERNAL bool m0_dtm_history_invariant(const struct m0_dtm_history *history);
 
@@ -139,6 +140,8 @@ M0_INTERNAL int m0_dtm_controlh_update(struct m0_dtm_history *history,
 				       struct m0_dtm_update *update);
 M0_INTERNAL bool
 m0_dtm_controlh_update_is_close(const struct m0_dtm_update *update);
+
+M0_INTERNAL void m0_dtm_controlh_fuse_close(struct m0_dtm_update *update);
 
 /** @} end of dtm group */
 
