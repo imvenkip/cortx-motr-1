@@ -12,6 +12,17 @@ enable_test_modules := @ENABLE_KERNEL_UNIT_TESTS@
 # kernel modules we build:
 #
 
+ifdef M0_BUILD_KERNEL_M0MERO_ONLY
+
+obj-m := mero/m0mero.o
+
+else ifdef M0_BUILD_KERNEL_UT_ONLY
+
+obj-m := utils/linux_kernel/m0ut.o
+obj-m += m0t1fs/linux_kernel/m0loop-ut.o
+
+else
+
 # these modules are installed system wide and included into rpm package, they
 # should be built in mero/ directory, so they could be installed into
 # "kernel/fs/mero" under base kernel modules dir, where "kernel/fs" part is
@@ -28,6 +39,8 @@ obj-$(enable_test_modules) += m0t1fs/linux_kernel/m0loop-ut.o
 obj-$(enable_test_modules) += net/lnet/st/linux_kernel/m0lnetping.o
 obj-$(enable_test_modules) += rpc/it/linux_kernel/m0rpcping.o
 obj-$(enable_test_modules) += net/test/linux_kernel/m0nettestd.o
+
+endif
 
 
 #

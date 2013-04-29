@@ -78,7 +78,9 @@ AM_CPPFLAGS  = @M0_CPPFLAGS@
 AM_CFLAGS    = @M0_CFLAGS@
 AM_LDFLAGS   = @M0_LDFLAGS@
 
-SUBDIRS = extra-libs/galois
+GALOIS_DIR   = extra-libs/galois
+
+SUBDIRS = $(GALOIS_DIR)
 
 
 ################################################################################
@@ -826,6 +828,31 @@ libmero-ut: pre-all
 .PHONY: __libmero-ut
 __libmero-ut: config.h Makefile ut/libmero-ut.la $(HEADERS)
 
+# galois
+
+.PHONY: galois
+galois:
+	@echo 'Building galois'
+	@cd $(GALOIS_DIR) && $(MAKE) $(AM_MAKEFLAGS)
+
+# quick
+
+.PHONY: quick
+quick: generate-files galois
+	@echo 'Building user-space Unit Tests'
+	@$(MAKE) $(AM_MAKEFLAGS) __quick
+
+.PHONY: __quick
+__quick: __libmero __libmero-ut utils/ut
+	@$(MAKE) $(AM_MAKEFLAGS) build-kernel-modules M0_BUILD_KERNEL_M0MERO_ONLY=yes
+
+# kuick
+
+.PHONY: kuick
+kuick: generate-files galois
+	@echo 'Building kernel-space Unit Tests'
+	@$(MAKE) $(AM_MAKEFLAGS) build-kernel-modules M0_BUILD_KERNEL_UT_ONLY=yes
+
 #
 # Clean targets
 #
@@ -928,6 +955,10 @@ list-libs:
 		echo "$$l"; \
 	done | sort
 
+.PHONY: list-modules
+list-modules:
+	@find . -name '*.ko' | sort | cut -c 1-2 --complement
+
 .PHONY: help
 help:
 	@echo 'Build targets:'
@@ -936,9 +967,12 @@ help:
 	@echo '  all-user        - build only user-space libraries and programs'
 	@echo '  all-kernel      - build only kernel modules'
 	@echo ''
-	@echo '  libmero      - build only libmero library'
-	@echo '  libmero-ut   - build only libmero-ut library'
+	@echo '  quick           - build only user-space UT'
+	@echo '  kuick           - build only kernel-space UT'
 	@echo ''
+	@echo '  galois          - build only libgalois.so and galois.ko'
+	@echo '  libmero         - build only libmero library'
+	@echo '  libmero-ut      - build only libmero-ut library'
 	@echo '  libmero-altogether - build only libmero library'
 	@echo ''
 	@echo '  dir/file[.o]    - build specified target only'
@@ -964,7 +998,8 @@ help:
 	@echo ''
 	@echo 'Information:'
 	@echo '  list-programs   - list all executables built in mero'
-	@echo '  list-libs       - list libraries built in mero'
+	@echo '  list-libs       - list all libraries built in mero'
+	@echo '  list-modules    - list all kernel modules built in mero'
 	@echo '  print-elf-sizes - show ELF sizes of the main binaries'
 
 
