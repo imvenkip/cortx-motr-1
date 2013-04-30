@@ -117,7 +117,7 @@ M0_INTERNAL bool m0_reqh_io_service_invariant(const struct m0_reqh_io_service
 					      *rios);
 
 M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
-				struct m0_cob_domain **out, uint64_t sid);
+				struct m0_cob_domain **out);
 
 M0_INTERNAL void m0_ios_cdom_fini(struct m0_reqh *reqh);
 

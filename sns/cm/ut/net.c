@@ -444,7 +444,7 @@ static void receiver_stob_create()
 	struct m0_fid         gfid = {0, 4};
         int                   rc;
 
-	M0_UT_ASSERT(m0_ios_cdom_get(s0_reqh, &cdom, 0) == 0);
+	M0_UT_ASSERT(m0_ios_cdom_get(s0_reqh, &cdom) == 0);
 	dbenv = s0_reqh->rh_dbenv;
 
 	cob_create(dbenv, cdom, 0, &gfid, 0);

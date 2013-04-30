@@ -642,7 +642,7 @@ static void cob_verify(struct m0_fom *fom, const bool exists)
         uint32_t              nskey_bs_len;
 	uint32_t              cob_idx = COB_TEST_ID;
 
-	rc = m0_ios_cdom_get(m0_fom_reqh(fom), &cobdom, 0);
+	rc = m0_ios_cdom_get(m0_fom_reqh(fom), &cobdom);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cobdom != NULL);
 

@@ -222,7 +222,7 @@ static void tgt_fid_cob_create()
         struct m0_fid         gfid = {0, 4};
         int                   rc;
 
-        rc = m0_ios_cdom_get(reqh, &cdom, 0);
+        rc = m0_ios_cdom_get(reqh, &cdom);
         M0_ASSERT(rc == 0);
         dbenv = reqh->rh_dbenv;
 

@@ -701,7 +701,7 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 
 	cm = &scm->sc_base;
 	it->si_dbenv = cm->cm_service.rs_reqh->rh_dbenv;
-        rc = m0_ios_cdom_get(cm->cm_service.rs_reqh, &it->si_cob_dom, 0);
+        rc = m0_ios_cdom_get(cm->cm_service.rs_reqh, &it->si_cob_dom);
         if (rc != 0)
                 return rc;
 	m0_sm_init(&it->si_sm, &cm_iter_sm_conf, ITPH_IDLE, &cm->cm_sm_group);

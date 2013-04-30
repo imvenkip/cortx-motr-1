@@ -120,7 +120,7 @@ static void dbenv_cob_domain_get(struct m0_dbenv **dbenv,
 {
 	*dbenv = cm->cm_service.rs_reqh->rh_dbenv;
 	M0_UT_ASSERT(dbenv != NULL);
-	M0_UT_ASSERT(m0_ios_cdom_get(cm->cm_service.rs_reqh, cdom, 0) == 0);
+	M0_UT_ASSERT(m0_ios_cdom_get(cm->cm_service.rs_reqh, cdom) == 0);
 }
 
 M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,

@@ -448,15 +448,13 @@ static int ios_start(struct m0_reqh_service *service)
 {
 	int			   rc;
 	struct m0_reqh_io_service *serv_obj;
-	static uint64_t            cdom_id = 37;   /* XXX temporary */
 
 	M0_PRE(service != NULL);
 	M0_PRE(m0_reqh_lockers_is_empty(service->rs_reqh, ios_cdom_key));
 
 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
 	/** @todo what should be cob dom id? */
-	cdom_id = m0_rnd(1ULL << 47, &cdom_id);
-	rc = m0_ios_cdom_get(service->rs_reqh, &serv_obj->rios_cdom, cdom_id);
+	rc = m0_ios_cdom_get(service->rs_reqh, &serv_obj->rios_cdom);
 	if (rc != 0)
 		return rc;
 
@@ -504,8 +502,10 @@ static void ios_stop(struct m0_reqh_service *service)
 }
 
 M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
-				struct m0_cob_domain **out, uint64_t sid)
+				struct m0_cob_domain **out)
 {
+	/* XXX For now generating cob domain id randomly. Should be fixed */
+	static uint64_t          cid = 37;
 	int                      rc = 0;
 	struct m0_cob_domain    *cdom;
 	struct m0_cob_domain_id  cdom_id;
@@ -526,7 +526,7 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 		}
 		m0_reqh_lockers_set(reqh, ios_cdom_key, cdom);
 
-		cdom_id.id = sid;
+		cdom_id.id = m0_rnd(1ULL << 47, &cid);
 		rc = m0_cob_domain_init(cdom, dbenv, &cdom_id);
 		if (rc != 0)
 			goto reqh_fini;
