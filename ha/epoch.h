@@ -213,6 +213,11 @@ M0_INTERN uint64_t m0_ha_domain_get_write(struct m0_ha_domain *dom);
  * Releases the lock acquired by m0_ha_domain_get_write() and sets the new known
  * epoch.
  *
+ * HA sub-system uses this function to move to the next epoch.
+ *
+ * Message receivers use this function to handle M0_HEO_OBEY return from
+ * m0_ha_epoch_monitor::hem_future() method.
+ *
  * @pre epoch >= dom->hdo_epoch
  */
 M0_INTERN void m0_ha_domain_put_write(struct m0_ha_domain *dom, uint64_t epoch);
