@@ -42,28 +42,28 @@ sub-team leads, contact them to add more things here.
     Add a M0_XCA_ENUM macro that would instruct gccxml to generate an array with
     human-readable enum names:
 
-enum m0_foo {
-        F_ONE   = 1,
-        F_TWO   = 2,
-        F_THREE = 3
-} M0_XCA_ENUM(m0_foo_names);
+    enum m0_foo {
+            F_ONE   = 1,
+            F_TWO   = 2,
+            F_THREE = 3
+    } M0_XCA_ENUM(m0_foo_names);
 
     generates in the corresponding _xc.[ch] file something like
 
-struct m0_xcode_enum m0_foo_names[] = {
-        { F_ONE, 1, "F_ONE" },
-        { F_TWO, 2, "F_TWO" },
-        { F_THREE, 2, "F_THREE" },
-        { 0, 0, NULL }
-};
+    struct m0_xcode_enum m0_foo_names[] = {
+            { F_ONE, 1, "F_ONE" },
+            { F_TWO, 2, "F_TWO" },
+            { F_THREE, 2, "F_THREE" },
+            { 0, 0, NULL }
+    };
 
     where
 
-struct m0_xcode_enum {
-        uint64_t    xe_tag;
-        uint64_t    xe_value;
-        const char *xe_name;
-};
+    struct m0_xcode_enum {
+            uint64_t    xe_tag;
+            uint64_t    xe_value;
+            const char *xe_name;
+    };
 
     This array can be used by generic error-reporting functions and by
     m0_xcode_read() to accept symbolic constants.
@@ -90,6 +90,11 @@ struct m0_xcode_enum {
 
     Meaningful interfaces should be exported, not partial unusable ones.
 
+2013-Apr-30 sort the output of `ut.sh -l'
+
+    `sudo utils/ut.sh -l' command outputs 63 unsorted lines, despite
+    the names of test suite _variables_ being sorted in utils/ut_main.c.
+    We need to sort the strings themselves, not only variable names.
 
                           ***** IN-PROGRESS *****
 
