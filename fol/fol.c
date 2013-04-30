@@ -401,13 +401,22 @@ m0_fol_rec_part_init(struct m0_fol_rec_part *part, void *data,
 M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 {
 	M0_PRE(part != NULL);
-
-	if (part->rp_data != NULL && part->rp_flag == M0_BUFVEC_DECODE)
-		m0_xcode_free(&REC_PART_XCODE_OBJ(part));
+	M0_PRE(part->rp_ops != NULL);
+	M0_PRE(part->rp_data != NULL);
 
 	if (m0_rec_part_tlink_is_in(part))
 		m0_rec_part_tlist_del(part);
 	m0_rec_part_tlink_fini(part);
+
+	if (part->rp_flag == M0_BUFVEC_DECODE) {
+		m0_xcode_free(&REC_PART_XCODE_OBJ(part));
+		m0_free(part);
+	} else {
+	    if (part->rp_ops->rpo_type != &m0_fop_fol_rec_part_type)
+		m0_xcode_free(&REC_PART_XCODE_OBJ(part));
+	    else
+		m0_free(part);
+	}
 }
 
 M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
