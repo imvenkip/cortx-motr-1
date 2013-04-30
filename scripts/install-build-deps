@@ -36,6 +36,7 @@ declare -rA RPM_PACKAGE=(
     [lustre]='lustre-source'
     [asciidoc]='asciidoc'
     [genders]='genders'
+    [uuid-dev]='libuuid-devel'
 )
 
 declare -rA DEB_PACKAGE=(
@@ -63,6 +64,7 @@ declare -rA DEB_PACKAGE=(
     [lustre]='lustre-source'
     [asciidoc]='asciidoc'
     [genders]='genders'
+    [uuid-dev]='uuid-dev'
 )
 
 # variables
