@@ -302,19 +302,12 @@ static void test_reqh_fop_allow(void)
 
 static void test_run_fom_rso_start_async(void)
 {
-	int                        rc;
 	struct m0_reqh            *rh;
 	struct m0_ut_rpc_mach_ctx  rmach_ctx;
 
 	mgmt_svc_ut_svc_restore_defaults_async();
 
-	M0_ALLOC_PTR(rh);
-	M0_UT_ASSERT(rh != NULL);
-	rc = M0_REQH_INIT(rh,
-			  .rhia_db      = &mgmt_svc_dbenv,
-			  .rhia_mdstore = (void *)1,
-			  .rhia_fol     = (void *)1);
-	M0_UT_ASSERT(rc == 0);
+	rh = reqh_init();
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_INIT);
 
 	/* Hack */
@@ -457,19 +450,12 @@ static void test_run_fom_rso_start_async(void)
 
 static void test_run_fom_rso_start(void)
 {
-	int                        rc;
 	struct m0_reqh            *rh;
 	struct m0_ut_rpc_mach_ctx  rmach_ctx;
 
 	mgmt_svc_ut_svc_restore_defaults();
 
-	M0_ALLOC_PTR(rh);
-	M0_UT_ASSERT(rh != NULL);
-	rc = M0_REQH_INIT(rh,
-			  .rhia_db      = &mgmt_svc_dbenv,
-			  .rhia_mdstore = (void *)1,
-			  .rhia_fol     = (void *)1);
-	M0_UT_ASSERT(rc == 0);
+	rh = reqh_init();
 	M0_UT_ASSERT(m0_reqh_state_get(rh) == M0_REQH_ST_INIT);
 
 	/* Hack */
