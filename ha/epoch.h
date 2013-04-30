@@ -35,9 +35,9 @@
  * (Note that the word "epoch" has other meanings.)
  *
  * When a new failure is detected or previous failure eliminated, the process of
- * developing a consensus about the change in failure state is initated within
- * the HA sub-system. This process, if successful, culminates in transition to
- * a new epoch.
+ * developing a consensus about the change in failure state is initiated within
+ * the HA sub-system. This process, if successful, culminates in transition to a
+ * new epoch.
  *
  * An epoch is identified by "an epoch number", which is a 64-bit integer. A
  * later epoch has greater number.
