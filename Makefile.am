@@ -177,8 +177,8 @@ include $(top_srcdir)/fid/Makefile.sub
 include $(top_srcdir)/fol/Makefile.sub
 include $(top_srcdir)/fop/Makefile.sub
 include $(top_srcdir)/addb/Makefile.sub
-include $(top_srcdir)/ioservice/Makefile.sub
 include $(top_srcdir)/ha/Makefile.sub
+include $(top_srcdir)/ioservice/Makefile.sub
 include $(top_srcdir)/layout/Makefile.sub
 include $(top_srcdir)/lib/Makefile.sub
 include $(top_srcdir)/m0t1fs/Makefile.sub
@@ -1018,6 +1018,7 @@ EXTRA_DIST += addb/Kbuild.sub \
               fid/Kbuild.sub \
               fol/Kbuild.sub \
               fop/Kbuild.sub \
+              ha/Kbuild.sub \
               ioservice/Kbuild.sub \
               ioservice/ut/Kbuild.sub \
               layout/Kbuild.sub \
