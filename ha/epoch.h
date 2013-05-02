@@ -235,6 +235,9 @@ struct m0_ha_epoch {
 	uint64_t he_num;
 } M0_XCA_RECORD;
 
+M0_INTERNAL int  m0_ha_global_init(void);
+M0_INTERNAL void m0_ha_global_fini(void);
+
 /** @} end of ha group */
 
 #endif /* __MERO_HA_EPOCH_H__ */

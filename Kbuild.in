@@ -64,6 +64,7 @@ include $(src)/dtm/Kbuild.sub
 include $(src)/fid/Kbuild.sub
 include $(src)/fol/Kbuild.sub
 include $(src)/fop/Kbuild.sub
+include $(src)/ha/Kbuild.sub
 include $(src)/ioservice/Kbuild.sub
 include $(src)/layout/Kbuild.sub
 include $(src)/lib/Kbuild.sub

@@ -84,14 +84,14 @@ M0_INTERNAL void m0_ha_domain_monitor_del(struct m0_ha_domain *dom,
 					struct m0_ha_epoch_monitor *mon)
 {
 	m0_rwlock_write_lock(&dom->hdo_lock);
-	ham_tlink_del(mon);
+	ham_tlist_del(mon);
 	m0_rwlock_write_unlock(&dom->hdo_lock);
 }
 
 M0_INTERNAL uint64_t m0_ha_domain_get_read(struct m0_ha_domain *dom)
 {
 	m0_rwlock_read_lock(&dom->hdo_lock);
-	return dom->hdo_lock;
+	return dom->hdo_epoch;
 }
 
 M0_INTERNAL void m0_ha_domain_put_read(struct m0_ha_domain *dom)
@@ -102,7 +102,7 @@ M0_INTERNAL void m0_ha_domain_put_read(struct m0_ha_domain *dom)
 M0_INTERNAL uint64_t m0_ha_domain_get_write(struct m0_ha_domain *dom)
 {
 	m0_rwlock_write_lock(&dom->hdo_lock);
-	return dom->hdo_lock;
+	return dom->hdo_epoch;
 }
 
 M0_INTERNAL void m0_ha_domain_put_write(struct m0_ha_domain *dom, uint64_t epoch)
@@ -112,6 +112,16 @@ M0_INTERNAL void m0_ha_domain_put_write(struct m0_ha_domain *dom, uint64_t epoch
 	m0_rwlock_write_unlock(&dom->hdo_lock);
 }
 
+M0_INTERNAL int m0_ha_global_init(void)
+{
+	m0_xc_epoch_init();
+	return 0;
+}
+
+M0_INTERNAL void m0_ha_global_fini(void)
+{
+	m0_xc_epoch_fini();
+}
 
 /** @} end of ha group */
 

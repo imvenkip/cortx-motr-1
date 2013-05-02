@@ -705,6 +705,31 @@ static void xcode_read_test(void)
 
 }
 
+static void xcode_find_test(void)
+{
+	struct m0_xcode_obj top = { &xut_top.xt, &T };
+	void               *place;
+	int                 result;
+
+	result = m0_xcode_find(&top, &xut_top.xt, &place);
+	M0_UT_ASSERT(result == 0 && place == &T);
+
+	result = m0_xcode_find(&top, &xut_foo.xt, &place);
+	M0_UT_ASSERT(result == 0 && place == &T.t_foo);
+
+	result = m0_xcode_find(&top, &xut_v.xt, &place);
+	M0_UT_ASSERT(result == 0 && place == &T.t_v);
+
+	result = m0_xcode_find(&top, &M0_XT_U64, &place);
+	M0_UT_ASSERT(result == 0 && place == &T.t_foo.f_x);
+
+	result = m0_xcode_find(&top, &M0_XT_U32, &place);
+	M0_UT_ASSERT(result == 0 && place == &T.t_flag);
+
+	result = m0_xcode_find(&top, &M0_XT_VOID, &place);
+	M0_UT_ASSERT(result == -ENOENT);
+}
+
 const struct m0_test_suite xcode_ut = {
         .ts_name = "xcode-ut",
         .ts_init = xcode_init,
@@ -718,6 +743,7 @@ const struct m0_test_suite xcode_ut = {
                 { "xcode-nonstandard", xcode_nonstandard_test },
                 { "xcode-cmp",    xcode_cmp_test },
 		{ "xcode-read",   xcode_read_test },
+		{ "xcode-find",   xcode_find_test },
                 { NULL, NULL }
         }
 };
@@ -732,5 +758,3 @@ M0_EXPORTED(xcode_ut);
  *  scroll-step: 1
  *  End:
  */
-
-

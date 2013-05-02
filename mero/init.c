@@ -69,6 +69,7 @@
 #include "cm/cm.h"
 #include "addb/addb_fops.h"
 #include "mgmt/mgmt.h"
+#include "ha/epoch.h"
 
 M0_INTERNAL int m0_memory_init(void);
 M0_INTERNAL void m0_memory_fini(void);
@@ -96,6 +97,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fi_init,          &m0_fi_fini,          "finject" },
 	{ &m0_memory_init,      &m0_memory_fini,      "memory" },
 	{ &libm0_init,          &libm0_fini,          "libm0" },
+	{ &m0_ha_global_init ,  &m0_ha_global_fini,   "ha" },
 	{ &m0_fid_init,         &m0_fid_fini,         "fid" },
 	{ &m0_cookie_global_init, &m0_cookie_global_fini, "cookie" },
 	{ &m0_processors_init,  &m0_processors_fini,  "processors" },
