@@ -131,6 +131,26 @@ M0_INTERNAL void m0_dtm_history_persistent(struct m0_dtm_history *history,
 	history_unlock(history);
 }
 
+M0_INTERNAL void m0_dtm_history_known(struct m0_dtm_history *history,
+				      m0_dtm_ver_t since)
+{
+	history_lock(history);
+	M0_PRE(m0_dtm_history_invariant(history));
+	hi_for(&history->h_hi, up) {
+		if (up->up_ver <= since)
+			break;
+	} hi_endfor;
+	up = m0_dtm_up_later(up);
+	for (; up != NULL && up->up_state >= M0_DOS_INPROGRESS;
+	     up = m0_dtm_up_later(up)) {
+		M0_ASSERT(up->up_state < M0_DOS_STABLE);
+		history->h_rem->re_ops->reo_redo(history->h_rem,
+						 history, up_update(up));
+	}
+	M0_POST(m0_dtm_history_invariant(history));
+	history_unlock(history);
+}
+
 M0_INTERNAL void m0_dtm_history_close(struct m0_dtm_history *history)
 {
 	history_lock(history);

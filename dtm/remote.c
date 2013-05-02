@@ -201,7 +201,9 @@ static void notice_deliver(struct m0_dtm_notice *notice, struct m0_dtm *dtm)
 			m0_dtm_history_persistent(history, notice->dno_ver);
 			break;
 		case R_FIXED:
+			break;
 		case R_KNOWN:
+			m0_dtm_history_known(history, notice->dno_ver);
 			break;
 		default:
 			M0_LOG(M0_ERROR, "DTM notice: %i.", notice->dno_opcode);

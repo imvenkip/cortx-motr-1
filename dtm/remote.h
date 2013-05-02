@@ -63,6 +63,9 @@ struct m0_dtm_remote_ops {
 			  struct m0_dtm_history *history);
 	void (*reo_close)(struct m0_dtm_remote *rem,
 			  struct m0_dtm_history *history);
+	void (*reo_redo)(struct m0_dtm_remote *rem,
+			 struct m0_dtm_history *history,
+			 struct m0_dtm_update *update);
 };
 
 M0_INTERNAL void m0_dtm_remote_init(struct m0_dtm_remote *remote,
