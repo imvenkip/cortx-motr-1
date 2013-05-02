@@ -535,6 +535,24 @@ M0_INTERNAL uint64_t m0_xcode_tag(const struct m0_xcode_obj *obj)
 	return tag;
 }
 
+M0_INTERNAL int m0_xcode_find(struct m0_xcode_obj *obj,
+			      const struct m0_xcode_type *xt, void **place)
+{
+	struct m0_xcode_cursor it;
+	int                    result;
+
+	m0_xcode_cursor_init(&it, obj);
+	while ((result = m0_xcode_next(&it)) > 0) {
+		struct m0_xcode_obj *cur = &m0_xcode_cursor_top(&it)->s_obj;
+
+		if (cur->xo_type == xt) {
+			*place = cur->xo_ptr;
+			return 0;
+		}
+	}
+	return result ?: -ENOENT;
+}
+
 M0_INTERNAL void m0_xcode_bob_type_init(struct m0_bob_type *bt,
 					const struct m0_xcode_type *xt,
 					size_t magix_field, uint64_t magix)

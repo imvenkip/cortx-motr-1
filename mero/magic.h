@@ -353,6 +353,12 @@ enum m0_magic_satchel {
 	/* m0_fol_rec_part_header:rph_magic (baseball aced) */
 	M0_FOL_REC_PART_MAGIC = 0x33ba5eba11aced77,
 
+/* HA */
+	/* m0_ha_epoch_monitor::ham_magic (bead Adelaide) */
+	M0_HA_EPOCH_MONITOR_MAGIC = 0x33beadade1a1de77,
+	/* m0_ha_domain::hdo_monitors::t_magic (beef official) */
+	M0_HA_DOMAIN_MAGIC = 0x33beef0ff1c1a177,
+
 /* ioservice */
 	/* m0_stob_io_descr::siod_linkage (zealos obsses) */
 	M0_STOB_IO_DESC_LINK_MAGIC = 0x332ea1050b55e577,

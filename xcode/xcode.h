@@ -698,6 +698,15 @@ M0_INTERNAL int m0_xcode_subobj(struct m0_xcode_obj *subobj,
  */
 M0_INTERNAL uint64_t m0_xcode_tag(const struct m0_xcode_obj *obj);
 
+/**
+ * Finds and returns (in *place) first (in m0_xcode_next() order) field of type
+ * xt in the given object.
+ *
+ * Returns -ENOENT if no field is found.
+ */
+M0_INTERNAL int m0_xcode_find(struct m0_xcode_obj *obj,
+			      const struct m0_xcode_type *xt, void **place);
+
 M0_INTERNAL bool m0_xcode_type_invariant(const struct m0_xcode_type *xt);
 
 extern const struct m0_xcode_type M0_XT_VOID;

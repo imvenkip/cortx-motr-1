@@ -70,7 +70,7 @@
 #include "lib/tlist.h"
 #include "lib/rwlock.h"
 #include "xcode/xcode_attr.h"
-struct struct m0_xcode_obj;
+struct m0_xcode_obj;
 struct m0_rpc_item;
 
 /* export */
@@ -120,6 +120,7 @@ struct m0_ha_epoch_monitor {
 	struct m0_tlink      hem_linkage;
 	/** Domain this monitor is registered with. */
 	struct m0_ha_domain *hem_domain;
+	uint64_t             hem_magix;
 };
 
 /**
@@ -158,8 +159,8 @@ M0_EXTERN const uint64_t M0_HA_EPOCH_NONE;
 /**
  * Initialise the domain, with the given epoch number.
  */
-M0_INTERN void m0_ha_domain_init(struct m0_ha_domain *dom, uint64_t epoch);
-M0_INTERN void m0_ha_domain_fini(struct m0_ha_domain *dom);
+M0_INTERNAL void m0_ha_domain_init(struct m0_ha_domain *dom, uint64_t epoch);
+M0_INTERNAL void m0_ha_domain_fini(struct m0_ha_domain *dom);
 
 /**
  * Sets the epoch number in the outgoing item.
@@ -172,7 +173,7 @@ M0_INTERN void m0_ha_domain_fini(struct m0_ha_domain *dom);
  *
  * Returns +ve if the item doesn't contain a m0_ha_epoch field.
  */
-M0_INTERN int m0_ha_epoch_set(struct m0_xcode_obj *obj, uint64_t epoch);
+M0_INTERNAL int m0_ha_epoch_set(struct m0_xcode_obj *obj, uint64_t epoch);
 
 /**
  * Returns the epoch number from the incoming item.
@@ -181,11 +182,11 @@ M0_INTERN int m0_ha_epoch_set(struct m0_xcode_obj *obj, uint64_t epoch);
  *
  * Returns +ve if the item doesn't contain a m0_ha_epoch field.
  */
-M0_INTERN int m0_ha_epoch_get(struct m0_xcode_obj *obj, uint64_t *epoch);
+M0_INTERNAL int m0_ha_epoch_get(struct m0_xcode_obj *obj, uint64_t *epoch);
 
-M0_INTERN void m0_ha_domain_monitor_add(struct m0_ha_domain *dom,
+M0_INTERNAL void m0_ha_domain_monitor_add(struct m0_ha_domain *dom,
 					struct m0_ha_epoch_monitor *mon);
-M0_INTERN void m0_ha_domain_monitor_del(struct m0_ha_domain *dom,
+M0_INTERNAL void m0_ha_domain_monitor_del(struct m0_ha_domain *dom,
 					struct m0_ha_epoch_monitor *mon);
 
 /**
@@ -194,12 +195,12 @@ M0_INTERN void m0_ha_domain_monitor_del(struct m0_ha_domain *dom,
  * The known epoch cannot be changed until the lock is released by calling
  * m0_ha_domain_put_read().
  */
-M0_INTERN uint64_t m0_ha_domain_get_read(struct m0_ha_domain *dom);
+M0_INTERNAL uint64_t m0_ha_domain_get_read(struct m0_ha_domain *dom);
 
 /**
  * Releases the lock acquired by m0_ha_domain_get_read().
  */
-M0_INTERN void m0_ha_domain_put_read(struct m0_ha_domain *dom);
+M0_INTERNAL void m0_ha_domain_put_read(struct m0_ha_domain *dom);
 
 /**
  * Acquires the write lock and returns the known epoch.
@@ -207,7 +208,7 @@ M0_INTERN void m0_ha_domain_put_read(struct m0_ha_domain *dom);
  * The known epoch can be neither modified nor queried until the lock is
  * released by m0_ha_domain_put_write().
  */
-M0_INTERN uint64_t m0_ha_domain_get_write(struct m0_ha_domain *dom);
+M0_INTERNAL uint64_t m0_ha_domain_get_write(struct m0_ha_domain *dom);
 
 /**
  * Releases the lock acquired by m0_ha_domain_get_write() and sets the new known
@@ -220,7 +221,7 @@ M0_INTERN uint64_t m0_ha_domain_get_write(struct m0_ha_domain *dom);
  *
  * @pre epoch >= dom->hdo_epoch
  */
-M0_INTERN void m0_ha_domain_put_write(struct m0_ha_domain *dom, uint64_t epoch);
+M0_INTERNAL void m0_ha_domain_put_write(struct m0_ha_domain *dom, uint64_t epoch);
 
 /**
  * On-wire representation of epoch number.

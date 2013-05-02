@@ -1,5 +1,5 @@
 nobase_mero_include_HEADERS += ha/epoch.h
-mero_libmero_la_SOURCES  += ha/epoch.c \
+mero_libmero_la_SOURCES  += ha/epoch.c
 
 XC_FILES   += ha/epoch_xc.h
 
