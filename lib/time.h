@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -33,18 +33,18 @@
    @{
  */
 
-#ifndef __KERNEL__
-#include "lib/user_space/time.h"
-#else
-#include "lib/linux_kernel/time.h"
-#endif
-
 typedef uint64_t m0_time_t;
 
 enum { M0_TIME_ONE_BILLION = 1000000000ULL };
 
 /** The largest time that is never reached in system life. */
 extern const m0_time_t M0_TIME_NEVER;
+
+#ifndef __KERNEL__
+#include "lib/user_space/time.h"
+#else
+#include "lib/linux_kernel/time.h"
+#endif
 
 /** Create and return a m0_time_t from seconds and nanoseconds. */
 m0_time_t m0_time(uint64_t secs, long ns);

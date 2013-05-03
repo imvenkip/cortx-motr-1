@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -96,6 +96,7 @@ void test_chan(void)
 	int             i;
 	int             j;
 	bool            got;
+	int		rc;
 
 	m0_mutex_init(&mutex);
 	m0_chan_init(&chan, &mutex);
@@ -159,10 +160,12 @@ void test_chan(void)
 	M0_UT_ASSERT(!got);
 
 	/* chan is signaled after 1/10 second. so the wait will return true */
-	m0_timer_init(&timer, M0_TIMER_HARD,
-		      m0_time_from_now(0, M0_TIME_ONE_BILLION/10),
-		      &signal_the_chan_in_timer, (unsigned long)&clink1);
-	m0_timer_start(&timer);
+	rc = m0_timer_init(&timer, M0_TIMER_HARD,
+			   m0_time_from_now(0, M0_TIME_ONE_BILLION/10),
+			   &signal_the_chan_in_timer, (unsigned long)&clink1);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_timer_start(&timer);
+	M0_UT_ASSERT(rc == 0);
 	got = m0_chan_timedwait(&clink1,
 				m0_time_from_now(0, M0_TIME_ONE_BILLION/5));
 	M0_UT_ASSERT(got);

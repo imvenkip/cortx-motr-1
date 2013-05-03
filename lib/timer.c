@@ -67,6 +67,8 @@ enum timer_func {
 };
 
 static const m0_time_t zero_time = M0_MKTIME(0, 0);
+/** Clock source for M0_TIMER_HARD. @see timer_posix_set() */
+static int	       clock_source_timer = -1;
 
 /**
    Typed list of m0_timer_tid structures.
@@ -183,7 +185,7 @@ static int timer_posix_init(struct m0_timer *timer)
 	se.sigev_signo = TIMER_SIGNO;
 	se._sigev_un._tid = timer->t_tid;
 	se.sigev_value.sival_ptr = timer;
-	rc = timer_create(CLOCK_REALTIME, &se, &ptimer);
+	rc = timer_create(clock_source_timer, &se, &ptimer);
 	/* preserve timer->t_ptimer if timer_create() isn't succeeded */
 	if (rc == 0)
 		timer->t_ptimer = ptimer;
@@ -216,6 +218,9 @@ timer_posix_set(struct m0_timer *timer, m0_time_t expire, m0_time_t *old_expire)
 	struct itimerspec ots;
 
 	M0_PRE(timer != NULL);
+
+	if (M0_CLOCK_SOURCE == M0_CLOCK_SOURCE_REALTIME_MONOTONIC)
+		expire -= m0_time_monotonic_offset;
 
 	ts.it_interval.tv_sec = 0;
 	ts.it_interval.tv_nsec = 0;
@@ -557,13 +562,29 @@ M0_INTERNAL bool m0_timer_is_started(const struct m0_timer *timer)
 /**
    Init data structures for hard timer
  */
-M0_INTERNAL int m0_timers_init()
+M0_INTERNAL int m0_timers_init(void)
 {
 	timer_sigaction(TIMER_SIGNO, timer_sighandler);
+
+	switch (M0_CLOCK_SOURCE) {
+	case M0_CLOCK_SOURCE_GTOD:
+		clock_source_timer = CLOCK_REALTIME;
+		break;
+	case M0_CLOCK_SOURCE_REALTIME_MONOTONIC:
+		clock_source_timer = CLOCK_MONOTONIC;
+		break;
+	case M0_CLOCK_SOURCE_REALTIME:
+	case M0_CLOCK_SOURCE_MONOTONIC:
+	case M0_CLOCK_SOURCE_MONOTONIC_RAW:
+		clock_source_timer = M0_CLOCK_SOURCE;
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid clock source for timer");
+	}
 	return 0;
 }
 
-M0_INTERNAL void m0_timers_fini()
+M0_INTERNAL void m0_timers_fini(void)
 {
 }
 

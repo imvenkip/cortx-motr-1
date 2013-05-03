@@ -23,8 +23,6 @@
 #ifndef __MERO_LIB_LINUX_KERNEL_TIME_H__
 #define __MERO_LIB_LINUX_KERNEL_TIME_H__
 
-#include <linux/time.h>
-
 /* __MERO_LIB_LINUX_KERNEL_TIME_H__ */
 #endif
 

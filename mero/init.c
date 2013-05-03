@@ -71,6 +71,9 @@
 #include "mgmt/mgmt.h"
 #include "ha/epoch.h"
 
+M0_INTERNAL int m0_utime_init(void);
+M0_INTERNAL void m0_utime_fini(void);
+
 M0_INTERNAL int m0_memory_init(void);
 M0_INTERNAL void m0_memory_fini(void);
 
@@ -93,6 +96,9 @@ struct init_fini_call {
   subsystems, that are not yet ported to kernel mode.
  */
 struct init_fini_call subsystem[] = {
+#ifndef __KERNEL__
+	{ &m0_utime_init,	&m0_utime_fini,	      "time" },
+#endif
 	{ &m0_trace_init,       &m0_trace_fini,       "trace" },
 	{ &m0_fi_init,          &m0_fi_fini,          "finject" },
 	{ &m0_memory_init,      &m0_memory_fini,      "memory" },

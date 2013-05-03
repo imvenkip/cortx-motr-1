@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -87,11 +87,12 @@ M0_INTERNAL unsigned m0_semaphore_value(struct m0_semaphore *semaphore)
 M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
 					const m0_time_t abs_timeout)
 {
+	m0_time_t	abs_timeout_realtime = m0_time_to_realtime(abs_timeout);
 	struct timespec ts = {
-			.tv_sec  = m0_time_seconds(abs_timeout),
-			.tv_nsec = m0_time_nanoseconds(abs_timeout)
-		};
-	int rc;
+			.tv_sec  = m0_time_seconds(abs_timeout_realtime),
+			.tv_nsec = m0_time_nanoseconds(abs_timeout_realtime)
+	};
+	int		rc;
 
 	do
 		rc = sem_timedwait(&semaphore->s_sem, &ts);

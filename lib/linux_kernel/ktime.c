@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,9 +19,10 @@
  * Original creation date: 12/06/2010
  */
 
-#include "lib/time.h"
-#include "lib/assert.h"  /* M0_CASSERT */
-#include "lib/cdefs.h"   /* M0_EXPORTED */
+#include "lib/time.h"	/* m0_time_t */
+#include "lib/assert.h"	/* M0_ASSERT */
+#include "lib/cdefs.h"	/* M0_EXPORTED */
+
 #include <linux/module.h>
 #include <linux/time.h>
 #include <linux/jiffies.h>
@@ -37,27 +38,34 @@
 
 m0_time_t m0_time_now(void)
 {
-	struct timespec ts = current_kernel_time();
-	return m0_time(ts.tv_sec, ts.tv_nsec);
+	struct timespec ts;
+
+	getnstimeofday(&ts);
+	return M0_MKTIME(ts.tv_sec, ts.tv_nsec);
 }
 M0_EXPORTED(m0_time_now);
 
 /**
    Sleep for requested time
 */
-M0_INTERNAL int m0_nanosleep(const m0_time_t req, m0_time_t *rem)
+int m0_nanosleep(const m0_time_t req, m0_time_t *rem)
 {
 	struct timespec ts = {
 		.tv_sec  = m0_time_seconds(req),
 		.tv_nsec = m0_time_nanoseconds(req)
 	};
-	int rc = 0;
-	unsigned long tj = timespec_to_jiffies(&ts);
+	unsigned long	tj = timespec_to_jiffies(&ts);
+	unsigned long	remtj;
+	struct timespec remts;
 
-	/* this may use TASK_INTERRUPTIBLE to capture signals */
-        set_current_state(TASK_UNINTERRUPTIBLE);
-        schedule_timeout(tj);
-	return rc;
+	/* this may use schedule_timeout_interruptible() to capture signals */
+	remtj = schedule_timeout_uninterruptible(tj);
+	M0_ASSERT(remtj >= 0);
+	if (rem != NULL) {
+		jiffies_to_timespec(remtj, &remts);
+		*rem = m0_time(remts.tv_sec, remts.tv_nsec);
+	}
+	return remtj == 0 ? 0 : -1;
 }
 M0_EXPORTED(m0_nanosleep);
 

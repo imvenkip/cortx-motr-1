@@ -118,8 +118,8 @@ struct m0_timer {
 	timer_t t_ptimer;
 };
 
-M0_INTERNAL int m0_timers_init();
-M0_INTERNAL void m0_timers_fini();
+M0_INTERNAL int m0_timers_init(void);
+M0_INTERNAL void m0_timers_fini(void);
 
 /** @} end of timer group */
 

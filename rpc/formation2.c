@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -443,7 +443,7 @@ static void item_move_to_urgent_queue(struct m0_rpc_frm *frm,
 	enum m0_rpc_frm_itemq_type  qtype;
 	struct m0_tl               *q;
 
-	M0_PRE(item != NULL && item->ri_deadline <= m0_time_now());
+	M0_PRE(item != NULL);
 
 	__itemq_remove(item);
 	qtype = frm_which_qtype(frm, item);

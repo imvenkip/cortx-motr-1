@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -38,7 +38,7 @@ M0_INTERNAL void test_queue(void);
 M0_INTERNAL void test_refs(void);
 M0_INTERNAL void test_rw(void);
 M0_INTERNAL void test_thread(void);
-M0_INTERNAL void test_time(void);
+M0_INTERNAL void m0_ut_time_test(void);
 M0_INTERNAL void test_trace(void);
 M0_INTERNAL void test_vec(void);
 M0_INTERNAL void test_zerovec(void);
@@ -69,7 +69,7 @@ const struct m0_test_suite m0_klibm0_ut = {
 		{ "refs",      test_refs          },
 		{ "rwlock",    test_rw            },
 		{ "thread",    test_thread        },
-		{ "time",      test_time          },
+		{ "time",      m0_ut_time_test	  },
 		{ "trace",     test_trace         },
 		{ "uuid",      m0_test_lib_uuid   },
 		{ "vec",       test_vec           },

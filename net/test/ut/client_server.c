@@ -39,8 +39,7 @@ enum {
 	NTCS_NODES_MAX		  = 128,
 	NTCS_NODE_ADDR_MAX	  = 0x100,
 	NTCS_TIMEOUT		  = 20,
-	/* 20min for debugging in gdb */
-	NTCS_TIMEOUT_GDB	  = 1200,
+	NTCS_TIMEOUT_GDB	  = 1200, /**< 20min for debugging in gdb */
 	NTCS_TMID_CONSOLE4CLIENTS = 2998,
 	NTCS_TMID_CONSOLE4SERVERS = 2999,
 	NTCS_TMID_NODES		  = 3000,
@@ -48,6 +47,7 @@ enum {
 	NTCS_TMID_DATA_CLIENTS    = NTCS_TMID_NODES + NTCS_NODES_MAX * 1,
 	NTCS_TMID_CMD_SERVERS	  = NTCS_TMID_NODES + NTCS_NODES_MAX * 2,
 	NTCS_TMID_DATA_SERVERS    = NTCS_TMID_NODES + NTCS_NODES_MAX * 3,
+	NTCS_ACCEPLABLE_MSG_LOSS  = 20,	/**< 20% */
 };
 
 static struct m0_net_test_node_cfg node_cfg[NTCS_NODES_MAX * 2];
@@ -132,6 +132,23 @@ static void msg_nr_print(const char *prefix,
 {
 	LOGD("%-21s total/failed/bad = %lu/%lu/%lu", prefix,
 	     msg_nr->ntmn_total, msg_nr->ntmn_failed, msg_nr->ntmn_bad);
+}
+
+static bool msg_nr_in_range(size_t nr1, size_t nr2)
+{
+	size_t nr1_x100 = nr1 * 100;
+	return nr1_x100 >= nr2 * (100 - NTCS_ACCEPLABLE_MSG_LOSS) &&
+	       nr1_x100 <= nr2 * (100 + NTCS_ACCEPLABLE_MSG_LOSS);
+}
+
+static void nrchk(struct m0_net_test_msg_nr *nr1,
+		  struct m0_net_test_msg_nr *nr2)
+{
+	size_t total1 = nr1->ntmn_total;
+	size_t total2 = nr2->ntmn_total;
+
+	M0_UT_ASSERT(msg_nr_in_range(total1, total2));
+	M0_UT_ASSERT(msg_nr_in_range(total2, total1));
 }
 
 /*
@@ -299,25 +316,18 @@ static void net_test_client_server(const char *nid,
 	sd_servers = console->ntcc_servers.ntcrc_sd;
 	sd_clients = console->ntcc_clients.ntcrc_sd;
 	/* check stats */
-	/* @todo temporary disabled */
-#if 0
-	M0_UT_ASSERT(sd_servers->ntcsd_msg_nr_send.ntmn_total ==
-		     sd_clients->ntcsd_msg_nr_recv.ntmn_total);
-	M0_UT_ASSERT(sd_servers->ntcsd_msg_nr_recv.ntmn_total ==
-		     sd_clients->ntcsd_msg_nr_send.ntmn_total);
-	M0_UT_ASSERT(sd_servers->ntcsd_bulk_nr_send.ntmn_total ==
-		     sd_clients->ntcsd_bulk_nr_recv.ntmn_total);
-	M0_UT_ASSERT(sd_servers->ntcsd_bulk_nr_recv.ntmn_total ==
-		     sd_clients->ntcsd_bulk_nr_send.ntmn_total);
+	nrchk(&sd_servers->ntcsd_msg_nr_send, &sd_clients->ntcsd_msg_nr_recv);
+	nrchk(&sd_servers->ntcsd_msg_nr_recv, &sd_clients->ntcsd_msg_nr_send);
+	nrchk(&sd_servers->ntcsd_bulk_nr_send, &sd_clients->ntcsd_bulk_nr_recv);
+	nrchk(&sd_servers->ntcsd_bulk_nr_recv, &sd_clients->ntcsd_bulk_nr_send);
 	if (type == M0_NET_TEST_TYPE_BULK) {
 		/*
 		 * number of transfers are not measured on the test server
 		 * for ping test.
 		 */
-		M0_UT_ASSERT(sd_servers->ntcsd_transfers.ntmn_total ==
-			     sd_clients->ntcsd_transfers.ntmn_total);
+		nrchk(&sd_servers->ntcsd_transfers,
+		      &sd_clients->ntcsd_transfers);
 	}
-#endif
 	/* finalize console */
 	m0_net_test_slist_fini(&console_cfg->ntcc_servers);
 	m0_net_test_slist_fini(&console_cfg->ntcc_clients);

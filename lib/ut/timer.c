@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -158,9 +158,9 @@ static void test_timers(enum m0_timer_type timer_type, int nr_timers,
 	/* wait some time */
 	wait = make_time(wait_time_ms);
 	do {
-		(void)m0_nanosleep(wait, &rem);
+		rc = m0_nanosleep(wait, &rem);
 		wait = rem;
-	} while (wait != 0);
+	} while (rc != 0);
 	/* m0_timer_stop() */
 	for (i = 0; i < nr_timers; ++i) {
 		rc = m0_timer_stop(&timers[i]);

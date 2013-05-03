@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -40,7 +40,7 @@ extern void test_queue(void);
 extern void test_refs(void);
 extern void test_rw(void);
 extern void test_thread(void);
-extern void test_time(void);
+extern void m0_ut_time_test(void);
 extern void test_timer(void);
 extern void test_tlist(void);
 extern void test_trace(void);
@@ -72,7 +72,7 @@ const struct m0_test_suite libm0_ut = {
 		{ "queue",     test_queue         },
 		{ "refs",      test_refs          },
 		{ "thread",    test_thread        },
-		{ "time",      test_time          },
+		{ "time",      m0_ut_time_test	  },
 		{ "timer",     test_timer         },
 		{ "tlist",     test_tlist         },
 		{ "trace",     test_trace         },
