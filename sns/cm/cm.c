@@ -549,12 +549,6 @@ static int pm_state(struct m0_sns_cm *scm)
 					  M0_PNDS_SNS_REBALANCING;
 }
 
-/*
-static struct m0_rpc_machine *rpc_machine_find(struct m0_reqh *reqh){
-        return m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
-}
-*/
-
 static int cm_ready_post(struct m0_cm *cm)
 {
         struct m0_reqh          *reqh = cm->cm_service.rs_reqh;
@@ -562,23 +556,15 @@ static int cm_ready_post(struct m0_cm *cm)
         struct m0_cm_aggr_group *lo;
         struct m0_cm_aggr_group *hi;
         struct m0_cm_ag_id       ag_id;
-//        struct m0_rpc_machine   *rmach;
+        struct m0_rpc_machine   *rmach;
         const char              *ep;
         int                      rc;
 
         M0_ENTRY("cm: %p", cm);
         M0_PRE(cm != NULL);
         M0_PRE(m0_cm_is_locked(cm));
-/*
-        rmach = rpc_machine_find(reqh);
-	rc = m0_replicas_connect(cm, rmach, reqh);
-        if (rc != 0) {*/
-		/* There are no remote copy machine replicas. */
-/*		if (rc == -ENOENT)
-			rc = 0;
-		return rc;
-	}
-*/
+
+	rmach = m0_cm_rpc_machine_find(reqh);
         M0_SET0(&ag_id);
         rc = m0_cm_sw_update(cm);
         if(rc != 0)
@@ -639,7 +625,8 @@ static int cm_ready(struct m0_cm *cm)
 		}
 	}
 
-	rc = cm_ready_post(cm);
+	if (m0_cm_proxy_nr(cm) > 0)
+		rc = cm_ready_post(cm);
 
 	M0_LEAVE();
 	return rc;
@@ -886,12 +873,6 @@ static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id *id_curr,
 
 	agid2fid(id_curr, &fid_curr);
 	++group;
-/*
-	if (!m0_fid_is_set(&fid_curr)) {
-		group = 0;
-		m0_fid_set(&fid_curr, 0, 4);
-	}
-*/
 	do {
 		if (sns_cm_fid_is_valid(&fid_curr)) {
 			rc = m0_sns_cm_file_size_layout_fetch(cm, &fid_curr,

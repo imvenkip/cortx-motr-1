@@ -540,9 +540,12 @@ M0_INTERNAL int m0_cm_setup(struct m0_cm *cm)
 	return rc;
 }
 
-M0_INTERNAL int m0_replicas_connect(struct m0_cm *cm,
-				    struct m0_rpc_machine *rmach,
-				    struct m0_reqh *reqh)
+/*
+ * Establishes rpc connection with other remote replicas and allocate local
+ * struct m0_cm_proxy for each of them.
+ */
+static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
+			       struct m0_reqh *reqh)
 {
 	struct m0_mero              *mero = m0_cs_ctx_get(reqh);
 	struct cs_endpoint_and_xprt *ex;
@@ -576,13 +579,16 @@ M0_INTERNAL int m0_replicas_connect(struct m0_cm *cm,
 	return rc;
 }
 
-static struct m0_rpc_machine *rpc_machine_find(struct m0_reqh *reqh){
+M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh)
+{
         return m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
 }
 
 M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 {
-	int rc;
+	struct m0_rpc_machine  *rmach;
+	struct m0_reqh         *reqh = cm->cm_service.rs_reqh;
+	int                     rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(cm != NULL);
@@ -595,8 +601,8 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
         cm->cm_pm = m0_ios_poolmach_get(cm->cm_service.rs_reqh);
         if (cm->cm_pm == NULL)
                 return -EINVAL;
-        rmach = rpc_machine_find(reqh);
-        rc = m0_replicas_connect(cm, rmach, reqh);
+        rmach = m0_cm_rpc_machine_find(reqh);
+        rc = cm_replicas_connect(cm, rmach, reqh);
         if (rc == 0 || rc == -ENOENT)
 		rc = cm->cm_ops->cmo_ready(cm);
 	cm_move(cm, rc, M0_CMS_READY, M0_CM_ERR_READY);
@@ -906,34 +912,6 @@ M0_INTERNAL void m0_cm_buffer_put(struct m0_net_buffer_pool *bp,
 	m0_net_buffer_pool_lock(bp);
 	m0_net_buffer_pool_put(bp, buf, colour);
 	m0_net_buffer_pool_unlock(bp);
-}
-
-static struct m0_cm_type *__cm_type_locate(uint64_t cmt_id)
-{
-	struct m0_cm_type *cmt;
-
-	m0_tl_for(cmtypes, &cmtypes, cmt) {
-		if (cmt->ct_id == cmt_id)
-			return cmt;
-	} m0_tl_endfor;
-
-	return NULL;
-}
-
-M0_INTERNAL struct m0_cm *m0_cmtype_id2cm(uint64_t cmtype_id,
-					  struct m0_reqh *reqh)
-{
-	struct m0_cm_type      *cmt;
-	struct m0_reqh_service *cmsvc;
-
-	M0_PRE(cmtype_id > 0 && reqh != NULL);
-
-	cmt = __cm_type_locate(cmtype_id);
-	if (cmt == NULL)
-		return NULL;
-
-	cmsvc = m0_reqh_service_find(&cmt->ct_stype, reqh);
-	return m0_cmsvc2cm(cmsvc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

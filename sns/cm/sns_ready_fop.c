@@ -68,7 +68,6 @@ M0_INTERNAL struct m0_fop * m0_sns_cm_ready_fop_fill(struct m0_cm *cm,
 
 	fop = m0_fop_alloc(&m0_sns_ready_fopt, NULL);
 	rdfop = m0_fop_data(fop);
-	rdfop->scr_base.r_cmt_id = cm->cm_type->ct_id;
 	rdfop->scr_base.r_sw.sw_lo = *id_lo;
 	rdfop->scr_base.r_sw.sw_hi = *id_hi;
 	rdfop->scr_base.r_cm_ep.ep_size = CS_MAX_EP_ADDR_LEN;

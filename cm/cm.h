@@ -150,12 +150,6 @@ enum {
 
 /** Copy Machine type, implemented as a request handler service. */
 struct m0_cm_type {
-	/**
-	 * Uniquely identifies a copy machine type.
-	 * This is used to associate the generic READY fop to a particular copy
-	 * machine type.
-	 */
-	uint64_t                      ct_id;
 	/** Service type corresponding to this copy machine type. */
 	struct m0_reqh_service_type   ct_stype;
 	/** ADDB ct for this cm type */
@@ -377,9 +371,8 @@ M0_INTERNAL int m0_cm_configure(struct m0_cm *cm, struct m0_fop *fop);
 M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, enum m0_cm_failure failure,
 			    int rc);
 
-#define M0_CM_TYPE_DECLARE(cmtype, id, ops, name, ct) \
+#define M0_CM_TYPE_DECLARE(cmtype, ops, name, ct) \
 struct m0_cm_type cmtype ## _cmt = {                  \
-	.ct_id    = (id),                             \
 	.ct_stype = {                                 \
 		.rst_name    = (name),                \
 		.rst_ops     = (ops),                 \
@@ -428,16 +421,11 @@ M0_INTERNAL void m0_cm_buffer_put(struct m0_net_buffer_pool *bp,
 				  struct m0_net_buffer *buf,
 				  uint64_t colour);
 
-M0_INTERNAL struct m0_cm *m0_cmtype_id2cm(uint64_t cmtype_id,
-					  struct m0_reqh *reqh);
-
 M0_INTERNAL struct m0_cm *m0_cmsvc2cm(struct m0_reqh_service *cmsvc);
 
-M0_INTERNAL int m0_replicas_connect(struct m0_cm *cm,
-				    struct m0_rpc_machine *rmach,
-				    struct m0_reqh *reqh);
-
 M0_INTERNAL void m0_cm_proxies_fini(struct m0_cm *cm);
+
+M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh);
 
 /** @} endgroup CM */
 

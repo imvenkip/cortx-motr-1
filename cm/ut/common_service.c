@@ -228,7 +228,7 @@ static const struct m0_reqh_service_type_ops cm_ut_service_type_ops = {
 	.rsto_service_allocate = cm_ut_service_allocate,
 };
 
-M0_CM_TYPE_DECLARE(cm_ut, 2, &cm_ut_service_type_ops, "cm_ut",
+M0_CM_TYPE_DECLARE(cm_ut, &cm_ut_service_type_ops, "cm_ut",
 		   &m0_addb_ct_ut_service);
 
 struct m0_mero         mero = { .cc_pool_width = 3 };

@@ -46,8 +46,6 @@ struct cm_endpoint {
 } M0_XCA_SEQUENCE;
 
 struct m0_cm_ready {
-	uint64_t           r_cmt_id;
-
 	struct cm_endpoint r_cm_ep;
 
 	/** Replica's sliding window. */

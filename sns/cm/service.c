@@ -31,7 +31,6 @@
 #include "lib/finject.h"
 
 #include "reqh/reqh_service.h"
-#include "cm/cm_types.h"
 #include "sns/sns_addb.h"
 #include "sns/cm/st/trigger_fop.h"
 #include "sns/cm/cm.h"
@@ -66,7 +65,7 @@ static const struct m0_reqh_service_ops svc_ops = {
 	.rso_fini  = svc_fini
 };
 
-M0_CM_TYPE_DECLARE(sns, M0_SNS_CM, &svc_type_ops, "sns_cm",
+M0_CM_TYPE_DECLARE(sns, &svc_type_ops, "sns_cm",
 		   &m0_addb_ct_sns_repair_serv);
 
 extern const struct m0_cm_ops cm_ops;

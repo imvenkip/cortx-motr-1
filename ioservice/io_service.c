@@ -450,7 +450,6 @@ static int ios_start(struct m0_reqh_service *service)
 	struct m0_reqh_io_service *serv_obj;
 
 	M0_PRE(service != NULL);
-	M0_PRE(m0_reqh_lockers_is_empty(service->rs_reqh, ios_cdom_key));
 
 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
 	/** @todo what should be cob dom id? */
