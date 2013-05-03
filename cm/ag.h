@@ -224,9 +224,10 @@ M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_hi(struct m0_cm *cm);
 M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_lo(struct m0_cm *cm);
 
 /**
- * Calculates next relevant (i.e. aggregation group having incoming copy
- * packets) aggregation group identifier by invoking m0_cm_ops::cmo_ag_next().
- * After successfully creating the aggregation group, it is added to the
+ * Advances the sliding window Hi as far as it can, by invoking m0_cm_ops::
+ * cmo_ag_next() until it fails.
+ * For every next relevant (i.e. having incoming copy packets) aggregation
+ * group identifier an aggregation group is created and added to the
  * m0_cm::cm_aggr_group_in list.
  */
 M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm,

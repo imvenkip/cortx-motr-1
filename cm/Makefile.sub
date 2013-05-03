@@ -1,6 +1,5 @@
 nobase_mero_include_HEADERS += cm/ag.h \
                                cm/cm.h \
-                               cm/cm_types.h \
                                cm/cm_addb.h \
                                cm/cp.h \
                                cm/cp_onwire.h \

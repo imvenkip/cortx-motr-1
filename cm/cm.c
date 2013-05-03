@@ -67,9 +67,11 @@
    - @ref CMDLD-lspec
       - @ref CMDLD-lspec-state
       - @ref CMDLD-lspec-cm-setup
+      - @ref CMDLD-lspec-cm-ready
       - @ref CMDLD-lspec-cm-start
          - @ref CMDLD-lspec-cm-cp-pump
          - @ref CMDLD-lspec-cm-active
+      - @ref CMDLD-lspec-cm-sliding-window
       - @ref CMDLD-lspec-cm-stop
       - @ref CMDLD-lspec-cm-fini
       - @ref CMDLD-lspec-thread
@@ -131,9 +133,11 @@
     agents" in @ref CMDLD-ref
    - @ref CMDLD-lspec-state
    - @ref CMDLD-lspec-cm-setup
+   - @ref CMDLD-lspec-cm-ready
    - @ref CMDLD-lspec-cm-start
       - @ref CMDLD-lspec-cm-cp-pump
       - @ref CMDLD-lspec-cm-active
+   - @ref CMDLD-lspec-cm-sliding-window
    - @ref CMDLD-lspec-cm-stop
    - @ref CMDLD-lspec-cm-fini
 
@@ -171,6 +175,14 @@
    service startup, and thus copy machine is finalised during copy machine
    service finalisation.
 
+   @subsection CMDLD-lspec-cm-ready Copy machine ready
+   In case of multiple nodes, every copy machine replica allocates an instance
+   of struct m0_cm_proxy representing a particular remote replica and
+   establishes rpc connection and session with the same.
+   After successfully establishing the rpc connections, copy machine specific
+   m0_cm_ops::cmo_ready() operation is invoked to further setup the specific
+   copy machine data structures.
+
    @subsection CMDLD-lspec-cm-start Copy machine operation start
    After copy machine service is successfully started, it is ready to perform
    its respective tasks (e.g. SNS Repair). On receiving a trigger event (i.e
@@ -197,6 +209,34 @@
    FOPs with its corresponding sliding window information to all its replicas
    in the pool. Every copy machine replica, after receiving READY FOPs from all
    its replicas in the pool, transitions into M0_CMS_ACTIVE state.
+
+   @subsection CMDLD-lspec-cm-sliding-window Copy machine sliding window
+   Generic copy machine infrastructure provides data structures and interfaces
+   which are used to implement sliding window. Copy machine sliding window
+   is based on aggregation group identifiers. Copy machine maintains two lists
+   of aggregation groups,
+   i) aggregation groups having only outgoing copy packets, viz. m0_cm::
+      cm_aggr_grps_out.
+   ii) aggregation groups having only incoming copy packets, viz. m0_cm::
+       cm_aggr_grps_in.
+   @note Both the lists are insertion sorted, in ascending order.
+   Copy machine sliding window is mainly implemented on m0_cm::cm_aggr_grps_in
+   list, i.e. for aggregation groups having incoming copy packets. The idea is
+   that every sender copy machine replica should send copy packet iff the
+   receiving replica is able to receive it. If the receiver is able to receive
+   the copy packet for a particular aggregation group, implies that the
+   corresponding aggregation group is already created, initialised and is
+   present in receiver's m0_cm::cm_aggr_grps_in list.
+   Generic copy machine infrastructure provides interfaces in-order to query
+   and update the sliding window, viz. @ref m0_cm_ag_hi(), @ref m0_cm_ag_lo(),
+   @ref m0_cm_sw_update() and @ref m0_cm_ag_advance(). In addition to generic
+   interfaces a copy machine specific operation m0_cm::cmo_ag_next() is
+   implemented by the specific types of copy machine in-order to calculate the
+   next aggregation group identifier to be processed. This may involve various
+   parameters e.g. memory, network bandwidth, cpu, etc.
+   Sliding window is typically initialised during copy machine startup i.e.
+   M0_CMS_READY phase and updated during finalisation of a completed aggregation
+   group (i.e. aggregation group for which all the copy packets are processed).
 
    @subsection CMDLD-lspec-cm-stop Copy machine stop
    Once operation completes successfully, copy machine performs required tasks,
@@ -536,6 +576,10 @@ M0_INTERNAL int m0_replicas_connect(struct m0_cm *cm,
 	return rc;
 }
 
+static struct m0_rpc_machine *rpc_machine_find(struct m0_reqh *reqh){
+        return m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
+}
+
 M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 {
 	int rc;
@@ -551,7 +595,10 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
         cm->cm_pm = m0_ios_poolmach_get(cm->cm_service.rs_reqh);
         if (cm->cm_pm == NULL)
                 return -EINVAL;
-	rc = cm->cm_ops->cmo_ready(cm);
+        rmach = rpc_machine_find(reqh);
+        rc = m0_replicas_connect(cm, rmach, reqh);
+        if (rc == 0 || rc == -ENOENT)
+		rc = cm->cm_ops->cmo_ready(cm);
 	cm_move(cm, rc, M0_CMS_READY, M0_CM_ERR_READY);
 	m0_cm_unlock(cm);
 

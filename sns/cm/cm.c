@@ -58,9 +58,11 @@
   - @subpage SNSCMDLD-fspec
   - @ref SNSCMDLD-lspec
      - @ref SNSCMDLD-lspec-cm-setup
+     - @ref SNSCMDLD-lspec-cm-ready
      - @ref SNSCMDLD-lspec-cm-start
         - @ref SNSCMDLD-lspec-cm-start-cp-create
      - @ref SNSCMDLD-lspec-cm-data-next
+     - @ref SNSCMDLD-lspec-cm-sliding-window
      - @ref SNSCMDLD-lspec-cm-stop
   - @ref SNSCMDLD-conformance
   - @ref SNSCMDLD-ut
@@ -72,7 +74,7 @@
   @section SNSCMDLD-ovw Overview
   This module implements sns copy machine using generic copy machine
   infrastructure. SNS copy machine is built upon the request handler service.
-  The same SNS copy machine can be configures to perform multiple tasks,
+  The same SNS copy machine can be configured to perform multiple tasks,
   viz.repair and rebalance using parity de-clustering layout.
   SNS copy machine is typically started during Mero process startup, although
   it can also be started later.
@@ -85,11 +87,17 @@
   <hr>
   @section SNSCMDLD-req Requirements
   - @b r.sns.cm.buffer.acquire The implementation should efficiently provide
-    buffers for the repair operation without any deadlock.
+    buffers for the repair as well as re-balance operation without any deadlock.
 
   - @b r.sns.cm.sliding.window The implementation should efficiently use
     various copy machine resources using sliding window during copy machine
     operation, e.g. memory, cpu, etc.
+
+  - @b r.sns.cm.sliding.window.init The implementation should efficiently
+    communicate the initial sliding window to other replicas in the cluster.
+
+  - @b r.sns.cm.sliding.window.update The implementation should efficiently
+    update the sliding window to other replicas during repair.
 
   - @b r.sns.cm.data.next The implementation should efficiently select next
     data to be processed without causing any deadlock or bottle neck.
@@ -125,11 +133,18 @@
     other sns repair specific objects.
   - SNS copy machine defines its specific aggregation group data structure which
     embeds generic aggregation group.
-  - Once initialised SNS copy machine remains idle until failure happens.
+  - Once initialised SNS copy machine remains idle until failure is reported.
   - SNS buffer pool provisioning is done when operation starts.
   - SNS copy machine creates copy packets only if free buffers are available in
     the outgoing buffer pool.
   - Failure triggers SNS copy machine to start repair operation.
+  - For multiple nodes, SNS copy machine maintains a local proxy of every other
+    remote replica in the cluster.
+  - For multiple nodes, SNS copy machine calculates its initial sliding window
+    and communicates it to other replicas identified by the local proxies through
+    READY FOPs.
+  - During the operation the sliding window updates are piggy backed along with
+    the outgoing copy packets and their replies.
   - Once repair operation is complete, the rebalance operation can start if
     there exist a new device corresponding to the lost device. Thus the same
     copy machine is configured to perform re-balance operation.
@@ -145,9 +160,11 @@
   <hr>
   @section SNSCMDLD-lspec Logical specification
   - @ref SNSCMDLD-lspec-cm-setup
+  - @ref SNSCMDLD-lspec-cm-ready
   - @ref SNSCMDLD-lspec-cm-start
      - @ref SNSCMDLD-lspec-cm-start-cp-create
   - @ref SNSCMDLD-lspec-cm-data-next
+  - @ref SNSCMDLD-lspec-cm-sliding-window
   - @ref SNSCMDLD-lspec-cm-stop
 
   @subsection SNSCMDLD-lspec-comps Component overview
@@ -175,6 +192,19 @@
   re-balance operation, iff there exist a new device/s corresponding to the lost
   device/s. In re-balance operation the data from the spare units of the repaired
   parity groups is copied to the new device using the layout.
+
+  @subsection SNSCMDLD-lspec-cm-ready Copy machine ready
+  After creating proxies representing the remote replicas, sns copy machine
+  calculates its local sliding window (i.e lo and hi aggregation group
+  identifiers). Then for each remote replica the READY FOPs are allocated and
+  initialised with the calculated sliding window. The sns copy machine then
+  broadcasts these READY FOPs to every remote replica using the rpc connection
+  in the corresponding m0_cm_proxy. A READY FOP is a one-way fop and thus do not
+  have a reply associated with it. Once every replica receives READY FOPs from
+  all the corresponding remote replicas, the sns copy machine is ready to start
+  the repair/re-balance operation.
+  @see struct m0_cm_ready
+  @see cm_ready_post()
 
   @subsection SNSCMDLD-lspec-cm-start Copy machine startup
   The SNS specific start routine provisions the buffer pools, viz. m0_sns_cm::
@@ -224,6 +254,35 @@
   belonging to the lost device are iterated, where as for SNS re-balance
   operation only the spare units from the repaired parity groups are iterated.
 
+  @subsection SNSCMDLD-lspec-cm-sliding-window Copy machine sliding window
+  SNS copy machine implements sliding window using struct m0_cm::cm_aggr_grps_in
+  list for aggregation groups having incoming copy packets.
+  SNS copy machine implements the copy machine specific m0_cm::cmo_ag_next()
+  operation to calculate the next relevant aggregation group identifier.
+  Following algorithm illustrates the implementation of m0_cm::cmo_ag_next(),
+
+  1) extract GOB (file identifier) G from the given aggregation group identifier A
+  2) extract parity group identifier P from A
+  3) increment P to process next group
+  4) if G = 0
+    - set G to first valid file identifier.
+    - reset P to 0 (to start from the first parity group of the file)
+  5) if G is valid (i.e. G is not any of the reserved file identifier e.g.
+    M0_COB_ROOT_FID)
+    - fetch layout and file size for G
+    - calculate total number of parity groups Sn for G
+    - for each parity group P' until eof of G (p < p' < Sn)
+      - setup aggregation group identifier A' using G and P
+      - If P' is relevant aggregation group (has spare unit on any of the local
+					     COBs)
+      - If copy machine has space (has enough buffers for all the incoming copy
+				   packets)
+      - return A'
+  6) else reset P to 0, fetch next G from aux-db and repeat from step 5
+  m0_cm_ops::cmo_ag_next() is invoked from m0_cm_ag_advance() in a loop until
+  m0_cm_ops::cmo_ag_next() returns valid next relevant aggregation group
+  identifier.
+
   @subsection SNSCMDLD-lspec-cm-stop Copy machine stop
   Once all the COBs (i.e. component objects) corresponding to the GOBs (i.e
   global file objects) belonging to the failure set are re-structured (repair or
@@ -253,9 +312,15 @@
   packets. The respective buffer pools are provisioned during the start of
   the copy machine operation.
 
-  @b i.sns.cm.sliding.window SNS copy machine implements its specific sliding
-  window operations to efficiently manage its resources and communicate with
-  other copy machine replicas.
+  @b i.sns.cm.sliding.window SNS copy machine implements the sliding window
+  using the struct m0_cm::cm_aggr_grps_in list for aggregation groups having
+  incoming copy packets.
+
+  @b i.sns.cm.sliding.window.init SNS copy machine calculates and communicates
+  the initial sliding window in M0_CMS_READY phase through READY FOPs.
+
+  @b i.sns.cm.sliding.window.update SNS copy machine piggy backs the sliding
+  window with every outgoing copy packet during the operation.
 
   @b i.sns.cm.data.next SNS copy machine implements a next function using cob
   name space iterator and pdclust layout infrastructure to select the next data
@@ -484,9 +549,11 @@ static int pm_state(struct m0_sns_cm *scm)
 					  M0_PNDS_SNS_REBALANCING;
 }
 
+/*
 static struct m0_rpc_machine *rpc_machine_find(struct m0_reqh *reqh){
         return m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
 }
+*/
 
 static int cm_ready_post(struct m0_cm *cm)
 {
@@ -495,23 +562,23 @@ static int cm_ready_post(struct m0_cm *cm)
         struct m0_cm_aggr_group *lo;
         struct m0_cm_aggr_group *hi;
         struct m0_cm_ag_id       ag_id;
-        struct m0_rpc_machine   *rmach;
+//        struct m0_rpc_machine   *rmach;
         const char              *ep;
         int                      rc;
 
         M0_ENTRY("cm: %p", cm);
         M0_PRE(cm != NULL);
         M0_PRE(m0_cm_is_locked(cm));
-
+/*
         rmach = rpc_machine_find(reqh);
 	rc = m0_replicas_connect(cm, rmach, reqh);
-        if (rc != 0) {
+        if (rc != 0) {*/
 		/* There are no remote copy machine replicas. */
-		if (rc == -ENOENT)
+/*		if (rc == -ENOENT)
 			rc = 0;
 		return rc;
 	}
-
+*/
         M0_SET0(&ag_id);
         rc = m0_cm_sw_update(cm);
         if(rc != 0)
@@ -819,10 +886,12 @@ static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id *id_curr,
 
 	agid2fid(id_curr, &fid_curr);
 	++group;
+/*
 	if (!m0_fid_is_set(&fid_curr)) {
 		group = 0;
 		m0_fid_set(&fid_curr, 0, 4);
 	}
+*/
 	do {
 		if (sns_cm_fid_is_valid(&fid_curr)) {
 			rc = m0_sns_cm_file_size_layout_fetch(cm, &fid_curr,

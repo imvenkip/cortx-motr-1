@@ -101,8 +101,9 @@
  *   - @b r.cm.cp.bulk_transfer All data packets (except control packets) that
  *	  are sent over RPC should use bulk-interface for communication.
  *
- *   - @b r.cm.cp.fom.locality Copy packet FOMs belonging to the same
- *        aggregation group, should  be assigned same request handler locality.
+ *   - @b r.cm.cp.fom.locality Copy packet FOMs should be efficiently assigned
+ *        request handler locality without causing any deadlock or data
+ *        corruption.
  *
  *   - @b r.cm.addb Copy packet should have its own addb context, (similar to
  *	  fop), although it uses different addb locations, this will trace the
@@ -163,7 +164,7 @@
  *   one) are ready to process.
  *
  *   Copy packet is created when,
- *      - replica starts. Tt should be made sure that sliding window has enough
+ *      - replica starts. It should be made sure that sliding window has enough
  *        packets for processing by creating them at start.
  *
  *      - has space. After completion of each copy packet, space in sliding
@@ -200,7 +201,7 @@
  *   e.g. In case of SNS Repair, copy machine creates 2 buffer pools, for
  *   incoming and outgoing copy packets. Based on the availability of buffers
  *   in these buffer pools, new copy packets are created. On finalisation of
- *   a copy packet, the corresponding buffer is released back to the respective
+ *   a copy packet, the corresponding buffers are released back to the respective
  *   buffer pool.
  *
  *   @subsection CPDLD-lspec-state State Specification
@@ -208,8 +209,8 @@
  *   <b>Copy packet is a state machine that goes through following phases:</b>
  *
  *   - @b INIT        Copy packet gets initialised with input data. e.g In SNS,
- *		      extent, COB, &c gets initialised. Usually this will be
- *		      done with some iterator over layout info.
+ *		      extent, COB, &c gets initialised. Usually this is done with some
+ *		      iterator over layout info.
  *		      (m0_cm_cp_phase::M0_CCP_INIT)
  *
  *   - @b READ        Reads data from its associated container or device according

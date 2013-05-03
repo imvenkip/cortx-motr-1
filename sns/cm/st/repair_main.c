@@ -93,7 +93,9 @@ int main(int argc, char *argv[])
 	int                    i;
 
 	rc = M0_GETOPTS("repair", argc, argv,
-			M0_FORMATARG('O', "Operation, i.e. SNS_REPAIR = 2 or SNS_REBALANCE = 4", "%u", &op),
+			M0_FORMATARG('O',
+				     "Operation, i.e. SNS_REPAIR = 2 or SNS_REBALANCE = 4",
+				     "%u", &op),
 			M0_FORMATARG('F', "Failure device", "%lu", &fdata),
 			M0_STRINGARG('C', "Client endpoint",
 				LAMBDA(void, (const char *str){

@@ -80,6 +80,8 @@
    @subsection CMDLD-fspec-sub-opi Operational Interfaces
    Lists the various external interfaces exported by the copy machine.
    - m0_cm_setup()		     Setup a copy machine.
+   - m0_cm_ready()                   Synchronizes copy machine with remote
+				     replicas.
    - m0_cm_start()                   Starts copy machine operation.
    - m0_cm_fail()		     Handles a copy machine failure.
    - m0_cm_stop()		     Completes and aborts a copy machine
