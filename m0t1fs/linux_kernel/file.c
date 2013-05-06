@@ -829,7 +829,8 @@ static struct m0_sm_state_descr io_states[] = {
 	[IRS_READ_COMPLETE]     = {
 		.sd_name        = "IO_read_complete",
 		.sd_allowed     = M0_BITS(IRS_WRITING, IRS_REQ_COMPLETE,
-			                  IRS_DEGRADED_READING, IRS_FAILED)
+			                  IRS_DEGRADED_READING, IRS_FAILED,
+					  IRS_READING)
 	},
 	[IRS_DEGRADED_READING]  = {
 		.sd_name        = "IO_degraded_read",
@@ -2293,7 +2294,8 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 	 * simple_read: Reads unavailable data subject to condition that
 	 * data lies within file size. Parity also has to be read.
 	 */
-	M0_ENTRY("parity group id %llu", map->pi_grpid);
+	M0_ENTRY("parity group id %llu, state = %d",
+		 map->pi_grpid, map->pi_state);
 	M0_PRE(pargrp_iomap_invariant(map));
 
 	inode = map->pi_ioreq->ir_file->f_dentry->d_inode;
@@ -2352,8 +2354,11 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 			 * degraded mode.
 			 */
 			if (M0_IN(map->pi_rtype, (PIR_READOLD, PIR_NONE)) &&
-			    within_eof)
+			    within_eof) {
 				dbuf->db_flags |= PA_DGMODE_READ;
+				M0_LOG(M0_DEBUG, "[%u][%u], flag = %d\n",
+					row, col, dbuf->db_flags);
+			}
 		}
 	}
 
@@ -2879,7 +2884,11 @@ static int ioreq_dgmode_recover(struct io_request *req)
 	M0_RETURN(rc);
 }
 
-static int dgmode_check(struct io_request *req)
+/*
+ * Returns number of failed devices or -EIO if number of failed devices exceed
+ * the value of K (number of spare devices in parity group).
+ */
+static int device_check(struct io_request *req)
 {
 	int                       rc = 0;
 	uint32_t                  st_cnt = 0;
@@ -2890,14 +2899,10 @@ static int dgmode_check(struct io_request *req)
 
 	M0_ENTRY();
 	M0_PRE(req != NULL);
-	M0_PRE(M0_IN(ioreq_sm_state(req), (IRS_DEGRADED_READING,
-					   IRS_DEGRADED_WRITING)));
+	M0_PRE(M0_IN(ioreq_sm_state(req), (IRS_READ_COMPLETE,
+					   IRS_WRITE_COMPLETE)));
 	csb = file_to_sb(req->ir_file);
 
-	/*
-	 * Looks up failed target_ioreq structure/s and failed
-	 * IO fop/s in failed target_ioreq structure/s.
-	 */
 	m0_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
 		rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
 				              ti->ti_fid.f_container, &state);
@@ -2920,23 +2925,7 @@ static int dgmode_check(struct io_request *req)
 			  " data units exceed number of parity units in"
 			  " parity group");
 
-	/*
-	 * If none of the target objects lie in states like
-	 * { M0_PNDS_FAILED, M0_PNDS_OFFLINE, M0_PNDS_SNS_REPAIRING }
-	 * the repair process has passed beyond the last state from this set
-	 * (M0_PNDS_SNS_REPAIRING) and the lost data is restored on the
-	 * spare units. Hence degraded mode is not necessary any more.
-	 * Instead, data can be read directly from spare units.
-	 * Ergo, returning -EAGAIN from here which will create new
-	 * io_request and will try to do IO once again.
-	 */
-	if (st_cnt == 0) {
-		m0_poolmach_event_list_dump(csb->csb_pool.po_mach);
-		m0_poolmach_device_state_dump(csb->csb_pool.po_mach);
-		M0_RETERR(-EAGAIN, "Failed to trigger degraded mode since"
-			  " no target device is in required state.");
-	}
-	return rc;
+	M0_RETURN(st_cnt);
 }
 
 static int ioreq_dgmode_write(struct io_request *req, bool rmw)
@@ -2947,11 +2936,15 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	M0_ENTRY();
 	M0_PRE(io_request_invariant(req));
 
-	ioreq_sm_state_set(req, IRS_DEGRADED_WRITING);
-	rc = dgmode_check(req);
-	if (rc != 0)
-		M0_RETERR(rc, "Degraded mode check failed");
+	/* See ioreq_dgmode_read() for comments. */
+	rc = device_check(req);
+	if (req->ir_nwxfer.nxr_rc !=
+	    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
+		M0_RETURN(rc < 0 ? rc : req->ir_nwxfer.nxr_rc);
+	else if (rc < 0)
+		M0_RETURN(rc);
 
+	ioreq_sm_state_set(req, IRS_DEGRADED_WRITING);
 	/*
 	 * This IO request has already acquired distributed lock on the
 	 * file by this time.
@@ -2963,10 +2956,9 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	 * In first use-case, repair is yet to start on file. Hence,
 	 * rest of the file data which goes on healthy devices can be
 	 * written safely.
-	 * In this case, the fops meant for failed device(s) will not be sent
-	 * on wire but will be used to recalculate parity and rest of the fops
-	 * will be sent to respective ioservice instances for writing data
-	 * to servers.
+	 * In this case, the fops meant for failed device(s) will be simply
+	 * dropped and rest of the fops will be sent to respective ioservice
+	 * instances for writing data to servers.
 	 * Later when this IO request relinquishes the distributed lock on
 	 * associated global fid and SNS repair starts on the file, the lost
 	 * data will be regenerated using parity recovery algorithms.
@@ -2974,11 +2966,10 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	 * The second use-case implies completion of SNS repair for associated
 	 * global fid and the lost data is regenerated on distributed spare
 	 * units.
-	 * Ergo, all the file data and/or parity meant for lost device(s)
-	 * will be redirected towards corresponding spare unit(s).
-	 * Later when SNS rebalance phase commences, it will migrate the data
-	 * from spare to a new device, thus making spare available for
-	 * recovery again.
+	 * Ergo, all the file data meant for lost device(s) will be redirected
+	 * towards corresponding spare unit(s). Later when SNS rebalance phase
+	 * commences, it will migrate the data from spare to a new device, thus
+	 * making spare available for recovery again.
 	 * In this case, old fops will be discarded and all pages spanned by
 	 * IO request will be reshuffled by redirecting pages meant for
 	 * failed device(s) to its corresponding spare unit(s).
@@ -2987,6 +2978,7 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 					    SRS_REPAIR_DONE)));
 	req->ir_nwxfer.nxr_rc = 0;
 	req->ir_rc = req->ir_nwxfer.nxr_rc;
+
 	if (req->ir_sns_state == SRS_REPAIR_NOTDONE) {
 		/*
 		 * Resets count of data bytes and parity bytes along with
@@ -3036,10 +3028,68 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	M0_ENTRY();
 	M0_PRE(io_request_invariant(req));
 
-	ioreq_sm_state_set(req, IRS_DEGRADED_READING);
-	rc = dgmode_check(req);
-	if (rc != 0)
-		M0_RETERR(rc, "Degraded mode check failed");
+	rc = device_check(req);
+	/*
+	 * Possible combinations of return value of device_check()
+	 * represented by rc here and req->ir_nwxfer.nxr_rc.
+	 *
+	 * Note:
+	 * - IO request does not _complete_ (does not issue IO request to
+	 *   stob) when req->ir_nwxfer.nxr_rc ==
+	 *   M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH.
+	 * - device_check() returns number of failed devices if it is less than
+	 *   layout_k() else returns -EIO.
+	 *
+	 * Following use cases are logical conjunction of with the common case
+	 * mentioned below.
+	 *
+	 * Common case:
+	 * req->ir_nwxfer.nxr_rc != M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH
+	 * Ergo, last issued IO request has _completed_ (succeeded or failed)
+	 *
+	 * 1. rc == 0.
+	 *    This implies no devices failed
+	 *    So degraded mode IO need not be scheduled.
+	 *    Hence req->ir_nwxfer.nxr_rc is returned to user.
+	 *
+	 * 2. 0 < rc < layout_k().
+	 *    This implies there are one/more failed devices but less than
+	 *    K, hence they can be recovered.
+	 *    Hence req->ir_nwxfer.nxr_rc is returned to user.
+	 *
+	 * 3. rc < 0.
+	 *    This implies there are more than K number of devices
+	 *    failed altogether and hence IO can not be recovered.
+	 *    Hence, rc (typically -EIO) is returned to user.
+	 *
+	 * Common case:
+	 * req->ir_nwxfer.nxr_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH
+	 * Ergo, last issued IO request did not complete.
+	 *
+	 * 4. rc == 0.
+	 *    This implies no devices failed.
+	 *    Hence, IO request needs to be issued again and degraded mode
+	 *    IO is necessary.
+	 *    The result of degraded mode processing is returned to user.
+	 *
+	 * 5. 0 < rc < layout_k().
+	 *    This implies one/more devices failed but less than K, hence
+	 *    they can be recovered.
+	 *    Hence, IO request needs to be issued again and degraded mode
+	 *    IO is necessary.
+	 *    Result of degraded mode processing is returned to user.
+	 *
+	 * 6. rc < 0.
+	 *    This implies more than K number of devices failed and hence
+	 *    IO request can not be recovered and last issued IO request
+	 *    has not completed.
+	 *    Hence rc (typically -EIO) is returned to user.
+	 */
+	if (req->ir_nwxfer.nxr_rc !=
+	    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
+		M0_RETURN(rc < 0 ? rc : req->ir_nwxfer.nxr_rc);
+	else if (rc < 0)
+		M0_RETURN(rc);
 
 	csb = file_to_sb(req->ir_file);
 	m0_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
@@ -3060,6 +3110,8 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 		 * (subject to file size) in order to re-generate lost data.
 		 */
 		m0_tl_for (iofops, &ti->ti_iofops, irfop) {
+			if (ioreq_sm_state(req) == IRS_READ_COMPLETE)
+				ioreq_sm_state_set(req, IRS_DEGRADED_READING);
 			rc = irfop->irf_ops->irfo_dgmode_read(irfop);
 			if (rc != 0)
 				break;
@@ -3078,15 +3130,14 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 
 	req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, rmw);
 
-	/* Resets the status code before starting degraded mode read IO. */
-	if (req->ir_nwxfer.nxr_rc ==
-	    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
-		req->ir_nwxfer.nxr_rc = 0;
-	req->ir_rc = req->ir_nwxfer.nxr_rc;
-
 	rc = req->ir_nwxfer.nxr_ops->nxo_distribute(&req->ir_nwxfer);
 	if (rc != 0)
 		M0_RETERR(rc, "Failed to prepare dgmode IO fops.");
+
+	/* Resets the status code before starting degraded mode read IO. */
+	if (req->ir_nwxfer.nxr_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
+		req->ir_nwxfer.nxr_rc = 0;
+	req->ir_rc = req->ir_nwxfer.nxr_rc;
 
 	rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->ir_nwxfer);
 	if (rc != 0)
@@ -3107,7 +3158,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	M0_RETURN(rc);
 }
 
-/* @todo Use actual rm lock interfaces as and when they are available. */
+/** @todo Use actual rm lock interfaces as and when they are available. */
 static void ioreq_file_lock(struct io_request *req)
 {
 	M0_PRE(req != NULL);
@@ -3147,7 +3198,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 	rc = ioreq_sm_timedwait(req, IRS_LOCK_ACQUIRED);
 	if (rc != 0)
 		goto fail;
-		*/
+	*/
 
 	/* @todo Do error handling based on m0_sm::sm_rc. */
 	/*
@@ -3189,18 +3240,14 @@ static int ioreq_iosm_handle(struct io_request *req)
 			goto fail;
 		}
 		if (state == IRS_READ_COMPLETE) {
-			/*
-			 * Degraded mode read IO kicks in when existing read IO
-			 * request fails with error code
-			 * M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH.
-			 */
-			if (req->ir_nwxfer.nxr_rc ==
-			    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 
-				rc = req->ir_ops->iro_dgmode_read(req, rmw);
-				if (rc != 0)
-					goto fail;
-			}
+			/*
+			 * Returns immediately if all devices are
+			 * in healthy state.
+			 */
+			rc = req->ir_ops->iro_dgmode_read(req, rmw);
+			if (rc != 0)
+				goto fail;
 
 			rc = req->ir_ops->iro_user_data_copy(req,
 					CD_COPY_TO_USER, 0);
@@ -3208,12 +3255,13 @@ static int ioreq_iosm_handle(struct io_request *req)
 				goto fail;
 		} else {
 			M0_ASSERT(state == IRS_WRITE_COMPLETE);
-			if (req->ir_nwxfer.nxr_rc ==
-			    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
-				rc = req->ir_ops->iro_dgmode_write(req, rmw);
-				if (rc != 0)
-					goto fail;
-			}
+			/*
+			 * Returns immediately if all devices are
+			 * in healthy state.
+			 */
+			rc = req->ir_ops->iro_dgmode_write(req, rmw);
+			if (rc != 0)
+				goto fail;
 		}
 	} else {
 		uint32_t    seg;
@@ -3258,18 +3306,14 @@ static int ioreq_iosm_handle(struct io_request *req)
 				rc = res != 0 ? res : rc;
 				goto fail;
 			}
-			/*
-			 * Degraded mode read IO kicks in when existing read IO
-			 * request fails with error code
-			 * M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH.
-			 */
-			if (req->ir_nwxfer.nxr_rc ==
-			    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 
-				rc = req->ir_ops->iro_dgmode_read(req, rmw);
-				if (rc != 0)
-					goto fail;
-			}
+			/*
+			 * Returns immediately if all devices are
+			 * in healthy state.
+			 */
+			rc = req->ir_ops->iro_dgmode_read(req, rmw);
+			if (rc != 0)
+				goto fail;
 		}
 
 		/* Copies
@@ -3301,6 +3345,11 @@ static int ioreq_iosm_handle(struct io_request *req)
 		rc = ioreq_sm_timedwait(req, IRS_WRITE_COMPLETE);
 		if (rc != 0)
 			goto fail;
+
+		/* Returns immediately if all devices are in healthy state. */
+		rc = req->ir_ops->iro_dgmode_write(req, rmw);
+		if (rc != 0)
+			goto fail;
 	}
 
 	/*
@@ -3319,10 +3368,11 @@ static int ioreq_iosm_handle(struct io_request *req)
 
 	req->ir_ops->iro_file_unlock(req);
 	/*
+	 * Will be uncommented as and when RM locks code is available.
 	rc = ioreq_sm_timedwait(req, IRS_LOCK_RELINQUISHED);
 	if (rc != 0)
 		goto fail;
-		*/
+	*/
 
 	req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, rmw);
 
@@ -3492,10 +3542,13 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	 * pages meant for failed device(s) are redirected towards
 	 * spare device(s).
 	 */
-	if (device_state == M0_PNDS_SNS_REPAIRED ||
+	M0_LOG(M0_INFO, "device state = %d\n", device_state);
+	if (M0_IN(device_state,
+		  (M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED)) ||
 	    (ioreq_sm_state(req) == IRS_DEGRADED_WRITING &&
 	     req->ir_sns_state   == SRS_REPAIR_DONE &&
 	     device_state        != M0_PNDS_ONLINE)) {
+		M0_LOG(M0_INFO, "entered if\n");
 		rc = m0_poolmach_sns_repair_spare_query(csb->csb_pool.po_mach,
 							tfid.f_container,
 							&spare_slot);
@@ -3967,6 +4020,7 @@ again:
 		M0_RETERR(-ENOMEM, "Failed to allocate memory for io_request");
 	++iommstats.a_ioreq_nr;
 
+	printk("Initial inode size = %llu\n", kcb->ki_filp->f_dentry->d_inode->i_size);
 	rc = io_request_init(req, kcb->ki_filp, iov, ivec, rw);
 	if (rc != 0) {
 		count = 0;
@@ -4146,7 +4200,7 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	                       M0T1FS_ADDB_LOC_AIO_READ);
 	if (ivec == NULL) {
 		M0_LEAVE();
-		return 0;
+		M0_RETURN(0);
 	}
 
 	/*
@@ -4169,7 +4223,7 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	if (m0_vec_count(&ivec->iv_vec) == 0) {
 		m0_indexvec_free(ivec);
 		m0_free(ivec);
-		return 0;
+		M0_RETURN(0);
 	}
 
 	M0_LOG(M0_INFO, "Read vec-count = %llu", m0_vec_count(&ivec->iv_vec));
@@ -4353,7 +4407,6 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_fop              *reply_fop = NULL;
 	struct m0_rpc_item         *req_item;
 	struct m0_rpc_item         *reply_item;
-	enum sns_repair_state       sns_state;
 	struct m0_fop_cob_rw_reply *rw_reply;
 
 	M0_ENTRY("sm_group %p sm_ast %p", grp, ast);
@@ -4381,21 +4434,13 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	rw_reply  = io_rw_rep_get(reply_fop);
 	rc        = rw_reply->rwr_rc;
 	M0_LOG(M0_INFO, "reply received = %d\n", rw_reply->rwr_rc);
-	sns_state = rw_reply->rwr_repair_done;
-	/*
-	 * If io_request::ir_sns_state holds a valid sns state,
-	 * same state must be confirmed by every other
-	 * IO reply fop.
-	 */
-	M0_ASSERT(ergo(req->ir_sns_state != SRS_UNINITIALIZED,
-		       req->ir_sns_state == sns_state));
+	req->ir_sns_state = rw_reply->rwr_repair_done;
 
 	if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 		M0_ASSERT(rw_reply != NULL);
 		M0_LOG(M0_INFO, "VERSION_MISMATCH received on fid %llu:%llu\n",
 		       tioreq->ti_fid.f_container, tioreq->ti_fid.f_key);
 		failure_vector_mismatch(irfop);
-		rc = -EAGAIN;
 		irfop->irf_reply_rc = rc;
 	}
 
@@ -4819,7 +4864,11 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					continue;
 				} else if (rc == 0) {
 					++bbsegs;
-					M0_LOG(M0_INFO, "pageaddr = %p, index = %llu, count = %llu\n", bvec->ov_buf[buf], INDEX(ivec, buf), COUNT(ivec, buf));
+					M0_LOG(M0_INFO, "pageaddr = %p, "
+					       "index = %llu, count = %llu\n",
+					       bvec->ov_buf[buf],
+					       INDEX(ivec, buf),
+					       COUNT(ivec, buf));
 				}
 			}
 			++buf;
