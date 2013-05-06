@@ -264,21 +264,19 @@
   1) extract GOB (file identifier) G from the given aggregation group identifier A
   2) extract parity group identifier P from A
   3) increment P to process next group
-  4) if G = 0
-    - set G to first valid file identifier.
-    - reset P to 0 (to start from the first parity group of the file)
-  5) if G is valid (i.e. G is not any of the reserved file identifier e.g.
-    M0_COB_ROOT_FID)
-    - fetch layout and file size for G
-    - calculate total number of parity groups Sn for G
-    - for each parity group P' until eof of G (p < p' < Sn)
-      - setup aggregation group identifier A' using G and P
-      - If P' is relevant aggregation group (has spare unit on any of the local
-					     COBs)
-      - If copy machine has space (has enough buffers for all the incoming copy
-				   packets)
-      - return A'
-  6) else reset P to 0, fetch next G from aux-db and repeat from step 5
+  4) if G is valid (i.e. G is not any of the reserved file identifier e.g.
+		    M0_COB_ROOT_FID)
+	- fetch layout and file size for G
+	- calculate total number of parity groups Sn for G
+	- for each parity group P' until eof of G (p < p' < Sn)
+	- setup aggregation group identifier A' using G and P
+	- If P' is relevant aggregation group (has spare unit on any of the local
+					       COBs)
+	- If copy machine has space (has enough buffers for all the incoming copy
+				     packets)
+	- return A'
+  5) else reset P to 0, fetch next G from aux-db and repeat from step 5
+
   m0_cm_ops::cmo_ag_next() is invoked from m0_cm_ag_advance() in a loop until
   m0_cm_ops::cmo_ag_next() returns valid next relevant aggregation group
   identifier.
