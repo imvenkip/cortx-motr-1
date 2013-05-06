@@ -3,4 +3,4 @@ mero_libmero_la_SOURCES  += ha/epoch.c ha/epoch_xc.c
 
 XC_FILES   += ha/epoch_xc.h
 
-CLEANFILES += ha/epoch_xc.h ha/epoch_xc.c
+CLEANFILES += ha/epoch_xc.h ha/epoch_xc.c ha/epoch.gccxml
