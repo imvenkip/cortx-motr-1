@@ -257,10 +257,6 @@ for c in garbage premature_eof duplicated_ids no_fs_data bad_fs_params; do
     _mount local $c 2>/dev/null && error 'Failed to fail'
 done
 
-# Restart services in order for confd to appear.
-services_stop
-services_start
-
 ## -------------------------------------------------------------------
 say 'Suite: successes'
 
