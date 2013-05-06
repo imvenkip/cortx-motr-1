@@ -57,6 +57,7 @@ static struct m0_reqh   *reqh;
 static struct m0_reqh_service  *service;
 static struct m0_cm     *cm;
 static struct m0_sns_cm *scm;
+static struct m0_clink   sc_wait_clink;
 
 static void service_start_success(void)
 {
@@ -103,6 +104,10 @@ static void iter_setup(void)
 	scm = cm2sns(cm);
 	scm->sc_op = SNS_REPAIR;
 	scm->sc_it.si_fdata = &fdata;
+	m0_mutex_lock(&scm->sc_wait_mutex);
+	m0_clink_init(&sc_wait_clink, NULL);
+	m0_clink_add(&scm->sc_wait, &sc_wait_clink);
+	m0_mutex_unlock(&scm->sc_wait_mutex);
 	rc = m0_cm_ready(cm);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_cm_start(cm);
@@ -277,6 +282,11 @@ static void iter_stop(uint64_t nr_files, uint64_t pool_width)
 	/* Destroy previously created aggregation groups manually. */
 	ag_destroy();
 	m0_cm_unlock(cm);
+	/* Wait for pump FOM to complete. */
+	m0_chan_wait(&sc_wait_clink);
+	m0_mutex_lock(&scm->sc_wait_mutex);
+	m0_clink_del(&sc_wait_clink);
+	m0_mutex_unlock(&scm->sc_wait_mutex);
 	m0_cm_stop(cm);
 	cobs_delete(nr_files, pool_width);
 	sns_cm_ut_server_stop();
