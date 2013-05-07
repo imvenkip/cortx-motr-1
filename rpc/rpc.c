@@ -160,7 +160,6 @@ M0_INTERNAL int m0_rpc_post_slot(struct m0_rpc_item *item,
 				 struct m0_rpc_slot *slot)
 {
 	int                    rc;
-	uint64_t               size;
 	struct m0_rpc_machine *machine;
 
 	M0_ENTRY("item: %p", item);
@@ -169,8 +168,7 @@ M0_INTERNAL int m0_rpc_post_slot(struct m0_rpc_item *item,
 
 	machine = session_machine(item->ri_session);
 
-	size = m0_rpc_item_size(item);
-	M0_ASSERT(size <= machine->rm_min_recv_size);
+	M0_ASSERT(m0_rpc_item_size(item) <= machine->rm_min_recv_size);
 
 	m0_rpc_machine_lock(machine);
 	rc = m0_rpc__post_locked(item, slot);

@@ -11,6 +11,7 @@ m0mero_objects += \
                   dtm/nucleus.o \
                   dtm/object.o \
                   dtm/operation.o \
+                  dtm/operation_xc.o \
                   dtm/remote.o \
                   dtm/remote_xc.o \
                   dtm/update.o \

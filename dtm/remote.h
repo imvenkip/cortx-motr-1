@@ -42,6 +42,7 @@ struct m0_dtm_oper;
 struct m0_dtm_update;
 struct m0_rpc_conn;
 struct m0_dtm_remote;
+struct m0_reqh;
 
 /* export */
 struct m0_dtm_remote;
@@ -64,7 +65,6 @@ struct m0_dtm_remote_ops {
 	void (*reo_close)(struct m0_dtm_remote *rem,
 			  struct m0_dtm_history *history);
 	void (*reo_redo)(struct m0_dtm_remote *rem,
-			 struct m0_dtm_history *history,
 			 struct m0_dtm_update *update);
 };
 
@@ -95,10 +95,16 @@ struct m0_dtm_notice {
 	uint8_t                  dno_opcode;
 } M0_XCA_RECORD;
 
-M0_INTERNAL void m0_dtm_local_remote_init(struct m0_dtm_remote *remote,
+struct m0_dtm_local_remote {
+	struct m0_dtm_remote  lre_rem;
+	struct m0_reqh       *lre_reqh;
+};
+
+M0_INTERNAL void m0_dtm_local_remote_init(struct m0_dtm_local_remote *lre,
 					  struct m0_uint128 *id,
-					  struct m0_dtm *local);
-M0_INTERNAL void m0_dtm_local_remote_fini(struct m0_dtm_remote *remote);
+					  struct m0_dtm *local,
+					  struct m0_reqh *reqh);
+M0_INTERNAL void m0_dtm_local_remote_fini(struct m0_dtm_local_remote *remote);
 
 /** @} end of dtm group */
 

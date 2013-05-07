@@ -34,6 +34,7 @@
 /* import */
 #include "dtm/nucleus.h"
 #include "dtm/update.h"
+#include "dtm/update_xc.h"
 struct m0_dtm_remote;
 struct m0_dtm;
 struct m0_tl;

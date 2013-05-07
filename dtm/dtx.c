@@ -128,7 +128,7 @@ static const struct m0_uint128 *dtx_id(const struct m0_dtm_history *history)
 {
 	struct m0_dtm_dtx_party *pa;
 
-	pa = container_of(history, struct m0_dtm_dtx_party, pa_ch.ch_history);
+	M0_AMB(pa, history, pa_ch.ch_history);
 	return &pa->pa_dtx->dt_id;
 }
 
@@ -137,7 +137,7 @@ static void dtx_fixed(struct m0_dtm_history *history)
 	struct m0_dtm_dtx_party *pa;
 	struct m0_dtm_dtx       *dx;
 
-	pa = container_of(history, struct m0_dtm_dtx_party, pa_ch.ch_history);
+	M0_AMB(pa, history, pa_ch.ch_history);
 	dx = pa->pa_dtx;
 	M0_ASSERT(dx->dt_nr_fixed < dx->dt_nr);
 	if (++dx->dt_nr_fixed == dx->dt_nr) {
@@ -202,7 +202,7 @@ static const struct m0_uint128 *dtx_srv_id(const struct m0_dtm_history *history)
 {
 	struct m0_dtm_dtx_srv *dtx;
 
-	dtx = container_of(history, struct m0_dtm_dtx_srv, ds_history);
+	M0_AMB(dtx, history, ds_history);
 	return &dtx->ds_id;
 }
 

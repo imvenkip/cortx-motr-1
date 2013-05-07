@@ -81,7 +81,7 @@ M0_INTERNAL void m0_dtm_ltx_add(struct m0_dtm_ltx *ltx,
 
 static void ltx_persistent_hook(struct m0_db_tx_waiter *w)
 {
-	struct m0_dtm_ltx *ltx = container_of(w, struct m0_dtm_ltx, lx_waiter);
+	struct m0_dtm_ltx *ltx = M0_AMB(ltx, w, lx_waiter);
 	M0_ASSERT(ltx->lx_ch.ch_history.h_hi.hi_flags & M0_DHF_CLOSED);
 	m0_dtm_history_persistent(&ltx->lx_ch.ch_history, ~0ULL);
 }

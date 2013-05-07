@@ -594,7 +594,7 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
  *     S           ::= RECORD | UNION | SEQUENCE | ATOM
  *     RECORD      ::= '(' [S-LIST] ')'
  *     S-LIST      ::= S | S-LIST ',' S
- *     UNION       ::= '{ TAG '|' [S] '}'
+ *     UNION       ::= '{' TAG '|' [S] '}'
  *     SEQUENCE    ::= STRING | ARRAY
  *     STRING      ::= '"' CHAR* '"'
  *     ARRAY       ::= '[' COUNT ':' [S-LIST] ']'

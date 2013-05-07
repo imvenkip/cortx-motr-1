@@ -47,8 +47,8 @@ enum {
 
 static struct m0_dtm              dtm_local;
 static struct m0_dtm              dtm_remote[REM_NR];
-static struct m0_dtm_remote       remote_local[REM_NR];
-static struct m0_dtm_remote       remote_remote[REM_NR];
+static struct m0_dtm_local_remote remote_local[REM_NR];
+static struct m0_dtm_local_remote remote_remote[REM_NR];
 static struct m0_dtm_dtx          dx;
 static struct m0_dtm_history      history0[UPDATE_NR * DTM_NR];
 static struct m0_dtm_update       control_local[OPER_NR][2*DTM_NR];
@@ -163,6 +163,7 @@ static void init0(void)
 	M0_SET0(&control_remote);
 	M0_SET0(&oper_local);
 	M0_SET0(&oper_remote);
+	M0_SET0(&history0);
 	history_local = history0;
 	for (i = 0; i < REM_NR; ++i)
 		history_remote[i] = &history0[(i + 1) * UPDATE_NR];
@@ -178,9 +179,9 @@ static void init0(void)
 		m0_dtm_history_type_register(&dtm_remote[i],
 					     &m0_dtm_fol_remote_htype);
 		m0_dtm_local_remote_init(&remote_local[i],
-					 &dtm_remote[i].d_id, &dtm_local);
+					 &dtm_remote[i].d_id, &dtm_local, NULL);
 		m0_dtm_local_remote_init(&remote_remote[i],
-					 &dtm_local.d_id, &dtm_remote[i]);
+					 &dtm_local.d_id, &dtm_remote[i], NULL);
 	}
 	for (i = 0; i < UPDATE_NR; ++i) {
 		struct m0_dtm_history *history = &history_local[i];
@@ -189,7 +190,8 @@ static void init0(void)
 		history->h_hi.hi_ver = 1;
 		history->h_hi.hi_flags |= M0_DHF_OWNED;
 		history->h_ops = &hops;
-		history->h_rem = &remote_local[i % ARRAY_SIZE(remote_local)];
+		history->h_rem =
+			&remote_local[i % ARRAY_SIZE(remote_local)].lre_rem;
 	}
 	for (i = 0; i < OPER_NR; ++i) {
 		m0_dtm_update_list_init(&uu);
@@ -278,7 +280,8 @@ static void init2(void)
 		m0_dtm_oper_close(&oper_local[i]);
 		M0_UT_ASSERT(op_state(&oper_local[i].oprt_op, M0_DOS_PREPARE));
 		for (j = 0; j < REM_NR; ++j)
-			m0_dtm_oper_prepared(&oper_local[i], &remote_local[j]);
+			m0_dtm_oper_prepared(&oper_local[i],
+					     &remote_local[j].lre_rem);
 		M0_UT_ASSERT(op_state(&oper_local[i].oprt_op,
 				      M0_DOS_INPROGRESS));
 	}
@@ -303,7 +306,8 @@ static void init3(void)
 			struct m0_dtm_oper_descr *o    = &ode[j][i];
 
 			o->od_updates.ou_nr = UPDATE_NR + 2 * REM_NR;
-			m0_dtm_oper_pack(&oper_local[i], &remote_local[j], o);
+			m0_dtm_oper_pack(&oper_local[i],
+					 &remote_local[j].lre_rem, o);
 			m0_dtm_update_list_init(&uu);
 			m0_dtm_update_link(&uu, update_remote[j][i], FAN_NR);
 			result = m0_dtm_oper_build(oper, &uu, o);
@@ -347,7 +351,8 @@ static void init4(void)
 				}
 				if (op_state(&oper->oprt_op, M0_DOS_INPROGRESS)) {
 					m0_dtm_oper_done(oper, NULL);
-					m0_dtm_oper_done(oper, &remote_remote[i]);
+					m0_dtm_oper_done(oper,
+						    &remote_remote[i].lre_rem);
 					progress = true;
 					done++;
 				}
@@ -363,7 +368,7 @@ static void init4(void)
 			ode_reply[i][j].od_updates.ou_nr = FAN_NR;
 			m0_dtm_reply_pack(oper, &ode[i][j], &ode_reply[i][j]);
 			m0_dtm_reply_unpack(loper, &ode_reply[i][j]);
-			m0_dtm_oper_done(loper, &remote_local[i]);
+			m0_dtm_oper_done(loper, &remote_local[i].lre_rem);
 		}
 	}
 	M0_UT_ASSERT(m0_forall(i, OPER_NR,
@@ -383,6 +388,25 @@ static void init4(void)
 static void fini4(void)
 {
 	fini3();
+}
+
+static void init5(void)
+{
+	int i;
+
+	init4();
+	for (i = 0; i < REM_NR; ++i) {
+		M0_UT_ASSERT(dx.dt_nr_fixed == i);
+		m0_dtm_history_persistent(&dtm_remote[i].d_fol.fo_ch.ch_history,
+					  ~0ULL);
+		M0_UT_ASSERT(dx.dt_nr_fixed == i + 1);
+	}
+	M0_UT_ASSERT(dx.dt_nr_fixed == dx.dt_nr);
+}
+
+static void fini5(void)
+{
+	fini4();
 }
 
 static void dtm_setup(void)
@@ -415,6 +439,12 @@ static void dtx_reply(void)
 	fini4();
 }
 
+static void dtx_fix(void)
+{
+	init5();
+	fini5();
+}
+
 const struct m0_test_suite dtm_dtx_ut = {
 	.ts_name = "dtm-dtx-ut",
 	.ts_tests = {
@@ -423,6 +453,7 @@ const struct m0_test_suite dtm_dtx_ut = {
 		{ "dtx-populate", dtx_populate  },
 		{ "dtx-pack",     dtx_pack      },
 		{ "dtx-reply",    dtx_reply     },
+		{ "dtx-fix",      dtx_fix       },
 		{ NULL, NULL }
 	}
 };

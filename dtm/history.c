@@ -45,6 +45,7 @@
 static m0_dtm_ver_t up_ver    (const struct m0_dtm_up *up);
 static void sibling_persistent(struct m0_dtm_history *history,
 			       struct m0_dtm_op *op, struct m0_queue *queue);
+static void sibling_redo(struct m0_dtm_history *history, struct m0_dtm_op *op);
 static const struct m0_dtm_update_ops ch_close_ops;
 static const struct m0_dtm_update_ops ch_noop_ops;
 
@@ -77,8 +78,9 @@ M0_INTERNAL bool m0_dtm_history_invariant(const struct m0_dtm_history *history)
 		m0_dtm_hi_invariant(hi) &&
 		_0C(ergo(htype != NULL,
 		      HISTORY_DTM(history)->d_htype[htype->hit_id] == htype)) &&
-		_0C(m0_tl_forall(hi, up, &hi->hi_ups,
-				 up->up_ver <= history->h_max_ver)) &&
+		_0C(ergo(hi->hi_flags & M0_DHF_OWNED,
+			 m0_tl_forall(hi, up, &hi->hi_ups,
+				      up->up_ver <= history->h_max_ver))) &&
 		_0C(ergo(history->h_persistent != NULL,
 		  history->h_persistent->upd_up.up_state >= M0_DOS_PERSISTENT));
 }
@@ -94,10 +96,13 @@ M0_INTERNAL void m0_dtm_history_persistent(struct m0_dtm_history *history,
 	history_lock(history);
 
 	M0_PRE(m0_dtm_history_invariant(history));
-	m0_queue_init(&queue);
 
 	up = up0 ?: hi_tlist_tail(&history->h_hi.hi_ups);
-	while (up != NULL) {
+	if (up == NULL)
+		return;
+
+	m0_queue_init(&queue);
+	while (1) {
 		struct m0_dtm_up *later = m0_dtm_up_later(up);
 
 		if (later == NULL || later->up_state < M0_DOS_VOLATILE ||
@@ -124,28 +129,38 @@ M0_INTERNAL void m0_dtm_history_persistent(struct m0_dtm_history *history,
 		next = m0_queue_get(&queue);
 		if (next == NULL)
 			break;
-		history = container_of(next, struct m0_dtm_history, h_pending);
+		M0_AMB(history, next, h_pending);
 	}
 	m0_queue_fini(&queue);
 	M0_POST(m0_dtm_history_invariant(history));
 	history_unlock(history);
 }
 
-M0_INTERNAL void m0_dtm_history_known(struct m0_dtm_history *history,
-				      m0_dtm_ver_t since)
+M0_INTERNAL void m0_dtm_history_redo(struct m0_dtm_history *history,
+				     m0_dtm_ver_t since)
 {
+	struct m0_dtm_up *up;
+
 	history_lock(history);
 	M0_PRE(m0_dtm_history_invariant(history));
-	hi_for(&history->h_hi, up) {
-		if (up->up_ver <= since)
+
+	up = hi_tlist_head(&history->h_hi.hi_ups);
+	if (up == NULL)
+		return;
+
+	while (1) {
+		struct m0_dtm_up *prior = m0_dtm_up_prior(up);
+
+		if (prior == NULL || (prior->up_ver != 0 &&
+				      prior->up_ver <= since))
 			break;
-	} hi_endfor;
-	up = m0_dtm_up_later(up);
-	for (; up != NULL && up->up_state >= M0_DOS_INPROGRESS;
-	     up = m0_dtm_up_later(up)) {
+		up = prior;
+	}
+	up = up ?: hi_tlist_tail(&history->h_hi.hi_ups);
+	while(up != NULL && up->up_state >= M0_DOS_INPROGRESS) {
 		M0_ASSERT(up->up_state < M0_DOS_STABLE);
-		history->h_rem->re_ops->reo_redo(history->h_rem,
-						 history, up_update(up));
+		sibling_redo(history, up->up_op);
+		up = m0_dtm_up_later(up);
 	}
 	M0_POST(m0_dtm_history_invariant(history));
 	history_unlock(history);
@@ -198,6 +213,19 @@ static void sibling_persistent(struct m0_dtm_history *history,
 			other->h_persistent = up_update(up);
 			m0_queue_put(queue, &other->h_pending);
 		}
+	} up_endfor;
+}
+
+static void sibling_redo(struct m0_dtm_history *history, struct m0_dtm_op *op)
+{
+	struct m0_dtm_remote *rem = history->h_rem;
+
+	up_for(op, up) {
+		struct m0_dtm_update  *update = up_update(up);
+		struct m0_dtm_history *other  = UP_HISTORY(up);
+
+		if (other->h_rem == rem && update->upd_body != NULL)
+			rem->re_ops->reo_redo(rem, update);
 	} up_endfor;
 }
 
@@ -259,7 +287,7 @@ M0_INTERNAL int m0_dtm_history_unpack(struct m0_dtm *dtm,
 
 	htype = m0_dtm_history_type_find(dtm, id->hid_htype);
 	if (htype == NULL)
-		return -EPROTO;
+		M0_RETERR(-EPROTO, "%i", id->hid_htype);
 
 	/* !m0_cookie_is_null() && */
 	*out = m0_cookie_of(&id->hid_receiver, struct m0_dtm_history, h_gen);
@@ -406,7 +434,7 @@ M0_INTERNAL int m0_dtm_controlh_update(struct m0_dtm_history *history,
 	else if (id == H_CLOSE)
 		update->upd_ops = &ch_close_ops;
 	else
-		return -EPROTO;
+		M0_RETERR(-EPROTO, "%i", id);
 	return 0;
 }
 

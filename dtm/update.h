@@ -43,6 +43,7 @@ struct m0_dtm_update_descr;
 struct m0_dtm_history_type;
 struct m0_dtm_oper;
 struct m0_dtm_history;
+struct m0_fop;
 #include "lib/cookie.h"
 #include "lib/types_xc.h"             /* m0_uint128_xc */
 #include "lib/cookie_xc.h"
@@ -52,7 +53,7 @@ struct m0_dtm_update {
 	struct m0_dtm_up                upd_up;
 	uint32_t                        upd_label;
 	const struct m0_dtm_update_ops *upd_ops;
-	struct m0_xcode_obj             upd_body;
+	struct m0_fop                  *upd_body;
 };
 M0_INTERNAL bool m0_dtm_update_invariant(const struct m0_dtm_update *update);
 

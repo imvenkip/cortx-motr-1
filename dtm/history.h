@@ -100,8 +100,8 @@ M0_INTERNAL void m0_dtm_history_fini(struct m0_dtm_history *history);
 
 M0_INTERNAL void m0_dtm_history_persistent(struct m0_dtm_history *history,
 					   m0_dtm_ver_t upto);
-M0_INTERNAL void m0_dtm_history_known(struct m0_dtm_history *history,
-				      m0_dtm_ver_t since);
+M0_INTERNAL void m0_dtm_history_redo(struct m0_dtm_history *history,
+				     m0_dtm_ver_t since);
 M0_INTERNAL void m0_dtm_history_close(struct m0_dtm_history *history);
 
 M0_INTERNAL void m0_dtm_history_update_get(const struct m0_dtm_history *history,

@@ -174,11 +174,7 @@ struct m0_reqh {
 	struct m0_ha_domain      rh_hadom;
 
 	/**
-	    Lockers to store private data
-
-	    Since this variable has a zero length array, this should be
-	    at the end of structure.
-	    refer <http://gcc.gnu.org/onlinedocs/gcc/Zero-Length.html>
+	 * Lockers to store private data
 	 */
 	struct m0_reqh_lockers   rh_lockers;
 };
