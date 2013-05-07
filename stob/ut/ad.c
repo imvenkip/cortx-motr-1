@@ -248,6 +248,9 @@ static void test_write(int i)
 	int			result;
 	struct m0_fol_rec_part *fol_rec_part;
 
+	/* @Note: This Fol record part object is not freed and shows as leak,
+	 * as it is passed as embbedded object in other places.
+	 */
 	M0_ALLOC_PTR(fol_rec_part);
 	M0_UB_ASSERT(fol_rec_part != NULL);
 

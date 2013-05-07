@@ -412,10 +412,11 @@ M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 		m0_xcode_free(&REC_PART_XCODE_OBJ(part));
 		m0_free(part);
 	} else {
-	    if (part->rp_ops->rpo_type != &m0_fop_fol_rec_part_type)
-		m0_xcode_free(&REC_PART_XCODE_OBJ(part));
-	    else
+	    if (part->rp_ops->rpo_type == &m0_fop_fol_rec_part_type) {
+		m0_free(part->rp_data);
 		m0_free(part);
+	    } else
+		m0_xcode_free(&REC_PART_XCODE_OBJ(part));
 	}
 }
 
@@ -616,6 +617,8 @@ static int fol_record_decode(struct m0_fol_rec *rec)
 				m0_free(part);
 				return -ENOMEM;
 			}
+
+			part->rp_flag = M0_BUFVEC_DECODE;
 
 			m0_fol_rec_part_init(part, rp_data, part_type);
 			rc = m0_xcode_encdec(&ctx, &REC_PART_XCODE_OBJ(part),

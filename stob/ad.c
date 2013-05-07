@@ -1091,6 +1091,8 @@ static int ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
 {
 	struct ad_rec_part *arp;
 
+	M0_PRE(part != NULL);
+
 	M0_ALLOC_PTR(arp);
 	if (arp == NULL)
 		return -ENOMEM;
