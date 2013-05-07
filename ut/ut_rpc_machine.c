@@ -143,7 +143,7 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 			  .rhia_dtm       = (void*)1,
 			  .rhia_db        = (void*)1,
 			  .rhia_mdstore   = (void*)1,
-			  .rhia_fol       = (void*)1,
+			  .rhia_fol       = &ctx->rmc_fol,
 			  .rhia_svc       = (void*)1);
 	M0_ASSERT(rc == 0);
 	m0_reqh_start(&ctx->rmc_reqh);
