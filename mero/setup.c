@@ -928,9 +928,9 @@ M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
 	rqctx = bob_of(reqh, struct m0_reqh_context, rc_reqh, &rhctx_bob);
 	stob = &rqctx->rc_stob;
 
-	if (strcasecmp(stob->s_stype, m0_cs_stypes[M0_LINUX_STOB]) == 0)
+	if (stob->s_stype == M0_LINUX_STOB)
 		return stob->s_ldom;
-	else if (strcasecmp(stob->s_stype, m0_cs_stypes[M0_AD_STOB]) == 0) {
+	else if (stob->s_stype == M0_AD_STOB) {
 		m0_tl_for(astob, &stob->s_adoms, adstob) {
 			M0_ASSERT(cs_ad_stob_bob_check(adstob));
 			if (!stob->s_sfile.sf_is_initialised ||
@@ -961,7 +961,12 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 
 	M0_PRE(stob_type != NULL && stob_path != NULL && stob != NULL);
 
-	stob->s_stype = stob_type;
+	if (strcasecmp(stob_type, m0_cs_stypes[M0_LINUX_STOB]) == 0)
+		stob->s_stype = M0_LINUX_STOB;
+	else if (strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0)
+		stob->s_stype = M0_AD_STOB;
+	else
+		return -EINVAL;
 
 	slen = strlen(stob_path);
 	M0_ALLOC_ARR(objpath, slen + ARRAY_SIZE(objdir));
@@ -1000,7 +1005,7 @@ static void cs_storage_fini(struct cs_stobs *stob)
 {
 	M0_PRE(stob != NULL);
 
-	if (strcasecmp(stob->s_stype, m0_cs_stypes[M0_AD_STOB]) == 0)
+	if (stob->s_stype == M0_AD_STOB)
 		cs_ad_stob_fini(stob);
 	cs_linux_stob_fini(stob);
 	if (stob->s_sfile.sf_is_initialised)

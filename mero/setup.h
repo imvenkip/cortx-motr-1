@@ -135,7 +135,7 @@ enum {
 	M0_ADDB_STOB_ID_LI    = 1,
 };
 
-enum {
+enum stob_type {
 	M0_LINUX_STOB = 0,
 	M0_AD_STOB,
 	M0_STOB_TYPE_NR,
@@ -297,7 +297,7 @@ struct cs_ad_stob {
  */
 struct cs_stobs {
 	/** Type of storage domain to be initialise (e.g. Linux or AD) */
-	const char            *s_stype;
+	enum stob_type         s_stype;
 	/** Linux storage domain. */
 	struct m0_stob_domain *s_ldom;
 	struct cs_stob_file    s_sfile;
@@ -470,8 +470,7 @@ int m0_cs_start(struct m0_mero *cs_mero);
 M0_INTERNAL struct m0_rpc_machine *m0_mero_to_rmach(struct m0_mero *mero);
 
 M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
-							  const struct m0_stob_id
-							  *stob_id);
+					const struct m0_stob_id *stob_id);
 
 /**
    Find a request handler service within a given Mero instance.
