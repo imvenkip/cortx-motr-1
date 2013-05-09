@@ -104,11 +104,8 @@ M0_EXPORTED(m0_bitmap_fini);
 
 M0_INTERNAL bool m0_bitmap_get(const struct m0_bitmap *map, size_t idx)
 {
-	bool result = false;
-
 	M0_PRE(idx < map->b_nr && map->b_words != NULL);
-	result = map->b_words[M0_BITMAP_SHIFT(idx)] & M0_BITMAP_MASK(idx);
-	return result;
+	return map->b_words[M0_BITMAP_SHIFT(idx)] & M0_BITMAP_MASK(idx);
 }
 M0_EXPORTED(m0_bitmap_get);
 
@@ -136,6 +133,15 @@ M0_INTERNAL void m0_bitmap_copy(struct m0_bitmap *dst,
 		memset(&dst->b_words[s], 0, (d - s) * sizeof dst->b_words[0]);
 }
 
+M0_INTERNAL size_t m0_bitmap_set_nr(const struct m0_bitmap *map)
+{
+	size_t i;
+	size_t nr;
+	M0_PRE(map != NULL);
+	for (nr = 0, i = 0; i < map->b_nr; ++i)
+		nr += m0_bitmap_get(map, i);
+	return nr;
+}
 /** @} end of bitmap group */
 
 /*

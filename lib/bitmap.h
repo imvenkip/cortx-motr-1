@@ -97,12 +97,15 @@ M0_INTERNAL void m0_bitmap_set(struct m0_bitmap *map, size_t idx, bool val);
 M0_INTERNAL void m0_bitmap_copy(struct m0_bitmap *dst,
 				const struct m0_bitmap *src);
 
+/**
+ * Returns the number of bits that are 'true'.
+ */
+M0_INTERNAL size_t m0_bitmap_set_nr(const struct m0_bitmap *map);
+
 M0_BASSERT(8 == sizeof ((struct m0_bitmap *)0)->b_words[0]);
 
 /** @} end of bitmap group */
-
-/* __MERO_LIB_BITMAP_H__ */
-#endif
+#endif /* __MERO_LIB_BITMAP_H__ */
 
 /*
  *  Local variables:

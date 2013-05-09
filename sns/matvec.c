@@ -23,6 +23,7 @@
 #include "lib/cdefs.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/misc.h"	      /* memcpy */
 #include "lib/assert.h"
 #include "lib/types.h"
 #include "sns/matvec.h"
@@ -296,8 +297,8 @@ M0_INTERNAL void m0_vector_rows_operate2(struct m0_vector *v, uint32_t row0,
 }
 
 
-M0_INTERNAL void m0_matrix_vec_multiply(struct m0_matrix *m,
-					struct m0_vector *v,
+M0_INTERNAL void m0_matrix_vec_multiply(const struct m0_matrix *m,
+					const struct m0_vector *v,
 					struct m0_vector *r,
 					m0_vector_matrix_binary_operator_t mul,
 					m0_vector_matrix_binary_operator_t add)
@@ -320,7 +321,7 @@ M0_INTERNAL void m0_matrix_vec_multiply(struct m0_matrix *m,
 	}
 }
 
-M0_INTERNAL void m0_matrix_get_submatrix(struct m0_matrix *mat,
+M0_INTERNAL void m0_matrix_submatrix_get(const struct m0_matrix *mat,
 					 struct m0_matrix *submat,
 					 uint32_t x_off, uint32_t y_off)
 {
@@ -338,6 +339,84 @@ M0_INTERNAL void m0_matrix_get_submatrix(struct m0_matrix *mat,
         }
 }
 
+M0_INTERNAL void m0_matrix_multiply(const struct m0_matrix *ma,
+				    const struct m0_matrix *mb,
+				    struct m0_matrix *mc)
+{
+	uint32_t	 i;
+	uint32_t	 j;
+	uint32_t	 k;
+	m0_parity_elem_t res;
+	static m0_parity_elem_t* (*e)(const struct m0_matrix *m, uint32_t x,
+			      uint32_t y) = m0_matrix_elem_get;
+
+	M0_PRE(ma != NULL);
+	M0_PRE(mb != NULL);
+	M0_PRE(mc != NULL);
+	M0_PRE(mc->m_height == ma->m_height);
+	M0_PRE(mc->m_width == mb->m_width);
+	M0_PRE(m0_matrix_is_null(mc));
+
+	for (i = 0; i < ma->m_height; ++i) {
+		for (j = 0; j < ma->m_width; ++j) {
+			for (k = 0; k < mb->m_height; ++k) {
+				res = m0_parity_mul(*e(ma, i, j), *e(mb, j, k));
+				*e(mc, i, k) = m0_parity_add(*e(mc, i, k), res);
+			}
+		}
+
+	}
+}
+
+M0_INTERNAL void m0_identity_matrix_fill(struct m0_matrix *identity_mat)
+{
+	uint32_t i;
+	uint32_t j;
+	bool     rc;
+
+	rc = m0_matrix_is_square(identity_mat);
+	M0_PRE(rc);
+
+	for (i = 0; i < identity_mat->m_width; ++i) {
+		for (j = 0; j < identity_mat->m_height; ++j) {
+			*m0_matrix_elem_get(identity_mat, i, j) = !!(i == j);
+		}
+	}
+}
+
+M0_INTERNAL bool m0_matrix_is_init(const struct m0_matrix *mat)
+{
+	return mat != NULL && mat->m_matrix != NULL && mat->m_width > 0 &&
+			mat->m_height > 0;
+}
+
+M0_INTERNAL bool m0_matrix_is_null(const struct m0_matrix *mat)
+{
+	return m0_forall (i, mat->m_height, m0_forall (j, mat->m_width,
+					               *m0_matrix_elem_get(mat,
+									   i,
+									   j) ==
+						       0));
+}
+
+M0_INTERNAL void m0_matrix_row_copy(struct m0_matrix *des,
+				    const struct m0_matrix *src,
+				    uint32_t des_row, uint32_t src_row)
+{
+	M0_PRE(m0_matrix_is_init(des) && m0_matrix_is_init(src));
+	M0_PRE(des->m_width == src->m_width);
+	M0_PRE(des_row < des->m_height && src_row < src->m_height);
+
+	memcpy(m0_matrix_elem_get(des, 0, des_row),
+			          m0_matrix_elem_get(src, 0, src_row),
+			          src->m_width* sizeof (m0_parity_elem_t));
+}
+
+M0_INTERNAL bool m0_matrix_is_square(const struct m0_matrix *mat)
+{
+	 return mat != NULL && mat->m_width != 0 &&
+		 mat->m_width == mat->m_height;
+}
 #undef M0_TRACE_SUBSYSTEM
 
 /*

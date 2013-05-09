@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -55,9 +55,24 @@ M0_INTERNAL void m0_linsys_init(struct m0_linsys *linsys,
 M0_INTERNAL void m0_linsys_fini(struct m0_linsys *linsys);
 
 /**
- * Solves given system of linear equatons, writes result into 'linsys->l_res'.
+ * Solves given system of linear equations, writes result into 'linsys->l_res'.
  */
 M0_INTERNAL void m0_linsys_solve(struct m0_linsys *linsys);
+
+/**
+ * Inverts a square matrix.
+ *
+ * @param[in]  mat         Pointer to an input square matrix
+ * @param[out] mat_inverse Pointer to the inverse of an input matrix
+ * @retval     0	   matrix inversion is successful
+ * @retval    -ENOMEM	   out of memory
+ * @retval    -EDOM	   input matrix is singular
+ * @pre m0_matrix_is_square(mat) and m0_matrix_is_square(mat_inverse)
+ * @pre mat->m_width == mat_inverse->m_width
+ */
+M0_INTERNAL int m0_matrix_invert(const struct m0_matrix *mat,
+		                 struct m0_matrix *mat_inverse);
+
 
 /** @} end group m0_linsys */
 

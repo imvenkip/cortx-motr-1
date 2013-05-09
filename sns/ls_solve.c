@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -21,6 +21,7 @@
 #include "lib/cdefs.h"
 #include "lib/assert.h"
 #include "lib/types.h"
+#include "lib/errno.h" /* EDOM */
 
 #include "sns/parity_ops.h"
 #include "sns/ls_solve.h"
@@ -125,6 +126,64 @@ M0_INTERNAL void m0_linsys_solve(struct m0_linsys *lynsys)
 
 	triangularize(m, v);
 	substitute(m, v, r);
+}
+
+M0_INTERNAL int m0_matrix_invert(const struct m0_matrix *in_mat,
+				 struct m0_matrix *mat_inverse)
+{
+	uint32_t	 col;
+	uint32_t	 current_row;
+	int		 ret;
+	struct m0_matrix mat;
+	m0_parity_elem_t mult;
+
+	M0_PRE(m0_matrix_is_square(in_mat));
+	M0_PRE(m0_matrix_is_square(mat_inverse));
+	M0_PRE(in_mat->m_width == mat_inverse->m_width);
+
+	ret = m0_matrix_init(&mat, in_mat->m_width, in_mat->m_height);
+	if (ret != 0)
+		return ret;
+	m0_matrix_submatrix_get((struct m0_matrix *)in_mat, &mat, 0, 0);
+	m0_identity_matrix_fill(mat_inverse);
+
+	for (col = 0, current_row = 0; col < mat.m_width; ++col,
+	     ++current_row) {
+		uint32_t         max_row;
+		m0_parity_elem_t divisor;
+		uint32_t         row;
+
+		/* move row with max first elem to the top of matrix */
+		max_row = find_max_row_index_for_col(&mat, col);
+		m0_matrix_swap_row(&mat, current_row, max_row);
+		m0_matrix_swap_row(mat_inverse, current_row, max_row);
+
+		/* divide row to eliminate first element of the row */
+		divisor = *m0_matrix_elem_get(&mat, col, current_row);
+		if (divisor == 0) {
+			m0_matrix_fini(&mat);
+			return -EDOM;
+		}
+		m0_matrix_row_operate(&mat, col, divisor, m0_parity_div);
+		m0_matrix_row_operate(mat_inverse, col, divisor,
+				      m0_parity_div);
+
+		/* eliminate first elements in all other rows */
+		for (row = 0; row < mat.m_height; ++row) {
+			if (row == current_row)
+				continue;
+			mult = *m0_matrix_elem_get(&mat, col, row);
+			if (mult == 0)
+				continue;
+			m0_matrix_rows_operate1(&mat, row, col, m0_parity_mul,
+						mult, m0_parity_sub);
+			m0_matrix_rows_operate1(mat_inverse, row, col,
+						m0_parity_mul, mult,
+						m0_parity_sub);
+		}
+	}
+	m0_matrix_fini(&mat);
+	return 0;
 }
 
 /*

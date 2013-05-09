@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -227,8 +227,8 @@ M0_INTERNAL void m0_vector_swap_row(struct m0_vector *v, uint32_t r0,
  * @pre m0_matrix_init(m) has been called
  * @pre m0_vec_init(r) has been called
  */
-M0_INTERNAL void m0_matrix_vec_multiply(struct m0_matrix *m,
-					struct m0_vector *v,
+M0_INTERNAL void m0_matrix_vec_multiply(const struct m0_matrix *m,
+					const struct m0_vector *v,
 					struct m0_vector *r,
 					m0_vector_matrix_binary_operator_t mul,
 					m0_vector_matrix_binary_operator_t add);
@@ -239,10 +239,55 @@ M0_INTERNAL void m0_matrix_vec_multiply(struct m0_matrix *m,
  * @pre m0_matrix_init(mat) has been called
  * @pre m0_matrix_init(submat) has been called
  */
-M0_INTERNAL void m0_matrix_get_submatrix(struct m0_matrix *mat,
+M0_INTERNAL void m0_matrix_submatrix_get(const struct m0_matrix *mat,
 					 struct m0_matrix *submat,
 					 uint32_t x, uint32_t y);
 
+/**
+ * Multiplies matrix ma with matrix mb and stores the result in matrix mc
+ * @param[in]  ma
+ * @param[in]  mb
+ * @param[out] mc
+ * @pre mc->m_height == ma->m_height
+ * @pre mc->m_width == mb->m_width
+ * @pre mc->m_matrix[i][j] == 0 \forall 0 <= i < mc->m_height
+ *					0 <= j < mc->m_width
+ */
+M0_INTERNAL void m0_matrix_multiply(const struct m0_matrix *ma,
+		                    const struct m0_matrix *mb,
+				    struct m0_matrix *mc);
+
+/**
+ * Populates the input square matrix as an identity matrix.
+ * @pre M0_MATRIX_IS_SQUARE(identity_matrix)
+ */
+M0_INTERNAL void m0_identity_matrix_fill(struct m0_matrix *identity_mat);
+
+/**
+ * Verifies whether input matrix is initialized or not.
+ * @param[in] mat
+ * @retval    'true' if mat->m_width > 0 && mat->m_height > 0.
+ * @retval    'false' otherwise.
+ */
+M0_INTERNAL bool m0_matrix_is_init(const struct m0_matrix *mat);
+
+
+/* Verifies whether input matrix has all elements zero. */
+M0_INTERNAL bool m0_matrix_is_null(const struct m0_matrix *mat);
+
+/**
+ * Copies src_row from src to des_row in des.
+ * @param[out] des	destination matrix
+ * @param[in]  src	source matrix
+ * @param[in]  des_row  destination row index
+ * @param[in]  src_row  source row index
+ * @pre dest->m_width == src->m_width
+ */
+M0_INTERNAL void m0_matrix_row_copy(struct m0_matrix *des,
+				    const struct m0_matrix *src,
+				    uint32_t des_row, uint32_t src_row);
+
+M0_INTERNAL bool m0_matrix_is_square(const struct m0_matrix *mat);
 /* __MERO_SNS_MAT_VEC_H__ */
 #endif
 
