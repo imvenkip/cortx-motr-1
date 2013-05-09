@@ -2936,11 +2936,9 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	M0_ENTRY();
 	M0_PRE(io_request_invariant(req));
 
-	/* See ioreq_dgmode_read() for comments. */
 	rc = device_check(req);
-	if (req->ir_nwxfer.nxr_rc !=
-	    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
-		M0_RETURN(rc < 0 ? rc : req->ir_nwxfer.nxr_rc);
+	if (req->ir_nwxfer.nxr_rc == 0)
+		M0_RETURN(req->ir_nwxfer.nxr_rc);
 	else if (rc < 0)
 		M0_RETURN(rc);
 
@@ -3037,64 +3035,13 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 
 	rc = device_check(req);
 	/*
-	 * Possible combinations of return value of device_check()
-	 * represented by rc here and req->ir_nwxfer.nxr_rc.
-	 *
-	 * Note:
-	 * - IO request does not _complete_ (does not issue IO request to
-	 *   stob) when req->ir_nwxfer.nxr_rc ==
-	 *   M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH.
-	 * - device_check() returns number of failed devices if it is less than
-	 *   layout_k() else returns -EIO.
-	 *
-	 * Following use cases are logical conjunction of with the common case
-	 * mentioned below.
-	 *
-	 * Common case:
-	 * req->ir_nwxfer.nxr_rc != M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH
-	 * Ergo, last issued IO request has _completed_ (succeeded or failed)
-	 *
-	 * 1. rc == 0.
-	 *    This implies no devices failed
-	 *    So degraded mode IO need not be scheduled.
-	 *    Hence req->ir_nwxfer.nxr_rc is returned to user.
-	 *
-	 * 2. 0 < rc < layout_k().
-	 *    This implies there are one/more failed devices but less than
-	 *    K, hence they can be recovered.
-	 *    Hence req->ir_nwxfer.nxr_rc is returned to user.
-	 *
-	 * 3. rc < 0.
-	 *    This implies there are more than K number of devices
-	 *    failed altogether and hence IO can not be recovered.
-	 *    Hence, rc (typically -EIO) is returned to user.
-	 *
-	 * Common case:
-	 * req->ir_nwxfer.nxr_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH
-	 * Ergo, last issued IO request did not complete.
-	 *
-	 * 1. rc == 0.
-	 *    This implies no devices failed.
-	 *    Hence, IO request needs to be issued again and degraded mode
-	 *    IO is necessary.
-	 *    The result of degraded mode processing is returned to user.
-	 *
-	 * 2. 0 < rc < layout_k().
-	 *    This implies one/more devices failed but less than K, hence
-	 *    they can be recovered.
-	 *    Hence, IO request needs to be issued again and degraded mode
-	 *    IO is necessary.
-	 *    Result of degraded mode processing is returned to user.
-	 *
-	 * 3. rc < 0.
-	 *    This implies more than K number of devices failed and hence
-	 *    IO request can not be recovered and last issued IO request
-	 *    has not completed.
-	 *    Hence rc (typically -EIO) is returned to user.
+	 * Number of failed devices is not a criteria good enough
+	 * by itself. Even if one/more devices failed but IO request
+	 * could complete if IO request did not send any pages to
+	 * failed device(s) at all.
 	 */
-	if (req->ir_nwxfer.nxr_rc !=
-	    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
-		M0_RETURN(rc < 0 ? rc : req->ir_nwxfer.nxr_rc);
+	if (req->ir_nwxfer.nxr_rc == 0)
+		M0_RETURN(req->ir_nwxfer.nxr_rc);
 	else if (rc < 0)
 		M0_RETURN(rc);
 
@@ -4522,8 +4469,9 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	reply_fop = m0_rpc_item_to_fop(reply_item);
 	rw_reply  = io_rw_rep_get(reply_fop);
 	rc        = rw_reply->rwr_rc;
-	M0_LOG(M0_INFO, "reply received = %d\n", rw_reply->rwr_rc);
 	req->ir_sns_state = rw_reply->rwr_repair_done;
+	M0_LOG(M0_INFO, "reply received = %d, sns state = %d",
+	       rw_reply->rwr_rc, req->ir_sns_state);
 
 	if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 		M0_ASSERT(rw_reply != NULL);

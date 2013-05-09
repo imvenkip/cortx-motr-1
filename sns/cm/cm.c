@@ -903,8 +903,8 @@ static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id *id_curr,
 	return rc;
 }
 
-M0_INTERNAL int m0_sns_cm_fid_repair_done(struct m0_fid *gfid,
-					  struct m0_reqh *reqh)
+M0_INTERNAL enum sns_repair_state
+m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh)
 {
 	struct m0_sns_cm       *scm;
 	struct m0_cm	       *cm;
@@ -928,8 +928,9 @@ M0_INTERNAL int m0_sns_cm_fid_repair_done(struct m0_fid *gfid,
 		curr_gfid = scm->sc_it.si_fc.sfc_gob_fid;
 	m0_cm_unlock(cm);
 	if (curr_gfid.f_container == 0 && curr_gfid.f_key == 0)
-		return 1;
-	return m0_fid_cmp(gfid, &curr_gfid) > 0 ? 2 : 3;
+		return SRS_UNINITIALIZED;
+	return m0_fid_cmp(gfid, &curr_gfid) > 0 ? SRS_REPAIR_NOTDONE :
+	       SRS_REPAIR_DONE;
 }
 
 /** Copy machine operations. */

@@ -176,8 +176,8 @@ M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm,
  *        2 if SNS repair has started but not completed for @gfid.
  *        3 if SNS repair has started and completed for @gfid.
  */
-M0_INTERNAL int m0_sns_cm_fid_repair_done(struct m0_fid *gfid,
-                                          struct m0_reqh *reqh);
+M0_INTERNAL enum sns_repair_state
+m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh);
 
 /** @} SNSCM */
 #endif /* __MERO_SNS_CM_CM_H__ */
