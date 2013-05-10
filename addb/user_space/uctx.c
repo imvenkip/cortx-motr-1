@@ -34,9 +34,28 @@
 /** path to read kmod uuid parameter */
 static const char *kmod_uuid_file = "/sys/module/m0mero/parameters/node_uuid";
 
+/** default node uuid which can be used instead of a "real" one, which is
+ *  obtained from kernel module; this can be handy for some utility applications
+ *  which don't need full functionality of libmero.so, so they can trick ADDB by
+ *  providing some fake uuid */
+static char default_node_uuid[M0_UUID_STRLEN + 1] =
+		"00000000-0000-0000-0000-000000000000"; /* nil UUID */
+
+/** flag, which specify whether to use a "real" node uuid or a default one */
+static bool use_default_node_uuid = false;
+
 void m0_addb_kmod_uuid_file_set(const char *path)
 {
 	kmod_uuid_file = path;
+}
+
+void m0_addb_node_uuid_string_set(char *uuid)
+{
+	use_default_node_uuid = true;
+	if (uuid != NULL) {
+		strncpy(default_node_uuid, uuid, M0_UUID_STRLEN);
+		default_node_uuid[M0_UUID_STRLEN] = '\0';
+	}
 }
 
 /**
@@ -46,17 +65,23 @@ void m0_addb_kmod_uuid_file_set(const char *path)
 static int addb_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 {
 	int fd;
-	int rc;
+	int rc = 0;
 
-	fd = open(kmod_uuid_file, O_RDONLY);
-	if (fd < 0)
-		return -EINVAL;
-	if (read(fd, buf, M0_UUID_STRLEN) == M0_UUID_STRLEN) {
-		rc = 0;
+	if (use_default_node_uuid) {
+		memcpy(buf, default_node_uuid, M0_UUID_STRLEN);
 		buf[M0_UUID_STRLEN] = '\0';
-	} else
-		rc = -EINVAL;
-	close(fd);
+	} else {
+		fd = open(kmod_uuid_file, O_RDONLY);
+		if (fd < 0)
+			return -EINVAL;
+		if (read(fd, buf, M0_UUID_STRLEN) == M0_UUID_STRLEN) {
+			rc = 0;
+			buf[M0_UUID_STRLEN] = '\0';
+		} else
+			rc = -EINVAL;
+		close(fd);
+	}
+
 	return rc;
 }
 

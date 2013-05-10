@@ -24,8 +24,17 @@
 #ifndef __MERO_ADDB_USER_SPACE_UCTX_H__
 #define __MERO_ADDB_USER_SPACE_UCTX_H__
 
+#include "lib/uuid.h"  /* M0_UUID_STRLEN */
 
 void m0_addb_kmod_uuid_file_set(const char *path);
+
+/**
+ * Set node uuid which is used during ADDB init.
+ *
+ * @param uuid  pointer to UUID string, can be NULL in which case a default
+ * "nil" UUID is used.
+ */
+void m0_addb_node_uuid_string_set(char *uuid);
 
 #endif /* __MERO_ADDB_USER_SPACE_UCTX_H__ */
 
