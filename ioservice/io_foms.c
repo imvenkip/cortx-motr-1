@@ -44,6 +44,7 @@
 #include "mero/setup.h"
 #include "pool/pool.h"
 #include "ioservice/io_service_addb.h"
+#include "sns/cm/cm.h" /* m0_sns_cm_fid_repair_done() */
 
 /**
    @page DLD-bulk-server DLD of Bulk Server
@@ -1619,8 +1620,10 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 							 M0_FOPH_FAILURE};
 	struct m0_poolmach                       *poolmach;
 	struct m0_reqh                           *reqh;
+	struct m0_fop_cob_rw_reply               *rwrep;
 	struct m0_pool_version_numbers           *cliv;
 	struct m0_pool_version_numbers            curr;
+
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1637,6 +1640,16 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	m0_poolmach_current_version_get(poolmach, &curr);
 	rwfop = io_rw_get(fom->fo_fop);
 	cliv = (struct m0_pool_version_numbers*)(&rwfop->crw_version);
+	rwrep = io_rw_rep_get(fom->fo_rep_fop);
+
+	/*
+	 * Dumps the state of SNS repair with respect to global fid
+	 * from IO fop.
+	 * The IO request has already acquired file level lock on
+	 * given global fid.
+	 */
+	rwrep->rwr_repair_done = m0_sns_cm_fid_repair_done(&rwfop->crw_gfid,
+							   reqh);
 
 	/* Check the client version and server version before any processing */
 	if (m0_poolmach_version_before(cliv, &curr)) {
@@ -1645,6 +1658,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 				  M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
 				  M0_FOPH_FAILURE);
 		M0_LOG(M0_DEBUG, "VERSION MISMATCH! poolmach = %p", poolmach);
+
 		m0_poolmach_version_dump(cliv);
 		m0_poolmach_version_dump(&curr);
 		m0_poolmach_event_list_dump(poolmach);
@@ -1662,9 +1676,6 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	/* Set operation status in reply fop if FOM ends.*/
         if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
             m0_fom_phase(fom) == M0_FOPH_FAILURE) {
-		struct m0_fop_cob_rw_reply *rwrep;
-
-		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);
 		rwrep->rwr_count = fom_obj->fcrw_count;
 		m0_ios_poolmach_version_updates_pack(poolmach,

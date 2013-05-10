@@ -480,6 +480,35 @@ M0_INTERNAL void m0_poolmach_event_dump(struct m0_pool_event *e);
 M0_INTERNAL void m0_poolmach_event_list_dump(struct m0_poolmach *pm);
 M0_INTERNAL void m0_poolmach_device_state_dump(struct m0_poolmach *pm);
 
+/**
+ * State of SNS repair with respect to given global fid.
+ * Used during degraded mode write IO.
+ * During normal IO, the UNINITIALIZED enum value is used.
+ * The next 2 states are used during degraded mode write IO.
+ */
+enum sns_repair_state {
+	/**
+	 * Used by IO requests done during healthy state of storage pool.
+	 * Initialized to -1 in order to sync it with output of API
+	 * m0_sns_cm_fid_repair_done().
+	 * */
+	SRS_UNINITIALIZED = 1,
+
+	/**
+	 * Assumes a distributed lock has been acquired on the associated
+	 * global fid and SNS repair is yet to start on given global fid.
+	 */
+	SRS_REPAIR_NOTDONE,
+
+	/**
+	 * Assumes a distributed lock has been acquired on associated
+	 * global fid and SNS repair has completed for given fid.
+	 */
+	SRS_REPAIR_DONE,
+
+	SRS_NR,
+};
+
 /** @} end of servermachine group */
 
 

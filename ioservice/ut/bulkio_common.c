@@ -100,15 +100,21 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 	strcat(server_args[12], saddr);
 	strcpy(server_args[13], "-s");
 	strcpy(server_args[14], "ioservice");
-	strcpy(server_args[15], "-q");
-	strcpy(server_args[16], tm_len);
-	strcpy(server_args[17], "-m");
-	strcpy(server_args[18], rpc_size);
-	strcpy(server_args[19], "-w");
-	strcpy(server_args[20], "10");
-	strcpy(server_args[21], "-G");
-	strcat(server_args[22], xprt);
-	strcat(server_args[22], saddr);
+	/*
+	 * sns_cm service needs to be started in order to serve the API
+	 * m0_sns_cm_fid_repair_done().
+	 */
+	strcpy(server_args[15], "-s");
+	strcpy(server_args[16], "sns_cm");
+	strcpy(server_args[17], "-q");
+	strcpy(server_args[18], tm_len);
+	strcpy(server_args[19], "-m");
+	strcpy(server_args[20], rpc_size);
+	strcpy(server_args[21], "-w");
+	strcpy(server_args[22], "10");
+	strcpy(server_args[23], "-G");
+	strcat(server_args[24], xprt);
+	strcat(server_args[24], saddr);
 
 	M0_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
 	M0_ASSERT(stypes != NULL);
@@ -280,7 +286,7 @@ void io_fops_create(struct bulkio_params *bp, enum M0_RPC_OPCODES op,
 	for (i = 0; i < fops_nr; ++i) {
 		M0_ALLOC_PTR(io_fops[i]);
 		M0_ASSERT(io_fops[i] != NULL);
-		rc = m0_io_fop_init(io_fops[i], fopt, NULL);
+		rc = m0_io_fop_init(io_fops[i], &bp->bp_fids[0], fopt, NULL);
 		M0_ASSERT(rc == 0);
 	}
 

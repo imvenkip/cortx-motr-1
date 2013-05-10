@@ -902,17 +902,18 @@ static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id *id_curr,
 
 	return rc;
 }
-M0_INTERNAL bool m0_sns_cm_fid_repair_done(struct m0_fid *gfid,
-					   struct m0_reqh *reqh)
+
+M0_INTERNAL enum sns_repair_state
+m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh)
 {
 	struct m0_sns_cm       *scm;
 	struct m0_cm	       *cm;
 	struct m0_reqh_service *service;
 	struct m0_fid           curr_gfid;
-	int			val;
 	int			state;
 
-	M0_PRE(gfid != NULL && reqh != NULL);
+	M0_PRE(gfid != NULL && m0_fid_is_valid(gfid));
+	M0_PRE(reqh != NULL);
 
 	service = m0_reqh_service_find(&sns_cmt.ct_stype, reqh);
 	M0_ASSERT(service != NULL);
@@ -926,8 +927,10 @@ M0_INTERNAL bool m0_sns_cm_fid_repair_done(struct m0_fid *gfid,
 	if (state == M0_CMS_ACTIVE)
 		curr_gfid = scm->sc_it.si_fc.sfc_gob_fid;
 	m0_cm_unlock(cm);
-	val = m0_fid_cmp(gfid, &curr_gfid);
-	return val < 0;
+	if (curr_gfid.f_container == 0 && curr_gfid.f_key == 0)
+		return SRS_UNINITIALIZED;
+	return m0_fid_cmp(gfid, &curr_gfid) > 0 ? SRS_REPAIR_NOTDONE :
+	       SRS_REPAIR_DONE;
 }
 
 /** Copy machine operations. */

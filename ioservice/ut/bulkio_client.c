@@ -125,6 +125,7 @@ static void bulkclient_test(void)
 	int32_t			 max_segs;
 	m0_bcount_t		 max_seg_size;
 	m0_bcount_t		 max_buf_size;
+	struct m0_fid            fid;
 	struct m0_clink          clink;
 	struct m0_io_fop	*iofop;
 	struct m0_net_xprt	*xprt;
@@ -153,8 +154,10 @@ static void bulkclient_test(void)
 	rc = m0_net_domain_init(&nd, xprt, &m0_addb_proc_ctx);
 	M0_UT_ASSERT(rc == 0);
 
+	fid.f_container = 1;
+	fid.f_key       = 4;
 	/* Test : m0_io_fop_init() */
-	rc = m0_io_fop_init(iofop, &m0_fop_cob_writev_fopt, NULL);
+	rc = m0_io_fop_init(iofop, &fid, &m0_fop_cob_writev_fopt, NULL);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(iofop->if_magic == M0_IO_FOP_MAGIC);
 	M0_UT_ASSERT(iofop->if_fop.f_type != NULL);

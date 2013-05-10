@@ -167,12 +167,17 @@ M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm,
                                      struct m0_pdclust_layout *pl);
 
 /**
- * Returns true if the passed global fid has been repaired.
- * This function should only be invoked when a sns repair operation is in
- * progress.
+ * Returns state of SNS repair process with respect to @gfid.
+ * @param gfid Input global fid for which SNS repair state has to
+ *             be retrieved.
+ * @param reqh Parent request handler object.
+ * @pre   m0_fid_is_valid(gfid) && reqh != NULL.
+ * @ret   1 if SNS repair has not started at all.
+ *        2 if SNS repair has started but not completed for @gfid.
+ *        3 if SNS repair has started and completed for @gfid.
  */
-M0_INTERNAL bool m0_sns_cm_fid_repair_done(struct m0_fid *gfid,
-                                           struct m0_reqh *reqh);
+M0_INTERNAL enum sns_repair_state
+m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh);
 
 /** @} SNSCM */
 #endif /* __MERO_SNS_CM_CM_H__ */

@@ -1194,7 +1194,8 @@ static void bulkio_stob_create(void)
 	M0_ALLOC_ARR(bp->bp_wfops, IO_FIDS_NR);
 	for (i = 0; i < IO_FIDS_NR; ++i) {
 		M0_ALLOC_PTR(bp->bp_wfops[i]);
-                rc = m0_io_fop_init(bp->bp_wfops[i], &m0_fop_cob_writev_fopt,
+                rc = m0_io_fop_init(bp->bp_wfops[i], &bp->bp_fids[i],
+				    &m0_fop_cob_writev_fopt,
 				    NULL);
 		M0_UT_ASSERT(rc == 0);
 		/*
@@ -1516,11 +1517,11 @@ static void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
 	M0_ALLOC_PTR(io_fops[index]);
 
 	if (op == M0_IOSERVICE_WRITEV_OPCODE)
-                rc = m0_io_fop_init(io_fops[index], &m0_fop_cob_writev_fopt,
-				    NULL);
+                rc = m0_io_fop_init(io_fops[index], &bp->bp_fids[0],
+				    &m0_fop_cob_writev_fopt, NULL);
         else
-                rc = m0_io_fop_init(io_fops[index], &m0_fop_cob_readv_fopt,
-				    NULL);
+                rc = m0_io_fop_init(io_fops[index], &bp->bp_fids[0],
+				    &m0_fop_cob_readv_fopt, NULL);
 	iofop = io_fops[index];
 	rbulk = &iofop->if_rbulk;
 	rw = io_rw_get(&io_fops[index]->if_fop);

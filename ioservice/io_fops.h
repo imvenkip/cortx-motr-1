@@ -175,10 +175,12 @@ struct m0_io_fop {
 /**
    Initializes a m0_io_fop structure.
    @param ftype Type of fop to be initialized.
+   @param gfid  Global file fid.
    @pre iofop != NULL.
    @post io_fop_invariant(iofop)
  */
 M0_INTERNAL int m0_io_fop_init(struct m0_io_fop *iofop,
+		               struct m0_fid *gfid,
 			       struct m0_fop_type *ftype,
 			       void (*fop_release)(struct m0_ref *));
 
@@ -368,6 +370,15 @@ struct m0_fop_cob_rw_reply {
 	 * defined special code.
 	 */
 	struct m0_fv_updates rwr_fv_updates;
+
+	/**
+	 * A field indicating whether repair has finished or not for given
+	 * global fid.
+	 * rwr_repair_done == 1 indicates SNS repair has not started at all.
+	 * rwr_repair_done == 2 indicates file is still be to be repaired.
+	 * rwr_repair_done == 3 indicates file has been repaired.
+	 */
+	uint32_t             rwr_repair_done;
 } M0_XCA_RECORD;
 
 /**
@@ -395,6 +406,13 @@ struct m0_fop_cob_writev_rep {
 struct m0_fop_cob_rw {
 	/** Client known failure vector version number */
 	struct m0_fv_version      crw_version;
+
+	/**
+	 * File identifier for global file. This is needed during degraded
+	 * mode write IO when SNS repair subsystem is queried for status of
+	 * SNS repair process with respect to this global fid.
+	 */
+	struct m0_fid             crw_gfid;
 
 	/** File identifier of read/write request. */
 	struct m0_fid             crw_fid;

@@ -724,13 +724,16 @@ static bool io_fop_invariant(struct m0_io_fop *iofop)
 }
 
 M0_INTERNAL int m0_io_fop_init(struct m0_io_fop *iofop,
+		               struct m0_fid *gfid,
 			       struct m0_fop_type *ftype,
 			       void (*fop_release)(struct m0_ref *))
 {
-	int rc;
+	int                   rc;
+	struct m0_fop_cob_rw *rw;
 
 	M0_PRE(iofop != NULL);
 	M0_PRE(ftype != NULL);
+	M0_PRE(gfid  != NULL);
 
 	m0_fop_init(&iofop->if_fop, ftype, NULL,
 		    fop_release ?: m0_io_fop_release);
@@ -740,6 +743,9 @@ M0_INTERNAL int m0_io_fop_init(struct m0_io_fop *iofop,
 		iofop->if_magic = M0_IO_FOP_MAGIC;
 
 		m0_rpc_bulk_init(&iofop->if_rbulk);
+		rw = io_rw_get(&iofop->if_fop);
+		rw->crw_gfid = *gfid;
+
 		M0_POST(io_fop_invariant(iofop));
 	} else {
 		IOS_ADDB_FUNCFAIL(rc, IO_FOP_INIT, &m0_ios_addb_ctx);
@@ -1357,7 +1363,8 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 	if (cfop == NULL)
 		return -ENOMEM;
 
-	rc = m0_io_fop_init(cfop, res_fop->f_type, NULL);
+	rw = io_rw_get(res_fop);
+	rc = m0_io_fop_init(cfop, &rw->crw_gfid, res_fop->f_type, NULL);
 	if (rc != 0) {
 		m0_free(cfop);
 		return rc;
