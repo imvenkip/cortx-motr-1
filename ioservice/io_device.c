@@ -270,7 +270,8 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 	}
 
 	/* TODO configuration information is needed here. */
-	rc = m0_poolmach_init(poolmach, reqh->rh_dtm, PM_DEFAULT_NR_NODES,
+	rc = m0_poolmach_init(poolmach, reqh->rh_dbenv, reqh->rh_dtm,
+			      PM_DEFAULT_NR_NODES,
 			      service->rs_reqh_ctx->rc_mero->cc_pool_width,
 			      PM_DEFAULT_MAX_NODE_FAILURES,
 			      PM_DEFAULT_MAX_DEV_FAILURES);

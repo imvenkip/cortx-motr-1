@@ -30,19 +30,23 @@ enum {
 	PM_TEST_DEFAULT_MAX_DEVICE_FAILURE = 1,
 	PM_TEST_DEFAULT_MAX_NODE_FAILURE   = 1
 };
+static struct m0_dbenv           dbenv;
 
 static void pm_test_init_fini(void)
 {
 	struct m0_poolmach pm;
 	int                rc;
 
+	rc = m0_dbenv_init(&dbenv, "pm_testing", 0);
+	M0_ASSERT(rc == 0);
 	M0_SET0(&pm);
-	rc = m0_poolmach_init(&pm, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
+	rc = m0_poolmach_init(&pm, &dbenv, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
 					 PM_TEST_DEFAULT_DEVICE_NUMBER,
 					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
 					 PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
 	M0_UT_ASSERT(rc == 0);
 	m0_poolmach_fini(&pm);
+	m0_dbenv_fini(&dbenv);
 }
 
 static void pm_test_transit(void)
@@ -61,8 +65,10 @@ static void pm_test_transit(void)
 	uint32_t                       count;
 	uint32_t                       index;
 
+	rc = m0_dbenv_init(&dbenv, "pm_test_transit", 0);
+	M0_ASSERT(rc == 0);
 	M0_SET0(&pm);
-	rc = m0_poolmach_init(&pm, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
+	rc = m0_poolmach_init(&pm, &dbenv, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
 					 PM_TEST_DEFAULT_DEVICE_NUMBER,
 					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
 					 PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
@@ -346,6 +352,7 @@ static void pm_test_transit(void)
 
 	/* finally */
 	m0_poolmach_fini(&pm);
+	m0_dbenv_fini(&dbenv);
 }
 
 static void pm_test_spare_slot(void)
@@ -358,8 +365,10 @@ static void pm_test_spare_slot(void)
 	enum m0_pool_nd_state state;
 	uint32_t              spare_slot;
 
+	rc = m0_dbenv_init(&dbenv, "pm_test_spare_slot", 0);
+	M0_ASSERT(rc == 0);
 	M0_SET0(&pm);
-	rc = m0_poolmach_init(&pm, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
+	rc = m0_poolmach_init(&pm, &dbenv, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
 					 PM_TEST_DEFAULT_DEVICE_NUMBER,
 					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
 					 2 /* two spare device */);
@@ -508,8 +517,8 @@ static void pm_test_spare_slot(void)
 
 	/* finally */
 	m0_poolmach_fini(&pm);
+	m0_dbenv_fini(&dbenv);
 }
-
 
 static void pm_test_multi_fail(void)
 {
@@ -520,8 +529,10 @@ static void pm_test_multi_fail(void)
 	enum m0_pool_nd_state target_state;
 	uint32_t              spare_slot;
 
+	rc = m0_dbenv_init(&dbenv, "pm_test_multi_fail", 0);
+	M0_ASSERT(rc == 0);
 	M0_SET0(&pm);
-	rc = m0_poolmach_init(&pm, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
+	rc = m0_poolmach_init(&pm, &dbenv, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
 					 PM_TEST_DEFAULT_DEVICE_NUMBER,
 					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
 					 3 /*three spare device */);
@@ -690,19 +701,38 @@ static void pm_test_multi_fail(void)
 
 	/* finally */
 	m0_poolmach_fini(&pm);
+	m0_dbenv_fini(&dbenv);
 }
 
+/* load from last test case */
+static void pm_test_load_from_persistent_storage(void)
+{
+	struct m0_poolmach pm;
+	int                rc;
+
+	rc = m0_dbenv_init(&dbenv, "pm_test_multi_fail", 0);
+	M0_ASSERT(rc == 0);
+	M0_SET0(&pm);
+	rc = m0_poolmach_init(&pm, &dbenv, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
+					 PM_TEST_DEFAULT_DEVICE_NUMBER,
+					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+					 3);
+	M0_UT_ASSERT(rc == 0);
+	m0_poolmach_fini(&pm);
+	m0_dbenv_fini(&dbenv);
+}
 
 const struct m0_test_suite poolmach_ut = {
 	.ts_name = "poolmach-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "pm_test init & fini",   pm_test_init_fini },
-		{ "pm_test state transit", pm_test_transit   },
-		{ "pm_test spare slot",    pm_test_spare_slot},
-		{ "pm_test multi fail",    pm_test_multi_fail},
-		{ NULL,                    NULL              }
+		{ "pm_test init & fini",   pm_test_init_fini                  },
+		{ "pm_test state transit", pm_test_transit                    },
+		{ "pm_test spare slot",    pm_test_spare_slot                 },
+		{ "pm_test multi fail",    pm_test_multi_fail                 },
+		{ "pm_test load",         pm_test_load_from_persistent_storage},
+		{ NULL,                    NULL                               }
 	}
 };
 M0_EXPORTED(poolmach_ut);

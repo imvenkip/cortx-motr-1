@@ -20,12 +20,13 @@
 
 #pragma once
 
-#ifndef __MERO_LAYOUT_POOL_H__
-#define __MERO_LAYOUT_POOL_H__
+#ifndef __MERO_POOL_POOL_H__
+#define __MERO_POOL_POOL_H__
 
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
 #include "lib/tlist.h"
+#include "db/db.h"
 
 /**
    @defgroup pool Storage pools.
@@ -184,11 +185,6 @@ struct m0_pool_version_numbers {
 	uint64_t pvn_version[PVE_NR];
 };
 
-enum {
-	M0_POOL_EVENTS_LIST_MAGIC = 0x706f6f6c6c696e6bUL, /* poollink */
-	M0_POOL_EVENTS_HEAD_MAGIC = 0x706f6f6c68656164UL, /* poolhead */
-};
-
 /**
  * Pool Event, which is used to change the state of a node or device.
  */
@@ -235,10 +231,10 @@ struct m0_pool_event_link {
  */
 struct m0_pool_spare_usage {
 	/** index of the device to use this spare slot */
-	uint32_t psp_device_index;
+	uint32_t              psu_device_index;
 
 	/** state of the device to use this spare slot */
-	enum m0_pool_nd_state psp_device_state;
+	enum m0_pool_nd_state psu_device_state;
 };
 
 /**
@@ -302,6 +298,19 @@ struct m0_poolmach {
 	/** struct m0_persistent_sm  pm_mach; */
 	struct m0_poolmach_state pm_state;
 
+	/**
+	 * the db table to store poolmach state.
+	 */
+	struct m0_table          pm_table;
+
+	/**
+	 * events stored here.
+	 */
+	struct m0_table          pm_events_table;
+
+	/** the dbenv. if this is NULL, the poolmach is on client. */
+	struct m0_dbenv         *pm_dbenv;
+
 	/** this pool machine initialized or not */
 	bool                     pm_is_initialised;
 
@@ -321,13 +330,23 @@ M0_INTERNAL bool m0_poolmach_version_before(const struct m0_pool_version_numbers
 					    *v1,
 					    const struct m0_pool_version_numbers
 					    *v2);
-
+/**
+ * Initialises the pool machine.
+ *
+ * Pool machine will load its data from persistent storage. If this is the first
+ * call, it will initialise the persistent data.
+ */
 M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
+				 struct m0_dbenv *dbenv,
 				 struct m0_dtm *dtm,
 				 uint32_t nr_nodes,
 				 uint32_t nr_devices,
 				 uint32_t max_node_failures,
 				 uint32_t max_device_failures);
+
+/**
+ * Finalises the pool machine.
+ */
 M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm);
 
 /**
@@ -512,7 +531,7 @@ enum sns_repair_state {
 /** @} end of servermachine group */
 
 
-/* __MERO_LAYOUT_POOL_H__ */
+/* __MERO_POOL_POOL_H__ */
 #endif
 
 /*

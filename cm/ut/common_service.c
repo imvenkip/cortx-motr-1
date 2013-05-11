@@ -231,7 +231,7 @@ static const struct m0_reqh_service_type_ops cm_ut_service_type_ops = {
 M0_CM_TYPE_DECLARE(cm_ut, &cm_ut_service_type_ops, "cm_ut",
 		   &m0_addb_ct_ut_service);
 
-struct m0_mero         mero = { .cc_pool_width = 3 };
+struct m0_mero         mero = { .cc_pool_width = 10 };
 struct m0_reqh_context rctx = { .rc_mero = &mero };
 
 void cm_ut_service_alloc_init()

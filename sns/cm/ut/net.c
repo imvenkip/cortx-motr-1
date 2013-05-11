@@ -99,7 +99,7 @@ struct m0_cm                      sender_cm;
 struct m0_reqh_service           *sender_cm_service;
 extern struct m0_cm_type          sender_cm_cmt;
 struct m0_cm_cp                   sender_cm_cp;
-struct m0_mero                    sender_mero = { .cc_pool_width = 3 };
+struct m0_mero                    sender_mero = { .cc_pool_width = 10 };
 struct m0_reqh_context            sender_rctx = { .rc_mero = &sender_mero };
 
 /* Global structures for copy packet to be sent (Sender side). */

@@ -34,6 +34,7 @@
 #include "mero/magic.h"
 #include "rpc/session.h"
 #include "rpc/item.h"
+#include "lib/uuid.h"
 
 /* Imports */
 struct m0_rpc_conn;
@@ -46,11 +47,6 @@ struct m0_rpc_service_ops;
 
 M0_INTERNAL int m0_rpc_service_module_init(void);
 M0_INTERNAL void m0_rpc_service_module_fini(void);
-
-/** @todo XXX This is stub definition */
-struct m0_uuid {
-	char u_uuid[40];
-};
 
 struct m0_rpc_service_type {
 	/** Numeric id that uniquely identifies a service type */

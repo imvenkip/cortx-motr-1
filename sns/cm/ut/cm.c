@@ -290,6 +290,8 @@ static void iter_stop(uint64_t nr_files, uint64_t pool_width)
 	m0_cm_stop(cm);
 	cobs_delete(nr_files, pool_width);
 	sns_cm_ut_server_stop();
+	/* Cleanup the old db files. Otherwise it messes */
+	system("rm -r sr_db > /dev/null");
 }
 
 static void iter_repair_single_file(void)

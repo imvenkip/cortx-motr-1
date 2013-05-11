@@ -1,2 +1,4 @@
 nobase_mero_include_HEADERS += pool/pool.h
-mero_libmero_la_SOURCES  += pool/pool.c
+
+mero_libmero_la_SOURCES  += pool/pool.c \
+			    pool/pool_store.c

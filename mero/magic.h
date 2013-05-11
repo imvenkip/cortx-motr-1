@@ -531,6 +531,14 @@ enum m0_magic_satchel {
 	/* m0_net_test_timestamp::ntt_magic (allied cabiai) */
 	M0_NET_TEST_TIMESTAMP_MAGIC = 0x33a111edcab1a177,
 
+/* Pool Machine */
+	/* m0_pool_event_link::pel_magic (pool evnt list)*/
+	M0_POOL_EVENTS_LIST_MAGIC = 0x3360013747712777,
+
+	/* poolmach_tl::tl_head_magic (pool evnt head)*/
+	M0_POOL_EVENTS_HEAD_MAGIC = 0x33600137474ead77,
+
+
 /* Request handler */
 	/* m0_reqh_service::rs_magix (bacilli babel) */
 	M0_REQH_SVC_MAGIC = 0x33bac1111babe177,
