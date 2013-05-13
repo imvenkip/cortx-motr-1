@@ -60,6 +60,7 @@ struct m0_rpc_slot_ops {
 	/** Slot has no items to send and hence is idle. Formation
 	    can use such slot to send unbound items. */
 	void (*so_slot_idle)(struct m0_rpc_slot *slot);
+	/** Slot has some item in IN_PROGRESS or FUTURE stage */
 	void (*so_slot_busy)(struct m0_rpc_slot *slot);
 };
 
@@ -72,12 +73,12 @@ struct m0_rpc_slot_ops {
 
   One can think of a slot as a pipe. On sender side, application/formation is
   placing items at one end of this pipe. The item appears on the other end
-  of pipe. And formation takes the item, packs in some RPC, and sends it.
+  of pipe. And formation takes the item, packs in some packet, and sends it.
 
   On receiver side, when an item is received it is placed in one end of the
   pipe. When the item appears on other end of pipe it is sent for execution.
 
-  With a slot a list of items, ordered by verno is associated. An item on
+  With a slot, a list of items, ordered by verno is associated. An item on
   the list is in one of the following states:
 
   - past committed: the reply for the item was received and the receiver
@@ -93,10 +94,6 @@ struct m0_rpc_slot_ops {
     necessary. More than a single item can be in flight per-slot.;
 
   - future: the item wasn't sent.
-
-  An item can be linked into multiple slots (similar to m0_fol_obj_ref).
-  For each slot the item has a separate verno and separate linkage into
-  the slot's item list. Item state is common for all slots;
 
   An item has a MUTABO flag, which is set when the item is an update
   (i.e., changes the file system state). When the item is an update then
@@ -145,16 +142,8 @@ struct m0_rpc_slot_ops {
   <B> Liveness and concurreny </B>
   Slots are allocated at the time of session initialisation and freed at the
   time of session finalisation.
-  m0_rpc_slot::sl_mutex protects all fields of slot except sl_link.
-  sl_link is protected by m0_rpc_machine::rm_ready_slots_mutex.
-
-  Locking order:
-    - slot->sl_mutex
-    - session->s_mutex
-    - conn->c_mutex
-    - rpc_machine->rm_session_mutex, rpc_machine->rm_ready_slots_mutex (As of
-      now, there is no case where these two mutex are held together. If such
-      need arises then ordering of these two mutex should be decided.)
+  Access to slot is synchronized by
+    slot->sl_session->s_conn->c_rpc_machine->rm_sm_grp.s_lock
  */
 struct m0_rpc_slot {
 	/** Session to which this slot belongs */

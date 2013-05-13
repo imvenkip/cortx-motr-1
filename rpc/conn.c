@@ -473,8 +473,9 @@ static void session_zero_detach(struct m0_rpc_conn *conn)
 	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_rpc_conn_timedwait(struct m0_rpc_conn *conn, uint64_t states,
-				      const m0_time_t timeout)
+M0_INTERNAL int m0_rpc_conn_timedwait(struct m0_rpc_conn *conn,
+				      uint64_t            states,
+				      const m0_time_t     timeout)
 {
 	int rc;
 

@@ -52,14 +52,14 @@ enum m0_rpc_conn_state {
 	M0_RPC_CONN_INITIALISED,
 
 	/**
-	   When sender is waiting for receiver reply to get its sender ID it is
-	   in CONNECTING state.
+	   Connection establish request is sent to receiver but its reply is
+	   not yet received.
 	 */
 	M0_RPC_CONN_CONNECTING,
 
 	/**
-	   When initialization is successfull connection enters in ACTIVE state.
-	   It stays in this state for until termination.
+	   Receiver replied with a successful connection establish reply.
+	   Connection is established and ready to be used.
 	 */
 	M0_RPC_CONN_ACTIVE,
 
@@ -91,7 +91,7 @@ enum m0_rpc_conn_state {
 };
 
 /**
-   RPC Connection flags
+   RPC Connection flags @see m0_rpc_conn::c_flags
  */
 enum m0_rpc_conn_flags {
 	RCF_SENDER_END = 1 << 0,
@@ -128,7 +128,6 @@ enum m0_rpc_conn_flags {
    "hand-made" and there is no need to communicate to receiver in order to
    create this session. Receiver assumes that there always exists a session 0
    for each rpc connection.
-   Session 0 always have exactly 1 slot within it.
    Receiver creates session 0 while creating the rpc connection itself.
    Session 0 is required to send special fops like
    - conn_establish or conn_terminate FOP
@@ -176,16 +175,8 @@ enum m0_rpc_conn_flags {
   - Receiver side m0_rpc_conn object will be instantiated in response to
     rpc connection establish request and is deallocated while terminating the
     rpc connection.
-  - User is not expected to take lock on m0_rpc_conn object. Session module
-    will internally synchronise access to m0_rpc_conn.
-  - m0_rpc_conn::c_mutex protects all but c_link fields of m0_rpc_conn.
-  - Locking order:
-    - slot->sl_mutex
-    - session->s_mutex
-    - conn->c_mutex
-    - rpc_machine->rm_session_mutex, rpc_machine->rm_ready_slots_mutex (As of
-      now, there is no case where these two mutex are held together. If such
-      need arises then ordering of these two mutex should be decided.)
+  - Access to m0_rpc_conn is synchronized with
+    conn->c_rpc_machine->rm_sm_grp.s_lock.
 
   <B> Typical sequence of API execution </B>
   Note: error checking is omitted.
@@ -251,7 +242,7 @@ enum m0_rpc_conn_flags {
   all the state transitions of conn internally.
  */
 struct m0_rpc_conn {
-	/** Sender ID unique on receiver */
+	/** Sender ID, unique on receiver */
 	uint64_t                  c_sender_id;
 
 	/** Globally unique ID of rpc connection */
@@ -288,9 +279,7 @@ struct m0_rpc_conn {
 
 	struct m0_rpc_service    *c_service;
 
-	/** A m0_rpc_chan structure that will point to the transfer
-	    machine used by this m0_rpc_conn.
-	 */
+	/** Identifies destination of this connection. */
 	struct m0_rpc_chan       *c_rpcchan;
 
 	/** cob representing the connection */
@@ -333,8 +322,9 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
 
 /**
     Sends handshake CONN_ESTABLISH fop to the remote end.
-    When reply to CONN_ESTABLISH is received,
-    m0_rpc_conn_establish_reply_received() is called.
+
+    Use m0_rpc_conn_timedwait() to wait until conn moves to
+    ESTABLISHED or FAILED state.
 
     @pre conn_state(conn) == M0_RPC_CONN_INITIALISED
     @post ergo(result != 0, conn_state(conn) == M0_RPC_CONN_FAILED)
@@ -372,8 +362,9 @@ M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
    Sends "conn_terminate" FOP to receiver.
    m0_rpc_conn_terminate() is a no-op if @conn is already in TERMINATING
    state.
-   m0_rpc_conn_terminate_reply_received() is called when reply to
-   CONN_TERMINATE is received.
+
+   Use m0_rpc_conn_timedwait() to wait until conn is moved to TERMINATED
+   or FAILED state.
 
    @pre (conn_state(conn) == M0_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0 &&
 	 conn->c_service == NULL) ||
@@ -416,8 +407,9 @@ M0_INTERNAL void m0_rpc_conn_fini(struct m0_rpc_conn *conn);
 int m0_rpc_conn_destroy(struct m0_rpc_conn *conn, m0_time_t abs_timeout);
 
 /**
-    Waits until @conn reaches in any one of states specified by @state_flags.
-    @param state_flags can specify multiple states by ORing
+    Waits until @conn reaches in any one of states specified by @states.
+
+    @param state_flags can specify multiple states by using M0_BITS().
 
     @param abs_timeout should not sleep past abs_timeout waiting for conn
 		to reach in desired state.
@@ -427,10 +419,17 @@ int m0_rpc_conn_destroy(struct m0_rpc_conn *conn, m0_time_t abs_timeout);
                 state.
  */
 M0_INTERNAL int m0_rpc_conn_timedwait(struct m0_rpc_conn *conn,
-				      uint64_t state_flags,
+				      uint64_t states,
 				      const m0_time_t abs_timeout);
 
+/**
+   Just for debugging purpose. Useful in gdb.
+
+   dir = 1, to print incoming conn list
+   dir = 0, to print outgoing conn list
+ */
 M0_INTERNAL int m0_rpc_machine_conn_list_dump(struct m0_rpc_machine *machine,
 					      int dir);
+
 /** @}  End of rpc_session group */
 #endif /* __MERO_RPC_CONN_H__ */

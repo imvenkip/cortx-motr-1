@@ -58,7 +58,7 @@ Out of these, m0_rpc_conn and m0_rpc_session are visible to user.
 m0_rpc_slot and m0_rpc_slot_ref are internal to rpc layer and not visible to
 users outside rpc layer.
 
-Session module uses following types of objects defined by rpc-core:
+Session module uses following types of objects:
 - rpc machine @see m0_rpc_machine
 - rpc item @see m0_rpc_item.
 
@@ -85,10 +85,9 @@ definitions are used on both sender and receiver side)
 <B> Bound and Unbound rpc items: </B>
 
 Rpc layer can send an rpc item on network only if it is associated with some
-slot within the session. User of rpc layer can indirectly specify the slot (via
-"update stream") on which the item needs to be sent. Or the user can just
-specify session and leave the task of choosing any available slot to
-rpc layer.
+slot within the session. User can specify the slot on which the item needs to
+be sent. Or the user can just specify session and leave the task of choosing
+any available slot to rpc layer.
 
 With respect to session and slots, an rpc item is said to be "bound" if
 the item is associated with slot. An item is called as "unbound"/"freestanding"
@@ -227,9 +226,7 @@ back to sender.
  addition to uuid, that is not guaranteed to be globally unique)
 
     @todo
-	- stats
 	- Generate ADDB data points for important session events
-	- UUID generation
 	- store replies in FOL
 	- Support more than one items in flight for a slot
 	- Optimization: Cache misordered items at receiver, rather than
@@ -237,16 +234,12 @@ back to sender.
 	- How to get unique stob_id for session and slot cobs?
 	- slot table resize needs to be implemented.
 	- Design protocol to dynamically adjust number of slots.
-	- Session level timeout
-	- session can be terminated only if all items are pruned from all
-		slot->sl_item_list
-
  */
 
 #include "lib/list.h"
 #include "lib/tlist.h"
 #include "lib/time.h"
-#include "sm/sm.h" /* m0_sm */
+#include "sm/sm.h"                /* m0_sm */
 #include "rpc/rpc_onwire.h"
 
 /* Imports */
@@ -268,7 +261,7 @@ enum m0_rpc_session_state {
 	M0_RPC_SESSION_INITIALISED,
 	/**
 	   When sender sends a SESSION_ESTABLISH FOP to reciever it
-	   is in CREATING state
+	   is in ESTABLISHING state
 	 */
 	M0_RPC_SESSION_ESTABLISHING,
 	/**
@@ -277,7 +270,7 @@ enum m0_rpc_session_state {
 			for each item I in S->item_list
 				// I has got reply
 				I->state is in {PAST_COMMITTED, PAST_VOLATILE}
-		- session->unbound_items list is empty
+		- formation queue has no item associated with this session
 	   A session can be terminated only if it is IDLE.
 	 */
 	M0_RPC_SESSION_IDLE,
@@ -286,7 +279,7 @@ enum m0_rpc_session_state {
 		- Any of slots has item to be sent (FUTURE items)
 		- Any of slots has item for which reply is not received
 			(IN_PROGRESS items)
-		- unbound_items list is not empty
+		- Formation queue has item associated with this session
 	 */
 	M0_RPC_SESSION_BUSY,
 	/**
@@ -332,22 +325,13 @@ enum m0_rpc_session_state {
    Users of rpc-layer are never expected to take lock on session. Rpc layer
    will internally synchronise access to m0_rpc_session.
 
-   m0_rpc_session::s_mutex protects all fields except s_link. s_link is
-   protected by session->s_conn->c_mutex.
+   All access to session are synchronized using
+   session->s_conn->c_rpc_machine->rm_sm_grp.s_lock.
 
-   There is no need to take session->s_mutex while posting item on the session.`
    When session is in one of INITIALISED, TERMINATED, FINALISED and
    FAILED state, user is expected to serialise access to the session object.
-   (It is assumed that session in one of {INITIALISED, TERMINATED, FAILED,
-    FINALISED} state, very likely does not have concurrent users).
-
-   Locking order:
-    - slot->sl_mutex
-    - session->s_mutex
-    - conn->c_mutex
-    - rpc_machine->rm_session_mutex, rpc_machine->rm_ready_slots_mutex (As of
-      now, there is no case where these two mutex are held together. If such
-      need arises then ordering of these two mutex should be decided.)
+   (It is assumed that session, in one of {INITIALISED, TERMINATED, FAILED,
+    FINALISED} states, does not have concurrent users).
 
    @verbatim
                                       |
@@ -425,7 +409,7 @@ enum m0_rpc_session_state {
 			      // will be called when reply to this item is
 			      // received. DO NOT FREE THIS ITEM.
 
-   m0_rpc_post(item);
+   rc = m0_rpc_post(item);
 
    // TERMINATING SESSION
    // Wait until all the items that were posted on this session, are sent and
@@ -493,6 +477,7 @@ struct m0_rpc_session {
 
 	/** list of items that can be sent through any available slot.
 	    items are placed using m0_rpc_item::ri_unbound_link
+	    @deprecated XXX
 	 */
 	struct m0_list            s_unbound_items;
 
@@ -548,9 +533,8 @@ M0_INTERNAL int m0_rpc_session_init(struct m0_rpc_session *session,
 
 /**
     Sends a SESSION_ESTABLISH fop across pre-defined session-0 in
-    session->s_conn.
-    m0_rpc_session_establish_reply_received() is called when reply to
-    SESSION_ESTABLISH fop is received.
+    session->s_conn. Use m0_rpc_session_timedwait() to wait
+    until session reaches IDLE or FAILED state.
 
     @pre session_state(session) == M0_RPC_SESSION_INITIALISED
     @pre conn_state(session->s_conn) == M0_RPC_CONN_ACTIVE
@@ -589,8 +573,8 @@ M0_INTERNAL int m0_rpc_session_create(struct m0_rpc_session *session,
 /**
    Sends terminate session fop to receiver.
    Acts as no-op if session is already in TERMINATING state.
-   m0_rpc_session_terminate_reply_received() is called when reply to
-   CONN_TERMINATE fop is received.
+   Does not wait for reply. Use m0_rpc_session_timedwait() to wait
+   until session reaches TERMINATED or FAILED state.
 
    @pre M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
 				       M0_RPC_SESSION_TERMINATING))
@@ -610,6 +594,7 @@ M0_INTERNAL int m0_rpc_session_terminate(struct m0_rpc_session *session,
  *                    FAILED state.
  *
  * @pre M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
+ *				       M0_RPC_SESSION_BUSY,
  *				       M0_RPC_SESSION_TERMINATING))
  * @post M0_IN(session_state(session), (M0_RPC_SESSION_TERMINATED,
  *					M0_RPC_SESSION_FAILED))
@@ -620,16 +605,16 @@ M0_INTERNAL int m0_rpc_session_terminate_sync(struct m0_rpc_session *session,
 /**
     Waits until @session object reaches in one of states given by @state_flags.
 
-    @param state_flags can specify multiple states by ORing
+    @param states can specify multiple states by using M0_BITS()
     @param abs_timeout thread does not sleep past abs_timeout waiting for conn
 		to reach in desired state.
     @return 0 if session reaches in one of the state(s) specified by
 		@state_flags
-            -ETIMEDOUT if time out has occured before session reaches in desired
-                state.
+            -ETIMEDOUT if time out has occured before session reaches in
+                desired state.
  */
 M0_INTERNAL int m0_rpc_session_timedwait(struct m0_rpc_session *session,
-					 uint64_t state_flags,
+					 uint64_t states,
 					 const m0_time_t abs_timeout);
 
 /**
@@ -642,8 +627,8 @@ M0_INTERNAL int m0_rpc_session_timedwait(struct m0_rpc_session *session,
 M0_INTERNAL void m0_rpc_session_fini(struct m0_rpc_session *session);
 
 /**
- * A combination of m0_rpc_session_terminate_sync() and m0_rpc_session_fini() in
- * a single routine - terminate the session, wait until it switched to
+ * A combination of m0_rpc_session_terminate_sync() and m0_rpc_session_fini()
+ * in a single routine - terminate the session, wait until it switched to
  * terminated state and finalize session object.
  */
 int m0_rpc_session_destroy(struct m0_rpc_session *session,
