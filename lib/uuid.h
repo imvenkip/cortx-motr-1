@@ -35,7 +35,7 @@ enum {
 };
 
 struct m0_uuid {
-	char u_uuid[M0_UUID_STRLEN];
+	char u_uuid[M0_UUID_STRLEN + 1];
 };
 
 /**
