@@ -34,10 +34,6 @@ enum {
 	M0_UUID_STRLEN = 36
 };
 
-struct m0_uuid {
-	char u_uuid[M0_UUID_STRLEN + 1];
-};
-
 /**
    Parse the 8-4-4-4-12 hexadecimal string representation of a UUID
    and convert to numerical form.

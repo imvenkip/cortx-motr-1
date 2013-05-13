@@ -169,7 +169,7 @@ M0_INTERNAL bool m0_rpc_service_invariant(const struct m0_rpc_service *service)
 M0_INTERNAL int m0_rpc_service_alloc_and_init(struct m0_rpc_service_type
 					      *service_type,
 					      const char *ep_addr,
-					      const struct m0_uuid *uuid,
+					      const struct m0_uint128 *uuid,
 					      struct m0_rpc_service **out)
 {
 	int rc;
@@ -202,7 +202,7 @@ M0_INTERNAL void m0_rpc_service_fini_and_free(struct m0_rpc_service *service)
 M0_INTERNAL int m0_rpc__service_init(struct m0_rpc_service *service,
 				     struct m0_rpc_service_type *service_type,
 				     const char *ep_addr,
-				     const struct m0_uuid *uuid,
+				     const struct m0_uint128 *uuid,
 				     const struct m0_rpc_service_ops *ops)
 {
 	char *copy_of_ep_addr;
@@ -265,12 +265,12 @@ M0_INTERNAL const char *m0_rpc_service_get_ep_addr(const struct m0_rpc_service
 	return service->svc_ep_addr;
 }
 
-M0_INTERNAL const struct m0_uuid *
+M0_INTERNAL const struct m0_uint128
 m0_rpc_service_get_uuid(const struct m0_rpc_service *service)
 {
 	M0_PRE(m0_rpc_service_invariant(service));
 
-	return &service->svc_uuid;
+	return service->svc_uuid;
 }
 
 M0_INTERNAL void m0_rpc_service_conn_attach(struct m0_rpc_service *service,

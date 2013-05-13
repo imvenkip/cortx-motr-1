@@ -370,7 +370,7 @@ static const struct m0_rpc_service_ops reqh_rpc_svc_ops = {
 static int
 reqh_rpc_svc_alloc_and_init(struct m0_rpc_service_type *service_type,
 			    const char                 *ep_addr,
-			    const struct m0_uuid       *uuid,
+			    const struct m0_uint128    *uuid,
 			    struct m0_rpc_service     **out)
 {
 	int rc;
@@ -396,7 +396,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 	struct m0_rpc_service   *rpcsvc = &service->rs_rpc_svc;
 	struct m0_rpc_machine   *rmach;
 	const char              *ep;
-	struct m0_uuid           uuid1;
+	struct m0_uint128        uuid1;
 
 	M0_PRE(service != NULL && reqh != NULL &&
 		service->rs_sm.sm_state == M0_RST_INITIALISING);

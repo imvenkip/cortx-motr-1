@@ -35,13 +35,13 @@
 
 struct m0_poolnode_rec {
 	enum m0_pool_nd_state pn_state;
-	struct m0_uuid        pn_node_id;
+	struct m0_uint128     pn_node_id;
 };
 
 struct m0_pooldev_rec {
 	enum m0_pool_nd_state pd_state;
-	struct m0_uuid        pd_dev_id;
-	struct m0_uuid        pd_node_id;
+	struct m0_uint128     pd_dev_id;
+	struct m0_uint128     pd_node_id;
 };
 
 struct m0_pool_spare_usage_rec {

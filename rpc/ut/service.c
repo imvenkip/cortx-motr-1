@@ -33,7 +33,7 @@ enum {
 static int
 foo_service_alloc_and_init(struct m0_rpc_service_type *service_type,
 			   const char                 *ep_addr,
-			   const struct m0_uuid       *uuid,
+			   const struct m0_uint128    *uuid,
 			   struct m0_rpc_service     **out);
 
 static void foo_service_fini_and_free(struct m0_rpc_service *service);
@@ -68,7 +68,7 @@ static struct m0_net_end_point   mock_destep; /* Destination end-point */
 static int
 foo_service_alloc_and_init(struct m0_rpc_service_type *service_type,
 			   const char                 *ep_addr,
-			   const struct m0_uuid       *uuid,
+			   const struct m0_uint128    *uuid,
 			   struct m0_rpc_service     **out)
 {
 	struct m0_rpc_service *service;
@@ -118,7 +118,7 @@ static void foo_service_fini_and_free(struct m0_rpc_service *service)
 static int
 bar_alloc_and_init(struct m0_rpc_service_type *service_type,
 		   const char                 *ep_addr,
-		   const struct m0_uuid       *uuid,
+		   const struct m0_uint128    *uuid,
 		   struct m0_rpc_service     **out);
 
 static const struct m0_rpc_service_type_ops bar_type_ops = {
@@ -133,7 +133,7 @@ static bool bar_alloc_and_init_called;
 static int
 bar_alloc_and_init(struct m0_rpc_service_type *service_type,
 		   const char                 *ep_addr,
-		   const struct m0_uuid       *uuid,
+		   const struct m0_uint128    *uuid,
 		   struct m0_rpc_service     **out)
 {
 	M0_UT_ASSERT(service_type == &bar_service_type);
@@ -173,7 +173,7 @@ static void locate_failed_test(void)
 
 static struct m0_rpc_service *fr_service = NULL; /* fr_ for foo_rpc_ */
 static const char             foo_ep_addr[] = "127.0.0.1:12345:1";
-static struct m0_uuid         foo_uuid; /* Leave it unitialised */
+static struct m0_uint128      foo_uuid; /* Leave it unitialised */
 
 static void alloc_test(void)
 {

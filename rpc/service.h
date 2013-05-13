@@ -29,12 +29,12 @@
    @{
  */
 
+#include "lib/types.h"       /* m0_uint128 */
 #include "lib/tlist.h"
 #include "lib/bob.h"
 #include "mero/magic.h"
 #include "rpc/session.h"
 #include "rpc/item.h"
-#include "lib/uuid.h"
 
 /* Imports */
 struct m0_rpc_conn;
@@ -78,7 +78,7 @@ struct m0_rpc_service_type_ops {
          */
 	int (*rsto_alloc_and_init)(struct m0_rpc_service_type *service_type,
 				   const char                 *ep_addr,
-				   const struct m0_uuid       *uuid,
+				   const struct m0_uint128    *uuid,
 				   struct m0_rpc_service     **out);
 };
 
@@ -183,7 +183,7 @@ struct m0_rpc_service {
 
 	/** @todo XXX embed service configuration object in m0_rpc_service */
 	char                            *svc_ep_addr;
-	struct m0_uuid                   svc_uuid;
+	struct m0_uint128                svc_uuid;
 
         /**
          * Rpc connection attached to the service instance. Valid only in
@@ -249,9 +249,8 @@ M0_INTERNAL struct m0_rpc_conn *m0_rpc_service_get_conn(const struct
 							m0_rpc_service
 							*service);
 
-M0_INTERNAL const struct m0_uuid *m0_rpc_service_get_uuid(const struct
-							  m0_rpc_service
-							  *service);
+M0_INTERNAL const struct m0_uint128
+m0_rpc_service_get_uuid(const struct m0_rpc_service *service);
 
 /**
  * Removes association between service and service->svc_conn.
@@ -283,7 +282,7 @@ M0_INTERNAL void m0_rpc_service_release(struct m0_rpc_service *service);
 M0_INTERNAL int
 m0_rpc_service_alloc_and_init(struct m0_rpc_service_type *service_type,
 			      const char *ep_addr,
-			      const struct m0_uuid *uuid,
+			      const struct m0_uint128 *uuid,
 			      struct m0_rpc_service **out);
 
 /**
@@ -305,7 +304,7 @@ M0_INTERNAL void m0_rpc_service_fini_and_free(struct m0_rpc_service *service);
 M0_INTERNAL int m0_rpc__service_init(struct m0_rpc_service *service,
 				     struct m0_rpc_service_type *service_type,
 				     const char *ep_addr,
-				     const struct m0_uuid *uuid,
+				     const struct m0_uint128 *uuid,
 				     const struct m0_rpc_service_ops *ops);
 
 /**
