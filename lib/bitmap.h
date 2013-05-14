@@ -110,12 +110,12 @@ M0_INTERNAL void m0_bitmap_copy(struct m0_bitmap *dst,
 M0_INTERNAL size_t m0_bitmap_set_nr(const struct m0_bitmap *map);
 
 /**
-   Initialise an onwire bitmap to hold nr bits. The array to store bits is
+   Initialise an on-wire bitmap to hold nr bits. The array to store bits is
    allocated internally.
 
    On success, the bitmap is initialised with all bits initially set to false.
 
-   @param ow_map onwire bitmap object to initialize
+   @param ow_map on-wire bitmap object to initialise
    @param nr  size of the bitmap, in bits
    @retval 0 success
    @retval !0 failure, -errno
@@ -123,29 +123,28 @@ M0_INTERNAL size_t m0_bitmap_set_nr(const struct m0_bitmap *map);
 M0_INTERNAL int m0_bitmap_onwire_init(struct m0_bitmap_onwire *ow_map,
 				      size_t nr);
 /**
-   Finalise the onwire bitmap.
-   All memory associated with the onwire bitmap is released.
+   Finalise the on-wire bitmap.
+   All memory associated with the on-wire bitmap is released.
 
-   @param map bitmap to finalise
+   @param ow_map on-wire bitmap to finalise
  */
 M0_INTERNAL void m0_bitmap_onwire_fini(struct m0_bitmap_onwire *ow_map);
 
 /**
-   Converts in mermory struct m0_bitmap to onwire struct m0_bitmap_onwire.
+   Converts in-memory struct m0_bitmap to on-wire struct m0_bitmap_onwire.
 
-   @param im_map in-memory bitmap
-   @param ow_map pre-intialised onwire bitmap object with conversion result
-		 from in-memory bitmap.
+   @param im_map in-memory bitmap object to be converted into on-wire bitmap
+		 object.
+   @param ow_map pre-initialised on-wire bitmap object
  */
 M0_INTERNAL void m0_bitmap_im2ow(const struct m0_bitmap *im_map,
 			         struct m0_bitmap_onwire *ow_map);
 
 /**
-   Converts onwire bitmap to in-memory bitmap.
+   Converts on-wire bitmap to in-memory bitmap.
 
-   @param ow_map onwire bitmap object to be converted into in-memory bitmap.
-   @param im_map pre-intialised in-memory bitmap object with conversion result
-	      from onwire bitmap.
+   @param ow_map on-wire bitmap object to be converted into in-memory bitmap.
+   @param im_map pre-initialised in-memory bitmap object
  */
 M0_INTERNAL void m0_bitmap_ow2im(const struct m0_bitmap_onwire *ow_map,
 				 struct m0_bitmap *im_map);
