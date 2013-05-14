@@ -150,6 +150,11 @@ M0_INTERNAL int m0_bitmap_onwire_init(struct m0_bitmap_onwire *ow_map, size_t nr
 
 	M0_PRE(ow_map != NULL);
 
+	/*
+	 * Use temporary struct m0_bitmap object and reuse
+	 * struct m0_bitmap::b_words allocated by m0_bitmap_init()
+	 * in struct m0_bitmap_onwire
+	 */
 	ret = m0_bitmap_init(&map, nr);
 	if (ret != 0)
 		return ret;
@@ -177,8 +182,8 @@ M0_INTERNAL void m0_bitmap_im2ow(const struct m0_bitmap *im_map,
 	M0_PRE(im_map->b_words != NULL);
 	M0_PRE(s == ow_map->bo_size);
 
-	memcpy(ow_map->bo_words, im_map->b_words, s *
-	       sizeof im_map->b_words[0]);
+	memcpy(ow_map->bo_words, im_map->b_words,
+	       s * sizeof im_map->b_words[0]);
 }
 
 M0_INTERNAL void m0_bitmap_ow2im(const struct m0_bitmap_onwire *ow_map,
@@ -190,8 +195,8 @@ M0_INTERNAL void m0_bitmap_ow2im(const struct m0_bitmap_onwire *ow_map,
 	M0_PRE(s == ow_map->bo_size);
 
 	/* copy onwire bitmap words to in-memory bitmap words. */
-	memcpy(im_map->b_words, ow_map->bo_words, ow_map->bo_size *
-	       sizeof im_map->b_words[0]);
+	memcpy(im_map->b_words, ow_map->bo_words,
+	       ow_map->bo_size * sizeof im_map->b_words[0]);
 }
 
 /** @} end of bitmap group */
