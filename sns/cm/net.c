@@ -151,9 +151,9 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
 
         sns_cp->sc_base.c_ag_cp_idx = sns_cpx->scx_cp.cpx_ag_cp_idx;
         m0_bitmap_init(&sns_cp->sc_base.c_xform_cp_indices,
-                       sns_cpx->scx_cp.cpx_bm.b_nr);
-        m0_bitmap_copy(&sns_cp->sc_base.c_xform_cp_indices,
-                       &sns_cpx->scx_cp.cpx_bm);
+                       ag->cag_cp_global_nr);
+        m0_bitmap_ow2im(&sns_cpx->scx_cp.cpx_bm,
+			&sns_cp->sc_base.c_xform_cp_indices);
 
         sns_cp->sc_base.c_buf_nr = 0;
         sns_cp->sc_base.c_data_seg_nr = seg_nr_get(sns_cpx,
@@ -193,9 +193,9 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
         sns_cpx->scx_phase = M0_CCP_SEND;
         ag_id_copy(&sns_cpx->scx_cp.cpx_ag_id, &cp->c_ag->cag_id);
         sns_cpx->scx_cp.cpx_ag_cp_idx = cp->c_ag_cp_idx;
-        m0_bitmap_init(&sns_cpx->scx_cp.cpx_bm,
-                       cp->c_ag->cag_cp_global_nr);
-        m0_bitmap_copy(&sns_cpx->scx_cp.cpx_bm, &cp->c_xform_cp_indices);
+        m0_bitmap_onwire_init(&sns_cpx->scx_cp.cpx_bm,
+			      cp->c_ag->cag_cp_global_nr);
+        m0_bitmap_im2ow(&cp->c_xform_cp_indices, &sns_cpx->scx_cp.cpx_bm);
 
         offset = sns_cp->sc_index;
         nb_cnt = cp->c_buf_nr;
@@ -244,7 +244,7 @@ cleanup:
         for (i = 0; i < nb_idx; ++i)
                 m0_free(&sns_cpx->scx_ivecs.cis_ivecs[nb_idx]);
         m0_free(sns_cpx->scx_ivecs.cis_ivecs);
-        m0_bitmap_fini(&sns_cpx->scx_cp.cpx_bm);
+        m0_bitmap_onwire_fini(&sns_cpx->scx_cp.cpx_bm);
 out:
         return rc;
 }

@@ -25,6 +25,7 @@ extern void m0_test_lib_uuid(void);
 extern void m0_ut_lib_buf_test(void);
 extern void test_atomic(void);
 extern void test_bitmap(void);
+extern void test_bitmap_onwire(void);
 extern void test_bob(void);
 extern void test_chan(void);
 extern void test_cookie(void);
@@ -52,34 +53,35 @@ const struct m0_test_suite libm0_ut = {
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "atomic",    test_atomic        },
-		{ "bitmap",    test_bitmap        },
-		{ "bob",       test_bob           },
-		{ "buf",       m0_ut_lib_buf_test },
-		{ "chan",      test_chan          },
-		{ "cookie",    test_cookie        },
+		{ "atomic",           test_atomic        },
+		{ "bitmap",           test_bitmap        },
+		{ "onwire-bitmap",    test_bitmap_onwire },
+		{ "bob",              test_bob           },
+		{ "buf",              m0_ut_lib_buf_test },
+		{ "chan",             test_chan          },
+		{ "cookie",           test_cookie        },
 #ifdef ENABLE_FAULT_INJECTION
-		{ "finject",   test_finject       },
+		{ "finject",          test_finject       },
 #endif
-		{ "getopts",   test_getopts       },
-		{ "list",      test_list          },
-		{ "lockers",   test_lockers       },
-		{ "memory",    test_memory        },
-		{ "misc",      m0_test_misc	  },
-		{ "mutex",     test_mutex         },
-		{ "rwlock",    test_rw            },
-		{ "processor", test_processor     },
-		{ "queue",     test_queue         },
-		{ "refs",      test_refs          },
-		{ "thread",    test_thread        },
-		{ "time",      m0_ut_time_test	  },
-		{ "timer",     test_timer         },
-		{ "tlist",     test_tlist         },
-		{ "trace",     test_trace         },
-		{ "uuid",      m0_test_lib_uuid   },
-		{ "vec",       test_vec           },
-		{ "zerovec",   test_zerovec       },
-		{ NULL,        NULL               }
+		{ "getopts",          test_getopts       },
+		{ "list",             test_list          },
+		{ "lockers",          test_lockers       },
+		{ "memory",           test_memory        },
+		{ "misc",             m0_test_misc	 },
+		{ "mutex",            test_mutex         },
+		{ "rwlock",           test_rw            },
+		{ "processor",        test_processor     },
+		{ "queue",            test_queue         },
+		{ "refs",             test_refs          },
+		{ "thread",           test_thread        },
+		{ "time",             m0_ut_time_test	 },
+		{ "timer",            test_timer         },
+		{ "tlist",            test_tlist         },
+		{ "trace",            test_trace         },
+		{ "uuid",             m0_test_lib_uuid   },
+		{ "vec",              test_vec           },
+		{ "zerovec",          test_zerovec       },
+		{ NULL,               NULL               }
 	}
 };
 

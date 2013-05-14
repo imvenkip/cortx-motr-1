@@ -42,6 +42,13 @@ struct m0_bitmap {
 	size_t    b_nr;
 	/** Words with bits. */
 	uint64_t *b_words;
+};
+
+struct m0_bitmap_onwire {
+	/** size of bo_words. */
+	size_t    bo_size;
+	/** Words with bits. */
+	uint64_t *bo_words;
 } M0_XCA_SEQUENCE;
 
 /**
@@ -101,6 +108,47 @@ M0_INTERNAL void m0_bitmap_copy(struct m0_bitmap *dst,
  * Returns the number of bits that are 'true'.
  */
 M0_INTERNAL size_t m0_bitmap_set_nr(const struct m0_bitmap *map);
+
+/**
+   Initialise an onwire bitmap to hold nr bits. The array to store bits is
+   allocated internally.
+
+   On success, the bitmap is initialised with all bits initially set to false.
+
+   @param ow_map onwire bitmap object to initialize
+   @param nr  size of the bitmap, in bits
+   @retval 0 success
+   @retval !0 failure, -errno
+ */
+M0_INTERNAL int m0_bitmap_onwire_init(struct m0_bitmap_onwire *ow_map,
+				      size_t nr);
+/**
+   Finalise the onwire bitmap.
+   All memory associated with the onwire bitmap is released.
+
+   @param map bitmap to finalise
+ */
+M0_INTERNAL void m0_bitmap_onwire_fini(struct m0_bitmap_onwire *ow_map);
+
+/**
+   Converts in mermory struct m0_bitmap to onwire struct m0_bitmap_onwire.
+
+   @param im_map in-memory bitmap
+   @param ow_map pre-intialised onwire bitmap object with conversion result
+		 from in-memory bitmap.
+ */
+M0_INTERNAL void m0_bitmap_im2ow(const struct m0_bitmap *im_map,
+			         struct m0_bitmap_onwire *ow_map);
+
+/**
+   Converts onwire bitmap to in-memory bitmap.
+
+   @param ow_map onwire bitmap object to be converted into in-memory bitmap.
+   @param im_map pre-intialised in-memory bitmap object with conversion result
+	      from onwire bitmap.
+ */
+M0_INTERNAL void m0_bitmap_ow2im(const struct m0_bitmap_onwire *ow_map,
+				 struct m0_bitmap *im_map);
 
 M0_BASSERT(8 == sizeof ((struct m0_bitmap *)0)->b_words[0]);
 

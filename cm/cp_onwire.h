@@ -33,25 +33,25 @@
 /** Onwire copy packet structure. */
 struct m0_cpx {
 	/** Copy packet priority. */
-	uint32_t           cpx_prio;
+	uint32_t                  cpx_prio;
 
 	/**
 	 * Aggregation group id corresponding to an aggregation group,
 	 * to which the copy packet belongs.
 	 */
-	struct m0_cm_ag_id cpx_ag_id;
+	struct m0_cm_ag_id        cpx_ag_id;
 
 	/** Global index of this copy packet in aggregation group. */
-	uint64_t           cpx_ag_cp_idx;
+	uint64_t                  cpx_ag_cp_idx;
 
 	/** Bitmap representing the accumulator information. */
-	struct m0_bitmap   cpx_bm;
+	struct m0_bitmap_onwire   cpx_bm;
 
 	/** Network buffer descriptors corresponding to copy packet data. */
-	struct m0_io_descs cpx_desc;
+	struct m0_io_descs        cpx_desc;
 
 	/** Sliding window information. */
-	struct m0_cm_ag_sw cpx_sw;
+	struct m0_cm_ag_sw        cpx_sw;
 } M0_XCA_RECORD;
 
 /** Onwire copy packet reply. */
