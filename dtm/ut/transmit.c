@@ -722,9 +722,9 @@ static void redo_test(void)
 	ticked = 0;
 	m0_dtm_history_redo(&tgt.lre_rem.re_fol.rfo_ch.ch_history, 0);
 	m0_reqh_fom_domain_idle_wait(&test_ctx.rmc_reqh);
+	M0_UT_ASSERT(ticked == OPER_NR);
 	tgt_fini();
 	src_fini();
-	M0_UT_ASSERT(ticked == OPER_NR);
 }
 
 const struct m0_test_suite dtm_transmit_ut = {
