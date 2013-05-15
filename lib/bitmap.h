@@ -137,7 +137,7 @@ M0_INTERNAL void m0_bitmap_onwire_fini(struct m0_bitmap_onwire *ow_map);
 		 object.
    @param ow_map pre-initialised on-wire bitmap object
  */
-M0_INTERNAL void m0_bitmap_im2ow(const struct m0_bitmap *im_map,
+M0_INTERNAL void m0_bitmap_store(const struct m0_bitmap *im_map,
 			         struct m0_bitmap_onwire *ow_map);
 
 /**
@@ -146,8 +146,8 @@ M0_INTERNAL void m0_bitmap_im2ow(const struct m0_bitmap *im_map,
    @param ow_map on-wire bitmap object to be converted into in-memory bitmap.
    @param im_map pre-initialised in-memory bitmap object
  */
-M0_INTERNAL void m0_bitmap_ow2im(const struct m0_bitmap_onwire *ow_map,
-				 struct m0_bitmap *im_map);
+M0_INTERNAL void m0_bitmap_load(const struct m0_bitmap_onwire *ow_map,
+				struct m0_bitmap *im_map);
 
 M0_BASSERT(8 == sizeof ((struct m0_bitmap *)0)->b_words[0]);
 

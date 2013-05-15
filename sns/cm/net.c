@@ -152,7 +152,7 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
         sns_cp->sc_base.c_ag_cp_idx = sns_cpx->scx_cp.cpx_ag_cp_idx;
         m0_bitmap_init(&sns_cp->sc_base.c_xform_cp_indices,
                        ag->cag_cp_global_nr);
-        m0_bitmap_ow2im(&sns_cpx->scx_cp.cpx_bm,
+        m0_bitmap_load(&sns_cpx->scx_cp.cpx_bm,
 			&sns_cp->sc_base.c_xform_cp_indices);
 
         sns_cp->sc_base.c_buf_nr = 0;
@@ -195,7 +195,7 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
         sns_cpx->scx_cp.cpx_ag_cp_idx = cp->c_ag_cp_idx;
         m0_bitmap_onwire_init(&sns_cpx->scx_cp.cpx_bm,
 			      cp->c_ag->cag_cp_global_nr);
-        m0_bitmap_im2ow(&cp->c_xform_cp_indices, &sns_cpx->scx_cp.cpx_bm);
+        m0_bitmap_store(&cp->c_xform_cp_indices, &sns_cpx->scx_cp.cpx_bm);
 
         offset = sns_cp->sc_index;
         nb_cnt = cp->c_buf_nr;

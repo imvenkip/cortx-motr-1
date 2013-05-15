@@ -22,6 +22,7 @@
 #include "lib/ub.h"
 #include "lib/bitmap.h"
 #include "lib/assert.h"
+#include "lib/misc.h" /* m0_forall */
 
 enum {
 	UT_BITMAP_SIZE = 120
@@ -119,7 +120,6 @@ void test_bitmap_onwire(void)
 	struct m0_bitmap        in_bm;
 	struct m0_bitmap        out_bm;
 	struct m0_bitmap_onwire ow_bm;
-	size_t                  idx;
 
 	M0_UT_ASSERT(m0_bitmap_init(&in_bm, UT_BITMAP_SIZE) == 0);
 	M0_UT_ASSERT(in_bm.b_nr == UT_BITMAP_SIZE);
@@ -130,14 +130,12 @@ void test_bitmap_onwire(void)
 	m0_bitmap_set(&in_bm, 64, true);
 
 	M0_UT_ASSERT(m0_bitmap_onwire_init(&ow_bm, UT_BITMAP_SIZE) == 0);
-	m0_bitmap_im2ow(&in_bm, &ow_bm);
+	m0_bitmap_store(&in_bm, &ow_bm);
 	M0_UT_ASSERT(m0_bitmap_init(&out_bm, UT_BITMAP_SIZE) == 0);
-	m0_bitmap_ow2im(&ow_bm, &out_bm);
+	m0_bitmap_load(&ow_bm, &out_bm);
 
-	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
-		M0_UT_ASSERT(m0_bitmap_get(&out_bm, idx) ==
-			     (idx == 1 || idx == 7 || idx == 64));
-	}
+	M0_UT_ASSERT(m0_forall(i, UT_BITMAP_SIZE,
+		     m0_bitmap_get(&out_bm, i) == m0_bitmap_get(&in_bm, i)));
 
 	m0_bitmap_fini(&in_bm);
 	m0_bitmap_onwire_fini(&ow_bm);
