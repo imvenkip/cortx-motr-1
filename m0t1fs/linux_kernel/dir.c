@@ -919,8 +919,8 @@ M0_INTERNAL struct m0_fid m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci,
 	m0_layout_enum_get(le, index, &ci->ci_fid, &fid);
 
 	M0_LOG(M0_DEBUG, "gob fid [%llu:%llu] @%d = cob fid [%llu:%llu]",
-			ci->ci_fid.f_container, ci->ci_fid.f_key, index,
-			fid.f_container, fid.f_key);
+	       ci->ci_fid.f_container, ci->ci_fid.f_key, index,
+	       fid.f_container, fid.f_key);
 
 	return fid;
 }

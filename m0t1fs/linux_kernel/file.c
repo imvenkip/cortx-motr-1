@@ -82,8 +82,8 @@
    write requests may include updates to redundancy data.
 
    In case of node or device failure, lost data may be re-constructed from
-   redundancy information. A read request to lost data need to satisfied by
-   re-constructing data from its parity data. When SNS repair is completed
+   redundancy information. A read request to lost data needs to be satisfied
+   by re-constructing data from its parity data. When SNS repair is completed
    for the failed node or device, a read or write request can be served by
    re-directing to its spare unit.
 
@@ -159,7 +159,7 @@
    |      |  OFFLINE   | same as FAILED                                        |
    |      |------------|-------------------------------------------------------|
    | read |  FAILED    | read from other data unit(s) and parity unit(s) and   |
-   |      |  REPAIRING | re-construct the datai.  If NBA** exists, use new     |
+   |      |  REPAIRING | re-construct the datai. If NBA** exists, use new      |
    |      |            | layout to do reading if necessary.                    |
    |      |            | See more detail for this degraded read (1)            |
    |      |------------|-------------------------------------------------------|
@@ -174,10 +174,10 @@
    |      |            | if old layout is used, this is called degraded        |
    |      |            | write. See more detail in the following (2)           |
    |      |------------|-------------------------------------------------------|
-   |      |  REPAIRING | Cocurrent++ write I/O and sns repairing is out of the |
-   |      |            | scope of this DLD.  Not supported currently.          |
+   |      |  REPAIRING | Concurrent++ write I/O and sns repairing is out of    |
+   |      |            | the scope of this DLD.  Not supported currently.      |
    |      |            | -ENOTSUP will be returned at this moment.             |
-   |      |            | This is @TODO Concorrent r/w in SNS repair            |
+   |      |            | This is @TODO Concurrent r/w in SNS repair            |
    |      |------------|-------------------------------------------------------|
    |      |  REPAIRED  | write to the repaired spare unit or new layout        |
    |      |            | if NBA**                                              |
@@ -186,11 +186,11 @@
    a write request, the system switches the file to use a new layout, and so the
    data is written to devices in new layout. By such means, the writing request
    will not be blocked waiting the device to be fixed, or SNS repaire to be
-   completed. Device/node becomes un-avaailable when it is OFFLINE or FAILED.
-   Cocurrent++ This should be designed in other module.
+   completed. Device/node becomes un-available when it is OFFLINE or FAILED.
+   Concurrent++ This should be designed in other module.
 
    A device never goes from repaired to online. When the re-balancing process
-   that moves data from space space to a new device completes, the *new* device
+   that moves data from spare space to a new device completes, the *new* device
    goes from REBALANCING to ONLINE state. If the old device is ever "fixed"
    somehow, it becomes a new device in ONLINE state.
 
@@ -216,9 +216,9 @@
        (2.1) If this is a full-stripe write request, skip to step (4).
        (2.2) If write request only spans ONLINE devices, this is similar to a
              Read-Modify-Write (rmw), except a little difference: only async
-             read the spannd data unit(s). Async read all spannd data units.
+             read the spanned data unit(s). Async read all spanned data units.
        (2.3) If write request spans FAILED/OFFLINE devices, async read all
-             survival and unspanned data units and necessary parity unit(s).
+             survival and un-spanned data units and necessary parity unit(s).
    (3) When these async read requests complete, replies come back to client.
        (3.1) for (2.2) case, prepare new parity units from the old data and
              new data.
@@ -2930,8 +2930,11 @@ static int device_check(struct io_request *req)
 
 static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 {
-	int                  rc;
-	struct target_ioreq *ti;
+	int                      rc;
+	struct target_ioreq     *ti;
+	struct m0_addb_io_stats *stats;
+	m0_time_t                start;
+	struct m0t1fs_sb        *csb;
 
 	M0_ENTRY();
 	M0_PRE(io_request_invariant(req));
@@ -2942,7 +2945,9 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	else if (rc < 0)
 		M0_RETURN(rc);
 
+	csb = file_to_sb(req->ir_file);
 	ioreq_sm_state_set(req, IRS_DEGRADED_WRITING);
+	start = m0_time_now();
 	/*
 	 * This IO request has already acquired distributed lock on the
 	 * file by this time.
@@ -3020,18 +3025,27 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	if (rc != 0)
 		M0_RETERR(rc, "Degraded mode write IO failed");
 
+	stats = &csb->csb_dgio_stats[IRT_WRITE];
+	m0_addb_counter_update(&stats->ais_times_cntr,
+			       (uint64_t) m0_time_sub(m0_time_now(), start) /
+			       1000); /* uS */
+	m0_addb_counter_update(&stats->ais_sizes_cntr,
+			       (uint64_t) req->ir_nwxfer.nxr_bytes);
+
 	M0_RETURN(req->ir_nwxfer.nxr_rc);
 }
 
 static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 {
-	int                   rc = 0;
-	int                   failed_dev_nr = 0;
-	uint64_t              id;
-	struct m0t1fs_sb     *csb;
-	struct io_req_fop    *irfop;
-	struct target_ioreq  *ti;
-	enum m0_pool_nd_state state;
+	int                      rc            = 0;
+	int                      failed_dev_nr = 0;
+	uint64_t                 id;
+	struct m0t1fs_sb        *csb;
+	struct io_req_fop       *irfop;
+	struct target_ioreq     *ti;
+	struct m0_addb_io_stats *stats;
+	m0_time_t                start;
+	enum m0_pool_nd_state    state;
 
 	M0_ENTRY();
 	M0_PRE(io_request_invariant(req));
@@ -3049,6 +3063,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 		M0_RETURN(rc);
 
 	csb = file_to_sb(req->ir_file);
+	start = m0_time_now();
 	m0_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
 		rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
 				ti->ti_fid.f_container, &state);
@@ -3072,6 +3087,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 		++failed_dev_nr;
 		if (ioreq_sm_state(req) == IRS_READ_COMPLETE)
 			ioreq_sm_state_set(req, IRS_DEGRADED_READING);
+
 		m0_tl_for (iofops, &ti->ti_iofops, irfop) {
 			rc = irfop->irf_ops->irfo_dgmode_read(irfop);
 			if (rc != 0)
@@ -3139,6 +3155,12 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 		M0_RETERR(req->ir_nwxfer.nxr_rc,
 			  "Degraded mode read IO failed.");
 
+	stats = &csb->csb_dgio_stats[IRT_READ];
+	m0_addb_counter_update(&stats->ais_times_cntr,
+			       (uint64_t) m0_time_sub(m0_time_now(), start) /
+			       1000); /* uS */
+	m0_addb_counter_update(&stats->ais_sizes_cntr,
+			       (uint64_t) req->ir_nwxfer.nxr_bytes);
 	/*
 	 * Recovers lost data using parity recovery algorithms only if
 	 * one or more devices were in FAILED, OFFLINE, REPAIRING state.
@@ -3447,7 +3469,7 @@ static void io_request_fini(struct io_request *req)
 	m0_indexvec_free(&req->ir_ivec);
 
 	m0_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
-		   tioreqs_tlist_del(ti);
+		tioreqs_tlist_del(ti);
 		/*
 		 * All io_req_fop structures in list target_ioreq::ti_iofops
 		 * are already finalized in nw_xfer_req_complete().
@@ -4039,19 +4061,54 @@ static void irfop_fini(struct io_req_fop *irfop)
 	M0_LEAVE();
 }
 
+static m0_time_t m0t1fs_addb_interval = M0_MKTIME(M0_ADDB_DEF_STAT_PERIOD_S, 0);
+
+static void m0t1fs_addb_stat_post_counters(struct m0t1fs_sb *csb)
+{
+	int              i;
+	static m0_time_t next_post;
+	m0_time_t        now = m0_time_now();
+
+#undef CNTR_POST
+#define CNTR_POST(_mode_, _n_)						\
+	io_stats = &csb->csb_##_mode_##_stats[i];			\
+	if (m0_addb_counter_nr(&io_stats->ais_##_n_##_cntr) > 0) {	\
+		M0_ADDB_POST_CNTR(&m0_addb_gmc,				\
+				  M0_ADDB_CTX_VEC(&m0t1fs_addb_ctx),	\
+				  &io_stats->ais_##_n_##_cntr);		\
+	}
+
+	if (now >= next_post || next_post == 0) {
+		for (i = 0; i < ARRAY_SIZE(csb->csb_io_stats); ++i) {
+			struct m0_addb_io_stats *io_stats;
+
+			CNTR_POST(io, sizes);
+			CNTR_POST(io, times);
+			CNTR_POST(dgio, sizes);
+			CNTR_POST(dgio, times);
+			next_post = m0_time_add(now, m0t1fs_addb_interval);
+		}
+	}
+
+#undef CNTR_POST
+}
+
 /*
  * This function can be used by the ioctl which supports fully vectored
  * scatter-gather IO. The caller is supposed to provide an index vector
  * aligned with user buffers in struct iovec array.
  * This function is also used by file->f_op->aio_{read/write} path.
  */
-M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb *kcb,
-			       const struct iovec *iov,
-			       struct m0_indexvec *ivec, enum io_req_type rw)
+M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb       *kcb, const struct iovec *iov,
+			       struct m0_indexvec *ivec, enum io_req_type   rw)
 {
-	int		   rc;
-	ssize_t		   count;
-	struct io_request *req;
+	int                      rc;
+	ssize_t                  count;
+	struct io_request       *req;
+	struct m0_addb_io_stats *stats;
+	struct m0t1fs_sb        *csb;
+	m0_time_t                start;
+	uint64_t                 time_io;
 
 	M0_ENTRY("indexvec %p, rw %d", ivec, rw);
 	M0_PRE(kcb  != NULL);
@@ -4059,9 +4116,10 @@ M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb *kcb,
 	M0_PRE(ivec != NULL);
 	M0_PRE(M0_IN(rw, (IRT_READ, IRT_WRITE)));
 
+	start = m0_time_now();
+	csb   = file_to_sb(kcb->ki_filp);
 again:
-	M0_ALLOC_PTR_ADDB(req, &m0_addb_gmc,
-	                  M0T1FS_ADDB_LOC_AIO_REQ,
+	M0_ALLOC_PTR_ADDB(req, &m0_addb_gmc, M0T1FS_ADDB_LOC_AIO_REQ,
 	                  &m0t1fs_addb_ctx);
 	if (req == NULL)
 		M0_RETERR(-ENOMEM, "Failed to allocate memory for io_request");
@@ -4097,6 +4155,7 @@ again:
 	count = min64u(req->ir_nwxfer.nxr_bytes, req->ir_copied_nr);
 
 	req->ir_ops->iro_iomaps_destroy(req);
+
 	io_request_fini(req);
 last:
 	m0_free(req);
@@ -4105,6 +4164,15 @@ last:
 	M0_LOG(M0_DEBUG, "rc = %d, io request returned %lu bytes", rc, count);
 	if (rc == -EAGAIN)
 		goto again;
+
+	time_io = m0_time_sub(m0_time_now(), start);
+	stats = &csb->csb_io_stats[rw == IRT_WRITE ? 1 : 0];
+	m0_addb_counter_update(&stats->ais_times_cntr, (uint64_t) time_io /
+			       1000); /* uS */
+	m0_addb_counter_update(&stats->ais_sizes_cntr, (uint64_t) count);
+	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_m0t1fs_io_finish,
+		     M0_ADDB_CTX_VEC(&m0t1fs_addb_ctx), count, time_io);
+	m0t1fs_addb_stat_post_counters(csb);
 
 	M0_LEAVE();
 	return rc != 0 ? rc : count;
@@ -4553,7 +4621,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			       ti->ti_fid.f_key);
 			continue;
 		}
-
+		ti->ti_start_time = m0_time_now();
 		rc = ti->ti_ops->tio_iofops_prepare(ti, PA_DATA);
 		if (rc != 0)
 			M0_RETERR(rc, "data fop failed");
@@ -4598,10 +4666,9 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	M0_ENTRY("nw_xfer_request %p, rmw %s", xfer,
 		 rmw ? (char *)"true" : (char *)"false");
 	M0_PRE(xfer != NULL);
+
 	xfer->nxr_state = NXS_COMPLETE;
-
 	req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
-
 	m0_tl_for (tioreqs, &xfer->nxr_tioreqs, ti) {
 		struct io_req_fop *irfop;
 
@@ -4622,6 +4689,12 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 			/* see io_req_fop_release() */
 			m0_fop_put(&irfop->irf_iofop.if_fop);
 		} m0_tl_endfor;
+
+		M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_m0t1fs_cob_io_finish,
+			     M0_ADDB_CTX_VEC(&req->ir_addb_ctx, NULL),
+			     ti->ti_fid.f_container, ti->ti_fid.f_key,
+			     ti->ti_databytes + ti->ti_parbytes,
+			     m0_time_sub(m0_time_now(), ti->ti_start_time));
 	} m0_tl_endfor;
 
 	M0_LOG(M0_INFO, "Number of bytes %s = %llu",

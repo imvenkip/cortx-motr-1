@@ -254,12 +254,10 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 	int                 rc;
 	struct m0_poolmach *poolmach;
 	struct m0_reqh     *reqh = service->rs_reqh;
+
 	M0_PRE(service != NULL);
 	M0_PRE(service->rs_reqh_ctx != NULL);
 	M0_PRE(service->rs_reqh_ctx->rc_mero != NULL);
-
-	reqh = service->rs_reqh;
-	M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d\n", reqh, poolmach_key);
 	M0_PRE(reqh != NULL);
 	M0_PRE(m0_reqh_lockers_is_empty(reqh, poolmach_key));
 

@@ -289,7 +289,7 @@ static const struct m0_fom_ops addb_pfom_ops = {
    The periodicity set at creation.
    Mainly for UT usage but could eventually be set via config parameters.
  */
-static m0_time_t addb_pfom_period = M0_MKTIME(M0_ADDB_SVC_DEF_STAT_PERIOD_S, 0);
+static m0_time_t addb_pfom_period = M0_MKTIME(M0_ADDB_DEF_STAT_PERIOD_S, 0);
 
 /**
    Starts the statistics posting FOM.

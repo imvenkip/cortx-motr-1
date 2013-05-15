@@ -787,6 +787,14 @@ static void addb_register_kernel_ctx_and_rec_types(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_m0t1fs_mountp);
 	m0_addb_ctx_type_register(&m0_addb_ct_m0t1fs_op_read);
 	m0_addb_ctx_type_register(&m0_addb_ct_m0t1fs_op_write);
+
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_io_finish);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_cob_io_finish);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_root_cob);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_ior_sizes);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_iow_sizes);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_ior_times);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_iow_times);
 }
 #endif
 

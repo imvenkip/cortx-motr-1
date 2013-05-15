@@ -1686,6 +1686,12 @@ struct target_ioreq {
         /** Fid of component object. */
         struct m0_fid                  ti_fid;
 
+	/**
+	 * Time of launch for target IO request
+	 * Used for ADDB posting.
+	 */
+	m0_time_t                      ti_start_time;
+
         /** Status code for io operation done for this target_ioreq. */
         int                            ti_rc;
 

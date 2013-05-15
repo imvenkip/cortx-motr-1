@@ -1338,7 +1338,7 @@ M0_INTERNAL bool m0_fom_is_waiting(const struct m0_fom *fom)
 }
 
 M0_INTERNAL int m0_fom_op_addb_ctx_import(struct m0_fom *fom,
-					const struct m0_addb_uint64_seq *id)
+					  const struct m0_addb_uint64_seq *id)
 {
 	M0_PRE(fom != NULL);
 	M0_PRE(id  != NULL);

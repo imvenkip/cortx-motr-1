@@ -78,15 +78,6 @@ struct m0_rios_buffer_pool {
 };
 
 /**
- */
-struct m0_ios_rwfom_stats {
-	/** counter to track fom I/O sizes */
-	struct m0_addb_counter ifs_sizes_cntr;
-	/** counter to track fom duration */
-	struct m0_addb_counter ifs_times_cntr;
-};
-
-/**
  * Structure contains generic service structure and
  * service specific information.
  */
@@ -96,7 +87,7 @@ struct m0_reqh_io_service {
 	/** Buffer pools belongs to this services */
 	struct m0_tl                 rios_buffer_pools;
 	/** Read[0] and write[1] I/O FOM statistics */
-	struct m0_ios_rwfom_stats    rios_rwfom_stats[2];
+	struct m0_addb_io_stats      rios_rwfom_stats[2];
 	/** Cob domain for ioservice. */
 	struct m0_cob_domain         *rios_cdom;
 

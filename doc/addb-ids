@@ -41,7 +41,7 @@ value          enum                    variable  name              file
 400-499                                                            sns/repair/addb.h
    400 M0_ADDB_CTXID_SNS_MOD           m0_addb_ct_sns_mod
    401 M0_ADDB_CTXID_SNS_REPAIR_SERV   m0_addb_ct_sns_repair_serv
-500-599							           m0t1fs/linux_kernel/m0t1fs.h
+500-599							           m0t1fs/m0t1fs_addb.h
    500 M0_ADDB_CTXID_M0T1FS_MOD        m0_addb_ct_m0t1fs_mod
    501 M0_ADDB_CTXID_M0T1FS_MOUNTP     m0_addb_ct_m0t1fs_mountp
    502 M0_ADDB_CTXID_M0T1FS_OP_READ    m0_addb_ct_m0t1fs_op_read
@@ -110,17 +110,31 @@ value            enum                 variable name         file
     67 M0_ADDB_RECID_RUNQ_NR             m0_addb_rt_runq_nr
     68 M0_ADDB_RECID_WAIL_NR             m0_addb_rt_wail_nr
 100-199                                                            ioservice/io_service_addb.h
-   100 M0_ADDB_RECID_IOS_RFOM_SIZES	m0_addb_rt_ios_rfom_sizes
-   101 M0_ADDB_RECID_IOS_WFOM_SIZES	m0_addb_rt_ios_wfom_sizes
-   102 M0_ADDB_RECID_IOS_RFOM_TIMES	m0_addb_rt_ios_rfom_times
-   103 M0_ADDB_RECID_IOS_WFOM_TIMES	m0_addb_rt_ios_wfom_times
-   104 M0_ADDB_RECID_IOS_RWFOM_FINISH	m0_addb_rt_ios_rwfom_finsh
-   105 M0_ADDB_RECID_IOS_CCFOM_FINISH	m0_addb_rt_ios_ccfom_finish
-   106 M0_ADDB_RECID_IOS_CDFOM_FINISH	m0_addb_rt_ios_cdfom_finish
+   100 M0_ADDB_RECID_IOS_RFOM_SIZES      m0_addb_rt_ios_rfom_sizes
+   101 M0_ADDB_RECID_IOS_WFOM_SIZES      m0_addb_rt_ios_wfom_sizes
+   102 M0_ADDB_RECID_IOS_RFOM_TIMES      m0_addb_rt_ios_rfom_times
+   103 M0_ADDB_RECID_IOS_WFOM_TIMES      m0_addb_rt_ios_wfom_times
+   104 M0_ADDB_RECID_IOS_RWFOM_FINISH    m0_addb_rt_ios_rwfom_finsh
+   105 M0_ADDB_RECID_IOS_CCFOM_FINISH    m0_addb_rt_ios_ccfom_finish
+   106 M0_ADDB_RECID_IOS_CDFOM_FINISH    m0_addb_rt_ios_cdfom_finish
+   107 M0_ADDB_RECID_IOS_IO_FINISH       m0_addb_rt_ios_io_finish
+   108 M0_ADDB_RECID_IOS_DESC_IO_FINISH  m0_addb_rt_ios_desc_io_finish
+   109 M0_ADDB_RECID_IOS_BUFFER_POOL_LOW m0_addb_rt_ios_buffer_pool_low
 200-299                                                            mdservice/mdservice_addb.h
 300-399                                                            conf/conf_addb.h
 400-499                                                            sns/repair/addb.h
-500-599							           m0t1fs/linux_kernel/m0t1fs.h
+500-599							           m0t1fs/m0t1fs_addb.h
+   500 M0T1FS_ADDB_RECID_IO_FINISH       m0_addb_rt_m0t1fs_io_finish
+   501 M0T1FS_ADDB_RECID_COB_IO_FINISH   m0_addb_rt_m0t1fs_cob_io_finish
+   502 M0T1FS_ADDB_RECID_ROOT_COB        m0_addb_rt_m0t1fs_root_cob
+   503 M0T1FS_ADDB_RECID_IOR_SIZES       m0_addb_rt_m0t1fs_ior_sizes
+   504 M0T1FS_ADDB_RECID_IOW_SIZES       m0_addb_rt_m0t1fs_iow_sizes
+   505 M0T1FS_ADDB_RECID_IOR_TIMES       m0_addb_rt_m0t1fs_ior_times
+   506 M0T1FS_ADDB_RECID_IOW_TIMES       m0_addb_rt_m0t1fs_iow_times
+   507 M0T1FS_ADDB_RECID_DGIOR_SIZES     m0_addb_rt_m0t1fs_dgior_sizes
+   508 M0T1FS_ADDB_RECID_DGIOW_SIZES     m0_addb_rt_m0t1fs_dgiow_sizes
+   509 M0T1FS_ADDB_RECID_DGIOR_TIMES     m0_addb_rt_m0t1fs_dgior_times
+   510 M0T1FS_ADDB_RECID_DGIOW_TIMES     m0_addb_rt_m0t1fs_dgiow_times
 600-699                                                            layout/layout_addb.h
 700-799                                                            yaml2db/yaml2db_addb.h
 800-899                                                            mdstore/mdstore_addb.h

@@ -73,11 +73,11 @@ static inline int64_t m0_atomic64_get(const struct m0_atomic64 *a)
 }
 
 /**
- atomically increment counter
+   atomically increment counter
 
- @param a pointer to atomic counter
+   @param a pointer to atomic counter
 
- @return none
+   @return none
  */
 static inline void m0_atomic64_inc(struct m0_atomic64 *a)
 {
@@ -85,11 +85,11 @@ static inline void m0_atomic64_inc(struct m0_atomic64 *a)
 }
 
 /**
- atomically decrement counter
+   atomically decrement counter
 
- @param a pointer to atomic counter
+   @param a pointer to atomic counter
 
- @return none
+   @return none
  */
 static inline void m0_atomic64_dec(struct m0_atomic64 *a)
 {
@@ -113,27 +113,27 @@ static inline void m0_atomic64_sub(struct m0_atomic64 *a, int64_t num)
 }
 
 /**
- atomically increment counter and return result
+   atomically increment counter and return result
 
- @param a pointer to atomic counter
+   @param a pointer to atomic counter
 
- @return new value of atomic counter
+   @return new value of atomic counter
  */
 static inline int64_t m0_atomic64_add_return(struct m0_atomic64 *a,
-						  int64_t delta)
+					     int64_t delta)
 {
 	return __sync_add_and_fetch(&a->a_value, delta);
 }
 
 /**
- atomically decrement counter and return result
+   atomically decrement counter and return result
 
- @param a pointer to atomic counter
+   @param a pointer to atomic counter
 
- @return new value of atomic counter
+   @return new value of atomic counter
  */
 static inline int64_t m0_atomic64_sub_return(struct m0_atomic64 *a,
-						  int64_t delta)
+					     int64_t delta)
 {
 	return m0_atomic64_add_return(a, -delta);
 }
