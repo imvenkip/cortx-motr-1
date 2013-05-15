@@ -67,11 +67,8 @@
    - RPC Packet is also referred as "RPC" in some other parts of code and docs
    - A "one-way" item is also referred as "unsolicited" item.
 
-   @todo XXX item merging support
-   @todo XXX stats collection
    @todo XXX Support for "RPC Group"
    @todo XXX RPC item cancellation
-   @todo XXX RPC item deadline timer based on generic state machine framework
    @todo XXX Better RPC level flow control than the one provided by
              m0_rpc_frm_constraints::fc_max_nr_packets_enqed
  */
@@ -173,14 +170,12 @@ enum m0_rpc_frm_itemq_type {
    There is one instance of m0_rpc_frm for each destination end-point.
 
    Events in which the formation state machine is interested are:
-
    - RPC item is posted for sending
    - RPC packet has been sent or packet sending is failed
    - deadline timer of WAITING item is expired
    - Ready slot is available
 
    Events that formation machine triggers for rest of RPC are:
-
    - Packet is ready for sending
    - Request to bind an item to a slot
 
@@ -200,7 +195,8 @@ enum m0_rpc_frm_itemq_type {
 
    <B>Concurrency and Existence: </B> @n
 
-   Access to m0_rpc_frm instance is synchronised by m0_rpc_machine::rm_mutex.
+   Access to m0_rpc_frm instance is synchronised by
+   m0_rpc_machine::rm_sm_grp::s_lock.
 
    m0_rpc_frm is not reference counted. It is responsibility of user to
    free m0_rpc_frm. Ensuring that m0_rpc_frm is in IDLE state, before
@@ -215,7 +211,7 @@ struct m0_rpc_frm {
 	   Note: Because of very simple nature of formation state machine,
 	   currently we are not using generic sm framework. If need arises
 	   in future, we should implement formation state machine using
-	   generic sm framework.
+	   m0_sm framework.
 	 */
 	enum frm_state                 f_state;
 

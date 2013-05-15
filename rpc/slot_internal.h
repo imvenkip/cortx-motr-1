@@ -249,9 +249,6 @@ M0_INTERNAL void m0_rpc_slot_persistence(struct m0_rpc_slot *slot,
 M0_INTERNAL void m0_rpc_slot_reset(struct m0_rpc_slot *slot,
 				   struct m0_verno last_seen);
 
-/**
-   Finalises slot
- */
 M0_INTERNAL void m0_rpc_slot_fini(struct m0_rpc_slot *slot);
 
 M0_INTERNAL bool m0_rpc_slot_invariant(const struct m0_rpc_slot *slot);

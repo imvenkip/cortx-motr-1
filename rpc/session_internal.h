@@ -105,7 +105,7 @@ M0_INTERNAL int m0_rpc_session_cob_create(struct m0_cob *conn_cob,
 
    @pre session->s_state == M0_RPC_SESSION_INITIALISED &&
 	session->s_conn != NULL
-   @post ergo(result == 0, session->s_state == M0_RPC_SESSION_ALIVE)
+   @post ergo(result == 0, session->s_state == M0_RPC_SESSION_IDLE)
    @post ergo(result != 0, session->s_state == M0_RPC_SESSION_FAILED)
  */
 M0_INTERNAL int m0_rpc_rcv_session_establish(struct m0_rpc_session *session);

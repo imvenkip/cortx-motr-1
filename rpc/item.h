@@ -118,8 +118,7 @@ enum m0_rpc_item_stage {
 	RPC_ITEM_STAGE_PAST_COMMITTED = 1,
 	/** the reply was received, but persistence confirmation wasn't */
 	RPC_ITEM_STAGE_PAST_VOLATILE,
-	/** the item was sent (i.e., placed into an rpc) and no reply is
-	    received */
+	/** the item is sent but no reply is received */
 	RPC_ITEM_STAGE_IN_PROGRESS,
 	/** Operation is timedout. Uncertain whether receiver has processed
 	    the request or not. */
@@ -139,17 +138,13 @@ enum {
    slot_ref object establishes association between m0_rpc_item and
    m0_rpc_slot. Upto MAX_SLOT_REF number of m0_rpc_slot_ref objects are
    embeded with m0_rpc_item.
-   At the time item is associated with a slot, values of few slot fields are
-   copied into slot_ref.
  */
 struct m0_rpc_slot_ref {
 	/** sr_slot and sr_item identify two ends of association */
 	struct m0_rpc_slot           *sr_slot;
-
 	struct m0_rpc_item           *sr_item;
-
+	/** Part of onwire RPC item header */
 	struct m0_rpc_onwire_slot_ref sr_ow;
-
 	/** Anchor to put item on m0_rpc_slot::sl_item_list
 	    List descriptor: slot_item
 	 */
@@ -212,12 +207,20 @@ struct m0_rpc_item {
 	 */
 	struct m0_sm                     ri_sm;
 	enum m0_rpc_item_stage		 ri_stage;
+	/** Number of times the item was sent */
 	uint32_t                         ri_nr_sent;
+	/** Reply received when request is still in SENDING state is kept
+	    "pending" until the request item moves to SENT state.
+	 */
 	struct m0_rpc_item              *ri_pending_reply;
 	struct m0_rpc_slot_ref		 ri_slot_refs[MAX_SLOT_REF];
-	/** Anchor to put item on m0_rpc_session::s_unbound_items list */
+	/** @deprecated Anchor to put item on
+	    m0_rpc_session::s_unbound_items list
+	 */
 	struct m0_list_link		 ri_unbound_link;
-	/** Item size in bytes. header + payload. */
+	/** Item size in bytes. header + payload.
+	    Set during first call to m0_rpc_item_size() on this item.
+	 */
 	size_t                           ri_size;
 	/** Pointer to the type object for this item */
 	const struct m0_rpc_item_type	*ri_type;
@@ -235,7 +238,7 @@ struct m0_rpc_item {
 	/** Link in RPC packet. m0_rpc_packet::rp_items
 	    List descriptor: packet_item.
 	    XXX An item cannot be in itemq and in packet at the same time.
-	    Hence iff needed ri_iq_link and ri_plink can be replaced with
+	    Hence, iff needed, ri_iq_link and ri_plink can be replaced with
 	    just one tlink.
 	 */
 	struct m0_tlink                  ri_plink;
@@ -266,7 +269,7 @@ struct m0_rpc_item_ops {
 
 	   If item->ri_error != 0, then item->ri_reply may or may not be NULL.
 
-	   For each request, sender receives one of following two types
+	   For a request, sender can receive one of following two types
 	   of replies:
 	   - generic-reply (m0_fop_generic_reply):
 	     This type of reply is received when operation fails in generic
@@ -350,7 +353,8 @@ struct m0_rpc_item_type_ops {
 	m0_bcount_t (*rito_payload_size)(const struct m0_rpc_item *item);
 
 	/**
-	  Return true iff item1 and item2 are equal.
+	   Return true iff item1 and item2 are equal.
+	   @todo XXX Implement rito_eq for fops
 	 */
 	bool (*rito_eq)(const struct m0_rpc_item *i1,
 			const struct m0_rpc_item *i2);
@@ -432,13 +436,6 @@ struct m0_rpc_item_type {
 	struct m0_tlink			   rit_linkage;
 	/** Magic no for the item type struct */
 	uint64_t			   rit_magic;
-};
-
-#define M0_RPC_ITEM_TYPE_DEF(itype, opcode, flags, ops)  \
-struct m0_rpc_item_type (itype) = {                      \
-	.rit_opcode = (opcode),                          \
-	.rit_flags = (flags),                            \
-	.rit_ops = (ops)                                 \
 };
 
 /**

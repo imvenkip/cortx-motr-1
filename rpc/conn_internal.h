@@ -123,10 +123,11 @@ M0_INTERNAL int m0_rpc_rcv_conn_establish(struct m0_rpc_conn *conn);
 /**
    Terminates receiver end of rpc connection.
 
-   @pre conn_state(conn) == M0_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0
+   Terminates alive sessions if any.
+
+   @pre conn_state(conn) == M0_RPC_CONN_ACTIVE
    @post ergo(result == 0, conn_state(conn) == M0_RPC_CONN_TERMINATING)
-   @post ergo(result != 0 && result != -EBUSY,
-		conn_state(conn) == M0_RPC_CONN_FAILED)
+   @post ergo(result != 0, conn_state(conn) == M0_RPC_CONN_FAILED)
  */
 M0_INTERNAL int m0_rpc_rcv_conn_terminate(struct m0_rpc_conn *conn);
 
