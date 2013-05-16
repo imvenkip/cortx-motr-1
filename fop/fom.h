@@ -742,7 +742,7 @@ M0_INTERNAL void m0_fom_callback_init(struct m0_fom_callback *cb);
 /**
  * Registers AST call-back with the channel and a fom executing a blocking
  * operation. Both, the channel and the call-back (with initialized fc_bottom)
- * are provided by user.
+ * are provided by user. The channel must be protected with external lock.
  * Callback will be called with locality lock held.
  *
  * @param fom A fom executing a blocking operation

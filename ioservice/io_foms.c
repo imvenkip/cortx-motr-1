@@ -1312,9 +1312,7 @@ static int zero_copy_initiate(struct m0_fom *fom)
          */
         rc = m0_rpc_bulk_load(rbulk, rpc_item->ri_session->s_conn, net_desc);
         if (rc != 0) {
-                m0_mutex_lock(&rbulk->rb_mutex);
                 m0_fom_callback_cancel(&fom->fo_cb);
-                m0_mutex_unlock(&rbulk->rb_mutex);
                 m0_rpc_bulk_buflist_empty(rbulk);
                 m0_rpc_bulk_fini(rbulk);
                 m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
@@ -1507,9 +1505,7 @@ static int io_launch(struct m0_fom *fom)
                 rc = m0_stob_io_launch(stio, fom_obj->fcrw_stob,
                                        &fom->fo_tx, NULL);
                 if (rc != 0) {
-                        m0_mutex_lock(&stio->si_mutex);
                         m0_fom_callback_cancel(&stio_desc->siod_fcb);
-                        m0_mutex_unlock(&stio->si_mutex);
                         /*
                          * Since this stob io not added into list
                          * yet, free it here.
