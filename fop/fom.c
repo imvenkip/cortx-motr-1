@@ -1141,7 +1141,7 @@ M0_INTERNAL void m0_fom_callback_cancel(struct m0_fom_callback *cb)
 		cb_done(cb);
 		/* Once the clink is finalised, the AST cannot be posted, cancel
 		   the AST. */
-		m0_sm_ast_cancel(cb->fc_ast.sa_mach->sm_grp, &cb->fc_ast);
+		m0_sm_ast_cancel(&cb->fc_fom->fo_loc->fl_group, &cb->fc_ast);
 		/* Once the AST is cancelled, cb cannot be added to the pending
 		   list, cancel cb. */
 		cb_cancel(cb);
