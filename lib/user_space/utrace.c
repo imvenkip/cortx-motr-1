@@ -18,7 +18,7 @@
  * Original creation date: 08/12/2010
  */
 
-#include <string.h>   /* memset */
+#include <string.h>   /* memset, strlen */
 #include <errno.h>
 #include <err.h>
 #include <sysexits.h>
@@ -27,6 +27,8 @@
 #include <unistd.h>   /* getpagesize */
 #include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
 #include <sys/mman.h> /* mmap */
+#include <limits.h>   /* CHAR_BIT */
+#include <inttypes.h> /* PRIu64 */
 
 #include "lib/arith.h"
 #include "lib/memory.h"
@@ -47,6 +49,8 @@ static int logfd;
 
 static const char sys_kern_randvspace_fname[] =
 	"/proc/sys/kernel/randomize_va_space";
+
+static bool use_mmaped_buffer = true;
 
 static int randvspace_check()
 {
@@ -73,20 +77,22 @@ static int randvspace_check()
 	return result;
 }
 
-static int logbuf_map()
+static int logbuf_map(uint32_t logbuf_size)
 {
 	char buf[80];
 
 	sprintf(buf, "m0.trace.%u", (unsigned)getpid());
 	if ((logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC, 0700)) == -1)
 		warn("open(\"%s\")", buf);
-	else if ((errno = posix_fallocate(logfd, 0, m0_logbufsize)) != 0)
-		warn("fallocate(\"%s\", %u)", buf, m0_logbufsize);
-	else if ((m0_logbuf = mmap(NULL, m0_logbufsize, PROT_WRITE,
+	else if ((errno = posix_fallocate(logfd, 0, logbuf_size)) != 0)
+		warn("fallocate(\"%s\", %u)", buf, logbuf_size);
+	else if ((m0_logbuf = mmap(NULL, logbuf_size, PROT_WRITE,
                                    MAP_SHARED, logfd, 0)) == MAP_FAILED)
 		warn("mmap(\"%s\")", buf);
-	else
+	else {
+		m0_logbufsize = logbuf_size;
 		memset(m0_logbuf, 0, m0_logbufsize);
+	}
 
 	return -errno;
 }
@@ -154,7 +160,17 @@ M0_INTERNAL int m0_trace_set_level(const char *level)
 	return 0;
 }
 
-M0_INTERNAL int m0_arch_trace_init()
+M0_INTERNAL void m0_trace_set_mmapped_buffer(bool val)
+{
+	use_mmaped_buffer = val;
+}
+
+M0_INTERNAL bool m0_trace_use_mmapped_buffer(void)
+{
+	return use_mmaped_buffer;
+}
+
+M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size)
 {
 	int         rc;
 	const char *var;
@@ -176,7 +192,11 @@ M0_INTERNAL int m0_arch_trace_init()
 
 	setlinebuf(stdout);
 
-	return randvspace_check() ?: logbuf_map();
+	rc = randvspace_check();
+	if (rc != 0)
+		return rc;
+
+	return m0_trace_use_mmapped_buffer() ? logbuf_map(logbuf_size) : 0;
 }
 
 M0_INTERNAL void m0_arch_trace_fini(void)
@@ -186,22 +206,112 @@ M0_INTERNAL void m0_arch_trace_fini(void)
 }
 
 
-static unsigned align(unsigned align, unsigned pos)
+static unsigned align(FILE *file, unsigned align, unsigned pos)
 {
 	M0_ASSERT(m0_is_po2(align));
-	while (!feof(stdin) && (pos & (align - 1))) {
-		getchar();
+	while (!feof(file) && (pos & (align - 1))) {
+		fgetc(file);
 		pos++;
 	}
 	return pos;
 }
 
+/*
+ * escape any occurrence of single-quote characters (') inside string by
+ * duplicating them, for example "it's a pen" becomes "it''s pen"
+ */
+static int escape_yaml_str(char *str, size_t max_size)
+{
+	size_t   str_len    = strlen(str);
+	ssize_t  free_space = max_size - str_len;
+	char    *p          = str;;
+
+	if (free_space < 0)
+		return -EINVAL;
+
+	while ((p = strchr(p, '\'')) != NULL)
+	{
+		if (--free_space < 0)
+			return -ENOMEM;
+		memmove(p + 1, p, str_len - (p - str) + 1);
+		*p = '\'';
+		p += 2;
+	}
+
+	return 0;
+}
+
+M0_INTERNAL
+void m0_trace_record_print_yaml(FILE *output_file,
+				const struct m0_trace_rec_header *trh,
+				const void *buf,
+				bool stream_mode)
+{
+	const struct m0_trace_descr *td = trh->trh_descr;
+	m0_trace_rec_args_t          args;
+	const char                  *td_fmt;
+	static char                  msg_buf[32 * 1024]; /* 32 KB */
+	int                          rc;
+
+	m0_trace_unpack_args(trh, args, buf);
+
+	td_fmt = stream_mode ? "---\n"
+			       "record_num: %" PRIu64 "\n"
+			       "timestamp:  %" PRIu64 "\n"
+			       "stack_addr: %" PRIx64 "\n"
+			       "subsystem:  %s\n"
+			       "level:      %s\n"
+			       "func:       %s\n"
+			       "file:       %s\n"
+			       "line:       %u\n"
+
+			     : "  - record_num: %" PRIu64 "\n"
+			       "    timestamp:  %" PRIu64 "\n"
+			       "    stack_addr: %" PRIx64 "\n"
+			       "    subsystem:  %s\n"
+			       "    level:      %s\n"
+			       "    func:       %s\n"
+			       "    file:       %s\n"
+			       "    line:       %u\n";
+
+	fprintf(output_file, td_fmt,
+			     trh->trh_no,
+			     trh->trh_timestamp,
+			     /* TODO: add comment why mask is needed */
+			     (trh->trh_sp & 0xfffff),
+			     m0_trace_subsys_name(td->td_subsys),
+			     m0_trace_level_name(td->td_level),
+			     td->td_func,
+			     td->td_file,
+			     td->td_line);
+
+	if (stream_mode)
+		fprintf(output_file, "msg:        '");
+	else
+		fprintf(output_file, "    msg:        '");
+
+	rc = snprintf(msg_buf, sizeof msg_buf, td->td_fmt, args[0], args[1],
+		      args[2], args[3], args[4], args[5], args[6], args[7],
+		      args[8]);
+	if (rc > sizeof msg_buf)
+		warnx("'msg' is too big and has been truncated to %zu bytes",
+		      sizeof msg_buf);
+
+	rc = escape_yaml_str(msg_buf, sizeof msg_buf);
+	if (rc != 0)
+		warnx("Failed to escape single quote characters in msg: %s",
+		      msg_buf);
+
+	fprintf(output_file, "%s'\n", msg_buf);
+}
+
 /**
- * Parse log buffer supplied at stdin.
+ * Parse log buffer from file.
  *
  * Returns sysexits.h error codes.
  */
-M0_INTERNAL int m0_trace_parse(void)
+M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
+			       bool yaml_stream_mode)
 {
 	struct m0_trace_rec_header   trh;
 	const struct m0_trace_descr *td;
@@ -210,46 +320,67 @@ M0_INTERNAL int m0_trace_parse(void)
 	unsigned                     n2r;
 	int                          size;
 
-	printf("   no   |    tstamp     |stack|       subsys     |"
-	       "        func        |        src        \n");
-	printf("--------------------------------------------------"
-	       "----------------------------------------\n");
+	if (!yaml_stream_mode)
+		fprintf(output_file, "trace_records:\n");
 
-	while (!feof(stdin)) {
+	while (!feof(trace_file)) {
 		char *buf;
 
-		pos = align(8, pos); /* At the beginning of a record */
+		/* At the beginning of a record */
+		pos = align(trace_file, M0_TRACE_REC_ALIGN, pos);
+
 		/* Find the complete record */
 		do {
 			nr = fread(&trh.trh_magic, 1,
-				   sizeof trh.trh_magic, stdin);
+				   sizeof trh.trh_magic, trace_file);
+
 			if (nr != sizeof trh.trh_magic) {
-				if (!feof(stdin))
-					errx(EX_DATAERR,
-					     "Got %u bytes of magic", nr);
+				if (!feof(trace_file)) {
+					warnx("Got %u bytes of magic instead"
+					      " of %zu", nr,
+					      sizeof trh.trh_magic);
+					return EX_DATAERR;
+				}
 				return EX_OK;
 			}
+
 			pos += nr;
 		} while (trh.trh_magic != M0_TRACE_MAGIC);
 
 		/* Now we might have complete record */
 		n2r = sizeof trh - sizeof trh.trh_magic;
-		nr  = fread(&trh.trh_sp, 1, n2r, stdin);
-		if (nr != n2r)
-			errx(EX_DATAERR, "Got %u bytes of record (need %u)",
-			     nr, n2r);
+		nr  = fread(&trh.trh_sp, 1, n2r, trace_file);
+		if (nr != n2r) {
+			warnx("Got %u bytes of record (need %u)", nr, n2r);
+			return EX_DATAERR;
+		}
 		pos += nr;
+
 		td   = trh.trh_descr;
-		size = td->td_size;
+		if (td->td_magic != M0_TRACE_DESCR_MAGIC) {
+			warnx("Invalid trace descriptor (most probably input"
+			      " trace log was produced by different version of"
+			      " Mero)");
+			return EX_TEMPFAIL;
+		}
+		size = m0_align(td->td_size + trh.trh_string_data_size,
+				M0_TRACE_REC_ALIGN);
+
 		buf  = m0_alloc(size);
-		if (buf == NULL)
-			err(EX_TEMPFAIL, "Cannot allocate %i bytes", size);
-		nr = fread(buf, 1, size, stdin);
-		if (nr != size)
-			errx(EX_DATAERR, "Got %u bytes of data (need %i)",
-			     nr, size);
+		if (buf == NULL) {
+			warn("Failed to allocate %i bytes of memory", size);
+			return EX_TEMPFAIL;
+		}
+
+		nr = fread(buf, 1, size, trace_file);
+		if (nr != size) {
+			warnx("Got %u bytes of data (need %i)", nr, size);
+			return EX_DATAERR;
+		}
 		pos += nr;
-		m0_trace_record_print(&trh, buf);
+
+		m0_trace_record_print_yaml(output_file, &trh, buf,
+					   yaml_stream_mode);
 		m0_free(buf);
 	}
 	return EX_OK;

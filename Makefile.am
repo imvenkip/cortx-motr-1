@@ -90,6 +90,7 @@ SUBDIRS = $(GALOIS_DIR)
 # initialize variables, so values can be appended later with += if needed
 
 bin_PROGRAMS       =
+bin_SCRIPTS        =
 sbin_PROGRAMS      =
 lib_LTLIBRARIES    =
 
@@ -558,6 +559,17 @@ endif
 utils_ploss_m0ploss_CPPFLAGS   = -DM0_TARGET='m0ploss' $(AM_CPPFLAGS)
 
 include $(top_srcdir)/utils/ploss/Makefile.sub
+
+#
+# utils/trace
+#
+
+bin_SCRIPTS                   += utils/trace/m0trace
+
+bin_PROGRAMS                  += utils/trace/m0tracedump
+utils_trace_m0tracedump_LDADD  = $(top_builddir)/mero/libmero.la
+
+include $(top_srcdir)/utils/trace/Makefile.sub
 
 #
 # m0t1fs/linux_kernel/st

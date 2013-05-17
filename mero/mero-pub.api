@@ -1,4 +1,5 @@
 m0_addb_kmod_uuid_file_set
+m0_addb_node_uuid_string_set
 m0_alloc
 m0_build_info_get
 m0_build_info_print

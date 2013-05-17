@@ -1,0 +1,897 @@
+#!/usr/bin/perl
+
+# COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+#
+# THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+# HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+# LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+# THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+# BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+# USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+# EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+#
+# YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+# THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+# http://www.xyratex.com/contact
+#
+# Original author: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
+# Original creation date: 28-Dec-2012
+
+
+# This program displays Mero trace log in human friendly form, allowing to
+# filter log entries by various parameters, like log level, subsystem, file,
+# func name, etc.
+
+# For detailed description and usage information please refer to the POD
+# documentation at the end of file, after the __END__ marker.
+
+
+# enable all features of Modern Perl, almost the same as done by Modern::Perl
+# module, but doesn't require it as dependency
+use 5.010;
+use strict;
+use warnings;
+# TODO: read man
+use autodie;
+
+
+# check that all required external modules are available and display a hint to
+# the user about how they can be installed using default package management
+# system, if they are missing
+BEGIN {
+
+    my @required_modules = (
+        {
+            name       => 'YAML::XS',
+            debian_pkg => 'libyaml-libyaml-perl',
+            redhat_pkg => 'perl-YAML-LibYAML'
+        },
+        {
+            name       => 'DateTime',
+            debian_pkg => 'libdatetime-perl',
+            redhat_pkg => 'perl-DateTime'
+        },
+        {
+            name       => 'File::Which',
+            debian_pkg => 'libfile-which-perl',
+            redhat_pkg => 'perl-File-Which'
+        },
+        {
+            name       => 'List::MoreUtils',
+            debian_pkg => 'liblist-moreutils-perl',
+            redhat_pkg => 'perl-List-MoreUtils'
+        },
+    );
+    my $some_module_is_missing = 0;
+
+    for my $m (@required_modules) {
+
+        my $module = $m->{name};
+
+        $module =~ s#::#/#g;
+        $module .= '.pm';
+
+        no warnings 'uninitialized';
+        if (eval { require $module; 1; } ne 1) {
+            use warnings 'uninitialized';
+            $some_module_is_missing = 1;
+            print "$m->{name} perl module is missing\n"
+                  . "   It can be installed manually or using package management system:\n"
+                  . "     debian based:  apt-get install $m->{debian_pkg}\n"
+                  . "     red-hat based: yum install $m->{redhat_pkg}\n"
+                  . "     manually:      cpanm $m->{name}\n\n";
+        }
+    }
+
+    die "Please, install all required modules\n"
+        if $some_module_is_missing;
+}
+
+
+package Tie::Array::Lazy::YAMLstream;
+{
+    use base qw( Tie::Array );
+
+    use Carp;
+    use POSIX qw( INT_MAX );
+
+    our $VERSION = '1.002001';
+    $VERSION = eval $VERSION;
+
+
+    sub TIEARRAY
+    {
+        my $class = shift;
+        my $file  = shift;
+
+        open my $stream, "$file";
+
+        # always read the first line to handle '---' at the beginning of stream
+        my $first_line = <$stream>;
+
+        my $self = {
+            stream => $stream,
+            doc    => $first_line,
+        };
+
+        return bless $self, $class;;
+    }
+
+    sub DESTROY
+    {
+        my $self = shift;
+
+        close $self->{stream};
+    }
+
+    sub FETCH
+    {
+        my $self  = shift;
+        my $index = shift;
+
+        if ( defined $self->{current_index} and $self->{current_index} == $index ) {
+
+            croak "Internal error in package " . __PACKAGE__ . " - no current"
+                  . " element for index $index\n"
+                if !exists $self->{current};
+
+            return $self->{current};
+        }
+        else {
+            $self->{current_index} = $index;
+        }
+
+        my $stream = $self->{stream};
+
+        while ( defined $self->{doc}
+                and defined ( my $line = <$stream> ) )
+        {
+            if ( $line =~ /^---\s/ ) {
+                my $yaml_data = YAML::XS::Load( $self->{doc} );
+
+                $self->{doc}     = $line; # stash the line for the next document
+                $self->{current} = $yaml_data;
+
+                return $yaml_data;
+            } else {
+                $self->{doc} .= $line;
+            }
+        }
+
+        if ( defined $self->{doc} ) {
+            my $yaml_data = YAML::XS::Load( $self->{doc} );
+
+            $self->{doc}     = undef;
+            $self->{current} = $yaml_data;
+
+            return $yaml_data;
+        }
+
+        return;
+    }
+
+    sub FETCHSIZE
+    {
+        my $self = shift;
+
+        return defined $self->{doc} ? INT_MAX : 0;
+    }
+}
+
+
+package main;
+
+# core modules
+use English qw( -no_match_vars ); # avoids regex performance penalty
+use Getopt::Long qw( :config no_ignore_case );
+use Pod::Usage;
+use IO::Handle;
+use Term::ANSIColor;
+use File::Temp qw( tempfile );
+use File::Spec;
+
+# external modules (not included into base perl distribution)
+use YAML::XS;
+use DateTime;
+use File::Which;
+use List::MoreUtils qw( any none );
+#use IPC::System::Simple qw( run capture );
+
+# debuging
+#use Data::Dumper;
+
+
+# global variables
+my %cli_option = (
+    input_file  => '-', # STDIN by default
+    output_file => '-', # STDOUT by default
+    color       => 'auto',
+    format      => 'short',
+    level       => 'call+',
+    subsys      => 'all',
+    func        => undef, # all funcs
+);
+#my %default_option = %cli_option;
+
+
+sub validate_trace_record
+{
+    my $tr = shift;
+
+    my @required_fields = qw(
+        record_num timestamp stack_addr subsystem level func file line msg
+    );
+
+    for my $field (@required_fields) {
+        die "Incorrect format of input data: trace record doesn't have required"
+            . " field '$field' or it's empty\n"
+            if !exists $tr->{$field} || !defined $tr->{$field};
+    }
+}
+
+sub validate_format
+{
+    my $format = shift;
+
+    my @allowed_format_values = qw( short med full custom:<string> );
+
+    die "Incorrect value '$cli_option{format}' of configuration option"
+        . " -f|--format, allowed values are: @allowed_format_values\n"
+        if $format !~ / (?: ^ short | med | full $ ) | ^custom: /xms;
+}
+
+sub validate_level
+{
+    my $level  = shift;
+
+    my @allowed_levels = qw( call debug info notice warn error fatal );
+    my $level_token = join '|', @allowed_levels;
+
+    $level_token = qr/ \b (?: $level_token ) \b \+? /ixms;
+
+    die "Invalid value of -L|--level option: '$level', it should be in form"
+        . " of 'level[+][,level[+]]', where 'level' is one of: @allowed_levels\n"
+        if $level !~ / ^ $level_token (?: ,$level_token )* $ /xms;
+}
+
+sub validate_subsys
+{
+    my $subsys  = shift;
+
+    my @allowed_subsys = sort qw(
+        addb       balloc     cm      cob   conf  fop
+        formation  ioservice  layout  lnet  m0d   m0t1fs
+        memory     mgmt       net     pool  rm    rpc
+        sns        snscm      stob
+        all
+    );
+    my $subsys_token = join '|', @allowed_subsys;
+
+    $subsys_token = qr/ \b (?: $subsys_token ) \b /ixms;
+
+    die "Invalid value of -S|--subsys option: '$subsys', it should be in form"
+        . " of '[!]subsys[,subsys]', where 'subsys' is one of: @allowed_subsys\n"
+        if $subsys !~ / ^ !? $subsys_token (?: ,$subsys_token )* $ /xms;
+}
+
+sub match_level
+{
+    my $tr = shift;
+
+    my %level = (
+        'call'    => qr/ ^ CALL $ /xms,
+        'debug'   => qr/ ^ DEBUG $ /xms,
+        'info'    => qr/ ^ INFO $ /xms,
+        'notice'  => qr/ ^ NOTICE $ /xms,
+        'warn'    => qr/ ^ WARN $ /xms,
+        'error'   => qr/ ^ ERROR $ /xms,
+        'fatal'   => qr/ ^ FATAL $ /xms,
+        'call+'   => qr/ ^ CALL   | DEBUG  | INFO   | NOTICE | WARN  | ERROR | FATAL $ /xms,
+        'debug+'  => qr/ ^ DEBUG  | INFO   | NOTICE | WARN   | ERROR | FATAL $ /xms,
+        'info+'   => qr/ ^ INFO   | NOTICE | WARN   | ERROR  | FATAL $ /xms,
+        'notice+' => qr/ ^ NOTICE | WARN   | ERROR  | FATAL $ /xms,
+        'warn+'   => qr/ ^ WARN   | ERROR  | FATAL $ /xms,
+        'error+'  => qr/ ^ ERROR  | FATAL $ /xms,
+        'fatal+'  => qr/ ^ FATAL $ /xms,
+    );
+
+    if ( !exists $level{ lc $tr->{level} } ) {
+        warn "Invalid trace record level '$tr->{level}', record skipped\n";
+        return 0;
+    }
+
+    return any { $tr->{level} =~ / $level{$_} /ixms }
+               split( /,/, $cli_option{level} );
+}
+
+sub match_subsys
+{
+    my $tr = shift;
+
+    if ( $cli_option{subsys} =~ / ^! /xms ) {
+        return none { uc $tr->{subsystem} eq uc $_ }
+                    split( /,/, substr($cli_option{subsys}, 1) );
+    } else {
+        return lc $cli_option{subsys} eq 'all'
+               || any { uc $tr->{subsystem} eq uc $_ }
+                      split( /,/, $cli_option{subsys} );
+    }
+}
+
+sub match_file
+{
+    my $tr = shift;
+
+    return 1
+        if !defined $cli_option{file};
+
+    return $tr->{file} =~ /$cli_option{file}/ms;
+}
+
+sub match_func
+{
+    my $tr = shift;
+
+    return 1
+        if !defined $cli_option{func};
+
+    return $tr->{func} =~ /$cli_option{func}/ms;
+}
+
+sub match_msg
+{
+    my $tr = shift;
+
+    return 1
+        if !defined $cli_option{msg};
+
+    return $tr->{msg} =~ /$cli_option{msg}/ms;
+}
+
+sub level_color
+{
+    my $tr = shift;
+
+    my $level = $tr->{level};
+    my %level_color;
+
+    %level_color = (
+        CALL    => 'white',
+        DEBUG   => 'cyan',
+        INFO    => 'green',
+        NOTICE  => 'bold blue',
+        WARN    => $Term::ANSIColor::VERSION < 3.00 ? 'bold yellow' : 'bright_yellow',
+        ERROR   => $Term::ANSIColor::VERSION < 3.00 ? 'red'         : 'bright_red',
+        FATAL   => 'bold red',
+    );
+
+    die "Invalid value '$level' of trace record field 'level'\n"
+        if !exists $level_color{$level};
+
+    return $level_color{$level};
+}
+
+sub time_of
+{
+    my $tr = shift;
+
+    # TODO: currently, libmero stores time as rdtsc(), consider changing to
+    # something meaning, like epoch or other with more precision
+    #my $dt   = DateTime->from_epoch( epoch => $tr->{timestamp} );
+    #my $time = $dt->month_abbr . '-' . $dt->day . ' ' . $dt->hms . '.'
+               #. $dt->nanosecond . ' ';
+
+    #return $time;
+    return $tr->{timestamp};
+}
+
+my $format_placeholder = qr/
+                             %[
+                                n # \n
+                                t # \t
+                                N # record_Num
+                                T # Timestamp
+                                a # stack_Addr
+                                s # Subsystem
+                                l # Level
+                                f # Func
+                                F # File
+                                L # Line
+                                m # Msg
+                              ]
+                           /xms;
+
+sub expand_format_placeholder
+{
+    my $placeholder = shift;
+    my $tr          = shift;
+
+    die "Invalid format placeholder '$placeholder' for custom format option\n"
+        if $placeholder !~ m/^$format_placeholder$/xms;
+
+    given ($placeholder) {
+        when ('%n') {
+            return "\n";
+        }
+        when ('%t') {
+            return "\t";
+        }
+        when ('%N') {
+            return "$tr->{record_num}";
+        }
+        when ('%T') {
+            return time_of($tr);
+        }
+        when ('%a') {
+            return "$tr->{stack_addr}";
+        }
+        when ('%s') {
+            return "$tr->{subsystem}";
+        }
+        when ('%l') {
+            return "$tr->{level}";
+        }
+        when ('%f') {
+            return "$tr->{func}";
+        }
+        when ('%F') {
+            return "$tr->{file}";
+        }
+        when ('%L') {
+            return "$tr->{line}";
+        }
+        when ('%m') {
+            return "$tr->{msg}";
+        }
+    };
+
+    return;
+}
+
+sub print_trace_record
+{
+    my $output_file = shift;
+    my $tr          = shift;
+
+    my $buf;
+
+    given ($cli_option{format}) {
+
+        when ('short') {
+            $buf = color( level_color($tr) )
+                   . sprintf('%6s  ', $tr->{level})
+                   . "[$tr->{file}:$tr->{line}:$tr->{func}]  "
+                   . "$tr->{msg}"
+                   . color('reset')
+                   . "\n";
+        }
+
+        when ('med') {
+            $buf = color( level_color($tr) )
+                   . sprintf('%-18s  ', time_of($tr))
+                   . sprintf('%-7u  ', $tr->{record_num})
+                   . sprintf('%-6s  ', $tr->{level})
+                   . sprintf('%-10s  ', $tr->{subsystem})
+                   . sprintf('%-30s  ', $tr->{func})
+                   . "$tr->{msg}"
+                   . color('reset')
+                   . "\n";
+        }
+
+        when ('full') {
+            $buf = color( level_color($tr) )
+                   . sprintf('%-7u  ', $tr->{record_num})
+                   . sprintf('%-18s  ', time_of($tr))
+                   . sprintf('%-6s  ', $tr->{level})
+                   . sprintf('%-10s  ', $tr->{subsystem})
+                   . "$tr->{stack_addr}  "
+                   . "$tr->{func}  "
+                   . "$tr->{file}:$tr->{line}"
+                   . color('reset')
+                   . "\n"
+                   . color( level_color($tr) )
+                   . "    $tr->{msg}"
+                   . color('reset')
+                   . "\n\n";
+        }
+
+        when (/^custom:/xms) {
+            my ($format) = $cli_option{format} =~ m/^custom:(.*)$/xms;
+
+            $format =~ s/
+                          ($format_placeholder)
+                        /
+                          expand_format_placeholder($1, $tr)
+                        /egxms;
+
+            $buf = color( level_color($tr) ) . $format . color('reset') . "\n";
+        }
+
+        default {
+            my @allowed_format_values = qw( short med full custom:<string> );
+            die "Incorrect value '$cli_option{format}' of configuration option"
+                . " -f|--format, allowed values are: @allowed_format_values\n";
+        }
+    }
+
+    $output_file->print($buf);
+}
+
+sub locate_m0tracedump
+{
+    my $m0tracedump;
+    my (undef, undef, $basename) = File::Spec->splitpath( $PROGRAM_NAME );
+
+    if ( $PROGRAM_NAME =~ m#
+                             (?: utils/(?:trace/)? | ^./(?:trace/)? )
+                             $basename $
+                           #xms )
+    {
+        ($m0tracedump = $PROGRAM_NAME) =~ s# $basename $ #m0tracedump#xms;
+
+        if ( ! -x $m0tracedump ) {
+            $m0tracedump = which('m0tracedump');
+        }
+    }
+    else
+    {
+        $m0tracedump = which('m0tracedump');
+    }
+
+    die "Failed to find m0tracedump utility in PATH or in the development"
+        . " tree next to ourselves\n"
+        if !defined $m0tracedump;
+
+    return $m0tracedump;
+}
+
+sub create_tempfile_for
+{
+    my $file_name = shift;
+
+    my (undef, undef, $basename)
+        = File::Spec->splitpath( $file_name );
+
+    my $temp_file = File::Temp->new(TEMPLATE => 'm0trace-' . $basename . '-XXXXX',
+                                    SUFFIX   => '.yml',
+                                    UNLINK   => 1);
+
+    return $temp_file;
+}
+
+sub prepare_input_file
+{
+    my $input_file;
+
+    if ( $cli_option{input_file} eq '-' # assume that STDIN is always ASCII
+         or $cli_option{input_file} =~ m/ \. (?: yml | yaml | log ) $ /xms
+         or -T $cli_option{input_file} )
+    {
+        $input_file = $cli_option{stream_mode} ? "<$cli_option{input_file}"
+                                               : $cli_option{input_file};
+    }
+    else {
+        my $m0tracedump = locate_m0tracedump();
+
+        if ( $cli_option{stream_mode} ) {
+            $input_file = "$m0tracedump -s -i $cli_option{input_file} |";
+        }
+        else {
+            my $temp_file = create_tempfile_for( $cli_option{input_file} );
+
+            system "$m0tracedump -i $cli_option{input_file} -o $temp_file";
+            $input_file = $temp_file;
+        }
+    }
+
+    return $input_file;
+}
+
+
+sub usage
+{
+    pod2usage(-verbose => 0);
+}
+
+sub help
+{
+    pod2usage(-verbose => 1);
+}
+
+sub man
+{
+    pod2usage(-verbose => 2);
+}
+
+sub process_cli_options
+{
+    help() if !GetOptions(
+        'i|input=s'      =>  \$cli_option{input_file},
+        'o|output=s'     =>  \$cli_option{output_file},
+        's|stream-mode'  =>  \$cli_option{stream_mode},
+        'color=s'        =>  \$cli_option{color},
+        'c'              =>  sub { $cli_option{color} = 'always' },
+        'C'              =>  sub { $cli_option{color} = 'never' },
+        'f|format=s'     =>  \$cli_option{format},
+        'L|level=s'      =>  \$cli_option{level},
+        'S|subsys=s'     =>  \$cli_option{subsys},
+        'F|file=s'       =>  \$cli_option{file},
+        'U|func=s'       =>  \$cli_option{func},
+        'M|msg=s'        =>  \$cli_option{msg},
+
+        'h|help'    =>  \&help,
+        'usage'     =>  \&usage,
+        'man'       =>  \&man
+    );
+
+    if ($cli_option{color} eq 'auto'
+        and ($cli_option{output_file} ne '-' or ! -t STDOUT)
+        or $cli_option{color} eq 'never')
+    {
+        $ENV{ANSI_COLORS_DISABLED} = 1;
+    }
+
+    validate_format( $cli_option{format} );
+    validate_level( $cli_option{level} );
+    validate_subsys( $cli_option{subsys} );
+
+    return;
+}
+
+sub set_global_vars
+{
+    return;
+}
+
+sub main
+{
+    process_cli_options();
+    set_global_vars();
+
+    my $input_file = prepare_input_file();
+
+    my @trace_records;
+
+    if ( $cli_option{stream_mode} ) {
+        tie @trace_records, 'Tie::Array::Lazy::YAMLstream', $input_file;
+    }
+    else {
+        my $yaml_data = YAML::XS::LoadFile( $input_file );
+
+        die "Incorrect format of input data: root entry 'trace_records' not found\n"
+            if !exists $yaml_data->{trace_records};
+
+        die "No trace records available\n"
+            if !defined $yaml_data->{trace_records};
+
+        @trace_records = @{ $yaml_data->{trace_records} }
+    }
+
+    open my $output_file, ">$cli_option{output_file}";
+
+    for my $tr (@trace_records) {
+        validate_trace_record($tr);
+        if (match_level($tr) and match_subsys($tr) and match_file($tr)
+            and match_func($tr) and match_msg($tr))
+        {
+            print_trace_record($output_file, $tr);
+        }
+    }
+
+    close $output_file;
+
+    return;
+}
+
+
+main();
+
+
+__END__
+
+=head1 NAME
+
+m0trace - display Mero trace logs in human friendly form
+
+=head1 SYNOPSIS
+
+m0trace [-i|--input <ifile>] [-o|--output <ofile>] [-s|--stream-mode]
+[-c|-C|--color=MODE] [-f|--format=FMT] [-L|--level=LVL] [-S|--subsys=SBS]
+[-F|--file=FL] [-U|--func=FUN] [-M|--msg=MSG] [-h|--help] [--usage] [--man]
+
+=head1 DESCRIPTION
+
+This program displays Mero trace log in human friendly form, allowing to
+filter log entries by various parameters, like log level, subsystem, file,
+func name, etc.
+
+It accepts trace log data on STDIN or from file, in binary or in YAML format,
+see B<-i|--input> option.
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<-i|--input=I<ifile>>
+
+Input file name, if omitted then STDIN is used by default. If input comes from
+STDIN or input file has *.yml *.yaml or *.log extension, then it's assumed to be
+a text file in YAML format. Otherwise it's assumed to be a raw binary trace data
+and in this case it will be converted into YAML format first, with the help of
+B<m0tracedump> utility, which creates a temporary file in the current directory.
+Temporary file is not used if m0trace operates in "stream mode"(see
+B<-s|--stream-mode> option below).
+
+=item B<-o|--output=I<ofile>>
+
+Output file name, if omitted then STDOUT is used by default.
+
+=item B<-s|--stream-mode>
+
+By default, B<m0trace> expects that YAML log contains all trace records
+formatted as a single YAML document, which requires to read a whole YAML log,
+before it can be processed (displayed, filtered, etc.). With this option,
+B<m0trace> expects that each trace record in log file is represented as a
+separate YAML document, which allows to read each trace record from log file one
+by one and display/filter them immediately. This is handy when reading trace log
+from STDIN and not from file.
+
+This option implies that YAML trace log was produces by B<m0tracedump> with
+B<-s> option.
+
+=item B<--color=I<MODE>|-c|-C>
+
+Controls, whether to colorize output, depending on trace level of each record.
+MODE can be:
+
+=over 4
+
+=item *
+I<auto> - detect type of output file (terminal, file, or pipe) and use colors if
+output goes to a terminal, this is a default;
+
+=item *
+I<always> - always use colors no matter what is the type of output file;
+
+=item *
+I<never> - never use colors.
+
+=back
+
+=item B<-f|--format=I<FMT>>
+
+Controls amount of information, which is displayed for each trace record, and
+how it looks. Possible values for FMT are: I<short> (default one), I<med>,
+I<full> and I<custom:STR>. I<custom> format is special, it accepts a format
+string, which goes after a colon, and it may have the following placeholders:
+
+=over 4
+
+=item *
+%n:  newline
+
+=item *
+%t:  horizontal tab
+
+=item *
+%N:  record_Num
+
+=item *
+%T:  Timestamp
+
+=item *
+%a:  stack_Addr
+
+=item *
+%s:  Subsystem
+
+=item *
+%l:  Level
+
+=item *
+%f:  Func
+
+=item *
+%F:  File
+
+=item *
+%L:  Line
+
+=item *
+%m:  Msg
+
+=back
+
+Example:
+
+  m0trace --format=med
+  m0trace --format='custom:Num[%N] Stack[%a]: %t%m'
+
+=item B<-L|--level=I<LVL>>
+
+Display only trace records with specified log level. LVL is a coma separated
+list of log levels, where each level can be one of:
+
+=over 4
+
+=item *
+I<fatal>
+
+=item *
+I<error>
+
+=item *
+I<warn>
+
+=item *
+I<notice>
+
+=item *
+I<info>
+
+=item *
+I<debug>
+
+=item *
+I<call>
+
+=back
+
+A special log levels with '+' at the end of level name can be used. They mean
+"all levels from current and above". For example, I<warn+> means display I<warn>
+I<error> and I<fatal> levels. A default one is I<call+>, which means display
+trace records from all levels.
+
+Example:
+
+  m0trace --format=call,error+
+
+=item B<-S|--subsys=I<SBS>>
+
+Display only trace records from specified Mero subsystem. SBS is a coma
+separated list of subsystem names. If SBS starts with I<!> it means reverse -
+display all subsystems except specified. A special subsystem I<all> means
+display all subsystems (this is a default).
+
+=item B<-F|--file=I<FL>>
+
+Display only trace records from specified source file. FL is a perl regex.
+
+Example:
+
+  m0trace -F 'init\.c'
+  m0trace -F '^fop/|^fom/'
+
+=item B<-U|--func=I<FUN>>
+
+Display only trace records from specified function. FUN is a perl regex.
+
+Example:
+
+  m0trace -U '^m0_alloc$'
+  m0trace -U '(?<!m0_)(?:alloc|free)'
+
+=item B<-M|--msg=I<MSG>>
+
+Display only trace records, which have specified message. MSG is a perl regex.
+
+Example:
+
+  m0trace -M 'Sesstion created'
+  m0trace -M 'slot \x+ nr_items [1-3]'
+
+=item B<-h|--help>
+
+Print this help summary.
+
+=item B<--usage>
+
+Print usage line of this summary.
+
+=item B<--man>
+
+Print the complete manpage.
+
+=back
+
+=cut

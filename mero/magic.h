@@ -703,6 +703,9 @@ enum m0_magic_satchel {
 /* Trace */
 	/* m0_trace_rec_header::trh_magic (foldable doll) */
 	M0_TRACE_MAGIC = 0x33f01dab1ed01177,
+
+	/* m0_trace_descr::td_magic (badass coders) */
+	M0_TRACE_DESCR_MAGIC = 0x33bada55c0de2577,
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */
