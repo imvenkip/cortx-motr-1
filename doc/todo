@@ -29,10 +29,6 @@ sub-team leads, contact them to add more things here.
     A leakage in test suite "foo-ut" can be investigated with command
         valgrind --leak-check=full utils/.libs/lt-ut -t foo-ut
 
-2012-Nov-29 sm_timeout_top(): should use CAS
-
-    The same in sm_timeout_cancel() to avoid races. See fom_clink_cb().
-
 2012-Nov-29 rpc: use m0_cookie for sender-id
 
 2012-Nov-29 change console/ to use m0_xcode_read() instead of yaml
@@ -235,3 +231,7 @@ and returns true for a function from another compilation unit.
 
     Identify locks protecting existing channels and add such locks when there is
     none.
+
+2012-Nov-29 sm_timeout_top(): should use CAS
+
+    The same in sm_timeout_cancel() to avoid races. See fom_clink_cb().
