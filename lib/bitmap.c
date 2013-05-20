@@ -140,10 +140,10 @@ M0_INTERNAL size_t m0_bitmap_set_nr(const struct m0_bitmap *map)
 
 M0_INTERNAL int m0_bitmap_onwire_init(struct m0_bitmap_onwire *ow_map, size_t nr)
 {
+	ow_map->bo_size = M0_BITMAP_WORDS(nr);
 	M0_ALLOC_ARR(ow_map->bo_words, M0_BITMAP_WORDS(nr));
 	if (ow_map->bo_words == NULL)
 		return -ENOMEM;
-	ow_map->bo_size = M0_BITMAP_WORDS(nr);
 
 	return 0;
 }

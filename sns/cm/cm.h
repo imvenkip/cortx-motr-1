@@ -158,10 +158,6 @@ M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
 
 M0_INTERNAL void m0_sns_cm_buf_available(struct m0_net_buffer_pool *pool);
 
-M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
-                                          struct m0_pdclust_layout *pl,
-                                          const struct m0_cm_ag_id *id);
-
 M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm,
 				     const struct m0_cm_ag_id *id,
                                      struct m0_pdclust_layout *pl);

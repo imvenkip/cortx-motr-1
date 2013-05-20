@@ -45,7 +45,7 @@ struct m0_pool;
 struct m0_poolmach;
 
 enum {
-	PM_DEFAULT_NR_NODES = 1,
+	PM_DEFAULT_NR_NODES = 10,
 	PM_DEFAULT_NR_DEV = 80,
 	PM_DEFAULT_MAX_NODE_FAILURES = 1,
 	PM_DEFAULT_MAX_DEV_FAILURES = 1

@@ -339,7 +339,7 @@ M0_INTERNAL int m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
 }
 
 M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
-					 struct m0_fid *gfid)
+					 struct m0_fid *cfid)
 {
 	struct m0_reqh              *reqh   = cm->cm_service.rs_reqh;
 	struct m0_mero              *mero   = m0_cs_ctx_get(reqh);
@@ -355,10 +355,14 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
 		++nr_cnt_per_ios;
 	nr_cnts = nr_cnt_per_ios;
 	m0_tl_for(cs_eps, &mero->cc_ios_eps, ex) {
-		if (gfid->f_container > nr_cnts) {
+		if (cfid->f_container > nr_cnts) {
 			nr_cnts += nr_cnt_per_ios;
 			continue;
 		}
+		M0_LOG(M0_DEBUG, "Target endpoint for: %llu:%llu %s",
+				 (unsigned long long)cfid->f_container,
+				 (unsigned long long)cfid->f_key,
+				 ex->ex_endpoint);
 		return ex->ex_endpoint;
 	} m0_tl_endfor;
 
@@ -371,6 +375,71 @@ M0_INTERNAL int m0_sns_cm_cob_is_local(struct m0_fid *cobfid,
 					struct m0_cob_domain *cdom)
 {
 	return m0_sns_cm_cob_locate(dbenv, cdom, cobfid);
+}
+
+M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(struct m0_sns_cm *scm,
+					    struct m0_fid *gfid,
+					    struct m0_pdclust_layout *pl,
+					    struct m0_pdclust_instance *pi,
+					    uint64_t group)
+{
+	struct m0_pdclust_src_addr sa;
+	struct m0_pdclust_tgt_addr ta;
+	struct m0_fid              cobfid;
+	uint64_t                   dpupg;
+	uint64_t                   unit;
+	size_t                     group_failures = 0;
+	int                        i;
+
+	M0_PRE(scm != NULL && pl != NULL);
+
+	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
+	for (unit = 0; unit < dpupg; ++unit) {
+		sa.sa_unit = unit;
+		sa.sa_group = group;
+		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
+		for (i = 0; i < scm->sc_failures_nr; ++i) {
+			if (cobfid.f_container == scm->sc_it.si_fdata[i])
+				M0_CNT_INC(group_failures);
+		}
+	}
+
+	return group_failures;
+}
+
+M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
+                                          struct m0_pdclust_layout *pl,
+                                          const struct m0_cm_ag_id *id)
+{
+	struct m0_sns_cm_iter      *it = &scm->sc_it;
+	struct m0_pdclust_src_addr  sa;
+	struct m0_pdclust_tgt_addr  ta;
+	struct m0_pdclust_instance *pi;
+	struct m0_fid               fid;
+	struct m0_fid               cobfid;
+	size_t                      group_failures;
+	int                         rc;
+
+	agid2fid(id,  &fid);
+
+	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &fid);
+	if (rc == 0) {
+		/* Firstly check if this group has any failed units. */
+		group_failures = m0_sns_cm_ag_failures_nr(scm, &fid, pl,
+							  pi, id->ai_lo.u_lo);
+		if (group_failures > 0) {
+			sa.sa_group = id->ai_lo.u_lo;
+			sa.sa_unit = m0_pdclust_N(pl) + m0_pdclust_K(pl);
+			m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &fid, &cobfid);
+			m0_layout_instance_fini(&pi->pi_base);
+			rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom,
+						  &cobfid);
+			if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid))
+				return true;
+		}
+	}
+
+	return false;
 }
 
 #undef M0_TRACE_SUBSYSTEM

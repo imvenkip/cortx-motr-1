@@ -143,10 +143,12 @@ M0_INTERNAL struct m0_sns_cm *it2sns(struct m0_sns_cm_iter *it)
 	return container_of(it, struct m0_sns_cm, sc_it);
 }
 
+/*
 M0_INTERNAL uint64_t m0_sns_cm_iter_failures_nr(const struct m0_sns_cm_iter *it)
 {
 	return it->si_fc.sfc_group_nr_fail_units;
 }
+*/
 
 /**
  * Returns current iterator phase.
@@ -375,35 +377,27 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm                *scm = it2sns(it);
 	struct m0_sns_cm_file_context   *sfc;
 	struct m0_pdclust_src_addr      *sa;
-	struct m0_fid                    cob_fid;
 	uint64_t                         group;
-	uint64_t                         unit;
-	int                              i;
+	uint32_t                         group_fnr;
 
 	sfc = &it->si_fc;
 	sfc->sfc_groups_nr = m0_sns_cm_nr_groups(sfc->sfc_pdlayout,
 						 sfc->sfc_fsize);
 	sa = &sfc->sfc_sa;
 	for (group = sa->sa_group; group < sfc->sfc_groups_nr; ++group) {
-		sfc->sfc_group_nr_fail_units = 0;
+		group_fnr = 0;
 		if (__group_skip(it, group))
 			continue;
-		for (unit = 0; unit < sfc->sfc_dpupg; ++unit) {
-			sfc->sfc_sa.sa_unit = unit;
+		group_fnr = m0_sns_cm_ag_failures_nr(scm, &sfc->sfc_gob_fid,
+						     sfc->sfc_pdlayout,
+						     sfc->sfc_pi, group);
+		if (group_fnr > 0){
 			sfc->sfc_sa.sa_group = group;
-			unit_to_cobfid(sfc, &cob_fid);
-			/* find number of failed units in this group. */
-			for (i = 0; i < scm->sc_failures_nr; ++i) {
-				if (cob_fid.f_container == it->si_fdata[i])
-					M0_CNT_INC(sfc->sfc_group_nr_fail_units);
-			}
-			if (sfc->sfc_group_nr_fail_units > 0){
-				sfc->sfc_sa.sa_unit =
-					m0_sns_cm_ag_unit_start(scm->sc_op,
-								sfc->sfc_pdlayout);
-				iter_phase_set(it, ITPH_COB_NEXT);
-				goto out;
-			}
+			sfc->sfc_sa.sa_unit =
+				m0_sns_cm_ag_unit_start(scm->sc_op,
+							sfc->sfc_pdlayout);
+			iter_phase_set(it, ITPH_COB_NEXT);
+			goto out;
 		}
 	}
 

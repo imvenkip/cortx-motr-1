@@ -145,21 +145,30 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 				   bool has_incoming,
 				   struct m0_cm_aggr_group **out)
 {
-	struct m0_sns_cm         *scm = cm2sns(cm);
-	struct m0_sns_cm_ag      *sag;
-	struct m0_fid             gfid;
-	struct m0_pdclust_layout *pl;
-	uint64_t                  fsize;
-	uint64_t                  f_nr;
-	struct m0_fid            *it_gfid;
-	int                       i;
-	int                       rc = 0;
+	struct m0_sns_cm           *scm = cm2sns(cm);
+	struct m0_sns_cm_ag        *sag;
+	struct m0_fid               gfid;
+	struct m0_pdclust_layout   *pl;
+	struct m0_pdclust_instance *pi;
+	uint64_t                    fsize;
+	uint64_t                    f_nr;
+	struct m0_fid              *it_gfid;
+	int                         i;
+	int                         rc = 0;
 
 	M0_ENTRY("scm: %p, ag id:%p", cm, id);
 	M0_PRE(cm != NULL && id != NULL && out != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
 	agid2fid(id, &gfid);
+	/*
+	 * If m0_cm_aggr_group_alloc() is invoked in sns data iterator context,
+	 * the file size and layout are already fetched and saved in the data
+	 * iterator. So check if the iterator file identifier and group's file
+	 * identifier match, if yes, then extract the layout from the iterator.
+	 * @todo Interface to fetch the file size and layout from the sns data
+	 *       iterator.
+	 */
 	it_gfid = &scm->sc_it.si_fc.sfc_gob_fid;
 	if (m0_fid_eq(&gfid, it_gfid) && scm->sc_it.si_fc.sfc_pdlayout != NULL)
 		pl = scm->sc_it.si_fc.sfc_pdlayout;
@@ -168,18 +177,21 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 						      &fsize);
 	if (rc != 0)
 		return rc;
-	/*
-	 * Allocate new aggregation group and add it to the
-	 * lexicographically sorted list of aggregation groups in the
-	 * sliding window.
-	 */
+	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &gfid);
+	if (rc != 0)
+		return rc;
+	/* calculate actual failed number of units in this group. */
+	f_nr = m0_sns_cm_ag_failures_nr(scm, &gfid, pl, pi, id->ai_lo.u_lo);
+	m0_layout_instance_fini(&pi->pi_base);
+	M0_ASSERT(f_nr != 0);
+	if (f_nr == 0)
+		return -EINVAL;
+	/* Allocate new aggregation group. */
 	M0_ALLOC_PTR(sag);
 	if (sag == NULL) {
 		m0_layout_put(m0_pdl_to_layout(pl));
 		return -ENOMEM;
 	}
-	f_nr = m0_pdclust_K(pl);
-	M0_ASSERT(f_nr != 0);
 	M0_ALLOC_ARR(sag->sag_fc, f_nr);
 	if (sag->sag_fc == NULL) {
 		m0_layout_put(m0_pdl_to_layout(pl));

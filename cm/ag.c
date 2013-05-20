@@ -161,6 +161,12 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 		   aggr_grps_out_tlist_is_empty(&cm->cm_aggr_grps_out))
 		   cm->cm_ops->cmo_complete(cm);
 
+	M0_LOG(M0_DEBUG, "aggr group fini: in: [%lu] %p out: [%lu] %p",
+	       aggr_grps_in_tlist_length(&cm->cm_aggr_grps_in),
+	       &cm->cm_aggr_grps_in,
+	       aggr_grps_out_tlist_length(&cm->cm_aggr_grps_out),
+	       &cm->cm_aggr_grps_out);
+
 	M0_LEAVE();
 }
 
@@ -201,10 +207,10 @@ m0_cm_aggr_group_locate(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 		return ag;
 	/*
 	 * We did not find the aggregation group for the given aggregation group
-	 * identifier in the m0_cm::cm_aggr_groups_out list. So now look into
-	 * m0_cm::cm_aggr_groups_in list, there's a possibility that the
-	 * aggregation group has in-coming copy packets and thus was created and
-	 * added to m0_cm::cm_aggr_groups_in list earlier.
+	 * identifier in the m0_cm::cm_aggr_groups_in list. So now look into
+	 * m0_cm::cm_aggr_groups_out list, there's a possibility that the
+	 * aggregation group has out-coming copy packets and thus was created and
+	 * added to m0_cm::cm_aggr_groups_out list earlier.
 	 */
 	ag = __aggr_group_locate(id, &aggr_grps_out_tl, &cm->cm_aggr_grps_out);
 
@@ -212,15 +218,11 @@ m0_cm_aggr_group_locate(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 	 * The aggregation group we found is relevant and thus has incoming
 	 * copy packets. But there are also local outgoing copy packets for
 	 * this aggregation group. Thus even though it is already added to
-	 * the m0_cm::cm_aggr_grps_in, it should also be added to m0_cm::
-	 * cm_aggr_grps_out list.
+	 * the m0_cm::cm_aggr_grps_out, it should also be added to m0_cm::
+	 * cm_aggr_grps_in list.
 	 */
-	if (ag != NULL && has_incoming) {
-	M0_LOG(M0_DEBUG, "aggr group locate: id [%lu] [%lu] [%lu] [%lu] \
-	       has_incoming: %d", id->ai_hi.u_hi, id->ai_hi.u_lo,
-	       id->ai_lo.u_hi, id->ai_lo.u_lo, has_incoming);
+	if (ag != NULL && has_incoming)
 		m0_cm_aggr_group_add(cm, ag, true);
-	}
 	return ag;
 }
 

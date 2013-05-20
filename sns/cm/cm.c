@@ -394,8 +394,8 @@ enum {
 	 * Minimum number of buffers to provision m0_sns_cm::sc_ibp
 	 * and m0_sns_cm::sc_obp buffer pools.
 	 */
-	SNS_INCOMING_BUF_NR = 1 << 7,
-	SNS_OUTGOING_BUF_NR = 1 << 7,
+	SNS_INCOMING_BUF_NR = 1 << 6,
+	SNS_OUTGOING_BUF_NR = 1 << 6,
 
 	/**
 	 * Currently m0t1fs uses default fid_start = 4, where 0 - 3 are reserved
@@ -771,33 +771,6 @@ static int _fid_next(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
 	return rc;
 }
 
-M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
-					  struct m0_pdclust_layout *pl,
-					  const struct m0_cm_ag_id *id)
-{
-	struct m0_sns_cm_iter      *it = &scm->sc_it;
-	struct m0_pdclust_src_addr  sa;
-	struct m0_pdclust_tgt_addr  ta;
-	struct m0_pdclust_instance *pi;
-	struct m0_fid               fid;
-	struct m0_fid               cobfid;
-	int                         rc;
-
-	agid2fid(id,  &fid);
-	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &fid);
-	if (rc == 0) {
-		sa.sa_group = id->ai_lo.u_lo;
-		sa.sa_unit = m0_pdclust_N(pl) + m0_pdclust_K(pl);
-		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &fid, &cobfid);
-		m0_layout_instance_fini(&pi->pi_base);
-		rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom, &cobfid);
-		if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid))
-			return true;
-	}
-
-	return false;
-}
-
 static bool sns_cm_fid_is_valid(const struct m0_fid *fid)
 {
 	return fid->f_container >= 0 && fid->f_key >= SNS_COB_FID_START;
@@ -838,9 +811,9 @@ M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id 
 	M0_ASSERT(nr_incoming <= m0_pdclust_N(pl) + m0_pdclust_K(pl));
 	total_inbufs = nr_acc_bufs + (nr_cp_bufs * nr_incoming);
 	m0_net_buffer_pool_lock(&scm->sc_ibp.sb_bp);
-	if (total_inbufs + m0_pdclust_N(pl) > scm->sc_ibp.sb_bp.nbp_free)
+	if (total_inbufs + (m0_pdclust_N(pl) * 2) > scm->sc_ibp.sb_bp.nbp_free)
 		goto out;
-	if (scm->sc_ibp.sb_bp.nbp_free - (total_inbufs + m0_pdclust_N(pl)) > 0)
+	if (scm->sc_ibp.sb_bp.nbp_free - (total_inbufs + (m0_pdclust_N(pl) * 2)) > 0)
 		result = true;
 out:
 	m0_net_buffer_pool_unlock(&scm->sc_ibp.sb_bp);
