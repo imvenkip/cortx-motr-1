@@ -2974,8 +2974,8 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	 */
 	M0_ASSERT(M0_IN(req->ir_sns_state, (SRS_REPAIR_NOTDONE,
 					    SRS_REPAIR_DONE)));
-	req->ir_nwxfer.nxr_rc = 0;
-	req->ir_rc = req->ir_nwxfer.nxr_rc;
+	M0_LOG(M0_INFO, "1. req->ir_rc = %d, nwxfer rc = %d",
+	       req->ir_rc, req->ir_nwxfer.nxr_rc);
 
 	/*
 	 * Finalizes current fops which are not valid anymore.
@@ -3007,6 +3007,9 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 		if (rc != 0)
 			M0_RETERR(rc, "Failed to prepare dgmode write fops");
 	}
+
+	req->ir_nwxfer.nxr_rc = 0;
+	req->ir_rc = req->ir_nwxfer.nxr_rc;
 
 	rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->ir_nwxfer);
 	if (rc != 0)
@@ -3109,14 +3112,20 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 
 	req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, rmw);
 
+	m0_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
+		ti->ti_databytes = 0;
+		ti->ti_parbytes  = 0;
+		ti->ti_rc        = 0;
+	} m0_tl_endfor;
+
+	/* Resets the status code before starting degraded mode read IO. */
+	if (req->ir_nwxfer.nxr_rc != 0)
+		req->ir_nwxfer.nxr_rc = 0;
+	req->ir_rc = req->ir_nwxfer.nxr_rc;
+
 	rc = req->ir_nwxfer.nxr_ops->nxo_distribute(&req->ir_nwxfer);
 	if (rc != 0)
 		M0_RETERR(rc, "Failed to prepare dgmode IO fops.");
-
-	/* Resets the status code before starting degraded mode read IO. */
-	if (req->ir_nwxfer.nxr_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
-		req->ir_nwxfer.nxr_rc = 0;
-	req->ir_rc = req->ir_nwxfer.nxr_rc;
 
 	rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->ir_nwxfer);
 	if (rc != 0)
@@ -3367,6 +3376,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 	M0_RETURN(0);
 fail:
 	ioreq_sm_failed(req, rc);
+	ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
 	req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, false);
 	M0_RETERR(rc, "ioreq_iosm_handle failed");
 }
@@ -4481,9 +4491,12 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 	irfop->irf_reply_rc = rc;
 
-	if (tioreq->ti_rc == 0) {
-		tioreq->ti_rc             = rc;
+	if (tioreq->ti_rc == 0)
+		tioreq->ti_rc = rc;
+
+	if (tioreq->ti_nwxfer->nxr_rc == 0) {
 		tioreq->ti_nwxfer->nxr_rc = rc;
+		M0_LOG(M0_INFO, "nwxfer rc = %d", tioreq->ti_nwxfer->nxr_rc);
 	}
 
 	if (irfop->irf_pattr == PA_DATA) {
