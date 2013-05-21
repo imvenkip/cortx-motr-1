@@ -107,11 +107,6 @@ void test_bitmap(void)
 	M0_UT_ASSERT(bm.b_nr == 0);
 	M0_UT_ASSERT(bm.b_words == NULL);
 
-	M0_UT_ASSERT(m0_bitmap_init(&bm, 0) == 0);
-	M0_UT_ASSERT(bm.b_nr == 0);
-	M0_UT_ASSERT(bm.b_words != NULL);
-	m0_bitmap_fini(&bm);
-
 	test_bitmap_copy();
 }
 
