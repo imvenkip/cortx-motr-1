@@ -150,7 +150,7 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	id = ag->cag_id;
 	M0_ASSERT(m0_cm_is_locked(cm));
 
-	M0_LOG(M0_DEBUG, "aggr group fini: id [%lu] [%lu] [%lu] [%lu]",
+	M0_LOG(M0_FATAL, "aggr group fini: id [%lu] [%lu] [%lu] [%lu]",
 		  id.ai_hi.u_hi, id.ai_hi.u_lo, id.ai_lo.u_hi, id.ai_lo.u_lo);
 	m0_cm_aggr_group_fini(ag);
 	if (m0_cm_has_more_data(cm)) {
@@ -161,7 +161,7 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 		   aggr_grps_out_tlist_is_empty(&cm->cm_aggr_grps_out))
 		   cm->cm_ops->cmo_complete(cm);
 
-	M0_LOG(M0_DEBUG, "aggr group fini: in: [%lu] %p out: [%lu] %p",
+	M0_LOG(M0_FATAL, "aggr group fini: in: [%lu] %p out: [%lu] %p",
 	       aggr_grps_in_tlist_length(&cm->cm_aggr_grps_in),
 	       &cm->cm_aggr_grps_in,
 	       aggr_grps_out_tlist_length(&cm->cm_aggr_grps_out),
@@ -277,7 +277,7 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 	M0_PRE(cm != NULL && id != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	M0_LOG(M0_DEBUG, "aggr group alloc: id [%lu] [%lu] [%lu] [%lu] \
+	M0_LOG(M0_FATAL, "aggr group alloc: id [%lu] [%lu] [%lu] [%lu] \
 	       has_incoming:[%d]", id->ai_hi.u_hi, id->ai_hi.u_lo,
 	       id->ai_lo.u_hi, id->ai_lo.u_lo, has_incoming);
 

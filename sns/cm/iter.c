@@ -471,6 +471,7 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm                *scm = it2sns(it);
 	struct m0_cm_ag_id               agid;
 	struct m0_cm_aggr_group         *ag;
+	struct m0_cm_aggr_group         *ag_hi;
 	struct m0_sns_cm_file_context   *sfc;
 	struct m0_sns_cm_cp             *scp;
 	bool                             has_incoming = false;
@@ -484,11 +485,16 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	has_incoming = __has_incoming(scm, sfc->sfc_pdlayout, &agid);
 	ag = m0_cm_aggr_group_locate(&scm->sc_base, &agid, has_incoming);
 	if (ag == NULL) {
+		if (has_incoming) {
+			ag_hi = m0_cm_ag_hi(&scm->sc_base);
+			if (m0_cm_ag_id_cmp(&agid, &ag_hi->cag_id) < 0)
+				goto out;
+		}
 		if (has_incoming && !m0_sns_cm_has_space(&scm->sc_base, &agid,
 							 sfc->sfc_pdlayout))
 			return -ENOBUFS;
 		rc = m0_cm_aggr_group_alloc(&scm->sc_base, &agid,
-					   has_incoming, &ag);
+					    has_incoming, &ag);
 		if (rc != 0) {
 			if (rc == -ENOBUFS)
 				iter_phase_set(it, ITPH_AG_SETUP);
@@ -515,6 +521,7 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 
 		rc = M0_FSO_AGAIN;
 	}
+out:
 	iter_phase_set(it, ITPH_COB_NEXT);
 
 	return rc;

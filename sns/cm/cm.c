@@ -817,7 +817,7 @@ M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id 
 		result = true;
 out:
 	m0_net_buffer_pool_unlock(&scm->sc_ibp.sb_bp);
-        M0_LOG(M0_DEBUG, "free buffers in: %u out: %u", scm->sc_ibp.sb_bp.nbp_free,
+        M0_LOG(M0_FATAL, "free buffers in: %u out: %u", scm->sc_ibp.sb_bp.nbp_free,
 	       scm->sc_obp.sb_bp.nbp_free);
 
 	return result;
