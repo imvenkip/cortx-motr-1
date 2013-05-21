@@ -323,6 +323,22 @@ struct m0_rm_resource_ops {
 	int (*rop_credit_decode)(struct m0_rm_resource *resource,
 				 struct m0_rm_credit *credit,
 				 struct m0_bufvec_cursor *cur);
+	/**
+	 * Decides which credit should be granted, sublet, or revoked.
+	 *
+	 * "Policy" defines which credit to actually grant. E.g., a client
+	 * doing a write to the first 4KB page in a file asks for [0, 4KB)
+	 * extent lock. If nobody else accesses the file, RM would grant
+	 * [0, ~0ULL) lock instead to avoid repeated lock requests in case
+	 * of sequential IO.  If there are other conflicting locks, already
+	 * granted on the file, the policy might expand requested credit to
+	 * the largest credit that doesn't overlap with conflicting
+	 * credits. And so on, there are multiple options.  So this is
+	 * literally a "credit policy" as used by banks. The name stems all
+	 * the way back to VAX VMS lock manager.
+	 *
+	 * @see m0_rm_incoming_policy --- a list of a few predefined policies.
+	 */
 	void (*rop_policy)(struct m0_rm_resource *resource,
 			   struct m0_rm_incoming *in);
 	/**
@@ -330,7 +346,7 @@ struct m0_rm_resource_ops {
 	 * Sets up m0_rm_credit::cr_ops.
 	 */
 	void (*rop_credit_init)(struct m0_rm_resource *resource,
-			        struct m0_rm_credit *credit);
+				struct m0_rm_credit *credit);
 
 	void (*rop_resource_free)(struct m0_rm_resource *resource);
 };
@@ -396,9 +412,9 @@ struct m0_rm_resource_type {
 	 * A resource type identifier, globally unique within a cluster, used
 	 * to identify resource types on wire and storage.
 	 *
-	 * This identifier is used as an index in m0_rm_domain::rd_index.
+	 * This identifier is used as an index in m0_rm_domain::rd_types.
 	 *
-	 * @todo currently this is assigned manually and centrally. In the
+	 * @todo Currently this is assigned manually and centrally. In the
 	 * future, resource types identifiers (as well as rpc item opcodes)
 	 * will be assigned dynamically by a special service (and then
 	 * announced to the clients). Such identifier name-spaces are
@@ -463,11 +479,11 @@ struct m0_rm_resource_type_ops {
 /**
  * A resource owner uses the resource via a usage credit (also called
  * resource credit or simply credit as context permits). E.g., a client might
- * have a credit of a read-only or write-only or read-write access to a
+ * have a credit of read-only, write-only, or read-write access to a
  * certain extent in a file. An owner is granted a credit to use a resource.
  *
- * The meaning of a resource credit is determined by the resource
- * type. m0_rm_credit is allocated and managed by the generic code, but it has a
+ * The meaning of a resource credit is determined by the resource type.
+ * m0_rm_credit is allocated and managed by the generic code, but it has a
  * scratchpad field (m0_rm_credit::cr_datum), where type specific code stores
  * some additional information.
  *
