@@ -27,6 +27,7 @@
 
 /* These unit tests are done in the kernel */
 M0_INTERNAL void test_bitmap(void);
+M0_INTERNAL void test_bitmap_onwire(void);
 M0_INTERNAL void test_chan(void);
 M0_INTERNAL void test_cookie(void);
 M0_INTERNAL void test_finject(void);
@@ -52,29 +53,30 @@ const struct m0_test_suite m0_klibm0_ut = {
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "bitmap",    test_bitmap        },
-		{ "memory",    test_memory        },
-		{ "bob",       test_bob           },
-		{ "buf",       m0_ut_lib_buf_test },
-		{ "chan",      test_chan          },
-		{ "cookie",    test_cookie        },
+		{ "bitmap",        test_bitmap        },
+		{ "bitmap-onwire", test_bitmap_onwire },
+		{ "memory",        test_memory        },
+		{ "bob",           test_bob           },
+		{ "buf",           m0_ut_lib_buf_test },
+		{ "chan",          test_chan          },
+		{ "cookie",        test_cookie        },
 #ifdef ENABLE_FAULT_INJECTION
-		{ "finject",   test_finject       },
+		{ "finject",       test_finject       },
 #endif
-		{ "list",      test_list          },
-		{ "lockers",   test_lockers       },
-		{ "tlist",     test_tlist         },
-		{ "mutex",     test_mutex         },
-		{ "queue",     test_queue         },
-		{ "refs",      test_refs          },
-		{ "rwlock",    test_rw            },
-		{ "thread",    test_thread        },
-		{ "time",      m0_ut_time_test	  },
-		{ "trace",     test_trace         },
-		{ "uuid",      m0_test_lib_uuid   },
-		{ "vec",       test_vec           },
-		{ "zerovec",   test_zerovec       },
-		{ NULL,        NULL               }
+		{ "list",          test_list          },
+		{ "lockers",       test_lockers       },
+		{ "tlist",         test_tlist         },
+		{ "mutex",         test_mutex         },
+		{ "queue",         test_queue         },
+		{ "refs",          test_refs          },
+		{ "rwlock",        test_rw            },
+		{ "thread",        test_thread        },
+		{ "time",          m0_ut_time_test    },
+		{ "trace",         test_trace         },
+		{ "uuid",          m0_test_lib_uuid   },
+		{ "vec",           test_vec           },
+		{ "zerovec",       test_zerovec       },
+		{ NULL,            NULL               }
 	}
 };
 M0_EXPORTED(m0_klibm0_ut);

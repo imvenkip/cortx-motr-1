@@ -161,6 +161,14 @@ M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
 
 M0_INTERNAL int m0_memory_init(void)
 {
+	void *nothing;
+
+	/*
+	 * m0_bitmap_init() relies on non-NULL-ness of m0_alloc(0) result.
+	 */
+	nothing = m0_alloc(0);
+	M0_ASSERT(nothing != NULL);
+	m0_free(nothing);
 	m0_atomic64_set(&allocated, 0);
 	used0 = __allocated();
 	return 0;
