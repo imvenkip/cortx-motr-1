@@ -420,13 +420,8 @@ static void rev_conn_fom_fini(struct m0_fom *fom)
 
 	m0_fom_fini(fom);
 
-	if (revc->rcf_ft == M0_REV_DISCONNECT) {
-		m0_free(*revc->rcf_sess);
-		m0_free(revc->rcf_sess);
-		m0_free(revc->rcf_rem_ep);
-		m0_free(revc->rcf_conn);
-		m0_free(revc);
-	}
+	if (revc->rcf_ft == M0_REV_DISCONNECT)
+		m0_chan_signal_lock(&revc->rcf_chan);
 }
 
 static struct m0_sm_state_descr rev_conn_state_descr[] = {

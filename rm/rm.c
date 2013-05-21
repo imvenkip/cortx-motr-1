@@ -358,6 +358,13 @@ M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res)
 }
 M0_EXPORTED(m0_rm_resource_del);
 
+M0_INTERNAL void m0_rm_resource_free(struct m0_rm_resource *res)
+{
+	M0_PRE(res->r_ops != NULL && res->r_ops->rop_resource_free != NULL);
+
+	res->r_ops->rop_resource_free(res);
+}
+
 M0_INTERNAL int m0_rm_resource_encode(struct m0_rm_resource *res,
 				      struct m0_buf         *buf)
 {
@@ -1025,14 +1032,13 @@ M0_INTERNAL void m0_rm_loan_fini(struct m0_rm_loan *loan)
 }
 M0_EXPORTED(m0_rm_loan_fini);
 
-static int remote_find(struct m0_rm_remote   **rem,
-		       struct m0_rpc_session  *session,
-		       struct m0_clink        *sess_wait_link,
-		       struct m0_rm_resource  *res,
-		       struct m0_cookie       *cookie)
+static int remote_find(struct m0_rm_remote          **rem,
+		       struct m0_rm_remote_incoming  *rem_in,
+		       struct m0_rm_resource         *res)
 {
 	struct m0_rm_remote *other;
 	int		     rc = 0;
+	struct m0_cookie    *cookie = &rem_in->ri_rem_owner_cookie;
 
 	M0_PRE(rem != NULL);
 	M0_PRE(res != NULL);
@@ -1050,8 +1056,11 @@ static int remote_find(struct m0_rm_remote   **rem,
 		M0_ALLOC_PTR(other);
 		if (other != NULL) {
 			m0_rm_remote_init(other, res);
-			other->rem_session = session;
-			other->rem_rev_sess_wait = sess_wait_link;
+			rc = m0_rm_reverse_session_get(rem_in, other);
+			if (rc != 0) {
+				m0_free(other);
+				M0_RETURN(-ENOMEM);
+			}
 			other->rem_state = REM_SERVICE_LOCATED;
 			other->rem_cookie = *cookie;
 			/* @todo - Figure this out */
@@ -1061,7 +1070,7 @@ static int remote_find(struct m0_rm_remote   **rem,
 			rc = -ENOMEM;
 	}
 	*rem = other;
-	return rc;
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote   *rem,
@@ -1198,10 +1207,8 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
 	 * If everything succeeds add loan to the sublet list.
 	 */
 
-	rc = remote_find(&debtor, rem_in->ri_rem_session,
-			 rem_in->ri_rev_sess_wait, owner->ro_resource,
-			 &rem_in->ri_rem_owner_cookie) ?:
-	     m0_rm_loan_alloc(&loan, &in->rin_want, debtor);
+	rc = remote_find(&debtor, rem_in, owner->ro_resource) ?:
+		m0_rm_loan_alloc(&loan, &in->rin_want, debtor);
 	rc = rc ?: cached_credits_remove(in);
 	if (rc == 0) {
 		/*

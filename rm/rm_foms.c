@@ -322,32 +322,32 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 	M0_LEAVE();
 }
 
-static int remote_incoming_reverser_session_get(struct rm_request_fom *rfom)
+M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
+					  struct m0_rm_remote          *remote)
 {
-	struct m0_fom *fom = &rfom->rf_fom;
+	struct rm_request_fom  *rfom;
+	struct m0_fom          *fom;
+	struct m0_reqh_service *service;
+
+	rfom    = container_of(rem_in, struct rm_request_fom, rf_in);
+	fom     = &rfom->rf_fom;
+	service = fom->fo_service;
 
 	if (fom->fo_fop->f_item.ri_session != NULL) {
-		rfom->rf_in.ri_rem_session =
-			m0_rpc_service_reverse_session_lookup(
-				&fom->fo_service->rs_rpc_svc,
-				&fom->fo_fop->f_item);
-		if (rfom->rf_in.ri_rem_session == NULL) {
-			M0_ALLOC_PTR(rfom->rf_in.ri_rev_sess_wait);
-			if (rfom->rf_in.ri_rev_sess_wait == NULL)
-				M0_RETURN(-ENOMEM);
-			else
-				m0_clink_init(rfom->rf_in.ri_rev_sess_wait,
-					      NULL);
-			m0_clink_add_lock(
-				&rfom->rf_fom.fo_service->rs_rev_conn_wait,
-				rfom->rf_in.ri_rev_sess_wait);
-			M0_ALLOC_PTR(rfom->rf_in.ri_rem_session);
-			if (rfom->rf_in.ri_rem_session == NULL)
+		remote->rem_session = m0_rpc_service_reverse_session_lookup(
+					&fom->fo_service->rs_rpc_svc,
+					&fom->fo_fop->f_item);
+		if (remote->rem_session == NULL) {
+			m0_clink_init(&remote->rem_rev_sess_clink, NULL);
+			m0_clink_add_lock(&service->rs_rev_conn_wait,
+					  &remote->rem_rev_sess_clink);
+			M0_ALLOC_PTR(remote->rem_session);
+			if (remote->rem_session == NULL)
 				M0_RETURN(-ENOMEM);
 			m0_rpc_service_reverse_session_get(
-				&fom->fo_service->rs_rpc_svc,
+				&service->rs_rpc_svc,
 				&fom->fo_fop->f_item,
-				&rfom->rf_in.ri_rem_session);
+				&remote->rem_session);
 		}
 	}
 	M0_RETURN(0);
@@ -380,16 +380,6 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 		basefop = &bfop->bo_base;
 		/* Remote owner (requester) cookie */
 		rfom->rf_in.ri_rem_owner_cookie = basefop->rrq_owner.ow_cookie;
-		/*
-		 * At this point call m0_rpc_reverse_session_get()
-		 * if Session exists, assign rfom->rf_in.ri_rem_session
-		 * else post a fom for creating a session asynchronously
-		 * m0_rpc_reverse_session_get(fom->fo_fop->ri_item,
-		 *                            &rfom->rf_in.ri_rem_session)
-		 */
-		rc = remote_incoming_reverser_session_get(rfom);
-		if (rc != 0)
-			M0_RETURN(rc);
 		/*
 		 * Populate the owner cookie for creditor (local)
 		 * This is used later by locality().

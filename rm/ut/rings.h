@@ -81,7 +81,6 @@ struct m0_rings {
 	uint64_t              rs_id;
 };
 
-extern struct m0_rm_resource_type           rings_resource_type;
 extern const struct m0_rm_resource_ops      rings_ops;
 extern const struct m0_rm_resource_type_ops rings_rtype_ops;
 extern const struct m0_rm_credit_ops        rings_credit_ops;

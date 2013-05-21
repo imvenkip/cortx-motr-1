@@ -145,12 +145,11 @@ static void owner_api_test (void)
 
 static void res_api_test(void)
 {
+	M0_SET0(&test_data.rd_res);
 	rm_utdata_init(&test_data, OBJ_RES_TYPE);
 
-	M0_SET0(&test_data.rd_res);
 	/* 1. Test m0_rm_resource_add */
 	m0_rm_resource_add(&test_data.rd_rt, &test_data.rd_res.rs_resource);
-
 	m0_mutex_lock(&test_data.rd_rt.rt_lock);
 	M0_UT_ASSERT(test_data.rd_rt.rt_nr_resources == 1);
 	M0_UT_ASSERT(res_tlist_contains(&test_data.rd_rt.rt_resources,

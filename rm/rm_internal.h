@@ -45,11 +45,6 @@ struct m0_rm_remote_incoming {
 	 */
 	struct m0_cookie       ri_rem_owner_cookie;
 	struct m0_cookie       ri_loan_cookie;
-	struct m0_clink       *ri_rev_sess_wait;
-	/**
-	 * Session pointer to the remote end.
-	 */
-	struct m0_rpc_session *ri_rem_session;
 };
 
 /**
@@ -192,6 +187,10 @@ M0_INTERNAL void m0_rm_outgoing_complete(struct m0_rm_outgoing *og);
  * list.
  */
 M0_INTERNAL int m0_rm_sublet_remove(struct m0_rm_credit *credit);
+
+M0_INTERNAL int
+m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
+			  struct m0_rm_remote          *remote);
 
 /** @} end of rm-fop interface. */
 

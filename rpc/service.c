@@ -399,23 +399,59 @@ err_revc:
 M0_INTERNAL void
 m0_rpc_service_reverse_session_put(struct m0_rpc_service *svc)
 {
+	int                           i;
+	struct m0_clink              *clinks;
+	size_t                        nr_clinks = 0;
+	size_t                        nr_sessions;
 	struct m0_reqh_service       *reqhsvc;
 	struct m0_reverse_connection *revc;
-	m0_time_t                     rpc_timeout =
-		m0_time_from_now(M0_REV_CONN_TIMEOUT, 0);
 
 	M0_PRE(svc != NULL);
 
 	reqhsvc = container_of(svc, struct m0_reqh_service, rs_rpc_svc);
 
 	/*
+	 * We create a clink group to wait for completion of reverse
+	 * disconnection fom.
+	 */
+	nr_sessions = rev_conn_tlist_length(&reqhsvc->rs_rpc_svc.svc_rev_conn);
+	M0_ALLOC_ARR(clinks, nr_sessions);
+	M0_ASSERT(clinks != NULL);
+	/*
 	 * It is assumed that following functions log errors internally
 	 * and hence their return value is ignored.
 	 */
 	m0_tl_for (rev_conn, &svc->svc_rev_conn, revc) {
-		m0_rpc_session_destroy(*revc->rcf_sess, rpc_timeout);
-		m0_rpc_conn_destroy(revc->rcf_conn, rpc_timeout);
+		revc->rcf_ft = M0_REV_DISCONNECT;
+		m0_fom_init(&revc->rcf_fom, &rev_conn_fom_type,
+			    &rev_conn_fom_ops, NULL, NULL, reqhsvc->rs_reqh,
+			    reqhsvc->rs_type);
+		m0_mutex_init(&revc->rcf_mutex);
+		m0_chan_init(&revc->rcf_chan, &revc->rcf_mutex);
+		if (nr_clinks == 0)
+			m0_clink_init(&clinks[nr_clinks], NULL);
+		else
+			m0_clink_attach(&clinks[nr_clinks], &clinks[0], NULL);
+		m0_clink_add_lock(&revc->rcf_chan, &clinks[nr_clinks]);
+		++nr_clinks;
+		m0_fom_queue(&revc->rcf_fom, reqhsvc->rs_reqh);
+	} m0_tl_endfor;
+
+	while (nr_clinks) {
+		m0_chan_wait(&clinks[0]);
+		--nr_clinks;
+	}
+
+	for (i = nr_sessions - 1; i >= 0; --i) {
+		m0_clink_del_lock(&clinks[i]);
+		m0_clink_fini(&clinks[i]);
+	}
+	m0_free(clinks);
+
+	m0_tl_for (rev_conn, &svc->svc_rev_conn, revc) {
 		rev_conn_tlink_del_fini(revc);
+		m0_chan_fini_lock(&revc->rcf_chan);
+		m0_mutex_fini(&revc->rcf_mutex);
 		m0_free(*revc->rcf_sess);
 		m0_free(revc->rcf_sess);
 		m0_free(revc->rcf_rem_ep);

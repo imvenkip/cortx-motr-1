@@ -30,11 +30,6 @@
 #include "rm/rm.h"
 #include "rm/ut/rings.h"
 
-struct m0_rm_resource_type rings_resource_type = {
-	.rt_name = "Rings of Power",
-	.rt_id   = RINGS_RESOURCE_TYPE_ID,
-};
-
 static void rings_policy(struct m0_rm_resource *resource,
 			 struct m0_rm_incoming *in)
 {
@@ -108,8 +103,8 @@ static int rings_resource_encode(struct m0_bufvec_cursor  *cur,
 static int rings_resource_decode(struct m0_bufvec_cursor  *cur,
 				 struct m0_rm_resource   **resource)
 {
-	static uint64_t             res_id;
-	struct m0_rings            *rings;
+	static uint64_t  res_id;
+	struct m0_rings *rings;
 
 	m0_bufvec_cursor_copyfrom(cur, &res_id, sizeof res_id);
 
@@ -117,10 +112,8 @@ static int rings_resource_decode(struct m0_bufvec_cursor  *cur,
 	if (rings == NULL)
 		return -ENOMEM;
 
-	rings->rs_id                      = res_id;
-	rings->rs_resource.r_type         = &rings_resource_type;
-	rings->rs_resource.r_type->rt_ops = &rings_rtype_ops;
-	rings->rs_resource.r_ops          = &rings_ops;
+	rings->rs_id              = res_id;
+	rings->rs_resource.r_ops  = &rings_ops;
 
 	*resource = &rings->rs_resource;
 	return 0;

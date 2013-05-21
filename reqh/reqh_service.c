@@ -348,13 +348,13 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	M0_ASSERT(m0_reqh_service_invariant(service));
 	M0_ASSERT(service->rs_sm.sm_state == M0_RST_STOPPING);
 	reqh_service_state_set(service, M0_RST_STOPPED);
-	M0_ASSERT(m0_reqh_lockers_get(reqh, key) == service);
-	m0_reqh_lockers_clear(reqh, key);
 	M0_ASSERT(m0_reqh_service_invariant(service));
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	service->rs_ops->rso_stop(service);
 	m0_rpc_service_reverse_session_put(&service->rs_rpc_svc);
+	M0_ASSERT(m0_reqh_lockers_get(reqh, key) == service);
+	m0_reqh_lockers_clear(reqh, key);
 }
 
 static void reqh_rpc_svc_fini_and_free(struct m0_rpc_service *service)

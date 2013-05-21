@@ -649,7 +649,7 @@ struct m0_rm_remote {
 	 * A resource for which the remote owner is represented.
 	 */
 	struct m0_rm_resource  *rem_resource;
-	struct m0_clink        *rem_rev_sess_wait;
+	struct m0_clink         rem_rev_sess_clink;
 	struct m0_rpc_session  *rem_session;
 	/** A channel to signal state changes. */
 	struct m0_chan          rem_signal;
@@ -1536,6 +1536,16 @@ M0_INTERNAL void m0_rm_resource_add(struct m0_rm_resource_type *rtype,
  * @post !m0_tlist_contains(&rtype->rt_resources, &res->r_linkage)
  */
 M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res);
+
+/**
+ * Frees the resource.
+ * A mero resource may be embedded in some structure. This function calls
+ * resource operation, rop_resource_free.
+ *
+ * @pre res->r_ops->rop_resource_free != NULL
+ *
+ */
+M0_INTERNAL void m0_rm_resource_free(struct m0_rm_resource *res);
 
 /**
  * Encode resource onto a buffer.

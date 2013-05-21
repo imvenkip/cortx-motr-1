@@ -197,17 +197,19 @@ static void rms_stop(struct m0_reqh_service *service)
 	rms = bob_of(service, struct m0_reqh_rm_service, rms_svc, &rms_bob);
 
 	m0_tl_for (rmsvc_owner, &rms->rms_owners, owner) {
-		M0_ASSERT(owner != NULL);
-		m0_tl_for(m0_remotes, &owner->ro_resource->r_remote, remote) {
-			M0_ASSERT(remote != NULL);
-			m0_remotes_tlist_del(remote);
-			m0_rm_remote_fini(remote);
-		} m0_tl_endfor;
+		struct m0_rm_resource *res = owner->ro_resource;
+
 		m0_rm_owner_windup(owner);
 		m0_rm_owner_timedwait(owner, ROS_FINAL, M0_TIME_NEVER);
+		m0_tl_for(m0_remotes, &owner->ro_resource->r_remote, remote) {
+			m0_remotes_tlist_del(remote);
+			m0_rm_remote_fini(remote);
+			m0_free(remote);
+		} m0_tl_endfor;
 		m0_rm_resource_del(owner->ro_resource);
 		m0_rm_owner_fini(owner);
 		rmsvc_owner_tlink_del_fini(owner);
+		m0_rm_resource_free(res);
 		m0_free(owner);
 	} m0_tl_endfor;
 
@@ -258,6 +260,7 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 	M0_ASSERT(rtype->rt_ops != NULL);
 	rc = rtype->rt_ops->rto_decode(&cursor, &resource);
 	if (rc == 0) {
+		resource->r_type = rtype;
 		m0_rm_resource_add(rtype, resource);
 		m0_rm_owner_init(*owner, resource, NULL);
 		M0_ALLOC_PTR(owner_credit);

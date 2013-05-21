@@ -54,6 +54,8 @@ struct m0_reverse_connection {
 	struct m0_rpc_session           **rcf_sess;
 	struct m0_rpc_machine            *rcf_rpcmach;
 	struct m0_fom_callback            rcf_fomcb;
+	struct m0_chan                    rcf_chan;
+	struct m0_mutex                   rcf_mutex;
 	uint64_t                          rcf_magic;
 };
 

@@ -242,22 +242,22 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 		outreq->ou_ast.sa_cb = &borrow_ast;
 		break;
 	case M0_ROT_REVOKE: {
+		struct m0_clink *clink;
+
 		M0_ASSERT(loan != NULL);
 		M0_ASSERT(loan->rl_other != NULL);
+
+		clink = &loan->rl_other->rem_rev_sess_clink;
 		/*
 		 * Check whether remote session is established or not.
 		 * If a situation comes when we have to send revoke
 		 * request even before the session is established,
 		 * we need to wait till the session is established.
 		 */
-		if (loan->rl_other->rem_rev_sess_wait != NULL) {
-			struct m0_chan *chan;
-			m0_chan_wait(loan->rl_other->rem_rev_sess_wait);
-			chan = loan->rl_other->rem_rev_sess_wait->cl_chan;
-			m0_clink_del_lock(loan->rl_other->rem_rev_sess_wait);
-			m0_clink_fini(loan->rl_other->rem_rev_sess_wait);
-			m0_free(loan->rl_other->rem_rev_sess_wait);
-			loan->rl_other->rem_rev_sess_wait = NULL;
+		if (m0_clink_is_armed(clink)) {
+			m0_chan_wait(clink);
+			m0_clink_del_lock(clink);
+			m0_clink_fini(clink);
 		}
 		rc = revoke_fop_fill(outreq, in, loan, credit);
 		session = loan->rl_other->rem_session;
