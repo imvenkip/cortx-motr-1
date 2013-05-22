@@ -174,6 +174,10 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
         struct m0_net_buffer    *nbuf;
         struct m0_cm_cp         *cp;
         struct m0_cm            *cm;
+        struct m0_net_domain    *ndom;
+        struct m0_rpc_session   *session;
+        uint32_t                 nbuf_seg_nr;
+        uint32_t                 tmp_seg_nr;
 	struct m0_cm_aggr_group *sw_lo_ag;
 	struct m0_cm_aggr_group *sw_hi_ag;
         uint32_t                 nb_idx = 0;
@@ -186,6 +190,11 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
         M0_PRE(sns_cpx != NULL);
 
         cp = &sns_cp->sc_base;
+
+	m0_mutex_lock(&cp->c_cm_proxy->px_mutex);
+        session = &cp->c_cm_proxy->px_session;
+        ndom = session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
+	m0_mutex_unlock(&cp->c_cm_proxy->px_mutex);
 
         sns_cpx->scx_sid.f_container = sns_cp->sc_sid.si_bits.u_hi;
         sns_cpx->scx_sid.f_key = sns_cp->sc_sid.si_bits.u_lo;
@@ -205,17 +214,19 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
                 goto out;
         }
 
+        tmp_seg_nr = cp->c_data_seg_nr;
         m0_tl_for(cp_data_buf, &cp->c_buffers, nbuf) {
+                nbuf_seg_nr = min32(nbuf->nb_pool->nbp_seg_nr, tmp_seg_nr);
+                tmp_seg_nr -= nbuf_seg_nr;
                 rc = indexvec_prepare(&sns_cpx->scx_ivecs.
                                                cis_ivecs[nb_idx],
                                                offset,
-                                               cp->c_data_seg_nr,
+                                               nbuf_seg_nr,
                                                nbuf->nb_pool->nbp_seg_size);
                 if (rc != 0 )
                         goto cleanup;
 
-                offset += cp->c_data_seg_nr *
-                          nbuf->nb_pool->nbp_seg_size;
+                offset += nbuf_seg_nr * nbuf->nb_pool->nbp_seg_size;
                 M0_CNT_INC(nb_idx);
         } m0_tl_endfor;
         sns_cpx->scx_ivecs.cis_nr = nb_idx;
@@ -293,6 +304,8 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
         struct m0_rpc_bulk_buf *rbuf;
         struct m0_net_domain   *ndom;
         struct m0_net_buffer   *nbuf;
+	uint32_t                nbuf_seg_nr;
+	uint32_t                tmp_seg_nr;
         struct m0_rpc_session  *session;
 	struct m0_cm_cp_fop    *cp_fop;
         struct m0_fop          *fop;
@@ -329,14 +342,17 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
 	m0_mutex_unlock(&cp->c_cm_proxy->px_mutex);
 
         offset = sns_cp->sc_index;
+	tmp_seg_nr = cp->c_data_seg_nr;
         m0_tl_for(cp_data_buf, &cp->c_buffers, nbuf) {
+		nbuf_seg_nr = min32(nbuf->nb_pool->nbp_seg_nr, tmp_seg_nr);
+		tmp_seg_nr -= nbuf_seg_nr;
                 rc = m0_rpc_bulk_buf_add(&cp->c_bulk,
-                                         cp->c_data_seg_nr,
+                                         nbuf_seg_nr,
                                          ndom, NULL, &rbuf);
                 if (rc != 0 || rbuf == NULL)
                         goto out;
 
-                for (i = 0; i < cp->c_data_seg_nr; ++i) {
+                for (i = 0; i < nbuf_seg_nr; ++i) {
                         rc = m0_rpc_bulk_buf_databuf_add(rbuf,
                                         nbuf->nb_buffer.ov_buf[i],
                                         nbuf->nb_buffer.ov_vec.v_count[i],

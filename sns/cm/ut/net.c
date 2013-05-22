@@ -774,6 +774,7 @@ static void test_cp_send_recv_verify()
         s_sns_cp.sc_base.c_cm_proxy = &sender_cm_proxy;
         s_sns_cp.sc_sid = sid;
         s_sns_cp.sc_index = 0;
+	s_sns_cp.sc_base.c_data_seg_nr = SEG_NR * BUF_NR;
 	/* Assume this as accumulator copy packet to be sent on remote side. */
 	s_sns_cp.sc_base.c_ag_cp_idx = ~0;
 	m0_cm_lock(&sender_cm);
