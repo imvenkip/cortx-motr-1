@@ -485,6 +485,15 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	has_incoming = __has_incoming(scm, sfc->sfc_pdlayout, &agid);
 	ag = m0_cm_aggr_group_locate(&scm->sc_base, &agid, has_incoming);
 	if (ag == NULL) {
+		/*
+		 * Allocate new aggregation group for the given aggregation
+		 * group identifier.
+		 * Check if the aggregation group has incoming copy packets, if
+		 * yes, check if the aggregation group was already created and
+		 * processed through sliding window.
+		 * Thus if sliding_window_lo < agid < sliding_window_hi then the
+		 * group was already processed and we proceed to next group.
+		 */
 		if (has_incoming) {
 			ag_hi = m0_cm_ag_hi(&scm->sc_base);
 			if (m0_cm_ag_id_cmp(&agid, &ag_hi->cag_id) < 0)
